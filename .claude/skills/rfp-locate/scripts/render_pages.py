@@ -6,13 +6,13 @@ import fitz  # PyMuPDF
 
 def render_pdf_pages(pdf_path: str, out_dir: str, dpi: int = 200) -> list[str]:
     os.makedirs(out_dir, exist_ok=True)
-    doc = fitz.open(pdf_path)
     written = []
-    for i, page in enumerate(doc):
-        pixmap = page.get_pixmap(dpi=dpi)
-        out_path = os.path.join(out_dir, f"page_{i}.png")
-        pixmap.save(out_path)
-        written.append(out_path)
+    with fitz.open(pdf_path) as doc:
+        for i, page in enumerate(doc):
+            pixmap = page.get_pixmap(dpi=dpi)
+            out_path = os.path.join(out_dir, f"page_{i}.png")
+            pixmap.save(out_path)
+            written.append(out_path)
     return written
 
 
