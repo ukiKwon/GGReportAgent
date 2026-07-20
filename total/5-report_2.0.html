@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>서울시 5개 구청 사업제안 대시보드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<style>
+  :root {
+    --ink:#0a0e1a; --dossier:#131a2c; --dossier2:#1a2338; --line:#2b3554;
+    --text:#e9edf6; --muted:#8892b0;
+    --brass:#c9a55c; --brass-soft:rgba(201,165,92,.14);
+    --jade:#4f9d74; --amber:#cf9a3e; --vermilion:#c1453c;
+    --grid-line:rgba(255,255,255,.035);
+    --bg:var(--ink); --panel:var(--dossier); --panel2:var(--dossier2); --border:var(--line);
+    --accent:var(--brass);
+    --score-good:var(--jade); --score-mid:var(--amber); --score-bad:var(--vermilion);
+    --font-display:'Pretendard Variable','Pretendard',-apple-system,"Malgun Gothic",sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --ink:#eef1f7; --dossier:#ffffff; --dossier2:#f3f5fb; --line:#dbe1ee;
+      --text:#161d30; --muted:#5b6480;
+      --brass:#8a6423; --brass-soft:rgba(138,100,35,.10);
+      --jade:#2f7d54; --amber:#a8791f; --vermilion:#a8362d;
+      --grid-line:rgba(20,30,60,.05);
+    }
+  }
+  * { box-sizing:border-box; }
+  html, body { height:100%; margin:0; }
+  body { font-family:var(--font-display); background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
+  ::-webkit-scrollbar { width:10px; height:10px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--line); border-radius:5px; }
+  ::-webkit-scrollbar-thumb:hover { background:var(--muted); }
+  :focus-visible { outline:2px solid var(--brass); outline-offset:2px; }
+
+  #page-root { display:flex; flex-direction:column; height:100vh; min-height:480px; }
+  #masthead { flex-shrink:0; height:64px; display:flex; align-items:center; gap:14px; padding:0 28px; border-bottom:1px solid var(--line); background:var(--dossier); }
+  .mh-seal { width:36px; height:36px; border-radius:50%; border:1.5px solid var(--brass); display:flex; align-items:center; justify-content:center; position:relative; color:var(--brass); font-weight:800; font-size:15px; transform:rotate(-8deg); flex-shrink:0; }
+  .mh-seal::after { content:''; position:absolute; inset:3px; border:1px dashed var(--brass); border-radius:50%; opacity:.5; }
+  .mh-eyebrow { font-family:var(--font-mono); font-size:10px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
+  #masthead h1 { margin:2px 0 0; font-size:17px; font-weight:800; letter-spacing:-.01em; }
+
+  #app-shell { display:flex; flex:1; min-height:0; }
+  #sidebar { width:172px; background:var(--panel); border-right:1px solid var(--border); padding:18px 0; flex-shrink:0; }
+  .nav-item { padding:13px 22px; cursor:pointer; font-size:13px; font-weight:600; color:var(--muted); border-left:2px solid transparent; user-select:none; display:flex; align-items:center; gap:10px; transition: color .15s, background .15s, border-color .15s; }
+  .nav-item .ni-icon { font-size:15px; }
+  .nav-item:hover { color:var(--text); background:var(--panel2); }
+  .nav-item.active { color:var(--text); border-left-color:var(--brass); background:var(--brass-soft); }
+  #main-area { flex:1; position:relative; overflow:auto; }
+  .tab-panel { display:none; position:absolute; inset:0; }
+  .tab-panel.visible { display:block; }
+
+  #tab-dashboard { background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px); background-size:40px 40px; }
+  .gu { stroke:var(--bg); stroke-width:2; cursor:pointer; transition: filter .2s, opacity .2s; }
+  .gu.placeholder { opacity:.5; }
+  .gu.placeholder:hover { opacity:.8; }
+  .gu.gu-active:hover { filter:brightness(1.12) drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
+  .d-label { fill:var(--text); font-size:12px; font-weight:700; pointer-events:none; font-family:var(--font-display); }
+  .d-label-sm { fill:var(--text); font-size:10px; font-weight:600; pointer-events:none; font-family:var(--font-display); opacity:.8; paint-order:stroke; stroke:var(--ink); stroke-width:2.5px; stroke-linejoin:round; }
+  .d-seal { stroke-width:1.4; stroke-dasharray:2,2; pointer-events:none; }
+  .d-seal-score { font-family:var(--font-mono); font-weight:700; font-size:12px; pointer-events:none; }
+  #map-footnote { fill:var(--muted); font-size:11px; font-family:var(--font-mono); }
+  .map-footnote { fill:var(--muted); font-size:12px; }
+
+  #map-legend { position:absolute; left:20px; bottom:20px; z-index:10; width:230px; background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px 16px; box-shadow:0 8px 24px rgba(0,0,0,.25); }
+  .legend-title { font-family:var(--font-mono); font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:8px; }
+  .legend-row { display:flex; align-items:center; gap:8px; font-size:12.5px; padding:3px 0; }
+  .legend-swatch { width:11px; height:11px; border-radius:3px; flex-shrink:0; }
+  .legend-divider { height:1px; background:var(--border); margin:12px 0; }
+  .legend-score { font-size:11.5px; line-height:1.7; color:var(--muted); }
+
+  #map-tooltip { position:fixed; z-index:1200; max-width:280px; background:var(--panel); border:1px solid var(--brass); border-radius:8px; padding:14px 16px; box-shadow:0 10px 30px rgba(0,0,0,.35); opacity:0; pointer-events:none; transition:opacity .12s; }
+  #map-tooltip.show { opacity:1; }
+  .mt-head { display:flex; align-items:center; gap:10px; }
+  .mt-seal { width:38px; height:38px; font-size:13px; }
+  .mt-name { font-weight:800; font-size:14.5px; }
+  .mt-bank { font-size:11px; margin-top:2px; }
+  .mt-budget { font-size:11.5px; color:var(--muted); margin-top:8px; }
+  .mt-issue { font-size:12px; line-height:1.5; margin-top:8px; border-top:1px solid var(--border); padding-top:8px; }
+  .mt-cta { font-size:10.5px; color:var(--brass); margin-top:8px; font-family:var(--font-mono); }
+
+  #detail-overlay { position:fixed; inset:0; z-index:1000; background:var(--bg); overflow:auto; opacity:0; pointer-events:none; clip-path:circle(0% at var(--ox,50%) var(--oy,50%)); transition: clip-path .6s cubic-bezier(.16,1,.3,1), opacity .35s ease; }
+  #detail-overlay.show { opacity:1; pointer-events:auto; clip-path:circle(150% at var(--ox,50%) var(--oy,50%)); }
+  @keyframes stampIn { 0%{transform:rotate(-5deg) scale(1.7); opacity:0;} 60%{transform:rotate(-5deg) scale(.92); opacity:1;} 100%{transform:rotate(-5deg) scale(1);} }
+  .detail-header { padding:28px 36px 20px; display:flex; align-items:flex-start; justify-content:space-between; gap:20px; border-bottom:1px solid var(--border); background:linear-gradient(180deg, var(--panel), transparent); }
+  #detail-title { font-family:var(--font-display); font-weight:800; font-size:38px; letter-spacing:-.01em; margin:0; }
+  .detail-meta { display:flex; align-items:flex-start; gap:20px; margin-top:16px; }
+  .detail-meta-col { flex:1; min-width:0; }
+  .dm-k { display:block; font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+  .dm-v { display:block; font-size:19px; font-weight:700; margin-top:4px; }
+  .score-table { width:100%; max-width:420px; border-collapse:collapse; margin-top:14px; font-size:13px; }
+  .score-table td { padding:7px 10px; border-bottom:1px solid var(--border); }
+  .score-table td:first-child { color:var(--muted); }
+  .score-table td:last-child { text-align:right; font-family:var(--font-mono); font-weight:700; white-space:nowrap; }
+  .score-table tr:last-child td { border-bottom:none; border-top:2px solid var(--brass); font-size:15px; color:var(--brass); padding-top:10px; }
+  .detail-close { background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:9px 16px; cursor:pointer; font-size:13px; font-family:var(--font-display); flex-shrink:0; }
+  .detail-close:hover { border-color:var(--brass); color:var(--brass); }
+  .detail-subtabs { display:flex; gap:2px; padding:0 36px; border-bottom:1px solid var(--border); background:var(--panel); }
+  .detail-subtab { padding:12px 18px; cursor:pointer; font-size:13px; font-weight:600; color:var(--muted); border-bottom:2px solid transparent; transition:color .15s, border-color .15s; }
+  .detail-subtab:hover { color:var(--text); }
+  .detail-subtab.active { color:var(--text); border-bottom-color:var(--brass); }
+  .detail-body { padding:28px 36px 60px; max-width:1080px; margin:0 auto; }
+
+  .seal-badge { display:inline-flex; flex-direction:column; align-items:center; justify-content:center; width:56px; height:56px; border-radius:50%; border:2px solid currentColor; position:relative; font-family:var(--font-mono); font-weight:700; font-size:18px; flex-shrink:0; transform:rotate(-5deg); }
+  .seal-badge::after { content:''; position:absolute; inset:4px; border:1px dashed currentColor; border-radius:50%; opacity:.5; }
+  .seal-badge .sb-label { font-family:var(--font-display); font-size:8px; letter-spacing:.06em; opacity:.8; margin-top:-1px; }
+  .seal-badge.animate { animation: stampIn .45s cubic-bezier(.2,.8,.3,1.15); }
+  .seal-badge.lg { width:76px; height:76px; font-size:26px; }
+  .seal-badge.lg .sb-label { font-size:10px; }
+
+  #detail-body summary { cursor:pointer; list-style:none; }
+  #detail-body summary::-webkit-details-marker { display:none; }
+  #detail-body summary::before { content:'▸'; display:inline-block; margin-right:8px; color:var(--brass); transition:transform .15s ease; font-size:.85em; }
+  #detail-body details[open] > summary::before { transform:rotate(90deg); }
+
+  .section-h { font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:0 0 12px 0; padding-bottom:8px; border-bottom:1px solid var(--border); }
+  .section-h.accent { color:var(--brass); margin-top:28px; }
+
+  .issue-list { display:flex; flex-direction:column; gap:10px; }
+  .topic-chip { display:block; background:var(--panel2); border:1px solid var(--border); border-left:4px solid var(--brass); border-radius:5px; padding:16px 18px; }
+  .topic-chip summary { font-size:15.5px; line-height:1.55; font-weight:600; }
+  .topic-chip strong { color:var(--brass); font-family:var(--font-mono); font-weight:700; }
+  .topic-detail { margin-top:12px; padding-top:12px; border-top:1px dashed var(--border); font-size:14px; line-height:1.75; color:var(--muted); font-weight:400; }
+  .verdict-note { margin-top:24px; background:var(--panel2); border:1px solid var(--border); border-left:3px solid var(--brass); border-radius:4px; padding:16px 18px; }
+  .vn-label { font-family:var(--font-mono); font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--brass); margin-bottom:8px; }
+  .verdict-note p { margin:0; font-size:13px; line-height:1.75; opacity:.9; }
+
+  .proj-card { background:var(--panel2); border:1px solid var(--border); border-left:3px solid var(--brass); border-radius:4px; padding:14px 16px; margin-bottom:10px; }
+  .proj-card .code { font-family:var(--font-mono); font-size:10.5px; letter-spacing:.03em; color:var(--muted); text-transform:uppercase; }
+  .proj-card .name { font-weight:700; margin:5px 0; font-size:14px; }
+  .proj-card .meta { font-size:12px; color:var(--muted); display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .proj-detail { margin-top:12px; padding-top:12px; border-top:1px dashed var(--border); font-size:13.5px; line-height:1.8; color:var(--text); opacity:.9; }
+
+  .pill { display:inline-flex; align-items:center; padding:2px 8px; border-radius:3px; font-size:10.5px; font-weight:700; font-family:var(--font-mono); letter-spacing:.02em; white-space:nowrap; }
+  .pill[data-level="최우선"] { background:rgba(193,69,60,.16); color:var(--vermilion); }
+  .pill[data-level="상"] { background:rgba(207,154,62,.16); color:var(--amber); }
+  .pill[data-level="중상"] { background:rgba(207,154,62,.16); color:var(--amber); }
+  .pill[data-level="중"] { background:rgba(79,157,116,.16); color:var(--jade); }
+  .pill[data-level="하"] { background:var(--panel2); color:var(--muted); border:1px solid var(--border); }
+  .pill[data-level="신규"], .pill[data-level="완전 신규"] { background:var(--brass-soft); color:var(--brass); }
+  .pill[data-level="확장"] { background:rgba(79,157,116,.16); color:var(--jade); }
+  .pill[data-level="확장/보완"] { background:rgba(207,154,62,.16); color:var(--amber); }
+
+  .vtable { width:100%; border-collapse:collapse; font-size:12.5px; margin-top:18px; }
+  .vtable th { text-align:left; padding:10px; border-bottom:2px solid var(--border); font-family:var(--font-mono); font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:600; }
+  .vtable td { text-align:left; padding:10px; border-bottom:1px solid var(--border); vertical-align:top; line-height:1.6; }
+  .vtable td:first-child { font-family:var(--font-mono); font-size:11px; color:var(--muted); white-space:nowrap; }
+  .vtable tbody tr:hover { background:var(--panel2); }
+  .vtable-sub { font-size:11px; color:var(--muted); margin-top:5px; line-height:1.5; }
+
+  .top3-box { background:var(--brass-soft); border:1px solid var(--brass); border-radius:8px; padding:18px 20px; margin-bottom:24px; }
+  .top3-box-label { font-family:var(--font-mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--brass); margin-bottom:14px; }
+  .top3-item { display:flex; align-items:baseline; gap:14px; padding:9px 0; font-size:14.5px; font-weight:600; border-bottom:1px dashed rgba(201,165,92,.35); }
+  .top3-item:last-child { border-bottom:none; }
+  .top3-rank { font-family:var(--font-mono); font-weight:800; font-size:20px; color:var(--brass); min-width:22px; }
+  .bank-cat { margin-bottom:20px; }
+  .bank-cat h4 { font-size:12.5px; margin:0 0 10px 0; color:var(--brass); font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.04em; padding-bottom:6px; border-bottom:1px dashed var(--border); }
+  .bank-cat ul { margin:0; padding:0; list-style:none; }
+  .bank-cat li { padding:0; }
+  .bank-idea { border-bottom:1px solid var(--border); }
+  .bank-idea:last-child { border-bottom:none; }
+  .bank-idea summary { padding:9px 0; font-size:13px; line-height:1.5; }
+  .bank-detail { margin:0 0 12px 20px; padding:10px 12px; background:var(--dossier); border-left:2px solid var(--brass); border-radius:0 4px 4px 0; font-size:12.5px; line-height:1.75; color:var(--muted); }
+  .bank-idea.is-top3 { background:var(--brass-soft); border-radius:3px; padding-left:10px; margin-left:-10px; }
+  .li-star { color:var(--brass); margin-right:4px; }
+
+  #report-container { padding:28px 36px; }
+  #topic-select { background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:9px 14px; font-size:13px; font-family:var(--font-display); cursor:pointer; }
+  #topic-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-top:20px; }
+  .report-col { background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:14px; font-size:12.5px; }
+  .report-col h4 { margin:0 0 10px 0; font-size:13px; font-weight:800; padding-bottom:8px; border-bottom:1px solid var(--border); }
+  .report-proj-line { padding:8px 0; border-bottom:1px solid var(--border); line-height:1.55; }
+  .report-proj-line:last-child { border-bottom:none; }
+  .report-proj-line b { display:block; margin-bottom:2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .seal-badge.animate { animation:none; }
+    .gu, .nav-item, .detail-subtab, #detail-overlay { transition:none; }
+  }
+  @media (max-width: 640px) {
+    #masthead { padding:0 16px; gap:10px; }
+    #masthead h1 { font-size:14px; }
+    #sidebar { width:56px; }
+    .nav-item { padding:14px 8px; font-size:11px; text-align:center; flex-direction:column; gap:4px; }
+    #topic-grid { grid-template-columns:repeat(2,1fr); }
+    .detail-header, .detail-body, .detail-subtabs, #report-container { padding-left:16px; padding-right:16px; }
+    .vtable { font-size:11.5px; }
+    #map-legend { display:none; }
+  }
+</style>
+</head>
+<body>
+<div id="page-root">
+  <header id="masthead">
+    <div class="mh-seal">印</div>
+    <div>
+      <div class="mh-eyebrow">KB 제안계획서 검증</div>
+      <h1>서울시 구청 사업제안 대시보드</h1>
+    </div>
+  </header>
+  <div id="app-shell">
+    <div id="sidebar">
+      <div class="nav-item active" data-tab="dashboard" onclick="switchTab('dashboard')"><span class="ni-icon">🗺</span>대시보드</div>
+      <div class="nav-item" data-tab="report" onclick="switchTab('report')"><span class="ni-icon">📊</span>리포트</div>
+    </div>
+    <div id="main-area">
+      <div id="tab-dashboard" class="tab-panel visible"></div>
+      <div id="tab-report" class="tab-panel"></div>
+    </div>
+  </div>
+</div>
+<div id="detail-overlay">
+  <div class="detail-header">
+    <div>
+      <h2 id="detail-title"></h2>
+      <div id="detail-subtitle"></div>
+    </div>
+    <button class="detail-close" onclick="closeDistrictDetail()">← 지도로 돌아가기</button>
+  </div>
+  <div class="detail-subtabs">
+    <div class="detail-subtab active" data-sub="summary" onclick="switchDetailTab('summary')">핵심요약</div>
+    <div class="detail-subtab" data-sub="it" onclick="switchDetailTab('it')">IT전산화 지원사업</div>
+    <div class="detail-subtab" data-sub="fn" onclick="switchDetailTab('fn')">금융지원 사업</div>
+    <div class="detail-subtab" data-sub="bank" onclick="switchDetailTab('bank')">은행 결합 아이디어</div>
+  </div>
+  <div class="detail-body" id="detail-body"></div>
+</div>
+<script>
+const DISTRICTS = {
+  "dobong": {
+  "name":"도봉구","active":true,"mapCell":"dobong",
+  "score":74,
+  "budget":"20~30억원 (구 예산 7,919억원 대비 약 0.25~0.4%)",
+  "issues":[
+    "4개년계획 121개 사업 중 표본조사한 88개 중 27%(24개) 확인안됨, 5장 청렴행정도시 확인율 18%로 최저",
+    "민원 채널 4종 이상 파편화, '구청장에게 바란다'는 답변완료 표시 없이 처리경과 추적 곤란",
+    "2026년 최다 민원: 창동역 민자역사 출입구·보행로 신설 요청 집중",
+    "간판개선·언덕길 열선 등 소규모 생활사업은 예산 배정에도 검색 자체가 안 됨"
+  ],
+  "itProjects":[
+    {"code":"전산화지원사업1","name":"도봉구 통합 사업정보 검색 플랫폼 구축","budget":"450~600백만원","priority":"최우선","basis":"88개 표본 중 27%(24개) 미확인"},
+    {"code":"전산화지원사업2","name":"민원 처리 현황 통합 대시보드 & 알림톡 연동","budget":"300~450백만원","priority":"최우선","basis":"민원 채널 파편화"},
+    {"code":"전산화지원사업3","name":"창동역 일대 공사구간 스마트 보행안전 시스템","budget":"180~250백만원","priority":"상","basis":"2026년 최다민원"},
+    {"code":"전산화지원사업4","name":"소규모 생활사업 홍보 자동화(SNS/지도 매시업)","budget":"80~120백만원","priority":"중","basis":"소규모사업 저인지도"}
+  ],
+  "itDetail":{
+    "전산화지원사업1":"4개년계획 121개 사업 중 27%(24개)가 홈페이지·검색에서 확인되지 않는 이유는 사업이 dobong.go.kr 등 최소 6개 서브도메인에 분산되고, 정책문서상 사업명과 홈페이지 게시물 제목이 불일치하기 때문입니다. 기존 '주요사업 추진현황' DB를 반응형·SSR로 재구축하고 121개 사업 전체를 정책문서 코드(예: 3-12)까지 포함한 표준 메타데이터로 정리한 마스터 DB를 만들어, 사업명·키워드·분야·추진상태로 검색할 수 있게 합니다. 목표는 미확인율을 27%에서 5% 이하로 낮추는 것입니다.",
+    "전산화지원사업2":"민원 게시판이 최소 4개 시스템(구청장에게 바란다, 옴부즈만, 규제개혁신고센터, 인권침해신고)에 흩어져 있고, 특히 '구청장에게 바란다'는 답변완료 표시가 없어 처리 여부를 알 수 없는 반면 옴부즈만은 10건 전부 완료 처리되는 등 채널별 속도 차이가 존재합니다. 4개 채널 접수번호를 통합 관리하는 백엔드 대시보드와, 접수번호+휴대폰 인증으로 진행상황을 확인하는 주민용 조회 페이지를 구축하고, 상태 변경 시 카카오 알림톡으로 자동 안내합니다.",
+    "전산화지원사업3":"2026년 '구청장에게 바란다' 최신 10건 중 과반이 창동역 4번출구 보행로·창동민자역사 출입구 관련 민원이지만, 창동역 복합환승센터(495억원)·GTX-C 지하화(2.6조원) 등 4개년계획에는 '공사 중' 임시 보행안전 대응이 빠져있습니다. 창동역 반경 500m에 QR·NFC 기반 실시간 우회로 안내판을 설치하고 기존 CCTV 통합관제센터와 연동해 혼잡도에 따라 안내를 자동 전환하며, 관련 민원을 전용 태그로 분류해 시공사에 주간 단위로 전달하는 프로세스를 만듭니다.",
+    "전산화지원사업4":"간판개선(22.5억원), 언덕길 열선(91.6억원), 반려견 놀이터 등 예산이 배정된 소규모 생활사업들이 검색조차 되지 않아, 대형사업(확인율 83~88%)과 격차가 큽니다. 통합검색 플랫폼과 연동해 준공 완료된 소규모 사업을 지도에 표시하는 '우리동네 변화지도'를 만들고, 완료 시점마다 사진·위치·예산을 채운 SNS 카드뉴스를 반자동 생성하며, 동 주민센터 게시판에도 자동 노출합니다."
+  },
+  "fnProjects":[
+    {"code":"금융지원사업1","name":"소상공인 간판개선·시설현대화 매칭 지원금 확대","budget":"500~800백만원(기존 대비 증액)","priority":"상","basis":"간판개선 확인안됨"},
+    {"code":"금융지원사업2","name":"창동역 공사기간 인근 상가 영업피해 완충 지원금","budget":"300~500백만원","priority":"상","basis":"GTX-C 장기공사"},
+    {"code":"금융지원사업3","name":"청년 디지털 창업 인턴십 확대","budget":"200~300백만원","priority":"중","basis":"청년인턴십 확인됨(확대여지)"}
+  ],
+  "fnDetail":{
+    "금융지원사업1":"골목상권 간판개선사업(22.5억원)은 예산은 배정돼 있지만 검색해도 성과가 드러나지 않는 반면, 전통시장 시설현대화(34.4억원)는 확인되어 체감도가 더 높습니다. 기존 구 주도 일괄시행 방식을 자부담 30~50%+구비 50~70% 매칭 지원금 방식으로 전환해 신청형 사업으로 바꾸고, IT-4 홍보 자동화와 연계해 신청→완료→지도 노출까지 프로세스를 통합합니다. 지원 우선순위는 창동역 공사영향권과 전통시장·골목상권 밀집지역입니다.",
+    "금융지원사업2":"창동역 복합환승센터(495억원)·GTX-C 지하화(2.6조원) 등 장기 공사가 진행 중이고 2026년 민원 다수가 창동역 보행 불편 관련인데, 정책문서에는 별도 상권 보호 대책이 없습니다. 창동역 반경 300m 소상공인 대상 임대료 일부 보조 또는 융자 이자지원을 한시 지원(월 최대 20~30만원, 6개월~1년)하고, IT-3 공사 안내 시스템과 연동해 피해 체감 지역을 데이터로 특정해 지원 대상을 객관적으로 산정합니다.",
+    "금융지원사업3":"해외인턴십(1.24억원)·공공기관 실무형 인턴십(6.34억원)은 확인됨 상태로 체감도가 높지만, IT-1~IT-4 제안사업 실행에 필요한 콘텐츠 큐레이션·데이터 정리 등 국내 IT 실무형 트랙은 없습니다. 기존 공공기관 실무형 인턴십에 '디지털 전환 인턴십' 신규 트랙을 추가해 청년 인턴이 IT 제안사업 실행을 돕게 하고, 씨드큐브 창동(확인됨, 준공완료)을 교육장으로 활용해 추가 시설비 없이 운영합니다."
+  },
+  "validation":[
+    {"code":"전산화지원사업1","overlap":"신규(단, 주의 필요)","grade":"중","rationale":"기존 계획사업(5-3 스마트데이터 허브센터, 5,000백만원)과 중복 검토 없이 완전 신규처럼 제안됨","recommendation":"5-3 사업과의 관계(통합/대체/역할분담) 명시할 것"},
+    {"code":"전산화지원사업2","overlap":"신규","grade":"상","rationale":"실제 확인된 문제(4채널 분산, 옴부즈만 완료율 100% vs 타채널 처리중)를 정확히 근거로 삼음","recommendation":"없음(가장 근거가 탄탄한 제안)"},
+    {"code":"전산화지원사업3","overlap":"신규(기존 대형사업의 공백 보완)","grade":"상","rationale":"CCTV 스마트안전도시 인용이 '확인됨'이 아니라 '부분확인'이었음(근거 등급 과장)","recommendation":"CCTV 인용 등급을 부분확인으로 정정할 것"},
+    {"code":"전산화지원사업4","overlap":"신규(기존 사업들의 홍보 보완)","grade":"상","rationale":"소규모 생활사업 저인지도 패턴 정확히 인용","recommendation":"없음"},
+    {"code":"금융지원사업1","overlap":"확장(기존 사업의 방식 전환)","grade":"중","rationale":"간판개선사업과 시설현대화사업을 같은 계열로 묶은 서술의 근거가 약함","recommendation":"두 사업이 실제 같은 예산 항목인지 사실 확인 필요"},
+    {"code":"금융지원사업2","overlap":"신규","grade":"중","rationale":"지원단가(월 20~30만원)가 근거 없는 추정치","recommendation":"지원단가 근거 구체화 또는 추정치임을 명시"},
+    {"code":"금융지원사업3","overlap":"확장","grade":"상","rationale":"기존 청년인턴십 사업의 자연스러운 확장, 근거 인용 정확","recommendation":"없음"}
+  ],
+  "verdictScore":74,
+  "verdictBasis":"IT-1의 기존 계획사업 중복 미검토(-15), IT-3의 CCTV 인용 오류(-7), FN-1/FN-2의 근거 부족 추정치(-4). 100-15-7-4=74점.",
+  "scoreTable":[
+    {"label":"기준 점수","value":"100"},
+    {"label":"IT-1 기존 계획사업 중복 미검토","value":"-15"},
+    {"label":"IT-3 CCTV 인용 오류","value":"-7"},
+    {"label":"FN-1·FN-2 근거 부족 추정치","value":"-4"},
+    {"label":"총점","value":"74"}
+  ],
+  "bankIdeas":{
+    "categories": {
+      "소상공인/지역경제 금융": [
+        "전통시장·골목상권 시설현대화 연계 정책금리대출 + 매칭펀드",
+        "씨드큐브 창동 창업보육센터 입주기업 전용 창업자금 패키지",
+        "상권혁신교육(공유부엌 요식업 창업) 수료자 대상 특화 자영업자 카드/결제 패키지"
+      ],
+      "청년 금융": [
+        "청년 인턴십 연계 청년 통장/적금 상품",
+        "신혼부부·청년 공공임대주택 연계 전세자금대출 특화상품",
+        "노동자종합지원센터·일자리플러스센터 연계 청년 신용회복/취업준비자금 대출"
+      ],
+      "IT/데이터 협력": [
+        "오픈뱅킹 연동 지원금/장려금 자동지급 및 매칭펀드 정산 인프라",
+        "지역화폐 연계 및 가맹점 데이터 결합",
+        "열린데이터광장·주요사업추진현황 DB 연계 데이터 분석 인프라 제공",
+        "민원 통합대시보드 알림톡 연동에 금융알림 결합"
+      ],
+      "복지/주택금융": [
+        "WHO 고령친화도시 연계 시니어 종합금융 패키지(연금·신탁·주택연금 상담)",
+        "노후 민간건축물·공동주택 안전관리 연계 리모델링대출",
+        "1인가구 전월세 안심계약 도움서비스 연계 전세사기 예방 금융상담"
+      ],
+      "대형 SOC 참여(PF/신디케이트론 등)": [
+        "창동역 복합환승센터 조성 PF/신디케이트론 참여",
+        "GTX-C 도봉구간 지하화·서울아레나 관련 지역개발기금/인프라펀드 참여",
+        "창동역 공사기간 상가 완충 지원과 결합한 이자지원형 소상공인 대출"
+      ]
+    },
+    "details": {
+      "전통시장·골목상권 시설현대화 연계 정책금리대출 + 매칭펀드":"전통시장 시설현대화(34.4억원, 확인됨)와 골목상권 간판개선(22.5억원, 확인안됨)에 결합하는 아이디어입니다. 구비 매칭지원금을 받는 소상공인의 자부담분(30~50%)에 은행이 저리 정책연계대출을 공급하고 구가 이자차액 일부를 보전하는 3자(구-은행-보증기관) 매칭 구조를 설계하며, 시설현대화 완료 매장은 카드가맹점 수수료 우대 대상으로 등록합니다. 은행은 상권 단위 신규 소상공인 여신고객과 가맹점 결제데이터를 확보할 수 있습니다.",
+      "씨드큐브 창동 창업보육센터 입주기업 전용 창업자금 패키지":"씨드큐브 창동 창업보육센터(7.18억원, 확인됨)와 소상공인 매니저·스마트혁신지원단 컨설팅(6.6억원, 118건 실적 확인)에 결합합니다. 입주기업 대상 무담보 신용대출 한도를 확대하고 지원단 컨설팅 결과를 여신심사에 반영하는 '컨설팅 연계 심사' 협약을 맺으며, 은행 소상공인 전담 창구를 씨드큐브 내 상주 또는 정기 방문 형태로 운영합니다. 창업 초기 고객을 선점하고 구청 컨설팅 데이터로 부실률 낮은 신용평가 모델을 만들 수 있습니다.",
+      "상권혁신교육(공유부엌 요식업 창업) 수료자 대상 특화 자영업자 카드/결제 패키지":"도봉구 상권혁신교육(2.29억원, 확인됨, 요식업 전문 창업 멘토링훈련)에 결합합니다. 교육 수료증을 신용보완 요소로 활용해 개업자금 특화대출과 초기 6개월 카드단말기·결제 인프라를 저가 제공하며, 폐업률이 높은 요식업 창업의 부실 리스크를 구청 교육 데이터로 사전 필터링합니다.",
+      "청년 인턴십 연계 청년 통장/적금 상품":"도봉 청년 해외인턴십(1.24억원)·공공기관 실무형 인턴십(6.34억원, 확인됨)에 결합합니다. 인턴 급여 실수령 계좌를 주거래로 유도하는 청년 특화 적금(구 매칭 인센티브+은행 우대금리)을 만들고 급여이체 시 자동 적립 매칭 옵션을 제공하며, FN-3 디지털 인턴십 참여자는 취업 연계 시 대출한도를 우대합니다. 청년인구 8만명(총인구 25.8%) 중 매년 신규 사회진입 인턴을 조기 고객화하는 것이 목표입니다.",
+      "신혼부부·청년 공공임대주택 연계 전세자금대출 특화상품":"신혼부부·청년 공공임대주택(10개소 147세대, 확인됨)에 결합합니다. 입주 확정자 대상 임대보증금대출·전세자금대출을 우대금리로 제공하고 구청 입주확정 통보를 소득·자격 증빙으로 활용해 서류를 간소화하며, 가전·이사비 등 임차인 전용 소액 생활자금 패키지를 결합합니다.",
+      "노동자종합지원센터·일자리플러스센터 연계 청년 신용회복/취업준비자금 대출":"일자리플러스센터(9.51억원, 연 취업자 1,005~1,060명)·노동자종합지원센터(14.58억원, 연 참여자 4,455~4,900명)에 결합합니다. 자체 신용점수가 부족한 취업준비생에게 센터 상담 이력을 심사 보완 요소로 활용한 소액 생활안정자금대출을 제공하고, 취업 성공 시 대출조건을 추가 우대합니다.",
+      "오픈뱅킹 연동 지원금/장려금 자동지급 및 매칭펀드 정산 인프라":"plan IT-1(통합 검색 플랫폼)과 스마트데이터 허브센터(50억원, 확인안됨, IT-1과 기능 중복 가능성 지적됨)에 결합합니다. 오픈뱅킹 API 기반 지원금 자동지급·정산 플랫폼을 데이터 허브에 연동 제공하고 계좌 실명확인·중복수급 방지를 위한 계좌 조회를 연계하며, FN-1·FN-2의 자부담분 대출 실행과 구비 지원금 지급을 하나의 '원스톱 정산' 프로세스로 묶습니다.",
+      "지역화폐 연계 및 가맹점 데이터 결합":"전통시장 시설현대화, 골목상권 간판개선, IT-4 홍보 자동화('우리동네 변화지도')에 결합합니다. 전통시장·골목상권 가맹점을 지역화폐 가맹점으로 등록하고 은행이 계좌 기반 충전·캐시백 인프라를 제공하며, IT-4의 지도에 지역화폐 가맹점 위치를 함께 노출합니다.",
+      "열린데이터광장·주요사업추진현황 DB 연계 데이터 분석 인프라 제공":"IT-1이 이미 계획 중인 열린데이터광장(data.dobong.go.kr) API 연동·majorWork DB 재활용에 결합합니다. 은행의 데이터 분석·클라우드 인프라를 API 연동 백엔드 구축에 기술파트너로 제공하고, 구청 예산집행률·사업진행현황 데이터를 은행의 지역경제 리스크 모니터링(상권 침체 조기경보)에도 상호 활용합니다.",
+      "민원 통합대시보드 알림톡 연동에 금융알림 결합":"IT-2(민원 처리 현황 통합 대시보드 & 알림톡 연동, 검증등급 '상' — 근거가 가장 탄탄한 제안)에 결합합니다. 카카오 알림톡 구축 시 은행이 인프라·발송비 일부를 분담하고, 민원 처리 알림과 함께 소상공인·청년 대상 금융 프로그램(대출 상담, 지원금 신청 안내) 공동 알림 채널을 수신자 동의 기반으로 구축합니다.",
+      "WHO 고령친화도시 연계 시니어 종합금융 패키지(연금·신탁·주택연금 상담)":"WHO 고령친화도시(2018년 가입, 2단계 2022-2026)와 찾아가는 동별 인지건강 프로그램·방문건강관리사업(89.65억원 등, 확인됨)에 결합합니다. 방문건강관리 대상 어르신 가정에 은행 시니어 상담역이 동행하는 '복지-금융 통합 방문상담'(치매예방 신탁, 주택연금 상담)을 협약하고, 창동어르신복지관(97.84억원, 신축)에 상담부스 또는 정기 출장상담을 운영합니다.",
+      "노후 민간건축물·공동주택 안전관리 연계 리모델링대출":"노후 민간건축물 안전관리 강화(1.05억원, 부분확인)와 공동주택 지원사업(28억원)에 결합합니다. 재건축 안전진단 기준완화(2023.1.5)로 30년 경과 아파트 재정비 수요가 급증(서울 25개구 중 5위)하는 상황에서, 구청 안전관리 강화사업의 진단결과를 대출 조건 심사에 활용한 개보수·리모델링 대출과 재건축조합 설립 전 단계 소유자 대상 이주비 대출 사전 상담 창구를 개설합니다.",
+      "1인가구 전월세 안심계약 도움서비스 연계 전세사기 예방 금융상담":"1인가구 전월세 안심계약 도움서비스(1.2억원, 전세사기 피해예방, 확인됨)와 1인가구 지원사업 공모(0.62억원)에 결합합니다. 상담 시 은행이 전세보증금 반환보증·전세자금대출 사전 확인(등기부등본·선순위채권 확인) 서비스를 무상 결합하고, 1인가구 대상 소액 생활자금대출·자동이체 기반 소액적금을 안내합니다.",
+      "창동역 복합환승센터 조성 PF/신디케이트론 참여":"창동역 복합환승센터(495억원, 2025~2029 공사, 국제설계공모 완료, 확인됨)에 결합합니다. 시행사(SH공사 등) 주도 PF에 은행이 대주단으로 참여하는 신디케이트론, 또는 준공 후 상업시설 임대수익 기반 자산유동화에 참여하며, 공사 기간 중 시공사 대상 공사대금 지급 관리계좌 등도 결합할 수 있습니다.",
+      "GTX-C 도봉구간 지하화·서울아레나 관련 지역개발기금/인프라펀드 참여":"GTX-C 도봉구 지하화(총 약 4.4조원, 2023년 확정)와 서울아레나(3,642.62억원, 2027년 3월 완공 예정)에 결합합니다. 국비·시비 매칭이 강한 초대형 SOC이므로 개별 시공 참여보다 인프라펀드·지역개발기금에 기관투자자로 참여하거나, 서울아레나 개관 후 상권 활성화에 맞춰 주변 상가 대상 사전 여신 마케팅을 준비합니다.",
+      "창동역 공사기간 상가 완충 지원과 결합한 이자지원형 소상공인 대출":"plan FN-2(창동역 공사기간 인근 상가 영업피해 완충 지원금, 검증등급 '중' — 지원단가가 추정치라는 단서 있음)와 2026년 최다 민원(창동역 보행로 신설 요청)에 결합합니다. 구가 직접 지급하는 완충지원금과 별도로 은행이 공사영향권 상가에 저금리 긴급경영자금대출을 공급하고 구가 이자 일부를 보전하는 이차보전형 대출을 결합 설계해, 동일 예산으로 지원 가능한 상가 수를 늘립니다."
+    },
+    "top3": [
+      "오픈뱅킹 연동 지원금/장려금 자동지급 및 매칭펀드 정산 인프라",
+      "전통시장·골목상권 시설현대화 연계 정책금리대출 + 매칭펀드",
+      "창동역 복합환승센터 조성 PF/신디케이트론 참여"
+    ]
+  }
+},
+  "nowon": {
+  "name":"노원구","active":true,"mapCell":"nowon",
+  "score":88,
+  "budget":"15~23억원 (구 예산 1조 3,625억원 대비 약 0.11~0.17%)",
+  "issues":[
+    "23개 표본 중 확인됨 65%이나, 다수가 구청 홈페이지가 아닌 의회 회의록(council.nowon.kr) 의존",
+    "서브도메인 9개 이상 파편화(회의록/환경/공단/뉴스레터/법무/부동산/데이터광장 등)",
+    "'구청장에게 바란다'는 처리 지연·비공개 마스킹 다수, 반면 구민고충처리위원회는 신속 처리",
+    "재건축진단 비용지원(여론 1순위 35.9%)과 새활용센터(120억 투입)가 확인안됨"
+  ],
+  "itProjects":[
+    {"code":"전산화지원사업1","name":"노원구 통합 사업추진현황 검색 포털 구축","budget":"400~550백만원","priority":"최우선","basis":"구청 사업계획서(검색확인결과) 회의록의존구조"},
+    {"code":"전산화지원사업2","name":"민원 채널 통합 대시보드 & 알림톡 연동","budget":"300~450백만원","priority":"최우선","basis":"구청 사업계획서(민원게시판) 채널파편화/처리속도격차"},
+    {"code":"전산화지원사업3","name":"열린데이터광장-홈페이지 연동 및 서브도메인 통합검색","budget":"150~220백만원","priority":"상","basis":"구청 사업계획서(검색확인결과) 서브도메인9개분산"},
+    {"code":"전산화지원사업4","name":"주민참여예산-계획사업 연계 매핑 서비스","budget":"80~120백만원","priority":"중","basis":"구청 사업계획서(민원게시판) 제안-계획 미연결"}
+  ],
+  "itDetail":{
+    "전산화지원사업1":"노원구 23개 표본사업 조사(spec/08)에서 사업 진행현황 정보 다수가 구청 홈페이지가 아닌 구의회 회의록(council.nowon.kr)이나 언론보도, 서울시 정비사업 정보시스템에서만 확인되는 역전 현상이 발견됐습니다. 회의록·열린데이터광장·부서별 페이지를 정기 수집해 2026년 주요업무계획 6개장 약 260개 사업을 표준 메타데이터로 정리한 통합 검색 포털을 구축하고, 새활용센터·진로직업체험센터·재건축진단비용지원 등 '확인안됨' 사업을 우선 콘텐츠화합니다.",
+    "전산화지원사업2":"2025년 노원구 총 민원접수는 124,950건에 달하지만 접수·처리 시스템이 최소 5개 채널로 분산돼 있고, '구청장에게 바란다'는 접수번호가 2천만건대에 이르는 규모임에도 비공개 처리로 진행상황 추적이 어렵습니다(spec/09). 반면 구민고충처리위원회는 담당자지정→답변완료 흐름이 명확해 채널 간 투명성 격차가 큽니다. 5개 채널의 접수번호를 통합 관리하는 대시보드와 접수번호+휴대폰 인증 '내 민원 조회' 페이지, 카카오 알림톡 자동알림을 도입합니다.",
+    "전산화지원사업3":"노원구는 의회·환경·데이터광장 등 최소 9개 서브도메인에 기능이 분산돼 있고, 특히 열린데이터광장은 본 도메인이 아닌 별도 도메인(data.nowon.go.kr)을 사용해 주민이 존재 자체를 찾기 어렵습니다(spec/08). nowon.kr에 9개 서브도메인을 잇는 통합 사이트맵과 교차검색창을 신설하고, 열린데이터광장 API를 위젯 형태로 노출해 예산 집행률 등 정량 데이터를 자동 표시합니다.",
+    "전산화지원사업4":"2026-07-02 주민참여예산 게시판에 접수된 '석계로 동서 불균형 해소 및 보행안전' 제안은 기존 계획된 '석계역 일대 간판개선사업'(659백만원)과 지리적으로 겹치지만 서로 다른 트랙에서 별도 관리돼 주민이 연관성을 알 수 없습니다(spec/09). 통합 사업추진현황 포털(전산화지원사업1)과 연동해 신규 제안 접수 시 유사 기존사업을 자동 매칭하고, 채택된 제안의 계획 반영 과정을 추적 표시합니다."
+  },
+  "fnProjects":[
+    {"code":"금융지원사업1","name":"재건축진단 비용지원 홍보·신청 프로세스 정비 지원금","budget":"300~450백만원","priority":"상","basis":"구청 사업계획서(미래도시) 확인안됨/여론1순위"},
+    {"code":"금융지원사업2","name":"석계역 일대 소상공인 간판개선·보행환경 연계 지원금","budget":"250~400백만원","priority":"상","basis":"구청 사업계획서(교통도시),09 계획-제안연결"},
+    {"code":"금융지원사업3","name":"노원 새활용센터 개관 연계 주민 홍보·교육 프로그램 지원","budget":"80~150백만원","priority":"중","basis":"구청 사업계획서(미래도시),08 확인안됨/완공임박"}
+  ],
+  "fnDetail":{
+    "금융지원사업1":"노원구 재건축진단 비용지원(단지별 1~4억원, 노후아파트 76단지 85,092세대 대상, 진단완료 26개단지·현지조사완료 19개단지)은 규모가 큰 사업임에도 전용 페이지나 공고문이 검색되지 않는 '확인안됨' 사업이며(spec/08), 여론조사에서 재건축·재개발 신속추진이 4년차 집중분야 요구 1순위(35.9%)로 나타나 관심도와 홍보 수준 간 괴리가 큽니다(spec/01). 신청자격·지원한도·절차를 안내하는 전용 페이지를 신설해 통합포털에 최우선 등록하고, 미신청 단지 대상 안내문 발송·설명회 개최비를 지원합니다.",
+    "금융지원사업2":"석계역 일대 상가·골목시장(177개소 39개동, 750m)의 불법·노후간판을 철거·교체하는 '석계역 간판개선사업'(659백만원, 2026.1~12)이 진행되는 가운데, 같은 지역·시기에 '석계로 동서 불균형 해소 및 보행안전' 주민참여예산 제안이 별도 접수돼 두 사업이 서로 다른 트랙으로 존재합니다(spec/03, spec/09). 간판개선 대상 상가 목록과 주민제안 지역을 GIS로 매핑해 연계 구간을 식별하고, 대상 소상공인에게 보행환경 개선 매칭지원금(자부담 30~50%+구비 50~70%)을 추가 편성합니다.",
+    "금융지원사업3":"총사업비 12,026백만원을 투입해 2026년 10월 준공 예정인 노원구 새활용센터는 완공을 목전에 두고도 nowon.kr 검색에서 관련 결과가 전혀 없어 대외 인지도가 사실상 전무한 '확인안됨' 상태입니다(spec/08). 개관 3개월 전부터 기존 재활용센터 2관 이용자를 우선 대상으로 주민 홍보·체험프로그램 사전예약제를 운영하고, 인근 초등학교·평생교육원과 연계한 새활용 체험교육 프로그램에 강사비·재료비를 지원합니다."
+  },
+  "validation":[
+    {"code":"전산화지원사업1","overlap":"신규(노원구는 도봉구식 '주요사업추진현황' 전용DB가 없고 council.nowon.kr 회의록이 그 역할을 대신하는 구조 - 사업목록 어디에도 통합포털 사업 없음)","grade":"상","rationale":"문제정의(확인됨 65%/부분확인 22%/확인안됨 13%, 새활용센터·진로직업체험센터·재건축진단비용지원 확인안됨 3개, council.nowon.kr 의존 구조)가 원문과 정확히 일치. 예산 400~550백만원은 IT사업으로선 합리적 규모.","recommendation":"'회의록 정기 크롤링/파싱'은 저작권·개인정보(민원인 실명 포함 가능) 이슈 검토 필요 - 리스크 항목에 추가 권고"},
+    {"code":"전산화지원사업2","overlap":"신규(개별 민원처리 사업은 있으나 채널 통합 대시보드/알림톡 연동 형태 사업은 사업목록에 없음)","grade":"상","rationale":"민원 124,950건 분해 수치, 구민고충처리위원회 2025년 처리 78건 수치 모두 원문과 정확히 일치. 단, '구청장에게 바란다' 접수번호 '누적 20,032,300번대' 표현은 원문의 모호함을 그대로 계승해 과장 소지 있음.","recommendation":"'접수번호 20,032,300번대'를 '실제 민원 접수 건수 124,950건(2025년 기준)'으로 근거 교체 권고. 알림톡 연동비 50~100백만원/년 산출근거 보강 필요."},
+    {"code":"전산화지원사업3","overlap":"신규(사업목록에 서브도메인 통합검색 관련 사업 없음)","grade":"상","rationale":"9개 서브도메인 목록과 열린데이터광장 부분확인(nowon.kr 메뉴는 있으나 실제 데이터포털은 nowon.go.kr 별도 도메인) 인용이 원문과 정확히 일치. 예산 150~220백만원도 현실적 규모.","recommendation":"없음(근거 인용 정확, 규모 타당)"},
+    {"code":"전산화지원사업4","overlap":"신규(단, 전산화지원사업1의 부속모듈로 재분류하는 것이 합리적)","grade":"중","rationale":"'석계로 동서 불균형 해소 및 보행안전'(2026-07-02)과 '노원 본점 소상공인 IP 로컬 브랜딩 지원사업'(2026-07-03) 접수일자·상태 인용이 원문과 정확히 일치. 석계역 간판개선사업·찾아가는 소상공인 매니저 운영과의 연계 서술도 실재 사업과 일치.","recommendation":"예산 80~120백만원이 '자동 유사도 매칭' 기능치고 과소 추정 가능성 있음 - 우선순위를 '중'으로 낮추고 2028년으로 미루는 로드맵 배치는 합리적."},
+    {"code":"금융지원사업1","overlap":"확장/보완(기존 예산 틀(단지별 1~4억원)은 유지하고 홍보·신청편의 예산만 신설)","grade":"상","rationale":"76단지 85,092세대, 재건축진단완료 26개단지, 현지조사완료 19개단지('26.2기준) 수치가 원문과 정확히 일치. '확인안됨' 판정과 여론조사 재건축·재개발 신속추진 1순위(35.9%) 인용도 정확.","recommendation":"신속추진단 자체 예산이 13백만원에 불과해 76단지 안내 사업까지 감당 가능한지 실행주체 역량 재검토 필요."},
+    {"code":"금융지원사업2","overlap":"확장/보완(기존 계획사업 2건-석계역 간판개선 659백만원, 석계역 지하보차도로 개선 375백만원-에 신규 매칭지원금을 추가하는 형태)","grade":"중","rationale":"기존사업 예산·기간·규모(177개소 39개동, 750m, 659백만원) 및 2025년 실적(82개업소 116개간판, 294백만원) 인용이 원문과 정확히 일치.","recommendation":"제안부서 2개(지역경제과/교통행정과)의 예산 편성 주체가 불분명 - 로드맵에 구체화 필요. '자부담 30~50%+구비 50~70%' 표현이 혼란스러워 문구 명확화 권고."},
+    {"code":"금융지원사업3","overlap":"확장/보완(기존 대형 건립사업(총사업비 12,026백만원)에 개관 시점 홍보·교육 프로그램만 추가)","grade":"상","rationale":"위치(중계동210-7), 규모, 총사업비(12,026백만원), 사업기간(2020.3~2026.10) 인용이 원문과 정확히 일치. '확인안됨' 인용도 정확.","recommendation":"2026년 10월 준공 예정 대비 개관 전 3개월 착수가 시급함을 로드맵에 강조할 필요."}
+  ],
+  "verdictScore":88,
+  "verdictBasis":"근거 인용 정확성(35/40): 예산·세대수·확인율·여론조사·민원건수 등 핵심 수치 인용이 원문과 거의 정확히 일치하나 전산화지원사업2 접수번호 해석 과장 소지, 금융지원사업2 매칭비율 표기 혼란으로 5점 감점. 중복/신규 구분 타당성(28/30): IT 4건 신규/FN 3건 확장 구분이 실제로 성립하나 전산화지원사업4가 독립사업보다 전산화지원사업1 부속기능에 가까운 점에서 2점 감점. 실행 타당성(25/30): 로드맵 순서는 논리적이나 금융지원사업1 실행주체 역량 문제와 금융지원사업2 부서간 예산 편성 주체 불분명 등으로 5점 감점. 35+28+25=88점.",
+  "scoreTable":[
+    {"label":"근거 인용 정확성","value":"35/40"},
+    {"label":"중복·신규 구분 타당성","value":"28/30"},
+    {"label":"실행 타당성","value":"25/30"},
+    {"label":"총점","value":"88/100"}
+  ],
+  "bankIdeas":{
+    "categories": {
+      "소상공인/지역경제 금융 결합 아이디어": [
+        "석계역 상권 재생 매칭론 (간판개선 연계 정책자금)",
+        "소상공인 육성기금·신용보증 공동 매칭 확대 (기존 정책자금 은행 참여 확대)",
+        "노원사랑상품권 연계 소상공인 결제·정산 플랫폼 제휴"
+      ],
+      "청년 금융 결합 아이디어": [
+        "노원 청년 자산형성 통장·적금 (청년창업/일자리 사업 연계)",
+        "역세권 청년주택·도전숙 연계 전세자금대출 패키지"
+      ],
+      "IT/데이터 협력 결합 아이디어": [
+        "'통합 사업추진현황 검색 포털'(plan IT-1) 데이터 연동형 부동산·정비사업 금융 서비스 제휴",
+        "'민원 채널 통합 대시보드'(plan IT-2) 알림톡 인프라 및 서민금융 안내 연동",
+        "열린데이터광장 연동(plan IT-3) 기반 지역경제 데이터 공동 활용"
+      ],
+      "복지/주택금융 결합 아이디어": [
+        "재건축진단비용지원 연계 조합운영자금·이주비대출·PF 참여",
+        "노원구 새활용센터 연계 그린금융/ESG 프로그램",
+        "고령층 복지사업 연계 노후소득·요양 자산관리 서비스"
+      ],
+      "재정자립도(16.5%)를 감안한 사회공헌/매칭펀드형 결합 아이디어": [
+        "은행-구청 공동 매칭펀드형 소상공인·복지 통합기금",
+        "주민참여예산 매칭형 소액 사회공헌 프로그램",
+        "노원환경재단·탄소중립사업 연계 ESG 채권/펀드 조성"
+      ]
+    },
+    "details": {
+      "석계역 상권 재생 매칭론 (간판개선 연계 정책자금)":"석계역 일대 상가·골목시장(177개소 39개동, 750m) 불법·노후간판을 철거·교체하는 '석계역 간판개선사업'(659백만원, 2026.1~12, 2025년 82개업소 116개간판 정비 294백만원 기실적)과 plan/03 FN-2의 보행환경 매칭지원금(250~400백만원) 제안이 근거입니다. 은행은 간판개선 대상으로 확정된 소상공인에게 자부담분·인테리어 교체비를 위한 정책금리 시설개선대출을 구청 확인서 기반으로 사전 승인하는 '구청 추천 신속대출' 트랙을 신설합니다.",
+      "소상공인 육성기금·신용보증 공동 매칭 확대 (기존 정책자금 은행 참여 확대)":"spec/07 항목112 중소기업·소상공인 육성기금 융자(최대1억원, 연1.5%, 총30억원, 2025년 61개업체 지원)와 항목113 신용보증 지원 출연(업체당 2억원 이내, 구2억+은행20억, 2025년 926개업체 373.97억원 지원)에 은행이 이미 참여 중입니다. 기존 20억원 출연 규모를 유지·확대하고, 소상공인 매니저(2025년 상담 8,555건)가 발굴한 자금수요 업체를 신용보증 트랙으로 자동 연계하는 '매니저 발굴-은행 보증 원스톱' 프로세스를 신설합니다.",
+      "노원사랑상품권 연계 소상공인 결제·정산 플랫폼 제휴":"spec/07 항목114 노원사랑상품권 발행(서울페이플러스앱, 할인율5%, 예산285백만원, 발행규모 연간100억원)이 근거입니다. 상품권 가맹 소상공인의 정산 계좌를 은행 소상공인 특화 수시입출금 상품과 연계하고, 정산대금 선지급(팩토링형) 단기자금 상품과 결제 데이터 기반 매출연동 소액 신용대출 파일럿을 결합합니다.",
+      "노원 청년 자산형성 통장·적금 (청년창업/일자리 사업 연계)":"spec/07 미취업청년 어학·자격증 응시료 지원(400명), 청년창업센터 조성(11,350백만원), 청년일자리센터(KB금융노원플라자, 2025년 취업상담657건) 등이 근거입니다. 이용 청년 대상 구 매칭지원금+은행 우대금리 결합형 자산형성 적금과 창업 초기자금 대출 패키지를 설계하고, KB가 이미 입주한 건물 대신 공릉동 창업센터 등 미점유 거점을 우선 공략합니다.",
+      "역세권 청년주택·도전숙 연계 전세자금대출 패키지":"spec/07 도전숙(공릉로 일대 37세대), 역세권 청년주택(월계동390-35, 103세대, 2027년 하반기 준공예정), 광운대 캠퍼스타운(1,200백만원, 2025년 59팀 입주)이 근거입니다. 입주(예정) 청년 대상 임차보증금 전세자금대출을 입주자 모집공고와 연동해 사전 안내하고, 캠퍼스타운 입주팀 대상 청년 사업자 특화 대출을 결합합니다.",
+      "'통합 사업추진현황 검색 포털'(plan IT-1) 데이터 연동형 부동산·정비사업 금융 서비스 제휴":"plan/02 IT-1 통합 사업추진현황 검색 포털(추정예산 400~550백만원, 회의록·열린데이터광장 연동)이 근거입니다. 은행이 API 연동 파트너로 참여해 재건축·재개발 진행단계별로 조합원 대상 이주비·중도금대출 안내를 포털의 '진행률 게이지 UI'에 위젯 형태로 노출하고, 76단지 85,092세대의 재건축 진행단계별 여신영업 파이프라인을 선제 확보합니다.",
+      "'민원 채널 통합 대시보드'(plan IT-2) 알림톡 인프라 및 서민금융 안내 연동":"plan/02 IT-2 민원 채널 통합 대시보드(추정예산 300~450백만원, 2025년 총 민원접수 124,950건)가 근거입니다. 은행의 알림톡·문자 발송 인프라와 운영 경험을 구청에 제공하고, 긴급복지지원(2025년 2,169건/32.6억원) 대상자 알림 발송 시 서민금융진흥원 연계 대출·예금상품을 옵트인으로 함께 안내합니다.",
+      "열린데이터광장 연동(plan IT-3) 기반 지역경제 데이터 공동 활용":"plan/02 IT-3 열린데이터광장-홈페이지 연동(추정예산 150~220백만원, data.nowon.go.kr API 연동)이 근거입니다. 은행이 정보통신과와 협업해 API 연동 기술지원에 참여하고, 구의 예산·집행 데이터를 활용한 '노원구 상권 변화 리포트'를 공동 발간해 확보한 상권·인구 데이터를 소상공인 여신 사전평가 모델에 반영합니다.",
+      "재건축진단비용지원 연계 조합운영자금·이주비대출·PF 참여":"spec/02 재건축진단 비용지원(단지별1~4억원, 76단지 85,092세대), 월계동·상계주공5단지 등 재건축정비 3개구역(2,380세대), 백사마을 재개발(3,178세대) 등이 근거이며 여론조사 재건축·재개발 신속추진 요구가 1순위(35.9%)입니다. 진단완료 26개단지부터 순차적으로 조합설립자금·이주비대출·PF 주선에 참여하는 다년간 파이프라인을 구축합니다.",
+      "노원구 새활용센터 연계 그린금융/ESG 프로그램":"spec/02 노원구 새활용센터(총사업비12,026백만원, 2020.3~2026.10)와 plan/03 FN-3(개관 연계 홍보·교육 지원, 80~150백만원)이 근거이며, 완공 임박에도 인지도가 낮은 상태입니다. 개관식에 ESG 파트너로 참여해 그린 예금·적금 상품을 출시하고 가입액 일부를 새활용센터 운영기금에 매칭 기부합니다.",
+      "고령층 복지사업 연계 노후소득·요양 자산관리 서비스":"spec/07 어르신일자리 및 사회활동 지원(65세이상 5,100명, 20,363백만원), 노인맞춤돌봄서비스(6,631백만원, 2025년 지원3,506명) 및 spec/01 65세이상 인구 100,661명(약20.8%)이 근거입니다. 어르신일자리지원센터·스마트경로당 등에 연금연계 예금·주택연금 상담데스크를 순회 설치하고 자산관리 상담을 결합한 사회공헌 프로그램을 운영합니다.",
+      "은행-구청 공동 매칭펀드형 소상공인·복지 통합기금":"spec/07 소상공인 신용보증 지원(구2억+은행20억 기존 매칭 구조)과 구 자체 재원이 협소한 세입구조(spec/01)가 근거입니다. 기존 신용보증 매칭 구조를 벤치마킹해 긴급복지지원·저소득층 집수리 지원 등 복지 분야에도 은행 사회공헌기금을 매칭 방식으로 결합하는 '노원 상생기금'을 신설합니다.",
+      "주민참여예산 매칭형 소액 사회공헌 프로그램":"spec/09 주민참여예산 게시판(전체 188건)과 plan/02 전산화지원사업4(주민참여예산-계획사업 매핑, 80~120백만원)가 근거입니다. 채택된 소규모 제안 중 소상공인 브랜딩·보행안전 등 금융 연관성이 있는 사업을 은행이 사회공헌기금으로 30~50% 분담하는 '주민제안 매칭 후원' 트랙을 신설합니다.",
+      "노원환경재단·탄소중립사업 연계 ESG 채권/펀드 조성":"spec/02 탄소중립지원센터(224백만원), 탄소중립체험관(1,641백만원), 노원환경재단(1,091백만원) 등과 2025년 GCoM 평가 리더십 A-등급 획득(spec/01)이 근거입니다. 노원구 탄소중립 브랜드와 연계한 ESG 특화 예금상품을 출시하고 조성 재원 일부를 노원환경재단 환경교육사업에 배분합니다."
+    },
+    "top3": [
+      "재건축진단비용지원 연계 조합운영자금·이주비대출·PF 참여",
+      "석계역 상권 재생 매칭론 + 소상공인 육성기금·신용보증 공동 매칭 확대",
+      "은행-구청 공동 매칭펀드형 소상공인·복지 통합기금"
+    ]
+  }
+},
+  "gwangjin": {
+  "name":"광진구","active":true,"mapCell":"gwangjin",
+  "score":84,
+  "budget":"약 15~24억원 (구 예산 8,536.71억원 대비 약 0.18~0.28%)",
+  "issues":[
+    "44개 표본 중 부분확인 11개 다수가 2026년 신규 개관 사업(청년아지트·천천히편의점 등)에 집중",
+    "민원 게시판 7종 이상 분산, 채널마다 처리상태 표기 체계 자체가 상이",
+    "2026년 최다 민원: 모아타운 등 정비사업 민원(구의2동 재개발 반대 등) + 교통·보행 제안",
+    "모아타운 등 26개 정비사업이 '예산 미표기' 민간사업 구조라 공식 진행상황이 회의록에만 존재"
+  ],
+  "itProjects":[
+    {"code":"전산화지원사업1","name":"신설사업 전용페이지 패스트트랙 & 통합사업정보 검색 플랫폼","budget":"350~500백만원","priority":"최우선","basis":"구청 사업계획서(검색확인결과) 신설사업 부분확인 다수"},
+    {"code":"전산화지원사업2","name":"민원채널 처리상태 표준화 & 통합 조회 시스템","budget":"300~450백만원","priority":"최우선","basis":"구청 사업계획서(민원게시판) 채널별 상태체계 불일치"},
+    {"code":"전산화지원사업3","name":"모아타운 등 정비사업 통합 진행상황 알림 플랫폼","budget":"200~300백만원","priority":"상","basis":"구청 사업계획서(균형발전도시),08,09 정비사업 민원 다수"},
+    {"code":"전산화지원사업4","name":"골목소통 등 현장활동형 사업 온라인 기록화","budget":"60~100백만원","priority":"중","basis":"구청 사업계획서(검색확인결과) 골목소통 확인안됨"}
+  ],
+  "itDetail":{
+    "전산화지원사업1":"광진구 44개 표본사업 조사 결과 부분확인 11개 사업 중 다수가 2026년 신규 개관하는 청년아지트, 천천히편의점, 화양생활지원센터 등에 집중돼 '신설 초기 콘텐츠 축적 시차' 문제가 확인됐습니다. 사업 착수 3개월 전부터 표준 템플릿(위치/기간/대상/이용방법/문의처)으로 임시 안내페이지를 우선 노출하는 '패스트트랙' 프로세스를 도입하고, 6대 분야·추진상태별 필터를 갖춘 통합사업정보 검색 페이지를 신설합니다.",
+    "전산화지원사업2":"광진구 민원 게시판이 경호와의 소통방·온라인정책방·주민참여예산·옴부즈만 등 최소 7종으로 분산돼 있고 채널마다 처리상태 표기 체계가 달라(경호와의 소통방은 '답변완료'/'행정참고' 2종뿐), 주민이 일관되게 진행상황을 추적할 수 없습니다. 접수→담당부서 배정→검토중→답변완료 4단계 공통 상태값을 전 채널에 적용하고, 접수번호+휴대폰 인증 기반 '내 민원 조회' 통합페이지를 신설합니다.",
+    "전산화지원사업3":"균형발전도시 26개 세부사업 중 모아타운만 구의3동·광장동·자양1동·자양2동 등 9개 이상 구역이 동시에 관리계획 수립 단계에 있으나, 자양3촉진구역·화양초 폐교부지처럼 전용페이지 없이 구의회 회의록에만 진행상황이 남는 사업이 많습니다. 26개 정비사업을 지도로 시각화하는 '광진 정비사업 현황지도'를 신설해 구역별 단계를 표시·정기 갱신하고, 주요 단계 변경 시 인근 주민에게 알림을 발송합니다.",
+    "전산화지원사업4":"44개 표본사업 중 유일하게 '확인안됨'으로 분류된 사업이 청소·경로·돌봄·봉사 등 5개 분야로 실제 운영되는 '골목소통'으로, 전용페이지 없이 동 단위 현장활동으로만 수행돼 검색이 되지 않습니다(같은 열린소통도시 분야인 '주민합동 야간순찰'은 보도자료로 확인되는 것과 대조). 야간순찰에 적용 중인 '활동 후 보도자료/게시물 등록' 방식을 골목소통 5개 분야에도 적용합니다."
+  },
+  "fnProjects":[
+    {"code":"금융지원사업1","name":"모아타운 등 정비사업 예정지 주민 생활불편 완충 지원금","budget":"300~500백만원","priority":"상","basis":"구청 사업계획서(균형발전도시) 9개+ 구역 동시진행"},
+    {"code":"금융지원사업2","name":"청년아지트 연계 청년 디지털/창업 실무 인턴십 확대","budget":"200~350백만원","priority":"상","basis":"구청 사업계획서(경제활력도시) 청년아지트 확인율 낮음(체감도 미형성)"},
+    {"code":"금융지원사업3","name":"신설 생활밀착시설(천천히편의점·생활지원센터) 안정화 지원","budget":"100~180백만원","priority":"중","basis":"구청 사업계획서(검색확인결과) 신설시설 부분확인"}
+  ],
+  "fnDetail":{
+    "금융지원사업1":"구의3동·광장동·자양1동·자양2동 등 9개 이상 모아타운 구역과 신속통합기획 재건축·재개발이 동시에 관리계획 수립 단계에 있으며, 재개발 반대·모아주택 비례율 개선 등 정비사업 민원이 2026년 상위 패턴으로 확인됐습니다. 민간 정비사업이라 구비가 별도 편성되지 않아, 인근 주민이 겪는 공사소음·이주 불확실성에 대한 구 차원 완충책이 없어 공동시설 이용료 일부 지원, 이주정보 상담 바우처 등 한시적 완충 지원금을 도입합니다.",
+    "금융지원사업2":"2026년 6월 개관하는 광진 청년아지트(음악실·다목적 스튜디오·공유주방 등)는 예산·시설이 투입됐음에도 조사 결과 전용페이지가 검색에서 명확히 확인되지 않는 '부분확인' 상태입니다. 청년창업이룸터 운영 노하우를 확장해 청년아지트 공간을 활용한 '디지털 전환 인턴십' 트랙을 신설하고, 참여 청년을 IT 제안사업의 콘텐츠 등록·검수·데이터 정리 업무에 배치합니다.",
+    "금융지원사업3":"2026년 3월 개관한 광진 천천히 편의점(중곡1동, 어르신 생활밀착형 물품판매 등, 운영인력 9명)과 화양생활지원센터(간단집수리·물품대여 등)는 신규·확대 운영 단계이나 조사 결과 상세 소개페이지가 구축되지 않은 '부분확인' 상태입니다. 두 시설의 개관 후 1년 안정화 기간 동안 홍보물 제작·서비스 품목 확충 등 소규모 한시 운영비를 지원합니다."
+  },
+  "validation":[
+    {"code":"전산화지원사업1","overlap":"신규(프로세스/플랫폼 자체는 구청 사업계획서 사업목록 어디에도 없음)","grade":"상","rationale":"부분확인 11개 중 다수가 2026년 신규 개관 사업(청년아지트·천천히편의점·화양생활지원센터·중곡노인복지센터)에 집중된다는 서술 및 확인율 70%/25%/5% 수치가 구청 사업계획서(검색확인결과)와 정확히 일치. 다만 '청년포털 menuNo=201860' 인용은 오류(실제로는 통합돌봄의 menuNo).","recommendation":"예산 산출근거(구축비 250~350백만원) 세부 breakdown 미제시 - 상세 견적 보완 필요. '청년포털'과 '통합돌봄' menuNo 혼동 서술 정정 필요."},
+    {"code":"전산화지원사업2","overlap":"신규(기존 사업목록에 유사 사업 없음)","grade":"상","rationale":"'경호와의 소통방'이 답변완료/행정참고 2종만 존재하고 접수/처리중 표기가 없다는 서술, 온라인정책방은 접수준비/처리중/답변완료가 고르게 분포한다는 서술, 옴부즈만 공개범위가 도봉구보다 좁다는 서술, 게시판 '최소 7종' 구조 모두 구청 사업계획서(민원게시판) 원문과 정확히 일치.","recommendation":"없음(근거 인용 정확). 다만 새올전자민원창구는 별도 외부시스템(gwangjin.eminwon.seoul.kr)이라 API/DB 연동이 권한·보안상 쉽지 않을 수 있다는 리스크 서술 보강 권고."},
+    {"code":"전산화지원사업3","overlap":"확장/보완(2040 광진 재창조 플랜 및 구청 사업계획서(균형발전도시)의 개별 정비사업 정보를 시각화·통합하는 신규 IT서비스이며, 정비사업 자체를 대체하지 않으므로 기존사업과 병존 가능)","grade":"상","rationale":"'9개 이상 모아타운 구역'(구의3동 2곳, 광장동, 자양1동 3곳, 자양2동 3곳=정확히 9곳) 수치 일치. '자양5촉진구역 재정비촉진계획 변경절차 완료 2026.2.26.' 인용 정확, 자양3촉진구역·화양초 폐교부지가 홈페이지 전용페이지 없이 회의록에만 남는다는 서술도 일치.","recommendation":"없음. 다만 리스크(민간 조합·시공사 주도로 정보 생성, 구는 인허가 단계 정보만 보유)를 04번 문서에서 스스로 인지하고 있어 설계상 안전판이 있음."},
+    {"code":"전산화지원사업4","overlap":"신규(골목소통 사업 자체의 콘텐츠화 방안이며, 골목소통이라는 기존 사업의 홍보 보완책이므로 '기존 사업의 확장/보완'에 해당)","grade":"중","rationale":"골목소통이 6개 분야 중 유일한 확인안됨이라는 서술 및 '주민합동 야간순찰' 보도자료(nttId=6352827) 대조 서술이 구청 사업계획서(검색확인결과) 6장과 일치. 단 구청 사업계획서(열린소통도시) 원문은 골목소통을 '5개 분야(청소, 경로, 돌봄, 경로, 봉사)'로 표기해 '경로'가 중복 기재된 원본 오류가 있는데, KB제안계획서는 이를 '청소·경로·돌봄·봉사 등 5개 분야'로 재서술하며 개수(5개)와 실제 나열된 명칭(4개)의 불일치를 검증 없이 그대로 답습.","recommendation":"'골목소통 5개 분야' 인용 시 구청 사업계획서(열린소통도시) 원문의 '경로' 중복 표기 여부를 담당부서에 재확인 후 사용 권고. '주민합동 야간순찰' 방식(보도자료 등록)을 준용해 신규 인건비 없이 가능한지 추가 검토 필요."},
+    {"code":"금융지원사업1","overlap":"신규(구청 사업계획서 사업목록에 정비사업 인근 주민 대상 완충지원금 항목 없음. 기존 모아타운/재건축 사업 자체와는 중복되지 않고 '인근 주민'이라는 새로운 수혜 대상을 설정한 신규 제안)","grade":"중상","rationale":"'구의3동(2개 구역), 광장동, 자양1동(3개 구역), 자양2동(3개 구역) 등 9개 이상' 구역수 인용은 구청 사업계획서(균형발전도시) 항목25와 정확히 일치. '구의2동 24~32번지 단독 재개발 추진 반대'(답변완료), '모아주택 정비사업 비례율 개선'(처리중) 민원 인용도 상태까지 정확히 일치. 단 '저지대 지하주택 침수방지시설... 1998년 이후 누적 1,230억원 투자, 설치율 24.4%' 준용 근거는 출처 표기 오류 - 이 수치는 구청 사업계획서(안전환경도시)가 아니라 구청 사업계획서(검색확인결과-광진구의회 복지건설위원회 회의록, 2023.05.26)에서 확인된 것이며, 구청 사업계획서(안전환경도시) 항목2(저지대 지하주택 침수방지시설 설치)에는 이 통계가 없음. KB제안계획서가 출처 파일을 구청 사업계획서(안전환경도시)로 잘못 표기했고, KB제안계획서(검증결과) 자체 검증도 '구청 사업계획서(안전환경도시) 항목3 서술과 일치'라고 오인증해 이 인용 오류를 놓쳤음(2026-07-18 재검증에서 신규 발견).","recommendation":"'저지대 지하주택 침수방지시설' 준용 근거의 출처 표기를 구청 사업계획서(안전환경도시)에서 구청 사업계획서(검색확인결과-광진구의회 복지건설위원회 회의록)로 정정할 것. '생활불편 완충 지원금'의 법적 근거(조례 제정 필요 여부)를 리스크 섹션에 추가 명시 권고. 300~500백만원 추정치의 산출 근거(대상 세대 수 × 단가) 미제시."},
+    {"code":"금융지원사업2","overlap":"확장(기존 '청년창업이룸터' 운영 노하우 확장 + 신설 '청년아지트' 활용이라고 스스로 명시. 청년정책 자체는 기존 사업이나 '디지털 전환 인턴십 신규 트랙'은 신규 요소)","grade":"상","rationale":"'청년아지트(2026.6 개관, 동일로 100 내 공공기여시설 2~4층, 음악실·다목적 스튜디오·공유주방·휴게라운지)' 서술은 구청 사업계획서(경제활력도시) 항목13과 정확히 일치. '청년창업이룸터(중곡4동·화양동)'도 항목10과 일치. '청년 어학·자격시험 응시료 지원(약 1,000명)', '청년도전지원사업(130명)', '청년 문화생활바우처(500명)' 수치도 각각 구청 사업계획서(경제활력도시) 항목11·12, 구청 사업계획서(문화교육도시) 항목7과 정확히 일치. 단 요약표(01번)의 근거 표기 '구청 사업계획서(경제활력도시) 청년아지트 확인율 낮음'은 확인율 판정의 실제 출처인 구청 사업계획서(검색확인결과)를 누락해 상세본(02번)과 인용 파일번호가 불일치.","recommendation":"01번 요약표의 금융지원사업2 '연계 근거' 열 표기를 '구청 사업계획서(경제활력도시),08'로 정정 권고(확인율 판정의 출처인 구청 사업계획서(검색확인결과) 누락)."},
+    {"code":"금융지원사업3","overlap":"확장(기존에 이미 예산이 투입되어 개관한 사업의 홍보/안정화 '보강' 지원이며 두 시설 신설 자체를 제안하는 것이 아님)","grade":"중","rationale":"'광진 천천히 편의점(2026.3 개관, 중곡1동, 운영기관 광진시니어클럽, 운영인력 9명 배치)'은 구청 사업계획서(상생복지도시) 항목13과 정확히 일치. '화양생활지원센터(화양동, 간단집수리·물품대여 등)'는 구청 사업계획서(안전환경도시) 항목5와 일치. '둘 다 부분확인'이라는 판정도 구청 사업계획서(검색확인결과) 2장·5장과 일치(천천히 편의점은 상생복지도시 장, 화양생활지원센터는 안전환경도시 장).","recommendation":"예산 100~180백만원의 집행 항목(홍보물 제작비, 서비스 품목 확충비)별 세부 배분 불명확 - 사업 승인 단계에서 세부 산출내역 요구 권고."}
+  ],
+  "verdictScore":84,
+  "verdictBasis":"근거: 7개 사업(전산화지원사업1~4, 금융지원사업1~3) 대부분이 구청 사업계획서 원문(모아타운 9개 구역, 자양5촉진구역 승인일자, 청년아지트 시설 구성, 청년정책 참여인원, 옴부즈만 공개범위 등) 대조 결과 수치·명칭·날짜 인용이 정확(아래 감점 항목 제외). 예산 규모(15~24억원, 구 예산 853,671백만원 대비 약 0.18~0.28%)가 재정 규모 대비 현실적 범위 내로 산정. 제안부서 추정이 실제 광진구 조직(정보통신과, 감사담당관, 도시재생과, 일자리청년과, 사회복지장애인과 등 '7국 2담당관 33과' 체계)과 합리적으로 부합. 실행 로드맵(착수 2026하반기→구축 2027→확산 2028→정착 2029)이 논리적 단계로 배열. 감점(-8): 요약표-상세본 간 연계근거 파일번호(금융지원사업2)가 부분적으로 부정확. 감점(-4): 전산화지원사업4가 구청 사업계획서(열린소통도시) 원본의 표기 오류('골목소통 5개 분야' 중 '경로' 중복)를 검증 없이 그대로 인용. 감점(-4): 금융지원사업1의 침수방지시설 준용 근거('1998년 이후 누적 1,230억원 투자, 설치율 24.4%')가 실제로는 구청 사업계획서(검색확인결과-광진구의회 회의록) 수치인데 구청 사업계획서(안전환경도시)로 잘못 표기됨 - KB제안계획서(검증결과) 자체 검증도 이 오표기를 '일치'로 오인증해 놓쳤음(2026-07-18 재검증에서 신규 발견, 이 건으로 기존 88점→84점 조정). 총점 = 100-8-4-4 = 84점.",
+  "scoreTable":[
+    {"label":"기준 점수","value":"100"},
+    {"label":"연계근거 파일번호 오표기(금융지원사업2)","value":"-8"},
+    {"label":"골목소통 표기오류 무검증 인용(전산화지원사업4)","value":"-4"},
+    {"label":"침수방지시설 출처 오표기(금융지원사업1)","value":"-4"},
+    {"label":"총점","value":"84"}
+  ],
+  "bankIdeas":{
+    "categories": {
+      "1. 소상공인/지역경제 금융": [
+        "청년창업이룸터 연계 청년창업 특화 대출·보증 패키지",
+        "전통시장·광진사랑상품권 연계 소상공인 결제·자금관리 패키지"
+      ],
+      "2. 청년 금융": [
+        "청년 자격증·어학시험 응시료 지원사업 연계 \"청년 자기계발 적금\"",
+        "청년아지트·청년월세지원 연계 \"1인가구 청년 종합금융 패키지\""
+      ],
+      "3. IT/데이터 협력": [
+        "정비사업 통합 진행상황 알림 플랫폼(IT-3) 데이터 연계 금융서비스",
+        "신설사업 패스트트랙(IT-1)·민원채널 통합(IT-2) 연계 청년 인턴십 공동운영"
+      ],
+      "4. 복지/주택금융": [
+        "모아타운 9개+구역 동시진행 특성 활용 이주비대출·조합운영자금·PF 참여",
+        "저지대 침수방지시설 사업 연계 주택종합보험·재해보험 결합상품"
+      ],
+      "5. 정비사업 밀집지역 완충지원금(FN-1) 연계 금융상품": [
+        "FN-1 생활불편 완충 지원금 지급계좌 연계 \"정비사업 인근주민 전용 패키지\""
+      ]
+    },
+    "details": {
+      "청년창업이룸터 연계 청년창업 특화 대출·보증 패키지":"청년창업이룸터(중곡4동·화양동, 초기자본 부족한 청년 예비창업가에게 창업준비 공간 제공)와 9월 예정 관내 창업기업 성장지원 행사(100개사 내외, 신용보증기금·중진공 연계)를 활용합니다. 이룸터 입주(예비)창업자 대상 우대금리 청년창업 특화 신용대출·정책보증 연계상품을 설계하고, 입주확인서만으로 사전심사를 간소화하는 '패스트트랙 심사'를 도입합니다.",
+      "전통시장·광진사랑상품권 연계 소상공인 결제·자금관리 패키지":"전통시장·골목형상점가 16개소, 광진사랑상품권(연 100억원 발행, 5% 할인), 중소기업육성기금 융자(40억원, 연 1.5%)·광진형 특별융자(338.75억원)를 연계합니다. 상품권 가맹 소상공인 대상 정산대금 담보·선정산 대출을 신설하고, 은행이 육성기금·특별융자의 대출 취급은행 참여를 추진합니다.",
+      "청년 자격증·어학시험 응시료 지원사업 연계 \"청년 자기계발 적금\"":"청년 어학·자격시험 응시료 지원(약 1,000명, 1인당 최대 15만원), 청년도전지원사업(구직단념청년 130명), 청년 문화생활바우처(500명, 연 10만원)를 연계합니다. 구청 지원금을 자동이체로 적립하는 청년 전용 자유적금을 설계하고, 지원금 수령 시 은행이 캐시백·우대금리 등 매칭 리워드를 제공하는 '정책연계 매칭적금' 구조를 만듭니다.",
+      "청년아지트·청년월세지원 연계 \"1인가구 청년 종합금융 패키지\"":"2026년 6월 개관하는 청년아지트, 광진형 청년월세 지원(150명, 월 20만원 한도 최대 12개월), 미취업 청년 1인가구 도시락 지원(400명)을 연계합니다. 청년아지트 내 상담부스에서 월세지원 대상 청년에게 청년 전월세보증금 대출과 자동 월세이체를 연계하고, 1인가구 재무·금융교육 사업에 은행이 강사·콘텐츠를 제공합니다.",
+      "정비사업 통합 진행상황 알림 플랫폼(IT-3) 데이터 연계 금융서비스":"모아타운 9개+ 구역(구의3동 2곳, 광장동, 자양1동 3곳, 자양2동 3곳)과 신속통합기획 재건축·재개발이 동시 진행 중이며, IT-3 '광진 정비사업 현황지도'(추정예산 200~300백만원)가 구역별 단계를 시각화할 계획입니다. 은행이 구축비 일부를 데이터 연계 개발비로 공동부담하고, 구역이 '조합설립' 단계로 전환되면 은행 창구에 자동 알림이 가는 리드 발굴 체계를 구축합니다.",
+      "신설사업 패스트트랙(IT-1)·민원채널 통합(IT-2) 연계 청년 인턴십 공동운영":"IT-1 '신설사업 패스트트랙'(350~500백만원), IT-2 '민원채널 처리상태 표준화'(300~450백만원), FN-2 '청년아지트 연계 인턴십'(200~350백만원)을 연계합니다. 은행이 인턴십에 모바일뱅킹 UX 테스트, 핀테크 데이터 정리 등 디지털금융 실무 트랙을 추가 제공하고, 수료 청년에게 은행 채용연계 전형 우대 응시자격을 부여합니다.",
+      "모아타운 9개+구역 동시진행 특성 활용 이주비대출·조합운영자금·PF 참여":"모아타운이 구의3동, 광장동, 자양1동(1,212세대 등), 자양2동(2,325세대 예정, 2026.4.30 관리계획 승인고시)까지 9개 구역에서 동시 진행 중이며, 신속통합기획 재건축·재개발까지 포함하면 파이프라인이 큽니다. 승인고시가 완료된 자양2동 B구역에는 조합운영자금대출을, 조합설립 단계에 진입한 구역에는 이주비대출 사전약정을 제안합니다.",
+      "저지대 침수방지시설 사업 연계 주택종합보험·재해보험 결합상품":"구의동·자양동·중곡동 일부·군자동의 저지대 반지하 500세대 대상 침수방지시설 설치사업(1998년 이후 누적 1,230억원 투자, 설치율 24.4%, 2026.4.13 기준 159가구 설치완료)을 연계합니다. 설치 완료 세대 대상으로 화재·수재 특약이 포함된 주택종합보험을 방카슈랑스 제휴로 우대조건 안내합니다.",
+      "FN-1 생활불편 완충 지원금 지급계좌 연계 \"정비사업 인근주민 전용 패키지\"":"구청이 제안한 FN-1 '모아타운 등 정비사업 예정지 주민 생활불편 완충 지원금'(300~500백만원, 공동시설 이용료 일부지원·이주정보 상담 바우처 등)을 활용합니다. FN-1 지원금의 지급계좌를 은행 계좌로 유도하고, 해당 계좌 보유 주민에게 생활불편 기간 중 한시적 소액 신용대출 우대, 공사기간 중 임시거주 전세자금대출 우대금리를 제공합니다."
+    },
+    "top3": [
+      "모아타운 9개+구역 동시진행 특성 활용 이주비대출·조합운영자금·PF 참여",
+      "정비사업 통합 진행상황 알림 플랫폼(IT-3) 데이터 연계 금융서비스",
+      "청년 자격증·어학시험 응시료 지원사업 연계 \"청년 자기계발 적금\""
+    ]
+  }
+},
+  "dongdaemun": {
+  "name":"동대문구","active":true,"mapCell":"dongdaemun",
+  "score":82,
+  "budget":"약 19~28억원 (구 예산 9,824.36억원 대비 약 0.19~0.29%)",
+  "issues":[
+    "2024~2026년 주요업무계획 실물 PDF 부재, 홍보 동영상(mp4)만 게시되는 구조적 문서 공백",
+    "122개 사업 중 확인율 52%(부분확인7%, 확인안됨41%), 생활밀착사업일수록 확인율 급감",
+    "2026년 최다 민원: 신답극동아파트 리모델링조합 관련 안전진단·행정명령 촉구(상위 10건 중 8건)",
+    "재정자립도 등 핵심 재정지표가 홈페이지에서 확인 불가"
+  ],
+  "itProjects":[
+    {"code":"전산화지원사업1","name":"주요업무계획 상시공개 및 마스터DB 구축","budget":"350~500백만원","priority":"최우선","basis":"구청 사업계획서(개요) 2024-26년 PDF부재"},
+    {"code":"전산화지원사업2","name":"동대문구 통합 사업정보·예산 검색 플랫폼","budget":"400~550백만원","priority":"최우선","basis":"구청 사업계획서(검색확인결과) 확인율52%,사업별예산부재"},
+    {"code":"전산화지원사업3","name":"민원 채널 통합 대시보드 & 처리현황 알림 서비스","budget":"300~450백만원","priority":"최우선","basis":"구청 사업계획서(민원게시판) 채널파편화·이첩추적불가"},
+    {"code":"전산화지원사업4","name":"노후공동주택 안전이슈 조기경보 시스템","budget":"150~220백만원","priority":"상","basis":"구청 사업계획서(민원게시판) 신답극동아파트 민원집중"}
+  ],
+  "itDetail":{
+    "전산화지원사업1":"동대문구는 매년 발간하는 '주요업무계획' 책자가 최상위 계획 문서 역할을 하지만, 2024~2026년판은 홈페이지에 원문 PDF 없이 홍보 동영상만 게시되어 주민이 3년 이상 원문을 확인할 수 없는 상태입니다. 매년 발간 후 30일 이내 PDF 게시를 의무화하는 내부 지침과 정보통신팀의 분기별 점검 체크리스트를 마련하고, 유일하게 남아있는 2023년판 PDF를 기준으로 122개 세부사업을 표준 메타데이터로 정리한 마스터DB를 구축합니다.",
+    "전산화지원사업2":"동대문구 122개 사업 중 표본 27개를 검색한 결과 확인 52%, 부분확인 7%, 확인안됨 41%로 나타났으며, 도봉구와 달리 '주요사업 추진현황' 전용 DB가 없어 확인 경로가 언론보도와 서울시 포털에 의존합니다. 마스터DB(전산화지원사업1)를 소스로 사업명·키워드·5대전략·부서·진행상태로 검색되는 반응형 통합 검색 플랫폼을 신설해 확인율을 52%에서 80% 이상으로 끌어올립니다.",
+    "전산화지원사업3":"동대문구 민원 채널은 '구청장에게 바란다', '옴부즈만 민원신청', '주민참여예산제도' 등으로 분산되어 있고, 옴부즈만 접수 민원이 '구청장에게 바란다'로 이첩된 후 최종 처리결과가 추적되지 않으며, 상위 10건 전부가 '처리중'으로만 표시돼 답변완료 여부를 알 수 없습니다. 3개 채널의 접수번호를 통합 관리하는 대시보드를 구축해 이첩 이력을 추적하고, 접수번호+휴대폰 인증 '내 민원 조회' 페이지를 도입합니다.",
+    "전산화지원사업4":"2026.7.16 기준 '구청장에게 바란다' 최신 10건 중 8건이 신답극동아파트 리모델링조합의 안전진단·행정명령·소방차 통행확보 요청에 집중되었으나, 기존 계획에는 이런 개별 단지 갈등을 조기에 감지하고 신속 대응하는 프로세스가 없습니다. 민원 대시보드(전산화지원사업3)와 연동해 특정 단지에 민원이 일정 건수 이상 집중되면 건축안전센터·주택과에 자동 경보를 보내는 조기경보 로직을 구축합니다."
+  },
+  "fnProjects":[
+    {"code":"금융지원사업1","name":"노후 소규모 공동주택 안전진단·보수 매칭 지원금","budget":"400~600백만원","priority":"상","basis":"구청 사업계획서(쾌적한동대문) 1-7,구청 사업계획서(민원게시판) 최다민원"},
+    {"code":"금융지원사업2","name":"생활밀착형 소규모사업 홍보·인지도 제고 지원금","budget":"150~250백만원","priority":"중","basis":"구청 사업계획서(검색확인결과) 소규모사업확인안됨41%"},
+    {"code":"금융지원사업3","name":"청년 디지털 행정서포터즈(공공데이터 정리 인턴)","budget":"150~250백만원","priority":"중","basis":"구청 사업계획서(새로운동대문) 3-3청년취창업 확장"}
+  ],
+  "fnDetail":{
+    "금융지원사업1":"기존 계획(1-7)은 준공 30년 이상 소규모 건축물의 안전점검·구조보강 비용을 지원하지만 아파트·연립은 제외 대상이어서, 2026년 최다 민원인 신답극동아파트 리모델링조합의 안전진단 비용 부담 문제는 이 사각지대에 놓여 있습니다. 준공 30년 이상이면서 리모델링·재건축 추진 중 안전진단 비용 갈등이 발생한 공동주택을 별도 지원 대상으로 신설하고, 자부담 50~70%+구비 30~50% 매칭 방식으로 지원합니다.",
+    "금융지원사업2":"동대문구 122개 사업 중 표본검색 결과 확인안됨이 41%(11/27건)에 달하며, 특히 전기차 충전구역 스마트관리, 어린이 식생활 안전관리, CCTV 모니터링 인력확충 등 생활밀착형 소규모 사업은 검색으로 거의 확인되지 않습니다. 각 소관부서의 완료·진행 중 소규모 사업에 카드뉴스·현장사진·안내문 등 홍보 콘텐츠 제작비를 사업당 5~10백만원 상한으로 지원합니다.",
+    "금융지원사업3":"동대문구는 19~39세 청년 대상 '청년 취업 해Dream', '청년 취·창업 아카데미' 등 취창업 역량강화 프로그램을 다수 운영 중이지만, 통합 검색 플랫폼 구축·운영에 필요한 콘텐츠 정리·데이터 입력검수 같은 공공데이터 실무형 트랙은 없습니다. 기존 프로그램에 '디지털 행정서포터즈' 트랙을 신설해 마스터DB 입력검수, 통합검색 콘텐츠 등록 등에 청년 인턴을 배치합니다."
+  },
+  "validation":[
+    {"code":"전산화지원사업1","overlap":"완전 신규","grade":"상","rationale":"2024~2026년 실물 PDF 부재·홍보동영상만 게시 문제는 사업목록 02~06 어디에도 대응사업이 없는 순수 문서관리 공백이며, 확인경로가 언론보도에 의존하는 근본원인과 정확히 맞물림. 예산(350~500백만원)은 지침화+경량DB 방식으로 현실적, 제안부서(기획예산과·정보통신팀)는 정보통신팀 신설조직과 일치.","recommendation":"없음. 다만 2022년판 URL(내용 미확인)까지만 확인했고 2024~2026년 부재를 사용자 제공 정보로 최종확인했으므로, 착수 전 구청 문서관리부서에 1회 재확인 절차 추가 권고."},
+    {"code":"전산화지원사업2","overlap":"완전 신규(단, 인용 정확성에 경미한 오류 있음)","grade":"중","rationale":"'도봉구식 majorWork 전용DB 부재' 지적과 확인율 52%/부분확인7%/확인안됨41% 수치는 정확히 일치. 그러나 '분야별 예산 8개 구분...2023년 797,731백만원/2026년 982,436백만원 수준까지는 연동'이라는 서술 중 2026년 8개 분야별 세부배분은 원문에 존재하지 않는데(2026년은 총액만 확인) 있는 것처럼 병기한 오류.","recommendation":"2026년 수치는 총액으로만 표기하고, 8개 분야별 세부배분은 '2023년 기준만 확인, 2026년판은 별도 확인 필요'로 정정할 것."},
+    {"code":"전산화지원사업3","overlap":"완전 신규","grade":"상","rationale":"3개 채널 파편화, 이첩 후 추적 불가, '처리중'만 노출되고 '답변완료' 미노출 등 문제 서술이 원문과 정확히 일치. 사업목록 어디에도 민원 통합관리 시스템이 없어 완전 신규로 타당. 예산(300~450백만원)이 다소 넉넉하나 전체예산 대비 0.03~0.05%로 무리한 규모 아님. 제안부서(감사담당관-옴부즈만 소관)도 실제 소관부서와 일치.","recommendation":"'총 게시물 81,473건'이 실제 누적 총량인지 페이지 인덱스인지 원문 자체가 불확실성을 명시하므로, 요구사항 정의 단계에서 이 수치를 전제로 시스템 용량을 설계하지 않도록 유의 필요."},
+    {"code":"전산화지원사업4","overlap":"신규(기존 사업의 절차적 보완 성격)","grade":"상","rationale":"'2026.7.16 조회 시점 상위 10건 중 8건이 신답극동아파트 관련'이라는 수치가 정확히 일치. 1-7(아파트·연립 제외)과 1-6(공동주택 관리지원, CCTV·하수도·놀이터 등 물리적 유지관리 항목뿐)에는 개별 단지 갈등 조기감지 프로세스가 없다는 판단도 원문 대조 결과 사실. 예산(150~220백만원)은 경보 로직 추가개발 수준으로 현실적.","recommendation":"신답극동아파트 사례 1건(2026.7.16 시점 스냅샷)만으로 시스템 전체를 설계하는 것은 표본이 1건뿐이라는 한계 - 최근 1~2년 누적 민원 데이터로 재현빈도를 확인하는 사전조사 단계를 로드맵에 추가 권고."},
+    {"code":"금융지원사업1","overlap":"확장(기존 사업의 사각지대 보완)","grade":"상","rationale":"1-7의 '사용승인후 30년이상, 아파트·연립 제외' 조건과 신답극동아파트(공동주택 리모델링조합) 민원이 실제로 상호 배타적 범위라는 인용이 정확. 전문가 인력풀 '18명(도시계획·도시행정·건축·감정평가·변호사·회계사 각3명)' 인용도 1-1과 정확히 일치. 예산(400~600백만원, 4개년 분산)은 매칭지원(자부담50~70%+구비30~50%) 구조로 구비 부담이 제한되어 타당.","recommendation":"없음. 리스크(형평성 이슈)에 대한 대응책이 04번 문서에 이미 명시되어 있어 일관성 있게 설계됨."},
+    {"code":"금융지원사업2","overlap":"확장(신규 정책 성격이나 대상은 기존 사업)","grade":"중","rationale":"'전기차 충전구역 스마트관리, CCTV확충, 어린이 식생활안전관리, 마을버스노선재정비, 모아주택 시범지구' 등 확인안됨 사업 예시와 '확인안됨 41%(11/27건)' 수치가 정확. 다만 원문은 '확인안됨이 반드시 사업 폐기·보류를 의미하지 않는다'고 명시하는데, 이 중 '이미 예산이 배정되어 실행 중인 사업'을 우선 지원 대상으로 전제해 확인안됨(검색 한계)을 사실상 실행중으로 단정하는 과잉해석.","recommendation":"'이미 예산이 배정되어 실행 중인 사업'이라는 전제를 '실행 여부 재확인 후 지원'으로 완화하고, 사전에 소관부서 확인 절차를 제안 내용에 추가할 것."},
+    {"code":"금융지원사업3","overlap":"확장(기존 청년정책 사업의 신규 트랙 추가)","grade":"중","rationale":"캠퍼스타운(경희대·서울시립대·한국외대), 역세권청년주택 창업공간(휘경동 281-1), 청년취업해Dream, 청년취창업아카데미 인용 모두 정확. '서울시립대 캠퍼스타운 41개기업 참여·20억매출' 실적 인용도 일치. 다만 요약표는 '3-3청년취창업 확장'이라 축약 인용했는데 상세문서는 3-3과 3-4를 모두 근거로 들어 정밀도가 낮음(오류는 아님). 역세권 청년주택 창업공간을 '교육·작업 공간으로 활용'하는 제안은 기존 입주기업의 창업공간 용도와 충돌 가능성이 있으나 제안서에 언급 없음.","recommendation":"역세권 청년주택 창업공간을 교육·작업 공간으로 활용하는 부분은 기존 입주 창업기업과의 공간 사용 충돌 여부를 사전 검토하도록 로드맵에 명시할 것."}
+  ],
+  "verdictScore":82,
+  "verdictBasis":"감점 없음 항목(공통 기반): 5가지 문제정의(구청 사업계획서(개요),07,08) 인용 정확성, 예산총액·재정규모 비교(982,436백만원 등), 제안부서 실존성(정보통신팀·건축안전센터·감사담당관 등) 전부 원문과 일치 확인됨. 감점 -8점: 전산화지원사업2의 '2026년 982,436백만원'을 8개 분야별 예산구분에 연동 가능한 것처럼 서술한 부분은 원문에 없는 내용(2026년 8개 분야별 배분 데이터 부재)을 있는 것처럼 인용한 사실확인 오류. 감점 -6점: 금융지원사업2가 '확인안됨(검색 한계, 폐기·보류 의미 아님)'이라는 명시적 단서를 무시하고 해당 사업들을 '이미 예산 배정되어 실행 중'이라고 단정한 과잉해석. 감점 -4점: 금융지원사업3의 역세권 청년주택 창업공간 용도 전용 제안이 기존 입주기업과의 충돌 가능성을 검토하지 않은 채 서술됨(사실관계 오류는 아니나 타당성 검토 미흡). 총점 100-8-6-4=82점.",
+  "scoreTable":[
+    {"label":"기준 점수","value":"100"},
+    {"label":"2026년 예산 분야별 배분 오기재(전산화지원사업2)","value":"-8"},
+    {"label":"'확인안됨'을 실행중으로 과잉해석(금융지원사업2)","value":"-6"},
+    {"label":"창업공간 충돌 미검토(금융지원사업3)","value":"-4"},
+    {"label":"총점","value":"82"}
+  ],
+  "bankIdeas":{
+    "categories": {
+      "1. 소상공인 / 지역경제 금융": [
+        "답십리자동차부품상가 재개발 이주·영업안정 결합대출",
+        "전통시장(청량리농수산물시장 등) 소상공인 특화 금융패키지",
+        "사회적경제기업·마을기업 육성펀드 결합"
+      ],
+      "2. 청년 금융": [
+        "캠퍼스타운 연계 청년창업 특화대출·적금",
+        "역세권 청년주택 창업공간 연계 청년사업자 금융",
+        "청년 취·창업 프로그램 연계 인턴십 급여계좌·장학연계상품"
+      ],
+      "3. IT / 데이터 협력": [
+        "마스터DB·아카이빙 구축(plan IT-1) 은행 노하우 결합 참여",
+        "통합 검색 플랫폼(plan IT-2) 내 '금융지원 정보' 카테고리 공동 구축",
+        "민원 대시보드(plan IT-3) 연계 금융취약계층 조기 발굴"
+      ],
+      "4. 복지 / 주택금융": [
+        "신답극동아파트 등 리모델링조합 이주비·사업비대출",
+        "노후 소규모 건축물 안전점검·구조보강 대출(FN-1 사각지대 외 영역 확장)",
+        "사회안전망 취약계층 연계 소액금융"
+      ],
+      "5. 대형 개발사업 PF / 신디케이트론": [
+        "서울시립동대문도서관 건립 PF/신디케이트론 참여",
+        "구민회관 부지 복합개발(구민행복센터) PF 참여",
+        "청량리 복합환승센터/GTX-C 연계 금융 (제한적 참여)"
+      ]
+    },
+    "details": {
+      "답십리자동차부품상가 재개발 이주·영업안정 결합대출":"답십리동 952번지 일대에서 2020~2030년 추진 중인 답십리자동차부품상가 현대화사업은 주상복합 7개동(618세대) 규모로, 시공사(효성중공업) 선정 등 실제 진행 중임이 확인됐습니다. 은행은 재개발조합의 사업비·이주비대출을 신탁계좌 주거래은행 지정과 연계하고, 현재 영업 중인 자동차부품 소상공인에게 이전비용·권리금을 지원하는 영업점 이전·재입주 자금대출을 제공합니다.",
+      "전통시장(청량리농수산물시장 등) 소상공인 특화 금융패키지":"동대문구는 청량리농수산물시장 캐노피 설치(제기동 849 일대)와 전통시장 하수도 준설·하수관로 교체 등 전통시장 시설환경 개선에 지속 투자하고 있습니다. 은행은 이 시기에 맞춰 시장 내 점포를 대상으로 공사 기간 중 영업손실을 완화하는 저리 임시자금을 제공하고, 노점·거리가게 정비 대상자 중 정착 점포로 전환하는 소상공인에게 창업자금대출을 제공할 수 있습니다.",
+      "사회적경제기업·마을기업 육성펀드 결합":"동대문구는 답십리로38길19 사회적경제지원센터를 통한 사회적경제 통합지원사업과, 예비사회적기업·마을기업 발굴 및 협동조합 활성화를 위한 사업비 지원을 운영하고 있습니다. 은행은 구청 사업비 지원과 매칭되는 사회적경제기업 특화 소액대출과 협동조합 설립 초기자금 대출을 제공할 수 있으며, 구청 인증을 거친 기업이라 신용평가 리스크가 완화됩니다.",
+      "캠퍼스타운 연계 청년창업 특화대출·적금":"경희대·서울시립대·한국외대를 대상으로 2020.1~2025.12 추진된 캠퍼스타운 조성사업에서, 서울시립대 캠퍼스타운은 41개 기업 참여·20억원 매출이라는 성과가 확인됐습니다. 은행은 이 입주기업을 대상으로 담보를 완화한 창업자금대출을 제공하고, 참여 대학생·청년에게는 창업 시 대출 한도·금리를 연계하는 청년창업 목적적금을 제공합니다.",
+      "역세권 청년주택 창업공간 연계 청년사업자 금융":"휘경동 281-1 일대에 조성된 역세권 청년주택 내 청년 창업공간(2~3인실 5개, 4인실 5개)은 plan FN-3에서도 청년 인턴 배치 공간으로 활용이 제안된 곳입니다. 은행은 이 공간 입주팀을 대상으로 사업자통장 무료 제공, 초기 소액 마이크로크레딧, 창업 3년차까지 단계별 한도 확대형 대출을 묶은 패키지를 제공합니다.",
+      "청년 취·창업 프로그램 연계 인턴십 급여계좌·장학연계상품":"동대문구는 '청년 취업 해Dream', '청년 취·창업 아카데미' 등 역량강화 프로그램과, 자격시험 응시료·교재비를 지원하는 사업을 운영 중이며, plan FN-3 '청년 디지털 행정서포터즈'도 이 사업군의 확장으로 제안됐습니다. 은행은 아카데미 수료생과 서포터즈 참여 청년을 대상으로 구청 지원금과 매칭 시 우대금리를 주는 청년 자기계발 목적적금을 제공합니다.",
+      "마스터DB·아카이빙 구축(plan IT-1) 은행 노하우 결합 참여":"동대문구는 2024~2026년판 주요업무계획 실물 PDF가 게시되지 않아 122개 사업 확인율이 52%에 그친 문제가 있습니다. plan IT-1(추정예산 350~500백만원) 마스터DB 구축 사업에 은행이 문서 전자화·장기보존 노하우를 컨설팅 형태로 제공하고 구축비 일부를 지역사회공헌 성격으로 분담하는 대신, 구청 사업 데이터를 API로 공급받아 상생금융 대상 사업 발굴 자료로 활용합니다.",
+      "통합 검색 플랫폼(plan IT-2) 내 '금융지원 정보' 카테고리 공동 구축":"동대문구 122개 사업의 확인율은 대형사업 83%, 생활밀착형 사업 33~40%로 격차가 커, plan IT-2(추정예산 400~550백만원) 통합 사업정보·예산 검색 플랫폼이 제안됐습니다. 은행은 이 플랫폼 안에 답십리 재개발 이주비대출, 캠퍼스타운 창업대출 등 '구청 사업 연계 금융지원 상품' 카테고리를 구청과 공동 기획·입력하는 형태로 참여합니다.",
+      "민원 대시보드(plan IT-3) 연계 금융취약계층 조기 발굴":"'구청장에게 바란다' 상위 10건 중 8건이 신답극동아파트 리모델링조합 관련 민원에 집중된 가운데, plan IT-3 민원 채널 통합 대시보드와 IT-4 노후공동주택 안전이슈 조기경보 시스템이 제안됐습니다. 이 경보 로직이 특정 단지에 민원이 집중되는 것을 포착하면, 은행이 해당 단지 조합에 리모델링 사업비대출 상담 채널을 옵트인 방식으로 연계 제안할 수 있습니다.",
+      "신답극동아파트 등 리모델링조합 이주비·사업비대출":"'구청장에게 바란다' 상위 10건 중 8건이 신답극동아파트 리모델링조합의 소방차 통행확보, 보수·보강 행정명령, 안전진단 촉구 등 민원에 집중됐습니다. 기존 소규모 노후건축물 지원은 아파트·연립을 제외해 사각지대에 있었고, 이를 보완하는 plan FN-1 매칭지원금(400~600백만원)이 제안됐습니다. 은행은 자부담분에 대한 조합원 개별대출 또는 조합 명의 사업비대출을 연계합니다.",
+      "노후 소규모 건축물 안전점검·구조보강 대출(FN-1 사각지대 외 영역 확장)":"동대문구는 준공 30년 이상 소규모 건축물(아파트·연립 제외)을 대상으로 안전점검을 실시하고 점검등급이 미흡·불량하면 구조보강 비용을 지원합니다. 은행은 구청 구조보강 비용 지원 대상으로 선정된 단독·다가구 건축물 소유주에게, 구청 지원금 지급 시차를 메우는 브릿지론 성격의 연계대출을 제공합니다. 동대문구 내 단독·다가구는 12,376호(전체 주택의 11.5%)로 시장 규모가 있습니다.",
+      "사회안전망 취약계층 연계 소액금융":"동대문구는 저소득 어르신 급식 지원(860명), 노인 일자리 활성화(2,341명) 등 취약계층 대상 사업을 다수 운영하며, 서울형 유급 병가 지원(연 최대 14일)도 시행 중입니다. 은행은 노인일자리사업 참여자를 대상으로 취업연계형 급여수령계좌와 소액 긴급생활안정자금 대출을 제공하고, 유급병가 지원금 수령 대기기간을 메우는 브릿지 소액대출도 제공할 수 있습니다.",
+      "서울시립동대문도서관 건립 PF/신디케이트론 참여":"전농동 691-3번지 외에 2020~2029년 추진 중인 서울시립동대문도서관 건립사업은 2026.10 투자심사를 통과해 2026년말 착공, 2030년 준공을 목표로 하며, 총사업비 2,590억원 규모로 확인됐습니다. 은행은 이 사업에 대한 신디케이트론 참여나, 시공사 선정 이후 기성대급 관련 금융주선에 참여할 수 있습니다.",
+      "구민회관 부지 복합개발(구민행복센터) PF 참여":"장안동 354-5 외 3필지의 구민회관 부지 복합개발은 2026.1 서울시 투자심사를 통과해, 지하2층~지상7층 연면적 11,730㎡ 규모로 2026.5 국제설계공모를 시작해 2029년 준공을 목표로 진행 중입니다. 은행은 설계공모 이후 실시설계·시공 단계에서 사업비대출 또는 PF에 참여할 수 있습니다.",
+      "청량리 복합환승센터/GTX-C 연계 금융 (제한적 참여)":"청량리 복합환승센터 조성사업(2018~2028년, 11개 노선)은 예산 약 3,646억원 규모로, 2026.4 GTX-C 착공 중재가 성사됐으나 청량리역 지하변전소 문제로 굴착허가가 지연 중입니다. 국가·서울시 주도 사업이라 은행의 직접 PF 참여 여지는 제한적이지만, 역세권 개발에 따른 주변 상업시설의 분양중도금 집단대출 참여는 가능합니다."
+    },
+    "top3": [
+      "신답극동아파트 등 리모델링조합 이주비·사업비대출 + FN-1 매칭지원 결합",
+      "캠퍼스타운 연계 청년창업 특화대출·적금",
+      "서울시립동대문도서관 건립 PF/신디케이트론 참여"
+    ]
+  }
+},
+  "dongjak": {
+  "name":"동작구","active":true,"mapCell":"dongjak",
+  "score":84,
+  "budget":"17~25억원 (구 예산 9,331.3억원 대비 약 0.18~0.27%)",
+  "issues":[
+    "22개 표본 중 확인안됨9%+부분확인32%, 2026년 신규 개관사업(JUMP1·동작청년센터 등)에 집중",
+    "'구청장에게 바란다'·'옴부즈만 민원 신청' 게시판이 외부에서 완전 차단",
+    "동작구의회 회의록(assembly.dongjak.go.kr) 의존 구조 - 구 자체 통합 추적 페이지 부재",
+    "세대별 39개 중점사업 대부분 예산액이 카드형 설명에 명시되지 않음"
+  ],
+  "itProjects":[
+    {"code":"전산화지원사업1","name":"신규사업 개시 알림형 통합 사업정보 페이지 구축","budget":"350~500백만원","priority":"최우선","basis":"신규사업 확인안됨·부분확인 다수"},
+    {"code":"전산화지원사업2","name":"민원채널 접근성 복구 & 처리현황 공개 대시보드","budget":"300~450백만원","priority":"최우선","basis":"민원채널 완전차단"},
+    {"code":"전산화지원사업3","name":"동작구의회 회의록 연계 사업추적 검색 위젯","budget":"120~180백만원","priority":"상","basis":"의회회의록 의존 구조"},
+    {"code":"전산화지원사업4","name":"세대별 생애주기 사업 안내 챗봇/카카오톡 알림","budget":"100~150백만원","priority":"중","basis":"예산·시점 미기재로 인지도 낮음"}
+  ],
+  "itDetail":{
+    "전산화지원사업1":"spec/07 조사에서 22개 사업 중 41%(확인안됨 9%+부분확인 32%)가 검색으로 확인되지 않았으며, 특히 효도카드·동작청년센터·JUMP1 등 2026년 신규 개관 사업들은 별도 홍보페이지가 아직 구축되지 않아 확인율이 낮았습니다. 95개 중점사업을 주요업무계획에 맞춰 마스터DB화하고 예정→준비중→개시→운영중 4단계 상태값으로 실시간 갱신하는 통합 페이지를 신설해, 개소 D-30일 전부터 자동 안내 배너를 노출합니다.",
+    "전산화지원사업2":"spec/08 조사에서 '구청장에게 바란다'와 '옴부즈만 민원 신청' 게시판은 2회 이상 접근을 시도해도 빈 페이지만 반환되어 외부에서 게시글·처리상태를 전혀 확인할 수 없었습니다. 두 게시판을 검색엔진이 색인 가능한 목록 페이지로 병행 제공하고, 접수번호와 휴대폰 인증으로 진행상황을 확인하는 '내 민원 조회'와 카카오 알림톡 상태통보를 도입합니다.",
+    "전산화지원사업3":"spec/07 조사에서 노량진 옛청사부지 복합개발, 신속통합기획 상도14·15구역·사당4동 등 주요 사업의 구체적 진행경과가 구청 홈페이지가 아닌 동작구의회(assembly.dongjak.go.kr) 회의록에서만 확인되었고, 구 자체의 통합 추적 페이지는 없었습니다. 의회사무국의 회의록 검색시스템을 API 또는 크롤링으로 연동해, 통합 사업정보 페이지의 각 사업 항목에 '관련 의회 회의록' 링크를 자동 매칭합니다.",
+    "전산화지원사업4":"spec/02에 따르면 세대별 6개 챕터(어르신·청년·청소년·어린이·영유아·임신출산) 39개 중점사업은 개별 사업의 예산액이 대부분 명시되지 않아, 주민이 자신의 생애주기 단계에서 어떤 지원을 받을 수 있는지 파악하기 어렵습니다. 주민이 본인 단계를 선택하면 효도카드·청년 문화생활비 등 해당 단계의 중점사업을 카카오톡 채널로 자동 안내받는 서비스를 제안합니다."
+  },
+  "fnProjects":[
+    {"code":"금융지원사업1","name":"신규 개관시설 초기 이용 활성화 지원금(효도카드/청년센터/JUMP1 연계)","budget":"250~400백만원","priority":"상","basis":"신규사업 확인안됨·부분확인"},
+    {"code":"금융지원사업2","name":"노후 소규모 공동주택·빌라 안전개선 지원 확대","budget":"400~600백만원","priority":"상","basis":"노후단독주택 보수비 지원 기존사업 확대"},
+    {"code":"금융지원사업3","name":"청년 문화생활·식비 지원 국내 IT 서포터즈 연계형 확대","budget":"150~250백만원","priority":"중","basis":"청년 문화생활비·식비지원 확인됨(확대여지)"}
+  ],
+  "fnDetail":{
+    "금융지원사업1":"효도카드 출시, 동작청년센터 개관('26.4월), 어린이 실내놀이터 JUMP1(상도동, '26.5월)은 모두 2026년 신규 개관·출시 사업이지만 검색조사에서 홍보페이지 미비로 확인안됨 또는 부분확인에 그쳤습니다. 효도카드 발급 초기 3개월 조기 신청자에게 기존 효도건강생활비에 바우처 1만원을 한시 추가 지급하고, 청년센터 개관 초기 프로그램 참여 청년에게는 청년 문화생활비 사업의 개관 기념 특별 회차를 운영합니다.",
+    "금융지원사업2":"노후 단독주택 담장(300만원)·축대(600만원) 보수비용 지원과 노후 소규모 공동주택 안전·생활환경개선 지원(최대 1천만원)이 각각 운영 중이지만 개별 사업으로 분산되어 있어 신청자가 통합적으로 활용하기 어렵습니다. 3개 지원사업을 빌라관리센터 4개 권역(사당1동, 상도3동, 상도4동, 대방동) 우선 신청 대상으로 안내하고 신청 창구를 빌라관리센터로 일원화합니다.",
+    "금융지원사업3":"청년·신혼부부 전월세 지원(총 320명 모집), 청년 문화생활비(1인당 10만원), 청년 식비 지원(월6만원)은 실제 확인된 체감도 높은 사업이지만, IT 제안사업 실행에 필요한 콘텐츠 등록·검수 인력과 연계할 트랙은 없습니다. 기존 청년 문화생활비·식비 지원 대상 청년 중 희망자를 모집해 '동작구 디지털 서포터즈' 트랙을 신설해 콘텐츠 등록·검수에 참여시킵니다."
+  },
+  "validation":[
+    {"code":"전산화지원사업1","overlap":"신규","grade":"상","rationale":"확인안됨9%+부분확인32%=41% 수치를 정확히 인용","recommendation":"'정적 렌더링(SSG)' 표현을 [설계 옵션]으로 격하 표기 권고"},
+    {"code":"전산화지원사업2","overlap":"신규","grade":"상","rationale":"WebFetch 2회 시도 후 빈페이지 반환이라는 사실과 정확히 일치","recommendation":"'완전 차단' 표현이 근거자료의 '추정' 수준보다 단정적 - 표현 순화 권고"},
+    {"code":"전산화지원사업3","overlap":"신규","grade":"상","rationale":"의회 회의록이 핵심 확인 소스라는 점과 노량진 옛청사부지 등 사례 인용 정확","recommendation":"없음(근거 인용 정확도 높음)"},
+    {"code":"전산화지원사업4","overlap":"확장/보완","grade":"중","rationale":"세대별 39개 사업 예산액 미기재 서술 정확히 인용","recommendation":"'챗봇' 표현이 과대 - '알림톡 자동발송' 수준으로 하향 조정 권고"},
+    {"code":"금융지원사업1","overlap":"확장","grade":"중","rationale":"효도건강생활비·청년문화생활비 등 기존 확정사업 예산에 조기신청 인센티브를 얹는 방식","recommendation":"예산 편성 방식(추가재원 vs 재배분)을 명확히 구분 표기 권고"},
+    {"code":"금융지원사업2","overlap":"확장","grade":"상","rationale":"담장300만원·축대600만원 등 기존 3개 지원사업 통합신청창구화, 인용 정확도 가장 높음","recommendation":"없음"},
+    {"code":"금융지원사업3","overlap":"확장","grade":"중","rationale":"청년 전월세지원 320명 모집 등 수치 정확히 일치","recommendation":"동작청년센터 시설 중복 활용에 따른 공간부족 검토 항목 로드맵에 추가 권고"}
+  ],
+  "verdictScore":84,
+  "verdictBasis":"근거 인용 정확성 38/40, 사업분류 정확성 27/30, 타당성 19/30. 안전지원과 등 일부 제안부서명이 조직표에 직접 등장하지 않아 실존 확정 불가, 동작청년센터 공간 중복 활용 검토 누락으로 감점.",
+  "scoreTable":[
+    {"label":"근거 인용 정확성","value":"38/40"},
+    {"label":"사업분류 정확성","value":"27/30"},
+    {"label":"타당성","value":"19/30"},
+    {"label":"총점","value":"84/100"}
+  ],
+  "bankIdeas":{
+    "categories": {
+      "소상공인/지역경제 금융": [
+        "청석창업지원센터 입주기업 전용 창업자금 대출 패키지",
+        "동작 지역경제 플랫폼 \"마켓D\" 결제·정산 인프라 제휴",
+        "소상공인 경영환경패키지·상해질병휴업손실비용지원 연계 보험·카드 상품"
+      ],
+      "청년 금융": [
+        "청년·신혼부부 전월세지원 연계 전월세보증금대출 및 이자지원 매칭 상품",
+        "동작청년센터('26.4월 개관) 연계 청년 특화 금융교육 및 첫급여통장 프로그램",
+        "청년 문화생활비·식비지원 동작사랑상품권 결제 연계 체크카드"
+      ],
+      "IT/데이터 협력": [
+        "IT-1 통합 사업정보 페이지 내 \"은행 연계 금융혜택\" 섹션 공동 구축",
+        "IT-4 생애주기 알림(챗봇/카카오톡) 채널에 금융 리마인더 결합",
+        "열린데이터광장(data.dongjak.go.kr) 연계 소상공인·부동산 데이터 분석 협력"
+      ],
+      "복지/주택금융": [
+        "노후주택 담장·축대 보수지원 및 소규모 공동주택 개선지원 연계 개보수대출",
+        "신속통합기획 16개소·모아타운 5개소 이주비대출 사전 협약",
+        "청년·신혼부부 만원주택(월세1만원) 입주자 대상 주거안정 금융 패키지"
+      ],
+      "대형개발사업 PF/신디케이트론 참여": [
+        "노량진 옛청사부지 복합개발 PF 및 유니콘기업 입주 연계 기업금융",
+        "이수-과천 복합터널 및 도림천 대심도 빗물배수터널 인프라 금융 참여",
+        "역세권 활성화사업(남성역·신대방삼거리역) 관리처분인가 단계 조합 금융"
+      ]
+    },
+    "details": {
+      "청석창업지원센터 입주기업 전용 창업자금 대출 패키지":"청석창업지원센터가 상도로47바길54 2층에 신설되어 2026년 기업입주공간 12개실이 추가되고 창업보육전담인력이 신규채용됩니다. 은행은 입주기업 대상 초기 창업자금 신용대출(보증서 연계형)을 제공하고, 센터의 창업보육전담인력과 은행 기업금융 담당자가 정기 컨설팅데이를 운영하며, 매출대금 수납계좌를 은행으로 지정하면 수수료를 우대합니다.",
+      "동작 지역경제 플랫폼 \"마켓D\" 결제·정산 인프라 제휴":"동작 지역경제 플랫폼 마켓D가 정식 런칭되어 구민간거래·공산품거래 기능이 도입되고 배달기능이 강화될 예정입니다. 은행은 플랫폼 내 소상공인 정산계좌와 결제대행 인프라를 제공하고, 정산 대금 조기지급(선정산) 서비스와 라이더 대상 소액대출 상품을 연계합니다.",
+      "소상공인 경영환경패키지·상해질병휴업손실비용지원 연계 보험·카드 상품":"연매출 1억원 미만 소상공인 대상 경영환경패키지(POS교체·간판청소 등)와 휴업 1일당 7만원 한도로 최대 10일 보상하는 상해·질병휴업손실비용지원이 운영되고 있습니다. 은행은 경영환경패키지 대상 소상공인에게 POS 교체와 연계한 전용 체크카드를 수수료 우대로 발급하고, 휴업손실보험 가입자에게는 사업자 신용대출 한도를 우대합니다.",
+      "청년·신혼부부 전월세지원 연계 전월세보증금대출 및 이자지원 매칭 상품":"무주택 청년·신혼부부 대상 최대 20만원 월세지원과 최대 150만원 전세보증금 대출이자 지원 사업이 2026.2.2~2.27 신청기간에 총 320명 모집으로 실제 확인되었습니다. 은행은 구청 이자지원 대상자의 전세보증금대출을 우선 취급해 구청 지원금 150만원을 대출 이자 상환에 자동 매칭하는 제휴 대출상품을 출시합니다.",
+      "동작청년센터('26.4월 개관) 연계 청년 특화 금융교육 및 첫급여통장 프로그램":"장승배기로161 가설건축물에 오픈라운지·상담실 등을 갖춘 동작청년센터가 2026년 4월 개관하며, 청년구직활동 지원종목도 2026년 921종으로 확대됩니다. 은행은 센터 내 상담 부스를 주1~2회 상주 운영하며 신용관리·자산형성 금융교육을 무상 제공하고, 취업 확정 시 첫급여통장 개설 이벤트를 진행합니다.",
+      "청년 문화생활비·식비지원 동작사랑상품권 결제 연계 체크카드":"청년 문화생활비(1인당 10만원)와 청년 식비 지원(월6만원)이 동작사랑상품권으로 지급되며, 동작사랑상품권은 연간 발행규모 336억원으로 실제 운영이 확인되었습니다. 은행은 상품권 충전·사용 전용 청년 체크카드를 발급해 충전 시 캐시백을 제공합니다.",
+      "IT-1 통합 사업정보 페이지 내 \"은행 연계 금융혜택\" 섹션 공동 구축":"plan IT-1(추정예산 350~500백만원)은 신규사업 확인율 저조(41%) 문제를 해소하기 위해 95개 중점사업을 마스터DB화하는 통합 페이지를 제안합니다. 은행은 마스터DB에 있는 효도카드, 청년·신혼부부 전월세지원 등 각 사업 옆에 '은행 연계상품 바로가기' 배지를 노출하는 정보 연동을 구축비 일부 분담 형태로 공동 개발합니다.",
+      "IT-4 생애주기 알림(챗봇/카카오톡) 채널에 금융 리마인더 결합":"plan IT-4(추정예산 100~150백만원, 검증에서 '챗봇'보다 '알림톡 자동발송' 수준이 타당하다고 하향권고됨)는 청년·신혼부부 전월세지원 신청기간 임박 알림을 우선 시범 적용할 계획입니다. 은행은 수신 동의자에 한해 알림톡의 '신청기간 안내'에 '관련 대출·적금 상품 안내'를 옵션으로 결합해 알림톡 발송 비용 일부를 협찬하는 형태로 참여합니다.",
+      "열린데이터광장(data.dongjak.go.kr) 연계 소상공인·부동산 데이터 분석 협력":"동작구 열린데이터광장과 스마트동작지도 빅데이터 플랫폼에 소상공인 지원과 신속통합기획 16개소·모아타운 5개소 등 개발사업 위치정보가 공개데이터로 구축되어 있습니다. 은행은 자체 상권분석 서비스에 구청 공개데이터를 결합한 공동 상권분석 리포트를 청석창업지원센터에 무상 제공하는 데이터 파트너십을 맺습니다.",
+      "노후주택 담장·축대 보수지원 및 소규모 공동주택 개선지원 연계 개보수대출":"노후 단독주택 담장(300만원)·축대(600만원) 보수비용 지원과 노후 소규모 공동주택 개선 지원(최대1천만원)이 운영 중이며, plan FN-2는 이 3개 지원사업을 빌라관리센터 4개 권역 통합신청창구로 묶는 확장안을 제시했습니다. 은행은 구청 지원금으로 부족한 초과 공사비를 커버하는 노후주택 개보수 특화 소액대출을 연계 출시합니다.",
+      "신속통합기획 16개소·모아타운 5개소 이주비대출 사전 협약":"서울시 최대규모 신속통합기획 정비사업 총 16개소(상도14구역 '23.6월 확정 등)와 모아타운 5개소(상도21·22, 사당11·20, 노량진13)가 진행단계별로 다수 확인됩니다. 은행은 사업시행인가 단계에 진입하는 구역부터 조합과 사전 협약을 맺어 이주비대출 주간사 지위를 확보하고, 이후 중도금대출·집단대출 연계까지 단계적으로 참여하는 로드맵을 수립합니다.",
+      "청년·신혼부부 만원주택(월세1만원) 입주자 대상 주거안정 금융 패키지":"청년·신혼부부 만원주택 공급이 기존 54호에서 110호까지 확보 목표로 확대 추진 중이며, 입주자는 이미 무주택·소득기준 등 구청 심사를 통과한 안정적 타겟군입니다. 은행은 만원주택 입주 시 목돈마련 자유적금 자동가입 이벤트를 진행하고, 계약 만료 후 우대금리 전세대출로 자연스럽게 이전되는 '주거이력 연계형' 대출 상품을 설계합니다.",
+      "노량진 옛청사부지 복합개발 PF 및 유니콘기업 입주 연계 기업금융":"노량진 옛청사부지 복합개발(장승배기로161)은 2025.9 사업협약 체결을 거쳤으며, 대형 벤처캐피탈 투자 유니콘기업 입주가 추진되어 2028.12 착공을 목표로 진행 중입니다. 은행은 사업협약 체결 초기 단계부터 시행사 대상 프로젝트파이낸싱 대출 또는 신디케이트론 참여를 제안하고, 입주 예정 유니콘기업 대상 시설자금대출을 동시 설계합니다.",
+      "이수-과천 복합터널 및 도림천 대심도 빗물배수터널 인프라 금융 참여":"이수-과천 복합터널(빗물배수터널 3.3km, 2026년 착공→2031년 준공)과 도림천 대심도 빗물배수터널(연장 4.5km, 2026.4월 착공→2030년 준공)은 둘 다 민간투자사업 성격이 강합니다. 은행은 시행사가 주관하는 민간투자사업 특수목적법인에 대한 대출 참여 또는 자금관리(에스크로) 계좌 수탁은행 역할을 수행할 수 있습니다.",
+      "역세권 활성화사업(남성역·신대방삼거리역) 관리처분인가 단계 조합 금융":"남성역 북측 역세권활성화사업(2026 사업시행인가 및 관리처분인가→2027 착공예정)과 신대방삼거리역 북측 역세권활성화사업(2026 사업시행인가 및 관리처분인가→2027 착공예정)이 진행 중입니다. 은행은 2026년 사업시행인가·관리처분인가 시점에 맞춰 조합 운영자금 대출 및 이주비대출을 사전 협약합니다."
+    },
+    "top3": [
+      "신속통합기획 16개소·모아타운 5개소 이주비대출 사전 협약",
+      "청년·신혼부부 전월세지원 연계 전월세보증금대출 및 이자지원 매칭 상품",
+      "노후주택 담장·축대 보수지원 및 소규모 공동주택 개선지원 연계 개보수대출"
+    ]
+  }
+},
+  "eunpyeong": {"name":"은평구","active":false,"mapCell":"eunpyeong"},
+  "gangbuk": {"name":"강북구","active":false,"mapCell":"gangbuk"},
+  "seodaemun": {"name":"서대문구","active":false,"mapCell":"seodaemun"},
+  "jongno": {"name":"종로구","active":false,"mapCell":"jongno"},
+  "seongbuk": {"name":"성북구","active":false,"mapCell":"seongbuk"},
+  "jungnang": {"name":"중랑구","active":false,"mapCell":"jungnang"},
+  "mapo": {"name":"마포구","active":false,"mapCell":"mapo"},
+  "junggu": {"name":"중구","active":false,"mapCell":"junggu"},
+  "yongsan": {"name":"용산구","active":false,"mapCell":"yongsan"},
+  "seongdong": {"name":"성동구","active":false,"mapCell":"seongdong"},
+  "gangseo": {"name":"강서구","active":false,"mapCell":"gangseo"},
+  "yangcheon": {"name":"양천구","active":false,"mapCell":"yangcheon"},
+  "yeongdeungpo": {"name":"영등포구","active":false,"mapCell":"yeongdeungpo"},
+  "seocho": {"name":"서초구","active":false,"mapCell":"seocho"},
+  "gangnam": {"name":"강남구","active":false,"mapCell":"gangnam"},
+  "songpa": {"name":"송파구","active":false,"mapCell":"songpa"},
+  "gangdong": {"name":"강동구","active":false,"mapCell":"gangdong"},
+  "guro": {"name":"구로구","active":false,"mapCell":"guro"},
+  "geumcheon": {"name":"금천구","active":false,"mapCell":"geumcheon"},
+  "gwanak": {"name":"관악구","active":false,"mapCell":"gwanak"}
+};
+const BANK_INFO = {
+  gwangjin:"국민", nowon:"국민", dobong:"국민", dongdaemun:"국민", dongjak:"국민",
+  gangnam:"신한", gangbuk:"신한", guro:"신한", seongdong:"신한", seocho:"신한", eunpyeong:"신한",
+  gangdong:"우리", gangseo:"우리", gwanak:"우리", geumcheon:"우리", mapo:"우리", seodaemun:"우리",
+  seongbuk:"우리", songpa:"우리", yangcheon:"우리", yongsan:"우리", yeongdeungpo:"우리",
+  jongno:"우리", junggu:"우리", jungnang:"우리"
+};
+const BANK_META = {
+  "국민": { name:"국민은행", color:"#FFB800" },
+  "신한": { name:"신한은행", color:"#0046FF" },
+  "우리": { name:"우리은행", color:"#273A92" }
+};
+function bankOf(id) { return BANK_META[BANK_INFO[id]]; }
+function scoreColor(score) {
+  if (score >= 85) return 'var(--score-good)';
+  if (score >= 75) return 'var(--score-mid)';
+  return 'var(--score-bad)';
+}
+let reportRendered = false;
+function switchTab(tab) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.tab===tab));
+  document.getElementById('tab-dashboard').classList.toggle('visible', tab==='dashboard');
+  document.getElementById('tab-report').classList.toggle('visible', tab==='report');
+  if (tab === 'report' && !reportRendered) {
+    renderReportTab();
+    reportRendered = true;
+  }
+}
+
+const MAP_PATHS = {
+  eunpyeong:   "M40,40 L160,40 L160,130 L100,150 L40,120 Z",
+  gangbuk:     "M380,40 L480,40 L480,130 L390,140 L370,90 Z",
+  dobong:      "M480,30 L590,25 L600,110 L500,125 L480,90 Z",
+  nowon:       "M590,25 L710,35 L720,120 L600,110 Z",
+  seodaemun:   "M160,40 L260,55 L255,140 L160,130 Z",
+  jongno:      "M260,55 L370,90 L390,140 L280,155 L255,140 Z",
+  seongbuk:    "M390,140 L500,125 L510,205 L400,220 Z",
+  jungnang:    "M600,110 L720,120 L730,210 L615,215 Z",
+  mapo:        "M100,150 L255,140 L245,225 L120,230 Z",
+  junggu:      "M280,155 L390,140 L400,220 L300,235 Z",
+  dongdaemun:  "M400,220 L510,205 L520,285 L410,300 Z",
+  gwangjin:    "M520,285 L615,215 L730,210 L720,300 L600,320 Z",
+  yongsan:     "M245,225 L300,235 L400,220 L410,300 L280,310 Z",
+  seongdong:   "M410,300 L520,285 L600,320 L500,345 L420,335 Z",
+  gangseo:     "M15,410 L120,405 L130,500 L20,515 Z",
+  yangcheon:   "M120,405 L220,415 L225,495 L130,500 Z",
+  yeongdeungpo:"M220,415 L300,405 L310,490 L225,495 Z",
+  dongjak:     "M300,405 L400,390 L410,470 L310,490 Z",
+  seocho:      "M400,390 L470,418 L480,500 L410,470 Z",
+  gangnam:     "M470,418 L560,400 L580,485 L480,500 Z",
+  songpa:      "M560,400 L640,385 L660,470 L580,485 Z",
+  gangdong:    "M640,385 L720,375 L740,455 L660,470 Z",
+  guro:        "M20,515 L130,500 L135,590 L30,595 Z",
+  geumcheon:   "M130,500 L225,495 L220,585 L135,590 Z",
+  gwanak:      "M225,495 L310,490 L305,580 L220,585 Z"
+};
+
+const MAP_LABEL_POS = {
+  dobong: [540,72], nowon: [655,75], dongdaemun: [460,255],
+  gwangjin: [630,258], dongjak: [355,440]
+};
+
+function pathCentroid(d) {
+  const nums = (d.match(/-?\d+(\.\d+)?/g) || []).map(Number);
+  const pts = [];
+  for (let i = 0; i < nums.length; i += 2) pts.push([nums[i], nums[i+1]]);
+  const cx = pts.reduce((s,p) => s + p[0], 0) / pts.length;
+  const cy = pts.reduce((s,p) => s + p[1], 0) / pts.length;
+  return [cx, cy];
+}
+
+function renderMap() {
+  const svgParts = [];
+  svgParts.push('<svg id="seoul-map" viewBox="0 0 800 620" style="width:100%;height:100%;display:block;">');
+
+  Object.entries(MAP_PATHS).forEach(([id, path]) => {
+    const d = DISTRICTS[id];
+    const bank = bankOf(id);
+    const cls = d.active ? 'gu gu-active' : 'gu placeholder';
+    svgParts.push(`<path class="${cls}" data-id="${id}" style="fill:${bank.color}" d="${path}" onclick="openDistrict('${id}', event)" onmouseenter="showMapTooltip('${id}', event)" onmousemove="moveMapTooltip(event)" onmouseleave="hideMapTooltip()"></path>`);
+  });
+
+  Object.entries(MAP_PATHS).forEach(([id, path]) => {
+    if (MAP_LABEL_POS[id]) return;
+    const d = DISTRICTS[id];
+    const [cx, cy] = pathCentroid(path);
+    svgParts.push(`<text x="${cx}" y="${cy}" class="d-label-sm" text-anchor="middle" pointer-events="none">${d.name}</text>`);
+  });
+
+  Object.entries(MAP_LABEL_POS).forEach(([id, pos]) => {
+    const d = DISTRICTS[id];
+    const c = scoreColor(d.score);
+    svgParts.push(`<g transform="rotate(-6 ${pos[0]} ${pos[1]+18})">
+      <circle cx="${pos[0]}" cy="${pos[1]+18}" r="16" fill="var(--dossier)"></circle>
+      <circle class="d-seal" cx="${pos[0]}" cy="${pos[1]+18}" r="15" fill="${c}" fill-opacity="0.14" stroke="${c}"></circle>
+      <text x="${pos[0]}" y="${pos[1]+22}" text-anchor="middle" class="d-seal-score" fill="${c}">${d.score}</text>
+    </g>`);
+    svgParts.push(`<text x="${pos[0]}" y="${pos[1]}" class="d-label" text-anchor="middle">${d.name}</text>`);
+  });
+
+  svgParts.push('<path d="M20,320 C160,300 260,345 380,335 C480,325 520,350 620,340 C700,332 760,355 780,345 L780,395 C700,410 640,385 560,400 C470,418 400,390 300,405 C200,420 100,395 20,410 Z" fill="#1a3550" opacity="0.85"></path>');
+  svgParts.push('<text x="700" y="380" class="map-footnote" font-style="italic">한강</text>');
+  svgParts.push('<text x="400" y="605" text-anchor="middle" id="map-footnote">진하게 표시된 5개구 = 이번 프로젝트 대상 · 마우스를 올려 정보 확인, 클릭하면 상세보기</text>');
+  svgParts.push('</svg>');
+
+  document.getElementById('tab-dashboard').innerHTML = svgParts.join('') + renderLegend() + '<div id="map-tooltip"></div>';
+}
+
+function renderLegend() {
+  const counts = {};
+  Object.values(BANK_INFO).forEach(key => { counts[key] = (counts[key] || 0) + 1; });
+  const rows = Object.keys(BANK_META).map(key => {
+    const meta = BANK_META[key];
+    return `<div class="legend-row"><span class="legend-swatch" style="background:${meta.color}"></span>${meta.name} ${counts[key]}곳</div>`;
+  }).join('');
+  return `
+    <div id="map-legend">
+      <div class="legend-title">지도 색상 = 구금고 지정은행</div>
+      ${rows}
+      <div class="legend-divider"></div>
+      <div class="legend-title">신뢰도 점수란?</div>
+      <div class="legend-score">① KB제안계획서가 구청 실제 계획·데이터와 얼마나 정확히 맞는지 검증한 점수(100점 만점)<br>② 근거인용 정확성(40)+분류 타당성(30)+실행 타당성(30)에서 시작해 오류 발견 시 감점<br>③ 원형 배지는 이번 프로젝트 대상 5개구에만 표시됩니다</div>
+    </div>
+  `;
+}
+
+function showMapTooltip(id, evt) {
+  const d = DISTRICTS[id];
+  const bank = bankOf(id);
+  const tip = document.getElementById('map-tooltip');
+  if (d.active) {
+    tip.innerHTML = `
+      <div class="mt-head">
+        <span class="seal-badge mt-seal" style="color:${scoreColor(d.score)}">${d.score}<span class="sb-label">점수</span></span>
+        <div><div class="mt-name">${d.name}</div><div class="mt-bank" style="color:${bank.color}">● ${bank.name} 구금고</div></div>
+      </div>
+      <div class="mt-budget">제안 총예산 ${d.budget}</div>
+      <div class="mt-issue">${d.issues[0]}</div>
+      <div class="mt-cta">클릭하면 전체 검증 리포트 보기 →</div>
+    `;
+  } else {
+    tip.innerHTML = `
+      <div class="mt-head"><div class="mt-name">${d.name}</div></div>
+      <div class="mt-bank" style="color:${bank.color}">● ${bank.name} 구금고</div>
+      <div class="mt-cta">이번 프로젝트 대상 아님</div>
+    `;
+  }
+  tip.classList.add('show');
+  moveMapTooltip(evt);
+}
+function moveMapTooltip(evt) {
+  const tip = document.getElementById('map-tooltip');
+  if (!tip.classList.contains('show')) return;
+  const pad = 18;
+  let x = evt.clientX + pad, y = evt.clientY + pad;
+  if (x + 280 > window.innerWidth) x = evt.clientX - 280 - pad;
+  if (y + 180 > window.innerHeight) y = evt.clientY - 180 - pad;
+  tip.style.left = x + 'px';
+  tip.style.top = y + 'px';
+}
+function hideMapTooltip() {
+  document.getElementById('map-tooltip').classList.remove('show');
+}
+
+function openDistrict(id, evt) {
+  const d = DISTRICTS[id];
+  if (!d.active) {
+    alert(d.name + ' - 아직 자료가 준비되지 않았습니다.');
+    return;
+  }
+  hideMapTooltip();
+  showDistrictDetail(id, evt);
+}
+
+renderMap();
+
+let currentDistrictId = null;
+
+function showDistrictDetail(id, evt) {
+  currentDistrictId = id;
+  const d = DISTRICTS[id];
+  const overlay = document.getElementById('detail-overlay');
+  const ox = evt ? evt.clientX : window.innerWidth / 2;
+  const oy = evt ? evt.clientY : window.innerHeight / 2;
+  overlay.style.setProperty('--ox', ox + 'px');
+  overlay.style.setProperty('--oy', oy + 'px');
+  document.getElementById('detail-title').textContent = d.name;
+  const rows = d.scoreTable.map(r => `<tr><td>${r.label}</td><td>${r.value}</td></tr>`).join('');
+  document.getElementById('detail-subtitle').innerHTML = `
+    <div class="detail-meta">
+      <span class="seal-badge lg animate" style="color:${scoreColor(d.score)}">${d.score}<span class="sb-label">점수</span></span>
+      <div class="detail-meta-col">
+        <span class="dm-k">제안 총예산</span><span class="dm-v">${d.budget}</span>
+        <table class="score-table">${rows}</table>
+      </div>
+    </div>`;
+  switchDetailTab('summary');
+  overlay.classList.add('show');
+}
+
+function closeDistrictDetail() {
+  document.getElementById('detail-overlay').classList.remove('show');
+}
+
+function highlightNumbers(text) {
+  return text.replace(/(\d[\d,]*(\.\d+)?%?)/g, '<strong>$1</strong>');
+}
+
+function issueHeadline(text) {
+  const commaIdx = text.indexOf(',');
+  const limit = commaIdx > 0 ? Math.min(commaIdx, 28) : 28;
+  const head = text.slice(0, limit).trim();
+  return head.length < text.length ? head + '…' : head;
+}
+
+function switchDetailTab(sub) {
+  document.querySelectorAll('.detail-subtab').forEach(t => t.classList.toggle('active', t.dataset.sub===sub));
+  const d = DISTRICTS[currentDistrictId];
+  const body = document.getElementById('detail-body');
+
+  if (sub === 'summary') {
+    body.innerHTML = `
+      <div class="issue-list">${d.issues.map(i => `<details class="topic-chip"><summary>${highlightNumbers(issueHeadline(i))}</summary><div class="topic-detail">${highlightNumbers(i)}</div></details>`).join('')}</div>
+      <div class="verdict-note">
+        <div class="vn-label">판정 근거 (상세)</div>
+        <p>${d.verdictBasis}</p>
+      </div>
+    `;
+  } else if (sub === 'it' || sub === 'fn') {
+    const isIt = sub === 'it';
+    const projects = isIt ? d.itProjects : d.fnProjects;
+    const detailMap = isIt ? d.itDetail : d.fnDetail;
+    const prefix = isIt ? '전산화지원사업' : '금융지원사업';
+    const vRows = d.validation.filter(v => v.code.startsWith(prefix));
+    const projCard = p => {
+      const val = d.validation.find(v => v.code === p.code);
+      const overlapLabel = val ? val.overlap.split('(')[0].trim() : '';
+      const detail = detailMap && detailMap[p.code];
+      return `
+      <details class="proj-card">
+        <summary>
+          <div class="code">${p.code}</div>
+          <div class="name">${p.name}</div>
+          <div class="meta">${overlapLabel ? `<span class="pill" data-level="${overlapLabel}">${overlapLabel}</span>` : ''}<span class="pill" data-level="${p.priority}">${p.priority}</span><span>${p.budget}</span><span>근거: ${p.basis}</span></div>
+        </summary>
+        ${detail ? `<div class="proj-detail">${detail}</div>` : ''}
+      </details>`;
+    };
+    const vRow = v => {
+      const label = v.overlap.split('(')[0].trim();
+      return `
+      <tr>
+        <td>${v.code}</td>
+        <td><span class="pill" data-level="${label}">${label}</span><div class="vtable-sub">${v.overlap}</div></td>
+        <td><span class="pill" data-level="${v.grade}">${v.grade}</span></td>
+        <td>${v.rationale}</td><td>${v.recommendation}</td>
+      </tr>`;
+    };
+    body.innerHTML = `
+      <h3 class="section-h">${isIt ? 'IT전산화 지원사업 제안' : '금융지원 사업 제안'} — 구청 계획과의 관계 (클릭하면 원본 근거 상세 보기)</h3>
+      ${projects.map(projCard).join('')}
+      <h3 class="section-h accent">타당성 검증표</h3>
+      <table class="vtable">
+        <thead><tr><th>코드</th><th>중복여부</th><th>등급</th><th>판단근거</th><th>수정권고</th></tr></thead>
+        <tbody>${vRows.map(vRow).join('')}</tbody>
+      </table>
+    `;
+  } else if (sub === 'bank') {
+    const top3Set = new Set(d.bankIdeas.top3);
+    const details = d.bankIdeas.details || {};
+    const cats = Object.entries(d.bankIdeas.categories)
+      .map(([cat, items]) => `
+        <div class="bank-cat">
+          <h4>${cat}</h4>
+          <ul>${items.map(i => `
+            <li><details class="bank-idea ${top3Set.has(i) ? 'is-top3' : ''}">
+              <summary>${top3Set.has(i) ? '<span class="li-star">★</span>' : ''}${i}</summary>
+              ${details[i] ? `<div class="bank-detail">${details[i]}</div>` : ''}
+            </details></li>`).join('')}</ul>
+        </div>`).join('');
+    body.innerHTML = `
+      <div class="top3-box">
+        <div class="top3-box-label">선정 TOP3 · 아래 카테고리별 아이디어 중 우선순위가 가장 높은 3건 (클릭하면 상세)</div>
+        ${d.bankIdeas.top3.map((t,i) => `<div class="top3-item"><span class="top3-rank">${i+1}</span>${t}</div>`).join('')}
+      </div>
+      ${cats}
+    `;
+  }
+}
+
+const REPORT_TOPICS = {
+  it: {
+    label: 'IT전산화 지원사업',
+    render: d => d.itProjects.map(p => `<div class="report-proj-line"><b>${p.name}</b><br><span class="pill" data-level="${p.priority}">${p.priority}</span> ${p.budget}</div>`).join('')
+  },
+  fn: {
+    label: '금융지원 사업',
+    render: d => d.fnProjects.map(p => `<div class="report-proj-line"><b>${p.name}</b><br><span class="pill" data-level="${p.priority}">${p.priority}</span> ${p.budget}</div>`).join('')
+  },
+  score: {
+    label: '검증 신뢰도 점수',
+    render: d => `<span class="seal-badge" style="color:${scoreColor(d.score)}">${d.score}<span class="sb-label">점수</span></span><div style="margin-top:12px; font-size:12px; line-height:1.6; opacity:.85;">${d.verdictBasis}</div>`
+  },
+  bank: {
+    label: '은행 결합 아이디어',
+    render: d => `<div>카테고리 ${Object.keys(d.bankIdeas.categories).length}개</div><div style="margin-top:8px;">${d.bankIdeas.top3.map(t => '· '+t).join('<br>')}</div>`
+  }
+};
+
+function renderReportTab() {
+  const activeIds = Object.keys(DISTRICTS).filter(id => DISTRICTS[id].active);
+  const container = document.getElementById('tab-report');
+  container.innerHTML = `
+    <div id="report-container">
+      <label style="font-size:13px; opacity:.7;">주제 선택:
+        <select id="topic-select" onchange="renderTopicGrid()">
+          ${Object.entries(REPORT_TOPICS).map(([k,t]) => `<option value="${k}">${t.label}</option>`).join('')}
+        </select>
+      </label>
+      <div id="topic-grid"></div>
+    </div>
+  `;
+  renderTopicGrid();
+
+  function renderTopicGrid() {
+    const topic = REPORT_TOPICS[document.getElementById('topic-select').value];
+    document.getElementById('topic-grid').innerHTML = activeIds.map(id => {
+      const d = DISTRICTS[id];
+      return `<div class="report-col"><h4>${d.name}</h4>${topic.render(d)}</div>`;
+    }).join('');
+  }
+  window.renderTopicGrid = renderTopicGrid;
+}
+</script>
+</body>
+</html>
