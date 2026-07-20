@@ -843,7 +843,7 @@ for name in tab_ids:
     html_parts.append('</div>')
 
     for fname, label, subid, icon in file_labels:
-        fpath = fr"C:\claude_workspace\기관\{dirname}\plan\{fname}"
+        fpath = fr"giganlist\{dirname}\plan\{fname}"
         with open(fpath, encoding="utf-8") as f:
             content = f.read()
         body_html = text_to_html_blocks(content)
@@ -851,7 +851,7 @@ for name in tab_ids:
             f'<div class="subpanel" role="tabpanel" data-sub="{subid}"><div class="doc-body">{body_html}</div></div>'
         )
 
-    bank_path = fr"C:\claude_workspace\기관\{dirname}\{bfname}"
+    bank_path = fr"giganlist\{dirname}\{bfname}"
     with open(bank_path, encoding="utf-8") as f:
         bank_content = f.read()
     bank_html = text_to_html_blocks(bank_content)

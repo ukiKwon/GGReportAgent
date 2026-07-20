@@ -314,7 +314,7 @@ for di, d in enumerate(districts):
     add_divider(doc)
 
     for fname, label in file_labels:
-        fpath = fr"C:\claude_workspace\{dirname}\plan\{fname}"
+        fpath = fr"giganlist\{dirname}\plan\{fname}"
         add_heading(doc, label, level=2, size=13, color=d["color"])
         add_detail_file(doc, fpath)
         add_divider(doc)
