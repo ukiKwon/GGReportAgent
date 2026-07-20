@@ -77,6 +77,11 @@ manual update, not just an edit to the `.txt` file.
 
 ## Handoff summaries
 
+**What "마무리해줘" (finalize/wrap up) means in this repo:** update or create the day's
+`handoff/YYYY-MM-DD_summary.md` (and `handoff/NEXT.md` if any open item changed status),
+`git commit` the result, and `git push`. All three steps — not just one — unless the user
+explicitly narrows the scope in that request.
+
 `handoff/` holds short markdown recaps of work done in this repo, plus one tracker file:
 
 - **`handoff/YYYY-MM-DD_summary.md`** — one file per calendar day, after every 5
