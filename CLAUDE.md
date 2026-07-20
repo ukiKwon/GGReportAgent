@@ -77,11 +77,38 @@ manual update, not just an edit to the `.txt` file.
 
 ## Handoff summaries
 
-`handoff/` holds short markdown recaps of work done in this repo. After every 5 completed
-tasks in a session's task list, write a new file `handoff/YYYY-MM-DD_HHmm_summary.md`
-covering what was done, key decisions, and what's left — so a future session (or another
-instance of Claude) can pick up context without replaying the whole conversation.
+`handoff/` holds short markdown recaps of work done in this repo, plus one tracker file:
 
-A `SessionStart` hook in `.claude/settings.json` automatically reads the most recent file
-in `handoff/` (by filename sort order) and injects its content as context at the start of
-every new session, so this recap loop is self-sustaining without manual action.
+- **`handoff/YYYY-MM-DD_summary.md`** — one file per calendar day, after every 5
+  completed tasks in a session's task list, covering what was done, key decisions, and
+  what's left. If a summary is due on a day that already has a file, append a new
+  `## Session HH:mm` section to the bottom of that day's file — never edit or remove an
+  existing session section. **Append-only at the session-section level**: once a
+  session's section is written, it is never edited or deleted by a later session.
+- **`handoff/NEXT.md`** — the one file in this folder that IS meant to be edited in
+  place. It tracks only the currently-unresolved "what's left" items, deduplicated
+  across all past summaries, so a new session doesn't have to read every summary file
+  to know what's still open. Rules for maintaining it:
+  - When a session resolves an item, remove it from `NEXT.md` **and** record that
+    resolution explicitly in that session's own summary file (which item, how/where
+    it was resolved — commit hash, worktree, etc.).
+  - When an item is still open but progress was made, update its status in place
+    (don't delete it) — leave enough detail (worktree/branch, how far it got) for the
+    next session to resume.
+  - New unresolved items go into `NEXT.md` as they're identified, tagged with the
+    summary file they came from.
+  - Only remove an item once it is actually done — a session finding an item still
+    open should leave it open ("wait" rather than prematurely closing it).
+
+A `SessionStart` hook in `.claude/settings.json` automatically injects both `NEXT.md`
+(if present) and the most recent `YYYY-MM-DD_summary.md` file (by filename sort order,
+matched with a strict `^\d{4}-\d{2}-\d{2}_summary\.md$` pattern) as context at the start
+of every new session, so this recap loop is self-sustaining without manual action. Older
+daily summary files are not auto-injected — `NEXT.md` is what carries forward anything
+from them that still matters.
+
+**Acknowledge the load, every session:** the hook has no user-visible notification channel
+— the injected content only lands in Claude's own context. So in your first reply of every
+new session in this repo, state in one short line whether `NEXT.md` and/or a dated summary
+were loaded (and which file), before doing anything else. If neither was injected (e.g.
+`handoff/` was empty), say that too — don't silently proceed either way.
