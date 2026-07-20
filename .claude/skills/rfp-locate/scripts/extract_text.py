@@ -49,6 +49,8 @@ def main():
             f.write(output)
     else:
         import sys
+        # stdout.buffer bypasses the platform's default text encoding (cp949 on Windows),
+        # which would raise UnicodeEncodeError on Korean text in the extracted PDF content.
         sys.stdout.buffer.write(output.encode("utf-8"))
 
 
