@@ -1,0 +1,9 @@
+{
+  "institution": "수원시",
+  "rfp_title": "수원시 금고 지정 계획 공고문",
+  "total_score": 100,
+  "criteria": [
+    {"category": "금융기관의 대내외적 신용도 및 재무구조의 안정성", "item": "외부기관의 신용조사 상태평가", "score": 8, "description": "국외평가기관(4점) + 국내평가기관(4점)"},
+    {"category": "시에 대한 대출 및 예금금리", "item": "정기예금 예치금리 등", "score": 21, "description": null}
+  ]
+}
