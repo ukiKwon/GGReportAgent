@@ -2,7 +2,7 @@ import os
 
 from pptx import Presentation
 
-from agent.nodes.pptx_builder import build_pptx
+from agent.nodes.pptx_builder import build_pptx, pptx_builder_node
 
 
 def test_build_pptx_creates_title_and_section_slides(tmp_path):
@@ -72,3 +72,19 @@ def test_build_pptx_without_archive_has_no_reference_section(tmp_path):
         if shape.has_text_frame
     )
     assert "과거 유사제안 참고" not in all_text
+
+
+def test_pptx_builder_node_creates_missing_output_directory(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    sections = [{"scoring_item": "신용도", "title": "1. 신용도", "content": "내용", "sources": ["spec/01"]}]
+    scoring_table = [{"category": "신용도", "item": "평가", "score": 10, "description": None}]
+    state = {
+        "sections": sections,
+        "scoring_table": scoring_table,
+        "institution_name": "테스트기관",
+    }
+
+    result = pptx_builder_node(state)
+
+    assert os.path.isfile(result["pptx_path"])
