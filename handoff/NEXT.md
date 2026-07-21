@@ -92,32 +92,53 @@
   재생성 필요. 완료된 12개구 산출물은 더 이상 git 미추적 상태가 아님(`2026-07-21`
   세션에서 커밋됨) — 다음 세션은 이 사실을 전제로 진행할 것.
 
-### 2. `agent/` RFP 팀 확장 설계 — 스펙 작성 완료, 구현 계획(writing-plans) 착수 전
-- **출처**: `2026-07-21_summary.md` "Session 오후 4".
-- **내용**: 기존 `agent/` 파이프라인(PR #1로 병합된 8-Task 구현)은 "RFP·spec이 이미
+### 2. `agent/` RFP 팀 확장 구현 — Task 1·2 완료, Task 3(`spec_research_node`)부터 재개
+- **출처**: `2026-07-21_summary.md` "Session 오후 4"(스펙·계획 작성), "Session 오후 5"
+  (계획 실행 착수, Task 1·2 구현).
+- **배경**: 기존 `agent/` 파이프라인(PR #1로 병합된 8-Task 구현)은 "RFP·spec이 이미
   있다"는 전제로 시작해 `giganlist/{구}/spec/`을 읽기만 함 — RFP 탐색 단계도, spec/plan/
   bank_ideas_draft를 새로 만드는 단계도 없었음. 이를 채우기 위해 "기관명만 입력하면
   RFP 탐색 → (신규 기관이면) spec/plan/bank_ideas_draft 자동 생성 → 보고서 → PPT"까지
-  자동화하는 확장 가능한 단일 파이프라인으로 브레인스토밍 완료, 스펙 문서 작성·커밋함:
-  `agent/docs/superpowers/specs/2026-07-21-rfp-agent-team-design.md`(커밋 `47e3ee8`).
+  자동화하는 확장 가능한 단일 파이프라인으로 설계. 스펙:
+  `agent/docs/superpowers/specs/2026-07-21-rfp-agent-team-design.md`(커밋 `47e3ee8`,
+  main에 push됨). 계획: `agent/docs/superpowers/plans/2026-07-21-rfp-agent-team.md`
+  (커밋 `343372c`, main에 push됨) — 7-Task TDD 계획.
 - **설계 요지**: 기존 4개 노드(`institution_match`/`content_writer`/`verification`/
   `pptx_builder`)는 변경 없이 재사용, 새 노드 3개(`rfp_locate_node`/`spec_research_node`/
   `plan_writer_node`)만 추가. 확장성은 `institution_match_node`가 채우는
   `matched_district`/`institution_spec_dir` 필드 유무로 파이프라인이 스스로 분기 —
   지역별 분기 코드 추가 불필요. 체크포인트는 spec 생성 직후 1곳뿐(이후 자동 진행).
-  실행은 `python -m agent.main "<기관명>"` CLI. 이번 스펙은 나라장터 상시 크롤링/모니터링을
-  범위 밖으로 명시적으로 제외(먼저 "이미 아는 RFP 1건"으로 end-to-end 검증 후 별도 스펙).
-- **미확정 사항(구현 계획 단계에서 결정 예정)**: (1) `spec_research_node`/
-  `plan_writer_node`가 WebSearch/WebFetch 도구 호출이 필요한데 현재
-  `agent/llm.py`의 `get_llm()`은 순수 텍스트 LLM만 반환 — 도구 바인딩 확장 필요할 수
-  있음. (2) `rfp_locate_node`가 rfp-locate 스킬을 노드 코드 안에서 호출하는 구체
-  메커니즘 미정. (3) 신규 기관 spec 디렉터리 슬러그 명명 규칙 미확정(기존 25개구
-  영문 슬러그 관례 준용 예정).
-- **재개 방법**: 사용자가 스펙 문서(`agent/docs/superpowers/specs/2026-07-21-rfp-agent-team-design.md`)를
-  검토한 뒤, `writing-plans` 스킬로 구현 계획(Task 분해)을 세우는 단계로 진행 —
-  브레인스토밍 스킬의 표준 흐름(스펙 승인 → writing-plans). 이 스펙 파일은
-  `agent/docs/superpowers/specs/`에 있고, 기존 agent 오케스트레이션 Task 1~8 계획이
-  있던 repo 루트 `docs/superpowers/`와는 다른 경로이므로 혼동하지 말 것.
+  실행은 `python -m agent.main "<기관명>"` CLI. 새 노드들은 **Claude Agent SDK로
+  서브에이전트를 호출**하는 방식으로 구현(langchain tool-calling 확장이 아님) —
+  계획 수립 중 사용자와 확정. 나라장터 상시 크롤링/모니터링은 범위 밖으로 명시적 제외.
+- **구현 착수**: `superpowers:subagent-driven-development`로 진행 중. 워크트리
+  `.claude/worktrees/rfp-agent-team`(브랜치 `worktree-rfp-agent-team`, `EnterWorktree`로
+  생성)에서 작업. supervisor 노드는 별도로 만들지 않기로 결정(컨트롤러 세션 자신이
+  Task별 디스패치·리뷰를 수행하는 것으로 충분, 파이프라인 분기 자체가 상태 필드
+  체크만으로 단순함).
+- **완료 (Task 1, 2)**:
+  - Task 1: `run_subagent` 헬퍼(`agent/tools/subagent_runner.py`) — `claude-agent-sdk`
+    (`0.2.124`) 설치·실제 API 구조 확인 후 구현. 커밋 `1504d8e`. 리뷰 Spec ✅/Quality
+    Approved(Minor: 미사용 import, 안 막음).
+  - Task 2: `rfp_locate_node`(`agent/nodes/rfp_locate.py`) — 기존 `rfp_analysis_node`가
+    읽는 `report_new/{institution}/{rfp_scoring.json, rfp_text.txt}` 경로 규약을 정확히
+    맞춰 구현, 파일 부재 시 `FileNotFoundError`. 커밋 `0e759e7`. 리뷰 Spec ✅/Quality
+    Approved(Minor: "파일 하나만 존재" 케이스 테스트 누락, `or` 로직 자체는 정확).
+  - 두 Task 모두 Minor만 있어 fix 라운드 없이 통과, 워크트리 안
+    `.superpowers/sdd/progress.md`(git-ignored, 커밋 대상 아님)에 진행상황 기록됨.
+- **미완료 (Task 3~7)**: `spec_research_node`, `plan_writer_node`, CLI 검토
+  체크포인트(`confirm_spec_review`), `agent/main.py` 전체 파이프라인 CLI, end-to-end
+  검증 — 전부 미착수.
+- **재개 방법**: `.claude/worktrees/rfp-agent-team`(브랜치 `worktree-rfp-agent-team`)에
+  `EnterWorktree`(path 지정)로 재진입 → `.superpowers/sdd/progress.md`로 Task 1·2
+  완료 확인 → superpowers:subagent-driven-development 스킬의 `task-brief` 스크립트로
+  Task 3 브리핑 생성해 이어서 디스패치. 계획 파일은
+  `agent/docs/superpowers/plans/2026-07-21-rfp-agent-team.md`, 스펙 파일은
+  `agent/docs/superpowers/specs/2026-07-21-rfp-agent-team-design.md`(둘 다
+  `agent/docs/superpowers/`, repo 루트 `docs/superpowers/`의 기존 agent 오케스트레이션
+  계획과는 다른 경로이므로 혼동하지 말 것). 워크트리의 커밋은 아직 원격에 push되지
+  않음 — main에는 스펙/계획 문서 커밋(`47e3ee8`, `343372c`)만 있고, 노드 구현 커밋
+  (`1504d8e`, `0e759e7`)은 워크트리 브랜치에만 있음.
 
 ### 3. 산출물 본문 내 `bank_idea_draft.txt`(단수형) 자기참조 3곳 — 의도적으로 보류
 - **출처**: `2026-07-21` 밤 세션(giganlist 경로/파일명 통일 작업 중 발견).
