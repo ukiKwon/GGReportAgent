@@ -23,24 +23,30 @@
 
 ## 열린 항목
 
-### 1. `agent/` 오케스트레이션 패키지 구현 — 계획의 8개 Task 전부 완료, main 병합 여부 미결정
+### 1. `agent/` 오케스트레이션 패키지 구현 — PR #1 오픈, 병합 대기 + giganlist 구조 재작업 필요
 - **출처**: `2026-07-20_1524_summary.md`(계획 필요) → `2026-07-20_1620_summary.md`(착수, 중단)
   → `2026-07-21` 오전 세션(상태 재확인) → `2026-07-21` 오후 세션(Task 6) →
-  `2026-07-21` 저녁 세션(Task 7, 8, 완료).
-- **상태**: 워크트리 `.claude/worktrees/rfp-proposal-agent`(브랜치 `subagent-init-archi`)에서
-  계획 파일(`docs/superpowers/plans/2026-07-20-rfp-proposal-agent.md`)의 Task 1~8(giganlist
-  이동, state/llm, rfp_analysis, spec_loader/institution_match, pptx_builder,
-  content_writer, verification, pipeline)이 **전부 구현·테스트·커밋 완료**.
-  `python -m pytest agent/ -m "not llm" -v` → **24개 테스트 전부 통과**(계획의
-  End-to-End Verification 1번 항목 충족). 계획 3번 항목(실제 API로 `run_pipeline('수원시')`
-  돌려 실제 PPTX 생성하는 수동 스모크 테스트)은 사용자 결정으로 **생략**됨 — 필요 시
-  나중에 별도로 실행 가능(`report_new/수원시/rfp_scoring.json` 픽스처 이미 존재).
-  모든 커밋이 `origin/subagent-init-archi`에 push 완료(최신 `4d721a9`).
-- **재개 방법**: 코드 구현 자체는 끝났으므로, 다음에 이 항목을 다룰 때는 구현이 아니라
-  **main 병합 방식 결정**부터 시작. 옵션: (a) `origin/subagent-init-archi` → main으로
-  PR 생성, (b) 로컬에서 직접 병합, (c) 계획 파일의 체크박스(`- [ ]`, Task 1~8 전부
-  미체크 상태로 남아있음 — 실제로는 완료돼 있으니 이 자체는 버그 아님)를 정리할지
-  여부도 함께 결정. 사용자와 논의 필요, 이번 세션에서 다루지 않음.
+  `2026-07-21` 저녁 세션(Task 7, 8, 완료) → `2026-07-21` 밤 세션(PR 생성).
+- **상태**: 계획 파일의 Task 1~8이 전부 구현·테스트(24개 통과)·커밋 완료, 사용자가
+  병합 방식으로 (a) PR 생성을 선택. `gh` CLI가 이 머신에 없어 winget으로 설치
+  (`C:\Program Files\GitHub CLI\gh.exe` — 이 세션의 Bash/PowerShell 둘 다 PATH에
+  자동으로 안 잡혀서 전체 경로로 호출해야 했음), `gh auth login`은 사용자가 직접
+  브라우저 인증 수행. **PR #1 생성 완료**:
+  https://github.com/ukiKwon/GGReportAgent/pull/1 (`subagent-init-archi` → `main`).
+- **병합 전 알려진 구조 문제 (PR 설명에도 명시)**: PR의 Task 1이 원래 5개구(dobong 등)만
+  `giganlist/`로 이동시키는데, main은 그 사이 25개구 배치 프로젝트로 12개구 전체
+  (jongno/yangcheon/gangseo 등 포함)가 루트에 그대로 있는 상태로 진행됨. PR을 그대로
+  병합하면 5개구만 `giganlist/`, 나머지 7개구는 루트에 남아 구조가 어긋나고
+  `build_report.py`/`build_html_report.py`가 깨짐. **사용자 결정**: PR 병합 후
+  25개구(완료된 12개구) 전체를 `giganlist/`로 재이동하고 build 스크립트 경로를 다시
+  맞추는 후속 작업을 별도로 진행하기로 함.
+- **재개 방법**:
+  1. PR #1 머지 상태 확인(`gh pr view 1` 또는 웹에서), 머지되지 않았다면 먼저 머지.
+  2. main으로 전환 후 나머지 7개구(jongno, gwangjin 등 `giganlist/`에 없는 완료된
+     구들 — `giganlist/` 안 5개구 제외 전부)를 `git mv`로 `giganlist/`에 재배치.
+  3. `build_report.py`/`build_html_report.py`가 참조하는 district 목록/경로를
+     25개구(또는 완료분) 전체 기준으로 갱신.
+  4. `python build_report.py && python build_html_report.py`로 정상 동작 확인 후 커밋.
 - **주의**: Task 2에서 서브에이전트가 실수로 main에 직접 커밋한 사고가 있었음(복구됨) —
   향후 디스패치 시 "워크트리 절대경로에서만 작업, 커밋 전 `git rev-parse --show-toplevel`
   확인" 지시 필수.
