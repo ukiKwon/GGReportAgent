@@ -23,21 +23,24 @@
 
 ## 열린 항목
 
-### 1. `agent/` 오케스트레이션 패키지 구현 — Task 6까지 완료, Task 7~8 재개 대기
+### 1. `agent/` 오케스트레이션 패키지 구현 — 계획의 8개 Task 전부 완료, main 병합 여부 미결정
 - **출처**: `2026-07-20_1524_summary.md`(계획 필요) → `2026-07-20_1620_summary.md`(착수, 중단)
-  → `2026-07-21` 오전 세션(상태 재확인, 오전엔 착수 안 함) → `2026-07-21` 오후 세션(Task 6 완료).
-- **상태**: 오전 세션 기록과 달리 워크트리는 **실제로는 계속 존재**하고 있었음
-  (`C:/claude_workspace/GGReportAgent/.claude/worktrees/rfp-proposal-agent`, 브랜치
-  `subagent-init-archi`, `locked`). 오후 세션에서 `git worktree list`로 재확인,
-  `python -m pytest agent/`로 Task 1~5 전체(16 테스트) 통과 재검증 후 **Task 6
-  (`agent/nodes/content_writer.py`) 구현·테스트·커밋 완료**. 커밋
-  `79b33ba`(Task 6), `8876889`(pptx_builder Task5 minor fix, 아래 항목 2 참고) 모두
-  `origin/subagent-init-archi`에 push 완료.
-- **재개 방법**: 로컬 워크트리 `.claude/worktrees/rfp-proposal-agent`가 그대로 존재하므로
-  그 경로에서 바로 이어서 진행(새 워크트리 생성 불필요). 계획 파일
-  `docs/superpowers/plans/2026-07-20-rfp-proposal-agent.md`(워크트리 내부)의 Task 7
-  (`agent/nodes/verification.py` + `agent/tests/conftest.py`)부터 시작, 이어서 Task 8
-  (`agent/pipeline.py`, 5단계 노드 wiring + revision loop).
+  → `2026-07-21` 오전 세션(상태 재확인) → `2026-07-21` 오후 세션(Task 6) →
+  `2026-07-21` 저녁 세션(Task 7, 8, 완료).
+- **상태**: 워크트리 `.claude/worktrees/rfp-proposal-agent`(브랜치 `subagent-init-archi`)에서
+  계획 파일(`docs/superpowers/plans/2026-07-20-rfp-proposal-agent.md`)의 Task 1~8(giganlist
+  이동, state/llm, rfp_analysis, spec_loader/institution_match, pptx_builder,
+  content_writer, verification, pipeline)이 **전부 구현·테스트·커밋 완료**.
+  `python -m pytest agent/ -m "not llm" -v` → **24개 테스트 전부 통과**(계획의
+  End-to-End Verification 1번 항목 충족). 계획 3번 항목(실제 API로 `run_pipeline('수원시')`
+  돌려 실제 PPTX 생성하는 수동 스모크 테스트)은 사용자 결정으로 **생략**됨 — 필요 시
+  나중에 별도로 실행 가능(`report_new/수원시/rfp_scoring.json` 픽스처 이미 존재).
+  모든 커밋이 `origin/subagent-init-archi`에 push 완료(최신 `4d721a9`).
+- **재개 방법**: 코드 구현 자체는 끝났으므로, 다음에 이 항목을 다룰 때는 구현이 아니라
+  **main 병합 방식 결정**부터 시작. 옵션: (a) `origin/subagent-init-archi` → main으로
+  PR 생성, (b) 로컬에서 직접 병합, (c) 계획 파일의 체크박스(`- [ ]`, Task 1~8 전부
+  미체크 상태로 남아있음 — 실제로는 완료돼 있으니 이 자체는 버그 아님)를 정리할지
+  여부도 함께 결정. 사용자와 논의 필요, 이번 세션에서 다루지 않음.
 - **주의**: Task 2에서 서브에이전트가 실수로 main에 직접 커밋한 사고가 있었음(복구됨) —
   향후 디스패치 시 "워크트리 절대경로에서만 작업, 커밋 전 `git rev-parse --show-toplevel`
   확인" 지시 필수.
