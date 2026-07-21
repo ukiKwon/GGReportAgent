@@ -23,30 +23,29 @@
 
 ## 열린 항목
 
-### 1. `agent/` 오케스트레이션 패키지 구현 — PR #1 오픈, 병합 대기 + giganlist 구조 재작업 필요
+### 1. `agent/` 오케스트레이션 패키지 — PR #1 머지 완료, giganlist 구조 재작업 남음
 - **출처**: `2026-07-20_1524_summary.md`(계획 필요) → `2026-07-20_1620_summary.md`(착수, 중단)
   → `2026-07-21` 오전 세션(상태 재확인) → `2026-07-21` 오후 세션(Task 6) →
-  `2026-07-21` 저녁 세션(Task 7, 8, 완료) → `2026-07-21` 밤 세션(PR 생성).
-- **상태**: 계획 파일의 Task 1~8이 전부 구현·테스트(24개 통과)·커밋 완료, 사용자가
-  병합 방식으로 (a) PR 생성을 선택. `gh` CLI가 이 머신에 없어 winget으로 설치
-  (`C:\Program Files\GitHub CLI\gh.exe` — 이 세션의 Bash/PowerShell 둘 다 PATH에
-  자동으로 안 잡혀서 전체 경로로 호출해야 했음), `gh auth login`은 사용자가 직접
-  브라우저 인증 수행. **PR #1 생성 완료**:
-  https://github.com/ukiKwon/GGReportAgent/pull/1 (`subagent-init-archi` → `main`).
-- **병합 전 알려진 구조 문제 (PR 설명에도 명시)**: PR의 Task 1이 원래 5개구(dobong 등)만
-  `giganlist/`로 이동시키는데, main은 그 사이 25개구 배치 프로젝트로 12개구 전체
-  (jongno/yangcheon/gangseo 등 포함)가 루트에 그대로 있는 상태로 진행됨. PR을 그대로
-  병합하면 5개구만 `giganlist/`, 나머지 7개구는 루트에 남아 구조가 어긋나고
-  `build_report.py`/`build_html_report.py`가 깨짐. **사용자 결정**: PR 병합 후
-  25개구(완료된 12개구) 전체를 `giganlist/`로 재이동하고 build 스크립트 경로를 다시
-  맞추는 후속 작업을 별도로 진행하기로 함.
+  `2026-07-21` 저녁 세션(Task 7, 8, 완료) → `2026-07-21` 밤 세션(PR 생성·머지 완료).
+- **상태**: 계획 파일의 Task 1~8 전부 구현·테스트(24개 통과)·커밋 완료.
+  **PR #1이 squash merge로 main에 병합됨**(머지 커밋 `5bafdfa`, 이후 로컬↔원격
+  동기화 병합 커밋 `f70c07b`, `origin/main`에 push 완료). `subagent-init-archi`
+  브랜치는 삭제하지 않고 보존(개별 TDD step 커밋 이력 필요시 참고용). `agent/`
+  패키지 코드 구현 자체는 완전히 종료.
+- **병합 후 확인된 구조 문제**: `giganlist/`에는 원래 이동 대상이었던 5개구
+  (dobong/nowon/gwangjin/dongdaemun/dongjak)만 있고, 25개구 배치 프로젝트로
+  완료된 나머지 12개구는 **하나도 `giganlist/`로 옮겨지지 않고 전부 루트에 남아있음**:
+  `jongno/`, `jung/`, `yongsan/`, `seongdong/`, `jungnang/`, `seongbuk/`,
+  `eunpyeong/`, `gangbuk/`, `seodaemun/`, `mapo/`, `yangcheon/`, `gangseo/`.
 - **재개 방법**:
-  1. PR #1 머지 상태 확인(`gh pr view 1` 또는 웹에서), 머지되지 않았다면 먼저 머지.
-  2. main으로 전환 후 나머지 7개구(jongno, gwangjin 등 `giganlist/`에 없는 완료된
-     구들 — `giganlist/` 안 5개구 제외 전부)를 `git mv`로 `giganlist/`에 재배치.
-  3. `build_report.py`/`build_html_report.py`가 참조하는 district 목록/경로를
-     25개구(또는 완료분) 전체 기준으로 갱신.
-  4. `python build_report.py && python build_html_report.py`로 정상 동작 확인 후 커밋.
+  1. 위 12개구 폴더 전체를 `git mv`로 `giganlist/`에 재배치.
+  2. `build_report.py`/`build_html_report.py`가 참조하는 district 목록/경로를
+     `giganlist/` 안 전체 구(현재 5+12=17개, 25개구 배치가 완결되면 최종 25개) 기준으로
+     갱신.
+  3. `python build_report.py && python build_html_report.py`로 정상 동작 확인 후 커밋.
+  4. 이후 완료되는 나머지 구(구로~강동, 아래 항목 2 참고)도 처음부터
+     `giganlist/{구}/` 경로로 바로 생성하도록 디스패치 프롬프트 지시를 갱신할 것
+     (그래야 매번 재이동 작업이 반복되지 않음).
 - **주의**: Task 2에서 서브에이전트가 실수로 main에 직접 커밋한 사고가 있었음(복구됨) —
   향후 디스패치 시 "워크트리 절대경로에서만 작업, 커밋 전 `git rev-parse --show-toplevel`
   확인" 지시 필수.
