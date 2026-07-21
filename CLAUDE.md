@@ -16,23 +16,26 @@ Python report generators described below.
 
 ## Layout
 
-Each district has an identical two-stage folder structure, using standardized romanized
-names (도봉→`dobong`, 노원→`nowon`, 광진→`gwangjin`, 동대문→`dongdaemun`, 동작→`dongjak`):
+Every district folder lives under `giganlist/` (e.g. `giganlist/dobong/`,
+`giganlist/jongno/`) — this includes both the original 5 districts (도봉→`dobong`,
+노원→`nowon`, 광진→`gwangjin`, 동대문→`dongdaemun`, 동작→`dongjak`) and the districts added
+since by the 25-district batch project. Each district has an identical two-stage folder
+structure:
 
-- **`{district}/spec/`** — raw research findings: the district's multi-year policy plan
-  (사업목록 및 예산 by chapter/분야), a website-verification pass (`0X_홈페이지검색확인결과.txt`,
-  cross-checking whether each budgeted project can actually be found/confirmed on the
-  district's own site), and a complaint-board survey for 2026
+- **`giganlist/{district}/spec/`** — raw research findings: the district's multi-year policy
+  plan (사업목록 및 예산 by chapter/분야), a website-verification pass
+  (`0X_홈페이지검색확인결과.txt`, cross-checking whether each budgeted project can actually be
+  found/confirmed on the district's own site), and a complaint-board survey for 2026
   (`0X_민원게시판_2026년정리.txt`). `00_인덱스.txt` in each `spec/` folder indexes and
   sanity-checks the other files (e.g. verifies per-chapter project counts and budget sums
   add up to the stated totals) — read it first when exploring a district's spec data.
-- **`{district}/plan/`** — derived proposal documents built from that district's spec
-  data: `00_제안개요_및_배경`, `01_제안사업_요약표`, `02_IT디지털기획_사업제안` (IT-1, IT-2, …),
+- **`giganlist/{district}/plan/`** — derived proposal documents built from that district's
+  spec data: `00_제안개요_및_배경`, `01_제안사업_요약표`, `02_IT디지털기획_사업제안` (IT-1, IT-2, …),
   `03_금전적지원_사업제안` (FN-1, FN-2, …), `04_실행로드맵_및_기대효과`, and
   `05_검증결과` — an independent validation pass scoring each proposed item for overlap
   with existing district projects and giving the district plan an overall 신뢰도(trust)
   score out of 100 (도봉 74, 노원 88, 광진 88, 동대문 82, 동작 84).
-- **`{district}/bank_ideas_draft.txt`** — a separate, later-added draft layer that
+- **`giganlist/{district}/bank_ideas_draft.txt`** — a separate, later-added draft layer that
   re-reads a district's full spec+plan and proposes bank-partnership angles (소상공인금융/
   청년금융/IT협력/복지주택금융/SOC참여). Explicitly a draft only — not merged into
   `plan/`, and every idea in it cites back to a specific `spec/NN` or `plan/NN` source by
@@ -67,8 +70,8 @@ from when the district folders lived one level up (before the `기관/`→repo s
 in `구청_log.md`). The actual current deliverables live in `total/` **inside this repo**.
 Running either script as-is will write to the old parent-directory path, not update the
 files in `total/`. Fix `DOC_PATH`/`OUT_PATH` (and double check any relative reads of
-`{district}/plan/*.txt` against the current working directory) before rerunning either
-generator.
+`giganlist/{district}/plan/*.txt` against the current working directory) before rerunning
+either generator.
 
 Both scripts also duplicate source content as hardcoded Python dicts/strings rather than
 reading district `plan/`/`spec/` `.txt` files at generation time — when a district's
