@@ -23,34 +23,7 @@
 
 ## 열린 항목
 
-### 1. `agent/` 오케스트레이션 패키지 — PR #1 머지 완료, giganlist 구조 재작업 남음
-- **출처**: `2026-07-20_1524_summary.md`(계획 필요) → `2026-07-20_1620_summary.md`(착수, 중단)
-  → `2026-07-21` 오전 세션(상태 재확인) → `2026-07-21` 오후 세션(Task 6) →
-  `2026-07-21` 저녁 세션(Task 7, 8, 완료) → `2026-07-21` 밤 세션(PR 생성·머지 완료).
-- **상태**: 계획 파일의 Task 1~8 전부 구현·테스트(24개 통과)·커밋 완료.
-  **PR #1이 squash merge로 main에 병합됨**(머지 커밋 `5bafdfa`, 이후 로컬↔원격
-  동기화 병합 커밋 `f70c07b`, `origin/main`에 push 완료). `subagent-init-archi`
-  브랜치는 삭제하지 않고 보존(개별 TDD step 커밋 이력 필요시 참고용). `agent/`
-  패키지 코드 구현 자체는 완전히 종료.
-- **병합 후 확인된 구조 문제**: `giganlist/`에는 원래 이동 대상이었던 5개구
-  (dobong/nowon/gwangjin/dongdaemun/dongjak)만 있고, 25개구 배치 프로젝트로
-  완료된 나머지 12개구는 **하나도 `giganlist/`로 옮겨지지 않고 전부 루트에 남아있음**:
-  `jongno/`, `jung/`, `yongsan/`, `seongdong/`, `jungnang/`, `seongbuk/`,
-  `eunpyeong/`, `gangbuk/`, `seodaemun/`, `mapo/`, `yangcheon/`, `gangseo/`.
-- **재개 방법**:
-  1. 위 12개구 폴더 전체를 `git mv`로 `giganlist/`에 재배치.
-  2. `build_report.py`/`build_html_report.py`가 참조하는 district 목록/경로를
-     `giganlist/` 안 전체 구(현재 5+12=17개, 25개구 배치가 완결되면 최종 25개) 기준으로
-     갱신.
-  3. `python build_report.py && python build_html_report.py`로 정상 동작 확인 후 커밋.
-  4. 이후 완료되는 나머지 구(구로~강동, 아래 항목 2 참고)도 처음부터
-     `giganlist/{구}/` 경로로 바로 생성하도록 디스패치 프롬프트 지시를 갱신할 것
-     (그래야 매번 재이동 작업이 반복되지 않음).
-- **주의**: Task 2에서 서브에이전트가 실수로 main에 직접 커밋한 사고가 있었음(복구됨) —
-  향후 디스패치 시 "워크트리 절대경로에서만 작업, 커밋 전 `git rev-parse --show-toplevel`
-  확인" 지시 필수.
-
-### 2. 25개 자치구 배치 프로젝트 — 미완결 8/20 재개
+### 1. 25개 자치구 배치 프로젝트 — 미완결 8/20 재개
 - **출처**: `handoff_old/NEXT.md`(2026-07-20 기준, git 미추적 상태로 남아있던 별도
   작업 스레드 — 5개구 KB 제안 프로젝트/현재 agent 오케스트레이션 작업과는 무관한
   독립 프로젝트. 원본 파일은 이 항목에 병합 후 삭제됨. 세션 체크포인트 원본은
@@ -77,11 +50,19 @@
   사용자의 명시적 재개 지시를 기다릴 것. 구별 디스패치는 Agent 도구
   (subagent_type: general-purpose)로 자기완결적 프롬프트 사용, `institution-corpus-format`
   스킬 규격(spec 8~10개 파일, plan 정확히 6개 파일, bank_idea_draft.txt 5개 축)을
-  프롬프트에 직접 명시하고 `jongno/`를 참고 예시로 지시. 조작 금지 원칙(데이터 날조 금지,
-  수치 불일치는 병기, hallucination 의심 시 재조회로 검증)도 프롬프트에 포함할 것 —
-  2026-07-21 세션에서 실제 사용한 프롬프트 전문은 그 세션의 `2026-07-21_summary.md`
-  참고.
-- **참고용 완성 예시**: `jongno/spec/`, `jongno/plan/`, `jongno/bank_idea_draft.txt`.
+  프롬프트에 직접 명시하고 `giganlist/jongno/`를 참고 예시로 지시. 조작 금지 원칙(데이터
+  날조 금지, 수치 불일치는 병기, hallucination 의심 시 재조회로 검증)도 프롬프트에
+  포함할 것 — 2026-07-21 세션에서 실제 사용한 프롬프트 전문은 그 세션의
+  `2026-07-21_summary.md` 참고.
+- **중요 (2026-07-21 밤 세션에서 경로 변경됨)**: 완료된 12개구(종로~강서)는 원래
+  루트(`{구영문명}/`)에 있었으나, `agent/` 패키지의 giganlist 구조와 통일하기 위해
+  전부 `giganlist/{구영문명}/`으로 이동됨(커밋 `e1335d0`). **다음에 완료할 구
+  (구로부터)는 산출물을 처음부터 `giganlist/{구영문명}/spec,plan,bank_idea_draft.txt`
+  경로로 바로 생성할 것** — 디스패치 프롬프트의 참고 예시 경로도
+  `giganlist/jongno/`로 갱신해서 지시할 것(이전 세션 프롬프트 전문에 `jongno/`로
+  적혀 있었다면 그대로 복사하지 말고 경로를 고쳐서 사용).
+- **참고용 완성 예시**: `giganlist/jongno/spec/`, `giganlist/jongno/plan/`,
+  `giganlist/jongno/bank_idea_draft.txt`.
 - **비고**: 프로젝트 루트가 2026-07-20에 `gigan`에서 `GGReportAgent`로 폴더명 변경됨
   (robocopy로 전체 복사 완료). 15분 주기 모니터링 cron(ID `a9a58f91`, session-only,
   생성 후 7일 자동만료)은 세션 종료로 만료됨 — 계속 모니터링이 필요하면 CronCreate로
@@ -105,3 +86,11 @@
   섹션 슬라이드의 "근거자료: ..." 인용 렌더링을 검증하는 테스트와 빈 배점표 테스트
   2건 추가. 워크트리 `rfp-proposal-agent`(브랜치 `subagent-init-archi`)에서 커밋
   `8876889`, `origin/subagent-init-archi`에 push 완료.
+- ~~`agent/` 오케스트레이션 패키지 구현 (Task 1~8) 및 main 병합~~ — `2026-07-21`
+  저녁~밤 세션에서 완전히 해소: Task 6(content_writer)~8(pipeline) 구현, 24개
+  테스트 전부 통과, PR #1을 squash merge로 main에 병합(`5bafdfa`), 이후 병합 후
+  발견된 구조 불일치(25개구 배치로 완료된 12개구가 `giganlist/`로 안 옮겨짐)까지
+  해소 — 12개구 전체를 `giganlist/`로 이동(`e1335d0`), build 스크립트는 이미
+  `giganlist/{district}/...` 경로를 참조하고 있어 별도 수정 불필요, 두 build
+  스크립트 재실행 확인. 후속 작업(구로부터 재개할 25개구 배치)은 위 "25개 자치구
+  배치 프로젝트" 항목에 흡수됨(경로를 `giganlist/{구}/`로 바로 생성하도록 갱신).
