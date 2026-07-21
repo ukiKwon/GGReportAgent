@@ -32,6 +32,32 @@ def test_build_pptx_creates_title_and_section_slides(tmp_path):
     assert "본문 내용 1" in all_text
 
 
+def test_build_pptx_renders_source_citation_in_section_slide(tmp_path):
+    sections = [{"scoring_item": "신용도", "title": "1. 신용도", "content": "내용", "sources": ["spec/01", "plan/FN-1"]}]
+    scoring_table = [{"category": "신용도", "item": "평가", "score": 10, "description": None}]
+    out_path = str(tmp_path / "test.pptx")
+
+    build_pptx(sections, scoring_table, out_path)
+
+    prs = Presentation(out_path)
+    all_text = "\n".join(
+        shape.text_frame.text
+        for slide in prs.slides
+        for shape in slide.shapes
+        if shape.has_text_frame
+    )
+    assert "근거자료: spec/01, plan/FN-1" in all_text
+
+
+def test_build_pptx_handles_empty_scoring_table(tmp_path):
+    sections = [{"scoring_item": "신용도", "title": "1. 신용도", "content": "내용", "sources": []}]
+    out_path = str(tmp_path / "test.pptx")
+
+    build_pptx(sections, [], out_path)
+
+    assert os.path.isfile(out_path)
+
+
 def test_build_pptx_splices_archive_slides_as_separate_section(tmp_path):
     # Build a fake archive PPTX with one distinguishable slide
     archive_path = str(tmp_path / "archive.pptx")

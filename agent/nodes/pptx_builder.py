@@ -13,6 +13,9 @@ def _add_scoring_table_slide(prs, scoring_table):
     slide = prs.slides.add_slide(prs.slide_layouts[1])
     slide.shapes.title.text = "평가 배점표"
     body = slide.placeholders[1].text_frame
+    if not scoring_table:
+        body.text = "(배점표 없음)"
+        return
     body.text = f"{scoring_table[0]['category']}: {scoring_table[0]['item']} ({scoring_table[0]['score']}점)"
     for item in scoring_table[1:]:
         p = body.add_paragraph()
