@@ -23,36 +23,26 @@
 
 ## 열린 항목
 
-### 1. `agent/` 오케스트레이션 패키지 구현 — 중단, 재개 방법 변경됨
+### 1. `agent/` 오케스트레이션 패키지 구현 — Task 6까지 완료, Task 7~8 재개 대기
 - **출처**: `2026-07-20_1524_summary.md`(계획 필요) → `2026-07-20_1620_summary.md`(착수, 중단)
-  → `2026-07-21` 세션에서 상태 재확인.
-- **상태**: NEXT.md에 기록돼 있던 워크트리(`.claude/worktrees/rfp-proposal-agent`,
-  브랜치 `worktree-rfp-proposal-agent`)는 **더 이상 존재하지 않음**(`git worktree list`에
-  안 나타나고, 로컬에 해당 브랜치도 없음 — 디렉토리 자체가 사라짐). 계획 파일이 main에
-  커밋됐다는 기록(`8857132`)도 부정확했음 — 실제로는 main에 없음.
-  **작업물 자체는 유실되지 않고 원격 브랜치 `origin/subagent-init-archi`에 남아있음**
-  (커밋 `8857132`~`f36807a`, Task 1~5에 해당하는 6개 커밋: agent 패키지 스켈레톤,
-  rfp_analysis, spec_loader/institution_match, pptx_builder, 버그 픽스). 계획 파일도
-  그 브랜치에만 있음: `git show origin/subagent-init-archi:docs/superpowers/plans/2026-07-20-rfp-proposal-agent.md`.
-- **사용자 결정 (2026-07-21)**: 이번 세션에서 "원격 브랜치에서 재개" vs "다른 NEXT.md 항목
-  진행" 중 후자를 선택 — 이 항목은 이번 세션에서 다루지 않음.
-- **재개 방법**: 다음에 이 항목을 다룰 때는 `origin/subagent-init-archi`에서 새 워크트리를
-  만들어(`git worktree add <path> origin/subagent-init-archi` 후 로컬 브랜치로 체크아웃)
-  Task 6부터 이어서 진행. `.superpowers/sdd/progress.md`는 워크트리 전용(git 미추적)이라
-  이전 세션 것은 유실됐으므로 계획 파일(`docs/superpowers/plans/2026-07-20-rfp-proposal-agent.md`,
-  해당 브랜치에서 읽을 것)의 체크박스 상태로 Task 1~5 완료 여부를 다시 확인 후 진행.
+  → `2026-07-21` 오전 세션(상태 재확인, 오전엔 착수 안 함) → `2026-07-21` 오후 세션(Task 6 완료).
+- **상태**: 오전 세션 기록과 달리 워크트리는 **실제로는 계속 존재**하고 있었음
+  (`C:/claude_workspace/GGReportAgent/.claude/worktrees/rfp-proposal-agent`, 브랜치
+  `subagent-init-archi`, `locked`). 오후 세션에서 `git worktree list`로 재확인,
+  `python -m pytest agent/`로 Task 1~5 전체(16 테스트) 통과 재검증 후 **Task 6
+  (`agent/nodes/content_writer.py`) 구현·테스트·커밋 완료**. 커밋
+  `79b33ba`(Task 6), `8876889`(pptx_builder Task5 minor fix, 아래 항목 2 참고) 모두
+  `origin/subagent-init-archi`에 push 완료.
+- **재개 방법**: 로컬 워크트리 `.claude/worktrees/rfp-proposal-agent`가 그대로 존재하므로
+  그 경로에서 바로 이어서 진행(새 워크트리 생성 불필요). 계획 파일
+  `docs/superpowers/plans/2026-07-20-rfp-proposal-agent.md`(워크트리 내부)의 Task 7
+  (`agent/nodes/verification.py` + `agent/tests/conftest.py`)부터 시작, 이어서 Task 8
+  (`agent/pipeline.py`, 5단계 노드 wiring + revision loop).
 - **주의**: Task 2에서 서브에이전트가 실수로 main에 직접 커밋한 사고가 있었음(복구됨) —
   향후 디스패치 시 "워크트리 절대경로에서만 작업, 커밋 전 `git rev-parse --show-toplevel`
   확인" 지시 필수.
 
-### 2. Task 5(pptx_builder) 리뷰의 미반영 Minor 사항
-- **출처**: `2026-07-20_1620_summary.md`
-- **상태**: 수정 불필요 판정, 참고용으로만 남김.
-- 내용:
-  - 섹션 슬라이드가 "근거자료: ..." 인용 텍스트를 실제로 렌더링하는지 검증하는 테스트 없음
-  - `scoring_table`이 빈 리스트일 때 `_add_scoring_table_slide`가 `IndexError` 가능성
-
-### 3. 25개 자치구 배치 프로젝트 — 미완결 8/20 재개
+### 2. 25개 자치구 배치 프로젝트 — 미완결 8/20 재개
 - **출처**: `handoff_old/NEXT.md`(2026-07-20 기준, git 미추적 상태로 남아있던 별도
   작업 스레드 — 5개구 KB 제안 프로젝트/현재 agent 오케스트레이션 작업과는 무관한
   독립 프로젝트. 원본 파일은 이 항목에 병합 후 삭제됨. 세션 체크포인트 원본은
@@ -102,3 +92,8 @@
 - ~~`.claude/worktrees/skill-essential` 물리 디렉토리 잔여~~ — `2026-07-21` 세션에서
   확인 결과 `.claude/worktrees/` 디렉토리 자체가 더 이상 존재하지 않음(Windows 파일
   잠금이 풀리며 자연히 정리된 것으로 보임). 별도 조치 불필요.
+- ~~Task 5(pptx_builder) 리뷰의 미반영 Minor 사항~~ — `2026-07-21` 오후 세션에서 해소:
+  `_add_scoring_table_slide`에 빈 `scoring_table` 가드 추가(`IndexError` 방지),
+  섹션 슬라이드의 "근거자료: ..." 인용 렌더링을 검증하는 테스트와 빈 배점표 테스트
+  2건 추가. 워크트리 `rfp-proposal-agent`(브랜치 `subagent-init-archi`)에서 커밋
+  `8876889`, `origin/subagent-init-archi`에 push 완료.
