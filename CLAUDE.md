@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 대화 스타일 (사용자 요청)
+
+- 답변은 **10줄 이내**로, 사용자가 보기 쉽게 정리해서 제시한다.
+- 상세 내용이 필요하거나 사용자에게 확인·선택을 물어야 하는 상황이면, 본문 아래에
+  `🙋 **물어볼게:**` 로 분리해서 질문한다 (본문은 짧게 유지).
+- 사용자가 **"이전으로 돌려줘"** 라고 하면 이 스타일을 해제하고 기본 방식으로 돌아간다.
+
 ## What this repository is
 
 A one-off research + document-generation project (originally the `기관/` folder inside
