@@ -92,7 +92,34 @@
   재생성 필요. 완료된 12개구 산출물은 더 이상 git 미추적 상태가 아님(`2026-07-21`
   세션에서 커밋됨) — 다음 세션은 이 사실을 전제로 진행할 것.
 
-### 2. 산출물 본문 내 `bank_idea_draft.txt`(단수형) 자기참조 3곳 — 의도적으로 보류
+### 2. `agent/` RFP 팀 확장 설계 — 스펙 작성 완료, 구현 계획(writing-plans) 착수 전
+- **출처**: `2026-07-21_summary.md` "Session 오후 4".
+- **내용**: 기존 `agent/` 파이프라인(PR #1로 병합된 8-Task 구현)은 "RFP·spec이 이미
+  있다"는 전제로 시작해 `giganlist/{구}/spec/`을 읽기만 함 — RFP 탐색 단계도, spec/plan/
+  bank_ideas_draft를 새로 만드는 단계도 없었음. 이를 채우기 위해 "기관명만 입력하면
+  RFP 탐색 → (신규 기관이면) spec/plan/bank_ideas_draft 자동 생성 → 보고서 → PPT"까지
+  자동화하는 확장 가능한 단일 파이프라인으로 브레인스토밍 완료, 스펙 문서 작성·커밋함:
+  `agent/docs/superpowers/specs/2026-07-21-rfp-agent-team-design.md`(커밋 `47e3ee8`).
+- **설계 요지**: 기존 4개 노드(`institution_match`/`content_writer`/`verification`/
+  `pptx_builder`)는 변경 없이 재사용, 새 노드 3개(`rfp_locate_node`/`spec_research_node`/
+  `plan_writer_node`)만 추가. 확장성은 `institution_match_node`가 채우는
+  `matched_district`/`institution_spec_dir` 필드 유무로 파이프라인이 스스로 분기 —
+  지역별 분기 코드 추가 불필요. 체크포인트는 spec 생성 직후 1곳뿐(이후 자동 진행).
+  실행은 `python -m agent.main "<기관명>"` CLI. 이번 스펙은 나라장터 상시 크롤링/모니터링을
+  범위 밖으로 명시적으로 제외(먼저 "이미 아는 RFP 1건"으로 end-to-end 검증 후 별도 스펙).
+- **미확정 사항(구현 계획 단계에서 결정 예정)**: (1) `spec_research_node`/
+  `plan_writer_node`가 WebSearch/WebFetch 도구 호출이 필요한데 현재
+  `agent/llm.py`의 `get_llm()`은 순수 텍스트 LLM만 반환 — 도구 바인딩 확장 필요할 수
+  있음. (2) `rfp_locate_node`가 rfp-locate 스킬을 노드 코드 안에서 호출하는 구체
+  메커니즘 미정. (3) 신규 기관 spec 디렉터리 슬러그 명명 규칙 미확정(기존 25개구
+  영문 슬러그 관례 준용 예정).
+- **재개 방법**: 사용자가 스펙 문서(`agent/docs/superpowers/specs/2026-07-21-rfp-agent-team-design.md`)를
+  검토한 뒤, `writing-plans` 스킬로 구현 계획(Task 분해)을 세우는 단계로 진행 —
+  브레인스토밍 스킬의 표준 흐름(스펙 승인 → writing-plans). 이 스펙 파일은
+  `agent/docs/superpowers/specs/`에 있고, 기존 agent 오케스트레이션 Task 1~8 계획이
+  있던 repo 루트 `docs/superpowers/`와는 다른 경로이므로 혼동하지 말 것.
+
+### 3. 산출물 본문 내 `bank_idea_draft.txt`(단수형) 자기참조 3곳 — 의도적으로 보류
 - **출처**: `2026-07-21` 밤 세션(giganlist 경로/파일명 통일 작업 중 발견).
 - **내용**: 파일명 자체는 전부 `bank_ideas_draft.txt`(복수형)로 통일됐으나, 다음 두 파일의
   본문 텍스트 안에서 자기 자신을 단수형(`bank_idea_draft.txt`)으로 지칭하는 문장이 남아있음:
