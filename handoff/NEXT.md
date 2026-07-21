@@ -37,8 +37,8 @@
   `bank_idea_draft.txt`)을 작성. **완료 12/20**(종로78, 중구77, 용산76, 성동76,
   중랑81, 성북76, 은평74, 강북72, 서대문73, 마포80, 양천84, 강서80 — 신뢰도 점수).
   미완결 8/20(순서대로): 구로, 금천, 영등포, 관악, 서초, 강남, 송파, 강동 —
-  산출물 폴더(`{구영문명}/spec,plan,bank_idea_draft.txt`)는 `2026-07-21` 세션에서
-  main에 git commit·push됨(이전에는 미추적 상태였음 — 아래 "비고" 참고).
+  산출물 폴더(`giganlist/{구영문명}/spec,plan,bank_ideas_draft.txt`)는 `2026-07-21`
+  세션에서 main에 git commit·push됨(이전에는 미추적 상태였음 — 아래 "비고" 참고).
 - **중단 이력**: `2026-07-21` 세션에서 구로/금천 2건을 다음 페어로 디스패치했으나
   완료 전 사용자가 "하던일 멈추고 마무리해줘" 지시로 중단 요청 — 두 백그라운드
   에이전트(`a61894449083ba7c0` 구로, `a4c940fb5794690c6` 금천)를 `TaskStop`으로
@@ -49,25 +49,49 @@
   세션 한도 실패 시 즉시 재시도하지 말고 해당 구 task를 pending으로 되돌린 뒤
   사용자의 명시적 재개 지시를 기다릴 것. 구별 디스패치는 Agent 도구
   (subagent_type: general-purpose)로 자기완결적 프롬프트 사용, `institution-corpus-format`
-  스킬 규격(spec 8~10개 파일, plan 정확히 6개 파일, bank_idea_draft.txt 5개 축)을
-  프롬프트에 직접 명시하고 `giganlist/jongno/`를 참고 예시로 지시. 조작 금지 원칙(데이터
+  스킬 규격(spec 8~10개 파일, plan 정확히 6개 파일, **`bank_ideas_draft.txt`(복수형!)**
+  5개 축)을 프롬프트에 직접 명시하고 `giganlist/jongno/`를 참고 예시로 지시. 조작 금지 원칙(데이터
   날조 금지, 수치 불일치는 병기, hallucination 의심 시 재조회로 검증)도 프롬프트에
   포함할 것 — 2026-07-21 세션에서 실제 사용한 프롬프트 전문은 그 세션의
   `2026-07-21_summary.md` 참고.
 - **중요 (2026-07-21 밤 세션에서 경로 변경됨)**: 완료된 12개구(종로~강서)는 원래
   루트(`{구영문명}/`)에 있었으나, `agent/` 패키지의 giganlist 구조와 통일하기 위해
   전부 `giganlist/{구영문명}/`으로 이동됨(커밋 `e1335d0`). **다음에 완료할 구
-  (구로부터)는 산출물을 처음부터 `giganlist/{구영문명}/spec,plan,bank_idea_draft.txt`
+  (구로부터)는 산출물을 처음부터 `giganlist/{구영문명}/spec,plan,bank_ideas_draft.txt`
   경로로 바로 생성할 것** — 디스패치 프롬프트의 참고 예시 경로도
   `giganlist/jongno/`로 갱신해서 지시할 것(이전 세션 프롬프트 전문에 `jongno/`로
   적혀 있었다면 그대로 복사하지 말고 경로를 고쳐서 사용).
+- **중요 (2026-07-21 밤 세션에서 파일명도 통일됨)**: 12개구는 원래 산출물 파일명이
+  `bank_idea_draft.txt`(단수형)였으나, 원래 5개구/`institution-corpus-format`
+  스킬 규격이 `bank_ideas_draft.txt`(복수형)이므로 전부 복수형으로 rename 통일함
+  (커밋 `274eb7f`). **다음에 완료할 구(구로부터)도 처음부터 `bank_ideas_draft.txt`
+  (복수형)로 파일명을 생성할 것** — 디스패치 프롬프트에 파일명을 명시할 때 복수형임을
+  강조해서 지시.
 - **참고용 완성 예시**: `giganlist/jongno/spec/`, `giganlist/jongno/plan/`,
-  `giganlist/jongno/bank_idea_draft.txt`.
+  `giganlist/jongno/bank_ideas_draft.txt`.
 - **비고**: 프로젝트 루트가 2026-07-20에 `gigan`에서 `GGReportAgent`로 폴더명 변경됨
   (robocopy로 전체 복사 완료). 15분 주기 모니터링 cron(ID `a9a58f91`, session-only,
   생성 후 7일 자동만료)은 세션 종료로 만료됨 — 계속 모니터링이 필요하면 CronCreate로
   재생성 필요. 완료된 12개구 산출물은 더 이상 git 미추적 상태가 아님(`2026-07-21`
   세션에서 커밋됨) — 다음 세션은 이 사실을 전제로 진행할 것.
+
+### 2. 산출물 본문 내 `bank_idea_draft.txt`(단수형) 자기참조 3곳 — 의도적으로 보류
+- **출처**: `2026-07-21` 밤 세션(giganlist 경로/파일명 통일 작업 중 발견).
+- **내용**: 파일명 자체는 전부 `bank_ideas_draft.txt`(복수형)로 통일됐으나, 다음 두 파일의
+  본문 텍스트 안에서 자기 자신을 단수형(`bank_idea_draft.txt`)으로 지칭하는 문장이 남아있음:
+  - `giganlist/gangbuk/plan/00_신규 사업 제안 - 총괄 개요.txt` (91번 줄)
+  - `giganlist/gangbuk/plan/04_실행 로드맵 및 기대효과.txt` (92번 줄)
+  - `giganlist/yongsan/spec/05_문화경제분야_사업목록_예산.txt` (93번 줄)
+- **왜 지금 안 고쳤는지**: 이건 CLAUDE.md/`institution-corpus-format` 스킬(문서·규격
+  레벨) 문제가 아니라 각 구 산출물 콘텐츠 자체의 문제라, 이번 세션 작업 범위 밖으로
+  판단. 사용자가 명시적으로 "완료 처리된 구는 고쳐도 되지만, 아직 진행 중(in-progress)인
+  구는 계속 단수형 파일명을 쓸 가능성이 있으니 일단 보류"로 결정 — 남은 8개구(구로~강동)
+  디스패치가 여전히 단수형으로 나올 위험이 있는 동안은 완료분만 먼저 고쳐도 다시
+  불일치가 생길 수 있다는 판단.
+- **재개 방법**: 25개구 배치가 전부 완료되어 파일명 규칙(복수형)이 안정된 뒤, 전체
+  `giganlist/*/plan/*.txt`, `giganlist/*/spec/*.txt`를 대상으로
+  `grep -rl "bank_idea_draft\.txt" giganlist/*/plan giganlist/*/spec`로 남은 단수형
+  자기참조를 재검색해 일괄 정정.
 
 ---
 
@@ -94,3 +118,12 @@
   `giganlist/{district}/...` 경로를 참조하고 있어 별도 수정 불필요, 두 build
   스크립트 재실행 확인. 후속 작업(구로부터 재개할 25개구 배치)은 위 "25개 자치구
   배치 프로젝트" 항목에 흡수됨(경로를 `giganlist/{구}/`로 바로 생성하도록 갱신).
+- ~~CLAUDE.md/`institution-corpus-format` 스킬의 giganlist 경로 미반영 + bank_idea(s)_draft
+  명명 불일치~~ — `2026-07-21` 밤 세션에서 해소: 3개 병렬 조사로 `CLAUDE.md` Layout
+  섹션 5곳과 스킬(`SKILL.md` + `dobong_*_sample.txt` 3개)의 `{district}/`,
+  `{institution}/` 패턴에 `giganlist/` 접두사가 전혀 반영 안 돼 있음을 확인, 전부
+  수정. 명명 조사 중 예상과 반대되는 사실 발견 — 원래 5개구/스킬 예시(dobong)는
+  전부 **복수형**(`bank_ideas_draft.txt`)인데 25개구 배치의 12개구는 전부
+  **단수형**(`bank_idea_draft.txt`)이었음. 사용자 결정으로 복수형(원래 규격)을
+  기준으로 통일, 12개구 파일명을 전부 rename. 커밋 `274eb7f`. 산출물 본문 내 3곳의
+  단수형 자기참조는 의도적으로 보류(위 "2. 산출물 본문 내 ... 자기참조" 항목 참고).
