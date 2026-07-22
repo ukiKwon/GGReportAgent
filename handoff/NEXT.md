@@ -169,6 +169,22 @@
   `grep -rl "bank_idea_draft\.txt" giganlist/*/plan giganlist/*/spec`로 남은 단수형
   자기참조를 재검색해 일괄 정정.
 
+### 4. `dashboard/` 금고은행 입찰 히트맵 지도 — 브레인스토밍 중단 지점부터 재개
+- **출처**: `2026-07-22_summary.md` "Session 21:42".
+- **상태**: `superpowers:brainstorming` 진행 중 사용자 피로로 중단. 설계 섹션
+  ①(폴더구조·데이터흐름)/②(스키마, type 4종·region 전국 개방 확장 포함)/③(화면·
+  인터랙션) 승인 완료, **④(엣지 처리·검증) 미제시**. 스펙 문서·코드 전무 —
+  브레인스토밍 HARD-GATE 유지 중이므로 구현 착수 금지.
+- **확정 결정 전문**: `2026-07-22_summary.md` "Session 21:42" 섹션 참고 (v1 범위
+  서울+경기 지자체 ~58 + 대학병원 15~20, 정적 단일 HTML + JS 전역변수 데이터,
+  D3 오프라인 번들, 5단계 구간색, 면=지자체/마커=기타 유형 이중 레이어,
+  좌우 분할 최상위 뷰 + 플라이투 → 지도 2/3 + 임박순 패널 1/3 등).
+- **재개 방법**: 브레인스토밍 스킬로 재진입 → 섹션 ④ 제시·승인 → 스펙을
+  `docs/superpowers/specs/2026-MM-DD-dashboard-treasury-bid-map-design.md`로 작성·
+  커밋 → 셀프리뷰 → 사용자 스펙 리뷰 → `superpowers:writing-plans`. 비주얼
+  컴패니언 목업 3종은 `.superpowers/brainstorm/310-1784722208/content/`에 있음
+  (git 제외됨, 참고용).
+
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
