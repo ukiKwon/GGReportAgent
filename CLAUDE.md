@@ -48,10 +48,18 @@ structure:
   `plan/`, and every idea in it cites back to a specific `spec/NN` or `plan/NN` source by
   file index (e.g. `spec/02(1장-4)`, `plan FN-1`) so claims stay traceable to real
   district data.
-- **`total/`** — the combined cross-district output:
-  `서울시_5개구청_사업제안기획안.docx` and the matching `.html` (tabbed by district, one
-  subtab per plan section, district identity colors from the dataviz skill's categorical
-  palette). These are the actual current deliverables.
+- **`report/`** (formerly `total/`) — the combined cross-district output:
+  - `5-report_2.0.html` — **the current main deliverable.** A single-file offline app
+    with a 3-tab sidebar: 대시보드 (25-district Seoul GeoJSON map — do not modify without
+    explicit instruction, especially the map; district click opens a centered quick-view
+    overlay showing only 구청 사업현황 분석), 지역구 상세 (card grid of the 5 districts →
+    per-district document view merging 1.0's static doc panels with 2.0's JS-rendered
+    analysis via `.js-slot` placeholders, 9 subtabs in narrative order 계획→달성도→민원→
+    KB제안→로드맵→검증), and 사업별 (topic-based 5-column comparison grid).
+  - `5-report_1.0.html` — the legacy static HTML report (renamed from
+    `서울시_5개구청_사업제안기획안.html`); source of the district panels imported into 2.0.
+    Keep it unchanged as reference.
+  - `서울시_5개구청_사업제안기획안.docx` — the DOCX deliverable.
 - **`build_report.py`** — generates the DOCX version (python-docx: cover page → one
   1-page summary per district → per-district detail chapters).
 - **`build_html_report.py`** — generates the HTML version (sidebar/tab navigation per
@@ -74,9 +82,10 @@ structure:
 Both `build_report.py` (`DOC_PATH`) and `build_html_report.py` (`OUT_PATH`) still point at
 `C:\claude_workspace\서울시_5개구청_사업제안기획안.{docx,html}` — the parent directory,
 from when the district folders lived one level up (before the `기관/`→repo split recorded
-in `구청_log.md`). The actual current deliverables live in `total/` **inside this repo**.
+in `구청_log.md`). The actual current deliverables live in `report/` **inside this repo**.
 Running either script as-is will write to the old parent-directory path, not update the
-files in `total/`. Fix `DOC_PATH`/`OUT_PATH` (and double check any relative reads of
+files in `report/` (and would regenerate only the 1.0-style layout — 2.0 was hand/agent-
+authored HTML+JS, no script generates it). Fix `DOC_PATH`/`OUT_PATH` (and double check any relative reads of
 `giganlist/{district}/plan/*.txt` against the current working directory) before rerunning
 either generator.
 
