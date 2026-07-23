@@ -3,6 +3,12 @@
   const render = {};
   const logic = root.logic, store = root.store;
 
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  }
+
   render.state = {
     today: new Date(new Date().toISOString().slice(0,10) + 'T00:00:00'),
     activeRegions: new Set(['11','41']),        // v1 활성: 서울·경기
@@ -190,8 +196,8 @@
       const d = logic.daysUntil(r.contractEnd, render.state.today);
       const card = document.createElement('div'); card.className = 'rank-card'; card.dataset.name = r.name;
       const glyph = logic.recordGlyph(r);
-      card.innerHTML = '<b>' + r.name + '</b> ' + (glyph ? '<span class="miss">' + glyph + '</span>' : '') +
-        '<br><small>' + r.type + ' · ' + (d === Infinity ? '미상' : 'D-' + d) + '</small>';
+      card.innerHTML = '<b>' + esc(r.name) + '</b> ' + (glyph ? '<span class="miss">' + esc(glyph) + '</span>' : '') +
+        '<br><small>' + esc(r.type) + ' · ' + (d === Infinity ? '미상' : 'D-' + d) + '</small>';
       card.addEventListener('mouseenter', function () { render.highlightMarker(r.name, true); });
       card.addEventListener('mouseleave', function () { render.highlightMarker(r.name, false); });
       card.addEventListener('click', function (ev) { render.showPopover(r, ev.clientX, ev.clientY); });
@@ -203,11 +209,11 @@
     const pop = document.getElementById('popover'); if (!pop) return;
     const v = logic.validateRecord(rec);
     const fields = ['name','type','region','contractEnd','confidence','sources'];
-    let html = '<b>' + (rec.name || '(이름없음)') + '</b><br>';
+    let html = '<b>' + esc(rec.name || '(이름없음)') + '</b><br>';
     fields.forEach(function (f) {
       const missing = v.missing.indexOf(f) >= 0 || (f === 'contractEnd' && !rec.contractEnd);
       let val = f === 'sources' ? (Array.isArray(rec.sources) ? rec.sources.join(', ') : '') : (rec[f] == null ? '' : rec[f]);
-      html += '<div' + (missing ? ' class="miss"' : '') + '>' + f + ': ' + (val || (missing ? '(누락)' : '')) + '</div>';
+      html += '<div' + (missing ? ' class="miss"' : '') + '>' + f + ': ' + (val ? esc(val) : (missing ? '(누락)' : '')) + '</div>';
     });
     pop.innerHTML = html; pop.style.left = Math.min(x + 12, window.innerWidth - 300) + 'px';
     pop.style.top = Math.min(y + 12, window.innerHeight - 180) + 'px'; pop.style.display = 'block';
