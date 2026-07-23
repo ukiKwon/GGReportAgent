@@ -40,6 +40,27 @@
     return '';
   };
 
+  logic.markerShape = function (type) {
+    const map = { '대학병원':'circle', '공기업':'square', '공공기관':'triangle', '지자체':'polygon' };
+    return map[type] || 'diamond';
+  };
+
+  logic.FILTERABLE_TYPES = ['공공기관','공기업','대학병원'];
+
+  logic.visibleMarkers = function (list, enabledTypes) {
+    return list.filter(function (r) {
+      if (r.type === '지자체') return false;
+      if (logic.FILTERABLE_TYPES.indexOf(r.type) >= 0) return enabledTypes.has(r.type);
+      return true; // 미정의 유형(◆)은 항상 표시
+    });
+  };
+
+  logic.sortByUrgency = function (list, today) {
+    return list.slice().sort(function (a, b) {
+      return logic.daysUntil(a.contractEnd, today) - logic.daysUntil(b.contractEnd, today);
+    });
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = logic;
   else root.logic = logic;
 })(typeof self !== 'undefined' ? self : this);
