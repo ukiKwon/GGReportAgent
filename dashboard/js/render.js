@@ -97,16 +97,6 @@
     render.drawRankingPanel(code);
   };
 
-  render.flyToRegion = function (code, done) {
-    const overlay = document.getElementById('cloud-overlay');
-    overlay.classList.add('active');              // 구름 덮음
-    setTimeout(function () {
-      render.drawRegion(code);                    // 상세 그리기(가려진 채)
-      requestAnimationFrame(function () { overlay.classList.remove('active'); }); // 구름 걷힘(페이드아웃)
-      if (done) done();
-    }, 350);
-  };
-
   render.loadRegionGeoWithRetry = function (code, done, fail) {
     const getGeo = render.REGION_GEO[code]; const name = render.REGION_NAME[code] || code;
     const overlay = document.getElementById('cloud-overlay');
