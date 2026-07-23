@@ -10,6 +10,14 @@
   `handoff/YYYY-MM-DD_summary.md`을 쓰고, 같은 날 여러 세션이면 그 파일 안에
   `## Session HH:mm` 섹션을 시간순으로 이어붙인다. 기존에 적힌 세션 섹션은 절대 고치거나
   지우지 않는다.
+- **관련성 우선 원칙 (A안).** SessionStart 훅이 자동 주입하는 "최신 summary"는 파일명
+  정렬로 고른 *최근 활동 참고*일 뿐, 다음 세션이 실제로 다룰 일(거의 항상 이 NEXT.md의
+  열린 항목이며, 그 항목의 출처는 훨씬 과거 summary일 수 있음)과는 무관하다. 따라서
+  **이 파일이 진짜 이월 기억장치**이고, 열린 항목은 각자 자기완결적이어야 한다. 각 열린
+  항목은 반드시 **(1) 출처 summary 참조**(`YYYY-MM-DD_summary.md`의 `## Session HH:mm`
+  섹션까지)와 **(2) 그 summary를 열지 않아도 재개 가능한 완결 정보**(워크트리/브랜치/
+  어디까지/다음 단계)를 담는다. (1)은 (2)를 다 담기 어려울 때의 폴백이지, 아는 정보를
+  생략하는 핑계가 아니다.
 - 세션이 시작되면 이 파일을 읽고, 여기 열려 있는 항목 중 이번 세션에서 다룰 것을 확인한다.
 - 세션이 어떤 항목을 **완전히 해소**하면:
   1. 이 파일(NEXT.md)에서 그 항목을 제거(또는 "해소됨" 섹션으로 이동 후 다음 정리 때 삭제)한다.
@@ -23,7 +31,7 @@
 
 ## 열린 항목
 
-### 1. 25개 자치구 배치 프로젝트 — 미완결 8/20 재개
+### 1. 25개 자치구 배치 프로젝트 — 미완결 3/20(강남·송파·강동) 재개
 - **출처**: `handoff_old/NEXT.md`(2026-07-20 기준, git 미추적 상태로 남아있던 별도
   작업 스레드 — 5개구 KB 제안 프로젝트/현재 agent 오케스트레이션 작업과는 무관한
   독립 프로젝트. 원본 파일은 이 항목에 병합 후 삭제됨. 세션 체크포인트 원본은
@@ -152,7 +160,7 @@
   (`1504d8e`, `0e759e7`)은 워크트리 브랜치에만 있음.
 
 ### 3. 산출물 본문 내 `bank_idea_draft.txt`(단수형) 자기참조 3곳 — 의도적으로 보류
-- **출처**: `2026-07-21` 밤 세션(giganlist 경로/파일명 통일 작업 중 발견).
+- **출처**: `2026-07-21_summary.md`(밤 세션, giganlist 경로/파일명 통일 작업 중 발견).
 - **내용**: 파일명 자체는 전부 `bank_ideas_draft.txt`(복수형)로 통일됐으나, 다음 두 파일의
   본문 텍스트 안에서 자기 자신을 단수형(`bank_idea_draft.txt`)으로 지칭하는 문장이 남아있음:
   - `giganlist/gangbuk/plan/00_신규 사업 제안 - 총괄 개요.txt` (91번 줄)
@@ -169,21 +177,32 @@
   `grep -rl "bank_idea_draft\.txt" giganlist/*/plan giganlist/*/spec`로 남은 단수형
   자기참조를 재검색해 일괄 정정.
 
-### 4. `dashboard/` 금고은행 입찰 히트맵 지도 — 브레인스토밍 중단 지점부터 재개
-- **출처**: `2026-07-22_summary.md` "Session 21:42".
-- **상태**: `superpowers:brainstorming` 진행 중 사용자 피로로 중단. 설계 섹션
-  ①(폴더구조·데이터흐름)/②(스키마, type 4종·region 전국 개방 확장 포함)/③(화면·
-  인터랙션) 승인 완료, **④(엣지 처리·검증) 미제시**. 스펙 문서·코드 전무 —
-  브레인스토밍 HARD-GATE 유지 중이므로 구현 착수 금지.
-- **확정 결정 전문**: `2026-07-22_summary.md` "Session 21:42" 섹션 참고 (v1 범위
-  서울+경기 지자체 ~58 + 대학병원 15~20, 정적 단일 HTML + JS 전역변수 데이터,
-  D3 오프라인 번들, 5단계 구간색, 면=지자체/마커=기타 유형 이중 레이어,
-  좌우 분할 최상위 뷰 + 플라이투 → 지도 2/3 + 임박순 패널 1/3 등).
-- **재개 방법**: 브레인스토밍 스킬로 재진입 → 섹션 ④ 제시·승인 → 스펙을
-  `docs/superpowers/specs/2026-MM-DD-dashboard-treasury-bid-map-design.md`로 작성·
-  커밋 → 셀프리뷰 → 사용자 스펙 리뷰 → `superpowers:writing-plans`. 비주얼
-  컴패니언 목업 3종은 `.superpowers/brainstorm/310-1784722208/content/`에 있음
-  (git 제외됨, 참고용).
+### 4. `dashboard/` 금고은행 입찰 히트맵 — SDD 구현 Task 13부터 재개 (12/15 완료)
+- **출처**: `2026-07-24_summary.md` (직전 갱신). 스펙/계획 원본:
+  `docs/superpowers/specs/2026-07-23-treasury-bid-dashboard-design.md` (⑦ 탭/관심지역/
+  편집/필터 반영 완료본), `docs/superpowers/plans/2026-07-23-treasury-bid-dashboard.md`.
+- **상태**: 브레인스토밍→스펙(⑦까지)→계획서(15 태스크) 완료. **브랜치
+  `feature/treasury-bid-dashboard`**에서 `superpowers:subagent-driven-development`로
+  Task 1~12 구현·태스크리뷰 클린 (`fd749e2`..`cd718b5`, XSS esc() 수정 `9351fd2` 포함).
+  사용자 지시로 Task 12까지만 하고 세션 종료. 단위테스트 12/12 통과.
+- **다음 단계 (순서대로)**:
+  1. Task 13 (기관 편집+Export) → Task 14 (엣지 폴백) → Task 15 (통합+README) —
+     각각 task-brief 생성→구현자→리뷰어 디스패치. 원장:
+     `.superpowers/sdd/progress.md` (**git-ignored — `git clean`에 유실 주의**,
+     Minor 지적사항 목록 포함; 유실 시 이 항목+summary가 백업).
+  2. 전체 브랜치 최종 코드리뷰(최고 성능 모델) → Minor 지적 triage →
+     `superpowers:finishing-a-development-branch`로 main 병합.
+  3. **수동 준비물**: `dashboard/vendor/d3.v7.min.js` 오프라인 번들 배치(현재 저장소에
+     없음 — `vendor/README.txt` 참고), 이후 `file://`로 index.html 열어 브라우저 검증
+     (모든 태스크의 브라우저 체크가 "환경상 연기됨" 상태).
+- **주의**: 테스트는 `node --test dashboard/test/*.test.js` (glob 형태 — 디렉토리
+  형태는 이 Node/Windows에서 MODULE_NOT_FOUND).
+- **최종 리뷰에서 판단할 주요 지적** (전체 목록은 `2026-07-24_summary.md`):
+  - IMPORTANT: 스펙 ⑦-A의 실제 d3-zoom 팬/줌("확대 축소하는 맛")이 계획 태스크에
+    누락 — 전국 지도가 정적이고 flyToRegion은 페이드+재렌더일 뿐. 전용 줌 태스크
+    추가 여부 사용자와 결정 필요.
+  - Minor: 티커가 유형 필터 미반영 / 마커→카드 hover 비대칭 / `?` 글리프도 빨간
+    `.miss` 스타일 / lng·lat NaN 가드 없음 / app.js node export 가드 없음.
 
 ---
 
