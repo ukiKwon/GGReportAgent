@@ -159,6 +159,16 @@
     });
   };
 
+  render.drawTicker = function () {
+    const all = render.allInstitutions().filter(function (r){ return render.state.activeRegions.has(r.region); });
+    const top = logic.sortByUrgency(all, render.state.today).slice(0, 5);
+    const el = document.getElementById('ticker'); if (!el) return;
+    el.textContent = '임박 TOP5 · ' + top.map(function (r) {
+      const d = logic.daysUntil(r.contractEnd, render.state.today);
+      return r.name + (d === Infinity ? '(미상)' : '(D-' + d + ')');
+    }).join('   ·   ');
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = render;
   else root.render = render;
 })(typeof self !== 'undefined' ? self : this);
