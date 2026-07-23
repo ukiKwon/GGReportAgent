@@ -13,9 +13,28 @@
   };
   app.onTabChange = function (tab) { /* Task 12에서 보강 */ };
 
+  app.wireFilters = function () {
+    const boxes = document.querySelectorAll('#type-filter input[type=checkbox]');
+    // 데이터 없는 유형 비활성
+    const present = new Set(root.render.allInstitutions().map(function (r){ return r.type; }));
+    boxes.forEach(function (b) {
+      if (!present.has(b.dataset.type)) { b.checked = false; b.disabled = true; }
+      b.addEventListener('change', function () {
+        const s = root.render.state.enabledTypes;
+        if (b.checked) s.add(b.dataset.type); else s.delete(b.dataset.type);
+        if (root.render.state.currentRegion) root.render.drawMarkers(root.render.state.currentRegion);
+      });
+    });
+    // 초기 enabledTypes를 체크상태와 동기화
+    root.render.state.enabledTypes = new Set(
+      Array.from(boxes).filter(function (b){ return b.checked; }).map(function (b){ return b.dataset.type; }));
+  };
+
   app.init = function () {
-    if (window.__d3failed || typeof d3 === 'undefined') { /* Task 14 폴백 */ return; }
+    if (window.__d3failed || typeof d3 === 'undefined') { if (root.render.renderFallback) root.render.renderFallback(); return; }
     root.render.drawNational();
+    app.wireFilters();
+    root.render.drawTicker();
     document.getElementById('btn-back').addEventListener('click', app.backToNational);
   };
   document.addEventListener('DOMContentLoaded', app.init);
