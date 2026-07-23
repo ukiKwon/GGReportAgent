@@ -63,6 +63,41 @@
     render._nationalProjection = proj; render._nationalG = g;
   };
 
+  render.REGION_GEO = { '11': function(){ return window.geoSeoul; }, '41': function(){ return window.geoGyeonggi; } };
+  render.REGION_NAME = { '11':'서울', '41':'경기' };
+
+  render.subUrgencyColor = function (feature) {
+    // 상세 폴리곤(구/시군)엔 지자체 레코드가 코드 단위로 매칭되지 않을 수 있어,
+    // 해당 상위 region의 지자체 임박도를 공통 적용(자리표시). 실데이터에선 feature.code 매칭으로 정밀화.
+    return render.regionUrgencyColor(render.state.currentRegion);
+  };
+
+  render.drawRegion = function (code) {
+    const svg = d3.select('#map-svg'); svg.selectAll('*').remove();
+    const node = svg.node(); const w = node.clientWidth || 900, h = node.clientHeight || 600;
+    const fc = (render.REGION_GEO[code] || function(){ return {type:'FeatureCollection',features:[]}; })();
+    const proj = d3.geoMercator().fitSize([w, h], fc);
+    const path = d3.geoPath(proj);
+    render.state.currentRegion = code;
+    const g = svg.append('g').attr('class', 'region-layer');
+    g.selectAll('path.subregion').data(fc.features).join('path')
+      .attr('class', 'subregion').attr('d', path)
+      .attr('fill', function (d){ return render.subUrgencyColor(d); })
+      .attr('stroke', '#0f1420').attr('stroke-width', 1);
+    render._regionProjection = proj; render._regionPath = path; render._regionG = g;
+    if (render.drawMarkers) render.drawMarkers(code); // Task 9
+  };
+
+  render.flyToRegion = function (code, done) {
+    const overlay = document.getElementById('cloud-overlay');
+    overlay.classList.add('active');              // 구름 덮음
+    setTimeout(function () {
+      render.drawRegion(code);                    // 상세 그리기(가려진 채)
+      requestAnimationFrame(function () { overlay.classList.remove('active'); }); // 구름 걷힘(페이드아웃)
+      if (done) done();
+    }, 350);
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = render;
   else root.render = render;
 })(typeof self !== 'undefined' ? self : this);
