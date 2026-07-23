@@ -24,6 +24,10 @@
   #cloud-overlay.active { opacity:1; }
   #breadcrumb { position:absolute; top:10px; left:12px; color:var(--fg); z-index:5; }
   #breadcrumb button { background:var(--panel); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:4px 10px; cursor:pointer; }
+  .rank-card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px; margin-bottom:6px; cursor:pointer; }
+  .rank-card.hi { outline:2px solid #fff; }
+  .marker.hi > * { stroke:#fff; stroke-width:2.5; }
+  .miss { color:var(--red); font-weight:bold; }
 </style>
 </head>
 <body>
@@ -48,12 +52,15 @@
   </div>
 
 <section id="tab-map" class="tab-view active">
-  <div id="map-stage"><svg id="map-svg" width="100%" height="100%"></svg>
+  <div id="drill-wrap" style="display:flex;gap:12px;">
+    <div id="map-stage" style="flex:2;position:relative;">
+      <svg id="map-svg" width="100%" height="100%"></svg>
       <div id="cloud-overlay"></div>
-      <div id="breadcrumb" style="display:none;">
-        <button id="btn-back">← 전국</button> <span id="crumb-region"></span>
-      </div>
+      <div id="breadcrumb" style="display:none;"><button id="btn-back">← 전국</button> <span id="crumb-region"></span></div>
+    </div>
+    <div id="rank-panel" style="flex:1;display:none;overflow:auto;max-height:calc(100vh - 160px);"></div>
   </div>
+  <div id="popover" style="display:none;position:fixed;z-index:20;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:12px;max-width:280px;"></div>
 </section>
 
 <section id="tab-regions" class="tab-view">

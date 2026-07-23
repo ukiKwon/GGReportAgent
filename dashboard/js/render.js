@@ -26,6 +26,7 @@
   };
 
   render.drawNational = function () {
+    var rp = document.getElementById('rank-panel'); if (rp) rp.style.display='none';
     const svg = d3.select('#map-svg');
     svg.selectAll('*').remove();
     const node = svg.node(); const w = node.clientWidth || 900, h = node.clientHeight || 600;
@@ -86,6 +87,7 @@
       .attr('stroke', '#0f1420').attr('stroke-width', 1);
     render._regionProjection = proj; render._regionPath = path; render._regionG = g;
     if (render.drawMarkers) render.drawMarkers(code); // Task 9
+    render.drawRankingPanel(code);
   };
 
   render.flyToRegion = function (code, done) {
@@ -168,6 +170,56 @@
       return r.name + (d === Infinity ? '(미상)' : '(D-' + d + ')');
     }).join('   ·   ');
   };
+
+  render.highlightMarker = function (name, on) {
+    d3.select('#map-svg').selectAll('g.marker').classed('hi', function () {
+      return on && this.getAttribute('data-name') === name;
+    });
+  };
+  render.highlightCard = function (name, on) {
+    document.querySelectorAll('.rank-card').forEach(function (c) {
+      if (c.dataset.name === name) c.classList.toggle('hi', on);
+    });
+  };
+
+  render.drawRankingPanel = function (code) {
+    const panel = document.getElementById('rank-panel'); if (!panel) return;
+    const list = logic.sortByUrgency(render.institutionsByRegion(code), render.state.today);
+    panel.style.display = 'block'; panel.innerHTML = '<h3 style="margin:4px 0 8px;">임박순 랭킹</h3>';
+    list.forEach(function (r) {
+      const d = logic.daysUntil(r.contractEnd, render.state.today);
+      const card = document.createElement('div'); card.className = 'rank-card'; card.dataset.name = r.name;
+      const glyph = logic.recordGlyph(r);
+      card.innerHTML = '<b>' + r.name + '</b> ' + (glyph ? '<span class="miss">' + glyph + '</span>' : '') +
+        '<br><small>' + r.type + ' · ' + (d === Infinity ? '미상' : 'D-' + d) + '</small>';
+      card.addEventListener('mouseenter', function () { render.highlightMarker(r.name, true); });
+      card.addEventListener('mouseleave', function () { render.highlightMarker(r.name, false); });
+      card.addEventListener('click', function (ev) { render.showPopover(r, ev.clientX, ev.clientY); });
+      panel.appendChild(card);
+    });
+  };
+
+  render.showPopover = function (rec, x, y) {
+    const pop = document.getElementById('popover'); if (!pop) return;
+    const v = logic.validateRecord(rec);
+    const fields = ['name','type','region','contractEnd','confidence','sources'];
+    let html = '<b>' + (rec.name || '(이름없음)') + '</b><br>';
+    fields.forEach(function (f) {
+      const missing = v.missing.indexOf(f) >= 0 || (f === 'contractEnd' && !rec.contractEnd);
+      let val = f === 'sources' ? (Array.isArray(rec.sources) ? rec.sources.join(', ') : '') : (rec[f] == null ? '' : rec[f]);
+      html += '<div' + (missing ? ' class="miss"' : '') + '>' + f + ': ' + (val || (missing ? '(누락)' : '')) + '</div>';
+    });
+    pop.innerHTML = html; pop.style.left = Math.min(x + 12, window.innerWidth - 300) + 'px';
+    pop.style.top = Math.min(y + 12, window.innerHeight - 180) + 'px'; pop.style.display = 'block';
+  };
+  render.onMarkerClick = function (rec) { render.showPopover(rec, window.innerWidth/2, 120);
+    render.highlightCard(rec.name, true); setTimeout(function(){ render.highlightCard(rec.name, false); }, 1500); };
+
+  // 팝오버 바깥 클릭 시 닫기
+  if (typeof document !== 'undefined') document.addEventListener('click', function (ev) {
+    const pop = document.getElementById('popover');
+    if (pop && pop.style.display === 'block' && !pop.contains(ev.target) && !(ev.target.closest && ev.target.closest('.rank-card, .marker'))) pop.style.display = 'none';
+  });
 
   if (typeof module !== 'undefined' && module.exports) module.exports = render;
   else root.render = render;
