@@ -20,6 +20,26 @@
     return logic.URGENCY.BLUE;
   };
 
+  logic.REQUIRED_FIELDS = ['name','type','region','confidence','sources'];
+
+  logic.validateRecord = function (rec) {
+    const missing = [];
+    logic.REQUIRED_FIELDS.forEach(function (f) {
+      if (f === 'sources') {
+        if (!Array.isArray(rec.sources) || rec.sources.length === 0) missing.push('sources');
+      } else if (rec[f] === undefined || rec[f] === null || rec[f] === '') {
+        missing.push(f);
+      }
+    });
+    return { valid: missing.length === 0, missing: missing };
+  };
+
+  logic.recordGlyph = function (rec) {
+    if (!logic.validateRecord(rec).valid) return '!';
+    if (!rec.contractEnd) return '?';
+    return '';
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = logic;
   else root.logic = logic;
 })(typeof self !== 'undefined' ? self : this);
