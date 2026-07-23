@@ -42,3 +42,33 @@ test('recordGlyph: ! 우선, 그다음 ?', () => {
   const ok = Object.assign({}, noDate, { contractEnd:'2027-01-01' });
   assert.strictEqual(logic.recordGlyph(ok), '');
 });
+
+test('markerShape 매핑', () => {
+  assert.strictEqual(logic.markerShape('대학병원'), 'circle');
+  assert.strictEqual(logic.markerShape('공기업'), 'square');
+  assert.strictEqual(logic.markerShape('공공기관'), 'triangle');
+  assert.strictEqual(logic.markerShape('지자체'), 'polygon');
+  assert.strictEqual(logic.markerShape('학교'), 'diamond'); // 미정의 폴백
+});
+
+test('visibleMarkers: 지자체 제외 + 유형 필터 + 미정의 항상표시', () => {
+  const list = [
+    { name:'구청', type:'지자체', region:'11' },
+    { name:'병원', type:'대학병원', region:'11' },
+    { name:'공사', type:'공기업', region:'11' },
+    { name:'학교', type:'대학교', region:'11' },
+  ];
+  const enabled = new Set(['대학병원']); // 공기업 꺼짐
+  const vis = logic.visibleMarkers(list, enabled).map(r => r.name);
+  assert.deepStrictEqual(vis.sort(), ['병원','학교'].sort()); // 지자체 제외, 공기업 제외, 학교(미정의) 표시
+});
+
+test('sortByUrgency: 임박순 + 미상 뒤로', () => {
+  const today = new Date('2026-07-23T00:00:00');
+  const list = [
+    { name:'미상', region:'11' },
+    { name:'멂', contractEnd:'2029-01-01' },
+    { name:'임박', contractEnd:'2026-08-01' },
+  ];
+  assert.deepStrictEqual(logic.sortByUrgency(list, today).map(r => r.name), ['임박','멂','미상']);
+});
