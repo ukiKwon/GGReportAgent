@@ -28,6 +28,12 @@
   .rank-card.hi { outline:2px solid #fff; }
   .marker.hi > * { stroke:#fff; stroke-width:2.5; }
   .miss { color:var(--red); font-weight:bold; }
+  #pin-bar { display:flex; gap:8px; flex-wrap:wrap; min-height:36px; margin-bottom:12px; }
+  .pin { background:#243; border:1px solid #3a6; color:#cfe; border-radius:16px; padding:4px 12px; cursor:grab; }
+  #region-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; }
+  .rg-card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .rg-card .star { cursor:pointer; float:right; }
+  .region.watched { stroke:#ffe066; stroke-width:3; filter:drop-shadow(0 0 6px #ffe066); }
 </style>
 </head>
 <body>

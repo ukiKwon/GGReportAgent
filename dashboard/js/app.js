@@ -11,7 +11,10 @@
     document.getElementById('breadcrumb').style.display = 'none';
     root.render.drawNational();
   };
-  app.onTabChange = function (tab) { /* Task 12에서 보강 */ };
+  app.onTabChange = function (tab) {
+    if (tab === 'regions') { root.render.drawRegionGrid(); root.render.drawPinBar(); }
+    else if (tab === 'map') { root.render.applyWatchStyles(); }
+  };
 
   app.wireFilters = function () {
     const boxes = document.querySelectorAll('#type-filter input[type=checkbox]');
@@ -33,6 +36,7 @@
   app.init = function () {
     if (window.__d3failed || typeof d3 === 'undefined') { if (root.render.renderFallback) root.render.renderFallback(); return; }
     root.render.drawNational();
+    root.render.applyWatchStyles();
     app.wireFilters();
     root.render.drawTicker();
     document.getElementById('btn-back').addEventListener('click', app.backToNational);
