@@ -12,7 +12,7 @@
 
 ## 테스트
 - `node --test dashboard/test/` (순수 로직: 임박도·검증·정렬·필터·상태·직렬화).
-  - Windows에서 디렉토리 형태가 실패하면: node --test dashboard/test/*.test.js
+  - Windows에서 디렉토리 형태가 실패하면: `node --test dashboard/test/*.test.js`
 
 ## 구조
 - `js/logic.js` 순수 로직 · `js/store.js` 관심/편집 상태 · `js/export.js` 내보내기 · `js/render.js` D3 렌더 · `js/app.js` 와이어링.

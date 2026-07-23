@@ -3,11 +3,7 @@
   const render = {};
   const logic = root.logic, store = root.store;
 
-  function esc(s) {
-    return String(s).replace(/[&<>"']/g, function (c) {
-      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
-    });
-  }
+  const esc = logic.esc; // 공유 이스케이프(logic.esc) 위임
 
   render.state = {
     today: new Date(new Date().toISOString().slice(0,10) + 'T00:00:00'),
@@ -68,6 +64,32 @@
 
     render.state.currentRegion = null;
     render._nationalProjection = proj; render._nationalG = g;
+
+    // A1: 전국 지도 자유 팬/줌(스펙 ⑦-A). 휠 확대·축소 + 드래그 팬.
+    render._zoom = d3.zoom().scaleExtent([1, 8]).on('zoom', function (e) { g.attr('transform', e.transform); });
+    svg.call(render._zoom);
+    // drawNational 재호출(init/전국복귀) 시 내부 transform을 identity로 재동기화 —
+    // 이전 flyZoomTo 잔존 transform이 새 레이어와 어긋나지 않게 보장(A4).
+    svg.call(render._zoom.transform, d3.zoomIdentity);
+  };
+
+  // A2: 대상 시도 bounds로 750ms 지오메트릭 줌인("붕 떴다 내려앉는").
+  render.flyZoomTo = function (feature, done) {
+    const svg = d3.select('#map-svg');
+    const proj = render._nationalProjection;
+    if (!proj || !render._nationalG || !render._zoom) { if (done) done(); return; }
+    const path = d3.geoPath(proj);
+    const node = svg.node(); const w = node.clientWidth || 900, h = node.clientHeight || 600;
+    const b = path.bounds(feature);
+    const dx = b[1][0] - b[0][0], dy = b[1][1] - b[0][1];
+    const cx = (b[0][0] + b[1][0]) / 2, cy = (b[0][1] + b[1][1]) / 2;
+    let k = 0.9 / Math.max(dx / w, dy / h);
+    if (!isFinite(k) || k < 1) k = 1;
+    k = Math.min(k, 8); // scaleExtent 최댓값 이내로 클램프
+    const tx = w / 2 - k * cx, ty = h / 2 - k * cy;
+    svg.transition().duration(750)
+      .call(render._zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(k))
+      .on('end', function () { if (done) done(); });
   };
 
   render.REGION_GEO = { '11': function(){ return window.geoSeoul; }, '41': function(){ return window.geoGyeonggi; } };
@@ -140,7 +162,7 @@
     const proj = render._regionProjection; if (!proj) return;
     const list = render.institutionsByRegion(code);
     const markers = logic.visibleMarkers(list, render.state.enabledTypes)
-      .filter(function (r){ return typeof r.lng === 'number' && typeof r.lat === 'number'; });
+      .filter(function (r){ return typeof r.lng === 'number' && !isNaN(r.lng) && typeof r.lat === 'number' && !isNaN(r.lat); });
 
     let layer = svg.select('g.marker-layer');
     if (!layer.size()) layer = svg.append('g').attr('class','marker-layer');
@@ -222,7 +244,7 @@
   render.showPopover = function (rec, x, y) {
     const pop = document.getElementById('popover'); if (!pop) return;
     const v = logic.validateRecord(rec);
-    const fields = ['name','type','region','contractEnd','confidence','sources'];
+    const fields = logic.ALL_FIELDS;
     let html = '<b>' + esc(rec.name || '(이름없음)') + '</b><br>';
     fields.forEach(function (f) {
       const missing = v.missing.indexOf(f) >= 0 || (f === 'contractEnd' && !rec.contractEnd);

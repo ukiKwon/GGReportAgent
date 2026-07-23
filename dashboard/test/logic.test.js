@@ -72,3 +72,20 @@ test('sortByUrgency: 임박순 + 미상 뒤로', () => {
   ];
   assert.deepStrictEqual(logic.sortByUrgency(list, today).map(r => r.name), ['임박','멂','미상']);
 });
+
+test('esc: & < > " \' 를 모두 엔티티로 변환', () => {
+  assert.strictEqual(logic.esc('&<>"\''), '&amp;&lt;&gt;&quot;&#39;');
+  assert.strictEqual(logic.esc('<script>alert("x")</script>'),
+    '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;');
+});
+
+test('esc: 일반 문자열/숫자는 그대로(문자열화만)', () => {
+  assert.strictEqual(logic.esc('서울 구청 A-1'), '서울 구청 A-1');
+  assert.strictEqual(logic.esc(123), '123');
+  assert.strictEqual(logic.esc(''), '');
+});
+
+test('ALL_FIELDS: 6개 필드를 순서대로 담음', () => {
+  assert.deepStrictEqual(logic.ALL_FIELDS,
+    ['name','type','region','contractEnd','confidence','sources']);
+});

@@ -4,16 +4,28 @@
   app.enterRegion = function (code) {
     document.getElementById('cloud-overlay').classList.add('active');
     root.render.loadRegionGeoWithRetry(code, function () {
-      setTimeout(function () {
-        root.render.drawRegion(code);
-        requestAnimationFrame(function(){ document.getElementById('cloud-overlay').classList.remove('active'); });
-        document.getElementById('breadcrumb').style.display = 'block';
-        document.getElementById('crumb-region').textContent = root.render.REGION_NAME[code] || code;
-      }, 350);
+      // 기존 성공 처리(크로스페이드 → drawRegion → breadcrumb)를 그대로 유지.
+      function proceed() {
+        setTimeout(function () {
+          root.render.drawRegion(code);
+          requestAnimationFrame(function(){ document.getElementById('cloud-overlay').classList.remove('active'); });
+          document.getElementById('breadcrumb').style.display = 'block';
+          document.getElementById('crumb-region').textContent = root.render.REGION_NAME[code] || code;
+        }, 350);
+      }
+      // A3: 전국 geo에서 해당 시도 feature를 찾으면 지오메트릭 fly-to 후 성공 처리,
+      // 못 찾으면(전국 geo 부재 등) 기존 크로스페이드 경로로 폴백.
+      const fk = window.geoKorea;
+      const feature = fk && fk.features
+        ? fk.features.filter(function (f) { return f.properties.code === code; })[0]
+        : null;
+      if (feature && root.render.flyZoomTo) root.render.flyZoomTo(feature, proceed);
+      else proceed();
     }, function () { document.getElementById('cloud-overlay').classList.remove('active'); });
   };
   app.backToNational = function () {
     document.getElementById('breadcrumb').style.display = 'none';
+    // drawNational이 내부 zoom transform을 identity로 재동기화하므로(A4) 잔존 transform 없이 복귀.
     root.render.drawNational();
   };
   app.onTabChange = function (tab) {
@@ -40,11 +52,11 @@
 
   app.openEdit = function (rec) {
     const wrap = document.getElementById('edit-fields');
-    const fields = ['name','type','region','contractEnd','confidence','sources'];
+    const fields = root.logic.ALL_FIELDS;
     wrap.innerHTML = fields.map(function (f) {
       const val = f === 'sources' ? (Array.isArray(rec.sources) ? rec.sources.join(', ') : '') : (rec[f] || '');
       return '<label style="display:block;margin:6px 0;">' + f +
-        '<input data-f="' + f + '" value="' + String(val).replace(/"/g,'&quot;') + '" style="width:100%;"></label>';
+        '<input data-f="' + f + '" value="' + root.logic.esc(val) + '" style="width:100%;"></label>';
     }).join('');
     const modal = document.getElementById('edit-modal'); modal.style.display = 'block';
     document.getElementById('edit-cancel').onclick = function () { modal.style.display = 'none'; };

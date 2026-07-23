@@ -2,6 +2,16 @@
   'use strict';
   const logic = {};
 
+  // HTML 엔티티 이스케이프(공유). render.js/app.js의 모든 텍스트 싱크가 이걸 사용.
+  logic.esc = function (s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  };
+
+  // 레코드의 전체 표시 필드(순서 고정) — 편집 모달/팝오버가 공유.
+  logic.ALL_FIELDS = ['name','type','region','contractEnd','confidence','sources'];
+
   logic.URGENCY = { RED:'red', ORANGE:'orange', YELLOW:'yellow', BLUE:'blue', GRAY:'gray' };
 
   logic.daysUntil = function (contractEnd, today) {
