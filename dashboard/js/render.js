@@ -80,6 +80,7 @@
   };
 
   render.drawRegion = function (code) {
+    var b = document.getElementById('geo-retry-banner'); if (b) b.remove();
     const svg = d3.select('#map-svg'); svg.selectAll('*').remove();
     const node = svg.node(); const w = node.clientWidth || 900, h = node.clientHeight || 600;
     const fc = (render.REGION_GEO[code] || function(){ return {type:'FeatureCollection',features:[]}; })();
@@ -104,6 +105,28 @@
       requestAnimationFrame(function () { overlay.classList.remove('active'); }); // 구름 걷힘(페이드아웃)
       if (done) done();
     }, 350);
+  };
+
+  render.loadRegionGeoWithRetry = function (code, done, fail) {
+    const getGeo = render.REGION_GEO[code]; const name = render.REGION_NAME[code] || code;
+    const overlay = document.getElementById('cloud-overlay');
+    function attempt(n) {
+      const fc = getGeo && getGeo();
+      if (fc && fc.features && fc.features.length) { done(fc); return; }
+      const stage = document.getElementById('map-stage');
+      const msg = n === 0 ? (name + '지역을 불러오는 중입니다…') : '준비중…';
+      let banner = document.getElementById('geo-retry-banner');
+      if (!banner) { banner = document.createElement('div'); banner.id = 'geo-retry-banner';
+        banner.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#e6ecff;'; stage.appendChild(banner); }
+      banner.textContent = msg;
+      if (n < 2) { setTimeout(function(){ attempt(n + 1); }, 600); }
+      else {
+        banner.innerHTML = name + '지역 정보를 다시 확인해주세요. <button id="geo-retry-btn">다시 시도</button>';
+        document.getElementById('geo-retry-btn').onclick = function () { banner.remove(); render.loadRegionGeoWithRetry(code, done, fail); };
+        if (fail) fail();
+      }
+    }
+    attempt(0);
   };
 
   render._ensureDefs = function (svg) {
@@ -163,6 +186,7 @@
         if (glyph) g.append('text').attr('text-anchor','middle').attr('dy','0.35em')
           .attr('fill', glyph === '!' ? '#fff' : '#0f1420').attr('font-weight','bold').attr('font-size',10).text(glyph);
         g.style('cursor','pointer').on('click', function () { if (render.onMarkerClick) render.onMarkerClick(r); });
+        if (glyph === '!') console.warn('무결성 문제 레코드:', r.name, logic.validateRecord(r).missing);
       });
     });
   };
@@ -230,6 +254,17 @@
     const pop = document.getElementById('popover');
     if (pop && pop.style.display === 'block' && !pop.contains(ev.target) && !(ev.target.closest && ev.target.closest('.rank-card, .marker'))) pop.style.display = 'none';
   });
+
+  render.renderFallback = function () {
+    const stage = document.getElementById('map-stage'); if (!stage) return;
+    const all = render.allInstitutions().filter(function (r){ return render.state.activeRegions.has(r.region); });
+    const top = logic.sortByUrgency(all, render.state.today);
+    stage.innerHTML = '<div style="padding:16px;"><b>지도 로딩 실패</b> — D3 번들(vendor/d3.v7.min.js)을 확인하세요.' +
+      '<br>아래는 지도 없이 제공하는 임박순 랭킹입니다.<ol>' +
+      top.map(function (r){ const d = logic.daysUntil(r.contractEnd, render.state.today);
+        return '<li>' + esc(r.name) + ' — ' + esc(r.type) + ' · ' + (d === Infinity ? '미상' : 'D-' + d) + '</li>'; }).join('') +
+      '</ol></div>';
+  };
 
   render.WATCHABLE = function () { return Array.from(render.state.activeRegions); };
 

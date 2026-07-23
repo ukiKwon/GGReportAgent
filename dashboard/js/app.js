@@ -2,10 +2,15 @@
   'use strict';
   const app = {};
   app.enterRegion = function (code) {
-    root.render.flyToRegion(code, function () {
-      document.getElementById('breadcrumb').style.display = 'block';
-      document.getElementById('crumb-region').textContent = root.render.REGION_NAME[code] || code;
-    });
+    document.getElementById('cloud-overlay').classList.add('active');
+    root.render.loadRegionGeoWithRetry(code, function () {
+      setTimeout(function () {
+        root.render.drawRegion(code);
+        requestAnimationFrame(function(){ document.getElementById('cloud-overlay').classList.remove('active'); });
+        document.getElementById('breadcrumb').style.display = 'block';
+        document.getElementById('crumb-region').textContent = root.render.REGION_NAME[code] || code;
+      }, 350);
+    }, function () { document.getElementById('cloud-overlay').classList.remove('active'); });
   };
   app.backToNational = function () {
     document.getElementById('breadcrumb').style.display = 'none';
