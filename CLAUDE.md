@@ -112,13 +112,22 @@ explicitly narrows the scope in that request.
 - **`handoff/NEXT.md`** — the one file in this folder that IS meant to be edited in
   place. It tracks only the currently-unresolved "what's left" items, deduplicated
   across all past summaries, so a new session doesn't have to read every summary file
-  to know what's still open. Rules for maintaining it:
+  to know what's still open. **`NEXT.md` — not the auto-loaded latest summary — is the
+  system's actual carry-forward memory** (see the "relevance over recency" note below);
+  each open item must therefore be self-sufficient. Rules for maintaining it:
+  - **Every open item must carry (1) an explicit source-summary reference** — the
+    `YYYY-MM-DD_summary.md` file (and `## Session HH:mm` section) it originated from or
+    was last updated in — **and (2) enough resume-complete detail to continue WITHOUT
+    opening that summary** (worktree/branch, how far it got, exact next step). The
+    source reference is the fallback for when the item can't fully inline everything; it
+    is never a substitute for (2) when the detail is knowable.
   - When a session resolves an item, remove it from `NEXT.md` **and** record that
     resolution explicitly in that session's own summary file (which item, how/where
     it was resolved — commit hash, worktree, etc.).
   - When an item is still open but progress was made, update its status in place
     (don't delete it) — leave enough detail (worktree/branch, how far it got) for the
-    next session to resume.
+    next session to resume, and refresh its source-summary reference to the session that
+    just touched it.
   - New unresolved items go into `NEXT.md` as they're identified, tagged with the
     summary file they came from.
   - Only remove an item once it is actually done — a session finding an item still
@@ -130,6 +139,15 @@ matched with a strict `^\d{4}-\d{2}-\d{2}_summary\.md$` pattern) as context at t
 of every new session, so this recap loop is self-sustaining without manual action. Older
 daily summary files are not auto-injected — `NEXT.md` is what carries forward anything
 from them that still matters.
+
+**Relevance over recency (why the latest-summary load is not the memory).** The
+auto-injected "most recent summary" is chosen purely by filename sort — it is a
+*recent-activity glance*, not a search, and it has no guaranteed relationship to whatever
+the next session will actually work on (which is almost always an open `NEXT.md` item,
+and that item may trace back to a much older summary). So do **not** rely on the latest
+summary to surface what matters; rely on `NEXT.md` being self-sufficient per the rule
+above. When a `NEXT.md` item does need its full history, its source-summary reference
+tells you exactly which file to open on demand — no need to load every summary up front.
 
 **Acknowledge the load, every session:** the hook has no user-visible notification channel
 — the injected content only lands in Claude's own context. So in your first reply of every
