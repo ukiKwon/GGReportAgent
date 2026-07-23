@@ -192,9 +192,10 @@
      Minor 지적사항 목록 포함; 유실 시 이 항목+summary가 백업).
   2. 전체 브랜치 최종 코드리뷰(최고 성능 모델) → Minor 지적 triage →
      `superpowers:finishing-a-development-branch`로 main 병합.
-  3. **수동 준비물**: `dashboard/vendor/d3.v7.min.js` 오프라인 번들 배치(현재 저장소에
-     없음 — `vendor/README.txt` 참고), 이후 `file://`로 index.html 열어 브라우저 검증
-     (모든 태스크의 브라우저 체크가 "환경상 연기됨" 상태).
+  3. **D3 번들 배치 (사용자 지시: Claude가 세션에서 직접 수행)**:
+     `https://d3js.org/d3.v7.min.js`를 다운로드해 `dashboard/vendor/d3.v7.min.js`로
+     저장(현재 저장소에 없음 — `vendor/README.txt` 참고), 이후 `file://`로
+     index.html 열어 브라우저 검증(모든 태스크의 브라우저 체크가 "환경상 연기됨" 상태).
 - **주의**: 테스트는 `node --test dashboard/test/*.test.js` (glob 형태 — 디렉토리
   형태는 이 Node/Windows에서 MODULE_NOT_FOUND).
 - **최종 리뷰에서 판단할 주요 지적** (전체 목록은 `2026-07-24_summary.md`):
