@@ -98,6 +98,67 @@
     }, 350);
   };
 
+  render._ensureDefs = function (svg) {
+    if (svg.select('#hatch').size()) return;
+    const p = svg.append('defs').append('pattern').attr('id','hatch')
+      .attr('width',4).attr('height',4).attr('patternUnits','userSpaceOnUse')
+      .attr('patternTransform','rotate(45)');
+    p.append('rect').attr('width',4).attr('height',4).attr('fill','transparent');
+    p.append('line').attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',4).attr('stroke','#0f1420').attr('stroke-width',2);
+  };
+
+  render._shapePath = function (shape, s) { // s=반지름/반폭
+    if (shape === 'square') return 'M' + (-s) + ',' + (-s) + ' h' + (2*s) + ' v' + (2*s) + ' h' + (-2*s) + ' Z';
+    if (shape === 'triangle') return 'M0,' + (-s) + ' L' + s + ',' + s + ' L' + (-s) + ',' + s + ' Z';
+    if (shape === 'diamond') return 'M0,' + (-s) + ' L' + s + ',0 L0,' + s + ' L' + (-s) + ',0 Z';
+    return ''; // circle은 <circle>로 별도
+  };
+
+  render.drawMarkers = function (code) {
+    const svg = d3.select('#map-svg'); render._ensureDefs(svg);
+    const proj = render._regionProjection; if (!proj) return;
+    const list = render.institutionsByRegion(code);
+    const markers = logic.visibleMarkers(list, render.state.enabledTypes)
+      .filter(function (r){ return typeof r.lng === 'number' && typeof r.lat === 'number'; });
+
+    let layer = svg.select('g.marker-layer');
+    if (!layer.size()) layer = svg.append('g').attr('class','marker-layer');
+    layer.selectAll('*').remove();
+
+    // 밀집 클러스터: 동일 좌표 반올림 셀에 8개+면 뱃지
+    const cells = {};
+    markers.forEach(function (r){ const p = proj([r.lng, r.lat]); const key = Math.round(p[0]/24)+'_'+Math.round(p[1]/24);
+      (cells[key] = cells[key] || []).push({ r:r, p:p }); });
+
+    Object.keys(cells).forEach(function (key) {
+      const grp = cells[key];
+      if (grp.length >= 8) {
+        const p = grp[0].p;
+        const g = layer.append('g').attr('class','cluster').attr('transform','translate('+p[0]+','+p[1]+')');
+        g.append('circle').attr('r',14).attr('fill','#2a3550').attr('stroke','#e6ecff');
+        g.append('text').attr('text-anchor','middle').attr('dy','0.35em').attr('fill','#e6ecff').attr('font-size',12).text(grp.length);
+        return;
+      }
+      grp.forEach(function (item) {
+        const r = item.r, p = item.p, shape = logic.markerShape(r.type);
+        const color = render.URGENCY_COLORS[logic.computeUrgency(r.contractEnd, render.state.today)];
+        const glyph = logic.recordGlyph(r);
+        const g = layer.append('g').attr('class','marker').attr('data-name', r.name).attr('transform','translate('+p[0]+','+p[1]+')');
+        const hatched = r.confidence === '추정';
+        if (shape === 'circle') {
+          g.append('circle').attr('r',8).attr('fill',color).attr('stroke','#0f1420');
+          if (hatched) g.append('circle').attr('r',8).attr('fill','url(#hatch)');
+        } else {
+          g.append('path').attr('d', render._shapePath(shape,8)).attr('fill',color).attr('stroke','#0f1420');
+          if (hatched) g.append('path').attr('d', render._shapePath(shape,8)).attr('fill','url(#hatch)');
+        }
+        if (glyph) g.append('text').attr('text-anchor','middle').attr('dy','0.35em')
+          .attr('fill', glyph === '!' ? '#fff' : '#0f1420').attr('font-weight','bold').attr('font-size',10).text(glyph);
+        g.style('cursor','pointer').on('click', function () { if (render.onMarkerClick) render.onMarkerClick(r); });
+      });
+    });
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = render;
   else root.render = render;
 })(typeof self !== 'undefined' ? self : this);
