@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>금고은행 입찰 현황 히트맵</title>
+<style>
+  :root { --bg:#0f1420; --panel:#1a2233; --line:#2a3550; --fg:#e6ecff; --muted:#8a97b8;
+          --red:#e5484d; --orange:#f5a524; --yellow:#f2e14c; --blue:#3b82f6; --gray:#8a97b8; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Segoe UI","Malgun Gothic",sans-serif; background:var(--bg); color:var(--fg); }
+  header { display:flex; align-items:center; gap:16px; padding:10px 16px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; margin:0; }
+  .tabs { display:flex; gap:4px; margin-left:auto; }
+  .tab-btn { background:var(--panel); color:var(--muted); border:1px solid var(--line);
+             padding:6px 14px; border-radius:8px 8px 0 0; cursor:pointer; }
+  .tab-btn.active { color:var(--fg); border-bottom-color:var(--panel); }
+  .tab-view { display:none; padding:12px 16px; }
+  .tab-view.active { display:block; }
+  #map-stage { position:relative; width:100%; height:calc(100vh - 120px); background:var(--panel);
+               border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+</style>
+</head>
+<body>
+<header>
+  <h1>금고은행 입찰 현황 히트맵</h1>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="map">전국 지도</button>
+    <button class="tab-btn" data-tab="regions">전국 지역별</button>
+  </div>
+</header>
+
+<section id="tab-map" class="tab-view active">
+  <div id="map-stage"><svg id="map-svg" width="100%" height="100%"></svg></div>
+</section>
+
+<section id="tab-regions" class="tab-view">
+  <div id="pin-bar"></div>
+  <div id="region-grid"></div>
+</section>
+
+<!-- 순수 로직 -->
+<script src="js/logic.js"></script>
+<script src="js/store.js"></script>
+<script src="js/export.js"></script>
+<!-- D3 번들 (없으면 Task 14 폴백) -->
+<script src="vendor/d3.v7.min.js" onerror="window.__d3failed=true"></script>
+<!-- 데이터 -->
+<script src="geo/korea.js"></script>
+<script src="geo/seoul.js"></script>
+<script src="geo/gyeonggi.js"></script>
+<script src="data/institutions.js"></script>
+<!-- 렌더·엔트리 -->
+<script src="js/render.js"></script>
+<script src="js/app.js"></script>
+<script>
+  // 탭 전환 (와이어링은 app.js가 보강; 여기선 기본 토글 보장)
+  document.querySelectorAll('.tab-btn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.tab-btn').forEach(function (x){ x.classList.remove('active'); });
+      document.querySelectorAll('.tab-view').forEach(function (x){ x.classList.remove('active'); });
+      b.classList.add('active');
+      document.getElementById('tab-' + b.dataset.tab).classList.add('active');
+      if (window.app && window.app.onTabChange) window.app.onTabChange(b.dataset.tab);
+    });
+  });
+</script>
+</body>
+</html>
