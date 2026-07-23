@@ -54,6 +54,7 @@
       <label><input type="checkbox" data-type="공기업" checked> ■ 공기업</label>
       <label><input type="checkbox" data-type="대학병원" checked> ● 대학병원</label>
     </div>
+    <button id="btn-export" style="background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer;">institutions.js 내보내기</button>
     <div id="ticker" style="margin-left:auto;font-size:12px;color:var(--muted);overflow:hidden;white-space:nowrap;max-width:40vw;"></div>
   </div>
 
@@ -73,6 +74,17 @@
   <div id="pin-bar"></div>
   <div id="region-grid"></div>
 </section>
+
+<div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:30;">
+  <div style="max-width:360px;margin:8vh auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;">
+    <h3 style="margin-top:0;">기관 정보 변경</h3>
+    <div id="edit-fields"></div>
+    <p style="color:var(--muted);font-size:11px;">sources는 쉼표로 구분, 1개 이상 필수(조작 금지).</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button id="edit-cancel">취소</button><button id="edit-save">저장</button>
+    </div>
+  </div>
+</div>
 
 <!-- 순수 로직 -->
 <script src="js/logic.js"></script>

@@ -215,7 +215,11 @@
       let val = f === 'sources' ? (Array.isArray(rec.sources) ? rec.sources.join(', ') : '') : (rec[f] == null ? '' : rec[f]);
       html += '<div' + (missing ? ' class="miss"' : '') + '>' + f + ': ' + (val ? esc(val) : (missing ? '(누락)' : '')) + '</div>';
     });
-    pop.innerHTML = html; pop.style.left = Math.min(x + 12, window.innerWidth - 300) + 'px';
+    html += '<div style="margin-top:6px;"><button id="pop-edit">✎ 편집</button></div>';
+    pop.innerHTML = html;
+    const eb = document.getElementById('pop-edit');
+    if (eb) eb.onclick = function () { if (root.app && root.app.openEdit) root.app.openEdit(rec); };
+    pop.style.left = Math.min(x + 12, window.innerWidth - 300) + 'px';
     pop.style.top = Math.min(y + 12, window.innerHeight - 180) + 'px'; pop.style.display = 'block';
   };
   render.onMarkerClick = function (rec) { render.showPopover(rec, window.innerWidth/2, 120);
