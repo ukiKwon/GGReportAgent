@@ -177,33 +177,24 @@
   `grep -rl "bank_idea_draft\.txt" giganlist/*/plan giganlist/*/spec`로 남은 단수형
   자기참조를 재검색해 일괄 정정.
 
-### 4. `dashboard/` 금고은행 입찰 히트맵 — SDD 구현 Task 13부터 재개 (12/15 완료)
-- **출처**: `2026-07-24_summary.md` (직전 갱신). 스펙/계획 원본:
-  `docs/superpowers/specs/2026-07-23-treasury-bid-dashboard-design.md` (⑦ 탭/관심지역/
-  편집/필터 반영 완료본), `docs/superpowers/plans/2026-07-23-treasury-bid-dashboard.md`.
-- **상태**: 브레인스토밍→스펙(⑦까지)→계획서(15 태스크) 완료. **브랜치
-  `feature/treasury-bid-dashboard`**에서 `superpowers:subagent-driven-development`로
-  Task 1~12 구현·태스크리뷰 클린 (`fd749e2`..`cd718b5`, XSS esc() 수정 `9351fd2` 포함).
-  사용자 지시로 Task 12까지만 하고 세션 종료. 단위테스트 12/12 통과.
-- **다음 단계 (순서대로)**:
-  1. Task 13 (기관 편집+Export) → Task 14 (엣지 폴백) → Task 15 (통합+README) —
-     각각 task-brief 생성→구현자→리뷰어 디스패치. 원장:
-     `.superpowers/sdd/progress.md` (**git-ignored — `git clean`에 유실 주의**,
-     Minor 지적사항 목록 포함; 유실 시 이 항목+summary가 백업).
-  2. 전체 브랜치 최종 코드리뷰(최고 성능 모델) → Minor 지적 triage →
-     `superpowers:finishing-a-development-branch`로 main 병합.
-  3. **D3 번들 배치 (사용자 지시: Claude가 세션에서 직접 수행)**:
-     `https://d3js.org/d3.v7.min.js`를 다운로드해 `dashboard/vendor/d3.v7.min.js`로
-     저장(현재 저장소에 없음 — `vendor/README.txt` 참고), 이후 `file://`로
-     index.html 열어 브라우저 검증(모든 태스크의 브라우저 체크가 "환경상 연기됨" 상태).
+### 4. `dashboard/` 금고은행 입찰 히트맵 — 브라우저 `file://` 검증만 남음
+- **출처**: `2026-07-24_summary.md` `## Session 07:43` (구현·리뷰·병합 전부 이 세션에서
+  완료). 스펙/계획: `docs/superpowers/specs/2026-07-23-treasury-bid-dashboard-design.md`,
+  `docs/superpowers/plans/2026-07-23-treasury-bid-dashboard.md`.
+- **상태**: Task 1~15 + 추가 Task 16(d3-zoom 팬/줌+fly-to+정리, 사용자 승인) 전부
+  구현·리뷰 클린. 최종 브랜치 리뷰(opus) "With fixes" → 필수 수정(flyToRegion 삭제
+  `81678f4`) 반영. D3 v7.9.0 번들 `dashboard/vendor/d3.v7.min.js` 배치(`1b85a3c`).
+  **main에 fast-forward 병합·push 완료(`464f906`), 병합 후 테스트 16/16 통과, 로컬
+  feature 브랜치 삭제.** 원격 `origin/feature/treasury-bid-dashboard`는 남아있음
+  (삭제는 사용자 판단).
+- **남은 단계 (유일)**: Chrome 실행 + claude.ai 확장 연결 후 `dashboard/index.html`을
+  `file://`로 열어 브라우저 검증 — Task 15 브리핑 Step 3의 회귀 체크리스트(전국 지도/
+  드릴인/필터/편집·Export/탭2 핀바/콘솔 에러 0) + Task 16의 줌 체감(휠 팬줌, 750ms
+  fly-to). 이 세션에서 확장 미연결로 3회 시도 실패.
 - **주의**: 테스트는 `node --test dashboard/test/*.test.js` (glob 형태 — 디렉토리
-  형태는 이 Node/Windows에서 MODULE_NOT_FOUND).
-- **최종 리뷰에서 판단할 주요 지적** (전체 목록은 `2026-07-24_summary.md`):
-  - IMPORTANT: 스펙 ⑦-A의 실제 d3-zoom 팬/줌("확대 축소하는 맛")이 계획 태스크에
-    누락 — 전국 지도가 정적이고 flyToRegion은 페이드+재렌더일 뿐. 전용 줌 태스크
-    추가 여부 사용자와 결정 필요.
-  - Minor: 티커가 유형 필터 미반영 / 마커→카드 hover 비대칭 / `?` 글리프도 빨간
-    `.miss` 스타일 / lng·lat NaN 가드 없음 / app.js node export 가드 없음.
+  형태는 이 Node/Windows에서 MODULE_NOT_FOUND). ship-as-is 처리된 Minor 전체 목록은
+  `.superpowers/sdd/progress.md`(git-ignored)와 `2026-07-24_summary.md` Session 07:43
+  섹션에 보존.
 
 ---
 
