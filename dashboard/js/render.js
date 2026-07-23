@@ -227,6 +227,46 @@
     if (pop && pop.style.display === 'block' && !pop.contains(ev.target) && !(ev.target.closest && ev.target.closest('.rank-card, .marker'))) pop.style.display = 'none';
   });
 
+  render.WATCHABLE = function () { return Array.from(render.state.activeRegions); };
+
+  render.drawRegionGrid = function () {
+    const grid = document.getElementById('region-grid'); if (!grid) return;
+    grid.innerHTML = '';
+    render.WATCHABLE().forEach(function (code) {
+      const card = document.createElement('div'); card.className = 'rg-card';
+      const on = store.isWatched(code);
+      card.innerHTML = '<span class="star" data-code="' + code + '">' + (on ? '★' : '☆') + '</span><b>' +
+        (render.REGION_NAME[code] || code) + '</b>';
+      card.querySelector('.star').addEventListener('click', function () {
+        store.toggleWatch(code); render.drawRegionGrid(); render.drawPinBar(); render.applyWatchStyles();
+      });
+      grid.appendChild(card);
+    });
+  };
+
+  render.drawPinBar = function () {
+    const bar = document.getElementById('pin-bar'); if (!bar) return;
+    bar.innerHTML = ''; const watch = store.loadWatch();
+    if (!watch.length) { bar.innerHTML = '<small style="color:var(--muted)">관심 지역을 ★로 지정하면 여기 쌓입니다 (드래그로 순서 변경).</small>'; return; }
+    watch.forEach(function (code, idx) {
+      const pin = document.createElement('div'); pin.className = 'pin'; pin.draggable = true; pin.dataset.idx = idx;
+      pin.textContent = '★ ' + (render.REGION_NAME[code] || code);
+      pin.addEventListener('dragstart', function (e){ e.dataTransfer.setData('text/plain', idx); });
+      pin.addEventListener('dragover', function (e){ e.preventDefault(); });
+      pin.addEventListener('drop', function (e) {
+        e.preventDefault(); const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
+        store.reorderWatch(from, idx); render.drawPinBar(); render.applyWatchStyles();
+      });
+      bar.appendChild(pin);
+    });
+  };
+
+  render.applyWatchStyles = function () {
+    d3.select('#map-svg').selectAll('path.region').classed('watched', function (d) {
+      return store.isWatched(d.properties.code);
+    });
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = render;
   else root.render = render;
 })(typeof self !== 'undefined' ? self : this);
