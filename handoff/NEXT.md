@@ -177,24 +177,30 @@
   `grep -rl "bank_idea_draft\.txt" giganlist/*/plan giganlist/*/spec`로 남은 단수형
   자기참조를 재검색해 일괄 정정.
 
-### 4. `dashboard/` 금고은행 입찰 히트맵 — 브라우저 `file://` 검증만 남음
-- **출처**: `2026-07-24_summary.md` `## Session 07:43` (구현·리뷰·병합 전부 이 세션에서
-  완료). 스펙/계획: `docs/superpowers/specs/2026-07-23-treasury-bid-dashboard-design.md`,
+### 4. `dashboard/` 금고은행 입찰 히트맵 — 애니메이션 체감만 육안 확인 남음(포그라운드 탭)
+- **출처**: `2026-07-25_summary.md` `## Session (브라우저 검증)`. 구현·리뷰·병합은
+  `2026-07-24_summary.md` `## Session 07:43`. 스펙/계획:
+  `docs/superpowers/specs/2026-07-23-treasury-bid-dashboard-design.md`,
   `docs/superpowers/plans/2026-07-23-treasury-bid-dashboard.md`.
-- **상태**: Task 1~15 + 추가 Task 16(d3-zoom 팬/줌+fly-to+정리, 사용자 승인) 전부
-  구현·리뷰 클린. 최종 브랜치 리뷰(opus) "With fixes" → 필수 수정(flyToRegion 삭제
-  `81678f4`) 반영. D3 v7.9.0 번들 `dashboard/vendor/d3.v7.min.js` 배치(`1b85a3c`).
-  **main에 fast-forward 병합·push 완료(`464f906`), 병합 후 테스트 16/16 통과, 로컬
-  feature 브랜치 삭제.** 원격 `origin/feature/treasury-bid-dashboard`는 남아있음
-  (삭제는 사용자 판단).
-- **남은 단계 (유일)**: Chrome 실행 + claude.ai 확장 연결 후 `dashboard/index.html`을
-  `file://`로 열어 브라우저 검증 — Task 15 브리핑 Step 3의 회귀 체크리스트(전국 지도/
-  드릴인/필터/편집·Export/탭2 핀바/콘솔 에러 0) + Task 16의 줌 체감(휠 팬줌, 750ms
-  fly-to). 이 세션에서 확장 미연결로 3회 시도 실패.
-- **주의**: 테스트는 `node --test dashboard/test/*.test.js` (glob 형태 — 디렉토리
-  형태는 이 Node/Windows에서 MODULE_NOT_FOUND). ship-as-is 처리된 Minor 전체 목록은
-  `.superpowers/sdd/progress.md`(git-ignored)와 `2026-07-24_summary.md` Session 07:43
-  섹션에 보존.
+- **상태**: Task 1~16 전부 구현·리뷰 클린, **main 병합·push 완료(`464f906`)**. D3
+  v7.9.0 번들 배치(`1b85a3c`). 2026-07-25 세션에서 **브라우저 검증 대부분 통과** —
+  확장 file:// 차단 우회로 로컬 http 서버(`py -m http.server`, fetch 0건이라 file://과
+  코드경로 동일)로 검증: 로드/범례5색/필터/티커, 전국지도(서울·경기 활성), 상세
+  드릴인(마커 원·삼각/랭킹4카드), 글리프 ?·!, 무결성 console.warn(레코드 미삭제),
+  미상 후순위 정렬, 필터 토글(마커 4→3), 편집 모달·유효저장·localStorage 영속,
+  Export 직렬화, 탭2 지역그리드·관심핀바(★서울), 탭1 관심 글로우(금색 drop-shadow),
+  새로고침 영속(tbd.watchRegions/tbd.edits), D3 폴백(텍스트 랭킹) — **전부 정상**.
+  d3-zoom 배선도 즉시 zoom.transform 적용으로 검증됨.
+- **남은 단계 (유일·비차단)**: 애니메이션 **체감**(750ms fly-to 줌인, 구름 페이드)만
+  자동 검증 불가 — 자동화 탭이 백그라운드(`document.hidden=true`)라 rAF 스로틀로 d3
+  transition이 진행 안 됨(코드 버그 아님, 즉시 transform은 정상 적용 확인). **사용자가
+  포그라운드 탭에서 `dashboard/index.html` 열고 서울/경기 클릭해 줌 체감만 육안 확인**
+  하면 완결. 원격 `origin/feature/treasury-bid-dashboard`는 남아있음(삭제는 사용자 판단).
+- **주의**: 테스트는 `node --test dashboard/test/*.test.js`. 확장은 file:// 직접
+  네비게이션을 막으므로(navigate/omnibox 모두 차단) 브라우저 재검증 시 로컬 http
+  서버 경유가 확실 — `cd dashboard && py -m http.server 8817`(python은 스토어 스텁이라
+  실패, `py` 런처 사용). ship-as-is Minor 목록은 `.superpowers/sdd/progress.md` +
+  `2026-07-24_summary.md` 07:43 섹션.
 
 ---
 
