@@ -10,7 +10,11 @@
   };
 
   // 레코드의 전체 표시 필드(순서 고정) — 편집 모달/팝오버가 공유.
-  logic.ALL_FIELDS = ['name','type','region','contractEnd','confidence','sources'];
+  logic.ALL_FIELDS = ['name','type','region','term','lastBid','contractEnd','confirmed','lng','lat','sources','updatedAt'];
+
+  logic.FIELD_LABELS = { name:'기관명', type:'기관구분', region:'지역코드', term:'입찰주기',
+    lastBid:'지난 입찰일', contractEnd:'입찰예상일', confirmed:'확정여부', lng:'경도', lat:'위도',
+    sources:'출처', updatedAt:'수정일' };
 
   logic.URGENCY = { RED:'red', ORANGE:'orange', YELLOW:'yellow', BLUE:'blue', GRAY:'gray' };
 
@@ -54,23 +58,24 @@
     return logic.computeUrgency(logic.effectiveBid(rec).date, today);
   };
 
-  logic.REQUIRED_FIELDS = ['name','type','region','confidence','sources'];
+  logic.formatBidDate = function (rec) {
+    const e = logic.effectiveBid(rec);
+    return e.date ? (e.date + '(' + e.confidence + ')') : '미상';
+  };
+
+  logic.REQUIRED_FIELDS = ['name','type','region'];
 
   logic.validateRecord = function (rec) {
     const missing = [];
     logic.REQUIRED_FIELDS.forEach(function (f) {
-      if (f === 'sources') {
-        if (!Array.isArray(rec.sources) || rec.sources.length === 0) missing.push('sources');
-      } else if (rec[f] === undefined || rec[f] === null || rec[f] === '') {
-        missing.push(f);
-      }
+      if (rec[f] === undefined || rec[f] === null || rec[f] === '') missing.push(f);
     });
     return { valid: missing.length === 0, missing: missing };
   };
 
   logic.recordGlyph = function (rec) {
     if (!logic.validateRecord(rec).valid) return '!';
-    if (logic.effectiveBid(rec).date === null) return '?';
+    if (!logic.effectiveBid(rec).date) return '?';
     return '';
   };
 
