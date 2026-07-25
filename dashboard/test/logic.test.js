@@ -21,26 +21,17 @@ test('computeUrgency: 구간 경계', () => {
   assert.strictEqual(logic.computeUrgency('2026-07-01', today), logic.URGENCY.RED);    // 이미 지남 → 최긴급
 });
 
-test('validateRecord: 필수필드 누락 감지', () => {
-  const bad = { name:'X', type:'공기업' }; // region/confidence/sources 없음
-  const r = logic.validateRecord(bad);
+test('validateRecord: 필수는 name/type/region', () => {
+  assert.strictEqual(logic.validateRecord({ name:'X', type:'공기업', region:'11' }).valid, true);
+  const r = logic.validateRecord({ name:'X', type:'공기업' });
   assert.strictEqual(r.valid, false);
-  assert.deepStrictEqual(r.missing.sort(), ['confidence','region','sources'].sort());
+  assert.deepStrictEqual(r.missing, ['region']);
 });
 
-test('validateRecord: sources 빈 배열은 누락', () => {
-  const rec = { name:'X', type:'공기업', region:'11', confidence:'추정', sources:[] };
-  assert.strictEqual(logic.validateRecord(rec).valid, false);
-  assert.ok(logic.validateRecord(rec).missing.includes('sources'));
-});
-
-test('recordGlyph: ! 우선, 그다음 ?', () => {
-  const broken = { name:'X', type:'공기업' };
-  assert.strictEqual(logic.recordGlyph(broken), '!');
-  const noDate = { name:'X', type:'공기업', region:'11', confidence:'확정', sources:['s'] };
-  assert.strictEqual(logic.recordGlyph(noDate), '?');
-  const ok = Object.assign({}, noDate, { contractEnd:'2027-01-01' });
-  assert.strictEqual(logic.recordGlyph(ok), '');
+test('recordGlyph: ! 우선(필수누락), 그다음 ?(유효일 없음)', () => {
+  assert.strictEqual(logic.recordGlyph({ name:'X', type:'공기업' }), '!'); // region 없음
+  assert.strictEqual(logic.recordGlyph({ name:'X', type:'공기업', region:'11' }), '?'); // 날짜 없음
+  assert.strictEqual(logic.recordGlyph({ name:'X', type:'공기업', region:'11', contractEnd:'2027-01-01' }), '');
 });
 
 test('markerShape 매핑', () => {
@@ -85,9 +76,21 @@ test('esc: 일반 문자열/숫자는 그대로(문자열화만)', () => {
   assert.strictEqual(logic.esc(''), '');
 });
 
-test('ALL_FIELDS: 6개 필드를 순서대로 담음', () => {
+test('ALL_FIELDS: 신규 스키마 필드', () => {
   assert.deepStrictEqual(logic.ALL_FIELDS,
-    ['name','type','region','contractEnd','confidence','sources']);
+    ['name','type','region','term','lastBid','contractEnd','confirmed','lng','lat','sources','updatedAt']);
+});
+
+test('formatBidDate: 괄호 표기', () => {
+  assert.strictEqual(logic.formatBidDate({ contractEnd:'2026-12-03', confirmed:true }), '2026-12-03(확정)');
+  assert.strictEqual(logic.formatBidDate({ contractEnd:'2026-12-03' }), '2026-12-03(추측)');
+  assert.strictEqual(logic.formatBidDate({ lastBid:'2022-12-05', term:2 }), '2024-12-05(추측)');
+  assert.strictEqual(logic.formatBidDate({}), '미상');
+});
+
+test('FIELD_LABELS: 한글 라벨 매핑', () => {
+  assert.strictEqual(logic.FIELD_LABELS.contractEnd, '입찰예상일');
+  assert.strictEqual(logic.FIELD_LABELS.term, '입찰주기');
 });
 
 test('addYears: 정수 년 더하기', () => {
