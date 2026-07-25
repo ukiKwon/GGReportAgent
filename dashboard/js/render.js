@@ -56,6 +56,7 @@
       .attr('class', 'label')
       .attr('transform', function (d){ const c = path.centroid(d); return 'translate(' + c[0] + ',' + c[1] + ')'; })
       .attr('text-anchor', 'middle').attr('dy', '0.35em')
+      .style('pointer-events', 'none')  // 라벨이 폴리곤 클릭을 가로채지 않도록
       .attr('fill', '#e6ecff').attr('font-size', 12)
       .text(function (d) {
         const active = render.state.activeRegions.has(d.properties.code);
@@ -73,11 +74,13 @@
     svg.call(render._zoom.transform, d3.zoomIdentity);
   };
 
-  // A2: 대상 시도 bounds로 750ms 지오메트릭 줌인("붕 떴다 내려앉는").
-  render.flyZoomTo = function (feature, done) {
+  // A2: 대상 시도 bounds로 750ms 지오메트릭 줌인("붕 떴다 내려앉는") — 순수 시각 연출.
+  // 지역 뷰 전환 타이밍은 호출부(app.enterRegion)가 자체 타이머로 확정하므로,
+  // 여기서는 transition 완료 콜백에 의존하지 않는다.
+  render.flyZoomTo = function (feature) {
     const svg = d3.select('#map-svg');
     const proj = render._nationalProjection;
-    if (!proj || !render._nationalG || !render._zoom) { if (done) done(); return; }
+    if (!proj || !render._nationalG || !render._zoom) return;
     const path = d3.geoPath(proj);
     const node = svg.node(); const w = node.clientWidth || 900, h = node.clientHeight || 600;
     const b = path.bounds(feature);
@@ -88,8 +91,7 @@
     k = Math.min(k, 8); // scaleExtent 최댓값 이내로 클램프
     const tx = w / 2 - k * cx, ty = h / 2 - k * cy;
     svg.transition().duration(750)
-      .call(render._zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(k))
-      .on('end', function () { if (done) done(); });
+      .call(render._zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(k));
   };
 
   render.REGION_GEO = { '11': function(){ return window.geoSeoul; }, '41': function(){ return window.geoGyeonggi; } };
@@ -103,6 +105,9 @@
 
   render.drawRegion = function (code) {
     var b = document.getElementById('geo-retry-banner'); if (b) b.remove();
+    // 랭킹 패널을 먼저 펼쳐 레이아웃을 확정한 뒤 폭을 잰다 — 그렇지 않으면
+    // 패널이 나중에 열리며 SVG가 줄어들어 지도가 확대·좌측 쏠림으로 그려진다.
+    var rp0 = document.getElementById('rank-panel'); if (rp0) rp0.style.display = 'block';
     const svg = d3.select('#map-svg'); svg.selectAll('*').remove();
     const node = svg.node(); const w = node.clientWidth || 900, h = node.clientHeight || 600;
     const fc = (render.REGION_GEO[code] || function(){ return {type:'FeatureCollection',features:[]}; })();
@@ -284,12 +289,22 @@
     const grid = document.getElementById('region-grid'); if (!grid) return;
     grid.innerHTML = '';
     render.WATCHABLE().forEach(function (code) {
-      const card = document.createElement('div'); card.className = 'rg-card';
+      const card = document.createElement('div'); card.className = 'rg-card'; card.style.cursor = 'pointer';
       const on = store.isWatched(code);
+      const cnt = render.institutionsByRegion(code).length;
       card.innerHTML = '<span class="star" data-code="' + code + '">' + (on ? '★' : '☆') + '</span><b>' +
-        (render.REGION_NAME[code] || code) + '</b>';
-      card.querySelector('.star').addEventListener('click', function () {
+        (render.REGION_NAME[code] || code) + '</b>' +
+        '<div style="color:var(--muted);font-size:12px;margin-top:6px;">기관 ' + cnt + '곳 · 구/시군 보기 →</div>';
+      // ★는 관심 토글만 (드릴인으로 전파 방지)
+      card.querySelector('.star').addEventListener('click', function (e) {
+        e.stopPropagation();
         store.toggleWatch(code); render.drawRegionGrid(); render.drawPinBar(); render.applyWatchStyles();
+      });
+      // 카드 본문 클릭 → 전국 지도 탭으로 전환 후 해당 지역 구/시군 드릴인
+      card.addEventListener('click', function () {
+        const mapBtn = document.querySelector('.tab-btn[data-tab="map"]');
+        if (mapBtn) mapBtn.click();
+        if (root.app && root.app.enterRegion) root.app.enterRegion(code);
       });
       grid.appendChild(card);
     });
