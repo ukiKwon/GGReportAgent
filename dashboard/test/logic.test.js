@@ -130,3 +130,15 @@ test('sortByUrgency: effectiveBid(추측 포함) 기준 임박순', () => {
   ];
   assert.deepStrictEqual(logic.sortByUrgency(list, today).map(r=>r.name), ['확정임박','추측멂','미상']);
 });
+
+test('sortByInterest: 관심 먼저(임박순) 그 뒤 미관심(임박순)', () => {
+  const today = new Date('2026-07-23T00:00:00');
+  const list = [
+    { name:'미관심임박', contractEnd:'2026-08-01', confirmed:true },
+    { name:'관심멂', contractEnd:'2029-01-01', confirmed:true },
+    { name:'관심임박', contractEnd:'2026-09-01', confirmed:true },
+  ];
+  const hearts = new Set(['관심멂','관심임박']);
+  const out = logic.sortByInterest(list, today, r => hearts.has(r.name)).map(r=>r.name);
+  assert.deepStrictEqual(out, ['관심임박','관심멂','미관심임박']);
+});

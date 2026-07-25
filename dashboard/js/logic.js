@@ -101,6 +101,12 @@
     });
   };
 
+  logic.sortByInterest = function (list, today, isInterested) {
+    const on = [], off = [];
+    list.forEach(function (r) { (isInterested(r) ? on : off).push(r); });
+    return logic.sortByUrgency(on, today).concat(logic.sortByUrgency(off, today));
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = logic;
   else root.logic = logic;
 })(typeof self !== 'undefined' ? self : this);
