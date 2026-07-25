@@ -3,6 +3,8 @@
   const store = {};
   const WATCH_KEY = 'tbd.watchRegions';
   const EDIT_KEY = 'tbd.edits';
+  const INTEREST_KEY = 'tbd.interest';
+  const DATA_KEY = 'tbd.data';
   function LS() { return (typeof localStorage !== 'undefined') ? localStorage : null; }
   function read(key, fallback) {
     const ls = LS(); if (!ls) return fallback;
@@ -33,6 +35,16 @@
     const e = store.loadEdits();
     return list.map(function (r) { return e[r.name] ? Object.assign({}, r, e[r.name]) : r; });
   };
+
+  store.loadInterest = function () { return read(INTEREST_KEY, []); };
+  store.isInterested = function (name) { return store.loadInterest().indexOf(name) >= 0; };
+  store.toggleInterest = function (name) {
+    const a = store.loadInterest(); const i = a.indexOf(name);
+    if (i >= 0) a.splice(i, 1); else a.push(name);
+    write(INTEREST_KEY, a); return a;
+  };
+  store.loadData = function () { return read(DATA_KEY, null); };
+  store.saveData = function (list) { write(DATA_KEY, list); };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = store;
   else root.store = store;
