@@ -4,23 +4,27 @@
   app.enterRegion = function (code) {
     document.getElementById('cloud-overlay').classList.add('active');
     root.render.loadRegionGeoWithRetry(code, function () {
-      // 기존 성공 처리(크로스페이드 → drawRegion → breadcrumb)를 그대로 유지.
+      // proceed는 flyZoomTo의 transition 이벤트에 의존하지 않고 enterRegion 자체
+      // 타이머로 보장한다 — d3.zoom과 얽힌 transition 'end'가 불발되어 지역 뷰가
+      // 영영 안 뜨는 문제를 근본 차단. flyZoomTo는 순수 시각 연출만 담당.
+      let done = false;
       function proceed() {
-        setTimeout(function () {
-          root.render.drawRegion(code);
-          requestAnimationFrame(function(){ document.getElementById('cloud-overlay').classList.remove('active'); });
-          document.getElementById('breadcrumb').style.display = 'block';
-          document.getElementById('crumb-region').textContent = root.render.REGION_NAME[code] || code;
-        }, 350);
+        if (done) return; done = true;
+        root.render.drawRegion(code);
+        // 직접 제거(비활성 탭에서 rAF가 스로틀되어 오버레이가 안 걷히는 문제 방지).
+        // CSS opacity transition이 "구름 걷힘" 페이드를 담당.
+        document.getElementById('cloud-overlay').classList.remove('active');
+        document.getElementById('breadcrumb').style.display = 'block';
+        document.getElementById('crumb-region').textContent = root.render.REGION_NAME[code] || code;
       }
-      // A3: 전국 geo에서 해당 시도 feature를 찾으면 지오메트릭 fly-to 후 성공 처리,
-      // 못 찾으면(전국 geo 부재 등) 기존 크로스페이드 경로로 폴백.
+      // A3: 전국 geo에서 해당 시도 feature를 찾으면 지오메트릭 fly-to(시각 연출),
+      // 못 찾으면 크로스페이드만. 어느 경우든 proceed는 타이머로 확정 실행.
       const fk = window.geoKorea;
       const feature = fk && fk.features
         ? fk.features.filter(function (f) { return f.properties.code === code; })[0]
         : null;
-      if (feature && root.render.flyZoomTo) root.render.flyZoomTo(feature, proceed);
-      else proceed();
+      if (feature && root.render.flyZoomTo) root.render.flyZoomTo(feature);
+      setTimeout(proceed, feature ? 780 : 350);
     }, function () { document.getElementById('cloud-overlay').classList.remove('active'); });
   };
   app.backToNational = function () {
