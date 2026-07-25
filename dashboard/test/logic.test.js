@@ -142,3 +142,24 @@ test('sortByInterest: 관심 먼저(임박순) 그 뒤 미관심(임박순)', ()
   const out = logic.sortByInterest(list, today, r => hearts.has(r.name)).map(r=>r.name);
   assert.deepStrictEqual(out, ['관심임박','관심멂','미관심임박']);
 });
+
+test('parseCsv: 한글헤더→영문키 + 타입 변환', () => {
+  const csv = '﻿기관명,기관구분,지역코드,입찰주기,지난입찰일,입찰예상일,확정여부,경도,위도,출처,수정일\n'
+    + '서울시청,지자체,11,2,2022-12-05,,,,,공고A;공고B,2026-07-25\n'
+    + '"A,병원",대학병원,11,,,2026-08-15,Y,126.99,37.56,,2026-07-25\n';
+  const recs = logic.parseCsv(csv);
+  assert.strictEqual(recs.length, 2);
+  assert.deepStrictEqual(recs[0], { name:'서울시청', type:'지자체', region:'11', term:2,
+    lastBid:'2022-12-05', contractEnd:'', confirmed:false, lng:null, lat:null,
+    sources:['공고A','공고B'], updatedAt:'2026-07-25' });
+  assert.strictEqual(recs[1].name, 'A,병원');       // 따옴표 내 쉼표 보존
+  assert.strictEqual(recs[1].confirmed, true);       // Y → true
+  assert.strictEqual(recs[1].lng, 126.99);
+  assert.deepStrictEqual(recs[1].sources, []);       // 빈 출처 → []
+});
+
+test('buildCsvTemplate: BOM + 헤더 포함', () => {
+  const t = logic.buildCsvTemplate();
+  assert.ok(t.startsWith('﻿'));
+  assert.ok(t.indexOf('기관명,기관구분,지역코드') >= 0);
+});
