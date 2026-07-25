@@ -107,6 +107,55 @@
     return logic.sortByUrgency(on, today).concat(logic.sortByUrgency(off, today));
   };
 
+  logic.CSV_HEADERS = ['기관명','기관구분','지역코드','입찰주기','지난입찰일','입찰예상일','확정여부','경도','위도','출처','수정일'];
+  logic._HEADER_KEY = { '기관명':'name','기관구분':'type','지역코드':'region','입찰주기':'term',
+    '지난입찰일':'lastBid','입찰예상일':'contractEnd','확정여부':'confirmed','경도':'lng','위도':'lat',
+    '출처':'sources','수정일':'updatedAt' };
+
+  // RFC4180 유사: 따옴표/쉼표/개행 처리
+  logic._splitCsvLine = function (line) {
+    const out = []; let cur = '', q = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (q) {
+        if (c === '"' && line[i+1] === '"') { cur += '"'; i++; }
+        else if (c === '"') q = false;
+        else cur += c;
+      } else {
+        if (c === '"') q = true;
+        else if (c === ',') { out.push(cur); cur = ''; }
+        else cur += c;
+      }
+    }
+    out.push(cur); return out;
+  };
+
+  logic.parseCsv = function (text) {
+    const clean = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = clean.split('\n').filter(function (l) { return l.trim() !== ''; });
+    if (!lines.length) return [];
+    const headers = logic._splitCsvLine(lines[0]).map(function (h) { return h.trim(); });
+    return lines.slice(1).map(function (line) {
+      const cells = logic._splitCsvLine(line);
+      const rec = {};
+      headers.forEach(function (h, i) {
+        const key = logic._HEADER_KEY[h]; if (!key) return;
+        const v = (cells[i] || '').trim();
+        if (key === 'term') rec.term = v ? Number(v) : undefined;
+        else if (key === 'lng' || key === 'lat') rec[key] = v ? Number(v) : null;
+        else if (key === 'confirmed') rec.confirmed = /^(y|yes|true|1)$/i.test(v);
+        else if (key === 'sources') rec.sources = v ? v.split(';').map(function (s){ return s.trim(); }).filter(Boolean) : [];
+        else rec[key] = v;
+      });
+      return rec;
+    });
+  };
+
+  logic.buildCsvTemplate = function () {
+    const example = ['서울시청(예시)','지자체','11','2','2022-12-05','','', '', '', '공고URL', '2026-07-25'];
+    return '﻿' + logic.CSV_HEADERS.join(',') + '\n' + example.join(',') + '\n';
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = logic;
   else root.logic = logic;
 })(typeof self !== 'undefined' ? self : this);
