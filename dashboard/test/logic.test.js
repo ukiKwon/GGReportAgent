@@ -89,3 +89,41 @@ test('ALL_FIELDS: 6개 필드를 순서대로 담음', () => {
   assert.deepStrictEqual(logic.ALL_FIELDS,
     ['name','type','region','contractEnd','confidence','sources']);
 });
+
+test('addYears: 정수 년 더하기', () => {
+  assert.strictEqual(logic.addYears('2022-12-05', 2), '2024-12-05');
+  assert.strictEqual(logic.addYears('2020-02-29', 1), '2021-03-01'); // 윤일 롤오버
+  assert.strictEqual(logic.addYears('', 2), null);
+  assert.strictEqual(logic.addYears('bad', 2), null);
+});
+
+test('effectiveBid: 확정/추측/미상 유도', () => {
+  // 확정: 날짜 + confirmed
+  assert.deepStrictEqual(logic.effectiveBid({ contractEnd:'2026-12-03', confirmed:true }),
+    { date:'2026-12-03', confidence:'확정' });
+  // 추측: 날짜 있으나 confirmed 아님(기본)
+  assert.deepStrictEqual(logic.effectiveBid({ contractEnd:'2026-12-03' }),
+    { date:'2026-12-03', confidence:'추측' });
+  // 추측: 날짜 없고 지난입찰일+주기 → 계산
+  assert.deepStrictEqual(logic.effectiveBid({ lastBid:'2022-12-05', term:2 }),
+    { date:'2024-12-05', confidence:'추측' });
+  // 미상: 아무것도 없음
+  assert.deepStrictEqual(logic.effectiveBid({}), { date:null, confidence:'미상' });
+});
+
+test('urgencyOf: effectiveBid 기반', () => {
+  const today = new Date('2026-07-23T00:00:00');
+  assert.strictEqual(logic.urgencyOf({ contractEnd:'2026-08-01', confirmed:true }, today), logic.URGENCY.RED);
+  assert.strictEqual(logic.urgencyOf({ lastBid:'2022-01-01', term:4 }, today), logic.URGENCY.RED); // 2026-01-01
+  assert.strictEqual(logic.urgencyOf({}, today), logic.URGENCY.GRAY);
+});
+
+test('sortByUrgency: effectiveBid(추측 포함) 기준 임박순', () => {
+  const today = new Date('2026-07-23T00:00:00');
+  const list = [
+    { name:'미상' },
+    { name:'추측멂', lastBid:'2025-01-01', term:4 }, // 2029-01-01
+    { name:'확정임박', contractEnd:'2026-08-01', confirmed:true },
+  ];
+  assert.deepStrictEqual(logic.sortByUrgency(list, today).map(r=>r.name), ['확정임박','추측멂','미상']);
+});

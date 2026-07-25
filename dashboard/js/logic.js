@@ -30,6 +30,30 @@
     return logic.URGENCY.BLUE;
   };
 
+  logic.addYears = function (dateStr, years) {
+    if (!dateStr) return null;
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return null;
+    const d = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
+    if (isNaN(d.getTime())) return null;
+    d.setUTCFullYear(d.getUTCFullYear() + Number(years));
+    return d.toISOString().slice(0, 10);
+  };
+
+  // 유효 입찰예상일 + confidence 유도(저장하지 않음)
+  logic.effectiveBid = function (rec) {
+    if (rec.contractEnd) return { date: rec.contractEnd, confidence: rec.confirmed ? '확정' : '추측' };
+    if (rec.lastBid && rec.term) {
+      const d = logic.addYears(rec.lastBid, rec.term);
+      if (d) return { date: d, confidence: '추측' };
+    }
+    return { date: null, confidence: '미상' };
+  };
+
+  logic.urgencyOf = function (rec, today) {
+    return logic.computeUrgency(logic.effectiveBid(rec).date, today);
+  };
+
   logic.REQUIRED_FIELDS = ['name','type','region','confidence','sources'];
 
   logic.validateRecord = function (rec) {
@@ -46,7 +70,7 @@
 
   logic.recordGlyph = function (rec) {
     if (!logic.validateRecord(rec).valid) return '!';
-    if (!rec.contractEnd) return '?';
+    if (logic.effectiveBid(rec).date === null) return '?';
     return '';
   };
 
@@ -67,7 +91,8 @@
 
   logic.sortByUrgency = function (list, today) {
     return list.slice().sort(function (a, b) {
-      return logic.daysUntil(a.contractEnd, today) - logic.daysUntil(b.contractEnd, today);
+      return logic.daysUntil(logic.effectiveBid(a).date, today)
+           - logic.daysUntil(logic.effectiveBid(b).date, today);
     });
   };
 
