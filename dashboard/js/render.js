@@ -15,7 +15,8 @@
 
   render.URGENCY_COLORS = { red:'#e5484d', orange:'#f5a524', yellow:'#f2e14c', blue:'#3b82f6', gray:'#5a6680' };
 
-  render.allInstitutions = function () { return store.applyEdits(window.institutions || []); };
+  render.baseInstitutions = function () { return store.loadData() || window.institutions || []; };
+  render.allInstitutions = function () { return store.applyEdits(render.baseInstitutions()); };
   render.institutionsByRegion = function (code) {
     return render.allInstitutions().filter(function (r) { return r.region === code; });
   };
