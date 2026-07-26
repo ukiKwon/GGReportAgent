@@ -227,6 +227,23 @@
   실패, `py` 런처 사용). ship-as-is Minor 목록은 `.superpowers/sdd/progress.md` +
   `2026-07-24_summary.md` 07:43 섹션.
 
+### 5. `main`의 미push 커밋 5개 — push 여부 사용자 판단 대기
+- **출처**: `2026-07-26_summary.md` `## Session 08:20` "git 처리" 섹션.
+- **상태**: `main`이 `origin/main`보다 **5커밋 앞서 있고 전부 미push**.
+  - `a6d2896` — 이번(07-26) 세션의 강남구 산출물 + handoff (이 세션 작업분)
+  - `03f3395`, `c2835bc`, `74e3afb` 외 1개 — **다른 세션의 dashboard 2차 확장** 작업
+- **왜 push 안 했는지**: 사용자가 "마무리는 이번 세션 작업분만"으로 범위를 한정했는데,
+  `git push`는 브랜치 단위라 다른 세션의 dashboard 커밋 4개가 함께 원격에 올라간다.
+  사용자가 선택지 중 "main으로 옮기되 push 보류"를 명시적으로 선택함.
+- **다음 단계**: dashboard 작업 세션이 자기 작업분 push 준비가 됐는지 확인한 뒤
+  `git push` 한 번으로 같이 올리거나, 강남 커밋만 따로 올릴 필요가 있으면 별도 브랜치로
+  분리해 push할 것.
+- **주의(같이 기억할 것)**: 이 리포는 여러 세션이 **같은 워킹트리를 공유**한다. 07-26
+  세션 시작 시 HEAD가 `feature/dashboard-enhancements`(다른 세션 브랜치)에 있어서 강남
+  커밋이 거기 얹혔다가 main으로 옮겨진 사고가 있었다. **커밋 전 반드시
+  `git branch --show-current`로 브랜치를 확인할 것.** 현재 HEAD는 `main`이며,
+  `feature/dashboard-enhancements`는 `0450831`(dashboard 커밋 4개)로 원상 복원돼 있다.
+
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
