@@ -47,6 +47,7 @@
         const s = root.render.state.enabledTypes;
         if (b.checked) s.add(b.dataset.type); else s.delete(b.dataset.type);
         if (root.render.state.currentRegion) root.render.drawMarkers(root.render.state.currentRegion);
+        if (root.render.state.currentRegion) root.render.drawRankingPanel(root.render.state.currentRegion);
       });
     });
     // 초기 enabledTypes를 체크상태와 동기화
