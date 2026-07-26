@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GGReportAgent · 사업제안 보고서</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme:light;
+  --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,.10);
+  --blue:#2a78d6; --orange:#eb6834; --aqua:#1baf7a; --yellow:#eda100; --magenta:#e87ba4; --violet:#4a3aa7;
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  --maxw:840px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--page);color:var(--ink-2);font-family:'Noto Sans KR',system-ui,sans-serif;
+  line-height:1.75;font-size:16px;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+h1,h2,h3,h4{font-family:'Space Grotesk','Noto Sans KR',sans-serif;color:var(--ink);letter-spacing:-.01em}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+
+/* ---- top nav ---- */
+.topnav{position:sticky;top:0;z-index:40;background:rgba(249,249,247,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+.topnav-in{max-width:1080px;margin:0 auto;padding:14px 28px;display:flex;align-items:center;gap:18px}
+.topnav .brand{font-weight:700;font-size:14.5px;color:var(--ink);white-space:nowrap}
+.topnav .brand span{color:var(--muted);font-weight:500;font-size:11.5px;margin-left:8px}
+.topnav-links{display:flex;gap:4px;overflow-x:auto;flex:1}
+.topnav-links a{flex:0 0 auto;font-size:12.5px;font-weight:600;color:var(--muted);padding:7px 12px;border-radius:20px;white-space:nowrap;transition:.15s}
+.topnav-links a:hover{background:rgba(11,11,11,.05);color:var(--ink)}
+.topnav-links a.current{background:var(--blue);color:#fff}
+.topnav .pdf{font-size:11px;color:var(--muted);white-space:nowrap;display:none}
+@media(min-width:760px){.topnav .pdf{display:block}}
+
+/* ---- progress ---- */
+.progress{position:fixed;top:0;left:0;right:0;height:2px;z-index:50;background:transparent}
+.progress-bar{height:100%;width:0;background:var(--blue);transition:width .1s}
+
+/* ---- hero / cover ---- */
+.hero{padding:64px 0 40px}
+.kicker{font-size:11.5px;font-weight:700;letter-spacing:.18em;color:var(--blue);text-transform:uppercase;margin-bottom:20px}
+.hero h1{font-size:clamp(30px,5vw,46px);font-weight:700;line-height:1.2;margin:0 0 18px}
+.hero h1 em{font-style:normal;color:var(--blue)}
+.hero .lead{font-size:17px;color:var(--ink-2);max-width:620px;margin:0 0 34px;line-height:1.75}
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:36px}
+.stat-tile{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px}
+.stat-tile .n{font-size:26px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.1}
+.stat-tile .l{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4}
+
+/* ---- exec summary cards ---- */
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0 8px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;position:relative}
+.card .t{font-weight:700;font-size:14.5px;color:var(--ink);margin-bottom:8px}
+.card .b{font-size:13.6px;color:var(--ink-2);line-height:1.65}
+.card.accent{border-left:3px solid var(--blue)}
+
+/* ---- section / part ---- */
+.part{padding:56px 0 8px;border-top:1px solid var(--border);scroll-margin-top:70px}
+.part:first-of-type{border-top:0}
+.part-head{margin-bottom:8px}
+.part-eyebrow{font-size:11.5px;font-weight:700;letter-spacing:.16em;color:var(--blue);text-transform:uppercase;margin-bottom:10px}
+.part h2{font-size:clamp(24px,3.4vw,32px);margin:0 0 8px}
+.part .sub{font-size:14.5px;color:var(--muted);font-weight:600;margin-bottom:18px}
+.part .intro{font-size:15.5px;color:var(--ink-2);max-width:620px;padding:16px 20px;background:#fff;border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:0 12px 12px 0;margin-bottom:8px}
+
+.section{padding:34px 0 4px;scroll-margin-top:70px}
+.section h3{font-size:19px;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+.section h3 .snum{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:12.5px;color:#fff;background:var(--ink);width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.body p{margin:0 0 15px}
+.body strong{color:var(--ink);font-weight:700}
+.body em{font-style:normal;color:var(--orange);font-weight:600}
+.body ul,.body ol{margin:6px 0 18px;padding-left:0}
+.body li{list-style:none;position:relative;padding-left:24px;margin:8px 0}
+.body ul>li::before{content:"";position:absolute;left:4px;top:11px;width:6px;height:6px;border-radius:50%;background:var(--blue)}
+.body ol{counter-reset:ol}
+.body ol>li{counter-increment:ol}
+.body ol>li::before{content:counter(ol);position:absolute;left:0;top:0;font-size:11px;font-weight:700;color:#fff;background:var(--blue);
+  width:18px;height:18px;border-radius:5px;display:flex;align-items:center;justify-content:center}
+blockquote{margin:22px 0;padding:18px 22px;background:#fff;border:1px solid var(--border);border-left:4px solid var(--blue);border-radius:0 12px 12px 0}
+blockquote p{margin:0;font-size:15px;color:var(--ink);line-height:1.7}
+blockquote strong{color:var(--blue)}
+table{width:100%;border-collapse:collapse;font-size:13.6px;margin:18px 0;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)}
+thead th{background:#f1f3f7;color:var(--ink);font-weight:700;text-align:left;padding:11px 14px;border-bottom:1px solid var(--border)}
+tbody td{padding:10px 14px;border-bottom:1px solid var(--grid);vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
+tbody td strong{color:var(--ink)}
+code{font-family:ui-monospace,'JetBrains Mono',monospace;font-size:.86em;background:#eef1f5;color:#1c5cab;padding:1px 6px;border-radius:4px}
+
+/* ---- tags / status dots ---- */
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;border:1px solid var(--border);color:var(--ink-2);background:#fff}
+.dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.dot.new{background:var(--serious)} .dot.redesign{background:var(--warning)} .dot.reuse{background:var(--good)} .dot.human{background:var(--muted)}
+
+/* ---- idea cards (axis-colored) ---- */
+.idea{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin:14px 0;border-left:4px solid var(--blue)}
+.idea.a2{border-left-color:var(--orange)} .idea.a3{border-left-color:var(--aqua)} .idea.a4{border-left-color:var(--yellow)} .idea.a5{border-left-color:var(--magenta)}
+.idea-axis{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+.idea-title{font-size:16px;font-weight:700;color:var(--ink);margin:0 0 12px}
+.idea-flow .step{display:flex;gap:12px;font-size:13.4px;margin:7px 0}
+.idea-flow .k{flex:0 0 82px;font-weight:700;font-size:11px;color:var(--muted);padding-top:2px}
+
+/* ---- axis grid (5축) ---- */
+.axis-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:18px 0}
+.axis-item{background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--blue);border-radius:10px;padding:14px 12px;font-size:12.6px}
+.axis-item:nth-child(2){border-top-color:var(--orange)} .axis-item:nth-child(3){border-top-color:var(--aqua)}
+.axis-item:nth-child(4){border-top-color:var(--yellow)} .axis-item:nth-child(5){border-top-color:var(--magenta)}
+.axis-item b{display:block;font-size:13px;color:var(--ink);margin-bottom:5px}
+
+/* ---- bar chart (trust score) ---- */
+.barchart{margin:18px 0}
+.bc-row{display:flex;align-items:center;gap:12px;padding:7px 0}
+.bc-label{flex:0 0 68px;font-size:13px;color:var(--ink);font-weight:600}
+.bc-track{flex:1;height:10px;background:var(--grid);border-radius:6px;position:relative;overflow:hidden}
+.bc-fill{height:100%;border-radius:6px;background:var(--blue);transition:filter .15s}
+.bc-row:hover .bc-fill{filter:brightness(1.15)}
+.bc-val{flex:0 0 44px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink);font-size:13px}
+.bc-row:hover .bc-val{color:var(--blue)}
+
+/* ---- pipeline (horizontal, animated) ---- */
+.pipeline-legend{display:flex;gap:16px;flex-wrap:wrap;margin:14px 0 4px;font-size:12px;color:var(--ink-2)}
+.pipeline-legend span{display:flex;align-items:center;gap:6px}
+.pipeline-h{position:relative;margin:18px 0 8px;padding-top:8px}
+.stage-track{position:relative;padding-top:24px}
+.stage-track::before{content:"";position:absolute;left:18px;right:18px;top:16px;height:2px;background:var(--grid)}
+.flow-dot-h{position:absolute;top:11px;width:12px;height:12px;border-radius:50%;background:var(--blue);
+  box-shadow:0 0 0 5px rgba(42,120,214,.15);animation:flowMoveH 9s linear infinite;z-index:2}
+@keyframes flowMoveH{0%{left:18px;opacity:0}4%{opacity:1}92%{opacity:1}100%{left:calc(100% - 30px);opacity:0}}
+.stage-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:10px;scrollbar-width:thin}
+.stage-h{flex:0 0 158px}
+.stage-h .num{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;
+  border:2px solid var(--grid);background:#fff;margin-bottom:8px;position:relative;z-index:2;color:var(--ink)}
+.stage-h.new .num{border-color:var(--serious)} .stage-h.redesign .num{border-color:var(--warning)}
+.stage-h.reuse .num{border-color:var(--good)} .stage-h.human .num{border-color:var(--baseline)}
+.stage-h .title{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:4px;line-height:1.3}
+.stage-h .stag{font-size:10.5px;color:var(--ink-2);display:flex;align-items:center;gap:5px;margin-bottom:5px}
+.stage-h .desc{font-size:11.5px;color:var(--muted);line-height:1.5}
+.registry-band{margin-top:6px;padding:12px 16px;background:#fffaf0;border:1px solid rgba(250,178,25,.4);border-radius:12px;
+  display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink);animation:regPulse 2.4s ease-in-out infinite}
+.registry-band b{color:#8a5c00}
+@keyframes regPulse{0%,100%{box-shadow:0 0 0 0 rgba(250,178,25,.35)}50%{box-shadow:0 0 0 8px rgba(250,178,25,0)}}
+
+/* ---- ask / decision cards ---- */
+.ask{border-left-color:var(--critical) !important}
+.ask-tag{display:inline-block;font-size:10.5px;font-weight:700;color:#fff;background:var(--critical);padding:2px 9px;border-radius:20px;margin-bottom:8px}
+
+footer{padding:50px 0 80px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--border);margin-top:40px}
+
+@media(max-width:760px){
+  .stat-row{grid-template-columns:1fr}
+  .cards{grid-template-columns:1fr}
+  .axis-grid{grid-template-columns:repeat(2,1fr)}
+  .wrap{padding:0 18px}
+  .topnav-in{padding:12px 18px}
+}
+@media print{
+  .topnav,.progress,.pipeline-legend{display:none!important}
+  body{background:#fff}
+  .part{page-break-before:always;border:0}
+  .card,.idea,table,blockquote{page-break-inside:avoid}
+  .flow-dot-h,.registry-band{animation:none!important}
+}
+</style>
+</head>
+<body>
+<div class="progress"><div class="progress-bar" id="pbar"></div></div>
+<div class="topnav">
+  <div class="topnav-in">
+    <div class="brand">GGReportAgent<span>사업제안 보고서</span></div>
+    <div class="topnav-links" id="topnavLinks">
+      <a href="#part-1" data-target="part-1">I. 배경</a>
+      <a href="#part-2" data-target="part-2">II. 현황</a>
+      <a href="#part-3" data-target="part-3">III. 아이디어</a>
+      <a href="#part-4" data-target="part-4">IV. 방향</a>
+      <a href="#part-5" data-target="part-5">V. 기대효과</a>
+      <a href="#part-6" data-target="part-6">VI. 다음 단계</a>
+    </div>
+    <div class="pdf">⌘/Ctrl+P → PDF 저장</div>
+  </div>
+</div>
+
+<main class="wrap">
+
+  <section class="hero">
+    <div class="kicker">GGReportAgent · 내부 검토용 사업제안 보고서</div>
+    <h1>지자체 데이터를 읽으면<br><em>협업할 곳이 보인다</em></h1>
+    <p class="lead">서울시 자치구가 이미 공개한 사업계획·예산·민원 데이터를 분석해, 그 자치구에 맞는 은행 협업 기획을 근거 있게 제시하는 사업입니다. 5개구 파일럿에서 25개 자치구로 확장했고, 이제 이 과정 자체를 자동화하는 시스템으로 넘어가려 합니다.</p>
+    <div class="stat-row">
+      <div class="stat-tile"><div class="n">23/25</div><div class="l">자치구 분석 완료</div></div>
+      <div class="stat-tile"><div class="n">0.1~0.4%</div><div class="l">구 예산 대비 제안 규모</div></div>
+      <div class="stat-tile"><div class="n">9단계</div><div class="l">차세대 자동화 대상 프로세스</div></div>
+    </div>
+    <div class="part-eyebrow" style="margin-top:4px">EXECUTIVE SUMMARY · 한 장 요약</div>
+    <div class="cards">
+      <div class="card accent"><div class="t">무엇을</div><div class="b">서울시 자치구의 공개 사업계획·예산·민원 데이터를 분석해, 은행이 협업할 수 있는 지점을 근거 기반으로 기획하는 사업입니다.</div></div>
+      <div class="card accent"><div class="t">왜</div><div class="b">금고은행 지정 등 지자체 협업 경쟁에서 "상품이 좋습니다"보다 "당신의 니즈를 분석해 보니 이렇습니다"가 훨씬 설득력 있는 제안이 되기 때문입니다.</div></div>
+      <div class="card accent"><div class="t">지금까지</div><div class="b">5개구 파일럿을 거쳐 25개 자치구 중 23개구 분석·기획 완료. 자치구별 사업비 규모는 구 예산 대비 0.1~0.4% 수준입니다.</div></div>
+      <div class="card accent"><div class="t">앞으로</div><div class="b">지금은 사람이 수동으로 잇는 "기회 포착→분석→기획→산출" 과정을, 9단계 워크플로우 시스템으로 자동화하는 설계를 마쳤고 실행 승인을 기다리고 있습니다.</div></div>
+    </div>
+  </section>
+
+  <!-- PART I -->
+  <section class="part" id="part-1">
+    <div class="part-head">
+      <div class="part-eyebrow">PART I</div>
+      <h2>사업 배경</h2>
+      <div class="sub">왜 이 방식으로 지자체와 협업하려 하는가</div>
+      <p class="intro">이 사업의 출발점은 단순합니다 — 자치구가 이미 공개한 정보를 제대로 분석하기만 해도, 어디에 협업 기회가 있는지 근거 있게 말할 수 있다는 것입니다.</p>
+    </div>
+
+    <div class="section" id="ch-1">
+      <h3><span class="snum">1</span>왜 이 사업을 하는가</h3>
+      <div class="body">
+        <p>금고은행 지정을 비롯해 지자체와의 협업은 여러 은행이 동시에 경쟁하는 영역입니다. 이 경쟁에서 <strong>"저희 상품이 더 좋습니다"</strong>는 흔한 접근이라 차별화가 어렵습니다. 반면 <strong>"당신 구청의 사업계획과 민원 데이터를 분석해 보니 이런 니즈가 있고, 저희가 이렇게 도울 수 있습니다"</strong>는 상대방(구청) 입장에서도 검증 가능한, 훨씬 근거 있는 제안이 됩니다.</p>
+        <p>이 사업은 바로 그 "근거 있는 제안"을 만드는 작업입니다. 서울시 5개 구청(도봉·노원·광진·동대문·동작)을 대상으로 시작해, 지금은 25개 자치구 전체로 확장 중입니다.</p>
+      </div>
+    </div>
+
+    <div class="section" id="ch-2">
+      <h3><span class="snum">2</span>핵심 아이디어 — 분석 후 기획</h3>
+      <div class="body">
+        <blockquote><p><strong>구청의 사업계획을 분석하면 그 구청이 지금 무엇을 하려 하고 무엇에 어려움을 겪는지가 드러나고, 그 분석 결과에 맞춰 은행이 지원할 수 있는 기획을 붙입니다.</strong> 상품을 먼저 정해두고 파는 게 아니라, 분석이 먼저이고 기획은 그 분석을 따라갑니다.</p></blockquote>
+        <p>구체적으로는 자치구가 공개한 다년도 사업계획·예산안, 그리고 민원게시판 데이터를 읽고 정리하는 것에서 시작합니다. 여기서 "이 구청이 지금 어디에 힘을 쏟고 있고, 어디서 어려움을 겪는지"가 드러나면, 그 니즈에 맞는 은행 협업 기획(3부에서 다룸)을 붙이는 순서입니다.</p>
+        <p>다만 이 접근에는 분명한 한계도 있습니다 — 분석은 <em>"무엇이 필요한가"</em>까지는 근거 있게 보여주지만, <em>"그래서 정확히 어떤 상품을 만들 것인가"</em>는 여전히 사람의 판단과 실무 설계가 더 필요한 영역으로 남습니다. 이 사업은 그 판단을 위한 근거를 최대한 탄탄하게 만드는 데 집중합니다.</p>
+      </div>
+    </div>
+
+    <div class="section" id="ch-3">
+      <h3><span class="snum">3</span>신뢰를 만드는 원칙</h3>
+      <div class="body">
+        <p>"분석 기반 제안"이 힘을 가지려면, 그 분석 자체가 신뢰할 수 있어야 합니다. 그래서 이 사업은 세 가지 원칙을 지킵니다.</p>
+        <ol>
+          <li><strong>조작 금지</strong> — 근거 없는 수치나 추측을 사실처럼 쓰지 않습니다. 확인 안 된 것은 "확인 안 됨"이라고 그대로 표기합니다.</li>
+          <li><strong>출처 추적</strong> — 모든 제안·아이디어는 원본 자료의 어느 부분에서 나왔는지 인용을 남깁니다.</li>
+          <li><strong>자체 검증</strong> — 제안이 끝나면 별도 검증 단계에서 기존 구청 사업과 겹치지 않는지, 인용이 정확한지 다시 채점해 <strong>신뢰도 점수</strong>를 매깁니다.</li>
+        </ol>
+        <p>이 원칙들 덕분에, 완료된 23개 자치구 산출물은 전부 "왜 이 숫자를 믿을 수 있는지"까지 답할 수 있는 상태입니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PART II -->
+  <section class="part" id="part-2">
+    <div class="part-head">
+      <div class="part-eyebrow">PART II</div>
+      <h2>지금까지 한 일</h2>
+      <div class="sub">파일럿에서 전면 확장까지</div>
+      <p class="intro">5개 구청을 대상으로 방법론을 검증한 뒤, 서울시 25개 자치구 전체로 같은 방법론을 확장 적용하고 있습니다.</p>
+    </div>
+
+    <div class="section" id="ch-4">
+      <h3><span class="snum">4</span>파일럿에서 25개 자치구로</h3>
+      <div class="body">
+        <p>2단계로 진행했습니다.</p>
+        <ol>
+          <li><strong>1단계 · 파일럿(5개구)</strong> — 도봉·노원·광진·동대문·동작을 대상으로 분석→기획→검증 방법론을 처음 만들고 검증했습니다.</li>
+          <li><strong>2단계 · 전면 확장(25개 자치구)</strong> — 같은 방법론을 나머지 자치구에 순차 적용 중입니다. 현재 <strong>23/25개구 완료</strong>, 남은 2개(송파·강동)는 다음 순서로 진행 예정입니다.</li>
+        </ol>
+        <p>확장 과정에서 자치구마다 데이터 공개 수준이 다르다는 것도 드러났습니다 — 예산을 사업 단위로 거의 공개하지 않는 곳, 발표 사업 건수와 실제 조사 확인 건수가 어긋나는 곳, 민원 창구가 상위 시스템(국민신문고)으로 통합되며 개별 민원 열람이 막힌 곳 등. 이런 데이터 공백은 감추지 않고 "확인 불가"로 명시해 분석의 신뢰도를 지킵니다.</p>
+      </div>
+    </div>
+
+    <div class="section" id="ch-5">
+      <h3><span class="snum">5</span>산출물 스냅샷</h3>
+      <div class="body">
+        <p>파일럿 5개구의 분석 결과를 요약하면 다음과 같습니다. 신뢰도 점수는 100점 만점입니다.</p>
+        <div class="barchart">
+          <div class="bc-row" title="도봉구 신뢰도 74/100"><div class="bc-label">도봉구</div><div class="bc-track"><div class="bc-fill" style="width:74%"></div></div><div class="bc-val">74</div></div>
+          <div class="bc-row" title="노원구 신뢰도 88/100"><div class="bc-label">노원구</div><div class="bc-track"><div class="bc-fill" style="width:88%"></div></div><div class="bc-val">88</div></div>
+          <div class="bc-row" title="광진구 신뢰도 88/100"><div class="bc-label">광진구</div><div class="bc-track"><div class="bc-fill" style="width:88%"></div></div><div class="bc-val">88</div></div>
+          <div class="bc-row" title="동대문구 신뢰도 82/100"><div class="bc-label">동대문구</div><div class="bc-track"><div class="bc-fill" style="width:82%"></div></div><div class="bc-val">82</div></div>
+          <div class="bc-row" title="동작구 신뢰도 84/100"><div class="bc-label">동작구</div><div class="bc-track"><div class="bc-fill" style="width:84%"></div></div><div class="bc-val">84</div></div>
+        </div>
+        <table>
+          <thead><tr><th>구청</th><th>제안 사업비 규모</th><th>구 예산 대비</th></tr></thead>
+          <tbody>
+            <tr><td>도봉구</td><td>약 20~30억원</td><td>약 0.25~0.4%</td></tr>
+            <tr><td>노원구</td><td>약 15~23억원</td><td>약 0.11~0.17%</td></tr>
+            <tr><td>광진구</td><td>약 15~24억원</td><td>약 0.18~0.28%</td></tr>
+            <tr><td>동대문구</td><td>약 19~28억원</td><td>약 0.19~0.29%</td></tr>
+            <tr><td>동작구</td><td>약 17~25억원</td><td>약 0.18~0.27%</td></tr>
+          </tbody>
+        </table>
+        <blockquote><p>제안 사업비 규모가 구 예산의 0.1~0.4% 수준이라는 것은, <strong>큰 예산 투입 없이도 지자체와의 관계 접점을 만들 수 있는 영역</strong>이라는 뜻입니다. 25개 자치구로 확장된 뒤에도 신뢰도 점수는 대체로 72~88점 사이에서 형성되고 있으며, 점수가 낮게 나온 곳은 대부분 그 자치구의 예산 비공개율이 높다는 공통 원인이 있습니다.</p></blockquote>
+      </div>
+    </div>
+  </section>
+
+  <!-- PART III -->
+  <section class="part" id="part-3">
+    <div class="part-head">
+      <div class="part-eyebrow">PART III</div>
+      <h2>추진 아이디어</h2>
+      <div class="sub">무엇을 기획하는가</div>
+      <p class="intro">분석에서 드러난 니즈를 은행이 개입할 수 있는 5개 축으로 정리하고, 축마다 대표적인 기획 유형을 붙입니다.</p>
+    </div>
+
+    <div class="section" id="ch-6">
+      <h3><span class="snum">6</span>5개 축 — 어디서 기회를 찾는가</h3>
+      <div class="body">
+        <p>어느 자치구든 사업계획과 민원 데이터를 분석하면 소상공인·청년·복지·인프라 관련 니즈가 반복적으로 드러납니다. 이 니즈들을 은행이 개입할 수 있는 형태로 재정리한 것이 아래 5개 축입니다. <strong>미리 정한 상품 카테고리가 아니라, 분석에서 자연히 도출된 결과</strong>라는 점이 중요합니다 — 그래서 자치구가 바뀌어도 축 안의 아이디어 내용은 달라지지만, "니즈를 찾고 지원 형태를 붙인다"는 방법론 자체는 그대로 재사용됩니다.</p>
+        <div class="axis-grid">
+          <div class="axis-item"><b>① 소상공인/지역경제</b>정비사업·상권 조성과 결합한 결제·여신 인프라</div>
+          <div class="axis-item"><b>② 청년 금융</b>자립준비청년·미취업청년 지원제도와 결합한 적금·소액대출</div>
+          <div class="axis-item"><b>③ IT/데이터 협력</b>행정 플랫폼·오픈뱅킹 연동 등 기술 파트너십</div>
+          <div class="axis-item"><b>④ 복지/주택금융</b>1인가구·정비사업 이주 등 생활·주거 밀착 금융</div>
+          <div class="axis-item"><b>⑤ 대형 SOC 참여</b>재개발·복원사업 등 대형 프로젝트 금융 참여</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="ch-7">
+      <h3><span class="snum">7</span>대표 기획 유형</h3>
+      <div class="body">
+        <p>실제로 어떤 톤의 기획이 나오는지, 축마다 대표 유형을 하나씩 보여드립니다. 각 기획은 항상 "어떤 구청 사업과 연계되는가 → 어떤 상품/협력 형태인가 → 은행에 어떤 이익이 있는가" 3단 구조로 정리됩니다.</p>
+
+        <div class="idea">
+          <div class="idea-axis">① 소상공인/지역경제 금융</div>
+          <div class="idea-title">정비사업구역 이주비·조합운영자금 연계 대출</div>
+          <div class="idea-flow">
+            <div class="step"><span class="k">연계 사업</span><span>대규모 재정비 구역 지정 및 이주·컨설팅 지원 정책</span></div>
+            <div class="step"><span class="k">협력 형태</span><span>이주비대출을 은행이 공급하고, 구는 법률·세무 컨설팅 바우처를 결합 제공하는 3자 구조</span></div>
+            <div class="step"><span class="k">은행 기대효과</span><span>정비사업 초기 단계부터 관계를 맺어 향후 중도금대출까지 이어지는 장기 고객 확보</span></div>
+          </div>
+        </div>
+
+        <div class="idea a2">
+          <div class="idea-axis">② 청년 금융</div>
+          <div class="idea-title">자립준비청년 자립수당 계좌 연계 청년 적금</div>
+          <div class="idea-flow">
+            <div class="step"><span class="k">연계 사업</span><span>자립준비청년 정착금·자립수당 지급 제도(구가 창구 수행)</span></div>
+            <div class="step"><span class="k">협력 형태</span><span>수당 자동이체 시 우대금리를 주는 청년 특화 적금, 무담보 소액 생활안정자금대출</span></div>
+            <div class="step"><span class="k">은행 기대효과</span><span>사회 초년 청년의 최초 거래은행 지위 선점, 생애주기 고객화(적금→대출→주택금융)</span></div>
+          </div>
+        </div>
+
+        <div class="idea a3">
+          <div class="idea-axis">③ IT/데이터 협력</div>
+          <div class="idea-title">교통비 지원사업 오픈뱅킹 자동환급 인프라</div>
+          <div class="idea-flow">
+            <div class="step"><span class="k">연계 사업</span><span>연령별 교통비 지원사업(분기별 사용액 산정 후 계좌 환급)</span></div>
+            <div class="step"><span class="k">협력 형태</span><span>수동/반자동 환급 프로세스를 은행 오픈뱅킹 API 기반 자동정산 인프라로 전환</span></div>
+            <div class="step"><span class="k">은행 기대효과</span><span>전 연령군 주민의 환급계좌를 유치할 수 있는 대규모 반복 거래 접점 확보</span></div>
+          </div>
+        </div>
+
+        <div class="idea a4">
+          <div class="idea-axis">④ 복지/주택금융</div>
+          <div class="idea-title">1인가구·취약계층 통합돌봄 연계 금융상담</div>
+          <div class="idea-flow">
+            <div class="step"><span class="k">연계 사업</span><span>1인가구·취약계층 통합돌봄 프로그램(민간 매칭펀드 방식 지원금 포함)</span></div>
+            <div class="step"><span class="k">협력 형태</span><span>돌봄 프로그램 현장에 은행 서민금융 상담역이 동행하는 "복지-금융 통합 방문상담"</span></div>
+            <div class="step"><span class="k">은행 기대효과</span><span>금융취약계층 지원 실적(ESG), 지역 밀착 이미지 구축</span></div>
+          </div>
+        </div>
+
+        <div class="idea a5">
+          <div class="idea-axis">⑤ 대형 SOC 참여</div>
+          <div class="idea-title">대형 재정비구역 PF/신디케이트론 참여</div>
+          <div class="idea-flow">
+            <div class="step"><span class="k">연계 사업</span><span>구청 핵심 랜드마크급 재정비·복합개발 프로젝트</span></div>
+            <div class="step"><span class="k">협력 형태</span><span>민간 시행사 주도 PF 구조에 대주단으로 참여하는 신디케이트론, 준공 후 자산유동화 참여</span></div>
+            <div class="step"><span class="k">은행 기대효과</span><span>랜드마크급 프로젝트금융 참여를 통한 수익 확보 및 지역 내 브랜드 노출</span></div>
+          </div>
+        </div>
+
+        <p>이런 유형들은 이미 각 자치구별 초안(bank_ideas)으로 축적되어 있으며, 어떤 것을 실제 상품으로 승격시킬지는 이 분석 위에서 사업부가 판단할 몫으로 남아 있습니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PART IV -->
+  <section class="part" id="part-4">
+    <div class="part-head">
+      <div class="part-eyebrow">PART IV</div>
+      <h2>추진 방향 및 확장 전략</h2>
+      <div class="sub">지금은 수동, 다음은 자동화</div>
+      <p class="intro">지금까지는 기회 포착부터 산출까지 사람이 여러 도구를 오가며 수동으로 이어왔습니다. 이 흐름 자체를 하나의 시스템으로 자동화하는 것이 다음 단계입니다.</p>
+    </div>
+
+    <div class="section" id="ch-8">
+      <h3><span class="snum">8</span>지금은 수동 이어달리기</h3>
+      <div class="body">
+        <p>현재 이 사업은 3개의 별도 도구로 나뉘어 있고, 사람이 그 사이를 이어줍니다.</p>
+        <ol>
+          <li><strong>기회 포착</strong> — 전국 지자체·기관의 금고은행 계약 종료 시점을 지도·랭킹으로 보여주는 대시보드에서 "이번엔 어느 구청 금고가 열리나"를 확인합니다.</li>
+          <li><strong>분석과 기획</strong> — 사람이 해당 자치구의 사업계획을 조사(2부의 방법론)해 분석 자료와 기획 초안을 만듭니다.</li>
+          <li><strong>산출</strong> — 분석·기획 결과를 보고서 형태로 정리해 열람 가능한 문서로 만듭니다.</li>
+        </ol>
+        <p>세 단계 모두 이미 만들어져 있지만, 서로 코드로 연결되어 있지 않습니다 — 기회를 포착한 뒤 분석에 들어가는 것도, 분석 결과를 기획으로 넘기는 것도 사람이 수동으로 진행합니다.</p>
+      </div>
+    </div>
+
+    <div class="section" id="ch-9">
+      <h3><span class="snum">9</span>자동화 확장 시도</h3>
+      <div class="body">
+        <p>제안서 작성 자체를 자동으로 처리하는 시범 파이프라인은 이미 만들어 실제로 동작합니다 — 공고문을 분석하고, 해당 자치구 분석자료를 매칭하고, 초안을 작성·자체검증하며, 최종 산출물을 만드는 흐름입니다.</p>
+        <p>다만 지금 이 파이프라인은 "분석 자료가 이미 있다"는 전제 위에서만 동작합니다 — 새 기관을 위한 공고문 탐색이나 분석자료 신규 생성 단계는 아직 없습니다. 이 빈틈을 메우는 확장 설계를 한 차례 마쳤지만, 이후 <strong>완전 폐쇄망 운영이라는 더 큰 요구사항</strong>이 확정되면서 그 설계의 일부(외부 AI 서비스 의존 방식)를 다시 손봐야 하는 상태입니다.</p>
+      </div>
+    </div>
+
+    <div class="section" id="ch-10">
+      <h3><span class="snum">10</span>차세대 비전 — 9단계 워크플로우</h3>
+      <div class="body">
+        <p>실제 입찰~제안서 제출 실무를 정리하면 9단계입니다. 이 9단계 전체를 하나의 시스템으로 잇는 것이 차세대 비전이고, 지금 8·9장에서 설명한 수동 이어달리기를 대체하는 목표입니다.</p>
+        <div class="pipeline-legend">
+          <span><span class="dot new"></span>신규 개발 필요</span>
+          <span><span class="dot redesign"></span>기존 아이디어 재설계</span>
+          <span><span class="dot reuse"></span>기존 기능 재사용</span>
+          <span><span class="dot human"></span>사람이 처리</span>
+        </div>
+        <div class="pipeline-h">
+          <div class="stage-track">
+            <div class="flow-dot-h"></div>
+            <div class="stage-row">
+              <div class="stage-h new"><div class="num">1</div><div class="title">입찰현황 파악</div><div class="stag"><span class="dot new"></span>신규</div><div class="desc">전국 대시보드 모니터링 — 프로토타입은 있으나 시스템 연동 전</div></div>
+              <div class="stage-h new"><div class="num">2</div><div class="title">입찰 상황 발생</div><div class="stag"><span class="dot new"></span>신규</div><div class="desc">기회 감지 시 자동으로 다음 단계 전달</div></div>
+              <div class="stage-h redesign"><div class="num">3</div><div class="title">RFI 공시</div><div class="stag"><span class="dot redesign"></span>재설계 필요</div><div class="desc">공고문 탐색·확보를 폐쇄망 요건에 맞게 재설계 중</div></div>
+              <div class="stage-h reuse"><div class="num">4</div><div class="title">RFI 분석</div><div class="stag"><span class="dot reuse"></span>재사용 가능</div><div class="desc">이미 동작하는 시범 파이프라인 그대로 활용</div></div>
+              <div class="stage-h new"><div class="num">5</div><div class="title">제안서 기획</div><div class="stag"><span class="dot new"></span>신규 · 🛑승인</div><div class="desc">신규 기관 분석자료 자동 생성, 완료 시 사람 승인</div></div>
+              <div class="stage-h new"><div class="num">6</div><div class="title">세부기획(3팀)</div><div class="stag"><span class="dot new"></span>신규</div><div class="desc">영업·전산·예산 3팀으로 나눠 병렬 작성</div></div>
+              <div class="stage-h reuse"><div class="num">7</div><div class="title">제안서 취합</div><div class="stag"><span class="dot reuse"></span>재사용 가능</div><div class="desc">기존 산출물 생성 기능 그대로 활용</div></div>
+              <div class="stage-h reuse"><div class="num">8</div><div class="title">제안서 검토</div><div class="stag"><span class="dot reuse"></span>확장 · 🛑최종승인</div><div class="desc">기존 자체검증을 오탈자·근거 재대조까지 확장</div></div>
+              <div class="stage-h human"><div class="num">9</div><div class="title">제안서 제출</div><div class="stag"><span class="dot human"></span>사람 처리</div><div class="desc">사람이 최종 제출</div></div>
+            </div>
+          </div>
+          <div class="registry-band">🔶 <span><b>레지스트리(SQLite) 구축</b> — 3~9단계를 떠받치는 기반. 계획 완료 · 실행 대기 · <b>지금 다음으로 손대려는 지점</b></span></div>
+        </div>
+        <blockquote><p>지금 실제로 다음에 손대려는 곳은 3~9단계 전체를 떠받치는 <strong>레지스트리</strong>(기관 정보와 진행 단계를 한곳에 저장하는 데이터베이스)입니다. 구축 계획은 이미 확정됐고, 실행 여부·투자 규모만 결정하면 바로 시작할 수 있는 상태입니다.</p></blockquote>
+        <p>배포는 <strong>부분 폐쇄망</strong>으로 설계했습니다 — 1~3단계(공개 데이터)는 클라우드에서, 민감정보를 다루는 4~9단계는 완전 폐쇄망에서 처리합니다. 사용하는 AI 모델도 외부 상용 서비스가 아닌 <strong>사내(폐쇄망) 서빙 오픈소스 모델</strong>로 한정해 정보 유출 경로를 원천 차단합니다. 동시에 내부 의사결정자에게 실물로 보여줄 수 있는 클라우드 데모 버전도 같은 코드로 함께 준비합니다.</p>
+      </div>
+    </div>
+
+    <div class="section" id="ch-11">
+      <h3><span class="snum">11</span>구현 로드맵</h3>
+      <div class="body">
+        <p>범위가 넓어 한 번에 만들지 않고, 7개 단계로 나눠 순서대로 진행합니다.</p>
+        <table>
+          <thead><tr><th>순서</th><th>내용</th><th>상태</th></tr></thead>
+          <tbody>
+            <tr><td>0</td><td>레지스트리 구축 — 기관 정보·진행 단계 통합 저장소</td><td><span class="tag"><span class="dot redesign"></span>계획 완료·실행 대기</span></td></tr>
+            <tr><td>1</td><td>클라우드 데모 환경 — 첫 배포·접속 확인</td><td><span class="tag"><span class="dot human"></span>착수 전</span></td></tr>
+            <tr><td>2</td><td>폐쇄망 핵심 백엔드 — 4·7·8단계 연동</td><td><span class="tag"><span class="dot human"></span>착수 전</span></td></tr>
+            <tr><td>3</td><td>3단계(RFI 탐색) 재설계</td><td><span class="tag"><span class="dot human"></span>착수 전</span></td></tr>
+            <tr><td>4</td><td>6단계 3팀 분화 구현</td><td><span class="tag"><span class="dot human"></span>착수 전</span></td></tr>
+            <tr><td>5</td><td>프론트엔드 전면 이관</td><td><span class="tag"><span class="dot human"></span>착수 전</span></td></tr>
+            <tr><td>6</td><td>클라우드 데모 정식 배포</td><td><span class="tag"><span class="dot human"></span>착수 전</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- PART V -->
+  <section class="part" id="part-5">
+    <div class="part-head">
+      <div class="part-eyebrow">PART V</div>
+      <h2>기대효과</h2>
+      <div class="sub">투자 대비 무엇을 얻는가</div>
+      <p class="intro">근거 기반 분석·자동화 두 축이 만드는 기대효과를 정리합니다.</p>
+    </div>
+
+    <div class="section" id="ch-12">
+      <h3><span class="snum">12</span>투자 대비 기대효과</h3>
+      <div class="body">
+        <div class="cards">
+          <div class="card"><div class="t">1. 협업 경쟁력</div><div class="b">근거 있는 제안은 지자체 입장에서도 검증 가능해, 상품 세일즈보다 신뢰·관계 형성에 유리합니다.</div></div>
+          <div class="card"><div class="t">2. 생애주기 고객화</div><div class="b">청년·소상공인·정비사업 초기 단계부터 관계를 맺어, 이후 대출·주택금융까지 이어지는 장기 고객 확보 기반이 됩니다.</div></div>
+          <div class="card"><div class="t">3. ESG 실적</div><div class="b">청년·취약계층·문화유산 등 지역 밀착 지원 실적을 자연스럽게 축적할 수 있습니다.</div></div>
+          <div class="card"><div class="t">4. 자동화를 통한 효율화</div><div class="b">자동화가 완성되면 자치구 1곳당 리서치·제안 소요 시간과 인력을 크게 줄일 수 있습니다.</div></div>
+          <div class="card"><div class="t">5. 전국 확장 가능성</div><div class="b">표준화된 분석·기획 방법론이라 서울 25개구를 넘어 전국 지자체·기관으로 같은 방식이 재사용 가능합니다.</div></div>
+          <div class="card"><div class="t">6. 리스크 관리</div><div class="b">조작 금지·근거 추적·자체 검증 원칙이 제안 신뢰도를, 폐쇄망 설계가 정보보안 리스크를 관리합니다.</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PART VI -->
+  <section class="part" id="part-6">
+    <div class="part-head">
+      <div class="part-eyebrow">PART VI</div>
+      <h2>다음 단계</h2>
+      <div class="sub">지금 필요한 결정</div>
+      <p class="intro">아래 항목은 다음 진행을 위해 의사결정이 필요한 지점입니다.</p>
+    </div>
+
+    <div class="section" id="ch-13">
+      <h3><span class="snum">13</span>필요한 의사결정</h3>
+      <div class="body">
+        <div class="cards">
+          <div class="card ask"><div class="ask-tag">결정 필요</div><div class="t">25개 자치구 완결</div><div class="b">남은 2개구(송파·강동) 분석 완료 여부 — 추가 자원 투입 없이 기존 방식으로 순차 진행 가능.</div></div>
+          <div class="card ask"><div class="ask-tag">결정 필요</div><div class="t">레지스트리 착수</div><div class="b">차세대 시스템의 첫 단계(구현 로드맵 0단계) 실행 여부와 투자 규모 승인.</div></div>
+          <div class="card ask"><div class="ask-tag">결정 필요</div><div class="t">자동화 재설계 방향</div><div class="b">RFI 탐색 자동화(3단계)를 기존 설계 방식으로 다시 만들지, 폐쇄망 요건에 맞춘 새 방식으로 다시 설계할지 확정 필요.</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>GGReportAgent · 사업제안 보고서(내부 검토용) — 브라우저 인쇄(⌘/Ctrl+P)로 PDF 저장 가능합니다.</footer>
+</main>
+
+<script>
+(function(){
+  var pbar=document.getElementById('pbar');
+  var links=Array.prototype.slice.call(document.querySelectorAll('.topnav-links a'));
+  var sections=links.map(function(a){return document.getElementById(a.getAttribute('data-target'));}).filter(Boolean);
+  function onScroll(){
+    var doc=document.documentElement;
+    var scrolled=(doc.scrollTop)/(doc.scrollHeight-doc.clientHeight)*100;
+    pbar.style.width=scrolled+'%';
+    var y=window.scrollY+90;
+    var current=null;
+    sections.forEach(function(sec){ if(sec.offsetTop<=y) current=sec; });
+    links.forEach(function(a){a.classList.remove('current');});
+    if(current){
+      var link=links.find(function(a){return a.getAttribute('data-target')===current.id;});
+      if(link) link.classList.add('current');
+    }
+  }
+  document.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+})();
+</script>
+</body>
+</html>
