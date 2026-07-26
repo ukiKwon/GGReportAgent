@@ -364,8 +364,35 @@
     });
   };
 
+  render.REGION_NAME_ALL = function (code) { return render.REGION_NAME[code] || code; };
+  render.openMoreModal = function () {
+    const modal = document.getElementById('more-modal'); if (!modal) return;
+    modal.style.display = 'block';
+    const search = document.getElementById('more-search');
+    search.value = ''; render.renderMoreTable('');
+    search.oninput = function () { render.renderMoreTable(search.value); };
+    document.getElementById('more-close').onclick = function () { modal.style.display = 'none'; };
+  };
+  render.renderMoreTable = function (query) {
+    const tb = document.getElementById('more-tbody'); if (!tb) return;
+    const q = (query || '').trim().toLowerCase();
+    const all = render.allInstitutions();
+    const rows = logic.sortByUrgency(all, render.state.today).filter(function (r) {
+      if (!q) return true;
+      return [r.name, r.type, render.REGION_NAME_ALL(r.region)].join(' ').toLowerCase().indexOf(q) >= 0;
+    });
+    tb.innerHTML = rows.map(function (r) {
+      return '<tr style="border-top:1px solid var(--line);">' +
+        '<td style="padding:6px;">' + logic.esc(r.name) + '</td>' +
+        '<td style="padding:6px;">' + logic.esc(r.type || '') + '</td>' +
+        '<td style="padding:6px;">' + logic.esc(render.REGION_NAME_ALL(r.region)) + '</td>' +
+        '<td style="padding:6px;">' + logic.esc(logic.formatBidDate(r)) + '</td>' +
+        '<td style="padding:6px;">' + logic.esc(r.term ? r.term + '년' : '') + '</td>' +
+        '<td style="padding:6px;">' + logic.esc(r.updatedAt || '') + '</td></tr>';
+    }).join('');
+  };
+
   if (!render.selectInstitution) render.selectInstitution = function () {};
-  if (!render.openMoreModal) render.openMoreModal = function () {};
 
   if (typeof module !== 'undefined' && module.exports) module.exports = render;
   else root.render = render;
