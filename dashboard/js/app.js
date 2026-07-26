@@ -60,7 +60,7 @@
     const fields = root.logic.ALL_FIELDS;
     wrap.innerHTML = fields.map(function (f) {
       const val = f === 'sources' ? (Array.isArray(rec.sources) ? rec.sources.join(', ') : '') : (rec[f] || '');
-      return '<label style="display:block;margin:6px 0;">' + f +
+      return '<label style="display:block;margin:6px 0;">' + (root.logic.FIELD_LABELS[f] || f) +
         '<input data-f="' + f + '" value="' + root.logic.esc(val) + '" style="width:100%;"></label>';
     }).join('');
     const modal = document.getElementById('edit-modal'); modal.style.display = 'block';
@@ -72,7 +72,7 @@
         partial[f] = f === 'sources' ? inp.value.split(',').map(function (s){ return s.trim(); }).filter(Boolean) : inp.value;
       });
       const v = root.logic.validateRecord(Object.assign({}, rec, partial));
-      if (!v.valid) { alert('필수 필드 누락: ' + v.missing.join(', ')); return; }
+      if (!v.valid) { alert('필수 필드 누락: ' + v.missing.map(function(k){return root.logic.FIELD_LABELS[k]||k;}).join(', ')); return; }
       root.store.setEdit(rec.name, partial); modal.style.display = 'none';
       if (root.render.state.currentRegion) { root.render.drawRegion(root.render.state.currentRegion); }
       root.render.drawTicker();
