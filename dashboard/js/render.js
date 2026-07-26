@@ -123,6 +123,7 @@
     render._regionProjection = proj; render._regionPath = path; render._regionG = g;
     if (render.drawMarkers) render.drawMarkers(code); // Task 9
     render.drawRankingPanel(code);
+    render._drawRipple(null);
   };
 
   render.loadRegionGeoWithRetry = function (code, done, fail) {
@@ -294,8 +295,36 @@
     pop.style.left = Math.min(x + 12, window.innerWidth - 300) + 'px';
     pop.style.top = Math.min(y + 12, window.innerHeight - 180) + 'px'; pop.style.display = 'block';
   };
-  render.onMarkerClick = function (rec) { render.showPopover(rec, window.innerWidth/2, 120);
-    render.highlightCard(rec.name, true); setTimeout(function(){ render.highlightCard(rec.name, false); }, 1500); };
+
+  render._selectedName = null;
+  render.selectInstitution = function (rec) {
+    render._selectedName = rec ? rec.name : null;
+    render._drawRipple(render._selectedName);
+    if (rec) { render.highlightCard(rec.name, true); }
+  };
+  render._drawRipple = function (name) {
+    const svg = d3.select('#map-svg');
+    svg.selectAll('g.ripple-layer').remove();
+    if (!name) return;
+    // 현재 지역 마커 중 해당 이름의 좌표를 찾는다
+    const proj = render._regionProjection; if (!proj) return;
+    const rec = render.institutionsByRegion(render.state.currentRegion)
+      .filter(function (r){ return r.name === name && typeof r.lng === 'number' && typeof r.lat === 'number'; })[0];
+    if (!rec) return;
+    const p = proj([rec.lng, rec.lat]);
+    const g = svg.append('g').attr('class', 'ripple-layer');
+    // 3중 링(위상차)로 잔잔한 물결
+    [0, 0.45, 0.9].forEach(function (delay) {
+      g.append('circle').attr('class', 'ripple-ring')
+        .attr('cx', p[0]).attr('cy', p[1]).attr('r', 6)
+        .style('animation-delay', delay + 's');
+    });
+  };
+
+  render.onMarkerClick = function (rec) {
+    render.showPopover(rec, window.innerWidth/2, 120);
+    render.selectInstitution(rec);
+  };
 
   // 팝오버 바깥 클릭 시 닫기
   if (typeof document !== 'undefined') document.addEventListener('click', function (ev) {
@@ -391,8 +420,6 @@
         '<td style="padding:6px;">' + logic.esc(r.updatedAt || '') + '</td></tr>';
     }).join('');
   };
-
-  if (!render.selectInstitution) render.selectInstitution = function () {};
 
   if (typeof module !== 'undefined' && module.exports) module.exports = render;
   else root.render = render;

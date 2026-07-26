@@ -38,6 +38,8 @@
   .rg-card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
   .rg-card .star { cursor:pointer; float:right; }
   .region.watched { stroke:#ffe066; stroke-width:3; filter:drop-shadow(0 0 6px #ffe066); }
+  @keyframes ripple { from { r:6; opacity:.55; } to { r:26; opacity:0; } }
+  .ripple-ring { fill:none; stroke:#ffd166; stroke-width:2; animation: ripple 1.4s ease-out infinite; pointer-events:none; }
 </style>
 </head>
 <body>
