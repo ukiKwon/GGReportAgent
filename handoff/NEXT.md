@@ -31,6 +31,26 @@
 
 ## 열린 항목
 
+### A. 대시보드 2차 기능 확장 — SDD Task 6~12 재개 (+ Task 5 리뷰)
+- **출처**: `handoff/2026-07-26_summary.md`(feature 브랜치 세션).
+- **브랜치**: `feature/dashboard-enhancements` (origin에 push됨). tip=`f01b197`, 단위테스트 26/26.
+  **작업 재개 시 이 브랜치 체크아웃 필수.** 다음 세션부터는 **git worktree로 격리**(사용자 합의 —
+  이번엔 병렬 강남 워커와 워크트리 공유로 브랜치 뒤섞임 사고 발생, cherry-pick으로 복구함).
+- **진행**: 스펙(`docs/superpowers/specs/2026-07-25-treasury-bid-dashboard-enhancements-design.md`)
+  + 플랜(`docs/superpowers/plans/2026-07-25-treasury-bid-dashboard-enhancements.md`, 12 TDD 태스크)
+  확정. **Task 1~5 구현 완료**(T1~4 리뷰 클린, **T5 리뷰 미실행**).
+- **다음 단계(순서대로)**:
+  1. **Task 5 리뷰** 먼저 — 리뷰 패키지 이미 생성됨:
+     `.superpowers/sdd/2026-07-25-treasury-bid-dashboard-enhancements/review-0450831..f01b197.diff`.
+     SDD 원장(`.superpowers/sdd/2026-07-25-treasury-bid-dashboard-enhancements/progress.md`)에 T1~5 이력·파킹·이월minor 보존.
+  2. **Task 6~12**: 6 export CSV템플릿다운로드 · 7 샘플데이터 이관 · 8 index.html 상단바/모달 ·
+     9 랭킹 개편(반응형·정렬토글·유형필터·♥) · 10 더보기 모달+검색 · 11 물결(ripple) · 12 기관추가폼+CSV배선.
+     Task 8~12는 D3/UI라 로컬 http 서버(`node <scratch>/serve.js` 또는 임의 정적 서버로 `dashboard/`
+     서빙) + 브라우저 검증 필요(file:// 는 확장 접근 차단됨).
+  3. 최종 브랜치 리뷰 → main 병합. **병합 시 강남 스레드와 충돌 정리**: `handoff/2026-07-26_summary.md`
+     (main엔 강남판 존재), `handoff/NEXT.md`, 그리고 main에 잘못 올라간 Task5 커밋 `bef58c7` 관계.
+- **파킹**: Task 4 `parseCsv`가 따옴표 내 개행(멀티라인 CSV 셀) 미지원 — known-limitation, 최종 리뷰서 재triage.
+
 ### 1. 25개 자치구 배치 프로젝트 — 미완결 3/20(강남·송파·강동) 재개
 - **출처**: `handoff_old/NEXT.md`(2026-07-20 기준, git 미추적 상태로 남아있던 별도
   작업 스레드 — 5개구 KB 제안 프로젝트/현재 agent 오케스트레이션 작업과는 무관한
