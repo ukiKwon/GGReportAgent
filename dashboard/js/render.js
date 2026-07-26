@@ -26,7 +26,7 @@
     const muni = render.institutionsByRegion(code).filter(function (r) { return r.type === '지자체'; });
     if (!muni.length) return render.URGENCY_COLORS.gray;
     const sorted = logic.sortByUrgency(muni, render.state.today);
-    return render.URGENCY_COLORS[logic.computeUrgency(sorted[0].contractEnd, render.state.today)];
+    return render.URGENCY_COLORS[logic.urgencyOf(sorted[0], render.state.today)];
   };
 
   render.drawNational = function () {
@@ -192,10 +192,10 @@
       }
       grp.forEach(function (item) {
         const r = item.r, p = item.p, shape = logic.markerShape(r.type);
-        const color = render.URGENCY_COLORS[logic.computeUrgency(r.contractEnd, render.state.today)];
+        const color = render.URGENCY_COLORS[logic.urgencyOf(r, render.state.today)];
         const glyph = logic.recordGlyph(r);
         const g = layer.append('g').attr('class','marker').attr('data-name', r.name).attr('transform','translate('+p[0]+','+p[1]+')');
-        const hatched = r.confidence === '추정';
+        const hatched = logic.effectiveBid(r).confidence === '추측';
         if (shape === 'circle') {
           g.append('circle').attr('r',8).attr('fill',color).attr('stroke','#0f1420');
           if (hatched) g.append('circle').attr('r',8).attr('fill','url(#hatch)');
@@ -216,7 +216,7 @@
     const top = logic.sortByUrgency(all, render.state.today).slice(0, 5);
     const el = document.getElementById('ticker'); if (!el) return;
     el.textContent = '임박 TOP5 · ' + top.map(function (r) {
-      const d = logic.daysUntil(r.contractEnd, render.state.today);
+      const d = logic.daysUntil(logic.effectiveBid(r).date, render.state.today);
       return r.name + (d === Infinity ? '(미상)' : '(D-' + d + ')');
     }).join('   ·   ');
   };
@@ -285,9 +285,14 @@
     const fields = logic.ALL_FIELDS;
     let html = '<b>' + esc(rec.name || '(이름없음)') + '</b><br>';
     fields.forEach(function (f) {
-      const missing = v.missing.indexOf(f) >= 0 || (f === 'contractEnd' && !rec.contractEnd);
+      const label = logic.FIELD_LABELS[f] || f;
+      if (f === 'contractEnd') {
+        html += '<div>' + label + ': ' + esc(logic.formatBidDate(rec)) + '</div>';
+        return;
+      }
+      const missing = v.missing.indexOf(f) >= 0;
       let val = f === 'sources' ? (Array.isArray(rec.sources) ? rec.sources.join(', ') : '') : (rec[f] == null ? '' : rec[f]);
-      html += '<div' + (missing ? ' class="miss"' : '') + '>' + f + ': ' + (val ? esc(val) : (missing ? '(누락)' : '')) + '</div>';
+      html += '<div' + (missing ? ' class="miss"' : '') + '>' + label + ': ' + (val ? esc(val) : (missing ? '(누락)' : '')) + '</div>';
     });
     html += '<div style="margin-top:6px;"><button id="pop-edit">✎ 편집</button></div>';
     pop.innerHTML = html;
@@ -339,7 +344,7 @@
     const top = logic.sortByUrgency(all, render.state.today);
     stage.innerHTML = '<div style="padding:16px;"><b>지도 로딩 실패</b> — D3 번들(vendor/d3.v7.min.js)을 확인하세요.' +
       '<br>아래는 지도 없이 제공하는 임박순 랭킹입니다.<ol>' +
-      top.map(function (r){ const d = logic.daysUntil(r.contractEnd, render.state.today);
+      top.map(function (r){ const d = logic.daysUntil(logic.effectiveBid(r).date, render.state.today);
         return '<li>' + esc(r.name) + ' — ' + esc(r.type) + ' · ' + (d === Infinity ? '미상' : 'D-' + d) + '</li>'; }).join('') +
       '</ol></div>';
   };
