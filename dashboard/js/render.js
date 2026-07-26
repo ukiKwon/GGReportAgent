@@ -10,6 +10,7 @@
     activeRegions: new Set(['11','41']),        // v1 활성: 서울·경기
     enabledTypes: new Set(logic.FILTERABLE_TYPES),
     currentRegion: null,
+    rankSort: 'urgency',   // 'urgency' | 'interest'
   };
 
   render.URGENCY_COLORS = { red:'#e5484d', orange:'#f5a524', yellow:'#f2e14c', blue:'#3b82f6', gray:'#5a6680' };
@@ -229,20 +230,50 @@
     });
   };
 
+  render.rankedList = function (code) {
+    let list = render.institutionsByRegion(code)
+      .filter(function (r) { return render._rankTypeVisible(r); });
+    if (render.state.rankSort === 'interest')
+      return logic.sortByInterest(list, render.state.today, function (r){ return store.isInterested(r.name); });
+    return logic.sortByUrgency(list, render.state.today);
+  };
+  // 랭킹 유형 필터: 지자체는 항상 표시, 그 외는 enabledTypes 따름
+  render._rankTypeVisible = function (r) {
+    if (r.type === '지자체') return true;
+    if (logic.FILTERABLE_TYPES.indexOf(r.type) >= 0) return render.state.enabledTypes.has(r.type);
+    return true;
+  };
+
   render.drawRankingPanel = function (code) {
     const panel = document.getElementById('rank-panel'); if (!panel) return;
-    const list = logic.sortByUrgency(render.institutionsByRegion(code), render.state.today);
-    panel.style.display = 'block'; panel.innerHTML = '<h3 style="margin:4px 0 8px;">임박순 랭킹</h3>';
-    list.forEach(function (r) {
-      const d = logic.daysUntil(r.contractEnd, render.state.today);
+    panel.style.display = 'block';
+    // 헤더(정렬 토글) + 목록 컨테이너
+    panel.innerHTML =
+      '<div class="rank-head"><b>랭킹</b>' +
+      '<select id="rank-sort"><option value="urgency">임박순</option><option value="interest">관심도순</option></select>' +
+      '</div><div id="rank-list"></div>' +
+      '<div style="margin-top:8px;"><button id="rank-more" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px;cursor:pointer;">더 보기 — 전체 입찰건</button></div>';
+    document.getElementById('rank-sort').value = render.state.rankSort;
+    document.getElementById('rank-sort').addEventListener('change', function (e) {
+      render.state.rankSort = e.target.value; render.drawRankingPanel(code);
+    });
+    document.getElementById('rank-more').addEventListener('click', function () { render.openMoreModal(); });
+
+    const listEl = document.getElementById('rank-list');
+    render.rankedList(code).forEach(function (r) {
       const card = document.createElement('div'); card.className = 'rank-card'; card.dataset.name = r.name;
       const glyph = logic.recordGlyph(r);
-      card.innerHTML = '<b>' + esc(r.name) + '</b> ' + (glyph ? '<span class="miss">' + esc(glyph) + '</span>' : '') +
-        '<br><small>' + esc(r.type) + ' · ' + (d === Infinity ? '미상' : 'D-' + d) + '</small>';
+      const hearted = store.isInterested(r.name);
+      card.innerHTML = '<span class="heart" data-name="' + logic.esc(r.name) + '">' + (hearted ? '♥' : '♡') + '</span>' +
+        '<b>' + logic.esc(r.name) + '</b> ' + (glyph ? '<span class="miss">' + logic.esc(glyph) + '</span>' : '') +
+        '<br><small>' + logic.esc(r.type) + ' · ' + logic.esc(logic.formatBidDate(r)) + '</small>';
+      card.querySelector('.heart').addEventListener('click', function (e) {
+        e.stopPropagation(); store.toggleInterest(r.name); render.drawRankingPanel(code);
+      });
       card.addEventListener('mouseenter', function () { render.highlightMarker(r.name, true); });
       card.addEventListener('mouseleave', function () { render.highlightMarker(r.name, false); });
-      card.addEventListener('click', function (ev) { render.showPopover(r, ev.clientX, ev.clientY); });
-      panel.appendChild(card);
+      card.addEventListener('click', function (ev) { render.selectInstitution(r); render.showPopover(r, ev.clientX, ev.clientY); });
+      listEl.appendChild(card);
     });
   };
 
@@ -332,6 +363,9 @@
       return store.isWatched(d.properties.code);
     });
   };
+
+  if (!render.selectInstitution) render.selectInstitution = function () {};
+  if (!render.openMoreModal) render.openMoreModal = function () {};
 
   if (typeof module !== 'undefined' && module.exports) module.exports = render;
   else root.render = render;
