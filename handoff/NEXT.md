@@ -183,6 +183,16 @@
   계획과는 다른 경로이므로 혼동하지 말 것). 워크트리의 커밋은 아직 원격에 push되지
   않음 — main에는 스펙/계획 문서 커밋(`47e3ee8`, `343372c`)만 있고, 노드 구현 커밋
   (`1504d8e`, `0e759e7`)은 워크트리 브랜치에만 있음.
+- **⚠️ 중요 갱신 (`2026-07-26_summary.md` 3번째 세션 섹션)**: 신규 스펙
+  `docs/superpowers/specs/2026-07-26-e2e-bid-workflow-system-design.md`(repo 루트,
+  `agent/docs/...`가 아님)가 이 스펙의 핵심 결정 **#4(Claude Agent SDK 서브에이전트로
+  스킬 호출)와 #5(CLI 단독 실행)를 명시적으로 대체**한다고 선언함 — 완전 폐쇄망
+  운영에서는 Claude Agent SDK 자체가 외부(Anthropic) 네트워크 의존이라 동작 불가하기
+  때문. 즉 워크트리에 이미 구현된 **Task 1(`run_subagent`, claude-agent-sdk 기반)과
+  Task 2(`rfp_locate_node`)는 폐쇄망 전제와 충돌해 그대로 재사용 불가할 가능성이 큼**.
+  Task 3부터 단순 재개하지 말고, **재개 전 반드시 사용자에게 "기존 Task1·2를 폐쇄망
+  버전으로 다시 구현할지, 신규 스펙 sub-project 3(agent 신규 노드) 계획을 새로 짤지"를
+  먼저 확인**할 것.
 
 ### 3. 산출물 본문 내 `bank_idea_draft.txt`(단수형) 자기참조 3곳 — 의도적으로 보류
 - **출처**: `2026-07-21_summary.md`(밤 세션, giganlist 경로/파일명 통일 작업 중 발견).
@@ -243,6 +253,33 @@
   커밋이 거기 얹혔다가 main으로 옮겨진 사고가 있었다. **커밋 전 반드시
   `git branch --show-current`로 브랜치를 확인할 것.** 현재 HEAD는 `main`이며,
   `feature/dashboard-enhancements`는 `0450831`(dashboard 커밋 4개)로 원상 복원돼 있다.
+
+### 6. E2E 입찰워크플로우 시스템 — sub-project 0(레지스트리) 계획 작성 완료, 실행 미착수
+- **출처**: `2026-07-26_summary.md` `## Session (E2E 입찰워크플로우 시스템 — 브레인스토밍→
+  스펙→sub-project 0 플랜)`.
+- **배경**: 사용자가 실제 업무 9단계 workflow(입찰현황 파악→...→제안서 제출) 전체를 담는
+  시스템을 원함 — 기존 `dashboard/`·`report/`·`agent/`는 그 시스템의 컴포넌트일 뿐.
+  `superpowers:brainstorming`으로 배포형태(부분 폐쇄망, 경계는 3/4단계 사이)·LLM(GPT-OSS
+  120B, 어댑터 분리)·콘텐츠 생성(코퍼스+LLM polish 하이브리드)·아키텍처(Approach A,
+  Next.js+FastAPI+SQLite 레지스트리)·2-트랙 배포(로컬 폐쇄망 운영 / AWS+Vercel 데모)까지
+  전부 확정.
+- **산출물**: 스펙 `docs/superpowers/specs/2026-07-26-e2e-bid-workflow-system-design.md`
+  (커밋 `1cf9d70`, repo 루트 — `agent/docs/...`의 기존 스펙과 다른 경로). 이 스펙 §⑧에서
+  구현을 6개 sub-project(0 레지스트리→1 DMZ FastAPI→2 폐쇄망 백엔드 코어→3 agent 신규
+  노드→4 6단계 3팀분화→5 Next.js 프론트→6 Track2 배포)로 분리하기로 명시.
+  sub-project 0 계획 `docs/superpowers/plans/2026-07-26-registry-institutions-api.md`
+  (커밋 `64ad8aa`) — `backend/` 패키지 신규, SQLite 스키마+repository CRUD+CSV
+  반입(기존 dashboard 템플릿 재사용)+FastAPI 4개 엔드포인트(list/detail/import/artifacts,
+  `advance`/`status`/`checkpoint`는 의도적 제외)+giganlist 23개구 시딩, 5개 TDD 태스크.
+- **환경 메모(재개 시 바로 필요)**: 이 머신은 맨 `python`/`pip`가 Windows Store 스텁이라
+  실패 — 실제 인터프리터는 `py -3`(3.14.0). `fastapi`/`pydantic`/`pytest`/`httpx` 전부
+  미설치 상태 확인함(plan Task 1 Step 2가 설치).
+- **다음 단계**: 사용자에게 실행방식(1. Subagent-Driven 추천 / 2. Inline) 질문한
+  상태에서 "마무리해줘" 지시가 들어와 **실행은 아직 시작 안 함**. 다음 세션은 이
+  선택부터 받아서 `superpowers:subagent-driven-development` 또는
+  `superpowers:executing-plans`로 Task 1부터 진행.
+- **참고**: 항목 2(agent/ RFP 팀 확장)의 기존 설계가 이 스펙으로 일부 대체됨 — 위 항목 2의
+  "⚠️ 중요 갱신" 참고.
 
 ---
 
