@@ -130,6 +130,12 @@
   강조해서 지시.
 - **참고용 완성 예시**: `giganlist/jongno/spec/`, `giganlist/jongno/plan/`,
   `giganlist/jongno/bank_ideas_draft.txt`.
+- **⚠️ 커밋 전 브랜치 확인 (구 항목 5에서 이관, 여전히 유효)**: 이 리포는 여러 세션이
+  **같은 워킹트리를 공유**한다. 2026-07-26 세션 시작 시 HEAD가
+  `feature/dashboard-enhancements`(다른 세션 브랜치)에 있어서 강남 커밋이 거기 얹혔다가
+  main으로 옮겨진 사고가 있었다. **커밋 전 반드시 `git branch --show-current`로 브랜치를
+  확인할 것.** (이 주의사항이 붙어 있던 "미push 커밋 5개" 항목 자체는 2026-07-27 세션에서
+  해소 확인되어 제거됨 — 아래 "해소된 항목" 참고.)
 - **비고**: 프로젝트 루트가 2026-07-20에 `gigan`에서 `GGReportAgent`로 폴더명 변경됨
   (robocopy로 전체 복사 완료). 15분 주기 모니터링 cron(ID `a9a58f91`, session-only,
   생성 후 7일 자동만료)은 세션 종료로 만료됨 — 계속 모니터링이 필요하면 CronCreate로
@@ -237,24 +243,7 @@
   실패, `py` 런처 사용). ship-as-is Minor 목록은 `.superpowers/sdd/progress.md` +
   `2026-07-24_summary.md` 07:43 섹션.
 
-### 5. `main`의 미push 커밋 5개 — push 여부 사용자 판단 대기
-- **출처**: `2026-07-26_summary.md` `## Session 08:20` "git 처리" 섹션.
-- **상태**: `main`이 `origin/main`보다 **5커밋 앞서 있고 전부 미push**.
-  - `a6d2896` — 이번(07-26) 세션의 강남구 산출물 + handoff (이 세션 작업분)
-  - `03f3395`, `c2835bc`, `74e3afb` 외 1개 — **다른 세션의 dashboard 2차 확장** 작업
-- **왜 push 안 했는지**: 사용자가 "마무리는 이번 세션 작업분만"으로 범위를 한정했는데,
-  `git push`는 브랜치 단위라 다른 세션의 dashboard 커밋 4개가 함께 원격에 올라간다.
-  사용자가 선택지 중 "main으로 옮기되 push 보류"를 명시적으로 선택함.
-- **다음 단계**: dashboard 작업 세션이 자기 작업분 push 준비가 됐는지 확인한 뒤
-  `git push` 한 번으로 같이 올리거나, 강남 커밋만 따로 올릴 필요가 있으면 별도 브랜치로
-  분리해 push할 것.
-- **주의(같이 기억할 것)**: 이 리포는 여러 세션이 **같은 워킹트리를 공유**한다. 07-26
-  세션 시작 시 HEAD가 `feature/dashboard-enhancements`(다른 세션 브랜치)에 있어서 강남
-  커밋이 거기 얹혔다가 main으로 옮겨진 사고가 있었다. **커밋 전 반드시
-  `git branch --show-current`로 브랜치를 확인할 것.** 현재 HEAD는 `main`이며,
-  `feature/dashboard-enhancements`는 `0450831`(dashboard 커밋 4개)로 원상 복원돼 있다.
-
-### 6. E2E 입찰워크플로우 시스템 — sub-project 0(레지스트리) 계획 작성 완료, 실행 미착수
+### 5. E2E 입찰워크플로우 시스템 — sub-project 0(레지스트리) 계획 작성 완료, 실행 미착수
 - **출처**: `2026-07-26_summary.md` `## Session (E2E 입찰워크플로우 시스템 — 브레인스토밍→
   스펙→sub-project 0 플랜)`.
 - **배경**: 사용자가 실제 업무 9단계 workflow(입찰현황 파악→...→제안서 제출) 전체를 담는
@@ -285,6 +274,14 @@
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
 
+- ~~`main`의 미push 커밋 5개 — push 여부 사용자 판단 대기~~ (구 항목 5) —
+  `2026-07-27_summary.md`에서 해소 확인: `git rev-list --left-right --count
+  origin/main...main` = `0 0`(완전 동기화), `git merge-base --is-ancestor`로 강남 커밋
+  `a6d2896`·dashboard 커밋 `0450831` 둘 다 `origin/main`에 포함됨을 검증.
+  **다른 세션이 이미 push를 완료**한 것으로 보임(당시 origin/main HEAD = `f1e8cf8`).
+  이 항목에 함께 적혀 있던 "커밋 전 `git branch --show-current` 확인" 주의사항은 여전히
+  유효하므로 **항목 1로 이관해 보존**함. 이 해소로 이후 항목 번호가 하나씩 당겨짐
+  (구 6 → 현 5).
 - ~~브레인스토밍 재진입해 agent/ 패키지 스펙 확정~~ — `2026-07-20_1620_summary.md`에서
   스펙 작성 및 계획(`2026-07-20-rfp-proposal-agent.md`) 완료로 해소.
 - ~~최종 리뷰 Minor 사항 2건 (rfp-locate 스킬)~~ — `2026-07-21_summary.md`에서 해소:
