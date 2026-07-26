@@ -10,11 +10,13 @@
     activeRegions: new Set(['11','41']),        // v1 활성: 서울·경기
     enabledTypes: new Set(logic.FILTERABLE_TYPES),
     currentRegion: null,
+    rankSort: 'urgency',   // 'urgency' | 'interest'
   };
 
   render.URGENCY_COLORS = { red:'#e5484d', orange:'#f5a524', yellow:'#f2e14c', blue:'#3b82f6', gray:'#5a6680' };
 
-  render.allInstitutions = function () { return store.applyEdits(window.institutions || []); };
+  render.baseInstitutions = function () { return store.loadData() || window.institutions || []; };
+  render.allInstitutions = function () { return store.applyEdits(render.baseInstitutions()); };
   render.institutionsByRegion = function (code) {
     return render.allInstitutions().filter(function (r) { return r.region === code; });
   };
@@ -24,7 +26,7 @@
     const muni = render.institutionsByRegion(code).filter(function (r) { return r.type === '지자체'; });
     if (!muni.length) return render.URGENCY_COLORS.gray;
     const sorted = logic.sortByUrgency(muni, render.state.today);
-    return render.URGENCY_COLORS[logic.computeUrgency(sorted[0].contractEnd, render.state.today)];
+    return render.URGENCY_COLORS[logic.urgencyOf(sorted[0], render.state.today)];
   };
 
   render.drawNational = function () {
@@ -122,6 +124,7 @@
     render._regionProjection = proj; render._regionPath = path; render._regionG = g;
     if (render.drawMarkers) render.drawMarkers(code); // Task 9
     render.drawRankingPanel(code);
+    render._drawRipple(null);
   };
 
   render.loadRegionGeoWithRetry = function (code, done, fail) {
@@ -189,10 +192,10 @@
       }
       grp.forEach(function (item) {
         const r = item.r, p = item.p, shape = logic.markerShape(r.type);
-        const color = render.URGENCY_COLORS[logic.computeUrgency(r.contractEnd, render.state.today)];
+        const color = render.URGENCY_COLORS[logic.urgencyOf(r, render.state.today)];
         const glyph = logic.recordGlyph(r);
         const g = layer.append('g').attr('class','marker').attr('data-name', r.name).attr('transform','translate('+p[0]+','+p[1]+')');
-        const hatched = r.confidence === '추정';
+        const hatched = logic.effectiveBid(r).confidence === '추측';
         if (shape === 'circle') {
           g.append('circle').attr('r',8).attr('fill',color).attr('stroke','#0f1420');
           if (hatched) g.append('circle').attr('r',8).attr('fill','url(#hatch)');
@@ -213,7 +216,7 @@
     const top = logic.sortByUrgency(all, render.state.today).slice(0, 5);
     const el = document.getElementById('ticker'); if (!el) return;
     el.textContent = '임박 TOP5 · ' + top.map(function (r) {
-      const d = logic.daysUntil(r.contractEnd, render.state.today);
+      const d = logic.daysUntil(logic.effectiveBid(r).date, render.state.today);
       return r.name + (d === Infinity ? '(미상)' : '(D-' + d + ')');
     }).join('   ·   ');
   };
@@ -229,20 +232,50 @@
     });
   };
 
+  render.rankedList = function (code) {
+    let list = render.institutionsByRegion(code)
+      .filter(function (r) { return render._rankTypeVisible(r); });
+    if (render.state.rankSort === 'interest')
+      return logic.sortByInterest(list, render.state.today, function (r){ return store.isInterested(r.name); });
+    return logic.sortByUrgency(list, render.state.today);
+  };
+  // 랭킹 유형 필터: 지자체는 항상 표시, 그 외는 enabledTypes 따름
+  render._rankTypeVisible = function (r) {
+    if (r.type === '지자체') return true;
+    if (logic.FILTERABLE_TYPES.indexOf(r.type) >= 0) return render.state.enabledTypes.has(r.type);
+    return true;
+  };
+
   render.drawRankingPanel = function (code) {
     const panel = document.getElementById('rank-panel'); if (!panel) return;
-    const list = logic.sortByUrgency(render.institutionsByRegion(code), render.state.today);
-    panel.style.display = 'block'; panel.innerHTML = '<h3 style="margin:4px 0 8px;">임박순 랭킹</h3>';
-    list.forEach(function (r) {
-      const d = logic.daysUntil(r.contractEnd, render.state.today);
+    panel.style.display = 'block';
+    // 헤더(정렬 토글) + 목록 컨테이너
+    panel.innerHTML =
+      '<div class="rank-head"><b>랭킹</b>' +
+      '<select id="rank-sort"><option value="urgency">임박순</option><option value="interest">관심도순</option></select>' +
+      '</div><div id="rank-list"></div>' +
+      '<div style="margin-top:8px;"><button id="rank-more" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px;cursor:pointer;">더 보기 — 전체 입찰건</button></div>';
+    document.getElementById('rank-sort').value = render.state.rankSort;
+    document.getElementById('rank-sort').addEventListener('change', function (e) {
+      render.state.rankSort = e.target.value; render.drawRankingPanel(code);
+    });
+    document.getElementById('rank-more').addEventListener('click', function () { render.openMoreModal(); });
+
+    const listEl = document.getElementById('rank-list');
+    render.rankedList(code).forEach(function (r) {
       const card = document.createElement('div'); card.className = 'rank-card'; card.dataset.name = r.name;
       const glyph = logic.recordGlyph(r);
-      card.innerHTML = '<b>' + esc(r.name) + '</b> ' + (glyph ? '<span class="miss">' + esc(glyph) + '</span>' : '') +
-        '<br><small>' + esc(r.type) + ' · ' + (d === Infinity ? '미상' : 'D-' + d) + '</small>';
+      const hearted = store.isInterested(r.name);
+      card.innerHTML = '<span class="heart" data-name="' + logic.esc(r.name) + '">' + (hearted ? '♥' : '♡') + '</span>' +
+        '<b>' + logic.esc(r.name) + '</b> ' + (glyph ? '<span class="miss">' + logic.esc(glyph) + '</span>' : '') +
+        '<br><small>' + logic.esc(r.type) + ' · ' + logic.esc(logic.formatBidDate(r)) + '</small>';
+      card.querySelector('.heart').addEventListener('click', function (e) {
+        e.stopPropagation(); store.toggleInterest(r.name); render.drawRankingPanel(code);
+      });
       card.addEventListener('mouseenter', function () { render.highlightMarker(r.name, true); });
       card.addEventListener('mouseleave', function () { render.highlightMarker(r.name, false); });
-      card.addEventListener('click', function (ev) { render.showPopover(r, ev.clientX, ev.clientY); });
-      panel.appendChild(card);
+      card.addEventListener('click', function (ev) { render.selectInstitution(r); render.showPopover(r, ev.clientX, ev.clientY); });
+      listEl.appendChild(card);
     });
   };
 
@@ -252,9 +285,14 @@
     const fields = logic.ALL_FIELDS;
     let html = '<b>' + esc(rec.name || '(이름없음)') + '</b><br>';
     fields.forEach(function (f) {
-      const missing = v.missing.indexOf(f) >= 0 || (f === 'contractEnd' && !rec.contractEnd);
+      const label = logic.FIELD_LABELS[f] || f;
+      if (f === 'contractEnd') {
+        html += '<div>' + label + ': ' + esc(logic.formatBidDate(rec)) + '</div>';
+        return;
+      }
+      const missing = v.missing.indexOf(f) >= 0;
       let val = f === 'sources' ? (Array.isArray(rec.sources) ? rec.sources.join(', ') : '') : (rec[f] == null ? '' : rec[f]);
-      html += '<div' + (missing ? ' class="miss"' : '') + '>' + f + ': ' + (val ? esc(val) : (missing ? '(누락)' : '')) + '</div>';
+      html += '<div' + (missing ? ' class="miss"' : '') + '>' + label + ': ' + (val ? esc(val) : (missing ? '(누락)' : '')) + '</div>';
     });
     html += '<div style="margin-top:6px;"><button id="pop-edit">✎ 편집</button></div>';
     pop.innerHTML = html;
@@ -263,8 +301,36 @@
     pop.style.left = Math.min(x + 12, window.innerWidth - 300) + 'px';
     pop.style.top = Math.min(y + 12, window.innerHeight - 180) + 'px'; pop.style.display = 'block';
   };
-  render.onMarkerClick = function (rec) { render.showPopover(rec, window.innerWidth/2, 120);
-    render.highlightCard(rec.name, true); setTimeout(function(){ render.highlightCard(rec.name, false); }, 1500); };
+
+  render._selectedName = null;
+  render.selectInstitution = function (rec) {
+    render._selectedName = rec ? rec.name : null;
+    render._drawRipple(render._selectedName);
+    if (rec) { render.highlightCard(rec.name, true); }
+  };
+  render._drawRipple = function (name) {
+    const svg = d3.select('#map-svg');
+    svg.selectAll('g.ripple-layer').remove();
+    if (!name) return;
+    // 현재 지역 마커 중 해당 이름의 좌표를 찾는다
+    const proj = render._regionProjection; if (!proj) return;
+    const rec = render.institutionsByRegion(render.state.currentRegion)
+      .filter(function (r){ return r.name === name && typeof r.lng === 'number' && typeof r.lat === 'number'; })[0];
+    if (!rec) return;
+    const p = proj([rec.lng, rec.lat]);
+    const g = svg.append('g').attr('class', 'ripple-layer');
+    // 3중 링(위상차)로 잔잔한 물결
+    [0, 0.45, 0.9].forEach(function (delay) {
+      g.append('circle').attr('class', 'ripple-ring')
+        .attr('cx', p[0]).attr('cy', p[1]).attr('r', 6)
+        .style('animation-delay', delay + 's');
+    });
+  };
+
+  render.onMarkerClick = function (rec) {
+    render.showPopover(rec, window.innerWidth/2, 120);
+    render.selectInstitution(rec);
+  };
 
   // 팝오버 바깥 클릭 시 닫기
   if (typeof document !== 'undefined') document.addEventListener('click', function (ev) {
@@ -278,7 +344,7 @@
     const top = logic.sortByUrgency(all, render.state.today);
     stage.innerHTML = '<div style="padding:16px;"><b>지도 로딩 실패</b> — D3 번들(vendor/d3.v7.min.js)을 확인하세요.' +
       '<br>아래는 지도 없이 제공하는 임박순 랭킹입니다.<ol>' +
-      top.map(function (r){ const d = logic.daysUntil(r.contractEnd, render.state.today);
+      top.map(function (r){ const d = logic.daysUntil(logic.effectiveBid(r).date, render.state.today);
         return '<li>' + esc(r.name) + ' — ' + esc(r.type) + ' · ' + (d === Infinity ? '미상' : 'D-' + d) + '</li>'; }).join('') +
       '</ol></div>';
   };
@@ -331,6 +397,34 @@
     d3.select('#map-svg').selectAll('path.region').classed('watched', function (d) {
       return store.isWatched(d.properties.code);
     });
+  };
+
+  render.REGION_NAME_ALL = function (code) { return render.REGION_NAME[code] || code; };
+  render.openMoreModal = function () {
+    const modal = document.getElementById('more-modal'); if (!modal) return;
+    modal.style.display = 'block';
+    const search = document.getElementById('more-search');
+    search.value = ''; render.renderMoreTable('');
+    search.oninput = function () { render.renderMoreTable(search.value); };
+    document.getElementById('more-close').onclick = function () { modal.style.display = 'none'; };
+  };
+  render.renderMoreTable = function (query) {
+    const tb = document.getElementById('more-tbody'); if (!tb) return;
+    const q = (query || '').trim().toLowerCase();
+    const all = render.allInstitutions();
+    const rows = logic.sortByUrgency(all, render.state.today).filter(function (r) {
+      if (!q) return true;
+      return [r.name, r.type, render.REGION_NAME_ALL(r.region)].join(' ').toLowerCase().indexOf(q) >= 0;
+    });
+    tb.innerHTML = rows.map(function (r) {
+      return '<tr style="border-top:1px solid var(--line);">' +
+        '<td style="padding:6px;">' + logic.esc(r.name) + '</td>' +
+        '<td style="padding:6px;">' + logic.esc(r.type || '') + '</td>' +
+        '<td style="padding:6px;">' + logic.esc(render.REGION_NAME_ALL(r.region)) + '</td>' +
+        '<td style="padding:6px;">' + logic.esc(logic.formatBidDate(r)) + '</td>' +
+        '<td style="padding:6px;">' + logic.esc(r.term ? r.term + '년' : '') + '</td>' +
+        '<td style="padding:6px;">' + logic.esc(r.updatedAt || '') + '</td></tr>';
+    }).join('');
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = render;

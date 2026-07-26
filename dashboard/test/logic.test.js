@@ -21,26 +21,17 @@ test('computeUrgency: 구간 경계', () => {
   assert.strictEqual(logic.computeUrgency('2026-07-01', today), logic.URGENCY.RED);    // 이미 지남 → 최긴급
 });
 
-test('validateRecord: 필수필드 누락 감지', () => {
-  const bad = { name:'X', type:'공기업' }; // region/confidence/sources 없음
-  const r = logic.validateRecord(bad);
+test('validateRecord: 필수는 name/type/region', () => {
+  assert.strictEqual(logic.validateRecord({ name:'X', type:'공기업', region:'11' }).valid, true);
+  const r = logic.validateRecord({ name:'X', type:'공기업' });
   assert.strictEqual(r.valid, false);
-  assert.deepStrictEqual(r.missing.sort(), ['confidence','region','sources'].sort());
+  assert.deepStrictEqual(r.missing, ['region']);
 });
 
-test('validateRecord: sources 빈 배열은 누락', () => {
-  const rec = { name:'X', type:'공기업', region:'11', confidence:'추정', sources:[] };
-  assert.strictEqual(logic.validateRecord(rec).valid, false);
-  assert.ok(logic.validateRecord(rec).missing.includes('sources'));
-});
-
-test('recordGlyph: ! 우선, 그다음 ?', () => {
-  const broken = { name:'X', type:'공기업' };
-  assert.strictEqual(logic.recordGlyph(broken), '!');
-  const noDate = { name:'X', type:'공기업', region:'11', confidence:'확정', sources:['s'] };
-  assert.strictEqual(logic.recordGlyph(noDate), '?');
-  const ok = Object.assign({}, noDate, { contractEnd:'2027-01-01' });
-  assert.strictEqual(logic.recordGlyph(ok), '');
+test('recordGlyph: ! 우선(필수누락), 그다음 ?(유효일 없음)', () => {
+  assert.strictEqual(logic.recordGlyph({ name:'X', type:'공기업' }), '!'); // region 없음
+  assert.strictEqual(logic.recordGlyph({ name:'X', type:'공기업', region:'11' }), '?'); // 날짜 없음
+  assert.strictEqual(logic.recordGlyph({ name:'X', type:'공기업', region:'11', contractEnd:'2027-01-01' }), '');
 });
 
 test('markerShape 매핑', () => {
@@ -85,7 +76,90 @@ test('esc: 일반 문자열/숫자는 그대로(문자열화만)', () => {
   assert.strictEqual(logic.esc(''), '');
 });
 
-test('ALL_FIELDS: 6개 필드를 순서대로 담음', () => {
+test('ALL_FIELDS: 신규 스키마 필드', () => {
   assert.deepStrictEqual(logic.ALL_FIELDS,
-    ['name','type','region','contractEnd','confidence','sources']);
+    ['name','type','region','term','lastBid','contractEnd','confirmed','lng','lat','sources','updatedAt']);
+});
+
+test('formatBidDate: 괄호 표기', () => {
+  assert.strictEqual(logic.formatBidDate({ contractEnd:'2026-12-03', confirmed:true }), '2026-12-03(확정)');
+  assert.strictEqual(logic.formatBidDate({ contractEnd:'2026-12-03' }), '2026-12-03(추측)');
+  assert.strictEqual(logic.formatBidDate({ lastBid:'2022-12-05', term:2 }), '2024-12-05(추측)');
+  assert.strictEqual(logic.formatBidDate({}), '미상');
+});
+
+test('FIELD_LABELS: 한글 라벨 매핑', () => {
+  assert.strictEqual(logic.FIELD_LABELS.contractEnd, '입찰예상일');
+  assert.strictEqual(logic.FIELD_LABELS.term, '입찰주기');
+});
+
+test('addYears: 정수 년 더하기', () => {
+  assert.strictEqual(logic.addYears('2022-12-05', 2), '2024-12-05');
+  assert.strictEqual(logic.addYears('2020-02-29', 1), '2021-03-01'); // 윤일 롤오버
+  assert.strictEqual(logic.addYears('', 2), null);
+  assert.strictEqual(logic.addYears('bad', 2), null);
+});
+
+test('effectiveBid: 확정/추측/미상 유도', () => {
+  // 확정: 날짜 + confirmed
+  assert.deepStrictEqual(logic.effectiveBid({ contractEnd:'2026-12-03', confirmed:true }),
+    { date:'2026-12-03', confidence:'확정' });
+  // 추측: 날짜 있으나 confirmed 아님(기본)
+  assert.deepStrictEqual(logic.effectiveBid({ contractEnd:'2026-12-03' }),
+    { date:'2026-12-03', confidence:'추측' });
+  // 추측: 날짜 없고 지난입찰일+주기 → 계산
+  assert.deepStrictEqual(logic.effectiveBid({ lastBid:'2022-12-05', term:2 }),
+    { date:'2024-12-05', confidence:'추측' });
+  // 미상: 아무것도 없음
+  assert.deepStrictEqual(logic.effectiveBid({}), { date:null, confidence:'미상' });
+});
+
+test('urgencyOf: effectiveBid 기반', () => {
+  const today = new Date('2026-07-23T00:00:00');
+  assert.strictEqual(logic.urgencyOf({ contractEnd:'2026-08-01', confirmed:true }, today), logic.URGENCY.RED);
+  assert.strictEqual(logic.urgencyOf({ lastBid:'2022-01-01', term:4 }, today), logic.URGENCY.RED); // 2026-01-01
+  assert.strictEqual(logic.urgencyOf({}, today), logic.URGENCY.GRAY);
+});
+
+test('sortByUrgency: effectiveBid(추측 포함) 기준 임박순', () => {
+  const today = new Date('2026-07-23T00:00:00');
+  const list = [
+    { name:'미상' },
+    { name:'추측멂', lastBid:'2025-01-01', term:4 }, // 2029-01-01
+    { name:'확정임박', contractEnd:'2026-08-01', confirmed:true },
+  ];
+  assert.deepStrictEqual(logic.sortByUrgency(list, today).map(r=>r.name), ['확정임박','추측멂','미상']);
+});
+
+test('sortByInterest: 관심 먼저(임박순) 그 뒤 미관심(임박순)', () => {
+  const today = new Date('2026-07-23T00:00:00');
+  const list = [
+    { name:'미관심임박', contractEnd:'2026-08-01', confirmed:true },
+    { name:'관심멂', contractEnd:'2029-01-01', confirmed:true },
+    { name:'관심임박', contractEnd:'2026-09-01', confirmed:true },
+  ];
+  const hearts = new Set(['관심멂','관심임박']);
+  const out = logic.sortByInterest(list, today, r => hearts.has(r.name)).map(r=>r.name);
+  assert.deepStrictEqual(out, ['관심임박','관심멂','미관심임박']);
+});
+
+test('parseCsv: 한글헤더→영문키 + 타입 변환', () => {
+  const csv = '﻿기관명,기관구분,지역코드,입찰주기,지난입찰일,입찰예상일,확정여부,경도,위도,출처,수정일\n'
+    + '서울시청,지자체,11,2,2022-12-05,,,,,공고A;공고B,2026-07-25\n'
+    + '"A,병원",대학병원,11,,,2026-08-15,Y,126.99,37.56,,2026-07-25\n';
+  const recs = logic.parseCsv(csv);
+  assert.strictEqual(recs.length, 2);
+  assert.deepStrictEqual(recs[0], { name:'서울시청', type:'지자체', region:'11', term:2,
+    lastBid:'2022-12-05', contractEnd:'', confirmed:false, lng:null, lat:null,
+    sources:['공고A','공고B'], updatedAt:'2026-07-25' });
+  assert.strictEqual(recs[1].name, 'A,병원');       // 따옴표 내 쉼표 보존
+  assert.strictEqual(recs[1].confirmed, true);       // Y → true
+  assert.strictEqual(recs[1].lng, 126.99);
+  assert.deepStrictEqual(recs[1].sources, []);       // 빈 출처 → []
+});
+
+test('buildCsvTemplate: BOM + 헤더 포함', () => {
+  const t = logic.buildCsvTemplate();
+  assert.ok(t.startsWith('﻿'));
+  assert.ok(t.indexOf('기관명,기관구분,지역코드') >= 0);
 });

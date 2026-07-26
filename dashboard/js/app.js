@@ -47,6 +47,7 @@
         const s = root.render.state.enabledTypes;
         if (b.checked) s.add(b.dataset.type); else s.delete(b.dataset.type);
         if (root.render.state.currentRegion) root.render.drawMarkers(root.render.state.currentRegion);
+        if (root.render.state.currentRegion) root.render.drawRankingPanel(root.render.state.currentRegion);
       });
     });
     // 초기 enabledTypes를 체크상태와 동기화
@@ -59,7 +60,7 @@
     const fields = root.logic.ALL_FIELDS;
     wrap.innerHTML = fields.map(function (f) {
       const val = f === 'sources' ? (Array.isArray(rec.sources) ? rec.sources.join(', ') : '') : (rec[f] || '');
-      return '<label style="display:block;margin:6px 0;">' + f +
+      return '<label style="display:block;margin:6px 0;">' + (root.logic.FIELD_LABELS[f] || f) +
         '<input data-f="' + f + '" value="' + root.logic.esc(val) + '" style="width:100%;"></label>';
     }).join('');
     const modal = document.getElementById('edit-modal'); modal.style.display = 'block';
@@ -71,7 +72,7 @@
         partial[f] = f === 'sources' ? inp.value.split(',').map(function (s){ return s.trim(); }).filter(Boolean) : inp.value;
       });
       const v = root.logic.validateRecord(Object.assign({}, rec, partial));
-      if (!v.valid) { alert('필수 필드 누락: ' + v.missing.join(', ')); return; }
+      if (!v.valid) { alert('필수 필드 누락: ' + v.missing.map(function(k){return root.logic.FIELD_LABELS[k]||k;}).join(', ')); return; }
       root.store.setEdit(rec.name, partial); modal.style.display = 'none';
       if (root.render.state.currentRegion) { root.render.drawRegion(root.render.state.currentRegion); }
       root.render.drawTicker();
@@ -83,6 +84,58 @@
     });
   };
 
+  app.openAdd = function () {
+    const wrap = document.getElementById('add-fields');
+    const L = root.logic.FIELD_LABELS;
+    const fields = ['name','type','region','term','lastBid','contractEnd','lng','lat','sources'];
+    wrap.innerHTML = fields.map(function (f) {
+      return '<label style="display:block;margin:6px 0;">' + L[f] +
+        '<input data-f="' + f + '" style="width:100%;"></label>';
+    }).join('') +
+      '<label style="display:flex;gap:6px;align-items:center;margin:6px 0;">' +
+      '<input type="checkbox" data-f="confirmed"> ' + L.confirmed + '(공고로 확인됨)</label>' +
+      '<p style="color:var(--muted);font-size:11px;">확정여부를 체크하지 않으면 "추측"으로 표시됩니다.</p>';
+    const modal = document.getElementById('add-modal'); modal.style.display = 'block';
+    document.getElementById('add-cancel').onclick = function () { modal.style.display = 'none'; };
+    document.getElementById('add-save').onclick = function () {
+      const rec = {};
+      wrap.querySelectorAll('input[data-f]').forEach(function (inp) {
+        const f = inp.dataset.f;
+        if (f === 'confirmed') rec.confirmed = inp.checked;
+        else if (f === 'sources') rec.sources = inp.value ? inp.value.split(',').map(function (s){ return s.trim(); }).filter(Boolean) : [];
+        else if (f === 'term') rec.term = inp.value ? Number(inp.value) : undefined;
+        else if (f === 'lng' || f === 'lat') rec[f] = inp.value ? Number(inp.value) : undefined;
+        else if (inp.value) rec[f] = inp.value;
+      });
+      const v = root.logic.validateRecord(rec);
+      if (!v.valid) { alert('필수 누락: ' + v.missing.map(function(k){return root.logic.FIELD_LABELS[k];}).join(', ')); return; }
+      rec.updatedAt = new Date().toISOString().slice(0,10);
+      const data = root.render.baseInstitutions().slice(); data.push(rec);
+      root.store.saveData(data); modal.style.display = 'none';
+      root.render.drawTicker();
+      if (root.render.state.currentRegion) root.render.drawRegion(root.render.state.currentRegion);
+      else root.render.drawNational();
+    };
+  };
+
+  app.wireData = function () {
+    document.getElementById('btn-add').addEventListener('click', app.openAdd);
+    document.getElementById('btn-tmpl').addEventListener('click', function () { root.exporter.downloadCsvTemplate(); });
+    document.getElementById('file-csv').addEventListener('change', function (e) {
+      const file = e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function () {
+        const recs = root.logic.parseCsv(String(reader.result));
+        if (!recs.length) { alert('CSV에서 읽은 행이 없습니다.'); return; }
+        recs.forEach(function (r) { if (!r.updatedAt) r.updatedAt = new Date().toISOString().slice(0,10); });
+        root.store.saveData(recs);
+        alert(recs.length + '건을 반영했습니다.');
+        root.render.drawTicker(); root.render.drawNational();
+      };
+      reader.readAsText(file, 'utf-8'); e.target.value = '';
+    });
+  };
+
   app.init = function () {
     if (window.__d3failed || typeof d3 === 'undefined') { if (root.render.renderFallback) root.render.renderFallback(); return; }
     root.render.drawNational();
@@ -91,6 +144,7 @@
     root.render.drawTicker();
     document.getElementById('btn-back').addEventListener('click', app.backToNational);
     app.wireExport();
+    app.wireData();
   };
   document.addEventListener('DOMContentLoaded', app.init);
 
