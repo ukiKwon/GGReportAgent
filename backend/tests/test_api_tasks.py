@@ -108,3 +108,40 @@ def test_approve_rejects_second_different_approver(client_and_task):
         f"/tasks/{task_id}/approve", json={"approved": True}, headers={"X-User-Id": "someone-else"}
     )
     assert second.status_code == 403
+
+
+from unittest.mock import MagicMock, patch
+
+
+@patch("backend.routers.tasks.stream_chat_reply")
+def test_post_message_streams_and_persists_reply(mock_stream, client_and_task):
+    test_client, task_id = client_and_task
+    mock_stream.return_value = iter(["안녕", "하세요"])
+
+    resp = test_client.post(
+        f"/tasks/{task_id}/messages",
+        json={"content": "소개 부탁해요"},
+        headers={"X-User-Id": "dave"},
+    )
+    assert resp.status_code == 200
+    assert resp.text == "안녕하세요"
+
+    detail = test_client.get(f"/tasks/{task_id}").json()
+    assert detail["assignee"] == "dave"
+    assert detail["status"] == "작성중"
+    assert [m["role"] for m in detail["messages"]] == ["user", "agent"]
+    assert detail["draft_content"] == "안녕하세요"
+
+
+@patch("backend.routers.tasks.stream_chat_reply")
+def test_post_message_rejects_second_assignee(mock_stream, client_and_task):
+    test_client, task_id = client_and_task
+    mock_stream.return_value = iter(["ok"])
+    test_client.post(
+        f"/tasks/{task_id}/messages", json={"content": "hi"}, headers={"X-User-Id": "dave"}
+    )
+
+    resp = test_client.post(
+        f"/tasks/{task_id}/messages", json={"content": "hi again"}, headers={"X-User-Id": "eve"}
+    )
+    assert resp.status_code == 403
