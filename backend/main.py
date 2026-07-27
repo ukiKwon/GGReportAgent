@@ -3,6 +3,7 @@ import os
 from fastapi import FastAPI
 
 from backend.db import init_db
+from backend.routers.bidcases import router as bidcases_router
 from backend.routers.institutions import router as institutions_router
 
 
@@ -11,6 +12,7 @@ def create_app(db_path: str) -> FastAPI:
     app.state.db_path = db_path
     init_db(db_path).close()
     app.include_router(institutions_router)
+    app.include_router(bidcases_router)
     return app
 
 
