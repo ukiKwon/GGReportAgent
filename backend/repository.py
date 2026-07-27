@@ -62,16 +62,23 @@ def _find_id_by_name(conn: sqlite3.Connection, name_ko: str) -> str | None:
     return row["institution_id"] if row else None
 
 
-def upsert_institution(conn: sqlite3.Connection, row: InstitutionImportRow) -> str:
+def upsert_institution(
+    conn: sqlite3.Connection, row: InstitutionImportRow, commit: bool = True
+) -> str:
     existing_id = _find_id_by_name(conn, row.name_ko)
     if existing_id:
         conn.execute(
             """UPDATE institutions
-               SET region_code = ?, type = ?, term = ?, last_bid = ?, contract_end = ?
+               SET region_code = COALESCE(?, region_code),
+                   type = COALESCE(?, type),
+                   term = COALESCE(?, term),
+                   last_bid = COALESCE(?, last_bid),
+                   contract_end = COALESCE(?, contract_end)
                WHERE institution_id = ?""",
             (row.region_code, row.type, row.term, row.last_bid, row.contract_end, existing_id),
         )
-        conn.commit()
+        if commit:
+            conn.commit()
         return existing_id
 
     new_id = f"new-{secrets.token_hex(4)}"
@@ -81,7 +88,8 @@ def upsert_institution(conn: sqlite3.Connection, row: InstitutionImportRow) -> s
            VALUES (?, ?, ?, ?, ?, ?, ?, 1)""",
         (new_id, row.name_ko, row.region_code, row.type, row.term, row.last_bid, row.contract_end),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return new_id
 
 

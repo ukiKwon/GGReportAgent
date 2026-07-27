@@ -36,6 +36,36 @@ def test_upsert_matches_existing_by_name(tmp_path):
     conn.close()
 
 
+def test_upsert_partial_reimport_preserves_existing_fields(tmp_path):
+    conn = init_db(str(tmp_path / "registry.db"))
+    first_id = upsert_institution(
+        conn,
+        InstitutionImportRow(
+            name_ko="테스트구청",
+            type="지자체",
+            region_code="11",
+            term=4,
+            last_bid="2022-12-30",
+        ),
+    )
+
+    # Simulates re-importing a CSV export missing some columns (parse_csv drops
+    # empty cells, so Pydantic defaults those fields to None). None must NOT
+    # overwrite the existing DB values.
+    second_id = upsert_institution(
+        conn, InstitutionImportRow(name_ko="테스트구청", contract_end="2027-01-01")
+    )
+
+    assert second_id == first_id
+    fetched = get_institution(conn, first_id)
+    assert fetched.type == "지자체"
+    assert fetched.region_code == "11"
+    assert fetched.term == 4
+    assert fetched.last_bid == "2022-12-30"
+    assert fetched.contract_end == "2027-01-01"
+    conn.close()
+
+
 def test_list_institutions_returns_all(tmp_path):
     conn = init_db(str(tmp_path / "registry.db"))
     upsert_institution(conn, InstitutionImportRow(name_ko="가구청"))
@@ -73,4 +103,29 @@ def test_seed_giganlist_districts_is_idempotent(tmp_path):
     second_run = seed_giganlist_districts(conn, giganlist_root)
 
     assert second_run == []
+    conn.close()
+
+
+def test_upsert_matches_seeded_giganlist_institution_by_name(tmp_path):
+    """Integration test for spec §③: a CSV row whose 기관명 matches an
+    already-seeded giganlist institution's name_ko must update that same
+    institution by its slug id, not create a `new-` duplicate, and must
+    preserve the giganlist-seeded fields (giganlist_dir, stage)."""
+    conn = init_db(str(tmp_path / "registry.db"))
+    giganlist_root = tmp_path / "giganlist"
+    (giganlist_root / "dobong").mkdir(parents=True)
+
+    seed_giganlist_districts(conn, giganlist_root)
+    seeded = get_institution(conn, "dobong")
+
+    imported_id = upsert_institution(
+        conn, InstitutionImportRow(name_ko=seeded.name_ko, type="지자체", term=4)
+    )
+
+    assert imported_id == "dobong"
+    updated = get_institution(conn, "dobong")
+    assert updated.giganlist_dir == "giganlist/dobong"
+    assert updated.stage == 1
+    assert updated.type == "지자체"
+    assert updated.term == 4
     conn.close()
