@@ -114,37 +114,23 @@
   실패, `py` 런처 사용). ship-as-is Minor 목록은 `.superpowers/sdd/progress.md` +
   `2026-07-24_summary.md` 07:43 섹션.
 
-### 3. E2E 입찰워크플로우 시스템 — sub-project 0(레지스트리) 계획 작성 완료, 실행 미착수
-- **출처**: `2026-07-26_summary.md` `## Session (E2E 입찰워크플로우 시스템 — 브레인스토밍→
-  스펙→sub-project 0 플랜)`.
-- **배경**: 사용자가 실제 업무 9단계 workflow(입찰현황 파악→...→제안서 제출) 전체를 담는
-  시스템을 원함 — 기존 `dashboard/`·`report/`·`agent/`는 그 시스템의 컴포넌트일 뿐.
-  `superpowers:brainstorming`으로 배포형태(부분 폐쇄망, 경계는 3/4단계 사이)·LLM(GPT-OSS
-  120B, 어댑터 분리)·콘텐츠 생성(코퍼스+LLM polish 하이브리드)·아키텍처(Approach A,
-  Next.js+FastAPI+SQLite 레지스트리)·2-트랙 배포(로컬 폐쇄망 운영 / AWS+Vercel 데모)까지
-  전부 확정.
-- **산출물**: 스펙 `docs/superpowers/specs/2026-07-26-e2e-bid-workflow-system-design.md`
-  (커밋 `1cf9d70`, repo 루트 — `agent/docs/...`의 기존 스펙과 다른 경로). 이 스펙 §⑧에서
-  구현을 6개 sub-project(0 레지스트리→1 DMZ FastAPI→2 폐쇄망 백엔드 코어→3 agent 신규
-  노드→4 6단계 3팀분화→5 Next.js 프론트→6 Track2 배포)로 분리하기로 명시.
-  sub-project 0 계획 `docs/superpowers/plans/2026-07-26-registry-institutions-api.md`
-  (커밋 `64ad8aa`) — `backend/` 패키지 신규, SQLite 스키마+repository CRUD+CSV
-  반입(기존 dashboard 템플릿 재사용)+FastAPI 4개 엔드포인트(list/detail/import/artifacts,
-  `advance`/`status`/`checkpoint`는 의도적 제외)+giganlist 23개구 시딩, 5개 TDD 태스크.
-- **환경 메모(재개 시 바로 필요)**: 이 머신은 맨 `python`/`pip`가 Windows Store 스텁이라
-  실패 — 실제 인터프리터는 `py -3`(3.14.0). `fastapi`/`pydantic`/`pytest`/`httpx` 전부
-  미설치 상태 확인함(plan Task 1 Step 2가 설치).
-- **다음 단계**: 사용자에게 실행방식(1. Subagent-Driven 추천 / 2. Inline) 질문한
-  상태에서 "마무리해줘" 지시가 들어와 **실행은 아직 시작 안 함**. 다음 세션은 이
-  선택부터 받아서 `superpowers:subagent-driven-development` 또는
-  `superpowers:executing-plans`로 Task 1부터 진행.
-- **참고**: 항목 1(agent/ RFP 팀 확장)의 기존 설계가 이 스펙으로 일부 대체됨 — 위 항목 1의
-  "⚠️ 중요 갱신" 참고.
-
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
 
+- ~~E2E 입찰워크플로우 시스템 — sub-project 0(레지스트리 & 기관 API) 구현~~ (구 항목 3) —
+  `2026-07-27_summary.md` `## Session 22:33`에서 해소: `superpowers:subagent-driven-development`로
+  `docs/superpowers/plans/2026-07-26-registry-institutions-api.md`의 5개 Task를 전부
+  구현·개별 리뷰(clean, Task 4 fix 1건 사용자 승인 후 반영)·최종 전체 브랜치 리뷰(opus,
+  Important 4건+테스트 공백 1건+gitignore 발견 → 1개 fix wave로 전부 수정·재리뷰 clean)까지
+  마치고 `main`에 로컬 병합(`d3533cb`, 20/20 테스트 통과). 계획서의
+  `GIGANLIST_DISTRICT_NAMES`가 23개구로 stale했던 것을 사용자 승인받아 송파+강동 2건
+  추가(25개)하는 편차를 뒀는데, 이 결정이 세션 도중 발견된 동시성 이슈(다른 세션이
+  강동구 배치를 같은 시간대에 완결시킴, 커밋 `bce1a09`)를 데이터 유실 없이 흡수함 —
+  병합 후 `giganlist/` 25개 폴더·`GIGANLIST_DISTRICT_NAMES` 25개 항목 모두 확인됨.
+  워크트리(`registry-institutions-api`)·브랜치 정리 완료. sub-project 1(DMZ FastAPI)부터는
+  스펙(`docs/superpowers/specs/2026-07-26-e2e-bid-workflow-system-design.md`) §⑧
+  로드맵대로 별도 세션에서 계획부터 새로 시작해야 함(아직 계획 없음).
 - ~~**25개 자치구 배치 프로젝트 (20/20 완결)**~~ (구 항목 1) — `2026-07-27_summary.md`
   `## Session 01:39`(송파) + `## Session 07:27`(강동)에서 마지막 2건을 1건씩 순차
   디스패치해 **완결**. `giganlist/` 폴더 **25개 도달**(원본 5개구 + 배치 20개구).
