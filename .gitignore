@@ -2,3 +2,5 @@
 .superpowers/
 
 registry.db
+__pycache__/
+.pytest_cache/
