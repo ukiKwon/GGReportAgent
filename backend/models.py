@@ -23,3 +23,81 @@ class InstitutionImportRow(BaseModel):
     term: int | None = None
     last_bid: str | None = None
     contract_end: str | None = None
+
+
+class ParticipationDecisionIn(BaseModel):
+    tier: int
+    role: str
+    by: str
+    choice: str
+    comment: str | None = None
+
+
+class ParticipationDecisionEntry(BaseModel):
+    tier: int
+    role: str
+    by: str
+    at: str
+    choice: str
+    comment: str | None = None
+
+
+class BidCase(BaseModel):
+    bid_case_id: str
+    institution_id: str
+    schedule_confidence: str = "예상"
+    expected_date: str | None = None
+    confirmed_date: str | None = None
+    last_synced_at: str | None = None
+    participation_status: str = "검토중"
+    participation_decision: list[ParticipationDecisionEntry] = []
+
+
+class TaskSummary(BaseModel):
+    task_id: str
+    team: str
+    status: str
+    progress_pct: int
+    assignee: str | None = None
+    approver: str | None = None
+
+
+class BidCaseDetail(BidCase):
+    tasks: list[TaskSummary] = []
+
+
+class Task(BaseModel):
+    task_id: str
+    bid_case_id: str
+    team: str
+    status: str = "대기"
+    progress_pct: int = 0
+    draft_content: str = ""
+    assignee: str | None = None
+    approver: str | None = None
+
+
+class Message(BaseModel):
+    message_id: str
+    task_id: str
+    role: str
+    content: str
+    created_at: str
+
+
+class TaskDetail(Task):
+    messages: list[Message] = []
+
+
+class TaskMessageIn(BaseModel):
+    content: str
+
+
+class TaskApprovalIn(BaseModel):
+    approved: bool
+    comment: str | None = None
+
+
+class BidCaseFinalizeIn(BaseModel):
+    approved: bool
+    comment: str | None = None
