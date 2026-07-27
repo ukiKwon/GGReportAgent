@@ -15,6 +15,37 @@ CREATE TABLE IF NOT EXISTS institutions (
     scoring_table  TEXT,
     pptx_path      TEXT
 );
+
+CREATE TABLE IF NOT EXISTS bid_cases (
+    bid_case_id            TEXT PRIMARY KEY,
+    institution_id         TEXT NOT NULL REFERENCES institutions(institution_id),
+    schedule_confidence    TEXT NOT NULL DEFAULT '예상',
+    expected_date          TEXT,
+    confirmed_date          TEXT,
+    last_synced_at         TEXT,
+    participation_status   TEXT NOT NULL DEFAULT '검토중',
+    participation_decision TEXT NOT NULL DEFAULT '[]'
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+    task_id       TEXT PRIMARY KEY,
+    bid_case_id   TEXT NOT NULL REFERENCES bid_cases(bid_case_id),
+    team          TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT '대기',
+    progress_pct  INTEGER NOT NULL DEFAULT 0,
+    draft_content TEXT NOT NULL DEFAULT '',
+    assignee      TEXT,
+    approver      TEXT,
+    UNIQUE(bid_case_id, team)
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+    message_id TEXT PRIMARY KEY,
+    task_id    TEXT NOT NULL REFERENCES tasks(task_id),
+    role       TEXT NOT NULL,
+    content    TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -26,6 +57,6 @@ def get_connection(db_path: str) -> sqlite3.Connection:
 
 def init_db(db_path: str) -> sqlite3.Connection:
     conn = get_connection(db_path)
-    conn.execute(SCHEMA)
+    conn.executescript(SCHEMA)
     conn.commit()
     return conn
