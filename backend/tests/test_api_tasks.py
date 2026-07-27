@@ -65,3 +65,46 @@ def test_submit_and_approve_flow(client_and_task):
     assert approve_resp.status_code == 200
     assert approve_resp.json()["status"] == "2차완료"
     assert approve_resp.json()["approver"] == "boss"
+
+
+def test_approve_before_submit_is_409(client_and_task):
+    test_client, task_id = client_and_task
+    from backend.db import get_connection
+    from backend.task_repository import claim_assignee_if_unset
+
+    db_path = test_client.app.state.db_path
+    conn = get_connection(db_path)
+    claim_assignee_if_unset(conn, task_id, "dave")
+    conn.close()
+
+    resp = test_client.post(
+        f"/tasks/{task_id}/approve", json={"approved": True}, headers={"X-User-Id": "boss"}
+    )
+    assert resp.status_code == 409
+
+
+def test_approve_rejects_second_different_approver(client_and_task):
+    test_client, task_id = client_and_task
+    from backend.db import get_connection
+    from backend.task_repository import claim_assignee_if_unset
+
+    db_path = test_client.app.state.db_path
+    conn = get_connection(db_path)
+    claim_assignee_if_unset(conn, task_id, "dave")
+    conn.close()
+
+    test_client.post(f"/tasks/{task_id}/submit", headers={"X-User-Id": "dave"})
+    first = test_client.post(
+        f"/tasks/{task_id}/approve", json={"approved": True}, headers={"X-User-Id": "boss"}
+    )
+    assert first.status_code == 200
+    assert first.json()["approver"] == "boss"
+
+    # approver is now permanently claimed as "boss" (claim_approver_if_unset only sets
+    # it once). A different caller hitting approve should get 403 regardless of the
+    # task's current status, since the approver-mismatch check runs before the
+    # status check in post_task_approve.
+    second = test_client.post(
+        f"/tasks/{task_id}/approve", json={"approved": True}, headers={"X-User-Id": "someone-else"}
+    )
+    assert second.status_code == 403
