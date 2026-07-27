@@ -1,0 +1,67 @@
+import pytest
+from fastapi.testclient import TestClient
+
+from backend.db import get_connection
+from backend.main import create_app
+
+
+@pytest.fixture
+def client_and_task(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    app = create_app(db_path)
+    conn = get_connection(db_path)
+    conn.execute(
+        "INSERT INTO institutions (institution_id, name_ko, stage) VALUES ('mapo', '마포구', 1)"
+    )
+    conn.commit()
+    conn.close()
+
+    with TestClient(app) as test_client:
+        bid_case_id = test_client.post("/bidcases", json={"institution_id": "mapo"}).json()[
+            "bid_case_id"
+        ]
+        for tier, by in [(1, "alice"), (2, "bob"), (3, "carol")]:
+            test_client.post(
+                f"/bidcases/{bid_case_id}/participation-decisions",
+                json={"tier": tier, "role": "r", "by": by, "choice": "참여"},
+            )
+        detail = test_client.get(f"/bidcases/{bid_case_id}").json()
+        task_id = [t for t in detail["tasks"] if t["team"] == "영업"][0]["task_id"]
+        yield test_client, task_id
+
+
+def test_get_task_detail(client_and_task):
+    test_client, task_id = client_and_task
+    resp = test_client.get(f"/tasks/{task_id}")
+    assert resp.status_code == 200
+    assert resp.json()["team"] == "영업"
+    assert resp.json()["messages"] == []
+
+
+def test_submit_requires_matching_assignee(client_and_task):
+    test_client, task_id = client_and_task
+    resp = test_client.post(f"/tasks/{task_id}/submit", headers={"X-User-Id": "dave"})
+    assert resp.status_code == 403
+
+
+def test_submit_and_approve_flow(client_and_task):
+    test_client, task_id = client_and_task
+
+    from backend.db import get_connection
+    from backend.task_repository import claim_assignee_if_unset
+
+    db_path = test_client.app.state.db_path
+    conn = get_connection(db_path)
+    claim_assignee_if_unset(conn, task_id, "dave")
+    conn.close()
+
+    submit_resp = test_client.post(f"/tasks/{task_id}/submit", headers={"X-User-Id": "dave"})
+    assert submit_resp.status_code == 200
+    assert submit_resp.json()["status"] == "1차완료"
+
+    approve_resp = test_client.post(
+        f"/tasks/{task_id}/approve", json={"approved": True}, headers={"X-User-Id": "boss"}
+    )
+    assert approve_resp.status_code == 200
+    assert approve_resp.json()["status"] == "2차완료"
+    assert approve_resp.json()["approver"] == "boss"
