@@ -120,6 +120,9 @@
 | `participation_status` | TEXT | `검토중` \| `참여확정` \| `미참여확정` \| `보류` |
 | `participation_decision` | TEXT (JSON) | `[{tier:1|2|3, role, by, at, choice, comment}]` |
 
+BidCase는 생성 시점에 `participation_status="검토중"`, `participation_decision=[]`으로
+시작한다(별도 "미결정" 상태를 두지 않고 `검토중`이 초기값을 겸한다).
+
 ### Task (BidCase당 3개: 영업/IT/예산)
 
 | 필드 | 타입 | 설명 |
@@ -148,6 +151,12 @@
 ---
 
 ## ④ API 엔드포인트 계약
+
+**신원 확인**: 이 저장소에는 아직 인증/RBAC 시스템이 없다(sub-project 0도 미포함). 이
+설계는 모든 요청에 `X-User-Id` 헤더로 호출자를 식별하고, 서버는 이 값을 `assignee`·
+`approver`·`participation_decision[].by`와 문자열로 단순 비교하는 것으로 가정한다(User
+테이블이나 세션 없음). 실제 로그인/권한 시스템은 별도 설계로 다룬다 — 이 문서는 "누가
+호출했는지 어떻게 검증하는지"의 최소 계약만 명시한다.
 
 ```
 POST /bidcases/{id}/participation-decisions
@@ -250,3 +259,6 @@ POST /bidcases/{id}/finalize
   표로 정리해 어느 부분이 대체되고 어느 부분이 유지되는지 중의성 없앰.
 - 범위 밖 항목(①)을 명시해 이번 설계가 크롤링·기존 5개 노드 내부 로직·Next.js 구현까지
   포함한다는 오해를 방지.
+- 셀프리뷰 중 발견 및 수정: BidCase의 `participation_status` 초기값이 불명확했던 부분을
+  §③에 "생성 시 검토중으로 시작" 명시로 해소. `assignee`/`approver` 일치 검증에 필요한
+  "호출자 신원을 어떻게 아는지"가 빠져 있던 부분을 §④에 `X-User-Id` 헤더 가정으로 명시.
