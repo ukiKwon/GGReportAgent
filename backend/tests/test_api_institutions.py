@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import create_app
@@ -41,6 +42,45 @@ def test_get_institution_404(tmp_path):
     response = client.get("/institutions/does-not-exist")
 
     assert response.status_code == 404
+
+
+def test_import_malformed_csv_returns_400_not_500(tmp_path):
+    app = create_app(str(tmp_path / "registry.db"))
+    client = TestClient(app)
+    csv_text = "기관명,입찰주기\n테스트구청,4년\n"
+    files = {"file": ("import.csv", csv_text.encode("utf-8-sig"), "text/csv")}
+
+    response = client.post("/institutions/import", files=files)
+
+    assert response.status_code == 400
+    assert "row 1" in response.json()["detail"]
+
+
+def test_import_rolls_back_all_rows_on_partial_failure(tmp_path, monkeypatch):
+    app = create_app(str(tmp_path / "registry.db"))
+    client = TestClient(app)
+
+    import backend.routers.institutions as institutions_module
+
+    original_upsert = institutions_module.upsert_institution
+    call_count = {"n": 0}
+
+    def flaky_upsert(conn, row, commit=True):
+        call_count["n"] += 1
+        if call_count["n"] == 2:
+            raise RuntimeError("simulated failure on second row")
+        return original_upsert(conn, row, commit=commit)
+
+    monkeypatch.setattr(institutions_module, "upsert_institution", flaky_upsert)
+
+    csv_text = "기관명\n가구청\n나구청\n"
+    files = {"file": ("import.csv", csv_text.encode("utf-8-sig"), "text/csv")}
+
+    with pytest.raises(RuntimeError):
+        client.post("/institutions/import", files=files)
+
+    list_response = client.get("/institutions")
+    assert list_response.json() == []
 
 
 def test_get_artifacts_returns_paths(tmp_path):
