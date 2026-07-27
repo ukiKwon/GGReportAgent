@@ -36,10 +36,19 @@ def get_institution_detail(institution_id: str, request: Request) -> Institution
 @router.post("/import")
 async def import_institutions(file: UploadFile, request: Request) -> dict:
     raw = await file.read()
-    rows = parse_csv(raw)
+    try:
+        rows = parse_csv(raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     conn = _conn(request)
     try:
-        ids = [upsert_institution(conn, row) for row in rows]
+        try:
+            ids = [upsert_institution(conn, row, commit=False) for row in rows]
+        except Exception:
+            conn.rollback()
+            raise
+        conn.commit()
     finally:
         conn.close()
     return {"imported": len(ids), "institution_ids": ids}

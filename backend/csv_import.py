@@ -1,6 +1,8 @@
 import csv
 import io
 
+from pydantic import ValidationError
+
 from backend.models import InstitutionImportRow
 
 HEADER_MAP = {
@@ -14,15 +16,22 @@ HEADER_MAP = {
 
 
 def parse_csv(raw: bytes) -> list[InstitutionImportRow]:
-    text = raw.decode("utf-8-sig")
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode("cp949")
+
     reader = csv.DictReader(io.StringIO(text))
     rows = []
-    for record in reader:
-        mapped = {}
-        for ko_header, field in HEADER_MAP.items():
-            value = (record.get(ko_header) or "").strip()
-            if not value:
-                continue
-            mapped[field] = int(value) if field == "term" else value
-        rows.append(InstitutionImportRow(**mapped))
+    for row_num, record in enumerate(reader, start=1):
+        try:
+            mapped = {}
+            for ko_header, field in HEADER_MAP.items():
+                value = (record.get(ko_header) or "").strip()
+                if not value:
+                    continue
+                mapped[field] = int(value) if field == "term" else value
+            rows.append(InstitutionImportRow(**mapped))
+        except (ValueError, ValidationError) as exc:
+            raise ValueError(f"row {row_num}: {exc}") from exc
     return rows
