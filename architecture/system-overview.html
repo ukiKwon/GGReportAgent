@@ -507,7 +507,7 @@
 
   <main>
     <header class="hero" id="overview">
-      <div class="eyebrow">Architecture Snapshot · 2026-07-29 (rev.3, E2E 관점)</div>
+      <div class="eyebrow">Architecture Snapshot · 2026-07-29 (rev.4, E2E 관점)</div>
       <h1>입찰 감지에서 제안서 제출까지 — 실제로 이어진 구간과 사람이 손으로 건너는 구간</h1>
       <p>
         이 문서는 컴포넌트 목록이 아니라 <strong>업무 흐름 9단계를 축으로</strong> 정리했다.
@@ -564,7 +564,8 @@
             <span class="delta-mark up">개선</span>
             <span><strong>지도 가독성·드릴인 연출</strong> — 커밋 <code class="inline">c5b03d6</code>(구 단위
             <code class="inline">subRegion</code> 매칭·파스텔 팔레트·선택 강조), <code class="inline">be194ee</code>
-            (라벨 헤일로·범례 우하단 고정·줌 타이틀). 지도 자체는 지시 없이 건드리지 않는 영역.</span>
+            (라벨 헤일로·범례 우하단 고정), <code class="inline">4909a11</code>(지도를 덮던 큰 지역명
+            오버레이 제거). 지도 자체는 지시 없이 건드리지 않는 영역.</span>
           </li>
           <li>
             <span class="delta-mark warn">새로 드러남</span>
@@ -572,6 +573,14 @@
             "수원시 금고 지정 계획 공고문.pdf". 그런데 수원시는 <code class="inline">giganlist/</code>(서울 25구)에
             없다 → <strong>③단계 산출물이 ④단계로 넘어가도 근거 코퍼스가 없어 멈춘다.</strong>
             신규 기관 spec 자동생성 노드 부재가 추상적 결함이 아니라 지금 실제로 막고 있는 지점.</span>
+          </li>
+          <li>
+            <span class="delta-mark up">방향 전환</span>
+            <span><strong>⑤ 신규 기관 코퍼스 — <code class="inline">spec_research_node</code> 구상 폐기</strong>.
+            신규 스펙 <code class="inline">2026-07-29-institution-corpus-validation-design.md</code>가
+            "조사는 DMZ에서 사람이 수행, 시스템은 기계적 검증 + 반입 + 게이팅만"으로 확정했다.
+            자동 조사 노드를 만들지 않는 대신 <strong>코퍼스가 없으면 Task 3개를 아예 만들지 않는
+            게이트</strong>가 들어온다(설계만, 미구현).</span>
           </li>
           <li>
             <span class="delta-mark same">여전히 열림</span>
@@ -585,7 +594,7 @@
           </li>
         </ul>
       </div>
-      <p class="panel-caption">기준 커밋 be194ee + 미커밋 작업분 · 초판 0b1bd4e</p>
+      <p class="panel-caption">기준 커밋 784b496 · 초판 0b1bd4e</p>
     </section>
 
     <section id="e2e">
@@ -614,7 +623,7 @@ flowchart TB
         direction TB
         S4["④ RFI 분석\nagent/nodes/rfp_analysis.py\n배점표·요구사항 추출 (백엔드 미연결)"]
         DEC["◆ 참여 여부 결정 (스펙 신설)\nPOST /bidcases/{id}/participation-decisions\n실무자 → 팀장 → 부장 3단계 강제"]
-        S5["⑤ 제안서 기획\n참여확정 순간 tasks 3건 자동 생성\n(영업·IT·예산, 상태=대기)"]
+        S5["⑤ 제안서 기획\n참여확정 순간 tasks 3건 자동 생성\n(영업·IT·예산, 상태=대기)\n⚠ 코퍼스 없어도 생성됨 — 게이트는 설계만"]
         S6["⑥ 세부기획 3팀 (병렬)\nPOST /tasks/{id}/messages — SSE 스트리밍\nagent_adapter.py 가 팀별 코퍼스 라우팅\n제출(1차) → 승인(2차)"]
         S7["⑦ 취합\nPOST /bidcases/{id}/finalize\nbackend/assembler.py → 3팀 초안을 PPTX로\ninstitutions.pptx_path 기록"]
         S8["⑧ 검토\nagent/nodes/verification.py 존재\n오탈자·RFI 역대조 미구현, 백엔드 미연결"]
@@ -777,7 +786,8 @@ flowchart TB
     subgraph PLANNED["⬜ 설계만 (E2E 스펙 §⑧)"]
         DMZ["DMZ FastAPI (AWS)\n①~③ 수집·감지·공시"]
         NEXTJS["Next.js 프론트\n폐쇄망 / Track2"]
-        NODES3["신규 노드\nrfp_locate · spec_research · plan_writer"]
+        NODES3["rfp_locate 노드 (③)\n※ spec_research는 07-29 스펙에서 폐기"]
+        CORPVAL["backend/corpus_validator.py (⑤)\n12개 규칙 검증 + 반입 API + Task 게이트"]
         LLMAD["폐쇄망 LLM 어댑터\nGPT-OSS 120B"]
     end
 
@@ -787,7 +797,8 @@ flowchart TB
     GL --> BUILDPY
     RFPDIR -.->|"수동 전달"| AGENT
     SK -.->|"사람이 호출"| RFPDIR
-    GL -.->|"신규 기관 생성 노드 없음"| AGENT
+    SK -.->|"사람이 만든 코퍼스"| CORPVAL
+    CORPVAL -.->|"검증 통과분만 반입"| REG
     REG --> SQLITE
     WF --> SQLITE
     WF --> ADAPTER
@@ -811,7 +822,7 @@ flowchart TB
     class GL,RFPDIR,SK data
     class DASH,REPORT,REG,WF,ADAPTER,ASM,SQLITE built
     class AGENT,LLM,BUILDPY partial
-    class DMZ,NEXTJS,NODES3,LLMAD planned
+    class DMZ,NEXTJS,NODES3,CORPVAL,LLMAD planned
 </pre>
       </div>
       <p class="panel-caption">실선 = 현재 코드로 연결된 흐름 · 점선 = 아직 코드가 없는 설계상 연결</p>
@@ -936,11 +947,14 @@ flowchart TB
             <code class="inline">agent/</code>에는 CLI 진입점 자체가 없어 Python REPL에서 직접 부르는 수밖에 없다.</span>
           </li>
           <li>
-            <span><strong>신규 기관 → 근거 코퍼스 (④ 진입 조건)</strong>
-            <code class="inline">giganlist/</code>에 없는 기관(예: 수원시)은 <code class="inline">agent_adapter</code>가
-            읽을 파일이 없어 ⑥단계가 의미 있게 동작하지 않는다. <code class="inline">spec_research_node</code>/
-            <code class="inline">plan_writer_node</code>가 담당할 자리인데 미구현이며, 현재는 사람이
-            <code class="inline">institution-corpus-format</code> 스킬로 손으로 만든다.</span>
+            <span><strong>신규 기관 → 근거 코퍼스 (⑤ 진입 조건)</strong>
+            <code class="inline">giganlist/</code>에 없는 기관(예: 수원시)은 <code class="inline">_load_team_corpus()</code>가
+            "(자료 없음)"을 돌려주는데도 ⑥단계가 그대로 진행돼, <strong>근거 없는 초안이 확정까지 갈 수 있다</strong>.
+            07-29 스펙이 이 구멍의 메우는 방식을 확정했다 — 조사는 DMZ에서 사람이 하고(현재
+            <code class="inline">institution-corpus-format</code> 스킬), 시스템은
+            <code class="inline">backend/corpus_validator.py</code>로 12개 규칙을 기계 검증한 뒤
+            <code class="inline">POST /institutions/{id}/corpus</code>로 반입하며,
+            <code class="inline">research_status='대기'</code>인 동안 Task 생성을 막는다. <strong>설계만, 미구현.</strong></span>
           </li>
           <li>
             <span><strong>검토 (⑧)</strong>
@@ -1142,9 +1156,10 @@ sequenceDiagram
       <p class="panel-caption">agent/pipeline.py:8-36 · agent/llm.py (모델 하드코딩, E2E 스펙 §⑥ LLM 어댑터 미적용)</p>
 
       <div class="note">
-        <strong>현재 한계 두 가지</strong> — ① <code class="inline">institution_match_node</code> 이후 "신규 기관이면
-        spec/plan을 자동 생성"하는 노드가 없어, <code class="inline">giganlist/</code>에 이미 있는 기관이 아니면
+        <strong>현재 한계 두 가지</strong> — ① <code class="inline">giganlist/</code>에 이미 있는 기관이 아니면
         파이프라인이 의미 있게 동작하지 않는다(현재 <code class="inline">RFP/</code>의 유일한 공고문이 바로 이 경우다).
+        07-29 스펙이 <strong>자동 생성 노드를 만들지 않기로</strong> 확정했으므로, 이 자리는 앞으로도
+        사람이 만든 코퍼스를 검증·반입하는 방식으로 채워진다(06절 S3).
         ② <code class="inline">get_llm()</code>은 API 키가 없으면 <code class="inline">getpass()</code>로 콘솔 입력을 기다리므로,
         서버에서 첫 스트리밍 요청이 들어올 때 키가 없으면 응답이 멈춘다 — 기동 전
         <code class="inline">OPENAI_API_KEY</code>를 넣어둘 것.
@@ -1198,7 +1213,7 @@ py -3 -m pytest backend/tests -q           # 72 passed</div>
           <tbody>
             <tr><td class="zone-tag">①②</td><td>입찰 공고 자동 수집·트리거 감지(DMZ FastAPI). 현재 지도 데이터는 수동 큐레이션</td><td class="zone-tag">sub-project 1</td></tr>
             <tr><td class="zone-tag">③</td><td><code class="inline">rfp_locate_node</code> — 공고문 자동 탐색. 지금은 스킬로 사람이 수행</td><td class="zone-tag">sub-project 3</td></tr>
-            <tr><td class="zone-tag">⑤</td><td><code class="inline">spec_research_node</code> · <code class="inline">plan_writer_node</code> — 신규 기관 코퍼스 자동 생성</td><td class="zone-tag">sub-project 3</td></tr>
+            <tr><td class="zone-tag">⑤</td><td><code class="inline">corpus_validator.py</code> · 코퍼스 반입 API 2개 · <code class="inline">research_status</code> Task 게이트</td><td class="zone-tag">07-29 코퍼스 검증 스펙</td></tr>
             <tr><td class="zone-tag">⑦</td><td>디자이너 서식·템플릿(현재 python-pptx 기본 레이아웃, 배점표 슬라이드는 "(배점표 없음)")</td><td class="zone-tag">E2E 스펙 §④</td></tr>
             <tr><td class="zone-tag">⑧</td><td>오탈자 검사 · RFI 역대조 검토</td><td class="zone-tag">E2E 스펙 §④</td></tr>
             <tr><td class="zone-tag">⑨</td><td>제출완료 상태 마킹</td><td class="zone-tag">E2E 스펙 §④</td></tr>
@@ -1218,7 +1233,7 @@ py -3 -m pytest backend/tests -q           # 72 passed</div>
     </section>
 
     <footer>
-      GGReportAgent · giganlist 25개 구청 연구 데이터 기반 · 기준 커밋 <span class="mono">be194ee</span> + ⑦단계 취합 작업분 ·
+      GGReportAgent · giganlist 25개 구청 연구 데이터 기반 · 기준 커밋 <span class="mono">784b496</span> ·
       backend 72 passed · agent 24 passed · dashboard 36 passed ·
       소스: <span class="mono">architecture/system-overview.html</span>
     </footer>
