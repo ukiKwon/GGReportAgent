@@ -24,7 +24,9 @@ CREATE TABLE IF NOT EXISTS bid_cases (
     confirmed_date          TEXT,
     last_synced_at         TEXT,
     participation_status   TEXT NOT NULL DEFAULT '검토중',
-    participation_decision TEXT NOT NULL DEFAULT '[]'
+    participation_decision TEXT NOT NULL DEFAULT '[]',
+    finalized_by           TEXT,
+    finalized_at           TEXT
 );
 
 CREATE TABLE IF NOT EXISTS tasks (

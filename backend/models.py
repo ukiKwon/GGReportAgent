@@ -51,6 +51,8 @@ class BidCase(BaseModel):
     last_synced_at: str | None = None
     participation_status: str = "검토중"
     participation_decision: list[ParticipationDecisionEntry] = []
+    finalized_by: str | None = None
+    finalized_at: str | None = None
 
 
 class TaskSummary(BaseModel):

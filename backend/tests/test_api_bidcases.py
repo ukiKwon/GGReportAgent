@@ -100,7 +100,11 @@ def test_finalize_requires_all_tasks_2차완료(client):
             json={"tier": tier, "role": "r", "by": by, "choice": "참여"},
         )
 
-    resp = test_client.post(f"/bidcases/{bid_case_id}/finalize", json={"approved": True})
+    resp = test_client.post(
+        f"/bidcases/{bid_case_id}/finalize",
+        json={"approved": True},
+        headers={"X-User-Id": "carol"},
+    )
     assert resp.status_code == 409
 
 
@@ -115,7 +119,11 @@ def test_finalize_approved_sets_institution_stage_7(client):
         )
     _fully_approve_all_tasks(test_client, bid_case_id)
 
-    resp = test_client.post(f"/bidcases/{bid_case_id}/finalize", json={"approved": True})
+    resp = test_client.post(
+        f"/bidcases/{bid_case_id}/finalize",
+        json={"approved": True},
+        headers={"X-User-Id": "carol"},
+    )
     assert resp.status_code == 200
 
     institution = test_client.get("/institutions/mapo").json()
@@ -133,8 +141,74 @@ def test_finalize_rejected_resets_tasks_to_작성중(client):
         )
     _fully_approve_all_tasks(test_client, bid_case_id)
 
-    resp = test_client.post(f"/bidcases/{bid_case_id}/finalize", json={"approved": False})
+    resp = test_client.post(
+        f"/bidcases/{bid_case_id}/finalize",
+        json={"approved": False},
+        headers={"X-User-Id": "carol"},
+    )
     assert resp.status_code == 200
 
     detail = test_client.get(f"/bidcases/{bid_case_id}").json()
     assert all(t["status"] == "작성중" for t in detail["tasks"])
+
+
+def _ready_to_finalize(test_client, db_path):
+    _seed_institution(db_path)
+    bid_case_id = test_client.post("/bidcases", json={"institution_id": "mapo"}).json()["bid_case_id"]
+    for tier, by in [(1, "alice"), (2, "bob"), (3, "carol")]:
+        test_client.post(
+            f"/bidcases/{bid_case_id}/participation-decisions",
+            json={"tier": tier, "role": "r", "by": by, "choice": "참여"},
+        )
+    _fully_approve_all_tasks(test_client, bid_case_id)
+    return bid_case_id
+
+
+def test_finalize_requires_x_user_id_header(client):
+    test_client, db_path = client
+    bid_case_id = _ready_to_finalize(test_client, db_path)
+
+    resp = test_client.post(f"/bidcases/{bid_case_id}/finalize", json={"approved": True})
+    assert resp.status_code == 422
+
+
+def test_finalize_approved_records_finalizer(client):
+    test_client, db_path = client
+    bid_case_id = _ready_to_finalize(test_client, db_path)
+
+    resp = test_client.post(
+        f"/bidcases/{bid_case_id}/finalize",
+        json={"approved": True},
+        headers={"X-User-Id": "dave"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["finalized_by"] == "dave"
+    assert resp.json()["finalized_at"] is not None
+
+    detail = test_client.get(f"/bidcases/{bid_case_id}").json()
+    assert detail["finalized_by"] == "dave"
+    assert detail["finalized_at"] == resp.json()["finalized_at"]
+
+
+def test_finalize_rejected_records_finalizer(client):
+    test_client, db_path = client
+    bid_case_id = _ready_to_finalize(test_client, db_path)
+
+    resp = test_client.post(
+        f"/bidcases/{bid_case_id}/finalize",
+        json={"approved": False},
+        headers={"X-User-Id": "erin"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["finalized_by"] == "erin"
+    assert resp.json()["finalized_at"] is not None
+
+
+def test_bid_case_finalized_fields_default_to_none(client):
+    test_client, db_path = client
+    _seed_institution(db_path)
+    bid_case_id = test_client.post("/bidcases", json={"institution_id": "mapo"}).json()["bid_case_id"]
+
+    detail = test_client.get(f"/bidcases/{bid_case_id}").json()
+    assert detail["finalized_by"] is None
+    assert detail["finalized_at"] is None
