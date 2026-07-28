@@ -68,11 +68,14 @@
   태스크 리뷰 → **전체 브랜치 최종 리뷰(원 세션에서는 opus 등급 사용)** → main 병합"
   패턴에서 **마지막 단계가 없다**. 즉 남은 실행 가능한 행동은 "구현 재개"가 아니라
   "머지"다.
-- **다음 단계**: `EnterWorktree`로 `.claude/worktrees/corpus-validation` 재진입 →
-  `git diff main..worktree-corpus-validation` 전체 최종 리뷰(`superpowers:
-  finishing-a-development-branch` 절차 권장) → clean이면 `main`으로 로컬 병합 → 전체
-  테스트 148개 확인 → push. **이 병합이 끝나야** 아래 항목 3(리포지토리 재구성)의
-  §⑦ 4단계(giganlist 경로 이동)를 시작할 수 있다.
+- **브랜치를 `origin`에 push 완료**(2026-07-29, 이 항목 작성 직후) — 더 이상 이
+  워크트리가 있는 PC에서만 이어받을 수 있는 게 아니다. **다른 로컬에서 이어가도 된다**:
+  아무 체크아웃에서 `git fetch origin && git checkout worktree-corpus-validation`
+  (또는 새 워크트리로) 하면 `8d94f88`가 그대로 받아진다.
+- **다음 단계**: (이 워크트리든 다른 로컬이든) `git diff main..worktree-corpus-validation`
+  전체 최종 리뷰(`superpowers:finishing-a-development-branch` 절차 권장) → clean이면
+  `main`으로 병합 → 전체 테스트 148개 확인 → push. **이 병합이 끝나야** 아래 항목
+  3(리포지토리 재구성)의 §⑦ 4단계(giganlist 경로 이동)를 시작할 수 있다.
 
 ### 3. 리포지토리 재구성 스펙 — 계획(`writing-plans`) 작성 필요
 - **출처**: `2026-07-29_summary.md` `## Session (풀 상태 감사 — 다른 PC로 이어가기 전
