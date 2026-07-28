@@ -8,9 +8,10 @@ from backend.routers.institutions import router as institutions_router
 from backend.routers.tasks import router as tasks_router
 
 
-def create_app(db_path: str) -> FastAPI:
+def create_app(db_path: str, output_root: str = "report_new") -> FastAPI:
     app = FastAPI(title="입찰 워크플로우 레지스트리 API")
     app.state.db_path = db_path
+    app.state.output_root = output_root
     init_db(db_path).close()
     app.include_router(institutions_router)
     app.include_router(bidcases_router)
