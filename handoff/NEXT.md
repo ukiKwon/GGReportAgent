@@ -72,10 +72,21 @@
   워크트리가 있는 PC에서만 이어받을 수 있는 게 아니다. **다른 로컬에서 이어가도 된다**:
   아무 체크아웃에서 `git fetch origin && git checkout worktree-corpus-validation`
   (또는 새 워크트리로) 하면 `8d94f88`가 그대로 받아진다.
-- **다음 단계**: (이 워크트리든 다른 로컬이든) `git diff main..worktree-corpus-validation`
+- **다음 단계**: (이 워크트리든 다른 로컬이든) `git diff main...worktree-corpus-validation`
   전체 최종 리뷰(`superpowers:finishing-a-development-branch` 절차 권장) → clean이면
   `main`으로 병합 → 전체 테스트 148개 확인 → push. **이 병합이 끝나야** 아래 항목
   3(리포지토리 재구성)의 §⑦ 4단계(giganlist 경로 이동)를 시작할 수 있다.
+- **✅ 병합 사전점검 완료 (`2026-07-29_summary.md` `## Session 08:13`, 다른 세션이 교차검증)** —
+  리뷰만 남았고 기술적 장애물은 없음이 확인됐다. 다음 세션은 아래를 재확인할 필요 없다:
+  - 워크트리에서 `py -3 -m pytest backend agent -q` **148 passed** 재현(워킹트리 클린).
+  - 분기점은 `3ef30a1`. 그 이후 main에 쌓인 6커밋(`5b45ac7`, `759b655`, `cf80a85`,
+    `cd06db9`, `e38a98d`, `66f1625`)은 **전부 `handoff/`·`docs/` 문서**라 코드가 겹치지
+    않는다. `git merge-tree`로 **충돌 0건** 확인.
+  - 브랜치 변경분은 13파일 833줄 — `backend/corpus_validator.py`,
+    `backend/tests/test_corpus_validator.py`(208줄), `backend/tests/test_api_corpus.py`(131줄)
+    신설 + `db.py`/`models.py`/`bidcase_repository.py` Task 게이팅 +
+    스펙이 예고한 오타 2건 수정(`giganlist/dongjak`, `giganlist/gangbuk`의
+    `bank_ideas_draft.txt` 각 1글자).
 
 ### 3. 리포지토리 재구성 스펙 — 계획(`writing-plans`) 작성 필요
 - **출처**: `2026-07-29_summary.md` `## Session (풀 상태 감사 — 다른 PC로 이어가기 전
