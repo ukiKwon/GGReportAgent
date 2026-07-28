@@ -52,6 +52,15 @@ def get_bid_case(conn: sqlite3.Connection, bid_case_id: str) -> BidCase | None:
     return _row_to_bid_case(row) if row else None
 
 
+def record_finalization(conn: sqlite3.Connection, bid_case_id: str, finalized_by: str) -> None:
+    """Stamp who finalized this bid case and when (audit trail for the confirm/reject action)."""
+    conn.execute(
+        "UPDATE bid_cases SET finalized_by = ?, finalized_at = ? WHERE bid_case_id = ?",
+        (finalized_by, _now(), bid_case_id),
+    )
+    conn.commit()
+
+
 def list_task_summaries(conn: sqlite3.Connection, bid_case_id: str) -> list[TaskSummary]:
     cursor = conn.execute(
         """SELECT task_id, team, status, progress_pct, assignee, approver

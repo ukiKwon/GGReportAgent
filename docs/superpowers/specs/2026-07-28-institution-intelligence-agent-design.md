@@ -119,9 +119,16 @@
 | `last_synced_at` | TEXT | 배치 동기화가 마지막으로 갱신한 시각 |
 | `participation_status` | TEXT | `검토중` \| `참여확정` \| `미참여확정` \| `보류` |
 | `participation_decision` | TEXT (JSON) | `[{tier:1|2|3, role, by, at, choice, comment}]` |
+| `finalized_by` | TEXT (nullable) | `finalize`를 호출한 최종 결재자(`X-User-Id`) |
+| `finalized_at` | TEXT (nullable) | `finalize` 호출 시각 |
 
 BidCase는 생성 시점에 `participation_status="검토중"`, `participation_decision=[]`으로
 시작한다(별도 "미결정" 상태를 두지 않고 `검토중`이 초기값을 겸한다).
+
+`finalized_by`/`finalized_at`은 `finalize` 호출 시에만 채워진다(그 전까지는 NULL).
+승인·반려 **양쪽 모두** 기록한다 — 반려도 "누가 되돌렸는지"가 감사 대상이기 때문이다.
+`participation_decision`처럼 이력 배열로 두지 않고 단일 컬럼으로 덮어쓰는 이유는,
+반려 후 재확정 시 최신 결재자만 유효하고 중간 이력은 Task별 `messages`에 이미 남기 때문.
 
 ### Task (BidCase당 3개: 영업/IT/예산)
 

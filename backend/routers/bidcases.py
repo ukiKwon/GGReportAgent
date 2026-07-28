@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request
 
 from backend.bidcase_repository import (
     ParticipationDecisionError,
@@ -6,6 +6,7 @@ from backend.bidcase_repository import (
     get_bid_case,
     list_bid_cases_for_assignee,
     list_task_summaries,
+    record_finalization,
     submit_participation_decision,
 )
 from backend.db import get_connection
@@ -71,7 +72,7 @@ def post_participation_decision(
 
 @router.post("/{bid_case_id}/finalize", response_model=BidCaseDetail)
 def post_bid_case_finalize(
-    bid_case_id: str, body: BidCaseFinalizeIn, request: Request
+    bid_case_id: str, body: BidCaseFinalizeIn, request: Request, x_user_id: str = Header(...)
 ) -> BidCaseDetail:
     conn = _conn(request)
     try:
@@ -92,6 +93,8 @@ def post_bid_case_finalize(
         else:
             for task in tasks:
                 approve_task(conn, task.task_id, approved=False)
+
+        record_finalization(conn, bid_case_id, x_user_id)
 
         bid_case = get_bid_case(conn, bid_case_id)
         tasks = list_task_summaries(conn, bid_case_id)
