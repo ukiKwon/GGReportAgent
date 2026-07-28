@@ -46,13 +46,62 @@
       b.addEventListener('change', function () {
         const s = root.render.state.enabledTypes;
         if (b.checked) s.add(b.dataset.type); else s.delete(b.dataset.type);
-        if (root.render.state.currentRegion) root.render.drawMarkers(root.render.state.currentRegion);
-        if (root.render.state.currentRegion) root.render.drawRankingPanel(root.render.state.currentRegion);
+        if (!root.render.state.currentRegion) return;
+        if (b.dataset.type === '지자체') {
+          // 지자체는 마커가 아니라 면이라, 재렌더 없이 투명도만 갱신한다
+          // (재렌더하면 선택 중이던 강조가 사라진다). 랭킹 목록에는 계속 남긴다.
+          root.render.applyMuniDimming();
+          return;
+        }
+        root.render.drawMarkers(root.render.state.currentRegion);
+        root.render.drawRankingPanel(root.render.state.currentRegion);
       });
     });
     // 초기 enabledTypes를 체크상태와 동기화
     root.render.state.enabledTypes = new Set(
       Array.from(boxes).filter(function (b){ return b.checked; }).map(function (b){ return b.dataset.type; }));
+    // 지자체 데이터가 없어 체크박스가 비활성화된 경우까지 "꺼짐"으로 보면 지도 전체가
+    // 이유 없이 흐려진다 — 사용자가 직접 끈 게 아니면 켜진 것으로 취급한다.
+    const muniBox = Array.from(boxes).filter(function (b){ return b.dataset.type === '지자체'; })[0];
+    if (muniBox && muniBox.disabled) root.render.state.enabledTypes.add('지자체');
+  };
+
+  app.wireTheme = function () {
+    const modal = document.getElementById('theme-modal');
+    const btn = document.getElementById('btn-theme');
+    if (!modal || !btn) return;
+    const inputs = modal.querySelectorAll('[data-t]');
+    const durVal = document.getElementById('theme-dur-val');
+
+    function fill(theme) {
+      inputs.forEach(function (inp) { inp.value = theme[inp.dataset.t]; });
+      durVal.textContent = Number(theme.rippleDuration).toFixed(1) + 's';
+    }
+    function collect() {
+      const t = {};
+      inputs.forEach(function (inp) {
+        t[inp.dataset.t] = inp.dataset.t === 'rippleDuration' ? Number(inp.value) : inp.value;
+      });
+      return t;
+    }
+    // 현재 지역 뷰면 면 색을 다시 칠해야 하므로 재렌더, 전국이면 전국을 다시 그린다.
+    function repaint() {
+      root.render.applyTheme();
+      if (root.render.state.currentRegion) root.render.drawRegion(root.render.state.currentRegion);
+      else root.render.drawNational();
+    }
+
+    btn.addEventListener('click', function () { fill(root.render.currentTheme()); modal.style.display = 'block'; });
+    modal.querySelector('#theme-cancel').onclick = function () { modal.style.display = 'none'; };
+    modal.querySelector('[data-t=rippleDuration]').addEventListener('input', function (e) {
+      durVal.textContent = Number(e.target.value).toFixed(1) + 's';
+    });
+    modal.querySelector('#theme-save').onclick = function () {
+      root.store.saveTheme(collect()); modal.style.display = 'none'; repaint();
+    };
+    modal.querySelector('#theme-reset').onclick = function () {
+      root.store.resetTheme(); fill(root.render.currentTheme()); repaint();
+    };
   };
 
   app.openEdit = function (rec) {
@@ -87,7 +136,7 @@
   app.openAdd = function () {
     const wrap = document.getElementById('add-fields');
     const L = root.logic.FIELD_LABELS;
-    const fields = ['name','type','region','term','lastBid','contractEnd','lng','lat','sources'];
+    const fields = ['name','type','region','subRegion','term','lastBid','contractEnd','lng','lat','sources'];
     wrap.innerHTML = fields.map(function (f) {
       return '<label style="display:block;margin:6px 0;">' + L[f] +
         '<input data-f="' + f + '" style="width:100%;"></label>';
@@ -138,6 +187,7 @@
 
   app.init = function () {
     if (window.__d3failed || typeof d3 === 'undefined') { if (root.render.renderFallback) root.render.renderFallback(); return; }
+    root.render.applyTheme();   // 저장된 색/속도를 그리기 전에 반영
     root.render.drawNational();
     root.render.applyWatchStyles();
     app.wireFilters();
@@ -145,6 +195,7 @@
     document.getElementById('btn-back').addEventListener('click', app.backToNational);
     app.wireExport();
     app.wireData();
+    app.wireTheme();
   };
   document.addEventListener('DOMContentLoaded', app.init);
 

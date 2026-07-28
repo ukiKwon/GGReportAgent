@@ -13,7 +13,33 @@
     rankSort: 'urgency',   // 'urgency' | 'interest'
   };
 
-  render.URGENCY_COLORS = { red:'#e5484d', orange:'#f5a524', yellow:'#f2e14c', blue:'#3b82f6', gray:'#5a6680' };
+  // 파스텔 기본 팔레트 — 진한 원색은 위에 얹히는 물결/깜빡임을 묻히게 해서 낮췄다.
+  render.DEFAULT_THEME = {
+    red:'#f0a6a9', orange:'#f3c795', yellow:'#e9e3a8', blue:'#a9c5ea', gray:'#7c8699',
+    // 파스텔(난색·연청색) 위에서 가장 잘 튀는 채도 높은 청록. 물결과 구 외곽선이 공유.
+    accent:'#19d3c5',
+    rippleDuration: 2.2,   // 초. 이전 1.4s에서 한 템포 늦춤
+  };
+  // 호출부(regionUrgencyColor·drawMarkers 등)가 render.URGENCY_COLORS[...]로 직접 참조하므로
+  // 객체 정체성을 유지한 채 applyTheme이 키만 덮어쓴다.
+  render.URGENCY_COLORS = { red:'', orange:'', yellow:'', blue:'', gray:'' };
+
+  render.currentTheme = function () {
+    return Object.assign({}, render.DEFAULT_THEME, store.loadTheme() || {});
+  };
+
+  // 저장된 테마를 팔레트 객체와 CSS 변수에 반영. app.init 1회 + 설정 저장 시마다 호출.
+  render.applyTheme = function () {
+    const t = render.currentTheme();
+    ['red','orange','yellow','blue','gray'].forEach(function (k) { render.URGENCY_COLORS[k] = t[k]; });
+    if (typeof document !== 'undefined' && document.documentElement) {
+      const s = document.documentElement.style;
+      s.setProperty('--accent-color', t.accent);
+      s.setProperty('--ripple-duration', t.rippleDuration + 's');
+    }
+    return t;
+  };
+  render.applyTheme();
 
   render.baseInstitutions = function () { return store.loadData() || window.institutions || []; };
   render.allInstitutions = function () { return store.applyEdits(render.baseInstitutions()); };
@@ -99,10 +125,32 @@
   render.REGION_GEO = { '11': function(){ return window.geoSeoul; }, '41': function(){ return window.geoGyeonggi; } };
   render.REGION_NAME = { '11':'서울', '41':'경기' };
 
+  // 구/시군 면 하나에 해당하는 지자체 레코드들. subRegion 코드가 1순위,
+  // 없으면 기관명↔폴리곤명 정규화 매칭('마포구청'→'마포구')으로 보완한다.
+  render.municipalityForFeature = function (feature) {
+    if (!feature || !feature.properties) return [];
+    const muni = render.institutionsByRegion(render.state.currentRegion)
+      .filter(function (r) { return r.type === '지자체'; });
+    const code = feature.properties.code, name = feature.properties.name;
+    const byCode = muni.filter(function (r) { return r.subRegion && r.subRegion === code; });
+    if (byCode.length) return byCode;
+    return muni.filter(function (r) { return logic.normalizeMuniName(r.name) === name; });
+  };
+
   render.subUrgencyColor = function (feature) {
-    // 상세 폴리곤(구/시군)엔 지자체 레코드가 코드 단위로 매칭되지 않을 수 있어,
-    // 해당 상위 region의 지자체 임박도를 공통 적용(자리표시). 실데이터에선 feature.code 매칭으로 정밀화.
-    return render.regionUrgencyColor(render.state.currentRegion);
+    const hit = render.municipalityForFeature(feature);
+    if (!hit.length) return render.URGENCY_COLORS.gray;  // 해당 구에 지자체 레코드 없음
+    const sorted = logic.sortByUrgency(hit, render.state.today);
+    return render.URGENCY_COLORS[logic.urgencyOf(sorted[0], render.state.today)];
+  };
+
+  // 지자체 체크박스 OFF → 면 색은 유지하고 흐리게(정보를 지우지 않고 뒤로 물림).
+  render.muniDimOpacity = function () {
+    return render.state.enabledTypes.has('지자체') ? 1 : 0.25;
+  };
+  render.applyMuniDimming = function () {
+    // 전체 재렌더 대신 투명도만 갱신 — 재렌더하면 선택 중이던 강조가 사라진다.
+    d3.select('#map-svg').selectAll('path.subregion').attr('fill-opacity', render.muniDimOpacity());
   };
 
   render.drawRegion = function (code) {
@@ -119,12 +167,14 @@
     const g = svg.append('g').attr('class', 'region-layer');
     g.selectAll('path.subregion').data(fc.features).join('path')
       .attr('class', 'subregion').attr('d', path)
+      .attr('data-code', function (d){ return d.properties.code; })  // 선택 강조 대상 조회용
       .attr('fill', function (d){ return render.subUrgencyColor(d); })
+      .attr('fill-opacity', render.muniDimOpacity())
       .attr('stroke', '#0f1420').attr('stroke-width', 1);
     render._regionProjection = proj; render._regionPath = path; render._regionG = g;
     if (render.drawMarkers) render.drawMarkers(code); // Task 9
     render.drawRankingPanel(code);
-    render._drawRipple(null);
+    render.clearSelection();
   };
 
   render.loadRegionGeoWithRetry = function (code, done, fail) {
@@ -162,6 +212,14 @@
     if (shape === 'square') return 'M' + (-s) + ',' + (-s) + ' h' + (2*s) + ' v' + (2*s) + ' h' + (-2*s) + ' Z';
     if (shape === 'triangle') return 'M0,' + (-s) + ' L' + s + ',' + s + ' L' + (-s) + ',' + s + ' Z';
     if (shape === 'diamond') return 'M0,' + (-s) + ' L' + s + ',0 L0,' + s + ' L' + (-s) + ',0 Z';
+    if (shape === 'pentagon') { // 대학교 — 기존 4종과 겹치지 않는 정오각형
+      const pts = [];
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI / 2 + i * 2 * Math.PI / 5;
+        pts.push((s * Math.cos(a)).toFixed(2) + ',' + (s * Math.sin(a)).toFixed(2));
+      }
+      return 'M' + pts.join(' L') + ' Z';
+    }
     return ''; // circle은 <circle>로 별도
   };
 
@@ -277,6 +335,9 @@
       card.addEventListener('click', function (ev) { render.selectInstitution(r); render.showPopover(r, ev.clientX, ev.clientY); });
       listEl.appendChild(card);
     });
+    // 목록을 새로 그리면 .hi가 사라지므로 현재 선택을 복원한다 —
+    // ♥ 토글이 이 함수를 재호출하는데 그때 선택 강조가 엉뚱하게 풀리는 걸 막는다.
+    if (render._selectedName) render.highlightCard(render._selectedName, true);
   };
 
   render.showPopover = function (rec, x, y) {
@@ -303,11 +364,41 @@
   };
 
   render._selectedName = null;
-  render.selectInstitution = function (rec) {
-    render._selectedName = rec ? rec.name : null;
-    render._drawRipple(render._selectedName);
-    if (rec) { render.highlightCard(rec.name, true); }
+
+  // 이전 선택의 흔적을 전부 해제한다. selectInstitution의 유일한 "끄기" 경로이자,
+  // 랭킹 카드 흰 테두리가 클릭할수록 누적되던 버그의 근본 수정.
+  render.clearSelection = function () {
+    document.querySelectorAll('.rank-card.hi').forEach(function (c) { c.classList.remove('hi'); });
+    const svg = d3.select('#map-svg');
+    svg.selectAll('g.ripple-layer').remove();
+    svg.selectAll('path.subregion.selected').classed('selected', false);
   };
+
+  render.selectInstitution = function (rec) {
+    render.clearSelection();                       // 항상 먼저 — 이전 강조를 남기지 않는다
+    render._selectedName = rec ? rec.name : null;
+    if (!rec) return;
+    if (rec.type === '지자체') render._blinkMunicipality(rec);
+    else render._drawRipple(rec.name);
+    render.highlightCard(rec.name, true);
+  };
+
+  // 지자체: 좌표(마커)가 없으므로 물결 대신 해당 구 외곽선을 깜빡인다.
+  render._blinkMunicipality = function (rec) {
+    const fc = (render.REGION_GEO[render.state.currentRegion] || function(){ return null; })();
+    if (!fc || !fc.features) return;
+    const feature = fc.features.filter(function (f) {
+      const hit = render.municipalityForFeature(f);
+      return hit.some(function (r) { return r.name === rec.name; });
+    })[0];
+    if (!feature) return;
+    const sel = d3.select('#map-svg')
+      .selectAll('path.subregion')
+      .filter(function () { return this.getAttribute('data-code') === feature.properties.code; });
+    // raise() 없이는 인접 폴리곤이 나중에 그려지며 외곽선을 덮어 반쪽만 보인다.
+    sel.classed('selected', true).raise();
+  };
+
   render._drawRipple = function (name) {
     const svg = d3.select('#map-svg');
     svg.selectAll('g.ripple-layer').remove();
@@ -319,11 +410,12 @@
     if (!rec) return;
     const p = proj([rec.lng, rec.lat]);
     const g = svg.append('g').attr('class', 'ripple-layer');
-    // 3중 링(위상차)로 잔잔한 물결
-    [0, 0.45, 0.9].forEach(function (delay) {
+    // 3중 링(위상차)로 잔잔한 물결 — 위상차는 주기에서 파생시켜 속도를 바꿔도 간격이 맞는다.
+    const dur = render.currentTheme().rippleDuration;
+    [0, 1, 2].forEach(function (i) {
       g.append('circle').attr('class', 'ripple-ring')
         .attr('cx', p[0]).attr('cy', p[1]).attr('r', 6)
-        .style('animation-delay', delay + 's');
+        .style('animation-delay', (i * dur / 3) + 's');
     });
   };
 
@@ -332,10 +424,15 @@
     render.selectInstitution(rec);
   };
 
-  // 팝오버 바깥 클릭 시 닫기
+  // 팝오버 바깥 클릭 시 닫기 + 선택 강조 해제
   if (typeof document !== 'undefined') document.addEventListener('click', function (ev) {
     const pop = document.getElementById('popover');
-    if (pop && pop.style.display === 'block' && !pop.contains(ev.target) && !(ev.target.closest && ev.target.closest('.rank-card, .marker'))) pop.style.display = 'none';
+    const outside = !(ev.target.closest && ev.target.closest('.rank-card, .marker'));
+    if (pop && pop.style.display === 'block' && !pop.contains(ev.target) && outside) pop.style.display = 'none';
+    // 지도 빈 곳·패널 여백 클릭 → 강조 해제(팝오버 내부 클릭은 선택 유지)
+    if (outside && !(pop && pop.contains(ev.target)) && render._selectedName) {
+      render._selectedName = null; render.clearSelection();
+    }
   });
 
   render.renderFallback = function () {

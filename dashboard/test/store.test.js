@@ -52,3 +52,18 @@ test('data: saveData/loadData 왕복', () => {
   store.saveData([{ name:'A' }]);
   assert.deepStrictEqual(store.loadData(), [{ name:'A' }]);
 });
+
+test('theme: 저장/로드 왕복 + 부분 저장 허용', () => {
+  freshLS();
+  assert.deepStrictEqual(store.loadTheme(), {});          // 기본은 빈 객체(=기본값 사용)
+  store.saveTheme({ red:'#112233', rippleDuration:3 });
+  assert.deepStrictEqual(store.loadTheme(), { red:'#112233', rippleDuration:3 });
+});
+
+test('theme: resetTheme은 저장값을 지워 기본값으로 되돌린다', () => {
+  freshLS();
+  store.saveTheme({ accent:'#ff0000' });
+  assert.strictEqual(store.loadTheme().accent, '#ff0000');
+  store.resetTheme();
+  assert.deepStrictEqual(store.loadTheme(), {});
+});
