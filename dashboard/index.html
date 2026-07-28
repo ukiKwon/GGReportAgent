@@ -70,12 +70,6 @@
   #legend .lg-sw { width:13px; height:13px; border-radius:3px; border:1px solid rgba(0,0,0,.35); display:inline-block; }
   #legend .lg-hatch { background-image:repeating-linear-gradient(45deg, rgba(15,20,32,.55) 0 2px, transparent 2px 4px); }
   .filter-title { font-size:10px; color:var(--muted); letter-spacing:.04em; margin-bottom:3px; }
-  /* 드릴인 중 "지금 어느 지역을 선택했는지"를 크게 보여주는 오버레이 */
-  #zoom-title { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-                z-index:7; pointer-events:none; opacity:0; transition:opacity .35s ease;
-                font-size:64px; font-weight:800; letter-spacing:.06em;
-                color:#f7f9ff; text-shadow:0 2px 18px rgba(0,0,0,.85), 0 0 3px rgba(0,0,0,.9); }
-  #zoom-title.active { opacity:1; }
   #theme-modal label { display:flex; align-items:center; gap:8px; margin:8px 0; }
   #theme-modal input[type=color] { width:44px; height:26px; padding:0; border:1px solid var(--line); background:none; }
 </style>
@@ -113,7 +107,6 @@
     <div id="map-stage" style="flex:2;position:relative;">
       <svg id="map-svg" width="100%" height="100%"></svg>
       <div id="cloud-overlay"></div>
-      <div id="zoom-title"></div>
       <div id="legend"></div>
       <div id="breadcrumb" style="display:none;"><button id="btn-back">← 전국</button> <span id="crumb-region"></span></div>
     </div>

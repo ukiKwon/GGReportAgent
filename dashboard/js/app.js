@@ -2,10 +2,9 @@
   'use strict';
   const app = {};
   app.enterRegion = function (code) {
-    const title = document.getElementById('zoom-title');
-    // 선택 지역만 남기고 나머지를 흐리게 + 지역명을 크게 → "지금 뭘 골랐는지" 확실히 보이게
+    // 선택 지역만 남기고 나머지를 흐리게 → "지금 뭘 골랐는지"를 지도 자체로 보여준다.
+    // (지도 위에 큰 지역명을 덮어쓰는 방식은 사용자 피드백으로 제거했다.)
     root.render.focusRegion(code);
-    if (title) { title.textContent = root.render.REGION_NAME[code] || code; title.classList.add('active'); }
     document.getElementById('cloud-overlay').classList.add('active');
     root.render.loadRegionGeoWithRetry(code, function () {
       // proceed는 flyZoomTo의 transition 이벤트에 의존하지 않고 enterRegion 자체
@@ -18,7 +17,6 @@
         // 직접 제거(비활성 탭에서 rAF가 스로틀되어 오버레이가 안 걷히는 문제 방지).
         // CSS opacity transition이 "구름 걷힘" 페이드를 담당.
         document.getElementById('cloud-overlay').classList.remove('active');
-        if (title) title.classList.remove('active');
         document.getElementById('breadcrumb').style.display = 'block';
         document.getElementById('crumb-region').textContent = root.render.REGION_NAME[code] || code;
       }
@@ -33,7 +31,6 @@
       setTimeout(proceed, (feature ? root.render.ZOOM_MS : 0) + root.render.HOLD_MS);
     }, function () {
       document.getElementById('cloud-overlay').classList.remove('active');
-      if (title) title.classList.remove('active');
       root.render.drawNational();   // 실패 시 흐림 상태가 남지 않게 원복
     });
   };
