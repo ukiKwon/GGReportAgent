@@ -2,6 +2,10 @@
   'use strict';
   const app = {};
   app.enterRegion = function (code) {
+    const title = document.getElementById('zoom-title');
+    // 선택 지역만 남기고 나머지를 흐리게 + 지역명을 크게 → "지금 뭘 골랐는지" 확실히 보이게
+    root.render.focusRegion(code);
+    if (title) { title.textContent = root.render.REGION_NAME[code] || code; title.classList.add('active'); }
     document.getElementById('cloud-overlay').classList.add('active');
     root.render.loadRegionGeoWithRetry(code, function () {
       // proceed는 flyZoomTo의 transition 이벤트에 의존하지 않고 enterRegion 자체
@@ -14,6 +18,7 @@
         // 직접 제거(비활성 탭에서 rAF가 스로틀되어 오버레이가 안 걷히는 문제 방지).
         // CSS opacity transition이 "구름 걷힘" 페이드를 담당.
         document.getElementById('cloud-overlay').classList.remove('active');
+        if (title) title.classList.remove('active');
         document.getElementById('breadcrumb').style.display = 'block';
         document.getElementById('crumb-region').textContent = root.render.REGION_NAME[code] || code;
       }
@@ -24,8 +29,13 @@
         ? fk.features.filter(function (f) { return f.properties.code === code; })[0]
         : null;
       if (feature && root.render.flyZoomTo) root.render.flyZoomTo(feature);
-      setTimeout(proceed, feature ? 780 : 350);
-    }, function () { document.getElementById('cloud-overlay').classList.remove('active'); });
+      // 확대(ZOOM_MS)가 끝난 뒤 HOLD_MS만큼 멈췄다가 상세로 전환 — 툭 끊기지 않게.
+      setTimeout(proceed, (feature ? root.render.ZOOM_MS : 0) + root.render.HOLD_MS);
+    }, function () {
+      document.getElementById('cloud-overlay').classList.remove('active');
+      if (title) title.classList.remove('active');
+      root.render.drawNational();   // 실패 시 흐림 상태가 남지 않게 원복
+    });
   };
   app.backToNational = function () {
     document.getElementById('breadcrumb').style.display = 'none';

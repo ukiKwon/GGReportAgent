@@ -28,6 +28,8 @@
     return Object.assign({}, render.DEFAULT_THEME, store.loadTheme() || {});
   };
 
+  render.INACTIVE_FILL = '#c3cad9';   // 준비중 지역 — 진한 라벨이 읽히도록 밝은 중립색
+
   // 저장된 테마를 팔레트 객체와 CSS 변수에 반영. app.init 1회 + 설정 저장 시마다 호출.
   render.applyTheme = function () {
     const t = render.currentTheme();
@@ -37,7 +39,30 @@
       s.setProperty('--accent-color', t.accent);
       s.setProperty('--ripple-duration', t.rippleDuration + 's');
     }
+    render.drawLegend();   // 색을 바꾸면 범례도 같이 바뀌어야 한다
     return t;
+  };
+
+  // 범례를 실제 테마 색으로 그린다. 이전엔 🔴🟠🟡 이모지가 하드코딩돼 있어
+  // 색을 바꿔도 범례만 옛 색으로 남는 문제가 있었다.
+  render.LEGEND_ITEMS = [
+    ['red','6개월↓'], ['orange','1년↓'], ['yellow','2년↓'], ['blue','2년+'], ['gray','미상'],
+  ];
+  // 색은 localStorage(테마)에서 오므로 style 속성에 그대로 끼우지 않고 hex만 통과시킨다.
+  render._safeColor = function (c, fallback) {
+    return /^#[0-9a-fA-F]{3,8}$/.test(String(c)) ? String(c) : fallback;
+  };
+  render.drawLegend = function () {
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById('legend'); if (!el) return;
+    const rows = render.LEGEND_ITEMS.map(function (it) {
+      const c = render._safeColor(render.URGENCY_COLORS[it[0]], render.DEFAULT_THEME[it[0]]);
+      return '<span class="lg-item"><i class="lg-sw" style="background:' + c + '"></i>' +
+        logic.esc(it[1]) + '</span>';
+    });
+    rows.push('<span class="lg-item"><i class="lg-sw lg-hatch" style="background:' +
+      render._safeColor(render.INACTIVE_FILL, '#c3cad9') + '"></i>준비중</span>');
+    el.innerHTML = '<div class="lg-title">입찰 임박도</div>' + rows.join('');
   };
   render.applyTheme();
 
@@ -55,10 +80,53 @@
     return render.URGENCY_COLORS[logic.urgencyOf(sorted[0], render.state.today)];
   };
 
+  // 도넛(경기)·군도(인천)라 면적가중 중심이 엉뚱한 곳에 찍히는 지역만 앵커를 직접 지정.
+  // 나머지는 path.centroid를 그대로 쓰고, 남는 겹침은 _separateLabels가 자동으로 민다.
+  render.LABEL_ANCHOR = {
+    '41': [127.45, 37.35],   // 경기: 서울을 감싸 중심이 서울 위로 올라옴 → 동쪽 두꺼운 쪽
+    '28': [126.60, 37.45],   // 인천: 서해 섬들이 중심을 바다로 끌어당김 → 본토 쪽
+  };
+  render.labelAnchor = function (feature, path, proj) {
+    const a = render.LABEL_ANCHOR[feature.properties.code];
+    return a ? proj(a) : path.centroid(feature);
+  };
+
+  // 라벨을 다 그린 뒤 실제 bbox로 겹침을 찾아 세로로 밀어낸다(계산은 logic.separateLabelsY).
+  render._separateLabels = function (labels) {
+    const nodes = labels.nodes();
+    if (!nodes.length) return;
+    const boxes = nodes.map(function (n) {
+      const b = n.getBBox();
+      return { x: Number(n.getAttribute('data-x')), y: Number(n.getAttribute('data-y')),
+               w: b.width, h: b.height };
+    });
+    const dy = logic.separateLabelsY(boxes, 2, 3);
+    nodes.forEach(function (n, i) {
+      if (!dy[i]) return;
+      n.setAttribute('transform', 'translate(' + boxes[i].x + ',' + (boxes[i].y + dy[i]) + ')');
+    });
+  };
+
+  // 드릴인 연출: 선택 지역만 남기고 나머지 면·라벨을 흐리게.
+  // drawNational이 opacity를 인라인 style로 주므로 클래스로는 못 이긴다 — 같은 인라인을 덮어쓴다.
+  render.focusRegion = function (code) {
+    const svg = d3.select('#map-svg');
+    svg.selectAll('path.region').style('opacity', function (d) {
+      return d.properties.code === code ? 1 : 0.15;
+    });
+    svg.selectAll('text.label').style('opacity', function (d) {
+      return d.properties.code === code ? 1 : 0.15;
+    });
+  };
+
+  render.ZOOM_MS = 750;   // flyZoomTo transition 길이
+  render.HOLD_MS = 400;   // 확대가 끝난 뒤 "살짝 멈춤" — 이후 상세 지도로 전환
+
   render.drawNational = function () {
     var rp = document.getElementById('rank-panel'); if (rp) rp.style.display='none';
     const svg = d3.select('#map-svg');
     svg.selectAll('*').remove();
+    render._ensureDefs(svg);   // 준비중 지역 빗금(#hatch)용 — 이전엔 지역 뷰에서만 호출됐다
     const node = svg.node(); const w = node.clientWidth || 900, h = node.clientHeight || 600;
     const fc = window.geoKorea;
     const proj = d3.geoMercator().fitSize([w, h], fc);
@@ -70,26 +138,42 @@
       .attr('data-code', function (d){ return d.properties.code; })
       .attr('fill', function (d) {
         const code = d.properties.code;
-        return render.state.activeRegions.has(code) ? render.regionUrgencyColor(code) : '#39435c';
+        // 준비중은 밝은 중립색 — 균일한 진한 라벨이 읽히려면 면이 밝아야 한다.
+        return render.state.activeRegions.has(code) ? render.regionUrgencyColor(code) : render.INACTIVE_FILL;
       })
       .attr('stroke', '#0f1420').attr('stroke-width', 1)
       .style('cursor', function (d){ return render.state.activeRegions.has(d.properties.code) ? 'pointer' : 'default'; })
-      .style('opacity', function (d){ return render.state.activeRegions.has(d.properties.code) ? 1 : 0.5; })
+      .style('opacity', 1)
       .on('click', function (ev, d) {
         if (!render.state.activeRegions.has(d.properties.code)) return;
         if (root.app && root.app.enterRegion) root.app.enterRegion(d.properties.code);
       });
 
-    g.selectAll('text.label').data(fc.features).join('text')
+    // 준비중 지역엔 빗금을 덧씌워 임박도 '미상'(평평한 회색)과 확실히 구분한다.
+    g.selectAll('path.region-hatch')
+      .data(fc.features.filter(function (d){ return !render.state.activeRegions.has(d.properties.code); }))
+      .join('path')
+      .attr('class', 'region-hatch').attr('d', path)
+      .attr('fill', 'url(#hatch)').style('pointer-events', 'none').style('opacity', 0.35);
+
+    // 라벨: 지역명 한 줄 + (비활성일 때) 작은 '준비중' 둘째 줄.
+    // 색은 CSS(.label)가 균일하게 정한다 — 지역마다 색을 달리하면 난잡해진다.
+    const labels = g.selectAll('text.label').data(fc.features).join('text')
       .attr('class', 'label')
-      .attr('transform', function (d){ const c = path.centroid(d); return 'translate(' + c[0] + ',' + c[1] + ')'; })
-      .attr('text-anchor', 'middle').attr('dy', '0.35em')
-      .style('pointer-events', 'none')  // 라벨이 폴리곤 클릭을 가로채지 않도록
-      .attr('fill', '#e6ecff').attr('font-size', 12)
-      .text(function (d) {
-        const active = render.state.activeRegions.has(d.properties.code);
-        return d.properties.name + (active ? '' : ' (준비중)');
-      });
+      .attr('data-code', function (d){ return d.properties.code; })
+      .attr('text-anchor', 'middle')
+      .style('pointer-events', 'none');  // 라벨이 폴리곤 클릭을 가로채지 않도록
+    labels.each(function (d) {
+      const t = d3.select(this);
+      t.selectAll('*').remove();
+      const p = render.labelAnchor(d, path, proj);
+      t.attr('data-x', p[0]).attr('data-y', p[1])
+        .attr('transform', 'translate(' + p[0] + ',' + p[1] + ')');
+      const active = render.state.activeRegions.has(d.properties.code);
+      t.append('tspan').attr('x', 0).attr('dy', active ? '0.35em' : '0em').text(d.properties.name);
+      if (!active) t.append('tspan').attr('class', 'sub').attr('x', 0).attr('dy', '1.15em').text('준비중');
+    });
+    render._separateLabels(labels);
 
     render.state.currentRegion = null;
     render._nationalProjection = proj; render._nationalG = g;

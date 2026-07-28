@@ -195,3 +195,22 @@ test('buildCsvTemplate: BOM + 헤더 포함', () => {
   assert.ok(t.startsWith('﻿'));
   assert.ok(t.indexOf('기관명,기관구분,지역코드') >= 0);
 });
+
+test('separateLabelsY: 겹치는 라벨은 세로로 벌어진다', () => {
+  // 서울/경기처럼 거의 같은 자리에 겹친 두 라벨
+  const boxes = [ {x:100, y:50, w:40, h:14}, {x:100, y:55, w:40, h:14} ];
+  const dy = logic.separateLabelsY(boxes);
+  const a = boxes[0].y + dy[0], b = boxes[1].y + dy[1];
+  assert.ok(Math.abs(a - b) >= 14, '중심 간격이 글자 높이 이상으로 벌어져야 함: ' + Math.abs(a - b));
+  assert.ok(a < b, '원래 위에 있던 쪽이 계속 위여야 함');
+});
+
+test('separateLabelsY: 안 겹치면 그대로 둔다', () => {
+  const boxes = [ {x:100, y:50, w:40, h:14}, {x:100, y:300, w:40, h:14} ];
+  assert.deepStrictEqual(logic.separateLabelsY(boxes), [0, 0]);
+});
+
+test('separateLabelsY: 가로가 안 겹치면 세로가 겹쳐도 건드리지 않는다', () => {
+  const boxes = [ {x:100, y:50, w:40, h:14}, {x:400, y:52, w:40, h:14} ];
+  assert.deepStrictEqual(logic.separateLabelsY(boxes), [0, 0]);
+});
