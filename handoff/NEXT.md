@@ -47,10 +47,63 @@
 - **다음 단계**: 사용자에게 삭제 의사만 물으면 끝.
   삭제 시 `git push origin --delete subagent-init-archi`.
 
-> 현재 열린 항목은 위 1번 하나뿐이다. 다만 **다른 세션이 워크트리
-> `.claude/worktrees/corpus-validation`(브랜치 `worktree-corpus-validation`, 2026-07-29
-> 08:05 기준 팁 `8d94f88`)에서 코퍼스 검증 구현을 진행 중**이므로, 그 세션이 자기
-> 항목을 여기에 추가할 수 있다.
+### 2. corpus-validation 워크트리 — 구현 4/4 태스크 완료, main 병합만 남음 (최우선)
+- **출처**: `2026-07-29_summary.md` `## Session (풀 상태 감사 — 다른 PC로 이어가기 전
+  최종 점검)`. 이전 세션들(00:29, 07:59, 08:05)은 이 워크트리를 "진행 중"으로만 적어뒀는데,
+  직접 열어 확인한 결과 **이미 완료돼 있었다** — 다음 세션이 "Task 5"를 찾아 헤매지
+  않도록 이 항목이 정확한 상태를 못박아둔다.
+- **위치**: `.claude/worktrees/corpus-validation`(브랜치 `worktree-corpus-validation`,
+  HEAD `8d94f88`, 워킹트리 클린, `main`의 `cf80a85`에서 분기).
+- **계획**: `docs/superpowers/plans/2026-07-29-institution-corpus-validation.md` —
+  Task 1(검증기 코어+CLI)~Task 4(코퍼스 validate/register 엔드포인트) **전부 구현
+  완료**. 커밋 순서: `ed7e509`(T1)→`5ffd252`+`dd609b1`(T2, 리뷰 fix 1라운드)→`34cb8c1`
+  (T3)→`f2d3811`+`8d94f88`(T4, 리뷰 fix 1건). 개별 태스크 리뷰 전부 clean(fix 반영 후).
+  `.superpowers/sdd/2026-07-29-institution-corpus-validation/progress.md`는 Task3까지만
+  기록돼 있고 Task4 완료 줄이 비어 있음(원장 갱신 누락일 뿐 — 커밋·리포트
+  `task-4-report.md`는 실재하고 fix까지 반영됨. 작업 자체는 안 빠짐).
+- **테스트**: 워크트리에서 `py -3 -m pytest backend -q` → **124 passed**(main 현재 72
+  + 이 브랜치가 더한 52). `agent/`는 건드리지 않음(24 그대로). **병합 후 예상 전체:
+  backend 124 + agent 24 = 148.**
+- **아직 안 된 것 — 이게 다음 단계**: sub-project 0(레지스트리) 병합 때 거친 "개별
+  태스크 리뷰 → **전체 브랜치 최종 리뷰(원 세션에서는 opus 등급 사용)** → main 병합"
+  패턴에서 **마지막 단계가 없다**. 즉 남은 실행 가능한 행동은 "구현 재개"가 아니라
+  "머지"다.
+- **다음 단계**: `EnterWorktree`로 `.claude/worktrees/corpus-validation` 재진입 →
+  `git diff main..worktree-corpus-validation` 전체 최종 리뷰(`superpowers:
+  finishing-a-development-branch` 절차 권장) → clean이면 `main`으로 로컬 병합 → 전체
+  테스트 148개 확인 → push. **이 병합이 끝나야** 아래 항목 3(리포지토리 재구성)의
+  §⑦ 4단계(giganlist 경로 이동)를 시작할 수 있다.
+
+### 3. 리포지토리 재구성 스펙 — 계획(`writing-plans`) 작성 필요
+- **출처**: `2026-07-29_summary.md` `## Session (풀 상태 감사 — 다른 PC로 이어가기 전
+  최종 점검)`.
+- **스펙**: `docs/superpowers/specs/2026-07-29-repo-restructure-design.md`(커밋
+  `759b655`). 리포 전체 구조(`giganlist/`→`corpus/institutions/`, `registry.db`→
+  `data/`, `RFP/`·`report/`→`corpus/`, 검색은 벡터DB 없이 SQLite FTS)를 다루는 상위
+  설계. 문서 자체가 "이 문서는 아무것도 옮기지 않는다, 실행은 후속 세션"이라고 명시.
+- **§⑦ 마이그레이션 순서(7단계, 각 단계 독립 완결)**: ①무위험 정리(`archive/` 신설,
+  1세대 산출물·`log/`·`tmp/` 이동, 빈 `workflow/` 삭제) ②`data/` 분리(registry.db·
+  PPTX, gitignore) ③`corpus/` 부분 신설(`RFP/`→`corpus/rfp/`, `report/`→
+  `corpus/reports/`) ④**giganlist 이동 — 위 항목 2(corpus-validation 병합)가 끝난
+  뒤로 명시적으로 게이트돼 있음** ⑤`agent/retrieval/`(파서+FTS, 별도 스펙) ⑥collector
+  스키마 문서 ⑦(후일) 폴더 개명(별도 스펙).
+- **상태**: **계획 파일 없음** — `docs/superpowers/plans/`에 이 스펙에 대응하는 파일이
+  아직 없다(`writing-plans` 스킬 미실행). 브레인스토밍 스킬 절차상 계획 작성 전
+  "사용자가 스펙을 검토했는지" 확인이 필요한데, git 커밋 메시지만으로는 확인 여부를
+  알 수 없다.
+- **다음 단계**: 사용자에게 이 스펙 검토·승인 여부 확인 → 승인되면 `writing-plans`로
+  **①단계(무위험 정리)부터** 계획 작성(④는 항목 2 완료 후). ①단계 진행 시
+  `tmp/KB_AI_Lab_교육내용정리.html`(현재 untracked, 내용 있음 — "빈 tmp/ 삭제"
+  범위 밖이라 보존/삭제를 사용자에게 먼저 확인할 것.
+
+### 4. (참고, 비차단) 빈 워크트리 디렉터리 `.claude/worktrees/institution-intelligence-agent/` 정리
+- **출처**: `2026-07-29_summary.md` `## Session (풀 상태 감사...)`.
+- **내용**: `git worktree list`에 안 잡히는(등록 안 된) 빈 디렉터리 — 내용물은 빈
+  `.claude/` 폴더 하나뿐. 같은 이름의 실제 작업(BidCase/Task/Message 레이어, 커밋
+  `1c72190`~`189bee0`)은 이미 main에 전부 병합·완료돼 있어, 이건 그 작업을 위해
+  만들다 만 잔해로 보인다.
+- **다음 단계**: 아무 때나 `rm -rf ".claude/worktrees/institution-intelligence-agent"`
+  로 삭제해도 안전(git 객체 아님, 잃을 커밋 없음). 급하지 않음.
 
 ---
 
