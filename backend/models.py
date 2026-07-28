@@ -104,3 +104,7 @@ class TaskApprovalIn(BaseModel):
 class BidCaseFinalizeIn(BaseModel):
     approved: bool
     comment: str | None = None
+
+
+class CorpusPathIn(BaseModel):
+    path: str
