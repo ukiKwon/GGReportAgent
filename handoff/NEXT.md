@@ -31,63 +31,19 @@
 
 ## 열린 항목
 
-### 1. `agent/` RFP 팀 확장 구현 — Task 1·2 완료, Task 3(`spec_research_node`)부터 재개
-- **출처**: `2026-07-21_summary.md` "Session 오후 4"(스펙·계획 작성), "Session 오후 5"
-  (계획 실행 착수, Task 1·2 구현).
-- **배경**: 기존 `agent/` 파이프라인(PR #1로 병합된 8-Task 구현)은 "RFP·spec이 이미
-  있다"는 전제로 시작해 `giganlist/{구}/spec/`을 읽기만 함 — RFP 탐색 단계도, spec/plan/
-  bank_ideas_draft를 새로 만드는 단계도 없었음. 이를 채우기 위해 "기관명만 입력하면
-  RFP 탐색 → (신규 기관이면) spec/plan/bank_ideas_draft 자동 생성 → 보고서 → PPT"까지
-  자동화하는 확장 가능한 단일 파이프라인으로 설계. 스펙:
-  `agent/docs/superpowers/specs/2026-07-21-rfp-agent-team-design.md`(커밋 `47e3ee8`,
-  main에 push됨). 계획: `agent/docs/superpowers/plans/2026-07-21-rfp-agent-team.md`
-  (커밋 `343372c`, main에 push됨) — 7-Task TDD 계획.
-- **설계 요지**: 기존 4개 노드(`institution_match`/`content_writer`/`verification`/
-  `pptx_builder`)는 변경 없이 재사용, 새 노드 3개(`rfp_locate_node`/`spec_research_node`/
-  `plan_writer_node`)만 추가. 확장성은 `institution_match_node`가 채우는
-  `matched_district`/`institution_spec_dir` 필드 유무로 파이프라인이 스스로 분기 —
-  지역별 분기 코드 추가 불필요. 체크포인트는 spec 생성 직후 1곳뿐(이후 자동 진행).
-  실행은 `python -m agent.main "<기관명>"` CLI. 새 노드들은 **Claude Agent SDK로
-  서브에이전트를 호출**하는 방식으로 구현(langchain tool-calling 확장이 아님) —
-  계획 수립 중 사용자와 확정. 나라장터 상시 크롤링/모니터링은 범위 밖으로 명시적 제외.
-- **구현 착수**: `superpowers:subagent-driven-development`로 진행 중. 워크트리
-  `.claude/worktrees/rfp-agent-team`(브랜치 `worktree-rfp-agent-team`, `EnterWorktree`로
-  생성)에서 작업. supervisor 노드는 별도로 만들지 않기로 결정(컨트롤러 세션 자신이
-  Task별 디스패치·리뷰를 수행하는 것으로 충분, 파이프라인 분기 자체가 상태 필드
-  체크만으로 단순함).
-- **완료 (Task 1, 2)**:
-  - Task 1: `run_subagent` 헬퍼(`agent/tools/subagent_runner.py`) — `claude-agent-sdk`
-    (`0.2.124`) 설치·실제 API 구조 확인 후 구현. 커밋 `1504d8e`. 리뷰 Spec ✅/Quality
-    Approved(Minor: 미사용 import, 안 막음).
-  - Task 2: `rfp_locate_node`(`agent/nodes/rfp_locate.py`) — 기존 `rfp_analysis_node`가
-    읽는 `report_new/{institution}/{rfp_scoring.json, rfp_text.txt}` 경로 규약을 정확히
-    맞춰 구현, 파일 부재 시 `FileNotFoundError`. 커밋 `0e759e7`. 리뷰 Spec ✅/Quality
-    Approved(Minor: "파일 하나만 존재" 케이스 테스트 누락, `or` 로직 자체는 정확).
-  - 두 Task 모두 Minor만 있어 fix 라운드 없이 통과, 워크트리 안
-    `.superpowers/sdd/progress.md`(git-ignored, 커밋 대상 아님)에 진행상황 기록됨.
-- **미완료 (Task 3~7)**: `spec_research_node`, `plan_writer_node`, CLI 검토
-  체크포인트(`confirm_spec_review`), `agent/main.py` 전체 파이프라인 CLI, end-to-end
-  검증 — 전부 미착수.
-- **재개 방법**: `.claude/worktrees/rfp-agent-team`(브랜치 `worktree-rfp-agent-team`)에
-  `EnterWorktree`(path 지정)로 재진입 → `.superpowers/sdd/progress.md`로 Task 1·2
-  완료 확인 → superpowers:subagent-driven-development 스킬의 `task-brief` 스크립트로
-  Task 3 브리핑 생성해 이어서 디스패치. 계획 파일은
-  `agent/docs/superpowers/plans/2026-07-21-rfp-agent-team.md`, 스펙 파일은
-  `agent/docs/superpowers/specs/2026-07-21-rfp-agent-team-design.md`(둘 다
-  `agent/docs/superpowers/`, repo 루트 `docs/superpowers/`의 기존 agent 오케스트레이션
-  계획과는 다른 경로이므로 혼동하지 말 것). 워크트리의 커밋은 아직 원격에 push되지
-  않음 — main에는 스펙/계획 문서 커밋(`47e3ee8`, `343372c`)만 있고, 노드 구현 커밋
-  (`1504d8e`, `0e759e7`)은 워크트리 브랜치에만 있음.
-- **⚠️ 중요 갱신 (`2026-07-26_summary.md` 3번째 세션 섹션)**: 신규 스펙
-  `docs/superpowers/specs/2026-07-26-e2e-bid-workflow-system-design.md`(repo 루트,
-  `agent/docs/...`가 아님)가 이 스펙의 핵심 결정 **#4(Claude Agent SDK 서브에이전트로
-  스킬 호출)와 #5(CLI 단독 실행)를 명시적으로 대체**한다고 선언함 — 완전 폐쇄망
-  운영에서는 Claude Agent SDK 자체가 외부(Anthropic) 네트워크 의존이라 동작 불가하기
-  때문. 즉 워크트리에 이미 구현된 **Task 1(`run_subagent`, claude-agent-sdk 기반)과
-  Task 2(`rfp_locate_node`)는 폐쇄망 전제와 충돌해 그대로 재사용 불가할 가능성이 큼**.
-  Task 3부터 단순 재개하지 말고, **재개 전 반드시 사용자에게 "기존 Task1·2를 폐쇄망
-  버전으로 다시 구현할지, 신규 스펙 sub-project 3(agent 신규 노드) 계획을 새로 짤지"를
-  먼저 확인**할 것.
+### 1. `main`의 미push 커밋 5개 — 다른 세션 작업 종료 후 push
+- **출처**: `2026-07-29_summary.md` `## Session 00:29`.
+- **상태**: 로컬 `main`이 `origin/main`보다 **5커밋 앞**
+  (`f1cac01`, `1f9bcfe`, `e462d39`, `784b496`, `8e335ad`). 워킹트리는 깨끗하고
+  테스트는 96 passed(backend 72 + agent 24) 상태로 고정돼 있다.
+- **왜 미push인가**: 이 5개 중 `f1cac01`·`784b496`은 **다른 세션이 같은 체크아웃에서**
+  만든 코퍼스 검증 스펙 커밋이다. 그쪽 작업이 진행 중일 수 있어 사용자가 push 보류를
+  선택했다(비차단 — 로컬은 정상 상태).
+- **다음 단계**: 다른 세션이 끝난 뒤 `git push`. 같은 체크아웃이라 로컬 `main`이 이미
+  그쪽 커밋을 포함하므로 rebase/pull 없이 그냥 push하면 된다. push 전
+  `git rev-list --left-right --count origin/main...main`로 개수만 재확인할 것.
+- **함께 정리할 것**: ff 병합이 끝난 로컬 브랜치 `feat/stage7-assembler` 삭제 여부
+  (`git branch -d feat/stage7-assembler`). 지우지 않아도 무해하다.
 
 ### 2. 원격 브랜치 `origin/feature/treasury-bid-dashboard` 삭제 여부 — 사용자 판단 대기
 - **출처**: `2026-07-28_summary.md` `## Session 23:52`(구 항목 2에서 이 건만 남기고 분리).
@@ -101,6 +57,22 @@
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
+
+- ~~`agent/` RFP 팀 확장 구현 — Task 3(`spec_research_node`)부터 재개~~ (구 항목 1) —
+  `2026-07-29_summary.md` `## Session 00:29`에서 **"폐기"로 종결**. 두 가지 이유:
+  ① 같은 날 main에 들어온
+  `docs/superpowers/specs/2026-07-29-institution-corpus-validation-design.md`가
+  `spec_research_node` 구상을 **명시적으로 폐기**했다 — 조사는 DMZ에서 사람이 수행하고,
+  시스템은 `backend/corpus_validator.py`의 기계 검증 + 반입 API 2개 +
+  `research_status` Task 게이트만 담당하는 것으로 방향이 확정됐다(자동 조사 노드를
+  만들지 않는다). ② 이어받을 워크트리 브랜치 `worktree-rfp-agent-team`과 커밋
+  `1504d8e`(`run_subagent`)·`0e759e7`(`rfp_locate_node`)가 **로컬·원격 어디에도 없다**
+  (2026-07-29 확인: 브랜치 없음, dangling 커밋 79개 전수 조회에도 없음). 재개할 실물이
+  없으므로 "진행 중"으로 남길 수 없다.
+  **남는 필요**: ③단계 `rfp_locate_node`(공고문 자동 탐색) 자체는 여전히 미구현이지만,
+  이제 이 항목이 아니라 상위 E2E 스펙 sub-project 3의 몫이다. 현재는
+  `.claude/skills/rfp-locate`로 사람이 수행한다.
+
 
 - ~~`dashboard/` 금고은행 입찰 히트맵 — 애니메이션 체감 육안 확인~~ (구 항목 2) —
   `2026-07-28_summary.md` `## Session 23:52`에서 해소. 사용자가 포그라운드 탭에서 체감을
