@@ -9,7 +9,9 @@ from backend.bidcase_repository import (
     submit_participation_decision,
 )
 from backend.db import get_connection
-from backend.models import BidCaseDetail, ParticipationDecisionIn
+from backend.models import BidCaseDetail, BidCaseFinalizeIn, ParticipationDecisionIn
+from backend.repository import get_institution
+from backend.task_repository import approve_task
 
 router = APIRouter(prefix="/bidcases", tags=["bidcases"])
 
@@ -61,6 +63,37 @@ def post_participation_decision(
             bid_case = submit_participation_decision(conn, bid_case_id, body)
         except ParticipationDecisionError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        tasks = list_task_summaries(conn, bid_case_id)
+    finally:
+        conn.close()
+    return BidCaseDetail(**bid_case.model_dump(), tasks=tasks)
+
+
+@router.post("/{bid_case_id}/finalize", response_model=BidCaseDetail)
+def post_bid_case_finalize(
+    bid_case_id: str, body: BidCaseFinalizeIn, request: Request
+) -> BidCaseDetail:
+    conn = _conn(request)
+    try:
+        bid_case = get_bid_case(conn, bid_case_id)
+        if bid_case is None:
+            raise HTTPException(status_code=404, detail="bid case not found")
+        tasks = list_task_summaries(conn, bid_case_id)
+        if len(tasks) != 3 or any(t.status != "2차완료" for t in tasks):
+            raise HTTPException(status_code=409, detail="not all tasks are 2차완료")
+
+        if body.approved:
+            institution = get_institution(conn, bid_case.institution_id)
+            conn.execute(
+                "UPDATE institutions SET stage = 7 WHERE institution_id = ?",
+                (institution.institution_id,),
+            )
+            conn.commit()
+        else:
+            for task in tasks:
+                approve_task(conn, task.task_id, approved=False)
+
+        bid_case = get_bid_case(conn, bid_case_id)
         tasks = list_task_summaries(conn, bid_case_id)
     finally:
         conn.close()

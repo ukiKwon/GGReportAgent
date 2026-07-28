@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -71,3 +73,68 @@ def test_participation_decision_tier_order_violation_is_400(client):
         json={"tier": 2, "role": "팀장", "by": "bob", "choice": "참여"},
     )
     assert resp.status_code == 400
+
+
+def _fully_approve_all_tasks(test_client, bid_case_id):
+    detail = test_client.get(f"/bidcases/{bid_case_id}").json()
+    for task in detail["tasks"]:
+        task_id = task["task_id"]
+        with patch("backend.routers.tasks.stream_chat_reply", return_value=iter(["ok"])):
+            test_client.post(
+                f"/tasks/{task_id}/messages", json={"content": "hi"},
+                headers={"X-User-Id": "dave"},
+            )
+        test_client.post(f"/tasks/{task_id}/submit", headers={"X-User-Id": "dave"})
+        test_client.post(
+            f"/tasks/{task_id}/approve", json={"approved": True}, headers={"X-User-Id": "boss"}
+        )
+
+
+def test_finalize_requires_all_tasks_2차완료(client):
+    test_client, db_path = client
+    _seed_institution(db_path)
+    bid_case_id = test_client.post("/bidcases", json={"institution_id": "mapo"}).json()["bid_case_id"]
+    for tier, by in [(1, "alice"), (2, "bob"), (3, "carol")]:
+        test_client.post(
+            f"/bidcases/{bid_case_id}/participation-decisions",
+            json={"tier": tier, "role": "r", "by": by, "choice": "참여"},
+        )
+
+    resp = test_client.post(f"/bidcases/{bid_case_id}/finalize", json={"approved": True})
+    assert resp.status_code == 409
+
+
+def test_finalize_approved_sets_institution_stage_7(client):
+    test_client, db_path = client
+    _seed_institution(db_path)
+    bid_case_id = test_client.post("/bidcases", json={"institution_id": "mapo"}).json()["bid_case_id"]
+    for tier, by in [(1, "alice"), (2, "bob"), (3, "carol")]:
+        test_client.post(
+            f"/bidcases/{bid_case_id}/participation-decisions",
+            json={"tier": tier, "role": "r", "by": by, "choice": "참여"},
+        )
+    _fully_approve_all_tasks(test_client, bid_case_id)
+
+    resp = test_client.post(f"/bidcases/{bid_case_id}/finalize", json={"approved": True})
+    assert resp.status_code == 200
+
+    institution = test_client.get("/institutions/mapo").json()
+    assert institution["stage"] == 7
+
+
+def test_finalize_rejected_resets_tasks_to_작성중(client):
+    test_client, db_path = client
+    _seed_institution(db_path)
+    bid_case_id = test_client.post("/bidcases", json={"institution_id": "mapo"}).json()["bid_case_id"]
+    for tier, by in [(1, "alice"), (2, "bob"), (3, "carol")]:
+        test_client.post(
+            f"/bidcases/{bid_case_id}/participation-decisions",
+            json={"tier": tier, "role": "r", "by": by, "choice": "참여"},
+        )
+    _fully_approve_all_tasks(test_client, bid_case_id)
+
+    resp = test_client.post(f"/bidcases/{bid_case_id}/finalize", json={"approved": False})
+    assert resp.status_code == 200
+
+    detail = test_client.get(f"/bidcases/{bid_case_id}").json()
+    assert all(t["status"] == "작성중" for t in detail["tasks"])
