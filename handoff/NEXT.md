@@ -31,32 +31,34 @@
 
 ## 열린 항목
 
-### 1. `main`의 미push 커밋 5개 — 다른 세션 작업 종료 후 push
-- **출처**: `2026-07-29_summary.md` `## Session 00:29`.
-- **상태**: 로컬 `main`이 `origin/main`보다 **5커밋 앞**
-  (`f1cac01`, `1f9bcfe`, `e462d39`, `784b496`, `8e335ad`). 워킹트리는 깨끗하고
-  테스트는 96 passed(backend 72 + agent 24) 상태로 고정돼 있다.
-- **왜 미push인가**: 이 5개 중 `f1cac01`·`784b496`은 **다른 세션이 같은 체크아웃에서**
-  만든 코퍼스 검증 스펙 커밋이다. 그쪽 작업이 진행 중일 수 있어 사용자가 push 보류를
-  선택했다(비차단 — 로컬은 정상 상태).
-- **다음 단계**: 다른 세션이 끝난 뒤 `git push`. 같은 체크아웃이라 로컬 `main`이 이미
-  그쪽 커밋을 포함하므로 rebase/pull 없이 그냥 push하면 된다. push 전
-  `git rev-list --left-right --count origin/main...main`로 개수만 재확인할 것.
-- **함께 정리할 것**: ff 병합이 끝난 로컬 브랜치 `feat/stage7-assembler` 삭제 여부
-  (`git branch -d feat/stage7-assembler`). 지우지 않아도 무해하다.
+### 1. 병합 완료된 브랜치 2개 삭제 여부 — 사용자 판단 대기
+- **출처**: `2026-07-29_summary.md` `## Session 07:59`(로컬 브랜치 건 추가),
+  `2026-07-28_summary.md` `## Session 23:52`(원격 브랜치 건). 원격 건의 원래 이력은
+  `2026-07-24_summary.md` `## Session 07:43`.
+- **상태**: 둘 다 **비차단** — 지우지 않아도 아무 문제 없고, 내용은 이미 전부 main에
+  병합·push돼 있다. 사용자에게 삭제 의사만 물으면 끝나는 건이다.
+  - 로컬 `feat/stage7-assembler` — 7단계 취합(`backend/assembler.py`) 작업 브랜치.
+    `git branch --merged main`에 나타남(완전 병합 확인). 삭제 시
+    `git branch -d feat/stage7-assembler`.
+  - 원격 `origin/feature/treasury-bid-dashboard` — `464f906`에서 남아 있음.
+    `git ls-remote --heads origin`로 존재 확인됨. 삭제 시
+    `git push origin --delete feature/treasury-bid-dashboard`.
 
-### 2. 원격 브랜치 `origin/feature/treasury-bid-dashboard` 삭제 여부 — 사용자 판단 대기
-- **출처**: `2026-07-28_summary.md` `## Session 23:52`(구 항목 2에서 이 건만 남기고 분리).
-  원래 이력은 `2026-07-24_summary.md` `## Session 07:43`.
-- **상태**: 대시보드 작업 자체는 **완전히 종료**(아래 해소 로그 참고). 이 원격 브랜치만
-  `464f906`에서 남아 있다. `git ls-remote --heads origin`로 존재 확인됨.
-  **비차단** — 지우지 않아도 아무 문제 없고, main에 이미 전부 병합돼 있다.
-- **다음 단계**: 사용자에게 삭제 의사만 물어보면 끝.
-  삭제 시 `git push origin --delete feature/treasury-bid-dashboard`.
+> 현재 열린 항목은 위 1번 하나뿐이다. 다만 **다른 세션이 워크트리
+> `worktree-corpus-validation`에서 코퍼스 검증 구현을 진행 중**이므로(2026-07-29 07:59
+> 확인), 그 세션이 자기 항목을 여기에 추가할 수 있다.
 
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
+
+- ~~`main`의 미push 커밋 5개 — 다른 세션 작업 종료 후 push~~ (구 항목 1) —
+  `2026-07-29_summary.md` `## Session 07:59`에서 해소. **다른 세션이 push를 완료**해
+  `git rev-list --left-right --count origin/main...main` = `0 0`(완전 동기화)이 됐다.
+  이 세션이 만든 커밋 `1f9bcfe`(7단계 취합)·`5b45ac7`(handoff)가 `origin/main`에
+  포함됨을 `git merge-base --is-ancestor`로 개별 검증했다. 함께 적혀 있던 로컬 브랜치
+  `feat/stage7-assembler` 삭제 건은 미결이라 **현 항목 1로 이관**해 원격 브랜치 삭제
+  건과 합쳤다.
 
 - ~~`agent/` RFP 팀 확장 구현 — Task 3(`spec_research_node`)부터 재개~~ (구 항목 1) —
   `2026-07-29_summary.md` `## Session 00:29`에서 **"폐기"로 종결**. 두 가지 이유:
