@@ -114,6 +114,35 @@
   실패, `py` 런처 사용). ship-as-is Minor 목록은 `.superpowers/sdd/progress.md` +
   `2026-07-24_summary.md` 07:43 섹션.
 
+### 3. `finalize` 엔드포인트에 호출자 신원(`X-User-Id`) 미수집 — 스키마 변경 여부 판단 필요
+- **출처**: `2026-07-28_summary.md` `## Session 21:30` (institution-intelligence-agent
+  구현 세션의 최종 전체 브랜치 리뷰에서 Important로 제기, 컨트롤러가 fix 라운드에
+  넣지 않고 **의도적으로 사용자 판단에 남긴 잔여 항목**).
+- **상태**: 코드는 이미 **main에 병합·push 완료**(병합 HEAD `707d2b2`, 백엔드 62/62
+  통과). 이 항목만 미해결이며 **기능을 막지는 않음** — 동작은 정상, 감사추적만 없음.
+- **문제**: `backend/routers/bidcases.py`의 `POST /bidcases/{bid_case_id}/finalize`가
+  `X-User-Id` 헤더를 **아예 받지 않음**. 같은 계층의 다른 변경 엔드포인트
+  (`POST /tasks/{id}/submit`·`/approve`·`/messages`)는 전부 이 헤더로 호출자를 식별하는데,
+  **기획안을 확정하고 `institutions.stage=7`로 올리는 가장 결정적인 액션**에만 신원
+  기록이 없음. 누가 최종 확정/반려했는지 DB 어디에도 남지 않음.
+- **스펙 근거**: `docs/superpowers/specs/2026-07-28-institution-intelligence-agent-design.md`
+  §④(156줄) — "모든 요청에 `X-User-Id` 헤더로 호출자를 식별한다"고 **포괄적으로** 선언함.
+  즉 스펙 위반이 맞음. 다만 계획서(`docs/superpowers/plans/2026-07-28-institution-intelligence-agent.md`
+  Task 6)의 literal 코드에도 헤더가 없어서 **구현자 이탈이 아니라 계획 자체의 공백**임.
+- **왜 이번 세션에서 안 고쳤나 (재개 시 이 판단부터 검토할 것)**: 데이터 모델에 최종
+  결재자를 저장할 컬럼이 **없음**. §④가 규정한 `X-User-Id`의 용도는 "`assignee`·
+  `approver`·`participation_decision[].by`와 문자열 비교"인데 finalize에는 비교 대상
+  필드 자체가 없음. 따라서 (a) 헤더만 받고 버리면 감사추적이 안 생기므로 무의미하고,
+  (b) 제대로 하려면 `bid_cases` 테이블에 `finalized_by`/`finalized_at` 컬럼 추가 =
+  **스키마 변경**이라 plan 범위를 벗어남. 이 둘 중 어느 쪽인지가 사용자 결정 사항.
+- **재개 방법**: main에서 바로 작업 가능(워크트리 불필요, 이미 병합됨). 선택지 —
+  ①`bid_cases`에 `finalized_by TEXT`/`finalized_at TEXT` 컬럼 추가 + `backend/db.py`
+  SCHEMA 갱신 + finalize에서 `x_user_id: str = Header(...)` 수집·저장(권장, 감사추적
+  실현) ②`participation_decision` JSON 배열에 tier 4 항목으로 append(스키마 무변경,
+  다만 의미론이 "참여결정"과 섞임) ③현 상태 수용하고 스펙 §④에 finalize 예외를 명시.
+  기존 DB 파일이 있으면 컬럼 추가 시 마이그레이션 고려 필요(현재 `init_db`는
+  `CREATE TABLE IF NOT EXISTS`만 수행하므로 기존 파일에 컬럼이 자동 추가되지 않음).
+
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
