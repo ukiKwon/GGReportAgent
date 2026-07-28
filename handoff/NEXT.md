@@ -31,26 +31,38 @@
 
 ## 열린 항목
 
-### 1. 병합 완료된 브랜치 2개 삭제 여부 — 사용자 판단 대기
-- **출처**: `2026-07-29_summary.md` `## Session 07:59`(로컬 브랜치 건 추가),
-  `2026-07-28_summary.md` `## Session 23:52`(원격 브랜치 건). 원격 건의 원래 이력은
-  `2026-07-24_summary.md` `## Session 07:43`.
-- **상태**: 둘 다 **비차단** — 지우지 않아도 아무 문제 없고, 내용은 이미 전부 main에
-  병합·push돼 있다. 사용자에게 삭제 의사만 물으면 끝나는 건이다.
-  - 로컬 `feat/stage7-assembler` — 7단계 취합(`backend/assembler.py`) 작업 브랜치.
-    `git branch --merged main`에 나타남(완전 병합 확인). 삭제 시
-    `git branch -d feat/stage7-assembler`.
-  - 원격 `origin/feature/treasury-bid-dashboard` — `464f906`에서 남아 있음.
-    `git ls-remote --heads origin`로 존재 확인됨. 삭제 시
-    `git push origin --delete feature/treasury-bid-dashboard`.
+### 1. 원격 브랜치 `origin/subagent-init-archi` 삭제 여부 — 사용자 판단 대기
+- **출처**: `2026-07-29_summary.md` `## Session 08:05`(브랜치 정리 중 발견).
+- **무엇인가**: `agent/` 오케스트레이션 패키지(Task 1~8) 구현 브랜치. 2026-07-21에
+  **PR #1으로 squash merge**되어 main에 커밋 `5bafdfa` 하나로 들어갔다(해소 로그의
+  "`agent/` 오케스트레이션 패키지 구현" 항목 참고). 현재 팁은 `4d721a9`.
+- **왜 판단이 필요한가**: squash merge라 브랜치 커밋 11개가 main의 조상이 **아니어서**
+  `git merge-base --is-ancestor`로는 "미병합"으로 나온다. 즉 자동 안전 판정이 안 된다.
+  다만 내용은 main에 있다 — `git diff origin/main origin/subagent-init-archi`는
+  482개 파일 62,367줄 **삭제**로 나오는데, 이는 브랜치가 main보다 **뒤처져 있다는**
+  뜻이지 main에 없는 게 있다는 뜻이 아니다(`report/5-report_2.0.html`,
+  `requirements.txt`, `log/` 다수가 브랜치 쪽에만 없음). 브랜치에만 있는 고유 산출물은
+  확인되지 않았다.
+- **상태**: **비차단**. 지우지 않아도 아무 문제 없다.
+- **다음 단계**: 사용자에게 삭제 의사만 물으면 끝.
+  삭제 시 `git push origin --delete subagent-init-archi`.
 
 > 현재 열린 항목은 위 1번 하나뿐이다. 다만 **다른 세션이 워크트리
-> `worktree-corpus-validation`에서 코퍼스 검증 구현을 진행 중**이므로(2026-07-29 07:59
-> 확인), 그 세션이 자기 항목을 여기에 추가할 수 있다.
+> `.claude/worktrees/corpus-validation`(브랜치 `worktree-corpus-validation`, 2026-07-29
+> 08:05 기준 팁 `8d94f88`)에서 코퍼스 검증 구현을 진행 중**이므로, 그 세션이 자기
+> 항목을 여기에 추가할 수 있다.
 
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
+
+- ~~병합 완료된 브랜치 2개 삭제 여부~~ (구 항목 1) — `2026-07-29_summary.md`
+  `## Session 08:05`에서 **사용자 승인 후 둘 다 삭제 완료**.
+  로컬 `feat/stage7-assembler`(`784b496`) → `git branch -d`로 삭제(완전 병합 확인됨).
+  원격 `origin/feature/treasury-bid-dashboard`(`464f906`) → `464f906`이 `origin/main`의
+  조상임을 `git merge-base --is-ancestor`로 검증한 뒤 `git push origin --delete`.
+  삭제 후 `git ls-remote --heads origin`에 남은 원격 브랜치는 `main`과
+  `subagent-init-archi` 2개뿐이며, 후자는 새 항목 1로 이월했다.
 
 - ~~`main`의 미push 커밋 5개 — 다른 세션 작업 종료 후 push~~ (구 항목 1) —
   `2026-07-29_summary.md` `## Session 07:59`에서 해소. **다른 세션이 push를 완료**해
