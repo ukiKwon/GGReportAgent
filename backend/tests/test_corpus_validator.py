@@ -157,6 +157,26 @@ def test_rule8_flags_missing_block(tmp_path):
     assert 8 in _rules(report.errors)
 
 
+def test_rule8_flags_out_of_order_blocks(tmp_path):
+    """블록 개수는 3(=배수)이지만 순서가 뒤바뀐 경우 — order-mismatch 분기 전용 테스트.
+
+    라벨이 정확히 3개(3의 배수)이므로 `len(positions) % 3 != 0` 분기는 절대
+    발동할 수 없다. 이 테스트가 통과하려면 `index != order % 3` 순서 검사
+    분기가 반드시 동작해야 한다.
+    """
+    root = _make_corpus(tmp_path / "inst")
+    _write_plan01(root, "IT-1 사업\n")
+    _write_bank_ideas(
+        root,
+        "[아이디어 9-9] 예시\n"
+        "- 구체적 상품/협력 형태: 정책연계대출\n"  # 원래는 두 번째(index1) 블록인데 첫 자리에 옴
+        "- 연계 구청사업/근거: spec/01 참고, plan IT-1 연계\n"  # 원래는 첫 번째(index0) 블록
+        "- 은행 기대효과: 신규 거래 확보\n",
+    )
+    report = validate_corpus(root)
+    assert 8 in _rules(report.errors)
+
+
 def test_rule8_accepts_circled_label_style(tmp_path):
     root = _make_corpus(tmp_path / "inst")
     _write_plan01(root, "IT-1 사업\n")
