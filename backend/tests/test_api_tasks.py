@@ -110,6 +110,48 @@ def test_approve_rejects_second_different_approver(client_and_task):
     assert second.status_code == 403
 
 
+def test_submit_after_approval_is_409(client_and_task):
+    test_client, task_id = client_and_task
+    from backend.db import get_connection
+    from backend.task_repository import claim_assignee_if_unset
+
+    db_path = test_client.app.state.db_path
+    conn = get_connection(db_path)
+    claim_assignee_if_unset(conn, task_id, "dave")
+    conn.close()
+
+    test_client.post(f"/tasks/{task_id}/submit", headers={"X-User-Id": "dave"})
+    test_client.post(
+        f"/tasks/{task_id}/approve", json={"approved": True}, headers={"X-User-Id": "boss"}
+    )
+
+    resp = test_client.post(f"/tasks/{task_id}/submit", headers={"X-User-Id": "dave"})
+    assert resp.status_code == 409
+
+    detail = test_client.get(f"/tasks/{task_id}").json()
+    assert detail["status"] == "2차완료"
+
+
+def test_submit_after_reject_still_works(client_and_task):
+    test_client, task_id = client_and_task
+    from backend.db import get_connection
+    from backend.task_repository import claim_assignee_if_unset
+
+    db_path = test_client.app.state.db_path
+    conn = get_connection(db_path)
+    claim_assignee_if_unset(conn, task_id, "dave")
+    conn.close()
+
+    test_client.post(f"/tasks/{task_id}/submit", headers={"X-User-Id": "dave"})
+    test_client.post(
+        f"/tasks/{task_id}/approve", json={"approved": False}, headers={"X-User-Id": "boss"}
+    )
+
+    resp = test_client.post(f"/tasks/{task_id}/submit", headers={"X-User-Id": "dave"})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "1차완료"
+
+
 from unittest.mock import MagicMock, patch
 
 
@@ -145,3 +187,68 @@ def test_post_message_rejects_second_assignee(mock_stream, client_and_task):
         f"/tasks/{task_id}/messages", json={"content": "hi again"}, headers={"X-User-Id": "eve"}
     )
     assert resp.status_code == 403
+
+
+@patch("backend.routers.tasks.stream_chat_reply")
+def test_post_message_after_submit_is_409(mock_stream, client_and_task):
+    test_client, task_id = client_and_task
+    mock_stream.return_value = iter(["ok"])
+
+    test_client.post(
+        f"/tasks/{task_id}/messages", json={"content": "hi"}, headers={"X-User-Id": "dave"}
+    )
+    test_client.post(f"/tasks/{task_id}/submit", headers={"X-User-Id": "dave"})
+
+    resp = test_client.post(
+        f"/tasks/{task_id}/messages", json={"content": "one more"}, headers={"X-User-Id": "dave"}
+    )
+    assert resp.status_code == 409
+
+    detail = test_client.get(f"/tasks/{task_id}").json()
+    assert [m["role"] for m in detail["messages"]] == ["user", "agent"]
+
+
+@patch("backend.routers.tasks.stream_chat_reply")
+def test_post_message_after_approval_is_409(mock_stream, client_and_task):
+    test_client, task_id = client_and_task
+    mock_stream.return_value = iter(["ok"])
+
+    test_client.post(
+        f"/tasks/{task_id}/messages", json={"content": "hi"}, headers={"X-User-Id": "dave"}
+    )
+    test_client.post(f"/tasks/{task_id}/submit", headers={"X-User-Id": "dave"})
+    test_client.post(
+        f"/tasks/{task_id}/approve", json={"approved": True}, headers={"X-User-Id": "boss"}
+    )
+
+    resp = test_client.post(
+        f"/tasks/{task_id}/messages", json={"content": "one more"}, headers={"X-User-Id": "dave"}
+    )
+    assert resp.status_code == 409
+
+    detail = test_client.get(f"/tasks/{task_id}").json()
+    assert detail["status"] == "2차완료"
+    assert [m["role"] for m in detail["messages"]] == ["user", "agent"]
+
+
+@patch("backend.routers.tasks.stream_chat_reply")
+def test_post_message_allowed_after_reject(mock_stream, client_and_task):
+    test_client, task_id = client_and_task
+    mock_stream.return_value = iter(["ok"])
+
+    test_client.post(
+        f"/tasks/{task_id}/messages", json={"content": "hi"}, headers={"X-User-Id": "dave"}
+    )
+    test_client.post(f"/tasks/{task_id}/submit", headers={"X-User-Id": "dave"})
+    test_client.post(
+        f"/tasks/{task_id}/approve", json={"approved": False}, headers={"X-User-Id": "boss"}
+    )
+
+    resp = test_client.post(
+        f"/tasks/{task_id}/messages", json={"content": "revise please"}, headers={"X-User-Id": "dave"}
+    )
+    assert resp.status_code == 200
+
+    detail = test_client.get(f"/tasks/{task_id}").json()
+    assert detail["status"] == "작성중"
+    assert [m["role"] for m in detail["messages"]] == ["user", "agent", "user", "agent"]

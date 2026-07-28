@@ -45,6 +45,8 @@ def post_task_submit(task_id: str, request: Request, x_user_id: str = Header(...
             raise HTTPException(status_code=404, detail="task not found")
         if task.assignee != x_user_id:
             raise HTTPException(status_code=403, detail="only the assignee can submit")
+        if task.status not in ("대기", "작성중"):
+            raise HTTPException(status_code=409, detail="task not in a submittable state")
         submit_task(conn, task_id)
         return get_task(conn, task_id)
     finally:
@@ -83,6 +85,9 @@ def post_task_message(
     if task.assignee is not None and task.assignee != x_user_id:
         conn.close()
         raise HTTPException(status_code=403, detail="task already claimed by another assignee")
+    if task.status in ("1차완료", "2차완료"):
+        conn.close()
+        raise HTTPException(status_code=409, detail="task is not open for chat")
 
     claim_assignee_if_unset(conn, task_id, x_user_id)
     add_message(conn, task_id, "user", body.content)
