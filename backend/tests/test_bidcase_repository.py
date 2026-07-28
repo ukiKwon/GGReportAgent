@@ -18,7 +18,8 @@ def conn(tmp_path):
     db_path = str(tmp_path / "test.db")
     connection = init_db(db_path)
     connection.execute(
-        "INSERT INTO institutions (institution_id, name_ko, stage) VALUES ('mapo', '마포구', 1)"
+        "INSERT INTO institutions (institution_id, name_ko, stage, giganlist_dir) "
+        "VALUES ('mapo', '마포구', 1, 'giganlist/mapo')"
     )
     connection.commit()
     yield connection
@@ -97,3 +98,52 @@ def test_list_bid_cases_for_assignee_filters_by_team_and_user(conn):
     found = list_bid_cases_for_assignee(conn, "영업", "dave")
     assert [b.bid_case_id for b in found] == [bid_case.bid_case_id]
     assert list_bid_cases_for_assignee(conn, "영업", "nobody") == []
+
+
+def _seed_institution_without_corpus(db_path):
+    from backend.db import get_connection
+
+    conn = get_connection(db_path)
+    conn.execute(
+        "INSERT INTO institutions (institution_id, name_ko, stage) VALUES ('newinst', '신규기관', 1)"
+    )
+    conn.commit()
+    return conn
+
+
+def test_bid_case_without_corpus_starts_in_대기(tmp_path):
+    from backend.bidcase_repository import create_bid_case
+    from backend.db import init_db
+
+    db_path = str(tmp_path / "t.db")
+    init_db(db_path).close()
+    conn = _seed_institution_without_corpus(db_path)
+    bid_case = create_bid_case(conn, "newinst")
+    assert bid_case.research_status == "대기"
+    conn.close()
+
+
+def test_participation_confirmed_without_corpus_creates_no_tasks(tmp_path):
+    from backend.bidcase_repository import (
+        create_bid_case,
+        list_task_summaries,
+        submit_participation_decision,
+    )
+    from backend.db import init_db
+    from backend.models import ParticipationDecisionIn
+
+    db_path = str(tmp_path / "t.db")
+    init_db(db_path).close()
+    conn = _seed_institution_without_corpus(db_path)
+    bid_case = create_bid_case(conn, "newinst")
+
+    for tier, role, by in [(1, "실무자", "a"), (2, "팀장", "b"), (3, "부장", "c")]:
+        result = submit_participation_decision(
+            conn,
+            bid_case.bid_case_id,
+            ParticipationDecisionIn(tier=tier, role=role, by=by, choice="참여"),
+        )
+
+    assert result.participation_status == "참여확정"
+    assert list_task_summaries(conn, bid_case.bid_case_id) == []
+    conn.close()
