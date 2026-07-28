@@ -1,0 +1,959 @@
+<title>GGReportAgent 시스템 구성도</title>
+<style>
+  :root {
+    --bg: #0c1116;
+    --bg-panel: #121924;
+    --bg-panel-raised: #16202c;
+    --ink: #e8ecf1;
+    --ink-dim: #aeb9c4;
+    --muted: #7c8b9a;
+    --line: #22303f;
+    --line-soft: #1a2530;
+    --accent: #56c2bf;
+    --accent-ink: #06211f;
+    --accent-2: #e2b93b;
+    --accent-2-ink: #241b02;
+    --planned: #58657a;
+    --planned-bg: #1b232e;
+    --code-bg: #0a1016;
+    --shadow: 0 1px 0 rgba(0,0,0,0.4);
+  }
+
+  :root[data-theme="light"] {
+    --bg: #f2f4f3;
+    --bg-panel: #ffffff;
+    --bg-panel-raised: #fafbfa;
+    --ink: #101820;
+    --ink-dim: #3d4a54;
+    --muted: #5b6b76;
+    --line: #dbe1e2;
+    --line-soft: #e7ebec;
+    --accent: #157f7c;
+    --accent-ink: #ffffff;
+    --accent-2: #92680a;
+    --accent-2-ink: #ffffff;
+    --planned: #7c8894;
+    --planned-bg: #eceef0;
+    --code-bg: #eef1f1;
+    --shadow: 0 1px 0 rgba(0,0,0,0.04);
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f2f4f3;
+      --bg-panel: #ffffff;
+      --bg-panel-raised: #fafbfa;
+      --ink: #101820;
+      --ink-dim: #3d4a54;
+      --muted: #5b6b76;
+      --line: #dbe1e2;
+      --line-soft: #e7ebec;
+      --accent: #157f7c;
+      --accent-ink: #ffffff;
+      --accent-2: #92680a;
+      --accent-2-ink: #ffffff;
+      --planned: #7c8894;
+      --planned-bg: #eceef0;
+      --code-bg: #eef1f1;
+      --shadow: 0 1px 0 rgba(0,0,0,0.04);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", "Pretendard", "Noto Sans KR", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+    overflow-x: hidden;
+  }
+
+  .mono {
+    font-family: ui-monospace, "SFMono-Regular", "Cascadia Code", Consolas, "D2Coding", monospace;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    min-height: 100vh;
+  }
+
+  nav.toc {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    overflow-y: auto;
+    border-right: 1px solid var(--line);
+    padding: 28px 20px 40px;
+    background: var(--bg-panel);
+  }
+
+  nav.toc .brand {
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  nav.toc .brand-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 28px;
+  }
+
+  nav.toc ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  nav.toc li a {
+    display: block;
+    padding: 7px 10px;
+    border-radius: 6px;
+    color: var(--ink-dim);
+    text-decoration: none;
+    font-size: 13.5px;
+    border-left: 2px solid transparent;
+  }
+
+  nav.toc li a:hover {
+    background: var(--bg-panel-raised);
+    color: var(--ink);
+  }
+
+  nav.toc li a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  nav.toc .toc-num {
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+    margin-right: 8px;
+    font-size: 12px;
+  }
+
+  main {
+    min-width: 0;
+    padding: 48px clamp(24px, 5vw, 72px) 120px;
+    max-width: 980px;
+  }
+
+  header.hero {
+    margin-bottom: 40px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  header.hero .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+
+  header.hero h1 {
+    font-size: clamp(26px, 4vw, 34px);
+    margin: 0 0 12px;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+
+  header.hero p {
+    color: var(--ink-dim);
+    max-width: 62ch;
+    margin: 0 0 20px;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px 5px 9px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    border: 1px solid var(--line);
+  }
+
+  .chip::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: block;
+  }
+
+  .chip.done { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+  .chip.done::before { background: var(--accent); }
+  .chip.partial { color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 14%, transparent); border-color: color-mix(in srgb, var(--accent-2) 38%, transparent); }
+  .chip.partial::before { background: var(--accent-2); }
+  .chip.planned { color: var(--muted); background: var(--planned-bg); border-color: var(--line); }
+  .chip.planned::before { background: var(--planned); }
+
+  section {
+    margin-bottom: 56px;
+    scroll-margin-top: 24px;
+  }
+
+  section .section-num {
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  section h2 {
+    font-size: 21px;
+    margin: 4px 0 14px;
+    letter-spacing: -0.01em;
+  }
+
+  section h3 {
+    font-size: 15.5px;
+    margin: 28px 0 10px;
+    color: var(--ink);
+  }
+
+  section > p {
+    color: var(--ink-dim);
+    max-width: 68ch;
+    margin: 0 0 16px;
+  }
+
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+  }
+
+  .panel-caption {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 10px;
+    font-family: ui-monospace, monospace;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    background: var(--bg-panel);
+  }
+
+  .card .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .card .path {
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--accent);
+  }
+
+  .card p {
+    margin: 0;
+    color: var(--ink-dim);
+    font-size: 13px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+
+  table.stagetable td, table.stagetable th {
+    text-align: left;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+  }
+
+  table.stagetable th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  table.stagetable td.stage-num {
+    font-family: ui-monospace, monospace;
+    color: var(--ink-dim);
+    width: 28px;
+  }
+
+  table.stagetable td.ep {
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  table.stagetable td.method {
+    font-family: ui-monospace, monospace;
+    font-size: 11.5px;
+    color: var(--muted);
+    width: 54px;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .badge.done { color: var(--accent-ink); background: var(--accent); }
+  .badge.partial { color: var(--accent-2-ink); background: var(--accent-2); }
+  .badge.planned { color: var(--ink); background: var(--planned-bg); border: 1px solid var(--line); }
+
+  .tag-new {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: ui-monospace, monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+    vertical-align: 2px;
+  }
+
+  .zone-tag {
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  code.inline {
+    font-family: ui-monospace, monospace;
+    background: var(--code-bg);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    color: var(--ink);
+    border: 1px solid var(--line-soft);
+  }
+
+  .note {
+    border-left: 3px solid var(--accent-2);
+    background: color-mix(in srgb, var(--accent-2) 8%, var(--bg-panel));
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    font-size: 13.5px;
+    color: var(--ink-dim);
+    margin-top: 16px;
+  }
+
+  .note strong { color: var(--ink); }
+
+  ul.delta {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  ul.delta li {
+    display: grid;
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: 12px;
+    align-items: baseline;
+    font-size: 13.5px;
+    color: var(--ink-dim);
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  ul.delta li:last-child { border-bottom: none; padding-bottom: 0; }
+  ul.delta li strong { color: var(--ink); }
+
+  .delta-mark {
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-align: right;
+  }
+
+  .delta-mark.up { color: var(--accent); }
+  .delta-mark.same { color: var(--muted); }
+
+  footer {
+    margin-top: 60px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+
+  @media (max-width: 760px) {
+    .shell { grid-template-columns: 1fr; }
+    nav.toc { position: relative; height: auto; border-right: none; border-bottom: 1px solid var(--line); }
+    ul.delta li { grid-template-columns: 1fr; gap: 2px; }
+    .delta-mark { text-align: left; }
+  }
+</style>
+
+<div class="shell">
+  <nav class="toc">
+    <div class="brand">GGReportAgent</div>
+    <div class="brand-sub">시스템 구성도 &amp; 요청/응답 순서도</div>
+    <ul>
+      <li><a href="#overview"><span class="toc-num">00</span>개요 &amp; 범례</a></li>
+      <li><a href="#delta"><span class="toc-num">01</span>지난 스냅샷 대비 변화</a></li>
+      <li><a href="#architecture"><span class="toc-num">02</span>전체 구성도</a></li>
+      <li><a href="#endpoints"><span class="toc-num">03</span>엔드포인트 현황</a></li>
+      <li><a href="#bid-seq"><span class="toc-num">04</span>입찰건 워크플로우 순서도</a></li>
+      <li><a href="#backend-seq"><span class="toc-num">05</span>레지스트리 API 순서도</a></li>
+      <li><a href="#agent-seq"><span class="toc-num">06</span>에이전트 파이프라인 순서도</a></li>
+      <li><a href="#roadmap"><span class="toc-num">07</span>9단계 목표 아키텍처</a></li>
+      <li><a href="#howrun"><span class="toc-num">08</span>지금 실행 가능한 것</a></li>
+      <li><a href="#gaps"><span class="toc-num">09</span>아직 없는 것</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <header class="hero" id="overview">
+      <div class="eyebrow">Architecture Snapshot · 2026-07-28</div>
+      <h1>구청 제안 자동화 파이프라인, 지금까지 지어진 부분과 설계도만 있는 부분</h1>
+      <p>
+        <code class="inline">giganlist/</code> 연구 데이터에서 출발해 정적 보고서(<code class="inline">report/</code>),
+        레지스트리 API와 입찰건 워크플로우(<code class="inline">backend/</code>), 제안서 자동화 에이전트(<code class="inline">agent/</code>)로
+        뻗어나가는 현재 구조와, 이를 흡수할 예정인 9단계 입찰워크플로우 목표 아키텍처를 한 화면에 정리했다.
+        지난 스냅샷(07-27) 이후 <strong>영업·IT·예산 3팀 협업 워크플로우 전체가 실제 코드로 들어왔다</strong>.
+      </p>
+      <div class="legend">
+        <span class="chip done">구현 완료 · 테스트 통과</span>
+        <span class="chip partial">부분 구현</span>
+        <span class="chip planned">설계만 (미구현)</span>
+      </div>
+    </header>
+
+    <section id="delta">
+      <div class="section-num">01 / CHANGELOG</div>
+      <h2>지난 스냅샷(07-27) 대비 무엇이 바뀌었나</h2>
+      <p>
+        07-27 스냅샷은 "레지스트리 API 하나만 기동되는 상태"였다. 그 뒤 한 세션에서
+        기관 인텔리전스 에이전트 설계가 확정되고 7개 Task가 전부 구현·리뷰·병합되면서
+        미구현 영역의 상당 부분이 실제 코드로 넘어왔다.
+      </p>
+      <div class="panel">
+        <ul class="delta">
+          <li>
+            <span class="delta-mark up">미구현 → 완료</span>
+            <span><strong>입찰건(BidCase) 엔티티와 3단계 참여 결재</strong> — 실무자 → 팀장 → 부장 순서를
+            서버가 강제하고, 어느 단계든 미참여·보류를 고르면 그 자리에서 종료된다.</span>
+          </li>
+          <li>
+            <span class="delta-mark up">미구현 → 완료</span>
+            <span><strong>영업·IT·예산 3팀 Task 병렬 생성</strong> — 3차 결재가 "참여"로 끝나는 순간
+            <code class="inline">tasks</code> 3건이 자동 생성된다(팀당 1건, 상태 <code class="inline">대기</code>).</span>
+          </li>
+          <li>
+            <span class="delta-mark up">미구현 → 완료</span>
+            <span><strong>에이전트와의 SSE 스트리밍 대화</strong> — 팀별로 다른 코퍼스를 읽어 답하고,
+            응답 전문이 그대로 그 Task의 초안(<code class="inline">draft_content</code>)이 된다.</span>
+          </li>
+          <li>
+            <span class="delta-mark up">미구현 → 완료</span>
+            <span><strong>Task별 2단계 결재 + 최종 결재(finalize)</strong> — 3개 Task가 모두 2차완료여야
+            확정 가능하고, 확정 시 <code class="inline">institutions.stage</code>가 7(취합)로 올라간다.
+            누가 확정·반려했는지도 기록된다.</span>
+          </li>
+          <li>
+            <span class="delta-mark up">20 → 66</span>
+            <span><strong>백엔드 테스트</strong> — <code class="inline">backend/tests</code> 10개 모듈 66건 전부 통과
+            (이 문서 작성 시점에 직접 재실행해 확인).</span>
+          </li>
+          <li>
+            <span class="delta-mark same">변화 없음</span>
+            <span><strong><code class="inline">agent/</code> 파이프라인·<code class="inline">dashboard/</code></strong> —
+            여전히 부분 구현. 다만 <code class="inline">agent/llm.py</code>가 백엔드 채팅에 실제로 쓰이면서
+            둘 사이에 처음으로 실선 연결이 생겼다.</span>
+          </li>
+        </ul>
+      </div>
+      <p class="panel-caption">기준 커밋 622520a · 설계 근거 docs/superpowers/specs/2026-07-28-institution-intelligence-agent-design.md</p>
+    </section>
+
+    <section id="architecture">
+      <div class="section-num">02 / COMPONENTS</div>
+      <h2>전체 구성도</h2>
+      <p>
+        굵은 선으로 묶인 세 그룹은 완성도 순서다. 화살표는 데이터가 흐르는 방향이며,
+        점선은 아직 코드로 연결되지 않은 설계상의 연결이다.
+      </p>
+      <div class="panel">
+<pre class="mermaid">
+flowchart TB
+    subgraph DATA["📁 데이터 원천 · 완료"]
+        GL["giganlist/{25개 구청}/\nspec + plan + bank_ideas_draft.txt"]
+    end
+
+    subgraph BUILT["✅ 구현 완료"]
+        REPORT["report/5-report_2.0.html\n오프라인 단일파일 대시보드"]
+        REG["backend/ 레지스트리 API\nrepository.py · routers/institutions.py"]
+        WF["backend/ 입찰건 워크플로우 (NEW)\nbidcase_repository · task_repository\nrouters/bidcases.py · routers/tasks.py"]
+        ADAPTER["backend/agent_adapter.py (NEW)\n팀별 코퍼스 라우팅 + SSE 스트리밍"]
+        SQLITE[("registry.db · SQLite\ninstitutions · bid_cases\ntasks · messages")]
+    end
+
+    subgraph PARTIAL["🟡 부분 구현"]
+        AGENT["agent/ LangGraph 파이프라인\nrfp_analysis → institution_match →\ncontent_writer ⇄ verification → pptx_builder"]
+        LLM["agent/llm.py\nChatOpenAI gpt-4o-mini"]
+        DASH["dashboard/\nJS + localStorage (기존 자산)"]
+    end
+
+    subgraph PLANNED["⬜ 설계만 (E2E 스펙 §⑧)"]
+        DMZ["DMZ FastAPI (AWS)\n1~3단계: 입찰현황·RFI공시"]
+        NEXTJS["Next.js 프론트\n폐쇄망/Track2"]
+        NODES3["신규 노드\nrfp_locate · spec_research · plan_writer"]
+    end
+
+    GL --> REPORT
+    GL --> REG
+    GL --> ADAPTER
+    GL -.->|Task3+ 미구현| AGENT
+    REG --> SQLITE
+    WF --> SQLITE
+    WF --> ADAPTER
+    ADAPTER --> LLM
+    WF -->|확정 시 stage=7| REG
+    DASH -.->|§⑦ store.js 교체 예정| REG
+    DMZ -.->|반입 게이트, CSV export| REG
+    WF -.-> NEXTJS
+    AGENT -.-> NODES3
+    NODES3 -.-> NEXTJS
+
+    classDef built fill:#1c8f8c,stroke:#0d4a48,color:#fff
+    classDef partial fill:#c9962e,stroke:#7a5a13,color:#fff
+    classDef planned fill:#3b4552,stroke:#22303f,color:#cbd5df,stroke-dasharray: 3 3
+    classDef data fill:#2d3947,stroke:#22303f,color:#e8ecf1
+
+    class GL data
+    class REPORT,REG,WF,ADAPTER,SQLITE built
+    class AGENT,LLM,DASH partial
+    class DMZ,NEXTJS,NODES3 planned
+</pre>
+      </div>
+      <p class="panel-caption">실선 = 현재 코드로 연결된 흐름 · 점선 = 아직 코드가 없는 설계상 연결</p>
+
+      <h3>컴포넌트별 요약</h3>
+      <div class="cards">
+        <div class="card">
+          <div class="card-top"><span class="path">giganlist/</span><span class="badge done">완료</span></div>
+          <p>25개 구청의 spec(예산·민원)·plan(제안서)·bank_ideas_draft를 파일로 축적한 1차 데이터. 모든 하위 컴포넌트의 근거 코퍼스.</p>
+        </div>
+        <div class="card">
+          <div class="card-top"><span class="path">report/</span><span class="badge done">완료</span></div>
+          <p>5-report_2.0.html — 지도·상세·비교 3탭 오프라인 앱. 백엔드 호출 없이 giganlist 내용을 하드코딩 렌더링.</p>
+        </div>
+        <div class="card">
+          <div class="card-top"><span class="path">backend/ 레지스트리</span><span class="badge done">완료</span></div>
+          <p>sub-project 0. institutions 테이블 + 4개 엔드포인트 + CSV 반입. giganlist 25개 구청을 <code class="inline">seed.py</code>로 시딩.</p>
+        </div>
+        <div class="card">
+          <div class="card-top"><span class="path">backend/ 워크플로우<span class="tag-new">NEW</span></span><span class="badge done">완료</span></div>
+          <p>bid_cases · tasks · messages 3개 테이블 + 9개 엔드포인트. 참여결재 → 3팀 Task → 대화 → 결재 → 확정까지 서버가 상태를 강제한다.</p>
+        </div>
+        <div class="card">
+          <div class="card-top"><span class="path">agent_adapter.py<span class="tag-new">NEW</span></span><span class="badge done">완료</span></div>
+          <p>팀별로 다른 근거를 읽는다 — 영업은 spec 전체+bank_ideas, IT는 plan/02_*, 예산은 plan/03_*. 응답은 토큰 단위로 흘려보낸다.</p>
+        </div>
+        <div class="card">
+          <div class="card-top"><span class="path">agent/</span><span class="badge partial">부분구현</span></div>
+          <p>rfp_analysis~pptx_builder 5개 노드 함수는 있으나 CLI 진입점 없음, 신규 기관 spec 자동생성 노드 미구현. <code class="inline">llm.py</code>만 백엔드가 실제로 사용 중.</p>
+        </div>
+        <div class="card">
+          <div class="card-top"><span class="path">dashboard/</span><span class="badge partial">부분구현</span></div>
+          <p>기존 JS + localStorage 자산. E2E 스펙상 서버 API 호출로 교체 + Next.js 이관 대상이나 아직 착수 전.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="endpoints">
+      <div class="section-num">03 / API SURFACE</div>
+      <h2>엔드포인트 현황</h2>
+      <p>
+        지금 <code class="inline">backend.main:app</code>에 실제로 붙어 있는 전부다. 13개 모두 동작하며,
+        상태 전이를 어기는 호출은 400/403/409로 막힌다.
+      </p>
+      <div class="panel">
+        <table class="stagetable">
+          <thead>
+            <tr><th></th><th>엔드포인트</th><th>하는 일</th><th>거부 조건</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="method">GET</td><td class="ep">/institutions</td><td>기관 목록</td><td class="zone-tag">—</td></tr>
+            <tr><td class="method">GET</td><td class="ep">/institutions/{id}</td><td>기관 상세</td><td class="zone-tag">404</td></tr>
+            <tr><td class="method">POST</td><td class="ep">/institutions/import</td><td>CSV 반입(6개 한글 헤더)</td><td class="zone-tag">400 형식오류</td></tr>
+            <tr><td class="method">GET</td><td class="ep">/institutions/{id}/artifacts</td><td>산출물 경로 3종</td><td class="zone-tag">404</td></tr>
+            <tr><td class="method">POST</td><td class="ep">/bidcases<span class="tag-new">NEW</span></td><td>입찰건 생성</td><td class="zone-tag">—</td></tr>
+            <tr><td class="method">GET</td><td class="ep">/bidcases<span class="tag-new">NEW</span></td><td>내 담당 입찰건(team·assignee)</td><td class="zone-tag">—</td></tr>
+            <tr><td class="method">GET</td><td class="ep">/bidcases/{id}<span class="tag-new">NEW</span></td><td>입찰건 + 3팀 진척도</td><td class="zone-tag">404</td></tr>
+            <tr><td class="method">POST</td><td class="ep">/bidcases/{id}/participation-decisions<span class="tag-new">NEW</span></td><td>참여 결재 1·2·3차</td><td class="zone-tag">400 순서/중복</td></tr>
+            <tr><td class="method">POST</td><td class="ep">/bidcases/{id}/finalize<span class="tag-new">NEW</span></td><td>기획안 확정·반려</td><td class="zone-tag">409 미완료 · 422 헤더누락</td></tr>
+            <tr><td class="method">GET</td><td class="ep">/tasks/{id}<span class="tag-new">NEW</span></td><td>Task + 대화 이력</td><td class="zone-tag">404</td></tr>
+            <tr><td class="method">POST</td><td class="ep">/tasks/{id}/messages<span class="tag-new">NEW</span></td><td>에이전트와 대화(SSE 스트리밍)</td><td class="zone-tag">403 타인 · 409 결재후</td></tr>
+            <tr><td class="method">POST</td><td class="ep">/tasks/{id}/submit<span class="tag-new">NEW</span></td><td>1차 제출</td><td class="zone-tag">403 담당자아님 · 409 상태</td></tr>
+            <tr><td class="method">POST</td><td class="ep">/tasks/{id}/approve<span class="tag-new">NEW</span></td><td>2차 승인·반려</td><td class="zone-tag">403 결재자아님 · 409 미제출</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="panel-caption">backend/routers/{institutions,bidcases,tasks}.py · 호출자 신원은 X-User-Id 헤더</p>
+
+      <div class="note">
+        <strong>인증은 아직 없다</strong> — 담당자·결재자 판정은 <code class="inline">X-User-Id</code> 헤더를
+        그대로 믿는다. 이 리포지토리에는 로그인/RBAC가 존재하지 않으며, 스펙이 이를 의도적 트레이드오프로
+        명시하고 있다. 실제 배포 전에 반드시 별도 설계가 필요한 지점.
+      </div>
+    </section>
+
+    <section id="bid-seq">
+      <div class="section-num">04 / SEQUENCE</div>
+      <h2>입찰건 워크플로우 순서도</h2>
+      <p>
+        이번에 새로 들어온 핵심 흐름. 입찰건 하나가 <strong>참여 결재 → 3팀 병렬 작성 → 팀별 2단계 결재 →
+        최종 확정</strong>까지 가는 동안 서버가 각 단계의 선행조건을 검사한다.
+      </p>
+      <div class="panel">
+<pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant S as 영업 실무자/팀장/부장
+    participant BC as routers/bidcases.py
+    participant Repo as bidcase_repository.py
+    participant DB as SQLite
+    participant M as 3팀 담당자 (영업·IT·예산)
+    participant T as routers/tasks.py
+    participant AG as agent_adapter → gpt-4o-mini
+
+    rect rgb(201,150,46)
+    note over S,DB: 참여 결재 — 1차 실무자 → 2차 팀장 → 3차 부장
+    loop tier = 1 → 2 → 3
+        S->>BC: POST /bidcases/{id}/participation-decisions
+        BC->>Repo: submit_participation_decision(tier, choice)
+        alt 순서 위반 또는 이미 결정됨
+            Repo-->>BC: ParticipationDecisionError
+            BC-->>S: 400 Bad Request
+        else 미참여 / 보류 선택
+            Repo->>DB: status = 미참여확정 | 보류
+            Repo-->>S: 여기서 종료 (사유 기록)
+        else 참여 (1·2차)
+            Repo->>DB: 결재 이력만 누적
+        end
+    end
+    end
+
+    rect rgb(28,143,140)
+    note over S,DB: 3차까지 "참여" → 참여확정 + Task 3개 자동 생성
+    Repo->>DB: status = 참여확정
+    Repo->>DB: INSERT tasks × 3 (영업 · IT · 예산, 상태=대기)
+    BC-->>S: 200 BidCaseDetail (tasks 3건 포함)
+    end
+
+    rect rgb(28,143,140)
+    note over M,AG: 팀별 초안 작성 — 각 팀이 병렬로 진행
+    M->>T: POST /tasks/{id}/messages (X-User-Id)
+    T->>T: 첫 발화자를 assignee로 자동 지정
+    T->>AG: 팀별 코퍼스 + 대화이력 + 요청
+    AG-->>M: SSE 토큰 스트리밍
+    T->>DB: 응답 전문을 messages + draft_content에 저장
+    end
+
+    rect rgb(28,143,140)
+    note over M,DB: Task별 2단계 결재
+    M->>T: POST /tasks/{id}/submit → 1차완료
+    M->>T: POST /tasks/{id}/approve
+    alt 승인
+        T->>DB: 2차완료
+    else 반려
+        T->>DB: 작성중으로 복귀 (대화 재개 가능)
+    end
+    end
+
+    rect rgb(201,150,46)
+    note over S,DB: 최종 결재 — 3개 Task가 모두 2차완료여야 함
+    S->>BC: POST /bidcases/{id}/finalize (X-User-Id 필수)
+    alt 하나라도 2차완료 아님
+        BC-->>S: 409 not all tasks are 2차완료
+    else 승인
+        BC->>DB: institutions.stage = 7 (취합 단계 진입)
+        BC->>DB: finalized_by / finalized_at 기록
+    else 반려
+        BC->>DB: 3개 Task 전부 작성중 복귀 + 반려자 기록
+    end
+    end
+</pre>
+      </div>
+      <p class="panel-caption">backend/routers/bidcases.py · backend/routers/tasks.py · backend/bidcase_repository.py:86-139</p>
+
+      <div class="note">
+        <strong>담당자는 신청하지 않고 "먼저 손댄 사람"이 된다</strong> — Task에 첫 메시지를 보낸 사람이
+        <code class="inline">assignee</code>, 첫 승인을 누른 사람이 <code class="inline">approver</code>로
+        자동 고정된다(claim-on-first-action). 이후 다른 사람이 같은 Task를 건드리면 403.
+      </div>
+    </section>
+
+    <section id="backend-seq">
+      <div class="section-num">05 / SEQUENCE</div>
+      <h2>레지스트리 API 요청/응답 순서도</h2>
+      <p>
+        워크플로우가 올라타는 토대. 클라이언트 요청이
+        <code class="inline">routers/institutions.py</code> → <code class="inline">repository.py</code> →
+        SQLite로 내려가는 실제 호출 경로를 그대로 옮겼다.
+      </p>
+      <div class="panel">
+<pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant C as 클라이언트
+    participant App as uvicorn / FastAPI app
+    participant R as routers/institutions.py
+    participant Repo as repository.py
+    participant DB as SQLite (registry.db)
+
+    rect rgb(28,143,140)
+    note over C,DB: GET /institutions
+    C->>App: GET /institutions
+    App->>R: get_institutions(request)
+    R->>Repo: list_institutions(conn)
+    Repo->>DB: SELECT * FROM institutions
+    DB-->>Repo: rows
+    Repo-->>R: list[Institution]
+    R-->>C: 200 JSON 배열
+    end
+
+    rect rgb(28,143,140)
+    note over C,DB: GET /institutions/{id}
+    C->>App: GET /institutions/dobong
+    App->>R: get_institution_detail(id)
+    R->>Repo: get_institution(conn, id)
+    Repo->>DB: SELECT ... WHERE institution_id=?
+    DB-->>Repo: row or None
+    alt 존재함
+        Repo-->>R: Institution
+        R-->>C: 200 JSON
+    else 없음
+        Repo-->>R: None
+        R-->>C: 404 institution not found
+    end
+    end
+
+    rect rgb(201,150,46)
+    note over C,DB: POST /institutions/import (CSV 업로드)
+    C->>App: POST /institutions/import (file)
+    App->>R: import_institutions(file)
+    R->>R: parse_csv(raw) — 6개 한글 헤더 매핑
+    alt CSV 형식 오류
+        R-->>C: 400 Bad Request
+    else 파싱 성공
+        loop 각 행
+            R->>Repo: upsert_institution(conn, row, commit=False)
+            Repo->>DB: INSERT ... ON CONFLICT UPDATE (COALESCE)
+        end
+        R->>DB: commit()
+        R-->>C: 200 {imported, institution_ids}
+    end
+    end
+
+    rect rgb(28,143,140)
+    note over C,DB: GET /institutions/{id}/artifacts
+    C->>App: GET /institutions/dobong/artifacts
+    App->>R: get_institution_artifacts(id)
+    R->>Repo: get_institution(conn, id)
+    Repo->>DB: SELECT ...
+    R-->>C: 200 {giganlist_dir, rfp_path, pptx_path}
+    end
+</pre>
+      </div>
+      <p class="panel-caption">backend/routers/institutions.py:15-70 · backend/repository.py 기준</p>
+
+      <div class="note">
+        <strong>이름 매칭 정책</strong> — CSV 반입 시 신규 기관은 <code class="inline">new-&lt;8자리hex&gt;</code>로,
+        기존 giganlist 폴더와 <code class="inline">name_ko</code>가 정확히 일치하면 해당 폴더 슬러그(예: <code class="inline">dobong</code>)로 매핑된다.
+      </div>
+    </section>
+
+    <section id="agent-seq">
+      <div class="section-num">06 / SEQUENCE</div>
+      <h2>에이전트 파이프라인 순서도</h2>
+      <p>
+        <code class="inline">agent/pipeline.py:run_pipeline()</code>의 실제 실행 순서. 07-28 세션에서도
+        이 파이프라인 자체는 손대지 않았고, <strong>여전히 부분 구현</strong>이다.
+      </p>
+      <div class="panel">
+<pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant U as 호출자 (Python)
+    participant P as run_pipeline()
+    participant RFP as rfp_analysis_node
+    participant IM as institution_match_node
+    participant CW as content_writer_node
+    participant V as verification_node
+    participant PPTX as pptx_builder_node
+    participant LLM as OpenAI (gpt-4o-mini)
+
+    U->>P: run_pipeline(institution_name)
+    P->>RFP: state 전달
+    RFP-->>P: rfp_text, scoring_table, requirements
+    P->>IM: state 전달
+    IM->>LLM: 기관 매칭 판단 요청
+    LLM-->>IM: matched_district
+    IM-->>P: institution_spec_dir
+
+    loop attempt ≤ max_revisions(3)
+        P->>CW: state 전달
+        CW->>LLM: 섹션별 문장 다듬기(polish)
+        LLM-->>CW: sections
+        CW-->>P: sections
+        P->>V: state 전달
+        V-->>P: coverage_report
+        alt 전 항목 covered
+            note over P: 루프 종료
+        else 미충족 항목 존재
+            note over P: attempt += 1, 재시도
+        end
+    end
+
+    P->>PPTX: state 전달
+    PPTX-->>P: pptx_path (python-pptx)
+    P-->>U: 최종 state 반환
+</pre>
+      </div>
+      <p class="panel-caption">agent/pipeline.py:8-36 · agent/llm.py:7-10 (모델 하드코딩, §⑥ LLM 어댑터 미적용)</p>
+
+      <div class="note">
+        <strong>현재 한계 두 가지</strong> — ① <code class="inline">institution_match_node</code> 이후 "신규 기관이면
+        spec/plan을 자동 생성"하는 노드가 없어, <code class="inline">giganlist/</code>에 이미 있는 기관이 아니면
+        파이프라인이 의미 있게 동작하지 않는다. ② <code class="inline">get_llm()</code>은 API 키가 없으면
+        <code class="inline">getpass()</code>로 콘솔 입력을 기다리므로, 서버에서 첫 스트리밍 요청이 들어올 때
+        키가 없으면 응답이 멈춘다 — 기동 전 <code class="inline">OPENAI_API_KEY</code>를 넣어둘 것.
+      </div>
+    </section>
+
+    <section id="roadmap">
+      <div class="section-num">07 / TARGET STATE</div>
+      <h2>9단계 목표 아키텍처 (E2E 스펙 §②④)</h2>
+      <p>
+        위 컴포넌트들이 최종적으로 흡수될 목표 구조. DMZ(공개데이터, 인터넷 연결)와 폐쇄망(민감정보, 망분리)으로 나뉜다.
+        <strong>5·6단계는 07-28 설계에서 "순차 상태머신"이 아니라 "처음부터 3팀 병렬 + 팀별 결재"로 대체</strong>되었고,
+        그 형태로 구현이 끝났다.
+      </p>
+      <div class="panel">
+        <table class="stagetable">
+          <thead>
+            <tr><th></th><th>단계</th><th>실행 위치</th><th>담당 로직</th><th>상태</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="stage-num">1</td><td>입찰현황 파악</td><td class="zone-tag">DMZ</td><td>신규: 모니터링 수집</td><td><span class="badge planned">설계만</span></td></tr>
+            <tr><td class="stage-num">2</td><td>입찰상황 발생</td><td class="zone-tag">DMZ</td><td>신규: 트리거 감지 → CSV export</td><td><span class="badge planned">설계만</span></td></tr>
+            <tr><td class="stage-num">3</td><td>RFI 공시</td><td class="zone-tag">DMZ / 수동</td><td>신규: rfp_locate_node</td><td><span class="badge planned">설계만</span></td></tr>
+            <tr><td class="stage-num">4</td><td>RFI 분석</td><td class="zone-tag">폐쇄망</td><td>재사용: rfp_analysis_node</td><td><span class="badge partial">노드 있음</span></td></tr>
+            <tr><td class="stage-num">—</td><td>참여 여부 결정 (신설)</td><td class="zone-tag">폐쇄망</td><td>BidCase 3단계 결재 체인</td><td><span class="badge done">구현 완료</span></td></tr>
+            <tr><td class="stage-num">5</td><td>제안서 기획</td><td class="zone-tag">폐쇄망</td><td>대체: 3팀 Task 병렬 생성</td><td><span class="badge done">구현 완료</span></td></tr>
+            <tr><td class="stage-num">6</td><td>세부기획 (3팀)</td><td class="zone-tag">폐쇄망</td><td>대체: Task/Message + SSE 대화 + 2단계 결재</td><td><span class="badge done">구현 완료</span></td></tr>
+            <tr><td class="stage-num">7</td><td>취합 🛑</td><td class="zone-tag">폐쇄망</td><td>진입 트리거(stage=7)만 구현 · 취합 로직은 pptx_builder 재사용 예정</td><td><span class="badge partial">진입만</span></td></tr>
+            <tr><td class="stage-num">8</td><td>검토 🛑</td><td class="zone-tag">폐쇄망</td><td>확장: verification_node</td><td><span class="badge partial">노드 있음</span></td></tr>
+            <tr><td class="stage-num">9</td><td>제출</td><td class="zone-tag">사람</td><td>stage를 "제출완료"로 마킹</td><td><span class="badge planned">설계만</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="panel-caption">🛑 = 사람 승인 체크포인트 · 5·6단계 체크포인트는 팀별 1차/2차 결재로 대체됨</p>
+      <div class="note">
+        <strong>sub-project 진행 순서</strong> (스펙 §⑧) — 0.레지스트리(✅ 완료) → 1.DMZ FastAPI →
+        2.폐쇄망 백엔드 코어 → 3.agent 신규 노드 → 4.6단계 3팀 분화(✅ 07-28 설계로 대체·완료) →
+        5.Next.js 프론트 → 6.Track2 배포. 순서를 건너뛰어 4번이 먼저 끝난 상태다.
+      </div>
+    </section>
+
+    <section id="howrun">
+      <div class="section-num">08 / RUN</div>
+      <h2>지금 실행 가능한 것</h2>
+      <p>서버 하나를 띄우면 레지스트리 조회부터 최종 확정까지 전 구간을 curl로 통과시킬 수 있다.</p>
+      <div class="panel mono" style="font-size:13px; line-height:1.9; white-space:pre;">py -3 -m pip install -r requirements.txt
+py -3 -m backend.seed                      # giganlist/ → registry.db 시딩
+set OPENAI_API_KEY=...                     # /tasks/{id}/messages 스트리밍에 필요
+py -3 -m uvicorn backend.main:app --reload
+
+curl http://127.0.0.1:8000/institutions
+curl -X POST http://127.0.0.1:8000/bidcases --data-binary @bidcase.json
+py -3 -m pytest backend/tests -q           # 66 passed</div>
+      <p class="panel-caption">agent/ 파이프라인은 CLI가 없어 Python에서 run_pipeline() 직접 호출로만 시험 가능 (06절 참고)</p>
+      <div class="note">
+        <strong>git-bash에서 한글 본문 curl은 깨진다</strong> — <code class="inline">-d '{"...한글..."}'</code>로 보내면
+        서버가 본문 파싱 오류를 낸다(앱 버그 아님). <code class="inline">--data-binary @file.json</code>으로 보낼 것.
+      </div>
+    </section>
+
+    <section id="gaps">
+      <div class="section-num">09 / GAPS</div>
+      <h2>아직 없는 것</h2>
+      <p>이 스냅샷 기준으로 코드가 존재하지 않는 영역 — 다음에 손댈 후보들이다.</p>
+      <div class="panel">
+        <table class="stagetable">
+          <thead>
+            <tr><th>영역</th><th>없는 것</th><th>어디에 설계돼 있나</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>화면</td><td>프론트엔드 전부 — 지금은 curl로만 조작 가능</td><td class="zone-tag">E2E 스펙 sub-project 5</td></tr>
+            <tr><td>입찰 감지</td><td>1~3단계 수집·감지·RFI 공시 자동화(DMZ)</td><td class="zone-tag">E2E 스펙 sub-project 1</td></tr>
+            <tr><td>에이전트</td><td>rfp_locate · spec_research · plan_writer 노드, CLI 진입점</td><td class="zone-tag">E2E 스펙 sub-project 3</td></tr>
+            <tr><td>취합</td><td>7단계 실제 취합/PPT 산출 연결(진입 트리거만 있음)</td><td class="zone-tag">E2E 스펙 §④</td></tr>
+            <tr><td>보안</td><td>로그인·RBAC — X-User-Id 헤더를 그대로 신뢰 중</td><td class="zone-tag">설계 대상 아님(미정)</td></tr>
+            <tr><td>LLM</td><td>폐쇄망용 LLM 어댑터(GPT-OSS 120B) — 현재 OpenAI 직결</td><td class="zone-tag">E2E 스펙 §⑥</td></tr>
+            <tr><td>대시보드</td><td>dashboard/의 localStorage → 서버 API 교체</td><td class="zone-tag">E2E 스펙 §⑦</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      GGReportAgent · giganlist 25개 구청 연구 데이터 기반 · 기준 커밋 <span class="mono">622520a</span> ·
+      backend 66/66 통과 확인 · 소스: <span class="mono">architecture/system-overview.html</span>
+    </footer>
+  </main>
+</div>
