@@ -24,6 +24,33 @@
 
   logic.URGENCY = { RED:'red', ORANGE:'orange', YELLOW:'yellow', BLUE:'blue', GRAY:'gray' };
 
+  // 지도 라벨 겹침 해소(순수 계산). boxes: [{x,y,w,h}] — y는 라벨 중심.
+  // 겹치는 쌍을 세로로 밀어내고, 각 박스에 적용할 y 이동량 배열을 돌려준다.
+  // DOM을 모르는 순수 함수라 렌더 없이 검증할 수 있다.
+  logic.separateLabelsY = function (boxes, gap, passes) {
+    const g = gap == null ? 2 : gap;
+    const n = (passes == null ? 3 : passes);
+    const dy = boxes.map(function () { return 0; });
+    for (let pass = 0; pass < n; pass++) {
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          const a = boxes[i], b = boxes[j];
+          // 가로가 안 겹치면 세로가 겹쳐도 글자끼리는 안 부딪힌다
+          const overlapX = Math.min(a.x + a.w / 2, b.x + b.w / 2) - Math.max(a.x - a.w / 2, b.x - b.w / 2);
+          if (overlapX <= 0) continue;
+          const ay = a.y + dy[i], by = b.y + dy[j];
+          const overlapY = Math.min(ay + a.h / 2, by + b.h / 2) - Math.max(ay - a.h / 2, by - b.h / 2);
+          if (overlapY <= 0) continue;
+          const push = overlapY / 2 + g;
+          // 위에 있는 쪽을 더 위로, 아래쪽을 더 아래로
+          if (ay <= by) { dy[i] -= push; dy[j] += push; }
+          else { dy[i] += push; dy[j] -= push; }
+        }
+      }
+    }
+    return dy;
+  };
+
   logic.daysUntil = function (contractEnd, today) {
     if (!contractEnd) return Infinity;
     const end = new Date(contractEnd + 'T00:00:00');
