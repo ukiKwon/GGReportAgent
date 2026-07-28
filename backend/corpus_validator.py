@@ -15,6 +15,18 @@ SPEC_MAX_FILES = 10
 PLAN_PREFIXES = ("00", "01", "02", "03", "04", "05")
 NUMBERED_NAME = re.compile(r"^(\d{2})_")
 
+IDEA_BLOCKS = ("연계 구청사업/근거", "구체적 상품/협력 형태", "은행 기대효과")
+SPEC_CITATION = re.compile(r"spec/(\d{2})")
+PLAN_CITATION = re.compile(r"plan\s+([A-Z]{2}-\d+)")
+# 제안 주체(KB/국민은행)는 제외한다 — 자기 이름을 쓰는 것은 위반이 아니다.
+BANNED_BANK_NAMES = (
+    "신한은행", "우리은행", "하나은행", "농협은행", "기업은행",
+    "SC제일은행", "카카오뱅크", "토스뱅크", "케이뱅크",
+)
+SELF_CHECK = re.compile(r"총\s*\d+\s*건|합계")
+CROSS_CHECK_LABELS = ("확인됨", "부분확인", "확인안됨")
+SCORE_PAIR = re.compile(r"(\d+)\s*/\s*(\d+)")
+
 
 @dataclass
 class ValidationIssue:
@@ -139,6 +151,117 @@ def _check_encoding(root: Path, report: ValidationReport) -> None:
         _read_text(path, report, str(path.relative_to(root)).replace("\\", "/"))
 
 
+def _check_citations(root: Path, spec_numbers: list[str], report: ValidationReport) -> None:
+    """규칙 6. spec/NN은 실재 번호여야 하고, plan XX-N은 plan/01에 등장해야 한다."""
+    plan01 = next((root / "plan").glob("01_*.txt"), None)
+    plan01_text = plan01.read_text(encoding="utf-8") if plan01 and plan01.is_file() else ""
+
+    for path in sorted(root.rglob("*.txt")):
+        rel = str(path.relative_to(root)).replace("\\", "/")
+        text = _read_text(path, report, rel)
+        if text is None:
+            continue
+        for number in sorted(set(SPEC_CITATION.findall(text))):
+            if number not in spec_numbers:
+                report.errors.append(
+                    ValidationIssue(6, rel, f"spec/{number}을 인용했지만 그런 spec 파일이 없습니다")
+                )
+        if path.name == "bank_ideas_draft.txt":
+            for item in sorted(set(PLAN_CITATION.findall(text))):
+                if item not in plan01_text:
+                    report.errors.append(
+                        ValidationIssue(6, rel, f"plan {item}을 인용했지만 plan/01에 없습니다")
+                    )
+
+
+def _iter_block_positions(text: str):
+    """블록 라벨을 (블록index, 줄번호, 그 줄) 순서대로 흘려보낸다."""
+    for lineno, line in enumerate(text.splitlines(), 1):
+        for index, label in enumerate(IDEA_BLOCKS):
+            if label in line:
+                yield index, lineno, line
+
+
+def _check_bank_ideas_content(root: Path, report: ValidationReport) -> None:
+    """규칙 8(오류) + 규칙 7(경고)."""
+    path = root / "bank_ideas_draft.txt"
+    if not path.is_file():
+        return
+    text = _read_text(path, report, "bank_ideas_draft.txt")
+    if text is None:
+        return
+
+    positions = list(_iter_block_positions(text))
+    for order, (index, lineno, line) in enumerate(positions):
+        if index != order % 3:
+            report.errors.append(
+                ValidationIssue(
+                    8, "bank_ideas_draft.txt",
+                    f"{lineno}행: 3블록 순서가 어긋납니다 "
+                    f"(기대: {IDEA_BLOCKS[order % 3]}, 실제: {IDEA_BLOCKS[index]})",
+                )
+            )
+            break  # 한 번 어긋나면 이후는 전부 밀리므로 첫 지점만 보고한다
+        if index == 1:  # 구체적 상품/협력 형태 블록에서만 은행명을 본다
+            for name in BANNED_BANK_NAMES:
+                if name in line:
+                    report.warnings.append(
+                        ValidationIssue(
+                            7, "bank_ideas_draft.txt",
+                            f"{lineno}행: 상품/협력 형태 블록에 실존 금융기관명 '{name}'",
+                        )
+                    )
+
+    if not positions:
+        report.errors.append(
+            ValidationIssue(8, "bank_ideas_draft.txt", "3블록 라벨을 하나도 찾지 못했습니다")
+        )
+    elif len(positions) % 3 != 0:
+        report.errors.append(
+            ValidationIssue(
+                8, "bank_ideas_draft.txt",
+                f"블록 라벨이 총 {len(positions)}개로 3의 배수가 아닙니다 "
+                "(마지막 아이디어 항목의 블록이 불완전합니다)",
+            )
+        )
+
+
+def _check_soft_rules(root: Path, report: ValidationReport) -> None:
+    """규칙 10·11·12 — 전부 경고."""
+    plan05 = next((root / "plan").glob("05_*.txt"), None)
+    if plan05 and plan05.is_file():
+        text = plan05.read_text(encoding="utf-8")
+        pairs = [(int(a), int(b)) for a, b in SCORE_PAIR.findall(text)]
+        totals = [n for n, d in pairs if d == 100]
+        parts = [(n, d) for n, d in pairs if d != 100]
+        if len(totals) == 1 and parts and sum(d for _, d in parts) == 100:
+            if sum(n for n, _ in parts) != totals[0]:
+                report.warnings.append(
+                    ValidationIssue(
+                        10, "plan/" + plan05.name,
+                        f"항목 점수 합 {sum(n for n, _ in parts)}이 총점 {totals[0]}과 다릅니다",
+                    )
+                )
+
+    homepage = next((root / "spec").glob("*홈페이지검색확인결과*.txt"), None)
+    if homepage and homepage.is_file():
+        text = homepage.read_text(encoding="utf-8")
+        if not any(label in text for label in CROSS_CHECK_LABELS):
+            report.warnings.append(
+                ValidationIssue(
+                    11, "spec/" + homepage.name,
+                    "확인됨/부분확인/확인안됨 분류값을 찾지 못했습니다",
+                )
+            )
+
+    spec00 = next((root / "spec").glob("00_*.txt"), None)
+    if spec00 and spec00.is_file():
+        if not SELF_CHECK.search(spec00.read_text(encoding="utf-8")):
+            report.warnings.append(
+                ValidationIssue(12, "spec/" + spec00.name, "자체검산 문장을 찾지 못했습니다")
+            )
+
+
 def validate_corpus(root: Path) -> ValidationReport:
     report = ValidationReport()
     root = Path(root)
@@ -146,10 +269,13 @@ def validate_corpus(root: Path) -> ValidationReport:
         report.errors.append(ValidationIssue(1, None, f"디렉터리가 아닙니다: {root}"))
         return report
 
-    _check_spec_structure(root, report)
+    spec_numbers = _check_spec_structure(root, report)
     _check_plan_structure(root, report)
     _check_bank_ideas_presence(root, report)
     _check_encoding(root, report)
+    _check_citations(root, spec_numbers, report)
+    _check_bank_ideas_content(root, report)
+    _check_soft_rules(root, report)
     return report
 
 
