@@ -4,3 +4,6 @@
 registry.db
 __pycache__/
 .pytest_cache/
+
+# finalize 승인 시 생성되는 제안서 산출물
+report_new/

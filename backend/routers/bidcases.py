@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Header, HTTPException, Request
 
+from backend.assembler import assemble_deliverable
 from backend.bidcase_repository import (
     ParticipationDecisionError,
     create_bid_case,
@@ -90,6 +91,7 @@ def post_bid_case_finalize(
                 (institution.institution_id,),
             )
             conn.commit()
+            assemble_deliverable(conn, bid_case_id, output_root=request.app.state.output_root)
         else:
             for task in tasks:
                 approve_task(conn, task.task_id, approved=False)

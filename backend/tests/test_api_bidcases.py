@@ -1,3 +1,4 @@
+import os
 from unittest.mock import patch
 
 import pytest
@@ -9,7 +10,7 @@ from backend.main import create_app
 @pytest.fixture
 def client(tmp_path):
     db_path = str(tmp_path / "test.db")
-    app = create_app(db_path)
+    app = create_app(db_path, output_root=str(tmp_path / "out"))
     with TestClient(app) as test_client:
         conn = app.state.db_path
         yield test_client, db_path
@@ -202,6 +203,35 @@ def test_finalize_rejected_records_finalizer(client):
     assert resp.status_code == 200
     assert resp.json()["finalized_by"] == "erin"
     assert resp.json()["finalized_at"] is not None
+
+
+def test_finalize_approved_builds_the_deliverable_pptx(client):
+    test_client, db_path = client
+    bid_case_id = _ready_to_finalize(test_client, db_path)
+
+    resp = test_client.post(
+        f"/bidcases/{bid_case_id}/finalize",
+        json={"approved": True},
+        headers={"X-User-Id": "dave"},
+    )
+    assert resp.status_code == 200
+
+    pptx_path = test_client.get("/institutions/mapo/artifacts").json()["pptx_path"]
+    assert pptx_path is not None
+    assert os.path.isfile(pptx_path)
+
+
+def test_finalize_rejected_does_not_build_a_deliverable(client):
+    test_client, db_path = client
+    bid_case_id = _ready_to_finalize(test_client, db_path)
+
+    test_client.post(
+        f"/bidcases/{bid_case_id}/finalize",
+        json={"approved": False},
+        headers={"X-User-Id": "erin"},
+    )
+
+    assert test_client.get("/institutions/mapo/artifacts").json()["pptx_path"] is None
 
 
 def test_bid_case_finalized_fields_default_to_none(client):
