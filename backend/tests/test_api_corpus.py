@@ -1,8 +1,12 @@
+import shutil
+import uuid
+
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.db import get_connection
 from backend.main import create_app
+from backend.routers.institutions import REPO_ROOT
 
 
 @pytest.fixture
@@ -62,14 +66,27 @@ def test_register_404_for_unknown_institution(client):
     assert resp.status_code == 404
 
 
-def test_register_422_when_validation_fails(client, tmp_path):
+def test_register_422_when_validation_fails(client):
+    # Regression coverage for the 422 branch in post_corpus_register: the
+    # corpus path must resolve INSIDE the repo root (so _safe_corpus_path's
+    # absolute-path/traversal check accepts it) but still be a structurally
+    # invalid corpus, so validate_corpus() — not the path-safety guard — is
+    # what rejects it. A unique, non-"giganlist/"-prefixed dirname keeps this
+    # from colliding with any real institution folder or another session's
+    # concurrent test run.
     test_client, db_path = client
     _seed(db_path)
-    broken = tmp_path / "broken"
+    broken_name = f"_pytest_broken_corpus_{uuid.uuid4().hex}"
+    broken = REPO_ROOT / broken_name
     (broken / "spec").mkdir(parents=True)
-    resp = test_client.post("/institutions/newinst/corpus", json={"path": str(broken)})
-    assert resp.status_code in (400, 422)
-    assert test_client.get("/institutions/newinst").json()["giganlist_dir"] is None
+    try:
+        resp = test_client.post(
+            "/institutions/newinst/corpus", json={"path": broken_name}
+        )
+        assert resp.status_code == 422
+        assert test_client.get("/institutions/newinst").json()["giganlist_dir"] is None
+    finally:
+        shutil.rmtree(broken, ignore_errors=True)
 
 
 def test_register_sets_dir_and_activates_pending_bid_case(client):
