@@ -10,11 +10,17 @@
   };
 
   // 레코드의 전체 표시 필드(순서 고정) — 편집 모달/팝오버가 공유.
-  logic.ALL_FIELDS = ['name','type','region','term','lastBid','contractEnd','confirmed','lng','lat','sources','updatedAt'];
+  logic.ALL_FIELDS = ['name','type','region','subRegion','term','lastBid','contractEnd','confirmed','lng','lat','sources','updatedAt'];
 
-  logic.FIELD_LABELS = { name:'기관명', type:'기관구분', region:'지역코드', term:'입찰주기',
-    lastBid:'지난 입찰일', contractEnd:'입찰예상일', confirmed:'확정여부', lng:'경도', lat:'위도',
-    sources:'출처', updatedAt:'수정일' };
+  logic.FIELD_LABELS = { name:'기관명', type:'기관구분', region:'지역코드', subRegion:'구시군코드',
+    term:'입찰주기', lastBid:'지난 입찰일', contractEnd:'입찰예상일', confirmed:'확정여부',
+    lng:'경도', lat:'위도', sources:'출처', updatedAt:'수정일' };
+
+  // 지자체 기관명 → 행정구역 폴리곤명 정규화. '마포구청'→'마포구', '서울시청(예시)'→'서울시'.
+  // subRegion 코드가 비어 있는 레코드를 구/시군 면에 붙이는 폴백 매칭에 쓴다.
+  logic.normalizeMuniName = function (s) {
+    return String(s == null ? '' : s).replace(/\([^)]*\)\s*$/, '').trim().replace(/청$/, '');
+  };
 
   logic.URGENCY = { RED:'red', ORANGE:'orange', YELLOW:'yellow', BLUE:'blue', GRAY:'gray' };
 
@@ -80,11 +86,12 @@
   };
 
   logic.markerShape = function (type) {
-    const map = { '대학병원':'circle', '공기업':'square', '공공기관':'triangle', '지자체':'polygon' };
+    const map = { '대학병원':'circle', '공기업':'square', '공공기관':'triangle', '지자체':'polygon',
+      '대학교':'pentagon' };
     return map[type] || 'diamond';
   };
 
-  logic.FILTERABLE_TYPES = ['공공기관','공기업','대학병원'];
+  logic.FILTERABLE_TYPES = ['공공기관','공기업','대학병원','대학교'];
 
   logic.visibleMarkers = function (list, enabledTypes) {
     return list.filter(function (r) {
@@ -107,10 +114,10 @@
     return logic.sortByUrgency(on, today).concat(logic.sortByUrgency(off, today));
   };
 
-  logic.CSV_HEADERS = ['기관명','기관구분','지역코드','입찰주기','지난입찰일','입찰예상일','확정여부','경도','위도','출처','수정일'];
-  logic._HEADER_KEY = { '기관명':'name','기관구분':'type','지역코드':'region','입찰주기':'term',
-    '지난입찰일':'lastBid','입찰예상일':'contractEnd','확정여부':'confirmed','경도':'lng','위도':'lat',
-    '출처':'sources','수정일':'updatedAt' };
+  logic.CSV_HEADERS = ['기관명','기관구분','지역코드','구시군코드','입찰주기','지난입찰일','입찰예상일','확정여부','경도','위도','출처','수정일'];
+  logic._HEADER_KEY = { '기관명':'name','기관구분':'type','지역코드':'region','구시군코드':'subRegion',
+    '입찰주기':'term','지난입찰일':'lastBid','입찰예상일':'contractEnd','확정여부':'confirmed',
+    '경도':'lng','위도':'lat','출처':'sources','수정일':'updatedAt' };
 
   // RFC4180 유사: 따옴표/쉼표/개행 처리
   logic._splitCsvLine = function (line) {
@@ -152,7 +159,7 @@
   };
 
   logic.buildCsvTemplate = function () {
-    const example = ['서울시청(예시)','지자체','11','2','2022-12-05','','', '', '', '공고URL', '2026-07-25'];
+    const example = ['마포구청(예시)','지자체','11','11140','2','2022-12-05','','', '', '', '공고URL', '2026-07-25'];
     return '﻿' + logic.CSV_HEADERS.join(',') + '\n' + example.join(',') + '\n';
   };
 

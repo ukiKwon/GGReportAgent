@@ -39,7 +39,13 @@ test('markerShape 매핑', () => {
   assert.strictEqual(logic.markerShape('공기업'), 'square');
   assert.strictEqual(logic.markerShape('공공기관'), 'triangle');
   assert.strictEqual(logic.markerShape('지자체'), 'polygon');
-  assert.strictEqual(logic.markerShape('학교'), 'diamond'); // 미정의 폴백
+  assert.strictEqual(logic.markerShape('대학교'), 'pentagon');
+  assert.strictEqual(logic.markerShape('연구소'), 'diamond'); // 미정의 폴백
+});
+
+test('FILTERABLE_TYPES: 대학교 포함, 지자체는 제외(면이라 랭킹에서 숨기지 않음)', () => {
+  assert.ok(logic.FILTERABLE_TYPES.indexOf('대학교') >= 0);
+  assert.strictEqual(logic.FILTERABLE_TYPES.indexOf('지자체'), -1);
 });
 
 test('visibleMarkers: 지자체 제외 + 유형 필터 + 미정의 항상표시', () => {
@@ -47,11 +53,22 @@ test('visibleMarkers: 지자체 제외 + 유형 필터 + 미정의 항상표시'
     { name:'구청', type:'지자체', region:'11' },
     { name:'병원', type:'대학병원', region:'11' },
     { name:'공사', type:'공기업', region:'11' },
-    { name:'학교', type:'대학교', region:'11' },
+    { name:'대학', type:'대학교', region:'11' },
+    { name:'연구소', type:'연구소', region:'11' },
   ];
-  const enabled = new Set(['대학병원']); // 공기업 꺼짐
+  const enabled = new Set(['대학병원']); // 공기업·대학교 꺼짐
   const vis = logic.visibleMarkers(list, enabled).map(r => r.name);
-  assert.deepStrictEqual(vis.sort(), ['병원','학교'].sort()); // 지자체 제외, 공기업 제외, 학교(미정의) 표시
+  // 지자체 제외, 공기업·대학교(필터 대상, 꺼짐) 제외, 연구소(미정의) 표시
+  assert.deepStrictEqual(vis.sort(), ['병원','연구소'].sort());
+});
+
+test('normalizeMuniName: 기관명 → 행정구역 폴리곤명', () => {
+  assert.strictEqual(logic.normalizeMuniName('마포구청'), '마포구');
+  assert.strictEqual(logic.normalizeMuniName('마포구청(예시)'), '마포구');
+  assert.strictEqual(logic.normalizeMuniName('수원시청'), '수원시');
+  assert.strictEqual(logic.normalizeMuniName('서울시청(예시)'), '서울시'); // 광역 → 어떤 구에도 안 붙음
+  assert.strictEqual(logic.normalizeMuniName(''), '');
+  assert.strictEqual(logic.normalizeMuniName(null), '');
 });
 
 test('sortByUrgency: 임박순 + 미상 뒤로', () => {
@@ -78,7 +95,7 @@ test('esc: 일반 문자열/숫자는 그대로(문자열화만)', () => {
 
 test('ALL_FIELDS: 신규 스키마 필드', () => {
   assert.deepStrictEqual(logic.ALL_FIELDS,
-    ['name','type','region','term','lastBid','contractEnd','confirmed','lng','lat','sources','updatedAt']);
+    ['name','type','region','subRegion','term','lastBid','contractEnd','confirmed','lng','lat','sources','updatedAt']);
 });
 
 test('formatBidDate: 괄호 표기', () => {
@@ -156,6 +173,21 @@ test('parseCsv: 한글헤더→영문키 + 타입 변환', () => {
   assert.strictEqual(recs[1].confirmed, true);       // Y → true
   assert.strictEqual(recs[1].lng, 126.99);
   assert.deepStrictEqual(recs[1].sources, []);       // 빈 출처 → []
+});
+
+test('parseCsv: 구시군코드 → subRegion 매핑', () => {
+  const csv = '﻿기관명,기관구분,지역코드,구시군코드,입찰예상일,출처,수정일\n'
+    + '마포구청,지자체,11,11140,2026-09-30,공고A,2026-07-28\n';
+  const recs = logic.parseCsv(csv);
+  assert.strictEqual(recs[0].subRegion, '11140');
+  assert.strictEqual(recs[0].region, '11');
+});
+
+test('parseCsv: 구시군코드 열이 없어도 기존 CSV가 그대로 동작', () => {
+  const csv = '﻿기관명,기관구분,지역코드,수정일\n서울시청,지자체,11,2026-07-25\n';
+  const recs = logic.parseCsv(csv);
+  assert.strictEqual(recs[0].name, '서울시청');
+  assert.strictEqual(recs[0].subRegion, undefined);
 });
 
 test('buildCsvTemplate: BOM + 헤더 포함', () => {

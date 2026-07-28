@@ -5,6 +5,7 @@
   const EDIT_KEY = 'tbd.edits';
   const INTEREST_KEY = 'tbd.interest';
   const DATA_KEY = 'tbd.data';
+  const THEME_KEY = 'tbd.mapTheme';
   function LS() { return (typeof localStorage !== 'undefined') ? localStorage : null; }
   function read(key, fallback) {
     const ls = LS(); if (!ls) return fallback;
@@ -45,6 +46,12 @@
   };
   store.loadData = function () { return read(DATA_KEY, null); };
   store.saveData = function (list) { write(DATA_KEY, list); };
+
+  // 지도 테마(임박 5색 + 물결/깜빡임 색·주기) — IT 담당자가 화면에서 바꾼 값을 보존.
+  // 저장값은 부분(partial)일 수 있어 render.applyTheme이 기본값 위에 덮어쓴다.
+  store.loadTheme = function () { return read(THEME_KEY, {}); };
+  store.saveTheme = function (theme) { write(THEME_KEY, theme || {}); return store.loadTheme(); };
+  store.resetTheme = function () { const ls = LS(); if (ls) ls.removeItem(THEME_KEY); return {}; };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = store;
   else root.store = store;
