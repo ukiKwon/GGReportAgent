@@ -89,34 +89,27 @@
   버전으로 다시 구현할지, 신규 스펙 sub-project 3(agent 신규 노드) 계획을 새로 짤지"를
   먼저 확인**할 것.
 
-### 2. `dashboard/` 금고은행 입찰 히트맵 — 애니메이션 체감만 육안 확인 남음(포그라운드 탭)
-- **출처**: `2026-07-25_summary.md` `## Session (브라우저 검증)`. 구현·리뷰·병합은
-  `2026-07-24_summary.md` `## Session 07:43`. 스펙/계획:
-  `docs/superpowers/specs/2026-07-23-treasury-bid-dashboard-design.md`,
-  `docs/superpowers/plans/2026-07-23-treasury-bid-dashboard.md`.
-- **상태**: Task 1~16 전부 구현·리뷰 클린, **main 병합·push 완료(`464f906`)**. D3
-  v7.9.0 번들 배치(`1b85a3c`). 2026-07-25 세션에서 **브라우저 검증 대부분 통과** —
-  확장 file:// 차단 우회로 로컬 http 서버(`py -m http.server`, fetch 0건이라 file://과
-  코드경로 동일)로 검증: 로드/범례5색/필터/티커, 전국지도(서울·경기 활성), 상세
-  드릴인(마커 원·삼각/랭킹4카드), 글리프 ?·!, 무결성 console.warn(레코드 미삭제),
-  미상 후순위 정렬, 필터 토글(마커 4→3), 편집 모달·유효저장·localStorage 영속,
-  Export 직렬화, 탭2 지역그리드·관심핀바(★서울), 탭1 관심 글로우(금색 drop-shadow),
-  새로고침 영속(tbd.watchRegions/tbd.edits), D3 폴백(텍스트 랭킹) — **전부 정상**.
-  d3-zoom 배선도 즉시 zoom.transform 적용으로 검증됨.
-- **남은 단계 (유일·비차단)**: 애니메이션 **체감**(750ms fly-to 줌인, 구름 페이드)만
-  자동 검증 불가 — 자동화 탭이 백그라운드(`document.hidden=true`)라 rAF 스로틀로 d3
-  transition이 진행 안 됨(코드 버그 아님, 즉시 transform은 정상 적용 확인). **사용자가
-  포그라운드 탭에서 `dashboard/index.html` 열고 서울/경기 클릭해 줌 체감만 육안 확인**
-  하면 완결. 원격 `origin/feature/treasury-bid-dashboard`는 남아있음(삭제는 사용자 판단).
-- **주의**: 테스트는 `node --test dashboard/test/*.test.js`. 확장은 file:// 직접
-  네비게이션을 막으므로(navigate/omnibox 모두 차단) 브라우저 재검증 시 로컬 http
-  서버 경유가 확실 — `cd dashboard && py -m http.server 8817`(python은 스토어 스텁이라
-  실패, `py` 런처 사용). ship-as-is Minor 목록은 `.superpowers/sdd/progress.md` +
-  `2026-07-24_summary.md` 07:43 섹션.
+### 2. 원격 브랜치 `origin/feature/treasury-bid-dashboard` 삭제 여부 — 사용자 판단 대기
+- **출처**: `2026-07-28_summary.md` `## Session 23:52`(구 항목 2에서 이 건만 남기고 분리).
+  원래 이력은 `2026-07-24_summary.md` `## Session 07:43`.
+- **상태**: 대시보드 작업 자체는 **완전히 종료**(아래 해소 로그 참고). 이 원격 브랜치만
+  `464f906`에서 남아 있다. `git ls-remote --heads origin`로 존재 확인됨.
+  **비차단** — 지우지 않아도 아무 문제 없고, main에 이미 전부 병합돼 있다.
+- **다음 단계**: 사용자에게 삭제 의사만 물어보면 끝.
+  삭제 시 `git push origin --delete feature/treasury-bid-dashboard`.
 
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
+
+- ~~`dashboard/` 금고은행 입찰 히트맵 — 애니메이션 체감 육안 확인~~ (구 항목 2) —
+  `2026-07-28_summary.md` `## Session 23:52`에서 해소. 사용자가 포그라운드 탭에서 체감을
+  확인했고("0.4초는 마음에 든다"), 그 과정에서 나온 UI 피드백을 3라운드로 반영해 **main에
+  커밋·push 완료**: `c5b03d6`(파스텔 팔레트·구 단위 지자체 색칠·지자체 외곽선 깜빡임·
+  랭킹 카드 흰 테두리 누적 버그 수정·`🎨 지도 색상` 설정), `be194ee`(라벨 헤일로·라벨
+  겹침 해소·범례를 지도 우하단으로+테마 연동·드릴인 0.4초 멈춤), `4909a11`(지도를 덮는
+  큰 지역명 오버레이 제거). 테스트 `node --test dashboard/test/*.test.js` **36/36 통과**,
+  콘솔 오류 0건. 원격 브랜치 삭제 건만 위 항목 2로 분리해 이월함.
 
 - ~~`finalize` 엔드포인트에 호출자 신원(`X-User-Id`) 미수집~~ (구 항목 3) —
   같은 날 `2026-07-28_summary.md` `## Session 21:30` 후반부에서 **사용자가 선택지 ①을
