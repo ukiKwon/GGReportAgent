@@ -3,7 +3,7 @@
 - **작성일**: 2026-07-27
 - **대상**: `backend/`(레지스트리 API, sub-project 0)와 `agent/`(RFP 자동화 파이프라인, 부분 구현)를
   로컬에서 기동/시험해보려는 사람.
-- **범위 밖**: `report/`(정적 오프라인 HTML)는 서버 기동이 필요 없음 — 브라우저에서 파일을 직접 열면 됨.
+- **범위 밖**: `corpus/reports/`(정적 오프라인 HTML)는 서버 기동이 필요 없음 — 브라우저에서 파일을 직접 열면 됨.
 
 ---
 
@@ -15,7 +15,7 @@
 # 저장소 루트에서
 py -3 -m pip install -r requirements.txt
 
-# 1회성: giganlist/ 의 각 구청 폴더를 registry.db에 시딩
+# 1회성: giganlist/ 의 각 구청 폴더를 data/registry.db에 시딩
 py -3 -m backend.seed
 # 기대 출력: seeded <N> institutions: [...]
 
@@ -27,8 +27,9 @@ curl http://127.0.0.1:8000/institutions
 curl http://127.0.0.1:8000/institutions/dobong
 ```
 
-- `REGISTRY_DB_PATH` 환경변수로 DB 파일 위치를 바꿀 수 있음(기본값: 저장소 루트의
-  `registry.db`, `.gitignore`에 이미 등록됨).
+- `REGISTRY_DB_PATH` 환경변수로 DB 파일 위치를 바꿀 수 있음(기본값:
+  `data/registry.db` — 재구성 스펙 §⑦-2에 따라 시스템 생성물은 `data/`에 모이며,
+  `data/`는 통째로 `.gitignore`에 등록됨).
 - 엔드포인트 4개: `GET /institutions`, `GET /institutions/{id}`,
   `POST /institutions/import` (CSV 업로드), `GET /institutions/{id}/artifacts`.
 - 테스트만 먼저 확인하고 싶다면: `py -3 -m pytest backend/tests -v`

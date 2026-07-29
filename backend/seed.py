@@ -4,7 +4,7 @@ from pathlib import Path
 from backend.db import init_db
 from backend.repository import seed_giganlist_districts
 
-DEFAULT_DB_PATH = "registry.db"
+DEFAULT_DB_PATH = "data/registry.db"
 
 
 def main() -> None:

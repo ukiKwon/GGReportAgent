@@ -16,16 +16,16 @@ Finds the RFP (공고문) PDF for the institution being worked on, extracts its 
 
 ## Workflow
 
-1. **Locate the PDF** — scan `RFP/` in the repo root.
+1. **Locate the PDF** — scan `corpus/rfp/` (formerly root `RFP/`).
    - Exactly one PDF present → use it.
    - Multiple PDFs → ask the user which one; never guess.
-   - Empty folder → search the web for the institution's official announcement PDF by name; if found, download it into `RFP/` and confirm with the user before proceeding. If not found, ask the user to upload the file or provide a path — never fabricate content.
+   - Empty folder → search the web for the institution's official announcement PDF by name; if found, download it into `corpus/rfp/` and confirm with the user before proceeding. If not found, ask the user to upload the file or provide a path — never fabricate content.
 2. **Extract text** — run `scripts/extract_text.py <pdf_path>`. This returns `pages`, `full_text`, `avg_chars_per_page`, `is_abnormal`, `abnormal_reason`.
-3. **Fallback if abnormal** — if `is_abnormal` is `true` (avg chars/page under 50, or over 1% replacement characters — typically a CID-font or image-embedded PDF), run `scripts/render_pages.py <pdf_path> <out_dir>` to render each page to PNG, then read each PNG with the Read tool (vision) to recover the text and scoring table by inspection. This is not a hypothetical case — 도봉구's 4개년계획 PDF required exactly this fallback (see `구청_log.md` 14:11–14:29).
+3. **Fallback if abnormal** — if `is_abnormal` is `true` (avg chars/page under 50, or over 1% replacement characters — typically a CID-font or image-embedded PDF), run `scripts/render_pages.py <pdf_path> <out_dir>` to render each page to PNG, then read each PNG with the Read tool (vision) to recover the text and scoring table by inspection. This is not a hypothetical case — 도봉구's 4개년계획 PDF required exactly this fallback (see `archive/구청_log.md` 14:11–14:29).
 4. **Structure the scoring table** — from the extracted (or vision-read) text, produce a JSON object matching `references/scoring_schema.json`'s shape: `institution`, `rfp_title`, `total_score`, and a `criteria` list of `{category, item, score, description}`. The raw extracted text does not preserve table column boundaries (verified on the sample RFP: the scoring table's 항목/세부항목/배점/비고 columns collapse into one text run) — this structuring step requires reading the text and reconstructing the table, not a mechanical parse.
 5. **Save outputs**:
-   - `report_new/{institution}/rfp_scoring.json` — the structured scoring table
-   - `report_new/{institution}/rfp_text.txt` — the full extracted (or vision-read) text
+   - `data/report_new/{institution}/rfp_scoring.json` — the structured scoring table
+   - `data/report_new/{institution}/rfp_text.txt` — the full extracted (or vision-read) text
 
 ## Error Handling
 

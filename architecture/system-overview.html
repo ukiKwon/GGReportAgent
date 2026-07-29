@@ -569,7 +569,7 @@
           </li>
           <li>
             <span class="delta-mark warn">새로 드러남</span>
-            <span><strong><code class="inline">RFP/</code>에 실제 공고문 1건이 있다</strong> —
+            <span><strong><code class="inline">corpus/rfp/</code>에 실제 공고문 1건이 있다</strong> —
             "수원시 금고 지정 계획 공고문.pdf". 그런데 수원시는 <code class="inline">giganlist/</code>(서울 25구)에
             없다 → <strong>③단계 산출물이 ④단계로 넘어가도 근거 코퍼스가 없어 멈춘다.</strong>
             신규 기관 spec 자동생성 노드 부재가 추상적 결함이 아니라 지금 실제로 막고 있는 지점.</span>
@@ -613,7 +613,7 @@ flowchart TB
         direction TB
         S1["① 입찰현황 파악\ndashboard/ D3 히트맵 (전국·서울·경기)\ndata/institutions.js 수동 큐레이션\nnode --test 36건 통과"]
         S2["② 입찰상황 발생\n임박도 색(빨강/주황/노랑)을 보고\n사람이 '이건 하자'를 판단\n자동 트리거·수집 없음"]
-        S3["③ RFI 공시 확보\nRFP/수원시 금고 지정 계획 공고문.pdf\n.claude/skills/rfp-locate 를 사람이 호출\nrfp_locate_node 미구현"]
+        S3["③ RFI 공시 확보\ncorpus/rfp/수원시 금고 지정 계획 공고문.pdf\n.claude/skills/rfp-locate 를 사람이 호출\nrfp_locate_node 미구현"]
         S1 --> S2 --> S3
     end
 
@@ -634,7 +634,7 @@ flowchart TB
 
     CORPUS[("giganlist/ 25개 구청\nspec · plan · bank_ideas_draft\n= 모든 답변의 근거 코퍼스")]
     DB[("registry.db · SQLite\ninstitutions · bid_cases\ntasks · messages")]
-    OUT["산출물 뷰\nreport/5-report_2.0.html\nGGReportAgent_사업제안보고서.html"]
+    OUT["산출물 뷰\ncorpus/reports/5-report_2.0.html\narchive/GGReportAgent_사업제안보고서.html"]
 
     S3 -.->|"사람이 PDF를 넘김"| GATE
     GATE -.->|"미연결: 지도 CSV ↛ registry"| S4
@@ -696,7 +696,7 @@ sequenceDiagram
     D-->>H: 임박 기관 색으로 표시 (contractEnd 기준)
     H->>H: "이 건 참여하자" 판단 — 자동 트리거 없음
     H->>CC: rfp-locate 스킬로 공고문 탐색
-    CC-->>H: RFP/*.pdf + 배점표 추출
+    CC-->>H: corpus/rfp/*.pdf + 배점표 추출
     H->>API: POST /bidcases (JSON 수기 작성)
     note right of H: 지도 CSV와 registry는 아직 연결 안 됨
     end
@@ -763,7 +763,7 @@ sequenceDiagram
 flowchart TB
     subgraph SRC["📁 데이터 원천 · 완료"]
         GL["giganlist/{25개 구청}/\nspec + plan + bank_ideas_draft.txt"]
-        RFPDIR["RFP/\n실제 공고문 PDF (현재 1건)"]
+        RFPDIR["corpus/rfp/\n실제 공고문 PDF (현재 1건)"]
         SK[".claude/skills/\nrfp-locate · institution-corpus-format"]
     end
 
@@ -774,7 +774,7 @@ flowchart TB
         ADAPTER["backend/agent_adapter.py\n팀별 코퍼스 라우팅 + SSE 스트리밍"]
         ASM["backend/assembler.py (NEW)\n⑦ 취합 — 3팀 초안 → 제안서 PPTX"]
         SQLITE[("registry.db · SQLite\ninstitutions · bid_cases\ntasks · messages")]
-        REPORT["report/5-report_2.0.html\n루트 GGReportAgent_*.html\n오프라인 산출물 뷰"]
+        REPORT["corpus/reports/5-report_2.0.html\narchive/GGReportAgent_*.html\n오프라인 산출물 뷰"]
     end
 
     subgraph PARTIAL["🟡 부분 구현"]
@@ -858,7 +858,7 @@ flowchart TB
           <p>5개 노드 중 <code class="inline">pptx_builder</code>·<code class="inline">llm</code>만 백엔드가 실제 사용. CLI 진입점 없음, 신규 기관 spec 생성 노드 미구현. 테스트 24건 통과.</p>
         </div>
         <div class="card">
-          <div class="card-top"><span class="path">report/ · 루트 HTML</span><span class="badge done">완료</span></div>
+          <div class="card-top"><span class="path">corpus/reports/ · archive/ HTML</span><span class="badge done">완료</span></div>
           <p>5-report_2.0(지도·상세·비교 3탭) + 1.0 + DOCX + 루트 가이드/보고서 HTML. 전부 giganlist를 하드코딩 렌더링, 백엔드 호출 없음.</p>
         </div>
         <div class="card">
@@ -943,7 +943,7 @@ flowchart TB
           </li>
           <li>
             <span><strong>공고문 → RFI 분석 (③→④)</strong>
-            <code class="inline">RFP/*.pdf</code>를 <code class="inline">rfp_analysis_node</code>에 넣는 호출자가 없다.
+            <code class="inline">corpus/rfp/*.pdf</code>를 <code class="inline">rfp_analysis_node</code>에 넣는 호출자가 없다.
             <code class="inline">agent/</code>에는 CLI 진입점 자체가 없어 Python REPL에서 직접 부르는 수밖에 없다.</span>
           </li>
           <li>
@@ -1157,7 +1157,7 @@ sequenceDiagram
 
       <div class="note">
         <strong>현재 한계 두 가지</strong> — ① <code class="inline">giganlist/</code>에 이미 있는 기관이 아니면
-        파이프라인이 의미 있게 동작하지 않는다(현재 <code class="inline">RFP/</code>의 유일한 공고문이 바로 이 경우다).
+        파이프라인이 의미 있게 동작하지 않는다(현재 <code class="inline">corpus/rfp/</code>의 유일한 공고문이 바로 이 경우다).
         07-29 스펙이 <strong>자동 생성 노드를 만들지 않기로</strong> 확정했으므로, 이 자리는 앞으로도
         사람이 만든 코퍼스를 검증·반입하는 방식으로 채워진다(06절 S3).
         ② <code class="inline">get_llm()</code>은 API 키가 없으면 <code class="inline">getpass()</code>로 콘솔 입력을 기다리므로,
