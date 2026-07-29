@@ -1,0 +1,35 @@
+[
+  {
+    "notice_id": "20260729-00123",
+    "title": "마포구 금고 지정 제안서 제출 안내 공고",
+    "institution_name_ko": "마포구청",
+    "institution_type": "지자체",
+    "region_code": "11",
+    "sub_region_code": "11140",
+    "evidence_url": "https://example.invalid/notices/20260729-00123",
+    "posted_at": "2026-07-29",
+    "deadline_at": "2026-08-19",
+    "contract_end": "2026-09-30",
+    "last_bid": "2022-12-30",
+    "term": 4,
+    "confirmed": true,
+    "attachments": [
+      {
+        "filename": "공고문.txt",
+        "text": "마포구 금고 지정 제안서 제출 안내 (샘플 첨부)"
+      }
+    ]
+  },
+  {
+    "notice_id": "20260729-00124",
+    "title": "종로구 금고 지정 사전규격 공개",
+    "institution_name_ko": "종로구청",
+    "institution_type": "지자체",
+    "region_code": "11",
+    "sub_region_code": "11010",
+    "evidence_url": "https://example.invalid/notices/20260729-00124",
+    "posted_at": "2026-07-29",
+    "contract_end": "2027-06-30",
+    "confirmed": false
+  }
+]
