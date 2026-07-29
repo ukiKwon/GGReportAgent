@@ -54,6 +54,14 @@ def _read_text(path: Path, report: ValidationReport, rel: str) -> str | None:
         return None
 
 
+def _read_quiet(path: Path) -> str | None:
+    """UTF-8로 읽되, 실패는 조용히 None — 규칙 9 보고는 _check_encoding이 전담한다."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
 def _check_spec_structure(root: Path, report: ValidationReport) -> list[str]:
     """규칙 1·2·5. spec 파일 번호 목록을 돌려준다(내용 규칙에서 재사용)."""
     spec_dir = root / "spec"
@@ -154,11 +162,11 @@ def _check_encoding(root: Path, report: ValidationReport) -> None:
 def _check_citations(root: Path, spec_numbers: list[str], report: ValidationReport) -> None:
     """규칙 6. spec/NN은 실재 번호여야 하고, plan XX-N은 plan/01에 등장해야 한다."""
     plan01 = next((root / "plan").glob("01_*.txt"), None)
-    plan01_text = plan01.read_text(encoding="utf-8") if plan01 and plan01.is_file() else ""
+    plan01_text = (_read_quiet(plan01) or "") if plan01 and plan01.is_file() else ""
 
     for path in sorted(root.rglob("*.txt")):
         rel = str(path.relative_to(root)).replace("\\", "/")
-        text = _read_text(path, report, rel)
+        text = _read_quiet(path)
         if text is None:
             continue
         for number in sorted(set(SPEC_CITATION.findall(text))):
@@ -187,7 +195,7 @@ def _check_bank_ideas_content(root: Path, report: ValidationReport) -> None:
     path = root / "bank_ideas_draft.txt"
     if not path.is_file():
         return
-    text = _read_text(path, report, "bank_ideas_draft.txt")
+    text = _read_quiet(path)
     if text is None:
         return
 
@@ -229,8 +237,8 @@ def _check_bank_ideas_content(root: Path, report: ValidationReport) -> None:
 def _check_soft_rules(root: Path, report: ValidationReport) -> None:
     """규칙 10·11·12 — 전부 경고."""
     plan05 = next((root / "plan").glob("05_*.txt"), None)
-    if plan05 and plan05.is_file():
-        text = plan05.read_text(encoding="utf-8")
+    text = _read_quiet(plan05) if plan05 and plan05.is_file() else None
+    if text is not None:
         pairs = [(int(a), int(b)) for a, b in SCORE_PAIR.findall(text)]
         totals = [n for n, d in pairs if d == 100]
         parts = [(n, d) for n, d in pairs if d != 100]
@@ -244,8 +252,8 @@ def _check_soft_rules(root: Path, report: ValidationReport) -> None:
                 )
 
     homepage = next((root / "spec").glob("*홈페이지검색확인결과*.txt"), None)
-    if homepage and homepage.is_file():
-        text = homepage.read_text(encoding="utf-8")
+    text = _read_quiet(homepage) if homepage and homepage.is_file() else None
+    if text is not None:
         if not any(label in text for label in CROSS_CHECK_LABELS):
             report.warnings.append(
                 ValidationIssue(
@@ -255,8 +263,9 @@ def _check_soft_rules(root: Path, report: ValidationReport) -> None:
             )
 
     spec00 = next((root / "spec").glob("00_*.txt"), None)
-    if spec00 and spec00.is_file():
-        if not SELF_CHECK.search(spec00.read_text(encoding="utf-8")):
+    text = _read_quiet(spec00) if spec00 and spec00.is_file() else None
+    if text is not None:
+        if not SELF_CHECK.search(text):
             report.warnings.append(
                 ValidationIssue(12, "spec/" + spec00.name, "자체검산 문장을 찾지 못했습니다")
             )
