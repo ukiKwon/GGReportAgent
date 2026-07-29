@@ -51,6 +51,7 @@ class BidCase(BaseModel):
     last_synced_at: str | None = None
     participation_status: str = "검토중"
     participation_decision: list[ParticipationDecisionEntry] = []
+    research_status: str = "대기"
     finalized_by: str | None = None
     finalized_at: str | None = None
 
@@ -103,3 +104,7 @@ class TaskApprovalIn(BaseModel):
 class BidCaseFinalizeIn(BaseModel):
     approved: bool
     comment: str | None = None
+
+
+class CorpusPathIn(BaseModel):
+    path: str

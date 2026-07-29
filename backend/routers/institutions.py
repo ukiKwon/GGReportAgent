@@ -1,15 +1,38 @@
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 
+from backend.bidcase_repository import activate_pending_bid_cases
+from backend.corpus_validator import validate_corpus
 from backend.csv_import import parse_csv
 from backend.db import get_connection
-from backend.models import Institution
+from backend.models import CorpusPathIn, Institution
 from backend.repository import get_institution, list_institutions, upsert_institution
 
 router = APIRouter(prefix="/institutions", tags=["institutions"])
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 
 def _conn(request: Request):
     return get_connection(request.app.state.db_path)
+
+
+def _safe_corpus_path(raw: str) -> Path:
+    """리포 루트 기준 상대경로만 허용한다. 위반 시 400."""
+    candidate = Path(raw)
+    if candidate.is_absolute():
+        raise HTTPException(status_code=400, detail="상대경로만 허용됩니다")
+    resolved = (REPO_ROOT / candidate).resolve()
+    if not resolved.is_relative_to(REPO_ROOT):
+        raise HTTPException(status_code=400, detail="리포지토리 밖 경로는 허용되지 않습니다")
+    if not resolved.is_dir():
+        raise HTTPException(status_code=400, detail="디렉터리가 아닙니다")
+    return resolved
+
+
+def _issues(items) -> list[dict]:
+    return [{"rule": i.rule, "file": i.file, "message": i.message} for i in items]
 
 
 @router.get("", response_model=list[Institution])
@@ -67,4 +90,54 @@ def get_institution_artifacts(institution_id: str, request: Request) -> dict:
         "giganlist_dir": institution.giganlist_dir,
         "rfp_path": institution.rfp_path,
         "pptx_path": institution.pptx_path,
+    }
+
+
+@router.post("/{institution_id}/corpus/validate")
+def post_corpus_validate(
+    institution_id: str, body: CorpusPathIn, request: Request
+) -> dict:
+    conn = _conn(request)
+    try:
+        if get_institution(conn, institution_id) is None:
+            raise HTTPException(status_code=404, detail="institution not found")
+    finally:
+        conn.close()
+
+    report = validate_corpus(_safe_corpus_path(body.path))
+    return {
+        "ok": report.ok,
+        "errors": _issues(report.errors),
+        "warnings": _issues(report.warnings),
+    }
+
+
+@router.post("/{institution_id}/corpus")
+def post_corpus_register(
+    institution_id: str, body: CorpusPathIn, request: Request
+) -> dict:
+    conn = _conn(request)
+    try:
+        if get_institution(conn, institution_id) is None:
+            raise HTTPException(status_code=404, detail="institution not found")
+
+        resolved = _safe_corpus_path(body.path)
+        report = validate_corpus(resolved)
+        if not report.ok:
+            raise HTTPException(status_code=422, detail={"errors": _issues(report.errors)})
+
+        relative = resolved.relative_to(REPO_ROOT).as_posix()
+        conn.execute(
+            "UPDATE institutions SET giganlist_dir = ? WHERE institution_id = ?",
+            (relative, institution_id),
+        )
+        activated = activate_pending_bid_cases(conn, institution_id, commit=False)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {
+        "giganlist_dir": relative,
+        "activated_bid_cases": activated,
+        "warnings": _issues(report.warnings),
     }
