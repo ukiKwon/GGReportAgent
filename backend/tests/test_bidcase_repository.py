@@ -19,7 +19,7 @@ def conn(tmp_path):
     connection = init_db(db_path)
     connection.execute(
         "INSERT INTO institutions (institution_id, name_ko, stage, giganlist_dir) "
-        "VALUES ('mapo', '마포구', 1, 'giganlist/mapo')"
+        "VALUES ('mapo', '마포구', 1, 'corpus/institutions/mapo')"
     )
     connection.commit()
     yield connection

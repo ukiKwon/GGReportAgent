@@ -7,7 +7,7 @@ from agent.nodes.verification import verification_node
 
 def run_pipeline(
     institution_name: str,
-    giganlist_dir: str = "giganlist",
+    giganlist_dir: str = "corpus/institutions",
     archive_dir: str = "report_archive",
     report_new_dir: str = "report_new",
     max_revisions: int = 3,

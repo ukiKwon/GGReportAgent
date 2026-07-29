@@ -190,7 +190,7 @@ def test_rule8_accepts_circled_label_style(tmp_path):
     assert 8 not in _rules(report.errors)
 
 
-GIGANLIST = Path(__file__).resolve().parents[2] / "giganlist"
+GIGANLIST = Path(__file__).resolve().parents[2] / "corpus" / "institutions"
 INSTITUTIONS = sorted(p.name for p in GIGANLIST.iterdir() if (p / "spec").is_dir())
 
 

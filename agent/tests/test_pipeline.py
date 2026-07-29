@@ -12,7 +12,7 @@ def test_pipeline_stops_when_fully_covered(
     mock_rfp, mock_match, mock_write, mock_verify, mock_build
 ):
     mock_rfp.return_value = {"scoring_table": [{"item": "a"}], "rfp_text": "text"}
-    mock_match.return_value = {"institution_spec_dir": "giganlist/dobong/spec", "archive_pptx_path": None}
+    mock_match.return_value = {"institution_spec_dir": "corpus/institutions/dobong/spec", "archive_pptx_path": None}
     mock_write.return_value = {"sections": [{"scoring_item": "a"}], "revision_count": 0}
     mock_verify.return_value = {"coverage_report": [{"scoring_item": "a", "covered": True, "gap_note": None}]}
     mock_build.return_value = {"pptx_path": "report_new/dobong/dobong_제안서.pptx"}
@@ -33,7 +33,7 @@ def test_pipeline_retries_up_to_max_then_stops(
     mock_rfp, mock_match, mock_write, mock_verify, mock_build
 ):
     mock_rfp.return_value = {"scoring_table": [{"item": "a"}], "rfp_text": "text"}
-    mock_match.return_value = {"institution_spec_dir": "giganlist/dobong/spec", "archive_pptx_path": None}
+    mock_match.return_value = {"institution_spec_dir": "corpus/institutions/dobong/spec", "archive_pptx_path": None}
     mock_write.side_effect = [
         {"sections": [{"scoring_item": "a"}], "revision_count": i} for i in range(4)
     ]
