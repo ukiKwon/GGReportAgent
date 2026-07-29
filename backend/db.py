@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS bid_cases (
     last_synced_at         TEXT,
     participation_status   TEXT NOT NULL DEFAULT '검토중',
     participation_decision TEXT NOT NULL DEFAULT '[]',
+    research_status        TEXT NOT NULL DEFAULT '대기',
     finalized_by           TEXT,
     finalized_at           TEXT
 );

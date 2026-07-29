@@ -27,6 +27,13 @@ def _row_to_bid_case(row: sqlite3.Row) -> BidCase:
     return BidCase(**data)
 
 
+def _research_status_for(conn: sqlite3.Connection, institution_id: str) -> str:
+    row = conn.execute(
+        "SELECT giganlist_dir FROM institutions WHERE institution_id = ?", (institution_id,)
+    ).fetchone()
+    return "완료" if row and row["giganlist_dir"] else "대기"
+
+
 def create_bid_case(
     conn: sqlite3.Connection,
     institution_id: str,
@@ -38,9 +45,13 @@ def create_bid_case(
     conn.execute(
         """INSERT INTO bid_cases
            (bid_case_id, institution_id, schedule_confidence, expected_date,
-            confirmed_date, last_synced_at, participation_status, participation_decision)
-           VALUES (?, ?, ?, ?, ?, ?, '검토중', '[]')""",
-        (bid_case_id, institution_id, schedule_confidence, expected_date, confirmed_date, _now()),
+            confirmed_date, last_synced_at, participation_status, participation_decision,
+            research_status)
+           VALUES (?, ?, ?, ?, ?, ?, '검토중', '[]', ?)""",
+        (
+            bid_case_id, institution_id, schedule_confidence, expected_date,
+            confirmed_date, _now(), _research_status_for(conn, institution_id),
+        ),
     )
     conn.commit()
     return get_bid_case(conn, bid_case_id)
@@ -128,12 +139,55 @@ def submit_participation_decision(
         "WHERE bid_case_id = ?",
         (decisions_json, bid_case_id),
     )
+    if bid_case.research_status == "완료":
+        create_tasks_for_bid_case(conn, bid_case_id, commit=False)
+    conn.commit()
+    return get_bid_case(conn, bid_case_id)
+
+
+def create_tasks_for_bid_case(
+    conn: sqlite3.Connection, bid_case_id: str, commit: bool = True
+) -> list[str]:
+    """팀별 Task를 만든다. 이미 있는 팀은 건너뛴다(멱등)."""
+    existing = {
+        row["team"]
+        for row in conn.execute("SELECT team FROM tasks WHERE bid_case_id = ?", (bid_case_id,))
+    }
+    created = []
     for team in TEAMS:
+        if team in existing:
+            continue
         task_id = f"task-{secrets.token_hex(4)}"
         conn.execute(
             """INSERT INTO tasks (task_id, bid_case_id, team, status, progress_pct, draft_content)
                VALUES (?, ?, ?, '대기', 0, '')""",
             (task_id, bid_case_id, team),
         )
-    conn.commit()
-    return get_bid_case(conn, bid_case_id)
+        created.append(task_id)
+    if commit:
+        conn.commit()
+    return created
+
+
+def activate_pending_bid_cases(
+    conn: sqlite3.Connection, institution_id: str, commit: bool = True
+) -> list[str]:
+    """코퍼스가 반입된 기관에서, 참여확정됐지만 코퍼스 때문에 밀려 있던 BidCase를 푼다."""
+    rows = conn.execute(
+        """SELECT bid_case_id FROM bid_cases
+           WHERE institution_id = ? AND participation_status = '참여확정'
+             AND research_status = '대기'""",
+        (institution_id,),
+    ).fetchall()
+    activated = []
+    for row in rows:
+        bid_case_id = row["bid_case_id"]
+        conn.execute(
+            "UPDATE bid_cases SET research_status = '완료' WHERE bid_case_id = ?",
+            (bid_case_id,),
+        )
+        create_tasks_for_bid_case(conn, bid_case_id, commit=False)
+        activated.append(bid_case_id)
+    if commit:
+        conn.commit()
+    return activated

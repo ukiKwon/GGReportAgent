@@ -20,7 +20,8 @@ def task_id(tmp_path):
     db_path = str(tmp_path / "test.db")
     conn = init_db(db_path)
     conn.execute(
-        "INSERT INTO institutions (institution_id, name_ko, stage) VALUES ('mapo', '마포구', 1)"
+        "INSERT INTO institutions (institution_id, name_ko, stage, giganlist_dir) "
+        "VALUES ('mapo', '마포구', 1, 'giganlist/mapo')"
     )
     conn.commit()
     bid_case = create_bid_case(conn, "mapo")
