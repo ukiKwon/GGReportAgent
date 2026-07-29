@@ -1,4 +1,4 @@
-"""기관 코퍼스(giganlist/{기관}/)가 institution-corpus-format 규격을 지키는지 검사한다.
+"""기관 코퍼스(corpus/institutions/{기관}/)가 institution-corpus-format 규격을 지키는지 검사한다.
 
 FastAPI/Pydantic에 의존하지 않는다 — DMZ 쪽에서 백엔드 없이 CLI로 돌려야 하기 때문이다.
 """

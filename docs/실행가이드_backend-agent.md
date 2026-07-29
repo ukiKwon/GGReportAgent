@@ -15,7 +15,7 @@
 # 저장소 루트에서
 py -3 -m pip install -r requirements.txt
 
-# 1회성: giganlist/ 의 각 구청 폴더를 data/registry.db에 시딩
+# 1회성: corpus/institutions/ 의 각 구청 폴더를 data/registry.db에 시딩
 py -3 -m backend.seed
 # 기대 출력: seeded <N> institutions: [...]
 
@@ -61,7 +61,7 @@ result = run_pipeline(institution_name="도봉구")
 ```
 
 단, `institution_match_node` 이후 흐름(신규 기관 spec/plan 자동 생성 등)이 Task 3+ 미구현이라
-`giganlist/`에 이미 있는 기존 구청 이름으로만 의미 있게 동작할 가능성이 높다 — 신규 기관명을 넣으면
+`corpus/institutions/`에 이미 있는 기존 구청 이름으로만 의미 있게 동작할 가능성이 높다 — 신규 기관명을 넣으면
 Task 3 이후 로직이 없어 막힐 수 있다. **정식으로 "기동"하려면 먼저 `NEXT.md` 열린 항목의 방향
 결정(재구현 vs 재설계)을 내리고 나머지 Task를 마저 구현하는 별도 세션이 필요하다.**
 

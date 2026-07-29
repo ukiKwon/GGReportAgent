@@ -570,7 +570,7 @@
           <li>
             <span class="delta-mark warn">새로 드러남</span>
             <span><strong><code class="inline">corpus/rfp/</code>에 실제 공고문 1건이 있다</strong> —
-            "수원시 금고 지정 계획 공고문.pdf". 그런데 수원시는 <code class="inline">giganlist/</code>(서울 25구)에
+            "수원시 금고 지정 계획 공고문.pdf". 그런데 수원시는 <code class="inline">corpus/institutions/</code>(서울 25구)에
             없다 → <strong>③단계 산출물이 ④단계로 넘어가도 근거 코퍼스가 없어 멈춘다.</strong>
             신규 기관 spec 자동생성 노드 부재가 추상적 결함이 아니라 지금 실제로 막고 있는 지점.</span>
           </li>
@@ -632,7 +632,7 @@ flowchart TB
         S7 --> S8 --> S9
     end
 
-    CORPUS[("giganlist/ 25개 구청\nspec · plan · bank_ideas_draft\n= 모든 답변의 근거 코퍼스")]
+    CORPUS[("corpus/institutions/ 25개 구청\nspec · plan · bank_ideas_draft\n= 모든 답변의 근거 코퍼스")]
     DB[("registry.db · SQLite\ninstitutions · bid_cases\ntasks · messages")]
     OUT["산출물 뷰\ncorpus/reports/5-report_2.0.html\narchive/GGReportAgent_사업제안보고서.html"]
 
@@ -688,7 +688,7 @@ sequenceDiagram
     participant CC as Claude Code + 스킬
     participant API as backend FastAPI
     participant AG as agent_adapter → LLM
-    participant FS as giganlist/ · registry.db
+    participant FS as corpus/institutions/ · registry.db
 
     rect rgb(169,72,90)
     note over H,CC: ①~③ 사람 구간 — 시스템이 이어주지 않는다
@@ -762,7 +762,7 @@ sequenceDiagram
 <pre class="mermaid">
 flowchart TB
     subgraph SRC["📁 데이터 원천 · 완료"]
-        GL["giganlist/{25개 구청}/\nspec + plan + bank_ideas_draft.txt"]
+        GL["corpus/institutions/{25개 구청}/\nspec + plan + bank_ideas_draft.txt"]
         RFPDIR["corpus/rfp/\n실제 공고문 PDF (현재 1건)"]
         SK[".claude/skills/\nrfp-locate · institution-corpus-format"]
     end
@@ -830,7 +830,7 @@ flowchart TB
       <h3>컴포넌트별 요약</h3>
       <div class="cards">
         <div class="card">
-          <div class="card-top"><span class="path">giganlist/</span><span class="badge done">완료</span></div>
+          <div class="card-top"><span class="path">corpus/institutions/</span><span class="badge done">완료</span></div>
           <p>25개 구청의 spec(예산·민원)·plan(제안서)·bank_ideas_draft. 대시보드를 뺀 모든 하위 컴포넌트의 근거 코퍼스.</p>
         </div>
         <div class="card">
@@ -903,7 +903,7 @@ flowchart TB
               <td><span class="badge done">canonical</span></td>
             </tr>
             <tr>
-              <td class="ep">giganlist/{id}/</td>
+              <td class="ep">corpus/institutions/{id}/</td>
               <td>기관별 근거 텍스트(spec·plan·bank_ideas)</td>
               <td class="zone-tag">폴더명 = institution_id</td>
               <td>agent_adapter · seed · 빌드 스크립트</td>
@@ -948,7 +948,7 @@ flowchart TB
           </li>
           <li>
             <span><strong>신규 기관 → 근거 코퍼스 (⑤ 진입 조건)</strong>
-            <code class="inline">giganlist/</code>에 없는 기관(예: 수원시)은 <code class="inline">_load_team_corpus()</code>가
+            <code class="inline">corpus/institutions/</code>에 없는 기관(예: 수원시)은 <code class="inline">_load_team_corpus()</code>가
             "(자료 없음)"을 돌려주는데도 ⑥단계가 그대로 진행돼, <strong>근거 없는 초안이 확정까지 갈 수 있다</strong>.
             07-29 스펙이 이 구멍의 메우는 방식을 확정했다 — 조사는 DMZ에서 사람이 하고(현재
             <code class="inline">institution-corpus-format</code> 스킬), 시스템은
@@ -1156,7 +1156,7 @@ sequenceDiagram
       <p class="panel-caption">agent/pipeline.py:8-36 · agent/llm.py (모델 하드코딩, E2E 스펙 §⑥ LLM 어댑터 미적용)</p>
 
       <div class="note">
-        <strong>현재 한계 두 가지</strong> — ① <code class="inline">giganlist/</code>에 이미 있는 기관이 아니면
+        <strong>현재 한계 두 가지</strong> — ① <code class="inline">corpus/institutions/</code>에 이미 있는 기관이 아니면
         파이프라인이 의미 있게 동작하지 않는다(현재 <code class="inline">corpus/rfp/</code>의 유일한 공고문이 바로 이 경우다).
         07-29 스펙이 <strong>자동 생성 노드를 만들지 않기로</strong> 확정했으므로, 이 자리는 앞으로도
         사람이 만든 코퍼스를 검증·반입하는 방식으로 채워진다(06절 S3).
@@ -1177,7 +1177,7 @@ node --test dashboard/test/*.test.js   # 36 passed</div>
 
       <h3>◆~⑦ 워크플로우 서버</h3>
       <div class="panel mono" style="font-size:13px; line-height:1.9; white-space:pre;">py -3 -m pip install -r requirements.txt
-py -3 -m backend.seed                      # giganlist/ → registry.db 시딩
+py -3 -m backend.seed                      # corpus/institutions/ → registry.db 시딩
 set OPENAI_API_KEY=...                     # /tasks/{id}/messages 스트리밍에 필요
 py -3 -m uvicorn backend.main:app --reload
 
