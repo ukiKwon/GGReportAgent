@@ -51,7 +51,15 @@ structure:
 - **`corpus/`** — RAG source material, per the repo-restructure spec §⑦ stage 3:
   `corpus/rfp/` (RFP announcement PDFs, formerly root `RFP/`), `corpus/reports/`
   (see below), and `corpus/inbox/` (drop zone for files brought in from outside
-  the closed network — empty until the collector exists).
+  the closed network — empty until the collector exists; the format those files
+  must take is fixed by `collector/SCHEMA.md`).
+- **`collector/`** — the outside-the-network announcement collector's slot
+  (restructure spec §⑦ stage 6). **Currently `SCHEMA.md` only, no code.** That file
+  is the whole interface between the two sides: the collector never imports repo
+  code, it just drops a batch folder (`manifest.json` + `institutions.csv` +
+  `files/`) into `corpus/inbox/`. Read it before adding anything here, and before
+  changing `backend/csv_import.py`'s header map — the CSV half of the contract is
+  that map.
 - **`corpus/reports/`** (formerly `total/`, then root `report/`) — the combined
   cross-district output:
   - `5-report_2.0.html` — **the current main deliverable.** A single-file offline app
