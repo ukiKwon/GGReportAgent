@@ -44,24 +44,22 @@
   `git push origin main worktree-corpus-validation` 실행(인증 창이 뜨면 로그인).
   이후 세션에서 `git rev-list --left-right --count origin/main...main` = `0 0` 확인.
 
-### 2. 리포지토리 재구성 — ①~③단계+architecture 이동 완료, ④단계는 목적지 결정 대기
-- **출처**: `2026-07-29_summary.md` `## Session 11:14`.
+### 2. 리포지토리 재구성 — ①~④단계 완료, 남은 것은 ⑤~⑦ (각각 별도 스펙/세션)
+- **출처**: `2026-07-29_summary.md` `## Session 11:14`(①~③)·`## Session 11:35`(④).
 - **스펙**: `docs/superpowers/specs/2026-07-29-repo-restructure-design.md`. 실행 계획:
   `docs/superpowers/plans/2026-07-29-repo-restructure-stage1-3.md`.
-- **완료 (main에 병합됨, 커밋 `7b9d7be`·`d5010d9`)**: ①`archive/` 신설(1세대 산출물·
-  `log/` 이동, tmp/·workflow/는 이미 없었음) ②`data/` 분리(registry.db·report_new
-  경로 기본값 교체, init_db가 부모 폴더 생성, gitignore `data/*`) ③`corpus/` 신설
-  (`RFP/`→`corpus/rfp/`, `report/`→`corpus/reports/`, `corpus/inbox/` 생성, 코드 참조
-  0건 확인, 살아있는 문서 갱신) + 사용자 요청으로 `architecture/`→`docs/architecture/`.
-  각 단계 후 테스트 전건 통과(96→병합 후 148).
-- **④단계(giganlist 이동) — 게이트는 풀렸으나 목적지 결정 대기**: corpus-validation이
-  main에 병합돼(§⑥ 게이트 해제) 착수 가능. 단, **사용자가 `data/` 밑을 제안**했는데
-  스펙 §⑥·결정로그 5는 **`corpus/institutions/`**를 목적지로 못박고 있다(`data/`는
-  gitignore된 시스템 생성물 전용이라 git 추적 조사 원료와 상충 — 세션이 반대 의견 제시,
-  회신 대기). 이동 시 갱신할 4지점+DB 값은 스펙 §⑥ 참조.
-- **대기 중인 다른 사용자 제안**: `dashboard/`→`frontend/` 신설 이동 — 스펙 결정로그
-  1(이름 유지 C안)·§⑤(최종형은 `web/`)와 충돌해 보류 권고, 회신 대기.
-- **남은 단계**: ⑤`agent/retrieval/`(별도 스펙) ⑥`collector/SCHEMA.md` ⑦(후일) 개명.
+- **완료 (전부 main에 병합됨)**: ①`archive/` 신설(`7b9d7be`에 포함) ②`data/` 분리
+  ③`corpus/` 신설(rfp·reports·inbox) + `architecture/`→`docs/architecture/`(`d5010d9`)
+  ④**giganlist→`corpus/institutions/` 이동 완료** — 사용자가 `data/` 제안을 철회하고
+  스펙 §⑥대로 `corpus/institutions/` 승인. 25개 폴더 git mv + seed 경로·저장값 접두사
+  +검증기 docstring+테스트 경로+agent 기본값+살아있는 문서를 한 커밋으로(§⑥ 요구),
+  traversal 테스트는 접두사가 2단계 깊어져 `..` 하나 추가. `data/registry.db`는 비어
+  있던 것을 확인하고 재시딩(25개 기관, 새 접두사 검증). 테스트 148 passed.
+  `giganlist_dir` 같은 식별자명은 의도적으로 유지(컬럼 개명은 범위 밖).
+- **사용자 결정 (2026-07-29)**: `dashboard/`→`frontend/`는 **최종형 개명 스펙(§⑤·⑦-7)
+  때 함께** 하기로 확정 — 그 전까지 이동 금지.
+- **남은 단계**: ⑤`agent/retrieval/`(파서+FTS, 별도 스펙 필요) ⑥`collector/SCHEMA.md`
+  작성 ⑦(후일) 최종형 개명(backend→server, dashboard→web 흡수, 별도 스펙).
 
 ### 3. (참고, 비차단) 빈 워크트리 디렉터리 `.claude/worktrees/institution-intelligence-agent/` 정리
 - **출처**: `2026-07-29_summary.md` `## Session (풀 상태 감사...)`.
