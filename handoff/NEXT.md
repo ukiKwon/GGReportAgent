@@ -31,9 +31,9 @@
 
 ## 열린 항목
 
-### 1. 리포지토리 재구성 — ①~⑤단계 완료, 남은 것은 ⑥~⑦ (각각 별도 스펙/세션)
+### 1. 리포지토리 재구성 — ①~⑥단계 완료, 남은 것은 ⑦뿐 (조건부 보류)
 - **출처**: `2026-07-29_summary.md` `## Session 11:14`(①~③)·`## Session 13:38`(④)·
-  `## Session 15:25`(⑤).
+  `## Session 15:25`(⑤)·`## Session 15:51`(⑥).
 - **스펙**: `docs/superpowers/specs/2026-07-29-repo-restructure-design.md`. 실행 계획:
   `docs/superpowers/plans/2026-07-29-repo-restructure-stage1-3.md`.
 - **완료 (전부 main에 병합됨)**: ①`archive/` 신설(`7b9d7be`에 포함) ②`data/` 분리
@@ -55,21 +55,30 @@
   무수정 통과). 테스트 **178 passed**(기준선 148+30), dashboard 36/36.
   인덱스는 `data/corpus_index.db`(gitignored) — `py -3.14 -m agent.retrieval build`로
   재생성. 사용법: `docs/실행가이드_backend-agent.md` §3.
-- **남은 단계**: ⑥`collector/SCHEMA.md` 작성(수집 산출물 스키마 문서만)
-  ⑦(후일) 최종형 개명(backend→server, dashboard→web 흡수, 별도 스펙).
-
-### 2. (참고, 비차단) 빈 워크트리 디렉터리 `.claude/worktrees/institution-intelligence-agent/` 정리
-- **출처**: `2026-07-29_summary.md` `## Session (풀 상태 감사...)`.
-- **내용**: `git worktree list`에 안 잡히는(등록 안 된) 빈 디렉터리 — 내용물은 빈
-  `.claude/` 폴더 하나뿐. 같은 이름의 실제 작업(BidCase/Task/Message 레이어, 커밋
-  `1c72190`~`189bee0`)은 이미 main에 전부 병합·완료돼 있어, 이건 그 작업을 위해
-  만들다 만 잔해로 보인다.
-- **다음 단계**: 아무 때나 `rm -rf ".claude/worktrees/institution-intelligence-agent"`
-  로 삭제해도 안전(git 객체 아님, 잃을 커밋 없음). 급하지 않음.
+- **⑥ 완료 (main `5cfc4e6`, push됨)**: `collector/SCHEMA.md` v1 작성 — 망 밖 수집기와
+  망 안의 **유일한 접점을 파일 형식으로 고정**. 배치 폴더 1개 = `manifest.json`(권위)
+  + `institutions.csv`(파생) + `files/`, dedup 키 `(source.slug, notice_id)`,
+  배치 불변·나중 배치 우선, `schema_version` 정책. CSV는 `backend/csv_import.py`(6열)와
+  `dashboard/js/logic.js`(12열)가 **둘 다 읽는 12열 상위집합**으로 정하고 두 파서에
+  실제 통과시켜 검증(SCHEMA.md §⑦). `institution_id`는 망 밖에서 발급 금지(슬러그
+  발급은 망 안 권한). 코드는 없음 — 스펙 §⑦-6대로 문서까지만.
+- **남은 단계 ⑦ (조건부 보류, 착수 금지)**: 최종형 개명(`backend`→`server`,
+  `dashboard`→`web/` 흡수). 착수 조건 두 가지가 **아직 미충족**이다 —
+  ⓐ 사용자 결정 "최종형 됐을 때" ⓑ 스펙 §⑤ "backend 작업이 잠잠해진 뒤".
+  실제로 backend는 계속 커지는 중(2026-07-29에만 `routers/search.py` 신설,
+  `create_app` 시그니처 변경). 착수하려면 **별도 스펙부터** 쓰고, import 경로
+  전면 수정이 따르므로 다른 세션 동시작업이 없는 시점을 골라야 한다.
 
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
+
+- ~~빈 워크트리 디렉터리 `.claude/worktrees/institution-intelligence-agent/` 정리~~
+  (구 항목 2) — `2026-07-29_summary.md` `## Session 15:51`에서 **확인 결과 이미
+  존재하지 않아 종결**. 이 PC에서 `.claude/worktrees` 디렉터리 자체가 없고
+  (`ls` 실패), `git worktree list`도 메인 리포 하나만 반환한다. 과거
+  `skill-essential` 잔해와 같은 경로(Windows 파일 잠금이 풀리며 자연 정리)로
+  보인다. 별도 조치 불필요.
 
 - ~~main 미push 커밋 — GitHub 인증이 세션에 없어 push 차단~~ (구 항목 1) —
   `2026-07-29_summary.md` `## Session 13:38` 직후 해소. **사용자가 세션 안에서
