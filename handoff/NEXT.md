@@ -31,7 +31,32 @@
 
 ## 열린 항목
 
-### 1. 리포지토리 재구성 — ①~⑥단계 완료, 남은 것은 ⑦뿐 (조건부 보류)
+### 1. E2E 입찰워크플로 — sub-project 1 착지, 남은 것은 2·3·4·5
+- **출처**: `2026-07-29_summary.md` `## Session 18:14`.
+- **스펙**: `docs/superpowers/specs/2026-07-26-e2e-bid-workflow-system-design.md` §⑧.
+- **완료 (main `5fba9f0`, push됨)**: **sub-project 1(DMZ 수집 서비스)**.
+  설계 `docs/superpowers/specs/2026-07-29-dmz-collector-service-design.md` +
+  플랜 `docs/superpowers/plans/2026-07-29-dmz-collector-service.md` → `collector/` 구현.
+  - `sources/`(어댑터 인터페이스 + `fixture` 기본 어댑터), `batch.py`(SCHEMA v1 배치 생성,
+    자기검사 실패 시 배치 미생성), `schema.py`(배치 검증), `app.py`(FastAPI :8001,
+    collect/batches/archive), `bridge.py`(반입 대행 CLI).
+  - **망 경계 유지 방식**: 두 서비스는 서로의 주소를 모르고, 배치를 옮기는 것은
+    운영=사람(USB) / 테스트=브리지 CLI. `test_boundary.py`가 collector 런타임의
+    `backend`/`agent` import를 **테스트로 금지**한다.
+  - E2E 실측: DMZ(8001) `POST /collect` → 브리지 → 망 안(8000) 기관 2건 upsert 확인
+    (한글 정상, DB 직접 조회로 검증). 테스트 **233 passed**, dashboard 36/36.
+- **남은 sub-project**:
+  - **2 폐쇄망 백엔드 코어** — 배치 수신 처리가 여기 몫이다. 지금 브리지는
+    `POST /institutions/import`(CSV)까지만 호출하고, `collector/SCHEMA.md` §⑥의
+    4·5·6(공고 레코드로 `bid_cases` 일정 갱신, 첨부 PDF를 `corpus/rfp/`로 이동 +
+    `rfp_path` 기록, 처리된 배치 치우기)은 **미구현**이다. 다음 세션 1순위 후보.
+  - **3 agent 신규 노드** — `rfp_locate_node`만 남음(`spec_research_node`는 폐기 확정).
+  - **4 6단계 3팀 분화** — `role_router_node` 미구현.
+  - **5 통합 프런트** — 미착수. **이걸 하면 재구성 ⑦(개명)도 같이 끝난다**(항목 2 참조).
+- **실사이트 크롤러는 여전히 범위 밖** — 어댑터 인터페이스만 열려 있고 기본값은
+  로컬 픽스처 하나다. 실제 나라장터/지자체 파싱은 별도 스펙이 필요하다.
+
+### 2. 리포지토리 재구성 — ①~⑥단계 완료, 남은 것은 ⑦뿐 (조건부 보류)
 - **출처**: `2026-07-29_summary.md` `## Session 11:14`(①~③)·`## Session 13:38`(④)·
   `## Session 15:25`(⑤)·`## Session 15:51`(⑥).
 - **스펙**: `docs/superpowers/specs/2026-07-29-repo-restructure-design.md`. 실행 계획:
