@@ -10,6 +10,11 @@ from agent.retrieval.search import IndexNotBuiltError, search
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Windows 콘솔 기본 cp949는 코퍼스의 일부 문자를 못 담아 크래시한다.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
     parser = argparse.ArgumentParser(prog="agent.retrieval")
     sub = parser.add_subparsers(dest="command", required=True)
 
