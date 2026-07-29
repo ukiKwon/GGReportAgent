@@ -31,20 +31,7 @@
 
 ## 열린 항목
 
-### 1. main 미push 커밋 — GitHub 인증이 이 세션에 없어 push 차단 (사용자 조치 필요)
-- **출처**: `2026-07-29_summary.md` `## Session 11:14`.
-- **무엇인가**: corpus-validation 병합(`c7ba0c7`)·리포 재구성 ①~③ 병합(`7b9d7be`)·
-  architecture 이동(`d5010d9`) 등 main의 미push 커밋 다수 + 브랜치
-  `worktree-corpus-validation`의 fix 커밋 `a8e14fd`.
-- **왜 막혔나**: 네트워크 문제가 아니다 — `git ls-remote`(읽기)는 즉시 되는데 push만
-  인증 프롬프트에서 무한 대기. `GIT_TERMINAL_PROMPT=0`으로 확인한 결과
-  "could not read Username for 'https://github.com'" — credential manager에 저장된
-  자격증명이 없고, 백그라운드 세션이라 GUI 인증 창을 띄울 수 없다. `gh` CLI도 미설치.
-- **다음 단계**: 사용자가 자기 터미널에서 한 번
-  `git push origin main worktree-corpus-validation` 실행(인증 창이 뜨면 로그인).
-  이후 세션에서 `git rev-list --left-right --count origin/main...main` = `0 0` 확인.
-
-### 2. 리포지토리 재구성 — ①~④단계 완료, 남은 것은 ⑤~⑦ (각각 별도 스펙/세션)
+### 1. 리포지토리 재구성 — ①~④단계 완료, 남은 것은 ⑤~⑦ (각각 별도 스펙/세션)
 - **출처**: `2026-07-29_summary.md` `## Session 11:14`(①~③)·`## Session 13:38`(④).
 - **스펙**: `docs/superpowers/specs/2026-07-29-repo-restructure-design.md`. 실행 계획:
   `docs/superpowers/plans/2026-07-29-repo-restructure-stage1-3.md`.
@@ -61,7 +48,7 @@
 - **남은 단계**: ⑤`agent/retrieval/`(파서+FTS, 별도 스펙 필요) ⑥`collector/SCHEMA.md`
   작성 ⑦(후일) 최종형 개명(backend→server, dashboard→web 흡수, 별도 스펙).
 
-### 3. (참고, 비차단) 빈 워크트리 디렉터리 `.claude/worktrees/institution-intelligence-agent/` 정리
+### 2. (참고, 비차단) 빈 워크트리 디렉터리 `.claude/worktrees/institution-intelligence-agent/` 정리
 - **출처**: `2026-07-29_summary.md` `## Session (풀 상태 감사...)`.
 - **내용**: `git worktree list`에 안 잡히는(등록 안 된) 빈 디렉터리 — 내용물은 빈
   `.claude/` 폴더 하나뿐. 같은 이름의 실제 작업(BidCase/Task/Message 레이어, 커밋
@@ -73,6 +60,12 @@
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
+
+- ~~main 미push 커밋 — GitHub 인증이 세션에 없어 push 차단~~ (구 항목 1) —
+  `2026-07-29_summary.md` `## Session 13:38` 직후 해소. **사용자가 세션 안에서
+  `! git push origin main worktree-corpus-validation`을 직접 실행**해 인증과 함께
+  push 완료(`b91b081..8c5225f main`, `8d94f88..a8e14fd worktree-corpus-validation`).
+  `git rev-list --left-right --count origin/main...main` = `0 0` 검증됨.
 
 - ~~corpus-validation 워크트리 — main 병합만 남음 (최우선)~~ (구 항목 1) —
   `2026-07-29_summary.md` `## Session 11:14`에서 해소. 전체 브랜치 최종 리뷰 수행 →
