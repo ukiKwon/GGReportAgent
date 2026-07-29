@@ -60,22 +60,28 @@ structure:
     `서울시_5개구청_사업제안기획안.html`); source of the district panels imported into 2.0.
     Keep it unchanged as reference.
   - `서울시_5개구청_사업제안기획안.docx` — the DOCX deliverable.
-- **`build_report.py`** — generates the DOCX version (python-docx: cover page → one
-  1-page summary per district → per-district detail chapters).
-- **`build_html_report.py`** — generates the HTML version (sidebar/tab navigation per
-  district, subtabs per plan section; per-district `district_colors`, `trust_scores`,
-  `budget_info`, `key_problems`, `top_projects` dicts are hardcoded near the top of the
-  file — update those in place rather than re-deriving them from spec files by hand).
-- **`구청_log.md`** — timestamped work log of how all of the above was produced (mostly
-  parallel background research agents). Read it before assuming a spec/plan file's
-  provenance or before treating a discrepancy as a bug rather than known history.
-- **`html_한글화_계획.md`** — a draft plan (not yet applied to source) for replacing the
-  English tokens `spec`/`plan` with Korean equivalents throughout the HTML output and its
-  source `.txt` files. Read this before doing any find/replace on `spec`/`plan` strings —
-  it documents which occurrences are file-index references that must keep their numeric
-  suffix vs. free-text usages that can be reworded outright.
-- **`gigan.zip`** — archive of this project's contents; not a source of truth, don't
-  extract-and-edit into it.
+- **`archive/`** — 1st-generation artifacts, quarantined here per the repo-restructure
+  spec (`docs/superpowers/specs/2026-07-29-repo-restructure-design.md` §⑦ stage 1).
+  Everything below still has valid content but is no longer at repo root:
+  - **`archive/build_report.py`** — generates the DOCX version (python-docx: cover page →
+    one 1-page summary per district → per-district detail chapters).
+  - **`archive/build_html_report.py`** — generates the HTML version (sidebar/tab
+    navigation per district, subtabs per plan section; per-district `district_colors`,
+    `trust_scores`, `budget_info`, `key_problems`, `top_projects` dicts are hardcoded near
+    the top of the file — update those in place rather than re-deriving them from spec
+    files by hand).
+  - **`archive/구청_log.md`** — timestamped work log of how all of the above was produced
+    (mostly parallel background research agents). Read it before assuming a spec/plan
+    file's provenance or before treating a discrepancy as a bug rather than known history.
+  - **`archive/html_한글화_계획.md`** — a draft plan (not yet applied to source) for
+    replacing the English tokens `spec`/`plan` with Korean equivalents throughout the HTML
+    output and its source `.txt` files. Read this before doing any find/replace on
+    `spec`/`plan` strings — it documents which occurrences are file-index references that
+    must keep their numeric suffix vs. free-text usages that can be reworded outright.
+  - **`archive/gigan.zip`** — archive of this project's contents; not a source of truth,
+    don't extract-and-edit into it.
+  - **`archive/log/`** — past-session work logs (progress checks, batch completion logs).
+  - **`archive/GGReportAgent_*.html`** (3 files) — early root-level report/guide HTML.
 
 ## Important gotcha: hardcoded output paths don't match this repo's layout
 
