@@ -45,8 +45,13 @@
   `giganlist_dir` 같은 식별자명은 의도적으로 유지(컬럼 개명은 범위 밖).
 - **사용자 결정 (2026-07-29)**: `dashboard/`→`frontend/`는 **최종형 개명 스펙(§⑤·⑦-7)
   때 함께** 하기로 확정 — 그 전까지 이동 금지.
-- **남은 단계**: ⑤`agent/retrieval/`(파서+FTS, 별도 스펙 필요) ⑥`collector/SCHEMA.md`
-  작성 ⑦(후일) 최종형 개명(backend→server, dashboard→web 흡수, 별도 스펙).
+- **⑤ 진행 중**: 스펙 작성 완료 —
+  `docs/superpowers/specs/2026-07-29-agent-retrieval-fts-design.md`(커밋 `1e29e43`,
+  main push됨). trigram FTS5는 이 PC의 `py -3.14`(SQLite 3.50.4)에서 동작 검증됨.
+  **다음 단계**: 스펙 기반 실행 플랜(`docs/superpowers/plans/`) 작성 → 구현
+  (`agent/retrieval/` 5개 모듈 + `backend/routers/search.py` + agent_adapter 폴백 교체).
+- **남은 단계**: ⑤ 구현(스펙 완료, 플랜부터) ⑥`collector/SCHEMA.md` 작성
+  ⑦(후일) 최종형 개명(backend→server, dashboard→web 흡수, 별도 스펙).
 
 ### 2. (참고, 비차단) 빈 워크트리 디렉터리 `.claude/worktrees/institution-intelligence-agent/` 정리
 - **출처**: `2026-07-29_summary.md` `## Session (풀 상태 감사...)`.
