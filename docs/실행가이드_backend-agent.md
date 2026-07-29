@@ -65,6 +65,28 @@ result = run_pipeline(institution_name="도봉구")
 Task 3 이후 로직이 없어 막힐 수 있다. **정식으로 "기동"하려면 먼저 `NEXT.md` 열린 항목의 방향
 결정(재구현 vs 재설계)을 내리고 나머지 Task를 마저 구현하는 별도 세션이 필요하다.**
 
+## 3. 코퍼스 검색 인덱스 (`agent/retrieval/`) — 빌드 후 사용
+
+`corpus/`의 .txt를 SQLite FTS5(trigram) 인덱스로 만들어 팀 채팅과 `GET /search`가
+검색한다. 설계: `docs/superpowers/specs/2026-07-29-agent-retrieval-fts-design.md`.
+
+```bash
+# 인덱스 전체 재빌드 → data/corpus_index.db (gitignored, 언제든 재생성 가능)
+py -3.14 -m agent.retrieval build
+
+# CLI 검색 (스모크 확인용)
+py -3.14 -m agent.retrieval search "청년 창업 지원" --limit 5
+py -3.14 -m agent.retrieval search "소상공인 금융" --institution dobong --doctype bank_ideas
+
+# API 검색 (서버 기동 후)
+curl "http://127.0.0.1:8000/search?q=전통시장%20지원&limit=3"
+```
+
+- 인덱스가 없으면: 팀 채팅은 기존 "팀 파일 통째 읽기"로 **폴백**하고(기능 정지 없음),
+  `/search`는 503과 빌드 안내를 돌려준다.
+- `corpus/` 내용을 바꿨으면 build를 다시 실행한다(증분 갱신 없음, 전체 재빌드가 원자 교체).
+- trigram 특성상 질의 3자 미만은 항상 0건이다.
+
 ## 확인 방법
 
 - `backend/`: 위 curl 두 개가 200과 JSON을 반환하면 정상.

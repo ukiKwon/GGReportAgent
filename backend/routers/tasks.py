@@ -99,11 +99,14 @@ def post_task_message(
     institution = get_institution(conn, bid_case_row["institution_id"]) if bid_case_row else None
     giganlist_dir = institution.giganlist_dir if institution else None
     db_path = request.app.state.db_path
+    index_db_path = request.app.state.index_db_path
     conn.close()
 
     def event_stream():
         reply_parts = []
-        for chunk in stream_chat_reply(task.team, giganlist_dir, history, body.content):
+        for chunk in stream_chat_reply(
+            task.team, giganlist_dir, history, body.content, index_db_path=index_db_path
+        ):
             reply_parts.append(chunk)
             yield chunk
         full_reply = "".join(reply_parts)
