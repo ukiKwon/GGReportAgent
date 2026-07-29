@@ -48,7 +48,12 @@ structure:
   `plan/`, and every idea in it cites back to a specific `spec/NN` or `plan/NN` source by
   file index (e.g. `spec/02(1장-4)`, `plan FN-1`) so claims stay traceable to real
   district data.
-- **`report/`** (formerly `total/`) — the combined cross-district output:
+- **`corpus/`** — RAG source material, per the repo-restructure spec §⑦ stage 3:
+  `corpus/rfp/` (RFP announcement PDFs, formerly root `RFP/`), `corpus/reports/`
+  (see below), and `corpus/inbox/` (drop zone for files brought in from outside
+  the closed network — empty until the collector exists).
+- **`corpus/reports/`** (formerly `total/`, then root `report/`) — the combined
+  cross-district output:
   - `5-report_2.0.html` — **the current main deliverable.** A single-file offline app
     with a 3-tab sidebar: 대시보드 (25-district Seoul GeoJSON map — do not modify without
     explicit instruction, especially the map; district click opens a centered quick-view
@@ -60,31 +65,37 @@ structure:
     `서울시_5개구청_사업제안기획안.html`); source of the district panels imported into 2.0.
     Keep it unchanged as reference.
   - `서울시_5개구청_사업제안기획안.docx` — the DOCX deliverable.
-- **`build_report.py`** — generates the DOCX version (python-docx: cover page → one
-  1-page summary per district → per-district detail chapters).
-- **`build_html_report.py`** — generates the HTML version (sidebar/tab navigation per
-  district, subtabs per plan section; per-district `district_colors`, `trust_scores`,
-  `budget_info`, `key_problems`, `top_projects` dicts are hardcoded near the top of the
-  file — update those in place rather than re-deriving them from spec files by hand).
-- **`구청_log.md`** — timestamped work log of how all of the above was produced (mostly
-  parallel background research agents). Read it before assuming a spec/plan file's
-  provenance or before treating a discrepancy as a bug rather than known history.
-- **`html_한글화_계획.md`** — a draft plan (not yet applied to source) for replacing the
-  English tokens `spec`/`plan` with Korean equivalents throughout the HTML output and its
-  source `.txt` files. Read this before doing any find/replace on `spec`/`plan` strings —
-  it documents which occurrences are file-index references that must keep their numeric
-  suffix vs. free-text usages that can be reworded outright.
-- **`gigan.zip`** — archive of this project's contents; not a source of truth, don't
-  extract-and-edit into it.
+- **`archive/`** — 1st-generation artifacts, quarantined here per the repo-restructure
+  spec (`docs/superpowers/specs/2026-07-29-repo-restructure-design.md` §⑦ stage 1).
+  Everything below still has valid content but is no longer at repo root:
+  - **`archive/build_report.py`** — generates the DOCX version (python-docx: cover page →
+    one 1-page summary per district → per-district detail chapters).
+  - **`archive/build_html_report.py`** — generates the HTML version (sidebar/tab
+    navigation per district, subtabs per plan section; per-district `district_colors`,
+    `trust_scores`, `budget_info`, `key_problems`, `top_projects` dicts are hardcoded near
+    the top of the file — update those in place rather than re-deriving them from spec
+    files by hand).
+  - **`archive/구청_log.md`** — timestamped work log of how all of the above was produced
+    (mostly parallel background research agents). Read it before assuming a spec/plan
+    file's provenance or before treating a discrepancy as a bug rather than known history.
+  - **`archive/html_한글화_계획.md`** — a draft plan (not yet applied to source) for
+    replacing the English tokens `spec`/`plan` with Korean equivalents throughout the HTML
+    output and its source `.txt` files. Read this before doing any find/replace on
+    `spec`/`plan` strings — it documents which occurrences are file-index references that
+    must keep their numeric suffix vs. free-text usages that can be reworded outright.
+  - **`archive/gigan.zip`** — archive of this project's contents; not a source of truth,
+    don't extract-and-edit into it.
+  - **`archive/log/`** — past-session work logs (progress checks, batch completion logs).
+  - **`archive/GGReportAgent_*.html`** (3 files) — early root-level report/guide HTML.
 
 ## Important gotcha: hardcoded output paths don't match this repo's layout
 
 Both `build_report.py` (`DOC_PATH`) and `build_html_report.py` (`OUT_PATH`) still point at
 `C:\claude_workspace\서울시_5개구청_사업제안기획안.{docx,html}` — the parent directory,
 from when the district folders lived one level up (before the `기관/`→repo split recorded
-in `구청_log.md`). The actual current deliverables live in `report/` **inside this repo**.
-Running either script as-is will write to the old parent-directory path, not update the
-files in `report/` (and would regenerate only the 1.0-style layout — 2.0 was hand/agent-
+in `구청_log.md`). The actual current deliverables live in `corpus/reports/` **inside this
+repo**. Running either script as-is will write to the old parent-directory path, not update
+the files in `corpus/reports/` (and would regenerate only the 1.0-style layout — 2.0 was hand/agent-
 authored HTML+JS, no script generates it). Fix `DOC_PATH`/`OUT_PATH` (and double check any relative reads of
 `giganlist/{district}/plan/*.txt` against the current working directory) before rerunning
 either generator.

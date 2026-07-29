@@ -1,9 +1,9 @@
 # 비주얼 컴패니언(brainstorming) 세션 목업 — 커밋 대상 아님
 .superpowers/
 
-registry.db
 __pycache__/
 .pytest_cache/
 
-# finalize 승인 시 생성되는 제안서 산출물
-report_new/
+# 시스템 생성물 — registry.db, finalize 승인 시 생성되는 제안서 PPTX (재구성 스펙 §⑦-2)
+data/*
+!data/.gitkeep

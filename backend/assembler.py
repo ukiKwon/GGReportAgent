@@ -13,7 +13,7 @@ TEAM_ORDER = ["영업", "IT", "예산"]
 
 
 def assemble_deliverable(
-    conn: sqlite3.Connection, bid_case_id: str, output_root: str = "report_new"
+    conn: sqlite3.Connection, bid_case_id: str, output_root: str = "data/report_new"
 ) -> str:
     """입찰건의 팀별 초안을 PPTX로 취합하고, 그 경로를 기관에 기록한 뒤 반환한다."""
     row = conn.execute(

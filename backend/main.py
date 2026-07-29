@@ -8,7 +8,7 @@ from backend.routers.institutions import router as institutions_router
 from backend.routers.tasks import router as tasks_router
 
 
-def create_app(db_path: str, output_root: str = "report_new") -> FastAPI:
+def create_app(db_path: str, output_root: str = "data/report_new") -> FastAPI:
     app = FastAPI(title="입찰 워크플로우 레지스트리 API")
     app.state.db_path = db_path
     app.state.output_root = output_root
@@ -19,4 +19,4 @@ def create_app(db_path: str, output_root: str = "report_new") -> FastAPI:
     return app
 
 
-app = create_app(os.environ.get("REGISTRY_DB_PATH", "registry.db"))
+app = create_app(os.environ.get("REGISTRY_DB_PATH", "data/registry.db"))
