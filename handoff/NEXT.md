@@ -45,7 +45,7 @@
   이후 세션에서 `git rev-list --left-right --count origin/main...main` = `0 0` 확인.
 
 ### 2. 리포지토리 재구성 — ①~④단계 완료, 남은 것은 ⑤~⑦ (각각 별도 스펙/세션)
-- **출처**: `2026-07-29_summary.md` `## Session 11:14`(①~③)·`## Session 11:35`(④).
+- **출처**: `2026-07-29_summary.md` `## Session 11:14`(①~③)·`## Session 13:38`(④).
 - **스펙**: `docs/superpowers/specs/2026-07-29-repo-restructure-design.md`. 실행 계획:
   `docs/superpowers/plans/2026-07-29-repo-restructure-stage1-3.md`.
 - **완료 (전부 main에 병합됨)**: ①`archive/` 신설(`7b9d7be`에 포함) ②`data/` 분리
