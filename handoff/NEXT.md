@@ -31,23 +31,7 @@
 
 ## 열린 항목
 
-### 1. 원격 브랜치 `origin/subagent-init-archi` 삭제 여부 — 사용자 판단 대기
-- **출처**: `2026-07-29_summary.md` `## Session 08:05`(브랜치 정리 중 발견).
-- **무엇인가**: `agent/` 오케스트레이션 패키지(Task 1~8) 구현 브랜치. 2026-07-21에
-  **PR #1으로 squash merge**되어 main에 커밋 `5bafdfa` 하나로 들어갔다(해소 로그의
-  "`agent/` 오케스트레이션 패키지 구현" 항목 참고). 현재 팁은 `4d721a9`.
-- **왜 판단이 필요한가**: squash merge라 브랜치 커밋 11개가 main의 조상이 **아니어서**
-  `git merge-base --is-ancestor`로는 "미병합"으로 나온다. 즉 자동 안전 판정이 안 된다.
-  다만 내용은 main에 있다 — `git diff origin/main origin/subagent-init-archi`는
-  482개 파일 62,367줄 **삭제**로 나오는데, 이는 브랜치가 main보다 **뒤처져 있다는**
-  뜻이지 main에 없는 게 있다는 뜻이 아니다(`report/5-report_2.0.html`,
-  `requirements.txt`, `log/` 다수가 브랜치 쪽에만 없음). 브랜치에만 있는 고유 산출물은
-  확인되지 않았다.
-- **상태**: **비차단**. 지우지 않아도 아무 문제 없다.
-- **다음 단계**: 사용자에게 삭제 의사만 물으면 끝.
-  삭제 시 `git push origin --delete subagent-init-archi`.
-
-### 2. corpus-validation 워크트리 — 구현 4/4 태스크 완료, main 병합만 남음 (최우선)
+### 1. corpus-validation 워크트리 — 구현 4/4 태스크 완료, main 병합만 남음 (최우선)
 - **출처**: `2026-07-29_summary.md` `## Session (풀 상태 감사 — 다른 PC로 이어가기 전
   최종 점검)`. 이전 세션들(00:29, 07:59, 08:05)은 이 워크트리를 "진행 중"으로만 적어뒀는데,
   직접 열어 확인한 결과 **이미 완료돼 있었다** — 다음 세션이 "Task 5"를 찾아 헤매지
@@ -75,7 +59,7 @@
 - **다음 단계**: (이 워크트리든 다른 로컬이든) `git diff main...worktree-corpus-validation`
   전체 최종 리뷰(`superpowers:finishing-a-development-branch` 절차 권장) → clean이면
   `main`으로 병합 → 전체 테스트 148개 확인 → push. **이 병합이 끝나야** 아래 항목
-  3(리포지토리 재구성)의 §⑦ 4단계(giganlist 경로 이동)를 시작할 수 있다.
+  2(리포지토리 재구성)의 §⑦ 4단계(giganlist 경로 이동)를 시작할 수 있다.
 - **✅ 병합 사전점검 완료 (`2026-07-29_summary.md` `## Session 08:13`, 다른 세션이 교차검증)** —
   리뷰만 남았고 기술적 장애물은 없음이 확인됐다. 다음 세션은 아래를 재확인할 필요 없다:
   - 워크트리에서 `py -3 -m pytest backend agent -q` **148 passed** 재현(워킹트리 클린).
@@ -88,7 +72,7 @@
     스펙이 예고한 오타 2건 수정(`giganlist/dongjak`, `giganlist/gangbuk`의
     `bank_ideas_draft.txt` 각 1글자).
 
-### 3. 리포지토리 재구성 스펙 — 계획(`writing-plans`) 작성 필요
+### 2. 리포지토리 재구성 스펙 — 계획(`writing-plans`) 작성 필요
 - **출처**: `2026-07-29_summary.md` `## Session (풀 상태 감사 — 다른 PC로 이어가기 전
   최종 점검)`.
 - **스펙**: `docs/superpowers/specs/2026-07-29-repo-restructure-design.md`(커밋
@@ -106,11 +90,11 @@
   "사용자가 스펙을 검토했는지" 확인이 필요한데, git 커밋 메시지만으로는 확인 여부를
   알 수 없다.
 - **다음 단계**: 사용자에게 이 스펙 검토·승인 여부 확인 → 승인되면 `writing-plans`로
-  **①단계(무위험 정리)부터** 계획 작성(④는 항목 2 완료 후). ①단계 진행 시
+  **①단계(무위험 정리)부터** 계획 작성(④는 항목 1 완료 후). ①단계 진행 시
   `tmp/KB_AI_Lab_교육내용정리.html`(현재 untracked, 내용 있음 — "빈 tmp/ 삭제"
   범위 밖이라 보존/삭제를 사용자에게 먼저 확인할 것.
 
-### 4. (참고, 비차단) 빈 워크트리 디렉터리 `.claude/worktrees/institution-intelligence-agent/` 정리
+### 3. (참고, 비차단) 빈 워크트리 디렉터리 `.claude/worktrees/institution-intelligence-agent/` 정리
 - **출처**: `2026-07-29_summary.md` `## Session (풀 상태 감사...)`.
 - **내용**: `git worktree list`에 안 잡히는(등록 안 된) 빈 디렉터리 — 내용물은 빈
   `.claude/` 폴더 하나뿐. 같은 이름의 실제 작업(BidCase/Task/Message 레이어, 커밋
