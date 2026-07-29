@@ -31,68 +31,37 @@
 
 ## 열린 항목
 
-### 1. corpus-validation 워크트리 — 구현 4/4 태스크 완료, main 병합만 남음 (최우선)
-- **출처**: `2026-07-29_summary.md` `## Session (풀 상태 감사 — 다른 PC로 이어가기 전
-  최종 점검)`. 이전 세션들(00:29, 07:59, 08:05)은 이 워크트리를 "진행 중"으로만 적어뒀는데,
-  직접 열어 확인한 결과 **이미 완료돼 있었다** — 다음 세션이 "Task 5"를 찾아 헤매지
-  않도록 이 항목이 정확한 상태를 못박아둔다.
-- **위치**: `.claude/worktrees/corpus-validation`(브랜치 `worktree-corpus-validation`,
-  HEAD `8d94f88`, 워킹트리 클린, `main`의 `cf80a85`에서 분기).
-- **계획**: `docs/superpowers/plans/2026-07-29-institution-corpus-validation.md` —
-  Task 1(검증기 코어+CLI)~Task 4(코퍼스 validate/register 엔드포인트) **전부 구현
-  완료**. 커밋 순서: `ed7e509`(T1)→`5ffd252`+`dd609b1`(T2, 리뷰 fix 1라운드)→`34cb8c1`
-  (T3)→`f2d3811`+`8d94f88`(T4, 리뷰 fix 1건). 개별 태스크 리뷰 전부 clean(fix 반영 후).
-  `.superpowers/sdd/2026-07-29-institution-corpus-validation/progress.md`는 Task3까지만
-  기록돼 있고 Task4 완료 줄이 비어 있음(원장 갱신 누락일 뿐 — 커밋·리포트
-  `task-4-report.md`는 실재하고 fix까지 반영됨. 작업 자체는 안 빠짐).
-- **테스트**: 워크트리에서 `py -3 -m pytest backend -q` → **124 passed**(main 현재 72
-  + 이 브랜치가 더한 52). `agent/`는 건드리지 않음(24 그대로). **병합 후 예상 전체:
-  backend 124 + agent 24 = 148.**
-- **아직 안 된 것 — 이게 다음 단계**: sub-project 0(레지스트리) 병합 때 거친 "개별
-  태스크 리뷰 → **전체 브랜치 최종 리뷰(원 세션에서는 opus 등급 사용)** → main 병합"
-  패턴에서 **마지막 단계가 없다**. 즉 남은 실행 가능한 행동은 "구현 재개"가 아니라
-  "머지"다.
-- **브랜치를 `origin`에 push 완료**(2026-07-29, 이 항목 작성 직후) — 더 이상 이
-  워크트리가 있는 PC에서만 이어받을 수 있는 게 아니다. **다른 로컬에서 이어가도 된다**:
-  아무 체크아웃에서 `git fetch origin && git checkout worktree-corpus-validation`
-  (또는 새 워크트리로) 하면 `8d94f88`가 그대로 받아진다.
-- **다음 단계**: (이 워크트리든 다른 로컬이든) `git diff main...worktree-corpus-validation`
-  전체 최종 리뷰(`superpowers:finishing-a-development-branch` 절차 권장) → clean이면
-  `main`으로 병합 → 전체 테스트 148개 확인 → push. **이 병합이 끝나야** 아래 항목
-  2(리포지토리 재구성)의 §⑦ 4단계(giganlist 경로 이동)를 시작할 수 있다.
-- **✅ 병합 사전점검 완료 (`2026-07-29_summary.md` `## Session 08:13`, 다른 세션이 교차검증)** —
-  리뷰만 남았고 기술적 장애물은 없음이 확인됐다. 다음 세션은 아래를 재확인할 필요 없다:
-  - 워크트리에서 `py -3 -m pytest backend agent -q` **148 passed** 재현(워킹트리 클린).
-  - 분기점은 `3ef30a1`. 그 이후 main에 쌓인 6커밋(`5b45ac7`, `759b655`, `cf80a85`,
-    `cd06db9`, `e38a98d`, `66f1625`)은 **전부 `handoff/`·`docs/` 문서**라 코드가 겹치지
-    않는다. `git merge-tree`로 **충돌 0건** 확인.
-  - 브랜치 변경분은 13파일 833줄 — `backend/corpus_validator.py`,
-    `backend/tests/test_corpus_validator.py`(208줄), `backend/tests/test_api_corpus.py`(131줄)
-    신설 + `db.py`/`models.py`/`bidcase_repository.py` Task 게이팅 +
-    스펙이 예고한 오타 2건 수정(`giganlist/dongjak`, `giganlist/gangbuk`의
-    `bank_ideas_draft.txt` 각 1글자).
+### 1. main 미push 커밋 — GitHub 인증이 이 세션에 없어 push 차단 (사용자 조치 필요)
+- **출처**: `2026-07-29_summary.md` `## Session 11:14`.
+- **무엇인가**: corpus-validation 병합(`c7ba0c7`)·리포 재구성 ①~③ 병합(`7b9d7be`)·
+  architecture 이동(`d5010d9`) 등 main의 미push 커밋 다수 + 브랜치
+  `worktree-corpus-validation`의 fix 커밋 `a8e14fd`.
+- **왜 막혔나**: 네트워크 문제가 아니다 — `git ls-remote`(읽기)는 즉시 되는데 push만
+  인증 프롬프트에서 무한 대기. `GIT_TERMINAL_PROMPT=0`으로 확인한 결과
+  "could not read Username for 'https://github.com'" — credential manager에 저장된
+  자격증명이 없고, 백그라운드 세션이라 GUI 인증 창을 띄울 수 없다. `gh` CLI도 미설치.
+- **다음 단계**: 사용자가 자기 터미널에서 한 번
+  `git push origin main worktree-corpus-validation` 실행(인증 창이 뜨면 로그인).
+  이후 세션에서 `git rev-list --left-right --count origin/main...main` = `0 0` 확인.
 
-### 2. 리포지토리 재구성 스펙 — 계획(`writing-plans`) 작성 필요
-- **출처**: `2026-07-29_summary.md` `## Session (풀 상태 감사 — 다른 PC로 이어가기 전
-  최종 점검)`.
-- **스펙**: `docs/superpowers/specs/2026-07-29-repo-restructure-design.md`(커밋
-  `759b655`). 리포 전체 구조(`giganlist/`→`corpus/institutions/`, `registry.db`→
-  `data/`, `RFP/`·`report/`→`corpus/`, 검색은 벡터DB 없이 SQLite FTS)를 다루는 상위
-  설계. 문서 자체가 "이 문서는 아무것도 옮기지 않는다, 실행은 후속 세션"이라고 명시.
-- **§⑦ 마이그레이션 순서(7단계, 각 단계 독립 완결)**: ①무위험 정리(`archive/` 신설,
-  1세대 산출물·`log/`·`tmp/` 이동, 빈 `workflow/` 삭제) ②`data/` 분리(registry.db·
-  PPTX, gitignore) ③`corpus/` 부분 신설(`RFP/`→`corpus/rfp/`, `report/`→
-  `corpus/reports/`) ④**giganlist 이동 — 위 항목 2(corpus-validation 병합)가 끝난
-  뒤로 명시적으로 게이트돼 있음** ⑤`agent/retrieval/`(파서+FTS, 별도 스펙) ⑥collector
-  스키마 문서 ⑦(후일) 폴더 개명(별도 스펙).
-- **상태**: **계획 파일 없음** — `docs/superpowers/plans/`에 이 스펙에 대응하는 파일이
-  아직 없다(`writing-plans` 스킬 미실행). 브레인스토밍 스킬 절차상 계획 작성 전
-  "사용자가 스펙을 검토했는지" 확인이 필요한데, git 커밋 메시지만으로는 확인 여부를
-  알 수 없다.
-- **다음 단계**: 사용자에게 이 스펙 검토·승인 여부 확인 → 승인되면 `writing-plans`로
-  **①단계(무위험 정리)부터** 계획 작성(④는 항목 1 완료 후). ①단계 진행 시
-  `tmp/KB_AI_Lab_교육내용정리.html`(현재 untracked, 내용 있음 — "빈 tmp/ 삭제"
-  범위 밖이라 보존/삭제를 사용자에게 먼저 확인할 것.
+### 2. 리포지토리 재구성 — ①~③단계+architecture 이동 완료, ④단계는 목적지 결정 대기
+- **출처**: `2026-07-29_summary.md` `## Session 11:14`.
+- **스펙**: `docs/superpowers/specs/2026-07-29-repo-restructure-design.md`. 실행 계획:
+  `docs/superpowers/plans/2026-07-29-repo-restructure-stage1-3.md`.
+- **완료 (main에 병합됨, 커밋 `7b9d7be`·`d5010d9`)**: ①`archive/` 신설(1세대 산출물·
+  `log/` 이동, tmp/·workflow/는 이미 없었음) ②`data/` 분리(registry.db·report_new
+  경로 기본값 교체, init_db가 부모 폴더 생성, gitignore `data/*`) ③`corpus/` 신설
+  (`RFP/`→`corpus/rfp/`, `report/`→`corpus/reports/`, `corpus/inbox/` 생성, 코드 참조
+  0건 확인, 살아있는 문서 갱신) + 사용자 요청으로 `architecture/`→`docs/architecture/`.
+  각 단계 후 테스트 전건 통과(96→병합 후 148).
+- **④단계(giganlist 이동) — 게이트는 풀렸으나 목적지 결정 대기**: corpus-validation이
+  main에 병합돼(§⑥ 게이트 해제) 착수 가능. 단, **사용자가 `data/` 밑을 제안**했는데
+  스펙 §⑥·결정로그 5는 **`corpus/institutions/`**를 목적지로 못박고 있다(`data/`는
+  gitignore된 시스템 생성물 전용이라 git 추적 조사 원료와 상충 — 세션이 반대 의견 제시,
+  회신 대기). 이동 시 갱신할 4지점+DB 값은 스펙 §⑥ 참조.
+- **대기 중인 다른 사용자 제안**: `dashboard/`→`frontend/` 신설 이동 — 스펙 결정로그
+  1(이름 유지 C안)·§⑤(최종형은 `web/`)와 충돌해 보류 권고, 회신 대기.
+- **남은 단계**: ⑤`agent/retrieval/`(별도 스펙) ⑥`collector/SCHEMA.md` ⑦(후일) 개명.
 
 ### 3. (참고, 비차단) 빈 워크트리 디렉터리 `.claude/worktrees/institution-intelligence-agent/` 정리
 - **출처**: `2026-07-29_summary.md` `## Session (풀 상태 감사...)`.
@@ -106,6 +75,17 @@
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
+
+- ~~corpus-validation 워크트리 — main 병합만 남음 (최우선)~~ (구 항목 1) —
+  `2026-07-29_summary.md` `## Session 11:14`에서 해소. 전체 브랜치 최종 리뷰 수행 →
+  Minor 2건 발견(비UTF-8 파일이 plan/01 등 특정 위치에 있으면 규칙9 보고 대신 크래시,
+  규칙9 중복 보고) → fix 커밋 `a8e14fd`를 브랜치에 얹고(148 passed 재확인)
+  `--no-ff`로 main 병합(`c7ba0c7`). 병합 후 main에서 **148 passed**.
+  이 병합으로 재구성 §⑦ ④단계(giganlist 이동)의 게이트가 풀림.
+  워크트리는 다른 PC에 있어 이 PC에서는 원격 브랜치 기준으로 작업했다
+  (`git branch worktree-corpus-validation origin/...`으로 로컬 브랜치 생성).
+  **주의: fix 커밋 `a8e14fd`와 main 병합은 아직 미push**(현 항목 1 참조) — 다른 PC
+  워크트리에서 이어 작업하기 전에 push·fetch 동기화 필요.
 
 - ~~병합 완료된 브랜치 2개 삭제 여부~~ (구 항목 1) — `2026-07-29_summary.md`
   `## Session 08:05`에서 **사용자 승인 후 둘 다 삭제 완료**.
