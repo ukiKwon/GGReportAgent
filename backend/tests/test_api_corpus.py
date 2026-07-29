@@ -31,7 +31,7 @@ def test_validate_reports_ok_for_existing_corpus(client):
     test_client, db_path = client
     _seed(db_path)
     resp = test_client.post(
-        "/institutions/newinst/corpus/validate", json={"path": "giganlist/dobong"}
+        "/institutions/newinst/corpus/validate", json={"path": "corpus/institutions/dobong"}
     )
     assert resp.status_code == 200
     assert resp.json()["ok"] is True
@@ -41,7 +41,7 @@ def test_validate_reports_ok_for_existing_corpus(client):
 def test_validate_does_not_change_state(client):
     test_client, db_path = client
     _seed(db_path)
-    test_client.post("/institutions/newinst/corpus/validate", json={"path": "giganlist/dobong"})
+    test_client.post("/institutions/newinst/corpus/validate", json={"path": "corpus/institutions/dobong"})
     detail = test_client.get("/institutions/newinst").json()
     assert detail["giganlist_dir"] is None
 
@@ -56,13 +56,13 @@ def test_register_rejects_absolute_path(client):
 def test_register_rejects_parent_traversal(client):
     test_client, db_path = client
     _seed(db_path)
-    resp = test_client.post("/institutions/newinst/corpus", json={"path": "giganlist/../.."})
+    resp = test_client.post("/institutions/newinst/corpus", json={"path": "corpus/institutions/../../.."})
     assert resp.status_code == 400
 
 
 def test_register_404_for_unknown_institution(client):
     test_client, _ = client
-    resp = test_client.post("/institutions/nope/corpus", json={"path": "giganlist/dobong"})
+    resp = test_client.post("/institutions/nope/corpus", json={"path": "corpus/institutions/dobong"})
     assert resp.status_code == 404
 
 
@@ -71,7 +71,7 @@ def test_register_422_when_validation_fails(client):
     # corpus path must resolve INSIDE the repo root (so _safe_corpus_path's
     # absolute-path/traversal check accepts it) but still be a structurally
     # invalid corpus, so validate_corpus() — not the path-safety guard — is
-    # what rejects it. A unique, non-"giganlist/"-prefixed dirname keeps this
+    # what rejects it. A unique, non-"corpus/institutions/"-prefixed dirname keeps this
     # from colliding with any real institution folder or another session's
     # concurrent test run.
     test_client, db_path = client
@@ -103,7 +103,7 @@ def test_register_sets_dir_and_activates_pending_bid_case(client):
     assert test_client.get(f"/bidcases/{bid_case_id}").json()["tasks"] == []
 
     resp = test_client.post(
-        "/institutions/newinst/corpus", json={"path": "giganlist/dobong"}
+        "/institutions/newinst/corpus", json={"path": "corpus/institutions/dobong"}
     )
     assert resp.status_code == 200
     assert resp.json()["activated_bid_cases"] == [bid_case_id]
@@ -124,8 +124,8 @@ def test_register_is_idempotent(client):
             f"/bidcases/{bid_case_id}/participation-decisions",
             json={"tier": tier, "role": role, "by": by, "choice": "참여"},
         )
-    test_client.post("/institutions/newinst/corpus", json={"path": "giganlist/dobong"})
-    test_client.post("/institutions/newinst/corpus", json={"path": "giganlist/dobong"})
+    test_client.post("/institutions/newinst/corpus", json={"path": "corpus/institutions/dobong"})
+    test_client.post("/institutions/newinst/corpus", json={"path": "corpus/institutions/dobong"})
 
     detail = test_client.get(f"/bidcases/{bid_case_id}").json()
     assert len(detail["tasks"]) == 3

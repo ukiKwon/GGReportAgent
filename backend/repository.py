@@ -103,7 +103,7 @@ def seed_giganlist_districts(conn: sqlite3.Connection, giganlist_root: Path) -> 
         conn.execute(
             """INSERT INTO institutions (institution_id, name_ko, giganlist_dir, stage)
                VALUES (?, ?, ?, 1)""",
-            (folder, GIGANLIST_DISTRICT_NAMES[folder], f"giganlist/{folder}"),
+            (folder, GIGANLIST_DISTRICT_NAMES[folder], f"corpus/institutions/{folder}"),
         )
         seeded.append(folder)
     conn.commit()
