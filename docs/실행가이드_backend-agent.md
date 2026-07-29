@@ -87,6 +87,42 @@ curl "http://127.0.0.1:8000/search?q=전통시장%20지원&limit=3"
 - `corpus/` 내용을 바꿨으면 build를 다시 실행한다(증분 갱신 없음, 전체 재빌드가 원자 교체).
 - trigram 특성상 질의 3자 미만은 항상 0건이다.
 
+## 4. DMZ 수집 서비스 (`collector/`) — 망 밖, 포트 8001
+
+망 밖에서 공고를 수집해 **배치 폴더**(`manifest.json` + `institutions.csv` + `files/`)를
+만든다. 계약은 `collector/SCHEMA.md`, 설계는
+`docs/superpowers/specs/2026-07-29-dmz-collector-service-design.md`.
+
+**두 서비스는 서로의 주소를 모른다.** 배치를 옮기는 것은 운영에서는 사람(USB),
+테스트에서는 브리지 CLI다 — 그 차이 하나로 운영/테스트가 갈린다.
+
+```bash
+# 터미널 1 — 망 안 backend (8000)
+py -3.14 -m uvicorn backend.main:app --port 8000
+
+# 터미널 2 — DMZ 수집 서비스 (8001)
+py -3.14 -m uvicorn collector.app:app --port 8001
+
+# 터미널 3 — 수집 1회 실행 → batch_id 확인
+curl -X POST http://127.0.0.1:8001/collect -H "Content-Type: application/json" \
+     -d '{"source":"fixture"}'
+curl http://127.0.0.1:8001/batches
+
+# 브리지: DMZ에서 받아 corpus/inbox/에 놓고 망 안에 반입
+py -3.14 -m collector.bridge --batch 2026-07-29_0930_fixture
+# → inbox에 놓음: corpus/inbox/...
+#    망 안 반입 완료: 2건 ['new-...', 'new-...']
+
+py -3.14 -m collector.bridge --batch <id> --no-import   # inbox까지만
+```
+
+- 소스는 어댑터로 갈아끼운다. v1 기본값은 `fixture`(로컬 JSON, 네트워크 불필요) 하나이고
+  **실사이트 크롤러는 범위 밖**(설계 §⑨). 등록 목록은 `GET /sources`.
+- 배치는 **불변**이다. `batch_id`가 분 단위(`YYYY-MM-DD_HHmm_<source>`)라 같은 분에
+  두 번 수집하면 422로 거부한다 — 조용히 덮지 않는다.
+- 검증 실패한 배치는 inbox에 남지 않는다(생성 시 자기검사 + 브리지에서 재검사).
+- DMZ 출력 위치는 `COLLECTOR_OUT_ROOT`(기본 `data/collector/`, gitignored).
+
 ## 확인 방법
 
 - `backend/`: 위 curl 두 개가 200과 JSON을 반환하면 정상.
