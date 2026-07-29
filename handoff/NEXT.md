@@ -31,8 +31,9 @@
 
 ## 열린 항목
 
-### 1. 리포지토리 재구성 — ①~④단계 완료, 남은 것은 ⑤~⑦ (각각 별도 스펙/세션)
-- **출처**: `2026-07-29_summary.md` `## Session 11:14`(①~③)·`## Session 13:38`(④).
+### 1. 리포지토리 재구성 — ①~⑤단계 완료, 남은 것은 ⑥~⑦ (각각 별도 스펙/세션)
+- **출처**: `2026-07-29_summary.md` `## Session 11:14`(①~③)·`## Session 13:38`(④)·
+  `## Session 15:25`(⑤).
 - **스펙**: `docs/superpowers/specs/2026-07-29-repo-restructure-design.md`. 실행 계획:
   `docs/superpowers/plans/2026-07-29-repo-restructure-stage1-3.md`.
 - **완료 (전부 main에 병합됨)**: ①`archive/` 신설(`7b9d7be`에 포함) ②`data/` 분리
@@ -45,12 +46,16 @@
   `giganlist_dir` 같은 식별자명은 의도적으로 유지(컬럼 개명은 범위 밖).
 - **사용자 결정 (2026-07-29)**: `dashboard/`→`frontend/`는 **최종형 개명 스펙(§⑤·⑦-7)
   때 함께** 하기로 확정 — 그 전까지 이동 금지.
-- **⑤ 진행 중**: 스펙 작성 완료 —
-  `docs/superpowers/specs/2026-07-29-agent-retrieval-fts-design.md`(커밋 `1e29e43`,
-  main push됨). trigram FTS5는 이 PC의 `py -3.14`(SQLite 3.50.4)에서 동작 검증됨.
-  **다음 단계**: 스펙 기반 실행 플랜(`docs/superpowers/plans/`) 작성 → 구현
-  (`agent/retrieval/` 5개 모듈 + `backend/routers/search.py` + agent_adapter 폴백 교체).
-- **남은 단계**: ⑤ 구현(스펙 완료, 플랜부터) ⑥`collector/SCHEMA.md` 작성
+- **⑤ 완료 (main 병합 `0af3f55`, push됨)**: 스펙
+  `docs/superpowers/specs/2026-07-29-agent-retrieval-fts-design.md` + 플랜
+  `docs/superpowers/plans/2026-07-29-agent-retrieval-fts.md` → 구현 완료.
+  `agent/retrieval/`(파서·청커·trigram FTS5 인덱서·`search()` 단일 시그니처·CLI),
+  `GET /search`(인덱스 없으면 503), agent_adapter 검색 통합(등록 코퍼스+인덱스
+  존재 시만 검색, 그 외/0건/인덱스 부재는 legacy 통째-읽기 폴백 — 기존 테스트
+  무수정 통과). 테스트 **178 passed**(기준선 148+30), dashboard 36/36.
+  인덱스는 `data/corpus_index.db`(gitignored) — `py -3.14 -m agent.retrieval build`로
+  재생성. 사용법: `docs/실행가이드_backend-agent.md` §3.
+- **남은 단계**: ⑥`collector/SCHEMA.md` 작성(수집 산출물 스키마 문서만)
   ⑦(후일) 최종형 개명(backend→server, dashboard→web 흡수, 별도 스펙).
 
 ### 2. (참고, 비차단) 빈 워크트리 디렉터리 `.claude/worktrees/institution-intelligence-agent/` 정리
