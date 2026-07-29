@@ -48,7 +48,12 @@ structure:
   `plan/`, and every idea in it cites back to a specific `spec/NN` or `plan/NN` source by
   file index (e.g. `spec/02(1장-4)`, `plan FN-1`) so claims stay traceable to real
   district data.
-- **`report/`** (formerly `total/`) — the combined cross-district output:
+- **`corpus/`** — RAG source material, per the repo-restructure spec §⑦ stage 3:
+  `corpus/rfp/` (RFP announcement PDFs, formerly root `RFP/`), `corpus/reports/`
+  (see below), and `corpus/inbox/` (drop zone for files brought in from outside
+  the closed network — empty until the collector exists).
+- **`corpus/reports/`** (formerly `total/`, then root `report/`) — the combined
+  cross-district output:
   - `5-report_2.0.html` — **the current main deliverable.** A single-file offline app
     with a 3-tab sidebar: 대시보드 (25-district Seoul GeoJSON map — do not modify without
     explicit instruction, especially the map; district click opens a centered quick-view
@@ -88,9 +93,9 @@ structure:
 Both `build_report.py` (`DOC_PATH`) and `build_html_report.py` (`OUT_PATH`) still point at
 `C:\claude_workspace\서울시_5개구청_사업제안기획안.{docx,html}` — the parent directory,
 from when the district folders lived one level up (before the `기관/`→repo split recorded
-in `구청_log.md`). The actual current deliverables live in `report/` **inside this repo**.
-Running either script as-is will write to the old parent-directory path, not update the
-files in `report/` (and would regenerate only the 1.0-style layout — 2.0 was hand/agent-
+in `구청_log.md`). The actual current deliverables live in `corpus/reports/` **inside this
+repo**. Running either script as-is will write to the old parent-directory path, not update
+the files in `corpus/reports/` (and would regenerate only the 1.0-style layout — 2.0 was hand/agent-
 authored HTML+JS, no script generates it). Fix `DOC_PATH`/`OUT_PATH` (and double check any relative reads of
 `giganlist/{district}/plan/*.txt` against the current working directory) before rerunning
 either generator.
