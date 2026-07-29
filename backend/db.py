@@ -1,3 +1,4 @@
+import os
 import sqlite3
 
 SCHEMA = """
@@ -58,6 +59,9 @@ def get_connection(db_path: str) -> sqlite3.Connection:
 
 
 def init_db(db_path: str) -> sqlite3.Connection:
+    parent = os.path.dirname(db_path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
     conn = get_connection(db_path)
     conn.executescript(SCHEMA)
     conn.commit()
