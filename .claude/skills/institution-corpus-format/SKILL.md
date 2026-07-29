@@ -7,7 +7,7 @@ description: Use when writing or reviewing spec/plan/bank_ideas_draft files for 
 
 ## Overview
 
-Defines the standard file layout, section format, and citation rules for `giganlist/{institution}/spec/`, `giganlist/{institution}/plan/`, and `giganlist/{institution}/bank_ideas_draft.txt` — for any local government or public institution, not only the existing districts (도봉/노원/광진/동대문/동작 and those added since by the 25-district batch project). Every institution folder lives under `giganlist/`. This skill governs format only; researching and writing the actual content is separate work.
+Defines the standard file layout, section format, and citation rules for `corpus/institutions/{institution}/spec/`, `corpus/institutions/{institution}/plan/`, and `corpus/institutions/{institution}/bank_ideas_draft.txt` — for any local government or public institution, not only the existing districts (도봉/노원/광진/동대문/동작 and those added since by the 25-district batch project). Every institution folder lives under `corpus/institutions/`. This skill governs format only; researching and writing the actual content is separate work.
 
 ## When to Use
 
@@ -16,7 +16,7 @@ Defines the standard file layout, section format, and citation rules for `giganl
 - Drafting `bank_ideas_draft.txt`
 - Double-checking an existing district's files still match the standard format
 
-## `giganlist/{institution}/spec/` — raw research (numbering fixed, chapter names vary by institution)
+## `corpus/institutions/{institution}/spec/` — raw research (numbering fixed, chapter names vary by institution)
 
 | File | Content |
 |---|---|
@@ -26,9 +26,9 @@ Defines the standard file layout, section format, and citation rules for `giganl
 | `0N_홈페이지검색확인결과.txt` | Cross-check each project against the institution's own website. Classify as exactly one of **확인됨 / 부분확인 / 확인안됨** — "확인안됨" means a search limitation, not that the project was cancelled |
 | `0N_민원게시판_YYYY년정리.txt` | Latest-year complaint-channel activity and pattern summary |
 
-New institutions: gather this via web search. Districts already present under `giganlist/` are already-complete reference templates — do not re-research them.
+New institutions: gather this via web search. Districts already present under `corpus/institutions/` are already-complete reference templates — do not re-research them.
 
-## `giganlist/{institution}/plan/` — proposal documents (every claim cites spec)
+## `corpus/institutions/{institution}/plan/` — proposal documents (every claim cites spec)
 
 | File | Content |
 |---|---|
@@ -38,10 +38,10 @@ New institutions: gather this via web search. Districts already present under `g
 | `04_실행로드맵_및_기대효과.txt` | Execution schedule, expected effects |
 | `05_검증결과.txt` | Per-item **중복여부/타당성등급/판단근거/수정권고사항**, plus an overall trust score (/100). `판단근거` must cross-check citation accuracy against the spec source itself — if a citation is wrong or exaggerated, flag it in `수정권고사항` and lower the grade |
 
-## `giganlist/{institution}/bank_ideas_draft.txt`
+## `corpus/institutions/{institution}/bank_ideas_draft.txt`
 
 - Header states: "초안(draft) — 정식 반영 전, plan 반영 여부 별도 검토 필요"
-- States its evidence scope: "근거자료: giganlist/{institution}/spec/00~NN, giganlist/{institution}/plan/00~NN"
+- States its evidence scope: "근거자료: corpus/institutions/{institution}/spec/00~NN, corpus/institutions/{institution}/plan/00~NN"
 - Organized by axis (소상공인금융/청년금융/IT협력/복지주택금융/SOC참여 — axes may be adapted per institution, but every idea must belong to one)
 - Each idea has exactly 3 blocks, in order: `연계 구청사업/근거` (cites spec/plan) → `구체적 상품/협력 형태` → `은행 기대효과`
 - Product names are generic categories (정책연계대출, 매칭적금, etc.), never real financial product brand names

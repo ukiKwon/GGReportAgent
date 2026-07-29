@@ -89,7 +89,7 @@ def test_seed_giganlist_districts_registers_known_folders(tmp_path):
     assert set(seeded) == {"dobong", "nowon"}
     dobong = get_institution(conn, "dobong")
     assert dobong.name_ko == "도봉구"
-    assert dobong.giganlist_dir == "giganlist/dobong"
+    assert dobong.giganlist_dir == "corpus/institutions/dobong"
     assert get_institution(conn, "unknown-slug") is None
     conn.close()
 
@@ -124,7 +124,7 @@ def test_upsert_matches_seeded_giganlist_institution_by_name(tmp_path):
 
     assert imported_id == "dobong"
     updated = get_institution(conn, "dobong")
-    assert updated.giganlist_dir == "giganlist/dobong"
+    assert updated.giganlist_dir == "corpus/institutions/dobong"
     assert updated.stage == 1
     assert updated.type == "지자체"
     assert updated.term == 4
