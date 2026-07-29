@@ -46,13 +46,32 @@
   - E2E 실측: DMZ(8001) `POST /collect` → 브리지 → 망 안(8000) 기관 2건 upsert 확인
     (한글 정상, DB 직접 조회로 검증). 테스트 **233 passed**, dashboard 36/36.
 - **남은 sub-project**:
-  - **2 폐쇄망 백엔드 코어** — 배치 수신 처리가 여기 몫이다. 지금 브리지는
-    `POST /institutions/import`(CSV)까지만 호출하고, `collector/SCHEMA.md` §⑥의
-    4·5·6(공고 레코드로 `bid_cases` 일정 갱신, 첨부 PDF를 `corpus/rfp/`로 이동 +
-    `rfp_path` 기록, 처리된 배치 치우기)은 **미구현**이다. 다음 세션 1순위 후보.
+  - **2 폐쇄망 백엔드 코어** — **설계 완료, 구현 대기. 다음 세션 1순위.**
+    출처: `2026-07-30_summary.md` `## Session 01:00`.
+    스펙 `docs/superpowers/specs/2026-07-30-inbox-batch-import-design.md`(커밋
+    `e8048f8`, 313줄) — **사용자 승인 완료**. 계획 파일은 **아직 없다**;
+    `superpowers:writing-plans`부터 시작하면 된다(스펙 ⑦ 파일구조표 + ⑧ 테스트
+    9건 목록이 계획 골격을 그대로 제공한다). 기준선 **178 passed**.
+    범위는 `collector/SCHEMA.md` §⑥ 2·4·5·6이고, 확정된 결정 3가지는
+    ⓐ`collector/schema.py` → `contract/batch_schema.py` 로 `git mv`(중립 계약
+    모듈, 경계 테스트는 `(backend|agent)`만 보므로 무수정 유효)
+    ⓑ`bid_cases`에 `source_slug`/`notice_id`/`title`/`notice_url` + 유니크 인덱스
+    (`init_db`에 멱등 `ALTER TABLE` 마이그레이션 필요 — DB 삭제·재시드 금지)
+    ⓒ처리된 배치는 `data/batches/`로 이동. API는
+    `POST /inbox/{batch_id}/validate` + `POST /inbox/{batch_id}/import` 2개.
+    **§⑥ 2단계(검증)는 이미 `validate_batch()`로 구현돼 있다** — 재구현하지 말고
+    옮기기만 할 것.
   - **3 agent 신규 노드** — `rfp_locate_node`만 남음(`spec_research_node`는 폐기 확정).
-  - **4 6단계 3팀 분화** — `role_router_node` 미구현.
+    ⚠️ **2가 끝나면 이 항목을 먼저 재정의해야 한다**(출처: 위 Session 01:00).
+    2가 배치의 첨부 PDF를 `corpus/rfp/`로 옮기고 `rfp_path`까지 기록하므로
+    "공고문을 찾아온다"는 노드의 존재이유가 상당부분 사라진다. 실사이트 크롤링은
+    상위 스펙에서 범위 밖이므로, 남는 일이 실제로 무엇인지 확인한 뒤 착수할 것.
+  - **4 6단계 3팀 분화** — `role_router_node` 미구현. 규모 실측(Session 01:00):
+    `agent/nodes/content_writer.py` 73줄을 역할 파라미터화 + `role_router_node` 신규
+    + `ProposalState.sections`를 reducer 필드로 변경. 하루 규모.
   - **5 통합 프런트** — 미착수. **이걸 하면 재구성 ⑦(개명)도 같이 끝난다**(항목 2 참조).
+    규모 실측(Session 01:00): `dashboard/js/` 1,104줄(render.js 613줄 포함) 이식 +
+    9단계 워크플로 UI 신규. **하루짜리가 아니므로 별도 일정을 잡아야 한다.**
 - **실사이트 크롤러는 여전히 범위 밖** — 어댑터 인터페이스만 열려 있고 기본값은
   로컬 픽스처 하나다. 실제 나라장터/지자체 파싱은 별도 스펙이 필요하다.
 
@@ -94,9 +113,38 @@
   `create_app` 시그니처 변경). 착수하려면 **별도 스펙부터** 쓰고, import 경로
   전면 수정이 따르므로 다른 세션 동시작업이 없는 시점을 골라야 한다.
 
+### 3. 로컬 DB 파일 2건 — 사용자 판단 대기 (비차단)
+
+- **출처**: `2026-07-30_summary.md` `## Session 01:00`(sub-project 2 설계 중 발견).
+- **무엇인가**: 둘 다 커밋 대상이 아니고 아무것도 막지 않지만, 방치하면 사고가 난다.
+  1. **리포 루트의 stale `registry.db`** (7/28 22:20자, 40KB, 기관 25·bid_case 1·
+     task 3건). 재구성으로 `data/registry.db`가 표준이 되기 전의 잔해다. 현재 코드는
+     전부 `data/registry.db`를 보고(`backend/main.py`·`seed.py`), 테스트는 `tmp_path`를
+     쓰므로 **아무도 이 파일을 읽지 않는다**. 문제는 **`.gitignore`에 안 걸린다**는
+     것 — 이 리포는 세션끼리 서로의 untracked 파일을 커밋에 쓸어담은 이력이 실제로
+     있어서(2026-07-29 `cd06db9`), 40KB 바이너리 DB가 실수로 커밋될 여지가 있다.
+     → 선택지: 삭제 / `.gitignore`에 `/registry.db` 추가 / 그대로 두기.
+  2. **`data/registry.db`가 비어 있다** (0건). NEXT.md 항목 2에는 재구성 ④단계에서
+     25개 기관으로 재시딩했다고 적혀 있는데 현재 0건이다(그 작업이 워크트리에서만
+     이뤄졌을 가능성). **서버를 띄우면 빈 레지스트리를 보게 되므로**, 실행 전
+     `py -3 -m backend.seed` 필요. gitignored라 리포 영향은 없다.
+- **상태**: 비차단. 다만 sub-project 2 구현 시 ②의 시딩은 실제로 필요해진다.
+
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
+
+- ~~corpus-validation 브랜치·워크트리 잔여 정리~~ — `2026-07-30_summary.md`
+  `## Session 01:00`에서 종결. 세션 시작 시 "최종 리뷰가 남아 있다"는 인식이
+  **틀렸음을 확인**했다: 이전 세션이 이미 최종 리뷰까지 마치고 `--no-ff`로 main에
+  병합(`c7ba0c7`)했으며, 리뷰에서 나온 fix 커밋 `a8e14fd`(비UTF-8 파일 크래시 +
+  규칙 9 중복 보고)도 포함돼 있었다. `git merge-base --is-ancestor
+  origin/worktree-corpus-validation main` → fully merged. 그 위로 재구성 ①~⑥과
+  sub-project 1까지 쌓여 있어 PR은 불필요했다. `finishing-a-development-branch`의
+  정리 단계만 수행 — main 178 passed 확인 후 워크트리 제거 + `git worktree prune`
+  + 로컬 브랜치 `git branch -d` + 원격 `git push origin --delete`.
+  **교훈**: 여러 PC·세션이 같은 브랜치를 미는 리포이므로, 착수 전 `git pull` +
+  실제 git 상태 조사를 먼저 할 것(이번엔 그 덕에 불필요한 리뷰·PR을 피했다).
 
 - ~~빈 워크트리 디렉터리 `.claude/worktrees/institution-intelligence-agent/` 정리~~
   (구 항목 2) — `2026-07-29_summary.md` `## Session 15:51`에서 **확인 결과 이미
