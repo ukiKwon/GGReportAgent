@@ -41,13 +41,18 @@ class BatchResult:
     record_count: int
 
 
+def _now() -> datetime.datetime:
+    """테스트가 시각을 고정할 수 있게 한 겹 둔다(batch_id가 분 단위라 시간에 민감)."""
+    return datetime.datetime.now().astimezone()
+
+
 def write_batch(
     source: Source,
     notices: list[CollectedNotice],
     out_root: Path | str = DEFAULT_OUT_ROOT,
     now: datetime.datetime | None = None,
 ) -> BatchResult:
-    now = now or datetime.datetime.now().astimezone()
+    now = now or _now()
     batch_id = f"{now:%Y-%m-%d_%H%M}_{source.slug}"
     batch_dir = Path(out_root) / batch_id
     if batch_dir.exists():
