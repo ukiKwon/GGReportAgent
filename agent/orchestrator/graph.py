@@ -74,7 +74,12 @@ def _gate_plan(recorder, state):
         return Command(goto="gate_handoff", update={"stage": 6, "revision_note": None})
     comment = decision.get("comment")
     recorder.message("영업", "human", f"기획 반려 — {comment or '(사유 없음)'}")
-    return Command(goto=_fanout_sends(state, comment), update={"revision_note": comment})
+    # sections는 merge_sections(new=None)로 명시적 리셋 — 구본 3건을 비운 뒤
+    # 다음 슈퍼스텝에서 재팬아웃 3건만 쌓이게 한다(리뷰 Major 픽스).
+    return Command(
+        goto=_fanout_sends(state, comment),
+        update={"revision_note": comment, "sections": None},
+    )
 
 
 def _gate_handoff(recorder, state):

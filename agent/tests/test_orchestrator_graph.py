@@ -71,6 +71,36 @@ def test_plan_rejection_reruns_drafts_with_note(mock_rfi, mock_draft, mock_pack,
     state = graph.get_state(CFG)
     assert state.values.get("revision_note") == "민원 근거 보강"
     assert state.tasks and state.tasks[0].interrupts  # 다시 게이트에서 대기
+    # 리뷰 Major 픽스: sections는 구본 3건이 아니라 재작성된 신본 3건만 남아야 한다
+    # (operator.add였다면 구3+신3=6건이 누적되어 반려된 슬라이드가 남는다).
+    assert len(state.values.get("sections", [])) == 3
+
+
+@patch("agent.orchestrator.graph.verifier")
+@patch("agent.orchestrator.graph.packager")
+@patch("agent.orchestrator.graph.draft_team")
+@patch("agent.orchestrator.graph.rfi_agent")
+def test_plan_rejection_then_approval_packager_sees_only_new_sections(
+    mock_rfi, mock_draft, mock_pack, mock_verify
+):
+    """기획반려 후 승인까지 완주 — packager가 받는 sections가 신본 3건뿐이어야 한다
+    (구본이 섞여 PPTX에 반려된 슬라이드가 남는 회귀를 막는다)."""
+    _mock_nodes(mock_rfi, mock_draft, mock_pack, mock_verify)
+    graph = build_workflow_graph(NullRecorder(), MemorySaver())
+
+    graph.invoke(BASE_INPUT, CFG)
+    graph.invoke(Command(resume={"approved": False, "by": "영업팀", "comment": "민원 근거 보강"}), CFG)
+    graph.invoke(Command(resume={"approved": True, "by": "영업팀", "comment": None}), CFG)
+    graph.invoke(Command(resume={"approved": True, "by": "영업팀", "comment": None}), CFG)
+    result = graph.invoke(Command(resume={"approved": True, "by": "인사권자", "comment": None}), CFG)
+
+    assert result["stage"] == 9
+    assert mock_draft.call_count == 6  # 반려 3 + 재작성 3
+    assert mock_pack.call_count == 1
+    packager_input_sections = mock_pack.call_args[0][0]["sections"]
+    assert len(packager_input_sections) == 3
+    pii_scan_sections = mock_verify.call_args[0][0]["sections"]
+    assert len(pii_scan_sections) == 3
 
 
 @patch("agent.orchestrator.graph.verifier")
