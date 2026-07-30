@@ -1,38 +1,20 @@
+"""PDF 텍스트 추출 CLI — 구현은 리포의 agent/rfp_text.py에 있다.
+
+파이프라인의 rfp_extract_node와 **같은 함수**를 부른다. 사본을 두면 이상 판정
+임계값이 갈라져, 사람이 이 스킬로 처리했을 때와 파이프라인이 자동으로 처리했을
+때의 판단이 달라진다.
+"""
+
 import argparse
 import json
+import sys
+from pathlib import Path
 
-import pypdf
+# 이 스크립트는 스킬 폴더에서 직접 실행되므로 리포 루트가 sys.path에 없다.
+# scripts → rfp-locate → skills → .claude → 리포 루트
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
-
-def is_text_abnormal(pages: list[str]) -> tuple[bool, str | None]:
-    total_chars = sum(len(p) for p in pages)
-    avg_chars_per_page = total_chars / len(pages) if pages else 0
-    if avg_chars_per_page < 50:
-        return True, f"avg chars/page {avg_chars_per_page:.1f} is below 50 threshold"
-
-    full_text = "\n".join(pages)
-    if full_text:
-        replacement_ratio = full_text.count("�") / len(full_text)
-        if replacement_ratio > 0.01:
-            return True, f"replacement char (�) ratio {replacement_ratio:.1%} exceeds 1%"
-
-    return False, None
-
-
-def extract_pdf_text(pdf_path: str) -> dict:
-    reader = pypdf.PdfReader(pdf_path)
-    pages = [page.extract_text() or "" for page in reader.pages]
-    full_text = "\n".join(pages)
-    avg_chars_per_page = (sum(len(p) for p in pages) / len(pages)) if pages else 0
-    is_abnormal, abnormal_reason = is_text_abnormal(pages)
-
-    return {
-        "pages": pages,
-        "full_text": full_text,
-        "avg_chars_per_page": avg_chars_per_page,
-        "is_abnormal": is_abnormal,
-        "abnormal_reason": abnormal_reason,
-    }
+from agent.rfp_text import extract_pdf_text, is_text_abnormal  # noqa: E402,F401
 
 
 def main():
@@ -48,7 +30,6 @@ def main():
         with open(args.out, "w", encoding="utf-8") as f:
             f.write(output)
     else:
-        import sys
         # stdout.buffer bypasses the platform's default text encoding (cp949 on Windows),
         # which would raise UnicodeEncodeError on Korean text in the extracted PDF content.
         sys.stdout.buffer.write(output.encode("utf-8"))
