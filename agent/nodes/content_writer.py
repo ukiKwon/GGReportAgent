@@ -2,7 +2,7 @@ import os
 
 from pydantic import BaseModel
 
-from agent.llm import get_llm
+from agent.llm import structured_llm
 
 
 class SectionResult(BaseModel):
@@ -43,7 +43,7 @@ def content_writer_node(state: dict) -> dict:
     coverage_report = state.get("coverage_report", [])
     gap_by_item = {c["scoring_item"]: c["gap_note"] for c in coverage_report if not c["covered"]}
 
-    llm = get_llm().with_structured_output(SectionResult)
+    llm = structured_llm(SectionResult)
     sections = []
     for entry in scoring_table:
         gap_context = ""

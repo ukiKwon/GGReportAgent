@@ -195,6 +195,22 @@ def get_llm(temperature: float = 0.0) -> ChatOpenAI:
 모델 교체(gemma/Llama4/GLM 등)는 `.env`만 바꾸면 되고 코드 변경이 없다. 하드코딩된
 `"gpt-4o-mini"`와 `getpass()` API 키 입력 방식은 제거 대상.
 
+**✅ 구현 완료 (2026-07-30)** — `agent/llm.py`가 위 형태로 교체됐다. 확정된 기본값:
+
+| 환경변수 | 기본값 | 비고 |
+|---|---|---|
+| `LLM_MODEL` | `gpt-oss-120b` | 1순위 |
+| `LLM_FALLBACK_MODEL` | `llama-4-scout-17b-16e-instruct` | 2순위. 17B 활성/16전문가 MoE라 단일 GPU에 올리기 쉬운 쪽 |
+| `LLM_BASE_URL` | `http://localhost:11434/v1` | 로컬 Ollama의 OpenAI-호환 경로. 폐쇄망 LAN 엔드포인트로 교체 |
+| `LLM_API_KEY` | `not-needed` | 자체호스팅은 대개 키를 안 본다 |
+
+스펙에 없던 것 하나가 추가됐다: **폴백 체인**. 자체호스팅 엔드포인트는 모델이 안
+올라와 있거나 컨텍스트가 넘쳐 죽는 일이 흔한데, 그때 파이프라인 전체가 멈추는
+것보다 작은 모델로라도 끝내고 사람이 검수하는 편이 낫다. 폴백은
+`with_structured_output` **뒤에** 건다 — 스키마 강제 방식이 모델마다 달라서
+(툴콜/json_schema) 1순위가 구조화 단계에서 실패하는 경우까지 받아내야 하기 때문이다.
+호출부는 `structured_llm(스키마)` 하나를 쓴다(`content_writer`·`rfp_extract`).
+
 ---
 
 ## ⑦ 기존 코드 영향 범위
