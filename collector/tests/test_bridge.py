@@ -27,16 +27,25 @@ def _zip_of(batch_dir) -> bytes:
     return buffer.getvalue()
 
 
+IMPORT_PATH = f"/inbox/{BATCH_ID}/import"
+IMPORT_RESULT = {
+    "batch_id": BATCH_ID,
+    "imported_institutions": 2,
+    "institution_ids": ["a", "b"],
+    "bid_cases": {"created": ["bc-1"], "updated": []},
+    "rfp_files": [],
+    "archived_to": f"data/batches/{BATCH_ID}",
+}
+
+
 def _client(archive: bytes, *, import_status=200, calls=None):
     def handler(request: httpx.Request) -> httpx.Response:
         if calls is not None:
             calls.append(request)
         if request.url.path.endswith("/archive"):
             return httpx.Response(200, content=archive)
-        if request.url.path == "/institutions/import":
-            return httpx.Response(
-                import_status, json={"imported": 2, "institution_ids": ["a", "b"]}
-            )
+        if request.url.path == IMPORT_PATH:
+            return httpx.Response(import_status, json=IMPORT_RESULT)
         return httpx.Response(404)
 
     return httpx.Client(transport=httpx.MockTransport(handler))
@@ -51,12 +60,17 @@ def test_carry_batch_places_and_imports(dmz_batch, tmp_path):
     assert (inbox / BATCH_ID / "manifest.json").is_file()
     assert (inbox / BATCH_ID / "institutions.csv").is_file()
     assert (inbox / BATCH_ID / "files" / "20260729-00123_공고문.txt").is_file()
-    assert result["imported"] == {"imported": 2, "institution_ids": ["a", "b"]}
+    assert result["imported"] == IMPORT_RESULT
 
     # DMZ(8001)에서 받아 망 안(8000)으로 던진다 — 포트만 다른 같은 호스트
     paths = [c.url.path for c in calls]
     assert f"/batches/{BATCH_ID}/archive" in paths
-    assert "/institutions/import" in paths
+    assert IMPORT_PATH in paths
+
+    # 반입 요청에는 batch_id만 실린다 — 파일을 다시 올리지 않는다(망 안이 자기
+    # 파일시스템의 inbox를 읽는다). 본문이 있으면 경계 모델이 깨진 것이다.
+    import_call = next(c for c in calls if c.url.path == IMPORT_PATH)
+    assert import_call.content == b""
 
 
 def test_no_import_flag_stops_after_inbox(dmz_batch, tmp_path):
@@ -67,7 +81,7 @@ def test_no_import_flag_stops_after_inbox(dmz_batch, tmp_path):
 
     assert result["imported"] is None
     assert (inbox / BATCH_ID / "manifest.json").is_file()
-    assert "/institutions/import" not in [c.url.path for c in calls]
+    assert IMPORT_PATH not in [c.url.path for c in calls]
 
 
 def test_existing_batch_in_inbox_is_refused(dmz_batch, tmp_path):

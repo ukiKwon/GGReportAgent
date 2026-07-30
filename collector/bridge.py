@@ -7,6 +7,10 @@
     py -3.14 -m collector.bridge --batch 2026-07-29_0930_fixture
 
 기본값: DMZ http://127.0.0.1:8001, 망 안 http://127.0.0.1:8000, inbox corpus/inbox
+
+반입 API에는 batch_id만 넘긴다 — 파일을 다시 올리지 않는다. 그래서 `--inbox`는
+**망 안 서버가 보는 inbox와 같은 자리**여야 한다(운영에서 사람이 USB로 배치를
+그 자리에 놓는 것과 같다).
 """
 
 from __future__ import annotations
@@ -60,7 +64,7 @@ def carry_batch(
 
         result = {"batch_id": batch_id, "inbox_path": str(target), "imported": None}
         if do_import:
-            result["imported"] = _import_csv(client, backend_url, target)
+            result["imported"] = _import_batch(client, backend_url, batch_id)
         return result
     finally:
         if owns_client:
@@ -85,12 +89,13 @@ def _extract(archive: bytes, target: Path) -> None:
         zf.extractall(target)
 
 
-def _import_csv(client: httpx.Client, backend_url: str, batch_dir: Path) -> dict:
-    csv_path = batch_dir / "institutions.csv"
-    response = client.post(
-        f"{backend_url.rstrip('/')}/institutions/import",
-        files={"file": (csv_path.name, csv_path.read_bytes(), "text/csv")},
-    )
+def _import_batch(client: httpx.Client, backend_url: str, batch_id: str) -> dict:
+    """batch_id만 넘긴다 — 파일은 이미 망 안 inbox에 놓여 있다.
+
+    망 경계는 그대로다: 백엔드는 **자기 파일시스템의 corpus/inbox/만 읽는다.**
+    망 밖을 향한 요청도, 역방향 콜백도 생기지 않는다(SCHEMA.md §⑩-5).
+    """
+    response = client.post(f"{backend_url.rstrip('/')}/inbox/{batch_id}/import")
     if response.status_code != 200:
         raise BridgeError(f"망 안 반입 실패 (HTTP {response.status_code}): {response.text}")
     return response.json()
@@ -126,7 +131,17 @@ def main(argv: list[str] | None = None) -> int:
     print(f"inbox에 놓음: {result['inbox_path']}")
     if result["imported"] is not None:
         imported = result["imported"]
-        print(f"망 안 반입 완료: {imported.get('imported')}건 {imported.get('institution_ids')}")
+        cases = imported.get("bid_cases") or {}
+        print(
+            f"망 안 반입 완료: 기관 {imported.get('imported_institutions')}건 "
+            f"{imported.get('institution_ids')}"
+        )
+        print(
+            f"  공고: 신규 {len(cases.get('created', []))}건 / "
+            f"갱신 {len(cases.get('updated', []))}건, "
+            f"첨부 {len(imported.get('rfp_files') or [])}건"
+        )
+        print(f"  배치 보관: {imported.get('archived_to')}")
     return 0
 
 
