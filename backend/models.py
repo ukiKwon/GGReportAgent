@@ -113,3 +113,15 @@ class BidCaseFinalizeIn(BaseModel):
 
 class CorpusPathIn(BaseModel):
     path: str
+
+
+class Notification(BaseModel):
+    notification_id: str
+    recipient: str
+    kind: str
+    institution_id: str | None = None
+    task_id: str | None = None
+    content: str
+    link: str | None = None
+    created_at: str
+    read_at: str | None = None

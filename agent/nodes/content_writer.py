@@ -45,6 +45,7 @@ ROLE_PLAN_FILES = {
 }
 
 ROLE_LINE = "당신은 {role}팀 담당자로서 아래 항목의 세부기획을 작성합니다.\n\n"
+REVISION_LINE = "반려 사유: {revision_note} — 이를 반영해 다시 작성\n\n"
 
 
 def _load_role_corpus(institution_spec_dir: str | None, role: str) -> str:
@@ -87,6 +88,10 @@ def content_writer_node(state: dict, role: str | None = None) -> dict:
 
     llm = structured_llm(SectionResult)
     role_line = ROLE_LINE.format(role=role) if role else ""
+    # 반려 사유는 role 경로(3팀 재작성)에서만 프롬프트에 싣는다 — gap_context(검증
+    # 커버리지 누락)와는 별개 신호: revision_note는 결재자의 반려 사유(기획승인 게이트).
+    revision_note = state.get("revision_note") if role else None
+    revision_line = REVISION_LINE.format(revision_note=revision_note) if revision_note else ""
     sections = []
     for entry in scoring_table:
         gap_context = ""
@@ -95,6 +100,7 @@ def content_writer_node(state: dict, role: str | None = None) -> dict:
 
         result: SectionResult = llm.invoke(
             role_line
+            + revision_line
             + SECTION_PROMPT.format(
                 category=entry["category"],
                 item=entry["item"],
