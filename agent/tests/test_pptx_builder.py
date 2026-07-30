@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from pptx import Presentation
 
@@ -114,3 +115,20 @@ def test_pptx_builder_node_creates_missing_output_directory(tmp_path, monkeypatc
     result = pptx_builder_node(state)
 
     assert os.path.isfile(result["pptx_path"])
+    # 기본값은 data/report_new — data/*가 gitignored라 산출물이 실수로 커밋되지 않는다
+    assert Path(result["pptx_path"]).is_relative_to(Path("data") / "report_new")
+
+
+def test_pptx_builder_node_honours_report_new_dir(tmp_path):
+    """report_new_dir을 무시하고 리포 루트에 쓰던 버그의 회귀 테스트."""
+    state = {
+        "sections": [{"scoring_item": "신용도", "title": "1. 신용도", "content": "내용", "sources": []}],
+        "scoring_table": [{"category": "신용도", "item": "평가", "score": 10, "description": None}],
+        "institution_name": "테스트기관",
+        "report_new_dir": str(tmp_path / "출력"),
+    }
+
+    result = pptx_builder_node(state)
+
+    assert os.path.isfile(result["pptx_path"])
+    assert Path(result["pptx_path"]).is_relative_to(tmp_path / "출력")

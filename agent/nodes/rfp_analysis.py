@@ -4,7 +4,7 @@ import os
 
 def rfp_analysis_node(state: dict) -> dict:
     institution_name = state["institution_name"]
-    report_new_dir = state.get("report_new_dir", "report_new")
+    report_new_dir = state.get("report_new_dir", "data/report_new")
     institution_dir = os.path.join(report_new_dir, institution_name)
 
     scoring_path = os.path.join(institution_dir, "rfp_scoring.json")
