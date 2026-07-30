@@ -125,3 +125,11 @@ class Notification(BaseModel):
     link: str | None = None
     created_at: str
     read_at: str | None = None
+
+
+class ChatMessage(BaseModel):
+    chat_message_id: str
+    institution_id: str
+    role: str
+    content: str
+    created_at: str
