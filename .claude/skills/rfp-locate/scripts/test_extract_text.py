@@ -8,7 +8,7 @@ from extract_text import extract_pdf_text, is_text_abnormal
 
 SAMPLE_RFP = os.path.join(
     os.path.dirname(__file__), "..", "..", "..", "..",
-    "RFP", "수원시 금고 지정 계획 공고문.pdf",
+    "corpus", "rfp", "수원시 금고 지정 계획 공고문.pdf",
 )
 
 

@@ -6,3 +6,4 @@ httpx
 python-multipart
 python-pptx
 langchain_openai
+pypdf
