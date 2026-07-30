@@ -2,8 +2,10 @@ from typing import TypedDict
 
 
 class ProposalState(TypedDict, total=False):
-    rfp_path: str
+    rfp_path: str                   # corpus/rfp/ 아래 공고문 PDF (반입이 채운다)
     rfp_text: str
+    rfp_title: str                  # 공고문 제목 원문
+    total_score: int                # 배점표 총점
     scoring_table: list[dict]       # [{category, item, score, description}, ...]
     requirements: list[dict]        # [{item, category, weight, risk_flag}, ...]
     institution_name: str

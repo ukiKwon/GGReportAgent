@@ -1,8 +1,18 @@
+import os
+
 from agent.nodes.content_writer import content_writer_node
 from agent.nodes.institution_match import institution_match_node
 from agent.nodes.pptx_builder import pptx_builder_node
 from agent.nodes.rfp_analysis import rfp_analysis_node
+from agent.nodes.rfp_extract import rfp_extract_node
 from agent.nodes.verification import verification_node
+
+RFP_ARTIFACTS = ("rfp_scoring.json", "rfp_text.txt")
+
+
+def _artifacts_exist(report_new_dir: str, institution_name: str) -> bool:
+    out_dir = os.path.join(report_new_dir, institution_name)
+    return all(os.path.isfile(os.path.join(out_dir, name)) for name in RFP_ARTIFACTS)
 
 
 def run_pipeline(
@@ -11,13 +21,21 @@ def run_pipeline(
     archive_dir: str = "report_archive",
     report_new_dir: str = "data/report_new",
     max_revisions: int = 3,
+    rfp_path: str | None = None,
 ) -> dict:
     state = {
         "institution_name": institution_name,
         "giganlist_dir": giganlist_dir,
         "archive_dir": archive_dir,
         "report_new_dir": report_new_dir,
+        "rfp_path": rfp_path,
     }
+
+    # 3단계: 산출물이 없을 때만 PDF에서 뽑는다. 이미 있으면 사람이 rfp-locate 스킬로
+    # 만들어 둔 것이므로 건드리지 않는다 — 이상 PDF는 여전히 사람이 처리하기 때문에
+    # 두 경로가 공존해야 한다.
+    if rfp_path and not _artifacts_exist(report_new_dir, institution_name):
+        state.update(rfp_extract_node(state))
 
     state.update(rfp_analysis_node(state))
     state.update(institution_match_node(state))
