@@ -175,6 +175,15 @@ GET  /institutions/{id}/artifacts   # spec/plan/pptx 등 산출물 목록
 체크포인트는 6단계에 추가하지 않는다 — 사람 검토는 5단계(spec 승인)·8단계(최종검수)
 2곳에만 둔다(선행스펙의 "체크포인트 최소화" 원칙을 그대로 계승).
 
+**✅ 구현 완료 (2026-07-30)** — `agent/nodes/role_router.py`(`role_router_node`) +
+`content_writer_node(state, role=...)` 역할 파라미터화 + `pipeline.py` 배선.
+스펙과의 편차 1건: "LangGraph 병렬 분기 + `operator.add` reducer" 대신 **순수 Python
+순차 실행 + 리스트 병합**으로 구현했다. 이유: ① `agent/pipeline.py`는 LangGraph 없이
+구현된 순차 함수이고 `requirements.txt`에도 langgraph가 없다(폐쇄망 의존성 최소화)
+② 병렬화의 실익이 없다 — LLM 엔드포인트가 단일 GPU 로컬 서빙이라 동시 호출이
+직렬화된다. reducer가 보장하려던 동작(병렬 결과 자동 병합·별도 merge 노드 불필요·
+verification 1회)은 파이프라인의 리스트 병합(배점표 원순서 정렬)으로 동일하게 달성된다.
+
 ---
 
 ## ⑥ LLM 백엔드 어댑터
@@ -216,13 +225,15 @@ def get_llm(temperature: float = 0.0) -> ChatOpenAI:
 ## ⑦ 기존 코드 영향 범위
 
 - **`agent/state.py`**: `ProposalState`에 `role_assignments`(역할 라우팅 결과) 추가,
-  `sections`를 reducer 적용 필드로 변경.
+  `sections`를 reducer 적용 필드로 변경. — **✅ 완료(2026-07-30)**: `role_assignments`
+  추가. reducer는 §⑤ 편차 기록대로 미적용(파이프라인이 병합).
 - **`agent/llm.py`**: ⑥의 어댑터 방식으로 교체.
 - **`agent/nodes/content_writer.py`**: 역할별 코퍼스 파라미터를 받도록 확장(3개
-  role-scoped 인스턴스로 재사용, 코드 중복 최소화).
+  role-scoped 인스턴스로 재사용, 코드 중복 최소화). **✅ 완료(2026-07-30)**
 - **`agent/pipeline.py`**: 신규 노드 삽입 + 병렬 분기 그래프로 재구성.
   ~~`rfp_locate_node`·`spec_research_node`·`plan_writer_node`~~ → `rfp_extract_node`
-  **삽입 완료**(2026-07-30, ④의 재정의 표 참조). 남은 것은 `role_router_node`뿐.
+  **삽입 완료**(2026-07-30, ④의 재정의 표 참조). `role_router_node`도
+  완료(2026-07-30) — 남은 것 없음. **✅ 완료**
 - **`dashboard/js/store.js`**: 서버 API(`GET/POST /institutions*`) 호출로 교체,
   개인 선호값만 localStorage 유지.
 - **`dashboard/` → Next.js 이관**: 기존 정적 JS 자산(지도 렌더링, CSV
@@ -243,7 +254,8 @@ def get_llm(temperature: float = 0.0) -> ChatOpenAI:
 3. **agent 신규 노드**: ~~`rfp_locate_node`/`spec_research_node`/`plan_writer_node`~~
    → **`rfp_extract_node` 하나로 재정의됨**(2026-07-30 완료). 나머지 둘의 결말은 ④의
    재정의 표 참조.
-4. **6단계 3팀 분화**: `role_router_node` + `content_writer_node` 역할 분화
+4. **6단계 3팀 분화**: `role_router_node` + `content_writer_node` 역할 분화 —
+   **✅ 완료(2026-07-30)**, 계획 `docs/superpowers/plans/2026-07-30-role-router-team-split.md`
 5. **Next.js 프론트**: 기존 dashboard 자산 이식
 6. **Track 2 배포**: AWS+Vercel 클라우드 데모 구성
 
