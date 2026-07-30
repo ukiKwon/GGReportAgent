@@ -4,8 +4,8 @@ import json
 import pytest
 
 from collector.batch import write_batch
-from collector.schema import validate_batch
 from collector.sources.fixture import FixtureSource
+from contract.batch_schema import validate_batch
 
 NOW = datetime.datetime(2026, 7, 29, 9, 30, tzinfo=datetime.timezone.utc)
 

@@ -1,7 +1,15 @@
 """배치 폴더가 collector/SCHEMA.md v1을 지키는지 검사한다.
 
-FastAPI에 의존하지 않는다 — 배치 생성 직후의 자기검사와, 반입 시점(브리지)의
-재검사가 같은 함수를 쓴다. 실패는 예외가 아니라 메시지 목록으로 돌려준다.
+**중립 계약 모듈이다** — 망 밖(collector)과 망 안(backend)이 같은 검증기를 쓴다.
+따로 만들면 SCHEMA v2 때 두 곳을 고쳐야 하는 "두 개의 진실"이 생기고, backend가
+collector를 import하면 폐쇄망 배포에 DMZ FastAPI 앱이 딸려온다. 그래서 어느 쪽도
+아닌 자리에 둔다.
+
+그 대가로 이 모듈은 **표준 라이브러리만** 쓰고 backend·agent·collector 어느 것도
+import하지 않는다. 순수 형식 파서라 네트워크 경로를 만들지 않는다 — 양쪽이 같은
+JSON 라이브러리를 쓰는 것과 같은 성격이다.
+
+실패는 예외가 아니라 메시지 목록으로 돌려준다.
 """
 
 from __future__ import annotations

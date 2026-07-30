@@ -17,9 +17,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from collector.batch import COLLECTOR_VERSION, DEFAULT_OUT_ROOT, BatchError, write_batch
-from collector.schema import validate_batch
 from collector.sources import get_source, list_sources
 from collector.sources.base import SourceError
+from contract.batch_schema import validate_batch
 
 
 class CollectIn(BaseModel):
