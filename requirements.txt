@@ -7,3 +7,5 @@ python-multipart
 python-pptx
 langchain_openai
 pypdf
+langgraph
+langgraph-checkpoint-sqlite
