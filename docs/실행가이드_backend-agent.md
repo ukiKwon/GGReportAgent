@@ -111,7 +111,9 @@ curl http://127.0.0.1:8001/batches
 # 브리지: DMZ에서 받아 corpus/inbox/에 놓고 망 안에 반입
 py -3.14 -m collector.bridge --batch 2026-07-29_0930_fixture
 # → inbox에 놓음: corpus/inbox/...
-#    망 안 반입 완료: 2건 ['new-...', 'new-...']
+#    망 안 반입 완료: 기관 2건 ['new-...', 'new-...']
+#      공고: 신규 2건 / 갱신 0건, 첨부 1건
+#      배치 보관: data/batches/2026-07-29_0930_fixture
 
 py -3.14 -m collector.bridge --batch <id> --no-import   # inbox까지만
 ```
@@ -122,6 +124,44 @@ py -3.14 -m collector.bridge --batch <id> --no-import   # inbox까지만
   두 번 수집하면 422로 거부한다 — 조용히 덮지 않는다.
 - 검증 실패한 배치는 inbox에 남지 않는다(생성 시 자기검사 + 브리지에서 재검사).
 - DMZ 출력 위치는 `COLLECTOR_OUT_ROOT`(기본 `data/collector/`, gitignored).
+- 브리지의 `--inbox`는 **망 안 서버가 보는 inbox와 같은 자리**여야 한다. 반입 API에는
+  `batch_id`만 넘기고 파일을 다시 올리지 않기 때문이다(아래 §5).
+
+## 5. 배치 반입 (`/inbox`) — 망 안, 포트 8000
+
+배치가 `corpus/inbox/`에 도착한 뒤 망 안에서 벌어지는 일. 설계는
+`docs/superpowers/specs/2026-07-30-inbox-batch-import-design.md`,
+계약은 `collector/SCHEMA.md` §⑥.
+
+```bash
+# 검사만 — DB·파일 무변경
+curl -X POST http://127.0.0.1:8000/inbox/2026-07-29_0930_fixture/validate
+# → {"ok":true,"errors":[],"batch_id":"..."}
+
+# 반입 — 기관 upsert + 공고 일정 + 첨부 이동 + 배치 보관
+curl -X POST http://127.0.0.1:8000/inbox/2026-07-29_0930_fixture/import
+```
+
+반입이 하는 일(이 순서를 지킨다):
+
+1. `batch_id` **형식** 검사(허용 목록) → 실재 확인 → 배치 검증 (400 / 404 / 422)
+2. `institutions.csv` → 기관 upsert, 레코드별 `bid_cases` upsert → **여기서 DB 커밋**
+3. 첨부 → `corpus/rfp/`, `institutions.rfp_path` 기록
+4. 배치 폴더 → `data/batches/{batch_id}`
+
+- **DB를 먼저 커밋하고 파일을 나중에 옮긴다.** 파일 이동은 롤백이 없어서, 순서를
+  뒤집으면 DB 실패 시 배치가 이미 사라져 재시도할 수 없다.
+- 422는 **아무것도 바꾸지 않는다.** 배치가 inbox에 남으므로 원인을 고쳐 다시 부르면 되고,
+  기관·공고는 upsert라 재실행이 안전하다.
+- 공고 유일키는 `(source_slug, notice_id)`다. 같은 공고를 다시 수집하면 **새 bid_case가
+  생기지 않고 일정만 갱신**된다(나중 배치가 이긴다).
+- 날짜는 `deadline_at` 우선, 없으면 `contract_end` 폴백. `확정`이면 `confirmed_date`,
+  `예상`이면 `expected_date`에 넣고 반대쪽은 건드리지 않는다(예상 이력 보존).
+- 성공하면 배치가 inbox에서 치워지므로 **같은 `batch_id` 재호출은 404**다.
+- 처리된 배치를 지우지 않고 `data/batches/`(gitignored)에 두는 이유는 `evidence.url`과
+  수집 시각이 반입 근거라 감사에 필요하기 때문이다.
+- 반입이 읽고 쓰는 세 곳은 `create_app(inbox_root=, rfp_root=, batches_root=)`로 바꿀 수
+  있다(기본값 `corpus/inbox`·`corpus/rfp`·`data/batches`). 테스트는 이걸로 격리한다.
 
 ## 확인 방법
 
