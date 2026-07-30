@@ -31,7 +31,7 @@
 
 ## 열린 항목
 
-### 1. E2E 입찰워크플로 — sub-project 1 착지, 남은 것은 2·3·4·5
+### 1. E2E 입찰워크플로 — 1·2·3 완료, 남은 것은 4·5
 - **출처**: `2026-07-29_summary.md` `## Session 18:14`.
 - **스펙**: `docs/superpowers/specs/2026-07-26-e2e-bid-workflow-system-design.md` §⑧.
 - **완료 (main `5fba9f0`, push됨)**: **sub-project 1(DMZ 수집 서비스)**.
@@ -46,21 +46,13 @@
   - E2E 실측: DMZ(8001) `POST /collect` → 브리지 → 망 안(8000) 기관 2건 upsert 확인
     (한글 정상, DB 직접 조회로 검증). 테스트 **233 passed**, dashboard 36/36.
 - **남은 sub-project**:
-  - **2 폐쇄망 백엔드 코어** — **설계 완료, 구현 대기. 다음 세션 1순위.**
-    출처: `2026-07-30_summary.md` `## Session 01:00`.
-    스펙 `docs/superpowers/specs/2026-07-30-inbox-batch-import-design.md`(커밋
-    `e8048f8`, 313줄) — **사용자 승인 완료**. 계획 파일은 **아직 없다**;
-    `superpowers:writing-plans`부터 시작하면 된다(스펙 ⑦ 파일구조표 + ⑧ 테스트
-    9건 목록이 계획 골격을 그대로 제공한다). 기준선 **178 passed**.
-    범위는 `collector/SCHEMA.md` §⑥ 2·4·5·6이고, 확정된 결정 3가지는
-    ⓐ`collector/schema.py` → `contract/batch_schema.py` 로 `git mv`(중립 계약
-    모듈, 경계 테스트는 `(backend|agent)`만 보므로 무수정 유효)
-    ⓑ`bid_cases`에 `source_slug`/`notice_id`/`title`/`notice_url` + 유니크 인덱스
-    (`init_db`에 멱등 `ALTER TABLE` 마이그레이션 필요 — DB 삭제·재시드 금지)
-    ⓒ처리된 배치는 `data/batches/`로 이동. API는
-    `POST /inbox/{batch_id}/validate` + `POST /inbox/{batch_id}/import` 2개.
-    **§⑥ 2단계(검증)는 이미 `validate_batch()`로 구현돼 있다** — 재구현하지 말고
-    옮기기만 할 것.
+  - ~~**2 폐쇄망 백엔드 코어**~~ — **완료**(2026-07-30, 브랜치 `local-2026-07-30`
+    커밋 `0f2a067`~`53c72e0`). 출처: `2026-07-30_summary.md` `## Session 11:03`.
+    스펙 `2026-07-30-inbox-batch-import-design.md` 그대로 구현 —
+    `contract/batch_schema.py`(git mv), `bid_cases` 4컬럼+유니크 인덱스+멱등
+    마이그레이션, `backend/inbox_import.py`, `POST /inbox/{id}/{validate,import}`,
+    브리지 교체. E2E 실측으로 기관 upsert·bid_case·PDF 이동·배치 보관·재수집 갱신
+    전부 확인.
   - ~~**3 agent 신규 노드**~~ — **완료**(2026-07-30, 브랜치 `local-2026-07-30`).
     재정의 결과: 신규 노드 3개 중 실제로 만들어진 것은 **`rfp_extract_node` 하나**다.
     `rfp_locate_node`는 "찾아온다"는 절반을 sub-project 2가 가져가(첨부 PDF가
@@ -68,9 +60,14 @@
     일이 "PDF → `rfp_text.txt` + `rfp_scoring.json`"뿐이라 그것으로 재정의했다.
     `spec_research_node`는 이미 폐기, `plan_writer_node`는 `content_writer_node`에
     흡수. 상위 스펙 §④에 재정의 표로 기록했다.
-  - **4 6단계 3팀 분화** — `role_router_node` 미구현. 규모 실측(Session 01:00):
-    `agent/nodes/content_writer.py` 73줄을 역할 파라미터화 + `role_router_node` 신규
-    + `ProposalState.sections`를 reducer 필드로 변경. 하루 규모.
+  - **4 6단계 3팀 분화** — **다음 세션 1순위.** `role_router_node` 미구현.
+    규모 실측(Session 01:00): `agent/nodes/content_writer.py` 73줄을 역할
+    파라미터화 + `role_router_node` 신규 + `ProposalState.sections`를 reducer
+    필드로 변경. 하루 규모. 설계는 상위 스펙 §⑤에 이미 있다(배점표 항목을
+    규칙기반 키워드로 3팀에 라우팅, 역할별 코퍼스만 바꿔 `content_writer`를 3벌로,
+    `verification_node`는 병합된 `sections`에 1회 실행).
+    **선행 확인**: 브랜치 `local-2026-07-30`이 다른 PC에서 검토·merge됐는지 볼 것
+    — sub-project 3에서 `content_writer.py`가 `structured_llm`을 쓰도록 바뀌었다.
   - **5 통합 프런트** — 미착수. **이걸 하면 재구성 ⑦(개명)도 같이 끝난다**(항목 2 참조).
     규모 실측(Session 01:00): `dashboard/js/` 1,104줄(render.js 613줄 포함) 이식 +
     9단계 워크플로 UI 신규. **하루짜리가 아니므로 별도 일정을 잡아야 한다.**
@@ -156,6 +153,29 @@
   `UPDATE institutions SET scoring_table = ?`를 하고, `artifacts` 응답에 필드를 추가한다.
   노드는 현재 backend를 import하지 않으므로(agent/backend 분리) **어느 층이 쓸지부터**
   정해야 한다 — 그게 이 항목이 자명하지 않은 이유다.
+
+### 5. `gpt-oss-120b` 실호출이 아직 검증되지 않았다 (비차단, **하드웨어 종속**)
+
+- **출처**: `2026-07-30_summary.md` `## Session 11:03` §4.
+- **무엇이 검증됐나**: `agent/llm.py`가 스펙 §⑥ 어댑터로 교체돼 있고(1순위
+  `gpt-oss-120b`, 폴백 `llama-4-scout-17b-16e-instruct`, 엔드포인트
+  `LLM_BASE_URL`), **배선은 로컬 Ollama + `llama3.1:8b`로 실호출 검증 완료**다 —
+  ⓐ`json_schema` 구조화 출력 동작 ⓑ1순위 부재 시 폴백 동작 ⓒ둘 다 부재 시 404로
+  정직하게 실패. 코드만 봐서는 알 수 없던 위험은 이것으로 해소됐다.
+- **무엇이 안 됐나**: **실제 운영 모델(`gpt-oss-120b`)로는 한 번도 못 돌렸다.**
+  2026-07-30 세션을 돌린 PC는 RAM 15.7GB / Intel Iris Xe 내장 GPU라 65GB 모델을
+  올릴 수 없다. dGPU 서버나 폐쇄망 엔드포인트가 있어야 한다.
+- **왜 중요한가**: `llama3.1:8b`로 수원시 공고문 배점표를 뽑아 보니 **분류 5개는
+  정확히 맞췄지만 개별 배점을 지어냈다**(정답 `8/17/21/22/25/7` 6항목 → 산출
+  `4/6/0/5/…` 16항목, 주석을 평가항목으로 오인). 프롬프트에 "원문에 없는 배점을
+  만들지 마라"고 명시했는데도 그랬다. 즉 **배점표 구조화가 모델 성능에 크게 의존**하며,
+  120b가 이걸 해내는지가 sub-project 3 산출물의 실사용 가능 여부를 가른다.
+- **하려면**: 엔드포인트가 생기면 `LLM_BASE_URL`·`LLM_MODEL`만 설정하고
+  `agent/nodes/rfp_extract.py`를 수원시 PDF로 1회 호출해
+  `.claude/skills/rfp-locate/references/scoring_schema.json`(총점 100, criteria 6건 —
+  **바로 그 PDF의 정답지**)과 대조하면 된다. 코드 변경은 필요 없다.
+- **부수 확인 사항**: 5·8단계의 🛑 사람 승인 체크포인트가 장식이 아니라 필수임이
+  이 실측으로 확인됐다 — 결과가 좋아도 사람 검수는 유지할 것.
 
 ---
 
