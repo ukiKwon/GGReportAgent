@@ -5,6 +5,7 @@ from agent.nodes.institution_match import institution_match_node
 from agent.nodes.pptx_builder import pptx_builder_node
 from agent.nodes.rfp_analysis import rfp_analysis_node
 from agent.nodes.rfp_extract import rfp_extract_node
+from agent.nodes.role_router import ROLES, role_router_node
 from agent.nodes.verification import verification_node
 
 RFP_ARTIFACTS = ("rfp_scoring.json", "rfp_text.txt")
@@ -39,10 +40,22 @@ def run_pipeline(
 
     state.update(rfp_analysis_node(state))
     state.update(institution_match_node(state))
+    state.update(role_router_node(state))
 
+    # 6단계 3팀 분화 — 상위 스펙 §⑤. 팀별 결과를 배점표 원순서로 병합한 뒤
+    # verification은 병합본에 1회만 실행한다. 병렬화는 하지 않는다(단일 GPU
+    # 로컬 LLM이라 동시 호출이 직렬화됨 — 스펙 편차 기록은 §⑤ 참조).
+    order = {e["item"]: i for i, e in enumerate(state["scoring_table"])}
     attempt = 0
     while True:
-        state.update(content_writer_node(state))
+        sections: list[dict] = []
+        for role in ROLES:
+            sections.extend(content_writer_node(state, role=role)["sections"])
+        sections.sort(key=lambda s: order.get(s["scoring_item"], len(order)))
+        state["revision_count"] = state.get("revision_count", 0) + (
+            1 if state.get("coverage_report") else 0
+        )
+        state["sections"] = sections
         state.update(verification_node(state))
         attempt += 1
 
