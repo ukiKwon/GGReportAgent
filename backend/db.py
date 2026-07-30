@@ -54,6 +54,18 @@ CREATE TABLE IF NOT EXISTS messages (
     content    TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS notifications (
+    notification_id TEXT PRIMARY KEY,
+    recipient       TEXT NOT NULL,
+    kind            TEXT NOT NULL,          -- 쪽지/되물음/결재요청/이관
+    institution_id  TEXT,
+    task_id         TEXT,
+    content         TEXT NOT NULL,
+    link            TEXT,
+    created_at      TEXT NOT NULL,
+    read_at         TEXT
+);
 """
 
 # SCHEMA에 뒤늦게 추가된 bid_cases 컬럼들. CREATE TABLE IF NOT EXISTS는 이미 있는
