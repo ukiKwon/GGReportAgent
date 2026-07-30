@@ -54,7 +54,7 @@ def get_institution(conn: sqlite3.Connection, institution_id: str) -> Institutio
     return _row_to_institution(row) if row else None
 
 
-def _find_id_by_name(conn: sqlite3.Connection, name_ko: str) -> str | None:
+def find_id_by_name(conn: sqlite3.Connection, name_ko: str) -> str | None:
     cursor = conn.execute(
         "SELECT institution_id FROM institutions WHERE name_ko = ?", (name_ko,)
     )
@@ -65,7 +65,7 @@ def _find_id_by_name(conn: sqlite3.Connection, name_ko: str) -> str | None:
 def upsert_institution(
     conn: sqlite3.Connection, row: InstitutionImportRow, commit: bool = True
 ) -> str:
-    existing_id = _find_id_by_name(conn, row.name_ko)
+    existing_id = find_id_by_name(conn, row.name_ko)
     if existing_id:
         conn.execute(
             """UPDATE institutions

@@ -40,6 +40,7 @@ def create_bid_case(
     schedule_confidence: str = "예상",
     expected_date: str | None = None,
     confirmed_date: str | None = None,
+    commit: bool = True,
 ) -> BidCase:
     bid_case_id = f"bc-{secrets.token_hex(4)}"
     conn.execute(
@@ -53,8 +54,80 @@ def create_bid_case(
             confirmed_date, _now(), _research_status_for(conn, institution_id),
         ),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return get_bid_case(conn, bid_case_id)
+
+
+def schedule_date_from(schedule: dict) -> str | None:
+    """공고 일정 4개 중 "입찰이 언제인가"에 해당하는 날짜를 고른다.
+
+    bid_cases의 expected_date/confirmed_date는 입찰 시점을 뜻하므로 제출 마감일
+    (deadline_at)이 1순위다. 없으면 contract_end로 폴백하는데, 계약 종료가 곧 다음
+    입찰 시점이라는 것이 이 리포의 기존 해석이다(csv_import.HEADER_MAP도 '입찰예상일'을
+    contract_end에 매핑한다). 둘 다 없으면 None — 공고는 실재하므로 bid_case는 만든다.
+    """
+    return schedule.get("deadline_at") or schedule.get("contract_end")
+
+
+def upsert_bid_case_from_notice(
+    conn: sqlite3.Connection,
+    institution_id: str,
+    source_slug: str,
+    record: dict,
+    commit: bool = True,
+) -> tuple[str, bool]:
+    """manifest 레코드 1건을 bid_case에 반영한다. (bid_case_id, 신규여부)를 돌려준다.
+
+    유일키는 (source_slug, notice_id) — 같은 공고를 다시 수집하는 것은 정상이고
+    나중 배치가 이긴다(collector/SCHEMA.md §④).
+    """
+    notice_id = record.get("notice_id")
+    title = record.get("title")
+    notice_url = (record.get("evidence") or {}).get("url")
+    schedule = record.get("schedule") or {}
+    confidence = schedule.get("confidence") or "예상"
+    date = schedule_date_from(schedule)
+
+    # 확정이면 confirmed_date, 예상이면 expected_date에 넣고 반대쪽은 건드리지 않는다 —
+    # 예상이 확정으로 승격될 때 예전 예상값을 지우면 "언제 예상했었나"가 사라진다.
+    date_column = "confirmed_date" if confidence == "확정" else "expected_date"
+
+    row = conn.execute(
+        "SELECT bid_case_id FROM bid_cases WHERE source_slug = ? AND notice_id = ?",
+        (source_slug, notice_id),
+    ).fetchone()
+
+    if row:
+        bid_case_id = row["bid_case_id"]
+        conn.execute(
+            f"""UPDATE bid_cases
+                SET schedule_confidence = ?, {date_column} = COALESCE(?, {date_column}),
+                    title = ?, notice_url = ?, last_synced_at = ?
+                WHERE bid_case_id = ?""",
+            (confidence, date, title, notice_url, _now(), bid_case_id),
+        )
+        created = False
+    else:
+        bid_case = create_bid_case(
+            conn,
+            institution_id,
+            schedule_confidence=confidence,
+            expected_date=date if date_column == "expected_date" else None,
+            confirmed_date=date if date_column == "confirmed_date" else None,
+            commit=False,
+        )
+        bid_case_id = bid_case.bid_case_id
+        conn.execute(
+            """UPDATE bid_cases SET source_slug = ?, notice_id = ?, title = ?, notice_url = ?
+               WHERE bid_case_id = ?""",
+            (source_slug, notice_id, title, notice_url, bid_case_id),
+        )
+        created = True
+
+    if commit:
+        conn.commit()
+    return bid_case_id, created
 
 
 def get_bid_case(conn: sqlite3.Connection, bid_case_id: str) -> BidCase | None:
