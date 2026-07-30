@@ -184,6 +184,17 @@ GET  /institutions/{id}/artifacts   # spec/plan/pptx 등 산출물 목록
 직렬화된다. reducer가 보장하려던 동작(병렬 결과 자동 병합·별도 merge 노드 불필요·
 verification 1회)은 파이프라인의 리스트 병합(배점표 원순서 정렬)으로 동일하게 달성된다.
 
+**⚠️ 재정의 (2026-07-31)** — sub-project 5 브레인스토밍에서 본 절의 두 가지가 뒤집혔다.
+근거와 상세는 `docs/superpowers/specs/2026-07-31-multi-agent-collab-system-design.md`
+(이하 "협업 스펙") §⑨ 참조:
+1. **체크포인트 2곳 → 결재 3곳(5·7·8)** — 사용자 시나리오의 결재 라인(기획 승인 →
+   디자이너 이관 결재 → 인사권자 최종 결재)이 확정되면서 7단계에 결재가 추가됐다.
+2. **위의 "순수 Python 병합" 편차를 되돌려 LangGraph 복원** — 멀티에이전트 중심
+   컨셉(orchestrator + subagent)이 사용자 결정으로 확정되어 그래프·체크포인터·
+   interrupt가 실제로 필요해졌다. sub-project 4 산출물(role_router·3팀 writer)은
+   그래프 노드로 그대로 이식한다. 6단계 주체도 "AI 3팀 단독 작성"에서 **사람 팀
+   작성 + AI 초안·검사 보조**로 바뀌었다.
+
 ---
 
 ## ⑥ LLM 백엔드 어댑터
@@ -256,7 +267,10 @@ def get_llm(temperature: float = 0.0) -> ChatOpenAI:
    재정의 표 참조.
 4. **6단계 3팀 분화**: `role_router_node` + `content_writer_node` 역할 분화 —
    **✅ 완료(2026-07-30)**, 계획 `docs/superpowers/plans/2026-07-30-role-router-team-split.md`
-5. **Next.js 프론트**: 기존 dashboard 자산 이식
+5. ~~**Next.js 프론트**: 기존 dashboard 자산 이식~~ → **재정의(2026-07-31)**:
+   "기관인텔리 멀티에이전트 협업 시스템" — 별도 스펙
+   `2026-07-31-multi-agent-collab-system-design.md`가 전담(계획 A/B/C 3분할,
+   vanilla JS 확장·Next.js 미채택 포함).
 6. **Track 2 배포**: AWS+Vercel 클라우드 데모 구성
 
 ---
