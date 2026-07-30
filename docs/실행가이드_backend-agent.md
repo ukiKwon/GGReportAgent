@@ -47,13 +47,38 @@ py -3.14 -m pytest agent/tests -v
 파이프라인 자체를 끝까지 돌리려면 Python에서 직접 호출한다:
 
 ```python
-import os
-os.environ["OPENAI_API_KEY"] = "..."  # 없으면 실행 시 getpass로 물어봄
-
 from agent.pipeline import run_pipeline
 result = run_pipeline(institution_name="수원시",
                       rfp_path="corpus/rfp/수원시 금고 지정 계획 공고문.pdf")
 ```
+
+### LLM 백엔드 — 환경변수 4개가 전부
+
+이 시스템은 폐쇄망용이라 코드에 사업자를 박아두지 않는다. OpenAI-호환 엔드포인트
+(vLLM·Ollama·TGI 등)면 `LLM_BASE_URL` 교체만으로 붙는다.
+
+| 환경변수 | 기본값 | 비고 |
+|---|---|---|
+| `LLM_MODEL` | `gpt-oss-120b` | 1순위 |
+| `LLM_FALLBACK_MODEL` | `llama-4-scout-17b-16e-instruct` | 1순위가 실패하면 자동으로 재시도 |
+| `LLM_BASE_URL` | `http://localhost:11434/v1` | 로컬 Ollama. 폐쇄망 LAN 주소로 교체 |
+| `LLM_API_KEY` | `not-needed` | 자체호스팅은 대개 키를 안 본다 |
+
+```bash
+# 로컬 Ollama로 돌려보려면 모델을 먼저 받아야 한다
+ollama pull gpt-oss:120b
+ollama serve                       # 11434 포트
+
+# 다른 엔드포인트를 쓸 때
+export LLM_BASE_URL=http://lan-gpu:8000/v1
+export LLM_MODEL=gemma-3-27b-it
+```
+
+- 폴백은 **구조화 출력 단계 뒤에** 걸려 있다. 스키마 강제 방식이 모델마다 달라서
+  (툴콜/json_schema) 1순위가 거기서 실패하는 경우까지 받아내야 하기 때문이다.
+- 1·2순위가 같은 모델이면 폴백을 걸지 않는다(같은 모델 두 번은 낭비).
+- **`OPENAI_API_KEY`와 `getpass()` 프롬프트는 없어졌다** — 예전엔 키가 없으면 실행이
+  멈춰서 비대화식 실행이 불가능했다.
 
 ### 3단계(RFI 공시) — 공고문 PDF에서 본문·배점표 뽑기
 

@@ -17,7 +17,7 @@ import os
 
 from pydantic import BaseModel
 
-from agent.llm import get_llm
+from agent.llm import structured_llm
 from agent.rfp_text import extract_pdf_text
 
 
@@ -78,7 +78,7 @@ def rfp_extract_node(state: dict) -> dict:
             f"rfp-locate 스킬로 사람이 페이지를 이미지로 렌더링해 처리해야 합니다: {rfp_path}"
         )
 
-    result: ScoringTableResult = get_llm().with_structured_output(ScoringTableResult).invoke(
+    result: ScoringTableResult = structured_llm(ScoringTableResult).invoke(
         SCORING_PROMPT.format(
             institution_name=institution_name, rfp_text=extracted["full_text"]
         )
