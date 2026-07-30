@@ -59,6 +59,7 @@ def test_run_then_three_approvals_reach_stage9(tmp_path):
         time.sleep(0.05)
     assert body["stage"] == 9
     assert body["pending_gate"] is None
+    assert body["failed"] is False
 
 
 def test_run_unknown_institution_404(tmp_path):
@@ -85,3 +86,4 @@ def test_graph_failure_marks_not_running_and_keeps_stage(tmp_path):
         time.sleep(0.05)
     assert body["running"] is False
     assert body["pending_gate"] is None  # 조용히 게이트인 척 하지 않는다
+    assert body["failed"] is True  # 폴링 클라이언트가 실패를 알 수 있어야 한다

@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from agent.orchestrator.ports import NullRecorder
-from agent.orchestrator.subagents import draft_team, rfi_agent, verifier
+from agent.orchestrator.subagents import draft_team, packager, rfi_agent, verifier
 
 BASE = {
     "institution_id": "nowon",
@@ -70,6 +70,63 @@ def test_draft_team_writes_role_sections_and_records(mock_writer):
     assert mock_writer.call_args.kwargs["role"] == "영업"
     recorder.task_update.assert_any_call("영업", "작성중", 10)
     recorder.task_update.assert_any_call("영업", "1차완료", 100)
+
+
+@patch("agent.nodes.content_writer.structured_llm")
+def test_draft_team_includes_revision_note_in_prompt(mock_structured, tmp_path):
+    """F1 픽스 — 기획반려 재작성 시 draft_team이 revision_note를 content_writer_node에
+    실어 보내고, content_writer가 role 경로에서 그 사유를 프롬프트에 포함해야 한다."""
+    inst = tmp_path / "suwon"
+    (inst / "spec").mkdir(parents=True)
+    (inst / "plan").mkdir()
+    (inst / "plan" / "02_IT디지털기획_사업제안.txt").write_text("IT 제안 내용", encoding="utf-8")
+
+    mock_llm = MagicMock()
+    mock_result = MagicMock()
+    mock_result.title = "1. 제목"
+    mock_result.content = "본문"
+    mock_result.sources = ["plan/02"]
+    mock_llm.invoke.return_value = mock_result
+    mock_structured.return_value = mock_llm
+
+    state = dict(
+        BASE,
+        role="전산",
+        role_assignments=[{"scoring_item": "전산 시스템", "role": "전산"}],
+        scoring_table=[{"category": "사업", "item": "전산 시스템", "score": 10, "description": None}],
+        institution_spec_dir=str(inst / "spec"),
+        revision_note="민원 근거 보강",
+    )
+    recorder = MagicMock()
+
+    draft_team(state, recorder)
+
+    prompt = mock_llm.invoke.call_args[0][0]
+    assert "반려 사유" in prompt
+    assert "민원 근거 보강" in prompt
+
+
+@patch("agent.orchestrator.subagents.pptx_builder_node")
+def test_packager_orders_sections_by_scoring_table(mock_pptx):
+    """F2 픽스 — 팬아웃 완료 순서로 뒤섞인 sections를 scoring_table 원순서로
+    정렬해 pptx_builder_node에 넘겨야 한다(미배정 항목은 뒤로)."""
+    mock_pptx.return_value = {"pptx_path": "x.pptx"}
+    recorder = MagicMock()
+    state = dict(
+        BASE,
+        scoring_table=[{"item": "a"}, {"item": "b"}, {"item": "c"}],
+        sections=[
+            {"scoring_item": "c", "content": "3"},
+            {"scoring_item": "a", "content": "1"},
+            {"scoring_item": "unknown", "content": "?"},
+            {"scoring_item": "b", "content": "2"},
+        ],
+    )
+
+    packager(state, recorder)
+
+    passed_state = mock_pptx.call_args[0][0]
+    assert [s["scoring_item"] for s in passed_state["sections"]] == ["a", "b", "c", "unknown"]
 
 
 @patch("agent.orchestrator.subagents.verification_node")

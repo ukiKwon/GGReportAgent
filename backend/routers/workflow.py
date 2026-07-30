@@ -81,6 +81,7 @@ def get_status(institution_id: str, request: Request):
         "stage": inst.stage,
         "running": running,
         "pending_gate": None if running else svc.pending_gate(institution_id),
+        "failed": svc.has_failed(institution_id),
         "tasks": tasks,
         "notifications_unread": unread,
     }

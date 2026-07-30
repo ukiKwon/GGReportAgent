@@ -97,3 +97,7 @@ class OrchestratorService:
 
     def is_running(self, institution_id: str) -> bool:
         return institution_id in self._running
+
+    def has_failed(self, institution_id: str) -> bool:
+        """직전 실행이 예외로 끝났는지 — start()가 재시작 시 _failed.discard로 지운다."""
+        return institution_id in self._failed
