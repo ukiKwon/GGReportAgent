@@ -45,12 +45,12 @@ def test_run_then_three_approvals_reach_stage9(tmp_path):
     for expected_next in ("이관결재", "최종결재"):
         r = client.post("/institutions/nowon/checkpoint",
                         json={"approved": True, "comment": None},
-                        headers={"X-User-Id": "영업팀"})
+                        headers={"X-User-Id": "sales-team"})
         assert r.status_code == 202
         assert _wait_for_gate(client, "nowon")["pending_gate"] == expected_next
 
     client.post("/institutions/nowon/checkpoint",
-                json={"approved": True, "comment": None}, headers={"X-User-Id": "인사권자"})
+                json={"approved": True, "comment": None}, headers={"X-User-Id": "final-approver"})
     deadline = time.time() + 5
     while time.time() < deadline:
         body = client.get("/institutions/nowon/status").json()

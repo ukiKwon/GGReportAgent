@@ -22,9 +22,14 @@ class OrchestratorService:
 
     # -- 내부 도우미 ------------------------------------------------------
     def _graph(self, institution_id: str, bid_case_id: str):
-        # SqliteSaver(conn)은 커넥션 하나를 계속 물고 있는다 — 백그라운드 스레드에서
-        # 열고 그 스레드 안에서만 쓰므로 check_same_thread=False가 필요하다(호출 스레드가
-        # invoke를 부르는 스레드와 같다는 전제, 이 서비스의 _spawn 구조가 보장한다).
+        # SqliteSaver(conn)은 커넥션 하나를 계속 물고 있는다. start/resume에서는 이
+        # 커넥션을 만드는 스레드(요청을 처리하는 호출 스레드)와 실제로 graph.invoke()가
+        # 그 커넥션을 두드리는 스레드(_spawn이 띄우는 백그라운드 스레드)가 서로 다르다
+        # — 다만 겹치지 않는 순차 교차-스레드 사용이다(생성 스레드는 커넥션을 만들자마자
+        # 클로저에 실어 백그라운드 스레드로 넘기고 그 이후로는 다시 건드리지 않는다).
+        # sqlite3 커넥션은 "동시에 여러 스레드가 건드리지만 않으면" 순서대로 다른
+        # 스레드가 이어받아 써도 안전하므로 check_same_thread=False가 필요하다.
+        # (pending_gate()처럼 생성과 사용이 같은 스레드에서 끝나는 경우도 물론 안전.)
         saver_conn = sqlite3.connect(self.graph_db_path, check_same_thread=False)
         recorder = DbRecorder(self.db_path, institution_id, bid_case_id)
         return build_workflow_graph(recorder, SqliteSaver(saver_conn))
