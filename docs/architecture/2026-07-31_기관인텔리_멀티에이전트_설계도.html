@@ -1,0 +1,440 @@
+<title>기관인텔리 — 멀티에이전트 협업 시스템 설계도</title>
+<style>
+  :root {
+    --paper: #F6F7F5;
+    --panel: #FFFFFF;
+    --ink: #1E2A32;
+    --ink-soft: #55636B;
+    --line: #D5DBD8;
+    --accent: #2F6B5E;
+    --accent-soft: #E3EEEA;
+    --orch: #3A5A8C;
+    --orch-soft: #E6ECF5;
+    --stop: #B4562A;
+    --stop-soft: #F6E7DE;
+    --dmz: #EDEFEA;
+    --mono: "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #141A18; --panel: #1D2522; --ink: #E4E9E6; --ink-soft: #9AA8A1;
+      --line: #35403B; --accent: #6FB5A4; --accent-soft: #24352F;
+      --orch: #8FAEDC; --orch-soft: #232C3A;
+      --stop: #E0805A; --stop-soft: #3C2A20; --dmz: #1A211E;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #141A18; --panel: #1D2522; --ink: #E4E9E6; --ink-soft: #9AA8A1;
+    --line: #35403B; --accent: #6FB5A4; --accent-soft: #24352F;
+    --orch: #8FAEDC; --orch-soft: #232C3A;
+    --stop: #E0805A; --stop-soft: #3C2A20; --dmz: #1A211E;
+  }
+  :root[data-theme="light"] {
+    --paper: #F6F7F5; --panel: #FFFFFF; --ink: #1E2A32; --ink-soft: #55636B;
+    --line: #D5DBD8; --accent: #2F6B5E; --accent-soft: #E3EEEA;
+    --orch: #3A5A8C; --orch-soft: #E6ECF5;
+    --stop: #B4562A; --stop-soft: #F6E7DE; --dmz: #EDEFEA;
+  }
+  body {
+    background: var(--paper); color: var(--ink);
+    font-family: Pretendard, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    line-height: 1.5; margin: 0; padding: 28px 20px 48px;
+  }
+  .sheet { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+
+  header .eyebrow { font-size: 12px; letter-spacing: .14em; color: var(--orch); font-weight: 700; text-transform: uppercase; }
+  header h1 { margin: 4px 0 10px; font-size: 26px; text-wrap: balance; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { font-size: 12.5px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--ink-soft); }
+  .chip b { color: var(--ink); font-weight: 600; }
+
+  section { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 18px 20px; }
+  section > h2 { margin: 0 0 4px; font-size: 15px; display: flex; align-items: baseline; gap: 10px; }
+  section > h2 .tag { font-size: 11px; letter-spacing: .1em; font-weight: 700; color: var(--accent); }
+  section > h2 .tag.orch { color: var(--orch); }
+  section > .sub { margin: 0 0 16px; font-size: 13px; color: var(--ink-soft); }
+  .mono { font-family: var(--mono); font-size: 11px; }
+
+  /* 개념 3층 */
+  .tiers { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .tier { display: grid; grid-template-columns: 130px 1fr; border: 1.5px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .tier .side { padding: 10px 12px; font-weight: 700; font-size: 13px; display: flex; align-items: center; }
+  .tier .body { padding: 10px 14px; font-size: 12.5px; color: var(--ink-soft); background: var(--panel); }
+  .tier .body b { color: var(--ink); }
+  .tier.human { border-color: var(--stop); } .tier.human .side { background: var(--stop-soft); color: var(--stop); }
+  .tier.ai { border-color: var(--orch); } .tier.ai .side { background: var(--orch-soft); color: var(--orch); }
+  .tier.data { border-color: var(--accent); } .tier.data .side { background: var(--accent-soft); color: var(--accent); }
+
+  /* 오케스트레이터/에이전트 */
+  .orchbox { border: 2px solid var(--orch); background: var(--orch-soft); border-radius: 10px; padding: 12px 16px; text-align: center; max-width: 720px; margin: 0 auto; }
+  .orchbox h3 { margin: 0 0 4px; font-size: 15px; color: var(--orch); }
+  .orchbox p { margin: 0; font-size: 12.5px; color: var(--ink-soft); }
+  .dispatch .down { width: 2px; height: 26px; background: var(--orch); position: relative; margin: 0 auto; }
+  .dispatch .down::after { content: ""; position: absolute; bottom: -1px; left: -5px; border: 6px solid transparent; border-top: 8px solid var(--orch); }
+  .dispatch-note { text-align: center; font-size: 11px; color: var(--ink-soft); margin: 2px 0 8px; }
+  .agents { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .agent { border: 1.5px solid var(--line); border-radius: 8px; padding: 9px 11px; background: var(--paper); position: relative; }
+  .agent h4 { margin: 0 0 4px; font-size: 12.5px; }
+  .agent h4 .st { font-family: var(--mono); font-size: 10px; color: var(--orch); display: block; margin-bottom: 2px; }
+  .agent p { margin: 0; font-size: 11px; color: var(--ink-soft); line-height: 1.45; }
+  .agent p .mono { color: var(--accent); font-weight: 600; font-size: 10.5px; }
+  .agent.team { border-color: var(--accent); background: var(--accent-soft); }
+  .agent.gate { border-color: var(--stop); }
+  .agent .stopbadge { position: absolute; top: -9px; right: 8px; background: var(--stop-soft); color: var(--stop); border: 1px solid var(--stop); font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; }
+  .orchmeta { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; margin-top: 12px; }
+  .metacard { border: 1px dashed var(--line); border-radius: 8px; padding: 9px 12px; font-size: 12px; color: var(--ink-soft); background: var(--paper); }
+  .metacard b { color: var(--ink); }
+  .metacard .mono { color: var(--orch); font-weight: 600; }
+
+  /* 관계도 */
+  .rel { display: grid; grid-template-columns: minmax(200px, 240px) 110px 1fr; align-items: stretch; }
+  .rel-orch { grid-row: 1 / span 6; align-self: stretch; display: flex; flex-direction: column; justify-content: center; border: 2px solid var(--orch); background: var(--orch-soft); border-radius: 10px; padding: 14px 16px; }
+  .rel-orch h3 { margin: 0 0 8px; font-size: 14.5px; color: var(--orch); }
+  .rel-orch ul { margin: 0; padding-left: 16px; font-size: 12px; color: var(--ink-soft); }
+  .rel-orch ul li { margin: 4px 0; }
+  .rel-orch ul li b { color: var(--ink); }
+  .rel-edges { display: flex; flex-direction: column; justify-content: center; gap: 7px; padding: 6px 8px; }
+  .redge { position: relative; height: 2px; }
+  .redge.cmd { background: var(--orch); }
+  .redge.cmd::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 7px solid var(--orch); }
+  .redge.rpt { background: var(--accent); }
+  .redge.rpt::before { content: ""; position: absolute; left: -1px; top: -4px; border: 5px solid transparent; border-right: 7px solid var(--accent); }
+  .redge.hum2 { background: var(--stop); }
+  .redge.hum2::before { content: ""; position: absolute; left: -1px; top: -4px; border: 5px solid transparent; border-right: 7px solid var(--stop); }
+  .redge.hum2::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 7px solid var(--stop); }
+  .redge .lbl { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); font-size: 9.5px; white-space: nowrap; color: var(--ink-soft); background: var(--panel); padding: 0 3px; }
+  .rel-agentrow { padding: 4px 0 4px 4px; display: flex; align-items: center; }
+  .rel-agentrow .agent { flex: 1; }
+  .rel-agentrow .trio { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; flex: 1; }
+  .rel-agentrow .agent.humanrow { border-color: var(--stop); background: var(--stop-soft); }
+  .rel-plumb { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; margin-top: 14px; }
+  .contract { display: flex; gap: 16px; flex-wrap: wrap; margin: 0 0 14px; font-size: 12px; color: var(--ink-soft); }
+  .contract span { display: inline-flex; align-items: center; gap: 7px; }
+  .contract .sw { display: inline-block; width: 26px; height: 2px; position: relative; }
+  .contract .sw.cmd { background: var(--orch); }
+  .contract .sw.cmd::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 7px solid var(--orch); }
+  .contract .sw.rpt { background: var(--accent); }
+  .contract .sw.rpt::before { content: ""; position: absolute; left: -1px; top: -4px; border: 5px solid transparent; border-right: 7px solid var(--accent); }
+  .contract .sw.hum2 { background: var(--stop); }
+  .contract .sw.hum2::before { content: ""; position: absolute; left: -1px; top: -4px; border: 5px solid transparent; border-right: 7px solid var(--stop); }
+  .contract .sw.hum2::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 7px solid var(--stop); }
+  @media (max-width: 760px) {
+    .rel { grid-template-columns: 1fr; }
+    .rel-orch { grid-row: auto; }
+    .rel-edges { flex-direction: row; height: 34px; }
+    .redge { flex: 1; }
+  }
+
+  /* 9단계 레일 */
+  .railwrap { overflow-x: auto; padding-bottom: 6px; }
+  .rail { display: grid; grid-template-columns: repeat(9, minmax(102px, 1fr)); gap: 6px; min-width: 980px; }
+  .stage { border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 9px; background: var(--paper); position: relative; }
+  .stage .n { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); display: inline-block; margin-bottom: 3px; }
+  .stage h4 { margin: 0 0 5px; font-size: 12.5px; line-height: 1.3; }
+  .stage .row { margin: 0 0 3px; font-size: 10.5px; line-height: 1.4; }
+  .stage .row .h { color: var(--stop); font-weight: 700; }
+  .stage .row .a { color: var(--orch); font-weight: 700; }
+  .stage .row span.txt { color: var(--ink-soft); }
+  .stage.dmz { background: var(--dmz); border-style: dashed; }
+  .stage.gate { border-color: var(--stop); }
+  .stage .stopbadge { position: absolute; top: -9px; right: 8px; background: var(--stop-soft); color: var(--stop); border: 1px solid var(--stop); font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; }
+  .autorun { margin-top: 8px; font-size: 11.5px; color: var(--ink-soft); border-left: 3px solid var(--orch); padding: 4px 10px; background: var(--orch-soft); border-radius: 0 6px 6px 0; }
+  .legend { display: flex; gap: 16px; margin-top: 10px; font-size: 11.5px; color: var(--ink-soft); flex-wrap: wrap; }
+  .legend .k { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; }
+
+  /* 타임라인 */
+  .timeline { list-style: none; margin: 0; padding: 0 0 0 138px; position: relative; }
+  .timeline::before { content: ""; position: absolute; left: 96px; top: 6px; bottom: 6px; width: 2px; background: var(--line); }
+  .timeline li { position: relative; padding: 0 0 16px 22px; }
+  .timeline li:last-child { padding-bottom: 0; }
+  .timeline .t { position: absolute; left: -138px; width: 76px; text-align: right; font-family: var(--mono); font-size: 11px; color: var(--ink-soft); top: 2px; font-variant-numeric: tabular-nums; }
+  .timeline .dot { position: absolute; left: -47px; top: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--panel); border: 2.5px solid var(--orch); }
+  .timeline li.human .dot { border-color: var(--stop); }
+  .timeline li.agentic .dot { border-color: var(--accent); }
+  .timeline .who { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .05em; padding: 1px 8px; border-radius: 999px; margin-right: 7px; vertical-align: 1px; }
+  .who.orch2 { background: var(--orch-soft); color: var(--orch); border: 1px solid var(--orch); }
+  .who.sub { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent); }
+  .who.hum { background: var(--stop-soft); color: var(--stop); border: 1px solid var(--stop); }
+  .timeline b.evt { font-size: 13px; }
+  .timeline p { margin: 3px 0 0; font-size: 12px; color: var(--ink-soft); line-height: 1.5; }
+  .timeline p .mono { color: var(--accent); font-weight: 600; }
+  .timeline .screen { margin-top: 5px; font-size: 11.5px; color: var(--ink-soft); border-left: 3px solid var(--line); padding: 2px 9px; background: var(--paper); border-radius: 0 6px 6px 0; }
+  .timeline .screen b { color: var(--ink); font-weight: 600; }
+  .timeline .alt { margin-top: 6px; border: 1px dashed var(--stop); border-radius: 6px; padding: 6px 10px; font-size: 11.5px; color: var(--ink-soft); background: var(--stop-soft); }
+  @media (max-width: 620px) {
+    .timeline { padding-left: 0; }
+    .timeline::before { left: 4px; }
+    .timeline .t { position: static; display: block; text-align: left; margin-bottom: 2px; }
+    .timeline li { padding-left: 20px; }
+    .timeline .dot { left: 0; }
+  }
+
+  /* 결합/화면 */
+  .arch { display: grid; grid-template-columns: 1.1fr 44px 1fr 44px .95fr; gap: 0; align-items: stretch; }
+  .col { display: flex; flex-direction: column; gap: 10px; }
+  .node { border: 1.5px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--paper); }
+  .node h3 { margin: 0 0 6px; font-size: 13.5px; }
+  .node h3 small { color: var(--ink-soft); font-weight: 400; font-size: 11.5px; }
+  .node ul { margin: 0; padding-left: 16px; font-size: 12px; color: var(--ink-soft); }
+  .node ul li { margin: 2px 0; }
+  .node .new { color: var(--accent); font-weight: 600; }
+  .node.emph { border-color: var(--accent); background: var(--accent-soft); }
+  .flow { display: flex; flex-direction: column; justify-content: center; gap: 26px; }
+  .arrow { position: relative; height: 2px; background: var(--accent); margin: 0 2px; }
+  .arrow::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 7px solid var(--accent); }
+  .arrow.dashed { background: repeating-linear-gradient(90deg, var(--ink-soft) 0 5px, transparent 5px 10px); height: 2px; }
+  .arrow.dashed::after { border-left-color: var(--ink-soft); }
+  .arrow .lbl { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 10px; white-space: nowrap; color: var(--ink-soft); background: var(--panel); padding: 0 4px; }
+  .panelboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 14px; }
+  .board { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--paper); }
+  .board h4 { margin: 0 0 5px; font-size: 12.5px; color: var(--orch); }
+  .board p { margin: 0; font-size: 12px; color: var(--ink-soft); }
+  .board p b { color: var(--ink); }
+  .board .mono { color: var(--accent); font-weight: 600; }
+
+  footer { font-size: 12px; color: var(--ink-soft); border-top: 1px solid var(--line); padding-top: 12px; }
+  footer b { color: var(--ink); }
+  @media (max-width: 860px) {
+    .arch { grid-template-columns: 1fr; }
+    .flow { flex-direction: row; height: 40px; align-items: center; }
+    .flow .arrow { flex: 1; transform: rotate(90deg) scaleX(.4); }
+  }
+</style>
+
+<div class="sheet">
+  <header>
+    <div class="eyebrow">E2E 입찰 워크플로 · sub-project 5 (협업 모델로 재설계)</div>
+    <h1>기관인텔리 사이트 — 사람 팀이 일하고, 에이전트가 분석·검사·연결하는 멀티에이전트 협업 시스템</h1>
+    <div class="chips">
+      <span class="chip">모델: <b>사람 팀 + AI 에이전트 협업</b> — AI가 대체가 아니라 보조·검증·중개</span>
+      <span class="chip">엔진: <b>LangGraph</b> supervisor + Send 팬아웃 + interrupt + SQLite 체크포인터</span>
+      <span class="chip">워크플로: <b>9단계 불변</b></span>
+      <span class="chip">스택: <b>vanilla JS 확장</b> · FastAPI 정적 서빙 + file:// 폴백</span>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="tag orch">개념</span> 세 층이 한 사이트에서 만난다</h2>
+    <div class="tiers">
+      <div class="tier human"><div class="side">🧑‍💼 사람 층</div><div class="body">
+        <b>영업팀</b>(참여 결정·팀 배정·결재) · <b>전산/예산 담당자</b>(작성물 업로드) · <b>디자이너</b>(취합 작업) · <b>최고 인사권자</b>(최종 결재).
+        사이트에서 상황판을 보고, <b>에이전트 대화창</b>으로 언제든 질문하고, 쪽지(알림)를 주고받는다.</div></div>
+      <div class="tier ai"><div class="side">🎛 에이전트 층</div><div class="body">
+        <b>Orchestrator</b>가 대화 질의 응대·분석 디스패치·작성물 검사·리스크 되물음·알림 발송·결재 상신을 수행.
+        subagent(참여검토 분석가·RFI 분석가·3관점 초안팀·패키저·검증가)에게 일을 뿌리고 보고를 받는다.</div></div>
+      <div class="tier data"><div class="side">📚 데이터 층</div><div class="body">
+        <b>registry</b>(기관·공고·tasks·messages·알림) · <b>corpus</b>(기관 조사자료·공고문·반입 뉴스) · <b>지식시스템</b>(FTS 검색, 완료 작업물 아카이브 색인).
+        모든 지시/보고/작성물이 여기 남아 다음 입찰의 지식이 된다.</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag orch">계획 A</span> Orchestrator와 subagent — LangGraph supervisor 그래프</h2>
+    <p class="sub">기존 노드(rfp_extract·rfp_analysis·content_writer 3팀·pptx·verification)는 각 subagent의 실행 도구로 전부 재사용. 3팀 writer는 이제 <b>사람 팀을 위한 초안·근거 생성기</b>다.</p>
+    <div class="orchbox">
+      <h3>🎛 Orchestrator (상위 agent)</h3>
+      <p>① 대화창 질의 응대(참여검토 분석 디스패치) ② stage 읽고 subagent 디스패치 ③ 보고 검사 — 미달·리스크면 사람에게 되물음
+      ④ 쪽지 발송·참여자 추가 ⑤ 모든 왕복을 tasks·messages에 기록 ⑥ 결재 상신(🛑 interrupt) 후 정지·재개</p>
+    </div>
+    <div class="dispatch"><div class="down"></div></div>
+    <p class="dispatch-note">디스패치 (3관점 초안은 <span class="mono">Send</span> 팬아웃 병렬 → reducer 병합)</p>
+    <div class="agents">
+      <div class="agent"><h4><span class="st">대화창·확정 시</span>참여검토 분석가</h4><p>지난 공고문·재계약 이력·반입 뉴스로 참여 찬반 분석 → 대화 답변·리스크 경고</p></div>
+      <div class="agent"><h4><span class="st">stage 3·4</span>RFI 분석가</h4><p><span class="mono">rfp_extract·rfp_analysis</span> — 배점표·요구사항·리스크 플래그</p></div>
+      <div class="agent team"><h4><span class="st">stage 5·6 ∥</span>영업 초안팀</h4><p>spec+bank_ideas → 사람 영업팀에게 초안·근거 제공</p></div>
+      <div class="agent team"><h4><span class="st">stage 5·6 ∥</span>전산 초안팀</h4><p>plan/02 → 전산 담당자에게</p></div>
+      <div class="agent team"><h4><span class="st">stage 5·6 ∥</span>예산 초안팀</h4><p>plan/03 → 예산 담당자에게</p></div>
+      <div class="agent"><h4><span class="st">stage 7</span>패키저</h4><p>승인된 작성물+배점표 매핑을 디자이너 이관 패키지로(<span class="mono">pptx_builder</span> 포함)</p></div>
+      <div class="agent gate"><span class="stopbadge">🛑 상신</span><h4><span class="st">stage 6·8</span>검증가</h4><p><span class="mono">verification</span>+오탈자+<b>개인정보(PII)</b>+RFI 역대조 — 업로드마다 즉시, 8단계엔 전체</p></div>
+    </div>
+    <div class="orchmeta">
+      <div class="metacard"><b>실행:</b> 대화 질의는 즉답 그래프, 워크플로는 <span class="mono">POST …/run</span> 202 백그라운드. 🛑 결재 지점에서 <span class="mono">interrupt()</span> — 체크포인터(<span class="mono">thread_id</span>=기관)로 저장·재개.</div>
+      <div class="metacard"><b>되물음(비차단):</b> 분석 리스크 발견 시 쪽지+대화로 재고 권유. 사람이 "그래도 추진"하면 그대로 진행 — 결정권은 항상 사람.</div>
+      <div class="metacard"><b>실패 처리:</b> LLM 폴백 체인(§⑥) → 그래도 실패면 task '실패' 기록 후 정지. 조용히 넘어가지 않는다.</div>
+      <div class="metacard"><b>반입 의존성:</b> <span class="mono">langgraph</span>+<span class="mono">langgraph-checkpoint-sqlite</span> wheel. 뉴스는 폐쇄망 밖 DMZ 수집기가 배치로 반입한 범위 내에서만.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag orch">관계도</span> Orchestrator ↔ Subagent ↔ 사람 — 지시·보고·상신의 계약</h2>
+    <p class="sub">subagent끼리는 직접 통신하지 않는다. 사람과 에이전트의 접점은 대화창·쪽지·결재 세 가지뿐이고, 왕복 전부가 <span class="mono">tasks·messages</span>에 남는다.</p>
+    <div class="contract">
+      <span><span class="sw cmd"></span><b>지시</b> — 담당 항목·코퍼스·gap_note</span>
+      <span><span class="sw rpt"></span><b>보고</b> — 산출물·진행률·실패 사유</span>
+      <span><span class="sw hum2"></span><b>사람 접점</b> — 대화창 ↔ 쪽지·되물음 ↔ 결재</span>
+    </div>
+    <div class="rel">
+      <div class="rel-orch">
+        <h3>🎛 Orchestrator</h3>
+        <ul>
+          <li><b>응대</b>: 대화창 질의 → 분석 디스패치 → 답변</li>
+          <li><b>계획</b>: stage·결정 상태를 읽고 다음 일 선택</li>
+          <li><b>디스패치</b>: task 생성 후 지시 (초안 3팀은 동시)</li>
+          <li><b>검사</b>: 업로드·보고를 배점표와 대조, 미달이면 재지시/되물음</li>
+          <li><b>중개</b>: 쪽지 발송·참여자 추가·이관 패키지 전달</li>
+          <li><b>상신</b>: 결재 지점에서 🛑 정지, 결재가 재개 신호</li>
+        </ul>
+      </div>
+      <div class="rel-edges">
+        <div class="redge hum2"><span class="lbl">대화·쪽지·결재</span></div>
+      </div>
+      <div class="rel-agentrow">
+        <div class="agent humanrow"><h4>🧑‍💼 사람들</h4><p>영업팀(결정·결재) · 전산/예산 담당(업로드) · 디자이너(취합) · 인사권자(최종 결재)</p></div>
+      </div>
+      <div class="rel-edges"><div class="redge cmd"><span class="lbl">지시</span></div><div class="redge rpt"><span class="lbl">보고</span></div></div>
+      <div class="rel-agentrow">
+        <div class="agent"><h4><span class="st">수시</span>참여검토 분석가</h4><p>참여 찬반·리스크 분석</p></div>
+      </div>
+      <div class="rel-edges"><div class="redge cmd"></div><div class="redge rpt"></div></div>
+      <div class="rel-agentrow">
+        <div class="agent"><h4><span class="st">stage 3·4</span>RFI 분석가</h4><p>배점표·요구사항·리스크</p></div>
+      </div>
+      <div class="rel-edges"><div class="redge cmd"></div><div class="redge rpt"></div></div>
+      <div class="rel-agentrow">
+        <div class="trio">
+          <div class="agent team"><h4><span class="st">5·6 ∥</span>영업 초안팀</h4></div>
+          <div class="agent team"><h4><span class="st">5·6 ∥</span>전산 초안팀</h4></div>
+          <div class="agent team"><h4><span class="st">5·6 ∥</span>예산 초안팀</h4></div>
+        </div>
+      </div>
+      <div class="rel-edges"><div class="redge cmd"></div><div class="redge rpt"></div></div>
+      <div class="rel-agentrow">
+        <div class="agent"><h4><span class="st">stage 7</span>패키저</h4><p>이관 패키지·PPTX</p></div>
+      </div>
+      <div class="rel-edges"><div class="redge cmd"></div><div class="redge rpt"></div></div>
+      <div class="rel-agentrow">
+        <div class="agent gate"><span class="stopbadge">🛑</span><h4><span class="st">6 수시·8 전체</span>검증가</h4><p>누락·오탈자·PII·역대조</p></div>
+      </div>
+    </div>
+    <div class="rel-plumb">
+      <div class="metacard"><b>기록 계층:</b> 왕복마다 <span class="mono">tasks</span>(팀·상태·진행률·assignee) + <span class="mono">messages</span> append → 현황판·대화창의 재료.</div>
+      <div class="metacard"><b>알림 계층(신규):</b> <span class="mono">notifications</span> 테이블 — 수신자·내용·링크·읽음. 쪽지 발송·참여자 추가·되물음·결재 요청이 여기로.</div>
+      <div class="metacard"><b>격리 원칙:</b> subagent는 자기 항목·자기 코퍼스만 본다. 전체 그림(배점표·stage·사람 결정)은 오케스트레이터만 안다.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag orch">불변</span> 9단계 워크플로 — 단계마다 사람(🧑)과 에이전트(🎛)의 분담</h2>
+    <div class="railwrap">
+      <div class="rail">
+        <div class="stage dmz"><span class="n">1</span><h4>입찰현황 파악</h4><p class="row"><span class="a">🎛</span> <span class="txt">상황판 데이터(반입분)</span></p><p class="row"><span class="h">🧑</span> <span class="txt">상황판 열람·대화 질의</span></p></div>
+        <div class="stage"><span class="n">2</span><h4>입찰상황 발생</h4><p class="row"><span class="a">🎛</span> <span class="txt">참여검토 분석·리스크 되물음</span></p><p class="row"><span class="h">🧑</span> <span class="txt">영업팀 참여 <b>확정</b></span></p></div>
+        <div class="stage"><span class="n">3</span><h4>RFI 공시</h4><p class="row"><span class="a">🎛</span> <span class="txt">공고문 해부(텍스트·배점표)</span></p></div>
+        <div class="stage"><span class="n">4</span><h4>RFI 분석</h4><p class="row"><span class="a">🎛</span> <span class="txt">요구사항·불리 조건 분석 → 입찰팀 제공</span></p></div>
+        <div class="stage gate"><span class="stopbadge">🛑</span><span class="n">5</span><h4>제안서 기획</h4><p class="row"><span class="a">🎛</span> <span class="txt">골격+팀별 분석 패키지</span></p><p class="row"><span class="h">🧑</span> <span class="txt">영업팀 승인·쪽지로 참여자 추가</span></p></div>
+        <div class="stage"><span class="n">6</span><h4>세부기획 (3팀)</h4><p class="row"><span class="h">🧑</span> <span class="txt">담당자 작성·업로드</span></p><p class="row"><span class="a">🎛</span> <span class="txt">초안 제공·즉시 검사·배점표 매핑</span></p></div>
+        <div class="stage gate"><span class="stopbadge">🛑</span><span class="n">7</span><h4>취합</h4><p class="row"><span class="h">🧑</span> <span class="txt">영업팀 결재 → 디자이너 작업</span></p><p class="row"><span class="a">🎛</span> <span class="txt">이관 패키지 전달</span></p></div>
+        <div class="stage gate"><span class="stopbadge">🛑</span><span class="n">8</span><h4>검토</h4><p class="row"><span class="a">🎛</span> <span class="txt">오탈자·PII·역대조 → 결재 상신</span></p><p class="row"><span class="h">🧑</span> <span class="txt">인사권자 최종 결재</span></p></div>
+        <div class="stage"><span class="n">9</span><h4>제출</h4><p class="row"><span class="h">🧑</span> <span class="txt">제출 수행·완료 마킹</span></p><p class="row"><span class="a">🎛</span> <span class="txt">내부 저장소 아카이브+지식 색인</span></p></div>
+      </div>
+    </div>
+    <p class="autorun">▶ 결재(🛑)는 세 지점 — <b>5 기획 승인(팀 배정)</b> · <b>7 이관 결재</b> · <b>8 최종 결재</b>. 리스크 되물음(2·4)은 결재가 아니라 <b>권유</b>라 진행을 막지 않는다.</p>
+    <div class="legend">
+      <span><span class="k" style="background:var(--dmz);border:1px dashed var(--ink-soft)"></span>DMZ 반입분으로 채워짐</span>
+      <span><span class="k" style="background:var(--stop-soft);border:1px solid var(--stop)"></span>🛑 사람 결재 지점</span>
+      <span>🧑 사람 행위 · 🎛 에이전트 행위</span>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag orch">시나리오</span> 영업팀의 하루 — 도봉 질의와 노원 확정 (사용자 이야기 그대로)</h2>
+    <ul class="timeline">
+      <li class="human"><span class="t">09:00</span><span class="dot"></span>
+        <span class="who hum">영업팀</span><b class="evt">기관인텔리 사이트 접속</b>
+        <div class="screen">🖥 오늘의 입찰상황판 — 도봉구청에 <b>"예상 입찰공고 올해 8월"</b> 배지.</div></li>
+      <li class="human"><span class="t">09:02</span><span class="dot"></span>
+        <span class="who hum">영업팀</span> ➜ <span class="who orch2">ORCH</span><b class="evt">대화창: "올해 도봉구청 입찰에 대해 어떻게 생각해?"</b></li>
+      <li><span class="t">09:03</span><span class="dot"></span>
+        <span class="who orch2">ORCH</span> ➜ <span class="who sub">참여검토 분석가</span><b class="evt">참여검토 분석 디스패치</b>
+        <p>지난 입찰 공고문·재계약 이력·반입된 뉴스·은행 현황을 영업/전산/예산 3관점으로 분석.</p>
+        <div class="screen">🖥 대화창 답변: "배점 상위는 협력사업(25점)… 경쟁사 기진입 이력 있음. 참여 시 강점 2·리스크 1" + 근거 문서 링크.</div></li>
+      <li class="human"><span class="t">09:15</span><span class="dot"></span>
+        <span class="who hum">영업팀</span><b class="evt">노원구청 — 중점 사업이라 [입찰 확정]</b>
+        <p>participation decision 기록 → 오케스트레이터가 자동으로 공고문·자료 분석(3·4단계) 시작.</p></li>
+      <li><span class="t">09:20</span><span class="dot"></span>
+        <span class="who orch2">ORCH</span> ➜ <span class="who hum">영업팀</span><b class="evt">불리 조건 발견 — 되물음 (비차단)</b>
+        <p>분석 중 불리 사안·조건 발견 → 쪽지+대화창으로 분석 내용을 알리고 <b>재고를 권유</b>.</p>
+        <div class="alt">🧑 영업팀: "그래도 추진." — 결정권은 사람에게. 오케스트레이터는 기록하고 계속 진행.</div></li>
+      <li class="human"><span class="t">09:40</span><span class="dot"></span>
+        <span class="who hum">영업팀</span> ➜ <span class="who orch2">ORCH</span><b class="evt">🛑 기획 승인 · 참여자 추가</b>
+        <p>전산/예산 분석 내용을 담당자들에게 <b>쪽지(알림)로 발송</b>, 사이트 작업 참여자로 추가(tasks.assignee).</p></li>
+      <li class="human"><span class="t">10:00~</span><span class="dot"></span>
+        <span class="who hum">전산·예산 담당</span><b class="evt">내용 확인 후 작성물 업로드</b>
+        <p>AI 초안팀(영업/전산/예산)의 초안·근거를 참고해 각자 작성 → 업로드.</p>
+        <div class="screen">🖥 업로드마다 <span class="who sub" style="margin:0 4px 0 0">검증가</span>가 즉시 검사 — 누락·오탈자 표시 + <b>배점표 매핑 뷰</b>에 "이 작성물 = 배점표 어느 항목"인지 색칠.</div></li>
+      <li class="human"><span class="t">14:00</span><span class="dot"></span>
+        <span class="who hum">영업팀</span><b class="evt">🛑 팀 작성물 최종 확인 · 결재 → 디자이너 이관</b>
+        <p><span class="who sub" style="margin:0 4px 0 0">패키저</span>가 승인된 작성물+배점표 매핑+PPTX 골격을 이관 패키지로 만들어 디자이너에게 쪽지 발송.</p></li>
+      <li class="human"><span class="t">15:00</span><span class="dot"></span>
+        <span class="who hum">디자이너</span><b class="evt">첨부 작업물 보고 디자인 작업 · 업로드</b></li>
+      <li class="agentic"><span class="t">15:30</span><span class="dot"></span>
+        <span class="who sub">검증가</span><b class="evt">디자이너 작업물 재검사</b>
+        <p>오탈자 + <b>개인정보(PII)</b> 한 번 더 → 이상 없으면 오케스트레이터가 <b>최고 인사권자에게 결재 상신</b>(🛑 interrupt).</p></li>
+      <li class="human"><span class="t">16:00</span><span class="dot"></span>
+        <span class="who hum">인사권자</span><b class="evt">🛑 최종 결재 승인</b></li>
+      <li><span class="t">16:05</span><span class="dot"></span>
+        <span class="who orch2">ORCH</span><b class="evt">아카이브 · 지식 축적</b>
+        <p>전 작업물(분석·작성물·제안서·결재 이력)을 내부 저장소에 저장하고 <b>지식시스템 색인 갱신</b> — 다음 입찰의 "지난 자료"가 된다.</p>
+        <div class="screen">🖥 이 하루 동안 각 팀은 계속 상황판을 보며 대화창으로 질문했고, 지식시스템 탭에서 영업별 지식을 검색했다.</div></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="tag">계획 B · C</span> 웹 결합과 화면 구성</h2>
+    <p class="sub">B: 기관 데이터의 localStorage→서버 전환(승인 완료된 기존 설계). C: 협업 화면 — 현황판에 대화창·알림·배점표 매핑·지식검색이 추가됐다.</p>
+    <div class="arch">
+      <div class="col">
+        <div class="node emph">
+          <h3>브라우저 — dashboard/ <small>(무빌드 vanilla JS)</small></h3>
+          <ul>
+            <li>app.js · logic.js · render.js(D3 지도) · store.js · export.js</li>
+            <li class="new">＋ workflow.js — 스테퍼·에이전트 카드·배점표 매핑</li>
+            <li class="new">＋ chat.js — 에이전트 대화창 · notify.js — 쪽지함</li>
+            <li>개인 선호는 localStorage · file:// 폴백 시 협업 기능 숨김</li>
+          </ul>
+        </div>
+      </div>
+      <div class="flow">
+        <div class="arrow"><span class="lbl">서버 모드 · 폴링</span></div>
+        <div class="arrow dashed"><span class="lbl">file:// 폴백</span></div>
+      </div>
+      <div class="col">
+        <div class="node">
+          <h3>FastAPI backend <small>:8000</small></h3>
+          <ul>
+            <li class="new">정적 마운트 / + <span class="mono">PUT /institutions/{id}</span></li>
+            <li class="new"><span class="mono">POST …/run · POST …/checkpoint · GET …/status</span></li>
+            <li class="new"><span class="mono">POST …/chat</span>(대화) · <span class="mono">notifications</span>·<span class="mono">uploads</span> 라우터</li>
+            <li>기존: institutions·bidcases·tasks·search·inbox — <b>tasks 승인·finalize 결재 재사용</b></li>
+          </ul>
+        </div>
+      </div>
+      <div class="flow"><div class="arrow"><span class="lbl">SQLite</span></div></div>
+      <div class="col">
+        <div class="node">
+          <h3>data/registry.db + corpus</h3>
+          <ul>
+            <li><span class="mono">institutions·bid_cases·tasks·messages</span> (재사용)</li>
+            <li class="new">＋ <span class="mono">notifications</span> (신규)</li>
+            <li>corpus/ 조사자료·공고문·반입 뉴스 · <span class="mono">graph_checkpoints.db</span></li>
+            <li class="new">완료 작업물 아카이브 → FTS 색인(지식시스템)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="panelboard">
+      <div class="board"><h4>① 입찰상황판</h4><p>지도+예상/확정 공고 배지, 참여 확정 버튼</p></div>
+      <div class="board"><h4>② 에이전트 대화창</h4><p>참여검토 질의·되물음·근거 링크 (<span class="mono">chat</span>)</p></div>
+      <div class="board"><h4>③ 워크플로 현황판</h4><p>9단계 스테퍼 + 에이전트/담당자 카드 + 지시·보고 로그</p></div>
+      <div class="board"><h4>④ 배점표 매핑 뷰</h4><p>작성물 ↔ 배점표 항목 커버리지 색칠</p></div>
+      <div class="board"><h4>⑤ 쪽지함·결재함</h4><p>참여자 추가·되물음·결재 요청 (<span class="mono">notifications</span>)</p></div>
+      <div class="board"><h4>⑥ 지식시스템</h4><p>영업별 지식·과거 작업물 FTS 검색 (<span class="mono">GET /search</span>)</p></div>
+    </div>
+  </section>
+
+  <footer>
+    <b>재사용 지도:</b> sub-project 4의 3팀 분화 = 초안팀 그대로 · tasks(assignee·approver·submit/approve)와 finalize(X-User-Id)는 이야기의 "참여자 추가·팀 승인·최종 결재"에 이미 부합 · FTS 검색(§⑤)이 지식시스템의 뼈대.
+    <b>신규:</b> LangGraph 그래프 · 대화창 · notifications · 업로드 · 배점표 매핑 뷰 · PII 검사 · 완료 아카이브.
+    <b>계획 분할:</b> A 오케스트레이터+대화 코어 → B store→API → C 협업 UI(현황판·대화창·쪽지함·매핑·지식검색). C는 writing-plans 때 추가 분할 가능.
+  </footer>
+</div>
