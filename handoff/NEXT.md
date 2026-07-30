@@ -61,11 +61,13 @@
     `POST /inbox/{batch_id}/validate` + `POST /inbox/{batch_id}/import` 2개.
     **§⑥ 2단계(검증)는 이미 `validate_batch()`로 구현돼 있다** — 재구현하지 말고
     옮기기만 할 것.
-  - **3 agent 신규 노드** — `rfp_locate_node`만 남음(`spec_research_node`는 폐기 확정).
-    ⚠️ **2가 끝나면 이 항목을 먼저 재정의해야 한다**(출처: 위 Session 01:00).
-    2가 배치의 첨부 PDF를 `corpus/rfp/`로 옮기고 `rfp_path`까지 기록하므로
-    "공고문을 찾아온다"는 노드의 존재이유가 상당부분 사라진다. 실사이트 크롤링은
-    상위 스펙에서 범위 밖이므로, 남는 일이 실제로 무엇인지 확인한 뒤 착수할 것.
+  - ~~**3 agent 신규 노드**~~ — **완료**(2026-07-30, 브랜치 `local-2026-07-30`).
+    재정의 결과: 신규 노드 3개 중 실제로 만들어진 것은 **`rfp_extract_node` 하나**다.
+    `rfp_locate_node`는 "찾아온다"는 절반을 sub-project 2가 가져가(첨부 PDF가
+    `corpus/rfp/` + `institutions.rfp_path`) 실사이트 크롤링이 범위 밖인 이상 남은
+    일이 "PDF → `rfp_text.txt` + `rfp_scoring.json`"뿐이라 그것으로 재정의했다.
+    `spec_research_node`는 이미 폐기, `plan_writer_node`는 `content_writer_node`에
+    흡수. 상위 스펙 §④에 재정의 표로 기록했다.
   - **4 6단계 3팀 분화** — `role_router_node` 미구현. 규모 실측(Session 01:00):
     `agent/nodes/content_writer.py` 73줄을 역할 파라미터화 + `role_router_node` 신규
     + `ProposalState.sections`를 reducer 필드로 변경. 하루 규모.
@@ -136,6 +138,24 @@
      이 파일 자체가 없고, 시딩은 똑같이 필요하다** — 즉 이건 PC 종속 문제가 아니라
      "처음 실행 전 절차"다.
 - **상태**: 비차단. 다만 sub-project 2 구현 시 ②의 시딩은 실제로 필요해진다.
+
+### 4. `institutions.scoring_table`이 아무도 안 쓰는 빈 슬롯 (비차단)
+
+- **출처**: `2026-07-30_summary.md`(sub-project 3 재정의 세션). 사용자가 이번 범위에서
+  **빼기로 결정**해서 이월한 것이지, 발견만 하고 미룬 것이 아니다.
+- **무엇인가**: `backend/db.py`의 `institutions.scoring_table` 컬럼과
+  `backend/models.py`의 `Institution.scoring_table: list[dict] | None`이 **둘 다 있는데
+  값을 쓰는 코드가 하나도 없다.** `backend/repository.py:39`가 읽을 때 JSON 역직렬화만
+  하고, 아무도 채우지 않으므로 항상 `None`이다.
+  `GET /institutions/{id}/artifacts`도 `giganlist_dir`·`rfp_path`·`pptx_path` 3개만
+  돌려주고 이 필드는 노출하지 않는다.
+- **왜 지금 걸리는가**: 2026-07-30에 만든 `agent/nodes/rfp_extract.py`가 배점표를
+  구조화해 `data/report_new/{기관}/rfp_scoring.json`에 쓴다. 그 결과를 DB에도 넣으면
+  대시보드·API가 배점표를 조회할 수 있는데, 지금은 파일로만 존재한다.
+- **하려면**: `rfp_extract_node`(또는 그것을 부르는 backend 쪽)가
+  `UPDATE institutions SET scoring_table = ?`를 하고, `artifacts` 응답에 필드를 추가한다.
+  노드는 현재 backend를 import하지 않으므로(agent/backend 분리) **어느 층이 쓸지부터**
+  정해야 한다 — 그게 이 항목이 자명하지 않은 이유다.
 
 ---
 
