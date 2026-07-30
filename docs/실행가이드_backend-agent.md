@@ -223,7 +223,9 @@ curl -X POST http://127.0.0.1:8000/institutions/nowon/run
 
 # 상태 폴링 — running=false && pending_gate="기획승인"이 될 때까지
 curl http://127.0.0.1:8000/institutions/nowon/status
-# → {"stage":5,"running":false,"pending_gate":"기획승인","tasks":[...],"notifications_unread":0}
+# → {"stage":5,"running":false,"pending_gate":"기획승인","failed":false,"tasks":[...],"notifications_unread":0}
+# failed=true면 직전 실행이 예외로 죽은 것 — pending_gate도 null이므로 그대로 폴링만
+# 계속하면 영원히 대기한다; run을 다시 호출해 재시작해야 한다(재시작 시 failed는 초기화됨).
 
 # 승인 3회 — 매번 X-User-Id 헤더 필요(ASCII만; 한글 결재자명은 실무에서
 # "sales-team"/"final-approver" 같은 영문 id로 대체)

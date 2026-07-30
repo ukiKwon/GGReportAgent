@@ -107,6 +107,32 @@ def test_plan_rejection_then_approval_packager_sees_only_new_sections(
 @patch("agent.orchestrator.graph.packager")
 @patch("agent.orchestrator.graph.draft_team")
 @patch("agent.orchestrator.graph.rfi_agent")
+def test_handoff_rejection_returns_to_plan_gate_without_rerunning_draft(
+    mock_rfi, mock_draft, mock_pack, mock_verify
+):
+    """이관결재 반려 회귀 고정 — 기획승인 게이트로 재대기하고, draft는 재실행되지
+    않으며(3회 유지), revision_note가 반려 사유로 갱신되어야 한다."""
+    _mock_nodes(mock_rfi, mock_draft, mock_pack, mock_verify)
+    graph = build_workflow_graph(NullRecorder(), MemorySaver())
+
+    graph.invoke(BASE_INPUT, CFG)                       # → 🛑 기획승인
+    graph.invoke(Command(resume={"approved": True, "by": "영업팀", "comment": None}), CFG)  # → 🛑 이관결재
+    assert mock_draft.call_count == 3
+
+    graph.invoke(Command(resume={"approved": False, "by": "영업팀", "comment": "재검토 필요"}), CFG)  # 이관반려
+
+    assert mock_draft.call_count == 3  # draft 재실행 없음
+    assert mock_pack.call_count == 0
+    state = graph.get_state(CFG)
+    assert state.values.get("revision_note") == "재검토 필요"
+    assert state.tasks and state.tasks[0].interrupts
+    assert state.tasks[0].interrupts[0].value["gate"] == "기획승인"
+
+
+@patch("agent.orchestrator.graph.verifier")
+@patch("agent.orchestrator.graph.packager")
+@patch("agent.orchestrator.graph.draft_team")
+@patch("agent.orchestrator.graph.rfi_agent")
 def test_final_rejection_reruns_packager_and_verifier(mock_rfi, mock_draft, mock_pack, mock_verify):
     _mock_nodes(mock_rfi, mock_draft, mock_pack, mock_verify)
     graph = build_workflow_graph(NullRecorder(), MemorySaver())

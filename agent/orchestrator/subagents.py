@@ -43,20 +43,40 @@ def rfi_agent(state: dict, recorder) -> dict:
 
 
 def draft_team(state: dict, recorder) -> dict:
-    """Send 팬아웃 노드 — state['role'] 팀의 초안만 작성한다."""
+    """Send 팬아웃 노드 — state['role'] 팀의 초안만 작성한다.
+
+    기획반려(§⑤ 게이트) 시 Send 페이로드에 실린 revision_note를 content_writer_node
+    호출 전 상태에 명시적으로 반영한다 — 3팀이 반려 사유를 모른 채 동일 프롬프트로
+    재작성하는 것을 막는다(리뷰 F1 픽스).
+    """
     role = state["role"]
     recorder.task_update(role, "작성중", 10)
-    result = content_writer_node(state, role=role)
+    revision_note = state.get("revision_note")
+    result = content_writer_node({**state, "revision_note": revision_note}, role=role)
     recorder.task_update(role, "1차완료", 100)
     recorder.message(role, "agent", f"{role}팀 초안 {len(result['sections'])}건 작성 완료")
     return {"sections": result["sections"]}
 
 
+def _ordered_sections(scoring_table: list[dict], sections: list[dict]) -> list[dict]:
+    """sections를 scoring_table 원순서로 정렬 — agent/pipeline.py:48과 동일 로직.
+    미배정(scoring_table에 없는) 항목은 뒤로 보낸다."""
+    order = {e["item"]: i for i, e in enumerate(scoring_table)}
+    return sorted(sections, key=lambda s: order.get(s["scoring_item"], len(order)))
+
+
 def packager(state: dict, recorder) -> dict:
-    """7단계 — 승인 작성물을 디자이너 이관 패키지(PPTX 골격)로."""
+    """7단계 — 승인 작성물을 디자이너 이관 패키지(PPTX 골격)로.
+
+    sections는 3팀 팬아웃 완료 순서대로 병합되어 비결정적이다 — PPTX 슬라이드
+    순서가 실행마다 달라지는 것을 막기 위해, 배점표 원순서로 정렬한 뒤
+    pptx_builder_node에 넘긴다(리뷰 F2 픽스). 그래프 상태의 sections 채널 자체는
+    건드리지 않는다(merge_sections reducer가 이어붙이기라 재저장 시 중복된다).
+    """
     recorder.set_stage(7)
     recorder.task_update("취합", "작성중", 50)
-    updates = pptx_builder_node(state)
+    ordered = _ordered_sections(state.get("scoring_table", []), state.get("sections", []))
+    updates = pptx_builder_node({**state, "sections": ordered})
     recorder.task_update("취합", "1차완료", 100)
     recorder.notify("디자이너", "이관", f"이관 패키지 준비 완료: {updates.get('pptx_path', '')}")
     return updates
