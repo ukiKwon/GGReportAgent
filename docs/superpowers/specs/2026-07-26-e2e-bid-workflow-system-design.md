@@ -109,9 +109,9 @@ export → 폐쇄망에서는 **기존 dashboard CSV 업로드 기능을 그대�
 |---|---|---|---|
 | 1 입찰현황 파악 | DMZ | 신규: 모니터링 수집 | — |
 | 2 입찰상황 발생 | DMZ | 신규: 트리거 감지 → CSV export | — |
-| 3 RFI 공시 | DMZ / 수동 | 신규: `rfp_locate_node`(선행스펙 아이디어 재사용, Claude Agent SDK 의존 제거하고 순수 requests/parsing으로 재구현) | — |
+| 3 RFI 공시 | 폐쇄망 | **`rfp_extract_node`**(2026-07-30 재정의 — 아래 참조) | — |
 | 4 RFI 분석 | 폐쇄망 | 재사용: `rfp_analysis_node` | — |
-| 5 제안서 기획 | 폐쇄망 | 신규: `spec_research_node`/`plan_writer_node`(선행스펙 아이디어 재사용) | 🛑 spec 검토 승인 |
+| 5 제안서 기획 | 폐쇄망 | 재사용: `content_writer_node` + 코퍼스 반입 게이트(아래 참조) | 🛑 spec 검토 승인 |
 | 6 세부기획(3팀) | 폐쇄망 | 신규: `content_writer_node` 역할분화(⑤ 참조) | — |
 | 7 취합 | 폐쇄망 | 재사용: `pptx_builder_node` | — |
 | 8 검토 | 폐쇄망 | 확장: `verification_node`(오탈자·RFI 역대조 추가) | 🛑 최종 검수 승인 |
@@ -119,6 +119,21 @@ export → 폐쇄망에서는 **기존 dashboard CSV 업로드 기능을 그대�
 
 `registry.stage` 값이 전체를 구동한다: `advance` 호출 시 현재 `stage`에 대응하는
 노드만 실행하고, 완료되면 `stage+1`로 갱신한다.
+
+**⚠️ 신규 노드 3개의 재정의 (2026-07-30 확정)** — 위 표의 3·5단계는 최초 작성 이후
+바뀌었다. 실제로 만들어진 것은 신규 노드 **1개**뿐이다.
+
+| 최초 구상 | 결말 |
+|---|---|
+| `rfp_locate_node` (공고문 자동 탐색) | **`rfp_extract_node`로 재정의.** "찾아온다"는 절반을 배치 반입(`collector/SCHEMA.md` §⑥ + `backend/inbox_import.py`)이 가져갔다 — 첨부 PDF가 `corpus/rfp/`에 놓이고 `institutions.rfp_path`에 기록된다. 실사이트 크롤링은 본 스펙에서 범위 밖이므로 "탐색"은 남은 일이 없다. 남은 일은 **손에 있는 PDF → `rfp_text.txt` + `rfp_scoring.json`**이고, 그것이 새 노드다. 실행 위치도 DMZ가 아니라 폐쇄망이다 |
+| `spec_research_node` (자동 조사) | **폐기**(2026-07-29). `docs/superpowers/specs/2026-07-29-institution-corpus-validation-design.md`가 대체 — 조사는 사람이 하고, 시스템은 `backend/corpus_validator.py`의 기계 검증 + 코퍼스 반입 API + `research_status` Task 게이트만 담당한다 |
+| `plan_writer_node` | **기존 `content_writer_node`에 흡수.** 5단계는 배점표 항목별 섹션 작성이고 그 노드가 이미 그 일을 한다 |
+
+`rfp_extract_node`의 경계: 텍스트 추출은 결정적(`agent/rfp_text.py`, pypdf), 배점표
+구조화는 **LLM**이 한다 — 추출된 텍스트에서 표의 컬럼 경계가 무너지기 때문이다
+(수원시 공고문 실물로 확인: `"…안정성소   계 25가.외부기관의…"`, 배점이 `817`처럼
+붙어 나옴). CID폰트·이미지 PDF는 비전이 필요하므로 **감지해서 멈추고**
+`.claude/skills/rfp-locate`로 사람에게 넘긴다 — 자동/수동 두 경로가 공존한다.
 
 **API 엔드포인트**
 
@@ -189,8 +204,9 @@ def get_llm(temperature: float = 0.0) -> ChatOpenAI:
 - **`agent/llm.py`**: ⑥의 어댑터 방식으로 교체.
 - **`agent/nodes/content_writer.py`**: 역할별 코퍼스 파라미터를 받도록 확장(3개
   role-scoped 인스턴스로 재사용, 코드 중복 최소화).
-- **`agent/pipeline.py`**: 신규 노드(`rfp_locate_node`, `spec_research_node`,
-  `plan_writer_node`, `role_router_node`) 삽입 + 병렬 분기 그래프로 재구성.
+- **`agent/pipeline.py`**: 신규 노드 삽입 + 병렬 분기 그래프로 재구성.
+  ~~`rfp_locate_node`·`spec_research_node`·`plan_writer_node`~~ → `rfp_extract_node`
+  **삽입 완료**(2026-07-30, ④의 재정의 표 참조). 남은 것은 `role_router_node`뿐.
 - **`dashboard/js/store.js`**: 서버 API(`GET/POST /institutions*`) 호출로 교체,
   개인 선호값만 localStorage 유지.
 - **`dashboard/` → Next.js 이관**: 기존 정적 JS 자산(지도 렌더링, CSV
@@ -208,7 +224,9 @@ def get_llm(temperature: float = 0.0) -> ChatOpenAI:
 0. **레지스트리**: SQLite 스키마 + `institutions` API (③④)
 1. **DMZ FastAPI (AWS)**: 1~3단계, hello-world 배포·접속확인 마일스톤 먼저
 2. **폐쇄망 백엔드 코어**: 4·7·8단계(기존 노드 재사용) + CSV 반입 게이트
-3. **agent 신규 노드**: `rfp_locate_node`/`spec_research_node`/`plan_writer_node`
+3. **agent 신규 노드**: ~~`rfp_locate_node`/`spec_research_node`/`plan_writer_node`~~
+   → **`rfp_extract_node` 하나로 재정의됨**(2026-07-30 완료). 나머지 둘의 결말은 ④의
+   재정의 표 참조.
 4. **6단계 3팀 분화**: `role_router_node` + `content_writer_node` 역할 분화
 5. **Next.js 프론트**: 기존 dashboard 자산 이식
 6. **Track 2 배포**: AWS+Vercel 클라우드 데모 구성

@@ -14,9 +14,22 @@ Finds the RFP (공고문) PDF for the institution being worked on, extracts its 
 - User says "RFP 찾아줘" or "배점표 추출해줘"
 - Starting proposal work for a new local-government or public-institution RFP and no scoring table JSON exists yet for it
 
+## Relationship to the pipeline
+
+`agent/nodes/rfp_extract.py` automates the normal case of steps 1–5 below: the batch
+import already put the PDF in `corpus/rfp/` and recorded `institutions.rfp_path`, so
+step 1 is done for any institution that arrived by batch. **This skill remains the path
+for the case the node refuses to guess at** — an abnormal PDF (CID-font or image-only),
+where step 3's vision fallback is the only way to recover the text. The node raises
+`RfpExtractError` and points here rather than proceeding with empty text.
+
+Both sides share one implementation of the extraction and the abnormality thresholds
+(`agent/rfp_text.py`), so "is this PDF readable?" gets the same answer either way.
+
 ## Workflow
 
-1. **Locate the PDF** — scan `corpus/rfp/` (formerly root `RFP/`).
+1. **Locate the PDF** — scan `corpus/rfp/` (formerly root `RFP/`). If the institution
+   came in by batch import, `institutions.rfp_path` already names the file — use it.
    - Exactly one PDF present → use it.
    - Multiple PDFs → ask the user which one; never guess.
    - Empty folder → search the web for the institution's official announcement PDF by name; if found, download it into `corpus/rfp/` and confirm with the user before proceeding. If not found, ask the user to upload the file or provide a path — never fabricate content.

@@ -36,34 +36,45 @@ curl http://127.0.0.1:8000/institutions/dobong
 
 ## 2. 에이전트 파이프라인 (`agent/`) — 완성 전, 함수 호출로만 시험 가능
 
-`handoff/NEXT.md` 열린 항목에 따르면 Task 1·2만 구현되었고 Task 3(`spec_research_node`)부터는
-방향 결정(폐쇄망용 재구현 vs E2E sub-project 3로 재설계) 대기 중이다. `agent/pipeline.py`에
-`run_pipeline()` 함수는 있지만 **CLI 진입점이 없고**, 의존성(`langchain_openai`, `python-pptx`)도
-`requirements.txt`에 선언돼 있지 않다. 그대로는 "서비스 기동"이 아니라 Python 함수 호출/테스트로만
-검증 가능한 상태.
+`agent/pipeline.py`에 `run_pipeline()` 함수는 있지만 **CLI 진입점이 없어서**, "서비스 기동"이
+아니라 Python 함수 호출/테스트로만 검증한다. 의존성은 `requirements.txt`에 다 들어 있다.
 
 ```bash
-# 누락된 의존성 우선 설치 (requirements.txt에 없음)
-py -3 -m pip install langchain-openai python-pptx
-
-# 단위 테스트로 각 노드가 동작하는지 확인 (LLM 모킹 여부는 각 테스트 파일 확인 필요)
-py -3 -m pytest agent/tests -v
+py -3.14 -m pip install -r requirements.txt
+py -3.14 -m pytest agent/tests -v
 ```
 
-파이프라인 자체를 끝까지 돌리려면 Python에서 직접 호출해야 한다:
+파이프라인 자체를 끝까지 돌리려면 Python에서 직접 호출한다:
 
 ```python
 import os
 os.environ["OPENAI_API_KEY"] = "..."  # 없으면 실행 시 getpass로 물어봄
 
 from agent.pipeline import run_pipeline
-result = run_pipeline(institution_name="도봉구")
+result = run_pipeline(institution_name="수원시",
+                      rfp_path="corpus/rfp/수원시 금고 지정 계획 공고문.pdf")
 ```
 
-단, `institution_match_node` 이후 흐름(신규 기관 spec/plan 자동 생성 등)이 Task 3+ 미구현이라
-`corpus/institutions/`에 이미 있는 기존 구청 이름으로만 의미 있게 동작할 가능성이 높다 — 신규 기관명을 넣으면
-Task 3 이후 로직이 없어 막힐 수 있다. **정식으로 "기동"하려면 먼저 `NEXT.md` 열린 항목의 방향
-결정(재구현 vs 재설계)을 내리고 나머지 Task를 마저 구현하는 별도 세션이 필요하다.**
+### 3단계(RFI 공시) — 공고문 PDF에서 본문·배점표 뽑기
+
+`rfp_path`를 주면 `rfp_extract_node`가 `data/report_new/{기관}/`에 `rfp_text.txt`와
+`rfp_scoring.json`을 만들고, 그 다음 `rfp_analysis_node`가 그것을 읽는다.
+
+- **산출물이 이미 있으면 추출을 건너뛴다.** 사람이 `rfp-locate` 스킬로 만들어 둔 것을
+  덮지 않기 위해서다.
+- **이상 PDF는 멈춘다.** CID폰트·이미지 PDF(텍스트 레이어가 없거나 `�`가 1% 넘는 경우)는
+  `RfpExtractError`를 올리고 진행하지 않는다. 비전으로 읽어야 하는데 그건 노드 범위 밖이므로,
+  이때는 **`.claude/skills/rfp-locate` 스킬로 사람이** 페이지를 이미지로 렌더링해 처리한다.
+  조용히 빈 텍스트로 진행하면 이후 모든 단계가 근거 없는 문서를 만든다.
+- 배점표 구조화는 **LLM이** 한다(`OPENAI_API_KEY` 필요). 추출된 텍스트는 표의 컬럼 경계가
+  무너져 있어 기계적 파싱이 불가능하다 — 수원시 공고문 실물에서
+  `"…안정성소   계 25가.외부기관의…"`처럼 나오고 배점은 `817`로 붙는다.
+- 텍스트 추출만 따로 보려면:
+  `py -3.14 .claude/skills/rfp-locate/scripts/extract_text.py "<PDF 경로>"`
+  (스킬과 파이프라인이 `agent/rfp_text.py`의 **같은 함수**를 쓴다.)
+
+단, `institution_match_node` 이후 흐름은 `corpus/institutions/`에 이미 있는 기관 이름으로만
+의미 있게 동작한다. 6단계 3팀 분화(`role_router_node`)는 아직 미구현이다.
 
 ## 3. 코퍼스 검색 인덱스 (`agent/retrieval/`) — 빌드 후 사용
 
