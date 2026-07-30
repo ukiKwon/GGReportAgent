@@ -11,7 +11,7 @@ from agent.nodes.verification import verification_node
 RFP_ARTIFACTS = ("rfp_scoring.json", "rfp_text.txt")
 
 
-def _artifacts_exist(report_new_dir: str, institution_name: str) -> bool:
+def artifacts_exist(report_new_dir: str, institution_name: str) -> bool:
     out_dir = os.path.join(report_new_dir, institution_name)
     return all(os.path.isfile(os.path.join(out_dir, name)) for name in RFP_ARTIFACTS)
 
@@ -35,7 +35,7 @@ def run_pipeline(
     # 3단계: 산출물이 없을 때만 PDF에서 뽑는다. 이미 있으면 사람이 rfp-locate 스킬로
     # 만들어 둔 것이므로 건드리지 않는다 — 이상 PDF는 여전히 사람이 처리하기 때문에
     # 두 경로가 공존해야 한다.
-    if rfp_path and not _artifacts_exist(report_new_dir, institution_name):
+    if rfp_path and not artifacts_exist(report_new_dir, institution_name):
         state.update(rfp_extract_node(state))
 
     state.update(rfp_analysis_node(state))
