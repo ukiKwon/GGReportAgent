@@ -199,8 +199,98 @@ curl -X POST http://127.0.0.1:8000/inbox/2026-07-29_0930_fixture/import
 - 반입이 읽고 쓰는 세 곳은 `create_app(inbox_root=, rfp_root=, batches_root=)`로 바꿀 수
   있다(기본값 `corpus/inbox`·`corpus/rfp`·`data/batches`). 테스트는 이걸로 격리한다.
 
+## 6. 오케스트레이터 워크플로 (`/institutions/{id}/run` 등) — 배선 완료
+
+`agent/orchestrator/graph.py`의 langgraph 그래프를 `backend/`에서 백그라운드로
+실행·결재하는 API. 설계는 `docs/superpowers/specs/2026-07-31-orchestrator-graph-core/`
+(Task 4~6).
+
+```bash
+# ① 의존성 — langgraph, langgraph-checkpoint-sqlite 신규
+py -3 -m pip install -r requirements.txt
+```
+
+경로: `rfi`(3·4단계 공시분석) → `draft` 3팀 팬아웃(5단계, 영업/기획/IT) →
+🛑`기획승인` → `이관`(6단계는 그래프 밖, 사람 작업) → 🛑`이관결재` →
+`packager`(7) → `verifier`(8) → 🛑`최종결재` → `finish`(9단계, 제출 대기).
+
+```bash
+# ② 서버 기동 (기관에 rfp_path가 반입돼 있어야 run이 됨 — 없으면 400)
+py -3 -m uvicorn backend.main:app --port 8000
+
+# 실행 시작 (202: 그래프가 백그라운드 스레드에서 rfi→draft를 돌고 기획승인에서 멈춘다)
+curl -X POST http://127.0.0.1:8000/institutions/nowon/run
+
+# 상태 폴링 — running=false && pending_gate="기획승인"이 될 때까지
+curl http://127.0.0.1:8000/institutions/nowon/status
+# → {"stage":5,"running":false,"pending_gate":"기획승인","tasks":[...],"notifications_unread":0}
+
+# 승인 3회 — 매번 X-User-Id 헤더 필요(ASCII만; 한글 결재자명은 실무에서
+# "sales-team"/"final-approver" 같은 영문 id로 대체)
+curl -X POST http://127.0.0.1:8000/institutions/nowon/checkpoint \
+     -H "X-User-Id: sales-team" -H "Content-Type: application/json" \
+     -d '{"approved": true, "comment": null}'
+# → status 폴링, pending_gate가 "이관결재"로 바뀔 때까지 대기
+
+curl -X POST http://127.0.0.1:8000/institutions/nowon/checkpoint \
+     -H "X-User-Id: sales-team" -H "Content-Type: application/json" \
+     -d '{"approved": true, "comment": null}'
+# → pending_gate가 "최종결재"로 바뀔 때까지 대기
+
+curl -X POST http://127.0.0.1:8000/institutions/nowon/checkpoint \
+     -H "X-User-Id: final-approver" -H "Content-Type: application/json" \
+     -d '{"approved": true, "comment": null}'
+# → stage=9, running=false, pending_gate=null 이면 완료(제출 대기)
+```
+
+### ③ 게이트 계약 — 반려 시 재작성
+
+세 결재 지점은 순서대로 `기획승인`(5단계 직후) → `이관결재`(6단계 직후) →
+`최종결재`(8단계 직후)다. `checkpoint`의 `{"approved": false, "comment": "..."}`는
+게이트마다 다르게 되돌린다:
+
+| 게이트 | 반려 시 이동 | 비고 |
+|---|---|---|
+| 기획승인 | `draft` 3팀 재팬아웃 | `sections`가 리셋되고 `revision_note`에 반려 사유가 실려 재작성됨(구본 누적 안 함) |
+| 이관결재 | `기획승인`으로 되돌아감 | 재승인부터 다시 |
+| 최종결재 | `packager`부터 재실행 | `verifier` 검증도 다시 돈다 |
+
+승인 시 `X-User-Id`와 결재 시각이 `messages`에 기록되고, 9단계 도달 시
+`notifications`에 "제출 대기" 알림이 쌓인다(`GET /status`의
+`notifications_unread`로 확인).
+
+### ④ 주의 — `data/graph_checkpoints.db` 삭제
+
+이 파일이 langgraph `SqliteSaver`의 체크포인터다(gitignored, `graph_db_path=`로
+경로 교체 가능). **삭제하면 진행 중이던 모든 기관의 그래프 상태가 초기화**된다
+— `thread_id`가 `institution_id`라서, 파일을 지운 뒤 `run`을 다시 호출하면
+게이트에서 멈춘 지점이 아니라 처음(`rfi`)부터 다시 돈다. `registry.db`의
+`stage` 컬럼은 별도로 남아있어 겉보기 진행도는 유지되는 것처럼 보이지만,
+그래프 자체의 인터럽트 위치·`sections` 등 중간 산출물은 이 파일에만 있으므로
+운영 중에는 지우지 않는다.
+
+### 로컬 Ollama 실측 절차 (스펙 검증 1회 — 배선만, 품질은 평가하지 않음)
+
+```bash
+# Ollama가 떠 있고 llama3.1:8b가 받아져 있는 상태에서
+$env:LLM_MODEL='llama3.1:8b'; $env:LLM_FALLBACK_MODEL='llama3.1:8b'
+py -3 -m uvicorn backend.main:app --port 8000
+
+# 별도 셸: rfp_path가 반입된 기관(예: 노원, 또는 수원시 PDF를 UPDATE로 지정)으로
+#   POST /institutions/{id}/run → status 폴링 → 게이트 3회 승인(X-User-Id는 ASCII)
+#   → stage=9 확인. 반려 1회도 시험(재작성이 도는지).
+```
+
+확인 항목: 게이트 3회에서 실제로 멈추는지, `tasks`/`messages`/`notifications`
+테이블에 기록이 쌓이는지(`sqlite3 data/registry.db "SELECT * FROM messages"` 등),
+반려 1회 시 재작성이 도는지. 8B 모델의 산출물 품질은 평가 대상이 아니다.
+
 ## 확인 방법
 
 - `backend/`: 위 curl 두 개가 200과 JSON을 반환하면 정상.
 - `agent/`: `pytest agent/tests -v` 통과 여부로 개별 노드 건전성만 확인 가능;
   end-to-end 실행은 위 제약 때문에 완전한 검증이 아님.
+- 오케스트레이터: `pytest backend/tests/test_api_workflow.py -v` — subagent만
+  목(mock)하고 그래프·게이트·체크포인터는 실물로 돌려 승인 3회→stage 9,
+  실패 시 running=false 유지를 검증한다. 로컬 Ollama 실측은 위 §6 절차로
+  별도 수행(모델 배선 확인용, CI 대상 아님).
