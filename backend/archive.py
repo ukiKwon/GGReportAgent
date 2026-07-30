@@ -19,6 +19,7 @@ def archive_institution(
 ) -> str:
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     dest = os.path.join(archive_root, institution.name_ko, day)
+    shutil.rmtree(dest, ignore_errors=True)
     os.makedirs(dest, exist_ok=True)
 
     src_dir = os.path.join(output_root, institution.name_ko)
