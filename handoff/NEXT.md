@@ -31,8 +31,9 @@
 
 ## 열린 항목
 
-### 1. E2E 입찰워크플로 — 1·2·3 완료, 남은 것은 4·5
-- **출처**: `2026-07-29_summary.md` `## Session 18:14`.
+### 1. E2E 입찰워크플로 — 1~4 완료, 남은 것은 5뿐
+- **출처**: `2026-07-30_summary.md` `## Session 20:13`(최신 갱신),
+  `2026-07-29_summary.md` `## Session 18:14`(원 기록).
 - **스펙**: `docs/superpowers/specs/2026-07-26-e2e-bid-workflow-system-design.md` §⑧.
 - **완료 (main `5fba9f0`, push됨)**: **sub-project 1(DMZ 수집 서비스)**.
   설계 `docs/superpowers/specs/2026-07-29-dmz-collector-service-design.md` +
@@ -60,15 +61,15 @@
     일이 "PDF → `rfp_text.txt` + `rfp_scoring.json`"뿐이라 그것으로 재정의했다.
     `spec_research_node`는 이미 폐기, `plan_writer_node`는 `content_writer_node`에
     흡수. 상위 스펙 §④에 재정의 표로 기록했다.
-  - **4 6단계 3팀 분화** — **다음 세션 1순위.** `role_router_node` 미구현.
-    규모 실측(Session 01:00): `agent/nodes/content_writer.py` 73줄을 역할
-    파라미터화 + `role_router_node` 신규 + `ProposalState.sections`를 reducer
-    필드로 변경. 하루 규모. 설계는 상위 스펙 §⑤에 이미 있다(배점표 항목을
-    규칙기반 키워드로 3팀에 라우팅, 역할별 코퍼스만 바꿔 `content_writer`를 3벌로,
-    `verification_node`는 병합된 `sections`에 1회 실행).
-    **선행 확인**: 브랜치 `local-2026-07-30`이 다른 PC에서 검토·merge됐는지 볼 것
-    — sub-project 3에서 `content_writer.py`가 `structured_llm`을 쓰도록 바뀌었다.
-  - **5 통합 프런트** — 미착수. **이걸 하면 재구성 ⑦(개명)도 같이 끝난다**(항목 2 참조).
+  - ~~**4 6단계 3팀 분화**~~ — **완료**(2026-07-30 Session 20:13, main `dac803f`,
+    push됨). 계획 `docs/superpowers/plans/2026-07-30-role-router-team-split.md` →
+    `agent/nodes/role_router.py`(키워드 규칙 라우팅 + 애매할 때만 LLM 폴백) +
+    `content_writer_node(state, role=...)` 역할별 코퍼스 + 파이프라인 배선
+    (3팀 순차 실행 → 배점표 원순서 병합 → verification 1회). 스펙 §⑤의 LangGraph
+    reducer 대신 순수 Python 병합으로 구현 — 편차와 이유는 스펙 §⑤에 기록됨.
+    테스트 284 passed(+11), dashboard 36/36.
+  - **5 통합 프런트** — **다음 세션 1순위이자 항목 1의 마지막 남은 것.** 미착수.
+    **이걸 하면 재구성 ⑦(개명)도 같이 끝난다**(항목 2 참조).
     규모 실측(Session 01:00): `dashboard/js/` 1,104줄(render.js 613줄 포함) 이식 +
     9단계 워크플로 UI 신규. **하루짜리가 아니므로 별도 일정을 잡아야 한다.**
 - **실사이트 크롤러는 여전히 범위 밖** — 어댑터 인터페이스만 열려 있고 기본값은
