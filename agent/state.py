@@ -13,6 +13,7 @@ class ProposalState(TypedDict, total=False):
     matched_district: str | None    # corpus/institutions/ folder name if a full match exists
     institution_spec_dir: str       # path to the spec/ dir to read (existing or newly built)
     archive_pptx_path: str | None   # report_archive/ path if a prior PPTX exists
+    role_assignments: list[dict]    # [{scoring_item, role}, ...] — role_router_node 산출 (§⑤ 3팀)
     sections: list[dict]            # [{scoring_item, title, content, sources}, ...]
     pptx_path: str
     coverage_report: list[dict]     # [{scoring_item, covered: bool, gap_note}, ...]
