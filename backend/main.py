@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from backend.db import init_db
 from backend.orchestrator_service import OrchestratorService
 from backend.routers.bidcases import router as bidcases_router
+from backend.routers.chat import router as chat_router
 from backend.routers.inbox import router as inbox_router
 from backend.routers.institutions import router as institutions_router
 from backend.routers.search import router as search_router
@@ -35,6 +36,7 @@ def create_app(
     app.include_router(institutions_router)
     app.include_router(bidcases_router)
     app.include_router(tasks_router)
+    app.include_router(chat_router)
     app.include_router(search_router)
     app.include_router(inbox_router)
     app.include_router(workflow_router)
