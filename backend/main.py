@@ -21,6 +21,7 @@ def create_app(
     rfp_root: str = "corpus/rfp",
     batches_root: str = "data/batches",
     graph_db_path: str = "data/graph_checkpoints.db",
+    archive_root: str = "data/report_archive",
 ) -> FastAPI:
     app = FastAPI(title="입찰 워크플로우 레지스트리 API")
     app.state.db_path = db_path
@@ -31,6 +32,7 @@ def create_app(
     app.state.rfp_root = rfp_root
     app.state.batches_root = batches_root
     app.state.graph_db_path = graph_db_path
+    app.state.archive_root = archive_root
     init_db(db_path).close()
     app.state.orchestrator = OrchestratorService(db_path, graph_db_path, output_root)
     app.include_router(institutions_router)

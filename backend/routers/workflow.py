@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 
+from backend.archive import archive_institution
 from backend.db import get_connection
 from backend.repository import get_institution
 
@@ -85,3 +86,25 @@ def get_status(institution_id: str, request: Request):
         "tasks": tasks,
         "notifications_unread": unread,
     }
+
+
+@router.post("/{institution_id}/complete")
+def post_complete(institution_id: str, request: Request, x_user_id: str = Header(...)):
+    conn = get_connection(request.app.state.db_path)
+    try:
+        inst = get_institution(conn, institution_id)
+        if inst is None:
+            raise HTTPException(status_code=404, detail="institution not found")
+        if inst.stage != 9:
+            raise HTTPException(status_code=409, detail="stage 9(제출 대기)에서만 완료할 수 있다")
+        dest = archive_institution(
+            conn, inst, request.app.state.output_root, request.app.state.archive_root
+        )
+        conn.execute(
+            "UPDATE bid_cases SET participation_status = '제출완료' WHERE institution_id = ?",
+            (institution_id,),
+        )
+        conn.commit()
+        return {"archive_dir": dest, "completed_by": x_user_id}
+    finally:
+        conn.close()
