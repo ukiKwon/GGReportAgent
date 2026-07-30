@@ -27,7 +27,7 @@ class DbRecorder:
         ).fetchone()
         if row:
             return row["task_id"]
-        task_id = f"tsk-{secrets.token_hex(4)}"
+        task_id = f"task-{secrets.token_hex(4)}"
         conn.execute(
             "INSERT INTO tasks (task_id, bid_case_id, team) VALUES (?, ?, ?)",
             (task_id, self.bid_case_id, team),
