@@ -28,7 +28,11 @@ CREATE TABLE IF NOT EXISTS bid_cases (
     participation_decision TEXT NOT NULL DEFAULT '[]',
     research_status        TEXT NOT NULL DEFAULT '대기',
     finalized_by           TEXT,
-    finalized_at           TEXT
+    finalized_at           TEXT,
+    source_slug            TEXT,
+    notice_id              TEXT,
+    title                  TEXT,
+    notice_url             TEXT
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
@@ -52,11 +56,43 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 """
 
+# SCHEMA에 뒤늦게 추가된 bid_cases 컬럼들. CREATE TABLE IF NOT EXISTS는 이미 있는
+# 테이블에 컬럼을 붙여주지 않으므로 기존 registry.db에는 따로 넣어야 한다. 예전
+# finalized_by 때처럼 DB를 지우고 재시드하는 방식은 이제 못 쓴다 — 반입된 실데이터가
+# 들어 있을 수 있기 때문이다.
+BID_CASE_MIGRATIONS = {
+    # research_status는 이번 작업보다 먼저 추가된 컬럼인데, 당시엔 재시드로 처리해서
+    # 그 이전에 만들어진 registry.db에는 아직 없다(이 PC의 파일에서 실제로 확인됨).
+    # 그런 DB에 붙으면 create_bid_case의 INSERT가 바로 깨지므로 같이 메운다.
+    "research_status": "TEXT NOT NULL DEFAULT '대기'",
+    "source_slug": "TEXT",
+    "notice_id": "TEXT",
+    "title": "TEXT",
+    "notice_url": "TEXT",
+}
+
+# 반입 dedup 키 (collector/SCHEMA.md §④의 유일키). 위 컬럼이 붙은 뒤에야 만들 수
+# 있으므로 SCHEMA와 분리한다. SQLite는 NULL을 서로 다른 값으로 취급하므로, 두 컬럼이
+# NULL인 기존 수동/seed bid_case가 여러 건 있어도 걸리지 않는다 — 부분 인덱스가
+# 필요 없는 이유다.
+INDEXES = """
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bid_cases_notice
+    ON bid_cases(source_slug, notice_id);
+"""
+
 
 def get_connection(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """없는 컬럼만 붙인다(멱등). 두 번 돌려도 안전하고 기존 행은 건드리지 않는다."""
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(bid_cases)")}
+    for column, sql_type in BID_CASE_MIGRATIONS.items():
+        if column not in existing:
+            conn.execute(f"ALTER TABLE bid_cases ADD COLUMN {column} {sql_type}")
 
 
 def init_db(db_path: str) -> sqlite3.Connection:
@@ -65,5 +101,7 @@ def init_db(db_path: str) -> sqlite3.Connection:
         os.makedirs(parent, exist_ok=True)
     conn = get_connection(db_path)
     conn.executescript(SCHEMA)
+    _migrate(conn)
+    conn.executescript(INDEXES)
     conn.commit()
     return conn

@@ -54,6 +54,11 @@ class BidCase(BaseModel):
     research_status: str = "대기"
     finalized_by: str | None = None
     finalized_at: str | None = None
+    # 반입 출처 (collector/SCHEMA.md §④). (source_slug, notice_id)가 공고 유일키다.
+    source_slug: str | None = None
+    notice_id: str | None = None
+    title: str | None = None
+    notice_url: str | None = None
 
 
 class TaskSummary(BaseModel):
