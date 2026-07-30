@@ -58,7 +58,10 @@ def build_pptx(sections, scoring_table, output_path, archive_pptx_path=None, ins
 
 def pptx_builder_node(state: dict) -> dict:
     institution_name = state.get("institution_name", "기관")
-    output_path = f"report_new/{institution_name}/{institution_name}_제안서.pptx"
+    report_new_dir = state.get("report_new_dir", "data/report_new")
+    output_path = os.path.join(
+        report_new_dir, institution_name, f"{institution_name}_제안서.pptx"
+    )
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     build_pptx(
         state["sections"],

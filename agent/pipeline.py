@@ -9,7 +9,7 @@ def run_pipeline(
     institution_name: str,
     giganlist_dir: str = "corpus/institutions",
     archive_dir: str = "report_archive",
-    report_new_dir: str = "report_new",
+    report_new_dir: str = "data/report_new",
     max_revisions: int = 3,
 ) -> dict:
     state = {
