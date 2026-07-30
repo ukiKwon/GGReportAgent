@@ -39,7 +39,7 @@ def carry_batch(
     client: httpx.Client | None = None,
 ) -> dict:
     """ⓐ DMZ에서 배치를 받아 ⓑ inbox에 풀고 검증하고 ⓒ 망 안에 반입한다."""
-    from collector.schema import validate_batch
+    from contract.batch_schema import validate_batch
 
     inbox = Path(inbox)
     target = inbox / batch_id

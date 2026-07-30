@@ -16,8 +16,8 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from collector.schema import validate_batch
 from collector.sources.base import CollectedNotice, Source
+from contract.batch_schema import validate_batch
 
 SCHEMA_VERSION = 1
 DEFAULT_OUT_ROOT = "data/collector"
