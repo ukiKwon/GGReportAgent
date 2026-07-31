@@ -42,12 +42,24 @@ def test_run_then_three_approvals_reach_stage9(tmp_path):
     body = _wait_for_gate(client, "nowon")
     assert body["pending_gate"] == "기획승인"
 
+    first = True
     for expected_next in ("이관결재", "최종결재"):
+        payload = {"approved": True, "comment": None}
+        if first:
+            payload["by"] = "김영업"  # F10: body.by가 X-User-Id보다 우선
         r = client.post("/institutions/nowon/checkpoint",
-                        json={"approved": True, "comment": None},
+                        json=payload,
                         headers={"X-User-Id": "sales-team"})
         assert r.status_code == 202
         assert _wait_for_gate(client, "nowon")["pending_gate"] == expected_next
+        first = False
+
+    # F10: 기획승인 결재 메시지에 body.by("김영업")가 쓰여야 한다
+    # (그 요청은 X-User-Id "sales-team"도 같이 보냈지만 body.by가 우선한다)
+    conn = get_connection(str(tmp_path / "registry.db"))
+    rows = conn.execute("SELECT content FROM messages WHERE content LIKE '기획 승인%'").fetchall()
+    conn.close()
+    assert any("김영업" in r["content"] for r in rows)
 
     client.post("/institutions/nowon/checkpoint",
                 json={"approved": True, "comment": None}, headers={"X-User-Id": "final-approver"})
@@ -60,6 +72,21 @@ def test_run_then_three_approvals_reach_stage9(tmp_path):
     assert body["stage"] == 9
     assert body["pending_gate"] is None
     assert body["failed"] is False
+
+
+def test_run_allows_manual_artifacts_without_rfp_path(tmp_path):
+    """F5: rfp_path가 없어도 사람이 rfp-locate로 만든 산출물이 있으면 실행 가능."""
+    app = _app(tmp_path)
+    conn = get_connection(str(tmp_path / "registry.db"))
+    conn.execute("UPDATE institutions SET rfp_path = NULL WHERE institution_id='nowon'")
+    conn.commit(); conn.close()
+    out = tmp_path / "report_new" / "노원구"
+    out.mkdir(parents=True)
+    (out / "rfp_scoring.json").write_text("{}", encoding="utf-8")
+    (out / "rfp_text.txt").write_text("수기 반입", encoding="utf-8")
+
+    client = TestClient(app)
+    assert client.post("/institutions/nowon/run").status_code == 202
 
 
 def test_run_unknown_institution_404(tmp_path):

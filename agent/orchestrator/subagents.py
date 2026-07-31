@@ -95,4 +95,8 @@ def verifier(state: dict, recorder) -> dict:
         "검증", "agent",
         f"검증 완료 — 미달 {len(uncovered)}건, PII {len(pii)}건",
     )
+    # F7: verifier는 게이트가 아니라 일반 노드라 gate_final 재도달(최종반려 후
+    # packager·verifier 재실행 포함) 때마다 정확히 1회씩만 실행된다 — resume replay로
+    # 인한 중복 걱정이 없다(게이트 노드 본문과 달리).
+    recorder.notify("인사권자", "결재요청", "최종결재 대기 — 검증이 끝났습니다. 최종 결재를 부탁드립니다.")
     return updates

@@ -6,6 +6,13 @@ from agent.retrieval import IndexNotBuiltError, search
 DEFAULT_INDEX_DB_PATH = "data/corpus_index.db"
 REGISTERED_CORPUS_PREFIX = "corpus/institutions/"
 
+# I-1: _load_team_corpus의 "자료 없음" sentinel 반환값 — _load_consult_corpus는
+# 이 두 문자열과 정확 비교해야 한다. 부분문자열 검사("자료 없음" in corpus)는
+# 실코퍼스 본문에 "자료 없음"이라는 문구가 든 기관(예: 강동·강남·성북 실측
+# spec 파일의 "일부 자료 없음 상태" 같은 표현)에서 근거 전체를 오폐기한다.
+NO_CORPUS_NEW = "(자료 없음 — 신규 기관, 조사 결과 미제공)"
+NO_CORPUS_TEAM = "(자료 없음 — 해당 팀 코퍼스 파일 없음)"
+
 # 팀 → 검색 필터. 기존 _load_team_corpus의 폴더/접두사 규칙과 1:1 대응(스펙 §⑥).
 TEAM_SEARCH_FILTERS = {
     "영업": {"doctypes": ("spec", "bank_ideas")},
@@ -24,6 +31,23 @@ CHAT_PROMPT = """당신은 {team}팀의 제안서 작성을 돕는 "기관 인�
 {history}
 
 사용자 요청:
+{user_message}
+"""
+
+CONSULT_PROMPT = """당신은 "기관인텔리"의 참여검토 분석가입니다. 아래 근거 자료만 사용해
+이 기관 입찰 참여 여부에 대한 분석을 답하세요. 반드시 **영업 / 전산 / 예산** 세 관점을
+각각 짚고, 마지막에 강점·리스크를 요약하세요. 근거 자료에 없는 내용은 지어내지 말고,
+모르면 모른다고 하세요. 인용은 [파일명] 형태로 표시하세요.
+
+기관: {institution_name}
+
+근거 자료:
+{corpus}
+
+이전 대화:
+{history}
+
+질문:
 {user_message}
 """
 
@@ -59,7 +83,7 @@ def _search_team_corpus(
 
 def _load_team_corpus(giganlist_dir: str | None, team: str) -> str:
     if not giganlist_dir or not os.path.isdir(giganlist_dir):
-        return "(자료 없음 — 신규 기관, 조사 결과 미제공)"
+        return NO_CORPUS_NEW
 
     parts = []
     if team == "영업":
@@ -82,7 +106,7 @@ def _load_team_corpus(giganlist_dir: str | None, team: str) -> str:
                     with open(os.path.join(plan_dir, fname), encoding="utf-8") as f:
                         parts.append(f"[plan/{fname}]\n{f.read()}")
 
-    return "\n\n".join(parts) if parts else "(자료 없음 — 해당 팀 코퍼스 파일 없음)"
+    return "\n\n".join(parts) if parts else NO_CORPUS_TEAM
 
 
 def stream_chat_reply(
@@ -98,6 +122,46 @@ def stream_chat_reply(
     history_text = "\n".join(f"{m['role']}: {m['content']}" for m in history) or "(없음)"
     prompt = CHAT_PROMPT.format(
         team=team, corpus=corpus, history=history_text, user_message=user_message
+    )
+    llm = get_llm()
+    for chunk in llm.stream(prompt):
+        if chunk.content:
+            yield chunk.content
+
+
+def _load_consult_corpus(
+    giganlist_dir: str | None, rfp_text_path: str | None, user_message: str, index_db_path: str
+) -> str:
+    """기관 입찰 참여검토를 위해 기관 코퍼스와 공고 원문을 병합한다.
+
+    검색 우선(영업 필터가 spec+bank_ideas로 가장 넓다) → 통째 읽기 폴백.
+    """
+    parts = []
+    # 기관 코퍼스: 검색 우선(영업 필터가 spec+bank_ideas로 가장 넓다) → 통째 읽기 폴백
+    searched = _search_team_corpus(giganlist_dir, "영업", user_message, index_db_path)
+    corpus = searched if searched is not None else _load_team_corpus(giganlist_dir, "영업")
+    if corpus and corpus not in (NO_CORPUS_NEW, NO_CORPUS_TEAM):
+        parts.append(corpus)
+    if rfp_text_path and os.path.isfile(rfp_text_path):
+        with open(rfp_text_path, encoding="utf-8") as f:
+            parts.append(f"[rfp_text.txt]\n{f.read()}")
+    return "\n\n".join(parts) if parts else "(자료 없음 — 반입된 공고·조사 자료가 아직 없음)"
+
+
+def stream_consult_reply(
+    institution_name: str,
+    giganlist_dir: str | None,
+    rfp_text_path: str | None,
+    history: list[dict],
+    user_message: str,
+    index_db_path: str = DEFAULT_INDEX_DB_PATH,
+):
+    """기관 입찰 참여 여부를 영업/전산/예산 3관점에서 분석해 스트리밍한다."""
+    corpus = _load_consult_corpus(giganlist_dir, rfp_text_path, user_message, index_db_path)
+    history_text = "\n".join(f"{m['role']}: {m['content']}" for m in history) or "(없음)"
+    prompt = CONSULT_PROMPT.format(
+        institution_name=institution_name, corpus=corpus,
+        history=history_text, user_message=user_message,
     )
     llm = get_llm()
     for chunk in llm.stream(prompt):

@@ -59,6 +59,33 @@ def test_full_run_pauses_at_three_gates_then_finishes(mock_rfi, mock_draft, mock
 @patch("agent.orchestrator.graph.packager")
 @patch("agent.orchestrator.graph.draft_team")
 @patch("agent.orchestrator.graph.rfi_agent")
+def test_gates_send_approval_request_notifications(mock_rfi, mock_draft, mock_pack, mock_verify):
+    """F7: 게이트 도달 시 결재요청 알림 행이 기록된다(재실행 시 중복 없이 1회씩)."""
+    _mock_nodes(mock_rfi, mock_draft, mock_pack, mock_verify)
+    recorder = MagicMock()
+    graph = build_workflow_graph(recorder, MemorySaver())
+
+    graph.invoke(BASE_INPUT, CFG)   # 기획승인 게이트 도달
+    kinds = [c.args[1] for c in recorder.notify.call_args_list]
+    assert "결재요청" in kinds
+
+    graph.invoke(Command(resume={"approved": True, "by": "영업팀", "comment": None}), CFG)  # → 이관결재
+    graph.invoke(Command(resume={"approved": True, "by": "영업팀", "comment": None}), CFG)  # → 최종결재
+    graph.invoke(Command(resume={"approved": True, "by": "인사권자", "comment": None}), CFG)  # → finish
+
+    # 이 테스트는 verifier를 통째로 mock하므로(위 _mock_nodes), 최종결재 알림(실제
+    # verifier 함수 끝에 있음 — agent/orchestrator/subagents.py)은 여기서 관측되지
+    # 않는다. 그건 test_orchestrator_subagents.py::test_verifier_sends_final_approval_notify가
+    # 맡는다. 여기서는 announce_plan(기획) + gate_plan 승인분기(이관) 2건 각 1회,
+    # 재실행(replay) 중복 없음만 확인한다.
+    approval_requests = [c.args for c in recorder.notify.call_args_list if c.args[1] == "결재요청"]
+    assert len(approval_requests) == 2
+
+
+@patch("agent.orchestrator.graph.verifier")
+@patch("agent.orchestrator.graph.packager")
+@patch("agent.orchestrator.graph.draft_team")
+@patch("agent.orchestrator.graph.rfi_agent")
 def test_plan_rejection_reruns_drafts_with_note(mock_rfi, mock_draft, mock_pack, mock_verify):
     _mock_nodes(mock_rfi, mock_draft, mock_pack, mock_verify)
     graph = build_workflow_graph(NullRecorder(), MemorySaver())
