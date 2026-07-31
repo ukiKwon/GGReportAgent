@@ -1,6 +1,7 @@
 import os
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from backend.db import init_db
 from backend.orchestrator_service import OrchestratorService
@@ -22,6 +23,7 @@ def create_app(
     batches_root: str = "data/batches",
     graph_db_path: str = "data/graph_checkpoints.db",
     archive_root: str = "data/report_archive",
+    static_dir: str | None = None,
 ) -> FastAPI:
     app = FastAPI(title="입찰 워크플로우 레지스트리 API")
     app.state.db_path = db_path
@@ -42,7 +44,10 @@ def create_app(
     app.include_router(search_router)
     app.include_router(inbox_router)
     app.include_router(workflow_router)
+    if static_dir:
+        # 라우터 등록 뒤에 마운트해야 /institutions 등 API 경로가 정적보다 우선한다.
+        app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
     return app
 
 
-app = create_app(os.environ.get("REGISTRY_DB_PATH", "data/registry.db"))
+app = create_app(os.environ.get("REGISTRY_DB_PATH", "data/registry.db"), static_dir=os.environ.get("STATIC_DIR", "dashboard"))
