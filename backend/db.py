@@ -66,6 +66,14 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at      TEXT NOT NULL,
     read_at         TEXT
 );
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    chat_message_id TEXT PRIMARY KEY,
+    institution_id  TEXT NOT NULL,
+    role            TEXT NOT NULL,          -- user/agent
+    content         TEXT NOT NULL,
+    created_at      TEXT NOT NULL
+);
 """
 
 # SCHEMA에 뒤늦게 추가된 bid_cases 컬럼들. CREATE TABLE IF NOT EXISTS는 이미 있는

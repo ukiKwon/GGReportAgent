@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
@@ -15,6 +17,7 @@ from backend.task_repository import (
     submit_task,
     update_draft_content,
 )
+from backend.upload_check import check_upload, write_coverage_map
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -69,6 +72,49 @@ def post_task_approve(
         claim_approver_if_unset(conn, task_id, x_user_id)
         approve_task(conn, task_id, body.approved)
         return get_task(conn, task_id)
+    finally:
+        conn.close()
+
+
+class TaskUploadIn(TaskMessageIn):
+    pass  # {"content": str} — 동일 형태지만 의미가 달라 별명으로 둔다
+
+
+@router.post("/{task_id}/upload")
+def post_task_upload(
+    task_id: str, body: TaskUploadIn, request: Request, x_user_id: str = Header(...)
+):
+    conn = _conn(request)
+    try:
+        task = get_task(conn, task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="task not found")
+        # I-3: /messages와 동일한 선점 관행 — assignee가 NULL(오케스트레이터가 만든
+        # 미배정 task)이면 첫 업로드가 담당을 선점한다. 이미 다른 사람이 선점했으면 403.
+        if task.assignee is not None and task.assignee != x_user_id:
+            raise HTTPException(status_code=403, detail="only the assignee can upload")
+        claim_assignee_if_unset(conn, task_id, x_user_id)
+        update_draft_content(conn, task_id, body.content)
+
+        row = conn.execute(
+            "SELECT i.name_ko FROM bid_cases b JOIN institutions i ON i.institution_id = b.institution_id"
+            " WHERE b.bid_case_id = ?", (task.bid_case_id,)
+        ).fetchone()
+        out_dir = os.path.join(request.app.state.output_root, row["name_ko"]) if row else None
+        scoring_path = os.path.join(out_dir, "rfp_scoring.json") if out_dir else ""
+
+        result = check_upload(scoring_path, task.team, body.content)
+        uncovered = [c for c in result["coverage"] if not c["covered"]]
+        summary = (
+            f"업로드 즉시검사 — 담당 {len(result['coverage'])}항목 중 미달 {len(uncovered)}건,"
+            f" PII {len(result['pii'])}건"
+            + (f" ({result['skipped']})" if result["skipped"] else "")
+        )
+        add_message(conn, task_id, "agent", summary)
+        if out_dir and result["coverage"]:
+            write_coverage_map(out_dir, task.team, result["coverage"], len(result["pii"]))
+        return {"coverage": result["coverage"], "pii_count": len(result["pii"]),
+                "skipped": result["skipped"]}
     finally:
         conn.close()
 
