@@ -105,13 +105,24 @@ def post_complete(institution_id: str, request: Request, x_user_id: str = Header
             raise HTTPException(status_code=404, detail="institution not found")
         if inst.stage != 9:
             raise HTTPException(status_code=409, detail="stage 9(제출 대기)에서만 완료할 수 있다")
-        dest = archive_institution(
-            conn, inst, request.app.state.output_root, request.app.state.archive_root
-        )
-        conn.execute(
-            "UPDATE bid_cases SET participation_status = '제출완료' WHERE institution_id = ?",
+        # I-2: 기관은 1:N bid_case를 가질 수 있다(OrchestratorService._latest_bid_case와
+        # 동일 원칙) — complete는 최신 bid_case 1건에만 스코프한다. 과거 bid_case(예:
+        # 유찰 후 재입찰)의 상태·tasks를 덮어쓰거나 아카이브에 섞으면 안 된다.
+        latest = conn.execute(
+            "SELECT bid_case_id FROM bid_cases WHERE institution_id = ?"
+            " ORDER BY rowid DESC LIMIT 1",
             (institution_id,),
+        ).fetchone()
+        bid_case_id = latest["bid_case_id"] if latest else None
+        dest = archive_institution(
+            conn, inst, request.app.state.output_root, request.app.state.archive_root,
+            bid_case_id=bid_case_id,
         )
+        if bid_case_id is not None:
+            conn.execute(
+                "UPDATE bid_cases SET participation_status = '제출완료' WHERE bid_case_id = ?",
+                (bid_case_id,),
+            )
         conn.commit()
         return {"archive_dir": dest, "completed_by": x_user_id}
     finally:
