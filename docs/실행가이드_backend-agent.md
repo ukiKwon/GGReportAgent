@@ -407,14 +407,17 @@ py -3 -m uvicorn backend.main:app --reload
 
 ### 데이터 병합 규칙
 
-서버가 `STATIC_DIR/data/institutions.js`(하드코딩 정적 기관) 파일을 찾으면, API `/institutions`
-응답에 **서버 우선(union)** 방식으로 병합한다:
+병합은 **서버가 아니라 클라이언트(`dashboard/js/serverdata.js`)에서** 일어난다. 페이지가
+항상 로드하는 정적 스크립트 `dashboard/data/institutions.js`(`window.institutions`)와
+`GET /institutions` 응답을 `app.bootstrapServer()`가 `serverdata.mergeUnion(window.institutions,
+rows)`로 합친다:
 
-1. **API 응답** (DB에서 가져온 기관 목록, institutionId 있음)
-2. **정적 institutions.js** (하드코딩 기본값, 신뢰도·산업군 정보 포함 가능)
-3. **병합**: 두 목록을 합치되, **같은 institutionId가 있으면 서버(API) 값이 우선**
-   - name_ko 등 필드는 서버 데이터 사용
-   - confidence/sources(신뢰도·출처) 등 벤데스크는 **union** — 두 곳 정보 모두 보존
+1. **정적 번들** (`window.institutions` — 좌표·출처·신뢰도 등 서버에 없는 필드 포함)
+2. **API 응답** (DB의 기관 목록 — `institution_id`/`name_ko`/`region_code`/`type`/
+   `contract_end`/`last_bid`/`term`/`stage`만 있음)
+3. **병합 키는 `institutionId`가 아니라 이름 매칭**: 서버 행의 `name_ko` ↔ 번들 행의 `name`이
+   같으면 그 번들 레코드에 서버 필드를 덮어쓴다(부분 갱신, 나머지 필드는 보존). 이름이
+   매칭되지 않는 서버 행은 새 레코드로 추가되고, 매칭되지 않는 번들 레코드는 그대로 남는다.
 
 ### 편집 저장 조건
 
@@ -422,8 +425,8 @@ py -3 -m uvicorn backend.main:app --reload
 
 **저장이 서버에 반영되는 조건:**
 - institutionId가 있어야 함 (누락 시 로컬 임시 저장만, 서버 반영 안 됨)
-- 로그인 헤더(X-User-Id) 필수
-- 500 응답: 기관이 존재하지 않음 → 먼저 반입으로 기관 생성 필요
+- 로그인 헤더는 필요 없음 — PUT `/institutions/{id}`는 X-User-Id를 요구하지 않는다
+- 404 응답: 기관이 존재하지 않음 → 먼저 반입으로 기관 생성 필요
 
 ### CSV 업로드 — 서버 반입 전환
 
@@ -436,7 +439,11 @@ curl -X POST http://127.0.0.1:8000/institutions/import \
      -F "file=@institutions.csv"
 ```
 
-CSV 헤더: `name_ko`, `region_code`, `type`, `term`, `last_bid`, `contract_end`
+CSV 헤더(한글, `backend/csv_import.py`의 `HEADER_MAP` 실물): `기관명`, `기관구분`,
+`지역코드`, `입찰주기`, `지난입찰일`, `입찰예상일`.
+
+대시보드가 다루는 12열(`logic.ALL_FIELDS`) 중 이 6개만 서버가 받는다 — **확정여부·경도·위도·
+출처·구시군코드는 서버 반입 시 소실된다**(file:// 폴백 모드에서는 로컬에 그대로 보존됨).
 
 ### 환경 변수
 
@@ -451,9 +458,12 @@ export STATIC_DIR=/custom/path/to/dashboard
 py -3 -m uvicorn backend.main:app --port 8000
 ```
 
-STATIC_DIR이 미설정이거나 경로가 없으면:
-- API는 정상 작동 (`/institutions` 등)
-- GET `/` → 404 (정적 index.html 없음)
+STATIC_DIR 기본값(`dashboard`)은 **저장소 루트에서 기동**하는 것을 전제한다. 다른 위치에서
+실행하거나 STATIC_DIR을 존재하지 않는 경로로 지정하면 `StaticFiles`가 `RuntimeError`를 던져
+**모듈 임포트 자체가 실패**한다 — GET `/`가 404를 내는 게 아니라 서버가 아예 기동하지 않고
+API도 함께 죽는다. 저장소 루트에서 기동하거나 STATIC_DIR을 실존하는 경로로 지정할 것.
+정적 마운트 없이 API만 쓰려면 `STATIC_DIR=""`(빈 문자열)로 지정한다 — falsy라 마운트를
+건너뛰므로, 이 경우에만 API는 정상 작동하고 GET `/`는 404를 반환한다.
 
 ### 스모크 테스트 (자동화 확인)
 
