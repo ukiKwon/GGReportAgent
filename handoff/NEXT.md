@@ -81,12 +81,23 @@
       +coverage_map·complete 아카이브·A1 이월픽스(F4~F10)·쪽지함 **비활성 스텁**.
       **쪽지 기능(읽기 라우터·발송 UI)은 사용자 지시로 연기** — notifications 행은
       쌓이는 중, C에서 쪽지함 구현 시 바로 읽으면 된다. 339+36 테스트.
-    - **B store→API 전환 (다음 1순위)** — 설계 승인됨(정적 마운트 `create_app(static_dir=…)`
-      +PUT /institutions/{id}+서버/폴백 모드+name 병합), 계획 미작성.
-    - **C 협업 UI**(화면 6종: 상황판·대화창·현황판·배점표 매핑·쪽지함(연기분 구현 포함)·
-      지식탭) — 계획 미작성, 필요 시 C1/C2 재분할. 착수 시
-      `2026-07-31_summary.md` `## Session 10:01`의 이월 M-1~M-7(특히 M-3 SSE 프레이밍은
-      대화창 UI 구현 방식과 직결)을 계획에 반영할 것.
+    - ~~**B store→API 전환**~~ — **완료**(2026-07-31 Session 10:50, main `7bcafba`,
+      push됨). `PUT /institutions/{id}`·정적 마운트(`create_app(static_dir=…)`,
+      `STATIC_DIR`)·`dashboard/js/serverdata.js`(name 기준 union 병합)·부트스트랩/
+      편집 PUT/CSV 서버 반입·file:// 폴백 불변·실행가이드 §8. 346+40 테스트.
+    - **C 협업 UI (마지막 남은 것, 다음 1순위)** — 화면 6종(상황판 확장·대화창·워크플로
+      현황판·배점표 매핑·쪽지함(**A2에서 연기한 기능 구현** + 비활성 스텁 대체)·지식탭).
+      **계획 미작성**, 규모상 C1/C2 분할 검토.
+      착수 시 반드시 계획에 반영할 이월 항목:
+      - **F4(중요, B 최종리뷰)**: 편집 overlay(localStorage `tbd.edits`)가 서버 필드를
+        영구히 가려 타 사용자의 서버 변경이 화면에 안 나온다 — overlay를 로컬 전용
+        필드(lng·lat·sources·confidence)로 한정하는 재설계 필요.
+      - A2 이월 M-1~M-7 (`2026-07-31_summary.md` `## Session 10:01`) — 특히 **M-3 SSE
+        `data:` 프레이밍 부재**는 대화창 UI를 EventSource로 만들지 fetch 스트림으로
+        만들지와 직결.
+      - B 이월 (`## Session 10:50`): `backend/main.py` static_dir 부재 시 import 실패
+        가드, term 클리어 불가·빈문자열 비대칭, 기관 추가의 서버 경로(POST 생성 API
+        부재로 현재 가드만 있음), store.test.js serverList 미복원.
     - 재구성 ⑦(개명)은 이번 범위에서 **제외 확정** — B·C 완성 후 별도 스펙(항목 2 참조).
     규모 실측(Session 01:00): `dashboard/js/` 1,104줄(render.js 613줄 포함) 이식 +
     9단계 워크플로 UI 신규. **하루짜리가 아니므로 별도 일정을 잡아야 한다.**
