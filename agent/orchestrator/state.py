@@ -23,6 +23,7 @@ class OrchestratorState(TypedDict, total=False):
     institution_id: str
     institution_name: str
     giganlist_dir: str                # corpus/institutions (루트)
+    archive_dir: str                  # institution_match_node가 이전 PPTX를 찾는 곳(기본 "report_archive")
     report_new_dir: str
     rfp_path: str | None
     stage: int
