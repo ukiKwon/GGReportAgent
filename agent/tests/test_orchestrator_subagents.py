@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from agent.orchestrator.ports import NullRecorder
 from agent.orchestrator.subagents import draft_team, packager, rfi_agent, verifier
@@ -141,3 +141,16 @@ def test_verifier_adds_pii_findings(mock_verify):
     assert result["coverage_report"][0]["covered"] is True
     assert result["pii_findings"] == [{"kind": "휴대폰", "value": "010-****-5678"}]
     recorder.message.assert_called()  # 검사 보고가 기록된다
+
+
+@patch("agent.orchestrator.subagents.verification_node")
+def test_verifier_sends_final_approval_notify(mock_verify):
+    """F7: verifier 완료 시 인사권자에게 최종결재 대기 알림이 1회 기록된다."""
+    mock_verify.return_value = {"coverage_report": [{"scoring_item": "a", "covered": True, "gap_note": None}]}
+    recorder = MagicMock()
+    state = dict(BASE, scoring_table=[{"item": "a"}],
+                 sections=[{"scoring_item": "a", "title": "t", "content": "본문", "sources": []}])
+
+    verifier(state, recorder)
+
+    recorder.notify.assert_called_once_with("인사권자", "결재요청", ANY)

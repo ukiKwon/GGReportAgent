@@ -73,6 +73,8 @@ class OrchestratorService:
         with self._lock:
             if institution_id in self._running:
                 raise RuntimeError("still running")
+            # Lock 비재진입: pending_gate에 락을 추가하면 데드락(이미 self._lock을
+            # 쥔 채로 다시 획득을 시도하게 된다) — 이 lock 블록 안에서는 락 없이 호출한다.
             if not self.pending_gate(institution_id):
                 raise LookupError("no pending gate")
             bid_case_id = self._latest_bid_case(institution_id)
