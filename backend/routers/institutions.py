@@ -6,8 +6,8 @@ from backend.bidcase_repository import activate_pending_bid_cases
 from backend.corpus_validator import validate_corpus
 from backend.csv_import import parse_csv
 from backend.db import get_connection
-from backend.models import CorpusPathIn, Institution
-from backend.repository import get_institution, list_institutions, upsert_institution
+from backend.models import CorpusPathIn, Institution, InstitutionUpdateIn
+from backend.repository import get_institution, list_institutions, update_institution, upsert_institution
 
 router = APIRouter(prefix="/institutions", tags=["institutions"])
 
@@ -54,6 +54,22 @@ def get_institution_detail(institution_id: str, request: Request) -> Institution
     if institution is None:
         raise HTTPException(status_code=404, detail="institution not found")
     return institution
+
+
+@router.put("/{institution_id}", response_model=Institution)
+def put_institution(institution_id: str, body: InstitutionUpdateIn, request: Request) -> Institution:
+    """부분 갱신: 화면 편집을 서버에 반영한다.
+
+    미전송 필드는 기존 값을 보존한다.
+    stage 같은 워크플로 필드는 변경할 수 없다."""
+    conn = _conn(request)
+    try:
+        inst = update_institution(conn, institution_id, body)
+        if inst is None:
+            raise HTTPException(status_code=404, detail="institution not found")
+        return inst
+    finally:
+        conn.close()
 
 
 @router.post("/import")
