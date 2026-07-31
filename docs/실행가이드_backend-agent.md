@@ -287,6 +287,70 @@ py -3 -m uvicorn backend.main:app --port 8000
 테이블에 기록이 쌓이는지(`sqlite3 data/registry.db "SELECT * FROM messages"` 등),
 반려 1회 시 재작성이 도는지. 8B 모델의 산출물 품질은 평가 대상이 아니다.
 
+## 7. 팀 대화·업로드·완료 API (`/tasks`, `/institutions/{id}/complete`)
+
+6단계(3팀 세부기획)는 그래프 밖 사람 작업이라, 팀별 진행은 `tasks` 테이블 기반
+API로 오간다. 설계는 Task 3~5(sub-project 4). **쪽지함(알림 읽기 화면)은
+연기됐다**(사용자 결정 2026-07-31, `dashboard/index.html`에 비활성 버튼만
+자리 표시) — `notifications` 행(결재요청·되물음·이관) 자체는 이미 쌓이고
+있으므로, 필요하면 `GET /institutions/{id}/status`의 `notifications_unread`나
+DB를 직접 조회한다:
+
+```bash
+sqlite3 data/registry.db "SELECT recipient, kind, content FROM notifications ORDER BY created_at DESC LIMIT 5"
+```
+
+### ① 기관 대화(참여검토) — `/institutions/{id}/chat` — POST 스트리밍 / GET 이력
+
+```bash
+# 대화 이력 조회
+curl http://127.0.0.1:8000/institutions/nowon/chat
+
+# 메시지 전송 — 응답이 text/event-stream으로 청크 단위 스트리밍된다
+curl -N -X POST http://127.0.0.1:8000/institutions/nowon/chat \
+     -H "Content-Type: application/json" \
+     -d '{"content": "이 공고 참여할 만한가요?"}'
+```
+
+- `-N`(no-buffer)을 빼면 curl이 스트림을 한꺼번에 모아서 보여준다 — 실제
+  청크 단위 도착을 보려면 필요.
+- 응답이 끝나면 서버가 전체 답변을 합쳐 `agent` 메시지 1건으로 DB에 저장한다
+  (다음 `GET`에 바로 반영).
+
+### ② 팀 작성물 업로드 — `/tasks/{task_id}/upload` — 즉시검사 응답
+
+```bash
+curl -X POST http://127.0.0.1:8000/tasks/task-1/upload \
+     -H "X-User-Id: it-user" -H "Content-Type: application/json" \
+     -d '{"content": "IT 시스템 구축 방안 초안..."}'
+# → {"coverage":[{"scoring_item":"전산 시스템 구축","covered":true,"gap_note":null}],
+#    "pii_count":0,"skipped":null}
+```
+
+- 담당자(`assignee`)만 올릴 수 있다 — 아니면 403, `task_id` 없으면 404.
+- `rfp_scoring.json`이 아직 없으면(공고문 미추출) `coverage`는 빈 배열이고
+  `skipped`에 사유가 담긴다("배점표 미추출…" 또는 "{팀}팀 배정 항목 없음…").
+- 업로드마다 `coverage_map.json`이 **누적 갱신**된다(파일 위치는
+  `{output_root}/{기관명}/coverage_map.json` — 기본
+  `data/report_new/{기관명}/coverage_map.json`). 항목별 최신 팀·covered·
+  gap_note·pii_count만 남고, 다른 팀이 쓴 항목은 덮지 않는다.
+
+### ③ 완료 처리 — `/institutions/{id}/complete` — stage 9 전용, 아카이브
+
+```bash
+curl -X POST http://127.0.0.1:8000/institutions/nowon/complete \
+     -H "X-User-Id: sales-team"
+# → {"archive_dir":"data/report_archive/노원구/2026-07-31","completed_by":"sales-team"}
+```
+
+- **stage 9(제출 대기)가 아니면 409** — 최종결재까지 끝나야 호출 가능.
+- 아카이브 경로는 `{archive_root}/{기관명}/{YYYY-MM-DD}`(기본 `data/report_archive/`,
+  `create_app(archive_root=...)`로 교체 가능) — 같은 날 재호출하면 이전 내용을
+  지우고 다시 쓴다(`shutil.rmtree` 후 재생성).
+- 복사되는 산출물: `rfp_text.txt`·`rfp_scoring.json`·`coverage_map.json`·`*.pptx`
+  + 전 태스크의 메시지 이력(`tasks_dump.json`) + `manifest.json`.
+- 성공 시 `bid_cases.participation_status`가 `제출완료`로 바뀐다.
+
 ## 확인 방법
 
 - `backend/`: 위 curl 두 개가 200과 JSON을 반환하면 정상.
@@ -296,3 +360,7 @@ py -3 -m uvicorn backend.main:app --port 8000
   목(mock)하고 그래프·게이트·체크포인터는 실물로 돌려 승인 3회→stage 9,
   실패 시 running=false 유지를 검증한다. 로컬 Ollama 실측은 위 §6 절차로
   별도 수행(모델 배선 확인용, CI 대상 아님).
+- §7(대화·업로드·완료): `pytest backend/tests/test_api_chat.py backend/tests/test_api_upload.py backend/tests/test_api_complete.py -v`.
+- 실물 subagent 통합(F4): `pytest agent/tests/test_orchestrator_integration.py -v` —
+  rfi만 목, `draft_team`(`content_writer_node` 포함)은 실물로 돌려 그래프 채널에
+  섹션이 실제로 실리는지 확인한다.
