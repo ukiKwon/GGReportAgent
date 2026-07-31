@@ -89,8 +89,11 @@ def post_task_upload(
         task = get_task(conn, task_id)
         if task is None:
             raise HTTPException(status_code=404, detail="task not found")
-        if task.assignee != x_user_id:
+        # I-3: /messages와 동일한 선점 관행 — assignee가 NULL(오케스트레이터가 만든
+        # 미배정 task)이면 첫 업로드가 담당을 선점한다. 이미 다른 사람이 선점했으면 403.
+        if task.assignee is not None and task.assignee != x_user_id:
             raise HTTPException(status_code=403, detail="only the assignee can upload")
+        claim_assignee_if_unset(conn, task_id, x_user_id)
         update_draft_content(conn, task_id, body.content)
 
         row = conn.execute(

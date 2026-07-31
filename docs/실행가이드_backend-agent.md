@@ -328,6 +328,7 @@ curl -X POST http://127.0.0.1:8000/tasks/task-1/upload \
 ```
 
 - 담당자(`assignee`)만 올릴 수 있다 — 아니면 403, `task_id` 없으면 404.
+- 미배정 task(assignee가 NULL, 오케스트레이터가 만든 직후)는 첫 업로드가 담당을 선점한다.
 - `rfp_scoring.json`이 아직 없으면(공고문 미추출) `coverage`는 빈 배열이고
   `skipped`에 사유가 담긴다("배점표 미추출…" 또는 "{팀}팀 배정 항목 없음…").
 - 업로드마다 `coverage_map.json`이 **누적 갱신**된다(파일 위치는

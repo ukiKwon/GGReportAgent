@@ -60,3 +60,29 @@ def test_consult_without_any_source_says_so(mock_get_llm, tmp_path):
     ))
     prompt = mock_get_llm.return_value.stream.call_args[0][0]
     assert "자료 없음" in prompt
+
+
+@patch("backend.agent_adapter.get_llm")
+def test_consult_keeps_real_corpus_containing_no_data_phrase(mock_get_llm, tmp_path):
+    """I-1 회귀: spec 파일 본문에 "자료 없음"이 부분 포함돼도(예: 강동·강남·성북 실측
+    "일부 자료 없음 상태") 근거 전체가 폐기되면 안 된다 — 정확 비교로 sentinel만 걸러야 함."""
+    inst = tmp_path / "gangdong"
+    (inst / "spec").mkdir(parents=True)
+    (inst / "spec" / "01_개요.txt").write_text(
+        "강동구 개요 — 일부 자료 없음 상태이나 조사는 계속 진행", encoding="utf-8"
+    )
+
+    chunk = MagicMock(); chunk.content = "답변"
+    mock_get_llm.return_value.stream.return_value = [chunk]
+
+    _collect(stream_consult_reply(
+        institution_name="강동구",
+        giganlist_dir=str(inst),
+        rfp_text_path=None,
+        history=[],
+        user_message="강동구 입찰 참여할까?",
+        index_db_path=str(tmp_path / "no-index.db"),
+    ))
+
+    prompt = mock_get_llm.return_value.stream.call_args[0][0]
+    assert "일부 자료 없음 상태이나 조사는 계속 진행" in prompt

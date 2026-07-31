@@ -6,6 +6,13 @@ from agent.retrieval import IndexNotBuiltError, search
 DEFAULT_INDEX_DB_PATH = "data/corpus_index.db"
 REGISTERED_CORPUS_PREFIX = "corpus/institutions/"
 
+# I-1: _load_team_corpus의 "자료 없음" sentinel 반환값 — _load_consult_corpus는
+# 이 두 문자열과 정확 비교해야 한다. 부분문자열 검사("자료 없음" in corpus)는
+# 실코퍼스 본문에 "자료 없음"이라는 문구가 든 기관(예: 강동·강남·성북 실측
+# spec 파일의 "일부 자료 없음 상태" 같은 표현)에서 근거 전체를 오폐기한다.
+NO_CORPUS_NEW = "(자료 없음 — 신규 기관, 조사 결과 미제공)"
+NO_CORPUS_TEAM = "(자료 없음 — 해당 팀 코퍼스 파일 없음)"
+
 # 팀 → 검색 필터. 기존 _load_team_corpus의 폴더/접두사 규칙과 1:1 대응(스펙 §⑥).
 TEAM_SEARCH_FILTERS = {
     "영업": {"doctypes": ("spec", "bank_ideas")},
@@ -76,7 +83,7 @@ def _search_team_corpus(
 
 def _load_team_corpus(giganlist_dir: str | None, team: str) -> str:
     if not giganlist_dir or not os.path.isdir(giganlist_dir):
-        return "(자료 없음 — 신규 기관, 조사 결과 미제공)"
+        return NO_CORPUS_NEW
 
     parts = []
     if team == "영업":
@@ -99,7 +106,7 @@ def _load_team_corpus(giganlist_dir: str | None, team: str) -> str:
                     with open(os.path.join(plan_dir, fname), encoding="utf-8") as f:
                         parts.append(f"[plan/{fname}]\n{f.read()}")
 
-    return "\n\n".join(parts) if parts else "(자료 없음 — 해당 팀 코퍼스 파일 없음)"
+    return "\n\n".join(parts) if parts else NO_CORPUS_TEAM
 
 
 def stream_chat_reply(
@@ -133,7 +140,7 @@ def _load_consult_corpus(
     # 기관 코퍼스: 검색 우선(영업 필터가 spec+bank_ideas로 가장 넓다) → 통째 읽기 폴백
     searched = _search_team_corpus(giganlist_dir, "영업", user_message, index_db_path)
     corpus = searched if searched is not None else _load_team_corpus(giganlist_dir, "영업")
-    if corpus and "자료 없음" not in corpus:
+    if corpus and corpus not in (NO_CORPUS_NEW, NO_CORPUS_TEAM):
         parts.append(corpus)
     if rfp_text_path and os.path.isfile(rfp_text_path):
         with open(rfp_text_path, encoding="utf-8") as f:
