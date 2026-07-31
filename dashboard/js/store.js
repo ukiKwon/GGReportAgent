@@ -44,7 +44,10 @@
     if (i >= 0) a.splice(i, 1); else a.push(name);
     write(INTEREST_KEY, a); return a;
   };
-  store.loadData = function () { return read(DATA_KEY, null); };
+  let serverList = null;   // 서버 모드 in-memory — localStorage에 절대 쓰지 않는다
+  store.setServerData = function (list) { serverList = list; };
+  store.isServerMode = function () { return serverList !== null; };
+  store.loadData = function () { return serverList || read(DATA_KEY, null); };
   store.saveData = function (list) { write(DATA_KEY, list); };
 
   // 지도 테마(임박 5색 + 물결/깜빡임 색·주기) — IT 담당자가 화면에서 바꾼 값을 보존.

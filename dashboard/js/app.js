@@ -1,6 +1,18 @@
 (function (root) {
   'use strict';
   const app = {};
+
+  // 서버 모드 부트스트랩(계획 B): /institutions가 응답하면(2xx) 서버가 authoritative store.
+  // file://나 서버 부재 시 fetch가 예외/실패 → 아무 것도 하지 않고 조용히 폴백(기존 동작 그대로).
+  app.bootstrapServer = function () {
+    return fetch('/institutions').then(function (r) {
+      if (!r.ok) return;
+      return r.json().then(function (rows) {
+        root.store.setServerData(root.serverdata.mergeUnion(window.institutions || [], rows));
+      });
+    }).catch(function () { /* 폴백 — 아무것도 하지 않음 */ });
+  };
+
   app.enterRegion = function (code) {
     // 선택 지역만 남기고 나머지를 흐리게 → "지금 뭘 골랐는지"를 지도 자체로 보여준다.
     // (지도 위에 큰 지역명을 덮어쓰는 방식은 사용자 피드백으로 제거했다.)
@@ -129,7 +141,23 @@
       });
       const v = root.logic.validateRecord(Object.assign({}, rec, partial));
       if (!v.valid) { alert('필수 필드 누락: ' + v.missing.map(function(k){return root.logic.FIELD_LABELS[k]||k;}).join(', ')); return; }
-      root.store.setEdit(rec.name, partial); modal.style.display = 'none';
+      // 서버 모드이고 서버에 등록된 레코드면 서버 필드는 PUT으로 반영(부분 갱신 — undefined는
+      // JSON.stringify가 제거). lng·lat·sources 등 서버에 없는 필드는 아래 setEdit(로컬 overlay)만 담당.
+      const serverPatch = root.serverdata ? {
+        region_code: partial.region, type: partial.type,
+        contract_end: partial.contractEnd, last_bid: partial.lastBid,
+        term: partial.term ? Number(partial.term) : undefined,
+      } : null;
+      if (root.store.isServerMode() && rec.institutionId) {
+        fetch('/institutions/' + rec.institutionId, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(serverPatch),
+        }).then(function () { return app.bootstrapServer(); }).then(function () {
+          if (root.render.state.currentRegion) root.render.drawRegion(root.render.state.currentRegion);
+          root.render.drawTicker();
+        });
+      }
+      root.store.setEdit(rec.name, partial); modal.style.display = 'none';   // 로컬 전용 필드 overlay는 항상 유지
       if (root.render.state.currentRegion) { root.render.drawRegion(root.render.state.currentRegion); }
       root.render.drawTicker();
     };
@@ -179,6 +207,19 @@
     document.getElementById('btn-tmpl').addEventListener('click', function () { root.exporter.downloadCsvTemplate(); });
     document.getElementById('file-csv').addEventListener('change', function (e) {
       const file = e.target.files[0]; if (!file) return;
+      if (root.store.isServerMode()) {
+        // 서버 모드: 기존 12열 CSV 그대로 multipart로 올려 서버 반입(SCHEMA §⑦의 상위집합 계약).
+        const fd = new FormData(); fd.append('file', file);
+        fetch('/institutions/import', { method: 'POST', body: fd })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            alert(data.imported + '건을 반영했습니다.');
+            return app.bootstrapServer();
+          }).then(function () {
+            root.render.drawTicker(); root.render.drawNational();
+          });
+        e.target.value = ''; return;
+      }
       const reader = new FileReader();
       reader.onload = function () {
         const recs = root.logic.parseCsv(String(reader.result));
@@ -193,16 +234,19 @@
   };
 
   app.init = function () {
-    if (window.__d3failed || typeof d3 === 'undefined') { if (root.render.renderFallback) root.render.renderFallback(); return; }
-    root.render.applyTheme();   // 저장된 색/속도를 그리기 전에 반영
-    root.render.drawNational();
-    root.render.applyWatchStyles();
-    app.wireFilters();
-    root.render.drawTicker();
-    document.getElementById('btn-back').addEventListener('click', app.backToNational);
-    app.wireExport();
-    app.wireData();
-    app.wireTheme();
+    // 서버 모드 부트스트랩 먼저 시도(성공/실패 무관하게 이어서 기존 초기화 순서 진행).
+    return app.bootstrapServer().then(function () {
+      if (window.__d3failed || typeof d3 === 'undefined') { if (root.render.renderFallback) root.render.renderFallback(); return; }
+      root.render.applyTheme();   // 저장된 색/속도를 그리기 전에 반영
+      root.render.drawNational();
+      root.render.applyWatchStyles();
+      app.wireFilters();
+      root.render.drawTicker();
+      document.getElementById('btn-back').addEventListener('click', app.backToNational);
+      app.wireExport();
+      app.wireData();
+      app.wireTheme();
+    });
   };
   document.addEventListener('DOMContentLoaded', app.init);
 
