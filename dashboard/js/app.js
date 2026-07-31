@@ -152,10 +152,13 @@
         fetch('/institutions/' + rec.institutionId, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(serverPatch),
-        }).then(function () { return app.bootstrapServer(); }).then(function () {
-          if (root.render.state.currentRegion) root.render.drawRegion(root.render.state.currentRegion);
-          root.render.drawTicker();
-        });
+        }).then(function (r) {
+          if (!r.ok) { alert('서버 저장 실패 (' + r.status + ')'); return; }
+          return app.bootstrapServer().then(function () {
+            if (root.render.state.currentRegion) root.render.drawRegion(root.render.state.currentRegion);
+            root.render.drawTicker();
+          });
+        }).catch(function () { alert('서버 연결 실패 — 저장되지 않았습니다.'); });
       }
       root.store.setEdit(rec.name, partial); modal.style.display = 'none';   // 로컬 전용 필드 overlay는 항상 유지
       if (root.render.state.currentRegion) { root.render.drawRegion(root.render.state.currentRegion); }
@@ -169,6 +172,10 @@
   };
 
   app.openAdd = function () {
+    if (root.store.isServerMode()) {
+      alert('서버 모드에서는 기관 추가가 아직 지원되지 않습니다 — CSV 반입을 사용하세요.');
+      return;
+    }
     const wrap = document.getElementById('add-fields');
     const L = root.logic.FIELD_LABELS;
     const fields = ['name','type','region','subRegion','term','lastBid','contractEnd','lng','lat','sources'];
@@ -211,13 +218,15 @@
         // 서버 모드: 기존 12열 CSV 그대로 multipart로 올려 서버 반입(SCHEMA §⑦의 상위집합 계약).
         const fd = new FormData(); fd.append('file', file);
         fetch('/institutions/import', { method: 'POST', body: fd })
-          .then(function (r) { return r.json(); })
-          .then(function (data) {
-            alert(data.imported + '건을 반영했습니다.');
-            return app.bootstrapServer();
-          }).then(function () {
-            root.render.drawTicker(); root.render.drawNational();
-          });
+          .then(function (r) {
+            if (!r.ok) { alert('반입 실패 (' + r.status + ')'); return; }
+            return r.json().then(function (data) {
+              alert(data.imported + '건을 반영했습니다.');
+              return app.bootstrapServer().then(function () {
+                root.render.drawTicker(); root.render.drawNational();
+              });
+            });
+          }).catch(function () { alert('서버 연결 실패 — 반입되지 않았습니다.'); });
         e.target.value = ''; return;
       }
       const reader = new FileReader();
