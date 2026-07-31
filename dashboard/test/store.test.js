@@ -67,3 +67,10 @@ test('theme: resetTheme은 저장값을 지워 기본값으로 되돌린다', ()
   store.resetTheme();
   assert.deepStrictEqual(store.loadTheme(), {});
 });
+
+test('setServerData: loadData가 서버 리스트를 우선 반환하고 localStorage는 안 건드린다', function () {
+  freshLS();
+  store.setServerData([{ name: '도봉구' }]);
+  assert.strictEqual(store.isServerMode(), true);
+  assert.deepStrictEqual(store.loadData(), [{ name: '도봉구' }]);
+});
