@@ -3,7 +3,7 @@ import secrets
 import sqlite3
 from pathlib import Path
 
-from backend.models import Institution, InstitutionImportRow
+from backend.models import Institution, InstitutionImportRow, InstitutionUpdateIn
 
 GIGANLIST_DISTRICT_NAMES = {
     "dobong": "도봉구",
@@ -91,6 +91,29 @@ def upsert_institution(
     if commit:
         conn.commit()
     return new_id
+
+
+def update_institution(
+    conn: sqlite3.Connection, institution_id: str, upd: InstitutionUpdateIn
+) -> Institution | None:
+    """부분 갱신: COALESCE 패턴으로 미전송 필드는 보존한다.
+
+    없는 기관이면 None을 반환한다.
+    stage 같은 워크플로 필드는 모델에 없어서 자동 무시된다."""
+    if get_institution(conn, institution_id) is None:
+        return None
+    conn.execute(
+        """UPDATE institutions
+           SET region_code = COALESCE(?, region_code),
+               type = COALESCE(?, type),
+               contract_end = COALESCE(?, contract_end),
+               last_bid = COALESCE(?, last_bid),
+               term = COALESCE(?, term)
+           WHERE institution_id = ?""",
+        (upd.region_code, upd.type, upd.contract_end, upd.last_bid, upd.term, institution_id),
+    )
+    conn.commit()
+    return get_institution(conn, institution_id)
 
 
 def seed_giganlist_districts(conn: sqlite3.Connection, giganlist_root: Path) -> list[str]:

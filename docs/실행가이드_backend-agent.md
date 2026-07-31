@@ -365,3 +365,116 @@ curl -X POST http://127.0.0.1:8000/institutions/nowon/complete \
 - 실물 subagent 통합(F4): `pytest agent/tests/test_orchestrator_integration.py -v` —
   rfi만 목, `draft_team`(`content_writer_node` 포함)은 실물로 돌려 그래프 채널에
   섹션이 실제로 실리는지 확인한다.
+
+## 8. 대시보드 (`dashboard/`) — 서버 모드 (정적 자산 마운트)
+
+### 실행 방법 — 브라우저에서 대화형 편집
+
+기본 동작은 file:// 더블클릭(오프라인, 로컬 파일만 읽음)이지만, **서버 모드에서 기동**하면
+기관 데이터를 API로 가져오고 PUT으로 저장할 수 있다.
+
+```bash
+# 터미널 1 — backend 서버 (정적 자산 마운트)
+py -3 -m uvicorn backend.main:app --reload
+# → http://localhost:8000/ 에서 대시보드 접속 가능
+#   (환경변수 STATIC_DIR로 경로 교체 가능, 기본값: dashboard/)
+
+# 또는 명시적으로 STATIC_DIR 지정
+export STATIC_DIR=path/to/your/dashboard
+py -3 -m uvicorn backend.main:app --reload
+```
+
+### 대시보드 정상 작동 확인
+
+서버가 뜬 뒤 브라우저에서:
+
+1. **http://localhost:8000/** 열기
+   - 정적 index.html(대시보드 UI)이 로드됨
+   - 개발자도구 콘솔에서 네트워크 오류가 없어야 함
+
+2. **우측 탭 "지역구 상세" 클릭**
+   - 기관 카드가 드러남
+   - 각 카드의 "편집" 버튼을 통해 기관 정보(기간·type 등)를 수정 가능
+
+### 서버 모드 vs file:// 차이
+
+| 기능 | file:// | 서버 모드 |
+|---|---|---|
+| 정적 페이지 로드 | ✓ | ✓ |
+| API `/institutions` 읽기 | ✗ (CORS/로컬 불가) | ✓ |
+| 편집 저장 (PUT) | ✗ | ✓ (institutionId 있는 행만) |
+| CSV 업로드 | ✗ | ✓ (서버로 반입) |
+
+### 데이터 병합 규칙
+
+병합은 **서버가 아니라 클라이언트(`dashboard/js/serverdata.js`)에서** 일어난다. 페이지가
+항상 로드하는 정적 스크립트 `dashboard/data/institutions.js`(`window.institutions`)와
+`GET /institutions` 응답을 `app.bootstrapServer()`가 `serverdata.mergeUnion(window.institutions,
+rows)`로 합친다:
+
+1. **정적 번들** (`window.institutions` — 좌표·출처·신뢰도 등 서버에 없는 필드 포함)
+2. **API 응답** (DB의 기관 목록 — `institution_id`/`name_ko`/`region_code`/`type`/
+   `contract_end`/`last_bid`/`term`/`stage`만 있음)
+3. **병합 키는 `institutionId`가 아니라 이름 매칭**: 서버 행의 `name_ko` ↔ 번들 행의 `name`이
+   같으면 그 번들 레코드에 서버 필드를 덮어쓴다(부분 갱신, 나머지 필드는 보존). 이름이
+   매칭되지 않는 서버 행은 새 레코드로 추가되고, 매칭되지 않는 번들 레코드는 그대로 남는다.
+
+### 편집 저장 조건
+
+화면에서 기관 정보를 수정하고 "저장" 클릭 → PUT `/institutions/{institutionId}`
+
+**저장이 서버에 반영되는 조건:**
+- institutionId가 있어야 함 (누락 시 로컬 임시 저장만, 서버 반영 안 됨)
+- 로그인 헤더는 필요 없음 — PUT `/institutions/{id}`는 X-User-Id를 요구하지 않는다
+- 404 응답: 기관이 존재하지 않음 → 먼저 반입으로 기관 생성 필요
+
+### CSV 업로드 — 서버 반입 전환
+
+기본값은 클라이언트(대시보드)에서 `institutions.js` 갱신이었으나,
+**서버 모드에서는 `/institutions/import` (POST CSV)로 통일**:
+
+```bash
+# 기관 CSV → 서버로 반입 → DB에 저장 → API `/institutions` 응답에 포함
+curl -X POST http://127.0.0.1:8000/institutions/import \
+     -F "file=@institutions.csv"
+```
+
+CSV 헤더(한글, `backend/csv_import.py`의 `HEADER_MAP` 실물): `기관명`, `기관구분`,
+`지역코드`, `입찰주기`, `지난입찰일`, `입찰예상일`.
+
+대시보드가 다루는 12열(`logic.ALL_FIELDS`) 중 이 6개만 서버가 받는다 — **확정여부·경도·위도·
+출처·구시군코드는 서버 반입 시 소실된다**(file:// 폴백 모드에서는 로컬에 그대로 보존됨).
+
+### 환경 변수
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `REGISTRY_DB_PATH` | `data/registry.db` | 기관 데이터 DB 경로 |
+| `STATIC_DIR` | `dashboard/` | 정적 자산(index.html, js/, 등) 마운트 경로 |
+
+```bash
+# 예: 다른 위치의 대시보드 마운트
+export STATIC_DIR=/custom/path/to/dashboard
+py -3 -m uvicorn backend.main:app --port 8000
+```
+
+STATIC_DIR 기본값(`dashboard`)은 **저장소 루트에서 기동**하는 것을 전제한다. 다른 위치에서
+실행하거나 STATIC_DIR을 존재하지 않는 경로로 지정하면 `StaticFiles`가 `RuntimeError`를 던져
+**모듈 임포트 자체가 실패**한다 — GET `/`가 404를 내는 게 아니라 서버가 아예 기동하지 않고
+API도 함께 죽는다. 저장소 루트에서 기동하거나 STATIC_DIR을 실존하는 경로로 지정할 것.
+정적 마운트 없이 API만 쓰려면 `STATIC_DIR=""`(빈 문자열)로 지정한다 — falsy라 마운트를
+건너뛰므로, 이 경우에만 API는 정상 작동하고 GET `/`는 404를 반환한다.
+
+### 스모크 테스트 (자동화 확인)
+
+단순히 정적·API·PUT이 한 앱에서 함께 동작하는지 확인:
+
+```bash
+py -3 -m pytest backend/tests/test_static_e2e.py -v
+```
+
+테스트 항목:
+- 실제 dashboard/index.html 로드 (GET / → \<title> 포함 확인)
+- JavaScript 파일 서빙 (GET /js/serverdata.js → 200)
+- API 응답 (GET /institutions → JSON 반환)
+- PUT 저장 (PUT /institutions/{id} → 필드 갱신 확인)

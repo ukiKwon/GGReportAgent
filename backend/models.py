@@ -25,6 +25,14 @@ class InstitutionImportRow(BaseModel):
     contract_end: str | None = None
 
 
+class InstitutionUpdateIn(BaseModel):
+    region_code: str | None = None
+    type: str | None = None
+    contract_end: str | None = None
+    last_bid: str | None = None
+    term: int | None = None
+
+
 class ParticipationDecisionIn(BaseModel):
     tier: int
     role: str
