@@ -73,6 +73,8 @@ test('setServerData: loadData가 서버 리스트를 우선 반환하고 localSt
   store.setServerData([{ name: '도봉구' }]);
   assert.strictEqual(store.isServerMode(), true);
   assert.deepStrictEqual(store.loadData(), [{ name: '도봉구' }]);
+  store.clearServerData();                                    // 뒤 테스트로 서버 모드를 흘리지 않는다
+  assert.strictEqual(store.isServerMode(), false);
 });
 
 test('applyEdits: 서버 모드에서는 서버 필드 overlay를 무시하고 로컬 전용 필드만 덮는다', function () {
@@ -87,7 +89,7 @@ test('applyEdits: 서버 모드에서는 서버 필드 overlay를 무시하고 �
 
 test('applyEdits: 폴백 모드에서는 기존대로 전체 overlay가 적용된다', function () {
   freshLS();
-  store.setServerData(null);                                  // 폴백 모드로 되돌림
+  store.clearServerData();                                    // 폴백 모드로 되돌림
   store.setEdit('도봉구', { contractEnd: '2020-01-01', sources: ['수기'] });
 
   const out = store.applyEdits([{ name: '도봉구', contractEnd: '2026-12-31' }]);

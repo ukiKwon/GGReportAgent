@@ -65,6 +65,8 @@
   };
   let serverList = null;   // 서버 모드 in-memory — localStorage에 절대 쓰지 않는다
   store.setServerData = function (list) { serverList = list; };
+  // 폴백 모드로 되돌린다 — 테스트가 서버 모드를 남기지 않게 하는 용도(계획 B 이월).
+  store.clearServerData = function () { serverList = null; };
   store.isServerMode = function () { return serverList !== null; };
   store.loadData = function () { return serverList || read(DATA_KEY, null); };
   store.saveData = function (list) { write(DATA_KEY, list); };

@@ -45,8 +45,12 @@ def create_app(
     app.include_router(inbox_router)
     app.include_router(workflow_router)
     if static_dir:
-        # 라우터 등록 뒤에 마운트해야 /institutions 등 API 경로가 정적보다 우선한다.
-        app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+        if os.path.isdir(static_dir):
+            # 라우터 등록 뒤에 마운트해야 /institutions 등 API 경로가 정적보다 우선한다.
+            app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+        else:
+            # repo 루트 밖에서 기동하면 dashboard/가 안 보인다 — API까지 죽이지는 않는다.
+            print(f"[warn] 정적 디렉터리를 찾지 못해 마운트를 건너뜁니다: {static_dir}")
     return app
 
 
