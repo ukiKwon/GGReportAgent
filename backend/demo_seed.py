@@ -31,6 +31,16 @@ DEMO_EXPECTED_INSTITUTION = "nowon"         # 비교용: 예상일만 있는 공
 DEMO_EXPECTED_BID_CASE = "demo-bc-expected"
 DEMO_EXPECTED_DATE = "2026-05-20"
 
+# 참여 결정 3차 — **워크플로가 굴러갔다면 이건 이미 끝나 있어야 한다.**
+# 참여확정(3차)이 팀 Task를 만들고 그 뒤에야 5·6단계가 진행되기 때문에,
+# stage 9인 기관이 '검토중'으로 남아 있으면 앞뒤가 맞지 않는다.
+# 시각은 2단계(입찰상황 발생) 메시지와 3단계 사이에 오도록 잡았다.
+DECISIONS = [
+    (1, "영업팀", "김 차장", "참여", "2026-08-01T09:02:10"),
+    (2, "전산팀", "권 차장", "참여", "2026-08-01T09:02:40"),
+    (3, "예산팀", "정 대리", "참여", "2026-08-01T09:03:20"),
+]
+
 # 팀 → (task_id, 상태, 진행률, 담당자). RFI분석·취합·검증은 에이전트 몫이라 담당자가 없다.
 TEAMS = [
     ("RFI분석", "demo-t-rfi", "1차완료", 100, None),
@@ -47,6 +57,7 @@ MESSAGES = [
     (1, "RFI분석", "agent", None, "직전 약정 만료일과 최근 3회 입찰 이력을 수집했다. 재지정 주기 4년."),
     (2, "RFI분석", "agent", None, "입찰 개시 신호 확인 — 구청 재정과 사전 수요조사 공고가 게시됐다."),
     (2, "영업", "human", "김 차장", "지점망 현황부터 정리해두겠습니다. 관내 4개 지점 운영 중입니다."),
+    (2, "영업", "human", "정 대리", "참여 결정 3차 결재 완료 — 참여확정. 분석을 시작해도 좋습니다."),
     (3, "RFI분석", "orchestrator", None, "공고문 원문을 받아 배점표를 구조화하라."),
     (3, "RFI분석", "agent", None, "공고문 PDF에서 본문 추출 완료. 평가항목 6건 / 총점 100점 인식."),
     (4, "RFI분석", "agent", None,
@@ -152,13 +163,22 @@ def seed(db_path: str, output_root: str, institution_id: str, stage: int) -> str
             "UPDATE institutions SET stage = ? WHERE institution_id = ?", (stage, institution_id)
         )
         # 확정일이 있는 공고 — 지도가 '확정'으로(빗금 없이) 그린다.
+        # 참여 결정은 **이미 3차까지 끝난 상태**로 넣는다. 이 기관은 stage가 9까지 가 있는데
+        # 참여확정 없이 그 단계에 도달할 수 없다(참여확정이 팀 Task를 만든다).
+        decisions = json.dumps(
+            [{"tier": t, "role": r, "by": b, "at": at, "choice": c, "comment": None}
+             for t, r, b, c, at in DECISIONS],
+            ensure_ascii=False,
+        )
         conn.execute(
             "INSERT INTO bid_cases (bid_case_id, institution_id, participation_status,"
-            " schedule_confidence, confirmed_date) VALUES (?, ?, '검토중', '확정', ?)",
-            (DEMO_BID_CASE, institution_id, DEMO_CONFIRMED_DATE),
+            " participation_decision, schedule_confidence, confirmed_date)"
+            " VALUES (?, ?, '참여확정', ?, '확정', ?)",
+            (DEMO_BID_CASE, institution_id, decisions, DEMO_CONFIRMED_DATE),
         )
         # 비교용으로 다른 기관 하나에 **예상일만** 있는 공고를 둔다 — 지도에서 빗금(추측)과
         # 확정이 나란히 보여야 계획 D의 일정 우선순위가 눈으로 확인된다.
+        # 이쪽은 stage 1이라 '검토중'이 맞고, **참여 결정 3차 결재를 실습해 볼 자리**다.
         if conn.execute(
             "SELECT 1 FROM institutions WHERE institution_id = ?", (DEMO_EXPECTED_INSTITUTION,)
         ).fetchone() and DEMO_EXPECTED_INSTITUTION != institution_id:
