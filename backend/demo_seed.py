@@ -26,6 +26,10 @@ from backend.db import get_connection, init_db
 from backend.demo_paths import DEMO_DB_PATH, DEMO_OUTPUT_ROOT
 
 DEMO_BID_CASE = "demo-bc"
+DEMO_CONFIRMED_DATE = "2026-09-30"          # 확정 공고 — 지도에 빗금 없이 뜬다
+DEMO_EXPECTED_INSTITUTION = "nowon"         # 비교용: 예상일만 있는 공고(빗금)
+DEMO_EXPECTED_BID_CASE = "demo-bc-expected"
+DEMO_EXPECTED_DATE = "2026-05-20"
 
 # 팀 → (task_id, 상태, 진행률, 담당자). RFI분석·취합·검증은 에이전트 몫이라 담당자가 없다.
 TEAMS = [
@@ -147,10 +151,22 @@ def seed(db_path: str, output_root: str, institution_id: str, stage: int) -> str
         conn.execute(
             "UPDATE institutions SET stage = ? WHERE institution_id = ?", (stage, institution_id)
         )
+        # 확정일이 있는 공고 — 지도가 '확정'으로(빗금 없이) 그린다.
         conn.execute(
-            "INSERT INTO bid_cases (bid_case_id, institution_id, participation_status)"
-            " VALUES (?, ?, '검토중')", (DEMO_BID_CASE, institution_id),
+            "INSERT INTO bid_cases (bid_case_id, institution_id, participation_status,"
+            " schedule_confidence, confirmed_date) VALUES (?, ?, '검토중', '확정', ?)",
+            (DEMO_BID_CASE, institution_id, DEMO_CONFIRMED_DATE),
         )
+        # 비교용으로 다른 기관 하나에 **예상일만** 있는 공고를 둔다 — 지도에서 빗금(추측)과
+        # 확정이 나란히 보여야 계획 D의 일정 우선순위가 눈으로 확인된다.
+        if conn.execute(
+            "SELECT 1 FROM institutions WHERE institution_id = ?", (DEMO_EXPECTED_INSTITUTION,)
+        ).fetchone() and DEMO_EXPECTED_INSTITUTION != institution_id:
+            conn.execute(
+                "INSERT INTO bid_cases (bid_case_id, institution_id, participation_status,"
+                " schedule_confidence, expected_date) VALUES (?, ?, '검토중', '예상', ?)",
+                (DEMO_EXPECTED_BID_CASE, DEMO_EXPECTED_INSTITUTION, DEMO_EXPECTED_DATE),
+            )
         task_by_team = {}
         for team, task_id, status, pct, assignee in TEAMS:
             conn.execute(
