@@ -96,3 +96,25 @@ test('applyEdits: 폴백 모드에서는 기존대로 전체 overlay가 적용�
   assert.strictEqual(out[0].contractEnd, '2020-01-01');      // file://에선 overlay가 진실
   assert.deepStrictEqual(out[0].sources, ['수기']);
 });
+
+test('profile: 이름·소속 저장/로드 왕복, 기본값은 빈 문자열', function () {
+  freshLS();
+  assert.deepStrictEqual(store.loadProfile(), { name: '', team: '' });
+  store.saveProfile({ name: '김 차장', team: '영업팀' });
+  assert.deepStrictEqual(store.loadProfile(), { name: '김 차장', team: '영업팀' });
+});
+
+test('profile: 부분 저장도 나머지 키를 빈 문자열로 채운다', function () {
+  freshLS();
+  store.saveProfile({ name: '정 대리' });
+  assert.deepStrictEqual(store.loadProfile(), { name: '정 대리', team: '' });
+});
+
+test('myRecipients: 쪽지함 조회 키는 소속과 이름 둘 다 (빈 값은 뺀다)', function () {
+  freshLS();
+  assert.deepStrictEqual(store.myRecipients(), []);
+  store.saveProfile({ name: '김 차장', team: '영업팀' });
+  assert.deepStrictEqual(store.myRecipients(), ['영업팀', '김 차장']);
+  store.saveProfile({ name: '', team: '전산팀' });
+  assert.deepStrictEqual(store.myRecipients(), ['전산팀']);
+});

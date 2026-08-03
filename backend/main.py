@@ -8,7 +8,9 @@ from backend.orchestrator_service import OrchestratorService
 from backend.routers.bidcases import router as bidcases_router
 from backend.routers.chat import router as chat_router
 from backend.routers.inbox import router as inbox_router
+from backend.routers.accounts import router as accounts_router
 from backend.routers.institutions import router as institutions_router
+from backend.routers.notifications import router as notifications_router
 from backend.routers.search import router as search_router
 from backend.routers.tasks import router as tasks_router
 from backend.routers.workflow import router as workflow_router
@@ -24,6 +26,7 @@ def create_app(
     graph_db_path: str = "data/graph_checkpoints.db",
     archive_root: str = "data/report_archive",
     static_dir: str | None = None,
+    demo: bool = False,
 ) -> FastAPI:
     app = FastAPI(title="입찰 워크플로우 레지스트리 API")
     app.state.db_path = db_path
@@ -35,6 +38,8 @@ def create_app(
     app.state.batches_root = batches_root
     app.state.graph_db_path = graph_db_path
     app.state.archive_root = archive_root
+    # 데모 여부는 화면이 QA용 계정 전환기를 띄울지 판단하는 데만 쓴다(운영에선 안 뜬다).
+    app.state.demo = demo
     init_db(db_path).close()
     app.state.orchestrator = OrchestratorService(db_path, graph_db_path, output_root)
     app.include_router(institutions_router)
@@ -44,6 +49,8 @@ def create_app(
     app.include_router(search_router)
     app.include_router(inbox_router)
     app.include_router(workflow_router)
+    app.include_router(notifications_router)
+    app.include_router(accounts_router)
     if static_dir:
         if os.path.isdir(static_dir):
             # 라우터 등록 뒤에 마운트해야 /institutions 등 API 경로가 정적보다 우선한다.
