@@ -294,6 +294,8 @@
       app.wireData();
       app.wireTheme();
       app.wireProfile();
+      // 쪽지함은 탭이 아니라 상시 버튼이라 여기서 한 번 켠다(미읽음 배지 30초 폴링).
+      if (root.notify && root.store.isServerMode()) root.notify.start();
     });
   };
   document.addEventListener('DOMContentLoaded', app.init);
