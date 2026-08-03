@@ -181,16 +181,13 @@
   2. ~~**`data/registry.db`가 비어 있다**~~ — 2026-08-03 확인 시 **기관 25건이 들어
      있다**(그 사이 누군가 `py -3 -m backend.seed`를 돌린 것). 새로 clone하면 이
      파일이 없으므로 **처음 실행 전 시딩이 필요하다는 사실 자체는 그대로**다.
-  3. **(신규, 2026-08-03) `data/registry.db`에 데모 행 30건이 남아 있다** — 이 PC 한정.
-     C1 화면 확인용으로 `demo-` 접두사 행(tasks 6·messages 23·notifications 6·
-     bid_cases 1)을 넣고 `institutions.dobong.stage`를 1 → 9로 바꾼 잔해다.
-     같은 날 데모 환경을 `data/demo.db`로 **분리**했으므로(`backend/demo_paths.py`)
-     이 행들은 이제 불필요한 오염이다. `data/report_new/도봉구/`의
-     `rfp_scoring.json`·`coverage_map.json` 2개도 같은 잔해다.
-     → 정리하려면: `demo-%` 행 DELETE + `dobong.stage`를 **1**로 되돌리고 그 두 파일 삭제.
-     데모를 다시 보려면 `py -3 -m backend.demo`(별도 DB)면 되므로 지워도 잃을 게 없다.
-     **사용자 판단 대기** — 지우자고 제안했으나 확답 전에 세션이 마무리됨.
-- **상태**: 비차단. 3번만 남았고, 실행에는 지장이 없다.
+  3. ~~**(2026-08-03) `data/registry.db`의 데모 잔해 30건**~~ — **같은 날 사용자 승인
+     후 정리 완료.** C1 화면 확인용 `demo-` 행(tasks 6·messages 23·notifications 6·
+     bid_cases 1)을 `demo_seed.clear()`로 지우고 `dobong.stage`를 9 → **1**(seed 기본값)로
+     되돌렸으며, `data/report_new/도봉구/`의 JSON 2개도 삭제했다. 정리 후 확인:
+     기관 25건 유지, tasks·messages 0건, `data/report_new/` 빈 디렉터리.
+     데모는 이제 `data/demo.db`에만 있다(`py -3 -m backend.demo`).
+- **상태**: 비차단. ①(리포 루트 stale `registry.db`)만 남았고, 실행에는 지장이 없다.
 
 ### 4. `institutions.scoring_table`이 아무도 안 쓰는 빈 슬롯 (비차단)
 
