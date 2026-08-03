@@ -67,6 +67,21 @@
     if (btn) btn.style.display = root.store.isServerMode() ? '' : 'none';
   };
 
+  // 내 프로필(이름·소속) — 쪽지함 조회 키이자 결재자 이름 기본값 (계획 C2).
+  app.wireProfile = function () {
+    const nameEl = document.getElementById('me-name');
+    const teamEl = document.getElementById('me-team');
+    if (!nameEl || !teamEl) return;
+    const p = root.store.loadProfile();
+    nameEl.value = p.name; teamEl.value = p.team;
+    function save() {
+      root.store.saveProfile({ name: nameEl.value.trim(), team: teamEl.value });
+      if (root.notify && root.notify.onProfileChange) root.notify.onProfileChange();
+    }
+    nameEl.addEventListener('change', save);
+    teamEl.addEventListener('change', save);
+  };
+
   app.wireFilters = function () {
     const boxes = document.querySelectorAll('#type-filter input[type=checkbox]');
     // 데이터 없는 유형 비활성
@@ -270,6 +285,7 @@
       app.wireExport();
       app.wireData();
       app.wireTheme();
+      app.wireProfile();
     });
   };
   document.addEventListener('DOMContentLoaded', app.init);
