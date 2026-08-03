@@ -150,17 +150,28 @@ def post_task_message(
 
     def event_stream():
         reply_parts = []
-        for chunk in stream_chat_reply(
-            task.team, giganlist_dir, history, body.content, index_db_path=index_db_path
-        ):
-            reply_parts.append(chunk)
-            yield chunk
-        full_reply = "".join(reply_parts)
-        write_conn = get_connection(db_path)
+        completed = False
         try:
-            add_message(write_conn, task_id, "agent", full_reply)
-            update_draft_content(write_conn, task_id, full_reply)
+            for chunk in stream_chat_reply(
+                task.team, giganlist_dir, history, body.content, index_db_path=index_db_path
+            ):
+                reply_parts.append(chunk)
+                yield chunk
+            completed = True
         finally:
-            write_conn.close()
+            # M-2(대화창과 같은 이유): 끊겨도 받은 만큼은 남긴다. 다만 draft_content는
+            # 완결된 답변일 때만 갱신한다 — 반쪽 초안이 작성물로 굳으면 안 된다.
+            full_reply = "".join(reply_parts)
+            if full_reply and not completed:
+                full_reply += "\n\n…(응답이 중단되었습니다)"
+            if full_reply:
+                write_conn = get_connection(db_path)
+                try:
+                    add_message(write_conn, task_id, "agent", full_reply)
+                    if completed:
+                        update_draft_content(write_conn, task_id, full_reply)
+                finally:
+                    write_conn.close()
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    # SSE가 아니다 — 위 chat.py와 같은 이유(POST라 EventSource 불가, 프레이밍 없음).
+    return StreamingResponse(event_stream(), media_type="text/plain; charset=utf-8")

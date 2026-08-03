@@ -6,6 +6,7 @@
   const INTEREST_KEY = 'tbd.interest';
   const DATA_KEY = 'tbd.data';
   const THEME_KEY = 'tbd.mapTheme';
+  const PROFILE_KEY = 'tbd.profile';
   function LS() { return (typeof localStorage !== 'undefined') ? localStorage : null; }
   function read(key, fallback) {
     const ls = LS(); if (!ls) return fallback;
@@ -70,6 +71,24 @@
   store.isServerMode = function () { return serverList !== null; };
   store.loadData = function () { return serverList || read(DATA_KEY, null); };
   store.saveData = function (list) { write(DATA_KEY, list); };
+
+  // 내 프로필(이름·소속) — 쪽지함 조회 키이자 결재자 이름 기본값(계획 C2).
+  // 개인 선호라 localStorage에 둔다(서버 모드에서도 사람마다 다른 값이다).
+  store.loadProfile = function () {
+    const p = read(PROFILE_KEY, {}) || {};
+    return { name: p.name || '', team: p.team || '' };
+  };
+  store.saveProfile = function (profile) {
+    const p = profile || {};
+    write(PROFILE_KEY, { name: p.name || '', team: p.team || '' });
+    return store.loadProfile();
+  };
+  // 쪽지 수신자는 사람 이름이 아니라 **역할**로도 온다(영업팀·디자이너·인사권자 —
+  // agent/orchestrator의 notify 참조). 그래서 소속과 이름 둘 다로 조회해야 한다.
+  store.myRecipients = function () {
+    const p = store.loadProfile();
+    return [p.team, p.name].filter(function (v) { return !!v; });
+  };
 
   // 지도 테마(임박 5색 + 물결/깜빡임 색·주기) — IT 담당자가 화면에서 바꾼 값을 보존.
   // 저장값은 부분(partial)일 수 있어 render.applyTheme이 기본값 위에 덮어쓴다.

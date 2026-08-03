@@ -197,6 +197,9 @@ def main() -> None:
     parser.add_argument("--output-root", default=DEMO_OUTPUT_ROOT)
     args = parser.parse_args()
 
+    from backend.demo import _force_utf8_stdout   # cp949 콘솔에서 죽지 않게(demo.py와 동일)
+    _force_utf8_stdout()
+
     init_db(args.db).close()          # 컬럼 마이그레이션까지 확실히 적용된 상태로 시작
     if args.clear:
         conn = get_connection(args.db)

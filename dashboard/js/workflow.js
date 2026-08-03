@@ -373,7 +373,10 @@
         return '<option value="' + esc(r.institutionId) + '">' + esc(r.name) + '</option>';
       }).join('') + '</select>' +
       '<button id="wf-run">▶ 실행</button>' +
-      '<input id="wf-by" placeholder="결재자 이름" size="10">' +
+      // 결재자 이름은 프로필 값으로 미리 채운다 — 매번 입력하지 않게(계획 C2).
+      // 값을 강제하지는 않는다(다른 사람 이름으로 바꿔 넣을 수 있다).
+      '<input id="wf-by" placeholder="결재자 이름" size="10" value="' +
+        esc((root.store && root.store.loadProfile && root.store.loadProfile().name) || '') + '">' +
       '<input id="wf-comment" placeholder="의견(선택)" size="20">' +
       '<button id="wf-approve">승인</button>' +
       '<button id="wf-reject">반려</button>';

@@ -33,6 +33,17 @@ DEPENDENCY_HINT = """
 """
 
 
+def _force_utf8_stdout() -> None:
+    """Windows 기본 콘솔(cp949)에서 '—' 같은 글자를 찍다 UnicodeEncodeError로 죽는 것을 막는다.
+
+    PYTHONIOENCODING을 매번 붙이라고 안내하면 '명령 하나'라는 요점이 무너진다.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
+
+
 def _require_dependencies() -> None:
     """의존성이 없으면 traceback 대신 무엇을 하면 되는지 알려주고 멈춘다.
 
@@ -92,6 +103,7 @@ def build_app(institution: str = "dobong", stage: int = 9):
         graph_db_path=str(REPO_ROOT / DEMO_GRAPH_DB_PATH),
         archive_root=str(REPO_ROOT / DEMO_ARCHIVE_ROOT),
         static_dir=str(REPO_ROOT / "dashboard"),
+        demo=True,          # 화면이 계정 전환기를 띄우는 근거
     )
     return app, name_ko
 
@@ -105,6 +117,7 @@ def main() -> None:
     parser.add_argument("--no-serve", action="store_true", help="서버는 띄우지 않는다")
     args = parser.parse_args()
 
+    _force_utf8_stdout()
     _require_dependencies()
 
     if args.reset:

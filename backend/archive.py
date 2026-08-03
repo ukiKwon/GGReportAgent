@@ -30,6 +30,11 @@ def archive_institution(
     """
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     dest = os.path.join(archive_root, institution.name_ko, day)
+    # M-4: dest는 name_ko로 조립되는데 바로 아래에서 rmtree한다 — 기관명에 `..`가 섞이면
+    # 아카이브 밖 디렉터리를 지운다. 지우기 전에 뿌리 안쪽인지 확인한다.
+    root_abs = os.path.abspath(archive_root)
+    if os.path.commonpath([root_abs, os.path.abspath(dest)]) != root_abs:
+        raise ValueError(f"아카이브 경로가 뿌리를 벗어납니다: {institution.name_ko!r}")
     shutil.rmtree(dest, ignore_errors=True)
     os.makedirs(dest, exist_ok=True)
 
@@ -37,7 +42,8 @@ def archive_institution(
     copied = []
     if os.path.isdir(src_dir):
         for name in os.listdir(src_dir):
-            if name in ARTIFACT_NAMES or name.endswith(".pptx"):
+            # M-5: 확장자 대소문자로 제안서를 놓치면 아카이브에서 통째로 빠진다.
+            if name in ARTIFACT_NAMES or name.lower().endswith(".pptx"):
                 shutil.copy2(os.path.join(src_dir, name), os.path.join(dest, name))
                 copied.append(name)
 

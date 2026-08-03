@@ -137,7 +137,10 @@ class Notification(BaseModel):
     link: str | None = None
     created_at: str
     read_at: str | None = None
-    stage: int | None = None   # 나중에 붙은 컬럼 — 과거 행은 NULL
+    # 아래 둘은 나중에 붙은 컬럼 — 과거 행은 NULL. list_notifications가 SELECT *를
+    # Notification(**row)로 넘기므로 여기에 없으면 컬럼 추가 즉시 깨진다.
+    stage: int | None = None
+    sender: str | None = None   # 사람이 보낸 쪽지만. 시스템 알림은 None
 
 
 class ChatMessage(BaseModel):
@@ -146,3 +149,4 @@ class ChatMessage(BaseModel):
     role: str
     content: str
     created_at: str
+    author: str | None = None   # 나중에 붙은 컬럼 — 에이전트 답변과 과거 행은 NULL

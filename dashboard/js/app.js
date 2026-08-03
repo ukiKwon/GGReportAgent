@@ -55,16 +55,76 @@
   app.onTabChange = function (tab) {
     if (tab === 'regions') { root.render.drawRegionGrid(); root.render.drawPinBar(); }
     else if (tab === 'map') { root.render.applyWatchStyles(); }
-    if (root.workflow) {
-      if (tab === 'workflow') root.workflow.mount();
-      else root.workflow.unmount();   // 다른 탭으로 나가면 폴링 중단
-    }
+    // 탭을 벗어나면 폴링·스트림을 멈춘다(백그라운드에서 계속 돌지 않게).
+    [['workflow', root.workflow], ['chat', root.chat], ['knowledge', root.knowledge]]
+      .forEach(function (pair) {
+        const mod = pair[1];
+        if (!mod) return;
+        if (tab === pair[0]) { if (mod.mount) mod.mount(); }
+        else if (mod.unmount) mod.unmount();
+      });
   };
 
-  // 워크플로 탭은 서버 모드 전용 — 오케스트레이터 API가 없는 file://에서는 숨긴다.
+  // 워크플로·대화·지식 탭과 쪽지함은 서버 모드 전용 — API가 없는 file://에서는 숨긴다.
+  app.SERVER_ONLY_IDS = ['tab-btn-workflow', 'tab-btn-chat', 'tab-btn-knowledge', 'btn-notify'];
   app.applyServerModeUI = function () {
-    const btn = document.getElementById('tab-btn-workflow');
-    if (btn) btn.style.display = root.store.isServerMode() ? '' : 'none';
+    const on = root.store.isServerMode();
+    app.SERVER_ONLY_IDS.forEach(function (id) {
+      const elm = document.getElementById(id);
+      if (elm) elm.style.display = on ? '' : 'none';
+    });
+  };
+
+  // 내 프로필(이름·소속) — 쪽지함 조회 키이자 결재자 이름 기본값 (계획 C2).
+  app.wireProfile = function () {
+    const nameEl = document.getElementById('me-name');
+    const teamEl = document.getElementById('me-team');
+    if (!nameEl || !teamEl) return;
+    const p = root.store.loadProfile();
+    nameEl.value = p.name; teamEl.value = p.team;
+
+    function save() {
+      root.store.saveProfile({ name: nameEl.value.trim(), team: teamEl.value.trim() });
+      app.onProfileChanged();
+    }
+    nameEl.addEventListener('change', save);
+    teamEl.addEventListener('change', save);
+    app.loadAccountSwitcher();
+  };
+
+  // 프로필이 바뀌면 그 값을 쓰는 화면들을 따라 갱신한다.
+  app.onProfileChanged = function () {
+    if (root.notify && root.notify.onProfileChange) root.notify.onProfileChange();
+    // 워크플로 탭이 이미 그려져 있으면 결재자 입력도 새 이름으로 맞춘다.
+    const by = document.getElementById('wf-by');
+    if (by) by.value = root.store.loadProfile().name || '';
+  };
+
+  // 계정 전환기(데모 전용) — 목록은 서버가 실데이터에서 뽑아준다.
+  // 운영에서는 demo 플래그가 false라 아예 뜨지 않는다.
+  app.loadAccountSwitcher = function () {
+    const sel = document.getElementById('me-switch');
+    if (!sel) return;
+    return fetch('/accounts').then(function (r) {
+      if (!r.ok) throw new Error('accounts ' + r.status);
+      return r.json();
+    }).then(function (body) {
+      if (!body.demo || !body.accounts.length) { sel.style.display = 'none'; return; }
+      sel.innerHTML = '<option value="">계정 전환…</option>' + body.accounts.map(function (a) {
+        return '<option value="' + root.logic.esc(root.logic.accountValue(a)) + '">' +
+          root.logic.esc(root.logic.accountLabel(a)) + '</option>';
+      }).join('');
+      sel.style.display = '';
+      sel.onchange = function () {
+        if (!this.value) return;
+        const picked = root.logic.parseAccountValue(this.value);
+        document.getElementById('me-name').value = picked.name;
+        document.getElementById('me-team').value = picked.team;
+        root.store.saveProfile(picked);
+        app.onProfileChanged();
+        this.value = '';                 // 다음 전환을 위해 되돌린다(현재 값은 좌측 입력에 보인다)
+      };
+    }).catch(function () { sel.style.display = 'none'; });
   };
 
   app.wireFilters = function () {
@@ -270,6 +330,9 @@
       app.wireExport();
       app.wireData();
       app.wireTheme();
+      app.wireProfile();
+      // 쪽지함은 탭이 아니라 상시 버튼이라 여기서 한 번 켠다(미읽음 배지 30초 폴링).
+      if (root.notify && root.store.isServerMode()) root.notify.start();
     });
   };
   document.addEventListener('DOMContentLoaded', app.init);
