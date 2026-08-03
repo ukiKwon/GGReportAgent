@@ -82,12 +82,49 @@
     if (!nameEl || !teamEl) return;
     const p = root.store.loadProfile();
     nameEl.value = p.name; teamEl.value = p.team;
+
     function save() {
-      root.store.saveProfile({ name: nameEl.value.trim(), team: teamEl.value });
-      if (root.notify && root.notify.onProfileChange) root.notify.onProfileChange();
+      root.store.saveProfile({ name: nameEl.value.trim(), team: teamEl.value.trim() });
+      app.onProfileChanged();
     }
     nameEl.addEventListener('change', save);
     teamEl.addEventListener('change', save);
+    app.loadAccountSwitcher();
+  };
+
+  // 프로필이 바뀌면 그 값을 쓰는 화면들을 따라 갱신한다.
+  app.onProfileChanged = function () {
+    if (root.notify && root.notify.onProfileChange) root.notify.onProfileChange();
+    // 워크플로 탭이 이미 그려져 있으면 결재자 입력도 새 이름으로 맞춘다.
+    const by = document.getElementById('wf-by');
+    if (by) by.value = root.store.loadProfile().name || '';
+  };
+
+  // 계정 전환기(데모 전용) — 목록은 서버가 실데이터에서 뽑아준다.
+  // 운영에서는 demo 플래그가 false라 아예 뜨지 않는다.
+  app.loadAccountSwitcher = function () {
+    const sel = document.getElementById('me-switch');
+    if (!sel) return;
+    return fetch('/accounts').then(function (r) {
+      if (!r.ok) throw new Error('accounts ' + r.status);
+      return r.json();
+    }).then(function (body) {
+      if (!body.demo || !body.accounts.length) { sel.style.display = 'none'; return; }
+      sel.innerHTML = '<option value="">계정 전환…</option>' + body.accounts.map(function (a) {
+        return '<option value="' + root.logic.esc(root.logic.accountValue(a)) + '">' +
+          root.logic.esc(root.logic.accountLabel(a)) + '</option>';
+      }).join('');
+      sel.style.display = '';
+      sel.onchange = function () {
+        if (!this.value) return;
+        const picked = root.logic.parseAccountValue(this.value);
+        document.getElementById('me-name').value = picked.name;
+        document.getElementById('me-team').value = picked.team;
+        root.store.saveProfile(picked);
+        app.onProfileChanged();
+        this.value = '';                 // 다음 전환을 위해 되돌린다(현재 값은 좌측 입력에 보인다)
+      };
+    }).catch(function () { sel.style.display = 'none'; });
   };
 
   app.wireFilters = function () {

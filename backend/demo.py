@@ -103,6 +103,7 @@ def build_app(institution: str = "dobong", stage: int = 9):
         graph_db_path=str(REPO_ROOT / DEMO_GRAPH_DB_PATH),
         archive_root=str(REPO_ROOT / DEMO_ARCHIVE_ROOT),
         static_dir=str(REPO_ROOT / "dashboard"),
+        demo=True,          # 화면이 계정 전환기를 띄우는 근거
     )
     return app, name_ko
 

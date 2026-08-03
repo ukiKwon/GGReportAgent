@@ -214,3 +214,17 @@ test('separateLabelsY: 가로가 안 겹치면 세로가 겹쳐도 건드리지 
   const boxes = [ {x:100, y:50, w:40, h:14}, {x:400, y:52, w:40, h:14} ];
   assert.deepStrictEqual(logic.separateLabelsY(boxes), [0, 0]);
 });
+
+test('accountLabel: 사람은 "이름 (소속)", 역할만 있으면 그 사실을 드러낸다', () => {
+  assert.strictEqual(logic.accountLabel({ name: '김 차장', team: '영업' }), '김 차장 (영업)');
+  assert.strictEqual(logic.accountLabel({ name: null, team: '디자이너' }), '(역할만) 디자이너');
+  assert.strictEqual(logic.accountLabel({ name: '박 수석', team: null }), '박 수석');
+  assert.strictEqual(logic.accountLabel(null), '');
+});
+
+test('accountValue: 이름과 소속을 한 문자열로 (select value 왕복용)', () => {
+  assert.strictEqual(logic.accountValue({ name: '김 차장', team: '영업' }), '김 차장\u241f영업');
+  assert.deepStrictEqual(logic.parseAccountValue('김 차장\u241f영업'), { name: '김 차장', team: '영업' });
+  assert.deepStrictEqual(logic.parseAccountValue('\u241f디자이너'), { name: '', team: '디자이너' });
+  assert.deepStrictEqual(logic.parseAccountValue(''), { name: '', team: '' });
+});

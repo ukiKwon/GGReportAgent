@@ -24,6 +24,25 @@
     return String(s == null ? '' : s).replace(/\([^)]*\)\s*$/, '').trim().replace(/청$/, '');
   };
 
+  // 계정 전환기(데모 전용) 표기. 역할만 있는 항목은 사람이 아님을 드러낸다 —
+  // 시스템 알림이 역할 앞으로 오기 때문에 역할도 하나의 "계정"이 된다.
+  logic.accountLabel = function (a) {
+    if (!a) return '';
+    if (!a.name) return '(역할만) ' + (a.team || '');
+    return a.team ? a.name + ' (' + a.team + ')' : a.name;
+  };
+
+  // select의 value 하나에 이름·소속을 실어 왕복시킨다. 구분자는 사람이 입력할 수 없는
+  // 제어문자(U+241F)라 이름이나 팀명과 충돌하지 않는다.
+  const ACCOUNT_SEP = '␟';
+  logic.accountValue = function (a) {
+    return ((a && a.name) || '') + ACCOUNT_SEP + ((a && a.team) || '');
+  };
+  logic.parseAccountValue = function (v) {
+    const parts = String(v == null ? '' : v).split(ACCOUNT_SEP);
+    return { name: parts[0] || '', team: parts[1] || '' };
+  };
+
   logic.URGENCY = { RED:'red', ORANGE:'orange', YELLOW:'yellow', BLUE:'blue', GRAY:'gray' };
 
   // 지도 라벨 겹침 해소(순수 계산). boxes: [{x,y,w,h}] — y는 라벨 중심.
