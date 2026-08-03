@@ -123,7 +123,16 @@
       let acc = '';
       function pump() {
         return reader.read().then(function (res) {
-          if (res.done) return;
+          if (res.done) {
+            // LLM 엔드포인트가 죽어 있으면 200인데 본문이 0바이트로 끝난다.
+            // 빈 말풍선만 남기면 왜 답이 없는지 알 수 없다.
+            if (!acc && selectedId === id) {
+              messages[replyIndex].content =
+                '(응답을 받지 못했습니다 — LLM 엔드포인트가 켜져 있는지 확인하세요)';
+              repaint();
+            }
+            return;
+          }
           acc += decoder.decode(res.value, { stream: true });
           if (selectedId === id) { messages[replyIndex].content = acc; repaint(); }
           return pump();
