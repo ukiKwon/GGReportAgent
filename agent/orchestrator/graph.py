@@ -85,13 +85,14 @@ def _gate_plan(recorder, state):
     decision = _decision("기획승인", 5)
     if decision["approved"]:
         recorder.set_stage(6)
-        recorder.message("영업", "human", f"기획 승인 — {decision['by']}")
+        recorder.message("영업", "human", f"기획 승인 — {decision['by']}", author=decision["by"])
         # interrupt() 이후 코드 — resume 1회당 딱 한 번만 실행되므로 여기서 notify해도
         # 중복이 없다(게이트 재실행은 항상 interrupt() 앞부분까지만 다시 돈다).
         recorder.notify("영업팀", "결재요청", "이관결재 대기 — 기획승인 완료, 이관 여부를 결재해주세요.")
         return Command(goto="gate_handoff", update={"stage": 6, "revision_note": None})
     comment = decision.get("comment")
-    recorder.message("영업", "human", f"기획 반려 — {comment or '(사유 없음)'}")
+    recorder.message("영업", "human", f"기획 반려 — {comment or '(사유 없음)'}",
+                     author=decision.get("by"))
     # sections는 merge_sections(new=None)로 명시적 리셋 — 구본 3건을 비운 뒤
     # 다음 슈퍼스텝에서 재팬아웃 3건만 쌓이게 한다(리뷰 Major 픽스).
     return Command(
@@ -103,20 +104,22 @@ def _gate_plan(recorder, state):
 def _gate_handoff(recorder, state):
     decision = _decision("이관결재", 6)
     if decision["approved"]:
-        recorder.message("취합", "human", f"이관 결재 — {decision['by']}")
+        recorder.message("취합", "human", f"이관 결재 — {decision['by']}", author=decision["by"])
         return Command(goto="packager", update={"stage": 7})
     comment = decision.get("comment")
-    recorder.message("영업", "human", f"이관 반려 — {comment or '(사유 없음)'}")
+    recorder.message("영업", "human", f"이관 반려 — {comment or '(사유 없음)'}",
+                     author=decision.get("by"))
     return Command(goto="gate_plan", update={"revision_note": comment})
 
 
 def _gate_final(recorder, state):
     decision = _decision("최종결재", 8)
     if decision["approved"]:
-        recorder.message("검증", "human", f"최종 결재 — {decision['by']}")
+        recorder.message("검증", "human", f"최종 결재 — {decision['by']}", author=decision["by"])
         return Command(goto="finish")
     comment = decision.get("comment")
-    recorder.message("검증", "human", f"최종 반려 — {comment or '(사유 없음)'}")
+    recorder.message("검증", "human", f"최종 반려 — {comment or '(사유 없음)'}",
+                     author=decision.get("by"))
     return Command(goto="packager", update={"revision_note": comment})
 
 

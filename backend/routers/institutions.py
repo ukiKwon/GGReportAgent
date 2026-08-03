@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
@@ -107,6 +108,46 @@ def get_institution_artifacts(institution_id: str, request: Request) -> dict:
         "rfp_path": institution.rfp_path,
         "pptx_path": institution.pptx_path,
     }
+
+
+@router.get("/{institution_id}/coverage-map")
+def get_coverage_map(institution_id: str, request: Request) -> dict:
+    """배점표 항목 ↔ 팀 작성물 커버리지 병합 — 배점표 매핑 뷰(계획 C1)의 데이터원."""
+    conn = _conn(request)
+    try:
+        institution = get_institution(conn, institution_id)
+    finally:
+        conn.close()
+    if institution is None:
+        raise HTTPException(status_code=404, detail="institution not found")
+
+    out_dir = Path(request.app.state.output_root) / institution.name_ko
+    scoring_path = out_dir / "rfp_scoring.json"
+    if not scoring_path.is_file():
+        # 아직 3단계(배점표 추출) 전 — 빈 상태가 정상이다.
+        return {"criteria": [], "total_score": 0}
+    scoring = json.loads(scoring_path.read_text(encoding="utf-8"))
+
+    coverage_path = out_dir / "coverage_map.json"
+    coverage = (
+        json.loads(coverage_path.read_text(encoding="utf-8"))
+        if coverage_path.is_file()
+        else {}
+    )
+
+    criteria = []
+    for c in scoring.get("criteria", []):
+        cov = coverage.get(c["item"], {})
+        criteria.append({
+            "category": c.get("category"),
+            "item": c["item"],
+            "score": c.get("score"),
+            "team": cov.get("team"),
+            "covered": bool(cov.get("covered", False)),
+            "gap_note": cov.get("gap_note"),
+            "pii_count": cov.get("pii_count", 0),
+        })
+    return {"criteria": criteria, "total_score": scoring.get("total_score", 0)}
 
 
 @router.post("/{institution_id}/corpus/validate")

@@ -51,3 +51,30 @@ def test_notify_writes_notification(tmp_path):
     assert len(notes) == 1
     assert notes[0].kind == "되물음"
     assert notes[0].institution_id == "nowon"
+
+
+def test_message_records_author_and_current_stage(tmp_path):
+    """단계별 수행 내용 뷰(계획 C1-fix)를 위해 메시지에 작성자와 단계가 남아야 한다."""
+    db_path, conn = _setup(tmp_path)
+    rec = DbRecorder(db_path, "nowon", "bc-1")
+    rec.set_stage(6)
+    rec.message("영업", "human", "기획 승인 — 김 차장", author="김 차장")
+
+    row = conn.execute("SELECT * FROM messages").fetchone()
+    assert row["author"] == "김 차장"
+    assert row["stage"] == 6
+
+
+def test_recorder_starts_from_institution_stage(tmp_path):
+    """set_stage 없이 기록해도 DB의 현재 단계로 찍힌다(기관 stage=2로 시딩됨)."""
+    db_path, conn = _setup(tmp_path)
+    DbRecorder(db_path, "nowon", "bc-1").message("영업", "agent", "초안 작성 완료")
+    assert conn.execute("SELECT stage FROM messages").fetchone()["stage"] == 2
+
+
+def test_notify_records_current_stage(tmp_path):
+    db_path, conn = _setup(tmp_path)
+    rec = DbRecorder(db_path, "nowon", "bc-1")
+    rec.set_stage(8)
+    rec.notify("인사권자", "결재요청", "최종결재 대기")
+    assert conn.execute("SELECT stage FROM notifications").fetchone()["stage"] == 8

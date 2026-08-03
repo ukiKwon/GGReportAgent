@@ -22,17 +22,26 @@ def list_messages(conn: sqlite3.Connection, task_id: str) -> list[Message]:
     return [Message(**dict(row)) for row in cursor.fetchall()]
 
 
-def add_message(conn: sqlite3.Connection, task_id: str, role: str, content: str) -> Message:
+def add_message(
+    conn: sqlite3.Connection,
+    task_id: str,
+    role: str,
+    content: str,
+    author: str | None = None,
+    stage: int | None = None,
+) -> Message:
+    """author·stage는 선택 인자다 — 모르는 호출부는 안 넘기면 되고, 그 행은 NULL로 남는다."""
     message_id = f"msg-{secrets.token_hex(4)}"
     created_at = datetime.now(timezone.utc).isoformat()
     conn.execute(
-        "INSERT INTO messages (message_id, task_id, role, content, created_at) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (message_id, task_id, role, content, created_at),
+        "INSERT INTO messages (message_id, task_id, role, content, created_at, author, stage) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (message_id, task_id, role, content, created_at, author, stage),
     )
     conn.commit()
     return Message(
-        message_id=message_id, task_id=task_id, role=role, content=content, created_at=created_at
+        message_id=message_id, task_id=task_id, role=role, content=content,
+        created_at=created_at, author=author, stage=stage,
     )
 
 
