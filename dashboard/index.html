@@ -126,6 +126,11 @@
   .wf-badge.ok   { color:var(--blue);   border-color:var(--blue);   background:color-mix(in srgb, var(--blue) 20%, transparent); }
   .wf-badge.gap  { color:var(--orange); border-color:var(--orange); background:color-mix(in srgb, var(--orange) 20%, transparent); }
   .wf-badge.none { color:var(--red);    border-color:var(--red);    background:color-mix(in srgb, var(--red) 20%, transparent); }
+  /* 참여 결정 3차 결재 (계획 D) */
+  #wf-participation .wf-cov tr.done td { color:var(--muted); }
+  #wf-participation .wf-cov tr.current td { border-left:3px solid var(--accent-color); }
+  .wf-dec { background:var(--bg); color:var(--fg); border:1px solid var(--line);
+            border-radius:6px; padding:2px 12px; cursor:pointer; margin-right:4px; }
   .wf-log { margin-top:10px; }
   .wf-log-title { font-size:13px; margin:6px 0 2px; }
   .wf-log-row { border-top:1px solid var(--line); padding:6px 0; font-size:12px; }
@@ -269,6 +274,7 @@
 
 <section id="tab-workflow" class="tab-view">
   <div id="wf-controls"></div>
+  <div id="wf-participation"></div>
   <div id="wf-panel"></div>
   <div id="wf-coverage"></div>
   <div id="wf-log"></div>

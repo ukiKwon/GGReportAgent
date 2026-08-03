@@ -70,6 +70,36 @@
     });
   };
 
+  // 참여 결정은 **3차 순차 결재**다(backend/bidcase_repository.submit_participation_decision) —
+  // tier 3까지 '참여'가 모여야 participation_status가 '참여확정'이 된다. 버튼 하나가 아니다.
+  workflow.DECISION_TIERS = 3;
+
+  workflow.participationRows = function (record) {
+    if (!record || !record.bidCaseId) return [];        // 공고가 없으면 카드를 그리지 않는다
+    const decided = (record.participationDecision || []).slice(0, workflow.DECISION_TIERS);
+    const open = record.participationStatus === '검토중';
+    const rows = [];
+    for (let tier = 1; tier <= workflow.DECISION_TIERS; tier += 1) {
+      const d = decided[tier - 1];
+      rows.push({
+        tier: tier,
+        role: (d && d.role) || null,
+        by: (d && d.by) || null,
+        choice: (d && d.choice) || null,
+        at: (d && d.at) || null,
+        state: d ? 'done' : (open && tier === decided.length + 1 ? 'current' : 'todo'),
+      });
+    }
+    return rows;
+  };
+
+  workflow.nextDecisionTier = function (record) {
+    const current = workflow.participationRows(record).filter(function (r) {
+      return r.state === 'current';
+    })[0];
+    return current ? current.tier : null;
+  };
+
   // ok=작성 완료, gap=담당팀은 있는데 미충족, none=아무도 안 맡음
   workflow.coverageRows = function (payload) {
     return ((payload && payload.criteria) || []).map(function (c) {
@@ -133,6 +163,35 @@
   function esc(s) {
     return (root.logic && root.logic.esc) ? root.logic.esc(s) : String(s == null ? '' : s);
   }
+
+  const CHOICES = ['참여', '미참여', '보류'];
+
+  // 참여 결정 카드 — 스테퍼보다 앞선 단계(1·2단계)의 일이라 현황판 맨 위에 둔다.
+  workflow.renderParticipation = function (el, record) {
+    const rows = workflow.participationRows(record);
+    if (!rows.length) {
+      el.innerHTML = '<p class="wf-empty">반입된 공고가 없어 참여 결정을 할 수 없습니다 ' +
+        '— 배치 반입(§5) 또는 CSV 반입이 먼저입니다.</p>';
+      return;
+    }
+    el.innerHTML =
+      '<div class="wf-cards-title">참여 결정 <span class="wf-badge ' +
+        (record.participationStatus === '참여확정' ? 'ok' :
+          record.participationStatus === '검토중' ? 'gap' : 'none') + '">' +
+        esc(record.participationStatus || '검토중') + '</span></div>' +
+      '<table class="wf-cov"><tbody>' + rows.map(function (r) {
+        const cells = r.state === 'done'
+          ? '<td>' + esc(r.role || '-') + '</td><td>' + esc(r.by || '-') + '</td>' +
+            '<td>' + esc(r.choice) + '</td><td>' + esc((r.at || '').slice(0, 16)) + '</td>'
+          : r.state === 'current'
+            ? '<td colspan="4">' + CHOICES.map(function (c) {
+                return '<button class="wf-dec" data-tier="' + r.tier + '" data-choice="' + c +
+                  '">' + c + '</button>';
+              }).join(' ') + '</td>'
+            : '<td colspan="4" class="wf-empty">대기</td>';
+        return '<tr class="' + r.state + '"><td>' + r.tier + '차</td>' + cells + '</tr>';
+      }).join('') + '</tbody></table>';
+  };
 
   workflow.renderPanel = function (el, status, coverage, timeline, stageNo) {
     const counts = workflow.stageCounts(timeline);
@@ -288,8 +347,17 @@
   }
 
   // 현황판을 통째로 다시 그린다 — 카드가 단계에 딸려 있어 단계가 바뀌면 카드도 바뀐다.
+  // 선택한 기관의 대시보드 레코드 — 공고 일정·참여 결정이 여기 실려 있다(계획 D).
+  function currentRecord() {
+    return (root.store.loadData() || []).filter(function (r) {
+      return r.institutionId === selectedId;
+    })[0] || null;
+  }
+
   function repaint() {
     if (!lastStatus) return;
+    workflow.renderParticipation(el('wf-participation'), currentRecord());
+    wireDecisions();
     workflow.renderPanel(el('wf-panel'), lastStatus, lastCoverage, lastTimeline, selectedStage);
     workflow.renderCoverage(el('wf-coverage'), lastCoverage);
     wireCards();
@@ -343,6 +411,46 @@
     selectedTaskId = null;
     logMode = 'stage';
     repaint();
+  }
+
+  function wireDecisions() {
+    el('wf-participation').querySelectorAll('.wf-dec').forEach(function (btn) {
+      btn.onclick = function () { submitDecision(Number(btn.dataset.tier), btn.dataset.choice); };
+    });
+  }
+
+  function submitDecision(tier, choice) {
+    const rec = currentRecord();
+    if (!rec || !rec.bidCaseId) return;
+    const me = root.store.loadProfile();
+    if (!me.name || !me.team) {
+      alert('상단에서 이름·소속을 먼저 입력하세요 — 결재 기록에 남습니다.');
+      return;
+    }
+    if (!confirm(tier + '차 결재: "' + choice + '" 로 제출합니다.\n결재자: ' +
+                 me.team + ' ' + me.name)) return;
+
+    fetch('/bidcases/' + encodeURIComponent(rec.bidCaseId) + '/participation-decisions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      // 한글 이름·소속은 헤더가 아니라 body로(X-User-Id는 ASCII만).
+      body: JSON.stringify({ tier: tier, role: me.team, by: me.name, choice: choice }),
+    }).then(function (r) {
+      return r.json().then(function (body) {
+        if (!r.ok) throw new Error((body && body.detail) || ('결재 실패 (' + r.status + ')'));
+        return body;
+      });
+    }).then(function (body) {
+      if (body.participation_status === '참여확정') {
+        alert(body.run_started
+          ? '참여확정 — 입찰 분석(3·4단계)을 시작했습니다.'
+          : '참여확정 — 다만 분석을 자동으로 시작하지 못했습니다. 쪽지함을 확인하세요.');
+      }
+      // 지도와 카드가 같은 값을 보도록 목록을 다시 받는다.
+      return root.app.bootstrapServer().then(function () {
+        refresh();
+        if (root.render && root.render.drawTicker) root.render.drawTicker();
+      });
+    }).catch(function (e) { alert(e.message || '서버 연결 실패 — 처리되지 않았습니다.'); });
   }
 
   function syncButtons() {
