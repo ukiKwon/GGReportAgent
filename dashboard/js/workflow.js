@@ -100,6 +100,32 @@
         (sum.piiTotal ? ' · ⚠️ 개인정보 ' + sum.piiTotal + '건' : '') + '</div>';
   };
 
+  const COV_LABEL = { ok: '작성됨', gap: '미충족', none: '미배정' };
+
+  workflow.renderCoverage = function (el, coverage) {
+    const rows = workflow.coverageRows(coverage);
+    if (!rows.length) {
+      el.innerHTML = '<p class="wf-empty">배점표가 아직 없습니다 — 3단계(RFI 공시·배점표 추출) 이후에 표시됩니다.</p>';
+      return;
+    }
+    const sum = workflow.coverageSummary(coverage);
+    el.innerHTML =
+      '<div class="wf-sum">배점표 매핑 — 작성 ' + sum.covered + '/' + sum.total + '항목 · ' +
+        sum.coveredScore + '/' + sum.totalScore + '점' +
+        (sum.piiTotal ? ' · ⚠️ 개인정보 ' + sum.piiTotal + '건' : '') + '</div>' +
+      '<table class="wf-cov"><thead><tr><th>평가항목</th><th>분류</th><th>배점</th>' +
+      '<th>담당팀</th><th>상태</th><th>개인정보</th><th>비고</th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        return '<tr class="' + r.state + '"><td>' + esc(r.item) + '</td>' +
+          '<td>' + esc(r.category == null ? '-' : r.category) + '</td>' +
+          '<td>' + esc(r.score == null ? '-' : r.score) + '</td>' +
+          '<td>' + esc(r.team || '-') + '</td>' +
+          '<td>' + COV_LABEL[r.state] + '</td>' +
+          '<td>' + (r.piiCount ? '⚠️ ' + r.piiCount : '-') + '</td>' +
+          '<td>' + esc(r.gapNote || '') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  };
+
   workflow.renderLog = function (el, detail) {
     const rows = workflow.logRows(detail);
     if (!rows.length) { el.innerHTML = '<p class="wf-empty">이 작업에는 아직 기록된 지시·보고가 없습니다.</p>'; return; }
@@ -141,6 +167,7 @@
       if (selectedId !== id) return;               // 폴링 중 기관이 바뀌었으면 버린다
       lastStatus = res[0];
       workflow.renderPanel(el('wf-panel'), res[0], res[1]);
+      workflow.renderCoverage(el('wf-coverage'), res[1]);
       wireCards();
       syncButtons();
       // 돌고 있을 때만 계속 본다 — 멈춰 있으면 폴링도 멈춘다.
