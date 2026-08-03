@@ -228,3 +228,18 @@ test('nextDecisionTier: 다음에 보낼 tier — 끝났으면 null', function (
   assert.strictEqual(wf.nextDecisionTier({ bidCaseId: 'b', participationStatus: '참여확정' }), null);
   assert.strictEqual(wf.nextDecisionTier(null), null);
 });
+
+test('consistencyRows: 어긋난 항목만 메시지와 함께', function () {
+  const rows = wf.consistencyRows({ ok: false, findings: [
+    { institution_id: 'dobong', name_ko: '도봉구', rule: 'stage_without_confirmation',
+      why: '참여 결정 전에 워크플로가 진행됐다', message: '도봉구: 9단계까지…' },
+  ] });
+  assert.strictEqual(rows.length, 1);
+  assert.strictEqual(rows[0].rule, 'stage_without_confirmation');
+  assert.strictEqual(rows[0].why, '참여 결정 전에 워크플로가 진행됐다');
+});
+
+test('consistencyRows: 정상이면 빈 배열', function () {
+  assert.deepStrictEqual(wf.consistencyRows({ ok: true, findings: [] }), []);
+  assert.deepStrictEqual(wf.consistencyRows(null), []);
+});

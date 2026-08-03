@@ -93,6 +93,22 @@
     return rows;
   };
 
+  // 정합성 점검 결과(GET /consistency) — 규칙으로 어긋난 것만 온다.
+  workflow.consistencyRows = function (payload) {
+    return ((payload && payload.findings) || []).map(function (f) {
+      return { rule: f.rule, why: f.why, message: f.message, institutionId: f.institution_id };
+    });
+  };
+
+  workflow.renderConsistency = function (el, payload) {
+    const rows = workflow.consistencyRows(payload);
+    if (!rows.length) { el.innerHTML = ''; return; }   // 정상이면 아무것도 그리지 않는다
+    el.innerHTML = '<div class="wf-warn">' + rows.map(function (r) {
+      return '<div class="wf-warn-row">⚠️ <b>' + esc(r.why) + '</b><br>' +
+        esc(r.message) + '</div>';
+    }).join('') + '</div>';
+  };
+
   workflow.nextDecisionTier = function (record) {
     const current = workflow.participationRows(record).filter(function (r) {
       return r.state === 'current';
@@ -306,6 +322,7 @@
   let logMode = 'stage';         // 'stage' | 'task'
   let lastTimeline = null;
   let lastCoverage = null;
+  let lastConsistency = null;
 
   function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
   function startPolling() { stopPolling(); pollTimer = setInterval(function () { refresh(); }, POLL_MS); }
@@ -331,11 +348,15 @@
       getJson('/institutions/' + encodeURIComponent(id) + '/timeline').catch(function () {
         return { events: [] };
       }),
+      getJson('/consistency?institution_id=' + encodeURIComponent(id)).catch(function () {
+        return { findings: [] };
+      }),
     ]).then(function (res) {
       if (selectedId !== id) return;               // 폴링 중 기관이 바뀌었으면 버린다
       lastStatus = res[0];
       lastCoverage = res[1];
       lastTimeline = res[2];
+      lastConsistency = res[3];
       if (selectedStage === null) selectedStage = Number(res[0].stage) || 1;
       repaint();
       // 돌고 있을 때만 계속 본다 — 멈춰 있으면 폴링도 멈춘다.
@@ -356,6 +377,7 @@
 
   function repaint() {
     if (!lastStatus) return;
+    workflow.renderConsistency(el('wf-warn'), lastConsistency);
     workflow.renderParticipation(el('wf-participation'), currentRecord());
     wireDecisions();
     workflow.renderPanel(el('wf-panel'), lastStatus, lastCoverage, lastTimeline, selectedStage);
@@ -497,6 +519,7 @@
       lastStatus = null;
       lastCoverage = null;
       lastTimeline = null;
+      lastConsistency = null;
       selectedTaskId = null;
       selectedStage = null;      // 새 기관의 현재 단계로 다시 잡힌다
       logMode = 'stage';

@@ -126,6 +126,11 @@
   .wf-badge.ok   { color:var(--blue);   border-color:var(--blue);   background:color-mix(in srgb, var(--blue) 20%, transparent); }
   .wf-badge.gap  { color:var(--orange); border-color:var(--orange); background:color-mix(in srgb, var(--orange) 20%, transparent); }
   .wf-badge.none { color:var(--red);    border-color:var(--red);    background:color-mix(in srgb, var(--red) 20%, transparent); }
+  /* 정합성 경고 (계획 E) — 어긋난 게 없으면 아예 그리지 않는다 */
+  .wf-warn { margin:10px 0; }
+  .wf-warn-row { border:1px solid var(--red); border-radius:8px; padding:8px 10px;
+                 margin-bottom:6px; font-size:12px;
+                 background:color-mix(in srgb, var(--red) 14%, transparent); }
   /* 참여 결정 3차 결재 (계획 D) */
   #wf-participation .wf-cov tr.done td { color:var(--muted); }
   #wf-participation .wf-cov tr.current td { border-left:3px solid var(--accent-color); }
@@ -274,6 +279,7 @@
 
 <section id="tab-workflow" class="tab-view">
   <div id="wf-controls"></div>
+  <div id="wf-warn"></div>
   <div id="wf-participation"></div>
   <div id="wf-panel"></div>
   <div id="wf-coverage"></div>
