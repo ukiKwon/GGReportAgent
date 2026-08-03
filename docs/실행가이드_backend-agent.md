@@ -553,30 +553,48 @@ py -3 -m uvicorn backend.main:app --port 8000   # 저장소 루트에서
 현황은 **2초 주기**로 갱신되며, **실행 중일 때만** 돈다 — 멈춰 있거나 다른 탭으로 나가면
 폴링도 멈춘다(불필요한 요청 없음). 실행·결재 버튼을 누른 직후에는 자동으로 다시 붙는다.
 
-### 데모 데이터로 화면 확인하기
+### 데모 데이터로 화면 확인하기 — 명령 하나
 
 실제로 그래프를 끝까지 돌리지 않고도 9단계 전 구간이 채워진 화면을 보려면:
 
 ```bash
-py -3 -m backend.seed                  # (최초 1회) 기관 25건 등록
-py -3 -m backend.demo_seed             # 도봉구에 데모 투입 (기본 stage 9)
-py -3 -m backend.demo_seed --institution nowon --stage 6
-py -3 -m backend.demo_seed --clear     # 데모 전부 삭제
+py -3 -m backend.demo          # 시딩 + 데모 투입 + 서버 기동까지 한 번에
+# → http://localhost:8000/  에서 [워크플로] 탭
 ```
+
+```bash
+py -3 -m backend.demo --port 8123
+py -3 -m backend.demo --institution nowon --stage 6
+py -3 -m backend.demo --reset               # 데모 자료를 통째로 지우고 새로 만든다
+py -3 -m backend.demo --reset --no-serve    # 지우기만
+```
+
+**데모는 개발/운영 자료와 파일이 갈려 있다**(`backend/demo_paths.py`). 데모가 운영
+자료를 건드릴 수 있는 경로 자체가 없고, 정리는 파일 삭제 한 번이면 끝난다.
+
+| | 개발/운영 | 데모 |
+|---|---|---|
+| DB | `data/registry.db` | `data/demo.db` |
+| 산출물 | `data/report_new/` | `data/demo_report_new/` |
+| 그래프 체크포인트 | `data/graph_checkpoints.db` | `data/demo_graph.db` |
+| 아카이브 | `data/report_archive/` | `data/demo_report_archive/` |
+| 실행 | `py -3 -m uvicorn backend.main:app` | `py -3 -m backend.demo` |
+
+경로는 `create_app`에 직접 넘기므로 **운영용 `REGISTRY_DB_PATH`가 설정돼 있어도 데모에
+영향이 없다.** `data/`는 통째로 gitignore 대상이라 어느 쪽도 커밋되지 않는다.
 
 들어가는 것: 팀 작업 6건(`RFI분석`·`영업`·`전산`·`예산`·`취합`·`검증`, 담당자 김 차장·
 권 차장·정 대리·박 수석) + 1~9단계 지시·보고·결재 메시지 23건 + 알림 6건 +
 배점표 6항목(작성됨 3·미충족 2·미배정 1, 개인정보 1건). 배지 3색과 단계별 로그를
-한 화면에서 다 볼 수 있게 짠 조합이다.
+한 화면에서 다 볼 수 있게 짠 조합이다. 문구를 바꾸려면 `backend/demo_seed.py` 상단의
+`TEAMS`·`MESSAGES`·`NOTIFICATIONS`·`SCORING`·`COVERAGE`를 고치고 다시 실행하면 된다.
 
-- 모든 행 id가 `demo-` 접두사라 `--clear`가 **데모 행만** 지운다(다른 bid_case·task는
-  안 건드림). **단, `institutions.stage`는 예외다** — 데모 투입이 그 기관의 stage를
-  `--stage` 값으로 바꾸는데, `demo-` 행이 아니라 실제 기관 행이라 `--clear`가 되돌리지
-  않는다. 원래 값으로 돌리려면 `--stage <원래값>`으로 다시 넣거나 직접 UPDATE해야 한다.
-  (데모용 DB를 따로 쓰도록 분리하는 것이 후속 과제로 잡혀 있다 — `handoff/NEXT.md`.)
 - 같은 명령을 여러 번 돌려도 중복이 쌓이지 않는다(넣기 전에 스스로 지운다).
+- 데이터만 다시 깔고 서버는 그대로 두려면 `py -3 -m backend.demo_seed`
+  (기본 대상이 `data/demo.db`다 — 운영 DB로 가지 않는다).
 - **`rfp_text.txt`는 일부러 만들지 않는다.** `agent/pipeline.py`의 `RFP_ARTIFACTS`가
   둘 다 있어야 참이라, 없으면 `POST /run`이 400으로 막혀 실수로 LLM 실행이 시작되지
   않는다. 즉 데모 상태에서 [▶ 실행]을 눌러도 안전하다.
-- `data/registry.db`와 `data/report_new/`는 gitignore 대상이라 데모 데이터 자체는
-  커밋되지 않는다.
+- **파이썬이 여러 개 깔린 PC**에서는 `py -3`가 패키지 없는 버전을 가리킬 수 있다.
+  그럴 때 `backend.demo`는 traceback 대신 무엇을 하면 되는지(설치 명령 / 다른 런처로
+  재실행 / `py -0`로 목록 확인) 알려주고 멈춘다.
