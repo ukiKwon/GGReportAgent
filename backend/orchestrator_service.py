@@ -59,6 +59,22 @@ class OrchestratorService:
         t.start()
 
     # -- 공개 API ---------------------------------------------------------
+    @staticmethod
+    def build_run_input(institution, output_root: str) -> dict:
+        """그래프 시작 입력. 실행 경로가 둘(POST /run, 참여확정 자동 시작)이라 한곳에 둔다."""
+        return {
+            "institution_id": institution.institution_id,
+            "institution_name": institution.name_ko,
+            "giganlist_dir": "corpus/institutions",
+            "report_new_dir": output_root,
+            # 반입 안 됐으면 None 유지 — rfi_agent가 산출물 존재로 판단한다.
+            "rfp_path": institution.rfp_path,
+            "stage": institution.stage,
+            "sections": [],
+            # F6: institution_match_node의 기본값("report_archive")과 동일하게 명시 배선.
+            "archive_dir": "report_archive",
+        }
+
     def start(self, institution_id: str, run_input: dict) -> None:
         with self._lock:
             if institution_id in self._running:

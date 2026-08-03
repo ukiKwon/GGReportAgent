@@ -35,18 +35,7 @@ def post_run(institution_id: str, request: Request):
     # artifacts_exist를 다시 확인해 rfp_extract_node를 건너뛴다(agent/orchestrator/subagents.py).
     if not inst.rfp_path and not artifacts_exist(request.app.state.output_root, inst.name_ko):
         raise HTTPException(status_code=400, detail="공고문(rfp_path) 미반입 — 배치 반입이 먼저다")
-    run_input = {
-        "institution_id": inst.institution_id,
-        "institution_name": inst.name_ko,
-        "giganlist_dir": "corpus/institutions",
-        "report_new_dir": request.app.state.output_root,
-        "rfp_path": inst.rfp_path,  # 반입 안 됐으면 None 유지 — rfi_agent가 산출물 존재로 판단
-        "stage": inst.stage,
-        "sections": [],
-        # F6: institution_match_node의 기본값("report_archive")과 동일하게 명시 배선.
-        # 아카이브 완료 산출물(report_archive)의 실제 승격 경로 통일은 후속 과제.
-        "archive_dir": "report_archive",
-    }
+    run_input = _svc(request).build_run_input(inst, request.app.state.output_root)
     try:
         _svc(request).start(institution_id, run_input)
     except RuntimeError:
