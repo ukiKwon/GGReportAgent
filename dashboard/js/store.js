@@ -27,14 +27,33 @@
     a.splice(to, 0, x); store.saveWatch(a); return a;
   };
 
+  // 서버 registry에 대응 필드가 없는 것들 — 서버 모드에서도 localStorage overlay가
+  // 유일한 저장처다. 서버 필드(name·type·region·term·lastBid·contractEnd)를 overlay가
+  // 덮으면 타 사용자의 서버 변경이 화면에 영영 안 나온다(계획 B 최종리뷰 F4).
+  // logic.ALL_FIELDS의 부분집합이지만 여기 두는 이유: store.js는 다른 모듈을 참조하지
+  // 않는 구조라, 전역/require 이중 참조를 만드는 대신 자체 상수로 둔다.
+  store.LOCAL_ONLY_FIELDS = ['subRegion', 'confirmed', 'lng', 'lat', 'sources', 'updatedAt'];
+
   store.loadEdits = function () { return read(EDIT_KEY, {}); };
+  // 저장은 필터링하지 않는다 — 서버↔폴백을 오가도 로컬 편집 이력이 보존돼야 하고,
+  // 폴백 모드에서는 그 값이 여전히 유일한 진실이기 때문. 필터는 적용(applyEdits) 시점에.
   store.setEdit = function (name, partial) {
     const e = store.loadEdits(); e[name] = Object.assign({}, e[name], partial);
     write(EDIT_KEY, e); return e;
   };
   store.applyEdits = function (list) {
     const e = store.loadEdits();
-    return list.map(function (r) { return e[r.name] ? Object.assign({}, r, e[r.name]) : r; });
+    const serverMode = store.isServerMode();
+    return list.map(function (r) {
+      const patch = e[r.name];
+      if (!patch) return r;
+      if (!serverMode) return Object.assign({}, r, patch);   // file://에선 overlay가 유일 저장소
+      const filtered = {};
+      store.LOCAL_ONLY_FIELDS.forEach(function (f) {
+        if (Object.prototype.hasOwnProperty.call(patch, f)) filtered[f] = patch[f];
+      });
+      return Object.assign({}, r, filtered);
+    });
   };
 
   store.loadInterest = function () { return read(INTEREST_KEY, []); };
