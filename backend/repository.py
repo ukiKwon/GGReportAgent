@@ -116,17 +116,36 @@ def update_institution(
     return get_institution(conn, institution_id)
 
 
+# 25개 모두 서울 자치구다 — 지도가 구 폴리곤에 붙이려면 이 둘이 있어야 한다.
+# region이 없으면 institutionsByRegion에서 걸러져 지도에 아예 안 뜨고,
+# type이 없으면 랭킹 카드 기관구분이 'undefined'로 찍힌다(실제로 그렇게 보였다).
+SEOUL_REGION_CODE = "11"
+DISTRICT_TYPE = "지자체"
+
+
 def seed_giganlist_districts(conn: sqlite3.Connection, giganlist_root: Path) -> list[str]:
     seeded = []
     for folder in sorted(p.name for p in giganlist_root.iterdir() if p.is_dir()):
         if folder not in GIGANLIST_DISTRICT_NAMES:
             continue
         if get_institution(conn, folder):
+            # 이미 있는 행은 건너뛰되, **비어 있는 지역·구분만** 채운다. 재시드가 기존 행을
+            # 건너뛰기 때문에, 이 백필이 없으면 먼저 만들어진 DB는 영영 지도에 안 뜬다.
+            # 사람이 넣은 값은 덮지 않는다(COALESCE).
+            conn.execute(
+                """UPDATE institutions
+                      SET region_code = COALESCE(region_code, ?),
+                          type        = COALESCE(type, ?)
+                    WHERE institution_id = ?""",
+                (SEOUL_REGION_CODE, DISTRICT_TYPE, folder),
+            )
             continue
         conn.execute(
-            """INSERT INTO institutions (institution_id, name_ko, giganlist_dir, stage)
-               VALUES (?, ?, ?, 1)""",
-            (folder, GIGANLIST_DISTRICT_NAMES[folder], f"corpus/institutions/{folder}"),
+            """INSERT INTO institutions
+                   (institution_id, name_ko, giganlist_dir, stage, region_code, type)
+               VALUES (?, ?, ?, 1, ?, ?)""",
+            (folder, GIGANLIST_DISTRICT_NAMES[folder], f"corpus/institutions/{folder}",
+             SEOUL_REGION_CODE, DISTRICT_TYPE),
         )
         seeded.append(folder)
     conn.commit()
