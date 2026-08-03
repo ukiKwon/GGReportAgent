@@ -99,7 +99,7 @@ def test_migration_adds_new_columns_to_legacy_db(tmp_path):
     msg_cols = {r["name"] for r in conn.execute("PRAGMA table_info(messages)")}
     ntf_cols = {r["name"] for r in conn.execute("PRAGMA table_info(notifications)")}
     assert {"author", "stage"} <= msg_cols
-    assert "stage" in ntf_cols
+    assert {"stage", "sender"} <= ntf_cols
     # 기존 행은 보존되고 새 컬럼만 NULL이다 — 프런트가 "단계 미상"으로 묶는 근거.
     old = conn.execute("SELECT * FROM messages WHERE message_id='msg-old'").fetchone()
     assert old["content"] == "옛날 글" and old["author"] is None and old["stage"] is None
