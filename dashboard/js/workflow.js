@@ -109,13 +109,16 @@
     return (root.logic && root.logic.esc) ? root.logic.esc(s) : String(s == null ? '' : s);
   }
 
-  workflow.renderPanel = function (el, status, coverage) {
-    const steps = workflow.stepperModel(status).map(function (s) {
-      return '<div class="wf-step ' + s.state + '"><b>' + s.no + '</b>' +
-        esc(s.label) + (s.gate ? '<i class="wf-gate">🛑 ' + esc(s.gate) + '</i>' : '') + '</div>';
+  workflow.renderPanel = function (el, status, coverage, timeline) {
+    const counts = workflow.stageCounts(timeline);
+    const steps = workflow.stepperModel(status, counts).map(function (s) {
+      return '<div class="wf-step ' + s.state + '" data-stage="' + s.no + '"><b>' + s.no + '</b>' +
+        esc(s.label) + (s.gate ? '<i class="wf-gate">🛑 ' + esc(s.gate) + '</i>' : '') +
+        (s.count ? '<i class="wf-cnt">' + s.count + '</i>' : '') + '</div>';
     }).join('');
     const cards = workflow.teamCards(status).map(function (c) {
-      return '<div class="wf-card" data-task-id="' + esc(c.taskId || '') + '"><b>' + esc(c.label) + '</b>' +
+      return '<div class="wf-card" data-task-id="' + esc(c.taskId || '') + '"' +
+        ' data-team="' + esc(c.team || '') + '"><b>' + esc(c.label) + '</b>' +
         '<span>' + esc(c.status) + ' · ' + (c.progress_pct || 0) + '%</span></div>';
     }).join('') || '<p class="wf-empty">아직 배정된 작업이 없습니다.</p>';
     const sum = workflow.coverageSummary(coverage || {});
@@ -150,19 +153,50 @@
           '<td>' + esc(r.category == null ? '-' : r.category) + '</td>' +
           '<td>' + esc(r.score == null ? '-' : r.score) + '</td>' +
           '<td>' + esc(r.team || '-') + '</td>' +
-          '<td>' + COV_LABEL[r.state] + '</td>' +
+          '<td><span class="wf-badge ' + r.state + '">' + COV_LABEL[r.state] + '</span></td>' +
           '<td>' + (r.piiCount ? '⚠️ ' + r.piiCount : '-') + '</td>' +
           '<td>' + esc(r.gapNote || '') + '</td></tr>';
       }).join('') + '</tbody></table>';
   };
 
-  workflow.renderLog = function (el, detail) {
+  // 로그 한 줄: "role <부제> · 시각" + 본문. 팀 로그와 단계 상세가 같은 형식을 쓴다.
+  function logLines(rows, ctx) {
+    return rows.map(function (r) {
+      const lb = workflow.roleLabel(r.role, {
+        team: r.team || (ctx && ctx.team) || null,
+        author: r.author, assignee: ctx && ctx.assignee,
+      });
+      return '<div class="wf-log-row"><div class="wf-who">' + esc(lb.main) +
+        (lb.sub ? '<span class="wf-sub">' + esc(lb.sub) + '</span>' : '') +
+        ' · ' + esc(r.at) + '</div><pre>' + esc(r.content) + '</pre></div>';
+    }).join('');
+  }
+
+  function logShell(title, body) {
+    return '<div class="wf-log"><div class="wf-log-title">■ ' + esc(title) + '</div>' + body + '</div>';
+  }
+
+  workflow.renderLog = function (el, detail, ctx) {
     const rows = workflow.logRows(detail);
-    if (!rows.length) { el.innerHTML = '<p class="wf-empty">이 작업에는 아직 기록된 지시·보고가 없습니다.</p>'; return; }
-    el.innerHTML = '<div class="wf-log">' + rows.map(function (r) {
-      return '<div class="wf-log-row"><div class="wf-who">' + esc(r.role) + ' · ' + esc(r.at) + '</div>' +
-        '<pre>' + esc(r.content) + '</pre></div>';
-    }).join('') + '</div>';
+    const team = (ctx && ctx.team) || (detail && detail.team) || '작업';
+    if (!rows.length) {
+      el.innerHTML = logShell(team + ' 작업 로그',
+        '<p class="wf-empty">이 작업에는 아직 기록된 지시·보고가 없습니다.</p>');
+      return;
+    }
+    el.innerHTML = logShell(team + ' 작업 로그', logLines(rows, ctx));
+  };
+
+  // 스테퍼 단계를 눌렀을 때 — 팀 로그와 같은 자리(#wf-log)를 제목으로 구분해 나눠 쓴다.
+  workflow.renderStageLog = function (el, timeline, stageNo) {
+    const step = workflow.STAGES.filter(function (s) { return s.no === Number(stageNo); })[0];
+    const title = stageNo + '단계 「' + (step ? step.label : '?') + '」 수행 내용';
+    const rows = workflow.stageEvents(timeline, stageNo);
+    if (!rows.length) {
+      el.innerHTML = logShell(title, '<p class="wf-empty">이 단계에는 아직 기록이 없습니다.</p>');
+      return;
+    }
+    el.innerHTML = logShell(title, logLines(rows, null));
   };
 
   // ── 배선 ────────────────────────────────────────────────────────────
@@ -171,6 +205,8 @@
   let selectedId = null;
   let lastStatus = null;
   let selectedTaskId = null;
+  let selectedStage = null;      // 팀 카드 선택과 상호배타 — 로그 영역을 공유하기 때문
+  let lastTimeline = null;
 
   function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
   function startPolling() { stopPolling(); pollTimer = setInterval(function () { refresh(); }, POLL_MS); }
@@ -193,12 +229,17 @@
       getJson('/institutions/' + encodeURIComponent(id) + '/coverage-map').catch(function () {
         return { criteria: [], total_score: 0 };   // 매핑은 부가 정보 — 없어도 현황판은 뜬다
       }),
+      getJson('/institutions/' + encodeURIComponent(id) + '/timeline').catch(function () {
+        return { events: [] };
+      }),
     ]).then(function (res) {
       if (selectedId !== id) return;               // 폴링 중 기관이 바뀌었으면 버린다
       lastStatus = res[0];
-      workflow.renderPanel(el('wf-panel'), res[0], res[1]);
+      lastTimeline = res[2];
+      workflow.renderPanel(el('wf-panel'), res[0], res[1], res[2]);
       workflow.renderCoverage(el('wf-coverage'), res[1]);
       wireCards();
+      wireSteps();
       syncButtons();
       // 돌고 있을 때만 계속 본다 — 멈춰 있으면 폴링도 멈춘다.
       if (!res[0].running) stopPolling();
@@ -225,13 +266,32 @@
 
   function openLog(taskId) {
     selectedTaskId = taskId;
+    selectedStage = null;                   // 로그 영역은 하나 — 단계 선택은 해제한다
+    const card = el('wf-panel').querySelector('.wf-card[data-task-id="' + taskId + '"]');
+    const team = card ? card.dataset.team : null;
     getJson('/tasks/' + encodeURIComponent(taskId)).then(function (detail) {
       if (selectedTaskId !== taskId) return;
-      workflow.renderLog(el('wf-log'), detail);
-      wireCards();
+      workflow.renderLog(el('wf-log'), detail, { team: team, assignee: detail.assignee });
+      wireCards(); wireSteps();
     }).catch(function (e) {
       el('wf-log').innerHTML = '<p class="wf-empty">로그를 불러오지 못했습니다 — ' + esc(e.message) + '</p>';
     });
+  }
+
+  // 스테퍼 단계 클릭 → 그 단계의 수행 내용. 이미 받아둔 timeline을 쓰므로 추가 fetch가 없다.
+  function wireSteps() {
+    el('wf-panel').querySelectorAll('.wf-step').forEach(function (step) {
+      const no = Number(step.dataset.stage);
+      step.classList.toggle('sel', no === selectedStage);
+      step.onclick = function () { openStage(no); };
+    });
+  }
+
+  function openStage(stageNo) {
+    selectedStage = stageNo;
+    selectedTaskId = null;                  // 팀 카드 선택 해제(상호배타)
+    workflow.renderStageLog(el('wf-log'), lastTimeline, stageNo);
+    wireCards(); wireSteps();
   }
 
   function syncButtons() {
@@ -273,7 +333,9 @@
     el('wf-inst').onchange = function () {
       selectedId = this.value || null;
       lastStatus = null;
+      lastTimeline = null;
       selectedTaskId = null;
+      selectedStage = null;
       el('wf-log').innerHTML = '';
       if (!selectedId) { stopPolling(); el('wf-panel').innerHTML = ''; el('wf-coverage').innerHTML = ''; return; }
       refresh().then(function () { if (lastStatus && lastStatus.running) startPolling(); });

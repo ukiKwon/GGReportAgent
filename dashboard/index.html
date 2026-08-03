@@ -83,13 +83,18 @@
   #wf-controls button[disabled] { opacity:.45; cursor:not-allowed; }
   .wf-stepper { display:flex; gap:6px; flex-wrap:wrap; margin:12px 0 8px; }
   .wf-step { background:var(--panel); border:1px solid var(--line); border-radius:8px;
-             padding:6px 10px; font-size:12px; color:var(--muted); display:flex; gap:6px; align-items:center; }
+             padding:6px 10px; font-size:12px; color:var(--muted); display:flex; gap:6px;
+             align-items:center; cursor:pointer; }
   .wf-step b { background:var(--bg); border-radius:50%; width:18px; height:18px;
                display:inline-flex; align-items:center; justify-content:center; font-size:11px; }
   .wf-step.done { color:var(--fg); border-color:var(--blue); }
   .wf-step.current { color:var(--fg); border-color:var(--accent-color); box-shadow:0 0 0 1px var(--accent-color); }
   .wf-step.gate { color:var(--fg); border-color:var(--orange); box-shadow:0 0 0 1px var(--orange); }
   .wf-step .wf-gate { font-style:normal; font-size:10px; color:var(--orange); }
+  /* 그 단계에 기록된 이벤트 건수 — 클릭하면 아래 로그 영역에 펼쳐진다 */
+  .wf-step .wf-cnt { font-style:normal; font-size:10px; color:var(--fg); background:var(--bg);
+                     border-radius:8px; padding:0 6px; }
+  .wf-step.sel { outline:2px solid var(--accent-color); }
   .wf-state { font-size:13px; margin:6px 0; }
   .wf-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; margin:8px 0; }
   .wf-card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
@@ -104,9 +109,18 @@
   .wf-cov tr.ok td:first-child { border-left:3px solid var(--blue); }
   .wf-cov tr.gap td:first-child { border-left:3px solid var(--orange); }
   .wf-cov tr.none td:first-child { border-left:3px solid var(--red); }
+  /* 작성됨/미충족/미배정 상태 배지 — 색은 기존 변수만 쓰고 배경만 옅게 섞는다 */
+  .wf-badge { border-radius:10px; padding:1px 8px; font-size:11px; border:1px solid; white-space:nowrap; }
+  .wf-badge.ok   { color:var(--blue);   border-color:var(--blue);   background:color-mix(in srgb, var(--blue) 20%, transparent); }
+  .wf-badge.gap  { color:var(--orange); border-color:var(--orange); background:color-mix(in srgb, var(--orange) 20%, transparent); }
+  .wf-badge.none { color:var(--red);    border-color:var(--red);    background:color-mix(in srgb, var(--red) 20%, transparent); }
   .wf-log { margin-top:10px; }
+  .wf-log-title { font-size:13px; margin:6px 0 2px; }
   .wf-log-row { border-top:1px solid var(--line); padding:6px 0; font-size:12px; }
   .wf-log-row .wf-who { color:var(--muted); font-size:11px; }
+  /* 역할 옆 한글 부제 — 총괄 agent / 영업 agent / 김 차장 */
+  .wf-log-row .wf-sub { color:var(--fg); background:var(--panel); border:1px solid var(--line);
+                        border-radius:8px; padding:0 6px; margin-left:5px; }
   .wf-log-row pre { margin:2px 0 0; white-space:pre-wrap; word-break:break-word; font-family:inherit; }
 </style>
 </head>
