@@ -51,6 +51,9 @@
       if (!serverMode) return Object.assign({}, r, patch);   // file://에선 overlay가 유일 저장소
       const filtered = {};
       store.LOCAL_ONLY_FIELDS.forEach(function (f) {
+        // 반입된 공고가 있는 행은 확정여부의 출처가 생겼다 — 로컬 추측이 공고를 덮으면
+        // 지도가 실제 공고와 다른 말을 하게 된다(계획 D).
+        if (f === 'confirmed' && r.bidCaseId) return;
         if (Object.prototype.hasOwnProperty.call(patch, f)) filtered[f] = patch[f];
       });
       return Object.assign({}, r, filtered);

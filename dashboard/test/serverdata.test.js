@@ -45,3 +45,57 @@ test('mergeUnion: 서버 필드 우선, 번들 전용 필드 보존, 순서 유�
   assert.strictEqual(out[1].name, '서울대병원');            // 서버에 없는 번들 행 유지
   assert.strictEqual(out[2].name, '노원구');                // 번들에 없는 서버 행 추가
 });
+
+const BIDCASES = [
+  { institution_id: 'dobong', bid_case_id: 'bc-1', schedule_confidence: '확정',
+    expected_date: '2026-05-05', confirmed_date: '2026-09-30',
+    participation_status: '검토중', participation_decision: [] },
+  { institution_id: 'nowon', bid_case_id: 'bc-2', schedule_confidence: '예상',
+    expected_date: '2026-11-11', confirmed_date: null,
+    participation_status: '검토중', participation_decision: [{ tier: 1 }] },
+];
+
+test('applyBidCases: 확정일이 있으면 그것이 입찰일이고 확정 표시가 된다', function () {
+  const out = sd.applyBidCases(
+    [{ name: '도봉구', institutionId: 'dobong', contractEnd: '2026-01-01', confirmed: false }],
+    BIDCASES);
+  assert.strictEqual(out[0].contractEnd, '2026-09-30');   // CSV 값을 이긴다
+  assert.strictEqual(out[0].confirmed, true);
+  assert.strictEqual(out[0].bidCaseId, 'bc-1');
+  assert.strictEqual(out[0].participationStatus, '검토중');
+});
+
+test('applyBidCases: 확정일이 없으면 예상일 + 추측 표시', function () {
+  const out = sd.applyBidCases(
+    [{ name: '노원구', institutionId: 'nowon', contractEnd: '2026-01-01', confirmed: true }],
+    BIDCASES);
+  assert.strictEqual(out[0].contractEnd, '2026-11-11');
+  assert.strictEqual(out[0].confirmed, false);            // 예상이면 확정 표시를 내린다
+  assert.deepStrictEqual(out[0].participationDecision, [{ tier: 1 }]);
+});
+
+test('applyBidCases: 공고가 없는 기관은 손대지 않는다 (CSV 값 보존)', function () {
+  const rec = { name: '광진구', institutionId: 'gwangjin', contractEnd: '2026-03-03', confirmed: true };
+  const out = sd.applyBidCases([rec], BIDCASES);
+  assert.strictEqual(out[0].contractEnd, '2026-03-03');
+  assert.strictEqual(out[0].confirmed, true);
+  assert.strictEqual('bidCaseId' in out[0], false);
+});
+
+test('applyBidCases: 날짜가 둘 다 없는 공고면 일정은 그대로 두고 결재 정보만 싣는다', function () {
+  const out = sd.applyBidCases(
+    [{ name: '도봉구', institutionId: 'dobong', contractEnd: '2026-01-01', confirmed: true }],
+    [{ institution_id: 'dobong', bid_case_id: 'bc-x', expected_date: null, confirmed_date: null,
+       participation_status: '검토중', participation_decision: [] }]);
+  assert.strictEqual(out[0].contractEnd, '2026-01-01');
+  assert.strictEqual(out[0].confirmed, true);
+  assert.strictEqual(out[0].bidCaseId, 'bc-x');           // 참여 결정 카드는 여전히 필요하다
+});
+
+test('applyBidCases: 빈 입력도 안전하고 원본을 변형하지 않는다', function () {
+  const rec = { name: '도봉구', institutionId: 'dobong', contractEnd: '2026-01-01' };
+  const out = sd.applyBidCases([rec], null);
+  assert.deepStrictEqual(out, [rec]);
+  sd.applyBidCases([rec], BIDCASES);
+  assert.strictEqual(rec.contractEnd, '2026-01-01');      // 원본 불변
+});
