@@ -10,6 +10,8 @@
   };
 
   // 레코드의 전체 표시 필드(순서 고정) — 편집 모달/팝오버가 공유.
+  // 이 중 서버 registry에 대응 필드가 없는 것들은 store.LOCAL_ONLY_FIELDS 참고
+  // (서버 모드에서 편집 overlay가 덮어도 되는 필드 = 그것뿐이다).
   logic.ALL_FIELDS = ['name','type','region','subRegion','term','lastBid','contractEnd','confirmed','lng','lat','sources','updatedAt'];
 
   logic.FIELD_LABELS = { name:'기관명', type:'기관구분', region:'지역코드', subRegion:'구시군코드',
