@@ -81,6 +81,22 @@
     });
   };
 
+  // 모달 탈출구 — 배경 클릭 / Esc. 버튼이 화면 밖으로 밀리는 등 어떤 이유로든
+  // 닫기 버튼에 닿지 못해도 화면이 잠기지 않게 한다(사용자 보고: 편집 팝업이 안 닫힘).
+  app.wireModalDismiss = function () {
+    const overlays = document.querySelectorAll('.modal-overlay');
+    overlays.forEach(function (ov) {
+      ov.addEventListener('click', function (e) {
+        // 안쪽(내용 상자)을 눌렀을 때는 닫지 않는다 — 배경 자체를 눌렀을 때만.
+        if (e.target === ov) ov.style.display = 'none';
+      });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      overlays.forEach(function (ov) { ov.style.display = 'none'; });
+    });
+  };
+
   // 내 프로필(이름·소속) — 쪽지함 조회 키이자 결재자 이름 기본값 (계획 C2).
   app.wireProfile = function () {
     const nameEl = document.getElementById('me-name');
@@ -337,6 +353,7 @@
       app.wireData();
       app.wireTheme();
       app.wireProfile();
+      app.wireModalDismiss();
       // 쪽지함은 탭이 아니라 상시 버튼이라 여기서 한 번 켠다(미읽음 배지 30초 폴링).
       if (root.notify && root.store.isServerMode()) root.notify.start();
     });
