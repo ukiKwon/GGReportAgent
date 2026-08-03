@@ -789,9 +789,14 @@ curl "http://127.0.0.1:8000/consistency?institution_id=dobong"
 | `stage_without_bid_case` | 단계는 올라갔는데 근거가 될 공고가 없다 |
 | `stage_without_confirmation` | 참여 결정 전에 워크플로가 진행됐다 |
 | `declined_but_advanced` | 미참여·보류인데 진행됐다 |
-| `confirmed_without_tasks` | 참여확정인데 팀 Task가 없다(확정 당시 `research_status`가 '완료'가 아니었을 수 있다) |
+| `confirmed_without_tasks` | 참여확정 **+ 조사 완료**인데 팀 Task가 없다 |
 
 - **1·2단계는 참여 결정 이전이라 정상**으로 본다(3단계부터 검사).
 - 응답에는 규칙 이름과 함께 **"무엇이 왜 문제인지"** 가 붙는다 — 사람이 고칠 수 있어야 하므로.
 - 워크플로 탭은 선택한 기관에 어긋난 것이 있으면 **맨 위에 빨간 경고**를 띄운다.
   정상이면 아무것도 그리지 않는다.
+
+> **오탐을 내지 않는다는 원칙**: `research_status`가 `대기`인 채 참여확정된 것은 정상이다
+> — 코퍼스가 반입되면 `activate_pending_bid_cases`가 그때 Task를 만든다. 그래서
+> `confirmed_without_tasks`는 **조사까지 완료됐는데도** Task가 없을 때만 잡는다.
+> 경고가 한 번이라도 틀리면 그 다음부터 아무도 읽지 않는다.
