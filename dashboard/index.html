@@ -72,6 +72,42 @@
   .filter-title { font-size:10px; color:var(--muted); letter-spacing:.04em; margin-bottom:3px; }
   #theme-modal label { display:flex; align-items:center; gap:8px; margin:8px 0; }
   #theme-modal input[type=color] { width:44px; height:26px; padding:0; border:1px solid var(--line); background:none; }
+
+  /* ── 워크플로 현황판 (계획 C1) — 색은 전부 기존 CSS 변수로 ── */
+  #tab-workflow.active { overflow:auto; gap:12px; }
+  #wf-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #wf-controls select, #wf-controls input { background:var(--bg); color:var(--fg);
+      border:1px solid var(--line); border-radius:6px; padding:4px 8px; font-size:13px; }
+  #wf-controls button { background:var(--panel); color:var(--fg); border:1px solid var(--line);
+      border-radius:6px; padding:4px 12px; cursor:pointer; }
+  #wf-controls button[disabled] { opacity:.45; cursor:not-allowed; }
+  .wf-stepper { display:flex; gap:6px; flex-wrap:wrap; margin:12px 0 8px; }
+  .wf-step { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+             padding:6px 10px; font-size:12px; color:var(--muted); display:flex; gap:6px; align-items:center; }
+  .wf-step b { background:var(--bg); border-radius:50%; width:18px; height:18px;
+               display:inline-flex; align-items:center; justify-content:center; font-size:11px; }
+  .wf-step.done { color:var(--fg); border-color:var(--blue); }
+  .wf-step.current { color:var(--fg); border-color:var(--accent-color); box-shadow:0 0 0 1px var(--accent-color); }
+  .wf-step.gate { color:var(--fg); border-color:var(--orange); box-shadow:0 0 0 1px var(--orange); }
+  .wf-step .wf-gate { font-style:normal; font-size:10px; color:var(--orange); }
+  .wf-state { font-size:13px; margin:6px 0; }
+  .wf-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; margin:8px 0; }
+  .wf-card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+             padding:10px; cursor:pointer; display:flex; flex-direction:column; gap:4px; }
+  .wf-card.hi { outline:2px solid var(--accent-color); }
+  .wf-card span { font-size:12px; color:var(--muted); }
+  .wf-empty { color:var(--muted); font-size:12px; }
+  .wf-sum { font-size:12px; color:var(--muted); }
+  .wf-cov { border-collapse:collapse; width:100%; font-size:12px; margin-top:6px; }
+  .wf-cov th, .wf-cov td { border:1px solid var(--line); padding:4px 8px; text-align:left; }
+  .wf-cov th { color:var(--muted); font-weight:600; }
+  .wf-cov tr.ok td:first-child { border-left:3px solid var(--blue); }
+  .wf-cov tr.gap td:first-child { border-left:3px solid var(--orange); }
+  .wf-cov tr.none td:first-child { border-left:3px solid var(--red); }
+  .wf-log { margin-top:10px; }
+  .wf-log-row { border-top:1px solid var(--line); padding:6px 0; font-size:12px; }
+  .wf-log-row .wf-who { color:var(--muted); font-size:11px; }
+  .wf-log-row pre { margin:2px 0 0; white-space:pre-wrap; word-break:break-word; font-family:inherit; }
 </style>
 </head>
 <body>
@@ -80,6 +116,8 @@
   <div class="tabs">
     <button class="tab-btn active" data-tab="map">전국 지도</button>
     <button class="tab-btn" data-tab="regions">전국 지역별</button>
+    <!-- 워크플로 탭 — 서버 모드 전용. file:// 폴백에서는 app.applyServerModeUI가 숨긴다. -->
+    <button class="tab-btn" data-tab="workflow" id="tab-btn-workflow" style="display:none;">워크플로</button>
   </div>
 </header>
 
@@ -139,6 +177,13 @@
   <div id="region-grid"></div>
 </section>
 
+<section id="tab-workflow" class="tab-view">
+  <div id="wf-controls"></div>
+  <div id="wf-panel"></div>
+  <div id="wf-coverage"></div>
+  <div id="wf-log"></div>
+</section>
+
 <div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:30;">
   <div style="max-width:360px;margin:8vh auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;">
     <h3 style="margin-top:0;">기관 정보 변경</h3>
@@ -183,6 +228,7 @@
 <script src="js/logic.js"></script>
 <script src="js/store.js"></script>
 <script src="js/serverdata.js"></script>
+<script src="js/workflow.js"></script>
 <script src="js/export.js"></script>
 <!-- D3 번들 (없으면 Task 14 폴백) -->
 <script src="vendor/d3.v7.min.js" onerror="window.__d3failed=true"></script>
