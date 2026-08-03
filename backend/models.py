@@ -82,6 +82,11 @@ class BidCaseDetail(BidCase):
     tasks: list[TaskSummary] = []
 
 
+class ParticipationDecisionOut(BidCaseDetail):
+    # 참여확정 직후 3·4단계 자동 시작이 실제로 걸렸는지. False면 이유가 쪽지로 가 있다.
+    run_started: bool = False
+
+
 class Task(BaseModel):
     task_id: str
     bid_case_id: str

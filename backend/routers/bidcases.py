@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Header, HTTPException, Request
 
+from agent.pipeline import artifacts_exist
 from backend.assembler import assemble_deliverable
 from backend.bidcase_repository import (
     ParticipationDecisionError,
@@ -12,7 +13,13 @@ from backend.bidcase_repository import (
     submit_participation_decision,
 )
 from backend.db import get_connection
-from backend.models import BidCaseDetail, BidCaseFinalizeIn, ParticipationDecisionIn
+from backend.models import (
+    BidCaseDetail,
+    BidCaseFinalizeIn,
+    ParticipationDecisionIn,
+    ParticipationDecisionOut,
+)
+from backend.notification_repository import create_notification
 from backend.repository import get_institution
 from backend.task_repository import approve_task
 
@@ -67,20 +74,54 @@ def get_bid_cases(team: str, assignee: str, request: Request) -> list[dict]:
     return [b.model_dump() for b in bid_cases]
 
 
-@router.post("/{bid_case_id}/participation-decisions", response_model=BidCaseDetail)
+def _start_analysis_or_notify(conn, request: Request, institution_id: str) -> bool:
+    """참여확정 직후 3·4단계를 자동으로 시작한다(스펙 §② 6번).
+
+    **실패해도 결재를 되돌리지 않는다** — 대신 왜 못 시작했는지 쪽지로 남긴다.
+    조용히 실패하면 아무도 분석이 안 돌고 있다는 걸 모른 채 기다리게 된다.
+    """
+    inst = get_institution(conn, institution_id)
+    reason = None
+    if inst is None:
+        reason = "기관을 찾을 수 없습니다"
+    elif not inst.rfp_path and not artifacts_exist(request.app.state.output_root, inst.name_ko):
+        reason = "공고문(rfp_path)이 아직 반입되지 않았습니다"
+    else:
+        svc = request.app.state.orchestrator
+        try:
+            svc.start(institution_id, svc.build_run_input(inst, request.app.state.output_root))
+            return True
+        except RuntimeError:
+            reason = "이미 실행 중입니다"
+        except Exception as exc:                      # 실행 실패가 결재를 깨뜨리면 안 된다
+            reason = f"실행 오류: {exc}"
+
+    create_notification(
+        conn, "영업팀", "쪽지",
+        f"참여확정됐지만 입찰 분석을 시작하지 못했습니다 — {reason}."
+        " 워크플로 탭에서 [▶ 실행]으로 직접 시작하세요.",
+        institution_id=institution_id,
+    )
+    return False
+
+
+@router.post("/{bid_case_id}/participation-decisions", response_model=ParticipationDecisionOut)
 def post_participation_decision(
     bid_case_id: str, body: ParticipationDecisionIn, request: Request
-) -> BidCaseDetail:
+) -> ParticipationDecisionOut:
     conn = _conn(request)
     try:
         try:
             bid_case = submit_participation_decision(conn, bid_case_id, body)
         except ParticipationDecisionError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        run_started = False
+        if bid_case.participation_status == "참여확정":
+            run_started = _start_analysis_or_notify(conn, request, bid_case.institution_id)
         tasks = list_task_summaries(conn, bid_case_id)
     finally:
         conn.close()
-    return BidCaseDetail(**bid_case.model_dump(), tasks=tasks)
+    return ParticipationDecisionOut(**bid_case.model_dump(), tasks=tasks, run_started=run_started)
 
 
 @router.post("/{bid_case_id}/finalize", response_model=BidCaseDetail)
