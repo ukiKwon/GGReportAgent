@@ -15,7 +15,9 @@ def _app(tmp_path):
     )
     conn = get_connection(str(tmp_path / "registry.db"))
     conn.execute("INSERT INTO institutions (institution_id, name_ko, stage, rfp_path) VALUES ('nowon','노원구',2,'corpus/rfp/n.pdf')")
-    conn.execute("INSERT INTO bid_cases (bid_case_id, institution_id) VALUES ('bc-1','nowon')")
+    # 참여확정이어야 run이 통과한다 — 참여 결정 없이 워크플로가 도는 상태는 막혀 있다.
+    conn.execute("INSERT INTO bid_cases (bid_case_id, institution_id, participation_status)"
+                 " VALUES ('bc-1','nowon','참여확정')")
     conn.commit(); conn.close()
     return app
 
@@ -125,3 +127,45 @@ def test_status_tasks_expose_task_id(tmp_path):
 
     body = TestClient(app).get("/institutions/nowon/status").json()
     assert body["tasks"][0]["task_id"] == "task-x"
+
+
+def _app_undecided(tmp_path):
+    """참여 결정이 아직 '검토중'인 기관 — 워크플로를 돌릴 수 없어야 한다."""
+    app = create_app(
+        str(tmp_path / "registry.db"),
+        output_root=str(tmp_path / "report_new"),
+        graph_db_path=str(tmp_path / "graph.db"),
+    )
+    conn = get_connection(str(tmp_path / "registry.db"))
+    conn.execute("INSERT INTO institutions (institution_id, name_ko, stage, rfp_path)"
+                 " VALUES ('nowon','노원구',2,'corpus/rfp/n.pdf')")
+    conn.execute("INSERT INTO bid_cases (bid_case_id, institution_id) VALUES ('bc-1','nowon')")
+    conn.commit(); conn.close()
+    return app
+
+
+def test_run_requires_participation_confirmation(tmp_path):
+    """참여확정이 팀 Task를 만들고 그 뒤에 5·6단계가 흐른다 — 순서가 뒤집히면 안 된다."""
+    r = TestClient(_app_undecided(tmp_path)).post("/institutions/nowon/run")
+    assert r.status_code == 400
+    assert "참여" in r.json()["detail"]
+
+
+def test_run_blocked_when_there_is_no_bid_case_at_all(tmp_path):
+    app = create_app(str(tmp_path / "registry.db"), output_root=str(tmp_path / "out"),
+                     graph_db_path=str(tmp_path / "g.db"))
+    conn = get_connection(str(tmp_path / "registry.db"))
+    conn.execute("INSERT INTO institutions (institution_id, name_ko, stage, rfp_path)"
+                 " VALUES ('nowon','노원구',2,'corpus/rfp/n.pdf')")
+    conn.commit(); conn.close()
+
+    assert TestClient(app).post("/institutions/nowon/run").status_code == 400
+
+
+def test_run_blocked_after_non_participation(tmp_path):
+    app = _app_undecided(tmp_path)
+    conn = get_connection(str(tmp_path / "registry.db"))
+    conn.execute("UPDATE bid_cases SET participation_status = '미참여확정' WHERE bid_case_id='bc-1'")
+    conn.commit(); conn.close()
+
+    assert TestClient(app).post("/institutions/nowon/run").status_code == 400
