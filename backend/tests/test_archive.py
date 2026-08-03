@@ -102,3 +102,40 @@ def test_same_day_rearchive_removes_old_files(tmp_path):
     manifest_files = set(manifest["files"])
     actual_files = {p.name for p in __import__("pathlib").Path(dest2).iterdir() if p.name != "manifest.json"}
     assert manifest_files == actual_files, f"manifest {manifest_files} != actual {actual_files}"
+
+
+def _inst(tmp_path, name_ko="노원구"):
+    db = init_db(str(tmp_path / "r.db"))
+    db.execute(
+        "INSERT INTO institutions (institution_id, name_ko, stage) VALUES ('nowon',?,9)",
+        (name_ko,),
+    )
+    db.commit()
+    from backend.repository import get_institution
+    return db, get_institution(db, "nowon")
+
+
+def test_archives_uppercase_pptx(tmp_path):
+    """확장자 대소문자로 산출물을 놓치면 제안서가 통째로 빠진다(A2 이월 M-5)."""
+    db, inst = _inst(tmp_path)
+    out = tmp_path / "report_new" / "노원구"
+    out.mkdir(parents=True)
+    (out / "제안서.PPTX").write_text("pptx", encoding="utf-8")
+
+    dest = archive_institution(db, inst, str(tmp_path / "report_new"), str(tmp_path / "archive"))
+    manifest = json.loads((__import__("pathlib").Path(dest) / "manifest.json").read_text(encoding="utf-8"))
+    assert "제안서.PPTX" in manifest["files"]
+
+
+def test_rejects_archive_path_escaping_root(tmp_path):
+    """name_ko가 경로를 벗어나면 rmtree가 엉뚱한 디렉터리를 지운다(A2 이월 M-4)."""
+    import pytest
+
+    db, inst = _inst(tmp_path, name_ko="../바깥")
+    victim = tmp_path / "바깥"
+    victim.mkdir()
+    (victim / "소중한파일.txt").write_text("지워지면 안 된다", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        archive_institution(db, inst, str(tmp_path / "report_new"), str(tmp_path / "archive"))
+    assert (victim / "소중한파일.txt").is_file()
