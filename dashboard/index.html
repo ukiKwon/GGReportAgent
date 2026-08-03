@@ -133,6 +133,38 @@
   /* 역할 옆 한글 부제 — 총괄 agent / 영업 agent / 김 차장 */
   .wf-log-row .wf-sub { color:var(--fg); background:var(--panel); border:1px solid var(--line);
                         border-radius:8px; padding:0 6px; margin-left:5px; }
+
+  /* ── 대화창 (계획 C2) ── */
+  #tab-chat.active { overflow:hidden; gap:8px; }
+  #ch-log { flex:1 1 auto; min-height:0; overflow:auto; border:1px solid var(--line);
+            border-radius:10px; background:var(--panel); padding:10px; }
+  .ch-row { margin:8px 0; max-width:78%; }
+  .ch-row.mine { margin-left:auto; text-align:right; }
+  .ch-row .ch-who { color:var(--muted); font-size:11px; margin-bottom:2px; }
+  .ch-row pre { margin:0; white-space:pre-wrap; word-break:break-word; font-family:inherit;
+                font-size:13px; background:var(--bg); border:1px solid var(--line);
+                border-radius:10px; padding:8px 10px; text-align:left; }
+  .ch-row.agent pre { border-color:var(--accent-color); }
+  #ch-form { display:flex; gap:8px; align-items:flex-end; }
+  #ch-input { flex:1 1 auto; background:var(--bg); color:var(--fg); border:1px solid var(--line);
+              border-radius:8px; padding:8px; font-family:inherit; font-size:13px; resize:vertical; }
+  #ch-form button { background:var(--panel); color:var(--fg); border:1px solid var(--line);
+                    border-radius:6px; padding:8px 14px; cursor:pointer; }
+  #ch-form button[disabled] { opacity:.45; cursor:not-allowed; }
+
+  /* ── 지식 탭 (계획 C2) ── */
+  #tab-knowledge.active { overflow:auto; gap:8px; }
+  #kn-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #kn-controls input, #kn-controls select { background:var(--bg); color:var(--fg);
+      border:1px solid var(--line); border-radius:6px; padding:4px 8px; font-size:13px; }
+  #kn-controls button { background:var(--panel); color:var(--fg); border:1px solid var(--line);
+      border-radius:6px; padding:4px 12px; cursor:pointer; }
+  .kn-hit { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+            padding:10px; margin:8px 0; }
+  .kn-head { font-size:12px; color:var(--muted); margin-bottom:4px; }
+  .kn-head b { color:var(--fg); }
+  .kn-snip { font-size:13px; white-space:pre-wrap; word-break:break-word; }
+  .kn-snip mark { background:var(--accent-color); color:var(--bg); border-radius:3px; padding:0 2px; }
   .wf-log-row pre { margin:2px 0 0; white-space:pre-wrap; word-break:break-word; font-family:inherit; }
 </style>
 </head>
@@ -144,6 +176,8 @@
     <button class="tab-btn" data-tab="regions">전국 지역별</button>
     <!-- 워크플로 탭 — 서버 모드 전용. file:// 폴백에서는 app.applyServerModeUI가 숨긴다. -->
     <button class="tab-btn" data-tab="workflow" id="tab-btn-workflow" style="display:none;">워크플로</button>
+    <button class="tab-btn" data-tab="chat" id="tab-btn-chat" style="display:none;">대화</button>
+    <button class="tab-btn" data-tab="knowledge" id="tab-btn-knowledge" style="display:none;">지식</button>
   </div>
 </header>
 
@@ -218,6 +252,21 @@
   <div id="wf-log"></div>
 </section>
 
+<section id="tab-chat" class="tab-view">
+  <div id="ch-controls"></div>
+  <div id="ch-log"></div>
+  <div id="ch-form">
+    <textarea id="ch-input" rows="2" placeholder="참여 여부·근거를 물어보세요 (Enter 전송, Shift+Enter 줄바꿈)"></textarea>
+    <button id="ch-send">보내기</button>
+    <button id="ch-stop" style="display:none;">중단</button>
+  </div>
+</section>
+
+<section id="tab-knowledge" class="tab-view">
+  <div id="kn-controls"></div>
+  <div id="kn-results"></div>
+</section>
+
 <div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:30;">
   <div style="max-width:360px;margin:8vh auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;">
     <h3 style="margin-top:0;">기관 정보 변경</h3>
@@ -263,6 +312,7 @@
 <script src="js/store.js"></script>
 <script src="js/serverdata.js"></script>
 <script src="js/workflow.js"></script>
+<script src="js/chat.js"></script>
 <script src="js/export.js"></script>
 <!-- D3 번들 (없으면 Task 14 폴백) -->
 <script src="vendor/d3.v7.min.js" onerror="window.__d3failed=true"></script>

@@ -55,16 +55,24 @@
   app.onTabChange = function (tab) {
     if (tab === 'regions') { root.render.drawRegionGrid(); root.render.drawPinBar(); }
     else if (tab === 'map') { root.render.applyWatchStyles(); }
-    if (root.workflow) {
-      if (tab === 'workflow') root.workflow.mount();
-      else root.workflow.unmount();   // 다른 탭으로 나가면 폴링 중단
-    }
+    // 탭을 벗어나면 폴링·스트림을 멈춘다(백그라운드에서 계속 돌지 않게).
+    [['workflow', root.workflow], ['chat', root.chat], ['knowledge', root.knowledge]]
+      .forEach(function (pair) {
+        const mod = pair[1];
+        if (!mod) return;
+        if (tab === pair[0]) { if (mod.mount) mod.mount(); }
+        else if (mod.unmount) mod.unmount();
+      });
   };
 
-  // 워크플로 탭은 서버 모드 전용 — 오케스트레이터 API가 없는 file://에서는 숨긴다.
+  // 워크플로·대화·지식 탭과 쪽지함은 서버 모드 전용 — API가 없는 file://에서는 숨긴다.
+  app.SERVER_ONLY_IDS = ['tab-btn-workflow', 'tab-btn-chat', 'tab-btn-knowledge', 'btn-notify'];
   app.applyServerModeUI = function () {
-    const btn = document.getElementById('tab-btn-workflow');
-    if (btn) btn.style.display = root.store.isServerMode() ? '' : 'none';
+    const on = root.store.isServerMode();
+    app.SERVER_ONLY_IDS.forEach(function (id) {
+      const elm = document.getElementById(id);
+      if (elm) elm.style.display = on ? '' : 'none';
+    });
   };
 
   // 내 프로필(이름·소속) — 쪽지함 조회 키이자 결재자 이름 기본값 (계획 C2).
