@@ -243,3 +243,102 @@ def test_bid_case_finalized_fields_default_to_none(client):
     detail = test_client.get(f"/bidcases/{bid_case_id}").json()
     assert detail["finalized_by"] is None
     assert detail["finalized_at"] is None
+
+
+def _decide_to_confirmed(test_client, bid_case_id):
+    """1·2·3차를 모두 '참여'로 밀어 참여확정을 만든다."""
+    last = None
+    for tier, by in [(1, "alice"), (2, "bob"), (3, "carol")]:
+        last = test_client.post(
+            f"/bidcases/{bid_case_id}/participation-decisions",
+            json={"tier": tier, "role": "영업팀", "by": by, "choice": "참여"},
+        )
+    return last
+
+
+def test_confirmation_starts_the_orchestrator(client):
+    """스펙 §② 6번 — 참여확정되면 3·4단계를 사람이 누르지 않아도 시작한다."""
+    test_client, db_path = client
+    _seed_institution(db_path)
+    from backend.db import get_connection
+    conn = get_connection(db_path)
+    conn.execute("UPDATE institutions SET rfp_path = 'corpus/rfp/x.pdf' WHERE institution_id='mapo'")
+    conn.commit(); conn.close()
+    bid_case_id = test_client.post("/bidcases", json={"institution_id": "mapo"}).json()["bid_case_id"]
+
+    with patch.object(test_client.app.state.orchestrator, "start") as start:
+        resp = _decide_to_confirmed(test_client, bid_case_id)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["participation_status"] == "참여확정"
+    assert body["run_started"] is True
+    assert start.call_count == 1
+    assert start.call_args.args[0] == "mapo"
+
+
+def test_confirmation_without_rfp_notifies_instead_of_failing_silently(client):
+    """자동 실행이 불가능해도 결재는 성공해야 하고, 그 사실이 쪽지로 남아야 한다."""
+    test_client, db_path = client
+    _seed_institution(db_path)          # rfp_path 없음 + 산출물도 없음
+    bid_case_id = test_client.post("/bidcases", json={"institution_id": "mapo"}).json()["bid_case_id"]
+
+    resp = _decide_to_confirmed(test_client, bid_case_id)
+
+    assert resp.status_code == 200                      # 결재는 되돌아가지 않는다
+    assert resp.json()["participation_status"] == "참여확정"
+    assert resp.json()["run_started"] is False
+
+    notes = test_client.get("/notifications", params={"recipient": "영업팀"}).json()
+    assert len(notes) == 1
+    assert "시작하지 못했" in notes[0]["content"]
+    assert notes[0]["institution_id"] == "mapo"
+
+
+def test_already_running_also_notifies(client):
+    test_client, db_path = client
+    _seed_institution(db_path)
+    from backend.db import get_connection
+    conn = get_connection(db_path)
+    conn.execute("UPDATE institutions SET rfp_path = 'corpus/rfp/x.pdf' WHERE institution_id='mapo'")
+    conn.commit(); conn.close()
+    bid_case_id = test_client.post("/bidcases", json={"institution_id": "mapo"}).json()["bid_case_id"]
+
+    with patch.object(test_client.app.state.orchestrator, "start",
+                      side_effect=RuntimeError("already running")):
+        resp = _decide_to_confirmed(test_client, bid_case_id)
+
+    assert resp.json()["run_started"] is False
+    notes = test_client.get("/notifications", params={"recipient": "영업팀"}).json()
+    assert len(notes) == 1
+
+
+def test_intermediate_tiers_do_not_start_anything(client):
+    """1·2차 결재는 아직 확정이 아니다 — 실행도 쪽지도 없어야 한다."""
+    test_client, db_path = client
+    _seed_institution(db_path)
+    bid_case_id = test_client.post("/bidcases", json={"institution_id": "mapo"}).json()["bid_case_id"]
+
+    with patch.object(test_client.app.state.orchestrator, "start") as start:
+        for tier, by in [(1, "alice"), (2, "bob")]:
+            r = test_client.post(
+                f"/bidcases/{bid_case_id}/participation-decisions",
+                json={"tier": tier, "role": "영업팀", "by": by, "choice": "참여"})
+            assert r.json()["run_started"] is False
+
+    assert start.call_count == 0
+    assert test_client.get("/notifications", params={"recipient": "영업팀"}).json() == []
+
+
+def test_non_participation_does_not_start_anything(client):
+    test_client, db_path = client
+    _seed_institution(db_path)
+    bid_case_id = test_client.post("/bidcases", json={"institution_id": "mapo"}).json()["bid_case_id"]
+
+    with patch.object(test_client.app.state.orchestrator, "start") as start:
+        r = test_client.post(
+            f"/bidcases/{bid_case_id}/participation-decisions",
+            json={"tier": 1, "role": "영업팀", "by": "alice", "choice": "미참여"})
+
+    assert r.json()["participation_status"] == "미참여확정"
+    assert start.call_count == 0

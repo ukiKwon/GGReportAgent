@@ -118,3 +118,23 @@ test('myRecipients: 쪽지함 조회 키는 소속과 이름 둘 다 (빈 값은
   store.saveProfile({ name: '', team: '전산팀' });
   assert.deepStrictEqual(store.myRecipients(), ['전산팀']);
 });
+
+test('applyEdits: 공고가 있는 행은 로컬 확정여부가 공고를 덮지 못한다', function () {
+  freshLS();
+  store.setEdit('도봉구', { confirmed: false, sources: ['수기'] });
+  store.setServerData([{ name: '도봉구', confirmed: true, bidCaseId: 'bc-1' }]);
+
+  const out = store.applyEdits(store.loadData());
+  assert.strictEqual(out[0].confirmed, true);      // 반입된 공고가 로컬 추측을 이긴다
+  assert.deepStrictEqual(out[0].sources, ['수기']); // 다른 로컬 전용 필드는 그대로
+  store.clearServerData();
+});
+
+test('applyEdits: 공고가 없는 행은 로컬 확정여부가 그대로 적용된다', function () {
+  freshLS();
+  store.setEdit('광진구', { confirmed: true });
+  store.setServerData([{ name: '광진구', confirmed: false }]);
+
+  assert.strictEqual(store.applyEdits(store.loadData())[0].confirmed, true);
+  store.clearServerData();
+});

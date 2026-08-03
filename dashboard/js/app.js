@@ -5,10 +5,16 @@
   // 서버 모드 부트스트랩(계획 B): /institutions가 응답하면(2xx) 서버가 authoritative store.
   // file://나 서버 부재 시 fetch가 예외/실패 → 아무 것도 하지 않고 조용히 폴백(기존 동작 그대로).
   app.bootstrapServer = function () {
+    // 공고 일정(계획 D)은 부가 정보라 실패해도 병합을 막지 않는다 — 빈 배열로 진행한다.
+    const bidCases = fetch('/bidcases/latest')
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .catch(function () { return []; });
+
     return fetch('/institutions').then(function (r) {
       if (!r.ok) return;
-      return r.json().then(function (rows) {
-        root.store.setServerData(root.serverdata.mergeUnion(window.institutions || [], rows));
+      return Promise.all([r.json(), bidCases]).then(function (res) {
+        const merged = root.serverdata.mergeUnion(window.institutions || [], res[0]);
+        root.store.setServerData(root.serverdata.applyBidCases(merged, res[1]));
       });
     }).catch(function () { /* 폴백 — 아무것도 하지 않음 */ })
       .then(function () { if (app.applyServerModeUI) app.applyServerModeUI(); });
@@ -72,6 +78,22 @@
     app.SERVER_ONLY_IDS.forEach(function (id) {
       const elm = document.getElementById(id);
       if (elm) elm.style.display = on ? '' : 'none';
+    });
+  };
+
+  // 모달 탈출구 — 배경 클릭 / Esc. 버튼이 화면 밖으로 밀리는 등 어떤 이유로든
+  // 닫기 버튼에 닿지 못해도 화면이 잠기지 않게 한다(사용자 보고: 편집 팝업이 안 닫힘).
+  app.wireModalDismiss = function () {
+    const overlays = document.querySelectorAll('.modal-overlay');
+    overlays.forEach(function (ov) {
+      ov.addEventListener('click', function (e) {
+        // 안쪽(내용 상자)을 눌렀을 때는 닫지 않는다 — 배경 자체를 눌렀을 때만.
+        if (e.target === ov) ov.style.display = 'none';
+      });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      overlays.forEach(function (ov) { ov.style.display = 'none'; });
     });
   };
 
@@ -331,6 +353,7 @@
       app.wireData();
       app.wireTheme();
       app.wireProfile();
+      app.wireModalDismiss();
       // 쪽지함은 탭이 아니라 상시 버튼이라 여기서 한 번 켠다(미읽음 배지 30초 폴링).
       if (root.notify && root.store.isServerMode()) root.notify.start();
     });

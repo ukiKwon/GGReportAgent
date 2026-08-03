@@ -1,7 +1,16 @@
 """데모 시드는 화면 확인용이지만, 재실행·삭제가 깨지면 실데이터를 오염시킬 수 있다."""
 
+import json
+
 from backend.db import get_connection, init_db
-from backend.demo_seed import MESSAGES, NOTIFICATIONS, TEAMS, clear, seed
+from backend.demo_seed import (
+    DEMO_BID_CASE,
+    MESSAGES,
+    NOTIFICATIONS,
+    TEAMS,
+    clear,
+    seed,
+)
 
 
 def _db(tmp_path):
@@ -73,3 +82,28 @@ def test_clear_keeps_non_demo_rows(tmp_path):
         assert conn.execute("SELECT COUNT(*) AS n FROM bid_cases").fetchone()["n"] == 1
     finally:
         conn.close()
+
+
+def test_demo_state_is_internally_coherent(tmp_path):
+    """9단계까지 간 기관이 '검토중'으로 남아 있으면 앞뒤가 안 맞는다.
+
+    참여확정(3차 결재)이 팀 Task를 만들고 그 뒤에야 5·6단계가 진행되므로,
+    stage가 3 이상이면 참여 결정은 이미 끝나 있어야 한다.
+    """
+    db_path = _db(tmp_path)
+    seed(db_path, str(tmp_path / "out"), "dobong", 9)
+
+    conn = get_connection(db_path)
+    try:
+        stage = conn.execute(
+            "SELECT stage FROM institutions WHERE institution_id='dobong'").fetchone()["stage"]
+        row = conn.execute(
+            "SELECT participation_status, participation_decision FROM bid_cases"
+            " WHERE bid_case_id = ?", (DEMO_BID_CASE,)).fetchone()
+    finally:
+        conn.close()
+
+    assert stage == 9
+    assert row["participation_status"] == "참여확정"
+    tiers = [d["tier"] for d in json.loads(row["participation_decision"])]
+    assert tiers == [1, 2, 3]

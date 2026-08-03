@@ -34,6 +34,28 @@
     return out;
   };
 
+  // 입찰일의 진실은 **반입된 공고(bid_cases)** 다. 지도가 보던
+  // institutions.contract_end(CSV 반입)는 공고가 없을 때의 폴백일 뿐이다.
+  // 우선순위: 확정일 > 예상일 > 기존 값. 이렇게 값만 갈아끼우면 render.js의
+  // 빗금(추측)·긴급도 색은 손대지 않아도 공고 기준으로 그려진다.
+  serverdata.applyBidCases = function (list, bidCases) {
+    const byInst = {};
+    (bidCases || []).forEach(function (b) { byInst[b.institution_id] = b; });
+    return (list || []).map(function (r) {
+      const b = r.institutionId && byInst[r.institutionId];
+      if (!b) return r;
+      const rec = Object.assign({}, r, {
+        bidCaseId: b.bid_case_id,
+        participationStatus: b.participation_status,
+        participationDecision: b.participation_decision || [],
+      });
+      // 날짜가 없는 공고(일정 미상)면 기존 값을 남긴다 — 있던 정보를 지우지 않는다.
+      if (b.confirmed_date) { rec.contractEnd = b.confirmed_date; rec.confirmed = true; }
+      else if (b.expected_date) { rec.contractEnd = b.expected_date; rec.confirmed = false; }
+      return rec;
+    });
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = serverdata;
   else root.serverdata = serverdata;
 })(typeof self !== 'undefined' ? self : this);
