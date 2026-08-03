@@ -73,4 +73,26 @@ test('setServerData: loadData가 서버 리스트를 우선 반환하고 localSt
   store.setServerData([{ name: '도봉구' }]);
   assert.strictEqual(store.isServerMode(), true);
   assert.deepStrictEqual(store.loadData(), [{ name: '도봉구' }]);
+  store.clearServerData();                                    // 뒤 테스트로 서버 모드를 흘리지 않는다
+  assert.strictEqual(store.isServerMode(), false);
+});
+
+test('applyEdits: 서버 모드에서는 서버 필드 overlay를 무시하고 로컬 전용 필드만 덮는다', function () {
+  freshLS();
+  store.setEdit('도봉구', { contractEnd: '2020-01-01', sources: ['수기'] });
+  store.setServerData([{ name: '도봉구', contractEnd: '2026-12-31' }]);
+
+  const out = store.applyEdits(store.loadData());
+  assert.strictEqual(out[0].contractEnd, '2026-12-31');      // 서버 값이 이긴다
+  assert.deepStrictEqual(out[0].sources, ['수기']);           // 로컬 전용 필드는 유지
+});
+
+test('applyEdits: 폴백 모드에서는 기존대로 전체 overlay가 적용된다', function () {
+  freshLS();
+  store.clearServerData();                                    // 폴백 모드로 되돌림
+  store.setEdit('도봉구', { contractEnd: '2020-01-01', sources: ['수기'] });
+
+  const out = store.applyEdits([{ name: '도봉구', contractEnd: '2026-12-31' }]);
+  assert.strictEqual(out[0].contractEnd, '2020-01-01');      // file://에선 overlay가 진실
+  assert.deepStrictEqual(out[0].sources, ['수기']);
 });

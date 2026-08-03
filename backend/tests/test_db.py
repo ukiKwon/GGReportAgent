@@ -74,3 +74,33 @@ def test_tasks_table_rejects_duplicate_team_per_bid_case(tmp_path):
                VALUES ('task-2', 'bc-1', '영업', '대기', 0, '')"""
         )
     conn.close()
+
+
+def test_migration_adds_new_columns_to_legacy_db(tmp_path):
+    """구버전 registry.db(컬럼 없음)에 붙는지 + 두 번 돌려도 안전한지."""
+    import sqlite3
+
+    db_path = str(tmp_path / "legacy.db")
+    legacy = sqlite3.connect(db_path)
+    legacy.executescript(
+        """CREATE TABLE messages (
+               message_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, role TEXT NOT NULL,
+               content TEXT NOT NULL, created_at TEXT NOT NULL);
+           CREATE TABLE notifications (
+               notification_id TEXT PRIMARY KEY, recipient TEXT NOT NULL, kind TEXT NOT NULL,
+               institution_id TEXT, task_id TEXT, content TEXT NOT NULL, link TEXT,
+               created_at TEXT NOT NULL, read_at TEXT);
+           INSERT INTO messages VALUES ('msg-old','t','user','옛날 글','2026-01-01T00:00:00');"""
+    )
+    legacy.commit(); legacy.close()
+
+    init_db(db_path).close()
+    conn = init_db(db_path)          # 두 번째 호출도 깨지지 않아야 한다(멱등)
+    msg_cols = {r["name"] for r in conn.execute("PRAGMA table_info(messages)")}
+    ntf_cols = {r["name"] for r in conn.execute("PRAGMA table_info(notifications)")}
+    assert {"author", "stage"} <= msg_cols
+    assert "stage" in ntf_cols
+    # 기존 행은 보존되고 새 컬럼만 NULL이다 — 프런트가 "단계 미상"으로 묶는 근거.
+    old = conn.execute("SELECT * FROM messages WHERE message_id='msg-old'").fetchone()
+    assert old["content"] == "옛날 글" and old["author"] is None and old["stage"] is None
+    conn.close()

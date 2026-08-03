@@ -114,3 +114,14 @@ def test_graph_failure_marks_not_running_and_keeps_stage(tmp_path):
     assert body["running"] is False
     assert body["pending_gate"] is None  # 조용히 게이트인 척 하지 않는다
     assert body["failed"] is True  # 폴링 클라이언트가 실패를 알 수 있어야 한다
+
+
+def test_status_tasks_expose_task_id(tmp_path):
+    """프런트가 지시·보고 로그(GET /tasks/{id})를 열려면 task_id가 필요하다."""
+    app = _app(tmp_path)
+    conn = get_connection(str(tmp_path / "registry.db"))
+    conn.execute("INSERT INTO tasks (task_id, bid_case_id, team) VALUES ('task-x','bc-1','영업')")
+    conn.commit(); conn.close()
+
+    body = TestClient(app).get("/institutions/nowon/status").json()
+    assert body["tasks"][0]["task_id"] == "task-x"

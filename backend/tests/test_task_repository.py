@@ -92,3 +92,14 @@ def test_approve_task_rejected_returns_to_작성중(task_id):
     claim_approver_if_unset(conn, tid, "boss")
     approve_task(conn, tid, approved=False)
     assert get_task(conn, tid).status == "작성중"
+
+
+def test_add_message_roundtrips_author_and_stage(task_id):
+    """messages.author/stage는 선택 인자 — 기존 호출부는 그대로 두고 새 값만 실린다."""
+    conn, tid = task_id
+    add_message(conn, tid, "human", "기획 승인", author="김 차장", stage=6)
+    add_message(conn, tid, "agent", "초안 완료")
+
+    msgs = list_messages(conn, tid)
+    assert (msgs[0].author, msgs[0].stage) == ("김 차장", 6)
+    assert (msgs[1].author, msgs[1].stage) == (None, None)

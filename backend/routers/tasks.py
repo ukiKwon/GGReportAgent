@@ -110,7 +110,7 @@ def post_task_upload(
             f" PII {len(result['pii'])}건"
             + (f" ({result['skipped']})" if result["skipped"] else "")
         )
-        add_message(conn, task_id, "agent", summary)
+        add_message(conn, task_id, "agent", summary, author="검증 agent")
         if out_dir and result["coverage"]:
             write_coverage_map(out_dir, task.team, result["coverage"], len(result["pii"]))
         return {"coverage": result["coverage"], "pii_count": len(result["pii"]),
@@ -136,7 +136,7 @@ def post_task_message(
         raise HTTPException(status_code=409, detail="task is not open for chat")
 
     claim_assignee_if_unset(conn, task_id, x_user_id)
-    add_message(conn, task_id, "user", body.content)
+    add_message(conn, task_id, "user", body.content, author=x_user_id)
     history = [m.model_dump() for m in list_messages(conn, task_id)]
 
     bid_case_row = conn.execute(

@@ -50,6 +50,9 @@ def draft_team(state: dict, recorder) -> dict:
     재작성하는 것을 막는다(리뷰 F1 픽스).
     """
     role = state["role"]
+    # 3팀 초안 작성은 5단계다(이 모듈 상단·graph.py docstring 참조). set_stage는 멱등이고,
+    # 이게 없으면 초안 기록이 직전 단계(4)로 찍혀 단계별 뷰가 어긋난다.
+    recorder.set_stage(5)
     recorder.task_update(role, "작성중", 10)
     revision_note = state.get("revision_note")
     result = content_writer_node({**state, "revision_note": revision_note}, role=role)

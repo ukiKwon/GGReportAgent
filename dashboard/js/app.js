@@ -10,7 +10,8 @@
       return r.json().then(function (rows) {
         root.store.setServerData(root.serverdata.mergeUnion(window.institutions || [], rows));
       });
-    }).catch(function () { /* 폴백 — 아무것도 하지 않음 */ });
+    }).catch(function () { /* 폴백 — 아무것도 하지 않음 */ })
+      .then(function () { if (app.applyServerModeUI) app.applyServerModeUI(); });
   };
 
   app.enterRegion = function (code) {
@@ -54,6 +55,16 @@
   app.onTabChange = function (tab) {
     if (tab === 'regions') { root.render.drawRegionGrid(); root.render.drawPinBar(); }
     else if (tab === 'map') { root.render.applyWatchStyles(); }
+    if (root.workflow) {
+      if (tab === 'workflow') root.workflow.mount();
+      else root.workflow.unmount();   // 다른 탭으로 나가면 폴링 중단
+    }
+  };
+
+  // 워크플로 탭은 서버 모드 전용 — 오케스트레이터 API가 없는 file://에서는 숨긴다.
+  app.applyServerModeUI = function () {
+    const btn = document.getElementById('tab-btn-workflow');
+    if (btn) btn.style.display = root.store.isServerMode() ? '' : 'none';
   };
 
   app.wireFilters = function () {
@@ -159,6 +170,10 @@
             root.render.drawTicker();
           });
         }).catch(function () { alert('서버 연결 실패 — 저장되지 않았습니다.'); });
+      } else if (root.store.isServerMode()) {
+        // 서버 미등록 행(번들에만 있는 기관) — PUT할 대상이 없고, overlay도 서버 필드는
+        // 더 이상 적용하지 않으므로(F4) 조용히 사라지지 않도록 알린다.
+        alert('서버에 등록되지 않은 기관이라 서버 필드(기관구분·지역·주기·입찰일)는 저장되지 않습니다.\n좌표·출처 등 로컬 전용 필드만 저장됩니다.');
       }
       root.store.setEdit(rec.name, partial); modal.style.display = 'none';   // 로컬 전용 필드 overlay는 항상 유지
       if (root.render.state.currentRegion) { root.render.drawRegion(root.render.state.currentRegion); }

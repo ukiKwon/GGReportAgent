@@ -76,7 +76,8 @@ def get_status(institution_id: str, request: Request):
         if inst is None:
             raise HTTPException(status_code=404, detail="institution not found")
         tasks = [dict(r) for r in conn.execute(
-            """SELECT t.team, t.status, t.progress_pct, t.assignee FROM tasks t
+            # task_id는 프런트가 지시·보고 로그(GET /tasks/{id})를 여는 열쇠다(계획 C1).
+            """SELECT t.task_id, t.team, t.status, t.progress_pct, t.assignee FROM tasks t
                JOIN bid_cases b ON b.bid_case_id = t.bid_case_id
                WHERE b.institution_id = ?""", (institution_id,)).fetchall()]
         unread = conn.execute(
@@ -94,6 +95,49 @@ def get_status(institution_id: str, request: Request):
         "tasks": tasks,
         "notifications_unread": unread,
     }
+
+
+@router.get("/{institution_id}/timeline")
+def get_timeline(institution_id: str, request: Request):
+    """단계별 수행 내용 — 메시지와 알림을 한 줄기로 합쳐 시간순으로 준다(계획 C1-fix).
+
+    범위는 GET /status의 tasks 쿼리와 같다: 해당 기관의 **모든** bid_case.
+    stage가 NULL인 과거 행도 그대로 내보낸다 — 화면이 '단계 미상'으로 묶는다.
+    """
+    conn = get_connection(request.app.state.db_path)
+    try:
+        if get_institution(conn, institution_id) is None:
+            raise HTTPException(status_code=404, detail="institution not found")
+        messages = conn.execute(
+            """SELECT m.stage, m.created_at, t.team, m.role, m.author, m.content, m.task_id
+               FROM messages m
+               JOIN tasks t ON t.task_id = m.task_id
+               JOIN bid_cases b ON b.bid_case_id = t.bid_case_id
+               WHERE b.institution_id = ?""",
+            (institution_id,),
+        ).fetchall()
+        notifications = conn.execute(
+            """SELECT stage, created_at, kind, content, task_id
+               FROM notifications WHERE institution_id = ?""",
+            (institution_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    events = [
+        {"stage": r["stage"], "at": r["created_at"], "kind": "message", "team": r["team"],
+         "role": r["role"], "author": r["author"], "content": r["content"],
+         "task_id": r["task_id"]}
+        for r in messages
+    ] + [
+        # 알림에는 팀이 없다. kind(결재요청·되물음·이관·쪽지)를 role 자리에 실어
+        # 화면이 메시지와 같은 줄 형식으로 그릴 수 있게 한다.
+        {"stage": r["stage"], "at": r["created_at"], "kind": "notification", "team": None,
+         "role": r["kind"], "author": None, "content": r["content"], "task_id": r["task_id"]}
+        for r in notifications
+    ]
+    events.sort(key=lambda e: e["at"])
+    return {"events": events}
 
 
 @router.post("/{institution_id}/complete")

@@ -52,7 +52,9 @@ CREATE TABLE IF NOT EXISTS messages (
     task_id    TEXT NOT NULL REFERENCES tasks(task_id),
     role       TEXT NOT NULL,
     content    TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    author     TEXT,                          -- 사람이 쓴 글의 실명(결재자·담당자)
+    stage      INTEGER                        -- 기록 당시의 9단계 진행 단계
 );
 
 CREATE TABLE IF NOT EXISTS notifications (
@@ -64,7 +66,8 @@ CREATE TABLE IF NOT EXISTS notifications (
     content         TEXT NOT NULL,
     link            TEXT,
     created_at      TEXT NOT NULL,
-    read_at         TEXT
+    read_at         TEXT,
+    stage           INTEGER                   -- 기록 당시의 9단계 진행 단계
 );
 
 CREATE TABLE IF NOT EXISTS chat_messages (
@@ -91,6 +94,16 @@ BID_CASE_MIGRATIONS = {
     "notice_url": "TEXT",
 }
 
+# 단계별 수행 내용 뷰(계획 C1-fix)가 쓰는 컬럼들. 기존 행은 NULL로 남아 "단계 미상"이 된다.
+MESSAGE_MIGRATIONS = {"author": "TEXT", "stage": "INTEGER"}
+NOTIFICATION_MIGRATIONS = {"stage": "INTEGER"}
+
+MIGRATIONS = {
+    "bid_cases": BID_CASE_MIGRATIONS,
+    "messages": MESSAGE_MIGRATIONS,
+    "notifications": NOTIFICATION_MIGRATIONS,
+}
+
 # 반입 dedup 키 (collector/SCHEMA.md §④의 유일키). 위 컬럼이 붙은 뒤에야 만들 수
 # 있으므로 SCHEMA와 분리한다. SQLite는 NULL을 서로 다른 값으로 취급하므로, 두 컬럼이
 # NULL인 기존 수동/seed bid_case가 여러 건 있어도 걸리지 않는다 — 부분 인덱스가
@@ -109,10 +122,11 @@ def get_connection(db_path: str) -> sqlite3.Connection:
 
 def _migrate(conn: sqlite3.Connection) -> None:
     """없는 컬럼만 붙인다(멱등). 두 번 돌려도 안전하고 기존 행은 건드리지 않는다."""
-    existing = {row["name"] for row in conn.execute("PRAGMA table_info(bid_cases)")}
-    for column, sql_type in BID_CASE_MIGRATIONS.items():
-        if column not in existing:
-            conn.execute(f"ALTER TABLE bid_cases ADD COLUMN {column} {sql_type}")
+    for table, columns in MIGRATIONS.items():
+        existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+        for column, sql_type in columns.items():
+            if column not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}")
 
 
 def init_db(db_path: str) -> sqlite3.Connection:

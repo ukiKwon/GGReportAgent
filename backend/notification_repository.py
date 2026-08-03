@@ -18,21 +18,24 @@ def create_notification(
     task_id: str | None = None,
     link: str | None = None,
     commit: bool = True,
+    stage: int | None = None,
 ) -> Notification:
     notification_id = f"ntf-{secrets.token_hex(4)}"
     created_at = _now()
     conn.execute(
         """INSERT INTO notifications
-           (notification_id, recipient, kind, institution_id, task_id, content, link, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (notification_id, recipient, kind, institution_id, task_id, content, link, created_at),
+           (notification_id, recipient, kind, institution_id, task_id, content, link,
+            created_at, stage)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (notification_id, recipient, kind, institution_id, task_id, content, link,
+         created_at, stage),
     )
     if commit:
         conn.commit()
     return Notification(
         notification_id=notification_id, recipient=recipient, kind=kind,
         institution_id=institution_id, task_id=task_id, content=content,
-        link=link, created_at=created_at,
+        link=link, created_at=created_at, stage=stage,
     )
 
 
