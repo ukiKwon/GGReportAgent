@@ -13,9 +13,11 @@ C2까지로 화면 5종이 붙었고 스펙 §⑩ 재대조에서 ❌/⚠️로 
 
 **탐색으로 드러난 것 — NEXT.md에 적어둔 "지도를 고쳐야 한다"는 틀렸다.**
 
-- `dashboard/js/render.js:340`이 이미 `logic.effectiveBid(r).confidence === '추측'`로
-  **빗금을 치고** 있고, `logic.urgencyOf`가 같은 값으로 색을 정한다. 즉 **확정/추측 표시는
-  이미 구현돼 있다.**
+- `logic.urgencyOf`가 `contractEnd`·`confirmed`로 임박도 색을 정하고, 랭킹 카드는
+  `logic.formatBidDate`로 `날짜(확정/추측)`를 이미 찍고 있다.
+  (⚠️ 작업 중 "지자체 면에도 추측이면 빗금이 쳐진다"고 적었는데 **틀렸다** —
+  `render.js:340`의 빗금은 *마커* 전용이고 지자체는 `logic.js:146`에서 마커에서 제외된다.
+  면에 확정/추측을 표시하지 않기로 사용자가 결정했다(2026-08-03).)
 - 문제는 그 값의 출처다. 지도는 `institutions.contract_end`(CSV 반입) + 로컬 `confirmed`를
   보는데, **실제 공고 일정은 `bid_cases.expected_date/confirmed_date`에 따로 있다**
   (`backend/inbox_import.py`는 bid_case만 갱신하고 `institutions.contract_end`는 건드리지

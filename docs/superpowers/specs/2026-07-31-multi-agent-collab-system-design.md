@@ -179,7 +179,7 @@ POST /tasks/{id}/upload               # 담당자 작성물 업로드(기존 sub
 
 | # | 요구 | 결과 | 실물 근거 / 남은 것 |
 |---|---|---|---|
-| 1 | 입찰상황판에 예상 공고 표시 | ✅ | `GET /bidcases/latest` + `serverdata.applyBidCases` — 확정일>예상일>CSV. 지도의 빗금(추측)·긴급도 색이 공고 기준으로 그려진다(계획 D) |
+| 1 | 입찰상황판에 예상 공고 표시 | ✅ | `GET /bidcases/latest` + `serverdata.applyBidCases` — 확정일>예상일>CSV. 지도 임박도 색과 랭킹 카드의 `날짜(확정/추측)`가 공고 기준으로 바뀐다(계획 D). 면 자체에 확정/추측 구분은 두지 않기로 사용자가 결정 |
 | 2 | 대화창 참여 자문 질의 | ✅ | `POST /institutions/{id}/chat` + 대화 탭(`dashboard/js/chat.js`) |
 | 3 | 지난 공고문·은행 상황 분석 | ✅ | `agent_adapter.stream_consult_reply`가 코퍼스(FTS 또는 통째로 읽기)+`rfp_text.txt` 사용 |
 | 4 | 영업/전산/예산 관점 분석 | ✅ | `role_router_node` 3팀 + 참여검토 3관점 |
@@ -204,10 +204,11 @@ POST /tasks/{id}/upload               # 담당자 작성물 업로드(기존 sub
 계획 D(`docs/superpowers/plans/2026-08-03-bid-status-board.md`)로 1·5·6이 채워지면서
 **스펙 §⑦ 화면 6종이 모두 붙었고 ❌가 사라졌다.**
 
-계획 D에서 드러난 것: 화면 ①은 "지도를 고쳐야 하는 일"이 아니었다. 확정/추측 빗금은
-`render.js`에 이미 있었고, 진짜 결함은 **입찰일의 진실이 두 곳**(CSV `institutions.contract_end`
-vs 반입 공고 `bid_cases`)이라는 것이었다. 병합 계층에서 값을 갈아끼워 `render.js`
-무수정으로 끝냈다.
+계획 D에서 드러난 것: 화면 ①은 "지도를 고쳐야 하는 일"이 아니었다. 진짜 결함은
+**입찰일의 진실이 두 곳**(CSV `institutions.contract_end` vs 반입 공고 `bid_cases`)이라는
+것이었고, 병합 계층에서 값을 갈아끼워 `render.js` 무수정으로 끝냈다.
+(작업 중 "추측이면 지도 면에 빗금"이라고 잘못 안내한 적이 있는데, 빗금은 마커와 준비중
+지역에만 있는 규칙이다. 면에 표시하지 않기로 사용자가 결정했다.)
 
 남은 ⚠️ 2건(둘 다 비차단, 별도 과제):
 
