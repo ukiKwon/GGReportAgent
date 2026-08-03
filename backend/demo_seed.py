@@ -1,12 +1,17 @@
 """워크플로 탭 화면 확인용 데모 데이터 (계획 C1-fix).
 
 9단계 전 구간의 지시·보고·결재 기록과 배점표 매핑을 한 기관에 넣어, 서버를 띄우면
-바로 "다 돌아본 것 같은" 화면이 나오게 한다. **실데이터가 아니다** — 모든 행 id가
-`demo-` 접두사라 `--clear` 한 번으로 흔적 없이 지워진다.
+바로 "다 돌아본 것 같은" 화면이 나오게 한다. **실데이터가 아니다.**
+
+**보통은 이 파일을 직접 부를 일이 없다** — `py -3 -m backend.demo`가 시딩부터 서버
+기동까지 한 번에 한다. 데이터만 다시 깔고 싶을 때만 쓴다:
 
     py -3 -m backend.demo_seed                      # 도봉구에 투입(기본 stage 9)
     py -3 -m backend.demo_seed --institution nowon --stage 6
-    py -3 -m backend.demo_seed --clear              # 전부 삭제
+    py -3 -m backend.demo_seed --clear              # 데모 행·산출물 삭제
+
+기본 대상은 **데모 전용 DB**(`data/demo.db`)다 — 운영 `registry.db`는 건드리지 않는다
+(backend/demo_paths.py). 통째로 지우려면 `py -3 -m backend.demo --reset`.
 
 `rfp_text.txt`는 일부러 만들지 않는다 — agent/pipeline.py의 RFP_ARTIFACTS가 둘 다
 있어야 참이라, 없으면 POST /run이 400으로 막혀 실수로 LLM 실행이 시작되지 않는다.
@@ -18,9 +23,8 @@ import os
 import shutil
 
 from backend.db import get_connection, init_db
+from backend.demo_paths import DEMO_DB_PATH, DEMO_OUTPUT_ROOT
 
-DEFAULT_DB_PATH = "data/registry.db"
-DEFAULT_OUTPUT_ROOT = "data/report_new"
 DEMO_BID_CASE = "demo-bc"
 
 # 팀 → (task_id, 상태, 진행률, 담당자). RFI분석·취합·검증은 에이전트 몫이라 담당자가 없다.
@@ -187,8 +191,10 @@ def main() -> None:
     parser.add_argument("--institution", default="dobong", help="기관 id (기본: dobong)")
     parser.add_argument("--stage", type=int, default=9, help="기관 진행 단계 (기본: 9)")
     parser.add_argument("--clear", action="store_true", help="데모 데이터를 지우기만 한다")
-    parser.add_argument("--db", default=os.environ.get("REGISTRY_DB_PATH", DEFAULT_DB_PATH))
-    parser.add_argument("--output-root", default=DEFAULT_OUTPUT_ROOT)
+    # REGISTRY_DB_PATH를 일부러 보지 않는다 — 그 환경변수는 운영 DB를 가리키므로,
+    # 그걸 따르면 데모가 운영 자료에 섞인다(분리의 요점).
+    parser.add_argument("--db", default=DEMO_DB_PATH)
+    parser.add_argument("--output-root", default=DEMO_OUTPUT_ROOT)
     args = parser.parse_args()
 
     init_db(args.db).close()          # 컬럼 마이그레이션까지 확실히 적용된 상태로 시작
