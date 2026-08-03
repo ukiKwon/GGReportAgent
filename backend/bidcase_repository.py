@@ -167,6 +167,20 @@ def list_bid_cases_for_assignee(
     return [_row_to_bid_case(row) for row in cursor.fetchall()]
 
 
+def list_latest_bid_cases(conn: sqlite3.Connection) -> list[BidCase]:
+    """기관마다 최신 공고 1건 — 지도가 전체 기관의 입찰일을 그리는 데 쓴다.
+
+    "최신"의 기준은 `OrchestratorService._latest_bid_case`와 같은 rowid 내림차순이다
+    (공고에 신뢰할 만한 시각 컬럼이 없어 삽입 순서를 쓴다). 공고가 없는 기관은 빠진다.
+    """
+    cursor = conn.execute(
+        """SELECT * FROM bid_cases WHERE rowid IN (
+               SELECT MAX(rowid) FROM bid_cases GROUP BY institution_id
+           ) ORDER BY institution_id"""
+    )
+    return [_row_to_bid_case(row) for row in cursor.fetchall()]
+
+
 def submit_participation_decision(
     conn: sqlite3.Connection, bid_case_id: str, decision: ParticipationDecisionIn
 ) -> BidCase:

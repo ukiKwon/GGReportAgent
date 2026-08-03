@@ -129,3 +129,63 @@ def test_upsert_matches_seeded_giganlist_institution_by_name(tmp_path):
     assert updated.type == "지자체"
     assert updated.term == 4
     conn.close()
+
+
+def test_seed_sets_region_and_type_so_the_map_can_place_them(tmp_path):
+    """지도가 구 폴리곤에 붙이려면 region('11')과 type('지자체')이 있어야 한다.
+
+    없으면 institutionsByRegion에서 걸러져 지도에 안 뜨고, 랭킹 카드에는
+    기관구분이 'undefined'로 찍힌다(실제로 그렇게 보였다).
+    """
+    from backend.db import init_db
+    from backend.repository import seed_giganlist_districts
+
+    conn = init_db(str(tmp_path / "r.db"))
+    root = tmp_path / "institutions"
+    (root / "dobong").mkdir(parents=True)
+    seed_giganlist_districts(conn, root)
+
+    row = conn.execute(
+        "SELECT region_code, type, name_ko FROM institutions WHERE institution_id='dobong'"
+    ).fetchone()
+    conn.close()
+    assert (row["region_code"], row["type"], row["name_ko"]) == ("11", "지자체", "도봉구")
+
+
+def test_seed_backfills_existing_rows_missing_region_or_type(tmp_path):
+    """이미 시딩된 DB(그 컬럼이 비어 있음)도 채워 준다 — 재시드는 기존 행을 건너뛰기 때문."""
+    from backend.db import init_db
+    from backend.repository import seed_giganlist_districts
+
+    conn = init_db(str(tmp_path / "r.db"))
+    conn.execute("INSERT INTO institutions (institution_id, name_ko, stage) VALUES ('dobong','도봉구',5)")
+    conn.commit()
+    root = tmp_path / "institutions"
+    (root / "dobong").mkdir(parents=True)
+
+    seed_giganlist_districts(conn, root)
+
+    row = conn.execute(
+        "SELECT region_code, type, stage FROM institutions WHERE institution_id='dobong'").fetchone()
+    conn.close()
+    assert (row["region_code"], row["type"]) == ("11", "지자체")
+    assert row["stage"] == 5          # 진행 상태는 건드리지 않는다
+
+
+def test_seed_does_not_overwrite_values_a_user_already_set(tmp_path):
+    from backend.db import init_db
+    from backend.repository import seed_giganlist_districts
+
+    conn = init_db(str(tmp_path / "r.db"))
+    conn.execute("INSERT INTO institutions (institution_id, name_ko, region_code, type, stage)"
+                 " VALUES ('dobong','도봉구','41','공공기관',1)")
+    conn.commit()
+    root = tmp_path / "institutions"
+    (root / "dobong").mkdir(parents=True)
+
+    seed_giganlist_districts(conn, root)
+
+    row = conn.execute(
+        "SELECT region_code, type FROM institutions WHERE institution_id='dobong'").fetchone()
+    conn.close()
+    assert (row["region_code"], row["type"]) == ("41", "공공기관")
