@@ -184,7 +184,10 @@
     el('wf-panel').querySelectorAll('.wf-card').forEach(function (card) {
       const taskId = card.dataset.taskId;
       if (!taskId) return;
-      if (taskId === selectedTaskId) { card.classList.add('hi'); stillThere = true; }
+      // toggle이어야 한다 — add만 하면 다른 카드를 눌러도 이전 선택이 안 꺼진다.
+      const on = taskId === selectedTaskId;
+      card.classList.toggle('hi', on);
+      if (on) stillThere = true;
       card.onclick = function () { openLog(taskId); };
     });
     if (selectedTaskId && !stillThere) { selectedTaskId = null; el('wf-log').innerHTML = ''; }

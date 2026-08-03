@@ -99,6 +99,10 @@ class Message(BaseModel):
     role: str
     content: str
     created_at: str
+    # 아래 둘은 나중에 붙은 컬럼이라 과거 행에는 없다(NULL). list_messages가
+    # SELECT *를 Message(**row)로 넘기므로 여기에 없으면 즉시 깨진다.
+    author: str | None = None
+    stage: int | None = None
 
 
 class TaskDetail(Task):
@@ -133,6 +137,7 @@ class Notification(BaseModel):
     link: str | None = None
     created_at: str
     read_at: str | None = None
+    stage: int | None = None   # 나중에 붙은 컬럼 — 과거 행은 NULL
 
 
 class ChatMessage(BaseModel):
