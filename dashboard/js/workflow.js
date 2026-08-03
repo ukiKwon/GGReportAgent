@@ -16,13 +16,15 @@
     { no: 9, label: '제출', gate: null },
   ];
 
-  workflow.stepperModel = function (status) {
+  // counts는 선택 인자(stageCounts 결과) — 없으면 전부 0이라 기존 호출부가 그대로 돈다.
+  workflow.stepperModel = function (status, counts) {
     const stage = Number(status && status.stage) || 1;
     const pending = status && status.pending_gate;
+    const c = counts || {};
     return workflow.STAGES.map(function (s) {
       let state = s.no < stage ? 'done' : (s.no === stage ? 'current' : 'todo');
       if (pending && s.gate === pending) state = 'gate';
-      return { no: s.no, label: s.label, gate: s.gate, state: state };
+      return { no: s.no, label: s.label, gate: s.gate, state: state, count: c[s.no] || 0 };
     });
   };
 
@@ -67,10 +69,38 @@
     };
   };
 
+  // 역할 표기: 영문 role은 그대로 두고 옆에 한글 부제를 단다(사용자 요청).
+  // agent는 무슨 일을 하는지가 팀에서 나오고, 사람은 실명(author)이 곧 부제다.
+  workflow.ROLE_SUB = { orchestrator: '총괄 agent' };
+  const HUMAN_ROLES = ['human', 'user'];
+
+  workflow.roleLabel = function (role, ctx) {
+    const c = ctx || {};
+    if (workflow.ROLE_SUB[role]) return { main: role, sub: workflow.ROLE_SUB[role] };
+    if (role === 'agent') return { main: role, sub: (c.team ? c.team + ' agent' : '실무 agent') };
+    if (HUMAN_ROLES.indexOf(role) >= 0) return { main: role, sub: c.author || c.assignee || '담당자' };
+    return { main: role, sub: null };   // 알림 kind(결재요청 등)는 그 자체가 설명이다
+  };
+
+  workflow.stageEvents = function (timeline, stageNo) {
+    return ((timeline && timeline.events) || []).filter(function (e) {
+      return Number(e.stage) === Number(stageNo);
+    });
+  };
+
+  workflow.stageCounts = function (timeline) {
+    const out = {};
+    ((timeline && timeline.events) || []).forEach(function (e) {
+      if (e.stage == null) return;      // 단계 미상(구버전 행)은 스테퍼에 세지 않는다
+      out[e.stage] = (out[e.stage] || 0) + 1;
+    });
+    return out;
+  };
+
   // GET /tasks/{id} 응답(TaskDetail)의 지시·보고 로그. 서버가 이미 시간순으로 준다.
   workflow.logRows = function (detail) {
     return ((detail && detail.messages) || []).map(function (m) {
-      return { role: m.role, content: m.content, at: m.created_at };
+      return { role: m.role, content: m.content, at: m.created_at, author: m.author || null };
     });
   };
 
