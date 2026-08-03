@@ -5,10 +5,16 @@
   // 서버 모드 부트스트랩(계획 B): /institutions가 응답하면(2xx) 서버가 authoritative store.
   // file://나 서버 부재 시 fetch가 예외/실패 → 아무 것도 하지 않고 조용히 폴백(기존 동작 그대로).
   app.bootstrapServer = function () {
+    // 공고 일정(계획 D)은 부가 정보라 실패해도 병합을 막지 않는다 — 빈 배열로 진행한다.
+    const bidCases = fetch('/bidcases/latest')
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .catch(function () { return []; });
+
     return fetch('/institutions').then(function (r) {
       if (!r.ok) return;
-      return r.json().then(function (rows) {
-        root.store.setServerData(root.serverdata.mergeUnion(window.institutions || [], rows));
+      return Promise.all([r.json(), bidCases]).then(function (res) {
+        const merged = root.serverdata.mergeUnion(window.institutions || [], res[0]);
+        root.store.setServerData(root.serverdata.applyBidCases(merged, res[1]));
       });
     }).catch(function () { /* 폴백 — 아무것도 하지 않음 */ })
       .then(function () { if (app.applyServerModeUI) app.applyServerModeUI(); });
