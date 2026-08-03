@@ -16,6 +16,20 @@ class DbRecorder:
         self.db_path = db_path
         self.institution_id = institution_id
         self.bid_case_id = bid_case_id
+        # 기록에 "그때 몇 단계였는지"를 같이 남긴다 — 단계별 수행 내용 뷰(계획 C1-fix)의
+        # 유일한 근거다. 포트 시그니처를 늘리지 않으려고 set_stage를 그대로 신뢰한다.
+        self.stage = self._read_stage()
+
+    def _read_stage(self) -> int | None:
+        conn = self._conn()
+        try:
+            row = conn.execute(
+                "SELECT stage FROM institutions WHERE institution_id = ?",
+                (self.institution_id,),
+            ).fetchone()
+        finally:
+            conn.close()
+        return row["stage"] if row else None
 
     def _conn(self) -> sqlite3.Connection:
         return get_connection(self.db_path)
@@ -45,6 +59,7 @@ class DbRecorder:
             conn.commit()
         finally:
             conn.close()
+        self.stage = stage
 
     def task_update(self, team: str, status: str, progress_pct: int) -> None:
         conn = self._conn()
@@ -58,11 +73,11 @@ class DbRecorder:
         finally:
             conn.close()
 
-    def message(self, team: str, role: str, content: str) -> None:
+    def message(self, team: str, role: str, content: str, author: str | None = None) -> None:
         conn = self._conn()
         try:
             task_id = self._ensure_task(conn, team)
-            add_message(conn, task_id, role, content)
+            add_message(conn, task_id, role, content, author=author, stage=self.stage)
         finally:
             conn.close()
 
@@ -70,7 +85,8 @@ class DbRecorder:
         conn = self._conn()
         try:
             create_notification(
-                conn, recipient, kind, content, institution_id=self.institution_id
+                conn, recipient, kind, content,
+                institution_id=self.institution_id, stage=self.stage,
             )
         finally:
             conn.close()
