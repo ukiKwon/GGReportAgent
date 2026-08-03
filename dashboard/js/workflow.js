@@ -34,13 +34,38 @@
     return !status.running && !status.pending_gate && Number(status.stage) < 9;
   };
 
-  workflow.teamCards = function (status) {
+  // 카드는 "그 단계에 실제로 기록을 남긴 팀"이다(사용자 요청) — 전체 팀 목록이 아니다.
+  // 사람이 낀 단계는 실명이 이기고, 에이전트만 돈 단계는 '{팀} agent'로 적는다.
+  // 알림은 팀이 없어서 참여자로 치지 않는다(단계 로그에는 그대로 남는다).
+  workflow.stageParticipants = function (timeline, stageNo, status) {
+    const byTeam = {};
+    const order = [];
+    workflow.stageEvents(timeline, stageNo).forEach(function (e) {
+      if (!e.team) return;
+      if (!byTeam[e.team]) { byTeam[e.team] = { count: 0, authors: [], summary: null }; order.push(e.team); }
+      const g = byTeam[e.team];
+      g.count += 1;
+      g.summary = e.content;                       // 마지막 기록이 그 단계에서 한 일 요약
+      // 카드 이름은 사람 자리다 — agent 메시지의 author("검증 agent" 등)는 사람이 아니므로
+      // 이름으로 올리지 않는다. 그런 단계는 '{팀} agent'로 남는다.
+      if (e.author && HUMAN_ROLES.indexOf(e.role) >= 0 && g.authors.indexOf(e.author) < 0) {
+        g.authors.push(e.author);
+      }
+    });
+
     const tasks = (status && status.tasks) || [];
-    return tasks.map(function (t) {
+    return order.map(function (team) {
+      const g = byTeam[team];
+      const t = tasks.filter(function (x) { return x.team === team; })[0] || null;
       return {
-        team: t.team, status: t.status, progress_pct: t.progress_pct,
-        assignee: t.assignee || null, taskId: t.task_id || null,
-        label: t.team + ' · ' + (t.assignee || '미배정'),
+        team: team,
+        authors: g.authors,
+        label: g.authors.length ? team + ' · ' + g.authors.join('·') : team + ' agent',
+        count: g.count,
+        summary: g.summary,
+        taskId: (t && t.task_id) || null,
+        statusText: (t && t.status) || null,
+        progressPct: t ? t.progress_pct : null,
       };
     });
   };
@@ -109,24 +134,35 @@
     return (root.logic && root.logic.esc) ? root.logic.esc(s) : String(s == null ? '' : s);
   }
 
-  workflow.renderPanel = function (el, status, coverage, timeline) {
+  workflow.renderPanel = function (el, status, coverage, timeline, stageNo) {
     const counts = workflow.stageCounts(timeline);
+    const shown = Number(stageNo) || Number(status && status.stage) || 1;
     const steps = workflow.stepperModel(status, counts).map(function (s) {
-      return '<div class="wf-step ' + s.state + '" data-stage="' + s.no + '"><b>' + s.no + '</b>' +
+      return '<div class="wf-step ' + s.state + (s.no === shown ? ' sel' : '') +
+        '" data-stage="' + s.no + '"><b>' + s.no + '</b>' +
         esc(s.label) + (s.gate ? '<i class="wf-gate">🛑 ' + esc(s.gate) + '</i>' : '') +
         (s.count ? '<i class="wf-cnt">' + s.count + '</i>' : '') + '</div>';
     }).join('');
-    const cards = workflow.teamCards(status).map(function (c) {
-      return '<div class="wf-card" data-task-id="' + esc(c.taskId || '') + '"' +
-        ' data-team="' + esc(c.team || '') + '"><b>' + esc(c.label) + '</b>' +
-        '<span>' + esc(c.status) + ' · ' + (c.progress_pct || 0) + '%</span></div>';
-    }).join('') || '<p class="wf-empty">아직 배정된 작업이 없습니다.</p>';
+
+    const step = workflow.STAGES.filter(function (s) { return s.no === shown; })[0];
+    const people = workflow.stageParticipants(timeline, shown, status);
+    const cards = people.map(function (p) {
+      const tail = [p.count + '건'].concat(
+        p.statusText ? [esc(p.statusText) + ' · ' + (p.progressPct || 0) + '%'] : []).join(' · ');
+      return '<div class="wf-card" data-task-id="' + esc(p.taskId || '') + '"' +
+        ' data-team="' + esc(p.team) + '"><b>' + esc(p.label) + '</b>' +
+        '<span class="wf-card-sum" title="' + esc(p.summary || '') + '">' + esc(p.summary || '') + '</span>' +
+        '<span>기록 ' + tail + '</span></div>';
+    }).join('') || '<p class="wf-empty">이 단계에는 참여 기록이 없습니다.</p>';
+
     const sum = workflow.coverageSummary(coverage || {});
     el.innerHTML =
       '<div class="wf-stepper">' + steps + '</div>' +
       '<div class="wf-state">' + (status.running ? '⏳ 실행 중' :
         status.pending_gate ? '🛑 ' + esc(status.pending_gate) + ' 대기' :
         status.failed ? '⚠️ 실패 — 실행을 다시 시도하세요' : '대기') + '</div>' +
+      '<div class="wf-cards-title">' + shown + '단계 「' + esc(step ? step.label : '?') +
+        '」 참여자 ' + people.length + '명</div>' +
       '<div class="wf-cards">' + cards + '</div>' +
       '<div class="wf-sum">배점표 ' + sum.covered + '/' + sum.total + '항목 · ' +
         sum.coveredScore + '/' + sum.totalScore + '점' +
@@ -205,8 +241,12 @@
   let selectedId = null;
   let lastStatus = null;
   let selectedTaskId = null;
-  let selectedStage = null;      // 팀 카드 선택과 상호배타 — 로그 영역을 공유하기 때문
+  // 카드가 단계별 참여자로 바뀌면서 단계 선택이 화면의 축이 됐다 — 아무것도 안 고르면
+  // 현재 단계(status.stage)를 본다. 로그 영역만 단계/팀 중 하나를 보여준다.
+  let selectedStage = null;
+  let logMode = 'stage';         // 'stage' | 'task'
   let lastTimeline = null;
+  let lastCoverage = null;
 
   function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
   function startPolling() { stopPolling(); pollTimer = setInterval(function () { refresh(); }, POLL_MS); }
@@ -235,12 +275,10 @@
     ]).then(function (res) {
       if (selectedId !== id) return;               // 폴링 중 기관이 바뀌었으면 버린다
       lastStatus = res[0];
+      lastCoverage = res[1];
       lastTimeline = res[2];
-      workflow.renderPanel(el('wf-panel'), res[0], res[1], res[2]);
-      workflow.renderCoverage(el('wf-coverage'), res[1]);
-      wireCards();
-      wireSteps();
-      syncButtons();
+      if (selectedStage === null) selectedStage = Number(res[0].stage) || 1;
+      repaint();
       // 돌고 있을 때만 계속 본다 — 멈춰 있으면 폴링도 멈춘다.
       if (!res[0].running) stopPolling();
     }).catch(function (e) {
@@ -249,7 +287,18 @@
     });
   }
 
-  // 팀 카드 클릭 → 그 task의 지시·보고 로그. 폴링으로 카드가 다시 그려져도 선택은 유지된다.
+  // 현황판을 통째로 다시 그린다 — 카드가 단계에 딸려 있어 단계가 바뀌면 카드도 바뀐다.
+  function repaint() {
+    if (!lastStatus) return;
+    workflow.renderPanel(el('wf-panel'), lastStatus, lastCoverage, lastTimeline, selectedStage);
+    workflow.renderCoverage(el('wf-coverage'), lastCoverage);
+    wireCards();
+    wireSteps();
+    syncButtons();
+    if (logMode === 'stage') workflow.renderStageLog(el('wf-log'), lastTimeline, selectedStage);
+  }
+
+  // 참여자 카드 클릭 → 그 task의 지시·보고 로그(단계 전체가 아니라 그 팀의 스레드).
   function wireCards() {
     let stillThere = false;
     el('wf-panel').querySelectorAll('.wf-card').forEach(function (card) {
@@ -259,39 +308,41 @@
       const on = taskId === selectedTaskId;
       card.classList.toggle('hi', on);
       if (on) stillThere = true;
-      card.onclick = function () { openLog(taskId); };
+      card.onclick = function () { openLog(taskId, card.dataset.team); };
     });
-    if (selectedTaskId && !stillThere) { selectedTaskId = null; el('wf-log').innerHTML = ''; }
+    // 단계를 옮겨 그 카드가 사라졌으면 팀 로그를 붙잡고 있지 않는다.
+    if (logMode === 'task' && selectedTaskId && !stillThere) {
+      selectedTaskId = null;
+      logMode = 'stage';
+      workflow.renderStageLog(el('wf-log'), lastTimeline, selectedStage);
+    }
   }
 
-  function openLog(taskId) {
+  function openLog(taskId, team) {
     selectedTaskId = taskId;
-    selectedStage = null;                   // 로그 영역은 하나 — 단계 선택은 해제한다
-    const card = el('wf-panel').querySelector('.wf-card[data-task-id="' + taskId + '"]');
-    const team = card ? card.dataset.team : null;
+    logMode = 'task';                       // 로그 영역은 하나 — 단계 로그 대신 팀 로그를 본다
     getJson('/tasks/' + encodeURIComponent(taskId)).then(function (detail) {
       if (selectedTaskId !== taskId) return;
       workflow.renderLog(el('wf-log'), detail, { team: team, assignee: detail.assignee });
-      wireCards(); wireSteps();
+      wireCards();
     }).catch(function (e) {
       el('wf-log').innerHTML = '<p class="wf-empty">로그를 불러오지 못했습니다 — ' + esc(e.message) + '</p>';
     });
   }
 
-  // 스테퍼 단계 클릭 → 그 단계의 수행 내용. 이미 받아둔 timeline을 쓰므로 추가 fetch가 없다.
+  // 스테퍼 단계 클릭 → 참여자 카드와 로그가 그 단계로 갈아끼워진다.
+  // 이미 받아둔 timeline을 쓰므로 추가 fetch가 없다.
   function wireSteps() {
     el('wf-panel').querySelectorAll('.wf-step').forEach(function (step) {
-      const no = Number(step.dataset.stage);
-      step.classList.toggle('sel', no === selectedStage);
-      step.onclick = function () { openStage(no); };
+      step.onclick = function () { openStage(Number(step.dataset.stage)); };
     });
   }
 
   function openStage(stageNo) {
     selectedStage = stageNo;
-    selectedTaskId = null;                  // 팀 카드 선택 해제(상호배타)
-    workflow.renderStageLog(el('wf-log'), lastTimeline, stageNo);
-    wireCards(); wireSteps();
+    selectedTaskId = null;
+    logMode = 'stage';
+    repaint();
   }
 
   function syncButtons() {
@@ -333,9 +384,11 @@
     el('wf-inst').onchange = function () {
       selectedId = this.value || null;
       lastStatus = null;
+      lastCoverage = null;
       lastTimeline = null;
       selectedTaskId = null;
-      selectedStage = null;
+      selectedStage = null;      // 새 기관의 현재 단계로 다시 잡힌다
+      logMode = 'stage';
       el('wf-log').innerHTML = '';
       if (!selectedId) { stopPolling(); el('wf-panel').innerHTML = ''; el('wf-coverage').innerHTML = ''; return; }
       refresh().then(function () { if (lastStatus && lastStatus.running) startPolling(); });

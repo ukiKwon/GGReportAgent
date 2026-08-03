@@ -96,7 +96,10 @@
                      border-radius:8px; padding:0 6px; }
   .wf-step.sel { outline:2px solid var(--accent-color); }
   .wf-state { font-size:13px; margin:6px 0; }
+  .wf-cards-title { font-size:13px; margin:10px 0 2px; }
   .wf-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; margin:8px 0; }
+  /* 그 단계에서 한 일 요약 — 길면 말줄임(전체 문구는 title 속성) */
+  .wf-card .wf-card-sum { color:var(--fg); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .wf-card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
              padding:10px; cursor:pointer; display:flex; flex-direction:column; gap:4px; }
   .wf-card.hi { outline:2px solid var(--accent-color); }
