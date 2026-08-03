@@ -67,6 +67,13 @@
     };
   };
 
+  // GET /tasks/{id} 응답(TaskDetail)의 지시·보고 로그. 서버가 이미 시간순으로 준다.
+  workflow.logRows = function (detail) {
+    return ((detail && detail.messages) || []).map(function (m) {
+      return { role: m.role, content: m.content, at: m.created_at };
+    });
+  };
+
   // ── 렌더 ────────────────────────────────────────────────────────────
   function esc(s) {
     return (root.logic && root.logic.esc) ? root.logic.esc(s) : String(s == null ? '' : s);
@@ -93,11 +100,21 @@
         (sum.piiTotal ? ' · ⚠️ 개인정보 ' + sum.piiTotal + '건' : '') + '</div>';
   };
 
+  workflow.renderLog = function (el, detail) {
+    const rows = workflow.logRows(detail);
+    if (!rows.length) { el.innerHTML = '<p class="wf-empty">이 작업에는 아직 기록된 지시·보고가 없습니다.</p>'; return; }
+    el.innerHTML = '<div class="wf-log">' + rows.map(function (r) {
+      return '<div class="wf-log-row"><div class="wf-who">' + esc(r.role) + ' · ' + esc(r.at) + '</div>' +
+        '<pre>' + esc(r.content) + '</pre></div>';
+    }).join('') + '</div>';
+  };
+
   // ── 배선 ────────────────────────────────────────────────────────────
   const POLL_MS = 2000;
   let pollTimer = null;
   let selectedId = null;
   let lastStatus = null;
+  let selectedTaskId = null;
 
   function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
   function startPolling() { stopPolling(); pollTimer = setInterval(function () { refresh(); }, POLL_MS); }
@@ -124,12 +141,36 @@
       if (selectedId !== id) return;               // 폴링 중 기관이 바뀌었으면 버린다
       lastStatus = res[0];
       workflow.renderPanel(el('wf-panel'), res[0], res[1]);
+      wireCards();
       syncButtons();
       // 돌고 있을 때만 계속 본다 — 멈춰 있으면 폴링도 멈춘다.
       if (!res[0].running) stopPolling();
     }).catch(function (e) {
       stopPolling();
       el('wf-panel').innerHTML = '<p class="wf-empty">현황을 불러오지 못했습니다 — ' + esc(e.message) + '</p>';
+    });
+  }
+
+  // 팀 카드 클릭 → 그 task의 지시·보고 로그. 폴링으로 카드가 다시 그려져도 선택은 유지된다.
+  function wireCards() {
+    let stillThere = false;
+    el('wf-panel').querySelectorAll('.wf-card').forEach(function (card) {
+      const taskId = card.dataset.taskId;
+      if (!taskId) return;
+      if (taskId === selectedTaskId) { card.classList.add('hi'); stillThere = true; }
+      card.onclick = function () { openLog(taskId); };
+    });
+    if (selectedTaskId && !stillThere) { selectedTaskId = null; el('wf-log').innerHTML = ''; }
+  }
+
+  function openLog(taskId) {
+    selectedTaskId = taskId;
+    getJson('/tasks/' + encodeURIComponent(taskId)).then(function (detail) {
+      if (selectedTaskId !== taskId) return;
+      workflow.renderLog(el('wf-log'), detail);
+      wireCards();
+    }).catch(function (e) {
+      el('wf-log').innerHTML = '<p class="wf-empty">로그를 불러오지 못했습니다 — ' + esc(e.message) + '</p>';
     });
   }
 
@@ -172,6 +213,7 @@
     el('wf-inst').onchange = function () {
       selectedId = this.value || null;
       lastStatus = null;
+      selectedTaskId = null;
       el('wf-log').innerHTML = '';
       if (!selectedId) { stopPolling(); el('wf-panel').innerHTML = ''; el('wf-coverage').innerHTML = ''; return; }
       refresh().then(function () { if (lastStatus && lastStatus.running) startPolling(); });
