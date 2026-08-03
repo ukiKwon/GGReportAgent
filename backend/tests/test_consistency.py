@@ -67,12 +67,24 @@ def test_declined_but_stage_moved_on(conn):
     assert "declined_but_advanced" in _rules(check_all(conn))
 
 
-def test_confirmed_but_no_tasks(conn):
-    """참여확정이면 팀 Task가 생겨야 한다(research_status가 '완료'가 아니면 안 생긴다)."""
+def test_confirmed_and_researched_but_no_tasks(conn):
+    """조사까지 끝났으면 팀 Task가 만들어졌어야 한다."""
     _inst(conn, "dongjak", "동작구", 6)
     _bid(conn, "bc-3", "dongjak", "참여확정")
+    conn.execute("UPDATE bid_cases SET research_status = '완료' WHERE bid_case_id='bc-3'")
     conn.commit()
     assert "confirmed_without_tasks" in _rules(check_all(conn))
+
+
+def test_confirmed_while_waiting_for_corpus_is_not_flagged(conn):
+    """research_status가 '대기'인 채 참여확정된 것은 **정상**이다 —
+    코퍼스가 반입되면 activate_pending_bid_cases가 그때 Task를 만든다.
+    이걸 경고로 띄우면 오탐이 되고, 오탐이 나오면 아무도 경고를 안 읽는다."""
+    _inst(conn, "nowon", "노원구", 1)
+    _bid(conn, "bc-4", "nowon", "참여확정")      # research_status 기본값 '대기'
+    conn.commit()
+
+    assert "confirmed_without_tasks" not in _rules(check_all(conn))
 
 
 def test_stage_1_or_2_is_never_flagged(conn):

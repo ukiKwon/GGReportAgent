@@ -46,9 +46,14 @@ def _declined_but_advanced(row: dict) -> str | None:
 
 
 def _confirmed_without_tasks(row: dict) -> str | None:
-    if row["participation_status"] == "참여확정" and row["task_count"] == 0:
-        return (f"{row['name_ko']}: 참여확정인데 팀 Task가 하나도 없습니다"
-                " — 확정 당시 research_status가 '완료'가 아니어서 Task 생성이 건너뛰어졌을 수 있습니다")
+    # research_status가 '대기'인 채로 참여확정된 것은 **정상**이다 — 코퍼스가 반입되면
+    # activate_pending_bid_cases가 그때 Task를 만든다. '완료'인데도 Task가 없을 때만
+    # 만들어졌어야 할 것이 안 만들어진 것이다(오탐을 내면 경고를 아무도 안 읽는다).
+    if (row["participation_status"] == "참여확정"
+            and row["research_status"] == "완료"
+            and row["task_count"] == 0):
+        return (f"{row['name_ko']}: 참여확정이고 조사도 완료인데 팀 Task가 하나도 없습니다"
+                " — create_tasks_for_bid_case가 돌지 않았습니다")
     return None
 
 
@@ -64,7 +69,7 @@ def check_all(conn: sqlite3.Connection, institution_id: str | None = None) -> li
     """어긋난 것만 돌려준다. 정상이면 빈 목록."""
     sql = """
         SELECT i.institution_id, i.name_ko, i.stage,
-               b.bid_case_id, b.participation_status,
+               b.bid_case_id, b.participation_status, b.research_status,
                (SELECT COUNT(*) FROM tasks t WHERE t.bid_case_id = b.bid_case_id) AS task_count
         FROM institutions i
         LEFT JOIN bid_cases b
