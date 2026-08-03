@@ -76,7 +76,8 @@ def get_status(institution_id: str, request: Request):
         if inst is None:
             raise HTTPException(status_code=404, detail="institution not found")
         tasks = [dict(r) for r in conn.execute(
-            """SELECT t.team, t.status, t.progress_pct, t.assignee FROM tasks t
+            # task_id는 프런트가 지시·보고 로그(GET /tasks/{id})를 여는 열쇠다(계획 C1).
+            """SELECT t.task_id, t.team, t.status, t.progress_pct, t.assignee FROM tasks t
                JOIN bid_cases b ON b.bid_case_id = t.bid_case_id
                WHERE b.institution_id = ?""", (institution_id,)).fetchall()]
         unread = conn.execute(

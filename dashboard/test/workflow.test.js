@@ -48,3 +48,16 @@ test('coverageRows/Summary: 상태 분류와 합계', function () {
   const sum = wf.coverageSummary(payload);
   assert.deepStrictEqual(sum, { total: 2, covered: 1, coveredScore: 20, totalScore: 30, piiTotal: 1 });
 });
+
+test('logRows: 메시지를 시간순 행으로 변환', function () {
+  const rows = wf.logRows({ task_id: 't', messages: [
+    { role: 'orchestrator', content: '지시', created_at: '2026-07-31T00:00:00' },
+    { role: 'agent', content: '보고', created_at: '2026-07-31T00:01:00' },
+  ] });
+  assert.deepStrictEqual(rows.map(function (r) { return r.role; }), ['orchestrator', 'agent']);
+  assert.strictEqual(rows[1].content, '보고');
+});
+
+test('logRows: 메시지 없으면 빈 배열', function () {
+  assert.deepStrictEqual(wf.logRows({}), []);
+});
