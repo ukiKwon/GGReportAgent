@@ -6,6 +6,7 @@ from backend.bidcase_repository import (
     create_bid_case,
     get_bid_case,
     list_bid_cases_for_assignee,
+    list_latest_bid_cases,
     list_task_summaries,
     record_finalization,
     submit_participation_decision,
@@ -28,6 +29,17 @@ def post_bid_case(body: dict, request: Request) -> dict:
     try:
         bid_case = create_bid_case(conn, body["institution_id"])
         return bid_case.model_dump()
+    finally:
+        conn.close()
+
+
+@router.get("/latest")
+def get_latest_bid_cases(request: Request) -> list[dict]:
+    """기관별 최신 공고. **`/{bid_case_id}`보다 먼저 선언해야 한다** —
+    뒤에 두면 'latest'가 bid_case_id로 잡혀 404가 난다."""
+    conn = _conn(request)
+    try:
+        return [b.model_dump() for b in list_latest_bid_cases(conn)]
     finally:
         conn.close()
 
