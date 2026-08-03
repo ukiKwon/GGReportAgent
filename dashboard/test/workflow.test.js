@@ -186,3 +186,45 @@ test('renderStageLog / renderLog / renderCoverage: 빈 입력도 예외 없이 �
   wf.renderCoverage(el, { criteria: [], total_score: 0 });
   assert.match(el.innerHTML, /배점표가 아직 없습니다/);
 });
+
+// ── 참여 결정 3단계 (계획 D) ────────────────────────────────────────
+test('participationRows: 결재된 차수는 done, 다음 한 차수만 current', function () {
+  const rows = wf.participationRows({
+    bidCaseId: 'bc-1', participationStatus: '검토중',
+    participationDecision: [{ tier: 1, role: '영업팀', by: '김 차장', choice: '참여', at: '08-03' }],
+  });
+  assert.deepStrictEqual(rows.map(function (r) { return r.state; }), ['done', 'current', 'todo']);
+  assert.strictEqual(rows[0].by, '김 차장');
+  assert.strictEqual(rows[0].choice, '참여');
+  assert.deepStrictEqual(rows.map(function (r) { return r.tier; }), [1, 2, 3]);
+});
+
+test('participationRows: 아무도 결재 안 했으면 1차가 current', function () {
+  const rows = wf.participationRows({ bidCaseId: 'bc-1', participationStatus: '검토중' });
+  assert.deepStrictEqual(rows.map(function (r) { return r.state; }), ['current', 'todo', 'todo']);
+});
+
+test('participationRows: 결정이 끝난 공고는 더 누를 수 없다', function () {
+  ['참여확정', '미참여확정', '보류'].forEach(function (status) {
+    const rows = wf.participationRows({
+      bidCaseId: 'bc-1', participationStatus: status,
+      participationDecision: [{ tier: 1, choice: '미참여' }],
+    });
+    assert.strictEqual(rows.filter(function (r) { return r.state === 'current'; }).length, 0,
+      status + '에서 current가 남아 있으면 안 된다');
+  });
+});
+
+test('participationRows: 공고가 없으면 빈 배열 (카드를 그리지 않는다)', function () {
+  assert.deepStrictEqual(wf.participationRows({ name: '광진구' }), []);
+  assert.deepStrictEqual(wf.participationRows(null), []);
+});
+
+test('nextDecisionTier: 다음에 보낼 tier — 끝났으면 null', function () {
+  assert.strictEqual(wf.nextDecisionTier({ bidCaseId: 'b', participationStatus: '검토중' }), 1);
+  assert.strictEqual(wf.nextDecisionTier({
+    bidCaseId: 'b', participationStatus: '검토중',
+    participationDecision: [{ tier: 1 }, { tier: 2 }] }), 3);
+  assert.strictEqual(wf.nextDecisionTier({ bidCaseId: 'b', participationStatus: '참여확정' }), null);
+  assert.strictEqual(wf.nextDecisionTier(null), null);
+});
