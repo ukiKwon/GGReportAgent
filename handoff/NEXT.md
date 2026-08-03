@@ -85,19 +85,39 @@
       push됨). `PUT /institutions/{id}`·정적 마운트(`create_app(static_dir=…)`,
       `STATIC_DIR`)·`dashboard/js/serverdata.js`(name 기준 union 병합)·부트스트랩/
       편집 PUT/CSV 서버 반입·file:// 폴백 불변·실행가이드 §8. 346+40 테스트.
-    - **C 협업 UI (마지막 남은 것, 다음 1순위)** — 화면 6종(상황판 확장·대화창·워크플로
-      현황판·배점표 매핑·쪽지함(**A2에서 연기한 기능 구현** + 비활성 스텁 대체)·지식탭).
-      **계획 미작성**, 규모상 C1/C2 분할 검토.
+    - ~~**C1 워크플로 현황판·배점표 매핑·overlay 재설계**~~ — **완료**(2026-08-03,
+      main `5e58712`·`6d6279f`, push됨). 출처: `2026-08-03_summary.md`.
+      계획 `docs/superpowers/plans/2026-07-31-collab-ui-c1.md` 6 태스크 + 사용자가
+      실화면을 보고 낸 수정 5건 + 카드 재설계.
+      - 신규 **워크플로 탭**(`dashboard/js/workflow.js`, index.html은 추가만 — 지도·
+        기존 탭 무수정): 9단계 스테퍼(단계 클릭 → 그 단계 수행 내용)·**단계별 참여자
+        카드**·지시/보고 로그·배점표 매핑 표·실행/결재·2초 폴링. 서버 모드 전용.
+      - 신규 API: `GET /institutions/{id}/coverage-map`, `GET …/timeline`,
+        `GET …/status`에 `task_id` 추가.
+      - DB: `messages.author`·`messages.stage`·`notifications.stage` 신설,
+        `_migrate()`를 테이블별 `MIGRATIONS` 딕셔너리로 일반화(기존 DB에 멱등 적용).
+        DbRecorder가 stage를 추적해 기록에 함께 남긴다.
+      - **F4 해소**: overlay를 `store.LOCAL_ONLY_FIELDS` 6개로 한정(서버 모드에서만).
+      - **B 이월 2건 해소**: `backend/main.py` static_dir 부재 시 경고 후 마운트 생략,
+        `store.clearServerData()`로 테스트 격리.
+      - `backend/demo.py`·`demo_paths.py`·`demo_seed.py` — 데모 환경을 운영 자료와
+        **파일 단위로 분리**(demo.db/demo_report_new/…)하고 `py -3 -m backend.demo`
+        한 줄로 시딩→서버 기동. 정리는 `--reset`.
+      - 테스트 346 → **368 passed**, dashboard 40 → **64**. 실행가이드 §9 신설.
+    - **C2 협업 UI 나머지 (다음 1순위)** — 화면 3종: **대화창**·**쪽지함**(A2에서 연기한
+      기능 구현 + `dashboard/index.html`의 비활성 스텁 버튼 대체)·**지식탭**.
+      상황판 확장도 미착수. **계획 미작성.**
       착수 시 반드시 계획에 반영할 이월 항목:
-      - **F4(중요, B 최종리뷰)**: 편집 overlay(localStorage `tbd.edits`)가 서버 필드를
-        영구히 가려 타 사용자의 서버 변경이 화면에 안 나온다 — overlay를 로컬 전용
-        필드(lng·lat·sources·confidence)로 한정하는 재설계 필요.
       - A2 이월 M-1~M-7 (`2026-07-31_summary.md` `## Session 10:01`) — 특히 **M-3 SSE
         `data:` 프레이밍 부재**는 대화창 UI를 EventSource로 만들지 fetch 스트림으로
         만들지와 직결.
-      - B 이월 (`## Session 10:50`): `backend/main.py` static_dir 부재 시 import 실패
-        가드, term 클리어 불가·빈문자열 비대칭, 기관 추가의 서버 경로(POST 생성 API
-        부재로 현재 가드만 있음), store.test.js serverList 미복원.
+      - B 이월 잔여 (`## Session 10:50`): term 클리어 불가·빈문자열 비대칭,
+        기관 추가의 서버 경로(POST 생성 API 부재로 현재 가드만 있음).
+      - C1 이월 (`2026-08-03_summary.md`): ①그래프가 `orchestrator` role 메시지를
+        아직 쓰지 않는다(데모에만 존재) — 실행 중 총괄 지시를 남기려면 `graph.py`에
+        `recorder.message(team, "orchestrator", …)` 추가 + 문구 설계 필요.
+        ②`timeline`은 기관의 모든 이벤트를 한 번에 준다(페이징 없음) — 실운용에서
+        기록이 쌓이면 재검토.
     - 재구성 ⑦(개명)은 이번 범위에서 **제외 확정** — B·C 완성 후 별도 스펙(항목 2 참조).
     규모 실측(Session 01:00): `dashboard/js/` 1,104줄(render.js 613줄 포함) 이식 +
     9단계 워크플로 UI 신규. **하루짜리가 아니므로 별도 일정을 잡아야 한다.**
@@ -158,13 +178,19 @@
      것 — 이 리포는 세션끼리 서로의 untracked 파일을 커밋에 쓸어담은 이력이 실제로
      있어서(2026-07-29 `cd06db9`), 40KB 바이너리 DB가 실수로 커밋될 여지가 있다.
      → 선택지: 삭제 / `.gitignore`에 `/registry.db` 추가 / 그대로 두기.
-  2. **`data/registry.db`가 비어 있다** (0건). 위 항목 2에는 재구성 ④단계에서
-     25개 기관으로 재시딩했다고 적혀 있는데 현재 0건이다(그 작업이 워크트리에서만
-     이뤄졌을 가능성). **서버를 띄우면 빈 레지스트리를 보게 되므로**, 실행 전
-     `py -3 -m backend.seed` 필요. gitignored이므로 **어느 PC에서든 새로 clone하면
-     이 파일 자체가 없고, 시딩은 똑같이 필요하다** — 즉 이건 PC 종속 문제가 아니라
-     "처음 실행 전 절차"다.
-- **상태**: 비차단. 다만 sub-project 2 구현 시 ②의 시딩은 실제로 필요해진다.
+  2. ~~**`data/registry.db`가 비어 있다**~~ — 2026-08-03 확인 시 **기관 25건이 들어
+     있다**(그 사이 누군가 `py -3 -m backend.seed`를 돌린 것). 새로 clone하면 이
+     파일이 없으므로 **처음 실행 전 시딩이 필요하다는 사실 자체는 그대로**다.
+  3. **(신규, 2026-08-03) `data/registry.db`에 데모 행 30건이 남아 있다** — 이 PC 한정.
+     C1 화면 확인용으로 `demo-` 접두사 행(tasks 6·messages 23·notifications 6·
+     bid_cases 1)을 넣고 `institutions.dobong.stage`를 1 → 9로 바꾼 잔해다.
+     같은 날 데모 환경을 `data/demo.db`로 **분리**했으므로(`backend/demo_paths.py`)
+     이 행들은 이제 불필요한 오염이다. `data/report_new/도봉구/`의
+     `rfp_scoring.json`·`coverage_map.json` 2개도 같은 잔해다.
+     → 정리하려면: `demo-%` 행 DELETE + `dobong.stage`를 **1**로 되돌리고 그 두 파일 삭제.
+     데모를 다시 보려면 `py -3 -m backend.demo`(별도 DB)면 되므로 지워도 잃을 게 없다.
+     **사용자 판단 대기** — 지우자고 제안했으나 확답 전에 세션이 마무리됨.
+- **상태**: 비차단. 3번만 남았고, 실행에는 지장이 없다.
 
 ### 4. `institutions.scoring_table`이 아무도 안 쓰는 빈 슬롯 (비차단)
 
