@@ -149,3 +149,4 @@ class ChatMessage(BaseModel):
     role: str
     content: str
     created_at: str
+    author: str | None = None   # 나중에 붙은 컬럼 — 에이전트 답변과 과거 행은 NULL

@@ -76,7 +76,8 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     institution_id  TEXT NOT NULL,
     role            TEXT NOT NULL,          -- user/agent
     content         TEXT NOT NULL,
-    created_at      TEXT NOT NULL
+    created_at      TEXT NOT NULL,
+    author          TEXT                    -- 사람이 쓴 글의 실명. 에이전트 답변은 NULL
 );
 """
 
@@ -100,10 +101,14 @@ MESSAGE_MIGRATIONS = {"author": "TEXT", "stage": "INTEGER"}
 # sender는 사람이 보낸 쪽지에만 있다 — 시스템(에이전트) 알림은 NULL로 남는다(계획 C2).
 NOTIFICATION_MIGRATIONS = {"stage": "INTEGER", "sender": "TEXT"}
 
+# 대화창은 여러 사람이 같은 방을 쓴다 — 누가 썼는지가 없으면 대화가 성립하지 않는다.
+CHAT_MESSAGE_MIGRATIONS = {"author": "TEXT"}
+
 MIGRATIONS = {
     "bid_cases": BID_CASE_MIGRATIONS,
     "messages": MESSAGE_MIGRATIONS,
     "notifications": NOTIFICATION_MIGRATIONS,
+    "chat_messages": CHAT_MESSAGE_MIGRATIONS,
 }
 
 # 반입 dedup 키 (collector/SCHEMA.md §④의 유일키). 위 컬럼이 붙은 뒤에야 만들 수

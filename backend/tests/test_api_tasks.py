@@ -235,7 +235,9 @@ def test_post_message_after_approval_is_409(mock_stream, client_and_task):
 @patch("backend.routers.tasks.stream_chat_reply")
 def test_post_message_allowed_after_reject(mock_stream, client_and_task):
     test_client, task_id = client_and_task
-    mock_stream.return_value = iter(["ok"])
+    # 호출마다 새 이터레이터를 준다 — return_value로 두면 첫 호출에서 소진돼 두 번째
+    # 응답이 빈 문자열이 되고, 빈 답변은 이제 저장하지 않으므로(C2 M-2) 의도가 흐려진다.
+    mock_stream.side_effect = lambda *a, **k: iter(["ok"])
 
     test_client.post(
         f"/tasks/{task_id}/messages", json={"content": "hi"}, headers={"X-User-Id": "dave"}
