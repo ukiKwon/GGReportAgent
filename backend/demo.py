@@ -76,11 +76,36 @@ def reset() -> list[str]:
     return removed
 
 
+def build_demo_index() -> str | None:
+    """운영 인덱스를 **복사해** 데모 인덱스를 만든다. 원본이 없으면 None.
+
+    왜 복사인가: 데모용으로 새로 빌드하면 임베딩 때문에 1시간이 걸린다. 내용은
+    같은 `corpus/`에서 나오므로 복사가 정확하고 즉시 끝난다.
+
+    왜 분리하는가: 데모에서 완료 처리를 하면 서버가 아카이브를 자동 색인하는데,
+    인덱스를 공유하면 **데모 산출물이 운영 검색 결과에 섞인다.** 데모는 파일 삭제
+    한 번으로 지워져야 한다는 원칙(demo_paths.py)이 검색에도 적용돼야 한다.
+    """
+    from backend.demo_paths import DEMO_INDEX_DB_PATH, SOURCE_INDEX_DB_PATH
+
+    source = REPO_ROOT / SOURCE_INDEX_DB_PATH
+    demo = REPO_ROOT / DEMO_INDEX_DB_PATH
+    if not source.is_file():
+        return None
+    # 원본이 더 새로우면 다시 복사한다 — 데모가 옛 코퍼스를 보고 있으면 확인이 어긋난다.
+    if demo.is_file() and demo.stat().st_mtime >= source.stat().st_mtime:
+        return str(demo)
+    demo.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, demo)
+    return str(demo)
+
+
 def build_app(institution: str = "dobong", stage: int = 9):
     """데모 DB를 만들고 데이터를 넣은 뒤 FastAPI 앱을 돌려준다."""
     from backend.db import init_db
     from backend.demo_paths import (
-        DEMO_ARCHIVE_ROOT, DEMO_DB_PATH, DEMO_GRAPH_DB_PATH, DEMO_OUTPUT_ROOT,
+        DEMO_ARCHIVE_ROOT, DEMO_DB_PATH, DEMO_GRAPH_DB_PATH, DEMO_INDEX_DB_PATH,
+        DEMO_OUTPUT_ROOT,
     )
     from backend.demo_seed import seed
     from backend.main import create_app
@@ -97,9 +122,17 @@ def build_app(institution: str = "dobong", stage: int = 9):
         conn.close()
     name_ko = seed(db_path, output_root, institution, stage)
 
+    if build_demo_index() is None:
+        print(
+            "[안내] 검색 인덱스가 없어 지식 탭이 빌드 안내를 띄웁니다"
+            " — 'py -3.14 -m agent.retrieval build'로 만드세요(임베딩 포함 시 약 1시간).",
+            file=sys.stderr,
+        )
+
     app = create_app(
         db_path,
         output_root=output_root,
+        index_db_path=str(REPO_ROOT / DEMO_INDEX_DB_PATH),
         graph_db_path=str(REPO_ROOT / DEMO_GRAPH_DB_PATH),
         archive_root=str(REPO_ROOT / DEMO_ARCHIVE_ROOT),
         static_dir=str(REPO_ROOT / "dashboard"),
