@@ -10,6 +10,7 @@ from backend.routers.chat import router as chat_router
 from backend.routers.inbox import router as inbox_router
 from backend.routers.accounts import router as accounts_router
 from backend.routers.consistency import router as consistency_router
+from backend.routers.documents import router as documents_router
 from backend.routers.institutions import router as institutions_router
 from backend.routers.notifications import router as notifications_router
 from backend.routers.search import router as search_router
@@ -21,6 +22,8 @@ def create_app(
     db_path: str,
     output_root: str = "data/report_new",
     index_db_path: str = "data/corpus_index.db",
+    # 지식 탭의 '원문 열기'가 읽어도 되는 뿌리. 색인 루트와 같은 값이어야 한다.
+    corpus_root: str = "corpus",
     inbox_root: str = "corpus/inbox",
     rfp_root: str = "corpus/rfp",
     batches_root: str = "data/batches",
@@ -33,6 +36,7 @@ def create_app(
     app.state.db_path = db_path
     app.state.output_root = output_root
     app.state.index_db_path = index_db_path
+    app.state.corpus_root = corpus_root
     # 반입이 읽고 쓰는 세 곳. 파라미터로 빼두면 테스트가 tmp_path로 격리할 수 있다.
     app.state.inbox_root = inbox_root
     app.state.rfp_root = rfp_root
@@ -48,6 +52,7 @@ def create_app(
     app.include_router(tasks_router)
     app.include_router(chat_router)
     app.include_router(search_router)
+    app.include_router(documents_router)
     app.include_router(inbox_router)
     app.include_router(workflow_router)
     app.include_router(notifications_router)
