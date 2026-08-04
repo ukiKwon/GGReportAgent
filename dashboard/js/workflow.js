@@ -129,11 +129,18 @@
 
   workflow.coverageSummary = function (payload) {
     const rows = workflow.coverageRows(payload);
-    let covered = 0, coveredScore = 0, piiTotal = 0;
+    let covered = 0, coveredScore = 0;
+    // PII는 **항목이 아니라 팀 단위 값**이다 — backend/upload_check.py가 업로드 본문
+    // 1회 스캔 결과(그 팀 전체 건수)를 그 팀의 모든 배점 항목에 같은 값으로 복제해
+    // 저장하기 때문이다. 항목별로 더하면 항목 수만큼 부풀어(3건·12항목 → 36건) 화면에
+    // 없는 개인정보가 있는 것처럼 보인다. 팀당 한 번만 센다(방어적으로 최댓값).
+    const perTeam = {};
     rows.forEach(function (r) {
       if (r.covered) { covered += 1; coveredScore += Number(r.score) || 0; }
-      piiTotal += r.piiCount;
+      if (r.team) perTeam[r.team] = Math.max(perTeam[r.team] || 0, Number(r.piiCount) || 0);
     });
+    let piiTotal = 0;
+    Object.keys(perTeam).forEach(function (team) { piiTotal += perTeam[team]; });
     return {
       total: rows.length, covered: covered, coveredScore: coveredScore,
       totalScore: (payload && payload.total_score) || 0, piiTotal: piiTotal,
