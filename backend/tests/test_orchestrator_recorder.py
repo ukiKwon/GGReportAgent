@@ -78,3 +78,19 @@ def test_notify_records_current_stage(tmp_path):
     rec.set_stage(8)
     rec.notify("인사권자", "결재요청", "최종결재 대기")
     assert conn.execute("SELECT stage FROM notifications").fetchone()["stage"] == 8
+
+
+def test_message_records_model_when_given(tmp_path):
+    """LLM을 쓴 노드의 보고는 model이 함께 저장된다."""
+    db_path, conn = _setup(tmp_path)
+    rec = DbRecorder(db_path, "nowon", "bc-1")
+    rec.message("영업", "agent", "초안 작성 완료", model="llama3.2:3b")
+    assert conn.execute("SELECT model FROM messages").fetchone()["model"] == "llama3.2:3b"
+
+
+def test_message_records_no_model_by_default(tmp_path):
+    """LLM을 안 쓴 기록(예: 게이트 알림)은 model이 None으로 남는다."""
+    db_path, conn = _setup(tmp_path)
+    rec = DbRecorder(db_path, "nowon", "bc-1")
+    rec.message("영업", "orchestrator", "협력사업 항목 초안 작성 지시")
+    assert conn.execute("SELECT model FROM messages").fetchone()["model"] is None

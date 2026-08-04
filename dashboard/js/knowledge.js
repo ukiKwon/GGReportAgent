@@ -37,6 +37,15 @@
       : { cls: 'kn-mode off', text: 'FTS 단독', title: '임베딩을 쓸 수 없어 글자가 겹치는 문서만 찾았습니다.' };
   };
 
+  // X-Search-Mode·X-Embed-Model 응답 헤더 → 화면 문구(Task 4). modeBadge는 결과 행
+  // 하나(chunks[0])만 보고 판단하지만, 이건 서버가 검색 전체를 보고 정한 값이라 더
+  // 정확하고 모델명까지 알려준다. 둘은 겹치는 정보라 renderResults에서 나란히 붙인다.
+  knowledge.searchModeText = function (mode, embedModel) {
+    if (mode === 'rrf') return '의미검색 사용 · ' + (embedModel || '');
+    if (mode === 'bm25') return '키워드 검색(FTS)';
+    return '';
+  };
+
   // ⚠️ 입력은 **이미 esc를 거친 문자열**이라는 계약이다. 순서를 뒤집어(강조 후 이스케이프)
   // 쓰면 <mark>까지 escape되거나, 원문을 강조한 뒤 넣으면 XSS가 된다.
   // 엔티티(&lt; 등) 안쪽은 건드리지 않는다 — 'lt' 같은 질의어가 엔티티를 깨뜨리지 않게.
@@ -97,7 +106,9 @@
       knowledge.highlight(esc(full.slice(at.end)), query);
   };
 
-  knowledge.renderResults = function (el, chunks, query) {
+  // meta({mode, embedModel})는 선택이다 — 응답 헤더를 못 읽는 옛 호출부(테스트 포함)도
+  // 그대로 동작해야 하므로, 없으면 검색 모드 문구를 그냥 생략한다.
+  knowledge.renderResults = function (el, chunks, query, meta) {
     const rows = knowledge.rows(chunks);
     if (!rows.length) {
       const hint = String(query || '').trim().length < FTS_MIN_QUERY
@@ -108,9 +119,12 @@
       return;
     }
     const badge = knowledge.modeBadge(chunks);
+    const modeText = meta ? knowledge.searchModeText(meta.mode, meta.embedModel) : '';
     el.innerHTML = '<p class="wf-empty">' + rows.length + '건' +
       (badge ? ' <span class="' + badge.cls + '" title="' + esc(badge.title) + '">' +
-        esc(badge.text) + '</span>' : '') + '</p>' + rows.map(function (r, i) {
+        esc(badge.text) + '</span>' : '') +
+      (modeText ? ' <span class="kn-mode-text">' + esc(modeText) + '</span>' : '') +
+      '</p>' + rows.map(function (r, i) {
       return '<div class="kn-hit" data-index="' + i + '" title="클릭하면 원문을 엽니다">' +
         '<div class="kn-head"><span class="kn-open">원문 열기 ↗</span><b>' + esc(r.filename) + '</b>' +
         ' · ' + esc(r.doctype) + (r.institutionId ? ' · ' + esc(r.institutionId) : '') +
@@ -185,16 +199,20 @@
     if (go) { go.disabled = true; go.textContent = '검색 중…'; }
     out.innerHTML = '<p class="wf-empty">검색 중… (의미 검색이 켜져 있으면 1초 남짓 걸립니다)</p>';
     fetch('/search?' + params.join('&')).then(function (r) {
+      // 검색 모드·임베딩 모델명은 배열이 아니라 헤더로 온다(Task 4) — 응답 배열
+      // 형태를 바꾸지 않기 위한 설계다. rrf가 아니면 X-Embed-Model은 애초에 없다.
+      const meta = { mode: r.headers.get('X-Search-Mode'), embedModel: r.headers.get('X-Embed-Model') };
       return r.json().then(function (body) {
         // 503(인덱스 미빌드)은 서버가 준 안내를 그대로 보여준다 — 삼켜서 "결과 없음"으로
         // 보이게 하면 사용자가 빌드하면 된다는 사실을 영영 모른다.
         if (!r.ok) throw new Error((body && body.detail) || ('검색 실패 (' + r.status + ')'));
-        return body;
+        return { chunks: body, meta: meta };
       });
-    }).then(function (chunks) {
+    }).then(function (result) {
+      const chunks = result.chunks;
       lastChunks = chunks || [];
       lastQuery = q;
-      knowledge.renderResults(out, chunks, q);
+      knowledge.renderResults(out, chunks, q, result.meta);
       Array.prototype.forEach.call(out.querySelectorAll('.kn-hit'), function (node) {
         node.onclick = function () { openDocument(Number(node.dataset.index)); };
       });

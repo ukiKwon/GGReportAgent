@@ -104,10 +104,13 @@ class Message(BaseModel):
     role: str
     content: str
     created_at: str
-    # 아래 둘은 나중에 붙은 컬럼이라 과거 행에는 없다(NULL). list_messages가
+    # 아래 셋은 나중에 붙은 컬럼이라 과거 행에는 없다(NULL). list_messages가
     # SELECT *를 Message(**row)로 넘기므로 여기에 없으면 즉시 깨진다.
     author: str | None = None
     stage: int | None = None
+    # 이 기록을 남길 때 실제로 쓴 LLM 모델. LLM을 쓰지 않은 기록(게이트 통과 알림 등)은
+    # None으로 남는다(Task 5) — 화면에서 "이 단계는 모델을 썼다"가 의미를 갖게 하기 위함.
+    model: str | None = None
 
 
 class TaskDetail(Task):

@@ -29,19 +29,23 @@ def add_message(
     content: str,
     author: str | None = None,
     stage: int | None = None,
+    model: str | None = None,
 ) -> Message:
-    """author·stage는 선택 인자다 — 모르는 호출부는 안 넘기면 되고, 그 행은 NULL로 남는다."""
+    """author·stage·model은 선택 인자다 — 모르는 호출부는 안 넘기면 되고, 그 행은 NULL로 남는다.
+
+    model은 LLM을 실제로 쓴 기록에만 채운다(Task 5) — 호출부가 안 넘기면 NULL 그대로다.
+    """
     message_id = f"msg-{secrets.token_hex(4)}"
     created_at = datetime.now(timezone.utc).isoformat()
     conn.execute(
-        "INSERT INTO messages (message_id, task_id, role, content, created_at, author, stage) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (message_id, task_id, role, content, created_at, author, stage),
+        "INSERT INTO messages (message_id, task_id, role, content, created_at, author, stage, model) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (message_id, task_id, role, content, created_at, author, stage, model),
     )
     conn.commit()
     return Message(
         message_id=message_id, task_id=task_id, role=role, content=content,
-        created_at=created_at, author=author, stage=stage,
+        created_at=created_at, author=author, stage=stage, model=model,
     )
 
 

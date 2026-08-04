@@ -135,6 +135,26 @@ test('logRows: 메시지 없으면 빈 배열', function () {
   assert.deepStrictEqual(wf.logRows({}), []);
 });
 
+// Task 6: 어떤 모델을 써서 남긴 기록인지 로그에 실린다.
+test('logRows: model이 있으면 함께 옮기고, 없으면 null', function () {
+  const rows = wf.logRows({ messages: [
+    { role: 'agent', content: '초안', created_at: '2026-08-05T00:00:00', model: 'llama3.2:3b' },
+    { role: 'human', content: '확인', created_at: '2026-08-05T00:01:00' },
+  ] });
+  assert.strictEqual(rows[0].model, 'llama3.2:3b');
+  assert.strictEqual(rows[1].model, null);
+});
+
+test('renderLog: model이 있는 줄에만 🧠 표시가 붙는다(비LLM 기록은 지저분해지지 않는다)', function () {
+  const el = fakeEl();
+  wf.renderLog(el, { messages: [
+    { role: 'agent', content: '초안', created_at: '2026-08-05T00:00:00', model: 'llama3.2:3b' },
+    { role: 'human', content: '확인', created_at: '2026-08-05T00:01:00' },
+  ] }, { team: '영업' });
+  assert.match(el.innerHTML, /🧠 llama3\.2:3b/);
+  assert.strictEqual((el.innerHTML.match(/🧠/g) || []).length, 1);   // human 줄에는 안 붙는다
+});
+
 test('roleLabel: 역할마다 한글 부제를 단다', function () {
   assert.deepStrictEqual(wf.roleLabel('orchestrator', {}), { main: 'orchestrator', sub: '총괄 agent' });
   assert.deepStrictEqual(wf.roleLabel('agent', { team: '영업' }), { main: 'agent', sub: '영업 agent' });
