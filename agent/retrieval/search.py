@@ -33,7 +33,7 @@ import numpy as np
 
 from agent.retrieval import embedder
 from agent.retrieval.embedder import EmbeddingUnavailableError
-from agent.retrieval.indexer import DEFAULT_DB_PATH
+from agent.retrieval.indexer import DEFAULT_DB_PATH, IndexNotBuiltError, _has_table
 
 # trigram 토크나이저는 3-gram 단위 매치라 질의가 3자 미만이면 매치 자체가 불가능하다.
 # **이건 FTS의 한계이지 의미 검색의 한계가 아니다** — 그래서 이 게이트는 FTS 경로
@@ -51,8 +51,7 @@ CANDIDATE_MULTIPLIER = 5
 _warned_embedding = False
 
 
-class IndexNotBuiltError(Exception):
-    """인덱스 파일이 없다 — 호출부가 폴백(전체 읽기, 503 등)을 결정한다."""
+__all__ = ["search", "RetrievedChunk", "IndexNotBuiltError", "MIN_QUERY_CHARS"]
 
 
 @dataclass(frozen=True)
@@ -267,13 +266,6 @@ def _materialize(
             )
         )
     return out
-
-
-def _has_table(conn: sqlite3.Connection, name: str) -> bool:
-    row = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)
-    ).fetchone()
-    return row is not None
 
 
 def _warn_once(message: str) -> None:

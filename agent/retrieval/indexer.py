@@ -18,7 +18,7 @@ import os
 import sqlite3
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from agent.retrieval import embedder
@@ -26,8 +26,19 @@ from agent.retrieval.chunker import chunk_text
 from agent.retrieval.embedder import EmbeddingUnavailableError
 from agent.retrieval.parsers import parse_file
 
+# search.py가 indexer.DEFAULT_DB_PATH를 import하므로 반대 방향 import는 순환이 된다.
+# 예외 하나 때문에 구조를 뒤집는 대신 여기서 정의하고 search가 재수출한다.
+
+
+class IndexNotBuiltError(Exception):
+    """인덱스 파일·대장이 없다 — 호출부가 폴백(전체 읽기, 503 등)을 결정한다."""
+
 DEFAULT_DB_PATH = "data/corpus_index.db"
 DEFAULT_CORPUS_ROOT = "corpus"
+# 완료 산출물 아카이브 — `backend/main.py`의 create_app(archive_root=...) 기본값과
+# 같은 값이어야 한다. (`backend/orchestrator_service.py`는 접두사 없는
+# "report_archive"를 쓴다 — NEXT.md의 M-1로 추적 중인 불일치다.)
+DEFAULT_ARCHIVE_ROOT = "data/report_archive"
 
 DOCTYPES = ("spec", "plan", "bank_ideas", "rfp", "report", "inbox", "other")
 
@@ -248,3 +259,131 @@ def build_index(
 
     os.replace(tmp_path, db_path)
     return {"files": file_count, "chunks": chunk_count, "embedded": embedded}
+
+
+def reindex(
+    roots: Sequence[tuple[str | os.PathLike, str]],
+    db_path: str | os.PathLike = DEFAULT_DB_PATH,
+    *,
+    embed: bool = True,
+    force: bool = False,
+    batch_size: int = embedder.DEFAULT_BATCH_SIZE,
+    progress: Callable[[int, int], None] | None = None,
+) -> dict:
+    """변경분만 다시 색인한다. `roots`는 `(경로, 라벨)` 목록.
+
+    전체 재빌드가 CPU에서 약 57분이라, 산출물 몇 개 늘었다고 매번 다 돌릴 수 없다.
+    §② 17번(완료 후 자동 색인)이 성립하려면 이 함수가 선행 조건이다.
+
+    **제자리 갱신이라 `os.replace` 원자 교체를 쓰지 않는다** — 대신 한 트랜잭션으로
+    묶어 중간 상태가 다른 연결에 보이지 않게 한다.
+
+    **넘기지 않은 루트는 건드리지 않는다.** 완료 처리 후에는 그 기관 아카이브만
+    훑는데, 그때 `corpus/` 파일이 통째로 "삭제됨"으로 판정되면 인덱스가 날아간다.
+
+    변경 판정은 **mtime+size**다. 코퍼스가 수천 개라 전량 해시는 그 자체로 느리고,
+    여기서 잡으려는 것은 "산출물이 새로 떨어졌다"이지 위변조가 아니다. 그래도
+    미심쩍으면 `force=True`로 대장을 무시하고 다시 넣는다.
+
+    `embed`의 기본값이 켜짐인 것은 `build_index`와 반대인데, 이 함수는 다른 테스트가
+    암묵적으로 부르는 일이 없는 **명시적 유지보수 동작**이기 때문이다.
+    """
+    db_path = Path(db_path)
+    if not db_path.is_file():
+        raise IndexNotBuiltError(
+            f"인덱스가 없습니다: {db_path} — 'py -3.14 -m agent.retrieval build'로 먼저 생성하세요"
+        )
+
+    conn = sqlite3.connect(db_path)
+    added = updated = removed = 0
+    chunk_count = 0
+    embedded = 0
+    try:
+        if not _has_table(conn, "files"):
+            raise IndexNotBuiltError(
+                f"이 인덱스에는 파일 대장이 없습니다({db_path}) — 계획 F 이전에 만들어져"
+                " 무엇이 변했는지 알 길이 없습니다."
+                " 'py -3.14 -m agent.retrieval build'로 전체 재빌드하세요."
+            )
+
+        for raw_root, label in roots:
+            root = Path(raw_root)
+            if not root.is_dir():
+                # 아직 아카이브가 생기지 않은 새 설치 등 — 없는 루트를 "전부 삭제됨"
+                # 으로 읽으면 멀쩡한 인덱스를 지운다.
+                continue
+
+            known = {
+                row[0]: (row[1], row[2])
+                for row in conn.execute(
+                    "SELECT path, mtime, size FROM files WHERE root = ?", (label,)
+                ).fetchall()
+            }
+            seen: set[str] = set()
+
+            for path in sorted(root.rglob("*")):
+                if not path.is_file():
+                    continue
+                stored_path = f"{root.name}/{path.relative_to(root).as_posix()}"
+                seen.add(stored_path)
+                previous = known.get(stored_path)
+                stat = path.stat()
+                if previous is not None and not force:
+                    if previous[0] == stat.st_mtime and previous[1] == stat.st_size:
+                        continue
+                if previous is not None:
+                    _drop_path(conn, stored_path)
+                count = index_file(conn, path, root, label)
+                if count is None:
+                    seen.discard(stored_path)
+                    continue
+                chunk_count += count
+                if previous is None:
+                    added += 1
+                else:
+                    updated += 1
+
+            for stored_path in known.keys() - seen:
+                _drop_path(conn, stored_path)
+                removed += 1
+
+        if embed:
+            try:
+                embedded = _embed_chunks(conn, batch_size, progress)
+            except EmbeddingUnavailableError as exc:
+                print(f"\n[경고] 임베딩을 건너뜁니다: {exc}", file=sys.stderr)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {
+        "added": added,
+        "updated": updated,
+        "removed": removed,
+        "chunks": chunk_count,
+        "embedded": embedded,
+    }
+
+
+def _drop_path(conn: sqlite3.Connection, stored_path: str) -> None:
+    """한 파일의 청크·벡터·대장을 함께 지운다.
+
+    셋 중 하나라도 빠뜨리면 조용한 고장이 된다 — 벡터만 남으면 검색이 **사라진
+    문서를 계속 돌려주고**, 대장만 남으면 다음 재색인이 "변한 게 없다"고 판단한다.
+    """
+    ids = [
+        row[0]
+        for row in conn.execute("SELECT rowid FROM chunks WHERE path = ?", (stored_path,))
+    ]
+    if ids:
+        placeholders = ",".join("?" * len(ids))
+        conn.execute(f"DELETE FROM vectors WHERE rowid IN ({placeholders})", ids)
+        conn.execute("DELETE FROM chunks WHERE path = ?", (stored_path,))
+    conn.execute("DELETE FROM files WHERE path = ?", (stored_path,))
+
+
+def _has_table(conn: sqlite3.Connection, name: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)
+    ).fetchone()
+    return row is not None
