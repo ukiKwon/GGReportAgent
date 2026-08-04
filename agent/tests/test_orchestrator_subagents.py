@@ -79,6 +79,23 @@ def test_draft_team_writes_role_sections_and_records(mock_writer, monkeypatch):
     assert recorder.message.call_args.kwargs["model"] == DEFAULT_MODEL
 
 
+def test_draft_team_omits_model_when_no_items_assigned(monkeypatch):
+    """리뷰 픽스 — 이 role에 배정된 배점 항목이 0건이면 content_writer_node가
+    structured_llm() 호출 전에 sections=[]로 조기 반환한다(content_writer.py:79-81).
+    그때는 LLM을 안 썼으므로 보고에 model을 넘기면 안 된다."""
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    recorder = MagicMock()
+    # role_assignments에 "전산"에 배정된 항목이 없다 — content_writer_node가 실제로
+    # sections=[]를 조기 반환하는 경로를 그대로 태운다(mock 없이).
+    state = dict(BASE, role="전산", role_assignments=[{"scoring_item": "a", "role": "영업"}],
+                 scoring_table=[{"item": "a"}])
+
+    result = draft_team(state, recorder)
+
+    assert result == {"sections": []}
+    assert "model" not in recorder.message.call_args.kwargs
+
+
 @patch("agent.nodes.content_writer.structured_llm")
 def test_draft_team_includes_revision_note_in_prompt(mock_structured, tmp_path):
     """F1 픽스 — 기획반려 재작성 시 draft_team이 revision_note를 content_writer_node에
@@ -151,6 +168,19 @@ def test_verifier_adds_pii_findings(mock_verify, monkeypatch):
     recorder.message.assert_called()  # 검사 보고가 기록된다
     # 검증도 LLM(커버리지 판정)을 쓰므로 보고에 사용 모델이 실린다
     assert recorder.message.call_args.kwargs["model"] == DEFAULT_MODEL
+
+
+@patch("agent.orchestrator.subagents.verification_node")
+def test_verifier_omits_model_when_scoring_table_empty(mock_verify):
+    """리뷰 픽스와 같은 모양의 구멍 — scoring_table이 비면 verification_node가 순회할
+    항목이 없어 LLM을 아예 안 탄다(verification.py). 그때는 model을 넘기면 안 된다."""
+    mock_verify.return_value = {"coverage_report": []}
+    recorder = MagicMock()
+    state = dict(BASE, scoring_table=[], sections=[])
+
+    verifier(state, recorder)
+
+    assert "model" not in recorder.message.call_args.kwargs
 
 
 @patch("agent.orchestrator.subagents.verification_node")
