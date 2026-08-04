@@ -396,6 +396,15 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
   폐쇄망 가정 유지(외부 API 금지, EC2 안 Ollama) / 대화 탭 시연 O /
   **CPU `c7i.2xlarge`**(t3는 크레딧 스로틀로 시연 중 느려져 금지) / 시연 때만 기동 /
   Amazon Linux 2023.
+- ⚠️ **문서가 2026-08-05에 실제 인스턴스 기준으로 교정됐다** (`2026-08-05_summary.md`
+  `## Session 01:45`, main `df9e0a9`). 계획서(§①)의 원안은 `c7i.2xlarge`+`llama3.1:8b`지만
+  **사용자가 실제로 만든 것은 `m7i-flex.large`(2 vCPU/8GB)** 이고, INSTALL.md는 그 기준
+  + **`llama3.2:3b`** 로 다시 쓰였다(2 vCPU에서 8b는 답변 1건에 수 분). 스토리지 20GB,
+  비용 $0.10/h. **계획서와 INSTALL이 다르면 INSTALL이 최신이다.**
+  - 함께 고친 사실오류 3건: pytest 기준선 478→**526**, 지식 탭 503 조치에 "앱 재시작"
+    누락(데모 인덱스는 기동 때 운영 인덱스를 복사한다), deps 확인에 `langchain_openai` 누락.
+  - **`LLM_MODEL=auto`를 쓰면 모델을 직접 지정하지 않아도 된다**(2026-08-05 추가,
+    INSTALL §6에 사용법). 하드웨어·설치목록을 보고 3종 중 고른다.
 - **다음 단계**: `INSTALL.md` 1~7단계를 실제 인스턴스에서 수행하고, §9 체크리스트 8개
   화면을 확인한다. 그 과정에서 문서와 실제가 어긋나면 **문서를 고쳐 커밋**한다
   (아직 한 번도 실기동으로 검증되지 않은 문서다 — 오탈자·패키지명 차이가 나올 수 있다).
@@ -456,6 +465,20 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
   전달하는 배선이 필요해** 계획 하나 분량이다 — 그래서 분리했다.
 - **비차단**: 현재 표시가 틀린 것은 아니다("쓰기로 한 모델"로서는 정확하다). 폴백이
   발동하는 드문 경우에만 어긋난다.
+
+**같은 묶음의 작은 후속들** (2026-08-05 최종 리뷰 defer 판정, 전부 비차단):
+- `GET /llm/status`의 `reachable` 필드를 **프런트가 전혀 쓰지 않는다** — non-auto에서도
+  Ollama 왕복이 1회 붙는 순수 비용이다. 필드를 없애거나 `?probe=1`로 게이팅할 것.
+- `timeline`(`GET /institutions/{id}/timeline`)이 `m.model`을 select하지 않아 **스테퍼/
+  타임라인 로그에는 🧠가 안 뜬다**(팀 로그에는 뜬다). SELECT 한 줄 + 렌더 한 줄.
+- `backend/routers/tasks.py`의 **업로드 즉시검사(113행)·대화 응답(174행)도 LLM 기반인데
+  `model` 미태깅** — `model=llm.current_model()` 두 줄이면 일관성이 맞는다.
+- `verification_node`에서 `scoring_table`은 있으나 매칭 section이 0건이면 LLM이 한 번도
+  안 불리는데 `verifier`가 model을 태깅한다(도달하기 어려운 조합, 표시만 영향).
+- `model_info()`가 캐시와 별개로 `installed_models()`를 매번 호출 · `#chat-model-badge:empty`
+  빈 알약 테두리 · `X-Embed-Model`에 비-latin-1 값이 오면 헤더 인코딩 500 ·
+  `test_api_llm_status`가 캐시를 teardown 안 함 · 실행가이드 62행 환경변수 표에 `auto`
+  미기재 · 976행 "기관을 고르면 배지가 붙는다"는 부정확(탭 진입 시 1회).
 
 ---
 
