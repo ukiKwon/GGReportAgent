@@ -176,9 +176,13 @@
   };
 
   // GET /tasks/{id} 응답(TaskDetail)의 지시·보고 로그. 서버가 이미 시간순으로 준다.
+  // model(Task 6) — 그 기록을 남길 때 실제로 쓴 LLM 모델. LLM을 쓰지 않은 기록(게이트
+  // 통과 알림, 사람 발화 등)은 백엔드가 null로 두므로 여기서도 null로 남긴다 —
+  // 렌더가 이 값의 유무만 보고 🧠 표시를 붙일지 말지 정한다.
   workflow.logRows = function (detail) {
     return ((detail && detail.messages) || []).map(function (m) {
-      return { role: m.role, content: m.content, at: m.created_at, author: m.author || null };
+      return { role: m.role, content: m.content, at: m.created_at, author: m.author || null,
+        model: m.model || null };
     });
   };
 
@@ -281,7 +285,10 @@
       }).join('') + '</tbody></table>';
   };
 
-  // 로그 한 줄: "role <부제> · 시각" + 본문. 팀 로그와 단계 상세가 같은 형식을 쓴다.
+  // 로그 한 줄: "role <부제> · 시각[ · 🧠 모델]" + 본문. 팀 로그와 단계 상세가 같은
+  // 형식을 쓴다. model은 logRows(Task 6)에만 실리므로(timeline 쪽 stageEvents에는
+  // 없다), 여기서 r.model이 있을 때만 붙인다 — 없으면 아무것도 안 붙어 사람 발화·
+  // 비LLM 기록(게이트 통과 알림 등)이 지저분해지지 않는다.
   function logLines(rows, ctx) {
     return rows.map(function (r) {
       const lb = workflow.roleLabel(r.role, {
@@ -290,7 +297,8 @@
       });
       return '<div class="wf-log-row"><div class="wf-who">' + esc(lb.main) +
         (lb.sub ? '<span class="wf-sub">' + esc(lb.sub) + '</span>' : '') +
-        ' · ' + esc(r.at) + '</div><pre>' + esc(r.content) + '</pre></div>';
+        ' · ' + esc(r.at) + (r.model ? ' · 🧠 ' + esc(r.model) : '') +
+        '</div><pre>' + esc(r.content) + '</pre></div>';
     }).join('');
   }
 
