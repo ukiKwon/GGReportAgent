@@ -15,7 +15,11 @@ router = APIRouter(prefix="/consistency", tags=["consistency"])
 def get_consistency(request: Request, institution_id: str | None = None) -> dict:
     conn = get_connection(request.app.state.db_path)
     try:
-        findings = check_all(conn, institution_id=institution_id)
+        findings = check_all(
+            conn,
+            institution_id=institution_id,
+            output_root=request.app.state.output_root,
+        )
     finally:
         conn.close()
     return {"findings": findings, "ok": not findings}

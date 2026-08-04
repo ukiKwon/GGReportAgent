@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 
 from pydantic import BaseModel
 
@@ -58,6 +59,32 @@ SCORING_PROMPT = """다음은 금고 지정 공고문에서 추출한 원문 텍
 """
 
 
+def scoring_consistency(scoring: dict) -> str | None:
+    """배점 합계가 총점과 맞는지 본다. 어긋나면 사유, 맞으면 None.
+
+    **LLM 성능에 기대지 않는 방어다.** 2026-08-04 실측에서 `llama3.1:8b`는 합계 96,
+    `qwen3:14b`는 **108**(총점 100을 넘겼다)을 냈다. 둘 다 분류는 맞췄고 숫자만
+    지어냈는데, 이 한 줄이면 둘 다 걸린다. 모델을 키운다고 없어지는 문제가 아니라는
+    것이 같은 실측에서 확인됐다.
+
+    **오탐을 내지 않는다** — 배점표가 없는 공고문(criteria 빈 목록)은 정당한 결과이고,
+    총점을 못 뽑은 경우(0 이하)도 이 규칙이 할 말이 없다. 경고가 한 번이라도 틀리면
+    그 다음부터 아무도 읽지 않는다.
+    """
+    if not scoring:
+        return None
+    criteria = scoring.get("criteria") or []
+    total = scoring.get("total_score") or 0
+    if not criteria or total <= 0:
+        return None
+
+    got = sum(int(c.get("score") or 0) for c in criteria)
+    if got == total:
+        return None
+    return (f"배점 합계가 총점과 다릅니다: 항목 {len(criteria)}건 합 {got}점 ≠ 총점 {total}점"
+            f" ({got - total:+d}) — 공고문 표를 직접 대조해야 합니다")
+
+
 def rfp_extract_node(state: dict) -> dict:
     rfp_path = state.get("rfp_path")
     if not rfp_path:
@@ -90,6 +117,15 @@ def rfp_extract_node(state: dict) -> dict:
         "total_score": result.total_score,
         "criteria": [c.model_dump() for c in result.criteria],
     }
+    # 합계가 안 맞으면 **막지는 않는다** — 본문(rfp_text.txt)은 그대로 쓸모가 있고,
+    # 5·8단계에 사람 승인이 있다. 대신 조용히 넘어가지 않게 로그와 상태에 남긴다.
+    #
+    # **파일에는 쓰지 않는다.** rfp_scoring.json은 `.claude/skills/rfp-locate`가
+    # 사람 손으로도 만드는 규격이라, 자동 경로만 필드를 늘리면 두 경로의 모양이 갈린다.
+    # 어차피 합계는 criteria만 있으면 언제든 다시 계산된다(backend/consistency.py).
+    inconsistency = scoring_consistency(scoring_data)
+    if inconsistency:
+        print(f"[경고] {institution_name} 배점표 — {inconsistency}", file=sys.stderr)
 
     # 추출이 끝난 뒤에만 쓴다 — 실패했을 때 반쯤 만들어진 산출물을 남기지 않는다.
     os.makedirs(out_dir, exist_ok=True)
@@ -103,4 +139,5 @@ def rfp_extract_node(state: dict) -> dict:
         "scoring_table": scoring_data["criteria"],
         "rfp_title": scoring_data["rfp_title"],
         "total_score": scoring_data["total_score"],
+        "score_check": inconsistency or "ok",
     }

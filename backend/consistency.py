@@ -8,9 +8,13 @@
 데이터를 찾는다. 가드가 생기기 전에 만들어진 상태가 남아 있기 때문이다.
 """
 
+import json
+import os
 import sqlite3
 from dataclasses import dataclass
 from typing import Callable
+
+from agent.nodes.rfp_extract import scoring_consistency
 
 # 3단계(RFI 공시)부터는 참여 결정이 끝나 있어야 한다 — 1·2단계는 결정 이전이라 정상이다.
 ADVANCED_STAGE = 3
@@ -57,16 +61,59 @@ def _confirmed_without_tasks(row: dict) -> str | None:
     return None
 
 
+def _scoring_sum_mismatch(row: dict) -> str | None:
+    """배점표의 합계가 총점과 다르다 — LLM이 개별 배점을 지어낸 신호다.
+
+    2026-08-04 실측: `llama3.1:8b` 합계 96, `qwen3:14b` **108**(총점 100 초과).
+    분류는 둘 다 맞췄고 숫자만 틀렸는데, **모델을 키워도 같은 양상이 반복됐다.**
+    그래서 모델 성능이 아니라 규칙으로 잡는다(이 모듈이 존재하는 이유 그대로).
+
+    산출물 파일이 없으면(아직 3단계 전) 아무 말도 하지 않는다 — 오탐 금지.
+    """
+    detail = row.get("scoring_check")
+    if not detail:
+        return None
+    return f"{row['name_ko']}: {detail}"
+
+
 RULES: tuple[Rule, ...] = (
     Rule("stage_without_bid_case", "단계는 올라갔는데 근거가 될 공고가 없다", _stage_without_bid_case),
     Rule("stage_without_confirmation", "참여 결정 전에 워크플로가 진행됐다", _stage_without_confirmation),
     Rule("declined_but_advanced", "참여하지 않기로 했는데 진행됐다", _declined_but_advanced),
     Rule("confirmed_without_tasks", "참여확정인데 팀 작업이 만들어지지 않았다", _confirmed_without_tasks),
+    Rule("scoring_sum_mismatch", "배점표 합계가 총점과 맞지 않는다", _scoring_sum_mismatch),
 )
 
 
-def check_all(conn: sqlite3.Connection, institution_id: str | None = None) -> list[dict]:
-    """어긋난 것만 돌려준다. 정상이면 빈 목록."""
+def _load_scoring_check(output_root: str | None, name_ko: str) -> str | None:
+    """`{output_root}/{기관명}/rfp_scoring.json`을 읽어 배점 합계를 검사한다.
+
+    파일이 없거나 깨졌으면 None — **없는 것은 어긋난 것이 아니다.** 3단계 전이면
+    아직 안 만들어진 게 정상이고, 여기서 경고를 내면 25개 기관 전부가 빨개진다.
+    """
+    if not output_root or not name_ko:
+        return None
+    path = os.path.join(output_root, name_ko, "rfp_scoring.json")
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            scoring = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return scoring_consistency(scoring)
+
+
+def check_all(
+    conn: sqlite3.Connection,
+    institution_id: str | None = None,
+    output_root: str | None = None,
+) -> list[dict]:
+    """어긋난 것만 돌려준다. 정상이면 빈 목록.
+
+    `output_root`를 주면 배점표 산출물까지 본다. 안 주면 DB 규칙만 도는데, 그래야
+    이 함수를 쓰는 기존 테스트·호출부가 파일 시스템에 의존하지 않는다.
+    """
     sql = """
         SELECT i.institution_id, i.name_ko, i.stage,
                b.bid_case_id, b.participation_status, b.research_status,
@@ -86,6 +133,7 @@ def check_all(conn: sqlite3.Connection, institution_id: str | None = None) -> li
     for raw in conn.execute(sql, params).fetchall():
         row = dict(raw)
         row["task_count"] = row["task_count"] or 0
+        row["scoring_check"] = _load_scoring_check(output_root, row["name_ko"])
         for rule in RULES:
             message = rule.check(row)
             if message:

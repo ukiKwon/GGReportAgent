@@ -130,3 +130,55 @@ def test_api_reports_findings(tmp_path):
 
     scoped = TestClient(app).get("/consistency", params={"institution_id": "nope"}).json()
     assert scoped == {"findings": [], "ok": True}
+
+
+# ── 배점표 합계 규칙 (2026-08-04 실측 기반) ────────────────────────────
+# llama3.1:8b는 합 96, qwen3:14b는 합 108을 냈다(정답 100). 분류는 둘 다 맞고
+# 숫자만 지어냈는데, 모델을 키워도 같은 양상이 반복돼 규칙으로 잡기로 했다.
+
+def _scoring_file(tmp_path, name_ko, total, scores):
+    import json
+
+    out = tmp_path / "out" / name_ko
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "rfp_scoring.json").write_text(json.dumps({
+        "total_score": total,
+        "criteria": [{"category": "c", "item": f"i{n}", "score": s}
+                     for n, s in enumerate(scores)],
+    }, ensure_ascii=False), encoding="utf-8")
+    return str(tmp_path / "out")
+
+
+def test_배점_합계가_총점과_다르면_잡는다(conn, tmp_path):
+    _inst(conn, "dobong", "도봉구", 1)
+    root = _scoring_file(tmp_path, "도봉구", 100,
+                         [1, 2, 3, 5, 5, 6, 7, 7, 7, 8, 8, 8, 8, 8, 25])   # qwen 실측 = 108
+
+    findings = check_all(conn, output_root=root)
+
+    assert "scoring_sum_mismatch" in _rules(findings)
+    assert "108" in findings[0]["message"]
+
+
+def test_배점이_맞으면_조용하다(conn, tmp_path):
+    _inst(conn, "dobong", "도봉구", 1)
+    root = _scoring_file(tmp_path, "도봉구", 100, [7, 8, 17, 21, 22, 25])   # 정답
+
+    assert check_all(conn, output_root=root) == []
+
+
+def test_산출물이_없으면_아무_말도_안_한다(conn, tmp_path):
+    """3단계 전이면 안 만들어진 게 정상 — 여기서 경고를 내면 25개 기관이 전부 빨개진다."""
+    _inst(conn, "dobong", "도봉구", 1)
+
+    assert check_all(conn, output_root=str(tmp_path / "없는폴더")) == []
+    assert check_all(conn) == []          # output_root를 안 주면 DB 규칙만 돈다
+
+
+def test_깨진_json은_무시한다(conn, tmp_path):
+    _inst(conn, "dobong", "도봉구", 1)
+    out = tmp_path / "out" / "도봉구"
+    out.mkdir(parents=True)
+    (out / "rfp_scoring.json").write_text("{깨짐", encoding="utf-8")
+
+    assert check_all(conn, output_root=str(tmp_path / "out")) == []

@@ -368,9 +368,12 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
   지어낸다.** 14B는 더 자신 있게 지어낼 뿐이다(합계가 총점을 넘는다). 분류 자체는
   둘 다 맞췄고 **틀리는 건 언제나 숫자**다. 크기와 무관하게 같은 양상이 반복됐으므로,
   120b 실측은 여전히 해볼 값어치가 있으나 **그것으로 해결된다고 전제하면 안 된다.**
-- **함께 나온 제안(미착수, 사용자 판단 대기)**: `sum(criteria.score) != total_score`면
-  잡아내는 **결정적 검증 규칙**. 이번 두 모델 모두(96·108) 이 한 줄에 걸린다. 모델
-  품질에 기대지 않는 방어이고 `backend/consistency.py`의 철학과 같다.
+- ~~**함께 나온 제안**: `sum(criteria.score) != total_score` 검증 규칙~~ — **완료**
+  (2026-08-04, 사용자 승인 후 즉시 구현). `agent/nodes/rfp_extract.scoring_consistency()`
+  + `backend/consistency.py`의 `scoring_sum_mismatch` 규칙 + 실행가이드 §12.
+  실제 두 모델 산출물(96·108)을 **모두 잡고 정답지는 통과**함을 실측으로 확인했다.
+  막지는 않는다(본문은 쓸모가 있고 5·8단계에 사람 승인이 있다) — stderr 경고 +
+  `GET /consistency` + 워크플로 탭 경고로 남긴다.
 - **환경 사실(2026-08-04)**: `qwen3:14b`(9.3GB)는 이 PC(RAM 15.7GB·GPU 없음)에서
   **돈다**(10GB 점유, 100% CPU). 30b/32b(19~20GB)·235b(142GB)는 불가.
   단 **qwen3는 thinking 때문에 langchain 경로에서 14분 넘게 응답이 없었다** —
