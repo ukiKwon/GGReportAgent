@@ -18,7 +18,7 @@
                                                                      │ OpenAI 호환
                                                                      ▼
                                                           127.0.0.1:11434 Ollama
-                                                             llama3.1:8b (CPU)
+                                                            llama3.2:3b (CPU)
 ```
 
 세 가지를 먼저 이해하면 이 문서가 쉬워진다.
@@ -51,13 +51,25 @@
 | 항목 | 값 | 이유 |
 |---|---|---|
 | AMI | **Amazon Linux 2023** | |
-| 인스턴스 유형 | **`c7i.2xlarge`** (8 vCPU / 16GB) | 아래 ⚠️ |
-| 스토리지 | **gp3 40GB** | 리포 + 모델 4.7GB + `data/` + 여유 |
+| 인스턴스 유형 | **`m7i-flex.large`** (2 vCPU / 8GB) | 아래 ⚠️ |
+| 스토리지 | **gp3 20GB** | 리포 + 모델 2GB + `data/` + 여유 |
 | 키 페어 | 새로 생성해 `.pem` 보관 | SSH 접속용 |
 
-⚠️ **`t3`류(버스터블)를 쓰지 말 것.** LLM 추론은 CPU를 100%로 오래 문다. t3는 CPU
-크레딧을 소진하면 baseline(t3.xlarge 기준 40%)으로 **강제 스로틀**되어 시연 중반부터
-급격히 느려진다. "느려도 감수한다"와 "시연 도중 더 느려진다"는 다른 얘기다.
+⚠️ **인스턴스 유형이 모델 선택을 결정한다 — 두 개의 벽이 따로 있다.**
+
+1. **RAM = 어떤 모델이 올라가는가(못 넘으면 아예 안 뜬다).** `llama3.1:8b`는 Q4
+   양자화라도 실행 시 5~6GB를 쓴다. **RAM 2GB인 `t3.small`류에서는 OOM으로 죽는다** —
+   느린 게 아니라 불가다. `m7i-flex.large`(8GB)는 8b도 올라가지만, 아래 2 때문에 이
+   문서는 **`llama3.2:3b`(~2GB)** 를 기준으로 쓴다.
+2. **vCPU 수 = 답변이 얼마나 걸리는가.** CPU 추론 속도는 코어 수에 거의 비례한다.
+   `m7i-flex.large`는 **2 vCPU**라 8b를 올리면 답변 1건에 수 분이 걸린다(추정 —
+   8 vCPU 기준으로 쓰였던 원안 대비 1/4 코어). 3b면 수십 초 수준으로 내려간다.
+
+`t3`류(버스터블)는 RAM과 별개로 **CPU 크레딧을 소진하면 baseline으로 강제 스로틀**되어
+시연 중반부터 급격히 느려지므로 권하지 않는다. `m7i-flex`도 baseline 40% 설계라 AWS가
+"지속적 고CPU 워크로드는 `m7i`" 를 권하지만, 3b 정도의 짧은 추론에는 실용적이다.
+**대화 탭을 빠르고 안정적으로 보여야 한다면 `c7i.2xlarge`(8 vCPU/16GB) + 8b가 원안이고,
+그쪽이 시간당 요금이 4배(약 $0.43 vs $0.10)다.**
 
 **보안그룹 인바운드** — 아래 2개만. `8000`(앱)·`11434`(Ollama)는 **열지 않는다**.
 
@@ -76,7 +88,7 @@
 
 > 💰 **비용 주의**: 2024년 2월부터 AWS는 **모든 퍼블릭 IPv4 주소에 시간당 약 $0.005를
 > 과금**한다. 인스턴스를 정지해 둔 동안에도 EIP를 붙여 두면 **월 $3~4 정도**가 나온다
-> (EBS 40GB와 비슷한 수준). 고정 주소의 편의를 살 만한 값이라 붙이길 권하지만,
+> (EBS 20GB보다 오히려 비싸다). 고정 주소의 편의를 살 만한 값이라 붙이길 권하지만,
 > **아깝다면 붙이지 않고 매번 바뀌는 IP를 확인해 쓰면 된다**(8단계에 확인 방법이 있다).
 > 다만 **인스턴스를 terminate한 뒤 EIP만 남겨두면 계속 과금**되니, 프로젝트를 접을 때는
 > EIP도 **릴리스**할 것.
@@ -133,7 +145,7 @@ pip install -r requirements.txt      # fastapi·uvicorn·langgraph·numpy·pytho
 ### 설치 확인 (여기서 걸러야 나중에 안 헤맨다)
 
 ```bash
-python -c "import fastapi, uvicorn, langgraph, numpy, pptx, pypdf; print('deps OK')"
+python -c "import fastapi, uvicorn, langgraph, langchain_openai, numpy, pptx, pypdf; print('deps OK')"
 
 # FTS5 trigram 토크나이저는 SQLite 3.34+ 에서만 된다 (검색 인덱스가 이걸 쓴다)
 python - <<'PY'
@@ -144,7 +156,7 @@ sqlite3.connect(":memory:").execute(
 print("FTS5 trigram OK")
 PY
 
-python -m pytest -q        # 478 passed 가 기준선
+python -m pytest -q        # 526 passed 가 기준선 (2026-08-05 실측)
 ```
 
 여기서 깨지면 배포 문제가 아니라 환경 문제이므로 **먼저 해결하고 다음으로 넘어간다.**
@@ -181,7 +193,7 @@ python -m agent.retrieval search "청년 창업"   # 결과가 나오면 성공
 ## 5. LLM 모델
 
 ```bash
-ollama pull llama3.1:8b        # 약 4.7GB
+ollama pull llama3.2:3b        # 약 2GB
 
 # 유휴 5분 뒤 모델을 내리는 기본 동작을 끈다 (시연 중 재로딩 수십 초를 없앤다)
 sudo mkdir -p /etc/systemd/system/ollama.service.d
@@ -193,13 +205,16 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now ollama
 sudo systemctl restart ollama
 
-curl -s localhost:11434/api/tags | grep llama3.1     # 확인
+curl -s localhost:11434/api/tags | grep llama3.2     # 확인
 ```
 
-> **품질 주의**: `llama3.1:8b`는 배점표의 개별 배점을 **지어낸 실측 전력**이 있다
-> (`handoff/NEXT.md` 항목 5). 대화 시연에는 무방하지만, **화면에 나온 수치를 사실로
-> 소개하지 말 것.** 한국어 품질이 더 필요하면 `qwen2.5:7b`로 바꾸고 6단계의 `LLM_MODEL`을
-> 같이 고치면 된다.
+> **품질 주의**: 더 큰 `llama3.1:8b`조차 배점표의 개별 배점을 **지어낸 실측 전력**이 있다
+> (`handoff/NEXT.md` 항목 5). 3b는 그보다 작으므로 **화면에 나온 수치를 사실로 소개하지
+> 말 것** — 대화 탭은 "에이전트가 근거를 인용해 답한다"는 흐름을 보여주는 용도다.
+>
+> **모델을 바꾸고 싶다면** 6단계의 `LLM_MODEL`·`LLM_FALLBACK_MODEL`을 **같이** 고친다.
+> RAM이 넉넉하고(8GB+) 답변 지연을 감수할 수 있으면 `llama3.1:8b`, 더 빠르게 하려면
+> `llama3.2:1b`(~1.3GB). 한국어는 같은 크기에서 `qwen2.5:3b`가 나은 편이다.
 
 ---
 
@@ -218,8 +233,8 @@ User=ec2-user
 WorkingDirectory=/opt/GGReportAgent
 Environment=PYTHONUNBUFFERED=1
 Environment=LLM_BASE_URL=http://127.0.0.1:11434/v1
-Environment=LLM_MODEL=llama3.1:8b
-Environment=LLM_FALLBACK_MODEL=llama3.1:8b
+Environment=LLM_MODEL=llama3.2:3b
+Environment=LLM_FALLBACK_MODEL=llama3.2:3b
 Environment=LLM_API_KEY=not-needed
 ExecStart=/opt/GGReportAgent/.venv/bin/python -m backend.demo --port 8000
 Restart=on-failure
@@ -372,7 +387,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -u demo:<비번> localhost/     # 200 �
 | 참여 결정 | 계정 전환기로 tier 1·2·3 순차 결재 | ✗ |
 | 쪽지함 | 배지, 발송 | ✗ |
 | 지식 탭 | 검색 결과(`bm25`), 원문 열기 | ✗ |
-| **대화 탭** | 답이 **글자 단위로** 흘러나온다 | **✓** |
+| **대화 탭** | 답이 **글자 단위로** 흘러나온다 (3b·2 vCPU 기준 수십 초 예상) | **✓** |
 | 워크플로 '실행' | 오케스트레이터 기동 | **✓** (느림 — 시연 비권장) |
 
 > 💡 **대화 탭은 마지막에 보여주는 편이 좋다.** 나머지 화면은 전부 LLM과 무관하게 즉시
@@ -417,10 +432,12 @@ cd /opt/GGReportAgent && source .venv/bin/activate \
 | 1분쯤 뒤 502/504 | 읽기 타임아웃 | `proxy_read_timeout 300s;` (7단계) |
 | "모델 '…'을 찾을 수 없습니다" 말풍선 | `LLM_MODEL` ≠ 설치된 모델 | `ollama list`와 6단계 `LLM_MODEL`을 맞춘다 |
 | "LLM 엔드포인트에 닿지 못했습니다" | Ollama 미기동 | `sudo systemctl status ollama` |
-| 지식 탭이 503 "빌드 안내" | 인덱스 부재 | 4단계 ②를 실행 |
+| 지식 탭이 503 "빌드 안내" | 인덱스 부재 | 4단계 ② 실행 **후 앱 재시작** — 데모 인덱스는 앱 기동 때 운영 인덱스를 복사해 만들어진다(`backend/demo.py`의 `build_demo_index`), 그래서 ②만으론 안 바뀐다 |
 | 대화가 몇 분씩 걸림 | 인덱스 없이 코퍼스 통째 투입 | 4단계 ② 실행 후 앱 재시작 |
 | 첫 질문만 유독 느림 | 모델 로딩 | 정상. 5단계 `OLLAMA_KEEP_ALIVE=-1` + 웜업 |
-| 시연 중반부터 급격히 느려짐 | `t3` CPU 크레딧 소진 | 인스턴스 유형을 `c7i`로 (1단계) |
+| 답변이 계속 수 분씩 걸림 | vCPU 부족(2 vCPU에 8b 등 과한 모델) | 5·6단계를 `llama3.2:3b`로 맞춘다. 그래도 느리면 `c7i.2xlarge`(8 vCPU) |
+| 모델 로드 중 프로세스가 죽음(OOM) | RAM 부족 — 모델이 안 올라감 | 더 작은 모델(`llama3.2:1b`)이나 RAM 큰 유형으로 (1단계) |
+| 시연 중반부터 급격히 느려짐 | `t3` CPU 크레딧 소진 / `m7i-flex` 지속부하 스로틀 | 인스턴스 유형을 `c7i`로 (1단계) |
 | 앱이 안 뜬다 | — | `journalctl -u ggreport-demo -n 50` |
 | 답변이 문맥을 잊음 | Ollama 기본 컨텍스트보다 프롬프트가 길어 **조용히 잘림** | 알려진 한계. 질문을 짧게 하거나 Modelfile로 `num_ctx`를 올린다 |
 
@@ -435,11 +452,14 @@ cd /opt/GGReportAgent && source .venv/bin/activate \
 - **HTTPS가 아니다.** 도메인이 없으면 정식 인증서를 못 받는다. Basic Auth 비밀번호가
   평문으로 흐르므로 **다른 곳에서 쓰는 비밀번호를 넣지 말 것.** 도메인이 생기면
   certbot으로 올리면 된다.
-- **답변 속도는 느리다.** GPU가 아니라 CPU 추론이라 답변 1건에 수십 초~수 분이 걸린다.
-  이건 고장이 아니라 선택한 구성의 결과다(5단계 웜업·4단계 인덱스가 최선의 완화책).
+- **답변 속도는 느리다.** GPU가 아니라 CPU 추론이고, `m7i-flex.large`는 **2 vCPU**다.
+  `llama3.2:3b` 기준 답변 1건에 **수십 초**를 예상한다(추정 — 실기동에서 실측해 이 줄을
+  고칠 것). 이건 고장이 아니라 선택한 구성의 결과다(5단계 웜업·4단계 인덱스가 최선의
+  완화책). 더 빠르고 안정적인 대화가 필요하면 `c7i.2xlarge`(8 vCPU) + `llama3.1:8b`.
 - **LLM은 EC2 안 Ollama 하나뿐이다.** 외부로 나가지 않아 폐쇄망 가정이 구성으로도
   성립한다. 운영 모델 `gpt-oss-120b`는 65GB급이라 이 구성에 올라가지 않는다 — 그 검증은
   여전히 열린 과제다(`handoff/NEXT.md` 항목 5).
-- **비용은 "정지했는지"가 좌우한다.** 인스턴스 정지 중에도 EBS 40GB(월 $3~4)와, 탄력적
-  IP를 붙였다면 그 요금(월 $3~4)이 계속 나간다. 가동 중에는 인스턴스 요금이 시간당
-  $0.4 안팎으로 붙으므로 **stop을 잊으면 월 $250+** 가 된다.
+- **비용은 "정지했는지"가 좌우한다.** 인스턴스 정지 중에도 EBS 20GB(월 $2 안팎)와, 탄력적
+  IP를 붙였다면 그 요금(월 $3~4)이 계속 나간다. 가동 중에는 `m7i-flex.large` 요금이
+  시간당 **$0.10 안팎**으로 붙으므로 **stop을 잊으면 월 $70+** 가 된다(원안
+  `c7i.2xlarge`는 시간당 $0.43·월 $310+). 리전·환율로 달라지니 콘솔의 요금 표시로 확인할 것.
