@@ -26,7 +26,7 @@ def corpus(tmp_path):
 def test_build_index_counts_and_metadata(corpus, tmp_path):
     db = tmp_path / "data" / "corpus_index.db"
     result = build_index(corpus, db)
-    assert result == {"files": 4, "chunks": 4}
+    assert result == {"files": 4, "chunks": 4, "embedded": 0}
 
     conn = sqlite3.connect(db)
     rows = conn.execute(
@@ -72,6 +72,18 @@ def test_unsupported_extensions_are_ignored(corpus, tmp_path):
 def test_build_index_rejects_missing_root(tmp_path):
     with pytest.raises(NotADirectoryError):
         build_index(tmp_path / "없는폴더", tmp_path / "db.db")
+
+
+def test_classify_archive_rules():
+    """아카이브는 {기관명(한글)}/{날짜}/{파일} 구조 — 슬러그 변환은 호출부 몫이다."""
+    from agent.retrieval.indexer import ARCHIVE_LABEL
+
+    assert classify(("도봉구", "2026-08-04", "rfp_text.txt"), ARCHIVE_LABEL) == (
+        "도봉구",
+        "archive",
+    )
+    # 기관 폴더 없이 뿌리에 놓인 파일은 기관을 특정할 수 없다.
+    assert classify(("떠도는파일.txt",), ARCHIVE_LABEL) == (None, "archive")
 
 
 def test_classify_path_rules():
