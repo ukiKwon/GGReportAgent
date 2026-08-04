@@ -58,3 +58,21 @@ test('renderLog: failed면 말풍선에 클래스가 붙는다', function () {
   chat.renderLog(el, [{ role: 'agent', content: '[답변 실패] 모델 없음' }], {});
   assert.ok(el.innerHTML.includes('ch-row agent failed'));
 });
+
+// ── 모델 배지 (계획 §⑥ 후속, Task 3) ─────────────────────────────────
+
+test('modelBadgeText: 자동 선택이면 근거(RAM·vCPU)까지 보여준다', function () {
+  const t = chat.modelBadgeText({ model: 'llama3.2:3b', auto: true, ram_gb: 7.6, cpu_count: 2 });
+  assert.ok(t.indexOf('llama3.2:3b') >= 0);
+  assert.ok(t.indexOf('자동') >= 0 && t.indexOf('7.6') >= 0 && t.indexOf('2') >= 0);
+});
+
+test('modelBadgeText: 명시 지정이면 모델명만', function () {
+  const t = chat.modelBadgeText({ model: 'gpt-oss-120b', auto: false });
+  assert.strictEqual(t.indexOf('자동'), -1);
+  assert.ok(t.indexOf('gpt-oss-120b') >= 0);
+});
+
+test('modelBadgeText: 정보가 없으면 빈 문자열(배지를 숨긴다)', function () {
+  assert.strictEqual(chat.modelBadgeText(null), '');
+});
