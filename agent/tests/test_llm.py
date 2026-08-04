@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel
 
+import agent.llm as llm_mod
 from agent.llm import DEFAULT_FALLBACK_MODEL, DEFAULT_MODEL, get_llm, structured_llm
 
 
@@ -68,3 +69,72 @@ def test_no_fallback_when_it_would_be_the_same_model(monkeypatch):
     monkeypatch.setenv("LLM_MODEL", "solar-pro")
     monkeypatch.setenv("LLM_FALLBACK_MODEL", "solar-pro")
     assert not hasattr(structured_llm(_Schema), "fallbacks")
+
+
+def _clear_auto(monkeypatch):
+    llm_mod.reset_model_cache()
+    for k in ("LLM_MODEL", "LLM_FALLBACK_MODEL", "LLM_BASE_URL"):
+        monkeypatch.delenv(k, raising=False)
+
+
+def test_explicit_model_is_untouched(monkeypatch):
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", "gpt-oss-120b")
+    assert llm_mod.current_model() == "gpt-oss-120b"
+
+
+def test_unset_model_keeps_default(monkeypatch):
+    _clear_auto(monkeypatch)
+    assert llm_mod.current_model() == llm_mod.DEFAULT_MODEL
+
+
+def test_auto_resolves_from_hardware_and_installed(monkeypatch):
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", "auto")
+    monkeypatch.setattr(llm_mod, "detect_resources", lambda: (7.6, 2))
+    monkeypatch.setattr(llm_mod, "installed_models", lambda url: ["llama3.1:8b", "llama3.2:3b"])
+    assert llm_mod.current_model() == "llama3.2:3b"      # 2 vCPU → 3b
+
+
+def test_auto_is_case_and_space_insensitive(monkeypatch):
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", " AUTO ")
+    monkeypatch.setattr(llm_mod, "detect_resources", lambda: (16.0, 8))
+    monkeypatch.setattr(llm_mod, "installed_models", lambda url: ["llama3.1:8b"])
+    assert llm_mod.current_model() == "llama3.1:8b"
+
+
+def test_auto_falls_back_to_default_when_nothing_installed(monkeypatch, capsys):
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", "auto")
+    monkeypatch.setattr(llm_mod, "detect_resources", lambda: (16.0, 8))
+    monkeypatch.setattr(llm_mod, "installed_models", lambda url: [])
+    assert llm_mod.current_model() == llm_mod.DEFAULT_MODEL
+    assert "auto" in capsys.readouterr().err        # 조용히 넘어가지 않는다
+
+
+def test_auto_result_is_cached(monkeypatch):
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", "auto")
+    calls = []
+    monkeypatch.setattr(llm_mod, "detect_resources", lambda: (16.0, 8))
+
+    def spy(url):
+        calls.append(url)
+        return ["llama3.1:8b"]
+
+    monkeypatch.setattr(llm_mod, "installed_models", spy)
+    llm_mod.current_model()
+    llm_mod.current_model()
+    llm_mod.current_model()
+    assert len(calls) == 1          # 매 호출마다 Ollama를 찌르면 안 된다
+
+
+def test_model_info_shape(monkeypatch):
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", "auto")
+    monkeypatch.setattr(llm_mod, "detect_resources", lambda: (7.6, 2))
+    monkeypatch.setattr(llm_mod, "installed_models", lambda url: ["llama3.2:3b"])
+    info = llm_mod.model_info()
+    assert info["auto"] is True and info["requested"] == "auto"
+    assert info["model"] == "llama3.2:3b" and info["cpu_count"] == 2
