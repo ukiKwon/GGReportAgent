@@ -5,7 +5,11 @@ from backend.main import create_app
 
 
 def _app(tmp_path, stage):
+    # index_db_path를 반드시 격리한다 — complete가 계획 F부터 **백그라운드 재색인**을
+    # 걸기 때문에, 안 넘기면 기본값 `data/corpus_index.db`(개발자의 실제 검색 인덱스)에
+    # 테스트 산출물이 들어간다. 실제로 그렇게 오염된 적이 있다.
     app = create_app(str(tmp_path / "r.db"), output_root=str(tmp_path / "out"),
+                     index_db_path=str(tmp_path / "idx.db"),
                      graph_db_path=str(tmp_path / "g.db"), archive_root=str(tmp_path / "arch"))
     conn = get_connection(str(tmp_path / "r.db"))
     conn.execute("INSERT INTO institutions (institution_id, name_ko, stage) VALUES ('nowon','노원구',?)", (stage,))
