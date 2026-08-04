@@ -194,6 +194,12 @@
   .kn-head b { color:var(--fg); }
   .kn-snip { font-size:13px; white-space:pre-wrap; word-break:break-word; }
   .kn-snip mark { background:var(--accent-color); color:var(--bg); border-radius:3px; padding:0 2px; }
+  /* 지금이 하이브리드인지 FTS 단독인지 — 조용히 나빠지는 것을 막는 표시(계획 F) */
+  .kn-mode { font-size:11px; border-radius:10px; padding:1px 8px; margin-left:6px;
+             border:1px solid var(--line); cursor:help; }
+  .kn-mode.on { border-color:var(--accent-color); color:var(--accent-color); }
+  .kn-mode.off { color:var(--muted); }
+  #kn-controls button:disabled { opacity:.55; cursor:progress; }
   .wf-log-row pre { margin:2px 0 0; white-space:pre-wrap; word-break:break-word; font-family:inherit; }
 </style>
 </head>
