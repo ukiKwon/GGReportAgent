@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 
 from langchain_openai import ChatOpenAI
 
@@ -24,10 +25,22 @@ DEFAULT_FALLBACK_MODEL = "llama-4-scout-17b-16e-instruct"
 DEFAULT_BASE_URL = "http://localhost:11434/v1"
 
 AUTO = "auto"
-# LLM_MODEL=auto 판정 결과의 프로세스 1회 캐시 — 매 호출마다 Ollama를 찌르면
-# 추론 왕복마다 지연이 붙는다.
+# 판정 실패(Ollama 무응답 등)를 재시도하기까지의 유예 시간(초). 짧은 TTL인 이유:
+# 무기한으로 캐시하면 systemd에서 이 앱이 Ollama보다 먼저 뜨는(기동 순서) 경우
+# 지금은 다음 요청 때 자연히 재시도해 자가복구되는데, 그 경로가 막힌다. 60초면
+# 매 추론 호출마다 왕복하는 지연은 없애면서도 기동 순서 문제는 곧 스스로 낫는다.
+AUTO_FAIL_TTL = 60.0
+
+# LLM_MODEL=auto 판정 결과의 프로세스 캐시 — 매 호출마다 Ollama를 찌르면
+# 추론 왕복마다 지연이 붙는다. 성공은 무기한, 실패는 위 TTL만큼만 캐시한다.
 _auto_cache: str | None = None
 _auto_warned = False
+_auto_fail_at: float | None = None
+
+
+def _now() -> float:
+    """단조 시계 — 테스트에서 monkeypatch로 시간 경과를 흉내낼 수 있게 함수로 뺀다."""
+    return time.monotonic()
 
 
 def _env(name: str, default: str) -> str:
@@ -41,9 +54,10 @@ def _is_auto(value: str) -> bool:
 
 def reset_model_cache() -> None:
     """테스트 격리용 — 프로세스 캐시를 비운다."""
-    global _auto_cache, _auto_warned
+    global _auto_cache, _auto_warned, _auto_fail_at
     _auto_cache = None
     _auto_warned = False
+    _auto_fail_at = None
 
 
 def resolve_auto_model() -> str | None:
@@ -55,41 +69,58 @@ def resolve_auto_model() -> str | None:
 def current_model() -> str:
     """지금 쓰기로 돼 있는 1순위 모델. 실패를 사람에게 설명할 때도 쓴다.
 
-    `LLM_MODEL=auto`면 하드웨어와 설치 목록을 보고 고른다(프로세스 1회 캐시 —
-    매 호출마다 Ollama를 찌르면 추론마다 왕복이 붙는다). `LLM_MODEL`이 없거나
-    구체 모델명이면 지금까지와 동일하게 그 값을 그대로 돌려준다(옵트인 불변식).
+    `LLM_MODEL=auto`면 하드웨어와 설치 목록을 보고 고른다. 성공하면 프로세스
+    캐시에 무기한 보관한다(매 호출마다 Ollama를 찌르면 추론마다 왕복이 붙는다).
+    실패하면 `AUTO_FAIL_TTL`초만 짧게 캐시한다 — 무기한이면 기동 순서 문제의
+    자가복구 경로가 막히므로(모듈 상단 주석 참고), TTL이 지나면 다시 시도한다.
+    `LLM_MODEL`이 없거나 구체 모델명이면 지금까지와 동일하게 그 값을 그대로
+    돌려준다(옵트인 불변식).
     """
-    global _auto_cache, _auto_warned
+    global _auto_cache, _auto_warned, _auto_fail_at
     requested = _env("LLM_MODEL", DEFAULT_MODEL)
     if not _is_auto(requested):
         return requested
     if _auto_cache:
         return _auto_cache
+    if _auto_fail_at is not None and _now() - _auto_fail_at < AUTO_FAIL_TTL:
+        return DEFAULT_MODEL   # TTL 안 — 재조회하지 않고 조용히 기본값을 쓴다
     picked = resolve_auto_model()
     if picked:
         _auto_cache = picked
+        _auto_fail_at = None
         print(f"[llm] auto 선택: {picked}", file=sys.stderr)
         return picked
+    _auto_fail_at = _now()
     if not _auto_warned:
         _auto_warned = True
         print(
             "[llm] LLM_MODEL=auto인데 쓸 모델을 못 찾았습니다 — Ollama가 떠 있는지,"
             " 후보(llama3.1:8b / llama3.2:3b / llama3.2:1b) 중 하나를 pull 했는지"
-            f" 확인하세요. 우선 기본값 {DEFAULT_MODEL}로 진행합니다.",
+            f" 확인하세요. 우선 기본값 {DEFAULT_MODEL}로 진행합니다"
+            f"({AUTO_FAIL_TTL:.0f}초 뒤 재시도).",
             file=sys.stderr,
         )
     return DEFAULT_MODEL
 
 
 def model_info() -> dict:
-    """화면에 '지금 무슨 모델을 쓰는지' 보여주기 위한 요약. `GET /llm/status`가 그대로 내보낸다."""
+    """화면에 '지금 무슨 모델을 쓰는지' 보여주기 위한 요약. `GET /llm/status`가 그대로 내보낸다.
+
+    `resolved`: auto가 실제로 하드웨어·설치목록으로 모델을 골랐으면 True, 판정이
+    실패해 DEFAULT_MODEL로 폴백했으면 False. non-auto(명시 지정)는 언제나 True —
+    화면이 "자동 선택"이라는 근거(RAM/vCPU)를 실제로 고른 적 없는 모델에 잘못
+    붙이지 않도록 이 값으로 구분한다.
+    """
     requested = _env("LLM_MODEL", DEFAULT_MODEL)
     ram_gb, cpu_count = detect_resources()
     auto = _is_auto(requested)
+    model = current_model()
+    resolved = (not auto) or (_auto_cache == model)
     return {
-        "model": current_model(),
+        "model": model,
         "requested": requested,
         "auto": auto,
+        "resolved": resolved,
         "base_url": current_base_url(),
         "ram_gb": ram_gb,
         "cpu_count": cpu_count,
