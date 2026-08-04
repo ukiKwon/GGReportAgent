@@ -52,9 +52,50 @@
   };
 
   // ── 렌더 ────────────────────────────────────────────────────────────
+  // ⚠️ 폴백이 원문을 그대로 돌려주면 안 된다 — logic.js가 안 실려 있을 때 조용히
+  // 이스케이프가 사라져 코퍼스 본문의 <script>가 그대로 실행된다. 폴백도 이스케이프한다.
   function esc(s) {
-    return (root.logic && root.logic.esc) ? root.logic.esc(s) : String(s == null ? '' : s);
+    if (root.logic && root.logic.esc) return root.logic.esc(s);
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
   }
+
+  // 원문에서 **검색에 걸린 그 청크**가 어디인지 찾는다(계획 F 후속 G2).
+  // 청크는 chunker가 문단을 strip해 재조립한 것이라 원문과 글자가 딱 맞지 않을 수
+  // 있다. 그래서 ①통째 일치 → ②첫 줄 일치 순으로 시도하고, 둘 다 실패하면
+  // -1을 돌려 **청크 표시 없이** 원문만 보여준다(틀린 곳을 짚느니 안 짚는 게 낫다).
+  knowledge.locateChunk = function (fullText, chunkText) {
+    const full = String(fullText == null ? '' : fullText);
+    const chunk = String(chunkText == null ? '' : chunkText).trim();
+    if (!chunk) return { start: -1, end: -1 };
+
+    let at = full.indexOf(chunk);
+    if (at >= 0) return { start: at, end: at + chunk.length };
+
+    const firstLine = chunk.split('\n')[0].trim();
+    if (firstLine.length >= 6) {
+      at = full.indexOf(firstLine);
+      if (at >= 0) return { start: at, end: at + firstLine.length };
+    }
+    return { start: -1, end: -1 };
+  };
+
+  // 원문 → 표시용 HTML. **이스케이프를 먼저 하고 그 위에 강조를 얹는다** —
+  // 순서를 뒤집으면 원문에 든 <script>가 그대로 실행된다(highlight와 같은 계약).
+  knowledge.documentHtml = function (fullText, chunkText, query) {
+    const full = String(fullText == null ? '' : fullText);
+    const at = knowledge.locateChunk(full, chunkText);
+    if (at.start < 0) return knowledge.highlight(esc(full), query);
+
+    // 청크 경계로 세 조각을 낸 뒤 **각각** 이스케이프한다. 통째로 이스케이프한 뒤
+    // 자르면 엔티티(&lt;) 한가운데가 잘려 나갈 수 있다.
+    return knowledge.highlight(esc(full.slice(0, at.start)), query) +
+      '<mark class="kn-chunk" id="kn-anchor">' +
+      knowledge.highlight(esc(full.slice(at.start, at.end)), query) +
+      '</mark>' +
+      knowledge.highlight(esc(full.slice(at.end)), query);
+  };
 
   knowledge.renderResults = function (el, chunks, query) {
     const rows = knowledge.rows(chunks);
@@ -69,8 +110,9 @@
     const badge = knowledge.modeBadge(chunks);
     el.innerHTML = '<p class="wf-empty">' + rows.length + '건' +
       (badge ? ' <span class="' + badge.cls + '" title="' + esc(badge.title) + '">' +
-        esc(badge.text) + '</span>' : '') + '</p>' + rows.map(function (r) {
-      return '<div class="kn-hit"><div class="kn-head"><b>' + esc(r.filename) + '</b>' +
+        esc(badge.text) + '</span>' : '') + '</p>' + rows.map(function (r, i) {
+      return '<div class="kn-hit" data-index="' + i + '" title="클릭하면 원문을 엽니다">' +
+        '<div class="kn-head"><span class="kn-open">원문 열기 ↗</span><b>' + esc(r.filename) + '</b>' +
         ' · ' + esc(r.doctype) + (r.institutionId ? ' · ' + esc(r.institutionId) : '') +
         ' · ' + esc(r.path) + ' #' + r.chunkNo + '</div>' +
         '<div class="kn-snip">' + knowledge.highlight(esc(r.snippet), query) + '</div></div>';
@@ -79,6 +121,50 @@
 
   // ── 배선 ────────────────────────────────────────────────────────────
   function el(id) { return document.getElementById(id); }
+
+  let lastChunks = [];      // 결과 행 클릭 시 원문+청크를 되짚기 위해 보관
+  let lastQuery = '';
+
+  function openDocument(index) {
+    const hit = lastChunks[index];
+    if (!hit) return;
+    const modal = el('doc-modal');
+    el('doc-title').textContent = hit.filename || '원문';
+    el('doc-meta').textContent = hit.path + ' #' + hit.chunk_no + ' — 불러오는 중…';
+    el('doc-body').innerHTML = '';
+    modal.style.display = '';
+
+    fetch('/documents?path=' + encodeURIComponent(hit.path)).then(function (r) {
+      return r.json().then(function (body) {
+        // 서버가 준 사유를 그대로 보여준다(허용되지 않은 위치·형식 미지원 등).
+        if (!r.ok) throw new Error((body && body.detail) || ('원문을 열지 못했습니다 (' + r.status + ')'));
+        return body;
+      });
+    }).then(function (doc) {
+      el('doc-meta').textContent = doc.path + ' · ' + doc.chars.toLocaleString() + '자' +
+        (doc.truncated ? ' (앞부분만 표시)' : '');
+      el('doc-body').innerHTML = '<pre>' +
+        knowledge.documentHtml(doc.text, hit.text, lastQuery) + '</pre>';
+      const anchor = el('kn-anchor');
+      if (anchor && anchor.scrollIntoView) anchor.scrollIntoView({ block: 'center' });
+    }).catch(function (e) {
+      el('doc-meta').textContent = hit.path;
+      el('doc-body').innerHTML = '<p class="wf-empty">' + esc(e.message) + '</p>';
+    });
+  }
+
+  function wireDocumentModal() {
+    const modal = el('doc-modal');
+    if (!modal || modal.dataset.wired) return;
+    modal.dataset.wired = '1';
+    function close() { modal.style.display = 'none'; }
+    el('doc-close').onclick = close;
+    // 기존 모달들과 같은 관행 — 배경 클릭·Esc로도 닫힌다.
+    modal.onclick = function (e) { if (e.target === modal) close(); };
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.style.display !== 'none') close();
+    });
+  }
 
   function run() {
     const q = (el('kn-q').value || '').trim();
@@ -106,7 +192,12 @@
         return body;
       });
     }).then(function (chunks) {
+      lastChunks = chunks || [];
+      lastQuery = q;
       knowledge.renderResults(out, chunks, q);
+      Array.prototype.forEach.call(out.querySelectorAll('.kn-hit'), function (node) {
+        node.onclick = function () { openDocument(Number(node.dataset.index)); };
+      });
     }).catch(function (e) {
       out.innerHTML = '<p class="wf-empty">' + esc(e.message) + '</p>';
     }).then(function () {
@@ -134,6 +225,7 @@
 
   knowledge.mount = function () {
     if (!el('kn-q')) renderControls();      // 입력값을 날리지 않게 처음 한 번만 그린다
+    wireDocumentModal();
   };
 
   knowledge.unmount = function () { /* 폴링·스트림이 없어 정리할 것이 없다 */ };

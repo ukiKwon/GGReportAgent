@@ -6,6 +6,10 @@
   const chat = {};
 
   const AGENT_LABEL = '참여검토 agent';
+  // 서버가 LLM 실패를 이 표식으로 시작하는 한 문단을 보낸다(backend/agent_adapter.failure_notice).
+  // 답변처럼 생겼지만 답변이 아니므로 눈에 띄게 구분한다.
+  const FAILURE_MARK = '[답변 실패]';
+  chat.FAILURE_MARK = FAILURE_MARK;
 
   // workflow.roleLabel을 재사용하지 않는다 — 대화는 role이 user/agent 2종뿐이라
   // 파일 간 의존을 만들 이유가 없다.
@@ -21,6 +25,7 @@
         label: isAgent ? AGENT_LABEL : (m.author || '담당자'),
         // 에이전트 답변은 author가 없으니 절대 내 것이 되지 않는다.
         mine: !isAgent && !!me && m.author === me,
+        failed: isAgent && String(m.content || '').indexOf(FAILURE_MARK) >= 0,
       };
     });
   };
@@ -31,8 +36,12 @@
   };
 
   // ── 렌더 ────────────────────────────────────────────────────────────
+  // knowledge.js와 같은 이유 — 폴백이 원문을 그대로 내보내면 XSS가 된다.
   function esc(s) {
-    return (root.logic && root.logic.esc) ? root.logic.esc(s) : String(s == null ? '' : s);
+    if (root.logic && root.logic.esc) return root.logic.esc(s);
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
   }
 
   chat.renderLog = function (el, messages, profile) {
@@ -42,7 +51,8 @@
       return;
     }
     el.innerHTML = rows.map(function (r) {
-      return '<div class="ch-row ' + r.role + (r.mine ? ' mine' : '') + '">' +
+      return '<div class="ch-row ' + r.role + (r.mine ? ' mine' : '') +
+        (r.failed ? ' failed' : '') + '">' +
         '<div class="ch-who">' + esc(r.label) + ' · ' + esc(r.at) + '</div>' +
         '<pre>' + esc(r.content) + '</pre></div>';
     }).join('');
