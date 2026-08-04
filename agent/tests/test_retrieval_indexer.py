@@ -26,7 +26,7 @@ def corpus(tmp_path):
 def test_build_index_counts_and_metadata(corpus, tmp_path):
     db = tmp_path / "data" / "corpus_index.db"
     result = build_index(corpus, db)
-    assert result == {"files": 4, "chunks": 4}
+    assert result == {"files": 4, "chunks": 4, "embedded": 0}
 
     conn = sqlite3.connect(db)
     rows = conn.execute(

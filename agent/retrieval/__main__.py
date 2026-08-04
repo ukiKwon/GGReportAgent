@@ -21,6 +21,13 @@ def main(argv: list[str] | None = None) -> int:
     build_p = sub.add_parser("build", help="corpus/ 전체를 인덱싱(전체 재빌드)")
     build_p.add_argument("--corpus", default=DEFAULT_CORPUS_ROOT)
     build_p.add_argument("--db", default=DEFAULT_DB_PATH)
+    # 라이브러리 기본값은 꺼짐이지만 CLI는 켜짐이다 — 사람이 손으로 부르는 자리에서는
+    # 하이브리드 검색이 되는 인덱스가 기본이어야 한다.
+    build_p.add_argument(
+        "--no-embed",
+        action="store_true",
+        help="임베딩을 건너뛰고 FTS만 만든다(빠름). 하이브리드 검색은 안 된다.",
+    )
 
     search_p = sub.add_parser("search", help="인덱스에서 질의")
     search_p.add_argument("query")
@@ -33,8 +40,18 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "build":
-        result = build_index(args.corpus, args.db)
-        print(f"인덱스 완료: 파일 {result['files']}개, 청크 {result['chunks']}개 → {args.db}")
+        embed = not args.no_embed
+        if embed:
+            print(
+                "임베딩을 포함해 빌드합니다 — CPU에서는 청크당 약 1.2초라 오래 걸립니다."
+                " (FTS만 필요하면 --no-embed)",
+                file=sys.stderr,
+            )
+        result = build_index(args.corpus, args.db, embed=embed)
+        print(
+            f"인덱스 완료: 파일 {result['files']}개, 청크 {result['chunks']}개,"
+            f" 벡터 {result['embedded']}개 → {args.db}"
+        )
         return 0
 
     if args.command == "search":
