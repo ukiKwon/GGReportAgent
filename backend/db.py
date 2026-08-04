@@ -97,7 +97,9 @@ BID_CASE_MIGRATIONS = {
 }
 
 # 단계별 수행 내용 뷰(계획 C1-fix)가 쓰는 컬럼들. 기존 행은 NULL로 남아 "단계 미상"이 된다.
-MESSAGE_MIGRATIONS = {"author": "TEXT", "stage": "INTEGER"}
+# model은 그 기록이 LLM을 실제로 썼는지 보여준다(Task 5) — LLM을 안 쓴 기록(게이트 통과
+# 알림 등)은 계속 NULL로 남는다.
+MESSAGE_MIGRATIONS = {"author": "TEXT", "stage": "INTEGER", "model": "TEXT"}
 # sender는 사람이 보낸 쪽지에만 있다 — 시스템(에이전트) 알림은 NULL로 남는다(계획 C2).
 NOTIFICATION_MIGRATIONS = {"stage": "INTEGER", "sender": "TEXT"}
 
