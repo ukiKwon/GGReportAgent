@@ -67,9 +67,16 @@ def main(argv: list[str] | None = None) -> int:
         except IndexNotBuiltError as exc:
             print(str(exc), file=sys.stderr)
             return 1
+        if chunks and chunks[0].score_kind == "bm25":
+            # 벡터가 없어 FTS로만 찾았다는 사실을 알려야 한다 — 조용히 나빠지는 것이
+            # 가장 나쁘다.
+            print("(FTS 단독 — 의미 검색은 꺼져 있습니다)", file=sys.stderr)
         for chunk in chunks:
             preview = chunk.text.replace("\n", " ")[:80]
-            print(f"[{chunk.score:.2f}] {chunk.path}#{chunk.chunk_no} — {preview}")
+            print(
+                f"[{chunk.score_kind} {chunk.score:.4f}]"
+                f" {chunk.path}#{chunk.chunk_no} — {preview}"
+            )
         if not chunks:
             print("(결과 없음)")
         return 0
