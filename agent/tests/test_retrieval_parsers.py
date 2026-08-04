@@ -82,3 +82,49 @@ def test_빈_pptx는_None이다(tmp_path):
     path = tmp_path / "빈.pptx"
     Presentation().save(str(path))
     assert parse_file(path) is None
+
+
+# ── .json (계획 F Task 5 보강) ──────────────────────────────────────────
+# 허용목록(ARCHIVE_INDEXABLE_NAMES)에 rfp_scoring.json·coverage_map.json이 있는데
+# 파서가 없어 **이름만 올라 있고 영영 색인될 수 없는 상태**였다.
+
+
+def test_json의_값을_라벨과_함께_편다(tmp_path):
+    import json
+
+    path = tmp_path / "rfp_scoring.json"
+    path.write_text(json.dumps({
+        "total": 100,
+        "criteria": [
+            {"name": "금고 운영 실적", "points": 20},
+            {"name": "지역사회 기여", "points": 15},
+        ],
+    }, ensure_ascii=False), encoding="utf-8")
+
+    text = parse_file(path)
+
+    assert "criteria name: 금고 운영 실적" in text
+    assert "criteria points: 20" in text
+    assert "total: 100" in text
+    # 문법 부스러기가 본문에 섞이면 스니펫이 안 읽히고 매치도 지저분해진다.
+    assert '{"' not in text
+
+
+def test_깨진_json은_조용히_건너뛴다(tmp_path):
+    path = tmp_path / "broken.json"
+    path.write_text("{not json", encoding="utf-8")
+    assert parse_file(path) is None
+
+
+def test_빈_json은_None이다(tmp_path):
+    path = tmp_path / "empty.json"
+    path.write_text("{}", encoding="utf-8")
+    assert parse_file(path) is None
+
+
+def test_null과_빈_문자열은_버린다(tmp_path):
+    import json
+
+    path = tmp_path / "sparse.json"
+    path.write_text(json.dumps({"a": None, "b": "", "c": "값"}), encoding="utf-8")
+    assert parse_file(path) == "c: 값"
