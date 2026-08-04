@@ -480,6 +480,32 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
   `test_api_llm_status`가 캐시를 teardown 안 함 · 실행가이드 62행 환경변수 표에 `auto`
   미기재 · 976행 "기관을 고르면 배지가 붙는다"는 부정확(탭 진입 시 1회).
 
+### 9. WebLogic/Java 이관 — 설계만 완료, 구현계획·기관확인 미착수
+
+- **출처**: `2026-08-05_summary.md` `## Session 07:57`.
+- **무엇이 있나**: 설계 문서
+  `docs/superpowers/specs/2026-08-05-weblogic-java-migration-design.md` (커밋됨).
+  브레인스토밍으로 제약 4건을 사용자에게 확정받고 쓴 것이다 —
+  **① Java only(폐쇄망에 Python 런타임 불가) ② JDK 1.8 ③ eGovFrame 4.x 준수 필수 +
+  Oracle + MyBatis ④ 브라우저는 크롬/엣지 최신 ⑤ LLM은 기관 사내 공용 API.**
+  이 5개가 설계의 전제이므로 하나라도 바뀌면 문서를 다시 봐야 한다.
+- **핵심 결론**(문서를 안 열어도 이어받을 수 있게): 화면(`dashboard/` 2,986줄)은
+  **재작성 없이 WAR 정적 리소스로 그대로** 간다(브라우저가 현대 버전이라 폴리필·JSP
+  불필요). 백엔드 프로덕션 6,288줄은 전면 재작성. 등가물이 없어 **직접 만들어야 하는
+  것은 3개** — (a) FTS5 trigram 한글 검색 → Oracle Text CONTEXT(폴백: Java 인메모리
+  색인, 코퍼스가 5.6MB뿐이라 가능), (b) LangGraph `interrupt()`/체크포인트 →
+  `ORCH_RUN`/`ORCH_STEP` 테이블 기반 명시적 상태머신 + CommonJ WorkManager,
+  (c) LLM 호출 → LangChain4j 대신 HttpClient+Jackson 직접(구조화출력·2단폴백만 쓰므로).
+  벡터 검색은 Oracle BLOB + Java `float[]` 브루트포스 코사인으로 유지(벡터DB 불필요).
+- **미착수**: ① **구현계획(`docs/superpowers/plans/`)이 아직 없다** — 설계 §8의 5단계를
+  plan으로 풀어야 한다. ② **기관·DBA 확인 7건(설계 §7)이 전부 미확인**이다. 그중
+  두 건은 설계를 바꾼다 — **사내 LLM API가 임베딩 엔드포인트를 주는가**(없으면 벡터 검색
+  포기 = 검색 품질 하락, 사전 합의 필요), **Oracle Text를 쓸 수 있는가**(§6-A 1안/2안 분기).
+- **이관 전에 반드시 먼저 할 일**: 현재 Python 시스템에서 주요 API 응답·산출물을
+  **골든 파일로 떠 두는 단계 0**. 프런트가 안 바뀌므로 "같은 입력 → 같은 출력" 비교가
+  이관 검증의 전부다. 지금 시스템이 살아 있는 동안에만 뜰 수 있다.
+- **비차단**: 현 Python 시스템 운영·EC2 데모(항목 6)와 독립이다.
+
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
