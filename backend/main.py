@@ -12,6 +12,7 @@ from backend.routers.accounts import router as accounts_router
 from backend.routers.consistency import router as consistency_router
 from backend.routers.documents import router as documents_router
 from backend.routers.institutions import router as institutions_router
+from backend.routers.llm_status import router as llm_status_router
 from backend.routers.notifications import router as notifications_router
 from backend.routers.search import router as search_router
 from backend.routers.tasks import router as tasks_router
@@ -58,6 +59,7 @@ def create_app(
     app.include_router(notifications_router)
     app.include_router(accounts_router)
     app.include_router(consistency_router)
+    app.include_router(llm_status_router)
     if static_dir:
         if os.path.isdir(static_dir):
             # 라우터 등록 뒤에 마운트해야 /institutions 등 API 경로가 정적보다 우선한다.

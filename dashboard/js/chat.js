@@ -35,6 +35,15 @@
     return !!state.institutionId && !state.sending && !!String(state.text || '').trim();
   };
 
+  // ── 모델 배지 (Task 3) ──────────────────────────────────────────────
+  // GET /llm/status 응답을 사람이 읽을 문구로 바꾼다. 순수 함수 — DOM/네트워크와 분리해 고정한다.
+  chat.modelBadgeText = function (info) {
+    if (!info || !info.model) return '';
+    if (!info.auto) return '🧠 ' + info.model;   // 🧠 명시 지정이면 모델명만
+    return '🧠 ' + info.model + ' (자동 선택 · RAM ' + info.ram_gb +
+      'GB / ' + info.cpu_count + ' vCPU)';
+  };
+
   // ── 렌더 ────────────────────────────────────────────────────────────
   // knowledge.js와 같은 이유 — 폴백이 원문을 그대로 내보내면 XSS가 된다.
   function esc(s) {
@@ -186,11 +195,28 @@
     };
   }
 
+  // 대화 탭이 열릴 때 1회만 조회한다 — model_info()는 호출마다 Ollama /api/tags를
+  // 찌르므로 폴링(repaint/loadHistory)에 넣지 않는다. 실패해도 배지만 숨기고
+  // 대화 기능은 그대로 동작해야 한다(배지는 부가 정보).
+  function loadModelBadge() {
+    const badge = el('chat-model-badge');
+    if (!badge) return;
+    fetch('/llm/status').then(function (r) {
+      if (!r.ok) throw new Error('llm status ' + r.status);
+      return r.json();
+    }).then(function (info) {
+      badge.innerHTML = esc(chat.modelBadgeText(info));
+    }).catch(function () {
+      badge.innerHTML = '';
+    });
+  }
+
   chat.mount = function () {
     renderControls();
     const sel = el('ch-inst');
     if (selectedId && sel) sel.value = selectedId;
     loadHistory();
+    loadModelBadge();
   };
 
   chat.unmount = function () { if (aborter) aborter.abort(); };
