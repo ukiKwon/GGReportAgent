@@ -410,6 +410,33 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
 - **이 항목이 해소해도 남는 것**: **NEXT.md 항목 5(`gpt-oss-120b` 실검증)는 그대로다.**
   120b는 65GB급이라 이 CPU 구성에 올라가지 않는다 — 데모는 `llama3.1:8b`로 돈다.
 
+### 7. 화면에 틀린 값이 나오는 결함 2건 (main 실재, 코드 수정 필요)
+
+- **출처**: `2026-08-04_summary.md` `## Session 22:47`. 중복 구현된 C1 브랜치의 최종
+  리뷰(opus)가 발견했고, **브랜치는 폐기했지만 두 결함은 main에도 그대로 있다**는 것을
+  `git show main:...`으로 개별 확인했다. 브랜치가 사라졌으므로 수정은 새로 해야 한다.
+- **I1 — 배점표 매핑의 PII 건수가 N배로 부풀려 표시된다.**
+  `backend/upload_check.py`의 `write_coverage_map(out_dir, team, coverage, pii_count)`가
+  업로드 1회의 `pii_count`(그 팀 **전체** 검출 건수)를 **그 팀의 모든 배점 항목에 동일하게
+  복제**해 `coverage_map.json`에 넣는다. 그런데 `dashboard/js/workflow.js`의
+  `coverageSummary`는 `piiTotal += r.piiCount`로 **항목별 합산**한다 → 3건 검출·12항목이면
+  화면에 `⚠️ 개인정보 36건`. 두 파일 모두 main에서 확인함.
+  - 고치는 법 두 갈래: (a) 합산 대신 팀별 max/중복 제거, 또는 (b) 저장 의미를 "그 항목의
+    PII 건수"로 바꾸도록 `write_coverage_map` 호출부를 항목 단위로 계산. **(b)가 의미상
+    맞지만 A2의 `check_upload`가 업로드 본문 전체를 한 번에 스캔하는 구조라 항목별 분해가
+    필요하다** — 그래서 자명하지 않다.
+- **I2 — 서버 모드에서 기관명 편집이 아무 데도 저장되지 않는다(무음 실패).**
+  편집 모달은 `logic.ALL_FIELDS` 전체를 렌더해 기관명을 고칠 수 있게 보여주지만,
+  ① `dashboard/js/app.js`의 PUT 페이로드에 `name`이 없고(`region_code·type·contract_end·
+  last_bid·term`뿐) ② 백엔드 `InstitutionUpdateIn`에도 name 필드가 없으며 ③ C1의 F4 수정
+  이후 `store.LOCAL_ONLY_FIELDS`(subRegion·confirmed·lng·lat·sources·updatedAt)에도 없다.
+  → 저장을 눌러도 서버·화면 어디에도 반영되지 않고 **에러도 안 뜬다.** F4 이전에는 최소한
+  로컬 표시라도 됐으므로 C1이 만든 회귀다.
+  - 최소 수정: 서버 모드에서 기관명 입력을 `disabled` 처리하거나 변경 시 안내 alert.
+    제대로 고치려면 `PUT /institutions/{id}`에 `name_ko` 갱신을 추가해야 하는데,
+    **기관명은 `serverdata.mergeUnion`의 병합 키**라 바꾸면 번들 행과의 매칭이 끊긴다 —
+    그래서 단순 추가로 끝나지 않는다.
+
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
