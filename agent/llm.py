@@ -26,6 +26,15 @@ def _env(name: str, default: str) -> str:
     return os.environ.get(name) or default
 
 
+def current_model() -> str:
+    """지금 쓰기로 돼 있는 1순위 모델. 실패를 사람에게 설명할 때 쓴다."""
+    return _env("LLM_MODEL", DEFAULT_MODEL)
+
+
+def current_base_url() -> str:
+    return _env("LLM_BASE_URL", DEFAULT_BASE_URL)
+
+
 def get_llm(temperature: float = 0.0, model: str | None = None) -> ChatOpenAI:
     return ChatOpenAI(
         model=model or _env("LLM_MODEL", DEFAULT_MODEL),
