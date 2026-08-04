@@ -3,7 +3,7 @@
 설계: docs/superpowers/specs/2026-07-29-agent-retrieval-fts-design.md
 """
 
-from agent.retrieval.indexer import build_index
-from agent.retrieval.search import IndexNotBuiltError, RetrievedChunk, search
+from agent.retrieval.indexer import IndexNotBuiltError, build_index, reindex
+from agent.retrieval.search import RetrievedChunk, search
 
-__all__ = ["build_index", "search", "RetrievedChunk", "IndexNotBuiltError"]
+__all__ = ["build_index", "reindex", "search", "RetrievedChunk", "IndexNotBuiltError"]

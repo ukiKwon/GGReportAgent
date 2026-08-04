@@ -39,8 +39,13 @@ git pull
 py -3 -m pip install -r requirements.txt   # langgraph 등 포함
 
 py -3 -m backend.seed                      # 기관 25건 → data/registry.db
+
+ollama pull bge-m3                         # 의미 검색용 임베딩 모델(약 1.2GB)
 py -3 -m agent.retrieval build             # 지식 탭 검색용 → data/corpus_index.db
                                            #   (없으면 지식 탭이 503 빌드 안내를 띄운다)
+                                           #   ⚠️ 임베딩 포함이라 CPU에서 약 1시간.
+                                           #   급하면 --no-embed로 FTS만(수 초),
+                                           #   나중에 reindex로 벡터를 채우면 된다.
 py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.db, 운영과 별개)
 #   → http://localhost:8000/
 ```
@@ -180,13 +185,39 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
       - **오탐 금지 원칙**: `research_status='대기'`인 채 참여확정은 정상이다(코퍼스 반입 시
         `activate_pending_bid_cases`가 Task를 만든다). 조사 완료인데 Task가 없을 때만 잡는다.
         경고가 한 번이라도 틀리면 그 다음부터 아무도 안 읽는다.
-    - **스펙 §⑩의 나머지 미충족 2건 (다음 1순위, 둘 다 비차단)**:
+    - ~~**F 하이브리드 검색 + 아카이브 자동 재색인**~~ — **완료**(2026-08-04).
+      출처: `2026-08-04_summary.md`. 계획
+      `docs/superpowers/plans/2026-08-04-hybrid-search-reindex.md`.
+      **§② 17번이 채워져 스펙 §⑩ 집계가 ✅18 / ⚠️1 / ❌0이 됐다.**
+      - **검색이 FTS 단독 → FTS + 임베딩 하이브리드(RRF)** 로 바뀌었다. 사용자 결정으로
+        스위치 없이 **항상** 켠다("1.2초 늘어나도 결과가 안 나오는 것보다 낫다").
+        `search()` 시그니처는 스펙 §⑤ 약속대로 유지 — 호출부 무수정.
+      - **RRF를 쓴 이유**: bm25(낮을수록 좋음·상한 없음)와 코사인(0~1)은 척도가 달라
+        더할 수 없고 정규화는 질의마다 불안정하다. 순위만 쓰면 그 문제가 사라진다.
+      - **§② 17번의 원인 진단이 틀려 있었다** — "재색인을 안 돌려서"가 아니라
+        산출물이 `data/report_archive/`에 있는데 색인기는 `corpus/`만 훑어서
+        **돌려도 안 잡혔다.** 색인 루트를 둘로 늘려 해결(ⓐ안, 승격 복사 아님).
+      - `.pptx` 파서 신설 — 파서가 `.txt`뿐이라 아카이브에서 색인되는 게
+        `rfp_text.txt` 하나였다(진짜 산출물인 제안서가 빠져 있었다).
+      - **환경 실측(이 PC, CPU·GPU 없음)**: `bge-m3` 1024차원, 질의 1건 **약 1.2초**,
+        전체 빌드 2,763청크 **약 57분**. 배치는 8이 최적(32는 오히려 느리다).
+        GPU 엔드포인트가 생기면 이 부담은 사라진다.
+      - numpy를 `requirements.txt`에 추가(사용자 승인).
+      - 테스트 408 → **478 passed**, dashboard 100 → **107**. 실행가이드 §13 신설.
+    - **스펙 §⑩의 나머지 미충족 1건 (다음 1순위, 비차단)**:
       - **§② 14번** 디자이너 전용 뷰 — 이관 패키지 열람 화면이 없어 쪽지 통지에 머문다.
-      - **§② 17번** 아카이브 후 **FTS 재색인 자동화** — 지금은 사람이
-        `py -3.14 -m agent.retrieval build`를 돌려야 새 산출물이 지식 탭에서 검색된다.
+        7단계 이관결재 후 `packager`가 패키지를 만들고 `이관` 알림을 보내지만, 디자이너가
+        **무엇을 받았는지 화면에서 열어볼 수단이 없다**. 화면 신설이라 계획부터 필요하다.
     - **A2·C1 이월 잔여**:
-      - **M-1** archive_dir 값 통일 + `find_archive_pptx` 재귀화 — 브랜치 전후 모두
-        무동작·무해로 확인돼 있고 아카이브 승격 경로 설계가 선행돼야 한다.
+      - **M-1** archive_dir 값 통일 + `find_archive_pptx` 재귀화.
+        **불일치의 실물(2026-08-04 계획 F에서 확인)**: `backend/main.py:28`은
+        `data/report_archive`, `backend/orchestrator_service.py:75`는 접두사 없는
+        `report_archive`다. 계획 F가 `agent/retrieval/indexer.py`에
+        `DEFAULT_ARCHIVE_ROOT = "data/report_archive"`를 추가했고 backend는
+        `app.state.archive_root`(=main.py 값)를 넘기므로 **색인 경로는 지금 맞다**.
+        다만 값이 두 벌인 상태는 그대로라, orchestrator 쪽 기본값을 쓰는 경로가
+        생기는 순간 색인기가 빈 폴더를 보게 된다. 여전히 무동작·무해지만
+        **이제는 조용히 틀릴 여지가 생겼다** — 값 통일을 먼저 하는 편이 낫다.
       - **M-6** 업로드의 동기 LLM 지연·배정 비결정 — 업로드 API를 비동기로 돌릴지의
         설계 결정.
       - **M-7은 두기로 확정** — `TaskUploadIn(TaskMessageIn)`은 "의미가 달라 별명으로

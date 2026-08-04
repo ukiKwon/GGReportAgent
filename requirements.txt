@@ -9,3 +9,4 @@ langchain_openai
 pypdf
 langgraph
 langgraph-checkpoint-sqlite
+numpy

@@ -47,3 +47,65 @@ def test_build_app_and_reset_use_demo_paths_only(tmp_path, monkeypatch):
 def test_reset_is_safe_when_nothing_exists(tmp_path, monkeypatch):
     monkeypatch.setattr(demo, "REPO_ROOT", tmp_path)
     assert demo.reset() == []
+
+
+# ── 검색 인덱스 분리 (계획 F) ────────────────────────────────────────────
+# 데모에서 완료 처리를 하면 서버가 아카이브를 자동 색인한다. 인덱스를 공유하면
+# 데모 산출물이 **운영 검색 결과에 섞인다** — 파일 삭제 한 번으로 지워져야 한다는
+# 분리 원칙이 검색에도 적용돼야 한다.
+
+
+def test_데모_인덱스는_운영_인덱스와_다른_파일이다():
+    from backend.demo_paths import DEMO_INDEX_DB_PATH, SOURCE_INDEX_DB_PATH
+
+    assert DEMO_INDEX_DB_PATH != SOURCE_INDEX_DB_PATH
+    assert DEMO_INDEX_DB_PATH in DEMO_ARTIFACTS      # --reset이 함께 지운다
+
+
+def test_앱이_데모_인덱스를_본다(tmp_path, monkeypatch):
+    from backend.demo_paths import DEMO_INDEX_DB_PATH
+
+    monkeypatch.setattr(demo, "REPO_ROOT", tmp_path)
+    (tmp_path / "dashboard").mkdir()
+    (tmp_path / "corpus" / "institutions" / "dobong").mkdir(parents=True)
+
+    app, _ = demo.build_app("dobong", 9)
+
+    assert app.state.index_db_path == str(tmp_path / DEMO_INDEX_DB_PATH)
+
+
+def test_운영_인덱스를_복사해_데모_인덱스를_만든다(tmp_path, monkeypatch):
+    """새로 빌드하면 1시간이다 — 내용이 같으므로 복사가 정확하고 즉시 끝난다."""
+    from backend.demo_paths import DEMO_INDEX_DB_PATH, SOURCE_INDEX_DB_PATH
+
+    monkeypatch.setattr(demo, "REPO_ROOT", tmp_path)
+    (tmp_path / "data").mkdir()
+    (tmp_path / SOURCE_INDEX_DB_PATH).write_bytes(b"index-v1")
+
+    assert demo.build_demo_index() == str(tmp_path / DEMO_INDEX_DB_PATH)
+    assert (tmp_path / DEMO_INDEX_DB_PATH).read_bytes() == b"index-v1"
+
+
+def test_운영_인덱스가_새로우면_다시_복사한다(tmp_path, monkeypatch):
+    """데모가 옛 코퍼스를 보고 있으면 화면 확인이 어긋난다."""
+    import os
+    import time
+    from backend.demo_paths import DEMO_INDEX_DB_PATH, SOURCE_INDEX_DB_PATH
+
+    monkeypatch.setattr(demo, "REPO_ROOT", tmp_path)
+    (tmp_path / "data").mkdir()
+    (tmp_path / SOURCE_INDEX_DB_PATH).write_bytes(b"index-v1")
+    demo.build_demo_index()
+
+    time.sleep(0.01)
+    (tmp_path / SOURCE_INDEX_DB_PATH).write_bytes(b"index-v2")
+    os.utime(tmp_path / SOURCE_INDEX_DB_PATH, None)
+    demo.build_demo_index()
+
+    assert (tmp_path / DEMO_INDEX_DB_PATH).read_bytes() == b"index-v2"
+
+
+def test_운영_인덱스가_없으면_None이고_죽지_않는다(tmp_path, monkeypatch):
+    """인덱스가 아직 없는 새 설치 — 데모는 떠야 하고 지식 탭이 빌드 안내를 띄운다."""
+    monkeypatch.setattr(demo, "REPO_ROOT", tmp_path)
+    assert demo.build_demo_index() is None
