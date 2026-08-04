@@ -1,5 +1,6 @@
 import os
 
+from agent import llm
 from agent.llm import get_llm
 from agent.retrieval import IndexNotBuiltError, search
 
@@ -167,3 +168,31 @@ def stream_consult_reply(
     for chunk in llm.stream(prompt):
         if chunk.content:
             yield chunk.content
+
+
+def failure_notice(exc: Exception) -> str:
+    """LLM 호출 실패를 **사용자가 읽을 한 문단**으로 만든다.
+
+    스트리밍 응답은 첫 바이트를 보낸 뒤라 HTTP 상태를 바꿀 수 없다. 그래서 예외를
+    그냥 삼키면 화면에는 **아무 설명 없는 빈 말풍선**만 남고, 사용자는 "고장인지 답이
+    없는 건지" 알 수 없다. 이 리포에서 계속 지켜온 원칙 그대로 — 조용히 실패하지 않는다.
+
+    실측 사례(2026-08-04): 기본값 `gpt-oss-120b`가 이 PC에 없어 404가 났는데,
+    화면에는 빈 답만 나오고 이력에도 아무것도 안 남았다.
+    """
+    detail = str(exc).strip()
+    model = llm.current_model()
+    if "not found" in detail.lower() or getattr(exc, "status_code", None) == 404:
+        return (
+            f"[답변 실패] 모델 '{model}'을(를) 엔드포인트에서 찾을 수 없습니다"
+            f" ({llm.current_base_url()}).\n"
+            f"환경변수 LLM_MODEL로 사용 가능한 모델을 지정하거나, 그 모델을 엔드포인트에"
+            " 올려 주세요. 설치된 모델은 `ollama list`로 볼 수 있습니다."
+        )
+    if isinstance(exc, (ConnectionError, TimeoutError)) or "connect" in detail.lower():
+        return (
+            f"[답변 실패] LLM 엔드포인트에 닿지 못했습니다 ({llm.current_base_url()}).\n"
+            "서버가 떠 있는지, LLM_BASE_URL이 맞는지 확인해 주세요."
+        )
+    # 알 수 없는 실패도 유형과 앞부분은 보여준다 — 통째로 감추면 아무도 못 고친다.
+    return f"[답변 실패] {type(exc).__name__}: {detail[:300]}"

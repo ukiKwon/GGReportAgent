@@ -3,7 +3,7 @@ import os
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from backend.agent_adapter import stream_chat_reply
+from backend.agent_adapter import failure_notice, stream_chat_reply
 from backend.db import get_connection
 from backend.models import Task, TaskApprovalIn, TaskDetail, TaskMessageIn
 from backend.repository import get_institution
@@ -151,6 +151,7 @@ def post_task_message(
     def event_stream():
         reply_parts = []
         completed = False
+        failure = None
         try:
             for chunk in stream_chat_reply(
                 task.team, giganlist_dir, history, body.content, index_db_path=index_db_path
@@ -158,12 +159,15 @@ def post_task_message(
                 reply_parts.append(chunk)
                 yield chunk
             completed = True
+        except Exception as exc:  # noqa: BLE001 - chat.py와 같은 이유(사유를 보여준다)
+            failure = failure_notice(exc)
+            yield ("\n\n" if reply_parts else "") + failure
         finally:
             # M-2(대화창과 같은 이유): 끊겨도 받은 만큼은 남긴다. 다만 draft_content는
             # 완결된 답변일 때만 갱신한다 — 반쪽 초안이 작성물로 굳으면 안 된다.
             full_reply = "".join(reply_parts)
             if full_reply and not completed:
-                full_reply += "\n\n…(응답이 중단되었습니다)"
+                full_reply += "\n\n" + (failure or "…(응답이 중단되었습니다)")
             if full_reply:
                 write_conn = get_connection(db_path)
                 try:
