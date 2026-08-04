@@ -144,3 +144,34 @@ test('documentHtml: 청크가 태그를 품고 있어도 이스케이프된다',
   assert.ok(!html.includes('<b>'));
   assert.ok(html.includes('&lt;b&gt;'));
 });
+
+// ── 검색 모드·임베딩 모델 표시 (Task 4) ────────────────────────────────
+// X-Search-Mode·X-Embed-Model 응답 헤더 → 화면 문구. 배열(chunks[0].score_kind) 대신
+// 헤더가 근거다 — 헤더는 검색 전체를 본 서버가 정한 값이고, chunks[0]은 결과 행 하나만
+// 본 값이라 결과가 비면 아예 판단할 근거가 없다(그때는 헤더 자체가 생략된다).
+
+test('searchModeText: rrf면 모델명과 함께 의미검색 사용을 알린다', function () {
+  assert.strictEqual(kn.searchModeText('rrf', 'bge-m3'), '의미검색 사용 · bge-m3');
+});
+
+test('searchModeText: bm25면 키워드 검색(FTS)만 알린다', function () {
+  assert.strictEqual(kn.searchModeText('bm25', null), '키워드 검색(FTS)');
+});
+
+test('searchModeText: 모드를 모르면 빈 문자열 (표시하지 않음)', function () {
+  assert.strictEqual(kn.searchModeText(null, null), '');
+  assert.strictEqual(kn.searchModeText(undefined, undefined), '');
+});
+
+test('renderResults: meta가 있으면 검색 모드 문구를 함께 보여준다', function () {
+  const el = { innerHTML: '' };
+  kn.renderResults(el, [HITS[0]], '창업', { mode: 'rrf', embedModel: 'bge-m3' });
+  assert.ok(el.innerHTML.includes('의미검색 사용 · bge-m3'));
+});
+
+test('renderResults: meta 없이 호출해도 기존과 동일하게 동작한다 (하위 호환)', function () {
+  const el = { innerHTML: '' };
+  kn.renderResults(el, [HITS[0]], '창업');
+  assert.ok(!el.innerHTML.includes('의미검색 사용'));
+  assert.ok(!el.innerHTML.includes('키워드 검색(FTS)'));
+});
