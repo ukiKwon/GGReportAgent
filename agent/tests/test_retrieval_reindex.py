@@ -214,3 +214,32 @@ def test_아카이브는_허용목록_밖_파일을_색인하지_않는다(corpu
     assert result["added"] == 1
     paths = [r[0] for r in rows(db, "SELECT path FROM chunks WHERE path LIKE 'report_archive%'")]
     assert all("rfp_text" in p for p in paths)
+
+
+def test_레지스트리에서_기관명_매핑을_읽는다(tmp_path):
+    """아카이브 폴더명은 한글 name_ko라, 이 매핑이 없으면 기관 필터가 안 걸린다."""
+    from agent.retrieval.indexer import load_institution_names
+
+    registry = tmp_path / "registry.db"
+    conn = sqlite3.connect(registry)
+    conn.execute("CREATE TABLE institutions (institution_id TEXT, name_ko TEXT)")
+    conn.execute("INSERT INTO institutions VALUES ('dobong', '도봉구')")
+    conn.commit()
+    conn.close()
+
+    assert load_institution_names(registry) == {"도봉구": "dobong"}
+
+
+def test_레지스트리가_없어도_색인은_된다(tmp_path):
+    """새로 clone한 직후 등 — 매핑이 없다고 색인이 실패하면 안 된다."""
+    from agent.retrieval.indexer import load_institution_names
+
+    assert load_institution_names(tmp_path / "없음.db") == {}
+
+
+def test_레지스트리가_DB가_아니어도_죽지_않는다(tmp_path):
+    from agent.retrieval.indexer import load_institution_names
+
+    junk = tmp_path / "junk.db"
+    junk.write_bytes(b"not a database")
+    assert load_institution_names(junk) == {}

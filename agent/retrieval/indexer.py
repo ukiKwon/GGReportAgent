@@ -39,6 +39,8 @@ DEFAULT_CORPUS_ROOT = "corpus"
 # 같은 값이어야 한다. (`backend/orchestrator_service.py`는 접두사 없는
 # "report_archive"를 쓴다 — NEXT.md의 M-1로 추적 중인 불일치다.)
 DEFAULT_ARCHIVE_ROOT = "data/report_archive"
+# 아카이브 폴더명(한글)을 institution_id로 되짚을 때만 읽는다. 없어도 색인은 된다.
+DEFAULT_REGISTRY_DB_PATH = "data/registry.db"
 
 DOCTYPES = ("spec", "plan", "bank_ideas", "rfp", "report", "inbox", "archive", "other")
 
@@ -101,6 +103,31 @@ def classify(
     if rel_parts and rel_parts[0] == "inbox":
         return None, "inbox"
     return None, "other"
+
+
+def load_institution_names(registry_db_path: str | os.PathLike) -> dict[str, str]:
+    """레지스트리에서 `{name_ko: institution_id}` 매핑을 읽는다. 없으면 빈 매핑.
+
+    아카이브 폴더명은 한글 `name_ko`인데 다른 곳의 `institution_id`는 전부 슬러그라,
+    이 매핑이 없으면 아카이브 청크에 기관 필터가 걸리지 않는다.
+
+    `agent/`가 `backend/`를 import하지 않는다는 원칙은 지킨다 — 코드가 아니라 **파일**을
+    읽고, 그것도 두 컬럼뿐이다. 이 두 이름은 `collector/SCHEMA.md`가 망 경계 계약으로
+    이미 고정해 둔 것이라 임의로 바뀌지 않는다.
+    """
+    path = Path(registry_db_path)
+    if not path.is_file():
+        return {}
+    conn = sqlite3.connect(path)
+    try:
+        return {
+            row[1]: row[0]
+            for row in conn.execute("SELECT institution_id, name_ko FROM institutions")
+        }
+    except sqlite3.DatabaseError:
+        return {}
+    finally:
+        conn.close()
 
 
 def _archive_indexable(path: Path) -> bool:
