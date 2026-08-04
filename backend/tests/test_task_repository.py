@@ -103,3 +103,14 @@ def test_add_message_roundtrips_author_and_stage(task_id):
     msgs = list_messages(conn, tid)
     assert (msgs[0].author, msgs[0].stage) == ("김 차장", 6)
     assert (msgs[1].author, msgs[1].stage) == (None, None)
+
+
+def test_add_message_roundtrips_model(task_id):
+    """messages.model도 선택 인자 — LLM을 쓴 기록만 값을 갖고, 나머지는 None으로 남는다."""
+    conn, tid = task_id
+    add_message(conn, tid, "agent", "초안 작성 완료", model="llama3.2:3b")
+    add_message(conn, tid, "agent", "게이트 통과")
+
+    msgs = list_messages(conn, tid)
+    assert msgs[0].model == "llama3.2:3b"
+    assert msgs[1].model is None

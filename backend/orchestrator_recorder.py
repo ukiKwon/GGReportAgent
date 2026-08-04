@@ -73,11 +73,14 @@ class DbRecorder:
         finally:
             conn.close()
 
-    def message(self, team: str, role: str, content: str, author: str | None = None) -> None:
+    def message(
+        self, team: str, role: str, content: str,
+        author: str | None = None, model: str | None = None,
+    ) -> None:
         conn = self._conn()
         try:
             task_id = self._ensure_task(conn, team)
-            add_message(conn, task_id, role, content, author=author, stage=self.stage)
+            add_message(conn, task_id, role, content, author=author, stage=self.stage, model=model)
         finally:
             conn.close()
 
