@@ -5,8 +5,15 @@ from __future__ import annotations
 import argparse
 import sys
 
-from agent.retrieval.indexer import DEFAULT_CORPUS_ROOT, DEFAULT_DB_PATH, build_index
-from agent.retrieval.search import IndexNotBuiltError, search
+from agent.retrieval.indexer import (
+    DEFAULT_ARCHIVE_ROOT,
+    DEFAULT_CORPUS_ROOT,
+    DEFAULT_DB_PATH,
+    IndexNotBuiltError,
+    build_index,
+    reindex,
+)
+from agent.retrieval.search import search
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -27,6 +34,19 @@ def main(argv: list[str] | None = None) -> int:
         "--no-embed",
         action="store_true",
         help="임베딩을 건너뛰고 FTS만 만든다(빠름). 하이브리드 검색은 안 된다.",
+    )
+
+    reindex_p = sub.add_parser("reindex", help="변경분만 다시 색인(전체 빌드는 약 1시간)")
+    reindex_p.add_argument("--corpus", default=DEFAULT_CORPUS_ROOT)
+    reindex_p.add_argument(
+        "--archive",
+        default=None,
+        help="완료 산출물 아카이브 루트(기본: backend가 쓰는 data/report_archive)",
+    )
+    reindex_p.add_argument("--db", default=DEFAULT_DB_PATH)
+    reindex_p.add_argument("--no-embed", action="store_true")
+    reindex_p.add_argument(
+        "--force", action="store_true", help="파일 대장을 무시하고 전부 다시 넣는다"
     )
 
     search_p = sub.add_parser("search", help="인덱스에서 질의")
@@ -51,6 +71,23 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"인덱스 완료: 파일 {result['files']}개, 청크 {result['chunks']}개,"
             f" 벡터 {result['embedded']}개 → {args.db}"
+        )
+        return 0
+
+    if args.command == "reindex":
+        roots = [(args.corpus, "corpus")]
+        archive = args.archive or DEFAULT_ARCHIVE_ROOT
+        roots.append((archive, "archive"))
+        try:
+            result = reindex(
+                roots, args.db, embed=not args.no_embed, force=args.force
+            )
+        except IndexNotBuiltError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print(
+            f"재색인 완료: 추가 {result['added']} · 변경 {result['updated']} ·"
+            f" 삭제 {result['removed']} · 청크 {result['chunks']} · 벡터 {result['embedded']}"
         )
         return 0
 
