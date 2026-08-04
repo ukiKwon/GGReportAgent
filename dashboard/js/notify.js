@@ -32,7 +32,11 @@
 
   // ── 렌더 ────────────────────────────────────────────────────────────
   function esc(s) {
-    return (root.logic && root.logic.esc) ? root.logic.esc(s) : String(s == null ? '' : s);
+    // chat.js·knowledge.js와 같은 이유 — 폴백이 원문을 그대로 내보내면 XSS가 된다.
+    if (root.logic && root.logic.esc) return root.logic.esc(s);
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
   }
 
   notify.renderList = function (el, list) {
