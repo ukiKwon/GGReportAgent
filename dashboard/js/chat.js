@@ -40,6 +40,10 @@
   chat.modelBadgeText = function (info) {
     if (!info || !info.model) return '';
     if (!info.auto) return '🧠 ' + info.model;   // 🧠 명시 지정이면 모델명만
+    // auto인데 실제로 고른 적이 없으면(판정 실패 → DEFAULT_MODEL 폴백) RAM/vCPU
+    // 근거를 붙이지 않는다 — 안 그러면 auto가 고른 적 없는 모델에 "자동 선택"
+    // 근거까지 붙어 보인다. resolved가 없는(구버전 응답) 경우는 기존처럼 취급한다.
+    if (info.resolved === false) return '🧠 ' + info.model + ' (자동 선택 실패 · 기본값)';
     return '🧠 ' + info.model + ' (자동 선택 · RAM ' + info.ram_gb +
       'GB / ' + info.cpu_count + ' vCPU)';
   };

@@ -24,6 +24,14 @@ def test_returns_none_when_nothing_fits():
     assert pick_model(["llama3.2:1b"], ram_gb=0.5, cpu_count=1) is None
 
 
+def test_prefix_match_returns_the_installed_name_not_the_tier_name():
+    """접두사 일치는 실제 설치돼 있는 이름을 돌려줘야 한다 — 티어명은 정의상 미설치다.
+    (회귀: `return model`이었을 때 `llama3.2:3b-instruct-q4`만 있는 서버에서
+    `llama3.2:3b`를 골라 로그까지 찍고 추론에서 404가 났다.)
+    """
+    assert pick_model(["llama3.2:3b-instruct-q4"], ram_gb=16.0, cpu_count=8) == "llama3.2:3b-instruct-q4"
+
+
 def test_unknown_models_are_ignored():
     """후보 3종 밖의 모델은 등급을 모르므로 고르지 않는다(사용자 확정 범위)."""
     assert pick_model(["qwen2.5:7b", "mistral:latest"], ram_gb=16.0, cpu_count=8) is None

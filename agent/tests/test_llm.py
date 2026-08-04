@@ -138,3 +138,84 @@ def test_model_info_shape(monkeypatch):
     info = llm_mod.model_info()
     assert info["auto"] is True and info["requested"] == "auto"
     assert info["model"] == "llama3.2:3b" and info["cpu_count"] == 2
+    assert info["resolved"] is True   # 실제로 골랐다
+
+
+# ── F2: auto 판정 실패의 짧은 TTL 캐시 ──────────────────────────────────
+
+def test_auto_failure_is_cached_within_ttl(monkeypatch):
+    """판정 실패 직후 연속 호출이면 TTL 안에서는 installed_models를 다시 부르지 않는다."""
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", "auto")
+    monkeypatch.setattr(llm_mod, "detect_resources", lambda: (16.0, 8))
+    calls = []
+
+    def spy(url):
+        calls.append(url)
+        return []   # 설치된 모델 없음 → 판정 실패
+
+    monkeypatch.setattr(llm_mod, "installed_models", spy)
+    assert llm_mod.current_model() == llm_mod.DEFAULT_MODEL
+    assert llm_mod.current_model() == llm_mod.DEFAULT_MODEL
+    assert llm_mod.current_model() == llm_mod.DEFAULT_MODEL
+    assert len(calls) == 1
+
+
+def test_auto_failure_cache_expires_after_ttl(monkeypatch):
+    """TTL이 지나면 다시 조회한다 — 무기한 캐시가 아니어야 기동 순서 문제가 자가복구된다."""
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", "auto")
+    monkeypatch.setattr(llm_mod, "detect_resources", lambda: (16.0, 8))
+    calls = []
+
+    def spy(url):
+        calls.append(url)
+        return []
+
+    monkeypatch.setattr(llm_mod, "installed_models", spy)
+    fake_now = [1000.0]
+    monkeypatch.setattr(llm_mod, "_now", lambda: fake_now[0])
+
+    assert llm_mod.current_model() == llm_mod.DEFAULT_MODEL
+    assert len(calls) == 1
+
+    fake_now[0] += llm_mod.AUTO_FAIL_TTL + 1   # TTL 경과를 흉내낸다
+    assert llm_mod.current_model() == llm_mod.DEFAULT_MODEL
+    assert len(calls) == 2
+
+
+def test_auto_recovers_once_a_model_is_installed_after_a_failure(monkeypatch):
+    """TTL이 지난 뒤 설치 목록이 채워지면 다음 호출에서 곧바로 그 모델을 고른다(자가복구)."""
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", "auto")
+    monkeypatch.setattr(llm_mod, "detect_resources", lambda: (16.0, 8))
+    fake_now = [1000.0]
+    monkeypatch.setattr(llm_mod, "_now", lambda: fake_now[0])
+    monkeypatch.setattr(llm_mod, "installed_models", lambda url: [])
+
+    assert llm_mod.current_model() == llm_mod.DEFAULT_MODEL
+
+    fake_now[0] += llm_mod.AUTO_FAIL_TTL + 1
+    monkeypatch.setattr(llm_mod, "installed_models", lambda url: ["llama3.1:8b"])
+    assert llm_mod.current_model() == "llama3.1:8b"
+
+
+# ── F3: resolved — 실제로 고른 적 없는 모델에 근거를 붙이지 않는다 ──────
+
+def test_model_info_resolved_false_when_auto_fails(monkeypatch):
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", "auto")
+    monkeypatch.setattr(llm_mod, "detect_resources", lambda: (16.0, 8))
+    monkeypatch.setattr(llm_mod, "installed_models", lambda url: [])
+    info = llm_mod.model_info()
+    assert info["auto"] is True
+    assert info["model"] == llm_mod.DEFAULT_MODEL
+    assert info["resolved"] is False
+
+
+def test_model_info_resolved_true_when_not_auto(monkeypatch):
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", "gpt-oss-120b")
+    info = llm_mod.model_info()
+    assert info["auto"] is False
+    assert info["resolved"] is True

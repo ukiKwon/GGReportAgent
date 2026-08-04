@@ -38,7 +38,7 @@ def pick_model(installed, ram_gb: float, cpu_count: int) -> str | None:
             return model
         for n in names:
             if n.startswith(model):
-                return model
+                return n   # 실제 설치명을 돌려준다 — 티어명(model)은 설치 목록에 없다
     return None
 
 
