@@ -190,10 +190,27 @@ def test_한_루트만_재색인해도_다른_루트가_지워지지_않는다(c
     """완료 처리 후에는 그 기관 아카이브만 훑는다 — 그때 corpus가 통째로 날아가면 안 된다."""
     archive = tmp_path / "report_archive"
     archive.mkdir()
-    (archive / "산출물.txt").write_text("제안서 요약", encoding="utf-8")
+    # 아카이브 루트는 허용목록(ARCHIVE_INDEXABLE_NAMES + .pptx)만 색인한다 —
+    # 아무 이름이나 쓰면 걸러진다(Task 5).
+    (archive / "rfp_text.txt").write_text("제안서 요약", encoding="utf-8")
     before = count(db, "chunks")
 
     result = reindex([(archive, "archive")], db)
 
     assert result["removed"] == 0
     assert count(db, "chunks") == before + 1
+
+
+def test_아카이브는_허용목록_밖_파일을_색인하지_않는다(corpus, tmp_path, db):
+    """tasks_dump.json 같은 대화 원문이 들어가면 산출물 검색이 잡담에 묻힌다."""
+    archive = tmp_path / "report_archive"
+    (archive / "도봉구" / "2026-08-04").mkdir(parents=True)
+    base = archive / "도봉구" / "2026-08-04"
+    (base / "rfp_text.txt").write_text("공고문 본문", encoding="utf-8")
+    (base / "회의록.txt").write_text("잡담 원문", encoding="utf-8")
+
+    result = reindex([(archive, "archive")], db)
+
+    assert result["added"] == 1
+    paths = [r[0] for r in rows(db, "SELECT path FROM chunks WHERE path LIKE 'report_archive%'")]
+    assert all("rfp_text" in p for p in paths)

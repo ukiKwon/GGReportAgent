@@ -1,11 +1,12 @@
 """오케스트레이터 그래프 실행 API — run(백그라운드 시작)/checkpoint(결재 재개)/status(폴링)."""
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request
 from pydantic import BaseModel
 
 from agent.pipeline import artifacts_exist
 from backend.archive import archive_institution
 from backend.db import get_connection
+from backend.reindex_service import reindex_archive
 from backend.repository import get_institution
 
 router = APIRouter(prefix="/institutions", tags=["workflow"])
@@ -145,7 +146,12 @@ def get_timeline(institution_id: str, request: Request):
 
 
 @router.post("/{institution_id}/complete")
-def post_complete(institution_id: str, request: Request, x_user_id: str = Header(...)):
+def post_complete(
+    institution_id: str,
+    request: Request,
+    background: BackgroundTasks,
+    x_user_id: str = Header(...),
+):
     conn = get_connection(request.app.state.db_path)
     try:
         inst = get_institution(conn, institution_id)
@@ -172,6 +178,17 @@ def post_complete(institution_id: str, request: Request, x_user_id: str = Header
                 (bid_case_id,),
             )
         conn.commit()
+        # 스펙 §② 17: 아카이브된 산출물이 지식 탭에서 검색돼야 한다.
+        # **백그라운드**로 돌린다 — 임베딩이 청크당 1초대라 응답을 붙잡고 있으면
+        # 완료 버튼이 몇 십 초씩 멈춘 것처럼 보인다. 실패해도 완료는 200이고,
+        # 사유는 쪽지로 간다(부수 작업이 결재를 되돌리면 안 된다 — 계획 D 원칙).
+        background.add_task(
+            reindex_archive,
+            request.app.state.db_path,
+            request.app.state.index_db_path,
+            request.app.state.archive_root,
+            notify_recipient=x_user_id,
+        )
         return {"archive_dir": dest, "completed_by": x_user_id}
     finally:
         conn.close()

@@ -18,7 +18,7 @@ import os
 import sqlite3
 import sys
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from agent.retrieval import embedder
@@ -40,7 +40,14 @@ DEFAULT_CORPUS_ROOT = "corpus"
 # "report_archive"를 쓴다 — NEXT.md의 M-1로 추적 중인 불일치다.)
 DEFAULT_ARCHIVE_ROOT = "data/report_archive"
 
-DOCTYPES = ("spec", "plan", "bank_ideas", "rfp", "report", "inbox", "other")
+DOCTYPES = ("spec", "plan", "bank_ideas", "rfp", "report", "inbox", "archive", "other")
+
+# 아카이브 루트에서 색인할 파일(허용목록). `tasks_dump.json`을 넣으면 대화 원문 전체가
+# 지식 검색에 섞여 산출물이 잡담에 묻힌다 — 그래서 허용목록이지 차단목록이 아니다.
+# (지금은 파서가 .txt/.pptx뿐이라 나머지는 어차피 걸러지지만, 나중에 .json 파서가
+#  생기는 순간 tasks_dump가 인덱스를 뒤덮게 되므로 여기서 미리 막는다.)
+ARCHIVE_INDEXABLE_NAMES = ("rfp_text.txt", "rfp_scoring.json", "coverage_map.json")
+ARCHIVE_LABEL = "archive"
 
 SCHEMA = """
 CREATE VIRTUAL TABLE chunks USING fts5(
@@ -66,8 +73,18 @@ CREATE TABLE files (
 """
 
 
-def classify(rel_parts: tuple[str, ...]) -> tuple[str | None, str]:
-    """corpus 루트 기준 경로 조각 → (institution_id, doctype)."""
+def classify(
+    rel_parts: tuple[str, ...], root_label: str = DEFAULT_CORPUS_ROOT
+) -> tuple[str | None, str]:
+    """루트 기준 경로 조각 → (institution_id, doctype).
+
+    아카이브 루트는 `{기관명(한글)}/{날짜}/{파일}` 구조다. 기관명은 `name_ko`라서
+    `institution_id`(슬러그)가 아니다 — 되짚으려면 레지스트리가 필요한데 `agent/`는
+    `backend/`를 import하지 않는다. 그래서 **여기서는 원본 폴더명을 그대로 돌려주고**,
+    슬러그 변환은 매핑을 쥐고 있는 호출부(`index_file`의 `institution_names`)가 한다.
+    """
+    if root_label == ARCHIVE_LABEL:
+        return (rel_parts[0] if len(rel_parts) >= 2 else None), ARCHIVE_LABEL
     if len(rel_parts) >= 2 and rel_parts[0] == "institutions":
         institution_id = rel_parts[1]
         if rel_parts[-1] == "bank_ideas_draft.txt":
@@ -84,6 +101,10 @@ def classify(rel_parts: tuple[str, ...]) -> tuple[str | None, str]:
     if rel_parts and rel_parts[0] == "inbox":
         return None, "inbox"
     return None, "other"
+
+
+def _archive_indexable(path: Path) -> bool:
+    return path.name in ARCHIVE_INDEXABLE_NAMES or path.suffix.lower() == ".pptx"
 
 
 def _default_progress(done: int, total: int, started: float) -> None:
@@ -155,12 +176,20 @@ def index_file(
     path: Path,
     root: Path,
     root_label: str,
+    institution_names: Mapping[str, str] | None = None,
 ) -> int | None:
     """파일 하나를 청킹해 chunks·files에 넣고 청크 수를 돌려준다.
 
     **None은 "읽지 못해 건너뜀", 0은 "읽었지만 내용이 없음"** 이다 — 빈 텍스트 파일도
     색인 대상 파일로는 세야 하므로 둘을 구분한다.
+
+    `institution_names`는 아카이브 폴더의 한글 기관명 → `institution_id` 매핑이다.
+    없으면 `institution_id`를 비운다 — 한글 이름을 슬러그 자리에 넣으면 기관 필터가
+    조용히 어긋난다(다른 곳의 `institution_id`는 전부 슬러그다).
     """
+    if root_label == ARCHIVE_LABEL and not _archive_indexable(path):
+        return None
+
     text = parse_file(path)
     if text is None:
         if path.suffix.lower() in (".txt",):
@@ -168,7 +197,9 @@ def index_file(
         return None
 
     rel = path.relative_to(root)
-    institution_id, doctype = classify(rel.parts)
+    institution_id, doctype = classify(rel.parts, root_label)
+    if root_label == ARCHIVE_LABEL:
+        institution_id = (institution_names or {}).get(institution_id or "")
     stored_path = f"{root.name}/{rel.as_posix()}"
 
     count = 0
@@ -269,6 +300,7 @@ def reindex(
     force: bool = False,
     batch_size: int = embedder.DEFAULT_BATCH_SIZE,
     progress: Callable[[int, int], None] | None = None,
+    institution_names: Mapping[str, str] | None = None,
 ) -> dict:
     """변경분만 다시 색인한다. `roots`는 `(경로, 라벨)` 목록.
 
@@ -333,7 +365,7 @@ def reindex(
                         continue
                 if previous is not None:
                     _drop_path(conn, stored_path)
-                count = index_file(conn, path, root, label)
+                count = index_file(conn, path, root, label, institution_names)
                 if count is None:
                     seen.discard(stored_path)
                     continue
