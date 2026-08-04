@@ -36,6 +36,13 @@ def check_upload(scoring_path: str, team: str, content: str) -> dict:
 
 
 def write_coverage_map(out_dir: str, team: str, coverage: list[dict], pii_count: int) -> None:
+    """항목별 커버리지를 병합 저장한다.
+
+    ⚠️ `pii_count`는 **항목 단위가 아니라 팀 단위 값**이다 — `check_upload`가 업로드 본문
+    전체를 한 번 스캔한 결과라 항목별로 분해할 수 없다. 아래에서 그 팀의 모든 항목에
+    같은 값을 복제해 넣으므로, **읽는 쪽은 항목별로 합산하면 안 된다**(팀당 한 번만 세야
+    한다 — `dashboard/js/workflow.js`의 `coverageSummary` 참고).
+    """
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, "coverage_map.json")
     data = {}

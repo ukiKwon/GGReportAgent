@@ -228,3 +228,14 @@ test('accountValue: 이름과 소속을 한 문자열로 (select value 왕복용
   assert.deepStrictEqual(logic.parseAccountValue('\u241f디자이너'), { name: '', team: '디자이너' });
   assert.deepStrictEqual(logic.parseAccountValue(''), { name: '', team: '' });
 });
+
+test('SERVER_UNSAVABLE_FIELDS: 서버 모드에서 저장 경로가 없는 필드를 명시한다', function () {
+  // 편집창이 이 목록을 보고 입력을 잠근다 — 목록이 비면 무음 실패(기관명을 고쳐도
+  // 서버·화면 어디에도 안 남고 오류도 없음)가 되살아난다.
+  assert.ok(Array.isArray(logic.SERVER_UNSAVABLE_FIELDS));
+  assert.ok(logic.SERVER_UNSAVABLE_FIELDS.indexOf('name') >= 0);
+  // 로컬 overlay로 저장되는 필드가 여기 섞이면 멀쩡한 편집까지 막힌다.
+  ['lng', 'lat', 'sources'].forEach(function (f) {
+    assert.strictEqual(logic.SERVER_UNSAVABLE_FIELDS.indexOf(f), -1);
+  });
+});
