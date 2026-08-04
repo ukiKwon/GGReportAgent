@@ -94,6 +94,34 @@ test('coverageRows/Summary: 상태 분류와 합계', function () {
   assert.deepStrictEqual(sum, { total: 2, covered: 1, coveredScore: 20, totalScore: 30, piiTotal: 1 });
 });
 
+test('coverageSummary: PII는 팀 단위 값이라 같은 팀 항목 수만큼 부풀지 않는다', function () {
+  // upload_check가 업로드 본문 1회 스캔 결과(팀 전체 건수)를 그 팀의 모든 배점 항목에
+  // 복제 저장한다 — 항목별로 더하면 항목 수만큼 뻥튀기된다(3건·4항목 → 12건).
+  const payload = { total_score: 40, criteria: [
+    { item: 'A', score: 10, team: '전산', covered: true, gap_note: null, pii_count: 3 },
+    { item: 'B', score: 10, team: '전산', covered: true, gap_note: null, pii_count: 3 },
+    { item: 'C', score: 10, team: '전산', covered: false, gap_note: null, pii_count: 3 },
+    { item: 'D', score: 10, team: '전산', covered: false, gap_note: null, pii_count: 3 },
+  ] };
+  assert.strictEqual(wf.coverageSummary(payload).piiTotal, 3);
+});
+
+test('coverageSummary: 팀이 여럿이면 팀별 건수를 더한다', function () {
+  const payload = { total_score: 30, criteria: [
+    { item: 'A', score: 10, team: '전산', covered: true, gap_note: null, pii_count: 2 },
+    { item: 'B', score: 10, team: '전산', covered: true, gap_note: null, pii_count: 2 },
+    { item: 'C', score: 10, team: '예산', covered: true, gap_note: null, pii_count: 1 },
+  ] };
+  assert.strictEqual(wf.coverageSummary(payload).piiTotal, 3);
+});
+
+test('coverageSummary: 담당팀 없는 항목의 pii_count는 무시한다', function () {
+  const payload = { total_score: 10, criteria: [
+    { item: 'A', score: 10, team: null, covered: false, gap_note: null, pii_count: 5 },
+  ] };
+  assert.strictEqual(wf.coverageSummary(payload).piiTotal, 0);
+});
+
 test('logRows: 메시지를 시간순 행으로 변환', function () {
   const rows = wf.logRows({ task_id: 't', messages: [
     { role: 'orchestrator', content: '지시', created_at: '2026-07-31T00:00:00' },

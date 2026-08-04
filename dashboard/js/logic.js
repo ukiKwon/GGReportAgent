@@ -14,6 +14,13 @@
   // (서버 모드에서 편집 overlay가 덮어도 되는 필드 = 그것뿐이다).
   logic.ALL_FIELDS = ['name','type','region','subRegion','term','lastBid','contractEnd','confirmed','lng','lat','sources','updatedAt'];
 
+  // 서버 모드에서 **저장 경로가 아예 없는** 필드. 편집창에서 잠가 무음 실패를 막는다.
+  // 기관명(name)이 그렇다: PUT 페이로드에도 InstitutionUpdateIn에도 없고,
+  // store.LOCAL_ONLY_FIELDS에도 없어서 고쳐도 서버·화면 어디에도 남지 않았다.
+  // 서버에 name_ko 갱신을 넣는 것도 간단하지 않다 — 기관명은 serverdata.mergeUnion의
+  // 병합 키라, 서버에서 바꾸면 번들 행과의 매칭이 끊겨 같은 기관이 두 줄로 갈라진다.
+  logic.SERVER_UNSAVABLE_FIELDS = ['name'];
+
   logic.FIELD_LABELS = { name:'기관명', type:'기관구분', region:'지역코드', subRegion:'구시군코드',
     term:'입찰주기', lastBid:'지난 입찰일', contractEnd:'입찰예상일', confirmed:'확정여부',
     lng:'경도', lat:'위도', sources:'출처', updatedAt:'수정일' };

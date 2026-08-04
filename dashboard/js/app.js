@@ -219,16 +219,25 @@
   app.openEdit = function (rec) {
     const wrap = document.getElementById('edit-fields');
     const fields = root.logic.ALL_FIELDS;
+    // 서버 모드에서 저장 경로가 없는 필드는 잠근다 — 예전에는 고칠 수 있는 것처럼 보이고
+    // 저장을 눌러도 서버·화면 어디에도 반영되지 않으면서 오류도 안 났다(무음 실패).
+    const serverMode = root.store.isServerMode();
     wrap.innerHTML = fields.map(function (f) {
       const val = f === 'sources' ? (Array.isArray(rec.sources) ? rec.sources.join(', ') : '') : (rec[f] || '');
-      return '<label style="display:block;margin:6px 0;">' + (root.logic.FIELD_LABELS[f] || f) +
-        '<input data-f="' + f + '" value="' + root.logic.esc(val) + '" style="width:100%;"></label>';
+      const locked = serverMode && root.logic.SERVER_UNSAVABLE_FIELDS.indexOf(f) >= 0;
+      const label = (root.logic.FIELD_LABELS[f] || f) + (locked ? ' (서버 모드에서는 변경 불가)' : '');
+      return '<label style="display:block;margin:6px 0;">' + label +
+        '<input data-f="' + f + '" value="' + root.logic.esc(val) + '"' +
+        (locked ? ' disabled title="기관명은 서버 등록·병합의 기준 이름이라 화면에서 바꿀 수 없습니다"' +
+          ' style="width:100%;opacity:.55;cursor:not-allowed;"' : ' style="width:100%;"') +
+        '></label>';
     }).join('');
     const modal = document.getElementById('edit-modal'); modal.style.display = 'block';
     document.getElementById('edit-cancel').onclick = function () { modal.style.display = 'none'; };
     document.getElementById('edit-save').onclick = function () {
       const partial = {};
       wrap.querySelectorAll('input[data-f]').forEach(function (inp) {
+        if (inp.disabled) return;   // 잠긴 필드는 저장 대상이 아니다(값도 원본 그대로다)
         const f = inp.dataset.f;
         partial[f] = f === 'sources' ? inp.value.split(',').map(function (s){ return s.trim(); }).filter(Boolean) : inp.value;
       });
