@@ -4,6 +4,7 @@
 바깥에 말한다(Recorder 포트). subagent끼리 직접 통신하지 않는다 — 스펙 §④.
 """
 
+from agent.llm import current_model
 from agent.nodes.content_writer import content_writer_node
 from agent.nodes.institution_match import institution_match_node
 from agent.nodes.pptx_builder import pptx_builder_node
@@ -38,7 +39,13 @@ def rfi_agent(state: dict, recorder) -> dict:
     updates["stage"] = 4
     recorder.set_stage(4)
     recorder.task_update("RFI분석", "1차완료", 100)
-    recorder.message("RFI분석", "agent", f"배점표 {len(updates.get('scoring_table', []))}항목 분석 완료")
+    # institution_match_node·role_router_node가 LLM을 쓰므로(기관유형 판정, 애매 항목 분류
+    # 폴백) 이 보고는 사용 모델을 남긴다.
+    recorder.message(
+        "RFI분석", "agent",
+        f"배점표 {len(updates.get('scoring_table', []))}항목 분석 완료",
+        model=current_model(),
+    )
     return updates
 
 
@@ -56,9 +63,17 @@ def draft_team(state: dict, recorder) -> dict:
     recorder.task_update(role, "작성중", 10)
     revision_note = state.get("revision_note")
     result = content_writer_node({**state, "revision_note": revision_note}, role=role)
+    sections = result["sections"]
     recorder.task_update(role, "1차완료", 100)
-    recorder.message(role, "agent", f"{role}팀 초안 {len(result['sections'])}건 작성 완료")
-    return {"sections": result["sections"]}
+    # content_writer_node는 LLM으로 섹션을 작성하지만, 이 role에 배정된 배점 항목이
+    # 0건이면 LLM 호출 전에 빈 리스트로 조기 반환한다(content_writer.py:79-81) — 그때는
+    # model을 넘기지 않는다(리뷰 픽스: "LLM을 실제로 쓴 보고에만" 원칙 위반이었음).
+    model_kwargs = {"model": current_model()} if sections else {}
+    recorder.message(
+        role, "agent", f"{role}팀 초안 {len(sections)}건 작성 완료",
+        **model_kwargs,
+    )
+    return {"sections": sections}
 
 
 def _ordered_sections(scoring_table: list[dict], sections: list[dict]) -> list[dict]:
@@ -94,9 +109,14 @@ def verifier(state: dict, recorder) -> dict:
         pii.extend(scan_pii(section.get("content", "")))
     updates["pii_findings"] = pii
     uncovered = [c for c in updates["coverage_report"] if not c["covered"]]
+    # verification_node는 커버리지 판정에 LLM을 쓰지만, scoring_table이 비면 순회할
+    # 항목이 없어 LLM을 아예 안 탄다(verification.py) — 그때는 model을 넘기지 않는다
+    # (draft_team과 같은 모양의 구멍, 일관성 있게 처리).
+    model_kwargs = {"model": current_model()} if state.get("scoring_table") else {}
     recorder.message(
         "검증", "agent",
         f"검증 완료 — 미달 {len(uncovered)}건, PII {len(pii)}건",
+        **model_kwargs,
     )
     # F7: verifier는 게이트가 아니라 일반 노드라 gate_final 재도달(최종반려 후
     # packager·verifier 재실행 포함) 때마다 정확히 1회씩만 실행된다 — resume replay로

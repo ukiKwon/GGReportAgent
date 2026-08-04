@@ -1,5 +1,6 @@
 from unittest.mock import ANY, MagicMock, patch
 
+from agent.llm import DEFAULT_MODEL
 from agent.orchestrator.ports import NullRecorder
 from agent.orchestrator.subagents import draft_team, packager, rfi_agent, verifier
 
@@ -16,7 +17,8 @@ BASE = {
 @patch("agent.orchestrator.subagents.role_router_node")
 @patch("agent.orchestrator.subagents.institution_match_node")
 @patch("agent.orchestrator.subagents.rfp_analysis_node")
-def test_rfi_agent_runs_analysis_chain_and_reports(mock_rfp, mock_match, mock_router):
+def test_rfi_agent_runs_analysis_chain_and_reports(mock_rfp, mock_match, mock_router, monkeypatch):
+    monkeypatch.delenv("LLM_MODEL", raising=False)
     mock_rfp.return_value = {
         "scoring_table": [{"item": "a"}],
         "requirements": [{"item": "a", "risk_flag": None}],
@@ -33,6 +35,8 @@ def test_rfi_agent_runs_analysis_chain_and_reports(mock_rfp, mock_match, mock_ro
     recorder.set_stage.assert_called_with(4)
     # risk_flag 없음 → 되물음 없음
     recorder.notify.assert_not_called()
+    # LLM을 쓴 분석 체인의 보고에는 사용 모델이 실린다
+    assert recorder.message.call_args.kwargs["model"] == DEFAULT_MODEL
 
 
 @patch("agent.orchestrator.subagents.role_router_node")
@@ -57,7 +61,8 @@ def test_rfi_agent_risk_triggers_advisory_notify(mock_rfp, mock_match, mock_rout
 
 
 @patch("agent.orchestrator.subagents.content_writer_node")
-def test_draft_team_writes_role_sections_and_records(mock_writer):
+def test_draft_team_writes_role_sections_and_records(mock_writer, monkeypatch):
+    monkeypatch.delenv("LLM_MODEL", raising=False)
     mock_writer.return_value = {"sections": [{"scoring_item": "a"}]}
     recorder = MagicMock()
     state = dict(BASE, role="영업", role_assignments=[{"scoring_item": "a", "role": "영업"}],
@@ -70,6 +75,25 @@ def test_draft_team_writes_role_sections_and_records(mock_writer):
     assert mock_writer.call_args.kwargs["role"] == "영업"
     recorder.task_update.assert_any_call("영업", "작성중", 10)
     recorder.task_update.assert_any_call("영업", "1차완료", 100)
+    # 초안팀은 LLM으로 작성하므로 보고에 사용 모델이 실린다
+    assert recorder.message.call_args.kwargs["model"] == DEFAULT_MODEL
+
+
+def test_draft_team_omits_model_when_no_items_assigned(monkeypatch):
+    """리뷰 픽스 — 이 role에 배정된 배점 항목이 0건이면 content_writer_node가
+    structured_llm() 호출 전에 sections=[]로 조기 반환한다(content_writer.py:79-81).
+    그때는 LLM을 안 썼으므로 보고에 model을 넘기면 안 된다."""
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    recorder = MagicMock()
+    # role_assignments에 "전산"에 배정된 항목이 없다 — content_writer_node가 실제로
+    # sections=[]를 조기 반환하는 경로를 그대로 태운다(mock 없이).
+    state = dict(BASE, role="전산", role_assignments=[{"scoring_item": "a", "role": "영업"}],
+                 scoring_table=[{"item": "a"}])
+
+    result = draft_team(state, recorder)
+
+    assert result == {"sections": []}
+    assert "model" not in recorder.message.call_args.kwargs
 
 
 @patch("agent.nodes.content_writer.structured_llm")
@@ -130,7 +154,8 @@ def test_packager_orders_sections_by_scoring_table(mock_pptx):
 
 
 @patch("agent.orchestrator.subagents.verification_node")
-def test_verifier_adds_pii_findings(mock_verify):
+def test_verifier_adds_pii_findings(mock_verify, monkeypatch):
+    monkeypatch.delenv("LLM_MODEL", raising=False)
     mock_verify.return_value = {"coverage_report": [{"scoring_item": "a", "covered": True, "gap_note": None}]}
     recorder = MagicMock()
     state = dict(BASE, scoring_table=[{"item": "a"}],
@@ -141,6 +166,21 @@ def test_verifier_adds_pii_findings(mock_verify):
     assert result["coverage_report"][0]["covered"] is True
     assert result["pii_findings"] == [{"kind": "휴대폰", "value": "010-****-5678"}]
     recorder.message.assert_called()  # 검사 보고가 기록된다
+    # 검증도 LLM(커버리지 판정)을 쓰므로 보고에 사용 모델이 실린다
+    assert recorder.message.call_args.kwargs["model"] == DEFAULT_MODEL
+
+
+@patch("agent.orchestrator.subagents.verification_node")
+def test_verifier_omits_model_when_scoring_table_empty(mock_verify):
+    """리뷰 픽스와 같은 모양의 구멍 — scoring_table이 비면 verification_node가 순회할
+    항목이 없어 LLM을 아예 안 탄다(verification.py). 그때는 model을 넘기면 안 된다."""
+    mock_verify.return_value = {"coverage_report": []}
+    recorder = MagicMock()
+    state = dict(BASE, scoring_table=[], sections=[])
+
+    verifier(state, recorder)
+
+    assert "model" not in recorder.message.call_args.kwargs
 
 
 @patch("agent.orchestrator.subagents.verification_node")

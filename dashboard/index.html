@@ -146,6 +146,9 @@
 
   /* ── 대화창 (계획 C2) ── */
   #tab-chat.active { overflow:hidden; gap:8px; }
+  /* 모델 배지 — 지금 어떤 모델을 쓰는지 (Task 3). 정보가 없으면 빈 문자열이라 자리만 남고 안 보인다. */
+  #chat-model-badge { display:inline-block; font-size:11px; color:var(--muted);
+                       border:1px solid var(--line); border-radius:8px; padding:2px 8px; }
   #ch-log { flex:1 1 auto; min-height:0; overflow:auto; border:1px solid var(--line);
             border-radius:10px; background:var(--panel); padding:10px; }
   .ch-row { margin:8px 0; max-width:78%; }
@@ -201,6 +204,8 @@
              border:1px solid var(--line); cursor:help; }
   .kn-mode.on { border-color:var(--accent-color); color:var(--accent-color); }
   .kn-mode.off { color:var(--muted); }
+  /* X-Search-Mode·X-Embed-Model 문구(Task 4) — .kn-mode와 나란히 붙되 배지 테두리는 없다 */
+  .kn-mode-text { font-size:11px; color:var(--muted); margin-left:6px; }
   #kn-controls button:disabled { opacity:.55; cursor:progress; }
   .kn-hit { cursor:pointer; }
   .kn-hit:hover { border-color:var(--accent-color); }
@@ -304,6 +309,7 @@
 </section>
 
 <section id="tab-chat" class="tab-view">
+  <div id="ch-header"><span id="chat-model-badge"></span></div>
   <div id="ch-controls"></div>
   <div id="ch-log"></div>
   <div id="ch-form">
