@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>기관인텔리 — 화면·기능 포트폴리오</title>
+<style>
+  :root{
+    --ink:#12161f; --muted:#5b6478; --line:#e2e6ef; --bg:#f6f8fc; --card:#fff;
+    --accent:#2f5fd0; --accent-soft:#eaf0fd; --warn:#b7791f; --ok:#1f7a4d;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Malgun Gothic","맑은 고딕",system-ui,-apple-system,"Segoe UI",sans-serif;
+    line-height:1.65; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px; margin:0 auto; padding:0 28px;}
+
+  /* ── 표지 ───────────────────────────── */
+  .hero{background:linear-gradient(160deg,#0f1420 0%,#1b2740 60%,#233252 100%); color:#e9eefb; padding:64px 0 52px;}
+  .eyebrow{font-size:13px; letter-spacing:.16em; text-transform:uppercase; color:#8fa6d8; margin:0 0 10px;}
+  .hero h1{font-size:40px; line-height:1.25; margin:0 0 14px; font-weight:800;}
+  .hero .lede{font-size:17px; color:#b9c6e4; max-width:760px; margin:0 0 30px;}
+  .kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:8px;}
+  .kpi{background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14); border-radius:12px; padding:14px 16px;}
+  .kpi b{display:block; font-size:26px; font-weight:800; color:#fff; line-height:1.2;}
+  .kpi span{font-size:12.5px; color:#a8b8dc;}
+
+  /* ── 섹션 ───────────────────────────── */
+  section{padding:52px 0 8px;}
+  .sec-head{display:flex; align-items:baseline; gap:12px; border-bottom:2px solid var(--ink); padding-bottom:10px; margin-bottom:6px;}
+  .sec-num{font-size:13px; font-weight:800; color:var(--accent); letter-spacing:.1em;}
+  .sec-head h2{font-size:24px; margin:0; font-weight:800;}
+  .sec-desc{color:var(--muted); font-size:14.5px; margin:12px 0 30px; max-width:820px;}
+
+  /* ── 흐름도 ─────────────────────────── */
+  .flow{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:26px 0 8px;}
+  .flow-step{background:var(--card); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:10px; padding:14px 16px;}
+  .flow-step b{display:block; font-size:15px; margin-bottom:4px;}
+  .flow-step span{font-size:13px; color:var(--muted);}
+
+  /* ── 화면 카드 ──────────────────────── */
+  .shot{background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden;
+        margin-bottom:34px; box-shadow:0 1px 3px rgba(20,30,60,.05);}
+  .shot-head{padding:16px 20px 14px; border-bottom:1px solid var(--line); display:flex; gap:14px; align-items:flex-start;}
+  .shot-no{flex:0 0 auto; width:30px; height:30px; border-radius:8px; background:var(--accent-soft); color:var(--accent);
+           font-weight:800; font-size:14px; display:flex; align-items:center; justify-content:center; margin-top:2px;}
+  .shot-title{flex:1;}
+  .shot-title h3{margin:0 0 4px; font-size:17.5px; font-weight:800;}
+  .shot-title p{margin:0; font-size:14.5px; color:#39415a;}
+  .shot-title p + p{margin-top:2px;}
+  .shot img{display:block; width:100%; height:auto; border-top:1px solid var(--line);}
+  .tags{margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;}
+  .tag{font-size:11.5px; background:#eef1f7; color:#4a5470; border-radius:999px; padding:2px 9px; white-space:nowrap;}
+  .tag.hl{background:#e6f3ec; color:var(--ok);}
+
+  /* ── 기술 표 ────────────────────────── */
+  table.tech{width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line);
+             border-radius:12px; overflow:hidden; font-size:14.5px;}
+  table.tech th{text-align:left; background:#eef2f9; padding:11px 16px; font-weight:700; width:190px; vertical-align:top;
+                border-bottom:1px solid var(--line); white-space:nowrap;}
+  table.tech td{padding:11px 16px; border-bottom:1px solid var(--line); color:#39415a;}
+  table.tech tr:last-child th, table.tech tr:last-child td{border-bottom:none;}
+
+  .note{background:#fffaf0; border:1px solid #f0e0bf; border-left:4px solid var(--warn); border-radius:10px;
+        padding:14px 18px; font-size:14px; color:#5c4a1f; margin:26px 0 0;}
+  .note b{color:#7a5c14;}
+
+  footer{margin-top:56px; padding:26px 0 44px; border-top:1px solid var(--line); color:var(--muted); font-size:13px;}
+
+  @media print{
+    body{background:#fff;}
+    .hero{background:#1b2740 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    .shot{break-inside:avoid; page-break-inside:avoid; box-shadow:none;}
+    section{padding-top:28px;}
+  }
+  @media (max-width:900px){
+    .kpis,.flow{grid-template-columns:repeat(2,1fr);}
+    .hero h1{font-size:30px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Portfolio · 화면 및 기능 소개</p>
+    <h1>기관인텔리 — 공공기관 금고 입찰<br>제안 멀티에이전트 협업 시스템</h1>
+    <p class="lede">
+      전국 공공기관의 금고 입찰 기회를 지도에서 발굴하고, 참여 여부를 결재로 확정한 뒤,
+      3개 팀(영업·전산·예산)이 AI 에이전트와 함께 제안서를 9단계로 완성하기까지를
+      한 화면에서 총괄 제어(orchestration)하는 시스템입니다. <b>인터넷이 없는 폐쇄망을 전제</b>로 설계했습니다.
+    </p>
+    <div class="kpis">
+      <div class="kpi"><b>25곳</b><span>등록 기관 자료 모음(corpus)</span></div>
+      <div class="kpi"><b>9단계</b><span>워크플로 · 결재 3게이트</span></div>
+      <div class="kpi"><b>635</b><span>백엔드 테스트 통과</span></div>
+      <div class="kpi"><b>166</b><span>프런트 테스트 통과</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<section>
+  <div class="sec-head"><span class="sec-num">OVERVIEW</span><h2>시스템이 푸는 문제</h2></div>
+  <p class="sec-desc">
+    입찰 기회는 흩어져 있고, 참여 결정은 부서마다 따로 나며, 제안서는 여러 팀이 나눠 쓰다 보니
+    "배점표의 어떤 항목이 아직 비어 있는지"를 제출 직전에야 알게 됩니다.
+    이 시스템은 그 네 단계를 하나의 흐름으로 묶고, 각 단계에 사람의 결재 지점을 남겨 뒀습니다.
+  </p>
+  <div class="flow">
+    <div class="flow-step"><b>① 발굴</b><span>전국 지도에서 입찰 임박도를 색으로 보고, 기관을 좁혀 들어간다</span></div>
+    <div class="flow-step"><b>② 결정</b><span>영업 → 전산 → 예산 3차 순차 결재로 참여를 확정한다</span></div>
+    <div class="flow-step"><b>③ 실행</b><span>3개 팀과 AI가 9단계로 제안서를 쓰고, 배점표 충족도를 실시간 추적한다</span></div>
+    <div class="flow-step"><b>④ 산출</b><span>완성된 제안서를 아카이브하고 자동 재색인해 다음 건의 근거로 쓴다</span></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">PART 1</span><h2>입찰 기회 발굴</h2></div>
+  <p class="sec-desc">기관을 "찾는" 단계의 화면입니다. 지도 자체가 우선순위를 말하도록 만들었습니다.</p>
+
+  <div class="shot">
+    <div class="shot-head">
+      <div class="shot-no">01</div>
+      <div class="shot-title">
+        <h3>전국 입찰 현황 히트맵</h3>
+        <p>전국 기관의 금고 입찰 임박도를 시도별 면 색으로 칠한 첫 화면 — 데이터가 아직 없는 지역은 빗금 '준비중'으로 구분합니다.</p>
+        <p>상단 흐름 띠(ticker)가 임박 TOP5를 D-day와 함께 흘려보내, 지도를 보지 않아도 급한 건이 먼저 눈에 들어옵니다.</p>
+        <div class="tags"><span class="tag">D3 지도</span><span class="tag">임박도 6단계 범례</span><span class="tag">기관 유형 필터</span></div>
+      </div>
+    </div>
+    <img src="shots/01_전국지도.png" alt="전국 입찰 현황 히트맵">
+  </div>
+
+  <div class="shot">
+    <div class="shot-head">
+      <div class="shot-no">02</div>
+      <div class="shot-title">
+        <h3>지역 단계별 확대 탐색(drill-down) — 서울 25개 자치구</h3>
+        <p>시도를 누르면 구·시군 면으로 확대되고, 오른쪽에 임박순 랭킹 패널이 함께 붙습니다.</p>
+        <p>입찰일이 공고로 확인된 곳은 <b>확정</b>, 주기로 계산한 곳은 <b>추측</b>으로 표시해 근거의 강도를 숨기지 않습니다.</p>
+        <div class="tags"><span class="tag">fly-to 확대 연출</span><span class="tag hl">확정/추측 구분</span><span class="tag">관심 기관 ♡</span></div>
+      </div>
+    </div>
+    <img src="shots/02_서울_지역뷰.png" alt="서울 지역 확대 탐색">
+  </div>
+
+  <div class="shot">
+    <div class="shot-head">
+      <div class="shot-no">03</div>
+      <div class="shot-title">
+        <h3>기관 정보 변경</h3>
+        <p>랭킹 카드에서 기관을 열어 입찰주기·입찰예상일·확정여부 등을 직접 고치고 서버에 저장합니다.</p>
+        <p>서버에 저장 경로가 없는 '기관명'은 <b>입력 자체를 잠그고 이유를 라벨에 적었습니다</b> — 저장을 눌러도 아무 일이 없던 무음 실패를 없앤 부분입니다.</p>
+        <div class="tags"><span class="tag">PUT /institutions/{id}</span><span class="tag hl">무음 실패 차단</span><span class="tag">CSV 반입·내보내기</span></div>
+      </div>
+    </div>
+    <img src="shots/14_기관편집.png" alt="기관 정보 변경 모달">
+  </div>
+
+  <div class="shot">
+    <div class="shot-head">
+      <div class="shot-no">04</div>
+      <div class="shot-title">
+        <h3>지도 색상 설정</h3>
+        <p>임박 단계별 면 색과 선택 강조색·강조 주기를 사용자가 직접 조절합니다.</p>
+        <p>설정은 브라우저에 남아 다음 접속에도 유지되며, 언제든 기본값으로 되돌릴 수 있습니다.</p>
+        <div class="tags"><span class="tag">사용자 테마</span><span class="tag">localStorage 보존</span></div>
+      </div>
+    </div>
+    <img src="shots/13_지도색상.png" alt="지도 색상 설정">
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">PART 2</span><h2>참여 결정과 9단계 워크플로</h2></div>
+  <p class="sec-desc">
+    시스템의 심장부입니다. 오케스트레이터(LangGraph)가 3개 팀 에이전트를 병렬로 돌리되,
+    5·7·8단계에서 <b>반드시 사람의 결재를 받고 멈춥니다</b>.
+  </p>
+
+  <div class="shot">
+    <div class="shot-head">
+      <div class="shot-no">05</div>
+      <div class="shot-title">
+        <h3>워크플로 현황판 — 9단계 진행 표시줄(stepper) · 참여 결정 · 배점표 매핑</h3>
+        <p>참여 결정은 버튼 하나가 아니라 <b>영업 → 전산 → 예산 3차 순차 결재</b>이고, 3차까지 모여야 '참여확정'이 됩니다.</p>
+        <p>배점표 매핑 표가 평가항목별로 담당팀·작성상태(작성됨/미충족/미배정)·개인정보 검출 건수까지 한 줄로 보여줍니다.</p>
+        <div class="tags"><span class="tag">LangGraph supervisor</span><span class="tag hl">3차 순차 결재</span><span class="tag">배점표 100점 추적</span><span class="tag">2초 폴링</span></div>
+      </div>
+    </div>
+    <img src="shots/05_워크플로_현황판.png" alt="워크플로 현황판">
+  </div>
+
+  <div class="shot">
+    <div class="shot-head">
+      <div class="shot-no">06</div>
+      <div class="shot-title">
+        <h3>단계별 수행 내용</h3>
+        <p>진행 표시줄에서 단계를 누르면 그 단계에 <b>실제로 기록을 남긴 팀만</b> 참여자 카드로 뜹니다(전체 팀 목록이 아닙니다).</p>
+        <p>아래에는 총괄의 지시와 각 팀의 보고가 오간 순서 그대로 펼쳐져, 그 단계에서 무슨 일이 있었는지 되짚을 수 있습니다.</p>
+        <div class="tags"><span class="tag">GET /timeline</span><span class="tag">단계별 참여자 카드</span><span class="tag">지시·보고 로그</span></div>
+      </div>
+    </div>
+    <img src="shots/07_단계로그.png" alt="단계별 수행 내용">
+  </div>
+
+  <div class="shot">
+    <div class="shot-head">
+      <div class="shot-no">07</div>
+      <div class="shot-title">
+        <h3>팀 작업 로그</h3>
+        <p>참여자 카드를 누르면 같은 자리가 그 팀 작업의 <b>전체 지시·보고 로그</b>로 바뀝니다.</p>
+        <p>사람(human)은 실명, 에이전트(agent)는 역할명으로 표기해 "누가 한 말인지"가 흐려지지 않게 했습니다.</p>
+        <div class="tags"><span class="tag">GET /tasks/{id}</span><span class="tag hl">사람/에이전트 구분</span><span class="tag">🧠 사용 모델 표기</span></div>
+      </div>
+    </div>
+    <img src="shots/08_팀작업로그.png" alt="팀 작업 로그">
+  </div>
+
+  <div class="shot">
+    <div class="shot-head">
+      <div class="shot-no">08</div>
+      <div class="shot-title">
+        <h3>쪽지함 — 결재요청 · 되물음 · 이관 · 쪽지</h3>
+        <p>워크플로가 만들어 낸 알림을 종류별 색으로 모아 보여주고, 미읽음 건수를 상단 표식(badge)으로 셉니다.</p>
+        <p>수신자는 사람 이름과 소속(예: 영업팀) <b>양쪽으로</b> 잡아, 역할 앞으로 온 결재요청도 놓치지 않습니다.</p>
+        <div class="tags"><span class="tag">종류별 색 구분</span><span class="tag">미읽음 표식 주기 갱신</span><span class="tag">쪽지 발송</span></div>
+      </div>
+    </div>
+    <img src="shots/12_쪽지함.png" alt="쪽지함">
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">PART 3</span><h2>AI 상담과 지식 검색</h2></div>
+  <p class="sec-desc">
+    LLM은 폐쇄망 안에 두는 것을 전제로 붙였습니다. OpenAI 호환 엔드포인트면 주소만 바꿔 그대로 연결됩니다.
+  </p>
+
+  <div class="shot">
+    <div class="shot-head">
+      <div class="shot-no">09</div>
+      <div class="shot-title">
+        <h3>대화 탭 — 기관 단위 참여 검토 상담</h3>
+        <p>기관을 골라 참여 여부를 물으면 <b>영업·전산·예산 3개 관점 + 종합 판단 + 리스크</b>로 나눠 답하고, 이어지는 질문은 앞 대화를 맥락으로 받습니다.</p>
+        <p>상단 표식(badge)이 지금 답을 만드는 모델과 그 선택 근거를 밝힙니다: <code>llama3.1:8b (자동 선택 · RAM 15.7GB / 8 vCPU)</code>.</p>
+        <div class="tags"><span class="tag">스트리밍 응답</span><span class="tag hl">3관점 구조화 답변</span><span class="tag">대화 맥락 유지</span><span class="tag">모델 자동선택(auto)</span></div>
+      </div>
+    </div>
+    <img src="shots/09_대화탭.png" alt="대화 탭">
+  </div>
+
+  <div class="shot">
+    <div class="shot-head">
+      <div class="shot-no">10</div>
+      <div class="shot-title">
+        <h3>지식 탭 — 혼합 검색(hybrid search) · 글자 + 뜻</h3>
+        <p>글자 검색(SQLite FTS5 trigram)과 뜻 검색(bge-m3 임베딩)을 <b>RRF로 합쳐</b> 항상 함께 돌립니다 — 척도가 다른 두 점수를 순위로만 합치는 방식입니다.</p>
+        <p>결과마다 어느 기관·어느 문서의 몇 번째 조각인지 출처를 달아, 제안서에 인용해도 추적이 끊기지 않습니다.</p>
+        <div class="tags"><span class="tag">FTS5 trigram</span><span class="tag">bge-m3 임베딩</span><span class="tag hl">RRF 혼합(hybrid)</span><span class="tag">출처 추적</span></div>
+      </div>
+    </div>
+    <img src="shots/11_지식탭_검색결과.png" alt="지식 탭 혼합 검색">
+  </div>
+
+  <div class="shot">
+    <div class="shot-head">
+      <div class="shot-no">11</div>
+      <div class="shot-title">
+        <h3>원문 열기</h3>
+        <p>검색 결과에서 원문 전체를 그 자리에서 열고, 검색에 맞은 조각을 형광으로 짚어 줍니다.</p>
+        <p>강조 처리는 <b>이스케이프한 문자열에만</b> 적용해, 수집 자료 원문이 화면에서 그대로 실행되지 않도록 막았습니다.</p>
+        <div class="tags"><span class="tag">GET /documents</span><span class="tag">매칭 구간 하이라이트</span><span class="tag hl">XSS 차단</span></div>
+      </div>
+    </div>
+    <img src="shots/11b_원문열기.png" alt="원문 열기">
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">PART 4</span><h2>산출물 — 구청 사업제안 리포트</h2></div>
+  <p class="sec-desc">
+    이 프로젝트의 출발점이었던 결과물입니다. 서울 5개 구청의 공개 계획문서·민원게시판을 조사해
+    KB가 협업할 지점을 제안하고, 그 제안을 다시 검증해 신뢰도 점수를 매긴 단일 파일 오프라인 리포트입니다.
+  </p>
+
+  <div class="shot">
+    <div class="shot-head">
+      <div class="shot-no">12</div>
+      <div class="shot-title">
+        <h3>리포트 대시보드 — 25개 자치구 구금고 지도</h3>
+        <p>자치구별 구금고 지정은행을 색으로 칠하고, 이번 제안 대상 5개구에만 신뢰도 점수를 표식(badge)으로 얹었습니다.</p>
+        <p>신뢰도는 제안서가 구청의 실제 계획·데이터와 얼마나 맞는지 독립 검증한 100점 만점 점수입니다.</p>
+        <div class="tags"><span class="tag">단일 HTML · 오프라인</span><span class="tag">서울 GeoJSON</span><span class="tag hl">신뢰도 74~88점</span></div>
+      </div>
+    </div>
+    <img src="shots/15_리포트_대시보드.png" alt="리포트 대시보드">
+  </div>
+
+  <div class="shot">
+    <div class="shot-head">
+      <div class="shot-no">13</div>
+      <div class="shot-title">
+        <h3>지역구 카드</h3>
+        <p>5개 구청을 카드로 놓고 제안 예산 규모(구 예산 대비 비율까지)와 조사에서 드러난 핵심 문제를 한 줄로 요약합니다.</p>
+        <p>카드를 누르면 그 구의 전체 문서로 들어갑니다.</p>
+        <div class="tags"><span class="tag">구별 예산 대비율</span><span class="tag">핵심 문제 요약</span></div>
+      </div>
+    </div>
+    <img src="shots/16_리포트_지역구카드.png" alt="지역구 카드">
+  </div>
+
+  <div class="shot">
+    <div class="shot-head">
+      <div class="shot-no">14</div>
+      <div class="shot-title">
+        <h3>구청 상세 문서</h3>
+        <p>신뢰도·제안 총예산·항목 수를 지표로 세우고, 조사에서 확인된 문제 → 핵심 제안사업 → 검증 총평으로 이어집니다.</p>
+        <p>하단 9개 서브탭이 <b>계획 → 달성도 → 민원 → KB제안 → 로드맵 → 검증</b>의 이야기 순서로 배치돼 있습니다.</p>
+        <div class="tags"><span class="tag">9개 서브탭</span><span class="tag hl">근거 → 제안 → 검증</span><span class="tag">리스크 명시</span></div>
+      </div>
+    </div>
+    <img src="shots/17_리포트_구청문서.png" alt="구청 상세 문서">
+  </div>
+
+  <div class="shot">
+    <div class="shot-head">
+      <div class="shot-no">15</div>
+      <div class="shot-title">
+        <h3>사업별 비교</h3>
+        <p>같은 주제를 5개 구청 나란히 놓고 사업명·우선순위·추정예산을 비교합니다.</p>
+        <p>주제를 바꾸면 5열이 통째로 갈려, 어느 구에 무엇을 먼저 제안할지 판단할 수 있습니다.</p>
+        <div class="tags"><span class="tag">5열 비교 표(grid)</span><span class="tag">주제 전환</span><span class="tag">우선순위·예산 병기</span></div>
+      </div>
+    </div>
+    <img src="shots/18_리포트_사업별.png" alt="사업별 비교">
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">TECH</span><h2>기술 구성</h2></div>
+  <p class="sec-desc">전부 폐쇄망에서 도는 것을 전제로 골랐습니다 — 외부 API·클라우드 서비스 의존이 없습니다.</p>
+  <table class="tech">
+    <tr><th>백엔드</th><td>FastAPI + SQLite (프로덕션 파이썬 약 8,036줄). 기관 레지스트리·워크플로 상태·메시지·알림을 한 DB에서 관리</td></tr>
+    <tr><th>에이전트</th><td>LangGraph supervisor — 3개 팀으로 동시 분배(fan-out), <code>interrupt()</code>로 결재 3게이트 구현, 반려 시 의견을 재작성 프롬프트로 전달</td></tr>
+    <tr><th>LLM</th><td>OpenAI 호환 어댑터(vLLM·Ollama·TGI 교체 가능). <code>LLM_MODEL=auto</code>가 하드웨어와 설치 목록을 보고 모델을 고르고, 실패 시 2순위 모델로 대체(fallback)</td></tr>
+    <tr><th>검색</th><td>SQLite FTS5 trigram(한글 대응) + bge-m3 임베딩 벡터를 RRF로 결합. 완료 산출물은 아카이브 시 자동 재색인</td></tr>
+    <tr><th>프런트</th><td>빌드 도구·프레임워크 없는 바닐라 JS 약 3,086줄 + D3 지도. 서버 없이 <code>file://</code>로도 열리는 대체(fallback) 모드 유지</td></tr>
+    <tr><th>망 경계</th><td>DMZ 수집기와 폐쇄망 백엔드는 <b>서로의 코드를 import하지 않습니다</b>. 접점은 파일 배치(<code>manifest.json</code> + CSV + 첨부) 하나뿐이고, 그 경계를 테스트가 강제합니다</td></tr>
+    <tr><th>품질</th><td>백엔드 pytest <b>635 passed</b>, 프런트 <b>166 passed</b> (커밋 <code>07ad577</code> 기준 실측)</td></tr>
+  </table>
+
+  <div class="note">
+    <b>이 문서의 화면은 모두 실제 기동한 시스템에서 캡처했습니다.</b>
+    데모 데이터(<code>py -3 -m backend.demo</code>)를 올린 로컬 서버에 접속해 각 화면을 직접 조작하며 찍은 것으로,
+    목업이나 디자인 시안이 아닙니다. 화면에 보이는 업무 내용(팀 로그·쪽지·대화)은 <b>시연용 데모 데이터</b>이며,
+    그 안의 수치는 도봉구 실제 조사 자료(121개 사업, 27% 미확인, 구 예산 7,919억원 등)에서 가져와 탭 사이 이야기가 이어지도록 맞췄습니다.
+    LLM 연동은 별도로 로컬 Ollama <code>llama3.1:8b</code>에 실제 질의해 동작을 확인했습니다
+    — 다만 <b>GPU 없는 CPU 환경</b>에서는 응답 1건에 약 7분이 걸리므로, 시연은 GPU 엔드포인트를 권합니다.
+  </div>
+</section>
+
+<footer>
+  <div>기관인텔리 (GGReportAgent) · 화면·기능 포트폴리오 · 2026-08-05 작성</div>
+</footer>
+
+</div>
+</body>
+</html>
