@@ -116,6 +116,20 @@
 
   function close() { overlay().style.display = 'none'; }
 
+  // 다른 화면에서 '문의'로 넘어올 때 딸려오는 맥락(어느 기관·어느 작업 이야기인지).
+  // 쪽지에 함께 실어야 받는 쪽이 무슨 건인지 안다.
+  let composeLink = {};
+
+  // 디자이너 뷰의 [문의] 버튼이 부른다 — 쪽지 발송 폼을 두 벌 만들지 않기 위해
+  // 이 폼을 수신자·맥락을 채운 채로 연다.
+  notify.openCompose = function (opts) {
+    const o = opts || {};
+    composeLink = { institution_id: o.institutionId || null, task_id: o.taskId || null };
+    open();
+    if (o.recipient) el('nt-to').value = o.recipient;
+    el('nt-text').focus();
+  };
+
   function send() {
     const to = (el('nt-to').value || '').trim();
     const content = (el('nt-text').value || '').trim();
@@ -123,10 +137,13 @@
     fetch('/notifications', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       // 한글 이름은 헤더에 못 실으므로 body의 sender로 보낸다.
-      body: JSON.stringify({ recipient: to, content: content, sender: root.store.loadProfile().name || null }),
+      body: JSON.stringify(Object.assign({
+        recipient: to, content: content, sender: root.store.loadProfile().name || null,
+      }, composeLink)),
     }).then(function (r) {
       if (!r.ok) { alert('발송 실패 (' + r.status + ')'); return; }
       el('nt-text').value = '';
+      composeLink = {};        // 다음 쪽지에 엉뚱한 건이 딸려가지 않게 비운다
       alert(to + ' 앞으로 쪽지를 보냈습니다.');
       return fetchList().then(paintList);
     }).catch(function () { alert('서버 연결 실패 — 보내지 않았습니다.'); });

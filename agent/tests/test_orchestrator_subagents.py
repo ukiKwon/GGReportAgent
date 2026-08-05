@@ -224,3 +224,33 @@ def test_verifier_sends_final_approval_notify(mock_verify):
     verifier(state, recorder)
 
     recorder.notify.assert_called_once_with("인사권자", "결재요청", ANY)
+
+
+# ── 디자이너 Task 개설 (계획 H Task 1) ──────────────────────────────────
+# 7단계 이관은 지금까지 알림만 보냈다. 디자이너가 받은 것을 열어보고 작업물을 올리려면
+# 그 사람 몫의 Task 행이 있어야 한다.
+
+@patch("agent.orchestrator.subagents.pptx_builder_node")
+def test_packager가_디자이너_task를_연다(mock_pptx):
+    mock_pptx.return_value = {"pptx_path": "x.pptx"}
+    recorder = MagicMock()
+
+    packager(dict(BASE, scoring_table=[], sections=[]), recorder)
+
+    recorder.task_open.assert_called_once_with("디자이너")
+    recorder.notify.assert_called_once_with("디자이너", "이관", ANY)
+
+
+@patch("agent.orchestrator.subagents.pptx_builder_node")
+def test_task_update가_아니라_task_open을_쓴다(mock_pptx):
+    """**packager는 최종반려 때 다시 돈다**(이 모듈 verifier의 F7 주석). task_update는
+    status='대기'·progress=0을 덮어쓰므로, 그걸 썼다면 디자이너가 파일을 올려둔 뒤
+    최종반려가 나는 순간 작업 상태가 초기화된다. 행만 보장하고 상태는 건드리지 않는다."""
+    mock_pptx.return_value = {"pptx_path": "x.pptx"}
+    recorder = MagicMock()
+
+    packager(dict(BASE, scoring_table=[], sections=[]), recorder)
+
+    designer_updates = [c for c in recorder.task_update.call_args_list
+                        if c.args and c.args[0] == "디자이너"]
+    assert designer_updates == []

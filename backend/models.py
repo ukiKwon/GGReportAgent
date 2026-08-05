@@ -121,6 +121,20 @@ class TaskMessageIn(BaseModel):
     content: str
 
 
+class TaskActorIn(BaseModel):
+    """누가 하는지. **한글 이름은 헤더에 못 싣는다**(`X-User-Id`는 ASCII만 — A1 F10).
+
+    그래서 브라우저는 헤더에 기술 식별자를 넣고 사람 이름은 본문으로 보낸다.
+    `CheckpointIn.by`(`backend/routers/workflow.py`)와 같은 관행이다. 이게 없으면
+    담당자 이름이 한글인 작업은 API로 아무것도 할 수 없다(항상 403).
+    """
+    by: str | None = None
+
+
+class TaskDraftIn(TaskActorIn):
+    content: str
+
+
 class TaskApprovalIn(BaseModel):
     approved: bool
     comment: str | None = None

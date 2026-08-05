@@ -1,12 +1,33 @@
+import json
 import os
+import sqlite3
 
-from fastapi import APIRouter, Header, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi import (
+    APIRouter,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
+from fastapi.responses import FileResponse, StreamingResponse
 
 from agent.llm import current_model
+from backend import task_files
 from backend.agent_adapter import failure_notice, stream_chat_reply
 from backend.db import get_connection
-from backend.models import Task, TaskApprovalIn, TaskDetail, TaskMessageIn
+from backend.models import (
+    Task,
+    TaskActorIn,
+    TaskApprovalIn,
+    TaskDetail,
+    TaskDraftIn,
+    TaskMessageIn,
+)
+from backend.notification_repository import create_notification
 from backend.repository import get_institution
 from backend.task_repository import (
     add_message,
@@ -18,13 +39,111 @@ from backend.task_repository import (
     submit_task,
     update_draft_content,
 )
+from backend.teams import inbox_name, is_authoring_team, known_recipients
 from backend.upload_check import check_upload, write_coverage_map
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
+# 제출된 작업물을 결재할 사람. 그래프의 5·7단계 결재 요청과 같은 수신자다
+# (agent/orchestrator/graph.py의 notify 대상).
+APPROVAL_RECIPIENT = "영업팀"
+
 
 def _conn(request: Request):
     return get_connection(request.app.state.db_path)
+
+
+def _context(conn: sqlite3.Connection, task_id: str) -> sqlite3.Row:
+    """task → 그 작업이 속한 기관·공고. 파일 경로와 알림 링크가 둘 다 필요로 한다."""
+    row = conn.execute(
+        """SELECT t.task_id, t.team, t.status, t.assignee, t.bid_case_id,
+                  b.institution_id, i.name_ko, i.stage
+           FROM tasks t
+           JOIN bid_cases b ON b.bid_case_id = t.bid_case_id
+           JOIN institutions i ON i.institution_id = b.institution_id
+           WHERE t.task_id = ?""",
+        (task_id,),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    return row
+
+
+def _actor(by: str | None, x_user_id: str) -> str:
+    """이 요청을 실제로 한 사람. 본문의 `by`가 헤더를 이긴다.
+
+    `X-User-Id`는 ASCII만 실을 수 있어서(A1 F10) 한글 이름은 본문으로 온다. 이걸
+    안 보면 담당자 이름이 한글인 작업은 API로 아무것도 못 한다 — 데모의 '최 디자이너'가
+    자기 작업에 파일 하나 못 올리고 403을 받는다. `post_checkpoint`와 같은 관행이다.
+    """
+    return (by or "").strip() or x_user_id
+
+
+def _require_owner(row: sqlite3.Row, user_id: str) -> None:
+    """업로드와 같은 선점 관행 — 미배정이면 먼저 손댄 사람이 맡고, 남의 것이면 403."""
+    if row["assignee"] is not None and row["assignee"] != user_id:
+        raise HTTPException(status_code=403, detail="only the assignee can modify this task")
+
+
+def _read_json(path: str):
+    """산출물 JSON — 없으면 None. 없다고 500을 내지 않는다(아직 안 만들어졌을 뿐이다)."""
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+@router.get("")
+def list_tasks(
+    request: Request,
+    team: str = Query(..., min_length=1),
+    status: list[str] | None = Query(default=None),
+) -> list[dict]:
+    """역할별 작업 목록 — **기관 횡단**이다(계획 H Task 2).
+
+    기존 조회는 전부 기관 단위인데, 디자이너의 작업은 여러 기관에 걸쳐 있다.
+    `team`은 필수다 — 없이 열면 남의 작업까지 보이는 전체 조회가 된다
+    (`GET /notifications`의 `recipient` 필수와 같은 이유).
+
+    `draft_content`는 싣지 않는다(무겁다). 상세(`GET /tasks/{id}`)에서만 준다.
+    """
+    sql = """SELECT t.task_id, t.team, t.status, t.progress_pct, t.assignee, t.approver,
+                    t.bid_case_id, b.institution_id, i.name_ko, i.stage,
+                    b.confirmed_date, b.expected_date, b.schedule_confidence
+             FROM tasks t
+             JOIN bid_cases b ON b.bid_case_id = t.bid_case_id
+             JOIN institutions i ON i.institution_id = b.institution_id
+             WHERE t.team = ?"""
+    params: list = [team]
+    if status:
+        sql += f" AND t.status IN ({','.join('?' * len(status))})"
+        params.extend(status)
+
+    conn = _conn(request)
+    try:
+        rows = conn.execute(sql, params).fetchall()
+    finally:
+        conn.close()
+
+    output_root = request.app.state.output_root
+    out = []
+    for r in rows:
+        # 확정일이 예상일을 이긴다 — 계획 D의 serverdata.applyBidCases와 같은 규칙이다.
+        # 화면이 이 선택을 복제하면 두 곳이 어긋나므로 서버가 골라서 준다.
+        bid_date = r["confirmed_date"] or r["expected_date"]
+        out.append({
+            "task_id": r["task_id"], "team": r["team"], "status": r["status"],
+            "progress_pct": r["progress_pct"], "assignee": r["assignee"],
+            "approver": r["approver"], "bid_case_id": r["bid_case_id"],
+            "institution_id": r["institution_id"], "institution_name": r["name_ko"],
+            "stage": r["stage"], "bid_date": bid_date,
+            "schedule_confidence": r["schedule_confidence"],
+            "file_count": task_files.count(output_root, r["name_ko"], r["task_id"]),
+        })
+    return out
 
 
 @router.get("/{task_id}", response_model=TaskDetail)
@@ -40,18 +159,175 @@ def get_task_detail(task_id: str, request: Request) -> TaskDetail:
     return TaskDetail(**task.model_dump(), messages=messages)
 
 
+@router.get("/{task_id}/handoff")
+def get_handoff(task_id: str, request: Request) -> dict:
+    """이관 패키지 — 이 작업이 속한 공고의 산출물 일체 (계획 H Task 3, 스펙 §② 14).
+
+    **팀 산출물을 상태로 거르지 않는다.** 그래프 흐름에서 팀 Task는 `draft_team`이
+    `1차완료`까지만 올리고, 5단계 기획승인은 기관 단위 checkpoint라 팀 Task를
+    `2차완료`로 만들지 않는다(사람이 `POST /tasks/{id}/approve`를 눌러야 탄다).
+    '승인난 것만' 거르면 화면이 텅 비고, 무엇보다 **감추면 디자이너가 다 받은 줄 안다**.
+    전부 주고 각자의 실제 상태를 함께 실어 화면이 태그로 구분하게 한다.
+
+    **다만 에이전트 전용 단계(RFI분석·취합·검증)는 뺀다** — 그쪽도 tasks 행을 갖지만
+    사람 작성물이 없어 항상 빈 카드가 되고, 문의할 상대도 아니다. 그 단계의 산출물은
+    아래 `scoring`·`coverage`·`pptx_path`로 따로 실린다.
+
+    산출물 본문은 여기서 주지 않는다 — `GET /documents?path=`가 이미 그 일을 한다.
+    """
+    conn = _conn(request)
+    try:
+        ctx = _context(conn, task_id)
+        rows = conn.execute(
+            """SELECT team, status, assignee, approver, draft_content FROM tasks
+               WHERE bid_case_id = ? AND team <> ? ORDER BY rowid""",
+            (ctx["bid_case_id"], ctx["team"]),
+        ).fetchall()
+        recipients = known_recipients(conn)
+        inst = get_institution(conn, ctx["institution_id"])
+    finally:
+        conn.close()
+
+    out_dir = os.path.join(request.app.state.output_root, ctx["name_ko"])
+    return {
+        "institution_id": ctx["institution_id"],
+        "institution_name": ctx["name_ko"],
+        "stage": ctx["stage"],
+        "pptx_path": inst.pptx_path if inst else None,
+        "teams": [{
+            "team": r["team"], "status": r["status"], "assignee": r["assignee"],
+            "approver": r["approver"], "draft_content": r["draft_content"],
+            # 팀명→쪽지 수신자 변환은 서버가 한다(backend/teams.py) — 화면이 '영업'+'팀'
+            # 규칙을 복제하면 계정 전환기와 답이 갈라진다.
+            "contact": inbox_name(r["team"], recipients),
+        } for r in rows if is_authoring_team(r["team"])],
+        "scoring": _read_json(os.path.join(out_dir, "rfp_scoring.json")),
+        "coverage": _read_json(os.path.join(out_dir, "coverage_map.json")),
+    }
+
+
+# ── 작업물 파일 (계획 H Task 4) ────────────────────────────────────────
+# 경로 위생·확장자·용량은 전부 backend/task_files.py가 본다. 여기서는 권한과
+# HTTP 상태 코드만 다룬다.
+
+@router.post("/{task_id}/files", status_code=201)
+async def post_task_file(
+    task_id: str, request: Request, file: UploadFile = File(...),
+    by: str | None = Form(default=None), x_user_id: str = Header(...),
+) -> dict:
+    # multipart 요청이라 by도 Form 필드로 온다(본문이 JSON이 아니다).
+    actor = _actor(by, x_user_id)
+    conn = _conn(request)
+    try:
+        ctx = _context(conn, task_id)
+        _require_owner(ctx, actor)
+        claim_assignee_if_unset(conn, task_id, actor)
+    finally:
+        conn.close()
+
+    data = await file.read()
+    try:
+        return task_files.save(request.app.state.output_root, ctx["name_ko"], task_id,
+                               file.filename or "", data)
+    except task_files.FileRejected as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/{task_id}/files")
+def get_task_files(task_id: str, request: Request) -> list[dict]:
+    conn = _conn(request)
+    try:
+        ctx = _context(conn, task_id)
+    finally:
+        conn.close()
+    return task_files.listing(request.app.state.output_root, ctx["name_ko"], task_id)
+
+
+@router.get("/{task_id}/files/{name}")
+def download_task_file(task_id: str, name: str, request: Request) -> FileResponse:
+    conn = _conn(request)
+    try:
+        ctx = _context(conn, task_id)
+    finally:
+        conn.close()
+    try:
+        path = task_files.resolve(request.app.state.output_root, ctx["name_ko"], task_id, name)
+    except (task_files.FileRejected, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail=f"파일이 없습니다: {name}")
+    return FileResponse(path, filename=os.path.basename(path))
+
+
+@router.delete("/{task_id}/files/{name}", status_code=204)
+def delete_task_file(
+    task_id: str, name: str, request: Request,
+    by: str | None = Query(default=None), x_user_id: str = Header(...),
+) -> Response:
+    # DELETE는 본문을 싣지 않는 관행이라 by를 쿼리로 받는다.
+    conn = _conn(request)
+    try:
+        ctx = _context(conn, task_id)
+        _require_owner(ctx, _actor(by, x_user_id))
+    finally:
+        conn.close()
+    try:
+        removed = task_files.remove(request.app.state.output_root, ctx["name_ko"], task_id, name)
+    except (task_files.FileRejected, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not removed:
+        raise HTTPException(status_code=404, detail=f"파일이 없습니다: {name}")
+    return Response(status_code=204)
+
+
+@router.patch("/{task_id}/draft", response_model=Task)
+def patch_task_draft(
+    task_id: str, body: TaskDraftIn, request: Request, x_user_id: str = Header(...)
+) -> Task:
+    """임시저장 — 메모만 갱신하고 **기록을 남기지 않는다** (계획 H Task 5).
+
+    `POST /tasks/{id}/upload`를 재사용하지 않는 이유: 그쪽은 호출마다 '업로드
+    즉시검사 —…' agent 메시지를 남긴다. 임시저장을 누를 때마다 로그가 쌓이면
+    작업 로그가 못 읽을 것이 된다. 임시저장은 기록할 사건이 아니다.
+    """
+    conn = _conn(request)
+    try:
+        actor = _actor(body.by, x_user_id)
+        ctx = _context(conn, task_id)
+        _require_owner(ctx, actor)
+        claim_assignee_if_unset(conn, task_id, actor)
+        update_draft_content(conn, task_id, body.content)
+        return get_task(conn, task_id)
+    finally:
+        conn.close()
+
+
 @router.post("/{task_id}/submit", response_model=Task)
-def post_task_submit(task_id: str, request: Request, x_user_id: str = Header(...)) -> Task:
+def post_task_submit(
+    task_id: str, request: Request, body: TaskActorIn | None = None,
+    x_user_id: str = Header(...),
+) -> Task:
+    actor = _actor(body.by if body else None, x_user_id)
     conn = _conn(request)
     try:
         task = get_task(conn, task_id)
         if task is None:
             raise HTTPException(status_code=404, detail="task not found")
-        if task.assignee != x_user_id:
+        if task.assignee != actor:
             raise HTTPException(status_code=403, detail="only the assignee can submit")
         if task.status not in ("대기", "작성중"):
             raise HTTPException(status_code=409, detail="task not in a submittable state")
         submit_task(conn, task_id)
+        # 제출은 지금까지 상태만 바꾸고 아무에게도 알리지 않았다 — 제출해도 아무 일이
+        # 일어나지 않는다는 뜻이었다. 결재자에게 알린다(디자이너뿐 아니라 모든 팀).
+        ctx = _context(conn, task_id)
+        create_notification(
+            conn, APPROVAL_RECIPIENT, "결재요청",
+            f"{ctx['name_ko']} {ctx['team']} 작업물 제출 — 결재를 부탁드립니다.",
+            institution_id=ctx["institution_id"], task_id=task_id, stage=ctx["stage"],
+        )
         return get_task(conn, task_id)
     finally:
         conn.close()

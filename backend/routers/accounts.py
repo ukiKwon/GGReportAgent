@@ -12,23 +12,13 @@
 from fastapi import APIRouter, Request
 
 from backend.db import get_connection
+from backend.teams import inbox_name, known_recipients
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
-
-def _inbox_team(team: str, recipients: list[str]) -> str:
-    """작업의 팀 이름을 **그 사람이 실제로 쪽지를 받는 이름**으로 바꾼다.
-
-    `tasks.team`은 '영업'인데 그래프는 '영업팀' 앞으로 알림을 보낸다. 그대로 두면
-    김 차장 계정으로 전환해도 쪽지함이 비어 계정 전환의 의미가 없다. 하드코딩 대신
-    실제 수신자 중 팀 이름으로 시작하는 것을 찾는다 — 없으면 원래 값을 그대로 둔다.
-    """
-    if team in recipients:
-        return team
-    for r in recipients:
-        if r != team and r.startswith(team):
-            return r
-    return team
+# 팀명→쪽지 수신자 변환은 backend/teams.py로 옮겼다 — 디자이너 뷰의 '문의' 버튼도
+# 같은 답을 써야 하는데, 규칙을 두 벌 두면 한쪽만 고쳤을 때 조용히 갈라진다.
+_inbox_team = inbox_name
 
 
 @router.get("")
@@ -43,12 +33,7 @@ def get_accounts(request: Request) -> dict:
                 " ORDER BY assignee, team"
             ).fetchall()
         ]
-        recipients = [
-            r["recipient"]
-            for r in conn.execute(
-                "SELECT DISTINCT recipient FROM notifications ORDER BY recipient"
-            ).fetchall()
-        ]
+        recipients = known_recipients(conn)
     finally:
         conn.close()
 
