@@ -65,3 +65,42 @@ def test_empty_timeline_is_200(tmp_path):
 def test_unknown_institution_404(tmp_path):
     client = TestClient(_app(tmp_path))
     assert client.get("/institutions/ghost/timeline").status_code == 404
+
+
+# ── model — 단계 로그에도 🧠를 붙일 수 있게 (후속 정리) ─────────────────
+# 팀별 작업 로그(GET /tasks/{id})에는 진작 실려 있었는데 timeline만 빠져 있어,
+# 스테퍼 칸을 눌러 보는 단계 전체 로그에서는 어느 모델이 만든 글인지 알 수 없었다.
+
+def _msg_with_model(tmp_path, model):
+    conn = get_connection(str(tmp_path / "r.db"))
+    conn.execute(
+        "INSERT INTO messages (message_id, task_id, role, content, stage, model, created_at)"
+        " VALUES ('mm', 'task-s', 'agent', '초안 작성 완료', 5, ?, '2026-08-05T09:00:00')",
+        (model,))
+    conn.commit(); conn.close()
+
+
+def test_메시지의_모델명을_함께_내보낸다(tmp_path):
+    app = _app(tmp_path)
+    _msg_with_model(tmp_path, "llama3.2:3b")
+
+    events = TestClient(app).get("/institutions/nowon/timeline").json()["events"]
+    assert events[0]["model"] == "llama3.2:3b"
+
+
+def test_LLM을_안_쓴_기록은_model이_None이다(tmp_path):
+    """사람 발화·게이트 통과처럼 LLM이 안 낀 줄에 모델명이 붙으면 거짓말이 된다."""
+    app = _app(tmp_path)
+    _rows(tmp_path, messages=[("m0", "human", "승인합니다", "김 차장", 6, "2026-08-05T10:00:00")])
+
+    events = TestClient(app).get("/institutions/nowon/timeline").json()["events"]
+    assert events[0]["model"] is None
+
+
+def test_알림에는_model이_없다(tmp_path):
+    """알림은 LLM 산출물이 아니라 시스템 통지다."""
+    app = _app(tmp_path)
+    _rows(tmp_path, notifications=[("n1", "결재요청", "기획승인 대기", 5, "2026-08-05T09:30:00")])
+
+    events = TestClient(app).get("/institutions/nowon/timeline").json()["events"]
+    assert events[0]["kind"] == "notification" and events[0]["model"] is None

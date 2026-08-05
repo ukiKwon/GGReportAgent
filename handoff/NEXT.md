@@ -466,19 +466,19 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
 - **비차단**: 현재 표시가 틀린 것은 아니다("쓰기로 한 모델"로서는 정확하다). 폴백이
   발동하는 드문 경우에만 어긋난다.
 
-**같은 묶음의 작은 후속들** (2026-08-05 최종 리뷰 defer 판정, 전부 비차단):
-- `GET /llm/status`의 `reachable` 필드를 **프런트가 전혀 쓰지 않는다** — non-auto에서도
-  Ollama 왕복이 1회 붙는 순수 비용이다. 필드를 없애거나 `?probe=1`로 게이팅할 것.
-- `timeline`(`GET /institutions/{id}/timeline`)이 `m.model`을 select하지 않아 **스테퍼/
-  타임라인 로그에는 🧠가 안 뜬다**(팀 로그에는 뜬다). SELECT 한 줄 + 렌더 한 줄.
-- `backend/routers/tasks.py`의 **업로드 즉시검사(113행)·대화 응답(174행)도 LLM 기반인데
-  `model` 미태깅** — `model=llm.current_model()` 두 줄이면 일관성이 맞는다.
-- `verification_node`에서 `scoring_table`은 있으나 매칭 section이 0건이면 LLM이 한 번도
-  안 불리는데 `verifier`가 model을 태깅한다(도달하기 어려운 조합, 표시만 영향).
-- `model_info()`가 캐시와 별개로 `installed_models()`를 매번 호출 · `#chat-model-badge:empty`
-  빈 알약 테두리 · `X-Embed-Model`에 비-latin-1 값이 오면 헤더 인코딩 500 ·
-  `test_api_llm_status`가 캐시를 teardown 안 함 · 실행가이드 62행 환경변수 표에 `auto`
-  미기재 · 976행 "기관을 고르면 배지가 붙는다"는 부정확(탭 진입 시 1회).
+~~**같은 묶음의 작은 후속들**~~ — **10건 전부 완료**(2026-08-05, `2026-08-05_summary.md`
+`## Session 09:30`). 위 항목 8 본체(폴백 추적)는 **여전히 열려 있다** — 이 묶음은 그것과
+별개로 defer돼 있던 값싼 것들이다. 무엇을 어떻게 고쳤는지는 실행가이드 §14와 각 파일
+주석에 남겼고, 되짚을 필요가 있을 때만 아래를 본다:
+- `reachable` → `?probe=1` 게이팅(기본 응답에서 **필드 자체를 생략**한다. `false`로
+  채우면 "조회 안 함"이 "못 닿음"으로 보여 멀쩡한 엔드포인트가 죽은 것처럼 오진된다).
+- `timeline`에 `m.model` 추가 → 스테퍼 단계 로그에도 🧠가 뜬다.
+- 업로드 즉시검사·작업 대화 응답에 `model` 태깅.
+- `verification_node`가 **`llm_used`를 돌려준다** — 호출부가 "LLM을 실제로 썼나"를
+  바깥에서 추론하던 것(= 노드의 매칭 규칙 복제)을 없앴다. 이게 "배점표는 있는데 매칭
+  섹션이 0건" 조합을 놓치던 원인이다.
+- `model_info()`가 판정 때 본 설치 목록(`_auto_installed`)을 재사용 · 빈 배지 숨김 ·
+  `X-Embed-Model` latin-1 위생 · `test_api_llm_status` 캐시 teardown · 가이드 3곳 교정.
 
 ### 9. WebLogic/Java 이관 — 설계만 완료, 구현계획·기관확인 미착수
 

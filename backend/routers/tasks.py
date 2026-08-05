@@ -3,6 +3,7 @@ import os
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+from agent.llm import current_model
 from backend.agent_adapter import failure_notice, stream_chat_reply
 from backend.db import get_connection
 from backend.models import Task, TaskApprovalIn, TaskDetail, TaskMessageIn
@@ -110,7 +111,11 @@ def post_task_upload(
             f" PII {len(result['pii'])}건"
             + (f" ({result['skipped']})" if result["skipped"] else "")
         )
-        add_message(conn, task_id, "agent", summary, author="검증 agent")
+        # 즉시검사도 커버리지 판정에 LLM을 쓴다 — 그 기록에 모델명을 남겨 워크플로
+        # 로그의 🧠 표시가 일관되게 한다. 생략된 검사(배점표·배정 항목 없음)는
+        # PII 스캔만 돌아 LLM이 개입하지 않으므로 모델명을 붙이지 않는다.
+        add_message(conn, task_id, "agent", summary, author="검증 agent",
+                    model=current_model() if result["llm_used"] else None)
         if out_dir and result["coverage"]:
             write_coverage_map(out_dir, task.team, result["coverage"], len(result["pii"]))
         return {"coverage": result["coverage"], "pii_count": len(result["pii"]),
@@ -171,7 +176,11 @@ def post_task_message(
             if full_reply:
                 write_conn = get_connection(db_path)
                 try:
-                    add_message(write_conn, task_id, "agent", full_reply)
+                    # 모델명은 LLM이 실제로 뭔가 뱉었을 때만 남긴다 — 한 글자도 못 받고
+                    # 실패한 경우 본문은 실패 안내문이지 그 모델의 산출물이 아니다
+                    # (실패 사유 문구가 이미 모델명을 담고 있다).
+                    add_message(write_conn, task_id, "agent", full_reply,
+                                model=current_model() if reply_parts else None)
                     if completed:
                         update_draft_content(write_conn, task_id, full_reply)
                 finally:

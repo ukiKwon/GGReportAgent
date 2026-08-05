@@ -57,3 +57,35 @@ def test_empty_result_omits_both_headers(client, monkeypatch):
     assert resp.json() == []
     assert "x-search-mode" not in resp.headers
     assert "x-embed-model" not in resp.headers
+
+
+# ── 헤더 값 위생 (후속 정리) ────────────────────────────────────────────
+# EMBED_MODEL은 환경변수라 무엇이든 들어올 수 있다. HTTP 헤더는 latin-1만 실을 수
+# 있어서, 한글이 섞이면 응답을 내보내는 단계에서 터져 **검색 전체가 500이 됐다**.
+# 모델명은 부가 표시일 뿐이므로 표시를 포기할지언정 검색을 죽이지 않는다.
+
+def test_한글_임베딩_모델명이어도_검색이_죽지_않는다(client, monkeypatch):
+    monkeypatch.setattr(search_router, "search", lambda *a, **k: [_chunk("rrf")])
+    monkeypatch.setattr(search_router.embedder, "model_name", lambda: "한글모델")
+
+    resp = client.get("/search", params={"q": "청년 창업"})
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1                       # 결과는 온전하다
+    assert resp.headers["X-Search-Mode"] == "rrf"
+
+
+def test_ascii_모델명은_그대로_실린다(client, monkeypatch):
+    monkeypatch.setattr(search_router, "search", lambda *a, **k: [_chunk("rrf")])
+    monkeypatch.setattr(search_router.embedder, "model_name", lambda: "bge-m3:latest")
+
+    resp = client.get("/search", params={"q": "청년 창업"})
+    assert resp.headers["X-Embed-Model"] == "bge-m3:latest"
+
+
+def test_섞여_있으면_실을_수_있는_부분만_남긴다(client, monkeypatch):
+    monkeypatch.setattr(search_router, "search", lambda *a, **k: [_chunk("rrf")])
+    monkeypatch.setattr(search_router.embedder, "model_name", lambda: "bge-m3-한글")
+
+    resp = client.get("/search", params={"q": "청년 창업"})
+    assert resp.status_code == 200
+    assert resp.headers["X-Embed-Model"] == "bge-m3-"

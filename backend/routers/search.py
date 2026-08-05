@@ -7,6 +7,21 @@ from agent.retrieval import IndexNotBuiltError, embedder, search
 router = APIRouter(prefix="/search", tags=["search"])
 
 
+def _header_safe(value: str) -> str:
+    """HTTP 헤더 값으로 쓸 수 있게 latin-1 밖 문자를 걷어낸다.
+
+    `EMBED_MODEL`은 환경변수라 무엇이든 들어올 수 있는데, 한글이 섞이면 응답을
+    내보내는 단계에서 인코딩 에러가 나 **검색 자체가 500으로 죽는다**. 모델명은
+    부가 표시일 뿐이므로, 표시를 포기할지언정 검색을 죽이지 않는다.
+    """
+    try:
+        value.encode("latin-1")
+        return value
+    except UnicodeEncodeError:
+        stripped = value.encode("latin-1", "ignore").decode("latin-1").strip()
+        return stripped or "?"     # 전부 걸러졌으면 최소한 "값은 있었다"는 표시만
+
+
 @router.get("")
 def get_search(
     request: Request,
@@ -38,5 +53,5 @@ def get_search(
         mode = chunks[0].score_kind
         response.headers["X-Search-Mode"] = mode
         if mode == "rrf":
-            response.headers["X-Embed-Model"] = embedder.model_name()
+            response.headers["X-Embed-Model"] = _header_safe(embedder.model_name())
     return [asdict(chunk) for chunk in chunks]

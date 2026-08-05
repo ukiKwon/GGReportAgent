@@ -219,3 +219,72 @@ def test_model_info_resolved_true_when_not_auto(monkeypatch):
     info = llm_mod.model_info()
     assert info["auto"] is False
     assert info["resolved"] is True
+
+
+# ── model_info가 설치 목록을 다시 묻지 않는다 (후속 정리) ───────────────
+# auto 판정 1회에 Ollama 왕복이 2회 붙던 것을 없앤다 — current_model()이 본 목록을
+# 그대로 재사용한다. 왕복 자체도 비용이지만, 두 번 물으면 "판정 근거"와 "화면에
+# 보여주는 목록"이 서로 다른 시점의 값이 될 수 있다는 쪽이 더 큰 문제다.
+
+def test_model_info는_설치_목록을_한_번만_조회한다(monkeypatch):
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", "auto")
+    monkeypatch.setattr(llm_mod, "detect_resources", lambda: (16.0, 8))
+    calls = []
+
+    def spy(url):
+        calls.append(url)
+        return ["llama3.1:8b"]
+
+    monkeypatch.setattr(llm_mod, "installed_models", spy)
+    info = llm_mod.model_info()
+    assert info["installed"] == ["llama3.1:8b"]
+    assert len(calls) == 1
+
+
+def test_캐시된_뒤에는_아예_조회하지_않는다(monkeypatch):
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", "auto")
+    monkeypatch.setattr(llm_mod, "detect_resources", lambda: (16.0, 8))
+    calls = []
+
+    def spy(url):
+        calls.append(url)
+        return ["llama3.1:8b"]
+
+    monkeypatch.setattr(llm_mod, "installed_models", spy)
+    llm_mod.model_info()
+    llm_mod.model_info()
+    llm_mod.model_info()
+    assert len(calls) == 1          # 판정 때 한 번뿐
+
+
+def test_non_auto는_설치_목록을_조회하지_않는다(monkeypatch):
+    """명시 모델 지정이면 목록을 볼 이유가 없다 — 폐쇄망에서 불필요한 왕복이다."""
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", "gpt-oss-120b")
+    calls = []
+    monkeypatch.setattr(llm_mod, "installed_models", lambda url: calls.append(url) or [])
+    info = llm_mod.model_info()
+    assert info["installed"] == [] and calls == []
+
+
+def test_판정_실패면_installed도_비어_있다(monkeypatch):
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", "auto")
+    monkeypatch.setattr(llm_mod, "detect_resources", lambda: (16.0, 8))
+    monkeypatch.setattr(llm_mod, "installed_models", lambda url: [])
+    assert llm_mod.model_info()["installed"] == []
+
+
+def test_reset_model_cache가_설치_목록도_비운다(monkeypatch):
+    """캐시만 비우고 목록이 남으면, 다음 판정 전에 model_info가 옛 목록을 보여준다."""
+    _clear_auto(monkeypatch)
+    monkeypatch.setenv("LLM_MODEL", "auto")
+    monkeypatch.setattr(llm_mod, "detect_resources", lambda: (16.0, 8))
+    monkeypatch.setattr(llm_mod, "installed_models", lambda url: ["llama3.1:8b"])
+    llm_mod.model_info()
+
+    llm_mod.reset_model_cache()
+    monkeypatch.setattr(llm_mod, "installed_models", lambda url: [])
+    assert llm_mod.model_info()["installed"] == []
