@@ -291,3 +291,88 @@ def test_에이전트_전용_단계는_팀_산출물이_아니다(tmp_path):
 
     teams = [t["team"] for t in TestClient(app).get("/tasks/t-design-1/handoff").json()["teams"]]
     assert teams == ["영업", "전산", "예산"]
+
+
+# ── 팀이 올린 파일도 이관 패키지에 실린다 (사용자 피드백) ────────────────
+# 디자이너는 "각 팀이 작업한 내용을 **받아서**" 작업한다. 텍스트 작성물만 보여주고
+# 파일을 숨기면 정작 받아야 할 실물이 화면에 없다.
+
+def test_이관_패키지에_팀이_올린_파일이_보인다(tmp_path):
+    client = _client(tmp_path)
+    client.post("/tasks/t-it/files", files={"file": ("전산_구성도.pdf", b"diagram")},
+                data={"by": "권 차장"}, headers={"X-User-Id": "web-user"})
+
+    teams = {t["team"]: t for t in client.get("/tasks/t-design-1/handoff").json()["teams"]}
+    assert [f["name"] for f in teams["전산"]["files"]] == ["전산_구성도.pdf"]
+    assert teams["영업"]["files"] == []
+
+
+def test_팀의_task_id를_함께_줘야_내려받을_수_있다(tmp_path):
+    """화면이 GET /tasks/{team_task_id}/files/{name} 주소를 만들 수 있어야 한다."""
+    teams = {t["team"]: t for t in _client(tmp_path).get("/tasks/t-design-1/handoff").json()["teams"]}
+    assert teams["영업"]["task_id"] == "t-sales"
+
+
+def test_디자이너가_팀_파일을_내려받는다(tmp_path):
+    client = _client(tmp_path)
+    client.post("/tasks/t-it/files", files={"file": ("전산_구성도.pdf", b"diagram")},
+                data={"by": "권 차장"}, headers={"X-User-Id": "web-user"})
+    assert client.get("/tasks/t-it/files/전산_구성도.pdf").content == b"diagram"
+
+
+# ── 다른 팀이 작업 중이면 디자이너는 제출할 수 없다 (사용자 피드백) ──────
+# 디자이너 작업물은 3팀 산출물을 **받아서** 만든 것이다. 팀이 아직 쓰고 있는 중이면
+# 그 위에서 만든 결과물을 결재에 올리는 것은 앞뒤가 맞지 않는다. 판단이 아니라
+# 선후 규칙이라 화면이 아니라 가드로 막는다(계획 E의 POST /run과 같은 논리).
+
+def test_작업_중인_팀이_있으면_디자이너_제출이_막힌다(tmp_path):
+    """기본 시드가 이 상태다 — 예산이 '작성중'이다."""
+    client = _client(tmp_path)
+    client.patch("/tasks/t-design-1/draft", json={"content": "x"},
+                 headers={"X-User-Id": "designer"})
+    r = client.post("/tasks/t-design-1/submit", headers={"X-User-Id": "designer"})
+
+    assert r.status_code == 409
+    assert "예산" in r.json()["detail"]          # 누구를 기다리는지 이름을 말한다
+
+
+def test_팀이_전부_끝나면_디자이너가_제출할_수_있다(tmp_path):
+    app = _app(tmp_path)
+    conn = get_connection(str(tmp_path / "r.db"))
+    conn.execute("UPDATE tasks SET status='1차완료' WHERE task_id='t-budget'")
+    conn.commit(); conn.close()
+    client = TestClient(app)
+    client.patch("/tasks/t-design-1/draft", json={"content": "x"},
+                 headers={"X-User-Id": "designer"})
+
+    r = client.post("/tasks/t-design-1/submit", headers={"X-User-Id": "designer"})
+    assert r.status_code == 200 and r.json()["status"] == "1차완료"
+
+
+def test_제출됨이면_충분하다_승인까지_기다리지_않는다(tmp_path):
+    """'작업 중'의 반대는 '자기 일을 끝냄'이다. 2차완료(사람 결재)까지 요구하면,
+    그래프 흐름에서 팀 Task는 1차완료까지만 올라가므로 디자이너가 영영 제출을 못 한다."""
+    app = _app(tmp_path)
+    conn = get_connection(str(tmp_path / "r.db"))
+    conn.execute("UPDATE tasks SET status='1차완료' WHERE team IN ('영업','전산','예산')")
+    conn.commit(); conn.close()
+    client = TestClient(app)
+    client.patch("/tasks/t-design-1/draft", json={"content": "x"},
+                 headers={"X-User-Id": "designer"})
+    assert client.post("/tasks/t-design-1/submit",
+                       headers={"X-User-Id": "designer"}).status_code == 200
+
+
+def test_이_규칙은_디자이너에게만_적용된다(tmp_path):
+    """3팀에 걸면 서로를 기다리다 아무도 제출하지 못한다(교착)."""
+    client = _client(tmp_path)
+    r = client.post("/tasks/t-budget/submit", json={"by": "정 대리"},
+                    headers={"X-User-Id": "web-user"})
+    assert r.status_code == 200
+
+
+def test_이관_패키지가_대기중인_팀을_알려준다(tmp_path):
+    """화면이 제출 버튼을 왜 못 누르는지 설명할 근거."""
+    # 시드: 영업 2차완료 · 전산 1차완료 · 예산 작성중 → 예산만 남았다.
+    body = _client(tmp_path).get("/tasks/t-design-1/handoff").json()
+    assert body["waiting_on"] == ["예산"]
