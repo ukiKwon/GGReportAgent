@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.db import init_db
 from backend.orchestrator_service import OrchestratorService
+from backend.routers.approvals import router as approvals_router
 from backend.routers.bidcases import router as bidcases_router
 from backend.routers.chat import router as chat_router
 from backend.routers.inbox import router as inbox_router
@@ -13,6 +14,7 @@ from backend.routers.consistency import router as consistency_router
 from backend.routers.documents import router as documents_router
 from backend.routers.institutions import router as institutions_router
 from backend.routers.llm_status import router as llm_status_router
+from backend.routers.menus import router as menus_router
 from backend.routers.notifications import router as notifications_router
 from backend.routers.search import router as search_router
 from backend.routers.tasks import router as tasks_router
@@ -60,6 +62,8 @@ def create_app(
     app.include_router(accounts_router)
     app.include_router(consistency_router)
     app.include_router(llm_status_router)
+    app.include_router(menus_router)
+    app.include_router(approvals_router)
     if static_dir:
         if os.path.isdir(static_dir):
             # 라우터 등록 뒤에 마운트해야 /institutions 등 API 경로가 정적보다 우선한다.

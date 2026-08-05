@@ -247,3 +247,27 @@ test('submitBlockReason: 못 누르는 이유를 한 문장으로 말한다', fu
   const ok = { teams: [], waiting_on: [] };
   assert.strictEqual(dg.submitBlockReason({ status: '작성중' }, [{ name: 'a' }], ok), '');
 });
+
+// ── 소속 → 팀 (계획 I) ─────────────────────────────────────────────────
+// 작업함은 디자이너 전용이 아니게 됐다 — 팀원·팀장도 자기 팀 작업을 본다.
+
+test('teamOf: 팀원과 팀장은 같은 팀을 본다', function () {
+  assert.strictEqual(dg.teamOf('영업팀'), '영업');
+  assert.strictEqual(dg.teamOf('영업팀장'), '영업');
+  assert.strictEqual(dg.teamOf('전산팀장'), '전산');
+});
+
+test('teamOf: 접미사가 없는 역할은 그대로', function () {
+  assert.strictEqual(dg.teamOf('디자이너'), '디자이너');
+  assert.strictEqual(dg.teamOf('본부장'), '본부장');
+});
+
+test('teamOf: 팀장 접미사가 먼저 떨어진다', function () {
+  // '팀'을 먼저 떼면 '영업장'이라는 없는 팀이 된다 — 서버(team_of)와 같은 규칙.
+  assert.notStrictEqual(dg.teamOf('영업팀장'), '영업장');
+});
+
+test('teamOf: 빈 값도 안전하다', function () {
+  assert.strictEqual(dg.teamOf(''), '');
+  assert.strictEqual(dg.teamOf(null), '');
+});

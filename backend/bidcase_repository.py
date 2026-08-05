@@ -3,6 +3,7 @@ import secrets
 import sqlite3
 from datetime import datetime, timezone
 
+from backend.teams import AUTHORING_TEAMS
 from backend.models import (
     BidCase,
     ParticipationDecisionEntry,
@@ -10,7 +11,10 @@ from backend.models import (
     TaskSummary,
 )
 
-TEAMS = ["영업", "IT", "예산"]
+# 팀 목록의 정본은 backend/teams.py다 — 여기 따로 두었더니 그래프의
+# role_router.ROLES(영업/전산/예산)와 어긋나("IT" vs "전산") 한 공고에 두 벌의
+# Task가 생길 수 있었다. UNIQUE(bid_case_id, team)은 이름이 다르면 못 막는다.
+TEAMS = list(AUTHORING_TEAMS)
 
 
 class ParticipationDecisionError(ValueError):

@@ -135,7 +135,8 @@ class TaskDraftIn(TaskActorIn):
     content: str
 
 
-class TaskApprovalIn(BaseModel):
+class TaskApprovalIn(TaskActorIn):
+    """결재. `by`(TaskActorIn)는 결재자 실명 — 헤더에 한글을 못 싣기 때문이다."""
     approved: bool
     comment: str | None = None
 

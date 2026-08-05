@@ -71,6 +71,15 @@ CREATE TABLE IF NOT EXISTS notifications (
     sender          TEXT                      -- 사람이 보낸 쪽지만. 시스템 알림은 NULL
 );
 
+-- 역할별 메뉴 노출 (계획 I). 행이 없다는 것은 '꺼짐'이 아니라 '아직 정하지 않음'이라
+-- 기본값(backend/menus.py)이 적용된다. 여기엔 사람이 명시적으로 정한 것만 쌓인다.
+CREATE TABLE IF NOT EXISTS role_menus (
+    role    TEXT NOT NULL,
+    menu    TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (role, menu)
+);
+
 CREATE TABLE IF NOT EXISTS chat_messages (
     chat_message_id TEXT PRIMARY KEY,
     institution_id  TEXT NOT NULL,
@@ -138,6 +147,24 @@ def _migrate(conn: sqlite3.Connection) -> None:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}")
 
 
+def _migrate_data(conn: sqlite3.Connection) -> None:
+    """**값** 마이그레이션. `_migrate`는 컬럼 추가만 하므로 여기가 따로 필요하다.
+
+    지금 담긴 것: 팀 이름이 두 벌이던 시절(`bidcase_repository.TEAMS`의 `IT` vs
+    그래프 `role_router.ROLES`의 `전산`)에 만들어진 행을 `전산`으로 모은다. 이름이
+    다르면 `UNIQUE(bid_case_id, team)`이 못 막아 한 공고에 두 벌이 남는다.
+
+    같은 공고에 `전산` 행이 **이미 있으면 옛 `IT` 행은 버린다** — 그대로 UPDATE하면
+    유니크 제약에 걸리고, 실제 작성물을 가진 쪽은 그래프가 만든 `전산`이다.
+    """
+    conn.execute(
+        """DELETE FROM tasks WHERE team = 'IT' AND EXISTS (
+               SELECT 1 FROM tasks t2
+               WHERE t2.bid_case_id = tasks.bid_case_id AND t2.team = '전산')"""
+    )
+    conn.execute("UPDATE tasks SET team = '전산' WHERE team = 'IT'")
+
+
 def init_db(db_path: str) -> sqlite3.Connection:
     parent = os.path.dirname(db_path)
     if parent:
@@ -146,5 +173,6 @@ def init_db(db_path: str) -> sqlite3.Connection:
     conn.executescript(SCHEMA)
     _migrate(conn)
     conn.executescript(INDEXES)
+    _migrate_data(conn)          # 컬럼이 다 갖춰진 뒤에 값을 손본다
     conn.commit()
     return conn

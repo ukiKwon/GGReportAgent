@@ -24,6 +24,7 @@ import shutil
 
 from backend import task_files
 from backend.db import get_connection, init_db
+from backend.teams import FINAL_APPROVER
 from backend.demo_paths import DEMO_DB_PATH, DEMO_OUTPUT_ROOT
 
 DEMO_BID_CASE = "demo-bc"
@@ -45,7 +46,9 @@ DECISIONS = [
 # 팀 → (task_id, 상태, 진행률, 담당자). RFI분석·취합·검증은 에이전트 몫이라 담당자가 없다.
 TEAMS = [
     ("RFI분석", "demo-t-rfi", "1차완료", 100, None),
-    ("영업", "demo-t-sales", "작성중", 40, "김 차장"),
+    # 상태를 셋 다 다르게 둔다 — 팀장이 결재할 것(1차완료) / 이미 승인된 것(2차완료) /
+    # 아직 쓰는 중(작성중). 디자이너 제출이 왜 막히는지가 한눈에 보인다.
+    ("영업", "demo-t-sales", "1차완료", 100, "김 차장"),
     ("전산", "demo-t-it", "2차완료", 100, "권 차장"),
     ("예산", "demo-t-budget", "작성중", 65, "정 대리"),
     ("취합", "demo-t-pack", "1차완료", 100, None),
@@ -174,7 +177,13 @@ NOTIFICATIONS = [
     (5, "영업팀", "결재요청", "기획승인 대기 — 3팀 초안이 준비됐다. 검토 후 승인/반려 바랍니다."),
     (6, "영업팀", "결재요청", "이관결재 대기 — 기획승인 완료, 이관 여부를 결재해주세요."),
     (7, "디자이너", "이관", "이관 패키지 준비 완료: data/report_new/도봉구/제안서.pptx"),
-    (8, "인사권자", "결재요청", "최종결재 대기 — 검증이 끝났습니다. 최종 결재를 부탁드립니다."),
+    (8, FINAL_APPROVER, "결재요청", "최종결재 대기 — 검증이 끝났습니다. 최종 결재를 부탁드립니다."),
+    # 결재 라인을 계정 전환기로 돌아볼 수 있게 팀장 앞으로도 심는다(계획 I).
+    # /accounts는 notifications.recipient에서 역할 목록을 뽑으므로, 여기 없으면
+    # 전환기에 팀장이 나타나지 않아 결재함을 열어볼 수가 없다.
+    (5, "영업팀장", "결재요청", "영업팀 작업물이 제출됐습니다 — 결재함에서 확인하세요."),
+    (5, "전산팀장", "결재요청", "전산팀 작업물이 제출됐습니다 — 결재함에서 확인하세요."),
+    (5, "예산팀장", "결재요청", "예산팀 작업물이 제출됐습니다 — 결재함에서 확인하세요."),
     (9, "영업팀", "쪽지", "최종 결재 완료 — 제출 대기(9단계). 제출 후 완료 마킹하세요."),
 ]
 
@@ -239,10 +248,10 @@ def seed(db_path: str, output_root: str, institution_id: str, stage: int,
          teams_done: bool = False) -> str:
     """데모 데이터를 넣고 기관의 한글명을 돌려준다. 두 번 돌려도 같은 결과다(멱등).
 
-    `teams_done=True`면 3팀 작업을 전부 `1차완료`로 둔다 — 기본 시드는 예산팀이
-    '작성중'이라 **디자이너 제출이 규칙대로 막혀 있어서**(계획 H, 사용자 확정),
-    제출 이후 흐름을 눌러보려면 이 플래그가 필요하다. 화면에 팀 제출 버튼이 없어
-    데모에서 달리 풀 방법이 없다.
+    `teams_done=True`면 3팀 작업을 전부 `2차완료`(팀장 결재까지 끝남)로 둔다.
+    기본 시드는 영업이 결재 대기·예산이 작성 중이라 **디자이너 제출이 규칙대로
+    막혀 있다**(계획 I, 사용자 확정). 결재함에서 팀장으로 승인해도 되고, 지름길로
+    이 플래그를 써도 된다.
     """
     conn = get_connection(db_path)
     try:
@@ -296,8 +305,9 @@ def seed(db_path: str, output_root: str, institution_id: str, stage: int,
             )
         task_by_team = {}
         for team, task_id, status, pct, assignee in TEAMS:
-            if teams_done and team in DRAFTS and status in ("대기", "작성중"):
-                status, pct = "1차완료", 100
+            # 계획 I에서 디자이너 제출 조건이 '승인완료'로 올라갔으므로 여기도 2차완료다.
+            if teams_done and team in DRAFTS:
+                status, pct = "2차완료", 100
             conn.execute(
                 "INSERT INTO tasks (task_id, bid_case_id, team, status, progress_pct,"
                 " assignee, draft_content) VALUES (?, ?, ?, ?, ?, ?, ?)",
