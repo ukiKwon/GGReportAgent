@@ -260,6 +260,22 @@
 
   function myTeam() { return designer.teamOf(profile().team); }
 
+  // 작업함은 더 이상 디자이너 전용이 아니다(계획 I) — 화면 문구도 소속을 따라간다.
+  // 예전에는 '디자이너 작업함'으로 굳어 있어 영업팀 담당자가 들어와도 그렇게 보였다.
+  designer.headline = function (prof) {
+    const team = ((prof || {}).team || '').trim();
+    return team ? team + ' 작업함' : '작업함';
+  };
+
+  // 제출하면 누구에게 가는지 — backend/teams.py의 lead_of와 같은 규칙이다.
+  // 모르는 소속에 결재자를 지어내지 않는다(틀린 이름을 대면 더 나쁘다).
+  designer.approverLabel = function (role) {
+    const team = designer.teamOf(role);
+    if (['영업', '전산', '예산'].indexOf(team) >= 0) return team + '팀장';
+    if (team === '디자이너') return '본부장';
+    return '결재자';
+  };
+
   // 한글 이름은 헤더에 못 실으므로 by로 보낸다(X-User-Id는 ASCII만 — A1 F10).
   function actorBody(extra) {
     return Object.assign({ by: profile().name || null }, extra || {});
@@ -416,7 +432,8 @@
   }
 
   function submit() {
-    if (!confirm('제출하면 영업팀에 결재 요청이 갑니다. 진행할까요?')) return;
+    const approver = designer.approverLabel(profile().team);
+    if (!confirm('제출하면 ' + approver + '에게 결재 요청이 갑니다. 진행할까요?')) return;
     busy = true; paint();
     fetch('/tasks/' + encodeURIComponent(selectedId) + '/submit', {
       method: 'POST',
@@ -424,7 +441,7 @@
       body: JSON.stringify(actorBody()),
     }).then(function (r) {
       if (!r.ok) { alert('제출 실패 (' + r.status + ')'); return; }
-      alert('제출했습니다 — 영업팀에 결재 요청을 보냈습니다.');
+      alert('제출했습니다 — ' + approver + '에게 결재 요청을 보냈습니다.');
       return loadTasks().then(loadDetail);
     }).catch(fail('서버 연결 실패 — 제출되지 않았습니다.'))
       .then(function () { busy = false; paint(); });
@@ -434,6 +451,7 @@
     el('dg-upload').onclick = upload;
     el('dg-save').onclick = saveDraft;
     el('dg-submit').onclick = submit;
+    el('dg-scope').textContent = designer.headline(profile());
     el('dg-who').textContent = profile().name || '(이름 없음)';
     // 폴링하지 않는다 — 워크플로의 2초 폴링은 그래프가 도는 중이라 필요한 것이고,
     // 디자이너 목록은 조작할 때만 바뀐다.

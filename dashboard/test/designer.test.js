@@ -271,3 +271,30 @@ test('teamOf: 빈 값도 안전하다', function () {
   assert.strictEqual(dg.teamOf(''), '');
   assert.strictEqual(dg.teamOf(null), '');
 });
+
+// ── 역할에 맞는 문구 (사용자 지적) ─────────────────────────────────────
+// 작업함이 디자이너 전용이 아니게 됐는데 화면 문구가 '디자이너 작업함'으로 굳어
+// 있었다. 김 차장(영업팀)이 들어와도 그렇게 보였다.
+
+test('headline: 내 소속으로 말한다', function () {
+  assert.strictEqual(dg.headline({ name: '김 차장', team: '영업팀' }), '영업팀 작업함');
+  assert.strictEqual(dg.headline({ name: '최 디자이너', team: '디자이너' }), '디자이너 작업함');
+  assert.strictEqual(dg.headline({ name: '권 차장', team: '전산팀장' }), '전산팀장 작업함');
+});
+
+test('headline: 소속이 없으면 그냥 작업함', function () {
+  assert.strictEqual(dg.headline({ name: '아무개', team: '' }), '작업함');
+  assert.strictEqual(dg.headline(null), '작업함');
+});
+
+test('approverLabel: 제출하면 누구에게 가는지 — 결재 라인대로', function () {
+  // 예전에는 무엇이든 '영업팀'이라고 말했다(결재 라인이 없던 시절의 자국).
+  assert.strictEqual(dg.approverLabel('영업팀'), '영업팀장');
+  assert.strictEqual(dg.approverLabel('전산팀'), '전산팀장');
+  assert.strictEqual(dg.approverLabel('디자이너'), '본부장');
+});
+
+test('approverLabel: 모르는 소속은 결재자를 지어내지 않는다', function () {
+  assert.strictEqual(dg.approverLabel('낯선소속'), '결재자');
+  assert.strictEqual(dg.approverLabel(''), '결재자');
+});
