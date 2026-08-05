@@ -42,8 +42,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     status        TEXT NOT NULL DEFAULT '대기',
     progress_pct  INTEGER NOT NULL DEFAULT 0,
     draft_content TEXT NOT NULL DEFAULT '',
-    assignee      TEXT,
-    approver      TEXT,
+    assignee       TEXT,
+    approver       TEXT,                        -- 1차 결재자(그 팀의 팀장)
+    final_approver TEXT,                        -- 디자이너 최종본을 결재한 영업부장
     UNIQUE(bid_case_id, team)
 );
 
@@ -115,11 +116,16 @@ NOTIFICATION_MIGRATIONS = {"stage": "INTEGER", "sender": "TEXT"}
 # 대화창은 여러 사람이 같은 방을 쓴다 — 누가 썼는지가 없으면 대화가 성립하지 않는다.
 CHAT_MESSAGE_MIGRATIONS = {"author": "TEXT"}
 
+# 결재가 2단이 되면서(팀장 → 영업부장) 결재자 칸도 둘이 됐다. 한 칸을 덮어쓰면
+# 누가 1차를 봤는지가 사라진다 — 결재 기록은 지워질 성질의 것이 아니다.
+TASK_MIGRATIONS = {"final_approver": "TEXT"}
+
 MIGRATIONS = {
     "bid_cases": BID_CASE_MIGRATIONS,
     "messages": MESSAGE_MIGRATIONS,
     "notifications": NOTIFICATION_MIGRATIONS,
     "chat_messages": CHAT_MESSAGE_MIGRATIONS,
+    "tasks": TASK_MIGRATIONS,
 }
 
 # 반입 dedup 키 (collector/SCHEMA.md §④의 유일키). 위 컬럼이 붙은 뒤에야 만들 수

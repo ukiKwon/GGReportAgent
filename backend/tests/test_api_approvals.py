@@ -41,10 +41,17 @@ def _client(tmp_path):
 # ── 팀장: 자기 팀의 제출된 작업만 ──────────────────────────────────────
 
 def test_팀장은_자기_팀의_제출된_작업만_본다(tmp_path):
-    items = _client(tmp_path).get("/approvals", params={"role": "영업팀장"}).json()["items"]
-    assert [i["task_id"] for i in items] == ["t-sales"]
-    assert items[0]["team"] == "영업" and items[0]["assignee"] == "김 차장"
+    items = _client(tmp_path).get("/approvals", params={"role": "예산팀장"}).json()["items"]
+    assert [i["task_id"] for i in items] == ["t-budget"]
+    assert items[0]["team"] == "예산" and items[0]["assignee"] == "정 대리"
     assert items[0]["kind"] == "task"
+
+
+def test_영업팀장은_디자이너_작업도_받는다(tmp_path):
+    """디자이너는 **영업팀 소속**이라 1차 결재가 영업팀장에게 간다(사용자 확정)."""
+    items = _client(tmp_path).get("/approvals", params={"role": "영업팀장"}).json()["items"]
+    assert [i["task_id"] for i in items] == ["t-sales", "t-design"]
+    assert [i["final"] for i in items] == [False, False]
 
 
 def test_아직_작성_중인_작업은_결재_대상이_아니다(tmp_path):
@@ -54,11 +61,11 @@ def test_아직_작성_중인_작업은_결재_대상이_아니다(tmp_path):
 
 def test_팀장은_남의_팀_작업을_보지_않는다(tmp_path):
     items = _client(tmp_path).get("/approvals", params={"role": "예산팀장"}).json()["items"]
-    assert [i["task_id"] for i in items] == ["t-budget"]
+    assert "t-sales" not in [i["task_id"] for i in items]
 
 
 def test_결재에_필요한_맥락이_카드_안에_있다(tmp_path):
-    """본부장 화면에는 워크플로가 없다 — 기관·단계·작성물이 카드에 있어야 한다."""
+    """영업부장 화면에는 워크플로가 없다 — 기관·단계·작성물이 카드에 있어야 한다."""
     item = _client(tmp_path).get("/approvals", params={"role": "영업팀장"}).json()["items"][0]
     assert item["institution_name"] == "노원구" and item["stage"] == 8
     assert item["draft_content"] == "영업팀 제출본"
@@ -73,16 +80,34 @@ def test_올린_파일도_함께_준다(tmp_path):
     assert [f["name"] for f in item["files"]] == ["근거.pdf"]
 
 
-# ── 본부장: 디자이너 작업 + 게이트 ─────────────────────────────────────
+# ── 영업부장: 상신된 디자이너 최종본 + 게이트 ──────────────────────────
 
-def test_본부장은_디자이너_제출물을_본다(tmp_path):
-    items = _client(tmp_path).get("/approvals", params={"role": "본부장"}).json()["items"]
-    assert [i["task_id"] for i in items if i["kind"] == "task"] == ["t-design"]
+def _submitted_to_head(tmp_path):
+    """영업팀장이 승인해 올린 상태(2차완료)로 만든다 — 그 승인이 곧 상신이다."""
+    app = _app(tmp_path)
+    conn = get_connection(str(tmp_path / "r.db"))
+    conn.execute("UPDATE tasks SET status='2차완료' WHERE task_id='t-design'")
+    conn.commit(); conn.close()
+    return TestClient(app)
 
 
-def test_본부장은_팀_작업을_대신_결재하지_않는다(tmp_path):
+def test_영업부장은_상신된_디자이너_최종본을_본다(tmp_path):
+    items = _submitted_to_head(tmp_path).get(
+        "/approvals", params={"role": "영업부장"}).json()["items"]
+    tasks = [i for i in items if i["kind"] == "task"]
+    assert [i["task_id"] for i in tasks] == ["t-design"]
+    assert tasks[0]["final"] is True
+
+
+def test_아직_팀장이_안_본_디자이너_작업은_부장에게_안_간다(tmp_path):
+    """같은 작업이 두 결재함에 동시에 뜨면 누가 볼 차례인지 알 수 없다."""
+    items = _client(tmp_path).get("/approvals", params={"role": "영업부장"}).json()["items"]
+    assert [i.get("task_id") for i in items if i["kind"] == "task"] == []
+
+
+def test_영업부장은_팀_작업을_대신_결재하지_않는다(tmp_path):
     """팀 작업은 그 팀 팀장 몫이다 — 결재 라인이 겹치면 누가 봤는지 알 수 없다."""
-    items = _client(tmp_path).get("/approvals", params={"role": "본부장"}).json()["items"]
+    items = _client(tmp_path).get("/approvals", params={"role": "영업부장"}).json()["items"]
     assert "t-sales" not in [i.get("task_id") for i in items]
 
 
@@ -90,21 +115,21 @@ def test_대기_중인_게이트도_결재_대상이다(tmp_path):
     app = _app(tmp_path)
     with patch.object(type(app.state.orchestrator), "pending_gate",
                       lambda self, iid: "최종결재"):
-        items = TestClient(app).get("/approvals", params={"role": "본부장"}).json()["items"]
+        items = TestClient(app).get("/approvals", params={"role": "영업부장"}).json()["items"]
     gates = [i for i in items if i["kind"] == "gate"]
     assert len(gates) == 1
     assert gates[0]["institution_id"] == "nowon" and gates[0]["gate"] == "최종결재"
 
 
 def test_게이트가_없으면_task만_나온다(tmp_path):
-    items = _client(tmp_path).get("/approvals", params={"role": "본부장"}).json()["items"]
+    items = _client(tmp_path).get("/approvals", params={"role": "영업부장"}).json()["items"]
     assert all(i["kind"] == "task" for i in items)
 
 
 def test_에이전트_단계는_결재_대상이_아니다(tmp_path):
     """검증·취합·RFI분석은 사람 작성물이 아니다."""
     client = _client(tmp_path)
-    for role in ("영업팀장", "전산팀장", "예산팀장", "본부장"):
+    for role in ("영업팀장", "전산팀장", "예산팀장", "영업부장"):
         items = client.get("/approvals", params={"role": role}).json()["items"]
         assert "t-verify" not in [i.get("task_id") for i in items]
 

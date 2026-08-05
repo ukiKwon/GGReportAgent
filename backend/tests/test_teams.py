@@ -20,9 +20,14 @@ def test_팀원과_팀장은_같은_팀을_가리킨다():
     assert tm.team_of("예산팀") == "예산"
 
 
+def test_부장도_같은_팀을_가리킨다():
+    """소속은 3그룹뿐이고 부장은 그 안의 직책이다 — '영업부장'도 tasks.team='영업'."""
+    assert tm.team_of("영업부장") == "영업"
+
+
 def test_접미사가_없는_역할은_그대로다():
     assert tm.team_of("디자이너") == "디자이너"
-    assert tm.team_of("본부장") == "본부장"
+    assert tm.team_of("낯선사람") == "낯선사람"
 
 
 def test_모르는_값도_죽지_않는다():
@@ -43,13 +48,15 @@ def test_팀의_결재자는_그_팀의_팀장이다():
     assert tm.lead_of("전산") == "전산팀장"
 
 
-def test_디자이너의_결재자는_본부장이다():
-    """디자이너에겐 팀장이 없다 — 최종 결재자가 직접 본다(사용자 확정)."""
-    assert tm.lead_of("디자이너") == tm.FINAL_APPROVER == "본부장"
+def test_디자이너의_결재자는_영업팀장이다():
+    """디자이너는 **영업팀 소속**이라 1차 결재를 영업팀장이 받는다(사용자 확정).
+    영업부장은 그 뒤에 올라오는 최종본만 본다."""
+    assert tm.lead_of("디자이너") == "영업팀장"
+    assert tm.FINAL_APPROVER == "영업부장"
 
 
 def test_is_lead():
-    assert tm.is_lead("영업팀장") and tm.is_lead("본부장")
+    assert tm.is_lead("영업팀장") and tm.is_lead("영업부장")
     assert not tm.is_lead("영업팀")
     assert not tm.is_lead("디자이너")
     assert not tm.is_lead(None)
@@ -57,17 +64,55 @@ def test_is_lead():
 
 def test_역할_목록에_중복이_없다():
     assert len(tm.ROLES) == len(set(tm.ROLES))
-    for role in ("영업팀", "영업팀장", "디자이너", "본부장", "전산팀"):
+    for role in ("영업팀", "영업팀장", "디자이너", "영업부장", "전산팀"):
         assert role in tm.ROLES
 
 
-# ── 인사권자 → 본부장 개명 (옛 데이터 호환) ─────────────────────────────
+def test_본부장은_더_이상_역할이_아니다():
+    """사용자가 본부장 개념 자체를 없앴다 — 최종 결재는 영업부장이 받는다."""
+    assert "본부장" not in tm.ROLES
 
-def test_옛_이름으로_온_알림도_본부장이_받는다():
-    """개명 전에 쌓인 notifications 행은 '인사권자' 앞으로 와 있다. 과거 기록이라
-    고쳐 쓰지 않고, 조회 쪽에서 같은 것으로 본다."""
-    assert tm.LEGACY_FINAL_APPROVER == "인사권자"
-    assert set(tm.recipient_aliases("본부장")) == {"본부장", "인사권자"}
+
+# ── 소속 × 직책 (프로필 두 칸 ↔ 역할 문자열 하나) ───────────────────────
+
+def test_소속은_세_그룹뿐이다():
+    """예전에는 '전산팀장'이 소속 목록에 섞여 있었다 — 사용자가 잘못된 표기라고 짚었다."""
+    assert list(tm.AFFILIATIONS) == ["영업팀", "전산팀", "예산팀"]
+
+
+def test_부장과_디자이너는_영업팀에만_있다():
+    """없는 자리(전산부장)를 고를 수 있게 두면 그 사람의 결재가 갈 곳을 잃는다."""
+    assert tm.positions_for("영업팀") == ("팀원", "디자이너", "팀장", "부장")
+    assert tm.positions_for("전산팀") == ("팀원", "팀장")
+
+
+@pytest.mark.parametrize("affiliation,position,role", [
+    ("영업팀", "팀원", "영업팀"),
+    ("영업팀", "팀장", "영업팀장"),
+    ("영업팀", "부장", "영업부장"),
+    ("영업팀", "디자이너", "디자이너"),
+    ("전산팀", "팀원", "전산팀"),
+    ("예산팀", "팀장", "예산팀장"),
+])
+def test_소속과_직책은_역할_하나로_합쳐진다(affiliation, position, role):
+    assert tm.compose(affiliation, position) == role
+    assert tm.split_role(role) == (affiliation, position)
+
+
+def test_모르는_역할은_쪼개지_않는다():
+    """옛 프로필(`본부장`)에 임의로 소속을 끼워 넣으면 신원이 조용히 바뀐다."""
+    assert tm.split_role("본부장") is None
+    assert tm.split_role("전산부장") is None       # 있지도 않은 자리
+    assert tm.split_role("") is None
+
+
+# ── 최종 결재자 개명 (옛 데이터 호환) ───────────────────────────────────
+
+def test_옛_이름으로_온_알림도_영업부장이_받는다():
+    """개명 전에 쌓인 notifications 행은 '인사권자'·'본부장' 앞으로 와 있다.
+    과거 기록이라 고쳐 쓰지 않고, 조회 쪽에서 같은 것으로 본다."""
+    assert set(tm.LEGACY_FINAL_APPROVERS) == {"본부장", "인사권자"}
+    assert set(tm.recipient_aliases("영업부장")) == {"영업부장", "본부장", "인사권자"}
 
 
 def test_다른_역할은_별칭이_없다():

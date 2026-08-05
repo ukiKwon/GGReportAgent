@@ -137,20 +137,67 @@
     });
   };
 
-  // 내 프로필(이름·소속) — 쪽지함 조회 키이자 결재자 이름 기본값 (계획 C2).
+  // 프로필의 소속·직책 두 칸 ↔ 저장되는 역할 문자열 하나 (roles.js가 규칙 본체).
+  // 모르는 역할(옛 `본부장` 프로필 등)은 **소속 칸에 그 값 그대로** 임시 항목으로
+  // 넣어 보여준다 — 임의로 `영업팀/팀원`을 끼우면 사용자의 신원이 조용히 바뀐다.
+  const LEGACY_FLAG = 'data-legacy';
+
+  function paintPositions(teamEl, posEl, position) {
+    const legacy = teamEl.selectedOptions[0] && teamEl.selectedOptions[0].hasAttribute(LEGACY_FLAG);
+    posEl.style.display = legacy ? 'none' : '';
+    if (legacy) { posEl.innerHTML = ''; return; }
+    const list = root.roles.positionsFor(teamEl.value);
+    posEl.innerHTML = list.map(function (p) {
+      return '<option>' + root.logic.esc(p) + '</option>';
+    }).join('');
+    posEl.value = list.indexOf(position) >= 0 ? position : list[0];
+  }
+
+  function showRole(teamEl, posEl, role) {
+    Array.prototype.slice.call(teamEl.querySelectorAll('[' + LEGACY_FLAG + ']'))
+      .forEach(function (o) { o.remove(); });
+    const parts = root.roles.split(role);
+    if (parts) {
+      teamEl.value = parts.affiliation;
+    } else {
+      const opt = document.createElement('option');
+      opt.textContent = role || '(소속 없음)';
+      opt.value = role || '';
+      opt.setAttribute(LEGACY_FLAG, '1');
+      teamEl.appendChild(opt);
+      teamEl.value = opt.value;
+    }
+    paintPositions(teamEl, posEl, parts ? parts.position : null);
+  }
+
+  function readRole(teamEl, posEl) {
+    const opt = teamEl.selectedOptions[0];
+    if (opt && opt.hasAttribute(LEGACY_FLAG)) return teamEl.value;   // 옛 값은 그대로 둔다
+    return root.roles.compose(teamEl.value, posEl.value);
+  }
+
+  // 내 프로필(이름·소속·직책) — 쪽지함 조회 키이자 결재자 이름 기본값 (계획 C2).
   app.wireProfile = function () {
     const nameEl = document.getElementById('me-name');
     const teamEl = document.getElementById('me-team');
-    if (!nameEl || !teamEl) return;
+    const posEl = document.getElementById('me-pos');
+    if (!nameEl || !teamEl || !posEl) return;
     const p = root.store.loadProfile();
-    nameEl.value = p.name; teamEl.value = p.team;
+    nameEl.value = p.name;
+    showRole(teamEl, posEl, p.team);
 
     function save() {
-      root.store.saveProfile({ name: nameEl.value.trim(), team: teamEl.value.trim() });
+      root.store.saveProfile({ name: nameEl.value.trim(), team: readRole(teamEl, posEl) });
       app.onProfileChanged();
     }
     nameEl.addEventListener('change', save);
-    teamEl.addEventListener('change', save);
+    // 소속을 바꾸면 직책 목록부터 다시 그린다 — 전산팀에는 부장이 없다.
+    teamEl.addEventListener('change', function () {
+      paintPositions(teamEl, posEl, posEl.value);
+      save();
+    });
+    posEl.addEventListener('change', save);
+    app.showProfileRole = function (role) { showRole(teamEl, posEl, role); };
     app.loadAccountSwitcher();
   };
 
@@ -183,7 +230,7 @@
         if (!this.value) return;
         const picked = root.logic.parseAccountValue(this.value);
         document.getElementById('me-name').value = picked.name;
-        document.getElementById('me-team').value = picked.team;
+        if (app.showProfileRole) app.showProfileRole(picked.team);
         root.store.saveProfile(picked);
         app.onProfileChanged();
         this.value = '';                 // 다음 전환을 위해 되돌린다(현재 값은 좌측 입력에 보인다)

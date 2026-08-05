@@ -76,6 +76,7 @@ class TaskSummary(BaseModel):
     progress_pct: int
     assignee: str | None = None
     approver: str | None = None
+    final_approver: str | None = None
 
 
 class BidCaseDetail(BidCase):
@@ -96,6 +97,7 @@ class Task(BaseModel):
     draft_content: str = ""
     assignee: str | None = None
     approver: str | None = None
+    final_approver: str | None = None
 
 
 class Message(BaseModel):

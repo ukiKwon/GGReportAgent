@@ -9,6 +9,7 @@
 
   // export.js와 같은 방식으로 logic을 가져온다(브라우저는 전역, node는 require).
   const logic = (typeof require !== 'undefined') ? require('./logic.js') : root.logic;
+  const roles = (typeof require !== 'undefined') ? require('./roles.js') : root.roles;
 
   // ── 우선순위 (기능 ⑦) ────────────────────────────────────────────────
   // 새 컬럼을 두지 않고 **입찰일까지 남은 일수**로 매긴다(사용자 확정). 근거가 이미
@@ -245,18 +246,9 @@
 
   function profile() { return root.store.loadProfile(); }
 
-  // 소속(역할) → tasks.team. `영업팀`·`영업팀장` 둘 다 `영업`을 본다 —
-  // backend/teams.py의 team_of와 **같은 규칙**이고, 접미사를 떼는 순서가 전부다
-  // ('영업팀장'에서 '팀'을 먼저 떼면 '영업장'이라는 없는 팀이 된다).
-  designer.teamOf = function (role) {
-    const text = (role || '').trim();
-    const suffixes = ['팀장', '팀'];
-    for (let i = 0; i < suffixes.length; i += 1) {
-      const s = suffixes[i];
-      if (text.length > s.length && text.slice(-s.length) === s) return text.slice(0, -s.length);
-    }
-    return text;
-  };
+  // 소속(역할) → tasks.team. 규칙 본체는 roles.js 한 곳에 있다 — 접미사를 떼는
+  // 순서를 여기 복제해 두면 `부장`이 생겼을 때처럼 한쪽만 고쳐져 조용히 갈라진다.
+  designer.teamOf = function (role) { return roles.teamOf(role); };
 
   function myTeam() { return designer.teamOf(profile().team); }
 
@@ -268,12 +260,10 @@
   };
 
   // 제출하면 누구에게 가는지 — backend/teams.py의 lead_of와 같은 규칙이다.
-  // 모르는 소속에 결재자를 지어내지 않는다(틀린 이름을 대면 더 나쁘다).
+  // **디자이너 작업물도 영업팀장에게** 간다(디자이너는 영업팀 소속). 영업부장은
+  // 그 뒤 최종본만 본다. 모르는 소속에 결재자를 지어내지 않는다.
   designer.approverLabel = function (role) {
-    const team = designer.teamOf(role);
-    if (['영업', '전산', '예산'].indexOf(team) >= 0) return team + '팀장';
-    if (team === '디자이너') return '본부장';
-    return '결재자';
+    return roles.approverOf(role) || '결재자';
   };
 
   // 한글 이름은 헤더에 못 실으므로 by로 보낸다(X-User-Id는 ASCII만 — A1 F10).

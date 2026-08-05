@@ -2,11 +2,11 @@ const test = require('node:test');
 const assert = require('node:assert');
 const ap = require('../js/approvals.js');
 
-// 결재함 (계획 I Task 5). 본부장 화면에는 워크플로가 없으므로, 결재에 필요한 맥락이
+// 결재함 (계획 I Task 5). 영업부장 화면에는 워크플로가 없으므로, 결재에 필요한 맥락이
 // 카드 하나에 다 있어야 한다 — 그 카드 모델을 여기서 고정한다.
 
 const PAYLOAD = {
-  role: '본부장',
+  role: '영업부장',
   items: [
     { kind: 'task', task_id: 't-design', team: '디자이너', status: '1차완료',
       assignee: '최 디자이너', approver: null, draft_content: '표지 시안 설명',
