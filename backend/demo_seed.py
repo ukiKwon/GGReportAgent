@@ -78,6 +78,15 @@ DRAFTS = {
     ]),
 }
 
+# 각 팀이 올린 작업물 — **디자이너가 받아서 작업할 실물**이다. 이게 없으면 이관
+# 패키지에 텍스트만 있고 "어디서 받나?"가 화면에 안 보인다(사용자 지적).
+# 예산팀은 아직 작업 중이라 일부러 비워 둔다.
+TEAM_FILES = {
+    "영업": [("지점현황_2026.pdf", "[데모] 관내 지점 4곳 현황표 자리표시자")],
+    "전산": [("시스템_구성도.pdf", "[데모] 이중화 구성도 자리표시자"),
+             ("무중단전환_실적.pdf", "[데모] 실적 요약 자리표시자")],
+}
+
 # 디자이너가 이미 올려둔 작업물 — 목록·내려받기·삭제를 바로 눌러볼 수 있게 심는다.
 # 진짜 PPTX가 아니라 자리표시자다(데모는 파일을 열지 않고 목록만 보여준다).
 DESIGN_FILES = [
@@ -226,8 +235,15 @@ def clear(db_path: str, output_root: str, name_ko: str | None) -> None:
             shutil.rmtree(out_dir)
 
 
-def seed(db_path: str, output_root: str, institution_id: str, stage: int) -> str:
-    """데모 데이터를 넣고 기관의 한글명을 돌려준다. 두 번 돌려도 같은 결과다(멱등)."""
+def seed(db_path: str, output_root: str, institution_id: str, stage: int,
+         teams_done: bool = False) -> str:
+    """데모 데이터를 넣고 기관의 한글명을 돌려준다. 두 번 돌려도 같은 결과다(멱등).
+
+    `teams_done=True`면 3팀 작업을 전부 `1차완료`로 둔다 — 기본 시드는 예산팀이
+    '작성중'이라 **디자이너 제출이 규칙대로 막혀 있어서**(계획 H, 사용자 확정),
+    제출 이후 흐름을 눌러보려면 이 플래그가 필요하다. 화면에 팀 제출 버튼이 없어
+    데모에서 달리 풀 방법이 없다.
+    """
     conn = get_connection(db_path)
     try:
         row = conn.execute(
@@ -280,12 +296,15 @@ def seed(db_path: str, output_root: str, institution_id: str, stage: int) -> str
             )
         task_by_team = {}
         for team, task_id, status, pct, assignee in TEAMS:
+            if teams_done and team in DRAFTS and status in ("대기", "작성중"):
+                status, pct = "1차완료", 100
             conn.execute(
                 "INSERT INTO tasks (task_id, bid_case_id, team, status, progress_pct,"
                 " assignee, draft_content) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (task_id, DEMO_BID_CASE, team, status, pct, assignee, DRAFTS.get(team, "")),
             )
             task_by_team[team] = task_id
+        seeded_tasks = dict(task_by_team)
         for i, (msg_stage, team, role, author, content) in enumerate(MESSAGES):
             conn.execute(
                 "INSERT INTO messages (message_id, task_id, role, content, author, stage,"
@@ -312,6 +331,7 @@ def seed(db_path: str, output_root: str, institution_id: str, stage: int) -> str
     finally:
         conn.close()
 
+    task_by_team = seeded_tasks
     out_dir = os.path.join(output_root, name_ko)
     os.makedirs(out_dir, exist_ok=True)
     scoring = dict(SCORING, rfp_title=f"[데모] {name_ko} 금고 지정 계획 공고")
@@ -322,6 +342,10 @@ def seed(db_path: str, output_root: str, institution_id: str, stage: int) -> str
     for fname, body in DESIGN_FILES:
         task_files.save(output_root, name_ko, "demo-t-design", fname,
                         body.encode("utf-8"))
+    for team, entries in TEAM_FILES.items():
+        for fname, body in entries:
+            task_files.save(output_root, name_ko, task_by_team[team], fname,
+                            body.encode("utf-8"))
     return name_ko
 
 
@@ -330,6 +354,8 @@ def main() -> None:
     parser.add_argument("--institution", default="dobong", help="기관 id (기본: dobong)")
     parser.add_argument("--stage", type=int, default=9, help="기관 진행 단계 (기본: 9)")
     parser.add_argument("--clear", action="store_true", help="데모 데이터를 지우기만 한다")
+    parser.add_argument("--teams-done", action="store_true",
+                        help="3팀 작업을 전부 '1차완료'로 — 디자이너 제출 차단을 풀어 본다")
     # REGISTRY_DB_PATH를 일부러 보지 않는다 — 그 환경변수는 운영 DB를 가리키므로,
     # 그걸 따르면 데모가 운영 자료에 섞인다(분리의 요점).
     parser.add_argument("--db", default=DEMO_DB_PATH)
@@ -352,7 +378,8 @@ def main() -> None:
         print("데모 데이터를 삭제했습니다.")
         return
 
-    name_ko = seed(args.db, args.output_root, args.institution, args.stage)
+    name_ko = seed(args.db, args.output_root, args.institution, args.stage,
+                   teams_done=args.teams_done)
     print(
         f"{name_ko}({args.institution})에 데모 투입 완료 — stage {args.stage}, "
         f"팀 {len(TEAMS)}건 / 메시지 {len(MESSAGES)}건 / 알림 {len(NOTIFICATIONS)}건 / "

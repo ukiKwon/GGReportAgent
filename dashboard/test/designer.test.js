@@ -117,11 +117,13 @@ const HANDOFF = {
   institution_id: 'nowon', institution_name: '노원구', stage: 7,
   pptx_path: 'data/report_new/노원구/노원구_제안서.pptx',
   teams: [
-    { team: '영업', status: '2차완료', assignee: '김 차장', approver: '박 수석',
-      draft_content: '영업팀 승인 작성물', contact: '영업팀' },
-    { team: '예산', status: '작성중', assignee: '정 대리', approver: null,
-      draft_content: '', contact: '예산팀' },
+    { team: '영업', task_id: 't-sales', status: '2차완료', assignee: '김 차장',
+      approver: '박 수석', draft_content: '영업팀 승인 작성물', contact: '영업팀',
+      working: false, files: [] },
+    { team: '예산', task_id: 't-budget', status: '작성중', assignee: '정 대리',
+      approver: null, draft_content: '', contact: '예산팀', working: true, files: [] },
   ],
+  waiting_on: ['예산'],
   scoring: null, coverage: null,
 };
 
@@ -190,4 +192,58 @@ test('canSubmit: 이미 제출한 것은 다시 낼 수 없다', function () {
 
 test('canSubmit: 빈 입력도 안전하다', function () {
   assert.strictEqual(dg.canSubmit(null, null), false);
+});
+
+// ── 팀이 올린 파일 · 제출 차단 (사용자 피드백 반영) ──────────────────────
+
+const HANDOFF2 = {
+  institution_name: '노원구',
+  teams: [
+    { team: '영업', task_id: 't-sales', status: '1차완료', assignee: '김 차장',
+      draft_content: '영업 초안', contact: '영업팀', working: false,
+      files: [{ name: '지점현황.pdf', size: 2048, uploaded_at: '2026-08-05T01:00:00+00:00' }] },
+    { team: '예산', task_id: 't-budget', status: '작성중', assignee: '정 대리',
+      draft_content: '', contact: '예산팀', working: true, files: [] },
+  ],
+  waiting_on: ['예산'],
+};
+
+test('handoffRows: 팀이 올린 파일이 함께 온다', function () {
+  const rows = dg.handoffRows(HANDOFF2);
+  assert.strictEqual(rows[0].taskId, 't-sales');
+  assert.strictEqual(rows[0].files[0].name, '지점현황.pdf');
+  assert.strictEqual(rows[0].files[0].sizeText, '2.0 KB');
+  assert.deepStrictEqual(rows[1].files, []);
+});
+
+test('waitingOn: 아직 작업 중인 팀 이름을 준다', function () {
+  assert.deepStrictEqual(dg.waitingOn(HANDOFF2), ['예산']);
+  assert.deepStrictEqual(dg.waitingOn(HANDOFF), ['예산']);   // 위 HANDOFF는 예산이 작성중
+  assert.deepStrictEqual(dg.waitingOn(null), []);
+});
+
+test('canSubmit: 다른 팀이 작업 중이면 제출할 수 없다', function () {
+  // 디자이너 작업물은 팀 산출물을 **받아서** 만든 것이다 — 팀이 아직 쓰고 있는데
+  // 그 위에서 만든 결과를 결재에 올리면 앞뒤가 안 맞는다(사용자 지적).
+  const files = [{ name: 'a.pptx' }];
+  assert.strictEqual(dg.canSubmit({ status: '작성중' }, files, HANDOFF2), false);
+});
+
+test('canSubmit: 팀이 다 끝나면 제출할 수 있다', function () {
+  const done = { teams: HANDOFF2.teams.map(function (t) {
+    return Object.assign({}, t, { working: false });
+  }), waiting_on: [] };
+  assert.strictEqual(dg.canSubmit({ status: '작성중' }, [{ name: 'a.pptx' }], done), true);
+});
+
+test('canSubmit: handoff를 모르면 파일 조건만 본다(예전 호출부 호환)', function () {
+  assert.strictEqual(dg.canSubmit({ status: '작성중' }, [{ name: 'a.pptx' }]), true);
+});
+
+test('submitBlockReason: 못 누르는 이유를 한 문장으로 말한다', function () {
+  assert.match(dg.submitBlockReason({ status: '작성중' }, [], HANDOFF2), /작업물/);
+  assert.match(dg.submitBlockReason({ status: '작성중' }, [{ name: 'a' }], HANDOFF2), /예산/);
+  assert.match(dg.submitBlockReason({ status: '1차완료' }, [{ name: 'a' }], HANDOFF2), /제출/);
+  const ok = { teams: [], waiting_on: [] };
+  assert.strictEqual(dg.submitBlockReason({ status: '작성중' }, [{ name: 'a' }], ok), '');
 });

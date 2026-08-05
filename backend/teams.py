@@ -19,6 +19,18 @@ import sqlite3
 AGENT_TEAMS = ("RFI분석", "취합", "검증")
 
 
+DESIGNER_TEAM = "디자이너"
+
+# 아직 자기 일을 끝내지 않은 상태. '작업 중'의 반대는 '승인까지 끝남'이 아니라
+# '자기 몫을 넘김'이다 — 그래프 흐름에서 팀 Task는 1차완료까지만 올라가므로
+# (5단계 기획승인은 기관 단위 checkpoint) 2차완료를 요구하면 아무것도 진행되지 않는다.
+WORKING_STATUSES = ("대기", "작성중")
+
+
+def is_working(status: str) -> bool:
+    return status in WORKING_STATUSES
+
+
 def is_authoring_team(team: str) -> bool:
     """사람이 글을 쓰는 팀인가. 디자이너가 '문의'할 상대이기도 하다."""
     return team not in AGENT_TEAMS

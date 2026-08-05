@@ -39,7 +39,13 @@ from backend.task_repository import (
     submit_task,
     update_draft_content,
 )
-from backend.teams import inbox_name, is_authoring_team, known_recipients
+from backend.teams import (
+    DESIGNER_TEAM,
+    inbox_name,
+    is_authoring_team,
+    is_working,
+    known_recipients,
+)
 from backend.upload_check import check_upload, write_coverage_map
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -83,6 +89,36 @@ def _require_owner(row: sqlite3.Row, user_id: str) -> None:
     """업로드와 같은 선점 관행 — 미배정이면 먼저 손댄 사람이 맡고, 남의 것이면 403."""
     if row["assignee"] is not None and row["assignee"] != user_id:
         raise HTTPException(status_code=403, detail="only the assignee can modify this task")
+
+
+def _require_teams_done(conn: sqlite3.Connection, task: Task) -> None:
+    """디자이너 제출은 3팀이 자기 일을 끝낸 뒤라야 한다 (사용자 확정).
+
+    디자이너 작업물은 팀 산출물을 **받아서** 만든 것이다. 팀이 아직 쓰고 있는 중이면
+    그 위에서 만든 결과물을 결재에 올리는 것은 앞뒤가 맞지 않는다. 판단이 아니라
+    선후 규칙이라 화면이 아니라 여기서 막는다(계획 E의 `POST /run` 가드와 같은 논리 —
+    화면만 막으면 API로 그대로 뚫린다).
+
+    **디자이너에게만 건다.** 3팀에 걸면 서로를 기다리다 아무도 제출하지 못한다.
+    그리고 기준은 `2차완료`가 아니라 **`작성중`·`대기`가 아닐 것**이다 — 그래프
+    흐름에서 팀 Task는 `1차완료`까지만 올라가므로(5단계 기획승인은 기관 단위
+    checkpoint다) 결재까지 요구하면 디자이너가 영영 제출을 못 한다.
+    """
+    if task.team != DESIGNER_TEAM:
+        return
+    working = [
+        r["team"] for r in conn.execute(
+            "SELECT team, status FROM tasks WHERE bid_case_id = ? AND team <> ? ORDER BY rowid",
+            (task.bid_case_id, task.team),
+        ).fetchall()
+        if is_authoring_team(r["team"]) and is_working(r["status"])
+    ]
+    if working:
+        raise HTTPException(
+            status_code=409,
+            detail=(f"아직 작업 중인 팀이 있습니다: {', '.join(working)} — "
+                    "각 팀이 작업을 끝낸 뒤에 제출할 수 있습니다"),
+        )
 
 
 def _read_json(path: str):
@@ -179,7 +215,7 @@ def get_handoff(task_id: str, request: Request) -> dict:
     try:
         ctx = _context(conn, task_id)
         rows = conn.execute(
-            """SELECT team, status, assignee, approver, draft_content FROM tasks
+            """SELECT task_id, team, status, assignee, approver, draft_content FROM tasks
                WHERE bid_case_id = ? AND team <> ? ORDER BY rowid""",
             (ctx["bid_case_id"], ctx["team"]),
         ).fetchall()
@@ -189,18 +225,29 @@ def get_handoff(task_id: str, request: Request) -> dict:
         conn.close()
 
     out_dir = os.path.join(request.app.state.output_root, ctx["name_ko"])
+    output_root = request.app.state.output_root
+    teams = [{
+        "team": r["team"], "task_id": r["task_id"], "status": r["status"],
+        "assignee": r["assignee"], "approver": r["approver"],
+        "draft_content": r["draft_content"],
+        # 팀명→쪽지 수신자 변환은 서버가 한다(backend/teams.py) — 화면이 '영업'+'팀'
+        # 규칙을 복제하면 계정 전환기와 답이 갈라진다.
+        "contact": inbox_name(r["team"], recipients),
+        # 디자이너는 "각 팀이 작업한 내용을 **받아서**" 작업한다 — 텍스트 작성물만
+        # 보여주고 파일을 빼면 정작 받아야 할 실물이 화면에 없다. task_id를 함께
+        # 주므로 화면이 GET /tasks/{task_id}/files/{name}으로 바로 내려받는다.
+        "files": task_files.listing(output_root, ctx["name_ko"], r["task_id"]),
+        "working": is_working(r["status"]),
+    } for r in rows if is_authoring_team(r["team"])]
     return {
         "institution_id": ctx["institution_id"],
         "institution_name": ctx["name_ko"],
         "stage": ctx["stage"],
         "pptx_path": inst.pptx_path if inst else None,
-        "teams": [{
-            "team": r["team"], "status": r["status"], "assignee": r["assignee"],
-            "approver": r["approver"], "draft_content": r["draft_content"],
-            # 팀명→쪽지 수신자 변환은 서버가 한다(backend/teams.py) — 화면이 '영업'+'팀'
-            # 규칙을 복제하면 계정 전환기와 답이 갈라진다.
-            "contact": inbox_name(r["team"], recipients),
-        } for r in rows if is_authoring_team(r["team"])],
+        "teams": teams,
+        # 아직 자기 일을 끝내지 않은 팀. 디자이너 제출을 막는 근거이자, 화면이
+        # "왜 제출할 수 없는지"를 설명하는 문구의 재료다.
+        "waiting_on": [x["team"] for x in teams if x["working"]],
         "scoring": _read_json(os.path.join(out_dir, "rfp_scoring.json")),
         "coverage": _read_json(os.path.join(out_dir, "coverage_map.json")),
     }
@@ -319,6 +366,7 @@ def post_task_submit(
             raise HTTPException(status_code=403, detail="only the assignee can submit")
         if task.status not in ("대기", "작성중"):
             raise HTTPException(status_code=409, detail="task not in a submittable state")
+        _require_teams_done(conn, task)
         submit_task(conn, task_id)
         # 제출은 지금까지 상태만 바꾸고 아무에게도 알리지 않았다 — 제출해도 아무 일이
         # 일어나지 않는다는 뜻이었다. 결재자에게 알린다(디자이너뿐 아니라 모든 팀).

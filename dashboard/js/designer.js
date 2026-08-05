@@ -80,6 +80,11 @@
       const content = t.draft_content || '';
       return {
         team: t.team,
+        taskId: t.task_id || null,
+        // 디자이너는 팀이 올린 파일을 **받아서** 작업한다 — 텍스트 작성물만 보여주면
+        // 정작 받아야 할 실물이 화면에 없다(사용자 지적).
+        files: designer.fileRows(t.files),
+        working: !!t.working,
         tag: designer.statusTag(t.status),
         // ready는 '결재까지 끝난 것'이다. 화면이 강조를 다르게 주되 **감추지는 않는다** —
         // 감추면 디자이너가 다 받은 줄 안다(서버도 같은 이유로 거르지 않는다).
@@ -114,10 +119,38 @@
     });
   };
 
-  designer.canSubmit = function (task, files) {
+  // 아직 자기 일을 끝내지 않은 팀. 서버가 계산해 준 waiting_on이 정본이고
+  // (backend/routers/tasks.py의 같은 규칙), 없으면 팀별 working 플래그로 만든다.
+  // 규칙 자체를 화면에서 다시 정의하지는 않는다.
+  designer.waitingOn = function (payload) {
+    const p = payload || {};
+    if (Array.isArray(p.waiting_on)) return p.waiting_on;
+    return (p.teams || []).filter(function (t) { return t.working; })
+      .map(function (t) { return t.team; });
+  };
+
+  designer.canSubmit = function (task, files, handoff) {
     if (!task) return false;
     if (task.status === '1차완료' || task.status === '2차완료') return false;
-    return (files || []).length > 0;        // 빈손으로 제출하면 결재자가 볼 것이 없다
+    if ((files || []).length === 0) return false;   // 빈손으로 내면 결재자가 볼 것이 없다
+    // 팀이 아직 쓰고 있는데 그 위에서 만든 결과를 결재에 올리면 앞뒤가 안 맞는다
+    // (사용자 지적). handoff를 모르면 이 조건은 건너뛴다 — 서버 가드가 최종 방어다.
+    if (handoff && designer.waitingOn(handoff).length) return false;
+    return true;
+  };
+
+  // 버튼을 왜 못 누르는지 한 문장으로. 비활성 버튼만 두면 이유를 영영 모른다.
+  designer.submitBlockReason = function (task, files, handoff) {
+    if (!task) return '';
+    if (task.status === '1차완료' || task.status === '2차완료') {
+      return '이미 제출했습니다.';
+    }
+    if ((files || []).length === 0) return '작업물을 하나 이상 올린 뒤 제출할 수 있습니다.';
+    const waiting = handoff ? designer.waitingOn(handoff) : [];
+    if (waiting.length) {
+      return waiting.join('·') + '팀이 아직 작업 중입니다 — 끝난 뒤에 제출할 수 있습니다.';
+    }
+    return '';
   };
 
   // ── 렌더 ────────────────────────────────────────────────────────────
@@ -171,11 +204,21 @@
         ? ' <span class="dg-pptx">📦 ' + esc(payload.pptx_path) + '</span>' : '') +
       '</div>' +
       rows.map(function (r, i) {
+        // 팀이 올린 파일 = 디자이너가 **받아서 작업할 실물**. 이게 안 보이면 화면의
+        // 목적 자체가 반쪽이다(사용자 지적).
+        const files = r.files.length
+          ? '<div class="dg-team-files">' + r.files.map(function (f) {
+              return '<a href="#" class="dg-team-dl" data-task="' + esc(r.taskId) +
+                '" data-name="' + esc(f.name) + '">⬇ ' + esc(f.name) + '</a>' +
+                '<span class="dg-size">' + esc(f.sizeText) + '</span>';
+            }).join('') + '</div>'
+          : '<div class="dg-team-files none">받은 파일 없음</div>';
         return '<div class="dg-card' + (r.ready ? ' ready' : '') + '">' +
           '<div class="dg-card-head"><b>' + esc(r.team) + '</b>' +
           '<span class="' + r.tag.cls + '">' + esc(r.tag.text) + '</span>' +
           (r.author ? '<span class="dg-who">' + esc(r.author) + '</span>' : '') +
           '<button class="dg-ask" data-to="' + esc(r.contact) + '">문의</button></div>' +
+          files +
           (r.hasContent
             ? '<pre class="dg-body" data-index="' + i + '">' + esc(r.content) + '</pre>'
             : '<p class="wf-empty">아직 작성물이 없습니다.</p>') +
@@ -267,9 +310,12 @@
     wireDetail();
 
     const submit = el('dg-submit');
-    submit.disabled = busy || !designer.canSubmit(task, files);
-    submit.title = designer.canSubmit(task, files) ? ''
-      : '작업물을 하나 이상 올린 뒤 제출할 수 있습니다.';
+    const ok = designer.canSubmit(task, files, handoff);
+    const why = designer.submitBlockReason(task, files, handoff);
+    submit.disabled = busy || !ok;
+    submit.title = why;
+    // 비활성 버튼만 두면 왜 못 누르는지 영영 모른다 — 사유를 옆에 쓴다.
+    el('dg-why').textContent = ok ? '' : why;
     el('dg-save').disabled = busy;
     el('dg-upload').disabled = busy;
   }
@@ -286,6 +332,13 @@
             taskId: task && task.task_id,
           });
         }
+      };
+    });
+    el('dg-pkg').querySelectorAll('.dg-team-dl').forEach(function (a) {
+      a.onclick = function (e) {
+        e.preventDefault();
+        window.open('/tasks/' + encodeURIComponent(a.dataset.task) + '/files/' +
+          encodeURIComponent(a.dataset.name), '_blank');
       };
     });
     el('dg-pkg').querySelectorAll('.dg-body').forEach(function (pre) {
