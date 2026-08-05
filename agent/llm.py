@@ -36,6 +36,10 @@ AUTO_FAIL_TTL = 60.0
 _auto_cache: str | None = None
 _auto_warned = False
 _auto_fail_at: float | None = None
+# 그 판정 때 실제로 본 설치 목록. `model_info()`가 재사용한다 — 예전엔 여기서
+# `installed_models()`를 한 번 더 불러 auto 판정 1회에 Ollama 왕복이 2회 붙었다.
+# 캐시와 항상 함께 채워지고 함께 비워지므로 "그 결정의 근거"로서 일관된다.
+_auto_installed: list[str] = []
 
 
 def _now() -> float:
@@ -54,16 +58,23 @@ def _is_auto(value: str) -> bool:
 
 def reset_model_cache() -> None:
     """테스트 격리용 — 프로세스 캐시를 비운다."""
-    global _auto_cache, _auto_warned, _auto_fail_at
+    global _auto_cache, _auto_warned, _auto_fail_at, _auto_installed
     _auto_cache = None
     _auto_warned = False
     _auto_fail_at = None
+    _auto_installed = []
 
 
 def resolve_auto_model() -> str | None:
-    """지금 하드웨어·설치목록으로 다시 판정한다(캐시 무시). 테스트·`GET /llm/status`용."""
+    """지금 하드웨어·설치목록으로 다시 판정한다(캐시 무시). 테스트·`GET /llm/status`용.
+
+    본 설치 목록을 `_auto_installed`에 남긴다 — 같은 판정을 설명하려고 목록을 한 번
+    더 조회하는 왕복을 없애기 위해서다.
+    """
+    global _auto_installed
     ram_gb, cpu_count = detect_resources()
-    return pick_model(installed_models(current_base_url()), ram_gb, cpu_count)
+    _auto_installed = installed_models(current_base_url())
+    return pick_model(_auto_installed, ram_gb, cpu_count)
 
 
 def current_model() -> str:
@@ -110,11 +121,15 @@ def model_info() -> dict:
     실패해 DEFAULT_MODEL로 폴백했으면 False. non-auto(명시 지정)는 언제나 True —
     화면이 "자동 선택"이라는 근거(RAM/vCPU)를 실제로 고른 적 없는 모델에 잘못
     붙이지 않도록 이 값으로 구분한다.
+
+    `installed`는 **판정 때 본 목록을 재사용**한다(`_auto_installed`). 여기서 다시
+    조회하면 auto 판정 한 번에 Ollama 왕복이 2회 붙고, 그 값이 판정 근거와 어긋날
+    수도 있다. non-auto는 목록을 볼 이유가 없으므로 빈 목록 그대로다.
     """
     requested = _env("LLM_MODEL", DEFAULT_MODEL)
     ram_gb, cpu_count = detect_resources()
     auto = _is_auto(requested)
-    model = current_model()
+    model = current_model()          # auto면 이 호출이 _auto_installed를 채운다
     resolved = (not auto) or (_auto_cache == model)
     return {
         "model": model,
@@ -124,7 +139,7 @@ def model_info() -> dict:
         "base_url": current_base_url(),
         "ram_gb": ram_gb,
         "cpu_count": cpu_count,
-        "installed": installed_models(current_base_url()) if auto else [],
+        "installed": list(_auto_installed) if auto else [],
     }
 
 

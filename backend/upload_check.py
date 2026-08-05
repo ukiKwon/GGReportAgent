@@ -13,9 +13,12 @@ from agent.orchestrator.pii import scan_pii
 
 
 def check_upload(scoring_path: str, team: str, content: str) -> dict:
+    """`llm_used`: 이번 검사에서 LLM을 실제로 불렀는지. 호출부가 기록에 모델명을
+    남길지 정하는 근거다 — 생략된 검사(배점표 없음·배정 항목 없음)는 PII 스캔만
+    돌아서 LLM이 한 번도 개입하지 않는다."""
     pii = scan_pii(content)
     if not os.path.isfile(scoring_path):
-        return {"coverage": [], "pii": pii,
+        return {"coverage": [], "pii": pii, "llm_used": False,
                 "skipped": "배점표 미추출(rfp_scoring.json 없음) — coverage 검사 생략"}
 
     with open(scoring_path, encoding="utf-8") as f:
@@ -24,7 +27,7 @@ def check_upload(scoring_path: str, team: str, content: str) -> dict:
     assigned = {a["scoring_item"] for a in assignments if a["role"] == team}
     team_table = [c for c in criteria if c["item"] in assigned]
     if not team_table:
-        return {"coverage": [], "pii": pii,
+        return {"coverage": [], "pii": pii, "llm_used": False,
                 "skipped": f"{team}팀 배정 항목 없음 — coverage 검사 생략"}
 
     sections = [
@@ -32,7 +35,8 @@ def check_upload(scoring_path: str, team: str, content: str) -> dict:
         for c in team_table
     ]
     report = verification_node({"scoring_table": team_table, "sections": sections})
-    return {"coverage": report["coverage_report"], "pii": pii, "skipped": None}
+    return {"coverage": report["coverage_report"], "pii": pii, "skipped": None,
+            "llm_used": report["llm_used"]}
 
 
 def write_coverage_map(out_dir: str, team: str, coverage: list[dict], pii_count: int) -> None:

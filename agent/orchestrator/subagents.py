@@ -104,15 +104,19 @@ def verifier(state: dict, recorder) -> dict:
     """검증가 — 커버리지 + PII. 8단계 전체 검사에 쓰인다(업로드 즉시 검사는 A2)."""
     recorder.set_stage(8)
     updates = verification_node(state)
+    # llm_used는 이 호출 한 번의 사실이지 파이프라인 상태가 아니다 —
+    # OrchestratorState에 없는 키를 그래프 채널로 흘려보내지 않는다.
+    llm_used = updates.pop("llm_used", False)
     pii: list[dict] = []
     for section in state.get("sections", []):
         pii.extend(scan_pii(section.get("content", "")))
     updates["pii_findings"] = pii
     uncovered = [c for c in updates["coverage_report"] if not c["covered"]]
-    # verification_node는 커버리지 판정에 LLM을 쓰지만, scoring_table이 비면 순회할
-    # 항목이 없어 LLM을 아예 안 탄다(verification.py) — 그때는 model을 넘기지 않는다
-    # (draft_team과 같은 모양의 구멍, 일관성 있게 처리).
-    model_kwargs = {"model": current_model()} if state.get("scoring_table") else {}
+    # verification_node는 커버리지 판정에 LLM을 쓰지만 **안 쓰는 경우가 두 가지**다 —
+    # scoring_table이 비었거나, 배점표는 있는데 매칭되는 섹션이 하나도 없거나.
+    # 여기서 그 조건을 다시 계산하면 노드의 매칭 규칙을 복제하게 되므로, 노드가
+    # 알려주는 llm_used를 그대로 믿는다("LLM을 실제로 쓴 보고에만 model" 원칙).
+    model_kwargs = {"model": current_model()} if llm_used else {}
     recorder.message(
         "검증", "agent",
         f"검증 완료 — 미달 {len(uncovered)}건, PII {len(pii)}건",

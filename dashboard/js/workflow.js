@@ -286,9 +286,9 @@
   };
 
   // 로그 한 줄: "role <부제> · 시각[ · 🧠 모델]" + 본문. 팀 로그와 단계 상세가 같은
-  // 형식을 쓴다. model은 logRows(Task 6)에만 실리므로(timeline 쪽 stageEvents에는
-  // 없다), 여기서 r.model이 있을 때만 붙인다 — 없으면 아무것도 안 붙어 사람 발화·
-  // 비LLM 기록(게이트 통과 알림 등)이 지저분해지지 않는다.
+  // 형식을 쓴다. 팀 로그(logRows)와 단계 로그(stageEvents) **둘 다** model을 싣는다.
+  // r.model이 있을 때만 붙인다 — 없으면 아무것도 안 붙어 사람 발화·비LLM 기록
+  // (게이트 통과 알림 등)이 지저분해지지 않는다.
   function logLines(rows, ctx) {
     return rows.map(function (r) {
       const lb = workflow.roleLabel(r.role, {

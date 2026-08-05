@@ -20,7 +20,7 @@ def _scoring(tmp_path):
 def test_checks_only_items_routed_to_team(mock_verify, tmp_path):
     mock_verify.return_value = {"coverage_report": [
         {"scoring_item": "전산 시스템 구축", "covered": True, "gap_note": None},
-    ]}
+    ], "llm_used": True}
     result = check_upload(_scoring(tmp_path), "전산", "IT 구축 방안 본문")
 
     assert result["skipped"] is None

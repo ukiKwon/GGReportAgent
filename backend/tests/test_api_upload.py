@@ -21,7 +21,7 @@ def _app(tmp_path):
 @patch("backend.routers.tasks.check_upload")
 def test_upload_updates_draft_and_records_check(mock_check, tmp_path):
     mock_check.return_value = {"coverage": [{"scoring_item": "전산 시스템 구축", "covered": True, "gap_note": None}],
-                               "pii": [], "skipped": None}
+                               "pii": [], "skipped": None, "llm_used": True}
     client = TestClient(_app(tmp_path))
     r = client.post("/tasks/task-1/upload", json={"content": "IT 본문"},
                     headers={"X-User-Id": "it-user"})
@@ -30,8 +30,25 @@ def test_upload_updates_draft_and_records_check(mock_check, tmp_path):
 
     conn = get_connection(str(tmp_path / "registry.db"))
     assert conn.execute("SELECT draft_content FROM tasks WHERE task_id='task-1'").fetchone()[0] == "IT 본문"
-    msgs = conn.execute("SELECT role, content FROM messages WHERE task_id='task-1'").fetchall()
+    msgs = conn.execute("SELECT role, content, model FROM messages WHERE task_id='task-1'").fetchall()
     assert len(msgs) == 1 and msgs[0]["role"] == "agent" and "검사" in msgs[0]["content"]
+    # 즉시검사도 LLM(커버리지 판정)을 쓴다 — 그 기록에 모델명이 남아야 워크플로
+    # 로그의 🧠 표시가 팀 로그·단계 로그에서 일관된다.
+    assert msgs[0]["model"]
+
+
+@patch("backend.routers.tasks.check_upload")
+def test_생략된_검사는_모델명을_남기지_않는다(mock_check, tmp_path):
+    """배점표가 없으면 PII 스캔만 돌아 LLM이 한 번도 안 불린다 — 그 기록에 모델명을
+    붙이면 '이 모델이 판정했다'는 거짓말이 된다."""
+    mock_check.return_value = {"coverage": [], "pii": [], "llm_used": False,
+                               "skipped": "배점표 미추출(rfp_scoring.json 없음) — coverage 검사 생략"}
+    client = TestClient(_app(tmp_path))
+    client.post("/tasks/task-1/upload", json={"content": "본문"},
+                headers={"X-User-Id": "it-user"})
+
+    conn = get_connection(str(tmp_path / "registry.db"))
+    assert conn.execute("SELECT model FROM messages WHERE task_id='task-1'").fetchone()[0] is None
 
 
 def test_upload_wrong_user_403_and_missing_404(tmp_path):
@@ -57,7 +74,8 @@ def _app_unassigned(tmp_path):
 def test_upload_to_unassigned_task_claims_assignee(mock_check, tmp_path):
     """I-3 회귀: assignee가 NULL인(오케스트레이터가 만든) task는 /messages와 동일하게
     첫 업로드가 담당을 선점해야 한다 — 무조건 403이면 안 된다."""
-    mock_check.return_value = {"coverage": [], "pii": [], "skipped": "배점표 미추출"}
+    mock_check.return_value = {"coverage": [], "pii": [], "skipped": "배점표 미추출",
+                               "llm_used": False}
     client = TestClient(_app_unassigned(tmp_path))
 
     r = client.post("/tasks/task-1/upload", json={"content": "IT 본문"},
@@ -73,7 +91,8 @@ def test_upload_to_unassigned_task_claims_assignee(mock_check, tmp_path):
 @patch("backend.routers.tasks.check_upload")
 def test_upload_to_task_already_claimed_by_another_403(mock_check, tmp_path):
     """미배정 task에 다른 사용자가 이미 선점한 뒤라면 여전히 403이어야 한다."""
-    mock_check.return_value = {"coverage": [], "pii": [], "skipped": "배점표 미추출"}
+    mock_check.return_value = {"coverage": [], "pii": [], "skipped": "배점표 미추출",
+                               "llm_used": False}
     app = _app_unassigned(tmp_path)
     conn = get_connection(str(tmp_path / "registry.db"))
     from backend.task_repository import claim_assignee_if_unset

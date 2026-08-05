@@ -146,9 +146,12 @@
 
   /* ── 대화창 (계획 C2) ── */
   #tab-chat.active { overflow:hidden; gap:8px; }
-  /* 모델 배지 — 지금 어떤 모델을 쓰는지 (Task 3). 정보가 없으면 빈 문자열이라 자리만 남고 안 보인다. */
+  /* 모델 배지 — 지금 어떤 모델을 쓰는지 (Task 3). */
   #chat-model-badge { display:inline-block; font-size:11px; color:var(--muted);
                        border:1px solid var(--line); border-radius:8px; padding:2px 8px; }
+  /* 정보가 없으면(조회 실패·미조회) 내용이 빈 문자열이라, 안 숨기면 테두리만 남은
+     빈 알약이 떠서 "뭔가 로딩 중"처럼 보인다. 부가 정보이므로 흔적 없이 사라진다. */
+  #chat-model-badge:empty { display:none; }
   #ch-log { flex:1 1 auto; min-height:0; overflow:auto; border:1px solid var(--line);
             border-radius:10px; background:var(--panel); padding:10px; }
   .ch-row { margin:8px 0; max-width:78%; }

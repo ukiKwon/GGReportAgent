@@ -156,7 +156,8 @@ def test_packager_orders_sections_by_scoring_table(mock_pptx):
 @patch("agent.orchestrator.subagents.verification_node")
 def test_verifier_adds_pii_findings(mock_verify, monkeypatch):
     monkeypatch.delenv("LLM_MODEL", raising=False)
-    mock_verify.return_value = {"coverage_report": [{"scoring_item": "a", "covered": True, "gap_note": None}]}
+    mock_verify.return_value = {"coverage_report": [{"scoring_item": "a", "covered": True, "gap_note": None}],
+                                "llm_used": True}
     recorder = MagicMock()
     state = dict(BASE, scoring_table=[{"item": "a"}],
                  sections=[{"scoring_item": "a", "title": "t", "content": "연락처 010-1234-5678", "sources": []}])
@@ -174,7 +175,7 @@ def test_verifier_adds_pii_findings(mock_verify, monkeypatch):
 def test_verifier_omits_model_when_scoring_table_empty(mock_verify):
     """리뷰 픽스와 같은 모양의 구멍 — scoring_table이 비면 verification_node가 순회할
     항목이 없어 LLM을 아예 안 탄다(verification.py). 그때는 model을 넘기면 안 된다."""
-    mock_verify.return_value = {"coverage_report": []}
+    mock_verify.return_value = {"coverage_report": [], "llm_used": False}
     recorder = MagicMock()
     state = dict(BASE, scoring_table=[], sections=[])
 
@@ -184,9 +185,38 @@ def test_verifier_omits_model_when_scoring_table_empty(mock_verify):
 
 
 @patch("agent.orchestrator.subagents.verification_node")
+def test_배점표가_있어도_LLM을_안_썼으면_모델명을_안_남긴다(mock_verify):
+    """예전엔 `scoring_table이 비었나`로 대신 판단해서 **이 조합을 놓쳤다** —
+    배점표는 있는데 매칭되는 섹션이 하나도 없으면 LLM은 한 번도 안 불린다.
+    노드가 알려주는 llm_used를 그대로 믿으므로 이제 걸린다."""
+    mock_verify.return_value = {
+        "coverage_report": [{"scoring_item": "a", "covered": False, "gap_note": "섹션 누락"}],
+        "llm_used": False,
+    }
+    recorder = MagicMock()
+    state = dict(BASE, scoring_table=[{"item": "a"}], sections=[])
+
+    verifier(state, recorder)
+
+    assert "model" not in recorder.message.call_args.kwargs
+
+
+@patch("agent.orchestrator.subagents.verification_node")
+def test_llm_used는_그래프_상태로_새어나가지_않는다(mock_verify):
+    """OrchestratorState에 없는 키다 — 이 호출 한 번의 사실이지 파이프라인 상태가 아니다."""
+    mock_verify.return_value = {"coverage_report": [], "llm_used": True}
+    state = dict(BASE, scoring_table=[{"item": "a"}], sections=[])
+
+    result = verifier(state, MagicMock())
+
+    assert "llm_used" not in result
+
+
+@patch("agent.orchestrator.subagents.verification_node")
 def test_verifier_sends_final_approval_notify(mock_verify):
     """F7: verifier 완료 시 인사권자에게 최종결재 대기 알림이 1회 기록된다."""
-    mock_verify.return_value = {"coverage_report": [{"scoring_item": "a", "covered": True, "gap_note": None}]}
+    mock_verify.return_value = {"coverage_report": [{"scoring_item": "a", "covered": True, "gap_note": None}],
+                                "llm_used": True}
     recorder = MagicMock()
     state = dict(BASE, scoring_table=[{"item": "a"}],
                  sections=[{"scoring_item": "a", "title": "t", "content": "본문", "sources": []}])

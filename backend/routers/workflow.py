@@ -114,7 +114,8 @@ def get_timeline(institution_id: str, request: Request):
         if get_institution(conn, institution_id) is None:
             raise HTTPException(status_code=404, detail="institution not found")
         messages = conn.execute(
-            """SELECT m.stage, m.created_at, t.team, m.role, m.author, m.content, m.task_id
+            """SELECT m.stage, m.created_at, t.team, m.role, m.author, m.content, m.task_id,
+                      m.model
                FROM messages m
                JOIN tasks t ON t.task_id = m.task_id
                JOIN bid_cases b ON b.bid_case_id = t.bid_case_id
@@ -129,16 +130,20 @@ def get_timeline(institution_id: str, request: Request):
     finally:
         conn.close()
 
+    # model: 그 기록을 남길 때 실제로 쓴 LLM(팀별 작업 로그와 같은 근거). 화면은 값이
+    # 있을 때만 `· 🧠 <model>`을 붙이므로, 사람 발화·알림처럼 LLM을 안 쓴 줄은 그대로다.
     events = [
         {"stage": r["stage"], "at": r["created_at"], "kind": "message", "team": r["team"],
          "role": r["role"], "author": r["author"], "content": r["content"],
-         "task_id": r["task_id"]}
+         "task_id": r["task_id"], "model": r["model"]}
         for r in messages
     ] + [
         # 알림에는 팀이 없다. kind(결재요청·되물음·이관·쪽지)를 role 자리에 실어
-        # 화면이 메시지와 같은 줄 형식으로 그릴 수 있게 한다.
+        # 화면이 메시지와 같은 줄 형식으로 그릴 수 있게 한다. 알림은 LLM 산출물이
+        # 아니므로 model은 언제나 None이다.
         {"stage": r["stage"], "at": r["created_at"], "kind": "notification", "team": None,
-         "role": r["kind"], "author": None, "content": r["content"], "task_id": r["task_id"]}
+         "role": r["kind"], "author": None, "content": r["content"], "task_id": r["task_id"],
+         "model": None}
         for r in notifications
     ]
     events.sort(key=lambda e: e["at"])

@@ -291,3 +291,27 @@ test('consistencyRows: 정상이면 빈 배열', function () {
   assert.deepStrictEqual(wf.consistencyRows({ ok: true, findings: [] }), []);
   assert.deepStrictEqual(wf.consistencyRows(null), []);
 });
+
+// ── 단계 로그의 🧠 (후속 정리) ──────────────────────────────────────────
+// 팀별 작업 로그에는 진작 붙어 있었는데 스테퍼 칸을 눌러 보는 단계 전체 로그
+// (GET /institutions/{id}/timeline)에는 응답에 model이 없어 안 붙었다. 이제 온다.
+
+test('renderStageLog: timeline의 model도 🧠로 붙는다', function () {
+  const el = fakeEl();
+  wf.renderStageLog(el, { events: [
+    { stage: 5, at: '2026-08-05T09:00:00', kind: 'message', team: '영업', role: 'agent',
+      author: null, content: '초안 3건 작성 완료', model: 'llama3.2:3b' },
+  ] }, 5);
+  assert.match(el.innerHTML, /🧠 llama3\.2:3b/);
+});
+
+test('renderStageLog: 알림·사람 발화에는 🧠가 붙지 않는다', function () {
+  const el = fakeEl();
+  wf.renderStageLog(el, { events: [
+    { stage: 5, at: '2026-08-05T09:30:00', kind: 'notification', team: null,
+      role: '결재요청', author: null, content: '기획승인 대기', model: null },
+    { stage: 5, at: '2026-08-05T09:40:00', kind: 'message', team: '영업', role: 'human',
+      author: '김 차장', content: '확인했습니다', model: null },
+  ] }, 5);
+  assert.strictEqual((el.innerHTML.match(/🧠/g) || []).length, 0);
+});
