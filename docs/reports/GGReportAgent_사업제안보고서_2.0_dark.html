@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GGReportAgent · 사업제안 보고서 2.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080c17; --bg-2:#0b1120; --panel:#0e1626; --panel-2:#111c30;
+  --line:rgba(126,160,222,.13); --line-2:rgba(126,160,222,.24);
+  --ink:#e9eef8; --ink-soft:#c3cde0; --muted:#8b99b6; --faint:#66748f;
+  --cyan:#45ddd0; --cyan-d:#1fb0a6; --amber:#f4b860; --violet:#9a9cf5; --rose:#f58a97; --blue:#6fb2ff;
+  --maxw:760px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans KR',system-ui,sans-serif;
+  line-height:1.8;font-weight:400;-webkit-font-smoothing:antialiased;font-size:16.5px;letter-spacing:-.003em}
+body::before{content:"";position:fixed;inset:0;z-index:-2;background:
+  radial-gradient(1100px 600px at 8% -10%,rgba(69,221,208,.07),transparent 55%),
+  radial-gradient(900px 700px at 105% 8%,rgba(154,156,245,.08),transparent 50%),
+  radial-gradient(800px 800px at 50% 120%,rgba(244,184,96,.045),transparent 55%),var(--bg)}
+body::after{content:"";position:fixed;inset:0;z-index:-1;opacity:.4;pointer-events:none;
+  background-image:linear-gradient(rgba(126,160,222,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(126,160,222,.03) 1px,transparent 1px);
+  background-size:44px 44px;mask-image:radial-gradient(ellipse at 50% 0,black,transparent 75%)}
+a{color:inherit;text-decoration:none}
+.layout{display:grid;grid-template-columns:320px 1fr}
+.side{position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(14,22,38,.96),rgba(8,12,23,.96));backdrop-filter:blur(10px);padding:28px 0 60px}
+.side::-webkit-scrollbar{width:7px}.side::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:6px}
+.side-inner{padding:0 22px}
+.logo{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.logo-mark{width:42px;height:42px;flex:0 0 auto;border-radius:12px;position:relative;
+  background:conic-gradient(from 210deg,var(--cyan),var(--violet),var(--amber),var(--cyan));
+  box-shadow:0 0 0 1px var(--line-2),0 10px 30px rgba(69,221,208,.2)}
+.logo-mark::after{content:"";position:absolute;inset:1.5px;border-radius:11px;background:var(--bg-2)}
+.logo-mark::before{content:"";position:absolute;inset:0;z-index:1;border-radius:12px;background:
+    radial-gradient(circle at 50% 34%,var(--cyan) 0 2.5px,transparent 3.5px),
+    radial-gradient(circle at 32% 64%,var(--violet) 0 2.5px,transparent 3.5px),
+    radial-gradient(circle at 68% 64%,var(--amber) 0 2.5px,transparent 3.5px)}
+.logo-txt h1{font-family:'Space Grotesk',sans-serif;font-size:14.5px;font-weight:700;margin:0;color:#fff;letter-spacing:.01em;line-height:1.15}
+.logo-txt .tag{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--faint);letter-spacing:.18em;margin-top:3px}
+.nav-part{display:flex;align-items:center;gap:9px;margin:22px 0 8px;padding:0 6px}
+.nav-part-rom{font-family:'Space Grotesk','Noto Sans KR',sans-serif;font-weight:600;font-style:italic;font-size:13px;color:var(--cyan);
+  width:26px;height:26px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--line-2);border-radius:8px;background:rgba(69,221,208,.06)}
+.nav-part-txt{font-family:'Space Grotesk',sans-serif;font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+.nav-chapters{list-style:none;margin:0 0 4px;padding:0}
+.nav-chapters li{margin:1px 0}
+.nav-chapters a{display:flex;align-items:baseline;gap:9px;padding:7px 10px 7px 12px;border-radius:8px;
+  font-family:'Noto Sans KR',serif;font-size:13px;color:var(--muted);border-left:2px solid transparent;transition:.15s;line-height:1.4}
+.nav-chapters a:hover{background:rgba(126,160,222,.06);color:var(--ink)}
+.nav-chapters a.current{background:rgba(69,221,208,.09);color:#fff;border-left-color:var(--cyan)}
+.nch-num{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--faint);flex:0 0 auto;min-width:15px}
+.nav-chapters a.current .nch-num{color:var(--cyan)}
+.side-foot{margin:30px 22px 0;padding-top:18px;border-top:1px solid var(--line);font-family:'Space Grotesk',sans-serif;font-size:11px;color:var(--faint);line-height:1.7}
+.side-foot b{color:var(--muted);font-weight:600}
+.main{min-width:0}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 44px 140px}
+.progress{position:fixed;top:0;left:320px;right:0;height:2px;z-index:30;background:transparent}
+.progress-bar{height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--violet));transition:width .1s}
+.cover{min-height:96vh;display:flex;flex-direction:column;justify-content:center;padding:60px 0 40px;position:relative}
+.cover-kicker{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.34em;color:var(--cyan);margin-bottom:30px}
+.cover h1{font-family:'Space Grotesk','Noto Sans KR',sans-serif;font-weight:900;font-size:clamp(36px,6.6vw,66px);line-height:1.08;margin:0 0 8px;color:#fff;letter-spacing:-.02em}
+.cover h1 .l2{display:block;background:linear-gradient(96deg,var(--cyan),var(--violet) 55%,var(--amber));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.cover .subtitle{font-family:'Noto Sans KR',serif;font-size:18px;color:var(--ink-soft);margin:26px 0 0;max-width:600px;line-height:1.7}
+.cover .rule{width:64px;height:3px;background:var(--cyan);margin:34px 0;border-radius:3px}
+.cover .meta{display:flex;gap:34px;flex-wrap:wrap;font-family:'Space Grotesk',sans-serif}
+.cover .meta .item{display:flex;flex-direction:column;gap:3px}
+.cover .meta .n{font-size:28px;font-weight:700;color:#fff;line-height:1}
+.cover .meta .l{font-size:11px;color:var(--faint);letter-spacing:.12em;text-transform:uppercase}
+.cover .scrolltip{position:absolute;bottom:26px;left:0;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--faint);letter-spacing:.1em;display:flex;align-items:center;gap:8px}
+.cover .scrolltip::before{content:"";width:22px;height:1px;background:var(--faint)}
+.part-opener{padding:110px 0 40px;border-top:1px solid var(--line);margin-top:40px;text-align:left;position:relative}
+.part-opener:first-of-type{border-top:0}
+.po-rom{font-family:'Space Grotesk','Noto Sans KR',sans-serif;font-weight:700;font-size:72px;color:transparent;-webkit-text-stroke:1.2px var(--line-2);line-height:.8;margin-bottom:8px;user-select:none}
+.po-num{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.3em;color:var(--cyan);margin-bottom:14px}
+.po-title{font-family:'Space Grotesk','Noto Sans KR',sans-serif;font-weight:700;font-size:clamp(28px,4.6vw,42px);color:#fff;margin:0 0 6px;line-height:1.1;letter-spacing:-.01em}
+.po-sub{font-family:'Space Grotesk',sans-serif;font-size:14.5px;color:var(--amber);font-weight:500;margin-bottom:22px;letter-spacing:.02em}
+.po-intro{font-size:15.5px;color:var(--ink-soft);max-width:600px;line-height:1.85;padding:20px 24px;border-left:3px solid var(--cyan);background:linear-gradient(90deg,rgba(69,221,208,.05),transparent);border-radius:0 12px 12px 0}
+.chapter{padding:52px 0 10px;scroll-margin-top:20px}
+.ch-head{margin-bottom:26px}
+.ch-eyebrow{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.26em;color:var(--faint);margin-bottom:12px}
+.ch-title{font-family:'Space Grotesk','Noto Sans KR',sans-serif;font-weight:600;font-size:clamp(22px,3.2vw,30px);color:#fff;margin:0;line-height:1.2;letter-spacing:-.01em;display:flex;align-items:baseline;gap:14px}
+.ch-num{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;color:var(--bg);background:var(--cyan);padding:6px 11px;border-radius:9px;flex:0 0 auto;letter-spacing:0;box-shadow:0 6px 18px rgba(69,221,208,.28);align-self:center}
+.ch-body h4{font-family:'Space Grotesk','Noto Sans KR',sans-serif;font-weight:600;font-size:18px;color:#fff;margin:32px 0 12px;letter-spacing:-.01em;padding-left:14px;border-left:3px solid var(--violet)}
+.ch-body p{margin:0 0 16px;color:var(--ink-soft)}
+.ch-body strong{color:#fff;font-weight:600}
+.ch-body em{font-style:italic;color:var(--amber)}
+.ch-body ul,.ch-body ol{margin:4px 0 20px;padding-left:4px}
+.ch-body li{margin:9px 0;list-style:none;position:relative;padding-left:26px;color:var(--ink-soft)}
+.ch-body ul>li::before{content:"";position:absolute;left:5px;top:14px;width:6px;height:6px;border-radius:50%;background:var(--cyan)}
+.ch-body ol{counter-reset:ol}
+.ch-body ol>li{counter-increment:ol}
+.ch-body ol>li::before{content:counter(ol);position:absolute;left:0;top:3px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--cyan);
+  width:19px;height:19px;border-radius:6px;background:rgba(69,221,208,.12);display:flex;align-items:center;justify-content:center;border:1px solid rgba(69,221,208,.2)}
+.ch-body blockquote{margin:24px 0;padding:20px 24px;border:1px solid var(--line-2);border-left:4px solid var(--amber);border-radius:0 14px 14px 0;
+  background:linear-gradient(100deg,rgba(244,184,96,.09),rgba(244,184,96,.02));position:relative}
+.ch-body blockquote::before{content:"핵심";position:absolute;top:-10px;left:20px;font-family:'Space Grotesk',sans-serif;font-size:10px;font-weight:700;letter-spacing:.14em;
+  color:var(--amber);background:var(--bg);padding:2px 10px;border-radius:20px;border:1px solid rgba(244,184,96,.4)}
+.ch-body blockquote p{margin:0;color:#f3e6cf;font-size:15.5px;line-height:1.7}
+.ch-body blockquote strong{color:var(--amber)}
+.ch-body code{font-family:'JetBrains Mono',monospace;font-size:.82em;background:rgba(69,221,208,.1);color:#8fe9df;padding:2px 7px;border-radius:5px;border:1px solid rgba(69,221,208,.16)}
+.ch-body table{width:100%;border-collapse:collapse;font-family:'Space Grotesk',sans-serif;font-size:13.2px;margin:20px 0;
+  border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.ch-body thead th{background:rgba(69,221,208,.09);color:#fff;font-weight:600;text-align:left;padding:12px 14px;border-bottom:1px solid var(--line-2);letter-spacing:.01em}
+.ch-body tbody td{padding:11px 14px;border-bottom:1px solid var(--line);color:var(--ink-soft);vertical-align:top}
+.ch-body tbody tr:last-child td{border-bottom:0}
+.ch-body tbody tr:hover{background:rgba(126,160,222,.04)}
+.ch-body td strong{color:#fff}
+.ch-body hr{border:0;border-top:1px solid var(--line);margin:30px 0}
+.tag-row{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 22px}
+.tag{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted);padding:4px 10px;border:1px solid var(--line-2);border-radius:20px;background:rgba(126,160,222,.05)}
+.tag.done{color:var(--cyan);border-color:rgba(69,221,208,.3);background:rgba(69,221,208,.06)}
+.tag.wip{color:var(--amber);border-color:rgba(244,184,96,.3);background:rgba(244,184,96,.06)}
+.tag.ask{color:var(--rose);border-color:rgba(245,138,151,.35);background:rgba(245,138,151,.07)}
+.gterms{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:20px 0}
+.gterm{background:linear-gradient(180deg,rgba(14,22,38,.72),rgba(11,17,32,.72));border:1px solid var(--line);border-radius:16px;padding:17px 18px;transition:.2s;position:relative;overflow:hidden}
+.gterm::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--cyan),var(--violet));opacity:.6}
+.gterm:hover{border-color:var(--line-2);transform:translateY(-3px);box-shadow:0 16px 40px rgba(0,0,0,.32)}
+.gt-name{font-family:'Space Grotesk','Noto Sans KR',sans-serif;font-weight:600;font-size:15.5px;color:#fff;margin:0 0 8px;letter-spacing:-.01em}
+.gt-val{color:var(--ink-soft);font-size:13.3px;line-height:1.65}
+.gt-val strong{color:#fff;font-weight:600}
+/* idea cards (3부) */
+.idea{background:linear-gradient(180deg,rgba(14,22,38,.72),rgba(11,17,32,.72));border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin:16px 0;position:relative;overflow:hidden}
+.idea::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--amber);opacity:.65}
+.idea-axis{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;color:var(--amber);margin-bottom:8px}
+.idea-title{font-family:'Space Grotesk','Noto Sans KR',sans-serif;font-weight:600;font-size:16px;color:#fff;margin:0 0 10px}
+.idea-flow{display:flex;flex-direction:column;gap:8px;font-size:13.3px;color:var(--ink-soft)}
+.idea-flow .step{display:flex;gap:10px}
+.idea-flow .k{flex:0 0 auto;min-width:78px;font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.03em;color:var(--muted);padding-top:2px}
+/* ===== 9단계 파이프라인 애니메이션 ===== */
+.pipeline{position:relative;padding-left:46px;margin:30px 0 16px}
+.pipeline::before{content:"";position:absolute;left:17px;top:6px;bottom:6px;width:2px;background:var(--line-2)}
+.flow-dot{position:absolute;left:12px;width:10px;height:10px;border-radius:50%;background:var(--cyan);
+  box-shadow:0 0 14px 2px var(--cyan),0 0 4px #fff;animation:flowMove 8s linear infinite;z-index:3}
+@keyframes flowMove{
+  0%{top:6px;opacity:0}
+  4%{opacity:1}
+  92%{opacity:1}
+  100%{top:calc(100% - 16px);opacity:0}
+}
+.stage{position:relative;padding:11px 0 11px 46px;margin-bottom:2px}
+.stage-num{position:absolute;left:0;top:9px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;border:2px solid var(--line-2);background:var(--bg-2);color:var(--muted);z-index:2}
+.stage.new .stage-num{border-color:rgba(245,138,151,.55);color:var(--rose)}
+.stage.redesign .stage-num{border-color:rgba(244,184,96,.6);color:var(--amber)}
+.stage.reuse .stage-num{border-color:rgba(69,221,208,.55);color:var(--cyan)}
+.stage.human .stage-num{border-color:var(--line-2);color:var(--muted)}
+.stage-title{font-family:'Space Grotesk','Noto Sans KR',sans-serif;font-weight:600;font-size:14.5px;color:#fff;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.stage-tag{font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:2px 8px;border-radius:20px;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}
+.stage.new .stage-tag{color:var(--rose);border-color:rgba(245,138,151,.35);background:rgba(245,138,151,.06)}
+.stage.redesign .stage-tag{color:var(--amber);border-color:rgba(244,184,96,.35);background:rgba(244,184,96,.06)}
+.stage.reuse .stage-tag{color:var(--cyan);border-color:rgba(69,221,208,.35);background:rgba(69,221,208,.06)}
+.stage-desc{font-size:12.8px;color:var(--muted);margin-top:3px;line-height:1.6}
+.checkpoint-flag{font-size:9.5px;color:var(--rose);font-family:'JetBrains Mono',monospace;letter-spacing:.06em}
+.registry-wrap{position:relative;margin:6px 0 4px;padding:6px 0 44px 18px;border-left:3px solid rgba(244,184,96,.55);border-radius:0 0 0 8px}
+.registry-wrap .stage{padding-left:34px}
+.registry-label{position:absolute;left:18px;bottom:0;right:0;display:flex;align-items:center;gap:9px;padding:9px 14px;
+  border:1px solid rgba(244,184,96,.4);border-radius:10px;background:rgba(244,184,96,.08);
+  font-family:'Space Grotesk',sans-serif;font-size:11.5px;color:#ffe6bd;animation:regPulse 2.4s ease-in-out infinite}
+.registry-label b{color:var(--amber)}
+@keyframes regPulse{0%,100%{box-shadow:0 0 0 0 rgba(244,184,96,.35)}50%{box-shadow:0 0 0 7px rgba(244,184,96,0)}}
+.pipeline-legend{display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 8px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted)}
+.pipeline-legend span{display:flex;align-items:center;gap:6px}
+.pipeline-legend i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.menu-btn{display:none}
+@media(max-width:1000px){
+  .layout{grid-template-columns:1fr}
+  .progress{left:0}
+  .side{position:fixed;left:0;top:0;width:300px;z-index:60;transform:translateX(-100%);transition:.3s}
+  .side.open{transform:none;box-shadow:0 0 70px rgba(0,0,0,.6)}
+  .menu-btn{display:flex;position:fixed;top:14px;left:14px;z-index:70;width:46px;height:46px;border-radius:12px;
+    align-items:center;justify-content:center;border:1px solid var(--line-2);background:rgba(14,22,38,.95);color:#fff;cursor:pointer}
+  .scrim{position:fixed;inset:0;background:rgba(4,7,14,.65);z-index:55;opacity:0;pointer-events:none;transition:.3s}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .wrap{padding:0 22px 100px}
+  .gterms{grid-template-columns:1fr}
+}
+@media(max-width:560px){
+  body{font-size:16px}
+  .cover h1{font-size:34px}
+  .ch-title{font-size:21px}
+  .po-rom{font-size:52px}
+}
+@media print{
+  body{background:#fff;color:#111}body::before,body::after{display:none}
+  .side,.menu-btn,.scrim,.progress,.cover .scrolltip{display:none!important}
+  .layout{display:block}.wrap{max-width:none;padding:0}
+  .cover{min-height:auto;page-break-after:always}
+  .part-opener{page-break-before:always;border-color:#ccc}
+  .ch-head,.gterm,.idea,.ch-body blockquote,.ch-body table{page-break-inside:avoid}
+  .cover h1,.po-title,.ch-title,.gt-name,.ch-body h4,.idea-title{color:#111!important}
+  .cover h1 .l2,.po-title{-webkit-text-fill-color:#0a6d64}
+  .po-rom{-webkit-text-stroke-color:#ccc}
+  .ch-body p,.ch-body li,.ch-body td,.gt-val,.idea-flow{color:#222!important}
+  .ch-body strong,.gt-val strong{color:#000!important}
+  .ch-num{background:#0a6d64;color:#fff}
+  .ch-body blockquote{background:#f4faf9;border-color:#bbb}
+  .ch-body blockquote p{color:#222}
+  .gterm,.ch-body table,.idea{border:1px solid #ddd}
+  .ch-body thead th{background:#eef7f6;color:#111}
+  .ch-body code{background:#eef7f6;color:#0a6d64;border-color:#cde}
+  a{color:#111}
+  .flow-dot{display:none}
+}
+</style>
+</head>
+<body>
+<div class="progress"><div class="progress-bar" id="pbar"></div></div>
+<button class="menu-btn" id="menuBtn" aria-label="목차">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+</button>
+<div class="scrim" id="scrim"></div>
+
+<div class="layout">
+  <aside class="side" id="side">
+    <div class="side-inner">
+      <div class="logo">
+        <div class="logo-mark"></div>
+        <div class="logo-txt"><h1>GGReportAgent</h1><div class="tag">사업제안 보고서 2.0</div></div>
+      </div>
+      <div class="nav-doc active" id="nav-book">
+        <div class="nav-part"><span class="nav-part-rom">I</span><span class="nav-part-txt">사업 배경</span></div>
+        <ul class="nav-chapters">
+          <li><a href="#ch-1" data-target="ch-1"><span class="nch-num">1</span>왜 이 사업을 하는가</a></li>
+          <li><a href="#ch-2" data-target="ch-2"><span class="nch-num">2</span>핵심 아이디어 — 분석 후 기획</a></li>
+          <li><a href="#ch-3" data-target="ch-3"><span class="nch-num">3</span>신뢰를 만드는 원칙</a></li>
+        </ul>
+        <div class="nav-part"><span class="nav-part-rom">II</span><span class="nav-part-txt">지금까지 한 일</span></div>
+        <ul class="nav-chapters">
+          <li><a href="#ch-4" data-target="ch-4"><span class="nch-num">4</span>파일럿에서 25개 자치구로</a></li>
+          <li><a href="#ch-5" data-target="ch-5"><span class="nch-num">5</span>산출물 스냅샷 — 25개구 신뢰도</a></li>
+        </ul>
+        <div class="nav-part"><span class="nav-part-rom">III</span><span class="nav-part-txt">추진 아이디어</span></div>
+        <ul class="nav-chapters">
+          <li><a href="#ch-6" data-target="ch-6"><span class="nch-num">6</span>5개 축 — 어디서 기회를 찾는가</a></li>
+          <li><a href="#ch-7" data-target="ch-7"><span class="nch-num">7</span>대표 기획 유형</a></li>
+        </ul>
+        <div class="nav-part"><span class="nav-part-rom">IV</span><span class="nav-part-txt">추진 방향 및 확장 전략</span></div>
+        <ul class="nav-chapters">
+          <li><a href="#ch-8" data-target="ch-8"><span class="nch-num">8</span>어디서 출발했나 — 수동 이어달리기</a></li>
+          <li><a href="#ch-9" data-target="ch-9"><span class="nch-num">9</span>지금 무엇이 되어 있나</a></li>
+          <li><a href="#ch-10" data-target="ch-10"><span class="nch-num">10</span>새로 갖춘 기능</a></li>
+          <li><a href="#ch-11" data-target="ch-11"><span class="nch-num">11</span>9단계 워크플로 — 현재 상태</a></li>
+          <li><a href="#ch-12" data-target="ch-12"><span class="nch-num">12</span>폐쇄망을 지키는 구조</a></li>
+          <li><a href="#ch-13" data-target="ch-13"><span class="nch-num">13</span>구현 로드맵 — 진행 현황</a></li>
+        </ul>
+        <div class="nav-part"><span class="nav-part-rom">V</span><span class="nav-part-txt">기대효과</span></div>
+        <ul class="nav-chapters">
+          <li><a href="#ch-14" data-target="ch-14"><span class="nch-num">14</span>투자 대비 기대효과</a></li>
+        </ul>
+        <div class="nav-part"><span class="nav-part-rom">VI</span><span class="nav-part-txt">다음 단계</span></div>
+        <ul class="nav-chapters">
+          <li><a href="#ch-15" data-target="ch-15"><span class="nch-num">15</span>필요한 의사결정</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="side-foot">
+      GGReportAgent 사업의 배경·아이디어·방향성·기대효과를 정리한 의사결정용 보고서입니다.<br><br>
+      <b>6부 15장 · 2026-08-05 기준</b><br>
+      💡 브라우저 인쇄(⌘/Ctrl+P)로 PDF 저장
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="wrap">
+
+      <section class="cover">
+        <div class="cover-kicker">GGREPORTAGENT · 사업제안 보고서 2.0 (내부 검토용) · 2026-08-05 기준</div>
+        <h1>지자체 데이터를 읽으면<span class="l2">협업할 곳이 보인다</span></h1>
+        <p class="subtitle">서울시 자치구가 이미 공개한 사업계획·예산·민원 데이터를 분석해, 그 자치구에 맞는 은행 협업 기획을 근거 있게 제시하는 사업입니다. 5개구 파일럿에서 <strong>25개 자치구 전체로 확장을 마쳤고</strong>, 사람이 도구를 오가며 잇던 그 과정을 <strong>9단계로 실제로 도는 시스템</strong>으로 만들었습니다.</p>
+        <div class="rule"></div>
+        <div class="meta">
+          <div class="item"><span class="n">25/25</span><span class="l">자치구 분석 완료</span></div>
+          <div class="item"><span class="n">0.1~0.4%</span><span class="l">구 예산 대비 제안 규모</span></div>
+          <div class="item"><span class="n">9/9</span><span class="l">워크플로 단계 가동</span></div>
+        </div>
+        <div class="scrolltip">SCROLL TO BEGIN</div>
+      </section>
+
+      <article class="chapter" id="ch-0" style="padding-top:0">
+        <header class="ch-head">
+          <div class="ch-eyebrow">EXECUTIVE SUMMARY</div>
+          <h3 class="ch-title">한 장 요약</h3>
+        </header>
+        <div class="ch-body">
+          <div class="gterms">
+            <div class="gterm"><div class="gt-name">무엇을</div><div class="gt-val">서울시 자치구의 공개 사업계획·예산·민원 데이터를 분석해, 은행이 협업할 수 있는 지점을 근거 기반으로 기획하는 사업입니다.</div></div>
+            <div class="gterm"><div class="gt-name">왜</div><div class="gt-val">금고은행 지정 등 지자체 협업 경쟁에서 "상품이 좋습니다"보다 "당신의 니즈를 분석해 보니 이렇습니다"가 훨씬 설득력 있는 제안이 되기 때문입니다.</div></div>
+            <div class="gterm"><div class="gt-name">지금까지</div><div class="gt-val">서울 25개 자치구 <strong>전부</strong> 분석·기획·검증 완료(신뢰도 69~88점, 평균 79점). 자치구별 사업비 규모는 구 예산 대비 0.1~0.4% 수준입니다.</div></div>
+            <div class="gterm"><div class="gt-name">앞으로</div><div class="gt-val">기회 발굴 → 참여 결재 → 3팀 제안서 작성 → 산출·재색인을 잇는 <strong>9단계 워크플로 시스템을 만들어 실제로 돌렸습니다</strong>(백엔드 635·프런트 166 테스트 통과). 남은 것은 사내 LLM 엔드포인트 연결과 시연 환경 기동 결정입니다.</div></div>
+          </div>
+        </div>
+      </article>
+
+      <section class="part-opener" id="part-1">
+        <div class="po-rom">PART I</div>
+        <div class="po-num">1부</div>
+        <h2 class="po-title">사업 배경</h2>
+        <div class="po-sub">왜 이 방식으로 지자체와 협업하려 하는가</div>
+        <p class="po-intro">이 사업의 출발점은 단순합니다 — 자치구가 이미 공개한 정보를 제대로 분석하기만 해도, 어디에 협업 기회가 있는지 근거 있게 말할 수 있다는 것입니다.</p>
+      </section>
+
+      <article class="chapter" id="ch-1">
+        <header class="ch-head">
+          <div class="ch-eyebrow">CHAPTER 1</div>
+          <h3 class="ch-title"><span class="ch-num">1</span>왜 이 사업을 하는가</h3>
+        </header>
+        <div class="ch-body">
+          <p>금고은행 지정을 비롯해 지자체와의 협업은 여러 은행이 동시에 경쟁하는 영역입니다. 이 경쟁에서 <strong>"저희 상품이 더 좋습니다"</strong>는 흔한 접근이라 차별화가 어렵습니다. 반면 <strong>"당신 구청의 사업계획과 민원 데이터를 분석해 보니 이런 니즈가 있고, 저희가 이렇게 도울 수 있습니다"</strong>는 상대방(구청) 입장에서도 검증 가능한, 훨씬 근거 있는 제안이 됩니다.</p>
+          <p>이 사업은 바로 그 "근거 있는 제안"을 만드는 작업입니다. 서울시 5개 구청(도봉·노원·광진·동대문·동작)을 대상으로 시작해, 지금은 <strong>25개 자치구 전체</strong>로 확장을 마쳤습니다.</p>
+        </div>
+      </article>
+
+      <article class="chapter" id="ch-2">
+        <header class="ch-head">
+          <div class="ch-eyebrow">CHAPTER 2</div>
+          <h3 class="ch-title"><span class="ch-num">2</span>핵심 아이디어 — 분석 후 기획</h3>
+        </header>
+        <div class="ch-body">
+          <blockquote><p><strong>구청의 사업계획을 분석하면 그 구청이 지금 무엇을 하려 하고 무엇에 어려움을 겪는지가 드러나고, 그 분석 결과에 맞춰 은행이 지원할 수 있는 기획을 붙입니다.</strong> 상품을 먼저 정해두고 파는 게 아니라, 분석이 먼저이고 기획은 그 분석을 따라갑니다.</p></blockquote>
+          <p>구체적으로는 자치구가 공개한 다년도 사업계획·예산안, 그리고 민원게시판 데이터를 읽고 정리하는 것에서 시작합니다. 여기서 "이 구청이 지금 어디에 힘을 쏟고 있고, 어디서 어려움을 겪는지"가 드러나면, 그 니즈에 맞는 은행 협업 기획(3부에서 다룸)을 붙이는 순서입니다.</p>
+          <p>다만 이 접근에는 분명한 한계도 있습니다 — 분석은 <em>"무엇이 필요한가"</em>까지는 근거 있게 보여주지만, <em>"그래서 정확히 어떤 상품을 만들 것인가"</em>는 여전히 사람의 판단과 실무 설계가 더 필요한 영역으로 남습니다. 이 사업은 그 판단을 위한 근거를 최대한 탄탄하게 만드는 데 집중합니다.</p>
+        </div>
+      </article>
+
+      <article class="chapter" id="ch-3">
+        <header class="ch-head">
+          <div class="ch-eyebrow">CHAPTER 3</div>
+          <h3 class="ch-title"><span class="ch-num">3</span>신뢰를 만드는 원칙</h3>
+        </header>
+        <div class="ch-body">
+          <p>"분석 기반 제안"이 힘을 가지려면, 그 분석 자체가 신뢰할 수 있어야 합니다. 그래서 이 사업은 세 가지 원칙을 지킵니다.</p>
+          <ol>
+            <li><strong>조작 금지</strong> — 근거 없는 수치나 추측을 사실처럼 쓰지 않습니다. 확인 안 된 것은 "확인 안 됨"이라고 그대로 표기합니다.</li>
+            <li><strong>출처 추적</strong> — 모든 제안·아이디어는 원본 자료의 어느 부분에서 나왔는지 인용을 남깁니다.</li>
+            <li><strong>자체 검증</strong> — 제안이 끝나면 별도 검증 단계에서 기존 구청 사업과 겹치지 않는지, 인용이 정확한지 다시 채점해 <strong>신뢰도 점수</strong>를 매깁니다.</li>
+          </ol>
+          <p>이 원칙들 덕분에, 25개 자치구 산출물은 전부 "왜 이 숫자를 믿을 수 있는지"까지 답할 수 있는 상태입니다.</p>
+          <p>이 세 원칙은 이후 시스템에도 그대로 옮겨졌습니다 — 사람의 승인 없이는 다음 단계로 넘어가지 않는 <strong>결재 3게이트</strong>, 검색 결과마다 원문 위치를 붙이는 <strong>출처 추적</strong>, 그리고 데이터가 서로 어긋나면 화면에 경고를 띄우는 <strong>정합성 검사</strong>가 그 구현입니다(4부 12장).</p>
+        </div>
+      </article>
+
+      <section class="part-opener" id="part-2">
+        <div class="po-rom">PART II</div>
+        <div class="po-num">2부</div>
+        <h2 class="po-title">지금까지 한 일</h2>
+        <div class="po-sub">파일럿에서 전면 확장까지 — 25개구 완결</div>
+        <p class="po-intro">5개 구청을 대상으로 방법론을 검증한 뒤, 서울시 25개 자치구 전체에 같은 방법론을 적용해 <strong>전 구 분석·기획·검증을 마쳤습니다.</strong></p>
+      </section>
+
+      <article class="chapter" id="ch-4">
+        <header class="ch-head">
+          <div class="ch-eyebrow">CHAPTER 4</div>
+          <h3 class="ch-title"><span class="ch-num">4</span>파일럿에서 25개 자치구로</h3>
+        </header>
+        <div class="ch-body">
+          <p>2단계로 진행했습니다.</p>
+          <ol>
+            <li><strong>1단계 · 파일럿(5개구)</strong> — 도봉·노원·광진·동대문·동작을 대상으로 분석→기획→검증 방법론을 처음 만들고 검증했습니다.</li>
+            <li><strong>2단계 · 전면 확장(25개 자치구)</strong> — 같은 방법론을 나머지 자치구에 순차 적용해 <strong>25/25개구 완료</strong>했습니다. 각 구마다 조사자료(사업계획·예산·홈페이지 검증·민원)와 제안자료(개요·요약표·IT제안·금융지원제안·로드맵·검증)가 한 벌씩 쌓여 있고, 이 자료가 그대로 시스템의 검색·작성 근거로 쓰입니다.</li>
+          </ol>
+          <p>확장 과정에서 자치구마다 데이터 공개 수준이 다르다는 것도 드러났습니다 — 예산을 사업 단위로 거의 공개하지 않는 곳, 발표 사업 건수와 실제 조사 확인 건수가 어긋나는 곳, 민원 창구가 상위 시스템(국민신문고)으로 통합되며 개별 민원 열람이 막힌 곳 등. 이런 데이터 공백은 감추지 않고 "확인 불가"로 명시해 분석의 신뢰도를 지킵니다.</p>
+        </div>
+      </article>
+
+      <article class="chapter" id="ch-5">
+        <header class="ch-head">
+          <div class="ch-eyebrow">CHAPTER 5</div>
+          <h3 class="ch-title"><span class="ch-num">5</span>산출물 스냅샷 — 25개구 신뢰도</h3>
+        </header>
+        <div class="ch-body">
+          <p>파일럿 5개구의 분석 결과를 요약하면 다음과 같습니다.</p>
+          <table>
+            <thead><tr><th>구청</th><th>제안 사업비 규모</th><th>구 예산 대비</th><th>신뢰도</th></tr></thead>
+            <tbody>
+              <tr><td>도봉구</td><td>약 20~30억원</td><td>약 0.25~0.4%</td><td><strong>74</strong>/100</td></tr>
+              <tr><td>노원구</td><td>약 15~23억원</td><td>약 0.11~0.17%</td><td><strong>88</strong>/100</td></tr>
+              <tr><td>광진구</td><td>약 15~24억원</td><td>약 0.18~0.28%</td><td><strong>88</strong>/100</td></tr>
+              <tr><td>동대문구</td><td>약 19~28억원</td><td>약 0.19~0.29%</td><td><strong>82</strong>/100</td></tr>
+              <tr><td>동작구</td><td>약 17~25억원</td><td>약 0.18~0.27%</td><td><strong>84</strong>/100</td></tr>
+            </tbody>
+          </table>
+          <blockquote><p>제안 사업비 규모가 구 예산의 0.1~0.4% 수준이라는 것은, <strong>큰 예산 투입 없이도 지자체와의 관계 접점을 만들 수 있는 영역</strong>이라는 뜻입니다.</p></blockquote>
+
+          <p>25개 자치구 전체로 확장한 뒤의 신뢰도 분포입니다 — <strong>평균 79점, 최고 88점(노원·광진), 최저 69점(송파)</strong>.</p>
+          <table>
+            <thead><tr><th>신뢰도 구간</th><th>자치구 수</th><th>비고</th></tr></thead>
+            <tbody>
+              <tr><td>85~88점</td><td><strong>2</strong></td><td>노원·광진 — 파일럿에서 방법론을 다듬은 구</td></tr>
+              <tr><td>80~84점</td><td><strong>11</strong></td><td>가장 두꺼운 구간. 예산·사업 공개가 충실한 구</td></tr>
+              <tr><td>75~79점</td><td><strong>6</strong></td><td>일부 분야 예산 미공개</td></tr>
+              <tr><td>70~74점</td><td><strong>5</strong></td><td>민원 창구가 상위 시스템으로 통합돼 개별 열람 불가한 곳 포함</td></tr>
+              <tr><td>69점</td><td><strong>1</strong></td><td>송파 — 인용 오류 0건인데도 공개 범위 한계로 최저</td></tr>
+            </tbody>
+          </table>
+          <p>점수가 낮게 나온 곳은 <strong>조사가 부실해서가 아니라 그 자치구의 공개 범위가 좁아서</strong>입니다. 최저점인 송파구는 인용 오류가 0건인데도 예산 비공개율 때문에 69점에 머뭅니다 — 문장을 고쳐 올릴 수 있는 점수가 아니라는 점을 검증 문서에 명시해 뒀고, 이런 데이터 공백은 감추지 않고 "확인 불가"로 남깁니다.</p>
+        </div>
+      </article>
+
+      <section class="part-opener" id="part-3">
+        <div class="po-rom">PART III</div>
+        <div class="po-num">3부</div>
+        <h2 class="po-title">추진 아이디어</h2>
+        <div class="po-sub">무엇을 기획하는가</div>
+        <p class="po-intro">분석에서 드러난 니즈를 은행이 개입할 수 있는 5개 축으로 정리하고, 축마다 대표적인 기획 유형을 붙입니다.</p>
+      </section>
+
+      <article class="chapter" id="ch-6">
+        <header class="ch-head">
+          <div class="ch-eyebrow">CHAPTER 6</div>
+          <h3 class="ch-title"><span class="ch-num">6</span>5개 축 — 어디서 기회를 찾는가</h3>
+        </header>
+        <div class="ch-body">
+          <p>어느 자치구든 사업계획과 민원 데이터를 분석하면 소상공인·청년·복지·인프라 관련 니즈가 반복적으로 드러납니다. 이 니즈들을 은행이 개입할 수 있는 형태로 재정리한 것이 아래 5개 축입니다. <strong>미리 정한 상품 카테고리가 아니라, 분석에서 자연히 도출된 결과</strong>라는 점이 중요합니다 — 그래서 자치구가 바뀌어도 축 안의 아이디어 내용은 달라지지만, "니즈를 찾고 지원 형태를 붙인다"는 방법론 자체는 그대로 재사용됩니다.</p>
+          <div class="gterms">
+            <div class="gterm"><div class="gt-name">① 소상공인/지역경제 금융</div><div class="gt-val">정비사업·상권 조성 등 구청 사업과 결합한 결제·여신 인프라.</div></div>
+            <div class="gterm"><div class="gt-name">② 청년 금융</div><div class="gt-val">자립준비청년·미취업청년 지원제도와 결합한 적금·소액대출.</div></div>
+            <div class="gterm"><div class="gt-name">③ IT/데이터 협력</div><div class="gt-val">행정 플랫폼·오픈뱅킹 연동 등 기술 파트너십.</div></div>
+            <div class="gterm"><div class="gt-name">④ 복지/주택금융</div><div class="gt-val">1인가구·정비사업 이주 등 생활·주거 밀착 금융.</div></div>
+            <div class="gterm"><div class="gt-name">⑤ 대형 SOC 참여</div><div class="gt-val">재개발·복원사업 등 대형 프로젝트 금융 참여.</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="chapter" id="ch-7">
+        <header class="ch-head">
+          <div class="ch-eyebrow">CHAPTER 7</div>
+          <h3 class="ch-title"><span class="ch-num">7</span>대표 기획 유형</h3>
+        </header>
+        <div class="ch-body">
+          <p>실제로 어떤 톤의 기획이 나오는지, 축마다 대표 유형을 하나씩 보여드립니다. 각 기획은 항상 "어떤 구청 사업과 연계되는가 → 어떤 상품/협력 형태인가 → 은행에 어떤 이익이 있는가" 3단 구조로 정리됩니다.</p>
+
+          <div class="idea">
+            <div class="idea-axis">① 소상공인/지역경제 금융</div>
+            <div class="idea-title">정비사업구역 이주비·조합운영자금 연계 대출</div>
+            <div class="idea-flow">
+              <div class="step"><span class="k">연계 사업</span><span>대규모 재정비 구역 지정 및 이주·컨설팅 지원 정책</span></div>
+              <div class="step"><span class="k">협력 형태</span><span>이주비대출을 은행이 공급하고, 구는 법률·세무 컨설팅 바우처를 결합 제공하는 3자 구조</span></div>
+              <div class="step"><span class="k">은행 기대효과</span><span>정비사업 초기 단계부터 관계를 맺어 향후 중도금대출까지 이어지는 장기 고객 확보</span></div>
+            </div>
+          </div>
+
+          <div class="idea">
+            <div class="idea-axis">② 청년 금융</div>
+            <div class="idea-title">자립준비청년 자립수당 계좌 연계 청년 적금</div>
+            <div class="idea-flow">
+              <div class="step"><span class="k">연계 사업</span><span>자립준비청년 정착금·자립수당 지급 제도(구가 창구 수행)</span></div>
+              <div class="step"><span class="k">협력 형태</span><span>수당 자동이체 시 우대금리를 주는 청년 특화 적금, 무담보 소액 생활안정자금대출</span></div>
+              <div class="step"><span class="k">은행 기대효과</span><span>사회 초년 청년의 최초 거래은행 지위 선점, 생애주기 고객화(적금→대출→주택금융)</span></div>
+            </div>
+          </div>
+
+          <div class="idea">
+            <div class="idea-axis">③ IT/데이터 협력</div>
+            <div class="idea-title">교통비 지원사업 오픈뱅킹 자동환급 인프라</div>
+            <div class="idea-flow">
+              <div class="step"><span class="k">연계 사업</span><span>연령별 교통비 지원사업(분기별 사용액 산정 후 계좌 환급)</span></div>
+              <div class="step"><span class="k">협력 형태</span><span>수동/반자동 환급 프로세스를 은행 오픈뱅킹 API 기반 자동정산 인프라로 전환</span></div>
+              <div class="step"><span class="k">은행 기대효과</span><span>전 연령군 주민의 환급계좌를 유치할 수 있는 대규모 반복 거래 접점 확보</span></div>
+            </div>
+          </div>
+
+          <div class="idea">
+            <div class="idea-axis">④ 복지/주택금융</div>
+            <div class="idea-title">1인가구·취약계층 통합돌봄 연계 금융상담</div>
+            <div class="idea-flow">
+              <div class="step"><span class="k">연계 사업</span><span>1인가구·취약계층 통합돌봄 프로그램(민간 매칭펀드 방식 지원금 포함)</span></div>
+              <div class="step"><span class="k">협력 형태</span><span>돌봄 프로그램 현장에 은행 서민금융 상담역이 동행하는 "복지-금융 통합 방문상담"</span></div>
+              <div class="step"><span class="k">은행 기대효과</span><span>금융취약계층 지원 실적(ESG), 지역 밀착 이미지 구축</span></div>
+            </div>
+          </div>
+
+          <div class="idea">
+            <div class="idea-axis">⑤ 대형 SOC 참여</div>
+            <div class="idea-title">대형 재정비구역 PF/신디케이트론 참여</div>
+            <div class="idea-flow">
+              <div class="step"><span class="k">연계 사업</span><span>구청 핵심 랜드마크급 재정비·복합개발 프로젝트</span></div>
+              <div class="step"><span class="k">협력 형태</span><span>민간 시행사 주도 PF 구조에 대주단으로 참여하는 신디케이트론, 준공 후 자산유동화 참여</span></div>
+              <div class="step"><span class="k">은행 기대효과</span><span>랜드마크급 프로젝트금융 참여를 통한 수익 확보 및 지역 내 브랜드 노출</span></div>
+            </div>
+          </div>
+
+          <p>이런 유형들은 이미 각 자치구별 초안(bank_ideas)으로 축적되어 있으며, 어떤 것을 실제 상품으로 승격시킬지는 이 분석 위에서 사업부가 판단할 몫으로 남아 있습니다.</p>
+        </div>
+      </article>
+
+      <section class="part-opener" id="part-4">
+        <div class="po-rom">PART IV</div>
+        <div class="po-num">4부</div>
+        <h2 class="po-title">추진 방향 및 확장 전략</h2>
+        <div class="po-sub">수동 이어달리기에서 하나의 시스템으로</div>
+        <p class="po-intro">이전 보고 시점에는 기회 포착부터 산출까지 사람이 여러 도구를 오가며 이어야 했습니다. 그 사이를 잇는 시스템을 실제로 만들었고, 9단계가 전 구간 동작합니다. 이 부는 <strong>무엇이 만들어졌고, 무엇이 아직 남았는지</strong>를 있는 그대로 정리합니다.</p>
+      </section>
+
+      <article class="chapter" id="ch-8">
+        <header class="ch-head">
+          <div class="ch-eyebrow">CHAPTER 8</div>
+          <h3 class="ch-title"><span class="ch-num">8</span>어디서 출발했나 — 수동 이어달리기</h3>
+        </header>
+        <div class="ch-body">
+          <p>출발점의 문제는 도구가 없다는 것이 아니라, 도구들이 <strong>서로 연결되어 있지 않다</strong>는 것이었습니다. 당시 이 사업은 3개의 별도 도구로 나뉘어 있었습니다.</p>
+          <ol>
+            <li><strong>기회 포착</strong> — 전국 지자체·기관의 금고은행 계약 종료 시점을 지도·랭킹으로 보여주는 대시보드.</li>
+            <li><strong>분석과 기획</strong> — 사람이 해당 자치구의 사업계획을 조사(2부의 방법론)해 분석 자료와 기획 초안을 만드는 작업.</li>
+            <li><strong>산출</strong> — 분석·기획 결과를 열람 가능한 보고서 문서로 정리하는 작업.</li>
+          </ol>
+          <p>기회를 포착한 뒤 분석에 들어가는 것도, 분석 결과를 기획으로 넘기는 것도 사람이 손으로 옮겼습니다. 그래서 <strong>"어느 기관이 지금 몇 단계에 있는지"를 아무도 한 화면에서 볼 수 없었고</strong>, 제안서의 어느 평가항목이 아직 비어 있는지는 제출 직전에야 드러났습니다. 다음 장부터는 그 문제가 어떻게 해소됐는지를 다룹니다.</p>
+        </div>
+      </article>
+
+      <article class="chapter" id="ch-9">
+        <header class="ch-head">
+          <div class="ch-eyebrow">CHAPTER 9</div>
+          <h3 class="ch-title"><span class="ch-num">9</span>지금 무엇이 되어 있나</h3>
+        </header>
+        <div class="ch-body">
+          <p>세 도구를 <strong>하나의 흐름</strong>으로 묶었습니다. 기관 정보·진행 단계·지시와 보고·알림이 한 데이터베이스에 모이고, 화면은 그 흐름을 운전하는 조종석 역할을 합니다.</p>
+          <div class="gterms">
+            <div class="gterm"><div class="gt-name">① 발굴</div><div class="gt-val">전국 지도에서 입찰 임박도를 색으로 보고 기관을 좁힙니다. 공고가 확보된 곳은 <strong>확정</strong>, 주기로 계산한 곳은 <strong>추측</strong>으로 구분해 근거의 강도를 숨기지 않습니다.</div></div>
+            <div class="gterm"><div class="gt-name">② 결정</div><div class="gt-val">참여 여부는 버튼 하나가 아니라 <strong>영업 → 전산 → 예산 3차 순차 결재</strong>입니다. 3차까지 모여야 참여확정이 되고, 확정 전에는 워크플로 실행 자체가 막힙니다.</div></div>
+            <div class="gterm"><div class="gt-name">③ 실행</div><div class="gt-val">총괄 에이전트가 3개 팀을 병렬로 돌려 제안서를 쓰고, 배점표 100점의 어느 항목이 채워졌는지를 실시간으로 추적합니다. 5·7·8단계에서는 반드시 사람 결재를 받고 멈춥니다.</div></div>
+            <div class="gterm"><div class="gt-name">④ 산출</div><div class="gt-val">완성된 제안서를 아카이브하고 <strong>자동으로 다시 색인</strong>해, 다음 기관의 제안을 쓸 때 검색되는 근거로 재사용합니다.</div></div>
+          </div>
+          <p>규모로 보면 백엔드(FastAPI + SQLite) 약 7,400줄, 화면(빌드 도구 없는 바닐라 JS + D3 지도) 약 2,600줄이고, <strong>백엔드 테스트 635건 · 화면 테스트 166건이 전부 통과</strong>합니다(본 보고서 작성 시점 실측). 등록된 기관 코퍼스는 서울 25개 자치구입니다.</p>
+          <blockquote><p>중요한 차이는 "자동으로 다 해준다"가 아니라 <strong>"사람이 어디서 개입해야 하는지가 시스템에 박혀 있다"</strong>는 점입니다. 결재 3게이트와 최종 제출은 설계상 사람의 몫이고, 이 지점은 자동화 대상이 아닙니다.</p></blockquote>
+        </div>
+      </article>
+
+      <article class="chapter" id="ch-10">
+        <header class="ch-head">
+          <div class="ch-eyebrow">CHAPTER 10</div>
+          <h3 class="ch-title"><span class="ch-num">10</span>새로 갖춘 기능</h3>
+        </header>
+        <div class="ch-body">
+          <p>이전 보고 이후 새로 붙은 것들입니다. 모두 실제 기동한 시스템에서 동작을 확인했습니다.</p>
+          <table>
+            <thead><tr><th>기능</th><th>무엇을 하는가</th></tr></thead>
+            <tbody>
+              <tr><td><strong>워크플로 현황판</strong></td><td>9단계 스테퍼로 기관의 현재 위치를 보여주고, 단계를 누르면 그 단계에 <strong>실제로 기록을 남긴 팀</strong>과 지시·보고 로그가 펼쳐집니다. 참여 결정 3차 결재와 배점표 매핑 표(항목별 담당팀·작성상태·개인정보 검출 건수)가 같은 화면에 있습니다.</td></tr>
+              <tr><td><strong>대화 탭</strong></td><td>기관을 골라 참여 여부를 물으면 <strong>영업·전산·예산 3개 관점 + 강점·리스크</strong>로 나눠 답합니다. 응답은 스트리밍으로 즉시 흐르고, 중단할 수 있습니다.</td></tr>
+              <tr><td><strong>지식 탭 (하이브리드 검색)</strong></td><td>글자 검색(FTS5 trigram·한글 대응)과 뜻 검색(임베딩)을 <strong>순위로 합쳐</strong> 항상 함께 돌립니다. 결과마다 어느 기관·어느 문서의 몇 번째 조각인지 출처가 붙고, 원문을 그 자리에서 열어 매칭 구간을 확인할 수 있습니다.</td></tr>
+              <tr><td><strong>쪽지함</strong></td><td>결재요청·되물음·이관·쪽지를 종류별 색으로 모아 보여주고 미읽음 건수를 배지로 셉니다. 수신자를 <strong>사람 이름과 소속 양쪽으로</strong> 잡아 역할 앞으로 온 결재요청도 놓치지 않습니다.</td></tr>
+              <tr><td><strong>입찰 상황판</strong></td><td>공고가 확보되면 그 입찰일이 추정치를 이깁니다(확정 &gt; 예상 &gt; 표 입력). 기관 정보를 화면에서 고쳐 서버에 저장하고, 저장 경로가 없는 항목은 <strong>입력 자체를 잠가</strong> 무음 실패를 없앴습니다.</td></tr>
+              <tr><td><strong>망 밖 수집기</strong></td><td>인터넷 쪽에서 공고를 모아 <strong>배치 파일 한 벌</strong>(목록 + 표 + 첨부)로 만들고, 폐쇄망 안에서 검사 후 반입합니다. 기관·공고·첨부 PDF가 한 번에 등록됩니다.</td></tr>
+              <tr><td><strong>정합성 검사</strong></td><td>"9단계까지 갔는데 참여 결정이 대기"처럼 <strong>이미 어긋나 있는 데이터</strong>를 규칙으로 찾아 화면 맨 위에 경고합니다. 오탐이 한 번이라도 나면 아무도 안 읽기 때문에, 정상 조합은 절대 잡지 않도록 규칙을 좁게 잡았습니다.</td></tr>
+              <tr><td><strong>모델 자동선택·표시</strong></td><td>운영 장비의 RAM·CPU와 <strong>실제 설치된 모델 목록</strong>을 함께 보고 쓸 모델을 고릅니다(옵트인). 화면에는 지금 답을 만드는 모델과 그 선택 근거가 표시되고, 작업 이력에도 어떤 모델이 썼는지 남습니다.</td></tr>
+              <tr><td><strong>디자이너 전용 뷰</strong></td><td>이관받은 패키지를 <strong>열어서 확인하고 작업물을 올리는 창구</strong>입니다. 요청받은 작업을 입찰일까지 남은 일수 순으로 세우고, 임시저장·제출(결재요청)까지 한 화면에서 처리합니다. 소속이 디자이너일 때만 노출됩니다.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="chapter" id="ch-11">
+        <header class="ch-head">
+          <div class="ch-eyebrow">CHAPTER 11</div>
+          <h3 class="ch-title"><span class="ch-num">11</span>9단계 워크플로 — 현재 상태</h3>
+        </header>
+        <div class="ch-body">
+          <p>실제 입찰~제안서 제출 실무를 정리한 9단계입니다. 이전 보고에서는 이 그림이 <em>계획</em>이었지만, 지금은 <strong>전 구간이 동작하는 상태</strong>입니다.</p>
+          <div class="pipeline-legend">
+            <span><i style="background:var(--cyan)"></i>구현 완료</span>
+            <span><i style="background:var(--amber)"></i>동작하나 제한 있음</span>
+            <span><i style="background:var(--muted)"></i>사람이 처리</span>
+          </div>
+          <div class="pipeline">
+            <div class="flow-dot"></div>
+            <div class="stage reuse"><div class="stage-num">1</div><div class="stage-title">입찰현황 파악<span class="stage-tag">완료</span></div><div class="stage-desc">전국 지도·임박 티커·랭킹. 서버 데이터와 연동됨</div></div>
+            <div class="stage reuse"><div class="stage-num">2</div><div class="stage-title">입찰 상황 발생<span class="stage-tag">완료</span></div><div class="stage-desc">공고 반입 시 조사 작업 자동 생성 → 영업·전산·예산 3차 순차 결재로 참여 확정</div></div>
+            <div class="registry-wrap">
+              <div class="stage redesign"><div class="stage-num">3</div><div class="stage-title">RFI 공시<span class="stage-tag">완료 · 제한</span></div><div class="stage-desc">망 밖 수집기가 공고·첨부를 배치로 반입. 실사이트 크롤링은 범위 밖(어댑터 자리만 열려 있음)</div></div>
+              <div class="stage redesign"><div class="stage-num">4</div><div class="stage-title">RFI 분석<span class="stage-tag">완료 · 제한</span></div><div class="stage-desc">공고문에서 배점표를 구조화. 합계 검증 규칙이 붙었으나 사람 검수 필수</div></div>
+              <div class="stage reuse"><div class="stage-num">5</div><div class="stage-title">제안서 기획<span class="stage-tag">완료</span> <span class="checkpoint-flag">🛑 사람 결재</span></div><div class="stage-desc">기관 자료를 매칭해 기획 초안을 쓰고 결재에서 정지</div></div>
+              <div class="stage reuse"><div class="stage-num">6</div><div class="stage-title">세부기획(영업·전산·예산 3팀)<span class="stage-tag">완료</span></div><div class="stage-desc">배점 항목을 팀에 배정하고 병렬 작성 후 배점표 원순서로 병합</div></div>
+              <div class="stage reuse"><div class="stage-num">7</div><div class="stage-title">제안서 취합<span class="stage-tag">완료</span> <span class="checkpoint-flag">🛑 이관 결재</span></div><div class="stage-desc">산출물 생성 후 이관 결재 → 아카이브·자동 재색인</div></div>
+              <div class="stage reuse"><div class="stage-num">8</div><div class="stage-title">제안서 검토<span class="stage-tag">완료</span> <span class="checkpoint-flag">🛑 최종 결재</span></div><div class="stage-desc">자체검증 + 개인정보 검출 + 정합성 경고를 붙여 최종 결재</div></div>
+              <div class="stage human"><div class="stage-num">9</div><div class="stage-title">제안서 제출</div><div class="stage-desc">사람이 최종 제출 — 설계상 자동화 대상 아님</div></div>
+              <div class="registry-label">🔶 <b>레지스트리(SQLite) 구축 완료</b> — 기관 25곳·워크플로 상태·지시/보고·알림을 한 DB에서 관리. 이전 보고의 "다음에 손댈 지점"이 <b>지금은 전 단계를 떠받치고 있습니다</b></div>
+            </div>
+          </div>
+          <blockquote><p><strong>솔직하게 남은 제한 두 가지.</strong> ① 3단계의 실사이트(나라장터 등) 자동 크롤링은 범위 밖입니다 — 어댑터 자리는 열어 뒀지만 지금은 파일로 받습니다. ② 4단계 배점표 추출은 <strong>모델 성능에 크게 의존</strong>합니다. 소형 모델로 실측했을 때 분류는 맞히지만 개별 배점을 지어내는 현상이 반복돼, 합계 검증 규칙을 붙이고 사람 검수를 필수로 뒀습니다 — 이것이 6부의 첫 번째 결정 사항으로 이어집니다.</p></blockquote>
+        </div>
+      </article>
+
+      <article class="chapter" id="ch-12">
+        <header class="ch-head">
+          <div class="ch-eyebrow">CHAPTER 12</div>
+          <h3 class="ch-title"><span class="ch-num">12</span>폐쇄망을 지키는 구조</h3>
+        </header>
+        <div class="ch-body">
+          <p>이 시스템은 <strong>인터넷이 없는 폐쇄망</strong>에서 도는 것을 전제로 설계했습니다. 외부 API·클라우드 서비스에 의존하는 부분이 없고, 다음 여섯 가지가 그 전제를 지킵니다.</p>
+          <div class="gterms">
+            <div class="gterm"><div class="gt-name">1. 망 경계를 코드로 강제</div><div class="gt-val">망 밖 수집기와 폐쇄망 백엔드는 <strong>서로의 코드를 불러 쓰지 않습니다</strong>. 접점은 파일 배치 하나뿐이고, 그 경계를 지키는지를 테스트가 자동으로 검사합니다.</div></div>
+            <div class="gterm"><div class="gt-name">2. 모델은 사내에</div><div class="gt-val">외부 상용 AI 서비스를 쓰지 않고, 표준 규격 엔드포인트만 맞으면 사내에 올린 어떤 모델이든 주소만 바꿔 연결됩니다. 1순위가 실패하면 2순위로 넘어갑니다.</div></div>
+            <div class="gterm"><div class="gt-name">3. 개인정보 사전 검출</div><div class="gt-val">업로드한 문서를 즉시 검사해 개인정보로 보이는 값을 세고, 그 건수를 배점표 매핑 표에 항목별로 함께 보여줍니다.</div></div>
+            <div class="gterm"><div class="gt-name">4. 사람 결재 3게이트</div><div class="gt-val">5·7·8단계에서 반드시 멈추고 사람의 승인을 받습니다. 반려하면 그 의견이 재작성 지시로 그대로 전달됩니다.</div></div>
+            <div class="gterm"><div class="gt-name">5. 데이터 정합성 감시</div><div class="gt-val">규칙 기반 검사가 어긋난 데이터를 찾아 화면에 경고하고, 선후 관계를 어기는 실행(참여 확정 전 워크플로 실행)은 아예 막습니다.</div></div>
+            <div class="gterm"><div class="gt-name">6. 시연 환경은 분리</div><div class="gt-val">의사결정자에게 보여줄 클라우드 데모는 <strong>같은 코드·다른 데이터</strong>로 돌고, 접근은 인증과 IP 제한으로 잠급니다. 운영 자료와 파일 단위로 분리돼 섞이지 않습니다.</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="chapter" id="ch-13">
+        <header class="ch-head">
+          <div class="ch-eyebrow">CHAPTER 13</div>
+          <h3 class="ch-title"><span class="ch-num">13</span>구현 로드맵 — 진행 현황</h3>
+        </header>
+        <div class="ch-body">
+          <p>이전 보고의 7단계 로드맵은 6단계까지 진행됐습니다. 마지막에 <strong>기관 이관(7)</strong> 항목이 새로 붙었습니다.</p>
+          <table>
+            <thead><tr><th>순서</th><th>내용</th><th>상태</th></tr></thead>
+            <tbody>
+              <tr><td>0</td><td>레지스트리 구축 — 기관 정보·진행 단계 통합 저장소</td><td><span class="tag done">완료</span></td></tr>
+              <tr><td>1</td><td>클라우드 데모 환경 — 첫 배포·접속 확인</td><td><span class="tag wip">구성 확정 · 실기동 대기</span></td></tr>
+              <tr><td>2</td><td>폐쇄망 핵심 백엔드 — 반입·워크플로·산출 연동</td><td><span class="tag done">완료</span></td></tr>
+              <tr><td>3</td><td>3단계(RFI 확보) 재설계 — 망 밖 수집기 방식</td><td><span class="tag done">완료</span></td></tr>
+              <tr><td>4</td><td>6단계 3팀 분화 구현</td><td><span class="tag done">완료</span></td></tr>
+              <tr><td>5</td><td>프런트엔드 전면 이관 — 협업 화면 7종</td><td><span class="tag done">완료</span></td></tr>
+              <tr><td>6</td><td>클라우드 데모 정식 배포</td><td><span class="tag wip">설치 매뉴얼 완료 · 기동 승인 대기</span></td></tr>
+              <tr><td>7</td><td>기관 표준 플랫폼 이관(WebLogic/Java)</td><td><span class="tag">설계 완료 · 착수 전</span></td></tr>
+            </tbody>
+          </table>
+          <p>7번은 <strong>기관 표준(폐쇄망에 파이썬 런타임을 둘 수 없음)</strong> 요건이 확인되면서 새로 생긴 항목입니다. 화면은 재작성 없이 그대로 옮길 수 있고 백엔드는 다시 써야 한다는 것, 그리고 직접 만들어야 하는 부품이 셋(한글 검색·워크플로 상태관리·모델 호출)이라는 것까지 설계가 끝나 있습니다. 착수 전에 기관·DBA 확인 사항 7건이 남아 있습니다.</p>
+        </div>
+      </article>
+
+      <section class="part-opener" id="part-5">
+        <div class="po-rom">PART V</div>
+        <div class="po-num">5부</div>
+        <h2 class="po-title">기대효과</h2>
+        <div class="po-sub">투자 대비 무엇을 얻는가</div>
+        <p class="po-intro">근거 기반 분석·자동화 두 축이 만드는 기대효과를 정리합니다.</p>
+      </section>
+
+      <article class="chapter" id="ch-14">
+        <header class="ch-head">
+          <div class="ch-eyebrow">CHAPTER 14</div>
+          <h3 class="ch-title"><span class="ch-num">14</span>투자 대비 기대효과</h3>
+        </header>
+        <div class="ch-body">
+          <div class="gterms">
+            <div class="gterm"><div class="gt-name">1. 협업 경쟁력</div><div class="gt-val">근거 있는 제안은 지자체 입장에서도 검증 가능해, 상품 세일즈보다 신뢰·관계 형성에 유리합니다.</div></div>
+            <div class="gterm"><div class="gt-name">2. 생애주기 고객화</div><div class="gt-val">청년·소상공인·정비사업 초기 단계부터 관계를 맺어, 이후 대출·주택금융까지 이어지는 장기 고객 확보 기반이 됩니다.</div></div>
+            <div class="gterm"><div class="gt-name">3. ESG 실적</div><div class="gt-val">청년·취약계층·문화유산 등 지역 밀착 지원 실적을 자연스럽게 축적할 수 있습니다.</div></div>
+            <div class="gterm"><div class="gt-name">4. 협업 실무의 효율화</div><div class="gt-val">흩어져 있던 발굴·결정·작성·산출이 한 흐름으로 묶여, 기관 1곳당 리서치·제안 소요 시간과 "누가 어디까지 했는지"를 확인하는 비용이 함께 줄어듭니다.</div></div>
+            <div class="gterm"><div class="gt-name">5. 근거의 재사용</div><div class="gt-val">완성된 제안서가 아카이브되며 자동으로 다시 색인돼, <strong>다음 기관의 제안을 쓸 때 검색되는 근거</strong>가 됩니다. 건수가 쌓일수록 유리해지는 구조입니다.</div></div>
+            <div class="gterm"><div class="gt-name">6. 전국 확장 가능성</div><div class="gt-val">표준화된 분석·기획 방법론이라 서울 25개구를 넘어 전국 지자체·기관으로 같은 방식이 재사용 가능합니다.</div></div>
+            <div class="gterm"><div class="gt-name">7. 리스크 관리</div><div class="gt-val">조작 금지·근거 추적·자체 검증 원칙이 제안 신뢰도를, 폐쇄망 설계·개인정보 사전 검출·결재 3게이트가 정보보안 리스크를 관리합니다.</div></div>
+            <div class="gterm"><div class="gt-name">8. 검증된 상태로 인계</div><div class="gt-val">백엔드 635·화면 166건의 자동 테스트가 붙어 있어, 담당자가 바뀌거나 다른 플랫폼으로 옮길 때 <strong>무엇이 깨졌는지 즉시 알 수 있습니다</strong>.</div></div>
+          </div>
+        </div>
+      </article>
+
+      <section class="part-opener" id="part-6">
+        <div class="po-rom">PART VI</div>
+        <div class="po-num">6부</div>
+        <h2 class="po-title">다음 단계</h2>
+        <div class="po-sub">지금 필요한 결정</div>
+        <p class="po-intro">이전 보고의 결정 사항 3건(25개구 완결 · 레지스트리 착수 · 자동화 재설계 방향)은 <strong>모두 해소됐습니다.</strong> 지금 남은 결정은 아래 네 가지입니다.</p>
+      </section>
+
+      <article class="chapter" id="ch-15">
+        <header class="ch-head">
+          <div class="ch-eyebrow">CHAPTER 15</div>
+          <h3 class="ch-title"><span class="ch-num">15</span>필요한 의사결정</h3>
+        </header>
+        <div class="ch-body">
+          <div class="gterms">
+            <div class="gterm"><div class="gt-name"><span class="tag ask">가장 급함</span> 사내 LLM 엔드포인트 제공</div><div class="gt-val">운영급 모델로는 <strong>아직 한 번도 돌려보지 못했습니다</strong> — 가진 장비에 올라가지 않기 때문입니다. 소형 모델 실측에서는 배점표의 분류는 맞히지만 숫자를 지어내는 현상이 반복됐고, 이것이 4단계 산출물의 실사용 가능 여부를 가릅니다. <strong>엔드포인트만 열리면 코드 변경 없이 주소 설정만으로 검증할 수 있습니다.</strong></div></div>
+            <div class="gterm"><div class="gt-name"><span class="tag ask">결정 필요</span> 시연 환경 기동 승인</div><div class="gt-val">의사결정자에게 실물을 보여줄 클라우드 데모의 구성·비용·설치 절차가 모두 문서로 확정돼 있고, 남은 것은 <strong>기동 승인</strong>뿐입니다. 시연 때만 켜는 방식이라 상시 비용은 들지 않습니다.</div></div>
+            <div class="gterm"><div class="gt-name"><span class="tag ask">결정 필요</span> 기관 표준 플랫폼 이관 착수</div><div class="gt-val">기관 폐쇄망에 파이썬 런타임을 둘 수 없다면 백엔드를 기관 표준(자바 기반)으로 다시 써야 합니다. 설계는 끝났고, 착수 전에 <strong>기관·DBA 확인 7건</strong>이 필요합니다 — 그중 두 건(임베딩 제공 여부·DB 한글 검색 기능 사용 가능 여부)은 답에 따라 설계가 갈립니다.</div></div>
+            <div class="gterm"><div class="gt-name"><span class="tag wip">확인 요청</span> 실사이트 자동 수집의 범위</div><div class="gt-val">공고를 <strong>사람이 파일로 반입</strong>하는 현재 방식을 유지할지, 나라장터 등 실사이트 자동 수집까지 확장할지 정해야 합니다. 확장은 별도 설계가 필요하고 <strong>망 경계 정책과도 맞물립니다</strong>.</div></div>
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  var pbar=document.getElementById('pbar');
+  var menuBtn=document.getElementById('menuBtn');
+  var side=document.getElementById('side');
+  var scrim=document.getElementById('scrim');
+  var links=Array.prototype.slice.call(document.querySelectorAll('.nav-chapters a'));
+  var sections=links.map(function(a){return document.getElementById(a.getAttribute('data-target'));}).filter(Boolean);
+
+  function onScroll(){
+    var doc=document.documentElement;
+    var scrolled=(doc.scrollTop)/(doc.scrollHeight-doc.clientHeight)*100;
+    pbar.style.width=scrolled+'%';
+    var y=window.scrollY+120;
+    var current=null;
+    sections.forEach(function(sec){ if(sec.offsetTop<=y) current=sec; });
+    links.forEach(function(a){a.classList.remove('current');});
+    if(current){
+      var link=links.find(function(a){return a.getAttribute('data-target')===current.id;});
+      if(link) link.classList.add('current');
+    }
+  }
+  document.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+
+  function closeMenu(){side.classList.remove('open'); scrim.classList.remove('show');}
+  menuBtn.addEventListener('click', function(){side.classList.toggle('open'); scrim.classList.toggle('show');});
+  scrim.addEventListener('click', closeMenu);
+  links.forEach(function(a){a.addEventListener('click', closeMenu);});
+})();
+</script>
+</body>
+</html>
