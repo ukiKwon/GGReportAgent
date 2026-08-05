@@ -231,18 +231,50 @@ def test_임시저장도_담당을_선점한다(tmp_path):
     assert r.status_code == 403
 
 
-def test_디자이너_제출은_본부장에게_올라간다(tmp_path):
-    """결재 라인대로 간다(계획 I) — 예전에는 무엇이든 '영업팀' 고정이었다."""
+def test_디자이너_제출은_영업팀장에게_올라간다(tmp_path):
+    """디자이너는 **영업팀 소속**이라 1차 결재가 영업팀장에게 간다(사용자 확정).
+    예전에는 무엇이든 '영업팀' 고정이었고, 그다음엔 '본부장'이었다."""
     client = _client(tmp_path)
     client.post("/tasks/t-design-2/submit", json={"by": "최 디자이너"},
                 headers={"X-User-Id": "web-user"})
 
-    notes = client.get("/notifications", params={"recipient": "본부장"}).json()
+    notes = client.get("/notifications", params={"recipient": "영업팀장"}).json()
     approvals = [n for n in notes if n["kind"] == "결재요청"]
     assert len(approvals) == 1
     assert approvals[0]["task_id"] == "t-design-2"
     assert approvals[0]["institution_id"] == "dobong"
     assert "디자이너" in approvals[0]["content"]
+
+
+def test_영업팀장_승인이_곧_영업부장_상신이다(tmp_path):
+    """사용자 확정 — "영업팀장이 영업부장에게 그 결과물을 결재올리는 걸로 종료".
+    별도의 상신 버튼을 두면 승인해 놓고 안 올린 상태가 생긴다."""
+    client = _client(tmp_path)
+    client.post("/tasks/t-design-2/submit", json={"by": "최 디자이너"},
+                headers={"X-User-Id": "web-user"})
+    r = client.post("/tasks/t-design-2/approve", json={"approved": True, "by": "이 팀장"},
+                    headers={"X-User-Id": "web-user"})
+    assert r.status_code == 200 and r.json()["status"] == "2차완료"
+
+    notes = client.get("/notifications", params={"recipient": "영업부장"}).json()
+    assert [n["task_id"] for n in notes if n["kind"] == "결재요청"] == ["t-design-2"]
+
+
+def test_영업부장_최종결재가_흐름의_끝이다(tmp_path):
+    """1차 결재자(영업팀장)가 결재자 칸을 잡고 있어도 부장이 막히면 안 된다 —
+    결재자 선점은 단계마다 따로 본다."""
+    client = _client(tmp_path)
+    client.post("/tasks/t-design-2/submit", json={"by": "최 디자이너"},
+                headers={"X-User-Id": "web-user"})
+    client.post("/tasks/t-design-2/approve", json={"approved": True, "by": "이 팀장"},
+                headers={"X-User-Id": "web-user"})
+    r = client.post("/tasks/t-design-2/approve", json={"approved": True, "by": "박 부장"},
+                    headers={"X-User-Id": "web-user"})
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "최종완료"
+    assert body["approver"] == "이 팀장" and body["final_approver"] == "박 부장"
 
 
 def test_디자이너_제출물은_각_팀에도_전달된다(tmp_path):

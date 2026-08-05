@@ -2,8 +2,9 @@
   'use strict';
   // 결재함 (계획 I Task 5) — 그 역할이 결재할 것만 모아 보여준다.
   //
-  // 결재 라인(사용자 확정): 팀원 → **그 팀의 팀장** → 디자이너 → **본부장**.
-  // 본부장 화면에는 워크플로가 없으므로 결재에 필요한 맥락(기관·단계·작성물·파일)이
+  // 결재 라인(사용자 확정): 팀원 → **그 팀의 팀장**,
+  //                          디자이너 → **영업팀장** → **영업부장**(최종, 흐름 종료).
+  // 영업부장 화면에는 워크플로가 없으므로 결재에 필요한 맥락(기관·단계·작성물·파일)이
   // **카드 하나에 다 있어야 한다** — 서버가 그렇게 실어 준다.
   const approvals = {};
 
@@ -24,12 +25,17 @@
         author: isTask ? (it.assignee || null) : null,
         content: isTask ? (it.draft_content || '') : '',
         files: isTask ? designer.fileRows(it.files) : [],
+        // 같은 디자이너 작업이 팀장(1차)과 부장(최종) 결재함에 각각 뜬다. 어느
+        // 쪽인지는 서버가 정해 준다 — 화면이 상태 문자열을 다시 해석하지 않는다.
+        final: !!it.final,
       };
     });
   };
 
   approvals.kindLabel = function (item) {
-    return item && item.kind === 'gate' ? (item.gate || '결재') : '작업물 결재';
+    if (!item) return '작업물 결재';
+    if (item.kind === 'gate') return item.gate || '결재';
+    return item.final ? '최종 결재' : '작업물 결재';
   };
 
   // 작업과 게이트는 부르는 곳이 다르다 — 같은 카드로 보이지만 뒤는 다른 흐름이다.

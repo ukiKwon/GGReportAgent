@@ -259,7 +259,12 @@ test('teamOf: 팀원과 팀장은 같은 팀을 본다', function () {
 
 test('teamOf: 접미사가 없는 역할은 그대로', function () {
   assert.strictEqual(dg.teamOf('디자이너'), '디자이너');
-  assert.strictEqual(dg.teamOf('본부장'), '본부장');
+  assert.strictEqual(dg.teamOf('낯선사람'), '낯선사람');
+});
+
+test('teamOf: 부장도 같은 팀을 본다', function () {
+  // 소속은 3그룹뿐이고 부장은 그 안의 직책이다(사용자 확정).
+  assert.strictEqual(dg.teamOf('영업부장'), '영업');
 });
 
 test('teamOf: 팀장 접미사가 먼저 떨어진다', function () {
@@ -291,7 +296,8 @@ test('approverLabel: 제출하면 누구에게 가는지 — 결재 라인대로
   // 예전에는 무엇이든 '영업팀'이라고 말했다(결재 라인이 없던 시절의 자국).
   assert.strictEqual(dg.approverLabel('영업팀'), '영업팀장');
   assert.strictEqual(dg.approverLabel('전산팀'), '전산팀장');
-  assert.strictEqual(dg.approverLabel('디자이너'), '본부장');
+  // 디자이너는 영업팀 소속이라 1차 결재도 영업팀장이 받는다(사용자 확정).
+  assert.strictEqual(dg.approverLabel('디자이너'), '영업팀장');
 });
 
 test('approverLabel: 모르는 소속은 결재자를 지어내지 않는다', function () {

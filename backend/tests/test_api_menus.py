@@ -25,9 +25,9 @@ def test_빈_DB에서도_기본값을_준다(tmp_path):
     assert body["menus"]["map"] is True
 
 
-def test_본부장은_워크플로를_보지_않는다(tmp_path):
+def test_영업부장은_워크플로를_보지_않는다(tmp_path):
     """최종 결재자에게 9단계 현황판은 필요 없다(사용자 확정) — 결재함만 본다."""
-    menus = _client(tmp_path).get("/menus", params={"role": "본부장"}).json()["menus"]
+    menus = _client(tmp_path).get("/menus", params={"role": "영업부장"}).json()["menus"]
     assert menus["workflow"] is False
     assert menus["approvals"] is True
 
@@ -42,7 +42,7 @@ def test_팀원은_결재함이_없고_팀장은_있다(tmp_path):
 
 def test_권한관리는_전산팀만_켜져_있다(tmp_path):
     client = _client(tmp_path)
-    for role in ("영업팀", "예산팀", "디자이너", "본부장", "영업팀장"):
+    for role in ("영업팀", "예산팀", "디자이너", "영업부장", "영업팀장"):
         assert client.get("/menus", params={"role": role}).json()["menus"][ADMIN_MENU] is False
     assert client.get("/menus", params={"role": "전산팀"}).json()["menus"][ADMIN_MENU] is True
 
@@ -58,7 +58,7 @@ def test_role_없이_부르면_전체_표를_준다(tmp_path):
     """관리 화면이 쓰는 모양 — 역할×메뉴 격자와 메뉴 정의."""
     body = _client(tmp_path).get("/menus").json()
     assert [m["key"] for m in body["menus"]] == [m["key"] for m in MENUS]
-    assert body["roles"]["본부장"]["workflow"] is False
+    assert body["roles"]["영업부장"]["workflow"] is False
     assert "label" in body["menus"][0]
 
 
@@ -67,27 +67,27 @@ def test_role_없이_부르면_전체_표를_준다(tmp_path):
 def test_켜고_끄면_그대로_읽힌다(tmp_path):
     client = _client(tmp_path)
     r = client.put("/menus", json={"changes": [
-        {"role": "본부장", "menu": "workflow", "enabled": True},
+        {"role": "영업부장", "menu": "workflow", "enabled": True},
     ]})
     assert r.status_code == 200
-    assert client.get("/menus", params={"role": "본부장"}).json()["menus"]["workflow"] is True
+    assert client.get("/menus", params={"role": "영업부장"}).json()["menus"]["workflow"] is True
 
 
 def test_되돌리면_기본값으로_돌아간다(tmp_path):
     client = _client(tmp_path)
-    client.put("/menus", json={"changes": [{"role": "본부장", "menu": "workflow", "enabled": True}]})
-    client.put("/menus", json={"changes": [{"role": "본부장", "menu": "workflow", "enabled": False}]})
-    assert client.get("/menus", params={"role": "본부장"}).json()["menus"]["workflow"] is False
+    client.put("/menus", json={"changes": [{"role": "영업부장", "menu": "workflow", "enabled": True}]})
+    client.put("/menus", json={"changes": [{"role": "영업부장", "menu": "workflow", "enabled": False}]})
+    assert client.get("/menus", params={"role": "영업부장"}).json()["menus"]["workflow"] is False
 
 
 def test_저장은_바꾼_것만_보낸다(tmp_path):
     """전체를 덮어쓰지 않는다 — 두 사람이 동시에 만져도 서로의 변경을 지우지 않는다."""
     client = _client(tmp_path)
-    client.put("/menus", json={"changes": [{"role": "본부장", "menu": "workflow", "enabled": True}]})
+    client.put("/menus", json={"changes": [{"role": "영업부장", "menu": "workflow", "enabled": True}]})
     client.put("/menus", json={"changes": [{"role": "영업팀", "menu": "knowledge", "enabled": False}]})
 
     roles = client.get("/menus").json()["roles"]
-    assert roles["본부장"]["workflow"] is True
+    assert roles["영업부장"]["workflow"] is True
     assert roles["영업팀"]["knowledge"] is False
 
 
@@ -121,12 +121,12 @@ def test_다른_역할에_먼저_주면_끌_수_있다(tmp_path):
     """자물쇠는 '아무도 못 들어가는 상태'만 막는다 — 담당자를 바꾸는 것은 정상이다."""
     client = _client(tmp_path)
     r = client.put("/menus", json={"changes": [
-        {"role": "본부장", "menu": ADMIN_MENU, "enabled": True},
+        {"role": "영업부장", "menu": ADMIN_MENU, "enabled": True},
         {"role": "전산팀", "menu": ADMIN_MENU, "enabled": False},
     ]})
     assert r.status_code == 200
     menus = client.get("/menus").json()["roles"]
-    assert menus["본부장"][ADMIN_MENU] is True and menus["전산팀"][ADMIN_MENU] is False
+    assert menus["영업부장"][ADMIN_MENU] is True and menus["전산팀"][ADMIN_MENU] is False
 
 
 def test_기본값에도_권한관리_담당이_반드시_있다():

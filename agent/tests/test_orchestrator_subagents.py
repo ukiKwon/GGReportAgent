@@ -214,7 +214,7 @@ def test_llm_used는_그래프_상태로_새어나가지_않는다(mock_verify):
 
 @patch("agent.orchestrator.subagents.verification_node")
 def test_verifier_sends_final_approval_notify(mock_verify):
-    """F7: verifier 완료 시 인사권자에게 최종결재 대기 알림이 1회 기록된다."""
+    """F7: verifier 완료 시 최종 결재자에게 최종결재 대기 알림이 1회 기록된다."""
     mock_verify.return_value = {"coverage_report": [{"scoring_item": "a", "covered": True, "gap_note": None}],
                                 "llm_used": True}
     recorder = MagicMock()
@@ -223,8 +223,8 @@ def test_verifier_sends_final_approval_notify(mock_verify):
 
     verifier(state, recorder)
 
-    # 계획 I에서 "인사권자" → "본부장"으로 개명했다(최종 결재자는 본부장급).
-    recorder.notify.assert_called_once_with("본부장", "결재요청", ANY)
+    # "인사권자" → 잠깐 "본부장" → 사용자가 본부장 개념을 없애고 "영업부장"으로 확정.
+    recorder.notify.assert_called_once_with("영업부장", "결재요청", ANY)
 
 
 # ── 디자이너 Task 개설 (계획 H Task 1) ──────────────────────────────────

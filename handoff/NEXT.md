@@ -554,6 +554,31 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
   **세션 도중에도 수가 바뀐다** — 커밋 직전에 클린 트리에서 다시 잴 것.
 - **비차단**: 설명회용 문서이고, 이미 만들어진 15장은 그대로 유효하다.
 
+### 12. 프로필 소속·직책 두 칸 UI를 브라우저에서 확인하지 못했다 (비차단, 화면)
+
+- **출처**: `2026-08-05_summary.md` `## Session 18:17`.
+- **무엇인가**: 사용자 확정으로 상단바 프로필이 **소속(3그룹) + 직책** 두 개의
+  `<select>`로 바뀌었다(`dashboard/index.html`의 `#me-team`·`#me-pos`). 배선은
+  `dashboard/js/app.js`의 `showRole`/`paintPositions`/`readRole`에 있다.
+  API와 순수 로직(`dashboard/js/roles.js`, `roles.test.js` 7건)은 전부 초록불이고
+  데모 서버로 결재 전 구간도 실측했는데, **DOM 배선만 눈으로 못 봤다**(사용자 퇴근).
+- **확인할 것**(모두 브라우저에서):
+  1. 소속을 `전산팀`으로 바꾸면 직책 목록이 `팀원/팀장` 둘로 줄어드는가
+     (`부장`·`디자이너`는 영업팀에만 있다).
+  2. 계정 전환기로 `최 디자이너`를 고르면 소속=`영업팀`, 직책=`디자이너`로 두 칸이
+     함께 맞춰지는가(`app.showProfileRole`).
+  3. localStorage에 옛 프로필(`{"team":"본부장"}`)이 남아 있는 상태로 열면 소속
+     칸에 `본부장`이 **그 값 그대로** 뜨고 직책 칸이 숨는가(`data-legacy` 경로).
+     → 개발자도구 콘솔에서
+     `localStorage.setItem('tbd.profile', JSON.stringify({name:'김',team:'본부장'}))`
+     후 새로고침.
+  4. 소속/직책을 바꾸면 탭 구성이 즉시 따라오는가(`app.onProfileChanged` →
+     `applyMenuPermissions`). 특히 `영업팀 + 부장` → 지도·결재함·대화 셋만.
+- **기동**: `py -3.14 -m backend.demo` (⚠️ `py -3`은 3.15라 의존성이 없다).
+  8000번을 옛 세션이 잡고 있으면 새 코드가 안 뜬다 — `netstat -ano | grep :8000`
+  → `taskkill //PID <pid> //F`. `pkill`은 Windows 파이썬에 안 먹는다.
+- **비차단**: 서버·로직은 검증됐고, 문제가 있어도 프로필 입력 UI 한 곳에 국한된다.
+
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)

@@ -341,13 +341,14 @@
     <!-- 내 프로필 — 쪽지함 조회 키(소속·이름)이자 결재자 이름 기본값 (계획 C2) -->
     <label class="me-box">나:
       <input id="me-name" placeholder="이름" size="8">
-      <!-- 소속은 자유 입력이다 — 쪽지 수신자가 DB에서 자유 문자열이라 목록에 없는 값도 쓴다 -->
-      <input id="me-team" list="me-teams" placeholder="소속" size="8">
-      <datalist id="me-teams">
+      <!-- 소속은 **3그룹뿐**이고 팀장·부장은 그 안의 직책이다(사용자 확정).
+           예전에는 자유 입력 한 칸이라 `전산팀장`이 소속처럼 섞여 있었다.
+           저장·전송은 여전히 합쳐진 한 문자열이다 — app.js의 composeRole 참조.
+           직책 목록은 소속에 따라 달라진다(부장·디자이너는 영업팀에만). -->
+      <select id="me-team" title="소속">
         <option>영업팀</option><option>전산팀</option><option>예산팀</option>
-        <option>영업팀장</option><option>전산팀장</option><option>예산팀장</option>
-        <option>디자이너</option><option>본부장</option>
-      </datalist>
+      </select>
+      <select id="me-pos" title="직책"></select>
       <!-- 계정 전환 — 데모 모드에서만 보인다(GET /accounts의 demo 플래그) -->
       <select id="me-switch" style="display:none;" title="계정 전환(데모 전용)"></select>
     </label>
@@ -469,7 +470,7 @@
       <datalist id="nt-recipients">
         <option>영업팀</option><option>전산팀</option><option>예산팀</option>
         <option>영업팀장</option><option>전산팀장</option><option>예산팀장</option>
-        <option>디자이너</option><option>본부장</option>
+        <option>디자이너</option><option>영업부장</option>
       </datalist>
       <input id="nt-text" placeholder="보낼 내용" style="flex:1 1 200px;">
       <button id="nt-send">보내기</button>
@@ -541,6 +542,7 @@
 <script src="js/chat.js"></script>
 <script src="js/notify.js"></script>
 <script src="js/knowledge.js"></script>
+<script src="js/roles.js"></script>
 <script src="js/designer.js"></script>
 <script src="js/menu_rules.js"></script>
 <script src="js/approvals.js"></script>

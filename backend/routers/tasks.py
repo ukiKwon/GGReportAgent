@@ -34,6 +34,7 @@ from backend.task_repository import (
     approve_task,
     claim_approver_if_unset,
     claim_assignee_if_unset,
+    claim_final_approver_if_unset,
     get_task,
     list_messages,
     submit_task,
@@ -43,6 +44,8 @@ from backend.teams import (
     APPROVED_STATUS,
     AUTHORING_TEAMS,
     DESIGNER_TEAM,
+    FINAL_APPROVER,
+    FINAL_STATUS,
     SUBMITTED_STATUS,
     inbox_name,
     is_authoring_team,
@@ -122,11 +125,20 @@ def _require_teams_done(conn: sqlite3.Connection, task: Task) -> None:
 
 
 def _submit_recipients(team: str) -> list[str]:
-    """제출을 결재할 사람. 팀 작업은 그 팀 팀장, 디자이너 작업은 본부장이다.
+    """제출을 결재할 사람. 팀 작업은 그 팀 팀장, **디자이너 작업도 영업팀장**이다.
 
     예전에는 무엇이든 '영업팀' 고정이었다 — 결재 라인이 없던 시절의 자국이다.
     """
     return [lead_of(team)]
+
+
+def _is_final_stage(task) -> bool:
+    """지금 이 결재가 **영업부장의 최종 결재**인가.
+
+    디자이너 최종본만 2단으로 올라간다(디자이너 제출 → 영업팀장 승인 → 영업부장 최종).
+    팀 작업은 팀장 승인에서 끝나므로 `2차완료`가 종점이다.
+    """
+    return task.team == DESIGNER_TEAM and task.status == APPROVED_STATUS
 
 
 def _read_json(path: str):
@@ -246,7 +258,8 @@ def get_handoff(task_id: str, request: Request) -> dict:
         # 주므로 화면이 GET /tasks/{task_id}/files/{name}으로 바로 내려받는다.
         "files": task_files.listing(output_root, ctx["name_ko"], r["task_id"]),
         # 디자이너 제출을 막는 근거 — **결재까지 끝나야** 넘어갈 수 있다(계획 I).
-        "working": r["status"] != APPROVED_STATUS,
+        # 디자이너 작업은 여기 팀 목록에도 섞여 오므로 `최종완료`도 끝난 것으로 본다.
+        "working": r["status"] not in (APPROVED_STATUS, FINAL_STATUS),
     } for r in rows if is_authoring_team(r["team"])]
     return {
         "institution_id": ctx["institution_id"],
@@ -411,21 +424,38 @@ def post_task_approve(
         task = get_task(conn, task_id)
         if task is None:
             raise HTTPException(status_code=404, detail="task not found")
-        if task.approver is not None and task.approver != actor:
+        final = _is_final_stage(task)
+        # 결재자 선점은 **단계마다 따로** 본다. 한 칸으로 합치면 1차를 본 영업팀장이
+        # 최종 결재까지 잠가버려 영업부장이 403을 받는다.
+        held = task.final_approver if final else task.approver
+        if held is not None and held != actor:
             raise HTTPException(status_code=403, detail="only the approver can approve")
-        if task.status != SUBMITTED_STATUS:
+        if not final and task.status != SUBMITTED_STATUS:
             raise HTTPException(status_code=409, detail="task not submitted yet")
-        claim_approver_if_unset(conn, task_id, actor)
-        approve_task(conn, task_id, body.approved)
+        if final:
+            claim_final_approver_if_unset(conn, task_id, actor)
+        else:
+            claim_approver_if_unset(conn, task_id, actor)
+        approve_task(conn, task_id, body.approved, final=final)
+        ctx = _context(conn, task_id)
         # 반려는 지금까지 status만 '작성중'으로 되돌리고 **아무도 몰랐다** — 제출이
         # 아무에게도 알리지 않던 것과 같은 구멍이다. 담당이 없는(미배정) 작업은
         # 보낼 상대가 없으므로 조용히 넘어간다(반려 자체는 유효하다).
         if not body.approved and task.assignee:
-            ctx = _context(conn, task_id)
             reason = (body.comment or "").strip() or "(사유 없음)"
             create_notification(
                 conn, task.assignee, "쪽지",
                 f"{ctx['name_ko']} {ctx['team']} 작업물이 반려되었습니다 — {reason}",
+                institution_id=ctx["institution_id"], task_id=task_id,
+                stage=ctx["stage"], sender=actor,
+            )
+        # 영업팀장이 디자이너 최종본을 승인하면 **그 승인이 곧 상신**이다(사용자 확정 —
+        # "영업팀장이 영업부장에게 그 결과물을 결재올리는 걸로 종료"). 별도의 상신
+        # 버튼을 두면 승인해 놓고 안 올리는 상태가 생긴다.
+        if body.approved and not final and task.team == DESIGNER_TEAM:
+            create_notification(
+                conn, FINAL_APPROVER, "결재요청",
+                f"{ctx['name_ko']} 디자이너 최종본 상신 — 최종 결재를 부탁드립니다.",
                 institution_id=ctx["institution_id"], task_id=task_id,
                 stage=ctx["stage"], sender=actor,
             )
@@ -493,7 +523,7 @@ def post_task_message(
     if task.assignee is not None and task.assignee != x_user_id:
         conn.close()
         raise HTTPException(status_code=403, detail="task already claimed by another assignee")
-    if task.status in ("1차완료", "2차완료"):
+    if task.status in (SUBMITTED_STATUS, APPROVED_STATUS, FINAL_STATUS):
         conn.close()
         raise HTTPException(status_code=409, detail="task is not open for chat")
 
