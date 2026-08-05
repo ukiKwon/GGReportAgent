@@ -61,6 +61,19 @@ class DbRecorder:
             conn.close()
         self.stage = stage
 
+    def task_open(self, team: str) -> None:
+        """자리만 연다 — 이미 있으면 상태·진행률·담당자를 **그대로 둔다**.
+
+        `task_update`와 나뉘어 있는 이유가 여기 있다: `packager`는 최종반려 시 다시
+        도는데(subagents.verifier의 F7 주석), 그때 `task_update("디자이너","대기",0)`을
+        부르면 디자이너가 파일을 올리고 작성중으로 바꿔둔 것이 초기화된다.
+        """
+        conn = self._conn()
+        try:
+            self._ensure_task(conn, team)      # 멱등 — 있으면 그 task_id를 돌려줄 뿐이다
+        finally:
+            conn.close()
+
     def task_update(self, team: str, status: str, progress_pct: int) -> None:
         conn = self._conn()
         try:

@@ -96,6 +96,10 @@ def packager(state: dict, recorder) -> dict:
     ordered = _ordered_sections(state.get("scoring_table", []), state.get("sections", []))
     updates = pptx_builder_node({**state, "sections": ordered})
     recorder.task_update("취합", "1차완료", 100)
+    # 디자이너 몫의 Task 자리를 연다 — 알림만으로는 "받은 것을 열어보고 작업물을 올릴"
+    # 대상이 없다(계획 H). task_update가 **아니라** task_open인 이유는 이 노드가
+    # 최종반려 때 다시 돌기 때문이다(아래 verifier의 F7 주석 참고).
+    recorder.task_open("디자이너")
     recorder.notify("디자이너", "이관", f"이관 패키지 준비 완료: {updates.get('pptx_path', '')}")
     return updates
 

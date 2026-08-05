@@ -22,6 +22,7 @@ import json
 import os
 import shutil
 
+from backend import task_files
 from backend.db import get_connection, init_db
 from backend.demo_paths import DEMO_DB_PATH, DEMO_OUTPUT_ROOT
 
@@ -45,10 +46,43 @@ DECISIONS = [
 TEAMS = [
     ("RFI분석", "demo-t-rfi", "1차완료", 100, None),
     ("영업", "demo-t-sales", "작성중", 40, "김 차장"),
-    ("전산", "demo-t-it", "1차완료", 100, "권 차장"),
+    ("전산", "demo-t-it", "2차완료", 100, "권 차장"),
     ("예산", "demo-t-budget", "작성중", 65, "정 대리"),
     ("취합", "demo-t-pack", "1차완료", 100, None),
     ("검증", "demo-t-verify", "1차완료", 100, "박 수석"),
+    # 7단계 이관으로 열린 디자이너 몫(계획 H). 이게 없으면 계정을 디자이너로 바꿔도
+    # 작업함이 비어 화면 확인 자체가 안 된다.
+    ("디자이너", "demo-t-design", "작성중", 40, "최 디자이너"),
+]
+
+# 팀별 작성물 — 디자이너 뷰의 "이관 패키지"가 이걸 보여준다(계획 H). 상태를 일부러
+# 섞어 둔다: 전산만 결재까지 끝났고(2차완료) 나머지는 아직이다. **승인 안 난 팀도
+# 감추지 않는다**는 동작을 화면에서 바로 확인하기 위해서다.
+DRAFTS = {
+    "영업": "\n".join([
+        "관내 지점 4곳 운영 현황과 협력사업 3건을 정리했습니다.",
+        "- 지점: 창동·쌍문·방학·도봉 (ATM 12대)",
+        "- 협력: 청년창업 이자지원, 전통시장 상품권, 어르신 금융교육",
+        "근거자료: spec/02(1장-4), plan FN-1",
+    ]),
+    "전산": "\n".join([
+        "전산 시스템 안정성(25점) — 무중단 이중화 실적 3건.",
+        "- 2024 계정계 무중단 전환 (다운타임 0분)",
+        "- 재해복구센터 이중화, RTO 15분",
+        "근거자료: spec/03, plan IT-2",
+    ]),
+    "예산": "\n".join([
+        "예금 금리·출연금 산정안입니다. 금리 수치는 본부 회신 대기 중이라 공란입니다.",
+        "- 정기예금 금리: (본부 승인 후 기재)",
+        "- 협력사업비 출연 규모: 연 3억원 제안",
+    ]),
+}
+
+# 디자이너가 이미 올려둔 작업물 — 목록·내려받기·삭제를 바로 눌러볼 수 있게 심는다.
+# 진짜 PPTX가 아니라 자리표시자다(데모는 파일을 열지 않고 목록만 보여준다).
+DESIGN_FILES = [
+    ("표지_시안_v2.pptx", "[데모] 표지 시안 자리표시자"),
+    ("색상팔레트.png", "[데모] 이미지 자리표시자"),
 ]
 
 # (단계, 팀, role, 작성자, 본문) — 시각은 단계 순서대로 자동 부여한다.
@@ -76,10 +110,53 @@ MESSAGES = [
     (6, "예산", "agent", "검증 agent", "업로드 즉시검사 — 담당 2항목 중 미달 1건, PII 1건"),
     (7, "취합", "agent", None, "3팀 초안을 배점표 원순서로 병합해 제안서 패키지를 만들었다."),
     (7, "취합", "human", "권 차장", "이관 결재 — 권 차장"),
+    (7, "디자이너", "human", "최 디자이너", "이관 패키지 받았습니다. 표지 시안부터 잡겠습니다."),
     (8, "검증", "agent", None,
      "검증 완료 — 6항목 중 3항목 충족(49점), 미충족 2·미배정 1. 개인정보 의심 1건."),
     (8, "검증", "human", "박 수석", "최종 결재 — 박 수석"),
     (9, "검증", "orchestrator", None, "최종 결재 완료. 제출 대기(9단계) — 제출 후 완료 마킹하라."),
+]
+
+# 대화 탭(참여검토 상담) 시연용 — (role, 작성자, 본문).
+# 답변 본문의 수치는 전부 `corpus/institutions/dobong/`의 실제 조사 결과에서 가져왔다
+# (121개 사업·27% 미확인·창동역 민원·구 예산 7,919억원·복합환승센터 495억원). 그래야
+# 화면의 다른 탭(배점표 매핑의 '지역 재투자 실적 22점 미배정')과 이야기가 이어진다.
+# **LLM이 생성한 것이 아니라 사람이 쓴 데모 대본이다** — 실제 생성은 [보내기]로 확인한다.
+# 대화 로그는 마크다운을 렌더하지 않으므로(chat.js가 평문으로 그린다) `**` 대신
+# `[머리말]` 형식으로 쓴다.
+CHAT = [
+    ("user", "김 차장", "도봉구 금고 입찰, 우리가 참여할 만한가? 팀별 관점으로 정리해줘."),
+    ("agent", None,
+     "[영업 관점]\n"
+     "· 관내 지점 4곳 운영 중 — 배점표 '주민 이용 편의성'(21점)에서 유리한 조건입니다.\n"
+     "· 2026년 최다 민원이 창동역 출입구·보행로 신설 요청에 집중돼 있습니다"
+     "('구청장에게 바란다' 최신 10건 중 과반). 창동역 복합환승센터(495억원)와 GTX-C 지하화가"
+     " 진행 중이지만, 공사 기간의 임시 보행환경 개선은 4개년계획 121개 사업 어디에도 없습니다"
+     " — '협력 사업 제안'(7점)에서 차별화할 수 있는 공백입니다.\n\n"
+     "[전산 관점]\n"
+     "· 배점 최대 항목이 전산 시스템 안정성(25점)입니다. 무중단 이중화 실적 3건으로 대응됩니다.\n"
+     "· 구청 121개 사업 중 27%(약 24개)가 홈페이지 검색으로 확인되지 않습니다"
+     "(5장 청렴행정도시는 확인율 18%로 최저). 통합 검색 플랫폼 제안이 이 불편을 정확히 겨냥하나,"
+     " 기존 계획사업인 '스마트데이터 허브센터'(50억원)와 취지가 겹쳐 중복 조정이 먼저입니다.\n\n"
+     "[예산 관점]\n"
+     "· 구 예산 7,919억원 규모로 금고 운용 규모는 충분합니다.\n"
+     "· 예금 금리(17점)는 본부 승인 전이라 제안서에 수치가 비어 있습니다 — 제출 전 필수 보완입니다.\n\n"
+     "[종합]\n"
+     "참여를 권합니다. 전산(25)+편의성(21)+협력(7) 53점 구간에서 우위를 만들 수 있습니다.\n\n"
+     "[리스크]\n"
+     "· 지역 재투자 실적(22점)에 아직 담당팀이 없습니다 — 현재 가장 큰 배점 공백입니다.\n"
+     "· 요구 수준이 예년보다 높다는 신호가 있어 조기 대응이 필요합니다."),
+    ("user", "김 차장", "지역 재투자 실적 22점은 뭘로 채우지?"),
+    ("agent", None,
+     "[현황]\n"
+     "배점표 6항목 중 유일하게 담당팀이 배정되지 않은 항목입니다(22점, 두 번째로 큰 배점).\n\n"
+     "[구청 자료에서 찾은 근거 2건]\n"
+     "· 창동역 공사기간 인근 상가 영업피해 완충 지원금(300~500백만원) — 민원 1순위와 직접"
+     " 연결되고, 4개년계획에 대응 사업이 없어 중복 위험도 낮습니다.\n"
+     "· 청년 창업 지원 — 구 계획에 관련 사업이 이미 편성돼 있어 매칭형으로 붙이기 좋습니다.\n\n"
+     "[제안]\n"
+     "영업팀에 배정하고 위 두 건을 실행 계획으로 붙이십시오."
+     " 근거 원문은 지식 탭에서 'dobong/plan/03_금전적지원'으로 열어볼 수 있습니다."),
 ]
 
 # (단계, 수신자, kind, 본문)
@@ -124,6 +201,9 @@ def clear(db_path: str, output_root: str, name_ko: str | None) -> None:
     conn = get_connection(db_path)
     try:
         conn.execute("DELETE FROM messages WHERE message_id LIKE 'demo-%'")
+        # 데모가 넣은 대화만 지운다 — 사람이 [보내기]로 실제 주고받은 대화(chat-…)는
+        # 남긴다. 재시딩이 남의 대화 이력을 지우면 안 된다.
+        conn.execute("DELETE FROM chat_messages WHERE chat_message_id LIKE 'demo-%'")
         conn.execute("DELETE FROM notifications WHERE notification_id LIKE 'demo-%'")
         conn.execute("DELETE FROM tasks WHERE task_id LIKE 'demo-%'")
         conn.execute("DELETE FROM bid_cases WHERE bid_case_id LIKE 'demo-%'")
@@ -135,6 +215,12 @@ def clear(db_path: str, output_root: str, name_ko: str | None) -> None:
             path = os.path.join(output_root, name_ko, fname)
             if os.path.isfile(path):
                 os.remove(path)
+        # 디자이너 작업물 폴더(계획 H) — 재시딩이 옛 파일을 남기면 개수가 계속 는다.
+        for _, task_id, _, _, _ in TEAMS:
+            task_files.drop_task_dir(output_root, name_ko, task_id)
+        design_root = os.path.join(output_root, name_ko, task_files.DESIGN_DIRNAME)
+        if os.path.isdir(design_root) and not os.listdir(design_root):
+            shutil.rmtree(design_root)
         out_dir = os.path.join(output_root, name_ko)
         if os.path.isdir(out_dir) and not os.listdir(out_dir):
             shutil.rmtree(out_dir)
@@ -161,6 +247,11 @@ def seed(db_path: str, output_root: str, institution_id: str, stage: int) -> str
     try:
         conn.execute(
             "UPDATE institutions SET stage = ? WHERE institution_id = ?", (stage, institution_id)
+        )
+        # 7단계 패키저 산출물 — 디자이너 뷰가 "무엇을 받았는지" 맨 위에 보여준다.
+        conn.execute(
+            "UPDATE institutions SET pptx_path = ? WHERE institution_id = ?",
+            (os.path.join(output_root, name_ko, f"{name_ko}_제안서.pptx"), institution_id),
         )
         # 확정일이 있는 공고 — 지도가 '확정'으로(빗금 없이) 그린다.
         # 참여 결정은 **이미 3차까지 끝난 상태**로 넣는다. 이 기관은 stage가 9까지 가 있는데
@@ -190,9 +281,9 @@ def seed(db_path: str, output_root: str, institution_id: str, stage: int) -> str
         task_by_team = {}
         for team, task_id, status, pct, assignee in TEAMS:
             conn.execute(
-                "INSERT INTO tasks (task_id, bid_case_id, team, status, progress_pct, assignee)"
-                " VALUES (?, ?, ?, ?, ?, ?)",
-                (task_id, DEMO_BID_CASE, team, status, pct, assignee),
+                "INSERT INTO tasks (task_id, bid_case_id, team, status, progress_pct,"
+                " assignee, draft_content) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (task_id, DEMO_BID_CASE, team, status, pct, assignee, DRAFTS.get(team, "")),
             )
             task_by_team[team] = task_id
         for i, (msg_stage, team, role, author, content) in enumerate(MESSAGES):
@@ -200,6 +291,15 @@ def seed(db_path: str, output_root: str, institution_id: str, stage: int) -> str
                 "INSERT INTO messages (message_id, task_id, role, content, author, stage,"
                 " created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (f"demo-m{i:02d}", task_by_team[team], role, content, author, msg_stage, _at(i)),
+            )
+        # 대화 탭 — 시각을 메시지 뒤에 이어 붙여 순서를 고정한다(list_chat_messages가
+        # created_at으로 정렬하므로 여기서 어긋나면 문답이 뒤섞인다).
+        for i, (role, author, content) in enumerate(CHAT):
+            conn.execute(
+                "INSERT INTO chat_messages (chat_message_id, institution_id, role, content,"
+                " created_at, author) VALUES (?, ?, ?, ?, ?, ?)",
+                (f"demo-c{i:02d}", institution_id, role, content,
+                 _at(len(MESSAGES) + len(NOTIFICATIONS) + i), author),
             )
         for i, (ntf_stage, recipient, kind, content) in enumerate(NOTIFICATIONS):
             conn.execute(
@@ -219,6 +319,9 @@ def seed(db_path: str, output_root: str, institution_id: str, stage: int) -> str
         json.dump(scoring, f, ensure_ascii=False, indent=2)
     with open(os.path.join(out_dir, "coverage_map.json"), "w", encoding="utf-8") as f:
         json.dump(COVERAGE, f, ensure_ascii=False, indent=2)
+    for fname, body in DESIGN_FILES:
+        task_files.save(output_root, name_ko, "demo-t-design", fname,
+                        body.encode("utf-8"))
     return name_ko
 
 
@@ -252,7 +355,8 @@ def main() -> None:
     name_ko = seed(args.db, args.output_root, args.institution, args.stage)
     print(
         f"{name_ko}({args.institution})에 데모 투입 완료 — stage {args.stage}, "
-        f"팀 {len(TEAMS)}건 / 메시지 {len(MESSAGES)}건 / 알림 {len(NOTIFICATIONS)}건. "
+        f"팀 {len(TEAMS)}건 / 메시지 {len(MESSAGES)}건 / 알림 {len(NOTIFICATIONS)}건 / "
+        f"대화 {len(CHAT)}건. "
         "지우려면 --clear."
     )
 

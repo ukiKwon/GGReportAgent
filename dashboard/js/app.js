@@ -62,7 +62,8 @@
     if (tab === 'regions') { root.render.drawRegionGrid(); root.render.drawPinBar(); }
     else if (tab === 'map') { root.render.applyWatchStyles(); }
     // 탭을 벗어나면 폴링·스트림을 멈춘다(백그라운드에서 계속 돌지 않게).
-    [['workflow', root.workflow], ['chat', root.chat], ['knowledge', root.knowledge]]
+    [['workflow', root.workflow], ['chat', root.chat], ['knowledge', root.knowledge],
+     ['designer', root.designer]]
       .forEach(function (pair) {
         const mod = pair[1];
         if (!mod) return;
@@ -79,6 +80,24 @@
       const elm = document.getElementById(id);
       if (elm) elm.style.display = on ? '' : 'none';
     });
+    app.applyDesignerUI();
+  };
+
+  // 디자이너 탭은 조건이 하나 더 있다 — **소속이 디자이너일 때만** 보인다(사용자 확정).
+  // 그래서 SERVER_ONLY_IDS에 넣지 않고 따로 판단한다. 프로필은 언제든 바뀌므로
+  // (계정 전환기) onProfileChanged에서도 부른다.
+  app.DESIGNER_TEAM = '디자이너';
+  app.applyDesignerUI = function () {
+    const btn = document.getElementById('tab-btn-designer');
+    if (!btn) return;
+    const on = root.store.isServerMode() &&
+      (root.store.loadProfile().team || '').trim() === app.DESIGNER_TEAM;
+    btn.style.display = on ? '' : 'none';
+    // 숨기는 순간 그 탭을 보고 있었다면 빈 화면이 남는다 — 지도로 되돌린다.
+    if (!on && btn.classList.contains('active')) {
+      const mapBtn = document.querySelector('.tab-btn[data-tab="map"]');
+      if (mapBtn) mapBtn.click();
+    }
   };
 
   // 모달 탈출구 — 배경 클릭 / Esc. 버튼이 화면 밖으로 밀리는 등 어떤 이유로든
@@ -117,6 +136,7 @@
   // 프로필이 바뀌면 그 값을 쓰는 화면들을 따라 갱신한다.
   app.onProfileChanged = function () {
     if (root.notify && root.notify.onProfileChange) root.notify.onProfileChange();
+    app.applyDesignerUI();
     // 워크플로 탭이 이미 그려져 있으면 결재자 입력도 새 이름으로 맞춘다.
     const by = document.getElementById('wf-by');
     if (by) by.value = root.store.loadProfile().name || '';

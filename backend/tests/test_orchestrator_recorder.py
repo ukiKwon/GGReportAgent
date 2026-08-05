@@ -94,3 +94,35 @@ def test_message_records_no_model_by_default(tmp_path):
     rec = DbRecorder(db_path, "nowon", "bc-1")
     rec.message("영업", "orchestrator", "협력사업 항목 초안 작성 지시")
     assert conn.execute("SELECT model FROM messages").fetchone()["model"] is None
+
+
+# ── task_open — 행만 보장하고 상태는 건드리지 않는다 (계획 H Task 1) ────
+
+def test_task_open이_없으면_만든다(tmp_path):
+    db_path, conn = _setup(tmp_path)
+    DbRecorder(db_path, "nowon", "bc-1").task_open("디자이너")
+    rows = conn.execute("SELECT * FROM tasks WHERE team='디자이너'").fetchall()
+    assert len(rows) == 1
+    assert rows[0]["status"] == "대기" and rows[0]["progress_pct"] == 0
+
+
+def test_task_open은_진행_중인_작업을_되돌리지_않는다(tmp_path):
+    """이게 이 함수가 존재하는 이유다 — packager는 최종반려 때 다시 돈다."""
+    db_path, conn = _setup(tmp_path)
+    rec = DbRecorder(db_path, "nowon", "bc-1")
+    rec.task_open("디자이너")
+    conn.execute("UPDATE tasks SET status='작성중', progress_pct=60, assignee='최 디자이너'"
+                 " WHERE team='디자이너'")
+    conn.commit()
+
+    rec.task_open("디자이너")          # 재실행
+
+    row = conn.execute("SELECT * FROM tasks WHERE team='디자이너'").fetchone()
+    assert (row["status"], row["progress_pct"], row["assignee"]) == ("작성중", 60, "최 디자이너")
+
+
+def test_task_open은_행을_중복으로_만들지_않는다(tmp_path):
+    db_path, conn = _setup(tmp_path)
+    rec = DbRecorder(db_path, "nowon", "bc-1")
+    rec.task_open("디자이너"); rec.task_open("디자이너"); rec.task_open("디자이너")
+    assert conn.execute("SELECT COUNT(*) n FROM tasks WHERE team='디자이너'").fetchone()["n"] == 1
