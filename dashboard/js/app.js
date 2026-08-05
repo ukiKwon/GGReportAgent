@@ -63,7 +63,7 @@
     else if (tab === 'map') { root.render.applyWatchStyles(); }
     // 탭을 벗어나면 폴링·스트림을 멈춘다(백그라운드에서 계속 돌지 않게).
     [['workflow', root.workflow], ['chat', root.chat], ['knowledge', root.knowledge],
-     ['designer', root.designer]]
+     ['designer', root.designer], ['approvals', root.approvals], ['admin', root.admin]]
       .forEach(function (pair) {
         const mod = pair[1];
         if (!mod) return;
@@ -72,31 +72,52 @@
       });
   };
 
-  // 워크플로·대화·지식 탭과 쪽지함은 서버 모드 전용 — API가 없는 file://에서는 숨긴다.
-  app.SERVER_ONLY_IDS = ['tab-btn-workflow', 'tab-btn-chat', 'tab-btn-knowledge', 'btn-notify'];
+  // 탭 노출은 **역할별 메뉴 권한**이 정한다(계획 I). 예전에는 이 규칙이 두 군데로
+  // 흩어져 있었다 — 서버 전용 목록(SERVER_ONLY_IDS)과 소속 문자열 비교
+  // (applyDesignerUI). 이제 서버가 역할별 값을 주고 menu_rules가 계산한다.
+  // 쪽지함 버튼은 탭이 아니지만 서버 전용이라 같이 토글한다.
+  app.SERVER_ONLY_IDS = ['btn-notify'];
+
   app.applyServerModeUI = function () {
     const on = root.store.isServerMode();
     app.SERVER_ONLY_IDS.forEach(function (id) {
       const elm = document.getElementById(id);
       if (elm) elm.style.display = on ? '' : 'none';
     });
-    app.applyDesignerUI();
+    return app.applyMenuPermissions();
   };
 
-  // 디자이너 탭은 조건이 하나 더 있다 — **소속이 디자이너일 때만** 보인다(사용자 확정).
-  // 그래서 SERVER_ONLY_IDS에 넣지 않고 따로 판단한다. 프로필은 언제든 바뀌므로
-  // (계정 전환기) onProfileChanged에서도 부른다.
-  app.DESIGNER_TEAM = '디자이너';
-  app.applyDesignerUI = function () {
-    const btn = document.getElementById('tab-btn-designer');
-    if (!btn) return;
-    const on = root.store.isServerMode() &&
-      (root.store.loadProfile().team || '').trim() === app.DESIGNER_TEAM;
-    btn.style.display = on ? '' : 'none';
+  // 서버가 준 역할별 메뉴로 탭을 켜고 끈다. 프로필은 언제든 바뀌므로(계정 전환기)
+  // onProfileChanged에서도 부른다.
+  app.applyMenuPermissions = function () {
+    const serverMode = root.store.isServerMode();
+    if (!serverMode) { app.paintTabs(null, false); return Promise.resolve(); }
+    const role = (root.store.loadProfile().team || '').trim();
+    return fetch('/menus?role=' + encodeURIComponent(role)).then(function (r) {
+      if (!r.ok) throw new Error('menus ' + r.status);
+      return r.json();
+    }).then(function (body) { app.paintTabs(body.menus, true); })
+      // 권한을 모를 때는 **닫는 쪽**으로 기운다 — 열어주는 쪽으로 기울면 서버가
+      // 잠깐 흔들린 순간 전원이 관리 화면을 보게 된다(menu_rules와 같은 원칙).
+      .catch(function () { app.paintTabs(null, true); });
+  };
+
+  app.paintTabs = function (menus, serverMode) {
+    const rules = root.menuRules;
+    if (!rules) return;
+    const visible = rules.visibleTabs(menus, serverMode);
+    let activeKey = null;
+    rules.MENU_KEYS.forEach(function (key) {
+      const btn = document.getElementById(rules.tabButtonId(key));
+      if (!btn) return;
+      btn.style.display = visible[key] ? '' : 'none';
+      if (btn.classList.contains('active')) activeKey = key;
+    });
     // 숨기는 순간 그 탭을 보고 있었다면 빈 화면이 남는다 — 지도로 되돌린다.
-    if (!on && btn.classList.contains('active')) {
-      const mapBtn = document.querySelector('.tab-btn[data-tab="map"]');
-      if (mapBtn) mapBtn.click();
+    const back = rules.activeFallback(activeKey, visible);
+    if (back) {
+      const btn = document.querySelector('.tab-btn[data-tab="' + back + '"]');
+      if (btn) btn.click();
     }
   };
 
@@ -136,7 +157,8 @@
   // 프로필이 바뀌면 그 값을 쓰는 화면들을 따라 갱신한다.
   app.onProfileChanged = function () {
     if (root.notify && root.notify.onProfileChange) root.notify.onProfileChange();
-    app.applyDesignerUI();
+    if (root.approvals && root.approvals.onProfileChange) root.approvals.onProfileChange();
+    app.applyMenuPermissions();
     // 워크플로 탭이 이미 그려져 있으면 결재자 입력도 새 이름으로 맞춘다.
     const by = document.getElementById('wf-by');
     if (by) by.value = root.store.loadProfile().name || '';

@@ -129,5 +129,8 @@ def verifier(state: dict, recorder) -> dict:
     # F7: verifier는 게이트가 아니라 일반 노드라 gate_final 재도달(최종반려 후
     # packager·verifier 재실행 포함) 때마다 정확히 1회씩만 실행된다 — resume replay로
     # 인한 중복 걱정이 없다(게이트 노드 본문과 달리).
-    recorder.notify("인사권자", "결재요청", "최종결재 대기 — 검증이 끝났습니다. 최종 결재를 부탁드립니다.")
+    # 수신자는 '본부장'이다(계획 I에서 '인사권자'를 개명). agent 층은 backend를
+    # import하지 않으므로(ports.py의 분리 관행) 이름을 리터럴로 둔다 —
+    # backend 쪽 정본은 backend/teams.py의 FINAL_APPROVER다.
+    recorder.notify("본부장", "결재요청", "최종결재 대기 — 검증이 끝났습니다. 최종 결재를 부탁드립니다.")
     return updates

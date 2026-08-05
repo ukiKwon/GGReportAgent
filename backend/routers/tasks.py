@@ -40,20 +40,18 @@ from backend.task_repository import (
     update_draft_content,
 )
 from backend.teams import (
+    APPROVED_STATUS,
+    AUTHORING_TEAMS,
     DESIGNER_TEAM,
+    SUBMITTED_STATUS,
     inbox_name,
     is_authoring_team,
-    is_working,
     known_recipients,
+    lead_of,
 )
 from backend.upload_check import check_upload, write_coverage_map
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
-
-# 제출된 작업물을 결재할 사람. 그래프의 5·7단계 결재 요청과 같은 수신자다
-# (agent/orchestrator/graph.py의 notify 대상).
-APPROVAL_RECIPIENT = "영업팀"
-
 
 def _conn(request: Request):
     return get_connection(request.app.state.db_path)
@@ -100,25 +98,35 @@ def _require_teams_done(conn: sqlite3.Connection, task: Task) -> None:
     화면만 막으면 API로 그대로 뚫린다).
 
     **디자이너에게만 건다.** 3팀에 걸면 서로를 기다리다 아무도 제출하지 못한다.
-    그리고 기준은 `2차완료`가 아니라 **`작성중`·`대기`가 아닐 것**이다 — 그래프
-    흐름에서 팀 Task는 `1차완료`까지만 올라가므로(5단계 기획승인은 기관 단위
-    checkpoint다) 결재까지 요구하면 디자이너가 영영 제출을 못 한다.
+
+    기준은 **`2차완료`(팀장 결재까지 끝남)** 이다. 계획 H에서는 그래프가 팀 Task를
+    `1차완료`까지만 올리고 결재할 화면이 없어서 '작업 중이 아닐 것'으로 약하게 잡았는데,
+    계획 I가 팀장 결재함을 만들면서 **비로소 이 기준이 성립한다**(사용자 확정 —
+    "작업 중이 끝나고 승인완료까지 받은 상태여야 제출 가능한 게 맞다").
     """
     if task.team != DESIGNER_TEAM:
         return
-    working = [
+    pending = [
         r["team"] for r in conn.execute(
             "SELECT team, status FROM tasks WHERE bid_case_id = ? AND team <> ? ORDER BY rowid",
             (task.bid_case_id, task.team),
         ).fetchall()
-        if is_authoring_team(r["team"]) and is_working(r["status"])
+        if is_authoring_team(r["team"]) and r["status"] != APPROVED_STATUS
     ]
-    if working:
+    if pending:
         raise HTTPException(
             status_code=409,
-            detail=(f"아직 작업 중인 팀이 있습니다: {', '.join(working)} — "
-                    "각 팀이 작업을 끝낸 뒤에 제출할 수 있습니다"),
+            detail=(f"아직 승인되지 않은 팀이 있습니다: {', '.join(pending)} — "
+                    "각 팀장 결재가 끝난 뒤에 제출할 수 있습니다"),
         )
+
+
+def _submit_recipients(team: str) -> list[str]:
+    """제출을 결재할 사람. 팀 작업은 그 팀 팀장, 디자이너 작업은 본부장이다.
+
+    예전에는 무엇이든 '영업팀' 고정이었다 — 결재 라인이 없던 시절의 자국이다.
+    """
+    return [lead_of(team)]
 
 
 def _read_json(path: str):
@@ -237,7 +245,8 @@ def get_handoff(task_id: str, request: Request) -> dict:
         # 보여주고 파일을 빼면 정작 받아야 할 실물이 화면에 없다. task_id를 함께
         # 주므로 화면이 GET /tasks/{task_id}/files/{name}으로 바로 내려받는다.
         "files": task_files.listing(output_root, ctx["name_ko"], r["task_id"]),
-        "working": is_working(r["status"]),
+        # 디자이너 제출을 막는 근거 — **결재까지 끝나야** 넘어갈 수 있다(계획 I).
+        "working": r["status"] != APPROVED_STATUS,
     } for r in rows if is_authoring_team(r["team"])]
     return {
         "institution_id": ctx["institution_id"],
@@ -369,13 +378,24 @@ def post_task_submit(
         _require_teams_done(conn, task)
         submit_task(conn, task_id)
         # 제출은 지금까지 상태만 바꾸고 아무에게도 알리지 않았다 — 제출해도 아무 일이
-        # 일어나지 않는다는 뜻이었다. 결재자에게 알린다(디자이너뿐 아니라 모든 팀).
+        # 일어나지 않는다는 뜻이었다. **결재 라인대로** 알린다(계획 I):
+        # 팀 작업 → 그 팀의 팀장, 디자이너 작업 → 본부장.
         ctx = _context(conn, task_id)
-        create_notification(
-            conn, APPROVAL_RECIPIENT, "결재요청",
-            f"{ctx['name_ko']} {ctx['team']} 작업물 제출 — 결재를 부탁드립니다.",
-            institution_id=ctx["institution_id"], task_id=task_id, stage=ctx["stage"],
-        )
+        for recipient in _submit_recipients(ctx["team"]):
+            create_notification(
+                conn, recipient, "결재요청",
+                f"{ctx['name_ko']} {ctx['team']} 작업물 제출 — 결재를 부탁드립니다.",
+                institution_id=ctx["institution_id"], task_id=task_id, stage=ctx["stage"],
+            )
+        # 디자이너 작업물은 **각 팀으로도 전달된다**(사용자 확정) — 팀은 자기
+        # 작업함의 이관 패키지에서 그 결과물을 열어볼 수 있다.
+        if ctx["team"] == DESIGNER_TEAM:
+            for team in AUTHORING_TEAMS:
+                create_notification(
+                    conn, inbox_name(team, known_recipients(conn)), "쪽지",
+                    f"{ctx['name_ko']} 디자이너 작업물이 제출됐습니다 — 작업함에서 확인하세요.",
+                    institution_id=ctx["institution_id"], task_id=task_id, stage=ctx["stage"],
+                )
         return get_task(conn, task_id)
     finally:
         conn.close()
@@ -385,17 +405,30 @@ def post_task_submit(
 def post_task_approve(
     task_id: str, body: TaskApprovalIn, request: Request, x_user_id: str = Header(...)
 ) -> Task:
+    actor = _actor(body.by, x_user_id)
     conn = _conn(request)
     try:
         task = get_task(conn, task_id)
         if task is None:
             raise HTTPException(status_code=404, detail="task not found")
-        if task.approver is not None and task.approver != x_user_id:
+        if task.approver is not None and task.approver != actor:
             raise HTTPException(status_code=403, detail="only the approver can approve")
-        if task.status != "1차완료":
+        if task.status != SUBMITTED_STATUS:
             raise HTTPException(status_code=409, detail="task not submitted yet")
-        claim_approver_if_unset(conn, task_id, x_user_id)
+        claim_approver_if_unset(conn, task_id, actor)
         approve_task(conn, task_id, body.approved)
+        # 반려는 지금까지 status만 '작성중'으로 되돌리고 **아무도 몰랐다** — 제출이
+        # 아무에게도 알리지 않던 것과 같은 구멍이다. 담당이 없는(미배정) 작업은
+        # 보낼 상대가 없으므로 조용히 넘어간다(반려 자체는 유효하다).
+        if not body.approved and task.assignee:
+            ctx = _context(conn, task_id)
+            reason = (body.comment or "").strip() or "(사유 없음)"
+            create_notification(
+                conn, task.assignee, "쪽지",
+                f"{ctx['name_ko']} {ctx['team']} 작업물이 반려되었습니다 — {reason}",
+                institution_id=ctx["institution_id"], task_id=task_id,
+                stage=ctx["stage"], sender=actor,
+            )
         return get_task(conn, task_id)
     finally:
         conn.close()

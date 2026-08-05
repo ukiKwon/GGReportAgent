@@ -223,7 +223,8 @@ def test_verifier_sends_final_approval_notify(mock_verify):
 
     verifier(state, recorder)
 
-    recorder.notify.assert_called_once_with("인사권자", "결재요청", ANY)
+    # 계획 I에서 "인사권자" → "본부장"으로 개명했다(최종 결재자는 본부장급).
+    recorder.notify.assert_called_once_with("본부장", "결재요청", ANY)
 
 
 # ── 디자이너 Task 개설 (계획 H Task 1) ──────────────────────────────────

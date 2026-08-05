@@ -30,9 +30,11 @@ def test_lists_people_from_tasks_and_roles_from_notifications(tmp_path):
 
     people = [a for a in body["accounts"] if a["name"]]
     roles = [a for a in body["accounts"] if not a["name"]]
-    # 김 차장의 tasks.team은 '영업'이지만 쪽지는 '영업팀' 앞으로 오므로 그쪽으로 맞춘다.
-    # 권 차장은 '전산' 앞으로 온 쪽지가 없어 원래 값을 그대로 둔다.
-    assert [(a["name"], a["team"]) for a in people] == [("권 차장", "전산"), ("김 차장", "영업팀")]
+    # tasks.team은 '영업'·'전산'이지만 쪽지는 '영업팀'·'전산팀' 앞으로 온다.
+    # **아는 팀이면 알림 이력이 없어도 팀 이름을 붙인다**(계획 I) — 예전에는 이력이
+    # 없을 때 원래 값을 두었는데, 팀장 역할이 생기자 '전산'이 '전산팀장'에 걸려
+    # 팀원이 팀장으로 둔갑했다.
+    assert [(a["name"], a["team"]) for a in people] == [("권 차장", "전산팀"), ("김 차장", "영업팀")]
     # 담당자가 없는 작업(취합)은 계정이 아니고, 사람 이름과 겹치는 수신자도 역할로 중복되지 않는다
     assert [a["team"] for a in roles] == ["디자이너", "영업팀"]
 

@@ -21,14 +21,67 @@ AGENT_TEAMS = ("RFI분석", "취합", "검증")
 
 DESIGNER_TEAM = "디자이너"
 
-# 아직 자기 일을 끝내지 않은 상태. '작업 중'의 반대는 '승인까지 끝남'이 아니라
-# '자기 몫을 넘김'이다 — 그래프 흐름에서 팀 Task는 1차완료까지만 올라가므로
-# (5단계 기획승인은 기관 단위 checkpoint) 2차완료를 요구하면 아무것도 진행되지 않는다.
+# 사람이 글을 쓰는 3팀. **그래프의 role_router.ROLES와 같아야 한다** — 참여확정은
+# 이 목록으로, 5단계 draft_team은 ROLES로 Task를 만드는데 이름이 다르면
+# tasks의 UNIQUE(bid_case_id, team)이 못 막아 한 공고에 둘 다 생긴다
+# (실제로 'IT'와 '전산'이 그랬다 — 계획 I에서 '전산'으로 통일).
+AUTHORING_TEAMS = ("영업", "전산", "예산")
+
+# 아직 자기 일을 끝내지 않은 상태. 결재까지 끝난 것은 '2차완료'다.
 WORKING_STATUSES = ("대기", "작성중")
+SUBMITTED_STATUS = "1차완료"
+APPROVED_STATUS = "2차완료"
+
+# ── 사람의 소속(역할) ──────────────────────────────────────────────────
+# 프로필의 '소속'이 곧 역할이다(사용자 확정 — 별도 직책 필드를 두지 않는다).
+# 화면 노출은 role_menus 테이블이 정하고, 결재 권한은 아래 규칙이 정한다.
+TEAM_SUFFIX = "팀"
+LEAD_SUFFIX = "팀장"
+FINAL_APPROVER = "본부장"
+# 개명 전 이름. 이미 쌓인 notifications 행이 이 앞으로 와 있어서, 과거 기록을
+# 고쳐 쓰는 대신 조회 쪽에서 같은 것으로 본다.
+LEGACY_FINAL_APPROVER = "인사권자"
+
+MEMBER_ROLES = tuple(t + TEAM_SUFFIX for t in AUTHORING_TEAMS)      # 영업팀 …
+LEAD_ROLES = tuple(t + LEAD_SUFFIX for t in AUTHORING_TEAMS)        # 영업팀장 …
+ROLES = MEMBER_ROLES + LEAD_ROLES + (DESIGNER_TEAM, FINAL_APPROVER)
 
 
 def is_working(status: str) -> bool:
     return status in WORKING_STATUSES
+
+
+def team_of(role: str) -> str:
+    """소속(역할) → `tasks.team`. `영업팀`·`영업팀장` 둘 다 `영업`이다.
+
+    **접미사를 떼는 순서가 규칙의 전부다** — `영업팀장`에서 `팀`을 먼저 떼면
+    `영업장`이라는 없는 팀이 된다. 긴 접미사부터 본다.
+    """
+    text = (role or "").strip()
+    for suffix in (LEAD_SUFFIX, TEAM_SUFFIX):
+        if text.endswith(suffix) and len(text) > len(suffix):
+            return text[: -len(suffix)]
+    return text
+
+
+def is_lead(role: str) -> bool:
+    """결재 권한이 있는 역할인가."""
+    text = (role or "").strip()
+    return text in LEAD_ROLES or text == FINAL_APPROVER
+
+
+def lead_of(team: str) -> str:
+    """그 팀 작업물을 결재하는 역할. 디자이너에겐 팀장이 없어 본부장이 직접 본다."""
+    if team in AUTHORING_TEAMS:
+        return team + LEAD_SUFFIX
+    return FINAL_APPROVER
+
+
+def recipient_aliases(role: str) -> list[str]:
+    """그 역할 앞으로 온 쪽지를 찾을 때 함께 봐야 하는 이름들(개명 호환)."""
+    if role == FINAL_APPROVER:
+        return [FINAL_APPROVER, LEGACY_FINAL_APPROVER]
+    return [role]
 
 
 def is_authoring_team(team: str) -> bool:
@@ -39,15 +92,20 @@ def is_authoring_team(team: str) -> bool:
 def inbox_name(team: str, recipients: list[str]) -> str:
     """작업의 팀 이름을 **그 팀이 실제로 쪽지를 받는 이름**으로 바꾼다.
 
-    하드코딩하지 않고 실제 수신자 목록에서 찾는다 — 팀 이름으로 시작하는 것이 있으면
-    그것이고, 없으면 원래 값을 그대로 쓴다(디자이너처럼 접미사가 없는 역할도 있다).
+    아는 팀(`영업`·`전산`·`예산`)이면 `팀` 접미사가 답이다 — 수신자 목록을 뒤지지
+    않는다. **팀장 역할이 생기면서 이게 필요해졌다**: `startswith`로 아무거나 고르면
+    `전산` → `전산팀장`이 걸려, 전산 팀원인 사람이 계정 전환기에 팀장으로 나온다
+    (데모에서 실제로 그랬다).
+
+    모르는 값(에이전트 단계 이름 등)은 기존 추론을 쓰되 **가장 짧은 후보**를 고른다 —
+    긴 쪽은 대개 더 좁은 역할이라 원래 팀과 다른 사람이 된다.
     """
     if team in recipients:
         return team
-    for r in recipients:
-        if r != team and r.startswith(team):
-            return r
-    return team
+    if team in AUTHORING_TEAMS:
+        return team + TEAM_SUFFIX
+    candidates = sorted((r for r in recipients if r != team and r.startswith(team)), key=len)
+    return candidates[0] if candidates else team
 
 
 def known_recipients(conn: sqlite3.Connection) -> list[str]:

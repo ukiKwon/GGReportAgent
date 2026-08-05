@@ -30,6 +30,7 @@ def _app(tmp_path):
     for tid, bc, team, status, pct, who, draft in [
         ("t-design-1", "bc-1", "디자이너", "대기", 0, None, ""),
         ("t-design-2", "bc-2", "디자이너", "작성중", 30, "최 디자이너", "표지 시안 검토 중"),
+        # 상태를 일부러 셋 다 다르게 둔다 — 승인완료 / 제출됨(결재 전) / 작성중.
         ("t-sales", "bc-1", "영업", "2차완료", 100, "김 차장", "영업팀 승인 작성물"),
         ("t-it", "bc-1", "전산", "1차완료", 100, "권 차장", "전산팀 제출본"),
         ("t-budget", "bc-1", "예산", "작성중", 40, "정 대리", "예산팀 작성 중"),
@@ -129,7 +130,8 @@ def test_문의할_쪽지_수신자를_서버가_알려준다(tmp_path):
     teams = {t["team"]: t for t in _client(tmp_path).get("/tasks/t-design-1/handoff").json()["teams"]}
     assert teams["영업"]["contact"] == "영업팀"
     assert teams["전산"]["contact"] == "전산팀"
-    assert teams["예산"]["contact"] == "예산"        # 알림 이력이 없으면 원래 이름 그대로
+    # 알림 이력이 없어도 '예산팀'이다 — 문의가 엉뚱한 곳으로 가면 안 된다(계획 I).
+    assert teams["예산"]["contact"] == "예산팀"
 
 
 def test_배점표와_커버리지는_있으면_싣고_없으면_null이다(tmp_path):
@@ -229,19 +231,40 @@ def test_임시저장도_담당을_선점한다(tmp_path):
     assert r.status_code == 403
 
 
-def test_제출하면_영업팀에_결재요청이_간다(tmp_path):
-    """지금까지 제출은 상태만 바꾸고 **아무에게도 알리지 않았다** — 제출해도 아무 일이
-    일어나지 않았다는 뜻이다."""
+def test_디자이너_제출은_본부장에게_올라간다(tmp_path):
+    """결재 라인대로 간다(계획 I) — 예전에는 무엇이든 '영업팀' 고정이었다."""
     client = _client(tmp_path)
     client.post("/tasks/t-design-2/submit", json={"by": "최 디자이너"},
                 headers={"X-User-Id": "web-user"})
 
-    notes = client.get("/notifications", params={"recipient": "영업팀"}).json()
+    notes = client.get("/notifications", params={"recipient": "본부장"}).json()
     approvals = [n for n in notes if n["kind"] == "결재요청"]
     assert len(approvals) == 1
     assert approvals[0]["task_id"] == "t-design-2"
     assert approvals[0]["institution_id"] == "dobong"
     assert "디자이너" in approvals[0]["content"]
+
+
+def test_디자이너_제출물은_각_팀에도_전달된다(tmp_path):
+    """사용자 확정 — 팀은 자기 작업함의 이관 패키지에서 그 결과물을 열어본다."""
+    client = _client(tmp_path)
+    client.post("/tasks/t-design-2/submit", json={"by": "최 디자이너"},
+                headers={"X-User-Id": "web-user"})
+
+    for recipient in ("영업팀", "전산팀"):
+        notes = client.get("/notifications", params={"recipient": recipient}).json()
+        assert any("디자이너 작업물이 제출" in n["content"] for n in notes), recipient
+
+
+def test_팀_작업_제출은_그_팀_팀장에게_간다(tmp_path):
+    client = _client(tmp_path)
+    client.post("/tasks/t-budget/submit", json={"by": "정 대리"},
+                headers={"X-User-Id": "web-user"})
+
+    notes = client.get("/notifications", params={"recipient": "예산팀장"}).json()
+    assert [n["task_id"] for n in notes if n["kind"] == "결재요청"] == ["t-budget"]
+    # 영업팀장이 남의 팀 결재 요청을 받지 않는다
+    assert client.get("/notifications", params={"recipient": "영업팀장"}).json() == []
 
 
 def test_제출_알림이_실패해도_제출은_유효하다(tmp_path):
@@ -325,33 +348,21 @@ def test_디자이너가_팀_파일을_내려받는다(tmp_path):
 # 그 위에서 만든 결과물을 결재에 올리는 것은 앞뒤가 맞지 않는다. 판단이 아니라
 # 선후 규칙이라 화면이 아니라 가드로 막는다(계획 E의 POST /run과 같은 논리).
 
-def test_작업_중인_팀이_있으면_디자이너_제출이_막힌다(tmp_path):
-    """기본 시드가 이 상태다 — 예산이 '작성중'이다."""
+def test_승인_안_난_팀이_있으면_디자이너_제출이_막힌다(tmp_path):
+    """기본 시드가 이 상태다 — 전산은 제출만 됐고(1차완료) 예산은 작성 중이다."""
     client = _client(tmp_path)
     client.patch("/tasks/t-design-1/draft", json={"content": "x"},
                  headers={"X-User-Id": "designer"})
     r = client.post("/tasks/t-design-1/submit", headers={"X-User-Id": "designer"})
 
     assert r.status_code == 409
-    assert "예산" in r.json()["detail"]          # 누구를 기다리는지 이름을 말한다
+    detail = r.json()["detail"]
+    assert "전산" in detail and "예산" in detail     # 누구를 기다리는지 이름을 말한다
 
 
-def test_팀이_전부_끝나면_디자이너가_제출할_수_있다(tmp_path):
-    app = _app(tmp_path)
-    conn = get_connection(str(tmp_path / "r.db"))
-    conn.execute("UPDATE tasks SET status='1차완료' WHERE task_id='t-budget'")
-    conn.commit(); conn.close()
-    client = TestClient(app)
-    client.patch("/tasks/t-design-1/draft", json={"content": "x"},
-                 headers={"X-User-Id": "designer"})
-
-    r = client.post("/tasks/t-design-1/submit", headers={"X-User-Id": "designer"})
-    assert r.status_code == 200 and r.json()["status"] == "1차완료"
-
-
-def test_제출됨이면_충분하다_승인까지_기다리지_않는다(tmp_path):
-    """'작업 중'의 반대는 '자기 일을 끝냄'이다. 2차완료(사람 결재)까지 요구하면,
-    그래프 흐름에서 팀 Task는 1차완료까지만 올라가므로 디자이너가 영영 제출을 못 한다."""
+def test_제출만_해서는_부족하다_팀장_결재까지_받아야_한다(tmp_path):
+    """계획 H는 '작업 중이 아닐 것'으로 약하게 잡았다 — 결재할 화면이 없었기 때문이다.
+    계획 I가 팀장 결재함을 만들면서 기준을 승인완료로 올렸다(사용자 확정)."""
     app = _app(tmp_path)
     conn = get_connection(str(tmp_path / "r.db"))
     conn.execute("UPDATE tasks SET status='1차완료' WHERE team IN ('영업','전산','예산')")
@@ -359,8 +370,22 @@ def test_제출됨이면_충분하다_승인까지_기다리지_않는다(tmp_pa
     client = TestClient(app)
     client.patch("/tasks/t-design-1/draft", json={"content": "x"},
                  headers={"X-User-Id": "designer"})
+
     assert client.post("/tasks/t-design-1/submit",
-                       headers={"X-User-Id": "designer"}).status_code == 200
+                       headers={"X-User-Id": "designer"}).status_code == 409
+
+
+def test_전부_승인되면_디자이너가_제출할_수_있다(tmp_path):
+    app = _app(tmp_path)
+    conn = get_connection(str(tmp_path / "r.db"))
+    conn.execute("UPDATE tasks SET status='2차완료' WHERE team IN ('영업','전산','예산')")
+    conn.commit(); conn.close()
+    client = TestClient(app)
+    client.patch("/tasks/t-design-1/draft", json={"content": "x"},
+                 headers={"X-User-Id": "designer"})
+
+    r = client.post("/tasks/t-design-1/submit", headers={"X-User-Id": "designer"})
+    assert r.status_code == 200 and r.json()["status"] == "1차완료"
 
 
 def test_이_규칙은_디자이너에게만_적용된다(tmp_path):
@@ -373,6 +398,6 @@ def test_이_규칙은_디자이너에게만_적용된다(tmp_path):
 
 def test_이관_패키지가_대기중인_팀을_알려준다(tmp_path):
     """화면이 제출 버튼을 왜 못 누르는지 설명할 근거."""
-    # 시드: 영업 2차완료 · 전산 1차완료 · 예산 작성중 → 예산만 남았다.
+    # 시드: 영업 2차완료 · 전산 1차완료 · 예산 작성중 → 승인난 것은 영업뿐이다.
     body = _client(tmp_path).get("/tasks/t-design-1/handoff").json()
-    assert body["waiting_on"] == ["예산"]
+    assert body["waiting_on"] == ["전산", "예산"]

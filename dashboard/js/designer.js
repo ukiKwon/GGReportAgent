@@ -244,7 +244,21 @@
   let busy = false;
 
   function profile() { return root.store.loadProfile(); }
-  function myTeam() { return (profile().team || '').trim(); }
+
+  // 소속(역할) → tasks.team. `영업팀`·`영업팀장` 둘 다 `영업`을 본다 —
+  // backend/teams.py의 team_of와 **같은 규칙**이고, 접미사를 떼는 순서가 전부다
+  // ('영업팀장'에서 '팀'을 먼저 떼면 '영업장'이라는 없는 팀이 된다).
+  designer.teamOf = function (role) {
+    const text = (role || '').trim();
+    const suffixes = ['팀장', '팀'];
+    for (let i = 0; i < suffixes.length; i += 1) {
+      const s = suffixes[i];
+      if (text.length > s.length && text.slice(-s.length) === s) return text.slice(0, -s.length);
+    }
+    return text;
+  };
+
+  function myTeam() { return designer.teamOf(profile().team); }
 
   // 한글 이름은 헤더에 못 실으므로 by로 보낸다(X-User-Id는 ASCII만 — A1 F10).
   function actorBody(extra) {
