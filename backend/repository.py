@@ -96,21 +96,35 @@ def upsert_institution(
 def update_institution(
     conn: sqlite3.Connection, institution_id: str, upd: InstitutionUpdateIn
 ) -> Institution | None:
-    """부분 갱신: COALESCE 패턴으로 미전송 필드는 보존한다.
+    """부분 갱신: **본문에 실제로 담겨 온 필드만** 갱신한다.
 
     없는 기관이면 None을 반환한다.
-    stage 같은 워크플로 필드는 모델에 없어서 자동 무시된다."""
+    stage 같은 워크플로 필드는 모델에 없어서 자동 무시된다.
+
+    B 이월 해소 — 예전에는 `COALESCE(?, 기존값)`이라 **NULL과 "미전송"을 같은 것으로
+    취급**했다. 그래서 `term`(숫자)은 한 번 넣으면 **비울 방법이 아예 없었고**,
+    문자열은 `""`를 보내면 비워지는 비대칭이 있었다. `model_fields_set`(pydantic의
+    `exclude_unset`)으로 둘을 구분하면 `{"term": null}` = 지움, `{}` = 보존이 된다.
+    """
     if get_institution(conn, institution_id) is None:
         return None
+    values = upd.model_dump(exclude_unset=True)
+    # 빈 문자열은 **지움**으로 본다. 이 필드들에 진짜 빈 문자열은 의미가 없고,
+    # 화면에서 입력칸을 비운 것이 곧 지우려는 뜻이다(위의 비대칭을 여기서 없앤다).
+    for key in ("region_code", "type", "contract_end", "last_bid"):
+        if values.get(key) == "":
+            values[key] = None
+    # 컬럼명을 SQL에 직접 넣으므로 모델이 정의한 필드인지 확인한다 —
+    # 지금은 pydantic이 걸러주지만, 검사를 여기 붙여 두면 모델이 바뀌어도 안전하다.
+    unknown = set(values) - set(InstitutionUpdateIn.model_fields)
+    if unknown:
+        raise ValueError(f"알 수 없는 필드: {sorted(unknown)}")
+    if not values:
+        return get_institution(conn, institution_id)   # 보낸 것이 없으면 그대로 둔다
+    assignments = ", ".join(f"{key} = ?" for key in values)
     conn.execute(
-        """UPDATE institutions
-           SET region_code = COALESCE(?, region_code),
-               type = COALESCE(?, type),
-               contract_end = COALESCE(?, contract_end),
-               last_bid = COALESCE(?, last_bid),
-               term = COALESCE(?, term)
-           WHERE institution_id = ?""",
-        (upd.region_code, upd.type, upd.contract_end, upd.last_bid, upd.term, institution_id),
+        f"UPDATE institutions SET {assignments} WHERE institution_id = ?",
+        (*values.values(), institution_id),
     )
     conn.commit()
     return get_institution(conn, institution_id)

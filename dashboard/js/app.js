@@ -334,10 +334,16 @@
       if (!v.valid) { alert('필수 필드 누락: ' + v.missing.map(function(k){return root.logic.FIELD_LABELS[k]||k;}).join(', ')); return; }
       // 서버 모드이고 서버에 등록된 레코드면 서버 필드는 PUT으로 반영(부분 갱신 — undefined는
       // JSON.stringify가 제거). lng·lat·sources 등 서버에 없는 필드는 아래 setEdit(로컬 overlay)만 담당.
+      // 값을 **비운 것**과 **안 건드린 것**은 다르다. 잠긴(비활성) 입력은 partial에
+      // 아예 없으므로 undefined → JSON.stringify가 키를 지운다(= 서버가 보존).
+      // 비워서 저장한 칸은 null로 보내 서버가 지우게 한다 — 예전에는 term이
+      // `'' ? Number : undefined`라 **비울 방법이 없었다**(B 이월).
+      function clearable(v) { return v === undefined ? undefined : (v === '' ? null : v); }
       const serverPatch = root.serverdata ? {
-        region_code: partial.region, type: partial.type,
-        contract_end: partial.contractEnd, last_bid: partial.lastBid,
-        term: partial.term ? Number(partial.term) : undefined,
+        region_code: clearable(partial.region), type: clearable(partial.type),
+        contract_end: clearable(partial.contractEnd), last_bid: clearable(partial.lastBid),
+        term: partial.term === undefined ? undefined
+          : (partial.term === '' ? null : Number(partial.term)),
       } : null;
       if (root.store.isServerMode() && rec.institutionId) {
         fetch('/institutions/' + rec.institutionId, {
