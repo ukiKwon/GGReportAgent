@@ -12,8 +12,10 @@ class Institution(BaseModel):
     stage: int = 1
     giganlist_dir: str | None = None
     rfp_path: str | None = None
-    scoring_table: list[dict] | None = None
     pptx_path: str | None = None
+    # `scoring_table`은 뺐다(2026-08-06, NEXT.md 항목 4). 아무도 채우지 않아 늘
+    # None이었고, 배점표는 `rfp_scoring.json` + `GET /institutions/{id}/coverage-map`
+    # 으로 이미 서빙된다 — DB에도 두면 둘 중 어느 게 진실인지 문제가 새로 생긴다.
 
 
 class InstitutionImportRow(BaseModel):

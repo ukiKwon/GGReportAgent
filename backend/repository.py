@@ -1,4 +1,3 @@
-import json
 import secrets
 import sqlite3
 from pathlib import Path
@@ -35,10 +34,10 @@ GIGANLIST_DISTRICT_NAMES = {
 
 
 def _row_to_institution(row: sqlite3.Row) -> Institution:
-    data = dict(row)
-    if data["scoring_table"]:
-        data["scoring_table"] = json.loads(data["scoring_table"])
-    return Institution(**data)
+    # 예전 DB에는 `scoring_table` 컬럼이 남아 있다(2026-08-06에 뺐지만 SQLite라
+    # 기존 파일에서 지우지 않았다 — 아래 backend/db.py 주석 참고). `SELECT *`가
+    # 그 값을 실어 오는데, pydantic이 모델에 없는 키를 무시하므로 그냥 넘어간다.
+    return Institution(**dict(row))
 
 
 def list_institutions(conn: sqlite3.Connection) -> list[Institution]:
