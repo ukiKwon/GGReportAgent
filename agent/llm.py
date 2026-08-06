@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 import time
 
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_openai import ChatOpenAI
 
 from agent.model_select import detect_resources, installed_models, pick_model
@@ -147,14 +149,60 @@ def current_base_url() -> str:
     return _env("LLM_BASE_URL", DEFAULT_BASE_URL)
 
 
+# ── 실제로 답을 만든 모델 추적 ─────────────────────────────────────────
+# `structured_llm`은 1순위가 실패하면 **조용히** 2순위로 넘어간다(의도된 설계).
+# 그런데 기록에는 `current_model()`(= 쓰기로 한 1순위)이 남아서, 폴백이 도는 순간
+# **화면의 🧠 표시와 실제로 답을 만든 모델이 어긋났다.** 폴백이 흔한 상황
+# (엔드포인트에 모델이 안 올라와 있거나 컨텍스트 초과)에서 "이 결과를 어느 모델이
+# 만들었나"를 사후에 알 수 없다는 뜻이다.
+#
+# 노드 시그니처에 컨텍스트를 실어 나르는 대신 **스레드 로컬**에 적는다. 그래프는
+# 기관당 스레드 하나로 돌고(`OrchestratorService._spawn`), 한 노드 안에서 invoke와
+# 기록이 같은 스레드에서 순서대로 일어나므로 이걸로 충분하다. 인자 배선이 없어
+# 노드·테스트가 그대로다.
+_local = threading.local()
+
+
+class _ModelTracker(BaseCallbackHandler):
+    """`on_llm_end`에 **성공한** 모델 이름을 남긴다.
+
+    `on_llm_start`가 아니라 end인 이유: 폴백이 돌면 1순위도 start는 찍고 실패한다.
+    끝난 것만 적어야 "답을 만든 모델"이 된다.
+    """
+
+    def __init__(self, model: str) -> None:
+        self.model = model
+
+    def on_llm_end(self, *args, **kwargs) -> None:
+        _local.model = self.model
+
+
+def reset_last_model() -> None:
+    """이 작업 단위에서 LLM을 썼는지 새로 세기 시작한다 — 노드 진입 시 부른다.
+
+    안 부르면 앞 노드가 남긴 값이 그대로 읽혀, LLM을 안 쓴 기록에 모델명이 붙는다.
+    """
+    _local.model = None
+
+
+def last_used_model() -> str | None:
+    """직전에 **실제로 답을 만든** 모델. 이 스레드에서 아직 안 돌았으면 None."""
+    return getattr(_local, "model", None)
+
+
 def get_llm(temperature: float = 0.0, model: str | None = None) -> ChatOpenAI:
+    name = model or current_model()
     return ChatOpenAI(
-        model=model or current_model(),
+        model=name,
         base_url=_env("LLM_BASE_URL", DEFAULT_BASE_URL),
         # 자체호스팅 엔드포인트는 대개 키를 안 본다. langchain은 빈 값이면 예외를 내므로
         # 자리표시자를 넣는다.
         api_key=_env("LLM_API_KEY", "not-needed"),
         temperature=temperature,
+        # 모델 이름을 콜백에 **묶어서** 단다. langchain이 주는 serialized/invocation_params는
+        # 래핑(구조화 출력·폴백)을 거치며 모양이 달라져 신뢰하기 어렵다 — 이 인스턴스가
+        # 어느 모델인지는 여기서 이미 확실하다.
+        callbacks=[_ModelTracker(name)],
     )
 
 

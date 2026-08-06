@@ -323,3 +323,38 @@ def test_지시에는_모델명을_붙이지_않는다():
     for call in recorder.message.call_args_list:
         if len(call.args) > 1 and call.args[1] == "orchestrator":
             assert "model" not in call.kwargs
+
+
+# ── 기록에 남는 모델명은 **실제로 답을 만든 모델**이다 (NEXT.md 항목 8) ──
+# 폴백이 돌면 1순위와 실제 사용 모델이 다르다. 예전에는 늘 1순위(current_model)를
+# 적어서, 폴백이 흔한 상황에서 "이 결과를 어느 모델이 만들었나"를 알 수 없었다.
+
+import agent.llm as llm_mod
+
+
+@patch("agent.orchestrator.subagents.content_writer_node")
+def test_폴백이_돌면_보고에_폴백_모델이_남는다(mock_writer):
+    def _write(state, role=None):
+        llm_mod._ModelTracker("폴백-모델").on_llm_end()    # 2순위가 답을 만들었다
+        return {"sections": [{"scoring_item": "a"}]}
+
+    mock_writer.side_effect = _write
+    recorder = MagicMock()
+    state = dict(BASE, role="영업", scoring_table=[{"item": "a"}],
+                 role_assignments=[{"scoring_item": "a", "role": "영업"}])
+
+    draft_team(state, recorder)
+
+    assert recorder.message.call_args.kwargs["model"] == "폴백-모델"
+
+
+@patch("agent.orchestrator.subagents.content_writer_node")
+def test_앞_노드가_남긴_모델명이_넘어오지_않는다(mock_writer):
+    """노드 진입 시 reset하지 않으면, LLM을 안 쓴 이번 보고에 앞 노드의 모델명이 붙는다."""
+    llm_mod._ModelTracker("앞노드-모델").on_llm_end()
+    mock_writer.return_value = {"sections": []}          # 이 role엔 배정 항목이 없다
+    recorder = MagicMock()
+
+    draft_team(dict(BASE, role="전산", scoring_table=[], role_assignments=[]), recorder)
+
+    assert "model" not in recorder.message.call_args.kwargs

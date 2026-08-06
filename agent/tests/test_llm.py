@@ -288,3 +288,70 @@ def test_reset_model_cache가_설치_목록도_비운다(monkeypatch):
     llm_mod.reset_model_cache()
     monkeypatch.setattr(llm_mod, "installed_models", lambda url: [])
     assert llm_mod.model_info()["installed"] == []
+
+
+# ── 실제로 답을 만든 모델 추적 (NEXT.md 항목 8) ─────────────────────────
+# `structured_llm`은 1순위가 실패하면 **조용히** 2순위로 넘어간다(의도된 설계).
+# 그런데 기록에는 `current_model()`(= 쓰기로 한 1순위)이 남아, 폴백이 도는 순간
+# 화면의 🧠 표시와 실제로 답을 만든 모델이 어긋났다.
+
+def _fire_end(model_name):
+    """그 모델의 콜백이 성공으로 끝난 상황을 흉내 낸다."""
+    llm_mod._ModelTracker(model_name).on_llm_end()
+
+
+def test_아무것도_안_돌면_None이다(monkeypatch):
+    """LLM을 안 쓴 기록에 모델명이 붙지 않게 하는 근거다."""
+    llm_mod.reset_last_model()
+    assert llm_mod.last_used_model() is None
+
+
+def test_성공한_모델이_기록된다():
+    llm_mod.reset_last_model()
+    _fire_end("gpt-oss-120b")
+    assert llm_mod.last_used_model() == "gpt-oss-120b"
+
+
+def test_폴백이_돌면_폴백_모델이_남는다():
+    """1순위도 on_llm_start는 찍고 실패한다 — **끝난 것**만 적어야 답을 만든 모델이 된다."""
+    llm_mod.reset_last_model()
+    _fire_end(DEFAULT_FALLBACK_MODEL)          # 1순위는 실패해 end가 안 온다
+    assert llm_mod.last_used_model() == DEFAULT_FALLBACK_MODEL
+    assert llm_mod.last_used_model() != DEFAULT_MODEL
+
+
+def test_reset이_앞_작업의_값을_지운다():
+    """안 지우면 앞 노드가 남긴 값이 다음 노드 기록에 붙는다."""
+    _fire_end("gpt-oss-120b")
+    llm_mod.reset_last_model()
+    assert llm_mod.last_used_model() is None
+
+
+def test_get_llm이_자기_모델을_묶은_추적기를_단다(monkeypatch):
+    """langchain이 주는 serialized/invocation_params는 래핑을 거치며 모양이 달라진다 —
+    이 인스턴스가 어느 모델인지는 생성 시점에 이미 확실하므로 그것을 묶는다."""
+    _clear(monkeypatch)
+    trackers = [c for c in (get_llm(model="어떤모델").callbacks or [])
+                if isinstance(c, llm_mod._ModelTracker)]
+    assert [t.model for t in trackers] == ["어떤모델"]
+
+
+def test_다른_스레드의_기록은_섞이지_않는다():
+    """그래프는 기관당 스레드 하나로 돈다 — 동시에 두 기관이 돌아도 서로의 모델명을
+    집어오면 안 된다."""
+    import threading
+
+    llm_mod.reset_last_model()
+    _fire_end("이쪽모델")
+    seen = {}
+
+    def other():
+        llm_mod.reset_last_model()
+        _fire_end("저쪽모델")
+        seen["value"] = llm_mod.last_used_model()
+
+    t = threading.Thread(target=other)
+    t.start(); t.join()
+
+    assert seen["value"] == "저쪽모델"
+    assert llm_mod.last_used_model() == "이쪽모델"
