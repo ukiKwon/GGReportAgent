@@ -16,11 +16,33 @@ from agent.orchestrator.pii import scan_pii
 from agent.pipeline import artifacts_exist
 
 
+def _assigned(state: dict, role: str) -> tuple[int, int]:
+    """그 팀에 배정된 배점 (항목 수, 점수 합). 총괄 지시에 실을 근거다."""
+    scores = {e["item"]: e.get("score") or 0 for e in state.get("scoring_table", [])}
+    items = [a["scoring_item"] for a in state.get("role_assignments", []) if a["role"] == role]
+    return len(items), sum(scores.get(i, 0) for i in items)
+
+
+def _order(recorder, team: str, text: str) -> None:
+    """총괄(오케스트레이터)의 **지시**를 기록한다 — C1 이월 해소.
+
+    지금까지 실행 기록에는 subagent의 *보고*(`agent`)와 사람의 *결재*(`human`)만
+    있었다. 그래서 워크플로 탭의 단계별 뷰가 "누가 시켰는지" 없이 답만 나열됐고,
+    `orchestrator` role은 **데모 시드에만** 존재했다(실행하면 사라지는 화면).
+
+    지시는 일을 **하기 전에** 남긴다 — 로그에서 보고 위에 와야 순서가 읽힌다.
+    LLM이 쓴 문장이 아니므로 `model`은 붙이지 않는다(🧠 표시의 의미를 지킨다).
+    """
+    recorder.message(team, "orchestrator", text)
+
+
 def rfi_agent(state: dict, recorder) -> dict:
     """3·4단계 — 공고 해부와 요구사항 분석. 불리 조건은 되물음(비차단)으로 알린다."""
     updates: dict = {}
-    recorder.task_update("RFI분석", "작성중", 10)
     recorder.set_stage(3)
+    _order(recorder, "RFI분석",
+           f"{state['institution_name']} 입찰 건이다. 공고문을 해부해 배점표를 구조화하라.")
+    recorder.task_update("RFI분석", "작성중", 10)
 
     if state.get("rfp_path") and not artifacts_exist(
         state["report_new_dir"], state["institution_name"]
@@ -38,6 +60,7 @@ def rfi_agent(state: dict, recorder) -> dict:
 
     updates["stage"] = 4
     recorder.set_stage(4)
+    _order(recorder, "RFI분석", "배점 항목을 영업·전산·예산 3팀에 배정하고 요구사항을 정리하라.")
     recorder.task_update("RFI분석", "1차완료", 100)
     # institution_match_node·role_router_node가 LLM을 쓰므로(기관유형 판정, 애매 항목 분류
     # 폴백) 이 보고는 사용 모델을 남긴다.
@@ -60,6 +83,11 @@ def draft_team(state: dict, recorder) -> dict:
     # 3팀 초안 작성은 5단계다(이 모듈 상단·graph.py docstring 참조). set_stage는 멱등이고,
     # 이게 없으면 초안 기록이 직전 단계(4)로 찍혀 단계별 뷰가 어긋난다.
     recorder.set_stage(5)
+    count, points = _assigned(state, role)
+    note = state.get("revision_note")
+    _order(recorder, role,
+           f"{role}: 배정 {count}항목({points}점)을 맡아 초안을 작성하라."
+           + (f" 반려 사유 반영: {note}" if note else ""))
     recorder.task_update(role, "작성중", 10)
     revision_note = state.get("revision_note")
     result = content_writer_node({**state, "revision_note": revision_note}, role=role)
@@ -92,6 +120,7 @@ def packager(state: dict, recorder) -> dict:
     건드리지 않는다(merge_sections reducer가 이어붙이기라 재저장 시 중복된다).
     """
     recorder.set_stage(7)
+    _order(recorder, "취합", "승인된 3팀 작성물을 배점표 순서대로 하나의 제안서로 취합하라.")
     recorder.task_update("취합", "작성중", 50)
     ordered = _ordered_sections(state.get("scoring_table", []), state.get("sections", []))
     updates = pptx_builder_node({**state, "sections": ordered})
@@ -107,6 +136,7 @@ def packager(state: dict, recorder) -> dict:
 def verifier(state: dict, recorder) -> dict:
     """검증가 — 커버리지 + PII. 8단계 전체 검사에 쓰인다(업로드 즉시 검사는 A2)."""
     recorder.set_stage(8)
+    _order(recorder, "검증", "오탈자·개인정보(PII)와 배점 역대조를 수행하고 최종 결재로 올려라.")
     updates = verification_node(state)
     # llm_used는 이 호출 한 번의 사실이지 파이프라인 상태가 아니다 —
     # OrchestratorState에 없는 키를 그래프 채널로 흘려보내지 않는다.
