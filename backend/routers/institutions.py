@@ -9,6 +9,7 @@ from backend.csv_import import parse_csv
 from backend.db import get_connection
 from backend.models import CorpusPathIn, Institution, InstitutionUpdateIn
 from backend.repository import get_institution, list_institutions, update_institution, upsert_institution
+from backend.upload_check import load_coverage_map
 
 router = APIRouter(prefix="/institutions", tags=["institutions"])
 
@@ -124,20 +125,17 @@ def get_coverage_map(institution_id: str, request: Request) -> dict:
     out_dir = Path(request.app.state.output_root) / institution.name_ko
     scoring_path = out_dir / "rfp_scoring.json"
     if not scoring_path.is_file():
-        # 아직 3단계(배점표 추출) 전 — 빈 상태가 정상이다.
-        return {"criteria": [], "total_score": 0}
+        # 아직 3단계(배점표 추출) 전 — 빈 상태가 정상이다. **키는 다 채워 보낸다** —
+        # 화면이 "있을 때/없을 때"로 분기하지 않게 모양을 하나로 유지한다.
+        return {"criteria": [], "total_score": 0, "teams": [], "pii_total": 0}
     scoring = json.loads(scoring_path.read_text(encoding="utf-8"))
 
-    coverage_path = out_dir / "coverage_map.json"
-    coverage = (
-        json.loads(coverage_path.read_text(encoding="utf-8"))
-        if coverage_path.is_file()
-        else {}
-    )
+    coverage = load_coverage_map(str(out_dir / "coverage_map.json"))
+    items = coverage["items"]
 
     criteria = []
     for c in scoring.get("criteria", []):
-        cov = coverage.get(c["item"], {})
+        cov = items.get(c["item"], {})
         criteria.append({
             "category": c.get("category"),
             "item": c["item"],
@@ -145,9 +143,23 @@ def get_coverage_map(institution_id: str, request: Request) -> dict:
             "team": cov.get("team"),
             "covered": bool(cov.get("covered", False)),
             "gap_note": cov.get("gap_note"),
-            "pii_count": cov.get("pii_count", 0),
         })
-    return {"criteria": criteria, "total_score": scoring.get("total_score", 0)}
+    # PII는 **항목이 아니라 팀 단위 사실**이다(업로드 본문 1회 스캔 결과). 예전에는
+    # 항목마다 같은 값을 복제해 내려줘서 화면이 팀당 max를 집는 휴리스틱으로 방어해야
+    # 했다 — 이제 있는 그대로 팀별로 준다. 배점표에서 사라진 팀의 값은 싣지 않는다
+    # (stale 키가 화면에 유령 팀으로 뜨는 것을 막는다).
+    live_teams = {c["team"] for c in criteria if c["team"]}
+    teams = [
+        {"team": team, "pii_count": int((row or {}).get("pii_count") or 0)}
+        for team, row in sorted(coverage["teams"].items())
+        if team in live_teams
+    ]
+    return {
+        "criteria": criteria,
+        "total_score": scoring.get("total_score", 0),
+        "teams": teams,
+        "pii_total": sum(t["pii_count"] for t in teams),
+    }
 
 
 @router.post("/{institution_id}/corpus/validate")

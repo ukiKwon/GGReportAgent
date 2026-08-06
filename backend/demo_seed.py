@@ -201,12 +201,20 @@ SCORING = {
 }
 
 # 작성됨 3 · 미충족 2 · 미배정 1(지역 재투자 실적은 아예 없음) — 배지 3색을 다 보여준다.
+# coverage_map.json v2 — PII는 **항목이 아니라 팀 단위**라 `teams`에 한 번만 적는다
+# (`backend/upload_check.py` 참고). 예전 v1은 항목마다 같은 값을 복제해 넣었다.
 COVERAGE = {
-    "신용등급": {"team": "예산", "covered": True, "gap_note": None, "pii_count": 0},
-    "예금 금리": {"team": "예산", "covered": False, "gap_note": "제시 금리 수치가 본문에 없음", "pii_count": 1},
-    "관내 지점 수": {"team": "영업", "covered": True, "gap_note": None, "pii_count": 0},
-    "전산 시스템 안정성": {"team": "전산", "covered": True, "gap_note": None, "pii_count": 0},
-    "협력 사업 제안": {"team": "영업", "covered": False, "gap_note": "근거 자료 미첨부", "pii_count": 0},
+    "version": 2,
+    "items": {
+        "신용등급": {"team": "예산", "covered": True, "gap_note": None},
+        "예금 금리": {"team": "예산", "covered": False, "gap_note": "제시 금리 수치가 본문에 없음"},
+        "관내 지점 수": {"team": "영업", "covered": True, "gap_note": None},
+        "전산 시스템 안정성": {"team": "전산", "covered": True, "gap_note": None},
+        "협력 사업 제안": {"team": "영업", "covered": False, "gap_note": "근거 자료 미첨부"},
+    },
+    # 예산팀 업로드 본문에서 개인정보 1건이 잡힌 상태. 항목이 2개여도 **1건**이다 —
+    # 예전 구조에서 화면이 2건으로 부풀던 자리다.
+    "teams": {"예산": {"pii_count": 1}},
 }
 
 

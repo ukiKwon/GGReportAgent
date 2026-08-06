@@ -345,7 +345,18 @@ curl -X POST http://127.0.0.1:8000/tasks/task-1/upload \
 - 업로드마다 `coverage_map.json`이 **누적 갱신**된다(파일 위치는
   `{output_root}/{기관명}/coverage_map.json` — 기본
   `data/report_new/{기관명}/coverage_map.json`). 항목별 최신 팀·covered·
-  gap_note·pii_count만 남고, 다른 팀이 쓴 항목은 덮지 않는다.
+  gap_note가 남고, 다른 팀이 쓴 항목은 덮지 않는다.
+- **개인정보(PII)는 항목이 아니라 팀 단위 값**이다 — 업로드 본문을 한 번 스캔한
+  결과라 항목별로 분해할 수 없다. 그래서 파일 안에서도 `teams`에 팀당 한 번만
+  적는다(v2 형식: `{"version":2, "items":{…}, "teams":{"전산":{"pii_count":3}}}`).
+  - 예전 v1은 팀 값을 그 팀의 **모든 항목에 복제**해 넣었다. 그 탓에 ⓐ화면이 항목
+    수만큼 부풀려 세고(3건·12항목 → 36건) ⓑ배점표를 다시 뽑아 어떤 항목이 그 팀
+    배정에서 빠지면 옛 값이 stale로 남아 같은 팀 항목끼리 값이 갈렸다.
+  - **옛 파일은 고쳐 쓰지 않고 읽을 때 v2로 올린다**(`upload_check.load_coverage_map`)
+    — 이미 만들어진 산출물과 아카이브에 복사된 사본이 그대로 열려야 하기 때문이다.
+  - `GET /institutions/{id}/coverage-map`은 `teams: [{team, pii_count}]` 와
+    `pii_total`을 따로 준다. `criteria[]`에는 PII가 실리지 않는다 — 실으면 읽는 쪽이
+    또 합산한다. 화면(배점표 매핑 탭)도 열이 아니라 **요약줄에 팀별로** 보여준다.
 
 ### ③ 완료 처리 — `/institutions/{id}/complete` — stage 9 전용, 아카이브
 

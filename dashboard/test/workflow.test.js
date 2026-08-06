@@ -82,10 +82,12 @@ test('stageParticipants: status에 없는 팀도 카드로 나온다(진행률�
 });
 
 test('coverageRows/Summary: 상태 분류와 합계', function () {
-  const payload = { total_score: 30, criteria: [
-    { category: '사업', item: '전산 시스템', score: 20, team: '전산', covered: true, gap_note: null, pii_count: 1 },
-    { category: '기타', item: '지역 기여', score: 10, team: null, covered: false, gap_note: null, pii_count: 0 },
-  ] };
+  const payload = { total_score: 30, pii_total: 1,
+    teams: [{ team: '전산', pii_count: 1 }],
+    criteria: [
+      { category: '사업', item: '전산 시스템', score: 20, team: '전산', covered: true, gap_note: null },
+      { category: '기타', item: '지역 기여', score: 10, team: null, covered: false, gap_note: null },
+    ] };
   const rows = wf.coverageRows(payload);
   assert.strictEqual(rows[0].state, 'ok');
   assert.strictEqual(rows[1].state, 'none');
@@ -94,32 +96,42 @@ test('coverageRows/Summary: 상태 분류와 합계', function () {
   assert.deepStrictEqual(sum, { total: 2, covered: 1, coveredScore: 20, totalScore: 30, piiTotal: 1 });
 });
 
-test('coverageSummary: PII는 팀 단위 값이라 같은 팀 항목 수만큼 부풀지 않는다', function () {
-  // upload_check가 업로드 본문 1회 스캔 결과(팀 전체 건수)를 그 팀의 모든 배점 항목에
-  // 복제 저장한다 — 항목별로 더하면 항목 수만큼 뻥튀기된다(3건·4항목 → 12건).
-  const payload = { total_score: 40, criteria: [
-    { item: 'A', score: 10, team: '전산', covered: true, gap_note: null, pii_count: 3 },
-    { item: 'B', score: 10, team: '전산', covered: true, gap_note: null, pii_count: 3 },
-    { item: 'C', score: 10, team: '전산', covered: false, gap_note: null, pii_count: 3 },
-    { item: 'D', score: 10, team: '전산', covered: false, gap_note: null, pii_count: 3 },
-  ] };
+// PII는 **항목이 아니라 팀 단위 사실**이다(업로드 본문 1회 스캔 결과). 서버가 이제
+// 그대로 팀별로 준다 — 예전에는 항목마다 복제돼 내려와서 화면이 팀당 max를 집는
+// 휴리스틱으로 방어해야 했다(항목별로 더하면 3건·4항목 → 12건으로 부풀었다).
+
+test('coverageSummary: 합계는 서버가 준 pii_total을 그대로 쓴다', function () {
+  const payload = { total_score: 40, pii_total: 3,
+    teams: [{ team: '전산', pii_count: 3 }],
+    criteria: [
+      { item: 'A', score: 10, team: '전산', covered: true, gap_note: null },
+      { item: 'B', score: 10, team: '전산', covered: true, gap_note: null },
+      { item: 'C', score: 10, team: '전산', covered: false, gap_note: null },
+      { item: 'D', score: 10, team: '전산', covered: false, gap_note: null },
+    ] };
+  // 같은 팀 항목이 4개여도 3건이다 — 화면이 다시 세지 않는다.
   assert.strictEqual(wf.coverageSummary(payload).piiTotal, 3);
 });
 
-test('coverageSummary: 팀이 여럿이면 팀별 건수를 더한다', function () {
-  const payload = { total_score: 30, criteria: [
-    { item: 'A', score: 10, team: '전산', covered: true, gap_note: null, pii_count: 2 },
-    { item: 'B', score: 10, team: '전산', covered: true, gap_note: null, pii_count: 2 },
-    { item: 'C', score: 10, team: '예산', covered: true, gap_note: null, pii_count: 1 },
-  ] };
-  assert.strictEqual(wf.coverageSummary(payload).piiTotal, 3);
+test('piiTeams/piiLabel: 팀별로 한 줄에 보여준다', function () {
+  const payload = { teams: [{ team: '전산', pii_count: 3 }, { team: '예산', pii_count: 1 }] };
+  assert.deepStrictEqual(wf.piiTeams(payload),
+    [{ team: '전산', count: 3 }, { team: '예산', count: 1 }]);
+  // '팀'은 서버 값에 없다(tasks.team은 '전산') — 화면 문구에서만 붙인다.
+  assert.strictEqual(wf.piiLabel(payload), '⚠️ 개인정보 — 전산팀 3건 · 예산팀 1건');
 });
 
-test('coverageSummary: 담당팀 없는 항목의 pii_count는 무시한다', function () {
-  const payload = { total_score: 10, criteria: [
-    { item: 'A', score: 10, team: null, covered: false, gap_note: null, pii_count: 5 },
-  ] };
-  assert.strictEqual(wf.coverageSummary(payload).piiTotal, 0);
+test('piiTeams: 0건인 팀은 빼고, 없으면 문구 자체가 없다', function () {
+  const payload = { teams: [{ team: '전산', pii_count: 0 }, { team: '예산', pii_count: 2 }] };
+  assert.deepStrictEqual(wf.piiTeams(payload), [{ team: '예산', count: 2 }]);
+  assert.strictEqual(wf.piiLabel({ teams: [] }), '');
+  assert.strictEqual(wf.piiLabel({}), '');
+});
+
+test('coverageSummary: pii_total이 없어도 죽지 않는다', function () {
+  // 옛 서버 응답이나 빈 상태.
+  assert.strictEqual(wf.coverageSummary({ criteria: [] }).piiTotal, 0);
+  assert.strictEqual(wf.coverageSummary({}).piiTotal, 0);
 });
 
 test('logRows: 메시지를 시간순 행으로 변환', function () {
