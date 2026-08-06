@@ -121,29 +121,40 @@
     return ((payload && payload.criteria) || []).map(function (c) {
       return {
         item: c.item, category: c.category, score: c.score, team: c.team || null,
-        covered: !!c.covered, gapNote: c.gap_note || null, piiCount: c.pii_count || 0,
+        covered: !!c.covered, gapNote: c.gap_note || null,
         state: c.covered ? 'ok' : (c.team ? 'gap' : 'none'),
       };
     });
   };
 
+  // PII는 **항목이 아니라 팀 단위 사실**이다(업로드 본문 1회 스캔 결과). 서버가 이제
+  // 그대로 팀별로 준다 — 예전에는 항목마다 복제돼 내려와서 화면이 팀당 max를 집는
+  // 휴리스틱으로 방어해야 했다(항목별로 더하면 3건·12항목 → 36건으로 부풀었다).
+  workflow.piiTeams = function (payload) {
+    return (((payload || {}).teams) || [])
+      .filter(function (t) { return Number(t.pii_count) > 0; })
+      .map(function (t) { return { team: t.team, count: Number(t.pii_count) || 0 }; });
+  };
+
+  // 팀 이름 옆의 '팀'은 서버 값에 없다(`tasks.team`은 '전산') — 화면 문구에서만 붙인다.
+  workflow.piiLabel = function (payload) {
+    const teams = workflow.piiTeams(payload);
+    if (!teams.length) return '';
+    return '⚠️ 개인정보 — ' + teams.map(function (t) {
+      return t.team + '팀 ' + t.count + '건';
+    }).join(' · ');
+  };
+
   workflow.coverageSummary = function (payload) {
     const rows = workflow.coverageRows(payload);
     let covered = 0, coveredScore = 0;
-    // PII는 **항목이 아니라 팀 단위 값**이다 — backend/upload_check.py가 업로드 본문
-    // 1회 스캔 결과(그 팀 전체 건수)를 그 팀의 모든 배점 항목에 같은 값으로 복제해
-    // 저장하기 때문이다. 항목별로 더하면 항목 수만큼 부풀어(3건·12항목 → 36건) 화면에
-    // 없는 개인정보가 있는 것처럼 보인다. 팀당 한 번만 센다(방어적으로 최댓값).
-    const perTeam = {};
     rows.forEach(function (r) {
       if (r.covered) { covered += 1; coveredScore += Number(r.score) || 0; }
-      if (r.team) perTeam[r.team] = Math.max(perTeam[r.team] || 0, Number(r.piiCount) || 0);
     });
-    let piiTotal = 0;
-    Object.keys(perTeam).forEach(function (team) { piiTotal += perTeam[team]; });
     return {
       total: rows.length, covered: covered, coveredScore: coveredScore,
-      totalScore: (payload && payload.total_score) || 0, piiTotal: piiTotal,
+      totalScore: (payload && payload.total_score) || 0,
+      piiTotal: Number((payload || {}).pii_total) || 0,
     };
   };
 
@@ -268,19 +279,22 @@
       return;
     }
     const sum = workflow.coverageSummary(coverage);
+    // 개인정보는 **표의 열이 아니라 요약줄에 팀별로** 둔다(사용자 확정). 항목 단위
+    // 데이터가 아니라서 열에 넣으면 같은 값이 그 팀 모든 행에 반복돼, 항목별 값처럼
+    // 읽히는 오해가 남는다.
+    const pii = workflow.piiLabel(coverage);
     el.innerHTML =
       '<div class="wf-sum">배점표 매핑 — 작성 ' + sum.covered + '/' + sum.total + '항목 · ' +
-        sum.coveredScore + '/' + sum.totalScore + '점' +
-        (sum.piiTotal ? ' · ⚠️ 개인정보 ' + sum.piiTotal + '건' : '') + '</div>' +
+        sum.coveredScore + '/' + sum.totalScore + '점</div>' +
+      (pii ? '<div class="wf-sum wf-pii">' + esc(pii) + '</div>' : '') +
       '<table class="wf-cov"><thead><tr><th>평가항목</th><th>분류</th><th>배점</th>' +
-      '<th>담당팀</th><th>상태</th><th>개인정보</th><th>비고</th></tr></thead><tbody>' +
+      '<th>담당팀</th><th>상태</th><th>비고</th></tr></thead><tbody>' +
       rows.map(function (r) {
         return '<tr class="' + r.state + '"><td>' + esc(r.item) + '</td>' +
           '<td>' + esc(r.category == null ? '-' : r.category) + '</td>' +
           '<td>' + esc(r.score == null ? '-' : r.score) + '</td>' +
           '<td>' + esc(r.team || '-') + '</td>' +
           '<td><span class="wf-badge ' + r.state + '">' + COV_LABEL[r.state] + '</span></td>' +
-          '<td>' + (r.piiCount ? '⚠️ ' + r.piiCount : '-') + '</td>' +
           '<td>' + esc(r.gapNote || '') + '</td></tr>';
       }).join('') + '</tbody></table>';
   };
