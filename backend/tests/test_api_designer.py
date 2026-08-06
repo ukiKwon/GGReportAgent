@@ -433,3 +433,26 @@ def test_이관_패키지가_대기중인_팀을_알려준다(tmp_path):
     # 시드: 영업 2차완료 · 전산 1차완료 · 예산 작성중 → 승인난 것은 영업뿐이다.
     body = _client(tmp_path).get("/tasks/t-design-1/handoff").json()
     assert body["waiting_on"] == ["전산", "예산"]
+
+
+# ── M-6(절반): 업로드의 담당 선점도 한글 이름을 받아야 한다 ──────────────
+
+def test_업로드_담당_선점이_한글_이름을_쓴다(tmp_path):
+    """`/upload`만 `_actor`를 안 거치고 헤더를 그대로 썼다. 그러면 담당이
+    `web-user`로 박혀서, 정작 올린 사람이 뒤에 제출·결재에서 403을 받는다."""
+    client = _client(tmp_path)
+    conn = get_connection(str(tmp_path / "r.db"))
+    conn.execute("UPDATE tasks SET assignee=NULL WHERE task_id='t-it'")
+    conn.commit(); conn.close()
+
+    r = client.post("/tasks/t-it/upload", json={"content": "전산팀 작성물", "by": "권 차장"},
+                    headers={"X-User-Id": "web-user"})
+    assert r.status_code == 200
+    assert client.get("/tasks/t-it").json()["assignee"] == "권 차장"
+
+
+def test_업로드는_남의_작업을_가로채지_않는다(tmp_path):
+    client = _client(tmp_path)
+    r = client.post("/tasks/t-it/upload", json={"content": "x", "by": "남 과장"},
+                    headers={"X-User-Id": "web-user"})
+    assert r.status_code == 403
