@@ -125,5 +125,9 @@ def _gate_final(recorder, state):
 
 def _finish(recorder, state):
     recorder.set_stage(9)
+    # 총괄 지시(C1 이월) — 마지막 단계에도 "다음에 무엇을 하라"가 남아야 한다.
+    # 문구 규칙은 subagents._order 참조.
+    recorder.message("검증", "orchestrator",
+                     "최종 결재 완료. 제출 대기(9단계) — 제출 후 완료 마킹하라.")
     recorder.notify("영업팀", "쪽지", "최종 결재 완료 — 제출 대기(9단계). 제출 후 완료 마킹하세요.")
     return {"stage": 9}

@@ -255,3 +255,71 @@ def test_task_update가_아니라_task_open을_쓴다(mock_pptx):
     designer_updates = [c for c in recorder.task_update.call_args_list
                         if c.args and c.args[0] == "디자이너"]
     assert designer_updates == []
+
+
+# ── C1 이월 해소: 총괄(orchestrator)의 지시가 실행 기록에 남는다 ─────────
+# 지금까지 기록에는 subagent의 *보고*(agent)와 사람의 *결재*(human)만 있었다.
+# `orchestrator` role은 **데모 시드에만** 있어서, 실제로 실행하면 단계별 뷰에서
+# "누가 시켰는지"가 통째로 사라졌다.
+
+def _orders(recorder):
+    """recorder.message 호출 중 orchestrator role만 (team, content)로."""
+    return [(c.args[0], c.args[2]) for c in recorder.message.call_args_list
+            if len(c.args) > 1 and c.args[1] == "orchestrator"]
+
+
+@patch("agent.orchestrator.subagents.role_router_node")
+@patch("agent.orchestrator.subagents.institution_match_node")
+@patch("agent.orchestrator.subagents.rfp_analysis_node")
+def test_rfi_agent가_3단계와_4단계_지시를_남긴다(mock_analysis, mock_match, mock_router):
+    mock_analysis.return_value = {"scoring_table": [{"item": "a", "score": 10}]}
+    mock_match.return_value = {}
+    mock_router.return_value = {"role_assignments": [{"scoring_item": "a", "role": "영업"}]}
+    recorder = MagicMock()
+
+    rfi_agent(dict(BASE), recorder)
+
+    orders = _orders(recorder)
+    assert len(orders) == 2
+    assert all(team == "RFI분석" for team, _ in orders)
+    assert BASE["institution_name"] in orders[0][1]
+
+
+@patch("agent.orchestrator.subagents.content_writer_node")
+def test_draft_team_지시에_배정_근거가_실린다(mock_writer):
+    """'맡아라'만 있으면 왜 그 팀인지가 없다 — 배정 항목 수와 점수를 함께 남긴다."""
+    mock_writer.return_value = {"sections": []}
+    recorder = MagicMock()
+    state = dict(BASE, role="전산",
+                 scoring_table=[{"item": "a", "score": 25}, {"item": "b", "score": 8}],
+                 role_assignments=[{"scoring_item": "a", "role": "전산"},
+                                   {"scoring_item": "b", "role": "영업"}])
+
+    draft_team(state, recorder)
+
+    (team, text), = _orders(recorder)
+    assert team == "전산" and "1항목" in text and "25점" in text
+
+
+@patch("agent.orchestrator.subagents.content_writer_node")
+def test_반려로_다시_돌면_사유가_지시에_들어간다(mock_writer):
+    mock_writer.return_value = {"sections": []}
+    recorder = MagicMock()
+    state = dict(BASE, role="영업", scoring_table=[], role_assignments=[],
+                 revision_note="표지 톤을 낮춰라")
+
+    draft_team(state, recorder)
+
+    assert "표지 톤을 낮춰라" in _orders(recorder)[0][1]
+
+
+def test_지시에는_모델명을_붙이지_않는다():
+    """LLM이 쓴 문장이 아니다 — 🧠 표시의 의미를 지킨다."""
+    recorder = MagicMock()
+    state = dict(BASE, role="영업", scoring_table=[], role_assignments=[])
+    with patch("agent.orchestrator.subagents.content_writer_node",
+               return_value={"sections": []}):
+        draft_team(state, recorder)
+    for call in recorder.message.call_args_list:
+        if len(call.args) > 1 and call.args[1] == "orchestrator":
+            assert "model" not in call.kwargs
