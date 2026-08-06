@@ -153,9 +153,13 @@
     posEl.value = list.indexOf(position) >= 0 ? position : list[0];
   }
 
-  function showRole(teamEl, posEl, role) {
+  function dropLegacyOptions(teamEl) {
     Array.prototype.slice.call(teamEl.querySelectorAll('[' + LEGACY_FLAG + ']'))
       .forEach(function (o) { o.remove(); });
+  }
+
+  function showRole(teamEl, posEl, role) {
+    dropLegacyOptions(teamEl);
     const parts = root.roles.split(role);
     if (parts) {
       teamEl.value = parts.affiliation;
@@ -193,6 +197,9 @@
     nameEl.addEventListener('change', save);
     // 소속을 바꾸면 직책 목록부터 다시 그린다 — 전산팀에는 부장이 없다.
     teamEl.addEventListener('change', function () {
+      // 옛 값(`본부장` 등)에서 정상 소속으로 옮겼으면 그 임시 항목을 치운다.
+      // 안 그러면 없는 소속이 목록에 계속 남아 다시 고를 수 있다.
+      if (!teamEl.selectedOptions[0].hasAttribute(LEGACY_FLAG)) dropLegacyOptions(teamEl);
       paintPositions(teamEl, posEl, posEl.value);
       save();
     });
