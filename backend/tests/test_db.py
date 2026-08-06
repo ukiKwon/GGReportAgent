@@ -11,8 +11,29 @@ def test_init_db_creates_institutions_table(tmp_path):
     assert columns == {
         "institution_id", "name_ko", "region_code", "type",
         "contract_end", "last_bid", "term", "stage",
-        "giganlist_dir", "rfp_path", "scoring_table", "pptx_path",
+        "giganlist_dir", "rfp_path", "pptx_path",
     }
+    conn.close()
+
+
+def test_옛_DB에_남은_scoring_table_컬럼이_있어도_읽힌다(tmp_path):
+    """2026-08-06에 스키마에서 뺐지만 기존 파일에서는 지우지 않는다(SQLite의 컬럼
+    삭제는 테이블 재작성이라 반입된 실데이터를 건드리는 위험이 이득보다 크다).
+    `SELECT *`가 그 값을 실어 와도 조회가 깨지면 안 된다."""
+    from backend.db import get_connection
+    from backend.repository import get_institution, list_institutions
+
+    db_path = str(tmp_path / "old.db")
+    init_db(db_path).close()
+    conn = get_connection(db_path)
+    conn.execute("ALTER TABLE institutions ADD COLUMN scoring_table TEXT")
+    conn.execute("INSERT INTO institutions (institution_id, name_ko, scoring_table)"
+                 " VALUES ('nowon', '노원구', '[{\"item\": \"a\"}]')")
+    conn.commit()
+
+    assert get_institution(conn, "nowon").name_ko == "노원구"
+    assert [i.institution_id for i in list_institutions(conn)] == ["nowon"]
+    assert not hasattr(get_institution(conn, "nowon"), "scoring_table")
     conn.close()
 
 

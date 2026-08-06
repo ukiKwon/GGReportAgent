@@ -13,7 +13,13 @@ CREATE TABLE IF NOT EXISTS institutions (
     stage          INTEGER NOT NULL DEFAULT 1,
     giganlist_dir  TEXT,
     rfp_path       TEXT,
-    scoring_table  TEXT,
+    -- `scoring_table`을 뺐다(2026-08-06, NEXT.md 항목 4). 아무도 채우지 않아 늘
+    -- NULL이었고, 배점표는 `{output_root}/{기관명}/rfp_scoring.json`과
+    -- `GET /institutions/{id}/coverage-map`으로 이미 서빙된다 — DB에도 두면
+    -- 둘 중 어느 게 진실인지 문제가 새로 생긴다.
+    -- **기존 DB에서는 지우지 않는다**: SQLite의 컬럼 삭제는 테이블 재작성이라
+    -- 반입된 실데이터를 건드리는 위험이 이득보다 크고, 남아 있어도 무해하다
+    -- (`SELECT *`가 실어 와도 pydantic이 모델에 없는 키를 무시한다).
     pptx_path      TEXT
 );
 

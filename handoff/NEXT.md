@@ -350,23 +350,24 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
 - **상태**: 비차단. ①의 **커밋 위험은 해소**됐고(`.gitignore`), 원래 PC의 실물
   파일 삭제만 남았다. 실행에는 지장이 없다.
 
-### 4. `institutions.scoring_table`이 아무도 안 쓰는 빈 슬롯 (비차단)
+### 4. ~~`institutions.scoring_table`이 아무도 안 쓰는 빈 슬롯~~ — **완료(제거)** (2026-08-06)
 
-- **출처**: `2026-07-30_summary.md`(sub-project 3 재정의 세션). 사용자가 이번 범위에서
-  **빼기로 결정**해서 이월한 것이지, 발견만 하고 미룬 것이 아니다.
-- **무엇인가**: `backend/db.py`의 `institutions.scoring_table` 컬럼과
-  `backend/models.py`의 `Institution.scoring_table: list[dict] | None`이 **둘 다 있는데
-  값을 쓰는 코드가 하나도 없다.** `backend/repository.py:39`가 읽을 때 JSON 역직렬화만
-  하고, 아무도 채우지 않으므로 항상 `None`이다.
-  `GET /institutions/{id}/artifacts`도 `giganlist_dir`·`rfp_path`·`pptx_path` 3개만
-  돌려주고 이 필드는 노출하지 않는다.
-- **왜 지금 걸리는가**: 2026-07-30에 만든 `agent/nodes/rfp_extract.py`가 배점표를
-  구조화해 `data/report_new/{기관}/rfp_scoring.json`에 쓴다. 그 결과를 DB에도 넣으면
-  대시보드·API가 배점표를 조회할 수 있는데, 지금은 파일로만 존재한다.
-- **하려면**: `rfp_extract_node`(또는 그것을 부르는 backend 쪽)가
-  `UPDATE institutions SET scoring_table = ?`를 하고, `artifacts` 응답에 필드를 추가한다.
-  노드는 현재 backend를 import하지 않으므로(agent/backend 분리) **어느 층이 쓸지부터**
-  정해야 한다 — 그게 이 항목이 자명하지 않은 이유다.
+- **출처**: `2026-07-30_summary.md` → `2026-08-06_summary.md` `## Session 13:xx`.
+- **결정(사용자 확정)**: 채우지 않고 **지웠다.** 이 항목은 원래 "rfp_extract가 만든
+  배점표를 DB에도 넣자"였는데, 조사해 보니 **이미 서빙되고 있었다** —
+  `GET /institutions/{id}/coverage-map`이 `rfp_scoring.json`을 읽어 내려준다.
+  DB에도 두면 **파일과 DB 중 어느 게 진실인지** 문제가 새로 생긴다.
+  - 원래 고민이던 "agent/backend 중 어느 층이 쓰나"도 같은 이유로 사라졌다. 참고로
+    답은 backend였을 것이다 — `rfp_scoring.json`은 `rfp-locate` 스킬(사람 손)도
+    만들어서, agent 노드가 DB에 쓰면 **사람 경로만 조용히 빠진다.**
+- **한 일**: `backend/db.py` SCHEMA · `backend/models.py`의 `Institution` 필드 ·
+  `repository._row_to_institution`의 JSON 역직렬화(그리고 쓸모없어진 `json` import) 제거.
+- **기존 DB의 컬럼은 지우지 않는다** — SQLite의 컬럼 삭제는 테이블 재작성이라
+  반입된 실데이터를 건드리는 위험이 이득보다 크고, 남아 있어도 무해하다
+  (`SELECT *`가 실어 와도 pydantic이 모델에 없는 키를 무시한다).
+  회귀 테스트로 그 경로를 고정했고, 실제 `data/registry.db`(컬럼 있음)로 25건
+  정상 조회를 실측했다.
+- 테스트: pytest 730 → **731**.
 
 ### 5. `gpt-oss-120b` 실호출이 아직 검증되지 않았다 (비차단, **하드웨어 종속**)
 
