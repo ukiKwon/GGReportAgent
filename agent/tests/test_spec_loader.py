@@ -48,3 +48,42 @@ def test_find_archive_pptx_returns_none_when_no_match(tmp_path):
     archive_dir.mkdir()
     (archive_dir / "안양시_제안서.pptx").write_bytes(b"fake pptx bytes")
     assert find_archive_pptx(str(archive_dir), "수원시") is None
+
+
+# ── M-1: 실제 아카이브 배치를 찾지 못하던 결함 ──────────────────────────
+# `backend/archive.py`는 `{뿌리}/{기관명}/{날짜}/제안서.pptx`로 만든다 — 기관명은
+# **폴더 이름**이고 파일은 그냥 `제안서.pptx`다. 평면 listdir로는 한 번도 못 찾았다.
+
+def _archived(root, institution, day, name="제안서.pptx"):
+    d = root / institution / day
+    d.mkdir(parents=True)
+    (d / name).write_bytes(b"fake pptx bytes")
+    return d / name
+
+
+def test_find_archive_pptx가_실제_아카이브_배치를_찾는다(tmp_path):
+    archive_dir = tmp_path / "report_archive"
+    _archived(archive_dir, "수원시", "2026-03-01")
+    found = find_archive_pptx(str(archive_dir), "수원시")
+    assert found is not None and found.endswith("제안서.pptx")
+    assert "수원시" in found
+
+
+def test_find_archive_pptx는_가장_최근_회차를_고른다(tmp_path):
+    """오름차순으로 첫 번째를 고르면 **가장 오래된** 회차를 재활용하게 된다."""
+    archive_dir = tmp_path / "report_archive"
+    _archived(archive_dir, "수원시", "2025-01-05")
+    _archived(archive_dir, "수원시", "2026-03-01")
+    assert "2026-03-01" in find_archive_pptx(str(archive_dir), "수원시")
+
+
+def test_find_archive_pptx는_남의_기관을_집어오지_않는다(tmp_path):
+    archive_dir = tmp_path / "report_archive"
+    _archived(archive_dir, "안양시", "2026-03-01")
+    assert find_archive_pptx(str(archive_dir), "수원시") is None
+
+
+def test_find_archive_pptx는_대문자_확장자도_본다(tmp_path):
+    archive_dir = tmp_path / "report_archive"
+    _archived(archive_dir, "수원시", "2026-03-01", name="제안서.PPTX")
+    assert find_archive_pptx(str(archive_dir), "수원시") is not None

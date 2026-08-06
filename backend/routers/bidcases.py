@@ -89,7 +89,8 @@ def _start_analysis_or_notify(conn, request: Request, institution_id: str) -> bo
     else:
         svc = request.app.state.orchestrator
         try:
-            svc.start(institution_id, svc.build_run_input(inst, request.app.state.output_root))
+            svc.start(institution_id, svc.build_run_input(inst, request.app.state.output_root,
+                                                request.app.state.archive_root))
             return True
         except RuntimeError:
             reason = "이미 실행 중입니다"

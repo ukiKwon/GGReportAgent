@@ -7,6 +7,7 @@ from agent.nodes.rfp_analysis import rfp_analysis_node
 from agent.nodes.rfp_extract import rfp_extract_node
 from agent.nodes.role_router import ROLES, role_router_node
 from agent.nodes.verification import verification_node
+from agent.paths import DEFAULT_ARCHIVE_ROOT
 
 RFP_ARTIFACTS = ("rfp_scoring.json", "rfp_text.txt")
 
@@ -19,7 +20,7 @@ def artifacts_exist(report_new_dir: str, institution_name: str) -> bool:
 def run_pipeline(
     institution_name: str,
     giganlist_dir: str = "corpus/institutions",
-    archive_dir: str = "report_archive",
+    archive_dir: str = DEFAULT_ARCHIVE_ROOT,
     report_new_dir: str = "data/report_new",
     max_revisions: int = 3,
     rfp_path: str | None = None,

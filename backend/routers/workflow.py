@@ -51,7 +51,8 @@ def post_run(institution_id: str, request: Request):
     # artifacts_exist를 다시 확인해 rfp_extract_node를 건너뛴다(agent/orchestrator/subagents.py).
     if not inst.rfp_path and not artifacts_exist(request.app.state.output_root, inst.name_ko):
         raise HTTPException(status_code=400, detail="공고문(rfp_path) 미반입 — 배치 반입이 먼저다")
-    run_input = _svc(request).build_run_input(inst, request.app.state.output_root)
+    run_input = _svc(request).build_run_input(
+        inst, request.app.state.output_root, request.app.state.archive_root)
     try:
         _svc(request).start(institution_id, run_input)
     except RuntimeError:

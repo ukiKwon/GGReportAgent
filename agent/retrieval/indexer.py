@@ -21,6 +21,7 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
+from agent.paths import DEFAULT_ARCHIVE_ROOT as _DEFAULT_ARCHIVE_ROOT
 from agent.retrieval import embedder
 from agent.retrieval.chunker import chunk_text
 from agent.retrieval.embedder import EmbeddingUnavailableError
@@ -35,10 +36,9 @@ class IndexNotBuiltError(Exception):
 
 DEFAULT_DB_PATH = "data/corpus_index.db"
 DEFAULT_CORPUS_ROOT = "corpus"
-# 완료 산출물 아카이브 — `backend/main.py`의 create_app(archive_root=...) 기본값과
-# 같은 값이어야 한다. (`backend/orchestrator_service.py`는 접두사 없는
-# "report_archive"를 쓴다 — NEXT.md의 M-1로 추적 중인 불일치다.)
-DEFAULT_ARCHIVE_ROOT = "data/report_archive"
+# 완료 산출물 아카이브 — 정본은 `agent/paths.py` 하나다(M-1 해소). 여기서는
+# 기존 호출부가 `indexer.DEFAULT_ARCHIVE_ROOT`로 참조하고 있어 이름만 재수출한다.
+DEFAULT_ARCHIVE_ROOT = _DEFAULT_ARCHIVE_ROOT
 # 아카이브 폴더명(한글)을 institution_id로 되짚을 때만 읽는다. 없어도 색인은 된다.
 DEFAULT_REGISTRY_DB_PATH = "data/registry.db"
 

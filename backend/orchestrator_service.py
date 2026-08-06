@@ -7,6 +7,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
 from agent.orchestrator.graph import build_workflow_graph
+from agent.paths import DEFAULT_ARCHIVE_ROOT
 from backend.db import get_connection
 from backend.orchestrator_recorder import DbRecorder
 
@@ -60,8 +61,17 @@ class OrchestratorService:
 
     # -- 공개 API ---------------------------------------------------------
     @staticmethod
-    def build_run_input(institution, output_root: str) -> dict:
-        """그래프 시작 입력. 실행 경로가 둘(POST /run, 참여확정 자동 시작)이라 한곳에 둔다."""
+    def build_run_input(
+        institution, output_root: str, archive_root: str = DEFAULT_ARCHIVE_ROOT
+    ) -> dict:
+        """그래프 시작 입력. 실행 경로가 둘(POST /run, 참여확정 자동 시작)이라 한곳에 둔다.
+
+        M-1: `archive_root`는 **호출부가 `app.state.archive_root`를 넘겨야 한다.**
+        예전에는 여기서 `"report_archive"`를 박아 뒀는데 실제 뿌리는
+        `data/report_archive`(데모는 `data/demo_report_archive`)라, 이전 회차 제안서를
+        찾는 `institution_match_node`가 **늘 빈 폴더를 봤다.** 예외가 나지 않아
+        "이전 제안서 없음"과 구별되지 않았던 종류의 조용한 오작동이다.
+        """
         return {
             "institution_id": institution.institution_id,
             "institution_name": institution.name_ko,
@@ -71,8 +81,8 @@ class OrchestratorService:
             "rfp_path": institution.rfp_path,
             "stage": institution.stage,
             "sections": [],
-            # F6: institution_match_node의 기본값("report_archive")과 동일하게 명시 배선.
-            "archive_dir": "report_archive",
+            # F6: institution_match_node에 명시 배선(기본값에 기대지 않는다).
+            "archive_dir": archive_root,
         }
 
     def start(self, institution_id: str, run_input: dict) -> None:
