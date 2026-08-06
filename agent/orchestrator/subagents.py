@@ -4,7 +4,7 @@
 바깥에 말한다(Recorder 포트). subagent끼리 직접 통신하지 않는다 — 스펙 §④.
 """
 
-from agent.llm import current_model
+from agent.llm import current_model, last_used_model, reset_last_model
 from agent.nodes.content_writer import content_writer_node
 from agent.nodes.institution_match import institution_match_node
 from agent.nodes.pptx_builder import pptx_builder_node
@@ -39,6 +39,7 @@ def _order(recorder, team: str, text: str) -> None:
 def rfi_agent(state: dict, recorder) -> dict:
     """3·4단계 — 공고 해부와 요구사항 분석. 불리 조건은 되물음(비차단)으로 알린다."""
     updates: dict = {}
+    reset_last_model()          # 이 노드에서 LLM을 실제로 썼는지 새로 센다
     recorder.set_stage(3)
     _order(recorder, "RFI분석",
            f"{state['institution_name']} 입찰 건이다. 공고문을 해부해 배점표를 구조화하라.")
@@ -63,11 +64,12 @@ def rfi_agent(state: dict, recorder) -> dict:
     _order(recorder, "RFI분석", "배점 항목을 영업·전산·예산 3팀에 배정하고 요구사항을 정리하라.")
     recorder.task_update("RFI분석", "1차완료", 100)
     # institution_match_node·role_router_node가 LLM을 쓰므로(기관유형 판정, 애매 항목 분류
-    # 폴백) 이 보고는 사용 모델을 남긴다.
+    # 폴백) 이 보고는 사용 모델을 남긴다. **1순위가 아니라 실제로 답을 만든 모델**이다
+    # (폴백이 돌면 둘이 다르다 — agent/llm.py의 _ModelTracker 참고).
     recorder.message(
         "RFI분석", "agent",
         f"배점표 {len(updates.get('scoring_table', []))}항목 분석 완료",
-        model=current_model(),
+        model=last_used_model() or current_model(),
     )
     return updates
 
@@ -82,6 +84,7 @@ def draft_team(state: dict, recorder) -> dict:
     role = state["role"]
     # 3팀 초안 작성은 5단계다(이 모듈 상단·graph.py docstring 참조). set_stage는 멱등이고,
     # 이게 없으면 초안 기록이 직전 단계(4)로 찍혀 단계별 뷰가 어긋난다.
+    reset_last_model()
     recorder.set_stage(5)
     count, points = _assigned(state, role)
     note = state.get("revision_note")
@@ -96,7 +99,7 @@ def draft_team(state: dict, recorder) -> dict:
     # content_writer_node는 LLM으로 섹션을 작성하지만, 이 role에 배정된 배점 항목이
     # 0건이면 LLM 호출 전에 빈 리스트로 조기 반환한다(content_writer.py:79-81) — 그때는
     # model을 넘기지 않는다(리뷰 픽스: "LLM을 실제로 쓴 보고에만" 원칙 위반이었음).
-    model_kwargs = {"model": current_model()} if sections else {}
+    model_kwargs = {"model": last_used_model() or current_model()} if sections else {}
     recorder.message(
         role, "agent", f"{role}팀 초안 {len(sections)}건 작성 완료",
         **model_kwargs,
@@ -135,6 +138,7 @@ def packager(state: dict, recorder) -> dict:
 
 def verifier(state: dict, recorder) -> dict:
     """검증가 — 커버리지 + PII. 8단계 전체 검사에 쓰인다(업로드 즉시 검사는 A2)."""
+    reset_last_model()
     recorder.set_stage(8)
     _order(recorder, "검증", "오탈자·개인정보(PII)와 배점 역대조를 수행하고 최종 결재로 올려라.")
     updates = verification_node(state)
@@ -150,7 +154,7 @@ def verifier(state: dict, recorder) -> dict:
     # scoring_table이 비었거나, 배점표는 있는데 매칭되는 섹션이 하나도 없거나.
     # 여기서 그 조건을 다시 계산하면 노드의 매칭 규칙을 복제하게 되므로, 노드가
     # 알려주는 llm_used를 그대로 믿는다("LLM을 실제로 쓴 보고에만 model" 원칙).
-    model_kwargs = {"model": current_model()} if llm_used else {}
+    model_kwargs = {"model": last_used_model() or current_model()} if llm_used else {}
     recorder.message(
         "검증", "agent",
         f"검증 완료 — 미달 {len(uncovered)}건, PII {len(pii)}건",
