@@ -3,6 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from agent.paths import DEFAULT_ARCHIVE_ROOT
 from backend.db import init_db
 from backend.orchestrator_service import OrchestratorService
 from backend.routers.approvals import router as approvals_router
@@ -31,7 +32,7 @@ def create_app(
     rfp_root: str = "corpus/rfp",
     batches_root: str = "data/batches",
     graph_db_path: str = "data/graph_checkpoints.db",
-    archive_root: str = "data/report_archive",
+    archive_root: str = DEFAULT_ARCHIVE_ROOT,
     static_dir: str | None = None,
     demo: bool = False,
 ) -> FastAPI:

@@ -1,4 +1,5 @@
 from agent.llm import get_llm
+from agent.paths import DEFAULT_ARCHIVE_ROOT
 from agent.tools.spec_loader import find_archive_pptx, list_known_institutions
 
 
@@ -14,7 +15,7 @@ def institution_match_node(state: dict) -> dict:
     institution_name = state["institution_name"]
     rfp_text = state.get("rfp_text", "")
     giganlist_dir = state["giganlist_dir"]
-    archive_dir = state.get("archive_dir", "report_archive")
+    archive_dir = state.get("archive_dir") or DEFAULT_ARCHIVE_ROOT
 
     llm = get_llm()
     response = llm.invoke(TYPE_PROMPT.format(rfp_text=rfp_text))

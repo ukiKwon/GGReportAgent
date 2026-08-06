@@ -224,15 +224,14 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
       **감추지 않는다**(감추면 다 받은 줄 안다), ⓒ 한글 이름은 본문 `by`로 받는다
       (`X-User-Id`가 ASCII만 받아 '최 디자이너'가 늘 403이었다).
     - **A2·C1 이월 잔여**:
-      - **M-1** archive_dir 값 통일 + `find_archive_pptx` 재귀화.
-        **불일치의 실물(2026-08-04 계획 F에서 확인)**: `backend/main.py:28`은
-        `data/report_archive`, `backend/orchestrator_service.py:75`는 접두사 없는
-        `report_archive`다. 계획 F가 `agent/retrieval/indexer.py`에
-        `DEFAULT_ARCHIVE_ROOT = "data/report_archive"`를 추가했고 backend는
-        `app.state.archive_root`(=main.py 값)를 넘기므로 **색인 경로는 지금 맞다**.
-        다만 값이 두 벌인 상태는 그대로라, orchestrator 쪽 기본값을 쓰는 경로가
-        생기는 순간 색인기가 빈 폴더를 보게 된다. 여전히 무동작·무해지만
-        **이제는 조용히 틀릴 여지가 생겼다** — 값 통일을 먼저 하는 편이 낫다.
+      - ~~**M-1** archive_dir 값 통일 + `find_archive_pptx` 재귀화~~ — **완료**
+        (2026-08-06, `2026-08-06_summary.md`). 정본을 `agent/paths.py`의
+        `DEFAULT_ARCHIVE_ROOT` 하나로 모으고 `build_run_input(…, archive_root)`를
+        호출부(`app.state.archive_root`)에서 넘기게 했다. **조사 중에 진짜 결함이
+        하나 더 나왔다**: `find_archive_pptx`가 뿌리 바로 아래만 훑었는데 실제
+        배치는 `{뿌리}/{기관명}/{날짜}/제안서.pptx`라 **이전 회차 제안서를 한 번도
+        못 찾고 있었다**(예외가 없어 "없음"과 구별되지 않았다). 재귀 + 최근 회차
+        우선으로 고쳤다.
       - **M-6** 업로드의 동기 LLM 지연·배정 비결정 — 업로드 API를 비동기로 돌릴지의
         설계 결정.
       - ~~**팀 이름이 두 벌이다**~~ — **완료**(2026-08-05 계획 I Task 1).
