@@ -198,7 +198,7 @@ footer{padding:50px 0 80px;color:var(--muted);font-size:12.5px;border-top:1px so
       <div class="card accent"><div class="t">무엇을</div><div class="b">서울시 자치구의 공개 사업계획·예산·민원 데이터를 분석해, 은행이 협업할 수 있는 지점을 근거 기반으로 기획하는 사업입니다.</div></div>
       <div class="card accent"><div class="t">왜</div><div class="b">금고은행 지정 등 지자체 협업 경쟁에서 "상품이 좋습니다"보다 "당신의 니즈를 분석해 보니 이렇습니다"가 훨씬 설득력 있는 제안이 되기 때문입니다.</div></div>
       <div class="card accent"><div class="t">지금까지</div><div class="b">서울 25개 자치구 <strong>전부</strong> 분석·기획·검증 완료(신뢰도 69~88점, 평균 79점). 자치구별 사업비 규모는 구 예산 대비 0.1~0.4% 수준입니다.</div></div>
-      <div class="card accent"><div class="t">앞으로</div><div class="b">기회 발굴→참여 결재→3팀 제안서 작성→산출·재색인을 잇는 <strong>9단계 워크플로 시스템을 만들어 실제로 돌렸습니다</strong>(백엔드 635·프런트 166 테스트 통과). 남은 것은 사내 LLM 엔드포인트 연결과 시연 환경 기동 결정입니다.</div></div>
+      <div class="card accent"><div class="t">앞으로</div><div class="b">기회 발굴→참여 결재→3팀 제안서 작성→산출·재색인을 잇는 <strong>9단계 워크플로 시스템을 만들어 실제로 돌렸습니다</strong>(백엔드 739·프런트 204 테스트 통과). 남은 것은 사내 LLM 엔드포인트 연결과 시연 환경 기동 결정입니다.</div></div>
     </div>
   </section>
 
@@ -415,7 +415,7 @@ footer{padding:50px 0 80px;color:var(--muted);font-size:12.5px;border-top:1px so
           <div class="card accent"><div class="t">③ 실행</div><div class="b">총괄 에이전트가 3개 팀을 병렬로 돌려 제안서를 쓰고, 배점표 100점의 어느 항목이 채워졌는지를 실시간으로 추적합니다. 5·7·8단계에서는 반드시 사람 결재를 받고 멈춥니다.</div></div>
           <div class="card accent"><div class="t">④ 산출</div><div class="b">완성된 제안서를 아카이브하고 <strong>자동으로 다시 색인</strong>해, 다음 기관의 제안을 쓸 때 검색되는 근거로 재사용합니다.</div></div>
         </div>
-        <p>규모로 보면 백엔드(FastAPI + SQLite) 약 7,400줄, 화면(빌드 도구 없는 바닐라 JS + D3 지도) 약 2,600줄이고, <strong>백엔드 테스트 635건 · 화면 테스트 166건이 전부 통과</strong>합니다(본 보고서 작성 시점 실측). 등록된 기관 코퍼스는 서울 25개 자치구입니다.</p>
+        <p>규모로 보면 백엔드(FastAPI + SQLite) 약 8,100줄, 화면(빌드 도구 없는 바닐라 JS + D3 지도) 약 3,700줄이고, <strong>백엔드 테스트 739건 · 화면 테스트 204건이 전부 통과</strong>합니다(2026-08-06 실측, 테스트 코드 제외). 등록된 기관 코퍼스는 서울 25개 자치구입니다.</p>
         <blockquote><p>중요한 차이는 "자동으로 다 해준다"가 아니라 <strong>"사람이 어디서 개입해야 하는지가 시스템에 박혀 있다"</strong>는 점입니다. 결재 3게이트와 최종 제출은 설계상 사람의 몫이고, 이 지점은 자동화 대상이 아닙니다.</p></blockquote>
       </div>
     </div>
@@ -435,7 +435,9 @@ footer{padding:50px 0 80px;color:var(--muted);font-size:12.5px;border-top:1px so
             <tr><td><strong>망 밖 수집기</strong></td><td>인터넷 쪽에서 공고를 모아 <strong>배치 파일 한 벌</strong>(목록 + 표 + 첨부)로 만들고, 폐쇄망 안에서 검사 후 반입합니다. 기관·공고·첨부 PDF가 한 번에 등록됩니다.</td></tr>
             <tr><td><strong>정합성 검사</strong></td><td>"9단계까지 갔는데 참여 결정이 대기"처럼 <strong>이미 어긋나 있는 데이터</strong>를 규칙으로 찾아 화면 맨 위에 경고합니다. 오탐이 한 번이라도 나면 아무도 안 읽기 때문에, 정상 조합은 절대 잡지 않도록 규칙을 좁게 잡았습니다.</td></tr>
             <tr><td><strong>모델 자동선택·표시</strong></td><td>운영 장비의 RAM·CPU와 <strong>실제 설치된 모델 목록</strong>을 함께 보고 쓸 모델을 고릅니다(옵트인). 화면에는 지금 답을 만드는 모델과 그 선택 근거가 표시되고, 작업 이력에도 어떤 모델이 썼는지 남습니다.</td></tr>
-            <tr><td><strong>디자이너 전용 뷰</strong></td><td>이관받은 패키지를 <strong>열어서 확인하고 작업물을 올리는 창구</strong>입니다. 요청받은 작업을 입찰일까지 남은 일수 순으로 세우고, 임시저장·제출(결재요청)까지 한 화면에서 처리합니다. 소속이 디자이너일 때만 노출됩니다.</td></tr>
+            <tr><td><strong>작업함</strong></td><td>이관받은 패키지를 <strong>열어서 확인하고 작업물을 올리는 창구</strong>입니다. 요청받은 작업을 입찰일까지 남은 일수 순으로 세우고, 임시저장·제출(결재요청)까지 한 화면에서 처리합니다. 디자이너뿐 아니라 <strong>각 팀도 자기 작업을 여기서</strong> 보며, 같은 화면에서 다른 팀 산출물을 함께 확인합니다.</td></tr>
+            <tr><td><strong>결재함</strong></td><td>제출된 작업을 결재자가 <strong>맥락째 보고 승인·반려</strong>하는 화면입니다. 결재 라인은 <strong>팀원 → 팀장 → 디자이너 → 영업부장</strong>으로, 팀장은 자기 팀 제출물을, 영업부장은 최종 산출물과 최종결재 게이트를 받습니다. 반려하면 사유가 담당자에게 쪽지로 전달됩니다.</td></tr>
+            <tr><td><strong>권한 관리</strong></td><td>역할×메뉴를 표에서 켜고 끄면 그 역할이 보는 화면 구성이 즉시 바뀝니다 — 코드를 고치지 않고 전산팀이 운영합니다. 실수로 아무도 못 들어가는 상태가 되지 않도록 <strong>권한 관리 화면 자체를 전부 끄는 저장은 막습니다</strong>.</td></tr>
           </tbody>
         </table>
       </div>
@@ -467,7 +469,7 @@ footer{padding:50px 0 80px;color:var(--muted);font-size:12.5px;border-top:1px so
           </div>
           <div class="registry-band">🔶 <span><b>레지스트리(SQLite) 구축 완료</b> — 기관 25곳·워크플로 상태·지시/보고·알림을 한 DB에서 관리. 이전 보고의 "다음에 손댈 지점"이 <b>지금은 전 단계를 떠받치고 있습니다</b></span></div>
         </div>
-        <blockquote><p><strong>솔직하게 남은 제한 두 가지.</strong> ① 3단계의 실사이트(나라장터 등) 자동 크롤링은 범위 밖입니다 — 어댑터 자리는 열어 뒀지만 지금은 파일로 받습니다. ② 4단계 배점표 추출은 <strong>모델 성능에 크게 의존</strong>합니다. 소형 모델로 실측했을 때 분류는 맞히지만 개별 배점을 지어내는 현상이 반복돼, 합계 검증 규칙을 붙이고 사람 검수를 필수로 뒀습니다 — 이것이 6부의 첫 번째 결정 사항으로 이어집니다.</p></blockquote>
+        <blockquote><p><strong>솔직하게 남은 제한 두 가지.</strong> ① 3단계의 실사이트(나라장터 등) 자동 크롤링은 범위 밖입니다 — 어댑터 자리는 열어 뒀지만 지금은 파일로 받습니다. ② 4단계 배점표 추출은 <strong>모델 성능에 크게 의존</strong>합니다. 소형 모델로 실측했을 때 분류는 맞히지만 개별 배점을 지어내는 현상이 반복돼, 합계 검증 규칙을 붙이고 사람 검수를 필수로 뒀습니다. 설정 탓일 가능성(입력이 잘리거나 답변이 컨텍스트를 넘치는 경우)은 <strong>2026-08-06에 두 모델 × 두 컨텍스트 크기로 4회 실측해 배제했습니다</strong> — 창을 두 배로 늘려도 결과가 한 글자도 달라지지 않았습니다. 즉 이 한계는 설정이 아니라 모델의 성질이며, 사람 검수를 뺄 수 없는 근거가 그만큼 분명합니다 — 이것이 6부의 첫 번째 결정 사항으로 이어집니다.</p></blockquote>
       </div>
     </div>
 
@@ -528,7 +530,7 @@ footer{padding:50px 0 80px;color:var(--muted);font-size:12.5px;border-top:1px so
           <div class="card"><div class="t">5. 근거의 재사용</div><div class="b">완성된 제안서가 아카이브되며 자동으로 다시 색인돼, <strong>다음 기관의 제안을 쓸 때 검색되는 근거</strong>가 됩니다. 건수가 쌓일수록 유리해지는 구조입니다.</div></div>
           <div class="card"><div class="t">6. 전국 확장 가능성</div><div class="b">표준화된 분석·기획 방법론이라 서울 25개구를 넘어 전국 지자체·기관으로 같은 방식이 재사용 가능합니다.</div></div>
           <div class="card"><div class="t">7. 리스크 관리</div><div class="b">조작 금지·근거 추적·자체 검증 원칙이 제안 신뢰도를, 폐쇄망 설계·개인정보 사전 검출·결재 3게이트가 정보보안 리스크를 관리합니다.</div></div>
-          <div class="card"><div class="t">8. 검증된 상태로 인계</div><div class="b">백엔드 635·화면 166건의 자동 테스트가 붙어 있어, 담당자가 바뀌거나 다른 플랫폼으로 옮길 때 <strong>무엇이 깨졌는지 즉시 알 수 있습니다</strong>.</div></div>
+          <div class="card"><div class="t">8. 검증된 상태로 인계</div><div class="b">백엔드 739·화면 204건의 자동 테스트가 붙어 있어, 담당자가 바뀌거나 다른 플랫폼으로 옮길 때 <strong>무엇이 깨졌는지 즉시 알 수 있습니다</strong>.</div></div>
         </div>
       </div>
     </div>
