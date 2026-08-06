@@ -87,19 +87,29 @@
     return app.applyMenuPermissions();
   };
 
+  // 겹친 /menus 응답 중 마지막 것만 칠하게 하는 문지기. 첫 호출 때 만든다 —
+  // menu_rules.js가 먼저 로드되지만 로드 순서에 기대지 않는다(근거는 latestGuard 주석).
+  let menuGuard = null;
+
   // 서버가 준 역할별 메뉴로 탭을 켜고 끈다. 프로필은 언제든 바뀌므로(계정 전환기)
   // onProfileChanged에서도 부른다.
   app.applyMenuPermissions = function () {
     const serverMode = root.store.isServerMode();
     if (!serverMode) { app.paintTabs(null, false); return Promise.resolve(); }
+    if (!menuGuard) menuGuard = root.menuRules.latestGuard();
+    const token = menuGuard.next();
     const role = (root.store.loadProfile().team || '').trim();
     return fetch('/menus?role=' + encodeURIComponent(role)).then(function (r) {
       if (!r.ok) throw new Error('menus ' + r.status);
       return r.json();
-    }).then(function (body) { app.paintTabs(body.menus, true); })
+    }).then(function (body) {
+      if (menuGuard.accept(token)) app.paintTabs(body.menus, true);
+    })
       // 권한을 모를 때는 **닫는 쪽**으로 기운다 — 열어주는 쪽으로 기울면 서버가
       // 잠깐 흔들린 순간 전원이 관리 화면을 보게 된다(menu_rules와 같은 원칙).
-      .catch(function () { app.paintTabs(null, true); });
+      // 이 실패 경로도 문지기를 지난다 — 안 그러면 늦게 도착한 실패가 새 역할의
+      // 정상 화면을 덮어 탭을 전부 닫아버린다.
+      .catch(function () { if (menuGuard.accept(token)) app.paintTabs(null, true); });
   };
 
   app.paintTabs = function (menus, serverMode) {
