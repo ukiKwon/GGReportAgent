@@ -465,13 +465,19 @@ def post_task_approve(
 
 
 class TaskUploadIn(TaskMessageIn):
-    pass  # {"content": str} — 동일 형태지만 의미가 달라 별명으로 둔다
+    # {"content": str} — 동일 형태지만 의미가 달라 별명으로 둔다(M-7: 의도적 별칭).
+    # `by`는 한글 이름을 싣기 위한 것이다(X-User-Id는 ASCII만 — A1 F10).
+    by: str | None = None
 
 
 @router.post("/{task_id}/upload")
 def post_task_upload(
     task_id: str, body: TaskUploadIn, request: Request, x_user_id: str = Header(...)
 ):
+    # M-6(절반): 여기만 `_actor`를 안 거치고 헤더를 그대로 썼다. 그러면 한글 이름인
+    # 사람이 올린 작성물의 담당이 `web-user`로 박히고, 그 뒤 제출·결재에서 본인이
+    # 403을 받는다 — '최 디자이너'가 자기 작업에 손도 못 대던 것과 같은 결함이다.
+    actor = _actor(body.by, x_user_id)
     conn = _conn(request)
     try:
         task = get_task(conn, task_id)
@@ -479,9 +485,9 @@ def post_task_upload(
             raise HTTPException(status_code=404, detail="task not found")
         # I-3: /messages와 동일한 선점 관행 — assignee가 NULL(오케스트레이터가 만든
         # 미배정 task)이면 첫 업로드가 담당을 선점한다. 이미 다른 사람이 선점했으면 403.
-        if task.assignee is not None and task.assignee != x_user_id:
+        if task.assignee is not None and task.assignee != actor:
             raise HTTPException(status_code=403, detail="only the assignee can upload")
-        claim_assignee_if_unset(conn, task_id, x_user_id)
+        claim_assignee_if_unset(conn, task_id, actor)
         update_draft_content(conn, task_id, body.content)
 
         row = conn.execute(
