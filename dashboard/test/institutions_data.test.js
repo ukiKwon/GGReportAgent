@@ -23,12 +23,43 @@ function loadGlobal(relPath, key) {
 
 const institutions = loadGlobal('data/institutions.js', 'institutions');
 const geoKorea = loadGlobal('geo/korea.js', 'geoKorea');
+const geoSeoul = loadGlobal('geo/seoul.js', 'geoSeoul');
 const REGION_CODES = geoKorea.features.map(function (f) { return f.properties.code; });
+const SEOUL_CODES = geoSeoul.features.map(function (f) { return f.properties.code; });
+
+// 광역(시·도) 레코드와 기초(구/시군) 레코드는 subRegion 유무로 갈린다.
+const wide = institutions.filter(function (r) { return !r.subRegion; });
+const sub = institutions.filter(function (r) { return r.subRegion; });
 
 test('17개 시·도가 빠짐없이 한 번씩 들어 있다', function () {
-  assert.strictEqual(institutions.length, 17);
-  const codes = institutions.map(function (r) { return r.region; }).sort();
+  assert.strictEqual(wide.length, 17);
+  const codes = wide.map(function (r) { return r.region; }).sort();
   assert.deepStrictEqual(codes, REGION_CODES.slice().sort());
+});
+
+test('서울 25개 자치구가 빠짐없이 한 번씩, seoul.js 코드와 일치한다', function () {
+  const seoulGu = sub.filter(function (r) { return r.region === '11'; });
+  assert.strictEqual(seoulGu.length, 25);
+  const codes = seoulGu.map(function (r) { return r.subRegion; }).sort();
+  assert.deepStrictEqual(codes, SEOUL_CODES.slice().sort());
+});
+
+test('기초 레코드의 subRegion은 자기 region 코드로 시작한다', function () {
+  sub.forEach(function (r) {
+    assert.ok(r.subRegion.indexOf(r.region) === 0,
+      r.name + ': subRegion ' + r.subRegion + '이 region ' + r.region + '에 속하지 않는다');
+  });
+});
+
+test('서울 자치구는 현 금고 은행을 출처에 담는다 (14/6/5 분포)', function () {
+  const count = {};
+  sub.filter(function (r) { return r.region === '11'; }).forEach(function (r) {
+    const line = r.sources.filter(function (s) { return s.indexOf('현 금고: ') === 0; })[0];
+    assert.ok(line, r.name + ': 현 금고 은행이 없다');
+    const bank = line.replace('현 금고: ', '');
+    count[bank] = (count[bank] || 0) + 1;
+  });
+  assert.deepStrictEqual(count, { '우리은행': 14, '신한은행': 6, '국민은행': 5 });
 });
 
 test('모든 레코드가 필수 필드를 갖춘다 (지도에 !로 뜨지 않는다)', function () {
@@ -93,7 +124,9 @@ test('날짜가 없는 레코드는 왜 비었는지를 출처 첫 줄에 남긴
 
 test('파생 일정이 실제로 유도된다 — 날짜 있는 곳은 미상이 아니다', function () {
   const withDate = institutions.filter(function (r) { return r.lastBid || r.contractEnd; });
-  assert.strictEqual(withDate.length, 9);
+  // 광역 9곳(서울 부산 인천 대전 울산 경기 강원 경남 제주) + 서울 자치구 1곳(서대문).
+  // 이 숫자가 늘어나는 것은 정상(조사가 진행된 것)이므로 하한으로 둔다.
+  assert.ok(withDate.length >= 10, '날짜 확보 레코드가 ' + withDate.length + '건으로 줄었다');
   withDate.forEach(function (r) {
     const e = logic.effectiveBid(r);
     assert.ok(e.date, r.name + ': 일정이 유도되지 않는다');
