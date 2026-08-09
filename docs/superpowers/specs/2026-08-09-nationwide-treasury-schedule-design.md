@@ -174,3 +174,72 @@ CSV는 정본에서 파생시킨다(손으로 이중 관리하지 않는다). �
 6. **부산 16개 구·군** — ⚠️ **`geo/busan.js`가 없다.** 데이터를 넣어도 드릴인 화면은
    생기지 않고 전국 지도의 부산 면 색·랭킹·전체목록에만 반영된다. 경계 GeoJSON 확보가
    선행되어야 완전해진다.
+
+---
+
+## ⑨ 조사 경로 확립 — eminwon 고시공고 직접 질의 (2026-08-10)
+
+§⑧에서 "웹 검색으로는 못 얻는다"고 적었던 문제가 **풀렸다.** 서울 자치구 대부분이
+쓰는 eminwon 고시공고 게시판에 **제목 검색 파라미터가 있고, 브라우저에서 같은 출처로
+fetch하면 목록이 그대로 나온다.**
+
+### 방법 (재현 절차)
+
+1. 대상 구의 eminwon 호스트로 **navigate** 한다(같은 출처를 만들기 위해서다 —
+   다른 출처에서 fetch하면 CORS로 막힌다).
+2. 그 페이지에서 아래를 실행한다.
+
+```js
+const p = new URLSearchParams({
+  context:'NTIS', jndinm:'OfrNotAncmtEJB',
+  method:'selectListOfrNotAncmt',            // ← 목록. 상세는 selectOfrNotAncmt
+  methodnm:'selectListOfrNotAncmtHomepage',
+  homepage_pbs_yn:'Y', subCheck:'Y', not_ancmt_se_code:'01,02,03,04,05,06,07',
+  not_ancmt_sj:'금고', s_gubun:'글제목',      // ← 제목 검색어
+  ofr_pageSize:'50', pageIndex:'1', initValue:'Y', title:'고시공고',
+  countYn:'Y', dep_se:'%'
+});
+await fetch('/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do?' + p, {credentials:'include'});
+```
+
+- ⚠️ **`method` 이름을 틀리면 HTTP 500이 난다**(§⑧에서 막혔던 원인). 정확한 이름은
+  상세 페이지의 인라인 스크립트에 `method.value = 'selectListOfrNotAncmt'`로 들어 있다.
+- ⚠️ **URL로 직접 navigate하면 검색어가 먹지 않는다**(`initValue=Y`가 초기화한다).
+  반드시 navigate → fetch 2단계로 해야 한다.
+
+### 확인된 eminwon 호스트 (2026-08-10 실측, DNS 기준)
+
+| 구 | 호스트 | 구 | 호스트 |
+|---|---|---|---|
+| 종로 | `jongno.eminwon.seoul.kr` | 양천 | `eminwon.yangcheon.go.kr` |
+| 중구 | `eminwon.junggu.seoul.kr` | 강서 | `eminwon.gangseo.seoul.kr` |
+| 용산 | `eminwon.yongsan.go.kr` | 구로 | `eminwon.guro.go.kr` |
+| 성동 | `eminwon.sd.go.kr` | 금천 | `eminwon.geumcheon.go.kr` |
+| 광진 | `gwangjin.eminwon.seoul.kr` | 영등포 | `eminwon.ydp.go.kr` |
+| 동대문 | `eminwon.ddm.go.kr` | 동작 | `dongjak.eminwon.seoul.kr` |
+| 중랑 | `eminwon.jungnang.go.kr` | 관악 | `eminwon.gwanak.go.kr` |
+| 강북 | `eminwon.gangbuk.go.kr` | 서초 | `eminwon.seocho.go.kr` |
+| 도봉 | `dobong.eminwon.seoul.kr` | 강남 | `gangnam.eminwon.seoul.kr` |
+| 은평 | `eminwon.ep.go.kr` | 송파 | `songpa.eminwon.seoul.kr` |
+| 서대문 | `eminwon.sdm.go.kr` | 강동 | `eminwon.gangdong.go.kr` |
+| 마포 | `eminwon.mapo.go.kr` | | |
+
+**노원·성북은 eminwon 호스트를 못 찾았다** — 자체 CMS이거나 다른 이름이다. 별도 조사 필요.
+
+### 남은 두 개의 벽
+
+1. **브라우저 확장의 도메인 권한.** `eminwon.junggu.seoul.kr`·`gwangjin.eminwon.seoul.kr`은
+   *Navigation to this domain is not allowed*로 막혔다. **사용자가 확장 프로그램에서
+   해당 도메인을 허용해야** 진행된다. 허용된 곳(강서·강남·종로·용산)은 즉시 동작했다.
+2. **오래된 공고가 목록에 없는 구가 있다.** 종로·용산은 2026년 금리 공고 1건만 나오고
+   `[이전 자료 보기]` 링크가 따로 있다. 그 구들은 아카이브 조회를 한 단계 더 타야 한다.
+
+### 이 방법으로 확보한 것 (2026-08-10)
+
+- **강남구 — `contractEnd` 2026-07-30 확정.** 「서울특별시 강남구 금고지정 계획 공고」
+  (공고 제2026-1843호). **2026년 회차가 이미 시작됐다는 첫 실물 증거다.**
+- **강서구 — `lastBid` 2022-10-18**(지정 결과공고). 같은 게시판에서 2014-11-05 ·
+  2018-10-24 지정공고도 확인돼 **4년 주기가 3회차로 실증**됐다.
+
+⇒ 서울 자치구 공고일 확보 **4/25**(강남·강서·서대문·송파). 나머지는 위 두 벽만 걷히면
+같은 절차로 기계적으로 채울 수 있다.
