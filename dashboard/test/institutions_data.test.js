@@ -24,8 +24,10 @@ function loadGlobal(relPath, key) {
 const institutions = loadGlobal('data/institutions.js', 'institutions');
 const geoKorea = loadGlobal('geo/korea.js', 'geoKorea');
 const geoSeoul = loadGlobal('geo/seoul.js', 'geoSeoul');
+const geoGyeonggi = loadGlobal('geo/gyeonggi.js', 'geoGyeonggi');
 const REGION_CODES = geoKorea.features.map(function (f) { return f.properties.code; });
 const SEOUL_CODES = geoSeoul.features.map(function (f) { return f.properties.code; });
+const GYEONGGI_CODES = geoGyeonggi.features.map(function (f) { return f.properties.code; });
 
 // 광역(시·도) 레코드와 기초(구/시군) 레코드는 subRegion 유무로 갈린다.
 const wide = institutions.filter(function (r) { return !r.subRegion; });
@@ -44,10 +46,31 @@ test('서울 25개 자치구가 빠짐없이 한 번씩, seoul.js 코드와 일�
   assert.deepStrictEqual(codes, SEOUL_CODES.slice().sort());
 });
 
-test('기초 레코드의 subRegion은 자기 region 코드로 시작한다', function () {
+// 경기는 서울과 달리 시 하나가 일반구 여러 개로 쪼개질 수 있다(수원 4·성남 3·안양 2·
+// 안산 2·고양 3·용인 3 — 사용자 확정 ⓐ안: 그 시의 모든 구 폴리곤에 같은 값을 붙인다).
+// 그래서 "31개 시군 = 42개 폴리곤 레코드"가 되고, gyeonggi.js의 코드 전량과 일치해야 한다.
+test('경기 31개 시군이 gyeonggi.js의 폴리곤 코드 전량(42개)과 일치한다', function () {
+  const gg = sub.filter(function (r) { return r.region === '41'; });
+  assert.strictEqual(gg.length, GYEONGGI_CODES.length);
+  const codes = gg.map(function (r) { return r.subRegion; }).sort();
+  assert.deepStrictEqual(codes, GYEONGGI_CODES.slice().sort());
+});
+
+// ⚠️ subRegion 코드는 region 코드와 **숫자 체계가 다를 수 있다** — 우연이 아니라
+// 이 코드베이스의 실제 사양이다. render.REGION_GEO는 region(예: '41' 경기)으로
+// geo 파일을 고르고, 그 안의 폴리곤 매칭은 subRegion을 그 geo 파일의
+// feature.properties.code와 직접 비교한다(render.municipalityForFeature).
+// 서울은 우연히 region '11'과 subRegion '11XXX'의 접두사가 같지만, 경기는
+// region이 '41'인데 gyeonggi.js 폴리곤 코드는 '31XXX'다(다른 코드 체계 소스).
+// 그래서 검증은 "접두사 일치"가 아니라 "그 region의 실제 geo 파일에 그 코드가
+// 있는가"로 해야 진짜 불변식을 잡는다.
+test('기초 레코드의 subRegion이 실제 geo 폴리곤 코드와 일치한다', function () {
+  const REGION_TO_CODES = { '11': SEOUL_CODES, '41': GYEONGGI_CODES };
   sub.forEach(function (r) {
-    assert.ok(r.subRegion.indexOf(r.region) === 0,
-      r.name + ': subRegion ' + r.subRegion + '이 region ' + r.region + '에 속하지 않는다');
+    const codes = REGION_TO_CODES[r.region];
+    assert.ok(codes, r.name + ': region ' + r.region + '용 geo 파일이 테스트에 등록돼 있지 않다');
+    assert.ok(codes.indexOf(r.subRegion) >= 0,
+      r.name + ': subRegion ' + r.subRegion + '이 region ' + r.region + '의 geo 폴리곤 목록에 없다');
   });
 });
 
@@ -117,7 +140,16 @@ test('모든 레코드가 출처를 가진다 — 근거 없는 행은 두지 �
   institutions.forEach(function (r) {
     assert.ok(Array.isArray(r.sources) && r.sources.length > 0, r.name + ': 출처 없음');
     const hasUrl = r.sources.some(function (s) { return /^https?:\/\//.test(s); });
-    assert.ok(hasUrl, r.name + ': 출처에 URL이 하나도 없다');
+    // 날짜(lastBid/contractEnd)를 주장하는 레코드는 반드시 URL로 근거를 대야 한다.
+    // 날짜가 없는(진짜 못 찾은) 레코드까지 URL을 강제하면, 검색해도 안 나오는 곳에
+    // 억지로 무관한 URL을 채워 넣는 역효과가 생긴다 — 대신 "찾아봤다"는 사실 자체는
+    // 문구로 남기게 한다(침묵과 "검색했으나 없음"을 구분).
+    if (r.lastBid || r.contractEnd) {
+      assert.ok(hasUrl, r.name + ': 날짜를 주장하는데 출처에 URL이 없다');
+    } else if (!hasUrl) {
+      const attempted = r.sources.some(function (s) { return /검색|조사|확인|미확보|미확인/.test(s); });
+      assert.ok(attempted, r.name + ': URL도 없고 "찾아봤다"는 근거 문구도 없다');
+    }
   });
 });
 
