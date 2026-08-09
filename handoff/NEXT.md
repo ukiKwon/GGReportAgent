@@ -70,7 +70,7 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
   `docs/superpowers/specs/2026-07-31-multi-agent-collab-system-design.md`(§⑩ 체크리스트
   19항 전부 ✅). sub-project 1~5(A1·A2·B·C1·C2·D·E·F·H) 및 이월 M-1~M-7 전부 종결.
 - **마지막으로 남아 있던 것**: 기관 추가의 서버 경로 — `POST /institutions` 신설로
-  2026-08-09 해소. 이름 중복은 **409**(CSV 반입 `POST /import`의 upsert와 일부러 다르다:
+  2026-08-09 해소(main `339a455`, push됨). 이름 중복은 **409**(CSV 반입 `POST /import`의 upsert와 일부러 다르다:
   표를 다시 올리는 건 정상이지만 사람이 같은 이름을 또 누르는 건 실수다).
   `dashboard/js/app.js`의 "서버 모드 미지원" alert 가드 제거 + `serverdata.toServerRow()`.
 
