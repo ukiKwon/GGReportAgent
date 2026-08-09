@@ -86,6 +86,20 @@ test('lastBid가 있으면 term도 있다 — 없으면 다음 회차를 계산�
   });
 });
 
+// 실제로 낸 실수: lastBid에 "가장 최근 회차보다 한 회 전" 값을 넣으면
+// addYears(lastBid, term)가 한 번만 term을 더해 **이미 지난 날짜**가 나온다
+// (예: 도봉 2014+4=2018년 — "이미 늦었다"는 잘못된 빨간불). 중간 회차를 못 찾았으면
+// lastBid를 비우는 것이 규칙이지, 오래된 값을 그대로 넣는 것이 아니다.
+test('lastBid+term으로 유도한 날짜가 조사 시점보다 크게 과거로 나오지 않는다', function () {
+  const today = new Date('2026-08-10T00:00:00');
+  institutions.forEach(function (r) {
+    if (r.contractEnd || !r.lastBid) return;   // 확정일이 있거나 lastBid가 없으면 해당 없음
+    const days = logic.daysUntil(logic.effectiveBid(r).date, today);
+    assert.ok(days > -365,
+      r.name + ': lastBid=' + r.lastBid + '+term=' + r.term + ' → 유도 날짜가 1년 넘게 과거다(중간 회차 누락 의심)');
+  });
+});
+
 test('term은 4년 이내다 — 예규가 "4년 이내"라 그보다 길 수 없다', function () {
   institutions.forEach(function (r) {
     if (r.term === undefined) return;
