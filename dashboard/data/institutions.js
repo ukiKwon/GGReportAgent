@@ -1,23 +1,165 @@
-// 개발용 샘플 — 실데이터 아님. 실기관 데이터로 교체(또는 CSV 업로드).
+// 전국 광역 17개 시·도 금고 입찰 일정 — 기본(default) 데이터.
+// 조사일 2026-08-09. 조사 규칙은 docs/superpowers/specs/2026-08-09-nationwide-treasury-schedule-design.md 참조.
+//
+// 채우는 규칙(요약):
+//  - lastBid : 직전 회차의 **확인된 절차일**. 공고일을 특정할 수 있으면 공고일,
+//              없으면 지정(선정)일. 어느 쪽인지는 sources 첫 항목에 적어 둔다.
+//  - term    : 그 지자체의 실제 약정주기(년). 「지방자치단체 금고지정 기준」은
+//              "4년 **이내**에서 조례·규칙으로 정한다"이므로 4년은 일괄 가정이 아니다
+//              (경상남도는 실제로 3년).
+//  - 화면은 lastBid + term 으로 다음 회차를 스스로 계산해 `(추측)`으로 표시한다
+//    (logic.effectiveBid → addYears: 월/일 보존, 연도만 가산).
+//  - contractEnd/confirmed : 지금 공고가 실제로 뜬 건만. 그 외에는 쓰지 않는다.
+//  - 근거로 월/일을 특정하지 못한 곳은 **날짜를 비워 둔다**(지어내지 않는다).
+//    지도에서 회색 + '?'로 남고, 아는 사실은 sources에 문장으로 남긴다.
 window.institutions = [
-  { name:"서울시청(예시)", type:"지자체", region:"11", term:4, lastBid:"2022-12-30",
-    sources:[], updatedAt:"2026-07-25" }, // 추측(2026-12-30) — 광역이라 어떤 구에도 안 붙음
-  // 구 단위 지자체 — subRegion 코드로 폴리곤에 직접 매칭(구마다 다른 임박도 확인용)
-  { name:"마포구청(예시)", type:"지자체", region:"11", subRegion:"11140",
-    contractEnd:"2026-09-30", confirmed:true, sources:[], updatedAt:"2026-07-28" }, // 확정 → red
-  { name:"종로구청(예시)", type:"지자체", region:"11", subRegion:"11010",
-    contractEnd:"2027-06-30", sources:[], updatedAt:"2026-07-28" },                 // 추측 → orange
-  // subRegion 없이 이름 매칭 폴백으로만 붙는 케이스('강남구청'→'강남구')
-  { name:"강남구청(예시)", type:"지자체", region:"11",
-    contractEnd:"2028-05-31", sources:[], updatedAt:"2026-07-28" },                 // 추측 → yellow
-  { name:"경기도청(예시)", type:"지자체", region:"41", contractEnd:"2027-12-31", confirmed:true,
-    sources:[], updatedAt:"2026-07-25" }, // 확정
-  { name:"○○대학병원(예시)", type:"대학병원", region:"11", lng:126.99, lat:37.56,
-    contractEnd:"2026-08-15", sources:[], updatedAt:"2026-07-25" }, // 추측(확정 아님)
-  { name:"△△공사(예시)", type:"공기업", region:"41", lng:127.05, lat:37.28,
-    term:2, lastBid:"2026-06-30", sources:[], updatedAt:"2026-07-25" }, // 추측(2028-06-30)
-  { name:"□□공단(예시)", type:"공공기관", region:"11", lng:126.92, lat:37.53,
-    sources:[], updatedAt:"2026-07-25" }, // 미상 → '?' 검증용
-  { name:"무결성불량(예시)", type:"공기업", lng:127.01, lat:37.50,
-    sources:[], updatedAt:"2026-07-25" }, // region 없음 → '!' 검증용
+
+  // ── 날짜 확보 (9곳) ────────────────────────────────────────────────
+  { name:"서울특별시", type:"지자체", region:"11", term:4, lastBid:"2026-04-03",
+    sources:[
+      "기준일=공고일(시금고 지정계획 공고)",
+      "차기 약정 2027-01-01~2030-12-31 · 제안서 접수 2026-05-04~06 · 심의 2026-05-12",
+      "https://www.seoul.go.kr/news/news_report.do?nttNo=455542",
+      "https://www.newsis.com/view/NISX20260403_0003576761",
+    ], updatedAt:"2026-08-09" },
+
+  { name:"부산광역시", type:"지자체", region:"26", term:4, lastBid:"2024-09-24",
+    sources:[
+      "기준일=지정(선정)일 — 공고일 미상",
+      "현 약정 2025-01-01~2028-12-31 · 1금고 BNK부산은행 · 2금고 KB국민은행",
+      "https://mobile.busan.com/view/busan/view.php?code=2024092418412299203",
+      "https://www.sedaily.com/NewsView/2DEF233EW3",
+    ], updatedAt:"2026-08-09" },
+
+  // lastBid를 비워 둔 이유: 지금 뜬 공고일(2026-08-06)은 아는데 **직전 회차 공고일은 모른다.**
+  // 4년 빼서 2022-08-06으로 적으면 그건 근거 없이 만든 날짜다. 진행 중인 건이라
+  // contractEnd(확정)만으로 화면에 그려지므로 lastBid는 이번 회차가 끝난 뒤 채운다.
+  { name:"인천광역시", type:"지자체", region:"28", term:4,
+    contractEnd:"2026-08-06", confirmed:true,
+    sources:[
+      "기준일=공고일(금고 지정계획 공고) — 진행 중",
+      "차기 약정 2027-01-01~2030-12-31 · 설명회 2026-08-13 · 접수 2026-08-28~09-02 · 9월 중순 선정",
+      "1금고 약 15조 · 2금고 약 2조 · 배점 신용도25/시민편의24/금고관리24/금리18/지역기여7/기타2",
+      "https://www.kyeongin.com/article/1768606",
+      "https://www.hankyung.com/article/202608068559i",
+    ], updatedAt:"2026-08-09" },
+
+  { name:"대전광역시", type:"지자체", region:"30", term:4, lastBid:"2025-09-04",
+    sources:[
+      "기준일=제안서 접수 마감일 — 공고일 미상",
+      "현 약정 2026-01-01~2029-12-31 · 1금고 하나은행 · 2금고 농협은행",
+      "https://www.daejonilbo.com/news/articleView.html?idxno=2227996",
+      "https://www.kfenews.co.kr/news/articleView.html?idxno=646102",
+    ], updatedAt:"2026-08-09" },
+
+  { name:"울산광역시", type:"지자체", region:"31", term:4, lastBid:"2023-09-25",
+    sources:[
+      "기준일=지정(선정)일 — 공고일 미상",
+      "현 약정 2024-01-01~2027-12-31 · 1금고 BNK경남은행 · 2금고 농협은행",
+      "https://www.hankookilbo.com/news/article/A2023092517270005621",
+      "https://www.hankyung.com/article/202309257075Y",
+    ], updatedAt:"2026-08-09" },
+
+  { name:"경기도", type:"지자체", region:"41", term:4, lastBid:"2024-12-30",
+    sources:[
+      "기준일=지정(선정)일 — 공고일 미상",
+      "⚠️ 회계연도 정렬 예외 — 약정 2025-04-01~2029-03-31 (1/1 시작이 아니다)",
+      "1금고 NH농협은행 · 2금고 하나은행 · 연 약 40조",
+      "https://www.kyeonggi.com/article/20241231580040",
+      "https://www.nongmin.com/article/20241231500235",
+    ], updatedAt:"2026-08-09" },
+
+  { name:"강원특별자치도", type:"지자체", region:"42", term:4, lastBid:"2025-10-31",
+    sources:[
+      "기준일=지정(선정)일 — 공고일 미상",
+      "현 약정 2026-01-01~2029-12-31 · 1금고 NH농협은행 · 2금고 신한은행",
+      "https://v.daum.net/v/20251031000907650",
+      "https://biz.heraldcorp.com/article/10532799",
+    ], updatedAt:"2026-08-09" },
+
+  { name:"경상남도", type:"지자체", region:"48", term:3, lastBid:"2025-12-05",
+    sources:[
+      "기준일=지정(선정)일 — 공고일 미상",
+      "⚠️ 주기 예외 — 약정 2026-01-01~2028-12-31 로 **3년**이다(4년 아님)",
+      "1금고 NH농협은행 · 2금고 BNK경남은행",
+      "https://go.seoul.co.kr/news/newsView.php?id=20251205500117",
+      "https://www.idomin.com/news/articleView.html?idxno=951820",
+    ], updatedAt:"2026-08-09" },
+
+  { name:"제주특별자치도", type:"지자체", region:"50", term:4, lastBid:"2024-11-04",
+    sources:[
+      "기준일=지정 결과 공고일",
+      "현 약정 2025-01-01~2028-12-31 · 1금고 농협은행 제주본부 · 2금고 제주은행",
+      "https://v.daum.net/v/20241104143534081",
+      "https://www.jejunews.com/news/articleView.html?idxno=2214552",
+    ], updatedAt:"2026-08-09" },
+
+  // ── 월/일 미확보 → 날짜 비움 (8곳). 아는 사실만 sources에 남긴다. ──────
+  { name:"대구광역시", type:"지자체", region:"27",
+    sources:[
+      "월/일 미확보 — 지정일·공고일 모두 특정 실패",
+      "2024년 지정, 현 약정 2025~2028(4년)로 보도 · 1금고 iM뱅크(구 대구은행) · 2금고 농협은행",
+      "대구시 조례: 약정 만료 6개월 전까지 공고, 만료 90일 전까지 지정 완료",
+      "https://www.ynenews.kr/news/articleView.html?idxno=73424",
+    ], updatedAt:"2026-08-09" },
+
+  { name:"광주광역시", type:"지자체", region:"29",
+    sources:[
+      "⚠️ 행정구역 변동 — 2026-07-01 전남광주통합특별시 출범으로 광주시 단독 금고는 종료",
+      "통합 첫 금고: 1금고 NH농협은행 · 2금고 광주은행 · 운영 2026-07-01~2026-12-31(6개월)",
+      "차기 금고 공개모집 2026년 10월경 예정 — 일자 미상",
+      "직전 광주시 금고: 2024-10-07 지정, 약정 2025~2028(통합으로 중단)",
+      "https://v.daum.net/v/20260522182104767",
+      "https://www.hankyung.com/article/202605224899h",
+    ], updatedAt:"2026-08-09" },
+
+  { name:"전라남도", type:"지자체", region:"46",
+    sources:[
+      "⚠️ 행정구역 변동 — 2026-07-01 전남광주통합특별시 출범(광주와 통합)",
+      "통합 첫 금고: 1금고 NH농협은행 · 2금고 광주은행 · 운영 2026-07-01~2026-12-31(6개월)",
+      "차기 금고 공개모집 2026년 10월경 예정 — 일자 미상",
+      "https://www.newspim.com/news/view/20260522001294",
+      "https://www.jnilbo.com/news/articleView.html?idxno=90000036987",
+    ], updatedAt:"2026-08-09" },
+
+  { name:"세종특별자치시", type:"지자체", region:"36",
+    sources:[
+      "월/일 미확보 — 공고일·지정일 특정 실패",
+      "차기 금고가 2027~2030년 4년간 관리 → 2026년 중 공모(연도만 확정)",
+      "현 1금고 NH농협은행 · 2금고 우리은행 · 신청 농협/우리/국민/하나",
+      "https://www.sjsori.com/news/articleView.html?idxno=12075",
+    ], updatedAt:"2026-08-09" },
+
+  { name:"충청북도", type:"지자체", region:"43",
+    sources:[
+      "월/일 미확보 — 제안 모집 공고일 특정 실패(진행 중)",
+      "현 약정 2026년 말 만료 → 차기 2027-01-01~2030-12-31(4년) 제안 모집 공고됨",
+      "1금고 농협(1997~) · 2금고 신한은행(2008~) · 규모 약 8조",
+      "https://v.daum.net/v/p59H4vNfDL?f=p",
+      "https://www.inews365.com/news/article.html?no=881129",
+    ], updatedAt:"2026-08-09" },
+
+  { name:"충청남도", type:"지자체", region:"44",
+    sources:[
+      "월/일 미확보 — 공고일·지정일 특정 실패",
+      "현 약정 2027년까지 4년 · 1금고 NH농협은행 · 2금고 하나은행",
+      "https://www.cctoday.co.kr/news/articleView.html?idxno=2190920",
+    ], updatedAt:"2026-08-09" },
+
+  { name:"전북특별자치도", type:"지자체", region:"45",
+    sources:[
+      "월/일 미확보 — 2025년 11월 차기 선정만 확인(일자 미상)",
+      "직전 약정 2022-01-01~2025-12-31(4년) → 차기 2026~2029",
+      "차기 선정에 '지역 기여형 지표'(중소기업·서민 지원) 신설",
+      "https://www.newsis.com/view/NISX20250804_0003278050",
+      "http://www.koreasisailbo.com/1963175",
+    ], updatedAt:"2026-08-09" },
+
+  { name:"경상북도", type:"지자체", region:"47",
+    sources:[
+      "월/일 미확보 — 2022년 하반기 공모라는 사실만 확인",
+      "약정주기를 3년→4년으로 연장 · 현 약정 2023-01-01부터 4년(2026년 말 만료)",
+      "→ 2026년 하반기 차기 공모 예상 · 1금고 NH농협은행 · 2금고 대구은행 · 연 약 11조",
+      "https://www.imaeil.com/page/view/2022053116053932638",
+    ], updatedAt:"2026-08-09" },
 ];

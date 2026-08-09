@@ -7,7 +7,11 @@
 
   render.state = {
     today: new Date(new Date().toISOString().slice(0,10) + 'T00:00:00'),
-    activeRegions: new Set(['11','41']),        // v1 활성: 서울·경기
+    // v2(2026-08-09): 전국 확대. korea.js의 17개 시·도 코드 전부를 활성화한다.
+    // 비활성 지역은 빗금('준비중')으로 그려지고 클릭·랭킹 집계에서도 빠지므로,
+    // 광역 금고 데이터를 넣어도 여기에 코드가 없으면 화면에 아무것도 안 나타난다.
+    activeRegions: new Set(['11','26','27','28','29','30','31','36',
+                            '41','42','43','44','45','46','47','48','50']),
     enabledTypes: new Set(logic.FILTERABLE_TYPES),
     currentRegion: null,
     rankSort: 'urgency',   // 'urgency' | 'interest'
@@ -142,10 +146,11 @@
         return render.state.activeRegions.has(code) ? render.regionUrgencyColor(code) : render.INACTIVE_FILL;
       })
       .attr('stroke', '#0f1420').attr('stroke-width', 1)
-      .style('cursor', function (d){ return render.state.activeRegions.has(d.properties.code) ? 'pointer' : 'default'; })
+      // 커서·클릭은 activeRegions가 아니라 hasSubGeo로 판단한다(위 주석 참조).
+      .style('cursor', function (d){ return render.hasSubGeo(d.properties.code) ? 'pointer' : 'default'; })
       .style('opacity', 1)
       .on('click', function (ev, d) {
-        if (!render.state.activeRegions.has(d.properties.code)) return;
+        if (!render.hasSubGeo(d.properties.code)) return;
         if (root.app && root.app.enterRegion) root.app.enterRegion(d.properties.code);
       });
 
@@ -207,7 +212,15 @@
   };
 
   render.REGION_GEO = { '11': function(){ return window.geoSeoul; }, '41': function(){ return window.geoGyeonggi; } };
-  render.REGION_NAME = { '11':'서울', '41':'경기' };
+  render.REGION_NAME = { '11':'서울', '26':'부산', '27':'대구', '28':'인천', '29':'광주',
+    '30':'대전', '31':'울산', '36':'세종', '41':'경기', '42':'강원', '43':'충북',
+    '44':'충남', '45':'전북', '46':'전남', '47':'경북', '48':'경남', '50':'제주' };
+
+  // **면 색칠(activeRegions)과 드릴인 가능 여부는 다른 것이다.** v1에서는 활성 지역이
+  // 서울·경기 둘뿐이라 우연히 일치했지만, 전국 확대(v2) 이후로는 17개 시·도가 전부
+  // 색은 칠해지되 구/시군 경계 GeoJSON은 여전히 서울·경기에만 있다. 이 둘을 계속
+  // 같은 조건으로 묶으면 나머지 15곳이 "눌리는데 오류 배너만 뜨는" 막다른 길이 된다.
+  render.hasSubGeo = function (code) { return !!render.REGION_GEO[code]; };
 
   // 구/시군 면 하나에 해당하는 지자체 레코드들. subRegion 코드가 1순위,
   // 없으면 기관명↔폴리곤명 정규화 매칭('마포구청'→'마포구')으로 보완한다.
@@ -358,8 +371,7 @@
     const top = logic.sortByUrgency(all, render.state.today).slice(0, 5);
     const el = document.getElementById('ticker'); if (!el) return;
     el.textContent = '임박 TOP5 · ' + top.map(function (r) {
-      const d = logic.daysUntil(logic.effectiveBid(r).date, render.state.today);
-      return r.name + (d === Infinity ? '(미상)' : '(D-' + d + ')');
+      return r.name + '(' + logic.formatDDay(r, render.state.today) + ')';
     }).join('   ·   ');
   };
 
@@ -525,8 +537,9 @@
     const top = logic.sortByUrgency(all, render.state.today);
     stage.innerHTML = '<div style="padding:16px;"><b>지도 로딩 실패</b> — D3 번들(vendor/d3.v7.min.js)을 확인하세요.' +
       '<br>아래는 지도 없이 제공하는 임박순 랭킹입니다.<ol>' +
-      top.map(function (r){ const d = logic.daysUntil(logic.effectiveBid(r).date, render.state.today);
-        return '<li>' + esc(r.name) + ' — ' + esc(r.type) + ' · ' + (d === Infinity ? '미상' : 'D-' + d) + '</li>'; }).join('') +
+      top.map(function (r){
+        return '<li>' + esc(r.name) + ' — ' + esc(r.type) + ' · ' +
+          esc(logic.formatDDay(r, render.state.today)) + '</li>'; }).join('') +
       '</ol></div>';
   };
 
@@ -536,19 +549,23 @@
     const grid = document.getElementById('region-grid'); if (!grid) return;
     grid.innerHTML = '';
     render.WATCHABLE().forEach(function (code) {
-      const card = document.createElement('div'); card.className = 'rg-card'; card.style.cursor = 'pointer';
+      const drillable = render.hasSubGeo(code);
+      const card = document.createElement('div'); card.className = 'rg-card';
+      card.style.cursor = drillable ? 'pointer' : 'default';
       const on = store.isWatched(code);
       const cnt = render.institutionsByRegion(code).length;
       card.innerHTML = '<span class="star" data-code="' + code + '">' + (on ? '★' : '☆') + '</span><b>' +
         (render.REGION_NAME[code] || code) + '</b>' +
-        '<div style="color:var(--muted);font-size:12px;margin-top:6px;">기관 ' + cnt + '곳 · 구/시군 보기 →</div>';
+        '<div style="color:var(--muted);font-size:12px;margin-top:6px;">기관 ' + cnt + '곳 · ' +
+        (drillable ? '구/시군 보기 →' : '구/시군 경계 준비중') + '</div>';
       // ★는 관심 토글만 (드릴인으로 전파 방지)
       card.querySelector('.star').addEventListener('click', function (e) {
         e.stopPropagation();
         store.toggleWatch(code); render.drawRegionGrid(); render.drawPinBar(); render.applyWatchStyles();
       });
-      // 카드 본문 클릭 → 전국 지도 탭으로 전환 후 해당 지역 구/시군 드릴인
-      card.addEventListener('click', function () {
+      // 카드 본문 클릭 → 전국 지도 탭으로 전환 후 해당 지역 구/시군 드릴인.
+      // 경계 데이터가 없는 지역은 아예 열지 않는다 — 열어봐야 오류 배너만 뜬다.
+      if (drillable) card.addEventListener('click', function () {
         const mapBtn = document.querySelector('.tab-btn[data-tab="map"]');
         if (mapBtn) mapBtn.click();
         if (root.app && root.app.enterRegion) root.app.enterRegion(code);

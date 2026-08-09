@@ -119,6 +119,16 @@
     return logic.computeUrgency(logic.effectiveBid(rec).date, today);
   };
 
+  // D-day 표기. 지난 날짜를 'D-' + 음수로 이으면 'D--3' 같은 글자가 나온다 —
+  // 전국 데이터가 들어오면서 **이미 공고가 뜬 진행 중인 건**이 생겨 실제로 드러났다.
+  // 관례대로 지난 것은 D+n, 당일은 D-day로 쓴다.
+  logic.formatDDay = function (rec, today) {
+    const d = logic.daysUntil(logic.effectiveBid(rec).date, today);
+    if (d === Infinity) return '미상';
+    if (d === 0) return 'D-day';
+    return d > 0 ? 'D-' + d : 'D+' + (-d);
+  };
+
   logic.formatBidDate = function (rec) {
     const e = logic.effectiveBid(rec);
     return e.date ? (e.date + '(' + e.confidence + ')') : '미상';
