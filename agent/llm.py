@@ -19,7 +19,7 @@ import time
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_openai import ChatOpenAI
 
-from agent.model_select import detect_resources, installed_models, pick_model
+from agent.model_select import candidate_hint, detect_resources, installed_models, pick_model
 
 DEFAULT_MODEL = "gpt-oss-120b"
 DEFAULT_FALLBACK_MODEL = "llama-4-scout-17b-16e-instruct"
@@ -108,7 +108,7 @@ def current_model() -> str:
         _auto_warned = True
         print(
             "[llm] LLM_MODEL=auto인데 쓸 모델을 못 찾았습니다 — Ollama가 떠 있는지,"
-            " 후보(llama3.1:8b / llama3.2:3b / llama3.2:1b) 중 하나를 pull 했는지"
+            f" 후보({candidate_hint()}) 중 하나를 pull 했는지"
             f" 확인하세요. 우선 기본값 {DEFAULT_MODEL}로 진행합니다"
             f"({AUTO_FAIL_TTL:.0f}초 뒤 재시도).",
             file=sys.stderr,

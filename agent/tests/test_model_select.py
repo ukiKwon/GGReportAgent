@@ -1,11 +1,46 @@
 from unittest.mock import patch
 
-from agent.model_select import MODEL_TIERS, detect_resources, installed_models, pick_model
+from agent.model_select import (
+    MODEL_TIERS,
+    candidate_hint,
+    detect_resources,
+    installed_models,
+    pick_model,
+)
 
 
 def test_picks_largest_model_the_hardware_can_run():
     installed = ["llama3.2:1b", "llama3.2:3b", "llama3.1:8b"]
     assert pick_model(installed, ram_gb=16.0, cpu_count=8) == "llama3.1:8b"
+
+
+# ── qwen3.5 티어 추가 (2026-08-09) ──────────────────────────────────────
+# 이 PC에는 llama 3종이 하나도 안 깔려 있었고 운영 모델(gpt-oss-120b, 65GB)은
+# RAM 15.6GB에 올라가지 않는다. 실제로 돌릴 수 있는 후보로 qwen3.5:9b를 넣는다.
+
+def test_qwen을_설치했으면_auto가_그것을_고른다():
+    assert pick_model(["qwen3.5:9b"], ram_gb=15.6, cpu_count=8) == "qwen3.5:9b"
+
+
+def test_qwen이_llama3_1_8b보다_우선한다():
+    """둘 다 있으면 더 최신·큰 쪽을 쓴다 — 티어 순서가 그 판단이다."""
+    installed = ["llama3.1:8b", "llama3.2:3b", "qwen3.5:9b"]
+    assert pick_model(installed, ram_gb=15.6, cpu_count=8) == "qwen3.5:9b"
+
+
+def test_RAM이_모자라면_qwen을_건너뛰고_아래_티어로_내려간다():
+    """9b가 안 올라가는 장비에서 조용히 qwen을 고르면 추론에서 죽는다."""
+    installed = ["qwen3.5:9b", "llama3.2:3b"]
+    assert pick_model(installed, ram_gb=7.6, cpu_count=8) == "llama3.2:3b"
+
+
+def test_candidate_hint는_티어_목록에서_파생된다():
+    """경고 문구에 후보를 하드코딩하면 티어를 늘릴 때 조용히 거짓말이 된다.
+    (회귀: llm.py가 '후보(llama3.1:8b / llama3.2:3b / llama3.2:1b)'를 문자열로 박아둬
+    qwen을 추가해도 그 줄만 옛 목록을 계속 말했다.)
+    """
+    assert candidate_hint() == " / ".join(t[0] for t in MODEL_TIERS)
+    assert "qwen3.5:9b" in candidate_hint()
 
 
 def test_vcpu_shortage_downgrades_even_with_enough_ram():

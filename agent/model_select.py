@@ -18,12 +18,25 @@ import os
 import urllib.error
 import urllib.request
 
-# (모델명, 최소 RAM GB, 최소 vCPU) — 큰 것부터. 사용자 확정 3종 고정.
+# (모델명, 최소 RAM GB, 최소 vCPU) — 큰 것부터. 사용자 확정 목록이다.
+#
+# 2026-08-09에 `qwen3.5:9b`를 맨 위에 추가했다(사용자 확정). 이유: 운영 1순위
+# `gpt-oss-120b`는 65GB라 개발 PC(RAM 15.6GB)에 올라가지 않고, 아래 llama 3종은
+# 이 PC에 하나도 설치돼 있지 않았다 — 즉 auto가 고를 수 있는 것이 실제로 0개였다.
+# 최소 RAM 9.0은 가중치 6.6GB + 컨텍스트/OS 여유를 본 값이다(llama3.1:8b가 4.7GB에
+# 7.0인 것과 같은 기준). 이보다 작은 qwen(4b·2b)은 **설치해서 확인한 뒤에** 넣는다 —
+# 아무도 안 받아본 모델을 티어로 미리 넣으면 추측이 표에 섞인다.
 MODEL_TIERS: tuple[tuple[str, float, int], ...] = (
+    ("qwen3.5:9b", 9.0, 4),
     ("llama3.1:8b", 7.0, 4),
     ("llama3.2:3b", 3.5, 2),
     ("llama3.2:1b", 1.8, 1),
 )
+
+
+def candidate_hint() -> str:
+    """후보 모델 목록을 사람이 읽는 한 줄로. 경고 문구가 티어와 어긋나지 않게 한다."""
+    return " / ".join(name for name, _ram, _cpu in MODEL_TIERS)
 
 
 def pick_model(installed, ram_gb: float, cpu_count: int) -> str | None:
