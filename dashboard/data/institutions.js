@@ -214,6 +214,22 @@ window.institutions = [
         "https://www.sdm.go.kr/news/notice/notice.do?mode=view&sdmBoardSeq=275035",
       ],
     },
+    "11230": {   // 강남구 — eminwon 고시공고에서 **2026년 진행 중 공고** 확인
+      contractEnd: "2026-07-30", confirmed: true, updatedAt: "2026-08-10",
+      sources: [
+        "기준일=공고일(금고지정 계획 공고, 공고 제2026-1843호) — **진행 중**",
+        "구청 고시공고 게시판(eminwon) 제목 검색으로 직접 확인",
+        "https://gangnam.eminwon.seoul.kr/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do",
+      ],
+    },
+    "11160": {   // 강서구 — eminwon 고시공고에서 3개 회차 확인(4년 주기 실증)
+      lastBid: "2022-10-18", updatedAt: "2026-08-10",
+      sources: [
+        "기준일=지정 결과공고일(2022-10-18, 공고 제2022-1887호)",
+        "같은 게시판에서 2014-11-05 · 2018-10-24 금고지정 공고도 확인 — 4년 주기가 3회차로 실증됨",
+        "https://eminwon.gangseo.seoul.kr/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do",
+      ],
+    },
     "11240": {   // 송파구 — 구의회 회의록(2022-08-29)에서 2022년 회차 일정 확인
       lastBid: "2022-09-01",
       sources: [
@@ -240,9 +256,10 @@ window.institutions = [
       name: gu + '청', type: '지자체', region: '11', subRegion: code, term: 4,
       sources: (extra.sources || ['월/일 미확보 — 구청 공고 원문 미확인'])
         .concat(['현 금고: ' + bank]).concat(COMMON),
-      updatedAt: '2026-08-09',
+      updatedAt: extra.updatedAt || '2026-08-09',
     };
     if (extra.lastBid) rec.lastBid = extra.lastBid;
+    if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
     window.institutions.push(rec);
   });
 })();
