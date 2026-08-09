@@ -1,0 +1,127 @@
+// 기본 데이터(dashboard/data/institutions.js)의 무결성 회귀 테스트.
+//
+// 이 파일이 지키는 것은 "값이 맞다"가 아니라 **규칙을 어긴 값이 섞이지 않는다**이다.
+// 조사 규칙상 모르는 것은 비워 두기로 했는데, 나중에 누군가 빈칸이 보기 싫어서
+// 근거 없는 날짜를 채워 넣는 것이 이 데이터셋의 가장 현실적인 붕괴 경로다.
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+const ROOT = path.join(__dirname, '..');
+const logic = require(path.join(ROOT, 'js/logic.js'));
+
+// vm 샌드박스가 만든 배열은 **다른 realm의 Array**라 deepStrictEqual이 프로토타입
+// 불일치로 실패한다(값은 같은데 틀렸다고 나온다). JSON 왕복으로 이 realm의 값으로 옮긴다.
+function loadGlobal(relPath, key) {
+  const sandbox = { window: {} };
+  vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync(path.join(ROOT, relPath), 'utf8'), sandbox);
+  return JSON.parse(JSON.stringify(sandbox.window[key]));
+}
+
+const institutions = loadGlobal('data/institutions.js', 'institutions');
+const geoKorea = loadGlobal('geo/korea.js', 'geoKorea');
+const REGION_CODES = geoKorea.features.map(function (f) { return f.properties.code; });
+
+test('17개 시·도가 빠짐없이 한 번씩 들어 있다', function () {
+  assert.strictEqual(institutions.length, 17);
+  const codes = institutions.map(function (r) { return r.region; }).sort();
+  assert.deepStrictEqual(codes, REGION_CODES.slice().sort());
+});
+
+test('모든 레코드가 필수 필드를 갖춘다 (지도에 !로 뜨지 않는다)', function () {
+  institutions.forEach(function (r) {
+    const v = logic.validateRecord(r);
+    assert.ok(v.valid, r.name + ' 누락: ' + v.missing.join(','));
+    assert.strictEqual(r.type, '지자체');
+  });
+});
+
+test('날짜는 YYYY-MM-DD로 파싱되는 실제 날짜다', function () {
+  institutions.forEach(function (r) {
+    ['lastBid', 'contractEnd'].forEach(function (f) {
+      if (r[f] === undefined) return;
+      assert.match(r[f], /^\d{4}-\d{2}-\d{2}$/, r.name + '.' + f);
+      assert.ok(!isNaN(new Date(r[f] + 'T00:00:00').getTime()), r.name + '.' + f);
+    });
+  });
+});
+
+test('lastBid가 있으면 term도 있다 — 없으면 다음 회차를 계산할 수 없다', function () {
+  institutions.forEach(function (r) {
+    if (r.lastBid) assert.ok(r.term > 0, r.name + ': lastBid는 있는데 term이 없다');
+  });
+});
+
+test('term은 4년 이내다 — 예규가 "4년 이내"라 그보다 길 수 없다', function () {
+  institutions.forEach(function (r) {
+    if (r.term === undefined) return;
+    assert.ok(r.term >= 1 && r.term <= 4, r.name + ': term=' + r.term);
+  });
+});
+
+test('confirmed(확정)는 contractEnd가 실제로 있을 때만 붙는다', function () {
+  institutions.forEach(function (r) {
+    if (r.confirmed) assert.ok(r.contractEnd, r.name + ': 확정인데 입찰예상일이 없다');
+  });
+});
+
+test('모든 레코드가 출처를 가진다 — 근거 없는 행은 두지 않는다', function () {
+  institutions.forEach(function (r) {
+    assert.ok(Array.isArray(r.sources) && r.sources.length > 0, r.name + ': 출처 없음');
+    const hasUrl = r.sources.some(function (s) { return /^https?:\/\//.test(s); });
+    assert.ok(hasUrl, r.name + ': 출처에 URL이 하나도 없다');
+  });
+});
+
+test('날짜가 있는 레코드는 출처에 기준일이 무엇인지 밝혀 둔다', function () {
+  institutions.forEach(function (r) {
+    if (!r.lastBid && !r.contractEnd) return;
+    const noted = r.sources.some(function (s) { return s.indexOf('기준일=') === 0; });
+    assert.ok(noted, r.name + ': 기준일(공고일/지정일)이 출처에 명시돼 있지 않다');
+  });
+});
+
+test('날짜가 없는 레코드는 왜 비었는지를 출처 첫 줄에 남긴다', function () {
+  institutions.forEach(function (r) {
+    if (r.lastBid || r.contractEnd) return;
+    assert.match(r.sources[0], /미확보|변동/, r.name + ': 빈 이유가 적혀 있지 않다');
+  });
+});
+
+test('파생 일정이 실제로 유도된다 — 날짜 있는 곳은 미상이 아니다', function () {
+  const withDate = institutions.filter(function (r) { return r.lastBid || r.contractEnd; });
+  assert.strictEqual(withDate.length, 9);
+  withDate.forEach(function (r) {
+    const e = logic.effectiveBid(r);
+    assert.ok(e.date, r.name + ': 일정이 유도되지 않는다');
+    assert.notStrictEqual(e.confidence, '미상');
+  });
+});
+
+test('CSV 왕복으로 값이 보존된다 (반입 경로와 형식이 같다)', function () {
+  const headers = logic.CSV_HEADERS;
+  const key = logic._HEADER_KEY;
+  const rows = institutions.map(function (r) {
+    return headers.map(function (h) {
+      const k = key[h];
+      let v = r[k];
+      if (k === 'sources') v = (v || []).join(';');
+      else if (k === 'confirmed') v = v ? 'Y' : '';
+      if (v === undefined || v === null) v = '';
+      v = String(v);
+      return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    }).join(',');
+  });
+  const back = logic.parseCsv(headers.join(',') + '\n' + rows.join('\n'));
+  assert.strictEqual(back.length, institutions.length);
+  institutions.forEach(function (r, i) {
+    assert.strictEqual(back[i].name, r.name);
+    assert.strictEqual(back[i].region, r.region);
+    assert.strictEqual(back[i].lastBid || undefined, r.lastBid);
+    assert.strictEqual(!!back[i].confirmed, !!r.confirmed);
+    assert.strictEqual(back[i].sources.length, r.sources.length);
+  });
+});

@@ -239,3 +239,16 @@ test('SERVER_UNSAVABLE_FIELDS: 서버 모드에서 저장 경로가 없는 필�
     assert.strictEqual(logic.SERVER_UNSAVABLE_FIELDS.indexOf(f), -1);
   });
 });
+
+test('formatDDay: 지난 날짜는 D+n, 당일은 D-day, 미상은 미상', () => {
+  const today = new Date('2026-08-09T00:00:00');
+  assert.strictEqual(logic.formatDDay({ contractEnd: '2026-08-06', confirmed: true }, today), 'D+3');
+  assert.strictEqual(logic.formatDDay({ contractEnd: '2026-08-09' }, today), 'D-day');
+  assert.strictEqual(logic.formatDDay({ contractEnd: '2026-09-08' }, today), 'D-30');
+  assert.strictEqual(logic.formatDDay({ name: '미상건' }, today), '미상');
+});
+
+test('formatDDay: lastBid+term으로 유도된 날짜에도 적용된다', () => {
+  const today = new Date('2026-08-09T00:00:00');
+  assert.strictEqual(logic.formatDDay({ lastBid: '2024-09-24', term: 4 }, today), 'D-777');
+});
