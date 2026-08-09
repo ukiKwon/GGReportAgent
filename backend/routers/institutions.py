@@ -7,8 +7,14 @@ from backend.bidcase_repository import activate_pending_bid_cases
 from backend.corpus_validator import validate_corpus
 from backend.csv_import import parse_csv
 from backend.db import get_connection
-from backend.models import CorpusPathIn, Institution, InstitutionUpdateIn
-from backend.repository import get_institution, list_institutions, update_institution, upsert_institution
+from backend.models import CorpusPathIn, Institution, InstitutionImportRow, InstitutionUpdateIn
+from backend.repository import (
+    create_institution,
+    get_institution,
+    list_institutions,
+    update_institution,
+    upsert_institution,
+)
 from backend.upload_check import load_coverage_map
 
 router = APIRouter(prefix="/institutions", tags=["institutions"])
@@ -42,6 +48,30 @@ def get_institutions(request: Request) -> list[Institution]:
     conn = _conn(request)
     try:
         return list_institutions(conn)
+    finally:
+        conn.close()
+
+
+@router.post("", response_model=Institution, status_code=201)
+def post_institution(body: InstitutionImportRow, request: Request) -> Institution:
+    """기관 1건을 손으로 추가한다(화면의 '기관 추가').
+
+    id는 CSV 반입과 같은 규칙(`new-`+임의 8자리)으로 서버가 발급한다 — 이름을 그대로
+    id로 쓰면 한글·공백·개명 문제를 전부 떠안게 된다.
+
+    같은 이름이 이미 있으면 **409**다. 반입(`POST /import`)이 upsert인 것과 일부러
+    다르다: 표를 다시 올리는 것은 정상이지만, 사람이 같은 이름을 다시 누르는 것은
+    거의 언제나 실수다.
+    """
+    name = body.name_ko.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="기관명이 비어 있습니다")
+    conn = _conn(request)
+    try:
+        institution_id = create_institution(conn, body.model_copy(update={"name_ko": name}))
+        if institution_id is None:
+            raise HTTPException(status_code=409, detail=f"이미 있는 기관명입니다 ({name})")
+        return get_institution(conn, institution_id)
     finally:
         conn.close()
 

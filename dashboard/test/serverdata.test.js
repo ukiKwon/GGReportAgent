@@ -14,6 +14,31 @@ test('mapServerRow: 서버 필드명을 대시보드 스키마로 옮긴다', fu
   });
 });
 
+// ── 기관 추가의 서버 경로 (POST /institutions) ────────────────────────
+// mapServerRow의 반대 방향. 서버에 없는 로컬 전용 필드(좌표·출처·확정여부 등)는
+// 보내지 않는다 — 그 값들은 store overlay가 유일한 저장처다.
+
+test('toServerRow: 서버가 아는 필드만 서버 이름으로 보낸다', function () {
+  const body = sd.toServerRow({
+    name: '새로운구청', type: '지자체', region: '11', term: 4,
+    lastBid: '2022-05-01', contractEnd: '2026-05-01',
+    subRegion: '11010', lng: 127.0, lat: 37.5, sources: ['a'], confirmed: true,
+  });
+  assert.deepStrictEqual(body, {
+    name_ko: '새로운구청', type: '지자체', region_code: '11', term: 4,
+    last_bid: '2022-05-01', contract_end: '2026-05-01',
+  });
+});
+
+test('toServerRow: 빈 칸은 키를 만들지 않는다', function () {
+  const body = sd.toServerRow({ name: '새로운구청', type: '', region: undefined });
+  assert.deepStrictEqual(body, { name_ko: '새로운구청' });
+});
+
+test('toServerRow: 이름 앞뒤 공백은 떼고 보낸다', function () {
+  assert.strictEqual(sd.toServerRow({ name: '  새로운구청 ' }).name_ko, '새로운구청');
+});
+
 test('mapServerRow: null 필드는 키를 만들지 않는다', function () {
   const rec = sd.mapServerRow({ institution_id: 'x', name_ko: '엑스', region_code: null,
     type: null, contract_end: null, last_bid: null, term: null, stage: 1 });

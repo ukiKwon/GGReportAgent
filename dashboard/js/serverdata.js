@@ -16,6 +16,26 @@
     return rec;
   };
 
+  // mapServerRow의 반대 방향 — '기관 추가'가 POST /institutions로 보낼 본문을 만든다.
+  // institutionId(서버가 발급)와 stage(워크플로가 정함)는 보내지 않고, 서버에 대응
+  // 컬럼이 없는 로컬 전용 필드(좌표·출처·확정여부 등)도 빼둔다 — 그것들은 store
+  // overlay가 유일한 저장처다(LOCAL_ONLY_FIELDS).
+  const CREATE_MAP = {
+    name: 'name_ko', region: 'region_code', type: 'type',
+    contractEnd: 'contract_end', lastBid: 'last_bid', term: 'term',
+  };
+
+  serverdata.toServerRow = function (rec) {
+    const body = {};
+    Object.keys(CREATE_MAP).forEach(function (k) {
+      let v = (rec || {})[k];
+      if (typeof v === 'string') v = v.trim();
+      if (v === undefined || v === null || v === '') return;   // 빈 칸은 아예 안 보낸다
+      body[CREATE_MAP[k]] = v;
+    });
+    return body;
+  };
+
   // union 병합: 서버가 authoritative store지만, 지도의 번들 전용 데이터(좌표·출처 등)와
   // 서버 미등록 기관을 지우면 안 된다 — 서버 필드만 덮고 나머지는 남긴다.
   serverdata.mergeUnion = function (bundle, serverRows) {

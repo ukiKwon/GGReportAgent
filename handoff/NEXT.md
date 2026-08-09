@@ -63,221 +63,37 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
 
 ## 열린 항목
 
-### 1. E2E 입찰워크플로 — 1~4 완료, 남은 것은 5뿐
-- **출처**: `2026-07-30_summary.md` `## Session 20:13`(최신 갱신),
-  `2026-07-29_summary.md` `## Session 18:14`(원 기록).
-- **스펙**: `docs/superpowers/specs/2026-07-26-e2e-bid-workflow-system-design.md` §⑧.
-- **완료 (main `5fba9f0`, push됨)**: **sub-project 1(DMZ 수집 서비스)**.
-  설계 `docs/superpowers/specs/2026-07-29-dmz-collector-service-design.md` +
-  플랜 `docs/superpowers/plans/2026-07-29-dmz-collector-service.md` → `collector/` 구현.
-  - `sources/`(어댑터 인터페이스 + `fixture` 기본 어댑터), `batch.py`(SCHEMA v1 배치 생성,
-    자기검사 실패 시 배치 미생성), `schema.py`(배치 검증), `app.py`(FastAPI :8001,
-    collect/batches/archive), `bridge.py`(반입 대행 CLI).
-  - **망 경계 유지 방식**: 두 서비스는 서로의 주소를 모르고, 배치를 옮기는 것은
-    운영=사람(USB) / 테스트=브리지 CLI. `test_boundary.py`가 collector 런타임의
-    `backend`/`agent` import를 **테스트로 금지**한다.
-  - E2E 실측: DMZ(8001) `POST /collect` → 브리지 → 망 안(8000) 기관 2건 upsert 확인
-    (한글 정상, DB 직접 조회로 검증). 테스트 **233 passed**, dashboard 36/36.
-- **남은 sub-project**:
-  - ~~**2 폐쇄망 백엔드 코어**~~ — **완료**(2026-07-30, 브랜치 `local-2026-07-30`
-    커밋 `0f2a067`~`53c72e0`). 출처: `2026-07-30_summary.md` `## Session 11:03`.
-    스펙 `2026-07-30-inbox-batch-import-design.md` 그대로 구현 —
-    `contract/batch_schema.py`(git mv), `bid_cases` 4컬럼+유니크 인덱스+멱등
-    마이그레이션, `backend/inbox_import.py`, `POST /inbox/{id}/{validate,import}`,
-    브리지 교체. E2E 실측으로 기관 upsert·bid_case·PDF 이동·배치 보관·재수집 갱신
-    전부 확인.
-  - ~~**3 agent 신규 노드**~~ — **완료**(2026-07-30, 브랜치 `local-2026-07-30`).
-    재정의 결과: 신규 노드 3개 중 실제로 만들어진 것은 **`rfp_extract_node` 하나**다.
-    `rfp_locate_node`는 "찾아온다"는 절반을 sub-project 2가 가져가(첨부 PDF가
-    `corpus/rfp/` + `institutions.rfp_path`) 실사이트 크롤링이 범위 밖인 이상 남은
-    일이 "PDF → `rfp_text.txt` + `rfp_scoring.json`"뿐이라 그것으로 재정의했다.
-    `spec_research_node`는 이미 폐기, `plan_writer_node`는 `content_writer_node`에
-    흡수. 상위 스펙 §④에 재정의 표로 기록했다.
-  - ~~**4 6단계 3팀 분화**~~ — **완료**(2026-07-30 Session 20:13, main `dac803f`,
-    push됨). 계획 `docs/superpowers/plans/2026-07-30-role-router-team-split.md` →
-    `agent/nodes/role_router.py`(키워드 규칙 라우팅 + 애매할 때만 LLM 폴백) +
-    `content_writer_node(state, role=...)` 역할별 코퍼스 + 파이프라인 배선
-    (3팀 순차 실행 → 배점표 원순서 병합 → verification 1회). 스펙 §⑤의 LangGraph
-    reducer 대신 순수 Python 병합으로 구현 — 편차와 이유는 스펙 §⑤에 기록됨.
-    테스트 284 passed(+11), dashboard 36/36.
-  - **5 통합 프런트 → "기관인텔리" 멀티에이전트 협업 시스템으로 재정의**(2026-07-31,
-    사용자 확정). 스펙 `docs/superpowers/specs/2026-07-31-multi-agent-collab-system-design.md`
-    (시나리오 19항 체크리스트 — 구현 완료 시 재대조 필수). 계획 분할: A1→A2→B→C.
-    - ~~**A1 오케스트레이터 그래프 코어**~~ — **완료**(2026-07-31 Session 02:51,
-      main `ac4fc90`, push됨). LangGraph supervisor(3팀 Send 팬아웃·결재 3게이트
-      interrupt·반려 경로)+Recorder/DbRecorder+PII 스캐너+run/checkpoint/status API.
-      313+36 테스트. **Ollama 실측만 미수행**(이 PC 미기동) — 실행가이드 §6 절차로
-      재시도(항목 5와 연동).
-    - ~~**A2 대화 코어·업로드 검사·아카이브**~~ — **완료**(2026-07-31 Session 10:01,
-      main `b9094e9`, push됨). chat(참여검토 3관점 스트리밍+이력)·upload 즉시검사
-      +coverage_map·complete 아카이브·A1 이월픽스(F4~F10)·쪽지함 **비활성 스텁**.
-      **쪽지 기능(읽기 라우터·발송 UI)은 사용자 지시로 연기** — notifications 행은
-      쌓이는 중, C에서 쪽지함 구현 시 바로 읽으면 된다. 339+36 테스트.
-    - ~~**B store→API 전환**~~ — **완료**(2026-07-31 Session 10:50, main `7bcafba`,
-      push됨). `PUT /institutions/{id}`·정적 마운트(`create_app(static_dir=…)`,
-      `STATIC_DIR`)·`dashboard/js/serverdata.js`(name 기준 union 병합)·부트스트랩/
-      편집 PUT/CSV 서버 반입·file:// 폴백 불변·실행가이드 §8. 346+40 테스트.
-    - ~~**C1 워크플로 현황판·배점표 매핑·overlay 재설계**~~ — **완료**(2026-08-03,
-      main `5e58712`·`6d6279f`, push됨). 출처: `2026-08-03_summary.md`.
-      계획 `docs/superpowers/plans/2026-07-31-collab-ui-c1.md` 6 태스크 + 사용자가
-      실화면을 보고 낸 수정 5건 + 카드 재설계.
-      - 신규 **워크플로 탭**(`dashboard/js/workflow.js`, index.html은 추가만 — 지도·
-        기존 탭 무수정): 9단계 스테퍼(단계 클릭 → 그 단계 수행 내용)·**단계별 참여자
-        카드**·지시/보고 로그·배점표 매핑 표·실행/결재·2초 폴링. 서버 모드 전용.
-      - 신규 API: `GET /institutions/{id}/coverage-map`, `GET …/timeline`,
-        `GET …/status`에 `task_id` 추가.
-      - DB: `messages.author`·`messages.stage`·`notifications.stage` 신설,
-        `_migrate()`를 테이블별 `MIGRATIONS` 딕셔너리로 일반화(기존 DB에 멱등 적용).
-        DbRecorder가 stage를 추적해 기록에 함께 남긴다.
-      - **F4 해소**: overlay를 `store.LOCAL_ONLY_FIELDS` 6개로 한정(서버 모드에서만).
-      - **B 이월 2건 해소**: `backend/main.py` static_dir 부재 시 경고 후 마운트 생략,
-        `store.clearServerData()`로 테스트 격리.
-      - `backend/demo.py`·`demo_paths.py`·`demo_seed.py` — 데모 환경을 운영 자료와
-        **파일 단위로 분리**(demo.db/demo_report_new/…)하고 `py -3 -m backend.demo`
-        한 줄로 시딩→서버 기동. 정리는 `--reset`.
-      - 테스트 346 → **368 passed**, dashboard 40 → **64**. 실행가이드 §9 신설.
-    - ~~**C2 협업 UI 나머지**~~ — **완료**(2026-08-03, main `91d1bf1`, push됨).
-      출처: `2026-08-03_summary.md` `## Session 14:20`.
-      **이걸로 스펙 §⑦ 화면 6종이 모두 붙었다.**
-      - **대화 탭**(`dashboard/js/chat.js`) — 기관 단위 상시 채팅. fetch 스트림 증분
-        렌더(`TextDecoder`에 `stream:true` 필수 — 없으면 청크 경계에서 한글이 깨진다),
-        `AbortController` 중단, `chat_messages.author`로 여러 사람 대화.
-      - **쪽지함**(`notify.js`) — `GET/POST /notifications`·`POST /{id}/read` 신설
-        (`notifications.sender` 컬럼). 종류별 색, 30초 배지 폴링, 발송 폼.
-      - **지식 탭**(`knowledge.js`) — `GET /search` UI. 강조는 **이스케이프된 문자열에만**
-        적용하고 엔티티 안쪽은 건드리지 않는다(순서를 뒤집으면 XSS).
-      - **내 프로필(이름·소속)** + **계정 전환기(데모 전용, `GET /accounts`)** —
-        목록을 실데이터에서 뽑고, 사람의 소속은 *실제로 쪽지를 받는 이름*으로 맞춘다
-        (`tasks.team`='영업'인데 알림은 '영업팀' 앞으로 오기 때문).
-      - **이월 5건 해소**: M-2(중단 시 반쪽 이력)·M-3(SSE 프레이밍 — `EventSource`는
-        GET만 되는데 chat은 POST라 애초에 못 쓴다 → `text/plain`으로 정정)·
-        M-4(아카이브 `rmtree` 경로 위생)·M-5(대문자 `.PPTX`)·notifications_unread 단조 증가.
-      - 테스트 368 → **382 passed**, dashboard 64 → **86**. 실행가이드 §10 신설.
-    - ~~**화면 ① 입찰상황판 확장**~~ — **완료**(2026-08-03, 계획 D).
-      계획 `docs/superpowers/plans/2026-08-03-bid-status-board.md`.
-      **이걸로 스펙 §⑦ 화면 6종이 전부 붙었고 §⑩ 재대조의 ❌가 사라졌다(✅17/⚠️2/❌0).**
-      - **§② 1번**: `GET /bidcases/latest` + `serverdata.applyBidCases`
-        (확정일 > 예상일 > CSV). `store.applyEdits`는 공고가 있는 행의 로컬 `confirmed`
-        편집을 무시한다(공고가 이긴다).
-      - **§② 5번**: 워크플로 탭 참여 결정 카드 — **tier 1·2·3 순차 결재**다("확정 버튼"
-        하나가 아니다). 데모의 계정 전환기로 혼자 3차까지 재현할 수 있다(가이드 §11).
-      - **§② 6번**: 참여확정 시 서버가 오케스트레이터를 시작하고, **못 시작하면 사유를
-        쪽지로 남긴다**(결재는 항상 200 — 자동 실행 실패가 결재를 되돌리면 안 된다).
-      - ⚠️ **이전 기록 정정**: 여기에 "지도를 건드려야 하는 유일한 작업이라 '지도 무수정'
-        제약이 처음 풀린다"고 적혀 있었는데 **틀렸다**. 임박도 색은 이미 `contractEnd`로
-        그려지고 있었고, 진짜 결함은 **입찰일의 진실이 두 곳**이라는 것이었다.
-        병합 계층에서 값을 갈아끼워 **`render.js` 무수정**으로 끝냈다.
-        → **"지도 무수정" 제약은 아직 한 번도 깨지지 않았다.**
-      - ⚠️ **또 하나 정정 — "추측이면 지도 면에 빗금"은 사실이 아니다.** 빗금(`#hatch`)은
-        ⓐ전국 뷰의 *준비중 지역*(`render.js:151`, 범례도 '준비중')과 ⓑ*마커*의 추측
-        (`render.js:340`) 두 곳뿐이고, **지자체는 `logic.js:146`에서 마커에서 제외**된다.
-        구는 면으로 그려지고 `subUrgencyColor`는 색만 돌려준다.
-        확정/추측이 보이는 곳은 **랭킹 카드 텍스트**(`2026-05-20(추측)`)와 워크플로 탭이다.
-        **면에 표시하지 않기로 사용자가 결정(2026-08-03)** — 근거와 결정은 실행가이드
-        §11에도 적어뒀다. "구가 빗금이 안 된다"는 이야기가 다시 나오면 그 문단을 볼 것.
-    - ~~**워크플로/참여 결정 정합성**~~ — **완료**(2026-08-03, 계획 E). 사용자가
-      "9단계까지 갔는데 참여 결정이 대기인 건 말이 안 된다"고 지적한 데서 출발했다.
-      - **`POST /run`이 참여확정을 요구한다(400).** 판단이 아니라 선후 규칙이라
-        에이전트가 아니라 가드로 막기로 사용자가 확정했다(에이전트는 막지 못하고 이미
-        생긴 뒤에 지적만 한다).
-      - `backend/consistency.py` + `GET /consistency` — 규칙 4개로 **이미 어긋난** 데이터를
-        찾는다. 워크플로 탭이 선택 기관의 경고를 맨 위에 띄운다.
-      - **오탐 금지 원칙**: `research_status='대기'`인 채 참여확정은 정상이다(코퍼스 반입 시
-        `activate_pending_bid_cases`가 Task를 만든다). 조사 완료인데 Task가 없을 때만 잡는다.
-        경고가 한 번이라도 틀리면 그 다음부터 아무도 안 읽는다.
-    - ~~**F 하이브리드 검색 + 아카이브 자동 재색인**~~ — **완료**(2026-08-04).
-      출처: `2026-08-04_summary.md`. 계획
-      `docs/superpowers/plans/2026-08-04-hybrid-search-reindex.md`.
-      **§② 17번이 채워져 스펙 §⑩ 집계가 ✅18 / ⚠️1 / ❌0이 됐다.**
-      - **검색이 FTS 단독 → FTS + 임베딩 하이브리드(RRF)** 로 바뀌었다. 사용자 결정으로
-        스위치 없이 **항상** 켠다("1.2초 늘어나도 결과가 안 나오는 것보다 낫다").
-        `search()` 시그니처는 스펙 §⑤ 약속대로 유지 — 호출부 무수정.
-      - **RRF를 쓴 이유**: bm25(낮을수록 좋음·상한 없음)와 코사인(0~1)은 척도가 달라
-        더할 수 없고 정규화는 질의마다 불안정하다. 순위만 쓰면 그 문제가 사라진다.
-      - **§② 17번의 원인 진단이 틀려 있었다** — "재색인을 안 돌려서"가 아니라
-        산출물이 `data/report_archive/`에 있는데 색인기는 `corpus/`만 훑어서
-        **돌려도 안 잡혔다.** 색인 루트를 둘로 늘려 해결(ⓐ안, 승격 복사 아님).
-      - `.pptx` 파서 신설 — 파서가 `.txt`뿐이라 아카이브에서 색인되는 게
-        `rfp_text.txt` 하나였다(진짜 산출물인 제안서가 빠져 있었다).
-      - **환경 실측(이 PC, CPU·GPU 없음)**: `bge-m3` 1024차원, 질의 1건 **약 1.2초**,
-        전체 빌드 2,763청크 **약 57분**. 배치는 8이 최적(32는 오히려 느리다).
-        GPU 엔드포인트가 생기면 이 부담은 사라진다.
-      - numpy를 `requirements.txt`에 추가(사용자 승인).
-      - 테스트 408 → **478 passed**, dashboard 100 → **107**. 실행가이드 §13 신설.
-      - **후속 G1·G2 (같은 날, main `a7c14a9`)**: 대화 탭이 LLM 호출 실패 사유를 화면에
-        보여주도록 수정(`failure_notice`) + 지식 탭 '원문 열기'(`GET /documents`)와
-        esc 폴백의 XSS 구멍 수정.
-        ⚠️ 여기서의 **G1·G2는 계획 F 리뷰 지적사항 번호**이지, 아래 **항목 6의
-        "계획 G"(EC2 배포)와 무관하다.** 이름이 겹쳐 헷갈리기 쉽다.
-      - ⚠️ **계획 F 본체를 수행한 세션은 handoff summary 섹션을 남기지 않았다.** 위 출처가
-        가리키는 `2026-08-04_summary.md`는 **15:00 세션이 나중에 만든 파일**이라 계획 F
-        본체(Task 1~6) 내용이 들어 있지 않다(그 파일 맨 위에 사실을 적어뒀다).
-        본체의 실질 기록은 **이 블록 + 커밋 메시지 +
-        `docs/superpowers/plans/2026-08-04-hybrid-search-reindex.md`** 다.
-        (바로 위의 **후속 G1·G2는 그 세션이 `## Session 21:30`에 직접 기록**했으므로
-        그쪽은 summary를 보면 된다.)
-    - ~~**H 디자이너 전용 뷰**~~ — **완료**(2026-08-05, `2026-08-05_summary.md`
-      `## Session 11:00`). **이걸로 스펙 §⑩ 체크리스트 19항이 전부 ✅가 됐다
-      (✅19 / ⚠️0 / ❌0).** 되돌리기 쉬운 판단 3가지는 스펙 §⑩ 아래에 적어뒀다:
-      ⓐ `packager`가 디자이너 Task를 열 때 **`task_update`가 아니라 `task_open`**을 쓴다
-      (최종반려로 재실행될 때 올려둔 작업이 초기화된다), ⓑ 이관 패키지는 승인 안 난 팀도
-      **감추지 않는다**(감추면 다 받은 줄 안다), ⓒ 한글 이름은 본문 `by`로 받는다
-      (`X-User-Id`가 ASCII만 받아 '최 디자이너'가 늘 403이었다).
-    - **A2·C1 이월 잔여**:
-      - ~~**M-1** archive_dir 값 통일 + `find_archive_pptx` 재귀화~~ — **완료**
-        (2026-08-06, `2026-08-06_summary.md`). 정본을 `agent/paths.py`의
-        `DEFAULT_ARCHIVE_ROOT` 하나로 모으고 `build_run_input(…, archive_root)`를
-        호출부(`app.state.archive_root`)에서 넘기게 했다. **조사 중에 진짜 결함이
-        하나 더 나왔다**: `find_archive_pptx`가 뿌리 바로 아래만 훑었는데 실제
-        배치는 `{뿌리}/{기관명}/{날짜}/제안서.pptx`라 **이전 회차 제안서를 한 번도
-        못 찾고 있었다**(예외가 없어 "없음"과 구별되지 않았다). 재귀 + 최근 회차
-        우선으로 고쳤다.
-      - ~~**M-6** 업로드의 동기 LLM 지연·배정 비결정~~ — **완료/종결**
-        (2026-08-06, `2026-08-06_summary.md`).
-        - **배정 절반은 고쳤다**: `/tasks/{id}/upload`만 `_actor(by, x_user_id)`를
-          안 거치고 헤더를 그대로 써서, 한글 이름인 사람이 올리면 담당이
-          `web-user`로 박히고 본인이 뒤에 403을 받았다. `TaskUploadIn.by` 추가.
-        - **동기 LLM 절반은 "그대로 둔다"로 사용자 확정.** 근거: `/upload`은
-          **프런트 호출부가 없는 API 전용 엔드포인트**라(조사로 확인) 기다리는
-          화면이 없다. 비동기로 바꾸면 응답이 검사 결과를 실어 주는 지금 계약만
-          깨진다. **업로드 화면이 생기는 시점에 다시 판단할 것** — 그때는
-          "즉시검사 결과를 화면에서 기다리게 할지"가 진짜 질문이 된다.
-      - ~~**팀 이름이 두 벌이다**~~ — **완료**(2026-08-05 계획 I Task 1).
-        `전산`으로 통일하고 `backend/db.py`의 `_migrate_data`가 기존 `IT` 행을 옮긴다
-        (같은 공고에 `전산`이 이미 있으면 옛 행은 버린다 — 유니크 제약 때문).
-      - **M-7은 두기로 확정** — `TaskUploadIn(TaskMessageIn)`은 "의미가 달라 별명으로
-        둔다"는 주석이 붙은 의도적 별칭이다. 지우면 엔드포인트 시그니처의 의미 구분만
-        잃는다. 다시 "중복 모델"로 올리지 말 것.
-      - ~~C1 이월: 그래프의 `orchestrator` role 메시지~~ — **완료**(2026-08-06,
-        `2026-08-06_summary.md`). `subagents._order()` 신설, 3·4·5·7·8·9단계에 총괄
-        지시를 남긴다. 5단계 지시에는 배정 근거("전산: 배정 1항목(25점)")와 반려
-        사유가 함께 실린다. 지시에는 `model`을 붙이지 않는다(🧠 표시의 의미 유지).
-      - ~~C1 이월: `timeline` 페이징~~ — **지금은 안 만들기로 사용자 확정**
-        (2026-08-06). 실측 근거: 한 번의 9단계 실행이 **40줄 안팎**(데모 시드 25줄),
-        기관당 여러 회차를 누적해도 수백 줄이라 JSON 한 방으로 충분하다. 쓰는 화면이
-        없는 페이징 API를 먼저 만드는 것은 추측성 작업이다.
-        - **다시 볼 임계치**: 한 기관의 `timeline.events`가 **1,000줄**을 넘거나,
-          워크플로 탭 첫 렌더가 눈에 띄게 느려질 때.
-        - **그때 할 일**: `GET /institutions/{id}/timeline`에 `limit`/`offset`/`total`
-          추가(현재는 messages+notifications를 파이썬에서 합쳐 정렬하므로 슬라이스는
-          정렬 뒤에 해야 한다) + 워크플로 탭이 **최근 N줄**만 받고 '이전 기록 더 보기'.
-          ⚠️ 단계별 패널이 같은 events를 필터링해 쓰므로, 페이징을 붙이면 그 패널이
-          빈 단계를 보게 되는 상호작용을 함께 설계해야 한다.
-      - ~~B 이월: term 클리어 불가·빈문자열 비대칭~~ — **완료**(2026-08-06,
-        `2026-08-06_summary.md`). `update_institution`이 `COALESCE(?, 기존값)`이라
-        **NULL과 "미전송"을 같은 것으로 취급**했다 → `model_dump(exclude_unset=True)`로
-        보낸 필드만 갱신한다(`{"term": null}` = 지움, `{}` = 보존). 빈 문자열도
-        지움으로 통일했다. 화면(`app.js`)도 잠긴 칸은 키를 빼고, 비운 칸은 null로 보낸다.
-      - B 이월 잔여: **기관 추가의 서버 경로** — POST 생성 API가 없어 현재는 가드만
-        있다(`app.js`가 서버 미등록 행에 안내 alert). 만들려면 `POST /institutions`
-        (name_ko 필수 + institution_id 생성 규칙)를 먼저 정해야 한다.
-      - 쪽지함 30초 폴링은 멈추는 경로가 없다(상시 버튼이라 탭 개념이 없음). 30초에
-        1건이라 방치했다.
-    - 재구성 ⑦(개명)은 이번 범위에서 **제외 확정** — B·C 완성 후 별도 스펙(항목 2 참조).
-    규모 실측(Session 01:00): `dashboard/js/` 1,104줄(render.js 613줄 포함) 이식 +
-    9단계 워크플로 UI 신규. **하루짜리가 아니므로 별도 일정을 잡아야 한다.**
-- **실사이트 크롤러는 여전히 범위 밖** — 어댑터 인터페이스만 열려 있고 기본값은
-  로컬 픽스처 하나다. 실제 나라장터/지자체 파싱은 별도 스펙이 필요하다.
+### 1. ~~E2E 입찰워크플로~~ — **완료(전 단계 종결)** (2026-08-09)
+- **출처**: `2026-08-09_summary.md`. 원 기록은 `2026-07-29_summary.md` `## Session 18:14`,
+  이후 갱신은 `2026-07-30`~`2026-08-06` summary 전반.
+- **스펙**: `docs/superpowers/specs/2026-07-26-e2e-bid-workflow-system-design.md` §⑧ +
+  `docs/superpowers/specs/2026-07-31-multi-agent-collab-system-design.md`(§⑩ 체크리스트
+  19항 전부 ✅). sub-project 1~5(A1·A2·B·C1·C2·D·E·F·H) 및 이월 M-1~M-7 전부 종결.
+- **마지막으로 남아 있던 것**: 기관 추가의 서버 경로 — `POST /institutions` 신설로
+  2026-08-09 해소. 이름 중복은 **409**(CSV 반입 `POST /import`의 upsert와 일부러 다르다:
+  표를 다시 올리는 건 정상이지만 사람이 같은 이름을 또 누르는 건 실수다).
+  `dashboard/js/app.js`의 "서버 모드 미지원" alert 가드 제거 + `serverdata.toServerRow()`.
+
+**여기서만 남기는 재검토 조건 (지금은 할 일 없음 — 조건이 오면 그때 연다)**
+
+- **`timeline` 페이징** — 안 만들기로 확정(2026-08-06). 실측상 9단계 1회 실행이 40줄
+  안팎이라 JSON 한 방으로 충분하다. **다시 볼 임계치**: 한 기관 `timeline.events`가
+  **1,000줄**을 넘거나 워크플로 탭 첫 렌더가 눈에 띄게 느려질 때. 그때 할 일은
+  `GET /institutions/{id}/timeline`에 `limit`/`offset`/`total` 추가(messages+notifications를
+  파이썬에서 합쳐 정렬하므로 **슬라이스는 정렬 뒤에**) + 워크플로 탭 '이전 기록 더 보기'.
+  ⚠️ 단계별 패널이 같은 events를 필터링해 쓰므로, 페이징을 붙이면 그 패널이 빈 단계를
+  보게 되는 상호작용을 함께 설계해야 한다.
+- **업로드의 동기 LLM 호출** — 그대로 두기로 확정(2026-08-06). `POST /tasks/{id}/upload`은
+  **프런트 호출부가 없는 API 전용**이라 기다리는 화면이 없다. **다시 볼 시점**: 업로드
+  화면이 생길 때 — 그때의 진짜 질문은 "즉시검사 결과를 화면에서 기다리게 할지"다.
+- **`TaskUploadIn(TaskMessageIn)`은 의도적 별칭이다** — "의미가 달라 별명으로 둔다"는
+  주석이 붙어 있다. 지우면 엔드포인트 시그니처의 의미 구분만 잃는다.
+  **다시 "중복 모델"로 올리지 말 것.**
+- **쪽지함 30초 폴링은 멈추는 경로가 없다** — 상시 버튼이라 탭 개념이 없다. 30초에 1건이라
+  방치하기로 했다.
+- **실사이트 크롤러는 범위 밖** — 어댑터 인터페이스만 열려 있고 기본값은 로컬 픽스처
+  하나다. 실제 나라장터/지자체 파싱은 **별도 스펙**이 필요하다.
+- **재구성 ⑦(개명)은 이 항목 범위에서 제외 확정** — 항목 2에서 다룬다.
 
 ### 2. 리포지토리 재구성 — ①~⑥단계 완료, 남은 것은 ⑦뿐 (조건부 보류)
 - **출처**: `2026-07-29_summary.md` `## Session 11:14`(①~③)·`## Session 13:38`(④)·

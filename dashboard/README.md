@@ -11,8 +11,10 @@
 - 화면 편집 후 "institutions.js 내보내기"로 갱신 파일을 받아 `data/`에 교체.
 
 ## 테스트
-- `node --test dashboard/test/` (순수 로직: 임박도·검증·정렬·필터·상태·직렬화).
-  - Windows에서 디렉토리 형태가 실패하면: `node --test dashboard/test/*.test.js`
+- `node --test "dashboard/test/*.test.js"` (순수 로직: 임박도·검증·정렬·필터·상태·직렬화).
+  - **glob 형태를 쓴다.** 디렉터리 형태(`node --test dashboard/test/`)는 이 Node/Windows
+    환경에서 `Cannot find module …\dashboard\test`로 죽는다 — 테스트가 깨진 게 아니라
+    실행 형태가 안 먹는 것이다(2026-08-09 재확인).
 
 ## 구조
 - `js/logic.js` 순수 로직 · `js/store.js` 관심/편집 상태 · `js/export.js` 내보내기 · `js/render.js` D3 렌더 · `js/app.js` 와이어링.

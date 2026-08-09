@@ -390,10 +390,6 @@
   };
 
   app.openAdd = function () {
-    if (root.store.isServerMode()) {
-      alert('서버 모드에서는 기관 추가가 아직 지원되지 않습니다 — CSV 반입을 사용하세요.');
-      return;
-    }
     const wrap = document.getElementById('add-fields');
     const L = root.logic.FIELD_LABELS;
     const fields = ['name','type','region','subRegion','term','lastBid','contractEnd','lng','lat','sources'];
@@ -419,6 +415,32 @@
       const v = root.logic.validateRecord(rec);
       if (!v.valid) { alert('필수 누락: ' + v.missing.map(function(k){return root.logic.FIELD_LABELS[k];}).join(', ')); return; }
       rec.updatedAt = new Date().toISOString().slice(0,10);
+
+      // 서버 모드: 서버가 authoritative store다. 서버 필드는 POST로 만들고, 서버에
+      // 대응 컬럼이 없는 좌표·출처 등은 여느 편집과 같이 localStorage overlay에 남긴다
+      // (그게 없으면 새 기관이 지도에 찍힐 좌표를 갖지 못한다).
+      if (root.store.isServerMode()) {
+        fetch('/institutions', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(root.serverdata.toServerRow(rec)),
+        }).then(function (r) {
+          if (r.status === 409) { alert('이미 등록된 기관명입니다 — 기존 기관을 편집하세요.'); return; }
+          if (!r.ok) { alert('기관 추가 실패 (' + r.status + ')'); return; }
+          const local = {};
+          root.store.LOCAL_ONLY_FIELDS.forEach(function (f) {
+            if (rec[f] !== undefined) local[f] = rec[f];
+          });
+          root.store.setEdit(rec.name, local);
+          modal.style.display = 'none';
+          return app.bootstrapServer().then(function () {
+            root.render.drawTicker();
+            if (root.render.state.currentRegion) root.render.drawRegion(root.render.state.currentRegion);
+            else root.render.drawNational();
+          });
+        }).catch(function () { alert('서버 연결 실패 — 추가되지 않았습니다.'); });
+        return;
+      }
+
       const data = root.render.baseInstitutions().slice(); data.push(rec);
       root.store.saveData(data); modal.style.display = 'none';
       root.render.drawTicker();

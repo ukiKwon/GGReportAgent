@@ -80,6 +80,13 @@ def upsert_institution(
             conn.commit()
         return existing_id
 
+    return _insert_institution(conn, row, commit=commit)
+
+
+def _insert_institution(
+    conn: sqlite3.Connection, row: InstitutionImportRow, commit: bool = True
+) -> str:
+    """새 행 하나를 넣고 발급한 id를 돌려준다. 중복 검사는 호출부의 몫이다."""
     new_id = f"new-{secrets.token_hex(4)}"
     conn.execute(
         """INSERT INTO institutions
@@ -90,6 +97,20 @@ def upsert_institution(
     if commit:
         conn.commit()
     return new_id
+
+
+def create_institution(
+    conn: sqlite3.Connection, row: InstitutionImportRow, commit: bool = True
+) -> str | None:
+    """기관 1건을 **새로** 만든다. 이름이 이미 있으면 아무것도 하지 않고 None.
+
+    `upsert_institution`(CSV 반입)과 갈라지는 지점은 중복 처리 하나다 — 반입은 같은 표를
+    다시 올리는 것이 정상이라 갱신하지만, 손으로 누르는 '기관 추가'에서 같은 이름은
+    거의 언제나 오타나 중복 등록이라 만들지 않고 호출부가 409로 알린다.
+    """
+    if find_id_by_name(conn, row.name_ko) is not None:
+        return None
+    return _insert_institution(conn, row, commit=commit)
 
 
 def update_institution(
