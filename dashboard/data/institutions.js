@@ -650,6 +650,163 @@ window.institutions = [
   });
 })();
 
+// ── 5단계: 대구 9개 구·군 (2026-08-10) ─────────────────────────────────
+//
+// 군위군은 2023-07 대구 편입 — 폴리곤은 kostat 2018의 경북 코드(37310)를
+// daegu.js로 옮겨 넣었다(경계는 그대로라 근사 아님). 서울과 이름이 같아지는
+// 5개 구(중·동·서·남·북)는 부산 선례대로 '대구 ' 접두사를 붙인다.
+(function () {
+  const DAEGU_GUGUN = [
+    ["22010", "대구 중구청"], ["22020", "대구 동구청"],
+    ["22030", "대구 서구청"], ["22040", "대구 남구청"],
+    ["22050", "대구 북구청"], ["22060", "수성구청"],
+    ["22070", "달서구청"],    ["22310", "달성군청"],
+    ["37310", "군위군청"],
+  ];
+
+  const DG_VERIFIED = {
+    "수성구청": {   // 지정공고 2회차로 4년 주기 실증 — 최근 회차는 게시판에 없어 lastBid 비움
+      term: 4,
+      sources: [
+        "월/일 미확보(lastBid 의도적 비움) — term 근거: 「수성구 금고지정 공고」 2회차(2012-10-16 제2012-784호 · 2016-09-30 제2016-1080호)로 4년 주기 실증(eminwon, 2026-08-10)",
+        "lastBid를 비운 이유: 2020·2024 회차가 게시판에 없음(다른 채널 게시 추정) — 2016 값을 넣으면 이미 지난 날짜가 계산된다(도봉·은평 선례)",
+      ],
+    },
+    "대구 중구청": {
+      sources: ["월/일 미확보 — eminwon 조회(2026-08-10): 금고 약정금리 공고(제2026-16호, 2026-01-08)만 있고 지정 공고 없음"],
+    },
+    "대구 동구청": {
+      sources: ["월/일 미확보 — eminwon 조회(2026-08-10): 금고 약정금리 공고(제2026-11호, 2026-01-08)만 있고 지정 공고 없음"],
+    },
+    "대구 서구청": {
+      sources: ["월/일 미확보 — eminwon 조회(2026-08-10): 금고지정 공고가 2016 회차(2016-10-20·2016-11-10)가 마지막 — 최근 회차는 다른 채널 게시 추정"],
+    },
+    "대구 남구청": {
+      sources: ["월/일 미확보 — eminwon 조회(2026-08-10): 구 금고 협력사업비 총액 공고(2015-02-09)만 있고 지정 공고 없음"],
+    },
+    "대구 북구청": {
+      sources: ["월/일 미확보 — eminwon 조회(2026-08-10): 금리 공고(2026-01-08)·협력사업비(2021-01-29·2025-01-30)만 — 협력 4년 간격은 주기 힌트로만"],
+    },
+    "달서구청": {
+      sources: ["월/일 미확보 — eminwon 조회(2026-08-10): '금고' 제목 공고 0건"],
+    },
+    "달성군청": {
+      sources: ["월/일 미확보 — eminwon 조회(2026-08-10): 금고지정 공고가 2014-08-13(제2014-786호)이 마지막(2009-10-23 선정 공고도 있음). 협력사업비 2021-06-10·2025-07-10은 4년 간격 힌트로만"],
+    },
+    "군위군청": {
+      sources: ["월/일 미확보 — eminwon 조회(2026-08-10): 「금고 지정 결과 공고」(제2015-139호, 2015-03-11)가 마지막. [이전 자료 보기] 아카이브 별도. 2023-07 대구 편입"],
+    },
+  };
+
+  DAEGU_GUGUN.forEach(function (row) {
+    const code = row[0], name = row[1];
+    const extra = DG_VERIFIED[name] || {};
+    const rec = {
+      name: name, type: '지자체', region: '27', subRegion: code,
+      sources: extra.sources || [
+        '월/일 미확보 — eminwon 고시공고 제목검색(금고)에서 지정 공고 0건(2026-08-10 직접조회)',
+      ],
+      updatedAt: '2026-08-10',
+    };
+    if (extra.term) rec.term = extra.term;
+    if (extra.lastBid) rec.lastBid = extra.lastBid;
+    if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    window.institutions.push(rec);
+  });
+})();
+
+// ── 5단계: 대전 5개 구 (2026-08-10) ────────────────────────────────────
+(function () {
+  const DAEJEON_GU = [
+    ["25010", "대전 동구청"], ["25020", "대전 중구청"], ["25030", "대전 서구청"],
+    ["25040", "유성구청"],    ["25050", "대덕구청"],
+  ];
+  const DJ_VERIFIED = {
+    "대덕구청": {   // 협력사업비 공고가 4년 간격 3회 반복 — 사상구 선례로 term 실증
+      term: 4,
+      sources: [
+        "월/일 미확보(lastBid 없음 — 지정 공고가 게시판에 없다) — term 근거: 금고 협력사업비 공고가 2018-01-19 · 2022-01-21 · 2026-01-08로 4년 간격 3회 반복(eminwon, 2026-08-10)",
+      ],
+    },
+    "대전 중구청": {
+      sources: ["월/일 미확보 — eminwon 조회(2026-08-10): 금리·협력사업비 공고(2026-01-06 제2026-29호 · 2022-01-04)만 — 4년 간격 2회는 주기 힌트로만"],
+    },
+    "대전 서구청": {
+      sources: ["월/일 미확보 — eminwon 조회(2026-08-10): 금리·협력사업비 공고(제2026-38호, 2026-01-07)만 있고 지정 공고 없음"],
+    },
+    "유성구청": {
+      sources: ["월/일 미확보 — eminwon 조회(2026-08-10): '금고' 제목 공고는 지명(금고동) 관련뿐 — 금고 지정·운영 공고 0건"],
+    },
+  };
+  DAEJEON_GU.forEach(function (row) {
+    const code = row[0], name = row[1];
+    const extra = DJ_VERIFIED[name] || {};
+    const rec = {
+      name: name, type: '지자체', region: '30', subRegion: code,
+      sources: extra.sources || [
+        '월/일 미확보 — eminwon 고시공고 제목검색(금고)에서 지정 공고 0건(2026-08-10 직접조회)',
+      ],
+      updatedAt: '2026-08-10',
+    };
+    if (extra.term) rec.term = extra.term;
+    if (extra.lastBid) rec.lastBid = extra.lastBid;
+    if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    window.institutions.push(rec);
+  });
+})();
+
+// ── 5단계: 울산 5개 구·군 (2026-08-10) ─────────────────────────────────
+//
+// ⚠️ 울산은 **3년 약정**이 실증된 지역이다(경남과 같은 주기 예외) — 북구·울주군의
+// 2025년 지정공고 원문에 "약정기간 3년(2026-01-01~2028-12-31)"이 명시돼 있다.
+(function () {
+  const ULSAN_GUGUN = [
+    ["26010", "울산 중구청"], ["26020", "울산 남구청"], ["26030", "울산 동구청"],
+    ["26040", "울산 북구청"], ["26310", "울주군청"],
+  ];
+  const US_VERIFIED = {
+    "울산 북구청": {
+      lastBid: "2025-10-02", term: 3,
+      sources: [
+        "기준일=지정 공고일 — 「울산광역시 북구 금고 지정 공고」(제2025-1307호, 2025-10-02) 원문: NH농협은행(울산본부) · **약정 2026-01-01~2028-12-31(3년)** 명시(eminwon, 2026-08-10)",
+        "직전 회차 지정공고 2022-11-17(제2022-1557호)도 같은 게시판에서 확인",
+        "https://eminwon.bukgu.ulsan.kr/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do",
+      ],
+    },
+    "울주군청": {
+      lastBid: "2025-09-18", term: 3,
+      sources: [
+        "기준일=지정 공고일 — 「울주군 금고지정 공고」(제2025-2696호, 2025-09-18) 원문: NH농협은행 울산본부 · **약정 3년(2026-01-01~2028-12-31)** 명시(eminwon, 2026-08-10)",
+        "2013 회차(계획 10-04→재공고 10-17→지정 11-07)·협력사업비(2022-10·2025-10)도 확인",
+        "https://eminwon.ulju.ulsan.kr/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do",
+      ],
+    },
+    "울산 남구청": {
+      sources: [
+        "월/일 미확보(lastBid 의도적 비움) — 「울산광역시 남구 금고지정 공고」(제2021-1804호, 2021-10-29)를 확인했으나(약정기간은 첨부 hwp) **그 다음 회차가 게시판에 없다** — 북구·울주가 2025년에 지정한 것을 보면 남구도 했을 텐데 없음(도봉·은평 선례로 비움)",
+      ],
+    },
+    "울산 동구청": {
+      sources: ["월/일 미확보 — eminwon 조회(2026-08-10): 협력사업비 현황 공개(2023-01-12)만 있고 지정 공고 없음"],
+    },
+  };
+  ULSAN_GUGUN.forEach(function (row) {
+    const code = row[0], name = row[1];
+    const extra = US_VERIFIED[name] || {};
+    const rec = {
+      name: name, type: '지자체', region: '31', subRegion: code,
+      sources: extra.sources || [
+        '월/일 미확보 — eminwon 고시공고 제목검색(금고)에서 지정 공고 0건(2026-08-10 직접조회)',
+      ],
+      updatedAt: '2026-08-10',
+    };
+    if (extra.term) rec.term = extra.term;
+    if (extra.lastBid) rec.lastBid = extra.lastBid;
+    if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    window.institutions.push(rec);
+  });
+})();
+
 // ── 5단계: 인천 11개 구·군 (2026-08-10) ────────────────────────────────
 //
 // ⚠️ **2026-07-01 인천 행정구역 개편이 실재한다** — eminwon 호스트와 게재제호에서
