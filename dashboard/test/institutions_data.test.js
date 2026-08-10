@@ -35,8 +35,10 @@ const BUSAN_CODES = geoBusan.features.map(function (f) { return f.properties.cod
 const wide = institutions.filter(function (r) { return !r.subRegion; });
 const sub = institutions.filter(function (r) { return r.subRegion; });
 
-test('17개 시·도가 빠짐없이 한 번씩 들어 있다', function () {
-  assert.strictEqual(wide.length, 17);
+// 17개로 시작했으나 2026-07-01 전남광주통합특별시 출범을 반영해 광주(29)를
+// 전남(46)에 병합, 폴리곤·레코드 모두 16개가 됐다(2026-08-10 사용자 결정).
+test('시·도가 빠짐없이 한 번씩 들어 있다 (통합 반영 16개)', function () {
+  assert.strictEqual(wide.length, 16);
   const codes = wide.map(function (r) { return r.region; }).sort();
   assert.deepStrictEqual(codes, REGION_CODES.slice().sort());
 });
