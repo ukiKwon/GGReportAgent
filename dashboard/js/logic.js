@@ -134,6 +134,22 @@
     return e.date ? (e.date + '(' + e.confidence + ')') : '미상';
   };
 
+  // 같은 기관이 일반구 폴리곤 수만큼 반복 등록될 수 있다(ⓐ안 — 수원 4·성남 3 등이
+  // 전부 같은 시 값을 든다). 임박 TOP5 티커처럼 **기관 단위**로 보여야 하는 곳에서
+  // 그대로 쓰면 한 시가 여러 자리를 차지해 다른 기관이 밀려난다. 입력 순서를
+  // 보존하고 첫 등장만 남기므로 sortByUrgency 뒤에 쓰면 임박순이 유지된다.
+  // 키가 name만이 아니라 region+name인 이유: 동명 기관이 실제로 있다
+  // (경기 광주시청처럼 — 지역이 다르면 다른 기관이므로 둘 다 남아야 한다).
+  logic.dedupeByInstitution = function (list) {
+    const seen = new Set();
+    return list.filter(function (r) {
+      const key = (r.region || '') + '|' + (r.name || '');
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
   logic.REQUIRED_FIELDS = ['name','type','region'];
 
   logic.validateRecord = function (rec) {

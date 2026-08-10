@@ -148,6 +148,27 @@ test('sortByUrgency: effectiveBid(추측 포함) 기준 임박순', () => {
   assert.deepStrictEqual(logic.sortByUrgency(list, today).map(r=>r.name), ['확정임박','추측멂','미상']);
 });
 
+test('dedupeByInstitution: 같은 시의 일반구 레코드는 첫 등장만 남는다(순서 보존)', () => {
+  const list = [
+    { region:'41', subRegion:'31011', name:'수원시청' },
+    { region:'41', subRegion:'31012', name:'수원시청' },
+    { region:'11', subRegion:'11020', name:'중구청' },
+    { region:'41', subRegion:'31013', name:'수원시청' },
+    { region:'26', subRegion:'21020', name:'부산 서구청' },
+  ];
+  assert.deepStrictEqual(
+    logic.dedupeByInstitution(list).map(r => r.region + '|' + r.name),
+    ['41|수원시청', '11|중구청', '26|부산 서구청']);
+});
+
+test('dedupeByInstitution: 동명 기관이라도 region이 다르면 둘 다 남는다', () => {
+  const list = [
+    { region:'41', name:'광주시청' },   // 경기 광주
+    { region:'29', name:'광주시청' },   // 가상의 동명 — 지역이 다르면 다른 기관
+  ];
+  assert.strictEqual(logic.dedupeByInstitution(list).length, 2);
+});
+
 test('sortByInterest: 관심 먼저(임박순) 그 뒤 미관심(임박순)', () => {
   const today = new Date('2026-07-23T00:00:00');
   const list = [

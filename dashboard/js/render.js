@@ -370,7 +370,8 @@
 
   render.drawTicker = function () {
     const all = render.allInstitutions().filter(function (r){ return render.state.activeRegions.has(r.region); });
-    const top = logic.sortByUrgency(all, render.state.today).slice(0, 5);
+    // 시-단위 중복제거 — 일반구 폴리곤 레코드(수원 4구 등)가 TOP5를 채우지 않게.
+    const top = logic.dedupeByInstitution(logic.sortByUrgency(all, render.state.today)).slice(0, 5);
     const el = document.getElementById('ticker'); if (!el) return;
     el.textContent = '임박 TOP5 · ' + top.map(function (r) {
       return r.name + '(' + logic.formatDDay(r, render.state.today) + ')';
