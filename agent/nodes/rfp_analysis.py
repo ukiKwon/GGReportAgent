@@ -1,6 +1,8 @@
 import json
 import os
 
+from agent.nodes.rfp_extract import main_criteria
+
 
 def rfp_analysis_node(state: dict) -> dict:
     institution_name = state["institution_name"]
@@ -17,6 +19,7 @@ def rfp_analysis_node(state: dict) -> dict:
 
     return {
         "institution_name": scoring_data["institution"],
-        "scoring_table": scoring_data["criteria"],
+        # 파일에는 계층 전체가 있을 수 있다(level 필드) — 상태에는 대표 레벨만.
+        "scoring_table": main_criteria(scoring_data["criteria"]),
         "rfp_text": rfp_text,
     }

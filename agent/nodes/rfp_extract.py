@@ -27,10 +27,15 @@ class RfpExtractError(Exception):
 
 
 class ScoringCriterion(BaseModel):
+    # level: 배점표가 계→대분류→세부 계층일 때 그 행이 어느 층인지.
+    # 1=계(총계 행) · 2=대분류 · 3=세부항목 · None=단층(계층 없는 표, 기존 파일).
+    # 선택적이어야 한다 — 기존 rfp_scoring.json·rfp-locate 스킬(사람 경로)의
+    # 산출물이 그대로 유효해야 하기 때문(스펙 2026-08-10-scoring-schema-hierarchy §②).
     category: str
     item: str
     score: int
     description: str | None = None
+    level: int | None = None
 
 
 class ScoringTableResult(BaseModel):
@@ -51,6 +56,10 @@ SCORING_PROMPT = """다음은 금고 지정 공고문에서 추출한 원문 텍
 - item: 그 분류 아래의 세부 항목
 - score: 배점(정수)
 - description: 배점 산식이나 단서가 원문에 있으면 그대로, 없으면 null
+- level: 배점표가 계층(계 → 대분류 → 세부항목)으로 돼 있으면 각 행이 어느 층인지
+  1(계/총계 행), 2(대분류), 3(세부항목)으로 표시하세요. 표에 계층이 없으면
+  level을 넣지 마세요(null). 같은 배점을 여러 층에 중복해 만들지 말고,
+  **표에 실제로 있는 행만** 그 행의 층으로 옮기세요.
 
 기관명: {institution_name}
 
@@ -60,12 +69,19 @@ SCORING_PROMPT = """다음은 금고 지정 공고문에서 추출한 원문 텍
 
 
 def scoring_consistency(scoring: dict) -> str | None:
-    """배점 합계가 총점과 맞는지 본다. 어긋나면 사유, 맞으면 None.
+    """배점 합계가 총점과 맞는지 **레벨 그룹별로** 본다. 어긋나면 사유, 맞으면 None.
 
     **LLM 성능에 기대지 않는 방어다.** 2026-08-04 실측에서 `llama3.1:8b`는 합계 96,
     `qwen3:14b`는 **108**(총점 100을 넘겼다)을 냈다. 둘 다 분류는 맞췄고 숫자만
-    지어냈는데, 이 한 줄이면 둘 다 걸린다. 모델을 키운다고 없어지는 문제가 아니라는
+    지어냈는데, 이 규칙이면 둘 다 걸린다. 모델을 키운다고 없어지는 문제가 아니라는
     것이 같은 실측에서 확인됐다.
+
+    **레벨별 합산인 이유** — 2026-08-10 실측에서 `qwen3.5:9b`가 표를 **정확히** 읽어
+    계(100)+대분류(합 100)+세부(합 100)를 평면 목록에 담았더니 전체 합 300으로 이
+    규칙에 걸렸다(정확한 추출이 오탐당한 첫 사례). 그래서 레벨 그룹(level 없는 행은
+    '단층' 한 그룹) 중 **어느 하나라도 총점과 일치하면 통과**한다. 기존 평면 파일은
+    그룹이 하나뿐이라 예전과 완전히 같게 동작한다.
+    스펙: docs/superpowers/specs/2026-08-10-scoring-schema-hierarchy-design.md §③.
 
     **오탐을 내지 않는다** — 배점표가 없는 공고문(criteria 빈 목록)은 정당한 결과이고,
     총점을 못 뽑은 경우(0 이하)도 이 규칙이 할 말이 없다. 경고가 한 번이라도 틀리면
@@ -78,11 +94,46 @@ def scoring_consistency(scoring: dict) -> str | None:
     if not criteria or total <= 0:
         return None
 
-    got = sum(int(c.get("score") or 0) for c in criteria)
-    if got == total:
+    by_level: dict[object, int] = {}
+    for c in criteria:
+        lv = c.get("level")
+        by_level[lv] = by_level.get(lv, 0) + int(c.get("score") or 0)
+    if any(got == total for got in by_level.values()):
         return None
-    return (f"배점 합계가 총점과 다릅니다: 항목 {len(criteria)}건 합 {got}점 ≠ 총점 {total}점"
-            f" ({got - total:+d}) — 공고문 표를 직접 대조해야 합니다")
+
+    if len(by_level) == 1:
+        # 평면 표(그룹 하나) — 기존 메시지 포맷 그대로(부호로 어긋난 방향을 보여준다).
+        got = next(iter(by_level.values()))
+        return (f"배점 합계가 총점과 다릅니다: 항목 {len(criteria)}건 합 {got}점 ≠ 총점 {total}점"
+                f" ({got - total:+d}) — 공고문 표를 직접 대조해야 합니다")
+
+    def _label(lv: object) -> str:
+        names = {1: "계", 2: "대분류", 3: "세부"}
+        return names.get(lv, "단층") if lv is not None else "단층"
+
+    sums = " · ".join(f"{_label(lv)} 합 {got}점" for lv, got in sorted(
+        by_level.items(), key=lambda kv: (kv[0] is None, kv[0] if kv[0] is not None else 0)))
+    return (f"배점 합계가 총점과 다릅니다: 항목 {len(criteria)}건, 어느 레벨도 총점과 맞지 않음"
+            f" ({sums} ≠ 총점 {total}점) — 공고문 표를 직접 대조해야 합니다")
+
+
+def main_criteria(criteria: list[dict]) -> list[dict]:
+    """하류(제안 섹션·커버리지 매칭)가 쓸 **대표 레벨** 행만 남긴다.
+
+    계층 목록을 그대로 흘리면 '계' 행에도 제안 섹션이 생기고 같은 배점이 레벨
+    수만큼 중복 매칭된다. 규칙(스펙 §④): 계(1) 행 제외 → 대분류(2)가 있으면
+    그것만 → 없으면 세부(3)만 → 레벨이 아예 없으면 전부(기존 평면 동작).
+
+    파일(rfp_scoring.json)에는 전체 계층이 그대로 저장된다 — 이 필터는 상태 주입
+    지점(rfp_extract_node·rfp_analysis)에서만 쓴다.
+    """
+    if not criteria:
+        return []
+    for target in (2, 3):
+        picked = [c for c in criteria if c.get("level") == target]
+        if picked:
+            return picked
+    return [c for c in criteria if c.get("level") != 1]
 
 
 def rfp_extract_node(state: dict) -> dict:
@@ -136,7 +187,9 @@ def rfp_extract_node(state: dict) -> dict:
 
     return {
         "rfp_text": extracted["full_text"],
-        "scoring_table": scoring_data["criteria"],
+        # 상태에는 대표 레벨만 — 하류(섹션 생성·커버리지 매칭)가 '계' 행이나
+        # 중복 레벨을 항목으로 오인하지 않게 한다. 파일에는 전체 계층이 남는다.
+        "scoring_table": main_criteria(scoring_data["criteria"]),
         "rfp_title": scoring_data["rfp_title"],
         "total_score": scoring_data["total_score"],
         "score_check": inconsistency or "ok",
