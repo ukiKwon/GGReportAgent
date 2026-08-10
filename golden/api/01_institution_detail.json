@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/institutions/dobong"
+  },
+  "status": 200,
+  "body": {
+    "institution_id": "dobong",
+    "name_ko": "도봉구",
+    "region_code": "11",
+    "type": "지자체",
+    "contract_end": null,
+    "last_bid": null,
+    "term": null,
+    "stage": 1,
+    "giganlist_dir": "corpus/institutions/dobong",
+    "rfp_path": null,
+    "pptx_path": null
+  }
+}

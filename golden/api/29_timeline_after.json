@@ -1,0 +1,55 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/institutions/dobong/timeline"
+  },
+  "status": 200,
+  "body": {
+    "events": [
+      {
+        "stage": null,
+        "at": "<TS>",
+        "kind": "notification",
+        "team": null,
+        "role": "쪽지",
+        "author": null,
+        "content": "참여확정됐지만 입찰 분석을 시작하지 못했습니다 — 공고문(rfp_path)이 아직 반입되지 않았습니다. 워크플로 탭에서 [▶ 실행]으로 직접 시작하세요.",
+        "task_id": null,
+        "model": null
+      },
+      {
+        "stage": 1,
+        "at": "<TS>",
+        "kind": "notification",
+        "team": null,
+        "role": "결재요청",
+        "author": null,
+        "content": "도봉구 영업 작업물 제출 — 결재를 부탁드립니다.",
+        "task_id": "task-<ID>",
+        "model": null
+      },
+      {
+        "stage": 1,
+        "at": "<TS>",
+        "kind": "notification",
+        "team": null,
+        "role": "결재요청",
+        "author": null,
+        "content": "도봉구 예산 작업물 제출 — 결재를 부탁드립니다.",
+        "task_id": "task-<ID>",
+        "model": null
+      },
+      {
+        "stage": 1,
+        "at": "<TS>",
+        "kind": "notification",
+        "team": null,
+        "role": "결재요청",
+        "author": null,
+        "content": "도봉구 전산 작업물 제출 — 결재를 부탁드립니다.",
+        "task_id": "task-<ID>",
+        "model": null
+      }
+    ]
+  }
+}

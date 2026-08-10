@@ -1,0 +1,12 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/institutions/nowon/artifacts"
+  },
+  "status": 200,
+  "body": {
+    "giganlist_dir": "corpus/institutions/nowon",
+    "rfp_path": null,
+    "pptx_path": null
+  }
+}

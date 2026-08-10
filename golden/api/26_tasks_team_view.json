@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/tasks?team=%EC%A0%84%EC%82%B0"
+  },
+  "status": 200,
+  "body": [
+    {
+      "task_id": "task-<ID>",
+      "team": "전산",
+      "status": "2차완료",
+      "progress_pct": 0,
+      "assignee": "dave",
+      "approver": "boss",
+      "bid_case_id": "bc-<ID>",
+      "institution_id": "dobong",
+      "institution_name": "도봉구",
+      "stage": 7,
+      "bid_date": null,
+      "schedule_confidence": "예상",
+      "file_count": 0
+    }
+  ]
+}

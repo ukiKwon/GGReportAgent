@@ -1,0 +1,11 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/accounts"
+  },
+  "status": 200,
+  "body": {
+    "demo": false,
+    "accounts": []
+  }
+}

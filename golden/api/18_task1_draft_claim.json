@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "PATCH",
+    "url": "/tasks/task-<ID>/draft",
+    "body": {
+      "content": "골든 캡처 고정 메모"
+    },
+    "headers": {
+      "X-User-Id": "dave"
+    }
+  },
+  "status": 200,
+  "body": {
+    "task_id": "task-<ID>",
+    "bid_case_id": "bc-<ID>",
+    "team": "예산",
+    "status": "작성중",
+    "progress_pct": 0,
+    "draft_content": "골든 캡처 고정 메모",
+    "assignee": "dave",
+    "approver": null,
+    "final_approver": null
+  }
+}
