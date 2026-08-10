@@ -1,0 +1,11 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/consistency"
+  },
+  "status": 200,
+  "body": {
+    "findings": [],
+    "ok": true
+  }
+}

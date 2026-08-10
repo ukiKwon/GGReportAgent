@@ -1,0 +1,78 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/bidcases/bc-<ID>"
+  },
+  "status": 200,
+  "body": {
+    "bid_case_id": "bc-<ID>",
+    "institution_id": "dobong",
+    "schedule_confidence": "예상",
+    "expected_date": null,
+    "confirmed_date": null,
+    "last_synced_at": "<TS>",
+    "participation_status": "참여확정",
+    "participation_decision": [
+      {
+        "tier": 1,
+        "role": "영업팀",
+        "by": "alice",
+        "at": "<TS>",
+        "choice": "참여",
+        "comment": null
+      },
+      {
+        "tier": 2,
+        "role": "영업팀",
+        "by": "bob",
+        "at": "<TS>",
+        "choice": "참여",
+        "comment": null
+      },
+      {
+        "tier": 3,
+        "role": "영업팀",
+        "by": "carol",
+        "at": "<TS>",
+        "choice": "참여",
+        "comment": null
+      }
+    ],
+    "research_status": "완료",
+    "finalized_by": null,
+    "finalized_at": null,
+    "source_slug": null,
+    "notice_id": null,
+    "title": null,
+    "notice_url": null,
+    "tasks": [
+      {
+        "task_id": "task-<ID>",
+        "team": "영업",
+        "status": "대기",
+        "progress_pct": 0,
+        "assignee": null,
+        "approver": null,
+        "final_approver": null
+      },
+      {
+        "task_id": "task-<ID>",
+        "team": "예산",
+        "status": "대기",
+        "progress_pct": 0,
+        "assignee": null,
+        "approver": null,
+        "final_approver": null
+      },
+      {
+        "task_id": "task-<ID>",
+        "team": "전산",
+        "status": "대기",
+        "progress_pct": 0,
+        "assignee": null,
+        "approver": null,
+        "final_approver": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/bidcases",
+    "body": {
+      "institution_id": "dobong",
+      "title": "골든 캡처용 입찰 건",
+      "note": "이관 검증 시나리오 — 값 임의 변경 금지"
+    }
+  },
+  "status": 200,
+  "body": {
+    "bid_case_id": "bc-<ID>",
+    "institution_id": "dobong",
+    "schedule_confidence": "예상",
+    "expected_date": null,
+    "confirmed_date": null,
+    "last_synced_at": "<TS>",
+    "participation_status": "검토중",
+    "participation_decision": [],
+    "research_status": "완료",
+    "finalized_by": null,
+    "finalized_at": null,
+    "source_slug": null,
+    "notice_id": null,
+    "title": null,
+    "notice_url": null
+  }
+}

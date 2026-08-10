@@ -1,0 +1,67 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/institutions/nowon/coverage-map"
+  },
+  "status": 200,
+  "body": {
+    "criteria": [
+      {
+        "category": "금융기관의 대내외적 신용도 및 재무구조의 안정성",
+        "item": "외부기관의 신용조사 상태평가",
+        "score": 8,
+        "team": "전산",
+        "covered": true,
+        "gap_note": null
+      },
+      {
+        "category": "금융기관의 대내외적 신용도 및 재무구조의 안정성",
+        "item": "주요 경영지표 현황",
+        "score": 17,
+        "team": null,
+        "covered": false,
+        "gap_note": null
+      },
+      {
+        "category": "시에 대한 대출 및 예금금리",
+        "item": "정기예금 예치금리, 수시입출금식 예금 적용 금리, 시에 대한 대출금리, 정기예금 만기경과 시 적용금리",
+        "score": 21,
+        "team": null,
+        "covered": false,
+        "gap_note": null
+      },
+      {
+        "category": "시민이용 편의성",
+        "item": "관내 지점 수, 무인점포 수, ATM 설치 대수 / 지방세입금 수납처리능력 / 지방세입금 납부편의 증진방안",
+        "score": 22,
+        "team": null,
+        "covered": false,
+        "gap_note": null
+      },
+      {
+        "category": "금고업무 관리능력",
+        "item": "세입세출업무 자금관리 능력 / 금고관리업무 수행능력 / 전산시스템 보안관리 등 전산처리능력 / OCR센터 운영능력 및 계획",
+        "score": 25,
+        "team": null,
+        "covered": false,
+        "gap_note": null
+      },
+      {
+        "category": "지역사회기여 및 시와의 협력사업",
+        "item": "지역사회에 대한 기여실적 / 시와의 협력사업계획",
+        "score": 7,
+        "team": null,
+        "covered": false,
+        "gap_note": null
+      }
+    ],
+    "total_score": 100,
+    "teams": [
+      {
+        "team": "전산",
+        "pii_count": 3
+      }
+    ],
+    "pii_total": 3
+  }
+}

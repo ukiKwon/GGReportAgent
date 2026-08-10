@@ -1,0 +1,8 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/search?q=%EA%B8%88%EA%B3%A0&limit=5"
+  },
+  "status": 200,
+  "body": []
+}

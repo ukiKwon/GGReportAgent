@@ -1,0 +1,10 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/institutions/ghost"
+  },
+  "status": 404,
+  "body": {
+    "detail": "institution not found"
+  }
+}

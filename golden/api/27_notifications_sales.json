@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/notifications?recipient=%EC%98%81%EC%97%85%ED%8C%80"
+  },
+  "status": 200,
+  "body": [
+    {
+      "notification_id": "ntf-<ID>",
+      "recipient": "영업팀",
+      "kind": "쪽지",
+      "institution_id": "dobong",
+      "task_id": null,
+      "content": "참여확정됐지만 입찰 분석을 시작하지 못했습니다 — 공고문(rfp_path)이 아직 반입되지 않았습니다. 워크플로 탭에서 [▶ 실행]으로 직접 시작하세요.",
+      "link": null,
+      "created_at": "<TS>",
+      "read_at": null,
+      "stage": null,
+      "sender": null
+    }
+  ]
+}

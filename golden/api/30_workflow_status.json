@@ -1,0 +1,37 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/institutions/dobong/status"
+  },
+  "status": 200,
+  "body": {
+    "stage": 7,
+    "running": false,
+    "pending_gate": null,
+    "failed": false,
+    "tasks": [
+      {
+        "task_id": "task-<ID>",
+        "team": "영업",
+        "status": "2차완료",
+        "progress_pct": 0,
+        "assignee": "dave"
+      },
+      {
+        "task_id": "task-<ID>",
+        "team": "예산",
+        "status": "2차완료",
+        "progress_pct": 0,
+        "assignee": "dave"
+      },
+      {
+        "task_id": "task-<ID>",
+        "team": "전산",
+        "status": "2차완료",
+        "progress_pct": 0,
+        "assignee": "dave"
+      }
+    ],
+    "notifications_unread": 4
+  }
+}
