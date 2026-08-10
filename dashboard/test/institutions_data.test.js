@@ -26,10 +26,12 @@ const geoKorea = loadGlobal('geo/korea.js', 'geoKorea');
 const geoSeoul = loadGlobal('geo/seoul.js', 'geoSeoul');
 const geoGyeonggi = loadGlobal('geo/gyeonggi.js', 'geoGyeonggi');
 const geoBusan = loadGlobal('geo/busan.js', 'geoBusan');
+const geoIncheon = loadGlobal('geo/incheon.js', 'geoIncheon');
 const REGION_CODES = geoKorea.features.map(function (f) { return f.properties.code; });
 const SEOUL_CODES = geoSeoul.features.map(function (f) { return f.properties.code; });
 const GYEONGGI_CODES = geoGyeonggi.features.map(function (f) { return f.properties.code; });
 const BUSAN_CODES = geoBusan.features.map(function (f) { return f.properties.code; });
+const INCHEON_CODES = geoIncheon.features.map(function (f) { return f.properties.code; });
 
 // 광역(시·도) 레코드와 기초(구/시군) 레코드는 subRegion 유무로 갈린다.
 const wide = institutions.filter(function (r) { return !r.subRegion; });
@@ -75,8 +77,24 @@ test('부산 16개 구·군이 busan.js의 폴리곤 코드 전량과 일치한�
   assert.deepStrictEqual(codes, BUSAN_CODES.slice().sort());
 });
 
+// 인천은 2026-07 개편(검단구 분리)이 2018 폴리곤에 없어 **검단구가 서해구 폴리곤
+// (23080)을 공유한다**(사용자 결정 ⓐ안). 그래서 "레코드 수 == 폴리곤 수"가 아니라
+// "11개 레코드, 폴리곤 전량 커버, 23080만 2개"가 불변식이다.
+test('인천 11개 구·군 — 폴리곤 전량 커버 + 서해/검단의 23080 공유', function () {
+  const ic = sub.filter(function (r) { return r.region === '28'; });
+  assert.strictEqual(ic.length, 11);
+  ic.forEach(function (r) {
+    assert.ok(INCHEON_CODES.indexOf(r.subRegion) >= 0, r.name + ': ' + r.subRegion);
+  });
+  INCHEON_CODES.forEach(function (code) {
+    assert.ok(ic.some(function (r) { return r.subRegion === code; }), code + ' 폴리곤에 레코드 없음');
+  });
+  const shared = ic.filter(function (r) { return r.subRegion === '23080'; }).map(function (r) { return r.name; }).sort();
+  assert.deepStrictEqual(shared, ['검단구청', '서해구청']);
+});
+
 test('기초 레코드의 subRegion이 실제 geo 폴리곤 코드와 일치한다', function () {
-  const REGION_TO_CODES = { '11': SEOUL_CODES, '41': GYEONGGI_CODES, '26': BUSAN_CODES };
+  const REGION_TO_CODES = { '11': SEOUL_CODES, '41': GYEONGGI_CODES, '26': BUSAN_CODES, '28': INCHEON_CODES };
   sub.forEach(function (r) {
     const codes = REGION_TO_CODES[r.region];
     assert.ok(codes, r.name + ': region ' + r.region + '용 geo 파일이 테스트에 등록돼 있지 않다');

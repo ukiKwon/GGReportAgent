@@ -212,7 +212,9 @@
   };
 
   render.REGION_GEO = { '11': function(){ return window.geoSeoul; }, '41': function(){ return window.geoGyeonggi; },
-    '26': function(){ return window.geoBusan; } };
+    '26': function(){ return window.geoBusan; }, '28': function(){ return window.geoIncheon; },
+    '27': function(){ return window.geoDaegu; }, '30': function(){ return window.geoDaejeon; },
+    '31': function(){ return window.geoUlsan; } };
   // '29'(광주)는 2026-07-01 전남광주통합특별시 출범으로 '46'에 병합됐다(geo/korea.js도 병합).
   render.REGION_NAME = { '11':'서울', '26':'부산', '27':'대구', '28':'인천',
     '30':'대전', '31':'울산', '36':'세종', '41':'경기', '42':'강원', '43':'충북',
