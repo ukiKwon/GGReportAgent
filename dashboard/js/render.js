@@ -50,7 +50,7 @@
   // 범례를 실제 테마 색으로 그린다. 이전엔 🔴🟠🟡 이모지가 하드코딩돼 있어
   // 색을 바꿔도 범례만 옛 색으로 남는 문제가 있었다.
   render.LEGEND_ITEMS = [
-    ['red','6개월↓'], ['orange','1년↓'], ['yellow','2년↓'], ['blue','2년+'], ['gray','미상'],
+    ['red','6개월↓'], ['orange','1년↓'], ['yellow','2년↓'], ['blue','2년+'], ['gray','미상 ⚠️'],
   ];
   // 색은 localStorage(테마)에서 오므로 style 속성에 그대로 끼우지 않고 hex만 통과시킨다.
   render._safeColor = function (c, fallback) {
@@ -252,6 +252,7 @@
   render.applyMuniDimming = function () {
     // 전체 재렌더 대신 투명도만 갱신 — 재렌더하면 선택 중이던 강조가 사라진다.
     d3.select('#map-svg').selectAll('path.subregion').attr('fill-opacity', render.muniDimOpacity());
+    d3.select('#map-svg').selectAll('text.sub-glyph').attr('opacity', render.muniDimOpacity());
   };
 
   render.drawRegion = function (code) {
@@ -272,6 +273,22 @@
       .attr('fill', function (d){ return render.subUrgencyColor(d); })
       .attr('fill-opacity', render.muniDimOpacity())
       .attr('stroke', '#0f1420').attr('stroke-width', 1);
+    // 날짜 미상 면 글리프 — 마커·랭킹 카드의 recordGlyph('⚠️')와 같은 시각 언어를 면에도 확장.
+    // 레코드가 아예 없는 면은 대상이 아니다(표시할 기관 자체가 없으므로 회색만 유지).
+    g.selectAll('text.sub-glyph')
+      .data(fc.features.filter(function (d) {
+        const hit = render.municipalityForFeature(d);
+        return hit.length > 0 && hit.every(function (r) { return !logic.effectiveBid(r).date; });
+      }))
+      .join('text').attr('class', 'sub-glyph')
+      .attr('transform', function (d) {
+        const p = path.centroid(d); return 'translate(' + p[0] + ',' + p[1] + ')';
+      })
+      .attr('text-anchor', 'middle').attr('dy', '0.35em')
+      .attr('font-size', 10)
+      .attr('opacity', render.muniDimOpacity())
+      .attr('pointer-events', 'none')   // 클릭은 아래 폴리곤이 받아야 한다
+      .text('⚠️');
     render._regionProjection = proj; render._regionPath = path; render._regionG = g;
     if (render.drawMarkers) render.drawMarkers(code); // Task 9
     render.drawRankingPanel(code);
@@ -392,11 +409,14 @@
   };
 
   render.rankedList = function (code) {
-    let list = render.institutionsByRegion(code)
+    const list = render.institutionsByRegion(code)
       .filter(function (r) { return render._rankTypeVisible(r); });
-    if (render.state.rankSort === 'interest')
-      return logic.sortByInterest(list, render.state.today, function (r){ return store.isInterested(r.name); });
-    return logic.sortByUrgency(list, render.state.today);
+    const sorted = render.state.rankSort === 'interest'
+      ? logic.sortByInterest(list, render.state.today, function (r){ return store.isInterested(r.name); })
+      : logic.sortByUrgency(list, render.state.today);
+    // 기관 단위 중복제거 — 일반구 복제 레코드(수원 4구 등)가 카드 4장을 차지하지 않게.
+    // 티커(drawTicker)와 같은 규칙. 폴리곤 강조는 _blinkMunicipality가 전 폴리곤을 잡는다.
+    return logic.dedupeByInstitution(sorted);
   };
   // 랭킹 유형 필터: 지자체는 항상 표시, 그 외는 enabledTypes 따름
   render._rankTypeVisible = function (r) {
@@ -488,14 +508,16 @@
   render._blinkMunicipality = function (rec) {
     const fc = (render.REGION_GEO[render.state.currentRegion] || function(){ return null; })();
     if (!fc || !fc.features) return;
-    const feature = fc.features.filter(function (f) {
+    // 일반구로 쪼개진 시(수원 4구 등)는 같은 기관이 폴리곤 여러 개에 걸친다 —
+    // 첫 폴리곤만 잡으면 랭킹 카드가 시의 일부 구만 가리키므로 전부 모아 깜빡인다.
+    const codes = fc.features.filter(function (f) {
       const hit = render.municipalityForFeature(f);
       return hit.some(function (r) { return r.name === rec.name; });
-    })[0];
-    if (!feature) return;
+    }).map(function (f) { return f.properties.code; });
+    if (!codes.length) return;
     const sel = d3.select('#map-svg')
       .selectAll('path.subregion')
-      .filter(function () { return this.getAttribute('data-code') === feature.properties.code; });
+      .filter(function () { return codes.indexOf(this.getAttribute('data-code')) >= 0; });
     // raise() 없이는 인접 폴리곤이 나중에 그려지며 외곽선을 덮어 반쪽만 보인다.
     sel.classed('selected', true).raise();
   };

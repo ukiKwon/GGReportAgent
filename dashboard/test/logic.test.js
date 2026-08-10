@@ -28,9 +28,9 @@ test('validateRecord: 필수는 name/type/region', () => {
   assert.deepStrictEqual(r.missing, ['region']);
 });
 
-test('recordGlyph: ! 우선(필수누락), 그다음 ?(유효일 없음)', () => {
+test('recordGlyph: ! 우선(필수누락), 그다음 ⚠️(유효일 없음)', () => {
   assert.strictEqual(logic.recordGlyph({ name:'X', type:'공기업' }), '!'); // region 없음
-  assert.strictEqual(logic.recordGlyph({ name:'X', type:'공기업', region:'11' }), '?'); // 날짜 없음
+  assert.strictEqual(logic.recordGlyph({ name:'X', type:'공기업', region:'11' }), '⚠️'); // 날짜 없음
   assert.strictEqual(logic.recordGlyph({ name:'X', type:'공기업', region:'11', contractEnd:'2027-01-01' }), '');
 });
 

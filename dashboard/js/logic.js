@@ -162,7 +162,7 @@
 
   logic.recordGlyph = function (rec) {
     if (!logic.validateRecord(rec).valid) return '!';
-    if (!logic.effectiveBid(rec).date) return '?';
+    if (!logic.effectiveBid(rec).date) return '⚠️';
     return '';
   };
 
