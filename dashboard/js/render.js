@@ -211,7 +211,8 @@
       .call(render._zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(k));
   };
 
-  render.REGION_GEO = { '11': function(){ return window.geoSeoul; }, '41': function(){ return window.geoGyeonggi; } };
+  render.REGION_GEO = { '11': function(){ return window.geoSeoul; }, '41': function(){ return window.geoGyeonggi; },
+    '26': function(){ return window.geoBusan; } };
   render.REGION_NAME = { '11':'서울', '26':'부산', '27':'대구', '28':'인천', '29':'광주',
     '30':'대전', '31':'울산', '36':'세종', '41':'경기', '42':'강원', '43':'충북',
     '44':'충남', '45':'전북', '46':'전남', '47':'경북', '48':'경남', '50':'제주' };
