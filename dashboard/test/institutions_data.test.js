@@ -25,9 +25,11 @@ const institutions = loadGlobal('data/institutions.js', 'institutions');
 const geoKorea = loadGlobal('geo/korea.js', 'geoKorea');
 const geoSeoul = loadGlobal('geo/seoul.js', 'geoSeoul');
 const geoGyeonggi = loadGlobal('geo/gyeonggi.js', 'geoGyeonggi');
+const geoBusan = loadGlobal('geo/busan.js', 'geoBusan');
 const REGION_CODES = geoKorea.features.map(function (f) { return f.properties.code; });
 const SEOUL_CODES = geoSeoul.features.map(function (f) { return f.properties.code; });
 const GYEONGGI_CODES = geoGyeonggi.features.map(function (f) { return f.properties.code; });
+const BUSAN_CODES = geoBusan.features.map(function (f) { return f.properties.code; });
 
 // 광역(시·도) 레코드와 기초(구/시군) 레코드는 subRegion 유무로 갈린다.
 const wide = institutions.filter(function (r) { return !r.subRegion; });
@@ -64,8 +66,15 @@ test('경기 31개 시군이 gyeonggi.js의 폴리곤 코드 전량(42개)과 �
 // region이 '41'인데 gyeonggi.js 폴리곤 코드는 '31XXX'다(다른 코드 체계 소스).
 // 그래서 검증은 "접두사 일치"가 아니라 "그 region의 실제 geo 파일에 그 코드가
 // 있는가"로 해야 진짜 불변식을 잡는다.
+test('부산 16개 구·군이 busan.js의 폴리곤 코드 전량과 일치한다', function () {
+  const bs = sub.filter(function (r) { return r.region === '26'; });
+  assert.strictEqual(bs.length, BUSAN_CODES.length);
+  const codes = bs.map(function (r) { return r.subRegion; }).sort();
+  assert.deepStrictEqual(codes, BUSAN_CODES.slice().sort());
+});
+
 test('기초 레코드의 subRegion이 실제 geo 폴리곤 코드와 일치한다', function () {
-  const REGION_TO_CODES = { '11': SEOUL_CODES, '41': GYEONGGI_CODES };
+  const REGION_TO_CODES = { '11': SEOUL_CODES, '41': GYEONGGI_CODES, '26': BUSAN_CODES };
   sub.forEach(function (r) {
     const codes = REGION_TO_CODES[r.region];
     assert.ok(codes, r.name + ': region ' + r.region + '용 geo 파일이 테스트에 등록돼 있지 않다');
