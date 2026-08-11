@@ -616,6 +616,13 @@
         e.preventDefault(); const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
         store.reorderWatch(from, idx); render.drawPinBar(); render.applyWatchStyles();
       });
+      // 핀 클릭 → 지도 탭 전환. 경계 데이터가 있는 지역만 드릴인 (카드와 동일 규칙).
+      pin.style.cursor = 'pointer';
+      pin.addEventListener('click', function () {
+        const mapBtn = document.querySelector('.tab-btn[data-tab="map"]');
+        if (mapBtn) mapBtn.click();
+        if (render.hasSubGeo(code) && root.app && root.app.enterRegion) root.app.enterRegion(code);
+      });
       bar.appendChild(pin);
     });
   };
