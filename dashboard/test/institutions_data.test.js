@@ -31,6 +31,7 @@ const geoDaegu = loadGlobal('geo/daegu.js', 'geoDaegu');
 const geoDaejeon = loadGlobal('geo/daejeon.js', 'geoDaejeon');
 const geoUlsan = loadGlobal('geo/ulsan.js', 'geoUlsan');
 const geoGangwon = loadGlobal('geo/gangwon.js', 'geoGangwon');
+const geoChungbuk = loadGlobal('geo/chungbuk.js', 'geoChungbuk');
 const REGION_CODES = geoKorea.features.map(function (f) { return f.properties.code; });
 const SEOUL_CODES = geoSeoul.features.map(function (f) { return f.properties.code; });
 const GYEONGGI_CODES = geoGyeonggi.features.map(function (f) { return f.properties.code; });
@@ -40,6 +41,7 @@ const DAEGU_CODES = geoDaegu.features.map(function (f) { return f.properties.cod
 const DAEJEON_CODES = geoDaejeon.features.map(function (f) { return f.properties.code; });
 const ULSAN_CODES = geoUlsan.features.map(function (f) { return f.properties.code; });
 const GANGWON_CODES = geoGangwon.features.map(function (f) { return f.properties.code; });
+const CHUNGBUK_CODES = geoChungbuk.features.map(function (f) { return f.properties.code; });
 
 // 광역(시·도) 레코드와 기초(구/시군) 레코드는 subRegion 유무로 갈린다.
 const wide = institutions.filter(function (r) { return !r.subRegion; });
@@ -102,11 +104,13 @@ test('인천 11개 구·군 — 폴리곤 전량 커버 + 서해/검단의 23080
 });
 
 // 대구(군위 포함 9)·대전(5)·울산(5)은 부산과 같은 1:1 패턴이다.
-// 강원(18)도 1:1 — 미조사 8곳도 레코드는 전수로 깔려 있다(sources에 미조사 명시).
+// 강원(18)도 1:1. 충북은 14폴리곤(청주 4개 일반구 — 경기 ⓐ안: 청주시청 레코드 4번)이
+// 그대로 14레코드라 역시 1:1이다.
 [['대구', '27', function(){ return DAEGU_CODES; }],
  ['대전', '30', function(){ return DAEJEON_CODES; }],
  ['울산', '31', function(){ return ULSAN_CODES; }],
- ['강원', '42', function(){ return GANGWON_CODES; }]].forEach(function (t) {
+ ['강원', '42', function(){ return GANGWON_CODES; }],
+ ['충북', '43', function(){ return CHUNGBUK_CODES; }]].forEach(function (t) {
   test(t[0] + ' 구·군이 geo 폴리곤 코드 전량과 일치한다', function () {
     const recs = sub.filter(function (r) { return r.region === t[1]; });
     const codes = t[2]();
@@ -119,7 +123,7 @@ test('인천 11개 구·군 — 폴리곤 전량 커버 + 서해/검단의 23080
 test('기초 레코드의 subRegion이 실제 geo 폴리곤 코드와 일치한다', function () {
   const REGION_TO_CODES = { '11': SEOUL_CODES, '41': GYEONGGI_CODES, '26': BUSAN_CODES,
     '28': INCHEON_CODES, '27': DAEGU_CODES, '30': DAEJEON_CODES, '31': ULSAN_CODES,
-    '42': GANGWON_CODES };
+    '42': GANGWON_CODES, '43': CHUNGBUK_CODES };
   sub.forEach(function (r) {
     const codes = REGION_TO_CODES[r.region];
     assert.ok(codes, r.name + ': region ' + r.region + '용 geo 파일이 테스트에 등록돼 있지 않다');
