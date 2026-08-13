@@ -17,12 +17,25 @@
     rankSort: 'urgency',   // 'urgency' | 'interest'
   };
 
-  // 파스텔 기본 팔레트 — 진한 원색은 위에 얹히는 물결/깜빡임을 묻히게 해서 낮췄다.
+  // HTS 시세판 기본 팔레트(2026-08-13 리디자인) — 임박=상승 빨강, 여유=하락 파랑의
+  // 한국 시장 색 의미론. 원색을 흑청 바탕 쪽으로 한 단계 가라앉혀 지도가 지도책이
+  // 아니라 시세판으로 읽히게 한다(마감 리뷰 반영). 라벨(진한 글자+연한 헤일로)은
+  // 딥톤 위에서도 그대로 읽힌다.
   render.DEFAULT_THEME = {
-    red:'#f0a6a9', orange:'#f3c795', yellow:'#e9e3a8', blue:'#a9c5ea', gray:'#7c8699',
-    // 파스텔(난색·연청색) 위에서 가장 잘 튀는 채도 높은 청록. 물결과 구 외곽선이 공유.
-    accent:'#19d3c5',
+    red:'#c73528', orange:'#c26a12', yellow:'#a98e1c', blue:'#2c5cb8', gray:'#4a5462',
+    // 물결·구 외곽선이 공유하는 선택 강조 — 터미널 크롬의 호박색과 같은 색.
+    accent:'#ffb020',
     rippleDuration: 2.2,   // 초. 이전 1.4s에서 한 템포 늦춤
+  };
+
+  // 글리프는 문자·이모지 대신 같은 획 어휘(1.2~1.4 스트로크)의 인라인 SVG로 그린다 —
+  // 상단 필터의 .fsw와 한 계열. 색은 부모(.heart/.star 등)의 currentColor를 따른다.
+  render.ICONS = {
+    heartFill: '<svg class="gph" viewBox="0 0 12 12"><path d="M6 10.2C2.4 7.6 1 5.9 1 4.1 1 2.7 2.1 1.7 3.4 1.7 4.4 1.7 5.4 2.3 6 3.3 6.6 2.3 7.6 1.7 8.6 1.7 9.9 1.7 11 2.7 11 4.1 11 5.9 9.6 7.6 6 10.2Z" fill="currentColor"/></svg>',
+    heartLine: '<svg class="gph" viewBox="0 0 12 12"><path d="M6 10.2C2.4 7.6 1 5.9 1 4.1 1 2.7 2.1 1.7 3.4 1.7 4.4 1.7 5.4 2.3 6 3.3 6.6 2.3 7.6 1.7 8.6 1.7 9.9 1.7 11 2.7 11 4.1 11 5.9 9.6 7.6 6 10.2Z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>',
+    starFill: '<svg class="gph" viewBox="0 0 12 12"><path d="M6 1.2 7.35 4.35 10.8 4.65 8.2 6.9 9 10.3 6 8.45 3 10.3 3.8 6.9 1.2 4.65 4.65 4.35Z" fill="currentColor"/></svg>',
+    starLine: '<svg class="gph" viewBox="0 0 12 12"><path d="M6 1.2 7.35 4.35 10.8 4.65 8.2 6.9 9 10.3 6 8.45 3 10.3 3.8 6.9 1.2 4.65 4.65 4.35Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+    warn: '<svg class="gph warn" viewBox="0 0 12 12"><path d="M6 1.6 11 10.4H1Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><line x1="6" y1="4.6" x2="6" y2="7.2" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="8.8" r="0.8" fill="currentColor"/></svg>',
   };
   // 호출부(regionUrgencyColor·drawMarkers 등)가 render.URGENCY_COLORS[...]로 직접 참조하므로
   // 객체 정체성을 유지한 채 applyTheme이 키만 덮어쓴다.
@@ -50,7 +63,7 @@
   // 범례를 실제 테마 색으로 그린다. 이전엔 🔴🟠🟡 이모지가 하드코딩돼 있어
   // 색을 바꿔도 범례만 옛 색으로 남는 문제가 있었다.
   render.LEGEND_ITEMS = [
-    ['red','6개월↓'], ['orange','1년↓'], ['yellow','2년↓'], ['blue','2년+'], ['gray','미상 ⚠️'],
+    ['red','6개월↓'], ['orange','1년↓'], ['yellow','2년↓'], ['blue','2년+'], ['gray','미상'],
   ];
   // 색은 localStorage(테마)에서 오므로 style 속성에 그대로 끼우지 않고 hex만 통과시킨다.
   render._safeColor = function (c, fallback) {
@@ -59,10 +72,13 @@
   render.drawLegend = function () {
     if (typeof document === 'undefined') return;
     const el = document.getElementById('legend'); if (!el) return;
+    // 라벨 글자도 해당 등락색으로 — 범례 스스로 색 의미론을 말한다(마감 리뷰 반영).
+    // 딥톤 면색 그대로는 작은 글자가 어두워서, 글자용으로만 흰색을 30% 섞어 밝힌다.
     const rows = render.LEGEND_ITEMS.map(function (it) {
       const c = render._safeColor(render.URGENCY_COLORS[it[0]], render.DEFAULT_THEME[it[0]]);
-      return '<span class="lg-item"><i class="lg-sw" style="background:' + c + '"></i>' +
-        logic.esc(it[1]) + '</span>';
+      const warn = it[0] === 'gray' ? ' ' + render.ICONS.warn : '';
+      return '<span class="lg-item" style="color:color-mix(in srgb, ' + c + ' 70%, #ffffff)">' +
+        '<i class="lg-sw" style="background:' + c + '"></i>' + logic.esc(it[1]) + warn + '</span>';
     });
     rows.push('<span class="lg-item"><i class="lg-sw lg-hatch" style="background:' +
       render._safeColor(render.INACTIVE_FILL, '#c3cad9') + '"></i>준비중</span>');
@@ -145,7 +161,7 @@
         // 준비중은 밝은 중립색 — 균일한 진한 라벨이 읽히려면 면이 밝아야 한다.
         return render.state.activeRegions.has(code) ? render.regionUrgencyColor(code) : render.INACTIVE_FILL;
       })
-      .attr('stroke', '#0f1420').attr('stroke-width', 1)
+      .attr('stroke', '#07090e').attr('stroke-width', 1)
       // 커서·클릭은 activeRegions가 아니라 hasSubGeo로 판단한다(위 주석 참조).
       .style('cursor', function (d){ return render.hasSubGeo(d.properties.code) ? 'pointer' : 'default'; })
       .style('opacity', 1)
@@ -255,7 +271,7 @@
   render.applyMuniDimming = function () {
     // 전체 재렌더 대신 투명도만 갱신 — 재렌더하면 선택 중이던 강조가 사라진다.
     d3.select('#map-svg').selectAll('path.subregion').attr('fill-opacity', render.muniDimOpacity());
-    d3.select('#map-svg').selectAll('text.sub-glyph').attr('opacity', render.muniDimOpacity());
+    d3.select('#map-svg').selectAll('g.sub-glyph').attr('opacity', render.muniDimOpacity());
   };
 
   render.drawRegion = function (code) {
@@ -275,23 +291,28 @@
       .attr('data-code', function (d){ return d.properties.code; })  // 선택 강조 대상 조회용
       .attr('fill', function (d){ return render.subUrgencyColor(d); })
       .attr('fill-opacity', render.muniDimOpacity())
-      .attr('stroke', '#0f1420').attr('stroke-width', 1);
+      .attr('stroke', '#07090e').attr('stroke-width', 1);
     // 날짜 미상 면 글리프 — 마커·랭킹 카드의 recordGlyph('⚠️')와 같은 시각 언어를 면에도 확장.
     // 레코드가 아예 없는 면은 대상이 아니다(표시할 기관 자체가 없으므로 회색만 유지).
-    g.selectAll('text.sub-glyph')
+    // 이모지 대신 필터 글리프(.fsw)와 같은 획 어휘의 삼각 경고를 직접 그린다(마감 리뷰 반영).
+    const gw = g.selectAll('g.sub-glyph')
       .data(fc.features.filter(function (d) {
         const hit = render.municipalityForFeature(d);
         return hit.length > 0 && hit.every(function (r) { return !logic.effectiveBid(r).date; });
       }))
-      .join('text').attr('class', 'sub-glyph')
+      .join('g').attr('class', 'sub-glyph')
       .attr('transform', function (d) {
         const p = path.centroid(d); return 'translate(' + p[0] + ',' + p[1] + ')';
       })
-      .attr('text-anchor', 'middle').attr('dy', '0.35em')
-      .attr('font-size', 10)
       .attr('opacity', render.muniDimOpacity())
-      .attr('pointer-events', 'none')   // 클릭은 아래 폴리곤이 받아야 한다
-      .text('⚠️');
+      .attr('pointer-events', 'none');   // 클릭은 아래 폴리곤이 받아야 한다
+    gw.selectAll('*').remove();
+    gw.append('path').attr('d', 'M0,-4.5 L4.5,3.5 L-4.5,3.5 Z')
+      .attr('fill', 'none').attr('stroke', '#ffcf5e')
+      .attr('stroke-width', 1.3).attr('stroke-linejoin', 'round');
+    gw.append('line').attr('x1', 0).attr('y1', -2).attr('x2', 0).attr('y2', 0.6)
+      .attr('stroke', '#ffcf5e').attr('stroke-width', 1.3);
+    gw.append('circle').attr('cx', 0).attr('cy', 2.1).attr('r', 0.7).attr('fill', '#ffcf5e');
     render._regionProjection = proj; render._regionPath = path; render._regionG = g;
     if (render.drawMarkers) render.drawMarkers(code); // Task 9
     render.drawRankingPanel(code);
@@ -382,8 +403,17 @@
           g.append('path').attr('d', render._shapePath(shape,8)).attr('fill',color).attr('stroke','#0f1420');
           if (hatched) g.append('path').attr('d', render._shapePath(shape,8)).attr('fill','url(#hatch)');
         }
-        if (glyph) g.append('text').attr('text-anchor','middle').attr('dy','0.35em')
-          .attr('fill', glyph === '!' ? '#fff' : '#0f1420').attr('font-weight','bold').attr('font-size',10).text(glyph);
+        if (glyph === '!') {
+          g.append('text').attr('text-anchor','middle').attr('dy','0.35em')
+            .attr('fill','#fff').attr('font-weight','bold').attr('font-size',10).text(glyph);
+        } else if (glyph) {  // '⚠️'(날짜 미상) — 이모지 대신 획 어휘로 그린 경고 삼각
+          g.append('path').attr('d','M0,-3.8 L3.8,3 L-3.8,3 Z')
+            .attr('fill','none').attr('stroke','#10151d')
+            .attr('stroke-width',1.2).attr('stroke-linejoin','round');
+          g.append('line').attr('x1',0).attr('y1',-1.7).attr('x2',0).attr('y2',0.5)
+            .attr('stroke','#10151d').attr('stroke-width',1.2);
+          g.append('circle').attr('cx',0).attr('cy',1.9).attr('r',0.6).attr('fill','#10151d');
+        }
         g.style('cursor','pointer').on('click', function () { if (render.onMarkerClick) render.onMarkerClick(r); });
         if (glyph === '!') console.warn('무결성 문제 레코드:', r.name, logic.validateRecord(r).missing);
       });
@@ -395,9 +425,15 @@
     // 시-단위 중복제거 — 일반구 폴리곤 레코드(수원 4구 등)가 TOP5를 채우지 않게.
     const top = logic.dedupeByInstitution(logic.sortByUrgency(all, render.state.today)).slice(0, 5);
     const el = document.getElementById('ticker'); if (!el) return;
-    el.textContent = '임박 TOP5 · ' + top.map(function (r) {
-      return r.name + '(' + logic.formatDDay(r, render.state.today) + ')';
-    }).join('   ·   ');
+    // 항목마다 임박도 색을 입힌다 — 티커 자체가 등락을 말해야 한다(마감 리뷰 반영).
+    // ▲는 6개월 이내(상승 = 임박)에만 붙는 시세 표기. 색은 hex 화이트리스트 통과분만.
+    el.innerHTML = '<span class="tk-cap">임박 TOP5</span>' + top.map(function (r) {
+      const band = logic.urgencyOf(r, render.state.today);
+      const c = render._safeColor(render.URGENCY_COLORS[band], render.DEFAULT_THEME[band]);
+      const mark = band === 'red' ? '▲ ' : '';
+      return '<span style="color:color-mix(in srgb, ' + c + ' 72%, #ffffff)">' + mark +
+        logic.esc(r.name) + ' ' + logic.esc(logic.formatDDay(r, render.state.today)) + '</span>';
+    }).join('<span class="tk-sep">·</span>');
   };
 
   render.highlightMarker = function (name, on) {
@@ -436,7 +472,7 @@
       '<div class="rank-head"><b>랭킹</b>' +
       '<select id="rank-sort"><option value="urgency">임박순</option><option value="interest">관심도순</option></select>' +
       '</div><div id="rank-list"></div>' +
-      '<div style="margin-top:8px;"><button id="rank-more" style="width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px;cursor:pointer;">더 보기 — 전체 입찰건</button></div>';
+      '<div style="margin-top:8px;"><button id="rank-more">더 보기 — 전체 입찰건</button></div>';
     document.getElementById('rank-sort').value = render.state.rankSort;
     document.getElementById('rank-sort').addEventListener('change', function (e) {
       render.state.rankSort = e.target.value; render.drawRankingPanel(code);
@@ -448,8 +484,12 @@
       const card = document.createElement('div'); card.className = 'rank-card'; card.dataset.name = r.name;
       const glyph = logic.recordGlyph(r);
       const hearted = store.isInterested(r.name);
-      card.innerHTML = '<span class="heart" data-name="' + logic.esc(r.name) + '">' + (hearted ? '♥' : '♡') + '</span>' +
-        '<b>' + logic.esc(r.name) + '</b> ' + (glyph ? '<span class="miss">' + logic.esc(glyph) + '</span>' : '') +
+      // 글리프: '⚠️'(날짜 미상)는 획 어휘 SVG로, '!'(무결성 문제)는 글자 그대로.
+      const missHtml = glyph === '!' ? '<span class="miss">!</span>'
+        : (glyph ? '<span class="miss">' + render.ICONS.warn + '</span>' : '');
+      card.innerHTML = '<span class="heart" data-name="' + logic.esc(r.name) + '">' +
+        (hearted ? render.ICONS.heartFill : render.ICONS.heartLine) + '</span>' +
+        '<b>' + logic.esc(r.name) + '</b> ' + missHtml +
         '<br><small>' + logic.esc(r.type) + ' · ' + logic.esc(logic.formatBidDate(r)) + '</small>';
       card.querySelector('.heart').addEventListener('click', function (e) {
         e.stopPropagation(); store.toggleInterest(r.name); render.drawRankingPanel(code);
@@ -479,7 +519,7 @@
       let val = f === 'sources' ? (Array.isArray(rec.sources) ? rec.sources.join(', ') : '') : (rec[f] == null ? '' : rec[f]);
       html += '<div' + (missing ? ' class="miss"' : '') + '>' + label + ': ' + (val ? esc(val) : (missing ? '(누락)' : '')) + '</div>';
     });
-    html += '<div style="margin-top:6px;"><button id="pop-edit">✎ 편집</button></div>';
+    html += '<div style="margin-top:6px;"><button id="pop-edit">편집</button></div>';
     pop.innerHTML = html;
     const eb = document.getElementById('pop-edit');
     if (eb) eb.onclick = function () { if (root.app && root.app.openEdit) root.app.openEdit(rec); };
@@ -584,7 +624,8 @@
       card.style.cursor = drillable ? 'pointer' : 'default';
       const on = store.isWatched(code);
       const cnt = render.institutionsByRegion(code).length;
-      card.innerHTML = '<span class="star" data-code="' + code + '">' + (on ? '★' : '☆') + '</span><b>' +
+      card.innerHTML = '<span class="star" data-code="' + code + '">' +
+        (on ? render.ICONS.starFill : render.ICONS.starLine) + '</span><b>' +
         (render.REGION_NAME[code] || code) + '</b>' +
         '<div style="color:var(--muted);font-size:12px;margin-top:6px;">기관 ' + cnt + '곳 · ' +
         (drillable ? '구/시군 보기 →' : '구/시군 경계 준비중') + '</div>';
@@ -607,10 +648,10 @@
   render.drawPinBar = function () {
     const bar = document.getElementById('pin-bar'); if (!bar) return;
     bar.innerHTML = ''; const watch = store.loadWatch();
-    if (!watch.length) { bar.innerHTML = '<small style="color:var(--muted)">관심 지역을 ★로 지정하면 여기 쌓입니다 (드래그로 순서 변경).</small>'; return; }
+    if (!watch.length) { bar.innerHTML = '<small style="color:var(--muted)">관심 지역을 별표(' + render.ICONS.starLine + ')로 지정하면 여기 쌓입니다 (드래그로 순서 변경).</small>'; return; }
     watch.forEach(function (code, idx) {
       const pin = document.createElement('div'); pin.className = 'pin'; pin.draggable = true; pin.dataset.idx = idx;
-      pin.textContent = '★ ' + (render.REGION_NAME[code] || code);
+      pin.innerHTML = render.ICONS.starFill + ' ' + logic.esc(render.REGION_NAME[code] || code);
       pin.addEventListener('dragstart', function (e){ e.dataTransfer.setData('text/plain', idx); });
       pin.addEventListener('dragover', function (e){ e.preventDefault(); });
       pin.addEventListener('drop', function (e) {

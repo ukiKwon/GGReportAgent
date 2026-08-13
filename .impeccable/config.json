@@ -1,0 +1,59 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "dashboard/index.html"
+        ],
+        "createdAt": "2026-08-13T04:40:15.877Z",
+        "reason": "Operate-mode HTS terminal density: operate.md sanctions tight 1.125-1.2 type ratios for product UI; 10-14px ladder is the committed world, not an oversight"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#3c4a5e",
+        "createdAt": "2026-08-13T05:02:03.506Z",
+        "reason": "hover border step of --line-strong; shipped HTS build, reviewer-shipped 2026-08-13"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#fff",
+        "createdAt": "2026-08-13T05:02:03.589Z",
+        "reason": "marker-highlight stroke & badge text on saturated fills; shipped HTS build 2026-08-13"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#ffffff",
+        "createdAt": "2026-08-13T05:02:03.670Z",
+        "reason": "color-mix whitening endpoint for legend/ticker text legibility; shipped HTS build 2026-08-13"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#eef3fa",
+        "createdAt": "2026-08-13T05:02:03.768Z",
+        "reason": "map label halo tone (cartographic, paint-order stroke); shipped HTS build 2026-08-13"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#46536b",
+        "createdAt": "2026-08-13T05:02:03.853Z",
+        "reason": "map label sub-line fill; shipped HTS build 2026-08-13"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(0,0,0,.4)",
+        "createdAt": "2026-08-13T05:02:03.936Z",
+        "reason": "legend swatch edge scrim; shipped HTS build 2026-08-13"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(0,0,0,.5)",
+        "createdAt": "2026-08-13T05:02:04.024Z",
+        "reason": "popover elevation shadow (sole shadow in system); shipped HTS build 2026-08-13"
+      }
+    ]
+  }
+}
