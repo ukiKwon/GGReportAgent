@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-13T00:00:00Z",
+  "title": "Design System: 금고은행 입찰 현황 히트맵",
+  "extensions": {
+    "colorMeta": {
+      "board-black": { "role": "neutral", "displayName": "Board Black", "canonical": "#07090e", "tonalRamp": ["oklch(13% 0.012 260)", "oklch(24% 0.014 260)", "oklch(36% 0.016 260)", "oklch(48% 0.016 260)", "oklch(60% 0.014 260)", "oklch(72% 0.012 260)", "oklch(84% 0.010 260)", "oklch(95% 0.006 260)"] },
+      "panel": { "role": "neutral", "displayName": "Panel", "canonical": "#0d1117", "tonalRamp": ["oklch(15% 0.012 255)", "oklch(26% 0.014 255)", "oklch(38% 0.015 255)", "oklch(49% 0.015 255)", "oklch(61% 0.013 255)", "oklch(72% 0.011 255)", "oklch(84% 0.009 255)", "oklch(95% 0.005 255)"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#dbe4ee", "tonalRamp": ["oklch(15% 0.010 250)", "oklch(27% 0.012 250)", "oklch(39% 0.014 250)", "oklch(51% 0.014 250)", "oklch(63% 0.013 250)", "oklch(75% 0.012 250)", "oklch(87% 0.010 250)", "oklch(95% 0.006 250)"] },
+      "ink-muted": { "role": "neutral", "displayName": "Ink Muted", "canonical": "#7d8896", "tonalRamp": ["oklch(15% 0.014 245)", "oklch(26% 0.016 245)", "oklch(38% 0.018 245)", "oklch(50% 0.020 245)", "oklch(62% 0.020 245)", "oklch(73% 0.016 245)", "oklch(85% 0.012 245)", "oklch(95% 0.006 245)"] },
+      "amber-signal": { "role": "primary", "displayName": "Amber Signal", "canonical": "#ffb020", "tonalRamp": ["oklch(15% 0.045 78)", "oklch(27% 0.070 78)", "oklch(39% 0.095 78)", "oklch(51% 0.120 78)", "oklch(63% 0.140 78)", "oklch(75% 0.155 78)", "oklch(85% 0.150 82)", "oklch(95% 0.070 90)"] },
+      "urgency-red": { "role": "secondary", "displayName": "Urgency Red (imminent / rising)", "canonical": "#e5372e", "tonalRamp": ["oklch(15% 0.060 28)", "oklch(26% 0.095 28)", "oklch(38% 0.135 28)", "oklch(49% 0.170 28)", "oklch(58% 0.195 28)", "oklch(70% 0.150 28)", "oklch(82% 0.095 28)", "oklch(95% 0.030 28)"] },
+      "urgency-orange": { "role": "secondary", "displayName": "Urgency Orange", "canonical": "#ef7d1a", "tonalRamp": ["oklch(15% 0.050 55)", "oklch(27% 0.080 55)", "oklch(39% 0.110 55)", "oklch(51% 0.140 55)", "oklch(63% 0.165 55)", "oklch(72% 0.170 55)", "oklch(83% 0.115 55)", "oklch(95% 0.040 55)"] },
+      "urgency-yellow": { "role": "secondary", "displayName": "Urgency Yellow", "canonical": "#d9b323", "tonalRamp": ["oklch(15% 0.040 95)", "oklch(27% 0.065 95)", "oklch(39% 0.090 95)", "oklch(51% 0.115 95)", "oklch(63% 0.135 95)", "oklch(76% 0.150 95)", "oklch(85% 0.130 95)", "oklch(95% 0.055 95)"] },
+      "urgency-blue": { "role": "secondary", "displayName": "Urgency Blue (distant / falling)", "canonical": "#2f66d8", "tonalRamp": ["oklch(15% 0.055 262)", "oklch(26% 0.090 262)", "oklch(38% 0.125 262)", "oklch(50% 0.160 262)", "oklch(62% 0.150 262)", "oklch(73% 0.115 262)", "oklch(84% 0.075 262)", "oklch(95% 0.025 262)"] },
+      "urgency-gray": { "role": "secondary", "displayName": "Urgency Gray (unknown)", "canonical": "#5b6572", "tonalRamp": ["oklch(15% 0.012 255)", "oklch(26% 0.016 255)", "oklch(38% 0.020 255)", "oklch(50% 0.022 255)", "oklch(62% 0.020 255)", "oklch(73% 0.016 255)", "oklch(85% 0.012 255)", "oklch(95% 0.006 255)"] }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Title", "purpose": "App title (h1), modal and bucket headings — the largest text in the product (14px)." },
+      "body": { "displayName": "Body", "purpose": "Default UI text at 13px; body carries font-variant-numeric: tabular-nums globally." },
+      "control": { "displayName": "Control", "purpose": "Buttons, inputs, tabs, filter labels, ticker items (12px)." },
+      "data-mono": { "displayName": "Data Mono", "purpose": "Consolas via --mono for every figure, date, D-day, count, and code — The Tabular Ledger Rule." },
+      "caption": { "displayName": "Caption", "purpose": "Badges, hints, timestamps (11px); mono when numeric." },
+      "micro-label": { "displayName": "Micro Label", "purpose": "10px letter-spaced muted strip titles (기관 분류선택, 입찰 임박도)." }
+    },
+    "shadows": [
+      { "name": "popover-float", "value": "0 6px 18px rgba(0,0,0,.5)", "purpose": "The single elevation shadow in the system — #popover above the map only (The Flat Board Rule)." },
+      { "name": "ring-state", "value": "0 0 0 1px var(--accent-color)", "purpose": "Zero-blur ring for current/selected/gate states; an outline, not elevation. Orange variant for gates." },
+      { "name": "watch-glow", "value": "drop-shadow(0 0 6px #ffe066)", "purpose": "SVG glow on watched-region outlines; a signal, not elevation." },
+      { "name": "modal-scrim", "value": "rgba(2,4,8,.62)", "purpose": "Overlay scrim behind angular modal boxes." }
+    ],
+    "motion": [
+      { "name": "state-fast", "value": "150ms (background, border-color)", "purpose": "Default hover/state transition on buttons, cards, tabs." },
+      { "name": "ripple-duration", "value": "var(--ripple-duration), default 2.2s ease-out", "purpose": "Shared period for selection ripple rings (three rings phase-offset by thirds) and municipality outline blink; user-tunable 1–4s via theme modal, written by render.applyTheme()." },
+      { "name": "fly-zoom", "value": "750ms", "purpose": "Drill-in geometric zoom to a region (render.ZOOM_MS)." },
+      { "name": "zoom-hold", "value": "400ms", "purpose": "Pause after zoom before switching to the region view (render.HOLD_MS)." },
+      { "name": "cloud-fade", "value": "700ms ease", "purpose": "Radial cloud overlay fade during drill-in." }
+    ],
+    "breakpoints": [
+      { "name": "narrow", "value": "880px", "purpose": "≤880px: frame unlocks (body scrolls), control strip stacks vertically, ranking ladder drops below the map, #tab-map scrolls." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Terminal Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "The only button style — flat panel-raised block, 2px corners, hairline border; hierarchy by placement, not fill.",
+      "html": "<button class=\"ds-btn\">기관 추가</button>",
+      "css": ".ds-btn { background: var(--panel2, #131a24); color: var(--fg, #dbe4ee); border: 1px solid var(--line-strong, #2b3646); border-radius: 2px; padding: 5px 12px; font: 12px 'Malgun Gothic', 'Segoe UI', sans-serif; cursor: pointer; white-space: nowrap; transition: background .15s, border-color .15s; } .ds-btn:hover { background: #182130; border-color: #3c4a5e; } .ds-btn:active { background: #0b0f16; } .ds-btn:focus-visible { outline: 1px solid var(--accent-color, #ffb020); outline-offset: 1px; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Recessed dark well with hairline border and amber caret.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"기관명·지역·유형 검색\">",
+      "css": ".ds-input { background: var(--bg-well, #0a0f16); color: var(--fg, #dbe4ee); border: 1px solid var(--line-strong, #2b3646); border-radius: 2px; padding: 4px 8px; font: 12px 'Malgun Gothic', 'Segoe UI', sans-serif; caret-color: var(--accent-color, #ffb020); } .ds-input:focus-visible { outline: 1px solid var(--accent-color, #ffb020); outline-offset: 1px; }"
+    },
+    {
+      "name": "Tab Strip",
+      "kind": "nav",
+      "refersTo": "tab-item",
+      "description": "Header tab strip: hairline-separated flush-square tabs; active tab fills panel-raised with a 2px amber top border.",
+      "html": "<div class=\"ds-tabs\"><button class=\"ds-tab ds-active\">전국 지도</button><button class=\"ds-tab\">전국 지역별</button><button class=\"ds-tab\">워크플로</button></div>",
+      "css": ".ds-tabs { display: flex; background: #0a0e14; border-bottom: 1px solid var(--line-strong, #2b3646); } .ds-tab { background: transparent; color: var(--muted, #7d8896); border: none; border-left: 1px solid var(--line, #1f2733); border-top: 2px solid transparent; border-radius: 0; padding: 9px 16px; font: 12px 'Malgun Gothic', 'Segoe UI', sans-serif; cursor: pointer; } .ds-tab:last-child { border-right: 1px solid var(--line, #1f2733); } .ds-tab:hover { background: var(--panel, #0d1117); color: var(--fg, #dbe4ee); } .ds-tab.ds-active { background: var(--panel2, #131a24); color: var(--fg, #dbe4ee); border-top-color: var(--accent-color, #ffb020); }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge-status",
+      "description": "The 18% Tint Rule chip: colored text + same-color 1px border + 18% tint. Blue=done/normal, orange=gap/approval, red=none/risk.",
+      "html": "<span class=\"ds-badge ds-ok\">작성됨</span> <span class=\"ds-badge ds-gap\">미충족</span> <span class=\"ds-badge ds-none\">미배정</span> <span class=\"ds-badge ds-dday\">D-45</span>",
+      "css": ".ds-badge { display: inline-block; border-radius: 2px; padding: 1px 7px; font-size: 11px; font-family: 'Malgun Gothic', 'Segoe UI', sans-serif; border: 1px solid; white-space: nowrap; margin-right: 4px; } .ds-ok { color: var(--blue, #2f66d8); border-color: var(--blue, #2f66d8); background: color-mix(in srgb, #2f66d8 18%, transparent); } .ds-gap { color: var(--orange, #ef7d1a); border-color: var(--orange, #ef7d1a); background: color-mix(in srgb, #ef7d1a 18%, transparent); } .ds-none { color: var(--red, #e5372e); border-color: var(--red, #e5372e); background: color-mix(in srgb, #e5372e 18%, transparent); } .ds-dday { color: var(--red, #e5372e); border-color: var(--red, #e5372e); background: transparent; font-family: Consolas, 'Cascadia Mono', monospace; }"
+    },
+    {
+      "name": "Ranking Ladder Row",
+      "kind": "custom",
+      "refersTo": "card-panel",
+      "description": "호가창 row: hairline-separated flat row; selection is an inset amber ring plus 12% amber tint; heart toggle floats right.",
+      "html": "<div class=\"ds-ladder\"><div class=\"ds-rank-card\"><span class=\"ds-heart\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\"><path d=\"M6 10.2C2.4 7.6 1 5.9 1 4.1 1 2.7 2.1 1.7 3.4 1.7 4.4 1.7 5.4 2.3 6 3.3 6.6 2.3 7.6 1.7 8.6 1.7 9.9 1.7 11 2.7 11 4.1 11 5.9 9.6 7.6 6 10.2Z\" fill=\"currentColor\"/></svg></span><b>파주시</b><br><small>지자체 · 2026-09-30</small></div><div class=\"ds-rank-card ds-hi\"><span class=\"ds-heart\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\"><path d=\"M6 10.2C2.4 7.6 1 5.9 1 4.1 1 2.7 2.1 1.7 3.4 1.7 4.4 1.7 5.4 2.3 6 3.3 6.6 2.3 7.6 1.7 8.6 1.7 9.9 1.7 11 2.7 11 4.1 11 5.9 9.6 7.6 6 10.2Z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\"/></svg></span><b>수원시</b><br><small>지자체 · 2027-02-28</small></div></div>",
+      "css": ".ds-ladder { background: var(--panel, #0d1117); border: 1px solid var(--line-strong, #2b3646); width: 240px; } .ds-rank-card { padding: 7px 10px; border-bottom: 1px solid var(--line, #1f2733); cursor: pointer; transition: background .15s; font-family: 'Malgun Gothic', 'Segoe UI', sans-serif; color: var(--fg, #dbe4ee); } .ds-rank-card:hover { background: #141c28; } .ds-rank-card.ds-hi { background: color-mix(in srgb, var(--accent-color, #ffb020) 12%, transparent); box-shadow: inset 0 0 0 1px var(--accent-color, #ffb020); } .ds-rank-card b { font-size: 13px; } .ds-rank-card small { color: var(--muted, #7d8896); font-family: Consolas, 'Cascadia Mono', monospace; font-size: 11px; font-variant-numeric: tabular-nums; } .ds-heart { float: right; color: var(--red, #e5372e); cursor: pointer; }"
+    },
+    {
+      "name": "Ticker Band",
+      "kind": "custom",
+      "refersTo": "card-panel",
+      "description": "TOP5 quote strip: mono amber line on chrome-deep, band-tinted entries lightened 72% toward white, ▲ on red-band items only.",
+      "html": "<div class=\"ds-ticker-strip\"><div class=\"ds-ticker\"><span class=\"ds-tk-cap\">임박 TOP5</span><span style=\"color:color-mix(in srgb, #e5372e 72%, #ffffff)\">▲ 파주시 D-45</span><span class=\"ds-tk-sep\">·</span><span style=\"color:color-mix(in srgb, #ef7d1a 72%, #ffffff)\">고양시 D-210</span><span class=\"ds-tk-sep\">·</span><span style=\"color:color-mix(in srgb, #2c5cb8 72%, #ffffff)\">부산시 D-812</span></div></div>",
+      "css": ".ds-ticker-strip { border-bottom: 1px solid var(--line, #1f2733); background: #0a0e14; padding: 4px 14px; } .ds-ticker { font-family: Consolas, 'Cascadia Mono', monospace; font-size: 12px; color: #ffcf5e; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; } .ds-tk-cap { color: var(--muted, #7d8896); letter-spacing: .06em; margin-right: 10px; } .ds-tk-sep { color: var(--muted, #7d8896); margin: 0 8px; }"
+    },
+    {
+      "name": "Watch Pin",
+      "kind": "chip",
+      "refersTo": "pin-watch",
+      "description": "Draggable interest-region pin: amber text and border over a 14% amber tint, with the star stroke glyph.",
+      "html": "<span class=\"ds-pin\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" style=\"vertical-align:-2px\"><path d=\"M6 1.2 7.35 4.35 10.8 4.65 8.2 6.9 9 10.3 6 8.45 3 10.3 3.8 6.9 1.2 4.65 4.65 4.35Z\" fill=\"currentColor\"/></svg> 경기</span>",
+      "css": ".ds-pin { display: inline-block; background: color-mix(in srgb, var(--accent-color, #ffb020) 14%, transparent); border: 1px solid var(--accent-color, #ffb020); color: var(--accent-color, #ffb020); border-radius: 2px; padding: 4px 10px; cursor: grab; font: 12px 'Malgun Gothic', 'Segoe UI', sans-serif; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "HTS 터미널 (The Securities Terminal)",
+    "overview": "The dashboard treats treasury-bank bid tracking with the visual grammar of a Korean home-trading-system (HTS) board: urgency is the market. A near-black blue-tinted board (#07090e), hairline-gridded flat panels, and Korean market color semantics — red rises (bid imminent), blue falls (bid distant) — turn the national map into a quote board rather than an atlas. The single interactive voice is amber (#ffb020). Soft card-style admin layouts are explicitly rejected. This is an Operate-mode surface: density is deliberate — a tight 10–14px type ladder, 2px corners, 1px separations, 150ms state transitions, and tabular monospace numerals everywhere a figure appears. The system paints even the browser's own chrome, and hard product constraints carry into the visuals: closed network (system faces only), vanilla JS, DOM ids/classes coupled to the node test suite.",
+    "keyCharacteristics": [
+      "Blue-black board with three-step tonal layering, no elevation shadows",
+      "Korean market urgency semantics: red=imminent ↔ blue=distant, gray=unknown",
+      "One amber interaction voice (#ffb020), runtime-themable via render.applyTheme()",
+      "Consolas tabular numerals for all data; Malgun Gothic for Korean UI text",
+      "2px corners, hairline borders, inline-SVG stroke glyphs, zero emoji in chrome"
+    ],
+    "rules": [
+      { "name": "The Korean Market Rule", "body": "Red means imminent/rising and blue means distant/falling, per Korean securities convention. Never re-map to western green-good/red-bad, and never use the urgency hues for interaction states.", "section": "colors" },
+      { "name": "The One Amber Rule", "body": "Amber (#ffb020) is reserved for selection, focus, and interaction. It never encodes urgency; urgency hues never encode selection.", "section": "colors" },
+      { "name": "The Deepened Board Rule", "body": "Large fills (map faces) use the deepened tier; small chrome uses the bright tier. Small text set in an urgency color over dark ground is lightened with color-mix(in srgb, <band> 70–72%, #ffffff).", "section": "colors" },
+      { "name": "The 18% Tint Rule", "body": "Status chips are colored text + 1px same-color border + color-mix(in srgb, <band> 18%, transparent) background. Status rows use the same mix at 8–12%. Status is never a solid colored fill.", "section": "colors" },
+      { "name": "The Variable-Name Freeze Rule", "body": "The :root custom-property names (--bg, --panel, --panel2, --line, --line-strong, --fg, --muted, --red, --orange, --yellow, --blue, --gray, --accent-color, --ripple-duration, --mono) are load-bearing: JS-generated inline markup references them by name and render.applyTheme() writes two of them. Change values to restyle; never rename.", "section": "colors" },
+      { "name": "The Tabular Ledger Rule", "body": "Anything that is a figure — D-day, dates, counts, badges with numbers, the ticker — is set in --mono (Consolas) so columns of data align like a ledger.", "section": "typography" },
+      { "name": "The Tight Ladder Rule", "body": "The type scale is deliberately compressed to 10–14px (Operate-mode density); the flat-type-hierarchy finding is suppressed as a sanctioned exception in .impeccable/config.json. Do not introduce sizes above 14px in app chrome; use weight, color, and spacing.", "section": "typography" },
+      { "name": "The Flat Board Rule", "body": "Surfaces never cast shadows. If a state needs emphasis, use a 1px ring (box-shadow: 0 0 0 1px), a border-color change, or an 8–18% tint — never lift.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do reference tokens as var(--…) in generated markup — --accent-color and --ripple-duration change at runtime, and the five urgency bands come from render.URGENCY_COLORS (theme-merged), not from constants.",
+      "Do pass any color that originated in localStorage through render._safeColor() before interpolating it into HTML/inline styles.",
+      "Do set every figure, date, and D-day in --mono; keep 150ms transitions for hover/state; signal state with border-color and 8–18% tints.",
+      "Do sink any new large-area color toward board-black (the map tier) and keep bright hues for small chrome.",
+      "Do draw new icons as inline SVG stroke glyphs (1.2–1.4 stroke, currentColor, 12×12 grid), matching render.ICONS.",
+      "Do check dashboard/test/*.test.js before touching DOM ids, classes, or the token names — 243 node tests are coupled to them."
+    ],
+    "donts": [
+      "Don't rename any :root custom property (Variable-Name Freeze Rule) or hardcode #ffb020 where var(--accent-color) belongs.",
+      "Don't introduce radii above 2px, panel shadows, gradients-as-decoration, or soft card-admin styling — the world rejects it by thesis.",
+      "Don't add external resources of any kind (fonts, CDNs, icon packages) — closed-network constraint; system faces only.",
+      "Don't use emoji in chrome, or use amber for urgency / urgency hues for selection.",
+      "Don't exceed the 10–14px chrome type ladder; hierarchy comes from weight, color, and the mono/sans split (Tight Ladder Rule).",
+      "Don't re-map the urgency semantics away from the Korean market convention (red=imminent, blue=distant)."
+    ]
+  }
+}

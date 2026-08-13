@@ -5,47 +5,127 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>금고은행 입찰 현황 히트맵</title>
 <style>
-  :root { --bg:#0f1420; --panel:#1a2233; --line:#2a3550; --fg:#e6ecff; --muted:#8a97b8;
-          --red:#e5484d; --orange:#f5a524; --yellow:#f2e14c; --blue:#3b82f6; --gray:#8a97b8; }
+  /* ── HTS 터미널 월드 토큰 ─────────────────────────────────────────────
+     기존 변수명(--bg·--panel·--line·--fg·--muted·--red…)은 JS 생성 마크업이
+     인라인으로 참조하므로 이름을 바꾸지 않는다 — 값만 이 월드로 교체.
+     --accent-color / --ripple-duration 은 render.applyTheme()이 덮어쓴다. */
+  :root { --bg:#07090e; --panel:#0d1117; --panel2:#131a24; --line:#1f2733;
+          --line-strong:#2b3646; --fg:#dbe4ee; --muted:#7d8896;
+          --red:#e5372e; --orange:#ef7d1a; --yellow:#d9b323; --blue:#2f66d8; --gray:#5b6572;
+          --accent-color:#ffb020; --ripple-duration:2.2s;
+          --mono:Consolas,"Cascadia Mono","Malgun Gothic",monospace; }
   * { box-sizing:border-box; }
   /* 남는 높이를 지도가 flex로 채운다 — 예전 calc(100vh - 120px)는 상단바가 한 줄일 때만
      맞아서, 필터 제목이 붙어 두 줄이 되자 지도(와 우하단 범례)가 화면 밖으로 밀렸다. */
   html, body { height:100%; }
-  body { margin:0; font-family:"Segoe UI","Malgun Gothic",sans-serif; background:var(--bg); color:var(--fg);
+  body { margin:0; font-family:"Malgun Gothic","Segoe UI",sans-serif; font-size:13px;
+         background:var(--bg); color:var(--fg); font-variant-numeric:tabular-nums;
          display:flex; flex-direction:column; overflow:hidden; }
-  header { display:flex; align-items:center; gap:16px; padding:10px 16px; border-bottom:1px solid var(--line); }
-  header h1 { font-size:16px; margin:0; }
-  .tabs { display:flex; gap:4px; margin-left:auto; }
-  .tab-btn { background:var(--panel); color:var(--muted); border:1px solid var(--line);
-             padding:6px 14px; border-radius:8px 8px 0 0; cursor:pointer; }
-  .tab-btn.active { color:var(--fg); border-bottom-color:var(--panel); }
-  .tab-view { display:none; padding:12px 16px; flex:1 1 auto; min-height:0; }
+
+  /* 브라우저 기본면도 이 월드가 칠한다 — 선택 영역·캐럿·스크롤바·포커스·폼 강조색 */
+  ::selection { background:var(--accent-color); color:#0a0e14; }
+  * { scrollbar-width:thin; scrollbar-color:var(--line-strong) transparent; }
+  ::-webkit-scrollbar { width:10px; height:10px; }
+  ::-webkit-scrollbar-thumb { background:var(--line-strong); }
+  ::-webkit-scrollbar-track { background:transparent; }
+  :focus-visible { outline:1px solid var(--accent-color); outline-offset:1px; }
+  input, select, textarea { accent-color:var(--accent-color); caret-color:var(--accent-color); }
+
+  /* ── 공통 컨트롤 어휘: 각진 2px, 헤어라인, 150ms 상태 전이 ── */
+  button { background:var(--panel2); color:var(--fg); border:1px solid var(--line-strong);
+           border-radius:2px; padding:5px 12px; font:inherit; font-size:12px; cursor:pointer;
+           white-space:nowrap; transition:background .15s, border-color .15s; }
+  button:hover { background:#182130; border-color:#3c4a5e; }
+  button:active { background:#0b0f16; }
+  button[disabled] { opacity:.45; cursor:not-allowed; }
+  .btn-like { background:var(--panel2); color:var(--fg); border:1px solid var(--line-strong);
+              border-radius:2px; padding:5px 12px; font-size:12px; cursor:pointer;
+              display:inline-flex; align-items:center; white-space:nowrap;
+              transition:background .15s, border-color .15s; }
+  .btn-like:hover { background:#182130; border-color:#3c4a5e; }
+  input[type=text], input[type=date], input[type=number], input:not([type]), select, textarea {
+    background:#0a0f16; color:var(--fg); border:1px solid var(--line-strong);
+    border-radius:2px; padding:4px 8px; font:inherit; font-size:12px; }
+
+  /* ── 터미널 상단 바: 제호 + 탭 스트립 ── */
+  header { display:flex; align-items:center; gap:16px; padding:0 14px;
+           background:#0a0e14; border-bottom:1px solid var(--line-strong); }
+  header h1 { font-size:14px; margin:0; padding:9px 0; letter-spacing:.02em;
+              display:flex; align-items:center; gap:8px; }
+  header h1 svg { display:block; }
+  .tabs { display:flex; gap:0; margin-left:auto; align-self:stretch; }
+  .tab-btn { background:transparent; color:var(--muted); border:none;
+             border-left:1px solid var(--line); border-radius:0;
+             border-top:2px solid transparent; padding:0 16px; cursor:pointer; }
+  .tabs .tab-btn:last-child { border-right:1px solid var(--line); }
+  .tab-btn:hover { background:var(--panel); color:var(--fg); }
+  .tab-btn.active { background:var(--panel2); color:var(--fg);
+                    border-top-color:var(--accent-color); }
+
+  /* ── 컨트롤 스트립 ── */
+  #topbar { display:flex; gap:14px; align-items:flex-end; padding:7px 14px;
+            border-bottom:1px solid var(--line); background:var(--panel); flex-wrap:wrap; }
+  .filter-title { font-size:10px; color:var(--muted); letter-spacing:.06em; margin-bottom:4px; }
+  #type-filter-wrap { min-width:0; }
+  #type-filter { display:flex; gap:6px 12px; font-size:12px; flex-wrap:wrap; }
+  #type-filter label { display:flex; align-items:center; gap:4px; color:var(--fg); cursor:pointer;
+                       white-space:nowrap; }
+  /* 데이터가 없어 JS가 비활성화한 유형 — 눌러도 안 되는 이유가 보이게 가라앉힌다 */
+  #type-filter label:has(input:disabled) { opacity:.45; cursor:default; }
+  .fsw { width:11px; height:11px; stroke:var(--muted); fill:none; stroke-width:1.4; }
+  .fsw.fill { fill:var(--muted); stroke:none; }
+  .tb-group { display:flex; gap:6px; align-items:center; }
+  .tb-group button, #btn-notify { display:flex; align-items:center; gap:5px; }
+  .tb-group svg, #btn-notify svg { display:block; }
+
+  /* 내 프로필·쪽지함 (계획 C2) */
+  .me-box { display:flex; align-items:center; gap:5px; font-size:12px; color:var(--muted); }
+  .me-box input, .me-box select { padding:3px 6px; }
+  #notify-badge:not(:empty) { margin-left:2px; background:var(--red); color:#fff;
+      border-radius:2px; padding:0 5px; font-size:11px; font-family:var(--mono); }
+
+  /* ── 임박 TOP5 티커 밴드 — 시세 전광판 줄 ── */
+  #ticker-strip { border-bottom:1px solid var(--line); background:#0a0e14; padding:4px 14px; }
+  #ticker { font-family:var(--mono); font-size:12px; color:#ffcf5e;
+            overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  #ticker:empty::before { content:"…"; color:var(--muted); }
+  #ticker .tk-cap { color:var(--muted); letter-spacing:.06em; margin-right:10px; }
+  #ticker .tk-sep { color:var(--muted); margin:0 8px; }
+
+  /* 문자·이모지 대신 쓰는 획 어휘 글리프(render.ICONS) 공통 크기 */
+  .gph { width:12px; height:12px; display:inline-block; vertical-align:-2px; }
+  #legend .gph { width:10px; height:10px; vertical-align:-1px; }
+
+  /* ── 탭 프레임 ── */
+  .tab-view { display:none; padding:10px 14px; flex:1 1 auto; min-height:0; }
   .tab-view.active { display:flex; flex-direction:column; }
   #tab-regions.active { overflow:auto; }
-  #drill-wrap { flex:1 1 auto; min-height:0; }
-  #map-stage { position:relative; width:100%; height:100%; background:var(--panel);
-               border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-  #cloud-overlay { position:absolute; inset:0; background:radial-gradient(circle at 50% 45%, rgba(15,20,32,0) 0%, rgba(15,20,32,0.85) 70%);
+
+  /* ── 지도 시세판 ── */
+  #drill-wrap { flex:1 1 auto; min-height:0; display:flex; gap:10px; justify-content:center; }
+  /* 전국 뷰(랭킹 패널이 숨겨진 상태)에서는 판 폭을 한반도 종횡비에 맞춰 죄어
+     빈 옆구리를 없앤다(마감 리뷰 반영). :has 미지원 브라우저는 전폭 그대로 —
+     기능 손실 없는 점진적 개선. 드릴인하면 패널이 열리며 자동으로 풀린다. */
+  #drill-wrap:has(> #rank-panel[style*="none"]) #map-stage {
+    max-width:calc((100vh - 140px) * 0.92); }
+  #map-stage { flex:2; position:relative; width:100%; height:100%; background:#0a0f16;
+               border:1px solid var(--line-strong); overflow:hidden; }
+  #cloud-overlay { position:absolute; inset:0; background:radial-gradient(circle at 50% 45%, rgba(7,9,14,0) 0%, rgba(7,9,14,0.85) 70%);
                    opacity:0; pointer-events:none; transition:opacity .7s ease; }
   #cloud-overlay.active { opacity:1; }
-  #breadcrumb { position:absolute; top:10px; left:12px; color:var(--fg); z-index:5; }
-  #breadcrumb button { background:var(--panel); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:4px 10px; cursor:pointer; }
-  .rank-card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px; margin-bottom:6px; cursor:pointer; }
-  .rank-card.hi { outline:2px solid #fff; }
-  #rank-panel { max-height:100%; }
-  .rank-head { display:flex; gap:8px; align-items:center; margin:4px 0 10px; flex-wrap:wrap; }
-  .rank-head select, .rank-head .rk-type { background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:3px 6px; font-size:12px; }
-  .heart { cursor:pointer; float:right; }
-  .marker.hi > * { stroke:#fff; stroke-width:2.5; }
-  .miss { color:var(--red); font-weight:bold; }
-  #pin-bar { display:flex; gap:8px; flex-wrap:wrap; min-height:36px; margin-bottom:12px; }
-  .pin { background:#243; border:1px solid #3a6; color:#cfe; border-radius:16px; padding:4px 12px; cursor:grab; }
-  #region-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; }
-  .rg-card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
-  .rg-card .star { cursor:pointer; float:right; }
+  #breadcrumb { position:absolute; top:10px; left:10px; color:var(--fg); z-index:5;
+                display:flex; gap:8px; align-items:center; }
+  #breadcrumb button { background:rgba(13,17,23,.92); }
+  #crumb-region { font-family:var(--mono); font-size:12px; color:var(--accent-color); }
+
+  /* 지역명 라벨: 균일한 진한 글자 + 연한 헤일로. paint-order:stroke 가 핵심 —
+     없으면 외곽선이 글자를 덮어 뭉개진다. */
+  .label { paint-order:stroke; stroke:#eef3fa; stroke-width:3px; stroke-linejoin:round;
+           fill:#10151d; font-size:13px; font-weight:700; }
+  .label .sub { font-size:10px; font-weight:600; fill:#46536b; }
   .region.watched { stroke:#ffe066; stroke-width:3; filter:drop-shadow(0 0 6px #ffe066); }
-  /* 물결·구 외곽선 깜빡임은 색/주기를 공유한다 — 설정 UI 하나로 같이 조절됨.
-     render.applyTheme()이 --accent-color / --ripple-duration 을 덮어쓴다. */
+
+  /* 물결·구 외곽선 깜빡임은 색/주기를 공유한다 — 설정 UI 하나로 같이 조절됨. */
   @keyframes ripple { from { r:6; opacity:.85; } to { r:26; opacity:0; } }
   .ripple-ring { fill:none; stroke:var(--accent-color); stroke-width:3;
                  animation: ripple var(--ripple-duration) ease-out infinite; pointer-events:none; }
@@ -53,63 +133,76 @@
     0%,100% { stroke-opacity:1; stroke-width:4; }
     50%     { stroke-opacity:.30; stroke-width:2; }
   }
-  /* 지자체 선택 시 해당 구 외곽선만 깜빡 (물결 대신) */
   .subregion.selected { stroke:var(--accent-color);
                         animation: muni-blink var(--ripple-duration) ease-in-out infinite; }
-  /* 지역명 라벨: 지역마다 색을 달리하지 않고 균일한 진한 글자 + 연한 헤일로로 통일.
-     paint-order:stroke 가 핵심 — 없으면 외곽선이 글자를 덮어 뭉개진다. */
-  .label { paint-order:stroke; stroke:#f7f9ff; stroke-width:3px; stroke-linejoin:round;
-           fill:#141b2b; font-size:13px; font-weight:700; }
-  .label .sub { font-size:10px; font-weight:600; fill:#4a5570; }
-  /* 범례: 지도 우하단 오버레이. pointer-events:none 이라 지도 클릭을 막지 않는다. */
-  #legend { position:absolute; right:12px; bottom:12px; z-index:6; pointer-events:none;
-            background:rgba(26,34,51,.88); border:1px solid var(--line); border-radius:8px;
-            padding:8px 10px; font-size:12px; display:flex; flex-direction:column; gap:5px; }
-  #legend .lg-title { color:var(--muted); font-size:10px; letter-spacing:.04em; margin-bottom:1px; }
-  #legend .lg-item { display:flex; align-items:center; gap:7px; white-space:nowrap; }
-  #legend .lg-sw { width:13px; height:13px; border-radius:3px; border:1px solid rgba(0,0,0,.35); display:inline-block; }
-  #legend .lg-hatch { background-image:repeating-linear-gradient(45deg, rgba(15,20,32,.55) 0 2px, transparent 2px 4px); }
-  .filter-title { font-size:10px; color:var(--muted); letter-spacing:.04em; margin-bottom:3px; }
-  #theme-modal label { display:flex; align-items:center; gap:8px; margin:8px 0; }
-  #theme-modal input[type=color] { width:44px; height:26px; padding:0; border:1px solid var(--line); background:none; }
+  .marker.hi > * { stroke:#fff; stroke-width:2.5; }
 
-  /* ── 내 프로필·쪽지함 버튼 (계획 C2) ── */
-  .me-box { display:flex; align-items:center; gap:5px; font-size:12px; color:var(--muted); }
-  .me-box input, .me-box select { background:var(--bg); color:var(--fg);
-      border:1px solid var(--line); border-radius:6px; padding:3px 6px; font-size:12px; }
-  #btn-notify { background:var(--panel); color:var(--fg); border:1px solid var(--line);
-      border-radius:6px; padding:4px 10px; cursor:pointer; }
-  #notify-badge:not(:empty) { margin-left:5px; background:var(--red); color:#fff;
-      border-radius:9px; padding:0 6px; font-size:11px; }
+  /* 범례: 지도 우하단 계기판. pointer-events:none 이라 지도 클릭을 막지 않는다. */
+  #legend { position:absolute; right:10px; bottom:10px; z-index:6; pointer-events:none;
+            background:rgba(10,14,20,.92); border:1px solid var(--line-strong);
+            padding:7px 9px; font-size:11px; font-family:var(--mono);
+            display:flex; flex-direction:column; gap:4px; }
+  #legend .lg-title { color:var(--muted); font-size:10px; letter-spacing:.06em; margin-bottom:1px; }
+  #legend .lg-item { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+  #legend .lg-sw { width:12px; height:12px; border:1px solid rgba(0,0,0,.4); display:inline-block; }
+  #legend .lg-hatch { background-image:repeating-linear-gradient(45deg, rgba(10,15,22,.55) 0 2px, transparent 2px 4px); }
 
-  /* ── 워크플로 현황판 (계획 C1) — 색은 전부 기존 CSS 변수로 ── */
+  /* ── 임박 랭킹 = 호가창 래더 ── */
+  #rank-panel { flex:1; display:none; overflow:auto; max-height:100%;
+                background:var(--panel); border:1px solid var(--line-strong); }
+  .rank-head { display:flex; gap:8px; align-items:center; padding:6px 10px; margin:0;
+               background:var(--panel2); border-bottom:1px solid var(--line-strong);
+               position:sticky; top:0; z-index:2; flex-wrap:wrap; }
+  .rank-head b { font-size:12px; letter-spacing:.04em; }
+  .rank-head select, .rank-head .rk-type { padding:2px 6px; font-size:12px; }
+  #rank-list { padding:0; }
+  .rank-card { padding:7px 10px; margin:0; border-bottom:1px solid var(--line);
+               cursor:pointer; transition:background .15s; }
+  .rank-card:hover { background:#141c28; }
+  .rank-card.hi { background:color-mix(in srgb, var(--accent-color) 12%, transparent);
+                  box-shadow:inset 0 0 0 1px var(--accent-color); }
+  .rank-card b { font-size:13px; }
+  .rank-card small { color:var(--muted); font-family:var(--mono); font-size:11px; }
+  .heart { cursor:pointer; float:right; color:var(--red); }
+  .miss { color:var(--red); font-weight:bold; }
+  #rank-panel > div:last-child { padding:8px 10px; }
+  #rank-more { width:100%; }
+
+  /* ── 전국 지역별: 관심 핀 + 종목 타일 ── */
+  #pin-bar { display:flex; gap:6px; flex-wrap:wrap; min-height:34px; margin-bottom:10px; }
+  .pin { background:color-mix(in srgb, var(--accent-color) 14%, transparent);
+         border:1px solid var(--accent-color); color:var(--accent-color);
+         border-radius:2px; padding:4px 10px; cursor:grab; font-size:12px; }
+  #region-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:8px; }
+  .rg-card { background:var(--panel); border:1px solid var(--line-strong); border-radius:2px;
+             padding:11px 12px; transition:border-color .15s; }
+  .rg-card:hover { border-color:var(--accent-color); }
+  .rg-card .star { cursor:pointer; float:right; color:#ffe066; }
+
+  /* ── 워크플로 현황판 (계획 C1) ── */
   #tab-workflow.active { overflow:auto; gap:12px; }
   #wf-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  #wf-controls select, #wf-controls input { background:var(--bg); color:var(--fg);
-      border:1px solid var(--line); border-radius:6px; padding:4px 8px; font-size:13px; }
-  #wf-controls button { background:var(--panel); color:var(--fg); border:1px solid var(--line);
-      border-radius:6px; padding:4px 12px; cursor:pointer; }
-  #wf-controls button[disabled] { opacity:.45; cursor:not-allowed; }
-  .wf-stepper { display:flex; gap:6px; flex-wrap:wrap; margin:12px 0 8px; }
-  .wf-step { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+  .wf-stepper { display:flex; gap:5px; flex-wrap:wrap; margin:12px 0 8px; }
+  .wf-step { background:var(--panel); border:1px solid var(--line-strong); border-radius:2px;
              padding:6px 10px; font-size:12px; color:var(--muted); display:flex; gap:6px;
              align-items:center; cursor:pointer; }
-  .wf-step b { background:var(--bg); border-radius:50%; width:18px; height:18px;
-               display:inline-flex; align-items:center; justify-content:center; font-size:11px; }
+  .wf-step b { background:var(--bg); border-radius:2px; width:18px; height:18px;
+               display:inline-flex; align-items:center; justify-content:center; font-size:11px;
+               font-family:var(--mono); }
   .wf-step.done { color:var(--fg); border-color:var(--blue); }
   .wf-step.current { color:var(--fg); border-color:var(--accent-color); box-shadow:0 0 0 1px var(--accent-color); }
   .wf-step.gate { color:var(--fg); border-color:var(--orange); box-shadow:0 0 0 1px var(--orange); }
   .wf-step .wf-gate { font-style:normal; font-size:10px; color:var(--orange); }
   /* 그 단계에 기록된 이벤트 건수 — 클릭하면 아래 로그 영역에 펼쳐진다 */
   .wf-step .wf-cnt { font-style:normal; font-size:10px; color:var(--fg); background:var(--bg);
-                     border-radius:8px; padding:0 6px; }
+                     border-radius:2px; padding:0 5px; font-family:var(--mono); }
   .wf-step.sel { outline:2px solid var(--accent-color); }
   .wf-state { font-size:13px; margin:6px 0; }
   .wf-cards-title { font-size:13px; margin:10px 0 2px; }
-  .wf-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; margin:8px 0; }
+  .wf-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px; margin:8px 0; }
   /* 그 단계에서 한 일 요약 — 길면 말줄임(전체 문구는 title 속성) */
   .wf-card .wf-card-sum { color:var(--fg); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .wf-card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+  .wf-card { background:var(--panel); border:1px solid var(--line-strong); border-radius:2px;
              padding:10px; cursor:pointer; display:flex; flex-direction:column; gap:4px; }
   .wf-card.hi { outline:2px solid var(--accent-color); }
   .wf-card span { font-size:12px; color:var(--muted); }
@@ -118,98 +211,87 @@
   .wf-cov { border-collapse:collapse; width:100%; font-size:12px; margin-top:6px; }
   .wf-cov th, .wf-cov td { border:1px solid var(--line); padding:4px 8px; text-align:left; }
   .wf-cov th { color:var(--muted); font-weight:600; }
-  .wf-cov tr.ok td:first-child { border-left:3px solid var(--blue); }
-  .wf-cov tr.gap td:first-child { border-left:3px solid var(--orange); }
-  .wf-cov tr.none td:first-child { border-left:3px solid var(--red); }
-  /* 작성됨/미충족/미배정 상태 배지 — 색은 기존 변수만 쓰고 배경만 옅게 섞는다 */
-  .wf-badge { border-radius:10px; padding:1px 8px; font-size:11px; border:1px solid; white-space:nowrap; }
-  .wf-badge.ok   { color:var(--blue);   border-color:var(--blue);   background:color-mix(in srgb, var(--blue) 20%, transparent); }
-  .wf-badge.gap  { color:var(--orange); border-color:var(--orange); background:color-mix(in srgb, var(--orange) 20%, transparent); }
-  .wf-badge.none { color:var(--red);    border-color:var(--red);    background:color-mix(in srgb, var(--red) 20%, transparent); }
+  /* 행 상태는 면 전체 틴트로 — 굵은 좌측 색띠 대신 배경이 상태를 말한다 */
+  .wf-cov tr.ok   { background:color-mix(in srgb, var(--blue) 8%, transparent); }
+  .wf-cov tr.gap  { background:color-mix(in srgb, var(--orange) 8%, transparent); }
+  .wf-cov tr.none { background:color-mix(in srgb, var(--red) 8%, transparent); }
+  /* 작성됨/미충족/미배정 상태 배지 */
+  .wf-badge { border-radius:2px; padding:1px 7px; font-size:11px; border:1px solid; white-space:nowrap; }
+  .wf-badge.ok   { color:var(--blue);   border-color:var(--blue);   background:color-mix(in srgb, var(--blue) 18%, transparent); }
+  .wf-badge.gap  { color:var(--orange); border-color:var(--orange); background:color-mix(in srgb, var(--orange) 18%, transparent); }
+  .wf-badge.none { color:var(--red);    border-color:var(--red);    background:color-mix(in srgb, var(--red) 18%, transparent); }
   /* 정합성 경고 (계획 E) — 어긋난 게 없으면 아예 그리지 않는다 */
   .wf-warn { margin:10px 0; }
-  .wf-warn-row { border:1px solid var(--red); border-radius:8px; padding:8px 10px;
+  .wf-warn-row { border:1px solid var(--red); border-radius:2px; padding:8px 10px;
                  margin-bottom:6px; font-size:12px;
-                 background:color-mix(in srgb, var(--red) 14%, transparent); }
+                 background:color-mix(in srgb, var(--red) 12%, transparent); }
   /* 참여 결정 3차 결재 (계획 D) */
   #wf-participation .wf-cov tr.done td { color:var(--muted); }
-  #wf-participation .wf-cov tr.current td { border-left:3px solid var(--accent-color); }
-  .wf-dec { background:var(--bg); color:var(--fg); border:1px solid var(--line);
-            border-radius:6px; padding:2px 12px; cursor:pointer; margin-right:4px; }
+  #wf-participation .wf-cov tr.current { background:color-mix(in srgb, var(--accent-color) 8%, transparent); }
+  .wf-dec { padding:2px 12px; margin-right:4px; }
   .wf-log { margin-top:10px; }
   .wf-log-title { font-size:13px; margin:6px 0 2px; }
   .wf-log-row { border-top:1px solid var(--line); padding:6px 0; font-size:12px; }
   .wf-log-row .wf-who { color:var(--muted); font-size:11px; }
   /* 역할 옆 한글 부제 — 총괄 agent / 영업 agent / 김 차장 */
-  .wf-log-row .wf-sub { color:var(--fg); background:var(--panel); border:1px solid var(--line);
-                        border-radius:8px; padding:0 6px; margin-left:5px; }
+  .wf-log-row .wf-sub { color:var(--fg); background:var(--panel); border:1px solid var(--line-strong);
+                        border-radius:2px; padding:0 6px; margin-left:5px; }
+  .wf-log-row pre { margin:2px 0 0; white-space:pre-wrap; word-break:break-word; font-family:inherit; }
 
   /* ── 대화창 (계획 C2) ── */
   #tab-chat.active { overflow:hidden; gap:8px; }
-  /* 모델 배지 — 지금 어떤 모델을 쓰는지 (Task 3). */
+  /* 모델 배지 — 지금 어떤 모델을 쓰는지 (Task 3). 정보가 없으면 흔적 없이 사라진다. */
   #chat-model-badge { display:inline-block; font-size:11px; color:var(--muted);
-                       border:1px solid var(--line); border-radius:8px; padding:2px 8px; }
-  /* 정보가 없으면(조회 실패·미조회) 내용이 빈 문자열이라, 안 숨기면 테두리만 남은
-     빈 알약이 떠서 "뭔가 로딩 중"처럼 보인다. 부가 정보이므로 흔적 없이 사라진다. */
+                       border:1px solid var(--line-strong); border-radius:2px; padding:2px 8px;
+                       font-family:var(--mono); }
   #chat-model-badge:empty { display:none; }
-  #ch-log { flex:1 1 auto; min-height:0; overflow:auto; border:1px solid var(--line);
-            border-radius:10px; background:var(--panel); padding:10px; }
+  #ch-log { flex:1 1 auto; min-height:0; overflow:auto; border:1px solid var(--line-strong);
+            background:var(--panel); padding:10px; }
   .ch-row { margin:8px 0; max-width:78%; }
   .ch-row.mine { margin-left:auto; text-align:right; }
   .ch-row .ch-who { color:var(--muted); font-size:11px; margin-bottom:2px; }
   .ch-row pre { margin:0; white-space:pre-wrap; word-break:break-word; font-family:inherit;
-                font-size:13px; background:var(--bg); border:1px solid var(--line);
-                border-radius:10px; padding:8px 10px; text-align:left; }
+                font-size:13px; background:var(--bg); border:1px solid var(--line-strong);
+                border-radius:2px; padding:8px 10px; text-align:left; }
   .ch-row.agent pre { border-color:var(--accent-color); }
   /* 답변처럼 생겼지만 답변이 아니다 — LLM 호출 실패 사유(계획 F 후속 G1) */
   .ch-row.failed pre { border-color:var(--red); color:var(--muted); }
   #ch-form { display:flex; gap:8px; align-items:flex-end; }
-  #ch-input { flex:1 1 auto; background:var(--bg); color:var(--fg); border:1px solid var(--line);
-              border-radius:8px; padding:8px; font-family:inherit; font-size:13px; resize:vertical; }
-  #ch-form button { background:var(--panel); color:var(--fg); border:1px solid var(--line);
-                    border-radius:6px; padding:8px 14px; cursor:pointer; }
-  #ch-form button[disabled] { opacity:.45; cursor:not-allowed; }
+  #ch-input { flex:1 1 auto; padding:8px; font-size:13px; resize:vertical; }
+  #ch-form button { padding:8px 14px; }
 
   /* ── 쪽지함 (계획 C2) — 종류별 색은 기존 변수만 사용 ── */
-  #nt-form input { background:var(--bg); color:var(--fg); border:1px solid var(--line);
-                   border-radius:6px; padding:5px 8px; font-size:13px; }
-  #nt-form button { background:var(--bg); color:var(--fg); border:1px solid var(--line);
-                    border-radius:6px; padding:5px 12px; cursor:pointer; }
   .nt-row { border-bottom:1px solid var(--line); padding:8px 0; }
   .nt-row.read { opacity:.5; }
   .nt-head { font-size:11px; color:var(--muted); display:flex; align-items:center; gap:6px; }
-  .nt-head .nt-read { margin-left:auto; background:var(--bg); color:var(--fg);
-                      border:1px solid var(--line); border-radius:6px; padding:1px 8px;
-                      font-size:11px; cursor:pointer; }
+  .nt-head .nt-read { margin-left:auto; padding:1px 8px; font-size:11px; }
   .nt-row pre { margin:3px 0 0; white-space:pre-wrap; word-break:break-word;
                 font-family:inherit; font-size:13px; }
-  .nt-kind { border-radius:10px; padding:1px 8px; font-size:11px; border:1px solid; }
-  .nt-kind.approval { color:var(--orange); border-color:var(--orange); background:color-mix(in srgb, var(--orange) 20%, transparent); }
-  .nt-kind.risk     { color:var(--red);    border-color:var(--red);    background:color-mix(in srgb, var(--red) 20%, transparent); }
-  .nt-kind.handoff  { color:var(--blue);   border-color:var(--blue);   background:color-mix(in srgb, var(--blue) 20%, transparent); }
-  .nt-kind.note     { color:var(--muted);  border-color:var(--line);   background:var(--bg); }
+  .nt-kind { border-radius:2px; padding:1px 7px; font-size:11px; border:1px solid; }
+  .nt-kind.approval { color:var(--orange); border-color:var(--orange); background:color-mix(in srgb, var(--orange) 18%, transparent); }
+  .nt-kind.risk     { color:var(--red);    border-color:var(--red);    background:color-mix(in srgb, var(--red) 18%, transparent); }
+  .nt-kind.handoff  { color:var(--blue);   border-color:var(--blue);   background:color-mix(in srgb, var(--blue) 18%, transparent); }
+  .nt-kind.note     { color:var(--muted);  border-color:var(--line-strong); background:var(--bg); }
 
   /* ── 지식 탭 (계획 C2) ── */
   #tab-knowledge.active { overflow:auto; gap:8px; }
   #kn-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  #kn-controls input, #kn-controls select { background:var(--bg); color:var(--fg);
-      border:1px solid var(--line); border-radius:6px; padding:4px 8px; font-size:13px; }
-  #kn-controls button { background:var(--panel); color:var(--fg); border:1px solid var(--line);
-      border-radius:6px; padding:4px 12px; cursor:pointer; }
-  .kn-hit { background:var(--panel); border:1px solid var(--line); border-radius:10px;
-            padding:10px; margin:8px 0; }
+  #kn-controls button:disabled { opacity:.55; cursor:progress; }
+  .kn-hit { background:var(--panel); border:1px solid var(--line-strong); border-radius:2px;
+            padding:10px; margin:8px 0; cursor:pointer; transition:border-color .15s; }
+  .kn-hit:hover { border-color:var(--accent-color); }
+  .kn-open { font-size:11px; color:var(--muted); float:right; }
   .kn-head { font-size:12px; color:var(--muted); margin-bottom:4px; }
   .kn-head b { color:var(--fg); }
   .kn-snip { font-size:13px; white-space:pre-wrap; word-break:break-word; }
-  .kn-snip mark { background:var(--accent-color); color:var(--bg); border-radius:3px; padding:0 2px; }
+  .kn-snip mark { background:var(--accent-color); color:#0a0e14; padding:0 2px; }
   /* 지금이 하이브리드인지 FTS 단독인지 — 조용히 나빠지는 것을 막는 표시(계획 F) */
-  .kn-mode { font-size:11px; border-radius:10px; padding:1px 8px; margin-left:6px;
-             border:1px solid var(--line); cursor:help; }
+  .kn-mode { font-size:11px; border-radius:2px; padding:1px 7px; margin-left:6px;
+             border:1px solid var(--line-strong); cursor:help; font-family:var(--mono); }
   .kn-mode.on { border-color:var(--accent-color); color:var(--accent-color); }
   .kn-mode.off { color:var(--muted); }
-  /* X-Search-Mode·X-Embed-Model 문구(Task 4) — .kn-mode와 나란히 붙되 배지 테두리는 없다 */
-  .kn-mode-text { font-size:11px; color:var(--muted); margin-left:6px; }
-  #kn-controls button:disabled { opacity:.55; cursor:progress; }
+  /* X-Search-Mode·X-Embed-Model 문구(Task 4) — .kn-mode와 나란히, 배지 테두리는 없다 */
+  .kn-mode-text { font-size:11px; color:var(--muted); margin-left:6px; font-family:var(--mono); }
 
   /* ── 디자이너 작업함 (계획 H) ── */
   #tab-designer.active { overflow:hidden; gap:8px; }
@@ -221,34 +303,35 @@
   /* 구획 제목이 목록 항목과 구분이 안 된다는 지적(사용자) — 키우고, 아래쪽에
      경계선을 둬서 '없습니다'가 제목에 붙어 보이지 않게 한다. */
   .dg-bucket { margin-bottom:18px; }
-  .dg-bucket h4 { margin:0 0 8px; padding-bottom:5px; font-size:15px; color:var(--fg);
-                  border-bottom:1px solid var(--line); display:flex; gap:7px;
+  .dg-bucket h4 { margin:0 0 8px; padding-bottom:5px; font-size:14px; color:var(--fg);
+                  border-bottom:1px solid var(--line-strong); display:flex; gap:7px;
                   align-items:center; }
   .dg-bucket h4 span { font-size:11px; color:var(--bg); background:var(--muted);
-                       border-radius:9px; padding:0 7px; font-weight:normal; }
+                       border-radius:2px; padding:0 6px; font-weight:normal; font-family:var(--mono); }
   /* 빈 칸 문구는 한 칸 들여쓰고 흐리게 — 제목과 같은 줄기로 읽히지 않게 */
   .dg-bucket .wf-empty { margin:0 0 0 4px; font-size:12px; opacity:.65; }
-  .dg-item { border:1px solid var(--line); border-radius:8px; background:var(--panel);
-             padding:8px; margin-bottom:6px; cursor:pointer; }
+  .dg-item { border:1px solid var(--line-strong); border-radius:2px; background:var(--panel);
+             padding:8px; margin-bottom:6px; cursor:pointer; transition:border-color .15s; }
   .dg-item:hover, .dg-item.on { border-color:var(--accent-color); }
   .dg-item-head { display:flex; justify-content:space-between; align-items:center; gap:6px; }
   .dg-item-sub { display:flex; justify-content:space-between; align-items:center;
                  margin-top:6px; font-size:11px; color:var(--muted); }
   /* D-day 배지 — 입찰일까지 남은 일수가 곧 우선순위다(계획 H) */
-  .dg-day { font-size:11px; border-radius:8px; padding:1px 7px; border:1px solid var(--line); }
+  .dg-day { font-size:11px; border-radius:2px; padding:1px 6px; border:1px solid var(--line-strong);
+            font-family:var(--mono); }
   .dg-day.urgent { border-color:var(--red); color:var(--red); }
   .dg-day.soon { border-color:var(--orange); color:var(--orange); }
   .dg-day.normal { border-color:var(--blue); color:var(--blue); }
   .dg-day.later, .dg-day.unknown { color:var(--muted); }
   /* 처리상태 태그 */
-  .dg-tag { font-size:11px; border-radius:8px; padding:1px 7px; border:1px solid var(--line);
+  .dg-tag { font-size:11px; border-radius:2px; padding:1px 6px; border:1px solid var(--line-strong);
             color:var(--muted); }
   .dg-tag.work { border-color:var(--orange); color:var(--orange); }
   .dg-tag.sent { border-color:var(--blue); color:var(--blue); }
   .dg-tag.ok { border-color:var(--accent-color); color:var(--accent-color); }
   .dg-pkg-head { margin-bottom:8px; }
   .dg-pptx { font-size:11px; color:var(--muted); }
-  .dg-card { border:1px solid var(--line); border-radius:8px; background:var(--panel);
+  .dg-card { border:1px solid var(--line-strong); border-radius:2px; background:var(--panel);
              padding:10px; margin-bottom:8px; }
   .dg-card.ready { border-color:var(--accent-color); }
   .dg-card-head { display:flex; align-items:center; gap:8px; }
@@ -260,7 +343,7 @@
   .dg-body.open { max-height:none; cursor:zoom-out; }
   .dg-file { display:flex; align-items:center; gap:8px; padding:4px 0;
              border-bottom:1px solid var(--line); font-size:13px; }
-  .dg-size, .dg-at { font-size:11px; color:var(--muted); }
+  .dg-size, .dg-at { font-size:11px; color:var(--muted); font-family:var(--mono); }
   .dg-at { margin-left:auto; }
   /* 팀이 올린 파일 — 디자이너가 받아서 작업할 실물이라 카드에서 눈에 띄어야 한다 */
   .dg-team-files { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center;
@@ -271,44 +354,87 @@
   .dg-why { font-size:12px; color:var(--orange); }
   #dg-upload-row, #dg-actions { display:flex; align-items:center; gap:8px; margin:8px 0;
                                 flex-wrap:wrap; }
+  .dg-hint { font-size:11px; color:var(--muted); }
+  #dg-memo { width:100%; box-sizing:border-box; }
+  #dg-actions button:disabled { opacity:.55; cursor:not-allowed; }
 
   /* ── 결재함 · 권한관리 (계획 I) ── */
   #tab-approvals.active, #tab-admin.active { overflow:auto; gap:10px; }
   #ap-head, #ad-head { font-size:13px; color:var(--muted); }
   #ap-head span, #ad-head span { color:var(--fg); }
-  .ap-card { border:1px solid var(--line); border-radius:8px; background:var(--panel);
+  .ap-card { border:1px solid var(--line-strong); border-radius:2px; background:var(--panel);
              padding:10px; margin-bottom:8px; }
   .ap-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .ap-act { display:flex; gap:6px; align-items:center; margin-top:8px; flex-wrap:wrap; }
-  .ap-comment { flex:1 1 220px; background:var(--bg); color:var(--fg);
-                border:1px solid var(--line); border-radius:6px; padding:4px 8px; }
+  .ap-comment { flex:1 1 220px; }
   .ap-act button:disabled { opacity:.5; cursor:not-allowed; }
   .ap-dl { color:var(--accent-color); text-decoration:none; }
   .ad-grid { border-collapse:collapse; font-size:13px; }
   .ad-grid th, .ad-grid td { border:1px solid var(--line); padding:5px 10px; text-align:center; }
-  .ad-grid thead th { background:var(--panel); }
-  .ad-grid tbody th { text-align:left; background:var(--panel); font-weight:normal; }
+  .ad-grid thead th { background:var(--panel2); }
+  .ad-grid tbody th { text-align:left; background:var(--panel2); font-weight:normal; }
   .ad-so { color:var(--muted); }
   .ad-note { font-size:11px; color:var(--muted); }
   #ad-actions { display:flex; gap:8px; align-items:center; margin-top:10px; }
-  .dg-hint { font-size:11px; color:var(--muted); }
-  #dg-memo { width:100%; box-sizing:border-box; }
-  #dg-actions button:disabled { opacity:.55; cursor:not-allowed; }
-  .kn-hit { cursor:pointer; }
-  .kn-hit:hover { border-color:var(--accent-color); }
-  .kn-open { font-size:11px; color:var(--muted); float:right; }
-  /* 원문 모달: 검색어는 노랑, 검색에 걸린 그 청크는 테두리로 표시 */
+
+  /* ── 모달: 각진 상자 + 배경 스크림. display 토글은 JS(app.wireModalDismiss 포함) ── */
+  .modal-overlay { position:fixed; inset:0; background:rgba(2,4,8,.62); z-index:30; }
+  .modal-box { margin:6vh auto; background:var(--panel); border:1px solid var(--line-strong);
+               padding:16px; max-height:84vh; display:flex; flex-direction:column; }
+  .modal-box h3 { margin:0 0 10px; font-size:14px; letter-spacing:.02em;
+                  padding-bottom:8px; border-bottom:1px solid var(--line); }
+  .modal-scroll { display:block; overflow:auto; }
+  #popover { display:none; position:fixed; z-index:20; background:var(--panel);
+             border:1px solid var(--line-strong); padding:10px; font-size:12px; max-width:280px;
+             box-shadow:0 6px 18px rgba(0,0,0,.5); }
+  #theme-modal label { display:flex; align-items:center; gap:8px; margin:8px 0; }
+  #theme-modal input[type=color] { width:44px; height:26px; padding:0;
+      border:1px solid var(--line-strong); background:none; }
+  .more-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .more-table thead tr { text-align:left; color:var(--muted); }
+  .more-table th { padding:6px; border-bottom:1px solid var(--line-strong); }
+  /* 원문 모달: 검색어는 강조색, 검색에 걸린 그 청크는 테두리로 표시 */
   #doc-body pre { margin:0; white-space:pre-wrap; word-break:break-word; font-family:inherit;
                   font-size:13px; line-height:1.6; }
-  #doc-body mark { background:var(--accent-color); color:var(--bg); border-radius:3px; padding:0 2px; }
+  #doc-body mark { background:var(--accent-color); color:#0a0e14; padding:0 2px; }
   #doc-body mark.kn-chunk { background:transparent; color:inherit;
-                            box-shadow:inset 0 0 0 1px var(--accent-color); border-radius:4px; }
-  .wf-log-row pre { margin:2px 0 0; white-space:pre-wrap; word-break:break-word; font-family:inherit; }
+                            box-shadow:inset 0 0 0 1px var(--accent-color); }
+
+  /* ── 좁은 화면: 구조로 접는다 (사이드 래더가 지도 아래로) ── */
+  @media (max-width: 880px) {
+    body { overflow:auto; }
+    header { flex-wrap:wrap; padding-bottom:0; }
+    .tabs { margin-left:0; width:100%; overflow-x:auto; }
+    /* 좁은 폭에서는 컨트롤 스트립을 세로 스택으로 — 어떤 환경에서도 잘리지 않게 */
+    #topbar { flex-direction:column; align-items:stretch; }
+    .tb-group { flex-wrap:wrap; }
+    /* 지도+래더가 세로로 쌓여 탭 높이를 넘친다 — 탭 안에서 스크롤 */
+    #tab-map.active { overflow-y:auto; }
+    #drill-wrap { flex-direction:column; flex:none; }
+    #map-stage { flex:none; min-height:52vh; }
+    #rank-panel { flex:none; max-height:40vh; }
+    #dg-wrap { flex-direction:column; }
+    #dg-list { width:auto; max-height:38vh; }
+    .ch-row { max-width:100%; }
+  }
 </style>
 </head>
 <body>
+<!--
+THESIS: 금고 입찰 현황을 증권사 HTS 시세판의 문법으로 다룬다 — 임박도가 곧 등락이다.
+부드러운 카드형 어드민 배치를 거부한다.
+OWN-WORLD: 흑청(#07090e) 바탕, 헤어라인 격자 패널, 상승-빨강/하락-파랑의 한국 시장
+색 의미론, 호박색(#ffb020) 선택 강조, Consolas tabular 숫자 + 맑은 고딕, 각진 2px 모서리.
+STORY: 담당자는 전국 판세를 시세판처럼 훑고, 빨간(임박) 지역을 눌러 호가창(랭킹 래더)에서
+기관을 고른 뒤 제안 업무로 넘어간다.
+FIRST VIEWPORT: 터미널 바(제호+탭) → 컨트롤 스트립 → 임박 TOP5 티커 밴드 →
+중앙 전국 지도 시세판(드릴인 시 우측 호가창 래더), 우하단 등락 범례.
+FORM: HTS 터미널 — 자체 7후보 중 3위, seed 6d3737b9 (degraded roll, code-led).
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish
+review, the verdict, and DESIGN.md
+-->
 <header>
-  <h1>금고은행 입찰 현황 히트맵</h1>
+  <h1><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><g stroke="#ffb020" stroke-width="1.6" fill="none"><line x1="3" y1="2" x2="3" y2="12"/><rect x="1.2" y="4.5" width="3.6" height="4" fill="#ffb020" stroke="none"/><line x1="10" y1="1" x2="10" y2="13"/><rect x="8.2" y="3" width="3.6" height="6.5" fill="none"/></g></svg>금고은행 입찰 현황 히트맵</h1>
   <div class="tabs">
     <button class="tab-btn active" data-tab="map" id="tab-btn-map">전국 지도</button>
     <button class="tab-btn" data-tab="regions" id="tab-btn-regions">전국 지역별</button>
@@ -322,62 +448,65 @@
   </div>
 </header>
 
-  <div id="topbar" style="display:flex;gap:16px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap;">
-    <div id="type-filter-wrap">
-      <div class="filter-title">기관 분류선택</div>
-      <div id="type-filter" style="display:flex;gap:10px;font-size:13px;">
-        <label><input type="checkbox" data-type="지자체" checked> ▬ 지자체(면)</label>
-        <label><input type="checkbox" data-type="공공기관" checked> ▲ 공공기관</label>
-        <label><input type="checkbox" data-type="공기업" checked> ■ 공기업</label>
-        <label><input type="checkbox" data-type="대학병원" checked> ● 대학병원</label>
-        <label><input type="checkbox" data-type="대학교" checked> ⬟ 대학교</label>
-      </div>
+<div id="topbar">
+  <div id="type-filter-wrap">
+    <div class="filter-title">기관 분류선택</div>
+    <div id="type-filter">
+      <!-- 글리프는 지도 마커 도형(logic.markerShape)과 1:1 — 지자체=면, ▲, ■, ●, ⬟ 순 -->
+      <label><input type="checkbox" data-type="지자체" checked><svg class="fsw fill" viewBox="0 0 12 12" aria-hidden="true"><rect x="1" y="3" width="10" height="6"/></svg>지자체(면)</label>
+      <label><input type="checkbox" data-type="공공기관" checked><svg class="fsw" viewBox="0 0 12 12" aria-hidden="true"><polygon points="6,1.5 11,10.5 1,10.5"/></svg>공공기관</label>
+      <label><input type="checkbox" data-type="공기업" checked><svg class="fsw" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="2" width="8" height="8"/></svg>공기업</label>
+      <label><input type="checkbox" data-type="대학병원" checked><svg class="fsw" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.5"/></svg>대학병원</label>
+      <label><input type="checkbox" data-type="대학교" checked><svg class="fsw" viewBox="0 0 12 12" aria-hidden="true"><polygon points="6,1 10.76,4.45 8.94,10.05 3.06,10.05 1.24,4.45"/></svg>대학교</label>
     </div>
-    <button id="btn-add" style="background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer;">＋ 기관 추가</button>
-    <button id="btn-tmpl" style="background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer;">CSV 템플릿 내려받기</button>
-    <label style="background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer;">CSV 업로드<input id="file-csv" type="file" accept=".csv" style="display:none;"></label>
-    <button id="btn-export" style="background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer;">기관 정보 내보내기</button>
-    <button id="btn-theme" style="background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer;">🎨 지도 색상</button>
-    <!-- 내 프로필 — 쪽지함 조회 키(소속·이름)이자 결재자 이름 기본값 (계획 C2) -->
-    <label class="me-box">나:
-      <input id="me-name" placeholder="이름" size="8">
-      <!-- 소속은 **3그룹뿐**이고 팀장·부장은 그 안의 직책이다(사용자 확정).
-           예전에는 자유 입력 한 칸이라 `전산팀장`이 소속처럼 섞여 있었다.
-           저장·전송은 여전히 합쳐진 한 문자열이다 — app.js의 composeRole 참조.
-           직책 목록은 소속에 따라 달라진다(부장·디자이너는 영업팀에만). -->
-      <select id="me-team" title="소속">
-        <option>영업팀</option><option>전산팀</option><option>예산팀</option>
-      </select>
-      <select id="me-pos" title="직책"></select>
-      <!-- 계정 전환 — 데모 모드에서만 보인다(GET /accounts의 demo 플래그) -->
-      <select id="me-switch" style="display:none;" title="계정 전환(데모 전용)"></select>
-    </label>
-    <button id="btn-notify" title="쪽지함">✉ 쪽지함<span id="notify-badge"></span></button>
-    <div id="ticker" style="margin-left:auto;font-size:12px;color:var(--muted);overflow:hidden;white-space:nowrap;max-width:40vw;"></div>
   </div>
+  <div class="tb-group">
+    <button id="btn-add"><svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true" stroke="currentColor" stroke-width="1.4" fill="none"><line x1="6" y1="1.5" x2="6" y2="10.5"/><line x1="1.5" y1="6" x2="10.5" y2="6"/></svg>기관 추가</button>
+    <button id="btn-tmpl">CSV 템플릿 내려받기</button>
+    <label class="btn-like">CSV 업로드<input id="file-csv" type="file" accept=".csv" style="display:none;"></label>
+    <button id="btn-export">기관 정보 내보내기</button>
+    <button id="btn-theme"><svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><rect x="0.5" y="0.5" width="5" height="5" fill="var(--red)"/><rect x="6.5" y="0.5" width="5" height="5" fill="var(--orange)"/><rect x="0.5" y="6.5" width="5" height="5" fill="var(--yellow)"/><rect x="6.5" y="6.5" width="5" height="5" fill="var(--blue)"/></svg>지도 색상</button>
+  </div>
+  <!-- 내 프로필 — 쪽지함 조회 키(소속·이름)이자 결재자 이름 기본값 (계획 C2) -->
+  <label class="me-box">나:
+    <input id="me-name" placeholder="이름" size="8">
+    <!-- 소속은 **3그룹뿐**이고 팀장·부장은 그 안의 직책이다(사용자 확정).
+         예전에는 자유 입력 한 칸이라 `전산팀장`이 소속처럼 섞여 있었다.
+         저장·전송은 여전히 합쳐진 한 문자열이다 — app.js의 composeRole 참조.
+         직책 목록은 소속에 따라 달라진다(부장·디자이너는 영업팀에만). -->
+    <select id="me-team" title="소속">
+      <option>영업팀</option><option>전산팀</option><option>예산팀</option>
+    </select>
+    <select id="me-pos" title="직책"></select>
+    <!-- 계정 전환 — 데모 모드에서만 보인다(GET /accounts의 demo 플래그) -->
+    <select id="me-switch" style="display:none;" title="계정 전환(데모 전용)"></select>
+  </label>
+  <button id="btn-notify" title="쪽지함"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" stroke="currentColor" stroke-width="1.2" fill="none"><rect x="1" y="2.5" width="10" height="7"/><polyline points="1,3 6,7.5 11,3"/></svg>쪽지함<span id="notify-badge"></span></button>
+</div>
+<div id="ticker-strip"><div id="ticker"></div></div>
 
 <section id="tab-map" class="tab-view active">
-  <div id="drill-wrap" style="display:flex;gap:12px;">
-    <div id="map-stage" style="flex:2;position:relative;">
+  <div id="drill-wrap">
+    <div id="map-stage">
       <svg id="map-svg" width="100%" height="100%"></svg>
       <div id="cloud-overlay"></div>
       <div id="legend"></div>
       <div id="breadcrumb" style="display:none;"><button id="btn-back">← 전국</button> <span id="crumb-region"></span></div>
     </div>
-    <div id="rank-panel" style="flex:1;display:none;overflow:auto;"></div>
+    <div id="rank-panel" style="display:none;"></div>
   </div>
-  <div id="popover" style="display:none;position:fixed;z-index:20;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:12px;max-width:280px;"></div>
-  <div id="more-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:30;">
-    <div style="max-width:720px;margin:6vh auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;max-height:84vh;display:flex;flex-direction:column;">
-      <div style="display:flex;gap:10px;align-items:center;">
-        <h3 style="margin:0;flex:0 0 auto;">전체 입찰건</h3>
-        <input id="more-search" placeholder="기관명·지역·유형 검색" style="flex:1;padding:6px 10px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;">
-        <button id="more-close" style="background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;">닫기</button>
+  <div id="popover" style="display:none;"></div>
+  <div id="more-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-box" style="max-width:720px;">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+        <h3 style="margin:0;padding:0;border:none;flex:0 0 auto;">전체 입찰건</h3>
+        <input id="more-search" placeholder="기관명·지역·유형 검색" style="flex:1;padding:6px 10px;">
+        <button id="more-close">닫기</button>
       </div>
-      <div style="overflow:auto;margin-top:10px;">
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
-          <thead><tr style="text-align:left;color:var(--muted);">
-            <th style="padding:6px;">기관명</th><th style="padding:6px;">기관구분</th><th style="padding:6px;">지역</th><th style="padding:6px;">입찰예상일</th><th style="padding:6px;">입찰주기</th><th style="padding:6px;">수정일</th>
+      <div style="overflow:auto;">
+        <table class="more-table">
+          <thead><tr>
+            <th>기관명</th><th>기관구분</th><th>지역</th><th>입찰예상일</th><th>입찰주기</th><th>수정일</th>
           </tr></thead>
           <tbody id="more-tbody"></tbody>
         </table>
@@ -461,9 +590,9 @@
 </section>
 
 <!-- 쪽지함 (계획 C2) — 기존 모달 관행과 같은 구조 -->
-<div id="notify-modal" class="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:30;">
-  <div style="max-width:560px;margin:6vh auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;max-height:82vh;display:flex;flex-direction:column;">
-    <h3 style="margin-top:0;">✉ 쪽지함 <span id="nt-me" style="font-size:12px;color:var(--muted);font-weight:normal;"></span></h3>
+<div id="notify-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box" style="max-width:560px;">
+    <h3>쪽지함 <span id="nt-me" style="font-size:12px;color:var(--muted);font-weight:normal;"></span></h3>
     <div id="nt-list" style="flex:1 1 auto;overflow:auto;min-height:0;"></div>
     <div id="nt-form" style="border-top:1px solid var(--line);padding-top:10px;margin-top:10px;display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;">
       <input id="nt-to" list="nt-recipients" placeholder="수신자(팀 또는 이름)" size="14">
@@ -481,9 +610,9 @@
 
 <!-- 원문 열기(계획 F 후속 G2). 검색은 200자 스니펫만 주는데, 근거를 인용하려면
      파일 전체를 봐야 한다. 본문만 스크롤하고 닫기는 항상 보이게 고정한다. -->
-<div id="doc-modal" class="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:30;">
-  <div style="max-width:840px;margin:5vh auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;max-height:88vh;display:flex;flex-direction:column;">
-    <h3 id="doc-title" style="margin-top:0;"></h3>
+<div id="doc-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box" style="max-width:840px;margin:5vh auto;max-height:88vh;">
+    <h3 id="doc-title"></h3>
     <div id="doc-meta" style="font-size:12px;color:var(--muted);margin-bottom:8px;"></div>
     <div id="doc-body" style="flex:1 1 auto;overflow:auto;min-height:0;"></div>
     <div style="border-top:1px solid var(--line);padding-top:10px;margin-top:10px;text-align:right;">
@@ -494,9 +623,9 @@
 
 <!-- 필드가 12개라 높이 제한이 없으면 저장/취소가 화면 밖으로 밀려 닫을 수 없게 된다.
      필드 영역만 스크롤하고 버튼은 항상 보이게 고정한다. -->
-<div id="edit-modal" class="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:30;">
-  <div style="max-width:360px;margin:8vh auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;max-height:84vh;display:flex;flex-direction:column;">
-    <h3 style="margin-top:0;">기관 정보 변경</h3>
+<div id="edit-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box" style="max-width:360px;margin:8vh auto;">
+    <h3>기관 정보 변경</h3>
     <div id="edit-fields" style="overflow:auto;flex:1 1 auto;min-height:0;"></div>
     <p style="color:var(--muted);font-size:11px;">sources는 쉼표로 구분, 1개 이상 필수(조작 금지).</p>
     <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -505,9 +634,9 @@
   </div>
 </div>
 
-<div id="theme-modal" class="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:30;">
-  <div style="max-width:360px;margin:8vh auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;max-height:84vh;overflow:auto;">
-    <h3 style="margin-top:0;">지도 색상 설정</h3>
+<div id="theme-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box modal-scroll" style="max-width:360px;margin:8vh auto;">
+    <h3>지도 색상 설정</h3>
     <p style="color:var(--muted);font-size:11px;margin-top:0;">임박 단계별 면 색과, 선택 강조(물결·구 외곽선 깜빡임)의 색·속도를 조절합니다.</p>
     <label>임박 6개월↓ <input type="color" data-t="red"></label>
     <label>임박 1년↓ <input type="color" data-t="orange"></label>
@@ -516,7 +645,7 @@
     <label>미상 <input type="color" data-t="gray"></label>
     <label>선택 강조색 <input type="color" data-t="accent"></label>
     <label>강조 주기 <input type="range" data-t="rippleDuration" min="1" max="4" step="0.2" style="flex:1;">
-      <span id="theme-dur-val" style="width:42px;text-align:right;"></span></label>
+      <span id="theme-dur-val" style="width:42px;text-align:right;font-family:var(--mono);"></span></label>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
       <button id="theme-reset">기본값으로 초기화</button>
       <button id="theme-cancel">취소</button><button id="theme-save">저장</button>
@@ -524,9 +653,9 @@
   </div>
 </div>
 
-<div id="add-modal" class="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:30;">
-  <div style="max-width:420px;margin:6vh auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;max-height:84vh;overflow:auto;">
-    <h3 style="margin-top:0;">기관 추가</h3>
+<div id="add-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-box modal-scroll" style="max-width:420px;">
+    <h3>기관 추가</h3>
     <div id="add-fields"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
       <button id="add-cancel">취소</button><button id="add-save">저장</button>
