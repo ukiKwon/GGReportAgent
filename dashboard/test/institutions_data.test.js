@@ -50,6 +50,8 @@ const JEONBUK_CODES = geoJeonbuk.features.map(function (f) { return f.properties
 const JNGJ_CODES = geoJnGwangju.features.map(function (f) { return f.properties.code; });
 const geoGyeongbuk = loadGlobal('geo/gyeongbuk.js', 'geoGyeongbuk');
 const GYEONGBUK_CODES = geoGyeongbuk.features.map(function (f) { return f.properties.code; });
+const geoGyeongnam = loadGlobal('geo/gyeongnam.js', 'geoGyeongnam');
+const GYEONGNAM_CODES = geoGyeongnam.features.map(function (f) { return f.properties.code; });
 
 // 광역(시·도) 레코드와 기초(구/시군) 레코드는 subRegion 유무로 갈린다.
 const wide = institutions.filter(function (r) { return !r.subRegion; });
@@ -122,7 +124,8 @@ test('인천 11개 구·군 — 폴리곤 전량 커버 + 서해/검단의 23080
  ['충남', '44', function(){ return CHUNGNAM_CODES; }],
  ['전북', '45', function(){ return JEONBUK_CODES; }],
  ['전남광주', '46', function(){ return JNGJ_CODES; }],
- ['경북', '47', function(){ return GYEONGBUK_CODES; }]].forEach(function (t) {
+ ['경북', '47', function(){ return GYEONGBUK_CODES; }],
+ ['경남', '48', function(){ return GYEONGNAM_CODES; }]].forEach(function (t) {
   test(t[0] + ' 구·군이 geo 폴리곤 코드 전량과 일치한다', function () {
     const recs = sub.filter(function (r) { return r.region === t[1]; });
     const codes = t[2]();
@@ -136,7 +139,7 @@ test('기초 레코드의 subRegion이 실제 geo 폴리곤 코드와 일치한�
   const REGION_TO_CODES = { '11': SEOUL_CODES, '41': GYEONGGI_CODES, '26': BUSAN_CODES,
     '28': INCHEON_CODES, '27': DAEGU_CODES, '30': DAEJEON_CODES, '31': ULSAN_CODES,
     '42': GANGWON_CODES, '43': CHUNGBUK_CODES, '44': CHUNGNAM_CODES,
-    '45': JEONBUK_CODES, '46': JNGJ_CODES, '47': GYEONGBUK_CODES };
+    '45': JEONBUK_CODES, '46': JNGJ_CODES, '47': GYEONGBUK_CODES, '48': GYEONGNAM_CODES };
   sub.forEach(function (r) {
     const codes = REGION_TO_CODES[r.region];
     assert.ok(codes, r.name + ': region ' + r.region + '용 geo 파일이 테스트에 등록돼 있지 않다');
