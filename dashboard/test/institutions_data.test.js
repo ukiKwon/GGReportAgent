@@ -57,6 +57,35 @@ const GYEONGNAM_CODES = geoGyeongnam.features.map(function (f) { return f.proper
 const wide = institutions.filter(function (r) { return !r.subRegion; });
 const sub = institutions.filter(function (r) { return r.subRegion; });
 
+// 화면과 같은 d3(번들 vendor/d3.v7.min.js)를 vm으로 로드 — winding 판정은 근사식이
+// 아니라 **렌더러 자신의 구면적**으로 해야 한다(2026-08-13 영광·보령 회귀의 교훈:
+// 평면 근사식은 퇴화 슬리버의 부호를 d3와 다르게 읽는다).
+const d3 = (function () {
+  const sandbox = { window: {} };
+  vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'vendor/d3.v7.min.js'), 'utf8'), sandbox);
+  return sandbox.d3;
+})();
+
+// 링 감김(winding)이 뒤집힌 폴리곤은 d3가 "그 모양을 뺀 지구 전체"로 해석한다 —
+// fitSize가 지구에 맞춰져 해당 지역 드릴인의 모든 시·군이 1px 점으로 붕괴한다
+// (2026-08-13 실제 발생: jngwangju 영광군·chungnam 보령시의 5점 퇴화 섬 링).
+// 한반도 지자체 피처의 정상 구면적은 1e-4 스테라디안 급이므로 0.5는 넉넉한 문턱이다.
+test('geo 피처의 winding이 뒤집힌 것이 없다 (d3 구면적 < 0.5sr)', function () {
+  const GEOS = { korea: geoKorea, seoul: geoSeoul, gyeonggi: geoGyeonggi, busan: geoBusan,
+    incheon: geoIncheon, daegu: geoDaegu, daejeon: geoDaejeon, ulsan: geoUlsan,
+    gangwon: geoGangwon, chungbuk: geoChungbuk, chungnam: geoChungnam, jeonbuk: geoJeonbuk,
+    jngwangju: geoJnGwangju, gyeongbuk: geoGyeongbuk, gyeongnam: geoGyeongnam };
+  Object.keys(GEOS).forEach(function (name) {
+    GEOS[name].features.forEach(function (f) {
+      const a = d3.geoArea(f);
+      assert.ok(a < 0.5,
+        name + ' ' + f.properties.code + ' ' + f.properties.name +
+        ': 구면적 ' + a.toFixed(3) + 'sr — 링이 뒤집혀 지구 전체를 덮는다(드릴인 붕괴)');
+    });
+  });
+});
+
 // 17개로 시작했으나 2026-07-01 전남광주통합특별시 출범을 반영해 광주(29)를
 // 전남(46)에 병합, 폴리곤·레코드 모두 16개가 됐다(2026-08-10 사용자 결정).
 test('시·도가 빠짐없이 한 번씩 들어 있다 (통합 반영 16개)', function () {
