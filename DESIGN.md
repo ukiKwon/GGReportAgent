@@ -374,7 +374,11 @@ mirrored 1:1 by the `.fsw` stroke glyphs in the control strip.
   lift shadow, 200ms. **Active:** settles (`translateY(0) scale(.98)`, shadow
   off). **Disabled:** 45–55% opacity, no motion.
 - **Focus:** 2px teal outline, 2px offset (global `:focus-visible`).
-- There is no filled "primary" button — hierarchy comes from placement.
+- **Primary (단일 예외, 2026-08-14):** `#ch-send`(대화 보내기)만 틸 원색 채움 +
+  on-accent 잉크(#0d1116)/700 — 탭의 유일 주행동이라 사용자 확정으로 승격.
+  hover는 82% 흰색 믹스로 밝힘, disabled 50%. 다른 곳에 채운 주버튼을 늘리지
+  말 것(One Teal Rule — 상호작용 보이스는 소량이라 튄다).
+- 그 외에는 filled "primary"가 없다 — hierarchy comes from placement.
   `.btn-like` wraps file inputs in the same skin.
 
 ### Inputs / Fields
