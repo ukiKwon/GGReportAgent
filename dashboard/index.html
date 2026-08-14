@@ -255,9 +255,16 @@
                 border-radius:var(--r); padding:8px 10px; text-align:left; }
   .ch-row.agent pre { border-color:var(--accent-color); }
   .ch-row.failed pre { border-color:var(--red); color:var(--muted); }
-  #ch-form { display:flex; gap:8px; align-items:flex-end; }
+  #ch-form { display:flex; gap:8px; align-items:stretch; }
   #ch-input { flex:1 1 auto; padding:8px; font-size:13px; resize:vertical; }
   #ch-form button { padding:8px 14px; }
+  /* 보내기 = 대화 탭의 유일 주행동 — 틸 상호작용 보이스(13~16% 틴트 규칙).
+     기관 미선택/입력 전이라 비활성이어도 자리가 읽히게 고스트로 남긴다 */
+  #ch-send { background:var(--accent-color); border-color:transparent;
+             color:#0d1116; font-weight:700; }
+  #ch-send:hover { background:color-mix(in srgb, var(--accent-color) 82%, #ffffff);
+                   border-color:transparent; }
+  #ch-send[disabled] { opacity:.5; }
 
   .nt-row { border-bottom:1px solid var(--line); padding:8px 0; }
   .nt-row.read { opacity:.5; }
@@ -693,6 +700,8 @@ review, the verdict, and DESIGN.md
 </script>
 </body>
 </html>
+
+
 
 
 
