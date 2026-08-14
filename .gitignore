@@ -25,3 +25,6 @@ data/*
 
 # impeccable 마감 리뷰 스크린샷 ? 세션마다 재캡처되는 증거물이라 커밋 대상 아님
 .impeccable/review/
+
+# impeccable 결정 페이지 세션 산출물 ? 리뷰 스크린샷과 같은 이유로 커밋 대상 아님
+.impeccable/questions/
