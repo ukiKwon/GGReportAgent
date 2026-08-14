@@ -76,6 +76,96 @@
         ],
         "createdAt": "2026-08-13T05:29:49.488Z",
         "reason": "Operate-mode dense dashboard variant: same sanctioned tight type scale exception as index.html"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "3px",
+        "createdAt": "2026-08-14T07:34:12.997Z",
+        "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "4px",
+        "createdAt": "2026-08-14T07:34:13.092Z",
+        "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "6px",
+        "createdAt": "2026-08-14T07:34:13.189Z",
+        "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "8px",
+        "createdAt": "2026-08-14T07:34:13.282Z",
+        "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "9px",
+        "createdAt": "2026-08-14T07:34:13.376Z",
+        "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "10px",
+        "createdAt": "2026-08-14T07:34:13.474Z",
+        "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "12px",
+        "createdAt": "2026-08-14T07:34:13.571Z",
+        "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#3a4557",
+        "createdAt": "2026-08-14T07:34:13.667Z",
+        "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#d8c47a",
+        "createdAt": "2026-08-14T07:34:13.768Z",
+        "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(216,196,122,.7)",
+        "createdAt": "2026-08-14T07:34:13.861Z",
+        "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(255,255,255,.08)",
+        "createdAt": "2026-08-14T07:34:13.955Z",
+        "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(255,255,255,.06)",
+        "createdAt": "2026-08-14T07:34:14.053Z",
+        "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(0,0,0,.35)",
+        "createdAt": "2026-08-14T07:34:14.149Z",
+        "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "15px",
+        "createdAt": "2026-08-14T07:34:14.244Z",
+        "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "16px",
+        "createdAt": "2026-08-14T07:34:14.347Z",
+        "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
       }
     ]
   }

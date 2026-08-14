@@ -17,14 +17,14 @@
     rankSort: 'urgency',   // 'urgency' | 'interest'
   };
 
-  // HTS 시세판 기본 팔레트(2026-08-13 리디자인) — 임박=상승 빨강, 여유=하락 파랑의
-  // 한국 시장 색 의미론. 원색을 흑청 바탕 쪽으로 한 단계 가라앉혀 지도가 지도책이
-  // 아니라 시세판으로 읽히게 한다(마감 리뷰 반영). 라벨(진한 글자+연한 헤일로)은
-  // 딥톤 위에서도 그대로 읽힌다.
+  // 파스텔 기본 팔레트(2026-08-14 정본 — 다크 크롬+파스텔 지도 월드). 어두운 크롬
+  // 위에서 채도는 지도만 갖는다: 진한 원색은 위에 얹히는 물결/깜빡임을 묻히게 해서
+  // 낮췄고(1.0 팔레트 계승), 사용자 확정 근거는 handoff/2026-08-14_summary.md
+  // (라이트·원색 계열 8종 비교 후 이 조합 선택).
   render.DEFAULT_THEME = {
-    red:'#c73528', orange:'#c26a12', yellow:'#a98e1c', blue:'#2c5cb8', gray:'#4a5462',
-    // 물결·구 외곽선이 공유하는 선택 강조 — 터미널 크롬의 호박색과 같은 색.
-    accent:'#ffb020',
+    red:'#f0a6a9', orange:'#f3c795', yellow:'#e9e3a8', blue:'#a9c5ea', gray:'#7c8699',
+    // 파스텔 위에서 가장 잘 튀는 채도 높은 틸 — 물결·구 외곽선·크롬 강조가 공유.
+    accent:'#57b8ad',
     rippleDuration: 2.2,   // 초. 이전 1.4s에서 한 템포 늦춤
   };
 
@@ -36,6 +36,8 @@
     starFill: '<svg class="gph" viewBox="0 0 12 12"><path d="M6 1.2 7.35 4.35 10.8 4.65 8.2 6.9 9 10.3 6 8.45 3 10.3 3.8 6.9 1.2 4.65 4.65 4.35Z" fill="currentColor"/></svg>',
     starLine: '<svg class="gph" viewBox="0 0 12 12"><path d="M6 1.2 7.35 4.35 10.8 4.65 8.2 6.9 9 10.3 6 8.45 3 10.3 3.8 6.9 1.2 4.65 4.65 4.35Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
     warn: '<svg class="gph warn" viewBox="0 0 12 12"><path d="M6 1.6 11 10.4H1Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><line x1="6" y1="4.6" x2="6" y2="7.2" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="8.8" r="0.8" fill="currentColor"/></svg>',
+    // 티커 임박(상승) 표기 — 문자 ▲ 대신 같은 획 어휘의 채운 삼각
+    up: '<svg class="gph up" viewBox="0 0 12 12"><path d="M6 2.4 10.4 9.6H1.6Z" fill="currentColor"/></svg>',
   };
   // 호출부(regionUrgencyColor·drawMarkers 등)가 render.URGENCY_COLORS[...]로 직접 참조하므로
   // 객체 정체성을 유지한 채 applyTheme이 키만 덮어쓴다.
@@ -430,7 +432,7 @@
     el.innerHTML = '<span class="tk-cap">임박 TOP5</span>' + top.map(function (r) {
       const band = logic.urgencyOf(r, render.state.today);
       const c = render._safeColor(render.URGENCY_COLORS[band], render.DEFAULT_THEME[band]);
-      const mark = band === 'red' ? '▲ ' : '';
+      const mark = band === 'red' ? render.ICONS.up + ' ' : '';
       return '<span style="color:color-mix(in srgb, ' + c + ' 72%, #ffffff)">' + mark +
         logic.esc(r.name) + ' ' + logic.esc(logic.formatDDay(r, render.state.today)) + '</span>';
     }).join('<span class="tk-sep">·</span>');
