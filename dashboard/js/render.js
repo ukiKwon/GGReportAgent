@@ -331,7 +331,7 @@
       const msg = n === 0 ? (name + '지역을 불러오는 중입니다…') : '준비중…';
       let banner = document.getElementById('geo-retry-banner');
       if (!banner) { banner = document.createElement('div'); banner.id = 'geo-retry-banner';
-        banner.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#e6ecff;'; stage.appendChild(banner); }
+        banner.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#e2e7ee;'; stage.appendChild(banner); }
       banner.textContent = msg;
       if (n < 2) { setTimeout(function(){ attempt(n + 1); }, 600); }
       else {
@@ -388,8 +388,9 @@
       if (grp.length >= 8) {
         const p = grp[0].p;
         const g = layer.append('g').attr('class','cluster').attr('transform','translate('+p[0]+','+p[1]+')');
-        g.append('circle').attr('r',14).attr('fill','#2a3550').attr('stroke','#e6ecff');
-        g.append('text').attr('text-anchor','middle').attr('dy','0.35em').attr('fill','#e6ecff').attr('font-size',12).text(grp.length);
+        // 두 월드 전 잔재색 재도색(2026-08-14) — 현행 토큰(panel-raised/ink)으로.
+        g.append('circle').attr('r',14).attr('fill','#1a2029').attr('stroke','#e2e7ee');
+        g.append('text').attr('text-anchor','middle').attr('dy','0.35em').attr('fill','#e2e7ee').attr('font-size',12).text(grp.length);
         return;
       }
       grp.forEach(function (item) {

@@ -166,6 +166,24 @@
         "value": "16px",
         "createdAt": "2026-08-14T07:34:14.347Z",
         "reason": "recorded in .impeccable/design.json (components/shadows/typographyMeta) for the shipped 2026-08-14 world; degraded regex detector cannot resolve sidecar component values"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#eef2f8",
+        "createdAt": "2026-08-14T08:04:31.721Z",
+        "reason": "map label halo tone (paint-order stroke), shipped 2026-08-14 world"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#333b4c",
+        "createdAt": "2026-08-14T08:04:31.856Z",
+        "reason": "label sub-line contrast fix mandated by finish review (2026-08-14)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#1a2130",
+        "createdAt": "2026-08-14T08:04:31.999Z",
+        "reason": "ranking-row hover step, recorded in design.json Ranking Row component css"
       }
     ]
   }
