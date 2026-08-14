@@ -159,8 +159,9 @@
       "Don't add external resources of any kind (fonts, CDNs, icon packages) — closed-network constraint; system faces only.",
       "Don't cast neutral-black shadows, use hard offset shadows, or drop surface radii below the 8px floor — the soft tinted finish is the world.",
       "Don't exceed the 10–16px type ramp in app chrome; hierarchy comes from weight, color, and the mono/sans split (Tight Operate Ramp Rule).",
-      "Don't canonize the two carried off-token literals in render.js — the cluster badge (#2a3550 fill / #e6ecff stroke+text) and the geo-retry banner text (#e6ecff) are leftovers from a prior world awaiting retint, not system values. New work must not inherit them."
+      "(resolved 2026-08-14) The formerly carried off-token literals in render.js — cluster badge and geo-retry banner — were retinted to current tokens (#1a2029/#e2e7ee); no carried defects remain."
     ]
   }
 }
+
 

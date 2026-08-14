@@ -478,7 +478,6 @@ red-band items only, `·` separators in `--line-strong`, ellipsis overflow.
   surface radii below the 8px floor — the soft tinted finish is the world.
 - **Don't** exceed the 10–16px type ramp in app chrome; hierarchy comes from
   weight, color, and the mono/sans split (Tight Operate Ramp Rule).
-- **Don't** canonize the two carried off-token literals in `render.js` — the
-  cluster badge (#2a3550 fill / #e6ecff stroke+text) and the geo-retry banner
-  text (#e6ecff) are leftovers from a prior world awaiting retint, not system
-  values. New work must not inherit them.
+- ~~Don't canonize the two carried off-token literals in `render.js`~~ —
+  **해소(2026-08-14)**: 클러스터 배지·geo-retry 배너를 현행 토큰
+  (#1a2029 / #e2e7ee)으로 재도색 완료. 이월 결함 없음.
