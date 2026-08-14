@@ -1,7 +1,12 @@
 {
   "detector": {
     "ignoreRules": [],
-    "ignoreFiles": [],
+    "ignoreFiles": [
+      "dashboard/index_3.0_taste.html",
+      "dashboard/index_4.0_promax.html",
+      "dashboard/index_5.0_brutal.html",
+      "dashboard/index_6.0_minimal.html"
+    ],
     "ignoreValues": [
       {
         "rule": "flat-type-hierarchy",
@@ -53,6 +58,24 @@
         "value": "rgba(0,0,0,.5)",
         "createdAt": "2026-08-13T05:02:04.024Z",
         "reason": "popover elevation shadow (sole shadow in system); shipped HTS build 2026-08-13"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "dashboard/index_3.0_taste.html"
+        ],
+        "createdAt": "2026-08-13T05:29:49.387Z",
+        "reason": "Operate-mode dense dashboard variant: same sanctioned tight type scale exception as index.html"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "dashboard/index_4.0_promax.html"
+        ],
+        "createdAt": "2026-08-13T05:29:49.488Z",
+        "reason": "Operate-mode dense dashboard variant: same sanctioned tight type scale exception as index.html"
       }
     ]
   }
