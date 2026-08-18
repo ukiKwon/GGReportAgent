@@ -385,6 +385,14 @@ mirrored 1:1 by the `.fsw` stroke glyphs in the control strip.
 - **Style:** recessed well (#0d1117), 1px `--line-strong` border, 8px radius,
   5px 10px padding, 12px text; teal caret and `accent-color`.
 - **Focus:** the same global teal outline as buttons.
+- **UA-drawn controls:** `:root` declares `color-scheme: dark`, so the controls
+  the browser paints itself (checkboxes, scrollbars, date pickers) follow the
+  dark chrome. `accent-color` alone is not enough — it only colors the *checked*
+  state, leaving unchecked boxes white against the charcoal ground (measured
+  2026-08-18 on the 권한관리 permission grid). Styled controls (`<select>`,
+  text fields) are unaffected; this rule only reaches what CSS never touched.
+  ⚠️ The light-skinned comparison files (`index_4.0/5.0/6.0`) must **not** get
+  this declaration — light is their intent.
 
 ### Navigation (segmented tabs)
 - A pill segment control in the header: panel housing (12px radius, 1px
