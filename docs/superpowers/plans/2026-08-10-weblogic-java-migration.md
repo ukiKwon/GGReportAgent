@@ -12,14 +12,20 @@
 
 ## 잠정 지점과 확정 조건 (문의서 회신 ↔ 계획 매핑)
 
+⚠️ **번호는 문의서(`docs/기관문의서_WebLogic이관_확인사항7건.md`) 기준이다.**
+설계 §7의 표와 **4·5·6번이 서로 다르다** — 문의서는 담당 부서(AI/DBA/인프라)별로
+묶느라 순서를 바꿨기 때문이다(설계 4=WebLogic·5=async·6=Oracle버전 ↔ 문의서
+4=Oracle버전·5=WebLogic·6=async). **회신은 문의서 번호로 오므로 이 표를 따른다.**
+(2026-08-19 점검에서 이 표가 설계 번호를 쓰고 있던 것을 바로잡았다.)
+
 | 문의서 # | 회신이 확정하는 것 | 회신 전 기본 가정 |
 |---|---|---|
 | 1 (LLM 규격) | Task 4.4 어댑터의 요청/응답 계층 | OpenAI 호환·Bearer 인증으로 가정하고 어댑터 인터페이스만 동결 |
 | 2 (임베딩) | Task 3.3 벡터 검색 포함 여부 | **포함**으로 가정. 없다고 회신 오면 Task 3.3 삭제 + 검색 품질 저하 합의 기록 |
 | 3 (Oracle Text) | Task 3.2의 **A/B 분기** | 분기 양쪽을 계획에 둔다(아래). 회신 전 3단계 착수 금지 |
-| 4 (WebLogic 버전) | Task 1.2 `weblogic.xml` 설정값 | 12.2.1.x(Servlet 3.1) 가정 — 14.1.1이어도 구조 불변 |
-| 5 (async-supported) | Task 4.3 SSE의 필터 설정 | 꺼져 있다고 가정하고 켜는 절차를 Task에 포함 |
-| 6 (Oracle 버전) | Task 1.3 DDL 문법 | 19c 가정 — 11g로 회신 오면 DDL 리뷰 1회 추가 |
+| 4 (Oracle 버전) | Task 1.3 DDL 문법 | 19c 가정 — 11g로 회신 오면 DDL 리뷰 1회 추가 |
+| 5 (WebLogic 버전) | Task 1.2 `weblogic.xml` 설정값 | 12.2.1.x(Servlet 3.1) 가정 — 14.1.1이어도 구조 불변 |
+| 6 (async-supported) | Task 4.3 SSE의 필터 설정 | 꺼져 있다고 가정하고 켜는 절차를 Task에 포함 |
 | 7 (앞단 웹서버) | Task 4.3 프록시 설정 요청 목록 | 있다고 가정(보수적) |
 
 **1·2·4·5·6·7은 가정으로 진행해도 재작업이 국소적**이다(설정값·Task 하나 수준).
@@ -50,7 +56,7 @@
   API 베이스 `/api` 프리픽스이며, 프런트 쪽 대응은 이관 마지막에 한 줄 설정으로).
   의존성 반입 목록(`dependencies.txt`) 시작.
 - **Task 1.2 — `web.xml`/`weblogic.xml`**: JNDI DataSource 조회, 인코딩 필터,
-  `async-supported=true`(문의 5의 기본 가정 — 꺼져 있다는 전제로 우리 필터
+  `async-supported=true`(문의 6의 기본 가정 — 꺼져 있다는 전제로 우리 필터
   체인에는 전부 명시). CommonJ WorkManager 리소스 선언(4단계에서 사용).
 - **Task 1.3 — Oracle 스키마 DDL 정본**: registry 6테이블 + 검색
   (CHUNK/VECTOR) + `ORCH_RUN`/`ORCH_STEP`. 설계 §5의 4개 결정을 그대로 반영 —
@@ -105,7 +111,7 @@
   재큐잉. PII 마스킹 정규식 그대로 이식.
 - **Task 4.2 — WorkManager 실행기**: CommonJ WorkManager(JNDI)로 백그라운드
   실행·팬아웃(자식 STEP 생성→개별 제출→전부 완료 시 조인). raw thread 금지.
-- **Task 4.3 — SSE**: `AsyncContext` + `SseEmitter`. 문의 5·7 회신에 따라
+- **Task 4.3 — SSE**: `AsyncContext` + `SseEmitter`. 문의 6·7 회신에 따라
   필터/프록시 설정값 확정(구조는 불변).
 - **Task 4.4 — LLM 어댑터**: HttpClient 4.5 + Jackson 직접 호출. 구조화
   출력(스키마 프롬프트 → JSON 추출 → 역직렬화 → 재시도) + 2단 폴백 +
