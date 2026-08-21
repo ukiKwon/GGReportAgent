@@ -135,6 +135,9 @@
         decide(Number(btn.dataset.index), btn.classList.contains('ap-ok'));
       };
     });
+    // 결재 카드 본문도 펴진다 — 부장 화면에는 워크플로가 없어서 이 카드가 맥락의
+    // 전부인데, 근거 인용이 잘린 채 끝나면 그게 전문인 줄 알고 결재하게 된다.
+    designer.wireBodyToggles(el('ap-list'));
     el('ap-list').querySelectorAll('.ap-dl').forEach(function (a) {
       a.onclick = function (e) {
         e.preventDefault();

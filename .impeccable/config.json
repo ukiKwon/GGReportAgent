@@ -184,6 +184,24 @@
         "value": "#1a2130",
         "createdAt": "2026-08-14T08:04:31.999Z",
         "reason": "ranking-row hover step, recorded in design.json Ranking Row component css"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "*",
+        "files": [
+          "portfolio/index.html"
+        ],
+        "createdAt": "2026-08-21T00:40:01.512Z",
+        "reason": "User confirmed 2026-08-21: portfolio/index.html is a standalone light-theme document; DESIGN.md describes the dark dashboard chrome"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "*",
+        "files": [
+          "portfolio/index.html"
+        ],
+        "createdAt": "2026-08-21T00:40:01.657Z",
+        "reason": "User confirmed 2026-08-21: portfolio/index.html is a standalone light-theme document with its own type ramp; DESIGN.md's ramp describes the dashboard"
       }
     ]
   }

@@ -227,6 +227,20 @@
       }).join('');
   };
 
+  // 카드 본문(.dg-body)의 접기/펴기. **작업함과 결재함이 같은 함수를 쓴다** — 전에는
+  // 작업함에만 배선이 있어서 결재함 카드는 잘린 채 펴지지도 않았다(2026-08-20 발견).
+  designer.wireBodyToggles = function (container) {
+    if (!container || !container.querySelectorAll) return;
+    container.querySelectorAll('.dg-body').forEach(function (pre) {
+      // 실제로 넘칠 때만 접힌 상태다. 다 보이는 글에 '더 보기'를 띄우면 그 자체가
+      // 거짓말이라 클릭도 막는다.
+      const clamped = pre.scrollHeight > pre.clientHeight + 1;
+      pre.classList.toggle('clamped', clamped);
+      if (!clamped) { pre.classList.remove('open'); pre.onclick = null; return; }
+      pre.onclick = function () { pre.classList.toggle('open'); };
+    });
+  };
+
   designer.renderFiles = function (container, files) {
     const rows = designer.fileRows(files);
     container.innerHTML = rows.length ? rows.map(function (f) {
@@ -361,9 +375,7 @@
           encodeURIComponent(a.dataset.name), '_blank');
       };
     });
-    el('dg-pkg').querySelectorAll('.dg-body').forEach(function (pre) {
-      pre.onclick = function () { pre.classList.toggle('open'); };
-    });
+    designer.wireBodyToggles(el('dg-pkg'));
     el('dg-files').querySelectorAll('.dg-dl').forEach(function (a) {
       a.onclick = function (e) {
         e.preventDefault();

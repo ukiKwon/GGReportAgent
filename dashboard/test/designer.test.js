@@ -304,3 +304,66 @@ test('approverLabel: 모르는 소속은 결재자를 지어내지 않는다', f
   assert.strictEqual(dg.approverLabel('낯선소속'), '결재자');
   assert.strictEqual(dg.approverLabel(''), '결재자');
 });
+
+// ── 카드 본문 접기/펴기 (NEXT.md 항목 17) ─────────────────────────────────
+// 본문이 고정 높이에 잘리는데 신호도 펴는 수단도 없어서, 잘린 줄(주로 근거 인용)에서
+// 글이 끝난 줄 알게 됐다. 여기서 고정하는 결정은 두 가지다:
+//   ⓐ **실제로 넘칠 때만** 접힌 것으로 취급한다 — 다 보이는 글의 '더 보기'는 거짓말이다.
+//   ⓑ 배선은 작업함·결재함이 **같은 함수**를 쓴다(결재함에는 아예 없었다).
+// DOM이 필요한 함수라 최소 스텁으로 재현한다(이 저장소 테스트는 jsdom을 쓰지 않는다).
+function fakePre(scrollHeight, clientHeight) {
+  const classes = new Set();
+  return {
+    scrollHeight: scrollHeight, clientHeight: clientHeight, onclick: null,
+    classList: {
+      add: function (c) { classes.add(c); },
+      remove: function (c) { classes.delete(c); },
+      contains: function (c) { return classes.has(c); },
+      toggle: function (c, force) {
+        const on = (force === undefined) ? !classes.has(c) : !!force;
+        if (on) classes.add(c); else classes.delete(c);
+        return on;
+      },
+    },
+  };
+}
+function fakeContainer(pres) {
+  return { querySelectorAll: function () { return pres; } };
+}
+
+test('wireBodyToggles: 넘치는 본문만 접힌 것으로 표시하고 클릭으로 펴진다', function () {
+  const pre = fakePre(120, 60);
+  dg.wireBodyToggles(fakeContainer([pre]));
+  assert.ok(pre.classList.contains('clamped'));
+  assert.strictEqual(typeof pre.onclick, 'function');
+
+  pre.onclick();
+  assert.ok(pre.classList.contains('open'));
+  pre.onclick();
+  assert.ok(!pre.classList.contains('open'));
+});
+
+test('wireBodyToggles: 다 보이는 본문에는 더 보기도 클릭도 붙이지 않는다', function () {
+  const pre = fakePre(58, 60);
+  dg.wireBodyToggles(fakeContainer([pre]));
+  assert.ok(!pre.classList.contains('clamped'));
+  assert.strictEqual(pre.onclick, null);
+});
+
+test('wireBodyToggles: 다시 그려 짧아지면 접힘 표시가 사라진다', function () {
+  // 같은 노드가 재사용되는 경우(펼친 뒤 재렌더)에 '더 보기'만 남는 것을 막는다.
+  const pre = fakePre(120, 60);
+  dg.wireBodyToggles(fakeContainer([pre]));
+  pre.onclick();
+  assert.ok(pre.classList.contains('open'));
+
+  pre.scrollHeight = 58;
+  dg.wireBodyToggles(fakeContainer([pre]));
+  assert.ok(!pre.classList.contains('clamped'));
+  assert.ok(!pre.classList.contains('open'));
+});
+
+test('wireBodyToggles: 컨테이너가 없으면 조용히 넘어간다', function () {
+  assert.doesNotThrow(function () { dg.wireBodyToggles(null); });
+  assert.doesNotThrow(function () { dg.wireBodyToggles({}); });
+});

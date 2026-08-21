@@ -338,9 +338,19 @@
   .dg-card-head { display:flex; align-items:center; gap:8px; }
   .dg-who { font-size:11px; color:var(--muted); }
   .dg-card-head button { margin-left:auto; }
-  .dg-body { max-height:4.5em; overflow:hidden; white-space:pre-wrap; word-break:break-word;
-             cursor:zoom-in; margin:8px 0 0; font-size:13px; }
+  /* 본문은 4.5em으로 접어 두되, **접혔다는 사실이 보여야 한다** — 신호가 없으면
+     거기서 글이 끝난 줄 안다(잘린 줄이 근거 인용이면 특히 나쁘다). 실제로 넘칠
+     때만 js가 .clamped를 붙이므로, 짧은 글에는 '더 보기'가 뜨지 않는다. */
+  .dg-body { position:relative; max-height:4.5em; overflow:hidden; white-space:pre-wrap;
+             word-break:break-word; margin:8px 0 0; font-size:13px; }
+  .dg-body.clamped { cursor:zoom-in; }
+  .dg-body.clamped::after { content:'⌄ 더 보기'; position:absolute; left:0; right:0; bottom:0;
+             display:block; text-align:right; padding-top:14px; font-size:11px;
+             color:var(--accent-color);
+             background:linear-gradient(to bottom, transparent, var(--panel) 65%); }
   .dg-body.open { max-height:none; cursor:zoom-out; }
+  .dg-body.clamped.open::after { content:'⌃ 접기'; position:static; padding-top:6px;
+             background:none; }
   .dg-file { display:flex; align-items:center; gap:8px; padding:4px 0;
              border-bottom:1px solid var(--line); font-size:13px; }
   .dg-size, .dg-at { font-size:11px; color:var(--muted); font-family:var(--mono); }
