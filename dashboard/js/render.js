@@ -1,7 +1,10 @@
 (function (root) {
   'use strict';
   const render = {};
-  const logic = root.logic, store = root.store;
+  // designer.js·approvals.js와 같은 방식(브라우저는 전역, node는 require) — 이 파일도
+  // node --test로 열 수 있어야 면 클릭 규칙을 테스트로 고정할 수 있다.
+  const logic = (typeof require !== 'undefined') ? require('./logic.js') : root.logic;
+  const store = (typeof require !== 'undefined') ? require('./store.js') : root.store;
 
   const esc = logic.esc; // 공유 이스케이프(logic.esc) 위임
 
@@ -259,11 +262,20 @@
     return muni.filter(function (r) { return logic.normalizeMuniName(r.name) === name; });
   };
 
-  render.subUrgencyColor = function (feature) {
+  // 면 하나에 지자체 레코드가 여럿 걸릴 수 있다(같은 이름의 중복 레코드 등).
+  // **면의 색을 정하는 레코드와 면을 눌렀을 때 잡히는 레코드는 같아야 한다** —
+  // 다르면 색과 다른 기관이 선택돼 지도를 믿을 수 없게 된다. 그래서 두 곳이
+  // 각자 정렬하지 않고 이 함수 하나를 공유한다.
+  render.recordForFeature = function (feature) {
     const hit = render.municipalityForFeature(feature);
-    if (!hit.length) return render.URGENCY_COLORS.gray;  // 해당 구에 지자체 레코드 없음
-    const sorted = logic.sortByUrgency(hit, render.state.today);
-    return render.URGENCY_COLORS[logic.urgencyOf(sorted[0], render.state.today)];
+    if (!hit.length) return null;
+    return logic.sortByUrgency(hit, render.state.today)[0];
+  };
+
+  render.subUrgencyColor = function (feature) {
+    const rec = render.recordForFeature(feature);
+    if (!rec) return render.URGENCY_COLORS.gray;  // 해당 구에 지자체 레코드 없음
+    return render.URGENCY_COLORS[logic.urgencyOf(rec, render.state.today)];
   };
 
   // 지자체 체크박스 OFF → 면 색은 유지하고 흐리게(정보를 지우지 않고 뒤로 물림).
@@ -293,7 +305,14 @@
       .attr('data-code', function (d){ return d.properties.code; })  // 선택 강조 대상 조회용
       .attr('fill', function (d){ return render.subUrgencyColor(d); })
       .attr('fill-opacity', render.muniDimOpacity())
-      .attr('stroke', '#07090e').attr('stroke-width', 1);
+      .attr('stroke', '#07090e').attr('stroke-width', 1)
+      // 지자체는 좌표가 없어 마커가 그려지지 않으므로(_blinkMunicipality 주석 참조)
+      // **이 면이 유일한 클릭 대상**인데 여태 핸들러가 없었다 — 눌러도 아무 일이
+      // 없었고, 카드→지도 방향만 동작했다.
+      .style('cursor', function (d) {
+        return render.municipalityForFeature(d).length ? 'pointer' : 'default';
+      })
+      .on('click', function (ev, d) { render.onSubregionClick(d, ev); });
     // 날짜 미상 면 글리프 — 마커·랭킹 카드의 recordGlyph('⚠️')와 같은 시각 언어를 면에도 확장.
     // 레코드가 아예 없는 면은 대상이 아니다(표시할 기관 자체가 없으므로 회색만 유지).
     // 이모지 대신 필터 글리프(.fsw)와 같은 획 어휘의 삼각 경고를 직접 그린다(마감 리뷰 반영).
@@ -591,6 +610,42 @@
   render.onMarkerClick = function (rec) {
     render.showPopover(rec, window.innerWidth/2, 120);
     render.selectInstitution(rec);
+  };
+
+  // 면 클릭 → 오른쪽 랭킹 목록의 그 카드로 포커스(사용자 요청). 마커 클릭과 달리
+  // **팝오버는 띄우지 않는다** — 목적이 목록으로 시선을 옮기는 것인데 팝오버가
+  // 그 카드를 가릴 수 있다(사용자 확정 ⓐ안).
+  render.onSubregionClick = function (feature, ev) {
+    // 면 색을 정한 바로 그 레코드를 고른다(recordForFeature 주석 참조).
+    const rec = render.recordForFeature(feature);
+    // 레코드 없는 회색 면은 고를 것이 없다 — 막지 않고 그대로 흘려보내
+    // 아래 document 핸들러가 예전처럼 '빈 곳 클릭'(선택 해제)으로 처리하게 둔다.
+    if (!rec) return;
+    // 그 document 핸들러는 .rank-card/.marker 밖 클릭을 전부 빈 곳으로 보므로,
+    // 여기서 멈추지 않으면 방금 한 선택이 곧바로 풀린다.
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    const pop = document.getElementById('popover');
+    if (pop) pop.style.display = 'none';   // 카드 클릭으로 열려 있던 것은 닫는다
+    render.selectInstitution(rec);
+    render.focusCard(rec.name);
+  };
+
+  // 목록이 길면 강조된 카드가 스크롤 밖에 있어 "아무 일도 안 났다"로 보인다.
+  render.focusCard = function (name) {
+    const panel = document.getElementById('rank-panel'); if (!panel) return;
+    let card = null;
+    // 이름을 선택자에 넣지 않는다 — 기관명에 따옴표가 섞이면 선택자가 깨진다.
+    panel.querySelectorAll('.rank-card').forEach(function (c) {
+      if (c.dataset.name === name) card = c;
+    });
+    // 타입 필터로 카드가 빠져 있을 수 있다. 그때는 면 강조만 남기고 조용히 넘어간다.
+    if (!card) return;
+    const pr = panel.getBoundingClientRect(), cr = card.getBoundingClientRect();
+    // 이미 다 보이면 움직이지 않는다 — 보고 있던 목록이 이유 없이 튀는 게 더 헷갈린다.
+    if (cr.top >= pr.top && cr.bottom <= pr.bottom) return;
+    // 밖에 있었으면 가운데로. scrollIntoView는 조상 스크롤까지 건드리므로 패널의
+    // scrollTop만 직접 옮긴다 — 페이지 전체가 따라 움직이면 안 된다.
+    panel.scrollTop += (cr.top - pr.top) - (panel.clientHeight - card.offsetHeight) / 2;
   };
 
   // 팝오버 바깥 클릭 시 닫기 + 선택 강조 해제
