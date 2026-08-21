@@ -124,3 +124,49 @@ test('applyBidCases: 빈 입력도 안전하고 원본을 변형하지 않는다
   sd.applyBidCases([rec], BIDCASES);
   assert.strictEqual(rec.contractEnd, '2026-01-01');      // 원본 불변
 });
+
+// ── 번들·서버의 이름 표기 차이 (2026-08-21) ─────────────────────────────
+// 지도 번들은 서울·경기를 `OO구청`/`OO시청`으로 부르고 서버 registry는 `OO구`로
+// 부른다. 원본 문자열로 맞추던 시절에는 25개 구가 전부 어긋나 **같은 구가 카드
+// 두 장**으로 떴다(서울 지자체 25 → 50). 지도의 municipalityForFeature는 이미
+// logic.normalizeMuniName으로 둘을 같은 구로 보고 있었으므로, 병합도 같은 기준을 쓴다.
+
+test("mergeUnion: '구청'과 '구'는 같은 기관이다 — 카드가 두 장이 되지 않는다", function () {
+  const bundle = [{ name: '강동구청', region: '11', subRegion: '11250', term: 4, sources: ['번들'] }];
+  const server = [{ institution_id: 'gangdong', name_ko: '강동구', region_code: '11',
+                    type: '지자체', contract_end: '2026-12-31', stage: 3 }];
+  const out = sd.mergeUnion(bundle, server);
+
+  assert.strictEqual(out.length, 1);                       // 예전에는 2였다
+  assert.strictEqual(out[0].institutionId, 'gangdong');    // 서버 필드가 실렸고
+  assert.strictEqual(out[0].contractEnd, '2026-12-31');
+  assert.strictEqual(out[0].subRegion, '11250');           // 번들 전용 필드도 남았다
+});
+
+test('mergeUnion: 병합해도 화면에 남는 이름은 번들 것이다', function () {
+  // 서버 이름으로 덮으면 표기가 `강동구청` → `강동구`로 조용히 바뀐다.
+  // 이름의 진실은 지도 번들 쪽이라는 것이 사용자 확정(ⓐ안)이다.
+  const out = sd.mergeUnion(
+    [{ name: '강동구청', region: '11' }],
+    [{ institution_id: 'gangdong', name_ko: '강동구', region_code: '11' }]);
+  assert.strictEqual(out[0].name, '강동구청');
+});
+
+test('mergeUnion: 서버에만 있는 기관은 서버 이름 그대로 붙는다', function () {
+  const out = sd.mergeUnion(
+    [{ name: '강동구청', region: '11' }],
+    [{ institution_id: 'gangdong', name_ko: '강동구' },
+     { institution_id: 'jung', name_ko: '중구' }]);
+  assert.strictEqual(out.length, 2);
+  assert.strictEqual(out[1].name, '중구');
+});
+
+test('mergeUnion: 서로 다른 구는 여전히 따로 남는다', function () {
+  // '청'을 벗기는 정규화가 지나쳐서 엉뚱한 것끼리 합쳐지지 않는지 본다.
+  const out = sd.mergeUnion(
+    [{ name: '강동구청', region: '11' }, { name: '강서구청', region: '11' }],
+    [{ institution_id: 'gangdong', name_ko: '강동구' }]);
+  assert.strictEqual(out.length, 2);
+  assert.strictEqual(out[1].name, '강서구청');
+  assert.strictEqual(out[1].institutionId, undefined);   // 안 합쳐졌다
+});
