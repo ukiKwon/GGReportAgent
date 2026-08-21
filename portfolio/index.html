@@ -100,7 +100,7 @@
       <div class="kpi"><b>25곳</b><span>등록 기관 자료 모음(corpus)</span></div>
       <div class="kpi"><b>9단계</b><span>워크플로 · 결재 3게이트</span></div>
       <div class="kpi"><b>759</b><span>백엔드 테스트 통과</span></div>
-      <div class="kpi"><b>244</b><span>프런트 테스트 통과</span></div>
+      <div class="kpi"><b>262</b><span>프런트 테스트 통과</span></div>
     </div>
   </div>
 </div>
@@ -394,7 +394,7 @@
     <tr><th>검색</th><td>SQLite FTS5 trigram(한글 대응) + bge-m3 임베딩 벡터를 RRF로 결합. 완료 산출물은 아카이브 시 자동 재색인</td></tr>
     <tr><th>프런트</th><td>빌드 도구·프레임워크 없는 바닐라 JS 약 3,851줄(+ 지도·기관 데이터 1,861줄) + D3 지도. 서버 없이 <code>file://</code>로도 열리는 대체(fallback) 모드 유지</td></tr>
     <tr><th>망 경계</th><td>DMZ 수집기와 폐쇄망 백엔드는 <b>서로의 코드를 import하지 않습니다</b>. 접점은 파일 배치(<code>manifest.json</code> + CSV + 첨부) 하나뿐이고, 그 경계를 테스트가 강제합니다</td></tr>
-    <tr><th>품질</th><td>백엔드 pytest <b>759 passed</b>, 프런트 <b>244 passed</b> (커밋 <code>56b0ea3</code> 기준 실측, 2026-08-20)</td></tr>
+    <tr><th>품질</th><td>백엔드 pytest <b>759 passed</b>, 프런트 <b>262 passed</b> (커밋 <code>2fefca0</code> 기준 실측, 2026-08-21)</td></tr>
   </table>
 
   <div class="note">
