@@ -37,8 +37,10 @@
 
   /* ── 흐름도 ─────────────────────────── */
   .flow{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:26px 0 8px;}
-  .flow-step{background:var(--card); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:10px; padding:14px 16px;}
-  .flow-step b{display:block; font-size:15px; margin-bottom:4px;}
+  .flow-step{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px;}
+  /* 강조는 왼쪽 색 막대가 아니라 단계 번호 자체가 진다 — 막대는 카드마다 같은 색이라
+     구분에 기여하지 않으면서 탭처럼만 읽혔다. */
+  .flow-step b{display:block; font-size:15px; margin-bottom:4px; color:var(--accent);}
   .flow-step span{font-size:13px; color:var(--muted);}
 
   /* ── 화면 카드 ──────────────────────── */
@@ -53,7 +55,7 @@
   .shot-title p + p{margin-top:2px;}
   .shot img{display:block; width:100%; height:auto; border-top:1px solid var(--line);}
   .tags{margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;}
-  .tag{font-size:11.5px; background:#eef1f7; color:#4a5470; border-radius:999px; padding:2px 9px; white-space:nowrap;}
+  .tag{font-size:11.5px; background:#eef1f7; color:#4a5470; border-radius:14px; padding:2px 9px; white-space:nowrap;}
   .tag.hl{background:#e6f3ec; color:var(--ok);}
 
   /* ── 기술 표 ────────────────────────── */
@@ -64,7 +66,8 @@
   table.tech td{padding:11px 16px; border-bottom:1px solid var(--line); color:#39415a;}
   table.tech tr:last-child th, table.tech tr:last-child td{border-bottom:none;}
 
-  .note{background:#fffaf0; border:1px solid #f0e0bf; border-left:4px solid var(--warn); border-radius:10px;
+  /* 색 막대 없이도 크림색 바탕과 굵은 첫 문장이 '주석'이라고 충분히 말한다. */
+  .note{background:#fffaf0; border:1px solid #f0e0bf; border-radius:10px;
         padding:14px 18px; font-size:14px; color:#5c4a1f; margin:26px 0 0;}
   .note b{color:#7a5c14;}
 
@@ -105,7 +108,7 @@
 <div class="wrap">
 
 <section>
-  <div class="sec-head"><span class="sec-num">OVERVIEW</span><h2>시스템이 푸는 문제</h2></div>
+  <div class="sec-head"><h2>시스템이 푸는 문제</h2></div>
   <p class="sec-desc">
     입찰 기회는 흩어져 있고, 참여 결정은 부서마다 따로 나며, 제안서는 여러 팀이 나눠 쓰다 보니
     "배점표의 어떤 항목이 아직 비어 있는지"를 제출 직전에야 알게 됩니다.
@@ -382,7 +385,7 @@
 </section>
 
 <section>
-  <div class="sec-head"><span class="sec-num">TECH</span><h2>기술 구성</h2></div>
+  <div class="sec-head"><h2>기술 구성</h2></div>
   <p class="sec-desc">전부 폐쇄망에서 도는 것을 전제로 골랐습니다 — 외부 API·클라우드 서비스 의존이 없습니다.</p>
   <table class="tech">
     <tr><th>백엔드</th><td>FastAPI + SQLite (프로덕션 파이썬 약 8,226줄). 기관 레지스트리·워크플로 상태·메시지·알림을 한 DB에서 관리</td></tr>
