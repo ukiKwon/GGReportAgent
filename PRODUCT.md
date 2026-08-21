@@ -2,7 +2,7 @@
 
 <!-- impeccable:product-schema 1 -->
 
-이 문서는 `dashboard/`(금고은행 입찰 현황 히트맵)를 다룬다. 저장소의 나머지
+이 문서는 `frontend/`(금고은행 입찰 현황 히트맵)를 다룬다. 저장소의 나머지
 (corpus/·plan/ 등 조사·제안 문서 체계)는 별개 산출물이며 이 문서의 대상이 아니다.
 
 ## Platform
@@ -36,7 +36,7 @@ web
 
 - **폐쇄망**에서 동작. 배포는 파일 복사 수준.
 - 이중 모드: ⓐ `file://`로 index.html만 열어도 지도·지역별 탭 동작(폴백),
-  ⓑ FastAPI(`backend/main.py`) 서버 모드에서 워크플로·대화(LLM)·지식(RAG)·
+  ⓑ FastAPI(`server/main.py`) 서버 모드에서 워크플로·대화(LLM)·지식(RAG)·
   작업함·결재함·권한관리 탭이 추가 노출(`app.applyServerModeUI`).
 - LLM·임베딩은 로컬 Ollama(bge-m3 등) — 외부 API 없음.
 
@@ -47,10 +47,10 @@ web
 1. **폐쇄망·오프라인**: CDN·웹폰트 등 외부 요청 금지. 벤더링된
    `vendor/d3.v7.min.js`만 예외(로드 실패 폴백 있음).
 2. **바닐라 JS 유지**: 프레임워크·빌드 도구 도입 금지. `<script>` 직접 로드 구조.
-3. **기존 테스트 통과**: `node --test dashboard/test/*.test.js` (기준 232+ passed).
+3. **기존 테스트 통과**: `node --test frontend/test/*.test.js` (기준 232+ passed).
    테스트가 DOM id·전역 변수(`window.geo*`, `institutions`)·데이터 스키마에
    결합돼 있다 — id/구조 변경 전 테스트 확인 필수.
-4. 데이터 정본은 `dashboard/data/institutions.js`(+파생 CSV). 지도 색·강조는
+4. 데이터 정본은 `frontend/data/institutions.js`(+파생 CSV). 지도 색·강조는
    사용자 설정 가능(테마 모달 → `render.applyTheme`가 CSS 변수 덮어씀) —
    이 설정 체계는 기능이므로 유지.
 
@@ -59,8 +59,8 @@ web
 
 ## Evidence on Hand
 
-- `dashboard/data/institutions.js` — 실측 레코드(지역·기관·lastBid·term·sources).
-- `dashboard/geo/*.js` — 전국+13개 시·도 폴리곤(경남 배선 완료, 레코드 조사는 미완).
+- `frontend/data/institutions.js` — 실측 레코드(지역·기관·lastBid·term·sources).
+- `frontend/geo/*.js` — 전국+13개 시·도 폴리곤(경남 배선 완료, 레코드 조사는 미완).
 - `handoff/NEXT.md` §⑨~㉔ — 수집 절차·판정 기준 기록.
 - 스크린샷·로고·브랜드 자산은 없다. KB 실명 브랜딩을 화면에 넣는 결정은
   내려진 바 없다 — 날조 금지.

@@ -40,9 +40,9 @@ from fastapi.testclient import TestClient  # noqa: E402
 from agent.nodes.pptx_builder import build_pptx  # noqa: E402
 from agent.retrieval.indexer import build_index  # noqa: E402
 from agent.rfp_text import extract_pdf_text  # noqa: E402
-from backend.db import get_connection, init_db  # noqa: E402
-from backend.main import create_app  # noqa: E402
-from backend.seed import seed_giganlist_districts  # noqa: E402
+from server.db import get_connection, init_db  # noqa: E402
+from server.main import create_app  # noqa: E402
+from server.seed import seed_giganlist_districts  # noqa: E402
 
 # 배점표 픽스처 — rfp-locate 스킬의 수원시 정답지를 그대로 쓴다(사람이 검증한 실물).
 SCORING_FIXTURE = REPO / ".claude" / "skills" / "rfp-locate" / "references" / "scoring_schema.json"
@@ -164,7 +164,7 @@ def main() -> None:
     snap("artifacts_nowon", "get", "/institutions/nowon/artifacts", expect=200)
 
     # ── 2. 결정적 쓰기 시나리오: 결재 3단 → 작업 3건 승인 → 최종 확정 ─────
-    # 시퀀스는 backend/tests/test_api_bidcases.py의 E2E와 동일하다(같은 입력이어야
+    # 시퀀스는 server/tests/test_api_bidcases.py의 E2E와 동일하다(같은 입력이어야
     # Java 쪽도 같은 시나리오를 돌릴 수 있다). LLM이 걸리는 작업 대화(messages)는
     # 건너뛴다 — submit/approve는 대화 없이 동작한다.
     bc = snap("bidcase_create", "post", "/bidcases",

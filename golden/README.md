@@ -2,7 +2,7 @@
 
 현재 Python 시스템의 **결정적** API 응답과 산출물을 떠 둔 것이다. Java 재작성이
 끝나면 같은 시나리오를 돌려 이 파일들과 비교한다 — "같은 입력 → 같은 출력".
-프런트(`dashboard/`)가 재작성 없이 그대로 가므로, 이 비교가 통과하면 화면도
+프런트(`frontend/`)가 재작성 없이 그대로 가므로, 이 비교가 통과하면 화면도
 통과한다는 것이 이관 설계(`docs/superpowers/specs/2026-08-05-weblogic-java-migration-design.md`)의
 전제다. **현 Python 시스템이 살아 있는 동안에만 뜰 수 있는 산출물**이라 이관
 착수 전에 먼저 만들었다(NEXT.md 항목 9의 추천 순서 ③).
@@ -29,7 +29,7 @@
 2. 읽기 API 일괄(기관 목록/상세/404, 계정, 메뉴 2종, 문서 열람, 정합성,
    coverage-map, 아카이브 목록). coverage-map은 수원시 정답지 배점표 +
    coverage_map **v2** 픽스처를 노원구에 심어 병합 응답을 캡처.
-3. 결재 시나리오 — `backend/tests/test_api_bidcases.py`의 E2E와 같은 시퀀스:
+3. 결재 시나리오 — `server/tests/test_api_bidcases.py`의 E2E와 같은 시퀀스:
    입찰 건 생성 → 참여 결정 3단(tier 1·2·3, 영업팀, alice/bob/carol) →
    참여확정으로 자동 생성된 작업 3건을 각각 임시저장(assignee 선점, dave) →
    제출 → 승인(boss) → 최종 확정(finalize, approved). 이후 조회

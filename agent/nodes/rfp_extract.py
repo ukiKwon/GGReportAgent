@@ -1,7 +1,7 @@
 """3단계 "RFI 공시" — 공고문 PDF에서 본문과 배점표를 뽑는다.
 
 상위 스펙의 `rfp_locate_node`를 재정의한 노드다. "찾아온다"는 절반은 배치 반입
-(collector/SCHEMA.md §⑥, backend/inbox_import.py)이 가져갔다 — 첨부 PDF가
+(collector/SCHEMA.md §⑥, server/inbox_import.py)이 가져갔다 — 첨부 PDF가
 corpus/rfp/에 놓이고 institutions.rfp_path에 기록된다. 그래서 여기 남은 일은
 **이미 손에 있는 PDF를 rfp_analysis_node가 읽을 수 있는 두 파일로 만드는 것**이다.
 
@@ -173,7 +173,7 @@ def rfp_extract_node(state: dict) -> dict:
     #
     # **파일에는 쓰지 않는다.** rfp_scoring.json은 `.claude/skills/rfp-locate`가
     # 사람 손으로도 만드는 규격이라, 자동 경로만 필드를 늘리면 두 경로의 모양이 갈린다.
-    # 어차피 합계는 criteria만 있으면 언제든 다시 계산된다(backend/consistency.py).
+    # 어차피 합계는 criteria만 있으면 언제든 다시 계산된다(server/consistency.py).
     inconsistency = scoring_consistency(scoring_data)
     if inconsistency:
         print(f"[경고] {institution_name} 배점표 — {inconsistency}", file=sys.stderr)

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """포트폴리오 캡처 재현 스크립트 (2026-08-05 세션의 Playwright + msedge 방식 복원).
 
-    py -3.14 -m backend.demo --port 8000     # 먼저 데모 서버를 띄운다
+    py -3.14 -m server.demo --port 8000     # 먼저 데모 서버를 띄운다
     py -3.14 capture.py [번호 ...]           # 인자 없으면 전부
 
 기존 18장과 같은 조건: 1600×1000 뷰포트 / DSF 2 → 3200×2000 PNG.

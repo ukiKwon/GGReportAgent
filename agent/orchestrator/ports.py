@@ -1,6 +1,6 @@
-"""오케스트레이터의 기록 포트 — agent 층은 backend를 모른다(분리 관행).
+"""오케스트레이터의 기록 포트 — agent 층은 server를 모른다(분리 관행).
 
-그래프 노드는 이 포트로만 바깥에 말한다. backend가 DB 구현체(DbRecorder)를 주입하고,
+그래프 노드는 이 포트로만 바깥에 말한다. server가 DB 구현체(DbRecorder)를 주입하고,
 그래프 단위테스트는 NullRecorder를 쓴다.
 """
 

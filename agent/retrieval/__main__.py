@@ -47,7 +47,7 @@ def main(argv: list[str] | None = None) -> int:
     reindex_p.add_argument(
         "--archive",
         default=None,
-        help="완료 산출물 아카이브 루트(기본: backend가 쓰는 data/report_archive)",
+        help="완료 산출물 아카이브 루트(기본: server가 쓰는 data/report_archive)",
     )
     reindex_p.add_argument("--db", default=DEFAULT_DB_PATH)
     reindex_p.add_argument("--registry", default=DEFAULT_REGISTRY_DB_PATH)

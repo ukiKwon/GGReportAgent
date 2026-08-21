@@ -22,7 +22,7 @@ def verification_node(state: dict) -> dict:
     """커버리지 판정. 섹션이 있는 항목만 LLM에 묻는다.
 
     `llm_used`를 함께 돌려주는 이유: 기록에 "이 결과를 만든 모델"을 남기는 쪽
-    (`agent/orchestrator/subagents.py`의 `verifier`, `backend/routers/tasks.py`의
+    (`agent/orchestrator/subagents.py`의 `verifier`, `server/routers/tasks.py`의
     업로드 즉시검사)이 **호출이 실제로 있었는지**를 바깥에서 다시 추론해야 했다.
     그 추론은 여기 매칭 규칙을 복제하는 것이라, 규칙이 바뀌면 조용히 어긋난다.
     배점표가 있어도 매칭되는 섹션이 하나도 없으면 LLM은 한 번도 안 불린다.

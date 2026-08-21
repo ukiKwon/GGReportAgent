@@ -112,13 +112,13 @@ components:
 
 # Design System: 금고은행 입찰 현황 히트맵
 
-> **Scope.** Like `PRODUCT.md`, this document covers **`dashboard/` only** (the
+> **Scope.** Like `PRODUCT.md`, this document covers **`frontend/` only** (the
 > treasury-bank bid heatmap app). The rest of the repository (corpus/, plan/,
 > corpus/reports/ deliverables) is a separate artifact family and is not
 > governed by this system.
 >
-> Recorded 2026-08-14 from the shipped build (`dashboard/index.html` inline
-> `<style>` + `dashboard/js/render.js`), after the finish review (disposition:
+> Recorded 2026-08-14 from the shipped build (`frontend/index.html` inline
+> `<style>` + `frontend/js/render.js`), after the finish review (disposition:
 > ship). This world replaces the former "HTS 터미널" system (shipped
 > 2026-08-13): the user compared 8 variants across two comparison rounds and
 > locked variant 7.1 on 2026-08-14; the reviewer shipped after a five-fix batch
@@ -471,7 +471,7 @@ red-band items only, `·` separators in `--line-strong`, ellipsis overflow.
   colored text + 1px border + 8–18% `color-mix` tints.
 - **Do** draw new icons as inline SVG stroke glyphs (1.2–1.4 stroke,
   `currentColor`, 12×12 grid) matching `render.ICONS`.
-- **Do** run `node --test dashboard/test/*.test.js` before touching DOM ids,
+- **Do** run `node --test frontend/test/*.test.js` before touching DOM ids,
   classes, or token names — 244 node tests are coupled to them.
 
 ### Don't:
