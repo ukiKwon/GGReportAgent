@@ -38,7 +38,7 @@
 git pull
 py -3 -m pip install -r requirements.txt   # langgraph 등 포함
 
-py -3 -m backend.seed                      # 기관 25건 → data/registry.db
+py -3 -m server.seed                       # 기관 25건 → data/registry.db
 
 ollama pull bge-m3                         # 의미 검색용 임베딩 모델(약 1.2GB)
 py -3 -m agent.retrieval build             # 지식 탭 검색용 → data/corpus_index.db
@@ -46,14 +46,14 @@ py -3 -m agent.retrieval build             # 지식 탭 검색용 → data/corpu
                                            #   ⚠️ 임베딩 포함이라 CPU에서 약 1시간.
                                            #   급하면 --no-embed로 FTS만(수 초),
                                            #   나중에 reindex로 벡터를 채우면 된다.
-py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.db, 운영과 별개)
+py -3 -m server.demo                       # 데모 환경 + 서버 (data/demo.db, 운영과 별개)
 #   → http://localhost:8000/
 ```
 
 - ⚠️ **파이썬이 여러 개면 `py -3`가 패키지 없는 버전을 가리킬 수 있다.** 2026-08-03을
   돌린 PC는 `py -3`=3.15에 의존성이 없어 **`py -3.14`** 를 썼다. `py -0`로 목록을 보고,
-  `backend.demo`는 이 경우 traceback 대신 해결 방법을 안내하고 멈춘다.
-- 화면 사용법은 실행가이드 `docs/실행가이드_backend-agent.md` §9(워크플로)·§10(대화·쪽지함·
+  `server.demo`는 이 경우 traceback 대신 해결 방법을 안내하고 멈춘다.
+- 화면 사용법은 실행가이드 `docs/실행가이드_server-agent.md` §9(워크플로)·§10(대화·쪽지함·
   지식)·§11(입찰상황판·참여 결정)·§12(정합성)에 있다.
 - 병합되지 않은 채 남아 있는 원격 브랜치가 4개 있다(`agent-retrieval-fts`·
   `dmz-collector-service`·`local-2026-07-30`·`worktree-corpus-validation`). 전부 과거
@@ -170,7 +170,7 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
   120b 실측은 여전히 해볼 값어치가 있으나 **그것으로 해결된다고 전제하면 안 된다.**
 - ~~**함께 나온 제안**: `sum(criteria.score) != total_score` 검증 규칙~~ — **완료**
   (2026-08-04, 사용자 승인 후 즉시 구현). `agent/nodes/rfp_extract.scoring_consistency()`
-  + `backend/consistency.py`의 `scoring_sum_mismatch` 규칙 + 실행가이드 §12.
+  + `server/consistency.py`의 `scoring_sum_mismatch` 규칙 + 실행가이드 §12.
   실제 두 모델 산출물(96·108)을 **모두 잡고 정답지는 통과**함을 실측으로 확인했다.
   막지는 않는다(본문은 쓸모가 있고 5·8단계에 사람 승인이 있다) — stderr 경고 +
   `GET /consistency` + 워크플로 탭 경고로 남긴다.
@@ -303,7 +303,7 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
   화면을 확인한다. 그 과정에서 문서와 실제가 어긋나면 **문서를 고쳐 커밋**한다
   (아직 한 번도 실기동으로 검증되지 않은 문서다 — 오탈자·패키지명 차이가 나올 수 있다).
 - **실기동 시 특히 확인할 것 4가지** (계획서·INSTALL에 근거와 함께 적혀 있음):
-  ① `backend/demo.py`가 `127.0.0.1` 고정이라 **nginx 없이는 밖에서 안 보인다**(의도된 구성).
+  ① `server/demo.py`가 `127.0.0.1` 고정이라 **nginx 없이는 밖에서 안 보인다**(의도된 구성).
   ② nginx `proxy_buffering off` + `proxy_read_timeout 300s` 없으면 **대화 탭 스트리밍이
   깨지거나 60초에 504로 잘린다.**
   ③ `agent.retrieval build --no-embed`를 빠뜨리면 지식 탭 503뿐 아니라 **대화 탭이
@@ -384,7 +384,7 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
   **① Java only(폐쇄망에 Python 런타임 불가) ② JDK 1.8 ③ eGovFrame 4.x 준수 필수 +
   Oracle + MyBatis ④ 브라우저는 크롬/엣지 최신 ⑤ LLM은 기관 사내 공용 API.**
   이 5개가 설계의 전제이므로 하나라도 바뀌면 문서를 다시 봐야 한다.
-- **핵심 결론**(문서를 안 열어도 이어받을 수 있게): 화면(`dashboard/` 2,986줄)은
+- **핵심 결론**(문서를 안 열어도 이어받을 수 있게): 화면(`frontend/` 2,986줄)은
   **재작성 없이 WAR 정적 리소스로 그대로** 간다(브라우저가 현대 버전이라 폴리필·JSP
   불필요). 백엔드 프로덕션 6,288줄은 전면 재작성. 등가물이 없어 **직접 만들어야 하는
   것은 3개** — (a) FTS5 trigram 한글 검색 → Oracle Text CONTEXT(폴백: Java 인메모리
@@ -448,10 +448,10 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
   - 항목 6(EC2 실기동)이 끝나면 → 13장 로드맵 1·6행, 15장 결정 2번.
   - 항목 5(운영급 모델 실검증)가 끝나면 → 11장 제한 ②, 15장 결정 1번.
   - 항목 9(WebLogic 이관)가 착수되면 → 13장 로드맵 7행, 15장 결정 3번.
-- **테스트 수치**: `py -3.14 -m pytest agent backend collector -q --collect-only`와
-  `node --test dashboard/test/*.test.js`로 다시 재서 넣을 것. 코드 규모는
-  `find {backend,agent} -name '*.py' -not -path '*/tests/*' | xargs wc -l`(백엔드)와
-  `find dashboard -name '*.js' -not -path '*/test/*' | xargs wc -l`(화면) 기준이다 —
+- **테스트 수치**: `py -3.14 -m pytest agent server collector -q --collect-only`와
+  `node --test frontend/test/*.test.js`로 다시 재서 넣을 것. 코드 규모는
+  `find {server,agent} -name '*.py' -not -path '*/tests/*' | xargs wc -l`(백엔드)와
+  `find frontend -name '*.js' -not -path '*/test/*' | xargs wc -l`(화면) 기준이다 —
   **기준을 바꾸면 과거 수치와 비교가 깨지므로 이 기준을 유지할 것.**
 - ✅ **2026-08-06 1차 갱신 완료** (출처: `2026-08-06_summary.md`). 8/5 스냅샷 이후
   들어간 **계획 I(역할·결재 라인·권한관리)** 가 통째로 빠져 있어 라이트·다크 두 파일에
@@ -601,9 +601,9 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
 - **완료 (main)**: 광역 17개 시·도(`4235be7`) + 서울 25개 자치구
   (`dc1e3b5`·`02bfea7`·`edb4845`·`10893b6`) + 경기 31개 시군/42 폴리곤 레코드
   (`90afeac`) + 경기 26개 시 eminwon 전수 조회(`59c348c`, §⑫) + 부산 16개 구·군
-  geo/busan.js 신설·조사(§⑬). 정본은 `dashboard/data/institutions.js`(+ 파생 CSV
-  `dashboard/data/institutions_시도금고.csv`), 회귀 테스트는
-  `dashboard/test/institutions_data.test.js`(node 230 passed 기준).
+  geo/busan.js 신설·조사(§⑬). 정본은 `frontend/data/institutions.js`(+ 파생 CSV
+  `frontend/data/institutions_시도금고.csv`), 회귀 테스트는
+  `frontend/test/institutions_data.test.js`(node 230 passed 기준).
   총 **100개 레코드**, **날짜 확보 28곳**(광역 9·서울 9·경기 9·부산 1).
   경기 진행 중 공고 1건(광명, 공고기간 ~2026-08-11) · 양주는 다음 회차 2026
   하반기 임박.
@@ -816,7 +816,7 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
   `## Session 16:40`에서 **⑦단계 실행으로 전 단계 종결**. 커밋 **`2fefca0`**
   (177 files, git이 rename 149건 인식 → `git log --follow` 유지).
   `backend/`→`server/` · `dashboard/`→`frontend/` ·
-  `docs/실행가이드_backend-agent.md`→`_server-agent.md`.
+  `docs/실행가이드_server-agent.md`→`_server-agent.md`.
   스펙 `2026-08-20-final-rename-design.md` §⑥의 8단계를 그대로 따랐고, §⑦ 검증을
   전부 통과했다 — pytest **759**·node **262**(둘 다 기준선 유지), import 잔여 **0**,
   **golden 스냅샷 34건 재캡처 diff 0**, 실기동 시 정적·API 전부 200.
