@@ -307,3 +307,26 @@ test('CSV 왕복으로 값이 보존된다 (반입 경로와 형식이 같다)',
     assert.strictEqual(back[i].sources.length, r.sources.length);
   });
 });
+
+// ── 서버 병합의 전제: 정규화한 이름이 지역을 넘어 겹치지 않는다 (2026-08-21) ──
+// serverdata.mergeUnion은 logic.normalizeMuniName('청'을 벗긴 이름)만으로 서버 행과
+// 번들 행을 맞춘다. 지역을 보지 않으므로, 같은 이름이 서로 다른 지역에 생기면
+// **엉뚱한 지역끼리 합쳐진다**(예: 서버의 서울 '중구'가 다른 광역시 '중구'와).
+// 지금은 번들의 구 단위가 서울뿐이라 성립하는 전제다 — 깨지는 순간 여기서 잡는다.
+test('병합 전제: 서울 25개 구 이름은 다른 지역과 겹치지 않는다', function () {
+  // region '11'에는 광역 레코드 '서울특별시'도 있다(subRegion 없음) — 구 단위만 본다.
+  const seoulMuni = institutions.filter(function (r) {
+    return r.type === '지자체' && r.region === '11' && r.subRegion;
+  });
+  const seoulKeys = new Set(seoulMuni.map(function (r) { return logic.normalizeMuniName(r.name); }));
+  assert.strictEqual(seoulKeys.size, 25, '서울 지자체는 25개 구여야 한다');
+
+  const collisions = institutions.filter(function (r) {
+    return r.type === '지자체' && r.region !== '11' &&
+           seoulKeys.has(logic.normalizeMuniName(r.name));
+  }).map(function (r) { return r.name + '(' + r.region + ')'; });
+
+  assert.deepStrictEqual(collisions, [],
+    '서울 구 이름과 같은 지자체가 다른 지역에 생겼다 — mergeUnion이 이름만 보므로 ' +
+    '지역까지 보는 키로 바꿔야 한다');
+});

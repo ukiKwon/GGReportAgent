@@ -2,6 +2,8 @@
   'use strict';
   // 서버 registry ↔ 대시보드 레코드 변환·병합 (계획 B). 순수 함수만 — fetch는 app.js.
   const serverdata = {};
+  // 병합 키에 쓸 이름 정규화를 logic과 공유한다(designer.js와 같은 require 패턴).
+  const logic = (typeof require !== 'undefined') ? require('./logic.js') : root.logic;
   const FIELD_MAP = {
     institution_id: 'institutionId', name_ko: 'name', region_code: 'region',
     type: 'type', contract_end: 'contractEnd', last_bid: 'lastBid',
@@ -38,18 +40,32 @@
 
   // union 병합: 서버가 authoritative store지만, 지도의 번들 전용 데이터(좌표·출처 등)와
   // 서버 미등록 기관을 지우면 안 된다 — 서버 필드만 덮고 나머지는 남긴다.
+  // 매칭은 **정규화된 이름**으로 한다. 지도 번들은 서울·경기를 `OO구청`/`OO시청`으로
+  // 부르고 서버 registry는 `OO구`로 부르는데, 원본 문자열로 맞추면 25개 구가 전부
+  // 어긋나 **같은 구가 카드 두 장**으로 떴다(서울 지자체 25 → 50). 지도 쪽
+  // municipalityForFeature는 이미 normalizeMuniName으로 둘을 같은 구로 보고 있었다 —
+  // 병합만 그 기준을 안 쓰고 있던 것이다.
+  // ⚠️ 이름만으로 맞추므로 **같은 이름이 지역을 넘어 존재하면 엉뚱하게 합쳐진다.**
+  //    지금 번들에서 구 단위는 서울뿐이고(다른 지역은 시/군) 서버 25개 이름 중
+  //    번들에 두 번 이상 나오는 것은 없다 — 아래 테스트가 그 전제를 고정한다.
+  function mergeKey(name) {
+    return logic.normalizeMuniName(name);
+  }
+
   serverdata.mergeUnion = function (bundle, serverRows) {
     const byName = {};
-    serverRows.forEach(function (r) { byName[r.name_ko] = serverdata.mapServerRow(r); });
+    serverRows.forEach(function (r) { byName[mergeKey(r.name_ko)] = serverdata.mapServerRow(r); });
     const seen = {};
     const out = bundle.map(function (b) {
-      const s = byName[b.name];
+      const s = byName[mergeKey(b.name)];
       if (!s) return b;
-      seen[b.name] = true;
-      return Object.assign({}, b, s);
+      seen[mergeKey(b.name)] = true;
+      // 번들 이름을 남긴다 — 서버 필드로 덮으면 화면 표기가 `강동구청`에서
+      // `강동구`로 조용히 바뀐다. 이름의 진실은 지도 번들 쪽이다(사용자 확정 ⓐ안).
+      return Object.assign({}, b, s, { name: b.name });
     });
     serverRows.forEach(function (r) {
-      if (!seen[r.name_ko]) out.push(serverdata.mapServerRow(r));
+      if (!seen[mergeKey(r.name_ko)]) out.push(serverdata.mapServerRow(r));
     });
     return out;
   };
