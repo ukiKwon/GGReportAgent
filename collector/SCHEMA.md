@@ -10,7 +10,7 @@
 
 ## ① 경계 원칙 — 이 문서가 존재하는 이유
 
-수집기는 **망 밖**(인터넷 연결 구역)에서 돌고, 나머지 전부(`backend/`·`agent/`)는
+수집기는 **망 밖**(인터넷 연결 구역)에서 돌고, 나머지 전부(`server/`·`agent/`)는
 **망 안**에서 돈다. 둘은 **코드를 공유하지 않는다** — import도, 공용 모듈도 없다.
 
 ```
@@ -43,7 +43,7 @@ corpus/inbox/2026-07-29_0930_narajangteo/
 ### 왜 JSON과 CSV를 둘 다 내는가
 
 - **CSV는 이미 동작하는 반입 경로다.** 망 안의 `POST /institutions/import`
-  (`backend/csv_import.py`)와 dashboard 업로드 UI가 그대로 먹는다. 수집기가 이걸
+  (`server/csv_import.py`)와 dashboard 업로드 UI가 그대로 먹는다. 수집기가 이걸
   내주면 **망 안에 신규 코드 없이** 첫날부터 반입이 성립한다.
 - **JSON은 CSV가 못 담는 것을 담는다** — 공고 URL·공고번호·첨부파일·수집 근거·
   일정 신뢰도. 앞으로 늘어날 필드도 여기로 간다.
@@ -55,8 +55,8 @@ corpus/inbox/2026-07-29_0930_narajangteo/
 **소비자가 둘이고 읽는 열이 다르다.** 둘 다 **모르는 열은 조용히 무시**하므로,
 아래 12열 상위집합 하나를 내면 양쪽이 각자 필요한 것만 가져간다.
 
-- `backend/csv_import.py`의 `HEADER_MAP` — 6열만 읽는다(표의 ✔ 표시).
-- `dashboard/js/logic.js`의 `CSV_HEADERS` — 12열 전부 읽는다(지도 매칭·출처 표시용).
+- `server/csv_import.py`의 `HEADER_MAP` — 6열만 읽는다(표의 ✔ 표시).
+- `frontend/js/logic.js`의 `CSV_HEADERS` — 12열 전부 읽는다(지도 매칭·출처 표시용).
 
 헤더는 **한글**이고, 순서는 아래 그대로 쓴다(대시보드 템플릿과 일치).
 
@@ -85,7 +85,7 @@ corpus/inbox/2026-07-29_0930_narajangteo/
   데이터를 덮어쓰지 않는다** — "모르는 값"을 안전하게 표현하는 방법이 공란이다.
   반대로 잘못된 추측값을 넣으면 기존 확정 데이터를 덮어쓴다.
 - **`institution_id` 열은 없다. 만들지도 말 것.** canonical 슬러그 발급은 망 안의
-  권한이다(`backend/repository.upsert_institution`: `기관명` 일치 시 기존 id 사용,
+  권한이다(`server/repository.upsert_institution`: `기관명` 일치 시 기존 id 사용,
   없으면 `new-<hex8>` 발급). 수집기가 id를 지어내면 `corpus/institutions/{id}`
   폴더명과의 일치 규칙이 깨진다.
 
@@ -191,7 +191,7 @@ CSV의 모든 열은 manifest에서 기계적으로 나온다. 사람이 손대�
 
 1. 사람이 배치 폴더를 `corpus/inbox/` 아래에 놓는다(USB 등 물리 반입).
 2. 검증: `schema_version` 지원 여부, 필수 필드, 날짜 형식, `attachments` 실재,
-   경로 이탈 여부. **결정적 규칙만** — `backend/corpus_validator.py`와 같은 원칙
+   경로 이탈 여부. **결정적 규칙만** — `server/corpus_validator.py`와 같은 원칙
    (표준 라이브러리, LLM 미사용, errors/warnings 보고).
 3. `institutions.csv`를 `POST /institutions/import`로 반입 → 기관 upsert.
 4. 공고 레코드로 `bid_cases`의 일정 필드(`expected_date`/`confirmed_date`/
@@ -208,8 +208,8 @@ CSV의 모든 열은 manifest에서 기계적으로 나온다. 사람이 손대�
 계약이 실제 코드에 대해 성립하는지 예제로 확인했다(수집기 코드 없이, 파서만 호출).
 
 - §③의 12열 상위집합 CSV(UTF-8 BOM, 위 예시값)를 **양쪽 파서에 그대로 통과**시켰다:
-  `backend.csv_import.parse_csv` → 6개 필드(`name_ko`/`type`/`region_code`/`term`/
-  `last_bid`/`contract_end`) 정상 추출, 나머지 6열 무시. `dashboard/js/logic.js`의
+  `server.csv_import.parse_csv` → 6개 필드(`name_ko`/`type`/`region_code`/`term`/
+  `last_bid`/`contract_end`) 정상 추출, 나머지 6열 무시. `frontend/js/logic.js`의
   `parseCsv` → 12열 전부 인식(`confirmed: true`, `sources` 세미콜론 분리 배열).
 - §④의 `manifest.json` 예시는 유효한 JSON이다(파싱 확인).
 - 확인하지 않은 것: §⑥ 2·4·5·6은 아직 코드가 없어 검증 대상이 아니다.

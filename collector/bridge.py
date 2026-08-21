@@ -1,6 +1,6 @@
 """반입 대행 CLI — 운영에서 사람이 USB로 하는 일을 테스트에서 대신한다.
 
-이 도구는 **어느 쪽 서비스도 아니다**(설계 §③). collector 서비스도 backend도
+이 도구는 **어느 쪽 서비스도 아니다**(설계 §③). collector 서비스도 server도
 서로의 주소를 모르며, 주소를 아는 것은 이 브리지뿐이다. 운영에서는 이 자리에
 사람이 들어간다 — 즉 운영과 테스트의 차이는 "누가 옮기는가" 하나로 국한된다.
 
@@ -120,6 +120,8 @@ def main(argv: list[str] | None = None) -> int:
         result = carry_batch(
             args.batch,
             dmz_url=args.dmz,
+            # `--backend` 플래그에서 나온 속성이다. 개명(⑦단계)에서 CLI 플래그는
+            # 바꾸지 않기로 했으므로(호출부가 깨진다) 여기 이름도 그대로다.
             backend_url=args.backend,
             inbox=args.inbox,
             do_import=not args.no_import,

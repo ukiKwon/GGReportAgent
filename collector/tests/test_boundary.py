@@ -1,6 +1,6 @@
 """망 경계를 코드로 강제한다 — collector 런타임은 망 안 코드를 import하지 않는다.
 
-재구성 스펙 §④: "collector는 backend/·agent/와 코드를 공유하지 않고 파일 스키마로만
+재구성 스펙 §④: "collector는 server/·agent/와 코드를 공유하지 않고 파일 스키마로만
 통신한다." 문서로만 두면 언젠가 편의를 위해 깨진다.
 
 `contract/`는 양쪽이 공유하는 중립 계약 모듈이라 예외지만, 그 대가로 자기 자신도
@@ -12,8 +12,8 @@ from pathlib import Path
 
 COLLECTOR = Path(__file__).resolve().parents[1]
 CONTRACT = COLLECTOR.parent / "contract"
-FORBIDDEN = re.compile(r"^\s*(?:from|import)\s+(backend|agent)\b", re.M)
-FORBIDDEN_IN_CONTRACT = re.compile(r"^\s*(?:from|import)\s+(backend|agent|collector)\b", re.M)
+FORBIDDEN = re.compile(r"^\s*(?:from|import)\s+(server|agent)\b", re.M)
+FORBIDDEN_IN_CONTRACT = re.compile(r"^\s*(?:from|import)\s+(server|agent|collector)\b", re.M)
 
 
 def _runtime_modules():

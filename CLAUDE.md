@@ -73,7 +73,7 @@ structure:
   is the whole interface between the two sides: the collector never imports repo
   code, it just drops a batch folder (`manifest.json` + `institutions.csv` +
   `files/`) into `corpus/inbox/`. Read it before adding anything here, and before
-  changing `backend/csv_import.py`'s header map — the CSV half of the contract is
+  changing `server/csv_import.py`'s header map — the CSV half of the contract is
   that map.
 - **`corpus/reports/`** (formerly `total/`, then root `report/`) — the combined
   cross-district output:

@@ -536,7 +536,7 @@
         <ul class="delta">
           <li>
             <span class="delta-mark up">미구현 → 완료</span>
-            <span><strong>⑦ 취합이 실제로 문서를 만든다</strong> — <code class="inline">backend/assembler.py</code> 신규.
+            <span><strong>⑦ 취합이 실제로 문서를 만든다</strong> — <code class="inline">server/assembler.py</code> 신규.
             <code class="inline">finalize</code> 승인 시 3팀 <code class="inline">draft_content</code>를
             영업 → IT → 예산 순 슬라이드로 묶어 PPTX를 저장하고, 경로를
             <code class="inline">institutions.pptx_path</code>에 기록한다
@@ -556,7 +556,7 @@
           </li>
           <li>
             <span class="delta-mark up">재분류</span>
-            <span><strong><code class="inline">dashboard/</code>는 "기존 자산"이 아니라 ①단계 도구다</strong> —
+            <span><strong><code class="inline">frontend/</code>는 "기존 자산"이 아니라 ①단계 도구다</strong> —
             금고은행 입찰 임박도 D3 히트맵(전국/서울/경기). 초판은 이걸 흐름 밖 레거시로 그렸지만,
             실제로는 E2E의 출발점이다. <code class="inline">node --test</code> 36건 통과 확인.</span>
           </li>
@@ -611,7 +611,7 @@
 flowchart TB
     subgraph DMZ["🌐 ①~③단계 · 공개데이터 (스펙상 DMZ, 현재는 전부 로컬)"]
         direction TB
-        S1["① 입찰현황 파악\ndashboard/ D3 히트맵 (전국·서울·경기)\ndata/institutions.js 수동 큐레이션\nnode --test 36건 통과"]
+        S1["① 입찰현황 파악\nfrontend/ D3 히트맵 (전국·서울·경기)\ndata/institutions.js 수동 큐레이션\nnode --test 36건 통과"]
         S2["② 입찰상황 발생\n임박도 색(빨강/주황/노랑)을 보고\n사람이 '이건 하자'를 판단\n자동 트리거·수집 없음"]
         S3["③ RFI 공시 확보\ncorpus/rfp/수원시 금고 지정 계획 공고문.pdf\n.claude/skills/rfp-locate 를 사람이 호출\nrfp_locate_node 미구현"]
         S1 --> S2 --> S3
@@ -625,7 +625,7 @@ flowchart TB
         DEC["◆ 참여 여부 결정 (스펙 신설)\nPOST /bidcases/{id}/participation-decisions\n실무자 → 팀장 → 부장 3단계 강제"]
         S5["⑤ 제안서 기획\n참여확정 순간 tasks 3건 자동 생성\n(영업·IT·예산, 상태=대기)\n⚠ 코퍼스 없어도 생성됨 — 게이트는 설계만"]
         S6["⑥ 세부기획 3팀 (병렬)\nPOST /tasks/{id}/messages — SSE 스트리밍\nagent_adapter.py 가 팀별 코퍼스 라우팅\n제출(1차) → 승인(2차)"]
-        S7["⑦ 취합\nPOST /bidcases/{id}/finalize\nbackend/assembler.py → 3팀 초안을 PPTX로\ninstitutions.pptx_path 기록"]
+        S7["⑦ 취합\nPOST /bidcases/{id}/finalize\nserver/assembler.py → 3팀 초안을 PPTX로\ninstitutions.pptx_path 기록"]
         S8["⑧ 검토\nagent/nodes/verification.py 존재\n오탈자·RFI 역대조 미구현, 백엔드 미연결"]
         S9["⑨ 제출\n사람이 실제 제출\n'제출완료' 마킹 코드 없음"]
         S4 --> DEC --> S5 --> S6 --> S7
@@ -684,7 +684,7 @@ flowchart TB
 sequenceDiagram
     autonumber
     participant H as 사람 (영업/IT)
-    participant D as dashboard/ 히트맵
+    participant D as frontend/ 히트맵
     participant CC as Claude Code + 스킬
     participant API as backend FastAPI
     participant AG as agent_adapter → LLM
@@ -768,11 +768,11 @@ flowchart TB
     end
 
     subgraph BUILT["✅ 구현 완료"]
-        DASH["dashboard/ — ①단계 도구\nD3 히트맵 · geo/{korea,seoul,gyeonggi}.js\njs/{logic,store,render,export,app}.js\n오프라인 file:// · localStorage"]
-        REG["backend/ 레지스트리\nrepository.py · routers/institutions.py"]
-        WF["backend/ 입찰건 워크플로우\nbidcase_repository · task_repository\nrouters/bidcases.py · routers/tasks.py"]
-        ADAPTER["backend/agent_adapter.py\n팀별 코퍼스 라우팅 + SSE 스트리밍"]
-        ASM["backend/assembler.py (NEW)\n⑦ 취합 — 3팀 초안 → 제안서 PPTX"]
+        DASH["frontend/ — ①단계 도구\nD3 히트맵 · geo/{korea,seoul,gyeonggi}.js\njs/{logic,store,render,export,app}.js\n오프라인 file:// · localStorage"]
+        REG["server/ 레지스트리\nrepository.py · routers/institutions.py"]
+        WF["server/ 입찰건 워크플로우\nbidcase_repository · task_repository\nrouters/bidcases.py · routers/tasks.py"]
+        ADAPTER["server/agent_adapter.py\n팀별 코퍼스 라우팅 + SSE 스트리밍"]
+        ASM["server/assembler.py (NEW)\n⑦ 취합 — 3팀 초안 → 제안서 PPTX"]
         SQLITE[("registry.db · SQLite\ninstitutions · bid_cases\ntasks · messages")]
         REPORT["corpus/reports/5-report_2.0.html\narchive/GGReportAgent_*.html\n오프라인 산출물 뷰"]
     end
@@ -787,7 +787,7 @@ flowchart TB
         DMZ["DMZ FastAPI (AWS)\n①~③ 수집·감지·공시"]
         NEXTJS["Next.js 프론트\n폐쇄망 / Track2"]
         NODES3["rfp_locate 노드 (③)\n※ spec_research는 07-29 스펙에서 폐기"]
-        CORPVAL["backend/corpus_validator.py (⑤)\n12개 규칙 검증 + 반입 API + Task 게이트"]
+        CORPVAL["server/corpus_validator.py (⑤)\n12개 규칙 검증 + 반입 API + Task 게이트"]
         LLMAD["폐쇄망 LLM 어댑터\nGPT-OSS 120B"]
     end
 
@@ -834,15 +834,15 @@ flowchart TB
           <p>25개 구청의 spec(예산·민원)·plan(제안서)·bank_ideas_draft. 대시보드를 뺀 모든 하위 컴포넌트의 근거 코퍼스.</p>
         </div>
         <div class="card">
-          <div class="card-top"><span class="path">dashboard/ <span class="zone-tag">①단계</span></span><span class="badge done">완료</span></div>
+          <div class="card-top"><span class="path">frontend/ <span class="zone-tag">①단계</span></span><span class="badge done">완료</span></div>
           <p>금고은행 입찰 임박도 D3 히트맵. 전국/지역별 2탭, 구 단위 매칭, CSV 템플릿·업로드. 빌드 없음, <code class="inline">file://</code> 더블클릭. 테스트 36건.</p>
         </div>
         <div class="card">
-          <div class="card-top"><span class="path">backend/ 레지스트리</span><span class="badge done">완료</span></div>
+          <div class="card-top"><span class="path">server/ 레지스트리</span><span class="badge done">완료</span></div>
           <p>sub-project 0. institutions 테이블 + 4개 엔드포인트 + CSV 반입. giganlist 25개 구청을 <code class="inline">seed.py</code>로 시딩.</p>
         </div>
         <div class="card">
-          <div class="card-top"><span class="path">backend/ 워크플로우</span><span class="badge done">완료</span></div>
+          <div class="card-top"><span class="path">server/ 워크플로우</span><span class="badge done">완료</span></div>
           <p>bid_cases · tasks · messages 3개 테이블 + 9개 엔드포인트. 참여결재 → 3팀 Task → 대화 → 결재 → 확정까지 서버가 상태를 강제한다.</p>
         </div>
         <div class="card">
@@ -882,7 +882,7 @@ flowchart TB
           </thead>
           <tbody>
             <tr>
-              <td class="ep">dashboard/data/<br>institutions.js</td>
+              <td class="ep">frontend/data/<br>institutions.js</td>
               <td>입찰 임박도용 기관 목록(현재 샘플 데이터)</td>
               <td class="zone-tag">한글명 + region/subRegion</td>
               <td>브라우저 D3</td>
@@ -952,7 +952,7 @@ flowchart TB
             "(자료 없음)"을 돌려주는데도 ⑥단계가 그대로 진행돼, <strong>근거 없는 초안이 확정까지 갈 수 있다</strong>.
             07-29 스펙이 이 구멍의 메우는 방식을 확정했다 — 조사는 DMZ에서 사람이 하고(현재
             <code class="inline">institution-corpus-format</code> 스킬), 시스템은
-            <code class="inline">backend/corpus_validator.py</code>로 12개 규칙을 기계 검증한 뒤
+            <code class="inline">server/corpus_validator.py</code>로 12개 규칙을 기계 검증한 뒤
             <code class="inline">POST /institutions/{id}/corpus</code>로 반입하며,
             <code class="inline">research_status='대기'</code>인 동안 Task 생성을 막는다. <strong>설계만, 미구현.</strong></span>
           </li>
@@ -964,14 +964,14 @@ flowchart TB
           <li>
             <span><strong>화면 (전 구간)</strong>
             ④~⑨를 조작할 UI가 없다. 지금은 curl로만 워크플로우를 돌릴 수 있고,
-            유일한 화면인 <code class="inline">dashboard/</code>는 ①단계 전용이며 백엔드를 호출하지 않는다
+            유일한 화면인 <code class="inline">frontend/</code>는 ①단계 전용이며 백엔드를 호출하지 않는다
             (<code class="inline">fetch</code> 호출 0건).</span>
           </li>
         </ol>
       </div>
       <div class="note seam">
         <strong>직전에 닫은 단절</strong> — rev.2에 여섯 번째 항목으로 적혀 있던 "확정(⑦) → 문서 산출"은
-        rev.3에서 <code class="inline">backend/assembler.py</code>로 메웠다(목록에서 제거). 트리거와 입력이
+        rev.3에서 <code class="inline">server/assembler.py</code>로 메웠다(목록에서 제거). 트리거와 입력이
         이미 DB에 있었기 때문에 신규 코드는 45줄이었다. <strong>남은 것 중 같은 성격(양쪽 조각이 이미
         있는 곳)은 위 S4 검토</strong> — 이제 검토 대상 파일이 실제로 생기므로
         <code class="inline">verification_node</code>를 물릴 자리가 생겼다.
@@ -982,7 +982,7 @@ flowchart TB
       <div class="section-num">07 / API SURFACE</div>
       <h2>엔드포인트 현황</h2>
       <p>
-        지금 <code class="inline">backend.main:app</code>에 실제로 붙어 있는 전부다. 13개 모두 동작하며,
+        지금 <code class="inline">server.main:app</code>에 실제로 붙어 있는 전부다. 13개 모두 동작하며,
         상태 전이를 어기는 호출은 400/403/409로 막힌다. 오른쪽 열은 그 엔드포인트가 담당하는 E2E 단계다.
       </p>
       <div class="panel">
@@ -1007,7 +1007,7 @@ flowchart TB
           </tbody>
         </table>
       </div>
-      <p class="panel-caption">backend/routers/{institutions,bidcases,tasks}.py · 호출자 신원은 X-User-Id 헤더</p>
+      <p class="panel-caption">server/routers/{institutions,bidcases,tasks}.py · 호출자 신원은 X-User-Id 헤더</p>
 
       <div class="note">
         <strong>인증은 아직 없다</strong> — 담당자·결재자 판정은 <code class="inline">X-User-Id</code> 헤더를
@@ -1093,7 +1093,7 @@ sequenceDiagram
     end
 </pre>
       </div>
-      <p class="panel-caption">backend/routers/bidcases.py · backend/routers/tasks.py · backend/bidcase_repository.py:86-139</p>
+      <p class="panel-caption">server/routers/bidcases.py · server/routers/tasks.py · server/bidcase_repository.py:86-139</p>
 
       <div class="note">
         <strong>담당자는 신청하지 않고 "먼저 손댄 사람"이 된다</strong> — Task에 첫 메시지를 보낸 사람이
@@ -1148,7 +1148,7 @@ sequenceDiagram
     end
 
     P->>PPTX: state 전달
-    note over PPTX: build_pptx()는 backend/assembler.py도 재사용
+    note over PPTX: build_pptx()는 server/assembler.py도 재사용
     PPTX-->>P: pptx_path
     P-->>U: 최종 state 반환
 </pre>
@@ -1172,19 +1172,19 @@ sequenceDiagram
       <p>세 갈래가 서로 독립적으로 돈다 — 지도(①), 워크플로우 서버(◆~⑦), 산출물 뷰.</p>
 
       <h3>① 입찰 히트맵 — 빌드 없음</h3>
-      <div class="panel mono" style="font-size:13px; line-height:1.9; white-space:pre;">dashboard/index.html 더블클릭   # file:// 오프라인, vendor/d3.v7.min.js 필요
-node --test dashboard/test/*.test.js   # 36 passed</div>
+      <div class="panel mono" style="font-size:13px; line-height:1.9; white-space:pre;">frontend/index.html 더블클릭   # file:// 오프라인, vendor/d3.v7.min.js 필요
+node --test frontend/test/*.test.js   # 36 passed</div>
 
       <h3>◆~⑦ 워크플로우 서버</h3>
       <div class="panel mono" style="font-size:13px; line-height:1.9; white-space:pre;">py -3 -m pip install -r requirements.txt
-py -3 -m backend.seed                      # corpus/institutions/ → registry.db 시딩
+py -3 -m server.seed                      # corpus/institutions/ → registry.db 시딩
 set OPENAI_API_KEY=...                     # /tasks/{id}/messages 스트리밍에 필요
-py -3 -m uvicorn backend.main:app --reload
+py -3 -m uvicorn server.main:app --reload
 
 curl http://127.0.0.1:8000/institutions
 curl -X POST http://127.0.0.1:8000/bidcases --data-binary @bidcase.json
 curl http://127.0.0.1:8000/institutions/mapo/artifacts   # finalize 후 pptx_path 확인
-py -3 -m pytest backend/tests -q           # 72 passed</div>
+py -3 -m pytest server/tests -q           # 72 passed</div>
       <p class="panel-caption">생성물 기본 경로는 <span class="mono">report_new/{institution_id}/</span> · create_app(output_root=…)로 변경 가능</p>
 
       <h3>agent/ 파이프라인 — 부분만</h3>

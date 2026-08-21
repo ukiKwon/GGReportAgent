@@ -6,7 +6,7 @@
 - 왜 이렇게 구성했는지(의사결정과 근거): `docs/superpowers/plans/2026-08-04-aws-ec2-demo-deploy.md`
 - 화면 사용법(탭별 조작): `docs/실행가이드_backend-agent.md`
 - **개발 PC(Windows)에서 그냥 돌리고 싶다면** 이 문서가 아니라
-  `handoff/NEXT.md`의 "새 PC에서 이어받을 때" 절차(`py -3 -m backend.demo`)를 보면 된다.
+  `handoff/NEXT.md`의 "새 PC에서 이어받을 때" 절차(`py -3 -m server.demo`)를 보면 된다.
 
 ---
 
@@ -23,7 +23,7 @@
 
 세 가지를 먼저 이해하면 이 문서가 쉬워진다.
 
-1. **앱은 `127.0.0.1:8000`에만 바인딩된다**(`backend/demo.py`). 즉 **앱만 켜서는 밖에서
+1. **앱은 `127.0.0.1:8000`에만 바인딩된다**(`server/demo.py`). 즉 **앱만 켜서는 밖에서
    절대 안 보인다.** nginx(7단계)가 반드시 앞에 서야 하고, 그래서 접속 주소도
    `:8000`이 아니라 **80포트(포트번호 없는 주소)** 다. 이건 실수가 아니라 의도된 구성이다
    — 앱 포트가 인터넷에 직접 열리지 않는다.
@@ -170,14 +170,14 @@ python -m pytest -q        # 526 passed 가 기준선 (2026-08-05 실측)
 ```bash
 cd /opt/GGReportAgent && source .venv/bin/activate
 
-python -m backend.seed                        # ① 기관 25건 → data/registry.db
+python -m server.seed                        # ① 기관 25건 → data/registry.db
 python -m agent.retrieval build --no-embed    # ② 검색 인덱스 → data/corpus_index.db (수 초)
-python -m backend.demo --no-serve             # ③ 데모 DB·데모 인덱스 → data/demo.db
+python -m server.demo --no-serve             # ③ 데모 DB·데모 인덱스 → data/demo.db
 ```
 
 **②를 건너뛰지 말 것.** 지식 탭이 503을 띄우는 것도 문제지만, 더 큰 이유는 **대화 탭
 속도**다 — 인덱스가 있으면 관련 청크만 발췌해 프롬프트에 넣고, 없으면 코퍼스를 **통째로**
-넣는다(`backend/agent_adapter.py`의 `_load_consult_corpus`). CPU 추론에서 그 차이는
+넣는다(`server/agent_adapter.py`의 `_load_consult_corpus`). CPU 추론에서 그 차이는
 수십 초 대 수 분이다.
 
 `--no-embed`인 이유: 임베딩까지 만들면 CPU에서 **약 57분**이 걸린다. 임베딩이 없으면
@@ -236,7 +236,7 @@ Environment=LLM_BASE_URL=http://127.0.0.1:11434/v1
 Environment=LLM_MODEL=llama3.2:3b
 Environment=LLM_FALLBACK_MODEL=llama3.2:3b
 Environment=LLM_API_KEY=not-needed
-ExecStart=/opt/GGReportAgent/.venv/bin/python -m backend.demo --port 8000
+ExecStart=/opt/GGReportAgent/.venv/bin/python -m server.demo --port 8000
 Restart=on-failure
 
 [Install]
@@ -436,7 +436,7 @@ cd /opt/GGReportAgent && source .venv/bin/activate \
 
 # 데모 데이터 완전 삭제
 cd /opt/GGReportAgent && source .venv/bin/activate \
-  && python -m backend.demo --reset --no-serve
+  && python -m server.demo --reset --no-serve
 ```
 
 ---
@@ -451,7 +451,7 @@ cd /opt/GGReportAgent && source .venv/bin/activate \
 | 1분쯤 뒤 502/504 | 읽기 타임아웃 | `proxy_read_timeout 300s;` (7단계) |
 | "모델 '…'을 찾을 수 없습니다" 말풍선 | `LLM_MODEL` ≠ 설치된 모델 | `ollama list`와 6단계 `LLM_MODEL`을 맞춘다 |
 | "LLM 엔드포인트에 닿지 못했습니다" | Ollama 미기동 | `sudo systemctl status ollama` |
-| 지식 탭이 503 "빌드 안내" | 인덱스 부재 | 4단계 ② 실행 **후 앱 재시작** — 데모 인덱스는 앱 기동 때 운영 인덱스를 복사해 만들어진다(`backend/demo.py`의 `build_demo_index`), 그래서 ②만으론 안 바뀐다 |
+| 지식 탭이 503 "빌드 안내" | 인덱스 부재 | 4단계 ② 실행 **후 앱 재시작** — 데모 인덱스는 앱 기동 때 운영 인덱스를 복사해 만들어진다(`server/demo.py`의 `build_demo_index`), 그래서 ②만으론 안 바뀐다 |
 | 대화가 몇 분씩 걸림 | 인덱스 없이 코퍼스 통째 투입 | 4단계 ② 실행 후 앱 재시작 |
 | 첫 질문만 유독 느림 | 모델 로딩 | 정상. 5단계 `OLLAMA_KEEP_ALIVE=-1` + 웜업 |
 | 답변이 계속 수 분씩 걸림 | vCPU 부족(2 vCPU에 8b 등 과한 모델) | 5·6단계를 `llama3.2:3b`로 맞춘다. 그래도 느리면 `c7i.2xlarge`(8 vCPU) |

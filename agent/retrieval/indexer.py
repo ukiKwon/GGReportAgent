@@ -82,7 +82,7 @@ def classify(
 
     아카이브 루트는 `{기관명(한글)}/{날짜}/{파일}` 구조다. 기관명은 `name_ko`라서
     `institution_id`(슬러그)가 아니다 — 되짚으려면 레지스트리가 필요한데 `agent/`는
-    `backend/`를 import하지 않는다. 그래서 **여기서는 원본 폴더명을 그대로 돌려주고**,
+    `server/`를 import하지 않는다. 그래서 **여기서는 원본 폴더명을 그대로 돌려주고**,
     슬러그 변환은 매핑을 쥐고 있는 호출부(`index_file`의 `institution_names`)가 한다.
     """
     if root_label == ARCHIVE_LABEL:
@@ -111,7 +111,7 @@ def load_institution_names(registry_db_path: str | os.PathLike) -> dict[str, str
     아카이브 폴더명은 한글 `name_ko`인데 다른 곳의 `institution_id`는 전부 슬러그라,
     이 매핑이 없으면 아카이브 청크에 기관 필터가 걸리지 않는다.
 
-    `agent/`가 `backend/`를 import하지 않는다는 원칙은 지킨다 — 코드가 아니라 **파일**을
+    `agent/`가 `server/`를 import하지 않는다는 원칙은 지킨다 — 코드가 아니라 **파일**을
     읽고, 그것도 두 컬럼뿐이다. 이 두 이름은 `collector/SCHEMA.md`가 망 경계 계약으로
     이미 고정해 둔 것이라 임의로 바뀌지 않는다.
     """

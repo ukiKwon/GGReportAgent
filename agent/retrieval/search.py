@@ -2,7 +2,7 @@
 
 원래 주석은 "후일 임베딩 검색을 도입할 때 search()의 시그니처는 유지하고 구현만
 바꾼다"였다. 계획 F가 그 "후일"이고, 약속대로 **시그니처는 그대로**다 —
-`backend/routers/search.py`와 `backend/agent_adapter.py`는 한 줄도 안 고쳤다.
+`server/routers/search.py`와 `server/agent_adapter.py`는 한 줄도 안 고쳤다.
 
 **두 갈래를 합친다.**
 

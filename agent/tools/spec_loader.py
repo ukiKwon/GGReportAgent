@@ -40,7 +40,7 @@ def find_archive_pptx(archive_dir: str, institution_name: str) -> str | None:
     """그 기관의 **가장 최근** 아카이브 제안서. 없으면 None.
 
     M-1: 예전에는 `archive_dir` 바로 아래만 훑고 **파일 이름**에 기관명이 들어
-    있기를 기대했다. 그런데 실제 배치는 `backend/archive.py`가
+    있기를 기대했다. 그런데 실제 배치는 `server/archive.py`가
     `{뿌리}/{기관명}/{날짜}/제안서.pptx`로 두 단계 더 들어가 만든다 — 기관명은
     **폴더 이름**이고 파일은 그냥 `제안서.pptx`다. 즉 이 함수는 아카이브가
     쌓여 있어도 **한 번도 찾지 못했다**(예외도 없이 조용히 "이전 제안서 없음").

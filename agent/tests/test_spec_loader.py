@@ -51,7 +51,7 @@ def test_find_archive_pptx_returns_none_when_no_match(tmp_path):
 
 
 # ── M-1: 실제 아카이브 배치를 찾지 못하던 결함 ──────────────────────────
-# `backend/archive.py`는 `{뿌리}/{기관명}/{날짜}/제안서.pptx`로 만든다 — 기관명은
+# `server/archive.py`는 `{뿌리}/{기관명}/{날짜}/제안서.pptx`로 만든다 — 기관명은
 # **폴더 이름**이고 파일은 그냥 `제안서.pptx`다. 평면 listdir로는 한 번도 못 찾았다.
 
 def _archived(root, institution, day, name="제안서.pptx"):
