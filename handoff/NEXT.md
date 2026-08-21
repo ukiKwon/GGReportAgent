@@ -95,86 +95,6 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
   하나다. 실제 나라장터/지자체 파싱은 **별도 스펙**이 필요하다.
 - **재구성 ⑦(개명)은 이 항목 범위에서 제외 확정** — 항목 2에서 다룬다.
 
-### 2. 리포지토리 재구성 — ①~⑥단계 완료, 남은 것은 ⑦뿐 (조건부 보류)
-- **출처**: `2026-07-29_summary.md` `## Session 11:14`(①~③)·`## Session 13:38`(④)·
-  `## Session 15:25`(⑤)·`## Session 15:51`(⑥).
-- **스펙**: `docs/superpowers/specs/2026-07-29-repo-restructure-design.md`. 실행 계획:
-  `docs/superpowers/plans/2026-07-29-repo-restructure-stage1-3.md`.
-- **완료 (전부 main에 병합됨)**: ①`archive/` 신설(`7b9d7be`에 포함) ②`data/` 분리
-  ③`corpus/` 신설(rfp·reports·inbox) + `architecture/`→`docs/architecture/`(`d5010d9`)
-  ④**giganlist→`corpus/institutions/` 이동 완료** — 사용자가 `data/` 제안을 철회하고
-  스펙 §⑥대로 `corpus/institutions/` 승인. 25개 폴더 git mv + seed 경로·저장값 접두사
-  +검증기 docstring+테스트 경로+agent 기본값+살아있는 문서를 한 커밋으로(§⑥ 요구),
-  traversal 테스트는 접두사가 2단계 깊어져 `..` 하나 추가. `data/registry.db`는 비어
-  있던 것을 확인하고 재시딩(25개 기관, 새 접두사 검증). 테스트 148 passed.
-  `giganlist_dir` 같은 식별자명은 의도적으로 유지(컬럼 개명은 범위 밖).
-- **사용자 결정 (2026-07-29)**: `dashboard/`→`frontend/`는 **최종형 개명 스펙(§⑤·⑦-7)
-  때 함께** 하기로 확정 — 그 전까지 이동 금지.
-- **⑤ 완료 (main 병합 `0af3f55`, push됨)**: 스펙
-  `docs/superpowers/specs/2026-07-29-agent-retrieval-fts-design.md` + 플랜
-  `docs/superpowers/plans/2026-07-29-agent-retrieval-fts.md` → 구현 완료.
-  `agent/retrieval/`(파서·청커·trigram FTS5 인덱서·`search()` 단일 시그니처·CLI),
-  `GET /search`(인덱스 없으면 503), agent_adapter 검색 통합(등록 코퍼스+인덱스
-  존재 시만 검색, 그 외/0건/인덱스 부재는 legacy 통째-읽기 폴백 — 기존 테스트
-  무수정 통과). 테스트 **178 passed**(기준선 148+30), dashboard 36/36.
-  인덱스는 `data/corpus_index.db`(gitignored) — `py -3.14 -m agent.retrieval build`로
-  재생성. 사용법: `docs/실행가이드_backend-agent.md` §3.
-- **⑥ 완료 (main `5cfc4e6`, push됨)**: `collector/SCHEMA.md` v1 작성 — 망 밖 수집기와
-  망 안의 **유일한 접점을 파일 형식으로 고정**. 배치 폴더 1개 = `manifest.json`(권위)
-  + `institutions.csv`(파생) + `files/`, dedup 키 `(source.slug, notice_id)`,
-  배치 불변·나중 배치 우선, `schema_version` 정책. CSV는 `backend/csv_import.py`(6열)와
-  `dashboard/js/logic.js`(12열)가 **둘 다 읽는 12열 상위집합**으로 정하고 두 파서에
-  실제 통과시켜 검증(SCHEMA.md §⑦). `institution_id`는 망 밖에서 발급 금지(슬러그
-  발급은 망 안 권한). 코드는 없음 — 스펙 §⑦-6대로 문서까지만.
-- **남은 단계 ⑦ — 착수 조건 전부 충족. 스펙 완료. 남은 것은 실행뿐** (2026-08-20).
-  - **전용 스펙**: `docs/superpowers/specs/2026-08-20-final-rename-design.md`
-    (출처: `2026-08-19_summary.md`). **실행 절차·검증 기준·치환 제외 목록이 전부
-    거기 있다 — 실행할 세션은 그 문서 하나만 따라가면 된다.**
-  - **조건 ⓑ 충족**: 최근 14일 backend 커밋 **1개**(최근 7일 0개, 2026-08-20 실측).
-    재검토 신호였던 "2주간 한 자릿수"에 처음 도달했다(8/06·8/09에는 92·93개였다).
-  - **조건 ⓐ 충족**: 사용자가 스펙을 승인하고 이름 2건을 확정했다(2026-08-20).
-  - **확정된 이름**: `backend/`→**`server/`** · `dashboard/`→**`frontend/`** ·
-    `docs/실행가이드_backend-agent.md`→**`docs/실행가이드_server-agent.md`**.
-    ⚠️ 재구성 스펙 §⑤는 `web/`이라고 적혀 있으나 **`frontend/`가 최종 결정**이다
-    (근거는 새 스펙 §③). 실행 시 §⑤에 그 사실을 한 줄 남기기로 돼 있다(새 스펙 §⑥-6).
-  - **아직 실행하지 않았다.** 다음 세션이 이어받을 것은 새 스펙 §⑥의 8단계다:
-    `git mv` 2건 → import **243곳**(테스트 제외 101) → 하드코딩 2곳
-    (`backend/main.py:78` `STATIC_DIR` 기본값 · `backend/demo.py:138`) → 살아있는 문서
-    6개 → 재구성 §⑤ 한 줄 → 검증 → **커밋 1개**.
-  - ⚠️ **실행 전 확인**: 다른 세션이 backend를 동시에 고치고 있지 않을 것
-    (import 전면 수정이라 충돌하면 대형이다). 기준선 **pytest 759 · node 244**,
-    검증에 **`golden/` 34건 재캡처 diff 0**이 포함된다.
-
-  ⚠️ **이름 혼동 주의**: 이 항목은 **디렉터리 개명**이지 *한글화*가 아니다.
-  `spec`/`plan` 영문 토큰의 한글화는 `archive/html_한글화_계획.md`의 **별건**이다
-  (2026-08-06 세션에서 실제로 이 둘을 헷갈렸다).
-
-  **범위 실측 (2026-08-06, 커밋 `98192d8` 기준)** — 다음 판단을 수치로 하기 위해 잰다:
-
-  | 대상 | 규모 |
-  |---|---|
-  | `from backend` / `import backend` | **240곳** (테스트 제외 **98곳**) |
-  | `backend/` 파이썬 파일 | 43개 |
-  | 문서의 `py -m backend.*` 실행 진입점 | **61곳** |
-  | 깨지는 비-파이썬 지점 | `INSTALL.md` · `docs/실행가이드_backend-agent.md` · `collector/SCHEMA.md` · `.claude/settings.local.json` |
-  | `dashboard` 하드코딩 | `backend/main.py`(`STATIC_DIR` 기본값) · `backend/demo.py`(`static_dir`) |
-
-  **조건 ⓑ는 명확히 미충족이다** — 같은 날 실측으로 **최근 14일 backend 커밋 92개,
-  2026-08-06 하루에만 9개**. 계획 H·I와 이 세션의 항목 정리가 전부 backend를
-  건드렸다. 잠잠해졌다고 볼 수 없다.
-
-  **2026-08-09 재실측 — 조건 ⓑ 여전히 미충족.** `git log --since="14 days ago" -- backend/`
-  = **93개**(재검토 신호인 "2주간 한 자릿수"의 10배 이상), 최근 7일만 해도 **40개**.
-  날짜별로도 7/27부터 8/06까지 하루 5~18개가 끊긴 날 없이 이어진다. 8/09이 1개인 것은
-  그날 작업이 한 건이었기 때문이지 잠잠해진 신호가 아니다.
-  → **이번에도 착수하지 않았다.** 사용자에게 실측치를 보고하고 판단을 넘겼다
-  (출처: `2026-08-09_summary.md`).
-
-  **재검토 신호**: backend 커밋이 **2주간 한 자릿수**로 떨어지면 그때 ⓐ를 사용자에게
-  묻는다. 착수 시에는 위 4개 문서와 `.claude/settings.local.json`(권한 규칙에
-  `backend` 문자열이 들어 있다)을 **같은 커밋에서** 함께 고쳐야 한다 —
-  재구성 스펙 §⑥이 "경로 이동과 참조 수정을 한 커밋으로" 요구한 것과 같은 이유다.
-
 ### 3. ~~로컬 DB 파일 2건~~ — **완료(종결)** (2026-08-09)
 - **출처**: `2026-08-09_summary.md`. 원 기록은 `2026-07-30_summary.md` `## Session 01:00`.
 - **① 리포 루트의 stale `registry.db` — 삭제 완료.** 2026-08-09 세션이 **바로 그 원본
@@ -891,6 +811,18 @@ py -3 -m backend.demo                      # 데모 환경 + 서버 (data/demo.d
 ---
 
 ## 해소된 항목 (참고용 로그 — 지우지 않고 누적)
+
+- ~~리포지토리 재구성 — 남은 것은 ⑦단계뿐~~ (구 항목 2) — `2026-08-21_summary.md`
+  `## Session 16:40`에서 **⑦단계 실행으로 전 단계 종결**. 커밋 **`2fefca0`**
+  (177 files, git이 rename 149건 인식 → `git log --follow` 유지).
+  `backend/`→`server/` · `dashboard/`→`frontend/` ·
+  `docs/실행가이드_backend-agent.md`→`_server-agent.md`.
+  스펙 `2026-08-20-final-rename-design.md` §⑥의 8단계를 그대로 따랐고, §⑦ 검증을
+  전부 통과했다 — pytest **759**·node **262**(둘 다 기준선 유지), import 잔여 **0**,
+  **golden 스냅샷 34건 재캡처 diff 0**, 실기동 시 정적·API 전부 200.
+  재구성 스펙 §⑤의 `web/` 표기에는 `frontend/` 확정을 갱신 블록으로 남겼다(§⑥-6).
+  ⚠️ 다시 비슷한 일괄 개명을 할 세션을 위한 함정 3가지는 커밋 메시지에 적어 뒀다
+  (`args.backend` 파손 · `__pycache__` 잔존 · mermaid `\n` 이스케이프).
 
 - ~~결재함·작업함 카드 본문이 고정 높이에 잘린다~~ (구 항목 17) —
   `2026-08-21_summary.md` `## Session 10:05`에서 종결. 커밋 **`b78e5f2`**.
