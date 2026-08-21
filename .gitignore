@@ -23,10 +23,10 @@ data/*
 # 남길 가치가 있는 것은 `tmp/`가 아니라 제 위치(`corpus/`·`docs/`·`handoff/`)에 둔다.
 /tmp/
 
-# impeccable ���� ���� ��ũ���� ? ���Ǹ��� ��ĸó�Ǵ� ���Ź��̶� Ŀ�� ��� �ƴ�
+# impeccable 마감 리뷰 스크린샷 — 세션마다 재캡처되는 증거물이라 커밋 대상 아님
 .impeccable/review/
 
-# impeccable ���� ������ ���� ���⹰ ? ���� ��ũ������ ���� ������ Ŀ�� ��� �ƴ�
+# impeccable 결정 페이지 세션 산출물 — 리뷰 스크린샷과 같은 이유로 커밋 대상 아님
 .impeccable/questions/
 
 # portfolio/capture.py의 스테이징 경로. 캡처는 항상 여기에 쌓고, 사람이 눈으로
