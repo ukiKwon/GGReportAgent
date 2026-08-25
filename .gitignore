@@ -29,6 +29,18 @@ data/*
 # impeccable 결정 페이지 세션 산출물 — 리뷰 스크린샷과 같은 이유로 커밋 대상 아님
 .impeccable/questions/
 
+# Java/Maven 빌드 산출물 (uploader/, 그리고 앞으로 생길 WebLogic 이관 모듈들).
+# `.class`/WAR는 소스에서 재생성되는 것이라 커밋 대상이 아니다 — uploader/target에만
+# 이미 130개 넘게 쌓여 있었다. 특정 모듈이 아니라 이름으로 막는 이유는, 이관이
+# 진행되면 모듈이 더 생기기 때문이다.
+target/
+*.class
+
+# IntelliJ 프로젝트 설정. `workspace.xml`은 열어 본 파일·창 위치까지 담는 개인
+# 작업상태라 사람마다 매번 달라진다 — 공유할 값이 없다.
+.idea/
+*.iml
+
 # portfolio/capture.py의 스테이징 경로. 캡처는 항상 여기에 쌓고, 사람이 눈으로
 # 확인한 뒤에만 shots/로 덮어쓴다(빈 화면이 조용히 찍히는 실패가 있어서다).
 # 중간 산출물이라 커밋 대상이 아닌데 여태 무시 규칙이 없어서, 캡처를 돌린 세션마다

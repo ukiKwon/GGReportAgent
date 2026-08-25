@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="layout :: layout(~{::title}, '분류 완료 재작업', ~{::section})">
+<head><title>분류 완료 재작업</title></head>
+<body>
+<section>
+
+  <!-- 헤더 -->
+  <div class="section-header" style="margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span class="section-title" style="font-size:22px">분류 완료 파일 재작업</span>
+      <span class="badge badge-done" th:text="${#lists.size(classifiedFiles)} + '건'"></span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+        <form id="cleanup-form" th:action="@{/file-status/cleanup-dirs}" method="post" style="margin:0">
+          <button type="submit" class="btn btn-outline btn-sm">빈 폴더 정리</button>
+        </form>
+        <span id="cleanup-result" style="display:none;font-size:12px;font-weight:600;color:var(--green)"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 안내 배너 -->
+  <div class="alert-banner" style="border-top-color:var(--kb-navy);background:rgba(27,42,107,.05);color:var(--text-2);margin-bottom:20px">
+    <svg class="icon" style="width:15px;height:15px;flex-shrink:0;color:var(--kb-navy)" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    분류 완료 처리된 파일의 기관명·연도·카테고리를 수정하면 실제 파일 경로도 함께 이동됩니다.
+    <span style="margin-left:6px;padding:1px 6px;background:var(--red-bg);color:var(--red);border-radius:3px;font-size:11px;font-weight:600">연도/기관 미확인</span>
+    표시가 있는 파일을 우선 처리하세요.
+  </div>
+
+  <!-- 파일 없음 -->
+  <div th:if="${classifiedFiles.isEmpty()}"
+       style="padding:40px;text-align:center;color:var(--text-3);background:var(--surface);border-radius:8px;border:1px dashed var(--border)">
+    분류 완료 파일이 없습니다.
+  </div>
+
+  <!-- 완료 메시지 -->
+  <div th:if="${message}" class="alert-success" th:text="${message}"></div>
+
+  <!-- 분류 완료 파일 목록 -->
+  <div th:if="${!classifiedFiles.isEmpty()}" class="table-card">
+    <table>
+      <thead>
+      <tr>
+        <th style="width:28%">파일명</th>
+        <th style="width:16%">기관명</th>
+        <th style="width:7%">연도</th>
+        <th style="width:10%">카테고리</th>
+        <th style="width:39%">재분류</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="file : ${classifiedFiles}"
+          th:style="${(file.institutionName == '알수없음' or file.year == null or file.year == '미확인') ? 'background:rgba(220,38,38,.03)' : ''}">
+        <!-- 파일명 -->
+        <td>
+            <span th:with="ext=${#strings.toLowerCase(file.originalName.substring(file.originalName.lastIndexOf('.') + 1))}"
+                  th:class="${'file-ext' + (ext == 'pdf' ? ' ext-pdf' : (ext == 'hwp' ? ' ext-hwp' : (ext == 'md' ? ' ext-md' : '')))}"
+                  th:text="${#strings.toUpperCase(ext)}"></span>
+          <span class="file-name" th:text="${file.originalName}"></span>
+        </td>
+        <!-- 기관명 -->
+        <td>
+            <span th:if="${file.institutionName == '알수없음'}"
+                  style="color:var(--red);font-weight:600" th:text="${file.institutionName}"></span>
+          <span th:if="${file.institutionName != '알수없음'}"
+                style="color:var(--text-2)" th:text="${file.institutionName}"></span>
+        </td>
+        <!-- 연도 -->
+        <td>
+            <span th:if="${file.year == null or file.year == '미확인'}"
+                  style="color:var(--amber);font-weight:600">미확인</span>
+          <span th:if="${file.year != null and file.year != '미확인'}"
+                style="color:var(--text-2)" th:text="${file.year}"></span>
+        </td>
+        <!-- 현재 카테고리 -->
+        <td>
+          <span class="category-chip" th:text="${file.category}"></span>
+        </td>
+        <!-- 재분류 폼 -->
+        <td>
+          <form class="rework-form"
+                th:action="@{/file-status/{id}/classify(id=${file.id})}" method="post"
+                style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <select name="category" class="form-control form-control-sm" style="width:110px" required>
+              <option th:each="cat : ${categories}"
+                      th:value="${cat}"
+                      th:text="${cat}"
+                      th:selected="${cat == file.category}"></option>
+            </select>
+            <input type="text" name="institution" class="form-control form-control-sm"
+                   style="width:130px" placeholder="기관명"
+                   th:value="${file.institutionName}" required>
+            <input type="text" name="year" class="form-control form-control-sm"
+                   style="width:64px" placeholder="연도" maxlength="4"
+                   th:value="${file.year}">
+            <button type="submit" class="btn btn-primary btn-sm">재분류</button>
+            <span class="rework-result" style="display:none;font-size:12px;font-weight:600"></span>
+          </form>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    var cleanupForm = document.getElementById('cleanup-form');
+    if (cleanupForm) {
+      cleanupForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        if (!confirm('classified 하위 빈 폴더를 모두 삭제하시겠습니까?')) return;
+        var btn    = cleanupForm.querySelector('button[type="submit"]');
+        var result = document.getElementById('cleanup-result');
+        btn.disabled    = true;
+        btn.textContent = '정리중…';
+        fetch(cleanupForm.action, { method: 'POST', redirect: 'follow' })
+                .then(function(resp) {
+                  btn.disabled    = false;
+                  btn.textContent = '빈 폴더 정리';
+                  if (resp.ok || resp.redirected) {
+                    result.textContent   = '정리 완료';
+                    result.style.display = 'inline';
+                    setTimeout(function(){ result.style.display = 'none'; }, 3000);
+                  } else {
+                    result.textContent = '오류 (' + resp.status + ')';
+                    result.style.color = 'var(--red)';
+                    result.style.display = 'inline';
+                  }
+                })
+                .catch(function() {
+                  btn.disabled    = false;
+                  btn.textContent = '빈 폴더 정리';
+                  result.textContent = '네트워크 오류';
+                  result.style.color = 'var(--red)';
+                  result.style.display = 'inline';
+                });
+      });
+    }
+
+    document.querySelectorAll('.rework-form').forEach(function(form) {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var btn    = form.querySelector('button[type="submit"]');
+        var result = form.querySelector('.rework-result');
+        var row    = form.closest('tr');
+
+        if (!form.querySelector('[name="institution"]').value.trim()) {
+          result.textContent = '기관명을 입력하세요.';
+          result.style.color = 'var(--red)';
+          result.style.display = 'inline';
+          return;
+        }
+
+        btn.disabled    = true;
+        btn.textContent = '처리중…';
+        result.style.display = 'none';
+
+        var data = new FormData(form);
+        fetch(form.action, { method: 'POST', body: data, redirect: 'follow' })
+                .then(function(resp) {
+                  if (resp.ok || resp.redirected) {
+                    btn.textContent          = '✓ 완료';
+                    btn.style.background     = 'var(--green)';
+                    result.textContent       = '재분류 완료';
+                    result.style.color       = 'var(--green)';
+                    result.style.display     = 'inline';
+                    row.style.transition     = 'opacity 0.4s';
+                    row.style.opacity        = '0.4';
+                  } else {
+                    btn.disabled    = false;
+                    btn.textContent = '재분류';
+                    result.textContent   = '오류 (' + resp.status + ')';
+                    result.style.color   = 'var(--red)';
+                    result.style.display = 'inline';
+                  }
+                })
+                .catch(function(err) {
+                  btn.disabled    = false;
+                  btn.textContent = '재분류';
+                  result.textContent   = '네트워크 오류';
+                  result.style.color   = 'var(--red)';
+                  result.style.display = 'inline';
+                });
+      });
+    });
+  </script>
+
+</section>
+</body>
+</html>

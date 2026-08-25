@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KB 파일 업로드 관리</title>
+<style>
+/* ── Design System: taste-v1 · KB 기업 스타일 ─────────────────────────────── */
+:root {
+  /* KB Brand */
+  --kb-gold:        #FFB500;
+  --kb-gold-deep:   #E6A300;
+  --kb-navy:        #1B2A6B;
+  --kb-navy-deep:   #0F1C4D;
+  --kb-navy-mid:    #243680;
+  --kb-navy-light:  #2E448F;
+
+  /* Surface */
+  --bg:             #F2F4FA;
+  --surface:        #FFFFFF;
+  --surface-raised: #FFFFFF;
+  --border:         #DDE3F0;
+  --border-strong:  #B8C2DC;
+
+  /* Text */
+  --text-1:         #0F1C4D;
+  --text-2:         #4A5580;
+  --text-3:         #8994B8;
+
+  /* Semantic */
+  --green:          #0D9488;
+  --green-bg:       #F0FDFA;
+  --red:            #DC2626;
+  --red-bg:         #FEF2F2;
+  --amber:          #D97706;
+  --amber-bg:       #FFFBEB;
+
+  /* Geometry */
+  --r-sm: 5px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --sidebar-w: 228px;
+
+  /* Shadow */
+  --shadow-card: 0 1px 2px rgba(15,28,77,.06), 0 2px 6px rgba(15,28,77,.06);
+  --shadow-elevated: 0 4px 16px rgba(15,28,77,.12);
+
+  /* Type */
+  --font: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Segoe UI', sans-serif;
+  --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --kb-gold:        #FFB500;
+    --kb-navy:        #0F1C4D;
+    --kb-navy-deep:   #070F2E;
+    --bg:             #131929;
+    --surface:        #1C2540;
+    --surface-raised: #232D4E;
+    --border:         #2C3A65;
+    --border-strong:  #3A4D82;
+    --text-1:         #EDF0FC;
+    --text-2:         #99A8CC;
+    --text-3:         #5C6F9C;
+    --green-bg:       rgba(13,148,136,.12);
+    --red-bg:         rgba(220,38,38,.12);
+    --amber-bg:       rgba(217,119,6,.12);
+    --shadow-card: 0 1px 2px rgba(0,0,0,.4);
+    --shadow-elevated: 0 4px 16px rgba(0,0,0,.4);
+  }
+}
+
+:root[data-theme="dark"] {
+  --kb-gold:        #FFB500;
+  --kb-navy:        #0F1C4D;
+  --kb-navy-deep:   #070F2E;
+  --bg:             #131929;
+  --surface:        #1C2540;
+  --surface-raised: #232D4E;
+  --border:         #2C3A65;
+  --border-strong:  #3A4D82;
+  --text-1:         #EDF0FC;
+  --text-2:         #99A8CC;
+  --text-3:         #5C6F9C;
+  --green-bg:       rgba(13,148,136,.12);
+  --red-bg:         rgba(220,38,38,.12);
+  --amber-bg:       rgba(217,119,6,.12);
+  --shadow-card: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-elevated: 0 4px 16px rgba(0,0,0,.4);
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.55;
+  background: var(--bg);
+  color: var(--text-1);
+  min-height: 100vh;
+  display: flex;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: var(--sidebar-w);
+  min-height: 100vh;
+  background: var(--kb-navy);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: fixed;
+  left: 0; top: 0; bottom: 0;
+  z-index: 100;
+}
+
+.sidebar-logo {
+  padding: 20px 20px 18px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-mark {
+  width: 32px; height: 32px;
+  background: var(--kb-gold);
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 800;
+  color: var(--kb-navy-deep);
+  letter-spacing: -0.5px;
+  flex-shrink: 0;
+}
+.logo-text { display: flex; flex-direction: column; line-height: 1.2; }
+.logo-brand { font-size: 12px; font-weight: 700; color: #fff; letter-spacing: .5px; }
+.logo-sub { font-size: 10px; color: rgba(255,255,255,.45); letter-spacing: .2px; }
+
+.sidebar-nav { padding: 12px 10px; flex: 1; }
+.nav-label {
+  font-size: 10px; font-weight: 600;
+  color: rgba(255,255,255,.3);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  padding: 10px 10px 6px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 10px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  color: rgba(255,255,255,.6);
+  font-size: 13.5px; font-weight: 500;
+  text-decoration: none;
+  transition: background 150ms, color 150ms;
+  position: relative;
+}
+.nav-item:hover { background: rgba(255,255,255,.08); color: rgba(255,255,255,.9); }
+.nav-item.active {
+  background: rgba(255,181,0,.15);
+  color: var(--kb-gold);
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute; left: 0; top: 50%;
+  transform: translateY(-50%);
+  width: 3px; height: 20px;
+  background: var(--kb-gold);
+  border-radius: 0 2px 2px 0;
+}
+.nav-icon { width: 16px; height: 16px; opacity: .9; flex-shrink: 0; }
+.nav-badge {
+  margin-left: auto;
+  background: var(--red);
+  color: #fff;
+  font-size: 10px; font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 99px;
+}
+
+.sidebar-footer {
+  padding: 14px 16px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  font-size: 11px;
+  color: rgba(255,255,255,.3);
+}
+
+/* ── Main ── */
+.main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  height: 56px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 24px;
+  gap: 16px;
+  position: sticky; top: 0; z-index: 50;
+}
+.topbar-title {
+  font-size: 15px; font-weight: 600; color: var(--text-1);
+  flex: 1;
+}
+.topbar-time {
+  font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums;
+}
+.topbar-divider { width: 1px; height: 20px; background: var(--border); }
+.topbar-user {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text-2); font-weight: 500;
+}
+.avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--kb-navy);
+  color: var(--kb-gold);
+  font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.content { padding: 24px; flex: 1; }
+
+/* ── KPI Cards ── */
+.kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 24px; }
+
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-card);
+  display: flex; align-items: flex-start; gap: 14px;
+  transition: box-shadow 200ms;
+}
+.kpi-card:hover { box-shadow: var(--shadow-elevated); }
+.kpi-icon {
+  width: 40px; height: 40px;
+  border-radius: var(--r-md);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.kpi-icon.total   { background: rgba(27,42,107,.08); }
+.kpi-icon.done    { background: var(--green-bg); }
+.kpi-icon.pending { background: var(--red-bg); }
+
+.kpi-body { min-width: 0; }
+.kpi-label { font-size: 11.5px; font-weight: 500; color: var(--text-3); letter-spacing: .2px; margin-bottom: 4px; }
+.kpi-value {
+  font-size: 28px; font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+}
+.kpi-value.danger { color: var(--red); }
+.kpi-value.success { color: var(--green); }
+.kpi-sub { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+
+/* ── Section Header ── */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.section-title {
+  font-size: 14px; font-weight: 600; color: var(--text-1);
+}
+.section-sub { font-size: 12px; color: var(--text-3); margin-left: 6px; }
+
+/* ── Search ── */
+.search-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-card);
+  margin-bottom: 16px;
+  display: flex; gap: 10px;
+}
+.search-input {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 8px 12px;
+  font-size: 13.5px;
+  font-family: var(--font);
+  color: var(--text-1);
+  background: var(--bg);
+  outline: none;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+.search-input::placeholder { color: var(--text-3); }
+.search-input:focus {
+  border-color: var(--kb-navy);
+  box-shadow: 0 0 0 3px rgba(27,42,107,.12);
+}
+.btn {
+  padding: 8px 18px;
+  border-radius: var(--r-md);
+  font-size: 13px; font-weight: 600;
+  border: none; cursor: pointer;
+  font-family: var(--font);
+  transition: background 150ms, transform 80ms;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary {
+  background: var(--kb-navy);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--kb-navy-mid); }
+
+/* ── Table ── */
+.table-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+table { width: 100%; border-collapse: collapse; }
+th {
+  font-size: 11.5px; font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .7px;
+  padding: 10px 16px;
+  text-align: left;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+td {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+  color: var(--text-1);
+  vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(27,42,107,.025); }
+
+.file-name { font-weight: 500; max-width: 240px; }
+.file-ext {
+  display: inline-block;
+  font-size: 10px; font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-right: 5px;
+  vertical-align: middle;
+  font-family: var(--mono);
+  text-transform: uppercase;
+}
+.ext-pdf  { background: #FEE2E2; color: #B91C1C; }
+.ext-hwp  { background: #DBEAFE; color: #1D4ED8; }
+.ext-md   { background: #F3E8FF; color: #7C3AED; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+.badge-done { background: var(--green-bg); color: var(--green); }
+.badge-pending { background: var(--red-bg); color: var(--red); }
+
+.category-chip {
+  display: inline-block;
+  font-size: 11px; font-weight: 500;
+  padding: 2px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--text-2);
+}
+
+.time-col { font-variant-numeric: tabular-nums; color: var(--text-3); font-size: 12.5px; }
+
+/* ── Empty / Alert banner ── */
+.alert-banner {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--amber-bg);
+  border: 1px solid rgba(217,119,6,.25);
+  border-top: 2px solid var(--amber);
+  border-radius: var(--r-md);
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 13px; color: var(--amber);
+}
+
+/* ── KB gold accent bar ── */
+.gold-bar {
+  height: 3px;
+  background: linear-gradient(90deg, var(--kb-gold) 0%, var(--kb-gold-deep) 100%);
+}
+
+/* SVG icons inline */
+.icon { width:16px; height:16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<aside class="sidebar">
+  <div class="gold-bar"></div>
+  <div class="sidebar-logo">
+    <div class="logo-mark">KB</div>
+    <div class="logo-text">
+      <span class="logo-brand">국민은행</span>
+      <span class="logo-sub">파일 업로드 관리</span>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-label">메뉴</div>
+
+    <a class="nav-item active" href="#">
+      <svg class="nav-icon icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      대시보드
+    </a>
+    <a class="nav-item" href="#">
+      <svg class="nav-icon icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      파일 업로드
+    </a>
+    <a class="nav-item" href="#">
+      <svg class="nav-icon icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      파일 처리 상태
+      <span class="nav-badge">49</span>
+    </a>
+    <a class="nav-item" href="#">
+      <svg class="nav-icon icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      기관 카테고리
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    KB Financial AI 2 Center · v1.0
+  </div>
+</aside>
+
+<!-- ── Main ── -->
+<main class="main">
+  <header class="topbar">
+    <span class="topbar-title">대시보드</span>
+    <span class="topbar-time">2026.08.14  09:32</span>
+    <div class="topbar-divider"></div>
+    <div class="topbar-user">
+      <div class="avatar">권</div>
+      권성욱
+    </div>
+  </header>
+
+  <div class="content">
+
+    <!-- KPI Cards -->
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-icon total">
+          <svg class="icon" style="width:20px;height:20px;color:var(--kb-navy)" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-label">전체 파일</div>
+          <div class="kpi-value">247</div>
+          <div class="kpi-sub">이번 달 +31건</div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon done">
+          <svg class="icon" style="width:20px;height:20px;color:var(--green)" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-label">분류 완료</div>
+          <div class="kpi-value success">198</div>
+          <div class="kpi-sub">전체의 80.2%</div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon pending">
+          <svg class="icon" style="width:20px;height:20px;color:var(--red)" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-label">미분류</div>
+          <div class="kpi-value danger">49</div>
+          <div class="kpi-sub">즉시 처리 필요</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alert -->
+    <div class="alert-banner">
+      <svg class="icon" style="width:15px;height:15px;flex-shrink:0" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      미분류 파일 49건이 처리 대기 중입니다. <a href="#" style="font-weight:700;margin-left:4px;color:inherit;text-decoration:underline">파일 처리 상태 바로가기</a>
+    </div>
+
+    <!-- Search -->
+    <div class="section-header">
+      <span class="section-title">파일 검색</span>
+    </div>
+    <div class="search-bar">
+      <input class="search-input" type="text" placeholder="기관명으로 검색 (예: 서울대학교)">
+      <button class="btn btn-primary">조회</button>
+    </div>
+
+    <!-- Table -->
+    <div class="section-header">
+      <div>
+        <span class="section-title">최근 업로드</span>
+        <span class="section-sub">최근 10건</span>
+      </div>
+    </div>
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>파일명</th>
+            <th>기관명</th>
+            <th>카테고리</th>
+            <th>상태</th>
+            <th>업로드 일시</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="ext-pdf file-ext">PDF</span><span class="file-name">KB국민은행_2024_연간보고서.pdf</span></td>
+            <td>KB국민은행</td>
+            <td><span class="category-chip">공공기관</span></td>
+            <td><span class="badge badge-done">분류 완료</span></td>
+            <td class="time-col">2026-08-14 09:23</td>
+          </tr>
+          <tr>
+            <td><span class="ext-hwp file-ext">HWP</span><span class="file-name">서울대학교_입학전형.hwp</span></td>
+            <td>서울대학교</td>
+            <td><span class="category-chip">대학교</span></td>
+            <td><span class="badge badge-done">분류 완료</span></td>
+            <td class="time-col">2026-08-14 08:45</td>
+          </tr>
+          <tr>
+            <td><span class="ext-pdf file-ext">PDF</span><span class="file-name">세브란스병원_진료지침.pdf</span></td>
+            <td>세브란스병원</td>
+            <td><span class="category-chip">대학병원</span></td>
+            <td><span class="badge badge-done">분류 완료</span></td>
+            <td class="time-col">2026-08-13 17:30</td>
+          </tr>
+          <tr>
+            <td><span class="ext-pdf file-ext">PDF</span><span class="file-name">서울시청_2026_예산서류.pdf</span></td>
+            <td>서울시청</td>
+            <td><span class="category-chip">지자체</span></td>
+            <td><span class="badge badge-done">분류 완료</span></td>
+            <td class="time-col">2026-08-13 15:12</td>
+          </tr>
+          <tr>
+            <td><span class="ext-pdf file-ext">PDF</span><span class="file-name">연세대학교_연구보고서_Q2.pdf</span></td>
+            <td>연세대학교</td>
+            <td><span class="category-chip">대학교</span></td>
+            <td><span class="badge badge-done">분류 완료</span></td>
+            <td class="time-col">2026-08-13 11:08</td>
+          </tr>
+          <tr>
+            <td><span class="ext-hwp file-ext">HWP</span><span class="file-name">강남구청_공고문_0812.hwp</span></td>
+            <td>강남구청</td>
+            <td>-</td>
+            <td><span class="badge badge-pending">미분류</span></td>
+            <td class="time-col">2026-08-12 16:22</td>
+          </tr>
+          <tr>
+            <td><span class="ext-pdf file-ext">PDF</span><span class="file-name">고려대의료원_처방전기준.pdf</span></td>
+            <td>고려대의료원</td>
+            <td><span class="category-chip">대학병원</span></td>
+            <td><span class="badge badge-done">분류 완료</span></td>
+            <td class="time-col">2026-08-12 14:15</td>
+          </tr>
+          <tr>
+            <td><span class="ext-md file-ext">MD</span><span class="file-name">인천시교육청_교육계획안.md</span></td>
+            <td>인천시교육청</td>
+            <td>-</td>
+            <td><span class="badge badge-pending">미분류</span></td>
+            <td class="time-col">2026-08-12 10:33</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div><!-- /content -->
+</main>
+
+</body>
+</html>
