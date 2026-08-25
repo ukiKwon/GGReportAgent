@@ -178,11 +178,71 @@
 - **Task 5.3 — 검증·일관성**: `scoring_consistency`(레벨 그룹별 합산 —
   2026-08-10 스키마 계층 반영분 기준) + `backend/consistency.py` 규칙 이식.
 
+## 단계 6 — uploader 붙이기 (⛔ **이관 완료 후에 한다**, 2026-08-25 사용자 확정)
+
+*끝난 모습: IT담당자가 로그인하면 파일 업로드 상태를 탭에서 본다.*
+
+**왜 마지막인가 (결정 근거).** 전제는 "Java로 간다"이고 `uploader/`는 **이미 Java**다.
+아직 Python인 것은 기존 프로젝트뿐이므로, **기존 프로젝트를 먼저 변환하고 나면 붙이는
+일은 사소해진다** — 둘 다 Spring Boot 2.7 WAR / JDK 8 / MyBatis / WebLogic이라 같은
+컨테이너 안이고, 서버끼리 부르면 되므로 브라우저가 경유지·OAuth를 넘을 필요도 없다.
+
+이관 전에 붙이면 **버릴 Python 중계 라우터**를 새로 써야 한다(브라우저에 서비스 토큰을
+실을 수 없어 `server/`가 중계할 수밖에 없다). 그래서 순서를 뒤집지 않는다.
+
+⚠️ 단, **`frontend/` 쪽 작업은 버려지지 않는다** — 설계 §3 원칙 1이 "화면은 손대지
+않는다(WAR 정적 리소스로 그대로)"라 아래 조사 결과는 이관 후에도 그대로 유효하다.
+
+### 2026-08-25 사전 조사 결과 (다시 조사하지 않아도 된다)
+
+**ⓐ 역할 추가는 0건이다.** `server/menus.py`에 이미 있다 —
+`out["전산팀"][ADMIN_MENU] = True  # 전산팀이 시스템 운영자를 겸한다(사용자 확정)`.
+**`IT담당자` = `전산팀 팀원`/`전산팀장`** 으로 이미 존재한다(사용자 확정).
+⚠️ **역할 체계는 건드리지 말 것** — `roles.js`·`server/teams.py` 양쪽에 "소속은 3그룹
+뿐(영업·전산·예산)"이 사용자 확정으로 못 박혀 있고, 역할은 **합쳐진 문자열 하나**
+(`전산팀`·`전산팀장`)로 저장된다. 새 소속을 끼우면 이미 쌓인 알림 수신자와 `role_menus`
+키가 전부 갈라진다.
+
+**ⓑ `RPA`는 역할 목록에 넣지 않는다.** `roles.ALL`은 권한관리 표의 행이 되고
+`server/teams.py`의 `ROLES`와 같아야 하며, 그 목록이 **결재 라인**(`approverOf`·
+`lead_of`)과 **알림 수신자**의 근거다. 프로그램을 넣으면 "RPA의 결재자는 누구인가"가
+생긴다. RPA는 **파일을 올리는 쪽**(`POST /upload` 호출자)이고 화면을 보는 것은
+IT담당자다.
+→ ⚠️ **다만 `UPLOADED_FILE`에 업로드 주체 컬럼이 없다**(ORIGINAL_NAME / STORED_PATH /
+FILE_YEAR / INSTITUTION_NAME / CATEGORY / STATUS / UPLOADED_AT / CLASSIFIED_AT).
+지금 구조로는 화면에서 **사람이 올린 것과 RPA가 올린 것을 구분할 수 없다.** 구분이
+필요하면 컬럼 추가가 선행된다. **사용자에게 확인받지 않은 항목이다.**
+
+**ⓒ 탭 추가는 정형화돼 있다 — 6곳.**
+
+| 파일 | 무엇을 |
+|---|---|
+| `server/menus.py`(→ Java 등가물) | `MENUS` 튜플에 1행 + 전산팀 기본값 on |
+| `frontend/js/menu_rules.js` | `MENU_KEYS` · `SERVER_ONLY`에 키 추가 |
+| `frontend/index.html` | 탭 버튼 1개 + `<section class="tab-view">` 1개 + `<script>` 1줄 |
+| `frontend/js/app.js` | `onTabChange`의 mount/unmount 배열에 1행 |
+| `frontend/js/uploads.js` | **신규** — 조회·표시. 가장 가까운 본보기는 `knowledge.js` |
+| `frontend/test/` | 회귀 테스트 |
+
+**권한관리 화면은 손댈 필요가 없다** — `admin.js`가 `GET /menus`가 주는 메뉴 목록을
+그대로 그리므로 `MENUS`에 한 줄 넣으면 **열이 저절로 생긴다.**
+⚠️ **함정**: 탭 key와 section id가 어긋난 전례가 있다(`tasks` 키인데 버튼은
+`data-tab="designer"`, 섹션은 `tab-designer`). 새 탭은 **키와 id를 같게** 맞출 것.
+또 기본값을 코드에 둬야 한다 — `server/menus.py` 주석대로 "DB에 행이 없다는 것은
+'꺼짐'이 아니라 '아직 정하지 않음'"이라, 기본값이 없으면 새 메뉴를 **아무도 못 본다.**
+
+**ⓓ 현재 API는 목록 화면용으로 무겁다.** `GET /api/files/search`가 **결과마다 파일
+본문 전체 텍스트를 담는다**(`content` 필드 — `FileContentService.extractText`가 PDF를
+전부 열어 파싱한다). **페이징도 없다**(`search` 쿼리에 LIMIT 없음). 목록용으로는
+`content` 없는 응답이 필요하다 — **문의 6-2(API 표준 규격) 회신 때 함께 정리한다.**
+쓸 수 있는 필드는 파일명 · 기관명 · 연도 · 카테고리 · 상태(`CLASSIFIED` /
+`UNCLASSIFIED` / `DELETED` / `REJECTED`) · 업로드일시다.
+
 ## 순서와 의존
 
 ```
 [문의서 발송] ──회신──▶ (3단계 착수 가능 / 4.4 세부 확정)
-단계 1 ─▶ 단계 2 ─▶ 단계 4 ─▶ 단계 5
+단계 1 ─▶ 단계 2 ─▶ 단계 4 ─▶ 단계 5 ─▶ 단계 6(uploader 붙이기)
                 └─▶ 단계 3 (회신 후, 2·4와 병행 가능)
 ```
 
