@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="layout :: layout(~{::title}, '파일 처리 상태', ~{::section})">
+<head><title>파일 처리 상태</title></head>
+<body>
+<section>
+
+  <!-- 페이지 타이틀 + 미분류 뱃지 -->
+  <div class="section-header" style="margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="section-title" style="font-size:22px">파일 미처리 상태</span>
+      <span class="badge badge-pending" th:text="${unclassifiedCount} + '건 미분류'"></span>
+    </div>
+  </div>
+
+  <!-- 완료/오류 메시지 -->
+  <div th:if="${message}" class="alert-success" th:text="${message}"></div>
+
+  <!-- 파일 없음 -->
+  <div th:if="${files.isEmpty()}"
+       style="padding:40px;text-align:center;color:var(--text-3);background:var(--surface-2,#f8f9fa);border-radius:8px;border:1px dashed var(--border,#e0e0e0)">
+    미처리 파일이 없습니다.
+  </div>
+
+  <!-- 미처리 파일 목록 -->
+  <div th:if="${!files.isEmpty()}" class="table-card">
+    <table>
+      <thead>
+      <tr>
+        <th style="width:32%">파일명</th>
+        <th style="width:14%">기관명</th>
+        <th style="width:6%">연도</th>
+        <th style="width:28%">분류</th>
+        <th style="width:20%"></th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="file : ${files}">
+        <!-- 파일명 -->
+        <td>
+            <span th:with="ext=${#strings.toLowerCase(file.originalName.substring(file.originalName.lastIndexOf('.') + 1))}"
+                  th:class="${'file-ext' + (ext == 'pdf' ? ' ext-pdf' : (ext == 'hwp' ? ' ext-hwp' : (ext == 'md' ? ' ext-md' : '')))}"
+                  th:text="${#strings.toUpperCase(ext)}"></span>
+          <span class="file-name" th:text="${file.originalName}"></span>
+        </td>
+        <!-- 기관명 -->
+        <td style="color:var(--text-2)" th:text="${file.institutionName}"></td>
+        <!-- 연도 -->
+        <td style="color:var(--text-2)" th:text="${file.year != null ? file.year : '-'}"></td>
+        <!-- 분류 폼 -->
+        <td>
+          <form th:action="@{/file-status/{id}/classify(id=${file.id})}" method="post"
+                style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <select name="category" class="form-control form-control-sm" style="width:110px" required>
+              <option value="">카테고리</option>
+              <option th:each="cat : ${categories}" th:value="${cat}" th:text="${cat}"></option>
+            </select>
+            <input type="text" name="institution" class="form-control form-control-sm"
+                   style="width:120px" placeholder="기관명 (선택)"
+                   th:value="${file.institutionName}">
+            <input type="text" name="year" class="form-control form-control-sm"
+                   style="width:64px" placeholder="연도"
+                   maxlength="4"
+                   th:value="${file.year}">
+            <button type="submit" class="btn btn-primary btn-sm">분류</button>
+          </form>
+        </td>
+        <!-- 반려 / 삭제 -->
+        <td style="text-align:right">
+          <div style="display:flex;gap:4px;justify-content:flex-end">
+            <form th:action="@{/file-status/{id}/reject(id=${file.id})}" method="post">
+              <button type="submit" class="btn btn-outline btn-sm"
+                      onclick="return confirm('반려 처리하시겠습니까?')">반려</button>
+            </form>
+            <form th:action="@{/file-status/{id}/delete(id=${file.id})}" method="post">
+              <button type="submit" class="btn btn-danger-outline btn-sm"
+                      onclick="return confirm('목록에서 완전히 제거하시겠습니까?')">삭제</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 알수없음 기관 재분류 섹션 -->
+  <div th:if="${!unknownFiles.isEmpty()}" style="margin-top:36px">
+    <div class="section-header" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="section-title" style="font-size:16px">기관 미확인 파일 재분류</span>
+        <span class="badge badge-pending" th:text="${#lists.size(unknownFiles)} + '건'"></span>
+      </div>
+      <span style="font-size:11px;color:var(--text-3)">&ldquo;알수없음&rdquo; 기관으로 분류된 파일 — 올바른 기관명과 카테고리를 지정하면 재분류됩니다.</span>
+    </div>
+    <div class="table-card">
+      <table>
+        <thead>
+        <tr>
+          <th style="width:36%">파일명</th>
+          <th style="width:7%">연도</th>
+          <th style="width:46%">재분류</th>
+          <th style="width:11%"></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="file : ${unknownFiles}">
+          <td>
+              <span th:with="ext=${#strings.toLowerCase(file.originalName.substring(file.originalName.lastIndexOf('.') + 1))}"
+                    th:class="${'file-ext' + (ext == 'pdf' ? ' ext-pdf' : (ext == 'hwp' ? ' ext-hwp' : (ext == 'md' ? ' ext-md' : '')))}"
+                    th:text="${#strings.toUpperCase(ext)}"></span>
+            <span class="file-name" th:text="${file.originalName}"></span>
+          </td>
+          <td style="color:var(--text-2)" th:text="${file.year != null ? file.year : '-'}"></td>
+          <td>
+            <form th:action="@{/file-status/{id}/classify(id=${file.id})}" method="post"
+                  style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <select name="category" class="form-control form-control-sm" style="width:110px" required>
+                <option value="">카테고리</option>
+                <option th:each="cat : ${categories}" th:value="${cat}" th:text="${cat}"></option>
+              </select>
+              <input type="text" name="institution" class="form-control form-control-sm"
+                     style="width:130px" placeholder="기관명 (필수)" required>
+              <input type="text" name="year" class="form-control form-control-sm"
+                     style="width:64px" placeholder="연도"
+                     maxlength="4"
+                     th:value="${file.year}">
+              <button type="submit" class="btn btn-primary btn-sm">재분류</button>
+            </form>
+          </td>
+          <td style="text-align:right">
+            <div style="display:flex;gap:4px;justify-content:flex-end">
+              <form th:action="@{/file-status/{id}/reject(id=${file.id})}" method="post">
+                <button type="submit" class="btn btn-outline btn-sm"
+                        onclick="return confirm('반려 처리하시겠습니까?')">반려</button>
+              </form>
+              <form th:action="@{/file-status/{id}/delete(id=${file.id})}" method="post">
+                <button type="submit" class="btn btn-danger-outline btn-sm"
+                        onclick="return confirm('목록에서 완전히 제거하시겠습니까?')">삭제</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</section>
+</body>
+</html>
