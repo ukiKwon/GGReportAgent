@@ -108,6 +108,36 @@ java -jar target/kgi-ggreport-web.war
 > `spring-boot-starter-tomcat`이 `provided`여도 `spring-boot-maven-plugin`이 다시
 > 포장하므로 `java -jar`로 뜬다.
 
+### 5-1. IntelliJ에서 실행하기 (외부망 로컬의 표준 경로)
+
+1. **프로젝트 열기** — `kgi-ggreport-web/pom.xml`을 *Open as Project*로 연다.
+   (리포 루트를 열었다면 Maven 툴창의 `+`로 이 `pom.xml`을 모듈로 추가한다.)
+2. **SDK 지정** — *Project Structure → Project SDK* 를 **JDK 1.8**로.
+   Language level도 8이어야 한다. Boot 2.7은 JDK 8 상한이 전제다.
+3. **설정 파일 준비** — `config-envs/out-local/application.properties`를
+   `config/application.properties`로 복사하고 DB 계정·비밀번호를 채운다.
+4. **실행 구성** — `GgReportWebApplication`의 `main`을 실행한다.
+   ⚠️ **Working directory를 반드시 `kgi-ggreport-web`(모듈 폴더)으로 둘 것.**
+   IntelliJ가 리포 루트를 기본값으로 잡으면 `./config/application.properties`도,
+   `file:../frontend/`도 못 찾는다. 화면이 404가 나거나 DB 설정이 통째로 무시된다.
+5. http://localhost:8080/ 접속.
+
+**화면은 `frontend/`에서 직접 서빙된다** — `config-envs/out-local`에
+`spring.web.resources.static-locations=file:../frontend/,classpath:/static/`이 들어 있다.
+두 가지를 해결한다:
+
+- **IntelliJ 자체 빌드는 `pom.xml`의 `../frontend` 리소스를 복사하지 못할 수 있다**
+  (모듈 content root 밖의 경로라서). 그 경우에도 화면이 뜬다.
+- **`frontend/`를 고치면 재빌드 없이 새로고침만으로 반영된다.**
+
+> ⚠️ 이 모드에서는 `index_*.html`(디자인 실험본)도 열린다 — 빌드 시 제외는 classpath
+> 쪽에만 적용되기 때문이다. 실측으로 확인한 차이다(`java -jar` + out-local 설정에서
+> `/index_2.0_impec.html` → **200**, 설정 없이 WAR classpath만 쓰면 **404**).
+> **배포물(prod)에는 여전히 들어가지 않는다.**
+
+> IntelliJ 빌드가 미덥지 않으면 *Settings → Build Tools → Maven → Runner* 에서
+> **Delegate IDE build/run actions to Maven**을 켜면 `mvn`과 같은 결과가 된다.
+
 ## 6. WebLogic 배포
 
 ```bash
