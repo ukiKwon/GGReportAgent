@@ -81,11 +81,11 @@
 ## 5. 로컬 기동 (외부망 / MySQL)
 
 ```bash
-# 1) DB 준비 — 스키마 DDL은 Task 1.3 산출물이다(아직 없다).
-#    지금은 빈 스키마만 있으면 골격이 뜬다.
+# 1) DB 준비 — 스키마 DDL은 src/main/resources/db/ 에 있다(§9 참조).
 mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS ggreportdb DEFAULT CHARSET utf8mb4;"
 mysql -u root -p -e "CREATE USER IF NOT EXISTS 'ggreport'@'localhost' IDENTIFIED BY '<원하는-비밀번호>'; \
                      GRANT ALL PRIVILEGES ON ggreportdb.* TO 'ggreport'@'localhost'; FLUSH PRIVILEGES;"
+mysql -u root -p ggreportdb < src/main/resources/db/mysql/001_schema.sql
 
 # 2) 환경 선택 — 설정 파일을 복사한다(프로파일 인자가 아니다, §3)
 cd kgi-ggreport-web
@@ -149,7 +149,20 @@ mvn test
 - ⚠️ **Oracle 의존 테스트를 H2로 대체하지 않는다**(설계 §8). Mapper·DDL 정합성과
   Oracle Text는 내부망 Oracle에서만 판정한다.
 
-## 8. 폐쇄망 의존성 반입
+## 8. 스키마 DDL
+
+`src/main/resources/db/` — **`oracle/001_schema.sql`이 정본**, `mysql/001_schema.sql`은
+외부망 로컬 미러다. 11테이블(registry 7 + 검색 4). 상세는 `db/README.md`에 있다:
+타입 대응표, 설계 §5-(A)를 조정한 이유(`DRAFT_CONTENT`를 `NOT NULL`로 둘 수 없다),
+예약어 때문에 바꾼 컬럼명 3건, SQLite와 달리 외래키가 실제로 강제된다는 점.
+
+아직 없는 것 둘: **Oracle Text `CONTEXT` 인덱스**(문의 3 회신 대기)와
+**`ORCH_RUN`/`ORCH_STEP`**(단계 4에서 설계).
+
+⚠️ **Oracle 정본은 아직 문법만 확인됐다**(H2 `MODE=Oracle`). 실검증은 내부망 Oracle에서
+처음 이뤄진다 — H2 통과는 이 파일이 다루는 쟁점(`''`→NULL·CLOB·예약어)을 검증하지 못한다.
+
+## 9. 폐쇄망 의존성 반입
 
 `dependencies.txt`가 반입 명세다 — 손으로 적은 목록이 아니라 `mvn dependency:list`
 산출물을 떠 놓은 것이다(손 목록은 추이 의존성을 반드시 놓친다).

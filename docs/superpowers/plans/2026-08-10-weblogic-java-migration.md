@@ -76,9 +76,32 @@
 
 ---
 
-## 단계 1 — 골격 (회신 불요, 즉시 착수 가능)
+## 단계 1 — 골격 ✅ **완료 (2026-08-26)**
 
 *끝난 모습: 대시보드가 WAR에서 뜨고 데이터는 비어 있다.*
+
+> **산출물: `kgi-ggreport-web/`** — groupId `com.kbstar` / artifactId
+> `kgi-ggreport-web` / 패키지 `com.kbstar.kgi.ggreport.web` (사용자 확정).
+> Java 패키지명에 하이픈을 쓸 수 없어 artifactId·폴더명만 하이픈 표기를 유지했다.
+>
+> **실기동으로 "끝난 모습"을 확인했다** — `java -jar target/kgi-ggreport-web.war` 후
+> `GET /` → 200(`static/index.html`), `js`·`geo`·`vendor` → 200,
+> 디자인 실험본 `/index_2.0_impec.html` → 404(제외가 실제로 걸림).
+> `mvn package` BUILD SUCCESS · 스모크 테스트 2건 통과.
+>
+> **계획과 다르게 한 것 3건** (근거는 각 파일 주석과 `kgi-ggreport-web/README.md`):
+> 1. **화면을 복사하지 않는다.** `pom.xml`의 `<resources>`가 빌드할 때 `../frontend`를
+>    `static/`으로 가져온다. 복사본을 두면 원본과 갈라지는데, 이관 검증이 "같은 입력 →
+>    같은 출력"이라 화면이 두 벌이 되는 순간 무엇과 비교하는지가 흐려진다.
+> 2. **`web.xml`에 필터를 선언하지 않는다.** Task 1.2가 "async-supported=true를 필터
+>    체인 전부에 명시"라고 했으나, Boot는 필터를 프로그램적으로 등록하며
+>    `asyncSupported` 기본값이 이미 `true`다 — 요구는 충족되고, 다시 선언하면 **필터가
+>    두 번 돈다.** web.xml에는 `resource-ref` 2건만 둔다.
+> 3. **Thymeleaf를 넣지 않는다.** uploader와 갈리는 지점 — 이 시스템의 화면은 순수
+>    정적 HTML/JS라 템플릿 엔진이 필요 없다.
+>
+> **함께 배운 것을 반영했다**: uploader가 `dev`/`stg`/`prod`에 `mybatis.*`를 빠뜨린
+> 결함(uploader README §13-①)을 알고 있으므로 5축 전부에 넣었다.
 
 - **Task 1.1 — WAR 프로젝트 골격**: **`uploader/`의 골격을 출발점으로 재사용한다**
   (2026-08-25 개정 — 종전 "eGovFrame 4.x 표준 템플릿 기반"을 대체). 사용자가 외부에서
@@ -165,6 +188,29 @@
     | `''` → NULL 취급 | `''` ≠ NULL | ⚠️ **여기가 §5-(A)의 함정이다.** MySQL에서는 빈 문자열이 그대로 저장돼 **문제가 드러나지 않는다** — Mapper의 `null→""` 정규화는 **Oracle에서만 검증된다** |
   - ⚠️ **미러는 검증 대상이 아니라 편의 장치다.** MySQL에서 DDL이 통과했다는 사실은
     Oracle 정합성의 근거가 되지 않는다(공통 규칙 "어디서 검증하는가" 참조).
+  - ✅ **완료 (2026-08-26)** — `kgi-ggreport-web/src/main/resources/db/`.
+    `oracle/001_schema.sql`(정본) + `mysql/001_schema.sql`(미러), **11테이블**
+    (registry 7 + 검색 4). 상세 근거는 같은 폴더의 `README.md`에 있다.
+    - **`ORCH_RUN`/`ORCH_STEP`은 단계 4로 미뤘다**(사용자 확정). 설계 §6-B에 용도만
+      있고 컬럼이 없어, 나머지 11개의 기계적 변환과 달리 **신규 설계**다.
+    - **Oracle Text `CONTEXT` 인덱스는 넣지 않았다** — 문의 3 회신에 걸린다.
+      테이블 구조는 1안/2안 어느 쪽이든 같아서 지금 만들 수 있었고, 인덱스만 `002_`로
+      뒤에 붙인다. 단계 3의 착수 금지가 Task 1.3을 막지 않는 이유다.
+    - ⚠️ **설계 §5-(A)를 그대로 쓸 수 없어 조정했다.** "`NOT NULL` 유지 + INSERT 시
+      명시값"은 성립하지 않는다 — Oracle이 `''`를 NULL로 바꾸므로 빈 문자열을 명시해도
+      제약에 걸리고, 작업은 "아직 안 쓴" 상태로 생성되므로 **최초 INSERT가 반드시
+      실패한다.** `TASKS.DRAFT_CONTENT`를 NULL 허용으로 두고 Mapper가 `null → ""`로
+      정규화한다(정규화는 설계가 이미 요구한 것이라 프런트 JSON은 동일).
+    - ⚠️ **외래키가 실제로 강제된다.** `server/db.py`는 `PRAGMA foreign_keys`를 켜지
+      않아 현재 SQLite에서는 선언만 돼 있고 강제되지 않는다. **단계 2 골든 비교에서
+      지켜볼 것** — 고아 행이 나오면 제약을 빼는 게 아니라 왜 생기는지를 먼저 본다.
+    - 예약어 회피로 컬럼명 3건 변경: `files.size`→`FILE_SIZE`(SIZE는 Oracle 예약어),
+      `meta.key`/`value`→`META_KEY`/`META_VALUE`, `chunks.text`→`CHUNK_TEXT`.
+    - ⚠️ **`messages.model`을 놓칠 뻔했다** — `server/db.py`의 `SCHEMA`가 아니라
+      `MESSAGE_MIGRATIONS`에만 있는 컬럼이다. **실제 스키마는 SCHEMA + MIGRATIONS다.**
+    - 검증: MySQL 미러는 `ggreportdb`에 **2회 연속 적용 성공**(테이블 11·인덱스 9,
+      멱등 확인). **Oracle 정본은 문법만 확인**(H2 `MODE=Oracle` 통과) — 실검증은
+      내부망 Oracle에서 처음 이뤄진다.
 - **Task 1.4 — 골든 비교 하네스(Java)**: `golden/api/*.json`을 읽어 MockMvc
   응답과 비교하는 JUnit 러너 + 정규화 유틸. *이 단계에서는 하네스 자체의 단위
   테스트만 통과하면 된다.*
