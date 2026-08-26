@@ -170,14 +170,55 @@ WebLogic 콘솔에서 두 리소스를 먼저 만든다 — 이름은 `WEB-INF/w
 mvn test
 ```
 
-현재는 골격 스모크 테스트뿐이다(컨텍스트가 뜨는가 · DataSource가 구성되는가).
-단계 2부터 `golden/api/*.json`과의 비교 테스트로 범위를 넓힌다.
+현재 **31건**(2026-08-26 실측, `BUILD SUCCESS`) — 골격 스모크 2건 + 골든 비교 하네스 29건.
+단계 2부터 실제 컨트롤러를 하네스에 물려 범위를 넓힌다.
 
 - 테스트 설정은 `src/test/resources/**`application.properties**`(H2)다.
   `application-test.properties`라는 이름을 **쓰지 않는다** — 프로파일 파일이라 켜는 것을
   잊으면 조용히 무시되고 테스트가 개발용 DB를 잡는다(uploader에서 실제로 그랬다).
 - ⚠️ **Oracle 의존 테스트를 H2로 대체하지 않는다**(설계 §8). Mapper·DDL 정합성과
   Oracle Text는 내부망 Oracle에서만 판정한다.
+
+### 7-1. 골든 비교 하네스 (Task 1.4)
+
+`src/test/java/.../golden/` — 이관 검증의 **유일한 성공 기준**인 "같은 입력 → 같은 출력"을
+집행하는 도구다. 비교 대상은 리포 루트의 `golden/api/*.json` 34건이다.
+
+| 클래스 | 역할 |
+|---|---|
+| `GoldenNormalizer` | 실행마다 달라지는 값을 지운다 — **`golden/capture.py`의 `_normalize`와 1:1** |
+| `GoldenSnapshot` | `{request, status, body}` 로더. `golden/api/` 전체를 **파일명 순서**로 읽는다 |
+| `GoldenComparator` | 사람이 읽을 수 있는 차이(JSON 포인터 경로 + 양쪽 값) |
+| `GoldenRunner` | 스냅샷을 MockMvc로 재생하고 대조 |
+
+**단계 2에서 쓰는 법**
+
+```java
+GoldenRunner runner = new GoldenRunner(mockMvc);
+GoldenRunner.Result r = runner.run(snapshot);
+if (!r.passed()) fail(r.failure());
+```
+
+**정한 것 3가지 (근거는 각 파일 주석에)**
+
+1. **배열 순서는 비교하고, 객체 키 순서는 비교하지 않는다.** 목록 정렬은 화면에 그대로
+   보이는 계약이지만, JSON 객체 키 순서는 브라우저가 의존하지 않는다. Python(pydantic
+   필드 순서)과 Java(POJO 필드 순서)가 다르다는 이유로 실패시키면 **잡아야 할 진짜
+   차이가 소음에 묻힌다.**
+2. **`Accept` 헤더를 강제하지 않는다.** `capture.py`가 지정하지 않았기 때문이다.
+   `application/json`을 강요하면 JSON이 아닌 응답을 내는 엔드포인트가 실제 동작과
+   무관하게 406을 받는다 — 골든과 다른 조건으로 재생하는 셈이다.
+3. **러너는 예외를 던지지 않고 `Result`를 돌려준다.** 여러 건을 돌리며 실패를 모아 한
+   번에 보고할 수 있어야 해서다.
+
+> ⚠️ **`X-User-Id` 헤더를 반드시 실어야 한다.** 골든 34건 중 **10건**(결재 시나리오
+> 15~24번)이 이 헤더로 행위자를 정한다(dave가 임시저장·제출, boss가 승인). 빠지면
+> 요청은 성공하지만 **다른 사람이 한 것으로 기록돼** `assignee`/`approver`가 어긋난다 —
+> 원인을 찾기 어려운 종류의 실패다. 로더·러너가 이를 처리하고, 회귀 테스트로 고정했다.
+
+하네스 자신도 **스텁 컨트롤러로 검증**했다(통과시켜야 할 것을 통과시키는지, 잡아야 할
+것을 잡는지). 이 검증이 없으면 단계 2에서 *"테스트가 통과했다"* 와 *"러너가 아무것도
+안 봤다"* 가 구분되지 않는다.
 
 ## 8. 스키마 DDL
 
