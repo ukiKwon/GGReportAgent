@@ -1,7 +1,13 @@
 # WebLogic/Java 이관 구현계획 — 설계 §8의 5단계 전개
 
-- **작성일**: 2026-08-10 · **개정 2026-08-25** · **상태**: **잠정 확정** — 3단계(검색)와
-  LLM 어댑터 세부만 회신 대기, 나머지는 회신 없이 착수 가능.
+- **작성일**: 2026-08-10 · **개정 2026-08-25** · **개정 2026-08-26** · **상태**: **잠정 확정**
+  — 3단계(검색)와 LLM 어댑터 세부만 회신 대기, 나머지는 회신 없이 착수 가능.
+- **2026-08-26 개정 요지**: 실행 환경이 **5축으로 확정**됐다(설계 문서 상단 2026-08-26
+  주석의 표). **내부망은 로컬까지 전 구간 Oracle**이고 **외부망 로컬(`out-local`)만
+  MySQL**이며, **Maven 중앙 저장소 접근은 불가**(수동 반입), JDK 1.8은 공통이다.
+  이 계획에서 바뀐 것은 3곳 — Task 1.1의 "MySQL을 갈아치운다"가 **"Oracle 정본 +
+  MySQL 미러 유지"** 로, `dependencies.txt`가 목록에서 **오프라인 리포지토리 반입
+  절차**로, Task 1.3이 **DDL 2벌** 산출로 바뀌었다.
 - **2026-08-25 개정 요지**: eGovFrame 제약 폐기(설계 문서 상단 주석) → Task 1.1의
   출발점이 "표준 템플릿"에서 **`uploader/` 실물 골격**으로 바뀌었고, 공통 규칙의
   프레임워크가 Spring Boot 2.7.x가 됐다. 경유지+OAuth 확정으로 문의 6이 교체되고
@@ -54,8 +60,19 @@
   *2026-08-25 — eGovFrame 폐기로 "Spring 5.x MVC 단독"에서 Spring Boot 2.7.x로
   바뀌었다. `uploader/`가 이미 이 조합으로 돌고 있다.*
 - 폐쇄망: 의존성은 전량 사전 반입 목록으로 관리(1단계 산출물).
+  *2026-08-26 — **Maven 중앙 저장소 접근 불가가 확정**이다. 빌드 중에 의존성이 새로
+  내려오지 않으므로 라이브러리 추가에는 반입 절차가 따른다. 다만 **그 절차는 이미
+  마련돼 있고 까다롭지 않다**(사용자 확인) — 차단 요인이 아니라 절차상 사실이다.
+  Task 1.1 참조.*
 - 테스트는 pytest 1:1 이식이 아니라 **REST 계약(MockMvc) + Mapper +
   상태전이**에 집중, H2 대체 금지·개발용 Oracle 전제(설계 §8).
+  *2026-08-26 — "개발용 Oracle 전제"는 이제 가정이 아니라 사실이다. **내부망은
+  `local` 프로파일부터 이미 Oracle이다**(더 이상 조달 과제가 아니다).*
+- **어디서 검증하는가**(2026-08-26 신설, 설계 §8 개정판 표와 같은 내용):
+  REST 계약·골든 비교·상태전이는 **외부망 로컬(`out-local`, MySQL)** 에서 돌려도 되지만,
+  **Mapper·DDL 정합성과 Oracle Text는 내부망(`local`/`dev`/`stg`, Oracle)에서만 유효**하다.
+  ⚠️ **MySQL 통과를 Oracle 합격으로 세지 말 것** — H2를 금지한 것과 같은 이유다
+  (§5의 빈 문자열→NULL, CLOB 정렬 제약이 MySQL에서는 드러나지 않는다).
 
 ---
 
@@ -71,12 +88,41 @@
   시작하지 않고 검증된 실물에서 시작한다**(테스트 9파일 동반).
   - 그대로 가져오는 것: `pom.xml` 의존성 축, `ServletInitializer`, `weblogic.xml`,
     프로파일 분리(`config-envs/`), MyBatis Mapper XML 배치 관례.
-  - **반드시 갈아치우는 것**: `schema-mysql.sql` + MySQL 드라이버 → **Oracle DDL
-    정본**(Task 1.3). uploader는 로컬 개발이 MySQL/H2였다.
+  - ⚠️ **~~반드시 갈아치우는 것: `schema-mysql.sql` + MySQL 드라이버 → Oracle DDL 정본~~**
+    — **2026-08-26 정정. 갈아치우지 않는다.** MySQL은 uploader의 임시방편이 아니라
+    **외부망 로컬(`out-local`)의 확정 축**이다(설계 상단 5축 표). 따라서:
+    - **Oracle DDL이 정본**이고 `schema-mysql.sql`은 그로부터 파생된 **미러**로 남는다
+      → **DDL 2벌 유지**(Task 1.3). 정본이 바뀌면 미러도 같은 커밋에서 바꾼다.
+    - MySQL 드라이버(`mysql-connector-j`)도 `pom.xml`에 남는다. 다만 **`out-local`
+      전용**임을 주석으로 못 박고, 내부망 반입 목록(`dependencies.txt`)에서는 뺀다.
+    - **H2만 테스트 전용으로 축소**된다(설계 §8: Oracle 의존 테스트를 H2로 대체 금지).
+    - uploader의 `config-envs/`(`local`·`dev`·`stg`·`prod`·`out-local`) 5축 구조는
+      **그대로 가져온다** — 이 계획이 필요로 하는 모양과 정확히 같다.
   - `frontend/` 전체를 정적 리소스로 복사(무수정 — 유일한 변경은 API 베이스 `/api`
     프리픽스이며, 프런트 쪽 대응은 이관 마지막에 한 줄 설정으로).
-  - 의존성 반입 목록(`dependencies.txt`) 시작 — uploader의 `pom.xml`이 이미 그
-    목록의 절반이다.
+  - **의존성 반입 — 목록이 아니라 절차다** (2026-08-26 격상). 종전에는 "`dependencies.txt`
+    시작 — uploader의 `pom.xml`이 이미 그 목록의 절반"이라고만 적혀 있었으나, **폐쇄망
+    빌드 머신은 Maven 중앙 저장소에 닿지 못한다**는 것이 확정됐다. 손으로 적은 목록은
+    **추이 의존성(transitive)을 반드시 놓치므로** 목록 대신 리포지토리를 통째로 만든다:
+    1. **외부망 로컬**에서 `mvn -f uploader/pom.xml dependency:go-offline` +
+       `mvn clean package`로 `~/.m2/repository`를 채운다(추이 의존성·`.pom`·플러그인까지
+       실제로 받아지는 것이 목록의 정본이다).
+    2. 그 `repository`를 압축해 반입하고, 내부망에서 `settings.xml`의
+       `<localRepository>`로 지정하거나 사내 Nexus에 일괄 업로드한다.
+       빌드는 **`mvn -o`(오프라인)로 통과하는지**를 합격 기준으로 삼는다 — 오프라인에서
+       한 번 통과해야 반입 누락이 없음이 증명된다.
+    3. `dependencies.txt`는 `mvn dependency:list`(+`dependency:tree`) 출력을 **떠 놓은
+       산출물**로 유지한다 — 사람이 관리하는 원장이 아니라 DBA·보안 검토에 낼 명세다.
+    - ⚠️ **`mysql-connector-j`는 반입 목록에서 제외**한다(외부망 로컬 전용).
+    - ✅ **반입 절차는 이미 있고 까다롭지 않다**(2026-08-26 사용자 확인). 따라서
+      **단계 1에서 5단계 전체의 라이브러리를 미리 확정할 필요는 없다** — 단계마다
+      필요한 것이 생기면 그때 반입하면 된다. 이 항목은 *일정 리스크*가 아니라
+      **"빌드 중에 자동으로 내려오지 않는다"는 절차상 사실**로만 다룬다.
+      - 그래도 단계 1에서 설계 §4 표 기준의 축(Spring Boot 2.7.x · MyBatis 3.5.x ·
+        HttpClient 4.5 · Jackson 2.x · PDFBox 2.0.x · POI 5.2.x · JUnit 4.13 · ojdbc8)을
+        **한 번에 받아 두는 편이 왕복을 줄인다** — 권장이지 전제조건은 아니다.
+      - 남는 진짜 규칙은 하나다: **새 라이브러리를 추가한 커밋은 `mvn -o`가 통과하는지
+        확인하기 전까지 내부망에서 빌드된다고 가정하지 않는다.**
   - ⚠️ **uploader의 `@Scheduled` 재분류 잡은 그대로 가져오지 말 것.** WAS에서 앱이
     스레드를 직접 만드는 것은 금지 사항이라(설계 §2·§4) Task 4.2의 CommonJ
     WorkManager 경로로 옮겨야 한다. uploader 자체를 WebLogic에 올릴 때도 같은 문제가
@@ -88,12 +134,25 @@
   **`async-supported=true`를 우리 필터 체인 전부에 명시**(2026-08-25 — eGovFrame
   폐기로 `web.xml`을 우리가 소유하므로 이제 문의 항목이 아니라 그냥 우리가 켜면
   되는 설정이다). CommonJ WorkManager 리소스 선언(4단계에서 사용).
-- **Task 1.3 — Oracle 스키마 DDL 정본**: registry 6테이블 + 검색
+- **Task 1.3 — 스키마 DDL (Oracle 정본 + MySQL 미러, 2벌)**: registry 6테이블 + 검색
   (CHUNK/VECTOR) + `ORCH_RUN`/`ORCH_STEP`. 설계 §5의 4개 결정을 그대로 반영 —
   ⓐ `NOT NULL DEFAULT ''` 금지(INSERT 명시값 + Mapper `null→""` 정규화)
   ⓑ 긴 텍스트 CLOB(+`jdbcType=CLOB`, ORDER BY 배제)
   ⓒ 시각 컬럼 `VARCHAR2` 유지(ISO 문자열)
   ⓓ 이후 변경은 번호 붙은 DDL 스크립트.
+  - **2026-08-26 — 산출물이 2벌이다**(설계 상단 5축 표):
+    **`schema-oracle.sql`(정본)** 과 **`schema-mysql.sql`(외부망 로컬 미러)**.
+    번호 붙은 변경 스크립트(ⓓ)도 두 벌 모두에 대해 같은 번호로 낸다.
+  - **미러가 지켜야 할 것은 "같은 DDL"이 아니라 "같은 앱 동작"이다.** 대응 규칙:
+    | 정본(Oracle) | 미러(MySQL) | 주의 |
+    |---|---|---|
+    | `VARCHAR2(n)` | `VARCHAR(n)` | 길이 단위 — Oracle은 BYTE 기본이라 한글에서 갈린다. **정본을 `CHAR` 단위로 명시**(`VARCHAR2(n CHAR)`) |
+    | `CLOB` | `LONGTEXT` | 양쪽 다 ORDER BY 대상에서 배제 |
+    | `BLOB`(벡터) | `LONGBLOB` | 리틀엔디언 float32 바이트 포맷 동일 |
+    | `NUMBER(n)` | `INT`/`BIGINT` | 앱 생성 PK라 시퀀스·AUTO_INCREMENT 모두 불필요 |
+    | `''` → NULL 취급 | `''` ≠ NULL | ⚠️ **여기가 §5-(A)의 함정이다.** MySQL에서는 빈 문자열이 그대로 저장돼 **문제가 드러나지 않는다** — Mapper의 `null→""` 정규화는 **Oracle에서만 검증된다** |
+  - ⚠️ **미러는 검증 대상이 아니라 편의 장치다.** MySQL에서 DDL이 통과했다는 사실은
+    Oracle 정합성의 근거가 되지 않는다(공통 규칙 "어디서 검증하는가" 참조).
 - **Task 1.4 — 골든 비교 하네스(Java)**: `golden/api/*.json`을 읽어 MockMvc
   응답과 비교하는 JUnit 러너 + 정규화 유틸. *이 단계에서는 하네스 자체의 단위
   테스트만 통과하면 된다.*
