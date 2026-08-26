@@ -127,9 +127,17 @@
     스레드를 직접 만드는 것은 금지 사항이라(설계 §2·§4) Task 4.2의 CommonJ
     WorkManager 경로로 옮겨야 한다. uploader 자체를 WebLogic에 올릴 때도 같은 문제가
     있다 — 별도 확인 필요.
-  - ⚠️ **uploader의 `README.md`가 실물과 다르다** — §2 기술스택이 "Spring Data JPA /
-    Hibernate ORM"이라고 적혀 있으나 실제 코드·`pom.xml`은 **MyBatis**다(전환 흔적).
-    골격을 인용하기 전에 README를 실물 기준으로 교정할 것.
+  - ✅ **~~uploader의 `README.md`가 실물과 다르다~~ — 교정 완료(2026-08-26).**
+    JPA/Hibernate 오기 외에도 **6개 절이 실물과 달랐다**: 환경 설정 방식(프로파일이
+    아니라 `config-envs/{env}/` → `config/` 파일 교체), DB(Oracle 전용이 아니라 5축),
+    API 목록(REST `/api/files/*` 2개 + 화면 4개 누락), DDL(시퀀스가 아니라
+    `AUTO_INCREMENT`), 로컬 기동(H2가 아니라 MySQL), 테스트(H2가 아니라 전부 Mock).
+    README에 §13 "알려진 불일치"를 신설해 **코드/설정을 고쳐야 하는 3건**을 남겼다:
+    ① `dev`/`stg`/`prod`에 `mybatis.*` 설정 누락 + Oracle DDL 부재
+    ② `application-test.properties`가 프로파일 미활성으로 적용 안 됨
+    ③ 전환 흔적 — `weblogic.xml`의 `org.hibernate.*`, 소스 폴더 안의 죽은
+    `config/application.properties`(평문 비밀번호 포함).
+    **①은 Task 1.3(DDL 2벌)이 흡수하고, ②③은 골격을 가져올 때 함께 정리한다.**
 - **Task 1.2 — `web.xml`/`weblogic.xml`**: JNDI DataSource 조회, 인코딩 필터,
   **`async-supported=true`를 우리 필터 체인 전부에 명시**(2026-08-25 — eGovFrame
   폐기로 `web.xml`을 우리가 소유하므로 이제 문의 항목이 아니라 그냥 우리가 켜면
