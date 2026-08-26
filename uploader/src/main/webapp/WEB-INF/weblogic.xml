@@ -7,7 +7,9 @@
   <container-descriptor>
     <prefer-application-packages>
       <package-name>org.springframework.*</package-name>
-      <package-name>org.hibernate.*</package-name>
+      <!-- org.hibernate.* 제거(2026-08-26) — JPA/Hibernate에서 MyBatis로 전환하며
+           의존성이 사라졌다. 없는 패키지를 우선순위 목록에 두면 이 앱이 Hibernate를
+           쓴다는 오해만 남는다. 아래 org.mybatis.* / org.apache.ibatis.* 가 그 자리다. -->
       <package-name>com.fasterxml.jackson.*</package-name>
       <package-name>org.slf4j.*</package-name>
       <package-name>ch.qos.logback.*</package-name>

@@ -551,13 +551,20 @@ mvn test
 Mapper 통합 테스트를 추가하는 순간 조용히 잘못된 DataSource를 잡습니다.
 → `@ActiveProfiles("test")`를 붙이거나 파일을 `application.properties`로 옮길 것.
 
-**③ 전환 흔적 2건.**
-- `weblogic.xml`의 `prefer-application-packages`에 **`org.hibernate.*`** 가 남아
-  있습니다. Hibernate는 의존성에 없습니다(무해하나 오해를 부릅니다).
-- **`src/main/java/com/kb/uploader/config/application.properties`** — 소스 폴더
-  안에 있는 설정 파일입니다. `pom.xml`에 `<resources>` 지정이 없어 **빌드 산출물에
-  포함되지 않는 죽은 파일**이며, 그런데도 **DB 비밀번호가 평문으로 들어 있습니다.**
-  삭제 대상입니다.
+**③ ~~전환 흔적 2건~~ — ✅ 정리 완료(2026-08-26).**
+- ~~`weblogic.xml`의 `prefer-application-packages`에 `org.hibernate.*`~~ → **제거**.
+  Hibernate는 의존성에 없습니다. 같은 목록의 `org.mybatis.*`·`org.apache.ibatis.*`가
+  그 자리를 대신합니다. 제거 근거는 파일 안에 주석으로 남겼습니다.
+- ~~`src/main/java/com/kb/uploader/config/application.properties`~~ → **삭제**.
+  소스 폴더 안의 설정 파일이라 `pom.xml`에 `<resources>` 지정이 없는 이 프로젝트에서는
+  빌드 산출물에 포함되지 않는 **죽은 파일**이었고, 그런데도 DB 비밀번호가 평문으로
+  들어 있었습니다. 코드 참조도 없음을 확인한 뒤 지웠습니다.
+
+> **전환 흔적의 물증**: `target/uploader-1.0.0/WEB-INF/classes/application.properties`
+> (gitignore 대상, 과거 빌드 잔재)에 `spring.jpa.database-platform=…Oracle12cDialect`·
+> `spring.jpa.hibernate.ddl-auto=update`가 들어 있습니다. 이 프로젝트가 실제로
+> JPA/Hibernate로 시작했다가 MyBatis로 옮겨 왔음을 보여줍니다 — 종전 README의
+> 기술 스택 표기는 **그 시점에는 맞았던** 기술입니다. `mvn clean`으로 정리됩니다.
 
 > ⚠️ 참고 — 리포지토리에 커밋된 **`config/application.properties`에도 실제 MySQL
 > 비밀번호가 평문으로 들어 있습니다**(다른 5개 파일은 `<PLACEHOLDER>`). 이 파일은
