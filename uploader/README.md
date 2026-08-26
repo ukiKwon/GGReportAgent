@@ -382,6 +382,11 @@ WebLogic의 리스닝 포트·채널 설정은 WebLogic 관리 콘솔에서 별�
 #   "database_table 생성query.txt"         ← uploader/ 바로 아래의 사본
 mysql -u root -p -e "CREATE DATABASE uploaderdb DEFAULT CHARSET utf8mb4;"
 mysql -u root -p uploaderdb < src/main/resources/schema-mysql.sql
+
+# 앱 전용 계정 생성 — 설정 파일에 root를 넣지 않기 위한 것이다.
+# 파일이 유출돼도 피해가 uploaderdb 하나로 제한된다(실제로 한 번 유출됐다, §13).
+mysql -u root -p -e "CREATE USER IF NOT EXISTS 'uploader'@'localhost' IDENTIFIED BY '<원하는-비밀번호>'; \
+                     GRANT ALL PRIVILEGES ON uploaderdb.* TO 'uploader'@'localhost'; FLUSH PRIVILEGES;"
 ```
 
 > `schema-mysql.sql`은 **자동 실행되지 않습니다** — `spring.sql.init.*` 설정이
