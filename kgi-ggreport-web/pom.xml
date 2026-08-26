@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- Spring Boot 2.7.x = JDK 8을 지원하는 마지막 Boot 계열(설계 §2·§4).
+       부모 POM이 project.build.sourceEncoding=UTF-8 을 이미 지정하므로
+       여기서 다시 선언하지 않는다. -->
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>2.7.18</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.kbstar</groupId>
+  <artifactId>kgi-ggreport-web</artifactId>
+  <version>1.0.0</version>
+  <packaging>war</packaging>
+  <name>kgi-ggreport-web</name>
+  <description>입찰 워크플로우 지원 시스템 — Python(FastAPI+LangGraph)에서 이관한 WebLogic WAR</description>
+
+  <properties>
+    <java.version>1.8</java.version>
+    <!-- 폐쇄망이라 빌드 중에 새 의존성이 내려오지 않는다. 버전을 여기 모아 두면
+         반입 목록(dependencies.txt)과 대조하기 쉽다. -->
+    <mybatis-spring-boot.version>2.3.2</mybatis-spring-boot.version>
+    <ojdbc8.version>21.7.0.0</ojdbc8.version>
+    <pdfbox.version>2.0.29</pdfbox.version>
+    <poi.version>5.2.3</poi.version>
+  </properties>
+
+  <dependencies>
+    <!-- ── 웹 ─────────────────────────────────────────────────────────────
+         화면은 순수 정적 HTML/JS라 템플릿 엔진(Thymeleaf)이 필요 없다.
+         uploader와 갈리는 지점이다(그쪽은 Thymeleaf 화면). -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <!-- WebLogic 배포 시 내장 톰캣 제외. spring-boot-maven-plugin 이
+         WEB-INF/lib-provided 로 넣어 주므로 java -jar 로도 뜬다. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-tomcat</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- ── 영속화 ─────────────────────────────────────────────────────── -->
+    <dependency>
+      <groupId>org.mybatis.spring.boot</groupId>
+      <artifactId>mybatis-spring-boot-starter</artifactId>
+      <version>${mybatis-spring-boot.version}</version>
+    </dependency>
+    <!-- Oracle — 내부망 전 구간(local/dev/stg/prod)의 실제 DB -->
+    <dependency>
+      <groupId>com.oracle.database.jdbc</groupId>
+      <artifactId>ojdbc8</artifactId>
+      <version>${ojdbc8.version}</version>
+    </dependency>
+    <!-- MySQL — 외부망 로컬(out-local) 전용.
+         ⚠️ 내부망 반입 목록(dependencies.txt)에서는 제외한다. -->
+    <dependency>
+      <groupId>com.mysql</groupId>
+      <artifactId>mysql-connector-j</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
+    <!-- ── LLM/임베딩 어댑터 (단계 4) ────────────────────────────────────
+         LangChain4j를 쓰지 않는다(설계 §6-C) — 실제로 쓰는 기능은 구조화 출력과
+         2단 폴백뿐이라 HttpClient + Jackson 직접 호출로 충분하다. -->
+    <dependency>
+      <groupId>org.apache.httpcomponents</groupId>
+      <artifactId>httpclient</artifactId>
+    </dependency>
+
+    <!-- ── 산출물 (단계 5) ──────────────────────────────────────────────── -->
+    <dependency>
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <version>${pdfbox.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml</artifactId>
+      <version>${poi.version}</version>
+    </dependency>
+
+    <!-- ── 테스트 ───────────────────────────────────────────────────────
+         JUnit 4.13 (설계 §4). Boot 2.7 기본은 JUnit 5라 vintage 러너를 명시한다. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.vintage</groupId>
+      <artifactId>junit-vintage-engine</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- ⚠️ H2는 컨트롤러/서비스 계층 테스트용일 뿐이다.
+         Oracle 의존 테스트를 H2로 대체하지 않는다(설계 §8) — §5의 빈 문자열·CLOB
+         차이가 바로 그 지점에서 갈리므로 H2 통과는 잘못된 안심을 준다. -->
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>kgi-ggreport-web</finalName>
+    <resources>
+      <!-- 이 모듈 자신의 리소스 -->
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
+      <!-- 화면은 복사본을 두지 않고 **빌드할 때 리포의 frontend/ 에서 가져온다.**
+           계획서 Task 1.1은 "frontend/ 전체를 정적 리소스로 복사"라고만 적었으나,
+           실제로 복사본을 만들면 원본과 갈라진다 — 이관 검증이 "같은 입력 → 같은
+           출력"이라 화면이 두 벌이 되는 순간 무엇과 비교하는지가 흐려진다.
+           빌드 시 취득이면 원본이 언제나 하나다.
+           제외 대상: index_*.html 은 디자인 실험본이라 배포물에 들어가면 안 된다
+           (index.html 만이 진짜 진입점이다). -->
+      <resource>
+        <directory>${project.basedir}/../frontend</directory>
+        <targetPath>static</targetPath>
+        <filtering>false</filtering>
+        <excludes>
+          <exclude>index_*.html</exclude>
+          <exclude>README.md</exclude>
+          <exclude>test/**</exclude>
+        </excludes>
+      </resource>
+    </resources>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

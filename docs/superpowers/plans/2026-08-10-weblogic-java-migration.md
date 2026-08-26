@@ -142,7 +142,11 @@
   **`async-supported=true`를 우리 필터 체인 전부에 명시**(2026-08-25 — eGovFrame
   폐기로 `web.xml`을 우리가 소유하므로 이제 문의 항목이 아니라 그냥 우리가 켜면
   되는 설정이다). CommonJ WorkManager 리소스 선언(4단계에서 사용).
-- **Task 1.3 — 스키마 DDL (Oracle 정본 + MySQL 미러, 2벌)**: registry 6테이블 + 검색
+- **Task 1.3 — 스키마 DDL (Oracle 정본 + MySQL 미러, 2벌)**: registry **7테이블**
+  *(2026-08-26 정정 — 종전 "6테이블". `server/db.py`의 SCHEMA를 실측하니
+  `institutions`·`bid_cases`·`tasks`·`messages`·`notifications`·`role_menus`·
+  `chat_messages` **7개**다. 계획 I에서 뒤늦게 추가된 `role_menus`가 빠져 있었다.
+  유니크 인덱스 `idx_bid_cases_notice`도 함께 옮겨야 한다.)* + 검색
   (CHUNK/VECTOR) + `ORCH_RUN`/`ORCH_STEP`. 설계 §5의 4개 결정을 그대로 반영 —
   ⓐ `NOT NULL DEFAULT ''` 금지(INSERT 명시값 + Mapper `null→""` 정규화)
   ⓑ 긴 텍스트 CLOB(+`jdbcType=CLOB`, ORDER BY 배제)
