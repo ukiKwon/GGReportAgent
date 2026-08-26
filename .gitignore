@@ -46,6 +46,7 @@ target/
 # DB 계정·비밀번호 실값이 들어간다 — 실제로 한 번 평문으로 커밋됐었다.
 # 공유해야 하는 템플릿은 `config-envs/` 쪽이고 그건 계속 추적된다.
 uploader/config/application.properties
+kgi-ggreport-web/config/application.properties
 
 # portfolio/capture.py의 스테이징 경로. 캡처는 항상 여기에 쌓고, 사람이 눈으로
 # 확인한 뒤에만 shots/로 덮어쓴다(빈 화면이 조용히 찍히는 실패가 있어서다).

@@ -112,7 +112,7 @@ WebLogic ── ggreport.war (단일 WAR)
 | FastAPI `APIRouter` 11개 (`backend/routers/`) | `@RestController` 11개 | 기계적. 경로·응답 형태 동일 유지 |
 | Pydantic `models.py` | POJO + Jackson 2.x + Bean Validation(hibernate-validator 6.2.x) | Pydantic의 자동 검증·직렬화가 두 갈래로 나뉜다 |
 | `sqlite3` 직접 호출 모듈 12개 (리포지토리 4 + 서비스·유틸 8) | MyBatis 3.5.x Mapper 인터페이스 + XML | 원시 SQL이 대부분이라 이식성은 좋다 |
-| `registry.db` 6테이블 | Oracle 6테이블 | PK가 전부 앱 생성 TEXT라 시퀀스 불필요 (§5 함정 참고) |
+| `registry.db` **7테이블** | Oracle **7테이블** | PK가 전부 앱 생성 TEXT라 시퀀스 불필요 (§5 함정 참고). **개정 2026-08-26** — 종전 "6테이블"은 오기다. `server/db.py` 실측 결과 `institutions`·`bid_cases`·`tasks`·`messages`·`notifications`·`role_menus`·`chat_messages` 7개이며, 계획 I에서 뒤늦게 추가된 `role_menus`가 빠져 있었다. 유니크 인덱스 `idx_bid_cases_notice`도 함께 옮긴다 |
 | `corpus_index.db` FTS5(trigram) | **Oracle Text CONTEXT 인덱스** (폴백: 인메모리 색인) | §6-A |
 | `vectors` BLOB + numpy 코사인 | Oracle BLOB + Java `float[]` 브루트포스 코사인 | 코퍼스가 5.6MB/413파일이라 전량 메모리 적재로 충분. 벡터DB 불필요 |
 | LangGraph `StateGraph`/`interrupt()`/`SqliteSaver` | **직접 구현한 상태머신 + Oracle 체크포인트** | §6-B. 그래프 자체는 129줄이지만 재개 의미론이 본질 |
