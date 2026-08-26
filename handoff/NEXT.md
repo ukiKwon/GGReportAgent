@@ -426,13 +426,32 @@ py -3 -m server.demo                       # 데모 환경 + 서버 (data/demo.d
   - ~~추천 순서는 ③ → ② → ①~~ — **2026-08-10에 ③·②·① 전부 완료.** 이 항목에서
     이제 남은 것은 ⓐ 문의서 발송·회신 수령(사용자 몫) ⓑ 회신 반영(계획의 잠정
     지점 확정 — 매핑표대로 기계적) ⓒ 실제 Java 구현 착수(별도 환경·별도 세션)뿐이다.
-  - ▶ **2026-08-25 — ⓒ의 착수 조건이 좋아졌다.** 단계 **1·2·4·5는 회신 없이 착수
-    가능**하고(3만 문의 2·3 대기), 단계 1의 출발점이 빈 템플릿이 아니라 **`uploader/`
-    실물 WAR 골격**이 됐다(계획 Task 1.1). **다음 세션에서 단계 1부터 시작하면 된다.**
-    - ⚠️ **착수 전 환경 확인**: JDK 8 · Maven · **개발용 Oracle**. 설계 §8이 "H2로
-      대체 금지, 개발용 Oracle 전제"라고 못 박아 뒀다(§5의 빈 문자열·CLOB 차이가
-      바로 그 지점에서 갈리므로 H2 통과는 잘못된 안심을 준다). Oracle이 없으면
-      단계 1에서 어디까지 갈 수 있는지가 달라지므로 **먼저 확인할 것.**
+  - ✅ **2026-08-26 — ⓒ 착수. 단계 1(골격)이 전부 끝났다.**
+    출처: `2026-08-26_summary.md` `## Session 13:00`. 커밋 `11dc72a`…`0c028ec`
+    (13건, 전부 push). **산출물: `kgi-ggreport-web/`** — groupId `com.kbstar` /
+    artifactId `kgi-ggreport-web` / 패키지 `com.kbstar.kgi.ggreport.web`(사용자 확정).
+    - **Task 1.1·1.2** WAR 골격 + `web.xml`/`weblogic.xml`. 실기동 확인 —
+      `GET /` 200(대시보드), 디자인 실험본 404. `mvn package` BUILD SUCCESS.
+    - **Task 1.3** DDL 2벌 11테이블 — `src/main/resources/db/{oracle,mysql}/001_schema.sql`.
+    - **Task 1.4** 골든 비교 하네스 4클래스. 모듈 테스트 **31건 통과**.
+    - **환경 확정(사용자)**: 내부망은 `local`부터 전 구간 **Oracle**, 외부망 로컬만
+      **MySQL**, Maven 중앙 접근 불가(수동 반입, 절차는 있고 까다롭지 않음),
+      JDK 1.8 공통. ⇒ 종전의 "개발용 Oracle을 구해야 한다"는 **더 이상 과제가 아니다.**
+    - **Maven 설치됨**: `C:\Users\superuser\tools\apache-maven-3.9.16`,
+      사용자 환경변수 `JAVA_HOME`·`MAVEN_HOME`·`PATH` 등록 완료.
+  - ▶ **다음은 단계 2(조회 REST)** — Task 2.1(POJO + MyBatis Mapper) →
+    2.2(조회 컨트롤러 5종: institutions/bidcases/documents/notifications/accounts
+    +menus·consistency) → 2.3(`backend/seed.py`의 기관 25건 이관) →
+    **골든 `00`~`09` + `25`~`27` 비교 통과**. 단계 1보다 훨씬 큰 덩어리다.
+    - 하네스 사용법은 `kgi-ggreport-web/README.md` §7-1.
+      `new GoldenRunner(mockMvc).run(snapshot)` → `Result.passed()`.
+    - ⚠️ **단계 2에서 반드시 지켜볼 것 2가지** (Task 1.3에서 심어 둔 지뢰):
+      ⓐ **외래키가 실제로 강제된다** — `server/db.py`는 `PRAGMA foreign_keys`를 켜지
+      않아 현재 SQLite에서는 선언만 돼 있다. 고아 행이 나오면 제약을 빼는 게 아니라
+      **왜 생기는지를 먼저 본다**("동작 동일"이 목표이지 "결함 동일"이 아니다).
+      ⓑ **`TASKS.DRAFT_CONTENT`가 NULL 허용이다** — Mapper에서 `null → ""` 정규화를
+      빼먹으면 프런트 JSON이 달라진다. **MySQL에서는 이 결함이 드러나지 않는다.**
+    - 단계 3(검색)만 여전히 **문의 2·3 회신 전 착수 금지**. 4·5는 회신 불요.
     - 이관 후속으로 붙일 `uploader/` 화면은 **항목 17**에 따로 있다(단계 6).
 - ✅ **ⓐ 발송 전 점검 완료** (2026-08-20, `2026-08-19_summary.md`). **발송 자체는 여전히
   사용자 몫이고 이 항목은 그것 때문에 열려 있다.** 점검에서 고친 것:
@@ -833,8 +852,9 @@ py -3 -m server.demo                       # 데모 환경 + 서버 (data/demo.d
 
 ### 17. `uploader/` 붙이기 — **이관 완료 후로 확정**, 사전 조사는 끝났다 (2026-08-25)
 
-- **출처**: `2026-08-25_summary.md`. 브랜치 **`weblogic-java-migration`**(main에서 분기,
-  아직 push 안 됨).
+- **출처**: `2026-08-25_summary.md`. 브랜치 **`weblogic-java-migration`**(main에서 분기).
+  *2026-08-26 갱신 — **push됨**(`origin/weblogic-java-migration`). 종전의 "아직 push
+  안 됨"은 낡은 기술이다.*
 - **무엇이 생겼나**: 사용자가 폐쇄망 밖에서 만들어 온 **파일 업로드/분류 서비스**를
   `uploader/`로 편입했다(커밋 `2e294b3`, 원본 무수정 73파일). Spring Boot 2.7.18 ·
   JDK 1.8 · WebLogic WAR · MyBatis · PDFBox 2.0.29 · POI 5.2.3 — **항목 9 이관의
@@ -867,6 +887,56 @@ py -3 -m server.demo                       # 데모 환경 + 서버 (data/demo.d
      텍스트를 담고(PDF를 전부 파싱) 페이징이 없다. **문의 6-2(API 표준 규격) 회신
      때 함께 정리**하기로 했다.
 - **비차단**: 항목 9가 먼저다.
+
+### 18. uploader — README §13-①(내부망 설정 누락 + Oracle DDL 부재) (2026-08-26)
+
+- **출처**: `2026-08-26_summary.md` `## Session 13:00`. 브랜치 `weblogic-java-migration`.
+- **무엇이 남았나** — `uploader/README.md` §13의 마지막 열린 항목이다(②③은 해소됨):
+  - `config-envs/`의 **`dev`/`stg`/`prod`에 `mybatis.*` 설정이 없다**
+    (`mapper-locations`·`type-aliases-package`·`map-underscore-to-camel-case`).
+    `local`·`out-local`에만 있다. 내부망 배포 시 Mapper 미탐색 가능성.
+    **의도된 것인지 사용자에게 확인이 필요하다** — 내부망에서 별도 방식으로 주입한다면
+    그대로 두면 된다.
+  - **uploader에 Oracle DDL이 없다** — `schema-mysql.sql` 한 벌뿐이다.
+    `kgi-ggreport-web`은 2벌을 갖췄으므로 같은 방식으로 만들면 된다
+    (`kgi-ggreport-web/src/main/resources/db/README.md`의 타입 대응표를 그대로 쓸 것).
+- **비차단**: uploader를 내부망에 올릴 때 필요하다 — **항목 17(단계 6)이 먼저다.**
+- ⚠️ **함께 볼 것**: `ReclassificationJob`이 Spring `@Scheduled`로 **자기 스레드를
+  만든다.** WAS 배포 표준에 어긋나므로(설계 §2·§4) 내부망에 올리기 전에 CommonJ
+  WorkManager 경로로 옮기거나 꺼야 한다. `uploader/README.md` §10에 경고로 적어 뒀다.
+
+### 19. uploader 검색 API의 설계 판단 2건 — 기록만 해 둠 (2026-08-26)
+
+- **출처**: `2026-08-26_summary.md` `## Session 13:00`. `uploader/README.md` §13-④.
+- **고치지 않은 이유**: 둘 다 **동작 변경**이라 별도 결정이 필요하다. 지금 서비스 중인
+  `/api/files/search` 응답의 의미가 바뀐다.
+  1. **`FileContentService.extractText()`가 `null` 대신 대괄호 안내 문자열을 돌려준다**
+     (`[HWP 바이너리 형식 - 텍스트 추출 미지원]`, `[텍스트 추출 실패: …]`). 이 값이
+     검색 API의 `content`로 그대로 나가므로, **이 API를 RAG/색인에 쓰면 본문이 아닌
+     문구가 색인된다.**
+  2. **추출 실패 메시지에 서버의 파일 경로가 담긴다**
+     (`[텍스트 추출 실패: \nonexistent\path\file.md]`).
+- 현재 테스트는 이 동작을 **계약으로 고정**해 두었다(`FileContentServiceTest`).
+  바꾸기로 하면 테스트도 함께 바꿔야 한다.
+- **비차단**: 항목 17(단계 6)에서 화면을 붙일 때 자연스럽게 다시 볼 자리다.
+
+### 20. `2e294b3`에 평문 비밀번호가 남아 있다 — **조치 완료, 이력만 남음** (2026-08-26)
+
+- **출처**: `2026-08-26_summary.md` `## Session 13:00`.
+- **무엇이 있었나**: `uploader/config/application.properties`에 실제 MySQL **root
+  비밀번호가 평문**으로 커밋돼 있었다(`2e294b3`, 이미 `origin`에 push된 상태).
+- ✅ **한 조치**: 값을 `1234`로 치환해 push(`b9390c4`) → `.gitignore` 등록 +
+  `git rm --cached`(`2483c57`) → 로컬만 원복. **MySQL 비밀번호 자체를 교체**했다 —
+  `uploader@localhost` 전용 계정 신설 + `root` 비밀번호 교체(옛 값 차단 실측 확인).
+  실제 값은 리포 **밖** `C:\Users\superuser\GGReportAgent-local-db-credentials.txt`.
+- ⛔ **이력 재작성은 하지 않기로 사용자가 결정했다.** `git show 2e294b3`로 옛 값이
+  여전히 보이지만, **그 비밀번호는 이미 무효**라 열 수 있는 문이 없다.
+  **다시 "이력에 비밀번호가 있다"로 열지 말 것** — 알고 내린 결정이다.
+- **되살아나는 조건**: 리포가 public이거나 public이 되는 경우, 또는 같은 비밀번호를
+  다른 곳에서 재사용한 사실이 확인되는 경우. 그때는 `git filter-repo`/BFG + force push.
+- **재발 방지**: `uploader/config/application.properties`와
+  `kgi-ggreport-web/config/application.properties`가 **둘 다 `.gitignore` 대상**이다.
+  공유 템플릿은 `config-envs/` 쪽이고 전부 `<PLACEHOLDER>`다.
 
 ---
 
