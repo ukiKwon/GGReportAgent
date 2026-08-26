@@ -497,9 +497,13 @@ mvn test
 
 - 러너는 **JUnit 4**(`SpringRunner`/`MockitoJUnitRunner`)입니다 — `pom.xml`이
   `junit-vintage-engine`을 명시 추가한 이유입니다.
-- ⚠️ **`src/test/resources/application-test.properties`는 현재 적용되지 않습니다.**
-  프로파일 파일이라 `test` 프로파일이 활성화돼야 하는데 `@ActiveProfiles("test")`가
-  어디에도 없습니다. DB를 쓰는 테스트가 없어 지금은 문제가 되지 않습니다(§13-②).
+- 테스트 설정은 **`src/test/resources/application.properties`** (H2 인메모리 +
+  `schema-mysql.sql` 자동 적재 + MyBatis)입니다. 테스트 클래스패스에만 있고 **WAR에는
+  들어가지 않습니다.** 프로파일 스위치가 필요 없으므로 켜는 것을 잊을 수 없습니다.
+  - *2026-08-26 개명 — 종전 이름 `application-test.properties`는 `test` 프로파일이
+    켜져야 읽히는 파일인데 켜는 곳이 없어 한 번도 적용되지 않았습니다(§13-②).*
+  - 현재 테스트는 Mapper를 전부 `@MockBean`으로 대체해 **이 DataSource를 쓰지
+    않습니다.** 이 설정은 앞으로 Mapper 통합 테스트를 붙일 때를 위한 준비입니다.
 
 ---
 
@@ -551,10 +555,17 @@ mvn test
 언더스코어→카멜 매핑이 빠질 수 있습니다. **의도된 것인지 확인 필요.**
 같은 맥락으로 **Oracle용 DDL이 아직 없습니다**(MySQL 한 벌뿐).
 
-**② `src/test/resources/application-test.properties`가 적용되지 않습니다.**
-`test` 프로파일을 켜는 곳이 없습니다. 지금은 모든 테스트가 Mock이라 무해하지만,
-Mapper 통합 테스트를 추가하는 순간 조용히 잘못된 DataSource를 잡습니다.
-→ `@ActiveProfiles("test")`를 붙이거나 파일을 `application.properties`로 옮길 것.
+**② ~~`src/test/resources/application-test.properties`가 적용되지 않습니다~~ —
+✅ 해소(2026-08-26).** `test` 프로파일을 켜는 곳이 없어 한 번도 읽히지 않던 파일을
+**`application.properties`로 개명**했습니다. 이제 프로파일 스위치 없이 항상 읽히므로
+켜는 것을 잊을 수 없습니다(`@ActiveProfiles`를 매번 붙이는 방식보다 안전해 이쪽을
+택했습니다). 함께 `spring.autoconfigure.exclude`로 JNDI 자동설정을 껐습니다 —
+`jndi-name`이 빈 값으로 있으면 자동설정이 빈 이름으로 JNDI 조회를 시도하기 때문이며,
+`config-envs`의 비-`prod` 설정 4개가 같은 이유로 이미 끄고 있습니다.
+
+⚠️ **빌드로 검증하지 못했습니다** — 이 PC에 Maven이 없습니다. 현재 테스트는 DataSource를
+쓰지 않으므로(Mapper 전부 `@MockBean`) 영향이 없어야 하지만, Maven이 생기면
+`mvn test`로 확인이 필요합니다.
 
 **③ ~~전환 흔적 2건~~ — ✅ 정리 완료(2026-08-26).**
 - ~~`weblogic.xml`의 `prefer-application-packages`에 `org.hibernate.*`~~ → **제거**.
