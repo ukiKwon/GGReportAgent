@@ -1,6 +1,7 @@
 package com.kb.uploader.controller;
 
 import com.kb.uploader.dto.UploadResultItem;
+import com.kb.uploader.mapper.InstitutionMapper;
 import com.kb.uploader.mapper.UploadedFileMapper;
 import com.kb.uploader.service.FileUploadService;
 import org.junit.Test;
@@ -29,6 +30,11 @@ public class UploadControllerTest {
     @MockBean
     private UploadedFileMapper fileMapper;
 
+    // KGI11100$UploadAction 이 생성자 3번째 인자로 받는다(업로드 폼의 카테고리 목록을
+    // populateCategories()에서 채운다). 이게 없으면 @WebMvcTest 컨텍스트 자체가 못 뜬다.
+    @MockBean
+    private InstitutionMapper instMapper;
+
     @Test
     public void GET_upload_200반환() throws Exception {
         when(fileMapper.countByStatus("UNCLASSIFIED")).thenReturn(0L);
@@ -42,7 +48,9 @@ public class UploadControllerTest {
         MockMultipartFile file = new MockMultipartFile(
             "files", "2024_서울대_보고서.pdf",
             "application/pdf", "내용".getBytes());
-        when(uploadService.upload(any())).thenReturn(Arrays.asList(
+        // upload()는 오버로드다 — 컨트롤러가 부르는 것은 4인자 쪽이다.
+        // 1인자 스텁은 매칭되지 않아 results 가 null 로 들어간다.
+        when(uploadService.upload(any(), any(), any(), any())).thenReturn(Arrays.asList(
             new UploadResultItem("2024_서울대_보고서.pdf", true, "대학교", "분류 완료")));
         when(fileMapper.countByStatus("UNCLASSIFIED")).thenReturn(0L);
 
