@@ -43,6 +43,15 @@
 >    까다롭지 않다**(사용자 확인) — 따라서 이관 일정의 리스크 항목이 아니고, 문의서에
 >    별도 문항을 넣지 않는다.
 > 4. **JDK 1.8은 내·외부망 공통으로 사용 가능하다.**
+>
+> **함께 개정된 것 — §5-(A)의 결정이 실행 불가능해 바뀌었다.** Task 1.3에서 DDL을
+> 실제로 쓰다 발견했다. `tasks.draft_content`를 `NOT NULL`로 유지하면 최초 INSERT가
+> 반드시 실패한다(Oracle이 `''`를 NULL로 바꾸므로 "명시값을 넣는다"로 빠져나올 수 없다).
+> **NULL 허용 + Mapper의 `null → ""` 정규화**로 바꿨다. 상세는 §5-(A).
+>
+> **검증이 어디서 이뤄지는지도 명시했다** — §8의 개정판 표. 외부망 로컬은 IntelliJ +
+> MySQL로 화면·로직·REST 계약을 돌려 보는 자리이고, **Mapper·DDL 정합성과 Oracle Text는
+> 내부망 Oracle에서만 판정한다.** 이 구도는 사용자가 확인한 실제 작업 계획이다.
 
 ## 1. 목적과 결론
 
@@ -132,10 +141,29 @@ SQLite → Oracle은 "타입만 바꾸면 되는" 작업이 아니다. 현재 �
 `tasks.draft_content TEXT NOT NULL DEFAULT ''`가 있고, `NOT NULL` 컬럼에 `DEFAULT ''`는
 Oracle에서 그대로 옮기면 제약 위반이 된다. 나아가 애플리케이션 의미도 달라진다 —
 Python 코드가 `draft_content == ""`(아직 안 씀)로 판단하던 자리에서 Java는 `null`을
-받는다. **결정: 이런 컬럼은 Oracle에서 `NOT NULL`을 유지하되 DB 기본값을 두지 않고,
-INSERT 시 애플리케이션이 항상 명시값을 넣는다. 읽을 때는 Mapper 레벨에서 `null → ""`로
-정규화**해 프런트가 받는 JSON을 현재와 동일하게 유지한다. (`participation_decision
-DEFAULT '[]'`처럼 빈 문자열이 아닌 기본값은 문제없다.)
+받는다.
+
+~~**결정: 이런 컬럼은 Oracle에서 `NOT NULL`을 유지하되 DB 기본값을 두지 않고,
+INSERT 시 애플리케이션이 항상 명시값을 넣는다.**~~
+⚠️ **개정 2026-08-26 — 이 결정은 실행 불가능하다.** Task 1.3에서 DDL을 실제로 쓰다
+발견했다. `NOT NULL`을 유지하면 **최초 INSERT가 반드시 실패한다** — 작업은 "아직
+아무것도 안 쓴" 상태로 생성되는데, 앱이 빈 문자열을 *명시적으로* 넣어도 Oracle이 그것을
+NULL로 바꾸므로 제약에 걸린다. "명시값을 넣는다"로는 빠져나올 수 없다. `''`가 아닌
+센티널(공백 한 칸 등)을 넣는 방법은 데이터에 거짓을 심는 것이라 택하지 않는다.
+
+**개정된 결정: 이런 컬럼은 `NULL` 허용으로 두고, 읽을 때 Mapper 레벨에서 `null → ""`로
+정규화**해 프런트가 받는 JSON을 현재와 동일하게 유지한다. 정규화는 원래 결정에도 이미
+들어 있던 항목이라 바뀌는 것은 **DB 쪽 제약 하나뿐**이다 — "아직 안 씀"의 표현이 `''`
+에서 `NULL`로 바뀌고, 그 차이는 Mapper 안에서 끝난다.
+
+- 해당 컬럼: `tasks.draft_content` (현재 스키마에서 `NOT NULL DEFAULT ''`인 유일한 컬럼).
+- (`participation_decision DEFAULT '[]'`처럼 빈 문자열이 **아닌** 기본값은 문제없다.
+  Oracle에서 그대로 `DEFAULT '[]'`로 옮긴다.)
+- ⚠️ **외부망 로컬(MySQL)에서도 똑같이 `NULL` 허용으로 둔다.** MySQL은 `''`를 담을 수
+  있지만, "아직 안 씀"의 표현이 두 DB에서 갈리면 Mapper를 한 벌로 못 쓴다. 그리고
+  **이 결함은 MySQL에서 드러나지 않으므로**(빈 문자열이 그대로 저장된다) 정규화가
+  빠져 있어도 외부망 로컬에서는 아무 증상이 없다 — 내부망 Oracle에서 처음 터진다.
+- 구현: `kgi-ggreport-web/src/main/resources/db/` (정본 `oracle/001_schema.sql`).
 
 **(B) 긴 텍스트는 CLOB이어야 한다.** `draft_content`, `messages.content`,
 `chat_messages.content`, 그리고 색인 청크 본문은 4000바이트를 넘길 수 있어 `VARCHAR2`로
