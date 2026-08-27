@@ -19,14 +19,16 @@ import static org.junit.Assert.fail;
 /**
  * 단계 2에서 <b>지금 재생 가능한</b> 골든만 실제로 대조한다.
  *
- * <p>고르는 기준은 하나다 — <b>빈 DB 로 답이 정해지는가</b>. 아래 6건은 기관 시드
- * (Task 2.3)나 결재 시나리오(단계 3~4) 없이도 응답이 확정된다:
- * 없는 기관 404, 계정 목록(코드 상수), 메뉴 2건(코드 상수), 원문 열람(파일시스템),
- * 정합성 초기 상태(기관 0건).
+ * <p>고르는 기준은 하나다 — <b>공고·결재 데이터 없이 답이 정해지는가</b>. 아래 9건은
+ * 기관 시드(Task 2.3 · {@code db/oracle/003_seed_institutions.sql})까지만 있으면
+ * 응답이 확정된다: 기관 목록·상세·없는 기관 404·산출물 경로, 계정과 메뉴 2건(코드
+ * 상수), 원문 열람(파일시스템), 정합성 초기 상태.
  *
  * <p>나머지는 여기 넣지 않는다:
  * <ul>
- *   <li>{@code 00·01·08·09} — 기관 25건 시드가 있어야 한다(Task 2.3).</li>
+ *   <li>{@code 08}(배점 커버리지) — 시드로는 안 된다. {@code {output_root}/노원구/}
+ *       밑의 <b>3단계 산출물</b>({@code rfp_scoring.json})을 읽는데 그 폴더는
+ *       {@code data/}(gitignored) 라 리포에 없다. 단계 3에서 본다.</li>
  *   <li>{@code 25·26·27} — 골든 본문이 결재 시나리오(10~24) 이후의 상태다.
  *       빈 상태 응답만 {@link EmptyStateApiTest} 에서 본다.</li>
  * </ul>
@@ -41,18 +43,21 @@ public class GoldenReadApiTest {
 
     /** 파일명 그대로. 순서는 무관하다 — 전부 상태를 바꾸지 않는 조회다. */
     private static final List<String> REPLAYABLE = Arrays.asList(
+            "00_institutions_list",
+            "01_institution_detail",
             "02_institution_404",
             "03_accounts",
             "04_menus_default",
             "05_menus_team_lead",
             "06_document_read",
-            "07_consistency_initial");
+            "07_consistency_initial",
+            "09_artifacts_nowon");
 
     @Autowired
     private MockMvc mockMvc;
 
     @Test
-    public void 조회_골든_6건이_그대로_재생된다() throws Exception {
+    public void 조회_골든_9건이_그대로_재생된다() throws Exception {
         GoldenRunner runner = new GoldenRunner(mockMvc);
         Path dir = GoldenSnapshot.goldenApiDir();
 
