@@ -32,6 +32,14 @@ public interface TaskMapper {
     List<String> selectTeams(@Param("bidCaseId") String bidCaseId);
 
     /**
+     * {@code routers/tasks._context} — 작업 → 그 작업이 속한 공고·기관.
+     *
+     * <p>결재 경로가 기관명·단계를 쪽지에 싣고 파일 경로에도 쓰므로 한 번에 뽑는다.
+     * 없으면 null({@code task not found} 404 는 서비스가 낸다).
+     */
+    com.kbstar.kgi.ggreport.web.dto.TaskContext selectContext(@Param("taskId") String taskId);
+
+    /**
      * {@code GET /tasks?team=…} — <b>기관 횡단</b> 작업 목록(원본 {@code list_tasks}).
      * {@code statuses} 가 비어 있으면 상태로 거르지 않는다.
      *

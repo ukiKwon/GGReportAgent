@@ -49,6 +49,27 @@
      ORDER BY TEAM
   </select>
 
+  <!-- routers/tasks._context — 결재 경로가 쓰는 기관·공고 맥락(응답 DTO 가 아니다). -->
+  <resultMap id="taskContext" type="com.kbstar.kgi.ggreport.web.dto.TaskContext">
+    <id     property="taskId"          column="TASK_ID"/>
+    <result property="team"            column="TEAM"/>
+    <result property="status"          column="STATUS"/>
+    <result property="assignee"        column="ASSIGNEE"/>
+    <result property="bidCaseId"       column="BID_CASE_ID"/>
+    <result property="institutionId"   column="INSTITUTION_ID"/>
+    <result property="institutionName" column="NAME_KO"/>
+    <result property="stage"           column="STAGE"/>
+  </resultMap>
+
+  <select id="selectContext" resultMap="taskContext">
+    SELECT T.TASK_ID, T.TEAM, T.STATUS, T.ASSIGNEE, T.BID_CASE_ID,
+           B.INSTITUTION_ID, I.NAME_KO, I.STAGE
+      FROM TASKS T
+      JOIN BID_CASES B    ON B.BID_CASE_ID    = T.BID_CASE_ID
+      JOIN INSTITUTIONS I ON I.INSTITUTION_ID = B.INSTITUTION_ID
+     WHERE T.TASK_ID = #{taskId}
+  </select>
+
   <select id="selectTeams" resultType="string">
     SELECT TEAM FROM TASKS WHERE BID_CASE_ID = #{bidCaseId}
   </select>

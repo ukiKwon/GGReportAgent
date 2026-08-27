@@ -14,9 +14,9 @@ import java.util.List;
  * 조용히 갈라진다 — 계정 전환기와 디자이너 뷰의 '문의' 버튼이 같은 답을 써야 해서
  * 여기로 모았다.
  *
- * <p>⚠️ <b>단계 2에 필요한 것만 옮겼다.</b> {@code compose}/{@code split_role}/
- * {@code positions_for}(프로필 화면이 쓰는 소속×직책 변환)와 {@code lead_of}·
- * {@code is_lead}(결재 라우팅)는 아직 없다 — 단계 4·5에서 그 엔드포인트와 함께 온다.
+ * <p>⚠️ <b>아직 안 옮긴 것</b>: {@code compose}/{@code split_role}/
+ * {@code positions_for}(프로필 화면이 쓰는 소속×직책 변환). 결재 라우팅
+ * ({@code lead_of}·{@code team_of}·{@code is_lead})은 단계 4-②에서 옮겼다.
  */
 public final class Teams {
 
@@ -76,6 +76,62 @@ public final class Teams {
         out.add(DESIGNER_TEAM);
         out.add(FINAL_APPROVER);
         return Collections.unmodifiableList(out);
+    }
+
+    // ── 작업 상태 ────────────────────────────────────────────────────────────
+    // ⚠️ 문자열 그대로가 계약이다. 화면·골든·DB 에 이 값이 그대로 들어 있다.
+
+    /** 아직 담당자가 손보는 중. 제출할 수 있는 상태이기도 하다. */
+    public static final List<String> WORKING_STATUSES =
+            Collections.unmodifiableList(Arrays.asList("대기", "작성중"));
+    /** 담당자가 제출했고 팀장 결재를 기다린다. */
+    public static final String SUBMITTED_STATUS = "1차완료";
+    /** 팀장 결재까지 끝났다. <b>팀 작업은 여기가 종점</b>이다. */
+    public static final String APPROVED_STATUS = "2차완료";
+    /** 영업부장의 최종 결재까지 끝났다 — 디자이너 최종본만 여기까지 온다. */
+    public static final String FINAL_STATUS = "최종완료";
+
+    public static boolean isWorking(String status) {
+        return WORKING_STATUSES.contains(status);
+    }
+
+    /**
+     * 소속(역할) → {@code TASKS.TEAM}. {@code 영업팀}·{@code 영업팀장}·{@code 영업부장}
+     * 모두 {@code 영업} 이다.
+     *
+     * <p>⚠️ <b>접미사를 떼는 순서가 규칙의 전부다</b> — {@code 영업팀장} 에서
+     * {@code 팀} 을 먼저 떼면 {@code 영업장} 이라는 없는 팀이 된다. 긴 것부터 본다.
+     */
+    public static String teamOf(String role) {
+        String text = role == null ? "" : role.trim();
+        for (String suffix : new String[]{LEAD_SUFFIX, HEAD_SUFFIX, TEAM_SUFFIX}) {
+            if (text.endsWith(suffix) && text.length() > suffix.length()) {
+                return text.substring(0, text.length() - suffix.length());
+            }
+        }
+        return text;
+    }
+
+    /** 결재 권한이 있는 역할인가. */
+    public static boolean isLead(String role) {
+        String text = role == null ? "" : role.trim();
+        return LEAD_ROLES.contains(text) || FINAL_APPROVER.equals(text);
+    }
+
+    /**
+     * 그 팀 작업물을 <b>1차로</b> 결재하는 역할.
+     *
+     * <p><b>디자이너 작업도 영업팀장이 받는다</b>(사용자 확정) — 디자이너는 영업팀
+     * 소속이다. 영업부장은 그 뒤에 올라오는 최종본만 본다({@link #FINAL_APPROVER}).
+     */
+    public static String leadOf(String team) {
+        if (AUTHORING_TEAMS.contains(team)) {
+            return team + LEAD_SUFFIX;
+        }
+        if (DESIGNER_TEAM.equals(team)) {
+            return DESIGNER_HOME_TEAM + LEAD_SUFFIX;
+        }
+        return FINAL_APPROVER;
     }
 
     /** 사람이 글을 쓰는 팀인가. 디자이너가 '문의'할 상대이기도 하다. */
