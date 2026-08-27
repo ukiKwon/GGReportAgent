@@ -54,12 +54,14 @@ public class OrchestratorEngine {
     private final OrchMapper orch;
     private final NodeHandlers handlers;
     private final DbRecorderFactory recorders;
+    private final BackgroundExecutor executor;
 
     public OrchestratorEngine(OrchMapper orch, NodeHandlers handlers,
-                              DbRecorderFactory recorders) {
+                              DbRecorderFactory recorders, BackgroundExecutor executor) {
         this.orch = orch;
         this.handlers = handlers;
         this.recorders = recorders;
+        this.executor = executor;
     }
 
     /**
@@ -85,7 +87,7 @@ public class OrchestratorEngine {
         run.setUpdatedAt(now);
         orch.insertRun(run);
 
-        advance(run, new LinkedHashMap<String, Object>(runInput));
+        submit(run, new LinkedHashMap<String, Object>(runInput));
         return orch.selectRun(run.getRunId());
     }
 
@@ -120,8 +122,29 @@ public class OrchestratorEngine {
         run.setPendingGate(null);
         touch(run);
 
-        advance(run, state);
+        submit(run, state);
         return orch.selectRun(run.getRunId());
+    }
+
+    /**
+     * 실행을 <b>요청 스레드 밖으로</b> 넘긴다(설계 §2·§4 — WAS 에서 raw thread 금지).
+     *
+     * <p>⚠️ 상태를 <b>클로저로</b> 들려 보낸다. DB 에 따로 적지 않으므로, 제출과 실행
+     * 사이에 서버가 죽으면 그 실행은 {@code ORCH_RUN} 이 {@code RUNNING} 인 채 STEP 이
+     * 없는 모양으로 남는다 — <b>보이는 형태로</b> 남는다는 뜻이고, 재기동 뒤 사람이
+     * 판단할 근거가 된다(조용히 사라지는 것보다 낫다).
+     *
+     * <p>{@link CallerRunsExecutor} 면 이 자리에서 그대로 돌고(테스트·외부망 로컬),
+     * WorkManager 면 다른 스레드에서 돈다 — 그쪽은 트랜잭션이 없으므로
+     * {@code advance} 가 자기 것을 연다.
+     */
+    private void submit(final OrchRun run, final Map<String, Object> state) {
+        executor.execute("orch:" + run.getRunId(), new Runnable() {
+            @Override
+            public void run() {
+                advance(run, state);
+            }
+        });
     }
 
     /**
