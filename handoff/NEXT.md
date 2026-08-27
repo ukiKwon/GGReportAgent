@@ -944,20 +944,21 @@ py -3 -m server.demo                       # 데모 환경 + 서버 (data/demo.d
   만든다.** WAS 배포 표준에 어긋나므로(설계 §2·§4) 내부망에 올리기 전에 CommonJ
   WorkManager 경로로 옮기거나 꺼야 한다. `uploader/README.md` §10에 경고로 적어 뒀다.
 
-### 19. uploader 검색 API의 설계 판단 2건 — 기록만 해 둠 (2026-08-26)
+### 19. ~~uploader 검색 API의 설계 판단 2건~~ — **완료(해소)** (2026-08-27)
 
-- **출처**: `2026-08-26_summary.md` `## Session 13:00`. `uploader/README.md` §13-④.
-- **고치지 않은 이유**: 둘 다 **동작 변경**이라 별도 결정이 필요하다. 지금 서비스 중인
-  `/api/files/search` 응답의 의미가 바뀐다.
-  1. **`FileContentService.extractText()`가 `null` 대신 대괄호 안내 문자열을 돌려준다**
-     (`[HWP 바이너리 형식 - 텍스트 추출 미지원]`, `[텍스트 추출 실패: …]`). 이 값이
-     검색 API의 `content`로 그대로 나가므로, **이 API를 RAG/색인에 쓰면 본문이 아닌
-     문구가 색인된다.**
-  2. **추출 실패 메시지에 서버의 파일 경로가 담긴다**
-     (`[텍스트 추출 실패: \nonexistent\path\file.md]`).
-- 현재 테스트는 이 동작을 **계약으로 고정**해 두었다(`FileContentServiceTest`).
-  바꾸기로 하면 테스트도 함께 바꿔야 한다.
-- **비차단**: 항목 17(단계 6)에서 화면을 붙일 때 자연스럽게 다시 볼 자리다.
+- **출처**: `2026-08-26_summary.md` `## Session 13:00` → 2026-08-27 세션에서 해소.
+- **무엇이었나**: `FileContentService.extractText()` 가 실패 시 `null` 이 아니라 대괄호
+  안내 문자열을 돌려주고(`[HWP 바이너리 형식 - 텍스트 추출 미지원]`), 그 값이
+  `/api/files/search` 응답의 `content` 로 그대로 나갔다. 실패 메시지에는 **서버 파일
+  경로**까지 담겼다. 둘 다 동작 변경이라 별도 결정이 필요해 미뤄 뒀던 항목이다.
+- **어떻게 풀렸나**: 사용자가 uploader **JSON API 를 재정의**하면서
+  `/api/files/search` 가 삭제 대상이 됐다 — `extractText()` 의 운영 호출부가 0건이 되어
+  대괄호 문자열을 계약으로 쓰는 곳이 사라졌다. 그래서 **실패 시 `null` 반환**으로
+  바꿨고(사용자 승인), 서버 경로 노출도 함께 없어졌다. 사유는 로그에만 남긴다.
+  `FileContentServiceTest` 도 함께 고쳤다(대괄호 문자열을 계약으로 고정하고 있었다).
+- **검증**: `uploader` 모듈 `mvn -o test` 38건 통과.
+- 재정의 전체의 gap 분석은 **`docs/uploader_json_api_재정의_gap분석.md`** 에 있다
+  (아래 항목 21).
 
 ### 20. `2e294b3`에 평문 비밀번호가 남아 있다 — **조치 완료, 이력만 남음** (2026-08-26)
 
@@ -1173,3 +1174,27 @@ py -3 -m server.demo                       # 데모 환경 + 서버 (data/demo.d
   **단수형**(`bank_idea_draft.txt`)이었음. 사용자 결정으로 복수형(원래 규격)을
   기준으로 통일, 12개구 파일명을 전부 rename. 커밋 `274eb7f`. 산출물 본문 내 3곳의
   단수형 자기참조는 의도적으로 보류(위 "2. 산출물 본문 내 ... 자기참조" 항목 참고).
+
+### 21. uploader JSON API 재정의 — **정의 미완(4건), 구현 미착수** (2026-08-27)
+
+- **출처**: 2026-08-27 세션. 분석 문서 **`docs/uploader_json_api_재정의_gap분석.md`**.
+- **무엇인가**: 사용자가 uploader 의 **JSON API 2개를 8개로 재정의**했다(화면 14개는
+  그대로 둔다). CloudDisk 파일 저장소를 다루는 RPC 스타일 API +
+  HMAC 서명 헤더 4개 + `{"event":"CHUNK","content":"<JSON 문자열>"}` 봉투.
+- **확정된 것 5건**: ⓐ 엔드포인트 `POST /v1/{env}-kgi-ggreport/{api명}`(env 는 설정값)
+  ⓑ 전부 Java 구현 ⓒ `parseDoc` 은 `FileContentService` 재사용 ⓓ 화면(DB)과
+  API(파일시스템)는 **의도적으로 분리** — `clouddisk.base-dir` 별도 프로퍼티
+  ⓔ 추출 실패 시 `.md` 를 만들지 않고 `parsed_md: null`(항목 19가 여기서 닫혔다).
+- ⏳ **아직 정해지지 않은 4건** — 이것이 구현 착수를 막는다:
+  1. 각 API 의 **성공 응답 필드 스키마**(`content` 안 JSON 의 모양)
+  2. **오류 응답 규약**(`event` 가 `ERROR` 가 되는지, HTTP 상태코드)
+  3. **`event:"CHUNK"` 의 의미** — 이름이 스트리밍을 시사한다. 단건도 항상 하나인지
+  4. **`fileList` ↔ `shell` 의 차이** — 둘 다 디렉터리 목록이다. 합쳐도 되는지
+- ⚠️ **구현 전에 반드시 볼 것 2가지**(문서 §4):
+  - `X-KB-Client-Hash` 는 **Body 원문 바이트**로 HMAC 을 계산한다. 컨트롤러에서 DTO 를
+    다시 직렬화해 해시하면 **거의 확실히 불일치한다** — 필터에서 raw bytes 를 잡을 것.
+  - `filepath` 계열 인자에 **경로 탈출 방어가 명세에 없다.** `fileDelete` 는 실제로
+    파일을 지운다. `clouddisk.base-dir` 하위인지 정규화 후 확인할 것.
+- **미착수**: 코드 변경은 `FileContentService` 의 null 반환(항목 19) 하나뿐이고,
+  8개 API 는 **아직 한 줄도 없다.**
+
