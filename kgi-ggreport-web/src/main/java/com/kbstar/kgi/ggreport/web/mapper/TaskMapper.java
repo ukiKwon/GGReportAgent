@@ -32,6 +32,19 @@ public interface TaskMapper {
     List<String> selectTeams(@Param("bidCaseId") String bidCaseId);
 
     /**
+     * {@code GET /institutions/{id}/status} 의 작업 목록 — 골든 {@code 30}.
+     * 그 기관의 <b>모든</b> 공고에 걸친다(원본과 같은 범위).
+     *
+     * <p>⚠️ 원본에는 {@code ORDER BY} 가 없다. SQLite 가 {@code UNIQUE(BID_CASE_ID,
+     * TEAM)} 인덱스로 찾아 <b>팀 이름순</b>으로 돌려주던 것을 골든 {@code 30} 이
+     * 그대로 굳혔다(실측: 삽입 순서 영업·전산·예산이 아니라 영업·예산·전산).
+     * Oracle 은 그런 순서를 보장하지 않으므로 <b>{@code ORDER BY TEAM} 을 명시한다.</b>
+     * 002 의 {@code rowid} 문제와 같은 종류다 — 빼면 화면 순서가 조용히 달라진다.
+     */
+    List<com.kbstar.kgi.ggreport.web.dto.WorkflowStatusTask> selectStatusTasks(
+            @Param("institutionId") String institutionId);
+
+    /**
      * {@code routers/tasks._context} — 작업 → 그 작업이 속한 공고·기관.
      *
      * <p>결재 경로가 기관명·단계를 쪽지에 싣고 파일 경로에도 쓰므로 한 번에 뽑는다.

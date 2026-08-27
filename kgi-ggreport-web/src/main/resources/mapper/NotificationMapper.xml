@@ -113,4 +113,32 @@
        AND READ_AT IS NULL
   </update>
 
+  <!--
+    타임라인(골든 29)의 쪽지 쪽. 쪽지에는 팀이 없어서 KIND(결재요청·쪽지 …)를
+    role 자리에 싣는다 — 화면이 메시지와 같은 줄 형식으로 그린다.
+    kind('notification')·team·author·model 은 서비스가 채운다(전부 상수/null).
+
+    ⚠️ ORDER BY 의 SEQ_NO 는 005 가 추가한 삽입 순서다. CREATED_AT 이 같을 때
+       Python 은 SQLite 삽입 순서가 유지됐지만 Oracle 은 보장하지 않는다.
+  -->
+  <resultMap id="timelineEvent" type="com.kbstar.kgi.ggreport.web.dto.TimelineEvent">
+    <result property="stage"   column="STAGE"/>
+    <result property="at"      column="CREATED_AT"/>
+    <result property="role"    column="EVENT_ROLE"/>
+    <result property="content" column="CONTENT"/>
+    <result property="taskId"  column="TASK_ID"/>
+  </resultMap>
+
+  <select id="selectTimeline" resultMap="timelineEvent">
+    SELECT STAGE, CREATED_AT, KIND AS EVENT_ROLE, CONTENT, TASK_ID
+      FROM NOTIFICATIONS
+     WHERE INSTITUTION_ID = #{institutionId}
+     ORDER BY CREATED_AT, SEQ_NO
+  </select>
+
+  <select id="countUnread" resultType="int">
+    SELECT COUNT(*) FROM NOTIFICATIONS
+     WHERE INSTITUTION_ID = #{institutionId} AND READ_AT IS NULL
+  </select>
+
 </mapper>

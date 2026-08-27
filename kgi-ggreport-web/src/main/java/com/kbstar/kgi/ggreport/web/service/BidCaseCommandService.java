@@ -2,6 +2,8 @@ package com.kbstar.kgi.ggreport.web.service;
 
 import com.kbstar.kgi.ggreport.web.config.AppProperties;
 import com.kbstar.kgi.ggreport.web.domain.BidCase;
+import com.kbstar.kgi.ggreport.web.domain.BidCaseDetail;
+import com.kbstar.kgi.ggreport.web.domain.BidCaseFinalizeIn;
 import com.kbstar.kgi.ggreport.web.domain.Institution;
 import com.kbstar.kgi.ggreport.web.domain.ParticipationDecisionEntry;
 import com.kbstar.kgi.ggreport.web.domain.ParticipationDecisionIn;
@@ -48,6 +50,11 @@ public class BidCaseCommandService {
 
     /** 마지막 단계. 여기서 '참여'면 확정이다. */
     private static final int FINAL_TIER = 3;
+
+    /** 최종 확정이 걸린 작업 수 = 작성 3팀. */
+    private static final int TEAM_COUNT = 3;
+    /** 최종 확정 뒤의 기관 단계(원본 {@code UPDATE institutions SET stage = 7}). */
+    private static final int FINALIZED_STAGE = 7;
 
     /** {@code agent/pipeline.RFP_ARTIFACTS} — 둘 다 있어야 "분석 산출물이 있다". */
     private static final List<String> RFP_ARTIFACTS =
@@ -172,6 +179,57 @@ public class BidCaseCommandService {
             return CHOICE_DECLINE.equals(choice) ? STATUS_DECLINED : STATUS_HELD;
         }
         return tier < FINAL_TIER ? null : STATUS_CONFIRMED;
+    }
+
+    /**
+     * 최종 확정/반려 — 골든 {@code 24}. 흐름의 끝이다.
+     *
+     * <p><b>작업 3건이 모두 {@code 2차완료} 여야 한다</b>(아니면 409). 판단이 아니라
+     * 선후 규칙이라 화면이 아니라 여기서 막는다 — 화면만 막으면 API 로 그대로 뚫린다.
+     *
+     * <p>확정이면 기관 단계를 <b>7</b> 로 올리고, 반려면 <b>작업 3건을 전부
+     * {@code 작성중} 으로 되돌린다</b>(담당자가 다시 손볼 것이 남는다).
+     * 어느 쪽이든 누가 언제 했는지를 공고에 남긴다(감사 기록).
+     *
+     * <p>⚠️ <b>여기서 아직 안 하는 것: 산출물 조립</b>({@code assemble_deliverable}).
+     * 원본은 확정 순간 팀 초안을 모아 PPTX 를 만들고 그 경로를
+     * {@code INSTITUTIONS.PPTX_PATH} 에 적는다. POI(XSLF)로 옮기는 것은 <b>단계 5
+     * Task 5.2</b> 이고 골든 {@code 24}·{@code 25}·{@code 29}·{@code 30} 은 그 경로를
+     * 보지 않는다. 그래서 지금은 <b>PPTX_PATH 가 비어 있는 채로 확정된다</b> —
+     * 산출물 화면이 빈칸이 된다는 뜻이므로 단계 5에서 반드시 이 자리를 채울 것.
+     */
+    @Transactional
+    public BidCaseDetail finalizeBidCase(String bidCaseId, BidCaseFinalizeIn body, String userId) {
+        BidCase bidCase = bidCases.selectById(bidCaseId);
+        if (bidCase == null) {
+            throw ApiException.notFound("bid case not found");
+        }
+        List<TaskSummary> summaries = tasks.selectSummaries(bidCaseId);
+        if (summaries.size() != TEAM_COUNT || !allApproved(summaries)) {
+            throw new ApiException(409, "not all tasks are 2차완료");
+        }
+
+        if (body.isApproved()) {
+            institutions.updateStage(bidCase.getInstitutionId(), FINALIZED_STAGE);
+            // TODO(단계 5 Task 5.2): assemble_deliverable — 팀 초안 → PPTX + PPTX_PATH.
+        } else {
+            for (TaskSummary summary : summaries) {
+                // 원본은 approve_task(approved=False) 를 부른다 — 결과는 '작성중' 복귀다.
+                tasks.updateStatus(summary.getTaskId(), "작성중");
+            }
+        }
+        bidCases.updateFinalization(bidCaseId, userId, Times.nowIso());
+
+        return new BidCaseDetail(bidCases.selectById(bidCaseId), tasks.selectSummaries(bidCaseId));
+    }
+
+    private boolean allApproved(List<TaskSummary> summaries) {
+        for (TaskSummary summary : summaries) {
+            if (!Teams.APPROVED_STATUS.equals(summary.getStatus())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** {@code create_tasks_for_bid_case} — 팀별 작업. 이미 있는 팀은 건너뛴다(멱등). */
