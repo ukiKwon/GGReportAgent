@@ -49,6 +49,27 @@
      ORDER BY TEAM
   </select>
 
+  <resultMap id="workflowStatusTask" type="com.kbstar.kgi.ggreport.web.dto.WorkflowStatusTask">
+    <id     property="taskId"      column="TASK_ID"/>
+    <result property="team"        column="TEAM"/>
+    <result property="status"      column="STATUS"/>
+    <result property="progressPct" column="PROGRESS_PCT"/>
+    <result property="assignee"    column="ASSIGNEE"/>
+  </resultMap>
+
+  <!--
+    ⚠️ ORDER BY TEAM 은 원본에 없다. SQLite 가 UNIQUE(BID_CASE_ID, TEAM) 인덱스로
+       찾아 팀 이름순으로 돌려주던 것을 골든 30 이 굳혔다(삽입 순서가 아니다).
+       Oracle 은 보장하지 않으니 명시한다 — 빼면 화면 순서가 조용히 달라진다.
+  -->
+  <select id="selectStatusTasks" resultMap="workflowStatusTask">
+    SELECT T.TASK_ID, T.TEAM, T.STATUS, T.PROGRESS_PCT, T.ASSIGNEE
+      FROM TASKS T
+      JOIN BID_CASES B ON B.BID_CASE_ID = T.BID_CASE_ID
+     WHERE B.INSTITUTION_ID = #{institutionId}
+     ORDER BY T.TEAM
+  </select>
+
   <!-- routers/tasks._context — 결재 경로가 쓰는 기관·공고 맥락(응답 DTO 가 아니다). -->
   <resultMap id="taskContext" type="com.kbstar.kgi.ggreport.web.dto.TaskContext">
     <id     property="taskId"          column="TASK_ID"/>

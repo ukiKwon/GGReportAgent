@@ -48,4 +48,15 @@ public interface NotificationMapper {
      * 최초 확인 시각이 바뀌지 않는다. 호출부는 갱신 행 수로 "처음 읽었는지"를 안다.
      */
     int markRead(@Param("notificationId") String notificationId, @Param("readAt") String readAt);
+
+    /**
+     * 타임라인(골든 {@code 29})의 쪽지 쪽. {@code KIND} 가 {@code role} 자리로 온다 —
+     * 쪽지에는 팀이 없어서 화면이 그 칸을 종류 표시로 쓴다.
+     */
+    List<com.kbstar.kgi.ggreport.web.dto.TimelineEvent> selectTimeline(
+            @Param("institutionId") String institutionId);
+
+    /** 워크플로 상태의 {@code notifications_unread} — 골든 {@code 30}. */
+    int countUnread(@Param("institutionId") String institutionId);
+
 }

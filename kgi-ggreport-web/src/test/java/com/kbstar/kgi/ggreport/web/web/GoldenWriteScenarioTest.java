@@ -22,8 +22,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
 /**
- * 결재 시나리오 골든을 <b>순서대로</b> 재생한다 — 지금은 {@code 10}~{@code 14}
- * (공고 생성 → 참여결정 3단 → 확정 상세).
+ * 결재 시나리오 골든 {@code 10}~{@code 30} 을 <b>순서대로</b> 재생한다 — 공고 생성 →
+ * 참여결정 3단 → 작업 3건 결재 → 최종 확정 → 그 뒤의 조회 5종.
  *
  * <p>앞의 조회 골든들과 다른 점 셋:
  * <ol>
@@ -58,7 +58,7 @@ public class GoldenWriteScenarioTest {
     }
 
     @Test
-    public void 공고생성부터_참여확정까지_골든_10_14() throws Exception {
+    public void 공고생성부터_최종확정까지_골든_10_30() throws Exception {
         JsonNode created = play("10_bidcase_create", null);
         String bidCaseId = created.path("bid_case_id").asText(null);
         assertNotNull("공고 id 가 안 왔다", bidCaseId);
@@ -86,6 +86,16 @@ public class GoldenWriteScenarioTest {
 
         결재_3세트를_돈다(confirmed);
         제출이_각_팀장에게_결재요청을_보낸다();
+
+        // ③ 최종 확정 → 그 뒤의 조회 5종. 확정이 기관 단계를 7로 올리므로 25~30 이
+        //    전부 그 값을 본다 — 순서를 바꾸면 stage 가 1로 남아 넷이 함께 깨진다.
+        play("24_bidcase_finalize", bidCaseId);
+        play("25_bidcases_assignee_view", null);
+        play("26_tasks_team_view", null);
+        play("27_notifications_sales", null);
+        play("28_consistency_after", null);
+        play("29_timeline_after", null);
+        play("30_workflow_status", null);
     }
 
     /**

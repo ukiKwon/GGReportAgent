@@ -2,6 +2,7 @@ package com.kbstar.kgi.ggreport.web.web;
 
 import com.kbstar.kgi.ggreport.web.domain.BidCase;
 import com.kbstar.kgi.ggreport.web.domain.BidCaseDetail;
+import com.kbstar.kgi.ggreport.web.domain.BidCaseFinalizeIn;
 import com.kbstar.kgi.ggreport.web.domain.ParticipationDecisionIn;
 import com.kbstar.kgi.ggreport.web.domain.ParticipationDecisionOut;
 import com.kbstar.kgi.ggreport.web.dto.BidCaseCreateIn;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,8 +27,7 @@ import java.util.List;
  * "먼저 선언해야 한다"는 주석이 붙어 있다 — 여기서는 순서가 아니라 <b>구체성</b>이
  * 규칙이니, 나중에 {@code /{bidCaseId}} 를 위로 옮겨도 깨지지 않는다.
  *
- * <p>쓰기는 생성·참여결정까지 있다(골든 {@code 10}~{@code 13}). 최종확정
- * ({@code /finalize})은 작업 3건이 모두 2차완료여야 해서 결재 흐름과 함께 붙인다.
+ * <p>쓰기는 생성·참여결정·최종확정이 있다(골든 {@code 10}~{@code 13}·{@code 24}).
  */
 @RestController
 @RequestMapping("/bidcases")
@@ -77,5 +78,18 @@ public class BidCaseController {
     @GetMapping("/{bidCaseId}")
     public BidCaseDetail detail(@PathVariable String bidCaseId) {
         return bidCases.detail(bidCaseId);
+    }
+
+    /**
+     * 최종 확정/반려 — 골든 {@code 24}. 흐름의 끝이다.
+     *
+     * <p>작업 3건이 모두 {@code 2차완료} 가 아니면 <b>409</b> 다. {@code X-User-Id} 는
+     * 감사 기록({@code finalized_by})으로 그대로 박히므로 필수다.
+     */
+    @PostMapping("/{bidCaseId}/finalize")
+    public BidCaseDetail finalizeBidCase(@PathVariable String bidCaseId,
+                                         @RequestBody BidCaseFinalizeIn body,
+                                         @RequestHeader("X-User-Id") String userId) {
+        return commands.finalizeBidCase(bidCaseId, body, userId);
     }
 }

@@ -26,4 +26,14 @@ public interface MessageMapper {
      * 그 기록이 <b>실제로 LLM 을 썼다</b>는 뜻이다.
      */
     int insert(Message message);
+
+    /**
+     * 타임라인(골든 {@code 29})의 메시지 쪽 — 그 기관의 <b>모든</b> 공고에 걸친다.
+     *
+     * <p>{@code kind}({@code "message"})는 채워지지 않는다 — 서비스가 채운다.
+     * SELECT 목록에 상수를 넣으면 방언마다 리터럴 타입 문제가 생긴다.
+     */
+    List<com.kbstar.kgi.ggreport.web.dto.TimelineEvent> selectTimeline(
+            @Param("institutionId") String institutionId);
+
 }
