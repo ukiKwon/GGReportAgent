@@ -3,7 +3,6 @@ package com.kbstar.kgi.ggreport.web;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.junit4.SpringRunner;
 
@@ -19,7 +18,7 @@ import static org.junit.Assert.assertNotNull;
  * 화면 검증은 단계 2부터 골든 비교로 한다.
  */
 @RunWith(SpringRunner.class)
-@SpringBootTest
+@AppTest
 public class ApplicationContextSmokeTest {
 
     @Autowired

@@ -1,12 +1,12 @@
 package com.kbstar.kgi.ggreport.web.mapper;
 
+import com.kbstar.kgi.ggreport.web.AppTest;
 import com.kbstar.kgi.ggreport.web.config.MyBatisConfig;
 import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import java.lang.reflect.Method;
@@ -38,11 +38,14 @@ import static org.junit.Assert.fail;
  * 여기서 보는 것은 "XML 이 파싱되고 이름이 이어져 있다"까지다.
  */
 @RunWith(SpringRunner.class)
-@SpringBootTest
+@AppTest
 public class MapperStatementBindingTest {
 
-    /** registry 7테이블에 하나씩. 개수를 박아 두면 새 Mapper 를 만들고 등록을 잊는 것도 잡힌다. */
-    private static final int EXPECTED_MAPPER_COUNT = 7;
+    /**
+     * registry 7테이블에 하나씩 + 정합성 조회 1개(테이블 하나에 대응하지 않는다).
+     * 개수를 박아 두면 새 Mapper 를 만들고 등록을 잊는 것도 잡힌다.
+     */
+    private static final int EXPECTED_MAPPER_COUNT = 8;
 
     @Autowired
     private SqlSessionFactory sqlSessionFactory;

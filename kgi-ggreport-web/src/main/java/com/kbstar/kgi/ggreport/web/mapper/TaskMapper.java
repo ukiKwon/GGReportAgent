@@ -2,6 +2,8 @@ package com.kbstar.kgi.ggreport.web.mapper;
 
 import com.kbstar.kgi.ggreport.web.domain.Task;
 import com.kbstar.kgi.ggreport.web.domain.TaskSummary;
+import com.kbstar.kgi.ggreport.web.dto.AssigneeTeam;
+import com.kbstar.kgi.ggreport.web.dto.TaskListRow;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -28,6 +30,21 @@ public interface TaskMapper {
 
     /** {@code create_tasks_for_bid_case} 의 멱등 판정 — 이미 만들어진 팀. */
     List<String> selectTeams(@Param("bidCaseId") String bidCaseId);
+
+    /**
+     * {@code GET /tasks?team=…} — <b>기관 횡단</b> 작업 목록(원본 {@code list_tasks}).
+     * {@code statuses} 가 비어 있으면 상태로 거르지 않는다.
+     *
+     * <p>{@code fileCount} 는 채우지 않는다 — 파일 시스템에서 세야 해서 서비스가 채운다.
+     */
+    List<TaskListRow> selectListForTeam(@Param("team") String team,
+                                        @Param("statuses") List<String> statuses);
+
+    /**
+     * 담당이 정해진 작업의 (담당자, 팀) 목록 — 계정 전환기의 재료다
+     * (원본 {@code routers/accounts.py} 의 인라인 SQL).
+     */
+    List<AssigneeTeam> selectAssigneeTeams();
 
     /**
      * {@code create_tasks_for_bid_case} 의 신규 행.

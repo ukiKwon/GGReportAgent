@@ -38,6 +38,12 @@ public interface NotificationMapper {
     Notification selectById(@Param("notificationId") String notificationId);
 
     /**
+     * 지금까지 알림이 간 수신자 전부(원본 {@code teams.known_recipients}).
+     * {@code Teams.inboxName()} 의 재료이자 계정 목록의 '역할' 쪽이다.
+     */
+    List<String> selectDistinctRecipients();
+
+    /**
      * {@code mark_read} — <b>안 읽은 것만</b> 찍는다. 이미 읽은 알림을 다시 열어도
      * 최초 확인 시각이 바뀌지 않는다. 호출부는 갱신 행 수로 "처음 읽었는지"를 안다.
      */

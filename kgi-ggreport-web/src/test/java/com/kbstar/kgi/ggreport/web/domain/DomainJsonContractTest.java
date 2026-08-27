@@ -1,12 +1,12 @@
 package com.kbstar.kgi.ggreport.web.domain;
 
+import com.kbstar.kgi.ggreport.web.AppTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.golden.GoldenSnapshot;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import java.nio.file.Path;
@@ -35,7 +35,7 @@ import static org.junit.Assert.fail;
  * 이 테스트만 통과하는 잘못된 안심이 생긴다.
  */
 @RunWith(SpringRunner.class)
-@SpringBootTest
+@AppTest
 public class DomainJsonContractTest {
 
     @Autowired
