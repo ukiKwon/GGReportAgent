@@ -65,6 +65,17 @@ public final class GoldenSnapshot {
     /** 기대 응답 본문(이미 정규화된 상태로 저장돼 있다). */
     public JsonNode body()        { return body; }
 
+    /**
+     * URL 만 바꾼 사본.
+     *
+     * <p>쓰기 시나리오(10~24번)에서 필요하다 — 골든의 URL 은 정규화를 거쳐
+     * {@code /bidcases/bc-<ID>/…} 로 저장돼 있어서 <b>그대로는 호출할 수 없다.</b>
+     * 앞 단계 응답에서 받은 실제 id 로 바꿔 끼워야 한다.
+     */
+    public GoldenSnapshot withUrl(String newUrl) {
+        return new GoldenSnapshot(name, method, newUrl, status, requestBody, headers, body);
+    }
+
     public static GoldenSnapshot load(Path file) {
         try {
             JsonNode root = MAPPER.readTree(file.toFile());
