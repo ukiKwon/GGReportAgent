@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  TASKS — 원본 server/task_repository.py + bidcase_repository.create_tasks_for_bid_case
+  + orchestrator_recorder.py.
+-->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.TaskMapper">
+
+  <resultMap id="task" type="Task">
+    <id     property="taskId"        column="TASK_ID"/>
+    <result property="bidCaseId"     column="BID_CASE_ID"/>
+    <result property="team"          column="TEAM"/>
+    <result property="status"        column="STATUS"/>
+    <result property="progressPct"   column="PROGRESS_PCT"/>
+    <!-- NULL → "" 정규화는 Task 세터가 한다(DDL 이 NULL 허용이라 Oracle 에서 NULL 이 온다). -->
+    <result property="draftContent"  column="DRAFT_CONTENT"/>
+    <result property="assignee"      column="ASSIGNEE"/>
+    <result property="approver"      column="APPROVER"/>
+    <result property="finalApprover" column="FINAL_APPROVER"/>
+  </resultMap>
+
+  <!--
+    ⚠️ FINAL_APPROVER 가 일부러 빠져 있다. 원본 list_task_summaries 의 SELECT 에 없어
+       늘 null 로 나갔고 골든 14 가 그것을 계약으로 고정했다. 여기에 컬럼을 추가하면
+       "더 정확해진" 응답 때문에 골든이 깨진다 — 이관의 기준은 동작 동일이다.
+  -->
+  <resultMap id="taskSummary" type="TaskSummary">
+    <id     property="taskId"      column="TASK_ID"/>
+    <result property="team"        column="TEAM"/>
+    <result property="status"      column="STATUS"/>
+    <result property="progressPct" column="PROGRESS_PCT"/>
+    <result property="assignee"    column="ASSIGNEE"/>
+    <result property="approver"    column="APPROVER"/>
+  </resultMap>
+
+  <select id="selectById" resultMap="task">
+    SELECT TASK_ID, BID_CASE_ID, TEAM, STATUS, PROGRESS_PCT, DRAFT_CONTENT,
+           ASSIGNEE, APPROVER, FINAL_APPROVER
+      FROM TASKS
+     WHERE TASK_ID = #{taskId}
+  </select>
+
+  <select id="selectSummaries" resultMap="taskSummary">
+    SELECT TASK_ID, TEAM, STATUS, PROGRESS_PCT, ASSIGNEE, APPROVER
+      FROM TASKS
+     WHERE BID_CASE_ID = #{bidCaseId}
+     ORDER BY TEAM
+  </select>
+
+  <select id="selectTeams" resultType="string">
+    SELECT TEAM FROM TASKS WHERE BID_CASE_ID = #{bidCaseId}
+  </select>
+
+  <insert id="insert">
+    INSERT INTO TASKS (TASK_ID, BID_CASE_ID, TEAM, STATUS, PROGRESS_PCT)
+    VALUES (#{taskId}, #{bidCaseId}, #{team}, '대기', 0)
+  </insert>
+
+  <!-- 비어 있을 때만 담당자를 박는다. 먼저 잡은 사람이 담당이다. -->
+  <update id="claimAssigneeIfUnset">
+    UPDATE TASKS
+       SET ASSIGNEE = #{userId},
+           STATUS   = CASE WHEN STATUS = '대기' THEN '작성중' ELSE STATUS END
+     WHERE TASK_ID = #{taskId}
+       AND ASSIGNEE IS NULL
+  </update>
+
+  <update id="claimApproverIfUnset">
+    UPDATE TASKS SET APPROVER = #{userId}
+     WHERE TASK_ID = #{taskId} AND APPROVER IS NULL
+  </update>
+
+  <update id="claimFinalApproverIfUnset">
+    UPDATE TASKS SET FINAL_APPROVER = #{userId}
+     WHERE TASK_ID = #{taskId} AND FINAL_APPROVER IS NULL
+  </update>
+
+  <update id="updateDraftContent">
+    UPDATE TASKS SET DRAFT_CONTENT = #{draftContent,jdbcType=CLOB} WHERE TASK_ID = #{taskId}
+  </update>
+
+  <update id="updateStatus">
+    UPDATE TASKS SET STATUS = #{status} WHERE TASK_ID = #{taskId}
+  </update>
+
+  <update id="updateStatusAndProgress">
+    UPDATE TASKS SET STATUS = #{status}, PROGRESS_PCT = #{progressPct} WHERE TASK_ID = #{taskId}
+  </update>
+
+</mapper>

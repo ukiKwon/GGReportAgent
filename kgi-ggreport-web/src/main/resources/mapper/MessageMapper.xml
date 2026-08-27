@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  MESSAGES — 원본 server/task_repository.py.
+
+  ⚠️ MODEL 컬럼은 server/db.py 의 SCHEMA 가 아니라 MESSAGE_MIGRATIONS 에만 있던
+     컬럼이다. SCHEMA 만 보고 옮기면 조용히 빠진다.
+-->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.MessageMapper">
+
+  <resultMap id="message" type="Message">
+    <id     property="messageId" column="MESSAGE_ID"/>
+    <result property="taskId"    column="TASK_ID"/>
+    <result property="role"      column="ROLE"/>
+    <result property="content"   column="CONTENT"/>
+    <result property="createdAt" column="CREATED_AT"/>
+    <result property="author"    column="AUTHOR"/>
+    <result property="stage"     column="STAGE"/>
+    <result property="model"     column="MODEL"/>
+  </resultMap>
+
+  <!-- 정렬 키가 ISO 8601 문자열이라 사전순 = 시간순이다(설계 §5-C). -->
+  <select id="selectByTask" resultMap="message">
+    SELECT MESSAGE_ID, TASK_ID, ROLE, CONTENT, CREATED_AT, AUTHOR, STAGE, MODEL
+      FROM MESSAGES
+     WHERE TASK_ID = #{taskId}
+     ORDER BY CREATED_AT
+  </select>
+
+  <insert id="insert">
+    INSERT INTO MESSAGES
+        (MESSAGE_ID, TASK_ID, ROLE, CONTENT, CREATED_AT, AUTHOR, STAGE, MODEL)
+    VALUES
+        (#{messageId},
+         #{taskId},
+         #{role},
+         #{content,jdbcType=CLOB},
+         #{createdAt},
+         #{author,jdbcType=VARCHAR},
+         #{stage,jdbcType=DECIMAL},
+         #{model,jdbcType=VARCHAR})
+  </insert>
+
+</mapper>
