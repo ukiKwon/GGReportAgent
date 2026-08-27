@@ -6,10 +6,9 @@ import java.util.List;
 /**
  * {@code GET /institutions/{id}/status} — 워크플로 탭이 폴링하는 상태. 골든 {@code 30}.
  *
- * <p>⚠️ {@code running}·{@code pendingGate}·{@code failed} 는 <b>오케스트레이터가
- * 답할 것</b>이다. 아직 이관 전이라 지금은 "안 돌고 있고 대기 중인 게이트도 없다"로
- * 고정된다({@code WorkflowStatusService} 주석). 골든 {@code 30} 도 그 상태를 찍은
- * 것이라 값이 맞지만, <b>단계 4 후반에 실제 값으로 바꿔야 한다.</b>
+ * <p>{@code running}·{@code pendingGate}·{@code failed} 는 {@code ORCH_RUN} 을 실제로
+ * 조회한 값이다(단계 4). {@code pendingGate} 는 화면이 <b>무엇을 묻는 결재인지</b>
+ * 정하는 문자열이다 — {@code 기획승인}·{@code 이관결재}·{@code 최종결재}.
  */
 public class WorkflowStatusResponse {
 

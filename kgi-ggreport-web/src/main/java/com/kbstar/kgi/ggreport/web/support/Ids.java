@@ -50,6 +50,22 @@ public final class Ids {
         return "chat-" + tokenHex4();
     }
 
+    /**
+     * 오케스트레이터 실행 1건.
+     *
+     * <p>⚠️ {@code run-} 은 골든 정규화 목록에 <b>없다</b>
+     * ({@code (bc|task|ntf|msg|chat|new)}). 실행 id 가 골든 응답에 실리지 않기 때문이다 —
+     * 실리게 되면 {@code capture.py} 와 {@code GoldenNormalizer} 를 <b>함께</b> 고쳐야 한다.
+     */
+    public static String run() {
+        return "run-" + tokenHex4();
+    }
+
+    /** 오케스트레이터 노드 실행 1건. {@link #run()} 과 같은 주의사항. */
+    public static String step() {
+        return "step-" + tokenHex4();
+    }
+
     /** {@code secrets.token_hex(4)} — 소문자 hex 8자. */
     static String tokenHex4() {
         byte[] bytes = new byte[4];
