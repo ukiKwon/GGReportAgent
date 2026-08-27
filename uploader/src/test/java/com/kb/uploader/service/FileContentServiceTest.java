@@ -57,34 +57,37 @@ public class FileContentServiceTest {
         assertTrue(result.contains("quarterly report content"));
     }
 
-    // 아래 두 건은 종전에 null 을 기대했으나 실제 동작과 어긋나 실패하고 있었다.
-    // FileContentService 는 "왜 본문이 없는지"를 호출부(FileSearchApiController 의
-    // FileItem.content)가 구분할 수 있도록 대괄호로 감싼 안내 문자열을 돌려준다.
-    // 서비스가 아니라 테스트를 실제 계약에 맞춘다 — 서비스를 null 로 되돌리면 이미
-    // 나가고 있는 API 응답의 의미가 바뀐다.
+    // ── 못 뽑으면 언제나 null (2026-08-27 사용자 승인) ──────────────────────
+    //
+    // 종전에는 실패를 대괄호 안내 문자열로 돌려줬고, 이 테스트가 그걸 **계약으로**
+    // 고정하고 있었다. 두 가지가 문제였다:
+    //   ⓐ 호출부가 실패를 판정할 방법이 문자열 대조뿐 — 문구 한 글자에 조용히 깨진다.
+    //      JSON API 재정의의 parseDoc 은 "실패하면 .md 를 만들지 않고 null 반환"이라
+    //      이 판정이 꼭 필요하다.
+    //   ⓑ 실패 메시지에 **서버 파일 경로**가 담겨 응답으로 그대로 나갔다.
+    // 바꾸지 못했던 이유(= /api/files/search 의 content 가 그 문자열을 싣고 있었다)는
+    // 그 API 가 재정의로 삭제되면서 사라졌다 — 운영 호출부 0건.
 
     @Test
-    public void hwp_파일_미지원_안내_반환() throws Exception {
+    public void hwp_바이너리는_null() throws Exception {
         File hwp = tempFolder.newFile("test.hwp");
         Files.write(hwp.toPath(), "dummy".getBytes());
 
-        assertEquals("[HWP 바이너리 형식 - 텍스트 추출 미지원]",
-                     sut.extractText(hwp.getAbsolutePath()));
+        assertNull("HWP 바이너리는 아직 미지원이다 — 안내 문자열이 아니라 null 이어야"
+                        + " parseDoc 이 '실패'로 판정한다",
+                sut.extractText(hwp.getAbsolutePath()));
     }
 
     @Test
-    public void 존재하지_않는_파일_실패_안내_반환() {
+    public void 추출_실패는_null이고_경로가_새지_않는다() {
         String result = sut.extractText("/nonexistent/path/file.md");
 
-        assertNotNull(result);
-        assertTrue("추출 실패는 대괄호 안내 문자열로 돌아온다. 실제: " + result,
-                   result.startsWith("[텍스트 추출 실패:"));
+        assertNull("실패는 null 이다. 실제: " + result, result);
+        // 사유는 로그에만 남긴다 — 반환값·응답·파일에는 싣지 않는다.
     }
 
     @Test
-    public void 지원하지_않는_확장자는_null_반환() {
-        // 안내 문자열을 돌려주는 것은 "추출을 시도했는데 안 된" 경우다.
-        // 애초에 다루지 않는 확장자는 그대로 null 이다 — 이 구분을 고정해 둔다.
+    public void 지원하지_않는_확장자도_null() {
         assertNull(sut.extractText("/some/path/file.zip"));
         assertNull(sut.extractText(null));
     }

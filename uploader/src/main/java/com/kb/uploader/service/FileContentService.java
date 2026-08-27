@@ -8,6 +8,8 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.xml.sax.Attributes;
 import org.xml.sax.helpers.DefaultHandler;
@@ -23,9 +25,33 @@ import java.util.Enumeration;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+/**
+ * 파일에서 본문 텍스트를 뽑는다.
+ *
+ * <p>⚠️ <b>못 뽑으면 언제나 {@code null} 이다</b>(2026-08-27 사용자 승인).
+ * 종전에는 실패를 대괄호 안내 문자열로 돌려줬다
+ * ({@code "[HWP 바이너리 형식 - 텍스트 추출 미지원]"} ·
+ * {@code "[텍스트 추출 실패: <서버 경로>]"}). 두 가지가 문제였다:
+ *
+ * <ol>
+ *   <li><b>호출부가 실패를 판정할 방법이 문자열 대조뿐이었다.</b> 문구를 한 글자만
+ *       고쳐도 조용히 깨진다. JSON API 재정의로 들어오는 {@code parseDoc} 은
+ *       "실패하면 .md 를 만들지 않고 null 을 반환"해야 해서 이 판정이 꼭 필요하다.</li>
+ *   <li><b>실패 메시지에 서버 파일 경로가 담겼다</b> — 응답으로 그대로 나갔다.</li>
+ * </ol>
+ *
+ * <p>그동안 이 동작을 바꾸지 못한 이유는 {@code /api/files/search} 응답의
+ * {@code content} 가 그 문자열을 그대로 싣고 있었기 때문이다. 그 API 가 재정의로
+ * <b>삭제</b>되면서(운영 호출부 0건) 계약이 사라졌다.
+ *
+ * <p>실패 사유는 <b>로그에만</b> 남긴다 — 응답·파일에는 싣지 않는다.
+ */
 @Service
 public class FileContentService {
 
+    private static final Logger log = LoggerFactory.getLogger(FileContentService.class);
+
+    /** 본문. 지원하지 않는 확장자이거나 추출에 실패하면 {@code null}. */
     public String extractText(String storedPath) {
         if (storedPath == null) return null;
         String lower = storedPath.toLowerCase();
@@ -45,10 +71,14 @@ public class FileContentService {
                 return extractHwpxText(storedPath);
             }
             if (lower.endsWith(".hwp")) {
-                return "[HWP 바이너리 형식 - 텍스트 추출 미지원]";
+                // HWP 바이너리는 아직 지원하지 않는다(.hwpx 는 위에서 처리한다).
+                log.debug("HWP 바이너리는 텍스트 추출을 지원하지 않는다: {}", storedPath);
+                return null;
             }
         } catch (Exception e) {
-            return "[텍스트 추출 실패: " + e.getMessage() + "]";
+            // ⚠️ 경로·예외 메시지를 **반환값에 싣지 않는다**(서버 경로 노출).
+            log.warn("텍스트 추출 실패: {}", storedPath, e);
+            return null;
         }
         return null;
     }
