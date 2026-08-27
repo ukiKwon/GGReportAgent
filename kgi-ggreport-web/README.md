@@ -8,13 +8,13 @@
 - **검증 기준**: `golden/` — "같은 입력 → 같은 출력" 비교가 이관 검증의 전부다.
   화면이 안 바뀌므로 이 비교가 통과하면 화면도 통과한다.
 
-## 진행 상태 (2026-08-26)
+## 진행 상태 (2026-08-27)
 
 | 단계 | 상태 |
 |---|---|
 | 0 · 골든 파일 | ✅ 완료 — `golden/` |
 | **1 · 골격** | ✅ **완료** — 이 모듈. 대시보드가 WAR에서 뜨고 데이터는 비어 있다 |
-| 2 · 조회 REST | ⬜ 미착수 |
+| **2 · 조회 REST** | 🔶 **Task 2.1 완료**(POJO + Mapper, §7-2). 2.2(컨트롤러)·2.3(시드) 남음 |
 | 3 · 검색 | ⛔ **문의 2·3 회신 전 착수 금지** (임베딩 엔드포인트 / Oracle Text 가용 여부) |
 | 4 · 오케스트레이터 | ⬜ 미착수 — `ORCH_RUN`/`ORCH_STEP` 설계도 이때 한다 |
 | 5 · 산출물 | ⬜ 미착수 |
@@ -164,18 +164,57 @@ WebLogic 콘솔에서 두 리소스를 먼저 만든다 — 이름은 `WEB-INF/w
   **새 필터를 직접 추가할 때는 `FilterRegistrationBean`으로 등록하고
   `setAsyncSupported(true)`를 유지할 것** — SSE(대화 탭 스트리밍)가 여기 걸린다.
 
+### 6-1. WAR 안의 배치 (2026-08-27 실측)
+
+이 모듈은 **WAR로 WebLogic에 올라간다.** 새 파일을 넣을 때 아래 배치를 벗어나면
+클래스패스에서 안 잡히거나 배포물에 안 실린다. `mvn -o package` 산출물을 열어 확인한 값:
+
+```
+kgi-ggreport-web.war
+├─ WEB-INF/web.xml, weblogic.xml          ← src/main/webapp/WEB-INF/
+├─ WEB-INF/classes/com/kbstar/kgi/…       ← src/main/java/
+├─ WEB-INF/classes/mapper/*.xml           ← src/main/resources/mapper/  (7건)
+├─ WEB-INF/classes/db/{oracle,mysql}/*.sql← src/main/resources/db/
+├─ WEB-INF/classes/static/…               ← 빌드 시 ../frontend 에서 가져온다(§4)
+├─ WEB-INF/lib/…                          ← 런타임 의존성
+└─ WEB-INF/lib-provided/tomcat-embed-*    ← WebLogic에서는 안 쓰인다(§2)
+```
+
+- `mybatis.mapper-locations=classpath:mapper/*.xml`이 WAR 안에서도 그대로 해석된다 —
+  `WEB-INF/classes`가 곧 클래스패스 루트다. **`src/main/resources/mapper/` 밖에 두면
+  안 잡힌다.**
+- 설정(`config/application.properties`)은 **WAR 밖**이다(§3) — 기동 디렉터리에서 읽는다.
+- 테스트 클래스는 실리지 않는다(확인함). `org/springframework/boot/loader/…`가 보이는 것은
+  `java -jar`로도 뜨게 하는 Boot 런처이고 WebLogic 배포에는 관여하지 않는다.
+
 ## 7. 테스트
 
 ```bash
 mvn test
 ```
 
-현재 **31건**(2026-08-26 실측, `BUILD SUCCESS`) — 골격 스모크 2건 + 골든 비교 하네스 29건.
-단계 2부터 실제 컨트롤러를 하네스에 물려 범위를 넓힌다.
+현재 **86건**(2026-08-27 실측, `mvn -o test` `BUILD SUCCESS`) — 골격 스모크 2건 +
+골든 비교 하네스 29건 + **Task 2.1의 도메인·Mapper 55건**(§7-2).
+단계 2.2부터 실제 컨트롤러를 하네스에 물려 범위를 넓힌다.
+
+⚠️ `mvn`·`JAVA_HOME`이 셸에 안 잡혀 있을 수 있다. 그러면 `mvn`이 JRE를 잡아
+`No compiler is provided`로 죽는다:
+
+```powershell
+$env:JAVA_HOME = "C:\Program Files\Java\jdk1.8.0_202"
+$env:PATH = "C:\Users\superuser\tools\apache-maven-3.9.16\bin;" + $env:PATH
+```
 
 - 테스트 설정은 `src/test/resources/**`application.properties**`(H2)다.
   `application-test.properties`라는 이름을 **쓰지 않는다** — 프로파일 파일이라 켜는 것을
   잊으면 조용히 무시되고 테스트가 개발용 DB를 잡는다(uploader에서 실제로 그랬다).
+- ⚠️ **[2026-08-27 수정] 그 H2 설정이 그동안 안 먹고 있었다.** Boot의 설정 탐색은
+  `classpath:/` → `file:./config/` 순이고 **뒤가 이긴다.** surefire 작업 디렉터리가
+  모듈 폴더라 §3의 `config/application.properties`(gitignored)가 H2를 덮어,
+  **테스트가 로컬 MySQL에 붙고 있었다.** 이 PC엔 MySQL이 떠 있어 그냥 통과했지만
+  개발자마다 결과가 갈리고, `databaseId`(§7-2)까지 그 접속의 벤더를 따라간다.
+  → pom의 surefire에 `spring.config.location=optional:classpath:/`를 박아 `file:`
+  위치를 아예 안 보게 했다. `TestConfigIsolationTest`가 이걸 고정한다.
 - ⚠️ **Oracle 의존 테스트를 H2로 대체하지 않는다**(설계 §8). Mapper·DDL 정합성과
   Oracle Text는 내부망 Oracle에서만 판정한다.
 
@@ -220,10 +259,81 @@ if (!r.passed()) fail(r.failure());
 것을 잡는지). 이 검증이 없으면 단계 2에서 *"테스트가 통과했다"* 와 *"러너가 아무것도
 안 봤다"* 가 구분되지 않는다.
 
+### 7-2. 도메인 + Mapper (Task 2.1)
+
+DB가 없어도 항상 도는 테스트만 둔다(사용자 확정 2026-08-26). **Mapper·DDL의 실검증은
+내부망 Oracle의 몫**이고, MySQL 통과는 Oracle 합격의 근거가 되지 않는다.
+
+| 테스트 | 무엇을 고정하나 |
+|---|---|
+| `DomainJsonContractTest` | POJO 직렬화 **키 집합 == 골든 JSON 키 집합**. snake_case·null 포함도 함께 본다 |
+| `MapperStatementBindingTest` | Mapper 메서드 ↔ XML statement **양방향 1:1**, 그리고 **두 방언 모두**에서 바인딩되는지 |
+| `DynamicSqlTest` | `getBoundSql()`로 **생성된 SQL 문자열**을 본다 — OGNL 오타·분기·**방언별 SQL 대조** |
+| `DomainCopyConstructorTest` | 복사 생성자가 필드를 빠뜨리지 않는지(리플렉션) |
+| `InstitutionUpdateInTest` | "안 보냄 ≠ null" 규칙(역직렬화 경로로 확인) |
+| `ParticipationDecisionTypeHandlerTest` | CLOB JSON ↔ `List` — NULL/`""`/`[]` 셋 다 빈 목록 |
+| `TestConfigIsolationTest` | 테스트가 개발용 DB가 아니라 H2를 잡는지(§7의 2026-08-27 수정) |
+
+#### 방언 분기 — MySQL·Oracle을 **둘 다** 기입한다
+
+`config/MyBatisConfig`가 접속한 DB의 제품명을 읽어 `oracle`/`mysql`을 정하고, Mapper XML의
+`databaseId` 속성이 그 값을 본다. **두 문장이 모두 살아 있고 맞는 쪽만 로드된다** — 배포할
+때 사람이 주석을 풀 일이 없고, 안 쓰는 쪽이 낡지도 않는다.
+
+⚠️ 이건 2026-08-26의 *"databaseIdProvider 불필요"* 판단을 **뒤집은 것**이다(사용자 확정
+2026-08-27). 그때 근거였던 "`SEQ_NO` 덕분에 INSERT가 양쪽 동일"은 지금도 유효하다 —
+갈리는 건 **조회** 쪽이다.
+
+| 원본(SQLite) | MySQL 분기 | Oracle 분기 | 왜 갈리나 |
+|---|---|---|---|
+| `LIMIT ?` | `LIMIT ?` (원본 그대로) | `FETCH FIRST ? ROWS ONLY` | `LIMIT`은 Oracle에 없고 `FETCH FIRST`는 MySQL에 없다 |
+| `SELECT DISTINCT bc.* JOIN` | 원본 그대로 | `IN` 서브쿼리(준결합) | Oracle은 **CLOB에 `DISTINCT` 불가**(ORA-00932) |
+
+**갈리지 않는 것**(한 벌로 유지 — `DynamicSqlTest`가 "두 방언이 같다"를 검사한다):
+
+| 원본(SQLite) | 여기 | 왜 한 벌인가 |
+|---|---|---|
+| `rowid`로 최신 공고 | **`SEQ_NO`** | Oracle `ROWID`는 삽입 순서가 아니라 물리 주소다. 예외 없이 틀린 답이 나오고 **골든도 못 잡는다**(기관당 공고 1건). `IDENTITY`↔`AUTO_INCREMENT`라 INSERT도 한 벌 |
+| `ON CONFLICT DO UPDATE` | **UPDATE→0행이면 INSERT** | 여기만 `databaseId`를 못 쓴다 — 방언에 따라 **문장 수가 1↔2로 달라져** 서비스 코드 경로까지 갈린다. 네이티브 형태(`MERGE`/`ON DUPLICATE KEY`)는 XML 주석에 적어 뒀다 |
+
+⚠️ **`databaseId` 분기는 한 쌍이다 — 한쪽만 고치면 다른 DB에 배포할 때까지 아무도 모른다.**
+그래서 테스트는 스프링이 띄운 설정 하나만 보지 않고, `MapperConfigurations`가 XML을
+**방언별로 각각 파싱**해 양쪽을 같은 무게로 검사한다.
+
+⚠️ 테스트 H2는 `MODE=Oracle`이라 **`oracle` 분기를 로드한다.** 어느 분기를 파싱할지
+정하는 것일 뿐 **H2가 Oracle을 검증한다는 뜻이 아니다**(설계 §8).
+
+**되돌리지 말아야 할 계약 3가지**
+
+1. `TaskSummary.final_approver`는 **키로는 있고 값은 언제나 null**이다 — 원본 SELECT에
+   컬럼이 없어서 그렇고 골든 `14`가 계약으로 고정했다. Mapper가 친절하게 뽑으면 깨진다.
+2. `Task.draft_content`는 **절대 null로 안 나간다**. Oracle이 `''`를 NULL로 바꾸므로
+   `Task` 세터가 `null → ""`로 정규화한다. **MySQL에서는 이 결함이 안 드러난다.**
+3. JSON은 **snake_case + null 포함**. 이 설정은 `config/JacksonConfig.java`(빈)에 둔다 —
+   properties에 두면 기동 디렉터리의 `config/`가 덮거나 테스트 클래스패스의
+   `application.properties`가 main 쪽을 통째로 가릴 수 있다.
+
+**아직 없는 것**: Bean Validation. 로컬 `.m2`에 4건(`spring-boot-starter-validation`·
+`hibernate-validator`·`jakarta.validation-api`·`jakarta.el`)이 전부 없어 지금 넣으면
+`mvn -o`가 깨지고, 내부망 반입 목록도 4건 늘어난다. **골든 34건에 422가 하나도 없어
+단계 2 통과에는 불필요**하다 — 실제로 검증이 필요한 입력이 생기면 그때 넣는다.
+
 ## 8. 스키마 DDL
 
-`src/main/resources/db/` — **`oracle/001_schema.sql`이 정본**, `mysql/001_schema.sql`은
-외부망 로컬 미러다. 11테이블(registry 7 + 검색 4). 상세는 `db/README.md`에 있다:
+`src/main/resources/db/` — **`oracle/`이 정본**, `mysql/`은 외부망 로컬 미러다.
+11테이블(registry 7 + 검색 4). 번호 순서대로 **한 번씩** 적용한다(둘 다 멱등하지 않다):
+
+| 스크립트 | 내용 | 검증 |
+|---|---|---|
+| `001_schema.sql` | 11테이블 + 인덱스 9 | MySQL 미러 2회 연속 적용 성공 / Oracle은 문법만(H2) |
+| `002_seq_no.sql` | `BID_CASES`·`TASKS`에 삽입순서 `SEQ_NO` | **MySQL 미러 적용 + 최신공고 질의 실측(2026-08-27)** / Oracle 미검증 |
+
+`002`는 SQLite `rowid` 의존 SQL 8곳을 대체하려고 넣었다(§7-2 표). Oracle
+`GENERATED BY DEFAULT AS IDENTITY` ↔ MySQL `AUTO_INCREMENT`라 **INSERT 문이 양쪽
+동일**해서 Mapper XML이 한 벌로 끝난다. ⚠️ **Oracle 12c 이상 전제** — 11g면 시퀀스+
+트리거로 대체한다(폴백을 파일 끝에 주석으로 적어 뒀다).
+
+상세는 `db/README.md`에 있다:
 타입 대응표, 설계 §5-(A)를 조정한 이유(`DRAFT_CONTENT`를 `NOT NULL`로 둘 수 없다),
 예약어 때문에 바꾼 컬럼명 3건, SQLite와 달리 외래키가 실제로 강제된다는 점.
 

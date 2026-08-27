@@ -144,6 +144,34 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
+      <!--
+        ⚠️ 테스트가 **개발용 DB 를 잡지 않게** 설정 탐색 범위를 클래스패스로 좁힌다.
+
+        Spring Boot 의 기본 탐색 순서는
+            classpath:/ → classpath:/config/ → file:./ → file:./config/
+        이고 **뒤쪽이 이긴다.** surefire 의 작업 디렉터리가 모듈 폴더라
+        `./config/application.properties`(§3 의 환경별 설정 사본, gitignored)가
+        `src/test/resources/application.properties` 의 H2 설정을 **통째로 덮었다** —
+        2026-08-27 실측으로 확인했고, 테스트가 실제로 로컬 MySQL 에 붙고 있었다.
+
+        증상이 없어서 오래 갈 수 있는 종류다: 이 PC 에는 MySQL 이 떠 있어 테스트가
+        그냥 통과했다. 하지만 ⓐ 개발자마다 config/ 내용이 달라 결과가 갈리고
+        ⓑ databaseIdProvider(§7-2) 가 그 접속의 벤더를 읽으므로 **어느 방언 분기가
+        테스트되는지까지 PC 마다 달라진다.**
+
+        `spring.config.location` 은 기본 목록을 **대체**한다 — file: 위치를 아예 보지
+        않게 되어 테스트는 언제나 클래스패스(= test-classes)의 것을 쓴다.
+        `TestConfigIsolationTest` 가 이 설정이 살아 있는지 고정한다.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <spring.config.location>optional:classpath:/</spring.config.location>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>

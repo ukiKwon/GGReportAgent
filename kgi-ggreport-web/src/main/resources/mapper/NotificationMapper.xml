@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  NOTIFICATIONS — 원본 server/notification_repository.py.
+-->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.NotificationMapper">
+
+  <resultMap id="notification" type="Notification">
+    <id     property="notificationId" column="NOTIFICATION_ID"/>
+    <result property="recipient"      column="RECIPIENT"/>
+    <result property="kind"           column="KIND"/>
+    <result property="institutionId"  column="INSTITUTION_ID"/>
+    <result property="taskId"         column="TASK_ID"/>
+    <result property="content"        column="CONTENT"/>
+    <result property="link"           column="LINK"/>
+    <result property="createdAt"      column="CREATED_AT"/>
+    <result property="readAt"         column="READ_AT"/>
+    <result property="stage"          column="STAGE"/>
+    <result property="sender"         column="SENDER"/>
+  </resultMap>
+
+  <sql id="columns">
+    NOTIFICATION_ID, RECIPIENT, KIND, INSTITUTION_ID, TASK_ID, CONTENT, LINK,
+    CREATED_AT, READ_AT, STAGE, SENDER
+  </sql>
+
+  <insert id="insert">
+    INSERT INTO NOTIFICATIONS
+        (NOTIFICATION_ID, RECIPIENT, KIND, INSTITUTION_ID, TASK_ID, CONTENT, LINK,
+         CREATED_AT, STAGE, SENDER)
+    VALUES
+        (#{notificationId},
+         #{recipient},
+         #{kind},
+         #{institutionId,jdbcType=VARCHAR},
+         #{taskId,jdbcType=VARCHAR},
+         #{content,jdbcType=CLOB},
+         #{link,jdbcType=VARCHAR},
+         #{createdAt},
+         #{stage,jdbcType=DECIMAL},
+         #{sender,jdbcType=VARCHAR})
+  </insert>
+
+  <select id="selectByRecipient" resultMap="notification">
+    SELECT <include refid="columns"/>
+      FROM NOTIFICATIONS
+     WHERE RECIPIENT = #{recipient}
+    <if test="unreadOnly">
+       AND READ_AT IS NULL
+    </if>
+     ORDER BY CREATED_AT DESC
+  </select>
+
+  <!--
+    쪽지함은 '내 소속 + 내 이름'을 함께 본다.
+
+    ⚠️ **방언이 갈리는 자리다 — 아래 두 문장은 한 쌍이다. 한쪽만 고치지 말 것.**
+       원본의 `LIMIT ?` 는 Oracle 에 없고, Oracle 의 `FETCH FIRST … ROWS ONLY` 는
+       MySQL 에 없다. MyBatis 의 databaseId 로 둘 다 살려 둔다(config/MyBatisConfig).
+       `DynamicSqlTest` 가 두 분기의 SQL 을 각각 생성해 대조한다.
+
+    recipients 가 비면 호출부가 아예 부르지 않는다(IN () 은 어느 DB 에서도 문법 오류).
+  -->
+  <sql id="recipientsFilter">
+    WHERE RECIPIENT IN
+    <foreach collection="recipients" item="r" open="(" separator="," close=")">
+      #{r}
+    </foreach>
+    <if test="unreadOnly">
+      AND READ_AT IS NULL
+    </if>
+  </sql>
+
+  <!-- MySQL 8.0 — 원본 SQLite 와 같은 모양이다(대조하기 쉽다). -->
+  <select id="selectByRecipients" databaseId="mysql" resultMap="notification">
+    SELECT <include refid="columns"/>
+      FROM NOTIFICATIONS
+    <include refid="recipientsFilter"/>
+     ORDER BY CREATED_AT DESC
+     LIMIT #{limit}
+  </select>
+
+  <!-- Oracle 12c+ — 행 제한 절. 11g 라면 ROWNUM 서브쿼리로 바꿔야 한다. -->
+  <select id="selectByRecipients" databaseId="oracle" resultMap="notification">
+    SELECT <include refid="columns"/>
+      FROM NOTIFICATIONS
+    <include refid="recipientsFilter"/>
+     ORDER BY CREATED_AT DESC
+     FETCH FIRST #{limit} ROWS ONLY
+  </select>
+
+  <select id="selectById" resultMap="notification">
+    SELECT <include refid="columns"/>
+      FROM NOTIFICATIONS
+     WHERE NOTIFICATION_ID = #{notificationId}
+  </select>
+
+  <!-- 안 읽은 것만 찍는다 — 다시 열어도 최초 확인 시각이 바뀌지 않는다. -->
+  <update id="markRead">
+    UPDATE NOTIFICATIONS
+       SET READ_AT = #{readAt}
+     WHERE NOTIFICATION_ID = #{notificationId}
+       AND READ_AT IS NULL
+  </update>
+
+</mapper>
