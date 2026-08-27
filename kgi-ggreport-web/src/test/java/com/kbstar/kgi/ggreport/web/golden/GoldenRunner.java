@@ -9,6 +9,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
 import java.util.Map;
 
 /**
@@ -73,7 +74,12 @@ public final class GoldenRunner {
     }
 
     private MockHttpServletRequestBuilder build(GoldenSnapshot s) throws Exception {
-        String url = s.url();
+        // ⚠️ 반드시 URI 를 넘긴다. 문자열을 넘기면 MockMvc 가 그것을 **URI 템플릿**으로
+        //    보고 한 번 더 인코딩한다 — 골든 URL 은 capture.py 가 이미 퍼센트 인코딩해
+        //    저장했으므로 `%EC` 가 `%25EC` 가 되고, 서블릿이 한 번 디코드하면 파라미터에
+        //    `%EC...` 라는 **문자 그대로의 문자열**이 들어온다. 증상은 인코딩 오류가
+        //    아니라 "그런 파일 없음 404" 라서 원인을 컨트롤러에서 찾게 된다(골든 06).
+        URI url = URI.create(s.url());
         MockHttpServletRequestBuilder req;
         switch (s.method()) {
             case "GET":    req = MockMvcRequestBuilders.get(url); break;

@@ -3,7 +3,6 @@ package com.kbstar.kgi.ggreport.web;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.env.Environment;
 import org.springframework.test.context.junit4.SpringRunner;
 
@@ -31,7 +30,7 @@ import static org.junit.Assert.assertTrue;
  * 결함이다.</b> 그쪽은 "프로파일을 안 켜서 무시됨", 이쪽은 "읽히긴 하는데 덮임"이다.
  */
 @RunWith(SpringRunner.class)
-@SpringBootTest
+@AppTest
 public class TestConfigIsolationTest {
 
     @Autowired

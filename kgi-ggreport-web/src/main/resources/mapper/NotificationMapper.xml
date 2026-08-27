@@ -97,6 +97,14 @@
      WHERE NOTIFICATION_ID = #{notificationId}
   </select>
 
+  <!--
+    지금까지 알림이 간 수신자 전부.
+    ⚠️ RECIPIENT 는 VARCHAR 라 DISTINCT 가 안전하다 — CLOB 이 아니다.
+  -->
+  <select id="selectDistinctRecipients" resultType="string">
+    SELECT DISTINCT RECIPIENT FROM NOTIFICATIONS ORDER BY RECIPIENT
+  </select>
+
   <!-- 안 읽은 것만 찍는다 — 다시 열어도 최초 확인 시각이 바뀌지 않는다. -->
   <update id="markRead">
     UPDATE NOTIFICATIONS

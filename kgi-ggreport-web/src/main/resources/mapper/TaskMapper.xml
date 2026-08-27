@@ -53,6 +53,72 @@
     SELECT TEAM FROM TASKS WHERE BID_CASE_ID = #{bidCaseId}
   </select>
 
+  <!-- dto 패키지는 type-aliases-package(= domain) 밖이라 FQN 으로 쓴다.
+       별칭 목록은 5개 환경 properties 에 흩어져 있어 늘리면 드리프트가 생긴다. -->
+  <resultMap id="taskListRow" type="com.kbstar.kgi.ggreport.web.dto.TaskListRow">
+    <id     property="taskId"             column="TASK_ID"/>
+    <result property="team"               column="TEAM"/>
+    <result property="status"             column="STATUS"/>
+    <result property="progressPct"        column="PROGRESS_PCT"/>
+    <result property="assignee"           column="ASSIGNEE"/>
+    <result property="approver"           column="APPROVER"/>
+    <result property="bidCaseId"          column="BID_CASE_ID"/>
+    <result property="institutionId"      column="INSTITUTION_ID"/>
+    <result property="institutionName"    column="INSTITUTION_NAME"/>
+    <result property="stage"              column="STAGE"/>
+    <result property="bidDate"            column="BID_DATE"/>
+    <result property="scheduleConfidence" column="SCHEDULE_CONFIDENCE"/>
+  </resultMap>
+
+  <!--
+    기관 횡단 작업 목록.
+
+    ⚠️ **원본에는 ORDER BY 가 없다.** SQLite 는 사실상 삽입 순서로 돌려주고 화면은
+       그 순서를 그대로 그리는데, Oracle 은 정렬을 지정하지 않으면 순서를 보장하지
+       않는다(실행계획에 따라 바뀐다). 그러면 같은 데이터에서 화면 순서가 실행마다
+       달라진다 — SEQ_NO 로 그 **사실상의 순서**를 고정한다.
+       ⚠️ 단계 2 골든(26번)은 결과가 1건이라 이 차이를 **잡아 주지 못한다.**
+       rowid 의존 8곳과 같은 부류이고, 그 목록에는 빠져 있던 자리다(ORDER BY 자체가
+       없어서 grep 에 안 걸렸다).
+
+    ⚠️ BID_DATE 는 **확정일이 예상일을 이긴다.** 원본은 파이썬 `or` 라 빈 문자열도
+       거짓으로 봤는데, Oracle 은 '' 를 NULL 로 저장하므로 COALESCE 로 같아진다.
+       (MySQL 미러에서만 '' 가 살아남을 수 있으나 ISO 날짜 문자열이라 실제로 안 생긴다.)
+
+    ⚠️ DRAFT_CONTENT 를 싣지 않는다 — 작업함이 100건이면 CLOB 100개가 따라온다.
+  -->
+  <select id="selectListForTeam" resultMap="taskListRow">
+    SELECT T.TASK_ID, T.TEAM, T.STATUS, T.PROGRESS_PCT, T.ASSIGNEE, T.APPROVER,
+           T.BID_CASE_ID, B.INSTITUTION_ID, I.NAME_KO AS INSTITUTION_NAME, I.STAGE,
+           COALESCE(B.CONFIRMED_DATE, B.EXPECTED_DATE) AS BID_DATE,
+           B.SCHEDULE_CONFIDENCE
+      FROM TASKS T
+      JOIN BID_CASES B ON B.BID_CASE_ID = T.BID_CASE_ID
+      JOIN INSTITUTIONS I ON I.INSTITUTION_ID = B.INSTITUTION_ID
+     WHERE T.TEAM = #{team}
+    <if test="statuses != null and statuses.size() > 0">
+       AND T.STATUS IN
+       <foreach collection="statuses" item="s" open="(" separator="," close=")">
+         #{s}
+       </foreach>
+    </if>
+     ORDER BY T.SEQ_NO
+  </select>
+
+  <resultMap id="assigneeTeam" type="com.kbstar.kgi.ggreport.web.dto.AssigneeTeam">
+    <result property="assignee" column="ASSIGNEE"/>
+    <result property="team"     column="TEAM"/>
+  </resultMap>
+
+  <!-- 담당이 정해진 작업의 (담당자, 팀). 계정 전환기의 '사람' 쪽이다. -->
+  <select id="selectAssigneeTeams" resultMap="assigneeTeam">
+    SELECT DISTINCT ASSIGNEE, TEAM
+      FROM TASKS
+     WHERE ASSIGNEE IS NOT NULL
+       AND ASSIGNEE &lt;&gt; ''
+     ORDER BY ASSIGNEE, TEAM
+  </select>
+
   <insert id="insert">
     INSERT INTO TASKS (TASK_ID, BID_CASE_ID, TEAM, STATUS, PROGRESS_PCT)
     VALUES (#{taskId}, #{bidCaseId}, #{team}, '대기', 0)
