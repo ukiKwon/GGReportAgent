@@ -83,6 +83,56 @@ public class GoldenWriteScenarioTest {
 
         play("14_bidcase_detail_confirmed", bidCaseId);
         참여확정_직후_쪽지가_한_건_남는다();
+
+        결재_3세트를_돈다(confirmed);
+        제출이_각_팀장에게_결재요청을_보낸다();
+    }
+
+    /**
+     * 제출은 <b>알림까지가 한 동작</b>이다 — 예전에는 상태만 바꾸고 아무에게도 알리지
+     * 않아 "제출해도 아무 일이 안 일어나는" 상태였다. 골든 {@code 16}·{@code 19}·
+     * {@code 22} 의 본문은 작업 한 건이라 이 쪽지를 <b>보지 못한다.</b>
+     *
+     * <p>수신자 이름이 특히 틀리기 쉬운 자리다: 작업의 팀은 {@code 영업} 인데 쪽지는
+     * {@code 영업팀장} 앞으로 가야 한다({@code Teams.leadOf}). {@code 영업} 이나
+     * {@code 영업팀} 으로 새면 팀장 결재함이 영원히 비고 아무도 그걸 모른다.
+     */
+    private void 제출이_각_팀장에게_결재요청을_보낸다() throws Exception {
+        for (String lead : new String[]{"영업팀장", "예산팀장", "전산팀장"}) {
+            JsonNode inbox = inboxOf(lead);
+            assertEquals(lead + " 결재함이 1건이 아니다", 1, inbox.size());
+            assertEquals(lead + " 쪽지 종류가 다르다",
+                    "결재요청", inbox.get(0).path("kind").asText());
+        }
+        // 팀원 앞으로는 새지 않았는지 — 참여확정 쪽지 1건 그대로여야 한다.
+        assertEquals("영업팀 쪽지가 늘었다(제출 알림이 팀장이 아니라 팀으로 갔다)",
+                1, inboxOf("영업팀").size());
+    }
+
+    /**
+     * 골든 {@code 15}~{@code 23} — 작업 3건을 각각 임시저장 → 제출 → 결재.
+     *
+     * <p>⚠️ <b>어느 작업이 {@code task0} 인지는 골든 파일 이름이 정한다.</b> URL 은
+     * 셋 다 {@code /tasks/task-<ID>/…} 로 똑같이 정규화돼 있어 URL 만으로는 구분되지
+     * 않는다. 캡처 당시의 {@code task0}·{@code task1}·{@code task2} 는 골든 {@code 13}
+     * 의 {@code tasks} 배열 순서(= 팀 이름순 영업·예산·전산)다. 그래서 그 순서로
+     * 짝지어 돈다 — 골든 본문에 {@code team} 이 들어 있어 잘못 짝지으면 바로 드러난다.
+     */
+    private void 결재_3세트를_돈다(JsonNode confirmed) throws Exception {
+        JsonNode taskList = confirmed.path("tasks");
+        String[][] steps = {
+                {"15_task0_draft_claim", "16_task0_submit", "17_task0_approve"},
+                {"18_task1_draft_claim", "19_task1_submit", "20_task1_approve"},
+                {"21_task2_draft_claim", "22_task2_submit", "23_task2_approve"},
+        };
+        for (int i = 0; i < steps.length; i++) {
+            String taskId = taskList.get(i).path("task_id").asText();
+            assertEquals("작업 id 모양이 원본(task-token_hex(4))과 다르다",
+                    true, taskId.matches("task-[0-9a-f]{8}"));
+            for (String name : steps[i]) {
+                play(name, taskId);
+            }
+        }
     }
 
     /**
@@ -98,12 +148,7 @@ public class GoldenWriteScenarioTest {
         JsonNode expected = GoldenSnapshot.load(
                 goldenDir.resolve("27_notifications_sales.json")).body();
 
-        MockHttpServletResponse response = mockMvc.perform(
-                        MockMvcRequestBuilders.get("/notifications").param("recipient", "영업팀"))
-                .andReturn().getResponse();
-        // ⚠️ 인코딩을 명시하지 않으면 한글이 깨져 비교가 통째로 어긋난다(GoldenRunner 와 같다).
-        response.setCharacterEncoding("UTF-8");
-        JsonNode actual = new ObjectMapper().readTree(response.getContentAsString());
+        JsonNode actual = inboxOf("영업팀");
 
         assertEquals("쪽지가 1건이 아니다", expected.size(), actual.size());
         assertEquals("쪽지 본문이 골든 27 과 다르다",
@@ -114,18 +159,37 @@ public class GoldenWriteScenarioTest {
     /**
      * 스냅샷 한 건을 재생하고 <b>정규화 전</b> 본문을 돌려준다.
      *
-     * @param bidCaseId null 이 아니면 URL 의 {@code bc-<ID>} 를 이 값으로 바꾼다
+     * @param id null 이 아니면 URL 의 자리표시자를 이 값으로 바꾼다.
+     *           접두사로 무엇을 바꿀지 정한다({@code bc-…} → {@code bc-<ID>},
+     *           {@code task-…} → {@code task-<ID>}).
      */
-    private JsonNode play(String name, String bidCaseId) throws Exception {
+    private JsonNode play(String name, String id) throws Exception {
         GoldenSnapshot snapshot = GoldenSnapshot.load(goldenDir.resolve(name + ".json"));
-        if (bidCaseId != null) {
-            snapshot = snapshot.withUrl(snapshot.url().replace("bc-<ID>", bidCaseId));
+        if (id != null) {
+            String placeholder = id.substring(0, id.indexOf('-') + 1) + "<ID>";
+            String url = snapshot.url().replace(placeholder, id);
+            if (url.equals(snapshot.url())) {
+                fail(name + " 의 URL 에 " + placeholder + " 가 없다: " + snapshot.url()
+                        + " — 골든이 바뀌었거나 잘못된 id 를 넘겼다(치환이 조용히"
+                        + " 안 되면 그 다음 요청이 404 로 나서 원인이 흐려진다)");
+            }
+            snapshot = snapshot.withUrl(url);
         }
         GoldenRunner.Result result = runner.run(snapshot);
         if (!result.passed()) {
             fail(name + " 이 골든과 다르다:\n" + result.failure());
         }
         return result.rawBody();
+    }
+
+    /** 한 수신자의 쪽지함. */
+    private JsonNode inboxOf(String recipient) throws Exception {
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.get("/notifications").param("recipient", recipient))
+                .andReturn().getResponse();
+        // ⚠️ 인코딩을 명시하지 않으면 한글이 깨져 비교가 통째로 어긋난다(GoldenRunner 와 같다).
+        response.setCharacterEncoding("UTF-8");
+        return new ObjectMapper().readTree(response.getContentAsString());
     }
 
     private static String teamsOf(JsonNode body) {
