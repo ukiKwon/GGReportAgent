@@ -28,32 +28,37 @@ public class WorkflowStatusService {
     private final TaskMapper tasks;
     private final NotificationMapper notifications;
     private final MessageMapper messages;
+    private final OrchestratorService orchestrator;
 
     public WorkflowStatusService(InstitutionService institutions, TaskMapper tasks,
-                                 NotificationMapper notifications, MessageMapper messages) {
+                                 NotificationMapper notifications, MessageMapper messages,
+                                 OrchestratorService orchestrator) {
         this.institutions = institutions;
         this.tasks = tasks;
         this.notifications = notifications;
         this.messages = messages;
+        this.orchestrator = orchestrator;
     }
 
     /**
      * 골든 {@code 30}.
      *
-     * <p>⚠️ <b>{@code running}·{@code pendingGate}·{@code failed} 는 오케스트레이터가
-     * 답할 것</b>인데 아직 이관 전이다(단계 4 후반). 지금은 "안 돌고 있고 대기 중인
-     * 게이트도 없다"로 고정한다 — 골든 {@code 30} 도 그 상태를 찍은 것이라 값은 맞다.
-     * 오케스트레이터가 붙으면 <b>이 세 줄을 실제 조회로 바꿔야 한다.</b> 안 바꾸면
-     * 워크플로 탭이 "안 돌고 있다"고만 표시해서, 도는 중인지 멈춘 건지 알 수 없어진다.
+     * <p>{@code running}·{@code pendingGate}·{@code failed} 는 <b>실제
+     * {@code ORCH_RUN} 조회</b>다(단계 4, 2026-08-27). 종전에는 오케스트레이터가 없어
+     * 고정값이었고, 골든 {@code 30} 이 마침 그 상태(실행 없음)를 찍은 덕에 값이 맞았다.
+     *
+     * <p>⚠️ <b>{@code running} 은 "도는 중"만이다</b> — 게이트에서 기다리는 중은 사람
+     * 차례이지 실행 중이 아니다. 둘을 합치면 결재 화면이 "실행 중이니 기다리라"고
+     * 표시해 <b>아무도 결재하지 않는다.</b>
      */
     public WorkflowStatusResponse status(String institutionId) {
         Institution institution = institutions.require(institutionId);
 
         WorkflowStatusResponse out = new WorkflowStatusResponse();
         out.setStage(institution.getStage());
-        out.setRunning(false);
-        out.setPendingGate(null);
-        out.setFailed(false);
+        out.setRunning(orchestrator.isRunning(institutionId));
+        out.setPendingGate(orchestrator.pendingGate(institutionId));
+        out.setFailed(orchestrator.hasFailed(institutionId));
         out.setTasks(tasks.selectStatusTasks(institutionId));
         out.setNotificationsUnread(notifications.countUnread(institutionId));
         return out;

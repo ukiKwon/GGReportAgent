@@ -16,7 +16,7 @@
 | **1 · 골격** | ✅ **완료** — 이 모듈. 대시보드가 WAR에서 뜨고 데이터는 비어 있다 |
 | **2 · 조회 REST** | ✅ **완료** — 2.1 POJO+Mapper(§7-2) · 2.2 컨트롤러(§7-3) · 2.3 시드(§7-4). 골든 `00`~`07`·`09` 대조 통과, `08`은 3단계 산출물 필요 |
 | 3 · 검색 | ⛔ **문의 2·3 회신 전 착수 금지** (임베딩 엔드포인트 / Oracle Text 가용 여부) |
-| **4 · 결재 흐름 + 오케스트레이터** | 🔶 **결재 흐름 완료**(골든 `10`~`30`, §7-5) + **Task 4.1 상태머신 바닥**(`ORCH_RUN`/`ORCH_STEP`·노드 enum·PII·Recorder, §7-7). 남은 것: 라우팅·게이트 · WorkManager · SSE · LLM 어댑터 |
+| **4 · 결재 흐름 + 오케스트레이터** | 🔶 **결재 흐름 완료**(골든 `10`~`30`, §7-5) + **Task 4.1 상태머신 완료**(엔진·3단 게이트·재개·`/run`·`/checkpoint`, §7-7). 남은 것: **노드 본문**(LLM 어댑터 = 문의 1·6 대기) · WorkManager(4.2) · SSE(4.3) |
 | **5 · 산출물** | ✅ **완료** — 5.1 PDF 추출(PDFBox) · 5.2 PPTX(POI) · 5.3 배점 검증. 골든 `artifacts/` 2종 대조 통과(§7-6) |
 | 6 · uploader 붙이기 | ⬜ 이관 완료 후 |
 
@@ -173,7 +173,7 @@ WebLogic 콘솔에서 두 리소스를 먼저 만든다 — 이름은 `WEB-INF/w
 kgi-ggreport-web.war
 ├─ WEB-INF/web.xml, weblogic.xml          ← src/main/webapp/WEB-INF/
 ├─ WEB-INF/classes/com/kbstar/kgi/…       ← src/main/java/
-├─ WEB-INF/classes/mapper/*.xml           ← src/main/resources/mapper/  (8건)
+├─ WEB-INF/classes/mapper/*.xml           ← src/main/resources/mapper/  (9건)
 ├─ WEB-INF/classes/db/{oracle,mysql}/*.sql← src/main/resources/db/
 ├─ WEB-INF/classes/static/…               ← 빌드 시 ../frontend 에서 가져온다(§4)
 ├─ WEB-INF/lib/…                          ← 런타임 의존성
@@ -197,7 +197,7 @@ mvn test
 골든 비교 하네스 29건 + **Task 2.1의 도메인·Mapper 55건**(§7-2) +
 **Task 2.2의 조회 API 7건**(§7-3) + **Task 2.3의 시드 4건**(§7-4) +
 **단계 4의 쓰기 시나리오 1건**(§7-5) + **단계 5의 산출물 17건**(§7-6) +
-**Task 4.1의 상태머신 바닥 16건**(§7-7).
+**Task 4.1의 상태머신 26건**(§7-7).
 
 ⚠️ `mvn`·`JAVA_HOME`이 셸에 안 잡혀 있을 수 있다. 그러면 `mvn`이 JRE를 잡아
 `No compiler is provided`로 죽는다:
@@ -516,10 +516,10 @@ PPTX에 `전산 파트` 슬라이드가 있는지 확인한다.
 **아직 없는 것**: 과거 유사제안 붙이기(`_add_archive_reference_section` — 아카이브 pptx의
 도형을 XML째 복사). 아카이브가 있는 기관에서만 타고 골든에도 없다.
 
-### 7-7. 오케스트레이터 상태머신 — 바닥 (Task 4.1)
+### 7-7. 오케스트레이터 상태머신 (Task 4.1)
 
-LangGraph의 `SqliteSaver` 체크포인트와 `interrupt()` 재개를 **DB로** 옮기는 첫 조각이다
-(설계 §6-B). 아직 **라우팅·노드 본문은 없다** — 그 위에 얹힐 전제만 깔았다.
+LangGraph의 `SqliteSaver` 체크포인트와 `interrupt()` 재개를 **DB로** 옮겼다(설계 §6-B).
+설계가 *"그래프 자체는 129줄이지만 **재개 의미론이 본질**"* 이라 부른 부분이다.
 
 | 만든 것 | 무엇 |
 |---|---|
@@ -547,6 +547,38 @@ LangGraph의 `SqliteSaver` 체크포인트와 `interrupt()` 재개를 **DB로** 
 **PII는 마스킹해서 보고한다** — 검사 결과 자체가 2차 유출 경로가 되면 안 된다. 회귀 두
 건이 특히 중요하다: 주민번호 앞자리가 휴대폰 접두사와 같을 때 **한 값이 두 번** 보고되는
 것(스팬 겹침 검사), 접두사를 `010`으로 박아 011 사용자가 010으로 둔갑하는 것.
+
+#### 엔진 — 멈춤과 재개
+
+```
+start → RFI → DRAFT(팬아웃 3) → ANNOUNCE_PLAN → 🛑기획승인
+      → 🛑이관결재 → PACKAGER → VERIFIER → 🛑최종결재 → FINISH
+```
+
+- **게이트를 만나면 `STATUS=PENDING_APPROVAL`로 두고 되돌아온다.** 상태 전체는 그
+  `ORCH_STEP.INPUT_JSON`에 적힌다 — 그게 재개의 입력이다.
+- `POST /institutions/{id}/run`(202) · `POST /{id}/checkpoint`(202, `X-User-Id` 필수).
+  이미 도는 중이면 409 `already running`, 기다리는 게이트가 없으면 409 `no pending gate`.
+- **골든 `30`의 `running`/`pending_gate`/`failed`가 이제 실제 조회다.** ⚠️ `running`은
+  "도는 중"만이다 — 게이트 대기는 사람 차례다. 둘을 합치면 결재 화면이 "실행 중이니
+  기다리라"고 표시해 **아무도 결재하지 않는다.**
+
+**되돌리지 말아야 할 것 4가지**
+
+1. **결재 판정은 한 번만 쓴다.** 상태에 남겨 두면 다음 게이트가 앞의 승인을 자기 것으로
+   읽어 **3단 결재가 1번으로 끝난다.**
+2. **반려의 되돌림 지점이 게이트마다 다르다.** 기획반려 → 3팀 재작성, 이관반려 →
+   기획승인, 최종반려 → 취합. 하나로 합치면 이관반려에도 3팀이 다시 쓴다.
+3. **결재요청 알림은 `announce_plan`(통과 노드)에 있다.** 게이트는 결재가 올 때마다
+   그 노드부터 다시 실행되므로, 게이트 본문에 두면 반려→재승인마다 쪽지가 쌓인다.
+4. **아직 못 옮긴 노드는 소리 내어 실패한다**(`NotYetMigratedHandler`). 빈 구현으로
+   통과시키면 실행이 끝까지 돌아 화면에는 **정상 완료로 보이고**, 아무도 배점표가
+   비었다는 걸 모른 채 제출일을 맞는다.
+
+**아직 없는 것**: 노드 본문 4개(`rfi`·`draft`·`packager`·`verifier`) — 앞의 셋은 사내
+LLM 어댑터(Task 4.4, **문의 1·6 회신 대기**)가 필요하고, `packager`는 LLM을 안 쓰지만
+그 입력이 `draft`의 산출이라 앞이 막혀 도달하지 못한다. **호출 스레드에서 도는 것**도
+한시적이다 — WorkManager(Task 4.2)로 옮기면 `advance()`를 부르는 자리만 바뀐다.
 
 ## 8. 스키마 DDL
 
