@@ -91,6 +91,12 @@
      WHERE T.TASK_ID = #{taskId}
   </select>
 
+  <!-- UNIQUE(BID_CASE_ID, TEAM) 이라 한 건이다. 없으면 null. -->
+  <select id="selectTaskIdByTeam" resultType="string">
+    SELECT TASK_ID FROM TASKS
+     WHERE BID_CASE_ID = #{bidCaseId} AND TEAM = #{team}
+  </select>
+
   <select id="selectTeams" resultType="string">
     SELECT TEAM FROM TASKS WHERE BID_CASE_ID = #{bidCaseId}
   </select>

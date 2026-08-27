@@ -32,6 +32,14 @@ public interface TaskMapper {
     List<String> selectTeams(@Param("bidCaseId") String bidCaseId);
 
     /**
+     * 한 공고에서 그 팀의 작업 id. 없으면 null.
+     *
+     * <p>오케스트레이터의 {@code _ensure_task} 가 쓴다 — 노드가 로그를 남길 때마다
+     * "그 팀의 작업"을 찾아야 하는데, {@code UNIQUE(BID_CASE_ID, TEAM)} 이라 한 건이다.
+     */
+    String selectTaskIdByTeam(@Param("bidCaseId") String bidCaseId, @Param("team") String team);
+
+    /**
      * {@code GET /institutions/{id}/status} 의 작업 목록 — 골든 {@code 30}.
      * 그 기관의 <b>모든</b> 공고에 걸친다(원본과 같은 범위).
      *
