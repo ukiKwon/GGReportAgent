@@ -57,20 +57,20 @@ public final class GoldenRunner {
             actual = raw.isEmpty() ? MAPPER.nullNode() : MAPPER.readTree(raw);
         } catch (Exception parseFailure) {
             // JSON 이 아니면 그 사실 자체가 실패다 — 원문 일부를 남겨 진단할 수 있게 한다.
-            return new Result(snapshot, res.getStatus(), null,
+            return new Result(snapshot, res.getStatus(), null, null,
                     "응답이 JSON 이 아니다: "
                             + (raw.length() <= 300 ? raw : raw.substring(0, 300) + "…"));
         }
         JsonNode normalized = GoldenNormalizer.normalize(actual, workDir, repoRoot);
 
         if (res.getStatus() != snapshot.status()) {
-            return new Result(snapshot, res.getStatus(), normalized,
+            return new Result(snapshot, res.getStatus(), normalized, actual,
                     "HTTP 상태가 다르다. 기대 " + snapshot.status()
                             + " / 실제 " + res.getStatus());
         }
         String bodyDiff = GoldenComparator.describe(
                 snapshot.name(), snapshot.body(), normalized);
-        return new Result(snapshot, res.getStatus(), normalized, bodyDiff);
+        return new Result(snapshot, res.getStatus(), normalized, actual, bodyDiff);
     }
 
     private MockHttpServletRequestBuilder build(GoldenSnapshot s) throws Exception {
@@ -118,12 +118,15 @@ public final class GoldenRunner {
         private final GoldenSnapshot snapshot;
         private final int status;
         private final JsonNode normalizedBody;
+        private final JsonNode rawBody;
         private final String failure;
 
-        Result(GoldenSnapshot snapshot, int status, JsonNode normalizedBody, String failure) {
+        Result(GoldenSnapshot snapshot, int status, JsonNode normalizedBody,
+               JsonNode rawBody, String failure) {
             this.snapshot = snapshot;
             this.status = status;
             this.normalizedBody = normalizedBody;
+            this.rawBody = rawBody;
             this.failure = failure;
         }
 
@@ -132,5 +135,12 @@ public final class GoldenRunner {
         public int status()                { return status; }
         public JsonNode normalizedBody()   { return normalizedBody; }
         public GoldenSnapshot snapshot()   { return snapshot; }
+
+        /**
+         * <b>정규화 전</b> 응답. 비교에는 쓰지 않는다 — 쓰기 시나리오가 다음 요청 URL 에
+         * 끼울 <b>실제 id</b>(정규화하면 {@code bc-<ID>} 로 지워진다)를 꺼내는 용도다.
+         * JSON 이 아니면 null.
+         */
+        public JsonNode rawBody()          { return rawBody; }
     }
 }

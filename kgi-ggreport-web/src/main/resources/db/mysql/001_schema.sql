@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS BID_CASES (
     BID_CASE_ID            VARCHAR(64)  NOT NULL,
     INSTITUTION_ID         VARCHAR(64)  NOT NULL,
     SCHEDULE_CONFIDENCE    VARCHAR(20)  NOT NULL DEFAULT '예상',
+    -- ⚠️ 아래 ISO 시각 컬럼들의 길이 30 은 **부족하다**(실제 32자). db/*/004 가 40 으로 넓힌다.
     EXPECTED_DATE          VARCHAR(30),
     CONFIRMED_DATE         VARCHAR(30),
     LAST_SYNCED_AT         VARCHAR(30),
