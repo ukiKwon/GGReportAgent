@@ -97,7 +97,7 @@ public final class ScoringConsistency {
     }
 
     /** 파이썬 {@code {:+d}} — 0 도 {@code +0} 이다. */
-    private static String signed(int value) {
+    static String signed(int value) {
         return (value >= 0 ? "+" : "") + value;
     }
 }

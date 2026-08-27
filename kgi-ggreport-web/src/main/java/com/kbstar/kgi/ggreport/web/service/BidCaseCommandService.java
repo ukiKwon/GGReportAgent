@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -65,16 +66,19 @@ public class BidCaseCommandService {
     private final InstitutionMapper institutions;
     private final NotificationCommandService notifications;
     private final AppProperties properties;
+    private final DeliverableAssembler deliverables;
 
     public BidCaseCommandService(BidCaseMapper bidCases, TaskMapper tasks,
                                  InstitutionMapper institutions,
                                  NotificationCommandService notifications,
-                                 AppProperties properties) {
+                                 AppProperties properties,
+                                 DeliverableAssembler deliverables) {
         this.bidCases = bidCases;
         this.tasks = tasks;
         this.institutions = institutions;
         this.notifications = notifications;
         this.properties = properties;
+        this.deliverables = deliverables;
     }
 
     /**
@@ -191,12 +195,10 @@ public class BidCaseCommandService {
      * {@code 작성중} 으로 되돌린다</b>(담당자가 다시 손볼 것이 남는다).
      * 어느 쪽이든 누가 언제 했는지를 공고에 남긴다(감사 기록).
      *
-     * <p>⚠️ <b>여기서 아직 안 하는 것: 산출물 조립</b>({@code assemble_deliverable}).
-     * 원본은 확정 순간 팀 초안을 모아 PPTX 를 만들고 그 경로를
-     * {@code INSTITUTIONS.PPTX_PATH} 에 적는다. POI(XSLF)로 옮기는 것은 <b>단계 5
-     * Task 5.2</b> 이고 골든 {@code 24}·{@code 25}·{@code 29}·{@code 30} 은 그 경로를
-     * 보지 않는다. 그래서 지금은 <b>PPTX_PATH 가 비어 있는 채로 확정된다</b> —
-     * 산출물 화면이 빈칸이 된다는 뜻이므로 단계 5에서 반드시 이 자리를 채울 것.
+     * <p>확정이면 <b>제안서 PPTX 를 취합</b>한다({@link DeliverableAssembler}) —
+     * 3팀 초안을 슬라이드로 묶고 그 경로를 {@code INSTITUTIONS.PPTX_PATH} 에 적는다.
+     * 실패하면 확정도 함께 롤백된다(원본과 같다): 제안서가 없는데 "확정됨"으로
+     * 남으면 아무도 그 사실을 모른 채 제출일을 맞는다.
      */
     @Transactional
     public BidCaseDetail finalizeBidCase(String bidCaseId, BidCaseFinalizeIn body, String userId) {
@@ -211,7 +213,15 @@ public class BidCaseCommandService {
 
         if (body.isApproved()) {
             institutions.updateStage(bidCase.getInstitutionId(), FINALIZED_STAGE);
-            // TODO(단계 5 Task 5.2): assemble_deliverable — 팀 초안 → PPTX + PPTX_PATH.
+            try {
+                deliverables.assemble(bidCaseId, bidCase.getInstitutionId());
+            } catch (IOException e) {
+                // 원본은 여기서 예외가 그대로 올라가 500 이 된다(확정도 함께 롤백).
+                // 같은 성질을 유지한다 — 제안서가 안 만들어졌는데 "확정됨"으로 남으면
+                // 아무도 그 사실을 모른 채 제출일을 맞는다.
+                throw new IllegalStateException(
+                        "제안서 취합에 실패했다: " + e.getMessage(), e);
+            }
         } else {
             for (TaskSummary summary : summaries) {
                 // 원본은 approve_task(approved=False) 를 부른다 — 결과는 '작성중' 복귀다.

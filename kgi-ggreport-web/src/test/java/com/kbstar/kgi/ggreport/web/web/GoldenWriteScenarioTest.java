@@ -12,10 +12,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -90,6 +92,7 @@ public class GoldenWriteScenarioTest {
         // ③ 최종 확정 → 그 뒤의 조회 5종. 확정이 기관 단계를 7로 올리므로 25~30 이
         //    전부 그 값을 본다 — 순서를 바꾸면 stage 가 1로 남아 넷이 함께 깨진다.
         play("24_bidcase_finalize", bidCaseId);
+        확정이_3팀_초안을_제안서로_묶는다();
         play("25_bidcases_assignee_view", null);
         play("26_tasks_team_view", null);
         play("27_notifications_sales", null);
@@ -190,6 +193,74 @@ public class GoldenWriteScenarioTest {
             fail(name + " 이 골든과 다르다:\n" + result.failure());
         }
         return result.rawBody();
+    }
+
+    /**
+     * 최종 확정은 <b>3팀 초안을 제안서 PPTX 로 묶는다</b>(단계 5 Task 5.2).
+     * 골든 {@code 24}~{@code 30} 은 이 파일도, {@code pptx_path} 도 보지 않는다 —
+     * 그래서 여기서 따로 확인한다.
+     *
+     * <p>⚠️ <b>특히 {@code 전산 파트} 가 들어 있는지를 본다.</b> 원본은 취합 팀 순서를
+     * {@code ["영업", "IT", "예산"]} 로 갖고 있는데 실제 팀 이름은 {@code 전산} 이라
+     * <b>전산팀 초안이 오류도 경고도 없이 빠졌다</b>(원본 테스트도 {@code "IT"} 로
+     * 넣어 못 잡았다). 이관하며 고친 자리이므로 회귀를 여기서 막는다.
+     */
+    private void 확정이_3팀_초안을_제안서로_묶는다() throws Exception {
+        JsonNode artifacts = new ObjectMapper().readTree(bodyOf(
+                MockMvcRequestBuilders.get("/institutions/dobong/artifacts")));
+        String pptxPath = artifacts.path("pptx_path").asText(null);
+        assertNotNull("확정했는데 pptx_path 가 안 적혔다", pptxPath);
+
+        java.io.File pptx = new java.io.File(pptxPath);
+        assertEquals("제안서 파일이 없다: " + pptx, true, pptx.isFile());
+
+        List<String> texts = new java.util.ArrayList<String>();
+        java.io.InputStream in = new java.io.FileInputStream(pptx);
+        try {
+            org.apache.poi.xslf.usermodel.XMLSlideShow show =
+                    new org.apache.poi.xslf.usermodel.XMLSlideShow(in);
+            try {
+                for (org.apache.poi.xslf.usermodel.XSLFSlide slide : show.getSlides()) {
+                    for (org.apache.poi.xslf.usermodel.XSLFShape shape : slide.getShapes()) {
+                        if (shape instanceof org.apache.poi.xslf.usermodel.XSLFTextShape) {
+                            texts.add(((org.apache.poi.xslf.usermodel.XSLFTextShape) shape)
+                                    .getText());
+                        }
+                    }
+                }
+            } finally {
+                show.close();
+            }
+        } finally {
+            in.close();
+        }
+
+        assertEquals("표지 + 배점표 + 3팀 = 5장이어야 한다(전산 파트가 빠지면 4장이다)",
+                5, slideCount(pptx));
+        for (String team : new String[]{"영업 파트", "전산 파트", "예산 파트"}) {
+            assertEquals(team + " 슬라이드가 없다: " + texts, true, texts.contains(team));
+        }
+    }
+
+    private static int slideCount(java.io.File pptx) throws Exception {
+        java.io.InputStream in = new java.io.FileInputStream(pptx);
+        try {
+            org.apache.poi.xslf.usermodel.XMLSlideShow show =
+                    new org.apache.poi.xslf.usermodel.XMLSlideShow(in);
+            try {
+                return show.getSlides().size();
+            } finally {
+                show.close();
+            }
+        } finally {
+            in.close();
+        }
+    }
+
+    private String bodyOf(MockHttpServletRequestBuilder request) throws Exception {
+        MockHttpServletResponse response = mockMvc.perform(request).andReturn().getResponse();
+        response.setCharacterEncoding("UTF-8");
+        return response.getContentAsString();
     }
 
     /** 한 수신자의 쪽지함. */
