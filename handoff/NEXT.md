@@ -1194,21 +1194,32 @@ py -3 -m server.demo                       # 데모 환경 + 서버 (data/demo.d
 - **미착수**: 코드 변경은 `FileContentService` 의 null 반환(항목 19) 하나뿐이고,
   8개 API 는 **아직 한 줄도 없다.**
 
-### 22. Python 운영 시스템의 `assemble_deliverable` 이 전산팀 초안을 빠뜨린다 (2026-08-27)
+### 22. ~~Python `assemble_deliverable` 이 전산팀 초안을 빠뜨린다~~ — **완료** (2026-08-28)
 
-- **출처**: `2026-08-27_summary.md` `## Session 19:41`. 단계 5 이관 중 발견.
-- **무엇인가**: `server/assembler.py` 의 `TEAM_ORDER = ["영업", "IT", "예산"]` 인데
-  실제 팀 이름은 **`영업`·`전산`·`예산`** 이다(`agent/nodes/role_router.ROLES`).
-  `"IT"` 는 옛 이름의 잔해이고 — `server/db.py` 에
-  `UPDATE tasks SET team='전산' WHERE team='IT'` 마이그레이션까지 있다 —
-  그래서 **7단계 취합에서 전산팀 초안이 통째로 빠진다.**
-- **왜 아무도 몰랐나**: 오류도 경고도 없이 슬라이드 한 장이 없어질 뿐이다. 원본 테스트
-  `server/tests/test_assembler.py` 도 `"IT"` 로 넣어 검증해 못 잡는다.
-- **Java 쪽은 고쳤다** — `DeliverableAssembler` 가 `Teams.AUTHORING_TEAMS` 를 쓰고,
-  시나리오 테스트가 확정 후 PPTX 에 `전산 파트` 슬라이드가 있는지 확인한다(`d28c892`).
-- ⏳ **Python 쪽은 안 고쳤다.** "별도로 `server/assembler.py` 도 고쳐 둘까요?" 라고
-  물었으나 답을 받기 전에 세션이 끝났다. **사용자 판단이 필요하다** — 이관이 끝나면
-  버려질 코드지만, 그때까지 운영에서 만드는 제안서에는 전산 파트가 계속 빠진다.
-- **고칠 때 할 일**: `TEAM_ORDER` 를 `server/teams.AUTHORING_TEAMS` 로 바꾸고
-  `test_assembler.py` 의 `"IT"` 를 `"전산"` 으로 고친다(둘을 함께 고쳐야 한다 —
-  테스트만 두면 여전히 못 잡는다).
+- **출처**: `2026-08-27_summary.md` `## Session 19:41`(발견) →
+  `2026-08-28_summary.md` `## Session 15:30`(해소, 커밋 `ab2ec1c`).
+- **무엇이었나**: `server/assembler.py` 의 `TEAM_ORDER = ["영업", "IT", "예산"]` —
+  계획 I 에서 `IT` → `전산` 으로 개명됐고 `server/db.py` 에 데이터 마이그레이션까지
+  있는데 이 목록만 옛 이름이라, **7단계 취합에서 전산팀 초안이 슬라이드째 빠졌다.**
+- **고친 것**: 팀 목록의 출처를 `server/teams.AUTHORING_TEAMS` 하나로 통일.
+  순서는 `(영업, 전산, 예산)` 으로 종전과 같아 슬라이드 순서는 안 바뀐다.
+  전체 pytest **760 passed**.
+- **왜 못 잡았나 — 이게 남길 값어치가 있는 부분이다.** 테스트가 **없어서**가 아니라
+  픽스처가 `"IT"` 로 넣고 구현도 `"IT"` 를 읽어 **둘이 나란히 틀린 채로 통과**했다.
+  이제 픽스처가 `AUTHORING_TEAMS` 를 그대로 돌리므로 이름을 어디든 따로 박으면 깨진다.
+  고치기 전 코드에 새 테스트를 걸어 실제로 실패하는 것(`취합에서 빠진 팀: ['전산']`)을
+  확인한 뒤 커밋했다.
+- ⚠️ **같은 부류가 더 있는지는 확인하지 않았다.** "팀 이름을 손으로 박은 자리"가
+  이 결함의 정체다. 새로 발견하면 `server/teams.AUTHORING_TEAMS` 로 모을 것.
+
+### 23. ⚠️ 한글이 든 소스 파일을 PowerShell 로 재작성하지 말 것 (2026-08-28)
+
+- **출처**: `2026-08-28_summary.md` `## Session 15:30`. 항목 22 작업 중 실제로 겪음.
+- **무엇인가**: `(Get-Content x -Raw).Replace(...) | Set-Content x -Encoding utf8` 로
+  `server/assembler.py` 를 고쳤더니 **파일 전체의 한글이 깨졌다**(`痍⑦빀`, `?쒖븞??`).
+  테스트가 엉뚱한 `OSError: [Errno 22] Invalid argument` 로 실패해, 잠깐 코드 결함으로
+  오해할 뻔했다.
+- **어떻게 해야 하나**: 파일 수정은 **Edit 도구**로 한다. 굳이 셸로 해야 하면 먼저
+  백업하고(그날은 `$CLAUDE_JOB_DIR/tmp` 에 떠 둬서 바로 복구했다) 결과를 눈으로 확인한다.
+- **왜 남기나**: 이 리포는 주석·문서·테스트 이름까지 전부 한글이라 **모든 소스 파일이
+  이 위험에 걸린다.** 증상이 인코딩 오류가 아니라 무관해 보이는 런타임 오류로 나타난다.
