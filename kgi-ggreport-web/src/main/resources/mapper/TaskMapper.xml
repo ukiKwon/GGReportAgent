@@ -49,6 +49,41 @@
      ORDER BY TEAM
   </select>
 
+  <resultMap id="approvalItem" type="com.kbstar.kgi.ggreport.web.dto.ApprovalItem">
+    <id     property="taskId"          column="TASK_ID"/>
+    <result property="team"            column="TEAM"/>
+    <result property="status"          column="STATUS"/>
+    <result property="assignee"        column="ASSIGNEE"/>
+    <result property="approver"        column="APPROVER"/>
+    <result property="draftContent"    column="DRAFT_CONTENT"/>
+    <result property="institutionId"   column="INSTITUTION_ID"/>
+    <result property="institutionName" column="NAME_KO"/>
+    <result property="stage"           column="STAGE"/>
+  </resultMap>
+
+  <!--
+    결재함 — 그 역할이 결재할 작업들.
+
+    ⚠️ **(팀, 상태) 쌍으로 거른다.** 팀만 보면 같은 디자이너 작업이 팀장(1차완료)과
+       부장(2차완료) 결재함에 **동시에** 뜬다. 쌍이 하나도 없으면(결재 권한이 없는
+       역할) 호출부가 아예 부르지 않는다 — 빈 IN 절은 SQL 오류다.
+
+    ⚠️ 정렬은 기관명 → SEQ_NO 다. 원본의 `ORDER BY i.name_ko, t.rowid` 인데 Oracle 에
+       rowid 대응이 없어 002 가 고정해 둔 SEQ_NO 를 쓴다(handoff 와 같은 이유).
+  -->
+  <select id="selectApprovalQueue" resultMap="approvalItem">
+    SELECT T.TASK_ID, T.TEAM, T.STATUS, T.ASSIGNEE, T.APPROVER, T.DRAFT_CONTENT,
+           B.INSTITUTION_ID, I.NAME_KO, I.STAGE
+      FROM TASKS T
+      JOIN BID_CASES B ON B.BID_CASE_ID = T.BID_CASE_ID
+      JOIN INSTITUTIONS I ON I.INSTITUTION_ID = B.INSTITUTION_ID
+     WHERE
+    <foreach collection="pairs" item="p" open="(" separator=" OR " close=")">
+      (T.TEAM = #{p.team} AND T.STATUS = #{p.status})
+    </foreach>
+     ORDER BY I.NAME_KO, T.SEQ_NO
+  </select>
+
   <resultMap id="handoffTeam" type="com.kbstar.kgi.ggreport.web.dto.HandoffTeam">
     <id     property="taskId"       column="TASK_ID"/>
     <result property="team"         column="TEAM"/>

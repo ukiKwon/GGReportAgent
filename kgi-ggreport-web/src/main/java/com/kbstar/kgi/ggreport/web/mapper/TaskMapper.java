@@ -32,6 +32,15 @@ public interface TaskMapper {
     List<String> selectTeams(@Param("bidCaseId") String bidCaseId);
 
     /**
+     * 결재함 — 그 역할이 결재할 작업들.
+     *
+     * <p>⚠️ {@code pairs} 가 <b>비어 있으면 부르지 말 것</b> — 빈 {@code IN} 절은
+     * SQL 오류다. 호출부({@code ApprovalsService})가 먼저 거른다.
+     */
+    List<com.kbstar.kgi.ggreport.web.dto.ApprovalItem> selectApprovalQueue(
+            @Param("pairs") List<com.kbstar.kgi.ggreport.web.dto.TeamStatus> pairs);
+
+    /**
      * 이관 패키지의 팀 목록 — 같은 공고의 <b>다른 팀</b> 작업들(삽입 순서).
      *
      * <p>상태로 거르지 않는다. 이유는 XML 주석에 있다 — 감추면 디자이너가 다 받은 줄 안다.
