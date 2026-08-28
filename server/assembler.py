@@ -8,8 +8,14 @@ import os
 import sqlite3
 
 from agent.nodes.pptx_builder import build_pptx
+from server.teams import AUTHORING_TEAMS
 
-TEAM_ORDER = ["영업", "IT", "예산"]
+# ⚠️ 팀 이름을 여기에 다시 적지 말 것 — `server/teams.AUTHORING_TEAMS`가 유일한 출처다.
+# 예전에는 `TEAM_ORDER = ["영업", "IT", "예산"]`으로 박혀 있었는데, 계획 I에서 `IT`가
+# `전산`으로 개명된 뒤(`server/db.py`에 `UPDATE tasks SET team='전산' WHERE team='IT'`
+# 마이그레이션까지 있다) 이 목록만 옛 이름으로 남아 **취합에서 전산팀 초안이 통째로
+# 빠졌다.** 오류도 경고도 없이 슬라이드 한 장이 없어질 뿐이라 아무도 몰랐다
+# (2026-08-27 Java 이관 중 발견).
 
 
 def assemble_deliverable(
@@ -33,7 +39,7 @@ def assemble_deliverable(
     }
     sections = [
         {"title": f"{team} 파트", "content": drafts[team], "sources": []}
-        for team in TEAM_ORDER
+        for team in AUTHORING_TEAMS
         if team in drafts
     ]
 
