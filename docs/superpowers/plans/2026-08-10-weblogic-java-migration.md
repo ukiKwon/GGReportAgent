@@ -276,7 +276,15 @@
   재큐잉. PII 마스킹 정규식 그대로 이식.
 - **Task 4.2 — WorkManager 실행기**: CommonJ WorkManager(JNDI)로 백그라운드
   실행·팬아웃(자식 STEP 생성→개별 제출→전부 완료 시 조인). raw thread 금지.
-- **Task 4.3 — SSE**: `AsyncContext` + `SseEmitter`. `async-supported=true`는
+- **Task 4.3 — 채팅 스트리밍** (**개정 2026-08-28** — 종전 표기 "SSE"): `AsyncContext` +
+  **`StreamingResponseBody`**. ⚠️ **`SseEmitter`가 아니다.** 원본은 SSE가 아니라
+  **POST + `text/plain; charset=utf-8` 청크 스트림**이고(`server/routers/chat.py:88`
+  주석이 명시), 프런트는 `fetch` + `body.getReader()`로 읽는다
+  (`frontend/js/chat.js:144`). `SseEmitter`를 쓰면 `data:` 프레이밍이 붙어 말풍선에
+  그대로 쌓인다 — **화면 무변경이 이관의 전제**라 선택지가 없다. 대상은
+  `POST /institutions/{id}/chat` 하나다(작업 진행 표시는 스트리밍이 아니라 폴링이고,
+  `tasks.py`의 스트리밍은 프런트 호출부가 없는 API 전용).
+  `async-supported=true`는
   Task 1.2에서 우리가 이미 켠다. **남은 위험은 전적으로 경유지 쪽**이다(문의 7) —
   버퍼링이 켜져 있으면 실시간 표시가 멈추고 유휴 타임아웃이 짧으면 진행 중 끊긴다.
   경유지 존재가 **확정**이므로 이 Task에는 **프록시 설정 조정 요청**이 산출물로
