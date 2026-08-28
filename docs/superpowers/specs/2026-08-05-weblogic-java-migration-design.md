@@ -1,6 +1,25 @@
 # WebLogic/Java 이관 설계 — Python(FastAPI+LangGraph) → 당행 표준 Java 플랫폼
 
-작성일: 2026-08-05 · **개정 2026-08-25** · **개정 2026-08-26**
+작성일: 2026-08-05 · **개정 2026-08-25** · **개정 2026-08-26** · **개정 2026-08-28**
+
+> ⚠️ **2026-08-28 개정 — 원본을 "SSE"로 규정한 것은 사실오류였다. §3 이관 대응표를 고쳤다.**
+>
+> 종전 §3 표가 `chat.py`·`tasks.py`의 스트리밍을 **SSE**로 적고 대응물을 Spring
+> `SseEmitter`로 지정했다. **원본은 SSE가 아니다** — 코드에 그렇게 못 박혀 있다
+> (`server/routers/chat.py:88`: *"SSE가 아니다 — EventSource는 GET만 되는데 이
+> 엔드포인트는 POST라 애초에 쓸 수 없고, 본문도 `data:` 프레이밍이 없는 평문이다"*).
+> 실제로는 **POST + `text/plain; charset=utf-8` 청크 스트림**이고, 프런트는
+> `EventSource`가 아니라 `fetch` + `body.getReader()`로 읽는다(`frontend/js/chat.js:144`).
+>
+> - **왜 중요한가**: `SseEmitter`는 `text/event-stream` + `data:` 프레이밍을 붙인다.
+>   그대로 만들면 채팅 말풍선에 `data:` 접두사가 그대로 쌓인다. **"화면은 손대지
+>   않는다"(§3 원칙 1)가 이관의 전제**라 프레이밍을 바꾸는 선택지는 없다.
+> - **바뀐 것은 대응물뿐이다** — `SseEmitter` → **`StreamingResponseBody`**.
+>   `async-supported=true`가 필요한 것은 양쪽 다 같으므로 §7-5·§7-7의 **질문은
+>   그대로 유효**하다(청크 스트리밍도 버퍼링·유휴 타임아웃에 똑같이 깨진다).
+> - **곁가지**: 스트리밍 소비처는 **채팅 하나뿐**이다. 작업 진행 표시는 스트리밍이
+>   아니라 **폴링**이다(`frontend/js/workflow.js`의 `progress_pct`). `tasks.py`의
+>   스트리밍 엔드포인트는 프런트 호출부가 없는 **API 전용**이다.
 
 > ⚠️ **2026-08-25 개정 — 전제 2건이 바뀌었다. 이 문서를 읽기 전에 먼저 볼 것.**
 >
@@ -74,7 +93,7 @@
 | 영속화 | **Oracle + MyBatis** | SQLite 3파일(registry / corpus_index / LangGraph 체크포인트) 전부 Oracle 스키마로 통합. **개정 2026-08-26** — 내부망은 로컬~운영 전 구간 Oracle이고, **외부망 로컬(`out-local`)만 MySQL 미러**다(문서 상단 5축 표) |
 | WAS | **WebLogic** | 컨테이너 관리 스레드·JNDI DataSource 전제. 앱이 스레드를 직접 만들면 안 됨 |
 | 망 | **폐쇄망** | 의존성 전량 사전 반입(사내 Nexus 또는 오프라인 리포지토리). **개정 2026-08-26** — **Maven 중앙 저장소 접근 불가가 확정 사실**이다. 빌드 머신에서 `mvn`이 새 의존성을 받아 올 수 없으므로 라이브러리 추가에는 반입 절차가 따른다. 단 **그 절차는 이미 있고 까다롭지 않다**(사용자 확인) — 일정 리스크가 아니라 "빌드 중 자동 취득이 안 된다"는 사실로만 다룬다 |
-| **서비스 간 통신** | **회사 공통 API 게이트웨이(경유지) 경유 + OAuth 필수** | **개정 2026-08-25 신설.** 목적지로 직접 부르는 경로가 없다. 앞단 프록시가 **확정**이므로 SSE 버퍼링·타임아웃 대응이 필수(§7)이고, 나가는 호출은 전부 토큰 획득·갱신을 거친다(§6-C) |
+| **서비스 간 통신** | **회사 공통 API 게이트웨이(경유지) 경유 + OAuth 필수** | **개정 2026-08-25 신설.** 목적지로 직접 부르는 경로가 없다. 앞단 프록시가 **확정**이므로 스트리밍 버퍼링·타임아웃 대응이 필수(§7)이고, 나가는 호출은 전부 토큰 획득·갱신을 거친다(§6-C) |
 | LLM | **당행 사내 공용 LLM API** (경유지 경유) | 엔드포인트를 받아 쓴다. 호환규격·인증·임베딩 지원 여부는 §7 확인항목 |
 | 브라우저 | **크롬/엣지 최신** | ES6 모듈·`fetch`·`EventSource`·d3 v7 그대로 사용 가능 → **프런트 재작성 없음** |
 
@@ -101,7 +120,7 @@ WebLogic ── ggreport.war (단일 WAR)
 
 **경유지는 우회로가 없다**(2026-08-25 확정). 앱에서 나가는 모든 사내 호출은 이 게이트웨이를
 지나며 OAuth를 거친다. 들어오는 방향도 마찬가지라, 브라우저→WebLogic 사이에 프록시가
-**있다는 전제**로 설계한다 — SSE가 여기 걸린다(§7).
+**있다는 전제**로 설계한다 — 채팅 스트리밍이 여기 걸린다(§7).
 
 핵심 원칙 세 가지:
 
@@ -126,7 +145,7 @@ WebLogic ── ggreport.war (단일 WAR)
 | `vectors` BLOB + numpy 코사인 | Oracle BLOB + Java `float[]` 브루트포스 코사인 | 코퍼스가 5.6MB/413파일이라 전량 메모리 적재로 충분. 벡터DB 불필요 |
 | LangGraph `StateGraph`/`interrupt()`/`SqliteSaver` | **직접 구현한 상태머신 + Oracle 체크포인트** | §6-B. 그래프 자체는 129줄이지만 재개 의미론이 본질 |
 | `threading.Thread` 백그라운드 실행 (`orchestrator_service.py`, `reindex_service.py`) | **CommonJ WorkManager** (`commonj.work.WorkManager`, JNDI 조회) | WAS에서 앱이 raw thread를 만드는 것은 금지 사항 |
-| SSE `StreamingResponse` (`chat.py`, `tasks.py`) | Servlet 3.1 `AsyncContext` + Spring `SseEmitter` | `web.xml`/필터에 `async-supported=true` 필수 (§7) |
+| `StreamingResponse` 평문 청크 스트림 (`chat.py`, `tasks.py`) — **SSE가 아니다** | Servlet 3.1 `AsyncContext` + Spring **`StreamingResponseBody`** | **개정 2026-08-28**(문서 상단). POST + `text/plain; charset=utf-8`, `data:` 프레이밍 없음. `SseEmitter`를 쓰면 프레이밍이 붙어 화면이 깨진다. `web.xml`/필터에 `async-supported=true` 필수인 것은 동일 (§7) |
 | `pypdf` | **PDFBox 2.0.x** | RFP PDF 텍스트 추출 |
 | `python-pptx` | **Apache POI 5.2.x (XSLF)** | 산출물 PPTX 생성. 서식 재현 검증 필요 |
 | `langchain_openai.ChatOpenAI` | **Apache HttpClient 4.5 + Jackson 직접 호출** | §6-C — LangChain4j를 쓰지 않는다 |
@@ -264,9 +283,9 @@ JDK 1.8 지원 때문에 구버전에 묶이고, 폐쇄망 의존성 반입 목�
 | 2 | AI/정보화 | 사내 API가 **임베딩 엔드포인트를 제공하는가** | **없으면 벡터 검색을 포기하고 전문검색 단독**이 된다. 현재 하이브리드보다 검색 품질이 떨어지므로 사전 합의 필요 |
 | 3 | DBA | **Oracle Text** 사용 가능 여부(설치·라이선스·`KOREAN_MORPH_LEXER`) | §6-A 1안/2안 분기 |
 | 4 | DBA | Oracle 버전 (11g / 19c / 23ai) | 11g면 `IDENTITY`·일부 JSON 함수 사용 불가(현 스키마는 앱 생성 PK라 영향은 작다) |
-| 5 | 인프라 | **WebLogic 버전** (12.2.1.x = Servlet 3.1 / 14.1.1 = Servlet 4.0) | SSE 가능 여부는 둘 다 OK. `weblogic.xml` 설정과 프록시 타임아웃 값이 달라진다 |
+| 5 | 인프라 | **WebLogic 버전** (12.2.1.x = Servlet 3.1 / 14.1.1 = Servlet 4.0) | 비동기 스트리밍 가능 여부는 둘 다 OK. `weblogic.xml` 설정과 프록시 타임아웃 값이 달라진다 |
 | 6 | 인프라 | **[신설] 경유지 OAuth 토큰 발급 규격** — 서비스 계정 방식인가, 토큰 수명·갱신 절차, 뒤쪽 서비스가 토큰을 **재검증해야 하는가** | §6-C 어댑터의 토큰 계층. **재검증이 필요하면 인증 코드가 새로 생긴다**(현재 시스템에는 인증이 전혀 없다) |
-| 7 | 인프라 | **[개정] 경유지의 SSE 대응** — 응답 버퍼링·유휴 타임아웃 설정과 변경 요청 창구 | 버퍼링이 켜져 있으면 실시간 표시가 멈추고, 타임아웃이 짧으면 진행 중 연결이 끊긴다 |
+| 7 | 인프라 | **[개정] 경유지의 스트리밍 대응** — 응답 버퍼링·유휴 타임아웃 설정과 변경 요청 창구 | 버퍼링이 켜져 있으면 실시간 표시가 멈추고, 타임아웃이 짧으면 진행 중 연결이 끊긴다. **SSE가 아니라 청크 스트리밍이지만 깨지는 방식은 같다**(2026-08-28) |
 
 **개정으로 사라진 항목**: 종전 5번 "eGovFrame 표준 템플릿의 `web.xml`/공통 필터가
 `async-supported`를 켜두는가". eGovFrame 폐기로 **`web.xml`을 우리가 소유**하게 되어
@@ -291,7 +310,7 @@ JDK 1.8 지원 때문에 구버전에 묶이고, 폐쇄망 의존성 반입 목�
    MyBatis Mapper + 시드 데이터 이관. *끝난 모습:* 지도·목록·상세가 현재와 같이 보인다.
 3. **검색** — 청크·벡터 Oracle 이관, Oracle Text(또는 폴백) + 하이브리드 랭킹.
    *끝난 모습:* 지식 탭이 동작한다.
-4. **오케스트레이터** — 상태머신 + WorkManager + SSE + 결재 재개.
+4. **오케스트레이터** — 상태머신 + WorkManager + 채팅 스트리밍 + 결재 재개.
    *끝난 모습:* 워크플로 탭에서 실행·중단·결재·재개가 된다.
 5. **산출물** — PDFBox RFP 파싱, POI PPTX 생성, 검증·일관성 체크.
    *끝난 모습:* PPTX가 떨어지고 검증 결과가 표시된다.
