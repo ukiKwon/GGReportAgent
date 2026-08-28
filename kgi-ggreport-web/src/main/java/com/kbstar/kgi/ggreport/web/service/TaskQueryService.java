@@ -1,9 +1,13 @@
 package com.kbstar.kgi.ggreport.web.service;
 
 import com.kbstar.kgi.ggreport.web.config.AppProperties;
+import com.kbstar.kgi.ggreport.web.domain.Task;
+import com.kbstar.kgi.ggreport.web.domain.TaskDetail;
 import com.kbstar.kgi.ggreport.web.dto.TaskListRow;
+import com.kbstar.kgi.ggreport.web.mapper.MessageMapper;
 import com.kbstar.kgi.ggreport.web.mapper.TaskMapper;
 import com.kbstar.kgi.ggreport.web.support.TaskFiles;
+import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,11 +22,27 @@ import java.util.List;
 public class TaskQueryService {
 
     private final TaskMapper mapper;
+    private final MessageMapper messages;
     private final AppProperties properties;
 
-    public TaskQueryService(TaskMapper mapper, AppProperties properties) {
+    public TaskQueryService(TaskMapper mapper, MessageMapper messages, AppProperties properties) {
         this.mapper = mapper;
+        this.messages = messages;
         this.properties = properties;
+    }
+
+    /**
+     * 작업 상세 — 본문 + 그 작업에 달린 기록. Python {@code get_task_detail}.
+     *
+     * <p>기록은 <b>빈 목록으로 시작</b>한다({@code TaskDetail} 의 필드 초기값) —
+     * {@code null} 이 가면 화면의 목록 컴포넌트가 그 자리에서 깨진다.
+     */
+    public TaskDetail detail(String taskId) {
+        Task task = mapper.selectById(taskId);
+        if (task == null) {
+            throw ApiException.notFound("task not found");
+        }
+        return new TaskDetail(task, messages.selectByTask(taskId));
     }
 
     public List<TaskListRow> listForTeam(String team, List<String> statuses) {

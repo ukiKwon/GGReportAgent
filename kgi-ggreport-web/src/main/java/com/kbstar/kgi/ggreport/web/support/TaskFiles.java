@@ -1,6 +1,17 @@
 package com.kbstar.kgi.ggreport.web.support;
 
+import com.kbstar.kgi.ggreport.web.dto.TaskFileEntry;
+
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * 디자이너 작업물 파일 보관 위치. Python {@code server/task_files.py} 의 이관본
@@ -22,6 +33,20 @@ public final class TaskFiles {
     }
 
     private static final String DESIGN_DIRNAME = "design";
+
+    /** 디자이너 산출물로 실제로 오갈 것들만 — <b>실행파일이 공유 폴더에 쌓이면 안 된다.</b> */
+    static final List<String> ALLOWED_EXTS = Collections.unmodifiableList(Arrays.asList(
+            ".pptx", ".ppt", ".pdf", ".png", ".jpg", ".jpeg", ".zip"));
+
+    /** 폐쇄망이라도 디스크는 유한하다. */
+    static final long MAX_BYTES = 50L * 1024 * 1024;
+
+    /** 사람이 읽고 바로 고칠 수 있는 사유를 담는다. 컨트롤러가 400 으로 바꾼다. */
+    public static class FileRejected extends RuntimeException {
+        public FileRejected(String message) {
+            super(message);
+        }
+    }
 
     /** 올라온 파일 수. 폴더가 없으면 0 — <b>없는 것은 오류가 아니다.</b> */
     public static int count(String outputRoot, String institutionName, String taskId) {
@@ -53,6 +78,102 @@ public final class TaskFiles {
                     "작업물 경로가 뿌리를 벗어납니다: " + institutionName + " / " + taskId);
         }
         return new File(targetPath);
+    }
+
+    /**
+     * 경로 성분을 떼고 확장자를 검사한 파일명.
+     *
+     * <p>⚠️ {@code File#getName()} 만 쓰지 않는 이유: 그건 <b>실행 중인 OS 의 구분자</b>만
+     * 자른다. 리눅스에서 돌면 {@code "C:\\x\\a.pptx"} 가 통째로 파일명이 된다.
+     * 두 구분자를 모두 잘라야 플랫폼과 무관하게 같은 결과가 나온다(원본과 같은 규칙).
+     *
+     * @throws FileRejected 사람이 읽고 바로 고칠 수 있는 사유를 담는다.
+     */
+    public static String safeName(String filename) {
+        String raw = filename == null ? "" : filename.replace('\\', '/');
+        raw = raw.substring(raw.lastIndexOf('/') + 1).trim();
+        if (raw.isEmpty() || ".".equals(raw) || "..".equals(raw)) {
+            throw new FileRejected("파일명이 비어 있습니다");
+        }
+        if (raw.startsWith(".")) {
+            // 숨김파일은 화면 목록에서 눈에 안 띄어 남아 있는 줄도 모르게 된다.
+            throw new FileRejected("'.'으로 시작하는 파일은 올릴 수 없습니다: " + raw);
+        }
+        int dot = raw.lastIndexOf('.');
+        String ext = dot < 0 ? "" : raw.substring(dot).toLowerCase(Locale.ROOT);
+        if (!ALLOWED_EXTS.contains(ext)) {
+            throw new FileRejected("올릴 수 없는 형식입니다("
+                    + (ext.isEmpty() ? "확장자 없음" : ext) + ") — 가능한 형식: "
+                    + String.join(", ", ALLOWED_EXTS));
+        }
+        return raw;
+    }
+
+    /**
+     * 저장하고 그 결과를 돌려준다. 같은 이름이면 덮어쓰되 {@code replaced} 로 알린다.
+     *
+     * <p>덮어쓰기를 허용하는 이유: 디자이너가 수정본을 같은 이름으로 다시 올리는 것이
+     * 자연스러운 흐름이다. 다만 <b>조용히</b> 덮어쓰지는 않는다.
+     */
+    public static TaskFileEntry save(String outputRoot, String institutionName, String taskId,
+                                     String filename, byte[] data) throws IOException {
+        if (data.length > MAX_BYTES) {
+            throw new FileRejected(String.format(Locale.ROOT,
+                    "파일이 너무 큽니다(%.1fMB) — %dMB까지 올릴 수 있습니다",
+                    data.length / 1024.0 / 1024.0, MAX_BYTES / 1024 / 1024));
+        }
+        String name = safeName(filename);
+        File dir = taskDir(outputRoot, institutionName, taskId);
+        if (!dir.isDirectory() && !dir.mkdirs()) {
+            throw new IOException("작업물 폴더를 만들지 못했습니다: " + dir);
+        }
+        File target = new File(dir, name);
+        boolean replaced = target.isFile();
+        Files.write(target.toPath(), data);
+        return entry(target, replaced);
+    }
+
+    /** 올라온 파일 목록(이름순). 폴더가 없으면 빈 목록 — <b>없는 것은 오류가 아니다.</b> */
+    public static List<TaskFileEntry> listing(String outputRoot, String institutionName,
+                                              String taskId) {
+        File[] entries = taskDir(outputRoot, institutionName, taskId).listFiles();
+        if (entries == null) {
+            return Collections.emptyList();
+        }
+        List<File> files = new ArrayList<>();
+        for (File f : entries) {
+            if (f.isFile()) {
+                files.add(f);
+            }
+        }
+        files.sort(Comparator.comparing(File::getName));
+        List<TaskFileEntry> rows = new ArrayList<>(files.size());
+        for (File f : files) {
+            rows.add(entry(f, false));
+        }
+        return rows;
+    }
+
+    /** 내려받기용 실제 경로. 이름은 저장 때와 <b>같은 규칙</b>으로 다시 씻는다. */
+    public static File resolve(String outputRoot, String institutionName, String taskId,
+                               String name) {
+        return new File(taskDir(outputRoot, institutionName, taskId), safeName(name));
+    }
+
+    /** 지웠으면 {@code true}, 원래 없었으면 {@code false}. */
+    public static boolean remove(String outputRoot, String institutionName, String taskId,
+                                 String name) {
+        File target = resolve(outputRoot, institutionName, taskId, name);
+        return target.isFile() && target.delete();
+    }
+
+    /**
+     * ⚠️ 시각은 {@link Times} 를 쓴다 — 목록의 {@code uploaded_at} 이 DB 의 다른
+     * 시각들과 <b>같은 모양</b>이어야 화면이 한 규칙으로 파싱한다.
+     */
+    private static TaskFileEntry entry(File file, boolean replaced) {
+        return new TaskFileEntry(file.getName(), file.length(),
+                Times.iso(Instant.ofEpochMilli(file.lastModified())), replaced);
     }
 
     private static String plainSegment(String value, String label) {

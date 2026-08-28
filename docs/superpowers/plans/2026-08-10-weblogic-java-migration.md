@@ -321,6 +321,44 @@
 - **Task 5.3 — 검증·일관성**: `scoring_consistency`(레벨 그룹별 합산 —
   2026-08-10 스키마 계층 반영분 기준) + `backend/consistency.py` 규칙 이식.
 
+## 단계 5-B — 계획에서 빠져 있던 나머지 API (회신 불요, **2026-08-28 신설**)
+
+*끝난 모습: 화면의 모든 탭이 조회만이 아니라 **쓰기까지** 현재와 같이 동작한다.*
+
+> ⚠️ **왜 뒤늦게 생겼나.** 단계 2를 "조회 REST"로 잡고 단계 4가 결재 흐름의 쓰기를
+> 가져가면서, **그 둘 어디에도 안 들어가는 쓰기 API가 계획에서 통째로 빠졌다.**
+> 2026-08-28 엔드포인트 실측에서 드러났다 — 파이썬 **47개** 중 자바 **25개**(53%)이고,
+> 차이 22개 중 검색(단계 3)·LLM 대기(Task 4.4)를 빼면 **아래가 남는다.**
+> 회신과 무관하므로 **지금 진행할 수 있는 유일한 이관 작업**이다.
+
+번호를 `5-B`로 둔 것은 기존 `단계 6`(uploader)의 번호를 흔들지 않기 위해서다 —
+README·NEXT.md가 그 번호를 참조한다.
+
+- **Task 5B.1 — 작업함**(먼저 한다, 2026-08-28 사용자 지시): `GET /tasks/{id}` ·
+  `GET /tasks/{id}/handoff` · 첨부 4종(`POST`/`GET` 목록/`GET` 단건/`DELETE`
+  `/tasks/{id}/files…`). 화면에서 가장 자주 쓰는 탭이라 먼저 간다.
+  ⚠️ 첨부는 **파일 시스템**을 건드린다 — 경로 조립을 `server/task_files.py`와
+  같은 규칙으로 옮기고, **경로 탈출 방어**를 반드시 함께 옮길 것.
+- **Task 5B.2 — 결재함**: `GET /approvals`. 결재 라인(`팀원 → 팀장 → 디자이너 →
+  영업부장`)은 이미 단계 4에 있으므로 **조회 하나**다.
+- **Task 5B.3 — 쪽지 쓰기**: `POST /notifications` · `POST /notifications/{id}/read`.
+  조회(`GET /notifications`)는 단계 2에서 끝났다.
+- **Task 5B.4 — 권한 관리 저장**: `PUT /menus`. 조회는 이미 있다.
+- **Task 5B.5 — 기관 쓰기·반입**: `POST /institutions` · `PUT /institutions/{id}` ·
+  `POST /institutions/import` · `POST /institutions/{id}/corpus{,/validate}` ·
+  `POST /inbox/{batch}/validate` · `POST /inbox/{batch}/import`.
+  ⚠️ **이름 중복은 409**다(`POST /institutions`) — CSV 반입 `import`의 upsert와
+  **일부러 다르다**: 표를 다시 올리는 건 정상이지만 사람이 같은 이름을 또 누르는 건
+  실수다. 이 구분을 잃지 말 것.
+- **Task 5B.6 — 나머지 둘**: `GET /llm/status`(화면의 🧠 배지 — Task 4.4 어댑터가
+  붙은 뒤라야 의미 있는 값이 나온다) · `POST /institutions/{id}/complete`.
+- **⛔ 이 단계에 넣지 않는 것**: `POST /tasks/{id}/upload`(즉시검사) ·
+  `POST /tasks/{id}/messages`(작업 대화) — **둘 다 LLM 이라 Task 4.4 회신 대기**다.
+  `GET /search` 는 단계 3.
+- **검증**: 골든에 이 경로들의 응답이 없다(캡처 대상이 아니었다). 그러므로
+  **골든 비교가 아니라 계약 테스트**로 고정한다 — 상태코드·본문 키·오류 모양,
+  그리고 첨부는 경로 탈출 거부. 원본 pytest 의 해당 테스트를 짝으로 옮긴다.
+
 ## 단계 6 — uploader 붙이기 (⛔ **이관 완료 후에 한다**, 2026-08-25 사용자 확정)
 
 *끝난 모습: IT담당자가 로그인하면 파일 업로드 상태를 탭에서 본다.*
