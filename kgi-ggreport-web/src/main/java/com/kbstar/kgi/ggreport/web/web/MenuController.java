@@ -1,13 +1,19 @@
 package com.kbstar.kgi.ggreport.web.web;
 
+import com.kbstar.kgi.ggreport.web.dto.MenuChangesIn;
 import com.kbstar.kgi.ggreport.web.dto.MenusResponse;
 import com.kbstar.kgi.ggreport.web.dto.RoleMenusResponse;
 import com.kbstar.kgi.ggreport.web.service.MenuService;
 import com.kbstar.kgi.ggreport.web.support.Menus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * 역할별 메뉴 조회. 골든 {@code 04}·{@code 05}.
@@ -42,5 +48,17 @@ public class MenuController {
         }
         // 관리 화면용 — 메뉴 정의(라벨·서버전용 여부)까지 함께 준다.
         return new MenusResponse(Menus.MENUS, menus.allRoles());
+    }
+
+    /**
+     * 바뀐 칸만 저장 — Task 5B.4.
+     *
+     * <p>⚠️ <b>권한관리 메뉴를 모든 역할에서 끄는 저장은 거부한다(400).</b> 그러면
+     * 아무도 이 화면에 들어올 수 없고, <b>되돌릴 화면이 바로 그 화면</b>이라 복구
+     * 방법이 없다. 판정은 저장 <b>전에</b> 한다({@code MenuService.save}).
+     */
+    @PutMapping
+    public Map<String, Integer> put(@RequestBody MenuChangesIn body) {
+        return Collections.singletonMap("saved", menus.save(body.getChanges()));
     }
 }

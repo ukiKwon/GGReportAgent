@@ -1,9 +1,13 @@
 package com.kbstar.kgi.ggreport.web.service;
 
 import com.kbstar.kgi.ggreport.web.domain.RoleMenu;
+import com.kbstar.kgi.ggreport.web.dto.MenuChangesIn;
 import com.kbstar.kgi.ggreport.web.mapper.RoleMenuMapper;
 import com.kbstar.kgi.ggreport.web.support.Menus;
+import com.kbstar.kgi.ggreport.web.support.Teams;
+import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,5 +53,71 @@ public class MenuService {
     /** 관리 화면용 역할×메뉴 격자. */
     public Map<String, Map<String, Boolean>> allRoles() {
         return Menus.allRoles(overrides());
+    }
+
+    /**
+     * 바뀐 칸만 저장한다 — Task 5B.4. Python {@code put_menus} + {@code save_changes}.
+     *
+     * <p>⚠️ <b>자물쇠 검사를 저장 전에 한다.</b> 저장하고 나서 확인하면 이미 아무도 못
+     * 들어가는 상태가 된 뒤다 — 되돌릴 화면이 바로 그 화면이라 <b>복구 방법이 없다.</b>
+     * 그래서 "저장 뒤의 모습"을 메모리에 먼저 그려 보고 판단한다.
+     *
+     * @return 저장한 칸 수
+     */
+    @Transactional
+    public int save(List<MenuChangesIn.MenuChange> changes) {
+        for (MenuChangesIn.MenuChange change : changes) {
+            if (!Menus.MENU_KEYS.contains(change.getMenu())) {
+                throw ApiException.badRequest("모르는 메뉴입니다: " + change.getMenu());
+            }
+            if (!Teams.ROLES.contains(change.getRole())) {
+                throw ApiException.badRequest("모르는 역할입니다: " + change.getRole());
+            }
+        }
+
+        Map<String, Map<String, Boolean>> after = Menus.allRoles(overrides());
+        for (MenuChangesIn.MenuChange change : changes) {
+            Map<String, Boolean> row = after.get(change.getRole());
+            if (row == null) {
+                row = new LinkedHashMap<>();
+                after.put(change.getRole(), row);
+            }
+            row.put(change.getMenu(), change.isEnabled());
+        }
+        if (!anyoneCanAdminister(after)) {
+            throw ApiException.badRequest(
+                    "권한관리 메뉴를 모든 역할에서 끌 수 없습니다 — "
+                            + "그러면 아무도 이 화면에 들어올 수 없어 되돌릴 방법이 없습니다. "
+                            + "먼저 다른 역할에 권한관리를 켜 주세요.");
+        }
+
+        for (MenuChangesIn.MenuChange change : changes) {
+            upsert(change);
+        }
+        return changes.size();
+    }
+
+    private static boolean anyoneCanAdminister(Map<String, Map<String, Boolean>> grid) {
+        for (Map<String, Boolean> row : grid.values()) {
+            if (Boolean.TRUE.equals(row.get(Menus.ADMIN_MENU))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * upsert — 원본은 {@code ON CONFLICT DO UPDATE} 지만 Oracle 9i~11g 에는 그 문법이
+     * 없다. 갱신 먼저, 걸린 행이 없으면 삽입한다.
+     *
+     * <p>⚠️ 이 메서드는 {@link #save} 의 트랜잭션 안에서만 부른다 — 갱신과 삽입 사이에
+     * 다른 트랜잭션이 같은 (역할, 메뉴)를 넣으면 삽입이 PK 로 실패한다. 관리 화면은
+     * 동시 저장이 드물지만, 실패하더라도 <b>조용히 덮이지는 않는다.</b>
+     */
+    private void upsert(MenuChangesIn.MenuChange change) {
+        int updated = mapper.updateEnabled(change.getRole(), change.getMenu(), change.isEnabled());
+        if (updated == 0) {
+            mapper.insert(change.getRole(), change.getMenu(), change.isEnabled());
+        }
     }
 }
