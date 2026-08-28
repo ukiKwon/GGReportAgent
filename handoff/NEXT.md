@@ -481,15 +481,44 @@ py -3 -m server.demo                       # 데모 환경 + 서버 (data/demo.d
     - DDL 이 `001`~`006` 으로 늘었다(`004` 시각 컬럼 40자, `005` 로그 테이블 `SEQ_NO`,
       `006` 오케스트레이터). **MySQL 미러에 전부 실제 적용해 확인**했고 Oracle 은 미검증.
     - 상세(되돌리면 안 되는 계약, 실측 수치)는 **`kgi-ggreport-web/README.md` §7-1~§7-7**.
+  - ✅ **2026-08-28 — Task 4.3 완료 + 4.4 인터페이스 동결.** 출처: `2026-08-28_summary.md`
+    `## Session 14:58`. 커밋 `bde657b`(문서 정정)·`1972721`(4.3)·`cf31c31`(4.4),
+    전부 push. 테스트 **147 → 168**, `mvn -o package` BUILD SUCCESS.
+    - ⚠️ **설계가 원본을 "SSE"로 규정한 것은 사실오류였다 — 정정 완료.** 원본은
+      `POST` + `text/plain; charset=utf-8` **평문 청크**이고 `data:` 프레이밍이 없다
+      (`server/routers/chat.py:88` 주석이 명시). 화면도 `EventSource` 가 아니라
+      `fetch` + `body.getReader()` 로 읽는다(`frontend/js/chat.js:144`).
+      **`SseEmitter` 로 만들면 말풍선에 `data:` 가 쌓인다** — 화면 무변경이 전제라
+      `StreamingResponseBody` 로 갔다. 설계 §3 표·§7·계획 Task 4.3·문의서 7번·web.xml
+      주석을 함께 고쳤다(`bde657b`).
+    - **곁가지 사실 2건**: 스트리밍 소비처는 **채팅 하나뿐**이다(작업 진행 표시는
+      스트리밍이 아니라 **폴링** — `workflow.js` 의 `progress_pct`). `tasks.py` 의
+      스트리밍 엔드포인트는 **프런트 호출부가 없는 API 전용**이다.
+    - **Task 4.3 산출물**: `ChatController`(GET 이력 + POST 스트리밍) ·
+      `ChatService`(원본 `finally` 저장 규칙 4가지) · `ClientGoneException`(중단 ≠ 실패) ·
+      `ConsultReply`(4.4 와의 경계) · **`docs/경유지_프록시설정_요청서_대화스트리밍.md`**
+      (계획이 지정한 산출물 — **문의 7번 회신 뒤 발송**, `[현재값]` 자리를 채워서).
+    - **Task 4.4 는 인터페이스만 동결**(계획이 정한 범위). HTTP 호출 코드는 없다 —
+      `LlmClient`/`LlmRequest`/`LlmResponse`/`TokenProvider`/`FallbackPolicy`/
+      `LlmProperties` + `NotYetMigratedLlmClient`(소리 내어 실패).
   - ⛔ **남은 것이 전부 문의 회신 대기다** — 회신 없이 갈 수 있는 곳은 다 왔다.
     - **단계 3 검색** — 문의 2·3(임베딩 엔드포인트 / Oracle Text 가용).
-    - **Task 4.4 LLM 어댑터** — 문의 1·6(사내 API 규격 / 경유지 OAuth). 이게 없어
-      노드 본문 4개(`rfi`·`draft`·`packager`·`verifier`)가 비어 있고, 운영 배선은
+    - **Task 4.4 LLM 어댑터 — 구현만 남았다**(인터페이스는 2026-08-28 동결). 문의 1·6
+      (사내 API 규격 / 경유지 OAuth). 이게 없어 노드 본문 4개
+      (`rfi`·`draft`·`packager`·`verifier`)가 비어 있고, 운영 배선은
       `NotYetMigratedHandler` 로 **소리 내어 실패**한다(일부러 그렇게 뒀다 — 빈 구현으로
       통과시키면 실행이 끝까지 돌아 화면에 정상 완료로 보인다).
       `packager` 는 LLM 을 안 쓰지만 입력이 `draft` 의 산출이라 앞이 막혀 도달 못 한다.
-    - **Task 4.3 SSE** — 배선은 지금도 가능하나 스트리밍 내용이 LLM 이다.
-      경유지 프록시 설정 요청(버퍼링 off·타임아웃)이 산출물에 포함된다.
+      **회신 뒤 할 일은 `NotYetMigratedLlmClient` 의 javadoc 에 4단계로 적어 뒀다** —
+      구현 2개(`LlmClient`·`TokenProvider`) 등록 + `FallbackPolicy` 재사용 +
+      `LlmResponse.getModel()` 에 실제 응답 모델 싣기. 그 뒤
+      `NotYetMigratedConsultReply` 와 노드 4개를 갈아 끼우면 단계 4가 닫힌다.
+      ⚠️ **폴백 범위가 원본과 다르다(의도)** — 파이썬 `with_fallbacks` 는 어떤 실패든
+      넘어가지만 계획(2026-08-25)대로 **404 일 때만** 폴백한다. 401/403 은 2순위도 같은
+      토큰이라 태우면 토큰 만료가 "모델 2개가 다 죽었다"로 보고된다.
+      넓히는 조건은 `FallbackPolicy` javadoc 참고.
+    - ~~**Task 4.3 SSE**~~ — **완료(2026-08-28).** 위 참조. 남은 것은 경유지 설정
+      요청서 발송뿐이고 그건 문의 7번 회신에 붙어 있다.
     - **Task 4.2 WorkManager 실검증** — 문의 **5-1**(2026-08-28 신설). 코드는 끝났지만
       JNDI 경로는 **WebLogic 에서만 검증된다** — 로컬·테스트는 JNDI 가 없어 폴백
       (`caller-runs`)으로 떨어진다. 폴백인 채로 운영에 올라가면 요청 스레드가 게이트까지
