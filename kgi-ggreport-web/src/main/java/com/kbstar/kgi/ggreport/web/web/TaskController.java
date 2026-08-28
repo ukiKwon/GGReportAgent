@@ -5,8 +5,10 @@ import com.kbstar.kgi.ggreport.web.domain.TaskActorIn;
 import com.kbstar.kgi.ggreport.web.domain.TaskApprovalIn;
 import com.kbstar.kgi.ggreport.web.domain.TaskDraftIn;
 import com.kbstar.kgi.ggreport.web.domain.TaskDetail;
+import com.kbstar.kgi.ggreport.web.dto.HandoffResponse;
 import com.kbstar.kgi.ggreport.web.dto.TaskFileEntry;
 import com.kbstar.kgi.ggreport.web.dto.TaskListRow;
+import com.kbstar.kgi.ggreport.web.service.HandoffService;
 import com.kbstar.kgi.ggreport.web.service.TaskCommandService;
 import com.kbstar.kgi.ggreport.web.service.TaskFileService;
 import com.kbstar.kgi.ggreport.web.service.TaskQueryService;
@@ -55,12 +57,14 @@ public class TaskController {
     private final TaskQueryService tasks;
     private final TaskCommandService commands;
     private final TaskFileService files;
+    private final HandoffService handoffs;
 
     public TaskController(TaskQueryService tasks, TaskCommandService commands,
-                          TaskFileService files) {
+                          TaskFileService files, HandoffService handoffs) {
         this.tasks = tasks;
         this.commands = commands;
         this.files = files;
+        this.handoffs = handoffs;
     }
 
     @GetMapping
@@ -77,6 +81,18 @@ public class TaskController {
     @GetMapping("/{taskId}")
     public TaskDetail detail(@PathVariable String taskId) {
         return tasks.detail(taskId);
+    }
+
+    /**
+     * 이관 패키지 — 디자이너가 "무엇을 받았고 누구에게 물어야 하나"를 보는 화면의 재료.
+     *
+     * <p>같은 공고의 <b>다른 팀</b> 작업(본문 + 첨부 + 문의처)과 산출물
+     * ({@code scoring}·{@code coverage}·{@code pptxPath})을 한 번에 싣는다.
+     * 산출물 <b>본문</b>은 여기서 주지 않는다 — {@code GET /documents?path=} 가 한다.
+     */
+    @GetMapping("/{taskId}/handoff")
+    public HandoffResponse handoff(@PathVariable String taskId) {
+        return handoffs.of(taskId);
     }
 
     // ── 첨부(디자이너 작업물) — Task 5B.1 ────────────────────────────────

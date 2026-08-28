@@ -32,6 +32,14 @@ public interface TaskMapper {
     List<String> selectTeams(@Param("bidCaseId") String bidCaseId);
 
     /**
+     * 이관 패키지의 팀 목록 — 같은 공고의 <b>다른 팀</b> 작업들(삽입 순서).
+     *
+     * <p>상태로 거르지 않는다. 이유는 XML 주석에 있다 — 감추면 디자이너가 다 받은 줄 안다.
+     */
+    List<com.kbstar.kgi.ggreport.web.dto.HandoffTeam> selectHandoffTeams(
+            @Param("bidCaseId") String bidCaseId, @Param("excludeTeam") String excludeTeam);
+
+    /**
      * 한 공고에서 그 팀의 작업 id. 없으면 null.
      *
      * <p>오케스트레이터의 {@code _ensure_task} 가 쓴다 — 노드가 로그를 남길 때마다
