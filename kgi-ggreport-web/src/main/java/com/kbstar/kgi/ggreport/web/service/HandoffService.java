@@ -5,16 +5,20 @@ import com.kbstar.kgi.ggreport.web.domain.Institution;
 import com.kbstar.kgi.ggreport.web.dto.HandoffResponse;
 import com.kbstar.kgi.ggreport.web.dto.HandoffTeam;
 import com.kbstar.kgi.ggreport.web.dto.TaskContext;
+import com.kbstar.kgi.ggreport.web.dto.TaskFileEntry;
 import com.kbstar.kgi.ggreport.web.mapper.InstitutionMapper;
 import com.kbstar.kgi.ggreport.web.mapper.NotificationMapper;
 import com.kbstar.kgi.ggreport.web.mapper.TaskMapper;
 import com.kbstar.kgi.ggreport.web.support.TaskFiles;
 import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -31,6 +35,8 @@ import java.util.List;
 @Service
 public class HandoffService {
 
+    private static final Logger log = LoggerFactory.getLogger(HandoffService.class);
+
     private final TaskMapper tasks;
     private final InstitutionMapper institutions;
     private final NotificationMapper notifications;
@@ -45,6 +51,34 @@ public class HandoffService {
         this.notifications = notifications;
         this.jsonFiles = jsonFiles;
         this.properties = properties;
+    }
+
+    /**
+     * 한 팀의 첨부 목록. <b>경로 가드에 걸리면 그 팀만 빈 목록으로 떨군다.</b>
+     *
+     * <p>가드({@link TaskFiles#taskDir}) 자체는 여기서도 그대로 돈다 — 탈출은 막힌다.
+     * 다루는 것은 <b>걸렸을 때 무엇을 할지</b>다.
+     *
+     * <p>⚠️ <b>왜 통째로 실패시키지 않나.</b> 이 응답은 팀 여러 줄을 모은 것이라, 한 줄이
+     * 예외를 올리면 <b>디자이너가 다른 팀 산출물까지 못 본다.</b> 이관 패키지가 통째로
+     * 비면 "아직 아무도 안 올렸다"로 보이고, 정작 원인은 화면 어디에도 안 나온다.
+     * 한 줄만 비우면 나머지는 그대로 쓸 수 있다.
+     *
+     * <p>⚠️ <b>조용히 넘기지는 않는다</b> — {@code WARN} 으로 크게 남긴다. 기관명은 DB
+     * 에서 오지만 <b>CSV 반입 경로가 있어</b> 신뢰 대상이 아니고({@link TaskFiles} 주석),
+     * 여기 걸린다는 것은 반입된 데이터가 이상하다는 신호다. 로그가 없으면 "그 팀만
+     * 첨부가 안 보인다"는 증상으로만 남아 원인을 찾을 수 없다.
+     */
+    private static List<TaskFileEntry> filesOf(String outputRoot, String institutionName,
+                                               HandoffTeam row) {
+        try {
+            return TaskFiles.listing(outputRoot, institutionName, row.getTaskId());
+        } catch (TaskFiles.FileRejected | IllegalArgumentException rejected) {
+            log.warn("이관 패키지의 첨부 목록을 읽지 못했다 — 이 팀만 비운다."
+                            + " institution={} team={} taskId={}",
+                    institutionName, row.getTeam(), row.getTaskId(), rejected);
+            return Collections.emptyList();
+        }
     }
 
     public HandoffResponse of(String taskId) {
@@ -67,7 +101,7 @@ public class HandoffService {
                 continue;
             }
             row.setContact(Teams.inboxName(row.getTeam(), recipients));
-            row.setFiles(TaskFiles.listing(outputRoot, institutionName, row.getTaskId()));
+            row.setFiles(filesOf(outputRoot, institutionName, row));
             // 결재까지 끝나야 넘어갈 수 있다(계획 I). 디자이너 작업도 이 목록에 섞여
             // 오므로 최종완료도 끝난 것으로 본다 — 안 그러면 자기 자신을 기다린다.
             row.setWorking(!Teams.APPROVED_STATUS.equals(row.getStatus())

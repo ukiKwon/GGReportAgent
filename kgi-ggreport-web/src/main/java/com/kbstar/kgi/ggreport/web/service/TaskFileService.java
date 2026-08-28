@@ -53,9 +53,20 @@ public class TaskFileService {
         }
     }
 
+    /**
+     * 첨부 목록.
+     *
+     * <p>⚠️ 경로 가드에 걸리면 <b>400 이다.</b> 예전에는 이 메서드만 예외를 안 잡아
+     * 같은 원인이 업로드에서는 400, 목록에서는 <b>500</b> 으로 갈렸다(스택 트레이스가
+     * 나가고 화면에는 사유가 안 남는다). 네 경로가 같은 모양으로 실패해야 한다.
+     */
     public List<TaskFileEntry> listing(String taskId) {
         TaskContext ctx = requireContext(taskId);
-        return TaskFiles.listing(properties.getOutputRoot(), ctx.getInstitutionName(), taskId);
+        try {
+            return TaskFiles.listing(properties.getOutputRoot(), ctx.getInstitutionName(), taskId);
+        } catch (TaskFiles.FileRejected | IllegalArgumentException rejected) {
+            throw ApiException.badRequest(rejected.getMessage());
+        }
     }
 
     /** 내려받을 실제 파일. 없으면 404, 이름이 수상하면 400. */
