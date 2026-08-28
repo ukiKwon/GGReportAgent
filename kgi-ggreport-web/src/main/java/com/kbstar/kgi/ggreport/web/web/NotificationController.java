@@ -1,13 +1,22 @@
 package com.kbstar.kgi.ggreport.web.web;
 
 import com.kbstar.kgi.ggreport.web.domain.Notification;
+import com.kbstar.kgi.ggreport.web.dto.NoteIn;
+import com.kbstar.kgi.ggreport.web.service.NotificationCommandService;
 import com.kbstar.kgi.ggreport.web.service.NotificationQueryService;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 쪽지함 조회 — 골든 {@code 27}.
@@ -27,9 +36,31 @@ public class NotificationController {
     private static final int LIMIT_MAX = 200;
 
     private final NotificationQueryService notifications;
+    private final NotificationCommandService commands;
 
-    public NotificationController(NotificationQueryService notifications) {
+    public NotificationController(NotificationQueryService notifications,
+                                  NotificationCommandService commands) {
         this.notifications = notifications;
+        this.commands = commands;
+    }
+
+    /**
+     * 사람이 보내는 쪽지 — Task 5B.3. {@code 201}.
+     *
+     * <p>⚠️ <b>{@code kind} 는 본문으로 받지 않는다</b>({@code 쪽지} 고정).
+     * {@code 결재요청}·{@code 되물음}·{@code 이관} 은 그래프만 만들 수 있어야 흐름을
+     * 신뢰할 수 있다 — 받으면 사람이 결재요청을 위조할 수 있다.
+     */
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public Notification send(@RequestBody NoteIn body) {
+        return commands.send(body);
+    }
+
+    /** 읽음 처리. 이미 읽은 것을 다시 눌러도 안전하다 — {@code {"read": false}} 로 알려줄 뿐. */
+    @PostMapping("/{notificationId}/read")
+    public Map<String, Boolean> read(@PathVariable String notificationId) {
+        return Collections.singletonMap("read", commands.markRead(notificationId));
     }
 
     @GetMapping

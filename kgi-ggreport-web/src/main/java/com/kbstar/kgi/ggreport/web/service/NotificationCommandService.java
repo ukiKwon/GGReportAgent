@@ -4,6 +4,7 @@ import com.kbstar.kgi.ggreport.web.domain.Notification;
 import com.kbstar.kgi.ggreport.web.mapper.NotificationMapper;
 import com.kbstar.kgi.ggreport.web.support.Ids;
 import com.kbstar.kgi.ggreport.web.support.Times;
+import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -16,10 +17,42 @@ import org.springframework.stereotype.Service;
 @Service
 public class NotificationCommandService {
 
+    /** 사람이 만들 수 있는 유일한 종류. 나머지는 그래프만 만든다. */
+    static final String NOTE_KIND = "쪽지";
+
     private final NotificationMapper notifications;
 
     public NotificationCommandService(NotificationMapper notifications) {
         this.notifications = notifications;
+    }
+
+    /**
+     * 사람이 보내는 쪽지 — Task 5B.2. Python {@code post_note}.
+     *
+     * <p>⚠️ <b>{@code kind} 를 {@code 쪽지} 로 고정한다.</b> 본문으로 받지 않는다 —
+     * {@code 결재요청}·{@code 되물음}·{@code 이관} 은 그래프(시스템)만 만들 수 있어야
+     * 흐름을 신뢰할 수 있다. 받으면 사람이 결재요청을 위조할 수 있다.
+     */
+    public Notification send(com.kbstar.kgi.ggreport.web.dto.NoteIn body) {
+        if (body.getRecipient() == null || body.getRecipient().trim().isEmpty()) {
+            throw ApiException.badRequest("recipient가 비어 있습니다");
+        }
+        return create(body.getRecipient(), NOTE_KIND, body.getContent(),
+                body.getInstitutionId(), body.getTaskId(), null, null, body.getSender());
+    }
+
+    /**
+     * 읽음 처리. 없으면 404.
+     *
+     * <p>⚠️ <b>이미 읽은 것을 다시 눌러도 안전하다</b> — 예외가 아니라 {@code read=false}
+     * 로 알려줄 뿐이다. 쪽지함은 여러 탭에서 열려 있을 수 있어 같은 요청이 두 번 오는
+     * 것이 정상 경로다.
+     */
+    public boolean markRead(String notificationId) {
+        if (notifications.selectById(notificationId) == null) {
+            throw ApiException.notFound("notification not found");
+        }
+        return notifications.markRead(notificationId, Times.nowIso()) > 0;
     }
 
     /** 원본의 위치 인자 3개(수신자·종류·본문) + 자주 쓰는 선택 인자 하나. */
