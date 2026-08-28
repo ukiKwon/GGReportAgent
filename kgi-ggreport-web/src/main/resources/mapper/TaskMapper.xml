@@ -49,6 +49,38 @@
      ORDER BY TEAM
   </select>
 
+  <resultMap id="handoffTeam" type="com.kbstar.kgi.ggreport.web.dto.HandoffTeam">
+    <id     property="taskId"       column="TASK_ID"/>
+    <result property="team"         column="TEAM"/>
+    <result property="status"       column="STATUS"/>
+    <result property="assignee"     column="ASSIGNEE"/>
+    <result property="approver"     column="APPROVER"/>
+    <result property="draftContent" column="DRAFT_CONTENT"/>
+  </resultMap>
+
+  <!--
+    이관 패키지의 팀 목록 — 같은 공고의 **다른 팀** 작업들.
+
+    ⚠️ **상태로 거르지 않는다.** 그래프는 팀 Task 를 `1차완료`까지만 올리고, 5단계
+       기획승인은 기관 단위 checkpoint 라 팀 Task 를 `2차완료`로 만들지 않는다.
+       '승인난 것만' 거르면 화면이 텅 비고, 무엇보다 **감추면 디자이너가 다 받은 줄
+       안다.** 전부 주고 실제 상태를 함께 실어 화면이 태그로 구분하게 한다.
+
+    ⚠️ **정렬은 SEQ_NO 다.** 원본은 `ORDER BY rowid`(삽입 순서)인데 Oracle 에는 rowid
+       대응이 없다 — 002 마이그레이션이 그 **사실상의 순서**를 SEQ_NO 로 고정했다.
+       빼면 화면의 팀 카드 순서가 실행마다 달라진다.
+
+    ⚠️ 여기서는 DRAFT_CONTENT 를 **싣는다** — 목록(selectListForTeam)과 반대다.
+       디자이너가 받아야 할 본문이고, 한 공고의 팀 수는 많아야 서너 개다.
+  -->
+  <select id="selectHandoffTeams" resultMap="handoffTeam">
+    SELECT TASK_ID, TEAM, STATUS, ASSIGNEE, APPROVER, DRAFT_CONTENT
+      FROM TASKS
+     WHERE BID_CASE_ID = #{bidCaseId}
+       AND TEAM &lt;&gt; #{excludeTeam}
+     ORDER BY SEQ_NO
+  </select>
+
   <resultMap id="workflowStatusTask" type="com.kbstar.kgi.ggreport.web.dto.WorkflowStatusTask">
     <id     property="taskId"      column="TASK_ID"/>
     <result property="team"        column="TEAM"/>
