@@ -532,10 +532,20 @@ py -3 -m server.demo                       # 데모 환경 + 서버 (data/demo.d
       `결재요청`·`되물음`·`이관` 은 그래프만 만들 수 있어야 흐름을 신뢰할 수 있고,
       받으면 사람이 결재요청을 **위조**할 수 있다. 읽음 처리는 두 번 눌러도 안전하다
       (여러 탭이 정상 경로 — 두 번째는 오류가 아니라 `{"read": false}`).
-    - ⬜ **다음 차례: 5B.4 권한 저장**(`PUT /menus`, 조회는 이미 있다) →
-      **5B.5 기관 쓰기·반입**(가장 크다 — `POST /institutions` 는 이름 중복 **409**,
-      CSV `import` 의 upsert 와 **일부러 다르다**) → **5B.6 나머지 둘**
-      (`GET /llm/status` 는 Task 4.4 어댑터가 붙은 뒤라야 의미 있는 값이 나온다).
+    - ✅ **Task 5B.4 권한 저장 완료**(커밋 `b9bf38e`) — `PUT /menus`.
+      ⚠️ **자물쇠 검사를 저장 전에 한다** — 권한관리를 모든 역할에서 끄면 아무도 그
+      화면에 못 들어오는데 **되돌릴 화면이 바로 그 화면**이라 복구 방법이 없다.
+      "저장 뒤의 모습"을 메모리에 먼저 그려 보고 판정한다. 거부됐을 때 **반쯤
+      적용되지 않는 것**도 테스트로 고정했다. 격자 전체가 아니라 **바뀐 칸만** upsert
+      한다(전체 덮어쓰기는 동시 편집 시 상대 변경을 통째로 지운다). upsert 는 갱신
+      먼저·0건이면 삽입 — `ON CONFLICT DO UPDATE` 는 Oracle 9i~11g 에 없다.
+    - ⬜ **다음 차례: 5B.5 기관 쓰기·반입**(단계 5-B 에서 가장 크다 —
+      `POST /institutions` 는 이름 중복 **409** 이고 CSV `import` 의 upsert 와
+      **일부러 다르다**) → **5B.6 나머지 둘**(`GET /llm/status` 는 Task 4.4 어댑터가
+      붙은 뒤라야 의미 있는 값이 나온다).
+      **5B.5 에서 함께 정할 것**: 반입 이력 테이블(`IMPORT_BATCH`) 신설 여부 —
+      지금은 DB 만 보면 기관 정보가 왜 바뀌었는지 추적할 수 없다
+      (근거: `docs/메뉴별_테이블_컬럼_정리.md` §5-④).
     - ⚠️ **배운 것**: 실패(404) 응답에도 `Content-Disposition` 이 붙는다. 우리가 단 게
       아니라 **Spring MVC 의 RFD 공격 방어**다(경로 끝이 `.pptx` 라 확장자로 보인다).
       "헤더가 없어야 한다"는 기대가 틀렸던 것이라 코드가 아니라 테스트를 고쳤다.
@@ -940,6 +950,26 @@ py -3 -m server.demo                       # 데모 환경 + 서버 (data/demo.d
 </details>
 
 ### 17. `uploader/` 붙이기 — **이관 완료 후로 확정**, 사전 조사는 끝났다 (2026-08-25)
+
+- ⚠️ **[2026-08-28 추가] 붙이기 전에 정해야 할 결정이 하나 있다 — `INSTITUTION` 키 충돌.**
+  uploader 의 `INSTITUTION`(`ID` BIGINT 자동증가 + `NAME`)과 본체
+  `INSTITUTIONS`(`INSTITUTION_ID` VARCHAR2 문자열키 `dobong` + `NAME_KO`)는
+  **같은 개념인데 키 체계가 다르다.**
+  - **ⓐ 병존** — uploader 코드를 한 줄도 안 고친다. 대신 기관 목록이 두 벌이 되고,
+    한쪽에만 기관을 추가하면 **조용히 갈린다.**
+  - **ⓑ 본체 참조** — 진실이 하나가 되고 기관명이 바뀌어도 안 끊긴다. 대신 uploader
+    매퍼·서비스를 고쳐야 하고, 업로드 시점에 **기관명 → 문자열키 해석**(실패 처리 포함)이
+    새로 필요하다.
+  - 관련: `UPLOADED_FILE.INSTITUTION_NAME` 이 **FK 가 아니라 이름 문자열**이라
+    기관명이 바뀌면 오류 없이 끊긴다. ⓑ 를 고르면 이것도 함께 해소된다.
+- **Oracle DDL 초안은 만들어 뒀다**(2026-08-28, 커밋 `c2fb804`) —
+  `kgi-ggreport-web/src/main/resources/db/oracle/007_uploader.sql`. **적용하지 않았다.**
+  MySQL→Oracle 변환 4가지(IDENTITY / `VARCHAR2(n CHAR)` / 시각을 ISO 문자열로 /
+  `ENGINE`·`CHARSET` 제거)와 11g 폴백이 주석에 있다. 위 [결정 필요] 를 정하기 전에는
+  **확정본이 아니다.**
+  ⚠️ 종전에 이 항목이 "Oracle DDL 부재"라고만 적혀 있었는데, **원본 DDL 은 있었다** —
+  `uploader/database_table 생성query.txt`(확장자가 `.sql` 이 아니라 `.txt` 라 검색에
+  안 걸린다). 없는 것은 **Oracle 판**이었다.
 
 - **출처**: `2026-08-25_summary.md`. 브랜치 **`weblogic-java-migration`**(main에서 분기).
   *2026-08-26 갱신 — **push됨**(`origin/weblogic-java-migration`). 종전의 "아직 push
