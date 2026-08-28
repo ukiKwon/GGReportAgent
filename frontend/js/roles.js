@@ -71,11 +71,19 @@
     return null;
   };
 
+  // 작성 3팀. **AFFILIATIONS에서 파생**한다 — 예전에는 아래 approverOf가
+  // `['영업', '전산', '예산']`을 따로 갖고 있었다. 이름이 맞아서 동작에는 문제가
+  // 없었지만, 서버(server/teams.py)에서 팀이 바뀌면 **화면만 조용히 옛 목록을 쓴다.**
+  // 실제로 그 모양의 결함이 두 번 났다(server/assembler.py·agent_adapter.py의 옛 이름
+  // `IT` — 2026-08-28). 이 파일 안에서는 AFFILIATIONS 하나만 손으로 적고,
+  // 서버와 같은지는 test_roles_js_matches_server_teams.py가 대조한다.
+  roles.TEAMS = roles.AFFILIATIONS.map(function (a) { return roles.teamOf(a); });
+
   // 그 역할의 작업물을 1차로 결재하는 사람. server/teams.py의 lead_of와 같은 규칙이다.
   // **디자이너도 영업팀장**이 받는다 — 영업팀 소속이기 때문이다.
   roles.approverOf = function (role) {
     const team = roles.teamOf(role);
-    if (['영업', '전산', '예산'].indexOf(team) >= 0) return team + roles.LEAD;
+    if (roles.TEAMS.indexOf(team) >= 0) return team + roles.LEAD;
     if (team === roles.DESIGNER) return roles.teamOf(roles.DESIGNER_HOME) + roles.LEAD;
     return null;                            // 모르면 지어내지 않는다
   };
