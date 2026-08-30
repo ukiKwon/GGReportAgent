@@ -128,6 +128,21 @@ reading district `plan/`/`spec/` `.txt` files at generation time — when a dist
 underlying research changes, the corresponding dict in the build script needs a matching
 manual update, not just an edit to the `.txt` file.
 
+## gstack 스킬 (작업 방식 참고)
+
+`docs/gstack_구조.md` — 사용자 전역(`~/.claude/skills/gstack/`)에 설치된 gstack 스킬 54개의
+구조 지도. 역할 페르소나 6종(CEO·엔지니어링매니저·디자이너·DX·CSO·YC파트너)과 6단계
+파이프라인(발상→계획리뷰→구현→검증→배포→문서)을 표로 정리해 뒀다. 이 저장소의 코드가 아니라
+**작업을 역할별로 나눠 수행하는 방식**에 대한 참고 자료이므로, 리뷰·검증·문서화 작업을 어떤
+순서로 걸지 정할 때 읽는다.
+
+스킬 목록에는 라우터 `gstack` 하나만 노출된다 — 하위 53개는 `.agents/skills/` 안에 중첩돼
+있어서 개별로 보이지 않는다.
+
+**⚠️ 이 저장소와 겹치는 부분**: gstack의 `/context-save`·`/context-restore`는 아래 `handoff/`
+체계와 정확히 같은 일을 한다. 둘을 같이 쓰면 이월 기억이 두 군데로 갈라지므로,
+**이 저장소는 `handoff/` 체계만 쓴다** — gstack의 컨텍스트 저장 스킬은 여기서 호출하지 않는다.
+
 ## Handoff summaries
 
 **What "마무리해줘" (finalize/wrap up) means in this repo:** update or create the day's
