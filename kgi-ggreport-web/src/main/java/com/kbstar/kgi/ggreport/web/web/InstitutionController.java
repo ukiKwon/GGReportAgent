@@ -5,6 +5,7 @@ import com.kbstar.kgi.ggreport.web.domain.InstitutionImportRow;
 import com.kbstar.kgi.ggreport.web.domain.InstitutionUpdateIn;
 import com.kbstar.kgi.ggreport.web.dto.ArtifactsResponse;
 import com.kbstar.kgi.ggreport.web.dto.CheckpointIn;
+import com.kbstar.kgi.ggreport.web.dto.CompleteResponse;
 import com.kbstar.kgi.ggreport.web.dto.CorpusPathIn;
 import com.kbstar.kgi.ggreport.web.dto.CorpusRegisterResponse;
 import com.kbstar.kgi.ggreport.web.dto.CorpusValidateResponse;
@@ -49,8 +50,8 @@ import java.util.Map;
  * 나누면 같은 {@code @RequestMapping} 이 둘이 되어 어디에 붙일지가 매번 판단거리가 된다.
  *
  * <p>실행({@code /run})과 게이트 결재({@code /checkpoint})도 여기 있다 — 단계 4.
- * 쓰기 다섯(POST · PUT · {@code /import} · {@code /corpus{,/validate}})은 Task 5B.5 다.
- * 아직 없는 것은 {@code /complete}(Task 5B.6) 하나다.
+ * 쓰기 다섯(POST · PUT · {@code /import} · {@code /corpus{,/validate}})은 Task 5B.5,
+ * {@code /complete} 는 Task 5B.6 이다 — 이것으로 단계 5-B 의 기관 쪽은 다 찼다.
  */
 @RestController
 @RequestMapping("/institutions")
@@ -207,6 +208,18 @@ public class InstitutionController {
     public CorpusRegisterResponse corpusRegister(@PathVariable String institutionId,
                                                  @RequestBody CorpusPathIn body) {
         return corpus.register(institutionId, body.getPath());
+    }
+
+    /**
+     * 완료 처리 — 원본 {@code POST /institutions/{id}/complete}. Task 5B.6.
+     *
+     * <p><b>단계 9(제출 대기)에서만</b> 가능하다(아니면 <b>409</b>). 산출물을
+     * 아카이브하고 최신 공고를 {@code 제출완료} 로 바꾼다.
+     */
+    @PostMapping("/{institutionId}/complete")
+    public CompleteResponse complete(@PathVariable String institutionId,
+                                     @RequestHeader("X-User-Id") String userId) {
+        return institutionCommands.complete(institutionId, userId);
     }
 
     /** 배점표 항목 ↔ 팀 작성물 커버리지 — 배점표 매핑 뷰의 데이터원. */
