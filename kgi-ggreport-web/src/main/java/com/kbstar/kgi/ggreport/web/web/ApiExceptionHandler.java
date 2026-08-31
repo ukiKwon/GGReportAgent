@@ -19,10 +19,15 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<Map<String, Object>> handle(ApiException e) {
-        return ResponseEntity.status(e.getStatus()).body(detail(e.getMessage()));
+        Object detail = e.getDetailObject() != null ? e.getDetailObject() : e.getMessage();
+        return ResponseEntity.status(e.getStatus()).body(detail(detail));
     }
 
-    private static Map<String, Object> detail(String message) {
-        return Collections.<String, Object>singletonMap("detail", message);
+    /**
+     * {@code detail} 은 문자열일 수도 객체일 수도 있다 — FastAPI 와 같다.
+     * 감싸는 키({@code "detail"})는 어느 쪽이든 동일하므로 화면의 읽는 코드는 하나다.
+     */
+    private static Map<String, Object> detail(Object detail) {
+        return Collections.singletonMap("detail", detail);
     }
 }
