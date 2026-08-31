@@ -1,18 +1,22 @@
 package com.kbstar.kgi.ggreport.web.web;
 
 import com.kbstar.kgi.ggreport.web.domain.Institution;
+import com.kbstar.kgi.ggreport.web.domain.InstitutionImportRow;
+import com.kbstar.kgi.ggreport.web.domain.InstitutionUpdateIn;
 import com.kbstar.kgi.ggreport.web.dto.ArtifactsResponse;
 import com.kbstar.kgi.ggreport.web.dto.CheckpointIn;
 import com.kbstar.kgi.ggreport.web.dto.CoverageMapResponse;
 import com.kbstar.kgi.ggreport.web.dto.TimelineResponse;
 import com.kbstar.kgi.ggreport.web.dto.WorkflowStatusResponse;
 import com.kbstar.kgi.ggreport.web.service.CoverageMapService;
+import com.kbstar.kgi.ggreport.web.service.InstitutionCommandService;
 import com.kbstar.kgi.ggreport.web.service.InstitutionService;
 import com.kbstar.kgi.ggreport.web.service.OrchestratorService;
 import com.kbstar.kgi.ggreport.web.service.WorkflowStatusService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -36,21 +40,26 @@ import java.util.Map;
  * 나누면 같은 {@code @RequestMapping} 이 둘이 되어 어디에 붙일지가 매번 판단거리가 된다.
  *
  * <p>실행({@code /run})과 게이트 결재({@code /checkpoint})도 여기 있다 — 단계 4.
- * 나머지 쓰기(POST/PUT/import/corpus)는 아직 없다.
+ * 손으로 넣는 쓰기 둘(POST/PUT)은 Task 5B.5 에서 붙였다.
+ * 아직 없는 것은 {@code /import}·{@code /corpus}·{@code /complete} 다.
  */
 @RestController
 @RequestMapping("/institutions")
 public class InstitutionController {
 
     private final InstitutionService institutions;
+    private final InstitutionCommandService institutionCommands;
     private final CoverageMapService coverageMap;
     private final WorkflowStatusService workflow;
     private final OrchestratorService orchestrator;
 
-    public InstitutionController(InstitutionService institutions, CoverageMapService coverageMap,
+    public InstitutionController(InstitutionService institutions,
+                                 InstitutionCommandService institutionCommands,
+                                 CoverageMapService coverageMap,
                                  WorkflowStatusService workflow,
                                  OrchestratorService orchestrator) {
         this.institutions = institutions;
+        this.institutionCommands = institutionCommands;
         this.coverageMap = coverageMap;
         this.workflow = workflow;
         this.orchestrator = orchestrator;
@@ -59,6 +68,31 @@ public class InstitutionController {
     @GetMapping
     public List<Institution> list() {
         return institutions.list();
+    }
+
+    /**
+     * 기관 추가 — 원본 {@code POST /institutions}. <b>201</b> 이다.
+     *
+     * <p>같은 이름이면 <b>409</b>({@code 이미 있는 기관명입니다 (…)}) —
+     * CSV 반입의 upsert 와 일부러 다르다
+     * ({@link InstitutionCommandService#create} 주석).
+     */
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public Institution create(@RequestBody InstitutionImportRow body) {
+        return institutionCommands.create(body);
+    }
+
+    /**
+     * 기관 편집 — 원본 {@code PUT /institutions/{id}} (부분 갱신).
+     *
+     * <p>보내지 않은 필드는 보존, {@code null} 로 보낸 필드는 지움.
+     * 없는 기관이면 <b>404</b>.
+     */
+    @PutMapping("/{institutionId}")
+    public Institution update(@PathVariable String institutionId,
+                              @RequestBody InstitutionUpdateIn body) {
+        return institutionCommands.update(institutionId, body);
     }
 
     @GetMapping("/{institutionId}")

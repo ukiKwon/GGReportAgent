@@ -45,6 +45,22 @@ public final class Ids {
         return "msg-" + tokenHex4();
     }
 
+    /**
+     * 기관 — 손으로 추가하거나 CSV 로 반입해 <b>새로</b> 생긴 행.
+     *
+     * <p>⚠️ 접두사가 {@code inst-} 가 아니라 {@code new-} 다. 원본이
+     * {@code f"new-{secrets.token_hex(4)}"}({@code repository._insert_institution})
+     * 이고, 골든 정규화 목록도 {@code new} 로 적혀 있다 — 바꾸면 정규화가 빗나가
+     * 골든이 영원히 실패한다.
+     *
+     * <p>시드로 들어온 자치구 25건은 이 접두사가 아니다({@code dobong} 처럼 사람이
+     * 읽는 슬러그다). 즉 {@code new-} 는 "나중에 사람이 넣은 기관"이라는 표시로도
+     * 읽힌다 — 그 성질에 기대는 코드는 없지만, id 를 바꿀 때 잃는 것이 있다는 뜻이다.
+     */
+    public static String institution() {
+        return "new-" + tokenHex4();
+    }
+
     /** 대화 탭 메시지. */
     public static String chat() {
         return "chat-" + tokenHex4();
