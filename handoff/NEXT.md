@@ -1234,7 +1234,7 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
      때 함께 정리**하기로 했다.
 - **비차단**: 항목 9가 먼저다.
 
-### 18. uploader — README §13-①(내부망 설정 누락). **Oracle DDL·방언은 해소** (2026-08-31)
+### 18. uploader — **남은 것은 `@Scheduled` 하나뿐** (2026-08-31)
 
 - **출처**: `2026-08-26_summary.md` `## Session 13:00` → **`2026-08-31_summary.md`
   `## Session 11:21`에서 절반 해소.**
@@ -1257,11 +1257,11 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
   이라 검색이 통째로 빈 결과를 냈을 것 → `IS NULL`.
   ✅ `mvn test` **43건 전부 통과**(종전 38 + 방언 5).
 
-- ⏳ **아직 열려 있는 것 ① — `dev`/`stg`/`prod`에 `mybatis.*` 설정이 없다.**
-  `mapper-locations`·`type-aliases-package`·`map-underscore-to-camel-case`가
-  `local`·`out-local`에만 있다. 내부망 배포 시 Mapper 미탐색 가능성.
-  **의도된 것인지 사용자에게 확인이 필요하다** — 내부망에서 별도 방식으로 주입한다면
-  그대로 두면 된다. (코드 작업이 아니라 **질문 1건**이다.)
+- ✅ **해소 ①: `dev`/`stg`/`prod`의 `mybatis.*` 누락** (2026-08-31).
+  **사용자가 "누락이야"로 확인**해 세 파일에 같은 3줄을 채웠다. 5개 환경이 모두 같은
+  키를 갖는다. 재발 방지로 **`ConfigEnvsTest`** 신규 — 설정 파일 교체 방식이라
+  키 하나를 늘릴 때 5개 파일을 각각 고쳐야 하고 빠뜨리면 그 환경에서만, 그것도
+  대개 내부망에서 늦게 터지기 때문이다.
 
 - ⚠️ **함께 볼 것 (미해소)**: `ReclassificationJob`이 Spring `@Scheduled`로 **자기
   스레드를 만든다.** WAS 배포 표준에 어긋나므로(설계 §2·§4) 내부망에 올리기 전에

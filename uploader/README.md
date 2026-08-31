@@ -487,7 +487,7 @@ cd uploader
 mvn test
 ```
 
-**DB가 없어도 돕니다.** 테스트 10개 파일 · **43건 전부 통과**
+**DB가 없어도 돕니다.** 테스트 11개 파일 · **46건 전부 통과**
 (2026-08-31 실측, Maven 3.9.16 + JDK 1.8.0_202, `BUILD SUCCESS`).
 
 | 유형 | 파일 | 비고 |
@@ -496,6 +496,7 @@ mvn test
 | `@RunWith(MockitoJUnitRunner)` | `FileUploadServiceTest`, `ReclassificationJobTest` | |
 | 순수 JUnit | `ClassificationServiceTest`, `FileContentServiceTest`, `FileParserServiceTest`, `FileStorageServiceTest`, `InstitutionServiceTest` | |
 | Mapper XML 파싱 | `MapperDialectTest` | **DB·스프링 없이** oracle/mysql 두 방언을 각각 파싱(§13-①-C) |
+| 설정 파일 대조 | `ConfigEnvsTest` | `config-envs/` 5개 환경의 키 누락을 막습니다(§13-①) |
 
 - 러너는 **JUnit 4**(`SpringRunner`/`MockitoJUnitRunner`)입니다 — `pom.xml`이
   `junit-vintage-engine`을 명시 추가한 이유입니다.
@@ -568,10 +569,16 @@ Oracle 쪽 대응과 바꾼 이유 5가지는 `schema-oracle.sql` 머리말에 �
 2026-08-26 실물 대조에서 나온, **문서가 아니라 코드/설정을 고쳐야 하는** 항목입니다.
 아직 손대지 않았습니다.
 
-**① `dev`/`stg`/`prod`에 MyBatis 설정이 없습니다. — 아직 열려 있습니다.**
+**① ~~`dev`/`stg`/`prod`에 MyBatis 설정이 없습니다~~ — ✅ 해소(2026-08-31).**
 `mybatis.mapper-locations`·`type-aliases-package`·`map-underscore-to-camel-case`가
-`local`·`out-local`에만 있습니다. 내부망 배포 시 Mapper XML을 못 찾거나 컬럼
-언더스코어→카멜 매핑이 빠질 수 있습니다. **의도된 것인지 확인 필요.**
+`local`·`out-local`에만 있었습니다. **의도가 아니라 누락**임을 확인하고(사용자 확인
+2026-08-31) 세 파일에 같은 3줄을 채웠습니다. 이제 5개 환경이 모두 같은 키를 갖습니다.
+
+재발 방지로 **`ConfigEnvsTest`** 를 추가했습니다 — 이 프로젝트는 Spring 프로파일이
+아니라 **설정 파일 교체** 방식이라(§7-1) 키 하나를 늘릴 때 5개 파일을 각각 고쳐야 하고,
+한 곳을 빠뜨리면 **그 환경에서만** 문제가 나는데 그 환경이 대개 내부망이라 늦게
+발견됩니다. 테스트가 보는 것은 ⓐ 필수 키 5개가 5개 파일에 다 있는지 ⓑ DataSource를
+JNDI든 URL이든 어떤 방식으로든 정하는지 ⓒ 환경 폴더가 정확히 5개인지입니다.
 
 **①-B ~~Oracle용 DDL이 없습니다~~ — ✅ 해소(2026-08-31).**
 `src/main/resources/schema-oracle.sql`을 추가했습니다(§12 참조). MySQL 판과 미러
@@ -594,7 +601,7 @@ MyBatis의 `databaseId` 분기로 바꿔 **두 문장을 모두 살렸습니다.
   statement 목록이 같은지, Oracle 분기에 `LIMIT`/`CONCAT(`이 남지 않았는지 봅니다.
   (본체 `kgi-ggreport-web`은 테스트 H2가 `MODE=Oracle`이라 `resolve()`의 H2 처리가
   서로 다릅니다 — 유일한 차이점이며 코드에 주석으로 적어 두었습니다.)
-- ✅ `mvn test` 43건 전부 통과(종전 38건 + 방언 테스트 5건).
+- ✅ `mvn test` 46건 전부 통과(종전 38건 + 방언 5건 + 설정 대조 3건).
 
 **② ~~`src/test/resources/application-test.properties`가 적용되지 않습니다~~ —
 ✅ 해소(2026-08-26).** `test` 프로파일을 켜는 곳이 없어 한 번도 읽히지 않던 파일을
