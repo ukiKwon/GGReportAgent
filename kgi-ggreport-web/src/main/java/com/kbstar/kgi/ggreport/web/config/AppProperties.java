@@ -26,6 +26,16 @@ public class AppProperties {
     /** 완료된 건의 보관 뿌리. Python {@code agent/paths.DEFAULT_ARCHIVE_ROOT}. */
     private String archiveRoot = "data/report_archive";
 
+    /**
+     * 코퍼스 경로 등록({@code POST /institutions/{id}/corpus})이 허용하는 <b>바깥
+     * 울타리</b>. Python {@code routers/institutions.REPO_ROOT} 에 대응한다.
+     *
+     * <p>사용자가 보낸 경로는 이 뿌리 기준 상대경로여야 하고, 정규화한 뒤에도 이
+     * 아래에 있어야 한다 — 그래야 {@code ../../etc} 같은 입력이 막힌다. 기본값
+     * {@code "."} 은 기동 디렉터리, 즉 리포 루트다(Python 과 같은 전제).
+     */
+    private String repoRoot = ".";
+
     public String getOutputRoot() { return outputRoot; }
     public void setOutputRoot(String outputRoot) { this.outputRoot = outputRoot; }
 
@@ -34,6 +44,9 @@ public class AppProperties {
 
     public String getArchiveRoot() { return archiveRoot; }
     public void setArchiveRoot(String archiveRoot) { this.archiveRoot = archiveRoot; }
+
+    public String getRepoRoot() { return repoRoot; }
+    public void setRepoRoot(String repoRoot) { this.repoRoot = repoRoot; }
 
     /**
      * 데모 여부. 화면이 QA용 계정 전환기를 띄울지 판단하는 데만 쓴다(운영에선 안 뜬다).

@@ -5,11 +5,15 @@ import com.kbstar.kgi.ggreport.web.domain.InstitutionImportRow;
 import com.kbstar.kgi.ggreport.web.domain.InstitutionUpdateIn;
 import com.kbstar.kgi.ggreport.web.dto.ArtifactsResponse;
 import com.kbstar.kgi.ggreport.web.dto.CheckpointIn;
+import com.kbstar.kgi.ggreport.web.dto.CorpusPathIn;
+import com.kbstar.kgi.ggreport.web.dto.CorpusRegisterResponse;
+import com.kbstar.kgi.ggreport.web.dto.CorpusValidateResponse;
 import com.kbstar.kgi.ggreport.web.dto.CoverageMapResponse;
 import com.kbstar.kgi.ggreport.web.dto.ImportResponse;
 import com.kbstar.kgi.ggreport.web.dto.TimelineResponse;
 import com.kbstar.kgi.ggreport.web.dto.WorkflowStatusResponse;
 import com.kbstar.kgi.ggreport.web.support.InstitutionCsv;
+import com.kbstar.kgi.ggreport.web.service.CorpusService;
 import com.kbstar.kgi.ggreport.web.service.CoverageMapService;
 import com.kbstar.kgi.ggreport.web.service.InstitutionCommandService;
 import com.kbstar.kgi.ggreport.web.service.InstitutionService;
@@ -45,8 +49,8 @@ import java.util.Map;
  * 나누면 같은 {@code @RequestMapping} 이 둘이 되어 어디에 붙일지가 매번 판단거리가 된다.
  *
  * <p>실행({@code /run})과 게이트 결재({@code /checkpoint})도 여기 있다 — 단계 4.
- * 손으로 넣는 쓰기 둘(POST/PUT)은 Task 5B.5 에서 붙였다.
- * 아직 없는 것은 {@code /import}·{@code /corpus}·{@code /complete} 다.
+ * 쓰기 다섯(POST · PUT · {@code /import} · {@code /corpus{,/validate}})은 Task 5B.5 다.
+ * 아직 없는 것은 {@code /complete}(Task 5B.6) 하나다.
  */
 @RestController
 @RequestMapping("/institutions")
@@ -54,17 +58,20 @@ public class InstitutionController {
 
     private final InstitutionService institutions;
     private final InstitutionCommandService institutionCommands;
+    private final CorpusService corpus;
     private final CoverageMapService coverageMap;
     private final WorkflowStatusService workflow;
     private final OrchestratorService orchestrator;
 
     public InstitutionController(InstitutionService institutions,
                                  InstitutionCommandService institutionCommands,
+                                 CorpusService corpus,
                                  CoverageMapService coverageMap,
                                  WorkflowStatusService workflow,
                                  OrchestratorService orchestrator) {
         this.institutions = institutions;
         this.institutionCommands = institutionCommands;
+        this.corpus = corpus;
         this.coverageMap = coverageMap;
         this.workflow = workflow;
         this.orchestrator = orchestrator;
@@ -173,6 +180,33 @@ public class InstitutionController {
                 ? userId : body.getBy().trim();
         orchestrator.resume(institutionId, body.isApproved(), by, body.getComment());
         return Collections.singletonMap("status", "resumed");
+    }
+
+    /**
+     * 코퍼스 규격 검사 — 원본 {@code POST /institutions/{id}/corpus/validate}.
+     *
+     * <p>⚠️ <b>DB 도 파일도 건드리지 않고, 오류가 있어도 200 이다.</b> 사람이 고칠
+     * 목록을 받아 보는 화면이 소비한다 — 거절은 등록 쪽에서만 일어난다.
+     */
+    @PostMapping("/{institutionId}/corpus/validate")
+    public CorpusValidateResponse corpusValidate(@PathVariable String institutionId,
+                                                 @RequestBody CorpusPathIn body) {
+        return new CorpusValidateResponse(corpus.validate(institutionId, body.getPath()));
+    }
+
+    /**
+     * 코퍼스 연결 — 원본 {@code POST /institutions/{id}/corpus}.
+     *
+     * <p>규격 <b>오류가 있으면 422</b>({@code {"detail": {"errors": […]}}}), 경고는
+     * 막지 않고 응답에 실어 보낸다.
+     *
+     * <p>⚠️ <b>부수효과가 요점이다</b> — 코퍼스가 없어 밀려 있던 입찰건이 여기서
+     * 풀리고 팀별 작업이 만들어진다({@code activated_bid_cases}).
+     */
+    @PostMapping("/{institutionId}/corpus")
+    public CorpusRegisterResponse corpusRegister(@PathVariable String institutionId,
+                                                 @RequestBody CorpusPathIn body) {
+        return corpus.register(institutionId, body.getPath());
     }
 
     /** 배점표 항목 ↔ 팀 작성물 커버리지 — 배점표 매핑 뷰의 데이터원. */
