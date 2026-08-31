@@ -55,8 +55,17 @@ public class DynamicSqlTest {
 
     // ── 방언이 갈리는 자리 (한 쌍이다 — 한쪽만 고치면 여기서 걸린다) ─────────────
 
+    /**
+     * ⚠️ <b>Oracle 쪽은 11g 라 {@code ROWNUM} 서브쿼리다.</b> 2026-08-31 이전에는
+     * {@code FETCH FIRST … ROWS ONLY} 를 단언했는데, 문의 4 회신으로 내부 Oracle 이
+     * <b>11g</b> 로 확정되면서 그 문법이 못 쓰는 것이 됐다(12c+ 전용).
+     *
+     * <p>{@code ROWNUM} 은 <b>정렬을 안쪽에서 끝낸 뒤 바깥에서</b> 걸어야 한다 —
+     * 한 층으로 쓰면 정렬 전에 잘려 "가장 최근 n건"이 아니게 된다. 그래서 서브쿼리
+     * 모양까지 함께 단언한다.
+     */
     @Test
-    public void 페이징은_MySQL이_LIMIT_Oracle이_FETCH_FIRST다() {
+    public void 페이징은_MySQL이_LIMIT_Oracle이_ROWNUM이다() {
         Map<String, Object> p = params("recipients", Arrays.asList("영업팀", "dave"),
                 "unreadOnly", Boolean.FALSE, "limit", 50);
         String mysql = MapperConfigurations.sql(MYSQL, NotificationMapper.class,
@@ -67,8 +76,10 @@ public class DynamicSqlTest {
         assertTrue("MySQL 분기에 LIMIT 이 없다: " + mysql, mysql.contains("LIMIT ?"));
         assertFalse("MySQL 에 없는 FETCH FIRST 가 들어갔다: " + mysql, mysql.contains("FETCH FIRST"));
 
-        assertTrue("Oracle 분기에 FETCH FIRST 가 없다: " + oracle,
-                oracle.contains("FETCH FIRST ? ROWS ONLY"));
+        assertFalse("11g 에 없는 FETCH FIRST 가 들어갔다: " + oracle, oracle.contains("FETCH FIRST"));
+        assertTrue("Oracle 분기에 ROWNUM 제한이 없다: " + oracle, oracle.contains("ROWNUM <= ?"));
+        assertTrue("ROWNUM 을 한 층으로 걸면 정렬 전에 잘린다 — 서브쿼리여야 한다: " + oracle,
+                oracle.replaceAll("\\s+", " ").contains("ORDER BY CREATED_AT DESC ) WHERE ROWNUM <= ?"));
         assertFalse("Oracle 에 없는 LIMIT 이 들어갔다: " + oracle, oracle.contains("LIMIT"));
 
         assertNotEquals("두 방언이 같은 SQL 이다 — 분기가 하나만 실린 것 아닌지 확인할 것",
