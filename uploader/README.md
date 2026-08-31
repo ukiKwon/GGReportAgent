@@ -487,14 +487,15 @@ cd uploader
 mvn test
 ```
 
-**DB가 없어도 돕니다.** 테스트 9개 파일 · **38건 전부 통과**
-(2026-08-26 실측, Maven 3.9.16 + JDK 1.8.0_202, `BUILD SUCCESS`).
+**DB가 없어도 돕니다.** 테스트 10개 파일 · **43건 전부 통과**
+(2026-08-31 실측, Maven 3.9.16 + JDK 1.8.0_202, `BUILD SUCCESS`).
 
 | 유형 | 파일 | 비고 |
 |---|---|---|
 | `@WebMvcTest` + MockMvc | `UploadControllerTest`, `FileSearchApiControllerTest` | Mapper·Service를 **전부 `@MockBean`** 으로 대체 |
 | `@RunWith(MockitoJUnitRunner)` | `FileUploadServiceTest`, `ReclassificationJobTest` | |
 | 순수 JUnit | `ClassificationServiceTest`, `FileContentServiceTest`, `FileParserServiceTest`, `FileStorageServiceTest`, `InstitutionServiceTest` | |
+| Mapper XML 파싱 | `MapperDialectTest` | **DB·스프링 없이** oracle/mysql 두 방언을 각각 파싱(§13-①-C) |
 
 - 러너는 **JUnit 4**(`SpringRunner`/`MockitoJUnitRunner`)입니다 — `pom.xml`이
   `junit-vintage-engine`을 명시 추가한 이유입니다.
@@ -510,9 +511,21 @@ mvn test
 
 ## 12. 데이터베이스 구조
 
-정본 DDL: `src/main/resources/schema-mysql.sql`
-(`uploader/database_table 생성query.txt`가 같은 내용의 사본 — 끝 개행만 다릅니다).
-**현재 저장소에 있는 DDL은 MySQL 문법 한 벌뿐이며 Oracle용 DDL은 아직 없습니다**(§13-①).
+DDL은 **두 벌**입니다(2026-08-31).
+
+| 파일 | 대상 | 쓰이는 곳 |
+|------|------|-----------|
+| `src/main/resources/schema-oracle.sql` | Oracle | 내부망 `local`·`dev`·`stg`·`prod` — DBA가 직접 적용 |
+| `src/main/resources/schema-mysql.sql` | MySQL | 외부망 `out-local`, 그리고 테스트 H2(`spring.sql.init`) |
+
+**한쪽이 바뀌면 같은 커밋에서 다른 쪽도 바꿉니다.** 아래 표의 타입은 MySQL 기준이며,
+Oracle 쪽 대응과 바꾼 이유 5가지는 `schema-oracle.sql` 머리말에 적어 두었습니다.
+(`uploader/database_table 생성query.txt`는 MySQL 판의 사본 — 끝 개행만 다릅니다.)
+
+> ⚠️ 본체(`kgi-ggreport-web`)에도 `db/oracle/007_uploader.sql`이 있습니다. 그쪽은
+> uploader 테이블을 **본체 스키마 안에 합칠 때**(단계 6)의 초안이라 시각을
+> `VARCHAR2(40 CHAR)` ISO 문자열로 두고, 이쪽은 uploader **단독**이라 `TIMESTAMP`를
+> 씁니다. **의도된 차이**이며 둘을 합칠지는 단계 6에서 정합니다.
 
 ### UPLOADED_FILE 테이블
 
@@ -537,11 +550,16 @@ mvn test
 | CATEGORY | `VARCHAR(100)` NOT NULL | 분류 카테고리 |
 | MODIFIED_AT | `DATETIME` NOT NULL | 최종 수정 일시 |
 
-> **Oracle로 옮길 때 주의**: `AUTO_INCREMENT`는 Oracle에 없습니다(`IDENTITY` 또는
-> 시퀀스+트리거). `DATETIME`은 `TIMESTAMP`, `VARCHAR(n)`은 길이 단위가 갈리므로
-> `VARCHAR2(n CHAR)`로 명시해야 합니다. 그리고 **`STATUS`의 `DEFAULT ''`류 빈
-> 문자열 기본값은 Oracle에서 NULL이 됩니다** — 이 표에는 해당 컬럼이 없지만 컬럼을
-> 추가할 때 걸리는 함정입니다.
+> **Oracle 판에서 달라지는 것**(`schema-oracle.sql`에 반영 완료):
+> `AUTO_INCREMENT` → **시퀀스** `UPLOADED_FILE_SEQ`·`INSTITUTION_SEQ`(Mapper의
+> `oracle` 분기가 이 이름을 부르므로 **바꾸면 안 됩니다**), `DATETIME` → `TIMESTAMP`,
+> `VARCHAR(n)` → `VARCHAR2(n CHAR)`(단위를 명시하지 않으면 한글 기관명이 200자가
+> 아니라 66자에서 잘립니다), `CREATE TABLE IF NOT EXISTS` → `CREATE TABLE`(재실행하면
+> `ORA-00955`로 실패합니다 — 파일 끝 DROP 문단 참조).
+>
+> 그리고 **Oracle은 빈 문자열을 NULL로 바꿉니다.** 이 표에 `DEFAULT ''` 컬럼은
+> 없지만, 조회 조건에서는 이미 걸립니다 — `search`의 `#{x} = ''`가 Oracle에서
+> 항상 거짓이 되어 `IS NULL`로 갈라 두었습니다(§13-① 아래 방언 분기 참조).
 
 ---
 
@@ -550,11 +568,33 @@ mvn test
 2026-08-26 실물 대조에서 나온, **문서가 아니라 코드/설정을 고쳐야 하는** 항목입니다.
 아직 손대지 않았습니다.
 
-**① `dev`/`stg`/`prod`에 MyBatis 설정이 없습니다.**
+**① `dev`/`stg`/`prod`에 MyBatis 설정이 없습니다. — 아직 열려 있습니다.**
 `mybatis.mapper-locations`·`type-aliases-package`·`map-underscore-to-camel-case`가
 `local`·`out-local`에만 있습니다. 내부망 배포 시 Mapper XML을 못 찾거나 컬럼
 언더스코어→카멜 매핑이 빠질 수 있습니다. **의도된 것인지 확인 필요.**
-같은 맥락으로 **Oracle용 DDL이 아직 없습니다**(MySQL 한 벌뿐).
+
+**①-B ~~Oracle용 DDL이 없습니다~~ — ✅ 해소(2026-08-31).**
+`src/main/resources/schema-oracle.sql`을 추가했습니다(§12 참조). MySQL 판과 미러
+관계이며, 시퀀스 2개를 함께 만듭니다.
+
+**①-C ~~Oracle SQL이 주석으로만 있습니다~~ — ✅ 해소(2026-08-31).**
+`config-envs`의 `local`·`dev`·`stg`는 이미 `oracle.jdbc.OracleDriver`를 보고
+`prod`는 JNDI인데, Mapper의 Oracle 문장 6곳(`insert`×2, `findRecent`,
+`findByInstitutionNameContaining`, `countByInstitutionNameContaining`, `search`)이
+**주석 처리**돼 있어서 활성 SQL은 `LIMIT`·`CONCAT()`·`useGeneratedKeys` —
+**내부망 4개 환경에서 그대로 깨지는 상태**였습니다.
+
+MyBatis의 `databaseId` 분기로 바꿔 **두 문장을 모두 살렸습니다.** 접속한 DB의
+제품명을 보고 `config/MyBatisConfig`가 방언을 정하므로 **배포 시 XML 수정 0건**입니다.
+- 모르는 벤더면 `IllegalStateException`으로 **기동 때 죽습니다** — 조용히 `null`을
+  돌려주는 `VendorDatabaseIdProvider`를 쓰지 않은 이유입니다(그 경우 증상이 기동
+  성공 뒤 특정 화면의 `Invalid bound statement`라 원인 추적이 매우 어렵습니다).
+- ⚠️ **테스트 H2는 `MODE=MySQL`이라 런타임 테스트는 `mysql` 분기만 실행합니다.**
+  그 공백은 `MapperDialectTest`가 메웁니다 — DB 없이 두 방언을 각각 파싱해
+  statement 목록이 같은지, Oracle 분기에 `LIMIT`/`CONCAT(`이 남지 않았는지 봅니다.
+  (본체 `kgi-ggreport-web`은 테스트 H2가 `MODE=Oracle`이라 `resolve()`의 H2 처리가
+  서로 다릅니다 — 유일한 차이점이며 코드에 주석으로 적어 두었습니다.)
+- ✅ `mvn test` 43건 전부 통과(종전 38건 + 방언 테스트 5건).
 
 **② ~~`src/test/resources/application-test.properties`가 적용되지 않습니다~~ —
 ✅ 해소(2026-08-26).** `test` 프로파일을 켜는 곳이 없어 한 번도 읽히지 않던 파일을
