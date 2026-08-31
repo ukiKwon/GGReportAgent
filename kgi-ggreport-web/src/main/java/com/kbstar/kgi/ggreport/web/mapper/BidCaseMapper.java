@@ -101,6 +101,15 @@ public interface BidCaseMapper {
      */
     List<String> selectPendingActivation(@Param("institutionId") String institutionId);
 
+    /**
+     * 기관의 <b>최신 공고 1건</b>의 id — 원본 {@code ORDER BY rowid DESC LIMIT 1}.
+     *
+     * <p>⚠️ 기관은 1:N 으로 공고를 가진다. 완료 처리는 <b>최신 1건에만</b> 스코프해야
+     * 한다 — 과거 건(예: 유찰 후 재입찰)의 상태와 작업을 덮어쓰거나 아카이브에 섞으면
+     * 안 된다. 정렬은 {@code SEQ_NO} 다({@code rowid} 의 Oracle 대응).
+     */
+    String selectLatestIdByInstitution(@Param("institutionId") String institutionId);
+
     /** {@code activate_pending_bid_cases} 의 상태 전환. */
     int updateResearchStatus(@Param("bidCaseId") String bidCaseId,
                              @Param("researchStatus") String researchStatus);

@@ -3,6 +3,8 @@ package com.kbstar.kgi.ggreport.web.service;
 import com.kbstar.kgi.ggreport.web.domain.Institution;
 import com.kbstar.kgi.ggreport.web.domain.InstitutionImportRow;
 import com.kbstar.kgi.ggreport.web.domain.InstitutionUpdateIn;
+import com.kbstar.kgi.ggreport.web.dto.CompleteResponse;
+import com.kbstar.kgi.ggreport.web.mapper.BidCaseMapper;
 import com.kbstar.kgi.ggreport.web.mapper.InstitutionMapper;
 import com.kbstar.kgi.ggreport.web.support.Ids;
 import com.kbstar.kgi.ggreport.web.support.InstitutionCsv;
@@ -24,10 +26,18 @@ import java.util.List;
 @Service
 public class InstitutionCommandService {
 
-    private final InstitutionMapper mapper;
+    /** 제출 대기 단계. 이 단계에서만 완료할 수 있다. */
+    private static final int STAGE_READY_TO_SUBMIT = 9;
 
-    public InstitutionCommandService(InstitutionMapper mapper) {
+    private final InstitutionMapper mapper;
+    private final BidCaseMapper bidCases;
+    private final ArchiveService archive;
+
+    public InstitutionCommandService(InstitutionMapper mapper, BidCaseMapper bidCases,
+                                     ArchiveService archive) {
         this.mapper = mapper;
+        this.bidCases = bidCases;
+        this.archive = archive;
     }
 
     /**
@@ -128,5 +138,39 @@ public class InstitutionCommandService {
         String institutionId = Ids.institution();
         mapper.insert(institutionId, row);
         return institutionId;
+    }
+
+    /**
+     * 완료 처리 — 원본 {@code POST /institutions/{id}/complete}. Task 5B.6.
+     *
+     * <p><b>단계 9(제출 대기)에서만</b> 할 수 있다(아니면 409). 산출물을 아카이브하고
+     * 최신 공고를 {@code 제출완료} 로 바꾼다.
+     *
+     * <p>⚠️ <b>최신 공고 1건에만 스코프한다.</b> 기관은 1:N 으로 공고를 가지므로,
+     * 과거 건(예: 유찰 후 재입찰)의 상태와 작업을 덮어쓰거나 아카이브에 섞으면 안 된다.
+     *
+     * <p>⚠️ <b>원본의 후속 색인(reindex)은 아직 없다.</b> 파이썬은 완료 뒤 아카이브
+     * 산출물을 지식 탭에서 검색할 수 있게 백그라운드로 색인한다. 자바에는 <b>검색
+     * 계층 자체가 없어서</b>(단계 3 — 문의 3 회신 대기) 넣을 자리가 없다. 단계 3 이
+     * 붙을 때 <b>여기에 후속 작업을 다시 달아야 한다.</b> 그때도 원본 규칙은 그대로다 —
+     * 백그라운드로 돌리고(임베딩이 청크당 1초대라 응답을 붙잡으면 완료 버튼이 멈춘
+     * 것처럼 보인다), <b>실패해도 완료는 200</b> 이다(부수 작업이 결재를 되돌리면 안 된다).
+     */
+    @Transactional
+    public CompleteResponse complete(String institutionId, String userId) {
+        Institution institution = mapper.selectById(institutionId);
+        if (institution == null) {
+            throw ApiException.notFound("institution not found");
+        }
+        if (institution.getStage() != STAGE_READY_TO_SUBMIT) {
+            throw new ApiException(409, "stage 9(제출 대기)에서만 완료할 수 있다");
+        }
+
+        String bidCaseId = bidCases.selectLatestIdByInstitution(institutionId);
+        String dest = archive.archive(institution, bidCaseId);
+        if (bidCaseId != null) {
+            bidCases.updateParticipationStatus(bidCaseId, "제출완료");
+        }
+        return new CompleteResponse(dest, userId);
     }
 }

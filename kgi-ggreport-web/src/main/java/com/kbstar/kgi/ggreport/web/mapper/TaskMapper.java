@@ -20,6 +20,16 @@ public interface TaskMapper {
     Task selectById(@Param("taskId") String taskId);
 
     /**
+     * 완료 아카이브의 {@code tasks_dump.json} 원본 — Python
+     * {@code archive.archive_institution} 의 {@code SELECT * FROM tasks WHERE bid_case_id = ?}.
+     *
+     * <p>⚠️ 요약({@link #selectSummaries})이 아니라 <b>본문까지</b> 담는다.
+     * 아카이브는 나중에 사람이 "무엇을 왜 이렇게 썼나"를 되짚는 자리라 초안 내용이
+     * 빠지면 남길 이유가 없어진다.
+     */
+    List<Task> selectByBidCase(@Param("bidCaseId") String bidCaseId);
+
+    /**
      * {@code list_task_summaries} — 입찰 건 상세에 딸려 나가는 요약.
      *
      * <p>⚠️ <b>SELECT 목록에 {@code FINAL_APPROVER} 를 넣지 않는다.</b> 원본이 그렇고

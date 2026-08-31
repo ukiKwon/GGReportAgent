@@ -42,6 +42,14 @@
      WHERE TASK_ID = #{taskId}
   </select>
 
+  <select id="selectByBidCase" resultMap="task">
+    SELECT TASK_ID, BID_CASE_ID, TEAM, STATUS, PROGRESS_PCT, DRAFT_CONTENT,
+           ASSIGNEE, APPROVER, FINAL_APPROVER
+      FROM TASKS
+     WHERE BID_CASE_ID = #{bidCaseId}
+     ORDER BY SEQ_NO
+  </select>
+
   <select id="selectSummaries" resultMap="taskSummary">
     SELECT TASK_ID, TEAM, STATUS, PROGRESS_PCT, ASSIGNEE, APPROVER
       FROM TASKS
