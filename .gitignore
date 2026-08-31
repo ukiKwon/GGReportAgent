@@ -58,3 +58,7 @@ portfolio/shots_new/
 # 편집이 엉뚱한 브랜치 위로 올라간 사고가 있어(2026-08-30), 브랜치별로 폴더를
 # 나눠 쓰기로 했다. 여기에 펼친 worktree는 저장소 내용 그 자체라 커밋 대상이 아니다.
 .worktrees/
+
+# export_wtp.py 가 만드는 Eclipse WTP 사본 — jar 57개(48MB)가 들어간다.
+# 리포의 Maven 프로젝트가 정본이고 이건 파생물이라 커밋하지 않는다.
+dist/
