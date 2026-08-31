@@ -6,8 +6,10 @@ import com.kbstar.kgi.ggreport.web.domain.InstitutionUpdateIn;
 import com.kbstar.kgi.ggreport.web.dto.ArtifactsResponse;
 import com.kbstar.kgi.ggreport.web.dto.CheckpointIn;
 import com.kbstar.kgi.ggreport.web.dto.CoverageMapResponse;
+import com.kbstar.kgi.ggreport.web.dto.ImportResponse;
 import com.kbstar.kgi.ggreport.web.dto.TimelineResponse;
 import com.kbstar.kgi.ggreport.web.dto.WorkflowStatusResponse;
+import com.kbstar.kgi.ggreport.web.support.InstitutionCsv;
 import com.kbstar.kgi.ggreport.web.service.CoverageMapService;
 import com.kbstar.kgi.ggreport.web.service.InstitutionCommandService;
 import com.kbstar.kgi.ggreport.web.service.InstitutionService;
@@ -22,8 +24,11 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -93,6 +98,24 @@ public class InstitutionController {
     public Institution update(@PathVariable String institutionId,
                               @RequestBody InstitutionUpdateIn body) {
         return institutionCommands.update(institutionId, body);
+    }
+
+    /**
+     * CSV 반입 — 원본 {@code POST /institutions/import}. {@code multipart} 다.
+     *
+     * <p>이름으로 찾아 <b>upsert</b> 한다(같은 표를 다시 올리는 것이 정상 경로).
+     * 표 전체가 한 트랜잭션이라 <b>한 행이 깨지면 아무것도 들어가지 않는다.</b>
+     * 형식 오류는 <b>400</b> 이고 사유에 행 번호가 들어 있다.
+     */
+    @PostMapping("/import")
+    public ImportResponse importCsv(@RequestParam("file") MultipartFile file) throws IOException {
+        List<String> ids;
+        try {
+            ids = institutionCommands.importCsv(file.getBytes());
+        } catch (InstitutionCsv.CsvFormatException exc) {
+            throw ApiException.badRequest(exc.getMessage());
+        }
+        return new ImportResponse(ids);
     }
 
     @GetMapping("/{institutionId}")

@@ -5,9 +5,13 @@ import com.kbstar.kgi.ggreport.web.domain.InstitutionImportRow;
 import com.kbstar.kgi.ggreport.web.domain.InstitutionUpdateIn;
 import com.kbstar.kgi.ggreport.web.mapper.InstitutionMapper;
 import com.kbstar.kgi.ggreport.web.support.Ids;
+import com.kbstar.kgi.ggreport.web.support.InstitutionCsv;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 기관 쓰기 — Task 5B.5. Python {@code repository.create_institution} ·
@@ -85,5 +89,44 @@ public class InstitutionCommandService {
         }
         mapper.updateFields(institutionId, upd);
         return mapper.selectById(institutionId);
+    }
+
+    /**
+     * CSV 반입 — 원본 {@code POST /institutions/import}.
+     *
+     * <p><b>이름으로 찾아 upsert 한다</b> — 같은 표를 다시 올리는 것이 정상 경로이기
+     * 때문이다. 그래서 빈 칸은 기존 값을 <b>덮지 않는다</b>({@code updateFromImport}
+     * 의 {@code COALESCE}). 사람이 누르는 '기관 추가'가 409 인 것과 일부러 다르다.
+     *
+     * <p>⚠️ <b>표 전체가 한 트랜잭션이다.</b> 한 행이 깨지면 앞 행도 들어가지 않는다 —
+     * 원본이 {@code commit=False} 로 모아 두고 마지막에 한 번 커밋하며, 중간 실패 시
+     * {@code rollback()} 한다. 반쯤 반입된 표는 무엇이 들어갔는지 사람이 알 수 없어
+     * 다시 올리는 것 말고는 복구 방법이 없다.
+     *
+     * <p>파싱 실패는 {@link InstitutionCsv.CsvFormatException} 으로 올라와 컨트롤러가
+     * 400 으로 바꾼다 — 행 번호가 사유에 들어 있다.
+     *
+     * @return 반입된 기관 id 목록(표의 행 순서 그대로, 기존 행이면 그 id)
+     */
+    @Transactional
+    public List<String> importCsv(byte[] raw) {
+        List<InstitutionImportRow> rows = InstitutionCsv.parse(raw);
+        List<String> ids = new ArrayList<>(rows.size());
+        for (InstitutionImportRow row : rows) {
+            ids.add(upsert(row));
+        }
+        return ids;
+    }
+
+    /** {@code repository.upsert_institution} — 이름이 키다. */
+    private String upsert(InstitutionImportRow row) {
+        String existingId = mapper.selectIdByName(row.getNameKo());
+        if (existingId != null) {
+            mapper.updateFromImport(existingId, row);
+            return existingId;
+        }
+        String institutionId = Ids.institution();
+        mapper.insert(institutionId, row);
+        return institutionId;
     }
 }
