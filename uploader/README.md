@@ -446,6 +446,10 @@ C:/uploader-out-local/classified/
 
 ## 10. 운영(WebLogic) 배포
 
+> 📋 **내부망 반입·기동은 [`DEPLOY.md`](DEPLOY.md)를 보십시오.** 순서대로 따라가는
+> 체크리스트입니다(DataSource·TimerManager 등록, 스키마 적용, 기동 확인 로그,
+> 문제 해결표). 아래는 그 배경과 설계 근거입니다.
+
 ### WAR 빌드
 
 ```bash
