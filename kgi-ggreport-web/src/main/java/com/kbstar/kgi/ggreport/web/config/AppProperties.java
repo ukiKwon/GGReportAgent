@@ -49,6 +49,33 @@ public class AppProperties {
     public void setRepoRoot(String repoRoot) { this.repoRoot = repoRoot; }
 
     /**
+     * 망 밖 수집기가 배치를 떨구는 자리. Python {@code create_app(inbox_root=…)}.
+     * ⚠️ 이 앱은 <b>여기를 읽기만 한다</b> — 망 밖을 향한 요청도 역방향 콜백도 만들지
+     * 않는다({@code collector/SCHEMA.md} §⑩-5).
+     */
+    private String inboxRoot = "corpus/inbox";
+
+    /** 반입된 공고문 PDF 가 옮겨 갈 자리. Python {@code rfp_root}. */
+    private String rfpRoot = "corpus/rfp";
+
+    /**
+     * 처리된 배치를 치워 두는 자리. Python {@code batches_root}.
+     *
+     * <p>지우지 않는 이유는 {@code evidence.url} 과 수집 시각이 <b>반입 근거</b>라
+     * 감사에 필요하기 때문이다. inbox 를 "미처리만"으로 유지하는 것이 목적이다.
+     */
+    private String batchesRoot = "data/batches";
+
+    public String getInboxRoot() { return inboxRoot; }
+    public void setInboxRoot(String inboxRoot) { this.inboxRoot = inboxRoot; }
+
+    public String getRfpRoot() { return rfpRoot; }
+    public void setRfpRoot(String rfpRoot) { this.rfpRoot = rfpRoot; }
+
+    public String getBatchesRoot() { return batchesRoot; }
+    public void setBatchesRoot(String batchesRoot) { this.batchesRoot = batchesRoot; }
+
+    /**
      * 데모 여부. 화면이 QA용 계정 전환기를 띄울지 판단하는 데만 쓴다(운영에선 안 뜬다).
      * Python 은 {@code create_app(demo=…)} 인자였다 — Java 는 설정 키로 받는다.
      */
