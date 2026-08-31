@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="layout :: layout(~{::title}, '대시보드', ~{::section})">
+<head><title>대시보드</title></head>
+<body>
+<section>
+
+  <!-- KPI 카드 -->
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-icon total">
+        <svg class="icon" style="width:20px;height:20px;color:var(--kb-navy)" viewBox="0 0 24 24">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+      </div>
+      <div class="kpi-body">
+        <div class="kpi-label">전체 파일</div>
+        <div class="kpi-value" th:text="${total}">0</div>
+        <div class="kpi-sub">누적 업로드</div>
+      </div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-icon done">
+        <svg class="icon" style="width:20px;height:20px;color:var(--green)" viewBox="0 0 24 24">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <div class="kpi-body">
+        <div class="kpi-label">분류 완료</div>
+        <div class="kpi-value success" th:text="${classified}">0</div>
+        <div class="kpi-sub">기관 분류됨</div>
+      </div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-icon pending">
+        <svg class="icon" style="width:20px;height:20px;color:var(--red)" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <div class="kpi-body">
+        <div class="kpi-label">미분류</div>
+        <div th:class="${'kpi-value' + (unclassified > 0 ? ' danger' : '')}" th:text="${unclassified}">0</div>
+        <div class="kpi-sub">즉시 처리 필요</div>
+      </div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-icon" style="background:var(--surface-2,#f0f0f0)">
+        <svg class="icon" style="width:20px;height:20px;color:var(--text-3,#999)" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+        </svg>
+      </div>
+      <div class="kpi-body">
+        <div class="kpi-label">반려 / 삭제</div>
+        <div class="kpi-value" style="color:var(--text-3,#999)" th:text="${excluded}">0</div>
+        <div class="kpi-sub">처리 제외됨</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 경고 배너 (미분류 > 0 일 때만) -->
+  <div th:if="${unclassified > 0}" class="alert-banner">
+    <svg class="icon" style="width:15px;height:15px;flex-shrink:0" viewBox="0 0 24 24">
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/>
+      <line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+    미분류 파일 <strong th:text="${unclassified}"></strong>건이 처리 대기 중입니다.
+    <a th:href="@{/file-status}" style="font-weight:700;margin-left:4px;color:inherit;text-decoration:underline">파일 처리 상태 바로가기</a>
+  </div>
+
+  <!-- 검색 -->
+  <div class="section-header">
+    <span class="section-title">파일 검색</span>
+  </div>
+  <form method="get" th:action="@{/}" class="search-bar">
+    <input type="text" name="keyword" class="search-input"
+           placeholder="기관명으로 검색 (예: 서울대학교)" th:value="${keyword}">
+    <button type="submit" class="btn btn-primary">조회</button>
+  </form>
+
+  <!-- 검색 결과 -->
+  <div th:if="${searchResult != null}">
+    <div class="section-header">
+      <div>
+        <span class="section-title">검색 결과</span>
+        <span class="section-sub" th:text="'총 ' + ${searchResult.totalElements} + '건'"></span>
+      </div>
+    </div>
+    <div class="table-card">
+      <table>
+        <thead>
+        <tr>
+          <th>파일명</th><th>기관명</th><th>카테고리</th><th>상태</th><th>업로드 일시</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="f : ${searchResult.content}">
+          <td>
+              <span th:with="ext=${#strings.toLowerCase(f.originalName.substring(f.originalName.lastIndexOf('.') + 1))}"
+                    th:class="${'file-ext' + (ext == 'pdf' ? ' ext-pdf' : (ext == 'hwp' ? ' ext-hwp' : (ext == 'md' ? ' ext-md' : '')))}"
+                    th:text="${#strings.toUpperCase(ext)}"></span>
+            <span class="file-name" th:text="${f.originalName}"></span>
+          </td>
+          <td th:text="${f.institutionName}"></td>
+          <td>
+            <span th:if="${f.category != null}" class="category-chip" th:text="${f.category}"></span>
+            <span th:if="${f.category == null}" style="color:var(--text-3)">-</span>
+          </td>
+          <td>
+            <span th:if="${f.status == 'CLASSIFIED'}"  class="badge badge-done">분류 완료</span>
+            <span th:if="${f.status == 'UNCLASSIFIED'}" class="badge badge-pending">미분류</span>
+            <span th:if="${f.status == 'REJECTED'}"
+                  class="badge" style="background:var(--surface-2,#eee);color:var(--text-3,#888)">반려</span>
+            <span th:if="${f.status == 'DELETED'}"
+                  class="badge" style="background:var(--surface-2,#eee);color:var(--text-3,#888)">삭제</span>
+          </td>
+          <td class="time-col" th:text="${#temporals.format(f.uploadedAt, 'yyyy-MM-dd HH:mm')}"></td>
+        </tr>
+        </tbody>
+      </table>
+
+      <!-- 페이지네이션 -->
+      <nav th:if="${searchResult.totalPages > 1}">
+        <ul class="pagination">
+          <li th:each="i : ${#numbers.sequence(1, searchResult.totalPages)}"
+              th:class="${'page-item' + (i == currentPage ? ' active' : '')}">
+            <a th:href="@{/(keyword=${keyword}, page=${i})}" th:text="${i}"></a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </div>
+
+  <!-- 최근 업로드 (검색 없을 때) -->
+  <div th:if="${searchResult == null}">
+    <div class="section-header">
+      <div>
+        <span class="section-title">최근 업로드</span>
+        <span class="section-sub">최근 10건</span>
+      </div>
+    </div>
+    <div class="table-card">
+      <table>
+        <thead>
+        <tr>
+          <th>파일명</th><th>기관명</th><th>카테고리</th><th>상태</th><th>업로드 일시</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="f : ${recentFiles}">
+          <td>
+              <span th:with="ext=${#strings.toLowerCase(f.originalName.substring(f.originalName.lastIndexOf('.') + 1))}"
+                    th:class="${'file-ext' + (ext == 'pdf' ? ' ext-pdf' : (ext == 'hwp' ? ' ext-hwp' : (ext == 'md' ? ' ext-md' : '')))}"
+                    th:text="${#strings.toUpperCase(ext)}"></span>
+            <span class="file-name" th:text="${f.originalName}"></span>
+          </td>
+          <td th:text="${f.institutionName}"></td>
+          <td>
+            <span th:if="${f.category != null}" class="category-chip" th:text="${f.category}"></span>
+            <span th:if="${f.category == null}" style="color:var(--text-3)">-</span>
+          </td>
+          <td>
+            <span th:if="${f.status == 'CLASSIFIED'}"  class="badge badge-done">분류 완료</span>
+            <span th:if="${f.status == 'UNCLASSIFIED'}" class="badge badge-pending">미분류</span>
+            <span th:if="${f.status == 'REJECTED'}"
+                  class="badge" style="background:var(--surface-2,#eee);color:var(--text-3,#888)">반려</span>
+            <span th:if="${f.status == 'DELETED'}"
+                  class="badge" style="background:var(--surface-2,#eee);color:var(--text-3,#888)">삭제</span>
+          </td>
+          <td class="time-col" th:text="${#temporals.format(f.uploadedAt, 'yyyy-MM-dd HH:mm')}"></td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</section>
+</body>
+</html>

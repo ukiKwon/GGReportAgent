@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  INSTITUTIONS — 원본 server/repository.py 의 SQL 을 나란히 옮긴 것.
+
+  ⚠️ resultMap 을 명시한다(자동 매핑에 기대지 않는다). map-underscore-to-camel-case
+     설정은 5개 환경 properties 에 흩어져 있어 한 곳만 빠져도 그 환경에서만 컬럼이
+     통째로 비는데, 그때 나는 증상은 "예외 없이 필드가 전부 null" 이라 원인을 찾기
+     어렵다. resultMap 은 설정과 무관하게 항상 같다.
+
+  ⚠️ SELECT * 를 쓰지 않는다. 옛 DB 에는 제거된 SCORING_TABLE 컬럼이 남아 있을 수
+     있고(2026-08-06), BID_CASES/TASKS 에는 SEQ_NO 가 붙었다 — 컬럼을 명시해야
+     "테이블에 컬럼이 하나 늘어서 응답 JSON 이 바뀌는" 일이 생기지 않는다.
+-->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.InstitutionMapper">
+
+  <resultMap id="institution" type="Institution">
+    <id     property="institutionId" column="INSTITUTION_ID"/>
+    <result property="nameKo"        column="NAME_KO"/>
+    <result property="regionCode"    column="REGION_CODE"/>
+    <result property="type"          column="TYPE"/>
+    <result property="contractEnd"   column="CONTRACT_END"/>
+    <result property="lastBid"       column="LAST_BID"/>
+    <result property="term"          column="TERM"/>
+    <result property="stage"         column="STAGE"/>
+    <result property="giganlistDir"  column="GIGANLIST_DIR"/>
+    <result property="rfpPath"       column="RFP_PATH"/>
+    <result property="pptxPath"      column="PPTX_PATH"/>
+  </resultMap>
+
+  <sql id="columns">
+    INSTITUTION_ID, NAME_KO, REGION_CODE, TYPE, CONTRACT_END, LAST_BID,
+    TERM, STAGE, GIGANLIST_DIR, RFP_PATH, PPTX_PATH
+  </sql>
+
+  <select id="selectAll" resultMap="institution">
+    SELECT <include refid="columns"/>
+      FROM INSTITUTIONS
+     ORDER BY INSTITUTION_ID
+  </select>
+
+  <select id="selectById" resultMap="institution">
+    SELECT <include refid="columns"/>
+      FROM INSTITUTIONS
+     WHERE INSTITUTION_ID = #{institutionId}
+  </select>
+
+  <select id="selectIdByName" resultType="string">
+    SELECT INSTITUTION_ID
+      FROM INSTITUTIONS
+     WHERE NAME_KO = #{nameKo}
+  </select>
+
+  <insert id="insert">
+    INSERT INTO INSTITUTIONS
+        (INSTITUTION_ID, NAME_KO, REGION_CODE, TYPE, TERM, LAST_BID, CONTRACT_END, STAGE)
+    VALUES
+        (#{institutionId},
+         #{row.nameKo},
+         #{row.regionCode,jdbcType=VARCHAR},
+         #{row.type,jdbcType=VARCHAR},
+         #{row.term,jdbcType=DECIMAL},
+         #{row.lastBid,jdbcType=VARCHAR},
+         #{row.contractEnd,jdbcType=VARCHAR},
+         1)
+  </insert>
+
+  <!-- CSV 반입: 보낸 값이 있을 때만 덮는다. 빈 칸이 기존 값을 지우면 안 된다. -->
+  <update id="updateFromImport">
+    UPDATE INSTITUTIONS
+       SET REGION_CODE  = COALESCE(#{row.regionCode,jdbcType=VARCHAR},  REGION_CODE),
+           TYPE         = COALESCE(#{row.type,jdbcType=VARCHAR},        TYPE),
+           TERM         = COALESCE(#{row.term,jdbcType=DECIMAL},        TERM),
+           LAST_BID     = COALESCE(#{row.lastBid,jdbcType=VARCHAR},     LAST_BID),
+           CONTRACT_END = COALESCE(#{row.contractEnd,jdbcType=VARCHAR}, CONTRACT_END)
+     WHERE INSTITUTION_ID = #{institutionId}
+  </update>
+
+  <!--
+    부분 갱신: 본문에 실제로 담겨 온 필드만. upd.present(…) 가 pydantic 의
+    model_fields_set 자리다 — "안 보냄"(보존)과 "null 을 보냄"(지움)을 가른다.
+    빈 문자열→null 변환은 InstitutionUpdateIn 세터가 이미 끝냈다.
+
+    ⚠️ 보낸 필드가 하나도 없으면 <set> 이 비어 SQL 이 깨진다. 호출부가
+       nothingSet() 을 먼저 보고 이 문장을 아예 부르지 않는다(인터페이스 주석).
+  -->
+  <update id="updateFields">
+    UPDATE INSTITUTIONS
+    <set>
+      <if test="upd.present('regionCode')">REGION_CODE = #{upd.regionCode,jdbcType=VARCHAR},</if>
+      <if test="upd.present('type')">TYPE = #{upd.type,jdbcType=VARCHAR},</if>
+      <if test="upd.present('contractEnd')">CONTRACT_END = #{upd.contractEnd,jdbcType=VARCHAR},</if>
+      <if test="upd.present('lastBid')">LAST_BID = #{upd.lastBid,jdbcType=VARCHAR},</if>
+      <if test="upd.present('term')">TERM = #{upd.term,jdbcType=DECIMAL},</if>
+    </set>
+    WHERE INSTITUTION_ID = #{institutionId}
+  </update>
+
+  <insert id="insertSeedDistrict">
+    INSERT INTO INSTITUTIONS
+        (INSTITUTION_ID, NAME_KO, GIGANLIST_DIR, STAGE, REGION_CODE, TYPE)
+    VALUES
+        (#{institutionId}, #{nameKo}, #{giganlistDir}, 1, #{regionCode}, #{type})
+  </insert>
+
+  <!-- 비어 있는 것만 채운다 — 사람이 넣은 값은 덮지 않는다. -->
+  <update id="backfillRegionAndType">
+    UPDATE INSTITUTIONS
+       SET REGION_CODE = COALESCE(REGION_CODE, #{regionCode}),
+           TYPE        = COALESCE(TYPE,        #{type})
+     WHERE INSTITUTION_ID = #{institutionId}
+  </update>
+
+  <update id="updateStage">
+    UPDATE INSTITUTIONS SET STAGE = #{stage} WHERE INSTITUTION_ID = #{institutionId}
+  </update>
+
+  <update id="updateGiganlistDir">
+    UPDATE INSTITUTIONS
+       SET GIGANLIST_DIR = #{giganlistDir,jdbcType=VARCHAR}
+     WHERE INSTITUTION_ID = #{institutionId}
+  </update>
+
+  <update id="updateRfpPath">
+    UPDATE INSTITUTIONS
+       SET RFP_PATH = #{rfpPath,jdbcType=VARCHAR}
+     WHERE INSTITUTION_ID = #{institutionId}
+  </update>
+
+  <update id="updatePptxPath">
+    UPDATE INSTITUTIONS
+       SET PPTX_PATH = #{pptxPath,jdbcType=VARCHAR}
+     WHERE INSTITUTION_ID = #{institutionId}
+  </update>
+
+</mapper>

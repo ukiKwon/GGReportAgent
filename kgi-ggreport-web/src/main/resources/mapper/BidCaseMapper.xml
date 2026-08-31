@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  BID_CASES — 원본 server/bidcase_repository.py + routers/workflow.py.
+
+  ⚠️ SEQ_NO 는 SELECT 목록에도 INSERT 목록에도 없다. 앱에는 안 보이는 컬럼이고
+     (POJO 에 필드가 없다) 값은 DB 가 채운다 — Oracle IDENTITY / MySQL AUTO_INCREMENT.
+     쓰는 자리는 selectLatestPerInstitution 하나다.
+-->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.BidCaseMapper">
+
+  <resultMap id="bidCase" type="BidCase">
+    <id     property="bidCaseId"           column="BID_CASE_ID"/>
+    <result property="institutionId"       column="INSTITUTION_ID"/>
+    <result property="scheduleConfidence"  column="SCHEDULE_CONFIDENCE"/>
+    <result property="expectedDate"        column="EXPECTED_DATE"/>
+    <result property="confirmedDate"       column="CONFIRMED_DATE"/>
+    <result property="lastSyncedAt"        column="LAST_SYNCED_AT"/>
+    <result property="participationStatus" column="PARTICIPATION_STATUS"/>
+    <!-- CLOB 의 JSON 배열 ↔ List. 전역 등록 대신 여기서 명시한다(핸들러 주석 참조). -->
+    <result property="participationDecision" column="PARTICIPATION_DECISION"
+            typeHandler="com.kbstar.kgi.ggreport.web.mapper.handler.ParticipationDecisionTypeHandler"/>
+    <result property="researchStatus"      column="RESEARCH_STATUS"/>
+    <result property="finalizedBy"         column="FINALIZED_BY"/>
+    <result property="finalizedAt"         column="FINALIZED_AT"/>
+    <result property="sourceSlug"          column="SOURCE_SLUG"/>
+    <result property="noticeId"            column="NOTICE_ID"/>
+    <result property="title"               column="TITLE"/>
+    <result property="noticeUrl"           column="NOTICE_URL"/>
+  </resultMap>
+
+  <sql id="columns">
+    BID_CASE_ID, INSTITUTION_ID, SCHEDULE_CONFIDENCE, EXPECTED_DATE, CONFIRMED_DATE,
+    LAST_SYNCED_AT, PARTICIPATION_STATUS, PARTICIPATION_DECISION, RESEARCH_STATUS,
+    FINALIZED_BY, FINALIZED_AT, SOURCE_SLUG, NOTICE_ID, TITLE, NOTICE_URL
+  </sql>
+
+  <insert id="insert">
+    INSERT INTO BID_CASES
+        (BID_CASE_ID, INSTITUTION_ID, SCHEDULE_CONFIDENCE, EXPECTED_DATE, CONFIRMED_DATE,
+         LAST_SYNCED_AT, PARTICIPATION_STATUS, PARTICIPATION_DECISION, RESEARCH_STATUS,
+         SOURCE_SLUG, NOTICE_ID, TITLE, NOTICE_URL)
+    VALUES
+        (#{bidCaseId},
+         #{institutionId},
+         #{scheduleConfidence},
+         #{expectedDate,jdbcType=VARCHAR},
+         #{confirmedDate,jdbcType=VARCHAR},
+         #{lastSyncedAt,jdbcType=VARCHAR},
+         #{participationStatus},
+         <!-- MySQL 미러는 LONGTEXT 에 DEFAULT 를 못 준다 — 앱이 반드시 명시한다. -->
+         #{participationDecision,jdbcType=CLOB,
+           typeHandler=com.kbstar.kgi.ggreport.web.mapper.handler.ParticipationDecisionTypeHandler},
+         #{researchStatus},
+         #{sourceSlug,jdbcType=VARCHAR},
+         #{noticeId,jdbcType=VARCHAR},
+         #{title,jdbcType=VARCHAR},
+         #{noticeUrl,jdbcType=VARCHAR})
+  </insert>
+
+  <select id="selectById" resultMap="bidCase">
+    SELECT <include refid="columns"/>
+      FROM BID_CASES
+     WHERE BID_CASE_ID = #{bidCaseId}
+  </select>
+
+  <select id="selectIdByNotice" resultType="string">
+    SELECT BID_CASE_ID
+      FROM BID_CASES
+     WHERE SOURCE_SLUG = #{sourceSlug}
+       AND NOTICE_ID   = #{noticeId}
+  </select>
+
+  <!--
+    확정이면 CONFIRMED_DATE, 예상이면 EXPECTED_DATE 에 넣고 반대쪽은 건드리지 않는다.
+    원본은 컬럼명을 파이썬 f-string 으로 갈아 끼웠다 — 여기서는 <choose> 로 옮긴다.
+  -->
+  <update id="updateFromNotice">
+    UPDATE BID_CASES
+       SET SCHEDULE_CONFIDENCE = #{confidence},
+    <choose>
+      <when test="confidence == '확정'">
+           CONFIRMED_DATE = COALESCE(#{date,jdbcType=VARCHAR}, CONFIRMED_DATE),
+      </when>
+      <otherwise>
+           EXPECTED_DATE  = COALESCE(#{date,jdbcType=VARCHAR}, EXPECTED_DATE),
+      </otherwise>
+    </choose>
+           TITLE          = #{title,jdbcType=VARCHAR},
+           NOTICE_URL     = #{noticeUrl,jdbcType=VARCHAR},
+           LAST_SYNCED_AT = #{lastSyncedAt,jdbcType=VARCHAR}
+     WHERE BID_CASE_ID = #{bidCaseId}
+  </update>
+
+  <update id="updateNoticeMeta">
+    UPDATE BID_CASES
+       SET SOURCE_SLUG = #{sourceSlug,jdbcType=VARCHAR},
+           NOTICE_ID   = #{noticeId,jdbcType=VARCHAR},
+           TITLE       = #{title,jdbcType=VARCHAR},
+           NOTICE_URL  = #{noticeUrl,jdbcType=VARCHAR}
+     WHERE BID_CASE_ID = #{bidCaseId}
+  </update>
+
+  <update id="updateFinalization">
+    UPDATE BID_CASES
+       SET FINALIZED_BY = #{finalizedBy,jdbcType=VARCHAR},
+           FINALIZED_AT = #{finalizedAt,jdbcType=VARCHAR}
+     WHERE BID_CASE_ID = #{bidCaseId}
+  </update>
+
+  <!--
+    내가 담당인 공고(골든 25).
+
+    ⚠️ **방언이 갈리는 자리다 — 아래 두 문장은 한 쌍이다. 한쪽만 고치지 말 것.**
+       원본은 `SELECT DISTINCT bc.* FROM bid_cases bc JOIN tasks t …` 였다. 그대로
+       옮기면 **Oracle 에서 ORA-00932 로 죽는다** — DISTINCT 는 CLOB 컬럼을 비교할 수
+       없는데 PARTICIPATION_DECISION 이 CLOB 이다(SQLite·MySQL 에서는 그냥 된다).
+       조인의 DISTINCT 는 "한 공고에 내 작업이 여러 건이면 중복 행이 나온다"를 막으려던
+       것뿐이라, Oracle 쪽은 준결합(IN 서브쿼리)으로 같은 결과를 CLOB 비교 없이 얻는다.
+       `DynamicSqlTest` 가 두 분기를 각각 대조한다.
+  -->
+
+  <!-- MySQL 8.0 — 원본 SQLite 와 같은 모양이다(대조하기 쉽다). -->
+  <select id="selectForAssignee" databaseId="mysql" resultMap="bidCase">
+    SELECT DISTINCT
+           BC.BID_CASE_ID, BC.INSTITUTION_ID, BC.SCHEDULE_CONFIDENCE, BC.EXPECTED_DATE,
+           BC.CONFIRMED_DATE, BC.LAST_SYNCED_AT, BC.PARTICIPATION_STATUS,
+           BC.PARTICIPATION_DECISION, BC.RESEARCH_STATUS, BC.FINALIZED_BY, BC.FINALIZED_AT,
+           BC.SOURCE_SLUG, BC.NOTICE_ID, BC.TITLE, BC.NOTICE_URL
+      FROM BID_CASES BC
+      JOIN TASKS T ON T.BID_CASE_ID = BC.BID_CASE_ID
+     WHERE T.TEAM = #{team}
+       AND T.ASSIGNEE = #{assignee}
+     ORDER BY BC.BID_CASE_ID
+  </select>
+
+  <!-- Oracle — DISTINCT 를 못 쓰므로(ORA-00932) 준결합으로 중복을 없앤다. -->
+  <select id="selectForAssignee" databaseId="oracle" resultMap="bidCase">
+    SELECT <include refid="columns"/>
+      FROM BID_CASES
+     WHERE BID_CASE_ID IN (SELECT BID_CASE_ID
+                             FROM TASKS
+                            WHERE TEAM = #{team}
+                              AND ASSIGNEE = #{assignee})
+     ORDER BY BID_CASE_ID
+  </select>
+
+  <!--
+    기관마다 최신 공고 1건. 원본은 SQLite rowid(= 삽입 순서)를 썼다 —
+    Oracle 의 ROWID 는 물리 주소라 뜻이 달라서 SEQ_NO 로 옮겼다(db/*/002_seq_no.sql).
+    ⚠️ 이 자리를 ROWID 로 되돌리면 예외 없이 조용히 틀린 답이 나오고,
+       단계 2 골든은 기관당 공고가 1건뿐이라 잡아 주지 못한다.
+  -->
+  <select id="selectLatestPerInstitution" resultMap="bidCase">
+    SELECT <include refid="columns"/>
+      FROM BID_CASES
+     WHERE SEQ_NO IN (SELECT MAX(SEQ_NO) FROM BID_CASES GROUP BY INSTITUTION_ID)
+     ORDER BY INSTITUTION_ID
+  </select>
+
+  <update id="updateParticipationDecision">
+    UPDATE BID_CASES
+       SET PARTICIPATION_DECISION = #{decision,jdbcType=CLOB,
+             typeHandler=com.kbstar.kgi.ggreport.web.mapper.handler.ParticipationDecisionTypeHandler}
+    <!-- 1·2단 결재는 이력만 쌓고 '검토중'을 유지한다(상태를 안 넘기면 안 건드린다). -->
+    <if test="participationStatus != null">
+         , PARTICIPATION_STATUS = #{participationStatus}
+    </if>
+     WHERE BID_CASE_ID = #{bidCaseId}
+  </update>
+
+  <update id="updateParticipationStatus">
+    UPDATE BID_CASES
+       SET PARTICIPATION_STATUS = #{participationStatus}
+     WHERE BID_CASE_ID = #{bidCaseId}
+  </update>
+
+  <select id="selectPendingActivation" resultType="string">
+    SELECT BID_CASE_ID
+      FROM BID_CASES
+     WHERE INSTITUTION_ID = #{institutionId}
+       AND PARTICIPATION_STATUS = '참여확정'
+       AND RESEARCH_STATUS = '대기'
+  </select>
+
+  <update id="updateResearchStatus">
+    UPDATE BID_CASES
+       SET RESEARCH_STATUS = #{researchStatus}
+     WHERE BID_CASE_ID = #{bidCaseId}
+  </update>
+
+</mapper>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  CHAT_MESSAGES — 원본 server/chat_repository.py.
+-->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.ChatMessageMapper">
+
+  <resultMap id="chatMessage" type="ChatMessage">
+    <id     property="chatMessageId" column="CHAT_MESSAGE_ID"/>
+    <result property="institutionId" column="INSTITUTION_ID"/>
+    <result property="role"          column="ROLE"/>
+    <result property="content"       column="CONTENT"/>
+    <result property="createdAt"     column="CREATED_AT"/>
+    <result property="author"        column="AUTHOR"/>
+  </resultMap>
+
+  <insert id="insert">
+    INSERT INTO CHAT_MESSAGES
+        (CHAT_MESSAGE_ID, INSTITUTION_ID, ROLE, CONTENT, CREATED_AT, AUTHOR)
+    VALUES
+        (#{chatMessageId},
+         #{institutionId},
+         #{role},
+         #{content,jdbcType=CLOB},
+         #{createdAt},
+         #{author,jdbcType=VARCHAR})
+  </insert>
+
+  <select id="selectByInstitution" resultMap="chatMessage">
+    SELECT CHAT_MESSAGE_ID, INSTITUTION_ID, ROLE, CONTENT, CREATED_AT, AUTHOR
+      FROM CHAT_MESSAGES
+     WHERE INSTITUTION_ID = #{institutionId}
+     ORDER BY CREATED_AT
+  </select>
+
+</mapper>

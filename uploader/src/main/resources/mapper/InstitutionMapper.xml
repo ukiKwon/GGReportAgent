@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kb.uploader.mapper.InstitutionMapper">
+
+  <resultMap id="institutionMap" type="Institution">
+    <id     property="id"         column="ID"/>
+    <result property="name"       column="NAME"/>
+    <result property="category"   column="CATEGORY"/>
+    <result property="modifiedAt" column="MODIFIED_AT"/>
+  </resultMap>
+
+  <!-- MySQL -->
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO INSTITUTION (NAME, CATEGORY, MODIFIED_AT)
+    VALUES (#{name}, #{category}, #{modifiedAt})
+  </insert>
+  <!--
+  [Oracle 전환 시 위 insert를 아래로 교체]
+  <insert id="insert">
+    <selectKey keyProperty="id" resultType="long" order="BEFORE">
+      SELECT INSTITUTION_SEQ.NEXTVAL FROM DUAL
+    </selectKey>
+    INSERT INTO INSTITUTION (ID, NAME, CATEGORY, MODIFIED_AT)
+    VALUES (#{id}, #{name}, #{category}, #{modifiedAt})
+  </insert>
+  -->
+
+  <update id="update">
+    UPDATE INSTITUTION
+    SET NAME = #{name}, CATEGORY = #{category}, MODIFIED_AT = #{modifiedAt}
+    WHERE ID = #{id}
+  </update>
+
+  <delete id="deleteById">
+    DELETE FROM INSTITUTION WHERE ID = #{id}
+  </delete>
+
+  <delete id="deleteAll">
+    DELETE FROM INSTITUTION
+  </delete>
+
+  <select id="findByName" resultMap="institutionMap">
+    SELECT * FROM INSTITUTION WHERE NAME = #{name}
+  </select>
+
+  <select id="findAll" resultMap="institutionMap">
+    SELECT * FROM INSTITUTION ORDER BY NAME ASC
+  </select>
+
+</mapper>

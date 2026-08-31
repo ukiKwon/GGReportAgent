@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  정합성 점검용 조회 — 원본 server/consistency.check_all 의 인라인 SQL.
+-->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.ConsistencyMapper">
+
+  <!-- dto 패키지는 type-aliases-package(= domain) 밖이라 FQN 으로 쓴다. -->
+  <resultMap id="consistencyRow" type="com.kbstar.kgi.ggreport.web.dto.ConsistencyRow">
+    <id     property="institutionId"      column="INSTITUTION_ID"/>
+    <result property="nameKo"             column="NAME_KO"/>
+    <result property="stage"              column="STAGE"/>
+    <result property="bidCaseId"          column="BID_CASE_ID"/>
+    <result property="participationStatus" column="PARTICIPATION_STATUS"/>
+    <result property="researchStatus"     column="RESEARCH_STATUS"/>
+    <result property="taskCount"          column="TASK_COUNT"/>
+  </resultMap>
+
+  <!--
+    ⚠️ LEFT JOIN 이다 — **공고가 없는 기관도 한 줄로 들어와야 한다.** 그 경우
+       PARTICIPATION_STATUS 가 NULL 이고, 그것이 바로 stage_without_bid_case 규칙이
+       보는 조건이다. INNER JOIN 으로 바꾸면 그 규칙이 영영 아무것도 못 찾는다.
+
+    ⚠️ 최신 공고 판정은 SEQ_NO 다(원본은 SQLite rowid). Oracle ROWID 는 삽입 순서가
+       아니라 물리 주소라 그대로 옮기면 조용히 틀린 답이 나온다 —
+       BidCaseMapper.selectLatestPerInstitution 과 **같은 기준이어야** 지도와
+       정합성 화면이 같은 공고를 가리킨다.
+
+    TASK_COUNT 는 상관 서브쿼리라 B 가 NULL 인 행에서도 0 이 나온다(원본의 `or 0`).
+  -->
+  <select id="selectRows" resultMap="consistencyRow">
+    SELECT I.INSTITUTION_ID,
+           I.NAME_KO,
+           I.STAGE,
+           B.BID_CASE_ID,
+           B.PARTICIPATION_STATUS,
+           B.RESEARCH_STATUS,
+           (SELECT COUNT(*) FROM TASKS T WHERE T.BID_CASE_ID = B.BID_CASE_ID) AS TASK_COUNT
+      FROM INSTITUTIONS I
+      LEFT JOIN BID_CASES B
+        ON B.SEQ_NO = (SELECT MAX(X.SEQ_NO) FROM BID_CASES X
+                        WHERE X.INSTITUTION_ID = I.INSTITUTION_ID)
+    <if test="institutionId != null">
+     WHERE I.INSTITUTION_ID = #{institutionId}
+    </if>
+     ORDER BY I.INSTITUTION_ID
+  </select>
+
+</mapper>

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  ROLE_MENUS — 원본 server/menu_repository.py.
+
+  ⚠️ 원본의 `INSERT … ON CONFLICT(role, menu) DO UPDATE` 는 SQLite 전용 문법이다.
+     Oracle 은 MERGE, MySQL 은 ON DUPLICATE KEY UPDATE 라 셋이 전부 다르다.
+     → **UPDATE 를 먼저 돌리고 0행이면 INSERT** 로 통일해 Mapper 를 한 벌로 남긴다
+       (2026-08-26 사용자 확정). 조합은 서비스가 한다.
+
+  ⚠️ **여기만 databaseId 분기를 쓰지 않는다.** databaseId 는 *같은 statement 하나*의
+     SQL 본문을 방언별로 바꾸는 장치다. upsert 는 방언에 따라 **문장 수가 1개 ↔ 2개로
+     달라져서**(네이티브 upsert 1문장 ↔ update+insert 2문장) 서비스 코드 경로까지
+     갈린다 — XML 만 갈아 끼워서 될 일이 아니다. 바꾸려면 별도 결정이 필요하다.
+
+     참고로 네이티브 형태는 이렇다(지금 쓰지 않는다):
+       MySQL : INSERT INTO ROLE_MENUS (ROLE, MENU, ENABLED) VALUES (?, ?, ?)
+                 ON DUPLICATE KEY UPDATE ENABLED = VALUES(ENABLED)
+       Oracle: MERGE INTO ROLE_MENUS T
+                 USING (SELECT ? ROLE, ? MENU, ? ENABLED FROM DUAL) S
+                    ON (T.ROLE = S.ROLE AND T.MENU = S.MENU)
+                 WHEN MATCHED THEN UPDATE SET T.ENABLED = S.ENABLED
+                 WHEN NOT MATCHED THEN INSERT (ROLE, MENU, ENABLED)
+                        VALUES (S.ROLE, S.MENU, S.ENABLED)
+
+  ⚠️ ENABLED 는 Oracle NUMBER(1) / MySQL SMALLINT 다. 자바 boolean ↔ 0/1 변환은
+     JDBC 드라이버에 맡긴다 — **내부망 Oracle 에서 실검증할 자리 중 하나**다
+     (H2·MySQL 통과가 Oracle 합격의 근거가 되지 않는다).
+-->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.RoleMenuMapper">
+
+  <resultMap id="roleMenu" type="RoleMenu">
+    <id     property="role"    column="ROLE"/>
+    <id     property="menu"    column="MENU"/>
+    <result property="enabled" column="ENABLED"/>
+  </resultMap>
+
+  <select id="selectAll" resultMap="roleMenu">
+    SELECT ROLE, MENU, ENABLED FROM ROLE_MENUS
+  </select>
+
+  <update id="updateEnabled">
+    UPDATE ROLE_MENUS SET ENABLED = #{enabled}
+     WHERE ROLE = #{role} AND MENU = #{menu}
+  </update>
+
+  <insert id="insert">
+    INSERT INTO ROLE_MENUS (ROLE, MENU, ENABLED) VALUES (#{role}, #{menu}, #{enabled})
+  </insert>
+
+</mapper>

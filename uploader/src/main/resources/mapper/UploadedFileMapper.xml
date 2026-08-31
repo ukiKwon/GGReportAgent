@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kb.uploader.mapper.UploadedFileMapper">
+
+  <resultMap id="uploadedFileMap" type="UploadedFile">
+    <id     property="id"              column="ID"/>
+    <result property="originalName"    column="ORIGINAL_NAME"/>
+    <result property="storedPath"      column="STORED_PATH"/>
+    <result property="year"            column="FILE_YEAR"/>
+    <result property="institutionName" column="INSTITUTION_NAME"/>
+    <result property="category"        column="CATEGORY"/>
+    <result property="status"          column="STATUS"/>
+    <result property="uploadedAt"      column="UPLOADED_AT"/>
+    <result property="classifiedAt"    column="CLASSIFIED_AT"/>
+  </resultMap>
+
+  <!-- MySQL: useGeneratedKeys로 AUTO_INCREMENT id 채움 -->
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO UPLOADED_FILE
+    (ORIGINAL_NAME, STORED_PATH, FILE_YEAR, INSTITUTION_NAME, CATEGORY, STATUS, UPLOADED_AT)
+    VALUES
+    (#{originalName}, #{storedPath}, #{year}, #{institutionName}, #{category}, #{status}, #{uploadedAt})
+  </insert>
+  <!--
+  [Oracle 전환 시 위 insert를 아래로 교체]
+  <insert id="insert">
+    <selectKey keyProperty="id" resultType="long" order="BEFORE">
+      SELECT UPLOADED_FILE_SEQ.NEXTVAL FROM DUAL
+    </selectKey>
+    INSERT INTO UPLOADED_FILE
+      (ID, ORIGINAL_NAME, STORED_PATH, FILE_YEAR, INSTITUTION_NAME, CATEGORY, STATUS, UPLOADED_AT)
+    VALUES
+      (#{id}, #{originalName}, #{storedPath}, #{year}, #{institutionName}, #{category}, #{status}, #{uploadedAt})
+  </insert>
+  -->
+
+  <update id="update">
+    UPDATE UPLOADED_FILE
+    SET
+    STORED_PATH      = #{storedPath},
+    INSTITUTION_NAME = #{institutionName},
+    FILE_YEAR        = #{year},
+    CATEGORY         = #{category},
+    STATUS           = #{status},
+    CLASSIFIED_AT    = #{classifiedAt}
+    WHERE ID = #{id}
+  </update>
+
+  <update id="softDeleteById">
+    UPDATE UPLOADED_FILE SET STATUS = 'DELETED' WHERE ID = #{id}
+  </update>
+
+  <update id="rejectById">
+    UPDATE UPLOADED_FILE SET STATUS = 'REJECTED' WHERE ID = #{id}
+  </update>
+
+  <select id="findById" resultMap="uploadedFileMap">
+    SELECT * FROM UPLOADED_FILE WHERE ID = #{id}
+  </select>
+
+  <select id="findByStatus" resultMap="uploadedFileMap">
+    SELECT * FROM UPLOADED_FILE WHERE STATUS = #{status}
+  </select>
+
+  <select id="findClassifiedByUnknownInstitution" resultMap="uploadedFileMap">
+    SELECT * FROM UPLOADED_FILE
+    WHERE INSTITUTION_NAME = '알수없음' AND STATUS = 'CLASSIFIED'
+    ORDER BY UPLOADED_AT DESC
+  </select>
+
+  <select id="countAll" resultType="long">
+    SELECT COUNT(*) FROM UPLOADED_FILE
+  </select>
+
+  <select id="countByStatus" resultType="long">
+    SELECT COUNT(*) FROM UPLOADED_FILE WHERE STATUS = #{status}
+  </select>
+
+  <!-- MySQL: LIMIT -->
+  <select id="findRecent" resultMap="uploadedFileMap">
+    SELECT * FROM UPLOADED_FILE ORDER BY UPLOADED_AT DESC LIMIT #{limit}
+  </select>
+  <!--
+  [Oracle 전환 시 위 findRecent를 아래로 교체]
+  <select id="findRecent" resultMap="uploadedFileMap">
+    SELECT * FROM (
+      SELECT * FROM UPLOADED_FILE ORDER BY UPLOADED_AT DESC
+    ) WHERE ROWNUM &lt;= #{limit}
+  </select>
+  -->
+
+  <!-- MySQL: LIMIT ... OFFSET -->
+  <select id="findByInstitutionNameContaining" resultMap="uploadedFileMap">
+    SELECT * FROM UPLOADED_FILE
+    WHERE INSTITUTION_NAME LIKE CONCAT('%', #{keyword}, '%')
+    ORDER BY UPLOADED_AT DESC
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+  <!--
+  [Oracle 전환 시 위 findByInstitutionNameContaining를 아래로 교체]
+  <select id="findByInstitutionNameContaining" resultMap="uploadedFileMap">
+    SELECT * FROM (
+      SELECT a.*, ROWNUM RN FROM (
+        SELECT * FROM UPLOADED_FILE
+        WHERE INSTITUTION_NAME LIKE '%' || #{keyword} || '%'
+        ORDER BY UPLOADED_AT DESC
+      ) a WHERE ROWNUM &lt;= #{offset} + #{limit}
+    ) WHERE RN > #{offset}
+  </select>
+  -->
+
+  <select id="countByInstitutionNameContaining" resultType="long">
+    SELECT COUNT(*) FROM UPLOADED_FILE
+    WHERE INSTITUTION_NAME LIKE CONCAT('%', #{keyword}, '%')
+  </select>
+  <!--
+  [Oracle 전환 시 위 countByInstitutionNameContaining를 아래로 교체]
+  <select id="countByInstitutionNameContaining" resultType="long">
+    SELECT COUNT(*) FROM UPLOADED_FILE
+    WHERE INSTITUTION_NAME LIKE '%' || #{keyword} || '%'
+  </select>
+  -->
+
+  <!-- MySQL: 다중 조건 검색 -->
+  <select id="search" resultMap="uploadedFileMap">
+    SELECT * FROM UPLOADED_FILE
+    WHERE
+    (#{institution} = '' OR INSTITUTION_NAME LIKE CONCAT('%', #{institution}, '%'))
+    AND (#{year} = '' OR FILE_YEAR = #{year})
+    AND (#{keyword} = '' OR ORIGINAL_NAME LIKE CONCAT('%', #{keyword}, '%'))
+    ORDER BY UPLOADED_AT DESC
+  </select>
+  <!--
+  [Oracle 전환 시 위 search를 아래로 교체]
+  <select id="search" resultMap="uploadedFileMap">
+    SELECT * FROM UPLOADED_FILE
+    WHERE
+      (#{institution} = '' OR INSTITUTION_NAME LIKE '%' || #{institution} || '%')
+      AND (#{year} = '' OR FILE_YEAR = #{year})
+      AND (#{keyword} = '' OR ORIGINAL_NAME LIKE '%' || #{keyword} || '%')
+    ORDER BY UPLOADED_AT DESC
+  </select>
+  -->
+
+</mapper>

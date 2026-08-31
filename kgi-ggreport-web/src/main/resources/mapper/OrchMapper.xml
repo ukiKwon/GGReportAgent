@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  ORCH_RUN · ORCH_STEP — 설계 §6-B. LangGraph 체크포인트 대체.
+
+  ⚠️ 방언 분기가 없다. 여기 SQL 은 전부 표준이라 Oracle·MySQL 이 같은 문장을 쓴다
+     (SEQ_NO 를 IDENTITY 로 두지 않아 LIMIT/FETCH FIRST 도 필요 없다 — 006 주석 참조).
+-->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.OrchMapper">
+
+  <resultMap id="orchRun" type="com.kbstar.kgi.ggreport.web.orchestrator.OrchRun">
+    <id     property="runId"               column="RUN_ID"/>
+    <result property="institutionId"       column="INSTITUTION_ID"/>
+    <result property="bidCaseId"           column="BID_CASE_ID"/>
+    <result property="status"              column="STATUS"/>
+    <result property="currentNode"         column="CURRENT_NODE"/>
+    <result property="pendingGate"         column="PENDING_GATE"/>
+    <result property="stage"               column="STAGE"/>
+    <result property="activeInstitutionId" column="ACTIVE_INSTITUTION_ID"/>
+    <result property="failureReason"       column="FAILURE_REASON"/>
+    <result property="createdAt"           column="CREATED_AT"/>
+    <result property="updatedAt"           column="UPDATED_AT"/>
+  </resultMap>
+
+  <sql id="runColumns">
+    RUN_ID, INSTITUTION_ID, BID_CASE_ID, STATUS, CURRENT_NODE, PENDING_GATE, STAGE,
+    ACTIVE_INSTITUTION_ID, FAILURE_REASON, CREATED_AT, UPDATED_AT
+  </sql>
+
+  <insert id="insertRun">
+    INSERT INTO ORCH_RUN (<include refid="runColumns"/>)
+    VALUES (#{runId}, #{institutionId}, #{bidCaseId,jdbcType=VARCHAR}, #{status},
+            #{currentNode}, #{pendingGate,jdbcType=VARCHAR}, #{stage,jdbcType=NUMERIC},
+            #{activeInstitutionId,jdbcType=VARCHAR}, #{failureReason,jdbcType=VARCHAR},
+            #{createdAt}, #{updatedAt})
+  </insert>
+
+  <select id="selectRun" resultMap="orchRun">
+    SELECT <include refid="runColumns"/> FROM ORCH_RUN WHERE RUN_ID = #{runId}
+  </select>
+
+  <!-- UNIQUE(ACTIVE_INSTITUTION_ID) 라 최대 1건이다(006 주석). -->
+  <select id="selectActiveRun" resultMap="orchRun">
+    SELECT <include refid="runColumns"/> FROM ORCH_RUN
+     WHERE ACTIVE_INSTITUTION_ID = #{institutionId}
+  </select>
+
+  <!--
+    마지막 실행 1건. CREATED_AT 이 같으면 RUN_ID 로 가른다 — 시각이 문자열(밀리초)이라
+    같은 밀리초에 두 건이 생길 수 있고, 그때 Oracle 은 순서를 보장하지 않는다.
+  -->
+  <select id="selectLatestRun" resultMap="orchRun">
+    SELECT <include refid="runColumns"/> FROM ORCH_RUN
+     WHERE INSTITUTION_ID = #{institutionId}
+       AND CREATED_AT || RUN_ID = (
+             SELECT MAX(CREATED_AT || RUN_ID) FROM ORCH_RUN
+              WHERE INSTITUTION_ID = #{institutionId})
+  </select>
+
+  <update id="updateRun">
+    UPDATE ORCH_RUN
+       SET STATUS                = #{status},
+           CURRENT_NODE          = #{currentNode},
+           PENDING_GATE          = #{pendingGate,jdbcType=VARCHAR},
+           STAGE                 = #{stage,jdbcType=NUMERIC},
+           ACTIVE_INSTITUTION_ID = #{activeInstitutionId,jdbcType=VARCHAR},
+           FAILURE_REASON        = #{failureReason,jdbcType=VARCHAR},
+           UPDATED_AT            = #{updatedAt}
+     WHERE RUN_ID = #{runId}
+  </update>
+
+  <resultMap id="orchStep" type="com.kbstar.kgi.ggreport.web.orchestrator.OrchStep">
+    <id     property="stepId"        column="STEP_ID"/>
+    <result property="runId"         column="RUN_ID"/>
+    <result property="seqNo"         column="SEQ_NO"/>
+    <result property="node"          column="NODE"/>
+    <result property="status"        column="STATUS"/>
+    <result property="parentStepId"  column="PARENT_STEP_ID"/>
+    <result property="role"          column="ROLE"/>
+    <result property="inputJson"     column="INPUT_JSON"/>
+    <result property="outputJson"    column="OUTPUT_JSON"/>
+    <result property="failureReason" column="FAILURE_REASON"/>
+    <result property="startedAt"     column="STARTED_AT"/>
+    <result property="finishedAt"    column="FINISHED_AT"/>
+  </resultMap>
+
+  <sql id="stepColumns">
+    STEP_ID, RUN_ID, SEQ_NO, NODE, STATUS, PARENT_STEP_ID, ROLE,
+    INPUT_JSON, OUTPUT_JSON, FAILURE_REASON, STARTED_AT, FINISHED_AT
+  </sql>
+
+  <insert id="insertStep">
+    INSERT INTO ORCH_STEP (<include refid="stepColumns"/>)
+    VALUES (#{stepId}, #{runId}, #{seqNo}, #{node}, #{status},
+            #{parentStepId,jdbcType=VARCHAR}, #{role,jdbcType=VARCHAR},
+            #{inputJson,jdbcType=CLOB}, #{outputJson,jdbcType=CLOB},
+            #{failureReason,jdbcType=VARCHAR}, #{startedAt}, #{finishedAt,jdbcType=VARCHAR})
+  </insert>
+
+  <update id="updateStep">
+    UPDATE ORCH_STEP
+       SET STATUS         = #{status},
+           OUTPUT_JSON    = #{outputJson,jdbcType=CLOB},
+           FAILURE_REASON = #{failureReason,jdbcType=VARCHAR},
+           FINISHED_AT    = #{finishedAt,jdbcType=VARCHAR}
+     WHERE STEP_ID = #{stepId}
+  </update>
+
+  <select id="selectSteps" resultMap="orchStep">
+    SELECT <include refid="stepColumns"/> FROM ORCH_STEP
+     WHERE RUN_ID = #{runId} ORDER BY SEQ_NO
+  </select>
+
+  <select id="selectPendingStep" resultMap="orchStep">
+    SELECT <include refid="stepColumns"/> FROM ORCH_STEP
+     WHERE RUN_ID = #{runId} AND STATUS = 'PENDING_APPROVAL'
+       AND SEQ_NO = (SELECT MAX(SEQ_NO) FROM ORCH_STEP
+                      WHERE RUN_ID = #{runId} AND STATUS = 'PENDING_APPROVAL')
+  </select>
+
+  <select id="nextSeqNo" resultType="long">
+    SELECT COALESCE(MAX(SEQ_NO), 0) + 1 FROM ORCH_STEP WHERE RUN_ID = #{runId}
+  </select>
+
+</mapper>

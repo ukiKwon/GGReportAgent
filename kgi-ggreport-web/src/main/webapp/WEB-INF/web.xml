@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Task 1.2 — 2026-08-25 eGovFrame 제약 폐기로 이 파일을 우리가 소유하게 됐다.
+  종전에는 표준 템플릿이 주는 web.xml에 async-supported가 있는지를 기관에 물어야
+  했으나(문의 6), 이제 그냥 우리가 정한다.
+
+  ⚠️ metadata-complete 는 반드시 false(또는 생략)여야 한다. true 로 두면 서블릿
+  컨테이너가 애너테이션/ServletContainerInitializer 스캔을 건너뛰어
+  SpringBootServletInitializer 가 아예 돌지 않는다 — 앱이 조용히 안 뜬다.
+-->
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee
+                             http://xmlns.jcp.org/xml/ns/javaee/web-app_3_1.xsd"
+         version="3.1"
+         metadata-complete="false">
+
+  <display-name>kgi-ggreport-web</display-name>
+
+  <!--
+    ── 비동기 지원(async-supported) ────────────────────────────────────────
+    여기에 <filter>/<servlet>을 다시 선언하지 않는다. Spring Boot 는 DispatcherServlet 과
+    필터들을 **프로그램적으로** 등록하며(FilterRegistrationBean /
+    DispatcherServletRegistrationBean), 그 등록의 asyncSupported 기본값이 이미 true 다.
+    web.xml 에 같은 필터를 또 선언하면 이중 등록이 되어 필터가 두 번 돈다.
+
+    즉 이 항목의 요구(= 필터 체인 전부 async 지원)는 Boot 기본값으로 이미 충족된다.
+    새 필터를 **직접** 추가할 때는 반드시 FilterRegistrationBean 으로 등록하고
+    setAsyncSupported(true) 를 유지할 것 — 대화 탭 스트리밍이 여기 걸린다.
+
+    ⚠️ 그 스트리밍은 SSE 가 아니다(2026-08-28 설계 개정). POST + text/plain 청크이고
+    StreamingResponseBody 로 구현돼 있다(ChatController). 비동기 지원이 필요한 것은
+    양쪽 다 같지만, 응답을 모아 버리는 필터를 끼우면 똑같이 깨진다.
+    경유지(회사 공통 API 게이트웨이)가 앞단에 확정으로 있으므로 버퍼링·타임아웃은
+    가설이 아니라 확정 리스크다(설계 §7, 문의 7번).
+  -->
+
+  <!--
+    ── JNDI DataSource ────────────────────────────────────────────────────
+    운영(prod)은 WebLogic 콘솔에서 DataSource 를 만들고 비밀번호도 거기 넣는다.
+    앱 설정 파일에는 이름만 남는다(config-envs/prod/application.properties).
+    비-prod 는 JNDI 를 쓰지 않고 URL 로 직접 붙는다.
+  -->
+  <resource-ref>
+    <description>입찰 워크플로우 지원 시스템 Oracle DataSource</description>
+    <res-ref-name>jdbc/ggreportDS</res-ref-name>
+    <res-type>javax.sql.DataSource</res-type>
+    <res-auth>Container</res-auth>
+    <res-sharing-scope>Shareable</res-sharing-scope>
+  </resource-ref>
+
+  <!--
+    ── CommonJ WorkManager (단계 4에서 사용) ───────────────────────────────
+    오케스트레이터가 노드를 백그라운드로 돌릴 때 쓴다. WAS 에서 앱이 스레드를 직접
+    만드는 것은 금지이므로(설계 §2·§4) ExecutorService/@Scheduled 대신 이 경로를 쓴다.
+    WebLogic 콘솔에서 같은 이름의 Work Manager 를 만들어 두어야 조회된다.
+  -->
+  <resource-ref>
+    <description>오케스트레이터 백그라운드 실행용 WorkManager</description>
+    <res-ref-name>wm/ggreportWM</res-ref-name>
+    <res-type>commonj.work.WorkManager</res-type>
+    <res-auth>Container</res-auth>
+    <res-sharing-scope>Shareable</res-sharing-scope>
+  </resource-ref>
+
+</web-app>

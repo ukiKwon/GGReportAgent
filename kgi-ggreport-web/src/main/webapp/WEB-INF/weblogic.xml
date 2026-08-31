@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WebLogic 은 자기 기본 라이브러리를 먼저 로드한다. 앱이 들고 온 Spring/Jackson 등이
+  WAS 쪽 구버전에 가려지면 기동조차 안 되므로, 아래 패키지는 **앱 것을 우선**한다.
+
+  uploader/src/main/webapp/WEB-INF/weblogic.xml 의 목록을 출발점으로 삼되
+  org.hibernate.* 는 넣지 않는다 — 이 프로젝트는 MyBatis 를 쓰며 Hibernate 의존성이
+  없다(uploader 쪽은 JPA 흔적으로 남아 있던 것을 2026-08-26 에 제거했다).
+-->
+<weblogic-web-app
+        xmlns="http://xmlns.oracle.com/weblogic/weblogic-web-app"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://xmlns.oracle.com/weblogic/weblogic-web-app
+                        http://xmlns.oracle.com/weblogic/weblogic-web-app/1.9/weblogic-web-app.xsd">
+
+  <container-descriptor>
+    <prefer-application-packages>
+      <package-name>org.springframework.*</package-name>
+      <package-name>com.fasterxml.jackson.*</package-name>
+      <package-name>org.slf4j.*</package-name>
+      <package-name>ch.qos.logback.*</package-name>
+      <package-name>org.mybatis.*</package-name>
+      <package-name>org.apache.ibatis.*</package-name>
+      <package-name>org.apache.commons.*</package-name>
+      <!-- LLM 어댑터가 직접 쓰는 HttpClient 4.5 (설계 §6-C) -->
+      <package-name>org.apache.http.*</package-name>
+      <!-- 산출물 생성 — PDFBox / POI (단계 5) -->
+      <package-name>org.apache.pdfbox.*</package-name>
+      <package-name>org.apache.poi.*</package-name>
+    </prefer-application-packages>
+  </container-descriptor>
+
+</weblogic-web-app>

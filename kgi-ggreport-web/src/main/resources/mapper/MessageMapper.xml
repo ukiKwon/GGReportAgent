@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  MESSAGES — 원본 server/task_repository.py.
+
+  ⚠️ MODEL 컬럼은 server/db.py 의 SCHEMA 가 아니라 MESSAGE_MIGRATIONS 에만 있던
+     컬럼이다. SCHEMA 만 보고 옮기면 조용히 빠진다.
+-->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.MessageMapper">
+
+  <resultMap id="message" type="Message">
+    <id     property="messageId" column="MESSAGE_ID"/>
+    <result property="taskId"    column="TASK_ID"/>
+    <result property="role"      column="ROLE"/>
+    <result property="content"   column="CONTENT"/>
+    <result property="createdAt" column="CREATED_AT"/>
+    <result property="author"    column="AUTHOR"/>
+    <result property="stage"     column="STAGE"/>
+    <result property="model"     column="MODEL"/>
+  </resultMap>
+
+  <!-- 정렬 키가 ISO 8601 문자열이라 사전순 = 시간순이다(설계 §5-C). -->
+  <select id="selectByTask" resultMap="message">
+    SELECT MESSAGE_ID, TASK_ID, ROLE, CONTENT, CREATED_AT, AUTHOR, STAGE, MODEL
+      FROM MESSAGES
+     WHERE TASK_ID = #{taskId}
+     ORDER BY CREATED_AT
+  </select>
+
+  <!--
+    타임라인(골든 29)의 메시지 쪽. KIND('message')는 여기서 안 채운다 — 상수를
+    SELECT 목록에 넣으면 방언마다 NULL 리터럴 타입 문제가 생겨서, 서비스가 채운다.
+
+    ⚠️ ORDER BY 에 SEQ_NO 가 붙는 이유(005): CREATED_AT 이 같을 때 Python 은 SQLite
+       삽입 순서가 유지됐지만 Oracle 은 아무 순서도 보장하지 않는다. JDK 8 의 시각은
+       밀리초라 실제로 같아진다.
+  -->
+  <resultMap id="timelineEvent" type="com.kbstar.kgi.ggreport.web.dto.TimelineEvent">
+    <result property="stage"   column="STAGE"/>
+    <result property="at"      column="CREATED_AT"/>
+    <result property="team"    column="TEAM"/>
+    <result property="role"    column="ROLE"/>
+    <result property="author"  column="AUTHOR"/>
+    <result property="content" column="CONTENT"/>
+    <result property="taskId"  column="TASK_ID"/>
+    <result property="model"   column="MODEL"/>
+  </resultMap>
+
+  <select id="selectTimeline" resultMap="timelineEvent">
+    SELECT M.STAGE, M.CREATED_AT, T.TEAM, M.ROLE, M.AUTHOR, M.CONTENT, M.TASK_ID, M.MODEL
+      FROM MESSAGES M
+      JOIN TASKS T     ON T.TASK_ID     = M.TASK_ID
+      JOIN BID_CASES B ON B.BID_CASE_ID = T.BID_CASE_ID
+     WHERE B.INSTITUTION_ID = #{institutionId}
+     ORDER BY M.CREATED_AT, M.SEQ_NO
+  </select>
+
+  <insert id="insert">
+    INSERT INTO MESSAGES
+        (MESSAGE_ID, TASK_ID, ROLE, CONTENT, CREATED_AT, AUTHOR, STAGE, MODEL)
+    VALUES
+        (#{messageId},
+         #{taskId},
+         #{role},
+         #{content,jdbcType=CLOB},
+         #{createdAt},
+         #{author,jdbcType=VARCHAR},
+         #{stage,jdbcType=DECIMAL},
+         #{model,jdbcType=VARCHAR})
+  </insert>
+
+</mapper>
