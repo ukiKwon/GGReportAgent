@@ -1234,22 +1234,47 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
      때 함께 정리**하기로 했다.
 - **비차단**: 항목 9가 먼저다.
 
-### 18. uploader — README §13-①(내부망 설정 누락 + Oracle DDL 부재) (2026-08-26)
+### 18. uploader — README §13-①(내부망 설정 누락). **Oracle DDL·방언은 해소** (2026-08-31)
 
-- **출처**: `2026-08-26_summary.md` `## Session 13:00`. 브랜치 `weblogic-java-migration`.
-- **무엇이 남았나** — `uploader/README.md` §13의 마지막 열린 항목이다(②③은 해소됨):
-  - `config-envs/`의 **`dev`/`stg`/`prod`에 `mybatis.*` 설정이 없다**
-    (`mapper-locations`·`type-aliases-package`·`map-underscore-to-camel-case`).
-    `local`·`out-local`에만 있다. 내부망 배포 시 Mapper 미탐색 가능성.
-    **의도된 것인지 사용자에게 확인이 필요하다** — 내부망에서 별도 방식으로 주입한다면
-    그대로 두면 된다.
-  - **uploader에 Oracle DDL이 없다** — `schema-mysql.sql` 한 벌뿐이다.
-    `kgi-ggreport-web`은 2벌을 갖췄으므로 같은 방식으로 만들면 된다
-    (`kgi-ggreport-web/src/main/resources/db/README.md`의 타입 대응표를 그대로 쓸 것).
+- **출처**: `2026-08-26_summary.md` `## Session 13:00` → **`2026-08-31_summary.md`
+  `## Session 11:21`에서 절반 해소.**
+
+- ✅ **해소 ①-B: uploader Oracle DDL** (2026-08-31, 커밋 `e10f989`).
+  `uploader/src/main/resources/schema-oracle.sql` 신규 — MySQL 판의 미러.
+  `AUTO_INCREMENT`→시퀀스(`UPLOADED_FILE_SEQ`·`INSTITUTION_SEQ`),
+  `DATETIME`→`TIMESTAMP`, `VARCHAR(n)`→`VARCHAR2(n CHAR)`.
+  ⚠️ 본체의 `db/oracle/007_uploader.sql`과 **시각 타입이 일부러 다르다**
+  (007은 `VARCHAR2(40 CHAR)` ISO 문자열 — 본체 스키마 편입용 초안, 이쪽은 단독 정본).
+  **단계 6에서 어느 쪽으로 합칠지 정한다** — 그때까지 두 파일 공존이 정상이다.
+
+- ✅ **해소 ①-C: Mapper 방언 분기** (같은 커밋). 종전에 Oracle 문장 6곳이 **주석**
+  이라 내부망 4개 환경(이미 OracleDriver를 봄)에서 그대로 깨지는 상태였다.
+  MyBatis `databaseId`로 두 문장을 모두 살렸고, `config/MyBatisConfig`가 접속 DB
+  제품명으로 방언을 정한다(모르는 벤더는 기동 때 예외로 죽는다).
+  `MapperDialectTest` 신규 — 테스트 H2가 `MODE=MySQL`이라 런타임은 mysql 분기만
+  돌기 때문에, DB 없이 두 방언을 각각 파싱해 oracle 분기가 낡는 것을 막는다.
+  버그 1건 동반 수정: Oracle `search`의 `#{x} = ''`는 항상 거짓(Oracle이 ''→NULL)
+  이라 검색이 통째로 빈 결과를 냈을 것 → `IS NULL`.
+  ✅ `mvn test` **43건 전부 통과**(종전 38 + 방언 5).
+
+- ⏳ **아직 열려 있는 것 ① — `dev`/`stg`/`prod`에 `mybatis.*` 설정이 없다.**
+  `mapper-locations`·`type-aliases-package`·`map-underscore-to-camel-case`가
+  `local`·`out-local`에만 있다. 내부망 배포 시 Mapper 미탐색 가능성.
+  **의도된 것인지 사용자에게 확인이 필요하다** — 내부망에서 별도 방식으로 주입한다면
+  그대로 두면 된다. (코드 작업이 아니라 **질문 1건**이다.)
+
+- ⚠️ **함께 볼 것 (미해소)**: `ReclassificationJob`이 Spring `@Scheduled`로 **자기
+  스레드를 만든다.** WAS 배포 표준에 어긋나므로(설계 §2·§4) 내부망에 올리기 전에
+  CommonJ WorkManager 경로로 옮기거나 꺼야 한다. `uploader/README.md` §10에 경고로
+  적어 뒀다. 본체에 이미 **Task 4.2의 WorkManager 리플렉션 배선**(`a63154b`)이 있으니
+  그 방식을 그대로 가져오면 된다.
+
+- **어디에 있나**: 브랜치 **`uploader-oracle-dialect`**(main에서 분기, `e10f989`,
+  `origin`에 push 완료). 워크트리 `C:/github/GGReportAgent/.worktrees/main`.
+  ⏳ **PR은 사용자가 웹에서 직접 올리기로 했다**(gh 인증이 안 끝나서) —
+  https://github.com/ukiKwon/GGReportAgent/pull/new/uploader-oracle-dialect
+  **다음 세션은 이 PR이 머지됐는지 먼저 확인할 것.**
 - **비차단**: uploader를 내부망에 올릴 때 필요하다 — **항목 17(단계 6)이 먼저다.**
-- ⚠️ **함께 볼 것**: `ReclassificationJob`이 Spring `@Scheduled`로 **자기 스레드를
-  만든다.** WAS 배포 표준에 어긋나므로(설계 §2·§4) 내부망에 올리기 전에 CommonJ
-  WorkManager 경로로 옮기거나 꺼야 한다. `uploader/README.md` §10에 경고로 적어 뒀다.
 
 ### 20. `2e294b3`에 평문 비밀번호가 남아 있다 — **조치 완료, 이력만 남음** (2026-08-26)
 
