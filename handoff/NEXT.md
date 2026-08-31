@@ -1236,8 +1236,12 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
 
 ### 18. ~~uploader — README §13-①(내부망 설정 누락 + Oracle DDL 부재)~~ — **완료(전 항목 해소)** (2026-08-31)
 
-> **남은 것은 코드가 아니라 확인 2건뿐이다**: ⓐ PR 머지 여부 ⓑ 내부망 첫 배포에서
-> TimerManager JNDI가 실제로 잡히는지(기동 로그). 아래 세부는 근거로 남긴다.
+> ✅ **PR #3 머지 완료** — `43dc186`(squash), `origin/main`에 반영됨. 브랜치
+> `uploader-oracle-dialect`는 역할을 다했다(내용은 main에 있다).
+>
+> **남은 것은 코드가 아니라 확인 1건뿐이다**: 내부망 첫 배포에서 TimerManager JNDI가
+> 실제로 잡히는지 — 기동 로그의 `반복 작업 실행: CommonJ TimerManager (...)`.
+> `로컬 스케줄러로 돈다` WARN이면 JNDI 설정이 틀린 것이다. 아래 세부는 근거로 남긴다.
 
 - **출처**: `2026-08-26_summary.md` `## Session 13:00` → **`2026-08-31_summary.md`
   `## Session 11:21`에서 절반 해소.**
