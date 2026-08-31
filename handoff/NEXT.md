@@ -1234,22 +1234,68 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
      때 함께 정리**하기로 했다.
 - **비차단**: 항목 9가 먼저다.
 
-### 18. uploader — README §13-①(내부망 설정 누락 + Oracle DDL 부재) (2026-08-26)
+### 18. ~~uploader — README §13-①(내부망 설정 누락 + Oracle DDL 부재)~~ — **완료(전 항목 해소)** (2026-08-31)
 
-- **출처**: `2026-08-26_summary.md` `## Session 13:00`. 브랜치 `weblogic-java-migration`.
-- **무엇이 남았나** — `uploader/README.md` §13의 마지막 열린 항목이다(②③은 해소됨):
-  - `config-envs/`의 **`dev`/`stg`/`prod`에 `mybatis.*` 설정이 없다**
-    (`mapper-locations`·`type-aliases-package`·`map-underscore-to-camel-case`).
-    `local`·`out-local`에만 있다. 내부망 배포 시 Mapper 미탐색 가능성.
-    **의도된 것인지 사용자에게 확인이 필요하다** — 내부망에서 별도 방식으로 주입한다면
-    그대로 두면 된다.
-  - **uploader에 Oracle DDL이 없다** — `schema-mysql.sql` 한 벌뿐이다.
-    `kgi-ggreport-web`은 2벌을 갖췄으므로 같은 방식으로 만들면 된다
-    (`kgi-ggreport-web/src/main/resources/db/README.md`의 타입 대응표를 그대로 쓸 것).
+> **남은 것은 코드가 아니라 확인 2건뿐이다**: ⓐ PR 머지 여부 ⓑ 내부망 첫 배포에서
+> TimerManager JNDI가 실제로 잡히는지(기동 로그). 아래 세부는 근거로 남긴다.
+
+- **출처**: `2026-08-26_summary.md` `## Session 13:00` → **`2026-08-31_summary.md`
+  `## Session 11:21`에서 절반 해소.**
+
+- ✅ **해소 ①-B: uploader Oracle DDL** (2026-08-31, 커밋 `e10f989`).
+  `uploader/src/main/resources/schema-oracle.sql` 신규 — MySQL 판의 미러.
+  `AUTO_INCREMENT`→시퀀스(`UPLOADED_FILE_SEQ`·`INSTITUTION_SEQ`),
+  `DATETIME`→`TIMESTAMP`, `VARCHAR(n)`→`VARCHAR2(n CHAR)`.
+  ⚠️ 본체의 `db/oracle/007_uploader.sql`과 **시각 타입이 일부러 다르다**
+  (007은 `VARCHAR2(40 CHAR)` ISO 문자열 — 본체 스키마 편입용 초안, 이쪽은 단독 정본).
+  **단계 6에서 어느 쪽으로 합칠지 정한다** — 그때까지 두 파일 공존이 정상이다.
+
+- ✅ **해소 ①-C: Mapper 방언 분기** (같은 커밋). 종전에 Oracle 문장 6곳이 **주석**
+  이라 내부망 4개 환경(이미 OracleDriver를 봄)에서 그대로 깨지는 상태였다.
+  MyBatis `databaseId`로 두 문장을 모두 살렸고, `config/MyBatisConfig`가 접속 DB
+  제품명으로 방언을 정한다(모르는 벤더는 기동 때 예외로 죽는다).
+  `MapperDialectTest` 신규 — 테스트 H2가 `MODE=MySQL`이라 런타임은 mysql 분기만
+  돌기 때문에, DB 없이 두 방언을 각각 파싱해 oracle 분기가 낡는 것을 막는다.
+  버그 1건 동반 수정: Oracle `search`의 `#{x} = ''`는 항상 거짓(Oracle이 ''→NULL)
+  이라 검색이 통째로 빈 결과를 냈을 것 → `IS NULL`.
+  ✅ `mvn test` **43건 전부 통과**(종전 38 + 방언 5).
+
+- ✅ **해소 ①: `dev`/`stg`/`prod`의 `mybatis.*` 누락** (2026-08-31).
+  **사용자가 "누락이야"로 확인**해 세 파일에 같은 3줄을 채웠다. 5개 환경이 모두 같은
+  키를 갖는다. 재발 방지로 **`ConfigEnvsTest`** 신규 — 설정 파일 교체 방식이라
+  키 하나를 늘릴 때 5개 파일을 각각 고쳐야 하고 빠뜨리면 그 환경에서만, 그것도
+  대개 내부망에서 늦게 터지기 때문이다.
+
+- ✅ **해소 ⚠: `@Scheduled` → CommonJ TimerManager** (2026-08-31).
+  `@EnableScheduling`·`@Scheduled`를 걷어내고 컨테이너가 주는 스레드를 쓴다.
+  ⚠️ **반복 실행이라 `commonj.work.WorkManager`(본체가 쓰는 1회성용)가 아니라
+  `commonj.timers.TimerManager`다** — 이 구분이 이번 작업의 핵심이었다.
+  - 새 클래스 4개: `job/BackgroundScheduler`(인터페이스) ·
+    `job/TimerManagerScheduler`(리플렉션+동적프록시, WebLogic) ·
+    `job/LocalScheduler`(폴백, 외부망·테스트 전용) ·
+    `job/ReclassificationTrigger`(cron으로 다음 시각 계산 → 매번 재예약).
+  - **주기의 근거는 `reclassification.cron` 한 곳**이다. TimerManager는 cron을 모르고
+    고정 주기(ms)만 받아서, ms를 따로 두면 두 벌이 되어 갈린다.
+  - `WEB-INF/web.xml` **신규**(uploader엔 없었다) — `resource-ref`로
+    `timer/uploaderTM` + `jdbc/uploaderDS` 선언. **WebLogic 콘솔에서 같은 이름의
+    Timer Manager를 만들어야 한다.** 못 찾으면 앱은 뜨고 WARN을 남기며 폴백한다.
+  - `ApplicationContextTest` 신규 — 나머지 테스트가 전부 슬라이스라 **전체 기동 경로를
+    아무도 안 밟았다.** `@EnableScheduling` 제거가 기동을 깨지 않았음을 못 박는다.
+  - ✅ `mvn test` **62건 전부 통과** + `mvn package` WAR 정상.
+
+- ⚠️ **남은 위험 1건 (코드 작업 아님)**: `TimerManagerScheduler`는 **WebLogic에서만
+  실검증된다.** 로컬·테스트는 JNDI 조회가 실패해 그 코드가 아예 안 돈다.
+  `src/test/java/commonj/timers/`의 스텁으로 리플렉션 규약만 밟았을 뿐이고,
+  **스텁이 진짜 JSR 규격과 같다는 전제** 위에 있다(설계 §8의 H2↔Oracle과 같은 취급).
+  내부망 첫 배포에서 기동 로그의 `반복 작업 실행: CommonJ TimerManager (...)` 줄을
+  **반드시 확인할 것** — `로컬 스케줄러로 돈다` WARN이 보이면 JNDI 설정이 틀린 것이다.
+
+- **어디에 있나**: 브랜치 **`uploader-oracle-dialect`**(main에서 분기, `e10f989`,
+  `origin`에 push 완료). 워크트리 `C:/github/GGReportAgent/.worktrees/main`.
+  ⏳ **PR은 사용자가 웹에서 직접 올리기로 했다**(gh 인증이 안 끝나서) —
+  https://github.com/ukiKwon/GGReportAgent/pull/new/uploader-oracle-dialect
+  **다음 세션은 이 PR이 머지됐는지 먼저 확인할 것.**
 - **비차단**: uploader를 내부망에 올릴 때 필요하다 — **항목 17(단계 6)이 먼저다.**
-- ⚠️ **함께 볼 것**: `ReclassificationJob`이 Spring `@Scheduled`로 **자기 스레드를
-  만든다.** WAS 배포 표준에 어긋나므로(설계 §2·§4) 내부망에 올리기 전에 CommonJ
-  WorkManager 경로로 옮기거나 꺼야 한다. `uploader/README.md` §10에 경고로 적어 뒀다.
 
 ### 20. `2e294b3`에 평문 비밀번호가 남아 있다 — **조치 완료, 이력만 남음** (2026-08-26)
 
