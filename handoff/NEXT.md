@@ -1234,7 +1234,10 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
      때 함께 정리**하기로 했다.
 - **비차단**: 항목 9가 먼저다.
 
-### 18. uploader — **남은 것은 `@Scheduled` 하나뿐** (2026-08-31)
+### 18. ~~uploader — README §13-①(내부망 설정 누락 + Oracle DDL 부재)~~ — **완료(전 항목 해소)** (2026-08-31)
+
+> **남은 것은 코드가 아니라 확인 2건뿐이다**: ⓐ PR 머지 여부 ⓑ 내부망 첫 배포에서
+> TimerManager JNDI가 실제로 잡히는지(기동 로그). 아래 세부는 근거로 남긴다.
 
 - **출처**: `2026-08-26_summary.md` `## Session 13:00` → **`2026-08-31_summary.md`
   `## Session 11:21`에서 절반 해소.**
@@ -1263,11 +1266,29 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
   키 하나를 늘릴 때 5개 파일을 각각 고쳐야 하고 빠뜨리면 그 환경에서만, 그것도
   대개 내부망에서 늦게 터지기 때문이다.
 
-- ⚠️ **함께 볼 것 (미해소)**: `ReclassificationJob`이 Spring `@Scheduled`로 **자기
-  스레드를 만든다.** WAS 배포 표준에 어긋나므로(설계 §2·§4) 내부망에 올리기 전에
-  CommonJ WorkManager 경로로 옮기거나 꺼야 한다. `uploader/README.md` §10에 경고로
-  적어 뒀다. 본체에 이미 **Task 4.2의 WorkManager 리플렉션 배선**(`a63154b`)이 있으니
-  그 방식을 그대로 가져오면 된다.
+- ✅ **해소 ⚠: `@Scheduled` → CommonJ TimerManager** (2026-08-31).
+  `@EnableScheduling`·`@Scheduled`를 걷어내고 컨테이너가 주는 스레드를 쓴다.
+  ⚠️ **반복 실행이라 `commonj.work.WorkManager`(본체가 쓰는 1회성용)가 아니라
+  `commonj.timers.TimerManager`다** — 이 구분이 이번 작업의 핵심이었다.
+  - 새 클래스 4개: `job/BackgroundScheduler`(인터페이스) ·
+    `job/TimerManagerScheduler`(리플렉션+동적프록시, WebLogic) ·
+    `job/LocalScheduler`(폴백, 외부망·테스트 전용) ·
+    `job/ReclassificationTrigger`(cron으로 다음 시각 계산 → 매번 재예약).
+  - **주기의 근거는 `reclassification.cron` 한 곳**이다. TimerManager는 cron을 모르고
+    고정 주기(ms)만 받아서, ms를 따로 두면 두 벌이 되어 갈린다.
+  - `WEB-INF/web.xml` **신규**(uploader엔 없었다) — `resource-ref`로
+    `timer/uploaderTM` + `jdbc/uploaderDS` 선언. **WebLogic 콘솔에서 같은 이름의
+    Timer Manager를 만들어야 한다.** 못 찾으면 앱은 뜨고 WARN을 남기며 폴백한다.
+  - `ApplicationContextTest` 신규 — 나머지 테스트가 전부 슬라이스라 **전체 기동 경로를
+    아무도 안 밟았다.** `@EnableScheduling` 제거가 기동을 깨지 않았음을 못 박는다.
+  - ✅ `mvn test` **62건 전부 통과** + `mvn package` WAR 정상.
+
+- ⚠️ **남은 위험 1건 (코드 작업 아님)**: `TimerManagerScheduler`는 **WebLogic에서만
+  실검증된다.** 로컬·테스트는 JNDI 조회가 실패해 그 코드가 아예 안 돈다.
+  `src/test/java/commonj/timers/`의 스텁으로 리플렉션 규약만 밟았을 뿐이고,
+  **스텁이 진짜 JSR 규격과 같다는 전제** 위에 있다(설계 §8의 H2↔Oracle과 같은 취급).
+  내부망 첫 배포에서 기동 로그의 `반복 작업 실행: CommonJ TimerManager (...)` 줄을
+  **반드시 확인할 것** — `로컬 스케줄러로 돈다` WARN이 보이면 JNDI 설정이 틀린 것이다.
 
 - **어디에 있나**: 브랜치 **`uploader-oracle-dialect`**(main에서 분기, `e10f989`,
   `origin`에 push 완료). 워크트리 `C:/github/GGReportAgent/.worktrees/main`.

@@ -109,8 +109,12 @@ KB Financial AI 2 Center에서 운영하는 파일 수신·분류 서버입니�
 │    │    └─ ClassificationService 기관→classified/ │
 │    └─ FileContentService  PDFBox/POI 텍스트 추출 │
 │                                             │
-│  스케줄러 (매 5분)                            │
-│    └─ ReclassificationJob   미분류 재시도    │
+│  반복 작업 (reclassification.cron, 기본 5분)  │
+│    ReclassificationTrigger                  │
+│      └─▶ BackgroundScheduler                │
+│           ├─ TimerManagerScheduler (WebLogic)│
+│           └─ LocalScheduler  (로컬·테스트)   │
+│      └─▶ ReclassificationJob 미분류 재시도   │
 └─────────────────────────────────────────────┘
         │
         ▼
@@ -471,12 +475,50 @@ WebLogic 관리 콘솔에서 JNDI 이름 `jdbc/uploaderDS` 로 Oracle DataSource
 > SLF4J/Logback, Commons 등 애플리케이션 내장 라이브러리가 WebLogic 기본
 > 라이브러리보다 우선 적용됩니다.
 
-### ⚠️ 스케줄러 주의 — WebLogic에서는 그대로 쓰면 안 됩니다
+### 스케줄러 — CommonJ TimerManager (2026-08-31 전환 완료)
 
-`SchedulerConfig` + `ReclassificationJob`이 **Spring `@Scheduled`로 자기 스레드를
-만듭니다.** WebLogic은 컨테이너 관리 스레드를 전제하므로, 앱이 직접 스레드를 만드는
-것은 배포 표준에 어긋납니다. 운영 배포 전에 **CommonJ WorkManager 경로로 옮기거나
-꺼야 합니다**(`reclassification.cron` 항목 제거·비활성).
+> 종전 경고: *"`@Scheduled`가 자기 스레드를 만들어 WebLogic 배포 표준에 어긋난다"* —
+> **해소됐습니다.** `@EnableScheduling`·`@Scheduled`를 걷어내고 컨테이너가 주는
+> 스레드를 쓰도록 바꿨습니다.
+
+**왜 바꿨나.** 앱이 직접 만든 스레드는 컨테이너가 모릅니다 — ⓐ 재배포해도 안 죽어
+옛 클래스로더가 안 풀리고(메모리 누수) ⓑ 트랜잭션·보안 컨텍스트·JNDI 환경이 안 실리며
+ⓒ WAS 콘솔 모니터링과 스레드 덤프에 안 잡혀 장애 추적이 안 됩니다.
+
+**구조**
+
+| 클래스 | 역할 |
+|---|---|
+| `job/BackgroundScheduler` | "지연 뒤 한 번 실행" 인터페이스 |
+| `job/TimerManagerScheduler` | CommonJ **TimerManager** 경로 (WebLogic) |
+| `job/LocalScheduler` | 자바 표준 스케줄러 폴백 (외부망 로컬·테스트 전용) |
+| `job/ReclassificationTrigger` | cron으로 다음 시각을 계산해 **매번 다시 예약** |
+| `job/ReclassificationJob` | 재분류 자체. **언제 도는지는 모릅니다** |
+
+- ⚠️ 반복 실행이라 `commonj.work.WorkManager`(1회성 작업용, 본체 `kgi-ggreport-web`이
+  쓰는 것)가 아니라 **`commonj.timers.TimerManager`** 입니다.
+- **주기의 근거는 `reclassification.cron` 한 곳입니다.** TimerManager는 cron을 모르고
+  고정 주기(ms)만 받으므로, 밀리초 주기를 따로 두면 두 벌이 되어 조용히 갈립니다.
+  그래서 매 실행 뒤 다음 cron 시각까지의 지연을 계산해 1회성 예약을 다시 겁니다.
+- **다음 예약은 `finally`에서 겁니다** — 한 번 실패했다고 반복이 멈추면 증상이
+  "미분류가 계속 쌓인다"로만 나타나 원인을 찾기 어렵습니다.
+- `commonj.*`는 **컴파일 의존성이 아닙니다**(오프라인 빌드가 합격 기준이고 `.m2`에
+  없습니다). JNDI로 받은 객체에 리플렉션 + 동적 프록시로 붙습니다 — 본체
+  `WorkManagerExecutor`와 같은 이유·같은 방식입니다.
+
+**WebLogic 콘솔에서 할 일**: `timer/uploaderTM` 이름으로 Timer Manager를 만듭니다
+(`WEB-INF/web.xml`의 `resource-ref`와 같아야 합니다). 이름을 바꾸려면
+`uploader.timer-manager-jndi` 설정도 같이 바꿉니다(기본값
+`java:comp/env/timer/uploaderTM`).
+
+> ⚠️ **못 찾아도 앱은 뜹니다** — 로컬 스케줄러로 떨어지고 **WARN을 크게 남깁니다.**
+> 운영 기동 로그에 `TimerManager(...)를 못 찾아 로컬 스케줄러로 돈다`가 보이면
+> 설정이 잘못된 것입니다(앱이 컨테이너 몰래 스레드를 만드는 상태로 돌아간 것입니다).
+>
+> ⚠️ **`TimerManagerScheduler`는 WebLogic에서만 실검증됩니다.** 로컬·테스트에서는
+> JNDI 조회가 실패해 이 코드가 아예 안 돕니다. 그 공백을 메우려고
+> `src/test/java/commonj/timers/`에 규격 스텁을 두고 리플렉션 규약만 미리 밟습니다
+> (`TimerManagerSchedulerTest`) — **스텁이 진짜 규격과 같다는 전제** 위에 있습니다.
 
 ---
 
@@ -487,7 +529,7 @@ cd uploader
 mvn test
 ```
 
-**DB가 없어도 돕니다.** 테스트 11개 파일 · **46건 전부 통과**
+**DB가 없어도 돕니다.** 테스트 14개 파일 · **62건 전부 통과**
 (2026-08-31 실측, Maven 3.9.16 + JDK 1.8.0_202, `BUILD SUCCESS`).
 
 | 유형 | 파일 | 비고 |
@@ -497,6 +539,9 @@ mvn test
 | 순수 JUnit | `ClassificationServiceTest`, `FileContentServiceTest`, `FileParserServiceTest`, `FileStorageServiceTest`, `InstitutionServiceTest` | |
 | Mapper XML 파싱 | `MapperDialectTest` | **DB·스프링 없이** oracle/mysql 두 방언을 각각 파싱(§13-①-C) |
 | 설정 파일 대조 | `ConfigEnvsTest` | `config-envs/` 5개 환경의 키 누락을 막습니다(§13-①) |
+| `@SpringBootTest` | `ApplicationContextTest` | **전체 기동 경로**를 실제로 밟습니다 — 나머지는 슬라이스라 안 밟습니다 |
+| CommonJ 리플렉션 | `TimerManagerSchedulerTest` | `commonj.timers` 스텁으로 규약만 검증(§10) |
+| 반복 규약 | `ReclassificationTriggerTest` | 실패해도 다음을 예약하는지 — 시계를 기다리지 않습니다 |
 
 - 러너는 **JUnit 4**(`SpringRunner`/`MockitoJUnitRunner`)입니다 — `pom.xml`이
   `junit-vintage-engine`을 명시 추가한 이유입니다.
@@ -601,7 +646,7 @@ MyBatis의 `databaseId` 분기로 바꿔 **두 문장을 모두 살렸습니다.
   statement 목록이 같은지, Oracle 분기에 `LIMIT`/`CONCAT(`이 남지 않았는지 봅니다.
   (본체 `kgi-ggreport-web`은 테스트 H2가 `MODE=Oracle`이라 `resolve()`의 H2 처리가
   서로 다릅니다 — 유일한 차이점이며 코드에 주석으로 적어 두었습니다.)
-- ✅ `mvn test` 46건 전부 통과(종전 38건 + 방언 5건 + 설정 대조 3건).
+- ✅ `mvn test` 62건 전부 통과(종전 38 + 방언 5 + 설정 3 + 스케줄러 16).
 
 **② ~~`src/test/resources/application-test.properties`가 적용되지 않습니다~~ —
 ✅ 해소(2026-08-26).** `test` 프로파일을 켜는 곳이 없어 한 번도 읽히지 않던 파일을
