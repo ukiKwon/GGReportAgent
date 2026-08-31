@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  TASKS — 원본 server/task_repository.py + bidcase_repository.create_tasks_for_bid_case
+  + orchestrator_recorder.py.
+-->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.TaskMapper">
+
+  <resultMap id="task" type="Task">
+    <id     property="taskId"        column="TASK_ID"/>
+    <result property="bidCaseId"     column="BID_CASE_ID"/>
+    <result property="team"          column="TEAM"/>
+    <result property="status"        column="STATUS"/>
+    <result property="progressPct"   column="PROGRESS_PCT"/>
+    <!-- NULL → "" 정규화는 Task 세터가 한다(DDL 이 NULL 허용이라 Oracle 에서 NULL 이 온다). -->
+    <result property="draftContent"  column="DRAFT_CONTENT"/>
+    <result property="assignee"      column="ASSIGNEE"/>
+    <result property="approver"      column="APPROVER"/>
+    <result property="finalApprover" column="FINAL_APPROVER"/>
+  </resultMap>
+
+  <!--
+    ⚠️ FINAL_APPROVER 가 일부러 빠져 있다. 원본 list_task_summaries 의 SELECT 에 없어
+       늘 null 로 나갔고 골든 14 가 그것을 계약으로 고정했다. 여기에 컬럼을 추가하면
+       "더 정확해진" 응답 때문에 골든이 깨진다 — 이관의 기준은 동작 동일이다.
+  -->
+  <resultMap id="taskSummary" type="TaskSummary">
+    <id     property="taskId"      column="TASK_ID"/>
+    <result property="team"        column="TEAM"/>
+    <result property="status"      column="STATUS"/>
+    <result property="progressPct" column="PROGRESS_PCT"/>
+    <result property="assignee"    column="ASSIGNEE"/>
+    <result property="approver"    column="APPROVER"/>
+  </resultMap>
+
+  <select id="selectById" resultMap="task">
+    SELECT TASK_ID, BID_CASE_ID, TEAM, STATUS, PROGRESS_PCT, DRAFT_CONTENT,
+           ASSIGNEE, APPROVER, FINAL_APPROVER
+      FROM TASKS
+     WHERE TASK_ID = #{taskId}
+  </select>
+
+  <select id="selectSummaries" resultMap="taskSummary">
+    SELECT TASK_ID, TEAM, STATUS, PROGRESS_PCT, ASSIGNEE, APPROVER
+      FROM TASKS
+     WHERE BID_CASE_ID = #{bidCaseId}
+     ORDER BY TEAM
+  </select>
+
+  <resultMap id="approvalItem" type="com.kbstar.kgi.ggreport.web.dto.ApprovalItem">
+    <id     property="taskId"          column="TASK_ID"/>
+    <result property="team"            column="TEAM"/>
+    <result property="status"          column="STATUS"/>
+    <result property="assignee"        column="ASSIGNEE"/>
+    <result property="approver"        column="APPROVER"/>
+    <result property="draftContent"    column="DRAFT_CONTENT"/>
+    <result property="institutionId"   column="INSTITUTION_ID"/>
+    <result property="institutionName" column="NAME_KO"/>
+    <result property="stage"           column="STAGE"/>
+  </resultMap>
+
+  <!--
+    결재함 — 그 역할이 결재할 작업들.
+
+    ⚠️ **(팀, 상태) 쌍으로 거른다.** 팀만 보면 같은 디자이너 작업이 팀장(1차완료)과
+       부장(2차완료) 결재함에 **동시에** 뜬다. 쌍이 하나도 없으면(결재 권한이 없는
+       역할) 호출부가 아예 부르지 않는다 — 빈 IN 절은 SQL 오류다.
+
+    ⚠️ 정렬은 기관명 → SEQ_NO 다. 원본의 `ORDER BY i.name_ko, t.rowid` 인데 Oracle 에
+       rowid 대응이 없어 002 가 고정해 둔 SEQ_NO 를 쓴다(handoff 와 같은 이유).
+  -->
+  <select id="selectApprovalQueue" resultMap="approvalItem">
+    SELECT T.TASK_ID, T.TEAM, T.STATUS, T.ASSIGNEE, T.APPROVER, T.DRAFT_CONTENT,
+           B.INSTITUTION_ID, I.NAME_KO, I.STAGE
+      FROM TASKS T
+      JOIN BID_CASES B ON B.BID_CASE_ID = T.BID_CASE_ID
+      JOIN INSTITUTIONS I ON I.INSTITUTION_ID = B.INSTITUTION_ID
+     WHERE
+    <foreach collection="pairs" item="p" open="(" separator=" OR " close=")">
+      (T.TEAM = #{p.team} AND T.STATUS = #{p.status})
+    </foreach>
+     ORDER BY I.NAME_KO, T.SEQ_NO
+  </select>
+
+  <resultMap id="handoffTeam" type="com.kbstar.kgi.ggreport.web.dto.HandoffTeam">
+    <id     property="taskId"       column="TASK_ID"/>
+    <result property="team"         column="TEAM"/>
+    <result property="status"       column="STATUS"/>
+    <result property="assignee"     column="ASSIGNEE"/>
+    <result property="approver"     column="APPROVER"/>
+    <result property="draftContent" column="DRAFT_CONTENT"/>
+  </resultMap>
+
+  <!--
+    이관 패키지의 팀 목록 — 같은 공고의 **다른 팀** 작업들.
+
+    ⚠️ **상태로 거르지 않는다.** 그래프는 팀 Task 를 `1차완료`까지만 올리고, 5단계
+       기획승인은 기관 단위 checkpoint 라 팀 Task 를 `2차완료`로 만들지 않는다.
+       '승인난 것만' 거르면 화면이 텅 비고, 무엇보다 **감추면 디자이너가 다 받은 줄
+       안다.** 전부 주고 실제 상태를 함께 실어 화면이 태그로 구분하게 한다.
+
+    ⚠️ **정렬은 SEQ_NO 다.** 원본은 `ORDER BY rowid`(삽입 순서)인데 Oracle 에는 rowid
+       대응이 없다 — 002 마이그레이션이 그 **사실상의 순서**를 SEQ_NO 로 고정했다.
+       빼면 화면의 팀 카드 순서가 실행마다 달라진다.
+
+    ⚠️ 여기서는 DRAFT_CONTENT 를 **싣는다** — 목록(selectListForTeam)과 반대다.
+       디자이너가 받아야 할 본문이고, 한 공고의 팀 수는 많아야 서너 개다.
+  -->
+  <select id="selectHandoffTeams" resultMap="handoffTeam">
+    SELECT TASK_ID, TEAM, STATUS, ASSIGNEE, APPROVER, DRAFT_CONTENT
+      FROM TASKS
+     WHERE BID_CASE_ID = #{bidCaseId}
+       AND TEAM &lt;&gt; #{excludeTeam}
+     ORDER BY SEQ_NO
+  </select>
+
+  <resultMap id="workflowStatusTask" type="com.kbstar.kgi.ggreport.web.dto.WorkflowStatusTask">
+    <id     property="taskId"      column="TASK_ID"/>
+    <result property="team"        column="TEAM"/>
+    <result property="status"      column="STATUS"/>
+    <result property="progressPct" column="PROGRESS_PCT"/>
+    <result property="assignee"    column="ASSIGNEE"/>
+  </resultMap>
+
+  <!--
+    ⚠️ ORDER BY TEAM 은 원본에 없다. SQLite 가 UNIQUE(BID_CASE_ID, TEAM) 인덱스로
+       찾아 팀 이름순으로 돌려주던 것을 골든 30 이 굳혔다(삽입 순서가 아니다).
+       Oracle 은 보장하지 않으니 명시한다 — 빼면 화면 순서가 조용히 달라진다.
+  -->
+  <select id="selectStatusTasks" resultMap="workflowStatusTask">
+    SELECT T.TASK_ID, T.TEAM, T.STATUS, T.PROGRESS_PCT, T.ASSIGNEE
+      FROM TASKS T
+      JOIN BID_CASES B ON B.BID_CASE_ID = T.BID_CASE_ID
+     WHERE B.INSTITUTION_ID = #{institutionId}
+     ORDER BY T.TEAM
+  </select>
+
+  <!-- routers/tasks._context — 결재 경로가 쓰는 기관·공고 맥락(응답 DTO 가 아니다). -->
+  <resultMap id="taskContext" type="com.kbstar.kgi.ggreport.web.dto.TaskContext">
+    <id     property="taskId"          column="TASK_ID"/>
+    <result property="team"            column="TEAM"/>
+    <result property="status"          column="STATUS"/>
+    <result property="assignee"        column="ASSIGNEE"/>
+    <result property="bidCaseId"       column="BID_CASE_ID"/>
+    <result property="institutionId"   column="INSTITUTION_ID"/>
+    <result property="institutionName" column="NAME_KO"/>
+    <result property="stage"           column="STAGE"/>
+  </resultMap>
+
+  <select id="selectContext" resultMap="taskContext">
+    SELECT T.TASK_ID, T.TEAM, T.STATUS, T.ASSIGNEE, T.BID_CASE_ID,
+           B.INSTITUTION_ID, I.NAME_KO, I.STAGE
+      FROM TASKS T
+      JOIN BID_CASES B    ON B.BID_CASE_ID    = T.BID_CASE_ID
+      JOIN INSTITUTIONS I ON I.INSTITUTION_ID = B.INSTITUTION_ID
+     WHERE T.TASK_ID = #{taskId}
+  </select>
+
+  <!-- UNIQUE(BID_CASE_ID, TEAM) 이라 한 건이다. 없으면 null. -->
+  <select id="selectTaskIdByTeam" resultType="string">
+    SELECT TASK_ID FROM TASKS
+     WHERE BID_CASE_ID = #{bidCaseId} AND TEAM = #{team}
+  </select>
+
+  <select id="selectTeams" resultType="string">
+    SELECT TEAM FROM TASKS WHERE BID_CASE_ID = #{bidCaseId}
+  </select>
+
+  <!-- dto 패키지는 type-aliases-package(= domain) 밖이라 FQN 으로 쓴다.
+       별칭 목록은 5개 환경 properties 에 흩어져 있어 늘리면 드리프트가 생긴다. -->
+  <resultMap id="taskListRow" type="com.kbstar.kgi.ggreport.web.dto.TaskListRow">
+    <id     property="taskId"             column="TASK_ID"/>
+    <result property="team"               column="TEAM"/>
+    <result property="status"             column="STATUS"/>
+    <result property="progressPct"        column="PROGRESS_PCT"/>
+    <result property="assignee"           column="ASSIGNEE"/>
+    <result property="approver"           column="APPROVER"/>
+    <result property="bidCaseId"          column="BID_CASE_ID"/>
+    <result property="institutionId"      column="INSTITUTION_ID"/>
+    <result property="institutionName"    column="INSTITUTION_NAME"/>
+    <result property="stage"              column="STAGE"/>
+    <result property="bidDate"            column="BID_DATE"/>
+    <result property="scheduleConfidence" column="SCHEDULE_CONFIDENCE"/>
+  </resultMap>
+
+  <!--
+    기관 횡단 작업 목록.
+
+    ⚠️ **원본에는 ORDER BY 가 없다.** SQLite 는 사실상 삽입 순서로 돌려주고 화면은
+       그 순서를 그대로 그리는데, Oracle 은 정렬을 지정하지 않으면 순서를 보장하지
+       않는다(실행계획에 따라 바뀐다). 그러면 같은 데이터에서 화면 순서가 실행마다
+       달라진다 — SEQ_NO 로 그 **사실상의 순서**를 고정한다.
+       ⚠️ 단계 2 골든(26번)은 결과가 1건이라 이 차이를 **잡아 주지 못한다.**
+       rowid 의존 8곳과 같은 부류이고, 그 목록에는 빠져 있던 자리다(ORDER BY 자체가
+       없어서 grep 에 안 걸렸다).
+
+    ⚠️ BID_DATE 는 **확정일이 예상일을 이긴다.** 원본은 파이썬 `or` 라 빈 문자열도
+       거짓으로 봤는데, Oracle 은 '' 를 NULL 로 저장하므로 COALESCE 로 같아진다.
+       (MySQL 미러에서만 '' 가 살아남을 수 있으나 ISO 날짜 문자열이라 실제로 안 생긴다.)
+
+    ⚠️ DRAFT_CONTENT 를 싣지 않는다 — 작업함이 100건이면 CLOB 100개가 따라온다.
+  -->
+  <select id="selectListForTeam" resultMap="taskListRow">
+    SELECT T.TASK_ID, T.TEAM, T.STATUS, T.PROGRESS_PCT, T.ASSIGNEE, T.APPROVER,
+           T.BID_CASE_ID, B.INSTITUTION_ID, I.NAME_KO AS INSTITUTION_NAME, I.STAGE,
+           COALESCE(B.CONFIRMED_DATE, B.EXPECTED_DATE) AS BID_DATE,
+           B.SCHEDULE_CONFIDENCE
+      FROM TASKS T
+      JOIN BID_CASES B ON B.BID_CASE_ID = T.BID_CASE_ID
+      JOIN INSTITUTIONS I ON I.INSTITUTION_ID = B.INSTITUTION_ID
+     WHERE T.TEAM = #{team}
+    <if test="statuses != null and statuses.size() > 0">
+       AND T.STATUS IN
+       <foreach collection="statuses" item="s" open="(" separator="," close=")">
+         #{s}
+       </foreach>
+    </if>
+     ORDER BY T.SEQ_NO
+  </select>
+
+  <resultMap id="assigneeTeam" type="com.kbstar.kgi.ggreport.web.dto.AssigneeTeam">
+    <result property="assignee" column="ASSIGNEE"/>
+    <result property="team"     column="TEAM"/>
+  </resultMap>
+
+  <!-- 담당이 정해진 작업의 (담당자, 팀). 계정 전환기의 '사람' 쪽이다. -->
+  <select id="selectAssigneeTeams" resultMap="assigneeTeam">
+    SELECT DISTINCT ASSIGNEE, TEAM
+      FROM TASKS
+     WHERE ASSIGNEE IS NOT NULL
+       AND ASSIGNEE &lt;&gt; ''
+     ORDER BY ASSIGNEE, TEAM
+  </select>
+
+  <insert id="insert">
+    INSERT INTO TASKS (TASK_ID, BID_CASE_ID, TEAM, STATUS, PROGRESS_PCT)
+    VALUES (#{taskId}, #{bidCaseId}, #{team}, '대기', 0)
+  </insert>
+
+  <!-- 비어 있을 때만 담당자를 박는다. 먼저 잡은 사람이 담당이다. -->
+  <update id="claimAssigneeIfUnset">
+    UPDATE TASKS
+       SET ASSIGNEE = #{userId},
+           STATUS   = CASE WHEN STATUS = '대기' THEN '작성중' ELSE STATUS END
+     WHERE TASK_ID = #{taskId}
+       AND ASSIGNEE IS NULL
+  </update>
+
+  <update id="claimApproverIfUnset">
+    UPDATE TASKS SET APPROVER = #{userId}
+     WHERE TASK_ID = #{taskId} AND APPROVER IS NULL
+  </update>
+
+  <update id="claimFinalApproverIfUnset">
+    UPDATE TASKS SET FINAL_APPROVER = #{userId}
+     WHERE TASK_ID = #{taskId} AND FINAL_APPROVER IS NULL
+  </update>
+
+  <update id="updateDraftContent">
+    UPDATE TASKS SET DRAFT_CONTENT = #{draftContent,jdbcType=CLOB} WHERE TASK_ID = #{taskId}
+  </update>
+
+  <update id="updateStatus">
+    UPDATE TASKS SET STATUS = #{status} WHERE TASK_ID = #{taskId}
+  </update>
+
+  <update id="updateStatusAndProgress">
+    UPDATE TASKS SET STATUS = #{status}, PROGRESS_PCT = #{progressPct} WHERE TASK_ID = #{taskId}
+  </update>
+
+</mapper>

@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ops Center</title>
+<style>
+/* ── Design System: impeccable-v1 · Operate Mode ──────────────────────────── */
+/*
+   Design read: Internal banking operations tool — "Operate" mode.
+   Aesthetic: Two-tone split (dark sidebar + clean light main).
+   KB gold as precision accent; deep engineering feel.
+   DESIGN_VARIANCE: 7, MOTION: 4, VISUAL_DENSITY: 7
+*/
+
+:root {
+  /* Sidebar: deep dark */
+  --sidebar-bg:       #0D1117;
+  --sidebar-surface:  #161B22;
+  --sidebar-border:   #21262D;
+  --sidebar-text:     #C9D1D9;
+  --sidebar-muted:    #484F58;
+  --sidebar-active:   #1F6FEB;
+
+  /* Main: clean light */
+  --bg:               #F6F8FA;
+  --surface:          #FFFFFF;
+  --surface-2:        #F6F8FA;
+  --border:           #D0D7DE;
+  --border-soft:      #E8ECEF;
+
+  /* Text */
+  --text-1:           #24292F;
+  --text-2:           #57606A;
+  --text-3:           #8C959F;
+
+  /* Brand accent: KB gold (muted, precise) */
+  --gold:             #C8950C;
+  --gold-light:       #D4A017;
+  --gold-faint:       rgba(200,149,12,.08);
+
+  /* Blue accent */
+  --blue:             #1F6FEB;
+  --blue-faint:       rgba(31,111,235,.08);
+
+  /* Semantic */
+  --green:            #1A7F37;
+  --green-bg:         rgba(26,127,55,.08);
+  --red:              #CF222E;
+  --red-bg:           rgba(207,34,46,.08);
+  --amber:            #9A6700;
+  --amber-bg:         rgba(154,103,0,.08);
+
+  /* Geometry */
+  --r-sm: 5px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --sidebar-w: 220px;
+  --nav-h: 0px;
+
+  /* Shadow */
+  --shadow-border: 0 0 0 1px var(--border);
+  --shadow-sm: 0 1px 3px rgba(36,41,47,.07), 0 1px 2px rgba(36,41,47,.06);
+  --shadow-md: 0 4px 8px rgba(36,41,47,.08), 0 2px 4px rgba(36,41,47,.06);
+
+  /* Type */
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --mono: 'SFMono-Regular', 'Cascadia Code', 'Fira Code', 'Consolas', 'Liberation Mono', monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:           #0D1117;
+    --surface:      #161B22;
+    --surface-2:    #21262D;
+    --border:       #30363D;
+    --border-soft:  #21262D;
+    --text-1:       #E6EDF3;
+    --text-2:       #8D96A0;
+    --text-3:       #484F58;
+    --green-bg:     rgba(26,127,55,.15);
+    --red-bg:       rgba(207,34,46,.15);
+    --amber-bg:     rgba(154,103,0,.15);
+    --gold-faint:   rgba(200,149,12,.12);
+    --blue-faint:   rgba(31,111,235,.12);
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.3);
+    --shadow-md: 0 4px 8px rgba(0,0,0,.35);
+    --sidebar-bg:   #010409;
+    --sidebar-surface: #0D1117;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg:           #0D1117;
+  --surface:      #161B22;
+  --surface-2:    #21262D;
+  --border:       #30363D;
+  --border-soft:  #21262D;
+  --text-1:       #E6EDF3;
+  --text-2:       #8D96A0;
+  --text-3:       #484F58;
+  --green-bg:     rgba(26,127,55,.15);
+  --red-bg:       rgba(207,34,46,.15);
+  --amber-bg:     rgba(154,103,0,.15);
+  --gold-faint:   rgba(200,149,12,.12);
+  --blue-faint:   rgba(31,111,235,.12);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.3);
+  --shadow-md: 0 4px 8px rgba(0,0,0,.35);
+  --sidebar-bg:   #010409;
+  --sidebar-surface: #0D1117;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--sidebar-bg);
+  color: var(--text-1);
+  min-height: 100vh;
+  display: flex;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--sidebar-bg);
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  flex-shrink: 0;
+  position: fixed; left: 0; top: 0; bottom: 0;
+  border-right: 1px solid var(--sidebar-border);
+}
+
+.sb-top {
+  padding: 16px 14px 14px;
+  border-bottom: 1px solid var(--sidebar-border);
+}
+.sb-logo {
+  display: flex; align-items: center; gap: 9px;
+  margin-bottom: 16px;
+}
+.sb-logo-mark {
+  width: 28px; height: 28px;
+  background: var(--gold);
+  border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; color: #fff;
+  font-family: var(--mono);
+  flex-shrink: 0;
+}
+.sb-logo-text { font-size: 13px; font-weight: 600; color: #fff; letter-spacing: -.2px; }
+.sb-logo-text span { font-weight: 400; color: var(--sidebar-muted); font-size: 11px; display: block; margin-top: 1px; }
+
+.sb-search {
+  display: flex; align-items: center; gap: 7px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--r-md);
+  padding: 6px 10px;
+}
+.sb-search svg { color: var(--sidebar-muted); flex-shrink: 0; }
+.sb-search input {
+  flex: 1; background: none; border: none; outline: none;
+  font-size: 12.5px; font-family: var(--font);
+  color: var(--sidebar-text);
+}
+.sb-search input::placeholder { color: var(--sidebar-muted); }
+
+.sb-nav { padding: 8px 8px; flex: 1; overflow-y: auto; }
+.sb-section-label {
+  font-size: 10px; font-weight: 600;
+  color: var(--sidebar-muted);
+  letter-spacing: 1px; text-transform: uppercase;
+  padding: 8px 6px 4px;
+}
+.sb-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--r-md);
+  color: var(--sidebar-text);
+  font-size: 13px; font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 100ms, color 100ms;
+  position: relative;
+}
+.sb-item:hover { background: rgba(255,255,255,.06); color: #fff; }
+.sb-item.active {
+  background: rgba(31,111,235,.18);
+  color: #fff;
+}
+.sb-item.active::before {
+  content: '';
+  position: absolute; right: -9px; top: 50%;
+  transform: translateY(-50%);
+  width: 3px; height: 18px;
+  background: var(--blue);
+  border-radius: 2px 0 0 2px;
+}
+.sb-item svg { width: 15px; height: 15px; opacity: .8; flex-shrink: 0; }
+.sb-item.active svg { opacity: 1; }
+.sb-counter {
+  margin-left: auto;
+  background: var(--red);
+  color: #fff;
+  font-size: 9px; font-weight: 700; font-family: var(--mono);
+  padding: 1px 5px;
+  border-radius: 99px;
+}
+
+.sb-bottom {
+  padding: 12px 14px;
+  border-top: 1px solid var(--sidebar-border);
+  display: flex; align-items: center; gap: 9px;
+}
+.sb-avatar {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--gold-faint);
+  border: 1px solid rgba(200,149,12,.4);
+  color: var(--gold);
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.sb-user-name { font-size: 12.5px; font-weight: 500; color: var(--sidebar-text); }
+.sb-user-role { font-size: 10px; color: var(--sidebar-muted); }
+
+/* ── Main ── */
+.main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  background: var(--bg);
+  min-width: 0;
+  display: flex; flex-direction: column;
+}
+
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  height: 48px;
+  display: flex; align-items: center; gap: 14px;
+  position: sticky; top: 0; z-index: 40;
+}
+.tb-breadcrumb {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text-3);
+}
+.tb-breadcrumb .sep { color: var(--border); }
+.tb-breadcrumb .current { color: var(--text-1); font-weight: 600; }
+
+.tb-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.tb-time { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; font-family: var(--mono); }
+.tb-divider { width: 1px; height: 16px; background: var(--border); }
+.tb-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 12px;
+  border-radius: var(--r-md);
+  font-size: 12.5px; font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  transition: background 100ms, border-color 100ms;
+  text-decoration: none;
+}
+.tb-btn:hover { background: var(--surface-2); border-color: var(--text-3); }
+.tb-btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.tb-btn.primary:hover { background: #1a5fcc; }
+
+/* ── Content ── */
+.content { padding: 20px; }
+
+/* ── Stat row ── */
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.stat-head { display: flex; align-items: center; justify-content: space-between; }
+.stat-label { font-size: 11.5px; font-weight: 500; color: var(--text-3); }
+.stat-icon { width: 28px; height: 28px; border-radius: var(--r-sm); display: flex; align-items: center; justify-content: center; }
+.si-neutral { background: var(--surface-2); color: var(--text-3); }
+.si-green   { background: var(--green-bg); color: var(--green); }
+.si-red     { background: var(--red-bg); color: var(--red); }
+.stat-value {
+  font-size: 30px; font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--mono);
+  letter-spacing: -1.5px;
+}
+.sv-neutral { color: var(--text-1); }
+.sv-green   { color: var(--green); }
+.sv-red     { color: var(--red); }
+
+.stat-bar { height: 2px; background: var(--border-soft); border-radius: 2px; overflow: hidden; }
+.stat-fill { height: 100%; border-radius: 2px; }
+.sf-blue  { background: var(--blue); width: 100%; }
+.sf-green { background: var(--green); width: 80.2%; }
+.sf-red   { background: var(--red); width: 19.8%; }
+
+.stat-foot { display: flex; justify-content: space-between; align-items: center; }
+.stat-note { font-size: 11px; color: var(--text-3); }
+.stat-pct { font-size: 11.5px; font-weight: 700; font-family: var(--mono); color: var(--text-2); }
+
+/* ── Alert ── */
+.ops-alert {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--amber-bg);
+  border: 1px solid rgba(154,103,0,.2);
+  border-radius: var(--r-md);
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 12.5px;
+}
+.ops-alert-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex-shrink: 0; animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{ opacity:1;transform:scale(1); } 50%{ opacity:.5;transform:scale(1.15); } }
+@media (prefers-reduced-motion: reduce) { .ops-alert-dot { animation: none; } }
+.alert-msg { color: var(--text-2); }
+.alert-msg strong { color: var(--text-1); }
+.alert-cta { margin-left: auto; color: var(--blue); font-weight: 600; text-decoration: none; font-size: 12px; white-space: nowrap; }
+.alert-cta:hover { text-decoration: underline; }
+
+/* ── Panel ── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--surface-2);
+}
+.panel-title { font-size: 12.5px; font-weight: 600; color: var(--text-1); }
+.panel-meta  { font-size: 11px; color: var(--text-3); }
+.panel-action { font-size: 12px; color: var(--blue); font-weight: 600; text-decoration: none; cursor: pointer; }
+.panel-action:hover { text-decoration: underline; }
+
+/* ── Search ── */
+.search-panel {
+  display: flex; gap: 8px;
+  padding: 12px 16px;
+}
+.search-box {
+  flex: 1;
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 7px 12px;
+  background: var(--surface);
+  transition: border-color 150ms, box-shadow 150ms;
+}
+.search-box:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-faint);
+}
+.search-box svg { color: var(--text-3); flex-shrink: 0; }
+.search-box input {
+  flex: 1; border: none; background: none; outline: none;
+  font-family: var(--font); font-size: 13px; color: var(--text-1);
+}
+.search-box input::placeholder { color: var(--text-3); }
+.btn-search {
+  padding: 7px 16px;
+  background: var(--blue);
+  color: #fff;
+  border: none; cursor: pointer;
+  border-radius: var(--r-md);
+  font-size: 12.5px; font-weight: 600;
+  font-family: var(--font);
+  transition: background 120ms;
+  white-space: nowrap;
+}
+.btn-search:hover { background: #1a5fcc; }
+
+/* ── Table ── */
+table { width: 100%; border-collapse: collapse; }
+th {
+  font-size: 10.5px; font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .8px;
+  padding: 8px 16px;
+  text-align: left;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-soft);
+  white-space: nowrap;
+}
+td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 13px;
+  vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--blue-faint); }
+
+.file-row { display: flex; align-items: center; gap: 10px; }
+.ext-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px;
+  border-radius: var(--r-sm);
+  font-size: 8.5px; font-weight: 700; font-family: var(--mono);
+  text-transform: uppercase; flex-shrink: 0;
+}
+.eb-pdf { background: rgba(220,38,38,.1); color: #B91C1C; }
+.eb-hwp { background: rgba(37,99,235,.1); color: #1D4ED8; }
+.eb-md  { background: rgba(124,58,237,.1); color: #7C3AED; }
+.fn { font-size: 12.5px; font-weight: 500; }
+.fs { font-size: 10.5px; color: var(--text-3); margin-top: 1px; font-family: var(--mono); }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: var(--mono);
+}
+.b-green { background: var(--green-bg); color: var(--green); }
+.b-red   { background: var(--red-bg); color: var(--red); }
+.b-cat   { background: var(--gold-faint); color: var(--gold); font-family: var(--font); font-weight: 500; }
+.b-empty { background: var(--surface-2); color: var(--text-3); font-family: var(--font); }
+
+.ts { font-family: var(--mono); font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+.inst { font-weight: 500; font-size: 12.5px; }
+
+/* ── Gold accent top strip ── */
+.gold-strip { height: 2px; background: linear-gradient(90deg, var(--gold) 0%, #E8B422 40%, transparent 100%); }
+
+/* SVG shorthand */
+.icon { width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round; }
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<aside class="sidebar">
+  <div class="gold-strip"></div>
+  <div class="sb-top">
+    <div class="sb-logo">
+      <div class="sb-logo-mark">KB</div>
+      <div class="sb-logo-text">
+        Ops Center
+        <span>파일 업로드 관리</span>
+      </div>
+    </div>
+    <div class="sb-search">
+      <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" placeholder="빠른 검색">
+    </div>
+  </div>
+
+  <nav class="sb-nav">
+    <div class="sb-section-label">워크스페이스</div>
+    <a class="sb-item active" href="#">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      대시보드
+    </a>
+    <a class="sb-item" href="#">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      파일 업로드
+    </a>
+    <a class="sb-item" href="#">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      처리 상태
+      <span class="sb-counter">49</span>
+    </a>
+    <a class="sb-item" href="#">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      기관 관리
+    </a>
+  </nav>
+
+  <div class="sb-bottom">
+    <div class="sb-avatar">권</div>
+    <div>
+      <div class="sb-user-name">권성욱</div>
+      <div class="sb-user-role">AI 2 Center</div>
+    </div>
+  </div>
+</aside>
+
+<!-- ── Main ── -->
+<main class="main">
+  <header class="topbar">
+    <div class="tb-breadcrumb">
+      <span>KB 파일 관리</span>
+      <span class="sep">/</span>
+      <span class="current">대시보드</span>
+    </div>
+    <div class="tb-right">
+      <span class="tb-time">2026-08-14 09:32</span>
+      <div class="tb-divider"></div>
+      <a class="tb-btn primary" href="#">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        업로드
+      </a>
+    </div>
+  </header>
+
+  <div class="content">
+
+    <!-- Stats -->
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-head">
+          <span class="stat-label">전체 파일</span>
+          <div class="stat-icon si-neutral">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          </div>
+        </div>
+        <div class="stat-value sv-neutral">247</div>
+        <div class="stat-bar"><div class="stat-fill sf-blue"></div></div>
+        <div class="stat-foot">
+          <span class="stat-note">이번 달 +31건</span>
+          <span class="stat-pct">100%</span>
+        </div>
+      </div>
+
+      <div class="stat">
+        <div class="stat-head">
+          <span class="stat-label">분류 완료</span>
+          <div class="stat-icon si-green">
+            <svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+        </div>
+        <div class="stat-value sv-green">198</div>
+        <div class="stat-bar"><div class="stat-fill sf-green"></div></div>
+        <div class="stat-foot">
+          <span class="stat-note">자동 분류됨</span>
+          <span class="stat-pct">80.2%</span>
+        </div>
+      </div>
+
+      <div class="stat">
+        <div class="stat-head">
+          <span class="stat-label">미분류</span>
+          <div class="stat-icon si-red">
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+        </div>
+        <div class="stat-value sv-red">49</div>
+        <div class="stat-bar"><div class="stat-fill sf-red"></div></div>
+        <div class="stat-foot">
+          <span class="stat-note">처리 대기 중</span>
+          <span class="stat-pct">19.8%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alert -->
+    <div class="ops-alert">
+      <div class="ops-alert-dot"></div>
+      <span class="alert-msg">미분류 파일 <strong>49건</strong> 처리 대기 중 — 자동 분류 실패 또는 기관 미등록</span>
+      <a class="alert-cta" href="#">처리 상태 보기</a>
+    </div>
+
+    <!-- Search panel -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">파일 검색</span>
+        <span class="panel-meta">기관명, 파일명으로 검색 가능</span>
+      </div>
+      <div class="search-panel">
+        <div class="search-box">
+          <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" placeholder="기관명 또는 파일명 입력">
+        </div>
+        <button class="btn-search">조회</button>
+      </div>
+    </div>
+
+    <!-- Table panel -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">최근 업로드</span>
+        <a class="panel-action" href="#">전체 보기</a>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>파일명</th>
+            <th>기관명</th>
+            <th>카테고리</th>
+            <th>상태</th>
+            <th>업로드 일시</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div class="file-row">
+                <div class="ext-badge eb-pdf">PDF</div>
+                <div><div class="fn">KB국민은행_2024_연간보고서.pdf</div><div class="fs">2.4 MB</div></div>
+              </div>
+            </td>
+            <td><span class="inst">KB국민은행</span></td>
+            <td><span class="badge b-cat">공공기관</span></td>
+            <td><span class="badge b-green">완료</span></td>
+            <td class="ts">2026-08-14 09:23</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="file-row">
+                <div class="ext-badge eb-hwp">HWP</div>
+                <div><div class="fn">서울대학교_입학전형.hwp</div><div class="fs">856 KB</div></div>
+              </div>
+            </td>
+            <td><span class="inst">서울대학교</span></td>
+            <td><span class="badge b-cat">대학교</span></td>
+            <td><span class="badge b-green">완료</span></td>
+            <td class="ts">2026-08-14 08:45</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="file-row">
+                <div class="ext-badge eb-pdf">PDF</div>
+                <div><div class="fn">세브란스병원_진료지침.pdf</div><div class="fs">1.1 MB</div></div>
+              </div>
+            </td>
+            <td><span class="inst">세브란스병원</span></td>
+            <td><span class="badge b-cat">대학병원</span></td>
+            <td><span class="badge b-green">완료</span></td>
+            <td class="ts">2026-08-13 17:30</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="file-row">
+                <div class="ext-badge eb-pdf">PDF</div>
+                <div><div class="fn">서울시청_2026_예산서류.pdf</div><div class="fs">3.2 MB</div></div>
+              </div>
+            </td>
+            <td><span class="inst">서울시청</span></td>
+            <td><span class="badge b-cat">지자체</span></td>
+            <td><span class="badge b-green">완료</span></td>
+            <td class="ts">2026-08-13 15:12</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="file-row">
+                <div class="ext-badge eb-pdf">PDF</div>
+                <div><div class="fn">연세대학교_연구보고서_Q2.pdf</div><div class="fs">4.7 MB</div></div>
+              </div>
+            </td>
+            <td><span class="inst">연세대학교</span></td>
+            <td><span class="badge b-cat">대학교</span></td>
+            <td><span class="badge b-green">완료</span></td>
+            <td class="ts">2026-08-13 11:08</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="file-row">
+                <div class="ext-badge eb-hwp">HWP</div>
+                <div><div class="fn">강남구청_공고문_0812.hwp</div><div class="fs">342 KB</div></div>
+              </div>
+            </td>
+            <td><span class="inst">강남구청</span></td>
+            <td><span class="badge b-empty">-</span></td>
+            <td><span class="badge b-red">미분류</span></td>
+            <td class="ts">2026-08-12 16:22</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="file-row">
+                <div class="ext-badge eb-pdf">PDF</div>
+                <div><div class="fn">고려대의료원_처방전기준.pdf</div><div class="fs">1.8 MB</div></div>
+              </div>
+            </td>
+            <td><span class="inst">고려대의료원</span></td>
+            <td><span class="badge b-cat">대학병원</span></td>
+            <td><span class="badge b-green">완료</span></td>
+            <td class="ts">2026-08-12 14:15</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="file-row">
+                <div class="ext-badge eb-md">MD</div>
+                <div><div class="fn">인천시교육청_교육계획안.md</div><div class="fs">128 KB</div></div>
+              </div>
+            </td>
+            <td><span class="inst">인천시교육청</span></td>
+            <td><span class="badge b-empty">-</span></td>
+            <td><span class="badge b-red">미분류</span></td>
+            <td class="ts">2026-08-12 10:33</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div><!-- /content -->
+</main>
+
+</body>
+</html>

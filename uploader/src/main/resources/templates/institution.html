@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="layout :: layout(~{::title}, '기관 카테고리 관리', ~{::section})">
+<head><title>기관 카테고리 관리</title></head>
+<body>
+<section>
+
+  <!-- 페이지 타이틀 -->
+  <div class="section-header" style="margin-bottom:20px">
+    <span class="section-title" style="font-size:16px">기관 카테고리 관리</span>
+  </div>
+
+  <!-- 성공 메시지 -->
+  <div th:if="${message}" class="alert-success" th:text="${message}"></div>
+
+  <!-- 내보내기 / 가져오기 툴바 -->
+  <div class="toolbar">
+    <a th:href="@{/institutions/export/json}" class="btn btn-outline btn-sm">JSON 다운로드</a>
+    <a th:href="@{/institutions/export/xlsx}" class="btn btn-outline btn-sm">XLSX 다운로드</a>
+
+    <form th:action="@{/institutions/import/json}" method="post"
+          enctype="multipart/form-data" class="form-inline">
+      <input type="file" name="file" accept=".json" class="form-control form-control-sm" style="width:180px">
+      <button type="submit" class="btn btn-outline btn-sm">JSON 업로드</button>
+    </form>
+
+    <form th:action="@{/institutions/import/xlsx}" method="post"
+          enctype="multipart/form-data" class="form-inline">
+      <input type="file" name="file" accept=".xlsx" class="form-control form-control-sm" style="width:180px">
+      <button type="submit" class="btn btn-outline btn-sm">XLSX 업로드</button>
+    </form>
+  </div>
+
+  <!-- 기관 추가 카드 -->
+  <div class="card" style="max-width:520px;margin-bottom:24px">
+    <div class="card-header">기관 추가</div>
+    <div class="card-body">
+      <form th:action="@{/institutions}" method="post" class="form-inline">
+        <input type="text" name="name" class="form-control form-control-sm"
+               style="flex:1;min-width:160px" placeholder="기관명" required>
+        <select name="category" class="form-control form-control-sm" style="width:150px" required>
+          <option value="">카테고리 선택</option>
+          <option value="지자체">지자체</option>
+          <option value="대학교">대학교</option>
+          <option value="대학병원">대학병원</option>
+          <option value="공공기관">공공기관</option>
+        </select>
+        <button type="submit" class="btn btn-primary btn-sm">추가</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 기관 목록 -->
+  <div class="section-header">
+    <div>
+      <span class="section-title">기관 목록</span>
+      <span class="section-sub" th:text="'총 ' + ${#lists.size(institutions)} + '개'"></span>
+    </div>
+  </div>
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>기관명</th><th>카테고리</th><th>수정일자</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr th:each="inst : ${institutions}">
+          <td th:text="${inst.name}" style="font-weight:500"></td>
+          <td><span class="category-chip" th:text="${inst.category}"></span></td>
+          <td class="time-col" th:text="${#temporals.format(inst.modifiedAt, 'yyyy-MM-dd HH:mm')}"></td>
+          <td style="width:80px">
+            <form th:action="@{/institutions/{id}/delete(id=${inst.id})}"
+                  method="post">
+              <button type="submit" class="btn btn-danger-outline btn-sm"
+                      onclick="return confirm('삭제하시겠습니까?')">삭제</button>
+            </form>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</section>
+</body>
+</html>

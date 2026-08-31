@@ -3,6 +3,7 @@ import os
 from agent import llm
 from agent.llm import get_llm
 from agent.retrieval import IndexNotBuiltError, search
+from server.teams import AUTHORING_TEAMS
 
 DEFAULT_INDEX_DB_PATH = "data/corpus_index.db"
 REGISTERED_CORPUS_PREFIX = "corpus/institutions/"
@@ -14,12 +15,21 @@ REGISTERED_CORPUS_PREFIX = "corpus/institutions/"
 NO_CORPUS_NEW = "(자료 없음 — 신규 기관, 조사 결과 미제공)"
 NO_CORPUS_TEAM = "(자료 없음 — 해당 팀 코퍼스 파일 없음)"
 
+# ⚠️ 팀 이름을 문자열로 적지 말 것 — `server/teams.AUTHORING_TEAMS`가 유일한 출처다.
+# 풀어서 받으면 그 튜플이 바뀌는 순간 여기가 **기동 시점에** 깨진다(조용히 어긋나지 않는다).
+# 예전에는 아래가 `"IT"`(옛 이름)로 박혀 있어서, 개명된 `전산` 팀이 어느 분기에도 안 걸려
+# **예산팀 문서(`03_`)를 근거로 받고 있었다.** 오류도 경고도 없이 근거만 바뀐다
+# (2026-08-28 전수조사에서 발견 — `server/assembler.py`와 같은 부류다).
+SALES_TEAM, IT_TEAM, BUDGET_TEAM = AUTHORING_TEAMS
+
 # 팀 → 검색 필터. 기존 _load_team_corpus의 폴더/접두사 규칙과 1:1 대응(스펙 §⑥).
+IT_PLAN_PREFIX = "02_"          # plan/02_IT디지털기획_사업제안
+BUDGET_PLAN_PREFIX = "03_"      # plan/03_금전적지원_사업제안
 TEAM_SEARCH_FILTERS = {
-    "영업": {"doctypes": ("spec", "bank_ideas")},
-    "IT": {"doctypes": ("plan",), "filename_prefix": "02_"},
+    SALES_TEAM: {"doctypes": ("spec", "bank_ideas")},
+    IT_TEAM: {"doctypes": ("plan",), "filename_prefix": IT_PLAN_PREFIX},
 }
-DEFAULT_TEAM_FILTER = {"doctypes": ("plan",), "filename_prefix": "03_"}
+DEFAULT_TEAM_FILTER = {"doctypes": ("plan",), "filename_prefix": BUDGET_PLAN_PREFIX}
 
 CHAT_PROMPT = """당신은 {team}팀의 제안서 작성을 돕는 "기관 인텔리전스 에이전트"입니다.
 아래 근거 자료를 참고해 사용자 요청에 맞춰 제안서 초안 문장을 다듬어 답하세요. 자유롭게
@@ -87,7 +97,7 @@ def _load_team_corpus(giganlist_dir: str | None, team: str) -> str:
         return NO_CORPUS_NEW
 
     parts = []
-    if team == "영업":
+    if team == SALES_TEAM:
         spec_dir = os.path.join(giganlist_dir, "spec")
         if os.path.isdir(spec_dir):
             for fname in sorted(os.listdir(spec_dir)):
@@ -99,7 +109,7 @@ def _load_team_corpus(giganlist_dir: str | None, team: str) -> str:
             with open(bank_ideas_path, encoding="utf-8") as f:
                 parts.append(f"[bank_ideas_draft.txt]\n{f.read()}")
     else:
-        prefix = "02_" if team == "IT" else "03_"
+        prefix = IT_PLAN_PREFIX if team == IT_TEAM else BUDGET_PLAN_PREFIX
         plan_dir = os.path.join(giganlist_dir, "plan")
         if os.path.isdir(plan_dir):
             for fname in sorted(os.listdir(plan_dir)):
