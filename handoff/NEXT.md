@@ -1224,15 +1224,20 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
      때 함께 정리**하기로 했다.
 - **비차단**: 항목 9가 먼저다.
 
-### 18. uploader — README §13-①(내부망 설정 누락 + Oracle DDL 부재) (2026-08-26, **2026-09-07 갱신**)
+### 18. ~~uploader — README §13-①(내부망 설정 누락 + Oracle DDL 부재)~~ — **완료** (2026-09-08)
 
-- 🟢 **2026-09-07 확인 — `main`에서는 둘 다 이미 해소돼 있다.** 커밋 `43dc186`이
-  `schema-oracle.sql`을 추가하고 Mapper를 `databaseId` 방언 분기로 바꿨으며,
-  `config-envs`의 `dev`/`stg`/`prod`에도 `mybatis.*` 3줄이 들어가 있다.
-  **남아 있는 곳은 브랜치 `weblogic-java-migration`뿐**이고, 이는 **항목 25-①의
-  `main` 머지로 한 번에 사라진다.** 머지 전까지는 닫지 않는다.
-  출처: `2026-09-07_summary.md` `## Session 18:32`.
-- **출처**: `2026-08-26_summary.md` `## Session 13:00`. 브랜치 `weblogic-java-migration`.
+- ✅ **2026-09-08 해소.** `git checkout main -- uploader/` 로 `main`의 uploader 를
+  브랜치 `weblogic-java-migration` 에 가져오면서 두 항목이 함께 사라졌다
+  (26파일 · 2200줄 추가 / 60줄 삭제, `mvn -o clean test` **62건 통과**).
+  - **Oracle DDL** — `schema-oracle.sql` 이 들어왔다(테이블 2 + 시퀀스 2).
+    Mapper 도 주석이 아니라 `databaseId` **방언 분기**로 바뀌었다(`43dc186`).
+  - **`mybatis.*` 누락** — `config-envs` 의 `dev`/`stg`/`prod` 에 3줄이 모두 들어왔다.
+  - ⚠️ 함께 있던 경고(`ReclassificationJob` 이 `@Scheduled` 로 자기 스레드를 만든다)도
+    해소됐다 — `TimerManagerScheduler`/`LocalScheduler`/`ReclassificationTrigger` 로
+    교체돼 CommonJ 경로가 들어와 있다. **다만 운영에서 켜는 것은 항목 25-② 로 남아 있다.**
+  - 출처: `2026-09-08_summary.md` `## Session 08:55`. 앞선 진단은
+    `2026-09-07_summary.md` `## Session 18:32`.
+- **원 출처**: `2026-08-26_summary.md` `## Session 13:00`. 브랜치 `weblogic-java-migration`.
 - **무엇이 남았나** — `uploader/README.md` §13의 마지막 열린 항목이다(②③은 해소됨):
   - `config-envs/`의 **`dev`/`stg`/`prod`에 `mybatis.*` 설정이 없다**
     (`mapper-locations`·`type-aliases-package`·`map-underscore-to-camel-case`).
@@ -1565,7 +1570,7 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
 
 | # | 무엇 | 메모 |
 |---|---|---|
-| ① | **`main` → `weblogic-java-migration` 머지** | `uploader/`에 한해 `main`이 상위집합(`git diff main HEAD -- uploader/` = 2200줄 삭제/60줄 추가, 그 60줄은 전부 미완성 고지·주석 처리된 Oracle SQL). 머지하면 **항목 18도 함께 닫힌다.** 충돌 예상 지점은 mapper 2개 |
+| ① | ~~`main` → `weblogic-java-migration` 머지~~ → **uploader만 가져옴(2026-09-08 완료). 브랜치 통합은 별도 과제로 남음** | ✅ `git checkout main -- uploader/`(26파일, 테스트 62건 통과) → **항목 18 종결.** ⛔ **전체 머지는 하지 않기로 했다** — 시도해 보니 충돌 **23건**이고 전부 `add/add`(두 브랜치가 같은 파일을 독립적으로 추가, 공통 조상 없음). 특히 **`kgi-ggreport-web/` 16건은 방향이 정반대**다: `main`은 `bb4547c`(PR #2) 한 번만 건드린 초기 스냅샷(216파일)이고 **이 브랜치가 merge-base 이후 30커밋으로 앞선다**(242파일, `InstitutionController` 230 vs 126줄). `main` 쪽을 받으면 **단계 5-B가 통째로 되돌아간다.** 나중에 통합할 때의 규칙: `kgi-ggreport-web/`→**ours(이 브랜치)**, `uploader/`→theirs, `handoff/NEXT.md`·`2026-08-31_summary.md`→**수동**(append-only 규약), `docs/tools/md2pdf.py`·`docs/이관문의서_WebLogic_확인사항.md`→개별 확인(`main`에 개선 `b88be6d` 있음) |
 | ② | **자동 재분류 복원** | 지금 `reclassification.cron=` 로 꺼 뒀고 `web.xml`의 `timer/uploaderTM` `resource-ref`도 임시 주석 상태. 되살리려면 주석 해제 + 콘솔 **Environment → Work Managers → New**로 이름 **`uploaderTM`** 생성. 실패 시 `DEPLOY.md` §3의 A→B→C |
 | ③ | **스키마 2벌에 새 컬럼 순서 + `NUMBER(18)` 반영** | `schema-oracle.sql`은 지금도 `NUMBER(19)`·옛 순서다. ⚠️ `schema-mysql.sql`은 **같은 커밋에서 함께** 고쳐야 한다(파일 안에 명시된 미러 규칙). 새 순서는 `2026-09-07_summary.md` 참조 |
 | ④ | **`config-envs/prod`의 `upload.base-dir`** | 지금 `/app/uploader`(Linux)라 re-export하면 Windows 값이 되돌아간다. 내부망 실제값(`C:/uploader-local`)과의 관계를 정리할 것 |

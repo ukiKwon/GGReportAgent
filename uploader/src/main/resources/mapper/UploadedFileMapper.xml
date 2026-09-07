@@ -16,16 +16,21 @@
     <result property="classifiedAt"    column="CLASSIFIED_AT"/>
   </resultMap>
 
+  <!--
+    ⚠️ 아래부터 같은 id 가 두 번 나오는 자리는 **방언 분기**다(databaseId).
+       접속한 DB 에 맞는 쪽만 로드된다 — config/MyBatisConfig 가 값을 정한다.
+       한쪽만 고치면 다른 DB 에서 조용히 낡는다. **항상 둘을 같이 고칠 것.**
+  -->
+
   <!-- MySQL: useGeneratedKeys로 AUTO_INCREMENT id 채움 -->
-  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+  <insert id="insert" databaseId="mysql" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO UPLOADED_FILE
     (ORIGINAL_NAME, STORED_PATH, FILE_YEAR, INSTITUTION_NAME, CATEGORY, STATUS, UPLOADED_AT)
     VALUES
     (#{originalName}, #{storedPath}, #{year}, #{institutionName}, #{category}, #{status}, #{uploadedAt})
   </insert>
-  <!--
-  [Oracle 전환 시 위 insert를 아래로 교체]
-  <insert id="insert">
+  <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 UPLOADED_FILE_SEQ) -->
+  <insert id="insert" databaseId="oracle">
     <selectKey keyProperty="id" resultType="long" order="BEFORE">
       SELECT UPLOADED_FILE_SEQ.NEXTVAL FROM DUAL
     </selectKey>
@@ -34,7 +39,6 @@
     VALUES
       (#{id}, #{originalName}, #{storedPath}, #{year}, #{institutionName}, #{category}, #{status}, #{uploadedAt})
   </insert>
-  -->
 
   <update id="update">
     UPDATE UPLOADED_FILE
@@ -79,52 +83,47 @@
   </select>
 
   <!-- MySQL: LIMIT -->
-  <select id="findRecent" resultMap="uploadedFileMap">
+  <select id="findRecent" databaseId="mysql" resultMap="uploadedFileMap">
     SELECT * FROM UPLOADED_FILE ORDER BY UPLOADED_AT DESC LIMIT #{limit}
   </select>
-  <!--
-  [Oracle 전환 시 위 findRecent를 아래로 교체]
-  <select id="findRecent" resultMap="uploadedFileMap">
+  <!-- Oracle: ROWNUM 은 ORDER BY 보다 먼저 매겨지므로 정렬을 인라인 뷰로 감싼다 -->
+  <select id="findRecent" databaseId="oracle" resultMap="uploadedFileMap">
     SELECT * FROM (
       SELECT * FROM UPLOADED_FILE ORDER BY UPLOADED_AT DESC
     ) WHERE ROWNUM &lt;= #{limit}
   </select>
-  -->
 
   <!-- MySQL: LIMIT ... OFFSET -->
-  <select id="findByInstitutionNameContaining" resultMap="uploadedFileMap">
+  <select id="findByInstitutionNameContaining" databaseId="mysql" resultMap="uploadedFileMap">
     SELECT * FROM UPLOADED_FILE
     WHERE INSTITUTION_NAME LIKE CONCAT('%', #{keyword}, '%')
     ORDER BY UPLOADED_AT DESC
     LIMIT #{limit} OFFSET #{offset}
   </select>
-  <!--
-  [Oracle 전환 시 위 findByInstitutionNameContaining를 아래로 교체]
-  <select id="findByInstitutionNameContaining" resultMap="uploadedFileMap">
+  <!-- Oracle: ROWNUM 2단 중첩 페이징. 안쪽에서 상한, 바깥에서 하한을 건다 -->
+  <select id="findByInstitutionNameContaining" databaseId="oracle" resultMap="uploadedFileMap">
     SELECT * FROM (
       SELECT a.*, ROWNUM RN FROM (
         SELECT * FROM UPLOADED_FILE
         WHERE INSTITUTION_NAME LIKE '%' || #{keyword} || '%'
         ORDER BY UPLOADED_AT DESC
       ) a WHERE ROWNUM &lt;= #{offset} + #{limit}
-    ) WHERE RN > #{offset}
+    ) WHERE RN &gt; #{offset}
   </select>
-  -->
 
-  <select id="countByInstitutionNameContaining" resultType="long">
+  <!-- MySQL: CONCAT -->
+  <select id="countByInstitutionNameContaining" databaseId="mysql" resultType="long">
     SELECT COUNT(*) FROM UPLOADED_FILE
     WHERE INSTITUTION_NAME LIKE CONCAT('%', #{keyword}, '%')
   </select>
-  <!--
-  [Oracle 전환 시 위 countByInstitutionNameContaining를 아래로 교체]
-  <select id="countByInstitutionNameContaining" resultType="long">
+  <!-- Oracle: || 로 연결 -->
+  <select id="countByInstitutionNameContaining" databaseId="oracle" resultType="long">
     SELECT COUNT(*) FROM UPLOADED_FILE
     WHERE INSTITUTION_NAME LIKE '%' || #{keyword} || '%'
   </select>
-  -->
 
   <!-- MySQL: 다중 조건 검색 -->
-  <select id="search" resultMap="uploadedFileMap">
+  <select id="search" databaseId="mysql" resultMap="uploadedFileMap">
     SELECT * FROM UPLOADED_FILE
     WHERE
     (#{institution} = '' OR INSTITUTION_NAME LIKE CONCAT('%', #{institution}, '%'))
@@ -133,15 +132,18 @@
     ORDER BY UPLOADED_AT DESC
   </select>
   <!--
-  [Oracle 전환 시 위 search를 아래로 교체]
-  <select id="search" resultMap="uploadedFileMap">
+    Oracle: || 로 연결.
+    ⚠️ Oracle 은 빈 문자열을 NULL 로 바꾸므로 `#{x} = ''` 는 **항상 거짓**이다.
+       "빈 값이면 조건을 걸지 않는다"는 원래 뜻을 살리려면 NULL 검사여야 한다.
+       (MySQL 쪽은 ''를 값으로 담으므로 `= ''` 가 맞다 — 그래서 문장이 갈린다.)
+  -->
+  <select id="search" databaseId="oracle" resultMap="uploadedFileMap">
     SELECT * FROM UPLOADED_FILE
     WHERE
-      (#{institution} = '' OR INSTITUTION_NAME LIKE '%' || #{institution} || '%')
-      AND (#{year} = '' OR FILE_YEAR = #{year})
-      AND (#{keyword} = '' OR ORIGINAL_NAME LIKE '%' || #{keyword} || '%')
+      (#{institution} IS NULL OR INSTITUTION_NAME LIKE '%' || #{institution} || '%')
+      AND (#{year} IS NULL OR FILE_YEAR = #{year})
+      AND (#{keyword} IS NULL OR ORIGINAL_NAME LIKE '%' || #{keyword} || '%')
     ORDER BY UPLOADED_AT DESC
   </select>
-  -->
 
 </mapper>

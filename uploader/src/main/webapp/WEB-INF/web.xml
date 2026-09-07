@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee
+                             http://xmlns.jcp.org/xml/ns/javaee/web-app_3_1.xsd"
+         version="3.1">
+
+  <display-name>uploader</display-name>
+
+  <!--
+    ⚠️ 이 파일은 2026-08-31 에 새로 만들었다. Spring Boot 실행 가능 WAR 은 web.xml 이
+       없어도 뜬다(ServletInitializer 가 그 일을 한다) — 여기 있는 것은 **컨테이너 자원
+       선언**뿐이고, 서블릿/필터 매핑은 계속 Boot 가 한다.
+
+    ── CommonJ TimerManager ─────────────────────────────────────────────────
+    미분류 파일 재분류(ReclassificationJob)를 주기 실행하는 데 쓴다.
+    WAS 에서 앱이 스레드를 직접 만드는 것은 금지이므로(설계 §2·§4)
+    @EnableScheduling / @Scheduled 대신 이 경로를 쓴다.
+
+    ⚠️ 반복 실행이라 commonj.work.WorkManager 가 아니라 commonj.timers 쪽이다.
+       (WorkManager 는 1회성 작업용 — 본체 kgi-ggreport-web 이 그쪽을 쓴다.)
+
+    ⚠️ WebLogic 콘솔에서 같은 이름의 Timer Manager 를 먼저 만들어야 한다.
+       못 찾으면 앱은 뜨지만 로컬 스케줄러로 떨어지고 WARN 을 남긴다
+       (SchedulerConfig) — 운영에서 그 줄이 보이면 설정이 잘못된 것이다.
+
+    ⚠️ res-ref-name 을 바꾸면 uploader.timer-manager-jndi 도 같이 바꿔야 한다
+       (기본값 java:comp/env/timer/uploaderTM).
+  -->
+  <resource-ref>
+    <description>미분류 파일 재분류 주기 실행용 TimerManager</description>
+    <res-ref-name>timer/uploaderTM</res-ref-name>
+    <res-type>commonj.timers.TimerManager</res-type>
+    <res-auth>Container</res-auth>
+    <res-sharing-scope>Shareable</res-sharing-scope>
+  </resource-ref>
+
+  <!--
+    운영(prod)의 DataSource. config-envs/prod 의
+    spring.datasource.jndi-name=java:comp/env/jdbc/uploaderDS 와 짝이다.
+  -->
+  <resource-ref>
+    <description>uploader Oracle DataSource</description>
+    <res-ref-name>jdbc/uploaderDS</res-ref-name>
+    <res-type>javax.sql.DataSource</res-type>
+    <res-auth>Container</res-auth>
+    <res-sharing-scope>Shareable</res-sharing-scope>
+  </resource-ref>
+
+</web-app>
