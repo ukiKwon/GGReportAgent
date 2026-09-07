@@ -11,21 +11,24 @@
     <result property="modifiedAt" column="MODIFIED_AT"/>
   </resultMap>
 
+  <!--
+    ⚠️ 같은 id 가 두 번 나오는 자리는 **방언 분기**다(databaseId). 접속한 DB 에 맞는
+       쪽만 로드된다 — config/MyBatisConfig 가 값을 정한다. **항상 둘을 같이 고칠 것.**
+  -->
+
   <!-- MySQL -->
-  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+  <insert id="insert" databaseId="mysql" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO INSTITUTION (NAME, CATEGORY, MODIFIED_AT)
     VALUES (#{name}, #{category}, #{modifiedAt})
   </insert>
-  <!--
-  [Oracle 전환 시 위 insert를 아래로 교체]
-  <insert id="insert">
+  <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 INSTITUTION_SEQ) -->
+  <insert id="insert" databaseId="oracle">
     <selectKey keyProperty="id" resultType="long" order="BEFORE">
       SELECT INSTITUTION_SEQ.NEXTVAL FROM DUAL
     </selectKey>
     INSERT INTO INSTITUTION (ID, NAME, CATEGORY, MODIFIED_AT)
     VALUES (#{id}, #{name}, #{category}, #{modifiedAt})
   </insert>
-  -->
 
   <update id="update">
     UPDATE INSTITUTION
