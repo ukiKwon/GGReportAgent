@@ -1224,8 +1224,14 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
      때 함께 정리**하기로 했다.
 - **비차단**: 항목 9가 먼저다.
 
-### 18. uploader — README §13-①(내부망 설정 누락 + Oracle DDL 부재) (2026-08-26)
+### 18. uploader — README §13-①(내부망 설정 누락 + Oracle DDL 부재) (2026-08-26, **2026-09-07 갱신**)
 
+- 🟢 **2026-09-07 확인 — `main`에서는 둘 다 이미 해소돼 있다.** 커밋 `43dc186`이
+  `schema-oracle.sql`을 추가하고 Mapper를 `databaseId` 방언 분기로 바꿨으며,
+  `config-envs`의 `dev`/`stg`/`prod`에도 `mybatis.*` 3줄이 들어가 있다.
+  **남아 있는 곳은 브랜치 `weblogic-java-migration`뿐**이고, 이는 **항목 25-①의
+  `main` 머지로 한 번에 사라진다.** 머지 전까지는 닫지 않는다.
+  출처: `2026-09-07_summary.md` `## Session 18:32`.
 - **출처**: `2026-08-26_summary.md` `## Session 13:00`. 브랜치 `weblogic-java-migration`.
 - **무엇이 남았나** — `uploader/README.md` §13의 마지막 열린 항목이다(②③은 해소됨):
   - `config-envs/`의 **`dev`/`stg`/`prod`에 `mybatis.*` 설정이 없다**
@@ -1541,3 +1547,32 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
   의존을 늘리는 것이 아니다. 파일을 읽어 대조만 한다.
 - **검증**: `AFFILIATIONS` 를 `'IT팀'` 으로 바꿔 실제로 실패하는 것을 확인했다.
   pytest 761 → **769**, node **262 pass**.
+
+### 25. uploader 내부망 WebLogic 기동 검증 — **기동은 성공, 후속 9건** (2026-09-07)
+
+- **출처**: `2026-09-07_summary.md` `## Session 18:32`. 브랜치 `weblogic-java-migration`
+  (리포 변경은 없다 — 요약·NEXT 갱신뿐).
+- **무엇이 끝났나**: 외부망 `uploader/`를 **내부망 Eclipse Photon 4.8.0 +
+  WebLogic 12.2.1.4**에서 기동시키는 데 성공했다. 화면이 `ORA-00942`(테이블 없음)로
+  끝나는 지점까지 갔고, 그것은 **Servlet API · JNDI DataSource · MyBatis Oracle 방언
+  판정 · Spring MVC가 전부 살아 있다**는 증명이다. 남은 것은 DBA의 테이블 생성뿐.
+- **반입물**: `dist/uploader-wtp-20260907.zip`(43.7MB, `main` 기준, 테스트 62건 통과).
+  ⚠️ `dist/`는 gitignore 대상이 아니라 `git status`에 뜬다 — **커밋하지 말 것**(아래 ⑨).
+- **DBA 요청서**: https://claude.ai/code/artifact/e9ee3490-52c5-4de1-a3bf-06818e4c4de9
+  (빈칸 3곳만 채우면 발송 가능 — 대상 계정 · 인스턴스 · 담당자 연락처)
+
+**후속 9건**
+
+| # | 무엇 | 메모 |
+|---|---|---|
+| ① | **`main` → `weblogic-java-migration` 머지** | `uploader/`에 한해 `main`이 상위집합(`git diff main HEAD -- uploader/` = 2200줄 삭제/60줄 추가, 그 60줄은 전부 미완성 고지·주석 처리된 Oracle SQL). 머지하면 **항목 18도 함께 닫힌다.** 충돌 예상 지점은 mapper 2개 |
+| ② | **자동 재분류 복원** | 지금 `reclassification.cron=` 로 꺼 뒀고 `web.xml`의 `timer/uploaderTM` `resource-ref`도 임시 주석 상태. 되살리려면 주석 해제 + 콘솔 **Environment → Work Managers → New**로 이름 **`uploaderTM`** 생성. 실패 시 `DEPLOY.md` §3의 A→B→C |
+| ③ | **스키마 2벌에 새 컬럼 순서 + `NUMBER(18)` 반영** | `schema-oracle.sql`은 지금도 `NUMBER(19)`·옛 순서다. ⚠️ `schema-mysql.sql`은 **같은 커밋에서 함께** 고쳐야 한다(파일 안에 명시된 미러 규칙). 새 순서는 `2026-09-07_summary.md` 참조 |
+| ④ | **`config-envs/prod`의 `upload.base-dir`** | 지금 `/app/uploader`(Linux)라 re-export하면 Windows 값이 되돌아간다. 내부망 실제값(`C:/uploader-local`)과의 관계를 정리할 것 |
+| ⑤ | **WAR에서 `mysql-connector-j` 제거** | 외부망 로컬 테스트용인데 운영 WAR에 실린다. `pom.xml`에서 스코프 조정 |
+| ⑥ | **폐쇄망 XML 검증 함정을 `DEPLOY.md`에 추가** | 스키마 URL을 못 받아와 `Publish was cancelled`가 난다. 조치는 프로젝트 **Properties → Validation → `XML Validator`·`XML Schema Validator` 해제** |
+| ⑦ | **`config-envs/local` vs `config/`(prod) 혼동 경고를 `README-WTP.md`에 추가** | 이번에 `local`을 도메인 config로 복사해 30분 이상 헤맸다. `local`의 `spring.autoconfigure.exclude=...JndiDataSourceAutoConfiguration` 이 **JNDI를 꺼 버린다** |
+| ⑧ | **진단 순서 문서화** | *"`java:comp/env` 조회 실패 시 앱 서술자보다 **JNDI 트리와 DataSource Targets를 먼저** 보라"* — 이번 세션에서 가장 오래 돈 지점이다. `web.xml`·`weblogic.xml`·`application.properties`를 다 의심했지만 셋 다 정상이었고, 원인은 DataSource가 서버에 배포되지 않아 트리에 `jdbc` 폴더 자체가 없던 것 |
+| ⑨ | **현 브랜치 `.gitignore`에 `dist/` 추가** | `main`에는 있고 이 브랜치에는 없다. 43MB zip이 실수로 커밋될 수 있다 |
+
+**막고 있는 것**: DBA의 테이블 생성(사용자가 요청 예정). 그 전까지 화면은 `ORA-00942`가 정상이다.
