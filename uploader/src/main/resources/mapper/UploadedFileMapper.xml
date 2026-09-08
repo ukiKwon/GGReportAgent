@@ -3,55 +3,72 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <!--
-  ⚠️ **2026-09-08 — 테이블·컬럼 이름이 전부 바뀌었다** (사내 DB 표준: 컬럼은 한글,
-     테이블은 코드). 자바 필드명(property)은 그대로이고 DB 쪽 이름만 바뀌었다 —
-     아래 resultMap 이 둘을 잇는다.
+  ⚠️ **2026-09-08 — 사내 DB 표준을 반영했다.** 테이블은 코드, 컬럼은 한글, 그리고
+     타입은 인포타입이 정한다. 자바 필드명(property)은 그대로다.
 
-       UPLOADED_FILE → **TSKGIAF01**       시퀀스 → TSKGIAF01_SEQ
+       UPLOADED_FILE → TSKGIAF01        시퀀스 → TSKGIAF01_SEQ
 
-       property        →  column
-       id              →  업로드파일ID
-       originalName    →  원본파일명
-       storedPath      →  저장경로
-       year            →  문서연도
-       institutionName →  기관명
-       category        →  기관분류
-       status          →  분류상태
-       uploadedAt      →  업로드일시
-       classifiedAt    →  분류일시
+       property        →  컬럼명                 인포타입
+       id              →  업로드파일일련번호      일련번호16 (DECIMAL)
+       institutionName →  기관명                 명250
+       category        →  기관구분               구분코드2   ★ TypeHandler
+       year            →  문서년                 년4
+       status          →  분류상태구분            구분코드2   ★ TypeHandler
+       originalName    →  원본파일명              명260
+       uploadedAt      →  업로드일시              일시20      ★ TypeHandler
+       classifiedAt    →  분류일시                일시20      ★ TypeHandler
+       storedPath      →  저장경로               내용800
 
-     `mybatis.configuration.map-underscore-to-camel-case=true` 가 켜져 있지만
-     이 매퍼는 **resultMap 으로 명시 매핑**하므로 그 규칙에 기대지 않는다
-     (`업로드파일ID` → `uploadedFileId` 로 자동 변환돼도 무시된다).
+  ★ **TypeHandler 를 자리마다 명시한다.** 두 코드 핸들러가 모두 자바 `String` 을
+    다뤄서 자동 등록(type-handlers-package)을 쓸 수 없다 — 같은 타입에 둘이 걸리면
+    어느 쪽이 잡힐지 알 수 없다. 그래서 resultMap 과 `#{...}` 양쪽에 적는다.
+    **한쪽만 적으면 읽기나 쓰기 중 한 방향만 변환돼 조용히 어긋난다.**
+
+  ⚠️ **SQL 문장에 직접 박힌 값은 TypeHandler 를 타지 않는다.** 아래
+    `분류상태구분 = '04'` 처럼 **코드로 적어야 한다**. 거기에 'DELETED' 를 적으면
+    오류 없이 0건이 바뀐다. 코드표는 `code/ClassificationStatus.java` 에 있다.
 -->
 <mapper namespace="com.kb.uploader.mapper.UploadedFileMapper">
 
   <resultMap id="uploadedFileMap" type="UploadedFile">
-    <id     property="id"              column="업로드파일ID"/>
-    <result property="originalName"    column="원본파일명"/>
-    <result property="storedPath"      column="저장경로"/>
-    <result property="year"            column="문서연도"/>
+    <id     property="id"              column="업로드파일일련번호"/>
     <result property="institutionName" column="기관명"/>
-    <result property="category"        column="기관분류"/>
-    <result property="status"          column="분류상태"/>
-    <result property="uploadedAt"      column="업로드일시"/>
-    <result property="classifiedAt"    column="분류일시"/>
+    <result property="category"        column="기관구분"
+            typeHandler="com.kb.uploader.config.InstitutionCategoryTypeHandler"/>
+    <result property="year"            column="문서년"/>
+    <result property="status"          column="분류상태구분"
+            typeHandler="com.kb.uploader.config.ClassificationStatusTypeHandler"/>
+    <result property="originalName"    column="원본파일명"/>
+    <result property="uploadedAt"      column="업로드일시"
+            typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/>
+    <result property="classifiedAt"    column="분류일시"
+            typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/>
+    <result property="storedPath"      column="저장경로"/>
   </resultMap>
 
+  <!-- 파라미터 쪽 TypeHandler 표기가 길어 sql 조각으로 묶는다 -->
+  <sql id="값목록">
+    #{institutionName},
+    #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+    #{year},
+    #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler},
+    #{originalName},
+    #{uploadedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+    #{storedPath}
+  </sql>
+
   <!--
-    ⚠️ 아래부터 같은 id 가 두 번 나오는 자리는 **방언 분기**다(databaseId).
-       접속한 DB 에 맞는 쪽만 로드된다 — config/MyBatisConfig 가 값을 정한다.
+    ⚠️ 같은 id 가 두 번 나오는 자리는 **방언 분기**다(databaseId). 접속한 DB 에 맞는
+       쪽만 로드된다 — config/MyBatisConfig 가 값을 정한다.
        한쪽만 고치면 다른 DB 에서 조용히 낡는다. **항상 둘을 같이 고칠 것.**
   -->
 
   <!-- MySQL: useGeneratedKeys로 AUTO_INCREMENT id 채움 -->
   <insert id="insert" databaseId="mysql" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO TSKGIAF01
-    (원본파일명, 저장경로, 문서연도, 기관명,
-     기관분류, 분류상태, 업로드일시)
+      (기관명, 기관구분, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
     VALUES
-    (#{originalName}, #{storedPath}, #{year}, #{institutionName},
-     #{category}, #{status}, #{uploadedAt})
+      (<include refid="값목록"/>)
   </insert>
   <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 TSKGIAF01_SEQ) -->
   <insert id="insert" databaseId="oracle">
@@ -59,44 +76,44 @@
       SELECT TSKGIAF01_SEQ.NEXTVAL FROM DUAL
     </selectKey>
     INSERT INTO TSKGIAF01
-      (업로드파일ID, 원본파일명, 저장경로, 문서연도,
-       기관명, 기관분류, 분류상태, 업로드일시)
+      (업로드파일일련번호, 기관명, 기관구분, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
     VALUES
-      (#{id}, #{originalName}, #{storedPath}, #{year},
-       #{institutionName}, #{category}, #{status}, #{uploadedAt})
+      (#{id}, <include refid="값목록"/>)
   </insert>
 
   <update id="update">
     UPDATE TSKGIAF01
     SET
-    저장경로  = #{storedPath},
-    기관명    = #{institutionName},
-    문서연도  = #{year},
-    기관분류  = #{category},
-    분류상태  = #{status},
-    분류일시  = #{classifiedAt}
-    WHERE 업로드파일ID = #{id}
+    저장경로      = #{storedPath},
+    기관명        = #{institutionName},
+    문서년        = #{year},
+    기관구분      = #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+    분류상태구분  = #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler},
+    분류일시      = #{classifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}
+    WHERE 업로드파일일련번호 = #{id}
   </update>
 
+  <!-- ⚠️ '04' = DELETED, '03' = REJECTED, '02' = CLASSIFIED (code/ClassificationStatus.java) -->
   <update id="softDeleteById">
-    UPDATE TSKGIAF01 SET 분류상태 = 'DELETED' WHERE 업로드파일ID = #{id}
+    UPDATE TSKGIAF01 SET 분류상태구분 = '04' WHERE 업로드파일일련번호 = #{id}
   </update>
 
   <update id="rejectById">
-    UPDATE TSKGIAF01 SET 분류상태 = 'REJECTED' WHERE 업로드파일ID = #{id}
+    UPDATE TSKGIAF01 SET 분류상태구분 = '03' WHERE 업로드파일일련번호 = #{id}
   </update>
 
   <select id="findById" resultMap="uploadedFileMap">
-    SELECT * FROM TSKGIAF01 WHERE 업로드파일ID = #{id}
+    SELECT * FROM TSKGIAF01 WHERE 업로드파일일련번호 = #{id}
   </select>
 
   <select id="findByStatus" resultMap="uploadedFileMap">
-    SELECT * FROM TSKGIAF01 WHERE 분류상태 = #{status}
+    SELECT * FROM TSKGIAF01
+    WHERE 분류상태구분 = #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler}
   </select>
 
   <select id="findClassifiedByUnknownInstitution" resultMap="uploadedFileMap">
     SELECT * FROM TSKGIAF01
-    WHERE 기관명 = '알수없음' AND 분류상태 = 'CLASSIFIED'
+    WHERE 기관명 = '알수없음' AND 분류상태구분 = '02'
     ORDER BY 업로드일시 DESC
   </select>
 
@@ -105,9 +122,14 @@
   </select>
 
   <select id="countByStatus" resultType="long">
-    SELECT COUNT(*) FROM TSKGIAF01 WHERE 분류상태 = #{status}
+    SELECT COUNT(*) FROM TSKGIAF01
+    WHERE 분류상태구분 = #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler}
   </select>
 
+  <!--
+    ⚠️ 업로드일시가 문자열(YYYYMMDDHH24MISS)이라 아래 정렬은 **문자열 정렬**이다.
+       자릿수가 고정이라 사전순 = 시간순이 맞다. 형식을 바꾸면 이 성질이 깨진다.
+  -->
   <!-- MySQL: LIMIT -->
   <select id="findRecent" databaseId="mysql" resultMap="uploadedFileMap">
     SELECT * FROM TSKGIAF01 ORDER BY 업로드일시 DESC LIMIT #{limit}
@@ -153,7 +175,7 @@
     SELECT * FROM TSKGIAF01
     WHERE
     (#{institution} = '' OR 기관명 LIKE CONCAT('%', #{institution}, '%'))
-    AND (#{year} = '' OR 문서연도 = #{year})
+    AND (#{year} = '' OR 문서년 = #{year})
     AND (#{keyword} = '' OR 원본파일명 LIKE CONCAT('%', #{keyword}, '%'))
     ORDER BY 업로드일시 DESC
   </select>
@@ -167,7 +189,7 @@
     SELECT * FROM TSKGIAF01
     WHERE
       (#{institution} IS NULL OR 기관명 LIKE '%' || #{institution} || '%')
-      AND (#{year} IS NULL OR 문서연도 = #{year})
+      AND (#{year} IS NULL OR 문서년 = #{year})
       AND (#{keyword} IS NULL OR 원본파일명 LIKE '%' || #{keyword} || '%')
     ORDER BY 업로드일시 DESC
   </select>

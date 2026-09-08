@@ -89,37 +89,33 @@
 --    그래서 사람이 표를 읽는 순서에 맞췄다: **주 조회 축인 기관 → 분류 → 연도 →
 --    상태 → 파일명 → 시각**, 그리고 가장 길고 사람이 읽지 않는 저장경로를 맨 뒤로.
 CREATE TABLE TSKGIAF01 (
-    업로드파일ID  NUMBER(18)          NOT NULL,
-    -- ⚠️ FK 가 아니라 **이름 문자열**이다(원본 그대로). 기관.기관명 이 바뀌면
-    --    오류 없이 조용히 끊긴다. 알려진 설계 부채이고, 본체 편입(단계 6) 때
-    --    기관ID FK 로 바꿀지 정한다 — 지금은 미러 충실성을 우선한다.
-    기관명        VARCHAR2(200 CHAR),
-    -- 기관의 유형. 기관.기관분류 에서 **복사**돼 들어온다.
-    -- 코드값 5종(2026-09-08 확정): 지방자치단체 · 공공기관 · 대학교 · 병원 · 법원
-    -- ⚠️ CHECK 제약은 일부러 걸지 않았다. 화면·컨트롤러에 옛 4종
-    --    (지자체·대학교·대학병원·공공기관)이 아직 박혀 있어, 제약을 먼저 걸면
-    --    기관 등록이 ORA-02290 으로 실패한다. **코드를 5종으로 맞춘 뒤** 걸 것.
-    기관분류      VARCHAR2(100 CHAR),
-    -- 파일이 만들어진 해가 아니라 **문서의 기준 연도**다. 연산에 쓰지 않아 문자열이다.
-    문서연도      VARCHAR2(4 CHAR),
-    분류상태      VARCHAR2(20 CHAR)   DEFAULT 'UNCLASSIFIED' NOT NULL,
-    -- 파일명 상한은 파일시스템이 정한다 — NTFS·ext4 모두 255자다. 종전 500 은
-    -- 근거 없는 2배 여유였다(2026-09-08 축소).
-    원본파일명    VARCHAR2(255 CHAR)  NOT NULL,
-    업로드일시    TIMESTAMP           NOT NULL,
-    분류일시      TIMESTAMP,
-    -- ⚠️ 종전 1000 CHAR 는 AL32UTF8 에서 **4000바이트 = Oracle 11g VARCHAR2 상한**에
-    --    정확히 걸쳐 있어 **단 한 자도 늘릴 수 없었다**(늘리려면 CLOB 전환).
-    --    실제 최악 경로는 약 600자다:
-    --      baseDir(~20) + "/classified/"(12) + 기관분류(100) + "/" + 연도(4) + "/"
-    --      + 기관명(200) + "/" + 파일명(255) = 591
-    --    700 이면 그 최악을 담고도 나중에 1000 까지 늘릴 여유가 남는다(2026-09-08).
-    저장경로      VARCHAR2(700 CHAR)  NOT NULL,
-    CONSTRAINT PK_TSKGIAF01 PRIMARY KEY (업로드파일ID),
-    -- 값이 넷뿐인데 종전에는 제약이 없어 오타가 그대로 들어갔다. 비용은 사실상 0이다.
-    -- ⚠️ 값을 늘리려면 UploadedFile 도메인(classify·softDelete)과 함께 고칠 것.
-    CONSTRAINT CK_TSKGIAF01_분류상태 CHECK
-        (분류상태 IN ('UNCLASSIFIED', 'CLASSIFIED', 'REJECTED', 'DELETED'))
+    -- 인포타입 일련번호16 = DECIMAL(16). Oracle 에서 DECIMAL 은 NUMBER 의 동의어라
+    -- NUMBER(16) 으로 만들어진다. 16자리면 Java Long(19자리) 안에 항상 들어간다.
+    업로드파일일련번호  DECIMAL(16)         NOT NULL,   -- 속성명 동일
+    -- ⚠️ FK 가 아니라 **이름 문자열**이다. TSKGIAF02.기관명 이 바뀌면 조용히 끊긴다.
+    기관명              VARCHAR2(250 CHAR),             -- 명250 · 속성명 동일
+    -- 🔴 **코드값이다.** 01 지방자치단체 / 02 공공기관 / 03 대학교 / 04 병원 / 05 법원
+    --    사내 표준의 구분코드는 5자리 이하여야 하는데 '지방자치단체' 가 6자라 코드로 넣는다.
+    --    자바·화면은 한글 이름을 그대로 쓰고, 변환은 InstitutionCategoryTypeHandler
+    --    한 곳에서만 일어난다. 코드표 정본: code/InstitutionCategory.java
+    기관구분            VARCHAR2(2 CHAR),               -- 구분코드2 · 속성명 기관구분코드
+    문서년              VARCHAR2(4 CHAR),               -- 년4 · 속성명 동일 · 예 '2026'
+    -- 🔴 **코드값이다.** 01 UNCLASSIFIED / 02 CLASSIFIED / 03 REJECTED / 04 DELETED
+    --    정본: code/ClassificationStatus.java
+    분류상태구분        VARCHAR2(2 CHAR)   DEFAULT '01' NOT NULL,  -- 구분코드2 · 속성명 분류상태구분코드
+    -- 파일명 상한은 파일시스템이 정한다(NTFS·ext4 모두 255자). 인포타입에 255 가 없어 260.
+    원본파일명          VARCHAR2(260 CHAR) NOT NULL,    -- 명260 · 속성명 동일
+    -- 🔴 **시각이 문자열이다**(사내 표준). 형식 YYYYMMDDHH24MISS 14자.
+    --    컬럼 20자는 여유일 뿐이다. 자바는 LocalDateTime 을 그대로 쓰고 변환은
+    --    LocalDateTimeStringTypeHandler 가 한다.
+    --    ⚠️ 자릿수가 고정이라 **문자열 정렬 = 시간 정렬**이다. 형식을 바꾸면 깨진다.
+    업로드일시          VARCHAR2(20 CHAR)  NOT NULL,    -- 일시20 · 속성명 동일
+    분류일시            VARCHAR2(20 CHAR),              -- 일시20 · 분류 전에는 NULL
+    -- 최악 경로가 약 591자다(baseDir 20 + /classified/ 12 + 분류 6 + 년 4 + 기관 250 + 파일명 260).
+    -- 인포타입에 700 이 없어 800 을 쓴다. 길이는 **자 단위**라 한글 800자가 들어간다.
+    저장경로            VARCHAR2(800 CHAR) NOT NULL,    -- 내용800 · 속성명 저장경로내용
+    CONSTRAINT PK_TSKGIAF01 PRIMARY KEY (업로드파일일련번호),
+    CONSTRAINT CK_TSKGIAF01_분류상태 CHECK (분류상태구분 IN ('01', '02', '03', '04'))
 );
 
 -- ── 기관 (TSKGIAF02) ─────────────────────────────────────────────────────────────
@@ -128,13 +124,12 @@ CREATE TABLE TSKGIAF01 (
 --      ① 기관명 → 기관분류 **매핑표**   ② 등록된 기관만 분류되는 **허용목록**
 --    그래서 컬럼 순서도 **입력(기관명) → 출력(기관분류)** 이다.
 CREATE TABLE TSKGIAF02 (
-    기관ID    NUMBER(18)         NOT NULL,
-    기관명    VARCHAR2(200 CHAR) NOT NULL,
-    -- 코드값 5종: 지방자치단체 · 공공기관 · 대학교 · 병원 · 법원
-    -- (CHECK 미적용 이유는 업로드파일.기관분류 주석 참조)
-    기관분류  VARCHAR2(100 CHAR) NOT NULL,
-    수정일시  TIMESTAMP          NOT NULL,
-    CONSTRAINT PK_TSKGIAF02 PRIMARY KEY (기관ID),
+    기관일련번호  DECIMAL(16)        NOT NULL,   -- 일련번호16 · 속성명 동일
+    기관명        VARCHAR2(250 CHAR) NOT NULL,   -- 명250 · 속성명 동일
+    -- 코드값 (TSKGIAF01.기관구분 과 같은 코드표를 쓴다)
+    기관구분      VARCHAR2(2 CHAR)   NOT NULL,   -- 구분코드2 · 속성명 기관구분코드
+    수정일시      VARCHAR2(20 CHAR)  NOT NULL,   -- 일시20 · 속성명 동일
+    CONSTRAINT PK_TSKGIAF02 PRIMARY KEY (기관일련번호),
     CONSTRAINT UK_TSKGIAF02_기관명 UNIQUE (기관명)
 );
 
@@ -158,15 +153,15 @@ CREATE SEQUENCE TSKGIAF02_SEQ START WITH 1 INCREMENT BY 1 NOCACHE;
 CREATE INDEX IX_TSKGIAF01_업로드일시 ON TSKGIAF01 (업로드일시);
 
 -- 기관이 주 조회 축이다("A 기관 자료 들어왔나?"). 오늘 당장은
--- findClassifiedByUnknownInstitution(기관명 = '알수없음' AND 분류상태 = …)이
+-- findClassifiedByUnknownInstitution(기관명 = '알수없음' AND 분류상태구분 = '02')이
 -- 이 인덱스를 탄다.
 -- ⚠️ 화면 검색(findByInstitutionNameContaining)은 `LIKE '%키워드%'` 라 **선행 와일드카드
 --    때문에 이 인덱스를 못 쓴다.** 기관 입력을 드롭다운(정확 일치)으로 바꾸는 후속
 --    작업이 끝나야 이 인덱스가 제 값을 한다.
-CREATE INDEX IX_TSKGIAF01_기관명분류 ON TSKGIAF01 (기관명, 분류상태);
+CREATE INDEX IX_TSKGIAF01_기관명분류 ON TSKGIAF01 (기관명, 분류상태구분);
 
 -- 넣지 않은 것 — 조건이 오면 그때 넣는다:
---   · (분류상태) 단독 — 재분류 잡의 분류상태='UNCLASSIFIED' 용. 지금은 그 잡이 꺼져
+--   · (분류상태구분) 단독 — 재분류 잡의 분류상태구분='01' 용. 지금은 그 잡이 꺼져
 --     있고(reclassification.cron 비움) 풀스캔도 밀리초라 보류한다. **잡을 켜고 표가
 --     10만 행을 넘으면** 그때 넣을 것.
 --   · (기관명) 단독 — 위 복합 인덱스의 선행 컬럼이라 불필요하다.
