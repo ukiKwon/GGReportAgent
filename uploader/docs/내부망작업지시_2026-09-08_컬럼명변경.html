@@ -227,12 +227,12 @@
   <tbody>
     <tr>
       <td>1</td><td class="mono">src/mapper/UploadedFileMapper.xml</td>
-      <td><code>resultMap</code> 9행 + SQL 16개 문장의 컬럼명</td>
+      <td><code>resultMap</code> 9행 중 6행 + SQL <b>18개 중 11개</b> 문장</td>
       <td><strong>필수</strong></td>
     </tr>
     <tr>
       <td>2</td><td class="mono">src/mapper/InstitutionMapper.xml</td>
-      <td><code>resultMap</code> 4행 + SQL 7개 문장의 컬럼명</td>
+      <td><code>resultMap</code> 4행 중 3행 + SQL <b>7개 중 6개</b> 문장</td>
       <td><strong>필수</strong></td>
     </tr>
     <tr>
@@ -307,7 +307,7 @@
 <table>
   <thead><tr><th>대상</th><th>상태</th></tr></thead>
   <tbody>
-    <tr><td class="mono">src/com/kb/uploader/**.java</td><td>자바 소스 <strong>전부 무변경</strong></td></tr>
+    <tr><td class="mono">src/com/kb/uploader/**.java</td><td>자바 소스 <strong>전부 무변경</strong> — 매퍼 XML 은 <strong>바뀌었습니다</strong>(3절 1·2번). 헷갈리기 쉬운 자리입니다</td></tr>
     <tr><td class="mono">src/templates/*.html</td><td>화면 전부 무변경</td></tr>
     <tr><td class="mono">&lt;DOMAIN_HOME&gt;\config\application.properties</td><td>무변경</td></tr>
     <tr><td class="mono">WebContent/WEB-INF/web.xml · weblogic.xml</td><td>무변경</td></tr>
@@ -458,6 +458,8 @@ SELECT sequence_name FROM user_sequences WHERE sequence_name IN ('UPLOADED_FILE_
 </p>
 
 <footer>
+  <strong>부속 문서</strong>: 매퍼 XML 의 전·후를 문장 단위로 본 것은
+  <code>내부망작업지시_2026-09-08_매퍼변경상세.pdf</code> 에 있습니다.<br><br>
   uploader 컬럼명 변경 작업 지시서 · 2026-09-08 작성 ·
   근거 파일: <code>uploader/src/main/resources/schema-oracle.sql</code> ·
   <code>mapper/UploadedFileMapper.xml</code> · <code>mapper/InstitutionMapper.xml</code> ·
