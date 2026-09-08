@@ -1,5 +1,6 @@
 package com.kb.uploader.service;
 
+import java.time.LocalDateTime;
 import com.kb.uploader.code.SystemUser;
 import com.kb.uploader.domain.Institution;
 import com.kb.uploader.domain.UploadedFile;
@@ -40,6 +41,8 @@ public class ClassificationService {
                 source, inst.get().getCategory(), file.getYear(), file.getInstitutionName());
             file.classify(inst.get().getCategory(), dest.toString());
             file.setSystemUserNo(SystemUser.get());
+            file.setSystemUsedAt(
+                    file.getClassifiedAt() != null ? file.getClassifiedAt() : LocalDateTime.now());
             fileMapper.update(file);
             return true;
         } catch (Exception e) {

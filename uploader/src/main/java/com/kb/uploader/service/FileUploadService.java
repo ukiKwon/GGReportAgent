@@ -50,6 +50,7 @@ public class FileUploadService {
                             (yearOverride != null && !yearOverride.trim().isEmpty()) ? yearOverride.trim() : null,
                             hasOverride ? instOverride.trim() : "알수없음");
                     entity.setSystemUserNo(SystemUser.get());
+                    entity.setSystemUsedAt(entity.getUploadedAt());
                     fileMapper.insert(entity);
                     if (hasOverride) {
                         boolean ok = classificationService.classify(entity);
@@ -67,6 +68,7 @@ public class FileUploadService {
                 UploadedFile entity = new UploadedFile(
                         originalName, saved.toString(), p.getYear(), p.getInstitutionName());
                 entity.setSystemUserNo(SystemUser.get());
+                    entity.setSystemUsedAt(entity.getUploadedAt());
                     fileMapper.insert(entity);
 
                 boolean ok = classificationService.classify(entity);

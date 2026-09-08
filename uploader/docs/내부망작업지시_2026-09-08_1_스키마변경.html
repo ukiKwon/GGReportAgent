@@ -70,7 +70,7 @@
     사내 DB 표준(<strong>테이블은 코드, 컬럼은 한글, 타입은 인포타입</strong>)에 맞춰
     스키마를 확정했습니다. 표준과 자바가 부딪히는 두 곳은 <strong>TypeHandler 3개</strong>로
     흡수해 화면·도메인은 그대로 두었습니다. 내부망에서 할 일은
-    <strong>파일 14개 반영 → DBA 제출 → 테이블 생성 → 확인</strong> 네 단계입니다.
+    <strong>파일 27개 반영 → DBA 제출 → 테이블 생성 → 확인</strong> 네 단계입니다.
   </p>
 </header>
 
@@ -134,13 +134,15 @@
   <tbody>
     <tr><td>1</td><td class="old">ID</td><td class="new">업로드파일일련번호</td><td class="mono">동일</td><td class="mono">일련번호16</td><td class="mono">DECIMAL(16)</td><td class="mono">NOT NULL</td></tr>
     <tr><td>2</td><td class="old">INSTITUTION_NAME</td><td class="new">기관명</td><td class="mono">동일</td><td class="mono">명40</td><td class="mono">VARCHAR(40)</td><td class="mono">NULLABLE</td></tr>
-    <tr><td>3</td><td class="old">CATEGORY</td><td class="new">기관영업분류코드</td><td class="mono">동일</td><td class="mono">코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NULLABLE</td></tr>
+    <tr><td>3</td><td class="old">CATEGORY</td><td class="new">기관영업분류구분</td><td class="mono">기관영업분류구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NULLABLE</td></tr>
     <tr><td>4</td><td class="old">FILE_YEAR</td><td class="new">문서년</td><td class="mono">동일</td><td class="mono">년4</td><td class="mono">CHARACTER(4)</td><td class="mono">NULLABLE</td></tr>
     <tr><td>5</td><td class="old">STATUS</td><td class="new">분류상태구분</td><td class="mono">분류상태구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NOT NULL</td></tr>
     <tr><td>6</td><td class="old">ORIGINAL_NAME</td><td class="new">원본파일명</td><td class="mono">동일</td><td class="mono">명260</td><td class="mono">VARCHAR(260)</td><td class="mono">NOT NULL</td></tr>
     <tr><td>7</td><td class="old">UPLOADED_AT</td><td class="new">업로드일시</td><td class="mono">동일</td><td class="mono">일시14</td><td class="mono">CHARACTER(14)</td><td class="mono">NOT NULL</td></tr>
     <tr><td>8</td><td class="old">CLASSIFIED_AT</td><td class="new">분류일시</td><td class="mono">동일</td><td class="mono">일시14</td><td class="mono">CHARACTER(14)</td><td class="mono">NULLABLE</td></tr>
-    <tr><td>9</td><td class="old">STORED_PATH</td><td class="new">저장경로</td><td class="mono">저장경로내용</td><td class="mono">내용600</td><td class="mono">VARCHAR(600)</td><td class="mono">NOT NULL</td></tr>
+    <tr><td>9</td><td class="old">STORED_PATH</td><td class="new">저장경로내용</td><td class="mono">동일</td><td class="mono">내용600</td><td class="mono">VARCHAR(600)</td><td class="mono">NOT NULL</td></tr>
+    <tr><td>10</td><td class="old">—</td><td class="new">시스템사용일시</td><td class="mono">동일</td><td class="mono">일시14</td><td class="mono">CHARACTER(14)</td><td class="mono">NULLABLE</td></tr>
+    <tr><td>11</td><td class="old">—</td><td class="new">시스템사용자번호</td><td class="mono">동일</td><td class="mono">사용자번호7</td><td class="mono">CHARACTER(7)</td><td class="mono">NULLABLE</td></tr>
   </tbody>
 </table>
 
@@ -154,12 +156,13 @@
   <tbody>
     <tr><td>1</td><td class="old">ID</td><td class="new">기관일련번호</td><td class="mono">동일</td><td class="mono">일련번호16</td><td class="mono">DECIMAL(16)</td><td class="mono">NOT NULL</td></tr>
     <tr><td>2</td><td class="old">NAME</td><td class="new">기관명</td><td class="mono">동일</td><td class="mono">명40</td><td class="mono">VARCHAR(40)</td><td class="mono">NOT NULL</td></tr>
-    <tr><td>3</td><td class="old">CATEGORY</td><td class="new">기관영업분류코드</td><td class="mono">동일</td><td class="mono">코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NOT NULL</td></tr>
+    <tr><td>3</td><td class="old">CATEGORY</td><td class="new">기관영업분류구분</td><td class="mono">기관영업분류구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NOT NULL</td></tr>
     <tr><td>4</td><td class="old">—</td><td class="new">협약기관상태구분</td><td class="mono">협약기관상태구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NULLABLE</td></tr>
-    <tr><td>5</td><td class="old">—</td><td class="new">입찰공고상태</td><td class="mono">입찰공고상태구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NULLABLE</td></tr>
-    <tr><td>6</td><td class="old">—</td><td class="new">입찰공고시작</td><td class="mono">입찰공고시작년월일</td><td class="mono">년월일8</td><td class="mono">CHARACTER(8)</td><td class="mono">NULLABLE</td></tr>
-    <tr><td>7</td><td class="old">—</td><td class="new">입찰공고마감</td><td class="mono">입찰공고마감년월일</td><td class="mono">년월일8</td><td class="mono">CHARACTER(8)</td><td class="mono">NULLABLE</td></tr>
-    <tr><td>8</td><td class="old">MODIFIED_AT</td><td class="new">수정일시</td><td class="mono">동일</td><td class="mono">일시14</td><td class="mono">CHARACTER(14)</td><td class="mono">NOT NULL</td></tr>
+    <tr><td>5</td><td class="old">—</td><td class="new">입찰공고상태구분</td><td class="mono">입찰공고상태구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NULLABLE</td></tr>
+    <tr><td>6</td><td class="old">—</td><td class="new">입찰공고시작년월일</td><td class="mono">동일</td><td class="mono">년월일8</td><td class="mono">CHARACTER(8)</td><td class="mono">NULLABLE</td></tr>
+    <tr><td>7</td><td class="old">—</td><td class="new">입찰공고마감년월일</td><td class="mono">동일</td><td class="mono">년월일8</td><td class="mono">CHARACTER(8)</td><td class="mono">NULLABLE</td></tr>
+    <tr><td>8</td><td class="old">MODIFIED_AT</td><td class="new">시스템사용일시</td><td class="mono">동일</td><td class="mono">일시14</td><td class="mono">CHARACTER(14)</td><td class="mono">NOT NULL</td></tr>
+    <tr><td>9</td><td class="old">—</td><td class="new">시스템사용자번호</td><td class="mono">동일</td><td class="mono">사용자번호7</td><td class="mono">CHARACTER(7)</td><td class="mono">NULLABLE</td></tr>
   </tbody>
 </table>
 
@@ -207,55 +210,90 @@
   </p>
 </div>
 
-<h2 class="pb"><span class="n">3</span>내부망에서 반영할 파일 — 14개</h2>
+<h2 class="pb"><span class="n">3</span>내부망에서 반영할 파일 — 27개</h2>
 
 <p>WTP 폴더 기준 경로입니다. ⚠️ WTP는 <code>src/</code>가 <strong>평면</strong>이라
    리포의 <code>src/main/java/…</code>·<code>src/main/resources/…</code> 가 모두 <code>src/</code> 아래로 들어갑니다.</p>
 
-<h3>신규 6개 — 자바 (TypeHandler와 코드표)</h3>
+<div class="box alert">
+  <div class="h">이번엔 자바가 크게 바뀝니다 — 감사 컬럼 때문입니다</div>
+  <p>
+    지금까지의 이름 변경은 <code>resultMap</code> 덕분에 자바에 닿지 않았습니다.
+    그런데 <b><code>시스템사용자번호</code>는 "이 데이터를 넣게 만든 주체"</b>라
+    <b>화면번호를 매퍼까지 흘려보내야</b> 하는데, <b>매퍼는 어느 화면에서 불렸는지 모릅니다.</b>
+  </p>
+  <p style="margin-top:6px">
+    해법은 <b>컨트롤러 클래스명</b>입니다 — <code>KGI11100$UploadAction</code> 이 이미
+    화면번호를 담고 있어 거기서 자동으로 뽑습니다(앞 <code>K</code> 를 뗀 7자).
+    <b>화면이 늘어도 손댈 곳이 없습니다.</b>
+  </p>
+</div>
+
+<h3>신규 9개 — 자바</h3>
 <table>
   <thead><tr><th>WTP 경로</th><th>무엇</th></tr></thead>
   <tbody>
-    <tr><td class="mono">src/com/kb/uploader/code/InstitutionCategory.java</td><td>기관영업분류코드 코드↔이름. <b>카테고리 목록의 유일한 출처</b></td></tr>
+    <tr><td class="mono">src/com/kb/uploader/code/InstitutionCategory.java</td><td>기관영업분류 코드↔이름. <b>화면 드롭다운의 유일한 출처</b></td></tr>
     <tr><td class="mono">src/com/kb/uploader/code/ClassificationStatus.java</td><td>분류상태 코드↔값</td></tr>
+    <tr><td class="mono">src/com/kb/uploader/code/SystemUser.java</td><td><b>화면번호 도출 + ThreadLocal</b>. 배치는 <code>BATCH01</code></td></tr>
     <tr><td class="mono">src/com/kb/uploader/config/CodeTypeHandler.java</td><td>코드 변환 공통 뼈대(추상)</td></tr>
     <tr><td class="mono">src/com/kb/uploader/config/InstitutionCategoryTypeHandler.java</td><td>지방자치단체 ↔ '01'</td></tr>
     <tr><td class="mono">src/com/kb/uploader/config/ClassificationStatusTypeHandler.java</td><td>UNCLASSIFIED ↔ '01'</td></tr>
     <tr><td class="mono">src/com/kb/uploader/config/LocalDateTimeStringTypeHandler.java</td><td>LocalDateTime ↔ '20260908103000'</td></tr>
+    <tr><td class="mono">src/com/kb/uploader/config/SystemUserInterceptor.java</td><td>요청마다 화면번호를 넣고 <b>끝나면 지움</b></td></tr>
+    <tr><td class="mono">src/com/kb/uploader/config/WebMvcConfig.java</td><td>인터셉터 등록</td></tr>
   </tbody>
 </table>
 
-<h3>수정 8개</h3>
+<h3>수정 18개</h3>
 <table>
   <thead><tr><th>WTP 경로</th><th>무엇이 바뀌나</th></tr></thead>
   <tbody>
-    <tr><td class="mono">src/mapper/UploadedFileMapper.xml</td><td>테이블·컬럼명 전부 + TypeHandler 지정 + 코드 리터럴 + 정렬</td></tr>
-    <tr><td class="mono">src/mapper/InstitutionMapper.xml</td><td>테이블·컬럼명 전부 + TypeHandler 지정</td></tr>
+    <tr><td class="mono">src/mapper/UploadedFileMapper.xml</td><td>테이블·컬럼명 전부 + TypeHandler + 코드 리터럴 + <b>감사 2열</b></td></tr>
+    <tr><td class="mono">src/mapper/InstitutionMapper.xml</td><td>같음</td></tr>
     <tr><td class="mono">src/schema-oracle.sql</td><td><b>DBA 전달용</b> — 새 DDL</td></tr>
     <tr><td class="mono">src/schema-mysql.sql</td><td>미러(내부망 미사용이나 같이 옮길 것)</td></tr>
+    <tr><td class="mono">src/com/kb/uploader/domain/UploadedFile.java</td><td><code>systemUserNo</code>·<code>systemUsedAt</code> 필드 추가</td></tr>
+    <tr><td class="mono">src/com/kb/uploader/domain/Institution.java</td><td><code>systemUserNo</code> 필드 추가</td></tr>
+    <tr><td class="mono">src/com/kb/uploader/mapper/UploadedFileMapper.java</td><td><code>softDeleteById</code>·<code>rejectById</code> 에 파라미터 2개 추가</td></tr>
+    <tr><td class="mono">src/com/kb/uploader/service/FileUploadService.java</td><td>쓰기 직전 감사 값 세팅</td></tr>
+    <tr><td class="mono">src/com/kb/uploader/service/ClassificationService.java</td><td>같음</td></tr>
+    <tr><td class="mono">src/com/kb/uploader/service/InstitutionService.java</td><td>같음(3자리)</td></tr>
+    <tr><td class="mono">src/com/kb/uploader/job/ReclassificationJob.java</td><td><code>BATCH01</code> 세팅 + <code>finally</code> 에서 해제</td></tr>
+    <tr><td class="mono">src/com/kb/uploader/controller/KGI12100$FileStatusClassify.java</td><td>감사 값 세팅</td></tr>
+    <tr><td class="mono">src/com/kb/uploader/controller/KGI12200$FileStatusDelete.java</td><td>매퍼 호출에 인자 2개 추가</td></tr>
+    <tr><td class="mono">src/com/kb/uploader/controller/KGI12300$FileStatusReject.java</td><td>같음</td></tr>
     <tr><td class="mono">src/com/kb/uploader/controller/KGI12000$FileStatusList.java</td><td>카테고리 목록 하드코딩 제거</td></tr>
     <tr><td class="mono">src/com/kb/uploader/controller/KGI12400$ClassifiedFileList.java</td><td>같음(복제였음)</td></tr>
     <tr><td class="mono">src/com/kb/uploader/controller/KGI13000$InstitutionList.java</td><td>화면에 카테고리 목록 전달</td></tr>
-    <tr><td class="mono">src/templates/institution.html</td><td>옛 4종 <code>&lt;option&gt;</code> 하드코딩 제거</td></tr>
+    <tr><td class="mono">src/templates/institution.html</td><td>옛 4종 <code>&lt;option&gt;</code> 제거</td></tr>
   </tbody>
 </table>
-
-<div class="box alert">
-  <div class="h">카테고리 목록이 세 곳에 복제돼 있었습니다 — 그래서 함께 고쳤습니다</div>
-  <p>
-    두 컨트롤러와 <code>institution.html</code> 에 <b>옛 4종</b>(지자체·대학교·대학병원·공공기관)이
-    각각 박혀 있었습니다. 새 5종과 다르므로 그대로 두면 <b>TypeHandler 가 “코드로 옮길 수 없는
-    값”이라며 기관 등록을 거부</b>합니다. 이제 목록은 <code>InstitutionCategory.java</code>
-    한 곳에만 있습니다.
-  </p>
-</div>
 
 <div class="box info">
   <div class="h">zip을 다시 반입할 필요는 없습니다</div>
   <p>
-    <code>WEB-INF/lib</code> 의 jar 57개는 <b>하나도 바뀌지 않았습니다.</b> 위 14개는
-    전부 텍스트 파일입니다. 다만 <b>자바가 6개 늘었으므로 Eclipse 컴파일이 필요합니다</b>
-    (Project → Clean).
+    <code>WEB-INF/lib</code> 의 jar 57개는 <b>하나도 바뀌지 않았습니다.</b>
+    27개 모두 텍스트 파일입니다. 다만 <b>자바가 늘고 바뀌었으므로 컴파일이 필요합니다</b>
+    (Project → Clean). 신규 폴더 <code>src/com/kb/uploader/code/</code> 가 생깁니다.
+  </p>
+</div>
+
+<div class="box warn">
+  <div class="h">감사 2열이 채워지는 규칙</div>
+  <table style="margin:6px 0 0">
+    <thead><tr><th>쓰기</th><th>시스템사용일시</th><th>시스템사용자번호</th></tr></thead>
+    <tbody>
+      <tr><td>업로드</td><td><code>업로드일시</code>와 같은 값</td><td class="mono">GI11100</td></tr>
+      <tr><td>분류</td><td><code>분류일시</code>와 같은 값<br>(분류일시가 없으면 그 시점 시각)</td><td class="mono">GI12100 · GI12400</td></tr>
+      <tr><td>삭제 · 반려</td><td>그 시점 시각</td><td class="mono">GI12200 · GI12300</td></tr>
+      <tr><td>기관 등록·수정</td><td><code>수정일시</code> 자리 그대로</td><td class="mono">GI13100 · GI13400 · GI13410</td></tr>
+      <tr><td>재분류 배치</td><td>그 시점 시각</td><td class="mono">BATCH01</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:8px">
+    ⚠️ 값이 <code>null</code> 이면 컬럼이 NULLABLE 이라 기동은 되지만 <b>"누가 넣었는지 모르는 행"</b>이 됩니다.
+    새 쓰기 경로를 만들 때 컨텍스트가 세팅되는지 확인하십시오.
   </p>
 </div>
 
@@ -275,7 +313,7 @@
   </li>
   <li>
     <strong>DBA 에게 제출한다</strong><br>
-    엑셀 <code>DBA제출_컬럼정의_2026-09-08.xlsx</code> (컬럼 <b>17행</b>) —
+    엑셀 <code>DBA제출_컬럼정의_2026-09-08.xlsx</code> (컬럼 <b>20행</b>) —
     메타시스템 업로드용입니다. 테이블 2개는 직접 등록하시고,
     시퀀스·인덱스는 아래 6절 DDL 을 함께 전달하십시오.
   </li>
@@ -343,43 +381,45 @@
 CREATE TABLE TSKGIAF01 (
     업로드파일일련번호  DECIMAL(16)        NOT NULL,
     기관명              VARCHAR2(40 CHAR),
-    기관영업분류코드            VARCHAR2(2 CHAR),                              <span class="c">-- 01~05</span>
+    기관영업분류구분    VARCHAR2(2 CHAR),                          <span class="c">-- 01~05</span>
     문서년              VARCHAR2(4 CHAR),
-    분류상태구분        VARCHAR2(2 CHAR)   DEFAULT '01' NOT NULL,      <span class="c">-- 01~04</span>
+    분류상태구분        VARCHAR2(2 CHAR)   DEFAULT '01' NOT NULL,  <span class="c">-- 01~04</span>
     원본파일명          VARCHAR2(260 CHAR) NOT NULL,
-    업로드일시          VARCHAR2(14 CHAR)  NOT NULL,                   <span class="c">-- YYYYMMDDHH24MISS</span>
+    업로드일시          VARCHAR2(14 CHAR)  NOT NULL,               <span class="c">-- YYYYMMDDHH24MISS · 업무 시각</span>
     분류일시            VARCHAR2(14 CHAR),
-    저장경로            VARCHAR2(600 CHAR) NOT NULL,
+    저장경로내용        VARCHAR2(600 CHAR) NOT NULL,
+    시스템사용일시      VARCHAR2(14 CHAR),                         <span class="c">-- 감사 시각</span>
+    시스템사용자번호    CHAR(7),                                   <span class="c">-- GI11100 / BATCH01</span>
     CONSTRAINT PK_TSKGIAF01 PRIMARY KEY (업로드파일일련번호),
-    CONSTRAINT CK_TSKGIAF01_분류상태 CHECK (분류상태구분 IN ('01', '02', '03', '04'))
+    CONSTRAINT CK_TSKGIAF01_분류상태 CHECK (분류상태구분 IN ('01','02','03','04'))
 );
 
-<span class="c">-- ── 기관 (기관명 → 기관영업분류코드 매핑표) ─────────────────</span>
+<span class="c">-- ── 기관 ────────────────────────────────────────────</span>
 CREATE TABLE TSKGIAF02 (
     기관일련번호        DECIMAL(16)       NOT NULL,
     기관명              VARCHAR2(40 CHAR) NOT NULL,
-    기관영업분류코드            VARCHAR2(2 CHAR)  NOT NULL,   <span class="c">-- 01~05</span>
-    협약기관상태구분    VARCHAR2(2 CHAR),             <span class="c">-- 01 미협약 / 02 협약  (앱 미사용)</span>
-    입찰공고상태        VARCHAR2(2 CHAR),             <span class="c">-- 01 공고전 / 02 공고중 / 03 공고완료  (앱 미사용)</span>
-    입찰공고시작        VARCHAR2(8 CHAR),             <span class="c">-- YYYYMMDD  (앱 미사용)</span>
-    입찰공고마감        VARCHAR2(8 CHAR),             <span class="c">-- YYYYMMDD  (앱 미사용)</span>
-    수정일시            VARCHAR2(14 CHAR) NOT NULL,
+    기관영업분류구분    VARCHAR2(2 CHAR)  NOT NULL,
+    협약기관상태구분    VARCHAR2(2 CHAR),              <span class="c">-- 01 미협약 / 02 협약     (앱 미사용)</span>
+    입찰공고상태구분    VARCHAR2(2 CHAR),              <span class="c">-- 01 공고전 / 02 공고중 / 03 공고완료</span>
+    입찰공고시작년월일  VARCHAR2(8 CHAR),              <span class="c">-- YYYYMMDD               (앱 미사용)</span>
+    입찰공고마감년월일  VARCHAR2(8 CHAR),              <span class="c">-- YYYYMMDD               (앱 미사용)</span>
+    시스템사용일시      VARCHAR2(14 CHAR) NOT NULL,    <span class="c">-- 옛 수정일시가 이 이름으로</span>
+    시스템사용자번호    CHAR(7),
     CONSTRAINT PK_TSKGIAF02 PRIMARY KEY (기관일련번호),
     CONSTRAINT UK_TSKGIAF02_기관명 UNIQUE (기관명)
 );
 
 <span class="c">-- ── 시퀀스 (이름 변경 불가 — 매퍼가 그대로 부른다) ──</span>
-CREATE SEQUENCE SQ_KGI_AGENTFILETABLE START WITH 1 INCREMENT BY 1 NOCACHE;
-CREATE SEQUENCE SQ_KGI_AGENTGIGANTABLE START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SQ_KGI_AGENTFILETABLE  START WITH 1 INCREMENT BY 1 NOCACHE;  <span class="c">-- TSKGIAF01 용</span>
+CREATE SEQUENCE SQ_KGI_AGENTGIGANTABLE START WITH 1 INCREMENT BY 1 NOCACHE;  <span class="c">-- TSKGIAF02 용</span>
 
-<span class="c">-- ── 인덱스 2개 (이름은 25·28바이트 — 11g 상한 30) ───
---   열 순서가 전부다. 각각 필터와 정렬을 함께 받는다.</span>
+<span class="c">-- ── 인덱스 2개 (25·28바이트 — 11g 상한 30) ──────────</span>
 CREATE INDEX IX_TSKGIAF01_기관명일시 ON TSKGIAF01 (기관명, 업로드일시);
 CREATE INDEX IX_TSKGIAF01_분류상태   ON TSKGIAF01 (분류상태구분, 업로드파일일련번호);
 
 <span class="c">-- ── 재설치용 (필요할 때만) ──────────────────────────
 --   DROP SEQUENCE SQ_KGI_AGENTFILETABLE;  DROP SEQUENCE SQ_KGI_AGENTGIGANTABLE;
---   DROP TABLE TSKGIAF01 PURGE;   DROP TABLE TSKGIAF02 PURGE;</span>
+--   DROP TABLE TSKGIAF01 PURGE;           DROP TABLE TSKGIAF02 PURGE;</span>
 
 <span class="c">-- ── 적용 확인 (합계 4건) ────────────────────────────</span>
 SELECT table_name    FROM user_tables    WHERE table_name    IN ('TSKGIAF01', 'TSKGIAF02');
