@@ -3,36 +3,39 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <!--
-  ⚠️ **2026-09-08 에 컬럼명이 전부 바뀌었다.** 자바 필드명(property)은 그대로이고
-     DB 컬럼명(column)만 바뀌었다 — 아래 resultMap 이 둘을 잇는다.
+  ⚠️ **2026-09-08 — 테이블·컬럼 이름이 전부 바뀌었다** (사내 DB 표준: 컬럼은 한글,
+     테이블은 코드). 자바 필드명(property)은 그대로이고 DB 쪽 이름만 바뀌었다 —
+     아래 resultMap 이 둘을 잇는다.
+
+       UPLOADED_FILE → **TSKGIAF01**       시퀀스 → TSKGIAF01_SEQ
 
        property        →  column
-       id              →  UPLOADED_FILE_ID
-       originalName    →  ORIGINAL_FILE_NAME
-       storedPath      →  STORED_FILE_PATH
-       year            →  DOCUMENT_YEAR
-       institutionName →  INSTITUTION_NAME
-       category        →  INSTITUTION_CATEGORY
-       status          →  CLASSIFICATION_STATUS
-       uploadedAt      →  UPLOADED_AT
-       classifiedAt    →  CLASSIFIED_AT
+       id              →  업로드파일ID
+       originalName    →  원본파일명
+       storedPath      →  저장경로
+       year            →  문서연도
+       institutionName →  기관명
+       category        →  기관분류
+       status          →  분류상태
+       uploadedAt      →  업로드일시
+       classifiedAt    →  분류일시
 
      `mybatis.configuration.map-underscore-to-camel-case=true` 가 켜져 있지만
      이 매퍼는 **resultMap 으로 명시 매핑**하므로 그 규칙에 기대지 않는다
-     (`UPLOADED_FILE_ID` → `uploadedFileId` 로 자동 변환돼도 무시된다).
+     (`업로드파일ID` → `uploadedFileId` 로 자동 변환돼도 무시된다).
 -->
 <mapper namespace="com.kb.uploader.mapper.UploadedFileMapper">
 
   <resultMap id="uploadedFileMap" type="UploadedFile">
-    <id     property="id"              column="UPLOADED_FILE_ID"/>
-    <result property="originalName"    column="ORIGINAL_FILE_NAME"/>
-    <result property="storedPath"      column="STORED_FILE_PATH"/>
-    <result property="year"            column="DOCUMENT_YEAR"/>
-    <result property="institutionName" column="INSTITUTION_NAME"/>
-    <result property="category"        column="INSTITUTION_CATEGORY"/>
-    <result property="status"          column="CLASSIFICATION_STATUS"/>
-    <result property="uploadedAt"      column="UPLOADED_AT"/>
-    <result property="classifiedAt"    column="CLASSIFIED_AT"/>
+    <id     property="id"              column="업로드파일ID"/>
+    <result property="originalName"    column="원본파일명"/>
+    <result property="storedPath"      column="저장경로"/>
+    <result property="year"            column="문서연도"/>
+    <result property="institutionName" column="기관명"/>
+    <result property="category"        column="기관분류"/>
+    <result property="status"          column="분류상태"/>
+    <result property="uploadedAt"      column="업로드일시"/>
+    <result property="classifiedAt"    column="분류일시"/>
   </resultMap>
 
   <!--
@@ -43,116 +46,116 @@
 
   <!-- MySQL: useGeneratedKeys로 AUTO_INCREMENT id 채움 -->
   <insert id="insert" databaseId="mysql" useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO UPLOADED_FILE
-    (ORIGINAL_FILE_NAME, STORED_FILE_PATH, DOCUMENT_YEAR, INSTITUTION_NAME,
-     INSTITUTION_CATEGORY, CLASSIFICATION_STATUS, UPLOADED_AT)
+    INSERT INTO TSKGIAF01
+    (원본파일명, 저장경로, 문서연도, 기관명,
+     기관분류, 분류상태, 업로드일시)
     VALUES
     (#{originalName}, #{storedPath}, #{year}, #{institutionName},
      #{category}, #{status}, #{uploadedAt})
   </insert>
-  <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 UPLOADED_FILE_SEQ) -->
+  <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 TSKGIAF01_SEQ) -->
   <insert id="insert" databaseId="oracle">
     <selectKey keyProperty="id" resultType="long" order="BEFORE">
-      SELECT UPLOADED_FILE_SEQ.NEXTVAL FROM DUAL
+      SELECT TSKGIAF01_SEQ.NEXTVAL FROM DUAL
     </selectKey>
-    INSERT INTO UPLOADED_FILE
-      (UPLOADED_FILE_ID, ORIGINAL_FILE_NAME, STORED_FILE_PATH, DOCUMENT_YEAR,
-       INSTITUTION_NAME, INSTITUTION_CATEGORY, CLASSIFICATION_STATUS, UPLOADED_AT)
+    INSERT INTO TSKGIAF01
+      (업로드파일ID, 원본파일명, 저장경로, 문서연도,
+       기관명, 기관분류, 분류상태, 업로드일시)
     VALUES
       (#{id}, #{originalName}, #{storedPath}, #{year},
        #{institutionName}, #{category}, #{status}, #{uploadedAt})
   </insert>
 
   <update id="update">
-    UPDATE UPLOADED_FILE
+    UPDATE TSKGIAF01
     SET
-    STORED_FILE_PATH      = #{storedPath},
-    INSTITUTION_NAME      = #{institutionName},
-    DOCUMENT_YEAR         = #{year},
-    INSTITUTION_CATEGORY  = #{category},
-    CLASSIFICATION_STATUS = #{status},
-    CLASSIFIED_AT         = #{classifiedAt}
-    WHERE UPLOADED_FILE_ID = #{id}
+    저장경로  = #{storedPath},
+    기관명    = #{institutionName},
+    문서연도  = #{year},
+    기관분류  = #{category},
+    분류상태  = #{status},
+    분류일시  = #{classifiedAt}
+    WHERE 업로드파일ID = #{id}
   </update>
 
   <update id="softDeleteById">
-    UPDATE UPLOADED_FILE SET CLASSIFICATION_STATUS = 'DELETED' WHERE UPLOADED_FILE_ID = #{id}
+    UPDATE TSKGIAF01 SET 분류상태 = 'DELETED' WHERE 업로드파일ID = #{id}
   </update>
 
   <update id="rejectById">
-    UPDATE UPLOADED_FILE SET CLASSIFICATION_STATUS = 'REJECTED' WHERE UPLOADED_FILE_ID = #{id}
+    UPDATE TSKGIAF01 SET 분류상태 = 'REJECTED' WHERE 업로드파일ID = #{id}
   </update>
 
   <select id="findById" resultMap="uploadedFileMap">
-    SELECT * FROM UPLOADED_FILE WHERE UPLOADED_FILE_ID = #{id}
+    SELECT * FROM TSKGIAF01 WHERE 업로드파일ID = #{id}
   </select>
 
   <select id="findByStatus" resultMap="uploadedFileMap">
-    SELECT * FROM UPLOADED_FILE WHERE CLASSIFICATION_STATUS = #{status}
+    SELECT * FROM TSKGIAF01 WHERE 분류상태 = #{status}
   </select>
 
   <select id="findClassifiedByUnknownInstitution" resultMap="uploadedFileMap">
-    SELECT * FROM UPLOADED_FILE
-    WHERE INSTITUTION_NAME = '알수없음' AND CLASSIFICATION_STATUS = 'CLASSIFIED'
-    ORDER BY UPLOADED_AT DESC
+    SELECT * FROM TSKGIAF01
+    WHERE 기관명 = '알수없음' AND 분류상태 = 'CLASSIFIED'
+    ORDER BY 업로드일시 DESC
   </select>
 
   <select id="countAll" resultType="long">
-    SELECT COUNT(*) FROM UPLOADED_FILE
+    SELECT COUNT(*) FROM TSKGIAF01
   </select>
 
   <select id="countByStatus" resultType="long">
-    SELECT COUNT(*) FROM UPLOADED_FILE WHERE CLASSIFICATION_STATUS = #{status}
+    SELECT COUNT(*) FROM TSKGIAF01 WHERE 분류상태 = #{status}
   </select>
 
   <!-- MySQL: LIMIT -->
   <select id="findRecent" databaseId="mysql" resultMap="uploadedFileMap">
-    SELECT * FROM UPLOADED_FILE ORDER BY UPLOADED_AT DESC LIMIT #{limit}
+    SELECT * FROM TSKGIAF01 ORDER BY 업로드일시 DESC LIMIT #{limit}
   </select>
   <!-- Oracle: ROWNUM 은 ORDER BY 보다 먼저 매겨지므로 정렬을 인라인 뷰로 감싼다 -->
   <select id="findRecent" databaseId="oracle" resultMap="uploadedFileMap">
     SELECT * FROM (
-      SELECT * FROM UPLOADED_FILE ORDER BY UPLOADED_AT DESC
+      SELECT * FROM TSKGIAF01 ORDER BY 업로드일시 DESC
     ) WHERE ROWNUM &lt;= #{limit}
   </select>
 
   <!-- MySQL: LIMIT ... OFFSET -->
   <select id="findByInstitutionNameContaining" databaseId="mysql" resultMap="uploadedFileMap">
-    SELECT * FROM UPLOADED_FILE
-    WHERE INSTITUTION_NAME LIKE CONCAT('%', #{keyword}, '%')
-    ORDER BY UPLOADED_AT DESC
+    SELECT * FROM TSKGIAF01
+    WHERE 기관명 LIKE CONCAT('%', #{keyword}, '%')
+    ORDER BY 업로드일시 DESC
     LIMIT #{limit} OFFSET #{offset}
   </select>
   <!-- Oracle: ROWNUM 2단 중첩 페이징. 안쪽에서 상한, 바깥에서 하한을 건다 -->
   <select id="findByInstitutionNameContaining" databaseId="oracle" resultMap="uploadedFileMap">
     SELECT * FROM (
       SELECT a.*, ROWNUM RN FROM (
-        SELECT * FROM UPLOADED_FILE
-        WHERE INSTITUTION_NAME LIKE '%' || #{keyword} || '%'
-        ORDER BY UPLOADED_AT DESC
+        SELECT * FROM TSKGIAF01
+        WHERE 기관명 LIKE '%' || #{keyword} || '%'
+        ORDER BY 업로드일시 DESC
       ) a WHERE ROWNUM &lt;= #{offset} + #{limit}
     ) WHERE RN &gt; #{offset}
   </select>
 
   <!-- MySQL: CONCAT -->
   <select id="countByInstitutionNameContaining" databaseId="mysql" resultType="long">
-    SELECT COUNT(*) FROM UPLOADED_FILE
-    WHERE INSTITUTION_NAME LIKE CONCAT('%', #{keyword}, '%')
+    SELECT COUNT(*) FROM TSKGIAF01
+    WHERE 기관명 LIKE CONCAT('%', #{keyword}, '%')
   </select>
   <!-- Oracle: || 로 연결 -->
   <select id="countByInstitutionNameContaining" databaseId="oracle" resultType="long">
-    SELECT COUNT(*) FROM UPLOADED_FILE
-    WHERE INSTITUTION_NAME LIKE '%' || #{keyword} || '%'
+    SELECT COUNT(*) FROM TSKGIAF01
+    WHERE 기관명 LIKE '%' || #{keyword} || '%'
   </select>
 
   <!-- MySQL: 다중 조건 검색 -->
   <select id="search" databaseId="mysql" resultMap="uploadedFileMap">
-    SELECT * FROM UPLOADED_FILE
+    SELECT * FROM TSKGIAF01
     WHERE
-    (#{institution} = '' OR INSTITUTION_NAME LIKE CONCAT('%', #{institution}, '%'))
-    AND (#{year} = '' OR DOCUMENT_YEAR = #{year})
-    AND (#{keyword} = '' OR ORIGINAL_FILE_NAME LIKE CONCAT('%', #{keyword}, '%'))
-    ORDER BY UPLOADED_AT DESC
+    (#{institution} = '' OR 기관명 LIKE CONCAT('%', #{institution}, '%'))
+    AND (#{year} = '' OR 문서연도 = #{year})
+    AND (#{keyword} = '' OR 원본파일명 LIKE CONCAT('%', #{keyword}, '%'))
+    ORDER BY 업로드일시 DESC
   </select>
   <!--
     Oracle: || 로 연결.
@@ -161,12 +164,12 @@
        (MySQL 쪽은 ''를 값으로 담으므로 `= ''` 가 맞다 — 그래서 문장이 갈린다.)
   -->
   <select id="search" databaseId="oracle" resultMap="uploadedFileMap">
-    SELECT * FROM UPLOADED_FILE
+    SELECT * FROM TSKGIAF01
     WHERE
-      (#{institution} IS NULL OR INSTITUTION_NAME LIKE '%' || #{institution} || '%')
-      AND (#{year} IS NULL OR DOCUMENT_YEAR = #{year})
-      AND (#{keyword} IS NULL OR ORIGINAL_FILE_NAME LIKE '%' || #{keyword} || '%')
-    ORDER BY UPLOADED_AT DESC
+      (#{institution} IS NULL OR 기관명 LIKE '%' || #{institution} || '%')
+      AND (#{year} IS NULL OR 문서연도 = #{year})
+      AND (#{keyword} IS NULL OR 원본파일명 LIKE '%' || #{keyword} || '%')
+    ORDER BY 업로드일시 DESC
   </select>
 
 </mapper>
