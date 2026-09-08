@@ -4,6 +4,9 @@ import java.time.LocalDateTime;
 
 public class UploadedFile {
 
+    /** 감사 컬럼 시스템사용자번호. 화면번호(앞 K 제외 7자) 또는 'BATCH01'. code/SystemUser 참조. */
+    private String systemUserNo;
+
     private Long id;
     private String originalName;
     private String storedPath;
@@ -55,4 +58,7 @@ public class UploadedFile {
     public void setUploadedAt(LocalDateTime uploadedAt) { this.uploadedAt = uploadedAt; }
     public LocalDateTime getClassifiedAt() { return classifiedAt; }
     public void setClassifiedAt(LocalDateTime classifiedAt) { this.classifiedAt = classifiedAt; }
+
+    public String getSystemUserNo() { return systemUserNo; }
+    public void setSystemUserNo(String systemUserNo) { this.systemUserNo = systemUserNo; }
 }

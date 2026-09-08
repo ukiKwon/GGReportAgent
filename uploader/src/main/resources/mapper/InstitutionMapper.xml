@@ -10,8 +10,9 @@
        property    →  컬럼명          인포타입
        id          →  기관일련번호     일련번호16 (DECIMAL)
        name        →  기관명          명40
-       category    →  기관영업분류코드  코드2       ★ TypeHandler
-       modifiedAt  →  수정일시        일시14      ★ TypeHandler
+       category    →  기관영업분류구분  코드2       ★ TypeHandler
+       modifiedAt  →  시스템사용일시   일시14      ★ TypeHandler (옛 수정일시)
+       systemUserNo →  시스템사용자번호 사용자번호7
 
   ★ TypeHandler 를 resultMap 과 `#{...}` **양쪽에** 적어야 한다. 한쪽만 적으면
     읽기나 쓰기 중 한 방향만 변환돼 조용히 어긋난다. 이유는 UploadedFileMapper 주석.
@@ -21,9 +22,9 @@
   <resultMap id="institutionMap" type="Institution">
     <id     property="id"         column="기관일련번호"/>
     <result property="name"       column="기관명"/>
-    <result property="category"   column="기관영업분류코드"
+    <result property="category"   column="기관영업분류구분"
             typeHandler="com.kb.uploader.config.InstitutionCategoryTypeHandler"/>
-    <result property="modifiedAt" column="수정일시"
+    <result property="modifiedAt" column="시스템사용일시"
             typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/>
   </resultMap>
 
@@ -40,23 +41,24 @@
 
   <!-- MySQL -->
   <insert id="insert" databaseId="mysql" useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO TSKGIAF02 (기관명, 기관영업분류코드, 수정일시)
-    VALUES (<include refid="값목록"/>)
+    INSERT INTO TSKGIAF02 (기관명, 기관영업분류구분, 시스템사용일시, 시스템사용자번호)
+    VALUES (<include refid="값목록"/>, #{systemUserNo})
   </insert>
   <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 SQ_KGI_AGENTGIGANTABLE) -->
   <insert id="insert" databaseId="oracle">
     <selectKey keyProperty="id" resultType="long" order="BEFORE">
       SELECT SQ_KGI_AGENTGIGANTABLE.NEXTVAL FROM DUAL
     </selectKey>
-    INSERT INTO TSKGIAF02 (기관일련번호, 기관명, 기관영업분류코드, 수정일시)
-    VALUES (#{id}, <include refid="값목록"/>)
+    INSERT INTO TSKGIAF02 (기관일련번호, 기관명, 기관영업분류구분, 시스템사용일시, 시스템사용자번호)
+    VALUES (#{id}, <include refid="값목록"/>, #{systemUserNo})
   </insert>
 
   <update id="update">
     UPDATE TSKGIAF02
     SET 기관명   = #{name},
-        기관영업분류코드 = #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
-        수정일시 = #{modifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}
+        기관영업분류구분 = #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+        시스템사용일시   = #{modifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+        시스템사용자번호 = #{systemUserNo}
     WHERE 기관일련번호 = #{id}
   </update>
 

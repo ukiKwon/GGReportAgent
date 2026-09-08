@@ -1,5 +1,6 @@
 package com.kb.uploader.controller;
 
+import com.kb.uploader.code.SystemUser;
 import com.kb.uploader.mapper.UploadedFileMapper;
 import com.kb.uploader.service.FileStorageService;
 import org.slf4j.Logger;
@@ -49,6 +50,7 @@ public class KGI12100$FileStatusClassify {
                         instName
                 );
                 file.classify(category, dest.toString());
+                file.setSystemUserNo(SystemUser.get());
                 fileMapper.update(file);
             } catch (Exception e) {
                 log.warn("수동 분류 처리 실패: {}", file.getOriginalName(), e);

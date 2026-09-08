@@ -1,5 +1,6 @@
 package com.kb.uploader.job;
 
+import com.kb.uploader.code.SystemUser;
 import com.kb.uploader.domain.UploadedFile;
 import com.kb.uploader.mapper.UploadedFileMapper;
 import com.kb.uploader.service.ClassificationService;
@@ -36,21 +37,29 @@ public class ReclassificationJob {
     }
 
     public void reclassify() {
-        List<UploadedFile> unclassified = fileMapper.findByStatus("UNCLASSIFIED");
-        if (unclassified.isEmpty()) {
-            log.debug("재분류할 파일 없음");
-            return;
-        }
-        int success = 0;
-        for (UploadedFile file : unclassified) {
-            try {
-                if (classificationService.classify(file)) {
-                    success++;
-                }
-            } catch (Exception e) {
-                log.warn("재처리 실패: {} — {}", file.getOriginalName(), e.getMessage());
+        // ⚠️ 배치는 컨트롤러가 없어 SystemUserInterceptor 가 안 돈다. 직접 넣고
+        //    finally 에서 반드시 지운다 — ThreadLocal 이라 안 지우면 그 스레드를
+        //    물려받은 다음 작업에 'BATCH01' 이 새어 나간다.
+        SystemUser.set(SystemUser.BATCH);
+        try {
+            List<UploadedFile> unclassified = fileMapper.findByStatus("UNCLASSIFIED");
+            if (unclassified.isEmpty()) {
+                log.debug("재분류할 파일 없음");
+                return;
             }
+            int success = 0;
+            for (UploadedFile file : unclassified) {
+                try {
+                    if (classificationService.classify(file)) {
+                        success++;
+                    }
+                } catch (Exception e) {
+                    log.warn("재처리 실패: {} — {}", file.getOriginalName(), e.getMessage());
+                }
+            }
+            log.info("재분류 완료: {}건 성공 / {}건 대상", success, unclassified.size());
+        } finally {
+            SystemUser.clear();
         }
-        log.info("재분류 완료: {}건 성공 / {}건 대상", success, unclassified.size());
     }
 }

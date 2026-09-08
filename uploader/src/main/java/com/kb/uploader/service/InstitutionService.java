@@ -1,5 +1,6 @@
 package com.kb.uploader.service;
 
+import com.kb.uploader.code.SystemUser;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kb.uploader.domain.Institution;
@@ -40,10 +41,12 @@ public class InstitutionService {
         Optional<Institution> existing = institutionMapper.findByName(name);
         if (existing.isPresent()) {
             existing.get().updateCategory(category);
+            existing.get().setSystemUserNo(SystemUser.get());
             institutionMapper.update(existing.get());
             return existing.get();
         }
         Institution inst = new Institution(name, category);
+        inst.setSystemUserNo(SystemUser.get());
         institutionMapper.insert(inst);
         return inst;
     }
@@ -66,7 +69,11 @@ public class InstitutionService {
             new TypeReference<Map<String, List<String>>>() {});
         institutionMapper.deleteAll();
         data.forEach((category, names) ->
-            names.forEach(name -> institutionMapper.insert(new Institution(name, category))));
+            names.forEach(name -> {
+                    Institution created = new Institution(name, category);
+                    created.setSystemUserNo(SystemUser.get());
+                    institutionMapper.insert(created);
+                }));
         List<UploadedFile> pending = uploadedFileMapper.findByStatus("UNCLASSIFIED");
         pending.forEach(f -> classificationService.classify(f));
     }
@@ -104,7 +111,9 @@ public class InstitutionService {
                 String category = categoryCell != null
                     ? categoryCell.getStringCellValue().trim() : "";
                 if (!name.isEmpty()) {
-                    institutionMapper.insert(new Institution(name, category));
+                    Institution created = new Institution(name, category);
+                    created.setSystemUserNo(SystemUser.get());
+                    institutionMapper.insert(created);
                 }
             }
         }
