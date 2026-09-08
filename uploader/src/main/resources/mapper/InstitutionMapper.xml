@@ -3,25 +3,35 @@
   "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <!--
-  ⚠️ **2026-09-08 — 테이블·컬럼 이름이 전부 바뀌었다** (사내 DB 표준: 컬럼은 한글,
-     테이블은 코드). 자바 필드명(property)은 그대로다.
+  ⚠️ **2026-09-08 — 사내 DB 표준을 반영했다.** 자바 필드명(property)은 그대로다.
 
-       INSTITUTION → **TSKGIAF02**         시퀀스 → TSKGIAF02_SEQ
+       INSTITUTION → TSKGIAF02          시퀀스 → TSKGIAF02_SEQ
 
-       property    →  column
-       id          →  기관ID
-       name        →  기관명
-       category    →  기관분류
-       modifiedAt  →  수정일시
+       property    →  컬럼명            인포타입
+       id          →  기관일련번호       일련번호16 (DECIMAL)
+       name        →  기관명            명250
+       category    →  기관구분          구분코드2   ★ TypeHandler
+       modifiedAt  →  수정일시          일시20      ★ TypeHandler
+
+  ★ TypeHandler 를 resultMap 과 `#{...}` **양쪽에** 적어야 한다. 한쪽만 적으면
+    읽기나 쓰기 중 한 방향만 변환돼 조용히 어긋난다. 이유는 UploadedFileMapper 주석.
 -->
 <mapper namespace="com.kb.uploader.mapper.InstitutionMapper">
 
   <resultMap id="institutionMap" type="Institution">
-    <id     property="id"         column="기관ID"/>
+    <id     property="id"         column="기관일련번호"/>
     <result property="name"       column="기관명"/>
-    <result property="category"   column="기관분류"/>
-    <result property="modifiedAt" column="수정일시"/>
+    <result property="category"   column="기관구분"
+            typeHandler="com.kb.uploader.config.InstitutionCategoryTypeHandler"/>
+    <result property="modifiedAt" column="수정일시"
+            typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/>
   </resultMap>
+
+  <sql id="값목록">
+    #{name},
+    #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+    #{modifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}
+  </sql>
 
   <!--
     ⚠️ 같은 id 가 두 번 나오는 자리는 **방언 분기**다(databaseId). 접속한 DB 에 맞는
@@ -30,32 +40,39 @@
 
   <!-- MySQL -->
   <insert id="insert" databaseId="mysql" useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO TSKGIAF02 (기관명, 기관분류, 수정일시)
-    VALUES (#{name}, #{category}, #{modifiedAt})
+    INSERT INTO TSKGIAF02 (기관명, 기관구분, 수정일시)
+    VALUES (<include refid="값목록"/>)
   </insert>
   <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 TSKGIAF02_SEQ) -->
   <insert id="insert" databaseId="oracle">
     <selectKey keyProperty="id" resultType="long" order="BEFORE">
       SELECT TSKGIAF02_SEQ.NEXTVAL FROM DUAL
     </selectKey>
-    INSERT INTO TSKGIAF02 (기관ID, 기관명, 기관분류, 수정일시)
-    VALUES (#{id}, #{name}, #{category}, #{modifiedAt})
+    INSERT INTO TSKGIAF02 (기관일련번호, 기관명, 기관구분, 수정일시)
+    VALUES (#{id}, <include refid="값목록"/>)
   </insert>
 
   <update id="update">
     UPDATE TSKGIAF02
-    SET 기관명 = #{name}, 기관분류 = #{category}, 수정일시 = #{modifiedAt}
-    WHERE 기관ID = #{id}
+    SET 기관명   = #{name},
+        기관구분 = #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+        수정일시 = #{modifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}
+    WHERE 기관일련번호 = #{id}
   </update>
 
   <delete id="deleteById">
-    DELETE FROM TSKGIAF02 WHERE 기관ID = #{id}
+    DELETE FROM TSKGIAF02 WHERE 기관일련번호 = #{id}
   </delete>
 
   <delete id="deleteAll">
     DELETE FROM TSKGIAF02
   </delete>
 
+  <!--
+    ⚠️ **이 앱에서 가장 중요한 문장이다.** 업로드된 파일의 기관명으로 여기를 조회해
+       못 찾으면 파일이 UNCLASSIFIED 로 남는다(ClassificationService.classify).
+       틀리면 오류 없이 "분류가 하나도 안 되는" 증상으로만 나타난다.
+  -->
   <select id="findByName" resultMap="institutionMap">
     SELECT * FROM TSKGIAF02 WHERE 기관명 = #{name}
   </select>
