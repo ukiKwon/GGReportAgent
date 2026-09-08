@@ -98,7 +98,7 @@ CREATE TABLE TSKGIAF01 (
     --    사내 표준의 구분코드는 5자리 이하여야 하는데 '지방자치단체' 가 6자라 코드로 넣는다.
     --    자바·화면은 한글 이름을 그대로 쓰고, 변환은 InstitutionCategoryTypeHandler
     --    한 곳에서만 일어난다. 코드표 정본: code/InstitutionCategory.java
-    기관영업분류            VARCHAR2(2 CHAR),               -- 구분코드2 · 속성명 기관영업분류구분코드
+    기관영업분류코드    VARCHAR2(2 CHAR),               -- 코드2 · 속성명 동일
     문서년              VARCHAR2(4 CHAR),               -- 년4 · 속성명 동일 · 예 '2026'
     -- 🔴 **코드값이다.** 01 UNCLASSIFIED / 02 CLASSIFIED / 03 REJECTED / 04 DELETED
     --    정본: code/ClassificationStatus.java
@@ -112,7 +112,7 @@ CREATE TABLE TSKGIAF01 (
     --    ⚠️ 자릿수가 고정이라 **문자열 정렬 = 시간 정렬**이다. 형식을 바꾸면 깨진다.
     업로드일시          VARCHAR2(14 CHAR)  NOT NULL,    -- 일시14 · 속성명 동일
     분류일시            VARCHAR2(14 CHAR),              -- 일시14 · 분류 전에는 NULL
-    -- 최악 경로가 약 341자다(baseDir 20 + /classified/ 12 + 기관영업분류 2 + 문서년 4
+    -- 최악 경로가 약 341자다(baseDir 20 + /classified/ 12 + 기관영업분류코드 2 + 문서년 4
     -- + 기관명 40 + 원본파일명 260 + 구분자 3). 기관명이 250 → 40 으로 줄면서
     -- 800 이 과해져 600 으로 낮췄다(2026-09-08). 길이는 **자 단위**다.
     저장경로            VARCHAR2(600 CHAR) NOT NULL,    -- 내용600 · 속성명 저장경로내용
@@ -128,8 +128,8 @@ CREATE TABLE TSKGIAF01 (
 CREATE TABLE TSKGIAF02 (
     기관일련번호        DECIMAL(16)       NOT NULL,   -- 일련번호16 · 속성명 동일
     기관명              VARCHAR2(40 CHAR) NOT NULL,   -- 명40 · 속성명 동일
-    -- 코드값 (TSKGIAF01.기관영업분류 과 같은 코드표를 쓴다)
-    기관영업분류            VARCHAR2(2 CHAR)  NOT NULL,   -- 구분코드2 · 속성명 기관영업분류구분코드
+    -- 코드값 (TSKGIAF01.기관영업분류코드 과 같은 코드표를 쓴다)
+    기관영업분류코드    VARCHAR2(2 CHAR)  NOT NULL,   -- 코드2 · 속성명 동일
     -- ── 아래 4개는 2026-09-08 신설. **앱은 읽지도 쓰지도 않는다** — 기관 정보를
     --    미리 담아 둘 자리로 만들어 둔 것이다(사용자 확정). 그래서 도메인 Institution ·
     --    Mapper · 화면에 대응하는 것이 없고, resultMap 이 모르는 컬럼은 그냥 무시한다.
