@@ -192,7 +192,7 @@ INSERT INTO UPLOADED_FILE
   (ID, ORIGINAL_NAME, STORED_PATH, FILE_YEAR, INSTITUTION_NAME, CATEGORY, STATUS, UPLOADED_AT)
 VALUES
   (#{id}, #{originalName}, #{storedPath}, #{year}, #{institutionName}, #{category}, #{status}, #{uploadedAt})</pre>
-  <pre class="a"><span class="lbl">후</span>SELECT TSKGIAF01_SEQ.NEXTVAL FROM DUAL
+  <pre class="a"><span class="lbl">후</span>SELECT SQ_KGI_AGENTFILETABLE.NEXTVAL FROM DUAL
 INSERT INTO TSKGIAF01
   (업로드파일일련번호, 기관명, 기관영업분류코드, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
 VALUES
@@ -307,7 +307,7 @@ DELETE FROM INSTITUTION WHERE ID = #{id}
 DELETE FROM INSTITUTION
 SELECT * FROM INSTITUTION WHERE NAME = #{name}
 SELECT * FROM INSTITUTION ORDER BY NAME ASC</pre>
-  <pre class="a"><span class="lbl">후</span>SELECT TSKGIAF02_SEQ.NEXTVAL FROM DUAL
+  <pre class="a"><span class="lbl">후</span>SELECT SQ_KGI_AGENTGIGANTABLE.NEXTVAL FROM DUAL
 INSERT INTO TSKGIAF02 (기관일련번호, 기관명, 기관영업분류코드, 수정일시) VALUES (#{id}, &lt;include refid="값목록"/&gt;)
 INSERT INTO TSKGIAF02 (기관명, 기관영업분류코드, 수정일시)                                -- mysql
 UPDATE TSKGIAF02 SET 기관명 = #{name}, 기관영업분류코드 = #{category,typeHandler=…},
@@ -408,8 +408,8 @@ model.addAttribute("categories", InstitutionCategory.names());</pre>
 <table>
   <thead><tr><th>#</th><th>찾을 것</th><th>바꿀 것</th><th>주의</th></tr></thead>
   <tbody>
-    <tr><td>1</td><td class="old">UPLOADED_FILE_SEQ</td><td class="new">TSKGIAF01_SEQ</td><td>가장 길어서 먼저</td></tr>
-    <tr><td>2</td><td class="old">INSTITUTION_SEQ</td><td class="new">TSKGIAF02_SEQ</td><td>—</td></tr>
+    <tr><td>1</td><td class="old">UPLOADED_FILE_SEQ</td><td class="new">SQ_KGI_AGENTFILETABLE</td><td>가장 길어서 먼저</td></tr>
+    <tr><td>2</td><td class="old">INSTITUTION_SEQ</td><td class="new">SQ_KGI_AGENTGIGANTABLE</td><td>—</td></tr>
     <tr><td>3</td><td class="old">INSTITUTION_NAME</td><td class="new">기관명</td><td><code>INSTITUTION</code> 보다 <b>먼저</b></td></tr>
     <tr><td>4</td><td class="old">ORIGINAL_NAME</td><td class="new">원본파일명</td><td>—</td></tr>
     <tr><td>5</td><td class="old">CLASSIFIED_AT</td><td class="new">분류일시</td><td>—</td></tr>

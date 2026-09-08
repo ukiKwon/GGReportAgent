@@ -6,7 +6,7 @@
   ⚠️ **2026-09-08 — 사내 DB 표준을 반영했다.** 테이블은 코드, 컬럼은 한글, 그리고
      타입은 인포타입이 정한다. 자바 필드명(property)은 그대로다.
 
-       UPLOADED_FILE → TSKGIAF01        시퀀스 → TSKGIAF01_SEQ
+       UPLOADED_FILE → TSKGIAF01        시퀀스 → SQ_KGI_AGENTFILETABLE
 
        property        →  컬럼명                 인포타입
        id              →  업로드파일일련번호      일련번호16 (DECIMAL)
@@ -70,10 +70,10 @@
     VALUES
       (<include refid="값목록"/>)
   </insert>
-  <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 TSKGIAF01_SEQ) -->
+  <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 SQ_KGI_AGENTFILETABLE) -->
   <insert id="insert" databaseId="oracle">
     <selectKey keyProperty="id" resultType="long" order="BEFORE">
-      SELECT TSKGIAF01_SEQ.NEXTVAL FROM DUAL
+      SELECT SQ_KGI_AGENTFILETABLE.NEXTVAL FROM DUAL
     </selectKey>
     INSERT INTO TSKGIAF01
       (업로드파일일련번호, 기관명, 기관영업분류코드, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
