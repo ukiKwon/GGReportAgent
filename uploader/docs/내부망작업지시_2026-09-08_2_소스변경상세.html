@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>② uploader 소스 변경 상세 — 내부망 작업 지시서</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  :root {
+    --ink:#16191c; --ink-soft:#3d474e; --muted:#6b767d;
+    --rule:#ccd4d8; --rule-lt:#e4e9eb;
+    --accent:#0b4f6c; --accent-bg:#eaf1f5;
+    --alert:#96241f; --alert-bg:#fbeeec;
+    --warn:#7a5310;  --warn-bg:#fbf3e2;
+    --ok:#1f5f45;    --ok-bg:#e8f2ed;
+    --old:#8a2f2a;   --old-bg:#fcf1f0;
+    --new:#1c5c44;   --new-bg:#eef6f2;
+    --code-bg:#f2f4f5;
+  }
+  * { box-sizing: border-box; }
+  body { font-family:"맑은 고딕","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+         color:var(--ink); font-size:10.4pt; line-height:1.58;
+         margin:0 auto; max-width:190mm; padding:10mm 5mm 20mm; background:#fff; }
+  header { border-bottom:2.5px solid var(--accent); padding-bottom:10px; }
+  .eyebrow { font-size:8.5pt; letter-spacing:.12em; color:var(--accent); font-weight:700; margin-bottom:4px; }
+  h1 { font-size:19pt; margin:0 0 6px; line-height:1.3; letter-spacing:-.01em; }
+  .lede { color:var(--ink-soft); margin:0; max-width:62em; }
+  .meta { display:flex; flex-wrap:wrap; gap:4px 20px; font-size:9pt; color:var(--muted);
+          margin:10px 0 22px; padding-top:8px; border-top:1px solid var(--rule-lt); }
+  .meta b { color:var(--ink-soft); font-weight:600; }
+  h2 { font-size:13pt; margin:22px 0 10px; padding-bottom:5px; border-bottom:1px solid var(--rule); page-break-after:avoid; }
+  h2 .n { display:inline-block; min-width:1.6em; color:var(--accent); font-weight:700; }
+  h3 { font-size:10.3pt; margin:15px 0 6px; color:var(--ink-soft); page-break-after:avoid;
+       font-family:Consolas,"D2Coding",monospace; }
+  h3 .tag { font-family:"맑은 고딕",sans-serif; font-size:8pt; font-weight:400; color:var(--muted); margin-left:6px; }
+  p { margin:0 0 8px; max-width:62em; }
+  ul, ol { margin:0 0 8px; padding-left:20px; max-width:62em; }
+  li { margin-bottom:3px; }
+  code { font-family:Consolas,"D2Coding",monospace; font-size:.88em; background:var(--code-bg); padding:1px 4px; border-radius:2px; }
+  table { width:100%; border-collapse:collapse; margin:0 0 12px; font-size:9.2pt; page-break-inside:avoid; }
+  th, td { border:1px solid var(--rule-lt); padding:5px 8px; text-align:left; vertical-align:top; }
+  th { background:var(--code-bg); font-weight:600; font-size:8.7pt; color:var(--ink-soft); white-space:nowrap; }
+  td.mono, th.mono { font-family:Consolas,"D2Coding",monospace; font-size:8.7pt; }
+  td.old { color:var(--old); font-family:Consolas,"D2Coding",monospace; font-size:8.7pt; white-space:nowrap; }
+  td.new { color:var(--new); font-family:Consolas,"D2Coding",monospace; font-size:8.7pt; font-weight:600; white-space:nowrap; }
+  .ba { margin:0 0 13px; page-break-inside:avoid; }
+  .ba pre { font-family:Consolas,"D2Coding",monospace; font-size:8.3pt; line-height:1.48;
+            margin:0; padding:7px 10px 7px 12px; white-space:pre-wrap; word-break:break-all; }
+  .ba .b { background:var(--old-bg); border-left:3px solid var(--old); color:#4a2422; }
+  .ba .a { background:var(--new-bg); border-left:3px solid var(--new); color:#16342a; margin-top:2px; }
+  .ba .n { background:#fbfcfc; border-left:3px solid var(--rule); color:var(--ink); }
+  .ba .lbl { display:inline-block; font-family:"맑은 고딕",sans-serif; font-size:7.5pt; font-weight:700;
+             letter-spacing:.06em; margin-right:6px; vertical-align:1px; }
+  .ba .b .lbl { color:var(--old); } .ba .a .lbl { color:var(--new); } .ba .n .lbl { color:var(--muted); }
+  .box { border-left:3px solid var(--rule); padding:9px 13px; margin:0 0 12px; page-break-inside:avoid; }
+  .box .h { font-weight:700; font-size:9.4pt; margin-bottom:3px; }
+  .box p:last-child, .box ul:last-child, .box table:last-child { margin-bottom:0; }
+  .box.alert { border-left-color:var(--alert); background:var(--alert-bg); } .box.alert .h { color:var(--alert); }
+  .box.warn  { border-left-color:var(--warn);  background:var(--warn-bg); }  .box.warn .h  { color:var(--warn); }
+  .box.info  { border-left-color:var(--accent);background:var(--accent-bg); }.box.info .h  { color:var(--accent); }
+  .box.ok    { border-left-color:var(--ok);    background:var(--ok-bg); }    .box.ok .h    { color:var(--ok); }
+  footer { margin-top:26px; padding-top:10px; border-top:1px solid var(--rule); font-size:8.5pt; color:var(--muted); }
+  .pb { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">내부망 작업 지시서 · uploader · ② / ②</div>
+  <h1>소스 변경 상세 — 무엇이 어떻게 바뀌었나</h1>
+  <p class="lede">
+    ①번 문서의 <strong>파일 14개</strong>가 실제로 어떻게 바뀌는지 전·후로 보여 줍니다.
+    파일을 통째로 교체하실 거면 <strong>6절만</strong> 보셔도 되고, 손으로 고치거나
+    대조 검수를 하실 때 2~5절을 쓰십시오.
+  </p>
+</header>
+
+<div class="meta">
+  <span><b>작성일</b> 2026-09-08 (확정본)</span>
+  <span><b>기준</b> 내부망 반입 zip(2026-09-07) 대비</span>
+  <span><b>선행 문서</b> ① 스키마 변경</span>
+  <span><b>검증</b> <code>mvn -o clean test</code> 62건 통과</span>
+</div>
+
+<h2><span class="n">1</span>왜 자바까지 바뀌나 — TypeHandler</h2>
+
+<p>
+  MyBatis의 <code>resultMap</code>은 <strong>자바 필드와 DB 컬럼을 잇는 번역표</strong>이고,
+  <strong>TypeHandler는 그 번역표가 값을 어떻게 바꿀지 정하는 규칙</strong>입니다.
+  표준이 요구하는 값(문자열 시각·2자리 코드)과 자바가 쓰는 값이 다르므로,
+  <strong>변환을 세 클래스에 가두어</strong> 도메인·서비스·화면·테스트를 지켰습니다.
+</p>
+
+<table>
+  <thead><tr><th>TypeHandler</th><th>자바가 쓰는 값</th><th>DB 에 들어가는 값</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">LocalDateTimeStringTypeHandler</td><td class="mono">LocalDateTime</td><td class="mono">'20260908103000'</td></tr>
+    <tr><td class="mono">ClassificationStatusTypeHandler</td><td class="mono">"UNCLASSIFIED"</td><td class="mono">'01'</td></tr>
+    <tr><td class="mono">InstitutionCategoryTypeHandler</td><td class="mono">"지방자치단체"</td><td class="mono">'01'</td></tr>
+  </tbody>
+</table>
+
+<div class="box alert">
+  <div class="h">규칙 두 개만 지키면 됩니다</div>
+  <ol style="margin:4px 0 0">
+    <li><strong>resultMap 과 <code>#{...}</code> 양쪽에 적는다.</strong> 두 코드 핸들러가 모두
+        자바 <code>String</code> 을 다뤄 자동 등록을 쓸 수 없습니다. <b>한쪽만 적으면 읽기나
+        쓰기 중 한 방향만 변환돼 조용히 어긋납니다.</b></li>
+    <li><strong>SQL 에 직접 박은 값은 코드로 적는다.</strong> TypeHandler 는 <b>파라미터와
+        결과</b>에만 걸립니다. <code>SET 분류상태구분 = '04'</code> 자리에 <code>'DELETED'</code>
+        를 적으면 <b>오류 없이 0건이 바뀝니다.</b></li>
+  </ol>
+</div>
+
+<h2><span class="n">2</span>신규 자바 6개 — 무엇을 하는 파일인가</h2>
+
+<table>
+  <thead><tr><th>파일</th><th>역할</th><th>고칠 일이 생기면</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">code/InstitutionCategory.java</td>
+        <td>기관구분 코드↔이름 5쌍. <b>화면 드롭다운 목록의 유일한 출처</b></td>
+        <td>분류를 늘리거나 이름을 바꿀 때 <b>이 파일만</b></td></tr>
+    <tr><td class="mono">code/ClassificationStatus.java</td>
+        <td>분류상태 코드↔값 4쌍 + 상수</td><td>상태를 늘릴 때(도메인도 함께)</td></tr>
+    <tr><td class="mono">config/CodeTypeHandler.java</td>
+        <td>코드 변환 공통 뼈대(추상). 모르는 값이면 <b>예외를 던진다</b></td><td>거의 없음</td></tr>
+    <tr><td class="mono">config/InstitutionCategoryTypeHandler.java</td><td>위 뼈대 + 기관구분 표</td><td>없음</td></tr>
+    <tr><td class="mono">config/ClassificationStatusTypeHandler.java</td><td>위 뼈대 + 분류상태 표</td><td>없음</td></tr>
+    <tr><td class="mono">config/LocalDateTimeStringTypeHandler.java</td>
+        <td><code>yyyyMMddHHmmss</code> 변환. 읽을 때 <code>trim()</code> 한다</td>
+        <td>일시 형식이 바뀌면</td></tr>
+  </tbody>
+</table>
+
+<div class="box info">
+  <div class="h">모르는 값이 오면 조용히 넘기지 않습니다</div>
+  <div class="ba" style="margin-top:6px">
+    <pre class="n">ClassificationStatusTypeHandler: 코드로 옮길 수 없는 값이다 — '지자체'. 아는 값: [...]
+InstitutionCategoryTypeHandler: DB 에 모르는 코드가 들어 있다 — '99'. 아는 코드: [01, 02, ...]
+일시 형식이 YYYYMMDDHH24MISS 가 아니다 — '2026-09-08 10:30:00'</pre>
+  </div>
+  <p style="margin-top:6px">
+    코드가 어긋나면 증상이 “저장은 됐는데 조회가 안 됨”처럼 엉뚱하게 나타나므로,
+    <b>그 자리에서 예외로 멈추게</b> 했습니다. 위 메시지가 보이면 원인이 바로 드러납니다.
+  </p>
+</div>
+
+<h2 class="pb"><span class="n">3</span>UploadedFileMapper.xml</h2>
+
+<h3>3-1. resultMap <span class="tag">9행 전부 + TypeHandler 4곳</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>&lt;id     property="id"              column="ID"/&gt;
+&lt;result property="originalName"    column="ORIGINAL_NAME"/&gt;
+&lt;result property="storedPath"      column="STORED_PATH"/&gt;
+&lt;result property="year"            column="FILE_YEAR"/&gt;
+&lt;result property="institutionName" column="INSTITUTION_NAME"/&gt;
+&lt;result property="category"        column="CATEGORY"/&gt;
+&lt;result property="status"          column="STATUS"/&gt;
+&lt;result property="uploadedAt"      column="UPLOADED_AT"/&gt;
+&lt;result property="classifiedAt"    column="CLASSIFIED_AT"/&gt;</pre>
+  <pre class="a"><span class="lbl">후</span>&lt;id     property="id"              column="업로드파일일련번호"/&gt;
+&lt;result property="institutionName" column="기관명"/&gt;
+&lt;result property="category"        column="기관구분"
+        typeHandler="com.kb.uploader.config.InstitutionCategoryTypeHandler"/&gt;
+&lt;result property="year"            column="문서년"/&gt;
+&lt;result property="status"          column="분류상태구분"
+        typeHandler="com.kb.uploader.config.ClassificationStatusTypeHandler"/&gt;
+&lt;result property="originalName"    column="원본파일명"/&gt;
+&lt;result property="uploadedAt"      column="업로드일시"
+        typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/&gt;
+&lt;result property="classifiedAt"    column="분류일시"
+        typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/&gt;
+&lt;result property="storedPath"      column="저장경로"/&gt;</pre>
+</div>
+
+<h3>3-2. <code>&lt;sql id="값목록"&gt;</code> <span class="tag">신설 — 파라미터 쪽 표기가 길어 묶었다</span></h3>
+<div class="ba">
+  <pre class="a"><span class="lbl">신설</span>&lt;sql id="값목록"&gt;
+  #{institutionName},
+  #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+  #{year},
+  #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler},
+  #{originalName},
+  #{uploadedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+  #{storedPath}
+&lt;/sql&gt;</pre>
+</div>
+
+<h3>3-3. <code>insert</code> <span class="tag">oracle — 내부망이 실제로 쓰는 쪽</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>SELECT UPLOADED_FILE_SEQ.NEXTVAL FROM DUAL
+INSERT INTO UPLOADED_FILE
+  (ID, ORIGINAL_NAME, STORED_PATH, FILE_YEAR, INSTITUTION_NAME, CATEGORY, STATUS, UPLOADED_AT)
+VALUES
+  (#{id}, #{originalName}, #{storedPath}, #{year}, #{institutionName}, #{category}, #{status}, #{uploadedAt})</pre>
+  <pre class="a"><span class="lbl">후</span>SELECT TSKGIAF01_SEQ.NEXTVAL FROM DUAL
+INSERT INTO TSKGIAF01
+  (업로드파일일련번호, 기관명, 기관구분, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
+VALUES
+  (#{id}, &lt;include refid="값목록"/&gt;)</pre>
+</div>
+<p style="color:var(--alert)">⚠️ <b>시퀀스 이름도 바뀝니다.</b> 여기가 틀리면 <code>ORA-02289</code> 로 <b>업로드만</b> 실패합니다.</p>
+
+<h3>3-4. <code>update</code></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>UPDATE UPLOADED_FILE
+SET STORED_PATH = #{storedPath}, INSTITUTION_NAME = #{institutionName},
+    FILE_YEAR = #{year}, CATEGORY = #{category},
+    STATUS = #{status}, CLASSIFIED_AT = #{classifiedAt}
+WHERE ID = #{id}</pre>
+  <pre class="a"><span class="lbl">후</span>UPDATE TSKGIAF01
+SET 저장경로  = #{storedPath},
+    기관명    = #{institutionName},
+    문서년    = #{year},
+    기관구분  = #{category,typeHandler=…InstitutionCategoryTypeHandler},
+    분류상태구분 = #{status,typeHandler=…ClassificationStatusTypeHandler},
+    분류일시  = #{classifiedAt,typeHandler=…LocalDateTimeStringTypeHandler}
+WHERE 업로드파일일련번호 = #{id}</pre>
+</div>
+
+<h3>3-5. <code>softDeleteById</code> · <code>rejectById</code> <span class="tag">값을 코드로</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>UPDATE UPLOADED_FILE SET STATUS = 'DELETED'  WHERE ID = #{id}
+UPDATE UPLOADED_FILE SET STATUS = 'REJECTED' WHERE ID = #{id}</pre>
+  <pre class="a"><span class="lbl">후</span>UPDATE TSKGIAF01 SET 분류상태구분 = '04' WHERE 업로드파일일련번호 = #{id}
+UPDATE TSKGIAF01 SET 분류상태구분 = '03' WHERE 업로드파일일련번호 = #{id}</pre>
+</div>
+<p style="color:var(--alert)">
+  ⚠️ <b>여기가 이번 변경에서 가장 놓치기 쉬운 자리입니다.</b> 리터럴은 TypeHandler 를 타지 않아
+  <code>'DELETED'</code> 를 그대로 두면 <b>오류 없이 아무 행도 안 바뀝니다.</b>
+</p>
+
+<h3>3-6. <code>findByStatus</code> <span class="tag">정렬 신설 + 파라미터 변환</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>SELECT * FROM UPLOADED_FILE WHERE STATUS = #{status}</pre>
+  <pre class="a"><span class="lbl">후</span>SELECT * FROM TSKGIAF01
+WHERE 분류상태구분 = #{status,typeHandler=…ClassificationStatusTypeHandler}
+ORDER BY 업로드파일일련번호 DESC</pre>
+</div>
+<p>
+  <strong>종전에는 <code>ORDER BY</code> 가 없었습니다.</strong> 목록 순서를 DB 에 맡긴 셈이라
+  삽입순처럼 보였을 뿐 보장이 아니었고, 인덱스가 붙는 순간 순서가 바뀝니다.
+  이 문장은 <strong>앱에서 가장 많이 쓰입니다</strong> — 파일처리상태 화면·분류완료 목록 화면·
+  재분류 잡·<code>InstitutionService</code> 두 곳, 모두 여섯 자리.
+</p>
+
+<h3>3-7. <code>findRecent</code> <span class="tag">정렬 기준을 PK 로</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>SELECT * FROM (
+  SELECT * FROM UPLOADED_FILE ORDER BY UPLOADED_AT DESC
+) WHERE ROWNUM &lt;= #{limit}</pre>
+  <pre class="a"><span class="lbl">후</span>SELECT * FROM (
+  SELECT * FROM TSKGIAF01 ORDER BY 업로드파일일련번호 DESC
+) WHERE ROWNUM &lt;= #{limit}</pre>
+</div>
+<p>
+  업로드일시가 문자열 <strong>초 단위</strong>라 같은 초에 여러 건이면 순서가 뒤섞입니다.
+  PK 는 그 경우에도 정확하고, <strong>PK 인덱스가 정렬을 그대로 처리</strong>합니다.
+</p>
+
+<h3>3-8. 나머지 <span class="tag">countAll · countByStatus · findClassifiedByUnknownInstitution · 페이징·검색</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>SELECT COUNT(*) FROM UPLOADED_FILE
+SELECT COUNT(*) FROM UPLOADED_FILE WHERE STATUS = #{status}
+… WHERE INSTITUTION_NAME = '알수없음' AND STATUS = 'CLASSIFIED' ORDER BY UPLOADED_AT DESC
+… WHERE INSTITUTION_NAME LIKE '%' || #{keyword} || '%' ORDER BY UPLOADED_AT DESC
+… AND (#{year} IS NULL OR FILE_YEAR = #{year})
+… AND (#{keyword} IS NULL OR ORIGINAL_NAME LIKE '%' || #{keyword} || '%')</pre>
+  <pre class="a"><span class="lbl">후</span>SELECT COUNT(*) FROM TSKGIAF01
+SELECT COUNT(*) FROM TSKGIAF01 WHERE 분류상태구분 = #{status,typeHandler=…}
+… WHERE 기관명 = '알수없음' AND 분류상태구분 = '02' ORDER BY 업로드일시 DESC
+… WHERE 기관명 LIKE '%' || #{keyword} || '%' ORDER BY 업로드일시 DESC
+… AND (#{year} IS NULL OR 문서년 = #{year})
+… AND (#{keyword} IS NULL OR 원본파일명 LIKE '%' || #{keyword} || '%')</pre>
+</div>
+<div class="box info">
+  <div class="h">검색·페이징은 일부러 업로드일시 정렬을 유지했습니다</div>
+  <p>
+    인덱스 <code>(기관명, 업로드일시)</code> 의 두 번째 열이 업로드일시라,
+    <b>기관 입력이 드롭다운(정확 일치)이 되는 날 정렬까지 인덱스가 받게</b> 하려는 것입니다.
+    여기를 일련번호로 바꾸면 그 이점이 사라집니다.
+  </p>
+</div>
+
+<h2 class="pb"><span class="n">4</span>InstitutionMapper.xml</h2>
+
+<h3>4-1. resultMap</h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>&lt;id     property="id"         column="ID"/&gt;
+&lt;result property="name"       column="NAME"/&gt;
+&lt;result property="category"   column="CATEGORY"/&gt;
+&lt;result property="modifiedAt" column="MODIFIED_AT"/&gt;</pre>
+  <pre class="a"><span class="lbl">후</span>&lt;id     property="id"         column="기관일련번호"/&gt;
+&lt;result property="name"       column="기관명"/&gt;
+&lt;result property="category"   column="기관구분"
+        typeHandler="com.kb.uploader.config.InstitutionCategoryTypeHandler"/&gt;
+&lt;result property="modifiedAt" column="수정일시"
+        typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/&gt;</pre>
+</div>
+
+<h3>4-2. 나머지 7문장</h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>SELECT INSTITUTION_SEQ.NEXTVAL FROM DUAL
+INSERT INTO INSTITUTION (ID, NAME, CATEGORY, MODIFIED_AT) VALUES (#{id}, #{name}, #{category}, #{modifiedAt})
+INSERT INTO INSTITUTION (NAME, CATEGORY, MODIFIED_AT)                            -- mysql
+UPDATE INSTITUTION SET NAME = #{name}, CATEGORY = #{category}, MODIFIED_AT = #{modifiedAt} WHERE ID = #{id}
+DELETE FROM INSTITUTION WHERE ID = #{id}
+DELETE FROM INSTITUTION
+SELECT * FROM INSTITUTION WHERE NAME = #{name}
+SELECT * FROM INSTITUTION ORDER BY NAME ASC</pre>
+  <pre class="a"><span class="lbl">후</span>SELECT TSKGIAF02_SEQ.NEXTVAL FROM DUAL
+INSERT INTO TSKGIAF02 (기관일련번호, 기관명, 기관구분, 수정일시) VALUES (#{id}, &lt;include refid="값목록"/&gt;)
+INSERT INTO TSKGIAF02 (기관명, 기관구분, 수정일시)                                -- mysql
+UPDATE TSKGIAF02 SET 기관명 = #{name}, 기관구분 = #{category,typeHandler=…},
+                     수정일시 = #{modifiedAt,typeHandler=…} WHERE 기관일련번호 = #{id}
+DELETE FROM TSKGIAF02 WHERE 기관일련번호 = #{id}
+DELETE FROM TSKGIAF02
+SELECT * FROM TSKGIAF02 WHERE 기관명 = #{name}
+SELECT * FROM TSKGIAF02 ORDER BY 기관명 ASC</pre>
+</div>
+
+<div class="box warn">
+  <div class="h"><code>findByName</code> 이 이 앱에서 가장 중요한 문장입니다</div>
+  <p>
+    분류가 여기서 결정됩니다 — 업로드된 파일의 기관명으로 이 문장을 돌려
+    <strong>못 찾으면 파일이 미분류로 남습니다.</strong> 틀리면 <strong>오류 없이
+    “분류가 하나도 안 되는”</strong> 증상으로만 나타납니다.
+  </p>
+</div>
+
+<h2><span class="n">5</span>컨트롤러 3개 + 화면 1개</h2>
+
+<p>
+  카테고리 목록이 <strong>세 곳에 복제</strong>돼 있었고 값이 <strong>옛 4종</strong>이었습니다.
+  새 5종과 다르므로 그대로 두면 TypeHandler 가 기관 등록을 거부합니다.
+</p>
+
+<h3>KGI12000$FileStatusList.java · KGI12400$ClassifiedFileList.java</h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>private static final List&lt;String&gt; ALL_CATEGORIES =
+        Arrays.asList("지자체", "대학교", "대학병원", "공공기관");
+…
+model.addAttribute("categories", ALL_CATEGORIES);</pre>
+  <pre class="a"><span class="lbl">후</span>import com.kb.uploader.code.InstitutionCategory;
+…
+model.addAttribute("categories", InstitutionCategory.names());</pre>
+</div>
+<p style="color:var(--ink-soft)">상수 선언과 <code>import java.util.Arrays;</code> 는 지웁니다.</p>
+
+<h3>KGI13000$InstitutionList.java <span class="tag">화면에 목록을 넘기도록 추가</span></h3>
+<div class="ba">
+  <pre class="a"><span class="lbl">추가</span>import com.kb.uploader.code.InstitutionCategory;
+…
+model.addAttribute("categories", InstitutionCategory.names());</pre>
+</div>
+
+<h3>templates/institution.html</h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>&lt;option value="지자체"&gt;지자체&lt;/option&gt;
+&lt;option value="대학교"&gt;대학교&lt;/option&gt;
+&lt;option value="대학병원"&gt;대학병원&lt;/option&gt;
+&lt;option value="공공기관"&gt;공공기관&lt;/option&gt;</pre>
+  <pre class="a"><span class="lbl">후</span>&lt;option th:each="cat : ${categories}" th:value="${cat}" th:text="${cat}"&gt;&lt;/option&gt;</pre>
+</div>
+<p>
+  다른 화면(<code>upload.html</code>·<code>file-status.html</code>·<code>classified-rework.html</code>)은
+  이미 <code>${categories}</code> 를 쓰고 있어 <strong>손댈 것이 없습니다.</strong>
+</p>
+
+<h2 class="pb"><span class="n">6</span>내부망에서 적용하는 법</h2>
+
+<h3 style="font-family:'맑은 고딕',sans-serif">방법 ⓐ — 파일 교체 <span class="tag">권장</span></h3>
+<table>
+  <thead><tr><th>외부망 리포</th><th>내부망 WTP 폴더</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">uploader/src/main/java/com/kb/uploader/**.java</td><td class="mono">src/com/kb/uploader/**.java</td></tr>
+    <tr><td class="mono">uploader/src/main/resources/mapper/*.xml</td><td class="mono">src/mapper/*.xml</td></tr>
+    <tr><td class="mono">uploader/src/main/resources/schema-*.sql</td><td class="mono">src/schema-*.sql</td></tr>
+    <tr><td class="mono">uploader/src/main/resources/templates/institution.html</td><td class="mono">src/templates/institution.html</td></tr>
+  </tbody>
+</table>
+<p>
+  신규 폴더 <code>src/com/kb/uploader/code/</code> 가 생깁니다. 교체 후
+  <strong>Project → Clean</strong> → <strong>Publish</strong>.
+</p>
+
+<h3 style="font-family:'맑은 고딕',sans-serif">방법 ⓑ — 매퍼를 손으로 고칠 때의 치환 순서</h3>
+
+<div class="box alert">
+  <div class="h">순서를 지키지 않으면 XML 이 깨집니다</div>
+  <p>
+    <code>INSTITUTION</code> → <code>TSKGIAF02</code> 를 먼저 돌리면
+    <code>INSTITUTION_NAME</code>·<code>INSTITUTION_SEQ</code> 까지 망가집니다.
+    <code>ID</code> 는 <code>databaseId</code>·<code>keyProperty</code> 같은
+    <b>속성 이름에도</b> 들어 있어 무차별 치환하면 문서가 통째로 깨집니다.
+  </p>
+</div>
+
+<table>
+  <thead><tr><th>#</th><th>찾을 것</th><th>바꿀 것</th><th>주의</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td class="old">UPLOADED_FILE_SEQ</td><td class="new">TSKGIAF01_SEQ</td><td>가장 길어서 먼저</td></tr>
+    <tr><td>2</td><td class="old">INSTITUTION_SEQ</td><td class="new">TSKGIAF02_SEQ</td><td>—</td></tr>
+    <tr><td>3</td><td class="old">INSTITUTION_NAME</td><td class="new">기관명</td><td><code>INSTITUTION</code> 보다 <b>먼저</b></td></tr>
+    <tr><td>4</td><td class="old">ORIGINAL_NAME</td><td class="new">원본파일명</td><td>—</td></tr>
+    <tr><td>5</td><td class="old">CLASSIFIED_AT</td><td class="new">분류일시</td><td>—</td></tr>
+    <tr><td>6</td><td class="old">MODIFIED_AT</td><td class="new">수정일시</td><td>—</td></tr>
+    <tr><td>7</td><td class="old">UPLOADED_AT</td><td class="new">업로드일시</td><td>—</td></tr>
+    <tr><td>8</td><td class="old">STORED_PATH</td><td class="new">저장경로</td><td>—</td></tr>
+    <tr><td>9</td><td class="old">FILE_YEAR</td><td class="new">문서년</td><td>—</td></tr>
+    <tr><td>10</td><td class="old">UPLOADED_FILE</td><td class="new">TSKGIAF01</td><td>1번을 먼저 했어야 안전</td></tr>
+    <tr><td>11</td><td class="old">INSTITUTION</td><td class="new">TSKGIAF02</td><td>2·3번을 먼저 했어야 안전</td></tr>
+    <tr><td>12</td><td class="old">CATEGORY</td><td class="new">기관구분</td><td><b>한 번만</b></td></tr>
+    <tr><td>13</td><td class="old">STATUS</td><td class="new">분류상태구분</td><td><b>한 번만</b></td></tr>
+    <tr><td>14</td><td class="old">NAME</td><td class="new">기관명</td><td>⚠️ <code>InstitutionMapper</code> 에서만</td></tr>
+    <tr><td>15</td><td class="old">ID</td><td class="new">업로드파일일련번호 / 기관일련번호</td><td>🔴 <b>일괄 치환 금지 — 한 곳씩 눈으로</b></td></tr>
+    <tr><td>16</td><td colspan="3">그다음 <b>TypeHandler 를 손으로 넣는다</b>(3-1·3-2·4-1) —
+        치환으로는 안 됩니다</td></tr>
+    <tr><td>17</td><td colspan="3">그다음 <b>리터럴을 코드로</b>(3-5의 <code>'04'</code>·<code>'03'</code>,
+        3-8의 <code>'02'</code>)</td></tr>
+  </tbody>
+</table>
+
+<p><strong>16·17번 때문에 ⓑ는 권하지 않습니다.</strong> 파일 교체가 훨씬 안전합니다.</p>
+
+<h2><span class="n">7</span>적용 후 확인</h2>
+
+<table>
+  <thead><tr><th>확인</th><th>방법</th><th>정상</th></tr></thead>
+  <tbody>
+    <tr><td class="mono" style="white-space:nowrap">컴파일</td><td>Project → Clean 후 Problems 뷰</td><td>오류 0건. <code>code</code> 패키지가 보임</td></tr>
+    <tr><td class="mono" style="white-space:nowrap">배포</td><td><code>WEB-INF/classes/mapper/*.xml</code> 열어보기</td><td><code>TSKGIAF01</code> 이 보임</td></tr>
+    <tr><td class="mono" style="white-space:nowrap">기동</td><td>서버 로그</td><td>TypeHandler 예외 없음</td></tr>
+    <tr><td class="mono" style="white-space:nowrap">드롭다운</td><td><code>/uploader/institutions</code></td><td>분류 선택지가 <b>5종</b>(지방자치단체·공공기관·대학교·병원·법원)</td></tr>
+    <tr><td class="mono" style="white-space:nowrap">코드 저장</td><td>테이블 생성 후 기관 1건 등록 → DB 조회</td><td><code>기관구분</code> 에 <code>'01'</code> 같은 코드</td></tr>
+    <tr><td class="mono" style="white-space:nowrap">일시 저장</td><td>파일 1건 업로드 → DB 조회</td><td><code>업로드일시</code> 가 <code>20260908103000</code> 14자</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  ② uploader 소스 변경 상세 · 2026-09-08 확정본 ·
+  선행 문서: <code>내부망작업지시_2026-09-08_1_스키마변경.pdf</code>
+</footer>
+
+</body>
+</html>
