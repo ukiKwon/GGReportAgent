@@ -1575,9 +1575,9 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
 | ③ | **스키마 2벌에 새 컬럼 순서 + `NUMBER(18)` 반영** | `schema-oracle.sql`은 지금도 `NUMBER(19)`·옛 순서다. ⚠️ `schema-mysql.sql`은 **같은 커밋에서 함께** 고쳐야 한다(파일 안에 명시된 미러 규칙). 새 순서는 `2026-09-07_summary.md` 참조 |
 | ④ | **`config-envs/prod`의 `upload.base-dir`** | 지금 `/app/uploader`(Linux)라 re-export하면 Windows 값이 되돌아간다. 내부망 실제값(`C:/uploader-local`)과의 관계를 정리할 것 |
 | ⑤ | **WAR에서 `mysql-connector-j` 제거** | 외부망 로컬 테스트용인데 운영 WAR에 실린다. `pom.xml`에서 스코프 조정 |
-| ⑥ | **폐쇄망 XML 검증 함정을 `DEPLOY.md`에 추가** | 스키마 URL을 못 받아와 `Publish was cancelled`가 난다. 조치는 프로젝트 **Properties → Validation → `XML Validator`·`XML Schema Validator` 해제** |
-| ⑦ | **`config-envs/local` vs `config/`(prod) 혼동 경고를 `README-WTP.md`에 추가** | 이번에 `local`을 도메인 config로 복사해 30분 이상 헤맸다. `local`의 `spring.autoconfigure.exclude=...JndiDataSourceAutoConfiguration` 이 **JNDI를 꺼 버린다** |
-| ⑧ | **진단 순서 문서화** | *"`java:comp/env` 조회 실패 시 앱 서술자보다 **JNDI 트리와 DataSource Targets를 먼저** 보라"* — 이번 세션에서 가장 오래 돈 지점이다. `web.xml`·`weblogic.xml`·`application.properties`를 다 의심했지만 셋 다 정상이었고, 원인은 DataSource가 서버에 배포되지 않아 트리에 `jdbc` 폴더 자체가 없던 것 |
-| ⑨ | **현 브랜치 `.gitignore`에 `dist/` 추가** | `main`에는 있고 이 브랜치에는 없다. 43MB zip이 실수로 커밋될 수 있다 |
+| ⑥ | ~~폐쇄망 XML 검증 함정 문서화~~ — ✅ **완료(2026-09-08)** | 스키마 URL을 못 받아와 `Publish was cancelled`가 난다. 조치는 프로젝트 **Properties → Validation → `XML Validator`·`XML Schema Validator` 해제** |
+| ⑦ | ~~`config-envs/local` vs `config/`(prod) 혼동 경고~~ — ✅ **완료(2026-09-08)** | 이번에 `local`을 도메인 config로 복사해 30분 이상 헤맸다. `local`의 `spring.autoconfigure.exclude=...JndiDataSourceAutoConfiguration` 이 **JNDI를 꺼 버린다** |
+| ⑧ | ~~진단 순서 문서화~~ — ✅ **완료(2026-09-08)** | *"`java:comp/env` 조회 실패 시 앱 서술자보다 **JNDI 트리와 DataSource Targets를 먼저** 보라"* — 이번 세션에서 가장 오래 돈 지점이다. `web.xml`·`weblogic.xml`·`application.properties`를 다 의심했지만 셋 다 정상이었고, 원인은 DataSource가 서버에 배포되지 않아 트리에 `jdbc` 폴더 자체가 없던 것 |
+| ⑨ | ~~현 브랜치 `.gitignore`에 `dist/` 추가~~ — ✅ **완료(2026-09-08)** | `main`에는 있고 이 브랜치에는 없다. 43MB zip이 실수로 커밋될 수 있다 |
 
 **막고 있는 것**: DBA의 테이블 생성(사용자가 요청 예정). 그 전까지 화면은 `ORA-00942`가 정상이다.
