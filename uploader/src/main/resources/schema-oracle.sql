@@ -150,12 +150,16 @@ CREATE TABLE TSKGIAF02 (
 -- ── 시퀀스 ───────────────────────────────────────────────────────────
 -- ⚠️ 이름을 바꾸지 말 것. Mapper XML 의 oracle 분기가 이 이름을 그대로 부른다
 --    (`UploadedFileMapper.xml` / `InstitutionMapper.xml` 의 <selectKey>).
---    시퀀스도 테이블 코드를 따른다(2026-09-08). 여기만은 이름을 바꾸면
+--    ⚠️ 2026-09-08 사내 표준 검사로 이름이 바뀌었다 — 테이블 코드를 따르던
+--       `TSKGIAF01_SEQ`/`TSKGIAF02_SEQ` 에서 `SQ_KGI_...` 로. 22자라 30바이트 상한 안이다.
+--       **테이블 이름과 시퀀스 이름이 서로 안 닮았으므로** 어느 표의 것인지는
+--       아래 주석으로만 알 수 있다: AGENTFILE=TSKGIAF01, AGENTGIGAN=TSKGIAF02.
+--    여기만은 이름을 바꾸면
 --    **매퍼의 <selectKey> 도 같은 커밋에서 고쳐야 한다** — 제약·인덱스와 다른 점이다.
 --    `NOCACHE` 는 WAS 재기동 때 번호가 크게 건너뛰지 않게 하려는 것이다 —
 --    ID 에 의미를 두지 않으므로 성능이 문제되면 캐시를 켜도 된다.
-CREATE SEQUENCE TSKGIAF01_SEQ START WITH 1 INCREMENT BY 1 NOCACHE;
-CREATE SEQUENCE TSKGIAF02_SEQ START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SQ_KGI_AGENTFILETABLE  START WITH 1   -- TSKGIAF01 용 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SQ_KGI_AGENTGIGANTABLE START WITH 1   -- TSKGIAF02 용 INCREMENT BY 1 NOCACHE;
 
 -- ── 인덱스 ───────────────────────────────────────────────────────────
 -- ⚠️ 지금 데이터 규모(연 수천 건)에서는 없어도 된다. 수만 행 풀스캔은 밀리초다.
@@ -199,8 +203,8 @@ CREATE INDEX IX_TSKGIAF01_분류상태 ON TSKGIAF01 (분류상태구분, 업로�
 -- =====================================================================
 -- 재설치용 DROP (필요할 때만 직접 실행)
 --
---   DROP SEQUENCE TSKGIAF01_SEQ;
---   DROP SEQUENCE TSKGIAF02_SEQ;
+--   DROP SEQUENCE SQ_KGI_AGENTFILETABLE;
+--   DROP SEQUENCE SQ_KGI_AGENTGIGANTABLE;
 --   DROP TABLE TSKGIAF01 PURGE;
 --   DROP TABLE TSKGIAF02 PURGE;
 --

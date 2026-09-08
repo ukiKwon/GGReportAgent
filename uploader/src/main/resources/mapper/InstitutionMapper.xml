@@ -5,7 +5,7 @@
 <!--
   ⚠️ **2026-09-08 — 사내 DB 표준을 반영했다.** 자바 필드명(property)은 그대로다.
 
-       INSTITUTION → TSKGIAF02          시퀀스 → TSKGIAF02_SEQ
+       INSTITUTION → TSKGIAF02          시퀀스 → SQ_KGI_AGENTGIGANTABLE
 
        property    →  컬럼명          인포타입
        id          →  기관일련번호     일련번호16 (DECIMAL)
@@ -43,10 +43,10 @@
     INSERT INTO TSKGIAF02 (기관명, 기관영업분류코드, 수정일시)
     VALUES (<include refid="값목록"/>)
   </insert>
-  <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 TSKGIAF02_SEQ) -->
+  <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 SQ_KGI_AGENTGIGANTABLE) -->
   <insert id="insert" databaseId="oracle">
     <selectKey keyProperty="id" resultType="long" order="BEFORE">
-      SELECT TSKGIAF02_SEQ.NEXTVAL FROM DUAL
+      SELECT SQ_KGI_AGENTGIGANTABLE.NEXTVAL FROM DUAL
     </selectKey>
     INSERT INTO TSKGIAF02 (기관일련번호, 기관명, 기관영업분류코드, 수정일시)
     VALUES (#{id}, <include refid="값목록"/>)

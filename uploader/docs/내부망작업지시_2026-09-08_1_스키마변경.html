@@ -98,7 +98,7 @@
     <tr><td class="nw"><b>컬럼</b></td><td>한글 물리명</td><td class="mono">기관명 · 기관영업분류코드 · 저장경로</td></tr>
     <tr><td class="nw"><b>속성명</b></td><td>컬럼명 + 인포타입 어근<br>(컬럼명이 어근으로 끝나면 동일)</td><td class="mono">협약기관상태구분 → 협약기관상태구분<b>코드</b></td></tr>
     <tr><td class="nw">제약 · 인덱스</td><td>테이블 코드 접두</td><td class="mono">PK_TSKGIAF01 · IX_TSKGIAF01_분류상태</td></tr>
-    <tr><td class="nw">시퀀스</td><td>테이블 코드 + <code>_SEQ</code></td><td class="mono">TSKGIAF01_SEQ · TSKGIAF02_SEQ</td></tr>
+    <tr><td class="nw">시퀀스</td><td>테이블 코드 + <code>_SEQ</code></td><td class="mono">SQ_KGI_AGENTFILETABLE · SQ_KGI_AGENTGIGANTABLE</td></tr>
   </tbody>
 </table>
 
@@ -369,8 +369,8 @@ CREATE TABLE TSKGIAF02 (
 );
 
 <span class="c">-- ── 시퀀스 (이름 변경 불가 — 매퍼가 그대로 부른다) ──</span>
-CREATE SEQUENCE TSKGIAF01_SEQ START WITH 1 INCREMENT BY 1 NOCACHE;
-CREATE SEQUENCE TSKGIAF02_SEQ START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SQ_KGI_AGENTFILETABLE START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SQ_KGI_AGENTGIGANTABLE START WITH 1 INCREMENT BY 1 NOCACHE;
 
 <span class="c">-- ── 인덱스 2개 (이름은 25·28바이트 — 11g 상한 30) ───
 --   열 순서가 전부다. 각각 필터와 정렬을 함께 받는다.</span>
@@ -378,12 +378,12 @@ CREATE INDEX IX_TSKGIAF01_기관명일시 ON TSKGIAF01 (기관명, 업로드일�
 CREATE INDEX IX_TSKGIAF01_분류상태   ON TSKGIAF01 (분류상태구분, 업로드파일일련번호);
 
 <span class="c">-- ── 재설치용 (필요할 때만) ──────────────────────────
---   DROP SEQUENCE TSKGIAF01_SEQ;  DROP SEQUENCE TSKGIAF02_SEQ;
+--   DROP SEQUENCE SQ_KGI_AGENTFILETABLE;  DROP SEQUENCE SQ_KGI_AGENTGIGANTABLE;
 --   DROP TABLE TSKGIAF01 PURGE;   DROP TABLE TSKGIAF02 PURGE;</span>
 
 <span class="c">-- ── 적용 확인 (합계 4건) ────────────────────────────</span>
 SELECT table_name    FROM user_tables    WHERE table_name    IN ('TSKGIAF01', 'TSKGIAF02');
-SELECT sequence_name FROM user_sequences WHERE sequence_name IN ('TSKGIAF01_SEQ', 'TSKGIAF02_SEQ');</pre>
+SELECT sequence_name FROM user_sequences WHERE sequence_name IN ('SQ_KGI_AGENTFILETABLE', 'SQ_KGI_AGENTGIGANTABLE');</pre>
 
 <div class="box warn">
   <div class="h">⚠️ 시퀀스는 NOCACHE 를 유지해 주십시오</div>
