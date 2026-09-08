@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>uploader 컬럼명 변경 — 내부망 작업 지시서</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+
+  :root {
+    --ink:      #16191c;
+    --ink-soft: #3d474e;
+    --muted:    #6b767d;
+    --rule:     #ccd4d8;
+    --rule-lt:  #e4e9eb;
+    --accent:   #0b4f6c;
+    --accent-bg:#eaf1f5;
+    --alert:    #96241f;
+    --alert-bg: #fbeeec;
+    --warn:     #7a5310;
+    --warn-bg:  #fbf3e2;
+    --ok:       #1f5f45;
+    --ok-bg:    #e8f2ed;
+    --code-bg:  #f2f4f5;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: "맑은 고딕", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    color: var(--ink);
+    font-size: 10.5pt;
+    line-height: 1.65;
+    margin: 0 auto;
+    max-width: 190mm;
+    padding: 10mm 6mm 20mm;
+    background: #fff;
+  }
+
+  header { border-bottom: 2.5px solid var(--accent); padding-bottom: 10px; margin-bottom: 6px; }
+  .eyebrow {
+    font-size: 8.5pt; letter-spacing: .12em; color: var(--accent);
+    font-weight: 700; margin-bottom: 4px;
+  }
+  h1 { font-size: 19pt; margin: 0 0 6px; line-height: 1.3; letter-spacing: -.01em; }
+  .lede { color: var(--ink-soft); margin: 0; max-width: 62em; }
+
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 4px 20px;
+    font-size: 9pt; color: var(--muted); margin: 10px 0 26px;
+    padding-top: 8px; border-top: 1px solid var(--rule-lt);
+  }
+  .meta b { color: var(--ink-soft); font-weight: 600; }
+
+  h2 {
+    font-size: 13pt; margin: 26px 0 10px; padding-bottom: 5px;
+    border-bottom: 1px solid var(--rule);
+    page-break-after: avoid;
+  }
+  h2 .n {
+    display: inline-block; min-width: 1.6em;
+    color: var(--accent); font-weight: 700;
+  }
+  h3 { font-size: 11pt; margin: 18px 0 6px; color: var(--ink-soft); page-break-after: avoid; }
+
+  p { margin: 0 0 9px; max-width: 62em; }
+  ul, ol { margin: 0 0 9px; padding-left: 20px; max-width: 62em; }
+  li { margin-bottom: 4px; }
+
+  code {
+    font-family: Consolas, "D2Coding", monospace;
+    font-size: .88em; background: var(--code-bg);
+    padding: 1px 4px; border-radius: 2px;
+  }
+  pre {
+    font-family: Consolas, "D2Coding", monospace;
+    font-size: 8.6pt; line-height: 1.55;
+    background: #fbfcfc; border: 1px solid var(--rule);
+    padding: 10px 12px; margin: 0 0 12px;
+    overflow-x: auto; white-space: pre;
+    page-break-inside: avoid;
+  }
+  pre .c { color: var(--muted); }
+
+  table {
+    width: 100%; border-collapse: collapse; margin: 0 0 14px;
+    font-size: 9.3pt; page-break-inside: avoid;
+  }
+  th, td { border: 1px solid var(--rule-lt); padding: 6px 9px; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); font-weight: 600; font-size: 8.8pt; color: var(--ink-soft); white-space: nowrap; }
+  td.mono, th.mono { font-family: Consolas, "D2Coding", monospace; font-size: 8.8pt; white-space: nowrap; }
+  td.old { color: var(--muted); text-decoration: line-through; }
+  td.new { color: var(--accent); font-weight: 600; }
+
+  .box { border-left: 3px solid var(--rule); padding: 10px 14px; margin: 0 0 14px; page-break-inside: avoid; }
+  .box .h { font-weight: 700; font-size: 9.5pt; margin-bottom: 4px; letter-spacing: .02em; }
+  .box p:last-child, .box ul:last-child, .box ol:last-child { margin-bottom: 0; }
+  .box.alert { border-left-color: var(--alert); background: var(--alert-bg); }
+  .box.alert .h { color: var(--alert); }
+  .box.warn  { border-left-color: var(--warn);  background: var(--warn-bg); }
+  .box.warn .h { color: var(--warn); }
+  .box.info  { border-left-color: var(--accent); background: var(--accent-bg); }
+  .box.info .h { color: var(--accent); }
+  .box.ok    { border-left-color: var(--ok); background: var(--ok-bg); }
+  .box.ok .h { color: var(--ok); }
+
+  ol.steps { counter-reset: s; list-style: none; padding-left: 0; }
+  ol.steps > li {
+    counter-increment: s; position: relative;
+    padding-left: 30px; margin-bottom: 10px;
+  }
+  ol.steps > li::before {
+    content: counter(s); position: absolute; left: 0; top: 1px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 8.5pt; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  footer {
+    margin-top: 30px; padding-top: 10px; border-top: 1px solid var(--rule);
+    font-size: 8.5pt; color: var(--muted);
+  }
+  .pb { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">내부망 작업 지시서 · uploader</div>
+  <h1>DB 컬럼명 변경 — 내부망에서 해야 할 일</h1>
+  <p class="lede">
+    외부망에서 <strong>DB 컬럼명을 전부 다시 지었습니다.</strong> 내부망에서는
+    <strong>텍스트 파일 4개만 교체</strong>하면 됩니다. 자바 소스·화면·설정·jar는
+    하나도 바뀌지 않아 <strong>zip 재반입이 필요 없습니다.</strong>
+  </p>
+</header>
+
+<div class="meta">
+  <span><b>작성일</b> 2026-09-08</span>
+  <span><b>대상</b> 내부망 WebLogic 12.2.1.4 / Eclipse Photon</span>
+  <span><b>선행 상태</b> 웹 기동 정상 · 테이블 미생성</span>
+  <span><b>검증</b> 외부망 <code>mvn -o clean test</code> 62건 통과</span>
+</div>
+
+<h2><span class="n">1</span>왜 바꿨나</h2>
+
+<p>
+  종전 컬럼명은 <strong>“무엇의” 이름·경로·상태·분류인지가 드러나지 않았습니다.</strong>
+  <code>ORIGINAL_NAME</code>이 기관명인지 파일명인지, <code>STATUS</code>가 무슨 상태인지
+  컬럼만 봐서는 알 수 없었습니다.
+</p>
+<p>
+  새 이름은 본체(<code>kgi-ggreport-web</code>)의 명명 규칙 — <strong>서술형 영문 풀네임 +
+  테이블명 접두 ID</strong>(<code>INSTITUTION_ID</code>·<code>PARTICIPATION_STATUS</code>·
+  <code>LAST_SYNCED_AT</code>) — 을 따랐습니다. 나중에 두 스키마를 합칠 때 규칙이 갈리지
+  않게 하려는 것입니다.
+</p>
+
+<div class="box ok">
+  <div class="h">지금이 바꿀 수 있는 유일한 시점입니다</div>
+  <p>
+    아직 <strong>테이블이 만들어지지 않았습니다.</strong> 데이터가 들어간 뒤에 바꾸려면
+    <code>ALTER TABLE … RENAME COLUMN</code> 과 서비스 중단이 필요합니다.
+    지금은 <strong>마이그레이션 비용이 0</strong>입니다.
+  </p>
+</div>
+
+<h2><span class="n">2</span>컬럼 대조표</h2>
+
+<h3>UPLOADED_FILE — 업로드된 파일 1건 = 1행</h3>
+<table>
+  <thead>
+    <tr><th>옛 이름</th><th>새 이름</th><th>타입 (변경분 표시)</th><th>바꾼 이유</th></tr>
+  </thead>
+  <tbody>
+    <tr><td class="mono old">ID</td><td class="mono new">UPLOADED_FILE_ID</td><td class="mono">NUMBER(18) <em>(19→18)</em></td><td>본체가 테이블명+ID 규칙. 자릿수는 사내 DB 규격</td></tr>
+    <tr><td class="mono old">INSTITUTION_NAME</td><td class="mono new">INSTITUTION_NAME</td><td class="mono">VARCHAR2(200 CHAR)</td><td>이미 명확 — 유지. <strong>주 조회 축</strong>이라 순서상 맨 앞으로</td></tr>
+    <tr><td class="mono old">CATEGORY</td><td class="mono new">INSTITUTION_CATEGORY</td><td class="mono">VARCHAR2(100 CHAR)</td><td>무엇의 분류인지. 기관의 유형에서 복사되는 값</td></tr>
+    <tr><td class="mono old">FILE_YEAR</td><td class="mono new">DOCUMENT_YEAR</td><td class="mono">VARCHAR2(4 CHAR)</td><td>파일이 만들어진 해가 아니라 <strong>문서의 기준 연도</strong></td></tr>
+    <tr><td class="mono old">STATUS</td><td class="mono new">CLASSIFICATION_STATUS</td><td class="mono">VARCHAR2(20 CHAR)</td><td>무엇의 상태인지 — 분류 처리 상태</td></tr>
+    <tr><td class="mono old">ORIGINAL_NAME</td><td class="mono new">ORIGINAL_FILE_NAME</td><td class="mono">VARCHAR2(255 CHAR) <em>(500→255)</em></td><td>무엇의 이름인지. 폭은 파일시스템 상한(255자)에 맞춤</td></tr>
+    <tr><td class="mono old">UPLOADED_AT</td><td class="mono new">UPLOADED_AT</td><td class="mono">TIMESTAMP</td><td>유지</td></tr>
+    <tr><td class="mono old">CLASSIFIED_AT</td><td class="mono new">CLASSIFIED_AT</td><td class="mono">TIMESTAMP</td><td>유지</td></tr>
+    <tr><td class="mono old">STORED_PATH</td><td class="mono new">STORED_FILE_PATH</td><td class="mono">VARCHAR2(700 CHAR) <em>(1000→700)</em></td><td>무엇의 경로인지. 폭 축소 이유는 아래 상자</td></tr>
+  </tbody>
+</table>
+
+<div class="box warn">
+  <div class="h">STORED_FILE_PATH 를 1000 → 700 으로 줄인 이유</div>
+  <p>
+    <code>VARCHAR2(1000 CHAR)</code>는 AL32UTF8에서 <strong>4000바이트 = Oracle 11g의
+    VARCHAR2 상한</strong>에 정확히 걸쳐 있어 <strong>단 한 자도 늘릴 수 없었습니다</strong>
+    (늘리려면 CLOB 전환). 실제 최악 경로는 약 600자입니다 —
+    <code>baseDir(20) + /classified/(12) + 카테고리(100) + 연도(4) + 기관(200) + 파일명(255) = 591</code>.
+    700이면 그 최악을 담고도 나중에 1000까지 늘릴 여유가 남습니다.
+  </p>
+</div>
+
+<h3>INSTITUTION — 기관명 → 카테고리 매핑표</h3>
+
+<p>
+  이름과 달리 “기관 마스터”가 아닙니다. 주소·기관코드 같은 정보가 없는 이유가 그것입니다.
+  실제 역할은 둘뿐입니다 — <strong>① 기관명 → 카테고리 매핑 ② 등록된 기관만 분류되는
+  허용목록</strong>. 그래서 컬럼 순서도 <strong>입력(이름) → 출력(카테고리)</strong> 입니다.
+</p>
+
+<table>
+  <thead>
+    <tr><th>옛 이름</th><th>새 이름</th><th>타입</th><th>비고</th></tr>
+  </thead>
+  <tbody>
+    <tr><td class="mono old">ID</td><td class="mono new">INSTITUTION_ID</td><td class="mono">NUMBER(18)</td><td>PK</td></tr>
+    <tr><td class="mono old">NAME</td><td class="mono new">INSTITUTION_NAME</td><td class="mono">VARCHAR2(200 CHAR)</td><td>UNIQUE. <code>UPLOADED_FILE</code>이 대조하는 실질 키</td></tr>
+    <tr><td class="mono old">CATEGORY</td><td class="mono new">INSTITUTION_CATEGORY</td><td class="mono">VARCHAR2(100 CHAR)</td><td>코드값 5종 (아래 8절)</td></tr>
+    <tr><td class="mono old">MODIFIED_AT</td><td class="mono new">MODIFIED_AT</td><td class="mono">TIMESTAMP</td><td>유지</td></tr>
+  </tbody>
+</table>
+
+<h2 class="pb"><span class="n">3</span>내부망에서 교체할 파일 — 4개뿐</h2>
+
+<p>압축 푼 WTP 폴더 기준 경로입니다. 외부망 리포에서 같은 파일을 그대로 덮어쓰면 됩니다.</p>
+
+<table>
+  <thead>
+    <tr><th>#</th><th>WTP 경로</th><th>무엇이 바뀌나</th><th>필수?</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td><td class="mono">src/mapper/UploadedFileMapper.xml</td>
+      <td><code>resultMap</code> 9행 + SQL 16개 문장의 컬럼명</td>
+      <td><strong>필수</strong></td>
+    </tr>
+    <tr>
+      <td>2</td><td class="mono">src/mapper/InstitutionMapper.xml</td>
+      <td><code>resultMap</code> 4행 + SQL 7개 문장의 컬럼명</td>
+      <td><strong>필수</strong></td>
+    </tr>
+    <tr>
+      <td>3</td><td class="mono">src/schema-oracle.sql</td>
+      <td>새 컬럼명·폭·인덱스 2종·STATUS CHECK 제약</td>
+      <td><strong>필수</strong><br>(DBA 전달용)</td>
+    </tr>
+    <tr>
+      <td>4</td><td class="mono">src/schema-mysql.sql</td>
+      <td>위와 같은 내용의 MySQL판</td>
+      <td>권장<br>(내부망 미사용)</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="box info">
+  <div class="h">zip을 다시 반입할 필요가 없습니다</div>
+  <p>
+    <code>WEB-INF/lib</code>의 jar 57개, <code>WEB-INF/classes</code>의 클래스, 자바 소스는
+    <strong>하나도 바뀌지 않았습니다.</strong> 위 4개는 전부 텍스트 파일이라 합쳐서 수십 KB입니다.
+  </p>
+  <p style="margin-top:6px">
+    4번은 내부망에서 쓰지 않지만(외부망 테스트·로컬용) <strong>같이 옮기시길 권합니다</strong> —
+    두 파일이 갈리면 나중에 어느 쪽이 맞는지 알 수 없게 됩니다.
+  </p>
+</div>
+
+<h2><span class="n">4</span>순서 — 이걸 틀리면 깨집니다</h2>
+
+<ol class="steps">
+  <li>
+    <strong>매퍼 2개 + 스키마 2개를 교체한다</strong><br>
+    Eclipse에서 파일을 덮어쓴 뒤 <strong>Project → Clean</strong>.
+    <code>src/</code>의 <code>.xml</code>·<code>.sql</code>은 컴파일 대상이 아니라
+    <code>WEB-INF/classes</code>로 <strong>복사</strong>됩니다.
+  </li>
+  <li>
+    <strong>서버에 Publish 하고 재기동한다</strong><br>
+    이 시점에는 테이블이 아직 없으므로 화면에서 <code>ORA-00942</code>가 나는 것이 정상입니다
+    (지금과 같은 상태).
+  </li>
+  <li>
+    <strong>DBA에게 새 <code>schema-oracle.sql</code>을 전달해 테이블을 만든다</strong><br>
+    테이블 2개 + <strong>시퀀스 2개</strong> + 인덱스 2개.
+  </li>
+  <li>
+    <strong>재기동 후 확인한다</strong> (아래 6절)
+  </li>
+</ol>
+
+<div class="box alert">
+  <div class="h">매퍼와 DDL은 반드시 같은 이름이어야 합니다</div>
+  <table style="margin:6px 0 0">
+    <thead><tr><th>상황</th><th>결과</th></tr></thead>
+    <tbody>
+      <tr><td>테이블은 <strong>새 이름</strong>, 매퍼는 <strong>옛 이름</strong></td>
+          <td><code>ORA-00904: invalid identifier</code> — 조회할 때마다 실패</td></tr>
+      <tr><td>매퍼는 <strong>새 이름</strong>, 테이블 아직 없음</td>
+          <td><code>ORA-00942</code> — <strong>지금과 동일. 정상입니다.</strong></td></tr>
+      <tr><td>둘 다 새 이름</td>
+          <td>정상 동작</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:8px">
+    그래서 <strong>매퍼를 먼저 교체하고 테이블을 나중에</strong> 만드는 순서가 안전합니다.
+    반대로 하면 그 사이에 화면이 전부 <code>ORA-00904</code>로 죽습니다.
+  </p>
+</div>
+
+<h2><span class="n">5</span>바뀌지 않은 것 — 손대지 마십시오</h2>
+
+<table>
+  <thead><tr><th>대상</th><th>상태</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">src/com/kb/uploader/**.java</td><td>자바 소스 <strong>전부 무변경</strong></td></tr>
+    <tr><td class="mono">src/templates/*.html</td><td>화면 전부 무변경</td></tr>
+    <tr><td class="mono">&lt;DOMAIN_HOME&gt;\config\application.properties</td><td>무변경</td></tr>
+    <tr><td class="mono">WebContent/WEB-INF/web.xml · weblogic.xml</td><td>무변경</td></tr>
+    <tr><td class="mono">WebContent/WEB-INF/lib/*.jar (57개)</td><td>무변경</td></tr>
+    <tr><td>WebLogic DataSource · Targets · JNDI 이름</td><td>무변경</td></tr>
+  </tbody>
+</table>
+
+<div class="box info">
+  <div class="h">왜 자바가 안 바뀌나</div>
+  <p>
+    MyBatis의 <code>resultMap</code>이 <strong>자바 필드명(property)과 DB 컬럼명(column)을
+    명시적으로 이어 줍니다.</strong> 컬럼명만 바꾸고 매핑 줄을 고치면 자바 쪽은 바뀐 사실을
+    모릅니다. 자바 필드는 그대로입니다 —
+    <code>originalName</code> · <code>storedPath</code> · <code>year</code> ·
+    <code>category</code> · <code>status</code>.
+  </p>
+</div>
+
+<h2><span class="n">6</span>교체 후 확인</h2>
+
+<table>
+  <thead><tr><th>시점</th><th>확인할 것</th><th>정상</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>매퍼 교체 후 Publish</td>
+      <td>서버 로그</td>
+      <td>기동 성공. <code>ORA-00904</code>가 <strong>없어야</strong> 합니다</td>
+    </tr>
+    <tr>
+      <td>테이블 생성 전</td>
+      <td><code>http://localhost:7001/uploader/</code></td>
+      <td><code>ORA-00942</code> — 지금과 동일. 정상입니다</td>
+    </tr>
+    <tr>
+      <td>테이블 생성 후</td>
+      <td><code>/uploader/institutions</code> 에서 기관 1건 등록</td>
+      <td>등록 성공 = <strong>컬럼명·시퀀스가 모두 맞다</strong>는 증명</td>
+    </tr>
+    <tr>
+      <td>그다음</td>
+      <td><code>/uploader/upload</code> 로 파일 1건 업로드</td>
+      <td><code>C:\uploader-local\unclassified\</code> 에 파일 생성 + 목록에 표시</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="box warn">
+  <div class="h">기관 등록이 실패하면</div>
+  <ul>
+    <li><code>ORA-00904</code> → 매퍼와 테이블의 컬럼명이 다릅니다. 4절 표를 보십시오.</li>
+    <li><code>ORA-02289: sequence does not exist</code> → 시퀀스 2개가 안 만들어졌습니다.
+        테이블만 만들면 <strong>조회는 되고 등록만 실패</strong>합니다.</li>
+    <li><code>ORA-02290: check constraint violated</code> → <code>CLASSIFICATION_STATUS</code>에
+        허용되지 않은 값이 들어갔습니다(허용: <code>UNCLASSIFIED</code>·<code>CLASSIFIED</code>·
+        <code>REJECTED</code>·<code>DELETED</code>).</li>
+  </ul>
+</div>
+
+<h2 class="pb"><span class="n">7</span>새 DDL 전문 (DBA 전달용)</h2>
+
+<pre><span class="c">-- ── 업로드된 파일 ───────────────────────────────────</span>
+CREATE TABLE UPLOADED_FILE (
+    UPLOADED_FILE_ID      NUMBER(18)          NOT NULL,
+    INSTITUTION_NAME      VARCHAR2(200 CHAR),
+    INSTITUTION_CATEGORY  VARCHAR2(100 CHAR),
+    DOCUMENT_YEAR         VARCHAR2(4 CHAR),
+    CLASSIFICATION_STATUS VARCHAR2(20 CHAR)   DEFAULT 'UNCLASSIFIED' NOT NULL,
+    ORIGINAL_FILE_NAME    VARCHAR2(255 CHAR)  NOT NULL,
+    UPLOADED_AT           TIMESTAMP           NOT NULL,
+    CLASSIFIED_AT         TIMESTAMP,
+    STORED_FILE_PATH      VARCHAR2(700 CHAR)  NOT NULL,
+    CONSTRAINT PK_UPLOADED_FILE PRIMARY KEY (UPLOADED_FILE_ID),
+    CONSTRAINT CK_UPLOADED_FILE_STATUS CHECK
+        (CLASSIFICATION_STATUS IN ('UNCLASSIFIED', 'CLASSIFIED', 'REJECTED', 'DELETED'))
+);
+
+<span class="c">-- ── 기관 (기관명 → 카테고리 매핑표) ─────────────────</span>
+CREATE TABLE INSTITUTION (
+    INSTITUTION_ID       NUMBER(18)         NOT NULL,
+    INSTITUTION_NAME     VARCHAR2(200 CHAR) NOT NULL,
+    INSTITUTION_CATEGORY VARCHAR2(100 CHAR) NOT NULL,
+    MODIFIED_AT          TIMESTAMP          NOT NULL,
+    CONSTRAINT PK_INSTITUTION PRIMARY KEY (INSTITUTION_ID),
+    CONSTRAINT UK_INSTITUTION_NAME UNIQUE (INSTITUTION_NAME)
+);
+
+<span class="c">-- ── 시퀀스 (이름 변경 불가 — 매퍼가 그대로 부른다) ──</span>
+CREATE SEQUENCE UPLOADED_FILE_SEQ START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE INSTITUTION_SEQ   START WITH 1 INCREMENT BY 1 NOCACHE;
+
+<span class="c">-- ── 인덱스 (식별자는 29자 — 11g 상한 30에 여유 1자뿐) ──</span>
+CREATE INDEX IDX_UPLOADED_FILE_UPLOADED_AT ON UPLOADED_FILE (UPLOADED_AT);
+CREATE INDEX IDX_UPLOADED_FILE_INST_STATUS ON UPLOADED_FILE (INSTITUTION_NAME, CLASSIFICATION_STATUS);
+
+<span class="c">-- ── 재설치용 (필요할 때만) ──────────────────────────
+--   DROP SEQUENCE UPLOADED_FILE_SEQ;
+--   DROP SEQUENCE INSTITUTION_SEQ;
+--   DROP TABLE UPLOADED_FILE PURGE;
+--   DROP TABLE INSTITUTION PURGE;</span>
+
+<span class="c">-- ── 적용 확인 (4건이 나와야 한다) ───────────────────</span>
+SELECT table_name    FROM user_tables    WHERE table_name    IN ('UPLOADED_FILE', 'INSTITUTION');
+SELECT sequence_name FROM user_sequences WHERE sequence_name IN ('UPLOADED_FILE_SEQ', 'INSTITUTION_SEQ');</pre>
+
+<h2><span class="n">8</span>아직 안 한 것 — 기동 이후 과제</h2>
+
+<h3>① 카테고리 코드값 5종 정리</h3>
+
+<p>
+  카테고리를 <strong>지방자치단체 · 공공기관 · 대학교 · 병원 · 법원</strong> 5종으로 확정했지만,
+  <strong>코드에는 아직 옛 4종이 박혀 있습니다.</strong> 그것도 세 곳에 흩어져서요:
+</p>
+
+<table>
+  <thead><tr><th>위치</th><th>현재 값</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">KGI12000$FileStatusList.java:18</td><td>지자체 · 대학교 · 대학병원 · 공공기관</td></tr>
+    <tr><td class="mono">KGI12400$ClassifiedFileList.java:18</td><td>같은 4개 (복제)</td></tr>
+    <tr><td class="mono">templates/institution.html:43-46</td><td>같은 4개를 <code>&lt;option&gt;</code>에 직접 박음</td></tr>
+  </tbody>
+</table>
+
+<div class="box alert">
+  <div class="h">그래서 카테고리에는 CHECK 제약을 일부러 걸지 않았습니다</div>
+  <p>
+    DB에 5종 CHECK를 먼저 걸면, 화면이 여전히 <code>지자체</code>를 보내는 순간
+    <strong>기관 등록이 <code>ORA-02290</code>으로 실패</strong>합니다.
+    <strong>코드를 5종으로 맞춘 뒤에</strong> 제약을 거십시오.
+  </p>
+</div>
+
+<h3>② 기관 입력을 드롭다운으로</h3>
+<p>
+  지금 기관명은 <strong>자유 입력 텍스트</strong>입니다(<code>upload.html:30</code>).
+  오타 한 글자면 매칭에 실패해 파일이 조용히 <code>UNCLASSIFIED</code>로 남고,
+  조회도 <code>LIKE '%…%'</code>라 인덱스를 쓰지 못합니다.
+  <code>INSTITUTION</code> 표를 드롭다운 소스로 쓰면 셋 다 해결됩니다 —
+  <strong>“A 기관 자료 들어왔나?”가 주 용도라면 이것이 가장 큰 개선</strong>입니다.
+</p>
+
+<h3>③ 자동 재분류 켜기</h3>
+<p>
+  <code>reclassification.cron</code>이 비어 있어 5분마다 도는 재분류가 꺼져 있습니다.
+  켜려면 <code>web.xml</code>의 <code>timer/uploaderTM</code> 선언을 되살리고
+  WebLogic 콘솔에서 <strong>Work Manager <code>uploaderTM</code></strong>을 만들어야 합니다
+  (<code>DEPLOY.md</code> 3번의 A → B → C).
+</p>
+
+<footer>
+  uploader 컬럼명 변경 작업 지시서 · 2026-09-08 작성 ·
+  근거 파일: <code>uploader/src/main/resources/schema-oracle.sql</code> ·
+  <code>mapper/UploadedFileMapper.xml</code> · <code>mapper/InstitutionMapper.xml</code> ·
+  <code>uploader/DEPLOY.md</code>
+</footer>
+
+</body>
+</html>
