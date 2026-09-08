@@ -58,6 +58,10 @@
   .box.warn  { border-left-color:var(--warn);  background:var(--warn-bg); }  .box.warn .h  { color:var(--warn); }
   .box.info  { border-left-color:var(--accent);background:var(--accent-bg); }.box.info .h  { color:var(--accent); }
   .box.ok    { border-left-color:var(--ok);    background:var(--ok-bg); }    .box.ok .h    { color:var(--ok); }
+  pre.src { font-family:Consolas,"D2Coding",monospace; font-size:7.4pt; line-height:1.42;
+            background:#fbfcfc; border:1px solid var(--rule); border-left:3px solid var(--accent);
+            padding:9px 11px; margin:0 0 14px; white-space:pre-wrap; word-break:break-all;
+            color:#1d2226; }
   footer { margin-top:26px; padding-top:10px; border-top:1px solid var(--rule); font-size:8.5pt; color:var(--muted); }
   .pb { page-break-before: always; }
 </style>
@@ -71,6 +75,7 @@
     ①번 문서의 <strong>파일 14개</strong>가 실제로 어떻게 바뀌는지 전·후로 보여 줍니다.
     파일을 통째로 교체하실 거면 <strong>6절만</strong> 보셔도 되고, 손으로 고치거나
     대조 검수를 하실 때 2~5절을 쓰십시오.
+    <strong>신규 자바 6개의 소스 전문은 맨 끝 「별첨」</strong>에 있습니다.
   </p>
 </header>
 
@@ -445,6 +450,340 @@ model.addAttribute("categories", InstitutionCategory.names());</pre>
     <tr><td class="mono" style="white-space:nowrap">일시 저장</td><td>파일 1건 업로드 → DB 조회</td><td><code>업로드일시</code> 가 <code>20260908103000</code> 14자</td></tr>
   </tbody>
 </table>
+
+
+<h2 class="pb"><span class="n">별첨</span>신규 자바 6개 — 소스 전문</h2>
+
+<p>
+  <strong>파일을 그대로 복사하실 수 있으면 이 별첨은 보지 않으셔도 됩니다.</strong>
+  반입 경로가 막혀 손으로 옮겨 적어야 하거나, 반입 전 검수가 필요할 때 쓰십시오.
+</p>
+
+<div class="box alert">
+  <div class="h">옮겨 적을 때 지킬 것 셋</div>
+  <ul style="margin:4px 0 0">
+    <li><strong>파일 인코딩은 UTF-8</strong> 이어야 합니다. 주석·문자열에 한글이 많아
+        cp949 로 저장하면 통째로 깨집니다. (WTP 폴더는
+        <code>.settings/org.eclipse.core.resources.prefs</code> 에서 UTF-8 로 고정해 두었습니다.)</li>
+    <li><strong>패키지 경로가 폴더와 맞아야 합니다.</strong>
+        <code>package com.kb.uploader.code;</code> 인 파일은
+        <code>src/com/kb/uploader/code/</code> 에 있어야 합니다 —
+        <code>code</code> 폴더는 <b>새로 만들어야</b> 합니다.</li>
+    <li><strong>클래스 이름과 파일 이름이 같아야</strong> 합니다(대소문자 포함).</li>
+  </ul>
+</div>
+
+<div class="box info">
+  <div class="h">읽는 순서를 권한다면</div>
+  <p>
+    <code>CodeTypeHandler</code> 하나만 읽으면 나머지 둘(<code>InstitutionCategory-</code>·
+    <code>ClassificationStatusTypeHandler</code>)은 <b>표만 갈아 끼운 15줄짜리</b>입니다.
+    <code>InstitutionCategory</code>·<code>ClassificationStatus</code> 는 코드표 그 자체이고,
+    <code>LocalDateTimeStringTypeHandler</code> 는 형식 변환만 합니다.
+  </p>
+</div>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/code/InstitutionCategory.java<span class="tag">57줄 · 기관영업분류코드 코드표. <b>화면 드롭다운 목록의 유일한 출처</b>이기도 하다.</span></h3>
+<pre class="src">package com.kb.uploader.code;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 기관영업분류코드 — 사내 인포타입 {@code 코드2} 로 저장하는 코드값.
+ *
+ * &lt;p&gt;&lt;b&gt;왜 코드인가.&lt;/b&gt; 사내 DB 표준의 {@code 구분코드} 는 &lt;b&gt;5자리 이하&lt;/b&gt;여야 한다
+ * (DBA 정책). 그런데 우리가 쓰던 값 {@code 지방자치단체} 는 6자라 들어가지 않는다.
+ * 그래서 DB 에는 {@code &#x27;01&#x27;} 을 넣고, &lt;b&gt;자바와 화면은 한글 이름을 그대로 쓴다.&lt;/b&gt;
+ * 변환은 {@code InstitutionCategoryTypeHandler} 한 곳에서만 일어난다 —
+ * 도메인·서비스·컨트롤러·Thymeleaf 는 이 코드의 존재를 모른다.
+ *
+ * &lt;p&gt;⚠️ &lt;b&gt;여기가 카테고리 목록의 유일한 출처다.&lt;/b&gt; 종전에는 같은 목록이
+ * {@code KGI12000}·{@code KGI12400} 두 컨트롤러와 {@code institution.html} 에
+ * &lt;b&gt;세 벌&lt;/b&gt;로 복제돼 있었고, 그래서 옛 4종(지자체·대학교·대학병원·공공기관)이
+ * 그대로 남아 있었다. 늘리거나 바꿀 때는 이 파일만 고친다.
+ *
+ * &lt;p&gt;⚠️ 코드값을 바꾸면 &lt;b&gt;이미 저장된 행을 함께 옮겨야 한다.&lt;/b&gt; 지금은 테이블이
+ * 비어 있어 자유롭지만, 운영 뒤에는 UPDATE 가 따른다.
+ */
+public final class InstitutionCategory {
+
+    private static final Map&lt;String, String&gt; NAME_TO_CODE = new LinkedHashMap&lt;String, String&gt;();
+    private static final Map&lt;String, String&gt; CODE_TO_NAME = new LinkedHashMap&lt;String, String&gt;();
+
+    static {
+        put(&quot;01&quot;, &quot;지방자치단체&quot;);
+        put(&quot;02&quot;, &quot;공공기관&quot;);
+        put(&quot;03&quot;, &quot;대학교&quot;);
+        put(&quot;04&quot;, &quot;병원&quot;);
+        put(&quot;05&quot;, &quot;법원&quot;);
+    }
+
+    private static void put(String code, String name) {
+        NAME_TO_CODE.put(name, code);
+        CODE_TO_NAME.put(code, name);
+    }
+
+    /** 화면 드롭다운에 그대로 쓰는 순서다(코드 오름차순). */
+    public static List&lt;String&gt; names() {
+        return Collections.unmodifiableList(new java.util.ArrayList&lt;String&gt;(NAME_TO_CODE.keySet()));
+    }
+
+    public static Map&lt;String, String&gt; nameToCode() {
+        return Collections.unmodifiableMap(NAME_TO_CODE);
+    }
+
+    public static Map&lt;String, String&gt; codeToName() {
+        return Collections.unmodifiableMap(CODE_TO_NAME);
+    }
+
+    private InstitutionCategory() {}
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/code/ClassificationStatus.java<span class="tag">51줄 · 분류상태 코드표 + 자바가 쓰는 상태 상수.</span></h3>
+<pre class="src">package com.kb.uploader.code;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * 분류상태 — 사내 인포타입 {@code 구분코드2} 로 저장하는 코드값.
+ *
+ * &lt;p&gt;자바가 쓰는 값은 {@code &quot;UNCLASSIFIED&quot;} 처럼 &lt;b&gt;종전 그대로&lt;/b&gt;다
+ * ({@code UploadedFile.classify()}·{@code softDelete()} 등). 12자라 5자리 상한을
+ * 넘으므로 DB 에만 코드로 바꿔 넣는다 — 변환은
+ * {@code ClassificationStatusTypeHandler} 한 곳뿐이다.
+ *
+ * &lt;p&gt;⚠️ &lt;b&gt;Mapper XML 의 SQL 리터럴은 이 변환을 타지 않는다.&lt;/b&gt;
+ * TypeHandler 는 &lt;b&gt;파라미터와 결과&lt;/b&gt;에만 걸리므로,
+ * {@code SET 분류상태구분 = &#x27;04&#x27;} 처럼 문장에 직접 박힌 값은 &lt;b&gt;코드로 적어야 한다.&lt;/b&gt;
+ * 그 자리에 {@code &#x27;DELETED&#x27;} 를 적으면 조용히 아무 행도 안 바뀐다.
+ */
+public final class ClassificationStatus {
+
+    public static final String UNCLASSIFIED = &quot;UNCLASSIFIED&quot;;
+    public static final String CLASSIFIED   = &quot;CLASSIFIED&quot;;
+    public static final String REJECTED     = &quot;REJECTED&quot;;
+    public static final String DELETED      = &quot;DELETED&quot;;
+
+    private static final Map&lt;String, String&gt; NAME_TO_CODE = new LinkedHashMap&lt;String, String&gt;();
+    private static final Map&lt;String, String&gt; CODE_TO_NAME = new LinkedHashMap&lt;String, String&gt;();
+
+    static {
+        put(&quot;01&quot;, UNCLASSIFIED);
+        put(&quot;02&quot;, CLASSIFIED);
+        put(&quot;03&quot;, REJECTED);
+        put(&quot;04&quot;, DELETED);
+    }
+
+    private static void put(String code, String name) {
+        NAME_TO_CODE.put(name, code);
+        CODE_TO_NAME.put(code, name);
+    }
+
+    public static Map&lt;String, String&gt; nameToCode() {
+        return Collections.unmodifiableMap(NAME_TO_CODE);
+    }
+
+    public static Map&lt;String, String&gt; codeToName() {
+        return Collections.unmodifiableMap(CODE_TO_NAME);
+    }
+
+    private ClassificationStatus() {}
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/config/CodeTypeHandler.java<span class="tag">74줄 · 코드 변환 공통 뼈대(추상). <b>실질적인 로직은 여기 하나뿐</b>이고 아래 둘은 표만 갈아 끼운다.</span></h3>
+<pre class="src">package com.kb.uploader.config;
+
+import org.apache.ibatis.type.BaseTypeHandler;
+import org.apache.ibatis.type.JdbcType;
+
+import java.sql.CallableStatement;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Map;
+
+/**
+ * 자바가 쓰는 &lt;b&gt;이름&lt;/b&gt;과 DB 에 들어가는 &lt;b&gt;코드&lt;/b&gt;를 잇는다.
+ *
+ * &lt;p&gt;&lt;b&gt;왜 두는가.&lt;/b&gt; 사내 DB 표준의 {@code 구분코드} 는 5자리 이하여야 하는데
+ * 우리가 쓰는 값({@code UNCLASSIFIED}·{@code 지방자치단체})은 그보다 길다.
+ * 값을 코드로 바꾸면 도메인·서비스·컨트롤러·화면·테스트가 전부 바뀌므로,
+ * &lt;b&gt;변환을 여기 한 곳에 가둔다.&lt;/b&gt; 그 덕에 자바 쪽은 종전 값을 그대로 쓴다.
+ *
+ * &lt;p&gt;⚠️ &lt;b&gt;모르는 값이 오면 조용히 넘기지 않고 예외를 던진다.&lt;/b&gt; 코드가 안 맞으면
+ * 증상이 &quot;저장은 됐는데 조회가 안 됨&quot; 처럼 엉뚱하게 나타나기 때문이다.
+ *
+ * &lt;p&gt;⚠️ 두 하위 구현 모두 자바 타입이 {@code String} 이라 &lt;b&gt;자동 등록(type-handlers-package)
+ * 을 쓸 수 없다&lt;/b&gt; — 같은 타입에 둘이 걸려 어느 쪽이 잡힐지 알 수 없다.
+ * 그래서 Mapper XML 에서 {@code typeHandler=} 로 &lt;b&gt;자리마다 명시&lt;/b&gt;한다.
+ */
+public abstract class CodeTypeHandler extends BaseTypeHandler&lt;String&gt; {
+
+    protected abstract Map&lt;String, String&gt; nameToCode();
+
+    protected abstract Map&lt;String, String&gt; codeToName();
+
+    @Override
+    public void setNonNullParameter(PreparedStatement ps, int i, String name, JdbcType jdbcType)
+            throws SQLException {
+        String code = nameToCode().get(name);
+        if (code == null) {
+            throw new SQLException(getClass().getSimpleName()
+                    + &quot;: 코드로 옮길 수 없는 값이다 — &#x27;&quot; + name + &quot;&#x27;. 아는 값: &quot; + nameToCode().keySet());
+        }
+        ps.setString(i, code);
+    }
+
+    @Override
+    public String getNullableResult(ResultSet rs, String columnName) throws SQLException {
+        return toName(rs.getString(columnName));
+    }
+
+    @Override
+    public String getNullableResult(ResultSet rs, int columnIndex) throws SQLException {
+        return toName(rs.getString(columnIndex));
+    }
+
+    @Override
+    public String getNullableResult(CallableStatement cs, int columnIndex) throws SQLException {
+        return toName(cs.getString(columnIndex));
+    }
+
+    private String toName(String code) throws SQLException {
+        if (code == null) {
+            return null;
+        }
+        String trimmed = code.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        String name = codeToName().get(trimmed);
+        if (name == null) {
+            throw new SQLException(getClass().getSimpleName()
+                    + &quot;: DB 에 모르는 코드가 들어 있다 — &#x27;&quot; + trimmed + &quot;&#x27;. 아는 코드: &quot; + codeToName().keySet());
+        }
+        return name;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/config/InstitutionCategoryTypeHandler.java<span class="tag">19줄 · 위 뼈대 + 기관영업분류 표.</span></h3>
+<pre class="src">package com.kb.uploader.config;
+
+import com.kb.uploader.code.InstitutionCategory;
+
+import java.util.Map;
+
+/** {@code 지방자치단체} ↔ {@code &#x27;01&#x27;} — 자세한 이유는 {@link CodeTypeHandler}. */
+public class InstitutionCategoryTypeHandler extends CodeTypeHandler {
+
+    @Override
+    protected Map&lt;String, String&gt; nameToCode() {
+        return InstitutionCategory.nameToCode();
+    }
+
+    @Override
+    protected Map&lt;String, String&gt; codeToName() {
+        return InstitutionCategory.codeToName();
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/config/ClassificationStatusTypeHandler.java<span class="tag">19줄 · 위 뼈대 + 분류상태 표.</span></h3>
+<pre class="src">package com.kb.uploader.config;
+
+import com.kb.uploader.code.ClassificationStatus;
+
+import java.util.Map;
+
+/** {@code UNCLASSIFIED} ↔ {@code &#x27;01&#x27;} — 자세한 이유는 {@link CodeTypeHandler}. */
+public class ClassificationStatusTypeHandler extends CodeTypeHandler {
+
+    @Override
+    protected Map&lt;String, String&gt; nameToCode() {
+        return ClassificationStatus.nameToCode();
+    }
+
+    @Override
+    protected Map&lt;String, String&gt; codeToName() {
+        return ClassificationStatus.codeToName();
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/config/LocalDateTimeStringTypeHandler.java<span class="tag">70줄 · <code>LocalDateTime</code> ↔ <code>YYYYMMDDHH24MISS</code> 문자열.</span></h3>
+<pre class="src">package com.kb.uploader.config;
+
+import org.apache.ibatis.type.BaseTypeHandler;
+import org.apache.ibatis.type.JdbcType;
+
+import java.sql.CallableStatement;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+
+/**
+ * 자바 {@link LocalDateTime} 과 사내 인포타입 {@code 일시20}(CHARACTER 20) 을 잇는다.
+ *
+ * &lt;p&gt;저장 형식은 &lt;b&gt;{@code YYYYMMDDHH24MISS}&lt;/b&gt; 14자다(사내 표준). 컬럼이 20자인 것은
+ * 여유일 뿐이라 우리는 14자만 채운다.
+ *
+ * &lt;p&gt;&lt;b&gt;왜 두는가.&lt;/b&gt; 표준이 시각을 문자열로 두라고 하는데 도메인은
+ * {@code LocalDateTime} 이다. 도메인을 문자열로 바꾸면 {@code UploadedFile}·서비스·
+ * 화면·테스트가 전부 바뀌므로, &lt;b&gt;변환을 여기 한 곳에 가둔다.&lt;/b&gt;
+ *
+ * &lt;p&gt;⚠️ 읽을 때 {@code trim()} 한다. 컬럼이 고정폭 {@code CHAR} 로 만들어지면
+ * 뒤에 공백이 붙어 오는데, 그대로 파싱하면 {@code DateTimeParseException} 이 난다.
+ *
+ * &lt;p&gt;⚠️ &lt;b&gt;정렬이 문자열 정렬&lt;/b&gt;이 된다. {@code YYYYMMDDHH24MISS} 는 자릿수가 고정이라
+ * 사전순 = 시간순이 맞지만, 형식을 바꾸면 그 성질이 깨진다
+ * ({@code ORDER BY 업로드일시 DESC} 가 조용히 어긋난다).
+ */
+public class LocalDateTimeStringTypeHandler extends BaseTypeHandler&lt;LocalDateTime&gt; {
+
+    private static final DateTimeFormatter FORMAT = DateTimeFormatter.ofPattern(&quot;yyyyMMddHHmmss&quot;);
+
+    @Override
+    public void setNonNullParameter(PreparedStatement ps, int i, LocalDateTime parameter, JdbcType jdbcType)
+            throws SQLException {
+        ps.setString(i, parameter.format(FORMAT));
+    }
+
+    @Override
+    public LocalDateTime getNullableResult(ResultSet rs, String columnName) throws SQLException {
+        return parse(rs.getString(columnName));
+    }
+
+    @Override
+    public LocalDateTime getNullableResult(ResultSet rs, int columnIndex) throws SQLException {
+        return parse(rs.getString(columnIndex));
+    }
+
+    @Override
+    public LocalDateTime getNullableResult(CallableStatement cs, int columnIndex) throws SQLException {
+        return parse(cs.getString(columnIndex));
+    }
+
+    private LocalDateTime parse(String raw) throws SQLException {
+        if (raw == null) {
+            return null;
+        }
+        String value = raw.trim();
+        if (value.isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(value, FORMAT);
+        } catch (DateTimeParseException e) {
+            throw new SQLException(&quot;일시 형식이 YYYYMMDDHH24MISS 가 아니다 — &#x27;&quot; + value + &quot;&#x27;&quot;, e);
+        }
+    }
+}
+</pre>
 
 <footer>
   ② uploader 소스 변경 상세 · 2026-09-08 확정본 ·
