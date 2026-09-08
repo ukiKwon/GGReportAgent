@@ -22,9 +22,27 @@ WebContent/
     └── weblogic.xml
 config/
 └── application.properties     ← prod 사본. 실제 환경값으로 고쳐 쓰십시오
-config-envs/                   ← 5개 환경 원본(참고용). 골라서 config/로 복사
+config-envs/                   ← 5개 환경 원본(참고용). ⚠️ 아래 경고를 먼저 읽으십시오
 src/                           ← 자바 + 리소스(mapper·schema·templates·static)
 ```
+
+> 🔴 **`config/`는 여기 두라는 뜻이 아닙니다.** 이 폴더의 `config/`는 **반입용 사본**일
+> 뿐이고, 런타임에 실제로 읽히는 자리는 **WebLogic 도메인 홈**입니다
+> (Spring Boot가 `./config/`를 *서버 프로세스의 실행 디렉터리* 기준으로 찾습니다).
+> ```
+> <DOMAIN_HOME>\config\application.properties     ← config.xml 이 같이 보이면 맞는 폴더
+> ```
+> 프로젝트 폴더에 그냥 두거나 `src/` 밑에 넣으면 의도한 대로 동작하지 않습니다
+> (`src/`에 두면 클래스패스로 실려 읽히긴 하는데, 설정이 **배포 산출물 안에 박혀**
+> 값을 고칠 때마다 재빌드가 필요해집니다).
+
+> 🔴 **`config-envs/`에서 아무거나 복사하면 안 됩니다 — `prod` 하나뿐입니다.**
+> `local`·`dev`·`stg`에는
+> `spring.autoconfigure.exclude=…JndiDataSourceAutoConfiguration` 이 들어 있어
+> **JNDI를 꺼 버립니다.** 2026-09-07에 `local`을 복사했다가 증상이 원인을 전혀 안
+> 가리키는 오류(`… claims to not accept jdbcUrl, jdbc:derby:memory…`)로 반나절을
+> 썼습니다. 자세한 내용은 [`DEPLOY.md`](DEPLOY.md) 4번의 🔴 경고에 있습니다.
+> (이 링크는 **내보낸 폴더 기준**입니다 — 리포에서는 `uploader/DEPLOY.md`입니다.)
 
 `src/`가 평면인 것이 Maven과 다른 점입니다. Eclipse가 `src/`의 **`.java`는 컴파일**해서,
 **그 밖의 파일(mapper/*.xml, schema-*.sql, templates/, static/)은 그대로 복사**해서
@@ -36,6 +54,8 @@ src/                           ← 자바 + 리소스(mapper·schema·templates�
 
 1. **File → Import → General → Existing Projects into Workspace** → 이 폴더 선택
 2. **프로젝트 우클릭 → Properties → Targeted Runtimes → WebLogic 12c 체크**
+3. **프로젝트 우클릭 → Properties → Validation** → ☑ `Enable project specific settings`
+   → **`XML Validator`·`XML Schema Validator`의 Manual·Build 체크 해제**
 
 > ⚠️ **2번을 하기 전에는 컴파일 오류가 납니다.** `ServletInitializer`가 서블릿 API를
 > 쓰는데, 그 jar는 **일부러 `WEB-INF/lib`에 넣지 않았습니다** — 넣으면 WebLogic의
@@ -44,6 +64,18 @@ src/                           ← 자바 + 리소스(mapper·schema·templates�
 >
 > Targeted Runtime을 못 쓰는 상황이면, WebLogic 설치 폴더의 서블릿 API jar를
 > **프로젝트 클래스패스에만**(WEB-INF/lib이 아니라) 추가하십시오.
+
+> ⚠️ **3번을 안 하면 폐쇄망에서 발행이 아예 막힙니다** (2026-09-07 실측).
+> `web.xml`·`weblogic.xml`이 스키마 위치로 인터넷 주소를 가리키는데
+> (`xmlns.jcp.org`·`xmlns.oracle.com`) 받아올 수 없어, Eclipse가 오류로 표시하고
+> WTP가 **오류 있는 모듈의 발행을 취소**합니다:
+> ```
+> Publish was cancelled. Errors found in module 'uploader'.
+> Referenced file contains errors (… /dtdsAndSchemas/javaee_5.xsd)
+> ```
+> WebLogic 자신은 자기 파서로 읽으므로 **실제 배포와 무관한 Eclipse만의 문제**입니다.
+> 표시가 남으면 **Problems 뷰에서 해당 오류 우클릭 → Delete**.
+> 이걸 꺼도 **태그가 어긋난 well-formed 오류는 그대로 잡힙니다.**
 
 인코딩은 `.settings/org.eclipse.core.resources.prefs`에서 **UTF-8로 고정**해
 두었습니다. 한글 주석·문자열이 많아 이 설정이 없으면 cp949로 읽혀 깨집니다.
