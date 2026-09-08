@@ -3,21 +3,24 @@
   "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <!--
-  ⚠️ **2026-09-08 에 컬럼명이 전부 바뀌었다.** 자바 필드명(property)은 그대로다.
+  ⚠️ **2026-09-08 — 테이블·컬럼 이름이 전부 바뀌었다** (사내 DB 표준: 컬럼은 한글,
+     테이블은 코드). 자바 필드명(property)은 그대로다.
+
+       INSTITUTION → **TSKGIAF02**         시퀀스 → TSKGIAF02_SEQ
 
        property    →  column
-       id          →  INSTITUTION_ID
-       name        →  INSTITUTION_NAME
-       category    →  INSTITUTION_CATEGORY
-       modifiedAt  →  MODIFIED_AT
+       id          →  기관ID
+       name        →  기관명
+       category    →  기관분류
+       modifiedAt  →  수정일시
 -->
 <mapper namespace="com.kb.uploader.mapper.InstitutionMapper">
 
   <resultMap id="institutionMap" type="Institution">
-    <id     property="id"         column="INSTITUTION_ID"/>
-    <result property="name"       column="INSTITUTION_NAME"/>
-    <result property="category"   column="INSTITUTION_CATEGORY"/>
-    <result property="modifiedAt" column="MODIFIED_AT"/>
+    <id     property="id"         column="기관ID"/>
+    <result property="name"       column="기관명"/>
+    <result property="category"   column="기관분류"/>
+    <result property="modifiedAt" column="수정일시"/>
   </resultMap>
 
   <!--
@@ -27,38 +30,38 @@
 
   <!-- MySQL -->
   <insert id="insert" databaseId="mysql" useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO INSTITUTION (INSTITUTION_NAME, INSTITUTION_CATEGORY, MODIFIED_AT)
+    INSERT INTO TSKGIAF02 (기관명, 기관분류, 수정일시)
     VALUES (#{name}, #{category}, #{modifiedAt})
   </insert>
-  <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 INSTITUTION_SEQ) -->
+  <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 TSKGIAF02_SEQ) -->
   <insert id="insert" databaseId="oracle">
     <selectKey keyProperty="id" resultType="long" order="BEFORE">
-      SELECT INSTITUTION_SEQ.NEXTVAL FROM DUAL
+      SELECT TSKGIAF02_SEQ.NEXTVAL FROM DUAL
     </selectKey>
-    INSERT INTO INSTITUTION (INSTITUTION_ID, INSTITUTION_NAME, INSTITUTION_CATEGORY, MODIFIED_AT)
+    INSERT INTO TSKGIAF02 (기관ID, 기관명, 기관분류, 수정일시)
     VALUES (#{id}, #{name}, #{category}, #{modifiedAt})
   </insert>
 
   <update id="update">
-    UPDATE INSTITUTION
-    SET INSTITUTION_NAME = #{name}, INSTITUTION_CATEGORY = #{category}, MODIFIED_AT = #{modifiedAt}
-    WHERE INSTITUTION_ID = #{id}
+    UPDATE TSKGIAF02
+    SET 기관명 = #{name}, 기관분류 = #{category}, 수정일시 = #{modifiedAt}
+    WHERE 기관ID = #{id}
   </update>
 
   <delete id="deleteById">
-    DELETE FROM INSTITUTION WHERE INSTITUTION_ID = #{id}
+    DELETE FROM TSKGIAF02 WHERE 기관ID = #{id}
   </delete>
 
   <delete id="deleteAll">
-    DELETE FROM INSTITUTION
+    DELETE FROM TSKGIAF02
   </delete>
 
   <select id="findByName" resultMap="institutionMap">
-    SELECT * FROM INSTITUTION WHERE INSTITUTION_NAME = #{name}
+    SELECT * FROM TSKGIAF02 WHERE 기관명 = #{name}
   </select>
 
   <select id="findAll" resultMap="institutionMap">
-    SELECT * FROM INSTITUTION ORDER BY INSTITUTION_NAME ASC
+    SELECT * FROM TSKGIAF02 ORDER BY 기관명 ASC
   </select>
 
 </mapper>
