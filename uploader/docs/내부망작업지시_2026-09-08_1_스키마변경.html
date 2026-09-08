@@ -95,8 +95,8 @@
   <thead><tr><th>대상</th><th>규칙</th><th>예</th></tr></thead>
   <tbody>
     <tr><td class="nw"><b>테이블</b></td><td>코드성 물리명</td><td class="mono">TSKGIAF01 · TSKGIAF02</td></tr>
-    <tr><td class="nw"><b>컬럼</b></td><td>한글 물리명</td><td class="mono">기관명 · 분류상태구분 · 저장경로</td></tr>
-    <tr><td class="nw"><b>속성명</b></td><td>컬럼명 + 인포타입 어근<br>(컬럼명이 어근으로 끝나면 동일)</td><td class="mono">기관구분 → 기관구분<b>코드</b></td></tr>
+    <tr><td class="nw"><b>컬럼</b></td><td>한글 물리명</td><td class="mono">기관명 · 기관영업분류코드 · 저장경로</td></tr>
+    <tr><td class="nw"><b>속성명</b></td><td>컬럼명 + 인포타입 어근<br>(컬럼명이 어근으로 끝나면 동일)</td><td class="mono">협약기관상태구분 → 협약기관상태구분<b>코드</b></td></tr>
     <tr><td class="nw">제약 · 인덱스</td><td>테이블 코드 접두</td><td class="mono">PK_TSKGIAF01 · IX_TSKGIAF01_분류상태</td></tr>
     <tr><td class="nw">시퀀스</td><td>테이블 코드 + <code>_SEQ</code></td><td class="mono">TSKGIAF01_SEQ · TSKGIAF02_SEQ</td></tr>
   </tbody>
@@ -108,7 +108,7 @@
     <thead><tr><th>부딪힌 것</th><th>해법</th></tr></thead>
     <tbody>
       <tr>
-        <td><b>인포타입 <code>일시20</code> 이 CHARACTER</b> 다(<code>YYYYMMDDHH24MISS</code>).<br>
+        <td><b>인포타입 <code>일시14</code> 가 CHARACTER</b> 다(<code>YYYYMMDDHH24MISS</code>).<br>
             도메인은 <code>LocalDateTime</code>.</td>
         <td class="mono">LocalDateTimeStringTypeHandler</td>
       </tr>
@@ -134,27 +134,27 @@
   <tbody>
     <tr><td>1</td><td class="old">ID</td><td class="new">업로드파일일련번호</td><td class="mono">동일</td><td class="mono">일련번호16</td><td class="mono">DECIMAL(16)</td><td class="mono">NOT NULL</td></tr>
     <tr><td>2</td><td class="old">INSTITUTION_NAME</td><td class="new">기관명</td><td class="mono">동일</td><td class="mono">명40</td><td class="mono">VARCHAR(40)</td><td class="mono">NULLABLE</td></tr>
-    <tr><td>3</td><td class="old">CATEGORY</td><td class="new">기관구분</td><td class="mono">기관구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NULLABLE</td></tr>
+    <tr><td>3</td><td class="old">CATEGORY</td><td class="new">기관영업분류코드</td><td class="mono">동일</td><td class="mono">코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NULLABLE</td></tr>
     <tr><td>4</td><td class="old">FILE_YEAR</td><td class="new">문서년</td><td class="mono">동일</td><td class="mono">년4</td><td class="mono">CHARACTER(4)</td><td class="mono">NULLABLE</td></tr>
     <tr><td>5</td><td class="old">STATUS</td><td class="new">분류상태구분</td><td class="mono">분류상태구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NOT NULL</td></tr>
     <tr><td>6</td><td class="old">ORIGINAL_NAME</td><td class="new">원본파일명</td><td class="mono">동일</td><td class="mono">명260</td><td class="mono">VARCHAR(260)</td><td class="mono">NOT NULL</td></tr>
-    <tr><td>7</td><td class="old">UPLOADED_AT</td><td class="new">업로드일시</td><td class="mono">동일</td><td class="mono">일시20</td><td class="mono">CHARACTER(20)</td><td class="mono">NOT NULL</td></tr>
-    <tr><td>8</td><td class="old">CLASSIFIED_AT</td><td class="new">분류일시</td><td class="mono">동일</td><td class="mono">일시20</td><td class="mono">CHARACTER(20)</td><td class="mono">NULLABLE</td></tr>
+    <tr><td>7</td><td class="old">UPLOADED_AT</td><td class="new">업로드일시</td><td class="mono">동일</td><td class="mono">일시14</td><td class="mono">CHARACTER(14)</td><td class="mono">NOT NULL</td></tr>
+    <tr><td>8</td><td class="old">CLASSIFIED_AT</td><td class="new">분류일시</td><td class="mono">동일</td><td class="mono">일시14</td><td class="mono">CHARACTER(14)</td><td class="mono">NULLABLE</td></tr>
     <tr><td>9</td><td class="old">STORED_PATH</td><td class="new">저장경로</td><td class="mono">저장경로내용</td><td class="mono">내용600</td><td class="mono">VARCHAR(600)</td><td class="mono">NOT NULL</td></tr>
   </tbody>
 </table>
 
-<h3>TSKGIAF02 — 기관명 → 기관구분 매핑표 <span style="font-weight:400;font-size:9pt;color:var(--muted)">(옛 INSTITUTION)</span></h3>
+<h3>TSKGIAF02 — 기관명 → 기관영업분류코드 매핑표 <span style="font-weight:400;font-size:9pt;color:var(--muted)">(옛 INSTITUTION)</span></h3>
 <p>
   이름과 달리 “기관 마스터”가 아닙니다. 주소·기관코드가 없는 이유가 그것입니다. 역할은 둘뿐입니다 —
-  <strong>① 기관명 → 기관구분 매핑 ② 등록된 기관만 분류되는 허용목록.</strong>
+  <strong>① 기관명 → 기관영업분류코드 매핑 ② 등록된 기관만 분류되는 허용목록.</strong>
 </p>
 <table>
   <thead><tr><th>순서</th><th>옛 컬럼</th><th>새 컬럼</th><th>속성명</th><th>인포타입</th><th>타입(길이)</th><th>널리티</th></tr></thead>
   <tbody>
     <tr><td>1</td><td class="old">ID</td><td class="new">기관일련번호</td><td class="mono">동일</td><td class="mono">일련번호16</td><td class="mono">DECIMAL(16)</td><td class="mono">NOT NULL</td></tr>
     <tr><td>2</td><td class="old">NAME</td><td class="new">기관명</td><td class="mono">동일</td><td class="mono">명40</td><td class="mono">VARCHAR(40)</td><td class="mono">NOT NULL</td></tr>
-    <tr><td>3</td><td class="old">CATEGORY</td><td class="new">기관구분</td><td class="mono">기관구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NOT NULL</td></tr>
+    <tr><td>3</td><td class="old">CATEGORY</td><td class="new">기관영업분류코드</td><td class="mono">동일</td><td class="mono">코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NOT NULL</td></tr>
     <tr><td>4</td><td class="old">—</td><td class="new">협약기관상태구분</td><td class="mono">협약기관상태구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NULLABLE</td></tr>
     <tr><td>5</td><td class="old">—</td><td class="new">입찰공고상태</td><td class="mono">입찰공고상태구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NULLABLE</td></tr>
     <tr><td>6</td><td class="old">—</td><td class="new">입찰공고시작</td><td class="mono">입찰공고시작년월일</td><td class="mono">년월일8</td><td class="mono">CHARACTER(8)</td><td class="mono">NULLABLE</td></tr>
@@ -186,7 +186,7 @@
 
 <h3>코드값 — DB 에는 코드가, 화면에는 이름이 보입니다</h3>
 <table>
-  <thead><tr><th>기관구분</th><th>이름</th><th>분류상태구분</th><th>자바 값</th><th>화면 뜻</th></tr></thead>
+  <thead><tr><th>기관영업분류코드</th><th>이름</th><th>분류상태구분</th><th>자바 값</th><th>화면 뜻</th></tr></thead>
   <tbody>
     <tr><td class="mono">01</td><td>지방자치단체</td><td class="mono">01</td><td class="mono">UNCLASSIFIED</td><td>미분류</td></tr>
     <tr><td class="mono">02</td><td>공공기관</td><td class="mono">02</td><td class="mono">CLASSIFIED</td><td>분류완료</td></tr>
@@ -200,7 +200,7 @@
   <div class="h">저장경로·원본파일명의 길이 근거</div>
   <p>
     저장경로 최악값은 약 <b>341자</b>입니다 —
-    <code>baseDir(20) + /classified/(12) + 기관구분(2) + 문서년(4) + 기관명(40) + 원본파일명(260) + 구분자(3)</code>.
+    <code>baseDir(20) + /classified/(12) + 기관영업분류코드(2) + 문서년(4) + 기관명(40) + 원본파일명(260) + 구분자(3)</code>.
     기관명이 250 → <b>40</b>으로 줄면서 800이 과해져 <b>내용600</b>으로 낮췄습니다.
     길이가 <b>자 단위</b>라 한글 600자가 들어갑니다.
     원본파일명은 파일시스템 상한이 255자(NTFS·ext4)인데 인포타입에 255가 없어 <b>명260</b>입니다.
@@ -216,7 +216,7 @@
 <table>
   <thead><tr><th>WTP 경로</th><th>무엇</th></tr></thead>
   <tbody>
-    <tr><td class="mono">src/com/kb/uploader/code/InstitutionCategory.java</td><td>기관구분 코드↔이름. <b>카테고리 목록의 유일한 출처</b></td></tr>
+    <tr><td class="mono">src/com/kb/uploader/code/InstitutionCategory.java</td><td>기관영업분류코드 코드↔이름. <b>카테고리 목록의 유일한 출처</b></td></tr>
     <tr><td class="mono">src/com/kb/uploader/code/ClassificationStatus.java</td><td>분류상태 코드↔값</td></tr>
     <tr><td class="mono">src/com/kb/uploader/config/CodeTypeHandler.java</td><td>코드 변환 공통 뼈대(추상)</td></tr>
     <tr><td class="mono">src/com/kb/uploader/config/InstitutionCategoryTypeHandler.java</td><td>지방자치단체 ↔ '01'</td></tr>
@@ -308,7 +308,7 @@
     <tr><td class="nw">테이블 생성 전</td><td><code>/uploader/</code></td><td><code>ORA-00942</code> — 정상</td></tr>
     <tr><td class="nw">테이블 생성 후 ①</td><td><code>/uploader/institutions</code> 에서 기관 1건 등록<br>(분류는 드롭다운에서 <b>5종</b>이 보여야 함)</td>
         <td>등록 성공 = 컬럼명·시퀀스·<b>코드 TypeHandler</b> 모두 정상</td></tr>
-    <tr><td class="nw">테이블 생성 후 ②</td><td>DB 에서 <code>SELECT 기관구분 FROM TSKGIAF02</code></td>
+    <tr><td class="nw">테이블 생성 후 ②</td><td>DB 에서 <code>SELECT 기관영업분류코드 FROM TSKGIAF02</code></td>
         <td><code>'01'</code> 처럼 <b>코드</b>가 보여야 정상 (화면엔 한글)</td></tr>
     <tr><td class="nw">테이블 생성 후 ③</td><td><code>/uploader/upload</code> 로 파일 1건</td>
         <td><code>C:\uploader-local\unclassified\</code> 에 생성 + 목록 표시</td></tr>
@@ -343,22 +343,22 @@
 CREATE TABLE TSKGIAF01 (
     업로드파일일련번호  DECIMAL(16)        NOT NULL,
     기관명              VARCHAR2(40 CHAR),
-    기관구분            VARCHAR2(2 CHAR),                              <span class="c">-- 01~05</span>
+    기관영업분류코드            VARCHAR2(2 CHAR),                              <span class="c">-- 01~05</span>
     문서년              VARCHAR2(4 CHAR),
     분류상태구분        VARCHAR2(2 CHAR)   DEFAULT '01' NOT NULL,      <span class="c">-- 01~04</span>
     원본파일명          VARCHAR2(260 CHAR) NOT NULL,
-    업로드일시          VARCHAR2(20 CHAR)  NOT NULL,                   <span class="c">-- YYYYMMDDHH24MISS</span>
-    분류일시            VARCHAR2(20 CHAR),
+    업로드일시          VARCHAR2(14 CHAR)  NOT NULL,                   <span class="c">-- YYYYMMDDHH24MISS</span>
+    분류일시            VARCHAR2(14 CHAR),
     저장경로            VARCHAR2(600 CHAR) NOT NULL,
     CONSTRAINT PK_TSKGIAF01 PRIMARY KEY (업로드파일일련번호),
     CONSTRAINT CK_TSKGIAF01_분류상태 CHECK (분류상태구분 IN ('01', '02', '03', '04'))
 );
 
-<span class="c">-- ── 기관 (기관명 → 기관구분 매핑표) ─────────────────</span>
+<span class="c">-- ── 기관 (기관명 → 기관영업분류코드 매핑표) ─────────────────</span>
 CREATE TABLE TSKGIAF02 (
     기관일련번호        DECIMAL(16)       NOT NULL,
     기관명              VARCHAR2(40 CHAR) NOT NULL,
-    기관구분            VARCHAR2(2 CHAR)  NOT NULL,   <span class="c">-- 01~05</span>
+    기관영업분류코드            VARCHAR2(2 CHAR)  NOT NULL,   <span class="c">-- 01~05</span>
     협약기관상태구분    VARCHAR2(2 CHAR),             <span class="c">-- 01 미협약 / 02 협약  (앱 미사용)</span>
     입찰공고상태        VARCHAR2(2 CHAR),             <span class="c">-- 01 공고전 / 02 공고중 / 03 공고완료  (앱 미사용)</span>
     입찰공고시작        VARCHAR2(8 CHAR),             <span class="c">-- YYYYMMDD  (앱 미사용)</span>
@@ -409,7 +409,7 @@ SELECT sequence_name FROM user_sequences WHERE sequence_name IN ('TSKGIAF01_SEQ'
         <td>같음. <code>findByInstitutionNameContaining</code> 의 ROWNUM 2단 페이징을 본뜨면 됩니다</td></tr>
     <tr><td>③</td><td><b>자동 재분류 켜기</b> — <code>reclassification.cron</code> 이 비어 있습니다</td>
         <td>Work Manager <code>uploaderTM</code> 등록이 필요합니다(<code>DEPLOY.md</code> 3번)</td></tr>
-    <tr><td>④</td><td><b><code>기관구분</code> CHECK 제약</b></td>
+    <tr><td>④</td><td><b><code>기관영업분류코드</code> CHECK 제약</b></td>
         <td>지금은 TypeHandler 가 자바 쪽에서 막습니다. DB 이중 방어를 원하면 추가</td></tr>
   </tbody>
 </table>

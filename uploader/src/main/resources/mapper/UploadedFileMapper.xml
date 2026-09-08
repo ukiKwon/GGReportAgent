@@ -11,7 +11,7 @@
        property        →  컬럼명                 인포타입
        id              →  업로드파일일련번호      일련번호16 (DECIMAL)
        institutionName →  기관명                 명40
-       category        →  기관영업분류            구분코드2   ★ TypeHandler
+       category        →  기관영업분류코드        코드2       ★ TypeHandler
        year            →  문서년                 년4
        status          →  분류상태구분            구분코드2   ★ TypeHandler
        originalName    →  원본파일명              명260
@@ -33,7 +33,7 @@
   <resultMap id="uploadedFileMap" type="UploadedFile">
     <id     property="id"              column="업로드파일일련번호"/>
     <result property="institutionName" column="기관명"/>
-    <result property="category"        column="기관영업분류"
+    <result property="category"        column="기관영업분류코드"
             typeHandler="com.kb.uploader.config.InstitutionCategoryTypeHandler"/>
     <result property="year"            column="문서년"/>
     <result property="status"          column="분류상태구분"
@@ -66,7 +66,7 @@
   <!-- MySQL: useGeneratedKeys로 AUTO_INCREMENT id 채움 -->
   <insert id="insert" databaseId="mysql" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO TSKGIAF01
-      (기관명, 기관영업분류, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
+      (기관명, 기관영업분류코드, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
     VALUES
       (<include refid="값목록"/>)
   </insert>
@@ -76,7 +76,7 @@
       SELECT TSKGIAF01_SEQ.NEXTVAL FROM DUAL
     </selectKey>
     INSERT INTO TSKGIAF01
-      (업로드파일일련번호, 기관명, 기관영업분류, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
+      (업로드파일일련번호, 기관명, 기관영업분류코드, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
     VALUES
       (#{id}, <include refid="값목록"/>)
   </insert>
@@ -87,7 +87,7 @@
     저장경로      = #{storedPath},
     기관명        = #{institutionName},
     문서년        = #{year},
-    기관영업분류      = #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+    기관영업분류코드      = #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
     분류상태구분  = #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler},
     분류일시      = #{classifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}
     WHERE 업로드파일일련번호 = #{id}

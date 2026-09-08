@@ -117,13 +117,13 @@
   <thead><tr><th>파일</th><th>역할</th><th>고칠 일이 생기면</th></tr></thead>
   <tbody>
     <tr><td class="mono">code/InstitutionCategory.java</td>
-        <td>기관구분 코드↔이름 5쌍. <b>화면 드롭다운 목록의 유일한 출처</b></td>
+        <td>기관영업분류코드 코드↔이름 5쌍. <b>화면 드롭다운 목록의 유일한 출처</b></td>
         <td>분류를 늘리거나 이름을 바꿀 때 <b>이 파일만</b></td></tr>
     <tr><td class="mono">code/ClassificationStatus.java</td>
         <td>분류상태 코드↔값 4쌍 + 상수</td><td>상태를 늘릴 때(도메인도 함께)</td></tr>
     <tr><td class="mono">config/CodeTypeHandler.java</td>
         <td>코드 변환 공통 뼈대(추상). 모르는 값이면 <b>예외를 던진다</b></td><td>거의 없음</td></tr>
-    <tr><td class="mono">config/InstitutionCategoryTypeHandler.java</td><td>위 뼈대 + 기관구분 표</td><td>없음</td></tr>
+    <tr><td class="mono">config/InstitutionCategoryTypeHandler.java</td><td>위 뼈대 + 기관영업분류코드 표</td><td>없음</td></tr>
     <tr><td class="mono">config/ClassificationStatusTypeHandler.java</td><td>위 뼈대 + 분류상태 표</td><td>없음</td></tr>
     <tr><td class="mono">config/LocalDateTimeStringTypeHandler.java</td>
         <td><code>yyyyMMddHHmmss</code> 변환. 읽을 때 <code>trim()</code> 한다</td>
@@ -159,7 +159,7 @@ InstitutionCategoryTypeHandler: DB 에 모르는 코드가 들어 있다 — '99
 &lt;result property="classifiedAt"    column="CLASSIFIED_AT"/&gt;</pre>
   <pre class="a"><span class="lbl">후</span>&lt;id     property="id"              column="업로드파일일련번호"/&gt;
 &lt;result property="institutionName" column="기관명"/&gt;
-&lt;result property="category"        column="기관구분"
+&lt;result property="category"        column="기관영업분류코드"
         typeHandler="com.kb.uploader.config.InstitutionCategoryTypeHandler"/&gt;
 &lt;result property="year"            column="문서년"/&gt;
 &lt;result property="status"          column="분류상태구분"
@@ -194,7 +194,7 @@ VALUES
   (#{id}, #{originalName}, #{storedPath}, #{year}, #{institutionName}, #{category}, #{status}, #{uploadedAt})</pre>
   <pre class="a"><span class="lbl">후</span>SELECT TSKGIAF01_SEQ.NEXTVAL FROM DUAL
 INSERT INTO TSKGIAF01
-  (업로드파일일련번호, 기관명, 기관구분, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
+  (업로드파일일련번호, 기관명, 기관영업분류코드, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
 VALUES
   (#{id}, &lt;include refid="값목록"/&gt;)</pre>
 </div>
@@ -211,7 +211,7 @@ WHERE ID = #{id}</pre>
 SET 저장경로  = #{storedPath},
     기관명    = #{institutionName},
     문서년    = #{year},
-    기관구분  = #{category,typeHandler=…InstitutionCategoryTypeHandler},
+    기관영업분류코드  = #{category,typeHandler=…InstitutionCategoryTypeHandler},
     분류상태구분 = #{status,typeHandler=…ClassificationStatusTypeHandler},
     분류일시  = #{classifiedAt,typeHandler=…LocalDateTimeStringTypeHandler}
 WHERE 업로드파일일련번호 = #{id}</pre>
@@ -291,7 +291,7 @@ SELECT COUNT(*) FROM TSKGIAF01 WHERE 분류상태구분 = #{status,typeHandler=�
 &lt;result property="modifiedAt" column="MODIFIED_AT"/&gt;</pre>
   <pre class="a"><span class="lbl">후</span>&lt;id     property="id"         column="기관일련번호"/&gt;
 &lt;result property="name"       column="기관명"/&gt;
-&lt;result property="category"   column="기관구분"
+&lt;result property="category"   column="기관영업분류코드"
         typeHandler="com.kb.uploader.config.InstitutionCategoryTypeHandler"/&gt;
 &lt;result property="modifiedAt" column="수정일시"
         typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/&gt;</pre>
@@ -308,9 +308,9 @@ DELETE FROM INSTITUTION
 SELECT * FROM INSTITUTION WHERE NAME = #{name}
 SELECT * FROM INSTITUTION ORDER BY NAME ASC</pre>
   <pre class="a"><span class="lbl">후</span>SELECT TSKGIAF02_SEQ.NEXTVAL FROM DUAL
-INSERT INTO TSKGIAF02 (기관일련번호, 기관명, 기관구분, 수정일시) VALUES (#{id}, &lt;include refid="값목록"/&gt;)
-INSERT INTO TSKGIAF02 (기관명, 기관구분, 수정일시)                                -- mysql
-UPDATE TSKGIAF02 SET 기관명 = #{name}, 기관구분 = #{category,typeHandler=…},
+INSERT INTO TSKGIAF02 (기관일련번호, 기관명, 기관영업분류코드, 수정일시) VALUES (#{id}, &lt;include refid="값목록"/&gt;)
+INSERT INTO TSKGIAF02 (기관명, 기관영업분류코드, 수정일시)                                -- mysql
+UPDATE TSKGIAF02 SET 기관명 = #{name}, 기관영업분류코드 = #{category,typeHandler=…},
                      수정일시 = #{modifiedAt,typeHandler=…} WHERE 기관일련번호 = #{id}
 DELETE FROM TSKGIAF02 WHERE 기관일련번호 = #{id}
 DELETE FROM TSKGIAF02
@@ -419,7 +419,7 @@ model.addAttribute("categories", InstitutionCategory.names());</pre>
     <tr><td>9</td><td class="old">FILE_YEAR</td><td class="new">문서년</td><td>—</td></tr>
     <tr><td>10</td><td class="old">UPLOADED_FILE</td><td class="new">TSKGIAF01</td><td>1번을 먼저 했어야 안전</td></tr>
     <tr><td>11</td><td class="old">INSTITUTION</td><td class="new">TSKGIAF02</td><td>2·3번을 먼저 했어야 안전</td></tr>
-    <tr><td>12</td><td class="old">CATEGORY</td><td class="new">기관구분</td><td><b>한 번만</b></td></tr>
+    <tr><td>12</td><td class="old">CATEGORY</td><td class="new">기관영업분류코드</td><td><b>한 번만</b></td></tr>
     <tr><td>13</td><td class="old">STATUS</td><td class="new">분류상태구분</td><td><b>한 번만</b></td></tr>
     <tr><td>14</td><td class="old">NAME</td><td class="new">기관명</td><td>⚠️ <code>InstitutionMapper</code> 에서만</td></tr>
     <tr><td>15</td><td class="old">ID</td><td class="new">업로드파일일련번호 / 기관일련번호</td><td>🔴 <b>일괄 치환 금지 — 한 곳씩 눈으로</b></td></tr>
@@ -441,7 +441,7 @@ model.addAttribute("categories", InstitutionCategory.names());</pre>
     <tr><td class="mono" style="white-space:nowrap">배포</td><td><code>WEB-INF/classes/mapper/*.xml</code> 열어보기</td><td><code>TSKGIAF01</code> 이 보임</td></tr>
     <tr><td class="mono" style="white-space:nowrap">기동</td><td>서버 로그</td><td>TypeHandler 예외 없음</td></tr>
     <tr><td class="mono" style="white-space:nowrap">드롭다운</td><td><code>/uploader/institutions</code></td><td>분류 선택지가 <b>5종</b>(지방자치단체·공공기관·대학교·병원·법원)</td></tr>
-    <tr><td class="mono" style="white-space:nowrap">코드 저장</td><td>테이블 생성 후 기관 1건 등록 → DB 조회</td><td><code>기관구분</code> 에 <code>'01'</code> 같은 코드</td></tr>
+    <tr><td class="mono" style="white-space:nowrap">코드 저장</td><td>테이블 생성 후 기관 1건 등록 → DB 조회</td><td><code>기관영업분류코드</code> 에 <code>'01'</code> 같은 코드</td></tr>
     <tr><td class="mono" style="white-space:nowrap">일시 저장</td><td>파일 1건 업로드 → DB 조회</td><td><code>업로드일시</code> 가 <code>20260908103000</code> 14자</td></tr>
   </tbody>
 </table>
