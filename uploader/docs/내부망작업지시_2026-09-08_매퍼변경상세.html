@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>uploader 매퍼 변경 상세 — 내부망 작업 지시서</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+
+  :root {
+    --ink:      #16191c;
+    --ink-soft: #3d474e;
+    --muted:    #6b767d;
+    --rule:     #ccd4d8;
+    --rule-lt:  #e4e9eb;
+    --accent:   #0b4f6c;
+    --accent-bg:#eaf1f5;
+    --alert:    #96241f;
+    --alert-bg: #fbeeec;
+    --warn:     #7a5310;
+    --warn-bg:  #fbf3e2;
+    --ok:       #1f5f45;
+    --ok-bg:    #e8f2ed;
+    --old:      #8a2f2a;
+    --old-bg:   #fcf1f0;
+    --new:      #1c5c44;
+    --new-bg:   #eef6f2;
+    --code-bg:  #f2f4f5;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: "맑은 고딕", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    color: var(--ink);
+    font-size: 10.5pt;
+    line-height: 1.6;
+    margin: 0 auto;
+    max-width: 190mm;
+    padding: 10mm 6mm 20mm;
+    background: #fff;
+  }
+
+  header { border-bottom: 2.5px solid var(--accent); padding-bottom: 10px; }
+  .eyebrow { font-size: 8.5pt; letter-spacing: .12em; color: var(--accent); font-weight: 700; margin-bottom: 4px; }
+  h1 { font-size: 19pt; margin: 0 0 6px; line-height: 1.3; letter-spacing: -.01em; }
+  .lede { color: var(--ink-soft); margin: 0; max-width: 62em; }
+
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 4px 20px;
+    font-size: 9pt; color: var(--muted); margin: 10px 0 24px;
+    padding-top: 8px; border-top: 1px solid var(--rule-lt);
+  }
+  .meta b { color: var(--ink-soft); font-weight: 600; }
+
+  h2 {
+    font-size: 13pt; margin: 24px 0 10px; padding-bottom: 5px;
+    border-bottom: 1px solid var(--rule); page-break-after: avoid;
+  }
+  h2 .n { display: inline-block; min-width: 1.6em; color: var(--accent); font-weight: 700; }
+  h3 {
+    font-size: 10.5pt; margin: 16px 0 6px; color: var(--ink-soft);
+    page-break-after: avoid; font-family: Consolas, "D2Coding", monospace;
+  }
+  h3 .tag {
+    font-family: "맑은 고딕", sans-serif; font-size: 8pt; font-weight: 400;
+    color: var(--muted); margin-left: 6px;
+  }
+
+  p { margin: 0 0 8px; max-width: 62em; }
+  ul, ol { margin: 0 0 8px; padding-left: 20px; max-width: 62em; }
+  li { margin-bottom: 3px; }
+
+  code {
+    font-family: Consolas, "D2Coding", monospace;
+    font-size: .88em; background: var(--code-bg); padding: 1px 4px; border-radius: 2px;
+  }
+
+  table { width: 100%; border-collapse: collapse; margin: 0 0 12px; font-size: 9.3pt; page-break-inside: avoid; }
+  th, td { border: 1px solid var(--rule-lt); padding: 5px 9px; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); font-weight: 600; font-size: 8.8pt; color: var(--ink-soft); white-space: nowrap; }
+  td.mono, th.mono { font-family: Consolas, "D2Coding", monospace; font-size: 8.8pt; }
+  td.nowrap { white-space: nowrap; }
+  td.old { color: var(--old); font-family: Consolas, "D2Coding", monospace; font-size: 8.8pt; white-space: nowrap; }
+  td.new { color: var(--new); font-family: Consolas, "D2Coding", monospace; font-size: 8.8pt; font-weight: 600; white-space: nowrap; }
+
+  .ba { margin: 0 0 14px; page-break-inside: avoid; }
+  .ba pre {
+    font-family: Consolas, "D2Coding", monospace;
+    font-size: 8.4pt; line-height: 1.5;
+    margin: 0; padding: 7px 10px 7px 12px;
+    white-space: pre-wrap; word-break: break-all;
+  }
+  .ba .b { background: var(--old-bg); border-left: 3px solid var(--old); color: #4a2422; }
+  .ba .a { background: var(--new-bg); border-left: 3px solid var(--new); color: #16342a; margin-top: 2px; }
+  .ba .lbl {
+    display: inline-block; font-family: "맑은 고딕", sans-serif;
+    font-size: 7.5pt; font-weight: 700; letter-spacing: .06em;
+    margin-right: 6px; vertical-align: 1px;
+  }
+  .ba .b .lbl { color: var(--old); }
+  .ba .a .lbl { color: var(--new); }
+
+  .box { border-left: 3px solid var(--rule); padding: 9px 13px; margin: 0 0 13px; page-break-inside: avoid; }
+  .box .h { font-weight: 700; font-size: 9.5pt; margin-bottom: 3px; }
+  .box p:last-child, .box ul:last-child, .box ol:last-child { margin-bottom: 0; }
+  .box.alert { border-left-color: var(--alert); background: var(--alert-bg); }
+  .box.alert .h { color: var(--alert); }
+  .box.warn  { border-left-color: var(--warn);  background: var(--warn-bg); }
+  .box.warn .h { color: var(--warn); }
+  .box.info  { border-left-color: var(--accent); background: var(--accent-bg); }
+  .box.info .h { color: var(--accent); }
+  .box.ok    { border-left-color: var(--ok); background: var(--ok-bg); }
+  .box.ok .h { color: var(--ok); }
+
+  .unchanged {
+    background: var(--code-bg); border: 1px dashed var(--rule);
+    padding: 8px 12px; margin: 0 0 13px; font-size: 9.3pt; page-break-inside: avoid;
+  }
+  .unchanged b { color: var(--ink-soft); }
+  .unchanged code { background: #fff; }
+
+  footer {
+    margin-top: 28px; padding-top: 10px; border-top: 1px solid var(--rule);
+    font-size: 8.5pt; color: var(--muted);
+  }
+  .pb { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">내부망 작업 지시서 · uploader · 부속문서</div>
+  <h1>매퍼 변경 상세 — 무엇이 어떻게 바뀌었나</h1>
+  <p class="lede">
+    컬럼명 변경으로 <strong>매퍼 XML 2개</strong>가 함께 바뀌었습니다. 이 문서는 그
+    <strong>전·후를 문장 단위로</strong> 보여 줍니다. 파일을 통째로 교체하실 거라면
+    4절만 보셔도 되고, 내부망에서 손으로 고치거나 대조 검수를 하실 때 2·3절을 쓰십시오.
+  </p>
+</header>
+
+<div class="meta">
+  <span><b>작성일</b> 2026-09-08</span>
+  <span><b>근거 커밋</b> <code>1e13025</code></span>
+  <span><b>본 문서</b> 컬럼명 변경 지시서의 부속</span>
+  <span><b>검증</b> <code>mvn -o clean test</code> 62건 통과</span>
+</div>
+
+<h2><span class="n">1</span>왜 매퍼를 고쳐야 하나</h2>
+
+<p>
+  MyBatis의 <code>resultMap</code>은 <strong>자바 필드명과 DB 컬럼명을 잇는 번역표</strong>입니다.
+  자바가 컬럼명을 직접 알지 못하고 이 표를 거치기 때문에, <strong>컬럼명이 바뀌면 번역표와
+  SQL 문장만 고치면 자바는 손댈 필요가 없습니다.</strong>
+</p>
+
+<div class="ba">
+  <pre class="a"><span class="lbl">번역표</span>&lt;result property="storedPath" column="STORED_FILE_PATH"/&gt;
+                    ↑ 자바 필드 (안 바뀜)   ↑ DB 컬럼 (바뀜)</pre>
+</div>
+
+<div class="box alert">
+  <div class="h">매퍼를 안 고치면 어떻게 되나</div>
+  <p>
+    테이블은 새 이름인데 매퍼가 옛 이름을 부르면 <strong>기동은 성공하고 조회할 때마다
+    <code>ORA-00904: invalid identifier</code></strong> 가 납니다. 기동 로그에는 아무 문제가
+    없어서 원인을 찾기 어렵습니다 — <strong>매퍼를 반드시 테이블보다 먼저</strong> 교체하십시오.
+  </p>
+</div>
+
+<table>
+  <thead><tr><th>파일</th><th>SQL 문장</th><th>바뀐 문장</th><th>resultMap 행</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">UploadedFileMapper.xml</td><td>18개</td><td><strong>11개</strong></td><td>9행 중 <strong>6행</strong></td></tr>
+    <tr><td class="mono">InstitutionMapper.xml</td><td>7개</td><td><strong>6개</strong></td><td>4행 중 <strong>3행</strong></td></tr>
+  </tbody>
+</table>
+
+<h2><span class="n">2</span>UploadedFileMapper.xml</h2>
+
+<h3>2-1. resultMap <span class="tag">9행 중 6행 변경</span></h3>
+
+<table>
+  <thead><tr><th>자바 필드 (property)</th><th>옛 컬럼</th><th>새 컬럼</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">id</td><td class="old">ID</td><td class="new">UPLOADED_FILE_ID</td></tr>
+    <tr><td class="mono">originalName</td><td class="old">ORIGINAL_NAME</td><td class="new">ORIGINAL_FILE_NAME</td></tr>
+    <tr><td class="mono">storedPath</td><td class="old">STORED_PATH</td><td class="new">STORED_FILE_PATH</td></tr>
+    <tr><td class="mono">year</td><td class="old">FILE_YEAR</td><td class="new">DOCUMENT_YEAR</td></tr>
+    <tr><td class="mono">institutionName</td><td class="old">INSTITUTION_NAME</td><td class="new">INSTITUTION_NAME <em>(그대로)</em></td></tr>
+    <tr><td class="mono">category</td><td class="old">CATEGORY</td><td class="new">INSTITUTION_CATEGORY</td></tr>
+    <tr><td class="mono">status</td><td class="old">STATUS</td><td class="new">CLASSIFICATION_STATUS</td></tr>
+    <tr><td class="mono">uploadedAt</td><td class="old">UPLOADED_AT</td><td class="new">UPLOADED_AT <em>(그대로)</em></td></tr>
+    <tr><td class="mono">classifiedAt</td><td class="old">CLASSIFIED_AT</td><td class="new">CLASSIFIED_AT <em>(그대로)</em></td></tr>
+  </tbody>
+</table>
+
+<h3>2-2. <code>insert</code> <span class="tag">databaseId="mysql"</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>INSERT INTO UPLOADED_FILE
+(ORIGINAL_NAME, STORED_PATH, FILE_YEAR, INSTITUTION_NAME, CATEGORY, STATUS, UPLOADED_AT)</pre>
+  <pre class="a"><span class="lbl">후</span>INSERT INTO UPLOADED_FILE
+(ORIGINAL_FILE_NAME, STORED_FILE_PATH, DOCUMENT_YEAR, INSTITUTION_NAME,
+ INSTITUTION_CATEGORY, CLASSIFICATION_STATUS, UPLOADED_AT)</pre>
+</div>
+
+<h3>2-3. <code>insert</code> <span class="tag">databaseId="oracle" — 내부망이 실제로 쓰는 쪽</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>INSERT INTO UPLOADED_FILE
+  (ID, ORIGINAL_NAME, STORED_PATH, FILE_YEAR, INSTITUTION_NAME, CATEGORY, STATUS, UPLOADED_AT)</pre>
+  <pre class="a"><span class="lbl">후</span>INSERT INTO UPLOADED_FILE
+  (UPLOADED_FILE_ID, ORIGINAL_FILE_NAME, STORED_FILE_PATH, DOCUMENT_YEAR,
+   INSTITUTION_NAME, INSTITUTION_CATEGORY, CLASSIFICATION_STATUS, UPLOADED_AT)</pre>
+</div>
+<div class="box info">
+  <div class="h">selectKey 는 안 바뀌었습니다</div>
+  <p>
+    <code>SELECT UPLOADED_FILE_SEQ.NEXTVAL FROM DUAL</code> 은 <strong>시퀀스 이름</strong>이지
+    컬럼명이 아니라 그대로입니다. 시퀀스 이름은 <strong>바꾸면 안 됩니다.</strong>
+  </p>
+</div>
+
+<h3>2-4. <code>update</code></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>SET STORED_PATH = #{storedPath}, INSTITUTION_NAME = #{institutionName},
+    FILE_YEAR = #{year}, CATEGORY = #{category},
+    STATUS = #{status}, CLASSIFIED_AT = #{classifiedAt}
+WHERE ID = #{id}</pre>
+  <pre class="a"><span class="lbl">후</span>SET STORED_FILE_PATH = #{storedPath}, INSTITUTION_NAME = #{institutionName},
+    DOCUMENT_YEAR = #{year}, INSTITUTION_CATEGORY = #{category},
+    CLASSIFICATION_STATUS = #{status}, CLASSIFIED_AT = #{classifiedAt}
+WHERE UPLOADED_FILE_ID = #{id}</pre>
+</div>
+
+<h3>2-5. <code>softDeleteById</code> · <code>rejectById</code></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>UPDATE UPLOADED_FILE SET STATUS = 'DELETED'  WHERE ID = #{id}
+UPDATE UPLOADED_FILE SET STATUS = 'REJECTED' WHERE ID = #{id}</pre>
+  <pre class="a"><span class="lbl">후</span>UPDATE UPLOADED_FILE SET CLASSIFICATION_STATUS = 'DELETED'  WHERE UPLOADED_FILE_ID = #{id}
+UPDATE UPLOADED_FILE SET CLASSIFICATION_STATUS = 'REJECTED' WHERE UPLOADED_FILE_ID = #{id}</pre>
+</div>
+
+<h3>2-6. <code>findById</code> · <code>findByStatus</code> · <code>countByStatus</code></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>SELECT * FROM UPLOADED_FILE WHERE ID = #{id}
+SELECT * FROM UPLOADED_FILE WHERE STATUS = #{status}
+SELECT COUNT(*) FROM UPLOADED_FILE WHERE STATUS = #{status}</pre>
+  <pre class="a"><span class="lbl">후</span>SELECT * FROM UPLOADED_FILE WHERE UPLOADED_FILE_ID = #{id}
+SELECT * FROM UPLOADED_FILE WHERE CLASSIFICATION_STATUS = #{status}
+SELECT COUNT(*) FROM UPLOADED_FILE WHERE CLASSIFICATION_STATUS = #{status}</pre>
+</div>
+
+<h3>2-7. <code>findClassifiedByUnknownInstitution</code></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>WHERE INSTITUTION_NAME = '알수없음' AND STATUS = 'CLASSIFIED'</pre>
+  <pre class="a"><span class="lbl">후</span>WHERE INSTITUTION_NAME = '알수없음' AND CLASSIFICATION_STATUS = 'CLASSIFIED'</pre>
+</div>
+
+<h3>2-8. <code>search</code> <span class="tag">mysql · oracle 두 벌 모두</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전 (mysql)</span>AND (#{year} = '' OR FILE_YEAR = #{year})
+AND (#{keyword} = '' OR ORIGINAL_NAME LIKE CONCAT('%', #{keyword}, '%'))</pre>
+  <pre class="a"><span class="lbl">후 (mysql)</span>AND (#{year} = '' OR DOCUMENT_YEAR = #{year})
+AND (#{keyword} = '' OR ORIGINAL_FILE_NAME LIKE CONCAT('%', #{keyword}, '%'))</pre>
+</div>
+<div class="ba">
+  <pre class="b"><span class="lbl">전 (oracle)</span>AND (#{year} IS NULL OR FILE_YEAR = #{year})
+AND (#{keyword} IS NULL OR ORIGINAL_NAME LIKE '%' || #{keyword} || '%')</pre>
+  <pre class="a"><span class="lbl">후 (oracle)</span>AND (#{year} IS NULL OR DOCUMENT_YEAR = #{year})
+AND (#{keyword} IS NULL OR ORIGINAL_FILE_NAME LIKE '%' || #{keyword} || '%')</pre>
+</div>
+
+<div class="unchanged">
+  <b>안 바뀐 문장 7개</b> — 이 문장들은 <code>INSTITUTION_NAME</code>·<code>UPLOADED_AT</code>만
+  쓰는데 그 둘은 이름이 그대로라서입니다:
+  <code>countAll</code> · <code>findRecent</code>(mysql·oracle) ·
+  <code>findByInstitutionNameContaining</code>(mysql·oracle) ·
+  <code>countByInstitutionNameContaining</code>(mysql·oracle)
+</div>
+
+<h2 class="pb"><span class="n">3</span>InstitutionMapper.xml</h2>
+
+<h3>3-1. resultMap <span class="tag">4행 중 3행 변경</span></h3>
+<table>
+  <thead><tr><th>자바 필드 (property)</th><th>옛 컬럼</th><th>새 컬럼</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">id</td><td class="old">ID</td><td class="new">INSTITUTION_ID</td></tr>
+    <tr><td class="mono">name</td><td class="old">NAME</td><td class="new">INSTITUTION_NAME</td></tr>
+    <tr><td class="mono">category</td><td class="old">CATEGORY</td><td class="new">INSTITUTION_CATEGORY</td></tr>
+    <tr><td class="mono">modifiedAt</td><td class="old">MODIFIED_AT</td><td class="new">MODIFIED_AT <em>(그대로)</em></td></tr>
+  </tbody>
+</table>
+
+<h3>3-2. <code>insert</code> <span class="tag">mysql · oracle</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>INSERT INTO INSTITUTION (NAME, CATEGORY, MODIFIED_AT)              <span style="color:#8a7f7e">-- mysql</span>
+INSERT INTO INSTITUTION (ID, NAME, CATEGORY, MODIFIED_AT)          <span style="color:#8a7f7e">-- oracle</span></pre>
+  <pre class="a"><span class="lbl">후</span>INSERT INTO INSTITUTION (INSTITUTION_NAME, INSTITUTION_CATEGORY, MODIFIED_AT)
+INSERT INTO INSTITUTION (INSTITUTION_ID, INSTITUTION_NAME, INSTITUTION_CATEGORY, MODIFIED_AT)</pre>
+</div>
+
+<h3>3-3. <code>update</code> · <code>deleteById</code></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>SET NAME = #{name}, CATEGORY = #{category}, MODIFIED_AT = #{modifiedAt}
+WHERE ID = #{id}
+DELETE FROM INSTITUTION WHERE ID = #{id}</pre>
+  <pre class="a"><span class="lbl">후</span>SET INSTITUTION_NAME = #{name}, INSTITUTION_CATEGORY = #{category}, MODIFIED_AT = #{modifiedAt}
+WHERE INSTITUTION_ID = #{id}
+DELETE FROM INSTITUTION WHERE INSTITUTION_ID = #{id}</pre>
+</div>
+
+<h3>3-4. <code>findByName</code> · <code>findAll</code></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>SELECT * FROM INSTITUTION WHERE NAME = #{name}
+SELECT * FROM INSTITUTION ORDER BY NAME ASC</pre>
+  <pre class="a"><span class="lbl">후</span>SELECT * FROM INSTITUTION WHERE INSTITUTION_NAME = #{name}
+SELECT * FROM INSTITUTION ORDER BY INSTITUTION_NAME ASC</pre>
+</div>
+
+<div class="unchanged">
+  <b>안 바뀐 문장 1개</b> — <code>deleteAll</code>
+  (<code>DELETE FROM INSTITUTION</code>, 컬럼을 쓰지 않습니다)
+</div>
+
+<div class="box warn">
+  <div class="h"><code>findByName</code> 이 가장 중요한 문장입니다</div>
+  <p>
+    분류가 여기서 결정됩니다 — 업로드된 파일의 기관명으로 이 문장을 돌려
+    <strong>못 찾으면 파일이 <code>UNCLASSIFIED</code>로 남습니다.</strong>
+    이 문장의 컬럼명이 틀리면 <strong>오류 없이 “분류가 하나도 안 되는”</strong> 증상으로만
+    나타납니다.
+  </p>
+</div>
+
+<h2><span class="n">4</span>내부망에서 적용하는 법</h2>
+
+<h3 style="font-family:'맑은 고딕',sans-serif">방법 ⓐ — 파일 통째 교체 <span class="tag">권장</span></h3>
+<p>
+  외부망 리포의 아래 두 파일을 내부망 WTP 폴더의 같은 자리에 덮어쓰십시오. 그다음
+  <strong>Project → Clean</strong> → <strong>Publish</strong>.
+</p>
+<table>
+  <thead><tr><th>외부망 리포</th><th>내부망 WTP 폴더</th></tr></thead>
+  <tbody>
+    <tr>
+      <td class="mono">uploader/src/main/resources/mapper/UploadedFileMapper.xml</td>
+      <td class="mono">src/mapper/UploadedFileMapper.xml</td>
+    </tr>
+    <tr>
+      <td class="mono">uploader/src/main/resources/mapper/InstitutionMapper.xml</td>
+      <td class="mono">src/mapper/InstitutionMapper.xml</td>
+    </tr>
+  </tbody>
+</table>
+<p style="color:var(--ink-soft)">
+  ⚠️ WTP 배치는 <code>src/</code>가 <strong>평면</strong>이라 경로가 다릅니다
+  (<code>src/main/resources/</code>가 아니라 <code>src/</code>).
+  Eclipse가 <code>.xml</code>을 <code>WebContent/WEB-INF/classes/mapper/</code>로 복사합니다.
+</p>
+
+<h3 style="font-family:'맑은 고딕',sans-serif">방법 ⓑ — 손으로 고칠 때의 치환 규칙</h3>
+
+<div class="box alert">
+  <div class="h">일괄 찾기·바꾸기를 그냥 돌리면 망가집니다</div>
+  <p>
+    <code>CATEGORY</code> → <code>INSTITUTION_CATEGORY</code> 를 두 번 돌리면
+    <code>INSTITUTION_INSTITUTION_CATEGORY</code> 가 됩니다. <code>ID</code> 는 더 위험합니다
+    — <code>databaseId</code>·<code>keyProperty</code> 같은 <strong>속성 이름에도 들어 있어</strong>
+    무차별 치환하면 XML이 깨집니다.
+  </p>
+</div>
+
+<table>
+  <thead><tr><th>순서</th><th>찾을 것</th><th>바꿀 것</th><th>주의</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td class="old">ORIGINAL_NAME</td><td class="new">ORIGINAL_FILE_NAME</td><td>안전</td></tr>
+    <tr><td>2</td><td class="old">STORED_PATH</td><td class="new">STORED_FILE_PATH</td><td>안전</td></tr>
+    <tr><td>3</td><td class="old">FILE_YEAR</td><td class="new">DOCUMENT_YEAR</td><td>안전</td></tr>
+    <tr><td>4</td><td class="old">CATEGORY</td><td class="new">INSTITUTION_CATEGORY</td><td><strong>한 번만</strong>. 이미 바뀐 것에 다시 걸림</td></tr>
+    <tr><td>5</td><td class="old">STATUS</td><td class="new">CLASSIFICATION_STATUS</td><td><strong>한 번만</strong>. 위와 같은 문제</td></tr>
+    <tr><td>6</td><td class="old">NAME</td><td class="new">INSTITUTION_NAME</td><td>⚠️ <code>InstitutionMapper</code>에서만. <code>ORIGINAL_FILE_NAME</code>·<code>INSTITUTION_NAME</code>에 다시 걸림</td></tr>
+    <tr><td>7</td><td class="old">ID</td><td class="new">UPLOADED_FILE_ID / INSTITUTION_ID</td><td>🔴 <strong>일괄 치환 금지 — 한 곳씩 눈으로</strong></td></tr>
+  </tbody>
+</table>
+
+<p><strong>그래서 ⓐ(파일 교체)를 권합니다.</strong> 두 파일 합쳐 수십 KB입니다.</p>
+
+<h2><span class="n">5</span>교체 후 확인</h2>
+
+<table>
+  <thead><tr><th>확인</th><th>방법</th><th>정상</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>매퍼가 실제로 배포됐나</td>
+      <td class="mono">WebContent/WEB-INF/classes/mapper/*.xml 를 열어<br>새 컬럼명이 있는지</td>
+      <td>새 이름이 보임</td>
+    </tr>
+    <tr>
+      <td>기동</td>
+      <td>Publish 후 서버 로그</td>
+      <td>기동 성공. 테이블 생성 전이면 화면에서 <code>ORA-00942</code></td>
+    </tr>
+    <tr>
+      <td>테이블 생성 후 — 등록</td>
+      <td><code>/uploader/institutions</code> 에서 기관 1건</td>
+      <td>성공 = <code>InstitutionMapper</code> 전부 정상</td>
+    </tr>
+    <tr>
+      <td>테이블 생성 후 — 업로드</td>
+      <td><code>/uploader/upload</code> 로 파일 1건</td>
+      <td>성공 = <code>UploadedFileMapper</code> 의 insert·시퀀스 정상</td>
+    </tr>
+    <tr>
+      <td>분류</td>
+      <td>등록한 기관명과 <strong>똑같이</strong> 적어 업로드</td>
+      <td>파일이 <code>classified/</code> 아래로 이동</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="box ok">
+  <div class="h">증상별 원인</div>
+  <ul>
+    <li><code>ORA-00904: invalid identifier</code> → 매퍼와 테이블의 컬럼명이 다릅니다.
+        어느 컬럼인지 메시지에 나오니 2·3절 표와 대조하십시오.</li>
+    <li><code>ORA-02289: sequence does not exist</code> → 시퀀스 2개가 안 만들어졌습니다.
+        매퍼 문제가 아닙니다.</li>
+    <li>오류는 없는데 <strong>업로드한 파일이 계속 <code>UNCLASSIFIED</code></strong> →
+        <code>findByName</code>(3-4)을 의심하십시오. 그다음은 기관명 오타입니다.</li>
+    <li><code>Invalid bound statement</code> → 컬럼명이 아니라 <strong>방언 분기</strong> 문제입니다.
+        <code>mybatis.*</code> 3줄이 설정 파일에 있는지 보십시오.</li>
+  </ul>
+</div>
+
+<footer>
+  uploader 매퍼 변경 상세 · 2026-09-08 · 근거 커밋 <code>1e13025</code> ·
+  상위 문서: <code>내부망작업지시_2026-09-08_컬럼명변경.pdf</code>
+</footer>
+
+</body>
+</html>
