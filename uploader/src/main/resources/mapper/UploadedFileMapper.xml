@@ -10,14 +10,14 @@
 
        property        →  컬럼명                 인포타입
        id              →  업로드파일일련번호      일련번호16 (DECIMAL)
-       institutionName →  기관명                 명250
-       category        →  기관구분               구분코드2   ★ TypeHandler
+       institutionName →  기관명                 명40
+       category        →  기관영업분류            구분코드2   ★ TypeHandler
        year            →  문서년                 년4
        status          →  분류상태구분            구분코드2   ★ TypeHandler
        originalName    →  원본파일명              명260
-       uploadedAt      →  업로드일시              일시20      ★ TypeHandler
-       classifiedAt    →  분류일시                일시20      ★ TypeHandler
-       storedPath      →  저장경로               내용800
+       uploadedAt      →  업로드일시              일시14      ★ TypeHandler
+       classifiedAt    →  분류일시                일시14      ★ TypeHandler
+       storedPath      →  저장경로               내용600
 
   ★ **TypeHandler 를 자리마다 명시한다.** 두 코드 핸들러가 모두 자바 `String` 을
     다뤄서 자동 등록(type-handlers-package)을 쓸 수 없다 — 같은 타입에 둘이 걸리면
@@ -33,7 +33,7 @@
   <resultMap id="uploadedFileMap" type="UploadedFile">
     <id     property="id"              column="업로드파일일련번호"/>
     <result property="institutionName" column="기관명"/>
-    <result property="category"        column="기관구분"
+    <result property="category"        column="기관영업분류"
             typeHandler="com.kb.uploader.config.InstitutionCategoryTypeHandler"/>
     <result property="year"            column="문서년"/>
     <result property="status"          column="분류상태구분"
@@ -66,7 +66,7 @@
   <!-- MySQL: useGeneratedKeys로 AUTO_INCREMENT id 채움 -->
   <insert id="insert" databaseId="mysql" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO TSKGIAF01
-      (기관명, 기관구분, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
+      (기관명, 기관영업분류, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
     VALUES
       (<include refid="값목록"/>)
   </insert>
@@ -76,7 +76,7 @@
       SELECT TSKGIAF01_SEQ.NEXTVAL FROM DUAL
     </selectKey>
     INSERT INTO TSKGIAF01
-      (업로드파일일련번호, 기관명, 기관구분, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
+      (업로드파일일련번호, 기관명, 기관영업분류, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
     VALUES
       (#{id}, <include refid="값목록"/>)
   </insert>
@@ -87,7 +87,7 @@
     저장경로      = #{storedPath},
     기관명        = #{institutionName},
     문서년        = #{year},
-    기관구분      = #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+    기관영업분류      = #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
     분류상태구분  = #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler},
     분류일시      = #{classifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}
     WHERE 업로드파일일련번호 = #{id}

@@ -16,14 +16,14 @@ CREATE TABLE IF NOT EXISTS TSKGIAF01 (
     업로드파일일련번호  BIGINT       NOT NULL AUTO_INCREMENT,
     기관명              VARCHAR(40),
     -- 코드값: 01 지방자치단체 / 02 공공기관 / 03 대학교 / 04 병원 / 05 법원
-    기관구분            VARCHAR(2),
+    기관영업분류            VARCHAR(2),
     문서년              VARCHAR(4),
     -- 코드값: 01 UNCLASSIFIED / 02 CLASSIFIED / 03 REJECTED / 04 DELETED
     분류상태구분        VARCHAR(2)   NOT NULL DEFAULT '01',
     원본파일명          VARCHAR(260) NOT NULL,
     -- 시각은 문자열 YYYYMMDDHH24MISS (사내 표준). 자바는 LocalDateTime 그대로.
-    업로드일시          VARCHAR(20)  NOT NULL,
-    분류일시            VARCHAR(20),
+    업로드일시          VARCHAR(14)  NOT NULL,
+    분류일시            VARCHAR(14),
     저장경로            VARCHAR(600) NOT NULL,
     PRIMARY KEY (업로드파일일련번호),
     -- ⚠️ 인덱스를 CREATE TABLE 안에 둔 것은 형식만 Oracle 과 다르다. 분리하면
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS TSKGIAF01 (
 CREATE TABLE IF NOT EXISTS TSKGIAF02 (
     기관일련번호        BIGINT      NOT NULL AUTO_INCREMENT,
     기관명              VARCHAR(40) NOT NULL,
-    기관구분            VARCHAR(2)  NOT NULL,
+    기관영업분류            VARCHAR(2)  NOT NULL,
     -- 아래 4개는 앱이 읽지도 쓰지도 않는다(자리만 만들어 둔 것).
     협약기관상태구분    VARCHAR(2),                 -- 01 미협약 / 02 협약
     입찰공고상태        VARCHAR(2),                 -- 01 공고전 / 02 공고중 / 03 공고완료
