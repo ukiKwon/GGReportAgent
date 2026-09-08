@@ -156,6 +156,25 @@
   </table>
 </div>
 
+<div class="box alert">
+  <div class="h">🔴 이 문서의 SQL 에는 스키마 접두어 <code>INST1.</code> 가 붙어 있습니다</div>
+  <p>
+    사내 표준이 <code>FROM INST1.TSKGIAF01</code> 처럼 <b>스키마를 명시</b>하도록 요구합니다.
+    <b>그런데 외부망 리포의 실제 파일에는 아직 접두어가 없습니다</b> — 표준 요구를
+    <b>문서(=내부망용)에만 먼저</b> 반영한 것입니다(사용자 확정 2026-09-08).
+  </p>
+  <p style="margin-top:6px">따라서 두 가지를 유념하십시오:</p>
+  <ul style="margin:4px 0 0">
+    <li><b>내부망 파일과 리포 파일이 갈립니다.</b> 내부망에서는 이 문서(별첨)를 기준으로
+        삼으십시오 — 리포에서 그냥 복사해 오면 접두어가 빠집니다.</li>
+    <li>⚠️ <b><code>import_wtp.py</code> 로 내부망 파일을 리포로 되돌리면</b> 접두어가
+        리포로 들어와 <b>외부망 테스트(H2)가 전부 깨집니다.</b> 되돌릴 때는 접두어를
+        빼거나, 리포에도 함께 반영할지 먼저 정하십시오.</li>
+    <li><b>MySQL 미러(<code>schema-mysql.sql</code>)에는 붙이지 않았습니다</b> — 외부망
+        테스트 전용이라 <code>INST1</code> 스키마가 없습니다.</li>
+  </ul>
+</div>
+
 <h2><span class="n">1</span>확정된 표준</h2>
 
 <table>
@@ -413,11 +432,11 @@
     <tr><td class="nw">테이블 생성 전</td><td><code>/uploader/</code></td><td><code>ORA-00942</code> — 정상</td></tr>
     <tr><td class="nw">테이블 생성 후 ①</td><td><code>/uploader/institutions</code> 에서 기관 1건 등록<br>(분류는 드롭다운에서 <b>5종</b>이 보여야 함)</td>
         <td>등록 성공 = 컬럼명·시퀀스·<b>코드 TypeHandler</b> 모두 정상</td></tr>
-    <tr><td class="nw">테이블 생성 후 ②</td><td>DB 에서 <code>SELECT 기관영업분류코드 FROM TSKGIAF02</code></td>
+    <tr><td class="nw">테이블 생성 후 ②</td><td>DB 에서 <code>SELECT 기관영업분류코드 FROM INST1.TSKGIAF02</code></td>
         <td><code>'01'</code> 처럼 <b>코드</b>가 보여야 정상 (화면엔 한글)</td></tr>
     <tr><td class="nw">테이블 생성 후 ③</td><td><code>/uploader/upload</code> 로 파일 1건</td>
         <td><code>C:\uploader-local\unclassified\</code> 에 생성 + 목록 표시</td></tr>
-    <tr><td class="nw">테이블 생성 후 ④</td><td>DB 에서 <code>SELECT 업로드일시 FROM TSKGIAF01</code></td>
+    <tr><td class="nw">테이블 생성 후 ④</td><td>DB 에서 <code>SELECT 업로드일시 FROM INST1.TSKGIAF01</code></td>
         <td><code>20260908103000</code> 형태 14자 = <b>일시 TypeHandler</b> 정상</td></tr>
     <tr><td class="nw">분류</td><td>등록한 기관명과 <b>똑같이</b> 적어 업로드</td>
         <td>파일이 <code>classified\</code> 아래로 이동</td></tr>
@@ -445,7 +464,7 @@
 <h2 class="pb"><span class="n">6</span>DDL 전문 (DBA 전달용)</h2>
 
 <pre><span class="c">-- ── 업로드된 파일 ───────────────────────────────────</span>
-CREATE TABLE TSKGIAF01 (
+CREATE TABLE INST1.TSKGIAF01 (
     업로드파일일련번호  DECIMAL(16)        NOT NULL,
     기관명              VARCHAR2(40 CHAR),
     기관영업분류구분    VARCHAR2(2 CHAR),                          <span class="c">-- 01~05</span>
@@ -462,7 +481,7 @@ CREATE TABLE TSKGIAF01 (
 );
 
 <span class="c">-- ── 기관 ────────────────────────────────────────────</span>
-CREATE TABLE TSKGIAF02 (
+CREATE TABLE INST1.TSKGIAF02 (
     기관일련번호        DECIMAL(16)       NOT NULL,
     기관명              VARCHAR2(40 CHAR) NOT NULL,
     기관영업분류구분    VARCHAR2(2 CHAR)  NOT NULL,
@@ -477,20 +496,21 @@ CREATE TABLE TSKGIAF02 (
 );
 
 <span class="c">-- ── 시퀀스 (이름 변경 불가 — 매퍼가 그대로 부른다) ──</span>
-CREATE SEQUENCE SQ_KGI_AGENTFILETABLE  START WITH 1 INCREMENT BY 1 NOCACHE;  <span class="c">-- TSKGIAF01 용</span>
-CREATE SEQUENCE SQ_KGI_AGENTGIGANTABLE START WITH 1 INCREMENT BY 1 NOCACHE;  <span class="c">-- TSKGIAF02 용</span>
+CREATE SEQUENCE INST1.SQ_KGI_AGENTFILETABLE  START WITH 1 INCREMENT BY 1 NOCACHE;  <span class="c">-- TSKGIAF01 용</span>
+CREATE SEQUENCE INST1.SQ_KGI_AGENTGIGANTABLE START WITH 1 INCREMENT BY 1 NOCACHE;  <span class="c">-- TSKGIAF02 용</span>
 
 <span class="c">-- ── 인덱스 2개 (25·28바이트 — 11g 상한 30) ──────────</span>
-CREATE INDEX IX_TSKGIAF01_기관명일시 ON TSKGIAF01 (기관명, 업로드일시);
-CREATE INDEX IX_TSKGIAF01_분류상태   ON TSKGIAF01 (분류상태구분, 업로드파일일련번호);
+CREATE INDEX IX_TSKGIAF01_기관명일시 ON INST1.TSKGIAF01 (기관명, 업로드일시);
+CREATE INDEX IX_TSKGIAF01_분류상태   ON INST1.TSKGIAF01 (분류상태구분, 업로드파일일련번호);
 
 <span class="c">-- ── 재설치용 (필요할 때만) ──────────────────────────
---   DROP SEQUENCE SQ_KGI_AGENTFILETABLE;  DROP SEQUENCE SQ_KGI_AGENTGIGANTABLE;
---   DROP TABLE TSKGIAF01 PURGE;           DROP TABLE TSKGIAF02 PURGE;</span>
+--   DROP SEQUENCE INST1.SQ_KGI_AGENTFILETABLE;  DROP SEQUENCE INST1.SQ_KGI_AGENTGIGANTABLE;
+--   DROP TABLE INST1.TSKGIAF01 PURGE;           DROP TABLE INST1.TSKGIAF02 PURGE;</span>
 
 <span class="c">-- ── 적용 확인 (합계 4건) ────────────────────────────</span>
-SELECT table_name    FROM user_tables    WHERE table_name    IN ('TSKGIAF01', 'TSKGIAF02');
-SELECT sequence_name FROM user_sequences WHERE sequence_name IN ('SQ_KGI_AGENTFILETABLE', 'SQ_KGI_AGENTGIGANTABLE');</pre>
+SELECT table_name    FROM all_tables    WHERE owner = 'INST1' AND table_name    IN ('TSKGIAF01', 'TSKGIAF02');
+SELECT sequence_name FROM all_sequences WHERE sequence_owner = 'INST1'
+                                    AND sequence_name IN ('SQ_KGI_AGENTFILETABLE', 'SQ_KGI_AGENTGIGANTABLE');</pre>
 
 <div class="box warn">
   <div class="h">⚠️ 시퀀스는 NOCACHE 를 유지해 주십시오</div>

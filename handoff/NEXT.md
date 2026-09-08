@@ -1591,4 +1591,6 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
 `uploader/tools/gen_column_excel.py` — **스키마가 바뀌면 그 스크립트의 ROWS 도 같은
 커밋에서 고칠 것**(자동 파싱하지 않는다).
 
+| ⑬ | 🔴 **스키마 접두어가 문서에만 있고 리포 소스에는 없다** | 사내 표준이 `FROM INST1.TSKGIAF01` 을 요구해 **내부망 가이드(문서 ①②·DBA 요청서)에만** 접두어를 붙였다(사용자 확정 2026-09-08). 리포의 매퍼·`schema-oracle.sql` 에는 없다 — 붙이면 외부망 테스트(H2)가 깨지기 때문이다. ⚠️ **그래서 내부망 파일과 리포 파일이 갈려 있다.** `import_wtp.py` 로 되돌리면 접두어가 리포로 들어와 **62건이 전부 깨진다.** 정리 방법 셋: ⓐ 미러(`schema-mysql.sql`)에도 `CREATE SCHEMA INST1` 을 넣어 리포까지 접두어를 붙인다 ⓑ DataSource **Init SQL** 에 `ALTER SESSION SET CURRENT_SCHEMA=INST1` 을 넣어 SQL 에서 접두어를 뺀다(표준과 어긋남) ⓒ MyBatis `${schema}` 치환으로 환경별로 준다 |
+
 **막고 있는 것**: DBA의 테이블 생성(사용자가 요청 예정). 그 전까지 화면은 `ORA-00942`가 정상이다.
