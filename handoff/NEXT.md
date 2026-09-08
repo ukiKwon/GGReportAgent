@@ -1579,5 +1579,16 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
 | ⑦ | ~~`config-envs/local` vs `config/`(prod) 혼동 경고~~ — ✅ **완료(2026-09-08)** | 이번에 `local`을 도메인 config로 복사해 30분 이상 헤맸다. `local`의 `spring.autoconfigure.exclude=...JndiDataSourceAutoConfiguration` 이 **JNDI를 꺼 버린다** |
 | ⑧ | ~~진단 순서 문서화~~ — ✅ **완료(2026-09-08)** | *"`java:comp/env` 조회 실패 시 앱 서술자보다 **JNDI 트리와 DataSource Targets를 먼저** 보라"* — 이번 세션에서 가장 오래 돈 지점이다. `web.xml`·`weblogic.xml`·`application.properties`를 다 의심했지만 셋 다 정상이었고, 원인은 DataSource가 서버에 배포되지 않아 트리에 `jdbc` 폴더 자체가 없던 것 |
 | ⑨ | ~~현 브랜치 `.gitignore`에 `dist/` 추가~~ — ✅ **완료(2026-09-08)** | `main`에는 있고 이 브랜치에는 없다. 43MB zip이 실수로 커밋될 수 있다 |
+| ⑩ | **분류완료 목록 화면(KGI12400)에 페이징이 없다** | `findByStatus('CLASSIFIED')` 가 **전량을 메모리로** 가져온다. 분류된 파일은 계속 쌓이므로(삭제도 소프트 삭제라 안 줄어든다) **이 화면이 가장 먼저 무너진다.** 2026-09-08 인덱스 재설계 중 발견. 고치려면 화면·컨트롤러·매퍼가 함께 바뀌어 그날 최우선(내부망 기동)을 밀어내므로 미뤘다. 참고: `findByInstitutionNameContaining` 에 이미 ROWNUM 2단 중첩 페이징 구현이 있으니 그것을 본뜨면 된다 |
+| ⑪ | **기관 입력을 드롭다운으로** | 지금 기관명이 자유 입력 텍스트(`upload.html:30`)라 ⓐ 오타 한 글자에 파일이 조용히 미분류로 남고 ⓑ 조회가 `LIKE '%…%'` 라 인덱스 `IX_TSKGIAF01_기관명일시` 를 **못 쓴다**. `TSKGIAF02` 를 드롭다운 소스로 쓰면 셋 다 해결된다. **기관이 주 조회 축이라 체감 개선이 가장 큰 항목** (사용자 확인 2026-09-08: "A 기관 자료 들어왔나?" 가 주 용도) |
+| ⑫ | **`기관구분` CHECK 제약** | 코드값 5종이 확정됐지만 CHECK 는 안 걸었다. 지금은 `InstitutionCategoryTypeHandler` 가 자바 쪽에서 막고 있어 잘못된 값이 들어갈 길이 없다 — DB 차원의 이중 방어를 원하면 `CHECK (기관구분 IN ('01','02','03','04','05'))` 를 추가하면 된다 |
+
+**2026-09-08 추가 — 스키마가 사내 표준으로 확정됐다.** 테이블 `TSKGIAF01`·`TSKGIAF02`,
+컬럼은 한글, 타입은 인포타입(`일시20`=CHARACTER `YYYYMMDDHH24MISS` · `구분코드2` ·
+`일련번호16`=DECIMAL · `명250/260` · `내용800` · `년4`). 표준과 자바가 부딪히는 두 곳
+(문자열 시각 · 5자리 코드값)은 **TypeHandler 3개로 흡수**해 도메인·화면·테스트를 지켰다.
+DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 생성기는
+`uploader/tools/gen_column_excel.py` — **스키마가 바뀌면 그 스크립트의 ROWS 도 같은
+커밋에서 고칠 것**(자동 파싱하지 않는다).
 
 **막고 있는 것**: DBA의 테이블 생성(사용자가 요청 예정). 그 전까지 화면은 `ORA-00942`가 정상이다.
