@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS TSKGIAF01 (
     -- 열 순서가 전부다 — (기관명, 업로드일시) 라서 기관 조회 + 최신순 정렬이
     -- 정렬 없이 처리된다. 근거는 schema-oracle.sql 의 인덱스 절.
     KEY IX_TSKGIAF01_기관명일시 (기관명, 업로드일시),
+    -- 상태별 목록 — 앱에서 가장 많이 쓰는 조건(6곳). 두 번째 열이 PK 라 정렬까지 받는다.
+    KEY IX_TSKGIAF01_분류상태 (분류상태구분, 업로드파일일련번호),
     -- ⚠️ MySQL 은 8.0.16 부터 CHECK 를 실제로 강제한다.
     CONSTRAINT CK_TSKGIAF01_분류상태 CHECK (분류상태구분 IN ('01', '02', '03', '04'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
