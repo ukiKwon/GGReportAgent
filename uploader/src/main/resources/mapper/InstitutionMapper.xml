@@ -2,12 +2,21 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
   "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
+<!--
+  ⚠️ **2026-09-08 에 컬럼명이 전부 바뀌었다.** 자바 필드명(property)은 그대로다.
+
+       property    →  column
+       id          →  INSTITUTION_ID
+       name        →  INSTITUTION_NAME
+       category    →  INSTITUTION_CATEGORY
+       modifiedAt  →  MODIFIED_AT
+-->
 <mapper namespace="com.kb.uploader.mapper.InstitutionMapper">
 
   <resultMap id="institutionMap" type="Institution">
-    <id     property="id"         column="ID"/>
-    <result property="name"       column="NAME"/>
-    <result property="category"   column="CATEGORY"/>
+    <id     property="id"         column="INSTITUTION_ID"/>
+    <result property="name"       column="INSTITUTION_NAME"/>
+    <result property="category"   column="INSTITUTION_CATEGORY"/>
     <result property="modifiedAt" column="MODIFIED_AT"/>
   </resultMap>
 
@@ -18,7 +27,7 @@
 
   <!-- MySQL -->
   <insert id="insert" databaseId="mysql" useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO INSTITUTION (NAME, CATEGORY, MODIFIED_AT)
+    INSERT INTO INSTITUTION (INSTITUTION_NAME, INSTITUTION_CATEGORY, MODIFIED_AT)
     VALUES (#{name}, #{category}, #{modifiedAt})
   </insert>
   <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 INSTITUTION_SEQ) -->
@@ -26,18 +35,18 @@
     <selectKey keyProperty="id" resultType="long" order="BEFORE">
       SELECT INSTITUTION_SEQ.NEXTVAL FROM DUAL
     </selectKey>
-    INSERT INTO INSTITUTION (ID, NAME, CATEGORY, MODIFIED_AT)
+    INSERT INTO INSTITUTION (INSTITUTION_ID, INSTITUTION_NAME, INSTITUTION_CATEGORY, MODIFIED_AT)
     VALUES (#{id}, #{name}, #{category}, #{modifiedAt})
   </insert>
 
   <update id="update">
     UPDATE INSTITUTION
-    SET NAME = #{name}, CATEGORY = #{category}, MODIFIED_AT = #{modifiedAt}
-    WHERE ID = #{id}
+    SET INSTITUTION_NAME = #{name}, INSTITUTION_CATEGORY = #{category}, MODIFIED_AT = #{modifiedAt}
+    WHERE INSTITUTION_ID = #{id}
   </update>
 
   <delete id="deleteById">
-    DELETE FROM INSTITUTION WHERE ID = #{id}
+    DELETE FROM INSTITUTION WHERE INSTITUTION_ID = #{id}
   </delete>
 
   <delete id="deleteAll">
@@ -45,11 +54,11 @@
   </delete>
 
   <select id="findByName" resultMap="institutionMap">
-    SELECT * FROM INSTITUTION WHERE NAME = #{name}
+    SELECT * FROM INSTITUTION WHERE INSTITUTION_NAME = #{name}
   </select>
 
   <select id="findAll" resultMap="institutionMap">
-    SELECT * FROM INSTITUTION ORDER BY NAME ASC
+    SELECT * FROM INSTITUTION ORDER BY INSTITUTION_NAME ASC
   </select>
 
 </mapper>

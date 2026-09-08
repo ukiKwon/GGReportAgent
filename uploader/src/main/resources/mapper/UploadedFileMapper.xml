@@ -2,16 +2,35 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
+<!--
+  ⚠️ **2026-09-08 에 컬럼명이 전부 바뀌었다.** 자바 필드명(property)은 그대로이고
+     DB 컬럼명(column)만 바뀌었다 — 아래 resultMap 이 둘을 잇는다.
+
+       property        →  column
+       id              →  UPLOADED_FILE_ID
+       originalName    →  ORIGINAL_FILE_NAME
+       storedPath      →  STORED_FILE_PATH
+       year            →  DOCUMENT_YEAR
+       institutionName →  INSTITUTION_NAME
+       category        →  INSTITUTION_CATEGORY
+       status          →  CLASSIFICATION_STATUS
+       uploadedAt      →  UPLOADED_AT
+       classifiedAt    →  CLASSIFIED_AT
+
+     `mybatis.configuration.map-underscore-to-camel-case=true` 가 켜져 있지만
+     이 매퍼는 **resultMap 으로 명시 매핑**하므로 그 규칙에 기대지 않는다
+     (`UPLOADED_FILE_ID` → `uploadedFileId` 로 자동 변환돼도 무시된다).
+-->
 <mapper namespace="com.kb.uploader.mapper.UploadedFileMapper">
 
   <resultMap id="uploadedFileMap" type="UploadedFile">
-    <id     property="id"              column="ID"/>
-    <result property="originalName"    column="ORIGINAL_NAME"/>
-    <result property="storedPath"      column="STORED_PATH"/>
-    <result property="year"            column="FILE_YEAR"/>
+    <id     property="id"              column="UPLOADED_FILE_ID"/>
+    <result property="originalName"    column="ORIGINAL_FILE_NAME"/>
+    <result property="storedPath"      column="STORED_FILE_PATH"/>
+    <result property="year"            column="DOCUMENT_YEAR"/>
     <result property="institutionName" column="INSTITUTION_NAME"/>
-    <result property="category"        column="CATEGORY"/>
-    <result property="status"          column="STATUS"/>
+    <result property="category"        column="INSTITUTION_CATEGORY"/>
+    <result property="status"          column="CLASSIFICATION_STATUS"/>
     <result property="uploadedAt"      column="UPLOADED_AT"/>
     <result property="classifiedAt"    column="CLASSIFIED_AT"/>
   </resultMap>
@@ -25,9 +44,11 @@
   <!-- MySQL: useGeneratedKeys로 AUTO_INCREMENT id 채움 -->
   <insert id="insert" databaseId="mysql" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO UPLOADED_FILE
-    (ORIGINAL_NAME, STORED_PATH, FILE_YEAR, INSTITUTION_NAME, CATEGORY, STATUS, UPLOADED_AT)
+    (ORIGINAL_FILE_NAME, STORED_FILE_PATH, DOCUMENT_YEAR, INSTITUTION_NAME,
+     INSTITUTION_CATEGORY, CLASSIFICATION_STATUS, UPLOADED_AT)
     VALUES
-    (#{originalName}, #{storedPath}, #{year}, #{institutionName}, #{category}, #{status}, #{uploadedAt})
+    (#{originalName}, #{storedPath}, #{year}, #{institutionName},
+     #{category}, #{status}, #{uploadedAt})
   </insert>
   <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 UPLOADED_FILE_SEQ) -->
   <insert id="insert" databaseId="oracle">
@@ -35,42 +56,44 @@
       SELECT UPLOADED_FILE_SEQ.NEXTVAL FROM DUAL
     </selectKey>
     INSERT INTO UPLOADED_FILE
-      (ID, ORIGINAL_NAME, STORED_PATH, FILE_YEAR, INSTITUTION_NAME, CATEGORY, STATUS, UPLOADED_AT)
+      (UPLOADED_FILE_ID, ORIGINAL_FILE_NAME, STORED_FILE_PATH, DOCUMENT_YEAR,
+       INSTITUTION_NAME, INSTITUTION_CATEGORY, CLASSIFICATION_STATUS, UPLOADED_AT)
     VALUES
-      (#{id}, #{originalName}, #{storedPath}, #{year}, #{institutionName}, #{category}, #{status}, #{uploadedAt})
+      (#{id}, #{originalName}, #{storedPath}, #{year},
+       #{institutionName}, #{category}, #{status}, #{uploadedAt})
   </insert>
 
   <update id="update">
     UPDATE UPLOADED_FILE
     SET
-    STORED_PATH      = #{storedPath},
-    INSTITUTION_NAME = #{institutionName},
-    FILE_YEAR        = #{year},
-    CATEGORY         = #{category},
-    STATUS           = #{status},
-    CLASSIFIED_AT    = #{classifiedAt}
-    WHERE ID = #{id}
+    STORED_FILE_PATH      = #{storedPath},
+    INSTITUTION_NAME      = #{institutionName},
+    DOCUMENT_YEAR         = #{year},
+    INSTITUTION_CATEGORY  = #{category},
+    CLASSIFICATION_STATUS = #{status},
+    CLASSIFIED_AT         = #{classifiedAt}
+    WHERE UPLOADED_FILE_ID = #{id}
   </update>
 
   <update id="softDeleteById">
-    UPDATE UPLOADED_FILE SET STATUS = 'DELETED' WHERE ID = #{id}
+    UPDATE UPLOADED_FILE SET CLASSIFICATION_STATUS = 'DELETED' WHERE UPLOADED_FILE_ID = #{id}
   </update>
 
   <update id="rejectById">
-    UPDATE UPLOADED_FILE SET STATUS = 'REJECTED' WHERE ID = #{id}
+    UPDATE UPLOADED_FILE SET CLASSIFICATION_STATUS = 'REJECTED' WHERE UPLOADED_FILE_ID = #{id}
   </update>
 
   <select id="findById" resultMap="uploadedFileMap">
-    SELECT * FROM UPLOADED_FILE WHERE ID = #{id}
+    SELECT * FROM UPLOADED_FILE WHERE UPLOADED_FILE_ID = #{id}
   </select>
 
   <select id="findByStatus" resultMap="uploadedFileMap">
-    SELECT * FROM UPLOADED_FILE WHERE STATUS = #{status}
+    SELECT * FROM UPLOADED_FILE WHERE CLASSIFICATION_STATUS = #{status}
   </select>
 
   <select id="findClassifiedByUnknownInstitution" resultMap="uploadedFileMap">
     SELECT * FROM UPLOADED_FILE
-    WHERE INSTITUTION_NAME = '알수없음' AND STATUS = 'CLASSIFIED'
+    WHERE INSTITUTION_NAME = '알수없음' AND CLASSIFICATION_STATUS = 'CLASSIFIED'
     ORDER BY UPLOADED_AT DESC
   </select>
 
@@ -79,7 +102,7 @@
   </select>
 
   <select id="countByStatus" resultType="long">
-    SELECT COUNT(*) FROM UPLOADED_FILE WHERE STATUS = #{status}
+    SELECT COUNT(*) FROM UPLOADED_FILE WHERE CLASSIFICATION_STATUS = #{status}
   </select>
 
   <!-- MySQL: LIMIT -->
@@ -127,8 +150,8 @@
     SELECT * FROM UPLOADED_FILE
     WHERE
     (#{institution} = '' OR INSTITUTION_NAME LIKE CONCAT('%', #{institution}, '%'))
-    AND (#{year} = '' OR FILE_YEAR = #{year})
-    AND (#{keyword} = '' OR ORIGINAL_NAME LIKE CONCAT('%', #{keyword}, '%'))
+    AND (#{year} = '' OR DOCUMENT_YEAR = #{year})
+    AND (#{keyword} = '' OR ORIGINAL_FILE_NAME LIKE CONCAT('%', #{keyword}, '%'))
     ORDER BY UPLOADED_AT DESC
   </select>
   <!--
@@ -141,8 +164,8 @@
     SELECT * FROM UPLOADED_FILE
     WHERE
       (#{institution} IS NULL OR INSTITUTION_NAME LIKE '%' || #{institution} || '%')
-      AND (#{year} IS NULL OR FILE_YEAR = #{year})
-      AND (#{keyword} IS NULL OR ORIGINAL_NAME LIKE '%' || #{keyword} || '%')
+      AND (#{year} IS NULL OR DOCUMENT_YEAR = #{year})
+      AND (#{keyword} IS NULL OR ORIGINAL_FILE_NAME LIKE '%' || #{keyword} || '%')
     ORDER BY UPLOADED_AT DESC
   </select>
 
