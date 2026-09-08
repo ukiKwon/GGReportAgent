@@ -57,6 +57,10 @@
   ol.steps > li::before { content:counter(s); position:absolute; left:0; top:1px; width:20px; height:20px;
     border-radius:50%; background:var(--accent); color:#fff; font-size:8.5pt; font-weight:700;
     display:flex; align-items:center; justify-content:center; }
+  .oneshot { border:2px solid var(--accent); background:#fff; padding:14px 18px; margin:0 0 20px; }
+  .oneshot h2 { margin-top:0; border-bottom-color:var(--accent); }
+  .oneshot table { font-size:8.9pt; }
+  .oneshot ol { margin:0 0 10px; }
   footer { margin-top:26px; padding-top:10px; border-top:1px solid var(--rule); font-size:8.5pt; color:var(--muted); }
   .pb { page-break-before: always; }
 </style>
@@ -79,6 +83,69 @@
   <span><b>대상</b> WebLogic 12.2.1.4 / Eclipse Photon</span>
   <span><b>선행</b> 웹 기동 정상 · 테이블 미생성</span>
   <span><b>검증</b> 외부망 <code>mvn -o clean test</code> 62건 통과</span>
+</div>
+
+<div class="oneshot">
+<h2 style="page-break-after:auto"><span class="n">요약</span>한 장으로</h2>
+
+<p style="margin-bottom:10px"><strong>내부망에 있는 2026-09-07 zip 대비 누적 변경분입니다.
+   오늘 이름이 여러 번 바뀌었지만 이 최종 상태 한 번만 반영하면 됩니다.</strong></p>
+
+<h3 style="margin-top:0">할 일 4단계</h3>
+<ol style="padding-left:18px">
+  <li><strong>파일 27개 반영</strong> → Eclipse <code>Project → Clean</code>
+      <span style="color:var(--alert)">(컴파일 오류가 나면 여기서 멈추십시오)</span></li>
+  <li><strong>Publish · 재기동</strong> → 테이블이 없으니 <code>ORA-00942</code> 가 정상</li>
+  <li><strong>DBA 제출</strong> — 엑셀 <code>DBA제출_컬럼정의_2026-09-08.xlsx</code>(20행) + 6절 DDL</li>
+  <li><strong>테이블 생성 후 재기동 → 확인</strong></li>
+</ol>
+<p style="color:var(--alert);font-weight:700;margin-bottom:12px">
+  🔴 소스가 먼저, 테이블이 나중. 반대로 하면 그 사이 모든 화면이 죽습니다.</p>
+
+<table>
+  <thead><tr><th>반입 파일 27개</th><th>개수</th><th>비고</th></tr></thead>
+  <tbody>
+    <tr><td>자바 <b>신규</b></td><td>9</td><td><code>src/com/kb/uploader/code/</code> 폴더가 새로 생깁니다</td></tr>
+    <tr><td>자바 수정</td><td>13</td><td>도메인2 · 매퍼IF1 · 서비스3 · 컨트롤러6 · 배치1</td></tr>
+    <tr><td>매퍼 XML · 스키마 SQL</td><td>4</td><td>통째로 교체 권장</td></tr>
+    <tr><td>화면</td><td>1</td><td><code>institution.html</code> — 옛 분류 4종 제거</td></tr>
+  </tbody>
+</table>
+<p style="margin-bottom:12px">jar 는 하나도 안 바뀌어 <strong>zip 재반입은 불필요</strong>하지만,
+   자바가 늘고 바뀌었으므로 <strong>컴파일이 필요</strong>합니다.</p>
+
+<table>
+  <thead><tr><th>최종 스키마</th><th>컬럼</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">TSKGIAF01<br><span style="font-family:'맑은 고딕';font-size:8pt;color:var(--muted)">11열</span></td>
+        <td class="mono">업로드파일일련번호 · 기관명 · 기관영업분류구분 · 문서년 · 분류상태구분 ·
+            원본파일명 · 업로드일시 · 분류일시 · 저장경로내용 · <b>시스템사용일시 · 시스템사용자번호</b></td></tr>
+    <tr><td class="mono">TSKGIAF02<br><span style="font-family:'맑은 고딕';font-size:8pt;color:var(--muted)">9열</span></td>
+        <td class="mono">기관일련번호 · 기관명 · 기관영업분류구분 · 협약기관상태구분 · 입찰공고상태구분 ·
+            입찰공고시작년월일 · 입찰공고마감년월일 · <b>시스템사용일시</b>(옛 수정일시) · <b>시스템사용자번호</b></td></tr>
+    <tr><td>시퀀스</td><td class="mono">SQ_KGI_AGENTFILETABLE · SQ_KGI_AGENTGIGANTABLE</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>확인 시점</th><th>정상이면</th></tr></thead>
+  <tbody>
+    <tr><td class="nw">Clean 직후</td><td>컴파일 오류 0건</td></tr>
+    <tr><td class="nw">테이블 생성 전</td><td>화면에서 <code>ORA-00942</code></td></tr>
+    <tr><td class="nw">기관 1건 등록</td><td>성공 + 분류 드롭다운에 <b>5종</b></td></tr>
+    <tr><td class="nw">DB 직접 조회</td><td><code>기관영업분류구분</code>=<code>'01'</code> ·
+        <code>업로드일시</code> 14자 · <code>시스템사용자번호</code>=<code>'GI13100'</code></td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>오류가 나면 — 함정 3개</th><th>원인</th></tr></thead>
+  <tbody>
+    <tr><td class="mono nw">ORA-02289</td><td>시퀀스 이름이 <code>SQ_KGI_*</code> 로 바뀌었습니다</td></tr>
+    <tr><td class="nw">코드로 옮길 수 없는 값이다 — '지자체'</td><td>컨트롤러·화면의 옛 분류 4종이 안 고쳐졌습니다</td></tr>
+    <tr><td class="mono nw">ORA-00904</td><td>컬럼명 불일치 — 2절 대조표와 맞춰보십시오</td></tr>
+  </tbody>
+</table>
 </div>
 
 <div class="box info">

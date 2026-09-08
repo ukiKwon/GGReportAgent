@@ -1529,6 +1529,848 @@ CREATE TABLE IF NOT EXISTS TSKGIAF02 (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 </pre>
 
+
+<h2 class="pb"><span class="n">별첨4</span>수정된 자바·화면 14개 — 전문</h2>
+
+<div class="box info">
+  <div class="h">별첨1~3 과 무엇이 다른가</div>
+  <p>
+    별첨1~3 은 <b>새로 만드는 파일</b>(자바 9 · 매퍼 2 · 스키마 2)이고,
+    여기는 <b>이미 있던 파일을 고친 것</b>입니다. 앞의 5절이 <b>바뀐 줄만 발췌</b>한 것이라,
+    통째로 옮겨 적으실 때는 이쪽을 기준으로 삼으십시오.
+  </p>
+</div>
+
+<div class="box warn">
+  <div class="h">대부분은 한두 줄 변경입니다</div>
+  <p>
+    컨트롤러 6개와 서비스 3개는 <b><code>import</code> 한 줄 + 세팅 한두 줄</b>이 전부입니다.
+    실제로 내용이 늘어난 것은 <code>UploadedFile</code>(필드 2개)·
+    <code>UploadedFileMapper</code>(파라미터)·<code>ReclassificationJob</code>(try/finally)
+    정도입니다.
+  </p>
+</div>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/domain/UploadedFile.java<span class="tag">76줄 · systemUserNo · systemUsedAt 필드 추가</span></h3>
+<pre class="src">package com.kb.uploader.domain;
+
+import java.time.LocalDateTime;
+
+public class UploadedFile {
+
+    /** 감사 컬럼 시스템사용자번호. 화면번호(앞 K 제외 7자) 또는 &#x27;BATCH01&#x27;. code/SystemUser 참조. */
+    private String systemUserNo;
+
+    /**
+     * 감사 컬럼 시스템사용일시. &lt;b&gt;업로드일시(업무 시각)와 다르다&lt;/b&gt; — 이 행을 마지막으로
+     * 건드린 시각이다. 규칙(사용자 확정 2026-09-08):
+     * 업로드 때는 업로드일시, 분류 때는 분류일시와 &lt;b&gt;같은 값&lt;/b&gt;을 쓰고,
+     * 그 둘이 없는 경우(삭제·반려·분류일시 없는 수정)는 &lt;b&gt;그 시점의 시각&lt;/b&gt;을 쓴다.
+     * ⚠️ DB 함수로 채우지 않는 이유는 방언이 갈리고(TO_CHAR/DATE_FORMAT) 테스트로
+     *    확인하기 어렵기 때문이다 — 자바에서 정해 넘기면 값이 정확히 일치한다.
+     */
+    private LocalDateTime systemUsedAt;
+
+    private Long id;
+    private String originalName;
+    private String storedPath;
+    private String year;
+    private String institutionName;
+    private String category;
+    private String status;
+    private LocalDateTime uploadedAt;
+    private LocalDateTime classifiedAt;
+
+    public UploadedFile() {}
+
+    public UploadedFile(String originalName, String storedPath,
+                        String year, String institutionName) {
+        this.originalName = originalName;
+        this.storedPath = storedPath;
+        this.year = year;
+        this.institutionName = institutionName;
+        this.status = &quot;UNCLASSIFIED&quot;;
+        this.uploadedAt = LocalDateTime.now();
+    }
+
+    public void classify(String category, String storedPath) {
+        this.category = category;
+        this.storedPath = storedPath;
+        this.status = &quot;CLASSIFIED&quot;;
+        this.classifiedAt = LocalDateTime.now();
+    }
+
+    public void softDelete() {
+        this.status = &quot;DELETED&quot;;
+    }
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getOriginalName() { return originalName; }
+    public void setOriginalName(String originalName) { this.originalName = originalName; }
+    public String getStoredPath() { return storedPath; }
+    public void setStoredPath(String storedPath) { this.storedPath = storedPath; }
+    public String getYear() { return year; }
+    public void setYear(String year) { this.year = year; }
+    public String getInstitutionName() { return institutionName; }
+    public void setInstitutionName(String institutionName) { this.institutionName = institutionName; }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public LocalDateTime getUploadedAt() { return uploadedAt; }
+    public void setUploadedAt(LocalDateTime uploadedAt) { this.uploadedAt = uploadedAt; }
+    public LocalDateTime getClassifiedAt() { return classifiedAt; }
+    public void setClassifiedAt(LocalDateTime classifiedAt) { this.classifiedAt = classifiedAt; }
+
+    public String getSystemUserNo() { return systemUserNo; }
+    public void setSystemUserNo(String systemUserNo) { this.systemUserNo = systemUserNo; }
+    public LocalDateTime getSystemUsedAt() { return systemUsedAt; }
+    public void setSystemUsedAt(LocalDateTime systemUsedAt) { this.systemUsedAt = systemUsedAt; }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/domain/Institution.java<span class="tag">39줄 · systemUserNo 필드 추가</span></h3>
+<pre class="src">package com.kb.uploader.domain;
+
+import java.time.LocalDateTime;
+
+public class Institution {
+
+    /** 감사 컬럼 시스템사용자번호. 화면번호(앞 K 제외 7자) 또는 &#x27;BATCH01&#x27;. code/SystemUser 참조. */
+    private String systemUserNo;
+
+    private Long id;
+    private String name;
+    private String category;
+    private LocalDateTime modifiedAt;
+
+    public Institution() {}
+
+    public Institution(String name, String category) {
+        this.name = name;
+        this.category = category;
+        this.modifiedAt = LocalDateTime.now();
+    }
+
+    public void updateCategory(String category) {
+        this.category = category;
+        this.modifiedAt = LocalDateTime.now();
+    }
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+    public LocalDateTime getModifiedAt() { return modifiedAt; }
+    public void setModifiedAt(LocalDateTime modifiedAt) { this.modifiedAt = modifiedAt; }
+
+    public String getSystemUserNo() { return systemUserNo; }
+    public void setSystemUserNo(String systemUserNo) { this.systemUserNo = systemUserNo; }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/mapper/UploadedFileMapper.java<span class="tag">48줄 · softDeleteById·rejectById 에 파라미터 2개</span></h3>
+<pre class="src">package com.kb.uploader.mapper;
+
+import java.time.LocalDateTime;
+import com.kb.uploader.domain.UploadedFile;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+import java.util.Optional;
+
+@Mapper
+public interface UploadedFileMapper {
+
+    void insert(UploadedFile file);
+
+    void update(UploadedFile file);
+
+    void softDeleteById(@Param(&quot;id&quot;) Long id,
+                        @Param(&quot;systemUserNo&quot;) String systemUserNo,
+                        @Param(&quot;systemUsedAt&quot;) LocalDateTime systemUsedAt);
+
+    void rejectById(@Param(&quot;id&quot;) Long id,
+                    @Param(&quot;systemUserNo&quot;) String systemUserNo,
+                        @Param(&quot;systemUsedAt&quot;) LocalDateTime systemUsedAt);
+
+    Optional&lt;UploadedFile&gt; findById(@Param(&quot;id&quot;) Long id);
+
+    List&lt;UploadedFile&gt; findByStatus(@Param(&quot;status&quot;) String status);
+
+    List&lt;UploadedFile&gt; findClassifiedByUnknownInstitution();
+
+    long countAll();
+
+    long countByStatus(@Param(&quot;status&quot;) String status);
+
+    List&lt;UploadedFile&gt; findRecent(@Param(&quot;limit&quot;) int limit);
+
+    List&lt;UploadedFile&gt; findByInstitutionNameContaining(
+            @Param(&quot;keyword&quot;) String keyword,
+            @Param(&quot;offset&quot;) int offset,
+            @Param(&quot;limit&quot;) int limit);
+
+    long countByInstitutionNameContaining(@Param(&quot;keyword&quot;) String keyword);
+
+    List&lt;UploadedFile&gt; search(@Param(&quot;institution&quot;) String institution,
+                              @Param(&quot;year&quot;) String year,
+                              @Param(&quot;keyword&quot;) String keyword);
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/service/FileUploadService.java<span class="tag">86줄 · insert 직전 감사 값 세팅</span></h3>
+<pre class="src">package com.kb.uploader.service;
+
+import com.kb.uploader.code.SystemUser;
+import com.kb.uploader.domain.UploadedFile;
+import com.kb.uploader.dto.ParsedFileName;
+import com.kb.uploader.dto.UploadResultItem;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class FileUploadService {
+
+    private final FileParserService parserService;
+    private final FileStorageService storageService;
+    private final ClassificationService classificationService;
+    private final UploadedFileMapper fileMapper;
+
+    public FileUploadService(FileParserService parserService,
+                             FileStorageService storageService,
+                             ClassificationService classificationService,
+                             UploadedFileMapper fileMapper) {
+        this.parserService = parserService;
+        this.storageService = storageService;
+        this.classificationService = classificationService;
+        this.fileMapper = fileMapper;
+    }
+
+    public List&lt;UploadResultItem&gt; upload(List&lt;MultipartFile&gt; files) {
+        return upload(files, &quot;&quot;, &quot;&quot;, &quot;&quot;);
+    }
+
+    public List&lt;UploadResultItem&gt; upload(List&lt;MultipartFile&gt; files,
+                                         String instOverride, String yearOverride, String categoryOverride) {
+        List&lt;UploadResultItem&gt; results = new ArrayList&lt;&gt;();
+        for (MultipartFile file : files) {
+            String originalName = file.getOriginalFilename();
+            try {
+                Optional&lt;ParsedFileName&gt; parsed = parserService.parse(originalName);
+                if (!parsed.isPresent()) {
+                    boolean hasOverride = instOverride != null &amp;&amp; !instOverride.trim().isEmpty();
+                    Path saved = storageService.saveToUnclassified(file, originalName);
+                    UploadedFile entity = new UploadedFile(
+                            originalName, saved.toString(),
+                            (yearOverride != null &amp;&amp; !yearOverride.trim().isEmpty()) ? yearOverride.trim() : null,
+                            hasOverride ? instOverride.trim() : &quot;알수없음&quot;);
+                    entity.setSystemUserNo(SystemUser.get());
+                    entity.setSystemUsedAt(entity.getUploadedAt());
+                    fileMapper.insert(entity);
+                    if (hasOverride) {
+                        boolean ok = classificationService.classify(entity);
+                        results.add(new UploadResultItem(originalName, ok,
+                                ok ? entity.getCategory() : null,
+                                ok ? &quot;수동 입력으로 분류 완료&quot; : &quot;미분류 (기관 미등록 — 기관 관리에서 등록 필요)&quot;));
+                    } else {
+                        results.add(new UploadResultItem(originalName, false, null,
+                                &quot;파일명 형식 불일치 (년도_기관명_설명.확장자 필요)&quot;));
+                    }
+                    continue;
+                }
+                ParsedFileName p = parsed.get();
+                Path saved = storageService.saveToUnclassified(file, originalName);
+                UploadedFile entity = new UploadedFile(
+                        originalName, saved.toString(), p.getYear(), p.getInstitutionName());
+                entity.setSystemUserNo(SystemUser.get());
+                    entity.setSystemUsedAt(entity.getUploadedAt());
+                    fileMapper.insert(entity);
+
+                boolean ok = classificationService.classify(entity);
+                results.add(new UploadResultItem(
+                        originalName, ok,
+                        ok ? entity.getCategory() : null,
+                        ok ? &quot;분류 완료&quot; : &quot;미분류 (기관 미등록)&quot;));
+            } catch (Exception e) {
+                results.add(new UploadResultItem(originalName, false, null,
+                        &quot;오류: &quot; + e.getMessage()));
+            }
+        }
+        return results;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/service/ClassificationService.java<span class="tag">53줄 · update 직전 감사 값 세팅</span></h3>
+<pre class="src">package com.kb.uploader.service;
+
+import java.time.LocalDateTime;
+import com.kb.uploader.code.SystemUser;
+import com.kb.uploader.domain.Institution;
+import com.kb.uploader.domain.UploadedFile;
+import com.kb.uploader.mapper.InstitutionMapper;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Optional;
+
+@Service
+public class ClassificationService {
+
+    private static final Logger log = LoggerFactory.getLogger(ClassificationService.class);
+
+    private final InstitutionMapper institutionMapper;
+    private final UploadedFileMapper fileMapper;
+    private final FileStorageService storageService;
+
+    public ClassificationService(InstitutionMapper institutionMapper,
+                                 UploadedFileMapper fileMapper,
+                                 FileStorageService storageService) {
+        this.institutionMapper = institutionMapper;
+        this.fileMapper = fileMapper;
+        this.storageService = storageService;
+    }
+
+    public boolean classify(UploadedFile file) {
+        Optional&lt;Institution&gt; inst = institutionMapper.findByName(file.getInstitutionName());
+        if (!inst.isPresent()) return false;
+
+        try {
+            Path source = Paths.get(file.getStoredPath());
+            Path dest = storageService.moveToClassified(
+                source, inst.get().getCategory(), file.getYear(), file.getInstitutionName());
+            file.classify(inst.get().getCategory(), dest.toString());
+            file.setSystemUserNo(SystemUser.get());
+            file.setSystemUsedAt(
+                    file.getClassifiedAt() != null ? file.getClassifiedAt() : LocalDateTime.now());
+            fileMapper.update(file);
+            return true;
+        } catch (Exception e) {
+            log.error(&quot;파일 분류 실패: {}&quot;, file.getOriginalName(), e);
+            return false;
+        }
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/service/InstitutionService.java<span class="tag">123줄 · insert·update 3자리에 감사 값</span></h3>
+<pre class="src">package com.kb.uploader.service;
+
+import com.kb.uploader.code.SystemUser;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kb.uploader.domain.Institution;
+import com.kb.uploader.domain.UploadedFile;
+import com.kb.uploader.mapper.InstitutionMapper;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.io.*;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Service
+public class InstitutionService {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private final InstitutionMapper institutionMapper;
+    private final ClassificationService classificationService;
+    private final UploadedFileMapper uploadedFileMapper;
+
+    public InstitutionService(InstitutionMapper institutionMapper,
+                              ClassificationService classificationService,
+                              UploadedFileMapper uploadedFileMapper) {
+        this.institutionMapper = institutionMapper;
+        this.classificationService = classificationService;
+        this.uploadedFileMapper = uploadedFileMapper;
+    }
+
+    public List&lt;Institution&gt; findAll() {
+        return institutionMapper.findAll();
+    }
+
+    public Institution save(String name, String category) {
+        Optional&lt;Institution&gt; existing = institutionMapper.findByName(name);
+        if (existing.isPresent()) {
+            existing.get().updateCategory(category);
+            existing.get().setSystemUserNo(SystemUser.get());
+            institutionMapper.update(existing.get());
+            return existing.get();
+        }
+        Institution inst = new Institution(name, category);
+        inst.setSystemUserNo(SystemUser.get());
+        institutionMapper.insert(inst);
+        return inst;
+    }
+
+    public void deleteById(Long id) {
+        institutionMapper.deleteById(id);
+    }
+
+    public byte[] exportToJson() throws IOException {
+        Map&lt;String, List&lt;String&gt;&gt; grouped = institutionMapper.findAll().stream()
+            .collect(Collectors.groupingBy(
+                Institution::getCategory,
+                Collectors.mapping(Institution::getName, Collectors.toList())));
+        return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsBytes(grouped);
+    }
+
+    @Transactional
+    public void importFromJson(byte[] json) throws IOException {
+        Map&lt;String, List&lt;String&gt;&gt; data = MAPPER.readValue(json,
+            new TypeReference&lt;Map&lt;String, List&lt;String&gt;&gt;&gt;() {});
+        institutionMapper.deleteAll();
+        data.forEach((category, names) -&gt;
+            names.forEach(name -&gt; {
+                    Institution created = new Institution(name, category);
+                    created.setSystemUserNo(SystemUser.get());
+                    institutionMapper.insert(created);
+                }));
+        List&lt;UploadedFile&gt; pending = uploadedFileMapper.findByStatus(&quot;UNCLASSIFIED&quot;);
+        pending.forEach(f -&gt; classificationService.classify(f));
+    }
+
+    public byte[] exportToXlsx() throws IOException {
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet(&quot;기관목록&quot;);
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue(&quot;기관명&quot;);
+            header.createCell(1).setCellValue(&quot;카테고리&quot;);
+            int rowNum = 1;
+            for (Institution inst : institutionMapper.findAll()) {
+                Row row = sheet.createRow(rowNum++);
+                row.createCell(0).setCellValue(inst.getName());
+                row.createCell(1).setCellValue(inst.getCategory());
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            wb.write(out);
+            return out.toByteArray();
+        }
+    }
+
+    @Transactional
+    public void importFromXlsx(byte[] xlsx) throws IOException {
+        try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(xlsx))) {
+            Sheet sheet = wb.getSheetAt(0);
+            institutionMapper.deleteAll();
+            for (int i = 1; i &lt;= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+                Cell nameCell = row.getCell(0);
+                Cell categoryCell = row.getCell(1);
+                if (nameCell == null) continue;
+                String name = nameCell.getStringCellValue().trim();
+                String category = categoryCell != null
+                    ? categoryCell.getStringCellValue().trim() : &quot;&quot;;
+                if (!name.isEmpty()) {
+                    Institution created = new Institution(name, category);
+                    created.setSystemUserNo(SystemUser.get());
+                    institutionMapper.insert(created);
+                }
+            }
+        }
+        List&lt;UploadedFile&gt; pending = uploadedFileMapper.findByStatus(&quot;UNCLASSIFIED&quot;);
+        pending.forEach(f -&gt; classificationService.classify(f));
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/job/ReclassificationJob.java<span class="tag">65줄 · BATCH01 세팅 + finally 해제</span></h3>
+<pre class="src">package com.kb.uploader.job;
+
+import com.kb.uploader.code.SystemUser;
+import com.kb.uploader.domain.UploadedFile;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import com.kb.uploader.service.ClassificationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+
+/**
+ * 미분류로 남은 파일을 다시 분류해 본다. &lt;b&gt;언제 도는지는 여기서 정하지 않는다.&lt;/b&gt;
+ *
+ * &lt;p&gt;⚠️ 종전에는 이 메서드에 {@code @Scheduled(cron = &quot;${reclassification.cron}&quot;)} 이
+ * 붙어 있었다(2026-08-31 제거). 그러면 Spring 이 자기 타이머 스레드 풀을 만들고,
+ * &lt;b&gt;WAS 에서 앱이 스레드를 만드는 것은 금지&lt;/b&gt;다(설계 §2·§4). 반복 실행은
+ * {@link ReclassificationTrigger} 가 {@link BackgroundScheduler} 를 통해 건다 —
+ * WebLogic 에서는 CommonJ TimerManager 가 그 스레드를 준다.
+ *
+ * &lt;p&gt;덕분에 이 클래스는 &lt;b&gt;&quot;한 번 돌리는 일&quot;만&lt;/b&gt; 안다. 수동 실행이 필요해지면
+ * 그냥 부르면 된다.
+ */
+@Component
+public class ReclassificationJob {
+
+    private static final Logger log = LoggerFactory.getLogger(ReclassificationJob.class);
+
+    private final UploadedFileMapper fileMapper;
+    private final ClassificationService classificationService;
+
+    public ReclassificationJob(UploadedFileMapper fileMapper,
+                               ClassificationService classificationService) {
+        this.fileMapper = fileMapper;
+        this.classificationService = classificationService;
+    }
+
+    public void reclassify() {
+        // ⚠️ 배치는 컨트롤러가 없어 SystemUserInterceptor 가 안 돈다. 직접 넣고
+        //    finally 에서 반드시 지운다 — ThreadLocal 이라 안 지우면 그 스레드를
+        //    물려받은 다음 작업에 &#x27;BATCH01&#x27; 이 새어 나간다.
+        SystemUser.set(SystemUser.BATCH);
+        try {
+            List&lt;UploadedFile&gt; unclassified = fileMapper.findByStatus(&quot;UNCLASSIFIED&quot;);
+            if (unclassified.isEmpty()) {
+                log.debug(&quot;재분류할 파일 없음&quot;);
+                return;
+            }
+            int success = 0;
+            for (UploadedFile file : unclassified) {
+                try {
+                    if (classificationService.classify(file)) {
+                        success++;
+                    }
+                } catch (Exception e) {
+                    log.warn(&quot;재처리 실패: {} — {}&quot;, file.getOriginalName(), e.getMessage());
+                }
+            }
+            log.info(&quot;재분류 완료: {}건 성공 / {}건 대상&quot;, success, unclassified.size());
+        } finally {
+            SystemUser.clear();
+        }
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/controller/KGI12000$FileStatusList.java<span class="tag">34줄 · 분류 목록 하드코딩 제거</span></h3>
+<pre class="src">package com.kb.uploader.controller;
+
+import com.kb.uploader.code.InstitutionCategory;
+import com.kb.uploader.domain.UploadedFile;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import java.util.List;
+
+@Controller
+@RequestMapping(&quot;/file-status&quot;)
+public class KGI12000$FileStatusList {
+
+
+    private final UploadedFileMapper fileMapper;
+
+    public KGI12000$FileStatusList(UploadedFileMapper fileMapper) {
+        this.fileMapper = fileMapper;
+    }
+
+    @GetMapping
+    public String execute(Model model) {
+        List&lt;UploadedFile&gt; unclassified = fileMapper.findByStatus(&quot;UNCLASSIFIED&quot;);
+        List&lt;UploadedFile&gt; unknownFiles = fileMapper.findClassifiedByUnknownInstitution();
+        model.addAttribute(&quot;files&quot;, unclassified);
+        model.addAttribute(&quot;unknownFiles&quot;, unknownFiles);
+        model.addAttribute(&quot;categories&quot;, InstitutionCategory.names());
+        model.addAttribute(&quot;unclassifiedCount&quot;, (long) unclassified.size());
+        return &quot;file-status&quot;;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/controller/KGI12100$FileStatusClassify.java<span class="tag">65줄 · 감사 값 세팅</span></h3>
+<pre class="src">package com.kb.uploader.controller;
+
+import java.time.LocalDateTime;
+import com.kb.uploader.code.SystemUser;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import com.kb.uploader.service.FileStorageService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+@Controller
+@RequestMapping(&quot;/file-status&quot;)
+public class KGI12100$FileStatusClassify {
+
+    private static final Logger log = LoggerFactory.getLogger(KGI12100$FileStatusClassify.class);
+
+    private final UploadedFileMapper fileMapper;
+    private final FileStorageService storageService;
+
+    public KGI12100$FileStatusClassify(UploadedFileMapper fileMapper,
+                                       FileStorageService storageService) {
+        this.fileMapper = fileMapper;
+        this.storageService = storageService;
+    }
+
+    @PostMapping(&quot;/{id}/classify&quot;)
+    public String execute(@PathVariable Long id,
+                          @RequestParam String category,
+                          @RequestParam(defaultValue = &quot;&quot;) String institution,
+                          @RequestParam(defaultValue = &quot;&quot;) String year,
+                          RedirectAttributes ra) {
+        fileMapper.findById(id).ifPresent(file -&gt; {
+            if (!institution.trim().isEmpty()) {
+                file.setInstitutionName(institution.trim());
+            }
+            if (!year.trim().isEmpty()) {
+                file.setYear(year.trim());
+            }
+            String instName = file.getInstitutionName() != null ? file.getInstitutionName() : &quot;알수없음&quot;;
+            try {
+                java.nio.file.Path source = java.nio.file.Paths.get(file.getStoredPath());
+                java.nio.file.Path dest = storageService.moveToClassified(
+                        source,
+                        category,
+                        file.getYear() != null ? file.getYear() : &quot;미확인&quot;,
+                        instName
+                );
+                file.classify(category, dest.toString());
+                file.setSystemUserNo(SystemUser.get());
+            file.setSystemUsedAt(
+                    file.getClassifiedAt() != null ? file.getClassifiedAt() : LocalDateTime.now());
+                fileMapper.update(file);
+            } catch (Exception e) {
+                log.warn(&quot;수동 분류 처리 실패: {}&quot;, file.getOriginalName(), e);
+            }
+        });
+        ra.addFlashAttribute(&quot;message&quot;, &quot;분류 처리 완료&quot;);
+        return &quot;redirect:/file-status&quot;;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/controller/KGI12200$FileStatusDelete.java<span class="tag">28줄 · 매퍼 호출 인자 2개 추가</span></h3>
+<pre class="src">package com.kb.uploader.controller;
+
+import java.time.LocalDateTime;
+import com.kb.uploader.code.SystemUser;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+@Controller
+@RequestMapping(&quot;/file-status&quot;)
+public class KGI12200$FileStatusDelete {
+
+    private final UploadedFileMapper fileMapper;
+
+    public KGI12200$FileStatusDelete(UploadedFileMapper fileMapper) {
+        this.fileMapper = fileMapper;
+    }
+
+    @PostMapping(&quot;/{id}/delete&quot;)
+    public String execute(@PathVariable Long id, RedirectAttributes ra) {
+        fileMapper.softDeleteById(id, SystemUser.get(), LocalDateTime.now());
+        ra.addFlashAttribute(&quot;message&quot;, &quot;파일이 목록에서 제거되었습니다.&quot;);
+        return &quot;redirect:/file-status&quot;;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/controller/KGI12300$FileStatusReject.java<span class="tag">28줄 · 같음</span></h3>
+<pre class="src">package com.kb.uploader.controller;
+
+import java.time.LocalDateTime;
+import com.kb.uploader.code.SystemUser;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+@Controller
+@RequestMapping(&quot;/file-status&quot;)
+public class KGI12300$FileStatusReject {
+
+    private final UploadedFileMapper fileMapper;
+
+    public KGI12300$FileStatusReject(UploadedFileMapper fileMapper) {
+        this.fileMapper = fileMapper;
+    }
+
+    @PostMapping(&quot;/{id}/reject&quot;)
+    public String execute(@PathVariable Long id, RedirectAttributes ra) {
+        fileMapper.rejectById(id, SystemUser.get(), LocalDateTime.now());
+        ra.addFlashAttribute(&quot;message&quot;, &quot;반려 처리되었습니다.&quot;);
+        return &quot;redirect:/file-status&quot;;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/controller/KGI12400$ClassifiedFileList.java<span class="tag">33줄 · 분류 목록 하드코딩 제거</span></h3>
+<pre class="src">package com.kb.uploader.controller;
+
+import com.kb.uploader.code.InstitutionCategory;
+import com.kb.uploader.domain.UploadedFile;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import java.util.List;
+
+@Controller
+@RequestMapping(&quot;/file-status/classified&quot;)
+public class KGI12400$ClassifiedFileList {
+
+
+    private final UploadedFileMapper fileMapper;
+
+    public KGI12400$ClassifiedFileList(UploadedFileMapper fileMapper) {
+        this.fileMapper = fileMapper;
+    }
+
+    @GetMapping
+    public String execute(Model model) {
+        List&lt;UploadedFile&gt; classifiedFiles = fileMapper.findByStatus(&quot;CLASSIFIED&quot;);
+        long unclassified = fileMapper.countByStatus(&quot;UNCLASSIFIED&quot;);
+        model.addAttribute(&quot;classifiedFiles&quot;, classifiedFiles);
+        model.addAttribute(&quot;categories&quot;, InstitutionCategory.names());
+        model.addAttribute(&quot;unclassifiedCount&quot;, unclassified);
+        return &quot;classified-rework&quot;;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/controller/KGI13000$InstitutionList.java<span class="tag">31줄 · 화면에 분류 목록 전달</span></h3>
+<pre class="src">package com.kb.uploader.controller;
+
+import com.kb.uploader.code.InstitutionCategory;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import com.kb.uploader.service.InstitutionService;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+@Controller
+@RequestMapping(&quot;/institutions&quot;)
+public class KGI13000$InstitutionList {
+
+    private final InstitutionService institutionService;
+    private final UploadedFileMapper fileMapper;
+
+    public KGI13000$InstitutionList(InstitutionService institutionService,
+                                     UploadedFileMapper fileMapper) {
+        this.institutionService = institutionService;
+        this.fileMapper = fileMapper;
+    }
+
+    @GetMapping
+    public String execute(Model model) {
+        model.addAttribute(&quot;institutions&quot;, institutionService.findAll());
+        model.addAttribute(&quot;categories&quot;, InstitutionCategory.names());
+        model.addAttribute(&quot;unclassifiedCount&quot;, fileMapper.countByStatus(&quot;UNCLASSIFIED&quot;));
+        return &quot;institution&quot;;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/templates/institution.html<span class="tag">83줄 · 옛 분류 4종 option 제거</span></h3>
+<pre class="src">&lt;!DOCTYPE html&gt;
+&lt;html xmlns:th=&quot;http://www.thymeleaf.org&quot;
+      th:replace=&quot;layout :: layout(~{::title}, &#x27;기관 카테고리 관리&#x27;, ~{::section})&quot;&gt;
+&lt;head&gt;&lt;title&gt;기관 카테고리 관리&lt;/title&gt;&lt;/head&gt;
+&lt;body&gt;
+&lt;section&gt;
+
+  &lt;!-- 페이지 타이틀 --&gt;
+  &lt;div class=&quot;section-header&quot; style=&quot;margin-bottom:20px&quot;&gt;
+    &lt;span class=&quot;section-title&quot; style=&quot;font-size:16px&quot;&gt;기관 카테고리 관리&lt;/span&gt;
+  &lt;/div&gt;
+
+  &lt;!-- 성공 메시지 --&gt;
+  &lt;div th:if=&quot;${message}&quot; class=&quot;alert-success&quot; th:text=&quot;${message}&quot;&gt;&lt;/div&gt;
+
+  &lt;!-- 내보내기 / 가져오기 툴바 --&gt;
+  &lt;div class=&quot;toolbar&quot;&gt;
+    &lt;a th:href=&quot;@{/institutions/export/json}&quot; class=&quot;btn btn-outline btn-sm&quot;&gt;JSON 다운로드&lt;/a&gt;
+    &lt;a th:href=&quot;@{/institutions/export/xlsx}&quot; class=&quot;btn btn-outline btn-sm&quot;&gt;XLSX 다운로드&lt;/a&gt;
+
+    &lt;form th:action=&quot;@{/institutions/import/json}&quot; method=&quot;post&quot;
+          enctype=&quot;multipart/form-data&quot; class=&quot;form-inline&quot;&gt;
+      &lt;input type=&quot;file&quot; name=&quot;file&quot; accept=&quot;.json&quot; class=&quot;form-control form-control-sm&quot; style=&quot;width:180px&quot;&gt;
+      &lt;button type=&quot;submit&quot; class=&quot;btn btn-outline btn-sm&quot;&gt;JSON 업로드&lt;/button&gt;
+    &lt;/form&gt;
+
+    &lt;form th:action=&quot;@{/institutions/import/xlsx}&quot; method=&quot;post&quot;
+          enctype=&quot;multipart/form-data&quot; class=&quot;form-inline&quot;&gt;
+      &lt;input type=&quot;file&quot; name=&quot;file&quot; accept=&quot;.xlsx&quot; class=&quot;form-control form-control-sm&quot; style=&quot;width:180px&quot;&gt;
+      &lt;button type=&quot;submit&quot; class=&quot;btn btn-outline btn-sm&quot;&gt;XLSX 업로드&lt;/button&gt;
+    &lt;/form&gt;
+  &lt;/div&gt;
+
+  &lt;!-- 기관 추가 카드 --&gt;
+  &lt;div class=&quot;card&quot; style=&quot;max-width:520px;margin-bottom:24px&quot;&gt;
+    &lt;div class=&quot;card-header&quot;&gt;기관 추가&lt;/div&gt;
+    &lt;div class=&quot;card-body&quot;&gt;
+      &lt;form th:action=&quot;@{/institutions}&quot; method=&quot;post&quot; class=&quot;form-inline&quot;&gt;
+        &lt;input type=&quot;text&quot; name=&quot;name&quot; class=&quot;form-control form-control-sm&quot;
+               style=&quot;flex:1;min-width:160px&quot; placeholder=&quot;기관명&quot; required&gt;
+        &lt;select name=&quot;category&quot; class=&quot;form-control form-control-sm&quot; style=&quot;width:150px&quot; required&gt;
+          &lt;option value=&quot;&quot;&gt;카테고리 선택&lt;/option&gt;
+          &lt;option th:each=&quot;cat : ${categories}&quot; th:value=&quot;${cat}&quot; th:text=&quot;${cat}&quot;&gt;&lt;/option&gt;
+        &lt;/select&gt;
+        &lt;button type=&quot;submit&quot; class=&quot;btn btn-primary btn-sm&quot;&gt;추가&lt;/button&gt;
+      &lt;/form&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;!-- 기관 목록 --&gt;
+  &lt;div class=&quot;section-header&quot;&gt;
+    &lt;div&gt;
+      &lt;span class=&quot;section-title&quot;&gt;기관 목록&lt;/span&gt;
+      &lt;span class=&quot;section-sub&quot; th:text=&quot;&#x27;총 &#x27; + ${#lists.size(institutions)} + &#x27;개&#x27;&quot;&gt;&lt;/span&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div class=&quot;table-card&quot;&gt;
+    &lt;table&gt;
+      &lt;thead&gt;
+        &lt;tr&gt;
+          &lt;th&gt;기관명&lt;/th&gt;&lt;th&gt;카테고리&lt;/th&gt;&lt;th&gt;수정일자&lt;/th&gt;&lt;th&gt;&lt;/th&gt;
+        &lt;/tr&gt;
+      &lt;/thead&gt;
+      &lt;tbody&gt;
+        &lt;tr th:each=&quot;inst : ${institutions}&quot;&gt;
+          &lt;td th:text=&quot;${inst.name}&quot; style=&quot;font-weight:500&quot;&gt;&lt;/td&gt;
+          &lt;td&gt;&lt;span class=&quot;category-chip&quot; th:text=&quot;${inst.category}&quot;&gt;&lt;/span&gt;&lt;/td&gt;
+          &lt;td class=&quot;time-col&quot; th:text=&quot;${#temporals.format(inst.modifiedAt, &#x27;yyyy-MM-dd HH:mm&#x27;)}&quot;&gt;&lt;/td&gt;
+          &lt;td style=&quot;width:80px&quot;&gt;
+            &lt;form th:action=&quot;@{/institutions/{id}/delete(id=${inst.id})}&quot;
+                  method=&quot;post&quot;&gt;
+              &lt;button type=&quot;submit&quot; class=&quot;btn btn-danger-outline btn-sm&quot;
+                      onclick=&quot;return confirm(&#x27;삭제하시겠습니까?&#x27;)&quot;&gt;삭제&lt;/button&gt;
+            &lt;/form&gt;
+          &lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/tbody&gt;
+    &lt;/table&gt;
+  &lt;/div&gt;
+
+&lt;/section&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</pre>
+
 <footer>
   ② uploader 소스 변경 상세 · 2026-09-08 확정본 ·
   선행 문서: <code>내부망작업지시_2026-09-08_1_스키마변경.pdf</code>
