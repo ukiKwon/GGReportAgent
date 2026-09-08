@@ -18,7 +18,7 @@
        uploadedAt      →  업로드일시              일시14      ★ TypeHandler
        classifiedAt    →  분류일시                일시14      ★ TypeHandler
        storedPath      →  저장경로내용            내용600
-       (없음)          →  시스템사용일시           일시14   ← 업로드일시/분류일시 재사용
+       systemUsedAt    →  시스템사용일시           일시14   ★ TypeHandler
        systemUserNo    →  시스템사용자번호         사용자번호7
 
   ★ **TypeHandler 를 자리마다 명시한다.** 두 코드 핸들러가 모두 자바 `String` 을
@@ -72,7 +72,7 @@
        시스템사용일시, 시스템사용자번호)
     VALUES
       (<include refid="값목록"/>,
-       #{uploadedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo})
+       #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo})
   </insert>
   <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 SQ_KGI_AGENTFILETABLE) -->
   <insert id="insert" databaseId="oracle">
@@ -84,7 +84,7 @@
        저장경로내용, 시스템사용일시, 시스템사용자번호)
     VALUES
       (#{id}, <include refid="값목록"/>,
-       #{uploadedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo})
+       #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo})
   </insert>
 
   <update id="update">
@@ -96,36 +96,26 @@
     기관영업분류구분      = #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
     분류상태구분  = #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler},
     분류일시      = #{classifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
-    시스템사용일시   = #{classifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+    시스템사용일시   = #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
     시스템사용자번호 = #{systemUserNo}
     WHERE 업로드파일일련번호 = #{id}
   </update>
 
   <!--
     ⚠️ '04' = DELETED, '03' = REJECTED, '02' = CLASSIFIED (code/ClassificationStatus.java)
-    ⚠️ 이 둘은 **파라미터에 시각 값이 없다**(id 만 받는다). 그래서 시스템사용일시를
-       DB 시각으로 채운다 — 그래서 방언 분기가 생겼다. 형식은 다른 자리와 같은
-       YYYYMMDDHH24MISS 여야 한다(문자열 정렬 = 시간 정렬이 깨지지 않게).
+    ⚠️ 이 둘은 파라미터에 시각 값이 없어 **컨트롤러가 LocalDateTime.now() 를 넘긴다.**
+       DB 함수(TO_CHAR(SYSDATE)/DATE_FORMAT(NOW()))를 쓰면 방언이 갈리고 테스트로
+       확인하기도 어려워, 자바에서 정해 넘기는 쪽을 택했다.
   -->
-  <update id="softDeleteById" databaseId="oracle">
+  <update id="softDeleteById">
     UPDATE TSKGIAF01 SET 분류상태구분 = '04',
-      시스템사용일시 = TO_CHAR(SYSDATE, 'YYYYMMDDHH24MISS'), 시스템사용자번호 = #{systemUserNo}
-    WHERE 업로드파일일련번호 = #{id}
-  </update>
-  <update id="softDeleteById" databaseId="mysql">
-    UPDATE TSKGIAF01 SET 분류상태구분 = '04',
-      시스템사용일시 = DATE_FORMAT(NOW(), '%Y%m%d%H%i%s'), 시스템사용자번호 = #{systemUserNo}
+      시스템사용일시 = #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, 시스템사용자번호 = #{systemUserNo}
     WHERE 업로드파일일련번호 = #{id}
   </update>
 
-  <update id="rejectById" databaseId="oracle">
+  <update id="rejectById">
     UPDATE TSKGIAF01 SET 분류상태구분 = '03',
-      시스템사용일시 = TO_CHAR(SYSDATE, 'YYYYMMDDHH24MISS'), 시스템사용자번호 = #{systemUserNo}
-    WHERE 업로드파일일련번호 = #{id}
-  </update>
-  <update id="rejectById" databaseId="mysql">
-    UPDATE TSKGIAF01 SET 분류상태구분 = '03',
-      시스템사용일시 = DATE_FORMAT(NOW(), '%Y%m%d%H%i%s'), 시스템사용자번호 = #{systemUserNo}
+      시스템사용일시 = #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, 시스템사용자번호 = #{systemUserNo}
     WHERE 업로드파일일련번호 = #{id}
   </update>
 

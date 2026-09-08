@@ -7,6 +7,16 @@ public class UploadedFile {
     /** 감사 컬럼 시스템사용자번호. 화면번호(앞 K 제외 7자) 또는 'BATCH01'. code/SystemUser 참조. */
     private String systemUserNo;
 
+    /**
+     * 감사 컬럼 시스템사용일시. <b>업로드일시(업무 시각)와 다르다</b> — 이 행을 마지막으로
+     * 건드린 시각이다. 규칙(사용자 확정 2026-09-08):
+     * 업로드 때는 업로드일시, 분류 때는 분류일시와 <b>같은 값</b>을 쓰고,
+     * 그 둘이 없는 경우(삭제·반려·분류일시 없는 수정)는 <b>그 시점의 시각</b>을 쓴다.
+     * ⚠️ DB 함수로 채우지 않는 이유는 방언이 갈리고(TO_CHAR/DATE_FORMAT) 테스트로
+     *    확인하기 어렵기 때문이다 — 자바에서 정해 넘기면 값이 정확히 일치한다.
+     */
+    private LocalDateTime systemUsedAt;
+
     private Long id;
     private String originalName;
     private String storedPath;
@@ -61,4 +71,6 @@ public class UploadedFile {
 
     public String getSystemUserNo() { return systemUserNo; }
     public void setSystemUserNo(String systemUserNo) { this.systemUserNo = systemUserNo; }
+    public LocalDateTime getSystemUsedAt() { return systemUsedAt; }
+    public void setSystemUsedAt(LocalDateTime systemUsedAt) { this.systemUsedAt = systemUsedAt; }
 }

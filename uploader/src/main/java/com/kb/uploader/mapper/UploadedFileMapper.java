@@ -1,5 +1,6 @@
 package com.kb.uploader.mapper;
 
+import java.time.LocalDateTime;
 import com.kb.uploader.domain.UploadedFile;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -15,10 +16,12 @@ public interface UploadedFileMapper {
     void update(UploadedFile file);
 
     void softDeleteById(@Param("id") Long id,
-                        @Param("systemUserNo") String systemUserNo);
+                        @Param("systemUserNo") String systemUserNo,
+                        @Param("systemUsedAt") LocalDateTime systemUsedAt);
 
     void rejectById(@Param("id") Long id,
-                    @Param("systemUserNo") String systemUserNo);
+                    @Param("systemUserNo") String systemUserNo,
+                        @Param("systemUsedAt") LocalDateTime systemUsedAt);
 
     Optional<UploadedFile> findById(@Param("id") Long id);
 
