@@ -89,33 +89,37 @@
 --    그래서 사람이 표를 읽는 순서에 맞췄다: **주 조회 축인 기관 → 분류 → 연도 →
 --    상태 → 파일명 → 시각**, 그리고 가장 길고 사람이 읽지 않는 저장경로를 맨 뒤로.
 CREATE TABLE TSKGIAF01 (
-    -- 인포타입 일련번호16 = DECIMAL(16). Oracle 에서 DECIMAL 은 NUMBER 의 동의어라
-    -- NUMBER(16) 으로 만들어진다. 16자리면 Java Long(19자리) 안에 항상 들어간다.
-    업로드파일일련번호  DECIMAL(16)         NOT NULL,   -- 속성명 동일
+    -- 인포타입 일련번호16 = DECIMAL(16). Oracle 에서 DECIMAL 은 NUMBER 의 동의어다.
+    업로드파일일련번호  DECIMAL(16)        NOT NULL,   -- 일련번호16 · 속성명 동일
     -- ⚠️ FK 가 아니라 **이름 문자열**이다. TSKGIAF02.기관명 이 바뀌면 조용히 끊긴다.
-    기관명              VARCHAR2(40 CHAR),              -- 명40 · 속성명 동일
+    기관명              VARCHAR2(40 CHAR),             -- 명40 · 속성명 동일
     -- 🔴 **코드값이다.** 01 지방자치단체 / 02 공공기관 / 03 대학교 / 04 병원 / 05 법원
-    --    사내 표준의 구분코드는 5자리 이하여야 하는데 '지방자치단체' 가 6자라 코드로 넣는다.
-    --    자바·화면은 한글 이름을 그대로 쓰고, 변환은 InstitutionCategoryTypeHandler
-    --    한 곳에서만 일어난다. 코드표 정본: code/InstitutionCategory.java
-    기관영업분류코드    VARCHAR2(2 CHAR),               -- 코드2 · 속성명 동일
-    문서년              VARCHAR2(4 CHAR),               -- 년4 · 속성명 동일 · 예 '2026'
+    --    자바·화면은 한글 이름을 그대로 쓰고 변환은 InstitutionCategoryTypeHandler 가 한다.
+    --    코드표 정본: code/InstitutionCategory.java
+    기관영업분류구분    VARCHAR2(2 CHAR),              -- 구분코드2 · 속성명 기관영업분류구분코드
+    문서년              VARCHAR2(4 CHAR),              -- 년4 · 속성명 동일 · 예 '2026'
     -- 🔴 **코드값이다.** 01 UNCLASSIFIED / 02 CLASSIFIED / 03 REJECTED / 04 DELETED
-    --    정본: code/ClassificationStatus.java
     분류상태구분        VARCHAR2(2 CHAR)   DEFAULT '01' NOT NULL,  -- 구분코드2 · 속성명 분류상태구분코드
     -- 파일명 상한은 파일시스템이 정한다(NTFS·ext4 모두 255자). 인포타입에 255 가 없어 260.
-    원본파일명          VARCHAR2(260 CHAR) NOT NULL,    -- 명260 · 속성명 동일
-    -- 🔴 **시각이 문자열이다**(사내 표준). 형식 YYYYMMDDHH24MISS 14자.
-    --    컬럼 길이 14 는 그 형식과 정확히 같다(2026-09-08 에 20 → 14 로 통일).
-    --    자바는 LocalDateTime 을 그대로 쓰고 변환은
-    --    LocalDateTimeStringTypeHandler 가 한다.
+    원본파일명          VARCHAR2(260 CHAR) NOT NULL,   -- 명260 · 속성명 동일
+    -- 🔴 **시각이 문자열이다**(사내 표준). 형식 YYYYMMDDHH24MISS 14자로 길이와 정확히 같다.
+    --    자바는 LocalDateTime 을 쓰고 변환은 LocalDateTimeStringTypeHandler 가 한다.
     --    ⚠️ 자릿수가 고정이라 **문자열 정렬 = 시간 정렬**이다. 형식을 바꾸면 깨진다.
-    업로드일시          VARCHAR2(14 CHAR)  NOT NULL,    -- 일시14 · 속성명 동일
-    분류일시            VARCHAR2(14 CHAR),              -- 일시14 · 분류 전에는 NULL
-    -- 최악 경로가 약 341자다(baseDir 20 + /classified/ 12 + 기관영업분류코드 2 + 문서년 4
-    -- + 기관명 40 + 원본파일명 260 + 구분자 3). 기관명이 250 → 40 으로 줄면서
-    -- 800 이 과해져 600 으로 낮췄다(2026-09-08). 길이는 **자 단위**다.
-    저장경로            VARCHAR2(600 CHAR) NOT NULL,    -- 내용600 · 속성명 저장경로내용
+    업로드일시          VARCHAR2(14 CHAR)  NOT NULL,   -- 일시14 · 속성명 동일 · **업무 시각**
+    분류일시            VARCHAR2(14 CHAR),             -- 일시14 · 분류 전에는 NULL
+    -- 최악 경로가 약 341자다(baseDir 20 + /classified/ 12 + 분류 2 + 년 4 + 기관 40 + 파일명 260 + 구분자 3).
+    저장경로내용        VARCHAR2(600 CHAR) NOT NULL,   -- 내용600 · 속성명 동일
+    -- ── 감사 컬럼 2개 (2026-09-08 신설) ────────────────────────────────
+    -- **업로드일시와 다르다.** 업로드일시는 업무 시각(사용자가 올린 때)이고,
+    -- 이쪽은 **행을 마지막으로 건드린 시각**이다. 규칙(사용자 확정):
+    --   · INSERT      → 업로드일시 와 같은 값
+    --   · UPDATE(분류) → 분류일시 와 같은 값
+    --   · 삭제·반려    → 그 시점의 DB 시각(TO_CHAR(SYSDATE,'YYYYMMDDHH24MISS'))
+    시스템사용일시      VARCHAR2(14 CHAR),             -- 일시14 · 속성명 동일
+    -- 이 데이터를 넣게 만든 **주체**다. 사람이 아니라 프로그램이라 화면번호를 넣는다
+    -- (앞 K 를 뗀 7자: KGI11100 → GI11100). 배치는 'BATCH01'.
+    -- 도출은 code/SystemUser.java 가 컨트롤러 클래스명에서 자동으로 한다.
+    시스템사용자번호    CHAR(7),                       -- 사용자번호7 · 속성명 동일
     CONSTRAINT PK_TSKGIAF01 PRIMARY KEY (업로드파일일련번호),
     CONSTRAINT CK_TSKGIAF01_분류상태 CHECK (분류상태구분 IN ('01', '02', '03', '04'))
 );
@@ -128,21 +132,19 @@ CREATE TABLE TSKGIAF01 (
 CREATE TABLE TSKGIAF02 (
     기관일련번호        DECIMAL(16)       NOT NULL,   -- 일련번호16 · 속성명 동일
     기관명              VARCHAR2(40 CHAR) NOT NULL,   -- 명40 · 속성명 동일
-    -- 코드값 (TSKGIAF01.기관영업분류코드 과 같은 코드표를 쓴다)
-    기관영업분류코드    VARCHAR2(2 CHAR)  NOT NULL,   -- 코드2 · 속성명 동일
-    -- ── 아래 4개는 2026-09-08 신설. **앱은 읽지도 쓰지도 않는다** — 기관 정보를
-    --    미리 담아 둘 자리로 만들어 둔 것이다(사용자 확정). 그래서 도메인 Institution ·
-    --    Mapper · 화면에 대응하는 것이 없고, resultMap 이 모르는 컬럼은 그냥 무시한다.
-    --    INSERT 도 컬럼을 명시하므로 NULL 로 남는다.
-    --    ⚠️ 화면에서 쓰기 시작하면 도메인·매퍼·화면 + 코드 TypeHandler 2개가 따라온다.
-    협약기관상태구분    VARCHAR2(2 CHAR),             -- 구분코드2 · 속성명 협약기관상태구분코드
-                                                      --   01 미협약 / 02 협약
-    입찰공고상태        VARCHAR2(2 CHAR),             -- 구분코드2 · 속성명 입찰공고상태구분코드
-                                                      --   01 공고전 / 02 공고중 / 03 공고완료
-    입찰공고시작        VARCHAR2(8 CHAR),             -- 년월일8 · 속성명 입찰공고시작년월일 · YYYYMMDD
-    입찰공고마감        VARCHAR2(8 CHAR),             -- 년월일8 · 속성명 입찰공고마감년월일 · YYYYMMDD
-    -- 감사 컬럼은 맨 뒤에 둔다.
-    수정일시            VARCHAR2(14 CHAR) NOT NULL,   -- 일시14 · YYYYMMDDHH24MISS 와 자릿수가 정확히 같다
+    기관영업분류구분    VARCHAR2(2 CHAR)  NOT NULL,   -- 구분코드2 · 속성명 기관영업분류구분코드
+    -- ── 아래 4개는 **앱이 읽지도 쓰지도 않는다** — 기관 정보를 미리 담아 둘 자리다.
+    --    도메인 Institution · Mapper · 화면에 대응하는 것이 없고, resultMap 이 모르는
+    --    컬럼은 그냥 무시하며 INSERT 도 컬럼을 명시하므로 NULL 로 남는다.
+    협약기관상태구분    VARCHAR2(2 CHAR),             -- 구분코드2 · 01 미협약 / 02 협약
+    입찰공고상태구분    VARCHAR2(2 CHAR),             -- 구분코드2 · 01 공고전 / 02 공고중 / 03 공고완료
+    입찰공고시작년월일  VARCHAR2(8 CHAR),             -- 년월일8 · YYYYMMDD
+    입찰공고마감년월일  VARCHAR2(8 CHAR),             -- 년월일8 · YYYYMMDD
+    -- ⚠️ **옛 `수정일시` 가 이 이름으로 바뀐 것**이다(2026-09-08). 그래서 여기만
+    --    NOT NULL 이고(TSKGIAF01 쪽은 NULLABLE), 도메인 Institution.modifiedAt 이
+    --    그대로 이 컬럼에 매핑된다.
+    시스템사용일시      VARCHAR2(14 CHAR) NOT NULL,   -- 일시14 · 속성명 동일
+    시스템사용자번호    CHAR(7),                      -- 사용자번호7 · 속성명 동일
     CONSTRAINT PK_TSKGIAF02 PRIMARY KEY (기관일련번호),
     CONSTRAINT UK_TSKGIAF02_기관명 UNIQUE (기관명)
 );

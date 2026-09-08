@@ -1,5 +1,6 @@
 package com.kb.uploader.service;
 
+import com.kb.uploader.code.SystemUser;
 import com.kb.uploader.domain.UploadedFile;
 import com.kb.uploader.dto.ParsedFileName;
 import com.kb.uploader.dto.UploadResultItem;
@@ -48,6 +49,7 @@ public class FileUploadService {
                             originalName, saved.toString(),
                             (yearOverride != null && !yearOverride.trim().isEmpty()) ? yearOverride.trim() : null,
                             hasOverride ? instOverride.trim() : "알수없음");
+                    entity.setSystemUserNo(SystemUser.get());
                     fileMapper.insert(entity);
                     if (hasOverride) {
                         boolean ok = classificationService.classify(entity);
@@ -64,7 +66,8 @@ public class FileUploadService {
                 Path saved = storageService.saveToUnclassified(file, originalName);
                 UploadedFile entity = new UploadedFile(
                         originalName, saved.toString(), p.getYear(), p.getInstitutionName());
-                fileMapper.insert(entity);
+                entity.setSystemUserNo(SystemUser.get());
+                    fileMapper.insert(entity);
 
                 boolean ok = classificationService.classify(entity);
                 results.add(new UploadResultItem(

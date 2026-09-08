@@ -1,5 +1,6 @@
 package com.kb.uploader.controller;
 
+import com.kb.uploader.code.SystemUser;
 import com.kb.uploader.mapper.UploadedFileMapper;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,7 +20,7 @@ public class KGI12300$FileStatusReject {
 
     @PostMapping("/{id}/reject")
     public String execute(@PathVariable Long id, RedirectAttributes ra) {
-        fileMapper.rejectById(id);
+        fileMapper.rejectById(id, SystemUser.get());
         ra.addFlashAttribute("message", "반려 처리되었습니다.");
         return "redirect:/file-status";
     }

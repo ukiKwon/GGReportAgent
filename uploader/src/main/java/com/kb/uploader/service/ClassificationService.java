@@ -1,5 +1,6 @@
 package com.kb.uploader.service;
 
+import com.kb.uploader.code.SystemUser;
 import com.kb.uploader.domain.Institution;
 import com.kb.uploader.domain.UploadedFile;
 import com.kb.uploader.mapper.InstitutionMapper;
@@ -38,6 +39,7 @@ public class ClassificationService {
             Path dest = storageService.moveToClassified(
                 source, inst.get().getCategory(), file.getYear(), file.getInstitutionName());
             file.classify(inst.get().getCategory(), dest.toString());
+            file.setSystemUserNo(SystemUser.get());
             fileMapper.update(file);
             return true;
         } catch (Exception e) {

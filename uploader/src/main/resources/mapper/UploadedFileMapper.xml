@@ -11,13 +11,15 @@
        property        →  컬럼명                 인포타입
        id              →  업로드파일일련번호      일련번호16 (DECIMAL)
        institutionName →  기관명                 명40
-       category        →  기관영업분류코드        코드2       ★ TypeHandler
+       category        →  기관영업분류구분        코드2       ★ TypeHandler
        year            →  문서년                 년4
        status          →  분류상태구분            구분코드2   ★ TypeHandler
        originalName    →  원본파일명              명260
        uploadedAt      →  업로드일시              일시14      ★ TypeHandler
        classifiedAt    →  분류일시                일시14      ★ TypeHandler
-       storedPath      →  저장경로               내용600
+       storedPath      →  저장경로내용            내용600
+       (없음)          →  시스템사용일시           일시14   ← 업로드일시/분류일시 재사용
+       systemUserNo    →  시스템사용자번호         사용자번호7
 
   ★ **TypeHandler 를 자리마다 명시한다.** 두 코드 핸들러가 모두 자바 `String` 을
     다뤄서 자동 등록(type-handlers-package)을 쓸 수 없다 — 같은 타입에 둘이 걸리면
@@ -33,7 +35,7 @@
   <resultMap id="uploadedFileMap" type="UploadedFile">
     <id     property="id"              column="업로드파일일련번호"/>
     <result property="institutionName" column="기관명"/>
-    <result property="category"        column="기관영업분류코드"
+    <result property="category"        column="기관영업분류구분"
             typeHandler="com.kb.uploader.config.InstitutionCategoryTypeHandler"/>
     <result property="year"            column="문서년"/>
     <result property="status"          column="분류상태구분"
@@ -43,7 +45,7 @@
             typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/>
     <result property="classifiedAt"    column="분류일시"
             typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/>
-    <result property="storedPath"      column="저장경로"/>
+    <result property="storedPath"      column="저장경로내용"/>
   </resultMap>
 
   <!-- 파라미터 쪽 TypeHandler 표기가 길어 sql 조각으로 묶는다 -->
@@ -66,9 +68,11 @@
   <!-- MySQL: useGeneratedKeys로 AUTO_INCREMENT id 채움 -->
   <insert id="insert" databaseId="mysql" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO TSKGIAF01
-      (기관명, 기관영업분류코드, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
+      (기관명, 기관영업분류구분, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로내용,
+       시스템사용일시, 시스템사용자번호)
     VALUES
-      (<include refid="값목록"/>)
+      (<include refid="값목록"/>,
+       #{uploadedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo})
   </insert>
   <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 SQ_KGI_AGENTFILETABLE) -->
   <insert id="insert" databaseId="oracle">
@@ -76,30 +80,53 @@
       SELECT SQ_KGI_AGENTFILETABLE.NEXTVAL FROM DUAL
     </selectKey>
     INSERT INTO TSKGIAF01
-      (업로드파일일련번호, 기관명, 기관영업분류코드, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
+      (업로드파일일련번호, 기관명, 기관영업분류구분, 문서년, 분류상태구분, 원본파일명, 업로드일시,
+       저장경로내용, 시스템사용일시, 시스템사용자번호)
     VALUES
-      (#{id}, <include refid="값목록"/>)
+      (#{id}, <include refid="값목록"/>,
+       #{uploadedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo})
   </insert>
 
   <update id="update">
     UPDATE TSKGIAF01
     SET
-    저장경로      = #{storedPath},
+    저장경로내용      = #{storedPath},
     기관명        = #{institutionName},
     문서년        = #{year},
-    기관영업분류코드      = #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+    기관영업분류구분      = #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
     분류상태구분  = #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler},
-    분류일시      = #{classifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}
+    분류일시      = #{classifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+    시스템사용일시   = #{classifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+    시스템사용자번호 = #{systemUserNo}
     WHERE 업로드파일일련번호 = #{id}
   </update>
 
-  <!-- ⚠️ '04' = DELETED, '03' = REJECTED, '02' = CLASSIFIED (code/ClassificationStatus.java) -->
-  <update id="softDeleteById">
-    UPDATE TSKGIAF01 SET 분류상태구분 = '04' WHERE 업로드파일일련번호 = #{id}
+  <!--
+    ⚠️ '04' = DELETED, '03' = REJECTED, '02' = CLASSIFIED (code/ClassificationStatus.java)
+    ⚠️ 이 둘은 **파라미터에 시각 값이 없다**(id 만 받는다). 그래서 시스템사용일시를
+       DB 시각으로 채운다 — 그래서 방언 분기가 생겼다. 형식은 다른 자리와 같은
+       YYYYMMDDHH24MISS 여야 한다(문자열 정렬 = 시간 정렬이 깨지지 않게).
+  -->
+  <update id="softDeleteById" databaseId="oracle">
+    UPDATE TSKGIAF01 SET 분류상태구분 = '04',
+      시스템사용일시 = TO_CHAR(SYSDATE, 'YYYYMMDDHH24MISS'), 시스템사용자번호 = #{systemUserNo}
+    WHERE 업로드파일일련번호 = #{id}
+  </update>
+  <update id="softDeleteById" databaseId="mysql">
+    UPDATE TSKGIAF01 SET 분류상태구분 = '04',
+      시스템사용일시 = DATE_FORMAT(NOW(), '%Y%m%d%H%i%s'), 시스템사용자번호 = #{systemUserNo}
+    WHERE 업로드파일일련번호 = #{id}
   </update>
 
-  <update id="rejectById">
-    UPDATE TSKGIAF01 SET 분류상태구분 = '03' WHERE 업로드파일일련번호 = #{id}
+  <update id="rejectById" databaseId="oracle">
+    UPDATE TSKGIAF01 SET 분류상태구분 = '03',
+      시스템사용일시 = TO_CHAR(SYSDATE, 'YYYYMMDDHH24MISS'), 시스템사용자번호 = #{systemUserNo}
+    WHERE 업로드파일일련번호 = #{id}
+  </update>
+  <update id="rejectById" databaseId="mysql">
+    UPDATE TSKGIAF01 SET 분류상태구분 = '03',
+      시스템사용일시 = DATE_FORMAT(NOW(), '%Y%m%d%H%i%s'), 시스템사용자번호 = #{systemUserNo}
+    WHERE 업로드파일일련번호 = #{id}
   </update>
 
   <select id="findById" resultMap="uploadedFileMap">

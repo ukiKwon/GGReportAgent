@@ -14,9 +14,11 @@ public interface UploadedFileMapper {
 
     void update(UploadedFile file);
 
-    void softDeleteById(@Param("id") Long id);
+    void softDeleteById(@Param("id") Long id,
+                        @Param("systemUserNo") String systemUserNo);
 
-    void rejectById(@Param("id") Long id);
+    void rejectById(@Param("id") Long id,
+                    @Param("systemUserNo") String systemUserNo);
 
     Optional<UploadedFile> findById(@Param("id") Long id);
 
