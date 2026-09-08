@@ -14,7 +14,7 @@
 
 CREATE TABLE IF NOT EXISTS TSKGIAF01 (
     업로드파일일련번호  BIGINT       NOT NULL AUTO_INCREMENT,
-    기관명              VARCHAR(250),
+    기관명              VARCHAR(40),
     -- 코드값: 01 지방자치단체 / 02 공공기관 / 03 대학교 / 04 병원 / 05 법원
     기관구분            VARCHAR(2),
     문서년              VARCHAR(4),
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS TSKGIAF01 (
     -- 시각은 문자열 YYYYMMDDHH24MISS (사내 표준). 자바는 LocalDateTime 그대로.
     업로드일시          VARCHAR(20)  NOT NULL,
     분류일시            VARCHAR(20),
-    저장경로            VARCHAR(800) NOT NULL,
+    저장경로            VARCHAR(600) NOT NULL,
     PRIMARY KEY (업로드파일일련번호),
     -- ⚠️ 인덱스를 CREATE TABLE 안에 둔 것은 형식만 Oracle 과 다르다. 분리하면
     --    테스트 H2 가 DB 를 공유해 스크립트를 여러 번 돌릴 때 "Duplicate key name"
@@ -39,10 +39,15 @@ CREATE TABLE IF NOT EXISTS TSKGIAF01 (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS TSKGIAF02 (
-    기관일련번호  BIGINT       NOT NULL AUTO_INCREMENT,
-    기관명        VARCHAR(250) NOT NULL,
-    기관구분      VARCHAR(2)   NOT NULL,
-    수정일시      VARCHAR(20)  NOT NULL,
+    기관일련번호        BIGINT      NOT NULL AUTO_INCREMENT,
+    기관명              VARCHAR(40) NOT NULL,
+    기관구분            VARCHAR(2)  NOT NULL,
+    -- 아래 4개는 앱이 읽지도 쓰지도 않는다(자리만 만들어 둔 것).
+    협약기관상태구분    VARCHAR(2),                 -- 01 미협약 / 02 협약
+    입찰공고상태        VARCHAR(2),                 -- 01 공고전 / 02 공고중 / 03 공고완료
+    입찰공고시작        VARCHAR(8),                 -- YYYYMMDD
+    입찰공고마감        VARCHAR(8),                 -- YYYYMMDD
+    수정일시            VARCHAR(14) NOT NULL,
     PRIMARY KEY (기관일련번호),
     UNIQUE KEY UK_TSKGIAF02_기관명 (기관명)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

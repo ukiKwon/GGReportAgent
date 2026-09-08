@@ -133,14 +133,14 @@
   <thead><tr><th>순서</th><th>옛 컬럼</th><th>새 컬럼</th><th>속성명</th><th>인포타입</th><th>타입(길이)</th><th>널리티</th></tr></thead>
   <tbody>
     <tr><td>1</td><td class="old">ID</td><td class="new">업로드파일일련번호</td><td class="mono">동일</td><td class="mono">일련번호16</td><td class="mono">DECIMAL(16)</td><td class="mono">NOT NULL</td></tr>
-    <tr><td>2</td><td class="old">INSTITUTION_NAME</td><td class="new">기관명</td><td class="mono">동일</td><td class="mono">명250</td><td class="mono">VARCHAR(250)</td><td class="mono">NULLABLE</td></tr>
+    <tr><td>2</td><td class="old">INSTITUTION_NAME</td><td class="new">기관명</td><td class="mono">동일</td><td class="mono">명40</td><td class="mono">VARCHAR(40)</td><td class="mono">NULLABLE</td></tr>
     <tr><td>3</td><td class="old">CATEGORY</td><td class="new">기관구분</td><td class="mono">기관구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NULLABLE</td></tr>
     <tr><td>4</td><td class="old">FILE_YEAR</td><td class="new">문서년</td><td class="mono">동일</td><td class="mono">년4</td><td class="mono">CHARACTER(4)</td><td class="mono">NULLABLE</td></tr>
     <tr><td>5</td><td class="old">STATUS</td><td class="new">분류상태구분</td><td class="mono">분류상태구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NOT NULL</td></tr>
     <tr><td>6</td><td class="old">ORIGINAL_NAME</td><td class="new">원본파일명</td><td class="mono">동일</td><td class="mono">명260</td><td class="mono">VARCHAR(260)</td><td class="mono">NOT NULL</td></tr>
     <tr><td>7</td><td class="old">UPLOADED_AT</td><td class="new">업로드일시</td><td class="mono">동일</td><td class="mono">일시20</td><td class="mono">CHARACTER(20)</td><td class="mono">NOT NULL</td></tr>
     <tr><td>8</td><td class="old">CLASSIFIED_AT</td><td class="new">분류일시</td><td class="mono">동일</td><td class="mono">일시20</td><td class="mono">CHARACTER(20)</td><td class="mono">NULLABLE</td></tr>
-    <tr><td>9</td><td class="old">STORED_PATH</td><td class="new">저장경로</td><td class="mono">저장경로내용</td><td class="mono">내용800</td><td class="mono">VARCHAR(800)</td><td class="mono">NOT NULL</td></tr>
+    <tr><td>9</td><td class="old">STORED_PATH</td><td class="new">저장경로</td><td class="mono">저장경로내용</td><td class="mono">내용600</td><td class="mono">VARCHAR(600)</td><td class="mono">NOT NULL</td></tr>
   </tbody>
 </table>
 
@@ -153,11 +153,36 @@
   <thead><tr><th>순서</th><th>옛 컬럼</th><th>새 컬럼</th><th>속성명</th><th>인포타입</th><th>타입(길이)</th><th>널리티</th></tr></thead>
   <tbody>
     <tr><td>1</td><td class="old">ID</td><td class="new">기관일련번호</td><td class="mono">동일</td><td class="mono">일련번호16</td><td class="mono">DECIMAL(16)</td><td class="mono">NOT NULL</td></tr>
-    <tr><td>2</td><td class="old">NAME</td><td class="new">기관명</td><td class="mono">동일</td><td class="mono">명250</td><td class="mono">VARCHAR(250)</td><td class="mono">NOT NULL</td></tr>
+    <tr><td>2</td><td class="old">NAME</td><td class="new">기관명</td><td class="mono">동일</td><td class="mono">명40</td><td class="mono">VARCHAR(40)</td><td class="mono">NOT NULL</td></tr>
     <tr><td>3</td><td class="old">CATEGORY</td><td class="new">기관구분</td><td class="mono">기관구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NOT NULL</td></tr>
-    <tr><td>4</td><td class="old">MODIFIED_AT</td><td class="new">수정일시</td><td class="mono">동일</td><td class="mono">일시20</td><td class="mono">CHARACTER(20)</td><td class="mono">NOT NULL</td></tr>
+    <tr><td>4</td><td class="old">—</td><td class="new">협약기관상태구분</td><td class="mono">협약기관상태구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NULLABLE</td></tr>
+    <tr><td>5</td><td class="old">—</td><td class="new">입찰공고상태</td><td class="mono">입찰공고상태구분코드</td><td class="mono">구분코드2</td><td class="mono">CHARACTER(2)</td><td class="mono">NULLABLE</td></tr>
+    <tr><td>6</td><td class="old">—</td><td class="new">입찰공고시작</td><td class="mono">입찰공고시작년월일</td><td class="mono">년월일8</td><td class="mono">CHARACTER(8)</td><td class="mono">NULLABLE</td></tr>
+    <tr><td>7</td><td class="old">—</td><td class="new">입찰공고마감</td><td class="mono">입찰공고마감년월일</td><td class="mono">년월일8</td><td class="mono">CHARACTER(8)</td><td class="mono">NULLABLE</td></tr>
+    <tr><td>8</td><td class="old">MODIFIED_AT</td><td class="new">수정일시</td><td class="mono">동일</td><td class="mono">일시14</td><td class="mono">CHARACTER(14)</td><td class="mono">NOT NULL</td></tr>
   </tbody>
 </table>
+
+<div class="box info">
+  <div class="h">4~7번은 신설이고 <b>애플리케이션이 읽지도 쓰지도 않습니다</b></div>
+  <p>
+    기관 정보를 미리 담아 둘 자리로 만든 것입니다. 그래서 <b>도메인·매퍼·화면에 대응하는 것이
+    없고</b>, <code>resultMap</code>이 모르는 컬럼은 그냥 무시하며 <code>INSERT</code>도 컬럼을
+    명시하므로 NULL 로 남습니다 — <b>소스는 이 4개 때문에 바뀌지 않습니다.</b>
+  </p>
+  <table style="margin:6px 0 0">
+    <thead><tr><th>컬럼</th><th>코드값</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">협약기관상태구분</td><td><b>01</b> 미협약 / <b>02</b> 협약</td></tr>
+      <tr><td class="mono">입찰공고상태</td><td><b>01</b> 공고전 / <b>02</b> 공고중 / <b>03</b> 공고완료</td></tr>
+      <tr><td class="mono">입찰공고시작 · 입찰공고마감</td><td><code>YYYYMMDD</code> 8자리</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:8px">
+    ⚠️ 화면에서 <b>쓰기 시작하면</b> 도메인 <code>Institution</code>·매퍼·화면과
+    <b>코드 TypeHandler 2개</b>가 따라옵니다.
+  </p>
+</div>
 
 <h3>코드값 — DB 에는 코드가, 화면에는 이름이 보입니다</h3>
 <table>
@@ -174,9 +199,10 @@
 <div class="box warn">
   <div class="h">저장경로·원본파일명의 길이 근거</div>
   <p>
-    저장경로 최악값은 약 <b>591자</b>입니다 —
-    <code>baseDir(20) + /classified/(12) + 기관구분(2) + 문서년(4) + 기관명(250) + 원본파일명(260)</code>.
-    인포타입에 700이 없어 <b>내용800</b>을 씁니다. 길이가 <b>자 단위</b>라 한글 800자가 들어갑니다.
+    저장경로 최악값은 약 <b>341자</b>입니다 —
+    <code>baseDir(20) + /classified/(12) + 기관구분(2) + 문서년(4) + 기관명(40) + 원본파일명(260) + 구분자(3)</code>.
+    기관명이 250 → <b>40</b>으로 줄면서 800이 과해져 <b>내용600</b>으로 낮췄습니다.
+    길이가 <b>자 단위</b>라 한글 600자가 들어갑니다.
     원본파일명은 파일시스템 상한이 255자(NTFS·ext4)인데 인포타입에 255가 없어 <b>명260</b>입니다.
   </p>
 </div>
@@ -249,7 +275,7 @@
   </li>
   <li>
     <strong>DBA 에게 제출한다</strong><br>
-    엑셀 <code>DBA제출_컬럼정의_2026-09-08.xlsx</code> (컬럼 13행) —
+    엑셀 <code>DBA제출_컬럼정의_2026-09-08.xlsx</code> (컬럼 <b>17행</b>) —
     메타시스템 업로드용입니다. 테이블 2개는 직접 등록하시고,
     시퀀스·인덱스는 아래 6절 DDL 을 함께 전달하십시오.
   </li>
@@ -316,24 +342,28 @@
 <pre><span class="c">-- ── 업로드된 파일 ───────────────────────────────────</span>
 CREATE TABLE TSKGIAF01 (
     업로드파일일련번호  DECIMAL(16)        NOT NULL,
-    기관명              VARCHAR2(250 CHAR),
+    기관명              VARCHAR2(40 CHAR),
     기관구분            VARCHAR2(2 CHAR),                              <span class="c">-- 01~05</span>
     문서년              VARCHAR2(4 CHAR),
     분류상태구분        VARCHAR2(2 CHAR)   DEFAULT '01' NOT NULL,      <span class="c">-- 01~04</span>
     원본파일명          VARCHAR2(260 CHAR) NOT NULL,
     업로드일시          VARCHAR2(20 CHAR)  NOT NULL,                   <span class="c">-- YYYYMMDDHH24MISS</span>
     분류일시            VARCHAR2(20 CHAR),
-    저장경로            VARCHAR2(800 CHAR) NOT NULL,
+    저장경로            VARCHAR2(600 CHAR) NOT NULL,
     CONSTRAINT PK_TSKGIAF01 PRIMARY KEY (업로드파일일련번호),
     CONSTRAINT CK_TSKGIAF01_분류상태 CHECK (분류상태구분 IN ('01', '02', '03', '04'))
 );
 
 <span class="c">-- ── 기관 (기관명 → 기관구분 매핑표) ─────────────────</span>
 CREATE TABLE TSKGIAF02 (
-    기관일련번호  DECIMAL(16)        NOT NULL,
-    기관명        VARCHAR2(250 CHAR) NOT NULL,
-    기관구분      VARCHAR2(2 CHAR)   NOT NULL,
-    수정일시      VARCHAR2(20 CHAR)  NOT NULL,
+    기관일련번호        DECIMAL(16)       NOT NULL,
+    기관명              VARCHAR2(40 CHAR) NOT NULL,
+    기관구분            VARCHAR2(2 CHAR)  NOT NULL,   <span class="c">-- 01~05</span>
+    협약기관상태구분    VARCHAR2(2 CHAR),             <span class="c">-- 01 미협약 / 02 협약  (앱 미사용)</span>
+    입찰공고상태        VARCHAR2(2 CHAR),             <span class="c">-- 01 공고전 / 02 공고중 / 03 공고완료  (앱 미사용)</span>
+    입찰공고시작        VARCHAR2(8 CHAR),             <span class="c">-- YYYYMMDD  (앱 미사용)</span>
+    입찰공고마감        VARCHAR2(8 CHAR),             <span class="c">-- YYYYMMDD  (앱 미사용)</span>
+    수정일시            VARCHAR2(14 CHAR) NOT NULL,
     CONSTRAINT PK_TSKGIAF02 PRIMARY KEY (기관일련번호),
     CONSTRAINT UK_TSKGIAF02_기관명 UNIQUE (기관명)
 );
