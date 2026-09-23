@@ -23,6 +23,6 @@ public class KGI12200$FileStatusDelete {
     public String execute(@PathVariable Long id, RedirectAttributes ra) {
         fileMapper.softDeleteById(id, SystemUser.get(), LocalDateTime.now());
         ra.addFlashAttribute("message", "파일이 목록에서 제거되었습니다.");
-        return "redirect:/file-status";
+        return "redirect:/parse-status";
     }
 }

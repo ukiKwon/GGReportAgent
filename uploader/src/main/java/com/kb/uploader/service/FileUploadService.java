@@ -1,84 +1,77 @@
 package com.kb.uploader.service;
 
+import com.kb.uploader.code.DocumentType;
 import com.kb.uploader.code.SystemUser;
 import com.kb.uploader.domain.UploadedFile;
-import com.kb.uploader.dto.ParsedFileName;
 import com.kb.uploader.dto.UploadResultItem;
 import com.kb.uploader.mapper.UploadedFileMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
+/**
+ * 업로드 오케스트레이션 (2026-09-23 파싱 전환).
+ *
+ * <p>종전에는 파일명을 해석해 기관을 알아낸 뒤 폴더를 옮겼다. 이제는 <b>확장자만 검증</b>하고
+ * 원본을 userdata 에 보관한 다음 {@link DocumentParseService} 가 문서 내용을 읽는다.
+ *
+ * <p>⚠️ 한 파일이 실패해도 나머지는 계속 처리한다 — 여러 건을 한 번에 올리는 화면이라
+ * 중간에 멈추면 무엇이 처리됐는지 알 수 없다.
+ */
 @Service
 public class FileUploadService {
 
-    private final FileParserService parserService;
+    private static final Logger log = LoggerFactory.getLogger(FileUploadService.class);
+
     private final FileStorageService storageService;
-    private final ClassificationService classificationService;
+    private final DocumentParseService parseService;
     private final UploadedFileMapper fileMapper;
 
-    public FileUploadService(FileParserService parserService,
-                             FileStorageService storageService,
-                             ClassificationService classificationService,
+    public FileUploadService(FileStorageService storageService,
+                             DocumentParseService parseService,
                              UploadedFileMapper fileMapper) {
-        this.parserService = parserService;
         this.storageService = storageService;
-        this.classificationService = classificationService;
+        this.parseService = parseService;
         this.fileMapper = fileMapper;
     }
 
-    public List<UploadResultItem> upload(List<MultipartFile> files) {
-        return upload(files, "", "", "");
-    }
-
-    public List<UploadResultItem> upload(List<MultipartFile> files,
-                                         String instOverride, String yearOverride, String categoryOverride) {
-        List<UploadResultItem> results = new ArrayList<>();
+    /**
+     * @param docType {@link DocumentType#BID_PROPOSAL} 또는 {@link DocumentType#RFP}
+     */
+    public List<UploadResultItem> upload(String docType, List<MultipartFile> files) {
+        List<UploadResultItem> results = new ArrayList<UploadResultItem>();
         for (MultipartFile file : files) {
-            String originalName = file.getOriginalFilename();
-            try {
-                Optional<ParsedFileName> parsed = parserService.parse(originalName);
-                if (!parsed.isPresent()) {
-                    boolean hasOverride = instOverride != null && !instOverride.trim().isEmpty();
-                    Path saved = storageService.saveToUnclassified(file, originalName);
-                    UploadedFile entity = new UploadedFile(
-                            originalName, saved.toString(),
-                            (yearOverride != null && !yearOverride.trim().isEmpty()) ? yearOverride.trim() : null,
-                            hasOverride ? instOverride.trim() : "알수없음");
-                    entity.setSystemUserNo(SystemUser.get());
-                    entity.setSystemUsedAt(entity.getUploadedAt());
-                    fileMapper.insert(entity);
-                    if (hasOverride) {
-                        boolean ok = classificationService.classify(entity);
-                        results.add(new UploadResultItem(originalName, ok,
-                                ok ? entity.getCategory() : null,
-                                ok ? "수동 입력으로 분류 완료" : "미분류 (기관 미등록 — 기관 관리에서 등록 필요)"));
-                    } else {
-                        results.add(new UploadResultItem(originalName, false, null,
-                                "파일명 형식 불일치 (년도_기관명_설명.확장자 필요)"));
-                    }
-                    continue;
-                }
-                ParsedFileName p = parsed.get();
-                Path saved = storageService.saveToUnclassified(file, originalName);
-                UploadedFile entity = new UploadedFile(
-                        originalName, saved.toString(), p.getYear(), p.getInstitutionName());
-                entity.setSystemUserNo(SystemUser.get());
-                    entity.setSystemUsedAt(entity.getUploadedAt());
-                    fileMapper.insert(entity);
-
-                boolean ok = classificationService.classify(entity);
-                results.add(new UploadResultItem(
-                        originalName, ok,
-                        ok ? entity.getCategory() : null,
-                        ok ? "분류 완료" : "미분류 (기관 미등록)"));
-            } catch (Exception e) {
+            String originalName = FileStorageService.safeFileName(file.getOriginalFilename());
+            if (file.isEmpty()
+                    && (file.getOriginalFilename() == null || file.getOriginalFilename().isEmpty())) {
+                continue; // 파일을 고르지 않고 전송한 빈 파트
+            }
+            if (!DocumentType.accepts(docType, originalName)) {
                 results.add(new UploadResultItem(originalName, false, null,
-                        "오류: " + e.getMessage()));
+                        "허용되지 않는 확장자 ("
+                                + String.join(", ", DocumentType.extensions(docType)) + "만 가능)"));
+                continue;
+            }
+            try {
+                Path saved = storageService.saveOriginal(file, originalName);
+                UploadedFile entity = new UploadedFile(docType, originalName, saved.toString());
+                entity.setSystemUserNo(SystemUser.get());
+                entity.setSystemUsedAt(entity.getUploadedAt());
+                fileMapper.insert(entity);
+
+                UploadedFile parsed = parseService.parse(entity);
+                boolean ok = "SUCCESS".equals(parsed.getParseStatus());
+                results.add(new UploadResultItem(originalName, ok,
+                        ok ? parsed.getCategoryLabel() : null,
+                        ok ? "파싱 완료 → " + parsed.getOutputFileName() : parsed.getParseMessage()));
+            } catch (Exception e) {
+                log.error("업로드 처리 실패: {}", originalName, e);
+                results.add(new UploadResultItem(originalName, false, null, "오류: " + e.getMessage()));
             }
         }
         return results;

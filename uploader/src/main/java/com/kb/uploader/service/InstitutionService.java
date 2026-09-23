@@ -22,14 +22,11 @@ public class InstitutionService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final InstitutionMapper institutionMapper;
-    private final ClassificationService classificationService;
     private final UploadedFileMapper uploadedFileMapper;
 
     public InstitutionService(InstitutionMapper institutionMapper,
-                              ClassificationService classificationService,
                               UploadedFileMapper uploadedFileMapper) {
         this.institutionMapper = institutionMapper;
-        this.classificationService = classificationService;
         this.uploadedFileMapper = uploadedFileMapper;
     }
 
@@ -74,8 +71,8 @@ public class InstitutionService {
                     created.setSystemUserNo(SystemUser.get());
                     institutionMapper.insert(created);
                 }));
-        List<UploadedFile> pending = uploadedFileMapper.findByStatus("UNCLASSIFIED");
-        pending.forEach(f -> classificationService.classify(f));
+        // 2026-09-23: 자동 재분류를 없앴다. 기관을 고친 뒤 다시 돌리려면
+        //             파싱 현황 화면의 [재파싱] 을 누른다.
     }
 
     public byte[] exportToXlsx() throws IOException {
@@ -117,7 +114,7 @@ public class InstitutionService {
                 }
             }
         }
-        List<UploadedFile> pending = uploadedFileMapper.findByStatus("UNCLASSIFIED");
-        pending.forEach(f -> classificationService.classify(f));
+        // 2026-09-23: 자동 재분류를 없앴다. 기관을 고친 뒤 다시 돌리려면
+        //             파싱 현황 화면의 [재파싱] 을 누른다.
     }
 }

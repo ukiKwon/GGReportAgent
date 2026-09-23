@@ -46,17 +46,66 @@
     <result property="classifiedAt"    column="분류일시"
             typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/>
     <result property="storedPath"      column="저장경로내용"/>
+    <!--
+      ⚠️ 감사 2열은 **읽기에도 반드시 있어야 한다**(2026-09-09 추가). 종전에는 쓰기
+         (`#{...}`)만 있고 여기가 빠져 있어 DB 에는 값이 들어가는데 조회하면 늘
+         null 이었다 — 화면이 비어 보이는 게 첫 증상이다. 더 나쁜 건
+         KGI12100$FileStatusClassify 처럼 **findById 로 읽어 그대로 update 하는 경로**
+         에서 그 null 이 DB 로 되써진다는 점이다.
+    -->
+    <result property="systemUsedAt"    column="시스템사용일시"
+            typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/>
+    <result property="systemUserNo"    column="시스템사용자번호"/>
+    <!--
+      ── 2026-09-23 파싱 전환 7열 ──
+      ⚠️ 위 감사 2열과 똑같은 함정이 있다. 여기 빠뜨리면 DB 에는 값이 들어가는데 조회하면
+         늘 null 이고, 읽어서 그대로 update 하는 경로에서 그 null 이 DB 로 되써진다.
+    -->
+    <result property="docType"      column="문서종류구분"
+            typeHandler="com.kb.uploader.config.DocumentTypeTypeHandler"/>
+    <result property="parseStatus"  column="파싱상태구분"
+            typeHandler="com.kb.uploader.config.ParseStatusTypeHandler"/>
+    <result property="parseMessage" column="파싱메시지내용"/>
+    <result property="outputPath"   column="파싱산출물경로내용"/>
+    <result property="parsedAt"     column="파싱일시"
+            typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/>
+    <result property="pageCount"    column="문서페이지수"/>
+    <result property="docDate"      column="문서일자"/>
   </resultMap>
 
   <!-- 파라미터 쪽 TypeHandler 표기가 길어 sql 조각으로 묶는다 -->
   <sql id="값목록">
     #{institutionName},
-    #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+    <include refid="기관분류값"/>,
     #{year},
     #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler},
     #{originalName},
     #{uploadedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
     #{storedPath}
+  </sql>
+
+  <!--
+    ⚠️ 파싱 전환(2026-09-23) 이후 기관분류가 **"미분류"** 일 수 있다. 그 값은
+       code/InstitutionCategory 의 코드표(01~05)에 없어서 TypeHandler 가 예외를 던진다.
+       DDL 의 CHECK 제약도 코드 5종만 받는다. 그래서 **미분류는 NULL 로 저장**한다.
+       화면 표기는 UploadedFile.getCategoryLabel() 이 NULL 을 "미분류" 로 되돌린다.
+  -->
+  <sql id="기관분류값">
+    <choose>
+      <when test="category == null or category == '미분류'">NULL</when>
+      <otherwise>#{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler}</otherwise>
+    </choose>
+  </sql>
+
+  <!-- 파싱 7열의 값. insert 와 updateParseResult 가 같이 쓴다 -->
+  <sql id="파싱값목록">
+    #{docType,typeHandler=com.kb.uploader.config.DocumentTypeTypeHandler},
+    #{parseStatus,typeHandler=com.kb.uploader.config.ParseStatusTypeHandler},
+    #{parseMessage},
+    #{outputPath},
+    #{parsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+    #{pageCount},
+    #{docDate}
   </sql>
 
   <!--
@@ -69,10 +118,12 @@
   <insert id="insert" databaseId="mysql" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO TSKGIAF01
       (기관명, 기관영업분류구분, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로내용,
-       시스템사용일시, 시스템사용자번호)
+       시스템사용일시, 시스템사용자번호,
+       문서종류구분, 파싱상태구분, 파싱메시지내용, 파싱산출물경로내용, 파싱일시, 문서페이지수, 문서일자)
     VALUES
       (<include refid="값목록"/>,
-       #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo})
+       #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo},
+       <include refid="파싱값목록"/>)
   </insert>
   <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 SQ_KGI_AGENTFILETABLE) -->
   <insert id="insert" databaseId="oracle">
@@ -81,10 +132,12 @@
     </selectKey>
     INSERT INTO TSKGIAF01
       (업로드파일일련번호, 기관명, 기관영업분류구분, 문서년, 분류상태구분, 원본파일명, 업로드일시,
-       저장경로내용, 시스템사용일시, 시스템사용자번호)
+       저장경로내용, 시스템사용일시, 시스템사용자번호,
+       문서종류구분, 파싱상태구분, 파싱메시지내용, 파싱산출물경로내용, 파싱일시, 문서페이지수, 문서일자)
     VALUES
       (#{id}, <include refid="값목록"/>,
-       #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo})
+       #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo},
+       <include refid="파싱값목록"/>)
   </insert>
 
   <update id="update">
@@ -93,13 +146,149 @@
     저장경로내용      = #{storedPath},
     기관명        = #{institutionName},
     문서년        = #{year},
-    기관영업분류구분      = #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+    기관영업분류구분      = <include refid="기관분류값"/>,
     분류상태구분  = #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler},
     분류일시      = #{classifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
     시스템사용일시   = #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
     시스템사용자번호 = #{systemUserNo}
     WHERE 업로드파일일련번호 = #{id}
   </update>
+
+  <!--
+    파싱 결과 기록 (2026-09-23 신설).
+    ⚠️ JPA 였다면 더티체킹이 해 주던 UPDATE 다. 파싱 7열과 함께 **기관·분류상태도** 쓴다
+       — 파싱하면서 기관을 찾아 분류가 확정되기 때문이다.
+  -->
+  <update id="updateParseResult">
+    UPDATE TSKGIAF01
+    SET
+    문서종류구분     = #{docType,typeHandler=com.kb.uploader.config.DocumentTypeTypeHandler},
+    파싱상태구분     = #{parseStatus,typeHandler=com.kb.uploader.config.ParseStatusTypeHandler},
+    파싱메시지내용   = #{parseMessage},
+    파싱산출물경로내용 = #{outputPath},
+    파싱일시         = #{parsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+    문서페이지수     = #{pageCount},
+    문서일자         = #{docDate},
+    기관명           = #{institutionName},
+    기관영업분류구분 = <include refid="기관분류값"/>,
+    분류상태구분     = #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler},
+    분류일시         = #{classifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+    시스템사용일시   = #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+    시스템사용자번호 = #{systemUserNo}
+    WHERE 업로드파일일련번호 = #{id}
+  </update>
+
+  <!-- ── 파싱 현황·대시보드 집계 (2026-09-23 신설) ─────────────────────
+       ⚠️ SQL 리터럴은 TypeHandler 를 타지 않는다. '01'·'02' 처럼 **코드**로 적을 것.
+  -->
+  <select id="countByParseStatus" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01
+     WHERE 파싱상태구분 = #{parseStatus,typeHandler=com.kb.uploader.config.ParseStatusTypeHandler}
+  </select>
+
+  <select id="countByDocType" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01
+     WHERE 문서종류구분 = #{docType,typeHandler=com.kb.uploader.config.DocumentTypeTypeHandler}
+  </select>
+
+  <!-- 파싱은 됐는데 기관을 못 찾은 건. 기관분류가 NULL 인 행이 그것이다 -->
+  <select id="countParsedUnclassified" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01
+     WHERE 파싱상태구분 = '02' AND 기관영업분류구분 IS NULL
+  </select>
+
+  <select id="searchParseStatus" resultMap="uploadedFileMap">
+    SELECT * FROM TSKGIAF01
+     WHERE 분류상태구분 &lt;&gt; '04'
+    <if test="docType != null">
+      AND 문서종류구분 = #{docType,typeHandler=com.kb.uploader.config.DocumentTypeTypeHandler}
+    </if>
+    <if test="parseStatus != null">
+      AND 파싱상태구분 = #{parseStatus,typeHandler=com.kb.uploader.config.ParseStatusTypeHandler}
+    </if>
+    <if test="unclassifiedOnly != null and unclassifiedOnly">
+      AND 기관영업분류구분 IS NULL
+    </if>
+     ORDER BY 업로드파일일련번호 DESC
+  </select>
+
+  <!-- ── 조회 API (2026-09-23 신설). 제안서 '01' / RFP '02', 파싱 성공 '02' 만 ── -->
+  <sql id="제안서조건">
+    WHERE 문서종류구분 = '01' AND 파싱상태구분 = '02'
+    <if test="institution != null">
+      AND 기관명 LIKE '%' || #{institution} || '%'
+    </if>
+    <if test="docDate != null">
+      AND 문서일자 LIKE #{docDate} || '%'
+    </if>
+  </sql>
+  <sql id="제안서조건mysql">
+    WHERE 문서종류구분 = '01' AND 파싱상태구분 = '02'
+    <if test="institution != null">
+      AND 기관명 LIKE CONCAT('%', #{institution}, '%')
+    </if>
+    <if test="docDate != null">
+      AND 문서일자 LIKE CONCAT(#{docDate}, '%')
+    </if>
+  </sql>
+  <sql id="RFP조건">
+    WHERE 문서종류구분 = '02' AND 파싱상태구분 = '02'
+    <if test="institution != null">
+      AND 기관명 LIKE '%' || #{institution} || '%'
+    </if>
+    <if test="docDate != null">
+      AND 문서일자 LIKE #{docDate} || '%'
+    </if>
+  </sql>
+  <sql id="RFP조건mysql">
+    WHERE 문서종류구분 = '02' AND 파싱상태구분 = '02'
+    <if test="institution != null">
+      AND 기관명 LIKE CONCAT('%', #{institution}, '%')
+    </if>
+    <if test="docDate != null">
+      AND 문서일자 LIKE CONCAT(#{docDate}, '%')
+    </if>
+  </sql>
+
+  <select id="searchProposals" databaseId="mysql" resultMap="uploadedFileMap">
+    SELECT * FROM TSKGIAF01 <include refid="제안서조건mysql"/>
+     ORDER BY 업로드파일일련번호 DESC
+     LIMIT #{limit} OFFSET #{offset}
+  </select>
+  <select id="searchProposals" databaseId="oracle" resultMap="uploadedFileMap">
+    SELECT * FROM (
+      SELECT t.*, ROWNUM rnum FROM (
+        SELECT * FROM TSKGIAF01 <include refid="제안서조건"/>
+         ORDER BY 업로드파일일련번호 DESC
+      ) t WHERE ROWNUM &lt;= #{offset} + #{limit}
+    ) WHERE rnum &gt; #{offset}
+  </select>
+  <select id="countProposals" databaseId="mysql" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01 <include refid="제안서조건mysql"/>
+  </select>
+  <select id="countProposals" databaseId="oracle" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01 <include refid="제안서조건"/>
+  </select>
+
+  <select id="searchRfps" databaseId="mysql" resultMap="uploadedFileMap">
+    SELECT * FROM TSKGIAF01 <include refid="RFP조건mysql"/>
+     ORDER BY 업로드파일일련번호 DESC
+     LIMIT #{limit} OFFSET #{offset}
+  </select>
+  <select id="searchRfps" databaseId="oracle" resultMap="uploadedFileMap">
+    SELECT * FROM (
+      SELECT t.*, ROWNUM rnum FROM (
+        SELECT * FROM TSKGIAF01 <include refid="RFP조건"/>
+         ORDER BY 업로드파일일련번호 DESC
+      ) t WHERE ROWNUM &lt;= #{offset} + #{limit}
+    ) WHERE rnum &gt; #{offset}
+  </select>
+  <select id="countRfps" databaseId="mysql" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01 <include refid="RFP조건mysql"/>
+  </select>
+  <select id="countRfps" databaseId="oracle" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01 <include refid="RFP조건"/>
+  </select>
 
   <!--
     ⚠️ '04' = DELETED, '03' = REJECTED, '02' = CLASSIFIED (code/ClassificationStatus.java)

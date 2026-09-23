@@ -37,7 +37,12 @@ public class ConfigEnvsTest {
             "mybatis.type-aliases-package",
             "mybatis.configuration.map-underscore-to-camel-case",
             "upload.base-dir",
-            "reclassification.cron");
+            // 2026-09-23 파싱 전환: reclassification.cron(재분류 배치)이 빠지고
+            // 원본 보관·산출물 경로 3개가 들어왔다. 한 환경이라도 빠지면 그 환경에서
+            // FileStorageService 가 @Value 를 못 채워 기동이 죽는다.
+            "upload.userdata-dir",
+            "upload.proposal-json-dir",
+            "upload.rfp-md-dir");
 
     /**
      * DataSource 계열은 환경마다 방식이 갈려서(내부망 prod 는 JNDI, 나머지는 직접 접속)

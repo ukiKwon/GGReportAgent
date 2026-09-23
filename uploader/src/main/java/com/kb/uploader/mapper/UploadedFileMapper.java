@@ -45,4 +45,36 @@ public interface UploadedFileMapper {
     List<UploadedFile> search(@Param("institution") String institution,
                               @Param("year") String year,
                               @Param("keyword") String keyword);
+
+    // ── 2026-09-23 파싱 전환 ──────────────────────────────────────────
+    /** 파싱 결과 기록. JPA 의 더티체킹 대신 쓰는 UPDATE 다. */
+    void updateParseResult(UploadedFile file);
+
+    long countByParseStatus(@Param("parseStatus") String parseStatus);
+
+    long countByDocType(@Param("docType") String docType);
+
+    /** 파싱은 성공했는데 기관을 못 찾은 건(기관분류 NULL). */
+    long countParsedUnclassified();
+
+    /** 파싱 현황 화면. 조건은 모두 선택이며 null 이면 걸지 않는다. */
+    List<UploadedFile> searchParseStatus(@Param("docType") String docType,
+                                         @Param("parseStatus") String parseStatus,
+                                         @Param("unclassifiedOnly") Boolean unclassifiedOnly);
+
+    List<UploadedFile> searchProposals(@Param("institution") String institution,
+                                       @Param("docDate") String docDate,
+                                       @Param("offset") int offset,
+                                       @Param("limit") int limit);
+
+    long countProposals(@Param("institution") String institution,
+                        @Param("docDate") String docDate);
+
+    List<UploadedFile> searchRfps(@Param("institution") String institution,
+                                  @Param("docDate") String docDate,
+                                  @Param("offset") int offset,
+                                  @Param("limit") int limit);
+
+    long countRfps(@Param("institution") String institution,
+                   @Param("docDate") String docDate);
 }
