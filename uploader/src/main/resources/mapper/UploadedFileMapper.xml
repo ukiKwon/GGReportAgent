@@ -56,21 +56,6 @@
     <result property="systemUsedAt"    column="시스템사용일시"
             typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/>
     <result property="systemUserNo"    column="시스템사용자번호"/>
-    <!--
-      ── 2026-09-23 파싱 전환 7열 ──
-      ⚠️ 위 감사 2열과 똑같은 함정이 있다. 여기 빠뜨리면 DB 에는 값이 들어가는데 조회하면
-         늘 null 이고, 읽어서 그대로 update 하는 경로에서 그 null 이 DB 로 되써진다.
-    -->
-    <result property="docType"      column="문서종류구분"
-            typeHandler="com.kb.uploader.config.DocumentTypeTypeHandler"/>
-    <result property="parseStatus"  column="파싱상태구분"
-            typeHandler="com.kb.uploader.config.ParseStatusTypeHandler"/>
-    <result property="parseMessage" column="파싱메시지내용"/>
-    <result property="outputPath"   column="파싱산출물경로내용"/>
-    <result property="parsedAt"     column="파싱일시"
-            typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/>
-    <result property="pageCount"    column="문서페이지수"/>
-    <result property="docDate"      column="문서일자"/>
   </resultMap>
 
   <!-- 파라미터 쪽 TypeHandler 표기가 길어 sql 조각으로 묶는다 -->
@@ -97,17 +82,6 @@
     </choose>
   </sql>
 
-  <!-- 파싱 7열의 값. insert 와 updateParseResult 가 같이 쓴다 -->
-  <sql id="파싱값목록">
-    #{docType,typeHandler=com.kb.uploader.config.DocumentTypeTypeHandler},
-    #{parseStatus,typeHandler=com.kb.uploader.config.ParseStatusTypeHandler},
-    #{parseMessage},
-    #{outputPath},
-    #{parsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
-    #{pageCount},
-    #{docDate}
-  </sql>
-
   <!--
     ⚠️ 같은 id 가 두 번 나오는 자리는 **방언 분기**다(databaseId). 접속한 DB 에 맞는
        쪽만 로드된다 — config/MyBatisConfig 가 값을 정한다.
@@ -118,12 +92,10 @@
   <insert id="insert" databaseId="mysql" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO TSKGIAF01
       (기관명, 기관영업분류구분, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로내용,
-       시스템사용일시, 시스템사용자번호,
-       문서종류구분, 파싱상태구분, 파싱메시지내용, 파싱산출물경로내용, 파싱일시, 문서페이지수, 문서일자)
+       시스템사용일시, 시스템사용자번호)
     VALUES
       (<include refid="값목록"/>,
-       #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo},
-       <include refid="파싱값목록"/>)
+       #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo})
   </insert>
   <!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 SQ_KGI_AGENTFILETABLE) -->
   <insert id="insert" databaseId="oracle">
@@ -132,12 +104,10 @@
     </selectKey>
     INSERT INTO TSKGIAF01
       (업로드파일일련번호, 기관명, 기관영업분류구분, 문서년, 분류상태구분, 원본파일명, 업로드일시,
-       저장경로내용, 시스템사용일시, 시스템사용자번호,
-       문서종류구분, 파싱상태구분, 파싱메시지내용, 파싱산출물경로내용, 파싱일시, 문서페이지수, 문서일자)
+       저장경로내용, 시스템사용일시, 시스템사용자번호)
     VALUES
       (#{id}, <include refid="값목록"/>,
-       #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo},
-       <include refid="파싱값목록"/>)
+       #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo})
   </insert>
 
   <update id="update">
@@ -155,21 +125,17 @@
   </update>
 
   <!--
-    파싱 결과 기록 (2026-09-23 신설).
-    ⚠️ JPA 였다면 더티체킹이 해 주던 UPDATE 다. 파싱 7열과 함께 **기관·분류상태도** 쓴다
-       — 파싱하면서 기관을 찾아 분류가 확정되기 때문이다.
+    파싱 결과 기록 (2026-09-23 신설, 스키마 무변경안).
+    ⚠️ 새 컬럼이 없으므로 **기존 컬럼에 태운다**:
+       저장경로내용 = 산출물 경로(성공) 또는 원본 경로(실패) · 분류일시 = 파싱 시각 ·
+       문서년 = 제안서 연도. 실패 사유는 넣을 자리가 없어 로그에만 남는다.
   -->
   <update id="updateParseResult">
     UPDATE TSKGIAF01
     SET
-    문서종류구분     = #{docType,typeHandler=com.kb.uploader.config.DocumentTypeTypeHandler},
-    파싱상태구분     = #{parseStatus,typeHandler=com.kb.uploader.config.ParseStatusTypeHandler},
-    파싱메시지내용   = #{parseMessage},
-    파싱산출물경로내용 = #{outputPath},
-    파싱일시         = #{parsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
-    문서페이지수     = #{pageCount},
-    문서일자         = #{docDate},
+    저장경로내용     = #{storedPath},
     기관명           = #{institutionName},
+    문서년           = #{year},
     기관영업분류구분 = <include refid="기관분류값"/>,
     분류상태구분     = #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler},
     분류일시         = #{classifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
@@ -177,118 +143,6 @@
     시스템사용자번호 = #{systemUserNo}
     WHERE 업로드파일일련번호 = #{id}
   </update>
-
-  <!-- ── 파싱 현황·대시보드 집계 (2026-09-23 신설) ─────────────────────
-       ⚠️ SQL 리터럴은 TypeHandler 를 타지 않는다. '01'·'02' 처럼 **코드**로 적을 것.
-  -->
-  <select id="countByParseStatus" resultType="long">
-    SELECT COUNT(*) FROM TSKGIAF01
-     WHERE 파싱상태구분 = #{parseStatus,typeHandler=com.kb.uploader.config.ParseStatusTypeHandler}
-  </select>
-
-  <select id="countByDocType" resultType="long">
-    SELECT COUNT(*) FROM TSKGIAF01
-     WHERE 문서종류구분 = #{docType,typeHandler=com.kb.uploader.config.DocumentTypeTypeHandler}
-  </select>
-
-  <!-- 파싱은 됐는데 기관을 못 찾은 건. 기관분류가 NULL 인 행이 그것이다 -->
-  <select id="countParsedUnclassified" resultType="long">
-    SELECT COUNT(*) FROM TSKGIAF01
-     WHERE 파싱상태구분 = '02' AND 기관영업분류구분 IS NULL
-  </select>
-
-  <select id="searchParseStatus" resultMap="uploadedFileMap">
-    SELECT * FROM TSKGIAF01
-     WHERE 분류상태구분 &lt;&gt; '04'
-    <if test="docType != null">
-      AND 문서종류구분 = #{docType,typeHandler=com.kb.uploader.config.DocumentTypeTypeHandler}
-    </if>
-    <if test="parseStatus != null">
-      AND 파싱상태구분 = #{parseStatus,typeHandler=com.kb.uploader.config.ParseStatusTypeHandler}
-    </if>
-    <if test="unclassifiedOnly != null and unclassifiedOnly">
-      AND 기관영업분류구분 IS NULL
-    </if>
-     ORDER BY 업로드파일일련번호 DESC
-  </select>
-
-  <!-- ── 조회 API (2026-09-23 신설). 제안서 '01' / RFP '02', 파싱 성공 '02' 만 ── -->
-  <sql id="제안서조건">
-    WHERE 문서종류구분 = '01' AND 파싱상태구분 = '02'
-    <if test="institution != null">
-      AND 기관명 LIKE '%' || #{institution} || '%'
-    </if>
-    <if test="docDate != null">
-      AND 문서일자 LIKE #{docDate} || '%'
-    </if>
-  </sql>
-  <sql id="제안서조건mysql">
-    WHERE 문서종류구분 = '01' AND 파싱상태구분 = '02'
-    <if test="institution != null">
-      AND 기관명 LIKE CONCAT('%', #{institution}, '%')
-    </if>
-    <if test="docDate != null">
-      AND 문서일자 LIKE CONCAT(#{docDate}, '%')
-    </if>
-  </sql>
-  <sql id="RFP조건">
-    WHERE 문서종류구분 = '02' AND 파싱상태구분 = '02'
-    <if test="institution != null">
-      AND 기관명 LIKE '%' || #{institution} || '%'
-    </if>
-    <if test="docDate != null">
-      AND 문서일자 LIKE #{docDate} || '%'
-    </if>
-  </sql>
-  <sql id="RFP조건mysql">
-    WHERE 문서종류구분 = '02' AND 파싱상태구분 = '02'
-    <if test="institution != null">
-      AND 기관명 LIKE CONCAT('%', #{institution}, '%')
-    </if>
-    <if test="docDate != null">
-      AND 문서일자 LIKE CONCAT(#{docDate}, '%')
-    </if>
-  </sql>
-
-  <select id="searchProposals" databaseId="mysql" resultMap="uploadedFileMap">
-    SELECT * FROM TSKGIAF01 <include refid="제안서조건mysql"/>
-     ORDER BY 업로드파일일련번호 DESC
-     LIMIT #{limit} OFFSET #{offset}
-  </select>
-  <select id="searchProposals" databaseId="oracle" resultMap="uploadedFileMap">
-    SELECT * FROM (
-      SELECT t.*, ROWNUM rnum FROM (
-        SELECT * FROM TSKGIAF01 <include refid="제안서조건"/>
-         ORDER BY 업로드파일일련번호 DESC
-      ) t WHERE ROWNUM &lt;= #{offset} + #{limit}
-    ) WHERE rnum &gt; #{offset}
-  </select>
-  <select id="countProposals" databaseId="mysql" resultType="long">
-    SELECT COUNT(*) FROM TSKGIAF01 <include refid="제안서조건mysql"/>
-  </select>
-  <select id="countProposals" databaseId="oracle" resultType="long">
-    SELECT COUNT(*) FROM TSKGIAF01 <include refid="제안서조건"/>
-  </select>
-
-  <select id="searchRfps" databaseId="mysql" resultMap="uploadedFileMap">
-    SELECT * FROM TSKGIAF01 <include refid="RFP조건mysql"/>
-     ORDER BY 업로드파일일련번호 DESC
-     LIMIT #{limit} OFFSET #{offset}
-  </select>
-  <select id="searchRfps" databaseId="oracle" resultMap="uploadedFileMap">
-    SELECT * FROM (
-      SELECT t.*, ROWNUM rnum FROM (
-        SELECT * FROM TSKGIAF01 <include refid="RFP조건"/>
-         ORDER BY 업로드파일일련번호 DESC
-      ) t WHERE ROWNUM &lt;= #{offset} + #{limit}
-    ) WHERE rnum &gt; #{offset}
-  </select>
-  <select id="countRfps" databaseId="mysql" resultType="long">
-    SELECT COUNT(*) FROM TSKGIAF01 <include refid="RFP조건mysql"/>
-  </select>
-  <select id="countRfps" databaseId="oracle" resultType="long">
-    SELECT COUNT(*) FROM TSKGIAF01 <include refid="RFP조건"/>
-  </select>
 
   <!--
     ⚠️ '04' = DELETED, '03' = REJECTED, '02' = CLASSIFIED (code/ClassificationStatus.java)
@@ -350,6 +204,7 @@
   <select id="findRecent" databaseId="mysql" resultMap="uploadedFileMap">
     SELECT * FROM TSKGIAF01 ORDER BY 업로드파일일련번호 DESC LIMIT #{limit}
   </select>
+
   <!-- Oracle: ROWNUM 은 ORDER BY 보다 먼저 매겨지므로 정렬을 인라인 뷰로 감싼다 -->
   <select id="findRecent" databaseId="oracle" resultMap="uploadedFileMap">
     SELECT * FROM (
@@ -372,6 +227,7 @@
     ORDER BY 업로드일시 DESC
     LIMIT #{limit} OFFSET #{offset}
   </select>
+
   <!-- Oracle: ROWNUM 2단 중첩 페이징. 안쪽에서 상한, 바깥에서 하한을 건다 -->
   <select id="findByInstitutionNameContaining" databaseId="oracle" resultMap="uploadedFileMap">
     SELECT * FROM (
@@ -388,6 +244,7 @@
     SELECT COUNT(*) FROM TSKGIAF01
     WHERE 기관명 LIKE CONCAT('%', #{keyword}, '%')
   </select>
+
   <!-- Oracle: || 로 연결 -->
   <select id="countByInstitutionNameContaining" databaseId="oracle" resultType="long">
     SELECT COUNT(*) FROM TSKGIAF01
@@ -403,6 +260,7 @@
     AND (#{keyword} = '' OR 원본파일명 LIKE CONCAT('%', #{keyword}, '%'))
     ORDER BY 업로드일시 DESC
   </select>
+
   <!--
     Oracle: || 로 연결.
     ⚠️ Oracle 은 빈 문자열을 NULL 로 바꾸므로 `#{x} = ''` 는 **항상 거짓**이다.
@@ -416,6 +274,130 @@
       AND (#{year} IS NULL OR 문서년 = #{year})
       AND (#{keyword} IS NULL OR 원본파일명 LIKE '%' || #{keyword} || '%')
     ORDER BY 업로드일시 DESC
+  </select>
+
+  <!-- ══ 파싱 현황·대시보드·조회 API (2026-09-23, 스키마 무변경안) ══════════
+       ⚠️ 컬럼을 늘리지 않았으므로 **파일명 규칙으로 판별**한다. 규칙 정본은
+          code/DocumentType (ofFileName · isOutputPath) 이고, 아래 조각이 그 SQL 판이다.
+          한쪽을 고치면 반드시 다른 쪽도 고칠 것 — 어긋나면 화면 숫자와 목록이 따로 논다.
+            · 파싱 성공  = 저장경로내용이 .json 또는 .md   (= 산출물이 만들어졌다)
+            · 파싱 실패  = 그 밖 (저장경로가 원본 그대로다)
+            · 제안서     = 원본파일명이 .ppt / .pptx
+            · RFP        = 원본파일명이 .pdf / .hwp / .hwpx
+       ⚠️ 삭제(04)·반려(03) 건은 파싱 집계에서 뺀다. 사람이 처리를 끝낸 행이다.
+  -->
+  <sql id="파싱성공">(저장경로내용 LIKE '%.json' OR 저장경로내용 LIKE '%.md')</sql>
+  <sql id="제안서원본">(원본파일명 LIKE '%.ppt' OR 원본파일명 LIKE '%.pptx')</sql>
+  <sql id="RFP원본">(원본파일명 LIKE '%.pdf' OR 원본파일명 LIKE '%.hwp' OR 원본파일명 LIKE '%.hwpx')</sql>
+  <sql id="파싱대상">(<include refid="제안서원본"/> OR <include refid="RFP원본"/>)</sql>
+  <sql id="처리중">분류상태구분 NOT IN ('03', '04')</sql>
+
+  <select id="countParseSuccess" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01
+     WHERE <include refid="처리중"/> AND <include refid="파싱성공"/>
+  </select>
+
+  <select id="countParseFailed" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01
+     WHERE <include refid="처리중"/> AND <include refid="파싱대상"/> AND NOT <include refid="파싱성공"/>
+  </select>
+
+  <select id="countProposalDocs" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01 WHERE <include refid="처리중"/> AND <include refid="제안서원본"/>
+  </select>
+
+  <select id="countRfpDocs" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01 WHERE <include refid="처리중"/> AND <include refid="RFP원본"/>
+  </select>
+
+  <!-- 파싱은 됐는데 기관을 못 찾은 건. 기관분류 NULL 이 곧 "미분류" 다 -->
+  <select id="countParsedUnclassified" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01
+     WHERE <include refid="처리중"/> AND <include refid="파싱성공"/> AND 기관영업분류구분 IS NULL
+  </select>
+
+  <select id="searchParseStatus" resultMap="uploadedFileMap">
+    SELECT * FROM TSKGIAF01
+     WHERE <include refid="처리중"/>
+    <if test="docType == 'BID_PROPOSAL'">AND <include refid="제안서원본"/></if>
+    <if test="docType == 'RFP'">AND <include refid="RFP원본"/></if>
+    <if test="parseStatus == 'SUCCESS'">AND <include refid="파싱성공"/></if>
+    <if test="parseStatus == 'FAILED'">AND <include refid="파싱대상"/> AND NOT <include refid="파싱성공"/></if>
+    <if test="unclassifiedOnly != null and unclassifiedOnly">AND 기관영업분류구분 IS NULL</if>
+     ORDER BY 업로드파일일련번호 DESC
+  </select>
+
+  <!-- ── 조회 API. 파싱 성공한 것만 준다 ────────────────────────────────
+       ⚠️ 날짜 조건은 **산출물 파일명 앞 토큰**을 본다(경로에 파일명이 들어 있다).
+          `%20240315\_%` 처럼 밑줄을 escape 해야 한다 — LIKE 에서 _ 는 한 글자 와일드카드다.
+  -->
+  <sql id="날짜조건mysql">
+    <if test="docDate != null">AND 저장경로내용 LIKE CONCAT('%', #{docDate}, '\_%') ESCAPE '\\'</if>
+  </sql>
+  <sql id="날짜조건oracle">
+    <if test="docDate != null">AND 저장경로내용 LIKE '%' || #{docDate} || '\_%' ESCAPE '\\'</if>
+  </sql>
+  <sql id="기관조건mysql">
+    <if test="institution != null">AND 기관명 LIKE CONCAT('%', #{institution}, '%')</if>
+  </sql>
+  <sql id="기관조건oracle">
+    <if test="institution != null">AND 기관명 LIKE '%' || #{institution} || '%'</if>
+  </sql>
+
+  <select id="searchProposals" databaseId="mysql" resultMap="uploadedFileMap">
+    SELECT * FROM TSKGIAF01
+     WHERE <include refid="처리중"/> AND <include refid="제안서원본"/> AND <include refid="파싱성공"/>
+     <include refid="기관조건mysql"/><include refid="날짜조건mysql"/>
+     ORDER BY 업로드파일일련번호 DESC
+     LIMIT #{limit} OFFSET #{offset}
+  </select>
+  <select id="searchProposals" databaseId="oracle" resultMap="uploadedFileMap">
+    SELECT * FROM (
+      SELECT t.*, ROWNUM rnum FROM (
+        SELECT * FROM TSKGIAF01
+         WHERE <include refid="처리중"/> AND <include refid="제안서원본"/> AND <include refid="파싱성공"/>
+         <include refid="기관조건oracle"/><include refid="날짜조건oracle"/>
+         ORDER BY 업로드파일일련번호 DESC
+      ) t WHERE ROWNUM &lt;= #{offset} + #{limit}
+    ) WHERE rnum &gt; #{offset}
+  </select>
+  <select id="countProposals" databaseId="mysql" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01
+     WHERE <include refid="처리중"/> AND <include refid="제안서원본"/> AND <include refid="파싱성공"/>
+     <include refid="기관조건mysql"/><include refid="날짜조건mysql"/>
+  </select>
+  <select id="countProposals" databaseId="oracle" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01
+     WHERE <include refid="처리중"/> AND <include refid="제안서원본"/> AND <include refid="파싱성공"/>
+     <include refid="기관조건oracle"/><include refid="날짜조건oracle"/>
+  </select>
+
+  <select id="searchRfps" databaseId="mysql" resultMap="uploadedFileMap">
+    SELECT * FROM TSKGIAF01
+     WHERE <include refid="처리중"/> AND <include refid="RFP원본"/> AND <include refid="파싱성공"/>
+     <include refid="기관조건mysql"/><include refid="날짜조건mysql"/>
+     ORDER BY 업로드파일일련번호 DESC
+     LIMIT #{limit} OFFSET #{offset}
+  </select>
+  <select id="searchRfps" databaseId="oracle" resultMap="uploadedFileMap">
+    SELECT * FROM (
+      SELECT t.*, ROWNUM rnum FROM (
+        SELECT * FROM TSKGIAF01
+         WHERE <include refid="처리중"/> AND <include refid="RFP원본"/> AND <include refid="파싱성공"/>
+         <include refid="기관조건oracle"/><include refid="날짜조건oracle"/>
+         ORDER BY 업로드파일일련번호 DESC
+      ) t WHERE ROWNUM &lt;= #{offset} + #{limit}
+    ) WHERE rnum &gt; #{offset}
+  </select>
+  <select id="countRfps" databaseId="mysql" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01
+     WHERE <include refid="처리중"/> AND <include refid="RFP원본"/> AND <include refid="파싱성공"/>
+     <include refid="기관조건mysql"/><include refid="날짜조건mysql"/>
+  </select>
+  <select id="countRfps" databaseId="oracle" resultType="long">
+    SELECT COUNT(*) FROM TSKGIAF01
+     WHERE <include refid="처리중"/> AND <include refid="RFP원본"/> AND <include refid="파싱성공"/>
+     <include refid="기관조건oracle"/><include refid="날짜조건oracle"/>
   </select>
 
 </mapper>

@@ -59,16 +59,20 @@ public class FileUploadService {
             }
             try {
                 Path saved = storageService.saveOriginal(file, originalName);
-                UploadedFile entity = new UploadedFile(docType, originalName, saved.toString());
+                // ⚠️ 중복 이름이면 _yyyyMMddHHmmss 가 붙는다. **실제로 저장된 이름**을 넣어야
+                //    나중에 userdata + 원본파일명 으로 원본을 다시 찾을 수 있다(스키마 무변경안).
+                String savedName = saved.getFileName().toString();
+                UploadedFile entity = new UploadedFile(savedName, saved.toString());
                 entity.setSystemUserNo(SystemUser.get());
                 entity.setSystemUsedAt(entity.getUploadedAt());
                 fileMapper.insert(entity);
 
                 UploadedFile parsed = parseService.parse(entity);
-                boolean ok = "SUCCESS".equals(parsed.getParseStatus());
+                boolean ok = parsed.isParsed();
                 results.add(new UploadResultItem(originalName, ok,
                         ok ? parsed.getCategoryLabel() : null,
-                        ok ? "파싱 완료 → " + parsed.getOutputFileName() : parsed.getParseMessage()));
+                        ok ? "파싱 완료 → " + parsed.getOutputFileName()
+                           : "파싱 실패 — 사유는 서버 로그를 확인하세요"));
             } catch (Exception e) {
                 log.error("업로드 처리 실패: {}", originalName, e);
                 results.add(new UploadResultItem(originalName, false, null, "오류: " + e.getMessage()));

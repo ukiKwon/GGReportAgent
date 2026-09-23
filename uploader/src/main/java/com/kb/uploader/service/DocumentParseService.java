@@ -80,17 +80,20 @@ public class DocumentParseService {
     /** 파싱하고 결과(성공/실패)를 DB 에 기록한다. 예외를 밖으로 던지지 않는다. */
     public UploadedFile parse(UploadedFile file) {
         try {
-            if (DocumentType.BID_PROPOSAL.equals(file.getDocType())) {
+            String docType = file.getDocType();   // 원본 확장자로 판별한다(스키마 무변경안)
+            if (DocumentType.BID_PROPOSAL.equals(docType)) {
                 parseProposal(file);
-            } else if (DocumentType.RFP.equals(file.getDocType())) {
+            } else if (DocumentType.RFP.equals(docType)) {
                 parseRfp(file);
             } else {
                 throw new IllegalStateException("문서 종류가 없는 이전 방식 업로드입니다");
             }
         } catch (Exception e) {
-            log.warn("파싱 실패: {}", file.getOriginalName(), e);
-            String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            file.markParseFailed("파싱 실패: " + msg);
+            // ⚠️ 실패 사유를 담을 컬럼이 없다(스키마 무변경안). 로그가 유일한 기록이므로
+            //    스택까지 남긴다 — 화면에는 "실패" 표시만 나간다.
+            log.warn("파싱 실패: {} — {}", file.getOriginalName(),
+                    e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName(), e);
+            file.markParseFailed(originalPath(file));
         }
         stampAudit(file);
         fileMapper.updateParseResult(file);
@@ -103,7 +106,7 @@ public class DocumentParseService {
         if (!found.isPresent()) return Optional.empty();
         UploadedFile file = found.get();
         try {
-            storageService.deleteIfExists(file.getOutputPath());
+            storageService.deleteIfExists(file.getOutputPath());   // 성공 건만 값이 있다
         } catch (Exception e) {
             log.warn("이전 산출물 삭제 실패: {}", file.getOutputPath(), e);
         }
@@ -112,7 +115,7 @@ public class DocumentParseService {
 
     private void parseProposal(UploadedFile file) throws Exception {
         LocalDateTime now = LocalDateTime.now();
-        List<SlideContent> slides = pptExtractor.extract(Paths.get(file.getStoredPath()));
+        List<SlideContent> slides = pptExtractor.extract(Paths.get(originalPath(file)));
         if (slides.isEmpty()) throw new IllegalStateException("슬라이드가 없습니다");
 
         StringBuilder all = new StringBuilder();
@@ -138,12 +141,13 @@ public class DocumentParseService {
         Path out = storageService.writeOutput(storageService.getProposalJsonDir(), fileName,
                 mapper.writeValueAsBytes(doc));
 
-        file.markParsed(inst.getName(), inst.getCategory(), year, out.toString(), slides.size(), join(notes));
+        logNotes(file, notes);
+        file.markParsed(inst.getName(), inst.getCategory(), year, out.toString(), now);
     }
 
     private void parseRfp(UploadedFile file) throws Exception {
         LocalDateTime now = LocalDateTime.now();
-        ExtractedDocument doc = rfpExtractor.extract(Paths.get(file.getStoredPath()));
+        ExtractedDocument doc = rfpExtractor.extract(Paths.get(originalPath(file)));
         List<String> lines = doc.lines();
 
         InstitutionMatcher.Match inst = institutionMatcher.match(doc.fullText(), institutions());
@@ -161,8 +165,8 @@ public class DocumentParseService {
         Path out = storageService.writeOutput(storageService.getRfpMdDir(), fileName,
                 markdown.getBytes(StandardCharsets.UTF_8));
 
-        file.markParsed(inst.getName(), inst.getCategory(), notice.orElse(null),
-                out.toString(), null, join(notes));
+        logNotes(file, notes);
+        file.markParsed(inst.getName(), inst.getCategory(), notice.orElse(null), out.toString(), now);
     }
 
     private List<Institution> institutions() {
@@ -186,7 +190,19 @@ public class DocumentParseService {
         }
     }
 
-    private static String join(List<String> notes) {
-        return notes.isEmpty() ? null : String.join(" / ", notes);
+    /** 참고 사항(기관 미상 등)도 컬럼이 없어 로그에만 남긴다. */
+    private static void logNotes(UploadedFile file, List<String> notes) {
+        if (!notes.isEmpty()) {
+            log.info("파싱 참고: {} — {}", file.getOriginalName(), String.join(" / ", notes));
+        }
+    }
+
+    /**
+     * 원본 경로를 재구성한다. 파싱에 성공하면 저장경로가 산출물로 바뀌므로,
+     * 재파싱할 때 원본을 다시 찾으려면 {@code userdata + 원본파일명} 으로 계산해야 한다.
+     * ⚠️ 그래서 업로드 때 <b>실제로 저장된 파일명</b>을 원본파일명에 넣는다(FileUploadService).
+     */
+    private String originalPath(UploadedFile file) {
+        return storageService.getUserdataDir().resolve(file.getOriginalName()).toString();
     }
 }

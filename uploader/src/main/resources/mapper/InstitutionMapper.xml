@@ -26,6 +26,8 @@
             typeHandler="com.kb.uploader.config.InstitutionCategoryTypeHandler"/>
     <result property="modifiedAt" column="시스템사용일시"
             typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/>
+    <!-- ⚠️ UploadedFileMapper 의 같은 자리와 같은 이유다(2026-09-09) — 읽기 누락. -->
+    <result property="systemUserNo" column="시스템사용자번호"/>
   </resultMap>
 
   <sql id="값목록">

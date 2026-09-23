@@ -28,16 +28,16 @@ public class KGI10000$DashboardView {
 
         // ── 2026-09-23 파싱 전환: KPI 축이 분류 → 파싱으로 바뀌었다 ──
         long total        = fileMapper.countAll();
-        long parseSuccess = fileMapper.countByParseStatus("SUCCESS");
-        long parseFailed  = fileMapper.countByParseStatus("FAILED");
+        long parseSuccess = fileMapper.countParseSuccess();
+        long parseFailed  = fileMapper.countParseFailed();
         long unclassified = fileMapper.countParsedUnclassified();
 
         model.addAttribute("total", total);
         model.addAttribute("parseSuccess", parseSuccess);
         model.addAttribute("parseFailed", parseFailed);
         model.addAttribute("unclassified", unclassified);
-        model.addAttribute("proposalCount", fileMapper.countByDocType("BID_PROPOSAL"));
-        model.addAttribute("rfpCount", fileMapper.countByDocType("RFP"));
+        model.addAttribute("proposalCount", fileMapper.countProposalDocs());
+        model.addAttribute("rfpCount", fileMapper.countRfpDocs());
         // 좌측 네비 배지 — 미분류 건수에서 파싱 실패 건수로 바뀌었다
         model.addAttribute("parseFailedCount", parseFailed);
 

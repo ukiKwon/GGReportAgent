@@ -34,7 +34,7 @@ public class KGI12400$ClassifiedFileList {
                 fileMapper.searchParseStatus(null, "SUCCESS", Boolean.TRUE);
         model.addAttribute("classifiedFiles", classifiedFiles);
         model.addAttribute("categories", InstitutionCategory.names());
-        model.addAttribute("parseFailedCount", fileMapper.countByParseStatus("FAILED"));
+        model.addAttribute("parseFailedCount", fileMapper.countParseFailed());
         return "classified-rework";
     }
 }

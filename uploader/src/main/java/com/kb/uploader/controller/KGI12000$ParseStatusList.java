@@ -42,8 +42,8 @@ public class KGI12000$ParseStatusList {
         model.addAttribute("docType", docType);
         model.addAttribute("parseStatus", parseStatus);
         model.addAttribute("category", category);
-        model.addAttribute("successCount", fileMapper.countByParseStatus("SUCCESS"));
-        model.addAttribute("parseFailedCount", fileMapper.countByParseStatus("FAILED"));
+        model.addAttribute("successCount", fileMapper.countParseSuccess());
+        model.addAttribute("parseFailedCount", fileMapper.countParseFailed());
         model.addAttribute("unclassifiedCount", fileMapper.countParsedUnclassified());
         return "parse-status";
     }
