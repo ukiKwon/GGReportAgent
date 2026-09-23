@@ -67,6 +67,21 @@
       <version>2.0.29</version>
     </dependency>
     <!-- Apache POI (XLSX) -->
+    <!--
+      commons-io 버전 고정 (2026-09-23).
+      ⚠️ POI 5.2.3 은 IOUtils.byteArray(int) 를 부르는데 그 메서드는 commons-io 2.9 부터다.
+         내부망에 옛 버전(2.6 등)이 먼저 잡히면 PPT 업로드에서
+         NoSuchMethodError: org.apache.commons.io.IOUtils.byteArray(I)[B 가 난다(실제 발생).
+         POI 가 명시한 값은 2.11.0 이지만 2.x 는 상위 호환이라 2.15.1 로 못박는다
+         — 내부망에 이미 2.15 가 있어 그쪽과 맞추는 편이 낫다(전체 테스트 64건 통과 확인).
+      ⚠️ WEB-INF/lib 에 옛 commons-io jar 가 함께 있으면 이 고정이 무의미하다. 하나만 남길 것.
+    -->
+    <dependency>
+      <groupId>commons-io</groupId>
+      <artifactId>commons-io</artifactId>
+      <version>2.15.1</version>
+    </dependency>
+
     <!-- ── 2026-09-23 파싱 전환으로 추가 (폐쇄망 반입 시 전이 의존까지 함께 반입할 것) ── -->
     <!-- .ppt(97-2003) 슬라이드 추출 -->
     <dependency>

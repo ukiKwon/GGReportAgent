@@ -42,7 +42,10 @@ public class ConfigEnvsTest {
             // FileStorageService 가 @Value 를 못 채워 기동이 죽는다.
             "upload.userdata-dir",
             "upload.proposal-json-dir",
-            "upload.rfp-md-dir");
+            "upload.rfp-md-dir",
+            // 기본값(1MB)이 적용되면 실무 문서가 업로드 단계에서 막힌다
+            "spring.servlet.multipart.max-file-size",
+            "spring.servlet.multipart.max-request-size");
 
     /**
      * DataSource 계열은 환경마다 방식이 갈려서(내부망 prod 는 JNDI, 나머지는 직접 접속)
