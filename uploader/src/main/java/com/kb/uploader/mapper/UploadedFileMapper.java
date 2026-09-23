@@ -46,18 +46,25 @@ public interface UploadedFileMapper {
                               @Param("year") String year,
                               @Param("keyword") String keyword);
 
-    // ── 2026-09-23 파싱 전환 ──────────────────────────────────────────
-    /** 파싱 결과 기록. JPA 의 더티체킹 대신 쓰는 UPDATE 다. */
+    // ── 2026-09-23 파싱 전환 (스키마 무변경안) ─────────────────────────
+    // ⚠️ 컬럼을 늘리지 않았다. 문서종류·파싱 성공 여부는 XML 이 **파일명 확장자**로 판별한다.
+    //    판별 규칙 정본은 code/DocumentType 이고 XML 의 sql 조각이 그 SQL 판이다.
+
+    /** 파싱 결과 기록. 저장경로내용(산출물/원본)·분류일시(파싱시각)·문서년에 태운다. */
     void updateParseResult(UploadedFile file);
 
-    long countByParseStatus(@Param("parseStatus") String parseStatus);
+    long countParseSuccess();
 
-    long countByDocType(@Param("docType") String docType);
+    long countParseFailed();
+
+    long countProposalDocs();
+
+    long countRfpDocs();
 
     /** 파싱은 성공했는데 기관을 못 찾은 건(기관분류 NULL). */
     long countParsedUnclassified();
 
-    /** 파싱 현황 화면. 조건은 모두 선택이며 null 이면 걸지 않는다. */
+    /** 파싱 현황 화면. docType 은 "BID_PROPOSAL"·"RFP", parseStatus 는 "SUCCESS"·"FAILED". */
     List<UploadedFile> searchParseStatus(@Param("docType") String docType,
                                          @Param("parseStatus") String parseStatus,
                                          @Param("unclassifiedOnly") Boolean unclassifiedOnly);

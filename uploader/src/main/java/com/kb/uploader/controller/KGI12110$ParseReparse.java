@@ -31,12 +31,13 @@ public class KGI12110$ParseReparse {
         Optional<UploadedFile> result = parseService.reparse(id);
         if (!result.isPresent()) {
             ra.addFlashAttribute("error", "파일을 찾을 수 없습니다 (id=" + id + ")");
-        } else if ("SUCCESS".equals(result.get().getParseStatus())) {
+        } else if (result.get().isParsed()) {
             ra.addFlashAttribute("message", "재파싱 완료: " + result.get().getOriginalName()
                     + " → " + result.get().getOutputFileName());
         } else {
+            // ⚠️ 실패 사유는 저장하지 않는다(스키마 무변경안). 로그를 볼 것.
             ra.addFlashAttribute("error", "재파싱 실패: " + result.get().getOriginalName()
-                    + " — " + result.get().getParseMessage());
+                    + " — 사유는 서버 로그를 확인하세요");
         }
         return "redirect:/parse-status";
     }

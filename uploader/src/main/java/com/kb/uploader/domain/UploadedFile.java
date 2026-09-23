@@ -27,76 +27,57 @@ public class UploadedFile {
     private LocalDateTime uploadedAt;
     private LocalDateTime classifiedAt;
 
-    // ── 2026-09-23 파싱 전환으로 추가한 7개 ────────────────────────────
-    /** 문서종류구분. code/DocumentType 의 이름값(BID_PROPOSAL·RFP). DB 에는 코드(01·02)로 들어간다. */
-    private String docType;
-    /** 파싱상태구분. code/ParseStatus 의 이름값(PENDING·SUCCESS·FAILED). DB 에는 코드(01·02·03). */
-    private String parseStatus;
-    /** 파싱 실패 사유. 화면의 실패 배지 옆에 그대로 보여 준다. */
-    private String parseMessage;
-    /** 산출물(제안서 JSON·RFP 요약 MD) 경로. ⚠️ 원본 경로인 storedPath 와 다르다. */
-    private String outputPath;
-    /** 제안서 슬라이드 수 / RFP 페이지 수. */
-    private Integer pageCount;
-    private LocalDateTime parsedAt;
-    /**
-     * 제안서는 연도(yyyy), RFP 는 공고일(yyyyMMdd).
-     * ⚠️ 기존 {@code year}(문서년 VARCHAR2(4))는 8자리를 담지 못해 새 컬럼을 쓴다.
-     *    옛 행이 문서년을 쓰고 있으므로 그 필드는 남겨 두고 <b>새 코드는 이 값만</b> 쓴다.
-     */
-    private String docDate;
-
     /** 기관 테이블에 없을 때의 기관분류 값. ⚠️ InstitutionCategory 코드에는 없는 값이다. */
     public static final String UNKNOWN_CATEGORY = "미분류";
 
     public UploadedFile() {}
 
-    /** 파싱 전환 후의 업로드. 기관·연도는 파싱해서 채우므로 이 시점에는 모른다. */
-    public UploadedFile(String docType, String originalName, String storedPath) {
-        this.docType = docType;
+    /**
+     * 파싱 전환 후의 업로드 (2026-09-23).
+     *
+     * <p>⚠️ 문서종류·파싱상태를 <b>컬럼으로 두지 않는다</b>(스키마 무변경안). 문서종류는
+     * 원본 확장자로, 파싱 성공 여부는 저장경로의 확장자로 판별한다 — getDocType()·isParsed() 참조.
+     */
+    public UploadedFile(String originalName, String storedPath) {
         this.originalName = originalName;
         this.storedPath = storedPath;
         this.status = "UNCLASSIFIED";
-        this.parseStatus = "PENDING";
         this.uploadedAt = LocalDateTime.now();
     }
 
     /**
-     * 파싱 성공 기록.
+     * 파싱 성공 기록 (스키마 무변경안).
      *
-     * <p>⚠️ 파싱상태와 분류상태는 <b>다른 축</b>이다. 파싱은 됐는데 기관 테이블에 없어
-     * 분류가 안 되는 건이 정상적으로 존재한다 — 그 경우 분류상태는 UNCLASSIFIED 로 남는다.
+     * <p>산출물 경로를 {@code 저장경로내용} 에 넣는다. 원본 경로는
+     * {@code userdata + 원본파일명} 으로 언제든 재구성되므로 따로 보관하지 않는다.
+     * 파싱 시각은 {@code 분류일시} 에 넣는다 — 이 흐름에서 둘은 같은 시각이다.
+     *
+     * <p>⚠️ 기관을 못 찾으면 분류상태는 UNCLASSIFIED 로 남는다. 그래도 산출물은 만들어졌으므로
+     * 화면에서는 "파싱 성공 + 기관 미분류" 로 보인다(판별은 저장경로 확장자로 한다).
      */
     public void markParsed(String institutionName, String category, String docDate,
-                           String outputPath, Integer pageCount, String message) {
+                           String outputPath, LocalDateTime parsedAt) {
         this.institutionName = institutionName;
         this.category = category;
-        this.docDate = docDate;
-        this.outputPath = outputPath;
-        this.pageCount = pageCount;
-        this.parseMessage = truncate(message);
-        this.parseStatus = "SUCCESS";
-        this.parsedAt = LocalDateTime.now();
-        if (category != null && !UNKNOWN_CATEGORY.equals(category)) {
-            this.status = "CLASSIFIED";
-            this.classifiedAt = this.parsedAt;
-        } else {
-            this.status = "UNCLASSIFIED";
-            this.classifiedAt = null;
+        this.storedPath = outputPath;
+        this.classifiedAt = parsedAt;
+        if (docDate != null && docDate.length() == 4) {
+            this.year = docDate;          // 제안서 연도는 기존 문서년(4) 에 그대로 들어간다
         }
+        this.status = (category != null && !UNKNOWN_CATEGORY.equals(category))
+                ? "CLASSIFIED" : "UNCLASSIFIED";
     }
 
-    public void markParseFailed(String message) {
-        this.parseStatus = "FAILED";
-        this.parseMessage = truncate(message);
-        this.parsedAt = LocalDateTime.now();
+    /**
+     * 파싱 실패 기록.
+     *
+     * <p>⚠️ <b>실패 사유는 저장하지 않는다</b>(넣을 컬럼이 없다 — 스키마 무변경안의 유일한 손실).
+     * 사유는 서버 로그에만 남는다. 저장경로는 원본 그대로 두며, 그 사실이 곧 "파싱 실패" 표시다.
+     */
+    public void markParseFailed(String originalPath) {
+        this.storedPath = originalPath;
+        this.classifiedAt = null;
         this.status = "UNCLASSIFIED";
-    }
-
-    /** 파싱메시지내용 은 1000자다. 넘치면 잘라 넣는다(길이 초과로 INSERT 가 죽는 쪽이 더 나쁘다). */
-    private static String truncate(String message) {
-        if (message == null) return null;
-        return message.length() <= 1000 ? message : message.substring(0, 997) + "...";
     }
 
     /**
@@ -107,16 +88,59 @@ public class UploadedFile {
         return category == null ? UNKNOWN_CATEGORY : category;
     }
 
-    /** 문서종류 표시명. 옛 행은 null 이라 "이전 방식" 으로 보여 준다. */
+    // ── 파생값 (스키마 무변경안) ─────────────────────────────────────
+    // 컬럼을 늘리지 않으려고 아래 값들은 **저장하지 않고 그때그때 계산**한다.
+    // 규칙이 한곳(DocumentType)에 모여 있어 SQL 과 화면이 같은 기준을 쓴다.
+
+    /** 문서종류. 원본 확장자로 판별한다. 규칙 밖이면 null(옛 방식 업로드). */
+    public String getDocType() {
+        return com.kb.uploader.code.DocumentType.ofFileName(originalName);
+    }
+
     public String getDocTypeLabel() {
-        return docType == null ? "이전 방식" : com.kb.uploader.code.DocumentType.label(docType);
+        String type = getDocType();
+        return type == null ? "이전 방식" : com.kb.uploader.code.DocumentType.label(type);
+    }
+
+    /**
+     * 파싱 성공 여부. <b>저장경로가 산출물(.json·.md)이면 성공</b>이다.
+     * 원본 확장자 그대로면 아직 산출물이 없다는 뜻이라 실패로 본다.
+     */
+    public boolean isParsed() {
+        return com.kb.uploader.code.DocumentType.isOutputPath(storedPath);
+    }
+
+    /** 화면·API 가 쓰는 파싱상태 문자열. 컬럼이 아니라 계산값이다. */
+    public String getParseStatus() {
+        if (getDocType() == null) return null;      // 옛 방식 행
+        return isParsed() ? "SUCCESS" : "FAILED";
+    }
+
+    /** 산출물 경로. 파싱 전/실패면 null. */
+    public String getOutputPath() {
+        return isParsed() ? storedPath : null;
+    }
+
+    /** 파싱 시각. 분류일시를 그대로 쓴다. */
+    public LocalDateTime getParsedAt() {
+        return isParsed() ? classifiedAt : null;
+    }
+
+    /**
+     * 제안서 연도(4) 또는 RFP 공고일(8). 산출물 파일명의 앞 토큰이 그 값이다
+     * ({@code 20240315_지자체_서울특별시_20260923.md}). 없으면 기존 문서년으로 떨어진다.
+     */
+    public String getDocDate() {
+        String head = com.kb.uploader.code.DocumentType.leadingDate(getOutputFileName());
+        return head != null ? head : year;
     }
 
     /** 산출물 파일명만. 화면 표시용. */
     public String getOutputFileName() {
-        if (outputPath == null) return null;
-        int slash = Math.max(outputPath.lastIndexOf('/'), outputPath.lastIndexOf('\\'));
-        return slash < 0 ? outputPath : outputPath.substring(slash + 1);
+        String path = getOutputPath();
+        if (path == null) return null;
+        int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+        return slash < 0 ? path : path.substring(slash + 1);
     }
 
     public UploadedFile(String originalName, String storedPath,
@@ -164,18 +188,4 @@ public class UploadedFile {
     public LocalDateTime getSystemUsedAt() { return systemUsedAt; }
     public void setSystemUsedAt(LocalDateTime systemUsedAt) { this.systemUsedAt = systemUsedAt; }
 
-    public String getDocType() { return docType; }
-    public void setDocType(String docType) { this.docType = docType; }
-    public String getParseStatus() { return parseStatus; }
-    public void setParseStatus(String parseStatus) { this.parseStatus = parseStatus; }
-    public String getParseMessage() { return parseMessage; }
-    public void setParseMessage(String parseMessage) { this.parseMessage = parseMessage; }
-    public String getOutputPath() { return outputPath; }
-    public void setOutputPath(String outputPath) { this.outputPath = outputPath; }
-    public Integer getPageCount() { return pageCount; }
-    public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }
-    public LocalDateTime getParsedAt() { return parsedAt; }
-    public void setParsedAt(LocalDateTime parsedAt) { this.parsedAt = parsedAt; }
-    public String getDocDate() { return docDate; }
-    public void setDocDate(String docDate) { this.docDate = docDate; }
 }

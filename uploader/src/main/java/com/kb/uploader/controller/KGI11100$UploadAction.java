@@ -46,7 +46,7 @@ public class KGI11100$UploadAction {
     }
 
     private String handle(String docType, List<MultipartFile> files, Model model) {
-        model.addAttribute("parseFailedCount", fileMapper.countByParseStatus("FAILED"));
+        model.addAttribute("parseFailedCount", fileMapper.countParseFailed());
 
         List<MultipartFile> validFiles = files.stream()
                 .filter(f -> !f.isEmpty())

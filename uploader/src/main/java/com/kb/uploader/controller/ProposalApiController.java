@@ -77,9 +77,8 @@ public class ProposalApiController {
             return error(HttpStatus.NOT_FOUND, "입찰제안서를 찾을 수 없습니다 (id=" + id + ")");
         }
         UploadedFile f = found.get();
-        if (!"SUCCESS".equals(f.getParseStatus()) || f.getOutputPath() == null) {
-            return error(HttpStatus.NOT_FOUND, "파싱에 성공하지 않은 제안서입니다 (id=" + id + ", 상태="
-                    + f.getParseStatus() + ")");
+        if (!f.isParsed()) {
+            return error(HttpStatus.NOT_FOUND, "파싱에 성공하지 않은 제안서입니다 (id=" + id + ")");
         }
         Path json = Paths.get(f.getOutputPath());
         if (!Files.exists(json)) {
@@ -103,7 +102,6 @@ public class ProposalApiController {
         m.put("institutionName", f.getInstitutionName());
         m.put("institutionCategory", f.getCategoryLabel());
         m.put("year", f.getDocDate());
-        m.put("totalSlides", f.getPageCount());
         m.put("jsonFileName", f.getOutputFileName());
         m.put("uploadedAt", f.getUploadedAt() != null ? f.getUploadedAt().format(TS) : null);
         m.put("parsedAt", f.getParsedAt() != null ? f.getParsedAt().format(TS) : null);

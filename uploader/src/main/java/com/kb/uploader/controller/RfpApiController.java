@@ -87,9 +87,8 @@ public class RfpApiController {
             return error(HttpStatus.NOT_FOUND, "입찰공고문(RFP)을 찾을 수 없습니다 (id=" + id + ")");
         }
         UploadedFile f = found.get();
-        if (!"SUCCESS".equals(f.getParseStatus()) || f.getOutputPath() == null) {
-            return error(HttpStatus.NOT_FOUND, "파싱에 성공하지 않은 공고문입니다 (id=" + id + ", 상태="
-                    + f.getParseStatus() + ")");
+        if (!f.isParsed()) {
+            return error(HttpStatus.NOT_FOUND, "파싱에 성공하지 않은 공고문입니다 (id=" + id + ")");
         }
         Path md = Paths.get(f.getOutputPath());
         if (!Files.exists(md)) {
@@ -124,7 +123,6 @@ public class RfpApiController {
         m.put("institutionName", f.getInstitutionName());
         m.put("institutionCategory", f.getCategoryLabel());
         m.put("noticeDate", f.getDocDate());
-        m.put("pageCount", f.getPageCount());
         m.put("mdFileName", f.getOutputFileName());
         m.put("uploadedAt", f.getUploadedAt() != null ? f.getUploadedAt().format(TS) : null);
         m.put("parsedAt", f.getParsedAt() != null ? f.getParsedAt().format(TS) : null);

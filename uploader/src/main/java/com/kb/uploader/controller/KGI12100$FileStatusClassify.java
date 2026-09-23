@@ -63,12 +63,13 @@ public class KGI12100$FileStatusClassify {
         try {
             institutionService.save(name, category.trim());
             Optional<UploadedFile> result = parseService.reparse(id);
-            if (result.isPresent() && "SUCCESS".equals(result.get().getParseStatus())) {
+            if (result.isPresent() && result.get().isParsed()) {
                 ra.addFlashAttribute("message",
                         "기관 등록 후 재파싱 완료: " + name + " → " + result.get().getOutputFileName());
             } else {
-                ra.addFlashAttribute("error", "기관은 등록했으나 재파싱에 실패했습니다"
-                        + (result.isPresent() ? " — " + result.get().getParseMessage() : ""));
+                // ⚠️ 실패 사유는 컬럼이 없어 저장하지 않는다(스키마 무변경안) — 로그를 봐야 한다.
+                ra.addFlashAttribute("error",
+                        "기관은 등록했으나 재파싱에 실패했습니다 — 사유는 서버 로그를 확인하세요");
             }
         } catch (Exception e) {
             log.warn("기관 지정 재파싱 실패: id={}", id, e);

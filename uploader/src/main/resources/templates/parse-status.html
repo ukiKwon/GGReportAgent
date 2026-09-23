@@ -82,8 +82,10 @@
             <span th:if="${f.parseStatus == 'FAILED'}" class="badge badge-pending">실패</span>
             <span th:if="${f.parseStatus != 'SUCCESS' and f.parseStatus != 'FAILED'}"
                   class="badge badge-neutral" th:text="${f.parseStatus != null ? f.parseStatus : '-'}"></span>
-            <div th:if="${f.parseMessage != null}" style="font-size:11.5px;color:var(--text-2);margin-top:3px"
-                 th:text="${f.parseMessage}"></div>
+            <!-- ⚠️ 실패 사유는 저장하지 않는다(스키마 무변경안). 서버 로그를 봐야 한다. -->
+            <div th:if="${f.parseStatus == 'FAILED'}" style="font-size:11.5px;color:var(--text-2);margin-top:3px">
+              사유는 서버 로그 확인
+            </div>
           </td>
           <td>
             <a th:if="${f.outputPath != null}" th:href="@{/parse-status/{id}/output(id=${f.id})}"

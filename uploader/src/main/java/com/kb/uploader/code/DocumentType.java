@@ -72,5 +72,39 @@ public final class DocumentType {
         return dot < 0 ? "" : filename.substring(dot + 1).toLowerCase();
     }
 
+    // ── 스키마 무변경안(2026-09-23)의 판별 규칙 ────────────────────────
+    // 컬럼을 늘리지 않으므로 문서종류·파싱 여부를 **파일명에서** 읽는다.
+    // SQL(UploadedFileMapper.xml)도 같은 규칙을 LIKE 로 표현한다 — 한쪽을 바꾸면 다른 쪽도 바꿀 것.
+
+    /** 원본 확장자로 문서종류를 판별한다. 규칙 밖(md·xlsx 등 옛 업로드)이면 null. */
+    public static String ofFileName(String originalName) {
+        String ext = extensionOf(originalName);
+        for (Map.Entry<String, Set<String>> e : EXTENSIONS.entrySet()) {
+            if (e.getValue().contains(ext)) return e.getKey();
+        }
+        return null;
+    }
+
+    /** 산출물 확장자. 제안서는 JSON, RFP 요약은 Markdown 이다. */
+    public static boolean isOutputPath(String path) {
+        String ext = extensionOf(path);
+        return "json".equals(ext) || "md".equals(ext);
+    }
+
+    /**
+     * 산출물 파일명 앞의 날짜 토큰. {@code 20240315_지자체_…} → {@code 20240315},
+     * {@code 2025_대학교_…} → {@code 2025}. 형식이 아니면 null.
+     */
+    public static String leadingDate(String outputFileName) {
+        if (outputFileName == null) return null;
+        int bar = outputFileName.indexOf('_');
+        if (bar != 4 && bar != 8) return null;
+        String head = outputFileName.substring(0, bar);
+        for (int i = 0; i < head.length(); i++) {
+            if (!Character.isDigit(head.charAt(i))) return null;
+        }
+        return head;
+    }
+
     private DocumentType() {}
 }
