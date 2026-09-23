@@ -23,6 +23,6 @@ public class KGI12300$FileStatusReject {
     public String execute(@PathVariable Long id, RedirectAttributes ra) {
         fileMapper.rejectById(id, SystemUser.get(), LocalDateTime.now());
         ra.addFlashAttribute("message", "반려 처리되었습니다.");
-        return "redirect:/file-status";
+        return "redirect:/parse-status";
     }
 }

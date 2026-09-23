@@ -18,7 +18,9 @@ public class FileStorageServiceTest {
 
     @Before
     public void setUp() {
-        sut = new FileStorageService(tempFolder.getRoot().getAbsolutePath());
+        String root = tempFolder.getRoot().getAbsolutePath();
+        sut = new FileStorageService(root, root + "/userdata",
+                root + "/out-json", root + "/out-md");
     }
 
     @Test
@@ -57,5 +59,36 @@ public class FileStorageServiceTest {
         assertTrue(moved.toString().contains("2024"));
         assertTrue(moved.toString().contains("서울대학교"));
         assertFalse(Files.exists(source));
+    }
+
+    // ── 2026-09-23 파싱 전환으로 추가된 API ──
+
+    @Test
+    public void 원본은_userdata에_보관한다() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+            "file", "제안서.pptx", "application/octet-stream", "내용".getBytes());
+
+        Path saved = sut.saveOriginal(file, "제안서.pptx");
+
+        assertTrue(Files.exists(saved));
+        assertTrue(saved.toString().contains("userdata"));
+    }
+
+    @Test
+    public void 산출물_중복이름은_숫자를_붙인다() throws Exception {
+        Path dir = sut.getProposalJsonDir();
+
+        Path first  = sut.writeOutput(dir, "out.json", "{}".getBytes());
+        Path second = sut.writeOutput(dir, "out.json", "{}".getBytes());
+
+        assertEquals("out.json", first.getFileName().toString());
+        assertEquals("out_2.json", second.getFileName().toString());
+    }
+
+    @Test
+    public void 파일명에서_경로구분자를_떼어낸다() {
+        assertEquals("보고서.pdf", FileStorageService.safeFileName("C:/temp/보고서.pdf"));
+        assertEquals("보고서.pdf", FileStorageService.safeFileName("../../보고서.pdf"));
+        assertEquals("unnamed", FileStorageService.safeFileName(null));
     }
 }

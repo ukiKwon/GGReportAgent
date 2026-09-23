@@ -16,7 +16,7 @@
       <div class="kpi-body">
         <div class="kpi-label">전체 파일</div>
         <div class="kpi-value" th:text="${total}">0</div>
-        <div class="kpi-sub">누적 업로드</div>
+        <div class="kpi-sub" th:text="'제안서 ' + ${proposalCount} + ' · RFP ' + ${rfpCount}">누적 업로드</div>
       </div>
     </div>
 
@@ -27,9 +27,9 @@
         </svg>
       </div>
       <div class="kpi-body">
-        <div class="kpi-label">분류 완료</div>
-        <div class="kpi-value success" th:text="${classified}">0</div>
-        <div class="kpi-sub">기관 분류됨</div>
+        <div class="kpi-label">파싱 성공</div>
+        <div class="kpi-value success" th:text="${parseSuccess}">0</div>
+        <div class="kpi-sub">산출물 생성됨</div>
       </div>
     </div>
 
@@ -42,9 +42,9 @@
         </svg>
       </div>
       <div class="kpi-body">
-        <div class="kpi-label">미분류</div>
-        <div th:class="${'kpi-value' + (unclassified > 0 ? ' danger' : '')}" th:text="${unclassified}">0</div>
-        <div class="kpi-sub">즉시 처리 필요</div>
+        <div class="kpi-label">파싱 실패</div>
+        <div th:class="${'kpi-value' + (parseFailed > 0 ? ' danger' : '')}" th:text="${parseFailed}">0</div>
+        <div class="kpi-sub">재파싱 필요</div>
       </div>
     </div>
 
@@ -56,22 +56,22 @@
         </svg>
       </div>
       <div class="kpi-body">
-        <div class="kpi-label">반려 / 삭제</div>
-        <div class="kpi-value" style="color:var(--text-3,#999)" th:text="${excluded}">0</div>
-        <div class="kpi-sub">처리 제외됨</div>
+        <div class="kpi-label">기관 미분류</div>
+        <div class="kpi-value" style="color:var(--text-3,#999)" th:text="${unclassified}">0</div>
+        <div class="kpi-sub">기관 등록 후 재파싱</div>
       </div>
     </div>
   </div>
 
   <!-- 경고 배너 (미분류 > 0 일 때만) -->
-  <div th:if="${unclassified > 0}" class="alert-banner">
+  <div th:if="${parseFailed > 0}" class="alert-banner">
     <svg class="icon" style="width:15px;height:15px;flex-shrink:0" viewBox="0 0 24 24">
       <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
       <line x1="12" y1="9" x2="12" y2="13"/>
       <line x1="12" y1="17" x2="12.01" y2="17"/>
     </svg>
-    미분류 파일 <strong th:text="${unclassified}"></strong>건이 처리 대기 중입니다.
-    <a th:href="@{/file-status}" style="font-weight:700;margin-left:4px;color:inherit;text-decoration:underline">파일 처리 상태 바로가기</a>
+    파싱 실패 <strong th:text="${parseFailed}"></strong>건이 있습니다.
+    <a th:href="@{/parse-status(parseStatus='FAILED')}" style="font-weight:700;margin-left:4px;color:inherit;text-decoration:underline">파싱 현황 바로가기</a>
   </div>
 
   <!-- 검색 -->
@@ -109,8 +109,7 @@
           </td>
           <td th:text="${f.institutionName}"></td>
           <td>
-            <span th:if="${f.category != null}" class="category-chip" th:text="${f.category}"></span>
-            <span th:if="${f.category == null}" style="color:var(--text-3)">-</span>
+            <span class="category-chip" th:text="${f.categoryLabel}"></span>
           </td>
           <td>
             <span th:if="${f.status == 'CLASSIFIED'}"  class="badge badge-done">분류 완료</span>
@@ -162,8 +161,7 @@
           </td>
           <td th:text="${f.institutionName}"></td>
           <td>
-            <span th:if="${f.category != null}" class="category-chip" th:text="${f.category}"></span>
-            <span th:if="${f.category == null}" style="color:var(--text-3)">-</span>
+            <span class="category-chip" th:text="${f.categoryLabel}"></span>
           </td>
           <td>
             <span th:if="${f.status == 'CLASSIFIED'}"  class="badge badge-done">분류 완료</span>

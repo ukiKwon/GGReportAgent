@@ -18,17 +18,15 @@ import static org.mockito.Mockito.*;
 public class InstitutionServiceTest {
 
     private InstitutionMapper institutionMapper;
-    private ClassificationService classificationService;
     private UploadedFileMapper uploadedFileMapper;
     private InstitutionService sut;
 
     @Before
     public void setUp() {
         institutionMapper = mock(InstitutionMapper.class);
-        classificationService = mock(ClassificationService.class);
         uploadedFileMapper = mock(UploadedFileMapper.class);
         when(uploadedFileMapper.findByStatus("UNCLASSIFIED")).thenReturn(Collections.emptyList());
-        sut = new InstitutionService(institutionMapper, classificationService, uploadedFileMapper);
+        sut = new InstitutionService(institutionMapper, uploadedFileMapper);
     }
 
     @Test

@@ -60,6 +60,6 @@ public class KGI12100$FileStatusClassify {
             }
         });
         ra.addFlashAttribute("message", "분류 처리 완료");
-        return "redirect:/file-status";
+        return "redirect:/parse-status";
     }
 }

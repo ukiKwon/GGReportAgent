@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="layout :: layout(~{::title}, '파싱 현황', ~{::section})">
+<head><title>파싱 현황</title></head>
+<body>
+<section>
+
+  <div class="section-header" style="margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span class="section-title" style="font-size:16px">파싱 현황</span>
+      <span class="badge badge-done" th:text="'성공 ' + ${successCount}"></span>
+      <span th:if="${parseFailedCount > 0}" class="badge badge-pending"
+            th:text="'실패 ' + ${parseFailedCount}"></span>
+      <span th:if="${unclassifiedCount > 0}" class="badge badge-neutral"
+            th:text="'기관 미분류 ' + ${unclassifiedCount}"></span>
+    </div>
+  </div>
+
+  <div th:if="${message}" class="alert-success" th:text="${message}"></div>
+  <div th:if="${error}" class="alert-error" th:text="${error}"></div>
+
+  <!-- 필터 -->
+  <form method="get" th:action="@{/parse-status}" class="search-bar">
+    <select name="docType" class="form-control" style="max-width:180px">
+      <option value="">문서종류 전체</option>
+      <option th:each="t : ${docTypes}" th:value="${t}"
+              th:text="${t == 'BID_PROPOSAL' ? '입찰제안서' : '입찰공고문(RFP)'}"
+              th:selected="${docType == t}"></option>
+    </select>
+    <select name="parseStatus" class="form-control" style="max-width:160px">
+      <option value="">파싱상태 전체</option>
+      <option value="SUCCESS" th:selected="${parseStatus == 'SUCCESS'}">성공</option>
+      <option value="FAILED" th:selected="${parseStatus == 'FAILED'}">실패</option>
+      <option value="PENDING" th:selected="${parseStatus == 'PENDING'}">대기</option>
+    </select>
+    <select name="category" class="form-control" style="max-width:160px">
+      <option value="">기관분류 전체</option>
+      <option value="미분류" th:selected="${category == '미분류'}">미분류만</option>
+    </select>
+    <button type="submit" class="btn btn-primary">조회</button>
+    <a th:href="@{/parse-status}" class="btn btn-outline">초기화</a>
+  </form>
+
+  <div th:if="${files.isEmpty()}" class="empty-state">
+    <svg class="icon" style="width:40px;height:40px;opacity:.35" viewBox="0 0 24 24">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+    </svg>
+    <div class="empty-state-text">조건에 맞는 파일이 없습니다.</div>
+  </div>
+
+  <div th:if="${!files.isEmpty()}" class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>문서종류</th>
+          <th>원본 파일명</th>
+          <th>기관</th>
+          <th>기관분류</th>
+          <th>연도 / 공고일</th>
+          <th>파싱</th>
+          <th>산출물</th>
+          <th>파싱 일시</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr th:each="f : ${files}">
+          <td style="font-size:12.5px" th:text="${f.docTypeLabel}"></td>
+          <td>
+            <span th:with="ext=${#strings.toLowerCase(f.originalName.substring(f.originalName.lastIndexOf('.') + 1))}"
+                  th:class="'file-ext ext-' + ${ext}" th:text="${#strings.toUpperCase(ext)}"></span>
+            <span class="file-name" th:text="${f.originalName}"></span>
+          </td>
+          <td style="font-size:12.5px" th:text="${f.institutionName != null ? f.institutionName : '-'}"></td>
+          <td>
+            <span class="category-chip" th:text="${f.categoryLabel}"></span>
+          </td>
+          <td class="time-col" th:text="${f.docDate != null ? f.docDate : '-'}"></td>
+          <td>
+            <span th:if="${f.parseStatus == 'SUCCESS'}" class="badge badge-done">성공</span>
+            <span th:if="${f.parseStatus == 'FAILED'}" class="badge badge-pending">실패</span>
+            <span th:if="${f.parseStatus != 'SUCCESS' and f.parseStatus != 'FAILED'}"
+                  class="badge badge-neutral" th:text="${f.parseStatus != null ? f.parseStatus : '-'}"></span>
+            <div th:if="${f.parseMessage != null}" style="font-size:11.5px;color:var(--text-2);margin-top:3px"
+                 th:text="${f.parseMessage}"></div>
+          </td>
+          <td>
+            <a th:if="${f.outputPath != null}" th:href="@{/parse-status/{id}/output(id=${f.id})}"
+               target="_blank" class="file-name" style="font-size:12.5px"
+               th:text="${f.outputFileName}"></a>
+            <span th:if="${f.outputPath == null}" style="color:var(--text-3)">-</span>
+          </td>
+          <td class="time-col"
+              th:text="${f.parsedAt != null ? #temporals.format(f.parsedAt, 'yyyy-MM-dd HH:mm') : '-'}"></td>
+          <td>
+            <div class="form-inline">
+              <a th:if="${f.outputPath != null}"
+                 th:href="@{/parse-status/{id}/output(id=${f.id},download=true)}"
+                 class="btn btn-outline btn-sm">내려받기</a>
+              <form th:action="@{/parse-status/{id}/reparse(id=${f.id})}" method="post">
+                <button type="submit" class="btn btn-primary btn-sm"
+                        th:disabled="${f.docType == null}">재파싱</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="font-size:12.5px;color:var(--text-2);margin-top:12px">
+    기관을 새로 등록한 뒤 <b>재파싱</b>을 누르면 기관분류가 반영되고 산출물 파일명도 새로 만들어집니다.
+  </p>
+
+</section>
+</body>
+</html>
