@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>내부망 작업지시서 — 입찰제안서/RFP 파싱 전환 이식 (2026-09-23)</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm 18mm 14mm; }
+  body {
+    font-family: "Malgun Gothic", "맑은 고딕", sans-serif;
+    font-size: 10.2pt; line-height: 1.62; color: #16181d; margin: 0;
+  }
+  h1 { font-size: 20pt; margin: 0 0 6px; letter-spacing: -0.4px; }
+  h2 {
+    font-size: 14pt; margin: 26px 0 10px; padding: 7px 10px;
+    background: #1b2a6b; color: #fff; border-radius: 3px;
+    page-break-after: avoid;
+  }
+  h3 { font-size: 11.6pt; margin: 18px 0 7px; color: #1b2a6b;
+       border-left: 4px solid #f6c000; padding-left: 8px; page-break-after: avoid; }
+  h4 { font-size: 10.6pt; margin: 13px 0 5px; }
+  p, li { margin: 5px 0; }
+  ul, ol { padding-left: 20px; margin: 6px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 9.1pt;
+          page-break-inside: avoid; }
+  th, td { border: 1px solid #c3c8d4; padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: #eef1f8; font-weight: 600; }
+  td.c, th.c { text-align: center; }
+  code, pre { font-family: Consolas, "D2Coding", monospace; }
+  code { background: #f1f3f8; padding: 0 3px; border-radius: 2px; font-size: 9.1pt; }
+  pre {
+    background: #f7f8fb; border: 1px solid #d8dce6; border-left: 3px solid #1b2a6b;
+    padding: 8px 10px; font-size: 8.6pt; line-height: 1.5; overflow-wrap: break-word;
+    white-space: pre-wrap; page-break-inside: avoid; margin: 7px 0;
+  }
+  .warn { background: #fff6f6; border: 1px solid #e6bcbc; border-left: 4px solid #c0392b;
+          padding: 8px 11px; margin: 9px 0; page-break-inside: avoid; }
+  .note { background: #f4f8ff; border: 1px solid #bfd0ee; border-left: 4px solid #2c5aa0;
+          padding: 8px 11px; margin: 9px 0; page-break-inside: avoid; }
+  .cover { border-bottom: 3px solid #1b2a6b; padding-bottom: 14px; margin-bottom: 18px; }
+  .cover .sub { color: #555b68; font-size: 10.5pt; margin-top: 4px; }
+  .meta { margin-top: 14px; font-size: 9.4pt; }
+  .meta td { border: 0; padding: 2px 0; }
+  .meta td:first-child { width: 92px; color: #555b68; }
+  .tag { display: inline-block; padding: 0 6px; border-radius: 9px; font-size: 8.4pt;
+         font-weight: 700; color: #fff; }
+  .tag-new { background: #1e7a46; }
+  .tag-mod { background: #b26a00; }
+  .tag-del { background: #8c2020; }
+  .tag-keep { background: #4a5568; }
+  .pb { page-break-before: always; }
+  .small { font-size: 8.8pt; color: #555b68; }
+  footer { margin-top: 26px; border-top: 1px solid #c3c8d4; padding-top: 8px;
+           font-size: 8.6pt; color: #555b68; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>입찰제안서 / RFP 파싱 전환 — 내부망 이식 작업지시서</h1>
+  <div class="sub">외부망(JPA 버전)에서 만든 파싱 기능을 내부망 운영본(MyBatis 버전)에 옮기기 위한 파일별 작업 목록</div>
+  <table class="meta">
+    <tr><td>작성일</td><td>2026-09-23</td></tr>
+    <tr><td>대상(변경 전)</td><td><code>C:\github\GGReportAgent\uploader</code> — 내부망 운영본, 기준 커밋 <code>9575fd5</code></td></tr>
+    <tr><td>이식원</td><td><code>C:\github\GGFileserver\uploader</code> — 외부망 JPA 버전, 기준 커밋 <code>bc3ab37</code></td></tr>
+    <tr><td>설계 원본</td><td><code>GGFileserver/uploader/next.md</code> (요청 원문·의사결정 기록)</td></tr>
+  </table>
+</div>
+
+<div class="note">
+  <b>이 문서를 읽는 법.</b> 모든 항목은 <b>내부망의 현재 파일(변경 전)</b>을 기준으로 적었습니다.
+  각 항목은 <b>① 지금 상태 → ② 할 일 → ③ 주의</b> 순서입니다.
+  <span class="tag tag-new">신규</span> 는 새로 만들 파일,
+  <span class="tag tag-mod">수정</span> 은 기존 파일 변경,
+  <span class="tag tag-del">폐기</span> 는 더 쓰지 않는 파일,
+  <span class="tag tag-keep">보존</span> 은 손대지 말아야 할 내부망 고유 기능입니다.
+  작업 순서는 <b>2장 → 3장 → 5장(매퍼) → 4장(나머지 소스) → 6장(화면) → 7장(검증)</b> 을 권합니다.
+</div>
+
+<h2>1. 무엇이 바뀌는가</h2>
+
+<p>분류 방식이 통째로 바뀝니다. <b>파일명 규칙</b>으로 기관을 알아내 폴더를 옮기던 것을,
+<b>문서 내용을 파싱</b>해 산출물을 만드는 방식으로 교체합니다.</p>
+
+<table>
+  <tr><th style="width:120px">구분</th><th>변경 전 (내부망 현재)</th><th>변경 후</th></tr>
+  <tr><td>업로드 대상</td><td>pdf · hwp · md (파일명 <code>년도_기관명_설명.확장자</code>)</td>
+      <td>입찰제안서 <b>ppt · pptx</b> / 입찰공고문 RFP <b>pdf · hwp · hwpx</b></td></tr>
+  <tr><td>기관 판별</td><td>파일명에서 기관명을 잘라 <code>TSKGIAF02</code> 조회</td>
+      <td>문서 <b>본문</b>에서 기관명을 찾아 <code>TSKGIAF02</code> 와 매칭 (못 찾으면 <code>미분류</code>)</td></tr>
+  <tr><td>처리 결과</td><td>원본을 <code>classified/</code> 로 <b>이동</b></td>
+      <td>원본은 <code>userdata/</code> 에 보관하고 <b>산출물을 생성</b><br>
+          제안서 → <code>{연도}_{기관분류}_{기관명}_{파싱일}_bid_proposal.json</code><br>
+          RFP → <code>{공고일}_{기관분류}_{기관명}_{파싱일}.md</code></td></tr>
+  <tr><td>상태 축</td><td>분류상태 1개 (미분류/분류완료/반려/삭제)</td>
+      <td>분류상태 + <b>파싱상태</b> 2개 축 (파싱 성공인데 기관 미분류인 건이 정상적으로 존재)</td></tr>
+  <tr><td>재처리</td><td>5분마다 배치가 미분류 건을 재분류</td>
+      <td>배치 폐지, <b>파싱 현황 화면의 수동 재파싱 버튼</b></td></tr>
+  <tr><td>외부 연동</td><td><code>/api/files/search</code>, <code>/api/files/{id}/download</code></td>
+      <td>위 API 유지 + <b><code>/api/proposals</code>, <code>/api/rfps</code></b> 신설, 화면에 agent 테스트 패널</td></tr>
+</table>
+
+<h3>작업량</h3>
+<table>
+  <tr><th class="c" style="width:70px">구분</th><th class="c" style="width:60px">개수</th><th>내용</th></tr>
+  <tr><td class="c"><span class="tag tag-new">신규</span></td><td class="c">21</td>
+      <td>parse 패키지 10, 서비스 1, 컨트롤러 3, 코드 2, TypeHandler 2, 화면 1, 정적 JS 1, DDL 1(적용)</td></tr>
+  <tr><td class="c"><span class="tag tag-mod">수정</span></td><td class="c">12</td>
+      <td>도메인 1, 매퍼 2(XML·인터페이스), 서비스 3, 컨트롤러 2, 화면 3, pom·설정 각 1</td></tr>
+  <tr><td class="c"><span class="tag tag-del">폐기</span></td><td class="c">6</td>
+      <td>파일명 파서·분류 서비스·재분류 배치 2·DTO 1 (+ 관련 테스트)</td></tr>
+</table>
+
+<div class="warn">
+  <b>내부망 고유 기능은 그대로 둡니다.</b> 감사 컬럼(<code>시스템사용일시</code>·<code>시스템사용자번호</code>),
+  코드값 변환(TypeHandler), <code>databaseId</code> 오라클/MySQL 분기, 화면번호 컨트롤러 명명 규약
+  (<code>KGI#####$이름</code>), <code>SystemUser</code> ThreadLocal, 스케줄러 추상화는
+  <b>외부망 버전에 아예 없는 것들</b>입니다. 이식하면서 지워지지 않게 주의하십시오.
+</div>
+
+<h2 class="pb">2. 사전 준비</h2>
+
+<h3>2-1. 반입할 라이브러리 <span class="tag tag-mod">수정</span> <code>uploader/pom.xml</code></h3>
+<p>지금 있는 것: <code>pdfbox 2.0.29</code>, <code>poi-ooxml 5.2.3</code>, <code>jackson-databind</code>. <b>아래 4개를 추가</b>합니다.</p>
+<pre>&lt;!-- .ppt (97-2003 바이너리) 슬라이드 추출 --&gt;
+&lt;dependency&gt;
+  &lt;groupId&gt;org.apache.poi&lt;/groupId&gt;&lt;artifactId&gt;poi-scratchpad&lt;/artifactId&gt;&lt;version&gt;5.2.3&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;!-- HWP 본문·표 --&gt;
+&lt;dependency&gt;
+  &lt;groupId&gt;kr.dogfoot&lt;/groupId&gt;&lt;artifactId&gt;hwplib&lt;/artifactId&gt;&lt;version&gt;1.1.11&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;!-- HWPX 본문·표 --&gt;
+&lt;dependency&gt;
+  &lt;groupId&gt;kr.dogfoot&lt;/groupId&gt;&lt;artifactId&gt;hwpxlib&lt;/artifactId&gt;&lt;version&gt;1.0.9&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;!-- 한국어 형태소 분석 (TextRank 요약에 사용) --&gt;
+&lt;dependency&gt;
+  &lt;groupId&gt;org.apache.lucene&lt;/groupId&gt;&lt;artifactId&gt;lucene-analyzers-nori&lt;/artifactId&gt;&lt;version&gt;8.11.4&lt;/version&gt;
+&lt;/dependency&gt;</pre>
+<div class="warn">
+  <b>폐쇄망 반입.</b> 네 라이브러리 모두 Maven Central 에 있지만 내부망에서는 내려받을 수 없습니다.
+  jar 와 <b>전이 의존성</b>까지 함께 반입해야 합니다. 특히
+  <code>lucene-analyzers-nori</code> 는 <code>lucene-core 8.11.4</code> 를 함께 요구합니다.
+  외부망에서 <code>mvn dependency:copy-dependencies</code> 로 모아 <code>tools/export_wtp.py</code> 절차로 넘기십시오.
+  <br>요약에 KOMORAN 을 쓰지 않은 이유도 같습니다 — Maven Central 에 없고 JitPack 전용이라 반입이 어렵습니다.
+</div>
+
+<h3>2-2. 설정 키 <span class="tag tag-mod">수정</span> <code>uploader/config-envs/*/application.properties</code> (5벌 모두)</h3>
+<p>지금은 <code>upload.base-dir</code> 하나뿐입니다. 경로 3개를 추가합니다.</p>
+<pre>upload.base-dir=C:/fsdata/uploaderAgent
+upload.userdata-dir=${upload.base-dir}/userdata
+upload.proposal-json-dir=${upload.base-dir}/\uc6d0\ubcf8/\uc804\ucc98\ub9ac/\uc785\ucc30\uc81c\uc548\uc11c_PPT
+upload.rfp-md-dir=${upload.base-dir}/\uc804\ucc98\ub9ac/RFP/\ud30c\uc2f1\ud6c4</pre>
+<div class="warn">
+  <b><code>.properties</code> 는 ISO-8859-1 로 읽힙니다.</b> 한글 경로를 그대로 적으면 깨집니다.
+  위처럼 <b><code>\uXXXX</code> 이스케이프</b>로 적으십시오. 위 값을 그대로 복사하면 됩니다.<br>
+  · <code>\uc6d0\ubcf8/\uc804\ucc98\ub9ac/\uc785\ucc30\uc81c\uc548\uc11c_PPT</code> = <code>원본/전처리/입찰제안서_PPT</code><br>
+  · <code>\uc804\ucc98\ub9ac/RFP/\ud30c\uc2f1\ud6c4</code> = <code>전처리/RFP/파싱후</code>
+</div>
+<p>덧붙여 <b>한글 폼값·파일명</b>이 ISO-8859-1 로 해석되는 것을 막는 키도 함께 넣습니다.</p>
+<pre>server.servlet.encoding.charset=UTF-8
+server.servlet.encoding.enabled=true
+server.servlet.encoding.force=true
+server.tomcat.uri-encoding=UTF-8</pre>
+<p>그리고 재분류 배치를 없애므로 <code>reclassification.cron</code> 키는 <b>삭제</b>합니다(4-3 참조).</p>
+
+<h2>3. DB 작업</h2>
+
+<h3>3-1. 마이그레이션 적용</h3>
+<p>DDL 은 이미 저장소에 있습니다. <b>소스보다 먼저</b> 적용하십시오.</p>
+<table>
+  <tr><th style="width:56%">파일</th><th>대상</th></tr>
+  <tr><td><code>uploader/src/main/resources/migration/2026-09-23_TSKGIAF01_파싱컬럼추가-oracle.sql</code></td><td>내부망 Oracle (local·dev·stg·prod)</td></tr>
+  <tr><td><code>uploader/src/main/resources/migration/2026-09-23_TSKGIAF01_파싱컬럼추가-mysql.sql</code></td><td>외부망 MySQL (out-local)</td></tr>
+</table>
+<div class="warn">
+  <b>한글 컬럼명 인코딩 사고가 실제로 있었습니다(2026-09-22).</b> 클라이언트 charset 이 어긋난 채 DDL 을 실행해
+  컬럼명이 <code>遺꾨쪟…</code> 모지바케로 만들어졌고, 앱이 <code>Unknown column '분류상태구분'</code> 로 죽었습니다.
+  복구 불가능한 바이트(<code>EFBFBD</code>)가 섞여 이름만 고칠 수도 없어 테이블을 다시 만들어야 했습니다.
+  <br>· <b>Workbench / SQL Developer 로 파일을 열어 실행</b>하거나, CLI 라면
+  <code>mysql --default-character-set=utf8mb4 … -e "source 파일"</code> 형태로 실행하십시오.
+  <br>· <b>PowerShell 파이프(<code>Get-Content | mysql</code>)는 한글을 깨뜨립니다.</b>
+  <br>· 파일명이 한글이라 Git Bash 에서 <code>source</code> 로 열면 실패합니다. 영문 이름으로 복사해 실행하십시오.
+  <br>· 적용 후 DDL 파일 안의 <b>검증 쿼리(컬럼명 HEX 확인)</b>를 반드시 돌리십시오.
+</div>
+
+<h3>3-2. 컬럼 ↔ 자바 필드 대응</h3>
+<table>
+  <tr><th>TSKGIAF01 컬럼(신규)</th><th>타입</th><th>자바 필드</th><th>값</th></tr>
+  <tr><td>문서종류구분</td><td>VARCHAR2(2 CHAR)</td><td><code>docType</code></td><td>코드값 <code>01</code> 입찰제안서 / <code>02</code> RFP</td></tr>
+  <tr><td>파싱상태구분</td><td>VARCHAR2(2 CHAR)</td><td><code>parseStatus</code></td><td>코드값 <code>01</code> PENDING / <code>02</code> SUCCESS / <code>03</code> FAILED</td></tr>
+  <tr><td>파싱메시지내용</td><td>VARCHAR2(1000 CHAR)</td><td><code>parseMessage</code></td><td>실패 사유 문장</td></tr>
+  <tr><td>파싱산출물경로내용</td><td>VARCHAR2(600 CHAR)</td><td><code>outputPath</code></td><td>JSON·MD 전체 경로</td></tr>
+  <tr><td>파싱일시</td><td>VARCHAR2(14 CHAR)</td><td><code>parsedAt</code></td><td><code>LocalDateTime</code> ↔ 문자열(기존 핸들러 재사용)</td></tr>
+  <tr><td>문서페이지수</td><td>DECIMAL(5)</td><td><code>pageCount</code></td><td>제안서 슬라이드 수 / RFP 페이지 수</td></tr>
+  <tr><td>문서일자</td><td>VARCHAR2(8 CHAR)</td><td><code>docDate</code></td><td>제안서 연도(4자리) / RFP 공고일(YYYYMMDD)</td></tr>
+</table>
+<div class="note">
+  <b>기존 <code>문서년 VARCHAR2(4)</code> 은 남겨 둡니다.</b> 공고일 8자리를 담지 못해 새 컬럼을 만든 것입니다.
+  옛 행이 쓰고 있으므로 지우지 말고, <b>새 코드는 <code>문서일자</code> 만</b> 사용하십시오.
+  기존 행은 파싱 컬럼이 모두 NULL 이라 화면에서 "이전 방식" 으로만 보이고 재파싱 대상에서 빠집니다 — 의도된 동작입니다.
+</div>
+
+<h2 class="pb">4. 소스 작업 — 내부망 파일 기준</h2>
+
+<h3>4-1. 그대로 복사하면 되는 신규 파일 <span class="tag tag-new">신규</span></h3>
+<p>아래 10개는 <b>Spring 애노테이션(<code>@Component</code>) 외에 JPA·MyBatis 의존이 전혀 없습니다.</b>
+이식원에서 그대로 복사하십시오. 패키지도 <code>com.kb.uploader.parse</code> 로 동일합니다.</p>
+<table>
+  <tr><th style="width:38%">파일 (신규 경로: <code>uploader/src/main/java/com/kb/uploader/parse/</code>)</th><th class="c" style="width:52px">줄수</th><th>역할</th></tr>
+  <tr><td><code>PptExtractor.java</code></td><td class="c">87</td><td>ppt·pptx → 슬라이드별 제목·본문·이미지 유무 (표·그룹도형 재귀 포함)</td></tr>
+  <tr><td><code>RfpExtractor.java</code></td><td class="c">178</td><td>pdf(PDFBox)·hwp(hwplib)·hwpx(hwpxlib) → 문단/표 블록</td></tr>
+  <tr><td><code>ExtractedDocument.java</code></td><td class="c">65</td><td>추출 문서 모델 (<code>lines()</code>, <code>fullText()</code>, <code>getTables()</code>)</td></tr>
+  <tr><td><code>DocBlock.java</code></td><td class="c">39</td><td>문단/표 블록</td></tr>
+  <tr><td><code>SlideContent.java</code></td><td class="c">31</td><td>슬라이드 1장</td></tr>
+  <tr><td><code>ProposalDocument.java</code></td><td class="c">42</td><td>제안서 JSON 스키마 (<code>file_name</code>·<code>ppt_path</code>·<code>total_slides</code>·<code>created_at</code>·<code>slides</code>)</td></tr>
+  <tr><td><code>InstitutionMatcher.java</code></td><td class="c">141</td><td>본문 ↔ 기관 목록 매칭 (긴 이름 우선 → 레이블 → 접미사 → <code>기관미상</code>)</td></tr>
+  <tr><td><code>DateDetector.java</code></td><td class="c">117</td><td>제안서 연도 / RFP 공고일 추정</td></tr>
+  <tr><td><code>TextRankSummarizer.java</code></td><td class="c">118</td><td>Nori 명사 + 문장 그래프 + PageRank 추출 요약 (LLM 없음)</td></tr>
+  <tr><td><code>RfpSummaryWriter.java</code></td><td class="c">606</td><td>요약 Markdown 생성 (개요표·목적·범위·요구사항표·배점표·참가자격·목차)</td></tr>
+</table>
+<div class="note">
+  <b><code>InstitutionMatcher</code> 는 기관 목록을 인자로 받습니다.</b> DB 접근이 없으므로 내부망에서도 수정이 필요 없습니다.
+  호출부(<code>DocumentParseService</code>)가 <code>InstitutionMapper.findAll()</code> 결과를 넘겨 주면 됩니다.
+</div>
+
+<h3>4-2. 내부망 구조에 맞춰 <b>고쳐서</b> 옮길 신규 파일 <span class="tag tag-new">신규</span></h3>
+<table>
+  <tr><th style="width:34%">만들 파일</th><th>고쳐야 할 점</th></tr>
+  <tr><td><code>service/DocumentParseService.java</code><br><span class="small">이식원 165줄</span></td>
+      <td>· <code>UploadedFileRepository</code> → <code>UploadedFileMapper</code><br>
+          · <code>fileRepo.save(file)</code> → <code>mapper.updateParseResult(file)</code> (5-4 신규 SQL)<br>
+          · <code>institutionRepo.findAll()</code> → <code>institutionMapper.findAll()</code><br>
+          · 저장 전에 <b>감사 2열</b>을 채울 것: <code>file.setSystemUserNo(SystemUser.get())</code>,
+            <code>file.setSystemUsedAt(파싱일시)</code></td></tr>
+  <tr><td><code>controller/KGI12000$ParseStatusList.java</code><br><span class="small">파싱 현황 목록</span></td>
+      <td>이식원 <code>ParseStatusController.list()</code>. <b>화면번호 규약</b>에 맞춰 클래스명을 바꾸고
+          진입 메서드는 <code>execute</code> 로. URL 은 <code>GET /parse-status</code></td></tr>
+  <tr><td><code>controller/KGI12100$ParseReparse.java</code><br><span class="small">수동 재파싱</span></td>
+      <td>이식원 <code>ParseStatusController.reparse()</code>. <code>POST /parse-status/{id}/reparse</code>.
+          <code>SystemUserInterceptor</code> 가 <code>GI12100</code> 을 넣어 주므로 감사열은 자동</td></tr>
+  <tr><td><code>controller/KGI12150$ParseOutput.java</code><br><span class="small">산출물 보기/내려받기</span></td>
+      <td>이식원 <code>ParseStatusController.output()</code>. <code>GET /parse-status/{id}/output</code>,
+          <code>?download=true</code> 면 첨부. <code>text/plain; charset=UTF-8</code></td></tr>
+  <tr><td><code>controller/ProposalApiController.java</code><br><span class="small">이식원 그대로에 매퍼만 교체</span></td>
+      <td><code>GET /api/proposals</code>, <code>GET /api/proposals/{id}</code>.
+          <code>fileRepo.searchProposals(...)</code> → <code>mapper.searchProposals(...)</code>.
+          기존 <code>FileSearchApiController</code> 와 같은 <code>@RestController</code> 방식이라 화면번호는 없음</td></tr>
+  <tr><td><code>controller/RfpApiController.java</code></td>
+      <td><code>GET /api/rfps</code>, <code>GET /api/rfps/{id}</code>(JSON + <code>?format=text</code> 면 md 원문).
+          위와 같은 방식으로 매퍼만 교체</td></tr>
+  <tr><td><code>code/DocumentType.java</code></td><td>5-5 의 코드 클래스. <code>ClassificationStatus</code> 와 같은 모양</td></tr>
+  <tr><td><code>code/ParseStatus.java</code></td><td>동일</td></tr>
+  <tr><td><code>config/DocumentTypeTypeHandler.java</code></td><td><code>CodeTypeHandler</code> 상속 2줄짜리</td></tr>
+  <tr><td><code>config/ParseStatusTypeHandler.java</code></td><td>동일</td></tr>
+  <tr><td><code>templates/parse-status.html</code><br><span class="small">이식원 118줄</span></td>
+      <td>기존 <code>file-status.html</code> 자리를 대신하는 화면. 6장 참조</td></tr>
+  <tr><td><code>static/js/agent-test.js</code><br><span class="small">이식원 577줄</span></td>
+      <td>agent 테스트 패널. 외부 라이브러리·CDN 을 쓰지 않으므로 <b>그대로 복사</b></td></tr>
+</table>
+
+<h3>4-3. 폐기 <span class="tag tag-del">폐기</span></h3>
+<table>
+  <tr><th style="width:38%">파일</th><th>이유 · 주의</th></tr>
+  <tr><td><code>service/FileParserService.java</code></td><td>파일명 규칙 파싱이 사라짐</td></tr>
+  <tr><td><code>dto/ParsedFileName.java</code></td><td>위와 한 쌍</td></tr>
+  <tr><td><code>service/ClassificationService.java</code></td><td>폴더 이동 분류가 사라짐. <b>단, 이 클래스를 부르는 곳이
+      <code>FileUploadService</code>·<code>ReclassificationJob</code>·<code>KGI12100</code>·<code>InstitutionService</code> 4곳</b>이니 함께 정리</td></tr>
+  <tr><td><code>job/ReclassificationJob.java</code><br><code>job/ReclassificationTrigger.java</code></td>
+      <td>자동 재분류 배치 폐지(수동 재파싱으로 대체). <code>reclassification.cron</code> 키도 삭제</td></tr>
+  <tr><td><code>templates/file-status.html</code></td><td><code>parse-status.html</code> 로 대체</td></tr>
+  <tr><td class="c"><span class="tag tag-keep">보존</span> <code>job/BackgroundScheduler</code><br>
+      <code>LocalScheduler</code> · <code>TimerManagerScheduler</code> · <code>config/SchedulerConfig</code></td>
+      <td><b>지우지 마십시오.</b> 지금은 쓰는 곳이 없어지지만 WebLogic TimerManager 추상화는
+          내부망 고유 자산이고 테스트(<code>TimerManagerSchedulerTest</code>)도 있습니다.
+          배치가 다시 필요해질 때 그대로 씁니다</td></tr>
+  <tr><td class="c"><span class="tag tag-keep">보존</span> <code>KGI12200$FileStatusDelete</code><br>
+      <code>KGI12300$FileStatusReject</code></td>
+      <td>삭제·반려는 <b>분류상태</b> 축이라 파싱 전환과 무관합니다. 그대로 두고 새 화면에서 호출만 이어 주십시오</td></tr>
+  <tr><td class="c"><span class="tag tag-keep">보존</span> <code>KGI12400$ClassifiedFileList</code><br>
+      <code>templates/classified-rework.html</code></td>
+      <td>기관명 '알수없음' 재작업 화면. 새 방식에서도 기관 미분류 건이 생기므로 <b>유지</b>.
+          다만 목록 질의가 <code>findClassifiedByUnknownInstitution</code> 이라 파싱상태 조건 추가를 검토</td></tr>
+  <tr><td class="c"><span class="tag tag-keep">보존</span> <code>KGI12500$CleanupDirs</code></td>
+      <td>빈 분류 디렉터리 정리. <code>classified/</code> 를 더는 만들지 않으므로 <b>당장은 쓸모가 없지만</b>,
+          기존 데이터 정리에 필요하니 한 번은 돌린 뒤 판단하십시오</td></tr>
+  <tr><td class="c"><span class="tag tag-keep">보존</span> <code>controller/FileSearchApiController</code><br>
+      <code>service/FileContentService</code></td>
+      <td>외부 연동 API. <b>유지</b>. 다만 <code>FileContentService</code> 는 <code>.hwp</code> 바이너리를 못 읽는데,
+          이제 <code>RfpExtractor</code> 가 읽을 수 있으므로 <b>교체를 검토</b>(선택)</td></tr>
+</table>
+
+<h3>4-4. 수정 <span class="tag tag-mod">수정</span></h3>
+
+<h4>① <code>domain/UploadedFile.java</code></h4>
+<p>지금 필드 11개(<code>id</code>·<code>originalName</code>·<code>storedPath</code>·<code>year</code>·<code>institutionName</code>·<code>category</code>·<code>status</code>·<code>uploadedAt</code>·<code>classifiedAt</code>·<code>systemUsedAt</code>·<code>systemUserNo</code>)에 <b>7개를 더합니다.</b></p>
+<pre>private String docType;        // "BID_PROPOSAL" | "RFP"   → 문서종류구분
+private String parseStatus;    // "PENDING" | "SUCCESS" | "FAILED" → 파싱상태구분
+private String parseMessage;   // 파싱메시지내용
+private String outputPath;     // 파싱산출물경로내용
+private Integer pageCount;     // 문서페이지수
+private LocalDateTime parsedAt;// 파싱일시
+private String docDate;        // 문서일자 (제안서 연도 4자리 / RFP 공고일 8자리)
+
+/** 파싱 성공 기록. 기관분류를 못 찾으면 분류상태는 UNCLASSIFIED 로 남는다. */
+public void markParsed(String institutionName, String category, String docDate,
+                       String outputPath, Integer pageCount, String message) { … }
+
+/** 파싱 실패 기록. */
+public void markParseFailed(String message) { … }</pre>
+<div class="warn">
+  <b><code>year</code> 필드를 없애지 마십시오.</b> 기존 <code>문서년</code> 컬럼과 옛 행이 그대로 남습니다.
+  새 값은 <code>docDate</code> 에 넣습니다. 이식원(JPA 버전)은 같은 필드 이름 <code>year</code> 를
+  <code>DOC_DATE</code> 컬럼에 매핑했는데, <b>내부망에서는 이름을 나누는 쪽</b>이 옛 데이터와 섞이지 않아 안전합니다.
+</div>
+
+<h4>② <code>service/FileUploadService.java</code></h4>
+<table>
+  <tr><th style="width:44%">지금</th><th>바꿀 것</th></tr>
+  <tr><td><code>upload(files, institution, year, category)</code> — 화면에서 기관·연도·분류를 <b>수동 입력</b></td>
+      <td><code>upload(docType, files)</code> — 수동 입력 없음. 문서 종류만 받음</td></tr>
+  <tr><td><code>FileParserService.parse()</code> 로 파일명 해석</td><td>삭제. 대신 <b>확장자 검증</b>(제안서 ppt·pptx / RFP pdf·hwp·hwpx)</td></tr>
+  <tr><td><code>storage.saveToUnclassified()</code></td><td><code>storage.saveOriginal()</code> — <code>userdata/</code> 에 보관</td></tr>
+  <tr><td><code>mapper.insert()</code> 후 <code>ClassificationService.classify()</code></td>
+      <td><code>mapper.insert()</code> 후 <code>DocumentParseService.parse()</code></td></tr>
+  <tr><td colspan="2">한 파일이 실패해도 나머지를 계속 처리하는 구조는 <b>그대로 유지</b>합니다.</td></tr>
+</table>
+
+<h4>③ <code>service/FileStorageService.java</code></h4>
+<p><code>saveToUnclassified</code>·<code>moveToClassified</code>·<code>cleanEmptyClassifiedDirs</code>·<code>buildUnclassifiedPath</code> 를
+아래로 교체합니다(<code>cleanEmptyClassifiedDirs</code> 는 <code>KGI12500</code> 이 쓰므로 <b>남겨 둡니다</b>).</p>
+<pre>Path saveOriginal(MultipartFile file, String filename)      // userdata/, 중복 시 _yyyyMMddHHmmss
+Path writeOutput(Path dir, String filename, byte[] content) // 산출물, 중복 시 _2, _3 …
+void deleteIfExists(String path)                            // 재파싱 때 이전 산출물 삭제
+static String safeFileName(String name)                     // 경로 구분자 제거(디렉터리 탈출 방지)
+Path getProposalJsonDir() / Path getRfpMdDir()</pre>
+
+<h4>④ <code>service/InstitutionService.java</code></h4>
+<p>기관 저장·가져오기 뒤에 <b>미분류 재분류를 유발하던 호출을 제거</b>합니다(<code>ClassificationService</code> 폐기).
+기관 정보가 바뀌어 다시 분류하고 싶으면 파싱 현황 화면에서 <b>재파싱</b>을 누르는 흐름으로 바뀝니다.</p>
+
+<h4>⑤ <code>controller/KGI10000$DashboardView.java</code></h4>
+<table>
+  <tr><th style="width:46%">지금 모델 속성</th><th>바꿀 것</th></tr>
+  <tr><td><code>total</code> / <code>classified</code> / <code>unclassified</code> / <code>excluded</code></td>
+      <td><code>total</code> / <code>parseSuccess</code> / <code>parseFailed</code> / <code>unclassified</code>(파싱 성공 &amp; 기관 미분류)<br>
+          + <code>proposalCount</code> / <code>rfpCount</code></td></tr>
+  <tr><td><code>countByStatus("CLASSIFIED")</code> 등</td>
+      <td><code>countByParseStatus("SUCCESS"|"FAILED")</code>, <code>countByDocType(...)</code>,
+          <code>countByParseStatusAndStatus("SUCCESS","UNCLASSIFIED")</code> (5-4 신규 SQL)</td></tr>
+</table>
+
+<h4>⑥ <code>controller/KGI11000$UploadView.java</code> · <code>KGI11100$UploadAction.java</code></h4>
+<ul>
+  <li>업로드 폼이 <b>둘</b>로 갈립니다. <code>POST /upload/proposal</code>, <code>POST /upload/rfp</code>.
+      <span class="small">화면번호 규약을 지키려면 <code>KGI11100$UploadProposal</code>·<code>KGI11200$UploadRfp</code> 로 나누는 편이 자연스럽습니다.</span></li>
+  <li>기관·연도·분류 <b>수동 입력 파라미터를 제거</b>합니다(이제 본문에서 뽑습니다).</li>
+  <li>사이드바 배지 값이 <code>countByStatus("UNCLASSIFIED")</code> → <code>countByParseStatus("FAILED")</code> 로 바뀝니다.</li>
+</ul>
+
+<h2 class="pb">5. MyBatis 이식 상세 — 가장 손이 많이 가는 부분</h2>
+
+<p>이식원은 JPA(<code>UploadedFileRepository</code>)라 메서드 이름만으로 질의가 만들어집니다.
+내부망은 <b>SQL 을 직접 써야</b> 합니다. 아래 표가 대응 관계입니다.</p>
+
+<table>
+  <tr><th style="width:42%">이식원 (JPA)</th><th>내부망에 추가할 매퍼 메서드</th></tr>
+  <tr><td><code>countByParseStatus(String)</code></td><td><code>long countByParseStatus(@Param("parseStatus") String)</code></td></tr>
+  <tr><td><code>countByDocType(DocType)</code></td><td><code>long countByDocType(@Param("docType") String)</code></td></tr>
+  <tr><td><code>countByParseStatusAndStatus(a,b)</code></td><td><code>long countByParseStatusAndStatus(@Param("parseStatus") String, @Param("status") String)</code></td></tr>
+  <tr><td><code>searchParseStatus(docType, parseStatus, category)</code></td><td>같은 이름으로 <code>List&lt;UploadedFile&gt;</code></td></tr>
+  <tr><td><code>searchProposals(institution, year, category, Pageable)</code></td>
+      <td><code>searchProposals(...)</code> + <code>countProposals(...)</code> <span class="small">(페이징은 방언 분기 필요)</span></td></tr>
+  <tr><td><code>searchRfps(institution, noticeDate, category, Pageable)</code></td>
+      <td><code>searchRfps(...)</code> + <code>countRfps(...)</code></td></tr>
+  <tr><td><code>fileRepo.save(entity)</code> <span class="small">(더티체킹)</span></td>
+      <td><b><code>updateParseResult(UploadedFile)</code></b> — JPA 가 자동으로 해 주던 UPDATE 를 직접 써야 함</td></tr>
+</table>
+
+<h3>5-1. resultMap 에 7줄 추가 <span class="tag tag-mod">수정</span> <code>mapper/UploadedFileMapper.xml</code></h3>
+<pre>&lt;result property="docType"      column="문서종류구분"
+        typeHandler="com.kb.uploader.config.DocumentTypeTypeHandler"/&gt;
+&lt;result property="parseStatus"  column="파싱상태구분"
+        typeHandler="com.kb.uploader.config.ParseStatusTypeHandler"/&gt;
+&lt;result property="parseMessage" column="파싱메시지내용"/&gt;
+&lt;result property="outputPath"   column="파싱산출물경로내용"/&gt;
+&lt;result property="parsedAt"     column="파싱일시"
+        typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/&gt;
+&lt;result property="pageCount"    column="문서페이지수"/&gt;
+&lt;result property="docDate"      column="문서일자"/&gt;</pre>
+<div class="warn">
+  <b>resultMap 에 빠뜨리면 "저장은 되는데 조회하면 늘 null" 이 됩니다.</b> 2026-09-09 에 감사 2열에서 똑같이 겪었습니다.
+  더 나쁜 것은 <b>읽어서 그대로 UPDATE 하는 경로</b>(수동 분류 등)에서 그 null 이 DB 로 되써진다는 점입니다.
+</div>
+
+<h3>5-2. INSERT 수정 (두 방언 모두)</h3>
+<p><code>&lt;sql id="값목록"&gt;</code> 에 파싱 컬럼 값을 더하고, <b>mysql·oracle 두 <code>insert</code> 의 컬럼 목록</b>에도 같은 이름을 더합니다.</p>
+<pre>&lt;!-- 값목록에 추가 --&gt;
+#{docType,typeHandler=com.kb.uploader.config.DocumentTypeTypeHandler},
+#{parseStatus,typeHandler=com.kb.uploader.config.ParseStatusTypeHandler},
+#{docDate}
+
+&lt;!-- 두 insert 의 컬럼 목록에 추가 --&gt;
+문서종류구분, 파싱상태구분, 문서일자</pre>
+<div class="warn">
+  <b>같은 id 가 두 번 나오는 자리는 방언 분기입니다.</b> <code>databaseId="mysql"</code> 와
+  <code>databaseId="oracle"</code> 양쪽을 <b>반드시 함께</b> 고치십시오. 한쪽만 고치면 다른 DB 에서 조용히 낡습니다.
+  테스트는 H2(=mysql 분기)만 타므로 <b><code>MapperDialectTest</code> 가 두 방언 XML 파싱을 검사</b>합니다 — 이 테스트를 꼭 돌리십시오.
+</div>
+
+<h3>5-3. 신규 UPDATE — 파싱 결과 기록</h3>
+<pre>&lt;update id="updateParseResult"&gt;
+  UPDATE TSKGIAF01
+  SET 문서종류구분     = #{docType,typeHandler=com.kb.uploader.config.DocumentTypeTypeHandler},
+      파싱상태구분     = #{parseStatus,typeHandler=com.kb.uploader.config.ParseStatusTypeHandler},
+      파싱메시지내용   = #{parseMessage},
+      파싱산출물경로내용 = #{outputPath},
+      파싱일시         = #{parsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+      문서페이지수     = #{pageCount},
+      문서일자         = #{docDate},
+      기관명           = #{institutionName},
+      기관영업분류구분 = #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+      분류상태구분     = #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler},
+      분류일시         = #{classifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+      시스템사용일시   = #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+      시스템사용자번호 = #{systemUserNo}
+  WHERE 업로드파일일련번호 = #{id}
+&lt;/update&gt;</pre>
+<div class="note">
+  <b>기관분류(<code>기관영업분류구분</code>)는 코드값 5종만 허용</b>합니다(01 지방자치단체 … 05 법원).
+  그런데 파싱 결과의 기관분류는 <b>"미분류"</b> 가 될 수 있습니다. <code>InstitutionCategoryTypeHandler</code> 는
+  모르는 값이면 <b>예외를 던지므로</b>, 둘 중 하나를 택해야 합니다.
+  <br>ⓐ 미분류일 때 <code>기관영업분류구분</code> 에 <b>NULL</b> 을 넣는다(권장 — CHECK 제약과 충돌 없음)
+  <br>ⓑ <code>InstitutionCategory</code> 에 <code>99 미분류</code> 코드를 추가하고 DDL 의 CHECK 도 함께 고친다
+  <br>어느 쪽이든 <b>화면 표기는 "미분류"</b> 로 보이게 하십시오.
+</div>
+
+<h3>5-4. 신규 SELECT</h3>
+<pre>&lt;select id="countByParseStatus" resultType="long"&gt;
+  SELECT COUNT(*) FROM TSKGIAF01
+   WHERE 파싱상태구분 = #{parseStatus,typeHandler=com.kb.uploader.config.ParseStatusTypeHandler}
+&lt;/select&gt;
+
+&lt;select id="countByDocType" resultType="long"&gt;
+  SELECT COUNT(*) FROM TSKGIAF01
+   WHERE 문서종류구분 = #{docType,typeHandler=com.kb.uploader.config.DocumentTypeTypeHandler}
+&lt;/select&gt;
+
+&lt;select id="countByParseStatusAndStatus" resultType="long"&gt;
+  SELECT COUNT(*) FROM TSKGIAF01
+   WHERE 파싱상태구분 = #{parseStatus,typeHandler=…ParseStatusTypeHandler}
+     AND 분류상태구분 = #{status,typeHandler=…ClassificationStatusTypeHandler}
+&lt;/select&gt;
+
+&lt;!-- 파싱 현황 목록. 조건은 모두 선택 --&gt;
+&lt;select id="searchParseStatus" resultMap="uploadedFileMap"&gt;
+  SELECT * FROM TSKGIAF01
+   WHERE 1 = 1
+   &lt;if test="docType != null"&gt;
+     AND 문서종류구분 = #{docType,typeHandler=…DocumentTypeTypeHandler}
+   &lt;/if&gt;
+   &lt;if test="parseStatus != null"&gt;
+     AND 파싱상태구분 = #{parseStatus,typeHandler=…ParseStatusTypeHandler}
+   &lt;/if&gt;
+   &lt;if test="category != null"&gt;
+     AND 기관영업분류구분 = #{category,typeHandler=…InstitutionCategoryTypeHandler}
+   &lt;/if&gt;
+   ORDER BY 업로드파일일련번호 DESC
+&lt;/select&gt;
+
+&lt;!-- 제안서 조회 API. mysql / oracle 두 벌을 만든다 (페이징 문법이 다르다) --&gt;
+&lt;select id="searchProposals" databaseId="mysql" resultMap="uploadedFileMap"&gt;
+  SELECT * FROM TSKGIAF01
+   WHERE 문서종류구분 = '01' AND 파싱상태구분 = '02'
+     &lt;if test="institution != null"&gt; AND 기관명 LIKE CONCAT('%', #{institution}, '%') &lt;/if&gt;
+     &lt;if test="docDate != null"&gt;     AND 문서일자 LIKE CONCAT(#{docDate}, '%') &lt;/if&gt;
+   ORDER BY 업로드파일일련번호 DESC
+   LIMIT #{limit} OFFSET #{offset}
+&lt;/select&gt;</pre>
+<div class="warn">
+  <b>SQL 문장에 직접 박은 값은 TypeHandler 를 타지 않습니다.</b> 위 <code>'01'</code>·<code>'02'</code> 처럼
+  <b>코드값</b>으로 적어야 합니다. 여기에 <code>'BID_PROPOSAL'</code> 이나 <code>'SUCCESS'</code> 를 적으면
+  <b>오류 없이 0건</b>이 나옵니다 — 찾기 가장 어려운 종류의 버그입니다.
+  <br>또한 Oracle 은 <b>빈 문자열을 NULL 로 취급</b>하므로, 조건이 비었을 때 <code>''</code> 대신
+  <b><code>null</code> 을 넘기는</b> 기존 <code>search</code> 문장의 방식을 그대로 따르십시오.
+</div>
+
+<h3>5-5. 코드 클래스와 TypeHandler <span class="tag tag-new">신규</span></h3>
+<p><code>code/ClassificationStatus.java</code> 와 <b>똑같은 모양</b>으로 만듭니다.</p>
+<pre>public final class DocumentType {
+    public static final String BID_PROPOSAL = "BID_PROPOSAL";   // 01 입찰제안서 (ppt·pptx)
+    public static final String RFP          = "RFP";            // 02 입찰공고문 (pdf·hwp·hwpx)
+    // put("01", BID_PROPOSAL); put("02", RFP);
+    // nameToCode() / codeToName() 제공
+}
+
+public final class ParseStatus {
+    public static final String PENDING = "PENDING";   // 01
+    public static final String SUCCESS = "SUCCESS";   // 02
+    public static final String FAILED  = "FAILED";    // 03
+}
+
+public class DocumentTypeTypeHandler extends CodeTypeHandler {
+    @Override protected Map&lt;String, String&gt; nameToCode() { return DocumentType.nameToCode(); }
+    @Override protected Map&lt;String, String&gt; codeToName() { return DocumentType.codeToName(); }
+}
+// ParseStatusTypeHandler 도 동일</pre>
+<div class="note">
+  <b>TypeHandler 를 빈으로 등록하지 않습니다.</b> 내부망은 <code>mybatis.type-handlers-package</code> 를 쓰지 않고
+  Mapper XML 에서 <b>자리마다 FQCN 으로 명시</b>합니다. 네 핸들러의 자바 타입이 모두 <code>String</code> 이라
+  자동 등록하면 어느 것이 잡힐지 알 수 없기 때문입니다. 새 핸들러 2개도 같은 규칙을 따르십시오.
+</div>
+<div class="note">
+  이식원은 <code>DocType</code> 을 <b>자바 enum</b> 으로 씁니다(<code>DocType.BID_PROPOSAL</code>, <code>accepts(filename)</code>, <code>getLabel()</code>).
+  내부망은 코드값 변환 규약이 있으므로 <b>문자열 상수 + TypeHandler</b> 로 바꾸는 것이 일관됩니다.
+  확장자 검증(<code>accepts</code>)과 화면 표시명(<code>getLabel</code>)은 <code>DocumentType</code> 의 static 메서드로 옮기십시오.
+</div>
+
+<h2 class="pb">6. 화면 작업</h2>
+
+<table>
+  <tr><th style="width:30%">파일</th><th>할 일</th></tr>
+  <tr><td><code>templates/layout.html</code> <span class="tag tag-mod">수정</span><br><span class="small">현재 477줄</span></td>
+      <td>· 좌측 네비 3번 <b>"파일 처리 상태" → "파싱 현황"</b>(<code>/parse-status</code>), 배지도
+          <code>unclassifiedCount</code> → <code>parseFailedCount</code><br>
+          · 우측 상단 <b>[agent 테스트]</b> 버튼 + 슬라이드 패널 + 크게보기 모달 마크업 추가<br>
+          · 패널·말풍선·타이핑 커서 CSS 추가(이식원 <code>layout.html</code> 402~470줄 부근)<br>
+          · 모달의 탭은 <b>비워 두고</b> JS 가 채웁니다(<code>&lt;div class="agent-tabs" id="agentModalTabs"&gt;&lt;/div&gt;</code>)</td></tr>
+  <tr><td><code>templates/dashboard.html</code> <span class="tag tag-mod">수정</span></td>
+      <td>KPI 4개를 <b>전체 / 파싱 성공 / 파싱 실패 / 기관 미분류</b> 로 교체, 문서종류별 건수 추가,
+          목록에 <b>문서종류·파싱</b> 열 추가</td></tr>
+  <tr><td><code>templates/upload.html</code> <span class="tag tag-mod">수정</span></td>
+      <td>업로드 영역을 <b>2개</b>로 분리(제안서 ppt·pptx / RFP pdf·hwp·hwpx).
+          기관·연도·분류 <b>수동 입력 칸 제거</b></td></tr>
+  <tr><td><code>templates/parse-status.html</code> <span class="tag tag-new">신규</span></td>
+      <td>문서종류·파싱상태·기관분류 필터, 파싱 배지와 실패 사유, 산출물 보기·내려받기, <b>재파싱</b> 버튼</td></tr>
+  <tr><td><code>static/js/agent-test.js</code> <span class="tag tag-new">신규</span></td>
+      <td>그대로 복사. CDN·외부 라이브러리를 쓰지 않습니다</td></tr>
+</table>
+
+<div class="warn">
+  <b><code>#strings.substringAfterLast</code> 를 쓰지 마십시오.</b> 이 Thymeleaf 버전에 없어서
+  <b>목록 렌더링이 중간에 끊깁니다</b>(에러 없이 화면 일부가 사라집니다). 기존 <code>file-status.html</code> 에도
+  있던 문제이며, 이식원에서는 <code>substring(lastIndexOf)</code> 로 바꿔 두었습니다.
+  파일명만 뽑아 쓰는 자리를 전부 확인하십시오.
+</div>
+
+<h2>7. 검증 절차</h2>
+
+<h3>7-1. 빌드·테스트</h3>
+<ol>
+  <li><code>mvn -B test</code> — <b><code>MapperDialectTest</code> 가 통과해야</b> 두 방언 XML 이 모두 성립합니다.</li>
+  <li>폐기한 클래스의 테스트(<code>ClassificationServiceTest</code>·<code>FileParserServiceTest</code>·
+      <code>ReclassificationJobTest</code>·<code>ReclassificationTriggerTest</code>)를 함께 정리합니다.</li>
+  <li>이식원의 테스트 79건 중 <b>파싱 계층 테스트</b>(<code>PptExtractorTest</code>·<code>RfpExtractorTest</code>·
+      <code>RfpSummaryWriterTest</code>·<code>TextRankSummarizerTest</code>·<code>DateDetectorTest</code>·
+      <code>InstitutionMatcherTest</code>)는 <b>그대로 가져올 수 있습니다</b>(DB 의존 없음).</li>
+</ol>
+
+<h3>7-2. DB</h3>
+<table>
+  <tr><th style="width:56%">확인</th><th>기대</th></tr>
+  <tr><td><code>SELECT COLUMN_NAME, HEX(COLUMN_NAME) …</code> (DDL 파일의 검증 쿼리)</td><td>새 컬럼 7개가 <b>정상 한글</b>, <code>EFBFBD</code> 없음</td></tr>
+  <tr><td><code>SELECT COUNT(*) FROM TSKGIAF01 WHERE 파싱상태구분 = '03'</code></td><td>오류 없이 0 이상</td></tr>
+  <tr><td>파일 1건 업로드 후 해당 행 조회</td><td><code>문서종류구분</code>·<code>파싱상태구분</code>·<code>파싱산출물경로내용</code>·<code>파싱일시</code>가 <b>채워져 있을 것</b> (null 이면 resultMap 누락)</td></tr>
+</table>
+
+<h3>7-3. 화면·API</h3>
+<table>
+  <tr><th style="width:34%">경로</th><th>확인할 것</th></tr>
+  <tr><td><code>GET /</code></td><td>KPI 4개가 실제 건수와 맞는지, 최근 목록에 문서종류·파싱 열</td></tr>
+  <tr><td><code>POST /upload/proposal</code></td><td>pptx 업로드 → <code>userdata/</code> 에 원본,
+      <code>원본/전처리/입찰제안서_PPT/</code> 에 JSON 생성</td></tr>
+  <tr><td><code>POST /upload/rfp</code></td><td>hwp·pdf 업로드 → <code>전처리/RFP/파싱후/</code> 에 md 생성</td></tr>
+  <tr><td><code>GET /parse-status</code></td><td>필터 3종, 실패 사유 표시, <b>재파싱</b> 후 산출물이 새로 생기는지</td></tr>
+  <tr><td><code>GET /parse-status/{id}/output</code></td><td>md·json 내용이 <b>한글 깨짐 없이</b> 보이는지</td></tr>
+  <tr><td><code>GET /api/proposals</code> · <code>/api/rfps</code></td><td>목록 JSON, 조건 필터</td></tr>
+  <tr><td><code>GET /api/rfps/{id}?format=text</code></td><td>md 원문이 <code>text/markdown</code> 으로 오는지</td></tr>
+  <tr><td>우측 상단 [agent 테스트]</td><td>패널 열림 → 조건 입력 → 요청 → 말풍선 대화 → [크게보기] 모달</td></tr>
+</table>
+
+<h3>7-4. 품질 확인 (문서 내용)</h3>
+<p>실제 HWP 공고문 1건으로 요약 md 를 열어 아래를 봅니다. 2026-09-23 에 실제 문서
+(<span class="small">서울에너지공사 금고 지정 제안요청서</span>)로 확인한 결과입니다.</p>
+<table>
+  <tr><th style="width:26%">항목</th><th>상태</th></tr>
+  <tr><td>배점표</td><td>표 구조 그대로 복원, <b>합계 검산 일치</b>(100/100) — 양호</td></tr>
+  <tr><td>기관명·기관분류</td><td>본문에서 찾아 매칭 — 양호</td></tr>
+  <tr><td>사업명 / 공고일 / 사업기간</td><td>초기에 <b>세 값 모두 오류</b>였고 <code>bc3ab37</code> 에서 고쳤습니다. 이식본에 그 수정이 들어갔는지 확인하십시오(9장)</td></tr>
+  <tr><td>요구사항표</td><td>문서에 <code>SFR-001</code> 형식 번호가 없으면 "확인 필요" 로 남습니다 — 정상</td></tr>
+  <tr><td>사업예산·계약방법</td><td>레이블이 다르면 "확인 필요". 자주 나오는 표현을 <code>RfpSummaryWriter.field(...)</code> 레이블 목록에 <b>추가</b>하면 개선됩니다</td></tr>
+</table>
+
+<h2 class="pb">8. 함정 모음 — 실제로 겪은 것들</h2>
+<table>
+  <tr><th class="c" style="width:74px">일자</th><th style="width:30%">증상</th><th>원인과 교훈</th></tr>
+  <tr><td class="c">09-22</td><td><code>Unknown column '분류상태구분'</code></td>
+      <td>인코딩이 어긋난 채 DDL 을 실행해 컬럼명이 모지바케로 생성. <b>한글 DDL 은 Workbench 나
+          <code>--default-character-set=utf8mb4</code> 로</b>. 적용 후 HEX 로 확인할 것</td></tr>
+  <tr><td class="c">09-09</td><td>DB 에는 값이 있는데 화면은 늘 빈칸</td>
+      <td>resultMap 에 컬럼을 빠뜨림. 게다가 <b>읽어서 그대로 UPDATE</b> 하는 경로에서 null 이 DB 로 되써짐</td></tr>
+  <tr><td class="c">09-08</td><td>한쪽 DB 에서만 SQL 이 낡음</td>
+      <td><code>databaseId</code> 분기를 한쪽만 수정. <b>항상 두 벌을 같이</b>, <code>MapperDialectTest</code> 로 검사</td></tr>
+  <tr><td class="c">09-23</td><td>공고일이 <code>2027-01-01</code>, 파일명도 <code>20270101_…</code></td>
+      <td>"재공고" 라는 말이 든 줄에 걸려 <b>다음 줄</b>의 약정기간 시작일을 가져옴. 레이블 기반으로 수정</td></tr>
+  <tr><td class="c">09-23</td><td>사업명이 <code>사 업 개 요</code>, 사업기간이 <code>발 주 처</code></td>
+      <td>별지 서식의 <b>표 머리글</b>을 "레이블 | 값" 행으로 착각. 머리글 판정 로직 추가로 수정</td></tr>
+  <tr><td class="c">상시</td><td>Git Bash 에서 한글 인자·파일명이 깨짐</td>
+      <td>CP949 변환 때문. 한글 파일명 테스트는 <b>PowerShell 이나 자바 클라이언트</b>로.
+          CLI 에 한글 경로를 넘길 때는 영문 이름으로 복사</td></tr>
+  <tr><td class="c">상시</td><td>Eclipse 기동 시 없는 클래스 참조 오류</td>
+      <td><code>target/</code> 에 남은 옛 <code>.class</code>. 이식처럼 클래스를 지우는 작업 뒤에는
+          <b><code>mvn clean</code></b> 을 먼저</td></tr>
+</table>
+
+<h2>9. 이식원에서 반드시 가져와야 할 최신 수정</h2>
+<p>이식원의 마지막 4개 커밋은 <b>이 문서 작성 시점에 새로 들어간 것</b>입니다. 옛 사본을 들고 가면 빠집니다.</p>
+<table>
+  <tr><th class="c" style="width:74px">커밋</th><th>내용</th></tr>
+  <tr><td class="c"><code>bc3ab37</code></td><td><b>RFP 요약 오류 3건 수정</b>(표 머리글 오인·공고일 오탐·자간 제목) + 회귀 테스트 6건.
+      <code>RfpSummaryWriter.java</code>, <code>DateDetector.java</code></td></tr>
+  <tr><td class="c"><code>c324f2b</code></td><td>로컬 목업 시더(<code>LocalMockData</code>). <b>내부망에는 가져가지 마십시오</b> — 로컬 전용입니다</td></tr>
+  <tr><td class="c"><code>75f864e</code></td><td>agent 패널 <b>대화형 연출</b>(말풍선 타이핑·버퍼링). <code>agent-test.js</code>, <code>layout.html</code> CSS</td></tr>
+  <tr><td class="c"><code>139fd13</code></td><td><b>RFP 조회 API</b>(<code>/api/rfps</code>) + 패널 항목. <code>RfpApiController</code>, 매퍼 질의</td></tr>
+</table>
+
+<h2>부록 A. 파일 매핑 전체 표</h2>
+<table>
+  <tr><th class="c" style="width:52px">구분</th><th style="width:40%">내부망 경로 (<code>uploader/src/main/</code> 기준)</th><th>비고</th></tr>
+  <tr><td class="c"><span class="tag tag-new">신규</span></td><td><code>java/com/kb/uploader/parse/</code> 10개 파일</td><td>그대로 복사 (4-1)</td></tr>
+  <tr><td class="c"><span class="tag tag-new">신규</span></td><td><code>java/com/kb/uploader/service/DocumentParseService.java</code></td><td>매퍼·감사열로 교체</td></tr>
+  <tr><td class="c"><span class="tag tag-new">신규</span></td><td><code>java/com/kb/uploader/controller/KGI12000$ParseStatusList.java</code></td><td><code>GET /parse-status</code></td></tr>
+  <tr><td class="c"><span class="tag tag-new">신규</span></td><td><code>java/com/kb/uploader/controller/KGI12100$ParseReparse.java</code></td><td><code>POST /parse-status/{id}/reparse</code></td></tr>
+  <tr><td class="c"><span class="tag tag-new">신규</span></td><td><code>java/com/kb/uploader/controller/KGI12150$ParseOutput.java</code></td><td><code>GET /parse-status/{id}/output</code></td></tr>
+  <tr><td class="c"><span class="tag tag-new">신규</span></td><td><code>java/com/kb/uploader/controller/ProposalApiController.java</code></td><td><code>/api/proposals</code></td></tr>
+  <tr><td class="c"><span class="tag tag-new">신규</span></td><td><code>java/com/kb/uploader/controller/RfpApiController.java</code></td><td><code>/api/rfps</code></td></tr>
+  <tr><td class="c"><span class="tag tag-new">신규</span></td><td><code>java/com/kb/uploader/code/DocumentType.java</code> · <code>ParseStatus.java</code></td><td>코드값 정본</td></tr>
+  <tr><td class="c"><span class="tag tag-new">신규</span></td><td><code>java/com/kb/uploader/config/DocumentTypeTypeHandler.java</code> · <code>ParseStatusTypeHandler.java</code></td><td><code>CodeTypeHandler</code> 상속</td></tr>
+  <tr><td class="c"><span class="tag tag-new">신규</span></td><td><code>resources/templates/parse-status.html</code></td><td>파싱 현황 화면</td></tr>
+  <tr><td class="c"><span class="tag tag-new">신규</span></td><td><code>resources/static/js/agent-test.js</code></td><td>그대로 복사</td></tr>
+  <tr><td class="c"><span class="tag tag-mod">수정</span></td><td><code>java/com/kb/uploader/domain/UploadedFile.java</code></td><td>필드 7개 + <code>markParsed</code>/<code>markParseFailed</code></td></tr>
+  <tr><td class="c"><span class="tag tag-mod">수정</span></td><td><code>java/com/kb/uploader/mapper/UploadedFileMapper.java</code></td><td>메서드 7개 추가</td></tr>
+  <tr><td class="c"><span class="tag tag-mod">수정</span></td><td><code>resources/mapper/UploadedFileMapper.xml</code></td><td>resultMap·insert(2)·신규 update 1·신규 select 6</td></tr>
+  <tr><td class="c"><span class="tag tag-mod">수정</span></td><td><code>java/com/kb/uploader/service/FileUploadService.java</code></td><td>확장자 검증 + 파싱 호출</td></tr>
+  <tr><td class="c"><span class="tag tag-mod">수정</span></td><td><code>java/com/kb/uploader/service/FileStorageService.java</code></td><td>저장·산출물 API 교체</td></tr>
+  <tr><td class="c"><span class="tag tag-mod">수정</span></td><td><code>java/com/kb/uploader/service/InstitutionService.java</code></td><td>재분류 유발 제거</td></tr>
+  <tr><td class="c"><span class="tag tag-mod">수정</span></td><td><code>java/com/kb/uploader/controller/KGI10000$DashboardView.java</code></td><td>KPI 교체</td></tr>
+  <tr><td class="c"><span class="tag tag-mod">수정</span></td><td><code>java/com/kb/uploader/controller/KGI11000$UploadView.java</code> · <code>KGI11100$UploadAction.java</code></td><td>업로드 2종 분리</td></tr>
+  <tr><td class="c"><span class="tag tag-mod">수정</span></td><td><code>resources/templates/layout.html</code> · <code>dashboard.html</code> · <code>upload.html</code></td><td>6장</td></tr>
+  <tr><td class="c"><span class="tag tag-mod">수정</span></td><td><code>uploader/pom.xml</code> · <code>config-envs/*/application.properties</code></td><td>2장</td></tr>
+  <tr><td class="c"><span class="tag tag-del">폐기</span></td><td><code>service/FileParserService.java</code> · <code>service/ClassificationService.java</code> ·
+      <code>dto/ParsedFileName.java</code> · <code>job/ReclassificationJob.java</code> · <code>job/ReclassificationTrigger.java</code> ·
+      <code>templates/file-status.html</code></td><td>4-3</td></tr>
+</table>
+
+<h2>부록 B. 새로 생기는 URL</h2>
+<table>
+  <tr><th style="width:34%">URL</th><th>설명</th></tr>
+  <tr><td><code>POST /upload/proposal</code></td><td>입찰제안서 업로드 (ppt·pptx)</td></tr>
+  <tr><td><code>POST /upload/rfp</code></td><td>입찰공고문 업로드 (pdf·hwp·hwpx)</td></tr>
+  <tr><td><code>GET /parse-status</code></td><td>파싱 현황 (필터: <code>docType</code>·<code>parseStatus</code>·<code>category</code>)</td></tr>
+  <tr><td><code>POST /parse-status/{id}/reparse</code></td><td>수동 재파싱 (이전 산출물 삭제 후 재생성)</td></tr>
+  <tr><td><code>GET /parse-status/{id}/output</code></td><td>산출물 보기 · <code>?download=true</code> 면 내려받기</td></tr>
+  <tr><td><code>GET /api/proposals</code></td><td>제안서 목록 — <code>institution</code>·<code>year</code>·<code>category</code>·<code>page</code>·<code>size</code></td></tr>
+  <tr><td><code>GET /api/proposals/{id}</code></td><td>제안서 파싱 JSON 전체</td></tr>
+  <tr><td><code>GET /api/rfps</code></td><td>RFP 목록 — <code>institution</code>·<code>noticeDate</code>(앞자리 일치)·<code>category</code></td></tr>
+  <tr><td><code>GET /api/rfps/{id}</code></td><td>요약 — 기본 JSON(<code>markdown</code> 필드) / <code>?format=text</code> 면 md 원문</td></tr>
+</table>
+
+<footer>
+  작성: Claude Code 세션 (2026-09-23) · 대상 커밋 내부망 <code>9575fd5</code> / 이식원 <code>bc3ab37</code> ·
+  설계 원본 <code>GGFileserver/uploader/next.md</code> · 미해소 항목은 <code>GGFileserver/uploader/TODO/TODO_modify.md</code>
+</footer>
+
+</body>
+</html>
