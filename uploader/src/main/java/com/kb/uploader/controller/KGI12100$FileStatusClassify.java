@@ -1,9 +1,9 @@
 package com.kb.uploader.controller;
 
-import java.time.LocalDateTime;
-import com.kb.uploader.code.SystemUser;
+import com.kb.uploader.domain.UploadedFile;
 import com.kb.uploader.mapper.UploadedFileMapper;
-import com.kb.uploader.service.FileStorageService;
+import com.kb.uploader.service.DocumentParseService;
+import com.kb.uploader.service.InstitutionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
@@ -13,6 +13,19 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.Optional;
+
+/**
+ * 기관을 지정해 다시 분류한다 (2026-09-23 파싱 전환에 맞춰 동작 교체).
+ *
+ * <p>종전에는 파일을 {@code classified/} 폴더로 <b>옮기는</b> 것이 분류였다. 이제는 폴더를 옮기지
+ * 않으므로 이 화면의 일은 <b>기관을 기관 테이블에 등록하고 그 문서를 재파싱</b>하는 것이다.
+ * 재파싱하면 InstitutionMatcher 가 방금 등록한 기관을 찾아 기관분류가 확정되고,
+ * 산출물 파일명도 {@code {날짜}_{기관분류}_{기관명}_…} 으로 다시 만들어진다.
+ *
+ * <p>⚠️ 기관명만 바꾸고 재파싱을 하지 않으면 산출물 파일명이 옛 기관명 그대로 남아
+ * DB 와 파일이 어긋난다. 그래서 두 가지를 한 번에 한다.
+ */
 @Controller
 @RequestMapping("/file-status")
 public class KGI12100$FileStatusClassify {
@@ -20,46 +33,47 @@ public class KGI12100$FileStatusClassify {
     private static final Logger log = LoggerFactory.getLogger(KGI12100$FileStatusClassify.class);
 
     private final UploadedFileMapper fileMapper;
-    private final FileStorageService storageService;
+    private final InstitutionService institutionService;
+    private final DocumentParseService parseService;
 
     public KGI12100$FileStatusClassify(UploadedFileMapper fileMapper,
-                                       FileStorageService storageService) {
+                                       InstitutionService institutionService,
+                                       DocumentParseService parseService) {
         this.fileMapper = fileMapper;
-        this.storageService = storageService;
+        this.institutionService = institutionService;
+        this.parseService = parseService;
     }
 
     @PostMapping("/{id}/classify")
     public String execute(@PathVariable Long id,
                           @RequestParam String category,
                           @RequestParam(defaultValue = "") String institution,
-                          @RequestParam(defaultValue = "") String year,
                           RedirectAttributes ra) {
-        fileMapper.findById(id).ifPresent(file -> {
-            if (!institution.trim().isEmpty()) {
-                file.setInstitutionName(institution.trim());
+        Optional<UploadedFile> found = fileMapper.findById(id);
+        if (!found.isPresent()) {
+            ra.addFlashAttribute("error", "파일을 찾을 수 없습니다 (id=" + id + ")");
+            return "redirect:/file-status/classified";
+        }
+        String name = institution.trim();
+        if (name.isEmpty()) {
+            ra.addFlashAttribute("error", "기관명을 입력해 주세요.");
+            return "redirect:/file-status/classified";
+        }
+
+        try {
+            institutionService.save(name, category.trim());
+            Optional<UploadedFile> result = parseService.reparse(id);
+            if (result.isPresent() && "SUCCESS".equals(result.get().getParseStatus())) {
+                ra.addFlashAttribute("message",
+                        "기관 등록 후 재파싱 완료: " + name + " → " + result.get().getOutputFileName());
+            } else {
+                ra.addFlashAttribute("error", "기관은 등록했으나 재파싱에 실패했습니다"
+                        + (result.isPresent() ? " — " + result.get().getParseMessage() : ""));
             }
-            if (!year.trim().isEmpty()) {
-                file.setYear(year.trim());
-            }
-            String instName = file.getInstitutionName() != null ? file.getInstitutionName() : "알수없음";
-            try {
-                java.nio.file.Path source = java.nio.file.Paths.get(file.getStoredPath());
-                java.nio.file.Path dest = storageService.moveToClassified(
-                        source,
-                        category,
-                        file.getYear() != null ? file.getYear() : "미확인",
-                        instName
-                );
-                file.classify(category, dest.toString());
-                file.setSystemUserNo(SystemUser.get());
-            file.setSystemUsedAt(
-                    file.getClassifiedAt() != null ? file.getClassifiedAt() : LocalDateTime.now());
-                fileMapper.update(file);
-            } catch (Exception e) {
-                log.warn("수동 분류 처리 실패: {}", file.getOriginalName(), e);
-            }
-        });
-        ra.addFlashAttribute("message", "분류 처리 완료");
-        return "redirect:/parse-status";
+        } catch (Exception e) {
+            log.warn("기관 지정 재파싱 실패: id={}", id, e);
+            ra.addFlashAttribute("error", "처리 실패: " + e.getMessage());
+        }
+        return "redirect:/file-status/classified";
     }
 }
