@@ -39,6 +39,11 @@
     `handoff/` 체계와 하는 일이 같다. 둘을 같이 돌리면 이월 기억이 두 군데로 갈라지므로
     **이 저장소는 `handoff/` 체계만 쓴다** (`CLAUDE.md` 규정 유지).
 
+- **브랜치 `weblogic-java-migration`은 2026-10-21에 삭제됐다** — `main`에 merge 커밋 `7ffe343`로
+  통합한 뒤 태그 **`archive/weblogic-java-migration`**(→ `e429cfe`)으로 보존했다. 아래 항목들이
+  "브랜치 `weblogic-java-migration`"을 위치로 적고 있으면 **지금은 `main`에서 이어 작업한다**고 읽을 것.
+  출처: `2026-10-21_summary.md` `## Session 22:40`.
+
 ---
 
 ## 새 PC에서 이어받을 때 (2026-08-03 기준)
