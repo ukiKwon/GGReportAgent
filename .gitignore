@@ -54,11 +54,11 @@ kgi-ggreport-web/config/application.properties
 # 커밋 전에 손으로 지워야 했다(2026-08-21 하루에만 세 번).
 portfolio/shots_new/
 
-# git worktree 작업 폴더. 세션 여러 개가 같은 폴더에서 브랜치를 갈아타다
-# 편집이 엉뚱한 브랜치 위로 올라간 사고가 있어(2026-08-30), 브랜치별로 폴더를
-# 나눠 쓰기로 했다. 여기에 펼친 worktree는 저장소 내용 그 자체라 커밋 대상이 아니다.
-.worktrees/
-
-# export_wtp.py 가 만드는 Eclipse WTP 사본 — jar 57개(48MB)가 들어간다.
-# 리포의 Maven 프로젝트가 정본이고 이건 파생물이라 커밋하지 않는다.
+# uploader/tools/export_wtp.py 가 만드는 내부망 반입 패키지와 그 zip.
+# uploader/target/ 의 WAR 에서 파생된 빌드 산출물이라 언제든 다시 만들 수 있고,
+# jar 57개가 들어가 40MB 를 넘는다 — 실수로 커밋되면 되돌리기가 성가시다.
 dist/
+
+# git worktree 들의 체크아웃 위치. 리포 안에 두면 편한데 무시하지 않으면
+# 다른 브랜치의 작업 트리 전체가 커밋 대상으로 잡힌다.
+.worktrees/

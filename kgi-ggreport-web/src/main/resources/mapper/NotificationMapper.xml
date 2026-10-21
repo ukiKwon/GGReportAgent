@@ -57,8 +57,9 @@
     쪽지함은 '내 소속 + 내 이름'을 함께 본다.
 
     ⚠️ **방언이 갈리는 자리다 — 아래 두 문장은 한 쌍이다. 한쪽만 고치지 말 것.**
-       원본의 `LIMIT ?` 는 Oracle 에 없고, Oracle 의 `FETCH FIRST … ROWS ONLY` 는
-       MySQL 에 없다. MyBatis 의 databaseId 로 둘 다 살려 둔다(config/MyBatisConfig).
+       원본의 `LIMIT ?` 는 Oracle 에 없고, Oracle 11g 는 `ROWNUM` 서브쿼리를 쓴다
+       (`FETCH FIRST` 는 12c+ 전용이라 못 쓴다). MyBatis 의 databaseId 로 둘 다
+       살려 둔다(config/MyBatisConfig).
        `DynamicSqlTest` 가 두 분기의 SQL 을 각각 생성해 대조한다.
 
     recipients 가 비면 호출부가 아예 부르지 않는다(IN () 은 어느 DB 에서도 문법 오류).
@@ -82,13 +83,24 @@
      LIMIT #{limit}
   </select>
 
-  <!-- Oracle 12c+ — 행 제한 절. 11g 라면 ROWNUM 서브쿼리로 바꿔야 한다. -->
+  <!--
+    Oracle 11g — ROWNUM 서브쿼리.
+
+    ⚠️ **`FETCH FIRST … ROWS ONLY` 를 쓰지 않는다. 12c 이상 전용이라 11g 에서
+       문법 오류다**(문의 4 회신으로 내부 Oracle 이 11g 로 확정, 2026-08-30).
+
+    ⚠️ **정렬을 안쪽 서브쿼리에서 끝내고 ROWNUM 은 바깥에서 건다.** 한 층으로
+       `WHERE ROWNUM <= n ... ORDER BY` 를 쓰면 <b>정렬 전에</b> 행이 잘려
+       "가장 최근 n건"이 아니라 "아무 n건을 뽑아 정렬한 것"이 된다 — 결과가
+       그럴듯해서 눈으로는 못 잡는 종류의 오류다.
+  -->
   <select id="selectByRecipients" databaseId="oracle" resultMap="notification">
-    SELECT <include refid="columns"/>
-      FROM NOTIFICATIONS
-    <include refid="recipientsFilter"/>
-     ORDER BY CREATED_AT DESC
-     FETCH FIRST #{limit} ROWS ONLY
+    SELECT * FROM (
+      SELECT <include refid="columns"/>
+        FROM NOTIFICATIONS
+      <include refid="recipientsFilter"/>
+       ORDER BY CREATED_AT DESC
+    ) WHERE ROWNUM &lt;= #{limit}
   </select>
 
   <select id="selectById" resultMap="notification">

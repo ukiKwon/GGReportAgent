@@ -4,6 +4,9 @@ import java.time.LocalDateTime;
 
 public class Institution {
 
+    /** 감사 컬럼 시스템사용자번호. 화면번호(앞 K 제외 7자) 또는 'BATCH01'. code/SystemUser 참조. */
+    private String systemUserNo;
+
     private Long id;
     private String name;
     private String category;
@@ -30,4 +33,7 @@ public class Institution {
     public void setCategory(String category) { this.category = category; }
     public LocalDateTime getModifiedAt() { return modifiedAt; }
     public void setModifiedAt(LocalDateTime modifiedAt) { this.modifiedAt = modifiedAt; }
+
+    public String getSystemUserNo() { return systemUserNo; }
+    public void setSystemUserNo(String systemUserNo) { this.systemUserNo = systemUserNo; }
 }

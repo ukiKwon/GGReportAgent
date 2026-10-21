@@ -107,25 +107,34 @@ Solaris 빌드를 배포하지 않고, ⓑ **빅엔디언**인데 GGUF는 리틀
 - ⚠️ **별도 서버로 가면 문의 6(경유지 OAuth)이 되살아난다** — `localhost`가 아니라
   **서버 간 호출**이 되기 때문. `TokenProvider`를 지우지 않은 이유가 하나 더 늘었다.
 
-### 🔺 다음 세션의 첫 작업 — **문의 1-2 문항 작성** (아직 안 씀)
+### 🔺 문의 1-2 — ✅ **문항 작성 완료 (2026-08-31), 🔴 질의·회신만 남았다**
 
-**1-1은 "서버 사양이 뭐냐"였는데 회신 결과 질문이 바뀌었다: "별도 추론 서버(x86
-리눅스)를 받을 수 있는가."** 문항 본문은 **아직 작성하지 않았다.**
-담을 내용은 `docs/이관문의서_발송본_2026-08-28.md`의 **"1-2 문항에 담을 것"** 절에
-정리돼 있다(협상 사다리 + 필수조건 + 함께 물을 3가지). 요약:
+**1-1은 "서버 사양이 뭐냐"였는데 회신 결과 질문이 바뀌었다: "별도 추론 서버(Linux)를
+배정받을 수 있는가."** ✅ **문항 본문을 썼다** —
+`docs/이관문의서_WebLogic_확인사항.md:105` (문항 수 **10 → 11건**).
+**남은 것은 사용자가 인프라 담당에게 묻는 것뿐**이다.
 
-| 단계 | 사양 | 살아나는 것 |
+**문항에 담긴 것** (ⓐ~ⓔ):
+
+| 단계 | 사양 | 제공 가능해지는 기능 |
 |---|---|---|
-| 1 (최소) | x86_64 4코어 · RAM 8GB · 디스크 20GB | **벡터 검색 유지** (질의 임베딩만) |
-| 2 (권장) | x86_64 **16코어(AVX2)** · 32GB · 100GB | + 배점표 추출·요약·검증(**배치**) |
-| 3 (이상) | NVIDIA **VRAM 24GB**급 | + **대화 탭까지** |
+| 1 | CPU 4코어 · RAM 8GB · 디스크 20GB | **의미(벡터) 검색** — 현재 품질 유지 |
+| 2 | CPU **16코어(AVX2)** · RAM 32GB · 디스크 100GB | + 배점표 추출·요약·검증(**일괄**, 1건당 2분대) |
+| 3 | GPU **VRAM 24GB**급 · CPU 8코어 · RAM 32GB | + **대화형 화면**(1건당 수 초) |
 
-- **필수 조건: OS는 Linux**(Ubuntu 22.04 / RHEL 8·9). ⚠️ Solaris·SPARC면 원점.
-  **VM·컨테이너로 충분**하고 **기존 x86 리눅스 서버 여유분에 얹는 것**도 방법이다.
-- **함께 물을 것 3가지**: ⓐ WebLogic→추론서버 **방화벽 개방** ⓑ 모델 파일(5~10GB)
-  **폐쇄망 반입 경로** ⓒ **실행파일 설치 권한**(1-1의 ⓔ가 미답으로 넘어왔다).
-- ⚠️ **교훈 — 1-1이 RAM·코어는 물으면서 OS·아키텍처를 안 물었다.** 1-2에는
-  "OS는 Linux여야 한다"를 조건으로 명시해 같은 실수를 막는다.
+- **ⓑ OS는 Linux 필수**(Ubuntu 22.04 / RHEL 8·9). ⚠️ Solaris·SPARC면 원점.
+  **VM·컨테이너 가능 / 기존 Linux 서버 여유 자원 공유도 가능**을 명시했다(승인 문턱).
+- **ⓒ 네트워크** — 방화벽 개방 + **경유지 경유 여부**(경유하면 6번 OAuth 부활).
+- **ⓓ 모델 파일(5~10GB) 반입 경로** · **ⓔ 설치·상시기동 권한**(1-1의 ⓔ가 넘어온 것).
+- 🔺 **회신이 늦어지면 돌릴 곳이 줄었다** — 종전에는 "회신과 무관한 단계 5-B"가
+  있었으나 **2026-08-31에 8개가 전부 끝났다.** 남은 회신-무관 작업은 **11g DDL
+  리뷰(항목 9)** 정도이고, 그 뒤로는 **이관 쪽이 실제로 회신에 막힌다.**
+- ⚠️ **작성 시 지킨 규약 — 양보 한도는 발송 문서에 싣지 않는다.** "1단계만 주셔도
+  된다"는 쓰지 않고 **중립적 요구사항 표 + "어느 단계까지 가능한지"** 로 물었다.
+  최소선 판단은 `이관문의서_회신영향_내부메모.md`에만 있다(그 파일이 분리된 이유가
+  정확히 이것이다). **다시 물을 때 이 선을 넘지 말 것.**
+- ⚠️ **교훈 — 1-1이 RAM·코어는 물으면서 OS·아키텍처를 안 물었다.** 1-2 ⓑ에
+  "OS는 Linux여야 한다"를 조건으로 박아 같은 실수를 막았다.
 
 ---
 
@@ -164,7 +173,7 @@ Solaris 빌드를 배포하지 않고, ⓑ **빅엔디언**인데 GGUF는 리틀
 
 | 순위 | # | 무엇 | 막고 있는 것 |
 |---|---|---|---|
-| **1** | **1-2**(신설, **문항 미작성**) | **별도 추론 서버(x86 리눅스)를 받을 수 있는가** + 방화벽·반입경로·설치권한 | **LLM 기능 존폐 전체 + Task 3.3(벡터 검색) 존폐.** 위 "다음 세션의 첫 작업" 절 |
+| **1** | **1-2**(신설) | **별도 추론 서버(Linux)를 배정받을 수 있는가** — 사양 3단계 ⓐ · OS 조건 ⓑ · 방화벽·경유지 ⓒ · 반입경로 ⓓ · 설치권한 ⓔ | **LLM 기능 존폐 전체 + Task 3.3(벡터 검색) 존폐.** ✅ **문항 작성 완료(2026-08-31)** — **질의만 남았다**(위 절) |
 | **2** | **3** | Oracle Text 가용 | 단계 3 Task 3.2 A/B 분기 — **여전히 유일하게 구조가 갈리는 항목**. ⚠️ 1-2가 ⓒ면 **전문검색이 유일한 검색 수단**이 되어 중요도가 더 오른다 |
 | 3 | 5-1 | WorkManager JNDI | 폴백인 채 운영에 오르면 **WAS 스레드 풀 고갈 장애** |
 | 4 | 6-1·6-2 | 서비스 등록 절차·API 표준 | 연동 시험 일정 + 규격 변경 개발 분량 |
@@ -692,13 +701,33 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
       적용되지 않는 것**도 테스트로 고정했다. 격자 전체가 아니라 **바뀐 칸만** upsert
       한다(전체 덮어쓰기는 동시 편집 시 상대 변경을 통째로 지운다). upsert 는 갱신
       먼저·0건이면 삽입 — `ON CONFLICT DO UPDATE` 는 Oracle 9i~11g 에 없다.
-    - ⬜ **다음 차례: 5B.5 기관 쓰기·반입**(단계 5-B 에서 가장 크다 —
-      `POST /institutions` 는 이름 중복 **409** 이고 CSV `import` 의 upsert 와
-      **일부러 다르다**) → **5B.6 나머지 둘**(`GET /llm/status` 는 Task 4.4 어댑터가
-      붙은 뒤라야 의미 있는 값이 나온다).
-      **5B.5 에서 함께 정할 것**: 반입 이력 테이블(`IMPORT_BATCH`) 신설 여부 —
-      지금은 DB 만 보면 기관 정보가 왜 바뀌었는지 추적할 수 없다
-      (근거: `docs/메뉴별_테이블_컬럼_정리.md` §5-④).
+    - ✅ **Task 5B.5·5B.6 완료 (2026-08-31)** — **단계 5-B 8개가 전부 찼다.**
+      커밋 `0fd5011`(기관 추가·편집) · `9cb4cb9`(CSV 반입) · `ff5e52a`(코퍼스
+      검사·등록) · `f473c70`(배치 반입 2개 + `GET /llm/status`) ·
+      `1456865`(완료 처리). 테스트 **216 → 295**, 전부 통과.
+      파이썬 유틸 **약 680줄**을 함께 옮겼다 — `corpus_validator`(305) ·
+      `inbox_import`(184) · `batch_schema`(121) · `archive`(71) · `csv_import`(37).
+      - **반입 이력 테이블(`IMPORT_BATCH`)은 신설하지 않기로 했다**(사용자 확정 ⓑ,
+        2026-08-31). 원본에 없는 테이블이라 "동작 동일" 회귀 비교를 흐린다.
+        추적이 필요해지면 **별건**으로 다룬다(근거는 그대로
+        `docs/메뉴별_테이블_컬럼_정리.md` §5-④).
+      - ⚠️ **남은 두 구멍 — 둘 다 의도적이고, 회신·단계 3 에 걸려 있다.**
+        ⓐ `POST /complete` 의 **후속 색인(reindex)이 없다** — 자바에 검색 계층 자체가
+        없어서(단계 3) 넣을 자리가 없다. **단계 3 이 붙을 때 다시 달아야 한다**;
+        그때 지킬 규칙(백그라운드 · 실패해도 완료는 200)은
+        `InstitutionCommandService.complete` 주석에 적어 뒀다.
+        ⓑ `GET /llm/status` 의 `installed` 는 **항상 빈 목록**이다(어댑터 보류 —
+        문의 1-2). 그래서 `probe=1` 이어도 `reachable` 은 항상 false 인데, 지금은
+        그게 사실이다. 응답 모양은 확정이라 어댑터가 붙어도 안 바뀐다.
+      - ⚠️ **`BatchSchema` 는 `contract/batch_schema.py` 의 사본이다.** 파이썬은 한
+        모듈을 망 안팎이 공유해 "두 개의 진실"을 막았는데 **언어가 갈려 그 방법을 쓸
+        수 없다** — **SCHEMA v2 가 나오면 두 파일을 함께 고쳐야 한다.**
+        같은 이유로 `InstitutionCsv.HEADER_MAP` 도 수집기와의 계약이다.
+      - ⚠️ **배운 것 — 테스트 프로퍼티는 그 클래스에만 붙이면 안 된다.** inbox 뿌리를
+        `@TestPropertySource` 로 붙였더니 **스프링 컨텍스트가 둘이 되어** 001 DDL 이
+        같은 H2 에 두 번 돌고 12건이 전부 죽었다. `AppTest` 주석이 정확히 이 함정을
+        경고하고 있었다. `src/test/resources/application.properties` 로 옮겼다 —
+        **단독 실행만으로는 안 잡히는 부류**다(단독은 통과했다).
     - ⚠️ **배운 것**: 실패(404) 응답에도 `Content-Disposition` 이 붙는다. 우리가 단 게
       아니라 **Spring MVC 의 RFD 공격 방어**다(경로 끝이 `.pptx` 라 확장자로 보인다).
       "헤더가 없어야 한다"는 기대가 틀렸던 것이라 코드가 아니라 테스트를 고쳤다.
@@ -763,45 +792,6 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
     - **JDBC**: 호환 매트릭스상 ojdbc8(21.x) ↔ **11.2.0.4 는 인증됨**이라 `pom.xml` 의
       `ojdbc8 21.7.0.0` 을 그대로 둬도 된다. 다만 로컬 XE 는 11.2.0.2 라 인증 범위 밖이니
       로컬 검증만 ojdbc8 19.x 로 낮추는 편이 안전하다.
-
-- ℹ️ **[2026-08-30 추가] 아래 두 블록은 `weblogic-java-migration` 브랜치(`c917e47`) 소스를
-  대상으로 조사한 결과다.** main 의 이 항목 9 본문은 브랜치보다 뒤쳐져 있다 — 브랜치 쪽
-  `handoff/NEXT.md` 의 항목 9 가 단계 1·2·5 진척까지 담은 최신본이고, 병합 시 그쪽이 이긴다.
-  여기에 같이 적어 두는 이유는 **11g 발견이 브랜치 병합 전에도 알아야 할 사실**이기 때문이다.
-- ⚠️ **[2026-08-30 추가] 내부 Oracle 이 11g 로 확인됐다 — 현재 Oracle DDL·SQL 은 12c 전제라
-  그대로는 안 돈다.** 출처: 2026-08-30 세션(요약 파일 미작성, 사용자 구두 확인 —
-  "실제로 내부에서는 11g를 쓰고 있어"). 설계 §7 문의 4번(Oracle 버전)의 답이 사실상
-  나온 셈이지만 **패치레벨(11.2.0.4 인지)은 아직 미확인**이다. 고칠 자리는 `c917e47`
-  기준 아래 2종이고, 둘 다 11g 폴백이 **주석으로만** 존재한다:
-  - `GENERATED BY DEFAULT AS IDENTITY` (12c+) — `kgi-ggreport-web/src/main/resources/db/oracle/`
-    `002_seq_no.sql:37,47` · `005_seq_no_log_tables.sql:33,39` · `007_uploader.sql:45,67`.
-    11g 는 **시퀀스 + BEFORE INSERT 트리거**로 바꿔야 한다(폴백 절이 `002_seq_no.sql:54~`,
-    `007_uploader.sql:76~` 에 주석으로 적혀 있으니 그걸 활성화하는 형태).
-  - `FETCH FIRST #{limit} ROWS ONLY` (12c+) — `src/main/resources/mapper/NotificationMapper.xml:91`.
-    11g 는 `ROWNUM` 서브쿼리로 바꿔야 하고, **`src/test/java/.../mapper/DynamicSqlTest.java:71`
-    이 "Oracle 분기에 FETCH FIRST 가 있어야 한다"고 단언**하므로 테스트도 같이 고쳐야 한다.
-    (이 파일은 MySQL/Oracle 분기를 이미 나눠 두었으니 분기 자체는 재사용 가능하다.)
-  - `uploader/` 쪽 매퍼 2개(`InstitutionMapper.xml`·`UploadedFileMapper.xml`)에는 12c 전용
-    문법이 **없다** — 이 건의 영향 범위는 `kgi-ggreport-web/` 뿐이다.
-  - ⚠️ 이 발견은 **기록만 해 둔 것이고 코드는 손대지 않았다**(그 시점에 다른 세션이
-    `weblogic-java-migration` 브랜치에서 병합 작업 중이었다). 착수 전에 그 브랜치의
-    최신 상태를 먼저 확인할 것.
-- ℹ️ **[2026-08-30 추가] 로컬 검증 환경 조사 결과**(같은 세션. 전부 조사만, 설치 안 함):
-  - **WAR 빌드는 지금도 된다** — `uploader/` 를 `c917e47` 소스로 빌드해 `BUILD SUCCESS`,
-    테스트 `38/38` 통과, `target/uploader-1.0.0.war` 54.5MB 생성. WebLogic 요건 3종
-    확인: `WEB-INF/weblogic.xml` 포함 · `ServletInitializer.class` 포함 ·
-    `tomcat-embed` 3종이 `WEB-INF/lib-provided/` 로 격리 · 바이트코드 major 52(Java 8).
-    (Maven 미설치 환경이라 포터블 Maven 3.9.9 를 임시 폴더에 풀어서 빌드했다.)
-  - **WebLogic 은 14.1.1.0.0 이 유일한 선택** — 공식 문서상 JDK **8·11** 인증.
-    14.1.2·15.1.1 은 JDK 17/21 전용이라 JDK 1.8 제약과 맞지 않고, 12.2.1.4 는 Java EE 7 로
-    구식이다. 개발용은 Oracle 계정 + OTN 개발자 라이선스로 무료. 단 14.1.1 의
-    Premier Support 는 **2026-12-31 종료** 예정이라 기관 확인 때 같이 물어두면 좋다.
-  - **DB 무료 개발본**: 내부와 같은 EE 11.2.0.4 는 MOS 지원계약이 있어야 받을 수 있어
-    무료 경로가 없다. 대안은 `Oracle Database XE 11g Release 2`(11.2.0.2, prior-release
-    archive) — Oracle Text 포함, 한도 1 CPU / 1GB RAM / 사용자 데이터 11GB.
-  - **JDBC**: 호환 매트릭스상 ojdbc8(21.x) ↔ **11.2.0.4 는 인증됨**이라 `pom.xml` 의
-    `ojdbc8 21.7.0.0` 을 그대로 둬도 된다. 다만 로컬 XE 는 11.2.0.2 라 인증 범위 밖이니
-    로컬 검증만 ojdbc8 19.x 로 낮추는 편이 안전하다.
 
 ### 10. 사업제안 보고서 2.0 — 스냅샷 문서라 상태가 바뀌면 갱신이 필요하다 (비차단)
 
@@ -1236,6 +1226,10 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
 
 ### 18-B. uploader 내부망 반입 — **준비 완료, 실제 반입·기동은 미수행** (2026-08-31)
 
+> 🔄 **2026-10-21 상태 갱신(브랜치 통합 머지 때)**: 아래 준비물로 **2026-09-07에 내부망 기동이
+> 성공했다** — 이후 진행은 **항목 25**가 이어받는다(질문 1은 해소, 질문 2는 25-②).
+> **질문 3(`GET /api/files/search` Oracle 실기 빈 배열 여부)만 미확인**이라 이 항목을 남긴다.
+
 - **출처**: `2026-08-31_summary.md` `## Session 11:21` 및 그 아래 오후 절.
 - **무엇이 준비됐나** — 사용자가 내부망(Eclipse + WebLogic 12c)에서 **소스를 고칠
   수도 있다**고 해서, WAR 배포와 Eclipse 편집 **둘 다** 가능하게 만들어 뒀다.
@@ -1261,72 +1255,33 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
   3. **`GET /api/files/search`가 빈 배열인가** — Oracle의 빈문자열↔NULL 처리.
      고쳤지만(`IS NULL`) Oracle 실기에서 처음 검증되는 자리다.
 
-### 18. ~~uploader — README §13-①(내부망 설정 누락 + Oracle DDL 부재)~~ — **완료(전 항목 해소)** (2026-08-31)
+### 18. ~~uploader — README §13-①(내부망 설정 누락 + Oracle DDL 부재)~~ — **완료** (2026-09-08)
 
-> ✅ **PR #3 머지 완료** — `43dc186`(squash), `origin/main`에 반영됨. 브랜치
-> `uploader-oracle-dialect`는 역할을 다했다(내용은 main에 있다).
->
-> **남은 것은 코드가 아니라 확인 1건뿐이다**: 내부망 첫 배포에서 TimerManager JNDI가
-> 실제로 잡히는지 — 기동 로그의 `반복 작업 실행: CommonJ TimerManager (...)`.
-> `로컬 스케줄러로 돈다` WARN이면 JNDI 설정이 틀린 것이다. 아래 세부는 근거로 남긴다.
-
-- **출처**: `2026-08-26_summary.md` `## Session 13:00` → **`2026-08-31_summary.md`
-  `## Session 11:21`에서 절반 해소.**
-
-- ✅ **해소 ①-B: uploader Oracle DDL** (2026-08-31, 커밋 `e10f989`).
-  `uploader/src/main/resources/schema-oracle.sql` 신규 — MySQL 판의 미러.
-  `AUTO_INCREMENT`→시퀀스(`UPLOADED_FILE_SEQ`·`INSTITUTION_SEQ`),
-  `DATETIME`→`TIMESTAMP`, `VARCHAR(n)`→`VARCHAR2(n CHAR)`.
-  ⚠️ 본체의 `db/oracle/007_uploader.sql`과 **시각 타입이 일부러 다르다**
-  (007은 `VARCHAR2(40 CHAR)` ISO 문자열 — 본체 스키마 편입용 초안, 이쪽은 단독 정본).
-  **단계 6에서 어느 쪽으로 합칠지 정한다** — 그때까지 두 파일 공존이 정상이다.
-
-- ✅ **해소 ①-C: Mapper 방언 분기** (같은 커밋). 종전에 Oracle 문장 6곳이 **주석**
-  이라 내부망 4개 환경(이미 OracleDriver를 봄)에서 그대로 깨지는 상태였다.
-  MyBatis `databaseId`로 두 문장을 모두 살렸고, `config/MyBatisConfig`가 접속 DB
-  제품명으로 방언을 정한다(모르는 벤더는 기동 때 예외로 죽는다).
-  `MapperDialectTest` 신규 — 테스트 H2가 `MODE=MySQL`이라 런타임은 mysql 분기만
-  돌기 때문에, DB 없이 두 방언을 각각 파싱해 oracle 분기가 낡는 것을 막는다.
-  버그 1건 동반 수정: Oracle `search`의 `#{x} = ''`는 항상 거짓(Oracle이 ''→NULL)
-  이라 검색이 통째로 빈 결과를 냈을 것 → `IS NULL`.
-  ✅ `mvn test` **43건 전부 통과**(종전 38 + 방언 5).
-
-- ✅ **해소 ①: `dev`/`stg`/`prod`의 `mybatis.*` 누락** (2026-08-31).
-  **사용자가 "누락이야"로 확인**해 세 파일에 같은 3줄을 채웠다. 5개 환경이 모두 같은
-  키를 갖는다. 재발 방지로 **`ConfigEnvsTest`** 신규 — 설정 파일 교체 방식이라
-  키 하나를 늘릴 때 5개 파일을 각각 고쳐야 하고 빠뜨리면 그 환경에서만, 그것도
-  대개 내부망에서 늦게 터지기 때문이다.
-
-- ✅ **해소 ⚠: `@Scheduled` → CommonJ TimerManager** (2026-08-31).
-  `@EnableScheduling`·`@Scheduled`를 걷어내고 컨테이너가 주는 스레드를 쓴다.
-  ⚠️ **반복 실행이라 `commonj.work.WorkManager`(본체가 쓰는 1회성용)가 아니라
-  `commonj.timers.TimerManager`다** — 이 구분이 이번 작업의 핵심이었다.
-  - 새 클래스 4개: `job/BackgroundScheduler`(인터페이스) ·
-    `job/TimerManagerScheduler`(리플렉션+동적프록시, WebLogic) ·
-    `job/LocalScheduler`(폴백, 외부망·테스트 전용) ·
-    `job/ReclassificationTrigger`(cron으로 다음 시각 계산 → 매번 재예약).
-  - **주기의 근거는 `reclassification.cron` 한 곳**이다. TimerManager는 cron을 모르고
-    고정 주기(ms)만 받아서, ms를 따로 두면 두 벌이 되어 갈린다.
-  - `WEB-INF/web.xml` **신규**(uploader엔 없었다) — `resource-ref`로
-    `timer/uploaderTM` + `jdbc/uploaderDS` 선언. **WebLogic 콘솔에서 같은 이름의
-    Timer Manager를 만들어야 한다.** 못 찾으면 앱은 뜨고 WARN을 남기며 폴백한다.
-  - `ApplicationContextTest` 신규 — 나머지 테스트가 전부 슬라이스라 **전체 기동 경로를
-    아무도 안 밟았다.** `@EnableScheduling` 제거가 기동을 깨지 않았음을 못 박는다.
-  - ✅ `mvn test` **62건 전부 통과** + `mvn package` WAR 정상.
-
-- ⚠️ **남은 위험 1건 (코드 작업 아님)**: `TimerManagerScheduler`는 **WebLogic에서만
-  실검증된다.** 로컬·테스트는 JNDI 조회가 실패해 그 코드가 아예 안 돈다.
-  `src/test/java/commonj/timers/`의 스텁으로 리플렉션 규약만 밟았을 뿐이고,
-  **스텁이 진짜 JSR 규격과 같다는 전제** 위에 있다(설계 §8의 H2↔Oracle과 같은 취급).
-  내부망 첫 배포에서 기동 로그의 `반복 작업 실행: CommonJ TimerManager (...)` 줄을
-  **반드시 확인할 것** — `로컬 스케줄러로 돈다` WARN이 보이면 JNDI 설정이 틀린 것이다.
-
-- **어디에 있나**: 브랜치 **`uploader-oracle-dialect`**(main에서 분기, `e10f989`,
-  `origin`에 push 완료). 워크트리 `C:/github/GGReportAgent/.worktrees/main`.
-  ⏳ **PR은 사용자가 웹에서 직접 올리기로 했다**(gh 인증이 안 끝나서) —
-  https://github.com/ukiKwon/GGReportAgent/pull/new/uploader-oracle-dialect
-  **다음 세션은 이 PR이 머지됐는지 먼저 확인할 것.**
+- ✅ **2026-09-08 해소.** `git checkout main -- uploader/` 로 `main`의 uploader 를
+  브랜치 `weblogic-java-migration` 에 가져오면서 두 항목이 함께 사라졌다
+  (26파일 · 2200줄 추가 / 60줄 삭제, `mvn -o clean test` **62건 통과**).
+  - **Oracle DDL** — `schema-oracle.sql` 이 들어왔다(테이블 2 + 시퀀스 2).
+    Mapper 도 주석이 아니라 `databaseId` **방언 분기**로 바뀌었다(`43dc186`).
+  - **`mybatis.*` 누락** — `config-envs` 의 `dev`/`stg`/`prod` 에 3줄이 모두 들어왔다.
+  - ⚠️ 함께 있던 경고(`ReclassificationJob` 이 `@Scheduled` 로 자기 스레드를 만든다)도
+    해소됐다 — `TimerManagerScheduler`/`LocalScheduler`/`ReclassificationTrigger` 로
+    교체돼 CommonJ 경로가 들어와 있다. **다만 운영에서 켜는 것은 항목 25-② 로 남아 있다.**
+  - 출처: `2026-09-08_summary.md` `## Session 08:55`. 앞선 진단은
+    `2026-09-07_summary.md` `## Session 18:32`.
+- **원 출처**: `2026-08-26_summary.md` `## Session 13:00`. 브랜치 `weblogic-java-migration`.
+- **무엇이 남았나** — `uploader/README.md` §13의 마지막 열린 항목이다(②③은 해소됨):
+  - `config-envs/`의 **`dev`/`stg`/`prod`에 `mybatis.*` 설정이 없다**
+    (`mapper-locations`·`type-aliases-package`·`map-underscore-to-camel-case`).
+    `local`·`out-local`에만 있다. 내부망 배포 시 Mapper 미탐색 가능성.
+    **의도된 것인지 사용자에게 확인이 필요하다** — 내부망에서 별도 방식으로 주입한다면
+    그대로 두면 된다.
+  - **uploader에 Oracle DDL이 없다** — `schema-mysql.sql` 한 벌뿐이다.
+    `kgi-ggreport-web`은 2벌을 갖췄으므로 같은 방식으로 만들면 된다
+    (`kgi-ggreport-web/src/main/resources/db/README.md`의 타입 대응표를 그대로 쓸 것).
 - **비차단**: uploader를 내부망에 올릴 때 필요하다 — **항목 17(단계 6)이 먼저다.**
+- ⚠️ **함께 볼 것**: `ReclassificationJob`이 Spring `@Scheduled`로 **자기 스레드를
+  만든다.** WAS 배포 표준에 어긋나므로(설계 §2·§4) 내부망에 올리기 전에 CommonJ
+  WorkManager 경로로 옮기거나 꺼야 한다. `uploader/README.md` §10에 경고로 적어 뒀다.
 
 ### 20. `2e294b3`에 평문 비밀번호가 남아 있다 — **조치 완료, 이력만 남음** (2026-08-26)
 
@@ -1628,3 +1583,45 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
   의존을 늘리는 것이 아니다. 파일을 읽어 대조만 한다.
 - **검증**: `AFFILIATIONS` 를 `'IT팀'` 으로 바꿔 실제로 실패하는 것을 확인했다.
   pytest 761 → **769**, node **262 pass**.
+
+### 25. uploader 내부망 WebLogic 기동 검증 — **기동은 성공, 후속 9건** (2026-09-07)
+
+- **출처**: `2026-09-07_summary.md` `## Session 18:32`. 브랜치 `weblogic-java-migration`
+  (리포 변경은 없다 — 요약·NEXT 갱신뿐).
+- **무엇이 끝났나**: 외부망 `uploader/`를 **내부망 Eclipse Photon 4.8.0 +
+  WebLogic 12.2.1.4**에서 기동시키는 데 성공했다. 화면이 `ORA-00942`(테이블 없음)로
+  끝나는 지점까지 갔고, 그것은 **Servlet API · JNDI DataSource · MyBatis Oracle 방언
+  판정 · Spring MVC가 전부 살아 있다**는 증명이다. 남은 것은 DBA의 테이블 생성뿐.
+- **반입물**: `dist/uploader-wtp-20260907.zip`(43.7MB, `main` 기준, 테스트 62건 통과).
+  ⚠️ `dist/`는 gitignore 대상이 아니라 `git status`에 뜬다 — **커밋하지 말 것**(아래 ⑨).
+- **DBA 요청서**: https://claude.ai/code/artifact/e9ee3490-52c5-4de1-a3bf-06818e4c4de9
+  (빈칸 3곳만 채우면 발송 가능 — 대상 계정 · 인스턴스 · 담당자 연락처)
+
+**후속 9건**
+
+| # | 무엇 | 메모 |
+|---|---|---|
+| ① | ~~`main` → `weblogic-java-migration` 머지~~ → **uploader만 가져옴(2026-09-08 완료).** ✅ **브랜치 통합도 2026-10-21 완료** — `weblogic-java-migration` → `main` 머지(충돌 53건: 49건 브랜치 쪽, `md2pdf.py`만 main 쪽, `NEXT.md`·`2026-08-31_summary.md` 수동) | ✅ `git checkout main -- uploader/`(26파일, 테스트 62건 통과) → **항목 18 종결.** ⛔ **전체 머지는 하지 않기로 했다** — 시도해 보니 충돌 **23건**이고 전부 `add/add`(두 브랜치가 같은 파일을 독립적으로 추가, 공통 조상 없음). 특히 **`kgi-ggreport-web/` 16건은 방향이 정반대**다: `main`은 `bb4547c`(PR #2) 한 번만 건드린 초기 스냅샷(216파일)이고 **이 브랜치가 merge-base 이후 30커밋으로 앞선다**(242파일, `InstitutionController` 230 vs 126줄). `main` 쪽을 받으면 **단계 5-B가 통째로 되돌아간다.** 나중에 통합할 때의 규칙: `kgi-ggreport-web/`→**ours(이 브랜치)**, `uploader/`→theirs, `handoff/NEXT.md`·`2026-08-31_summary.md`→**수동**(append-only 규약), `docs/tools/md2pdf.py`·`docs/이관문의서_WebLogic_확인사항.md`→개별 확인(`main`에 개선 `b88be6d` 있음) |
+| ② | **자동 재분류 복원** | 지금 `reclassification.cron=` 로 꺼 뒀고 `web.xml`의 `timer/uploaderTM` `resource-ref`도 임시 주석 상태. 되살리려면 주석 해제 + 콘솔 **Environment → Work Managers → New**로 이름 **`uploaderTM`** 생성. 실패 시 `DEPLOY.md` §3의 A→B→C |
+| ③ | ~~스키마 2벌에 새 컬럼 순서 + `NUMBER(18)` 반영~~ — ✅ **완료(2026-09-08), 범위가 훨씬 커졌다** | 사내 DB 표준을 받아 **테이블·컬럼·타입을 전면 재정의**했다(TSKGIAF01/02 · 한글 컬럼 · 인포타입). 표준과 자바가 부딪히는 두 곳(문자열 시각 · 5자리 코드값)은 **TypeHandler 3개**로 흡수해 도메인·화면·테스트를 지켰다. 미러 규칙대로 `schema-mysql.sql` 도 같은 커밋에서 고쳤다. 커밋 `5745ea4`·`05a48f2`·`a52e878` |
+| ④ | **`config-envs/prod`의 `upload.base-dir`** | 지금 `/app/uploader`(Linux)라 re-export하면 Windows 값이 되돌아간다. 내부망 실제값(`C:/uploader-local`)과의 관계를 정리할 것 |
+| ⑤ | **WAR에서 `mysql-connector-j` 제거** | 외부망 로컬 테스트용인데 운영 WAR에 실린다. `pom.xml`에서 스코프 조정 |
+| ⑥ | ~~폐쇄망 XML 검증 함정 문서화~~ — ✅ **완료(2026-09-08)** | 스키마 URL을 못 받아와 `Publish was cancelled`가 난다. 조치는 프로젝트 **Properties → Validation → `XML Validator`·`XML Schema Validator` 해제** |
+| ⑦ | ~~`config-envs/local` vs `config/`(prod) 혼동 경고~~ — ✅ **완료(2026-09-08)** | 이번에 `local`을 도메인 config로 복사해 30분 이상 헤맸다. `local`의 `spring.autoconfigure.exclude=...JndiDataSourceAutoConfiguration` 이 **JNDI를 꺼 버린다** |
+| ⑧ | ~~진단 순서 문서화~~ — ✅ **완료(2026-09-08)** | *"`java:comp/env` 조회 실패 시 앱 서술자보다 **JNDI 트리와 DataSource Targets를 먼저** 보라"* — 이번 세션에서 가장 오래 돈 지점이다. `web.xml`·`weblogic.xml`·`application.properties`를 다 의심했지만 셋 다 정상이었고, 원인은 DataSource가 서버에 배포되지 않아 트리에 `jdbc` 폴더 자체가 없던 것 |
+| ⑨ | ~~현 브랜치 `.gitignore`에 `dist/` 추가~~ — ✅ **완료(2026-09-08)** | `main`에는 있고 이 브랜치에는 없다. 43MB zip이 실수로 커밋될 수 있다 |
+| ⑩ | **분류완료 목록 화면(KGI12400)에 페이징이 없다** | `findByStatus('CLASSIFIED')` 가 **전량을 메모리로** 가져온다. 분류된 파일은 계속 쌓이므로(삭제도 소프트 삭제라 안 줄어든다) **이 화면이 가장 먼저 무너진다.** 2026-09-08 인덱스 재설계 중 발견. 고치려면 화면·컨트롤러·매퍼가 함께 바뀌어 그날 최우선(내부망 기동)을 밀어내므로 미뤘다. 참고: `findByInstitutionNameContaining` 에 이미 ROWNUM 2단 중첩 페이징 구현이 있으니 그것을 본뜨면 된다 |
+| ⑪ | **기관 입력을 드롭다운으로** | 지금 기관명이 자유 입력 텍스트(`upload.html:30`)라 ⓐ 오타 한 글자에 파일이 조용히 미분류로 남고 ⓑ 조회가 `LIKE '%…%'` 라 인덱스 `IX_TSKGIAF01_기관명일시` 를 **못 쓴다**. `TSKGIAF02` 를 드롭다운 소스로 쓰면 셋 다 해결된다. **기관이 주 조회 축이라 체감 개선이 가장 큰 항목** (사용자 확인 2026-09-08: "A 기관 자료 들어왔나?" 가 주 용도) |
+| ⑫ | **`기관구분` CHECK 제약** | 코드값 5종이 확정됐지만 CHECK 는 안 걸었다. 지금은 `InstitutionCategoryTypeHandler` 가 자바 쪽에서 막고 있어 잘못된 값이 들어갈 길이 없다 — DB 차원의 이중 방어를 원하면 `CHECK (기관구분 IN ('01','02','03','04','05'))` 를 추가하면 된다 |
+
+**2026-09-08 추가 — 스키마가 사내 표준으로 확정됐다.** 테이블 `TSKGIAF01`·`TSKGIAF02`,
+컬럼은 한글, 타입은 인포타입(`일시20`=CHARACTER `YYYYMMDDHH24MISS` · `구분코드2` ·
+`일련번호16`=DECIMAL · `명250/260` · `내용800` · `년4`). 표준과 자바가 부딪히는 두 곳
+(문자열 시각 · 5자리 코드값)은 **TypeHandler 3개로 흡수**해 도메인·화면·테스트를 지켰다.
+DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 생성기는
+`uploader/tools/gen_column_excel.py` — **스키마가 바뀌면 그 스크립트의 ROWS 도 같은
+커밋에서 고칠 것**(자동 파싱하지 않는다).
+
+| ⑬ | 🔴 **스키마 접두어가 문서에만 있고 리포 소스에는 없다** | 사내 표준이 `FROM INST1.TSKGIAF01` 을 요구해 **내부망 가이드(문서 ①②·DBA 요청서)에만** 접두어를 붙였다(사용자 확정 2026-09-08). 리포의 매퍼·`schema-oracle.sql` 에는 없다 — 붙이면 외부망 테스트(H2)가 깨지기 때문이다. ⚠️ **그래서 내부망 파일과 리포 파일이 갈려 있다.** `import_wtp.py` 로 되돌리면 접두어가 리포로 들어와 **62건이 전부 깨진다.** 정리 방법 셋: ⓐ 미러(`schema-mysql.sql`)에도 `CREATE SCHEMA INST1` 을 넣어 리포까지 접두어를 붙인다 ⓑ DataSource **Init SQL** 에 `ALTER SESSION SET CURRENT_SCHEMA=INST1` 을 넣어 SQL 에서 접두어를 뺀다(표준과 어긋남) ⓒ MyBatis `${schema}` 치환으로 환경별로 준다. 🟢 **dev·stg·prod 스키마명이 전부 `INST1` 로 같음이 확인돼**(사용자 2026-09-08) 환경별 분기는 필요 없다 — ⓐ 가 가장 단순하다 |
+
+**막고 있는 것**: DBA의 테이블 생성(사용자가 요청 예정). 그 전까지 화면은 `ORA-00942`가 정상이다.

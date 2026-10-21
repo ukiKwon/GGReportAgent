@@ -185,6 +185,15 @@
        AND RESEARCH_STATUS = '대기'
   </select>
 
+  <select id="selectLatestIdByInstitution" resultType="string">
+    SELECT BID_CASE_ID FROM (
+      SELECT BID_CASE_ID
+        FROM BID_CASES
+       WHERE INSTITUTION_ID = #{institutionId}
+       ORDER BY SEQ_NO DESC
+    ) WHERE ROWNUM = 1
+  </select>
+
   <update id="updateResearchStatus">
     UPDATE BID_CASES
        SET RESEARCH_STATUS = #{researchStatus}

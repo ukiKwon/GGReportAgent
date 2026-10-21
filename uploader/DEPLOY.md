@@ -162,7 +162,37 @@ config-envs/prod/application.properties  →  config/application.properties
 ```
 
 `config/`는 **WebLogic 서버의 실행 디렉터리 기준**입니다(Spring Boot가 `./config/`를
-기본 설정 위치로 읽습니다). 도메인 디렉터리 등 실제 기동 위치에 맞춰 두십시오.
+기본 설정 위치로 읽습니다). 실행 디렉터리는 보통 **도메인 홈**이므로 실제 자리는
+여기입니다 — **`config.xml`이 같이 보이면 맞는 폴더**입니다(2026-09-07 실기동 확인):
+
+```
+<DOMAIN_HOME>\config\
+├── config.xml               ← WebLogic 자신의 설정 (원래 있던 것)
+└── application.properties   ← 여기에 둡니다
+```
+
+> 🔴 **`config-envs/local`을 복사하지 마십시오. 이것 하나로 반나절이 갔습니다(2026-09-07).**
+>
+> `local`·`dev`·`stg`에는 이 줄이 들어 있습니다:
+> ```properties
+> spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.JndiDataSourceAutoConfiguration
+> ```
+> **"JNDI 자동설정을 쓰지 마라"** 는 뜻입니다(그 환경들은 앱이 DB에 직접 붙습니다).
+> 이게 있으면 `spring.datasource.jndi-name`을 아무리 정확히 적어도 **무시됩니다.**
+>
+> **증상이 원인을 전혀 안 가리킵니다** — JNDI가 꺼진 채 `spring.datasource.url`까지
+> 없으면 Spring Boot가 내장 DB로 폴백해, WebLogic이 번들한 Derby를 잡고
+> `Driver oracle.jdbc.OracleDriver claims to not accept jdbcUrl, jdbc:derby:memory…`
+> 라는 엉뚱한 오류를 냅니다.
+>
+> **WebLogic에 올릴 때 쓰는 것은 `config-envs/prod` 하나뿐입니다.** 거기에는
+> `exclude`도 `driver-class-name`도 `username`/`password`도 **없어야** 정상입니다 —
+> 접속 정보는 콘솔의 DataSource 한 곳에만 있습니다.
+
+> ⚠️ **Windows라면 경로에 역슬래시를 쓰지 마십시오.** `.properties`에서 `\`는
+> 이스케이프 문자입니다. `upload.base-dir=C:\uploader-local`로 적으면 `\u`가
+> **유니코드 이스케이프**로 읽혀 `Malformed \uxxxx encoding`으로 기동이 실패합니다.
+> `C:/uploader-local` 처럼 슬래시를 쓰거나 `C:\\uploader-local`로 두 번 쓰십시오.
 
 > ⚠️ **`--spring.profiles.active=prod`는 이 프로젝트에서 동작하지 않습니다.**
 > `application-prod.properties` 같은 프로파일 파일이 없습니다. 5개 환경은 전부 파일명이
@@ -227,7 +257,8 @@ WAR 안에 **`ojdbc8-21.7.0.0.jar`가 들어 있습니다.** WebLogic도 자체 
 
 | 증상 | 원인 | 조치 |
 |---|---|---|
-| 기동 실패, JNDI 관련 예외 | DataSource 미등록/이름 불일치 | 2번. 세 곳(`config`·`web.xml`·콘솔)의 이름을 대조 |
+| 기동 실패, JNDI 관련 예외 | DataSource 미등록/미배포/이름 불일치 | **아래 7-A의 순서대로** |
+| `Driver oracle.jdbc.OracleDriver claims to not accept jdbcUrl, jdbc:derby:memory…` | **JNDI가 꺼진 설정 파일**을 쓰고 있음(`config-envs/local` 복사) | 4번의 🔴 경고 |
 | 기동 실패, `지원하지 않는 DB 다` | DataSource가 Oracle이 아님 | 2번 |
 | 기동 실패, `reclassification.cron 을 해석하지 못했다` | cron 표기 오류 | 4번. 6필드 Spring cron입니다 |
 | 화면은 뜨는데 목록·등록이 SQL 오류 | 스키마 미적용 / **시퀀스 누락** | 1번 |
@@ -235,6 +266,66 @@ WAR 안에 **`ojdbc8-21.7.0.0.jar`가 들어 있습니다.** WebLogic도 자체 
 | 로그에 `로컬 스케줄러로 돈다` WARN | TimerManager 미등록/이름 불일치 | 3번의 A → B → C |
 | `NameNotFoundException: timer/uploaderTM` | 참조가 Work Manager로 해석되지 않음 | 3번 B(설정으로 전역 이름 지정, 재빌드 불필요) |
 | `Invalid bound statement` | 방언 분기가 안 잡힘 | `mybatis.*` 3줄이 `config/application.properties`에 있는지 |
+
+### 7-A. JNDI 조회가 실패할 때 — **이 순서를 지키십시오**
+
+```
+Failed to look up JNDI DataSource with name 'java:comp/env/jdbc/uploaderDS'
+  … didn't find subcontext 'jdbc'. Resolved ''; remaining name 'jdbc/uploaderDS'
+```
+
+> 🔴 **이 메시지를 보면 앱 서술자부터 뒤지지 마십시오.** 2026-09-07에 `web.xml` →
+> `weblogic.xml`(`<resource-description>` 추가) → `application.properties` 순으로
+> 의심하며 반나절을 썼는데 **셋 다 처음부터 정상이었습니다.** 진짜 원인은
+> **DataSource가 서버에 배포되지 않아 JNDI 트리에 `jdbc` 폴더 자체가 없던 것**이었습니다.
+
+**1) 먼저 JNDI 트리를 보십시오** — 여기서 답의 대부분이 갈립니다.
+콘솔 → **Environment → Servers → AdminServer → Configuration → General** →
+화면 맨 아래 **`JNDI 트리 보기(View JNDI Tree)`**
+
+| 트리에 | 뜻 | 다음 |
+|---|---|---|
+| **`jdbc` 폴더가 없다** | DataSource가 이 서버에 **배포되지 않았다.** 앱은 무죄다 | 아래 2)로 |
+| `jdbc/uploaderDS`가 있다 | 전역 바인딩은 정상. 남은 건 `web.xml`→전역 이름 연결 | 3)으로 |
+
+**2) DataSource 쪽을 봅니다** (트리에 `jdbc`가 없을 때)
+
+- **Monitoring → Testing 탭에 AdminServer 행이 있는지.** 행이 없으면 미배포 확정입니다.
+- **Targets 탭에 서버가 체크돼 있는지**, 그리고 **`Activate Changes`를 눌렀는지.**
+  ⚠️ 활성화하지 않은 편집 세션의 화면은 **체크된 것처럼 보입니다.**
+- `<DOMAIN_HOME>\config\config.xml`의 `<jdbc-system-resource>`에 `<target>`이 있는지.
+- 그래도 안 되면 **DataSource를 지우고 다시 만드는 편이 빠릅니다**(2026-09-07에 그렇게
+  해결했습니다). 마법사 마지막 **Select Targets 화면의 체크를 빠뜨리기 쉽습니다.**
+
+**3) 전역에는 있는데 `java:comp/env`에서만 안 잡힐 때**
+`web.xml`의 `<res-ref-name>`과 콘솔의 JNDI 이름이 같은지 보고, 그래도 안 되면
+`weblogic.xml`에 매핑을 넣습니다(⚠️ **`<container-descriptor>`보다 앞**에 와야 합니다):
+
+```xml
+<resource-description>
+  <res-ref-name>jdbc/uploaderDS</res-ref-name>
+  <jndi-name>jdbc/uploaderDS</jndi-name>
+</resource-description>
+```
+
+### 7-B. Eclipse(WTP)에서 발행이 취소될 때 — **폐쇄망 함정**
+
+```
+Publish was cancelled. Errors found in module 'uploader'.
+Referenced file contains errors (… /dtdsAndSchemas/javaee_5.xsd)
+```
+
+`web.xml`·`weblogic.xml`이 스키마 위치로 **인터넷 주소**를 가리키는데
+(`xmlns.jcp.org`, `xmlns.oracle.com`) 폐쇄망이라 받아오지 못해, Eclipse가 오류로 표시하고
+WTP가 **오류 있는 모듈의 발행을 막습니다.** WebLogic 자신은 자기 파서로 읽으므로
+**실제 배포와는 무관한 Eclipse만의 문제**입니다.
+
+**조치**: 프로젝트 우클릭 → **Properties → Validation** → ☑ `Enable project specific settings`
+→ **`XML Validator`·`XML Schema Validator`의 Manual·Build 체크 해제** → Apply and Close
+→ **Project → Clean**. 표시가 남으면 **Problems 뷰에서 해당 오류 우클릭 → Delete**.
+
+⚠️ 이걸 꺼도 **태그가 어긋난 well-formed 오류는 그대로 잡힙니다** — 서술자를 손으로
+고칠 때의 안전망은 사라지지 않습니다.
 
 ---
 

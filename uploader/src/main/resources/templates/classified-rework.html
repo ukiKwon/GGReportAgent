@@ -47,14 +47,13 @@
       <tr>
         <th style="width:28%">파일명</th>
         <th style="width:16%">기관명</th>
-        <th style="width:7%">연도</th>
-        <th style="width:10%">카테고리</th>
-        <th style="width:39%">재분류</th>
+        <th style="width:9%">연도/공고일</th>
+        <th style="width:10%">기관분류</th>
+        <th style="width:37%">기관 지정 후 재파싱</th>
       </tr>
       </thead>
       <tbody>
-      <tr th:each="file : ${classifiedFiles}"
-          th:style="${(file.institutionName == '알수없음' or file.year == null or file.year == '미확인') ? 'background:rgba(220,38,38,.03)' : ''}">
+      <tr th:each="file : ${classifiedFiles}" style="background:rgba(220,38,38,.03)">
         <!-- 파일명 -->
         <td>
             <span th:with="ext=${#strings.toLowerCase(file.originalName.substring(file.originalName.lastIndexOf('.') + 1))}"
@@ -64,21 +63,17 @@
         </td>
         <!-- 기관명 -->
         <td>
-            <span th:if="${file.institutionName == '알수없음'}"
-                  style="color:var(--red);font-weight:600" th:text="${file.institutionName}"></span>
-          <span th:if="${file.institutionName != '알수없음'}"
-                style="color:var(--text-2)" th:text="${file.institutionName}"></span>
+          <span style="color:var(--red);font-weight:600"
+                th:text="${file.institutionName != null ? file.institutionName : '기관미상'}"></span>
         </td>
         <!-- 연도 -->
         <td>
-            <span th:if="${file.year == null or file.year == '미확인'}"
-                  style="color:var(--amber);font-weight:600">미확인</span>
-          <span th:if="${file.year != null and file.year != '미확인'}"
-                style="color:var(--text-2)" th:text="${file.year}"></span>
+          <span th:if="${file.docDate == null}" style="color:var(--amber);font-weight:600">미확인</span>
+          <span th:if="${file.docDate != null}" style="color:var(--text-2)" th:text="${file.docDate}"></span>
         </td>
         <!-- 현재 카테고리 -->
         <td>
-          <span class="category-chip" th:text="${file.category}"></span>
+          <span class="category-chip" th:text="${file.categoryLabel}"></span>
         </td>
         <!-- 재분류 폼 -->
         <td>
@@ -89,15 +84,12 @@
               <option th:each="cat : ${categories}"
                       th:value="${cat}"
                       th:text="${cat}"
-                      th:selected="${cat == file.category}"></option>
+                      th:selected="${cat == file.categoryLabel}"></option>
             </select>
             <input type="text" name="institution" class="form-control form-control-sm"
                    style="width:130px" placeholder="기관명"
-                   th:value="${file.institutionName}" required>
-            <input type="text" name="year" class="form-control form-control-sm"
-                   style="width:64px" placeholder="연도" maxlength="4"
-                   th:value="${file.year}">
-            <button type="submit" class="btn btn-primary btn-sm">재분류</button>
+                   th:value="${file.institutionName != '기관미상' ? file.institutionName : ''}" required>
+            <button type="submit" class="btn btn-primary btn-sm">등록 후 재파싱</button>
             <span class="rework-result" style="display:none;font-size:12px;font-weight:600"></span>
           </form>
         </td>
