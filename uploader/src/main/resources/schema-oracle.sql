@@ -13,7 +13,9 @@
 -- ---------------------------------------------------------------------
 -- MySQL → Oracle 로 바꾼 것 5가지
 --
---   1. `BIGINT AUTO_INCREMENT` → `NUMBER(19)` + **시퀀스**
+--   1. `BIGINT AUTO_INCREMENT` → `NUMBER(18)` + **시퀀스**
+--      (자릿수는 2026-09-08 에 19 → 18. 사내 DB 규격에 맞춘 것이고, ID 는 Java `Long`
+--       이라 이론상 19자리까지 되지만 시퀀스가 1부터 증가해 실사용에서 무의미하다.)
 --      ⚠️ IDENTITY(12c+) 가 아니라 시퀀스를 쓴다. 이유 둘:
 --         ⓐ Mapper 의 oracle 분기가 `<selectKey>` 로 `..._SEQ.NEXTVAL` 을 먼저
 --            읽어 ID 를 직접 넣는다 — 시퀀스가 실물로 있어야 한다.
@@ -38,55 +40,180 @@
 --
 -- ⚠️ 이 스키마는 `spring.sql.init` 으로 자동 실행되지 않는다. 그 설정은
 --    테스트(H2)에만 있다 — 내부망에서는 DBA 가 이 파일을 직접 적용한다.
+--
+-- =====================================================================
+-- 2026-09-08 — **컬럼은 한글 물리명, 테이블은 코드성 물리명** (사내 표준)
+--
+--   내부망 DB 표준이 **컬럼은 한글, 테이블은 코드**(TSKGIAF01·TSKGIAF02)라 그에 맞췄다.
+--   ⚠️ 같은 날 영문 서술형(`UPLOADED_FILE_ID` 등)으로 한 번 개명했다가 이 표준을
+--      받고 다시 바꾼 것이다. **그 중간 이름은 커밋 `1e13025` 에만 남아 있고
+--      어디에서도 쓰지 않는다** — 옛 문서를 보고 그 이름을 되살리지 말 것.
+--
+--     UPLOADED_FILE → TSKGIAF01         INSTITUTION → TSKGIAF02
+--     ─────────────────────────────     ─────────────────────────
+--     ID            → 업로드파일ID       ID          → 기관ID
+--     ORIGINAL_NAME → 원본파일명         NAME        → 기관명
+--     STORED_PATH   → 저장경로           CATEGORY    → 기관분류
+--     FILE_YEAR     → 문서연도           MODIFIED_AT → 수정일시
+--     INSTITUTION_NAME → 기관명
+--     CATEGORY      → 기관분류
+--     STATUS        → 분류상태
+--     UPLOADED_AT   → 업로드일시
+--     CLASSIFIED_AT → 분류일시
+--
+--   ⚠️ **제약·인덱스·시퀀스는 테이블 코드를 접두로 쓴다**(2026-09-08).
+--      테이블이 코드성이 되면서 옛 이름(`PK_UPLOADED_FILE` 등)이 어느 표의 것인지
+--      드러나지 않게 됐다. 앱은 이 이름들을 참조하지 않으므로 바꿔도 무해하다
+--      — 다만 **시퀀스 이름은 Mapper 가 직접 부르므로 바꾸면 매퍼도 같이 고쳐야
+--      한다**(아래 시퀀스 절).
+--
+--   ⚠️ **30바이트 상한**: Oracle 11g 의 식별자 상한은 30바이트인데 한글은 AL32UTF8
+--      에서 글자당 3바이트라 **한글 10자**가 한계다. 테이블까지 한글로 갔다면
+--      `IDX_업로드파일_업로드일시`(35바이트)처럼 상한을 넘는 이름이 생겼겠지만,
+--      테이블 코드를 접두로 쓰면 `IX_TSKGIAF01_업로드일시`(29바이트)로 들어간다.
+--      컬럼명은 가장 긴 `업로드파일일련번호`(27바이트)도 상한 안에 들어간다.
+--
+--   ⚠️ **따옴표를 쓰지 않는다.** Oracle·MySQL·H2 모두 한글 식별자를 무인용으로
+--      받는다(MySQL 은 U+0080~U+FFFF 를 무인용 식별자로 명시 허용). 큰따옴표로
+--      감싸면 대소문자가 고정돼 도구마다 성가셔진다.
+--
+--   ⚠️ **Mapper XML 2개가 이 이름에 묶여 있다**(`UploadedFileMapper.xml`·
+--      `InstitutionMapper.xml` 의 resultMap `column` 과 모든 SQL). 한쪽만 고치면
+--      기동은 되고 조회에서 `ORA-00904: invalid identifier` 가 난다.
 -- =====================================================================
 
--- ── 업로드된 파일 ────────────────────────────────────────────────────
-CREATE TABLE UPLOADED_FILE (
-    ID               NUMBER(19)          NOT NULL,
-    ORIGINAL_NAME    VARCHAR2(500 CHAR)  NOT NULL,
-    STORED_PATH      VARCHAR2(1000 CHAR) NOT NULL,
-    FILE_YEAR        VARCHAR2(4 CHAR),
-    -- ⚠️ FK 가 아니라 **이름 문자열**이다(원본 그대로). INSTITUTION.NAME 이 바뀌면
-    --    오류 없이 조용히 끊긴다. 알려진 설계 부채이고, 본체 편입(단계 6) 때
-    --    INSTITUTION_ID FK 로 바꿀지 정한다 — 지금은 미러 충실성을 우선한다.
-    INSTITUTION_NAME VARCHAR2(200 CHAR),
-    CATEGORY         VARCHAR2(100 CHAR),
-    STATUS           VARCHAR2(20 CHAR)   DEFAULT 'UNCLASSIFIED' NOT NULL,
-    UPLOADED_AT      TIMESTAMP           NOT NULL,
-    CLASSIFIED_AT    TIMESTAMP,
-    CONSTRAINT PK_UPLOADED_FILE PRIMARY KEY (ID)
+-- ── 업로드된 파일 (TSKGIAF01) ────────────────────────────────────────────────────
+-- ⚠️ 컬럼 순서는 **조회 편의**로 정했다(2026-09-08). Oracle 에서 물리 컬럼 순서는
+--    조회 성능과 사실상 무관하고(9개 컬럼에서는 측정되지 않는다), 앱도 컬럼을
+--    **이름으로만** 다룬다(resultMap 이름 매핑 + INSERT 에 컬럼 목록 명시).
+--    그래서 사람이 표를 읽는 순서에 맞췄다: **주 조회 축인 기관 → 분류 → 연도 →
+--    상태 → 파일명 → 시각**, 그리고 가장 길고 사람이 읽지 않는 저장경로를 맨 뒤로.
+CREATE TABLE TSKGIAF01 (
+    -- 인포타입 일련번호16 = DECIMAL(16). Oracle 에서 DECIMAL 은 NUMBER 의 동의어다.
+    업로드파일일련번호  DECIMAL(16)        NOT NULL,   -- 일련번호16 · 속성명 동일
+    -- ⚠️ FK 가 아니라 **이름 문자열**이다. TSKGIAF02.기관명 이 바뀌면 조용히 끊긴다.
+    기관명              VARCHAR2(40 CHAR),             -- 명40 · 속성명 동일
+    -- 🔴 **코드값이다.** 01 지방자치단체 / 02 공공기관 / 03 대학교 / 04 병원 / 05 법원
+    --    자바·화면은 한글 이름을 그대로 쓰고 변환은 InstitutionCategoryTypeHandler 가 한다.
+    --    코드표 정본: code/InstitutionCategory.java
+    기관영업분류구분    VARCHAR2(2 CHAR),              -- 구분코드2 · 속성명 기관영업분류구분코드
+    문서년              VARCHAR2(4 CHAR),              -- 년4 · 속성명 동일 · 예 '2026'
+    -- 🔴 **코드값이다.** 01 UNCLASSIFIED / 02 CLASSIFIED / 03 REJECTED / 04 DELETED
+    분류상태구분        VARCHAR2(2 CHAR)   DEFAULT '01' NOT NULL,  -- 구분코드2 · 속성명 분류상태구분코드
+    -- 파일명 상한은 파일시스템이 정한다(NTFS·ext4 모두 255자). 인포타입에 255 가 없어 260.
+    원본파일명          VARCHAR2(260 CHAR) NOT NULL,   -- 명260 · 속성명 동일
+    -- 🔴 **시각이 문자열이다**(사내 표준). 형식 YYYYMMDDHH24MISS 14자로 길이와 정확히 같다.
+    --    자바는 LocalDateTime 을 쓰고 변환은 LocalDateTimeStringTypeHandler 가 한다.
+    --    ⚠️ 자릿수가 고정이라 **문자열 정렬 = 시간 정렬**이다. 형식을 바꾸면 깨진다.
+    업로드일시          VARCHAR2(14 CHAR)  NOT NULL,   -- 일시14 · 속성명 동일 · **업무 시각**
+    분류일시            VARCHAR2(14 CHAR),             -- 일시14 · 분류 전에는 NULL
+    -- 최악 경로가 약 341자다(baseDir 20 + /classified/ 12 + 분류 2 + 년 4 + 기관 40 + 파일명 260 + 구분자 3).
+    저장경로내용        VARCHAR2(600 CHAR) NOT NULL,   -- 내용600 · 속성명 동일
+    -- ── 감사 컬럼 2개 (2026-09-08 신설) ────────────────────────────────
+    -- **업로드일시와 다르다.** 업로드일시는 업무 시각(사용자가 올린 때)이고,
+    -- 이쪽은 **행을 마지막으로 건드린 시각**이다. 규칙(사용자 확정):
+    --   · INSERT      → 업로드일시 와 같은 값
+    --   · UPDATE(분류) → 분류일시 와 같은 값
+    --   · 삭제·반려    → 그 시점의 DB 시각(TO_CHAR(SYSDATE,'YYYYMMDDHH24MISS'))
+    시스템사용일시      VARCHAR2(14 CHAR),             -- 일시14 · 속성명 동일
+    -- 이 데이터를 넣게 만든 **주체**다. 사람이 아니라 프로그램이라 화면번호를 넣는다
+    -- (앞 K 를 뗀 7자: KGI11100 → GI11100). 배치는 'BATCH01'.
+    -- 도출은 code/SystemUser.java 가 컨트롤러 클래스명에서 자동으로 한다.
+    시스템사용자번호    CHAR(7),                       -- 사용자번호7 · 속성명 동일
+    CONSTRAINT PK_TSKGIAF01 PRIMARY KEY (업로드파일일련번호),
+    CONSTRAINT CK_TSKGIAF01_분류상태 CHECK (분류상태구분 IN ('01', '02', '03', '04'))
 );
 
--- ── 기관 ─────────────────────────────────────────────────────────────
-CREATE TABLE INSTITUTION (
-    ID          NUMBER(19)         NOT NULL,
-    NAME        VARCHAR2(200 CHAR) NOT NULL,
-    CATEGORY    VARCHAR2(100 CHAR) NOT NULL,
-    MODIFIED_AT TIMESTAMP          NOT NULL,
-    CONSTRAINT PK_INSTITUTION PRIMARY KEY (ID),
-    CONSTRAINT UK_INSTITUTION_NAME UNIQUE (NAME)
+-- ── 기관 (TSKGIAF02) ─────────────────────────────────────────────────────────────
+-- ⚠️ 이름과 달리 "기관 마스터"가 아니다. 주소·기관코드 같은 기관 정보가 없는 이유가
+--    그것이다. 실제 역할은 둘뿐이다(ClassificationService.classify):
+--      ① 기관명 → 기관분류 **매핑표**   ② 등록된 기관만 분류되는 **허용목록**
+--    그래서 컬럼 순서도 **입력(기관명) → 출력(기관분류)** 이다.
+CREATE TABLE TSKGIAF02 (
+    기관일련번호        DECIMAL(16)       NOT NULL,   -- 일련번호16 · 속성명 동일
+    기관명              VARCHAR2(40 CHAR) NOT NULL,   -- 명40 · 속성명 동일
+    기관영업분류구분    VARCHAR2(2 CHAR)  NOT NULL,   -- 구분코드2 · 속성명 기관영업분류구분코드
+    -- ── 아래 4개는 **앱이 읽지도 쓰지도 않는다** — 기관 정보를 미리 담아 둘 자리다.
+    --    도메인 Institution · Mapper · 화면에 대응하는 것이 없고, resultMap 이 모르는
+    --    컬럼은 그냥 무시하며 INSERT 도 컬럼을 명시하므로 NULL 로 남는다.
+    협약기관상태구분    VARCHAR2(2 CHAR),             -- 구분코드2 · 01 미협약 / 02 협약
+    입찰공고상태구분    VARCHAR2(2 CHAR),             -- 구분코드2 · 01 공고전 / 02 공고중 / 03 공고완료
+    입찰공고시작년월일  VARCHAR2(8 CHAR),             -- 년월일8 · YYYYMMDD
+    입찰공고마감년월일  VARCHAR2(8 CHAR),             -- 년월일8 · YYYYMMDD
+    -- ⚠️ **옛 `수정일시` 가 이 이름으로 바뀐 것**이다(2026-09-08). 그래서 여기만
+    --    NOT NULL 이고(TSKGIAF01 쪽은 NULLABLE), 도메인 Institution.modifiedAt 이
+    --    그대로 이 컬럼에 매핑된다.
+    시스템사용일시      VARCHAR2(14 CHAR) NOT NULL,   -- 일시14 · 속성명 동일
+    시스템사용자번호    CHAR(7),                      -- 사용자번호7 · 속성명 동일
+    CONSTRAINT PK_TSKGIAF02 PRIMARY KEY (기관일련번호),
+    CONSTRAINT UK_TSKGIAF02_기관명 UNIQUE (기관명)
 );
 
 -- ── 시퀀스 ───────────────────────────────────────────────────────────
 -- ⚠️ 이름을 바꾸지 말 것. Mapper XML 의 oracle 분기가 이 이름을 그대로 부른다
 --    (`UploadedFileMapper.xml` / `InstitutionMapper.xml` 의 <selectKey>).
+--    ⚠️ 2026-09-08 사내 표준 검사로 이름이 바뀌었다 — 테이블 코드를 따르던
+--       `TSKGIAF01_SEQ`/`TSKGIAF02_SEQ` 에서 `SQ_KGI_...` 로. 22자라 30바이트 상한 안이다.
+--       **테이블 이름과 시퀀스 이름이 서로 안 닮았으므로** 어느 표의 것인지는
+--       아래 주석으로만 알 수 있다: AGENTFILE=TSKGIAF01, AGENTGIGAN=TSKGIAF02.
+--    여기만은 이름을 바꾸면
+--    **매퍼의 <selectKey> 도 같은 커밋에서 고쳐야 한다** — 제약·인덱스와 다른 점이다.
 --    `NOCACHE` 는 WAS 재기동 때 번호가 크게 건너뛰지 않게 하려는 것이다 —
 --    ID 에 의미를 두지 않으므로 성능이 문제되면 캐시를 켜도 된다.
-CREATE SEQUENCE UPLOADED_FILE_SEQ START WITH 1 INCREMENT BY 1 NOCACHE;
-CREATE SEQUENCE INSTITUTION_SEQ   START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SQ_KGI_AGENTFILETABLE  START WITH 1   -- TSKGIAF01 용 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE SQ_KGI_AGENTGIGANTABLE START WITH 1   -- TSKGIAF02 용 INCREMENT BY 1 NOCACHE;
+
+-- ── 인덱스 ───────────────────────────────────────────────────────────
+-- ⚠️ 지금 데이터 규모(연 수천 건)에서는 없어도 된다. 수만 행 풀스캔은 밀리초다.
+--    아래 하나만 두는 이유는 비용이 거의 없고 **가장 자주 쓸 접근 경로**를 받기 때문이다.
+
+-- 기관이 주 조회 축이다("A 기관 자료 들어왔나?").
+-- ⚠️ **열 순서가 이 인덱스의 전부다.** (기관명, 업로드일시) 순서라서
+--    아래 두 쿼리가 **정렬 없이** 처리된다 — 인덱스를 시간순으로 훑으며 읽기만 한다.
+--
+--      WHERE 기관명 = ?                        ORDER BY 업로드일시 DESC   ← 미래의 기관 검색
+--      WHERE 기관명 = ? AND 분류상태구분 = ?   ORDER BY 업로드일시 DESC   ← findClassifiedByUnknownInstitution
+--
+--    (기관명, 분류상태구분, 업로드일시) 3열도 검토했으나 **버렸다.** 위 첫 쿼리처럼
+--    분류상태구분을 안 거는 경우, 가운데 열 때문에 인덱스가 시간순이 아니게 되어
+--    정렬이 되살아난다. 두 번째 쿼리의 분류상태구분은 읽으면서 걸러도 싸다.
+--
+--    ⚠️ 화면 검색(findByInstitutionNameContaining)은 `LIKE '%키워드%'` 라
+--       **선행 와일드카드 때문에 이 인덱스를 못 쓴다.** 기관 입력을 드롭다운
+--       (정확 일치)으로 바꾸는 후속 작업이 끝나야 제 값을 한다.
+CREATE INDEX IX_TSKGIAF01_기관명일시 ON TSKGIAF01 (기관명, 업로드일시);
+
+-- 상태별 목록 — **앱에서 가장 많이 쓰는 조건**이다. `분류상태구분 = ?` 을 부르는 곳이
+-- 여섯이다: 파일처리상태 화면(01) · 분류완료 목록 화면(02) · 재분류 잡(01) ·
+-- InstitutionService 두 곳(01).
+-- ⚠️ 두 번째 열이 PK 라서 **정렬까지 인덱스가 처리**한다
+--    (findByStatus 는 ORDER BY 업로드파일일련번호 DESC 다).
+-- ⚠️ 이름이 30바이트 상한에 걸려 `_분류상태` 로 줄였다(25바이트). `_상태일련번호` 는
+--    31바이트로 **넘는다** — 한글은 글자당 3바이트다.
+CREATE INDEX IX_TSKGIAF01_분류상태 ON TSKGIAF01 (분류상태구분, 업로드파일일련번호);
+
+-- 넣지 않은 것 — 조건이 오면 그때 넣는다:
+--   · (업로드일시) 단독 — **필요 없어졌다.** 최신순 목록(findRecent)을
+--     `ORDER BY 업로드파일일련번호 DESC` 로 바꿔 **PK 인덱스가 정렬을 처리**한다.
+--     시퀀스가 NOCACHE 라 증가순 = 삽입순 = 시간순이고, 업로드일시가 문자열(초 단위)
+--     이라 **같은 초에 여러 건이면 오히려 일련번호가 정확하다.**
+--     ⚠️ 시퀀스에 캐시를 켜면 재기동 때 번호가 튀어 이 전제가 깨진다.
+--   · (분류상태구분) 단독 — 위 복합 인덱스의 선행 컬럼이라 불필요하다.
+--     ⚠️ 이 인덱스는 한 번 뺐다가 되돌린 것이다(2026-09-08). "재분류 잡이 꺼져 있으니
+--        보류"라고 판단했는데, 정작 이 조건을 부르는 것은 잡이 아니라 **화면 두 개**였다.
 
 -- =====================================================================
 -- 재설치용 DROP (필요할 때만 직접 실행)
 --
---   DROP SEQUENCE UPLOADED_FILE_SEQ;
---   DROP SEQUENCE INSTITUTION_SEQ;
---   DROP TABLE UPLOADED_FILE PURGE;
---   DROP TABLE INSTITUTION PURGE;
+--   DROP SEQUENCE SQ_KGI_AGENTFILETABLE;
+--   DROP SEQUENCE SQ_KGI_AGENTGIGANTABLE;
+--   DROP TABLE TSKGIAF01 PURGE;
+--   DROP TABLE TSKGIAF02 PURGE;
 --
 -- ---------------------------------------------------------------------
 -- 미러와 일부러 다르게 둔 것 (drift 아님)
 --
---   · 인덱스: MySQL 쪽에도 PK/UK 말고는 없다. 007 초안은 STATUS·INSTITUTION_NAME
---     인덱스를 제안하는데, **여기에 넣으면 두 파일이 갈린다.** 넣기로 하면
---     `schema-mysql.sql` 에 같은 인덱스를 같은 커밋에서 함께 넣을 것.
+--   · 인덱스: ~~양쪽 다 PK/UK 뿐~~ → **2026-09-08 에 양쪽에 같은 둘을 넣었다**
+--     (업로드일시 · 기관명+분류상태). 늘리거나 줄일 때도 **두 파일을 같은
+--     커밋에서** 함께 고칠 것. 판단 근거는 위 인덱스 절의 주석에 있다.
 -- =====================================================================

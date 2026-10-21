@@ -1,5 +1,7 @@
 package com.kb.uploader.controller;
 
+import java.time.LocalDateTime;
+import com.kb.uploader.code.SystemUser;
 import com.kb.uploader.mapper.UploadedFileMapper;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,8 +21,8 @@ public class KGI12200$FileStatusDelete {
 
     @PostMapping("/{id}/delete")
     public String execute(@PathVariable Long id, RedirectAttributes ra) {
-        fileMapper.softDeleteById(id);
+        fileMapper.softDeleteById(id, SystemUser.get(), LocalDateTime.now());
         ra.addFlashAttribute("message", "파일이 목록에서 제거되었습니다.");
-        return "redirect:/file-status";
+        return "redirect:/parse-status";
     }
 }

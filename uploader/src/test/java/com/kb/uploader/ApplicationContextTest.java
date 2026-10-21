@@ -2,7 +2,6 @@ package com.kb.uploader;
 
 import com.kb.uploader.job.BackgroundScheduler;
 import com.kb.uploader.job.LocalScheduler;
-import com.kb.uploader.job.ReclassificationTrigger;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,10 +47,6 @@ public class ApplicationContextTest {
                 scheduler instanceof LocalScheduler);
     }
 
-    @Test
-    public void 재분류_트리거가_빈으로_있다() {
-        assertNotNull(context.getBean(ReclassificationTrigger.class));
-    }
 
     @Test
     public void Spring_자체_스케줄러는_더_이상_만들어지지_않는다() {

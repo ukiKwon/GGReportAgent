@@ -1,25 +1,39 @@
 package com.kbstar.kgi.ggreport.web.web;
 
 import com.kbstar.kgi.ggreport.web.domain.Institution;
+import com.kbstar.kgi.ggreport.web.domain.InstitutionImportRow;
+import com.kbstar.kgi.ggreport.web.domain.InstitutionUpdateIn;
 import com.kbstar.kgi.ggreport.web.dto.ArtifactsResponse;
 import com.kbstar.kgi.ggreport.web.dto.CheckpointIn;
+import com.kbstar.kgi.ggreport.web.dto.CompleteResponse;
+import com.kbstar.kgi.ggreport.web.dto.CorpusPathIn;
+import com.kbstar.kgi.ggreport.web.dto.CorpusRegisterResponse;
+import com.kbstar.kgi.ggreport.web.dto.CorpusValidateResponse;
 import com.kbstar.kgi.ggreport.web.dto.CoverageMapResponse;
+import com.kbstar.kgi.ggreport.web.dto.ImportResponse;
 import com.kbstar.kgi.ggreport.web.dto.TimelineResponse;
 import com.kbstar.kgi.ggreport.web.dto.WorkflowStatusResponse;
+import com.kbstar.kgi.ggreport.web.support.InstitutionCsv;
+import com.kbstar.kgi.ggreport.web.service.CorpusService;
 import com.kbstar.kgi.ggreport.web.service.CoverageMapService;
+import com.kbstar.kgi.ggreport.web.service.InstitutionCommandService;
 import com.kbstar.kgi.ggreport.web.service.InstitutionService;
 import com.kbstar.kgi.ggreport.web.service.OrchestratorService;
 import com.kbstar.kgi.ggreport.web.service.WorkflowStatusService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -36,21 +50,29 @@ import java.util.Map;
  * 나누면 같은 {@code @RequestMapping} 이 둘이 되어 어디에 붙일지가 매번 판단거리가 된다.
  *
  * <p>실행({@code /run})과 게이트 결재({@code /checkpoint})도 여기 있다 — 단계 4.
- * 나머지 쓰기(POST/PUT/import/corpus)는 아직 없다.
+ * 쓰기 다섯(POST · PUT · {@code /import} · {@code /corpus{,/validate}})은 Task 5B.5,
+ * {@code /complete} 는 Task 5B.6 이다 — 이것으로 단계 5-B 의 기관 쪽은 다 찼다.
  */
 @RestController
 @RequestMapping("/institutions")
 public class InstitutionController {
 
     private final InstitutionService institutions;
+    private final InstitutionCommandService institutionCommands;
+    private final CorpusService corpus;
     private final CoverageMapService coverageMap;
     private final WorkflowStatusService workflow;
     private final OrchestratorService orchestrator;
 
-    public InstitutionController(InstitutionService institutions, CoverageMapService coverageMap,
+    public InstitutionController(InstitutionService institutions,
+                                 InstitutionCommandService institutionCommands,
+                                 CorpusService corpus,
+                                 CoverageMapService coverageMap,
                                  WorkflowStatusService workflow,
                                  OrchestratorService orchestrator) {
         this.institutions = institutions;
+        this.institutionCommands = institutionCommands;
+        this.corpus = corpus;
         this.coverageMap = coverageMap;
         this.workflow = workflow;
         this.orchestrator = orchestrator;
@@ -59,6 +81,49 @@ public class InstitutionController {
     @GetMapping
     public List<Institution> list() {
         return institutions.list();
+    }
+
+    /**
+     * 기관 추가 — 원본 {@code POST /institutions}. <b>201</b> 이다.
+     *
+     * <p>같은 이름이면 <b>409</b>({@code 이미 있는 기관명입니다 (…)}) —
+     * CSV 반입의 upsert 와 일부러 다르다
+     * ({@link InstitutionCommandService#create} 주석).
+     */
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public Institution create(@RequestBody InstitutionImportRow body) {
+        return institutionCommands.create(body);
+    }
+
+    /**
+     * 기관 편집 — 원본 {@code PUT /institutions/{id}} (부분 갱신).
+     *
+     * <p>보내지 않은 필드는 보존, {@code null} 로 보낸 필드는 지움.
+     * 없는 기관이면 <b>404</b>.
+     */
+    @PutMapping("/{institutionId}")
+    public Institution update(@PathVariable String institutionId,
+                              @RequestBody InstitutionUpdateIn body) {
+        return institutionCommands.update(institutionId, body);
+    }
+
+    /**
+     * CSV 반입 — 원본 {@code POST /institutions/import}. {@code multipart} 다.
+     *
+     * <p>이름으로 찾아 <b>upsert</b> 한다(같은 표를 다시 올리는 것이 정상 경로).
+     * 표 전체가 한 트랜잭션이라 <b>한 행이 깨지면 아무것도 들어가지 않는다.</b>
+     * 형식 오류는 <b>400</b> 이고 사유에 행 번호가 들어 있다.
+     */
+    @PostMapping("/import")
+    public ImportResponse importCsv(@RequestParam("file") MultipartFile file) throws IOException {
+        List<String> ids;
+        try {
+            ids = institutionCommands.importCsv(file.getBytes());
+        } catch (InstitutionCsv.CsvFormatException exc) {
+            throw ApiException.badRequest(exc.getMessage());
+        }
+        return new ImportResponse(ids);
     }
 
     @GetMapping("/{institutionId}")
@@ -116,6 +181,45 @@ public class InstitutionController {
                 ? userId : body.getBy().trim();
         orchestrator.resume(institutionId, body.isApproved(), by, body.getComment());
         return Collections.singletonMap("status", "resumed");
+    }
+
+    /**
+     * 코퍼스 규격 검사 — 원본 {@code POST /institutions/{id}/corpus/validate}.
+     *
+     * <p>⚠️ <b>DB 도 파일도 건드리지 않고, 오류가 있어도 200 이다.</b> 사람이 고칠
+     * 목록을 받아 보는 화면이 소비한다 — 거절은 등록 쪽에서만 일어난다.
+     */
+    @PostMapping("/{institutionId}/corpus/validate")
+    public CorpusValidateResponse corpusValidate(@PathVariable String institutionId,
+                                                 @RequestBody CorpusPathIn body) {
+        return new CorpusValidateResponse(corpus.validate(institutionId, body.getPath()));
+    }
+
+    /**
+     * 코퍼스 연결 — 원본 {@code POST /institutions/{id}/corpus}.
+     *
+     * <p>규격 <b>오류가 있으면 422</b>({@code {"detail": {"errors": […]}}}), 경고는
+     * 막지 않고 응답에 실어 보낸다.
+     *
+     * <p>⚠️ <b>부수효과가 요점이다</b> — 코퍼스가 없어 밀려 있던 입찰건이 여기서
+     * 풀리고 팀별 작업이 만들어진다({@code activated_bid_cases}).
+     */
+    @PostMapping("/{institutionId}/corpus")
+    public CorpusRegisterResponse corpusRegister(@PathVariable String institutionId,
+                                                 @RequestBody CorpusPathIn body) {
+        return corpus.register(institutionId, body.getPath());
+    }
+
+    /**
+     * 완료 처리 — 원본 {@code POST /institutions/{id}/complete}. Task 5B.6.
+     *
+     * <p><b>단계 9(제출 대기)에서만</b> 가능하다(아니면 <b>409</b>). 산출물을
+     * 아카이브하고 최신 공고를 {@code 제출완료} 로 바꾼다.
+     */
+    @PostMapping("/{institutionId}/complete")
+    public CompleteResponse complete(@PathVariable String institutionId,
+                                     @RequestHeader("X-User-Id") String userId) {
+        return institutionCommands.complete(institutionId, userId);
     }
 
     /** 배점표 항목 ↔ 팀 작성물 커버리지 — 배점표 매핑 뷰의 데이터원. */

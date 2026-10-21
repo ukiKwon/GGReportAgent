@@ -1,0 +1,2399 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>② uploader 소스 변경 상세 — 내부망 작업 지시서</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  :root {
+    --ink:#16191c; --ink-soft:#3d474e; --muted:#6b767d;
+    --rule:#ccd4d8; --rule-lt:#e4e9eb;
+    --accent:#0b4f6c; --accent-bg:#eaf1f5;
+    --alert:#96241f; --alert-bg:#fbeeec;
+    --warn:#7a5310;  --warn-bg:#fbf3e2;
+    --ok:#1f5f45;    --ok-bg:#e8f2ed;
+    --old:#8a2f2a;   --old-bg:#fcf1f0;
+    --new:#1c5c44;   --new-bg:#eef6f2;
+    --code-bg:#f2f4f5;
+  }
+  * { box-sizing: border-box; }
+  body { font-family:"맑은 고딕","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+         color:var(--ink); font-size:10.4pt; line-height:1.58;
+         margin:0 auto; max-width:190mm; padding:10mm 5mm 20mm; background:#fff; }
+  header { border-bottom:2.5px solid var(--accent); padding-bottom:10px; }
+  .eyebrow { font-size:8.5pt; letter-spacing:.12em; color:var(--accent); font-weight:700; margin-bottom:4px; }
+  h1 { font-size:19pt; margin:0 0 6px; line-height:1.3; letter-spacing:-.01em; }
+  .lede { color:var(--ink-soft); margin:0; max-width:62em; }
+  .meta { display:flex; flex-wrap:wrap; gap:4px 20px; font-size:9pt; color:var(--muted);
+          margin:10px 0 22px; padding-top:8px; border-top:1px solid var(--rule-lt); }
+  .meta b { color:var(--ink-soft); font-weight:600; }
+  h2 { font-size:13pt; margin:22px 0 10px; padding-bottom:5px; border-bottom:1px solid var(--rule); page-break-after:avoid; }
+  h2 .n { display:inline-block; min-width:1.6em; color:var(--accent); font-weight:700; }
+  h3 { font-size:10.3pt; margin:15px 0 6px; color:var(--ink-soft); page-break-after:avoid;
+       font-family:Consolas,"D2Coding",monospace; }
+  h3 .tag { font-family:"맑은 고딕",sans-serif; font-size:8pt; font-weight:400; color:var(--muted); margin-left:6px; }
+  p { margin:0 0 8px; max-width:62em; }
+  ul, ol { margin:0 0 8px; padding-left:20px; max-width:62em; }
+  li { margin-bottom:3px; }
+  code { font-family:Consolas,"D2Coding",monospace; font-size:.88em; background:var(--code-bg); padding:1px 4px; border-radius:2px; }
+  table { width:100%; border-collapse:collapse; margin:0 0 12px; font-size:9.2pt; page-break-inside:avoid; }
+  th, td { border:1px solid var(--rule-lt); padding:5px 8px; text-align:left; vertical-align:top; }
+  th { background:var(--code-bg); font-weight:600; font-size:8.7pt; color:var(--ink-soft); white-space:nowrap; }
+  td.mono, th.mono { font-family:Consolas,"D2Coding",monospace; font-size:8.7pt; }
+  td.old { color:var(--old); font-family:Consolas,"D2Coding",monospace; font-size:8.7pt; white-space:nowrap; }
+  td.new { color:var(--new); font-family:Consolas,"D2Coding",monospace; font-size:8.7pt; font-weight:600; white-space:nowrap; }
+  .ba { margin:0 0 13px; page-break-inside:avoid; }
+  .ba pre { font-family:Consolas,"D2Coding",monospace; font-size:8.3pt; line-height:1.48;
+            margin:0; padding:7px 10px 7px 12px; white-space:pre-wrap; word-break:break-all; }
+  .ba .b { background:var(--old-bg); border-left:3px solid var(--old); color:#4a2422; }
+  .ba .a { background:var(--new-bg); border-left:3px solid var(--new); color:#16342a; margin-top:2px; }
+  .ba .n { background:#fbfcfc; border-left:3px solid var(--rule); color:var(--ink); }
+  .ba .lbl { display:inline-block; font-family:"맑은 고딕",sans-serif; font-size:7.5pt; font-weight:700;
+             letter-spacing:.06em; margin-right:6px; vertical-align:1px; }
+  .ba .b .lbl { color:var(--old); } .ba .a .lbl { color:var(--new); } .ba .n .lbl { color:var(--muted); }
+  .box { border-left:3px solid var(--rule); padding:9px 13px; margin:0 0 12px; page-break-inside:avoid; }
+  .box .h { font-weight:700; font-size:9.4pt; margin-bottom:3px; }
+  .box p:last-child, .box ul:last-child, .box table:last-child { margin-bottom:0; }
+  .box.alert { border-left-color:var(--alert); background:var(--alert-bg); } .box.alert .h { color:var(--alert); }
+  .box.warn  { border-left-color:var(--warn);  background:var(--warn-bg); }  .box.warn .h  { color:var(--warn); }
+  .box.info  { border-left-color:var(--accent);background:var(--accent-bg); }.box.info .h  { color:var(--accent); }
+  .box.ok    { border-left-color:var(--ok);    background:var(--ok-bg); }    .box.ok .h    { color:var(--ok); }
+  pre.src { font-family:Consolas,"D2Coding",monospace; font-size:7.4pt; line-height:1.42;
+            background:#fbfcfc; border:1px solid var(--rule); border-left:3px solid var(--accent);
+            padding:9px 11px; margin:0 0 14px; white-space:pre-wrap; word-break:break-all;
+            color:#1d2226; }
+  footer { margin-top:26px; padding-top:10px; border-top:1px solid var(--rule); font-size:8.5pt; color:var(--muted); }
+  .pb { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">내부망 작업 지시서 · uploader · ② / ②</div>
+  <h1>소스 변경 상세 — 무엇이 어떻게 바뀌었나</h1>
+  <p class="lede">
+    ①번 문서의 <strong>파일 27개</strong>가 실제로 어떻게 바뀌는지 전·후로 보여 줍니다.
+    파일을 통째로 교체하실 거면 <strong>6절만</strong> 보셔도 되고, 손으로 고치거나
+    대조 검수를 하실 때 2~5절을 쓰십시오.
+    <strong>반영할 파일 10개의 전문은 맨 끝 「별첨1·2·3」</strong>에 있습니다(자바 6 · 매퍼 2 · 스키마 2).
+  </p>
+</header>
+
+<div class="meta">
+  <span><b>작성일</b> 2026-09-08 (확정본)</span>
+  <span><b>기준</b> 내부망 반입 zip(2026-09-07) 대비</span>
+  <span><b>선행 문서</b> ① 스키마 변경</span>
+  <span><b>검증</b> <code>mvn -o clean test</code> 62건 통과</span>
+</div>
+
+<div class="box alert">
+  <div class="h">🔴 이 문서의 SQL 에는 스키마 접두어 <code>INST1.</code> 가 붙어 있습니다</div>
+  <p>
+    사내 표준이 <code>FROM INST1.TSKGIAF01</code> 처럼 <b>스키마를 명시</b>하도록 요구합니다.
+    <b>그런데 외부망 리포의 실제 파일에는 아직 접두어가 없습니다</b> — 표준 요구를
+    <b>문서(=내부망용)에만 먼저</b> 반영한 것입니다(사용자 확정 2026-09-08).
+  </p>
+  <p style="margin-top:6px">따라서 두 가지를 유념하십시오:</p>
+  <ul style="margin:4px 0 0">
+    <li><b>내부망 파일과 리포 파일이 갈립니다.</b> 내부망에서는 이 문서(별첨)를 기준으로
+        삼으십시오 — 리포에서 그냥 복사해 오면 접두어가 빠집니다.</li>
+    <li>⚠️ <b><code>import_wtp.py</code> 로 내부망 파일을 리포로 되돌리면</b> 접두어가
+        리포로 들어와 <b>외부망 테스트(H2)가 전부 깨집니다.</b> 되돌릴 때는 접두어를
+        빼거나, 리포에도 함께 반영할지 먼저 정하십시오.</li>
+    <li><b>MySQL 미러(<code>schema-mysql.sql</code>)에는 붙이지 않았습니다</b> — 외부망
+        테스트 전용이라 <code>INST1</code> 스키마가 없습니다.</li>
+  </ul>
+</div>
+
+<h2><span class="n">1</span>왜 자바까지 바뀌나 — TypeHandler</h2>
+
+<p>
+  MyBatis의 <code>resultMap</code>은 <strong>자바 필드와 DB 컬럼을 잇는 번역표</strong>이고,
+  <strong>TypeHandler는 그 번역표가 값을 어떻게 바꿀지 정하는 규칙</strong>입니다.
+  표준이 요구하는 값(문자열 시각·2자리 코드)과 자바가 쓰는 값이 다르므로,
+  <strong>변환을 세 클래스에 가두어</strong> 도메인·서비스·화면·테스트를 지켰습니다.
+</p>
+
+<table>
+  <thead><tr><th>TypeHandler</th><th>자바가 쓰는 값</th><th>DB 에 들어가는 값</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">LocalDateTimeStringTypeHandler</td><td class="mono">LocalDateTime</td><td class="mono">'20260908103000'</td></tr>
+    <tr><td class="mono">ClassificationStatusTypeHandler</td><td class="mono">"UNCLASSIFIED"</td><td class="mono">'01'</td></tr>
+    <tr><td class="mono">InstitutionCategoryTypeHandler</td><td class="mono">"지방자치단체"</td><td class="mono">'01'</td></tr>
+  </tbody>
+</table>
+
+<div class="box alert">
+  <div class="h">규칙 두 개만 지키면 됩니다</div>
+  <ol style="margin:4px 0 0">
+    <li><strong>resultMap 과 <code>#{...}</code> 양쪽에 적는다.</strong> 두 코드 핸들러가 모두
+        자바 <code>String</code> 을 다뤄 자동 등록을 쓸 수 없습니다. <b>한쪽만 적으면 읽기나
+        쓰기 중 한 방향만 변환돼 조용히 어긋납니다.</b></li>
+    <li><strong>SQL 에 직접 박은 값은 코드로 적는다.</strong> TypeHandler 는 <b>파라미터와
+        결과</b>에만 걸립니다. <code>SET 분류상태구분 = '04'</code> 자리에 <code>'DELETED'</code>
+        를 적으면 <b>오류 없이 0건이 바뀝니다.</b></li>
+  </ol>
+</div>
+
+<h2><span class="n">2</span>신규 자바 9개 — 무엇을 하는 파일인가</h2>
+
+<table>
+  <thead><tr><th>파일</th><th>역할</th><th>고칠 일이 생기면</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">code/InstitutionCategory.java</td><td>기관영업분류 코드↔이름 5쌍. <b>화면 드롭다운의 유일한 출처</b></td><td>분류를 늘릴 때 <b>이 파일만</b></td></tr>
+    <tr><td class="mono">code/ClassificationStatus.java</td><td>분류상태 코드↔값 4쌍 + 상수</td><td>상태를 늘릴 때(도메인도 함께)</td></tr>
+    <tr><td class="mono">code/SystemUser.java</td><td><b>화면번호 도출 + ThreadLocal.</b> <code>KGI11100$UploadAction</code> → <code>GI11100</code></td><td>배치 코드를 늘릴 때</td></tr>
+    <tr><td class="mono">config/CodeTypeHandler.java</td><td>코드 변환 공통 뼈대(추상). 모르는 값이면 <b>예외</b></td><td>거의 없음</td></tr>
+    <tr><td class="mono">config/InstitutionCategoryTypeHandler.java</td><td>위 뼈대 + 기관영업분류 표</td><td>없음</td></tr>
+    <tr><td class="mono">config/ClassificationStatusTypeHandler.java</td><td>위 뼈대 + 분류상태 표</td><td>없음</td></tr>
+    <tr><td class="mono">config/LocalDateTimeStringTypeHandler.java</td><td><code>yyyyMMddHHmmss</code> 변환. 읽을 때 <code>trim()</code></td><td>일시 형식이 바뀌면</td></tr>
+    <tr><td class="mono">config/SystemUserInterceptor.java</td><td>요청마다 화면번호를 넣고 <b>끝나면 지움</b></td><td>없음</td></tr>
+    <tr><td class="mono">config/WebMvcConfig.java</td><td>인터셉터 등록</td><td>인터셉터가 늘 때</td></tr>
+  </tbody>
+</table>
+
+<div class="box alert">
+  <div class="h">ThreadLocal 은 반드시 지워야 합니다</div>
+  <p>
+    WAS 는 스레드를 재사용합니다. <code>SystemUserInterceptor.afterCompletion</code> 과
+    재분류 배치의 <code>finally</code> 에서 <b>지우지 않으면 다음 작업이 이전 화면번호를
+    물려받아 감사 기록이 조용히 틀어집니다.</b> 두 곳 모두 이미 지우고 있습니다 —
+    <b>새 진입점을 만들 때 같은 규칙을 지키십시오.</b>
+  </p>
+</div>
+
+<div class="box info">
+  <div class="h">모르는 값이 오면 조용히 넘기지 않습니다</div>
+  <div class="ba" style="margin-top:6px">
+    <pre class="n">ClassificationStatusTypeHandler: 코드로 옮길 수 없는 값이다 — '지자체'. 아는 값: [...]
+InstitutionCategoryTypeHandler: DB 에 모르는 코드가 들어 있다 — '99'. 아는 코드: [01, 02, ...]
+일시 형식이 YYYYMMDDHH24MISS 가 아니다 — '2026-09-08 10:30:00'</pre>
+  </div>
+  <p style="margin-top:6px">
+    코드가 어긋나면 증상이 “저장은 됐는데 조회가 안 됨”처럼 엉뚱하게 나타나므로,
+    <b>그 자리에서 예외로 멈추게</b> 했습니다. 위 메시지가 보이면 원인이 바로 드러납니다.
+  </p>
+</div>
+
+<h2 class="pb"><span class="n">3</span>UploadedFileMapper.xml</h2>
+
+<h3>3-1. resultMap <span class="tag">9행 전부 + TypeHandler 4곳</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>&lt;id     property="id"              column="ID"/&gt;
+&lt;result property="originalName"    column="ORIGINAL_NAME"/&gt;
+&lt;result property="storedPath"      column="STORED_PATH"/&gt;
+&lt;result property="year"            column="FILE_YEAR"/&gt;
+&lt;result property="institutionName" column="INSTITUTION_NAME"/&gt;
+&lt;result property="category"        column="CATEGORY"/&gt;
+&lt;result property="status"          column="STATUS"/&gt;
+&lt;result property="uploadedAt"      column="UPLOADED_AT"/&gt;
+&lt;result property="classifiedAt"    column="CLASSIFIED_AT"/&gt;</pre>
+  <pre class="a"><span class="lbl">후</span>&lt;id     property="id"              column="업로드파일일련번호"/&gt;
+&lt;result property="institutionName" column="기관명"/&gt;
+&lt;result property="category"        column="기관영업분류코드"
+        typeHandler="com.kb.uploader.config.InstitutionCategoryTypeHandler"/&gt;
+&lt;result property="year"            column="문서년"/&gt;
+&lt;result property="status"          column="분류상태구분"
+        typeHandler="com.kb.uploader.config.ClassificationStatusTypeHandler"/&gt;
+&lt;result property="originalName"    column="원본파일명"/&gt;
+&lt;result property="uploadedAt"      column="업로드일시"
+        typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/&gt;
+&lt;result property="classifiedAt"    column="분류일시"
+        typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/&gt;
+&lt;result property="storedPath"      column="저장경로"/&gt;</pre>
+</div>
+
+<h3>3-2. <code>&lt;sql id="값목록"&gt;</code> <span class="tag">신설 — 파라미터 쪽 표기가 길어 묶었다</span></h3>
+<div class="ba">
+  <pre class="a"><span class="lbl">신설</span>&lt;sql id="값목록"&gt;
+  #{institutionName},
+  #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+  #{year},
+  #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler},
+  #{originalName},
+  #{uploadedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+  #{storedPath}
+&lt;/sql&gt;</pre>
+</div>
+
+<h3>3-3. <code>insert</code> <span class="tag">oracle — 내부망이 실제로 쓰는 쪽</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>SELECT UPLOADED_FILE_SEQ.NEXTVAL FROM DUAL
+INSERT INTO UPLOADED_FILE
+  (ID, ORIGINAL_NAME, STORED_PATH, FILE_YEAR, INSTITUTION_NAME, CATEGORY, STATUS, UPLOADED_AT)
+VALUES
+  (#{id}, #{originalName}, #{storedPath}, #{year}, #{institutionName}, #{category}, #{status}, #{uploadedAt})</pre>
+  <pre class="a"><span class="lbl">후</span>SELECT INST1.SQ_KGI_AGENTFILETABLE.NEXTVAL FROM DUAL
+INSERT INTO INST1.TSKGIAF01
+  (업로드파일일련번호, 기관명, 기관영업분류코드, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로)
+VALUES
+  (#{id}, &lt;include refid="값목록"/&gt;)</pre>
+</div>
+<p style="color:var(--alert)">⚠️ <b>시퀀스 이름도 바뀝니다.</b> 여기가 틀리면 <code>ORA-02289</code> 로 <b>업로드만</b> 실패합니다.</p>
+
+<h3>3-4. <code>update</code></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>UPDATE UPLOADED_FILE
+SET STORED_PATH = #{storedPath}, INSTITUTION_NAME = #{institutionName},
+    FILE_YEAR = #{year}, CATEGORY = #{category},
+    STATUS = #{status}, CLASSIFIED_AT = #{classifiedAt}
+WHERE ID = #{id}</pre>
+  <pre class="a"><span class="lbl">후</span>UPDATE INST1.TSKGIAF01
+SET 저장경로  = #{storedPath},
+    기관명    = #{institutionName},
+    문서년    = #{year},
+    기관영업분류코드  = #{category,typeHandler=…InstitutionCategoryTypeHandler},
+    분류상태구분 = #{status,typeHandler=…ClassificationStatusTypeHandler},
+    분류일시  = #{classifiedAt,typeHandler=…LocalDateTimeStringTypeHandler}
+WHERE 업로드파일일련번호 = #{id}</pre>
+</div>
+
+<h3>3-5. <code>softDeleteById</code> · <code>rejectById</code> <span class="tag">값을 코드로</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>UPDATE UPLOADED_FILE SET STATUS = 'DELETED'  WHERE ID = #{id}
+UPDATE UPLOADED_FILE SET STATUS = 'REJECTED' WHERE ID = #{id}</pre>
+  <pre class="a"><span class="lbl">후</span>UPDATE INST1.TSKGIAF01 SET 분류상태구분 = '04' WHERE 업로드파일일련번호 = #{id}
+UPDATE INST1.TSKGIAF01 SET 분류상태구분 = '03' WHERE 업로드파일일련번호 = #{id}</pre>
+</div>
+<p style="color:var(--alert)">
+  ⚠️ <b>여기가 이번 변경에서 가장 놓치기 쉬운 자리입니다.</b> 리터럴은 TypeHandler 를 타지 않아
+  <code>'DELETED'</code> 를 그대로 두면 <b>오류 없이 아무 행도 안 바뀝니다.</b>
+</p>
+
+<h3>3-6. <code>findByStatus</code> <span class="tag">정렬 신설 + 파라미터 변환</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>SELECT * FROM UPLOADED_FILE WHERE STATUS = #{status}</pre>
+  <pre class="a"><span class="lbl">후</span>SELECT * FROM INST1.TSKGIAF01
+WHERE 분류상태구분 = #{status,typeHandler=…ClassificationStatusTypeHandler}
+ORDER BY 업로드파일일련번호 DESC</pre>
+</div>
+<p>
+  <strong>종전에는 <code>ORDER BY</code> 가 없었습니다.</strong> 목록 순서를 DB 에 맡긴 셈이라
+  삽입순처럼 보였을 뿐 보장이 아니었고, 인덱스가 붙는 순간 순서가 바뀝니다.
+  이 문장은 <strong>앱에서 가장 많이 쓰입니다</strong> — 파일처리상태 화면·분류완료 목록 화면·
+  재분류 잡·<code>InstitutionService</code> 두 곳, 모두 여섯 자리.
+</p>
+
+<h3>3-7. <code>findRecent</code> <span class="tag">정렬 기준을 PK 로</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>SELECT * FROM (
+  SELECT * FROM UPLOADED_FILE ORDER BY UPLOADED_AT DESC
+) WHERE ROWNUM &lt;= #{limit}</pre>
+  <pre class="a"><span class="lbl">후</span>SELECT * FROM (
+  SELECT * FROM INST1.TSKGIAF01 ORDER BY 업로드파일일련번호 DESC
+) WHERE ROWNUM &lt;= #{limit}</pre>
+</div>
+<p>
+  업로드일시가 문자열 <strong>초 단위</strong>라 같은 초에 여러 건이면 순서가 뒤섞입니다.
+  PK 는 그 경우에도 정확하고, <strong>PK 인덱스가 정렬을 그대로 처리</strong>합니다.
+</p>
+
+<h3>3-8. 나머지 <span class="tag">countAll · countByStatus · findClassifiedByUnknownInstitution · 페이징·검색</span></h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>SELECT COUNT(*) FROM UPLOADED_FILE
+SELECT COUNT(*) FROM UPLOADED_FILE WHERE STATUS = #{status}
+… WHERE INSTITUTION_NAME = '알수없음' AND STATUS = 'CLASSIFIED' ORDER BY UPLOADED_AT DESC
+… WHERE INSTITUTION_NAME LIKE '%' || #{keyword} || '%' ORDER BY UPLOADED_AT DESC
+… AND (#{year} IS NULL OR FILE_YEAR = #{year})
+… AND (#{keyword} IS NULL OR ORIGINAL_NAME LIKE '%' || #{keyword} || '%')</pre>
+  <pre class="a"><span class="lbl">후</span>SELECT COUNT(*) FROM INST1.TSKGIAF01
+SELECT COUNT(*) FROM INST1.TSKGIAF01 WHERE 분류상태구분 = #{status,typeHandler=…}
+… WHERE 기관명 = '알수없음' AND 분류상태구분 = '02' ORDER BY 업로드일시 DESC
+… WHERE 기관명 LIKE '%' || #{keyword} || '%' ORDER BY 업로드일시 DESC
+… AND (#{year} IS NULL OR 문서년 = #{year})
+… AND (#{keyword} IS NULL OR 원본파일명 LIKE '%' || #{keyword} || '%')</pre>
+</div>
+<div class="box info">
+  <div class="h">검색·페이징은 일부러 업로드일시 정렬을 유지했습니다</div>
+  <p>
+    인덱스 <code>(기관명, 업로드일시)</code> 의 두 번째 열이 업로드일시라,
+    <b>기관 입력이 드롭다운(정확 일치)이 되는 날 정렬까지 인덱스가 받게</b> 하려는 것입니다.
+    여기를 일련번호로 바꾸면 그 이점이 사라집니다.
+  </p>
+</div>
+
+<h2 class="pb"><span class="n">4</span>InstitutionMapper.xml</h2>
+
+<h3>4-1. resultMap</h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>&lt;id     property="id"         column="ID"/&gt;
+&lt;result property="name"       column="NAME"/&gt;
+&lt;result property="category"   column="CATEGORY"/&gt;
+&lt;result property="modifiedAt" column="MODIFIED_AT"/&gt;</pre>
+  <pre class="a"><span class="lbl">후</span>&lt;id     property="id"         column="기관일련번호"/&gt;
+&lt;result property="name"       column="기관명"/&gt;
+&lt;result property="category"   column="기관영업분류코드"
+        typeHandler="com.kb.uploader.config.InstitutionCategoryTypeHandler"/&gt;
+&lt;result property="modifiedAt" column="수정일시"
+        typeHandler="com.kb.uploader.config.LocalDateTimeStringTypeHandler"/&gt;</pre>
+</div>
+
+<h3>4-2. 나머지 7문장</h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>SELECT INSTITUTION_SEQ.NEXTVAL FROM DUAL
+INSERT INTO INSTITUTION (ID, NAME, CATEGORY, MODIFIED_AT) VALUES (#{id}, #{name}, #{category}, #{modifiedAt})
+INSERT INTO INSTITUTION (NAME, CATEGORY, MODIFIED_AT)                            -- mysql
+UPDATE INSTITUTION SET NAME = #{name}, CATEGORY = #{category}, MODIFIED_AT = #{modifiedAt} WHERE ID = #{id}
+DELETE FROM INSTITUTION WHERE ID = #{id}
+DELETE FROM INSTITUTION
+SELECT * FROM INSTITUTION WHERE NAME = #{name}
+SELECT * FROM INSTITUTION ORDER BY NAME ASC</pre>
+  <pre class="a"><span class="lbl">후</span>SELECT INST1.SQ_KGI_AGENTGIGANTABLE.NEXTVAL FROM DUAL
+INSERT INTO INST1.TSKGIAF02 (기관일련번호, 기관명, 기관영업분류코드, 수정일시) VALUES (#{id}, &lt;include refid="값목록"/&gt;)
+INSERT INTO INST1.TSKGIAF02 (기관명, 기관영업분류코드, 수정일시)                                -- mysql
+UPDATE INST1.TSKGIAF02 SET 기관명 = #{name}, 기관영업분류코드 = #{category,typeHandler=…},
+                     수정일시 = #{modifiedAt,typeHandler=…} WHERE 기관일련번호 = #{id}
+DELETE FROM INST1.TSKGIAF02 WHERE 기관일련번호 = #{id}
+DELETE FROM INST1.TSKGIAF02
+SELECT * FROM INST1.TSKGIAF02 WHERE 기관명 = #{name}
+SELECT * FROM INST1.TSKGIAF02 ORDER BY 기관명 ASC</pre>
+</div>
+
+<div class="box warn">
+  <div class="h"><code>findByName</code> 이 이 앱에서 가장 중요한 문장입니다</div>
+  <p>
+    분류가 여기서 결정됩니다 — 업로드된 파일의 기관명으로 이 문장을 돌려
+    <strong>못 찾으면 파일이 미분류로 남습니다.</strong> 틀리면 <strong>오류 없이
+    “분류가 하나도 안 되는”</strong> 증상으로만 나타납니다.
+  </p>
+</div>
+
+<div class="box info">
+  <div class="h">TSKGIAF02 에 컬럼 4개가 늘었지만 <b>매퍼는 바뀌지 않습니다</b></div>
+  <p>
+    <code>협약기관상태구분</code>·<code>입찰공고상태</code>·<code>입찰공고시작</code>·
+    <code>입찰공고마감</code> 이 신설됐으나 <b>애플리케이션이 읽지도 쓰지도 않습니다</b>.
+    <code>resultMap</code>은 모르는 컬럼을 그냥 무시하고 <code>INSERT</code>는 컬럼을 명시하므로
+    NULL 로 남습니다 — <b>이 절과 4절에 추가로 손댈 것이 없습니다.</b>
+  </p>
+</div>
+
+<h2><span class="n">5</span>컨트롤러 3개 + 화면 1개</h2>
+
+<p>
+  카테고리 목록이 <strong>세 곳에 복제</strong>돼 있었고 값이 <strong>옛 4종</strong>이었습니다.
+  새 5종과 다르므로 그대로 두면 TypeHandler 가 기관 등록을 거부합니다.
+</p>
+
+<h3>KGI12000$FileStatusList.java · KGI12400$ClassifiedFileList.java</h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>private static final List&lt;String&gt; ALL_CATEGORIES =
+        Arrays.asList("지자체", "대학교", "대학병원", "공공기관");
+…
+model.addAttribute("categories", ALL_CATEGORIES);</pre>
+  <pre class="a"><span class="lbl">후</span>import com.kb.uploader.code.InstitutionCategory;
+…
+model.addAttribute("categories", InstitutionCategory.names());</pre>
+</div>
+<p style="color:var(--ink-soft)">상수 선언과 <code>import java.util.Arrays;</code> 는 지웁니다.</p>
+
+<h3>KGI13000$InstitutionList.java <span class="tag">화면에 목록을 넘기도록 추가</span></h3>
+<div class="ba">
+  <pre class="a"><span class="lbl">추가</span>import com.kb.uploader.code.InstitutionCategory;
+…
+model.addAttribute("categories", InstitutionCategory.names());</pre>
+</div>
+
+<h3>templates/institution.html</h3>
+<div class="ba">
+  <pre class="b"><span class="lbl">전</span>&lt;option value="지자체"&gt;지자체&lt;/option&gt;
+&lt;option value="대학교"&gt;대학교&lt;/option&gt;
+&lt;option value="대학병원"&gt;대학병원&lt;/option&gt;
+&lt;option value="공공기관"&gt;공공기관&lt;/option&gt;</pre>
+  <pre class="a"><span class="lbl">후</span>&lt;option th:each="cat : ${categories}" th:value="${cat}" th:text="${cat}"&gt;&lt;/option&gt;</pre>
+</div>
+<p>
+  다른 화면(<code>upload.html</code>·<code>file-status.html</code>·<code>classified-rework.html</code>)은
+  이미 <code>${categories}</code> 를 쓰고 있어 <strong>손댈 것이 없습니다.</strong>
+</p>
+
+<h2 class="pb"><span class="n">6</span>내부망에서 적용하는 법</h2>
+
+<h3 style="font-family:'맑은 고딕',sans-serif">방법 ⓐ — 파일 교체 <span class="tag">권장</span></h3>
+<table>
+  <thead><tr><th>외부망 리포</th><th>내부망 WTP 폴더</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">uploader/src/main/java/com/kb/uploader/**.java</td><td class="mono">src/com/kb/uploader/**.java</td></tr>
+    <tr><td class="mono">uploader/src/main/resources/mapper/*.xml</td><td class="mono">src/mapper/*.xml</td></tr>
+    <tr><td class="mono">uploader/src/main/resources/schema-*.sql</td><td class="mono">src/schema-*.sql</td></tr>
+    <tr><td class="mono">uploader/src/main/resources/templates/institution.html</td><td class="mono">src/templates/institution.html</td></tr>
+  </tbody>
+</table>
+<p>
+  신규 폴더 <code>src/com/kb/uploader/code/</code> 가 생깁니다. 교체 후
+  <strong>Project → Clean</strong> → <strong>Publish</strong>.
+</p>
+
+<h3 style="font-family:'맑은 고딕',sans-serif">방법 ⓑ — 매퍼를 손으로 고칠 때의 치환 순서</h3>
+
+<div class="box alert">
+  <div class="h">순서를 지키지 않으면 XML 이 깨집니다</div>
+  <p>
+    <code>INSTITUTION</code> → <code>TSKGIAF02</code> 를 먼저 돌리면
+    <code>INSTITUTION_NAME</code>·<code>INSTITUTION_SEQ</code> 까지 망가집니다.
+    <code>ID</code> 는 <code>databaseId</code>·<code>keyProperty</code> 같은
+    <b>속성 이름에도</b> 들어 있어 무차별 치환하면 문서가 통째로 깨집니다.
+  </p>
+</div>
+
+<table>
+  <thead><tr><th>#</th><th>찾을 것</th><th>바꿀 것</th><th>주의</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td class="old">UPLOADED_FILE_SEQ</td><td class="new">SQ_KGI_AGENTFILETABLE</td><td>가장 길어서 먼저</td></tr>
+    <tr><td>2</td><td class="old">INSTITUTION_SEQ</td><td class="new">SQ_KGI_AGENTGIGANTABLE</td><td>—</td></tr>
+    <tr><td>3</td><td class="old">INSTITUTION_NAME</td><td class="new">기관명</td><td><code>INSTITUTION</code> 보다 <b>먼저</b></td></tr>
+    <tr><td>4</td><td class="old">ORIGINAL_NAME</td><td class="new">원본파일명</td><td>—</td></tr>
+    <tr><td>5</td><td class="old">CLASSIFIED_AT</td><td class="new">분류일시</td><td>—</td></tr>
+    <tr><td>6</td><td class="old">MODIFIED_AT</td><td class="new">수정일시</td><td>—</td></tr>
+    <tr><td>7</td><td class="old">UPLOADED_AT</td><td class="new">업로드일시</td><td>—</td></tr>
+    <tr><td>8</td><td class="old">STORED_PATH</td><td class="new">저장경로</td><td>—</td></tr>
+    <tr><td>9</td><td class="old">FILE_YEAR</td><td class="new">문서년</td><td>—</td></tr>
+    <tr><td>10</td><td class="old">UPLOADED_FILE</td><td class="new">TSKGIAF01</td><td>1번을 먼저 했어야 안전</td></tr>
+    <tr><td>11</td><td class="old">INSTITUTION</td><td class="new">TSKGIAF02</td><td>2·3번을 먼저 했어야 안전</td></tr>
+    <tr><td>12</td><td class="old">CATEGORY</td><td class="new">기관영업분류코드</td><td><b>한 번만</b></td></tr>
+    <tr><td>13</td><td class="old">STATUS</td><td class="new">분류상태구분</td><td><b>한 번만</b></td></tr>
+    <tr><td>14</td><td class="old">NAME</td><td class="new">기관명</td><td>⚠️ <code>InstitutionMapper</code> 에서만</td></tr>
+    <tr><td>15</td><td class="old">ID</td><td class="new">업로드파일일련번호 / 기관일련번호</td><td>🔴 <b>일괄 치환 금지 — 한 곳씩 눈으로</b></td></tr>
+    <tr><td>16</td><td colspan="3">그다음 <b>TypeHandler 를 손으로 넣는다</b>(3-1·3-2·4-1) —
+        치환으로는 안 됩니다</td></tr>
+    <tr><td>17</td><td colspan="3">그다음 <b>리터럴을 코드로</b>(3-5의 <code>'04'</code>·<code>'03'</code>,
+        3-8의 <code>'02'</code>)</td></tr>
+  </tbody>
+</table>
+
+<p><strong>16·17번 때문에 ⓑ는 권하지 않습니다.</strong> 파일 교체가 훨씬 안전합니다.</p>
+
+<h2><span class="n">7</span>적용 후 확인</h2>
+
+<table>
+  <thead><tr><th>확인</th><th>방법</th><th>정상</th></tr></thead>
+  <tbody>
+    <tr><td class="mono" style="white-space:nowrap">컴파일</td><td>Project → Clean 후 Problems 뷰</td><td>오류 0건. <code>code</code> 패키지가 보임</td></tr>
+    <tr><td class="mono" style="white-space:nowrap">배포</td><td><code>WEB-INF/classes/mapper/*.xml</code> 열어보기</td><td><code>TSKGIAF01</code> 이 보임</td></tr>
+    <tr><td class="mono" style="white-space:nowrap">기동</td><td>서버 로그</td><td>TypeHandler 예외 없음</td></tr>
+    <tr><td class="mono" style="white-space:nowrap">드롭다운</td><td><code>/uploader/institutions</code></td><td>분류 선택지가 <b>5종</b>(지방자치단체·공공기관·대학교·병원·법원)</td></tr>
+    <tr><td class="mono" style="white-space:nowrap">코드 저장</td><td>테이블 생성 후 기관 1건 등록 → DB 조회</td><td><code>기관영업분류코드</code> 에 <code>'01'</code> 같은 코드</td></tr>
+    <tr><td class="mono" style="white-space:nowrap">일시 저장</td><td>파일 1건 업로드 → DB 조회</td><td><code>업로드일시</code> 가 <code>20260908103000</code> 14자</td></tr>
+  </tbody>
+</table>
+
+
+
+<h2 class="pb"><span class="n">별첨1</span>신규 자바 9개 — 소스 전문</h2>
+<p><strong>파일을 그대로 복사하실 수 있으면 이 별첨은 보지 않으셔도 됩니다.</strong>
+   반입 경로가 막혀 손으로 옮겨 적어야 하거나, 반입 전 검수가 필요할 때 쓰십시오.</p>
+<div class="box alert">
+  <div class="h">옮겨 적을 때 지킬 것 셋</div>
+  <ul style="margin:4px 0 0">
+    <li><strong>파일 인코딩은 UTF-8</strong> — 주석·문자열에 한글이 많아 cp949 로 저장하면 통째로 깨집니다.</li>
+    <li><strong>패키지 경로 = 폴더 경로.</strong> <code>package com.kb.uploader.code;</code> →
+        <code>src/com/kb/uploader/code/</code>. ⚠️ <code>code</code> 폴더는 <b>새로 만들어야</b> 합니다.</li>
+    <li><strong>클래스 이름 = 파일 이름</strong>(대소문자 포함).</li>
+  </ul>
+</div>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/code/InstitutionCategory.java<span class="tag">57줄</span></h3>
+<pre class="src">package com.kb.uploader.code;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 기관영업분류코드 — 사내 인포타입 {@code 코드2} 로 저장하는 코드값.
+ *
+ * &lt;p&gt;&lt;b&gt;왜 코드인가.&lt;/b&gt; 사내 DB 표준의 {@code 구분코드} 는 &lt;b&gt;5자리 이하&lt;/b&gt;여야 한다
+ * (DBA 정책). 그런데 우리가 쓰던 값 {@code 지방자치단체} 는 6자라 들어가지 않는다.
+ * 그래서 DB 에는 {@code &#x27;01&#x27;} 을 넣고, &lt;b&gt;자바와 화면은 한글 이름을 그대로 쓴다.&lt;/b&gt;
+ * 변환은 {@code InstitutionCategoryTypeHandler} 한 곳에서만 일어난다 —
+ * 도메인·서비스·컨트롤러·Thymeleaf 는 이 코드의 존재를 모른다.
+ *
+ * &lt;p&gt;⚠️ &lt;b&gt;여기가 카테고리 목록의 유일한 출처다.&lt;/b&gt; 종전에는 같은 목록이
+ * {@code KGI12000}·{@code KGI12400} 두 컨트롤러와 {@code institution.html} 에
+ * &lt;b&gt;세 벌&lt;/b&gt;로 복제돼 있었고, 그래서 옛 4종(지자체·대학교·대학병원·공공기관)이
+ * 그대로 남아 있었다. 늘리거나 바꿀 때는 이 파일만 고친다.
+ *
+ * &lt;p&gt;⚠️ 코드값을 바꾸면 &lt;b&gt;이미 저장된 행을 함께 옮겨야 한다.&lt;/b&gt; 지금은 테이블이
+ * 비어 있어 자유롭지만, 운영 뒤에는 UPDATE 가 따른다.
+ */
+public final class InstitutionCategory {
+
+    private static final Map&lt;String, String&gt; NAME_TO_CODE = new LinkedHashMap&lt;String, String&gt;();
+    private static final Map&lt;String, String&gt; CODE_TO_NAME = new LinkedHashMap&lt;String, String&gt;();
+
+    static {
+        put(&quot;01&quot;, &quot;지방자치단체&quot;);
+        put(&quot;02&quot;, &quot;공공기관&quot;);
+        put(&quot;03&quot;, &quot;대학교&quot;);
+        put(&quot;04&quot;, &quot;병원&quot;);
+        put(&quot;05&quot;, &quot;법원&quot;);
+    }
+
+    private static void put(String code, String name) {
+        NAME_TO_CODE.put(name, code);
+        CODE_TO_NAME.put(code, name);
+    }
+
+    /** 화면 드롭다운에 그대로 쓰는 순서다(코드 오름차순). */
+    public static List&lt;String&gt; names() {
+        return Collections.unmodifiableList(new java.util.ArrayList&lt;String&gt;(NAME_TO_CODE.keySet()));
+    }
+
+    public static Map&lt;String, String&gt; nameToCode() {
+        return Collections.unmodifiableMap(NAME_TO_CODE);
+    }
+
+    public static Map&lt;String, String&gt; codeToName() {
+        return Collections.unmodifiableMap(CODE_TO_NAME);
+    }
+
+    private InstitutionCategory() {}
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/code/ClassificationStatus.java<span class="tag">51줄</span></h3>
+<pre class="src">package com.kb.uploader.code;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * 분류상태 — 사내 인포타입 {@code 구분코드2} 로 저장하는 코드값.
+ *
+ * &lt;p&gt;자바가 쓰는 값은 {@code &quot;UNCLASSIFIED&quot;} 처럼 &lt;b&gt;종전 그대로&lt;/b&gt;다
+ * ({@code UploadedFile.classify()}·{@code softDelete()} 등). 12자라 5자리 상한을
+ * 넘으므로 DB 에만 코드로 바꿔 넣는다 — 변환은
+ * {@code ClassificationStatusTypeHandler} 한 곳뿐이다.
+ *
+ * &lt;p&gt;⚠️ &lt;b&gt;Mapper XML 의 SQL 리터럴은 이 변환을 타지 않는다.&lt;/b&gt;
+ * TypeHandler 는 &lt;b&gt;파라미터와 결과&lt;/b&gt;에만 걸리므로,
+ * {@code SET 분류상태구분 = &#x27;04&#x27;} 처럼 문장에 직접 박힌 값은 &lt;b&gt;코드로 적어야 한다.&lt;/b&gt;
+ * 그 자리에 {@code &#x27;DELETED&#x27;} 를 적으면 조용히 아무 행도 안 바뀐다.
+ */
+public final class ClassificationStatus {
+
+    public static final String UNCLASSIFIED = &quot;UNCLASSIFIED&quot;;
+    public static final String CLASSIFIED   = &quot;CLASSIFIED&quot;;
+    public static final String REJECTED     = &quot;REJECTED&quot;;
+    public static final String DELETED      = &quot;DELETED&quot;;
+
+    private static final Map&lt;String, String&gt; NAME_TO_CODE = new LinkedHashMap&lt;String, String&gt;();
+    private static final Map&lt;String, String&gt; CODE_TO_NAME = new LinkedHashMap&lt;String, String&gt;();
+
+    static {
+        put(&quot;01&quot;, UNCLASSIFIED);
+        put(&quot;02&quot;, CLASSIFIED);
+        put(&quot;03&quot;, REJECTED);
+        put(&quot;04&quot;, DELETED);
+    }
+
+    private static void put(String code, String name) {
+        NAME_TO_CODE.put(name, code);
+        CODE_TO_NAME.put(code, name);
+    }
+
+    public static Map&lt;String, String&gt; nameToCode() {
+        return Collections.unmodifiableMap(NAME_TO_CODE);
+    }
+
+    public static Map&lt;String, String&gt; codeToName() {
+        return Collections.unmodifiableMap(CODE_TO_NAME);
+    }
+
+    private ClassificationStatus() {}
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/code/SystemUser.java<span class="tag">61줄</span></h3>
+<pre class="src">package com.kb.uploader.code;
+
+/**
+ * 감사 컬럼 {@code 시스템사용자번호} 에 넣을 값 — &lt;b&gt;이 데이터를 넣게 만든 주체&lt;/b&gt;다.
+ *
+ * &lt;p&gt;이 앱에는 로그인도 사용자 개념도 없다. 그래서 주체는 사람이 아니라 &lt;b&gt;프로그램&lt;/b&gt;이고,
+ * 화면번호를 넣는다. 인포타입이 {@code 사용자번호7}(CHAR 7) 이라 &lt;b&gt;앞의 {@code K} 를 뗀
+ * 7자&lt;/b&gt;를 쓴다 — {@code KGI11100} → {@code GI11100}.
+ *
+ * &lt;p&gt;&lt;b&gt;값을 손으로 심지 않는다.&lt;/b&gt; 컨트롤러 클래스명이 이미 화면번호를 담고 있으므로
+ * ({@code KGI11100$UploadAction}) 거기서 뽑는다 — {@code SystemUserInterceptor} 가
+ * 요청마다 넣고 끝나면 지운다. &lt;b&gt;화면이 늘어도 여기 손댈 일이 없다.&lt;/b&gt;
+ *
+ * &lt;p&gt;⚠️ 웹 요청이 아닌 경로(재분류 배치)는 컨트롤러가 없으므로 {@link #BATCH} 를
+ * &lt;b&gt;직접 넣고 반드시 지워야&lt;/b&gt; 한다. ThreadLocal 이라 안 지우면 그 스레드를 물려받은
+ * 다음 작업에 값이 새어 나간다.
+ *
+ * &lt;p&gt;⚠️ 값이 없으면 {@code null} 이다. 컬럼이 NULLABLE 이라 기동은 되지만, 그 행은
+ * &quot;누가 넣었는지 모르는 행&quot;이 된다 — 새 쓰기 경로를 만들 때 컨텍스트가 세팅되는지 확인할 것.
+ */
+public final class SystemUser {
+
+    /** 재분류 배치처럼 화면이 없는 경로. 7자를 넘지 않는다. */
+    public static final String BATCH = &quot;BATCH01&quot;;
+
+    private static final ThreadLocal&lt;String&gt; CURRENT = new ThreadLocal&lt;String&gt;();
+
+    /** 컨트롤러 클래스명에서 화면번호를 뽑는다. {@code KGI11100$UploadAction} → {@code GI11100}. */
+    public static String ofController(Class&lt;?&gt; controller) {
+        if (controller == null) {
+            return null;
+        }
+        String name = controller.getSimpleName();
+        // 규약: K + GI + 5자리. 뒤에 $이름 이 붙는다.
+        if (name.length() &lt; 8 || name.charAt(0) != &#x27;K&#x27;) {
+            return null;   // FileSearchApiController 처럼 번호가 없는 것 — 읽기 전용이라 무방하다
+        }
+        String code = name.substring(1, 8);
+        for (int i = 2; i &lt; code.length(); i++) {
+            if (!Character.isDigit(code.charAt(i))) {
+                return null;
+            }
+        }
+        return code;
+    }
+
+    public static void set(String systemUserNo) {
+        CURRENT.set(systemUserNo);
+    }
+
+    /** 세팅된 값이 없으면 {@code null} — 호출부가 판단하지 않고 그대로 DB 에 넣는다. */
+    public static String get() {
+        return CURRENT.get();
+    }
+
+    public static void clear() {
+        CURRENT.remove();
+    }
+
+    private SystemUser() {}
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/config/CodeTypeHandler.java<span class="tag">74줄</span></h3>
+<pre class="src">package com.kb.uploader.config;
+
+import org.apache.ibatis.type.BaseTypeHandler;
+import org.apache.ibatis.type.JdbcType;
+
+import java.sql.CallableStatement;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Map;
+
+/**
+ * 자바가 쓰는 &lt;b&gt;이름&lt;/b&gt;과 DB 에 들어가는 &lt;b&gt;코드&lt;/b&gt;를 잇는다.
+ *
+ * &lt;p&gt;&lt;b&gt;왜 두는가.&lt;/b&gt; 사내 DB 표준의 {@code 구분코드} 는 5자리 이하여야 하는데
+ * 우리가 쓰는 값({@code UNCLASSIFIED}·{@code 지방자치단체})은 그보다 길다.
+ * 값을 코드로 바꾸면 도메인·서비스·컨트롤러·화면·테스트가 전부 바뀌므로,
+ * &lt;b&gt;변환을 여기 한 곳에 가둔다.&lt;/b&gt; 그 덕에 자바 쪽은 종전 값을 그대로 쓴다.
+ *
+ * &lt;p&gt;⚠️ &lt;b&gt;모르는 값이 오면 조용히 넘기지 않고 예외를 던진다.&lt;/b&gt; 코드가 안 맞으면
+ * 증상이 &quot;저장은 됐는데 조회가 안 됨&quot; 처럼 엉뚱하게 나타나기 때문이다.
+ *
+ * &lt;p&gt;⚠️ 두 하위 구현 모두 자바 타입이 {@code String} 이라 &lt;b&gt;자동 등록(type-handlers-package)
+ * 을 쓸 수 없다&lt;/b&gt; — 같은 타입에 둘이 걸려 어느 쪽이 잡힐지 알 수 없다.
+ * 그래서 Mapper XML 에서 {@code typeHandler=} 로 &lt;b&gt;자리마다 명시&lt;/b&gt;한다.
+ */
+public abstract class CodeTypeHandler extends BaseTypeHandler&lt;String&gt; {
+
+    protected abstract Map&lt;String, String&gt; nameToCode();
+
+    protected abstract Map&lt;String, String&gt; codeToName();
+
+    @Override
+    public void setNonNullParameter(PreparedStatement ps, int i, String name, JdbcType jdbcType)
+            throws SQLException {
+        String code = nameToCode().get(name);
+        if (code == null) {
+            throw new SQLException(getClass().getSimpleName()
+                    + &quot;: 코드로 옮길 수 없는 값이다 — &#x27;&quot; + name + &quot;&#x27;. 아는 값: &quot; + nameToCode().keySet());
+        }
+        ps.setString(i, code);
+    }
+
+    @Override
+    public String getNullableResult(ResultSet rs, String columnName) throws SQLException {
+        return toName(rs.getString(columnName));
+    }
+
+    @Override
+    public String getNullableResult(ResultSet rs, int columnIndex) throws SQLException {
+        return toName(rs.getString(columnIndex));
+    }
+
+    @Override
+    public String getNullableResult(CallableStatement cs, int columnIndex) throws SQLException {
+        return toName(cs.getString(columnIndex));
+    }
+
+    private String toName(String code) throws SQLException {
+        if (code == null) {
+            return null;
+        }
+        String trimmed = code.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        String name = codeToName().get(trimmed);
+        if (name == null) {
+            throw new SQLException(getClass().getSimpleName()
+                    + &quot;: DB 에 모르는 코드가 들어 있다 — &#x27;&quot; + trimmed + &quot;&#x27;. 아는 코드: &quot; + codeToName().keySet());
+        }
+        return name;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/config/InstitutionCategoryTypeHandler.java<span class="tag">19줄</span></h3>
+<pre class="src">package com.kb.uploader.config;
+
+import com.kb.uploader.code.InstitutionCategory;
+
+import java.util.Map;
+
+/** {@code 지방자치단체} ↔ {@code &#x27;01&#x27;} — 자세한 이유는 {@link CodeTypeHandler}. */
+public class InstitutionCategoryTypeHandler extends CodeTypeHandler {
+
+    @Override
+    protected Map&lt;String, String&gt; nameToCode() {
+        return InstitutionCategory.nameToCode();
+    }
+
+    @Override
+    protected Map&lt;String, String&gt; codeToName() {
+        return InstitutionCategory.codeToName();
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/config/ClassificationStatusTypeHandler.java<span class="tag">19줄</span></h3>
+<pre class="src">package com.kb.uploader.config;
+
+import com.kb.uploader.code.ClassificationStatus;
+
+import java.util.Map;
+
+/** {@code UNCLASSIFIED} ↔ {@code &#x27;01&#x27;} — 자세한 이유는 {@link CodeTypeHandler}. */
+public class ClassificationStatusTypeHandler extends CodeTypeHandler {
+
+    @Override
+    protected Map&lt;String, String&gt; nameToCode() {
+        return ClassificationStatus.nameToCode();
+    }
+
+    @Override
+    protected Map&lt;String, String&gt; codeToName() {
+        return ClassificationStatus.codeToName();
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/config/LocalDateTimeStringTypeHandler.java<span class="tag">70줄</span></h3>
+<pre class="src">package com.kb.uploader.config;
+
+import org.apache.ibatis.type.BaseTypeHandler;
+import org.apache.ibatis.type.JdbcType;
+
+import java.sql.CallableStatement;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+
+/**
+ * 자바 {@link LocalDateTime} 과 사내 인포타입 {@code 일시20}(CHARACTER 20) 을 잇는다.
+ *
+ * &lt;p&gt;저장 형식은 &lt;b&gt;{@code YYYYMMDDHH24MISS}&lt;/b&gt; 14자다(사내 표준). 컬럼이 20자인 것은
+ * 여유일 뿐이라 우리는 14자만 채운다.
+ *
+ * &lt;p&gt;&lt;b&gt;왜 두는가.&lt;/b&gt; 표준이 시각을 문자열로 두라고 하는데 도메인은
+ * {@code LocalDateTime} 이다. 도메인을 문자열로 바꾸면 {@code UploadedFile}·서비스·
+ * 화면·테스트가 전부 바뀌므로, &lt;b&gt;변환을 여기 한 곳에 가둔다.&lt;/b&gt;
+ *
+ * &lt;p&gt;⚠️ 읽을 때 {@code trim()} 한다. 컬럼이 고정폭 {@code CHAR} 로 만들어지면
+ * 뒤에 공백이 붙어 오는데, 그대로 파싱하면 {@code DateTimeParseException} 이 난다.
+ *
+ * &lt;p&gt;⚠️ &lt;b&gt;정렬이 문자열 정렬&lt;/b&gt;이 된다. {@code YYYYMMDDHH24MISS} 는 자릿수가 고정이라
+ * 사전순 = 시간순이 맞지만, 형식을 바꾸면 그 성질이 깨진다
+ * ({@code ORDER BY 업로드일시 DESC} 가 조용히 어긋난다).
+ */
+public class LocalDateTimeStringTypeHandler extends BaseTypeHandler&lt;LocalDateTime&gt; {
+
+    private static final DateTimeFormatter FORMAT = DateTimeFormatter.ofPattern(&quot;yyyyMMddHHmmss&quot;);
+
+    @Override
+    public void setNonNullParameter(PreparedStatement ps, int i, LocalDateTime parameter, JdbcType jdbcType)
+            throws SQLException {
+        ps.setString(i, parameter.format(FORMAT));
+    }
+
+    @Override
+    public LocalDateTime getNullableResult(ResultSet rs, String columnName) throws SQLException {
+        return parse(rs.getString(columnName));
+    }
+
+    @Override
+    public LocalDateTime getNullableResult(ResultSet rs, int columnIndex) throws SQLException {
+        return parse(rs.getString(columnIndex));
+    }
+
+    @Override
+    public LocalDateTime getNullableResult(CallableStatement cs, int columnIndex) throws SQLException {
+        return parse(cs.getString(columnIndex));
+    }
+
+    private LocalDateTime parse(String raw) throws SQLException {
+        if (raw == null) {
+            return null;
+        }
+        String value = raw.trim();
+        if (value.isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(value, FORMAT);
+        } catch (DateTimeParseException e) {
+            throw new SQLException(&quot;일시 형식이 YYYYMMDDHH24MISS 가 아니다 — &#x27;&quot; + value + &quot;&#x27;&quot;, e);
+        }
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/config/SystemUserInterceptor.java<span class="tag">36줄</span></h3>
+<pre class="src">package com.kb.uploader.config;
+
+import com.kb.uploader.code.SystemUser;
+import org.springframework.stereotype.Component;
+import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.HandlerInterceptor;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+/**
+ * 요청마다 {@link SystemUser} 에 화면번호를 넣고, 끝나면 지운다.
+ *
+ * &lt;p&gt;값은 &lt;b&gt;컨트롤러 클래스명에서 자동으로&lt;/b&gt; 나온다({@code KGI11100$UploadAction} →
+ * {@code GI11100}). 컨트롤러마다 손으로 심지 않으므로 &lt;b&gt;화면이 늘어도 이 파일은 그대로다.&lt;/b&gt;
+ *
+ * &lt;p&gt;⚠️ {@code afterCompletion} 에서 &lt;b&gt;반드시 지운다.&lt;/b&gt; WAS 는 스레드를 재사용하므로,
+ * 안 지우면 다음 요청이 이전 화면번호를 물려받아 &lt;b&gt;감사 기록이 조용히 틀어진다.&lt;/b&gt;
+ */
+@Component
+public class SystemUserInterceptor implements HandlerInterceptor {
+
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+        if (handler instanceof HandlerMethod) {
+            SystemUser.set(SystemUser.ofController(((HandlerMethod) handler).getBeanType()));
+        }
+        return true;
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response,
+                                Object handler, Exception ex) {
+        SystemUser.clear();
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/config/WebMvcConfig.java<span class="tag">21줄</span></h3>
+<pre class="src">package com.kb.uploader.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+/** {@link SystemUserInterceptor} 를 모든 요청에 건다. */
+@Configuration
+public class WebMvcConfig implements WebMvcConfigurer {
+
+    private final SystemUserInterceptor systemUserInterceptor;
+
+    public WebMvcConfig(SystemUserInterceptor systemUserInterceptor) {
+        this.systemUserInterceptor = systemUserInterceptor;
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(systemUserInterceptor);
+    }
+}
+</pre>
+
+<h2 class="pb"><span class="n">별첨2</span>매퍼 XML 2개 — 전문</h2>
+<div class="box alert">
+  <div class="h">이 둘은 손으로 고치는 것보다 <b>통째로 옮기는 편이 훨씬 안전합니다</b></div>
+  <p>이름 치환만으로 끝나지 않습니다 — <b>TypeHandler 를 자리마다 넣어야 하고</b>,
+     <b>SQL 리터럴을 코드로 바꿔야</b> 하며, 이번엔 <b>감사 2열</b>까지 붙었습니다.
+     빠뜨리면 오류 없이 조용히 어긋납니다.</p>
+</div>
+<div class="box warn">
+  <div class="h">XML 은 두 가지를 조심하십시오</div>
+  <ul style="margin:4px 0 0">
+    <li><code>&amp;lt;=</code> 는 <b>그대로</b> 적어야 합니다 — 풀어 쓰면 태그로 읽혀 파일이 깨집니다.</li>
+    <li>첫 두 줄(<code>&lt;?xml …?&gt;</code> · <code>&lt;!DOCTYPE mapper …&gt;</code>)을 빠뜨리지 마십시오.</li>
+  </ul>
+</div>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/mapper/UploadedFileMapper.xml<span class="tag">232줄</span></h3>
+<pre class="src">&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
+&lt;!DOCTYPE mapper PUBLIC &quot;-//mybatis.org//DTD Mapper 3.0//EN&quot;
+        &quot;http://mybatis.org/dtd/mybatis-3-mapper.dtd&quot;&gt;
+
+&lt;!--
+  ⚠️ **2026-09-08 — 사내 DB 표준을 반영했다.** 테이블은 코드, 컬럼은 한글, 그리고
+     타입은 인포타입이 정한다. 자바 필드명(property)은 그대로다.
+
+       UPLOADED_FILE → TSKGIAF01        시퀀스 → SQ_KGI_AGENTFILETABLE
+
+       property        →  컬럼명                 인포타입
+       id              →  업로드파일일련번호      일련번호16 (DECIMAL)
+       institutionName →  기관명                 명40
+       category        →  기관영업분류구분        코드2       ★ TypeHandler
+       year            →  문서년                 년4
+       status          →  분류상태구분            구분코드2   ★ TypeHandler
+       originalName    →  원본파일명              명260
+       uploadedAt      →  업로드일시              일시14      ★ TypeHandler
+       classifiedAt    →  분류일시                일시14      ★ TypeHandler
+       storedPath      →  저장경로내용            내용600
+       systemUsedAt    →  시스템사용일시           일시14   ★ TypeHandler
+       systemUserNo    →  시스템사용자번호         사용자번호7
+
+  ★ **TypeHandler 를 자리마다 명시한다.** 두 코드 핸들러가 모두 자바 `String` 을
+    다뤄서 자동 등록(type-handlers-package)을 쓸 수 없다 — 같은 타입에 둘이 걸리면
+    어느 쪽이 잡힐지 알 수 없다. 그래서 resultMap 과 `#{...}` 양쪽에 적는다.
+    **한쪽만 적으면 읽기나 쓰기 중 한 방향만 변환돼 조용히 어긋난다.**
+
+  ⚠️ **SQL 문장에 직접 박힌 값은 TypeHandler 를 타지 않는다.** 아래
+    `분류상태구분 = &#x27;04&#x27;` 처럼 **코드로 적어야 한다**. 거기에 &#x27;DELETED&#x27; 를 적으면
+    오류 없이 0건이 바뀐다. 코드표는 `code/ClassificationStatus.java` 에 있다.
+--&gt;
+&lt;mapper namespace=&quot;com.kb.uploader.mapper.UploadedFileMapper&quot;&gt;
+
+  &lt;resultMap id=&quot;uploadedFileMap&quot; type=&quot;UploadedFile&quot;&gt;
+    &lt;id     property=&quot;id&quot;              column=&quot;업로드파일일련번호&quot;/&gt;
+    &lt;result property=&quot;institutionName&quot; column=&quot;기관명&quot;/&gt;
+    &lt;result property=&quot;category&quot;        column=&quot;기관영업분류구분&quot;
+            typeHandler=&quot;com.kb.uploader.config.InstitutionCategoryTypeHandler&quot;/&gt;
+    &lt;result property=&quot;year&quot;            column=&quot;문서년&quot;/&gt;
+    &lt;result property=&quot;status&quot;          column=&quot;분류상태구분&quot;
+            typeHandler=&quot;com.kb.uploader.config.ClassificationStatusTypeHandler&quot;/&gt;
+    &lt;result property=&quot;originalName&quot;    column=&quot;원본파일명&quot;/&gt;
+    &lt;result property=&quot;uploadedAt&quot;      column=&quot;업로드일시&quot;
+            typeHandler=&quot;com.kb.uploader.config.LocalDateTimeStringTypeHandler&quot;/&gt;
+    &lt;result property=&quot;classifiedAt&quot;    column=&quot;분류일시&quot;
+            typeHandler=&quot;com.kb.uploader.config.LocalDateTimeStringTypeHandler&quot;/&gt;
+    &lt;result property=&quot;storedPath&quot;      column=&quot;저장경로내용&quot;/&gt;
+  &lt;/resultMap&gt;
+
+  &lt;!-- 파라미터 쪽 TypeHandler 표기가 길어 sql 조각으로 묶는다 --&gt;
+  &lt;sql id=&quot;값목록&quot;&gt;
+    #{institutionName},
+    #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+    #{year},
+    #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler},
+    #{originalName},
+    #{uploadedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+    #{storedPath}
+  &lt;/sql&gt;
+
+  &lt;!--
+    ⚠️ 같은 id 가 두 번 나오는 자리는 **방언 분기**다(databaseId). 접속한 DB 에 맞는
+       쪽만 로드된다 — config/MyBatisConfig 가 값을 정한다.
+       한쪽만 고치면 다른 DB 에서 조용히 낡는다. **항상 둘을 같이 고칠 것.**
+  --&gt;
+
+  &lt;!-- MySQL: useGeneratedKeys로 AUTO_INCREMENT id 채움 --&gt;
+  &lt;insert id=&quot;insert&quot; databaseId=&quot;mysql&quot; useGeneratedKeys=&quot;true&quot; keyProperty=&quot;id&quot;&gt;
+    INSERT INTO INST1.TSKGIAF01
+      (기관명, 기관영업분류구분, 문서년, 분류상태구분, 원본파일명, 업로드일시, 저장경로내용,
+       시스템사용일시, 시스템사용자번호)
+    VALUES
+      (&lt;include refid=&quot;값목록&quot;/&gt;,
+       #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo})
+  &lt;/insert&gt;
+  &lt;!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 SQ_KGI_AGENTFILETABLE) --&gt;
+  &lt;insert id=&quot;insert&quot; databaseId=&quot;oracle&quot;&gt;
+    &lt;selectKey keyProperty=&quot;id&quot; resultType=&quot;long&quot; order=&quot;BEFORE&quot;&gt;
+      SELECT INST1.SQ_KGI_AGENTFILETABLE.NEXTVAL FROM DUAL
+    &lt;/selectKey&gt;
+    INSERT INTO INST1.TSKGIAF01
+      (업로드파일일련번호, 기관명, 기관영업분류구분, 문서년, 분류상태구분, 원본파일명, 업로드일시,
+       저장경로내용, 시스템사용일시, 시스템사용자번호)
+    VALUES
+      (#{id}, &lt;include refid=&quot;값목록&quot;/&gt;,
+       #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, #{systemUserNo})
+  &lt;/insert&gt;
+
+  &lt;update id=&quot;update&quot;&gt;
+    UPDATE INST1.TSKGIAF01
+    SET
+    저장경로내용      = #{storedPath},
+    기관명        = #{institutionName},
+    문서년        = #{year},
+    기관영업분류구분      = #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+    분류상태구분  = #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler},
+    분류일시      = #{classifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+    시스템사용일시   = #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+    시스템사용자번호 = #{systemUserNo}
+    WHERE 업로드파일일련번호 = #{id}
+  &lt;/update&gt;
+
+  &lt;!--
+    ⚠️ &#x27;04&#x27; = DELETED, &#x27;03&#x27; = REJECTED, &#x27;02&#x27; = CLASSIFIED (code/ClassificationStatus.java)
+    ⚠️ 이 둘은 파라미터에 시각 값이 없어 **컨트롤러가 LocalDateTime.now() 를 넘긴다.**
+       DB 함수(TO_CHAR(SYSDATE)/DATE_FORMAT(NOW()))를 쓰면 방언이 갈리고 테스트로
+       확인하기도 어려워, 자바에서 정해 넘기는 쪽을 택했다.
+  --&gt;
+  &lt;update id=&quot;softDeleteById&quot;&gt;
+    UPDATE INST1.TSKGIAF01 SET 분류상태구분 = &#x27;04&#x27;,
+      시스템사용일시 = #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, 시스템사용자번호 = #{systemUserNo}
+    WHERE 업로드파일일련번호 = #{id}
+  &lt;/update&gt;
+
+  &lt;update id=&quot;rejectById&quot;&gt;
+    UPDATE INST1.TSKGIAF01 SET 분류상태구분 = &#x27;03&#x27;,
+      시스템사용일시 = #{systemUsedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}, 시스템사용자번호 = #{systemUserNo}
+    WHERE 업로드파일일련번호 = #{id}
+  &lt;/update&gt;
+
+  &lt;select id=&quot;findById&quot; resultMap=&quot;uploadedFileMap&quot;&gt;
+    SELECT * FROM INST1.TSKGIAF01 WHERE 업로드파일일련번호 = #{id}
+  &lt;/select&gt;
+
+  &lt;!--
+    ⚠️ **종전에는 ORDER BY 가 없었다**(2026-09-08 추가). 목록 순서를 DB 에 맡긴 셈이라
+       화면이 대체로 삽입순처럼 보였을 뿐 보장된 것이 아니었고, 인덱스가 붙는 순간
+       순서가 바뀐다. 정렬 컬럼을 PK 로 둔 이유는 findRecent 와 같다(같은 초 문제).
+       인덱스 (분류상태구분, 업로드파일일련번호) 가 **필터와 정렬을 함께** 받는다.
+  --&gt;
+  &lt;select id=&quot;findByStatus&quot; resultMap=&quot;uploadedFileMap&quot;&gt;
+    SELECT * FROM INST1.TSKGIAF01
+    WHERE 분류상태구분 = #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler}
+    ORDER BY 업로드파일일련번호 DESC
+  &lt;/select&gt;
+
+  &lt;select id=&quot;findClassifiedByUnknownInstitution&quot; resultMap=&quot;uploadedFileMap&quot;&gt;
+    SELECT * FROM INST1.TSKGIAF01
+    WHERE 기관명 = &#x27;알수없음&#x27; AND 분류상태구분 = &#x27;02&#x27;
+    ORDER BY 업로드일시 DESC
+  &lt;/select&gt;
+
+  &lt;select id=&quot;countAll&quot; resultType=&quot;long&quot;&gt;
+    SELECT COUNT(*) FROM INST1.TSKGIAF01
+  &lt;/select&gt;
+
+  &lt;select id=&quot;countByStatus&quot; resultType=&quot;long&quot;&gt;
+    SELECT COUNT(*) FROM INST1.TSKGIAF01
+    WHERE 분류상태구분 = #{status,typeHandler=com.kb.uploader.config.ClassificationStatusTypeHandler}
+  &lt;/select&gt;
+
+  &lt;!--
+    ⚠️ **최신순 정렬을 업로드일시가 아니라 PK 로 한다**(2026-09-08).
+       ⓐ 시퀀스가 NOCACHE 라 증가순 = 삽입순 = 시간순이고,
+       ⓑ 업로드일시는 문자열 초 단위라 **같은 초에 여러 건이면 순서가 뒤섞인다**,
+       ⓒ **PK 인덱스가 정렬을 그대로 처리**해 (업로드일시) 인덱스가 필요 없어진다.
+       ⚠️ 시퀀스에 캐시를 켜면 ⓐ 가 깨진다 — 그때는 이 정렬을 다시 봐야 한다.
+  --&gt;
+  &lt;!-- MySQL: LIMIT --&gt;
+  &lt;select id=&quot;findRecent&quot; databaseId=&quot;mysql&quot; resultMap=&quot;uploadedFileMap&quot;&gt;
+    SELECT * FROM INST1.TSKGIAF01 ORDER BY 업로드파일일련번호 DESC LIMIT #{limit}
+  &lt;/select&gt;
+  &lt;!-- Oracle: ROWNUM 은 ORDER BY 보다 먼저 매겨지므로 정렬을 인라인 뷰로 감싼다 --&gt;
+  &lt;select id=&quot;findRecent&quot; databaseId=&quot;oracle&quot; resultMap=&quot;uploadedFileMap&quot;&gt;
+    SELECT * FROM (
+      SELECT * FROM INST1.TSKGIAF01 ORDER BY 업로드파일일련번호 DESC
+    ) WHERE ROWNUM &amp;lt;= #{limit}
+  &lt;/select&gt;
+
+  &lt;!--
+    ⚠️ 아래 세 문장(기관명 검색·검색)은 **업로드일시로 정렬한다** — findRecent 와 다르다.
+       인덱스 (기관명, 업로드일시) 의 두 번째 열이 업로드일시라, 기관명이 정확 일치가
+       되는 날 **정렬까지 인덱스가 처리**하게 하려는 것이다. 여기를 일련번호로 바꾸면
+       그 이점이 사라진다.
+       업로드일시가 문자열(YYYYMMDDHH24MISS)이라 문자열 정렬이지만, 자릿수가 고정이라
+       사전순 = 시간순이 맞다. 형식을 바꾸면 이 성질이 깨진다.
+  --&gt;
+  &lt;!-- MySQL: LIMIT ... OFFSET --&gt;
+  &lt;select id=&quot;findByInstitutionNameContaining&quot; databaseId=&quot;mysql&quot; resultMap=&quot;uploadedFileMap&quot;&gt;
+    SELECT * FROM INST1.TSKGIAF01
+    WHERE 기관명 LIKE CONCAT(&#x27;%&#x27;, #{keyword}, &#x27;%&#x27;)
+    ORDER BY 업로드일시 DESC
+    LIMIT #{limit} OFFSET #{offset}
+  &lt;/select&gt;
+  &lt;!-- Oracle: ROWNUM 2단 중첩 페이징. 안쪽에서 상한, 바깥에서 하한을 건다 --&gt;
+  &lt;select id=&quot;findByInstitutionNameContaining&quot; databaseId=&quot;oracle&quot; resultMap=&quot;uploadedFileMap&quot;&gt;
+    SELECT * FROM (
+      SELECT a.*, ROWNUM RN FROM (
+        SELECT * FROM INST1.TSKGIAF01
+        WHERE 기관명 LIKE &#x27;%&#x27; || #{keyword} || &#x27;%&#x27;
+        ORDER BY 업로드일시 DESC
+      ) a WHERE ROWNUM &amp;lt;= #{offset} + #{limit}
+    ) WHERE RN &amp;gt; #{offset}
+  &lt;/select&gt;
+
+  &lt;!-- MySQL: CONCAT --&gt;
+  &lt;select id=&quot;countByInstitutionNameContaining&quot; databaseId=&quot;mysql&quot; resultType=&quot;long&quot;&gt;
+    SELECT COUNT(*) FROM INST1.TSKGIAF01
+    WHERE 기관명 LIKE CONCAT(&#x27;%&#x27;, #{keyword}, &#x27;%&#x27;)
+  &lt;/select&gt;
+  &lt;!-- Oracle: || 로 연결 --&gt;
+  &lt;select id=&quot;countByInstitutionNameContaining&quot; databaseId=&quot;oracle&quot; resultType=&quot;long&quot;&gt;
+    SELECT COUNT(*) FROM INST1.TSKGIAF01
+    WHERE 기관명 LIKE &#x27;%&#x27; || #{keyword} || &#x27;%&#x27;
+  &lt;/select&gt;
+
+  &lt;!-- MySQL: 다중 조건 검색 --&gt;
+  &lt;select id=&quot;search&quot; databaseId=&quot;mysql&quot; resultMap=&quot;uploadedFileMap&quot;&gt;
+    SELECT * FROM INST1.TSKGIAF01
+    WHERE
+    (#{institution} = &#x27;&#x27; OR 기관명 LIKE CONCAT(&#x27;%&#x27;, #{institution}, &#x27;%&#x27;))
+    AND (#{year} = &#x27;&#x27; OR 문서년 = #{year})
+    AND (#{keyword} = &#x27;&#x27; OR 원본파일명 LIKE CONCAT(&#x27;%&#x27;, #{keyword}, &#x27;%&#x27;))
+    ORDER BY 업로드일시 DESC
+  &lt;/select&gt;
+  &lt;!--
+    Oracle: || 로 연결.
+    ⚠️ Oracle 은 빈 문자열을 NULL 로 바꾸므로 `#{x} = &#x27;&#x27;` 는 **항상 거짓**이다.
+       &quot;빈 값이면 조건을 걸지 않는다&quot;는 원래 뜻을 살리려면 NULL 검사여야 한다.
+       (MySQL 쪽은 &#x27;&#x27;를 값으로 담으므로 `= &#x27;&#x27;` 가 맞다 — 그래서 문장이 갈린다.)
+  --&gt;
+  &lt;select id=&quot;search&quot; databaseId=&quot;oracle&quot; resultMap=&quot;uploadedFileMap&quot;&gt;
+    SELECT * FROM INST1.TSKGIAF01
+    WHERE
+      (#{institution} IS NULL OR 기관명 LIKE &#x27;%&#x27; || #{institution} || &#x27;%&#x27;)
+      AND (#{year} IS NULL OR 문서년 = #{year})
+      AND (#{keyword} IS NULL OR 원본파일명 LIKE &#x27;%&#x27; || #{keyword} || &#x27;%&#x27;)
+    ORDER BY 업로드일시 DESC
+  &lt;/select&gt;
+
+&lt;/mapper&gt;
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/mapper/InstitutionMapper.xml<span class="tag">86줄</span></h3>
+<pre class="src">&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
+&lt;!DOCTYPE mapper PUBLIC &quot;-//mybatis.org//DTD Mapper 3.0//EN&quot;
+  &quot;http://mybatis.org/dtd/mybatis-3-mapper.dtd&quot;&gt;
+
+&lt;!--
+  ⚠️ **2026-09-08 — 사내 DB 표준을 반영했다.** 자바 필드명(property)은 그대로다.
+
+       INSTITUTION → TSKGIAF02          시퀀스 → SQ_KGI_AGENTGIGANTABLE
+
+       property    →  컬럼명          인포타입
+       id          →  기관일련번호     일련번호16 (DECIMAL)
+       name        →  기관명          명40
+       category    →  기관영업분류구분  코드2       ★ TypeHandler
+       modifiedAt  →  시스템사용일시   일시14      ★ TypeHandler (옛 수정일시)
+       systemUserNo →  시스템사용자번호 사용자번호7
+
+  ★ TypeHandler 를 resultMap 과 `#{...}` **양쪽에** 적어야 한다. 한쪽만 적으면
+    읽기나 쓰기 중 한 방향만 변환돼 조용히 어긋난다. 이유는 UploadedFileMapper 주석.
+--&gt;
+&lt;mapper namespace=&quot;com.kb.uploader.mapper.InstitutionMapper&quot;&gt;
+
+  &lt;resultMap id=&quot;institutionMap&quot; type=&quot;Institution&quot;&gt;
+    &lt;id     property=&quot;id&quot;         column=&quot;기관일련번호&quot;/&gt;
+    &lt;result property=&quot;name&quot;       column=&quot;기관명&quot;/&gt;
+    &lt;result property=&quot;category&quot;   column=&quot;기관영업분류구분&quot;
+            typeHandler=&quot;com.kb.uploader.config.InstitutionCategoryTypeHandler&quot;/&gt;
+    &lt;result property=&quot;modifiedAt&quot; column=&quot;시스템사용일시&quot;
+            typeHandler=&quot;com.kb.uploader.config.LocalDateTimeStringTypeHandler&quot;/&gt;
+  &lt;/resultMap&gt;
+
+  &lt;sql id=&quot;값목록&quot;&gt;
+    #{name},
+    #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+    #{modifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler}
+  &lt;/sql&gt;
+
+  &lt;!--
+    ⚠️ 같은 id 가 두 번 나오는 자리는 **방언 분기**다(databaseId). 접속한 DB 에 맞는
+       쪽만 로드된다 — config/MyBatisConfig 가 값을 정한다. **항상 둘을 같이 고칠 것.**
+  --&gt;
+
+  &lt;!-- MySQL --&gt;
+  &lt;insert id=&quot;insert&quot; databaseId=&quot;mysql&quot; useGeneratedKeys=&quot;true&quot; keyProperty=&quot;id&quot;&gt;
+    INSERT INTO INST1.TSKGIAF02 (기관명, 기관영업분류구분, 시스템사용일시, 시스템사용자번호)
+    VALUES (&lt;include refid=&quot;값목록&quot;/&gt;, #{systemUserNo})
+  &lt;/insert&gt;
+  &lt;!-- Oracle: 시퀀스에서 먼저 ID를 받아 직접 넣는다 (schema-oracle.sql 의 SQ_KGI_AGENTGIGANTABLE) --&gt;
+  &lt;insert id=&quot;insert&quot; databaseId=&quot;oracle&quot;&gt;
+    &lt;selectKey keyProperty=&quot;id&quot; resultType=&quot;long&quot; order=&quot;BEFORE&quot;&gt;
+      SELECT INST1.SQ_KGI_AGENTGIGANTABLE.NEXTVAL FROM DUAL
+    &lt;/selectKey&gt;
+    INSERT INTO INST1.TSKGIAF02 (기관일련번호, 기관명, 기관영업분류구분, 시스템사용일시, 시스템사용자번호)
+    VALUES (#{id}, &lt;include refid=&quot;값목록&quot;/&gt;, #{systemUserNo})
+  &lt;/insert&gt;
+
+  &lt;update id=&quot;update&quot;&gt;
+    UPDATE INST1.TSKGIAF02
+    SET 기관명   = #{name},
+        기관영업분류구분 = #{category,typeHandler=com.kb.uploader.config.InstitutionCategoryTypeHandler},
+        시스템사용일시   = #{modifiedAt,typeHandler=com.kb.uploader.config.LocalDateTimeStringTypeHandler},
+        시스템사용자번호 = #{systemUserNo}
+    WHERE 기관일련번호 = #{id}
+  &lt;/update&gt;
+
+  &lt;delete id=&quot;deleteById&quot;&gt;
+    DELETE FROM INST1.TSKGIAF02 WHERE 기관일련번호 = #{id}
+  &lt;/delete&gt;
+
+  &lt;delete id=&quot;deleteAll&quot;&gt;
+    DELETE FROM INST1.TSKGIAF02
+  &lt;/delete&gt;
+
+  &lt;!--
+    ⚠️ **이 앱에서 가장 중요한 문장이다.** 업로드된 파일의 기관명으로 여기를 조회해
+       못 찾으면 파일이 UNCLASSIFIED 로 남는다(ClassificationService.classify).
+       틀리면 오류 없이 &quot;분류가 하나도 안 되는&quot; 증상으로만 나타난다.
+  --&gt;
+  &lt;select id=&quot;findByName&quot; resultMap=&quot;institutionMap&quot;&gt;
+    SELECT * FROM INST1.TSKGIAF02 WHERE 기관명 = #{name}
+  &lt;/select&gt;
+
+  &lt;select id=&quot;findAll&quot; resultMap=&quot;institutionMap&quot;&gt;
+    SELECT * FROM INST1.TSKGIAF02 ORDER BY 기관명 ASC
+  &lt;/select&gt;
+
+&lt;/mapper&gt;
+</pre>
+
+<h2 class="pb"><span class="n">별첨3</span>스키마 SQL 2개 — 전문</h2>
+<div class="box info">
+  <div class="h">①번 6절과 무엇이 다른가</div>
+  <p>①번은 <b>DBA 가 그대로 실행할 문장만</b> 추린 것이고, 여기는 <b>주석까지 포함한 원본</b>입니다.
+     주석에 왜 그 길이·그 타입인지, 무엇을 일부러 넣지 않았는지가 적혀 있습니다.</p>
+</div>
+<div class="box alert">
+  <div class="h">두 파일은 <b>같은 커밋에서 함께</b> 고쳐야 합니다</div>
+  <p><code>schema-mysql.sql</code> 은 미러입니다. 한쪽만 고치면 외부망 테스트(H2)와 내부망 운영이 조용히 갈립니다.
+     ⚠️ Oracle 쪽은 <code>IF NOT EXISTS</code> 가 없어 <b>재실행하면 <code>ORA-00955</code></b> — DROP 먼저.</p>
+</div>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/schema-oracle.sql<span class="tag">219줄</span></h3>
+<pre class="src">-- =====================================================================
+-- schema-oracle.sql — uploader 단독 스키마의 Oracle 정본
+--
+-- 미러 관계: `schema-mysql.sql` 과 **같은 내용**을 Oracle 문법으로 적은 것이다.
+--            한쪽이 바뀌면 같은 커밋에서 다른 쪽도 바꾼다
+--            (`kgi-ggreport-web/src/main/resources/db/README.md` 와 같은 규칙).
+--
+-- 왜 필요한가: `config-envs` 의 local·dev·stg 는 이미 `oracle.jdbc.OracleDriver`
+--            를 보고 있고 prod 는 JNDI(`jdbc/uploaderDS`)다. MySQL 은 외부망
+--            `out-local` 하나뿐인데, 종전에는 DDL 이 `schema-mysql.sql` 한 벌뿐이라
+--            **내부망 4개 환경에 만들 테이블이 없었다.**
+--
+-- ---------------------------------------------------------------------
+-- MySQL → Oracle 로 바꾼 것 5가지
+--
+--   1. `BIGINT AUTO_INCREMENT` → `NUMBER(18)` + **시퀀스**
+--      (자릿수는 2026-09-08 에 19 → 18. 사내 DB 규격에 맞춘 것이고, ID 는 Java `Long`
+--       이라 이론상 19자리까지 되지만 시퀀스가 1부터 증가해 실사용에서 무의미하다.)
+--      ⚠️ IDENTITY(12c+) 가 아니라 시퀀스를 쓴다. 이유 둘:
+--         ⓐ Mapper 의 oracle 분기가 `&lt;selectKey&gt;` 로 `..._SEQ.NEXTVAL` 을 먼저
+--            읽어 ID 를 직접 넣는다 — 시퀀스가 실물로 있어야 한다.
+--         ⓑ Oracle 11g 에서도 그대로 돈다(버전 회신을 기다릴 필요가 없다).
+--   2. `VARCHAR(n)` → `VARCHAR2(n CHAR)`
+--      ⚠️ `CHAR` 를 명시한다. 빠뜨리면 NLS 에 따라 **바이트** 의미가 되어
+--         한글 기관명이 200자가 아니라 66자에서 잘린다.
+--   3. `DATETIME` → `TIMESTAMP`
+--      ⚠️ 본체(`kgi-ggreport-web`)의 `007_uploader.sql` 은 같은 열을
+--         `VARCHAR2(40 CHAR)` ISO 문자열로 두는데, **일부러 다르게 했다.**
+--         007 은 uploader 테이블을 *본체 스키마 안에* 합칠 때의 초안이라 본체의
+--         시각 표기 규약(설계 §5)을 따른 것이고, 이 파일은 uploader 가 **단독으로**
+--         뜰 때의 정본이다. uploader 도메인은 `LocalDateTime` 을 쓰고
+--         (`UploadedFile.uploadedAt` 등) Mapper 도 문자열 변환을 하지 않으므로,
+--         여기서 문자열로 두면 코드를 고쳐야 한다. 단계 6(본체 편입) 때 어느 쪽으로
+--         합칠지 정한다 — 그때까지 두 파일은 **의도적으로 공존**한다.
+--   4. `ENGINE=InnoDB` / `DEFAULT CHARSET=utf8mb4` 절 제거 (Oracle 에 없다)
+--   5. `CREATE TABLE IF NOT EXISTS` → `CREATE TABLE`
+--      ⚠️ Oracle 에 `IF NOT EXISTS` 가 없다. **이 스크립트는 재실행하면
+--         ORA-00955(이미 있는 이름)로 실패한다.** 다시 깔려면 파일 끝의
+--         DROP 문단을 먼저 돌릴 것.
+--
+-- ⚠️ 이 스키마는 `spring.sql.init` 으로 자동 실행되지 않는다. 그 설정은
+--    테스트(H2)에만 있다 — 내부망에서는 DBA 가 이 파일을 직접 적용한다.
+--
+-- =====================================================================
+-- 2026-09-08 — **컬럼은 한글 물리명, 테이블은 코드성 물리명** (사내 표준)
+--
+--   내부망 DB 표준이 **컬럼은 한글, 테이블은 코드**(TSKGIAF01·TSKGIAF02)라 그에 맞췄다.
+--   ⚠️ 같은 날 영문 서술형(`UPLOADED_FILE_ID` 등)으로 한 번 개명했다가 이 표준을
+--      받고 다시 바꾼 것이다. **그 중간 이름은 커밋 `1e13025` 에만 남아 있고
+--      어디에서도 쓰지 않는다** — 옛 문서를 보고 그 이름을 되살리지 말 것.
+--
+--     UPLOADED_FILE → TSKGIAF01         INSTITUTION → TSKGIAF02
+--     ─────────────────────────────     ─────────────────────────
+--     ID            → 업로드파일ID       ID          → 기관ID
+--     ORIGINAL_NAME → 원본파일명         NAME        → 기관명
+--     STORED_PATH   → 저장경로           CATEGORY    → 기관분류
+--     FILE_YEAR     → 문서연도           MODIFIED_AT → 수정일시
+--     INSTITUTION_NAME → 기관명
+--     CATEGORY      → 기관분류
+--     STATUS        → 분류상태
+--     UPLOADED_AT   → 업로드일시
+--     CLASSIFIED_AT → 분류일시
+--
+--   ⚠️ **제약·인덱스·시퀀스는 테이블 코드를 접두로 쓴다**(2026-09-08).
+--      테이블이 코드성이 되면서 옛 이름(`PK_UPLOADED_FILE` 등)이 어느 표의 것인지
+--      드러나지 않게 됐다. 앱은 이 이름들을 참조하지 않으므로 바꿔도 무해하다
+--      — 다만 **시퀀스 이름은 Mapper 가 직접 부르므로 바꾸면 매퍼도 같이 고쳐야
+--      한다**(아래 시퀀스 절).
+--
+--   ⚠️ **30바이트 상한**: Oracle 11g 의 식별자 상한은 30바이트인데 한글은 AL32UTF8
+--      에서 글자당 3바이트라 **한글 10자**가 한계다. 테이블까지 한글로 갔다면
+--      `IDX_업로드파일_업로드일시`(35바이트)처럼 상한을 넘는 이름이 생겼겠지만,
+--      테이블 코드를 접두로 쓰면 `IX_TSKGIAF01_업로드일시`(29바이트)로 들어간다.
+--      컬럼명은 가장 긴 `업로드파일일련번호`(27바이트)도 상한 안에 들어간다.
+--
+--   ⚠️ **따옴표를 쓰지 않는다.** Oracle·MySQL·H2 모두 한글 식별자를 무인용으로
+--      받는다(MySQL 은 U+0080~U+FFFF 를 무인용 식별자로 명시 허용). 큰따옴표로
+--      감싸면 대소문자가 고정돼 도구마다 성가셔진다.
+--
+--   ⚠️ **Mapper XML 2개가 이 이름에 묶여 있다**(`UploadedFileMapper.xml`·
+--      `InstitutionMapper.xml` 의 resultMap `column` 과 모든 SQL). 한쪽만 고치면
+--      기동은 되고 조회에서 `ORA-00904: invalid identifier` 가 난다.
+-- =====================================================================
+
+-- ── 업로드된 파일 (TSKGIAF01) ────────────────────────────────────────────────────
+-- ⚠️ 컬럼 순서는 **조회 편의**로 정했다(2026-09-08). Oracle 에서 물리 컬럼 순서는
+--    조회 성능과 사실상 무관하고(9개 컬럼에서는 측정되지 않는다), 앱도 컬럼을
+--    **이름으로만** 다룬다(resultMap 이름 매핑 + INSERT 에 컬럼 목록 명시).
+--    그래서 사람이 표를 읽는 순서에 맞췄다: **주 조회 축인 기관 → 분류 → 연도 →
+--    상태 → 파일명 → 시각**, 그리고 가장 길고 사람이 읽지 않는 저장경로를 맨 뒤로.
+CREATE TABLE INST1.TSKGIAF01 (
+    -- 인포타입 일련번호16 = DECIMAL(16). Oracle 에서 DECIMAL 은 NUMBER 의 동의어다.
+    업로드파일일련번호  DECIMAL(16)        NOT NULL,   -- 일련번호16 · 속성명 동일
+    -- ⚠️ FK 가 아니라 **이름 문자열**이다. TSKGIAF02.기관명 이 바뀌면 조용히 끊긴다.
+    기관명              VARCHAR2(40 CHAR),             -- 명40 · 속성명 동일
+    -- 🔴 **코드값이다.** 01 지방자치단체 / 02 공공기관 / 03 대학교 / 04 병원 / 05 법원
+    --    자바·화면은 한글 이름을 그대로 쓰고 변환은 InstitutionCategoryTypeHandler 가 한다.
+    --    코드표 정본: code/InstitutionCategory.java
+    기관영업분류구분    VARCHAR2(2 CHAR),              -- 구분코드2 · 속성명 기관영업분류구분코드
+    문서년              VARCHAR2(4 CHAR),              -- 년4 · 속성명 동일 · 예 &#x27;2026&#x27;
+    -- 🔴 **코드값이다.** 01 UNCLASSIFIED / 02 CLASSIFIED / 03 REJECTED / 04 DELETED
+    분류상태구분        VARCHAR2(2 CHAR)   DEFAULT &#x27;01&#x27; NOT NULL,  -- 구분코드2 · 속성명 분류상태구분코드
+    -- 파일명 상한은 파일시스템이 정한다(NTFS·ext4 모두 255자). 인포타입에 255 가 없어 260.
+    원본파일명          VARCHAR2(260 CHAR) NOT NULL,   -- 명260 · 속성명 동일
+    -- 🔴 **시각이 문자열이다**(사내 표준). 형식 YYYYMMDDHH24MISS 14자로 길이와 정확히 같다.
+    --    자바는 LocalDateTime 을 쓰고 변환은 LocalDateTimeStringTypeHandler 가 한다.
+    --    ⚠️ 자릿수가 고정이라 **문자열 정렬 = 시간 정렬**이다. 형식을 바꾸면 깨진다.
+    업로드일시          VARCHAR2(14 CHAR)  NOT NULL,   -- 일시14 · 속성명 동일 · **업무 시각**
+    분류일시            VARCHAR2(14 CHAR),             -- 일시14 · 분류 전에는 NULL
+    -- 최악 경로가 약 341자다(baseDir 20 + /classified/ 12 + 분류 2 + 년 4 + 기관 40 + 파일명 260 + 구분자 3).
+    저장경로내용        VARCHAR2(600 CHAR) NOT NULL,   -- 내용600 · 속성명 동일
+    -- ── 감사 컬럼 2개 (2026-09-08 신설) ────────────────────────────────
+    -- **업로드일시와 다르다.** 업로드일시는 업무 시각(사용자가 올린 때)이고,
+    -- 이쪽은 **행을 마지막으로 건드린 시각**이다. 규칙(사용자 확정):
+    --   · INSERT      → 업로드일시 와 같은 값
+    --   · UPDATE(분류) → 분류일시 와 같은 값
+    --   · 삭제·반려    → 그 시점의 DB 시각(TO_CHAR(SYSDATE,&#x27;YYYYMMDDHH24MISS&#x27;))
+    시스템사용일시      VARCHAR2(14 CHAR),             -- 일시14 · 속성명 동일
+    -- 이 데이터를 넣게 만든 **주체**다. 사람이 아니라 프로그램이라 화면번호를 넣는다
+    -- (앞 K 를 뗀 7자: KGI11100 → GI11100). 배치는 &#x27;BATCH01&#x27;.
+    -- 도출은 code/SystemUser.java 가 컨트롤러 클래스명에서 자동으로 한다.
+    시스템사용자번호    CHAR(7),                       -- 사용자번호7 · 속성명 동일
+    CONSTRAINT PK_TSKGIAF01 PRIMARY KEY (업로드파일일련번호),
+    CONSTRAINT CK_TSKGIAF01_분류상태 CHECK (분류상태구분 IN (&#x27;01&#x27;, &#x27;02&#x27;, &#x27;03&#x27;, &#x27;04&#x27;))
+);
+
+-- ── 기관 (TSKGIAF02) ─────────────────────────────────────────────────────────────
+-- ⚠️ 이름과 달리 &quot;기관 마스터&quot;가 아니다. 주소·기관코드 같은 기관 정보가 없는 이유가
+--    그것이다. 실제 역할은 둘뿐이다(ClassificationService.classify):
+--      ① 기관명 → 기관분류 **매핑표**   ② 등록된 기관만 분류되는 **허용목록**
+--    그래서 컬럼 순서도 **입력(기관명) → 출력(기관분류)** 이다.
+CREATE TABLE INST1.TSKGIAF02 (
+    기관일련번호        DECIMAL(16)       NOT NULL,   -- 일련번호16 · 속성명 동일
+    기관명              VARCHAR2(40 CHAR) NOT NULL,   -- 명40 · 속성명 동일
+    기관영업분류구분    VARCHAR2(2 CHAR)  NOT NULL,   -- 구분코드2 · 속성명 기관영업분류구분코드
+    -- ── 아래 4개는 **앱이 읽지도 쓰지도 않는다** — 기관 정보를 미리 담아 둘 자리다.
+    --    도메인 Institution · Mapper · 화면에 대응하는 것이 없고, resultMap 이 모르는
+    --    컬럼은 그냥 무시하며 INSERT 도 컬럼을 명시하므로 NULL 로 남는다.
+    협약기관상태구분    VARCHAR2(2 CHAR),             -- 구분코드2 · 01 미협약 / 02 협약
+    입찰공고상태구분    VARCHAR2(2 CHAR),             -- 구분코드2 · 01 공고전 / 02 공고중 / 03 공고완료
+    입찰공고시작년월일  VARCHAR2(8 CHAR),             -- 년월일8 · YYYYMMDD
+    입찰공고마감년월일  VARCHAR2(8 CHAR),             -- 년월일8 · YYYYMMDD
+    -- ⚠️ **옛 `수정일시` 가 이 이름으로 바뀐 것**이다(2026-09-08). 그래서 여기만
+    --    NOT NULL 이고(TSKGIAF01 쪽은 NULLABLE), 도메인 Institution.modifiedAt 이
+    --    그대로 이 컬럼에 매핑된다.
+    시스템사용일시      VARCHAR2(14 CHAR) NOT NULL,   -- 일시14 · 속성명 동일
+    시스템사용자번호    CHAR(7),                      -- 사용자번호7 · 속성명 동일
+    CONSTRAINT PK_TSKGIAF02 PRIMARY KEY (기관일련번호),
+    CONSTRAINT UK_TSKGIAF02_기관명 UNIQUE (기관명)
+);
+
+-- ── 시퀀스 ───────────────────────────────────────────────────────────
+-- ⚠️ 이름을 바꾸지 말 것. Mapper XML 의 oracle 분기가 이 이름을 그대로 부른다
+--    (`UploadedFileMapper.xml` / `InstitutionMapper.xml` 의 &lt;selectKey&gt;).
+--    ⚠️ 2026-09-08 사내 표준 검사로 이름이 바뀌었다 — 테이블 코드를 따르던
+--       `TSKGIAF01_SEQ`/`TSKGIAF02_SEQ` 에서 `SQ_KGI_...` 로. 22자라 30바이트 상한 안이다.
+--       **테이블 이름과 시퀀스 이름이 서로 안 닮았으므로** 어느 표의 것인지는
+--       아래 주석으로만 알 수 있다: AGENTFILE=TSKGIAF01, AGENTGIGAN=TSKGIAF02.
+--    여기만은 이름을 바꾸면
+--    **매퍼의 &lt;selectKey&gt; 도 같은 커밋에서 고쳐야 한다** — 제약·인덱스와 다른 점이다.
+--    `NOCACHE` 는 WAS 재기동 때 번호가 크게 건너뛰지 않게 하려는 것이다 —
+--    ID 에 의미를 두지 않으므로 성능이 문제되면 캐시를 켜도 된다.
+CREATE SEQUENCE INST1.SQ_KGI_AGENTFILETABLE  START WITH 1   -- TSKGIAF01 용 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE INST1.SQ_KGI_AGENTGIGANTABLE START WITH 1   -- TSKGIAF02 용 INCREMENT BY 1 NOCACHE;
+
+-- ── 인덱스 ───────────────────────────────────────────────────────────
+-- ⚠️ 지금 데이터 규모(연 수천 건)에서는 없어도 된다. 수만 행 풀스캔은 밀리초다.
+--    아래 하나만 두는 이유는 비용이 거의 없고 **가장 자주 쓸 접근 경로**를 받기 때문이다.
+
+-- 기관이 주 조회 축이다(&quot;A 기관 자료 들어왔나?&quot;).
+-- ⚠️ **열 순서가 이 인덱스의 전부다.** (기관명, 업로드일시) 순서라서
+--    아래 두 쿼리가 **정렬 없이** 처리된다 — 인덱스를 시간순으로 훑으며 읽기만 한다.
+--
+--      WHERE 기관명 = ?                        ORDER BY 업로드일시 DESC   ← 미래의 기관 검색
+--      WHERE 기관명 = ? AND 분류상태구분 = ?   ORDER BY 업로드일시 DESC   ← findClassifiedByUnknownInstitution
+--
+--    (기관명, 분류상태구분, 업로드일시) 3열도 검토했으나 **버렸다.** 위 첫 쿼리처럼
+--    분류상태구분을 안 거는 경우, 가운데 열 때문에 인덱스가 시간순이 아니게 되어
+--    정렬이 되살아난다. 두 번째 쿼리의 분류상태구분은 읽으면서 걸러도 싸다.
+--
+--    ⚠️ 화면 검색(findByInstitutionNameContaining)은 `LIKE &#x27;%키워드%&#x27;` 라
+--       **선행 와일드카드 때문에 이 인덱스를 못 쓴다.** 기관 입력을 드롭다운
+--       (정확 일치)으로 바꾸는 후속 작업이 끝나야 제 값을 한다.
+CREATE INDEX IX_TSKGIAF01_기관명일시 ON INST1.TSKGIAF01 (기관명, 업로드일시);
+
+-- 상태별 목록 — **앱에서 가장 많이 쓰는 조건**이다. `분류상태구분 = ?` 을 부르는 곳이
+-- 여섯이다: 파일처리상태 화면(01) · 분류완료 목록 화면(02) · 재분류 잡(01) ·
+-- InstitutionService 두 곳(01).
+-- ⚠️ 두 번째 열이 PK 라서 **정렬까지 인덱스가 처리**한다
+--    (findByStatus 는 ORDER BY 업로드파일일련번호 DESC 다).
+-- ⚠️ 이름이 30바이트 상한에 걸려 `_분류상태` 로 줄였다(25바이트). `_상태일련번호` 는
+--    31바이트로 **넘는다** — 한글은 글자당 3바이트다.
+CREATE INDEX IX_TSKGIAF01_분류상태 ON INST1.TSKGIAF01 (분류상태구분, 업로드파일일련번호);
+
+-- 넣지 않은 것 — 조건이 오면 그때 넣는다:
+--   · (업로드일시) 단독 — **필요 없어졌다.** 최신순 목록(findRecent)을
+--     `ORDER BY 업로드파일일련번호 DESC` 로 바꿔 **PK 인덱스가 정렬을 처리**한다.
+--     시퀀스가 NOCACHE 라 증가순 = 삽입순 = 시간순이고, 업로드일시가 문자열(초 단위)
+--     이라 **같은 초에 여러 건이면 오히려 일련번호가 정확하다.**
+--     ⚠️ 시퀀스에 캐시를 켜면 재기동 때 번호가 튀어 이 전제가 깨진다.
+--   · (분류상태구분) 단독 — 위 복합 인덱스의 선행 컬럼이라 불필요하다.
+--     ⚠️ 이 인덱스는 한 번 뺐다가 되돌린 것이다(2026-09-08). &quot;재분류 잡이 꺼져 있으니
+--        보류&quot;라고 판단했는데, 정작 이 조건을 부르는 것은 잡이 아니라 **화면 두 개**였다.
+
+-- =====================================================================
+-- 재설치용 DROP (필요할 때만 직접 실행)
+--
+--   DROP SEQUENCE INST1.SQ_KGI_AGENTFILETABLE;
+--   DROP SEQUENCE INST1.SQ_KGI_AGENTGIGANTABLE;
+--   DROP TABLE INST1.TSKGIAF01 PURGE;
+--   DROP TABLE INST1.TSKGIAF02 PURGE;
+--
+-- ---------------------------------------------------------------------
+-- 미러와 일부러 다르게 둔 것 (drift 아님)
+--
+--   · 인덱스: ~~양쪽 다 PK/UK 뿐~~ → **2026-09-08 에 양쪽에 같은 둘을 넣었다**
+--     (업로드일시 · 기관명+분류상태). 늘리거나 줄일 때도 **두 파일을 같은
+--     커밋에서** 함께 고칠 것. 판단 근거는 위 인덱스 절의 주석에 있다.
+-- =====================================================================
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/schema-mysql.sql<span class="tag">58줄</span></h3>
+<pre class="src">-- =====================================================================
+-- schema-mysql.sql — uploader 단독 스키마의 MySQL 정본
+--
+-- 미러 관계: `schema-oracle.sql` 과 **같은 내용**을 MySQL 문법으로 적은 것이다.
+--            한쪽이 바뀌면 같은 커밋에서 다른 쪽도 바꾼다.
+--            바꾼 이유·인포타입·코드표는 저쪽 주석에 있다 — 여기서는 결과만 맞춘다.
+--
+-- 이 파일을 쓰는 곳: 외부망 `out-local`(MySQL) 과 테스트 H2(`MODE=MySQL`).
+--
+-- ⚠️ 일부러 다른 것 하나: PK 를 **BIGINT AUTO_INCREMENT** 로 둔다. Oracle 쪽은
+--    인포타입 그대로 `DECIMAL(16)` + 시퀀스인데, MySQL 의 AUTO_INCREMENT 는
+--    DECIMAL 에 걸 수 없다. 자릿수(16)는 BIGINT 안에 들어가므로 값은 같다.
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS TSKGIAF01 (
+    업로드파일일련번호  BIGINT       NOT NULL AUTO_INCREMENT,
+    기관명              VARCHAR(40),
+    -- 코드값: 01 지방자치단체 / 02 공공기관 / 03 대학교 / 04 병원 / 05 법원
+    기관영업분류구분    VARCHAR(2),
+    문서년              VARCHAR(4),
+    -- 코드값: 01 UNCLASSIFIED / 02 CLASSIFIED / 03 REJECTED / 04 DELETED
+    분류상태구분        VARCHAR(2)   NOT NULL DEFAULT &#x27;01&#x27;,
+    원본파일명          VARCHAR(260) NOT NULL,
+    -- 시각은 문자열 YYYYMMDDHH24MISS (사내 표준). 자바는 LocalDateTime 그대로.
+    업로드일시          VARCHAR(14)  NOT NULL,
+    분류일시            VARCHAR(14),
+    저장경로내용        VARCHAR(600) NOT NULL,
+    -- 감사 컬럼 2개. 규칙은 schema-oracle.sql 주석 참조.
+    시스템사용일시      VARCHAR(14),
+    시스템사용자번호    CHAR(7),
+    PRIMARY KEY (업로드파일일련번호),
+    -- ⚠️ 인덱스를 CREATE TABLE 안에 둔 것은 형식만 Oracle 과 다르다. 분리하면
+    --    테스트 H2 가 DB 를 공유해 스크립트를 여러 번 돌릴 때 &quot;Duplicate key name&quot;
+    --    으로 깨진다(CREATE TABLE IF NOT EXISTS 는 멱등한데 CREATE INDEX 는 아니다).
+    -- 열 순서가 전부다 — (기관명, 업로드일시) 라서 기관 조회 + 최신순 정렬이
+    -- 정렬 없이 처리된다. 근거는 schema-oracle.sql 의 인덱스 절.
+    KEY IX_TSKGIAF01_기관명일시 (기관명, 업로드일시),
+    -- 상태별 목록 — 앱에서 가장 많이 쓰는 조건(6곳). 두 번째 열이 PK 라 정렬까지 받는다.
+    KEY IX_TSKGIAF01_분류상태 (분류상태구분, 업로드파일일련번호),
+    -- ⚠️ MySQL 은 8.0.16 부터 CHECK 를 실제로 강제한다.
+    CONSTRAINT CK_TSKGIAF01_분류상태 CHECK (분류상태구분 IN (&#x27;01&#x27;, &#x27;02&#x27;, &#x27;03&#x27;, &#x27;04&#x27;))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS TSKGIAF02 (
+    기관일련번호        BIGINT      NOT NULL AUTO_INCREMENT,
+    기관명              VARCHAR(40) NOT NULL,
+    기관영업분류구분    VARCHAR(2)  NOT NULL,
+    -- 아래 4개는 앱이 읽지도 쓰지도 않는다(자리만 만들어 둔 것).
+    협약기관상태구분    VARCHAR(2),                 -- 01 미협약 / 02 협약
+    입찰공고상태구분    VARCHAR(2),                 -- 01 공고전 / 02 공고중 / 03 공고완료
+    입찰공고시작년월일  VARCHAR(8),                 -- YYYYMMDD
+    입찰공고마감년월일  VARCHAR(8),                 -- YYYYMMDD
+    -- 옛 수정일시가 이 이름으로 바뀐 것이다. 그래서 여기만 NOT NULL 이다.
+    시스템사용일시      VARCHAR(14) NOT NULL,
+    시스템사용자번호    CHAR(7),
+    PRIMARY KEY (기관일련번호),
+    UNIQUE KEY UK_TSKGIAF02_기관명 (기관명)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+</pre>
+
+
+<h2 class="pb"><span class="n">별첨4</span>수정된 자바·화면 14개 — 전문</h2>
+
+<div class="box info">
+  <div class="h">별첨1~3 과 무엇이 다른가</div>
+  <p>
+    별첨1~3 은 <b>새로 만드는 파일</b>(자바 9 · 매퍼 2 · 스키마 2)이고,
+    여기는 <b>이미 있던 파일을 고친 것</b>입니다. 앞의 5절이 <b>바뀐 줄만 발췌</b>한 것이라,
+    통째로 옮겨 적으실 때는 이쪽을 기준으로 삼으십시오.
+  </p>
+</div>
+
+<div class="box warn">
+  <div class="h">대부분은 한두 줄 변경입니다</div>
+  <p>
+    컨트롤러 6개와 서비스 3개는 <b><code>import</code> 한 줄 + 세팅 한두 줄</b>이 전부입니다.
+    실제로 내용이 늘어난 것은 <code>UploadedFile</code>(필드 2개)·
+    <code>UploadedFileMapper</code>(파라미터)·<code>ReclassificationJob</code>(try/finally)
+    정도입니다.
+  </p>
+</div>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/domain/UploadedFile.java<span class="tag">76줄 · systemUserNo · systemUsedAt 필드 추가</span></h3>
+<pre class="src">package com.kb.uploader.domain;
+
+import java.time.LocalDateTime;
+
+public class UploadedFile {
+
+    /** 감사 컬럼 시스템사용자번호. 화면번호(앞 K 제외 7자) 또는 &#x27;BATCH01&#x27;. code/SystemUser 참조. */
+    private String systemUserNo;
+
+    /**
+     * 감사 컬럼 시스템사용일시. &lt;b&gt;업로드일시(업무 시각)와 다르다&lt;/b&gt; — 이 행을 마지막으로
+     * 건드린 시각이다. 규칙(사용자 확정 2026-09-08):
+     * 업로드 때는 업로드일시, 분류 때는 분류일시와 &lt;b&gt;같은 값&lt;/b&gt;을 쓰고,
+     * 그 둘이 없는 경우(삭제·반려·분류일시 없는 수정)는 &lt;b&gt;그 시점의 시각&lt;/b&gt;을 쓴다.
+     * ⚠️ DB 함수로 채우지 않는 이유는 방언이 갈리고(TO_CHAR/DATE_FORMAT) 테스트로
+     *    확인하기 어렵기 때문이다 — 자바에서 정해 넘기면 값이 정확히 일치한다.
+     */
+    private LocalDateTime systemUsedAt;
+
+    private Long id;
+    private String originalName;
+    private String storedPath;
+    private String year;
+    private String institutionName;
+    private String category;
+    private String status;
+    private LocalDateTime uploadedAt;
+    private LocalDateTime classifiedAt;
+
+    public UploadedFile() {}
+
+    public UploadedFile(String originalName, String storedPath,
+                        String year, String institutionName) {
+        this.originalName = originalName;
+        this.storedPath = storedPath;
+        this.year = year;
+        this.institutionName = institutionName;
+        this.status = &quot;UNCLASSIFIED&quot;;
+        this.uploadedAt = LocalDateTime.now();
+    }
+
+    public void classify(String category, String storedPath) {
+        this.category = category;
+        this.storedPath = storedPath;
+        this.status = &quot;CLASSIFIED&quot;;
+        this.classifiedAt = LocalDateTime.now();
+    }
+
+    public void softDelete() {
+        this.status = &quot;DELETED&quot;;
+    }
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getOriginalName() { return originalName; }
+    public void setOriginalName(String originalName) { this.originalName = originalName; }
+    public String getStoredPath() { return storedPath; }
+    public void setStoredPath(String storedPath) { this.storedPath = storedPath; }
+    public String getYear() { return year; }
+    public void setYear(String year) { this.year = year; }
+    public String getInstitutionName() { return institutionName; }
+    public void setInstitutionName(String institutionName) { this.institutionName = institutionName; }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public LocalDateTime getUploadedAt() { return uploadedAt; }
+    public void setUploadedAt(LocalDateTime uploadedAt) { this.uploadedAt = uploadedAt; }
+    public LocalDateTime getClassifiedAt() { return classifiedAt; }
+    public void setClassifiedAt(LocalDateTime classifiedAt) { this.classifiedAt = classifiedAt; }
+
+    public String getSystemUserNo() { return systemUserNo; }
+    public void setSystemUserNo(String systemUserNo) { this.systemUserNo = systemUserNo; }
+    public LocalDateTime getSystemUsedAt() { return systemUsedAt; }
+    public void setSystemUsedAt(LocalDateTime systemUsedAt) { this.systemUsedAt = systemUsedAt; }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/domain/Institution.java<span class="tag">39줄 · systemUserNo 필드 추가</span></h3>
+<pre class="src">package com.kb.uploader.domain;
+
+import java.time.LocalDateTime;
+
+public class Institution {
+
+    /** 감사 컬럼 시스템사용자번호. 화면번호(앞 K 제외 7자) 또는 &#x27;BATCH01&#x27;. code/SystemUser 참조. */
+    private String systemUserNo;
+
+    private Long id;
+    private String name;
+    private String category;
+    private LocalDateTime modifiedAt;
+
+    public Institution() {}
+
+    public Institution(String name, String category) {
+        this.name = name;
+        this.category = category;
+        this.modifiedAt = LocalDateTime.now();
+    }
+
+    public void updateCategory(String category) {
+        this.category = category;
+        this.modifiedAt = LocalDateTime.now();
+    }
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+    public LocalDateTime getModifiedAt() { return modifiedAt; }
+    public void setModifiedAt(LocalDateTime modifiedAt) { this.modifiedAt = modifiedAt; }
+
+    public String getSystemUserNo() { return systemUserNo; }
+    public void setSystemUserNo(String systemUserNo) { this.systemUserNo = systemUserNo; }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/mapper/UploadedFileMapper.java<span class="tag">48줄 · softDeleteById·rejectById 에 파라미터 2개</span></h3>
+<pre class="src">package com.kb.uploader.mapper;
+
+import java.time.LocalDateTime;
+import com.kb.uploader.domain.UploadedFile;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+import java.util.Optional;
+
+@Mapper
+public interface UploadedFileMapper {
+
+    void insert(UploadedFile file);
+
+    void update(UploadedFile file);
+
+    void softDeleteById(@Param(&quot;id&quot;) Long id,
+                        @Param(&quot;systemUserNo&quot;) String systemUserNo,
+                        @Param(&quot;systemUsedAt&quot;) LocalDateTime systemUsedAt);
+
+    void rejectById(@Param(&quot;id&quot;) Long id,
+                    @Param(&quot;systemUserNo&quot;) String systemUserNo,
+                        @Param(&quot;systemUsedAt&quot;) LocalDateTime systemUsedAt);
+
+    Optional&lt;UploadedFile&gt; findById(@Param(&quot;id&quot;) Long id);
+
+    List&lt;UploadedFile&gt; findByStatus(@Param(&quot;status&quot;) String status);
+
+    List&lt;UploadedFile&gt; findClassifiedByUnknownInstitution();
+
+    long countAll();
+
+    long countByStatus(@Param(&quot;status&quot;) String status);
+
+    List&lt;UploadedFile&gt; findRecent(@Param(&quot;limit&quot;) int limit);
+
+    List&lt;UploadedFile&gt; findByInstitutionNameContaining(
+            @Param(&quot;keyword&quot;) String keyword,
+            @Param(&quot;offset&quot;) int offset,
+            @Param(&quot;limit&quot;) int limit);
+
+    long countByInstitutionNameContaining(@Param(&quot;keyword&quot;) String keyword);
+
+    List&lt;UploadedFile&gt; search(@Param(&quot;institution&quot;) String institution,
+                              @Param(&quot;year&quot;) String year,
+                              @Param(&quot;keyword&quot;) String keyword);
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/service/FileUploadService.java<span class="tag">86줄 · insert 직전 감사 값 세팅</span></h3>
+<pre class="src">package com.kb.uploader.service;
+
+import com.kb.uploader.code.SystemUser;
+import com.kb.uploader.domain.UploadedFile;
+import com.kb.uploader.dto.ParsedFileName;
+import com.kb.uploader.dto.UploadResultItem;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class FileUploadService {
+
+    private final FileParserService parserService;
+    private final FileStorageService storageService;
+    private final ClassificationService classificationService;
+    private final UploadedFileMapper fileMapper;
+
+    public FileUploadService(FileParserService parserService,
+                             FileStorageService storageService,
+                             ClassificationService classificationService,
+                             UploadedFileMapper fileMapper) {
+        this.parserService = parserService;
+        this.storageService = storageService;
+        this.classificationService = classificationService;
+        this.fileMapper = fileMapper;
+    }
+
+    public List&lt;UploadResultItem&gt; upload(List&lt;MultipartFile&gt; files) {
+        return upload(files, &quot;&quot;, &quot;&quot;, &quot;&quot;);
+    }
+
+    public List&lt;UploadResultItem&gt; upload(List&lt;MultipartFile&gt; files,
+                                         String instOverride, String yearOverride, String categoryOverride) {
+        List&lt;UploadResultItem&gt; results = new ArrayList&lt;&gt;();
+        for (MultipartFile file : files) {
+            String originalName = file.getOriginalFilename();
+            try {
+                Optional&lt;ParsedFileName&gt; parsed = parserService.parse(originalName);
+                if (!parsed.isPresent()) {
+                    boolean hasOverride = instOverride != null &amp;&amp; !instOverride.trim().isEmpty();
+                    Path saved = storageService.saveToUnclassified(file, originalName);
+                    UploadedFile entity = new UploadedFile(
+                            originalName, saved.toString(),
+                            (yearOverride != null &amp;&amp; !yearOverride.trim().isEmpty()) ? yearOverride.trim() : null,
+                            hasOverride ? instOverride.trim() : &quot;알수없음&quot;);
+                    entity.setSystemUserNo(SystemUser.get());
+                    entity.setSystemUsedAt(entity.getUploadedAt());
+                    fileMapper.insert(entity);
+                    if (hasOverride) {
+                        boolean ok = classificationService.classify(entity);
+                        results.add(new UploadResultItem(originalName, ok,
+                                ok ? entity.getCategory() : null,
+                                ok ? &quot;수동 입력으로 분류 완료&quot; : &quot;미분류 (기관 미등록 — 기관 관리에서 등록 필요)&quot;));
+                    } else {
+                        results.add(new UploadResultItem(originalName, false, null,
+                                &quot;파일명 형식 불일치 (년도_기관명_설명.확장자 필요)&quot;));
+                    }
+                    continue;
+                }
+                ParsedFileName p = parsed.get();
+                Path saved = storageService.saveToUnclassified(file, originalName);
+                UploadedFile entity = new UploadedFile(
+                        originalName, saved.toString(), p.getYear(), p.getInstitutionName());
+                entity.setSystemUserNo(SystemUser.get());
+                    entity.setSystemUsedAt(entity.getUploadedAt());
+                    fileMapper.insert(entity);
+
+                boolean ok = classificationService.classify(entity);
+                results.add(new UploadResultItem(
+                        originalName, ok,
+                        ok ? entity.getCategory() : null,
+                        ok ? &quot;분류 완료&quot; : &quot;미분류 (기관 미등록)&quot;));
+            } catch (Exception e) {
+                results.add(new UploadResultItem(originalName, false, null,
+                        &quot;오류: &quot; + e.getMessage()));
+            }
+        }
+        return results;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/service/ClassificationService.java<span class="tag">53줄 · update 직전 감사 값 세팅</span></h3>
+<pre class="src">package com.kb.uploader.service;
+
+import java.time.LocalDateTime;
+import com.kb.uploader.code.SystemUser;
+import com.kb.uploader.domain.Institution;
+import com.kb.uploader.domain.UploadedFile;
+import com.kb.uploader.mapper.InstitutionMapper;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Optional;
+
+@Service
+public class ClassificationService {
+
+    private static final Logger log = LoggerFactory.getLogger(ClassificationService.class);
+
+    private final InstitutionMapper institutionMapper;
+    private final UploadedFileMapper fileMapper;
+    private final FileStorageService storageService;
+
+    public ClassificationService(InstitutionMapper institutionMapper,
+                                 UploadedFileMapper fileMapper,
+                                 FileStorageService storageService) {
+        this.institutionMapper = institutionMapper;
+        this.fileMapper = fileMapper;
+        this.storageService = storageService;
+    }
+
+    public boolean classify(UploadedFile file) {
+        Optional&lt;Institution&gt; inst = institutionMapper.findByName(file.getInstitutionName());
+        if (!inst.isPresent()) return false;
+
+        try {
+            Path source = Paths.get(file.getStoredPath());
+            Path dest = storageService.moveToClassified(
+                source, inst.get().getCategory(), file.getYear(), file.getInstitutionName());
+            file.classify(inst.get().getCategory(), dest.toString());
+            file.setSystemUserNo(SystemUser.get());
+            file.setSystemUsedAt(
+                    file.getClassifiedAt() != null ? file.getClassifiedAt() : LocalDateTime.now());
+            fileMapper.update(file);
+            return true;
+        } catch (Exception e) {
+            log.error(&quot;파일 분류 실패: {}&quot;, file.getOriginalName(), e);
+            return false;
+        }
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/service/InstitutionService.java<span class="tag">123줄 · insert·update 3자리에 감사 값</span></h3>
+<pre class="src">package com.kb.uploader.service;
+
+import com.kb.uploader.code.SystemUser;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kb.uploader.domain.Institution;
+import com.kb.uploader.domain.UploadedFile;
+import com.kb.uploader.mapper.InstitutionMapper;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.io.*;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Service
+public class InstitutionService {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private final InstitutionMapper institutionMapper;
+    private final ClassificationService classificationService;
+    private final UploadedFileMapper uploadedFileMapper;
+
+    public InstitutionService(InstitutionMapper institutionMapper,
+                              ClassificationService classificationService,
+                              UploadedFileMapper uploadedFileMapper) {
+        this.institutionMapper = institutionMapper;
+        this.classificationService = classificationService;
+        this.uploadedFileMapper = uploadedFileMapper;
+    }
+
+    public List&lt;Institution&gt; findAll() {
+        return institutionMapper.findAll();
+    }
+
+    public Institution save(String name, String category) {
+        Optional&lt;Institution&gt; existing = institutionMapper.findByName(name);
+        if (existing.isPresent()) {
+            existing.get().updateCategory(category);
+            existing.get().setSystemUserNo(SystemUser.get());
+            institutionMapper.update(existing.get());
+            return existing.get();
+        }
+        Institution inst = new Institution(name, category);
+        inst.setSystemUserNo(SystemUser.get());
+        institutionMapper.insert(inst);
+        return inst;
+    }
+
+    public void deleteById(Long id) {
+        institutionMapper.deleteById(id);
+    }
+
+    public byte[] exportToJson() throws IOException {
+        Map&lt;String, List&lt;String&gt;&gt; grouped = institutionMapper.findAll().stream()
+            .collect(Collectors.groupingBy(
+                Institution::getCategory,
+                Collectors.mapping(Institution::getName, Collectors.toList())));
+        return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsBytes(grouped);
+    }
+
+    @Transactional
+    public void importFromJson(byte[] json) throws IOException {
+        Map&lt;String, List&lt;String&gt;&gt; data = MAPPER.readValue(json,
+            new TypeReference&lt;Map&lt;String, List&lt;String&gt;&gt;&gt;() {});
+        institutionMapper.deleteAll();
+        data.forEach((category, names) -&gt;
+            names.forEach(name -&gt; {
+                    Institution created = new Institution(name, category);
+                    created.setSystemUserNo(SystemUser.get());
+                    institutionMapper.insert(created);
+                }));
+        List&lt;UploadedFile&gt; pending = uploadedFileMapper.findByStatus(&quot;UNCLASSIFIED&quot;);
+        pending.forEach(f -&gt; classificationService.classify(f));
+    }
+
+    public byte[] exportToXlsx() throws IOException {
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet(&quot;기관목록&quot;);
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue(&quot;기관명&quot;);
+            header.createCell(1).setCellValue(&quot;카테고리&quot;);
+            int rowNum = 1;
+            for (Institution inst : institutionMapper.findAll()) {
+                Row row = sheet.createRow(rowNum++);
+                row.createCell(0).setCellValue(inst.getName());
+                row.createCell(1).setCellValue(inst.getCategory());
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            wb.write(out);
+            return out.toByteArray();
+        }
+    }
+
+    @Transactional
+    public void importFromXlsx(byte[] xlsx) throws IOException {
+        try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(xlsx))) {
+            Sheet sheet = wb.getSheetAt(0);
+            institutionMapper.deleteAll();
+            for (int i = 1; i &lt;= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+                Cell nameCell = row.getCell(0);
+                Cell categoryCell = row.getCell(1);
+                if (nameCell == null) continue;
+                String name = nameCell.getStringCellValue().trim();
+                String category = categoryCell != null
+                    ? categoryCell.getStringCellValue().trim() : &quot;&quot;;
+                if (!name.isEmpty()) {
+                    Institution created = new Institution(name, category);
+                    created.setSystemUserNo(SystemUser.get());
+                    institutionMapper.insert(created);
+                }
+            }
+        }
+        List&lt;UploadedFile&gt; pending = uploadedFileMapper.findByStatus(&quot;UNCLASSIFIED&quot;);
+        pending.forEach(f -&gt; classificationService.classify(f));
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/job/ReclassificationJob.java<span class="tag">65줄 · BATCH01 세팅 + finally 해제</span></h3>
+<pre class="src">package com.kb.uploader.job;
+
+import com.kb.uploader.code.SystemUser;
+import com.kb.uploader.domain.UploadedFile;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import com.kb.uploader.service.ClassificationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+
+/**
+ * 미분류로 남은 파일을 다시 분류해 본다. &lt;b&gt;언제 도는지는 여기서 정하지 않는다.&lt;/b&gt;
+ *
+ * &lt;p&gt;⚠️ 종전에는 이 메서드에 {@code @Scheduled(cron = &quot;${reclassification.cron}&quot;)} 이
+ * 붙어 있었다(2026-08-31 제거). 그러면 Spring 이 자기 타이머 스레드 풀을 만들고,
+ * &lt;b&gt;WAS 에서 앱이 스레드를 만드는 것은 금지&lt;/b&gt;다(설계 §2·§4). 반복 실행은
+ * {@link ReclassificationTrigger} 가 {@link BackgroundScheduler} 를 통해 건다 —
+ * WebLogic 에서는 CommonJ TimerManager 가 그 스레드를 준다.
+ *
+ * &lt;p&gt;덕분에 이 클래스는 &lt;b&gt;&quot;한 번 돌리는 일&quot;만&lt;/b&gt; 안다. 수동 실행이 필요해지면
+ * 그냥 부르면 된다.
+ */
+@Component
+public class ReclassificationJob {
+
+    private static final Logger log = LoggerFactory.getLogger(ReclassificationJob.class);
+
+    private final UploadedFileMapper fileMapper;
+    private final ClassificationService classificationService;
+
+    public ReclassificationJob(UploadedFileMapper fileMapper,
+                               ClassificationService classificationService) {
+        this.fileMapper = fileMapper;
+        this.classificationService = classificationService;
+    }
+
+    public void reclassify() {
+        // ⚠️ 배치는 컨트롤러가 없어 SystemUserInterceptor 가 안 돈다. 직접 넣고
+        //    finally 에서 반드시 지운다 — ThreadLocal 이라 안 지우면 그 스레드를
+        //    물려받은 다음 작업에 &#x27;BATCH01&#x27; 이 새어 나간다.
+        SystemUser.set(SystemUser.BATCH);
+        try {
+            List&lt;UploadedFile&gt; unclassified = fileMapper.findByStatus(&quot;UNCLASSIFIED&quot;);
+            if (unclassified.isEmpty()) {
+                log.debug(&quot;재분류할 파일 없음&quot;);
+                return;
+            }
+            int success = 0;
+            for (UploadedFile file : unclassified) {
+                try {
+                    if (classificationService.classify(file)) {
+                        success++;
+                    }
+                } catch (Exception e) {
+                    log.warn(&quot;재처리 실패: {} — {}&quot;, file.getOriginalName(), e.getMessage());
+                }
+            }
+            log.info(&quot;재분류 완료: {}건 성공 / {}건 대상&quot;, success, unclassified.size());
+        } finally {
+            SystemUser.clear();
+        }
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/controller/KGI12000$FileStatusList.java<span class="tag">34줄 · 분류 목록 하드코딩 제거</span></h3>
+<pre class="src">package com.kb.uploader.controller;
+
+import com.kb.uploader.code.InstitutionCategory;
+import com.kb.uploader.domain.UploadedFile;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import java.util.List;
+
+@Controller
+@RequestMapping(&quot;/file-status&quot;)
+public class KGI12000$FileStatusList {
+
+
+    private final UploadedFileMapper fileMapper;
+
+    public KGI12000$FileStatusList(UploadedFileMapper fileMapper) {
+        this.fileMapper = fileMapper;
+    }
+
+    @GetMapping
+    public String execute(Model model) {
+        List&lt;UploadedFile&gt; unclassified = fileMapper.findByStatus(&quot;UNCLASSIFIED&quot;);
+        List&lt;UploadedFile&gt; unknownFiles = fileMapper.findClassifiedByUnknownInstitution();
+        model.addAttribute(&quot;files&quot;, unclassified);
+        model.addAttribute(&quot;unknownFiles&quot;, unknownFiles);
+        model.addAttribute(&quot;categories&quot;, InstitutionCategory.names());
+        model.addAttribute(&quot;unclassifiedCount&quot;, (long) unclassified.size());
+        return &quot;file-status&quot;;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/controller/KGI12100$FileStatusClassify.java<span class="tag">65줄 · 감사 값 세팅</span></h3>
+<pre class="src">package com.kb.uploader.controller;
+
+import java.time.LocalDateTime;
+import com.kb.uploader.code.SystemUser;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import com.kb.uploader.service.FileStorageService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+@Controller
+@RequestMapping(&quot;/file-status&quot;)
+public class KGI12100$FileStatusClassify {
+
+    private static final Logger log = LoggerFactory.getLogger(KGI12100$FileStatusClassify.class);
+
+    private final UploadedFileMapper fileMapper;
+    private final FileStorageService storageService;
+
+    public KGI12100$FileStatusClassify(UploadedFileMapper fileMapper,
+                                       FileStorageService storageService) {
+        this.fileMapper = fileMapper;
+        this.storageService = storageService;
+    }
+
+    @PostMapping(&quot;/{id}/classify&quot;)
+    public String execute(@PathVariable Long id,
+                          @RequestParam String category,
+                          @RequestParam(defaultValue = &quot;&quot;) String institution,
+                          @RequestParam(defaultValue = &quot;&quot;) String year,
+                          RedirectAttributes ra) {
+        fileMapper.findById(id).ifPresent(file -&gt; {
+            if (!institution.trim().isEmpty()) {
+                file.setInstitutionName(institution.trim());
+            }
+            if (!year.trim().isEmpty()) {
+                file.setYear(year.trim());
+            }
+            String instName = file.getInstitutionName() != null ? file.getInstitutionName() : &quot;알수없음&quot;;
+            try {
+                java.nio.file.Path source = java.nio.file.Paths.get(file.getStoredPath());
+                java.nio.file.Path dest = storageService.moveToClassified(
+                        source,
+                        category,
+                        file.getYear() != null ? file.getYear() : &quot;미확인&quot;,
+                        instName
+                );
+                file.classify(category, dest.toString());
+                file.setSystemUserNo(SystemUser.get());
+            file.setSystemUsedAt(
+                    file.getClassifiedAt() != null ? file.getClassifiedAt() : LocalDateTime.now());
+                fileMapper.update(file);
+            } catch (Exception e) {
+                log.warn(&quot;수동 분류 처리 실패: {}&quot;, file.getOriginalName(), e);
+            }
+        });
+        ra.addFlashAttribute(&quot;message&quot;, &quot;분류 처리 완료&quot;);
+        return &quot;redirect:/file-status&quot;;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/controller/KGI12200$FileStatusDelete.java<span class="tag">28줄 · 매퍼 호출 인자 2개 추가</span></h3>
+<pre class="src">package com.kb.uploader.controller;
+
+import java.time.LocalDateTime;
+import com.kb.uploader.code.SystemUser;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+@Controller
+@RequestMapping(&quot;/file-status&quot;)
+public class KGI12200$FileStatusDelete {
+
+    private final UploadedFileMapper fileMapper;
+
+    public KGI12200$FileStatusDelete(UploadedFileMapper fileMapper) {
+        this.fileMapper = fileMapper;
+    }
+
+    @PostMapping(&quot;/{id}/delete&quot;)
+    public String execute(@PathVariable Long id, RedirectAttributes ra) {
+        fileMapper.softDeleteById(id, SystemUser.get(), LocalDateTime.now());
+        ra.addFlashAttribute(&quot;message&quot;, &quot;파일이 목록에서 제거되었습니다.&quot;);
+        return &quot;redirect:/file-status&quot;;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/controller/KGI12300$FileStatusReject.java<span class="tag">28줄 · 같음</span></h3>
+<pre class="src">package com.kb.uploader.controller;
+
+import java.time.LocalDateTime;
+import com.kb.uploader.code.SystemUser;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+@Controller
+@RequestMapping(&quot;/file-status&quot;)
+public class KGI12300$FileStatusReject {
+
+    private final UploadedFileMapper fileMapper;
+
+    public KGI12300$FileStatusReject(UploadedFileMapper fileMapper) {
+        this.fileMapper = fileMapper;
+    }
+
+    @PostMapping(&quot;/{id}/reject&quot;)
+    public String execute(@PathVariable Long id, RedirectAttributes ra) {
+        fileMapper.rejectById(id, SystemUser.get(), LocalDateTime.now());
+        ra.addFlashAttribute(&quot;message&quot;, &quot;반려 처리되었습니다.&quot;);
+        return &quot;redirect:/file-status&quot;;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/controller/KGI12400$ClassifiedFileList.java<span class="tag">33줄 · 분류 목록 하드코딩 제거</span></h3>
+<pre class="src">package com.kb.uploader.controller;
+
+import com.kb.uploader.code.InstitutionCategory;
+import com.kb.uploader.domain.UploadedFile;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import java.util.List;
+
+@Controller
+@RequestMapping(&quot;/file-status/classified&quot;)
+public class KGI12400$ClassifiedFileList {
+
+
+    private final UploadedFileMapper fileMapper;
+
+    public KGI12400$ClassifiedFileList(UploadedFileMapper fileMapper) {
+        this.fileMapper = fileMapper;
+    }
+
+    @GetMapping
+    public String execute(Model model) {
+        List&lt;UploadedFile&gt; classifiedFiles = fileMapper.findByStatus(&quot;CLASSIFIED&quot;);
+        long unclassified = fileMapper.countByStatus(&quot;UNCLASSIFIED&quot;);
+        model.addAttribute(&quot;classifiedFiles&quot;, classifiedFiles);
+        model.addAttribute(&quot;categories&quot;, InstitutionCategory.names());
+        model.addAttribute(&quot;unclassifiedCount&quot;, unclassified);
+        return &quot;classified-rework&quot;;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/com/kb/uploader/controller/KGI13000$InstitutionList.java<span class="tag">31줄 · 화면에 분류 목록 전달</span></h3>
+<pre class="src">package com.kb.uploader.controller;
+
+import com.kb.uploader.code.InstitutionCategory;
+import com.kb.uploader.mapper.UploadedFileMapper;
+import com.kb.uploader.service.InstitutionService;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+@Controller
+@RequestMapping(&quot;/institutions&quot;)
+public class KGI13000$InstitutionList {
+
+    private final InstitutionService institutionService;
+    private final UploadedFileMapper fileMapper;
+
+    public KGI13000$InstitutionList(InstitutionService institutionService,
+                                     UploadedFileMapper fileMapper) {
+        this.institutionService = institutionService;
+        this.fileMapper = fileMapper;
+    }
+
+    @GetMapping
+    public String execute(Model model) {
+        model.addAttribute(&quot;institutions&quot;, institutionService.findAll());
+        model.addAttribute(&quot;categories&quot;, InstitutionCategory.names());
+        model.addAttribute(&quot;unclassifiedCount&quot;, fileMapper.countByStatus(&quot;UNCLASSIFIED&quot;));
+        return &quot;institution&quot;;
+    }
+}
+</pre>
+<h3 style="font-family:Consolas,'D2Coding',monospace">src/templates/institution.html<span class="tag">83줄 · 옛 분류 4종 option 제거</span></h3>
+<pre class="src">&lt;!DOCTYPE html&gt;
+&lt;html xmlns:th=&quot;http://www.thymeleaf.org&quot;
+      th:replace=&quot;layout :: layout(~{::title}, &#x27;기관 카테고리 관리&#x27;, ~{::section})&quot;&gt;
+&lt;head&gt;&lt;title&gt;기관 카테고리 관리&lt;/title&gt;&lt;/head&gt;
+&lt;body&gt;
+&lt;section&gt;
+
+  &lt;!-- 페이지 타이틀 --&gt;
+  &lt;div class=&quot;section-header&quot; style=&quot;margin-bottom:20px&quot;&gt;
+    &lt;span class=&quot;section-title&quot; style=&quot;font-size:16px&quot;&gt;기관 카테고리 관리&lt;/span&gt;
+  &lt;/div&gt;
+
+  &lt;!-- 성공 메시지 --&gt;
+  &lt;div th:if=&quot;${message}&quot; class=&quot;alert-success&quot; th:text=&quot;${message}&quot;&gt;&lt;/div&gt;
+
+  &lt;!-- 내보내기 / 가져오기 툴바 --&gt;
+  &lt;div class=&quot;toolbar&quot;&gt;
+    &lt;a th:href=&quot;@{/institutions/export/json}&quot; class=&quot;btn btn-outline btn-sm&quot;&gt;JSON 다운로드&lt;/a&gt;
+    &lt;a th:href=&quot;@{/institutions/export/xlsx}&quot; class=&quot;btn btn-outline btn-sm&quot;&gt;XLSX 다운로드&lt;/a&gt;
+
+    &lt;form th:action=&quot;@{/institutions/import/json}&quot; method=&quot;post&quot;
+          enctype=&quot;multipart/form-data&quot; class=&quot;form-inline&quot;&gt;
+      &lt;input type=&quot;file&quot; name=&quot;file&quot; accept=&quot;.json&quot; class=&quot;form-control form-control-sm&quot; style=&quot;width:180px&quot;&gt;
+      &lt;button type=&quot;submit&quot; class=&quot;btn btn-outline btn-sm&quot;&gt;JSON 업로드&lt;/button&gt;
+    &lt;/form&gt;
+
+    &lt;form th:action=&quot;@{/institutions/import/xlsx}&quot; method=&quot;post&quot;
+          enctype=&quot;multipart/form-data&quot; class=&quot;form-inline&quot;&gt;
+      &lt;input type=&quot;file&quot; name=&quot;file&quot; accept=&quot;.xlsx&quot; class=&quot;form-control form-control-sm&quot; style=&quot;width:180px&quot;&gt;
+      &lt;button type=&quot;submit&quot; class=&quot;btn btn-outline btn-sm&quot;&gt;XLSX 업로드&lt;/button&gt;
+    &lt;/form&gt;
+  &lt;/div&gt;
+
+  &lt;!-- 기관 추가 카드 --&gt;
+  &lt;div class=&quot;card&quot; style=&quot;max-width:520px;margin-bottom:24px&quot;&gt;
+    &lt;div class=&quot;card-header&quot;&gt;기관 추가&lt;/div&gt;
+    &lt;div class=&quot;card-body&quot;&gt;
+      &lt;form th:action=&quot;@{/institutions}&quot; method=&quot;post&quot; class=&quot;form-inline&quot;&gt;
+        &lt;input type=&quot;text&quot; name=&quot;name&quot; class=&quot;form-control form-control-sm&quot;
+               style=&quot;flex:1;min-width:160px&quot; placeholder=&quot;기관명&quot; required&gt;
+        &lt;select name=&quot;category&quot; class=&quot;form-control form-control-sm&quot; style=&quot;width:150px&quot; required&gt;
+          &lt;option value=&quot;&quot;&gt;카테고리 선택&lt;/option&gt;
+          &lt;option th:each=&quot;cat : ${categories}&quot; th:value=&quot;${cat}&quot; th:text=&quot;${cat}&quot;&gt;&lt;/option&gt;
+        &lt;/select&gt;
+        &lt;button type=&quot;submit&quot; class=&quot;btn btn-primary btn-sm&quot;&gt;추가&lt;/button&gt;
+      &lt;/form&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;!-- 기관 목록 --&gt;
+  &lt;div class=&quot;section-header&quot;&gt;
+    &lt;div&gt;
+      &lt;span class=&quot;section-title&quot;&gt;기관 목록&lt;/span&gt;
+      &lt;span class=&quot;section-sub&quot; th:text=&quot;&#x27;총 &#x27; + ${#lists.size(institutions)} + &#x27;개&#x27;&quot;&gt;&lt;/span&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div class=&quot;table-card&quot;&gt;
+    &lt;table&gt;
+      &lt;thead&gt;
+        &lt;tr&gt;
+          &lt;th&gt;기관명&lt;/th&gt;&lt;th&gt;카테고리&lt;/th&gt;&lt;th&gt;수정일자&lt;/th&gt;&lt;th&gt;&lt;/th&gt;
+        &lt;/tr&gt;
+      &lt;/thead&gt;
+      &lt;tbody&gt;
+        &lt;tr th:each=&quot;inst : ${institutions}&quot;&gt;
+          &lt;td th:text=&quot;${inst.name}&quot; style=&quot;font-weight:500&quot;&gt;&lt;/td&gt;
+          &lt;td&gt;&lt;span class=&quot;category-chip&quot; th:text=&quot;${inst.category}&quot;&gt;&lt;/span&gt;&lt;/td&gt;
+          &lt;td class=&quot;time-col&quot; th:text=&quot;${#temporals.format(inst.modifiedAt, &#x27;yyyy-MM-dd HH:mm&#x27;)}&quot;&gt;&lt;/td&gt;
+          &lt;td style=&quot;width:80px&quot;&gt;
+            &lt;form th:action=&quot;@{/institutions/{id}/delete(id=${inst.id})}&quot;
+                  method=&quot;post&quot;&gt;
+              &lt;button type=&quot;submit&quot; class=&quot;btn btn-danger-outline btn-sm&quot;
+                      onclick=&quot;return confirm(&#x27;삭제하시겠습니까?&#x27;)&quot;&gt;삭제&lt;/button&gt;
+            &lt;/form&gt;
+          &lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/tbody&gt;
+    &lt;/table&gt;
+  &lt;/div&gt;
+
+&lt;/section&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</pre>
+
+<footer>
+  ② uploader 소스 변경 상세 · 2026-09-08 확정본 ·
+  선행 문서: <code>내부망작업지시_2026-09-08_1_스키마변경.pdf</code>
+</footer>
+
+</body>
+</html>

@@ -1,6 +1,8 @@
 package com.kb.uploader.config;
 
 import org.apache.ibatis.mapping.DatabaseIdProvider;
+import org.apache.ibatis.type.JdbcType;
+import org.mybatis.spring.boot.autoconfigure.ConfigurationCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -53,6 +55,31 @@ public class MyBatisConfig {
             public void setProperties(java.util.Properties p) {
                 // 매핑을 설정 파일로 빼지 않는다 — 5개 환경 properties 중 하나만
                 // 빠지면 그 환경에서만 방언이 어긋난다.
+            }
+        };
+    }
+
+    /**
+     * {@code null} 파라미터를 바인딩할 때 쓸 JDBC 타입을 {@code NULL} 로 고정한다.
+     *
+     * <p><b>왜 두는가.</b> MyBatis 기본값은 {@code OTHER}({@code java.sql.Types.OTHER}, 1111)
+     * 인데 <b>Oracle 드라이버가 이 값을 거부한다</b> — {@code ORA: 부적합한 열 유형: 1111}.
+     * 업로드 직후의 {@code 기관영업분류구분}·{@code 문서년}·{@code 분류일시} 처럼
+     * <b>분류 전에는 비어 있는 게 정상인 컬럼</b>이 전부 여기에 걸린다.
+     *
+     * <p>문장마다 {@code jdbcType=} 을 붙이는 방법도 있지만, 새 nullable 컬럼이 생길 때마다
+     * 빠뜨리면 그 문장에서만 터진다. 전역으로 한 번 고정하는 편이 안전하다.
+     *
+     * <p>⚠️ <b>테스트로는 못 잡는다.</b> H2/MySQL 은 {@code OTHER} 를 받아 주므로
+     * 위 {@code resolve} 주석의 "런타임 테스트는 oracle 분기를 실행하지 않는다"는 공백에
+     * 그대로 해당한다 — 실제로 내부망 WebLogic+Oracle 에서 처음 드러났다.
+     */
+    @Bean
+    public ConfigurationCustomizer jdbcTypeForNullCustomizer() {
+        return new ConfigurationCustomizer() {
+            @Override
+            public void customize(org.apache.ibatis.session.Configuration configuration) {
+                configuration.setJdbcTypeForNull(JdbcType.NULL);
             }
         };
     }

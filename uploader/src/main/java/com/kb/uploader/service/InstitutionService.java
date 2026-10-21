@@ -1,5 +1,6 @@
 package com.kb.uploader.service;
 
+import com.kb.uploader.code.SystemUser;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kb.uploader.domain.Institution;
@@ -21,14 +22,11 @@ public class InstitutionService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final InstitutionMapper institutionMapper;
-    private final ClassificationService classificationService;
     private final UploadedFileMapper uploadedFileMapper;
 
     public InstitutionService(InstitutionMapper institutionMapper,
-                              ClassificationService classificationService,
                               UploadedFileMapper uploadedFileMapper) {
         this.institutionMapper = institutionMapper;
-        this.classificationService = classificationService;
         this.uploadedFileMapper = uploadedFileMapper;
     }
 
@@ -40,10 +38,12 @@ public class InstitutionService {
         Optional<Institution> existing = institutionMapper.findByName(name);
         if (existing.isPresent()) {
             existing.get().updateCategory(category);
+            existing.get().setSystemUserNo(SystemUser.get());
             institutionMapper.update(existing.get());
             return existing.get();
         }
         Institution inst = new Institution(name, category);
+        inst.setSystemUserNo(SystemUser.get());
         institutionMapper.insert(inst);
         return inst;
     }
@@ -66,9 +66,13 @@ public class InstitutionService {
             new TypeReference<Map<String, List<String>>>() {});
         institutionMapper.deleteAll();
         data.forEach((category, names) ->
-            names.forEach(name -> institutionMapper.insert(new Institution(name, category))));
-        List<UploadedFile> pending = uploadedFileMapper.findByStatus("UNCLASSIFIED");
-        pending.forEach(f -> classificationService.classify(f));
+            names.forEach(name -> {
+                    Institution created = new Institution(name, category);
+                    created.setSystemUserNo(SystemUser.get());
+                    institutionMapper.insert(created);
+                }));
+        // 2026-09-23: 자동 재분류를 없앴다. 기관을 고친 뒤 다시 돌리려면
+        //             파싱 현황 화면의 [재파싱] 을 누른다.
     }
 
     public byte[] exportToXlsx() throws IOException {
@@ -104,11 +108,13 @@ public class InstitutionService {
                 String category = categoryCell != null
                     ? categoryCell.getStringCellValue().trim() : "";
                 if (!name.isEmpty()) {
-                    institutionMapper.insert(new Institution(name, category));
+                    Institution created = new Institution(name, category);
+                    created.setSystemUserNo(SystemUser.get());
+                    institutionMapper.insert(created);
                 }
             }
         }
-        List<UploadedFile> pending = uploadedFileMapper.findByStatus("UNCLASSIFIED");
-        pending.forEach(f -> classificationService.classify(f));
+        // 2026-09-23: 자동 재분류를 없앴다. 기관을 고친 뒤 다시 돌리려면
+        //             파싱 현황 화면의 [재파싱] 을 누른다.
     }
 }

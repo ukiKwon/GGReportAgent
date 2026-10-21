@@ -7,66 +7,71 @@
 
   <div class="section-header" style="margin-bottom:20px">
     <span class="section-title" style="font-size:18px">파일 업로드</span>
+    <span class="section-sub">업로드하면 문서 내용을 읽어 산출물을 만듭니다. 기관·연도는 본문에서 찾습니다.</span>
   </div>
 
-  <!-- 업로드 카드 -->
-  <div class="card" style="max-width:600px;margin-bottom:24px">
-    <div class="card-header">파일 선택</div>
-    <div class="card-body">
-      <form method="post" th:action="@{/upload}" enctype="multipart/form-data">
-        <div class="form-group">
-          <label class="form-label">파일 선택 (pdf, hwp, md — 복수 선택 가능)</label>
-          <input type="file" name="files" multiple accept=".pdf,.hwp,.md" class="form-control">
-        </div>
+  <div th:if="${errorMessage}"
+       style="margin-bottom:14px;padding:10px 14px;background:#fff3f3;border:1px solid #f5c6c6;border-radius:6px;color:#c0392b;font-size:13.5px"
+       th:text="${errorMessage}"></div>
 
-        <!-- 수동 입력 (파일명 규칙 불일치 시) -->
-        <div style="margin-top:16px;padding:12px 14px;background:var(--surface-2,#f8f9fa);border-radius:6px;border:1px solid var(--border,#e0e0e0)">
-          <div style="color:var(--text-2,#666);margin-bottom:10px;font-weight:600">
-            파일명 규칙 불일치 시 직접 입력 <span style="font-weight:400">(선택사항 — 파일명이 <code>년도_기관명_설명.확장자</code> 형식이 아닐 때 사용)</span>
-          </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <div style="flex:1;min-width:140px">
-              <label class="form-label">기관명</label>
-              <input type="text" name="institution" class="form-control form-control-sm" placeholder="예: 서울에너지공사">
-            </div>
-            <div style="width:100px">
-              <label class="form-label">연도</label>
-              <input type="text" name="year" class="form-control form-control-sm" placeholder="예: 2024" maxlength="4">
-            </div>
-            <div style="flex:1;min-width:140px">
-              <label class="form-label">카테고리</label>
-              <select name="category" class="form-control form-control-sm">
-                <option value="">선택 (선택사항)</option>
-                <option th:each="cat : ${categories}" th:value="${cat}" th:text="${cat}"></option>
-              </select>
-            </div>
-          </div>
-        </div>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px">
 
-        <div th:if="${errorMessage}" style="margin-top:12px;padding:10px 14px;background:#fff3f3;border:1px solid #f5c6c6;border-radius:6px;color:#c0392b;font-size:13.5px" th:text="${errorMessage}"></div>
-        <button type="submit" class="btn btn-primary" style="margin-top:14px">업로드</button>
-      </form>
+    <!-- 입찰제안서 -->
+    <div class="card" style="flex:1;min-width:320px">
+      <div class="card-header">입찰제안서</div>
+      <div class="card-body">
+        <form method="post" th:action="@{/upload/proposal}" enctype="multipart/form-data">
+          <div class="form-group">
+            <label class="form-label">ppt, pptx — 복수 선택 가능</label>
+            <input type="file" name="files" multiple accept=".ppt,.pptx" class="form-control">
+          </div>
+          <div style="color:var(--text-2,#666);font-size:12.5px;margin-top:8px">
+            슬라이드를 읽어 <code>{연도}_{기관분류}_{기관명}_{파싱일}_bid_proposal.json</code> 을 만듭니다.
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top:14px">제안서 업로드</button>
+        </form>
+      </div>
     </div>
+
+    <!-- 입찰공고문 RFP -->
+    <div class="card" style="flex:1;min-width:320px">
+      <div class="card-header">입찰공고문 (RFP)</div>
+      <div class="card-body">
+        <form method="post" th:action="@{/upload/rfp}" enctype="multipart/form-data">
+          <div class="form-group">
+            <label class="form-label">pdf, hwp, hwpx — 복수 선택 가능</label>
+            <input type="file" name="files" multiple accept=".pdf,.hwp,.hwpx" class="form-control">
+          </div>
+          <div style="color:var(--text-2,#666);font-size:12.5px;margin-top:8px">
+            본문을 요약해 <code>{공고일}_{기관분류}_{기관명}_{파싱일}.md</code> 를 만듭니다.
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top:14px">공고문 업로드</button>
+        </form>
+      </div>
+    </div>
+
   </div>
 
   <!-- 업로드 결과 -->
   <div th:if="${results != null and !results.isEmpty()}">
     <div class="section-header">
       <span class="section-title">업로드 결과</span>
+      <span th:if="${uploadedType}" class="section-sub" th:text="${uploadedType}"></span>
     </div>
     <div class="table-card">
       <table>
         <thead>
         <tr>
-          <th>파일명</th><th>카테고리</th><th>결과</th><th>메시지</th>
+          <th>파일명</th><th>기관분류</th><th>파싱</th><th>메시지</th>
         </tr>
         </thead>
         <tbody>
         <tr th:each="r : ${results}">
           <td>
-              <span th:with="ext=${#strings.toLowerCase(r.filename.substring(r.filename.lastIndexOf('.') + 1))}"
-                    th:class="${'file-ext' + (ext == 'pdf' ? ' ext-pdf' : (ext == 'hwp' ? ' ext-hwp' : (ext == 'md' ? ' ext-md' : '')))}"
-                    th:text="${#strings.toUpperCase(ext)}"></span>
+            <!-- ⚠️ #strings.substringAfterLast 는 이 Thymeleaf 버전에 없다. 쓰면 렌더링이 끊긴다 -->
+            <span th:with="ext=${#strings.toLowerCase(r.filename.substring(r.filename.lastIndexOf('.') + 1))}"
+                  th:class="${'file-ext' + (ext == 'pdf' ? ' ext-pdf' : (ext == 'hwp' ? ' ext-hwp' : (ext == 'md' ? ' ext-md' : '')))}"
+                  th:text="${#strings.toUpperCase(ext)}"></span>
             <span class="file-name" th:text="${r.filename}"></span>
           </td>
           <td>
@@ -74,8 +79,8 @@
             <span th:if="${r.category == null}" style="color:var(--text-3)">-</span>
           </td>
           <td>
-              <span th:class="${'badge ' + (r.classified ? 'badge-done' : 'badge-pending')}"
-                    th:text="${r.classified ? '분류 완료' : '미분류'}"></span>
+            <span th:class="${'badge ' + (r.classified ? 'badge-done' : 'badge-pending')}"
+                  th:text="${r.classified ? '성공' : '실패'}"></span>
           </td>
           <td style="color:var(--text-2);font-size:12.5px" th:text="${r.message}"></td>
         </tr>
