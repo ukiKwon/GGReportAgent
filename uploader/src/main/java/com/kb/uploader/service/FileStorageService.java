@@ -50,6 +50,7 @@ public class FileStorageService {
         // transferTo(File)은 내부적으로 Part.write(경로)를 호출하는데, 서블릿 스펙상 그 경로는
         // multipart 임시 위치 기준 상대경로다. WebLogic은 절대경로를 그대로 이어 붙여
         // "<도메인>/.../C:/uploader-local/..." 같은 잘못된 경로를 만든다. 스트림 복사로 우회한다.
+        // 컨테이너마다 해석이 달라(WebSphere 포함) 스트림 복사가 어느 WAS에서나 안전하다.
         try (InputStream in = file.getInputStream()) {
             Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
         }
