@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WebSphere Traditional 9.x 용 확장 설정. weblogic.xml 의 prefer-application-packages 에 해당하는
+  클래스로더 우선순위는 이 파일이 아니라 관리 콘솔(애플리케이션 > 클래스 로딩 및 갱신 검색:
+  "상위 클래스 로더보다 먼저 로컬 클래스 로더 클래스 로드(PARENT_LAST)")에서 정한다. DEPLOY.md §9 참조.
+
+  ⚠️ server.tomcat.* 는 외부 WAS 에서 무시된다. 요청 인코딩은 Boot 의 CharacterEncodingFilter 가
+     UTF-8 로 처리하지만, URI(쿼리스트링) 인코딩은 WebSphere 컨테이너 설정을 확인해야 한다.
+-->
+<web-ext
+        xmlns="http://websphere.ibm.com/xml/ns/javaee"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://websphere.ibm.com/xml/ns/javaee
+                            http://websphere.ibm.com/xml/ns/javaee/ibm-web-ext_1_0.xsd"
+        version="1.0">
+
+  <auto-encode-requests value="true"/>
+  <auto-encode-responses value="true"/>
+
+</web-ext>

@@ -226,6 +226,14 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
 
 ⚠️ **WAS를 바꿔도 지금 막힌 LLM은 안 풀린다** — 막은 것은 **OS·아키텍처**다.
 
+**진행 상황 (2026-10-26, 브랜치 `websphere-migration`, 미커밋·미병합; 출처: 이 세션, summary 미작성)**
+사용자 결정으로 uploader 쪽만 착수: Traditional 9.x / `weblogic.xml` 공존 / `commonj.timers` 유지.
+- 완료: `uploader/src/main/webapp/WEB-INF/ibm-web-bnd.xml`·`ibm-web-ext.xml` 신규(바인딩 이름은
+  플레이스홀더), `uploader/DEPLOY.md` §9 추가, `FileStorageService` 주석 보강.
+- 남음: ① 이 머신에 `mvn`이 없어 `mvn -o clean package`·WAR에 `ibm-web-*.xml` 포함 확인 못 함
+  ② 실제 WebSphere JNDI 이름·`ibm-web-ext.xml` 요소(`auto-encode-*`)를 인프라/실기로 검증
+  ③ 커밋·병합 판단 ④ 본체(kgi-ggreport-web)의 WorkManager 어댑터는 손대지 않음.
+
 ### 참고 — 발송 준비물(발송하기로 바뀌면 그대로 쓸 수 있다)
 
 - **출처**: `2026-08-28_summary.md`. 원 지시는 `2026-08-27_summary.md`.

@@ -344,6 +344,24 @@ WAR 안에 `web.xml`·`weblogic.xml`·`schema-oracle.sql` 포함.
 
 ---
 
+## 9. WebSphere Traditional 9.x에 배포할 때 (WebLogic과 공존)
+
+같은 WAR이 양쪽에 올라갑니다. WebLogic은 `ibm-web-*.xml`을, WebSphere는 `weblogic.xml`을 무시합니다.
+코드 변경은 없고, 이름과 바인딩만 맞추면 됩니다. **아래는 외부망에서 만든 초안이라 실기 미검증입니다.**
+
+| 무엇 | WebSphere 쪽 |
+|---|---|
+| DataSource | 관리 콘솔에서 데이터 소스 생성 → JNDI 이름을 `WEB-INF/ibm-web-bnd.xml`의 `binding-name`에 기입 |
+| TimerManager | 자원 > 타이머 > 타이머 관리자 생성 → JNDI 이름을 `ibm-web-bnd.xml`에 기입 (`commonj.timers` 그대로 사용) |
+| 클래스로더 | `weblogic.xml`의 `prefer-application-packages` 대응 = 애플리케이션 클래스 로더를 **PARENT_LAST**로 설정. commons-io 2.15.1 고정(POI 요건)이 이 설정에 달려 있음 |
+| 인코딩 | `server.tomcat.*`는 무시됨. URI 인코딩은 웹 컨테이너 설정에서 UTF-8 확인 |
+| ojdbc8 | WebSphere 공유 드라이버와 충돌하면 `pom.xml`에서 `provided`로 전환 (§5와 동일) |
+
+`ibm-web-bnd.xml`의 `binding-name`은 **플레이스홀더**(`jdbc/uploaderDS`, `timer/uploaderTM`)입니다.
+기동 로그에 LocalScheduler 폴백 WARN이 보이면 TimerManager 바인딩이 틀린 것입니다.
+
+---
+
 ## 부록 — 로컬 WebLogic으로 연습할 때
 
 `config-envs/local`은 **JNDI를 쓰지 않습니다.** JNDI 자동설정을 끄고
