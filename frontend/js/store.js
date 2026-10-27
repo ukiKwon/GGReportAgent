@@ -7,6 +7,7 @@
   const DATA_KEY = 'tbd.data';
   const THEME_KEY = 'tbd.mapTheme';
   const PROFILE_KEY = 'tbd.profile';
+  const SESSION_KEY = 'tbd.session';
   function LS() { return (typeof localStorage !== 'undefined') ? localStorage : null; }
   function read(key, fallback) {
     const ls = LS(); if (!ls) return fallback;
@@ -85,6 +86,22 @@
     const p = profile || {};
     write(PROFILE_KEY, { name: p.name || '', team: p.team || '' });
     return store.loadProfile();
+  };
+  // 로그인 세션(프로토타입) — {mode:'account'|'guest', id}. 없으면 로그인 화면부터.
+  // 인증이 아니라 "이 브라우저에서 로그인 화면을 지났는가"만 기억한다.
+  store.loadSession = function () {
+    const s = read(SESSION_KEY, null);
+    if (!s || (s.mode !== 'account' && s.mode !== 'guest')) return null;
+    return { mode: s.mode, id: s.id || '' };
+  };
+  store.saveSession = function (session) {
+    const s = session || {};
+    write(SESSION_KEY, { mode: s.mode, id: s.id || '' });
+    return store.loadSession();
+  };
+  store.clearSession = function () {
+    const ls = LS();
+    if (ls) { try { ls.removeItem(SESSION_KEY); } catch (e) { /* 저장소가 막혀도 로그아웃은 진행 */ } }
   };
   // 쪽지 수신자는 사람 이름이 아니라 **역할**로도 온다(영업팀·디자이너·인사권자 —
   // agent/orchestrator의 notify 참조). 그래서 소속과 이름 둘 다로 조회해야 한다.
