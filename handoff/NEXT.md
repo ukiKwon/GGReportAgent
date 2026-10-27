@@ -230,8 +230,10 @@ WorkManager 어댑터 한 겹**(`commonj.work` ↔ `com.ibm.websphere.asynchbean
 사용자 결정으로 uploader 쪽만 착수: Traditional 9.x / `weblogic.xml` 공존 / `commonj.timers` 유지.
 - 완료: `uploader/src/main/webapp/WEB-INF/ibm-web-bnd.xml`·`ibm-web-ext.xml` 신규(바인딩 이름은
   플레이스홀더), `uploader/DEPLOY.md` §9 추가, `FileStorageService` 주석 보강.
-- 남음: ① 이 머신에 `mvn`이 없어 `mvn -o clean package`·WAR에 `ibm-web-*.xml` 포함 확인 못 함
-  ② 실제 WebSphere JNDI 이름·`ibm-web-ext.xml` 요소(`auto-encode-*`)를 인프라/실기로 검증
+- 검증됨(2026-10-27): IntelliJ 번들 Maven(`/Applications/IntelliJ IDEA CE.app/Contents/plugins/maven/lib/maven3/bin/mvn`)
+  으로 `clean package` 성공 — 테스트 42건 통과(실패 0), `uploader-1.0.0.war` 생성, WAR의 WEB-INF에
+  `ibm-web-bnd.xml`·`ibm-web-ext.xml`·`weblogic.xml`·`web.xml` 모두 포함. (`-o`는 clean 플러그인이 캐시에 없어 온라인 1회 필요)
+- 남음: ② 실제 WebSphere JNDI 이름·`ibm-web-ext.xml` 요소(`auto-encode-*`)를 인프라/실기로 검증
   ③ 커밋·병합 판단 ④ 본체(kgi-ggreport-web)의 WorkManager 어댑터는 손대지 않음.
 
 ### 참고 — 발송 준비물(발송하기로 바뀌면 그대로 쓸 수 있다)
