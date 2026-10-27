@@ -59,6 +59,14 @@
     root.render.drawNational();
   };
   app.onTabChange = function (tab) {
+    // 기관 분류·CSV·지도 색상과 임박 TOP5는 지도·지역별에서만 의미가 있다 —
+    // 다른 화면(워크플로 등)에서 '기관 분류 선택'이 보이면 그 화면과 무관한 조작처럼 읽힌다.
+    const mapControls = root.nav ? root.nav.showsMapControls(tab) : true;
+    ['topbar', 'ticker-strip'].forEach(function (id) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = mapControls ? '' : 'none';
+    });
+    if (app.syncNavActive) app.syncNavActive(tab);
     if (tab === 'regions') { root.render.drawRegionGrid(); root.render.drawPinBar(); }
     else if (tab === 'map') { root.render.applyWatchStyles(); }
     // 탭을 벗어나면 폴링·스트림을 멈춘다(백그라운드에서 계속 돌지 않게).
@@ -124,6 +132,7 @@
       if (btn.classList.contains('active')) activeKey = key;
     });
     // 숨기는 순간 그 탭을 보고 있었다면 빈 화면이 남는다 — 지도로 되돌린다.
+    app.paintNav(visible);
     const back = rules.activeFallback(activeKey, visible);
     if (back) {
       const btn = document.querySelector('.tab-btn[data-tab="' + back + '"]');
@@ -483,6 +492,97 @@
     });
   };
 
+  // ── 좌측 업무 메뉴 ─────────────────────────────────────────────────────────
+  // 화면 전환 자체는 기존 .tab-btn(숨김) 클릭이 그대로 한다 — 권한 계산·폴링 정리·
+  // 폴백이 전부 그 경로에 걸려 있어서, 사이드바는 "그 버튼을 누르는 새 손잡이"일 뿐이다.
+  const navOpen = {};           // 사용자가 직접 펼친/접은 카테고리(메모리만)
+  let navBuilt = [];
+  let navActiveId = null;
+
+  function navContext() {
+    const session = root.store.loadSession();
+    return {
+      role: (root.store.loadProfile().team || '').trim(),
+      master: !!(session && session.mode === 'account' && session.id === root.login.MASTER_ID)
+    };
+  }
+
+  function activeTabKey() {
+    const btn = document.querySelector('.tab-btn.active');
+    return btn ? btn.id.replace('tab-btn-', '') : null;
+  }
+
+  app.showSoon = function (itemId, label) {
+    document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab-view').forEach(function (v) { v.classList.remove('active'); });
+    document.getElementById('tab-soon').classList.add('active');
+    document.getElementById('soon-title').textContent = label;
+    navActiveId = itemId;
+    app.onTabChange('soon');
+  };
+
+  app.syncNavActive = function (tab) {
+    if (tab !== 'soon') navActiveId = activeTabKey();
+    app.drawNav();
+  };
+
+  app.drawNav = function () {
+    const el = document.getElementById('side-nav');
+    if (!el) return;
+    const esc = root.logic.esc;
+    const activeCat = root.nav.categoryOf(navBuilt, navActiveId);
+    el.innerHTML = navBuilt.map(function (cat) {
+      const open = navOpen[cat.id] !== undefined ? navOpen[cat.id] : cat.id === activeCat;
+      const items = cat.items.map(function (it) {
+        return '<button class="nav-item' + (it.id === navActiveId ? ' active' : '') + (it.soon ? ' soon' : '') +
+          '" data-nav="' + esc(it.id) + '">' + esc(it.label) +
+          (it.soon ? '<span class="nav-soon-tag">준비중</span>' : '') + '</button>';
+      }).join('');
+      return '<button class="nav-cat' + (open ? ' open' : '') + (cat.id === activeCat ? ' has-active' : '') +
+        '" data-cat="' + esc(cat.id) + '">' + esc(cat.title) + '</button>' +
+        '<div class="nav-items' + (open ? ' open' : '') + '">' + items + '</div>';
+    }).join('');
+  };
+
+  app.paintNav = function (visible) {
+    if (!root.nav || !document.getElementById('side-nav')) return;
+    navBuilt = root.nav.build(visible, navContext());
+    if (!navActiveId) navActiveId = activeTabKey();
+    // 준비중 화면을 보고 있었는데 그 항목이 더는 안 보이면(로그아웃 등) 지도로 돌려보낸다.
+    if (navActiveId && navActiveId.indexOf('soon:') === 0 && !root.nav.categoryOf(navBuilt, navActiveId)) {
+      const mapBtn = document.getElementById('tab-btn-map');
+      navActiveId = 'map';
+      if (mapBtn) mapBtn.click();
+    }
+    app.drawNav();
+  };
+
+  app.wireNav = function () {
+    const el = document.getElementById('side-nav');
+    if (!el) return;
+    el.addEventListener('click', function (e) {
+      const cat = e.target.closest('.nav-cat');
+      if (cat) {
+        const id = cat.dataset.cat;
+        const open = !cat.classList.contains('open');
+        navOpen[id] = open;
+        app.drawNav();
+        return;
+      }
+      const item = e.target.closest('.nav-item');
+      if (!item) return;
+      const id = item.dataset.nav;
+      let found = null;
+      navBuilt.forEach(function (c) { c.items.forEach(function (it) { if (it.id === id) found = it; }); });
+      if (!found) return;
+      if (found.soon) { app.showSoon(found.id, found.label); return; }
+      const btn = document.getElementById('tab-btn-' + found.key);
+      if (btn) btn.click();
+    });
+    // 첫 그림: 권한 조회 전에는 지도·지역별만(닫는 쪽으로 — menu_rules와 같은 원칙).
+    app.paintNav(root.menuRules.visibleTabs(null, false));
+  };
+
   // ── 로그인(프로토타입) — login.js가 규칙, 여기는 DOM 연결 ───────────────────────
   // 세션이 없으면 로그인 화면이 첫 화면이다. 로그인은 기존 프로필을 채울 뿐이라
   // 쪽지함·결재자 기본값·/menus 호출은 onProfileChanged 한 줄로 따라온다.
@@ -583,6 +683,7 @@
 
   app.init = function () {
     app.wireLogin();
+    app.wireNav();
     // 서버 모드 부트스트랩 먼저 시도(성공/실패 무관하게 이어서 기존 초기화 순서 진행).
     return app.bootstrapServer().then(function () {
       if (window.__d3failed || typeof d3 === 'undefined') { if (root.render.renderFallback) root.render.renderFallback(); return; }
@@ -591,6 +692,7 @@
       root.render.applyWatchStyles();
       app.wireFilters();
       root.render.drawTicker();
+      root.render.startTickerSync();
       document.getElementById('btn-back').addEventListener('click', app.backToNational);
       app.wireExport();
       app.wireData();
