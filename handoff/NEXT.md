@@ -1640,3 +1640,25 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
 | ⑬ | 🔴 **스키마 접두어가 문서에만 있고 리포 소스에는 없다** | 사내 표준이 `FROM INST1.TSKGIAF01` 을 요구해 **내부망 가이드(문서 ①②·DBA 요청서)에만** 접두어를 붙였다(사용자 확정 2026-09-08). 리포의 매퍼·`schema-oracle.sql` 에는 없다 — 붙이면 외부망 테스트(H2)가 깨지기 때문이다. ⚠️ **그래서 내부망 파일과 리포 파일이 갈려 있다.** `import_wtp.py` 로 되돌리면 접두어가 리포로 들어와 **62건이 전부 깨진다.** 정리 방법 셋: ⓐ 미러(`schema-mysql.sql`)에도 `CREATE SCHEMA INST1` 을 넣어 리포까지 접두어를 붙인다 ⓑ DataSource **Init SQL** 에 `ALTER SESSION SET CURRENT_SCHEMA=INST1` 을 넣어 SQL 에서 접두어를 뺀다(표준과 어긋남) ⓒ MyBatis `${schema}` 치환으로 환경별로 준다. 🟢 **dev·stg·prod 스키마명이 전부 `INST1` 로 같음이 확인돼**(사용자 2026-09-08) 환경별 분기는 필요 없다 — ⓐ 가 가장 단순하다 |
 
 **막고 있는 것**: DBA의 테이블 생성(사용자가 요청 예정). 그 전까지 화면은 `ORA-00942`가 정상이다.
+
+### 26. 화면 개편 — **P1·P2 완료, 다음은 P3(엑셀→워드 타당성 스파이크)** (2026-10-27)
+
+- **출처**: `2026-10-27_summary.md` `## Session 18:02`. 브랜치 `websphere-migration`
+  (이 브랜치에 `frontend/` 변경이 얹혔다 — 병합 시 `kgi-ggreport-web/`·`uploader/` 규칙과 별개로 `frontend/`도 함께 간다).
+  계획서 원문: `~/.claude/plans/glowing-mixing-peach.md`(이 PC 한정; 내용은 아래에 요약했다).
+- **끝난 것**: P1 로그인·헤더 우측 프로필(`4c1041d`), P2 좌측 사이드바·topbar/티커 정리·티커 효과(`0d8b536`).
+  새 파일: `frontend/js/login.js`·`nav.js`, `frontend/test/login.test.js`·`nav.test.js`, `frontend/img/login-bg.svg`.
+- **▶ 다음 = P3: 엑셀 → 워드 자동 기입 (제안서 자료 관리 하위, 영업팀 전용, LLM 없음)**
+  - 사이드바에 `엑셀 → 워드 자동 기입`이 **'준비중'으로 자리만 있다**(`nav.js`의 `docs` 카테고리). 정식 구현 때 그 항목을 `live(label, key)`로 바꾸고 `tab-*` 섹션·`MENU_KEYS`·서버 `/menus`·`menu_rules.js` 키를 함께 늘려야 한다(`nav.test.js`의 "MENU_KEYS 8개 전부 재배치" 테스트가 키 추가를 잡는다).
+  - **방식(승인됨)**: 서버(Java)에서 이미 의존성이 있는 `poi-ooxml 5.2.3`(XSSF/XWPF)로 처리 → 추가 jar·폐쇄망 반입 증가 없음, `mvn -o` 유지. 규칙 기반 매핑 = (워드 키워드) ↔ (엑셀 시트/셀 주소 또는 헤더명+행 조건). 쓰기 위치: 키워드가 표 셀이면 **오른쪽 셀**, 문단이면 키워드 **바로 뒤**.
+  - **스파이크가 검증할 것(직접 만든 샘플로)**: ① Word가 키워드를 여러 run으로 쪼갠 경우(run 병합 탐색) ② 병합 셀·중첩 표·키워드 중복 ③ 엑셀 수식 셀(`FormulaEvaluator`)·숫자/날짜 표시값 ④ 기존 서식 유지 ⑤ 한글 파일명·인코딩·50MB 상한. 사용자가 실제 샘플을 안 주기로 했으므로 **실양식 특이점은 한계로 보고서에 명시**.
+  - **산출**: 되는 것/안 되는 것 보고 → 통과 시에만 정식 구현(`POST /proposals/fill` 등) — **보고 후 재승인**. CLAUDE.md 규칙: 착수 전 의도 설명 + 진행 의사 확인.
+  - 위치: `kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/{service,controller}` 신규 + 테스트(`src/test`). 이 모듈의 테스트는 H2·`@AppTest` 규칙(README §7)을 따른다.
+- **보류·잔여(비차단)**
+  - "내 제안서 단계 칩"(계획 P2에 있었음): 워크플로 화면에 1~9단계가 이미 있어 미룸. 필요하면 `workflow.STAGES` 재사용.
+  - 티커 기준일이 `render.state.today`(UTC) 기준이라 한국시간 오전엔 하루 전 날짜로 보임 — D-day 계산과 같은 값이라 고치려면 `render.js:12`(지도 계산)를 건드려야 함.
+  - `frontend/img/login-bg.jpg`(실사진)가 없으면 svg 일러스트로 폴백 — 사진을 쓰려면 파일만 넣으면 된다(라이선스 확인 필요).
+  - 화면 문구가 많다는 지적(글 줄이기)은 사이드바로 일부 해소했을 뿐, 각 화면 본문 정리는 별도 요청 시.
+  - 워크플로 실행(`/run`)은 노드 본문이 미이관(문의 1·6 대기)이라 로컬에서 "미이관" 오류가 정상.
+- **이 PC 로컬 환경(다음 세션에 그대로 있다)**: MySQL은 `brew services`로 상시 기동, DB `ggreportdb`·계정 `ggreport` 생성·스키마 적용됨, `kgi-ggreport-web/config/application.properties`(gitignore) 있음. IntelliJ 실행 시 **Working directory=`kgi-ggreport-web`**, `Add dependencies with "provided" scope` 확인, 접속은 `http://`(https 아님). 로컬 로그인은 `master`(권한관리) · `sales.lead`(결재 흐름) 등 임시 계정, 비밀번호 무검증.
+- **주의**: `frontend/`는 정적 서빙이라 수정 후 강력 새로고침(Cmd+Shift+R)이 필요할 수 있다(옛 JS 캐시로 `startTickerSync is not a function`이 난 적 있음). 리포 루트의 `.playwright-mcp/`는 브라우저 검증 부산물이라 커밋하지 않았다.
