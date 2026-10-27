@@ -85,6 +85,41 @@
   .tb-group svg, #btn-notify svg { display:block; }
   .me-box { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
   .me-box input, .me-box select { padding:4px 8px; }
+
+  /* 헤더 우측 유틸 */
+  #user-area { display:flex; align-items:center; gap:8px; }
+  #profile-wrap { position:relative; }
+  #profile-chip { max-width:220px; overflow:hidden; text-overflow:ellipsis; }
+  #profile-chip::after { content:" ▾"; color:var(--muted); }
+  body.is-guest #profile-chip::after { content:""; }
+  #profile-pop { position:absolute; right:0; top:calc(100% + 6px); z-index:60; min-width:260px;
+                 background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r);
+                 padding:12px; display:flex; flex-direction:column; gap:10px;
+                 box-shadow:0 12px 32px rgba(0,0,0,.5); }
+  #profile-pop .me-box { flex-wrap:wrap; }
+  body.is-guest #btn-notify { display:none !important; }
+
+  /* 로그인 오버레이 — 배경 이미지는 40% 투명도(img/login-bg.svg, 실사진으로 교체 가능) */
+  #login-view { position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center;
+                background:radial-gradient(ellipse at 30% 20%, #16232b, var(--bg) 70%); }
+  #login-view::before { content:""; position:absolute; inset:0; opacity:.4; pointer-events:none;
+                        /* img/login-bg.jpg 를 넣으면 그 사진이 이긴다. 없으면(404) svg 일러스트로 폴백. */
+                        background:url("img/login-bg.jpg") center/cover no-repeat,
+                                   url("img/login-bg.svg") center/cover no-repeat; }
+  #login-view.hidden { display:none; }
+  .login-card { position:relative; width:min(380px, calc(100vw - 32px)); padding:28px 28px 22px;
+                background:color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter:blur(6px);
+                border:1px solid var(--line-strong); border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.55);
+                display:flex; flex-direction:column; gap:12px; }
+  .login-card h2 { margin:0; font-size:18px; display:flex; align-items:center; gap:9px; }
+  .login-sub { margin:0 0 4px; color:var(--muted); font-size:12px; }
+  .login-card label { display:flex; flex-direction:column; gap:5px; font-size:11px; color:var(--muted); }
+  .login-card input, .login-card select { padding:8px 10px; font-size:13px; }
+  .login-msg { min-height:16px; font-size:12px; color:var(--red); }
+  .login-actions { display:flex; gap:8px; }
+  .login-actions button { flex:1; padding:9px 14px; font-size:13px; }
+  .login-actions .primary { background:var(--accent-color); color:#0d1116; border-color:transparent; font-weight:700; }
+  .login-hint { margin:0; font-size:11px; color:var(--muted); }
   #notify-badge:not(:empty) { margin-left:2px; background:var(--red); color:#0d1116;
       border-radius:8px; padding:0 6px; font-size:11px; font-family:var(--mono); }
 
@@ -445,6 +480,22 @@ FORM: taste-redesign 다크크롬 하이브리드 — 실험 2라운드(8종) �
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish
 review, the verdict, and DESIGN.md
 -->
+<div id="login-view" role="dialog" aria-label="로그인">
+  <div class="login-card">
+    <h2><svg width="16" height="16" viewBox="0 0 14 14" aria-hidden="true"><g stroke="#57b8ad" stroke-width="1.6" fill="none"><line x1="3" y1="2" x2="3" y2="12"/><rect x="1.2" y="4.5" width="3.6" height="4" fill="#57b8ad" stroke="none"/><line x1="10" y1="1" x2="10" y2="13"/><rect x="8.2" y="3" width="3.6" height="6.5" fill="none"/></g></svg>금고은행 입찰 현황</h2>
+    <p class="login-sub">함께 만드는 제안서 — 로그인하고 시작하세요</p>
+    <label>아이디<input id="login-id" autocomplete="off" placeholder="예: sales.lead"></label>
+    <label>비밀번호<input id="login-pw" type="password" autocomplete="off" placeholder="프로토타입은 확인하지 않습니다"></label>
+    <label>팀 / 직위<select id="login-role"></select></label>
+    <div id="login-msg" class="login-msg"></div>
+    <div class="login-actions">
+      <button id="login-go" class="primary">로그인</button>
+      <button id="login-guest">둘러보기</button>
+    </div>
+    <p class="login-hint">임시 계정입니다. 팀/직위를 고르면 아이디가 자동으로 채워집니다.</p>
+  </div>
+</div>
+
 <header>
   <h1><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><g stroke="#57b8ad" stroke-width="1.6" fill="none"><line x1="3" y1="2" x2="3" y2="12"/><rect x="1.2" y="4.5" width="3.6" height="4" fill="#57b8ad" stroke="none"/><line x1="10" y1="1" x2="10" y2="13"/><rect x="8.2" y="3" width="3.6" height="6.5" fill="none"/></g></svg>금고은행 입찰 현황 히트맵</h1>
   <div class="tabs">
@@ -457,6 +508,24 @@ review, the verdict, and DESIGN.md
     <button class="tab-btn" data-tab="designer" id="tab-btn-tasks" style="display:none;">작업함</button>
     <button class="tab-btn" data-tab="approvals" id="tab-btn-approvals" style="display:none;">결재함</button>
     <button class="tab-btn" data-tab="admin" id="tab-btn-admin" style="display:none;">권한관리</button>
+  </div>
+  <!-- 우측 유틸: 쪽지함 + 프로필. 프로필 편집 UI(#me-*)는 팝오버 안에 둔다 — id는 그대로라 app.wireProfile이 무수정으로 돈다. -->
+  <div id="user-area">
+    <button id="btn-notify" title="쪽지함"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" stroke="currentColor" stroke-width="1.2" fill="none"><rect x="1" y="2.5" width="10" height="7"/><polyline points="1,3 6,7.5 11,3"/></svg>쪽지함<span id="notify-badge"></span></button>
+    <div id="profile-wrap">
+      <button id="profile-chip" aria-haspopup="true" aria-expanded="false" title="내 프로필">로그인</button>
+      <div id="profile-pop" style="display:none;">
+        <label class="me-box">프로필 편집
+          <input id="me-name" placeholder="이름" size="8">
+          <select id="me-team" title="소속">
+            <option>영업팀</option><option>전산팀</option><option>예산팀</option>
+          </select>
+          <select id="me-pos" title="직책"></select>
+          <select id="me-switch" style="display:none;" title="계정 전환(데모 전용)"></select>
+        </label>
+        <button id="btn-logout">로그아웃</button>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -479,16 +548,6 @@ review, the verdict, and DESIGN.md
     <button id="btn-export">기관 정보 내보내기</button>
     <button id="btn-theme"><svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><rect x="0.5" y="0.5" width="5" height="5" rx="1" fill="var(--red)"/><rect x="6.5" y="0.5" width="5" height="5" rx="1" fill="var(--orange)"/><rect x="0.5" y="6.5" width="5" height="5" rx="1" fill="var(--yellow)"/><rect x="6.5" y="6.5" width="5" height="5" rx="1" fill="var(--blue)"/></svg>지도 색상</button>
   </div>
-  <!-- 내 프로필 — 쪽지함 조회 키(소속·이름)이자 결재자 이름 기본값 (계획 C2) -->
-  <label class="me-box">나:
-    <input id="me-name" placeholder="이름" size="8">
-    <select id="me-team" title="소속">
-      <option>영업팀</option><option>전산팀</option><option>예산팀</option>
-    </select>
-    <select id="me-pos" title="직책"></select>
-    <select id="me-switch" style="display:none;" title="계정 전환(데모 전용)"></select>
-  </label>
-  <button id="btn-notify" title="쪽지함"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" stroke="currentColor" stroke-width="1.2" fill="none"><rect x="1" y="2.5" width="10" height="7"/><polyline points="1,3 6,7.5 11,3"/></svg>쪽지함<span id="notify-badge"></span></button>
 </div>
 <div id="ticker-strip"><div id="ticker"></div></div>
 
@@ -676,6 +735,7 @@ review, the verdict, and DESIGN.md
 <script src="js/roles.js"></script>
 <script src="js/designer.js"></script>
 <script src="js/menu_rules.js"></script>
+<script src="js/login.js"></script>
 <script src="js/approvals.js"></script>
 <script src="js/admin.js"></script>
 <script src="js/export.js"></script>

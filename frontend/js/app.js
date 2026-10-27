@@ -223,6 +223,7 @@
     if (root.notify && root.notify.onProfileChange) root.notify.onProfileChange();
     if (root.approvals && root.approvals.onProfileChange) root.approvals.onProfileChange();
     app.applyMenuPermissions();
+    if (app.paintUserArea) app.paintUserArea();
     // 워크플로 탭이 이미 그려져 있으면 결재자 입력도 새 이름으로 맞춘다.
     const by = document.getElementById('wf-by');
     if (by) by.value = root.store.loadProfile().name || '';
@@ -482,7 +483,106 @@
     });
   };
 
+  // ── 로그인(프로토타입) — login.js가 규칙, 여기는 DOM 연결 ───────────────────────
+  // 세션이 없으면 로그인 화면이 첫 화면이다. 로그인은 기존 프로필을 채울 뿐이라
+  // 쪽지함·결재자 기본값·/menus 호출은 onProfileChanged 한 줄로 따라온다.
+  function byId(id) { return document.getElementById(id); }
+
+  app.paintUserArea = function () {
+    const session = root.store.loadSession();
+    const chip = byId('profile-chip');
+    document.body.classList.toggle('is-guest', !(session && session.mode === 'account'));
+    if (chip) chip.textContent = root.login.chipText(session, root.store.loadProfile());
+    const pop = byId('profile-pop');
+    if (pop && !(session && session.mode === 'account')) pop.style.display = 'none';
+  };
+
+  app.showLogin = function (message) {
+    const view = byId('login-view');
+    if (!view) return;
+    view.classList.remove('hidden');
+    byId('login-msg').textContent = message || '';
+    byId('login-pw').value = '';
+    byId('login-id').focus();
+  };
+
+  app.enterApp = function (session, profile) {
+    root.store.saveSession(session);
+    root.store.saveProfile(profile);
+    if (app.showProfileRole) {
+      byId('me-name').value = profile.name;
+      app.showProfileRole(profile.team);
+    }
+    byId('login-view').classList.add('hidden');
+    app.paintUserArea();
+    app.onProfileChanged();
+  };
+
+  app.logout = function () {
+    root.store.clearSession();
+    root.store.saveProfile({ name: '', team: '' });
+    if (app.showProfileRole) { byId('me-name').value = ''; app.showProfileRole(''); }
+    byId('profile-pop').style.display = 'none';
+    app.paintUserArea();
+    app.onProfileChanged();
+    app.showLogin('');
+  };
+
+  app.wireLogin = function () {
+    const view = byId('login-view');
+    if (!view || !root.login) return;
+    const idEl = byId('login-id');
+    const roleEl = byId('login-role');
+    roleEl.innerHTML = '<option value="">직접 입력</option>' + root.login.groups().map(function (g) {
+      return '<optgroup label="' + root.logic.esc(g.title) + '">' + g.accounts.map(function (a) {
+        return '<option value="' + root.logic.esc(a.id) + '">' + root.logic.esc(root.login.label(a)) + '</option>';
+      }).join('') + '</optgroup>';
+    }).join('');
+    // 팀/직위를 고르면 아이디가 채워지고, 아이디를 직접 치면 드롭다운이 따라간다.
+    roleEl.addEventListener('change', function () { if (roleEl.value) idEl.value = roleEl.value; });
+    idEl.addEventListener('input', function () {
+      const a = root.login.byId(idEl.value);
+      roleEl.value = a ? a.id : '';
+    });
+
+    function submit() {
+      const a = root.login.authenticate(idEl.value, byId('login-pw').value);
+      if (!a) { byId('login-msg').textContent = '등록된 임시 계정이 아닙니다. 팀/직위에서 골라 보세요.'; return; }
+      app.enterApp({ mode: 'account', id: a.id }, { name: a.name, team: a.role });
+    }
+    byId('login-go').addEventListener('click', submit);
+    [idEl, byId('login-pw')].forEach(function (el) {
+      el.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+    });
+    // 둘러보기 = 프로필을 비운 채 지금까지의 '/' 화면(지도·지역별)으로 들어간다.
+    byId('login-guest').addEventListener('click', function () {
+      app.enterApp({ mode: 'guest', id: '' }, { name: '', team: '' });
+    });
+
+    // 프로필 칩: 로그인 상태면 편집 팝오버, 둘러보기 상태면 로그인 화면.
+    byId('profile-chip').addEventListener('click', function (e) {
+      e.stopPropagation();
+      const session = root.store.loadSession();
+      if (!(session && session.mode === 'account')) { app.showLogin(''); return; }
+      const pop = byId('profile-pop');
+      const open = pop.style.display === 'none';
+      pop.style.display = open ? '' : 'none';
+      byId('profile-chip').setAttribute('aria-expanded', String(open));
+    });
+    byId('profile-pop').addEventListener('click', function (e) { e.stopPropagation(); });
+    document.addEventListener('click', function () { byId('profile-pop').style.display = 'none'; });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') byId('profile-pop').style.display = 'none';
+    });
+    byId('btn-logout').addEventListener('click', app.logout);
+
+    // 첫 화면: 세션이 있으면 바로 앱, 없으면 로그인(마크업 기본값이 "보임"이라 깜빡임이 없다).
+    if (root.store.loadSession()) view.classList.add('hidden');
+    app.paintUserArea();
+  };
+
   app.init = function () {
+    app.wireLogin();
     // 서버 모드 부트스트랩 먼저 시도(성공/실패 무관하게 이어서 기존 초기화 순서 진행).
     return app.bootstrapServer().then(function () {
       if (window.__d3failed || typeof d3 === 'undefined') { if (root.render.renderFallback) root.render.renderFallback(); return; }
