@@ -1641,19 +1641,20 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
 
 **막고 있는 것**: DBA의 테이블 생성(사용자가 요청 예정). 그 전까지 화면은 `ORA-00942`가 정상이다.
 
-### 26. 화면 개편 — **P1·P2 완료, 다음은 P3(엑셀→워드 타당성 스파이크)** (2026-10-27)
+### 26. 화면 개편 — **P1·P2 완료, P3 스파이크 완료(가능 판정), 다음은 정식 구현 여부 결정** (2026-10-28)
 
-- **출처**: `2026-10-27_summary.md` `## Session 18:02`. 브랜치 `websphere-migration`
-  (이 브랜치에 `frontend/` 변경이 얹혔다 — 병합 시 `kgi-ggreport-web/`·`uploader/` 규칙과 별개로 `frontend/`도 함께 간다).
+- **출처**: `2026-10-28_summary.md` `## Session 09:39`(P3) · `2026-10-27_summary.md` `## Session 18:02`(P1·P2).
+  브랜치 `websphere-migration`(이 브랜치에 `frontend/`·`docfill/` 변경이 얹혔다 — 병합 시 `kgi-ggreport-web/`→ours 규칙과 별개로 `frontend/`도 함께 간다).
   계획서 원문: `~/.claude/plans/glowing-mixing-peach.md`(이 PC 한정; 내용은 아래에 요약했다).
-- **끝난 것**: P1 로그인·헤더 우측 프로필(`4c1041d`), P2 좌측 사이드바·topbar/티커 정리·티커 효과(`0d8b536`).
-  새 파일: `frontend/js/login.js`·`nav.js`, `frontend/test/login.test.js`·`nav.test.js`, `frontend/img/login-bg.svg`.
-- **▶ 다음 = P3: 엑셀 → 워드 자동 기입 (제안서 자료 관리 하위, 영업팀 전용, LLM 없음)**
-  - 사이드바에 `엑셀 → 워드 자동 기입`이 **'준비중'으로 자리만 있다**(`nav.js`의 `docs` 카테고리). 정식 구현 때 그 항목을 `live(label, key)`로 바꾸고 `tab-*` 섹션·`MENU_KEYS`·서버 `/menus`·`menu_rules.js` 키를 함께 늘려야 한다(`nav.test.js`의 "MENU_KEYS 8개 전부 재배치" 테스트가 키 추가를 잡는다).
-  - **방식(승인됨)**: 서버(Java)에서 이미 의존성이 있는 `poi-ooxml 5.2.3`(XSSF/XWPF)로 처리 → 추가 jar·폐쇄망 반입 증가 없음, `mvn -o` 유지. 규칙 기반 매핑 = (워드 키워드) ↔ (엑셀 시트/셀 주소 또는 헤더명+행 조건). 쓰기 위치: 키워드가 표 셀이면 **오른쪽 셀**, 문단이면 키워드 **바로 뒤**.
-  - **스파이크가 검증할 것(직접 만든 샘플로)**: ① Word가 키워드를 여러 run으로 쪼갠 경우(run 병합 탐색) ② 병합 셀·중첩 표·키워드 중복 ③ 엑셀 수식 셀(`FormulaEvaluator`)·숫자/날짜 표시값 ④ 기존 서식 유지 ⑤ 한글 파일명·인코딩·50MB 상한. 사용자가 실제 샘플을 안 주기로 했으므로 **실양식 특이점은 한계로 보고서에 명시**.
-  - **산출**: 되는 것/안 되는 것 보고 → 통과 시에만 정식 구현(`POST /proposals/fill` 등) — **보고 후 재승인**. CLAUDE.md 규칙: 착수 전 의도 설명 + 진행 의사 확인.
-  - 위치: `kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/{service,controller}` 신규 + 테스트(`src/test`). 이 모듈의 테스트는 H2·`@AppTest` 규칙(README §7)을 따른다.
+- **끝난 것**: P1 로그인·헤더 우측 프로필(`4c1041d`), P2 좌측 사이드바·topbar/티커(`0d8b536`),
+  **P3 엑셀→워드 스파이크(`6391d44`)** — 판정 ✅ **LLM 없이 규칙만으로 가능**. 보고서 `docs/엑셀_워드_자동기입_타당성_스파이크.md`가 정본(검증 표·실측 결함 3건·안전장치·한계).
+  코드는 `kgi-ggreport-web/.../web/docfill/`(6파일: `FillRule`·`FillReport`·`ExcelSource`·`ExcelDateFormat`·`WordFiller`·`ExcelWordFiller`) + 테스트 30건. **컨트롤러·화면은 없다.**
+  모듈 전체 `mvn test` 325건 통과(이 PC: JDK 8 `jdk1.8.0_212` + IntelliJ 번들 Maven, 셸에 `mvn` 없음).
+- **▶ 다음 = 결정 하나**: 정식 구현으로 갈지, 그 전에 **실제 양식 1~2개로 한계를 먼저 확인**할지(사용자가 아직 고르지 않음).
+  - 실제 양식 확인을 택하면: 민감 내용을 지운 xlsx·docx를 `docs/` 아래에 두게 한 뒤 보고서 §4 미검증 항목을 확인 — 텍스트 상자·콘텐츠 컨트롤(SDT)·필드 코드·변경 추적·세로 배치. (XWPF가 순회하지 않아 못 찾고 `KEYWORD_NOT_FOUND`로 보고될 것으로 **예상**, 실측 안 함)
+  - 정식 구현을 택하면(보고서 §5): ① `POST /proposals/fill`(multipart xlsx·docx·규칙 JSON) → 워드 + 보고서 ② 사이드바 `엑셀 → 워드 자동 기입`(현재 '준비중', `nav.js`의 `docs` 카테고리)을 규칙 입력 화면으로 — **보고서 표를 먼저 보여 주고 `allOk()`일 때만 내려받기** ③ 영업 계열 전용 `/menus` 키 추가 — `server/menus.py`·`Menus.java`·`menu_rules.js`(MENU_KEYS)·`nav.js`를 **같이**(`nav.test.js`가 키 누락을 잡는다) ④ 업로드 50MB·확장자 검사·`ZipSecureFile` 기본값·`Content-Disposition` 한글 파일명(RFC 5987).
+  - **되돌리지 말 것 3가지**: ⓐ 한글 날짜 서식(`yyyy"년" m"월" d"일"`)은 POI가 `46323.0`을 내므로 `ExcelDateFormat`을 거친다 ⓑ run 글은 `XmlCursor`로 읽는다(XmlBeans DOM `getTextContent()`는 예외) ⓒ 키워드는 기본이 글자 그대로라 `수요기관명`에도 걸린다 → 양식에는 `labelOnly(true)`를 권장. 규칙 하나가 틀려도 나머지를 계속 처리하고 이유는 `FillReport`에 남긴다(값 없음·동명 행 2개 이상은 문서를 건드리지 않음).
+  - CLAUDE.md 규칙: 착수 전 의도 설명 + 진행 의사 확인(항목이 바뀔 때마다).
 - **보류·잔여(비차단)**
   - "내 제안서 단계 칩"(계획 P2에 있었음): 워크플로 화면에 1~9단계가 이미 있어 미룸. 필요하면 `workflow.STAGES` 재사용.
   - 티커 기준일이 `render.state.today`(UTC) 기준이라 한국시간 오전엔 하루 전 날짜로 보임 — D-day 계산과 같은 값이라 고치려면 `render.js:12`(지도 계산)를 건드려야 함.
