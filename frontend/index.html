@@ -476,6 +476,41 @@
   .ap-comment { flex:1 1 220px; }
   .ap-act button:disabled { opacity:.5; cursor:not-allowed; }
   .ap-dl { color:var(--accent-color); text-decoration:none; }
+
+  /* 시스템 관리 — 사용자·권한·메뉴·접근 이력 */
+  #ad-head { font-size:16px; font-weight:700; color:var(--fg); margin-bottom:4px; }
+  #ad-head .dg-hint { font-size:12px; font-weight:400; }
+  .ad-flash { min-height:18px; font-size:13px; color:var(--accent-color); margin:2px 0 8px; }
+  .ad-flash.bad { color:var(--red); }
+  #ad-body { overflow:auto; min-height:0; flex:1 1 auto; }
+  .ad-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:6px 0 10px; }
+  .ad-toolbar input, .ad-toolbar select, .ad-form input, .ad-form select { padding:6px 9px; font-size:13px; }
+  .ad-inline { display:inline-flex; gap:6px; align-items:center; font-size:13px; color:var(--muted); }
+  .ad-count { margin-left:auto; font-size:12px; color:var(--muted); }
+  .ad-table { border-collapse:collapse; font-size:13px; width:100%; }
+  .ad-table th, .ad-table td { border-bottom:1px solid var(--line); padding:7px 10px; text-align:left; white-space:nowrap; }
+  .ad-table thead th { background:var(--panel2); color:var(--muted); font-weight:600; position:sticky; top:0; }
+  .ad-perms td, .ad-perms thead th:not(:first-child) { text-align:center; }
+  .ad-table tr.st-retired td { opacity:.5; }
+  .ad-table tr.bad td { background:color-mix(in srgb, var(--red) 10%, transparent); }
+  .ad-table .mono { font-family:var(--mono); }
+  .ad-ops { text-align:right; }
+  .ad-ops button { margin-left:4px; padding:3px 9px; font-size:12px; }
+  button.danger { color:var(--red); border-color:var(--red); }
+  button.primary { background:var(--accent-color); color:#0d1116; border-color:transparent; font-weight:700; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .ad-empty { color:var(--muted); text-align:center !important; padding:18px !important; }
+  .ad-badge { display:inline-block; font-size:11px; padding:1px 8px; border-radius:9px; border:1px solid var(--line-strong); color:var(--muted); }
+  .ad-badge.active, .ad-badge.ok { color:var(--accent-color); border-color:var(--accent-color); }
+  .ad-badge.locked, .ad-badge.warn { color:#e0b44c; border-color:#e0b44c; }
+  .ad-badge.retired { color:var(--muted); }
+  .ad-badge.grade { color:var(--fg); }
+  .ad-form { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; padding:12px; margin-bottom:12px;
+             background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); }
+  .ad-form label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); }
+  .ad-form-actions { display:flex; gap:6px; }
+  .ad-sub { margin:16px 0 6px; font-size:13px; color:var(--muted); }
+  .ad-pager { display:flex; gap:12px; align-items:center; justify-content:center; margin:12px 0; font-size:13px; }
   .ad-grid { border-collapse:collapse; font-size:13px; }
   .ad-grid th, .ad-grid td { border:1px solid var(--line); padding:5px 10px; text-align:center; }
   .ad-grid thead th { background:var(--panel2); }
@@ -546,9 +581,9 @@ review, the verdict, and DESIGN.md
 -->
 <div id="login-view" role="dialog" aria-label="로그인">
   <div class="login-card">
-    <h2><svg width="16" height="16" viewBox="0 0 14 14" aria-hidden="true"><g stroke="#57b8ad" stroke-width="1.6" fill="none"><line x1="3" y1="2" x2="3" y2="12"/><rect x="1.2" y="4.5" width="3.6" height="4" fill="#57b8ad" stroke="none"/><line x1="10" y1="1" x2="10" y2="13"/><rect x="8.2" y="3" width="3.6" height="6.5" fill="none"/></g></svg>금고은행 입찰 현황</h2>
+    <h2><svg width="16" height="16" viewBox="0 0 14 14" aria-hidden="true"><g stroke="#57b8ad" stroke-width="1.6" fill="none"><line x1="3" y1="2" x2="3" y2="12"/><rect x="1.2" y="4.5" width="3.6" height="4" fill="#57b8ad" stroke="none"/><line x1="10" y1="1" x2="10" y2="13"/><rect x="8.2" y="3" width="3.6" height="6.5" fill="none"/></g></svg>기관영업지원 시스템</h2>
     <p class="login-sub">함께 만드는 제안서 — 로그인하고 시작하세요</p>
-    <label>아이디<input id="login-id" autocomplete="off" placeholder="예: sales.lead"></label>
+    <label>사번 / 아이디<input id="login-id" autocomplete="off" inputmode="text" placeholder="사번 7자리 또는 임시 계정(예: sales.lead)"></label>
     <label>비밀번호<input id="login-pw" type="password" autocomplete="off" placeholder="프로토타입은 확인하지 않습니다"></label>
     <label>팀 / 직위<select id="login-role"></select></label>
     <div id="login-msg" class="login-msg"></div>
@@ -556,7 +591,7 @@ review, the verdict, and DESIGN.md
       <button id="login-go" class="primary">로그인</button>
       <button id="login-guest">둘러보기</button>
     </div>
-    <p class="login-hint">임시 계정입니다. 팀/직위를 고르면 아이디가 자동으로 채워집니다.</p>
+    <p class="login-hint">사번(숫자 7자리)으로 로그인합니다. 팀/직위를 고르면 임시 계정이 자동으로 채워집니다. 로그인과 화면 사용은 접근 이력에 기록됩니다.</p>
   </div>
 </div>
 
@@ -714,13 +749,9 @@ review, the verdict, and DESIGN.md
 </section>
 
 <section id="tab-admin" class="tab-view">
-  <div id="ad-head">역할별 메뉴 권한 <span class="dg-hint">— 화면 노출만 정합니다(보안 경계가 아닙니다)</span></div>
-  <div id="ad-grid"></div>
-  <div id="ad-actions">
-    <button id="ad-save">저장</button>
-    <button id="ad-reset">되돌리기</button>
-    <span id="ad-msg" class="dg-why"></span>
-  </div>
+  <div id="ad-head"></div>
+  <div id="ad-flash" class="ad-flash" role="status"></div>
+  <div id="ad-body"></div>
 </section>
 
 <section id="tab-soon" class="tab-view">

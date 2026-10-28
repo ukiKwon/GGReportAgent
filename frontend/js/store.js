@@ -92,11 +92,11 @@
   store.loadSession = function () {
     const s = read(SESSION_KEY, null);
     if (!s || (s.mode !== 'account' && s.mode !== 'guest')) return null;
-    return { mode: s.mode, id: s.id || '' };
+    return { mode: s.mode, id: s.id || '', emp: /^[0-9]{7}$/.test(s.emp || '') ? s.emp : '' };
   };
   store.saveSession = function (session) {
     const s = session || {};
-    write(SESSION_KEY, { mode: s.mode, id: s.id || '' });
+    write(SESSION_KEY, { mode: s.mode, id: s.id || '', emp: s.emp || '' });
     return store.loadSession();
   };
   store.clearSession = function () {

@@ -63,9 +63,14 @@ test('세션 저장소: 저장 → 읽기 → 삭제', function () {
   };
   try {
     store.saveSession({ mode: 'account', id: 'sales.lead' });
-    assert.deepStrictEqual(store.loadSession(), { mode: 'account', id: 'sales.lead' });
+    assert.deepStrictEqual(store.loadSession(), { mode: 'account', id: 'sales.lead', emp: '' });
+    store.saveSession({ mode: 'account', id: 'sales.lead', emp: '5047192' });
+    assert.strictEqual(store.loadSession().emp, '5047192');
+    store.saveSession({ mode: 'account', id: 'x', emp: '12ab' });
+    assert.strictEqual(store.loadSession().emp, '');   // 형식이 틀린 사번은 버린다
+    store.saveSession({ mode: 'account', id: 'sales.lead' });
     store.saveSession({ mode: 'guest' });
-    assert.deepStrictEqual(store.loadSession(), { mode: 'guest', id: '' });
+    assert.deepStrictEqual(store.loadSession(), { mode: 'guest', id: '', emp: '' });
     store.clearSession();
     assert.strictEqual(store.loadSession(), null);
     // 알 수 없는 mode는 세션으로 치지 않는다.
@@ -74,4 +79,34 @@ test('세션 저장소: 저장 → 읽기 → 삭제', function () {
   } finally {
     delete global.localStorage;
   }
+});
+
+test('임시 계정 9개는 DB 시드(009)의 사번 7자리를 갖고 서로 겹치지 않는다', function () {
+  const emps = login.ACCOUNTS.map(function (a) { return a.empNo; });
+  emps.forEach(function (e) { assert.ok(/^[0-9]{7}$/.test(e), e); });
+  assert.strictEqual(new Set(emps).size, emps.length);
+  assert.strictEqual(login.byId('master').empNo, '8203417');
+});
+
+test('byId: 사번으로도 찾는다', function () {
+  assert.strictEqual(login.byId('5047192').id, 'sales.lead');
+  assert.strictEqual(login.byId('0000000'), null);
+});
+
+test('empNoFor: 사번 입력은 그대로, 별칭은 계정 사번, 모르면 빈 문자열', function () {
+  assert.strictEqual(login.empNoFor(' 3361829 '), '3361829');      // DB에만 있는 사용자도 통과
+  assert.strictEqual(login.empNoFor('Sales.Lead'), '5047192');
+  assert.strictEqual(login.empNoFor('nobody'), '');
+  assert.strictEqual(login.empNoFor(null), '');
+});
+
+test('withIdentity: 사번이 있으면 X-Emp-No를 붙이고 입력은 바꾸지 않는다', function () {
+  const orig = { 'Content-Type': 'application/json' };
+  const out = login.withIdentity(orig, '5047192');
+  assert.deepStrictEqual(out, { 'Content-Type': 'application/json', 'X-Emp-No': '5047192' });
+  assert.deepStrictEqual(orig, { 'Content-Type': 'application/json' });
+  assert.deepStrictEqual(login.withIdentity(undefined, '5047192'), { 'X-Emp-No': '5047192' });
+  assert.deepStrictEqual(login.withIdentity([['A', 'b']], '5047192'), { A: 'b', 'X-Emp-No': '5047192' });
+  assert.deepStrictEqual(login.withIdentity(new Map([['A', 'b']]), ''), { A: 'b' });        // 사번 없으면 안 붙임
+  assert.deepStrictEqual(login.withIdentity({}, "1234567' OR '1"), {});                    // 형식이 틀리면 안 붙임
 });
