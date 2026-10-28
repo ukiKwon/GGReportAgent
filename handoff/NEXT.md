@@ -1665,13 +1665,15 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
 - **이 PC 로컬 환경(다음 세션에 그대로 있다)**: MySQL은 `brew services`로 상시 기동, DB `ggreportdb`·계정 `ggreport` 생성·스키마 적용됨, `kgi-ggreport-web/config/application.properties`(gitignore) 있음. IntelliJ 실행 시 **Working directory=`kgi-ggreport-web`**, `Add dependencies with "provided" scope` 확인, 접속은 `http://`(https 아님). 로컬 로그인은 `master`(권한관리) · `sales.lead`(결재 흐름) 등 임시 계정, 비밀번호 무검증.
 - **주의**: `frontend/`는 정적 서빙이라 수정 후 강력 새로고침(Cmd+Shift+R)이 필요할 수 있다(옛 JS 캐시로 `startTickerSync is not a function`이 난 적 있음). 리포 루트의 `.playwright-mcp/`는 브라우저 검증 부산물이라 커밋하지 않았다.
 
-### 27. 시스템 관리(사용자·권한·메뉴·접근 이력) 후속 + 보안 점검 조치 결정 (2026-10-28)
+### 27. 시스템 관리·결재라인 — 3단계(권한 신청 화면)부터 이어서 (2026-10-28)
 
-- **출처**: `2026-10-28_summary.md` `## Session 11:50`. 브랜치 `websphere-migration`. 보고서 정본 `docs/보안_점검_2026-10-28.md`.
-- **끝난 것(커밋됨)**: 사이드바·탭(`62d30ad`), 티커(`a575a70`), 지역 진입 지연(`c683327`·`e26f975`), DB 008/009+Java API(`304d7a3`, 테스트 343건), 프런트 시스템 관리 4화면+사번 로그인(`9df24b1`, node 303건), 보안 보고서(`e894d78`).
-- **▶ 결정 대기 — 보안 조치 후보(보고서 말미 A~G)**: A `PUT /menus`를 AdminGuard 뒤로(작음, `/menus` GET·골든 불변) · B 보안 헤더 필터 · C POI `ZipSecureFile`+업로드 한도 명시 · D 오류 메시지에서 경로·예외 제거 · E `innerHTML` 이스케이프 정적 검사 테스트 · F SSO/앞단 인증 연동으로 `verified` 필수화(큼, 인프라 협의) · G 접근 이력 해시 체인·보존. 사용자가 고를 때까지 코드는 안 고쳤다.
-- **핵심 위험**: 서버 인증 없음 — 사번은 `X-Emp-No` 자기신고라 위조 가능(접근 이력엔 "자기신고" 표시). 운영 노출 전 F 필요.
-- **이 PC 환경**: IntelliJ에서 도는 8080 서버는 옛 코드 → **재시작해야 `/sysadmin/**`가 뜬다**(로컬 MySQL엔 008/009 적용·시드 25명 상태). 마스터 사번 `8203417`(전산팀). 셸 `mvn` 없음: `JAVA_HOME=.../jdk1.8.0_212.jdk/Contents/Home`, IntelliJ 번들 `mvn -o`.
-- **운영(Oracle) 미수행**: `db/oracle/008_system_admin.sql`·`009_seed_users.sql`은 정본으로 작성만 했고 Oracle에 적용·검증하지 않았다(DBA 전달·`ACCESS_LOG`/`PERM_CHANGE_LOG`에 앱 계정 UPDATE/DELETE 미부여 확인 필요).
-- **잔여(비차단)**: 로그인 잠금(`FAILED_LOGINS`)은 비밀번호가 없어 미사용 · 시드는 가상 사용자 · `login-bg.jpg` 404는 정상.
-
+- **출처**: `2026-10-28_summary.md` `## Session 11:50`·`## Session 15:30`. 브랜치 `websphere-migration`(푸시됨, 최신 `7d7e57f`). 계획서 원문은 이 PC 한정(`~/.claude/plans/glowing-mixing-peach.md`)이라 아래에 요약했다.
+- **끝난 것(커밋됨)**: 시스템 관리 4화면+사번 로그인(`9df24b1`), 쪽 나누기·메뉴 격자 폭(`50d8ce5`), 보안 점검 `docs/보안_점검_2026-10-28.md`(`e894d78`),
+  **결재라인** 상위 결재자 자동 결정·지정(`bd042a9`), **직급 체계·대결·결재 요청 서버**(`c149113`), 결재함 대결 설정·후보 API(`7d7e57f`). 서버 테스트 380건·JS 313건 통과.
+- **확정된 규칙**: 직급 계장<대리<과장<차장<수석차장<팀장<부장<대표(팀장 아래는 팀원급). **고정 규칙은 하나 — 상신자가 처리자(결재자·대결자)보다 상위 직급이면 결재 불가**(같은 직급은 허용). 대결자 자격은 고정하지 않음(과장 미만은 경고), 결재자 본인이 지정·최대 90일·기간 중복 금지. 권한 신청: 일반 메뉴는 팀장 승인 시 자동 반영, **시스템 관리·결재 권한은 관리자 확인 단계 추가**. 이사회 자료 확정 결재선 작성자→팀장→부장(유형만 등록).
+- **▶ 다음 = 3단계**: ① '내 권한 신청' 화면(메뉴별 조회/작성/수정/결재+사유, `POST /approval-requests/perm`) ② 결재함에 '요청' 구역(받은 결재 `GET /approval-requests?box=inbox`, 내가 올린 것 `box=mine`, 승인·반려 `POST /approval-requests/{id}/decide`, 취소 `/cancel`, 대결 중이면 `acting_as_deputy` 표시) ③ Playwright로 상신→승인→자동 반영→변경 이력 확인. API는 이미 있고 화면만 없다. CLAUDE.md: 착수 전 의도 설명+진행 확인.
+- **결정 대기**: ISMS 보완 후보(계획 §D: 이벤트 분류·다운로드/내보내기 기록, 위·변조 방지·감사자 역할 분리, 이상 징후·점검 기록, 보존·파기, 권한 정기 검토 등)와 보안 조치 A~G(`docs/보안_점검_2026-10-28.md` 말미: `PUT /menus` 관리자 뒤로, 보안 헤더, 업로드 압축 폭탄 제한, 오류 메시지 정리 …). 사용자가 고를 때까지 안 고쳤다.
+- **핵심 위험**: 서버 인증 없음 — 사번은 `X-Emp-No` 자기신고(접근 이력에 "자기신고" 표시). 운영 노출 전 SSO/앞단 인증 필요.
+- **다른 PC에서 시작할 때**: ① DB 스키마 `kgi-ggreport-web/src/main/resources/db/mysql/`의 008→009→010→011→012→013을 **순서대로 한 번씩**(멱등하지 않음, 013만 멱등) 로컬 MySQL에 적용 — 이미 있는 DB면 어디까지 적용됐는지 `SHOW TABLES`/`DESCRIBE USERS`로 확인. ② `config/application.properties`(gitignore)는 PC마다 따로 만든다. ③ 셸에 mvn 없으면 `JAVA_HOME=…jdk1.8.0_212…`+IntelliJ 번들 Maven `-o`. ④ 서버 재시작 후 화면 캐시는 Cmd+Shift+R. 마스터 사번 `8203417`(가상 데이터).
+- **운영(Oracle) 미수행**: `db/oracle/008`~`013` 정본은 작성만 했고 Oracle 적용·검증은 안 했다(DBA 전달·접근 이력 계열 테이블에 앱 계정 UPDATE/DELETE 미부여 확인 필요).
+- **잔여(비차단)**: 결재자 퇴직 시 진행 중 요청이 멈출 수 있음(관리자 취소만 가능 — 재지정 기능 없음) · 로그인 잠금(`FAILED_LOGINS`)은 비밀번호가 없어 미사용 · `login-bg.jpg` 404는 정상.
