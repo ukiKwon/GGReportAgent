@@ -24,5 +24,9 @@ public interface SysUserMapper {
     int updateStatus(@Param("empNo") String empNo, @Param("status") String status,
                      @Param("resetFailed") boolean resetFailed, @Param("now") String now);
 
+    /** 상위 결재자 갱신. {@code manual} 은 지정(1)/자동(0). */
+    int updateApprover(@Param("empNo") String empNo, @Param("approverEmpNo") String approverEmpNo,
+                       @Param("manual") int manual, @Param("now") String now);
+
     int recordLoginOk(@Param("empNo") String empNo, @Param("now") String now);
 }

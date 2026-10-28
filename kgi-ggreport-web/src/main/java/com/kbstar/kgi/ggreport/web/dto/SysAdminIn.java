@@ -40,6 +40,15 @@ public final class SysAdminIn {
         public void setApprovalGrade(String approvalGrade) { this.approvalGrade = approvalGrade; }
     }
 
+    public static class Approver {
+        private String approverEmpNo;
+        private String mode;
+        public String getApproverEmpNo() { return approverEmpNo; }
+        public void setApproverEmpNo(String approverEmpNo) { this.approverEmpNo = approverEmpNo; }
+        public String getMode() { return mode; }
+        public void setMode(String mode) { this.mode = mode; }
+    }
+
     public static class Status {
         private String status;
         public String getStatus() { return status; }
