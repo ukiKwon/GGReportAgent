@@ -456,45 +456,30 @@
       return '<span style="color:color-mix(in srgb, ' + c + ' 72%, #ffffff)">' + mark +
         logic.esc(r.name) + ' ' + logic.esc(logic.formatDDay(r, render.state.today)) + '</span>';
     }).join('<span class="tk-sep">·</span>') +
-      '<span class="tk-sync" title="기준일 시점의 값입니다">기준 ' + render.state.today.toISOString().slice(0, 10) +
-      ' · 동기화 <b class="tk-ago">방금</b></span>';
-    render._paintTickerAgo();
+      '<span class="tk-sync" title="기준일 시점의 값입니다">기준 ' + render.state.today.toISOString().slice(0, 10) + '</span>';
+    render._rollTicker();
   };
 
-  // "동기화되는 듯한" 표현 — 값을 새로 가져오는 것이 아니라 **기준일 고정값을 다시 그리는 연출**이다.
-  // 그래서 라벨을 '기준 YYYY-MM-DD'로 박아 둔다(실시간 수치로 오해하지 않게). 30초마다 항목을
-  // 차례로 훑는 하이라이트와 '동기화 N초 전' 카운터만 돈다. 모션 줄이기 설정이면 카운터만 둔다.
-  render.TICKER_SYNC_MS = 30000;
-  let tickerSyncAt = Date.now();
+  // "최신화되는 듯한" 표현 — 값을 새로 가져오는 것이 아니라 **기준일 고정값을 다시 그리는 연출**이다
+  // (그래서 '기준 YYYY-MM-DD' 라벨을 남긴다). 시계 분·초가 넘어가듯, 맨 왼쪽 항목부터 차례로
+  // 아래로 굴러 내려가 사라지고 위에서 새 값이 내려와 앉는다. 모션 줄이기 설정이면 하지 않는다.
+  render.TICKER_ROLL_MS = 10000;
   let tickerTimer = null;
 
-  render._paintTickerAgo = function () {
-    const sec = Math.max(0, Math.floor((Date.now() - tickerSyncAt) / 1000));
-    document.querySelectorAll('#ticker .tk-ago').forEach(function (b) {
-      b.textContent = sec < 3 ? '방금' : sec + '초 전';
-    });
-  };
-
-  render._sweepTicker = function () {
-    tickerSyncAt = Date.now();
+  render._rollTicker = function () {
     const el = document.getElementById('ticker'); if (!el) return;
     if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     el.querySelectorAll(':scope > span:not(.tk-cap):not(.tk-sep):not(.tk-sync)').forEach(function (item, i) {
-      item.classList.remove('tk-sweep');
+      item.classList.remove('tk-roll');
       void item.offsetWidth;                       // 같은 클래스를 다시 걸어도 애니메이션이 재시작되게
-      item.style.animationDelay = (i * 0.18) + 's';
-      item.classList.add('tk-sweep');
+      item.style.animationDelay = (i * 0.16) + 's';
+      item.classList.add('tk-roll');
     });
   };
 
   render.startTickerSync = function () {
     if (tickerTimer || typeof setInterval !== 'function') return;
-    let n = 0;
-    tickerTimer = setInterval(function () {
-      n += 1;
-      if (n * 1000 >= render.TICKER_SYNC_MS) { n = 0; render._sweepTicker(); }
-      render._paintTickerAgo();
-    }, 1000);
+    tickerTimer = setInterval(render._rollTicker, render.TICKER_ROLL_MS);
   };
 
   render.highlightMarker = function (name, on) {
