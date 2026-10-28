@@ -495,9 +495,12 @@
   // ── 좌측 업무 메뉴 ─────────────────────────────────────────────────────────
   // 화면 전환 자체는 기존 .tab-btn(숨김) 클릭이 그대로 한다 — 권한 계산·폴링 정리·
   // 폴백이 전부 그 경로에 걸려 있어서, 사이드바는 "그 버튼을 누르는 새 손잡이"일 뿐이다.
-  const navOpen = {};           // 사용자가 직접 펼친/접은 카테고리(메모리만)
+  let openCat = null;           // 열려 있는 카테고리는 하나뿐(아코디언)
   let navBuilt = [];
   let navActiveId = null;
+  let navTabs = [];             // 우측 화면 탭(메모리만, 최대 nav.MAX_TABS)
+  let navDomSig = '';           // 항목 구성이 같으면 DOM을 다시 만들지 않는다(전환 애니메이션 보존)
+  let noticeTimer = null;
 
   function navContext() {
     const session = root.store.loadSession();
@@ -512,6 +515,12 @@
     return btn ? btn.id.replace('tab-btn-', '') : null;
   }
 
+  function findNavItem(id) {
+    let found = null;
+    navBuilt.forEach(function (c) { c.items.forEach(function (it) { if (it.id === id) found = it; }); });
+    return found;
+  }
+
   app.showSoon = function (itemId, label, tag, note) {
     document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
     document.querySelectorAll('.tab-view').forEach(function (v) { v.classList.remove('active'); });
@@ -523,40 +532,118 @@
     app.onTabChange('soon');
   };
 
+  // 화면이 바뀔 때마다(어느 경로든) 불린다: 활성 항목 갱신 → 탭 보관 → 그 카테고리만 열기.
   app.syncNavActive = function (tab) {
     if (tab !== 'soon') navActiveId = activeTabKey();
+    const item = navActiveId ? findNavItem(navActiveId) : null;
+    if (item) {
+      navTabs = root.nav.openTab(navTabs, item, navActiveId).tabs;   // 가득 찼으면 보관만 건너뛴다
+      openCat = root.nav.categoryOf(navBuilt, navActiveId);
+    }
     app.drawNav();
+    drawTabs();
   };
 
+  function activateItem(item) {
+    if (item.soon) { app.showSoon(item.id, item.label, item.tag, item.note); return; }
+    const btn = document.getElementById('tab-btn-' + item.key);
+    if (btn) btn.click();
+  }
+
+  function showTabNotice(text) {
+    const n = document.getElementById('tab-notice');
+    if (!n) return;
+    n.textContent = text;
+    n.classList.add('show');
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(function () { n.classList.remove('show'); }, 2500);
+  }
+
+  // 사이드바 항목·탭 모두 이 경로로 연다. 새 탭이 필요한데 가득 찼으면 화면을 옮기지 않는다.
+  function openNavItem(item) {
+    const r = root.nav.openTab(navTabs, item, navActiveId);
+    if (r.full) {
+      showTabNotice('화면은 최대 ' + root.nav.MAX_TABS + '개까지 열어 둘 수 있습니다. 탭을 닫고 다시 열어 주세요.');
+      return;
+    }
+    activateItem(item);
+  }
+
+  function closeNavTab(id) {
+    const r = root.nav.closeTab(navTabs, id, navActiveId);
+    navTabs = r.tabs;
+    if (id !== navActiveId) { drawTabs(); return; }
+    const next = r.activeId ? findNavItem(r.activeId) : null;
+    if (next) { activateItem(next); return; }
+    drawTabs();
+    const mapBtn = document.getElementById('tab-btn-map');   // 마지막 탭을 닫으면 지도로
+    if (mapBtn) mapBtn.click();
+  }
+
+  function drawTabs() {
+    const bar = document.getElementById('tab-bar');
+    const list = document.getElementById('tab-list');
+    if (!bar || !list) return;
+    const esc = root.logic.esc;
+    bar.style.display = navTabs.length ? '' : 'none';
+    list.innerHTML = navTabs.map(function (t) {
+      return '<div class="stab' + (t.id === navActiveId ? ' active' : '') + '" role="tab" data-tab-id="' + esc(t.id) +
+        '" title="' + esc(t.label) + '"><span class="stab-label">' + esc(t.label) +
+        '</span><span class="stab-x" role="button" aria-label="' + esc(t.label) + ' 탭 닫기">×</span></div>';
+    }).join('');
+  }
+
+  // 항목 구성(카테고리·항목 id)이 바뀔 때만 DOM을 새로 만든다. 열림·활성 표시는 클래스만 바꿔
+  // CSS 전환(스르륵)이 끊기지 않게 한다.
   app.drawNav = function () {
     const el = document.getElementById('side-nav');
     if (!el) return;
-    const esc = root.logic.esc;
-    const activeCat = root.nav.categoryOf(navBuilt, navActiveId);
-    el.innerHTML = navBuilt.map(function (cat) {
-      const open = navOpen[cat.id] !== undefined ? navOpen[cat.id] : cat.id === activeCat;
-      const items = cat.items.map(function (it) {
-        return '<button class="nav-item' + (it.id === navActiveId ? ' active' : '') + (it.soon ? ' soon' : '') +
-          '" data-nav="' + esc(it.id) + '">' + esc(it.label) +
-          (it.soon ? '<span class="nav-soon-tag">' + esc(it.tag || '준비중') + '</span>' : '') + '</button>';
+    const sig = navBuilt.map(function (c) {
+      return c.id + ':' + c.items.map(function (i) { return i.id; }).join(',');
+    }).join('|');
+    if (sig !== navDomSig) {
+      const esc = root.logic.esc;
+      el.innerHTML = navBuilt.map(function (cat) {
+        const items = cat.items.map(function (it) {
+          return '<button class="nav-item' + (it.soon ? ' soon' : '') + '" data-nav="' + esc(it.id) +
+            '" title="' + esc(it.label) + '"><span class="nav-label">' + esc(it.label) + '</span>' +
+            (it.soon ? '<span class="nav-soon-tag">' + esc(it.tag || '준비중') + '</span>' : '') + '</button>';
+        }).join('');
+        return '<button class="nav-cat" data-cat="' + esc(cat.id) + '" title="' + esc(cat.title) + '">' +
+          '<span class="nav-label">' + esc(cat.title) + '</span></button>' +
+          '<div class="nav-items" data-for="' + esc(cat.id) + '"><div class="nav-items-in">' + items + '</div></div>';
       }).join('');
-      return '<button class="nav-cat' + (open ? ' open' : '') + (cat.id === activeCat ? ' has-active' : '') +
-        '" data-cat="' + esc(cat.id) + '">' + esc(cat.title) + '</button>' +
-        '<div class="nav-items' + (open ? ' open' : '') + '">' + items + '</div>';
-    }).join('');
+      navDomSig = sig;
+    }
+    const activeCat = root.nav.categoryOf(navBuilt, navActiveId);
+    el.querySelectorAll('.nav-cat').forEach(function (b) {
+      b.classList.toggle('open', b.dataset.cat === openCat);
+      b.classList.toggle('has-active', b.dataset.cat === activeCat);
+    });
+    el.querySelectorAll('.nav-items').forEach(function (d) {
+      d.classList.toggle('open', d.dataset.for === openCat);
+    });
+    el.querySelectorAll('.nav-item').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.nav === navActiveId);
+    });
   };
 
   app.paintNav = function (visible) {
     if (!root.nav || !document.getElementById('side-nav')) return;
     navBuilt = root.nav.build(visible, navContext());
     if (!navActiveId) navActiveId = activeTabKey();
+    navTabs = root.nav.pruneTabs(navTabs, navBuilt);
     // 준비중 화면을 보고 있었는데 그 항목이 더는 안 보이면(로그아웃 등) 지도로 돌려보낸다.
     if (navActiveId && navActiveId.indexOf('soon:') === 0 && !root.nav.categoryOf(navBuilt, navActiveId)) {
       const mapBtn = document.getElementById('tab-btn-map');
       navActiveId = 'map';
       if (mapBtn) mapBtn.click();
     }
+    if (openCat === null && navActiveId) openCat = root.nav.categoryOf(navBuilt, navActiveId);
+    const cur = navActiveId ? findNavItem(navActiveId) : null;
+    if (cur) navTabs = root.nav.openTab(navTabs, cur, navActiveId).tabs;   // 지금 보는 화면은 처음부터 탭으로
     app.drawNav();
+    drawTabs();
   };
 
   app.wireNav = function () {
@@ -565,21 +652,24 @@
     el.addEventListener('click', function (e) {
       const cat = e.target.closest('.nav-cat');
       if (cat) {
-        const id = cat.dataset.cat;
-        const open = !cat.classList.contains('open');
-        navOpen[id] = open;
+        // 아코디언: 다른 카테고리는 닫고, 열린 걸 다시 누르면 닫는다.
+        openCat = (openCat === cat.dataset.cat) ? null : cat.dataset.cat;
         app.drawNav();
         return;
       }
       const item = e.target.closest('.nav-item');
       if (!item) return;
-      const id = item.dataset.nav;
-      let found = null;
-      navBuilt.forEach(function (c) { c.items.forEach(function (it) { if (it.id === id) found = it; }); });
-      if (!found) return;
-      if (found.soon) { app.showSoon(found.id, found.label, found.tag, found.note); return; }
-      const btn = document.getElementById('tab-btn-' + found.key);
-      if (btn) btn.click();
+      const found = findNavItem(item.dataset.nav);
+      if (found) openNavItem(found);
+    });
+    const list = document.getElementById('tab-list');
+    if (list) list.addEventListener('click', function (e) {
+      const tab = e.target.closest('.stab');
+      if (!tab) return;
+      const id = tab.dataset.tabId;
+      if (e.target.closest('.stab-x')) { closeNavTab(id); return; }
+      const found = findNavItem(id);
+      if (found) openNavItem(found);
     });
     // 첫 그림: 권한 조회 전에는 지도·지역별만(닫는 쪽으로 — menu_rules와 같은 원칙).
     app.paintNav(root.menuRules.visibleTabs(null, false));
