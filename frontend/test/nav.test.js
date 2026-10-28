@@ -75,6 +75,15 @@ test('엑셀→워드 자동 기입은 제안서 자료 관리 아래 준비중�
   assert.ok(it && it.soon);
 });
 
+test('엑셀→워드는 "구현 예정"(설명 포함), 나머지 준비중 항목은 기본 "준비중"', function () {
+  const built = nav.build(ALL_ON, { role: '영업팀' });
+  const excel = items(built, 'docs').filter(function (i) { return i.label.indexOf('엑셀') >= 0; })[0];
+  assert.strictEqual(excel.tag, '구현 예정');
+  assert.ok(excel.note.indexOf('이사회') >= 0);
+  const other = items(built, 'match')[0];
+  assert.strictEqual(other.tag, '준비중');
+});
+
 test('categoryOf / showsMapControls', function () {
   const built = nav.build(ALL_ON, { role: '영업팀' });
   assert.strictEqual(nav.categoryOf(built, 'approvals'), 'collab');

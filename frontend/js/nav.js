@@ -16,7 +16,8 @@
   const nav = {};
 
   function live(label, key) { return { label: label, key: key }; }
-  function soon(label) { return { label: label, soon: true }; }
+  // tag: 사이드바 배지·안내 화면에 쓰는 글. 기본 '준비중', 구현 계획이 잡힌 것만 '구현 예정'.
+  function soon(label, tag, note) { return { label: label, soon: true, tag: tag || '준비중', note: note || '' }; }
 
   nav.CATEGORIES = [
     { id: 'opp', title: '기관 영업기회 관리', items: [
@@ -31,7 +32,8 @@
     { id: 'docs', title: '제안서 자료 관리', items: [
       live('지식 검색', 'knowledge'), live('대화(질의)', 'chat'),
       soon('질의사항 정리·내부 검토'), soon('검토 의견·대응 방향'),
-      soon('엑셀 → 워드 자동 기입')] },
+      soon('엑셀 → 워드 자동 기입', '구현 예정',
+           '수익성 분석표(엑셀)의 수치를 이사회 자료(워드)의 정해진 자리에 자동으로 채웁니다.')] },
     { id: 'collab', title: '제안서 협업 및 결재', items: [
       live('워크플로', 'workflow'), live('작업함', 'tasks'), live('결재함', 'approvals'),
       soon('공동 작성·버전 관리')] },
@@ -61,7 +63,7 @@
         if (it.key) {
           if (v[it.key] === true) items.push({ label: it.label, key: it.key, id: it.key, soon: false });
         } else if (sales) {
-          items.push({ label: it.label, key: null, id: 'soon:' + cat.id + ':' + i, soon: true });
+          items.push({ label: it.label, key: null, id: 'soon:' + cat.id + ':' + i, soon: true, tag: it.tag, note: it.note });
         }
       });
       if (items.length) out.push({ id: cat.id, title: cat.title, items: items });

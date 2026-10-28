@@ -512,11 +512,13 @@
     return btn ? btn.id.replace('tab-btn-', '') : null;
   }
 
-  app.showSoon = function (itemId, label) {
+  app.showSoon = function (itemId, label, tag, note) {
     document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
     document.querySelectorAll('.tab-view').forEach(function (v) { v.classList.remove('active'); });
     document.getElementById('tab-soon').classList.add('active');
     document.getElementById('soon-title').textContent = label;
+    document.getElementById('soon-badge').textContent = tag || '준비중';
+    document.getElementById('soon-note').textContent = note || '아직 제공되지 않는 기능입니다. 순서대로 준비하고 있습니다.';
     navActiveId = itemId;
     app.onTabChange('soon');
   };
@@ -536,7 +538,7 @@
       const items = cat.items.map(function (it) {
         return '<button class="nav-item' + (it.id === navActiveId ? ' active' : '') + (it.soon ? ' soon' : '') +
           '" data-nav="' + esc(it.id) + '">' + esc(it.label) +
-          (it.soon ? '<span class="nav-soon-tag">준비중</span>' : '') + '</button>';
+          (it.soon ? '<span class="nav-soon-tag">' + esc(it.tag || '준비중') + '</span>' : '') + '</button>';
       }).join('');
       return '<button class="nav-cat' + (open ? ' open' : '') + (cat.id === activeCat ? ' has-active' : '') +
         '" data-cat="' + esc(cat.id) + '">' + esc(cat.title) + '</button>' +
@@ -575,7 +577,7 @@
       let found = null;
       navBuilt.forEach(function (c) { c.items.forEach(function (it) { if (it.id === id) found = it; }); });
       if (!found) return;
-      if (found.soon) { app.showSoon(found.id, found.label); return; }
+      if (found.soon) { app.showSoon(found.id, found.label, found.tag, found.note); return; }
       const btn = document.getElementById('tab-btn-' + found.key);
       if (btn) btn.click();
     });
