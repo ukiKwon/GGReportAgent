@@ -721,6 +721,10 @@
       if (drillable) card.addEventListener('click', function () {
         const mapBtn = document.querySelector('.tab-btn[data-tab="map"]');
         if (mapBtn) mapBtn.click();
+        // 지도 탭은 직전 화면(이전 시도 상세 등) 그대로 켜진다 — 확대 연출이 끝나는 ~1초 동안
+        // 낡은 지도가 보이다가 갑자기 바뀌는 지연으로 읽혔다. 같은 틱에 전국 지도로 되돌려
+        // 브라우저가 낡은 화면을 그리기 전에 "전국 → 확대 → 상세"가 이어지게 한다.
+        if (root.app && root.app.backToNational) root.app.backToNational();
         if (root.app && root.app.enterRegion) root.app.enterRegion(code);
       });
       grid.appendChild(card);
