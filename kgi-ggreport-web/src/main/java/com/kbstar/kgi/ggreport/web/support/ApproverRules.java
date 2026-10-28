@@ -43,8 +43,18 @@ public final class ApproverRules {
         public List<String> getCandidates() { return candidates; }
     }
 
-    /** 대표급 3, 부장급 2, 팀장급 1, 그 밖 0. 등급이 비어 있어도 역할(팀장·영업부장)로 본다. */
+    /**
+     * 대표급 3, 부장급 2, 팀장급 1, 그 밖 0. **직위와 결재 등급·역할 중 더 높은 쪽**을 따른다 — 직위가 과장이어도
+     * 역할이 팀장(결재 등급 팀장급)이면 팀장급으로 본다.
+     */
     public static int level(SysUser u) {
+        int pos = Ranks.ofPosition(u.getPositionTitle());
+        int byPosition = pos >= 8 ? 3 : pos == 7 ? 2 : pos == 6 ? 1 : 0;
+        return Math.max(byPosition, levelByGradeRole(u));
+    }
+
+    /** 결재 등급·역할만으로 본 단계(직위를 모를 때의 근거). */
+    public static int levelByGradeRole(SysUser u) {
         String g = u.getApprovalGrade();
         if ("EXECUTIVE".equals(g)) {
             return 3;

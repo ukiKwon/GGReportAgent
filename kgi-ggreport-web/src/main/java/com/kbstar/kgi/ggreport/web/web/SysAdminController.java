@@ -11,6 +11,7 @@ import com.kbstar.kgi.ggreport.web.service.PermissionService;
 import com.kbstar.kgi.ggreport.web.service.UserAdminService;
 import com.kbstar.kgi.ggreport.web.support.MenuPerms;
 import com.kbstar.kgi.ggreport.web.support.Menus;
+import com.kbstar.kgi.ggreport.web.support.Ranks;
 import com.kbstar.kgi.ggreport.web.support.Teams;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -66,6 +67,7 @@ public class SysAdminController {
         }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("roles", Teams.ROLES);
+        out.put("ranks", Ranks.LIST);
         out.put("grades", MenuPerms.GRADES);
         out.put("statuses", MenuPerms.STATUSES);
         out.put("menus", menus);

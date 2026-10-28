@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- APPROVAL_DEPUTY — 012. 양쪽 방언에서 같은 문장이다. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.ApprovalDeputyMapper">
+
+  <sql id="cols">DEPUTY_ID, PRINCIPAL_EMP_NO, DEPUTY_EMP_NO, START_DATE, END_DATE, REASON, CREATED_BY,
+    CREATED_AT, CANCELLED_AT, CANCELLED_BY</sql>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="deputyId" keyColumn="DEPUTY_ID">
+    INSERT INTO APPROVAL_DEPUTY (PRINCIPAL_EMP_NO, DEPUTY_EMP_NO, START_DATE, END_DATE, REASON, CREATED_BY, CREATED_AT)
+    VALUES (#{principalEmpNo}, #{deputyEmpNo}, #{startDate}, #{endDate}, #{reason,jdbcType=VARCHAR},
+            #{createdBy,jdbcType=VARCHAR}, #{createdAt})
+  </insert>
+
+  <select id="selectById" resultType="ApprovalDeputy">
+    SELECT <include refid="cols"/> FROM APPROVAL_DEPUTY WHERE DEPUTY_ID = #{id}
+  </select>
+
+  <select id="selectOpen" resultType="ApprovalDeputy">
+    SELECT <include refid="cols"/> FROM APPROVAL_DEPUTY
+     WHERE CANCELLED_AT IS NULL AND END_DATE &gt;= #{today}
+    <if test="principal != null"> AND PRINCIPAL_EMP_NO = #{principal}</if>
+     ORDER BY START_DATE, DEPUTY_ID
+  </select>
+
+  <select id="selectActiveForDeputy" resultType="ApprovalDeputy">
+    SELECT <include refid="cols"/> FROM APPROVAL_DEPUTY
+     WHERE CANCELLED_AT IS NULL AND DEPUTY_EMP_NO = #{deputy}
+       AND START_DATE &lt;= #{today} AND END_DATE &gt;= #{today}
+  </select>
+
+  <select id="countOverlap" resultType="int">
+    SELECT COUNT(*) FROM APPROVAL_DEPUTY
+     WHERE CANCELLED_AT IS NULL AND PRINCIPAL_EMP_NO = #{principal}
+       AND START_DATE &lt;= #{end} AND END_DATE &gt;= #{start}
+  </select>
+
+  <update id="cancel">
+    UPDATE APPROVAL_DEPUTY SET CANCELLED_AT = #{now}, CANCELLED_BY = #{by,jdbcType=VARCHAR}
+     WHERE DEPUTY_ID = #{id} AND CANCELLED_AT IS NULL
+  </update>
+
+</mapper>
