@@ -217,3 +217,7 @@ test('approverAttention: 지정 필요·재지정 필요만(퇴직·최상위 �
     au('3', { approver_state: 'NEEDS', status: 'RETIRED' }), au('4', { approver_state: 'TOP' }), au('5')];
   assert.strictEqual(admin.approverAttention(list), 2);
 });
+
+test('RANKS: 회사 직급 순서', function () {
+  assert.deepStrictEqual(admin.RANKS, ['계장', '대리', '과장', '차장', '수석차장', '팀장', '부장', '대표']);
+});

@@ -64,6 +64,28 @@ public class ApprovalDeputyService {
         return out;
     }
 
+    /**
+     * 대결자를 고를 사람 목록 — 사번·이름·역할·직위만(최소한). 관리자 목록 API 는 일반 사용자가 못 읽으므로
+     * 결재자가 스스로 대결자를 고를 수 있게 따로 둔다. 자기 자신은 뺀다.
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> candidates(Actor actor) {
+        SysUser me = callers.require(actor);
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (SysUser u : users.selectAll()) {
+            if ("ACTIVE".equals(u.getStatus()) && !u.getEmpNo().equals(me.getEmpNo())) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("emp_no", u.getEmpNo());
+                m.put("name", u.getName());
+                m.put("role", u.getRole());
+                m.put("position_title", u.getPositionTitle());
+                m.put("status", u.getStatus());
+                out.add(m);
+            }
+        }
+        return out;
+    }
+
     @Transactional
     public Map<String, Object> create(ApprovalIn.DeputyForm in, Actor actor) {
         SysUser me = callers.require(actor);

@@ -161,7 +161,10 @@
       });
   }
 
-  approvals.mount = function () { load(); };
+  approvals.mount = function () {
+    load();
+    if (root.deputy && root.deputy.mount) root.deputy.mount();   // 대결 설정(내가 결재자일 때)
+  };
   approvals.unmount = function () { /* 폴링이 없어 정리할 것이 없다 */ };
   approvals.onProfileChange = function () { if (payload !== null) load(); };
 
