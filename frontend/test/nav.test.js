@@ -69,19 +69,64 @@ test('준비중 항목 id는 안정적이고 서로 다르다', function () {
   assert.ok(items(built, 'match')[0].id.indexOf('soon:match:') === 0);
 });
 
-test('엑셀→워드 자동 기입은 제안서 자료 관리 아래 준비중으로 있다', function () {
-  const it = items(nav.build(ALL_ON, { role: '영업팀' }), 'docs')
-    .filter(function (i) { return i.label.indexOf('엑셀') >= 0; })[0];
-  assert.ok(it && it.soon);
+test('이사회 자료는 기관영업 기획 관리 아래 "구현 예정", 제안서 자료 관리에는 없다', function () {
+  const built = nav.build(ALL_ON, { role: '영업팀' });
+  assert.strictEqual(built.filter(function (c) { return c.id === 'opp'; })[0].title, '기관영업 기획 관리');
+  const board = items(built, 'opp').filter(function (i) { return i.label === '이사회 자료'; })[0];
+  assert.ok(board && board.soon);
+  assert.strictEqual(board.tag, '구현 예정');
+  assert.ok(board.note.indexOf('이사회') >= 0);
+  assert.ok(!items(built, 'docs').some(function (i) { return i.label.indexOf('엑셀') >= 0; }));
+  assert.strictEqual(items(built, 'match')[0].tag, '준비중');
+  // 기존 하위 메뉴는 유지
+  assert.deepStrictEqual(items(built, 'opp').map(function (i) { return i.label; }).slice(0, 4),
+    ['전국 지도', '전국 지역별', '과거 영업 이력·협약 현황', '영업 메모·활동 이력']);
 });
 
-test('엑셀→워드는 "구현 예정"(설명 포함), 나머지 준비중 항목은 기본 "준비중"', function () {
-  const built = nav.build(ALL_ON, { role: '영업팀' });
-  const excel = items(built, 'docs').filter(function (i) { return i.label.indexOf('엑셀') >= 0; })[0];
-  assert.strictEqual(excel.tag, '구현 예정');
-  assert.ok(excel.note.indexOf('이사회') >= 0);
-  const other = items(built, 'match')[0];
-  assert.strictEqual(other.tag, '준비중');
+test('openTab: 새 탭은 뒤에 붙고 활성이 된다, 이미 있으면 활성만 이동', function () {
+  let r = nav.openTab([], { id: 'map', label: '전국 지도' }, null);
+  assert.deepStrictEqual(r.tabs.map(function (t) { return t.id; }), ['map']);
+  assert.strictEqual(r.activeId, 'map');
+  r = nav.openTab(r.tabs, { id: 'chat', label: '대화' }, r.activeId);
+  r = nav.openTab(r.tabs, { id: 'map', label: '전국 지도' }, r.activeId);
+  assert.deepStrictEqual(r.tabs.map(function (t) { return t.id; }), ['map', 'chat']);
+  assert.strictEqual(r.activeId, 'map');
+  assert.strictEqual(r.full, false);
+});
+
+test('openTab: 10개가 차면 새 탭은 못 열고 full, 기존 탭으로의 이동은 가능', function () {
+  assert.strictEqual(nav.MAX_TABS, 10);
+  let tabs = [];
+  let active = null;
+  for (let i = 0; i < 10; i += 1) {
+    const r = nav.openTab(tabs, { id: 't' + i, label: 'T' + i }, active);
+    tabs = r.tabs; active = r.activeId;
+  }
+  assert.strictEqual(tabs.length, 10);
+  const over = nav.openTab(tabs, { id: 'extra', label: 'X' }, active);
+  assert.strictEqual(over.full, true);
+  assert.strictEqual(over.tabs.length, 10);
+  assert.strictEqual(over.activeId, 't9');
+  const again = nav.openTab(tabs, { id: 't3', label: 'T3' }, active);
+  assert.strictEqual(again.full, false);
+  assert.strictEqual(again.activeId, 't3');
+});
+
+test('closeTab: 활성을 닫으면 오른쪽 → 왼쪽 이웃, 비활성을 닫으면 활성 유지, 마지막이면 null', function () {
+  const tabs = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  assert.strictEqual(nav.closeTab(tabs, 'b', 'b').activeId, 'c');
+  assert.strictEqual(nav.closeTab(tabs, 'c', 'c').activeId, 'b');
+  assert.strictEqual(nav.closeTab(tabs, 'a', 'c').activeId, 'c');
+  assert.deepStrictEqual(nav.closeTab(tabs, 'a', 'c').tabs.map(function (t) { return t.id; }), ['b', 'c']);
+  assert.strictEqual(nav.closeTab([{ id: 'a' }], 'a', 'a').activeId, null);
+  assert.strictEqual(nav.closeTab(tabs, 'zzz', 'a').activeId, 'a');
+  assert.strictEqual(tabs.length, 3);   // 입력은 바뀌지 않는다
+});
+
+test('pruneTabs: 권한이 사라진 항목의 탭만 걷어 낸다', function () {
+  const built = nav.build(Object.assign({}, ALL_ON, { chat: false }), { role: '영업팀' });
+  const kept = nav.pruneTabs([{ id: 'map' }, { id: 'chat' }, { id: 'soon:opp:4' }], built);
+  assert.deepStrictEqual(kept.map(function (t) { return t.id; }), ['map', 'soon:opp:4']);
 });
 
 test('categoryOf / showsMapControls', function () {
