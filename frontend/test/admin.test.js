@@ -159,3 +159,19 @@ test('VIEWS: 4개 보기와 안내 문구가 짝을 이룬다', function () {
   Object.keys(admin.VIEWS).forEach(function (k) { assert.ok(admin.VIEW_HINTS[k], k); });
   assert.strictEqual(admin.currentView(), 'users');
 });
+
+test('pageSlice: 쪽 자르기·범위 보정·잘못된 쪽 크기', function () {
+  const list = Array.from({ length: 23 }, function (_, i) { return i; });
+  assert.deepStrictEqual(admin.PAGE_SIZES, [5, 10, 30, 50, 100]);
+  let r = admin.pageSlice(list, 0, 10);
+  assert.strictEqual(r.items.length, 10); assert.strictEqual(r.pages, 3); assert.strictEqual(r.total, 23);
+  r = admin.pageSlice(list, 2, 10);
+  assert.deepStrictEqual(r.items, [20, 21, 22]);
+  assert.strictEqual(admin.pageSlice(list, 99, 10).page, 2);      // 넘치면 마지막 쪽
+  assert.strictEqual(admin.pageSlice(list, -3, 10).page, 0);
+  assert.strictEqual(admin.pageSlice(list, 0, 7).size, 10);        // 선택지 밖은 기본 10
+  assert.strictEqual(admin.pageSlice(list, 0, 100).pages, 1);
+  const empty = admin.pageSlice([], 0, 10);
+  assert.strictEqual(empty.pages, 1); assert.strictEqual(empty.items.length, 0);
+  assert.strictEqual(admin.pageSlice(null, 0, 5).total, 0);
+});

@@ -66,6 +66,22 @@
   admin.STATUS_LABELS = { ACTIVE: '사용', LOCKED: '잠김', RETIRED: '퇴직' };
   const DEFAULT_GRADES = { NONE: '해당 없음', TEAM_LEAD: '팀장급', DEPT_HEAD: '부장급', EXECUTIVE: '대표급' };
 
+  // 쪽 크기 — 사용자 관리·접근 이력이 같은 선택지를 쓴다(서버 접근 이력의 상한 200 이내).
+  admin.PAGE_SIZES = [5, 10, 30, 50, 100];
+  admin.DEFAULT_PAGE_SIZE = 10;
+  admin.normPageSize = function (n) {
+    const v = Number(n);
+    return admin.PAGE_SIZES.indexOf(v) >= 0 ? v : admin.DEFAULT_PAGE_SIZE;
+  };
+  // 목록을 쪽으로 자른다(0부터). 쪽 번호가 범위를 벗어나면 가장 가까운 쪽으로 맞춘다.
+  admin.pageSlice = function (items, page, size) {
+    const list = items || [];
+    const sz = admin.normPageSize(size);
+    const pages = Math.max(1, Math.ceil(list.length / sz));
+    const p = Math.min(Math.max(0, Number(page) || 0), pages - 1);
+    return { items: list.slice(p * sz, p * sz + sz), page: p, pages: pages, total: list.length, size: sz };
+  };
+
   admin.isEmpNo = function (v) { return /^[0-9]{7}$/.test(String(v == null ? '' : v).trim()); };
 
   // 등록·수정 폼 검사 — 서버도 다시 검사한다(화면 검사를 믿지 않는다). 문제가 없으면 ''.
@@ -212,6 +228,16 @@
     m.className = 'ad-flash' + (bad ? ' bad' : '');
   }
 
+  function sizeSelect(id, size) {
+    return '<label class="ad-inline">쪽당 <select id="' + id + '">' + admin.PAGE_SIZES.map(function (n) {
+      return '<option value="' + n + '"' + (n === size ? ' selected' : '') + '>' + n + '개</option>';
+    }).join('') + '</select></label>';
+  }
+  function pagerHtml(prefix, page, pages) {
+    return '<div class="ad-pager"><button id="' + prefix + '-prev"' + (page <= 0 ? ' disabled' : '') + '>이전</button><span>' +
+      (page + 1) + ' / ' + pages + '</span><button id="' + prefix + '-next"' + (page + 1 >= pages ? ' disabled' : '') + '>다음</button></div>';
+  }
+
   // ── 메뉴 관리(역할×메뉴 격자) — 예전 '권한관리' ─────────────────────────
   let loaded = null;      // 서버에서 받은 원본(diff의 기준)
   let draft = null;       // 화면에서 만진 값
@@ -305,6 +331,7 @@
   let showRetired = false;
   let editing = null;            // null | {isNew, form}
   let confirmRetire = null;      // 퇴직 확인 중인 사번
+  const usersPage = { page: 0, size: admin.DEFAULT_PAGE_SIZE };
 
   function loadMeta() {
     return meta ? Promise.resolve(meta) : api('GET', '/sysadmin/meta').then(function (m) { meta = m; return m; });
@@ -337,16 +364,20 @@
 
   function paintUsers() {
     const q = userQuery.trim().toLowerCase();
-    const rows = users.filter(function (u) {
+    let rows = users.filter(function (u) {
       if (!showRetired && u.status === 'RETIRED') return false;
       return !q || (u.name || '').toLowerCase().indexOf(q) >= 0 || u.emp_no.indexOf(q) >= 0 ||
         (u.role || '').toLowerCase().indexOf(q) >= 0;
     });
     const grades = (meta && meta.grades) || DEFAULT_GRADES;
+    const total = rows.length;
+    const pg = admin.pageSlice(rows, usersPage.page, usersPage.size);
+    usersPage.page = pg.page;
+    rows = pg.items;
     el('ad-body').innerHTML =
       '<div class="ad-toolbar"><input id="us-q" placeholder="이름·사번·역할 검색" value="' + esc(userQuery) + '">' +
       '<label class="ad-inline"><input type="checkbox" id="us-retired"' + (showRetired ? ' checked' : '') + '> 퇴직 포함</label>' +
-      '<span class="ad-count">' + rows.length + '명</span>' +
+      sizeSelect('us-size', usersPage.size) + '<span class="ad-count">총 ' + total + '명</span>' +
       '<button id="us-new" class="primary">사용자 등록</button></div>' +
       (editing ? userForm() : '') +
       '<table class="ad-table"><thead><tr><th>사번</th><th>이름</th><th>역할</th><th>직위</th><th>결재 등급</th><th>상태</th><th>최근 로그인</th><th></th></tr></thead><tbody>' +
@@ -364,15 +395,20 @@
             (retiring ? '<button class="danger" data-op="retire-yes" data-emp="' + esc(u.emp_no) + '">정말 퇴직</button>' +
               '<button data-op="retire-no">취소</button>' :
               '<button data-op="retire" data-emp="' + esc(u.emp_no) + '">퇴직</button>')) + '</td></tr>';
-      }).join('') : '<tr><td colspan="8" class="ad-empty">조건에 맞는 사용자가 없습니다.</td></tr>') + '</tbody></table>';
+      }).join('') : '<tr><td colspan="8" class="ad-empty">조건에 맞는 사용자가 없습니다.</td></tr>') + '</tbody></table>' +
+      pagerHtml('us', pg.page, pg.pages);
+    el('us-size').onchange = function (e) { usersPage.size = admin.normPageSize(e.target.value); usersPage.page = 0; paintUsers(); };
+    el('us-prev').onclick = function () { usersPage.page -= 1; paintUsers(); };
+    el('us-next').onclick = function () { usersPage.page += 1; paintUsers(); };
 
     el('us-q').oninput = function (e) {
       userQuery = e.target.value;
+      usersPage.page = 0;
       const pos = e.target.selectionStart;
       paintUsers();
       const q2 = el('us-q'); q2.focus(); q2.setSelectionRange(pos, pos);
     };
-    el('us-retired').onchange = function (e) { showRetired = e.target.checked; paintUsers(); };
+    el('us-retired').onchange = function (e) { showRetired = e.target.checked; usersPage.page = 0; paintUsers(); };
     el('us-new').onclick = function () {
       editing = { isNew: true, form: { emp_no: '', name: '', role: '', position_title: '', approval_grade: 'NONE' } };
       paintUsers();
@@ -513,7 +549,7 @@
   }
 
   // ── 접근 이력 ─────────────────────────────────────────────────────────
-  const audit = { from: '', to: '', emp: '', event: '', page: 0, size: 50, data: null };
+  const audit = { from: '', to: '', emp: '', event: '', page: 0, size: admin.DEFAULT_PAGE_SIZE, data: null };
 
   function paintAudit() {
     const d = audit.data || { items: [], total: 0, page: 0, size: audit.size };
@@ -528,7 +564,7 @@
       Object.keys(admin.EVENT_LABELS).map(function (k) {
         return '<option value="' + k + '"' + (audit.event === k ? ' selected' : '') + '>' + esc(admin.EVENT_LABELS[k]) + '</option>';
       }).join('') + '</select></label>' +
-      '<button id="au-go" class="primary">조회</button><button id="au-csv">CSV 내보내기</button>' +
+      sizeSelect('au-size', audit.size) + '<button id="au-go" class="primary">조회</button><button id="au-csv">CSV 내보내기</button>' +
       '<span class="ad-count">총 ' + d.total + '건' + (fails ? ' · 이 쪽의 실패·거부 ' + fails + '건' : '') + '</span></div>' +
       '<table class="ad-table ad-audit"><thead><tr><th>시각(KST)</th><th>사번</th><th>신원</th><th>이벤트</th><th>요청</th><th>결과</th><th>IP</th><th>상세</th></tr></thead><tbody>' +
       (d.items.length ? d.items.map(function (r) {
@@ -540,8 +576,8 @@
           esc(r.status_code == null ? '' : r.status_code) + '</td><td class="mono">' + esc(r.client_ip || '') + '</td><td>' +
           esc(r.detail || '') + '</td></tr>';
       }).join('') : '<tr><td colspan="8" class="ad-empty">기록이 없습니다.</td></tr>') + '</tbody></table>' +
-      '<div class="ad-pager"><button id="au-prev"' + (d.page <= 0 ? ' disabled' : '') + '>이전</button><span>' + (d.page + 1) + ' / ' + pages +
-      '</span><button id="au-next"' + (d.page + 1 >= pages ? ' disabled' : '') + '>다음</button></div>';
+      pagerHtml('au', d.page, pages);
+    el('au-size').onchange = function (e) { audit.size = admin.normPageSize(e.target.value); audit.page = 0; loadAudit(); };
     el('au-go').onclick = function () { readAuditFilters(); audit.page = 0; loadAudit(); };
     el('au-prev').onclick = function () { audit.page = Math.max(0, audit.page - 1); loadAudit(); };
     el('au-next').onclick = function () { audit.page += 1; loadAudit(); };
