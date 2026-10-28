@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- USER_MENU_PERMS — 역할 기본값 위에 얹는 사용자별 예외. NUMBER(1)/SMALLINT 는 드라이버가 boolean 으로 변환한다. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.UserMenuPermMapper">
+
+  <sql id="cols">EMP_NO, MENU_KEY, CAN_VIEW, CAN_WRITE, CAN_EDIT, CAN_APPROVE, UPDATED_AT</sql>
+
+  <select id="selectByEmpNo" resultType="UserMenuPerm">
+    SELECT <include refid="cols"/> FROM USER_MENU_PERMS WHERE EMP_NO = #{empNo} ORDER BY MENU_KEY
+  </select>
+
+  <select id="selectAll" resultType="UserMenuPerm">
+    SELECT <include refid="cols"/> FROM USER_MENU_PERMS
+  </select>
+
+  <update id="update">
+    UPDATE USER_MENU_PERMS SET CAN_VIEW = #{canView}, CAN_WRITE = #{canWrite}, CAN_EDIT = #{canEdit},
+           CAN_APPROVE = #{canApprove}, UPDATED_AT = #{updatedAt}
+     WHERE EMP_NO = #{empNo} AND MENU_KEY = #{menuKey}
+  </update>
+
+  <insert id="insert">
+    INSERT INTO USER_MENU_PERMS (<include refid="cols"/>)
+    VALUES (#{empNo}, #{menuKey}, #{canView}, #{canWrite}, #{canEdit}, #{canApprove}, #{updatedAt})
+  </insert>
+</mapper>
