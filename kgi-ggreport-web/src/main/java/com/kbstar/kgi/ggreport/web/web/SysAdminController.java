@@ -4,7 +4,9 @@ import com.kbstar.kgi.ggreport.web.domain.PermChange;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.dto.MenuDefinition;
 import com.kbstar.kgi.ggreport.web.dto.SysAdminIn;
+import com.kbstar.kgi.ggreport.web.dto.SysUserView;
 import com.kbstar.kgi.ggreport.web.service.AccessLogService;
+import com.kbstar.kgi.ggreport.web.service.ApproverService;
 import com.kbstar.kgi.ggreport.web.service.PermissionService;
 import com.kbstar.kgi.ggreport.web.service.UserAdminService;
 import com.kbstar.kgi.ggreport.web.support.MenuPerms;
@@ -38,13 +40,15 @@ public class SysAdminController {
     private final AdminGuard guard;
     private final UserAdminService userAdmin;
     private final PermissionService permissions;
+    private final ApproverService approvers;
     private final AccessLogService accessLog;
 
     public SysAdminController(AdminGuard guard, UserAdminService userAdmin, PermissionService permissions,
-                              AccessLogService accessLog) {
+                              ApproverService approvers, AccessLogService accessLog) {
         this.guard = guard;
         this.userAdmin = userAdmin;
         this.permissions = permissions;
+        this.approvers = approvers;
         this.accessLog = accessLog;
     }
 
@@ -71,7 +75,7 @@ public class SysAdminController {
     @GetMapping("/users")
     public Map<String, Object> users(HttpServletRequest req) {
         guard.require(req);
-        return java.util.Collections.<String, Object>singletonMap("users", userAdmin.list());
+        return java.util.Collections.<String, Object>singletonMap("users", approvers.views());
     }
 
     @PostMapping("/users")
@@ -89,6 +93,13 @@ public class SysAdminController {
     public SysUser status(@PathVariable("empNo") String empNo, @RequestBody SysAdminIn.Status in,
                           HttpServletRequest req) {
         return userAdmin.setStatus(empNo, in.getStatus(), guard.require(req));
+    }
+
+    /** 상위 결재자 지정(MANUAL)·자동으로 되돌리기(AUTO). */
+    @PutMapping("/users/{empNo}/approver")
+    public SysUserView approver(@PathVariable("empNo") String empNo, @RequestBody SysAdminIn.Approver in,
+                                HttpServletRequest req) {
+        return approvers.assign(empNo, in.getApproverEmpNo(), in.getMode(), guard.require(req));
     }
 
     @GetMapping("/perms/{empNo}")

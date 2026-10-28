@@ -175,3 +175,45 @@ test('pageSlice: 쪽 자르기·범위 보정·잘못된 쪽 크기', function (
   assert.strictEqual(empty.pages, 1); assert.strictEqual(empty.items.length, 0);
   assert.strictEqual(admin.pageSlice(null, 0, 5).total, 0);
 });
+
+// ── 결재라인(상위 결재자) ─────────────────────────────────────────────
+
+function au(emp, extra) {
+  return Object.assign({ emp_no: emp, name: 'n' + emp, role: '영업팀', position_title: '과장', status: 'ACTIVE',
+    approval_grade: 'NONE', approver_mode: 'AUTO', approver_state: 'AUTO_OK', approver_emp_no: null, chain: [] }, extra || {});
+}
+
+test('chainText: 체인을 이름(직위) → … 로, 최상위·지정 필요·잠긴 결재자 표시', function () {
+  const u = au('1', { chain: [{ emp_no: '2', name: '이영업', position_title: '과장', status: 'ACTIVE' },
+    { emp_no: '3', name: '박영업', position_title: '부장', status: 'LOCKED' }] });
+  assert.strictEqual(admin.chainText(u), '이영업(과장) → 박영업(부장) [잠김]');
+  assert.ok(admin.chainText(au('9', { approver_state: 'TOP' })).indexOf('최상위') === 0);
+  assert.strictEqual(admin.chainText(au('8', { approver_state: 'NEEDS', approver_note: '후보가 2명' })), '후보가 2명');
+});
+
+test('approverCandidates: 사용 중·결재 등급 있음·자기 제외·고리 방지', function () {
+  const lead = au('2', { approval_grade: 'TEAM_LEAD' });
+  const head = au('3', { approval_grade: 'DEPT_HEAD' });
+  const retired = au('4', { approval_grade: 'TEAM_LEAD', status: 'RETIRED' });
+  const plain = au('5');
+  const me = au('1', { approval_grade: 'TEAM_LEAD' });
+  const under = au('6', { approval_grade: 'TEAM_LEAD', chain: [{ emp_no: '1' }] });   // 내 아래 사람 → 고리
+  const got = admin.approverCandidates([me, lead, head, retired, plain, under], me).map(function (c) { return c.emp_no; });
+  assert.deepStrictEqual(got, ['2', '3']);
+});
+
+test('approverChange: 자동↔지정 변경만 서버에 보낸다', function () {
+  const auto = au('1');
+  const manual = au('2', { approver_mode: 'MANUAL', approver_emp_no: '9', approver_state: 'MANUAL_OK' });
+  assert.strictEqual(admin.approverChange(auto, ''), null);
+  assert.deepStrictEqual(admin.approverChange(auto, '9'), { mode: 'MANUAL', approver_emp_no: '9' });
+  assert.strictEqual(admin.approverChange(manual, '9'), null);
+  assert.deepStrictEqual(admin.approverChange(manual, '8'), { mode: 'MANUAL', approver_emp_no: '8' });
+  assert.deepStrictEqual(admin.approverChange(manual, ''), { mode: 'AUTO', approver_emp_no: null });
+});
+
+test('approverAttention: 지정 필요·재지정 필요만(퇴직·최상위 제외)', function () {
+  const list = [au('1', { approver_state: 'NEEDS' }), au('2', { approver_state: 'MANUAL_INVALID' }),
+    au('3', { approver_state: 'NEEDS', status: 'RETIRED' }), au('4', { approver_state: 'TOP' }), au('5')];
+  assert.strictEqual(admin.approverAttention(list), 2);
+});

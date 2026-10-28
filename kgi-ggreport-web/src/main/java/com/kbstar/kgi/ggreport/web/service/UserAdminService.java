@@ -30,11 +30,14 @@ public class UserAdminService {
     private final SysUserMapper users;
     private final PermChangeLogMapper changeLog;
     private final PermissionService permissions;
+    private final ApproverService approvers;
 
-    public UserAdminService(SysUserMapper users, PermChangeLogMapper changeLog, PermissionService permissions) {
+    public UserAdminService(SysUserMapper users, PermChangeLogMapper changeLog, PermissionService permissions,
+                            ApproverService approvers) {
         this.users = users;
         this.changeLog = changeLog;
         this.permissions = permissions;
+        this.approvers = approvers;
     }
 
     @Transactional(readOnly = true)
@@ -68,6 +71,7 @@ public class UserAdminService {
             throw new ApiException(409, "이미 등록된 사번입니다.");
         }
         log(actor, empNo, "user:CREATE", null, u.getRole(), now);
+        approvers.recomputeAuto(actor);   // 새 사용자의 결재자(자동)와, 새 팀장·부장이 생겨 바뀌는 사람들
         return users.selectByEmpNo(empNo);
     }
 
@@ -89,6 +93,7 @@ public class UserAdminService {
         diff(actor, empNo, "user:ROLE", before.getRole(), role, now);
         diff(actor, empNo, "user:POSITION_TITLE", before.getPositionTitle(), blankToNull(in.getPositionTitle()), now);
         diff(actor, empNo, "user:APPROVAL_GRADE", before.getApprovalGrade(), grade, now);
+        approvers.recomputeAuto(actor);
         return users.selectByEmpNo(empNo);
     }
 
@@ -105,6 +110,7 @@ public class UserAdminService {
         String now = Times.nowIso();
         users.updateStatus(empNo, status, "ACTIVE".equals(status), now);
         diff(actor, empNo, "user:STATUS", before.getStatus(), status, now);
+        approvers.recomputeAuto(actor);   // 결재자가 잠기거나 퇴직하면 자동 모드 사용자의 결재자가 다시 정해진다
         return users.selectByEmpNo(empNo);
     }
 

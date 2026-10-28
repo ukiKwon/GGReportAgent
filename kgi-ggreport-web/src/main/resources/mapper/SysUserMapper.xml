@@ -4,8 +4,8 @@
 <!-- USERS — 시스템 관리(008). INSERT/UPDATE 는 양쪽 방언에서 같은 문장이다. -->
 <mapper namespace="com.kbstar.kgi.ggreport.web.mapper.SysUserMapper">
 
-  <sql id="cols">EMP_NO, NAME, ROLE, POSITION_TITLE, APPROVAL_GRADE, STATUS, FAILED_LOGINS,
-    LAST_LOGIN_AT, CREATED_AT, UPDATED_AT</sql>
+  <sql id="cols">EMP_NO, NAME, ROLE, POSITION_TITLE, APPROVAL_GRADE, APPROVER_EMP_NO, APPROVER_MANUAL, STATUS,
+    FAILED_LOGINS, LAST_LOGIN_AT, CREATED_AT, UPDATED_AT</sql>
 
   <select id="selectAll" resultType="SysUser">
     SELECT <include refid="cols"/> FROM USERS ORDER BY EMP_NO
@@ -29,6 +29,11 @@
   <update id="updateStatus">
     UPDATE USERS SET STATUS = #{status}, UPDATED_AT = #{now}
     <if test="resetFailed">, FAILED_LOGINS = 0</if>
+     WHERE EMP_NO = #{empNo}
+  </update>
+
+  <update id="updateApprover">
+    UPDATE USERS SET APPROVER_EMP_NO = #{approverEmpNo,jdbcType=VARCHAR}, APPROVER_MANUAL = #{manual}, UPDATED_AT = #{now}
      WHERE EMP_NO = #{empNo}
   </update>
 

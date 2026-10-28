@@ -82,6 +82,46 @@
     return { items: list.slice(p * sz, p * sz + sz), page: p, pages: pages, total: list.length, size: sz };
   };
 
+  // ── 결재라인(상위 결재자) ────────────────────────────────────────────
+  admin.APPROVER_STATE_LABELS = {
+    AUTO_OK: '자동', TOP: '최상위', NEEDS: '지정 필요', MANUAL_OK: '지정', MANUAL_INVALID: '재지정 필요'
+  };
+
+  function who(u) { return u.name + (u.position_title ? '(' + u.position_title + ')' : ''); }
+
+  // 결재 체인 문장. 서버가 준 chain(가까운 결재자부터)을 그대로 잇는다.
+  admin.chainText = function (u) {
+    if (!u) return '';
+    if (u.approver_state === 'TOP') return '최상위 — 위로 올라갈 결재자가 없습니다';
+    const chain = u.chain || [];
+    if (!chain.length) return u.approver_note || '결재자가 정해지지 않았습니다';
+    return chain.map(function (c) { return who(c) + (c.status !== 'ACTIVE' ? ' [' + (admin.STATUS_LABELS[c.status] || c.status) + ']' : ''); }).join(' → ');
+  };
+
+  // 결재자로 고를 수 있는 사람 — 사용 중이고, 결재 등급이 있고, 자기 자신이 아니고, 고리를 만들지 않는 사람.
+  // 서버가 같은 검사를 다시 한다(화면 검사는 선택지를 줄여 줄 뿐).
+  admin.approverCandidates = function (users, user) {
+    return (users || []).filter(function (c) {
+      if (c.emp_no === user.emp_no || c.status !== 'ACTIVE' || c.approval_grade === 'NONE') return false;
+      return !(c.chain || []).some(function (x) { return x.emp_no === user.emp_no; });
+    });
+  };
+
+  // 지정 필요·재지정 필요인 사용 중 사용자 수(퇴직자는 세지 않는다).
+  admin.approverAttention = function (users) {
+    return (users || []).filter(function (u) {
+      return u.status !== 'RETIRED' && (u.approver_state === 'NEEDS' || u.approver_state === 'MANUAL_INVALID');
+    }).length;
+  };
+
+  // 폼의 select 값('' = 자동) → 서버에 보낼 변경. 바뀐 게 없으면 null.
+  admin.approverChange = function (u, value) {
+    const v = String(value || '');
+    if (!v) return u.approver_mode === 'AUTO' ? null : { mode: 'AUTO', approver_emp_no: null };
+    if (u.approver_mode === 'MANUAL' && u.approver_emp_no === v) return null;
+    return { mode: 'MANUAL', approver_emp_no: v };
+  };
+
   admin.isEmpNo = function (v) { return /^[0-9]{7}$/.test(String(v == null ? '' : v).trim()); };
 
   // 등록·수정 폼 검사 — 서버도 다시 검사한다(화면 검사를 믿지 않는다). 문제가 없으면 ''.
@@ -349,6 +389,28 @@
     }).join('');
   }
 
+  function userById(emp) { return users.filter(function (x) { return x.emp_no === emp; })[0]; }
+
+  function approverOptions(emp, selected) {
+    const u = userById(emp);
+    return '<option value="">자동 (팀·직위 기준)</option>' + admin.approverCandidates(users, u || { emp_no: emp }).map(function (c) {
+      return '<option value="' + esc(c.emp_no) + '"' + (c.emp_no === selected ? ' selected' : '') + '>' +
+        esc(c.name + ' (' + c.emp_no + ') · ' + c.role + (c.position_title ? ' ' + c.position_title : '')) + '</option>';
+    }).join('');
+  }
+
+  // 고른 결재자 기준의 체인 미리보기. 자동이면 현재 자동 결과(또는 왜 못 정했는지)를 보여 준다.
+  function chainPreview(emp, value) {
+    const u = userById(emp);
+    if (!u) return '';
+    if (value) {
+      const c = userById(value);
+      return c ? '결재선: ' + who(u) + ' → ' + who(c) + (c.chain && c.chain.length ? ' → ' + admin.chainText(c) : '') : '';
+    }
+    if (u.approver_mode === 'AUTO') return '현재 자동 결과: ' + admin.chainText(u);
+    return '자동으로 되돌리면 팀·직위 규칙대로 다시 정해집니다(후보가 없거나 여럿이면 "지정 필요"로 남습니다).';
+  }
+
   function userForm() {
     const f = editing.form;
     return '<div class="ad-form">' +
@@ -358,8 +420,19 @@
       '<label>역할<select id="uf-role">' + roleOptions(f.role) + '</select></label>' +
       '<label>직위<input id="uf-pos" maxlength="50" autocomplete="off" value="' + esc(f.position_title) + '" placeholder="예: 과장"></label>' +
       '<label>결재 등급<select id="uf-grade">' + gradeOptions(f.approval_grade) + '</select></label>' +
+      (editing.isNew ? '<div class="ad-note ad-form-wide">상위 결재자는 팀·직위로 자동 결정됩니다. 등록 후 목록에서 확인하고, 바꿀 일이 있으면 수정에서 지정하세요.</div>'
+        : '<label>상위 결재자<select id="uf-appr">' + approverOptions(f.emp_no, f.approver_value) + '</select></label>' +
+          '<div class="ad-note ad-form-wide" id="uf-chain">' + esc(chainPreview(f.emp_no, f.approver_value)) + '</div>') +
       '<div class="ad-form-actions"><button id="uf-save" class="primary">' + (editing.isNew ? '등록' : '저장') +
       '</button><button id="uf-cancel">취소</button></div></div>';
+  }
+
+  function approverCell(u) {
+    const st = u.approver_state;
+    const bad = st === 'NEEDS' || st === 'MANUAL_INVALID';
+    const badge = '<span class="ad-badge ' + (bad ? 'warn' : st === 'MANUAL_OK' ? 'ok' : 'muted') + '">' +
+      esc(admin.APPROVER_STATE_LABELS[st] || st) + '</span>';
+    return (u.approver_name ? esc(u.approver_name) + ' ' : '') + badge;
   }
 
   function paintUsers() {
@@ -379,13 +452,15 @@
       '<label class="ad-inline"><input type="checkbox" id="us-retired"' + (showRetired ? ' checked' : '') + '> 퇴직 포함</label>' +
       sizeSelect('us-size', usersPage.size) + '<span class="ad-count">총 ' + total + '명</span>' +
       '<button id="us-new" class="primary">사용자 등록</button></div>' +
+      (admin.approverAttention(users) ? '<div class="ad-warn">상위 결재자 지정이 필요한 사용자가 ' + admin.approverAttention(users) + '명 있습니다 — 상태가 "지정 필요"·"재지정 필요"인 행의 수정에서 지정하세요.</div>' : '') +
       (editing ? userForm() : '') +
-      '<table class="ad-table"><thead><tr><th>사번</th><th>이름</th><th>역할</th><th>직위</th><th>결재 등급</th><th>상태</th><th>최근 로그인</th><th></th></tr></thead><tbody>' +
+      '<table class="ad-table"><thead><tr><th>사번</th><th>이름</th><th>역할</th><th>직위</th><th>결재 등급</th><th>상위 결재자</th><th>상태</th><th>최근 로그인</th><th></th></tr></thead><tbody>' +
       (rows.length ? rows.map(function (u) {
         const retiring = confirmRetire === u.emp_no;
         return '<tr class="st-' + esc((u.status || '').toLowerCase()) + '"><td class="mono">' + esc(u.emp_no) + '</td><td>' + esc(u.name) +
           '</td><td>' + esc(u.role) + '</td><td>' + esc(u.position_title || '') + '</td><td>' +
-          esc(admin.gradeLabel(u.approval_grade, grades)) + '</td><td><span class="ad-badge ' + esc((u.status || '').toLowerCase()) + '">' +
+          esc(admin.gradeLabel(u.approval_grade, grades)) + '</td><td title="' + esc(admin.chainText(u)) + '">' + approverCell(u) +
+          '</td><td><span class="ad-badge ' + esc((u.status || '').toLowerCase()) + '">' +
           esc(admin.STATUS_LABELS[u.status] || u.status) + '</span></td><td>' +
           esc(u.last_login_at ? admin.formatTime(u.last_login_at) : '-') + '</td><td class="ad-ops">' +
           (u.status === 'RETIRED' ? '<button data-op="restore" data-emp="' + esc(u.emp_no) + '">복직</button>' :
@@ -395,7 +470,7 @@
             (retiring ? '<button class="danger" data-op="retire-yes" data-emp="' + esc(u.emp_no) + '">정말 퇴직</button>' +
               '<button data-op="retire-no">취소</button>' :
               '<button data-op="retire" data-emp="' + esc(u.emp_no) + '">퇴직</button>')) + '</td></tr>';
-      }).join('') : '<tr><td colspan="8" class="ad-empty">조건에 맞는 사용자가 없습니다.</td></tr>') + '</tbody></table>' +
+      }).join('') : '<tr><td colspan="9" class="ad-empty">조건에 맞는 사용자가 없습니다.</td></tr>') + '</tbody></table>' +
       pagerHtml('us', pg.page, pg.pages);
     el('us-size').onchange = function (e) { usersPage.size = admin.normPageSize(e.target.value); usersPage.page = 0; paintUsers(); };
     el('us-prev').onclick = function () { usersPage.page -= 1; paintUsers(); };
@@ -417,10 +492,17 @@
     if (editing) {
       el('uf-cancel').onclick = function () { editing = null; paintUsers(); };
       el('uf-save').onclick = saveUser;
+      wireApproverSelect();
     }
     el('ad-body').querySelectorAll('button[data-op]').forEach(function (b) {
       b.onclick = function () { userOp(b.dataset.op, b.dataset.emp); };
     });
+  }
+
+  function wireApproverSelect() {
+    const sel = el('uf-appr');
+    if (!sel) return;
+    sel.onchange = function () { el('uf-chain').textContent = chainPreview(editing.form.emp_no, sel.value); };
   }
 
   function saveUser() {
@@ -430,8 +512,13 @@
     };
     const bad = admin.userFormError(form, editing.isNew);
     if (bad) { say(bad, true); return; }
+    const apprEl = el('uf-appr');
+    const change = !editing.isNew && apprEl ? admin.approverChange(userById(form.emp_no), apprEl.value) : null;
     const req = editing.isNew ? api('POST', '/sysadmin/users', form)
-      : api('PUT', '/sysadmin/users/' + encodeURIComponent(form.emp_no), form);
+      : api('PUT', '/sysadmin/users/' + encodeURIComponent(form.emp_no), form).then(function () {
+        // 역할·등급을 바꾼 뒤에 결재자를 정한다(자동 모드 사용자는 서버가 이미 다시 계산했다).
+        return change ? api('PUT', '/sysadmin/users/' + encodeURIComponent(form.emp_no) + '/approver', change) : null;
+      });
     req.then(function () {
       say(editing.isNew ? '등록했습니다.' : '저장했습니다.');
       editing = null;
@@ -443,8 +530,10 @@
     const u = users.filter(function (x) { return x.emp_no === emp; })[0];
     if (op === 'edit' && u) {
       editing = { isNew: false, form: { emp_no: u.emp_no, name: u.name, role: u.role,
-        position_title: u.position_title || '', approval_grade: u.approval_grade } };
+        position_title: u.position_title || '', approval_grade: u.approval_grade,
+        approver_value: u.approver_mode === 'MANUAL' ? (u.approver_emp_no || '') : '' } };
       paintUsers();
+      wireApproverSelect();
       el('uf-name').focus();
       return;
     }
