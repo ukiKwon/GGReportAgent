@@ -145,7 +145,7 @@
   };
 
   render.ZOOM_MS = 750;   // flyZoomTo transition 길이
-  render.HOLD_MS = 400;   // 확대가 끝난 뒤 "살짝 멈춤" — 이후 상세 지도로 전환
+  render.HOLD_MS = 200;   // 확대가 끝난 뒤 "살짝 멈춤" — 이후 상세 지도로 전환
 
   render.drawNational = function () {
     var rp = document.getElementById('rank-panel'); if (rp) rp.style.display='none';
