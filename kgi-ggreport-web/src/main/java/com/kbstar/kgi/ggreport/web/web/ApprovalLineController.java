@@ -66,6 +66,11 @@ public class ApprovalLineController {
         return Collections.<String, Object>singletonMap("items", items);
     }
 
+    @GetMapping("/approval-deputies/candidates")
+    public Map<String, Object> deputyCandidates(HttpServletRequest req) {
+        return Collections.<String, Object>singletonMap("users", deputies.candidates(Actor.of(req)));
+    }
+
     @PostMapping("/approval-deputies")
     public Map<String, Object> deputyCreate(@RequestBody ApprovalIn.DeputyForm in, HttpServletRequest req) {
         return deputies.create(in, Actor.of(req));

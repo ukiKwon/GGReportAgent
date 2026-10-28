@@ -122,6 +122,9 @@
     return { mode: 'MANUAL', approver_emp_no: v };
   };
 
+  // 회사 직급(낮은 쪽부터). 팀장 아래는 모두 팀원급. 서버 Ranks.LIST 와 같다(/sysadmin/meta 가 주면 그쪽을 쓴다).
+  admin.RANKS = ['계장', '대리', '과장', '차장', '수석차장', '팀장', '부장', '대표'];
+
   admin.isEmpNo = function (v) { return /^[0-9]{7}$/.test(String(v == null ? '' : v).trim()); };
 
   // 등록·수정 폼 검사 — 서버도 다시 검사한다(화면 검사를 믿지 않는다). 문제가 없으면 ''.
@@ -411,6 +414,15 @@
     return '자동으로 되돌리면 팀·직위 규칙대로 다시 정해집니다(후보가 없거나 여럿이면 "지정 필요"로 남습니다).';
   }
 
+  // 회사 직급 순(낮은 쪽부터). 목록에 없는 기존 값은 그대로 보이게 하나 더 둔다(저장하면 서버가 거절한다).
+  function rankOptions(selected) {
+    const list = (meta && meta.ranks) || admin.RANKS;
+    const extra = selected && list.indexOf(selected) < 0 ? [selected] : [];
+    return '<option value="">선택 안 함</option>' + list.concat(extra).map(function (r) {
+      return '<option value="' + esc(r) + '"' + (r === selected ? ' selected' : '') + '>' + esc(r) + '</option>';
+    }).join('');
+  }
+
   function userForm() {
     const f = editing.form;
     return '<div class="ad-form">' +
@@ -418,7 +430,7 @@
         (editing.isNew ? '' : ' readonly') + ' placeholder="숫자 7자리"></label>' +
       '<label>이름<input id="uf-name" maxlength="50" autocomplete="off" value="' + esc(f.name) + '"></label>' +
       '<label>역할<select id="uf-role">' + roleOptions(f.role) + '</select></label>' +
-      '<label>직위<input id="uf-pos" maxlength="50" autocomplete="off" value="' + esc(f.position_title) + '" placeholder="예: 과장"></label>' +
+      '<label>직위<select id="uf-pos">' + rankOptions(f.position_title) + '</select></label>' +
       '<label>결재 등급<select id="uf-grade">' + gradeOptions(f.approval_grade) + '</select></label>' +
       (editing.isNew ? '<div class="ad-note ad-form-wide">상위 결재자는 팀·직위로 자동 결정됩니다. 등록 후 목록에서 확인하고, 바꿀 일이 있으면 수정에서 지정하세요.</div>'
         : '<label>상위 결재자<select id="uf-appr">' + approverOptions(f.emp_no, f.approver_value) + '</select></label>' +

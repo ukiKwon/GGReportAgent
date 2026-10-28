@@ -271,6 +271,19 @@ public class ApprovalLineApiTest {
                 .get("items").get(0).get("deputy_id").asLong()), null, 403);
     }
 
+    @Test
+    public void 대결자_후보는_최소_정보만_담고_자기_자신은_뺀다() throws Exception {
+        JsonNode users = call(LEAD, get("/approval-deputies/candidates"), null, 200).get("users");
+        assertTrue(users.size() > 5);
+        for (JsonNode u : users) {
+            assertFalse(LEAD.equals(u.get("emp_no").asText()));
+            assertEquals("ACTIVE", u.get("status").asText());
+            assertFalse(u.has("last_login_at"));
+            assertFalse(u.has("approver_emp_no"));
+        }
+        mockMvc.perform(get("/approval-deputies/candidates")).andExpect(status().isUnauthorized());
+    }
+
     // ── 직위 검증 ─────────────────────────────────────────────────────
 
     @Test
