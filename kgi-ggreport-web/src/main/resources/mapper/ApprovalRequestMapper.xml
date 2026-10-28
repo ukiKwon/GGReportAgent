@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- APPROVAL_REQUEST / APPROVAL_STEP — 012. 양쪽 방언에서 같은 문장이다. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.ApprovalRequestMapper">
+
+  <sql id="rcols">REQ_ID, REQ_TYPE, REQUESTER_EMP_NO, TITLE, PAYLOAD, STATUS, CURRENT_STEP, RESULT_NOTE,
+    CREATED_AT, DECIDED_AT</sql>
+  <sql id="scols">STEP_ID, REQ_ID, STEP_NO, KIND, APPROVER_EMP_NO, STATUS, ACTED_BY, ACTED_AS_DEPUTY,
+    COMMENT_TEXT, ACTED_AT</sql>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="reqId" keyColumn="REQ_ID">
+    INSERT INTO APPROVAL_REQUEST (REQ_TYPE, REQUESTER_EMP_NO, TITLE, PAYLOAD, STATUS, CURRENT_STEP, CREATED_AT)
+    VALUES (#{reqType}, #{requesterEmpNo}, #{title}, #{payload,jdbcType=VARCHAR}, #{status}, #{currentStep}, #{createdAt})
+  </insert>
+
+  <insert id="insertStep" useGeneratedKeys="true" keyProperty="stepId" keyColumn="STEP_ID">
+    INSERT INTO APPROVAL_STEP (REQ_ID, STEP_NO, KIND, APPROVER_EMP_NO, STATUS, ACTED_AS_DEPUTY)
+    VALUES (#{reqId}, #{stepNo}, #{kind}, #{approverEmpNo,jdbcType=VARCHAR}, #{status}, 0)
+  </insert>
+
+  <select id="selectById" resultType="ApprovalRequest">
+    SELECT <include refid="rcols"/> FROM APPROVAL_REQUEST WHERE REQ_ID = #{id}
+  </select>
+
+  <select id="selectSteps" resultType="ApprovalStep">
+    SELECT <include refid="scols"/> FROM APPROVAL_STEP WHERE REQ_ID = #{reqId} ORDER BY STEP_NO
+  </select>
+
+  <select id="selectByRequester" resultType="ApprovalRequest">
+    SELECT <include refid="rcols"/> FROM APPROVAL_REQUEST WHERE REQUESTER_EMP_NO = #{emp} ORDER BY REQ_ID DESC
+  </select>
+
+  <select id="selectPending" resultType="ApprovalRequest">
+    SELECT <include refid="rcols"/> FROM APPROVAL_REQUEST WHERE STATUS = 'PENDING' ORDER BY REQ_ID
+  </select>
+
+  <select id="selectAll" resultType="ApprovalRequest">
+    SELECT <include refid="rcols"/> FROM APPROVAL_REQUEST ORDER BY REQ_ID DESC
+  </select>
+
+  <update id="updateRequest">
+    UPDATE APPROVAL_REQUEST SET STATUS = #{status}, CURRENT_STEP = #{currentStep},
+           RESULT_NOTE = #{note,jdbcType=VARCHAR}, DECIDED_AT = #{decidedAt,jdbcType=VARCHAR}
+     WHERE REQ_ID = #{id}
+  </update>
+
+  <update id="updateStep">
+    UPDATE APPROVAL_STEP SET STATUS = #{status}, ACTED_BY = #{actedBy,jdbcType=VARCHAR}, ACTED_AS_DEPUTY = #{deputy},
+           COMMENT_TEXT = #{comment,jdbcType=VARCHAR}, ACTED_AT = #{at,jdbcType=VARCHAR}
+     WHERE STEP_ID = #{stepId}
+  </update>
+
+</mapper>

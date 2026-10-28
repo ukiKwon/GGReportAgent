@@ -7,6 +7,7 @@ import com.kbstar.kgi.ggreport.web.mapper.PermChangeLogMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.support.MenuPerms;
 import com.kbstar.kgi.ggreport.web.support.Menus;
+import com.kbstar.kgi.ggreport.web.support.Ranks;
 import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import com.kbstar.kgi.ggreport.web.web.Actor;
@@ -131,8 +132,9 @@ public class UserAdminService {
         if (in.getRole() == null || !Teams.ROLES.contains(in.getRole())) {
             throw new ApiException(400, "알 수 없는 역할입니다.");
         }
-        if (in.getPositionTitle() != null && in.getPositionTitle().trim().length() > 50) {
-            throw new ApiException(400, "직위는 50자 이내로 입력하세요.");
+        String pos = in.getPositionTitle() == null ? "" : in.getPositionTitle().trim();
+        if (!pos.isEmpty() && !Ranks.LIST.contains(pos)) {
+            throw new ApiException(400, "직위는 " + String.join("·", Ranks.LIST) + " 중 하나여야 합니다.");
         }
         String g = in.getApprovalGrade();
         if (g != null && !g.isEmpty() && !MenuPerms.GRADES.containsKey(g)) {

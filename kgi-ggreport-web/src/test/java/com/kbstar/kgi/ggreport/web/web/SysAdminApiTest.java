@@ -105,7 +105,7 @@ public class SysAdminApiTest {
 
     @Test
     public void 사용자_등록은_서버가_다시_검증한다() throws Exception {
-        String ok = "{\"emp_no\":\"1111111\",\"name\":\"가상직원\",\"role\":\"영업팀\",\"position_title\":\"사원\",\"approval_grade\":\"NONE\"}";
+        String ok = "{\"emp_no\":\"1111111\",\"name\":\"가상직원\",\"role\":\"영업팀\",\"position_title\":\"계장\",\"approval_grade\":\"NONE\"}";
         asAdmin(json(post("/sysadmin/users"), ok)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.emp_no").value("1111111"))
                 .andExpect(jsonPath("$.status").value("ACTIVE"));

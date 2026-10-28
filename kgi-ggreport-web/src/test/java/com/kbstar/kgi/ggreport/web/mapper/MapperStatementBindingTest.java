@@ -47,7 +47,7 @@ public class MapperStatementBindingTest {
      * + 시스템 관리 4개(USERS·USER_MENU_PERMS·ACCESS_LOG·PERM_CHANGE_LOG, 008).
      * 개수를 박아 두면 새 Mapper 를 만들고 등록을 잊는 것도 잡힌다.
      */
-    private static final int EXPECTED_MAPPER_COUNT = 13;
+    private static final int EXPECTED_MAPPER_COUNT = 15;
 
     @Autowired
     private SqlSessionFactory sqlSessionFactory;

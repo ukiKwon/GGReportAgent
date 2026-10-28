@@ -36,6 +36,11 @@ public final class Times {
         return iso(Instant.now());
     }
 
+    /** 오늘 날짜(한국 기준, {@code YYYY-MM-DD}). 대결 기간은 한국 날짜로 센다. */
+    public static String todayKst() {
+        return java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).toString();
+    }
+
     /** 테스트에서 시각을 고정할 수 있게 열어 둔다. */
     public static String iso(Instant instant) {
         return ISO_MICROS.format(instant.atOffset(ZoneOffset.UTC));
