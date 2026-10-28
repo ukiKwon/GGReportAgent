@@ -50,3 +50,112 @@ test('lockCheck: 담당자를 바꾸는 것은 정상이다', function () {
   const moved = { '영업팀': { admin: true }, '전산팀': { admin: false } };
   assert.strictEqual(admin.lockCheck(moved), '');
 });
+
+// ── 시스템 관리(사용자·권한·메뉴·접근 이력) 순수 규칙 ──────────────────────────
+
+const nav = require('../js/nav.js');
+
+test('isEmpNo / userFormError: 사번은 숫자 7자리, 이름·역할 필수', function () {
+  assert.strictEqual(admin.isEmpNo('8203417'), true);
+  ['820341', '82034178', '82034a7', '', null, "1234567' OR '1"].forEach(function (v) {
+    assert.strictEqual(admin.isEmpNo(v), false, String(v));
+  });
+  assert.strictEqual(admin.userFormError({ emp_no: '1234567', name: '가', role: '영업팀' }, true), '');
+  assert.ok(admin.userFormError({ emp_no: '12', name: '가', role: '영업팀' }, true).indexOf('7자리') >= 0);
+  assert.ok(admin.userFormError({ emp_no: '1234567', name: '  ', role: '영업팀' }, true).indexOf('이름') >= 0);
+  assert.ok(admin.userFormError({ emp_no: '1234567', name: 'x'.repeat(51), role: '영업팀' }, true).indexOf('이름') >= 0);
+  assert.ok(admin.userFormError({ emp_no: '1234567', name: '가', role: '' }, true).indexOf('역할') >= 0);
+  // 수정 화면은 사번을 바꾸지 않으므로 사번 검사를 건너뛴다
+  assert.strictEqual(admin.userFormError({ emp_no: '', name: '가', role: '영업팀' }, false), '');
+});
+
+const ROW = { menu_key: 'approvals', label: '결재함', approvable: true, source: 'role', view: false, write: false, edit: false, approve: false };
+
+test('togglePerm: 작성·수정·결재를 켜면 조회가 따라 켜진다', function () {
+  ['write', 'edit', 'approve'].forEach(function (f) {
+    const r = admin.togglePerm(ROW, f, true);
+    assert.strictEqual(r[f], true, f);
+    assert.strictEqual(r.view, true, f + ' → view');
+  });
+});
+
+test('togglePerm: 조회를 끄면 작성·수정·결재도 꺼진다', function () {
+  const on = { ...ROW, view: true, write: true, edit: true, approve: true };
+  const r = admin.togglePerm(on, 'view', false);
+  assert.deepStrictEqual([r.view, r.write, r.edit, r.approve], [false, false, false, false]);
+});
+
+test('togglePerm: 결재 기능이 없는 메뉴는 결재를 켤 수 없고, 입력은 바뀌지 않는다', function () {
+  const map = { ...ROW, menu_key: 'map', label: '전국 지도', approvable: false, view: true };
+  const r = admin.togglePerm(map, 'approve', true);
+  assert.strictEqual(r.approve, false);
+  assert.strictEqual(map.approve, false);
+  assert.notStrictEqual(r, map);
+});
+
+test('permChanges: 바뀐 메뉴만 서버 형식으로 돌려준다', function () {
+  const before = [ROW, { ...ROW, menu_key: 'map', label: '전국 지도', approvable: false, view: true }];
+  const after = [admin.togglePerm(ROW, 'approve', true), before[1]];
+  assert.deepStrictEqual(admin.permChanges(before, after),
+    [{ menu: 'approvals', view: true, write: false, edit: false, approve: true }]);
+  assert.deepStrictEqual(admin.permChanges(before, before), []);
+  assert.deepStrictEqual(admin.permChanges(null, null), []);
+});
+
+test('menuColumns: 사이드바의 대표 메뉴 순서·이름으로 열을 만든다(옛 라벨을 쓰지 않는다)', function () {
+  const server = [
+    { key: 'map', label: '전국 지도', server_only: false }, { key: 'regions', label: '전국 지역별', server_only: false },
+    { key: 'workflow', label: '워크플로', server_only: true }, { key: 'chat', label: '대화', server_only: true },
+    { key: 'knowledge', label: '지식', server_only: true }, { key: 'tasks', label: '작업함', server_only: true },
+    { key: 'approvals', label: '결재함', server_only: true }, { key: 'admin', label: '권한관리', server_only: true }];
+  const cols = admin.menuColumns(server, nav.CATEGORIES);
+  assert.deepStrictEqual(cols.map(function (c) { return c.key; }),
+    ['map', 'regions', 'knowledge', 'chat', 'workflow', 'tasks', 'approvals', 'admin']);
+  assert.strictEqual(cols.filter(function (c) { return c.key === 'knowledge'; })[0].label, '지식 검색');
+  assert.strictEqual(cols[cols.length - 1].label, '시스템 관리');          // 4개 보기가 한 열
+  assert.strictEqual(cols[cols.length - 1].group, '시스템 관리');
+  assert.deepStrictEqual(admin.groupSpans(cols).map(function (s) { return s.group + ':' + s.span; }),
+    ['기관영업 기획 관리:2', '제안서 자료 관리:2', '제안서 협업 및 결재:3', '시스템 관리:1']);
+});
+
+test('menuColumns: 사이드바에 없는 새 메뉴 키도 빠지지 않는다', function () {
+  const cols = admin.menuColumns([{ key: 'map', label: '전국 지도' }, { key: 'newone', label: '신규' }], nav.CATEGORIES);
+  assert.deepStrictEqual(cols.map(function (c) { return c.key + '/' + c.group; }), ['map/기관영업 기획 관리', 'newone/기타']);
+});
+
+test('formatTime: UTC ISO(마이크로초 포함)를 한국시간으로', function () {
+  assert.strictEqual(admin.formatTime('2026-10-28T00:00:00.000000+00:00'), '2026-10-28 09:00:00');
+  assert.strictEqual(admin.formatTime('2026-10-28T20:30:05.481000+00:00'), '2026-10-29 05:30:05');
+  assert.strictEqual(admin.formatTime('garbage'), 'garbage');
+  assert.strictEqual(admin.formatTime(null), '');
+});
+
+test('maskIp: IPv4 마지막 자리, IPv6 앞 두 묶음만', function () {
+  assert.strictEqual(admin.maskIp('10.20.30.40'), '10.20.30.*');
+  assert.strictEqual(admin.maskIp('0:0:0:0:0:0:0:1'), '0:0:*');
+  assert.strictEqual(admin.maskIp(''), '');
+});
+
+test('csvCell: 따옴표를 겹치고, 수식으로 시작하는 칸은 무력화한다(CSV 인젝션)', function () {
+  assert.strictEqual(admin.csvCell('a"b'), '"a""b"');
+  assert.strictEqual(admin.csvCell('=HYPERLINK("http://x")'), '"\'=HYPERLINK(""http://x"")"');
+  ['+1', '-1', '@x'].forEach(function (v) { assert.strictEqual(admin.csvCell(v), '"\'' + v + '"', v); });
+  assert.strictEqual(admin.csvCell(null), '""');
+  assert.strictEqual(admin.csvCell(200), '"200"');
+});
+
+test('auditCsv: 머리글 + 행, IP는 마스킹, 신원은 검증됨/자기신고', function () {
+  const csv = admin.auditCsv([{ occurred_at: '2026-10-28T00:00:00.000000+00:00', emp_no: '5047192', emp_verified: false,
+    event_type: 'LOGIN_OK', http_method: 'POST', req_path: '/auth/login', status_code: 200, client_ip: '10.1.2.3', detail: null }]);
+  const lines = csv.split('\r\n');
+  assert.strictEqual(lines.length, 2);
+  assert.ok(lines[0].indexOf('시각(KST)') === 1);
+  assert.ok(lines[1].indexOf('"2026-10-28 09:00:00","5047192","자기신고","로그인 성공"') === 0);
+  assert.ok(lines[1].indexOf('10.1.2.*') > 0 && lines[1].indexOf('10.1.2.3') < 0);
+});
+
+test('VIEWS: 4개 보기와 안내 문구가 짝을 이룬다', function () {
+  assert.deepStrictEqual(Object.keys(admin.VIEWS), ['users', 'perms', 'menus', 'audit']);
+  Object.keys(admin.VIEWS).forEach(function (k) { assert.ok(admin.VIEW_HINTS[k], k); });
+  assert.strictEqual(admin.currentView(), 'users');
+});

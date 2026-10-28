@@ -515,6 +515,13 @@
     return btn ? btn.id.replace('tab-btn-', '') : null;
   }
 
+  // 사이드바 항목 id. 시스템 관리는 같은 'admin' 탭 안의 네 보기라 'admin:users'처럼 보기까지 붙는다.
+  function activeNavId() {
+    const key = activeTabKey();
+    if (key === 'admin' && root.admin && root.admin.currentView) return 'admin:' + root.admin.currentView();
+    return key;
+  }
+
   function findNavItem(id) {
     let found = null;
     navBuilt.forEach(function (c) { c.items.forEach(function (it) { if (it.id === id) found = it; }); });
@@ -534,7 +541,7 @@
 
   // 화면이 바뀔 때마다(어느 경로든) 불린다: 활성 항목 갱신 → 탭 보관 → 그 카테고리만 열기.
   app.syncNavActive = function (tab) {
-    if (tab !== 'soon') navActiveId = activeTabKey();
+    if (tab !== 'soon') navActiveId = activeNavId();
     const item = navActiveId ? findNavItem(navActiveId) : null;
     if (item) {
       navTabs = root.nav.openTab(navTabs, item, navActiveId).tabs;   // 가득 찼으면 보관만 건너뛴다
@@ -542,10 +549,23 @@
     }
     app.drawNav();
     drawTabs();
+    recordScreen(navActiveId);
   };
+
+  // 화면 열람을 접근 이력에 남긴다(서버 모드·로그인 상태·같은 화면 연속 호출 제외). 실패는 무시한다.
+  let lastRecorded = null;
+  function recordScreen(id) {
+    if (!id || id.indexOf('soon:') === 0 || id === lastRecorded) return;
+    const session = root.store.loadSession();
+    if (!root.store.isServerMode() || !(session && session.mode === 'account' && session.emp)) return;
+    lastRecorded = id;
+    fetch('/auth/screen', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ screen: id }) }).catch(function () { /* 기록 실패가 화면을 막지 않는다 */ });
+  }
 
   function activateItem(item) {
     if (item.soon) { app.showSoon(item.id, item.label, item.tag, item.note); return; }
+    if (item.view && root.admin && root.admin.showView) root.admin.showView(item.view);
     const btn = document.getElementById('tab-btn-' + item.key);
     if (btn) btn.click();
   }
@@ -631,7 +651,7 @@
   app.paintNav = function (visible) {
     if (!root.nav || !document.getElementById('side-nav')) return;
     navBuilt = root.nav.build(visible, navContext());
-    if (!navActiveId) navActiveId = activeTabKey();
+    if (!navActiveId) navActiveId = activeNavId();
     navTabs = root.nav.pruneTabs(navTabs, navBuilt);
     // 준비중 화면을 보고 있었는데 그 항목이 더는 안 보이면(로그아웃 등) 지도로 돌려보낸다.
     if (navActiveId && navActiveId.indexOf('soon:') === 0 && !root.nav.categoryOf(navBuilt, navActiveId)) {
@@ -711,6 +731,10 @@
   };
 
   app.logout = function () {
+    // 세션을 지우기 전에 기록한다(헤더에 사번이 실려야 누가 나갔는지 남는다). 실패해도 로그아웃은 진행.
+    if (root.store.isServerMode() && (root.store.loadSession() || {}).emp) {
+      fetch('/auth/logout', { method: 'POST' }).catch(function () { /* 기록 실패가 로그아웃을 막지 않는다 */ });
+    }
     root.store.clearSession();
     root.store.saveProfile({ name: '', team: '' });
     if (app.showProfileRole) { byId('me-name').value = ''; app.showProfileRole(''); }
@@ -720,9 +744,35 @@
     app.showLogin('');
   };
 
+  // 같은 출처 요청에 사번 헤더(X-Emp-No)를 붙인다. **자기신고 값**이라 서버는 '검증 안 됨'으로 기록한다.
+  // 서버가 이 값만 믿고 권한을 주지는 않는다(관리 API는 DB의 권한을 다시 확인한다).
+  app.installIdentityHeader = function () {
+    if (typeof root.fetch !== 'function' || root.fetch.__identity) return;
+    const orig = root.fetch.bind(root);
+    const wrapped = function (input, init) {
+      const url = typeof input === 'string' ? input : '';
+      const sameOrigin = url.charAt(0) === '/' && url.charAt(1) !== '/';
+      const emp = (root.store.loadSession() || {}).emp;
+      if (sameOrigin && emp) {
+        init = Object.assign({}, init || {});
+        init.headers = root.login.withIdentity(init.headers, emp);
+      }
+      return orig(input, init);
+    };
+    wrapped.__identity = true;
+    root.fetch = wrapped;
+  };
+
   app.wireLogin = function () {
     const view = byId('login-view');
     if (!view || !root.login) return;
+    app.installIdentityHeader();
+    // 사번을 도입하기 전에 로그인한 세션이면 임시 계정의 사번으로 채운다(다시 로그인하지 않아도 되게).
+    const prev = root.store.loadSession();
+    if (prev && prev.mode === 'account' && !prev.emp) {
+      const pa = root.login.byId(prev.id);
+      if (pa) root.store.saveSession({ mode: 'account', id: prev.id, emp: pa.empNo });
+    }
     const idEl = byId('login-id');
     const roleEl = byId('login-role');
     roleEl.innerHTML = '<option value="">직접 입력</option>' + root.login.groups().map(function (g) {
@@ -737,10 +787,30 @@
       roleEl.value = a ? a.id : '';
     });
 
+    // 사번(또는 임시 계정)으로 서버에 확인한다. 서버가 없으면(file://) 임시 계정 목록으로만 들어간다.
+    // 서버 응답이 있으면 그 사용자 정보(이름·역할)를 쓴다 — DB에만 있는 사용자도 로그인된다.
     function submit() {
-      const a = root.login.authenticate(idEl.value, byId('login-pw').value);
-      if (!a) { byId('login-msg').textContent = '등록된 임시 계정이 아닙니다. 팀/직위에서 골라 보세요.'; return; }
-      app.enterApp({ mode: 'account', id: a.id }, { name: a.name, team: a.role });
+      const typed = idEl.value.trim();
+      const a = root.login.authenticate(typed, byId('login-pw').value);
+      const emp = root.login.empNoFor(typed);
+      if (!emp && !a) { byId('login-msg').textContent = '사번(숫자 7자리) 또는 임시 계정을 입력하세요.'; return; }
+      if (!emp || !root.store.isServerMode()) {
+        if (!a) { byId('login-msg').textContent = '서버에 연결되지 않아 임시 계정으로만 들어갈 수 있습니다.'; return; }
+        app.enterApp({ mode: 'account', id: a.id, emp: a.empNo }, { name: a.name, team: a.role });
+        return;
+      }
+      byId('login-go').disabled = true;
+      fetch('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emp_no: emp }) }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) { byId('login-msg').textContent = j.detail || '로그인하지 못했습니다.'; return; }
+          app.enterApp({ mode: 'account', id: a ? a.id : j.emp_no, emp: j.emp_no }, { name: j.name, team: j.role });
+        });
+      }).catch(function () {
+        // 서버가 안 닿는다. 임시 계정이면 들어가되, 사용자에게 기록이 남지 않음을 알린다.
+        if (a) { app.enterApp({ mode: 'account', id: a.id, emp: a.empNo }, { name: a.name, team: a.role }); return; }
+        byId('login-msg').textContent = '서버에 연결하지 못했습니다.';
+      }).then(function () { byId('login-go').disabled = false; });
     }
     byId('login-go').addEventListener('click', submit);
     [idEl, byId('login-pw')].forEach(function (el) {

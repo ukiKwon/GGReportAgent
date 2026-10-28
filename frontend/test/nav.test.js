@@ -14,15 +14,34 @@ function items(built, catId) {
 }
 
 test('MENU_KEYS 8개는 전부 어딘가의 항목으로 재배치돼 있다(빠진 화면이 없다)', function () {
-  const placed = [];
-  nav.CATEGORIES.forEach(function (c) { c.items.forEach(function (i) { if (i.key) placed.push(i.key); }); });
-  assert.deepStrictEqual(placed.slice().sort(), menuRules.MENU_KEYS.slice().sort());
+  const placed = new Set();
+  nav.CATEGORIES.forEach(function (c) { c.items.forEach(function (i) { if (i.key) placed.add(i.key); }); });
+  assert.deepStrictEqual(Array.from(placed).sort(), menuRules.MENU_KEYS.slice().sort());
 });
 
-test('같은 화면(key)을 두 항목에 걸지 않는다', function () {
-  const keys = [];
-  nav.CATEGORIES.forEach(function (c) { c.items.forEach(function (i) { if (i.key) keys.push(i.key); }); });
-  assert.strictEqual(new Set(keys).size, keys.length);
+test('같은 화면을 두 항목에 걸지 않는다(화면 = key + view)', function () {
+  const ids = [];
+  nav.CATEGORIES.forEach(function (c) {
+    c.items.forEach(function (i) { if (i.key) ids.push(i.key + ':' + (i.view || '')); });
+  });
+  assert.strictEqual(new Set(ids).size, ids.length);
+});
+
+test('시스템 관리: 사용자·권한·메뉴·접근 이력 4항목이 admin 키 하나를 나눠 쓴다', function () {
+  const built = nav.build(ALL_ON, { role: '전산팀', master: true });
+  const sys = built.filter(function (c) { return c.id === 'sys'; })[0];
+  assert.strictEqual(sys.title, '시스템 관리');
+  assert.deepStrictEqual(sys.items.map(function (i) { return i.id; }),
+    ['admin:users', 'admin:perms', 'admin:menus', 'admin:audit']);
+  assert.deepStrictEqual(sys.items.map(function (i) { return i.label; }),
+    ['사용자 관리', '권한 관리', '메뉴 관리', '접근 이력']);
+  sys.items.forEach(function (i) { assert.strictEqual(i.key, 'admin'); assert.strictEqual(i.soon, false); });
+  assert.strictEqual(nav.categoryOf(built, 'admin:audit'), 'sys');
+});
+
+test('admin 권한이 꺼지면 시스템 관리 전체가 사라진다', function () {
+  const v = Object.assign({}, ALL_ON, { admin: false });
+  assert.ok(!nav.build(v, { role: '영업팀' }).some(function (c) { return c.id === 'sys'; }));
 });
 
 test('영업팀장: 6개 업무 카테고리 + 시스템(권한관리 꺼짐이면 빠짐)', function () {

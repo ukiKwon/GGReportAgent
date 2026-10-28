@@ -15,7 +15,8 @@
 
   const nav = {};
 
-  function live(label, key) { return { label: label, key: key }; }
+  // view: 한 화면(key) 안의 하위 보기. 시스템 관리 4항목이 같은 'admin' 탭을 쓴다(항목 id = key:view).
+  function live(label, key, view) { return view ? { label: label, key: key, view: view } : { label: label, key: key }; }
   // tag: 사이드바 배지·안내 화면에 쓰는 글. 기본 '준비중', 구현 계획이 잡힌 것만 '구현 예정'.
   function soon(label, tag, note) { return { label: label, soon: true, tag: tag || '준비중', note: note || '' }; }
 
@@ -40,7 +41,9 @@
     { id: 'result', title: '결과 이력 관리', items: [
       soon('최종 확인·제출'), soon('제출 결과·평가 대응'),
       soon('협약 등록·사후관리'), soon('기관별 전체 이력')] },
-    { id: 'sys', title: '시스템', items: [live('권한관리', 'admin')] }
+    { id: 'sys', title: '시스템 관리', items: [
+      live('사용자 관리', 'admin', 'users'), live('권한 관리', 'admin', 'perms'),
+      live('메뉴 관리', 'admin', 'menus'), live('접근 이력', 'admin', 'audit')] }
   ];
 
   nav.isSales = function (ctx) {
@@ -61,7 +64,10 @@
       const items = [];
       cat.items.forEach(function (it, i) {
         if (it.key) {
-          if (v[it.key] === true) items.push({ label: it.label, key: it.key, id: it.key, soon: false });
+          if (v[it.key] === true) {
+            items.push({ label: it.label, key: it.key, view: it.view || null, soon: false,
+                         id: it.view ? it.key + ':' + it.view : it.key });
+          }
         } else if (sales) {
           items.push({ label: it.label, key: null, id: 'soon:' + cat.id + ':' + i, soon: true, tag: it.tag, note: it.note });
         }
