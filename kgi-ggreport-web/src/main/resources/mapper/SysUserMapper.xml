@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- USERS — 시스템 관리(008). INSERT/UPDATE 는 양쪽 방언에서 같은 문장이다. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.SysUserMapper">
+
+  <sql id="cols">EMP_NO, NAME, ROLE, POSITION_TITLE, APPROVAL_GRADE, STATUS, FAILED_LOGINS,
+    LAST_LOGIN_AT, CREATED_AT, UPDATED_AT</sql>
+
+  <select id="selectAll" resultType="SysUser">
+    SELECT <include refid="cols"/> FROM USERS ORDER BY EMP_NO
+  </select>
+
+  <select id="selectByEmpNo" resultType="SysUser">
+    SELECT <include refid="cols"/> FROM USERS WHERE EMP_NO = #{empNo}
+  </select>
+
+  <insert id="insert">
+    INSERT INTO USERS (EMP_NO, NAME, ROLE, POSITION_TITLE, APPROVAL_GRADE, STATUS, FAILED_LOGINS, CREATED_AT, UPDATED_AT)
+    VALUES (#{empNo}, #{name}, #{role}, #{positionTitle}, #{approvalGrade}, #{status}, 0, #{createdAt}, #{updatedAt})
+  </insert>
+
+  <update id="updateProfile">
+    UPDATE USERS SET NAME = #{name}, ROLE = #{role}, POSITION_TITLE = #{positionTitle},
+                     APPROVAL_GRADE = #{approvalGrade}, UPDATED_AT = #{now}
+     WHERE EMP_NO = #{empNo}
+  </update>
+
+  <update id="updateStatus">
+    UPDATE USERS SET STATUS = #{status}, UPDATED_AT = #{now}
+    <if test="resetFailed">, FAILED_LOGINS = 0</if>
+     WHERE EMP_NO = #{empNo}
+  </update>
+
+  <update id="recordLoginOk">
+    UPDATE USERS SET LAST_LOGIN_AT = #{now}, FAILED_LOGINS = 0 WHERE EMP_NO = #{empNo}
+  </update>
+
+</mapper>

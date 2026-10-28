@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  ACCESS_LOG — 추가 전용. 갱신·삭제 문장은 일부러 없다.
+  ⚠️ 페이징만 방언이 갈린다(MyBatisConfig 의 databaseId). H2(MODE=Oracle)는 oracle 분기를 탄다 —
+     **H2 통과가 내부망 Oracle 합격의 근거는 아니다**(OFFSET … FETCH 는 12c 이상).
+  ⚠️ 날짜 필터는 ISO 문자열 비교다(OCCURRED_AT 이 문자열). from/to 는 'YYYY-MM-DD' 접두 비교용으로
+     서비스가 'T00:00:00' / 'T23:59:59.999999' 를 붙여 넘긴다.
+-->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.AccessLogMapper">
+
+  <sql id="cols">LOG_ID, OCCURRED_AT, EMP_NO, EMP_VERIFIED, EVENT_TYPE, HTTP_METHOD, REQ_PATH, STATUS_CODE,
+    CLIENT_IP, USER_AGENT, DURATION_MS, DETAIL</sql>
+
+  <sql id="filter">
+    <where>
+      <if test="from != null">AND OCCURRED_AT &gt;= #{from}</if>
+      <if test="to != null">AND OCCURRED_AT &lt;= #{to}</if>
+      <if test="empNo != null">AND EMP_NO = #{empNo}</if>
+      <if test="eventType != null">AND EVENT_TYPE = #{eventType}</if>
+    </where>
+  </sql>
+
+  <insert id="insert">
+    INSERT INTO ACCESS_LOG (OCCURRED_AT, EMP_NO, EMP_VERIFIED, EVENT_TYPE, HTTP_METHOD, REQ_PATH, STATUS_CODE,
+                            CLIENT_IP, USER_AGENT, DURATION_MS, DETAIL)
+    VALUES (#{occurredAt}, #{empNo}, #{empVerified}, #{eventType}, #{httpMethod}, #{reqPath}, #{statusCode},
+            #{clientIp}, #{userAgent}, #{durationMs}, #{detail})
+  </insert>
+
+  <select id="search" resultType="AccessLogEntry" databaseId="oracle">
+    SELECT <include refid="cols"/> FROM ACCESS_LOG <include refid="filter"/>
+     ORDER BY LOG_ID DESC OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+  </select>
+
+  <select id="search" resultType="AccessLogEntry" databaseId="mysql">
+    SELECT <include refid="cols"/> FROM ACCESS_LOG <include refid="filter"/>
+     ORDER BY LOG_ID DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="count" resultType="int">
+    SELECT COUNT(*) FROM ACCESS_LOG <include refid="filter"/>
+  </select>
+</mapper>

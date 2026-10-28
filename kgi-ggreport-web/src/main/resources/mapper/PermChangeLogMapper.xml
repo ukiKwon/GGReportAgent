@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.PermChangeLogMapper">
+
+  <insert id="insert">
+    INSERT INTO PERM_CHANGE_LOG (CHANGED_AT, ACTOR_EMP_NO, TARGET_EMP_NO, ITEM, BEFORE_VALUE, AFTER_VALUE)
+    VALUES (#{changedAt}, #{actorEmpNo}, #{targetEmpNo}, #{item}, #{beforeValue}, #{afterValue})
+  </insert>
+
+  <select id="recent" resultType="PermChange" databaseId="oracle">
+    SELECT CHG_ID, CHANGED_AT, ACTOR_EMP_NO, TARGET_EMP_NO, ITEM, BEFORE_VALUE, AFTER_VALUE
+      FROM PERM_CHANGE_LOG
+    <where><if test="targetEmpNo != null">TARGET_EMP_NO = #{targetEmpNo}</if></where>
+     ORDER BY CHG_ID DESC FETCH FIRST #{limit} ROWS ONLY
+  </select>
+
+  <select id="recent" resultType="PermChange" databaseId="mysql">
+    SELECT CHG_ID, CHANGED_AT, ACTOR_EMP_NO, TARGET_EMP_NO, ITEM, BEFORE_VALUE, AFTER_VALUE
+      FROM PERM_CHANGE_LOG
+    <where><if test="targetEmpNo != null">TARGET_EMP_NO = #{targetEmpNo}</if></where>
+     ORDER BY CHG_ID DESC LIMIT #{limit}
+  </select>
+</mapper>
