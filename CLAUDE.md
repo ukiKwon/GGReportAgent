@@ -143,6 +143,23 @@ manual update, not just an edit to the `.txt` file.
 체계와 정확히 같은 일을 한다. 둘을 같이 쓰면 이월 기억이 두 군데로 갈라지므로,
 **이 저장소는 `handoff/` 체계만 쓴다** — gstack의 컨텍스트 저장 스킬은 여기서 호출하지 않는다.
 
+## 플러그인 활용 (사용자 요청 2026-10-29)
+
+사용자 전역에 플러그인이 여럿 설치돼 있다. **작업을 보고 맞는 플러그인을 스스로 골라 쓴다.**
+판단이 어렵거나 사용자가 직접 확인하는 게 낫다면, "이 시점에 이 플러그인으로 확인해보라"고
+**매번 안내한다.** (위 "작업 착수 전 승인" 규칙이 우선 — 플러그인 사용도 작업 항목 단위로 먼저 알리고 묻는다.)
+
+- UI/디자인: `impeccable`(진단·개선) → `frontend-design`(미학 방향) → `playwright`(스크린샷 확인) → `playground`(시안 비교)
+- 커밋/PR: `commit-commands` · 리뷰: `code-review`, `code-simplifier` · 보안: `security-guidance`
+- CLAUDE.md 정비: `claude-md-management` · 훅/플러그인 제작: `hookify`, `plugin-dev` · 라이브러리 문서: `context7`
+- 설치 현황이 바뀌면 이 목록도 같이 고친다.
+
+## 작업 확인 순서
+
+작업을 시작하거나 "무엇이 남았나"를 확인할 때 **`handoff/NEXT.md`를 가장 먼저 본다.**
+NEXT.md는 통째로 암기하는 문서가 아니라 열린 항목의 작성 방식·현황을 보는 문서다.
+완료된 항목은 `handoff/done.md`로 옮겨 NEXT.md에는 열린 것만 남긴다.
+
 ## Handoff summaries
 
 **What "마무리해줘" (finalize/wrap up) means in this repo:** update or create the day's
