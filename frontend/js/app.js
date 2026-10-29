@@ -71,7 +71,7 @@
     else if (tab === 'map') { root.render.applyWatchStyles(); }
     // 탭을 벗어나면 폴링·스트림을 멈춘다(백그라운드에서 계속 돌지 않게).
     [['workflow', root.workflow], ['chat', root.chat], ['knowledge', root.knowledge],
-     ['designer', root.designer], ['approvals', root.approvals], ['admin', root.admin]]
+     ['designer', root.designer], ['approvals', root.approvals], ['admin', root.admin], ['myinfo', root.myinfo]]
       .forEach(function (pair) {
         const mod = pair[1];
         if (!mod) return;
@@ -231,6 +231,7 @@
   app.onProfileChanged = function () {
     if (root.notify && root.notify.onProfileChange) root.notify.onProfileChange();
     if (root.approvals && root.approvals.onProfileChange) root.approvals.onProfileChange();
+    if (root.myinfo && root.myinfo.onProfileChange) root.myinfo.onProfileChange();
     app.applyMenuPermissions();
     if (app.paintUserArea) app.paintUserArea();
     // 워크플로 탭이 이미 그려져 있으면 결재자 입력도 새 이름으로 맞춘다.
@@ -705,8 +706,9 @@
     const chip = byId('profile-chip');
     document.body.classList.toggle('is-guest', !(session && session.mode === 'account'));
     if (chip) chip.textContent = root.login.chipText(session, root.store.loadProfile());
-    const pop = byId('profile-pop');
-    if (pop && !(session && session.mode === 'account')) pop.style.display = 'none';
+    // 로그인 상태의 헤더 우측: "{소속} {이름}" 글자 · 로그아웃(밑줄) · ⚙ 설정 — 칩(로그인)은 둘러보기에서만 보인다.
+    const label = byId('user-label');
+    if (label) label.textContent = root.login.userLabel(root.store.loadProfile());
   };
 
   app.showLogin = function (message) {
@@ -738,7 +740,6 @@
     root.store.clearSession();
     root.store.saveProfile({ name: '', team: '' });
     if (app.showProfileRole) { byId('me-name').value = ''; app.showProfileRole(''); }
-    byId('profile-pop').style.display = 'none';
     app.paintUserArea();
     app.onProfileChanged();
     app.showLogin('');
@@ -821,21 +822,10 @@
       app.enterApp({ mode: 'guest', id: '' }, { name: '', team: '' });
     });
 
-    // 프로필 칩: 로그인 상태면 편집 팝오버, 둘러보기 상태면 로그인 화면.
-    byId('profile-chip').addEventListener('click', function (e) {
-      e.stopPropagation();
-      const session = root.store.loadSession();
-      if (!(session && session.mode === 'account')) { app.showLogin(''); return; }
-      const pop = byId('profile-pop');
-      const open = pop.style.display === 'none';
-      pop.style.display = open ? '' : 'none';
-      byId('profile-chip').setAttribute('aria-expanded', String(open));
-    });
-    byId('profile-pop').addEventListener('click', function (e) { e.stopPropagation(); });
-    document.addEventListener('click', function () { byId('profile-pop').style.display = 'none'; });
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') byId('profile-pop').style.display = 'none';
-    });
+    // 프로필 칩은 둘러보기(로그인 전)에서만 보인다 — 누르면 로그인 화면.
+    byId('profile-chip').addEventListener('click', function () { app.showLogin(''); });
+    // ⚙ 설정 → 내 정보. 사이드바 메뉴가 아니라 숨은 탭 버튼으로 연다 — 메뉴 키를 늘리지 않는다.
+    byId('btn-settings').addEventListener('click', function () { byId('tab-btn-myinfo').click(); });
     byId('btn-logout').addEventListener('click', app.logout);
 
     // 첫 화면: 세션이 있으면 바로 앱, 없으면 로그인(마크업 기본값이 "보임"이라 깜빡임이 없다).

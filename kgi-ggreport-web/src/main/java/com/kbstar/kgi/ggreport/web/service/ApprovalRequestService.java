@@ -51,16 +51,24 @@ public class ApprovalRequestService {
     private final PermissionService permissions;
     private final ApprovalDeputyService deputies;
     private final PermChangeLogMapper changeLog;
+    private final NotificationCommandService notes;
+
+    /** 쪽지 종류 — 결재자에게 가는 알림 / 상신자에게 가는 결과. 쪽지함이 둘 다 결재함으로 이어 준다. */
+    public static final String KIND_ALERT = "결재알림";
+    public static final String KIND_RESULT = "결재결과";
+    public static final String LINK_INBOX = "approvals:inbox";
+    public static final String LINK_MINE = "approvals:mine";
 
     public ApprovalRequestService(ApprovalRequestMapper requests, SysUserMapper users, CallerService callers,
                                   PermissionService permissions, ApprovalDeputyService deputies,
-                                  PermChangeLogMapper changeLog) {
+                                  PermChangeLogMapper changeLog, NotificationCommandService notes) {
         this.requests = requests;
         this.users = users;
         this.callers = callers;
         this.permissions = permissions;
         this.deputies = deputies;
         this.changeLog = changeLog;
+        this.notes = notes;
     }
 
     public List<Map<String, Object>> types() {
@@ -136,6 +144,7 @@ public class ApprovalRequestService {
             s.setReqId(r.getReqId());
             requests.insertStep(s);
         }
+        notifyStep(r, steps.get(0), me);
         return view(requests.selectById(r.getReqId()), me);
     }
 
@@ -173,11 +182,18 @@ public class ApprovalRequestService {
         if (!approve) {
             skipRest(steps, cur, now);
             requests.updateRequest(id, "REJECTED", r.getCurrentStep(), "반려", now);
+            notifyResult(r, requester, me, "반려되었습니다" + (comment.isEmpty() ? "" : " — 사유: " + comment));
         } else if (cur.getStepNo() < steps.size()) {
             requests.updateRequest(id, "PENDING", cur.getStepNo() + 1, null, null);
+            for (ApprovalStep s : steps) {
+                if (s.getStepNo() == cur.getStepNo() + 1) {
+                    notifyStep(r, s, requester);          // 다음 결재자(와 그 대결자)에게
+                }
+            }
         } else {
             String note = applyApproved(r, me);
             requests.updateRequest(id, "APPROVED", cur.getStepNo(), note, now);
+            notifyResult(r, requester, me, "승인되어 반영되었습니다");
         }
         return view(requests.selectById(id), me);
     }
@@ -196,10 +212,90 @@ public class ApprovalRequestService {
         skipRest(requests.selectSteps(id), null, now);
         requests.updateRequest(id, "CANCELLED", r.getCurrentStep(),
                 r.getRequesterEmpNo().equals(me.getEmpNo()) ? "상신자가 취소" : "관리자가 취소", now);
+        if (!r.getRequesterEmpNo().equals(me.getEmpNo())) {      // 남이 취소했을 때만 알린다
+            notifyResult(r, users.selectByEmpNo(r.getRequesterEmpNo()), me, "관리자가 취소했습니다");
+        }
         return view(requests.selectById(id), me);
     }
 
+    // ── 쪽지 알림 ─────────────────────────────────────────────────────
+
+    /**
+     * 이 단계의 결재자에게 개인 쪽지를 보낸다. 받는 사람은 사번으로 지정한다(이름은 겹칠 수 있다).
+     * <ul>
+     *   <li>LINE 단계: 결재자 + 그날 유효한 대결자(방향 규칙을 통과하는 사람만 — 결재할 수 없는 사람에게는 보내지 않는다)</li>
+     *   <li>ADMIN 단계: 시스템 관리자 전원(활성, 상신자 본인 제외)</li>
+     * </ul>
+     */
+    private void notifyStep(ApprovalRequest r, ApprovalStep step, SysUser requester) {
+        List<String> to = new ArrayList<>();
+        Map<String, String> viaDeputy = new LinkedHashMap<>();     // 대결자 사번 → 대신하는 결재자 이름
+        if ("ADMIN".equals(step.getKind())) {
+            for (SysUser u : users.selectAll()) {
+                if ("ACTIVE".equals(u.getStatus()) && !u.getEmpNo().equals(requester.getEmpNo())
+                        && permissions.canAdmin(u.getEmpNo())) {
+                    to.add(u.getEmpNo());
+                }
+            }
+        } else {
+            to.add(step.getApproverEmpNo());
+            SysUser principal = users.selectByEmpNo(step.getApproverEmpNo());
+            for (String dep : deputies.deputiesOf(step.getApproverEmpNo(), Times.todayKst())) {
+                SysUser d = users.selectByEmpNo(dep);
+                if (d != null && "ACTIVE".equals(d.getStatus()) && !dep.equals(requester.getEmpNo())
+                        && Ranks.mayDecide(requester, d) && !to.contains(dep)) {
+                    to.add(dep);
+                    viaDeputy.put(dep, principal == null ? "" : principal.getName());
+                }
+            }
+        }
+        String who = requester.getName() + (requester.getPositionTitle() == null ? "" : "(" + requester.getPositionTitle() + ")");
+        for (String emp : to) {
+            String body = "[결재 요청] " + who + "님이 '" + r.getTitle() + "' 요청을 올렸습니다. 결재함에서 확인하세요."
+                    + (viaDeputy.containsKey(emp) ? " (" + viaDeputy.get(emp) + "님의 대결자로 받았습니다)" : "");
+            notes.create(emp, KIND_ALERT, body, null, null, LINK_INBOX, step.getStepNo(), requester.getName());
+        }
+    }
+
+    /** 결과(승인·반려·취소)를 상신자에게 개인 쪽지로 알린다. */
+    private void notifyResult(ApprovalRequest r, SysUser requester, SysUser actor, String what) {
+        if (requester == null) {
+            return;
+        }
+        notes.create(requester.getEmpNo(), KIND_RESULT, "[결재 결과] '" + r.getTitle() + "' 요청이 " + what + ".",
+                null, null, LINK_MINE, null, actor.getName());
+    }
+
     // ── 조회 ───────────────────────────────────────────────────────────
+
+    /**
+     * 내 권한 현황 — 권한 신청 화면이 "지금 무엇을 갖고 있는지"를 보여 주는 데 쓴다.
+     * {@code /sysadmin/perms/{emp}} 는 관리자 전용이라 일반 사용자는 못 부른다. 이쪽은 <b>호출자 본인 것만</b> 준다
+     * (사번을 받지 않는다 — 다른 사람의 권한을 볼 길이 없다).
+     * {@code can_approve} : 결재함의 결재 권한이 있는지 — 화면이 '받은 결재' 안내를 고르는 데 쓴다.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> myPerms(Actor actor) {
+        SysUser me = callers.require(actor);
+        List<PermissionService.Row> rows = permissions.effective(me.getEmpNo());
+        boolean canApprove = false;
+        for (PermissionService.Row r : rows) {
+            if ("approvals".equals(r.getMenuKey()) && r.isApprove()) {
+                canApprove = true;
+            }
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("emp_no", me.getEmpNo());
+        m.put("name", me.getName());
+        m.put("role", me.getRole());
+        m.put("position_title", me.getPositionTitle());
+        SysUser line = lineApprover(me);        // 지금 상신하면 첫 번째로 받는 상위 결재자(지정·자동 모두 반영)
+        m.put("approver_emp_no", line == null ? null : line.getEmpNo());
+        m.put("approver_name", line == null ? null : line.getName());
+        m.put("can_approve", canApprove);
+        m.put("menus", rows);
+        return m;
+    }
 
     /** {@code box}: mine(내가 올린 것) · inbox(내가 결재할 것, 대결 포함) · all(관리자 전용, 최근 200건). */
     @Transactional(readOnly = true)

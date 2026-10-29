@@ -162,6 +162,18 @@ public class ApprovalDeputyService {
         return out;
     }
 
+    /** {@code principal} 의 결재를 {@code today} 에 대신하는 대결자들의 사번(시작 전인 지정은 뺀다). */
+    @Transactional(readOnly = true)
+    public List<String> deputiesOf(String principalEmp, String today) {
+        List<String> out = new ArrayList<>();
+        for (ApprovalDeputy d : deputies.selectOpen(principalEmp, today)) {
+            if (d.getStartDate().compareTo(today) <= 0) {
+                out.add(d.getDeputyEmpNo());
+            }
+        }
+        return out;
+    }
+
     // ── 내부 ───────────────────────────────────────────────────────────
 
     private SysUser active(String emp, String label) {

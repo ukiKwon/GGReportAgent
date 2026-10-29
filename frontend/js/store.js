@@ -105,9 +105,11 @@
   };
   // 쪽지 수신자는 사람 이름이 아니라 **역할**로도 온다(영업팀·디자이너·인사권자 —
   // agent/orchestrator의 notify 참조). 그래서 소속과 이름 둘 다로 조회해야 한다.
+  // 결재 알림 쪽지는 이름이 겹칠 수 있어 **사번**으로 온다 — 로그인한 사번도 함께 조회한다.
   store.myRecipients = function () {
     const p = store.loadProfile();
-    return [p.team, p.name].filter(function (v) { return !!v; });
+    const s = store.loadSession();
+    return [p.team, p.name, s && s.emp].filter(function (v) { return !!v; });
   };
 
   // 지도 테마(임박 5색 + 물결/깜빡임 색·주기) — IT 담당자가 화면에서 바꾼 값을 보존.

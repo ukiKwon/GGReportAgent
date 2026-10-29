@@ -43,6 +43,12 @@ public class ApprovalLineController {
         return Collections.<String, Object>singletonMap("items", requests.list(box, Actor.of(req)));
     }
 
+    /** 내 권한 현황(본인 것만). 관리자 전용 {@code /sysadmin/perms/{emp}} 와 달리 일반 사용자가 부른다. */
+    @GetMapping("/approval-requests/my-perms")
+    public Map<String, Object> myPerms(HttpServletRequest req) {
+        return requests.myPerms(Actor.of(req));
+    }
+
     @PostMapping("/approval-requests/perm")
     public Map<String, Object> submitPerm(@RequestBody ApprovalIn.PermRequest in, HttpServletRequest req) {
         return requests.submitPerm(in, Actor.of(req));

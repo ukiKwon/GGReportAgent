@@ -52,6 +52,14 @@ test('chipText: 세션이 없거나 둘러보기면 "로그인"', function () {
   assert.strictEqual(login.chipText({ mode: 'account' }, { name: '이영업', team: '영업팀장' }), '이영업 · 영업팀장');
 });
 
+test('userLabel: 헤더 우측은 "{소속} {이름}" 순서, 빈 값은 건너뛴다', function () {
+  assert.strictEqual(login.userLabel({ name: '김영업', team: '영업팀' }), '영업팀 김영업');
+  assert.strictEqual(login.userLabel({ name: ' 이영업 ', team: '영업팀장' }), '영업팀장 이영업');
+  assert.strictEqual(login.userLabel({ name: '김영업', team: '' }), '김영업');
+  assert.strictEqual(login.userLabel({}), '');
+  assert.strictEqual(login.userLabel(null), '');
+});
+
 test('세션 저장소: 저장 → 읽기 → 삭제', function () {
   // node에는 localStorage가 없다 — store가 없는 환경에서도 죽지 않아야 한다.
   assert.strictEqual(store.loadSession(), null);

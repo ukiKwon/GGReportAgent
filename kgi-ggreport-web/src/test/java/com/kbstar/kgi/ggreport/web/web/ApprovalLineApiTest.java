@@ -294,4 +294,146 @@ public class ApprovalLineApiTest {
         call(ADMIN, put("/sysadmin/users/" + MEMBER), base + "\"}", 200);
         assertEquals(8, call(ADMIN, get("/sysadmin/meta"), null, 200).get("ranks").size());
     }
+
+    // ── 내 권한 현황(my-perms) ────────────────────────────────────────
+
+    private static boolean flag(JsonNode myPerms, String menu, String field) {
+        for (JsonNode n : myPerms.get("menus")) {
+            if (menu.equals(n.get("menu_key").asText())) {
+                return n.get(field).asBoolean();
+            }
+        }
+        throw new AssertionError("menu not found " + menu);
+    }
+
+    @Test
+    public void 일반_사용자도_자기_권한_현황을_볼_수_있다() throws Exception {
+        // /sysadmin/perms/{emp} 는 관리자 전용이다 — 같은 사용자가 거기서는 403을 받는다.
+        call(MEMBER, get("/sysadmin/perms/" + MEMBER), null, 403);
+
+        JsonNode me = call(MEMBER, get("/approval-requests/my-perms"), null, 200);
+        assertEquals(MEMBER, me.get("emp_no").asText());
+        assertEquals("김영업", me.get("name").asText());
+        assertEquals("영업팀", me.get("role").asText());
+        assertEquals("대리", me.get("position_title").asText());
+        assertEquals(LEAD, me.get("approver_emp_no").asText());      // 상신하면 첫 번째로 받을 사람
+        assertEquals("이영업", me.get("approver_name").asText());
+        assertTrue(me.get("menus").size() > 0);
+        assertTrue(flag(me, "knowledge", "view"));
+        assertFalse(flag(me, "knowledge", "write"));
+        // 결재 권한 여부(받은 결재 안내용)는 결재함 메뉴의 결재 권한과 같은 값이다.
+        assertEquals(permOn(MEMBER, "approvals", "approve"), me.get("can_approve").asBoolean());
+        assertFalse(me.get("can_approve").asBoolean());
+    }
+
+    @Test
+    public void 사번을_넘겨도_다른_사람_권한은_볼_수_없다() throws Exception {
+        JsonNode me = call(MEMBER, get("/approval-requests/my-perms").param("emp", LEAD), null, 200);
+        assertEquals(MEMBER, me.get("emp_no").asText());
+    }
+
+    @Test
+    public void 신청이_반영되면_내_권한_현황에_바로_보인다() throws Exception {
+        assertFalse(flag(call(MEMBER, get("/approval-requests/my-perms"), null, 200), "knowledge", "write"));
+        long id = submit(MEMBER, KNOWLEDGE_WRITE, 200).get("req_id").asLong();
+        decide(LEAD, id, "APPROVE", "확인", 200);
+        assertTrue(flag(call(MEMBER, get("/approval-requests/my-perms"), null, 200), "knowledge", "write"));
+    }
+
+    @Test
+    public void 내_권한_현황은_로그인_없이_401_등록되지_않은_사번은_403() throws Exception {
+        mockMvc.perform(get("/approval-requests/my-perms")).andExpect(status().isUnauthorized());
+        call("9999999", get("/approval-requests/my-perms"), null, 403);
+    }
+
+    // ── 결재 알림 쪽지 ────────────────────────────────────────────────
+
+    /** 사번 앞으로 간 쪽지 중 종류가 {@code kind} 인 것. */
+    private java.util.List<JsonNode> notesTo(String emp, String kind) throws Exception {
+        String text = mockMvc.perform(get("/notifications").param("recipient", emp)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        java.util.List<JsonNode> out = new java.util.ArrayList<>();
+        for (JsonNode n : JSON.readTree(text)) {
+            if (kind.equals(n.get("kind").asText())) {
+                out.add(n);
+            }
+        }
+        return out;
+    }
+
+    @Test
+    public void 상신하면_결재자에게_개인_쪽지가_가고_결재함_링크가_붙는다() throws Exception {
+        submit(MEMBER, KNOWLEDGE_WRITE, 200);
+        java.util.List<JsonNode> got = notesTo(LEAD, "결재알림");
+        assertEquals(1, got.size());
+        assertEquals("approvals:inbox", got.get(0).get("link").asText());
+        assertEquals("김영업", got.get(0).get("sender").asText());
+        assertTrue(got.get(0).get("content").asText().contains("권한 신청"));
+        assertEquals(0, notesTo(HEAD, "결재알림").size());        // 결재선에 없는 사람에게는 가지 않는다
+        assertEquals(0, notesTo(MEMBER, "결재알림").size());      // 본인에게도 가지 않는다
+    }
+
+    @Test
+    public void 대결_기간이면_대결자에게도_쪽지가_가되_결재할_수_없는_사람은_뺀다() throws Exception {
+        deputy(LEAD, null, LEAD2, 0, 2, 200);             // 같은 직급(팀장) — 대리의 요청을 결재할 수 있다
+        deputy(LEAD, null, JUNIOR, 3, 5, 200);            // 아직 시작 전 — 오늘은 대결자가 아니다
+        submit(MEMBER, KNOWLEDGE_WRITE, 200);
+        assertEquals(1, notesTo(LEAD, "결재알림").size());
+        java.util.List<JsonNode> dep = notesTo(LEAD2, "결재알림");
+        assertEquals(1, dep.size());
+        assertTrue(dep.get(0).get("content").asText().contains("대결자"));
+        assertEquals(0, notesTo(JUNIOR, "결재알림").size());
+    }
+
+    @Test
+    public void 직급이_낮아_결재할_수_없는_대결자에게는_쪽지를_보내지_않는다() throws Exception {
+        deputy(LEAD, null, JUNIOR, 0, 2, 200);            // 계장 < 대리 : 방향 규칙상 결재 불가
+        submit(MEMBER, KNOWLEDGE_WRITE, 200);
+        assertEquals(0, notesTo(JUNIOR, "결재알림").size());
+    }
+
+    @Test
+    public void 승인되면_상신자에게_결과_쪽지가_가고_내가_올린_요청으로_이어진다() throws Exception {
+        long id = submit(MEMBER, KNOWLEDGE_WRITE, 200).get("req_id").asLong();
+        assertEquals(0, notesTo(MEMBER, "결재결과").size());
+        decide(LEAD, id, "APPROVE", "확인", 200);
+        java.util.List<JsonNode> got = notesTo(MEMBER, "결재결과");
+        assertEquals(1, got.size());
+        assertEquals("approvals:mine", got.get(0).get("link").asText());
+        assertEquals("이영업", got.get(0).get("sender").asText());
+        assertTrue(got.get(0).get("content").asText().contains("승인"));
+    }
+
+    @Test
+    public void 반려되면_사유가_결과_쪽지에_실린다() throws Exception {
+        long id = submit(MEMBER, KNOWLEDGE_WRITE, 200).get("req_id").asLong();
+        decide(LEAD, id, "REJECT", "근거 부족", 200);
+        java.util.List<JsonNode> got = notesTo(MEMBER, "결재결과");
+        assertEquals(1, got.size());
+        assertTrue(got.get(0).get("content").asText().contains("반려"));
+        assertTrue(got.get(0).get("content").asText().contains("근거 부족"));
+    }
+
+    @Test
+    public void 팀장이_승인하면_다음_단계인_관리자에게_쪽지가_간다() throws Exception {
+        long id = submit(MEMBER, "[{\"menu\":\"admin\",\"view\":true}]", 200).get("req_id").asLong();
+        assertEquals(0, notesTo(ADMIN, "결재알림").size());       // 아직 팀장 차례
+        decide(LEAD, id, "APPROVE", "확인", 200);
+        java.util.List<JsonNode> got = notesTo(ADMIN, "결재알림");
+        assertEquals(1, got.size());
+        assertEquals(Integer.valueOf(2), Integer.valueOf(got.get(0).get("stage").asInt()));
+        assertEquals(0, notesTo(MEMBER, "결재결과").size());       // 아직 끝나지 않았다
+    }
+
+    @Test
+    public void 남이_취소하면_상신자에게_알리고_본인_취소는_알리지_않는다() throws Exception {
+        long own = submit(MEMBER, KNOWLEDGE_WRITE, 200).get("req_id").asLong();
+        call(MEMBER, post("/approval-requests/" + own + "/cancel"), null, 200);
+        assertEquals(0, notesTo(MEMBER, "결재결과").size());
+        long other = submit(MEMBER, "[{\"menu\":\"knowledge\",\"view\":true,\"edit\":true}]", 200).get("req_id").asLong();
+        call(ADMIN, post("/approval-requests/" + other + "/cancel"), null, 200);
+        java.util.List<JsonNode> got = notesTo(MEMBER, "결재결과");
+        assertEquals(1, got.size());
+        assertTrue(got.get(0).get("content").asText().contains("취소"));
+    }
 }
