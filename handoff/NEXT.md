@@ -1071,13 +1071,15 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
 - **이 PC 로컬 환경(다음 세션에 그대로 있다)**: MySQL은 `brew services`로 상시 기동, DB `ggreportdb`·계정 `ggreport` 생성·스키마 적용됨, `kgi-ggreport-web/config/application.properties`(gitignore) 있음. IntelliJ 실행 시 **Working directory=`kgi-ggreport-web`**, `Add dependencies with "provided" scope` 확인, 접속은 `http://`(https 아님). 로컬 로그인은 `master`(권한관리) · `sales.lead`(결재 흐름) 등 임시 계정, 비밀번호 무검증.
 - **주의**: `frontend/`는 정적 서빙이라 수정 후 강력 새로고침(Cmd+Shift+R)이 필요할 수 있다(옛 JS 캐시로 `startTickerSync is not a function`이 난 적 있음). 리포 루트의 `.playwright-mcp/`는 브라우저 검증 부산물이라 커밋하지 않았다.
 
-### 27. 시스템 관리·결재라인 — 3단계(권한 신청 화면)부터 이어서 (2026-10-28)
+### 27. 시스템 관리·결재라인 — **3단계 구현 완료(커밋 `6cda7dc`), 브라우저 시험·시험데이터 정리·결정 대기가 남음** (2026-10-29 갱신)
 
-- **출처**: `2026-10-28_summary.md` `## Session 11:50`·`## Session 15:30`. 브랜치 `websphere-migration`(푸시됨, 최신 `7d7e57f`). 계획서 원문은 이 PC 한정(`~/.claude/plans/glowing-mixing-peach.md`)이라 아래에 요약했다.
+- **출처**: `2026-10-29_summary.md` `## Session 14:50`(3단계 구현) ← `2026-10-28_summary.md` `## Session 11:50`·`## Session 15:30`. 브랜치 `websphere-migration`(3단계 커밋 `6cda7dc`는 **로컬 커밋, 푸시 여부는 summary 참조**). 계획서 원문은 이 PC 한정(`~/.claude/plans/glowing-mixing-peach.md`)이라 아래에 요약했다.
+- **▶ 2026-10-29 3단계 결과(`6cda7dc`)**: 서버 `GET /approval-requests/my-perms`(본인 권한·소속·직급·상위 결재자·`can_approve`, 사번을 받지 않아 남의 권한은 못 봄) + **결재 알림 쪽지**(상신·다음 단계 이동 시 결재자와 그날 유효한 대결자에게 `결재알림`/링크 `approvals:inbox`, 승인·반려·타인 취소 시 상신자에게 `결재결과`/`approvals:mine`; 수신자는 **사번**; 결재할 수 없는 직급·시작 전 대결자는 제외). 화면: 결재함 [내가 올린 요청]→[받은 결재] 탭, **내 정보**(헤더 ⚙ 설정 → 기본 정보·내 권한 신청·대결 설정; 사이드바 메뉴 키를 늘리지 않고 숨은 탭 `tab-btn-myinfo`로 열림; 프로필 편집(데모)은 기본 정보 탭 아래), 헤더 우측 `{소속} {이름}`·로그아웃(밑줄)·⚙(프로필 팝오버 제거), 쪽지함 개인/단체 탭·읽음 표시 개선·결재 쪽지→결재함 이동(`approvals.openTab`). 테스트: `ApprovalLineApiTest` 26건 통과·프런트 335건 통과. **전체 서버 `mvn test`(예상 391건)는 이번 변경 뒤 다시 돌리지 않았다.**
+- **▶ 남은 것(3단계)**: ① IntelliJ 서버 재시작 후 브라우저 시험(김영업 `3918264` 권한 신청 → 이영업 `5047192` 쪽지함 개인 쪽지→결재함 승인 → 김영업 결과 쪽지·변경 이력) — 사용자가 일부 확인했고 playwright 도구는 이 세션에 없었다. ② 시험 데이터 정리(아래 8번 SQL). ③ 신청 카드에는 **바뀌기 전 값이 없다**(서버가 신청 값만 저장) — 결재자가 변화량을 보려면 payload에 신청 시점의 기존 권한을 함께 저장해야 한다(후속). ④ 단체 쪽지의 읽음은 소속 전원이 공유(`read_at` 한 칸) — 사람별로 추적하려면 새 테이블 필요(후속). ⑤ 비밀번호 화면은 인증 방식(SSO 등) 확정 후(내 정보 › 기본 정보에 자리만 있음). ⑥ 쪽지 조회 `GET /notifications?recipient=`가 누구나 아무 수신자를 읽을 수 있다(기존 설계) — 사번 쪽지가 생겨 노출이 커졌으니 서버 인증과 함께 막을 것.
 - **끝난 것(커밋됨)**: 시스템 관리 4화면+사번 로그인(`9df24b1`), 쪽 나누기·메뉴 격자 폭(`50d8ce5`), 보안 점검 `docs/보안_점검_2026-10-28.md`(`e894d78`),
   **결재라인** 상위 결재자 자동 결정·지정(`bd042a9`), **직급 체계·대결·결재 요청 서버**(`c149113`), 결재함 대결 설정·후보 API(`7d7e57f`). 서버 테스트 380건·JS 313건 통과.
 - **확정된 규칙**: 직급 계장<대리<과장<차장<수석차장<팀장<부장<대표(팀장 아래는 팀원급). **고정 규칙은 하나 — 상신자가 처리자(결재자·대결자)보다 상위 직급이면 결재 불가**(같은 직급은 허용). 대결자 자격은 고정하지 않음(과장 미만은 경고), 결재자 본인이 지정·최대 90일·기간 중복 금지. 권한 신청: 일반 메뉴는 팀장 승인 시 자동 반영, **시스템 관리·결재 권한은 관리자 확인 단계 추가**. 이사회 자료 확정 결재선 작성자→팀장→부장(유형만 등록).
-- **▶ 다음 = 3단계**: ① '내 권한 신청' 화면(메뉴별 조회/작성/수정/결재+사유, `POST /approval-requests/perm`) ② 결재함에 '요청' 구역(받은 결재 `GET /approval-requests?box=inbox`, 내가 올린 것 `box=mine`, 승인·반려 `POST /approval-requests/{id}/decide`, 취소 `/cancel`, 대결 중이면 `acting_as_deputy` 표시) ③ Playwright로 상신→승인→자동 반영→변경 이력 확인. API는 이미 있고 화면만 없다. CLAUDE.md: 착수 전 의도 설명+진행 확인.
+- **(완료) 3단계 계획이었던 것**: ① '내 권한 신청' 화면 ② 결재함 요청 구역(받은/올린) ③ 상신→승인→자동 반영→변경 이력 확인 — ①②는 위 `6cda7dc`로 끝, ③은 브라우저 시험이 남음. CLAUDE.md: 착수 전 의도 설명+진행 확인.
 - **결정 대기**: ISMS 보완 후보(계획 §D: 이벤트 분류·다운로드/내보내기 기록, 위·변조 방지·감사자 역할 분리, 이상 징후·점검 기록, 보존·파기, 권한 정기 검토 등)와 보안 조치 A~G(`docs/보안_점검_2026-10-28.md` 말미: `PUT /menus` 관리자 뒤로, 보안 헤더, 업로드 압축 폭탄 제한, 오류 메시지 정리 …). 사용자가 고를 때까지 안 고쳤다.
 - **핵심 위험**: 서버 인증 없음 — 사번은 `X-Emp-No` 자기신고(접근 이력에 "자기신고" 표시). 운영 노출 전 SSO/앞단 인증 필요.
 - **▶ 새 PC 시작 가이드 (처음부터 — 위에서 아래로 그대로)**
@@ -1089,10 +1091,10 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
   4. **설정 파일(gitignore라 PC마다 직접)**: `cp kgi-ggreport-web/config-envs/out-local/application.properties kgi-ggreport-web/config/application.properties` 후 DB 비밀번호 자리표시자를 채운다(**문서·커밋에 비밀번호를 적지 않는다**). 이 파일은 `spring.web.resources.static-locations=file:../frontend/`로 화면을 파일에서 바로 서빙한다 → **작업 디렉터리가 `kgi-ggreport-web/`여야** 한다.
   5. **기동**: IntelliJ(권장) — `pom.xml` 열기, SDK=JDK 8, Run 설정의 Working directory=`kgi-ggreport-web`, "Add dependencies with provided scope" 체크. 또는 셸: `cd kgi-ggreport-web && JAVA_HOME=<jdk8> mvn -o spring-boot:run`. → http://localhost:8080/ (**반드시 http**). 화면(`frontend/`)만 고쳤으면 재시작 없이 **Cmd+Shift+R**(옛 JS 캐시 때문에 화면이 안 뜬 적 있음), Java를 고쳤으면 서버 재시작.
   6. **로그인(가상 데이터)**: 사번 입력 — 마스터 `8203417`(전산팀, 관리자) · 영업팀 팀원 김영업 `3918264`(대리) · 영업팀장 이영업 `5047192` · 영업부장 박영업 `2674805` · 대표 백수아 `1473958` · 안재원 `5640327`(다른 영업팀장, 대결 시험용) · 윤서준 `3361829`(계장). 비밀번호 없음(자기신고, 위험은 아래).
-  7. **검증 명령**: 서버 `cd kgi-ggreport-web && JAVA_HOME=<jdk8> mvn -o test`(기대 **380건 통과**, 골든 04·05 포함) · 프런트 `node --test frontend/test/`(기대 **313건 통과**). 둘 다 통과한 상태에서 시작해야 이후 변경의 회귀를 믿을 수 있다.
+  7. **검증 명령**: 서버 `cd kgi-ggreport-web && JAVA_HOME=<jdk8> mvn -o test`(기대 **391건 통과** — 380 + 3단계 추가분, 골든 04·05 포함. 처음 한 번은 `-o` 없이 플러그인을 받아야 한다) · 프런트 `node --test frontend/test/*.test.js`(기대 **335건 통과**; Node 24는 `frontend/test/` 디렉터리 인자를 모듈로 읽어 실패하니 글롭을 쓴다). 둘 다 통과한 상태에서 시작해야 이후 변경의 회귀를 믿을 수 있다.
   8. **시험 데이터 정리**: 브라우저로 시험하며 만든 사용자·결재 요청·대결·접근 이력은 로컬 DB에만 남는다. 필요하면 `DELETE FROM APPROVAL_STEP; DELETE FROM APPROVAL_REQUEST; DELETE FROM APPROVAL_DEPUTY; TRUNCATE ACCESS_LOG; TRUNCATE PERM_CHANGE_LOG;`로 비운다(사용자 시드 25명은 유지).
 - **3단계 구현 지도 (어디를 만지는지)**
-  - 화면: `frontend/js/admin.js`(시스템 관리 4화면 — 순수 규칙은 위쪽 `admin.*`, 렌더는 아래, 테스트 `frontend/test/admin.test.js`) · `frontend/js/approvals.js`(결재함; 끝의 `mount`가 `deputy.mount()` 호출) · `frontend/js/deputy.js`(대결 설정 카드 — 새 화면을 만들 때 모양을 따라 한다) · `frontend/js/nav.js`(사이드바 항목 정의 — 새 항목은 `live(label,key,view)`, **같은 (key,view)는 한 번만**) · `frontend/js/app.js`(로그인·`X-Emp-No` 헤더 부착 fetch 래퍼·화면 전환 기록) · `frontend/index.html`(`#tab-approvals` 안에 `#ap-list`, `#ap-deputy`; CSS 클래스 `ad-*` 재사용).
+  - 화면: `frontend/js/admin.js`(시스템 관리 4화면 — 순수 규칙은 위쪽 `admin.*`, 렌더는 아래, 테스트 `frontend/test/admin.test.js`) · `frontend/js/approvals.js`(결재함 탭 두 개; 순수 규칙 위쪽, 렌더 아래; `openTab`으로 쪽지함이 탭 지정) · `frontend/js/myinfo.js`(**내 정보** — 기본 정보·내 권한 신청·대결 설정) · `frontend/js/notify.js`(쪽지함: 개인/단체 분리·결재 쪽지 이동) · `frontend/js/deputy.js`(대결 설정 카드 — `mount(컨테이너id)`로 내 정보 안에 그린다) · `frontend/js/nav.js`(사이드바 항목 정의 — 새 항목은 `live(label,key,view)`, **같은 (key,view)는 한 번만**) · `frontend/js/app.js`(로그인·`X-Emp-No` 헤더 부착 fetch 래퍼·화면 전환 기록) · `frontend/index.html`(`#tab-approvals` = `#ap-tabs`·`#ap-pane-mine`·`#ap-pane-inbox`, `#tab-myinfo`, 헤더 `#user-label`·`#btn-logout`·`#btn-settings`; CSS 클래스 `ad-*`·`ap-*` 재사용).
   - 서버: `web/ApprovalLineController`(엔드포인트) · `service/ApprovalRequestService`(상신·결재·취소·자동 반영, 방향 규칙 `Ranks.mayDecide`) · `service/ApprovalDeputyService` · `support/ApprovalTypes`(유형 카탈로그 — `PERM_REQUEST`만 상신 가능) · `support/Ranks`·`support/ApproverRules`. 테스트 `ApprovalLineApiTest`·`ApproverApiTest`가 사용 예다(헤더 `X-Emp-No`로 호출자 지정).
   - 응답 키는 snake_case(`req_id`, `can_decide`, `acting_as_deputy`, `steps[].approver_name` …). 권한 신청 본문: `{"reason":"…","changes":[{"menu":"knowledge","view":true,"write":true,"edit":false,"approve":false}]}` — 메뉴 키는 `/sysadmin/meta`의 `menus[].key`, 결재(`approve`)는 `approvable=true`인 메뉴만.
   - 화면 규칙(재사용): 조회가 기본·작성/수정/결재를 켜면 조회 자동·결재 불가 메뉴는 비활성 = `admin.togglePerm`/`admin.permChanges`. 사용자 입력은 전부 `esc()`로 이스케이프. `confirm()`은 쓰지 않고 인라인 2단계 확인.
@@ -1101,7 +1103,7 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
 - **잔여(비차단)**: 결재자 퇴직 시 진행 중 요청이 멈출 수 있음(관리자 취소만 가능 — 재지정 기능 없음) · 로그인 잠금(`FAILED_LOGINS`)은 비밀번호가 없어 미사용 · `login-bg.jpg` 404는 정상.
 
 
-### 28. NEXT.md 내부 슬림화 + 프런트 밝은 톤 개선 — **미착수** (2026-10-29)
+### 28. NEXT.md 내부 슬림화 + 프런트 밝은 톤 개선 — **슬림화 미착수 · 프런트는 impeccable 진단 완료(정적+서버 모드, 수정 미착수)** (2026-10-29)
 
 - **출처**: `2026-10-29_summary.md` `## Session 10:22`. 브랜치 `websphere-migration`(main 병합 후, 2026-10-29).
 - **NEXT.md 슬림화**: 완료분 15개 섹션은 `done.md`로 옮겼다(1,633→1,022줄). 그래도 93KB라
@@ -1111,6 +1113,93 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
   (다크·고밀도 — `.impeccable/config.json`·`design.json`이 의도된 디자인으로 등록). 밝은 톤·여백·
   글자 14~16px로 바꾸면 그 규칙 파일도 같이 갱신. 순서: impeccable 읽기 전용 진단 → frontend-design
   시안(새 파일) → playwright 확인. 원본은 시안 승인 전까지 건드리지 않는다.
+- **▶ 프런트 impeccable 진단 결과 (2026-10-29, 읽기 전용 — 소스 수정 0건)**
+  - **출처**: 이 진단을 한 세션은 아직 `2026-10-29_summary.md`에 섹션을 쓰지 않았다 → "마무리" 때
+    새 `## Session HH:mm`으로 기록하고 이 줄의 출처를 갱신할 것. 사용자 확정(이 세션): 대상은 `frontend/` 전체, **이번은 진단만**,
+    수정은 다음에. 우선순위 = **"임박" 의미 + 팝오버**, 경과 건 = **별도 상태로 분리**.
+  - **점수 19/40(Poor 하한)**. 서버가 없어 결재함·대결·권한 화면의 정상 데이터 상태는 렌더링 못 봤다(소스 판단). 지도 탭만 보면 ~26.
+    정본 리포트는 대화에만 있다(`.impeccable/critique/` 스냅샷은 엔진 문제로 미저장) → 아래가 유일한 기록.
+  - **수정 순서(사용자 우선순위 반영)**
+    1. **[P1] "임박 TOP5"가 지난 날짜를 임박으로 표시** — `js/render.js` ~445-461(티커), 랭킹 행 ~539. 티커 1~5위가 D+91~97(빨간 상승
+       삼각형), 랭킹 1위도 2026-07-30(확정, 이미 지남). 결정됨: **경과(D+)를 별도 상태로 분리** — "경과 97일 · 재공고 대기" 식 라벨 +
+       회색조/점선 등 다른 색조, 티커는 D- 우선, 범례에 "D+ = 약정일 경과"·"(확정)/(추측)" 뜻 추가. 색 의미는 DESIGN.md
+       Two-Tier Urgency·One Teal Rule을 지킬 것(teal을 긴급도에 쓰지 않는다, 5밴드 변수명 동결). 데이터 날짜 자체가 낡은 건 아닌지는
+       `frontend/data/institutions.js`에서 별도 확인(경과 건이 "재공고 대기"인지 단순 미갱신인지 — 근거 없는 데이터 금지).
+       **서버 모드 재진단으로 확정(2026-10-29)**: 이 날짜는 서버가 아니라 정적 `institutions.js`에서 온다 — `app.js:16`이 정적 데이터와 서버 응답을
+       합치는데 서버 `/institutions`는 `contract_end`가 null, `/bidcases/latest`는 `[]`(공고 일정 데이터 없음). 그래서 서버를 띄워도 티커는
+       똑같이 D+97·94·91·91·91이고, 서울 랭킹 1~5위도 2026-07-30~08-13(확정)이다. 티커 라벨은 "기준 2026-10-28"(오늘 10-29와 하루 어긋남).
+       즉 UI 의미 수정에 더해 **`/bidcases/latest`에 실제 공고 일정을 채우는 일이 별건으로 필요**하다.
+       권장 명령: `/impeccable shape`(상태 모델) → `clarify`.
+    2. **[P1] 기관 팝오버가 DB 레코드 덤프** — `render.js` ~553-574. 12개 필드 무위계, 빈 필드("지난 입찰일:"·"경도:")·내부 코드
+       ("구시군코드: 11060"·"확정여부: true")·출처 URL 폭 넘침, 방금 누른 랭킹 행을 가림. 수정: 기관명 + D-day 배지 + 날짜(확정/추측)만
+       상단, 나머지 "상세 보기"로 접기, 빈 값 숨김, `true`→"공고 확인됨/추측" 배지, 출처 링크 줄바꿈, 팝오버를 지도 쪽으로 배치.
+       `edit-modal`/테스트가 DOM id에 결합돼 있어 id 변경 전 `node --test "frontend/test/*.test.js"` 확인(glob 형태).
+       권장 명령: `/impeccable layout` → `clarify`.
+    3. **[P1] 접근성** — 지도 면·랭킹 행·하트·별이 포커스 불가(Tab 25회에 지도 0회), `#map-svg` role/label 없음, 모달에 `aria-modal`·포커스
+       이동 없음(열어도 `#btn-add`/`#btn-theme`에 남음), `aria-live` 0개, 체크박스 aria-label에 영어 혼용("지식 검색 view", `myinfo.js` ~118).
+       `/impeccable harden`. 범위가 커서 테스트와 함께 단계 분할 권장.
+    4. **[P2] 반응형** — 사이드바 200px 고정(≤880px 접힘 규칙 미동작). 1024px: 지도 하단(전남광주·제주) 잘림·범례가 울산/부산 가림·티커 795>736;
+       800px: 지도 558px, SVG 재맞춤 안 됨; 390px: 지도 138px로 사용 불가. 수정: 사이드바 레일/오버레이 접기 + 리사이즈 시 `drawRegion` 재호출.
+       폐쇄망 데스크톱 전용이면 우선순위 낮춰도 됨(사용자 확인 필요). `/impeccable adapt`.
+    5. **[P2] 소음** — 사이드바 7카테고리 중 "준비중" 17~18개(`js/nav.js` ~23-47)·14px 굵은 카테고리가 지도와 경쟁·준비중 화면이 막다른 길;
+       상단 컨트롤 10개 상시 노출(`index.html` ~660-679, 관리 버튼 5개를 "데이터 관리" 하나로, CSV 업로드는 "N건이 기존 M건을 대체합니다" 확인
+       — 현재 `app.js` ~487-490 무확인 덮어쓰기). `/impeccable distill`.
+  - **커밋 전 파일 관련(결재·내 정보·대결, 사용자 작업 중)**: "내 정보"가 사이드바/화면 탭에 안 나타나 위치 상실(`app.js` ~544-554 `syncNavActive`),
+    하위 탭 3개가 `role=tab` 아님; 반려 규칙 2종(`approvals.js` ~202-205는 사유 없이 진행 가능 vs ~353은 사유 필수); `approvals.js` ~195
+    "상단에서 이름을 먼저 입력하세요"는 stale(이름 입력이 프로필 팝오버로 이동); `deputy.js` ~112 로드 실패 무음, 대결자 select가 전체 사용자
+    나열(~70); 서버 오류 카피가 원인·재시도 없음(`myinfo.js` ~183, `approvals.js` ~389). 이 파일들은 **사용자가 동시 편집 중**이라
+    수정 전 `git status`로 상태 확인 + 커밋 여부를 사용자에게 먼저 묻는다(이 세션에서 진단 도중에도 app.js·login.js가 바뀜).
+  - **DESIGN.md 정비 필요(documenter)**: 현재 구조(좌측 248px 사이드바·`#tab-bar` 화면 탭·로그인·내 정보)가 문서에 없다. 계약 위반 소스:
+    `rgba(0,0,0,…)` 그림자(`index.html` ~98/166-167, ~255), 정의되지 않은 `--amber`/`#e0b44c` 하드코딩(~145·524·531, "second accent 금지"와 충돌),
+    `button.primary`가 `#ch-send` 외에 여러 곳, 폰트 18/20px(`.login-card h2`, `.soon-box h2`), 문자 글리프(▾ ▸ ⬇ ⌄). 로그인:
+    `input[type=password]`가 공통 입력 규칙에서 빠져 회색(`index.html` ~54-56), 아바타 배경·"프로토타입은 확인하지 않습니다" 문구.
+  - **확정됨(서버 모드 재측정)**: `.nav-item.soon`(opacity .6 적용)의 실효 대비 **2.89:1로 AA 미달** — 18개 행 전부, 버튼은 `disabled`가 아니라 클릭 가능.
+    `.nav-soon-tag`(10px)도 2.89. `tk-sep` 대비 1.56은 장식 점이라 오탐. `p.wf-empty`("없습니다.") 3.27은 실제 결함. 콘솔 404는 서버 모드에서
+    `login-bg.jpg` 1건만 남는다(svg 폴백, 정상).
+  - **진단을 다시 돌릴 때의 환경 함정**
+    - `impeccable` 런처가 엔진 0.1.18 다운로드 실패(네트워크) → `detect`·`critique-storage` 불가. `IMPECCABLE_BIN`(사전 설치 엔진) 또는
+      `IMPECCABLE_HOME`(쓰기 가능 캐시)을 설정해야 정적 스캔·스냅샷 저장이 된다.
+    - Git Bash에 `python`이 없다 → 정적 서버는 node로: 20줄짜리 `http` 서버(루트=`frontend/`, 포트 8765)를 스크래치패드에 만들어 백그라운드 실행.
+      `file://`는 쓰지 말고 반드시 서버 중지까지 할 것.
+    - Playwright MCP는 저장소 루트와 `.playwright-mcp/`에만 파일 저장 가능(스크래치패드 불가). 이 진단이 남긴 **`.playwright-mcp/`(추적 안 되는
+      스크린샷 폴더)가 저장소 루트에 있다** → `.gitignore`에 추가함(2026-10-29, 미커밋).
+    - 정적 모드(서버 없음)에서는 워크플로·결재함·권한관리 탭이 사이드바에 아예 없다. 결재·대결·내 정보의 정상 화면을 보려면 `kgi-ggreport-web`
+      백엔드(또는 mock)를 띄워야 한다 — 이번 진단이 못 본 영역.
+  - **▶ 서버 모드 재진단 추가 결과 (같은 날, 읽기 전용 — `http://localhost:8080/`, 서버는 이미 떠 있었다)**
+    - 방법: 쓰기 없이 로그인·화면 열람만(김영업 3918264·이영업 5047192·박영업 2674805·마스터 8203417). 접근 이력에 로그인/화면 전환 기록이 남았다(시험 데이터
+      정리는 위 #27 가이드 8단계). 보지 못한 것: **채워진 받은 결재함·대결 설정 카드·요청 카드·취소/반려 상태**(아래 1번 때문).
+    - **변하지 않은 것(클라이언트 문제)**: 임박 날짜, 팝오버 덤프(`**진행 중**` 마크다운 별표·긴 URL 3개·200자+ 출처가 박스를 넘침, 지도 쪽으로 위치 안 잡힘),
+      지도·랭킹 비포커스(path 16개 tabindex/role/title 0), 사이드바 "준비중" 18개(김영업 기준 24개 중 6개만 동작), 상단 컨트롤 10개.
+    - **새로 확인된 것**
+      1. **[P1] 결재 흐름을 이 환경에서 시험할 수 없다.** 이영업(팀장)·박영업(부장) 모두 권한 표에서 **결재가 전부 해제**(결재함 조회만 있음). 받은 결재가
+         "결재할 것이 없습니다." + "결재 권한이 없어 받은 결재가 없습니다…"로 **모순**(첫 줄이 거짓, 실제는 "결재 권한 없음"). 헤더도 이름 없이 역할만("결재함 영업팀장
+         결재할 것이 없습니다."). 김영업·마스터 사이드바에는 결재함 항목 자체가 없고 `#tab-approvals`는 DOM에만 있다. **#27 3단계 ③(상신→승인→자동 반영 Playwright
+         확인)을 하려면 먼저 마스터가 결재 권한을 부여해야 한다**(쓰기 — 사용자 승인 후).
+      2. **[P1] 대리(김영업)에게 관리성 컨트롤이 그대로 보인다** — 기관 추가·CSV 업로드·팝오버 편집이 역할로 숨겨지지 않음. **서버가 거부하는지는 쓰기라 미확인** →
+         거부하지 않으면 보안 이슈(#27 보안 점검 A~G와 같이 볼 것). CSV 업로드는 `<label>`이라 키보드로 못 간다.
+      3. **[P1] 모달 의미**: 7개 컨테이너(`#notify-modal`·`#more-modal`·`#doc-modal`·`#edit-modal`·`#theme-modal`·`#add-modal` 등) 모두 role/aria-modal 없음,
+         열 때 포커스 이동·트랩 없음(Tab이 배경 로그아웃으로 감), **`#popover`는 Esc로 안 닫힘**(지도 색상 모달을 닫을 때 같이 닫힘). 나머지 4개 모달은 Esc로 닫히고 포커스는 열었던 버튼에 남음.
+      4. **[P1] 내 정보 위치 상실 재확인**: 진입은 헤더 톱니(접근 이름 "설정", 화면 제목은 "내 정보 — 계정·권한 관련 설정"으로 불일치)뿐. 화면 탭 추가 없음, 이전 탭이 비활성으로 보이고
+         어디에도 선택 표시 없음. 포커스는 톱니에 남는다. 비밀번호 구역은 개발자용 문장("SSO 등이 정해지면…"). 대결 설정은 "결재 권한이 없어 대결을 지정할 수 없습니다"만 보임.
+      5. **[P1] 파괴 동작 구분 없음**(시스템 관리 사용자 관리): 수정/잠금/퇴직 버튼이 같은 스타일(44×24). 변경 이력은 `approval:REQUEST`·`perm:chat:CAN_WRITE`·값 "0"/"1" 같은 원시 키.
+      6. **[P2] 반려 규칙 불일치 재확인(소스)**: 작업결재 `approvals.js` ~189/203(placeholder "의견(반려 시 사유)", 사유 없으면 native `confirm()` 후 진행) vs 권한요청 ~304
+         ("사유 필수", 오류는 `.ap-err`, confirm 없음). "상단에서 이름을 먼저 입력하세요" stale 카피도 그대로.
+      7. **[P2] 로그아웃**: 직전 사용자 DOM이 오버레이 뒤에 남고(`#us-q` 같은 숨은 필드가 로그인 필드와 섞임), 로그아웃 순간 `/approval-requests?box=mine|inbox`·`/my-perms`가 401 3건
+         (이후 32초간 추가 없음). 다시 로그인하면 이전 지도 드릴인 상태가 복원됨.
+      8. **[P2] 접근성 수치**: `role=tab`에 `aria-selected`·`aria-controls` 전부 null, `th` 57개 `scope` 0, 라벨 없는 입력(`#us-q`·`#kn-q`·`#kn-inst`·`#kn-doctype`·`#ch-inst`·`#ch-input`·
+         `#wf-inst`·`#wf-by`·`#wf-comment`·`#nt-to`·`#nt-text`·`#rank-sort`), 내 권한 표 체크박스 32개·메뉴 관리 64개가 13×13이고 label 밖(내 권한은 aria-label이 있으나 "전국 지도 view"처럼 영어 섞임),
+         헤더 컨트롤 전부 44px 미만(`#btn-logout` 56×20), 지도 탭 24px 미만 12개. 포커스 링은 모든 탭 정지점에서 보임(좋음).
+      9. **[P2] 반응형 추가 증거**: 사용자 관리 표 최소폭 792px — **1024px부터 수정/잠금/퇴직이 화면 밖**(내부 가로 스크롤). 700px에서 지도 잘림·랭킹 패널이 보이지 않음·헤더 탭이 "전국 …"로 잘림.
+         사이드바는 ≤900px에서 248→200px로만 줄어듦.
+      10. **[P2] 빈 상태 카피**: 작업함 빈 목록 3개가 각각 "없습니다."(대비 3.27) + "왼쪽에서 작업을 고르세요"가 빈 목록 옆에 표시, 워크플로는 제목 없는 도구줄+빈 캔버스+비활성 승인/반려(왜 비었는지 설명 없음),
+         지식 검색은 질의 전 빈 캔버스. 접근 이력은 `GET /menus`·IPv6 `0:0:0:0:0:0:0:1` 같은 기계 문구. (좋은 예: 대화 "아직 대화가 없습니다 — 참여 여부를 물어보세요.")
+    - **좋은 점(서버 모드)**: 콘솔 에러 0(로그인 후 전 탭)·외부 origin 요청 0(폐쇄망 요건 충족), 시스템 관리 표의 밀도·페이지 처리·"자기신고" 칩(위조 가능한 사번을 정직하게 표시), 권한 관리/메뉴 관리 카피,
+      Esc 포커스 복귀, 권한 표의 "개별 설정" 배지(상태 신호).
+    - **점수**: 정식 재채점은 안 했다. 서버 화면의 가점(시스템 관리, 오류 0)과 감점(결재 모순 카피, 모달, 내 정보)이 상쇄돼 **19~21/40 범위**로 본다.
+    - **#28 (1)의 순서 조정 제안**: 데이터(`/bidcases/latest`·`institutions.js` 날짜)를 먼저 확인해야 "경과 상태"의 모양이 정해진다. 그다음 UI.
+  - **다음 한 걸음**: 사용자가 수정 착수를 승인하면 (1)+(2)부터. 순서는 CLAUDE.md의 "작업 항목 단위 승인"에 따라 항목마다 먼저 묻는다.
+    수정 전 `frontend/` 커밋 전 변경분을 먼저 정리할지 사용자에게 확인하고, 시안은 새 파일로(원본 `index.html`은 승인 전까지 불변),
+    밝은 톤으로 바꾸면 `.impeccable/config.json`·`design.json`·`DESIGN.md`도 같이 갱신.
 - 번호 정리: main에서 26번으로 만든 이 항목을 이 브랜치의 26(화면 개편)·27(시스템 관리)과 겹치지 않게 **28**로 옮겼다. NEXT.md 충돌은 병합 시 해소했다(이 브랜치 본문 기준 + 완료분 done.md 분리 재적용).
 
 ### 29. Obsidian 이력 볼트 후속 — **볼트는 완성, 선택 개선만 남음** (2026-10-29)
