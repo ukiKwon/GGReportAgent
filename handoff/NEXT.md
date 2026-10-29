@@ -1262,11 +1262,13 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
 - **하지 말 것**: 근거 없는 날짜를 만들어 넣지 않는다(PRODUCT.md 원칙 1) · 기존 `/menus` 계약·골든 04·05·`roles.js`·Python `server/`·지도 렌더 코드 건드리지 않는다(#27 "되돌리지 말 것") · 동시 세션이 있으면 `CLAUDE.md` "여러 세션 동시 작업" 규칙(worktree·경로 지정 커밋·서버 한 세션만).
 - **다음 한 걸음**: 사용자 승인 후 1번(데이터 정정 판단, 읽기 전용)부터. 디자인 쪽(팝오버 정리·TOP5 표시 방식)은 28번에서 별도로 진행.
 
-### 31. 역할별 에이전트 팀 — **6개 모두 읽기 전용으로 생성, 새 5개는 재시작 후 반영 확인이 남음** (2026-10-29)
+### 31. 역할별 에이전트 팀 — **6개 읽기 전용 생성·도구 확인 완료, 첫 실사용이 남음** (2026-10-29)
 
 - **▶ 현재 상태(2026-10-29, 재시작 후 세션)**: ① **`design-reviewer` 읽기 전용 확인 완료** — 재시작한 세션에서 도구를 물으니 Write·Edit·Bash·Agent 없음, 쓰기 시도도 "Write 없음"(정의 수정은 재시작 후에야 반영된다는 것도 확인). ② 나머지 5개를 **같은 읽기 전용 틀**로 생성: `frontend-dev`·`backend-dev`(구현안을 **패치(`old → new`)로 보고서에** — 적용·테스트 실행은 메인이 사용자 승인 뒤에)·`qa-verifier`(Bash 없음 → 테스트 출력은 메인이 실행해 전달)·`data-auditor`(+WebFetch/WebSearch, 값을 고치지 않음)·`planner`(선택지·질문·NEXT 초안, 결정은 사용자). 폴더 `handoff/agents/<이름>/`+`.gitkeep`, 정의 6개 머리말 점검 통과(`disallowedTools`에 Write·Edit·Bash·Agent, Playwright 쓰는 3개는 `browser_run_code_unsafe`도 차단).
   **`design-reviewer`에도 `browser_run_code_unsafe` 차단을 추가**(임의 코드 실행 → 파일 쓰기 우회 가능성, 실제 우회 여부는 미시험). 알려진 잔여 쓰기 통로: `browser_take_screenshot` 파일 저장(저장소 루트·`.playwright-mcp/`로 제한).
-  **⚠️ 다음 일(재시작 1회)**: 새 5개와 `design-reviewer`의 이번 수정은 **창을 다시 불러와야 반영**된다. 그 뒤 각 에이전트에게 도구 목록을 묻고(쓰기·Bash·Agent·`run_code_unsafe` 없음 확인) 쓰기 시험은 저장소 밖 scratchpad로. 통과하면 이 항목의 "읽기 전용 팀" 부분은 완료(→ `done.md`), 쓰기용 에이전트가 정말 필요하면 방식 A(`settings.json` 프로젝트 훅 + `agent_type`)를 `settings.local.json`에서 먼저 시험.
+  **✅ 도구 확인 완료(같은 날, 커밋 `fb1e301` 이후)**: 6개 에이전트(`design-reviewer`·`frontend-dev`·`backend-dev`·`qa-verifier`·`data-auditor`·`planner`)에게 병렬로 도구 목록을 묻고 쓰기 시도를 시켰다(시험 경로는 저장소 밖 scratchpad). 결과: **전원 Write·Edit·Bash·Agent 없음**, Playwright를 쓰는 3개(`design-reviewer`·`frontend-dev`·`qa-verifier`)는 `browser_run_code_unsafe`도 없음, `data-auditor`만 WebFetch·WebSearch 있음(설계대로), 쓰기 시도는 모두 "Write 없음"으로 끝나 시험 파일이 생기지 않았다(scratchpad `tc-*.txt` 0개, 저장소 변경 없음).
+  참고: 새로 만든 정의는 **재시작 없이도 시간이 지나 목록에 올라왔다**(생성 직후 호출은 실패 → 몇 분 뒤 가능). 즉 "세션 도중 추가는 반영이 지연된다"이지 "반드시 재시작"은 아니었다.
+  **남은 일**: ① **첫 실사용** — 읽기 전용 팀으로 28번(디자인 진단·규격) 또는 30번(데이터 검수)을 실제로 돌려 보고서→메인 저장→NEXT 포인터 흐름이 잘 되는지 확인. ② 쓰기용 에이전트가 정말 필요해지면 방식 A(`settings.json` 프로젝트 훅 + `agent_type`)를 `settings.local.json`에서 먼저 시험(현재는 필요 없음 — 구현은 메인이 패치를 적용). ③ `browser_take_screenshot`의 파일 저장은 잔여 쓰기 통로(저장소 루트·`.playwright-mcp/`로 제한).
   **README(`handoff/agents/README.md`)를 읽기 전용 구조에 맞게 다시 썼다**(소통 흐름·에이전트 표·함정: Bash 역슬래시 축소 등).
 
 - **출처**: 이 진단 세션(2026-10-29, `2026-10-29_summary.md`에는 아직 섹션 없음 — "마무리" 때 기록). 배경: 디자인 진단 중 대화가 기획·개발로 번져서, 사용자가 "디자인 업무만 하는 에이전트"를 요청 → 역할별 에이전트 팀으로 확장.
