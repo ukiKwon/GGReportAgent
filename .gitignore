@@ -65,3 +65,6 @@ dist/
 
 # Obsidian 볼트: 열 때마다 바뀌는 창 배치는 추적하지 않는다.
 docs/obsidian/task-history/.obsidian/workspace.json
+
+# Playwright MCP 스크린샷 (진단 산출물)
+.playwright-mcp/
