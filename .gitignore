@@ -62,3 +62,6 @@ dist/
 # git worktree 들의 체크아웃 위치. 리포 안에 두면 편한데 무시하지 않으면
 # 다른 브랜치의 작업 트리 전체가 커밋 대상으로 잡힌다.
 .worktrees/
+
+# Obsidian 볼트: 열 때마다 바뀌는 창 배치는 추적하지 않는다.
+docs/obsidian/task-history/.obsidian/workspace.json
