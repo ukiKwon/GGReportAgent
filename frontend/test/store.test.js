@@ -119,6 +119,15 @@ test('myRecipients: 쪽지함 조회 키는 소속과 이름 둘 다 (빈 값은
   assert.deepStrictEqual(store.myRecipients(), ['전산팀']);
 });
 
+test('myRecipients: 로그인한 사번도 조회 키에 들어간다(결재 알림 쪽지는 사번 앞으로 온다)', function () {
+  freshLS();
+  store.saveProfile({ name: '김영업', team: '영업팀' });
+  store.saveSession({ mode: 'account', id: 'x', emp: '3918264' });
+  assert.deepStrictEqual(store.myRecipients(), ['영업팀', '김영업', '3918264']);
+  store.saveSession({ mode: 'guest', id: '' });                  // 둘러보기는 사번이 없다
+  assert.deepStrictEqual(store.myRecipients(), ['영업팀', '김영업']);
+});
+
 test('applyEdits: 공고가 있는 행은 로컬 확정여부가 공고를 덮지 못한다', function () {
   freshLS();
   store.setEdit('도봉구', { confirmed: false, sources: ['수기'] });

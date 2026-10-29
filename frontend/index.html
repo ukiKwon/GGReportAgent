@@ -88,15 +88,16 @@
 
   /* 헤더 우측 유틸 */
   #user-area { display:flex; align-items:center; gap:8px; margin-left:auto; }
-  #profile-wrap { position:relative; }
+  /* 로그인 후: "{소속} {이름}" 글자 · 로그아웃(밑줄) · ⚙ 설정. 둘러보기에서는 '로그인' 칩만 보인다. */
   #profile-chip { max-width:220px; overflow:hidden; text-overflow:ellipsis; }
-  #profile-chip::after { content:" ▾"; color:var(--muted); }
-  body.is-guest #profile-chip::after { content:""; }
-  #profile-pop { position:absolute; right:0; top:calc(100% + 6px); z-index:60; min-width:260px;
-                 background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r);
-                 padding:12px; display:flex; flex-direction:column; gap:10px;
-                 box-shadow:0 12px 32px rgba(0,0,0,.5); }
-  #profile-pop .me-box { flex-wrap:wrap; }
+  body:not(.is-guest) #profile-chip { display:none; }
+  body.is-guest #user-label, body.is-guest #btn-logout, body.is-guest #btn-settings { display:none; }
+  #user-label { font-size:13px; color:var(--fg); white-space:nowrap; max-width:240px; overflow:hidden; text-overflow:ellipsis; }
+  .link-btn { background:none; border:0; padding:2px 4px; color:var(--muted); font:inherit; font-size:12px;
+              text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+  .link-btn:hover { color:var(--fg); }
+  #btn-settings { display:flex; align-items:center; padding:5px 7px; }
+  #btn-settings svg { display:block; }
   body.is-guest #btn-notify { display:none !important; }
 
 
@@ -370,10 +371,18 @@
                    border-color:transparent; }
   #ch-send[disabled] { opacity:.5; }
 
-  .nt-row { border-bottom:1px solid var(--line); padding:8px 0; }
-  .nt-row.read { opacity:.5; }
-  .nt-head { font-size:11px; color:var(--muted); display:flex; align-items:center; gap:6px; }
-  .nt-head .nt-read { margin-left:auto; padding:1px 8px; font-size:11px; }
+  .nt-row { border-bottom:1px solid var(--line); padding:8px 8px 8px 12px; border-left:3px solid transparent; }
+  /* 안 읽음 = 왼쪽 띠 + 점 + 굵은 본문 + "새 쪽지" / 읽음 = 흐리게 + "읽음" 글자. 읽음은 상태 글자일 뿐 누르는 것이 아니다. */
+  .nt-row.unread { border-left-color:var(--accent-color); background:color-mix(in srgb, var(--accent-color) 7%, transparent); }
+  .nt-row.unread pre { font-weight:600; }
+  .nt-row.autoread { cursor:pointer; }
+  .nt-row.read { opacity:.55; }
+  .nt-head { font-size:11px; color:var(--muted); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .nt-dot { width:8px; height:8px; border-radius:50%; background:var(--accent-color); flex:none; }
+  .nt-new { margin-left:auto; color:var(--accent-color); font-weight:600; }
+  .nt-state { margin-left:auto; color:var(--muted); }
+  .nt-act { display:flex; gap:6px; margin-top:6px; }
+  .nt-act button { padding:2px 10px; font-size:12px; }
   .nt-row pre { margin:3px 0 0; white-space:pre-wrap; word-break:break-word;
                 font-family:inherit; font-size:13px; }
   .nt-kind { border-radius:8px; padding:1px 7px; font-size:11px; border:1px solid; }
@@ -466,9 +475,12 @@
   #dg-memo { width:100%; box-sizing:border-box; }
   #dg-actions button:disabled { opacity:.55; cursor:not-allowed; }
 
-  #tab-approvals.active, #tab-admin.active { overflow:auto; gap:10px; }
-  #ap-head, #ad-head { font-size:13px; color:var(--muted); }
+  #tab-approvals.active, #tab-admin.active, #tab-myinfo.active { overflow:auto; gap:10px; }
+  #ap-head, #ad-head, #mi-head { font-size:13px; color:var(--muted); }
   #ap-head span, #ad-head span { color:var(--fg); }
+  .mi-reason { display:block; margin:10px 0 6px; font-size:13px; }
+  .mi-reason textarea { display:block; width:100%; box-sizing:border-box; margin-top:4px; }
+  .mi-kv th { width:110px; color:var(--muted); font-weight:600; }
   .ap-card { border:1px solid var(--line-strong); border-radius:var(--r-sm); background:var(--panel);
              padding:10px; margin-bottom:8px; }
   .ap-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
@@ -476,6 +488,22 @@
   .ap-comment { flex:1 1 220px; }
   .ap-act button:disabled { opacity:.5; cursor:not-allowed; }
   .ap-dl { color:var(--accent-color); text-decoration:none; }
+  /* 결재함 탭(내가 올린 요청 · 받은 결재) + 결재 요청 카드 */
+  .ap-tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); }
+  .ap-tabs button { background:none; border:0; border-bottom:2px solid transparent; border-radius:0;
+                    color:var(--muted); padding:7px 14px; cursor:pointer; }
+  .ap-tabs button.on { color:var(--fg); border-bottom-color:var(--accent-color); font-weight:600; }
+  .ap-badge { display:inline-block; min-width:18px; margin-left:6px; padding:0 5px; text-align:center;
+              font-size:11px; border-radius:9px; background:var(--accent-color); color:var(--bg); }
+  .ap-sec { font-size:12px; color:var(--muted); font-weight:600; margin:10px 0 6px; }
+  .ap-chips { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:6px 0; font-size:12px; }
+  .ap-chips i { color:var(--muted); font-style:normal; }
+  .ap-changes { margin:6px 0; }
+  .ap-changes th, .ap-changes td { text-align:center; }
+  .ap-changes th:first-child { text-align:left; }
+  .ap-err { color:var(--red); font-size:12px; }
+  .ad-badge.bad { color:var(--red); border-color:var(--red); }
+  .ad-badge.muted { color:var(--muted); }
 
   /* 시스템 관리 — 사용자·권한·메뉴·접근 이력 */
   #ad-head { font-size:16px; font-weight:700; color:var(--fg); margin-bottom:4px; }
@@ -610,24 +638,16 @@ review, the verdict, and DESIGN.md
     <button class="tab-btn" data-tab="designer" id="tab-btn-tasks" style="display:none;">작업함</button>
     <button class="tab-btn" data-tab="approvals" id="tab-btn-approvals" style="display:none;">결재함</button>
     <button class="tab-btn" data-tab="admin" id="tab-btn-admin" style="display:none;">권한관리</button>
+    <!-- 내 정보 — 사이드바 메뉴가 아니다(메뉴 키를 늘리면 /menus 계약이 흔들린다). 헤더의 ⚙ 설정이 이 버튼을 누른다. -->
+    <button class="tab-btn" data-tab="myinfo" id="tab-btn-myinfo" style="display:none;">내 정보</button>
   </div>
-  <!-- 우측 유틸: 쪽지함 + 프로필. 프로필 편집 UI(#me-*)는 팝오버 안에 둔다 — id는 그대로라 app.wireProfile이 무수정으로 돈다. -->
+  <!-- 우측 유틸: 쪽지함 · {소속} {이름} · 로그아웃 · ⚙ 설정(→ 내 정보). 프로필 편집 UI(#me-*)는 내 정보 › 기본 정보에 있다. -->
   <div id="user-area">
     <button id="btn-notify" title="쪽지함"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" stroke="currentColor" stroke-width="1.2" fill="none"><rect x="1" y="2.5" width="10" height="7"/><polyline points="1,3 6,7.5 11,3"/></svg>쪽지함<span id="notify-badge"></span></button>
-    <div id="profile-wrap">
-      <button id="profile-chip" aria-haspopup="true" aria-expanded="false" title="내 프로필">로그인</button>
-      <div id="profile-pop" style="display:none;">
-        <label class="me-box">프로필 편집
-          <input id="me-name" placeholder="이름" size="8">
-          <select id="me-team" title="소속">
-            <option>영업팀</option><option>전산팀</option><option>예산팀</option>
-          </select>
-          <select id="me-pos" title="직책"></select>
-          <select id="me-switch" style="display:none;" title="계정 전환(데모 전용)"></select>
-        </label>
-        <button id="btn-logout">로그아웃</button>
-      </div>
-    </div>
+    <button id="profile-chip" title="로그인">로그인</button>
+    <span id="user-label"></span>
+    <button id="btn-logout" class="link-btn" type="button">로그아웃</button>
+    <button id="btn-settings" type="button" title="설정" aria-label="설정"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M6.6 1.5h2.8l.4 1.7 1.2.7 1.6-.6 1.4 2.4-1.3 1.2v1.4l1.3 1.2-1.4 2.4-1.6-.6-1.2.7-.4 1.7H6.6l-.4-1.7-1.2-.7-1.6.6-1.4-2.4L3.3 8.7V7.3L2 6.1l1.4-2.4 1.6.6 1.2-.7z"/><circle cx="8" cy="8" r="2.1"/></svg></button>
   </div>
 </header>
 
@@ -748,8 +768,33 @@ review, the verdict, and DESIGN.md
 
 <section id="tab-approvals" class="tab-view">
   <div id="ap-head">결재함 <span id="ap-role"></span> <span id="ap-count"></span></div>
-  <div id="ap-list"></div>
-  <div id="ap-deputy"></div>
+  <div id="ap-tabs" class="ap-tabs" role="tablist"></div>
+  <div id="ap-pane-mine"></div>
+  <div id="ap-pane-inbox" style="display:none;">
+    <div id="ap-req-inbox"></div>
+    <div id="ap-sec-tasks" class="ap-sec" style="display:none;">제안서 작업물 결재</div>
+    <div id="ap-list"></div>
+    <div id="ap-notice"></div>
+  </div>
+</section>
+
+<section id="tab-myinfo" class="tab-view">
+  <div id="mi-head">내 정보 <span class="dg-hint">— 계정·권한 관련 설정</span></div>
+  <div id="mi-tabs" class="ap-tabs" role="tablist"></div>
+  <div id="mi-msg" class="ad-flash" role="status"></div>
+  <div id="mi-body"></div>
+  <!-- 프로필 편집(데모) — 예전에는 헤더 팝오버 안에 있었다. id(#me-*)는 그대로라 app.wireProfile이 무수정으로 돈다. 기본 정보 탭에서만 보인다. -->
+  <div id="mi-demo" style="display:none;">
+    <h4 class="ad-sub">프로필 편집 <span class="dg-hint">— 데모 환경에서 이름·소속을 바꿔 보거나 계정을 전환합니다</span></h4>
+    <label class="me-box">
+      <input id="me-name" placeholder="이름" size="8">
+      <select id="me-team" title="소속">
+        <option>영업팀</option><option>전산팀</option><option>예산팀</option>
+      </select>
+      <select id="me-pos" title="직책"></select>
+      <select id="me-switch" style="display:none;" title="계정 전환(데모 전용)"></select>
+    </label>
+  </div>
 </section>
 
 <section id="tab-admin" class="tab-view">
@@ -771,6 +816,7 @@ review, the verdict, and DESIGN.md
 <div id="notify-modal" class="modal-overlay" style="display:none;">
   <div class="modal-box" style="max-width:560px;">
     <h3>쪽지함 <span id="nt-me" style="font-size:12px;color:var(--muted);font-weight:normal;"></span></h3>
+    <div id="nt-tabs" class="ap-tabs" role="tablist"></div>
     <div id="nt-list" style="flex:1 1 auto;overflow:auto;min-height:0;"></div>
     <div id="nt-form" style="border-top:1px solid var(--line);padding-top:10px;margin-top:10px;display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;">
       <input id="nt-to" list="nt-recipients" placeholder="수신자(팀 또는 이름)" size="14">
@@ -853,6 +899,7 @@ review, the verdict, and DESIGN.md
 <script src="js/approvals.js"></script>
 <script src="js/deputy.js"></script>
 <script src="js/admin.js"></script>
+<script src="js/myinfo.js"></script>
 <script src="js/export.js"></script>
 <!-- D3 번들 (없으면 Task 14 폴백) -->
 <script src="vendor/d3.v7.min.js" onerror="window.__d3failed=true"></script>

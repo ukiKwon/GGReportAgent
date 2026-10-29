@@ -110,6 +110,13 @@
     return [name, team].filter(Boolean).join(' · ') || '로그인';
   };
 
+  // 로그인 상태 헤더 우측의 "{소속} {이름}" 글자(칩과 달리 누르는 것이 아니다).
+  login.userLabel = function (profile) {
+    const name = ((profile && profile.name) || '').trim();
+    const team = ((profile && profile.team) || '').trim();
+    return [team, name].filter(Boolean).join(' ');
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = login;
   else root.login = login;
 })(typeof self !== 'undefined' ? self : this);

@@ -56,13 +56,15 @@
 
   let mine = [];
   let people = [];
+  // 그려 넣을 컨테이너 id — 처음에는 결재함 아래(ap-deputy)였고, 지금은 '내 정보 › 대결 설정'이 mount(id)로 넘긴다.
+  let boxId = 'ap-deputy';
 
   function paint() {
     const me = myEmp();
     const rows = mine.filter(function (d) { return d.principal_emp_no === me; });
     const asDeputy = mine.filter(function (d) { return d.deputy_emp_no === me; });
     const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-    el('ap-deputy').innerHTML =
+    el(boxId).innerHTML =
       '<h4 class="ad-sub">대결 설정 <span class="dg-hint">— 부재 기간 동안 내 결재를 대신 처리할 사람(최대 ' + deputy.MAX_DAYS + '일)</span></h4>' +
       '<div class="ad-toolbar"><label class="ad-inline">대결자 <select id="dp-who"><option value="">선택</option>' +
       deputy.candidates(people, me).map(function (u) {
@@ -92,7 +94,7 @@
         return load().then(function () { say('지정했습니다.' + (d.warning ? ' ' + d.warning : '')); });
       }).catch(function (e) { say(e.message, true); });
     };
-    el('ap-deputy').querySelectorAll('button[data-cancel]').forEach(function (b) {
+    el(boxId).querySelectorAll('button[data-cancel]').forEach(function (b) {
       b.onclick = function () {
         api('DELETE', '/approval-deputies/' + encodeURIComponent(b.dataset.cancel))
           .then(function () { return load().then(function () { say('취소했습니다.'); }); })
@@ -102,14 +104,14 @@
   }
 
   function load() {
-    if (!myEmp()) { el('ap-deputy').innerHTML = ''; return Promise.resolve(); }
+    if (!myEmp()) { el(boxId).innerHTML = ''; return Promise.resolve(); }
     return api('GET', '/approval-deputies').then(function (r) {
       mine = r.items || [];
       // 대결자 후보: 같은 목록을 관리자만 읽을 수 있어, 일반 사용자는 결재 목록의 이름으로 고르게 한다.
       return api('GET', '/approval-deputies/candidates').then(function (c) { people = c.users || []; });
-    }).then(paint).catch(function () { el('ap-deputy').innerHTML = ''; });
+    }).then(paint).catch(function () { el(boxId).innerHTML = ''; });
   }
 
-  deputy.mount = load;
+  deputy.mount = function (id) { boxId = id || 'ap-deputy'; return load(); };
   root.deputy = deputy;
 })(typeof self !== 'undefined' ? self : this);
