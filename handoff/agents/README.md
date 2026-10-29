@@ -25,11 +25,14 @@
 
 ## 에이전트와 쓰기 범위
 
-범위는 `agent-guard.ps1`의 표가 정본이다 (아래는 사람이 보기 위한 사본 — 어긋나면 스크립트가 맞다).
+**현재 쓰기 가능한 에이전트는 없다.** `agent-guard.ps1`(쓰기 경로 차단)은 만들어 두었지만, 에이전트 정의 안의 훅이 이 환경에서
+**한 번도 실행되지 않아**(NEXT.md 31번) 지금은 연결하지 않았다 — 훅에 기대지 않고 **도구 목록에서 Write·Edit를 빼는 방식**으로 막는다.
+쓰기가 필요한 에이전트(`frontend-dev` 등)는 가드가 실제로 도는 것이 확인되기 전에는 만들지 않는다.
+아래 표의 "쓸 수 있는 곳"은 그 에이전트가 생길 때의 **계획**이다.
 
 | 에이전트 | 상태 | 쓸 수 있는 곳 | 주 역할 |
 |---|---|---|---|
-| `design-reviewer` | 있음 | `DESIGN.md`, `docs/design/mockups/`, `handoff/agents/design-reviewer/` | 디자인 진단·규격·시안·문구·접근성. 소스는 읽기만 |
+| `design-reviewer` | 있음 (**읽기 전용**) | 없음 — 보고서만 돌려주고, 저장은 메인이 `handoff/agents/design-reviewer/`에 | 디자인 진단·규격·문구·접근성. Write·Edit·Bash·Agent 도구 없음 |
 | `frontend-dev` | 예정 | `frontend/`(단 `frontend/data/` 제외), 자기 폴더 | JS·마크업·CSS 구현, 프런트 테스트 |
 | `qa-verifier` | 예정 | 자기 폴더만 | 구현 뒤 테스트·화면 확인 |
 | `data-auditor` | 예정 | 자기 폴더만 | 기관 레코드 날짜를 원문 출처와 대조 |
