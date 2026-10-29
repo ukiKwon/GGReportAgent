@@ -1262,7 +1262,12 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
 - **하지 말 것**: 근거 없는 날짜를 만들어 넣지 않는다(PRODUCT.md 원칙 1) · 기존 `/menus` 계약·골든 04·05·`roles.js`·Python `server/`·지도 렌더 코드 건드리지 않는다(#27 "되돌리지 말 것") · 동시 세션이 있으면 `CLAUDE.md` "여러 세션 동시 작업" 규칙(worktree·경로 지정 커밋·서버 한 세션만).
 - **다음 한 걸음**: 사용자 승인 후 1번(데이터 정정 판단, 읽기 전용)부터. 디자인 쪽(팝오버 정리·TOP5 표시 방식)은 28번에서 별도로 진행.
 
-### 31. 역할별 에이전트 팀 — `design-reviewer` 생성 완료, **재시작 후 차단 시험이 남음** (2026-10-29)
+### 31. 역할별 에이전트 팀 — **6개 모두 읽기 전용으로 생성, 새 5개는 재시작 후 반영 확인이 남음** (2026-10-29)
+
+- **▶ 현재 상태(2026-10-29, 재시작 후 세션)**: ① **`design-reviewer` 읽기 전용 확인 완료** — 재시작한 세션에서 도구를 물으니 Write·Edit·Bash·Agent 없음, 쓰기 시도도 "Write 없음"(정의 수정은 재시작 후에야 반영된다는 것도 확인). ② 나머지 5개를 **같은 읽기 전용 틀**로 생성: `frontend-dev`·`backend-dev`(구현안을 **패치(`old → new`)로 보고서에** — 적용·테스트 실행은 메인이 사용자 승인 뒤에)·`qa-verifier`(Bash 없음 → 테스트 출력은 메인이 실행해 전달)·`data-auditor`(+WebFetch/WebSearch, 값을 고치지 않음)·`planner`(선택지·질문·NEXT 초안, 결정은 사용자). 폴더 `handoff/agents/<이름>/`+`.gitkeep`, 정의 6개 머리말 점검 통과(`disallowedTools`에 Write·Edit·Bash·Agent, Playwright 쓰는 3개는 `browser_run_code_unsafe`도 차단).
+  **`design-reviewer`에도 `browser_run_code_unsafe` 차단을 추가**(임의 코드 실행 → 파일 쓰기 우회 가능성, 실제 우회 여부는 미시험). 알려진 잔여 쓰기 통로: `browser_take_screenshot` 파일 저장(저장소 루트·`.playwright-mcp/`로 제한).
+  **⚠️ 다음 일(재시작 1회)**: 새 5개와 `design-reviewer`의 이번 수정은 **창을 다시 불러와야 반영**된다. 그 뒤 각 에이전트에게 도구 목록을 묻고(쓰기·Bash·Agent·`run_code_unsafe` 없음 확인) 쓰기 시험은 저장소 밖 scratchpad로. 통과하면 이 항목의 "읽기 전용 팀" 부분은 완료(→ `done.md`), 쓰기용 에이전트가 정말 필요하면 방식 A(`settings.json` 프로젝트 훅 + `agent_type`)를 `settings.local.json`에서 먼저 시험.
+  **README(`handoff/agents/README.md`)를 읽기 전용 구조에 맞게 다시 썼다**(소통 흐름·에이전트 표·함정: Bash 역슬래시 축소 등).
 
 - **출처**: 이 진단 세션(2026-10-29, `2026-10-29_summary.md`에는 아직 섹션 없음 — "마무리" 때 기록). 배경: 디자인 진단 중 대화가 기획·개발로 번져서, 사용자가 "디자인 업무만 하는 에이전트"를 요청 → 역할별 에이전트 팀으로 확장.
 - **구조(결정됨)**: 메인 세션이 허브, **파일이 우편함**. 에이전트끼리는 직접 대화하지 않고 서브에이전트는 사용자에게 질문할 수 없다. 사용자 승인은 메인에서. 규칙 전문은 `handoff/agents/README.md`.
@@ -1283,6 +1288,6 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
   - **선택지(사용자 결정 대기)**: (A) 가드 호출을 `.claude/settings.json`의 프로젝트 PreToolUse 훅으로 옮기고 stdin의 `agent_type == "design-reviewer"`로 분기 — 설정 훅은 이 프로젝트에서 실제로 돈다는 것이 확인됨(SessionStart). 단 `settings.json`은 팀 공유 설정이라 변경 승인 필요. (B) 정의에서 Write·Edit를 빼고 **보고서만 쓰는 읽기 전용**으로 두고, 파일 반영은 메인이 한다. (C) 먼저 진단용 로그를 가드에 한 줄 추가해 "훅이 호출되는지"부터 확인(가장 싸다, 가드 파일만 수정).
 - **확인 못 한 것(⚠️ 다음 세션 첫 일, 1차 결과 반영 전 문구)**: 새 `.claude/agents/` 폴더는 **세션 시작 뒤에 만들면 재시작이 필요**하다 — 지금 세션에서 `design-reviewer` 호출이 "not found". 따라서 ① **실제 에이전트를 통한 차단 시험**(금지 경로 쓰기가 막히는지, 허용 경로는 되는지, Bash·Agent 도구가 없는지) ② **프로젝트 훅은 폴더 신뢰 허용 창을 수락해야 작동** — 수락 전에는 쓰기 제한이 없는 것과 같다 ③ 프론트매터 훅이 서브에이전트 자신의 Edit/Write에 실제로 발동하는지는 문서상 추정일 뿐 미시험.
   시험 방법: 재시작 후 `design-reviewer`에게 "금지(`frontend/js/_probe_forbidden.js`, `docs/design/forbidden-probe.txt`)와 허용(`docs/design/mockups/_probe.txt`) 경로에 각각 쓰기 시도, 결과를 그대로 보고" 시키고, 시험 뒤 `docs/design/` 임시 파일을 지운다. 훅이 안 걸리면 대안: `.claude/settings.json`의 PreToolUse 훅에서 stdin의 `agent_type`으로 분기(조사 보고서 제안, 이것도 미시험).
-- **다음 에이전트(예정, 이 결과를 본 뒤에 하나씩, 만들 때마다 사용자 승인)**: `frontend-dev`(`frontend/` 단 `frontend/data/` 제외 — 퍼블리셔 역할 포함으로 시작) → `qa-verifier`(테스트·화면 확인, 소스 못 고침) → `data-auditor`(기관 날짜를 원문과 대조, 읽기 위주) → `backend-dev`(`kgi-ggreport-web/`·`db/`, 영향이 커서 마지막) → (선택) `planner`. 추가 절차: 정의 파일 → `agent-guard.ps1`의 `$rules` 항목 → README 표 → 폴더. 기존 `security-guidance`·`code-review`·`commit-commands` 플러그인은 그대로 쓰고 에이전트를 새로 만들지 않는다. 인수인계("마무리")는 메인이 한다.
+- **(아래는 생성 전 계획 문구 — 위 "현재 상태"가 최신이다. 순서·이유는 참고용)** **다음 에이전트(예정, 이 결과를 본 뒤에 하나씩, 만들 때마다 사용자 승인)**: `frontend-dev`(`frontend/` 단 `frontend/data/` 제외 — 퍼블리셔 역할 포함으로 시작) → `qa-verifier`(테스트·화면 확인, 소스 못 고침) → `data-auditor`(기관 날짜를 원문과 대조, 읽기 위주) → `backend-dev`(`kgi-ggreport-web/`·`db/`, 영향이 커서 마지막) → (선택) `planner`. 추가 절차: 정의 파일 → `agent-guard.ps1`의 `$rules` 항목 → README 표 → 폴더. 기존 `security-guidance`·`code-review`·`commit-commands` 플러그인은 그대로 쓰고 에이전트를 새로 만들지 않는다. 인수인계("마무리")는 메인이 한다.
 - **세션 관련(확인됨)**: 별도 창이 없어도 서브에이전트는 메인이 부른다. 다른 **세션**과의 대화는 `ListAgents`/`SendMessage`(같은 컴퓨터의 로컬 세션이면 창·프로젝트 무관, 양방향 비동기, VS Code는 대화 탭을 더 열면 별도 세션). 현재 대기 중인 `ggreportagent-56`이 목록에 보인다. 에이전트 팀(실험 기능)은 쓰지 않는다.
 - **28·30번과의 관계**: `design-reviewer`가 28번(화면 디자인)의 진단·규격을 이어받는다. 30번(데이터·권한)은 `data-auditor`/`backend-dev`/`planner` 영역이라 디자이너는 이관 메모로만 다룬다.
