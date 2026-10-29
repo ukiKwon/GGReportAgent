@@ -160,6 +160,28 @@ manual update, not just an edit to the `.txt` file.
 NEXT.md는 통째로 암기하는 문서가 아니라 열린 항목의 작성 방식·현황을 보는 문서다.
 완료된 항목은 `handoff/done.md`로 옮겨 NEXT.md에는 열린 것만 남긴다.
 
+## 여러 세션 동시 작업 (사용자 요청 2026-10-29)
+
+같은 저장소에서 세션이 둘 이상 돌 수 있다. 작업을 시작할 때 `ListAgents`로 다른 세션이 있는지 보고,
+있으면 아래를 따른다. (세션이 하나뿐이면 아래 "Handoff summaries" 규칙만 적용된다.)
+
+1. **작업 폴더를 세션마다 분리한다.** `git worktree`(`EnterWorktree`)로 세션마다 별도 폴더·브랜치에서
+   작업하고 끝나면 병합한다. 같은 폴더를 어쩔 수 없이 공유하면 파일 담당을 나눈다.
+2. **병렬 세션은 handoff 기록을 세션별 파일에 쓴다** — `handoff/sessions/YYYY-MM-DD_HHmm_<세션이름>.md`.
+   날짜별 `YYYY-MM-DD_summary.md`에는 **병합·마무리하는 세션이** 그 내용을 `## Session HH:mm` 섹션으로
+   옮겨 적는다(append-only 유지). SessionStart 훅은 `sessions/` 안을 읽지 않으니 옮기지 않으면 다음 세션에 안 보인다.
+3. **공통 문서는 종류별로 다룬다.**
+   - 날짜별 summary: 이어 붙이기만 한다. `.gitattributes`의 `merge=union`이 동시 추가를 둘 다 살린다.
+   - `handoff/NEXT.md`: **항목 단위로 부분 수정**(Edit)한다 — 파일을 통째로 다시 쓰지 않는다. 고치기 전에 최신
+     내용을 다시 읽고, 완료분은 `done.md`로 옮긴다. 항목별 파일로 쪼개는 안은 NEXT 28(슬림화)과 함께 검토한다.
+   - `CLAUDE.md`·설계서처럼 모두가 읽는 문서: 한 번에 한 세션만 고친다. `git status`에 내가 만들지 않은 변경이
+     보이면 건드리지 말고 사용자에게 알린다.
+4. **커밋은 경로를 지정한다.** `git add -A`·`git commit -a`를 쓰지 않는다. 남의 미커밋 변경은 담지 않는다
+   (사용자가 같이 담으라고 한 경우만).
+5. **서버·DB·포트는 한 세션만 쓴다.** `localhost:8080` 서버, 로컬 MySQL, `target/`을 동시에 쓰지 않는다.
+   테스트나 빌드 전에 다른 세션이 쓰는 중인지 확인한다.
+6. **병합은 짧고 자주 한다.** 공통 문서를 고치기 전에 최신 상태를 먼저 받는다(`git pull`).
+
 ## Handoff summaries
 
 **What "마무리해줘" (finalize/wrap up) means in this repo:** update or create the day's
