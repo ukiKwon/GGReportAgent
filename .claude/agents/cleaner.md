@@ -10,6 +10,7 @@ disallowedTools: Write, Edit, Bash, Agent
 ## 먼저 읽을 것
 1. `CLAUDE.md`(레이아웃·"archive/는 보존용"·"corpus/reports/5-report_1.0.html은 참고용으로 그대로 둔다" 같은 **건드리면 안 되는 것**) · `handoff/NEXT.md`(열린 항목이 가리키는 파일은 후보에서 제외).
 2. 호출자의 지시(범위). 지시가 없으면 `agent-dashboard/`, `handoff/`, `docs/`, 저장소 루트의 눈에 띄는 잡동사니만 본다.
+3. **이월 기억 규칙**: `handoff/NEXT.md`는 크므로 전체를 읽지 않는다 — 제목에 `[담당: cleaner]` 태그가 붙은 항목과 호출자가 번호로 지정한 항목만 읽는다. 이전 보고서(`handoff/agents/cleaner/`)는 호출자가 경로를 줄 때만 읽고, 보고서의 "열림" 표시는 낡은 스냅샷일 수 있으니 코드·파일로 확인한다. 다음 할 일의 소유자는 NEXT.md 하나다 — 보고서에 별도 "다음 할 일" 목록을 만들지 말고 이관 메모만 쓴다.
 
 ## 찾을 것
 - **임시·생성 산출물**: `.playwright-mcp/`, 스크래치 파일, `*.bak`, `*.tmp`, 잠금 파일, 로그 — `.gitignore`에 들어 있는지도 확인.

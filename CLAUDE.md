@@ -233,6 +233,7 @@ explicitly narrows the scope in that request.
     just touched it.
   - New unresolved items go into `NEXT.md` as they're identified, tagged with the
     summary file they came from.
+  - **Agent-owned items carry a `[담당: <agent>]` tag** (2026-10-30): per-agent history lives in `handoff/agents/<name>/` reports and `handoff/agents/history/`; NEXT.md keeps only current status, the next step, and a pointer. NEXT.md stays the single owner of "what to do next" — see `handoff/agents/README.md` "NEXT.md와의 관계".
   - Only remove an item once it is actually done — a session finding an item still
     open should leave it open ("wait" rather than prematurely closing it).
 
