@@ -1,4 +1,4 @@
-// 에이전트 대시보드 상태 갱신 훅. 사용: node hook.js <dispatch|start|stop|prompt|idle>
+// 에이전트 대시보드 상태 갱신 훅. 사용: node hook.js <dispatch|start|stop|prompt|idle|session>
 // stdin: Claude Code 훅 JSON. 실패해도 항상 exit 0 — 본 작업을 막지 않는다.
 // 같은 역할이 동시에 여러 개(병렬·여러 세션) 돌 수 있어, 에이전트별 instances에 인스턴스 단위로 기록한다.
 const { update } = require('./statefile');
@@ -39,6 +39,8 @@ process.stdin.on('end', () => {
       update(s => { s.coach.task = Array.from(String(p.prompt || '').replace(/\s+/g, ' ')).slice(0, 40).join(''); });
     } else if (mode === 'idle') {
       update(s => { s.coach.task = ''; });
+    } else if (mode === 'session') { // 새 Claude 세션(startup·clear)만 누적 리셋 — resume·compact에서도 SessionStart가 오므로 제외
+      if (p.source === 'startup' || p.source === 'clear') update(s => { s.stats = { laps: 0, since: Date.now() }; });
     }
   } catch (_) {}
 });

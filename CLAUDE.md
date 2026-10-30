@@ -161,6 +161,7 @@ manual update, not just an edit to the `.txt` file.
 사용자는 에이전트를 직접 조작하지 않는다. **작업 항목을 승인하면 메인이 알아서 역할 에이전트(`.claude/agents/`)를 투입한다.**
 대시보드(`agent-dashboard/`)는 **세션 시작 때 자동으로 뜬다**(SessionStart 훅 `start.js`: 서버가 없을 때만 띄우고 브라우저를 연다. 끄려면 환경변수 `AGENT_DASH_NO_OPEN=1`). 에이전트의 작업 상태는 훅(`hook.js`)으로 자동 표시한다 — 화면의 시작/멈춤 버튼은 시험용일 뿐이다.
 
+- **역할 간 이동·되돌림·멈춤 규칙은 `handoff/agents/graph.md`(에이전트 그래프)를 따른다.** 사용자는 그 문서의 판단 지점(G1~G6)에서만 개입하고, 나머지는 메인이 자동으로 라우팅한다. 작업마다 `handoff/agents/runs/`에 실행 기록을 남긴다.
 - 투입 순서(해당하는 역할만): `planner`(범위·선택지) → `design-reviewer`(화면 규격) → `frontend-dev`/`backend-dev`(패치안)
   → 메인이 적용·테스트 → `qa-verifier`(독립 검토) → `security`(권한·입력·비밀값)·`data-auditor`(레코드 값) → `pm`(여러 항목 정리). 큰 작업 묶음이 끝났거나 "마무리" 전에는 `cleaner`(청소부)로 정리 후보를 점검한다.
 - 한두 줄 수정·오타처럼 사소한 일에는 투입하지 않는다. 판단이 애매하면 투입하되 결과만 짧게 보고한다.

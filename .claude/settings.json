@@ -10,6 +10,10 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/agent-dashboard/start.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/agent-dashboard/hook.js\" session"
           }
         ]
       }
