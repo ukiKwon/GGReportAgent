@@ -33,9 +33,10 @@ import java.util.Map;
  * 결재 요청 — 상신·결재·반려·취소. 지금 상신할 수 있는 유형은 <b>권한 신청</b>({@link ApprovalTypes#PERM_REQUEST}).
  *
  * <p>결재선은 상신 때 <b>스냅샷</b>으로 고정한다(상위 결재자가 나중에 바뀌어도 진행 중인 건은 안 바뀐다).
- * 단계 처리 자격: 지정된 결재자 본인, 또는 그 결재자의 <b>유효한 대결자</b>. 어느 쪽이든
- * {@link Ranks#mayDecide} 방향 규칙(상신자가 처리자보다 상위 직급이면 불가)을 통과해야 하고, 본인 요청은
- * 결재할 수 없다. 반려는 의견이 필수다. 마지막 단계가 승인되면 유형별 후처리를 같은 트랜잭션에서 실행한다 —
+ * 단계 처리 자격: 지정된 결재자 본인, 또는 그 결재자의 <b>유효한 대결자</b>. 결재자 본인은
+ * {@link Ranks#mayApprove}(상신자보다 직급이 엄격히 높아야 함 — 같은 직급 불가), 대결자는
+ * {@link Ranks#mayDecide}(상신자보다 낮지만 않으면 됨 — 같은 직급 가능)를 통과해야 하고, 본인 요청은
+ * 결재할 수 없다. 관리자 확인(ADMIN) 단계는 이 규칙과 무관하다. 반려는 의견이 필수다. 마지막 단계가 승인되면 유형별 후처리를 같은 트랜잭션에서 실행한다 —
  * 후처리가 실패하면 승인도 되돌아간다(승인됐는데 반영이 안 된 상태를 남기지 않는다).
  *
  * <p>⚠️ 호출자는 {@link CallerService} 가 확인한다. 사번은 앞단 인증이 없으면 자기신고다.
@@ -174,7 +175,7 @@ public class ApprovalRequestService {
         String how = eligibility(me, requester, cur);
         if (how == null) {
             throw new ApiException(403, "이 요청을 결재할 수 없습니다 — 결재자(또는 유효한 대결자)가 아니거나, "
-                    + "상신자보다 낮은 직급이거나, 본인의 요청입니다.");
+                    + "직급이 맞지 않거나(결재자는 상신자보다 높아야 하고 대결자는 상신자보다 낮으면 안 됩니다), 본인의 요청입니다.");
         }
         String now = Times.nowIso();
         requests.updateStep(cur.getStepId(), approve ? "APPROVED" : "REJECTED", me.getEmpNo(),
@@ -274,7 +275,7 @@ public class ApprovalRequestService {
      * (사번을 받지 않는다 — 다른 사람의 권한을 볼 길이 없다).
      * {@code can_approve} : 결재함의 결재 권한이 있는지 — 화면이 '받은 결재' 안내를 고르는 데 쓴다.
      * {@code rank_can_approve} : 직급상 팀장 이상인가({@link Ranks#isApproverRank}) — 메뉴 권한(can_approve)과
-     * 별개이며 그 값을 바꾸지 않는다. 실제 승인 허용은 여전히 {@link Ranks#mayDecide}·eligibility 가 정한다.
+     * 별개이며 그 값을 바꾸지 않는다. 실제 승인 허용은 여전히 {@link Ranks#mayApprove}·{@link Ranks#mayDecide}·eligibility 가 정한다.
      */
     @Transactional(readOnly = true)
     public Map<String, Object> myPerms(Actor actor) {
@@ -360,7 +361,7 @@ public class ApprovalRequestService {
         throw new ApiException(500, "결재 단계 정보가 맞지 않습니다.");
     }
 
-    /** 상신자의 상위 결재자(활성·방향 규칙 통과). 최상위(대표급)면 null, 정해지지 않았으면 400. */
+    /** 상신자의 상위 결재자(활성·상신자보다 엄격히 높은 직급). 최상위(대표급)면 null, 정해지지 않았으면 400. */
     private SysUser lineApprover(SysUser requester) {
         String emp = requester.getApproverEmpNo();
         if (emp == null) {
@@ -373,15 +374,17 @@ public class ApprovalRequestService {
         if (a == null || !"ACTIVE".equals(a.getStatus())) {
             throw new ApiException(400, "상위 결재자가 사용 중이 아닙니다 — 시스템 관리자에게 재지정을 요청하세요.");
         }
-        if (!Ranks.mayDecide(requester, a)) {
-            throw new ApiException(400, "상위 직급자에게만 결재를 올릴 수 있습니다 — 상위 결재자의 직급이 더 낮게 지정돼 있습니다.");
+        if (!Ranks.mayApprove(requester, a)) {
+            throw new ApiException(400, "결재자는 상신자보다 직급이 높아야 합니다 — 지정된 상위 결재자의 직급이 같거나 낮습니다. "
+                    + "시스템 관리자에게 재지정을 요청하세요.");
         }
         return a;
     }
 
     /**
      * 이 사람이 이 단계를 처리할 수 있는가. {@code "SELF"}(결재자 본인·관리자 확인) · {@code "DEPUTY"}(대결) ·
-     * {@code null}(불가). 방향 규칙은 본인·대결자 모두에게 적용한다.
+     * {@code null}(불가). 결재자 본인은 상신자보다 직급이 엄격히 높아야 하고({@link Ranks#mayApprove}),
+     * 대결자는 같은 직급까지 허용한다({@link Ranks#mayDecide}).
      */
     private String eligibility(SysUser me, SysUser requester, ApprovalStep step) {
         if (me.getEmpNo().equals(requester.getEmpNo())) {
@@ -390,13 +393,11 @@ public class ApprovalRequestService {
         if ("ADMIN".equals(step.getKind())) {
             return permissions.canAdmin(me.getEmpNo()) ? "SELF" : null;
         }
-        if (!Ranks.mayDecide(requester, me)) {
-            return null;
-        }
         if (me.getEmpNo().equals(step.getApproverEmpNo())) {
-            return "SELF";
+            return Ranks.mayApprove(requester, me) ? "SELF" : null;
         }
-        return deputies.principalsOf(me.getEmpNo(), Times.todayKst()).contains(step.getApproverEmpNo())
+        return Ranks.mayDecide(requester, me)
+                && deputies.principalsOf(me.getEmpNo(), Times.todayKst()).contains(step.getApproverEmpNo())
                 ? "DEPUTY" : null;
     }
 
