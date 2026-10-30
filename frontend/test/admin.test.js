@@ -221,3 +221,17 @@ test('approverAttention: 지정 필요·재지정 필요만(퇴직·최상위 �
 test('RANKS: 회사 직급 순서', function () {
   assert.deepStrictEqual(admin.RANKS, ['계장', '대리', '과장', '차장', '수석차장', '팀장', '부장', '대표']);
 });
+
+test('permItemLabel/permValueLabel: 결재자 이력은 한글로, 나머지는 원문', function () {
+  assert.strictEqual(admin.permItemLabel('user:APPROVER_RELEASED'), '직급 변경으로 결재자 지정 해제');
+  assert.strictEqual(admin.permItemLabel('user:APPROVER'), '상위 결재자');
+  assert.strictEqual(admin.permItemLabel('user:APPROVER_MODE'), '결재자 지정 방식');
+  assert.strictEqual(admin.permItemLabel('perm:approvals:CAN_VIEW'), 'perm:approvals:CAN_VIEW');   // 모르는 항목은 원문
+  assert.strictEqual(admin.permItemLabel(null), '');
+  assert.strictEqual(admin.permValueLabel('user:APPROVER_RELEASED', 'RANK', true), '직급 변경');
+  assert.strictEqual(admin.permValueLabel('user:APPROVER_RELEASED', '2000001', false), '2000001');   // 사번은 그대로
+  assert.strictEqual(admin.permValueLabel('user:APPROVER_MODE', 'MANUAL', true), '수동 지정');
+  assert.strictEqual(admin.permValueLabel('user:APPROVER_MODE', 'AUTO', false), '자동');
+  assert.strictEqual(admin.permValueLabel('user:APPROVER', 'RANK', true), 'RANK');
+  assert.strictEqual(admin.permValueLabel('user:APPROVER_RELEASED', null, true), '');
+});

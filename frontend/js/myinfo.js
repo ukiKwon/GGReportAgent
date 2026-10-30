@@ -195,7 +195,12 @@
 
   myinfo.mount = function () { view = myinfo.VIEWS[0].key; flash = { text: '', bad: false }; reason = ''; return load(); };
   myinfo.unmount = function () { /* 폴링이 없어 정리할 것이 없다 */ };
-  myinfo.onProfileChange = function () { if (el('tab-myinfo') && el('tab-myinfo').classList.contains('active')) load(); };
+  myinfo.onProfileChange = function () {
+    if (!(el('tab-myinfo') && el('tab-myinfo').classList.contains('active'))) return;
+    // 로그아웃 직후엔 사번 헤더가 없어 my-perms 가 401 이다 — 부르지 않고 비운다.
+    if (!(root.store.loadSession() || {}).emp) { me = null; loadError = ''; paint(); return; }
+    load();
+  };
 
   root.myinfo = myinfo;
 })(typeof self !== 'undefined' ? self : this);

@@ -175,7 +175,7 @@
   approvals.render = function (container, data, profile) {
     const rows = approvals.rows(data);
     if (!rows.length) {
-      container.innerHTML = '<p class="wf-empty">결재할 것이 없습니다.</p>';
+      container.innerHTML = '';   // 빈 안내는 #ap-notice(approvals.inboxNotice)가 한 번만 낸다
       return;
     }
     const locked = !approvals.canDecide(profile);
@@ -231,7 +231,7 @@
   function paint() {
     const profile = root.store.loadProfile();
     el('ap-role').textContent = profile.team || '(소속 없음)';
-    el('ap-count').textContent = approvals.summary(payload);
+    el('ap-count').textContent = approvals.rows(payload).length ? approvals.summary(payload) : '';
     approvals.render(el('ap-list'), payload, profile);
     el('ap-list').querySelectorAll('button').forEach(function (btn) {
       if (busy) { btn.disabled = true; return; }
@@ -383,6 +383,8 @@
   }
 
   function loadRequests() {
+    // 로그아웃 직후엔 사번 헤더가 없어 서버가 401을 낸다 — 부르지 않고 캐시만 비운다.
+    if (!(root.store.loadSession() || {}).emp) { reqs.mine = null; reqs.inbox = null; reqError = ''; return Promise.resolve(); }
     return Promise.all([
       getJson('/approval-requests?box=mine'),
       getJson('/approval-requests?box=inbox'),

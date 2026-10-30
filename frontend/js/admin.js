@@ -64,6 +64,22 @@
     SCREEN_VIEW: '화면 열람', API: 'API 호출', DENIED: '접근 거부'
   };
   admin.STATUS_LABELS = { ACTIVE: '사용', LOCKED: '잠김', RETIRED: '퇴직' };
+  // 권한 변경 이력(PERM_CHANGE_LOG)의 항목·값 라벨 — 모르는 값은 원문을 그대로 보인다.
+  admin.PERM_ITEM_LABELS = {
+    'user:APPROVER': '상위 결재자',
+    'user:APPROVER_MODE': '결재자 지정 방식',
+    'user:APPROVER_RELEASED': '직급 변경으로 결재자 지정 해제',
+  };
+  admin.permItemLabel = function (item) {
+    const k = String(item == null ? '' : item);
+    return admin.PERM_ITEM_LABELS[k] || k;
+  };
+  // 값 라벨 — APPROVER_MODE 의 AUTO/MANUAL, 해제 이력의 이후 값 RANK(= 직급이 바뀌어 풀림). 사번 등은 그대로 둔다.
+  admin.permValueLabel = function (item, value, isAfter) {
+    const v = value == null ? '' : String(value);
+    if (item === 'user:APPROVER_MODE') return v === 'AUTO' ? '자동' : (v === 'MANUAL' ? '수동 지정' : v);
+    return item === 'user:APPROVER_RELEASED' && isAfter && v === 'RANK' ? '직급 변경' : v;
+  };
   const DEFAULT_GRADES = { NONE: '해당 없음', TEAM_LEAD: '팀장급', DEPT_HEAD: '부장급', EXECUTIVE: '대표급' };
 
   // 쪽 크기 — 사용자 관리·접근 이력이 같은 선택지를 쓴다(서버 접근 이력의 상한 200 이내).
@@ -607,8 +623,8 @@
         (permHistory.length ? '<table class="ad-table"><thead><tr><th>시각</th><th>변경자</th><th>항목</th><th>이전</th><th>이후</th></tr></thead><tbody>' +
           permHistory.map(function (h) {
             return '<tr><td>' + esc(admin.formatTime(h.changed_at)) + '</td><td class="mono">' + esc(h.actor_emp_no || '-') +
-              '</td><td>' + esc(h.item) + '</td><td>' + esc(h.before_value == null ? '' : h.before_value) + '</td><td>' +
-              esc(h.after_value == null ? '' : h.after_value) + '</td></tr>';
+              '</td><td>' + esc(admin.permItemLabel(h.item)) + '</td><td>' + esc(admin.permValueLabel(h.item, h.before_value, false)) + '</td><td>' +
+              esc(admin.permValueLabel(h.item, h.after_value, true)) + '</td></tr>';
           }).join('') + '</tbody></table>' : '<p class="ad-empty">아직 변경 이력이 없습니다.</p>')
         : '<p class="ad-empty">권한을 볼 사용자를 선택하세요.</p>');
     el('pm-user').onchange = function (e) { permEmp = e.target.value; loadPerms(); };
