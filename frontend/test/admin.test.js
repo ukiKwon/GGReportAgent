@@ -112,15 +112,16 @@ test('menuColumns: 사이드바의 대표 메뉴 순서·이름으로 열을 만
   assert.deepStrictEqual(cols.map(function (c) { return c.key; }),
     ['map', 'regions', 'knowledge', 'chat', 'workflow', 'tasks', 'approvals', 'admin']);
   assert.strictEqual(cols.filter(function (c) { return c.key === 'knowledge'; })[0].label, '지식 검색');
+  assert.strictEqual(cols.filter(function (c) { return c.key === 'workflow'; })[0].label, '제안서 진행 현황');
   assert.strictEqual(cols[cols.length - 1].label, '시스템 관리');          // 4개 보기가 한 열
   assert.strictEqual(cols[cols.length - 1].group, '시스템 관리');
   assert.deepStrictEqual(admin.groupSpans(cols).map(function (s) { return s.group + ':' + s.span; }),
-    ['기관영업 기획 관리:2', '제안서 자료 관리:2', '제안서 협업 및 결재:3', '시스템 관리:1']);
+    ['기관 현황:2', '제안서 작성:2', '제안 진행·승인:3', '시스템 관리:1']);
 });
 
 test('menuColumns: 사이드바에 없는 새 메뉴 키도 빠지지 않는다', function () {
   const cols = admin.menuColumns([{ key: 'map', label: '전국 지도' }, { key: 'newone', label: '신규' }], nav.CATEGORIES);
-  assert.deepStrictEqual(cols.map(function (c) { return c.key + '/' + c.group; }), ['map/기관영업 기획 관리', 'newone/기타']);
+  assert.deepStrictEqual(cols.map(function (c) { return c.key + '/' + c.group; }), ['map/기관 현황', 'newone/기타']);
 });
 
 test('formatTime: UTC ISO(마이크로초 포함)를 한국시간으로', function () {
