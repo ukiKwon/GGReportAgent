@@ -486,7 +486,8 @@ public class ApprovalLineApiTest {
 
     /** 사번 앞으로 간 쪽지 중 종류가 {@code kind} 인 것. */
     private java.util.List<JsonNode> notesTo(String emp, String kind) throws Exception {
-        String text = mockMvc.perform(get("/notifications").param("recipient", emp)).andExpect(status().isOk())
+        String text = mockMvc.perform(get("/notifications").param("recipient", emp).header("X-Emp-No", emp))
+                .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         java.util.List<JsonNode> out = new java.util.ArrayList<>();
         for (JsonNode n : JSON.readTree(text)) {

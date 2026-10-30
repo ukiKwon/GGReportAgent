@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +26,9 @@ import java.util.Map;
  * 보이는 전체 조회가 되고, 수신자가 사람 이름일 수도 역할일 수도 있어서 쪽지함은
  * '내 소속 + 내 이름'을 함께 본다.
  *
- * <p>발송({@code POST})·읽음 처리는 아직 없다 — 단계 2는 조회만이다.
+ * <p>조회·읽음 처리는 {@link NotificationGuard} 가 호출자 몫인지 확인한다(스위치
+ * {@code ggreport.notifications.enforce-recipient}, 기본 켜짐). 발송({@code POST})은 아직 로그인을
+ * 요구하지 않는다 — sender 자유 입력은 후속 과제다.
  */
 @RestController
 @RequestMapping("/notifications")
@@ -37,11 +40,14 @@ public class NotificationController {
 
     private final NotificationQueryService notifications;
     private final NotificationCommandService commands;
+    private final NotificationGuard guard;
 
     public NotificationController(NotificationQueryService notifications,
-                                  NotificationCommandService commands) {
+                                  NotificationCommandService commands,
+                                  NotificationGuard guard) {
         this.notifications = notifications;
         this.commands = commands;
+        this.guard = guard;
     }
 
     /**
@@ -59,7 +65,8 @@ public class NotificationController {
 
     /** 읽음 처리. 이미 읽은 것을 다시 눌러도 안전하다 — {@code {"read": false}} 로 알려줄 뿐. */
     @PostMapping("/{notificationId}/read")
-    public Map<String, Boolean> read(@PathVariable String notificationId) {
+    public Map<String, Boolean> read(@PathVariable String notificationId, HttpServletRequest req) {
+        guard.requireOwner(req, notifications.recipientOf(notificationId));
         return Collections.singletonMap("read", commands.markRead(notificationId));
     }
 
@@ -67,7 +74,8 @@ public class NotificationController {
     public List<Notification> list(
             @RequestParam("recipient") List<String> recipient,
             @RequestParam(name = "unread_only", defaultValue = "false") boolean unreadOnly,
-            @RequestParam(name = "limit", defaultValue = "50") int limit) {
+            @RequestParam(name = "limit", defaultValue = "50") int limit,
+            HttpServletRequest req) {
         if (recipient.isEmpty()) {
             throw ApiException.badRequest("recipient가 비어 있습니다");
         }
@@ -75,6 +83,6 @@ public class NotificationController {
             throw ApiException.badRequest(
                     "limit은 " + LIMIT_MIN + "~" + LIMIT_MAX + " 범위여야 합니다: " + limit);
         }
-        return notifications.forRecipients(recipient, unreadOnly, limit);
+        return notifications.forRecipients(guard.readable(req, recipient), unreadOnly, limit);
     }
 }
