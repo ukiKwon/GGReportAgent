@@ -337,6 +337,17 @@
   #wf-participation .wf-cov tr.done td { color:var(--muted); }
   #wf-participation .wf-cov tr.current { background:color-mix(in srgb, var(--accent-color) 8%, transparent); }
   .wf-dec { padding:2px 12px; margin-right:4px; }
+  /* 제안서 진행 현황 목록 — 목록/상세 전환은 섹션 클래스 하나로 */
+  #tab-workflow.wf-mode-list > :not(#wf-overview) { display:none; }
+  #tab-workflow:not(.wf-mode-list) > #wf-overview { display:none; }
+  .wf-chips { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:8px 0; }
+  .wf-chip { padding:3px 11px; font-size:12px; border-radius:9px; }
+  .wf-chip i { font-style:normal; color:var(--muted); margin-left:5px; }
+  .wf-chip[aria-pressed="true"] { border-color:var(--accent-color); box-shadow:0 0 0 1px var(--accent-color); color:var(--fg); font-weight:700; }
+  .wf-ov tbody tr[data-id] { cursor:pointer; }
+  .wf-ov tbody tr[data-id]:hover td { background:var(--panel2); }
+  .wf-ov tr.mine td:first-child { box-shadow:inset 3px 0 0 var(--accent-color); }
+  .wf-open { font-size:12px; }
   .wf-log { margin-top:10px; }
   .wf-log-title { font-size:13px; margin:6px 0 2px; }
   .wf-log-row { border-top:1px solid var(--line); padding:6px 0; font-size:12px; }
@@ -717,6 +728,7 @@ review, the verdict, and DESIGN.md
 </section>
 
 <section id="tab-workflow" class="tab-view">
+  <div id="wf-overview"></div>
   <div id="wf-controls"></div>
   <div id="wf-warn"></div>
   <div id="wf-participation"></div>

@@ -327,3 +327,110 @@ test('renderStageLog: 알림·사람 발화에는 🧠가 붙지 않는다', fun
   ] }, 5);
   assert.strictEqual((el.innerHTML.match(/🧠/g) || []).length, 0);
 });
+
+// ── 제안서 진행 현황 목록 (NEXT 33 기능 1) ──
+const OV = {
+  items: [
+    { institution_id: 'i1', name: '가기관', region: '서울', stage: 5, stage_label: '제안서 기획', state: 'PENDING_APPROVAL', gate: '기획승인', done: false, bid_count: 2, assignees: ['김가'], updated_at: '2026-10-30T01:05:00Z' },
+    { institution_id: 'i2', name: '나기관', region: '경기', stage: 3, stage_label: 'RFI 공시', state: 'RUNNING', gate: null, done: false, bid_count: 1, assignees: [], updated_at: null },
+    { institution_id: 'i3', name: '다기관', region: '서울', stage: 6, stage_label: '세부기획(3팀)', state: 'RUNNING', gate: null, done: false, bid_count: 1, assignees: ['이나', '박다'], updated_at: '2026-10-30T10:05:00' },
+    { institution_id: 'i4', name: '라기관', region: '부산', stage: 7, stage_label: '취합', state: 'PENDING_APPROVAL', gate: '이관결재', done: false, bid_count: 3, assignees: [], updated_at: null },
+    { institution_id: 'i5', name: '마기관', region: '서울', stage: 8, stage_label: '검토', state: 'FAILED', gate: null, done: false, bid_count: 1, assignees: [], updated_at: null },
+    { institution_id: 'i6', name: '바기관', region: '서울', stage: 9, stage_label: '제출', state: 'DONE', gate: null, done: true, bid_count: 1, assignees: [], updated_at: null },
+    { institution_id: 'i7', name: '사기관', region: '서울', stage: 9, stage_label: '제출', state: 'RUNNING', gate: null, done: false, bid_count: 1, assignees: [], updated_at: null },
+    { institution_id: 'i8', name: '아기관', region: '서울', stage: 1, stage_label: '입찰현황 파악', state: 'NONE', gate: null, done: false, bid_count: 0, assignees: [], updated_at: null },
+  ],
+  mine: ['i1', 'i2'],
+};
+
+test('overviewGroup: 완료가 단계보다 먼저, 나머지는 단계 묶음', function () {
+  const g = function (stage, done) { return wf.overviewGroup({ stage: stage, done: !!done }); };
+  assert.strictEqual(g(1), 'plan'); assert.strictEqual(g(5), 'plan');
+  assert.strictEqual(g(6), 'detail'); assert.strictEqual(g(7), 'detail');
+  assert.strictEqual(g(8), 'review'); assert.strictEqual(g(9), 'submit');
+  assert.strictEqual(g(9, true), 'done'); assert.strictEqual(g(3, true), 'done');
+});
+
+test('overviewRows: 행 모양·배지·본인 표시', function () {
+  const rows = wf.overviewRows(OV);
+  assert.strictEqual(rows.length, 8);
+  const a = rows[0];
+  assert.strictEqual(a.mine, true);
+  assert.strictEqual(a.stageText, '5. 제안서 기획');
+  assert.strictEqual(a.badge.text, '결재 대기 · 기획승인');
+  assert.strictEqual(a.badge.cls, 'gap');
+  assert.strictEqual(a.updatedText, '2026-10-30 10:05');
+  assert.strictEqual(rows[2].assigneesText, '이나, 박다');
+  assert.strictEqual(rows[1].assigneesText, '-');
+  assert.strictEqual(rows[1].updatedText, '-');
+  assert.strictEqual(rows[2].mine, false);
+  assert.strictEqual(rows[5].badge.text, '✓ 완료');
+  assert.strictEqual(rows[4].badge.text, '실패');
+  assert.strictEqual(rows[7].badge.text, '실행 전');
+  assert.strictEqual(rows[1].badge.text, '진행 중');
+});
+
+test('overviewRows: 빈 입력·누락 필드에도 죽지 않는다', function () {
+  assert.deepStrictEqual(wf.overviewRows(null), []);
+  assert.deepStrictEqual(wf.overviewRows({}), []);
+  const r = wf.overviewRows({ items: [{ institution_id: 'x', name: 'X' }] })[0];
+  assert.strictEqual(r.id, 'x');
+  assert.strictEqual(r.mine, false);
+  assert.strictEqual(r.badge.text, '실행 전');
+});
+
+test('sortOverview: 본인 → 결재대기 → 진행중 → 나머지, 같으면 이름순', function () {
+  const ids = wf.sortOverview(wf.overviewRows(OV)).map(function (r) { return r.id; });
+  assert.deepStrictEqual(ids, ['i1', 'i2', 'i4', 'i3', 'i7', 'i5', 'i6', 'i8']);
+});
+
+test('groupCounts·filterRows: 묶음 건수 합 = 전체, 필터 결과', function () {
+  const rows = wf.overviewRows(OV);
+  assert.deepStrictEqual(wf.groupCounts(rows), { all: 8, plan: 3, detail: 2, review: 1, submit: 1, done: 1 });
+  assert.strictEqual(wf.filterRows(rows, 'all').length, 8);
+  assert.deepStrictEqual(wf.filterRows(rows, 'plan').map(function (r) { return r.id; }), ['i1', 'i2', 'i8']);
+  assert.deepStrictEqual(wf.filterRows(rows, 'done').map(function (r) { return r.id; }), ['i6']);
+  assert.strictEqual(wf.filterRows(rows, '없는키').length, 8);   // 모르는 키는 전체
+});
+
+test('STAGE_GROUPS: 칩 라벨', function () {
+  assert.deepStrictEqual(wf.STAGE_GROUPS.map(function (g) { return g.label; }),
+    ['전체', '기획 단계(1~5)', '세부 기획·취합(6~7)', '검토(8)', '제출(9)', '완료']);
+});
+
+test('formatKst: Z/오프셋은 KST로 변환, 시간대 없으면 그대로, 깨진 값은 -', function () {
+  assert.strictEqual(wf.formatKst('2026-10-30T01:05:00Z'), '2026-10-30 10:05');
+  assert.strictEqual(wf.formatKst('2026-10-30T23:30:00+00:00'), '2026-10-31 08:30');
+  assert.strictEqual(wf.formatKst('2026-10-30T10:05:00+09:00'), '2026-10-30 10:05');
+  assert.strictEqual(wf.formatKst('2026-10-30T10:05:00'), '2026-10-30 10:05');
+  assert.strictEqual(wf.formatKst(null), '-');
+  assert.strictEqual(wf.formatKst('엉터리'), '-');
+});
+
+test('overviewError: 권한/서버 꺼짐/미지원/기타 구분', function () {
+  assert.ok(wf.overviewError({ status: 403 }).indexOf('권한') >= 0);
+  assert.ok(wf.overviewError({ status: 401 }).indexOf('권한') >= 0);
+  assert.ok(wf.overviewError(new TypeError('Failed to fetch')).indexOf('서버') >= 0);
+  assert.ok(wf.overviewError({ status: 404 }).indexOf('404') >= 0);
+  assert.ok(wf.overviewError({ status: 500 }).indexOf('500') >= 0);
+});
+
+test('renderOverview: 상태별 문구·칩 aria-pressed·이스케이프', function () {
+  const el = { innerHTML: '' };
+  const rows = wf.sortOverview(wf.overviewRows(OV));
+  wf.renderOverview(el, { status: 'ok', rows: rows, filter: 'plan', error: '' });
+  assert.ok(el.innerHTML.indexOf('data-group="plan" aria-pressed="true"') >= 0);
+  assert.ok(el.innerHTML.indexOf('data-group="all" aria-pressed="false"') >= 0);
+  assert.ok(el.innerHTML.indexOf('data-id="i1"') >= 0);
+  assert.ok(el.innerHTML.indexOf('data-id="i3"') < 0);            // plan 필터 밖
+  assert.ok(el.innerHTML.indexOf('★ 내 담당') >= 0);
+  wf.renderOverview(el, { status: 'loading', rows: [], filter: 'all', error: '' });
+  assert.ok(el.innerHTML.indexOf('불러오는 중') >= 0);
+  wf.renderOverview(el, { status: 'error', rows: [], filter: 'all', error: '<b>x</b>' });
+  assert.ok(el.innerHTML.indexOf('<b>x</b>') < 0);
+  wf.renderOverview(el, { status: 'ok', rows: [], filter: 'all', error: '' });
+  assert.ok(el.innerHTML.indexOf('제안서가 없습니다') >= 0);
+  const evil = wf.overviewRows({ items: [{ institution_id: 'a"b', name: '<img onerror=1>' }] });
+  wf.renderOverview(el, { status: 'ok', rows: evil, filter: 'all', error: '' });
+  assert.ok(el.innerHTML.indexOf('<img') < 0);
+});

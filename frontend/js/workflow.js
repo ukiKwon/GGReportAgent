@@ -197,6 +197,99 @@
     });
   };
 
+  // ── 제안서 진행 현황 목록 (GET /workflow/overview) ──────────────────
+  // 묶음은 서로 겹치지 않는다 — done이면 단계와 무관하게 '완료', 아니면 stage로 판정.
+  workflow.STAGE_GROUPS = [
+    { key: 'all', label: '전체' },
+    { key: 'plan', label: '기획 단계(1~5)' },
+    { key: 'detail', label: '세부 기획·취합(6~7)' },
+    { key: 'review', label: '검토(8)' },
+    { key: 'submit', label: '제출(9)' },
+    { key: 'done', label: '완료' },
+  ];
+
+  workflow.overviewGroup = function (item) {
+    if (item && item.done) return 'done';
+    const s = Number(item && item.stage) || 1;
+    return s <= 5 ? 'plan' : s <= 7 ? 'detail' : s === 8 ? 'review' : 'submit';
+  };
+
+  // 서버 ISO → 'YYYY-MM-DD HH:mm'(KST). 시간대 표기(Z·±hh:mm)가 있으면 +9h 변환,
+  // 없으면 서버가 이미 KST라고 보고 그대로 자른다. 값이 없거나 깨지면 '-'.
+  workflow.formatKst = function (iso) {
+    if (!iso || typeof iso !== 'string') return '-';
+    if (/(Z|[+-]\d{2}:?\d{2})$/.test(iso)) {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '-';
+      const k = new Date(d.getTime() + 9 * 3600 * 1000);
+      const p = function (n) { return (n < 10 ? '0' : '') + n; };
+      return k.getUTCFullYear() + '-' + p(k.getUTCMonth() + 1) + '-' + p(k.getUTCDate()) +
+        ' ' + p(k.getUTCHours()) + ':' + p(k.getUTCMinutes());
+    }
+    const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/.exec(iso);
+    return m ? m[1] + ' ' + m[2] : '-';
+  };
+
+  function overviewBadge(item) {
+    switch (item.state) {
+      case 'DONE': return { text: '✓ 완료', cls: 'ok' };
+      case 'PENDING_APPROVAL': return { text: '결재 대기' + (item.gate ? ' · ' + item.gate : ''), cls: 'gap' };
+      case 'RUNNING': return { text: '진행 중', cls: 'ok' };
+      case 'FAILED': return { text: '실패', cls: 'none' };
+      default: return { text: '실행 전', cls: '' };
+    }
+  }
+
+  workflow.overviewRows = function (payload) {
+    const mine = ((payload && payload.mine) || []);
+    return ((payload && payload.items) || []).map(function (it) {
+      const stage = Number(it.stage) || 1;
+      const def = workflow.STAGES.filter(function (s) { return s.no === stage; })[0];
+      const label = it.stage_label || (def && def.label) || '';
+      return {
+        id: it.institution_id, name: it.name || '', region: it.region || '',
+        stage: stage, stageText: stage + '. ' + label,
+        state: it.state || 'NONE', gate: it.gate || null, done: !!it.done,
+        group: workflow.overviewGroup({ stage: stage, done: it.done }),
+        badge: overviewBadge(it),
+        bidCount: Number(it.bid_count) || 0,
+        assigneesText: (it.assignees || []).length ? it.assignees.join(', ') : '-',
+        updatedText: workflow.formatKst(it.updated_at),
+        mine: mine.indexOf(it.institution_id) >= 0,
+      };
+    });
+  };
+
+  // 본인 담당 → 결재 대기 → 진행 중 → 나머지, 같으면 이름순. 원본은 건드리지 않는다.
+  workflow.sortOverview = function (rows) {
+    const rank = function (r) { return r.state === 'PENDING_APPROVAL' ? 0 : r.state === 'RUNNING' ? 1 : 2; };
+    return rows.slice().sort(function (a, b) {
+      if (a.mine !== b.mine) return a.mine ? -1 : 1;
+      if (rank(a) !== rank(b)) return rank(a) - rank(b);
+      return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+    });
+  };
+
+  workflow.groupCounts = function (rows) {
+    const out = { all: rows.length, plan: 0, detail: 0, review: 0, submit: 0, done: 0 };
+    rows.forEach(function (r) { out[r.group] += 1; });
+    return out;
+  };
+
+  workflow.filterRows = function (rows, key) {
+    if (!key || key === 'all' || !workflow.STAGE_GROUPS.some(function (g) { return g.key === key; })) return rows;
+    return rows.filter(function (r) { return r.group === key; });
+  };
+
+  // 오류 종류를 가른다 — 서버가 안 켜진 것(fetch 자체가 실패, status 없음)과 권한 없음을 따로 안내.
+  workflow.overviewError = function (err) {
+    const s = err && err.status;
+    if (s === 401 || s === 403) return '목록을 볼 권한이 없습니다(' + s + ') — 로그인 사번과 권한을 확인하세요.';
+    if (s === 404) return '이 서버는 진행 현황 목록을 지원하지 않습니다(404) — 서버를 최신으로 올리세요.';
+    if (s) return '서버 오류로 목록을 불러오지 못했습니다(' + s + ').';
+    return '서버에 연결하지 못했습니다 — 서버가 켜져 있는지 확인하세요.';
+  };
+
   // ── 렌더 ────────────────────────────────────────────────────────────
   function esc(s) {
     // chat.js·knowledge.js와 같은 이유 — 폴백이 원문을 그대로 내보내면 XSS가 된다.
@@ -343,6 +436,46 @@
     el.innerHTML = logShell(title, logLines(rows, null));
   };
 
+  // model: { status: 'ok'|'loading'|'error'|'offline'|'noauth', rows(정렬 끝), filter, error }
+  workflow.renderOverview = function (el, model) {
+    const head = '<div class="wf-cards-title">제안서 진행 현황</div>';
+    const msg = function (t) { return head + '<p class="wf-empty">' + esc(t) + '</p>'; };
+    if (model.status === 'offline') { el.innerHTML = msg('서버 모드에서만 볼 수 있습니다 — 서버를 켜고 http://localhost:8080 으로 여세요.'); return; }
+    if (model.status === 'noauth') { el.innerHTML = msg('로그인 후 볼 수 있습니다.'); return; }
+    if (model.status === 'loading' || model.status === 'idle') { el.innerHTML = msg('불러오는 중…'); return; }
+    if (model.status === 'error') {
+      el.innerHTML = head + '<p class="ap-err">' + esc(model.error) + '</p>' +
+        '<button id="wf-ov-reload">다시 불러오기</button>';
+      return;
+    }
+    const all = model.rows || [];
+    const counts = workflow.groupCounts(all);
+    const shown = workflow.filterRows(all, model.filter);
+    const chips = workflow.STAGE_GROUPS.map(function (g) {
+      const on = g.key === (model.filter || 'all');
+      return '<button class="wf-chip" data-group="' + g.key + '" aria-pressed="' + on + '">' +
+        (on ? '✓ ' : '') + esc(g.label) + '<i>' + counts[g.key] + '</i></button>';
+    }).join('');
+    const body = shown.map(function (r) {
+      return '<tr data-id="' + esc(r.id) + '"' + (r.mine ? ' class="mine"' : '') + '>' +
+        '<td><button class="wf-open" data-id="' + esc(r.id) + '">' + esc(r.name) + '</button>' +
+          (r.mine ? ' <span class="ad-badge ok" title="내가 담당자로 지정된 기관">★ 내 담당</span>' : '') + '</td>' +
+        '<td>' + esc(r.region) + '</td>' +
+        '<td>' + esc(r.stageText) + '</td>' +
+        '<td><span class="wf-badge ' + r.badge.cls + '">' + esc(r.badge.text) + '</span></td>' +
+        '<td>' + r.bidCount + '</td>' +
+        '<td>' + esc(r.assigneesText) + '</td>' +
+        '<td>' + esc(r.updatedText) + '</td></tr>';
+    }).join('');
+    el.innerHTML = head +
+      '<div class="wf-chips" role="group" aria-label="단계 필터">' + chips +
+        '<button id="wf-ov-reload">새로고침</button></div>' +
+      (shown.length
+        ? '<table class="ad-table wf-ov"><thead><tr><th>기관</th><th>지역</th><th>현재 단계</th><th>상태</th>' +
+          '<th>공고</th><th>담당자</th><th>마지막 변경</th></tr></thead><tbody>' + body + '</tbody></table>'
+        : '<p class="wf-empty">' + (all.length ? '이 단계에 해당하는 제안서가 없습니다.' : '등록된 제안서가 없습니다.') + '</p>');
+  };
+
   // ── 배선 ────────────────────────────────────────────────────────────
   const POLL_MS = 2000;
   let pollTimer = null;
@@ -356,6 +489,11 @@
   let lastTimeline = null;
   let lastCoverage = null;
   let lastConsistency = null;
+  // 목록/상세 전환 — 'list'가 기본. 섹션의 wf-mode-list 클래스를 CSS가 본다.
+  let mode = 'list';
+  let ov = { status: 'idle', rows: [], error: '' };
+  let ovFilter = 'all';
+  let ovSeq = 0;
 
   function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
   function startPolling() { stopPolling(); pollTimer = setInterval(function () { refresh(); }, POLL_MS); }
@@ -369,6 +507,70 @@
   }
 
   function el(id) { return document.getElementById(id); }
+
+  function setMode(m) {
+    mode = m;
+    const sec = el('tab-workflow');
+    if (sec) sec.classList.toggle('wf-mode-list', m === 'list');
+    if (m === 'list') stopPolling();
+  }
+
+  function paintOverview() {
+    const box = el('wf-overview');
+    if (!box) return;
+    workflow.renderOverview(box, { status: ov.status, rows: ov.rows, filter: ovFilter, error: ov.error });
+    box.querySelectorAll('.wf-chip').forEach(function (b) {
+      b.onclick = function () { ovFilter = b.dataset.group; paintOverview(); };
+    });
+    box.querySelectorAll('tr[data-id]').forEach(function (tr) {
+      tr.onclick = function () { openDetail(tr.dataset.id); };   // 안의 이름 버튼 클릭도 버블링으로 여기 온다
+    });
+    const re = el('wf-ov-reload');
+    if (re) re.onclick = function (ev) { ev.stopPropagation(); loadOverview(); };
+  }
+
+  function loadOverview() {
+    if (!root.store.isServerMode()) { ov = { status: 'offline', rows: [], error: '' }; paintOverview(); return Promise.resolve(); }
+    // 로그아웃 뒤 401 방지 — 사번 없이는 부르지 않는다.
+    if (!(root.store.loadSession() || {}).emp) { ov = { status: 'noauth', rows: [], error: '' }; paintOverview(); return Promise.resolve(); }
+    const seq = ++ovSeq;
+    ov = { status: 'loading', rows: [], error: '' };
+    paintOverview();
+    return fetch('/workflow/overview').then(function (r) {
+      if (!r.ok) { const e = new Error('overview ' + r.status); e.status = r.status; throw e; }
+      return r.json();
+    }).then(function (payload) {
+      if (seq !== ovSeq) return;
+      ov = { status: 'ok', rows: workflow.sortOverview(workflow.overviewRows(payload)), error: '' };
+      paintOverview();
+    }).catch(function (e) {
+      if (seq !== ovSeq) return;
+      ov = { status: 'error', rows: [], error: workflow.overviewError(e) };
+      paintOverview();
+    });
+  }
+
+  function openDetail(id) {
+    setMode('detail');
+    const sel = el('wf-inst');
+    if (sel) sel.value = id;
+    selectInstitution(id);
+  }
+
+  // #wf-inst onchange 본문을 그대로 옮긴 것 — 드롭다운과 목록 줄이 같은 경로를 탄다.
+  function selectInstitution(id) {
+    selectedId = id || null;
+    lastStatus = null;
+    lastCoverage = null;
+    lastTimeline = null;
+    lastConsistency = null;
+    selectedTaskId = null;
+    selectedStage = null;      // 새 기관의 현재 단계로 다시 잡힌다
+    logMode = 'stage';
+    el('wf-log').innerHTML = '';
+    if (!selectedId) { stopPolling(); el('wf-panel').innerHTML = ''; el('wf-coverage').innerHTML = ''; return; }
+    refresh().then(function () { if (lastStatus && lastStatus.running) startPolling(); });
+  }
 
   function refresh() {
     if (!selectedId) return Promise.resolve();
@@ -531,6 +733,7 @@
   function renderControls() {
     const rows = (root.store && root.store.loadData() || []).filter(function (r) { return r.institutionId; });
     el('wf-controls').innerHTML =
+      '<button id="wf-back">← 목록</button>' +
       '<select id="wf-inst"><option value="">기관 선택…</option>' +
       rows.map(function (r) {
         return '<option value="' + esc(r.institutionId) + '">' + esc(r.name) + '</option>';
@@ -547,19 +750,8 @@
       el('wf-panel').innerHTML = '<p class="wf-empty">서버에 등록된 기관이 없습니다 — CSV 반입 후 다시 여세요.</p>';
     }
 
-    el('wf-inst').onchange = function () {
-      selectedId = this.value || null;
-      lastStatus = null;
-      lastCoverage = null;
-      lastTimeline = null;
-      lastConsistency = null;
-      selectedTaskId = null;
-      selectedStage = null;      // 새 기관의 현재 단계로 다시 잡힌다
-      logMode = 'stage';
-      el('wf-log').innerHTML = '';
-      if (!selectedId) { stopPolling(); el('wf-panel').innerHTML = ''; el('wf-coverage').innerHTML = ''; return; }
-      refresh().then(function () { if (lastStatus && lastStatus.running) startPolling(); });
-    };
+    el('wf-inst').onchange = function () { selectInstitution(this.value || null); };
+    el('wf-back').onclick = function () { setMode('list'); loadOverview(); };
     el('wf-run').onclick = function () {
       if (!selectedId) return;
       act('/institutions/' + encodeURIComponent(selectedId) + '/run', null);
@@ -580,11 +772,10 @@
 
   workflow.mount = function () {
     renderControls();
-    if (selectedId) {
-      const sel = el('wf-inst');
-      if (sel) sel.value = selectedId;
-      refresh().then(function () { if (lastStatus && lastStatus.running) startPolling(); });
-    }
+    const sel = el('wf-inst');
+    if (selectedId && sel) sel.value = selectedId;   // 상세로 들어가면 다시 선택되므로 폴링은 시작하지 않는다
+    setMode('list');
+    loadOverview();
   };
 
   // 비활성 탭에서는 폴링을 멈춘다(브라우저가 백그라운드 타이머를 스로틀하는 것과 무관하게 명시적으로).

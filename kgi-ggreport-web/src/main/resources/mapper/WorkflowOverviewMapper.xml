@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  워크플로 개요 — 읽기 전용 집계 4개. 방언 분기가 없다(MySQL·Oracle 같은 문장).
+  ⚠️ 문자열 연결(||)을 쓰지 않는다 — MySQL 은 sql_mode 에 따라 OR 로 읽는다.
+  ⚠️ CLOB 컬럼(DRAFT_CONTENT, PARTICIPATION_DECISION, INPUT_JSON …)은 SELECT 하지도 정렬하지도 않는다.
+-->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.WorkflowOverviewMapper">
+
+  <resultMap id="overviewRun" type="OverviewRun">
+    <id     property="runId"         column="RUN_ID"/>
+    <result property="institutionId" column="INSTITUTION_ID"/>
+    <result property="status"        column="STATUS"/>
+    <result property="pendingGate"   column="PENDING_GATE"/>
+    <result property="updatedAt"     column="UPDATED_AT"/>
+  </resultMap>
+
+  <resultMap id="overviewPair" type="OverviewPair">
+    <result property="institutionId" column="INSTITUTION_ID"/>
+    <result property="value"         column="VAL"/>
+  </resultMap>
+
+  <!-- 상관 서브쿼리지만 DB 안에서 한 번에 푼다(IDX_ORCH_RUN_INST = INSTITUTION_ID, CREATED_AT). 같은 밀리초 동률은 Java 가 RUN_ID 로 가른다. -->
+  <select id="selectLatestRuns" resultMap="overviewRun">
+    SELECT r.INSTITUTION_ID, r.RUN_ID, r.STATUS, r.PENDING_GATE, r.UPDATED_AT
+      FROM ORCH_RUN r
+     WHERE r.CREATED_AT = (SELECT MAX(x.CREATED_AT) FROM ORCH_RUN x
+                            WHERE x.INSTITUTION_ID = r.INSTITUTION_ID)
+     ORDER BY r.INSTITUTION_ID, r.RUN_ID
+  </select>
+
+  <select id="selectBidCounts" resultMap="overviewPair">
+    SELECT INSTITUTION_ID, COUNT(*) AS VAL
+      FROM BID_CASES
+     GROUP BY INSTITUTION_ID
+  </select>
+
+  <select id="selectLatestBidStatuses" resultMap="overviewPair">
+    SELECT INSTITUTION_ID, PARTICIPATION_STATUS AS VAL
+      FROM BID_CASES
+     WHERE SEQ_NO IN (SELECT MAX(SEQ_NO) FROM BID_CASES GROUP BY INSTITUTION_ID)
+  </select>
+
+  <select id="selectAssignees" resultMap="overviewPair">
+    SELECT DISTINCT b.INSTITUTION_ID AS INSTITUTION_ID, t.ASSIGNEE AS VAL
+      FROM TASKS t
+      JOIN BID_CASES b ON b.BID_CASE_ID = t.BID_CASE_ID
+     WHERE t.ASSIGNEE IS NOT NULL
+     ORDER BY b.INSTITUTION_ID, t.ASSIGNEE
+  </select>
+
+</mapper>
