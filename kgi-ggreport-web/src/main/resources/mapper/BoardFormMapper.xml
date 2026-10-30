@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- BOARD_FORM / BOARD_FORM_VER — 014. 페이징이 없어 양쪽 방언에서 같은 문장이다(databaseId 분기 없음).
+     ⚠️ SPEC_JSON 은 CLOB — 정렬·DISTINCT 대상에 넣지 않는다. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.BoardFormMapper">
+
+  <sql id="fcols">FORM_ID, TEAM_KEY, NAME, BASE_DOC, STATUS, CURRENT_VER, CREATED_BY, CREATED_AT, UPDATED_BY, UPDATED_AT</sql>
+  <sql id="vmeta">FORM_ID, VER_NO, NAME, CATALOG_VER, CREATED_BY, CREATED_AT</sql>
+
+  <insert id="insertForm" useGeneratedKeys="true" keyProperty="formId" keyColumn="FORM_ID">
+    INSERT INTO BOARD_FORM (TEAM_KEY, NAME, BASE_DOC, STATUS, CURRENT_VER, CREATED_BY, CREATED_AT, UPDATED_BY, UPDATED_AT)
+    VALUES (#{teamKey}, #{name}, #{baseDoc}, #{status}, #{currentVer}, #{createdBy}, #{createdAt}, #{updatedBy}, #{updatedAt})
+  </insert>
+
+  <insert id="insertVersion">
+    INSERT INTO BOARD_FORM_VER (FORM_ID, VER_NO, NAME, CATALOG_VER, SPEC_JSON, CREATED_BY, CREATED_AT)
+    VALUES (#{formId}, #{verNo}, #{name}, #{catalogVer}, #{specJson,jdbcType=CLOB}, #{createdBy}, #{createdAt})
+  </insert>
+
+  <select id="selectForm" resultType="BoardForm">
+    SELECT <include refid="fcols"/> FROM BOARD_FORM WHERE FORM_ID = #{id}
+  </select>
+
+  <select id="selectByTeam" resultType="BoardForm">
+    SELECT <include refid="fcols"/> FROM BOARD_FORM
+     WHERE TEAM_KEY = #{team}
+    <if test="status != null">
+       AND STATUS = #{status}
+    </if>
+     ORDER BY FORM_ID
+  </select>
+
+  <select id="countActiveByName" resultType="int">
+    SELECT COUNT(*) FROM BOARD_FORM
+     WHERE TEAM_KEY = #{team} AND STATUS = 'ACTIVE' AND NAME = #{name}
+    <if test="excludeId != null">
+       AND FORM_ID &lt;&gt; #{excludeId}
+    </if>
+  </select>
+
+  <select id="selectVersion" resultType="BoardFormVer">
+    SELECT <include refid="vmeta"/>, SPEC_JSON FROM BOARD_FORM_VER WHERE FORM_ID = #{id} AND VER_NO = #{verNo}
+  </select>
+
+  <select id="selectVersions" resultType="BoardFormVer">
+    SELECT <include refid="vmeta"/> FROM BOARD_FORM_VER WHERE FORM_ID = #{id} ORDER BY VER_NO DESC
+  </select>
+
+  <update id="updateHeader">
+    UPDATE BOARD_FORM SET NAME = #{name}, CURRENT_VER = #{newVer}, UPDATED_BY = #{actor}, UPDATED_AT = #{at}
+     WHERE FORM_ID = #{id} AND CURRENT_VER = #{expectedVer}
+  </update>
+
+  <update id="updateStatus">
+    UPDATE BOARD_FORM SET STATUS = #{status}, UPDATED_BY = #{actor}, UPDATED_AT = #{at}
+     WHERE FORM_ID = #{id}
+  </update>
+
+</mapper>

@@ -536,8 +536,13 @@
     document.getElementById('soon-title').textContent = label;
     document.getElementById('soon-badge').textContent = tag || '준비중';
     document.getElementById('soon-note').textContent = note || '아직 제공되지 않는 기능입니다. 순서대로 준비하고 있습니다.';
+    // 이사회 자료는 새 서버 메뉴 키 없이, 준비중 화면 자리에서 실제 화면으로 열린다.
+    const isBoard = !!(root.board && itemId === root.board.SOON_ID);
+    document.getElementById('soon-plain').style.display = isBoard ? 'none' : '';
+    document.getElementById('bd-root').style.display = isBoard ? '' : 'none';
     navActiveId = itemId;
     app.onTabChange('soon');
+    if (isBoard) root.board.mount();
   };
 
   // 화면이 바뀔 때마다(어느 경로든) 불린다: 활성 항목 갱신 → 탭 보관 → 그 카테고리만 열기.
