@@ -112,6 +112,15 @@ public final class Teams {
         return text;
     }
 
+    /**
+     * 영업 계열 역할인가 — 영업팀·영업팀장·영업부장, 그리고 영업팀 소속인 디자이너.
+     * 기관 레코드 편집의 '역할 기본' 담당자 범위가 이것이다(사용자 확정 2026-10-30: 영업팀 전원).
+     */
+    public static boolean isSalesFamily(String role) {
+        String text = role == null ? "" : role.trim();
+        return DESIGNER_TEAM.equals(text) || DESIGNER_HOME_TEAM.equals(teamOf(text));
+    }
+
     /** 결재 권한이 있는 역할인가. */
     public static boolean isLead(String role) {
         String text = role == null ? "" : role.trim();

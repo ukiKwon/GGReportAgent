@@ -10,6 +10,7 @@ import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.mapper.UserMenuPermMapper;
 import com.kbstar.kgi.ggreport.web.support.MenuPerms;
 import com.kbstar.kgi.ggreport.web.support.Menus;
+import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import com.kbstar.kgi.ggreport.web.web.Actor;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
@@ -26,7 +27,8 @@ import java.util.Map;
  * 사용자별 메뉴 권한 — <b>역할 기본값 위에 사용자 예외를 얹는다.</b>
  *
  * <p>유효 권한 = 사용자 예외 행이 있으면 그 값, 없으면 역할 기본({@link MenuService#menusFor})의 조회 여부
- * + 작성·수정·결재 꺼짐. 메뉴를 받으면 <b>조회가 기본</b>이고, 작성·수정·결재를 켜면 조회도 켜진다.
+ * + 작성·결재 꺼짐 + 수정은 <b>영업 계열의 map·regions 만 켜짐</b>(기관 레코드 편집 담당, {@link #INSTITUTION_EDIT_MENUS}).
+ * 메뉴를 받으면 <b>조회가 기본</b>이고, 작성·수정·결재를 켜면 조회도 켜진다.
  * 결재는 {@link MenuPerms#isApprovable} 인 메뉴에서만 켤 수 있다(모르는 메뉴는 거부).
  *
  * <p>⚠️ <b>잠김 방지</b>: 마지막 남은 관리자(권한관리 조회 가능 + 활성)를 빼앗는 변경은 저장 전에 거부한다
@@ -35,6 +37,12 @@ import java.util.Map;
  */
 @Service
 public class PermissionService {
+
+    /**
+     * 기관 레코드 편집(POST/PUT /institutions, /import)을 허용하는 메뉴 — 하나라도 edit 이면 통과.
+     * 영업 계열({@link Teams#isSalesFamily})은 이 두 메뉴의 edit 을 <b>역할 기본</b>으로 가진다(조회가 켜져 있을 때).
+     */
+    public static final List<String> INSTITUTION_EDIT_MENUS = java.util.Arrays.asList("map", "regions");
 
     private final SysUserMapper users;
     private final UserMenuPermMapper perms;
@@ -108,6 +116,29 @@ public class PermissionService {
         SysUser u = users.selectByEmpNo(empNo);
         return u != null && "ACTIVE".equals(u.getStatus())
                 && viewOf(u, byMenu(perms.selectByEmpNo(empNo)), menus.menusFor(u.getRole()), menuKey);
+    }
+
+    /**
+     * 등록된 활성 사용자가 <b>기관 레코드</b>({@link #INSTITUTION_EDIT_MENUS})를 편집할 수 있는가 — 두 메뉴 중
+     * 하나라도 '조회 + 수정'이면 true(사용자 예외 > 역할 기본값, 영업 계열은 역할 기본으로 켜짐).
+     * 사용자 예외 행이 있는 메뉴는 그 행의 값이 우선이다 — 한 메뉴의 예외로 edit 을 꺼도 다른 메뉴의
+     * 기본/예외값으로 판단한다(두 행 모두 끄면 차단).
+     */
+    @Transactional(readOnly = true)
+    public boolean canEditInstitution(String empNo) {
+        if (!MenuPerms.isEmpNo(empNo)) {
+            return false;
+        }
+        SysUser u = users.selectByEmpNo(empNo);
+        if (u == null || !"ACTIVE".equals(u.getStatus())) {
+            return false;
+        }
+        for (Row r : rows(u, byMenu(perms.selectByEmpNo(empNo)))) {
+            if (INSTITUTION_EDIT_MENUS.contains(r.getMenuKey()) && r.isView() && r.isEdit()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Transactional
@@ -232,8 +263,10 @@ public class PermissionService {
                 out.add(new Row(m.getKey(), m.getLabel(), approvable, p.isCanView(), p.isCanWrite(),
                         p.isCanEdit(), p.isCanApprove(), "user"));
             } else {
-                out.add(new Row(m.getKey(), m.getLabel(), approvable, Boolean.TRUE.equals(base.get(m.getKey())),
-                        false, false, false, "role"));
+                boolean view = Boolean.TRUE.equals(base.get(m.getKey()));
+                boolean edit = view && Teams.isSalesFamily(u.getRole())
+                        && INSTITUTION_EDIT_MENUS.contains(m.getKey());
+                out.add(new Row(m.getKey(), m.getLabel(), approvable, view, false, edit, false, "role"));
             }
         }
         return out;

@@ -36,6 +36,25 @@ public class MenuGuard {
         return actor;
     }
 
+    /**
+     * 기관 레코드 편집 문지기 — map·regions 중 하나라도 조회+수정이면 통과({@link PermissionService#canEditInstitution}).
+     * 401(사번 없음)/403(권한 없음)은 DENIED 로 접근 이력에 남기되 본문·쿼리값은 남기지 않는다.
+     * ⚠️ X-Emp-No 자기신고라 위조 가능하다. 앞단 인증 전에는 보안 경계가 아니다.
+     */
+    public Actor requireInstitutionEdit(HttpServletRequest req) {
+        Actor actor = Actor.of(req);
+        if (!actor.isKnown()) {
+            deny(req, actor, 401, "no employee number");
+            throw new ApiException(401, "로그인이 필요합니다.");
+        }
+        if (!permissions.canEditInstitution(actor.getEmpNo())) {
+            deny(req, actor, 403, "no edit permission: "
+                    + String.join("|", PermissionService.INSTITUTION_EDIT_MENUS));
+            throw new ApiException(403, "이 기능을 쓸 권한이 없습니다.");
+        }
+        return actor;
+    }
+
     private void deny(HttpServletRequest req, Actor actor, int status, String why) {
         req.setAttribute(AdminGuard.DENIED_LOGGED, Boolean.TRUE);
         accessLog.record(actor, "DENIED", req.getMethod(), req.getRequestURI(), status,

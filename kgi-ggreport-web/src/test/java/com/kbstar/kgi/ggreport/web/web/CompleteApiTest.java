@@ -36,7 +36,7 @@ public class CompleteApiTest {
     private final ObjectMapper json = new ObjectMapper();
 
     private String make(String nameKo) throws Exception {
-        MockHttpServletResponse res = mockMvc.perform(post("/institutions")
+        MockHttpServletResponse res = mockMvc.perform(post("/institutions").header("X-Emp-No", "3918264")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name_ko\":\"" + nameKo + "\"}"))
                 .andReturn().getResponse();

@@ -45,7 +45,8 @@ public class InstitutionImportApiTest {
 
     private MockHttpServletResponse upload(byte[] csv) throws Exception {
         MockHttpServletResponse response = mockMvc.perform(multipart("/institutions/import")
-                        .file(new MockMultipartFile("file", "표.csv", "text/csv", csv)))
+                        .file(new MockMultipartFile("file", "표.csv", "text/csv", csv))
+                        .header("X-Emp-No", "3918264"))
                 .andReturn().getResponse();
         response.setCharacterEncoding("UTF-8");
         return response;
