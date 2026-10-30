@@ -56,7 +56,7 @@ public class CorpusApiTest {
 
     @Before
     public void 기관과_코퍼스를_준비한다() throws Exception {
-        MockHttpServletResponse res = mockMvc.perform(post("/institutions")
+        MockHttpServletResponse res = mockMvc.perform(post("/institutions").header("X-Emp-No", "3918264")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name_ko\":\"코퍼스구청\"}"))
                 .andReturn().getResponse();

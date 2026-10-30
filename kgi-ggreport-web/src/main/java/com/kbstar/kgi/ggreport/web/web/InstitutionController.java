@@ -19,6 +19,7 @@ import com.kbstar.kgi.ggreport.web.service.CoverageMapService;
 import com.kbstar.kgi.ggreport.web.service.InstitutionCommandService;
 import com.kbstar.kgi.ggreport.web.service.InstitutionService;
 import com.kbstar.kgi.ggreport.web.service.OrchestratorService;
+import com.kbstar.kgi.ggreport.web.service.PermissionService;
 import com.kbstar.kgi.ggreport.web.service.WorkflowStatusService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,6 +34,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -52,6 +54,9 @@ import java.util.Map;
  * <p>실행({@code /run})과 게이트 결재({@code /checkpoint})도 여기 있다 — 단계 4.
  * 쓰기 다섯(POST · PUT · {@code /import} · {@code /corpus{,/validate}})은 Task 5B.5,
  * {@code /complete} 는 Task 5B.6 이다 — 이것으로 단계 5-B 의 기관 쪽은 다 찼다.
+ *
+ * <p>기관 <b>레코드 쓰기 셋</b>(POST · PUT · {@code /import})은 map·regions 의 <b>수정</b> 권한이 필요하다
+ * ({@link MenuGuard#requireInstitutionEdit}, 영업 계열은 역할 기본으로 가짐). 실행 계열({@code /run} 등)은 이번 범위 밖이다.
  */
 @RestController
 @RequestMapping("/institutions")
@@ -63,13 +68,16 @@ public class InstitutionController {
     private final CoverageMapService coverageMap;
     private final WorkflowStatusService workflow;
     private final OrchestratorService orchestrator;
+    private final MenuGuard guard;
 
     public InstitutionController(InstitutionService institutions,
                                  InstitutionCommandService institutionCommands,
                                  CorpusService corpus,
                                  CoverageMapService coverageMap,
                                  WorkflowStatusService workflow,
-                                 OrchestratorService orchestrator) {
+                                 OrchestratorService orchestrator,
+                                 MenuGuard guard) {
+        this.guard = guard;
         this.institutions = institutions;
         this.institutionCommands = institutionCommands;
         this.corpus = corpus;
@@ -92,7 +100,8 @@ public class InstitutionController {
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Institution create(@RequestBody InstitutionImportRow body) {
+    public Institution create(@RequestBody InstitutionImportRow body, HttpServletRequest req) {
+        guard.requireInstitutionEdit(req);
         return institutionCommands.create(body);
     }
 
@@ -104,7 +113,8 @@ public class InstitutionController {
      */
     @PutMapping("/{institutionId}")
     public Institution update(@PathVariable String institutionId,
-                              @RequestBody InstitutionUpdateIn body) {
+                              @RequestBody InstitutionUpdateIn body, HttpServletRequest req) {
+        guard.requireInstitutionEdit(req);
         return institutionCommands.update(institutionId, body);
     }
 
@@ -116,7 +126,8 @@ public class InstitutionController {
      * 형식 오류는 <b>400</b> 이고 사유에 행 번호가 들어 있다.
      */
     @PostMapping("/import")
-    public ImportResponse importCsv(@RequestParam("file") MultipartFile file) throws IOException {
+    public ImportResponse importCsv(@RequestParam("file") MultipartFile file, HttpServletRequest req) throws IOException {
+        guard.requireInstitutionEdit(req);
         List<String> ids;
         try {
             ids = institutionCommands.importCsv(file.getBytes());

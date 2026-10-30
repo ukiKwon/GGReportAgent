@@ -47,7 +47,7 @@ public class InstitutionWriteApiTest {
      * 적혀 있다. 이 프로젝트에서 한글 본문을 읽는 자리에는 항상 따라붙는다.
      */
     private MockHttpServletResponse create(String body) throws Exception {
-        MockHttpServletResponse response = mockMvc.perform(post("/institutions")
+        MockHttpServletResponse response = mockMvc.perform(post("/institutions").header("X-Emp-No", "3918264")
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andReturn().getResponse();
         response.setCharacterEncoding("UTF-8");
@@ -126,7 +126,7 @@ public class InstitutionWriteApiTest {
         String id = created("{\"name_ko\":\"보존구청\",\"region_code\":\"11111\",\"term\":5}")
                 .path("institution_id").asText();
 
-        mockMvc.perform(put("/institutions/" + id)
+        mockMvc.perform(put("/institutions/" + id).header("X-Emp-No", "3918264")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"시청\"}"))
                 .andExpect(status().isOk())
@@ -148,7 +148,7 @@ public class InstitutionWriteApiTest {
         String id = created("{\"name_ko\":\"지움구청\",\"region_code\":\"12222\",\"term\":7}")
                 .path("institution_id").asText();
 
-        mockMvc.perform(put("/institutions/" + id)
+        mockMvc.perform(put("/institutions/" + id).header("X-Emp-No", "3918264")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"term\":null,\"region_code\":null}"))
                 .andExpect(status().isOk())
@@ -162,7 +162,7 @@ public class InstitutionWriteApiTest {
         String id = created("{\"name_ko\":\"빈칸구청\",\"type\":\"자치구\"}")
                 .path("institution_id").asText();
 
-        mockMvc.perform(put("/institutions/" + id)
+        mockMvc.perform(put("/institutions/" + id).header("X-Emp-No", "3918264")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"\"}"))
                 .andExpect(status().isOk())
@@ -178,7 +178,7 @@ public class InstitutionWriteApiTest {
         String id = created("{\"name_ko\":\"무변경구청\",\"type\":\"자치구\"}")
                 .path("institution_id").asText();
 
-        mockMvc.perform(put("/institutions/" + id)
+        mockMvc.perform(put("/institutions/" + id).header("X-Emp-No", "3918264")
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name_ko").value("무변경구청"))
@@ -193,7 +193,7 @@ public class InstitutionWriteApiTest {
     public void stage는_편집으로_바뀌지_않는다() throws Exception {
         String id = created("{\"name_ko\":\"단계구청\"}").path("institution_id").asText();
 
-        mockMvc.perform(put("/institutions/" + id)
+        mockMvc.perform(put("/institutions/" + id).header("X-Emp-No", "3918264")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"stage\":7,\"type\":\"시청\"}"))
                 .andExpect(status().isOk())
@@ -203,7 +203,7 @@ public class InstitutionWriteApiTest {
 
     @Test
     public void 없는_기관을_편집하면_404다() throws Exception {
-        mockMvc.perform(put("/institutions/new-deadbeef")
+        mockMvc.perform(put("/institutions/new-deadbeef").header("X-Emp-No", "3918264")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"시청\"}"))
                 .andExpect(status().isNotFound())
