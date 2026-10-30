@@ -450,7 +450,9 @@ const JOBS = ['water', 'bench', 'track'];
 const JOB_LABEL = { enter: '출근 중', water: '생수 채우는 중', bench: '벤치 닦는 중', track: '트랙 닦는 중', leave: '퇴근 중' };
 function janNext() {
   const i = JOBS.indexOf(jan.job);
-  jan.job = JOBS[(i + 1) % JOBS.length]; jan.stage = 0; jan.k = 0;
+  let nx = JOBS[(i + 1) % JOBS.length];
+  if (nx === 'water' && bottles.reduce((s, v) => s + v, 0) / BASE_SLOTS > 0.5) nx = 'bench'; // 생수 총량이 절반을 넘으면 건너뜀
+  jan.job = nx; jan.stage = 0; jan.k = 0;
   say(jan, { water: '생수 채울게요', bench: '벤치 닦자~', track: '트랙 닦자~' }[jan.job], 1.8);
 }
 function updateJanitor(dt) {
