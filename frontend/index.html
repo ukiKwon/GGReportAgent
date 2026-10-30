@@ -152,6 +152,28 @@
   .soon-box h2 { color:var(--fg); font-size:20px; margin:10px 0 6px; }
   .soon-badge { display:inline-block; font-size:11px; color:var(--accent-color); border:1px solid var(--accent-color);
                 border-radius:10px; padding:2px 10px; }
+  /* 이사회 자료(준비중 화면 안에서 열림) */
+  #tab-soon.active { overflow:auto; }
+  #bd-root { width:100%; display:flex; flex-direction:column; gap:10px; align-self:stretch; }
+  .bd-head { font-size:14px; font-weight:600; }
+  .bd-head .dg-hint { font-weight:normal; }
+  .bd-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:13px; }
+  #bd-msg { font-size:12px; color:var(--muted); }
+  .bd-doc-name { font-size:13px; font-weight:600; }
+  .bd-card { border:1px solid var(--line); border-radius:8px; padding:12px 14px; background:var(--panel); }
+  .bd-card-head { margin:0 0 2px; }
+  .bd-map { font-family:var(--mono); font-size:11px; color:var(--muted); }
+  .bd-table-wrap { overflow-x:auto; margin-bottom:6px; }
+  .bd-table { border-collapse:collapse; font-size:12px; width:100%; white-space:pre-line; }
+  .bd-table caption { text-align:left; font-size:13px; font-weight:600; padding:6px 0; }
+  .bd-table th, .bd-table td { border:1px solid var(--line); padding:4px 8px; }
+  .bd-table th { background:var(--panel2); font-weight:600; }
+  .bd-a-left { text-align:left; } .bd-a-center { text-align:center; } .bd-a-right { text-align:right; }
+  .bd-num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  .bd-mapped { background:rgba(87,184,173,.10); background:color-mix(in srgb, var(--accent-color) 10%, transparent);
+               border-bottom:1px dotted var(--accent-color); }
+  .bd-notes { margin:2px 0 10px; padding-left:18px; font-size:12px; color:var(--muted); }
+  .bd-err { color:var(--red); }
   @media (max-width:900px) { #side-nav { flex-basis:200px; } }
 
   /* 로그인 오버레이 — 배경 이미지는 40% 투명도(img/login-bg.svg, 실사진으로 교체 가능) */
@@ -820,10 +842,15 @@ review, the verdict, and DESIGN.md
 </section>
 
 <section id="tab-soon" class="tab-view">
-  <div class="soon-box">
+  <div class="soon-box" id="soon-plain">
     <div class="soon-badge" id="soon-badge">준비중</div>
     <h2 id="soon-title"></h2>
     <p id="soon-note">아직 제공되지 않는 기능입니다. 순서대로 준비하고 있습니다.</p>
+  </div>
+  <div id="bd-root" style="display:none;">
+    <div class="bd-head">이사회 자료 <span class="dg-hint">— 양식을 고르면 문서가 표로 표시됩니다</span></div>
+    <div id="bd-controls" class="bd-controls"></div>
+    <div id="bd-body"></div>
   </div>
 </section>
 </main>
@@ -913,6 +940,7 @@ review, the verdict, and DESIGN.md
 <script src="js/login.js"></script>
 <script src="js/nav.js"></script>
 <script src="js/approvals.js"></script>
+<script src="js/board.js"></script>
 <script src="js/deputy.js"></script>
 <script src="js/admin.js"></script>
 <script src="js/myinfo.js"></script>

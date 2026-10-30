@@ -36,6 +36,19 @@ public class MenuGuard {
         return actor;
     }
 
+    /**
+     * {@link #require} 에 더해 그 메뉴의 수정 권한(또는 관리자)을 본다. 401/403 모두 DENIED 로 남기되
+     * 본문·쿼리값은 남기지 않는다. 메시지는 호출하는 기능이 정한다.
+     */
+    public Actor requireEdit(HttpServletRequest req, String menuKey, String deniedMessage) {
+        Actor actor = require(req, menuKey);
+        if (!permissions.canEdit(actor.getEmpNo(), menuKey)) {
+            deny(req, actor, 403, "no edit permission: " + menuKey);
+            throw new ApiException(403, deniedMessage);
+        }
+        return actor;
+    }
+
     private void deny(HttpServletRequest req, Actor actor, int status, String why) {
         req.setAttribute(AdminGuard.DENIED_LOGGED, Boolean.TRUE);
         accessLog.record(actor, "DENIED", req.getMethod(), req.getRequestURI(), status,
