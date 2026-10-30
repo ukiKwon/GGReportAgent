@@ -26,13 +26,57 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 public class MenuSaveApiTest {
 
+    private static final String ADMIN = "8203417";        // 마스터(전산팀) — 유일한 관리자 시드
+    private static final String SALES_MEMBER = "3918264"; // 김영업(영업팀) — 관리자 아님
+
     @Autowired
     private MockMvc mockMvc;
 
     private org.springframework.test.web.servlet.ResultActions save(String changes) throws Exception {
+        return saveAs(ADMIN, changes);
+    }
+
+    private org.springframework.test.web.servlet.ResultActions saveAs(String emp, String changes) throws Exception {
         return mockMvc.perform(put("/menus")
+                .header(Actor.HEADER, emp)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"changes\":" + changes + "}"));
+    }
+
+    private String roleMenus(String role) throws Exception {
+        return mockMvc.perform(get("/menus").param("role", role))
+                .andReturn().getResponse().getContentAsString();
+    }
+
+    /** R2: 관리자가 아니면 403 — 값은 그대로다. */
+    @Test
+    public void 관리자가_아니면_403이고_저장되지_않는다() throws Exception {
+        String before = roleMenus("예산팀");
+        saveAs(SALES_MEMBER, "[{\"role\":\"예산팀\",\"menu\":\"knowledge\",\"enabled\":false}]")
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").exists());
+        org.junit.Assert.assertEquals(before, roleMenus("예산팀"));
+    }
+
+    /** R2: 사번 헤더가 없으면 401 — 값은 그대로다. */
+    @Test
+    public void 사번_헤더가_없으면_401이고_저장되지_않는다() throws Exception {
+        String before = roleMenus("예산팀");
+        mockMvc.perform(put("/menus")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"changes\":[{\"role\":\"예산팀\",\"menu\":\"knowledge\",\"enabled\":false}]}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.detail").exists());
+        org.junit.Assert.assertEquals(before, roleMenus("예산팀"));
+    }
+
+    /** 조치 D 회귀: 깨진 JSON 같은 스프링 MVC 오류는 500 으로 둔갑하지 않고 400 이다. */
+    @Test
+    public void 깨진_JSON은_400이다() throws Exception {
+        mockMvc.perform(put("/menus").header(Actor.HEADER, ADMIN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("not json"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
