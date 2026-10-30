@@ -23,6 +23,13 @@ test('rows: 빈 입력도 안전하다', function () {
   assert.deepStrictEqual(notify.rows(null), []);
 });
 
+test('formatTime: UTC ISO를 KST 분 단위로, 해석 불가는 원문', function () {
+  assert.strictEqual(notify.formatTime('2026-10-30T04:27:55.253000+00:00'), '2026-10-30 13:27');
+  assert.strictEqual(notify.formatTime('2026-10-30T20:00:00+00:00'), '2026-10-31 05:00');
+  assert.strictEqual(notify.formatTime('09:30'), '09:30');
+  assert.strictEqual(notify.formatTime(null), '');
+});
+
 test('unreadCount: 안 읽은 것만 센다', function () {
   assert.strictEqual(notify.unreadCount(LIST), 2);
   assert.strictEqual(notify.unreadCount([]), 0);

@@ -49,6 +49,13 @@
 
   notify.kindClass = function (kind) { return KIND_CLASS[kind] || 'note'; };
 
+  // 서버의 UTC ISO(마이크로초 포함)를 한국시간 'YYYY-MM-DD HH:mm'으로. 해석이 안 되면 원문 그대로.
+  notify.formatTime = function (iso) {
+    const t = Date.parse(String(iso || ''));
+    if (isNaN(t)) return String(iso || '');
+    return new Date(t + 9 * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 16);
+  };
+
   // 나(이름·사번) 앞으로 온 것은 개인, 그 밖(내 소속 같은 역할 앞)은 단체.
   notify.scopeOf = function (n, me) {
     const m = me || {};
@@ -111,7 +118,7 @@
           (r.read ? '' : '<span class="nt-dot" aria-hidden="true"></span>') +
           '<span class="nt-kind ' + notify.kindClass(r.kind) + '">' + esc(r.kind) + '</span> ' +
           esc(r.from) + ' → ' + esc(r.to) +
-          (r.stage ? ' · ' + r.stage + '단계' : '') + ' · ' + esc(r.at) +
+          (r.stage ? ' · ' + r.stage + '단계' : '') + ' · ' + esc(notify.formatTime(r.at)) +
           (r.read ? '<span class="nt-state">읽음</span>' : '<span class="nt-new">새 쪽지</span>') +
         '</div><pre>' + esc(r.content) + '</pre>' +
         (actions.length ? '<div class="nt-act">' + actions.join('') + '</div>' : '') + '</div>';
