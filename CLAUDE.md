@@ -150,9 +150,23 @@ manual update, not just an edit to the `.txt` file.
 **매번 안내한다.** (위 "작업 착수 전 승인" 규칙이 우선 — 플러그인 사용도 작업 항목 단위로 먼저 알리고 묻는다.)
 
 - UI/디자인: `impeccable`(진단·개선) → `frontend-design`(미학 방향) → `playwright`(스크린샷 확인) → `playground`(시안 비교)
-- 커밋/PR: `commit-commands` · 리뷰: `code-review`, `code-simplifier` · 보안: `security-guidance`
+- 커밋/PR: `commit-commands` · 리뷰: `code-review`, `pr-review-toolkit`, `code-simplifier` · 보안: `security-guidance`, `claude-security`
+- 기능 개발 흐름(기획→설계→구현): `feature-dev` · Java 백엔드 코드 이해: `jdtls-lsp` (Java 언어 서버가 PC에 있어야 함)
 - CLAUDE.md 정비: `claude-md-management` · 훅/플러그인 제작: `hookify`, `plugin-dev` · 라이브러리 문서: `context7`
+- 에이전트 팀(`.claude/agents/`, 8개 읽기 전용)과 `agent-dashboard/`(에이전트 대시보드) 설명은 `handoff/agents/README.md`·`agent-dashboard/README.md`.
 - 설치 현황이 바뀌면 이 목록도 같이 고친다.
+
+## 에이전트 팀 자동 투입 (사용자 요청 2026-10-30)
+
+사용자는 에이전트를 직접 조작하지 않는다. **작업 항목을 승인하면 메인이 알아서 역할 에이전트(`.claude/agents/`)를 투입한다.**
+에이전트의 작업 상태는 `agent-dashboard/`가 훅(`hook.js`)으로 자동 표시한다 — 화면의 시작/멈춤 버튼은 시험용일 뿐이다.
+
+- 투입 순서(해당하는 역할만): `planner`(범위·선택지) → `design-reviewer`(화면 규격) → `frontend-dev`/`backend-dev`(패치안)
+  → 메인이 적용·테스트 → `qa-verifier`(독립 검토) → `security`(권한·입력·비밀값)·`data-auditor`(레코드 값) → `pm`(여러 항목 정리).
+- 한두 줄 수정·오타처럼 사소한 일에는 투입하지 않는다. 판단이 애매하면 투입하되 결과만 짧게 보고한다.
+- 에이전트는 모두 읽기 전용이다. **파일 적용·테스트 실행·커밋은 메인이 한다.** 보고서는 `handoff/agents/<이름>/`에 저장한다.
+- 승인 범위: 이미 승인된 작업 항목 안에서 읽기 전용 에이전트를 부르는 것은 다시 묻지 않는다. 코드 적용·푸시 등은 기존 규칙대로.
+- 병렬로 불러도 되는 것(서로 독립인 검토)은 한 번에 부른다.
 
 ## 작업 확인 순서
 

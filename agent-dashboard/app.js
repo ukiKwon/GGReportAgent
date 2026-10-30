@@ -1,5 +1,5 @@
 'use strict';
-/* 에이전트 운동장 — 2D canvas. 에이전트=선수, 메인=코치.
+/* 에이전트 대시보드 — 2D canvas. 에이전트=선수, 메인=코치.
    상태 입력: state.json 폴링(serve.py 경유) 또는 화면 버튼(데모). */
 
 const W = 1280, H = 800, CX = 640, CY = 330, L = 180, RC = 165, R_OUT = 214, R_CHEER = 232;
@@ -183,18 +183,37 @@ function drawBubble(x, y, text) {
 function say(o, text, dur) { o.bubble = { text, until: simTime + (dur || 1.6) }; }
 
 /* ---------- 선수 ---------- */
-const runners = AGENTS.map((a, i) => ({
-  ...a, idx: i, laneR: RC + (i - 3) * 8, speed: 0.92 + (i % 4) * 0.06,
-  x: 70 + i * 46, y: BENCH_Y, face: 1, ph: 0,
-  state: 'rest', settled: true, active: false, task: '',
-  lapF: 0, lastLap: 0, t: 0, R: RC, readyAt: 0, until: 0, returnAt: 0,
-  nextSweat: 0, nextPant: 1 + i * 0.4, bubble: null, downPlaced: false, skin: '#f1c9a5',
-}));
+/* 같은 역할이 동시에 여러 개(병렬·여러 세션) 돌 수 있어, 인스턴스마다 선수를 둔다.
+   slot 0~6: 역할별 기본 선수, slot 7~13: 같은 역할의 추가 인스턴스(최대 7명, 그 이상은 표에만 집계) */
+const BASE_SLOTS = AGENTS.length, MAX_SLOTS = BASE_SLOTS * 2;
+const laneOf = sl => sl < BASE_SLOTS ? RC + (sl - 3) * 8 : RC + (sl - BASE_SLOTS - 3) * 8 + 4;
+const row2 = r => r.slot >= BASE_SLOTS;
+const benchSpot = r => row2(r) ? { x: 82 + (r.slot - BASE_SLOTS) * 46, y: 752 } : { x: 70 + r.slot * 46, y: BENCH_Y };
+const floorSpot = r => row2(r) ? { x: 822 + (r.slot - BASE_SLOTS) * 45, y: 722 } : { x: 800 + r.slot * 45, y: 752 };
+const drinkSpot = r => ({ x: 566 + (r.slot % BASE_SLOTS) * 28 + (row2(r) ? 14 : 0), y: 686 });
+const startPt = r => ({ x: 470 + (r.slot % BASE_SLOTS) * 10 + (row2(r) ? 5 : 0), y: CY + r.laneR });
+function makeRunner(a, slot, inst) {
+  const o = {
+    ...a, role: a.id, id: inst > 1 ? a.id + '_' + inst : a.id, name: inst > 1 ? a.name + '#' + inst : a.name,
+    inst, extra: inst > 1, slot, laneR: laneOf(slot), speed: 0.92 + (slot % 4) * 0.06,
+    face: 1, ph: 0, state: 'rest', settled: true, active: false, task: '',
+    lapF: 0, lastLap: 0, t: 0, R: RC, readyAt: 0, until: 0, returnAt: 0,
+    nextSweat: 0, nextPant: 1 + (slot % 7) * 0.4, bubble: null, downPlaced: false, skin: '#f1c9a5',
+  };
+  const sp = benchSpot(o); o.x = sp.x; o.y = sp.y;
+  return o;
+}
+const runners = AGENTS.map((a, i) => makeRunner(a, i, 1));
 const lapInt = r => Math.floor(r.lapF + 1e-9);
-const benchSpot = r => ({ x: 70 + r.idx * 46, y: BENCH_Y });
-const floorSpot = r => ({ x: 800 + r.idx * 45, y: 752 });
-const drinkSpot = r => ({ x: 566 + r.idx * 28, y: 686 });
-const startPt = r => ({ x: 470 + r.idx * 10, y: CY + r.laneR });
+function spawnExtra(role, inst) {
+  const used = new Set(runners.map(r => r.slot));
+  for (let sl = BASE_SLOTS; sl < MAX_SLOTS; sl++) {
+    if (used.has(sl)) continue;
+    const r = makeRunner(AGENTS.find(a => a.id === role), sl, inst);
+    runners.push(r); buildChips(); return r;
+  }
+  return null; // 자리가 없으면 표시만 생략(표에는 집계)
+}
 
 function walk(r, tx, ty, sp, dt) {
   const dx = tx - r.x, dy = ty - r.y, d = Math.hypot(dx, dy);
@@ -227,29 +246,38 @@ function updateRunner(r, dt) {
       if (!r.active) { r.state = 'rest'; r.readyAt = simTime + 1; break; }
       const sp = startPt(r);
       if (walk(r, sp.x, sp.y, 130, dt)) {
-        r.state = 'run'; r.R = r.laneR; r.t = (sp.x - (CX - L)) / pathLen(r.R); r.face = 1;
+        r.state = 'run'; r.v = 0; r.R = r.laneR; r.t = (sp.x - (CX - L)) / pathLen(r.R); r.face = 1;
       }
       break;
     }
     case 'run': {
       const mode = li < 10 ? 'run' : li < 15 ? 'crawl' : 'wheel';
-      const lapTime = mode === 'run' ? 6.5 : mode === 'crawl' ? 12 : 9;
-      const sp = r.speed / lapTime;
+      // 속도는 px/s 기준(바깥 차선이라고 빨라지지 않게)이고, 단계가 바뀌어도 서서히 변한다
+      const want = r.speed * (mode === 'run' ? 170 : mode === 'crawl' ? 90 : 120);
+      r.v = (r.v || want) + (want - (r.v || want)) * Math.min(1, dt * 2);
+      const sp = r.v / pathLen(r.R);
       r.t += sp * dt; r.lapF += sp * dt;
-      const wheelOut = li >= 15 && r.lapF < 15.8;
-      const tgt = wheelOut ? R_OUT : r.laneR;
-      r.R += (tgt - r.R) * Math.min(1, dt * 2.5);
+      r.R += (r.laneR - r.R) * Math.min(1, dt * 2.5);
       const p = pathPos(r.t, r.R);
       r.x = p.x; r.y = p.y;
       if (p.hx > 0.05) r.face = 1; else if (p.hx < -0.05) r.face = -1;
-      r.ph += dt * (mode === 'run' ? 11 : mode === 'crawl' ? 5 : 6);
+      r.ph += dt * (mode === 'run' ? 8 : mode === 'crawl' ? 4 : 5);
       const nl = lapInt(r);
       if (nl !== r.lastLap) { onLap(r, nl); r.lastLap = nl; }
-      if (r.lapF >= 25) { r.state = 'down'; r.downPlaced = false; r.downT = r.t; break; }
-      if (!r.active) {
-        const tt = ((r.t % 1) + 1) % 1;
-        if (tt * pathLen(r.R) < 2 * L && r.x >= 600 && r.x <= 780 && r.R < 205) r.state = 'toRest';
+      if (r.lapF >= 25) r.needAmb = true;
+      const tt = ((r.t % 1) + 1) % 1;
+      const inExit = tt * pathLen(r.R) < 2 * L && r.x >= 600 && r.x <= 780; // 아래 휴식 공간으로 빠지는 출구
+      if (inExit) {
+        if (r.needAmb) { r.state = 'down'; r.downPlaced = false; break; }
+        if (li >= 15 && !r.wheeled) { r.wheeled = true; r.wheelStage = 0; r.state = 'wheelOut'; break; }
+        if (!r.active) r.state = 'toRest';
       }
+      break;
+    }
+    case 'wheelOut': { // 트랙 아래 휴식 공간으로 나가 휠체어를 타고 다시 입장
+      if (!r.wheelStage) {
+        if (walk(r, 690, 652, 110, dt)) { r.wheelStage = 1; r.until = simTime + 1.6; say(r, '휠체어 탑승!', 1.6); }
+      } else if (simTime >= r.until) { r.wheelStage = 0; r.state = 'toStart'; }
       break;
     }
     case 'toRest': {
@@ -264,15 +292,14 @@ function updateRunner(r, dt) {
     }
     case 'down': {
       if (!r.downPlaced) {
-        const p = pathPos(r.downT, R_OUT);
-        if (walk(r, p.x, p.y, 90, dt)) { r.downPlaced = true; amb.queue.push(r); say(r, '으윽…', 3); }
+        if (walk(r, 860 + (r.slot % 4) * 28, 672 + (row2(r) ? 22 : 0), 100, dt)) { r.downPlaced = true; amb.queue.push(r); say(r, '으윽…', 3); }
       }
       break;
     }
     case 'carried': case 'inAmb': break;
     case 'away': {
       if (simTime >= r.returnAt) {
-        r.state = 'rest'; r.lapF = 0; r.lastLap = 0; r.R = r.laneR;
+        r.state = 'rest'; r.lapF = 0; r.lastLap = 0; r.R = r.laneR; r.wheeled = false; r.needAmb = false;
         const b = benchSpot(r); r.x = b.x; r.y = b.y; r.readyAt = simTime + 2;
         say(r, '복귀했습니다', 2);
       }
@@ -280,7 +307,7 @@ function updateRunner(r, dt) {
     }
   }
   // 땀·헉헉 (5바퀴 이상)
-  if (li >= 5 && (r.state === 'run' || r.state === 'toRest' || r.state === 'down')) {
+  if (li >= 5 && (r.state === 'run' || r.state === 'toRest' || r.state === 'down' || r.state === 'wheelOut')) {
     if (simTime >= r.nextSweat) {
       r.nextSweat = simTime + 0.13;
       const hy = r.y - (li >= 10 && li < 15 && r.state === 'run' ? 24 : 48);
@@ -295,7 +322,7 @@ function updateRunner(r, dt) {
 }
 
 function onLap(r, li) {
-  if (li === 10) say(r, '더는 못 뛰겠어… 기자!', 2);
+  if (li === 10) say(r, '더는 못 뛰겠어… 기어갈게요!', 2);
   if (li === 15) say(r, '휠체어 부탁해요!', 2);
   if (li === 25) say(r, '윽…', 2);
 }
@@ -311,8 +338,10 @@ function updateSweat(dt) {
 }
 
 /* ---------- 구급차 ---------- */
-const amb = { phase: 'idle', x: 1420, y: 735, ang: Math.PI, queue: [], patient: null, g: { x: 1170, y: 735 }, t0: 0, route: [], ri: 0, tl: 0 };
-const AMB_T0 = (740 - (CX - L)) / pathLen(RC);
+// 구급차는 아래 휴식 공간에 정차한다. 의료원이 내려 들것에 환자를 싣고 트랙을 한 바퀴 달린 뒤 돌아와 싣고 떠난다.
+const amb = { phase: 'idle', x: 1420, y: 735, ang: Math.PI, queue: [], patient: null, g: { x: 1165, y: 735, ang: 0, face: 1, tl: 0 }, t0: 0 };
+const AMB_T0 = (700 - (CX - L)) / pathLen(RC);
+const AMB_DOOR = { x: 1165, y: 735 };
 
 function moveTo(o, tx, ty, sp, dt) {
   const dx = tx - o.x, dy = ty - o.y, d = Math.hypot(dx, dy);
@@ -326,8 +355,13 @@ function drive(tx, ty, sp, dt) {
   if (amb.dir !== undefined) amb.ang = amb.dir;
   return ok;
 }
+function moveG(tx, ty, sp, dt) {
+  const g = amb.g, ok = moveTo(g, tx, ty, sp, dt);
+  if (g.dir !== undefined) { g.ang = g.dir; if (Math.abs(Math.cos(g.dir)) > 0.15) g.face = Math.cos(g.dir) > 0 ? 1 : -1; }
+  return ok;
+}
 function updateAmb(dt) {
-  const a = amb;
+  const a = amb, g = a.g;
   switch (a.phase) {
     case 'idle':
       if (a.queue.length) {
@@ -336,50 +370,46 @@ function updateAmb(dt) {
       }
       break;
     case 'arrive':
-      if (drive(1200, 735, 240, dt)) { a.phase = 'unload'; a.t0 = simTime; a.g = { x: 1165, y: 735 }; }
+      if (drive(1200, 735, 240, dt)) { a.phase = 'unload'; a.t0 = simTime; g.x = AMB_DOOR.x; g.y = AMB_DOOR.y; g.ang = Math.PI; g.face = -1; }
       break;
     case 'unload':
       if (simTime - a.t0 > 0.8) a.phase = 'go';
       break;
     case 'go': {
       const p = a.patient;
-      if (moveTo(a.g, p.x, p.y + 14, 130, dt)) { a.phase = 'pick'; a.t0 = simTime; p.state = 'carried'; }
+      if (moveG(p.x, p.y + 14, 150, dt)) { a.phase = 'pick'; a.t0 = simTime; p.state = 'carried'; }
       break;
     }
     case 'pick':
-      if (simTime - a.t0 > 1.2) a.phase = 'back';
+      if (simTime - a.t0 > 1.2) a.phase = 'toTrack';
       break;
+    case 'toTrack': {
+      const e = pathPos(AMB_T0, RC);
+      if (moveG(e.x, e.y, 170, dt)) { a.phase = 'lap'; g.tl = AMB_T0; }
+      break;
+    }
+    case 'lap': { // 의료원 둘이 환자를 실은 들것을 들고 트랙을 한 바퀴 달린다
+      g.tl += 200 / pathLen(RC) * dt;
+      const p = pathPos(g.tl, RC);
+      g.x = p.x; g.y = p.y; g.ang = Math.atan2(p.hy, p.hx);
+      if (p.hx > 0.05) g.face = 1; else if (p.hx < -0.05) g.face = -1;
+      if (g.tl >= AMB_T0 + 1) a.phase = 'back';
+      break;
+    }
     case 'back':
-      if (moveTo(a.g, 1165, 735, 130, dt)) { a.phase = 'load'; a.t0 = simTime; }
+      if (moveG(AMB_DOOR.x, AMB_DOOR.y, 170, dt)) { a.phase = 'load'; a.t0 = simTime; g.ang = 0; }
       break;
     case 'load':
-      if (simTime - a.t0 > 0.9) {
-        a.patient.state = 'inAmb'; a.phase = 'route';
-        a.route = [{ x: 1100, y: 650 }, { x: 940, y: 575 }, { x: 740, y: 497 }]; a.ri = 0;
-      }
+      if (simTime - a.t0 > 0.9) { a.patient.state = 'inAmb'; a.phase = 'leave'; }
       break;
-    case 'route': {
-      const w = a.route[a.ri];
-      if (drive(w.x, w.y, 260, dt) && ++a.ri >= a.route.length) { a.phase = 'lap'; a.tl = AMB_T0; }
-      break;
-    }
-    case 'lap': {
-      a.tl += dt / 4.5;
-      const p = pathPos(a.tl, RC);
-      a.x = p.x; a.y = p.y; a.ang = Math.atan2(p.hy, p.hx);
-      if (a.tl >= AMB_T0 + 1) { a.phase = 'leave'; a.route = [{ x: 900, y: 610 }, { x: 1100, y: 700 }, { x: 1440, y: 735 }]; a.ri = 0; }
-      break;
-    }
-    case 'leave': {
-      const w = a.route[a.ri];
-      if (drive(w.x, w.y, 260, dt) && ++a.ri >= a.route.length) {
+    case 'leave':
+      if (drive(1440, 735, 240, dt)) {
         a.phase = 'idle'; a.patient.state = 'away'; a.patient.returnAt = simTime + 4;
         toast('🏥 ' + a.patient.name + ' 병원 이송 완료 — 곧 복귀');
       }
       break;
-    }
   }
-  if (a.patient && a.patient.state === 'carried') { a.patient.x = a.g.x; a.patient.y = a.g.y; }
+  if (a.patient && a.patient.state === 'carried') { a.patient.x = g.x; a.patient.y = g.y; }
 }
 
 /* ---------- 코치 ---------- */
@@ -402,7 +432,7 @@ function updateCoach(dt) {
 const CHEER_N = 28;
 const cheers = Array.from({ length: CHEER_N }, (_, i) => ({ i, bubble: null }));
 let nextShout = 0;
-function waveOn() { return runners.some(r => lapInt(r) >= 15 && ['run', 'toRest', 'down'].includes(r.state)); }
+function waveOn() { return runners.some(r => lapInt(r) >= 15 && ['run', 'toRest', 'down', 'wheelOut'].includes(r.state)); }
 function updateCheer() {
   for (const ch of cheers) if (ch.bubble && simTime > ch.bubble.until) ch.bubble = null;
   if (waveOn() && simTime >= nextShout) {
@@ -477,7 +507,7 @@ function drawField() {
   c.fillStyle = '#b0bec5'; c.fillRect(0, 600, W, 4);
   c.fillStyle = '#546e7a'; c.font = 'bold 15px "Malgun Gothic", sans-serif'; c.textAlign = 'left'; c.textBaseline = 'alphabetic';
   c.fillText('휴식 공간', 12, 624);
-  c.fillText('🪑 벤치', 40, 776);
+  c.fillText('벤치', 40, 776);
   c.fillText('💧 생수대', 560, 776);
   c.fillText('🛏️ 누워 쉬는 곳', 800, 782);
   c.fillStyle = 'rgba(255,255,255,.7)'; c.font = '12px "Malgun Gothic", sans-serif';
@@ -485,6 +515,7 @@ function drawField() {
 }
 
 function drawBench() {
+  if (runners.some(row2)) { c.fillStyle = '#8d6e63'; c.fillRect(50, 738, 340, 8); c.fillStyle = '#5d4037'; for (const x of [58, 220, 376]) c.fillRect(x, 746, 6, 10); }
   c.fillStyle = '#8d6e63'; c.fillRect(50, 686, 340, 8);
   c.fillStyle = '#5d4037'; for (const x of [58, 220, 376]) c.fillRect(x, 694, 6, 10);
 }
@@ -536,27 +567,29 @@ function stateLabel(r) {
   }
 }
 function drawInfield() {
-  c.fillStyle = 'rgba(0,0,0,.45)'; rrect(350, 214, 580, 240, 10); c.fill();
+  c.fillStyle = 'rgba(0,0,0,.45)'; rrect(392, 218, 496, 226, 10); c.fill();
   c.textBaseline = 'middle';
   c.fillStyle = '#fff'; c.font = 'bold 17px "Malgun Gothic", sans-serif'; c.textAlign = 'left';
-  c.fillText('🏁 에이전트 현황', 368, 232);
+  c.fillText('🏁 에이전트 현황', 408, 236);
   c.textAlign = 'right'; c.font = '12px "Malgun Gothic", sans-serif'; c.fillStyle = '#b2bec3';
-  c.fillText('뛰는 중 ' + runners.filter(r => r.state === 'run').length + '명', 912, 232);
-  runners.forEach((r, i) => {
-    const y = 262 + i * 27;
-    const run = r.state === 'run';
-    if (r.active) { c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(358, y - 12, 564, 25); }
-    disc(374, y, 6, r.color);
+  c.fillText('뛰는 중 ' + runners.filter(r => r.state === 'run').length + '명', 872, 236);
+  AGENTS.forEach((a, i) => {
+    const y = 264 + i * 25;
+    const rs = runners.filter(r => r.role === a.id), act = rs.filter(r => r.active);
+    const lead = rs.find(r => r.state === 'run') || act[0] || rs[0];
+    const run = lead.state === 'run';
+    if (act.length) { c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(398, y - 11, 484, 23); }
+    disc(412, y, 6, a.color);
     c.textAlign = 'left'; c.font = 'bold 15px "Malgun Gothic", sans-serif';
-    c.fillStyle = run ? '#fff' : '#cfd8dc'; c.fillText(r.name, 388, y);
+    c.fillStyle = run ? '#fff' : '#cfd8dc'; c.fillText(a.name + (act.length > 1 ? ' ×' + act.length : ''), 426, y);
     c.font = '13px "Malgun Gothic", sans-serif'; c.fillStyle = run ? '#ffeaa7' : '#b2bec3';
-    c.fillText(stateLabel(r), 470, y);
+    c.fillText(stateLabel(lead), 498, y);
     c.textAlign = 'right'; c.font = 'bold 16px "Malgun Gothic", sans-serif'; c.fillStyle = '#fff';
-    c.fillText(lapInt(r) + '바퀴', 628, y);
+    c.fillText(Math.max(...rs.map(lapInt)) + '바퀴', 650, y);
     c.textAlign = 'left'; c.font = '12px "Malgun Gothic", sans-serif'; c.fillStyle = '#b2bec3';
-    let tk = r.task || '';
-    while (tk.length > 1 && c.measureText(tk).width > 270) tk = tk.slice(0, -2) + '…';
-    c.fillText(tk, 644, y);
+    let tk = rs.map(r => r.task).filter(Boolean).join(' / ');
+    while (tk.length > 1 && c.measureText(tk).width > 205) tk = tk.slice(0, -2) + '…';
+    c.fillText(tk, 660, y);
   });
 }
 
@@ -565,7 +598,9 @@ function poseOf(r) {
   const li = lapInt(r);
   switch (r.state) {
     case 'run': return li < 10 ? 'run' : li < 15 ? 'crawl' : 'wheel';
-    case 'toStart': case 'toRest': return 'walk';
+    case 'toStart': return r.wheeled && li >= 15 ? 'wheel' : 'walk';
+    case 'toRest': return 'walk';
+    case 'wheelOut': return r.wheelStage ? 'wheel' : 'walk';
     case 'drink': return 'drink';
     case 'down': return 'slump';
     case 'carried': return 'lie';
@@ -576,7 +611,7 @@ function poseOf(r) {
 function drawRunner(r) {
   if (r.state === 'inAmb' || r.state === 'away') return;
   const pose = poseOf(r);
-  drawPerson({ x: r.x, y: r.y, face: r.face, pose, ph: r.ph, color: r.color, hair: r.hair, skin: r.skin, dy: r.state === 'carried' ? 12 : 0 });
+  drawPerson({ x: r.x, y: r.y, face: r.face, pose, ph: r.ph, color: r.color, hair: r.hair, skin: r.skin, dy: r.state === 'carried' ? 6 : 0 });
   const top = pose === 'crawl' ? r.y - 36 : pose === 'lie' ? r.y - 30 : r.y - 62;
   c.save();
   c.font = 'bold 11px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
@@ -588,16 +623,19 @@ function drawRunner(r) {
 }
 function drawMedics() {
   const a = amb;
-  if (!['unload', 'go', 'pick', 'back', 'load'].includes(a.phase)) return;
-  const g = a.g, mv = a.phase === 'go' || a.phase === 'back';
-  const dirFace = a.phase === 'back' ? 1 : (a.patient && a.patient.x < g.x ? -1 : 1);
-  // 들것
-  c.fillStyle = '#eceff1'; c.fillRect(g.x - 28, g.y - 14, 56, 5);
-  c.fillStyle = '#90a4ae'; c.fillRect(g.x - 28, g.y - 9, 56, 2);
-  if (a.phase !== 'go' && a.phase !== 'unload' || false) { /* 환자는 drawRunner에서 그림 */ }
+  if (!['unload', 'go', 'pick', 'toTrack', 'lap', 'back', 'load'].includes(a.phase)) return;
+  const g = a.g, running = a.phase === 'toTrack' || a.phase === 'lap' || a.phase === 'back';
+  const moving = running || a.phase === 'go';
+  const ux = Math.cos(g.ang), uy = Math.sin(g.ang);
+  // 들것 (이동 방향으로 눕혀 그린다)
+  c.save(); c.translate(g.x, g.y - 12); c.rotate(g.ang);
+  c.fillStyle = '#eceff1'; c.fillRect(-28, -3, 56, 5);
+  c.fillStyle = '#90a4ae'; c.fillRect(-28, 2, 56, 2);
+  c.restore();
   for (const sg of [-1, 1]) {
-    drawPerson({ x: g.x + sg * 34, y: g.y, face: sg > 0 ? -1 : 1, pose: mv ? 'walk' : 'stand', ph: simTime * 8, color: '#fff', hair: '#222', skin: '#f1c9a5', hat: '#27ae60' });
-    c.fillStyle = '#e74c3c'; c.fillRect(g.x + sg * 34 - 2, g.y - 32, 4, 10); c.fillRect(g.x + sg * 34 - 5, g.y - 29, 10, 4);
+    const mx = g.x + sg * 34 * ux, my = g.y + sg * 34 * uy;
+    drawPerson({ x: mx, y: my, face: g.face, pose: running ? 'run' : moving ? 'walk' : 'stand', ph: simTime * (running ? 9 : 6), color: '#fff', hair: '#222', skin: '#f1c9a5', hat: '#27ae60' });
+    c.fillStyle = '#e74c3c'; c.fillRect(mx - 2, my - 32, 4, 10); c.fillRect(mx - 5, my - 29, 10, 4);
   }
 }
 function drawAmb() {
@@ -645,11 +683,15 @@ function render() {
 function step(dt) {
   simTime += dt;
   runners.forEach(r => updateRunner(r, dt));
+  for (let i = runners.length - 1; i >= 0; i--) { // 일을 마치고 쉬고 있는 추가 인스턴스는 화면에서 뺀다
+    const r = runners[i];
+    if (r.extra && !r.active && r.state === 'rest' && r.settled) { runners.splice(i, 1); buildChips(); }
+  }
   updateAmb(dt); updateCoach(dt); updateCheer(); updateSweat(dt);
 }
 let last = performance.now();
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const dt = Math.min(0.033, (now - last) / 1000); last = now; // 탭 전환·끊김 뒤에도 한 번에 뛰지 않게 상한
   for (let k = 0; k < speedMul; k++) step(dt);
   render();
   requestAnimationFrame(frame);
@@ -662,32 +704,48 @@ function toast(msg) {
   el.className = 'toast'; el.textContent = msg; box.appendChild(el);
   setTimeout(() => el.remove(), 4500);
 }
-const chipsBox = document.getElementById('chips');
+const chipsBox = document.getElementById('chips'), devBox = document.getElementById('devchips');
 function buildChips() {
-  chipsBox.innerHTML = '';
+  chipsBox.innerHTML = ''; devBox.innerHTML = '';
   runners.forEach(r => {
     const d = document.createElement('div'); d.className = 'chip'; d.id = 'chip-' + r.id;
-    d.innerHTML = '<span class="dot" style="background:' + r.color + '"></span><b>' + r.name + '</b>';
-    const t = document.createElement('button'); t.type = 'button'; t.dataset.k = 'toggle';
+    d.innerHTML = '<span class="dot" style="background:' + r.color + '"></span><b>' + r.name + '</b><span class="st"></span>';
+    chipsBox.appendChild(d);
+    // 시험 도구: 에이전트별 수동 시작/멈춤, 바퀴 +5
+    const t = document.createElement('button'); t.type = 'button'; t.dataset.k = r.id;
     t.onclick = () => setActive(r, !r.active);
-    const p = document.createElement('button'); p.type = 'button'; p.textContent = '+5바퀴';
-    p.title = '시험용: 바퀴 수를 5 올립니다';
+    const p = document.createElement('button'); p.type = 'button'; p.textContent = r.name + ' +5바퀴';
     p.onclick = () => { r.lapF += 5; r.lastLap = lapInt(r); };
-    d.append(t, p); chipsBox.appendChild(d);
+    devBox.append(t, p);
   });
   refreshChips();
 }
+const nowBar = document.getElementById('now');
+function refreshNow() {
+  const act = runners.filter(r => r.active);
+  nowBar.innerHTML = act.length
+    ? '지금 작업 중 ' + act.length + '명: ' + act.map(r => '<span class="run">▶</span> <b>' + r.name + '</b>' + (r.task ? ' <span>(' + r.task.replace(/[<>&]/g, '') + ')</span>' : '')).join('  ·  ')
+    : '지금 작업 중인 에이전트: 없음';
+}
 function refreshChips() {
+  refreshNow();
   runners.forEach(r => {
     const d = document.getElementById('chip-' + r.id); if (!d) return;
     d.classList.toggle('on', r.active);
-    d.querySelector('[data-k=toggle]').textContent = r.active ? '⏹ 정지' : '🏃 기동';
+    d.querySelector('.st').textContent = (r.active ? '작업 중' : '대기') + ' · ' + lapInt(r) + '바퀴';
+    const t = devBox.querySelector('[data-k=' + r.id + ']');
+    if (t) t.textContent = r.name + (r.active ? ' 멈춤(시험)' : ' 시작(시험)');
   });
 }
+setInterval(refreshChips, 1000);
 document.getElementById('speed').onchange = e => { speedMul = +e.target.value; };
 document.getElementById('sound').onclick = e => {
   soundOn = !soundOn; e.target.textContent = soundOn ? '🔊 소리 끄기' : '🔇 소리 켜기';
   if (soundOn) pantSound();
+};
+document.getElementById('full').onclick = () => {
+  const st = document.querySelector('.stage');
+  if (document.fullscreenElement) document.exitFullscreen(); else if (st.requestFullscreen) st.requestFullscreen();
 };
 document.getElementById('allOn').onclick = () => runners.forEach(r => setActive(r, true));
 document.getElementById('allOff').onclick = () => runners.forEach(r => setActive(r, false));
@@ -695,17 +753,26 @@ document.getElementById('reset').onclick = () => runners.forEach(r => { r.lapF =
 
 /* ---------- state.json 폴링 ---------- */
 const prevFeed = {};
+const FEED_TTL = 15 * 60 * 1000; // stop 이벤트가 유실돼도 15분 뒤엔 쉬게 한다
+function syncRole(role, insts) {
+  const rs = runners.filter(r => r.role === role).sort((x, y) => x.inst - y.inst);
+  for (let k = rs.length; k < insts.length; k++) { const r = spawnExtra(role, k + 1); if (r) rs.push(r); }
+  rs.forEach((r, k) => { const f = insts[k]; r.task = f ? f.task || '' : ''; setActive(r, !!f); });
+}
 function applyFeed(j) {
   if (j.coach && typeof j.coach.task === 'string') coachTask = j.coach.task;
-  const ag = j.agents || {};
-  runners.forEach(r => {
-    const f = ag[r.id]; if (!f) return;
+  const ag = j.agents || {}, now = Date.now();
+  AGENTS.forEach(a => {
+    const f = ag[a.id]; if (!f) return;
     const key = JSON.stringify(f);
-    if (prevFeed[r.id] === key) return;
-    prevFeed[r.id] = key;
-    if (typeof f.task === 'string') r.task = f.task;
-    if (typeof f.active === 'boolean') setActive(r, f.active);
+    if (prevFeed[a.id] === key) return;
+    prevFeed[a.id] = key;
+    let insts;
+    if (f.instances) insts = Object.values(f.instances).filter(v => !(v.since && now - v.since > FEED_TTL)).sort((x, y) => (x.since || 0) - (y.since || 0));
+    else insts = f.active && !(f.since && now - f.since > FEED_TTL) ? [{ task: f.task }] : [];
+    syncRole(a.id, insts);
   });
+  refreshNow(); refreshChips();
 }
 async function poll() {
   const el = document.getElementById('conn');

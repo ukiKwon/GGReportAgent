@@ -1,42 +1,42 @@
-// 에이전트 운동장 상태 갱신 훅. 사용: node hook.js <start|stop|prompt|idle>
-// stdin: Claude Code 훅 JSON (agent_type, prompt 등). 실패해도 항상 exit 0 — 본 작업을 막지 않는다.
-const fs = require('fs'), path = require('path');
-const STATE = path.join(__dirname, 'state.json'), LOCK = STATE + '.lock';
+// 에이전트 대시보드 상태 갱신 훅. 사용: node hook.js <dispatch|start|stop|prompt|idle>
+// stdin: Claude Code 훅 JSON. 실패해도 항상 exit 0 — 본 작업을 막지 않는다.
+// 같은 역할이 동시에 여러 개(병렬·여러 세션) 돌 수 있어, 에이전트별 instances에 인스턴스 단위로 기록한다.
+const { update } = require('./statefile');
 const MAP = {
   'design-reviewer': 'designer', 'qa-verifier': 'qa', 'frontend-dev': 'frontend',
   'backend-dev': 'backend', 'security': 'security', 'planner': 'planner', 'pm': 'pm',
 };
-const LABEL = { start: '작업 중', stop: '' };
-
-function update(fn) {
-  const t0 = Date.now();
-  for (;;) {
-    try { fs.closeSync(fs.openSync(LOCK, 'wx')); break; }
-    catch (e) {
-      try { if (Date.now() - fs.statSync(LOCK).mtimeMs > 3000) fs.unlinkSync(LOCK); } catch (_) {}
-      if (Date.now() - t0 > 2000) return;
-    }
-  }
-  try {
-    let s = {};
-    try { s = JSON.parse(fs.readFileSync(STATE, 'utf8')); } catch (_) {}
-    s.coach = s.coach || { task: '' }; s.agents = s.agents || {};
-    fn(s);
-    fs.writeFileSync(STATE, JSON.stringify(s, null, 2));
-  } finally { try { fs.unlinkSync(LOCK); } catch (_) {} }
-}
+const inst = (s, id) => { const a = s.agents[id] || (s.agents[id] = {}); return a.instances || (a.instances = {}); };
+const oldest = (ins, pred) => Object.keys(ins).filter(pred).sort((x, y) => (ins[x].since || 0) - (ins[y].since || 0))[0];
+const isPending = k => k.startsWith('pending:');
 
 let raw = '';
 process.stdin.on('data', d => raw += d);
 process.stdin.on('end', () => {
   try {
     const mode = process.argv[2];
-    let inp = {}; try { inp = JSON.parse(raw); } catch (_) {}
-    if (mode === 'start' || mode === 'stop') {
-      const id = MAP[inp.agent_type]; if (!id) return;
-      update(s => { s.agents[id] = { active: mode === 'start', task: LABEL[mode] }; });
+    let p = {}; try { p = JSON.parse(raw); } catch (_) {}
+    if (mode === 'dispatch') { // Agent 도구 호출 직전: 무슨 일을 맡기는지 (agent_id는 아직 없음)
+      const ti = p.tool_input || {}, id = MAP[ti.subagent_type]; if (!id) return;
+      const desc = Array.from(String(ti.description || '')).slice(0, 24).join('') || '작업 중';
+      update(s => { inst(s, id)['pending:' + Date.now() + Math.random().toString(36).slice(2, 6)] = { task: desc, since: Date.now() }; });
+    } else if (mode === 'start') {
+      const id = MAP[p.agent_type]; if (!id) return;
+      update(s => {
+        const ins = inst(s, id), key = p.agent_id || 'anon:' + Date.now();
+        if (ins[key]) return;
+        const pend = oldest(ins, isPending);
+        if (pend) { ins[key] = ins[pend]; delete ins[pend]; } else ins[key] = { task: '작업 중', since: Date.now() };
+      });
+    } else if (mode === 'stop') {
+      const id = MAP[p.agent_type]; if (!id) return;
+      update(s => {
+        const ins = inst(s, id);
+        if (p.agent_id && ins[p.agent_id]) delete ins[p.agent_id];
+        else { const k = oldest(ins, () => true); if (k) delete ins[k]; }
+      });
     } else if (mode === 'prompt') {
-      update(s => { s.coach.task = String(inp.prompt || '').replace(/\s+/g, ' ').slice(0, 40); });
+      update(s => { s.coach.task = Array.from(String(p.prompt || '').replace(/\s+/g, ' ')).slice(0, 40).join(''); });
     } else if (mode === 'idle') {
       update(s => { s.coach.task = ''; });
     }
