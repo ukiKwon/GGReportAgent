@@ -7,6 +7,7 @@
   // 사이드바 메뉴가 아니다 — 메뉴 키를 늘리면 /menus 계약·골든이 흔들려서, 숨은 탭 버튼(#tab-btn-myinfo)으로 연다.
   // ⚠️ 비밀번호는 없다 — 지금 로그인은 사번만 쓴다. 인증 방식이 정해지면 '기본 정보'에 붙인다.
   const myinfo = {};
+  const FIELD_KO = { view: '조회', write: '작성', edit: '수정', approve: '결재' };   // 체크박스 접근성 이름용
 
   const admin = (typeof require !== 'undefined') ? require('./admin.js') : root.admin;
   const approvals = (typeof require !== 'undefined') ? require('./approvals.js') : root.approvals;
@@ -121,7 +122,7 @@
         function box(field, disabled, tip) {
           return '<td><input type="checkbox" data-i="' + i + '" data-f="' + field + '"' + (r[field] ? ' checked' : '') +
             (disabled ? ' disabled' : '') + (tip ? ' title="' + esc(tip) + '"' : '') +
-            ' aria-label="' + esc(r.label + ' ' + field) + '"></td>';
+            ' aria-label="' + esc(r.label + ' ' + FIELD_KO[field]) + '"></td>';
         }
         return '<tr><th>' + esc(r.label) + '</th>' + box('view') + box('write') + box('edit') +
           box('approve', !r.approvable, r.approvable ? '' : '이 메뉴에는 결재 기능이 없습니다') +

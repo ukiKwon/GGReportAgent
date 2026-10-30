@@ -80,6 +80,7 @@
     if (item === 'user:APPROVER_MODE') return v === 'AUTO' ? '자동' : (v === 'MANUAL' ? '수동 지정' : v);
     return item === 'user:APPROVER_RELEASED' && isAfter && v === 'RANK' ? '직급 변경' : v;
   };
+  const FIELD_KO = { view: '조회', write: '작성', edit: '수정', approve: '결재' };   // 체크박스 접근성 이름용
   const DEFAULT_GRADES = { NONE: '해당 없음', TEAM_LEAD: '팀장급', DEPT_HEAD: '부장급', EXECUTIVE: '대표급' };
 
   // 쪽 크기 — 사용자 관리·접근 이력이 같은 선택지를 쓴다(서버 접근 이력의 상한 200 이내).
@@ -610,7 +611,7 @@
           function box(field, disabled, tip) {
             return '<td><input type="checkbox" data-i="' + i + '" data-f="' + field + '"' + (r[field] ? ' checked' : '') +
               (disabled ? ' disabled' : '') + (tip ? ' title="' + esc(tip) + '"' : '') +
-              ' aria-label="' + esc(r.label + ' ' + field) + '"></td>';
+              ' aria-label="' + esc(r.label + ' ' + FIELD_KO[field]) + '"></td>';
           }
           return '<tr><th>' + esc(names[r.menu_key] || r.label) + '</th>' + box('view') + box('write') + box('edit') +
             box('approve', !r.approvable, r.approvable ? '' : '이 메뉴에는 결재 기능이 없습니다') +

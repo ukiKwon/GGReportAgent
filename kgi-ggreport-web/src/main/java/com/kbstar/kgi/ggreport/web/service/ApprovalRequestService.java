@@ -98,6 +98,12 @@ public class ApprovalRequestService {
         if (changes == null || changes.isEmpty() || changes.size() > Menus.MENUS.size()) {
             throw new ApiException(400, "신청할 메뉴 권한을 하나 이상 고르세요.");
         }
+        // 상신 시점 본인 유효 권한 스냅샷 — 결재 카드의 '바뀌기 전 값'. 서버가 만든 값만 쓴다(요청 본문의 before 는 무시).
+        // before 는 표시용이다 — 승인 반영(applyApproved)은 신청값 다섯 키(menu/view/write/edit/approve)만 읽는다.
+        Map<String, PermissionService.Row> nowPerms = new java.util.HashMap<>();
+        for (PermissionService.Row row : permissions.effective(me.getEmpNo())) {
+            nowPerms.put(row.getMenuKey(), row);
+        }
         boolean needsAdmin = false;
         List<Map<String, Object>> payloadChanges = new ArrayList<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
@@ -117,6 +123,15 @@ public class ApprovalRequestService {
             m.put("write", c.isWrite());
             m.put("edit", c.isEdit());
             m.put("approve", c.isApprove());
+            PermissionService.Row cur = nowPerms.get(c.getMenu());
+            if (cur != null) {
+                Map<String, Object> before = new LinkedHashMap<>();
+                before.put("view", cur.isView());
+                before.put("write", cur.isWrite());
+                before.put("edit", cur.isEdit());
+                before.put("approve", cur.isApprove());
+                m.put("before", before);
+            }
             payloadChanges.add(m);
         }
         List<ApprovalStep> steps = new ArrayList<>();

@@ -410,6 +410,59 @@ public class ApprovalLineApiTest {
     }
 
     @Test
+    public void 권한_신청은_상신_시점의_현재_권한을_before_로_함께_저장한다() throws Exception {
+        JsonNode r = submit(MEMBER, KNOWLEDGE_WRITE, 200);
+        long id = r.get("req_id").asLong();
+        JsonNode c0 = r.get("payload").get("changes").get(0);
+        assertEquals("knowledge", c0.get("menu").asText());
+        assertTrue(c0.get("write").asBoolean());                      // 신청값
+        JsonNode b = c0.get("before");
+        assertTrue(b.get("view").asBoolean());                        // 시드 역할 기본: 조회만
+        assertFalse(b.get("write").asBoolean());
+        assertFalse(b.get("edit").asBoolean());
+        assertFalse(b.get("approve").asBoolean());
+        // 받은 결재 목록에도 같은 값이 나간다
+        boolean inInbox = false;
+        for (JsonNode n : call(LEAD, get("/approval-requests").param("box", "inbox"), null, 200).get("items")) {
+            if (n.get("req_id").asLong() == id) {
+                inInbox = true;
+                assertFalse(n.get("payload").get("changes").get(0).get("before").get("write").asBoolean());
+            }
+        }
+        assertTrue(inInbox);
+        // 승인 뒤: 신청값만 반영, before 로 오염되지 않는다
+        decide(LEAD, id, "APPROVE", "확인", 200);
+        assertTrue(permOn(MEMBER, "knowledge", "view"));
+        assertTrue(permOn(MEMBER, "knowledge", "write"));
+        assertFalse(permOn(MEMBER, "knowledge", "edit"));
+        assertFalse(permOn(MEMBER, "knowledge", "approve"));
+        // 저장된 before 는 상신 당시 값 그대로(승인 후 현재값과 달라도 불변)
+        boolean seenMine = false;
+        for (JsonNode n : call(MEMBER, get("/approval-requests").param("box", "mine"), null, 200).get("items")) {
+            if (n.get("req_id").asLong() == id) {
+                seenMine = true;
+                assertFalse(n.get("payload").get("changes").get(0).get("before").get("write").asBoolean());
+            }
+        }
+        assertTrue(seenMine);
+    }
+
+    @Test
+    public void 요청_본문에_가짜_before_를_넣어도_서버_값이_저장된다() throws Exception {
+        String fake = "[{\"menu\":\"knowledge\",\"view\":true,\"write\":true,"
+                + "\"before\":{\"view\":true,\"write\":true,\"edit\":true,\"approve\":true}}]";
+        JsonNode r = submit(MEMBER, fake, 200);
+        JsonNode b = r.get("payload").get("changes").get(0).get("before");
+        assertFalse(b.get("write").asBoolean());
+        assertFalse(b.get("edit").asBoolean());
+        assertFalse(b.get("approve").asBoolean());
+        // 승인해도 가짜 before 의 edit/approve 가 반영되지 않는다
+        decide(LEAD, r.get("req_id").asLong(), "APPROVE", "확인", 200);
+        assertFalse(permOn(MEMBER, "knowledge", "edit"));
+        assertFalse(permOn(MEMBER, "knowledge", "approve"));
+    }
+
+    @Test
     public void 사번을_넘겨도_다른_사람_권한은_볼_수_없다() throws Exception {
         JsonNode me = call(MEMBER, get("/approval-requests/my-perms").param("emp", LEAD), null, 200);
         assertEquals(MEMBER, me.get("emp_no").asText());

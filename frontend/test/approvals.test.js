@@ -166,3 +166,35 @@ test('decisionBody·decisionError: 승인은 의견 선택, 반려는 사유 필
   assert.strictEqual(ap.decisionError(false, '   '), '반려 사유를 입력하세요.');
   assert.strictEqual(ap.decisionError(false, '근거 부족'), '');
 });
+
+test('changeCells: before 없으면 기존 표시(✓/–), 있으면 켜짐·꺼짐·유지 구분', function () {
+  const none = ap.changeCells({ menu: 'm', view: true, write: false, edit: false, approve: false });
+  assert.deepStrictEqual(none.map(function (c) { return c.state; }), ['none', 'none', 'none', 'none']);
+  assert.strictEqual(none[0].mark, '✓');
+  assert.strictEqual(none[1].mark, '–');
+  const cells = ap.changeCells({ menu: 'm',
+    view: true, write: true, edit: false, approve: false,
+    before: { view: true, write: false, edit: true, approve: false } });
+  assert.deepStrictEqual(cells.map(function (c) { return c.state; }), ['same', 'on', 'off', 'same']);
+  assert.strictEqual(cells[0].mark, '✓');
+  assert.strictEqual(cells[1].mark, '＋');
+  assert.strictEqual(cells[2].mark, '－');
+  assert.strictEqual(cells[3].mark, '–');
+  assert.strictEqual(cells[1].text, '켜짐');
+  assert.strictEqual(cells[2].text, '꺼짐');
+  assert.strictEqual(cells[0].text, '유지');
+});
+
+test('changeRows: before가 있을 때만 before 키를 싣는다', function () {
+  const rows = ap.changeRows({ changes: [
+    { menu: 'a', view: true, write: false, edit: false, approve: false },
+    { menu: 'b', view: true, write: false, edit: false, approve: false,
+      before: { view: false, write: false, edit: false, approve: false } }] }, []);
+  assert.ok(!('before' in rows[0]));
+  assert.deepStrictEqual(rows[1].before, { view: false, write: false, edit: false, approve: false });
+});
+
+test('changeCells: before 일부가 빠져도 불리언으로 취급', function () {
+  const c = ap.changeCells({ view: true, write: false, edit: false, approve: false, before: { view: true } });
+  assert.deepStrictEqual(c.map(function (x) { return x.state; }), ['same', 'same', 'same', 'same']);
+});
