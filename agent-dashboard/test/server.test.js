@@ -202,3 +202,60 @@ describe('인스턴스 hook', () => {
     assert.strictEqual(qa.active, false);
   });
 });
+
+// ── id 일치: hook.js MAP 값 = app.js AGENTS id ∪ {CLEANER id} = serve.js IDS ──
+// app.js는 브라우저 전용이라 require하지 않고 소스 텍스트에서 뽑는다. Windows CRLF에 대비해 먼저 \r\n을 \n으로 바꾼다.
+const readSrc = f => fs.readFileSync(path.join(SRC, f), 'utf8').replace(/\r\n/g, '\n');
+const uniqSorted = a => Array.from(new Set(a)).sort();
+const allMatches = (re, text) => Array.from(text.matchAll(re), m => m[1]);
+
+describe('id 일치(hook.js · app.js · serve.js)', () => {
+  const hookIds = () => {
+    const blk = /const MAP = \{([\s\S]*?)\n\};/.exec(readSrc('hook.js'));
+    assert.ok(blk, 'hook.js에서 MAP 블록을 찾지 못함');
+    return allMatches(/'[\w-]+'\s*:\s*'([\w-]+)'/g, blk[1]); // 'design-reviewer': 'designer' 의 값 쪽
+  };
+  const appAgentIds = () => {
+    const blk = /const AGENTS = \[([\s\S]*?)\n\];/.exec(readSrc('app.js'));
+    assert.ok(blk, 'app.js에서 AGENTS 블록을 찾지 못함');
+    return allMatches(/\{\s*id:\s*'([\w-]+)'/g, blk[1]);
+  };
+  const appCleanerId = () => {
+    const m = /const CLEANER = \{\s*id:\s*'([\w-]+)'/.exec(readSrc('app.js'));
+    assert.ok(m, 'app.js에서 CLEANER 상수를 찾지 못함');
+    return m[1];
+  };
+  const serveIds = () => {
+    const m = /const IDS = \[([^\]]*)\]/.exec(readSrc('serve.js'));
+    assert.ok(m, 'serve.js에서 IDS를 찾지 못함');
+    return allMatches(/'([\w-]+)'/g, m[1]);
+  };
+
+  it('app.js의 청소부 id는 cleaner이고 AGENTS에는 없다', () => {
+    assert.strictEqual(appCleanerId(), 'cleaner');
+    assert.ok(!appAgentIds().includes('cleaner'));
+  });
+  it('hook.js MAP 값 집합 = app.js AGENTS id ∪ {cleaner}', () => {
+    const agents = appAgentIds();
+    assert.strictEqual(new Set(agents).size, agents.length, 'AGENTS id 중복');
+    assert.deepStrictEqual(uniqSorted(hookIds()), uniqSorted([...agents, appCleanerId()]));
+  });
+  it('serve.js IDS도 같은 집합이다', () => {
+    assert.deepStrictEqual(uniqSorted(serveIds()), uniqSorted([...appAgentIds(), appCleanerId()]));
+    assert.deepStrictEqual(uniqSorted(serveIds()), uniqSorted(hookIds()));
+  });
+});
+
+describe('인스턴스 hook — data-auditor', () => {
+  it("agent_type 'data-auditor' start는 agents.auditor.instances를 만들고 stop이 지운다", () => {
+    writeState({ laps: 0, since: 1000 });
+    assert.strictEqual(hook('start', JSON.stringify({ agent_type: 'data-auditor', agent_id: 'aud-1' })).status, 0);
+    let a = readState().agents.auditor;
+    assert.ok(a.instances && a.instances['aud-1'], 'auditor 인스턴스가 기록되어야 함');
+    assert.strictEqual(a.active, true);
+    assert.strictEqual(hook('stop', JSON.stringify({ agent_type: 'data-auditor', agent_id: 'aud-1' })).status, 0);
+    a = readState().agents.auditor;
+    assert.strictEqual(Object.keys(a.instances).length, 0);
+    assert.strictEqual(a.active, false);
+  });
+});
