@@ -52,6 +52,8 @@
 | `qa-verifier` | 변경의 독립 검토·테스트 공백·재현 절차 | Read, Glob, Grep, Playwright | 테스트 출력은 메인이 실행해서 전달 |
 | `data-auditor` | 기관 레코드 값을 원문 출처와 대조 | Read, Glob, Grep, WebFetch, WebSearch | 값을 고치지 않음. 우선 점검: `contractEnd`에 공고일이 든 레코드 |
 | `planner` | 요구 정리·용어 정의 후보·선택지 비교·결정 질문 | Read, Glob, Grep | 결정은 사용자가. 구현 방법은 이관 |
+| `security` | 권한·인증·입력검증·비밀값·반입물 위험 점검 | Read, Glob, Grep | 수정은 패치 후보로 이관. 자기신고 인증 한계 전제 |
+| `pm` | NEXT 항목 지도·우선순위 후보·배분/지시서 초안 | Read, Glob, Grep | 우선순위는 사용자가 정함 |
 
 새 에이전트를 추가할 때: ① `.claude/agents/<이름>.md` (도구에서 쓰기·실행류를 뺀다) ② 이 표 갱신 ③ `handoff/agents/<이름>/` 폴더 생성.
 ④ **정의 파일의 수정·추가는 실행 중인 세션에 반영되지 않는다** — 창을 다시 불러온 뒤 `Agent`로 도구 목록을 물어 확인한다.
