@@ -4,7 +4,7 @@
 const { update } = require('./statefile');
 const MAP = {
   'design-reviewer': 'designer', 'qa-verifier': 'qa', 'frontend-dev': 'frontend',
-  'backend-dev': 'backend', 'security': 'security', 'planner': 'planner', 'pm': 'pm', 'cleaner': 'cleaner',
+  'backend-dev': 'backend', 'security': 'security', 'planner': 'planner', 'pm': 'pm', 'cleaner': 'cleaner', 'data-auditor': 'auditor',
 };
 const inst = (s, id) => { const a = s.agents[id] || (s.agents[id] = {}); return a.instances || (a.instances = {}); };
 const oldest = (ins, pred) => Object.keys(ins).filter(pred).sort((x, y) => (ins[x].since || 0) - (ins[y].since || 0))[0];
@@ -36,7 +36,9 @@ process.stdin.on('end', () => {
         else { const k = oldest(ins, () => true); if (k) delete ins[k]; }
       });
     } else if (mode === 'prompt') {
-      update(s => { s.coach.task = Array.from(String(p.prompt || '').replace(/\s+/g, ' ')).slice(0, 40).join(''); });
+      const text = String(p.prompt || '').replace(/\s+/g, ' ').trim();
+      if (text.startsWith('<')) return; // 시스템 알림·명령 태그는 전광판에 올리지 않고 사용 중 표시(at)도 하지 않는다
+      update(s => { s.coach.task = Array.from(text).slice(0, 40).join(''); s.coach.at = Date.now(); }); // at: 마지막 사용자 프롬프트 시각(closing.js가 사용 중 판단에 씀)
     } else if (mode === 'idle') {
       update(s => { s.coach.task = ''; });
     } else if (mode === 'session') { // 새 Claude 세션(startup·clear)만 누적 리셋 — resume·compact에서도 SessionStart가 오므로 제외
