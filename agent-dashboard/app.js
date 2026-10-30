@@ -306,7 +306,7 @@ function updateRunner(r, dt) {
     }
     case 'toRest': {
       const sp = drinkSpot(r);
-      if (walk(r, sp.x, sp.y, 130, dt)) { r.state = 'drink'; r.until = simTime + 2.6; r.face = 1; say(r, '꿀꺽꿀꺽', 2); }
+      if (walk(r, sp.x, sp.y, 130, dt)) { r.state = 'drink'; r.until = simTime + 2.6; r.face = 1; say(r, '꿀꺽꿀꺽', 2); bottles[r.slot % 7] = Math.max(0, bottles[r.slot % 7] - 0.4); }
       break;
     }
     case 'drink': {
@@ -436,6 +436,109 @@ function updateAmb(dt) {
   if (a.patient && a.patient.state === 'carried') { a.patient.x = g.x; a.patient.y = g.y; }
 }
 
+/* ---------- 청소부 ---------- */
+// 'cleaner' 에이전트가 일하는 동안 나타나 생수 채우기 → 벤치 닦기 → 트랙 닦기를 반복하고, 일이 끝나면 퇴근한다.
+const CLEANER = { id: 'cleaner', name: '청소부', color: '#26c6da' };
+const jan = { active: false, task: '', present: false, x: -30, y: 770, face: 1, ph: 0, job: 'enter', stage: 0, k: 0, t: 0, bubble: null, trail: [] };
+const bottles = Array(7).fill(1); // 생수 잔량(0~1) — 선수가 마시면 줄고 청소부가 채운다
+const JOBS = ['water', 'bench', 'track'];
+const JOB_LABEL = { enter: '출근 중', water: '생수 채우는 중', bench: '벤치 닦는 중', track: '트랙 닦는 중', leave: '퇴근 중' };
+function janNext() {
+  const i = JOBS.indexOf(jan.job);
+  jan.job = JOBS[(i + 1) % JOBS.length]; jan.stage = 0; jan.k = 0;
+  say(jan, { water: '생수 채울게요', bench: '벤치 닦자~', track: '트랙 닦자~' }[jan.job], 1.8);
+}
+function updateJanitor(dt) {
+  const j = jan;
+  j.ph += dt * 6;
+  if (j.bubble && simTime > j.bubble.until) j.bubble = null;
+  for (let i = j.trail.length - 1; i >= 0; i--) { j.trail[i].life -= dt / 7; if (j.trail[i].life <= 0) j.trail.splice(i, 1); }
+  if (!j.present) {
+    if (j.active) { j.present = true; j.x = -30; j.y = 770; j.job = 'enter'; j.stage = 0; say(j, '청소 시작!', 2); }
+    return;
+  }
+  if (!j.active && j.job !== 'leave') { j.job = 'leave'; j.stage = 0; say(j, '수고하세요~', 2); }
+  switch (j.job) {
+    case 'enter':
+      if (walk(j, 300, 770, 120, dt)) { j.job = 'track'; janNext(); } // 다음 순서인 생수 채우기부터
+      break;
+    case 'water': { // 생수대 앞에서 병을 하나씩 채운다
+      const bx = 566 + j.k * 28 + 3;
+      if (j.stage === 0) { if (walk(j, bx, 712, 100, dt)) { j.stage = 1; j.t = simTime; } }
+      else if (j.stage === 1) {
+        j.face = 1; bottles[j.k] = Math.min(1, bottles[j.k] + dt * 1.2);
+        if (simTime - j.t > 0.7 && bottles[j.k] >= 1) { if (++j.k >= 7) janNext(); else j.stage = 0; }
+      }
+      break;
+    }
+    case 'bench': // 벤치 앞을 오른쪽으로 갔다 왼쪽으로 돌아오며 닦는다
+      if (j.stage === 0) { if (walk(j, 60, 716, 110, dt)) j.stage = 1; }
+      else if (j.stage === 1) { j.face = 1; j.x += 45 * dt; if (j.x >= 380) j.stage = 2; }
+      else if (j.stage === 2) { j.face = -1; j.x -= 45 * dt; if (j.x <= 60) janNext(); }
+      break;
+    case 'track': // 출입구로 올라가 트랙을 한 바퀴 걸레질한다
+      if (j.stage === 0) { if (walk(j, 470, 500, 120, dt)) { j.stage = 1; j.t = (470 - (CX - L)) / pathLen(150); j.t0 = j.t; j.lastTrail = j.t; } }
+      else if (j.stage === 1) {
+        j.t += 85 / pathLen(150) * dt;
+        const p = pathPos(j.t, 150); j.x = p.x; j.y = p.y;
+        if (p.hx > 0.05) j.face = 1; else if (p.hx < -0.05) j.face = -1;
+        if (Math.abs(j.t - j.lastTrail) > 9 / pathLen(150)) { j.lastTrail = j.t; j.trail.push({ x: p.x, y: p.y, life: 1 }); }
+        if (j.t >= j.t0 + 1) j.stage = 2;
+      } else if (walk(j, 470, 716, 120, dt)) janNext();
+      break;
+    case 'leave':
+      if (walk(j, -40, 770, 130, dt)) { j.present = false; j.trail.length = 0; }
+      break;
+  }
+}
+function drawJanitor() {
+  const j = jan;
+  if (!j.present) return;
+  const working = (j.job === 'water' && j.stage === 1) || (j.job === 'bench' && j.stage >= 1) || (j.job === 'track' && j.stage === 1);
+  drawPerson({ x: j.x, y: j.y, face: j.face, pose: working ? 'stand' : 'walk', ph: j.ph, color: '#1e88e5', hair: '#4e342e', skin: '#f1c9a5', hat: '#f9a825' });
+  c.save(); c.translate(j.x, j.y); c.scale(j.face, 1);
+  if (j.job === 'track' && j.stage === 1) { // 대걸레
+    const w = Math.sin(j.ph) * 4;
+    limb(8, -26, 26 + w, -2, 3, '#8d6e63');
+    c.fillStyle = '#78909c'; c.fillRect(20 + w, -4, 16, 6);
+  } else if (j.job === 'bench' && j.stage >= 1) { // 걸레로 닦기 + 반짝임
+    const w = Math.sin(j.ph * 1.5) * 7;
+    c.fillStyle = '#fff'; c.fillRect(10 + w, -26, 11, 6);
+    c.fillStyle = '#fffde7'; c.fillRect(24 + w, -34 - (j.ph % 2) * 3, 3, 3); c.fillRect(2 + w, -36, 2, 2);
+  } else if (j.job === 'water' && j.stage === 1) { // 물병 기울여 붓기
+    c.save(); c.translate(8, -52); c.rotate(0.9);
+    c.fillStyle = '#4fc3f7'; c.fillRect(-5, -8, 10, 16); c.fillStyle = '#e1f5fe'; c.fillRect(-2, -11, 4, 4);
+    c.restore();
+    limb(14, -46, 14, -40, 2, '#81d4fa');
+  } else { // 양동이
+    c.fillStyle = '#90a4ae'; c.beginPath(); c.moveTo(7, -14); c.lineTo(17, -14); c.lineTo(15, -4); c.lineTo(9, -4); c.closePath(); c.fill();
+    c.strokeStyle = '#607d8b'; c.lineWidth = 1.5; c.beginPath(); c.arc(12, -14, 4, Math.PI, 0); c.stroke();
+  }
+  c.restore();
+  const top = j.y - 62, fs = fz(11, 11, 1.4);
+  c.save(); c.font = 'bold ' + fs + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+  const w2 = c.measureText(CLEANER.name).width + 8;
+  c.fillStyle = CLEANER.color; rrect(j.x - w2 / 2, top - fs, w2, fs + 3, 4); c.fill();
+  c.fillStyle = '#fff'; c.fillText(CLEANER.name, j.x, top); c.restore();
+  if (j.bubble) drawBubble(j.x, top - fs - 3, j.bubble.text);
+}
+function drawTrail() { // 닦인 자리(젖은 광택) — 서서히 마른다
+  for (const p of jan.trail) {
+    c.fillStyle = 'rgba(255,255,255,' + (0.28 * p.life).toFixed(3) + ')';
+    c.beginPath(); c.ellipse(p.x, p.y, 11, 7, 0, 0, Math.PI * 2); c.fill();
+  }
+}
+function drawCleanerRow(cmp, fnt) {
+  const y = 262 + AGENTS.length * 22;
+  if (jan.active) { c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(398, y - 10, 484, 21); }
+  disc(412, y, 6, CLEANER.color);
+  c.textAlign = 'left'; c.font = fnt(true, 15, 14, 1.5);
+  c.fillStyle = jan.present ? '#fff' : '#cfd8dc'; c.fillText(CLEANER.name, 426, y);
+  c.font = fnt(false, 13, 11, 1.6); c.fillStyle = jan.present ? '#ffeaa7' : '#b2bec3';
+  c.fillText(jan.present ? JOB_LABEL[jan.job] : '대기', cmp ? 566 : 498, y);
+  if (!cmp && jan.task) { c.font = '12px "Malgun Gothic", sans-serif'; c.fillStyle = '#b2bec3'; c.fillText(jan.task, 660, y); }
+}
+
 /* ---------- 코치 ---------- */
 const coach = { x: 110, y: 148, ph: 0, bubble: null, next: 3 };
 function updateCoach(dt) {
@@ -549,8 +652,11 @@ function drawTable() {
   c.fillStyle = '#6d4c41'; c.fillRect(550, 698, 8, 34); c.fillRect(742, 698, 8, 34);
   for (let i = 0; i < 7; i++) {
     const x = 560 + i * 28;
-    if (runners[i].state === 'drink') continue;
-    c.fillStyle = '#74b9ff'; c.fillRect(x, 672, 7, 14);
+    if (runners[i] && runners[i].state === 'drink') continue;
+    c.fillStyle = 'rgba(227,242,253,.9)'; c.fillRect(x, 672, 7, 14);
+    const lv = Math.max(0, Math.min(1, bottles[i]));
+    c.fillStyle = '#74b9ff'; c.fillRect(x, 672 + 14 * (1 - lv), 7, 14 * lv);
+    c.strokeStyle = '#90a4ae'; c.lineWidth = 0.8; c.strokeRect(x, 672, 7, 14);
     c.fillStyle = '#fff'; c.fillRect(x + 1, 669, 5, 3);
   }
 }
@@ -601,11 +707,11 @@ function drawInfield() {
   c.textAlign = 'right'; c.font = fnt(false, 12, 11, 1.5); c.fillStyle = '#b2bec3';
   c.fillText('뛰는 중 ' + runners.filter(r => r.state === 'run').length + '명', 872, 236);
   AGENTS.forEach((a, i) => {
-    const y = 264 + i * 25;
+    const y = 262 + i * 22;
     const rs = runners.filter(r => r.role === a.id), act = rs.filter(r => r.active);
     const lead = rs.find(r => r.state === 'run') || act[0] || rs[0];
     const run = lead.state === 'run';
-    if (act.length) { c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(398, y - 11, 484, 23); }
+    if (act.length) { c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(398, y - 10, 484, 21); }
     disc(412, y, 6, a.color);
     c.textAlign = 'left'; c.font = fnt(true, 15, 14, 1.5);
     c.fillStyle = run ? '#fff' : '#cfd8dc'; c.fillText(a.name + (act.length > 1 ? ' ×' + act.length : ''), 426, y);
@@ -619,6 +725,7 @@ function drawInfield() {
     while (tk.length > 1 && c.measureText(tk).width > 205) tk = tk.slice(0, -2) + '…';
     c.fillText(tk, 660, y);
   });
+  drawCleanerRow(cmp, fnt);
 }
 
 /* ---------- 선수·구급 그리기 ---------- */
@@ -696,6 +803,7 @@ function drawSweat() {
 
 function render() {
   drawField();
+  drawTrail();
   drawInfield();
   drawBench();
   drawCoachBox();
@@ -710,6 +818,7 @@ function render() {
   drawMedics();
   [...runners].sort((a, b) => a.y - b.y).forEach(drawRunner);
   drawTable();
+  drawJanitor();
   drawAmb();
   drawSweat();
 }
@@ -722,7 +831,7 @@ function step(dt) {
     const r = runners[i];
     if (r.extra && !r.active && r.state === 'rest' && r.settled) { runners.splice(i, 1); buildChips(); }
   }
-  updateAmb(dt); updateCoach(dt); updateCheer(); updateSweat(dt);
+  updateAmb(dt); updateJanitor(dt); updateCoach(dt); updateCheer(); updateSweat(dt);
 }
 let last = performance.now();
 function frame(now) {
@@ -753,17 +862,28 @@ function buildChips() {
     p.onclick = () => { r.lapF += 5; r.lastLap = lapInt(r); };
     devBox.append(t, p);
   });
+  const cd = document.createElement('div'); cd.className = 'chip'; cd.id = 'chip-cleaner';
+  cd.innerHTML = '<span class="dot" style="background:' + CLEANER.color + '"></span><b>' + CLEANER.name + '</b><span class="st"></span>';
+  chipsBox.appendChild(cd);
+  const ct = document.createElement('button'); ct.type = 'button'; ct.dataset.k = 'cleaner';
+  ct.onclick = () => { jan.active = !jan.active; refreshChips(); };
+  devBox.append(ct);
   refreshChips();
 }
 const nowBar = document.getElementById('now');
 function refreshNow() {
-  const act = runners.filter(r => r.active);
-  nowBar.innerHTML = act.length
-    ? '지금 작업 중 ' + act.length + '명: ' + act.map(r => '<span class="run">▶</span> <b>' + r.name + '</b>' + (r.task ? ' <span>(' + r.task.replace(/[<>&]/g, '') + ')</span>' : '')).join('  ·  ')
-    : '지금 작업 중인 에이전트: 없음';
+  const parts = runners.filter(r => r.active).map(r => '<span class="run">▶</span> <b>' + r.name + '</b>' + (r.task ? ' <span>(' + r.task.replace(/[<>&]/g, '') + ')</span>' : ''));
+  if (jan.active) parts.push('<span class="run">▶</span> <b>청소부</b>' + (jan.task ? ' <span>(' + jan.task.replace(/[<>&]/g, '') + ')</span>' : ''));
+  nowBar.innerHTML = parts.length ? '지금 작업 중 ' + parts.length + '명: ' + parts.join('  ·  ') : '지금 작업 중인 에이전트: 없음';
 }
 function refreshChips() {
   refreshNow();
+  const cc = document.getElementById('chip-cleaner');
+  if (cc) {
+    cc.classList.toggle('on', jan.active);
+    cc.querySelector('.st').textContent = jan.present ? JOB_LABEL[jan.job] : (jan.active ? '출근 중' : '대기');
+    const ct = devBox.querySelector('[data-k=cleaner]'); if (ct) ct.textContent = '청소부' + (jan.active ? ' 멈춤(시험)' : ' 시작(시험)');
+  }
   runners.forEach(r => {
     const d = document.getElementById('chip-' + r.id); if (!d) return;
     d.classList.toggle('on', r.active);
@@ -807,6 +927,13 @@ function applyFeed(j) {
     else insts = f.active && !(f.since && now - f.since > FEED_TTL) ? [{ task: f.task }] : [];
     syncRole(a.id, insts);
   });
+  const cf = ag.cleaner;
+  if (cf && prevFeed.cleaner !== JSON.stringify(cf)) {
+    prevFeed.cleaner = JSON.stringify(cf);
+    const ci = cf.instances ? Object.values(cf.instances).filter(v => !(v.since && now - v.since > FEED_TTL)).sort((x, y) => (x.since || 0) - (y.since || 0))
+      : (cf.active && !(cf.since && now - cf.since > FEED_TTL) ? [{ task: cf.task }] : []);
+    jan.active = ci.length > 0; jan.task = ci[0] ? ci[0].task || '' : '';
+  }
   refreshNow(); refreshChips();
 }
 async function poll() {

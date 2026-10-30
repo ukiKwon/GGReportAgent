@@ -2,7 +2,7 @@
 const http = require('http'), fs = require('fs'), path = require('path');
 const store = require('./statefile');
 const ROOT = __dirname, STATE = path.join(ROOT, 'state.json'), PORT = +process.argv[2] || 8090;
-const IDS = ['designer', 'qa', 'frontend', 'backend', 'security', 'planner', 'pm'];
+const IDS = ['designer', 'qa', 'frontend', 'backend', 'security', 'planner', 'pm', 'cleaner'];
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8' };
 const BAD = new Set(['__proto__', 'constructor', 'prototype']);
 const MAX_BODY = 16 * 1024;

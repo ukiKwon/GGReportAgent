@@ -15,7 +15,7 @@ STATE = ROOT / "state.json"
 HOST, PORT = "127.0.0.1", 8090
 
 
-DEFAULT = {"coach": {"task": ""}, "agents": {k: {"active": False, "task": ""} for k in ("designer", "qa", "frontend", "backend", "security", "planner", "pm")}}
+DEFAULT = {"coach": {"task": ""}, "agents": {k: {"active": False, "task": ""} for k in ("designer", "qa", "frontend", "backend", "security", "planner", "pm", "cleaner")}}
 
 
 MAX_BODY = 16 * 1024
