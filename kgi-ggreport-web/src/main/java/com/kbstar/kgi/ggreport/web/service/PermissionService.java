@@ -99,6 +99,17 @@ public class PermissionService {
                 && viewOf(u, byMenu(perms.selectByEmpNo(empNo)), menus.menusFor(u.getRole()), Menus.ADMIN_MENU);
     }
 
+    /** 등록된 활성 사용자가 그 메뉴를 볼 수 있는가(사용자 예외 > 역할 기본값). {@link #canAdmin} 의 일반형. */
+    @Transactional(readOnly = true)
+    public boolean canView(String empNo, String menuKey) {
+        if (!MenuPerms.isEmpNo(empNo)) {
+            return false;
+        }
+        SysUser u = users.selectByEmpNo(empNo);
+        return u != null && "ACTIVE".equals(u.getStatus())
+                && viewOf(u, byMenu(perms.selectByEmpNo(empNo)), menus.menusFor(u.getRole()), menuKey);
+    }
+
     @Transactional
     public int save(String empNo, List<SysAdminIn.Perm> changes, Actor actor) {
         SysUser u = require(empNo);
