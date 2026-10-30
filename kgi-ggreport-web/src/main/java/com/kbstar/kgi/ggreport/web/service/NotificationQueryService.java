@@ -32,4 +32,10 @@ public class NotificationQueryService {
         }
         return mapper.selectByRecipients(recipients, unreadOnly, limit);
     }
+
+    /** 쪽지 수신자. 없으면 null — 읽음 처리의 소유 확인용(내용은 돌려주지 않는다). */
+    public String recipientOf(String notificationId) {
+        Notification n = mapper.selectById(notificationId);
+        return n == null ? null : n.getRecipient();
+    }
 }
