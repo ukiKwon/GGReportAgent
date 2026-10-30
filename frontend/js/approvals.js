@@ -100,11 +100,30 @@
     return name || String(key || '');
   };
 
-  // 권한 신청 내용 — 신청한 권한(✓)만 있다. 서버는 "바뀌기 전 값"을 싣지 않는다.
+  // 권한 신청 내용 — 신청값과, 있으면 상신 시점의 본인 유효 권한(before). 옛 요청에는 before가 없다.
   approvals.changeRows = function (payload, categories) {
     return ((payload || {}).changes || []).map(function (c) {
-      return { menu: approvals.menuName(c.menu, categories),
+      const row = { menu: approvals.menuName(c.menu, categories),
                view: !!c.view, write: !!c.write, edit: !!c.edit, approve: !!c.approve };
+      if (c.before && typeof c.before === 'object') {
+        row.before = { view: !!c.before.view, write: !!c.before.write,
+                       edit: !!c.before.edit, approve: !!c.before.approve };
+      }
+      return row;
+    });
+  };
+
+  // 한 행(조회·작성·수정·결재) → 칸 4개. before 없으면 state 'none'(기존 ✓/–).
+  // 있으면 on(꺼짐→켜짐 ＋), off(켜짐→꺼짐 －), same(유지). 색 외에 기호·글자로도 구분한다.
+  approvals.changeCells = function (change) {
+    const c = change || {};
+    return ['view', 'write', 'edit', 'approve'].map(function (f) {
+      const now = !!c[f];
+      if (!c.before) return { field: f, state: 'none', mark: now ? '✓' : '–', text: '' };
+      const was = !!c.before[f];
+      if (!was && now) return { field: f, state: 'on', mark: '＋', text: '켜짐' };
+      if (was && !now) return { field: f, state: 'off', mark: '－', text: '꺼짐' };
+      return { field: f, state: 'same', mark: now ? '✓' : '–', text: '유지' };
     });
   };
 
@@ -294,12 +313,18 @@
 
   function changesHtml(rows) {
     if (!rows.length) return '';
-    function mark(v) { return v ? '✓' : '–'; }
+    const labels = { view: '조회', write: '작성', edit: '수정', approve: '결재' };
+    const hasBefore = rows.some(function (c) { return !!c.before; });
     return '<table class="ad-table ap-changes"><thead><tr><th>메뉴</th><th>조회</th><th>작성</th><th>수정</th><th>결재</th></tr></thead><tbody>' +
       rows.map(function (c) {
-        return '<tr><th>' + esc(c.menu) + '</th><td>' + mark(c.view) + '</td><td>' + mark(c.write) + '</td><td>' +
-          mark(c.edit) + '</td><td>' + mark(c.approve) + '</td></tr>';
-      }).join('') + '</tbody></table>';
+        return '<tr><th>' + esc(c.menu) + '</th>' + approvals.changeCells(c).map(function (k) {
+          if (k.state === 'none') return '<td>' + k.mark + '</td>';
+          const tip = labels[k.field] + ' ' + k.text;
+          return '<td class="ap-chg ap-chg-' + k.state + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' +
+            k.mark + (k.state === 'same' ? '' : ' ' + k.text) + '</td>';
+        }).join('') + '</tr>';
+      }).join('') + '</tbody></table>' +
+      (hasBefore ? '<div class="dg-who">＋ 새로 켜짐 · － 새로 꺼짐 · ✓/– 변화 없음(상신 시점의 현재 권한 기준)</div>' : '');
   }
 
   function requestCardHtml(r, mode) {
