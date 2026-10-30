@@ -7,6 +7,7 @@ import com.kbstar.kgi.ggreport.web.mapper.PermChangeLogMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.support.ApproverRules;
 import com.kbstar.kgi.ggreport.web.support.MenuPerms;
+import com.kbstar.kgi.ggreport.web.support.Ranks;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import com.kbstar.kgi.ggreport.web.web.Actor;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
@@ -118,9 +119,19 @@ public class ApproverService {
         if ("NONE".equals(a.getApprovalGrade())) {
             throw new ApiException(400, "결재 등급이 있는 사용자만 결재자가 될 수 있습니다.");
         }
+        if (!Ranks.mayApprove(user, a)) {
+            throw new ApiException(400, "결재자는 상신자보다 직급이 높아야 합니다 — "
+                    + label(a) + "은(는) " + label(user) + "보다 높지 않습니다.");
+        }
         if (ApproverRules.wouldCycle(user.getEmpNo(), target, byEmp)) {
             throw new ApiException(400, "결재선이 순환합니다 — 그 사람의 결재 체인에 이미 이 사용자가 있습니다.");
         }
+    }
+
+    /** 오류 문구용 "이름(직위)". 직위가 비어 있으면 이름만. */
+    private static String label(SysUser u) {
+        String p = u.getPositionTitle();
+        return u.getName() + (p == null || p.trim().isEmpty() ? "" : "(" + p.trim() + ")");
     }
 
     private static Map<String, SysUser> index(List<SysUser> all) {

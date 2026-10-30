@@ -292,7 +292,14 @@ public class ApprovalRequestService {
         m.put("name", me.getName());
         m.put("role", me.getRole());
         m.put("position_title", me.getPositionTitle());
-        SysUser line = lineApprover(me);        // 지금 상신하면 첫 번째로 받는 상위 결재자(지정·자동 모두 반영)
+        // 지금 상신하면 첫 번째로 받는 상위 결재자(지정·자동 모두 반영). 결재자가 잘못 지정돼(직급이 같거나 낮음·
+        // 비활성) 있어도 내 권한 화면 전체가 400으로 깨지지 않게 상위 결재자만 비운다 — 상신 때는 여전히 막힌다.
+        SysUser line;
+        try {
+            line = lineApprover(me);
+        } catch (ApiException e) {
+            line = null;
+        }
         m.put("approver_emp_no", line == null ? null : line.getEmpNo());
         m.put("approver_name", line == null ? null : line.getName());
         m.put("can_approve", canApprove);

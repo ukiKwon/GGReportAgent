@@ -3,6 +3,7 @@ package com.kbstar.kgi.ggreport.web.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.AppTest;
+import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +46,8 @@ public class ApprovalLineApiTest {
 
     @Autowired
     private MockMvc mockMvc;
+    @Autowired
+    private SysUserMapper userMapper;
 
     private static String today(int plusDays) {
         return LocalDate.now(ZoneId.of("Asia/Seoul")).plusDays(plusDays).toString();
@@ -230,12 +233,43 @@ public class ApprovalLineApiTest {
     }
 
     @Test
-    public void 같은_직급을_결재자로_지정하면_상신이_400이고_더_높은_직급이면_통과한다() throws Exception {
-        setApprover(LEAD2, LEAD, 200);                         // 지정 자체는 가능(상신 때 방향 검사)
-        submit(LEAD2, KNOWLEDGE_WRITE, 400);                   // 팀장→팀장 : 같은 직급은 결재자가 될 수 없다
+    public void 같은_직급을_결재자로_지정하면_지정이_400이고_더_높은_직급이면_상신이_통과한다() throws Exception {
+        setApprover(LEAD2, LEAD, 400);                         // 팀장→팀장 : 지정 단계에서 같은 직급은 거부
         setApprover(LEAD2, HEAD, 200);
         JsonNode r = submit(LEAD2, KNOWLEDGE_WRITE, 200);      // 팀장→부장 : 통과
         assertEquals(HEAD, r.get("steps").get(0).get("approver_emp_no").asText());
+    }
+
+    @Test
+    public void 이미_같은_직급으로_지정된_옛_쌍은_my_perms_는_살리고_상신은_막는다() throws Exception {
+        // 규칙 변경 전에 만들어진 쌍을 DB 에 직접 심는다(지금은 API 로는 지정할 수 없다).
+        userMapper.updateApprover(LEAD2, LEAD, 1, "2026-10-30T00:00:00+00:00");
+        JsonNode perms = call(LEAD2, get("/approval-requests/my-perms"), null, 200);   // 400 으로 깨지지 않는다
+        assertTrue(perms.get("approver_emp_no").isNull());
+        assertTrue(perms.get("rank_can_approve").asBoolean());
+        assertTrue(perms.get("menus").size() > 0);
+        submit(LEAD2, KNOWLEDGE_WRITE, 400);                   // 상신 때는 여전히 같은 직급 결재자를 막는다
+    }
+
+    @Test
+    public void 같은_직급이어도_대결_기간_밖이면_결재할_수_없다() throws Exception {
+        long id = submit(LEAD2, KNOWLEDGE_WRITE, 200).get("req_id").asLong();
+        deputy(HEAD, null, LEAD, 2, 4, 200);                   // 아직 시작 전
+        assertFalse(inInbox(LEAD, id));
+        decide(LEAD, id, "APPROVE", null, 403);
+    }
+
+    @Test
+    public void 같은_직급_대결자에게는_지정이_있을_때만_결재_알림이_간다() throws Exception {
+        submit(LEAD2, KNOWLEDGE_WRITE, 200);                   // 팀장 안재원 → 부장 박영업, 이영업은 대결 지정 없음
+        assertEquals(0, notesTo(LEAD, "결재알림").size());
+    }
+
+    @Test
+    public void 같은_직급_대결자가_지정돼_있으면_상신_때_결재_알림을_받는다() throws Exception {
+        deputy(HEAD, null, LEAD, 0, 2, 200);                   // 부장이 팀장 이영업을 대결자로
+        submit(LEAD2, KNOWLEDGE_WRITE, 200);
+        assertEquals(1, notesTo(LEAD, "결재알림").size());
     }
 
     @Test
