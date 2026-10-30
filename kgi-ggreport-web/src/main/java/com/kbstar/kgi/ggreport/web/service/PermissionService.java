@@ -141,6 +141,28 @@ public class PermissionService {
         return false;
     }
 
+    /**
+     * 그 메뉴를 볼 수 있는 활성 사용자가, 사용자 예외 행의 CAN_EDIT 이 켜져 있거나 관리자(권한관리 조회)일 때 true.
+     * 역할 기본값에는 수정 권한이 없다(켜려면 사용자 예외 행이 필요하다). — 이사회 자료 양식 편집 등이 쓴다.
+     */
+    @Transactional(readOnly = true)
+    public boolean canEdit(String empNo, String menuKey) {
+        if (!MenuPerms.isEmpNo(empNo)) {
+            return false;
+        }
+        SysUser u = users.selectByEmpNo(empNo);
+        if (u == null || !"ACTIVE".equals(u.getStatus())) {
+            return false;
+        }
+        Map<String, UserMenuPerm> mine = byMenu(perms.selectByEmpNo(empNo));
+        Map<String, Boolean> base = menus.menusFor(u.getRole());
+        if (!viewOf(u, mine, base, menuKey)) {
+            return false;
+        }
+        UserMenuPerm p = mine.get(menuKey);
+        return (p != null && p.isCanEdit()) || viewOf(u, mine, base, Menus.ADMIN_MENU);
+    }
+
     @Transactional
     public int save(String empNo, List<SysAdminIn.Perm> changes, Actor actor) {
         SysUser u = require(empNo);

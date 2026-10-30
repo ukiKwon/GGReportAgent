@@ -48,7 +48,7 @@ public class MapperStatementBindingTest {
      * + 워크플로 개요 1개(WorkflowOverviewMapper — 제안서 진행 현황 목록).
      * 개수를 박아 두면 새 Mapper 를 만들고 등록을 잊는 것도 잡힌다.
      */
-    private static final int EXPECTED_MAPPER_COUNT = 16;
+    private static final int EXPECTED_MAPPER_COUNT = 17;
 
     @Autowired
     private SqlSessionFactory sqlSessionFactory;
