@@ -7,18 +7,21 @@ POST 본문은 state.json에 병합(merge)되고, 화면이 2초 안에 반영�
 """
 import json
 import sys
+import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parent
 STATE = ROOT / "state.json"
 HOST, PORT = "127.0.0.1", 8090
 
 
-DEFAULT = {"coach": {"task": ""}, "stats": {"laps": 0, "since": 0}, "agents": {k: {"active": False, "task": ""} for k in ("designer", "qa", "frontend", "backend", "security", "planner", "pm", "cleaner")}}
+DEFAULT = {"coach": {"task": ""}, "stats": {"laps": 0, "since": 0}, "agents": {k: {"active": False, "task": ""} for k in ("designer", "qa", "frontend", "backend", "security", "planner", "pm", "auditor", "cleaner")}}
 
 
 MAX_BODY = 16 * 1024
+ALLOW = frozenset(("index.html", "app.js", "fmt.js", "style.css", "state.json"))  # 정적 서빙 허용 목록(그 외·디렉터리는 404)
 
 
 def merge(base, patch):
@@ -37,6 +40,22 @@ class Handler(SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
+
+    def send_head(self):  # GET·HEAD 공통 진입점 — Host가 localhost가 아니면 403, 허용 목록 밖은 404, 디렉터리 목록은 만들지 않는다
+        if self.headers.get("Host", "").split(":")[0] not in ("localhost", "127.0.0.1"):
+            self.send_error(403, "bad host")
+            return None
+        try:
+            name = unquote(self.path.split("?")[0].split("#")[0], errors="strict")
+        except ValueError:
+            self.send_error(400, "bad url")
+            return None
+        name = "index.html" if name == "/" else name[1:] if name.startswith("/") else name
+        if name not in ALLOW or not (ROOT / name).is_file():
+            self.send_error(404)
+            return None
+        self.path = "/" + name
+        return super().send_head()
 
     def do_POST(self):
         if self.path.split("?")[0] != "/api/state":
@@ -58,7 +77,15 @@ class Handler(SimpleHTTPRequestHandler):
             patch = json.loads(body.decode("utf-8"))
             if not isinstance(patch, dict):
                 raise ValueError("object expected")
+            # 주의: serve.js/hook.js의 statefile.js와 달리 여기에는 파일 잠금이 없다(읽기→병합→쓰기가 비원자적). 훅과 동시에 쓰면 갱신이 유실될 수 있다.
             cur = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
+            if not isinstance(cur, dict):
+                cur = {}
+            now_ms = int(time.time() * 1000)
+            if not isinstance(cur.get("stats"), dict):  # stats가 없으면 {laps:0, since:지금}으로 채운다(없다고 POST를 계속 거부하는 퇴화 방지)
+                cur["stats"] = {"laps": 0, "since": now_ms}
+            elif isinstance(cur["stats"].get("since"), bool) or not isinstance(cur["stats"].get("since"), (int, float)):
+                cur["stats"]["since"] = now_ms
             if "stats" in patch:  # 같은 세션(since 일치)일 때만 받고 값은 줄이지 않는다
                 st, cs = patch["stats"], cur.get("stats")
                 lp = st.get("laps") if isinstance(st, dict) else None
