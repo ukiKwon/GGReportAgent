@@ -6,6 +6,7 @@ const IDS = ['designer', 'qa', 'frontend', 'backend', 'security', 'planner', 'pm
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8' };
 const BAD = new Set(['__proto__', 'constructor', 'prototype']);
 const MAX_BODY = 16 * 1024;
+const ALLOW = new Set(['index.html', 'app.js', 'fmt.js', 'style.css', 'state.json']); // 정적 서빙 허용 목록(그 외·디렉터리는 404)
 const HOST_OK = h => /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(h || '');
 const merge = (b, p) => { for (const k in p) { if (BAD.has(k)) continue; if (p[k] && typeof p[k] === 'object' && !Array.isArray(p[k]) && b[k] && typeof b[k] === 'object') merge(b[k], p[k]); else b[k] = p[k]; } return b; };
 if (!fs.existsSync(STATE)) fs.writeFileSync(STATE, JSON.stringify({ coach: { task: '' }, agents: Object.fromEntries(IDS.map(k => [k, { active: false, task: '' }])) }, null, 2));
@@ -38,9 +39,11 @@ http.createServer((req, res) => {
     const v = ['index.html', 'app.js', 'fmt.js', 'style.css'].map(n => { try { return fs.statSync(path.join(ROOT, n)).mtimeMs; } catch (_) { return 0; } }).reduce((a, b) => Math.max(a, b), 0); // 브랜치 전환 등으로 파일이 잠깐 없어도 서버가 죽지 않게
     res.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' }); return res.end(String(v));
   }
-  let rel; try { rel = url === '/' ? 'index.html' : decodeURIComponent(url); } catch (_) { res.writeHead(400); return res.end('bad url'); }
+  let rel; try { rel = url === '/' ? 'index.html' : decodeURIComponent(url).replace(/^\//, ''); } catch (_) { res.writeHead(400); return res.end('bad url'); }
   const f = path.join(ROOT, rel);
-  if (!f.startsWith(ROOT + path.sep) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404); return res.end('not found'); }
+  if (!ALLOW.has(rel) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404); return res.end('not found'); }
   res.writeHead(200, { 'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
-  fs.createReadStream(f).pipe(res);
+  const rs = fs.createReadStream(f);
+  rs.on('error', () => res.destroy()); // existsSync 이후 파일이 사라지는 경우
+  rs.pipe(res);
 }).listen(PORT, '127.0.0.1', () => console.log('agent-dashboard: http://localhost:' + PORT));

@@ -1272,7 +1272,7 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
   - **✅ 첫 실사용 완료(2026-10-30)**: F1 시험 흐름(planner → frontend-dev → apply → qa-verifier → cleaner)을 누적 바퀴 전광판으로 실행 — [실행 기록](agents/runs/2026-10-30_누적바퀴-전광판.md).
   - **확정(다시 열지 말 것)**: 좁은 창(≤700px)은 지원하지 않음 · 누적 바퀴 = 대시보드 탭이 열려 있는 동안 · 전광판 프롬프트 표시 유지 · 그래프 방식 A · 18:00 마무리는 병합 없이 · `GGReportAgent/` 중첩 복제본은 삭제함.
 - **남은 일 (담당 태그)**:
-  - `[담당: backend-dev]` **서버 마무리 — 진행 중**: 정적 파일 허용 목록(`serve.js`·`serve.py`), `serve.py`의 stats 기본값, 서버·훅 자동 테스트. 순서: backend-dev 패치안 → 메인 적용·실행 → qa-verifier·security 확인. 근거: [security 보고서](agents/security/2026-10-30_agent-dashboard-보안점검.md) #6·#9, [qa 보고서](agents/qa-verifier/2026-10-30_누적바퀴-전광판.md) P2·P3.
+  - ✅ 서버 마무리 완료(2026-10-30): 정적 허용 목록·serve.py stats 기본값·자동 테스트 55건(`node --test agent-dashboard/test/server.test.js agent-dashboard/test/fmt.test.js`), 보안 확인에서 나온 closing.js 위험(모델 권한·푸시·비밀·사용 중 판단)을 코드로 강제하도록 고침 — [security](agents/security/2026-10-30_서버마무리-닫힘확인.md)·[qa](agents/qa-verifier/2026-10-30_서버마무리.md). 남은 것: `[담당: backend-dev]` `serve.py`는 python이 없는 PC라 **실행 시험을 못 했다**(코드 읽기만, 자동 새로고침 없음·잠금 없음은 README에 명시) — python이 있는 환경에서 `py_compile`과 같은 시나리오 확인.
   - `[담당: planner]` 기획 확인 소항목(사용자 답 대기, 낮음): 폴링 2초 안의 start→stop이 화면에 안 보임 / `data-auditor` 선수 추가 여부 / 정지 후 출구까지 최대 1바퀴 / 복귀 후 active면 lapF를 0부터 반복 — 근거 [qa 검증](agents/qa-verifier/2026-10-30_agent-dashboard-검증.md) #8·#11·#13·복귀 항목.
   - `[담당: frontend-dev]` 낮음·보류 가능: 바닥 차선 이름표가 현황판 아래를 가림, 8x 단계 연출, 터치 타깃, 첫 폴링 전 바퀴 덮임, 칩과 feed 불일치, 가로 스크롤 원인(좁은 창 미지원 확정으로 우선순위 낮음).
   - 보류: 쓰기 에이전트가 정말 필요해지면 방식 A(`settings.json` 훅 + `agent_type`)를 `settings.local.json`에서 먼저 시험 — 현재는 필요 없음(구현은 메인이 패치 적용). `browser_take_screenshot`의 파일 저장은 잔여 쓰기 통로(저장소 루트·`.playwright-mcp/`로 제한).
