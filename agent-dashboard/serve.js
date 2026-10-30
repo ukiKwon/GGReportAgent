@@ -35,7 +35,7 @@ http.createServer((req, res) => {
     return;
   }
   if (url === '/api/version') { // 화면 코드가 바뀌면 열린 탭이 스스로 새로고침하도록 파일 수정 시각을 알려 준다
-    const v = ['index.html', 'app.js', 'fmt.js', 'style.css'].map(n => fs.statSync(path.join(ROOT, n)).mtimeMs).reduce((a, b) => Math.max(a, b), 0);
+    const v = ['index.html', 'app.js', 'fmt.js', 'style.css'].map(n => { try { return fs.statSync(path.join(ROOT, n)).mtimeMs; } catch (_) { return 0; } }).reduce((a, b) => Math.max(a, b), 0); // 브랜치 전환 등으로 파일이 잠깐 없어도 서버가 죽지 않게
     res.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' }); return res.end(String(v));
   }
   let rel; try { rel = url === '/' ? 'index.html' : decodeURIComponent(url); } catch (_) { res.writeHead(400); return res.end('bad url'); }
