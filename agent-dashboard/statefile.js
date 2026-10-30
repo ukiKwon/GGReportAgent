@@ -11,6 +11,9 @@ function normalize(s) {
   const now = Date.now();
   if (!s.coach || typeof s.coach !== 'object') s.coach = { task: '' };
   if (!s.agents || typeof s.agents !== 'object') s.agents = {};
+  if (!s.stats || typeof s.stats !== 'object') s.stats = { laps: 0, since: now };
+  if (!(Number.isFinite(s.stats.laps) && s.stats.laps >= 0)) s.stats.laps = 0;
+  if (!Number.isFinite(s.stats.since)) s.stats.since = now;
   for (const id of Object.keys(s.agents)) {
     const a = s.agents[id];
     if (!a || typeof a !== 'object' || !a.instances) continue;

@@ -19,6 +19,7 @@ const cv = document.getElementById('c');
 const c = cv.getContext('2d');
 let simTime = 0, speedMul = 1, soundOn = false, live = false;
 let coachTask = '';
+const stat = { laps: 0, since: null, dirty: false }; // 세션 누적 바퀴수 (since=null이면 서버 값을 아직 못 받은 상태)
 
 /* 화면에 보이는 배율(K)에 따라 글자를 키운다: 표시 크기가 minCss(CSS px) 아래로 내려가지 않게, 단 cap 배율까지만 */
 let K = 1;
@@ -287,7 +288,10 @@ function updateRunner(r, dt) {
       if (p.hx > 0.05) r.face = 1; else if (p.hx < -0.05) r.face = -1;
       r.ph += dt * (mode === 'run' ? 8 : mode === 'crawl' ? 4 : 5);
       const nl = lapInt(r);
-      if (nl !== r.lastLap) { onLap(r, nl); r.lastLap = nl; }
+      if (nl !== r.lastLap) {
+        if (nl > r.lastLap && stat.laps < Number.MAX_SAFE_INTEGER) { stat.laps++; stat.dirty = true; } // 자연 완주만 센다(+5·초기화·복귀는 lastLap을 직접 맞추므로 여기 오지 않음)
+        onLap(r, nl); r.lastLap = nl;
+      }
       if (r.lapF >= 25) r.needAmb = true;
       const tt = ((r.t % 1) + 1) % 1;
       const inExit = tt * pathLen(r.R) < 2 * L && r.x >= 600 && r.x <= 780; // 아래 휴식 공간으로 빠지는 출구
@@ -671,18 +675,19 @@ function drawCoachBox() {
   c.fillStyle = '#fff'; c.font = 'bold ' + fz(12, 11, 1.2) + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillText('감독 · 코치석', 110, 52);
   // 전광판
-  c.fillStyle = '#111'; rrect(14, 186, 196, 66, 6); c.fill();
+  c.fillStyle = '#111'; rrect(14, 186, 196, 84, 6); c.fill();
   c.strokeStyle = '#444'; c.lineWidth = 2; c.stroke();
   const n = runners.filter(r => r.active).length;
   c.fillStyle = '#ffb300'; c.font = 'bold 13px monospace'; c.textAlign = 'left';
-  c.fillText('작업 중 ' + n + ' / ' + runners.length, 24, 206);
+  c.fillText('작업 중 ' + n + ' / ' + runners.length, 24, 204);
+  c.fillText('누적 ' + fmtLaps(stat.laps) + '바퀴', 24, 224); // 고정 위치(스크롤 아님)
   c.save();
-  c.beginPath(); c.rect(20, 214, 184, 32); c.clip();
+  c.beginPath(); c.rect(20, 234, 184, 30); c.clip();
   const txt = coachTask ? '메인: ' + coachTask : '메인: 대기 중';
   const tw = c.measureText(txt).width, avail = 180;
   const off = tw > avail ? -((simTime * 30) % (tw + 40)) : 0;
-  c.fillStyle = '#ffb300'; c.fillText(txt, 24 + off, 236);
-  if (tw > avail) c.fillText(txt, 24 + off + tw + 40, 236);
+  c.fillStyle = '#ffb300'; c.fillText(txt, 24 + off, 250);
+  if (tw > avail) c.fillText(txt, 24 + off + tw + 40, 250);
   c.restore();
 }
 
@@ -916,6 +921,12 @@ function syncRole(role, insts) {
 }
 function applyFeed(j) {
   if (j.coach && typeof j.coach.task === 'string') coachTask = j.coach.task;
+  const fs2 = j.stats;
+  if (fs2 && Number.isFinite(fs2.since)) {
+    const fl = Number.isFinite(fs2.laps) && fs2.laps >= 0 ? Math.floor(fs2.laps) : 0;
+    if (stat.since !== fs2.since) { stat.since = fs2.since; stat.laps = fl; stat.dirty = false; } // 첫 로드 또는 새 세션: feed 값으로 리셋
+    else if (fl > stat.laps) stat.laps = fl; // 다른 탭이 더 앞서 있으면 따라간다(줄어들지 않음)
+  }
   const ag = j.agents || {}, now = Date.now();
   AGENTS.forEach(a => {
     const f = ag[a.id]; if (!f) return;
@@ -957,6 +968,15 @@ async function checkVersion() {
     seenVersion = v;
   } catch (e) { /* 서버가 없으면(file://) 생략 */ }
 }
+
+setInterval(async () => { // 누적 바퀴수 저장: 변화가 있을 때만, 최대 3초에 한 번
+  if (!stat.dirty || !live || stat.since === null) return;
+  const lp = stat.laps, sn = stat.since;
+  try {
+    const res = await fetch('/api/state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stats: { laps: lp, since: sn } }) });
+    if (res.ok && stat.laps === lp && stat.since === sn) stat.dirty = false;
+  } catch (e) { /* 서버가 없으면 다음 주기에 재시도 */ }
+}, 3000);
 
 buildChips();
 poll();

@@ -15,7 +15,7 @@ STATE = ROOT / "state.json"
 HOST, PORT = "127.0.0.1", 8090
 
 
-DEFAULT = {"coach": {"task": ""}, "agents": {k: {"active": False, "task": ""} for k in ("designer", "qa", "frontend", "backend", "security", "planner", "pm", "cleaner")}}
+DEFAULT = {"coach": {"task": ""}, "stats": {"laps": 0, "since": 0}, "agents": {k: {"active": False, "task": ""} for k in ("designer", "qa", "frontend", "backend", "security", "planner", "pm", "cleaner")}}
 
 
 MAX_BODY = 16 * 1024
@@ -59,6 +59,15 @@ class Handler(SimpleHTTPRequestHandler):
             if not isinstance(patch, dict):
                 raise ValueError("object expected")
             cur = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
+            if "stats" in patch:  # 같은 세션(since 일치)일 때만 받고 값은 줄이지 않는다
+                st, cs = patch["stats"], cur.get("stats")
+                lp = st.get("laps") if isinstance(st, dict) else None
+                ok = (isinstance(cs, dict) and isinstance(lp, (int, float)) and not isinstance(lp, bool)
+                      and 0 <= lp <= 2**53 and st.get("since") == cs.get("since"))
+                if ok:
+                    patch["stats"] = {"laps": max(int(cs.get("laps") or 0), int(lp)), "since": cs["since"]}
+                else:
+                    del patch["stats"]
             STATE.write_text(json.dumps(merge(cur, patch), ensure_ascii=False, indent=2), encoding="utf-8")
         except (ValueError, OSError) as e:
             self.send_error(400, str(e))
