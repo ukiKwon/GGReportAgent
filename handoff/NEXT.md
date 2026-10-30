@@ -50,6 +50,10 @@
 
 ## 새 PC에서 이어받을 때 (2026-08-03 기준)
 
+> **Java 앱(`kgi-ggreport-web`) 로컬 기동 환경**(JDK 8·MySQL 8.4·IntelliJ, 관리자 권한 불필요)은
+> `kgi-ggreport-web/README.md` §5-2와 `kgi-ggreport-web/scripts/setup-local-win.ps1`이 한 번에 세운다
+> (2026-10-30 세션, 브랜치 `kgi-report-web-dev`). 아래 Python 절차와는 별개다.
+
 `data/`는 통째로 `.gitignore` 대상이라 **DB·인덱스·산출물은 git에 없다.** 코드만 받고
 아래로 다시 만든다(전부 재생성 가능한 것들이라 잃는 정보는 없다).
 
