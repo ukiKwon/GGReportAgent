@@ -58,6 +58,12 @@
     return canApprove ? '' : '결재 권한이 없어 대결을 지정할 수 없습니다. 결재 권한이 필요하면 [내 권한]에서 신청하세요.';
   };
 
+  // 결재 자격 — rank_can_approve(직급) 또는 can_approve(결재함 approve 권한). 응답이 없으면 안내하지 않는다.
+  myinfo.canApproveOf = function (perms) {
+    if (!perms) return true;
+    return perms.rank_can_approve === true || perms.can_approve === true;
+  };
+
   if (typeof module !== 'undefined' && module.exports) { module.exports = myinfo; return; }
 
   // ── 렌더·배선(브라우저 전용) ─────────────────────────────────────────
@@ -149,7 +155,7 @@
   }
 
   function paintDeputy() {
-    const notice = myinfo.deputyNotice(!!(me && me.can_approve));
+    const notice = myinfo.deputyNotice(myinfo.canApproveOf(me));
     el('mi-body').innerHTML = notice ? '<p class="wf-empty">' + esc(notice) + '</p>' : '<div id="mi-deputy"></div>';
     if (!notice && root.deputy && root.deputy.mount) root.deputy.mount('mi-deputy');
   }

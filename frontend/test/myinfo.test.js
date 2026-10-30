@@ -57,3 +57,13 @@ test('deputyNotice: 결재 권한이 없으면 안내 문구만, 있으면 비�
   assert.ok(mi.deputyNotice(false).indexOf('결재 권한이 없어') === 0);
   assert.ok(mi.deputyNotice(false).indexOf('내 권한') > 0);
 });
+
+test('canApproveOf: 직급 자격 또는 메뉴 권한이 있으면 자격', function () {
+  assert.strictEqual(mi.canApproveOf({ can_approve: false, rank_can_approve: true }), true);
+  assert.strictEqual(mi.canApproveOf({ can_approve: true, rank_can_approve: false }), true);
+  assert.strictEqual(mi.canApproveOf({ can_approve: true }), true);
+  assert.strictEqual(mi.canApproveOf({ can_approve: false }), false);
+  assert.strictEqual(mi.canApproveOf({ can_approve: false, rank_can_approve: false }), false);
+  assert.strictEqual(mi.canApproveOf(null), true);
+  assert.strictEqual(mi.deputyNotice(mi.canApproveOf({ can_approve: false, rank_can_approve: true })), '');
+});

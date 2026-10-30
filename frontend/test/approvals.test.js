@@ -148,6 +148,17 @@ test('inboxNotice: 결재 권한이 없으면 숨기지 않고 안내, 있으면
   assert.ok(ap.inboxNotice(false, 0).indexOf('내 정보') > 0);
 });
 
+test('canApproveOf: 직급 자격 또는 메뉴 권한이 있으면 자격, 모르면 자격 있음(안내 없음)', function () {
+  assert.strictEqual(ap.canApproveOf({ can_approve: false, rank_can_approve: true }), true);   // 팀장
+  assert.strictEqual(ap.canApproveOf({ can_approve: true, rank_can_approve: false }), true);   // 기존 권한자 유지
+  assert.strictEqual(ap.canApproveOf({ can_approve: true }), true);                            // 구서버
+  assert.strictEqual(ap.canApproveOf({ can_approve: false, rank_can_approve: false }), false);
+  assert.strictEqual(ap.canApproveOf({ can_approve: false }), false);                          // 구서버, 권한 없음
+  assert.strictEqual(ap.canApproveOf(null), true);                                             // 오류·미수신
+  assert.strictEqual(ap.canApproveOf(undefined), true);
+  assert.strictEqual(ap.inboxNotice(ap.canApproveOf({ can_approve: false, rank_can_approve: true }), 0), '결재할 것이 없습니다.');
+});
+
 test('decisionBody·decisionError: 승인은 의견 선택, 반려는 사유 필수', function () {
   assert.deepStrictEqual(ap.decisionBody(true, ''), { decision: 'APPROVE', comment: null });
   assert.deepStrictEqual(ap.decisionBody(false, ' 사유 '), { decision: 'REJECT', comment: '사유' });

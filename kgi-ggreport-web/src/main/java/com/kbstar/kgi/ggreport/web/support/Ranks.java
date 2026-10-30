@@ -28,6 +28,9 @@ public final class Ranks {
     /** 대결자로 "보통" 기대하는 최소 직급(과장). 강제하지 않고 화면에 알리기만 한다. */
     public static final int USUAL_DEPUTY_MIN = 3;
 
+    /** 직급상 결재 자격이 생기는 최소 직급(팀장) — {@link #LIST} 에서 도출한다. */
+    public static final int APPROVER_MIN = LIST.indexOf("팀장") + 1;
+
     /** 직위 문자열의 직급(1~8). 목록에 없으면 0. */
     public static int ofPosition(String position) {
         int i = position == null ? -1 : LIST.indexOf(position.trim());
@@ -37,6 +40,11 @@ public final class Ranks {
     public static int of(SysUser u) {
         int fromLevel = new int[]{1, 6, 7, 8}[ApproverRules.levelByGradeRole(u)];
         return Math.max(ofPosition(u.getPositionTitle()), fromLevel);
+    }
+
+    /** 직급상 팀장 이상인가(결재 자격). 메뉴 권한과는 별개 값이다. */
+    public static boolean isApproverRank(SysUser u) {
+        return of(u) >= APPROVER_MIN;
     }
 
     /** {@code processor} 가 {@code requester} 의 요청을 결재(또는 대결)할 수 있는 방향인가. */
