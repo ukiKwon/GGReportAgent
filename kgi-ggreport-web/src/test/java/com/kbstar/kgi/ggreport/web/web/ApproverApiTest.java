@@ -191,6 +191,71 @@ public class ApproverApiTest {
         assertEquals("1473958", user("5047192").get("approver_emp_no").asText());
     }
 
+    private void putUser(String emp, String name, String role, String pos, String grade) throws Exception {
+        String body = "{\"name\":\"" + name + "\",\"role\":\"" + role + "\",\"position_title\":"
+                + (pos == null ? "null" : "\"" + pos + "\"") + ",\"approval_grade\":\"" + grade + "\"}";
+        asAdmin(json(put("/sysadmin/users/" + emp), body)).andExpect(status().isOk());
+    }
+
+    private boolean hasLog(String emp, String item) throws Exception {
+        String body = asAdmin(get("/sysadmin/perm-changes").param("emp", emp)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        for (JsonNode n : JSON.readTree(body).get("items")) {
+            if (item.equals(n.get("item").asText())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Test
+    public void 상신자가_결재자와_같은_직급으로_승진하면_수동_지정이_풀려_자동이_된다() throws Exception {
+        // 김영업(대리, 수동→이영업 팀장급 6) 을 팀장으로 승진 → 6 == 6
+        putUser("3918264", "김영업", "영업팀", "팀장", "");
+        JsonNode n = user("3918264");
+        assertEquals("AUTO", n.get("approver_mode").asText());
+        assertEquals("2674805", n.get("approver_emp_no").asText());   // 한 단계 위 부장급은 박영업 한 명
+        assertEquals(true, hasLog("3918264", "user:APPROVER_RELEASED"));
+        assertEquals(true, hasLog("3918264", "user:APPROVER_MODE"));
+    }
+
+    @Test
+    public void 결재자가_강등되어_상신자보다_높지_않으면_그_결재자를_지정한_사람들의_지정이_풀린다() throws Exception {
+        // 이영업(영업팀장, 6) 을 대리(2) 로 강등 → 김영업(대리 2) 과 같은 직급
+        putUser("5047192", "이영업", "영업팀", "대리", "");
+        JsonNode n = user("3918264");
+        assertEquals("AUTO", n.get("approver_mode").asText());
+        assertEquals("5640327", n.get("approver_emp_no").asText());   // 남은 영업 팀장급은 안재원 한 명
+        assertEquals("AUTO_OK", n.get("approver_state").asText());
+        asAdmin(get("/sysadmin/perm-changes").param("emp", "3918264")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.item=='user:APPROVER_RELEASED')].before_value")
+                        .value(org.hamcrest.Matchers.hasItem("5047192")))
+                .andExpect(jsonPath("$.items[?(@.item=='user:APPROVER_RELEASED')].after_value")
+                        .value(org.hamcrest.Matchers.hasItem("RANK")))
+                .andExpect(jsonPath("$.items[?(@.item=='user:APPROVER_RELEASED')].actor_emp_no")
+                        .value(org.hamcrest.Matchers.hasItem(ADMIN)));
+    }
+
+    @Test
+    public void 직급이_바뀌어도_규칙에_맞는_수동_쌍은_유지되고_해제_이력이_없다() throws Exception {
+        putUser("3918264", "김영업", "영업팀", "과장", "");   // 3 < 6 — 여전히 이영업이 더 높다
+        JsonNode n = user("3918264");
+        assertEquals("MANUAL", n.get("approver_mode").asText());
+        assertEquals("5047192", n.get("approver_emp_no").asText());
+        assertEquals(false, hasLog("3918264", "user:APPROVER_RELEASED"));
+    }
+
+    @Test
+    public void 해제_후_후보가_없으면_NEEDS_로_남는다() throws Exception {
+        // 안재원도 강등해 영업 팀장급이 없어지게 하고, 이영업을 강등 → 후보 0명
+        putUser("5640327", "안재원", "영업팀", "대리", "");
+        putUser("5047192", "이영업", "영업팀", "대리", "");
+        JsonNode n = user("3918264");
+        assertEquals("AUTO", n.get("approver_mode").asText());
+        assertEquals("NEEDS", n.get("approver_state").asText());
+        assertEquals(true, n.get("approver_emp_no").isNull());
+    }
+
     @Test
     public void 자동으로_되돌리는_것은_직급_검사와_무관하다() throws Exception {
         setApprover("5047192", "1473958", "MANUAL", 200);

@@ -20,7 +20,7 @@ import java.util.Map;
 
 /**
  * 결재라인 — 사용자별 상위 결재자. 기본은 팀·직위로 <b>자동 결정</b>({@link ApproverRules}),
- * 관리자가 <b>지정</b>하면 그 뒤로는 자동 재계산에서 빠진다. 모든 변경은
+ * 관리자가 <b>지정</b>하면 그 뒤로는 자동 재계산에서 빠진다(단, 직급이 바뀌어 규칙에 어긋나면 자동 해제된다). 모든 변경은
  * {@code PERM_CHANGE_LOG} 에 같은 트랜잭션으로 남는다.
  */
 @Service
@@ -51,11 +51,18 @@ public class ApproverService {
     /**
      * 자동 모드 사용자의 결재자를 규칙대로 다시 맞춘다. 사용자 등록·역할·등급·상태가 바뀔 때마다
      * 호출한다(호출한 쪽의 트랜잭션에 참여). 퇴직자는 건드리지 않는다 — 그때의 결재선을 남긴다.
+     *
+     * <p>먼저 <b>직급이 바뀌어 규칙({@link Ranks#mayApprove})에 어긋나게 된 수동 지정</b>을 해제(AUTO)한다 —
+     * 해제된 사용자는 같은 호출의 자동 단계에서 새 결재자가 정해진다(후보가 없거나 모호하면 비어 NEEDS).
+     * 진행 중인 결재 요청의 결재선은 상신 때 스냅샷이라 건드리지 않는다(교착되면 관리자가 취소한다).
      */
     @Transactional
     public void recomputeAuto(Actor actor) {
-        List<SysUser> all = users.selectAll();
         String now = Times.nowIso();
+        List<SysUser> all = users.selectAll();
+        if (releaseRankMismatch(actor, all, now)) {
+            all = users.selectAll();   // 해제 반영본으로 자동 단계를 돌린다
+        }
         for (SysUser u : all) {
             if (u.getApproverManual() == 1 || "RETIRED".equals(u.getStatus())) {
                 continue;
@@ -67,6 +74,26 @@ public class ApproverService {
                 log(actor, u.getEmpNo(), "user:APPROVER", u.getApproverEmpNo(), target, now);
             }
         }
+    }
+
+    /** 수동 지정 중 결재자가 상신자보다 엄격히 높지 않게 된 쌍을 AUTO 로 푼다(결재자 값은 자동 단계가 정한다). */
+    private boolean releaseRankMismatch(Actor actor, List<SysUser> all, String now) {
+        Map<String, SysUser> byEmp = index(all);
+        boolean any = false;
+        for (SysUser u : all) {
+            if (u.getApproverManual() != 1 || "RETIRED".equals(u.getStatus()) || u.getApproverEmpNo() == null) {
+                continue;
+            }
+            SysUser a = byEmp.get(u.getApproverEmpNo());
+            if (a == null || Ranks.mayApprove(u, a)) {
+                continue;
+            }
+            users.updateApprover(u.getEmpNo(), u.getApproverEmpNo(), 0, now);
+            log(actor, u.getEmpNo(), "user:APPROVER_RELEASED", u.getApproverEmpNo(), "RANK", now);
+            log(actor, u.getEmpNo(), "user:APPROVER_MODE", MANUAL, AUTO, now);
+            any = true;
+        }
+        return any;
     }
 
     @Transactional
