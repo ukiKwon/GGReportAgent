@@ -148,6 +148,7 @@ JDK·MySQL·IntelliJ를 **설치기 없이 zip으로 `C:\dev`에 풀어** 쓴다
 | JDK | Temurin 8 (`jdk8u504-b01`) | `C:\dev\jdk8\…` — `JAVA_HOME`·PATH 등록 |
 | MySQL | 8.4.13 (`winx64.zip`) | `C:\dev\mysql\…`, 데이터 `C:\dev\mysql-data` |
 | IntelliJ | IDEA 2025.3 (통합판) | `C:\dev\idea\bin\idea64.exe` — Maven 내장이라 따로 안 깐다 |
+| GitHub CLI | 최신 (`gh`) | `C:\dev\gh\bin` — PR을 터미널에서 만들 때만 필요(`-SkipGh`로 생략). 로그인은 `gh auth login`을 직접, fine-grained 토큰이면 **Contents·Pull requests: Read and write**가 모두 있어야 한다 |
 
 ```powershell
 cd kgi-ggreport-web

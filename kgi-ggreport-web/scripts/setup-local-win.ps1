@@ -21,6 +21,7 @@ param(
     [string]$MysqlVersion = '8.4.13',
     [string]$IdeaUrl      = 'https://download.jetbrains.com/idea/idea-2025.3.win.zip',
     [switch]$SkipIdea,
+    [switch]$SkipGh,        # GitHub CLI (needed only to open PRs from the terminal)
     [switch]$ApplySchema
 )
 $ErrorActionPreference = 'Stop'
@@ -81,12 +82,23 @@ if (-not $SkipIdea) {
     Expand-Once $ideaZip (Join-Path $DevRoot 'idea') (Join-Path $DevRoot 'idea\bin\idea64.exe')
 }
 
+$ghBin = Join-Path $DevRoot 'gh\bin'
+if (-not $SkipGh) {
+    if (-not (Test-Path "$ghBin\gh.exe")) {
+        $rel = Invoke-RestMethod 'https://api.github.com/repos/cli/cli/releases/latest'
+        $asset = $rel.assets | Where-Object name -match 'windows_amd64\.zip$' | Select-Object -First 1
+        $ghZip = Get-Zip $asset.browser_download_url 'gh.zip'
+        Expand-Once $ghZip (Join-Path $DevRoot 'gh') "$ghBin\gh.exe"
+    } else { Write-Host 'skip (exists): gh' }
+}
+
 $jdkHome = (Get-ChildItem (Join-Path $DevRoot 'jdk8') -Directory | Select-Object -First 1).FullName
 
 # user-level env vars (takes effect in NEW terminals)
 [Environment]::SetEnvironmentVariable('JAVA_HOME', $jdkHome, 'User')
 $path = [Environment]::GetEnvironmentVariable('Path', 'User')
-$add = @("$jdkHome\bin", "$mysqlHome\bin") | Where-Object { $path -notlike "*$_*" }
+$pathAdd = @("$jdkHome\bin", "$mysqlHome\bin"); if (-not $SkipGh) { $pathAdd += $ghBin }
+$add = $pathAdd | Where-Object { $path -notlike "*$_*" }
 if ($add) { [Environment]::SetEnvironmentVariable('Path', (($path.TrimEnd(';') + ';' + ($add -join ';')).TrimStart(';')), 'User') }
 
 # MySQL data dir: root has an EMPTY password until you set one (README 5-2)
@@ -109,3 +121,4 @@ Write-Host 'Done. Next (manual, see kgi-ggreport-web/README.md section 5-2):'
 Write-Host "  1) open a NEW terminal and keep this running:  $cmd"
 Write-Host '  2) create DB + user, register the password with mysql_config_editor'
 Write-Host '  3) .\scripts\setup-local-win.ps1 -ApplySchema'
+if (-not $SkipGh) { Write-Host '  4) (optional) gh auth login   # fine-grained token needs Contents + Pull requests: Read and write' }
