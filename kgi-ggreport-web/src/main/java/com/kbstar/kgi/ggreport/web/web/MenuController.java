@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.Collections;
 import java.util.Map;
 
@@ -36,9 +37,11 @@ import java.util.Map;
 public class MenuController {
 
     private final MenuService menus;
+    private final AdminGuard adminGuard;
 
-    public MenuController(MenuService menus) {
+    public MenuController(MenuService menus, AdminGuard adminGuard) {
         this.menus = menus;
+        this.adminGuard = adminGuard;
     }
 
     @GetMapping
@@ -56,9 +59,13 @@ public class MenuController {
      * <p>⚠️ <b>권한관리 메뉴를 모든 역할에서 끄는 저장은 거부한다(400).</b> 그러면
      * 아무도 이 화면에 들어올 수 없고, <b>되돌릴 화면이 바로 그 화면</b>이라 복구
      * 방법이 없다. 판정은 저장 <b>전에</b> 한다({@code MenuService.save}).
+     *
+     * <p><b>관리자만 저장할 수 있다</b> — {@link AdminGuard}(401/403, DENIED 이력). 사번은 헤더 자기신고라
+     * 앞단 인증(SSO)이 붙기 전에는 보안 경계가 아니다.
      */
     @PutMapping
-    public Map<String, Integer> put(@RequestBody MenuChangesIn body) {
+    public Map<String, Integer> put(@RequestBody MenuChangesIn body, HttpServletRequest req) {
+        adminGuard.require(req);
         return Collections.singletonMap("saved", menus.save(body.getChanges()));
     }
 }

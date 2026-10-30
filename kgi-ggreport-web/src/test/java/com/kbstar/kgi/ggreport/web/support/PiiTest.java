@@ -71,4 +71,67 @@ public class PiiTest {
         assertEquals(1, found.size());
         assertEquals("011-****-5678", found.get(0).getValue());
     }
+
+    @Test
+    public void 외국인등록번호는_뒷자리를_통째로_가린다() {
+        List<Pii.Finding> found = Pii.scan("외국인 901231-5234567 등록");
+        assertEquals(1, found.size());
+        assertEquals("외국인등록번호", found.get(0).getKind());
+        assertEquals("901231-*******", found.get(0).getValue());
+        assertEquals("외국인등록번호", Pii.scan("990101-8234567").get(0).getKind());   // 8로 시작하는 뒷자리도
+    }
+
+    /** 앞자리가 휴대폰 접두사(010)와 같아도 한 값이 두 번 보고되지 않는다. */
+    @Test
+    public void 외국인등록번호가_휴대폰으로_중복_검출되지_않는다() {
+        List<Pii.Finding> found = Pii.scan("010101-5234567");
+        assertEquals(String.valueOf(found), 1, found.size());
+        assertEquals("외국인등록번호", found.get(0).getKind());
+    }
+
+    @Test
+    public void 잘못된_날짜의_주민번호_모양은_검출하지_않는다() {
+        assertTrue(Pii.scan("991332-1234567").isEmpty());   // 13월
+        assertTrue(Pii.scan("990100-1234567").isEmpty());   // 0일
+        assertTrue(Pii.scan("990132-1234567").isEmpty());   // 32일
+        assertTrue(Pii.scan("991332-5234567").isEmpty());   // 외국인 모양도 날짜 검사
+    }
+
+    @Test
+    public void 긴_숫자열_속에서는_오탐하지_않는다() {
+        assertTrue(Pii.scan("1901231-1234567").isEmpty());   // 앞에 숫자가 붙음
+        assertTrue(Pii.scan("901231-12345678").isEmpty());   // 뒤에 숫자가 붙음
+        assertTrue(Pii.scan("01012345678901").isEmpty());    // 휴대폰 뒤에 숫자가 붙음
+        assertTrue(Pii.scan("20101234567").isEmpty());       // 휴대폰 앞에 숫자가 붙음
+    }
+
+    @Test
+    public void Luhn_유효한_카드번호는_앞4_뒤4만_남긴다() {
+        List<Pii.Finding> found = Pii.scan("카드 4111-1111-1111-1111 결제");
+        assertEquals(1, found.size());
+        assertEquals("카드번호", found.get(0).getKind());
+        assertEquals("4111-****-****-1111", found.get(0).getValue());
+        assertEquals("5500-****-****-0004", Pii.scan("5500 0000 0000 0004").get(0).getValue());   // 공백 구분자
+    }
+
+    @Test
+    public void Luhn_무효인_16자리는_카드번호가_아니다() {
+        assertTrue(Pii.scan("4111-1111-1111-1112").isEmpty());
+        assertTrue(Pii.scan("1234-5678-9012-3456").isEmpty());
+    }
+
+    @Test
+    public void 카드번호_앞뒤에_숫자가_붙으면_검출하지_않는다() {
+        assertTrue(Pii.scan("94111-1111-1111-1111").isEmpty());
+        assertTrue(Pii.scan("4111-1111-1111-11119").isEmpty());
+    }
+
+    /** 신규 종류는 기존 셋 뒤에 붙는다 — 주민→휴대폰→이메일→외국인→카드. */
+    @Test
+    public void 검출_순서는_기존_뒤에_신규가_붙는다() {
+        List<Pii.Finding> found = Pii.scan(
+                "카드 4111-1111-1111-1111, 외국인 901231-5234567, a@b.com, 010-1234-5678, 주민 901231-1234567");
+        assertEquals("[주민등록번호=901231-*******, 휴대폰=010-****-5678, 이메일=a***@b.com, "
+                + "외국인등록번호=901231-*******, 카드번호=4111-****-****-1111]", found.toString());
+    }
 }
