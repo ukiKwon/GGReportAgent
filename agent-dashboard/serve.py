@@ -1,4 +1,4 @@
-"""에이전트 운동장 로컬 서버 (표준 라이브러리만 사용).
+"""에이전트 대시보드 로컬 서버 (표준 라이브러리만 사용).
 
 실행:  python agent-dashboard/serve.py   →  http://localhost:8090
 상태 갱신:  curl -X POST http://localhost:8090/api/state -H "Content-Type: application/json" \
@@ -16,6 +16,9 @@ HOST, PORT = "127.0.0.1", 8090
 
 
 DEFAULT = {"coach": {"task": ""}, "agents": {k: {"active": False, "task": ""} for k in ("designer", "qa", "frontend", "backend", "security", "planner", "pm")}}
+
+
+MAX_BODY = 16 * 1024
 
 
 def merge(base, patch):
@@ -40,7 +43,18 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_error(404)
             return
         try:
-            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            if not self.headers.get("Content-Type", "").lower().startswith("application/json"):
+                self.send_error(415, "json only")
+                return
+            host = self.headers.get("Host", "").split(":")[0]
+            if host not in ("localhost", "127.0.0.1"):
+                self.send_error(403, "bad host")
+                return
+            n = int(self.headers.get("Content-Length", 0))
+            if n < 0 or n > MAX_BODY:
+                self.send_error(413, "too large")
+                return
+            body = self.rfile.read(n)
             patch = json.loads(body.decode("utf-8"))
             if not isinstance(patch, dict):
                 raise ValueError("object expected")
