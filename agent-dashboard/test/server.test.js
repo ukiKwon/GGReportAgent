@@ -7,7 +7,7 @@ const { spawn, spawnSync } = require('child_process');
 
 const SRC = path.join(__dirname, '..');
 const FILES = ['serve.js', 'statefile.js', 'hook.js', 'closing.js', 'index.html', 'app.js', 'fmt.js', 'style.css'];
-const IDS = ['designer', 'qa', 'frontend', 'backend', 'security', 'planner', 'pm', 'cleaner'];
+const IDS = ['designer', 'qa', 'frontend', 'backend', 'security', 'planner', 'pm', 'auditor', 'cleaner'];
 let tmp, port, child;
 
 const stateFile = () => path.join(tmp, 'state.json');

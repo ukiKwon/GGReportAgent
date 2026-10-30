@@ -13,6 +13,7 @@ const AGENTS = [
   { id: 'security', name: '보안',     color: '#d63031', hair: '#3e2723' },
   { id: 'planner',  name: '기획',     color: '#f9a825', hair: '#4e342e' },
   { id: 'pm',       name: 'PM',       color: '#e17055', hair: '#212121' },
+  { id: 'auditor',  name: '데이터',   color: '#afb42b', hair: '#37474f' },
 ];
 
 const cv = document.getElementById('c');
@@ -209,7 +210,7 @@ function say(o, text, dur) { o.bubble = { text, until: simTime + (dur || 1.6) };
 
 /* ---------- 선수 ---------- */
 /* 같은 역할이 동시에 여러 개(병렬·여러 세션) 돌 수 있어, 인스턴스마다 선수를 둔다.
-   slot 0~6: 역할별 기본 선수, slot 7~13: 같은 역할의 추가 인스턴스(최대 7명, 그 이상은 표에만 집계) */
+   slot 0~7: 역할별 기본 선수, slot 8~15: 같은 역할의 추가 인스턴스(최대 8명, 그 이상은 표에만 집계) */
 const BASE_SLOTS = AGENTS.length, MAX_SLOTS = BASE_SLOTS * 2;
 const laneOf = sl => sl < BASE_SLOTS ? RC + (sl - 3) * 8 : RC + (sl - BASE_SLOTS - 3) * 8 + 4;
 const row2 = r => r.slot >= BASE_SLOTS;
@@ -310,7 +311,7 @@ function updateRunner(r, dt) {
     }
     case 'toRest': {
       const sp = drinkSpot(r);
-      if (walk(r, sp.x, sp.y, 130, dt)) { r.state = 'drink'; r.until = simTime + 2.6; r.face = 1; say(r, '꿀꺽꿀꺽', 2); bottles[r.slot % 7] = Math.max(0, bottles[r.slot % 7] - 0.4); }
+      if (walk(r, sp.x, sp.y, 130, dt)) { r.state = 'drink'; r.until = simTime + 2.6; r.face = 1; say(r, '꿀꺽꿀꺽', 2); bottles[r.slot % BASE_SLOTS] = Math.max(0, bottles[r.slot % BASE_SLOTS] - 0.4); }
       break;
     }
     case 'drink': {
@@ -444,7 +445,7 @@ function updateAmb(dt) {
 // 'cleaner' 에이전트가 일하는 동안 나타나 생수 채우기 → 벤치 닦기 → 트랙 닦기를 반복하고, 일이 끝나면 퇴근한다.
 const CLEANER = { id: 'cleaner', name: '청소부', color: '#26c6da' };
 const jan = { active: false, task: '', present: false, x: -30, y: 770, face: 1, ph: 0, job: 'enter', stage: 0, k: 0, t: 0, bubble: null, trail: [] };
-const bottles = Array(7).fill(1); // 생수 잔량(0~1) — 선수가 마시면 줄고 청소부가 채운다
+const bottles = Array(BASE_SLOTS).fill(1); // 생수 잔량(0~1) — 선수가 마시면 줄고 청소부가 채운다
 const JOBS = ['water', 'bench', 'track'];
 const JOB_LABEL = { enter: '출근 중', water: '생수 채우는 중', bench: '벤치 닦는 중', track: '트랙 닦는 중', leave: '퇴근 중' };
 function janNext() {
@@ -471,13 +472,13 @@ function updateJanitor(dt) {
       if (j.stage === 0) { if (walk(j, bx, 712, 100, dt)) { j.stage = 1; j.t = simTime; } }
       else if (j.stage === 1) {
         j.face = 1; bottles[j.k] = Math.min(1, bottles[j.k] + dt * 1.2);
-        if (simTime - j.t > 0.7 && bottles[j.k] >= 1) { if (++j.k >= 7) janNext(); else j.stage = 0; }
+        if (simTime - j.t > 0.7 && bottles[j.k] >= 1) { if (++j.k >= BASE_SLOTS) janNext(); else j.stage = 0; }
       }
       break;
     }
     case 'bench': // 벤치 앞을 오른쪽으로 갔다 왼쪽으로 돌아오며 닦는다
       if (j.stage === 0) { if (walk(j, 60, 716, 110, dt)) j.stage = 1; }
-      else if (j.stage === 1) { j.face = 1; j.x += 45 * dt; if (j.x >= 380) j.stage = 2; }
+      else if (j.stage === 1) { j.face = 1; j.x += 45 * dt; if (j.x >= 440) j.stage = 2; }
       else if (j.stage === 2) { j.face = -1; j.x -= 45 * dt; if (j.x <= 60) janNext(); }
       break;
     case 'track': // 출입구로 올라가 트랙을 한 바퀴 걸레질한다
@@ -646,15 +647,15 @@ function drawField() {
 }
 
 function drawBench() {
-  if (runners.some(row2)) { c.fillStyle = '#8d6e63'; c.fillRect(50, 738, 340, 8); c.fillStyle = '#5d4037'; for (const x of [58, 220, 376]) c.fillRect(x, 746, 6, 10); }
-  c.fillStyle = '#8d6e63'; c.fillRect(50, 686, 340, 8);
-  c.fillStyle = '#5d4037'; for (const x of [58, 220, 376]) c.fillRect(x, 694, 6, 10);
+  if (runners.some(row2)) { c.fillStyle = '#8d6e63'; c.fillRect(50, 738, 400, 8); c.fillStyle = '#5d4037'; for (const x of [58, 250, 436]) c.fillRect(x, 746, 6, 10); }
+  c.fillStyle = '#8d6e63'; c.fillRect(50, 686, 400, 8);
+  c.fillStyle = '#5d4037'; for (const x of [58, 250, 436]) c.fillRect(x, 694, 6, 10);
 }
 function drawTable() {
   // 선수 뒤에 서 있도록 선수 다음에 그린다
-  c.fillStyle = '#a1887f'; c.fillRect(540, 686, 220, 12);
-  c.fillStyle = '#6d4c41'; c.fillRect(550, 698, 8, 34); c.fillRect(742, 698, 8, 34);
-  for (let i = 0; i < 7; i++) {
+  c.fillStyle = '#a1887f'; c.fillRect(540, 686, 240, 12);
+  c.fillStyle = '#6d4c41'; c.fillRect(550, 698, 8, 34); c.fillRect(762, 698, 8, 34);
+  for (let i = 0; i < BASE_SLOTS; i++) {
     const x = 560 + i * 28;
     if (runners[i] && runners[i].state === 'drink') continue;
     c.fillStyle = 'rgba(227,242,253,.9)'; c.fillRect(x, 672, 7, 14);
@@ -705,7 +706,7 @@ function stateLabel(r) {
 function drawInfield() {
   const cmp = K < 0.8; // 좁은 창: 글자를 키우고 task 열은 접는다(task는 위쪽 #now 줄에 있음)
   const fnt = (bold, px, min, cap) => (bold ? 'bold ' : '') + (cmp ? fz(px, min, cap) : px) + 'px "Malgun Gothic", sans-serif';
-  c.fillStyle = 'rgba(0,0,0,.45)'; rrect(392, 218, 496, 226, 10); c.fill();
+  c.fillStyle = 'rgba(0,0,0,.45)'; rrect(392, 218, 496, 248, 10); c.fill();
   c.textBaseline = 'middle';
   c.fillStyle = '#fff'; c.font = fnt(true, 17, 14, 1.4); c.textAlign = 'left';
   c.fillText('🏁 에이전트 현황', 408, 236);

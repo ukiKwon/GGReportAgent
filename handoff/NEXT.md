@@ -1273,7 +1273,7 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
   - **확정(다시 열지 말 것)**: 좁은 창(≤700px)은 지원하지 않음 · 누적 바퀴 = 대시보드 탭이 열려 있는 동안 · 전광판 프롬프트 표시 유지 · 그래프 방식 A · 18:00 마무리는 병합 없이 · `GGReportAgent/` 중첩 복제본은 삭제함.
 - **남은 일 (담당 태그)**:
   - ✅ 서버 마무리 완료(2026-10-30): 정적 허용 목록·serve.py stats 기본값·자동 테스트 55건(`node --test agent-dashboard/test/server.test.js agent-dashboard/test/fmt.test.js`), 보안 확인에서 나온 closing.js 위험(모델 권한·푸시·비밀·사용 중 판단)을 코드로 강제하도록 고침 — [security](agents/security/2026-10-30_서버마무리-닫힘확인.md)·[qa](agents/qa-verifier/2026-10-30_서버마무리.md). 남은 것: `[담당: backend-dev]` `serve.py`는 python이 없는 PC라 **실행 시험을 못 했다**(코드 읽기만, 자동 새로고침 없음·잠금 없음은 README에 명시) — python이 있는 환경에서 `py_compile`과 같은 시나리오 확인.
-  - `[담당: planner]` 기획 확인 소항목(사용자 답 대기, 낮음): 폴링 2초 안의 start→stop이 화면에 안 보임 / `data-auditor` 선수 추가 여부 / 정지 후 출구까지 최대 1바퀴 / 복귀 후 active면 lapF를 0부터 반복 — 근거 [qa 검증](agents/qa-verifier/2026-10-30_agent-dashboard-검증.md) #8·#11·#13·복귀 항목.
+  - ✅ 기획 확인 소항목 확정(2026-10-30, 사용자 승인): Q1 폴링 2초 유지 / Q3 `data-auditor` 선수 추가(id `auditor`, 8번째, 적용·테스트 55건·화면 확인 완료, 커밋 전) / Q4 출구까지 최대 1바퀴 유지 / Q5 복귀 후 lapF 0부터 유지. 근거 [qa 검증](agents/qa-verifier/2026-10-30_agent-dashboard-검증.md) #8·#11·#13·복귀 항목.
   - `[담당: frontend-dev]` 낮음·보류 가능: 바닥 차선 이름표가 현황판 아래를 가림, 8x 단계 연출, 터치 타깃, 첫 폴링 전 바퀴 덮임, 칩과 feed 불일치, 가로 스크롤 원인(좁은 창 미지원 확정으로 우선순위 낮음).
   - 보류: 쓰기 에이전트가 정말 필요해지면 방식 A(`settings.json` 훅 + `agent_type`)를 `settings.local.json`에서 먼저 시험 — 현재는 필요 없음(구현은 메인이 패치 적용). `browser_take_screenshot`의 파일 저장은 잔여 쓰기 통로(저장소 루트·`.playwright-mcp/`로 제한).
 - **정합 메모**: design·qa 보고서 표의 일부 "열림"은 이후 코드에서 해결된 **낡은 스냅샷**이다(qa #1~#4·#12, design P2-1·P2-4·P2-5·P2-6 등). 보고서는 고치지 않고 이 항목을 기준으로 본다.
