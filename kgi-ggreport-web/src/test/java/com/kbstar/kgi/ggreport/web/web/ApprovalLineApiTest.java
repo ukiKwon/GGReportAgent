@@ -327,6 +327,29 @@ public class ApprovalLineApiTest {
     }
 
     @Test
+    public void 직급상_팀장_이상이면_rank_can_approve_가_true_이고_기존_값은_그대로다() throws Exception {
+        JsonNode lead = call(LEAD, get("/approval-requests/my-perms"), null, 200);
+        assertEquals("팀장", lead.get("position_title").asText());       // 013 시드
+        assertTrue(lead.get("rank_can_approve").asBoolean());
+        // 기존 can_approve 는 메뉴 권한 기준 그대로 — 팀장에게도 false 다.
+        assertEquals(permOn(LEAD, "approvals", "approve"), lead.get("can_approve").asBoolean());
+        assertFalse(lead.get("can_approve").asBoolean());
+
+        JsonNode member = call(MEMBER, get("/approval-requests/my-perms"), null, 200);
+        assertEquals("대리", member.get("position_title").asText());
+        assertFalse(member.get("rank_can_approve").asBoolean());
+
+        assertTrue(call(HEAD, get("/approval-requests/my-perms"), null, 200).get("rank_can_approve").asBoolean());
+        assertFalse(call(JUNIOR, get("/approval-requests/my-perms"), null, 200).get("rank_can_approve").asBoolean());
+
+        // 기존 키가 모두 남아 있다.
+        for (String k : new String[]{"emp_no", "name", "role", "position_title", "approver_emp_no",
+                "approver_name", "can_approve", "menus"}) {
+            assertTrue("키 누락: " + k, lead.has(k));
+        }
+    }
+
+    @Test
     public void 사번을_넘겨도_다른_사람_권한은_볼_수_없다() throws Exception {
         JsonNode me = call(MEMBER, get("/approval-requests/my-perms").param("emp", LEAD), null, 200);
         assertEquals(MEMBER, me.get("emp_no").asText());

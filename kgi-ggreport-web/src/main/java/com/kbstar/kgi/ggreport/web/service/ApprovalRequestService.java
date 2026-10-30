@@ -273,6 +273,8 @@ public class ApprovalRequestService {
      * {@code /sysadmin/perms/{emp}} 는 관리자 전용이라 일반 사용자는 못 부른다. 이쪽은 <b>호출자 본인 것만</b> 준다
      * (사번을 받지 않는다 — 다른 사람의 권한을 볼 길이 없다).
      * {@code can_approve} : 결재함의 결재 권한이 있는지 — 화면이 '받은 결재' 안내를 고르는 데 쓴다.
+     * {@code rank_can_approve} : 직급상 팀장 이상인가({@link Ranks#isApproverRank}) — 메뉴 권한(can_approve)과
+     * 별개이며 그 값을 바꾸지 않는다. 실제 승인 허용은 여전히 {@link Ranks#mayDecide}·eligibility 가 정한다.
      */
     @Transactional(readOnly = true)
     public Map<String, Object> myPerms(Actor actor) {
@@ -293,6 +295,7 @@ public class ApprovalRequestService {
         m.put("approver_emp_no", line == null ? null : line.getEmpNo());
         m.put("approver_name", line == null ? null : line.getName());
         m.put("can_approve", canApprove);
+        m.put("rank_can_approve", Ranks.isApproverRank(me));
         m.put("menus", rows);
         return m;
     }

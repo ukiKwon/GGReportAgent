@@ -145,6 +145,13 @@
       : '결재 권한이 없어 받은 결재가 없습니다. 권한이 필요하면 [내 정보 › 내 권한]에서 신청하세요.';
   };
 
+  // 결재 자격 — 직급상 자격(rank_can_approve) 또는 결재함 approve 권한(can_approve) 중 하나라도 true면 자격 있음.
+  // 응답이 없으면(구서버·오류) 모르는 것이므로 자격 있음으로 봐서 안내를 띄우지 않는다.
+  approvals.canApproveOf = function (perms) {
+    if (!perms) return true;
+    return perms.rank_can_approve === true || perms.can_approve === true;
+  };
+
   approvals.decisionBody = function (approve, comment) {
     const c = String(comment || '').trim();
     return { decision: approve ? 'APPROVE' : 'REJECT', comment: c || null };
@@ -382,7 +389,7 @@
       getJson('/approval-requests/my-perms').catch(function () { return null; }),
     ]).then(function (res) {
       reqs.mine = res[0]; reqs.inbox = res[1]; reqError = '';
-      canApprove = res[2] ? !!res[2].can_approve : true;
+      canApprove = approvals.canApproveOf(res[2]);
       paintRequests();
     }).catch(function (e) {
       reqError = e && e.status === 401 ? '로그인이 필요합니다. 사번으로 로그인해 주세요.'
