@@ -171,11 +171,31 @@ public class ApproverApiTest {
         setApprover("9999999", "5047192", "MANUAL", 404);
     }
 
+    // 순환 판정은 ApproverRulesTest 가 단위로 덮는다 — 직급이 엄격히 높은 쪽으로만 지정할 수 있어
+    // API 로는 순환을 더 만들 수 없다(방어용 검사만 남김).
+
     @Test
-    public void 순환_지정은_거부한다() throws Exception {
-        setApprover("5047192", "5640327", "MANUAL", 200);   // 이영업 → 안재원
-        setApprover("5640327", "5047192", "MANUAL", 400);   // 안재원 → 이영업 이면 순환
-        setApprover("2674805", "5047192", "MANUAL", 400);   // 박영업 → 이영업 → 박영업
+    public void 같은_직급이나_낮은_직급을_결재자로_지정하면_400이고_더_높으면_200이다() throws Exception {
+        // 팀장 이영업(6) → 팀장 안재원(6): 같은 직급
+        asAdmin(json(put("/sysadmin/users/5047192/approver"), "{\"approver_emp_no\":\"5640327\",\"mode\":\"MANUAL\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(containsString("직급이 높아야")));
+        // 부장 박영업(7) → 팀장 이영업(6): 낮은 직급
+        asAdmin(json(put("/sysadmin/users/2674805/approver"), "{\"approver_emp_no\":\"5047192\",\"mode\":\"MANUAL\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(containsString("직급이 높아야")));
+        // 거부된 지정은 값을 바꾸지 않는다
+        assertEquals("2674805", userMapper.selectByEmpNo("5047192").getApproverEmpNo());
+        // 팀장 이영업(6) → 대표 백수아(8): 더 높은 직급
+        setApprover("5047192", "1473958", "MANUAL", 200);
+        assertEquals("1473958", user("5047192").get("approver_emp_no").asText());
+    }
+
+    @Test
+    public void 자동으로_되돌리는_것은_직급_검사와_무관하다() throws Exception {
+        setApprover("5047192", "1473958", "MANUAL", 200);
+        setApprover("5047192", null, "AUTO", 200);
+        assertEquals("AUTO", user("5047192").get("approver_mode").asText());
     }
 
     @Test
