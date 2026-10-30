@@ -25,6 +25,10 @@ http.createServer((req, res) => {
     });
     return;
   }
+  if (url === '/api/version') { // 화면 코드가 바뀌면 열린 탭이 스스로 새로고침하도록 파일 수정 시각을 알려 준다
+    const v = ['index.html', 'app.js', 'style.css'].map(n => fs.statSync(path.join(ROOT, n)).mtimeMs).reduce((a, b) => Math.max(a, b), 0);
+    res.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' }); return res.end(String(v));
+  }
   let rel; try { rel = url === '/' ? 'index.html' : decodeURIComponent(url); } catch (_) { res.writeHead(400); return res.end('bad url'); }
   const f = path.join(ROOT, rel);
   if (!f.startsWith(ROOT + path.sep) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404); return res.end('not found'); }

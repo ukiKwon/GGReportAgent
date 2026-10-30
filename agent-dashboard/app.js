@@ -20,6 +20,14 @@ const c = cv.getContext('2d');
 let simTime = 0, speedMul = 1, soundOn = false, live = false;
 let coachTask = '';
 
+/* 화면에 보이는 배율(K)에 따라 글자를 키운다: 표시 크기가 minCss(CSS px) 아래로 내려가지 않게, 단 cap 배율까지만 */
+let K = 1;
+const fz = (px, minCss, cap) => Math.min(px * (cap || 1.5), Math.max(px, minCss / K));
+if (window.ResizeObserver) new ResizeObserver(() => {
+  const r = cv.getBoundingClientRect();
+  K = Math.min(r.width / W, r.height / H) || 1;
+}).observe(cv);
+
 /* ---------- 트랙 경로 ---------- */
 function pathLen(R) { return 4 * L + 2 * Math.PI * R; }
 function pathPos(t, R) {
@@ -168,16 +176,32 @@ function drawPerson(o) {
 }
 
 /* ---------- 말풍선 ---------- */
-function drawBubble(x, y, text) {
+function drawBubble(x, y, text, down) { // down=true면 y 아래쪽에 말풍선을 놓고 꼬리는 위로
   c.save();
-  c.font = 'bold 14px "Malgun Gothic", sans-serif';
-  const w = c.measureText(text).width + 16;
+  const fs = fz(14, 12, 1.4), k = fs / 14;
+  c.font = 'bold ' + fs + 'px "Malgun Gothic", sans-serif';
+  const w = c.measureText(text).width + 16 * k, h = 22 * k;
+  const by = down ? y + 2 : y - 2 - h;
   c.fillStyle = '#fff'; c.strokeStyle = '#333'; c.lineWidth = 1.5;
-  rrect(x - w / 2, y - 24, w, 22, 8); c.fill(); c.stroke();
-  c.beginPath(); c.moveTo(x - 4, y - 2); c.lineTo(x, y + 5); c.lineTo(x + 4, y - 2); c.closePath();
+  rrect(x - w / 2, by, w, h, 8); c.fill(); c.stroke();
+  const base = down ? by : by + h, tip = down ? by - 7 : by + h + 7;
+  c.beginPath(); c.moveTo(x - 4, base); c.lineTo(x, tip); c.lineTo(x + 4, base); c.closePath();
   c.fillStyle = '#fff'; c.fill();
   c.fillStyle = '#111'; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.fillText(text, x, y - 13);
+  c.fillText(text, x, by + h / 2);
+  c.restore();
+}
+function drawBubbleSide(x, y, text) { // 왼쪽 가장자리 x, 세로 중심 y, 꼬리는 왼쪽
+  c.save();
+  const fs = fz(14, 12, 1.4), k = fs / 14;
+  c.font = 'bold ' + fs + 'px "Malgun Gothic", sans-serif';
+  const w = c.measureText(text).width + 16 * k, h = 22 * k;
+  c.fillStyle = '#fff'; c.strokeStyle = '#333'; c.lineWidth = 1.5;
+  rrect(x, y - h / 2, w, h, 8); c.fill(); c.stroke();
+  c.beginPath(); c.moveTo(x + 1, y - 4); c.lineTo(x - 7, y); c.lineTo(x + 1, y + 4); c.closePath();
+  c.fillStyle = '#fff'; c.fill();
+  c.fillStyle = '#111'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(text, x + w / 2, y);
   c.restore();
 }
 function say(o, text, dur) { o.bubble = { text, until: simTime + (dur || 1.6) }; }
@@ -505,12 +529,12 @@ function drawField() {
   // 휴식 공간 바닥
   c.fillStyle = '#cfd8dc'; c.fillRect(0, 600, W, 200);
   c.fillStyle = '#b0bec5'; c.fillRect(0, 600, W, 4);
-  c.fillStyle = '#546e7a'; c.font = 'bold 15px "Malgun Gothic", sans-serif'; c.textAlign = 'left'; c.textBaseline = 'alphabetic';
-  c.fillText('휴식 공간', 12, 624);
+  c.fillStyle = '#546e7a'; c.font = 'bold ' + fz(15, 12, 1.3) + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+  c.fillText('휴식 공간', 12, 620);
   c.fillText('벤치', 40, 776);
   c.fillText('💧 생수대', 560, 776);
   c.fillText('🛏️ 누워 쉬는 곳', 800, 782);
-  c.fillStyle = 'rgba(255,255,255,.7)'; c.font = '12px "Malgun Gothic", sans-serif';
+  c.fillStyle = 'rgba(255,255,255,.7)'; c.font = fz(12, 11, 1.3) + 'px "Malgun Gothic", sans-serif';
   c.fillText('출입구 ▲', 592, 596);
 }
 
@@ -535,10 +559,11 @@ function drawCoachBox() {
   // 코치석
   c.fillStyle = '#6d4c41'; c.fillRect(14, 156, 196, 12);
   c.fillStyle = '#8d6e63'; c.fillRect(14, 168, 196, 6);
-  c.fillStyle = '#c0392b'; c.beginPath(); c.moveTo(6, 78); c.lineTo(110, 52); c.lineTo(218, 78); c.closePath(); c.fill();
-  c.fillStyle = '#5d4037'; c.fillRect(20, 78, 5, 78); c.fillRect(199, 78, 5, 78);
-  c.fillStyle = '#fff'; c.font = 'bold 12px "Malgun Gothic", sans-serif'; c.textAlign = 'center';
-  c.fillText('감독 · 코치석', 110, 74);
+  c.fillStyle = '#c0392b'; c.beginPath(); c.moveTo(6, 46); c.lineTo(110, 22); c.lineTo(218, 46); c.closePath(); c.fill();
+  c.fillStyle = '#5d4037'; c.fillRect(20, 58, 5, 98); c.fillRect(199, 58, 5, 98);
+  c.fillStyle = '#4e342e'; c.fillRect(14, 46, 196, 12); // 간판 보
+  c.fillStyle = '#fff'; c.font = 'bold ' + fz(12, 11, 1.2) + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText('감독 · 코치석', 110, 52);
   // 전광판
   c.fillStyle = '#111'; rrect(14, 186, 196, 66, 6); c.fill();
   c.strokeStyle = '#444'; c.lineWidth = 2; c.stroke();
@@ -567,11 +592,13 @@ function stateLabel(r) {
   }
 }
 function drawInfield() {
+  const cmp = K < 0.8; // 좁은 창: 글자를 키우고 task 열은 접는다(task는 위쪽 #now 줄에 있음)
+  const fnt = (bold, px, min, cap) => (bold ? 'bold ' : '') + (cmp ? fz(px, min, cap) : px) + 'px "Malgun Gothic", sans-serif';
   c.fillStyle = 'rgba(0,0,0,.45)'; rrect(392, 218, 496, 226, 10); c.fill();
   c.textBaseline = 'middle';
-  c.fillStyle = '#fff'; c.font = 'bold 17px "Malgun Gothic", sans-serif'; c.textAlign = 'left';
+  c.fillStyle = '#fff'; c.font = fnt(true, 17, 14, 1.4); c.textAlign = 'left';
   c.fillText('🏁 에이전트 현황', 408, 236);
-  c.textAlign = 'right'; c.font = '12px "Malgun Gothic", sans-serif'; c.fillStyle = '#b2bec3';
+  c.textAlign = 'right'; c.font = fnt(false, 12, 11, 1.5); c.fillStyle = '#b2bec3';
   c.fillText('뛰는 중 ' + runners.filter(r => r.state === 'run').length + '명', 872, 236);
   AGENTS.forEach((a, i) => {
     const y = 264 + i * 25;
@@ -580,12 +607,13 @@ function drawInfield() {
     const run = lead.state === 'run';
     if (act.length) { c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(398, y - 11, 484, 23); }
     disc(412, y, 6, a.color);
-    c.textAlign = 'left'; c.font = 'bold 15px "Malgun Gothic", sans-serif';
+    c.textAlign = 'left'; c.font = fnt(true, 15, 14, 1.5);
     c.fillStyle = run ? '#fff' : '#cfd8dc'; c.fillText(a.name + (act.length > 1 ? ' ×' + act.length : ''), 426, y);
-    c.font = '13px "Malgun Gothic", sans-serif'; c.fillStyle = run ? '#ffeaa7' : '#b2bec3';
-    c.fillText(stateLabel(lead), 498, y);
-    c.textAlign = 'right'; c.font = 'bold 16px "Malgun Gothic", sans-serif'; c.fillStyle = '#fff';
-    c.fillText(Math.max(...rs.map(lapInt)) + '바퀴', 650, y);
+    c.font = fnt(false, 13, 11, 1.6); c.fillStyle = run ? '#ffeaa7' : '#b2bec3';
+    c.fillText(stateLabel(lead), cmp ? 566 : 498, y);
+    c.textAlign = 'right'; c.font = fnt(true, 16, 14, 1.4); c.fillStyle = '#fff';
+    c.fillText(Math.max(...rs.map(lapInt)) + '바퀴', cmp ? 872 : 650, y);
+    if (cmp) return;
     c.textAlign = 'left'; c.font = '12px "Malgun Gothic", sans-serif'; c.fillStyle = '#b2bec3';
     let tk = rs.map(r => r.task).filter(Boolean).join(' / ');
     while (tk.length > 1 && c.measureText(tk).width > 205) tk = tk.slice(0, -2) + '…';
@@ -612,14 +640,20 @@ function drawRunner(r) {
   if (r.state === 'inAmb' || r.state === 'away') return;
   const pose = poseOf(r);
   drawPerson({ x: r.x, y: r.y, face: r.face, pose, ph: r.ph, color: r.color, hair: r.hair, skin: r.skin, dy: r.state === 'carried' ? 6 : 0 });
-  const top = pose === 'crawl' ? r.y - 36 : pose === 'lie' ? r.y - 30 : r.y - 62;
+  const top = pose === 'crawl' ? r.y - 36 : pose === 'lie' ? r.y - 30 : pose === 'sit' ? r.y - 52 : r.y - 62;
+  const fs = fz(11, 11, 1.4);
   c.save();
-  c.font = 'bold 11px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+  c.font = 'bold ' + fs + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
   const w = c.measureText(r.name).width + 8;
-  c.fillStyle = r.color; rrect(r.x - w / 2, top - 11, w, 14, 4); c.fill();
+  c.fillStyle = r.color; rrect(r.x - w / 2, top - fs, w, fs + 3, 4); c.fill();
   c.fillStyle = '#fff'; c.fillText(r.name, r.x, top);
   c.restore();
-  if (r.bubble) drawBubble(r.x, top - 14, r.bubble.text);
+  if (r.bubble) {
+    // 아래쪽 차선 선수의 말풍선이 현황판(y218~444)을 덮으면 발 아래로 뒤집는다
+    const bt = top - fs - 3 - 22 * fz(14, 12, 1.4) / 14 - 2;
+    if (r.y > 444 && r.x > 300 && r.x < 980 && bt < 444) drawBubble(r.x, r.y + 6, r.bubble.text, true);
+    else drawBubble(r.x, top - fs - 3, r.bubble.text);
+  }
 }
 function drawMedics() {
   const a = amb;
@@ -668,10 +702,11 @@ function render() {
   // 치어리더는 위쪽부터
   [...cheers].sort((a, b) => pathPos((a.i + .5) / CHEER_N, R_CHEER).y - pathPos((b.i + .5) / CHEER_N, R_CHEER).y).forEach(drawCheer);
   drawPerson({ x: coach.x, y: coach.y, face: 1, pose: 'coach', ph: coach.ph, color: '#2d3436', hair: '#222', skin: '#f1c9a5', hat: '#1e272e' });
-  c.save(); c.font = 'bold 11px "Malgun Gothic", sans-serif'; c.textAlign = 'center';
-  c.fillStyle = '#ffd166'; rrect(coach.x - 22, coach.y - 74, 44, 14, 4); c.fill();
-  c.fillStyle = '#111'; c.fillText('메인', coach.x, coach.y - 63); c.restore();
-  if (coach.bubble) drawBubble(coach.x + 6, coach.y - 78, coach.bubble.text);
+  c.save(); const cfs = fz(11, 11, 1.4);
+  c.font = 'bold ' + cfs + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = '#ffd166'; rrect(coach.x - 22, coach.y - 66 - (cfs + 3), 44, cfs + 3, 4); c.fill();
+  c.fillStyle = '#111'; c.fillText('메인', coach.x, coach.y - 66 - (cfs + 3) / 2); c.restore();
+  if (coach.bubble) drawBubbleSide(228, 100, coach.bubble.text);
   drawMedics();
   [...runners].sort((a, b) => a.y - b.y).forEach(drawRunner);
   drawTable();
@@ -783,7 +818,17 @@ async function poll() {
   } catch (e) { live = false; }
   el.textContent = live ? '● 라이브 (state.json)' : '○ 데모 모드 (서버 없이 버튼으로 조작)';
   el.classList.toggle('live', live);
+  checkVersion();
   setTimeout(poll, 2000);
+}
+let seenVersion = null, vTick = 0;
+async function checkVersion() {
+  if (++vTick % 3) return;
+  try {
+    const v = await (await fetch('/api/version', { cache: 'no-store' })).text();
+    if (seenVersion && v !== seenVersion) location.reload();
+    seenVersion = v;
+  } catch (e) { /* 서버가 없으면(file://) 생략 */ }
 }
 
 buildChips();
