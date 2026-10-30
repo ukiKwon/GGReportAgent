@@ -68,3 +68,7 @@ docs/obsidian/task-history/.obsidian/workspace.json
 
 # Playwright MCP 스크린샷 (진단 산출물)
 .playwright-mcp/
+
+# 에이전트 운동장 런타임 상태(훅이 갱신)
+agent-dashboard/state.json
+agent-dashboard/state.json.lock

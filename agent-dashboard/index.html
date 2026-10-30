@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>에이전트 운동장</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>🏟️ 에이전트 운동장</h1>
+  <span id="conn" class="conn">○ 데모 모드</span>
+  <div class="tools">
+    <label>속도
+      <select id="speed">
+        <option value="1">1x</option>
+        <option value="2">2x</option>
+        <option value="4">4x</option>
+        <option value="8">8x</option>
+      </select>
+    </label>
+    <button id="sound" type="button">🔇 소리 켜기</button>
+    <button id="allOn" type="button">전원 기동</button>
+    <button id="allOff" type="button">전원 정지</button>
+    <button id="reset" type="button">바퀴 초기화</button>
+  </div>
+</header>
+<main>
+  <div class="stage"><canvas id="c" width="1280" height="800"></canvas><div id="toasts"></div></div>
+  <section id="chips" aria-label="에이전트 제어"></section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
