@@ -16,7 +16,16 @@ param(
   [string]$Root = $env:CLAUDE_PROJECT_DIR
 )
 
+function Log([string]$msg) {
+  # Diagnostic trace in %TEMP% (outside the repo). Never let logging break the guard.
+  try {
+    $line = '{0} {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $msg
+    Add-Content -Path (Join-Path $env:TEMP 'agent-guard.log') -Value $line -Encoding ascii
+  } catch { }
+}
+
 function Deny([string]$msg) {
+  Log "DENY $msg"
   [Console]::Error.WriteLine("agent-guard: $msg")
   exit 2
 }
@@ -31,6 +40,7 @@ $rules = @{
   )
 }
 
+Log "invoked agent=$Agent root=$Root"
 if (-not $rules.ContainsKey($Agent)) { Deny "no rules for agent '$Agent' (fail closed)" }
 if ([string]::IsNullOrWhiteSpace($Root)) { Deny 'project root unknown (fail closed)' }
 
@@ -38,6 +48,7 @@ $path = $null
 try {
   [Console]::InputEncoding = [Text.Encoding]::UTF8
   $raw = [Console]::In.ReadToEnd()
+  Log ('input=' + $raw.Substring(0, [Math]::Min(300, $raw.Length)))
   $path = ($raw | ConvertFrom-Json).tool_input.file_path
 } catch {
   Deny 'cannot parse hook input (fail closed)'
@@ -52,6 +63,6 @@ if (-not $full.StartsWith($rootFull, [StringComparison]::OrdinalIgnoreCase)) {
 
 $rel = $full.Substring($rootFull.Length) -replace '\\', '/'
 foreach ($pattern in $rules[$Agent]) {
-  if ($rel -match $pattern) { exit 0 }
+  if ($rel -match $pattern) { Log "ALLOW $rel"; exit 0 }
 }
 Deny "agent '$Agent' may not write '$rel'. Allowed: $($rules[$Agent] -join ' | ')"

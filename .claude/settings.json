@@ -6,6 +6,65 @@
           {
             "type": "command",
             "command": "node -e 'const fs=require(\"fs\"),path=require(\"path\");const dir=path.join(process.cwd(),\"handoff\");let files=[];try{files=fs.readdirSync(dir).filter(f=>/^\\d{4}-\\d{2}-\\d{2}_summary\\.md$/.test(f)).sort();}catch{}let parts=[];const nextPath=path.join(dir,\"NEXT.md\");try{const nextContent=fs.readFileSync(nextPath,\"utf8\");parts.push(\"Open follow-up items (handoff/NEXT.md):\\n\\n\"+nextContent);}catch{}if(files.length>0){const latest=files[files.length-1];const content=fs.readFileSync(path.join(dir,latest),\"utf8\");parts.push(\"Most recent handoff summary (\"+latest+\"):\\n\\n\"+content);}if(parts.length===0){process.exit(0);}console.log(JSON.stringify({hookSpecificOutput:{hookEventName:\"SessionStart\",additionalContext:parts.join(\"\\n\\n---\\n\\n\")}}));' 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/agent-dashboard/start.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/agent-dashboard/hook.js\" session"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/agent-dashboard/hook.js\" start"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/agent-dashboard/hook.js\" stop"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/agent-dashboard/hook.js\" prompt"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/agent-dashboard/hook.js\" idle"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/agent-dashboard/hook.js\" dispatch"
           }
         ]
       }
