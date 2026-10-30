@@ -1,6 +1,7 @@
 // 매일 18:00 "마무리" — 청소부(cleaner) 캐릭터가 수행한다. Windows 작업 스케줄러가 실행한다.
-// 사용: node agent-dashboard/closing.js [--dry] [--merge]
+// 사용: node agent-dashboard/closing.js [--dry] [--merge] [--now]
 //   --dry  : 판단만 출력하고 아무것도 하지 않는다
+//   --now  : (사용자가 이 세션에서 직접 수동 실행할 때만) '최근 10분 안 사용자 프롬프트' 판정을 무시한다. 작업 중인 다른 에이전트가 있으면 여전히 대기·건너뜀. 18:00 자동 실행에는 넣지 않는다.
 //   --merge: (시험용, 수동 지정 때만) 마무리 뒤 현재 브랜치를 main에 --no-ff로 병합하고 main을 푸시한다. 18:00 자동 실행에는 들어가지 않는다.
 //
 // 역할 분담 (보안 검토 2026-10-30 반영: 위험한 동작은 모델 밖, 코드에서 강제한다)
@@ -20,6 +21,7 @@ const ROOT = path.resolve(__dirname, '..');
 const LOG = path.join(__dirname, 'closing.log');
 const DRY = process.argv.includes('--dry');
 const MERGE = process.argv.includes('--merge');
+const NOW = process.argv.includes('--now'); // coach.at(사용자 프롬프트) 기반 사용 중 판정만 무시. 다른 에이전트 active 판정은 유지
 const PROTECTED = ['main', 'master'];
 const ALLOWED_REMOTE = /github\.com[:/]ukiKwon\/GGReportAgent(\.git)?$/i; // 푸시 대상 고정
 const QUIET_MS = 10 * 60 * 1000;   // 최근 사용자 프롬프트가 이보다 가까우면 사용 중으로 본다
@@ -64,6 +66,7 @@ function busyReason() {
   const s = store.read(); if (!s) return null;
   const act = Object.entries(s.agents || {}).filter(([id, a]) => id !== 'cleaner' && a && a.active).map(([id]) => id);
   if (act.length) return '작업 중인 에이전트: ' + act.join(', ');
+  if (NOW) return null; // --now: 사용자가 직접 지시한 수동 실행 — 프롬프트 시각 판정은 건너뛴다
   const at = s.coach && Number(s.coach.at);
   if (Number.isFinite(at) && Date.now() - at < QUIET_MS) return '최근 10분 안에 사용자 프롬프트가 있었음';
   return null;
@@ -142,6 +145,7 @@ function main() {
   const busy = busyReason();
   log(`브랜치=${branch} 푸시허용=${pushAllowed} 담을것=${take.length}건 뺄것=${skip.length}건 올릴커밋=${ahead}개 사용중=${busy || '아님'}`);
   for (const s of skip) log(`  제외: ${s.path} — ${s.why}`);
+  if (NOW) log('--now: 사용자 프롬프트 시각 판정 생략(작업 중인 에이전트 판정은 유지)');
 
   if (!take.length && !ahead) { log('정리할 것 없음 — 종료'); return; }
   if (DRY) { log('--dry: 여기서 종료(실제로는 마무리를 수행함)'); return; }
