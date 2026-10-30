@@ -207,7 +207,7 @@ public class ApprovalLineApiTest {
 
     @Test
     public void 부장의_대결자를_다른_팀장으로_둘_수_있고_그_팀장이_대신_결재한다() throws Exception {
-        // 팀장의 대결자도 같은 직급인 다른 팀장 — 직급이 같으면 막지 않는다
+        // 팀장의 대결자도 같은 직급인 다른 팀장 — 대결자는 상신자와 같은 직급이어도 막지 않는다(아래 새 테스트 참고)
         JsonNode d = deputy(LEAD, null, LEAD2, 0, 3, 200);
         assertEquals(LEAD, d.get("principal_emp_no").asText());
         assertTrue(d.get("active_now").asBoolean());
@@ -222,6 +222,32 @@ public class ApprovalLineApiTest {
         assertEquals(LEAD2, done.get("steps").get(0).get("acted_by").asText());
         assertEquals(LEAD, done.get("steps").get(0).get("approver_emp_no").asText());
         assertTrue(permOn(MEMBER, "knowledge", "write"));
+    }
+
+    private JsonNode setApprover(String emp, String approver, int expect) throws Exception {
+        return call(ADMIN, put("/sysadmin/users/" + emp + "/approver"),
+                "{\"approver_emp_no\":\"" + approver + "\",\"mode\":\"MANUAL\"}", expect);
+    }
+
+    @Test
+    public void 같은_직급을_결재자로_지정하면_상신이_400이고_더_높은_직급이면_통과한다() throws Exception {
+        setApprover(LEAD2, LEAD, 200);                         // 지정 자체는 가능(상신 때 방향 검사)
+        submit(LEAD2, KNOWLEDGE_WRITE, 400);                   // 팀장→팀장 : 같은 직급은 결재자가 될 수 없다
+        setApprover(LEAD2, HEAD, 200);
+        JsonNode r = submit(LEAD2, KNOWLEDGE_WRITE, 200);      // 팀장→부장 : 통과
+        assertEquals(HEAD, r.get("steps").get(0).get("approver_emp_no").asText());
+    }
+
+    @Test
+    public void 대결자는_상신자와_같은_직급이어도_대결할_수_있다() throws Exception {
+        long id = submit(LEAD2, KNOWLEDGE_WRITE, 200).get("req_id").asLong();   // 팀장 안재원 → 부장 박영업
+        assertFalse(inInbox(LEAD, id));
+        decide(LEAD, id, "APPROVE", null, 403);                // 대결 지정 전: 같은 직급은 결재자가 못 된다
+        deputy(HEAD, null, LEAD, 0, 2, 200);                   // 부장이 팀장 이영업을 대결자로
+        assertTrue(inInbox(LEAD, id));
+        JsonNode done = decide(LEAD, id, "APPROVE", "대결", 200);
+        assertTrue(done.get("steps").get(0).get("acted_as_deputy").asBoolean());
+        assertEquals(HEAD, done.get("steps").get(0).get("approver_emp_no").asText());
     }
 
     @Test
@@ -398,7 +424,7 @@ public class ApprovalLineApiTest {
 
     @Test
     public void 대결_기간이면_대결자에게도_쪽지가_가되_결재할_수_없는_사람은_뺀다() throws Exception {
-        deputy(LEAD, null, LEAD2, 0, 2, 200);             // 같은 직급(팀장) — 대리의 요청을 결재할 수 있다
+        deputy(LEAD, null, LEAD2, 0, 2, 200);             // 팀장 — 대리의 요청을 결재할 수 있다
         deputy(LEAD, null, JUNIOR, 3, 5, 200);            // 아직 시작 전 — 오늘은 대결자가 아니다
         submit(MEMBER, KNOWLEDGE_WRITE, 200);
         assertEquals(1, notesTo(LEAD, "결재알림").size());

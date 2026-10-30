@@ -13,9 +13,15 @@ import java.util.List;
  * 팀장 아래는 모두 '팀원'급이다. 직위가 목록에 없거나 비어 있으면 결재 등급·역할로 추정한다
  * ({@link ApproverRules#levelByGradeRole}).
  *
- * <p>규칙은 <b>하나만 고정</b>한다 — 상신자의 직급이 처리자(결재자·대결자)보다 높으면 결재할 수 없다
- * (상위 직급자가 하위 직급자에게 결재를 올리는 결과가 되기 때문). 같은 직급끼리는 가능하다(예: 부장 대신
- * 다른 팀장이 대결). 그 밖의 대결자 자격은 업무에 맡긴다.
+ * <p>결재 방향 규칙(2026-10-30 확정) — 처리자가 결재자냐 대결자냐에 따라 다르다.
+ * <ul>
+ *   <li><b>주 결재자</b>(지정·자동 상위 결재자): 상신자보다 직급이 <b>엄격히 높아야</b> 한다
+ *       ({@link #mayApprove}). 같은 직급은 불가 — 하급자가 상급자에게 승인받는다.</li>
+ *   <li><b>대결자</b>: 상신자와 같은 직급도 가능하다({@link #mayDecide}) — 예: 부장이 팀장 A를 대결자로
+ *       지정하면 A는 팀장 B의 요청을 대결할 수 있다. 상신자보다 낮으면 불가.</li>
+ *   <li>어느 쪽이든 본인 요청은 처리할 수 없다. 관리자 확인(ADMIN) 단계는 이 규칙과 무관하다.</li>
+ * </ul>
+ * 그 밖의 대결자 자격(직급 등)은 업무에 맡긴다.
  */
 public final class Ranks {
 
@@ -47,8 +53,13 @@ public final class Ranks {
         return of(u) >= APPROVER_MIN;
     }
 
-    /** {@code processor} 가 {@code requester} 의 요청을 결재(또는 대결)할 수 있는 방향인가. */
+    /** <b>대결자용</b> — {@code processor} 가 {@code requester} 의 요청을 대결할 수 있는 방향인가(같은 직급 가능). */
     public static boolean mayDecide(SysUser requester, SysUser processor) {
         return !requester.getEmpNo().equals(processor.getEmpNo()) && of(processor) >= of(requester);
+    }
+
+    /** <b>주 결재자용</b> — {@code approver} 가 {@code requester} 의 결재자가 될 수 있는가(엄격히 높은 직급만). */
+    public static boolean mayApprove(SysUser requester, SysUser approver) {
+        return !requester.getEmpNo().equals(approver.getEmpNo()) && of(approver) > of(requester);
     }
 }
