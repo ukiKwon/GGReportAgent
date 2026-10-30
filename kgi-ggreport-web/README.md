@@ -138,6 +138,63 @@ java -jar target/kgi-ggreport-web.war
 > IntelliJ 빌드가 미덥지 않으면 *Settings → Build Tools → Maven → Runner* 에서
 > **Delegate IDE build/run actions to Maven**을 켜면 `mvn`과 같은 결과가 된다.
 
+### 5-2. 새 PC 환경 세팅 (관리자 권한 없이, 2026-10-30 실측)
+
+JDK·MySQL·IntelliJ를 **설치기 없이 zip으로 `C:\dev`에 풀어** 쓴다. 관리자 권한이 필요 없고,
+`scripts/setup-local-win.ps1`이 이 순서를 자동화한다(이미 있는 것은 건너뛴다).
+
+| 구성 | 버전 | 위치 |
+|---|---|---|
+| JDK | Temurin 8 (`jdk8u504-b01`) | `C:\dev\jdk8\…` — `JAVA_HOME`·PATH 등록 |
+| MySQL | 8.4.13 (`winx64.zip`) | `C:\dev\mysql\…`, 데이터 `C:\dev\mysql-data` |
+| IntelliJ | IDEA 2025.3 (통합판) | `C:\dev\idea\bin\idea64.exe` — Maven 내장이라 따로 안 깐다 |
+
+```powershell
+cd kgi-ggreport-web
+.\scripts\setup-local-win.ps1            # 1) 내려받기·압축 해제·환경변수·MySQL 데이터 폴더 초기화
+#  → 새 터미널을 열어 PATH를 적용한다. IntelliJ가 이미 있으면 -SkipIdea
+```
+
+2) **MySQL 서버 기동** — 새 터미널에서 `C:\dev\mysql-start.cmd`를 실행해 두고 닫지 않는다.
+127.0.0.1에만 바인딩한다. 처음에는 root 비밀번호가 **비어 있다.**
+
+3) **DB·계정 생성** — 비밀번호는 아래 `<비번>` 자리에 직접 입력한다(저장소·로그에 남기지 않는다).
+
+```sql
+-- mysql -u root
+CREATE DATABASE IF NOT EXISTS ggreportdb DEFAULT CHARSET utf8mb4;
+CREATE USER 'ggreport'@'localhost' IDENTIFIED BY '<비번>';
+GRANT ALL PRIVILEGES ON ggreportdb.* TO 'ggreport'@'localhost';
+```
+
+4) **접속 정보 등록(선택, 권장)** — 한 번 등록하면 비밀번호를 다시 치지 않고 `--login-path`로 접속한다.
+에이전트(Claude)도 비밀번호를 보지 않고 DB 작업을 이어받을 수 있다.
+
+```
+mysql_config_editor set --login-path=ggreport --user=ggreport --host=127.0.0.1 --password
+```
+
+5) **스키마·시드 적용** — `.\scripts\setup-local-win.ps1 -ApplySchema`.
+`001`~`013`을 번호순으로 합쳐 넣고(**`007`은 MySQL 쪽에 없다** — Oracle 전용 미적용 초안),
+끝나면 **테이블 20개 · `INSTITUTIONS` 25행 · `USERS` 25행**이 기대값이다.
+이미 적용돼 있으면 건너뛴다(`002`는 재실행이 안 된다).
+
+6) `config/application.properties`의 `<OUT-LOCAL-DB-PASSWORD>`를 3)의 비밀번호로 채우고 §5-1로 간다.
+
+**겪은 함정 3가지**
+
+- ⚠️ **`mysql.exe`·`mysqld.exe`는 VC++ 런타임 DLL을 JDK의 `bin\`에서 가져온다**(이 PC에는 VC 재배포 패키지가
+  없었다). PATH에 **JDK `bin`이 `mysql`보다 앞서야** 한다. 아니면 아무 메시지 없이 `-1073741515`
+  (DLL not found)로 죽는다. `mysql-start.cmd`는 이미 PATH를 잡아 둔다.
+- ⚠️ **`--default-character-set=utf8mb4` 없이 시드를 넣으면** `ERROR 1366 Incorrect string value … NAME_KO`.
+  Windows 콘솔 기본이 cp949라서다. `-ApplySchema`는 이 옵션을 넣는다.
+- ⚠️ **`002_seq_no.sql`은 재실행하면 실패한다**(컬럼 추가). 중간에 끊겼다면 어디까지 들어갔는지 보고
+  **그 다음 파일부터** 이어서 넣는다.
+
+> 다운로드 주소가 바뀌면(특히 `cdn.mysql.com`은 옛 버전을 내린다) `-MysqlVersion`·`-JdkUrl`·`-IdeaUrl`
+> 인자로 넘긴다. 쉘이 Git Bash면 `mysql.exe`가 `api-ms-win-crt-*.dll`을 못 찾는다고 할 수 있다 —
+> PowerShell에서 실행한다.
+
 ## 6. WebLogic 배포
 
 ```bash
