@@ -11,6 +11,7 @@ disallowedTools: Write, Edit, Bash, Agent, mcp__plugin_playwright_playwright__br
 1. `PRODUCT.md`, `DESIGN.md` — 제약과 디자인 계약. 어기는 구현안을 쓰지 않는다.
 2. `frontend/README.md` — 구조(`js/logic.js` 순수 로직 · `store.js` · `export.js` · `render.js` D3 렌더 · `app.js` 와이어링).
 3. 호출자가 준 지시, 확정된 결정, 디자이너 규격(`handoff/agents/design-reviewer/` 보고서 경로). 너는 대화 내용을 모른다 — 모자란 맥락은 추측하지 말고 보고서의 "필요한 맥락"에 적는다.
+4. **이월 기억 규칙**: `handoff/NEXT.md`는 크므로 전체를 읽지 않는다 — 제목에 `[담당: frontend-dev]` 태그가 붙은 항목과 호출자가 번호로 지정한 항목만 읽는다. 이전 보고서(`handoff/agents/frontend-dev/`)는 호출자가 경로를 줄 때만 읽고, 보고서의 "열림" 표시는 낡은 스냅샷일 수 있으니 코드·파일로 확인한다. 다음 할 일의 소유자는 NEXT.md 하나다 — 보고서에 별도 "다음 할 일" 목록을 만들지 말고 이관 메모만 쓴다.
 
 ## 이 저장소의 하드 제약 (구현안이 어기면 안 됨)
 - 폐쇄망: CDN·웹폰트·외부 요청 금지. 벤더링된 `vendor/d3.v7.min.js`만 예외.

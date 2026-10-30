@@ -27,6 +27,7 @@
 - 항목이 **진행 중이지만 아직 안 끝났으면** 지우지 않고 남겨둔다 — 상태만 갱신
   (예: 담당 워크트리/브랜치, 어디까지 했는지)해서 다음 세션이 이어받게 한다.
 - 새로 발생한 미해결 항목은 이 파일에 바로 추가한다(출처 handoff 파일명과 함께).
+- **담당 태그(2026-10-30)**: 에이전트가 맡을 항목·하위 항목에는 `[담당: <에이전트 이름>]`을 붙인다(예: `[담당: backend-dev]`). 에이전트는 이 파일 전체가 아니라 자기 태그 항목과 호출자가 번호로 지정한 항목만 읽는다. **긴 이력·시험 과정은 `handoff/agents/history/`나 에이전트 보고서로 옮기고 여기에는 현재 상태·다음 한 걸음·포인터만 둔다.**
 
 ---
 
@@ -1262,34 +1263,19 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
 - **하지 말 것**: 근거 없는 날짜를 만들어 넣지 않는다(PRODUCT.md 원칙 1) · 기존 `/menus` 계약·골든 04·05·`roles.js`·Python `server/`·지도 렌더 코드 건드리지 않는다(#27 "되돌리지 말 것") · 동시 세션이 있으면 `CLAUDE.md` "여러 세션 동시 작업" 규칙(worktree·경로 지정 커밋·서버 한 세션만).
 - **다음 한 걸음**: 사용자 승인 후 1번(데이터 정정 판단, 읽기 전용)부터. 디자인 쪽(팝오버 정리·TOP5 표시 방식)은 28번에서 별도로 진행.
 
-### 31. 역할별 에이전트 팀 — **6개 읽기 전용 생성·도구 확인 완료, 첫 실사용이 남음** (2026-10-29)
+### 31. 역할별 에이전트 팀·그래프·대시보드 — **9개 읽기 전용 에이전트·그래프·대시보드 가동, 첫 실사용 완료. 남은 것은 서버 마무리와 소항목** (2026-10-30 갱신)
 
-- **▶ 현재 상태(2026-10-29, 재시작 후 세션)**: ① **`design-reviewer` 읽기 전용 확인 완료** — 재시작한 세션에서 도구를 물으니 Write·Edit·Bash·Agent 없음, 쓰기 시도도 "Write 없음"(정의 수정은 재시작 후에야 반영된다는 것도 확인). ② 나머지 5개를 **같은 읽기 전용 틀**로 생성: `frontend-dev`·`backend-dev`(구현안을 **패치(`old → new`)로 보고서에** — 적용·테스트 실행은 메인이 사용자 승인 뒤에)·`qa-verifier`(Bash 없음 → 테스트 출력은 메인이 실행해 전달)·`data-auditor`(+WebFetch/WebSearch, 값을 고치지 않음)·`planner`(선택지·질문·NEXT 초안, 결정은 사용자). 폴더 `handoff/agents/<이름>/`+`.gitkeep`, 정의 6개 머리말 점검 통과(`disallowedTools`에 Write·Edit·Bash·Agent, Playwright 쓰는 3개는 `browser_run_code_unsafe`도 차단).
-  **`design-reviewer`에도 `browser_run_code_unsafe` 차단을 추가**(임의 코드 실행 → 파일 쓰기 우회 가능성, 실제 우회 여부는 미시험). 알려진 잔여 쓰기 통로: `browser_take_screenshot` 파일 저장(저장소 루트·`.playwright-mcp/`로 제한).
-  **✅ 도구 확인 완료(같은 날, 커밋 `fb1e301` 이후)**: 6개 에이전트(`design-reviewer`·`frontend-dev`·`backend-dev`·`qa-verifier`·`data-auditor`·`planner`)에게 병렬로 도구 목록을 묻고 쓰기 시도를 시켰다(시험 경로는 저장소 밖 scratchpad). 결과: **전원 Write·Edit·Bash·Agent 없음**, Playwright를 쓰는 3개(`design-reviewer`·`frontend-dev`·`qa-verifier`)는 `browser_run_code_unsafe`도 없음, `data-auditor`만 WebFetch·WebSearch 있음(설계대로), 쓰기 시도는 모두 "Write 없음"으로 끝나 시험 파일이 생기지 않았다(scratchpad `tc-*.txt` 0개, 저장소 변경 없음).
-  참고: 새로 만든 정의는 **재시작 없이도 시간이 지나 목록에 올라왔다**(생성 직후 호출은 실패 → 몇 분 뒤 가능). 즉 "세션 도중 추가는 반영이 지연된다"이지 "반드시 재시작"은 아니었다.
-  **남은 일**: ① **첫 실사용** — 읽기 전용 팀으로 28번(디자인 진단·규격) 또는 30번(데이터 검수)을 실제로 돌려 보고서→메인 저장→NEXT 포인터 흐름이 잘 되는지 확인. ② 쓰기용 에이전트가 정말 필요해지면 방식 A(`settings.json` 프로젝트 훅 + `agent_type`)를 `settings.local.json`에서 먼저 시험(현재는 필요 없음 — 구현은 메인이 패치를 적용). ③ `browser_take_screenshot`의 파일 저장은 잔여 쓰기 통로(저장소 루트·`.playwright-mcp/`로 제한).
-  **README(`handoff/agents/README.md`)를 읽기 전용 구조에 맞게 다시 썼다**(소통 흐름·에이전트 표·함정: Bash 역슬래시 축소 등).
-
-- **출처**: 이 진단 세션(2026-10-29, `2026-10-29_summary.md`에는 아직 섹션 없음 — "마무리" 때 기록). 배경: 디자인 진단 중 대화가 기획·개발로 번져서, 사용자가 "디자인 업무만 하는 에이전트"를 요청 → 역할별 에이전트 팀으로 확장.
-- **구조(결정됨)**: 메인 세션이 허브, **파일이 우편함**. 에이전트끼리는 직접 대화하지 않고 서브에이전트는 사용자에게 질문할 수 없다. 사용자 승인은 메인에서. 규칙 전문은 `handoff/agents/README.md`.
-  에이전트별 작업 기록 = `handoff/agents/<이름>/YYYY-MM-DD_<주제>.md` (지시 → 결과 → 이관 메모 → 열린 질문). `NEXT.md`는 메인만 고치고, 새 작업 파일이 생기면 관련 항목에 한 줄 포인터를 남긴다(시작 훅이 이 폴더를 읽지 않음).
-- **만든 것(미커밋, 4곳)**: `.claude/agents/design-reviewer.md`(정의) · `.claude/hooks/agent-guard.ps1`(쓰기 경로 차단 훅, **ASCII만** — PowerShell 5.1이 BOM 없는 UTF-8을 ANSI로 읽음, 23번 주의) · `handoff/agents/README.md` · `handoff/agents/design-reviewer/`(`.gitkeep`).
-  `design-reviewer`는 진단·규격·시안·문구·접근성만. **쓰기 허용**: `DESIGN.md`, `docs/design/mockups/`, `handoff/agents/design-reviewer/`. 도구에서 **Bash·Agent 제외**(Bash는 `cp`/`sed -i`로 우회, Agent는 쓰기 자유로운 하위 에이전트로 우회). Playwright 도구는 허용. `settings.json`은 건드리지 않았다.
-- **확인된 것**: 훅 스크립트를 가짜 입력 17건으로 단독 시험 — 허용 4건 exit 0, 금지 13건 exit 2(`..` 우회·프로젝트 밖·이름 비슷한 폴더·깨진 입력·미등록 에이전트·루트 없음 포함, fail-closed). 정의 파일 머리말 구조 점검 통과.
-- **⚠️ 차단 시험 1차 결과(2026-10-29): 실패 — 가드가 발동하지 않았다.** `design-reviewer` 에이전트(재시작 후 목록에 보임)에게 금지 경로 2곳 + 허용 경로 1곳에 Write를 시켰더니
-  **3건 모두 성공**(차단 메시지 없음). 금지였던 `frontend/js/_probe_forbidden.js`·`docs/design/forbidden-probe.txt`가 실제로 생겼다 → **시험 뒤 삭제 완료**(내용 확인 후 `rm`, 추적 파일 없음).
-  - 가드 스크립트 자체는 정상: 명시 루트로 직접 돌리면 금지 경로는 막힌다(단독 시험 17건 통과).
-  - **진단 C 결과(2026-10-29, 확정): 에이전트 정의 안의 훅은 이 환경에서 한 번도 실행되지 않았다.** 가드에 호출 로그(`%TEMP%\agent-guard.log`)를 넣고, `design-reviewer`에게 **저장소 밖**(scratchpad) 경로에 Write를 시켰다 — 가드가 돌았다면 "프로젝트 밖"으로 반드시 차단했을 쓰기. 결과: 쓰기 **성공**, 로그 파일 **없음**. 로그 기능 자체는 직접 실행으로 검증(차단·허용 모두 기록).
-    → 원인은 아래 ①(서브에이전트 자신의 Write에 발동 안 함) 또는 ②(신뢰 허용 필요) 중 하나이고, 지금은 어느 쪽인지 구분되지 않는다. 가드 로직의 문제가 아니다. 시험 입력을 Bash `echo`로 줄 때는 역슬래시가 줄어 JSON이 깨지니 슬래시 경로나 PowerShell을 쓸 것.
-  - **B 적용(2026-10-29, 사용자 결정): `design-reviewer`를 읽기 전용으로 전환** — 정의에서 `Write`·`Edit` 제거(`tools`에서 빼고 `disallowedTools: Write, Edit, Bash, Agent`), 작동하지 않는 `hooks:` 블록 삭제, 본문의 "쓸 수 있는 곳"을 "읽기 전용" 구역으로 교체(결과는 보고서로 돌려주고 저장은 메인이 `handoff/agents/design-reviewer/`에). `handoff/agents/README.md`의 표·주의 문구도 맞췄다. `agent-guard.ps1`은 삭제하지 않고 **연결 안 된 상태로 보관**(호출 로그 포함).
-    **⚠️ 파일은 고쳤지만 실행 중인 세션에는 반영되지 않았다**: 수정 직후 `design-reviewer`에게 도구를 물었더니 **여전히 Write·Edit 있음**(옛 정의 그대로, Bash·Agent만 없음). 에이전트 정의는 세션 시작 때 읽히고, 이 VS Code 환경에서는 문서가 말한 "수정 후 몇 초 안에 반영"이 되지 않았다.
-    → **다음 일**: 창을 다시 불러온(Developer: Reload Window) 뒤 `design-reviewer`에게 도구 목록과 Write 시도(저장소 밖 scratchpad)를 시켜 **Write·Edit가 실제로 사라졌는지** 확인. 확인 전까지 이 에이전트에게 쓰기 작업을 맡기지 않는다.
-  - **원인 추정(미확정)**: ① 에이전트 **정의 안** 프런트매터 훅이 서브에이전트 자신의 Write에 발동하지 않음(문서상 "추정"이었음) ② 정의 안 훅은 폴더 **신뢰 허용 후에만** 돌아감(문서 명시) ③ `${CLAUDE_PROJECT_DIR}`가 훅 환경에 없으면 가드는 "root unknown"으로 **차단**해야 하므로 이 경로는 아니다.
-  - **⚠️ 지금 상태는 위험**: 도구 목록에 Write·Edit가 있어 `design-reviewer`는 **저장소 아무 곳에나 쓸 수 있다.** 훅이 고쳐지기 전까지 이 에이전트에게 쓰기 작업을 맡기지 않는다.
-  - **선택지(사용자 결정 대기)**: (A) 가드 호출을 `.claude/settings.json`의 프로젝트 PreToolUse 훅으로 옮기고 stdin의 `agent_type == "design-reviewer"`로 분기 — 설정 훅은 이 프로젝트에서 실제로 돈다는 것이 확인됨(SessionStart). 단 `settings.json`은 팀 공유 설정이라 변경 승인 필요. (B) 정의에서 Write·Edit를 빼고 **보고서만 쓰는 읽기 전용**으로 두고, 파일 반영은 메인이 한다. (C) 먼저 진단용 로그를 가드에 한 줄 추가해 "훅이 호출되는지"부터 확인(가장 싸다, 가드 파일만 수정).
-- **확인 못 한 것(⚠️ 다음 세션 첫 일, 1차 결과 반영 전 문구)**: 새 `.claude/agents/` 폴더는 **세션 시작 뒤에 만들면 재시작이 필요**하다 — 지금 세션에서 `design-reviewer` 호출이 "not found". 따라서 ① **실제 에이전트를 통한 차단 시험**(금지 경로 쓰기가 막히는지, 허용 경로는 되는지, Bash·Agent 도구가 없는지) ② **프로젝트 훅은 폴더 신뢰 허용 창을 수락해야 작동** — 수락 전에는 쓰기 제한이 없는 것과 같다 ③ 프론트매터 훅이 서브에이전트 자신의 Edit/Write에 실제로 발동하는지는 문서상 추정일 뿐 미시험.
-  시험 방법: 재시작 후 `design-reviewer`에게 "금지(`frontend/js/_probe_forbidden.js`, `docs/design/forbidden-probe.txt`)와 허용(`docs/design/mockups/_probe.txt`) 경로에 각각 쓰기 시도, 결과를 그대로 보고" 시키고, 시험 뒤 `docs/design/` 임시 파일을 지운다. 훅이 안 걸리면 대안: `.claude/settings.json`의 PreToolUse 훅에서 stdin의 `agent_type`으로 분기(조사 보고서 제안, 이것도 미시험).
-- **(아래는 생성 전 계획 문구 — 위 "현재 상태"가 최신이다. 순서·이유는 참고용)** **다음 에이전트(예정, 이 결과를 본 뒤에 하나씩, 만들 때마다 사용자 승인)**: `frontend-dev`(`frontend/` 단 `frontend/data/` 제외 — 퍼블리셔 역할 포함으로 시작) → `qa-verifier`(테스트·화면 확인, 소스 못 고침) → `data-auditor`(기관 날짜를 원문과 대조, 읽기 위주) → `backend-dev`(`kgi-ggreport-web/`·`db/`, 영향이 커서 마지막) → (선택) `planner`. 추가 절차: 정의 파일 → `agent-guard.ps1`의 `$rules` 항목 → README 표 → 폴더. 기존 `security-guidance`·`code-review`·`commit-commands` 플러그인은 그대로 쓰고 에이전트를 새로 만들지 않는다. 인수인계("마무리")는 메인이 한다.
-- **세션 관련(확인됨)**: 별도 창이 없어도 서브에이전트는 메인이 부른다. 다른 **세션**과의 대화는 `ListAgents`/`SendMessage`(같은 컴퓨터의 로컬 세션이면 창·프로젝트 무관, 양방향 비동기, VS Code는 대화 탭을 더 열면 별도 세션). 현재 대기 중인 `ggreportagent-56`이 목록에 보인다. 에이전트 팀(실험 기능)은 쓰지 않는다.
+- **▶ 현재 상태(2026-10-30)**:
+  - 에이전트 9개(`design-reviewer`·`frontend-dev`·`backend-dev`·`qa-verifier`·`data-auditor`·`planner`·`security`·`pm`·`cleaner`), 전원 읽기 전용(Write·Edit·Bash·Agent 없음). 메인이 허브·파일이 우편함. 이동·되돌림·멈춤 규칙은 `handoff/agents/graph.md`, 소통·기록 규칙은 `handoff/agents/README.md`.
+  - 대시보드 `agent-dashboard/`(상세는 그 README): 세션 시작 때 자동 실행(SessionStart `start.js`), 훅 `hook.js`로 에이전트 작업 상태 표시(같은 역할 동시 여러 개는 `QA#2`처럼 인스턴스별), 청소부 캐릭터, 코치 전광판의 세션 누적 바퀴.
+  - 18:00 자동 마무리: Windows 작업 스케줄러 `GGReportClosing1800` → `agent-dashboard/closing.js`(커밋·푸시까지, 병합은 `--merge`를 줄 때만). 끄기: `Unregister-ScheduledTask -TaskName GGReportClosing1800 -Confirm:$false`. 2026-10-30에 수동 2회(`--merge` 포함) 실행해 커밋·푸시·`main` 병합 성공.
+  - **✅ 첫 실사용 완료(2026-10-30)**: F1 시험 흐름(planner → frontend-dev → apply → qa-verifier → cleaner)을 누적 바퀴 전광판으로 실행 — [실행 기록](agents/runs/2026-10-30_누적바퀴-전광판.md).
+  - **확정(다시 열지 말 것)**: 좁은 창(≤700px)은 지원하지 않음 · 누적 바퀴 = 대시보드 탭이 열려 있는 동안 · 전광판 프롬프트 표시 유지 · 그래프 방식 A · 18:00 마무리는 병합 없이 · `GGReportAgent/` 중첩 복제본은 삭제함.
+- **남은 일 (담당 태그)**:
+  - `[담당: backend-dev]` **서버 마무리 — 진행 중**: 정적 파일 허용 목록(`serve.js`·`serve.py`), `serve.py`의 stats 기본값, 서버·훅 자동 테스트. 순서: backend-dev 패치안 → 메인 적용·실행 → qa-verifier·security 확인. 근거: [security 보고서](agents/security/2026-10-30_agent-dashboard-보안점검.md) #6·#9, [qa 보고서](agents/qa-verifier/2026-10-30_누적바퀴-전광판.md) P2·P3.
+  - `[담당: planner]` 기획 확인 소항목(사용자 답 대기, 낮음): 폴링 2초 안의 start→stop이 화면에 안 보임 / `data-auditor` 선수 추가 여부 / 정지 후 출구까지 최대 1바퀴 / 복귀 후 active면 lapF를 0부터 반복 — 근거 [qa 검증](agents/qa-verifier/2026-10-30_agent-dashboard-검증.md) #8·#11·#13·복귀 항목.
+  - `[담당: frontend-dev]` 낮음·보류 가능: 바닥 차선 이름표가 현황판 아래를 가림, 8x 단계 연출, 터치 타깃, 첫 폴링 전 바퀴 덮임, 칩과 feed 불일치, 가로 스크롤 원인(좁은 창 미지원 확정으로 우선순위 낮음).
+  - 보류: 쓰기 에이전트가 정말 필요해지면 방식 A(`settings.json` 훅 + `agent_type`)를 `settings.local.json`에서 먼저 시험 — 현재는 필요 없음(구현은 메인이 패치 적용). `browser_take_screenshot`의 파일 저장은 잔여 쓰기 통로(저장소 루트·`.playwright-mcp/`로 제한).
+- **정합 메모**: design·qa 보고서 표의 일부 "열림"은 이후 코드에서 해결된 **낡은 스냅샷**이다(qa #1~#4·#12, design P2-1·P2-4·P2-5·P2-6 등). 보고서는 고치지 않고 이 항목을 기준으로 본다.
+- **출처·이력**: 2026-10-29 생성·읽기 전용 전환·훅 시험 실패와 결정 과정 전문 → [handoff/agents/history/2026-10-29_에이전트팀-생성과-훅시험.md](agents/history/2026-10-29_에이전트팀-생성과-훅시험.md). 2026-10-30 작업은 `handoff/agents/` 각 폴더의 2026-10-30 보고서 + `runs/`, 요약은 `handoff/2026-10-30_summary.md`. PM 조사: [열린 항목 지도·중첩 분석](agents/pm/2026-10-30_열린항목-지도와-handoff-중첩분석.md).
 - **28·30번과의 관계**: `design-reviewer`가 28번(화면 디자인)의 진단·규격을 이어받는다. 30번(데이터·권한)은 `data-auditor`/`backend-dev`/`planner` 영역이라 디자이너는 이관 메모로만 다룬다.
