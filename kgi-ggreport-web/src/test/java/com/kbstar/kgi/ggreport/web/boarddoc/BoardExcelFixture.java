@@ -13,6 +13,7 @@ import org.springframework.core.io.ClassPathResource;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
@@ -35,8 +36,8 @@ public final class BoardExcelFixture {
             num.setDataFormat(wb.createDataFormat().getFormat("#,##0"));
             for (BoardExcelMap.TableMap t : map.tables()) {
                 Sheet s = wb.getSheet(t.getSheet()) != null ? wb.getSheet(t.getSheet()) : wb.createSheet(t.getSheet());
-                for (Map.Entry<String, String> l : t.getLabels().entrySet()) {
-                    cell(s, new CellReference(l.getKey())).setCellValue(l.getValue());
+                for (Map.Entry<String, List<String>> l : t.getLabels().entrySet()) {
+                    cell(s, new CellReference(l.getKey())).setCellValue(l.getValue().get(0));
                 }
                 BoardDocSpec.Table st = BoardDocSpec.catalogTable(t.getRef(), true);
                 for (Map.Entry<String, CellReference> e : t.getCells().entrySet()) {
@@ -72,6 +73,20 @@ public final class BoardExcelFixture {
         for (JsonNode t : root.get("tables")) {
             if (ref.equals(t.get("ref").asText())) {
                 ((ObjectNode) t).put("sheet", sheet);
+            }
+        }
+        return new BoardExcelMap(root);
+    }
+
+    /** 실제 지도에서 ref 표의 머리글 한 칸을 주어진 값(문자열 또는 배열)으로 바꾼 지도 — 별칭 시험용. */
+    public static BoardExcelMap mapWithLabel(String ref, String cell, JsonNode value) throws IOException {
+        ObjectNode root;
+        try (InputStream in = new ClassPathResource(BoardExcelMap.RESOURCE).getInputStream()) {
+            root = (ObjectNode) new ObjectMapper().readTree(in);
+        }
+        for (JsonNode t : root.get("tables")) {
+            if (ref.equals(t.get("ref").asText())) {
+                ((ObjectNode) t.get("labels")).set(cell, value);
             }
         }
         return new BoardExcelMap(root);

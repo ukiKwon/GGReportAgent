@@ -59,11 +59,26 @@ public final class XlsxBook implements Closeable {
         public final String display;
         public final String raw;
         public final String problem;
+        /** 숫자 셀(또는 숫자 캐시값 수식)에서 읽었을 때만 true — 문자열·불리언은 false. */
+        public final boolean numeric;
 
         Value(String display, String raw, String problem) {
+            this(display, raw, problem, false);
+        }
+
+        /** 서식이 숫자 구역을 모두 비워 엑셀 화면에는 안 보이는 숫자(예 ";;;")면 true. 서식 문자열은 싣지 않는다. */
+        public final boolean hiddenFormat;
+
+        Value(String display, String raw, String problem, boolean numeric) {
+            this(display, raw, problem, numeric, false);
+        }
+
+        Value(String display, String raw, String problem, boolean numeric, boolean hiddenFormat) {
             this.display = display;
             this.raw = raw;
             this.problem = problem;
+            this.numeric = numeric;
+            this.hiddenFormat = hiddenFormat;
         }
     }
 
@@ -168,7 +183,8 @@ public final class XlsxBook implements Closeable {
             case NUMERIC:
                 double d = c.getNumericCellValue();
                 CellStyle st = c.getCellStyle();
-                return new Value(fmt.formatRawCellContents(d, st.getDataFormat(), st.getDataFormatString()), raw(d), null);
+                return new Value(fmt.formatRawCellContents(d, st.getDataFormat(), st.getDataFormatString()), raw(d), null, true,
+                        hiddenFormat(st.getDataFormatString()));
             case STRING:
                 String s = c.getRichStringCellValue().getString();
                 return new Value(s, s, null);
@@ -180,6 +196,20 @@ public final class XlsxBook implements Closeable {
             default:
                 return Value.EMPTY;
         }
+    }
+
+    /** 서식에 ';' 가 있고 앞의 숫자 구역(최대 3개)이 전부 빈 문자열이면 숨김 서식(";;;", ";;", ";;;@"). 공백·리터럴이 있으면 아님. */
+    public static boolean hiddenFormat(String f) {
+        if (f == null || f.indexOf(';') < 0) {
+            return false;
+        }
+        String[] parts = f.split(";", -1);
+        for (int i = 0; i < Math.min(parts.length, 3); i++) {
+            if (!parts[i].isEmpty()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** 숫자 원값 — 정수면 정수 표현(서식에 가려진 13자리도 그대로), 아니면 평문 소수. */

@@ -200,7 +200,8 @@ public class BoardWriteApiTest {
     @Test
     public void 조회만_있는_팀원은_403이고_DENIED로_남는다() throws Exception {
         Res r = upload(MEMBER, fixture(), 403);
-        assertEquals("이사회 자료를 작성할 권한이 없습니다.", r.detail().asText());
+        assertEquals("이사회 자료를 작성할 권한이 없습니다.", r.detail().get("message").asText());
+        assertEquals("FORBIDDEN", r.detail().get("code").asText());
         boolean found = false;
         for (AccessLogEntry e : accessLog.search(null, null, MEMBER, "DENIED", 0, 50).getItems()) {
             if (EXCEL.equals(e.getReqPath()) && Integer.valueOf(403).equals(e.getStatusCode())) {
@@ -269,17 +270,169 @@ public class BoardWriteApiTest {
         JsonNode sum = upload(MEMBER, fixture(wb -> wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(400)), 200).json;
         JsonNode w = warning(cellOf(sum, "A", "r4c1").get("warnings"), "SUM_MISMATCH");
         assertEquals("1200", w.get("expected").asText());                         // 500 + 400 + 300 (총계 캐시는 900)
+        assertEquals("display", w.get("basis").asText());
+        assertEquals("900", w.get("actual").asText());
+        assertEquals("-300", w.get("diff").asText());
         assertEquals("filled", cellOf(sum, "A", "r4c1").get("status").asText());
         assertEquals("900", cellOf(sum, "A", "r4c1").get("value").asText());     // 재계산 없이 캐시값 그대로
     }
 
+    /** 표 A(머리글 7칸: A1·B1·C1·B2~B5) 중 지정한 칸의 머리글을 바꾼다. */
+    private static Consumer<XSSFWorkbook> labelsChanged(String... addrs) {
+        return wb -> {
+            for (String a : addrs) {
+                BoardExcelFixture.cell(wb.getSheet("기부금"), new CellReference(a)).setCellValue("다름");
+            }
+        };
+    }
+
+    private static JsonNode tableOf(JsonNode out, String ref) {
+        for (JsonNode t : out.get("tables")) {
+            if (ref.equals(t.get("ref").asText())) {
+                return t;
+            }
+        }
+        throw new AssertionError("table not found " + ref);
+    }
+
     @Test
-    public void 머리글_라벨이_다르면_STRUCTURE_MISMATCH() throws Exception {
+    public void 머리글_일부가_다르면_200이고_그_표는_review로_채운다() throws Exception {
         perms(MEMBER, true, false);
-        Res r = upload(MEMBER, fixture(wb -> wb.getSheet("기부금").getRow(4).getCell(1).setCellValue("총계")), 422);
+        JsonNode out = upload(MEMBER, fixture(wb -> wb.getSheet("기부금").getRow(4).getCell(1).setCellValue("총계")), 200).json;
+        JsonNode a = tableOf(out, "A");
+        assertEquals("partial", a.get("label_state").asText());
+        assertTrue(a.get("needs_review").asBoolean());
+        assertEquals("B5", a.get("label_mismatches").get(0).get("cell").asText());
+        assertEquals("합계", a.get("label_mismatches").get(0).get("expected").asText());
+        assertEquals("총계", a.get("label_mismatches").get(0).get("actual").asText());
+        for (JsonNode c : a.get("cells")) {
+            assertEquals("review", c.get("status").asText());
+            assertTrue(hasCode(c.get("warnings"), "LABEL_MISMATCH"));
+            assertFalse(c.get("value").asText().isEmpty());
+        }
+        JsonNode b = tableOf(out, "B");
+        assertEquals("ok", b.get("label_state").asText());
+        assertFalse(b.get("needs_review").asBoolean());
+        assertEquals(1, out.get("summary").get("label_mismatch_tables").asInt());
+        assertEquals(90, out.get("summary").get("filled").asInt());
+        assertEquals(5, out.get("summary").get("review").asInt());
+        assertEquals(0, out.get("summary").get("failed").asInt());
+        JsonNode w = warning(out.get("warnings"), "LABEL_MISMATCH");
+        assertEquals("A", w.get("tables").get(0).asText());
+        assertEquals(1, w.get("tables").size());
+        assertFalse(w.get("message").asText().isEmpty());
+    }
+
+    @Test
+    public void 머리글_절반_이상이_다르면_그_표는_failed로_값을_싣지_않는다() throws Exception {
+        perms(MEMBER, true, false);
+        Res r = upload(MEMBER, fixture(labelsChanged("B2", "B3", "B4", "B5")), 200);
+        JsonNode a = tableOf(r.json, "A");
+        assertEquals("failed", a.get("label_state").asText());
+        assertTrue(a.get("needs_review").asBoolean());
+        assertEquals(4, a.get("label_mismatches").size());
+        for (JsonNode c : a.get("cells")) {
+            assertEquals("failed", c.get("status").asText());
+            assertEquals("LABEL_MISMATCH", c.get("reason").asText());
+            assertEquals("", c.get("value").asText());
+            assertEquals("", c.get("source").get("display").asText());
+            assertTrue(c.get("source").get("raw").isNull());
+            assertTrue(hasCode(c.get("warnings"), "LABEL_MISMATCH"));
+        }
+        assertEquals(90, r.json.get("summary").get("filled").asInt());
+        assertEquals(5, r.json.get("summary").get("failed").asInt());
+        assertEquals("A", warning(r.json.get("warnings"), "LABEL_MISMATCH").get("tables").get(0).asText());
+    }
+
+    @Test
+    public void 시트가_없으면_422_STRUCTURE_MISMATCH_SHEET_MISSING() throws Exception {
+        perms(MEMBER, true, false);
+        Res r = upload(MEMBER, fixture(wb -> wb.removeSheetAt(wb.getSheetIndex("기부금"))), 422);
         assertEquals("STRUCTURE_MISMATCH", r.detail().get("code").asText());
-        assertEquals("B5", r.detail().get("reasons").get(0).get("cell").asText());
-        assertEquals("총계", r.detail().get("reasons").get(0).get("actual").asText());
+        assertFalse(r.detail().get("message").asText().isEmpty());
+        assertEquals("A", r.detail().get("reasons").get(0).get("ref").asText());
+        assertEquals("SHEET_MISSING", r.detail().get("reasons").get(0).get("code").asText());
+        assertEquals("기부금", r.detail().get("reasons").get(0).get("sheet").asText());
+    }
+
+    // ── raw·합계 (표시값 기준) ──
+
+    @Test
+    public void 숫자_칸은_raw와_rounded를_싣는다() throws Exception {
+        perms(MEMBER, true, false);
+        JsonNode out = upload(MEMBER, fixture(wb -> wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(1234.5678919)),
+                200).json;
+        JsonNode c = cellOf(out, "A", "r2c1");
+        assertEquals("1,235", c.get("value").asText());
+        assertEquals("1234.567892", c.get("source").get("raw").asText());
+        assertTrue(c.get("source").get("rounded").asBoolean());
+        JsonNode whole = cellOf(out, "A", "r1c2");
+        assertEquals("500", whole.get("source").get("raw").asText());
+        assertFalse(whole.get("source").get("rounded").asBoolean());
+        assertEquals("900", cellOf(out, "A", "r4c1").get("source").get("raw").asText());   // 수식 캐시
+    }
+
+    @Test
+    public void 읽지_못한_칸은_raw가_null() throws Exception {
+        perms(MEMBER, true, false);
+        byte[] x = fixture(wb -> ((XSSFCell) wb.getSheet("기부금").getRow(4).getCell(2)).getCTCell().unsetV());
+        JsonNode c = cellOf(upload(MEMBER, x, 200).json, "A", "r4c1");
+        assertTrue(c.get("source").get("raw").isNull());
+        assertTrue(c.get("source").get("rounded").isNull());
+    }
+
+    @Test
+    public void 표시값_합이_맞으면_원래_값이_달라도_경고_없음() throws Exception {
+        perms(MEMBER, true, false);
+        JsonNode out = upload(MEMBER, fixture(wb -> {
+            wb.getSheet("기부금").getRow(1).getCell(2).setCellValue(100.2);
+            wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(200.2);
+            wb.getSheet("기부금").getRow(3).getCell(2).setCellValue(0);
+            wb.getSheet("기부금").getRow(4).getCell(2).setCellValue(300);
+        }), 200).json;
+        assertFalse(hasCode(cellOf(out, "A", "r4c1").get("warnings"), "SUM_MISMATCH"));
+    }
+
+    // ── 오류 형식 통일 (작성 API 한정) ──
+
+    private static void assertErr(Res r, String code) {
+        assertTrue(r.text, r.json.get("detail").isObject());
+        if (code != null) {
+            assertEquals(code, r.detail().get("code").asText());
+        }
+        assertFalse(r.text, r.detail().get("message").asText().isEmpty());
+    }
+
+    @Test
+    public void 오류는_모두_detail_객체_code_message() throws Exception {
+        assertErr(upload(null, fixture(), 401), "UNAUTHENTICATED");
+        assertErr(upload(MEMBER, fixture(), 403), "FORBIDDEN");                       // 작성 권한 없음
+        assertErr(call(MEMBER, post(DRAFT), draftBody("A", "r1c2", "500"), 403), "FORBIDDEN");
+        perms(MEMBER, true, true);
+        long other = copyForm(ADMIN, "전산 양식");
+        assertErr(upload(MEMBER, "/board-forms/" + other + "/excel", "가상.xlsx", fixture(), null, 404), "NOT_FOUND");
+        assertErr(upload(MEMBER, EXCEL, "가상.xlsx", fixture(), "1", 400), "BAD_REQUEST");
+        Res broken = call(MEMBER, post(DRAFT), "{\"tables\":", 400);                  // 깨진 JSON
+        assertErr(broken, "BAD_REQUEST");
+        for (String parser : new String[]{"Unexpected", "line:", "JsonParse", "com.fasterxml"}) {
+            assertFalse(parser + " 가 응답에 있다: " + broken.text, broken.text.contains(parser));
+        }
+    }
+
+    @Test
+    public void 초안_요청_형식이_JSON이_아니면_415_객체이고_요청_헤더를_되돌려주지_않는다() throws Exception {
+        perms(MEMBER, true, false);
+        String marker = "application/x-marker-9f3";
+        Res r = new Res(mockMvc.perform(post(DRAFT).header(Actor.HEADER, MEMBER).contentType(marker).content("x"))
+                .andExpect(status().is(415)).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
+        assertErr(r, "UNSUPPORTED_MEDIA_TYPE");
+        assertFalse(r.text, r.text.contains("marker-9f3"));
+    }
+
+    @Test
+    public void 다른_화면_오류는_여전히_문자열_detail() throws Exception {
+        Res r = call(null, get("/board-forms"), null, 401);
+        assertTrue(r.text, r.detail().isTextual());
     }
 
     // ── 형식·크기 (#9~#11) ──
@@ -484,6 +637,8 @@ public class BoardWriteApiTest {
                 .getContentAsString(StandardCharsets.UTF_8));
         assertEquals("FILE_TOO_LARGE", big.detail().get("code").asText());
         assertEquals(5, big.detail().get("max_mb").asInt());
+        assertTrue(big.json.isObject());                              // 본문이 JSON 으로 파싱된다(Res 생성자)
+        assertTrue(big.detail().get("message").asText(), big.detail().get("message").asText().contains("5MB"));
         StringBuilder s = new StringBuilder("{\"tables\":[],\"pad\":\"");
         while (s.length() < 300 * 1024) {
             s.append("aaaaaaaaaa");
@@ -493,6 +648,7 @@ public class BoardWriteApiTest {
                 .andExpect(status().is(413)).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
         assertEquals("BODY_TOO_LARGE", body.detail().get("code").asText());
         assertEquals(256, body.detail().get("max_kb").asInt());
+        assertTrue(body.detail().get("message").asText(), body.detail().get("message").asText().contains("256KB"));
     }
 
     /** 원시 경로 그대로 보낸다 — post(String) 은 '%' 를 다시 인코딩하므로 URI 로 넘긴다. */
@@ -533,9 +689,12 @@ public class BoardWriteApiTest {
 
     @Test
     public void S13d_본문_길이가_없으면_411_LENGTH_REQUIRED() throws Exception {
-        assertEquals("LENGTH_REQUIRED", rawPost(DRAFT, "application/json", null, 411).detail().get("code").asText());
-        assertEquals("LENGTH_REQUIRED", rawPost(EXCEL, "multipart/form-data; boundary=x", null, 411)
-                .detail().get("code").asText());
+        Res d = rawPost(DRAFT, "application/json", null, 411);
+        assertEquals("LENGTH_REQUIRED", d.detail().get("code").asText());
+        assertFalse(d.detail().get("message").asText().isEmpty());     // 본문이 JSON 으로 파싱된다(Res 생성자)
+        Res e = rawPost(EXCEL, "multipart/form-data; boundary=x", null, 411);
+        assertEquals("LENGTH_REQUIRED", e.detail().get("code").asText());
+        assertFalse(e.detail().get("message").asText().isEmpty());
     }
 
     @Test

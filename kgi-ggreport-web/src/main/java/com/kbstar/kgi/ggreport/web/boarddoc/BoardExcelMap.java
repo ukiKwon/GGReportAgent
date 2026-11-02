@@ -17,6 +17,8 @@ public class BoardExcelMap {
 
     public static final String RESOURCE = "boarddoc/excel-map.json";
     public static final int MAX_RANGE_CELLS = 2000;
+    static final int MAX_ALIASES = 10;
+    static final int MAX_LABEL_LEN = 100;
 
     public static final class Sum {
         private final List<String> of;
@@ -32,11 +34,11 @@ public class BoardExcelMap {
         private final String ref;
         private final String sheet;
         private final CellRangeAddress range;
-        private final Map<String, String> labels;
+        private final Map<String, List<String>> labels;
         private final Map<String, CellReference> cells;
         private final List<Sum> sums;
 
-        TableMap(String ref, String sheet, CellRangeAddress range, Map<String, String> labels,
+        TableMap(String ref, String sheet, CellRangeAddress range, Map<String, List<String>> labels,
                  Map<String, CellReference> cells, List<Sum> sums) {
             this.ref = ref; this.sheet = sheet; this.range = range;
             this.labels = labels; this.cells = cells; this.sums = sums;
@@ -45,7 +47,8 @@ public class BoardExcelMap {
         public String getRef() { return ref; }
         public String getSheet() { return sheet; }
         public CellRangeAddress getRange() { return range; }
-        public Map<String, String> getLabels() { return labels; }
+        /** 머리글 칸 → 허용 별칭 목록(첫 번째가 대표). 별칭 중 어느 하나와 같으면 일치. */
+        public Map<String, List<String>> getLabels() { return labels; }
         public Map<String, CellReference> getCells() { return cells; }
         public List<Sum> getSums() { return sums; }
     }
@@ -94,7 +97,7 @@ public class BoardExcelMap {
             for (CellReference c : cells.values()) {
                 addrs.add(c.formatAsString());
             }
-            Map<String, String> labels = new LinkedHashMap<>();
+            Map<String, List<String>> labels = new LinkedHashMap<>();
             it = t.path("labels").fields();
             while (it.hasNext()) {
                 Map.Entry<String, JsonNode> e = it.next();
@@ -102,7 +105,10 @@ public class BoardExcelMap {
                 if (!range.isInRange(c.getRow(), c.getCol()) || addrs.contains(c.formatAsString())) {
                     bad("label " + ref);
                 }
-                labels.put(c.formatAsString(), e.getValue().asText());
+                labels.put(c.formatAsString(), aliases(e.getValue(), ref));
+            }
+            if (labels.isEmpty()) {
+                bad("labels " + ref);                          // C5: 머리글이 없는 표는 어느 엑셀이든 통과하므로 금지
             }
             List<Sum> sums = new ArrayList<>();
             for (JsonNode s : t.path("sums")) {
@@ -138,6 +144,35 @@ public class BoardExcelMap {
             }
         }
         return false;
+    }
+
+    /** 라벨 값 = 문자열 하나 또는 문자열 배열. 공백 정규화 뒤 비면(C5)·한도 초과·비문자열이면 기동 실패. */
+    private static List<String> aliases(JsonNode v, String ref) {
+        List<String> out = new ArrayList<>();
+        if (v.isTextual()) {
+            out.add(v.asText());
+        } else if (v.isArray()) {
+            for (JsonNode a : v) {
+                if (!a.isTextual()) {
+                    bad("label " + ref);
+                }
+                out.add(a.asText());
+            }
+        }
+        if (out.isEmpty() || out.size() > MAX_ALIASES) {
+            bad("label " + ref);
+        }
+        for (String a : out) {
+            if (norm(a).isEmpty() || a.length() > MAX_LABEL_LEN) {
+                bad("label " + ref);
+            }
+        }
+        return Collections.unmodifiableList(out);
+    }
+
+    /** 앞뒤 공백 제거 + 연속 공백을 하나로. 머리글 비교의 유일한 정규화. */
+    static String norm(String s) {
+        return s == null ? "" : s.trim().replaceAll("\\s+", " ");
     }
 
     private static void put(Map<String, CellReference> cells, String key, CellReference c,
