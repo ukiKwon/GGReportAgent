@@ -108,6 +108,17 @@ public class BoardExcelFillTest {
         assertEquals("ok", table(out, "A").get("label_state"));
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    public void 표_A는_합계_관계를_칸_key_기준으로_싣는다() throws Exception {
+        Map<String, Object> out = run(new BoardExcelMap(), wb -> { });
+        List<Map<String, Object>> sums = (List<Map<String, Object>>) table(out, "A").get("sums");
+        assertEquals(1, sums.size());
+        assertEquals("r4c1", sums.get(0).get("total"));
+        assertEquals(java.util.Arrays.asList("r1c2", "r2c1", "r3c1"), sums.get(0).get("of"));
+        assertTrue(((List<?>) table(out, "B").get("sums")).isEmpty());   // 합계 관계 없는 표는 빈 목록
+    }
+
     // ── C1 단계 ──
 
     @Test
