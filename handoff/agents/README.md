@@ -13,8 +13,7 @@
 - 구현 담당(`frontend-dev`, `backend-dev`)도 **파일을 고치지 못한다.** 적용 가능한 **패치(`old → new`)를 보고서로 돌려주고**,
   메인 세션이 사용자 승인 뒤에 적용하고 테스트를 실행한다.
 - `qa-verifier`는 Bash가 없어 테스트를 직접 못 돌린다. 메인이 돌린 출력을 지시문에 담아 주면 그것을 해석한다.
-- `agent-guard.ps1`(쓰기 경로 차단 스크립트)은 만들어 두었지만 **연결하지 않았다.** 쓰기 가능한 에이전트가 정말 필요해지면
-  `.claude/settings.json`(또는 `settings.local.json`)의 프로젝트 PreToolUse 훅으로 옮겨 `agent_type`으로 분기하는 방식을 먼저 시험한다.
+- 쓰기 경로 강제는 `.claude/hooks/write-guard.js`(프로젝트 PreToolUse `Edit|Write|NotebookEdit`, `agent_type`이 `-write`로 끝날 때만 검사)가 맡는다(2026-11-02 연결·실 시험 통과). 예전 `agent-guard.ps1`은 미사용 보관(정리 후보).
 - 알려진 잔여 쓰기 통로: Playwright `browser_take_screenshot`의 파일 저장(저장소 루트 또는 `.playwright-mcp/`로 제한, 후자는 gitignore).
 
 ### 예외: 작업 단위로 쓰기 권한 부여 (사용자 결정 2026-11-02)
@@ -81,7 +80,7 @@
 
 ## 주의
 
-- `agent-guard.ps1`을 다시 쓸 때는 **ASCII만** 쓴다 (Windows PowerShell 5.1이 BOM 없는 UTF-8을 ANSI로 읽는다 — NEXT.md 23번).
+- (미사용) `agent-guard.ps1`을 다시 쓸 때는 **ASCII만** 쓴다 (Windows PowerShell 5.1이 BOM 없는 UTF-8을 ANSI로 읽는다 — NEXT.md 23번).
 - 서브에이전트에게 도구 목록을 물어 확인할 때, 쓰기 시험 경로는 **저장소 밖**(scratchpad)으로 한다. 막히지 않아도 저장소가 더러워지지 않는다.
 - Bash에서 JSON·정규식을 넘길 때 역슬래시가 줄어든다(`\\`→`\`). 검사 스크립트는 파일로 만들어 실행한다.
 - 서버(`localhost:8080`)·로컬 DB는 한 번에 한 세션/에이전트만 쓴다.
