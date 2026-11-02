@@ -611,6 +611,172 @@ test('board.js 배선: onSave·onCancel 확인과 refreshStatus 입력 경로가
   assert.ok(rs.includes("el('bd-editerr')") && rs.includes('removeChild'));
   assert.ok(!rs.includes('renderEdit('), 'refreshStatus는 전체를 다시 그리지 않는다(포커스 유지)');
 });
+// ── 2026-11-02 design-reviewer 대조 결과 반영(c7c996b 후속 7건) ──
+test('actionsHtml: 편집·복제 모두 못 하면 권한 안내 한 줄, 편집·복제 가능하거나 양식이 없으면 없다', function () {
+  const HINT = '<span class="bd-hint">양식은 편집 권한이 있는 사람만 고칠 수 있습니다.</span>';
+  assert.ok(board.actionsHtml({ mode: 'view', hasDoc: true, editable: false, canCopy: false, perm: 'no' }).includes(HINT));
+  assert.ok(!board.actionsHtml({ mode: 'view', hasDoc: true, editable: true }).includes('bd-hint'));
+  assert.ok(!board.actionsHtml({ mode: 'view', hasDoc: true, editable: false, canCopy: true }).includes('bd-hint'));
+  assert.ok(!board.actionsHtml({ mode: 'view', hasDoc: false }).includes('bd-hint'));
+  assert.ok(!board.actionsHtml({ mode: 'edit', hasDoc: true, editable: false, canCopy: false }).includes('bd-hint'));
+});
+test('editCardHtml: 표 빼기 버튼은 글자 빼기·aria-label 표 빼기, 1개일 때는 title 대신 머리 줄 아래 안내', function () {
+  const st = board.editFromForm(form());
+  let h = board.editHtml(st, {}, null);
+  assert.ok(/data-act="del" data-i="0" aria-label="표 빼기">빼기<\/button>/.test(h));
+  assert.ok(!h.includes('aria-label="표 삭제"') && !h.includes('>삭제</button>'));
+  assert.ok(!h.includes('뺄 수 없습니다'));
+  h = board.editHtml(board.editRemove(st, 0), {}, null);
+  assert.ok(/data-act="del" data-i="0" disabled aria-label="표 빼기">빼기<\/button>/.test(h));
+  assert.ok(!/data-act="del"[^>]*title=/.test(h));
+  const head = h.indexOf('이 표 칸 건너뛰기');
+  const hint = h.indexOf('<p class="bd-hint">표가 하나뿐이면 뺄 수 없습니다.</p>');
+  assert.ok(hint > head && hint < h.indexOf('bd-table-wrap'));
+});
+test('cellLabel: 표 제목 · 행 머리 · 열 머리, 구하지 못한 부분은 생략', function () {
+  const t = { title: '수익성 분석', rows: [
+    [{ key: 'h0', text: '구분', header: true }, { key: 'h1', text: '2025년', header: true }, { key: 'h2', text: '2026년', header: true }],
+    [{ key: 'a0', text: '예금', header: true }, { key: 'a1', text: '10' }, { key: 'a2', text: '20' }],
+    [{ key: 'b0', text: '대출' }, { key: 'b1', text: '30' }, { key: 'b2', text: '40' }]] };
+  assert.strictEqual(board.cellLabel(t, 1, 2), '수익성 분석 · 예금 · 2026년');
+  assert.strictEqual(board.cellLabel(t, 2, 1), '수익성 분석 · 대출 · 2025년');   // header 없는 행은 첫 칸
+  assert.strictEqual(board.cellLabel(t, 2, 0), '수익성 분석 · 구분');            // 행 머리가 자기 자신이면 생략
+  assert.strictEqual(board.cellLabel(t, 0, 1), '수익성 분석');                   // 머리글 행 칸은 행·열 머리 생략
+  // 편집 중 값(cells)을 따른다
+  assert.strictEqual(board.cellLabel(Object.assign({}, t, { cells: { a0: '적금' } }), 1, 1), '수익성 분석 · 적금 · 2025년');
+  // 제목이 비면 생략, 모두 비면 '칸 수정'
+  assert.strictEqual(board.cellLabel(Object.assign({}, t, { title: ' ' }), 1, 2), '예금 · 2026년');
+  assert.strictEqual(board.cellLabel({ title: '', rows: [[{ text: 'x' }]] }, 0, 0), '칸 수정');
+  assert.strictEqual(board.cellLabel(null, 0, 0), '칸 수정');
+});
+test('cellLabel: 병합(colspan·rowspan)을 펼쳐 같은 열 순번의 머리를 찾는다', function () {
+  const t = { title: '표', rows: [
+    [{ text: '구분', header: true, rowspan: 2 }, { text: '금액', header: true, colspan: 2 }],
+    [{ text: '2025년', header: true }, { text: '2026년', header: true }],
+    [{ text: '예금', header: true, rowspan: 2 }, { key: 'x1', text: '1' }, { key: 'x2', text: '2' }],
+    [{ key: 'y1', text: '3' }, { key: 'y2', text: '4' }]] };
+  assert.strictEqual(board.cellLabel(t, 2, 2), '표 · 예금 · 금액');   // 첫 행의 병합 칸이 그 열을 덮는다
+  assert.strictEqual(board.cellLabel(t, 3, 1), '표 · 예금 · 금액');   // 위에서 내려온 행 머리 병합
+  // 머리글 행이 없으면 columns 배열(문자열)의 같은 순번
+  const c = { title: '표', columns: ['항목', '값'], rows: [[{ key: 'k0', text: '가' }, { key: 'k1', text: '1' }]] };
+  assert.strictEqual(board.cellLabel(c, 0, 1), '표 · 가 · 값');
+  // columns가 숫자(서버의 열 수)면 열 머리는 생략
+  assert.strictEqual(board.cellLabel({ title: '표', columns: 4, rows: c.rows }, 0, 1), '표 · 가');
+});
+test('editHtml: 값 칸 입력의 aria-label은 cellLabel, 이스케이프된다', function () {
+  const h = board.editHtml(board.editFromForm(form()), {}, null);
+  assert.ok(h.includes('data-key="r1c0" maxlength="100" value="대한민국 기관" aria-label="재산상 이익제공 · 구분"'));
+  assert.ok(!h.includes('aria-label="칸 수정"'));
+  const f = form(); f.tables[0].title = '"><b>';
+  const x = board.editHtml(board.editFromForm(f), {}, null);
+  assert.ok(x.includes('aria-label="&quot;&gt;&lt;b&gt; · 구분"') && !x.includes('<b>'));
+  // label 인자 없이 부르면 예전처럼 '칸 수정'
+  assert.ok(board.editCellHtml({ key: 'k', text: 'a' }, { k: 'a' }).includes('aria-label="칸 수정"'));
+});
+test('validateEditAt: 문구는 validateEdit와 같고 위치(name·title:i·cell:i:key)를 함께 준다', function () {
+  const base = board.editFromForm(form());
+  assert.strictEqual(board.validateEditAt(base), null);
+  assert.deepStrictEqual(board.validateEditAt(board.editSetName(base, ' ')), { msg: '양식 이름을 입력해 주세요.', target: 'name' });
+  assert.deepStrictEqual(board.validateEditAt(board.editSetTitle(base, 1, '')), { msg: '2번째 표의 제목을 입력해 주세요.', target: 'title:1' });
+  assert.deepStrictEqual(board.validateEditAt(board.editSetCell(base, 0, 'r1c0', 'a'.repeat(101))),
+    { msg: '1번째 표에 100자를 넘는 칸이 있습니다.', target: 'cell:0:r1c0' });
+  const bad = board.editSetCell(base, 0, 'r0c1', 'a' + CH(1));
+  assert.strictEqual(board.validateEditAt(bad).msg, board.validateEdit(bad));
+  assert.strictEqual(board.validateEditAt(bad).target, 'cell:0:r0c1');
+});
+test('errTargetParts: 위치 문자열을 나누고, 모르는 형식은 null', function () {
+  assert.deepStrictEqual(board.errTargetParts('name'), { kind: 'name', i: -1, key: '' });
+  assert.deepStrictEqual(board.errTargetParts('title:2'), { kind: 'title', i: 2, key: '' });
+  assert.deepStrictEqual(board.errTargetParts('cell:0:r1:c"0'), { kind: 'cell', i: 0, key: 'r1:c"0' });
+  assert.strictEqual(board.errTargetParts('cell:0'), null);
+  assert.strictEqual(board.errTargetParts('title:x'), null);
+  assert.strictEqual(board.errTargetParts(''), null);
+});
+test('editFootHtml: 검증 오류 문구 끝에 고치러 가기(위치 이스케이프), 서버 오류·409에는 없다', function () {
+  const st = board.editSetTitle(board.editFromForm(form()), 0, '');
+  let h = board.editFootHtml(st, { error: '1번째 표의 제목을 입력해 주세요.', errorKind: 'local', errorTarget: 'title:0' });
+  assert.ok(/id="bd-editerr"[^>]*>1번째 표의 제목을 입력해 주세요\. <button type="button" class="link-btn" data-act="goerr" data-target="title:0">고치러 가기<\/button><\/p>/.test(h));
+  h = board.editFootHtml(st, { error: 'x', errorKind: 'local', errorTarget: 'cell:0:"><i>' });
+  assert.ok(h.includes('data-target="cell:0:&quot;&gt;&lt;i&gt;"') && !h.includes('<i>'));
+  assert.ok(!board.editFootHtml(st, { error: '저장하지 못했습니다.', errorKind: 'server', errorTarget: '' }).includes('goerr'));
+  assert.ok(!board.editFootHtml(st, { error: '먼저 저장', conflict: true, errorTarget: 'title:0' }).includes('goerr'));
+});
+test('목록 형식 오류는 다음 행동을 안내하는 문구(양식 목록·표 목록 공통)', async function () {
+  const MSG = '목록을 불러오지 못했습니다. 잠시 후 다시 열어 주세요. 계속되면 담당자에게 알려 주세요.';
+  let r = await board.loadForms(function () { return Promise.resolve(res(true, 200, {})); });
+  assert.deepStrictEqual(r, { ok: false, error: MSG });
+  r = await board.loadCatalog(function () { return Promise.resolve(res(true, 200, { tables: [] })); });
+  assert.deepStrictEqual(r, { ok: false, error: MSG });
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'js', 'board.js'), 'utf8');
+  assert.ok(!src.includes('목록 형식이 맞지 않습니다'));
+});
+test('board.js 배선: 저장 중 문구는 #bd-msg에 쓰지 않는다, 검증은 위치까지 받아 둔다, goerr를 처리한다', function () {
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'js', 'board.js'), 'utf8');
+  assert.ok(!src.includes("say('저장하는 중…')"));
+  function body(name) {
+    const s = src.indexOf('function ' + name + '(');
+    assert.ok(s >= 0, name + ' 없음');
+    return src.slice(s, src.indexOf('\n  }\n', s));
+  }
+  assert.ok(body('onSave').includes('validateEditAt(edit)'));
+  assert.ok(body('doSave').includes('validateEditAt(edit)'));
+  assert.ok(body('onBodyClick').includes("act === 'goerr'"));
+  assert.ok(!body('goToError').includes("'[data-key=\"'"), 'data-key 값을 선택자에 넣지 않는다');
+});
+// ── 2026-11-02 qa P3-a·b·d, design 제안 반영 ──
+test('clearOnRestructure: 검증 오류(local)만 지운다 / 서버 오류·409·저장 중·오류 없음은 그대로', function () {
+  assert.strictEqual(board.clearOnRestructure({ error: '1번째 표의 제목을 입력해 주세요.', errorKind: 'local', errorTarget: 'title:0' }), true);
+  assert.strictEqual(board.clearOnRestructure({ error: '저장하지 못했습니다.', errorKind: 'server' }), false);
+  assert.strictEqual(board.clearOnRestructure({ error: '다른 사람이 먼저 저장했습니다.', errorKind: 'server', conflict: true }), false);
+  assert.strictEqual(board.clearOnRestructure({ error: 'x', errorKind: 'local', conflict: true }), false);
+  assert.strictEqual(board.clearOnRestructure({ error: 'x', errorKind: 'local', saving: true }), false);
+  assert.strictEqual(board.clearOnRestructure({ error: '', errorKind: 'local' }), false);
+  assert.strictEqual(board.clearOnRestructure(null), false);
+  // 지운 상태로 다시 그리면 오류 줄(#bd-editerr)이 없다
+  const st = board.editMove(board.editSetTitle(board.editFromForm(form()), 0, ''), 0, 1);
+  assert.ok(!board.editFootHtml(st, { error: '', errorKind: '', errorTarget: '' }).includes('bd-editerr'));
+});
+test('board.js 배선: 위로·아래로·빼기 확정·표 추가 뒤 clearOnRestructure를 거쳐 다시 그린다', function () {
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'js', 'board.js'), 'utf8');
+  function body(name) {
+    const s = src.indexOf('function ' + name + '(');
+    assert.ok(s >= 0, name + ' 없음');
+    return src.slice(s, src.indexOf('\n  }\n', s));
+  }
+  assert.ok(body('clearOnRestructure').includes('board.clearOnRestructure(editUi)'));
+  const click = body('onBodyClick');
+  const mv = click.indexOf('board.editMove(');
+  assert.ok(mv >= 0 && click.indexOf('clearOnRestructure()', mv) > mv && click.indexOf('clearOnRestructure()', mv) < click.indexOf('renderEdit(', mv));
+  const add = click.indexOf('board.editAdd(');
+  assert.ok(add >= 0 && click.indexOf('clearOnRestructure()', add) > add && click.indexOf('clearOnRestructure()', add) < click.indexOf('renderEdit(', add));
+  const rc = body('runConfirm');
+  const rm = rc.indexOf('board.editRemove(');
+  assert.ok(rm >= 0 && rc.indexOf('clearOnRestructure()', rm) > rm && rc.indexOf('clearOnRestructure()', rm) < rc.indexOf('renderEdit(', rm));
+  // 빼기 버튼(확인 줄 열기)만으로는 지우지 않는다
+  const del = click.slice(click.indexOf("act === 'del'"), click.indexOf("act === 'ok-confirm'"));
+  assert.ok(!del.includes('clearOnRestructure'));
+});
+test('permState: 응답 전·목록 실패는 unknown, 성공이면 can_edit에 따라 yes/no', async function () {
+  assert.strictEqual(board.permState(null), 'unknown');
+  assert.strictEqual(board.permState({ ok: false, error: 'x' }), 'unknown');
+  assert.strictEqual(board.permState({ ok: true, items: [], canEdit: true }), 'yes');
+  assert.strictEqual(board.permState({ ok: true, items: [], canEdit: false }), 'no');
+  let r = await board.loadForms(function () { return Promise.resolve(res(false, 500, { detail: '서버 오류' })); });
+  assert.strictEqual(board.formsFromList(r).perm, 'unknown');
+  r = await board.loadForms(function () { return Promise.resolve(res(true, 200, { items: [], can_edit: false })); });
+  assert.strictEqual(board.formsFromList(r).perm, 'no');
+  r = await board.loadForms(function () { return Promise.resolve(res(true, 200, { items: [], can_edit: true })); });
+  assert.strictEqual(board.formsFromList(r).perm, 'yes');
+});
+test('actionsHtml: 권한을 모르거나(응답 전) 알 수 없으면(목록 실패) 권한 안내를 띄우지 않는다', function () {
+  const ctx = { mode: 'view', hasDoc: true, editable: false, canCopy: false };
+  assert.ok(!board.actionsHtml(Object.assign({}, ctx, { perm: 'unknown' })).includes('bd-hint'));
+  assert.ok(!board.actionsHtml(ctx).includes('bd-hint'));
+  assert.ok(board.actionsHtml(Object.assign({}, ctx, { perm: 'no' })).includes('bd-hint'));
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'js', 'board.js'), 'utf8');
+  assert.ok(src.includes("perm = 'unknown'; current = null;"), '계정이 바뀌면 권한을 알 수 없음으로 되돌린다');
+  assert.ok(src.includes('perm = r.perm;') && src.includes('perm: perm,'));
+});
 test('board.js·이 테스트 파일에 원시 특수 코드포인트(U+2028/2029/FFFE/FFFF)가 없다', function () {
   const fs = require('node:fs');
   const path = require('node:path');
