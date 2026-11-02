@@ -232,6 +232,7 @@
     if (root.notify && root.notify.onProfileChange) root.notify.onProfileChange();
     if (root.approvals && root.approvals.onProfileChange) root.approvals.onProfileChange();
     if (root.myinfo && root.myinfo.onProfileChange) root.myinfo.onProfileChange();
+    if (root.board && root.board.onProfileChange) root.board.onProfileChange();   // 계정이 바뀌면 이사회 화면 상태를 버린다
     app.applyMenuPermissions();
     if (app.paintUserArea) app.paintUserArea();
     // 워크플로 탭이 이미 그려져 있으면 결재자 입력도 새 이름으로 맞춘다.
