@@ -86,9 +86,9 @@
     ]
   },
   "enabledPlugins": {
-    "vercel@claude-plugins-official": true,
-    "taste-skill@taste-skill": true,
-    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "vercel@claude-plugins-official": false,
+    "taste-skill@taste-skill": false,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": false,
     "impeccable@impeccable": true
   }
 }
