@@ -294,7 +294,7 @@ function updateRunner(r, dt) {
       r.ph += dt * (mode === 'run' ? 8 : mode === 'crawl' ? 4 : 5);
       const nl = lapInt(r);
       if (nl !== r.lastLap) {
-        if (nl > r.lastLap && stat.laps < Number.MAX_SAFE_INTEGER) { stat.laps++; stat.dirty = true; } // 자연 완주만 센다(+5·초기화·복귀는 lastLap을 직접 맞추므로 여기 오지 않음)
+        if (nl > r.lastLap && stat.laps < Number.MAX_SAFE_INTEGER) { stat.laps++; stat.dirty = true; } // 자연 완주만 센다(+5·초기화는 lastLap을 직접 맞추고, 병원 복귀는 lastLap을 그대로 두므로 여기 오지 않음)
         onLap(r, nl - (r.freshAt || 0)); r.lastLap = nl; // 대사는 피로 기준(freshAt은 정수라 경계가 같다)
       }
       if (fatInt(r) >= 25) r.needAmb = true;
@@ -341,7 +341,7 @@ function updateRunner(r, dt) {
     case 'carried': case 'inAmb': break;
     case 'away': {
       if (simTime >= r.returnAt) {
-        r.state = 'rest'; r.lapF = 0; r.lastLap = 0; r.freshAt = 0; r.R = r.laneR; r.wheeled = false; r.needAmb = false;
+        r.state = 'rest'; r.freshAt = lapInt(r); r.R = r.laneR; r.wheeled = false; r.needAmb = false; // 바퀴(lapF·lastLap)는 그대로, 피로만 회복
         const b = benchSpot(r); r.x = b.x; r.y = b.y; r.readyAt = simTime + 2;
         say(r, '복귀했습니다', 2);
       }
@@ -408,7 +408,7 @@ function updateAmb(dt) {
     case 'idle':
       if (a.queue.length) {
         a.patient = a.queue.shift(); a.phase = 'arrive'; a.x = 1420; a.y = 735; a.ang = Math.PI;
-        toast('🚑 구급차 출동 — ' + a.patient.name + ' (25바퀴)');
+        toast('🚑 구급차 출동 — ' + a.patient.name + ' (지쳐 쓰러짐)');
       }
       break;
     case 'arrive':
@@ -457,15 +457,15 @@ function updateAmb(dt) {
 /* ---------- 청소부 ---------- */
 // 'cleaner' 에이전트가 일하는 동안 나타나 생수 채우기 → 벤치 닦기 → 트랙 닦기를 반복하고, 일이 끝나면 퇴근한다.
 const CLEANER = { id: 'cleaner', name: '청소부', color: '#26c6da' };
-const jan = { active: false, task: '', present: false, cameo: false, x: -30, y: 770, face: 1, ph: 0, job: 'enter', stage: 0, k: 0, t: 0, bubble: null, trail: [], puddles: [], lvl: 0, tgt: null, resume: '', woke: false, poured: false, lastPour: 0 };
+const jan = { active: false, task: '', present: false, cameo: false, x: -30, y: 770, face: 1, ph: 0, job: 'enter', stage: 0, k: 0, t: 0, bubble: null, trail: [], puddles: [], lvl: 0, tgt: null, resume: '', woke: false, hit: false, poured: false, lastPour: 0 };
 const bottles = Array(BASE_SLOTS).fill(1); // 생수 잔량(0~1) — 선수가 마시면 줄고 청소부가 채운다
 const JOBS = ['water', 'bench', 'track'];
 const JOB_LABEL = { enter: '출근 중', water: '생수 채우는 중', bench: '벤치 닦는 중', track: '트랙 닦는 중', splash: '물 뿌려 깨우는 중', leave: '퇴근 중' };
 /* 물 붓기로 깨우기 — 누운 지 3초(simTime, 배속 따름) 지난 선수를 청소부가 수도에서 물을 받아 부어 깨운다.
    순수 연출: 훅이 기록한 active와 누적 바퀴(lapF·lastLap·stat.laps)는 그대로, 피로 기준점(freshAt)만 옮긴다.
    cameo = cleaner 에이전트가 일하지 않는데 연출로만 나온 청소부(현황판·칩은 '대기').
-   1분에 한 번(회차 단위): 회차 안에서는 누운 사람을 차례로 모두 깨우고, 다음 회차는 마지막 붓기 끝 + 60초(simTime). */
-const SPLASH_WAIT = 3, SPLASH_COOLDOWN = 60, TAP = { x: 790, y: 712 };
+   1분에 한 번(회차 단위): 회차 안에서는 누운 사람을 차례로 모두 깨우고, 다음 회차는 마지막으로 실제로 깨운 붓기 끝 + 60초(simTime, 아무도 못 깨운 회차는 쿨다운 없음). */
+const SPLASH_WAIT = 3, SPLASH_COOLDOWN = 60, TAP = { x: 792, y: 712 };
 let splashNext = 0; // 다음 회차를 시작할 수 있는 simTime
 const rmq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
 const reduced = () => !!(rmq && rmq.matches);
@@ -480,7 +480,7 @@ function wake(r) { // 피로만 푼다 — 바퀴 수는 그대로
   r.freshAt = lapInt(r); r.wheeled = false; r.needAmb = false; r.R = r.laneR;
   say(r, '앗 차가워!', d);
 }
-function startSplash() { jan.job = 'splash'; jan.stage = jan.lvl >= 1 ? 2 : 0; jan.tgt = null; jan.poured = false; jan.lastPour = 0; } // 회차 시작
+function startSplash() { jan.job = 'splash'; jan.stage = 0; jan.tgt = null; jan.poured = false; jan.lastPour = 0; } // 회차 시작
 function endSplash() { // 회차 끝 — 한 번이라도 부었으면 마지막 붓기 끝부터 60초 쿨다운
   const j = jan; j.tgt = null; j.lvl = 0;
   if (j.poured) splashNext = j.lastPour + SPLASH_COOLDOWN;
@@ -554,17 +554,17 @@ function updateJanitor(dt) {
           j.tgt = n; break;
         }
         if (amb.phase !== 'idle') break; // 들것 자리와 겹친다 — 구급차가 끝날 때까지 새 운반·붓기 안 함
-        if (walk(j, t.x - 6, t.y - 14, 110, dt)) { j.face = 1; j.stage = 3; j.t = simTime; j.woke = false; say(j, '일어나세요~', 0.8); }
+        if (walk(j, t.x - 6, t.y - 14, 110, dt)) { j.face = 1; j.stage = 3; j.t = simTime; j.woke = false; j.hit = false; say(j, '일어나세요~', 0.8); }
       } else if (j.stage === 3) { // 붓기 800ms(기울이기 300ms, 물줄기 500ms, 200ms 뒤 젖음)
         const e = simTime - j.t;
-        j.lvl = Math.max(0, 1 - e / 0.5);
-        if (!j.woke && e >= 0.2) {
+        j.lvl = Math.max(0, Math.min(1, 1 - (e - 0.15) / 0.5)); // 기울이는 동안(e<0.15) 가득, 물줄기 구간(0.15–0.65)에 비움
+        if (!j.woke && e >= 0.3) {
           j.woke = true;
-          for (let k = 0; k < 12; k++) { const s = Math.random() < 0.5 ? -1 : 1; sweat.push({ x: t.x, y: t.y - 8, vx: s * (40 + Math.random() * 40), vy: -60 - Math.random() * 60, life: 0.6 }); }
-          j.puddles.push({ x: t.x, y: t.y, life: 1 });
-          if (splashOk(t)) wake(t); // 붓는 사이 불려 나갔으면 물줄기·웅덩이만(반응·피로 초기화 없음)
+          for (let k = 0; k < 12; k++) { const s = Math.random() < 0.5 ? -1 : 1; sweat.push({ x: t.x + 6, y: t.y - 12, vx: s * (40 + Math.random() * 40), vy: -60 - Math.random() * 60, life: 0.6 }); } // 생성점 = 물줄기 끝점
+          j.puddles.push({ x: t.x + 4, y: t.y + 1, life: 1 });
+          if (splashOk(t)) { wake(t); j.hit = true; j.poured = true; } // 붓는 사이 불려 나갔으면 물줄기·웅덩이만 — 실제로 깨운 경우만 쿨다운 대상
         }
-        if (e >= 0.8) { j.stage = 4; j.t = simTime; j.poured = true; j.lastPour = simTime; }
+        if (e >= 0.8) { if (j.hit) j.lastPour = simTime; j.stage = 4; j.t = simTime; }
       } else { // 반응이 끝나면 다음 대상(한 번에 한 명)
         if (t && t.state === 'wet') break;
         j.tgt = null; j.lvl = 0;
@@ -601,17 +601,18 @@ function drawJanitor() {
     c.fillStyle = '#4fc3f7'; c.fillRect(-5, -8, 10, 16); c.fillStyle = '#e1f5fe'; c.fillRect(-2, -11, 4, 4);
     c.restore();
     limb(14, -46, 14, -40, 2, '#81d4fa');
-  } else if (j.job === 'splash' && j.stage === 3) { // 양동이를 (14,−40) 기준으로 0→1.9rad(sine ease-out 300ms) 기울여 붓기
-    const e = simTime - j.t;
-    c.save(); c.translate(14, -40); c.rotate(1.9 * Math.sin(Math.min(1, e / 0.3) * Math.PI / 2)); c.translate(-12, 14);
+  } else if (j.job === 'splash' && j.stage === 3) { // 양동이를 들어 올리며 0→1.9rad(sine ease-out 300ms) 기울여 붓기: 회전축 (12,−14)→(14,−40)
+    const e = simTime - j.t, p = Math.sin(Math.min(1, e / 0.3) * Math.PI / 2), ax = 12 + 2 * p, ay = -14 - 26 * p;
+    c.save(); c.translate(ax, ay); c.rotate(1.9 * p); c.translate(-12, 14);
     drawBucket(j.lvl); c.restore();
+    poly([[0, -35], [ax / 2 + 3, (-35 + ay) / 2], [ax, ay]], 4, '#f1c9a5'); // 들어 올린 팔(양동이 위에 그림)
   } else drawBucket(j.lvl); // 양동이(물 받았으면 수위 표시)
   c.restore();
   const top = j.y - 62, fs = fz(11, 11, 1.4);
   c.save(); c.font = 'bold ' + fs + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
   const w2 = c.measureText(CLEANER.name).width + 8;
-  c.fillStyle = CLEANER.color; rrect(j.x - w2 / 2, top - fs, w2, fs + 3, 4); c.fill();
-  c.fillStyle = '#fff'; c.fillText(CLEANER.name, j.x, top); c.restore();
+  c.fillStyle = j.cameo ? '#90a4ae' : CLEANER.color; rrect(j.x - w2 / 2, top - fs, w2, fs + 3, 4); c.fill(); // 연출용(cameo)은 회색
+  c.fillStyle = j.cameo ? '#263238' : '#fff'; c.fillText(CLEANER.name, j.x, top); c.restore();
   if (j.bubble) drawBubble(j.x, top - fs - 3, j.bubble.text);
 }
 function drawTrail() { // 닦인 자리(젖은 광택) — 서서히 마른다
@@ -627,8 +628,12 @@ function drawTrail() { // 닦인 자리(젖은 광택) — 서서히 마른다
 /* 움직임 줄이기(prefers-reduced-motion): 이동 없이 누운 선수 위 찬 양동이+정지 물방울 3개 600ms → 깨움(1.2s) → 벤치로 즉시, 다음 대상 1.5s 간격, 회차 사이 60초 */
 const rms = { tgt: null, t: 0, next: 0, round: false, last: 0 };
 function updateSplashRM() {
+  if (!reduced()) { // 도중에 꺼짐 — 진행 중 회차를 종료 처리, 깨운 적 있으면 쿨다운
+    if (rms.tgt || rms.round) { if (rms.last) splashNext = rms.last + SPLASH_COOLDOWN; rms.tgt = null; rms.round = false; rms.last = 0; }
+    return;
+  }
   if (!rms.tgt) {
-    if (!reduced() || jan.job === 'splash' || amb.phase !== 'idle' || simTime < rms.next) return;
+    if (jan.job === 'splash' || amb.phase !== 'idle' || simTime < rms.next) return;
     if (!rms.round && simTime < splashNext) return; // 회차 쿨다운 중 — 새로 누운 사람은 다음 회차까지 대기
     const n = splashCands()[0];
     if (n) { rms.tgt = n; rms.t = simTime; if (!rms.round) { rms.round = true; rms.last = 0; } }
@@ -637,20 +642,21 @@ function updateSplashRM() {
   }
   const t = rms.tgt;
   if (t.state === 'wet') return; // 반응 1.2s — 끝나면 updateRunner가 벤치로 옮긴다
-  if (splashOk(t)) { if (simTime - rms.t >= 0.6) { wake(t); rms.last = simTime; } return; }
+  if (splashOk(t)) { if (amb.phase === 'idle' && simTime - rms.t >= 0.6) { wake(t); rms.last = simTime; } return; } // 일반 모드처럼 구급차 출동 중에는 깨우지 않음
   rms.tgt = null; rms.next = simTime + 1.5;
 }
 function drawSplashFx() {
   const j = jan, t = j.tgt;
-  if (j.present && j.job === 'splash' && j.stage === 3 && t && simTime - j.t < 0.5) { // 물줄기 500ms: 입구 → 누운 몸 중심
-    const mx = j.x + j.face * 14, my = j.y - 40, tx = t.x, ty = t.y - 8;
+  const pe = simTime - j.t;
+  if (j.present && j.job === 'splash' && j.stage === 3 && t && pe >= 0.15 && pe < 0.65) { // 물줄기 e 0.15–0.65: 양동이 입구 → 누운 몸 위(끝점 t.x+6, t.y−12)
+    const mx = j.x + j.face * 14, my = j.y - 40;
     c.strokeStyle = '#81d4fa'; c.lineWidth = 3.5; c.lineCap = 'round';
-    c.beginPath(); c.moveTo(mx, my); c.quadraticCurveTo(mx + j.face * 4, (my + ty) / 2, tx, ty); c.stroke(); // 휜 정도는 임시값(이관: 디자인)
+    c.beginPath(); c.moveTo(mx, my); c.quadraticCurveTo(mx + j.face * 10, my + 6, t.x + 6, t.y - 12); c.stroke();
   }
   const rt = rms.tgt;
-  if (rt && rt.state === 'rest') { // 임시 위치(이관: 디자인) — 이름표(y−41~−27) 위
-    c.save(); c.translate(rt.x - 12, rt.y - 50); drawBucket(1); c.restore();
-    for (let k = -1; k <= 1; k++) disc(rt.x + k * 6, rt.y - 48, 2.3, '#8be9ff');
+  if (rt && rt.state === 'rest') { // 움직임 줄이기: 기운 양동이(축 rt.x+6, rt.y−50, 1.9rad 고정) + 정지 물방울 3개
+    c.save(); c.translate(rt.x + 6, rt.y - 50); c.rotate(1.9); c.translate(-12, 14); drawBucket(1); c.restore();
+    disc(rt.x + 2, rt.y - 22, 2.3, '#8be9ff'); disc(rt.x + 8, rt.y - 20, 2.3, '#8be9ff'); disc(rt.x + 14, rt.y - 22, 2.3, '#8be9ff');
   }
 }
 function drawCleanerRow(cmp, fnt) {
@@ -784,10 +790,10 @@ function drawTable() {
     c.strokeStyle = '#90a4ae'; c.lineWidth = 0.8; c.strokeRect(x, 672, 7, 14);
     c.fillStyle = '#fff'; c.fillRect(x + 1, 669, 5, 3);
   }
-  // 수도꼭지(물 붓기 연출) — 몸통 6×4는 규격값, 관 꺾임·물줄기 끝점은 임시값(이관: 디자인)
-  c.fillStyle = '#90a4ae'; c.fillRect(772, 688, 6, 4);
-  poly([[778, 690], [784, 690], [784, 694]], 2, '#90a4ae');
-  if (jan.present && jan.job === 'splash' && jan.stage === 1) limb(784, 695, 780, 698, 3.5, '#81d4fa');
+  // 수도꼭지(물 붓기 연출) — 기둥·머리·관·받는 물줄기 좌표는 design-reviewer 확정(TAP=(792,712))
+  c.fillStyle = '#90a4ae'; c.fillRect(775, 677, 3, 9); c.fillRect(773, 674, 6, 4);
+  poly([[778, 676], [782, 676], [782, 680]], 2, '#90a4ae');
+  if (jan.present && jan.job === 'splash' && jan.stage === 1) limb(782, 681, 782, 697, 3.5, '#81d4fa');
 }
 
 function drawCoachBox() {
