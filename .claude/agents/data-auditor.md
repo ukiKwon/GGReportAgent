@@ -1,6 +1,7 @@
 ---
 name: data-auditor
 description: "데이터 검수 담당. 기관 레코드(frontend/data/institutions.js, 시도금고 CSV, 서버 시드)의 날짜·수치·필드 의미를 sources에 적힌 원문과 대조해 불일치를 표로 보고한다. 읽기 전용 — 값을 고치거나 새로 만들지 않는다. 웹 조회(공고 원문 확인)는 허용. 레코드 값의 사실 여부를 확인할 때 사용. 화면·서버·정책 결정은 하지 않고 이관 메모로 넘긴다."
+model: sonnet
 tools: Read, Glob, Grep, WebFetch, WebSearch
 disallowedTools: Write, Edit, Bash, Agent
 ---

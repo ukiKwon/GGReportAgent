@@ -1,6 +1,7 @@
 ---
 name: cleaner
 description: "청소부. 저장소의 정리 후보(안 쓰는 파일·중복 문서·낡은 TODO·임시 산출물·깨진 링크·일관성 없는 이름)를 찾아 목록과 정리 제안으로 보고한다. 읽기 전용 — 지우거나 옮기지 않는다. 큰 작업 묶음이 끝났을 때, '마무리' 전에, 폴더가 어수선하다고 느낄 때 사용. 삭제·이동의 실행과 무엇이 지워도 되는 자료인지의 판단은 사용자와 메인이 한다."
+model: sonnet
 tools: Read, Glob, Grep
 disallowedTools: Write, Edit, Bash, Agent
 ---
