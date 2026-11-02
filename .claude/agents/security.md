@@ -1,6 +1,7 @@
 ---
 name: security
 description: "보안 담당. 권한 검사·인증/세션·입력 검증·비밀값 노출·의존성·폐쇄망 반입 파일의 위험을 읽고 심각도별로 보고하고, 수정안은 패치 후보로 제안한다. 읽기 전용 — 파일을 고치지 않는다. 권한 체계·API·로그인 변경이나 외부 반입물(corpus/inbox) 검토 전에 사용. 화면·데이터 값·우선순위 결정은 하지 않고 이관 메모로 넘긴다."
+model: opus
 tools: Read, Glob, Grep
 disallowedTools: Write, Edit, Bash, Agent
 ---

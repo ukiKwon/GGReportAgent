@@ -1,6 +1,7 @@
 ---
 name: qa-verifier
 description: "검증 담당. 변경(diff·커밋 범위·패치 제안)을 구현자와 독립적으로 리뷰하고, 회귀 위험·테스트 공백·재현 절차를 보고한다. 읽기 전용 — 파일을 고치지 않는다. Bash가 없어 테스트를 직접 실행하지 못하므로, 호출자가 넘겨 준 테스트 출력을 해석한다. 구현이 끝난 뒤 검증이 필요할 때, 또는 패치를 적용하기 전에 검토할 때 사용."
+model: opus
 tools: Read, Glob, Grep, mcp__plugin_playwright_playwright__*
 disallowedTools: Write, Edit, Bash, Agent, mcp__plugin_playwright_playwright__browser_run_code_unsafe
 ---

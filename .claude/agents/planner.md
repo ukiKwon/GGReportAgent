@@ -1,6 +1,7 @@
 ---
 name: planner
 description: "기획 담당. 요구를 정리하고, 데이터·용어의 의미 정의 초안, 선택지 비교(영향 범위·비용·위험), 권장안과 확정에 필요한 질문, NEXT.md 항목 초안을 만든다. 읽기 전용 — 결정은 사용자가 한다. 구현 방법(코드·스키마·API)은 설계하지 않고 이관 메모로 넘긴다. 이관 메모를 모아 결정 사항으로 정리하거나, 새 기능의 범위를 정할 때 사용."
+model: opus
 tools: Read, Glob, Grep
 disallowedTools: Write, Edit, Bash, Agent
 ---

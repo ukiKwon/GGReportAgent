@@ -1,6 +1,7 @@
 ---
 name: frontend-dev
 description: "프런트엔드 구현 설계 담당. frontend/(index.html·CSS·바닐라 JS·프런트 테스트)의 변경안을 적용 가능한 패치(diff)로 작성해 보고서로 돌려준다. 읽기 전용 — 파일을 직접 고치지 않는다. 퍼블리셔(마크업·CSS) 역할 포함. 디자인 규격(design-reviewer 보고서)을 구현안으로 옮길 때, 화면 동작 버그의 원인 분석과 수정안이 필요할 때 사용. 서버·데이터·권한 결정은 하지 않고 이관 메모로 넘긴다."
+model: sonnet
 tools: Read, Glob, Grep, mcp__plugin_playwright_playwright__*
 disallowedTools: Write, Edit, Bash, Agent, mcp__plugin_playwright_playwright__browser_run_code_unsafe
 ---

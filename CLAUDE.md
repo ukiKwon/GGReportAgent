@@ -153,7 +153,7 @@ manual update, not just an edit to the `.txt` file.
 - 커밋/PR: `commit-commands` · 리뷰: `code-review`, `pr-review-toolkit`, `code-simplifier` · 보안: `security-guidance`, `claude-security`
 - 기능 개발 흐름(기획→설계→구현): `feature-dev` · Java 백엔드 코드 이해: `jdtls-lsp` (Java 언어 서버가 PC에 있어야 함)
 - CLAUDE.md 정비: `claude-md-management` · 훅/플러그인 제작: `hookify`, `plugin-dev` · 라이브러리 문서: `context7`
-- 에이전트 팀(`.claude/agents/`, 읽기 전용 9개 + 작업 단위 쓰기용 `-write` 2개)과 `agent-dashboard/`(에이전트 대시보드) 설명은 `handoff/agents/README.md`·`agent-dashboard/README.md`.
+- 에이전트 팀(`.claude/agents/`, 읽기 전용 9개 + 작업 단위 쓰기용 `-write` 2개). **모델 배치(사용자 결정 2026-11-02)**: 설계·판단·검증 = Opus(`planner`·`design-reviewer`·`security`·`qa-verifier`·`pm`), 구현·실행 = Sonnet(`frontend-dev`·`backend-dev`·`-write` 2개·`cleaner`·`data-auditor`) — 각 정의 frontmatter `model:`. 메인 세션 모델은 사용자가 `/model`로 고른다. 이 팀과 `agent-dashboard/`(에이전트 대시보드) 설명은 `handoff/agents/README.md`·`agent-dashboard/README.md`.
 - 설치 현황이 바뀌면 이 목록도 같이 고친다.
 
 ## 에이전트 팀 자동 투입 (사용자 요청 2026-10-30)

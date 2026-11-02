@@ -1,6 +1,7 @@
 ---
 name: backend-dev
 description: "백엔드 구현 설계 담당. kgi-ggreport-web(Java 8·Spring Boot 2.7), db/mysql·db/oracle 마이그레이션, 서버 테스트의 변경안을 적용 가능한 패치로 작성해 보고서로 돌려준다. 읽기 전용 — 파일을 직접 고치지 않고, 서버·DB도 건드리지 않는다. 권한 검사·API·스키마 변경이 필요할 때 사용. 화면·데이터 값·우선순위 결정은 하지 않고 이관 메모로 넘긴다."
+model: sonnet
 tools: Read, Glob, Grep
 disallowedTools: Write, Edit, Bash, Agent
 ---

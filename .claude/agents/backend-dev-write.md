@@ -1,6 +1,7 @@
 ---
 name: backend-dev-write
 description: "백엔드 구현 담당의 쓰기용 변형. backend-dev와 같은 역할이지만 kgi-ggreport-web/ 파일을 직접 고친다. 메인이 '다른 에이전트가 같은 파일을 다루지 않음'을 확인하고 이번 작업 하나에 한해 부를 때만 쓴다. 평소에는 읽기 전용 backend-dev를 쓴다."
+model: sonnet
 tools: Read, Glob, Grep, Edit, Write
 disallowedTools: Bash, Agent
 ---
