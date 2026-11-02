@@ -27,6 +27,8 @@ process.stdin.on('end', () => {
   let p;
   try { p = JSON.parse(raw); } catch (e) { process.exit(0); }   // 메인 여부를 알 수 없으면 막지 않는다(아래에서 -write만 판정)
   const agent = String(p.agent_type || '');
+  // 플러그인 에이전트(`<plugin>:<name>`)는 대부분 모든 도구를 갖지만 이 저장소에서는 검토 용도로만 쓴다 → 쓰기 금지(2026-11-02)
+  if (agent.includes(':')) deny('플러그인 에이전트는 파일을 쓸 수 없습니다(검토 전용): ' + agent);
   if (!agent.endsWith('-write')) process.exit(0);
   const rules = ALLOW[agent];
   if (!rules) deny('등록되지 않은 쓰기 에이전트: ' + agent);
