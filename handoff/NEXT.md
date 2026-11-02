@@ -1283,10 +1283,10 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
 - **하지 말 것**: 근거 없는 날짜를 만들어 넣지 않는다(PRODUCT.md 원칙 1) · 기존 `/menus` 계약·골든 04·05·`roles.js`·Python `server/`·지도 렌더 코드 건드리지 않는다(#27 "되돌리지 말 것") · 동시 세션이 있으면 `CLAUDE.md` "여러 세션 동시 작업" 규칙(worktree·경로 지정 커밋·서버 한 세션만).
 - **다음 한 걸음**: 사용자 승인 후 1번(데이터 정정 판단, 읽기 전용)부터. 디자인 쪽(팝오버 정리·TOP5 표시 방식)은 28번에서 별도로 진행.
 
-### 31. 역할별 에이전트 팀·그래프·대시보드 — **9개 읽기 전용 에이전트·그래프·대시보드 가동, 첫 실사용 완료. 남은 것은 서버 마무리와 소항목** (2026-10-30 갱신)
+### 31. 역할별 에이전트 팀·그래프·대시보드 — **읽기 전용 9개 + 작업 단위 쓰기용 -write 2개·그래프·대시보드 가동, 모델 배치(Opus/Sonnet) 적용. 남은 것은 서버 마무리와 소항목** (2026-11-02 갱신)
 
 - **▶ 현재 상태(2026-10-30)**:
-  - 에이전트 9개(`design-reviewer`·`frontend-dev`·`backend-dev`·`qa-verifier`·`data-auditor`·`planner`·`security`·`pm`·`cleaner`), 전원 읽기 전용(Write·Edit·Bash·Agent 없음). 메인이 허브·파일이 우편함. 이동·되돌림·멈춤 규칙은 `handoff/agents/graph.md`, 소통·기록 규칙은 `handoff/agents/README.md`.
+  - 에이전트 9개(`design-reviewer`·`frontend-dev`·`backend-dev`·`qa-verifier`·`data-auditor`·`planner`·`security`·`pm`·`cleaner`), 기본 읽기 전용(Write·Edit·Bash·Agent 없음), 예외 `-write` 2개(Edit·Write만, 경로는 `.claude/hooks/write-guard.js`가 강제). 메인이 허브·파일이 우편함. 이동·되돌림·멈춤 규칙은 `handoff/agents/graph.md`, 소통·기록 규칙은 `handoff/agents/README.md`.
   - 대시보드 `agent-dashboard/`(상세는 그 README): 세션 시작 때 자동 실행(SessionStart `start.js`), 훅 `hook.js`로 에이전트 작업 상태 표시(같은 역할 동시 여러 개는 `QA#2`처럼 인스턴스별), 청소부 캐릭터, 코치 전광판의 세션 누적 바퀴.
   - 18:00 자동 마무리: Windows 작업 스케줄러 `GGReportClosing1800` → `agent-dashboard/closing.js`(커밋·푸시까지, 병합은 `--merge`를 줄 때만). 끄기: `Unregister-ScheduledTask -TaskName GGReportClosing1800 -Confirm:$false`. 2026-10-30에 수동 2회(`--merge` 포함) 실행해 커밋·푸시·`main` 병합 성공.
   - **✅ 첫 실사용 완료(2026-10-30)**: F1 시험 흐름(planner → frontend-dev → apply → qa-verifier → cleaner)을 누적 바퀴 전광판으로 실행 — [실행 기록](agents/runs/2026-10-30_누적바퀴-전광판.md).
@@ -1295,7 +1295,7 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
   - ✅ 서버 마무리 완료(2026-10-30): 정적 허용 목록·serve.py stats 기본값·자동 테스트 55건(`node --test agent-dashboard/test/server.test.js agent-dashboard/test/fmt.test.js`), 보안 확인에서 나온 closing.js 위험(모델 권한·푸시·비밀·사용 중 판단)을 코드로 강제하도록 고침 — [security](agents/security/2026-10-30_서버마무리-닫힘확인.md)·[qa](agents/qa-verifier/2026-10-30_서버마무리.md). 남은 것: `[담당: backend-dev]` `serve.py`는 python이 없는 PC라 **실행 시험을 못 했다**(코드 읽기만, 자동 새로고침 없음·잠금 없음은 README에 명시) — python이 있는 환경에서 `py_compile`과 같은 시나리오 확인.
   - ✅ 기획 확인 소항목 확정(2026-10-30, 사용자 승인): Q1 폴링 2초 유지 / Q3 `data-auditor` 선수 추가(id `auditor`, 8번째, 적용·테스트 55건·화면 확인·qa 검토 완료, 커밋 `86338ef`, `main` 병합 `7b87c70`) + `closing.js --now`(수동 실행 시 프롬프트 대기 생략, 커밋 `415ddb4`). `--now`·`busyReason` 자동 테스트(`test/closing.test.js`)와 훅 MAP↔AGENTS↔serve IDS 일치 테스트(`test/server.test.js`)는 추가 완료(테스트 65건 통과, qa 검증 통과, 보고서 파일은 따로 저장하지 않음). 남은 소항목: `[담당: frontend-dev]` 두 번째 줄 slot 15 좌표(구급차 겹침·레인 201), `[담당: backend-dev]` closing.test.js 6번의 순서 의존 제거·`server.test.js` IDS 사본 단일화(낮음) / Q4 출구까지 최대 1바퀴 유지 / Q5 복귀 후 lapF 0부터 유지. 근거 [qa 검증](agents/qa-verifier/2026-10-30_agent-dashboard-검증.md) #8·#11·#13·복귀 항목.
   - `[담당: frontend-dev]` 낮음·보류 가능: 바닥 차선 이름표가 현황판 아래를 가림, 8x 단계 연출, 터치 타깃, 첫 폴링 전 바퀴 덮임, 칩과 feed 불일치, 가로 스크롤 원인(좁은 창 미지원 확정으로 우선순위 낮음).
-  - ✅ 2026-11-02: 쓰기 에이전트(`frontend-dev-write`·`backend-dev-write`) 작업 단위 부여 + 경로 가드 `.claude/hooks/write-guard.js`(PreToolUse Edit|Write, `agent_type` 분기) 실 시험 통과(금지 경로 거부·허용 경로 통과), PUSH-GATE 규칙·PM 역할 축소(graph.md). ✅ 에이전트별 모델 배치 적용(사용자 결정 2026-11-02): planner·design-reviewer·security·qa-verifier·pm = Opus / frontend-dev·backend-dev·-write·cleaner·data-auditor = Sonnet(정의 frontmatter `model:`, CLAUDE.md 기록). 미연결 `.claude/hooks/agent-guard.ps1`은 정리 후보. `browser_take_screenshot`의 파일 저장은 잔여 쓰기 통로(저장소 루트·`.playwright-mcp/`로 제한).
+  - ✅ 2026-11-02: 쓰기 에이전트(`frontend-dev-write`·`backend-dev-write`) 작업 단위 부여 + 경로 가드 `.claude/hooks/write-guard.js`(PreToolUse Edit|Write, `agent_type` 분기) 실 시험 통과(금지 경로 거부·허용 경로 통과), PUSH-GATE 규칙·PM 역할 축소(graph.md). ✅ 에이전트별 모델 배치 적용(사용자 결정 2026-11-02, 커밋 `85e73c0`): planner·design-reviewer·security·qa-verifier·pm = Opus / frontend-dev·backend-dev·-write·cleaner·data-auditor = Sonnet(정의 frontmatter `model:`, CLAUDE.md 기록). 미연결 `.claude/hooks/agent-guard.ps1`은 정리 후보. `browser_take_screenshot`의 파일 저장은 잔여 쓰기 통로(저장소 루트·`.playwright-mcp/`로 제한).
 - **정합 메모**: design·qa 보고서 표의 일부 "열림"은 이후 코드에서 해결된 **낡은 스냅샷**이다(qa #1~#4·#12, design P2-1·P2-4·P2-5·P2-6 등). 보고서는 고치지 않고 이 항목을 기준으로 본다.
 - **출처·이력**: 2026-10-29 생성·읽기 전용 전환·훅 시험 실패와 결정 과정 전문 → [handoff/agents/history/2026-10-29_에이전트팀-생성과-훅시험.md](agents/history/2026-10-29_에이전트팀-생성과-훅시험.md). 2026-10-30 작업은 `handoff/agents/` 각 폴더의 2026-10-30 보고서 + `runs/`, 요약은 `handoff/2026-10-30_summary.md`. PM 조사: [열린 항목 지도·중첩 분석](agents/pm/2026-10-30_열린항목-지도와-handoff-중첩분석.md).
 - **28·30번과의 관계**: `design-reviewer`가 28번(화면 디자인)의 진단·규격을 이어받는다. 30번(데이터·권한)은 `data-auditor`/`backend-dev`/`planner` 영역이라 디자이너는 이관 메모로만 다룬다.
@@ -1377,10 +1377,6 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
 - **대상**: NEXT 26 qa 4차 체크리스트 10개 + 디자인 지적 반영분, 대시보드 물 붓기(qa 수동 체크리스트 10개·design 좌표 확인), 37 작성 모드(구현 후). 로컬 시험 데이터: 사번 3918264에 tasks 수정 권한, 복제 양식 form_id=1(확인 뒤 정리).
 - **다음 한 걸음**: 사용자 `/plugin`으로 playwright(필요시 impeccable 등) 설치 → 세션 재시작 → IntelliJ 서버 기동 → qa-verifier 열람 확인(쓰기 버튼 금지). 8080·MySQL은 한 세션만.
 
-### 42. 대시보드 물 붓기 연출 후속 — **사용자 답 대기** [담당: frontend-dev → design-reviewer·qa]
-- **출처**: `2026-11-02_summary.md`. 규격 `handoff/agents/design-reviewer/2026-11-02_대시보드_물붓기_연출규격.md`(맨 아래 사용자 결정). 적용 완료분은 이번 커밋(대시보드 테스트 65/65, 화면 미확인).
-- **남은 것**: design-reviewer 확정 좌표(양동이 들어 올리기+팔, 수도꼭지 윗면 오른쪽 끝 `TAP=(792,712)`, 물줄기 곡선·끝점 (t.x+6,t.y−12)·표시 e 0.15–0.65·젖음 e≥0.3, 웅덩이 (t.x+4,t.y+1), reduced-motion 기운 양동이) · qa P3(쿨다운 기준을 '실제로 깨운 경우'로 두 모드 통일 — 메인 결정, rms.round 정리, 죽은 분기, README 문구).
-- **사용자 답 대기 4건**: 1분 기준(권장: 화면 시간) · 구급차 토스트 '(25바퀴)'→'(지쳐 쓰러짐)'(권장) · 병원 복귀 시 바퀴 유지(권장) · cameo 청소부 이름표 회색(권장).
-
 ### 43. 대시보드 연출 로직 테스트 분리 — **미착수** [담당: frontend-dev → qa]
-- **출처**: `2026-11-02_summary.md` (qa: app.js 연출 로직 자동 테스트 0건). `fatInt`·`splashCands`·쿨다운 계산을 순수 함수로 떼어 `agent-dashboard/test/`에서 시험(새 파일이면 `serve.js` 정적 허용 목록 영향 확인). 42와 같은 `app.js`라 42 뒤에.
+- **출처**: `2026-11-02_summary.md` (qa: app.js 연출 로직 자동 테스트 0건). `fatInt`·`splashCands`·쿨다운 계산을 순수 함수로 떼어 `agent-dashboard/test/`에서 시험(새 파일이면 `serve.js` 정적 허용 목록 영향 확인). 42 적용분(물 붓기 후속, 2026-11-02 커밋) 위에서 진행.
+- **테스트 케이스 후보(qa-verifier 2026-11-02, 물 붓기 후속 검토)**: ① 병원 복귀: lapF 27.4·lastLap 27·freshAt 0 → freshAt 27·fatInt 0·lastLap 27·stat.laps 불변 ② +5: freshAt 10·lapF 12 → fatInt 7·stat.laps 불변 ③ 일반 쿨다운: 붓기 2회 중 2번째 hit=false → splashNext = 1번째 lastPour+60 ④ 깨운 적 없는 회차 → splashNext 불변 ⑤ reduced 도중 끔: rms.last 0 → 쿨다운 없음, last=t → t+60 ⑥ reduced 회차 종료: 후보 없음 → round=false·splashNext=last+60. 남은 기존 동작(P3, 범위 밖): 일반 모드 회차 도중 reduced를 켜면 남은 붓기 애니메이션이 끝까지 재생됨.
