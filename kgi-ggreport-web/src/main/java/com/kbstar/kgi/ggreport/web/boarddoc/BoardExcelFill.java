@@ -167,6 +167,14 @@ public final class BoardExcelFill {
             tm.put("needs_review", needsReview);
             tm.put("label_mismatches", mismatches);
             tm.put("cells", new ArrayList<>(byKey.values()));
+            List<Map<String, Object>> sumRel = new ArrayList<>();     // 칸 key 기준 합계 관계(프런트 재검산용)
+            for (BoardExcelMap.Sum sm : t.getSums()) {
+                Map<String, Object> sr = new LinkedHashMap<>();
+                sr.put("total", sm.getTotal());
+                sr.put("of", new ArrayList<>(sm.getOf()));
+                sumRel.add(sr);
+            }
+            tm.put("sums", sumRel);
             tables.add(tm);
             Map<String, Object> src = new LinkedHashMap<>();
             src.put("ref", t.getRef());
