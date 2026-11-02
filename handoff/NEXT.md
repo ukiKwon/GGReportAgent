@@ -1052,7 +1052,7 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
 
 **막고 있는 것**: DBA의 테이블 생성(사용자가 요청 예정). 그 전까지 화면은 `ORA-00942`가 정상이다.
 
-### 26. 화면 개편 — **P1·P2 완료, P3 스파이크 완료(가능 판정), 구현은 보류(메뉴만 '구현 예정')** (2026-10-28)
+### 26. 화면 개편 — **P1·P2 완료, P3 스파이크 완료(가능 판정). 이사회 양식 편집 모드는 `c7c996b` 푸시 후 디자인 지적 7건+후속 3건 마무리(qa·design 통과, 프런트 451·서버 558, 2026-11-02 PUSH-GATE 커밋). 브라우저 확인 미수행(Playwright 재설치 대기)·N2 남음, Oracle 014 DBA 대기** (2026-11-02 갱신, 작업 브랜치 `kgi-report-web-dev`)
 
 - **출처**: `2026-10-28_summary.md` `## Session 09:39`(P3) · `2026-10-27_summary.md` `## Session 18:02`(P1·P2).
   브랜치 `websphere-migration`(이 브랜치에 `frontend/`·`docfill/` 변경이 얹혔다 — 병합 시 `kgi-ggreport-web/`→ours 규칙과 별개로 `frontend/`도 함께 간다).
@@ -1073,7 +1073,7 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
       - **서버(적용됨)**: `BoardDocSpec`(카탈로그·`CATALOG_VER`·칸 키 `r{행}c{순번}`·`build`), `BoardFormJson`, 도메인 `BoardForm`·`BoardFormVer`, `BoardFormIn`, `BoardFormMapper`(+XML), `BoardFormService`, `BoardFormController`(`/board-forms`: 목록·카탈로그·상세 `?version=`·versions·docx, POST copy·archive·restore, PUT 저장 — 전체 교체, 낙관적 락 409), `MenuGuard.requireEdit`, DB `014_board_form`(mysql/oracle 쌍). 테스트 `BoardDocEditTest`·`BoardFormApiTest`(26건) 등 통과. **로컬 MySQL(`ggreportdb`)에는 014를 적용했다**(`BOARD_FORM`·`BOARD_FORM_VER`·`BOARD_FORM_USE` 3개 생성 확인; 적용 전 `tasks` 수정 권한 켜진 사용자 0명). 이 PC에는 `mysql.exe`가 DLL 문제로 안 돌아 JDBC 실행기로 적용했다(임시 파일, 리포에 없음). **Oracle 정본 014는 DBA 적용 대기.**
       - **다음 한 걸음(프런트)**: 프런트 구현안 전문(코드·테스트 포함, 75KB)이 `handoff/agents/frontend-dev/2026-10-30_양식커스텀_프런트구현안.md`에 있다 — 서버 응답 계약과 어긋나는 곳(표 식별자 `ref`, 칸 `key`, PUT 응답 `version`, copy 응답 `form_id`)은 적용 전에 `BoardFormService.view()`와 맞춰 본다(지시 요지: `board.js`에 보기/양식 편집 모드, 순수 함수 편집 상태 모델, 양식 select를 `GET /board-forms`로 교체, 서버 계약은 `BoardFormService.view()`의 응답). 적용 순서: 테스트 → `board.js` → `index.html` CSS → 브라우저 확인(playwright, 서버 필요). **주의**: 프런트가 `/board-forms`를 부르므로 014가 적용되지 않은 DB에서는 이사회 자료 화면이 500이 난다 — 다른 환경(Oracle)은 DBA가 014를 적용한 뒤에 프런트를 배포할 것. 편집 화면 전에는 현재의 보기 전용 화면(`/board-docs`)이 그대로 동작한다.
       - **열린 결정**: 결재자용 읽기 전용 보기(영업부장이 결재함에서 양식 내용을 확인, 별도 항목), 결재 상신 연계(`BOARD_FINAL` 상신 전환 + `BOARD_FORM_USE` 기록), 팀 내 활성 이름 중복의 동시성(서비스 검사만), 버전 보존 기간, 운영 DB의 `tasks` 수정 권한 사전 점검(`SELECT EMP_NO FROM USER_MENU_PERMS WHERE MENU_KEY='tasks' AND CAN_EDIT=1`), 실제 엑셀 사본·사용자 PC의 MS 워드 유무, 서버 `mvn test`를 리포 안에서 한 번 더(골든 계열 5건 확인).
-      - **▶ 2026-11-02 프런트 편집 모드 적용(미커밋, 브랜치 `kgi-report-web-dev`)**: frontend-dev 지시서(서버 계약 불일치 10건 반영) → 메인 적용 → qa-verifier 1차 조건부 → frontend-dev-write(쓰기 1회 부여) 수정 → qa-verifier 2차 조건부(N1 회귀 등) → 수정 → 3차 조건부(칸 공백 F1) → design-reviewer 검토(프런트의 디자인 침범 2건: 인라인 확인 근거 오인용·`--blue` 막대) 반영 + 사용자 결정(기본 양식 이름 접미사 없음·머리글 칸 편집 허용·제목·칸 모두 trim 비교 — 서버 `BoardDocSpec.clean`이 칸도 trim) → **4차 통과(2026-11-02)**. 프런트 435/435, 서버 508/508(이 PC 재설치 후 리포 안 첫 실행). **아직 미커밋**, **브라우저 확인 미수행**(qa 4차 체크리스트 10개 — 쓰기 동작 없이: 삭제 확인 카드 안 위치·포커스 복귀·Esc, 끝내기 확인 [계속 편집] 포커스, 저장 확인 2줄·틸 테두리([저장]은 누르지 않음), 칸 끝 공백 '변경 없음', 빈 제목 오류 포커스, --orange 띠·뱃지 계산값, 900px 이하 줄바꿈, 대비 4.5:1, 양식 선택 줄에서 Esc).
+      - **▶ 2026-11-02 프런트 편집 모드 적용(커밋 `c7c996b`, 푸시됨, 브랜치 `kgi-report-web-dev`)**: frontend-dev 지시서(서버 계약 불일치 10건 반영) → 메인 적용 → qa-verifier 1차 조건부 → frontend-dev-write(쓰기 1회 부여) 수정 → qa-verifier 2차 조건부(N1 회귀 등) → 수정 → 3차 조건부(칸 공백 F1) → design-reviewer 검토(프런트의 디자인 침범 2건: 인라인 확인 근거 오인용·`--blue` 막대) 반영 + 사용자 결정(기본 양식 이름 접미사 없음·머리글 칸 편집 허용·제목·칸 모두 trim 비교 — 서버 `BoardDocSpec.clean`이 칸도 trim) → **4차 통과(2026-11-02)**. 프런트 435/435, 서버 508/508(이 PC 재설치 후 리포 안 첫 실행). **아직 미커밋**, **브라우저 확인 미수행**(qa 4차 체크리스트 10개 — 쓰기 동작 없이: 삭제 확인 카드 안 위치·포커스 복귀·Esc, 끝내기 확인 [계속 편집] 포커스, 저장 확인 2줄·틸 테두리([저장]은 누르지 않음), 칸 끝 공백 '변경 없음', 빈 제목 오류 포커스, --orange 띠·뱃지 계산값, 900px 이하 줄바꿈, 대비 4.5:1, 양식 선택 줄에서 Esc).
         - **남은 P3(qa 4차)**: P3-1 ref가 비거나 겹치면 확인 줄이 여러 카드에 그려짐(서버가 같은 표 중복 금지라 실제로는 안 생김) · P3-2 확인 줄이 열린 채 입력칸에서 Esc를 누르면 캐럿 위치를 잃고, Esc는 #bd-body에서만 받음 · P3-3 저장 중 #bd-editbar 포커스 표시 없음(디자인 결정, #bd-msg 안내에 의존) · P3-4 board-edit.test.js:552가 클래스 문자열 전체에 묶임(data-i 기준으로 바꿀 것). 테스트 공백: saving/conflict 때 삭제 확인 미표시 조합, 이동 후 확인 줄 위치.
         - **디자인 열린 질문**: 인라인 확인 줄(동사 버튼·실행 버튼 틸 테두리·위험 동작은 안전 버튼 포커스)을 DESIGN.md Components 표준으로 올림 — 사용자 결정 2026-11-02 "권장안": 표준으로 올리되, 남은 네이티브 `confirm()` 4곳(approvals.js:229, designer.js:388·438, workflow.js:687) 교체는 별도 항목.
         - **N2 [P3, 미착수·사용자 결정 2026-11-02 "NEXT로"]** 복제 요청 중 이사회 화면을 나갔다 들어오면(`mount` 재진입의 `refreshForms`) listToken이 밀려 새 양식(nid)을 고르는 목록 갱신이 버려지지만 `openForm(nid)`는 실행된다 → 선택 상자는 원본, 본문은 복제본 편집으로 어긋남. 데이터 손상 없음(워드 파일명은 `current` 기준). 근거: qa-verifier 2차 검토 `board.js` 798–800·985행 부근. 고치려면 복제 완료 후 열기 직전에 목록에 nid가 있는지 확인하거나 복제 진행 중엔 재진입 refresh를 미룬다.
@@ -1295,7 +1295,7 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
   - ✅ 서버 마무리 완료(2026-10-30): 정적 허용 목록·serve.py stats 기본값·자동 테스트 55건(`node --test agent-dashboard/test/server.test.js agent-dashboard/test/fmt.test.js`), 보안 확인에서 나온 closing.js 위험(모델 권한·푸시·비밀·사용 중 판단)을 코드로 강제하도록 고침 — [security](agents/security/2026-10-30_서버마무리-닫힘확인.md)·[qa](agents/qa-verifier/2026-10-30_서버마무리.md). 남은 것: `[담당: backend-dev]` `serve.py`는 python이 없는 PC라 **실행 시험을 못 했다**(코드 읽기만, 자동 새로고침 없음·잠금 없음은 README에 명시) — python이 있는 환경에서 `py_compile`과 같은 시나리오 확인.
   - ✅ 기획 확인 소항목 확정(2026-10-30, 사용자 승인): Q1 폴링 2초 유지 / Q3 `data-auditor` 선수 추가(id `auditor`, 8번째, 적용·테스트 55건·화면 확인·qa 검토 완료, 커밋 `86338ef`, `main` 병합 `7b87c70`) + `closing.js --now`(수동 실행 시 프롬프트 대기 생략, 커밋 `415ddb4`). `--now`·`busyReason` 자동 테스트(`test/closing.test.js`)와 훅 MAP↔AGENTS↔serve IDS 일치 테스트(`test/server.test.js`)는 추가 완료(테스트 65건 통과, qa 검증 통과, 보고서 파일은 따로 저장하지 않음). 남은 소항목: `[담당: frontend-dev]` 두 번째 줄 slot 15 좌표(구급차 겹침·레인 201), `[담당: backend-dev]` closing.test.js 6번의 순서 의존 제거·`server.test.js` IDS 사본 단일화(낮음) / Q4 출구까지 최대 1바퀴 유지 / Q5 복귀 후 lapF 0부터 유지. 근거 [qa 검증](agents/qa-verifier/2026-10-30_agent-dashboard-검증.md) #8·#11·#13·복귀 항목.
   - `[담당: frontend-dev]` 낮음·보류 가능: 바닥 차선 이름표가 현황판 아래를 가림, 8x 단계 연출, 터치 타깃, 첫 폴링 전 바퀴 덮임, 칩과 feed 불일치, 가로 스크롤 원인(좁은 창 미지원 확정으로 우선순위 낮음).
-  - 보류: 쓰기 에이전트가 정말 필요해지면 방식 A(`settings.json` 훅 + `agent_type`)를 `settings.local.json`에서 먼저 시험 — 현재는 필요 없음(구현은 메인이 패치 적용). `browser_take_screenshot`의 파일 저장은 잔여 쓰기 통로(저장소 루트·`.playwright-mcp/`로 제한).
+  - ✅ 2026-11-02: 쓰기 에이전트(`frontend-dev-write`·`backend-dev-write`) 작업 단위 부여 + 경로 가드 `.claude/hooks/write-guard.js`(PreToolUse Edit|Write, `agent_type` 분기) 실 시험 통과(금지 경로 거부·허용 경로 통과), PUSH-GATE 규칙·PM 역할 축소(graph.md). **미결정: 에이전트별 모델 배치**(권장: planner·design-reviewer·security·qa-verifier·pm = Opus / frontend-dev·backend-dev·-write·cleaner·data-auditor = Sonnet, 정의 frontmatter `model:`) — 사용자 답 대기. 미연결 `.claude/hooks/agent-guard.ps1`은 정리 후보. `browser_take_screenshot`의 파일 저장은 잔여 쓰기 통로(저장소 루트·`.playwright-mcp/`로 제한).
 - **정합 메모**: design·qa 보고서 표의 일부 "열림"은 이후 코드에서 해결된 **낡은 스냅샷**이다(qa #1~#4·#12, design P2-1·P2-4·P2-5·P2-6 등). 보고서는 고치지 않고 이 항목을 기준으로 본다.
 - **출처·이력**: 2026-10-29 생성·읽기 전용 전환·훅 시험 실패와 결정 과정 전문 → [handoff/agents/history/2026-10-29_에이전트팀-생성과-훅시험.md](agents/history/2026-10-29_에이전트팀-생성과-훅시험.md). 2026-10-30 작업은 `handoff/agents/` 각 폴더의 2026-10-30 보고서 + `runs/`, 요약은 `handoff/2026-10-30_summary.md`. PM 조사: [열린 항목 지도·중첩 분석](agents/pm/2026-10-30_열린항목-지도와-handoff-중첩분석.md).
 - **28·30번과의 관계**: `design-reviewer`가 28번(화면 디자인)의 진단·규격을 이어받는다. 30번(데이터·권한)은 `data-auditor`/`backend-dev`/`planner` 영역이라 디자이너는 이관 메모로만 다룬다.
@@ -1345,15 +1345,42 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
 - **대상**: nav.js 기준 구현 11·준비중 17 화면 × db/mysql 001~014(테이블 23개).
 - **핵심 빈 곳**: ① INSTITUTIONS에 출처·협약 구분·갱신 시각 없음 — 출처·확정·시군구코드·좌표는 서버 모드에서도 브라우저 localStorage에만 있음(원칙 1) ② 협약 회차·입찰 결과·영업 활동 엔터티 없음 ③ 기관 매칭이 이름 완전일치(서버 '도봉구' vs 번들·CSV '도봉구청' → CSV 반입 시 중복 생성, R4) ④ '입찰예상일'(CONTRACT_END) 한 칸에 만료일·공고일·접수마감 등 의미 4가지(R1) ⑤ 사람 참조가 이름 문자열 7곳 ⑥ 작업물 파일 메타 DB 없음 ⑦ 이사회 출처 목록 보관처 없음 ⑧ 결재 체계 2개 공존.
 - **사용자 결정(2026-11-02, 모두 권장안)**: 1 기관 정본=DB, 출처를 서버 정식 데이터로, 정적 파일은 내보내기 결과 · 2 기관 키=ID + 표기 별칭표 · 3 '협약 중'=어느 은행이든 약정 기간 안 + 금고 은행 칸 · 4 1차 범위=기관 중심(기관 보강·협약 회차·입찰 결과·영업 활동·파일 메타), 나머지는 화면 착수 때 · 5 사람 참조=새 테이블부터 사번, 기존 7곳은 SSO 때 · 6 파일 메타는 개인정보 차단과 함께 지금 · 7 영업 메모 공개=영업 계열 전원, 입찰 결과=반입+직접 입력, 팀원 배정=수락/거절(결재 아님), 업로더 007은 INSTITUTIONS 참조.
-- **다음 한 걸음**: 이사회 자료 작성(NEXT 37) 착수 후 backend-dev에 두 보고서 경로 + 위 결정으로 1차 엔터티·관계·Oracle/MySQL 쌍 DDL 설계 요청. 동결: 메뉴 키 8개·/menus·골든 04·05·roles.js. 정보보호에 감사 로그 보존 기간 문의(보안).
+- **다음 한 걸음**: 37 서버 MVP 완료(2026-11-02)로 착수 조건 충족 — 37 프런트와 병행할지는 사용자 결정. backend-dev에 두 보고서 경로 + 위 결정으로 1차 엔터티·관계·Oracle/MySQL 쌍 DDL 설계 요청. 동결: 메뉴 키 8개·/menus·골든 04·05·roles.js. 정보보호에 감사 로그 보존 기간 문의(보안).
 
-### 37. 이사회 자료 작성 화면 — **사용자 지정 최우선 신규 화면(2026-11-02), 기획 완료 → 사용자 결정 6건 대기 → MVP(1단계) 설계** [담당: planner → design-reviewer → backend-dev/frontend-dev]
+### 37. 이사회 자료 작성 화면 — **사용자 지정 최우선 신규 화면. Q1~Q6 확정, MVP 서버 구현 완료(업로드·초안 docx·excel-map, security 설계·구현 확인 통과, 서버 558, 2026-11-02 PUSH-GATE 커밋). 프런트 작성 모드 미착수** [담당: frontend-dev → qa·design·security]
 
 - **기획 보고서**: `handoff/agents/planner/2026-11-02_이사회자료_작성_착수기획.md` (흐름 9단계·확정/열린 결정·단계 분할·질문 Q1~Q6).
 - **단계**: 0 편집 모드 커밋·엑셀 사본 확보 / **1 MVP** = 양식 선택→xlsx 업로드(검사)→A·B·C-2~4 자동 입력→좌우 대조→수정됨→값별 체크·검수 n/m→초안 워드(세션 보존, DB 신규 테이블 없음) / 2 결재 연결(작성 건 테이블·BOARD_FINAL 상신 가능·결재자 보기·반려 재상신=새 REQ_ID) / 3 D표 가변 행·C-1·page1(워드 사본 필요) / 4 양식·매핑 업로드 관리.
 - **사용자 결정(2026-11-02, 모두 권장안)**: Q1 실제 사본은 사용자가 직접 만들어 `docs/samples/`에 넣음(민감 값은 가짜 숫자, 같은 구조 — 엑셀 먼저, 워드는 3단계 전), MS 워드도 사용자가 준비 · Q2 MVP=결재 없이 작성·검수·초안 워드 · Q3 작성·상신=`tasks` write · Q4 반려 시 이어 고쳐 새 요청 재상신(이전 건 참조) · Q5 매크로 거부·외부 링크·숨은 영역 경고·캐시 없는 수식 '읽지 못함'·개인정보 검출 시 업로드 거부(응답은 종류·건수만) · Q6 정책 전까지 전부 보존 + 정보보호 문의.
-- **진행**: design-reviewer에 MVP 작성 화면 규격 요청(2026-11-02). 다음은 backend-dev(업로드·범위 읽기·카탈로그 매핑·Pii 연결)·frontend-dev 패치안. 사본이 오기 전에는 POI 가상 엑셀로 설계하고 사본 도착 후 data-auditor가 구조 대조.
+- **MVP 화면 규격**: `handoff/agents/design-reviewer/2026-11-02_이사회자료_작성MVP_화면규격.md`. 사용자 결정(2026-11-02, 권장안): 확인한 칸 값을 고치면 그 칸 확인과 '확인했음' 해제 / 읽지 못한 칸도 검수 대상(m), 값을 넣은 뒤 확인 / 진입 버튼 `[이 양식으로 작성]` / 수정 칸 안에 "원본 …" 보조 줄. 샘플 `docs/samples/`는 git 제외 안 함(사용자 결정).
+- **진행(2026-11-02)**: 화면 규격 완료 → backend-dev 지시서(요약 `handoff/agents/backend-dev/2026-11-02_이사회자료_작성MVP_서버구현안.md`, 보안 반영 전문 `…_보안반영패치.md`) → security 설계 검토(상 1: 압축 해제 상한) 반영 → backend-dev-write 적용 → qa ∥ security 구현 확인 → 지적(필터 경로 우회·시트 대소문자·count 칸 기준·411) 수정 → 서버 558/558. 엔드포인트: `GET /board-forms/excel-map`, `POST /board-forms/{id}/excel`(tasks write, 5MB, ZipGuard·매크로·Pii 범위 안 거부/밖 경고·구조 검사·캐시값만), `POST /board-forms/{id}/draft-docx`. 무상태(원본 미저장, DB 변경 없음). 매핑 `src/main/resources/boarddoc/excel-map.json`은 **가상 엑셀 기준** — 사본 오면 data-auditor 대조 후 이 파일만 교체. 프런트 이관: 오류 detail이 문자열/객체 혼재(별도 항목), 411 처리, count는 '칸 수'·`sheet_name_count`.
 
 - **출처**: 2026-11-02 세션. 기존 요건·설계: `handoff/agents/planner/2026-10-30_이사회자료_요건.md`, `handoff/agents/backend-dev/2026-10-30_이사회자료_구현가능성.md`, `handoff/agents/design-reviewer/2026-10-30_이사회자료_화면규격.md`, `handoff/agents/frontend-dev/2026-10-30_이사회자료_표편집_붙여넣기.md`, NEXT 26 요건 확정분.
 - **범위(확정분 요약)**: 양식 선택 → 엑셀 업로드 → 자동 입력 → 같은 화면에서 엑셀 출처 대조·값별 확인 체크 → 결재(팀원→팀장→부장, 이사회 자료 전체 단위). 원본 엑셀 미저장, 출처 목록(시트·셀·값)만 결재 건과 보관. 양식 편집 모드(NEXT 26 커스텀 1단계)는 별도로 마무리 중.
-- **다음 한 걸음**: planner가 기존 문서 대비 남은 결정·단계 분할안 작성 → 사용자 결정 → 설계·구현.
+- **다음 한 걸음**(2026-11-02 PUSH-GATE pm 정리): (38 오류 형식 통일 먼저 권장) → frontend-dev 작성 모드 지시서(규격 `design-reviewer/2026-11-02_이사회자료_작성MVP_화면규격.md`, 서버 계약은 위 엔드포인트) → apply → qa ∥ design-reviewer ∥ security → data-auditor 실제 엑셀 사본 대조(사용자가 `docs/samples/`에 제공) → PUSH-GATE. 26의 N2를 같은 `board.js`에서 먼저 닫는다. 충돌 주의: 26 브라우저 확인과 37 백엔드 테스트가 8080·MySQL·`target/`을 공유, 35 Pii 연결은 37 업로드에서 함께 처리.
+- **사용자가 할 일**: Playwright 플러그인 재설치(`/plugin`) · 엑셀 사본 · 정보보호 문의(SSO·로그 보존 기간, NEXT 35·Q6) · MS 워드로 초안 열기 · DBA에 Oracle 014 적용 요청.
+
+### 38. 이사회 작성 API 오류 detail 형식 통일 — **미착수** [담당: backend-dev → frontend-dev]
+- **출처**: `2026-11-02_summary.md` (qa-verifier MVP 서버 검토 P2-3). 같은 엔드포인트에서 401·403·400·404·Jackson 400은 문자열 `detail`, 새 오류(422·413·415·503)는 객체 `{code,message}`, 413·411(필터·전역)은 `message` 없음.
+- **다음 한 걸음**: 37 프런트 작성 모드 전에 형식 하나를 정해 `ApiExceptionHandler`(또는 작성 컨트롤러 범위)에 맞춘다. NEXT 35 ⓔ(오류 문구)와 같은 문제. 정하기 전까지 프런트는 두 형식을 모두 처리.
+
+### 39. uploader POI 진입점 가드 — **미착수** [담당: security → backend-dev]
+- **출처**: `2026-11-02_summary.md` (security POI CVE-2025-31672 판단: 폐쇄망 영향 '하'). `uploader/.../InstitutionService.java:97-100`(xlsx로 기관 전체 교체), `FileContentService.java:89`(WorkbookFactory), `parse/PptExtractor.java:27`(SlideShowFactory)에 중복 entry 검사·`ZipSecureFile` 한도가 없다.
+- **다음 한 걸음**: kgi-ggreport-web의 `docfill/ZipGuard`를 재사용(또는 이식)하는 패치안. uploader 반입(18-B) 전에 끝낼 것.
+
+### 40. POI 5.x 상향 — **다음 폐쇄망 반입 때** [담당: backend-dev, security 확인]
+- **출처**: `2026-11-02_summary.md`. POI 5.x 전체 최소 JDK 8(5.4.1=2025-04-06), 6.0.0(2026-10-22)부터 JDK 17 → 5.4.1 또는 5.5.x까지. 업로드 지점 완화(ZipGuard 중복 entry 거부)는 37에서 완료.
+- **다음 한 걸음**: 두 pom(web·uploader 5.2.3 하드코딩)·`dependencies.txt` 재생성(xmlbeans·commons-compress·commons-io·commons-codec·log4j-api 동반 추정, `mvn dependency:list`로 확정)·`mvn -o`·골든(PptxBuilder) 회귀, `weblogic.xml` 우선 목록에 `org.apache.xmlbeans.*` 검토.
+
+### 41. 브라우저 확인 묶음 — **Playwright 재설치 대기** [담당: qa-verifier·design-reviewer, 메인 실행]
+- **출처**: `2026-11-02_summary.md`. PC 초기화로 Claude Code 플러그인 전부 삭제(`installed_plugins.json` 비어 있음).
+- **대상**: NEXT 26 qa 4차 체크리스트 10개 + 디자인 지적 반영분, 대시보드 물 붓기(qa 수동 체크리스트 10개·design 좌표 확인), 37 작성 모드(구현 후). 로컬 시험 데이터: 사번 3918264에 tasks 수정 권한, 복제 양식 form_id=1(확인 뒤 정리).
+- **다음 한 걸음**: 사용자 `/plugin`으로 playwright(필요시 impeccable 등) 설치 → 세션 재시작 → IntelliJ 서버 기동 → qa-verifier 열람 확인(쓰기 버튼 금지). 8080·MySQL은 한 세션만.
+
+### 42. 대시보드 물 붓기 연출 후속 — **사용자 답 대기** [담당: frontend-dev → design-reviewer·qa]
+- **출처**: `2026-11-02_summary.md`. 규격 `handoff/agents/design-reviewer/2026-11-02_대시보드_물붓기_연출규격.md`(맨 아래 사용자 결정). 적용 완료분은 이번 커밋(대시보드 테스트 65/65, 화면 미확인).
+- **남은 것**: design-reviewer 확정 좌표(양동이 들어 올리기+팔, 수도꼭지 윗면 오른쪽 끝 `TAP=(792,712)`, 물줄기 곡선·끝점 (t.x+6,t.y−12)·표시 e 0.15–0.65·젖음 e≥0.3, 웅덩이 (t.x+4,t.y+1), reduced-motion 기운 양동이) · qa P3(쿨다운 기준을 '실제로 깨운 경우'로 두 모드 통일 — 메인 결정, rms.round 정리, 죽은 분기, README 문구).
+- **사용자 답 대기 4건**: 1분 기준(권장: 화면 시간) · 구급차 토스트 '(25바퀴)'→'(지쳐 쓰러짐)'(권장) · 병원 복귀 시 바퀴 유지(권장) · cameo 청소부 이름표 회색(권장).
+
+### 43. 대시보드 연출 로직 테스트 분리 — **미착수** [담당: frontend-dev → qa]
+- **출처**: `2026-11-02_summary.md` (qa: app.js 연출 로직 자동 테스트 0건). `fatInt`·`splashCands`·쿨다운 계산을 순수 함수로 떼어 `agent-dashboard/test/`에서 시험(새 파일이면 `serve.js` 정적 허용 목록 영향 확인). 42와 같은 `app.js`라 42 뒤에.
