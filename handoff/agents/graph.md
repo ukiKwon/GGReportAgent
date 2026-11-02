@@ -36,6 +36,12 @@ PUSH-GATE   : security(이번 푸시 범위 diff 전체) ∥ pm(항목 상태·N
 - **디자이너도 두 번 본다**: 화면을 만들기 전 규격, 그리고 `index.html`·CSS·마크업·화면 문구가 바뀐 diff를 **커밋 전에** 규격과 대조. 프런트가 규격에 없는 시각 값(색 의미·버튼 문구·확인/경고 패턴·위치)을 정했으면 구현을 멈추고 디자인으로 이관한다. 실제 화면 확인(Playwright)이 안 되는 환경이면 그 사실을 보고에 적는다.
 - **PM은 역할을 줄여 유지한다**(pm 본인 제안 채택 2026-11-02 — 첫 호출에서 NEXT 26·37의 낡은 상태 줄을 찾았다): ① PUSH-GATE의 **NEXT 정합성 점검**(상태 줄·다음 한 걸음이 실제 커밋·진행과 맞는지, 막는 관계, 같은 파일·포트 충돌, 사용자가 할 일 모으기) ② 사용자가 **여러 항목을 한 번에 맡길 때만** 순서·배분 초안. 세션마다 습관적으로 부르지 않는다. 우선순위 결정은 여전히 사용자(G1).
 
+**플러그인 사용(2026-11-02, 근거 `history/2026-11-02_플러그인_조사와_설치.md`)**:
+- **스킬은 역할 정의 `skills:`로 미리 주입**(목록 형식·플러그인 접두어 없이 — `- frontend-design` 형식만 동작 확인, `frontend-design:frontend-design`은 주입 안 됨). design-reviewer = frontend-design·impeccable, frontend-dev·frontend-dev-write = frontend-design. 역할 에이전트에는 `Skill` 도구를 주지 않는다(지침만 읽고 실행·쓰기는 못 함).
+- **MCP 도구**: playwright만(qa-verifier·design-reviewer·frontend-dev, `browser_run_code_unsafe` 금지). 새 세션부터 동작.
+- **플러그인 에이전트는 main이 같은 단계에 병렬로 붙인다**(역할 에이전트는 Agent 도구가 없음). 쓰기는 write-guard가 금지(`agent_type`에 `:`). 기본 짝: 검증 = qa-verifier ∥ `pr-review-toolkit:silent-failure-hunter`(오류 처리)·`pr-review-toolkit:pr-test-analyzer`(테스트 공백) / 기획(기존 코드 넓게 볼 때) = planner ∥ `feature-dev:code-explorer`. `silent-failure-hunter`는 플러그인 정의 머리말 YAML 오류로 설명·도구 제한이 빠진 채 로드되므로 지시문에 역할을 명시한다. `code-simplifier`·`impeccable:*` 에이전트는 쓰기 작업용이라 붙이지 않는다.
+- **main만 쓰는 것**: impeccable 명령·훅(파일 쓰기·명령 실행 포함), feature-dev·pr-review-toolkit의 슬래시 명령. 결과는 해당 역할 에이전트 지시문으로 넘긴다.
+
 생략 규칙: 한두 줄 수정·오타는 `apply`만(단 PUSH-GATE는 생략하지 않는다). 화면(마크업·CSS·문구)이 안 바뀌면 `design-reviewer` 생략, 입력·권한·비밀값·서버·업로드·설치 스크립트를 건드리지 않으면 설계·구현 단계의 `security` 생략(생략 사유를 실행 기록에 한 줄 남긴다).
 
 ## 이동 규칙 (메인이 보고서를 읽고 정한다)
