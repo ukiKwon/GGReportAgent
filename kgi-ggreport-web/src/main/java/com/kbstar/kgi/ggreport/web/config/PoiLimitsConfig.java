@@ -8,9 +8,8 @@ import javax.annotation.PostConstruct;
 /**
  * POI(OOXML=zip) 폭탄 방어 — 앱 시작 시 한 번 전역으로 건다.
  *
- * <p>현재 POI 로 <b>업로드를 읽는 곳은 없다</b>(docfill 은 미연결, PptxBuilder 는 생성 전용). 이 설정은 업로드에
- * 연결될 때를 대비한 선제 방어다. 값은 정적(전역)이라 한 번 걸면 JVM 전체에 적용된다.
- * <p>boarddoc 쪽에 별도 한도가 필요하면 그쪽 세션이 끝난 뒤 이 값을 같이 본다.
+ * <p>업로드를 읽는 곳: 이사회 자료 작성(BoardWriteService → XlsxBook). 그쪽은 POI 로 열기 전에 ZipGuard 로
+ * 실제 압축 해제량(entry 20MB·합계 40MB)과 중복 entry 를 먼저 검사한다 — 이 전역값은 그 뒤의 2차 방어다.
  */
 @Configuration
 public class PoiLimitsConfig {

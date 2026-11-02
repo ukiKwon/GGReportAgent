@@ -36,8 +36,27 @@ public class ApiExceptionHandler {
 
     private final boolean verbose;
 
-    public ApiExceptionHandler(@Value("${ggreport.errors.detail:false}") boolean verbose) {
+    private final long maxUploadMb;
+
+    public ApiExceptionHandler(boolean verbose) {
+        this(verbose, "50MB");
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ApiExceptionHandler(@Value("${ggreport.errors.detail:false}") boolean verbose,
+                               @Value("${spring.servlet.multipart.max-file-size:1MB}") String maxFile) {
         this.verbose = verbose;
+        this.maxUploadMb = org.springframework.util.unit.DataSize.parse(maxFile).toMegabytes();
+    }
+
+    /** 전역 multipart 한도(50MB) 초과 — 500/기본 본문 대신 413 객체. 파일명·크기 값은 싣지 않는다. */
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleUploadTooLarge(Exception e) {
+        log.warn("업로드 크기 초과(전역 한도)");
+        Map<String, Object> d = new java.util.LinkedHashMap<>();
+        d.put("code", "FILE_TOO_LARGE");
+        d.put("max_mb", maxUploadMb);
+        return ResponseEntity.status(413).body(detail(d));
     }
 
     @ExceptionHandler(ApiException.class)

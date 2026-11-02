@@ -23,6 +23,8 @@ import javax.servlet.http.HttpServletResponse;
 public class AccessLogInterceptor implements HandlerInterceptor {
 
     private static final String START = "ggreport.access.start";
+    /** 컨트롤러가 남길 요약(결과 code·건수·크기만 — 본문·파일명·값 금지). 문자열만 받는다. */
+    public static final String DETAIL = "ggreport.access.detail";
 
     private final AccessLogService accessLog;
 
@@ -44,8 +46,10 @@ public class AccessLogInterceptor implements HandlerInterceptor {
         }
         Object start = req.getAttribute(START);
         Integer ms = start == null ? null : (int) ((System.nanoTime() - (Long) start) / 1_000_000L);
+        Object detail = req.getAttribute(DETAIL);
         accessLog.record(Actor.of(req), "API", req.getMethod(), path, res.getStatus(),
-                req.getRemoteAddr(), req.getHeader("User-Agent"), ms, null);
+                req.getRemoteAddr(), req.getHeader("User-Agent"), ms,
+                detail instanceof String ? (String) detail : null);
     }
 
     static boolean skip(String method, String path) {
