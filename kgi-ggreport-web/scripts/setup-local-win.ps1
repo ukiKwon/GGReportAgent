@@ -9,6 +9,7 @@
     .\scripts\setup-local-win.ps1                 # install + env vars + init MySQL data dir
     .\scripts\setup-local-win.ps1 -SkipIdea       # without IntelliJ (already installed)
     .\scripts\setup-local-win.ps1 -ApplySchema    # step 2: create tables + seeds (see README 5-2); re-run later to add new scripts (014+)
+    .\scripts\setup-local-win.ps1 -ClaudePlugins  # Claude Code plugins for the agent team (README 5-2 step 7)
 
   Passwords are NEVER handled here. Create the DB user and register the password yourself
   (README 5-2 step 4-5); -ApplySchema reads it from the mysql login-path 'ggreport'.
@@ -22,7 +23,8 @@ param(
     [string]$IdeaUrl      = 'https://download.jetbrains.com/idea/idea-2025.3.win.zip',
     [switch]$SkipIdea,
     [switch]$SkipGh,        # GitHub CLI (needed only to open PRs from the terminal)
-    [switch]$ApplySchema
+    [switch]$ApplySchema,
+    [switch]$ClaudePlugins  # install the Claude Code plugins the agent team relies on (user scope)
 )
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -56,6 +58,36 @@ function Invoke-Native([string]$Exe, [string[]]$ArgList) {
             if ($_ -is [System.Management.Automation.ErrorRecord]) { Write-Host $_.ToString() } else { $_ }
         }
     } finally { $ErrorActionPreference = $old }
+}
+
+# ---------------------------------------------------------------- Claude Code plugins
+# The agent team (.claude/agents, handoff/agents/graph.md) expects these plugins at USER scope
+# (so .claude/settings.json is not modified). Uses the claude CLI on PATH, or the binary bundled
+# with the VS Code extension. Takes effect after /reload-plugins; MCP tools (playwright) and the
+# env vars below need a NEW session (restart VS Code).
+if ($ClaudePlugins) {
+    $claude = (Get-Command claude -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+    if (-not $claude) {
+        $claude = Get-ChildItem (Join-Path $env:USERPROFILE '.vscode\extensions') -Directory -Filter 'anthropic.claude-code-*' -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending | ForEach-Object { Join-Path $_.FullName 'resources\native-binary\claude.exe' } |
+            Where-Object { Test-Path $_ } | Select-Object -First 1
+    }
+    if (-not $claude) { throw 'claude CLI not found (install Claude Code or its VS Code extension first)' }
+    # impeccable telemetry off; security-guidance Stop-time diff review off (PUSH-GATE security covers it, saves cost)
+    [Environment]::SetEnvironmentVariable('DO_NOT_TRACK', '1', 'User'); $env:DO_NOT_TRACK = '1'
+    [Environment]::SetEnvironmentVariable('ENABLE_STOP_REVIEW', '0', 'User')
+    Invoke-Native $claude @('plugin', 'marketplace', 'add', 'pbakaus/impeccable') | Out-Host
+    $plugins = 'playwright@claude-plugins-official', 'pr-review-toolkit@claude-plugins-official',
+               'frontend-design@claude-plugins-official', 'code-simplifier@claude-plugins-official',
+               'feature-dev@claude-plugins-official', 'security-guidance@claude-plugins-official',
+               'impeccable@impeccable'
+    foreach ($p in $plugins) {
+        Invoke-Native $claude @('plugin', 'install', $p, '--scope', 'user') | Out-Host
+        if ($LASTEXITCODE -ne 0) { Write-Host "WARN: install failed: $p" }
+    }
+    Invoke-Native $claude @('plugin', 'list') | Out-Host
+    Write-Host 'Done. Run /reload-plugins in Claude Code, then restart VS Code for playwright MCP and the env vars.'
+    return
 }
 
 # ---------------------------------------------------------------- step 2: schema
