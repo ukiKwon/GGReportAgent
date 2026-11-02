@@ -519,7 +519,7 @@ public class BoardWriteApiTest {
         assertEquals(1, m.get("mapping_ver").asInt());
         assertEquals(5, m.get("max_mb").asInt());
         assertEquals(5, m.get("tables").size());
-        call(null, get("/board-forms/excel-map"), null, 401);
+        assertErr(call(null, get("/board-forms/excel-map"), null, 401), "UNAUTHENTICATED");   // 헤더 없이도 객체 형식
         call(HEAD, get("/board-forms/excel-map"), null, 403);
     }
 
