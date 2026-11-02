@@ -183,6 +183,22 @@ mysql_config_editor set --login-path=ggreport --user=ggreport --host=127.0.0.1 -
 
 6) `config/application.properties`의 `<OUT-LOCAL-DB-PASSWORD>`를 3)의 비밀번호로 채우고 §5-1로 간다.
 
+7) **Claude Code 플러그인(에이전트 팀용)** — `.\scripts\setup-local-win.ps1 -ClaudePlugins`.
+PATH의 `claude` 또는 VS Code 확장 동봉 `claude.exe`로 아래를 **사용자 범위**로 설치한다(프로젝트 `.claude/settings.json`은 바꾸지 않는다).
+다시 돌려도 이미 설치된 것은 건너뛴다. 끝나면 Claude Code에서 `/reload-plugins`, **playwright MCP와 환경변수는 VS Code 재시작 뒤** 적용.
+
+| 플러그인 | 왜 | 누가 쓰나 |
+|---|---|---|
+| `playwright` | 화면 열람·스크린샷 | qa-verifier·design-reviewer·frontend-dev(MCP 도구) |
+| `frontend-design`·`impeccable`(제3자 `pbakaus/impeccable`) | 디자인 지침 | 역할 정의 `skills:`로 주입(design-reviewer·frontend-dev), impeccable 명령·훅은 main |
+| `pr-review-toolkit` | 오류 처리·테스트 공백 검토 에이전트 | main이 검증 단계에 qa-verifier와 병렬로 붙임 |
+| `feature-dev` | 기존 코드 탐색 에이전트 | main이 기획 단계에 planner와 병렬로 |
+| `code-simplifier` | 코드 정리 제안 | main(쓰기 작업이라 역할 에이전트에는 안 붙임) |
+| `security-guidance` | 편집 시 위험 패턴 경고·커밋 시 검토 | 훅(자동) |
+
+스크립트가 함께 거는 사용자 환경변수: `DO_NOT_TRACK=1`(impeccable 텔레메트리 끔), `ENABLE_STOP_REVIEW=0`(security-guidance의 작업 종료 시 diff 리뷰 끔 — PUSH-GATE security와 중복·비용).
+주의: 플러그인 에이전트는 모두 도구를 가져도 `.claude/hooks/write-guard.js`가 쓰기를 막는다. `pr-review-toolkit:silent-failure-hunter`는 플러그인 정의 YAML 오류로 설명 없이 로드된다(지시문에 역할 명시). 규칙 전체는 `handoff/agents/graph.md` "플러그인 사용", 근거는 `handoff/agents/history/2026-11-02_플러그인_조사와_설치.md`.
+
 **겪은 함정 4가지**
 
 - ⚠️ **`mysql.exe`·`mysqld.exe`는 VC++ 런타임 DLL을 JDK의 `bin\`에서 가져온다**(이 PC에는 VC 재배포 패키지가

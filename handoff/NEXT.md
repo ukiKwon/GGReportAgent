@@ -53,6 +53,9 @@
 > **Java 앱(`kgi-ggreport-web`) 로컬 기동 환경**(JDK 8·MySQL 8.4·IntelliJ, 관리자 권한 불필요)은
 > `kgi-ggreport-web/README.md` §5-2와 `kgi-ggreport-web/scripts/setup-local-win.ps1`이 한 번에 세운다
 > (2026-10-30 세션, 브랜치 `kgi-report-web-dev`). 아래 Python 절차와는 별개다.
+>
+> **Claude Code 플러그인(에이전트 팀이 의존)**도 새 PC에서 다시 깔아야 한다 — PC 초기화로 전부 지워졌던 적이 있다(2026-11-02).
+> `kgi-ggreport-web\scripts\setup-local-win.ps1 -ClaudePlugins`(README §5-2 7단계)가 7개(playwright·frontend-design·impeccable·pr-review-toolkit·feature-dev·code-simplifier·security-guidance)를 사용자 범위로 설치하고 `DO_NOT_TRACK=1`·`ENABLE_STOP_REVIEW=0`을 건다. 그다음 `/reload-plugins` + VS Code 재시작. VS Code 설정(밝은 테마·글자 크기)은 `%APPDATA%\Code\User\settings.json`, git 작성자 정보는 저장소 로컬 config로 다시 잡는다.
 
 `data/`는 통째로 `.gitignore` 대상이라 **DB·인덱스·산출물은 git에 없다.** 코드만 받고
 아래로 다시 만든다(전부 재생성 가능한 것들이라 잃는 정보는 없다).
