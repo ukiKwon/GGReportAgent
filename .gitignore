@@ -72,4 +72,5 @@ docs/obsidian/task-history/.obsidian/workspace.json
 # 에이전트 대시보드 런타임 상태(훅이 갱신)
 agent-dashboard/state.json
 agent-dashboard/state.json.lock
+agent-dashboard/state.json.*.tmp
 agent-dashboard/closing.log

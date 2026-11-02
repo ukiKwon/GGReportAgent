@@ -153,7 +153,7 @@ manual update, not just an edit to the `.txt` file.
 - 커밋/PR: `commit-commands` · 리뷰: `code-review`, `pr-review-toolkit`, `code-simplifier` · 보안: `security-guidance`, `claude-security`
 - 기능 개발 흐름(기획→설계→구현): `feature-dev` · Java 백엔드 코드 이해: `jdtls-lsp` (Java 언어 서버가 PC에 있어야 함)
 - CLAUDE.md 정비: `claude-md-management` · 훅/플러그인 제작: `hookify`, `plugin-dev` · 라이브러리 문서: `context7`
-- 에이전트 팀(`.claude/agents/`, 9개 읽기 전용)과 `agent-dashboard/`(에이전트 대시보드) 설명은 `handoff/agents/README.md`·`agent-dashboard/README.md`.
+- 에이전트 팀(`.claude/agents/`, 읽기 전용 9개 + 작업 단위 쓰기용 `-write` 2개)과 `agent-dashboard/`(에이전트 대시보드) 설명은 `handoff/agents/README.md`·`agent-dashboard/README.md`.
 - 설치 현황이 바뀌면 이 목록도 같이 고친다.
 
 ## 에이전트 팀 자동 투입 (사용자 요청 2026-10-30)
@@ -165,10 +165,11 @@ manual update, not just an edit to the `.txt` file.
 - 투입 순서(해당하는 역할만): `planner`(범위·선택지) → `design-reviewer`(화면 규격) → `frontend-dev`/`backend-dev`(패치안)
   → 메인이 적용·테스트 → `qa-verifier`(독립 검토) → `security`(권한·입력·비밀값)·`data-auditor`(레코드 값) → `pm`(여러 항목 정리). 큰 작업 묶음이 끝났거나 "마무리" 전에는 `cleaner`(청소부)로 정리 후보를 점검한다.
 - **이 프로젝트의 모든 작업은 최우선으로 역할 에이전트를 호출해서 한다 — 경중과 무관하다**(사용자 요청 2026-10-30; 한두 줄 수정·오타도 포함, 이전의 "사소한 일 예외"는 폐지). 어떤 역할을 부르고 언제 끝낼지는 **메인이 정한다.** **어느 역할에도 속하지 않는 일은 모두 `cleaner`(청소부)에게 넘긴다**(사용자 요청 2026-10-30; 청소부도 읽기 전용이라 처리안을 보고하고 적용은 메인이 한다). **예외: `CLAUDE.md`·역할 정의(`.claude/agents/`) 같은 규칙급 문서는 메인이 직접 고친다**(사용자 확인 2026-10-30). **청소부의 원칙: 커밋·푸시가 기본 업무이고, 병합(`--merge`) 등 그 밖의 작업은 사용자가 별도로 요청할 때만 한다**(사용자 요청 2026-10-30; **커밋은 작업 한 바퀴가 끝날 때마다 무조건 1회, 푸시는 오후 6시 자동 마무리에서** — 사용자가 푸시·PR을 직접 요청하면 예외) — 작업이 끝나도 사용자가 요청하기 전에는 병합을 하지 않고, 먼저 묻지도 않는다. 에이전트를 건너뛰고 메인이 직접 고쳤다면 그 사실을 보고에서 숨기지 않는다.
-- 에이전트는 모두 읽기 전용이다. **파일 적용·테스트 실행·커밋은 메인이 한다.** 보고서는 `handoff/agents/<이름>/`에 저장한다.
-  - **예외(사용자 결정 2026-11-02)**: 에이전트가 직접 써야 하는 작업이면, 메인이 `ListAgents`·실행 중 작업을 보고 같은 파일을 다루는 다른 에이전트가 없음을 확인한 뒤 **그 작업 하나에 한해** 쓰기용 정의(`frontend-dev-write`·`backend-dev-write`)로 부른다. 절차는 `handoff/agents/README.md` "예외: 작업 단위로 쓰기 권한 부여".
+- 에이전트는 기본이 읽기 전용이다(예외: 아래 `-write`). **파일 적용·테스트 실행·커밋은 메인이 한다.** 보고서는 `handoff/agents/<이름>/`에 저장한다.
+  - **예외(사용자 결정 2026-11-02)**: 에이전트가 직접 써야 하는 작업이면, 메인이 `ListAgents`·실행 중 작업을 보고 같은 파일을 다루는 다른 에이전트가 없음을 확인한 뒤 **그 작업 하나에 한해** 쓰기용 정의(`frontend-dev-write`·`backend-dev-write`)로 부른다. 절차는 `handoff/agents/README.md` "예외: 작업 단위로 쓰기 권한 부여". 경로 제한은 프롬프트가 아니라 PreToolUse 훅 `.claude/hooks/write-guard.js`가 강제한다(사용자 결정 2026-11-02, security 사후 검토 중-1) — `-write` 에이전트는 허용 경로(`frontend/index.html`·`frontend/js/*.js`·`frontend/test/*.js`, `kgi-ggreport-web/**`) 밖과 `.claude/`·`.git/`·`agent-dashboard/`·비밀번호 설정 파일을 쓸 수 없다. 훅이 실제로 막는지 확인되기 전에는 `-write`를 부르지 않는다.
   - **보고 형식(사용자 요청 2026-11-02)**: 에이전트 지시서를 메인이 적용할 때는 "**<에이전트>가 작업 지시서 작성을 완료해서 main이 작업한다**"를 먼저 밝힌다. 지시서에 없던 메인의 판단은 따로 밝힌다.
   - **최초 전산환경 세팅**(IntelliJ·JDK·MySQL 설치, VSCode 설정 등 PC 환경)은 메인만 할 수 있는 일이라 메인이 직접 한다(사용자 확인 2026-11-02).
+  - **푸시 전 관문(사용자 지적 2026-11-02)**: 커밋·푸시 전에 `security`(그 푸시 범위 diff 전체)·`pm`(항목 상태·NEXT 정리)·`cleaner`를 병렬로 부르고, 화면(마크업·CSS·문구)이 바뀌었으면 `design-reviewer`가 커밋 전에 규격과 대조한다. 보안은 설계 단계에서도 한 번 본다(업로드·권한·입력·비밀값 기능). 세부는 `handoff/agents/graph.md` "PUSH-GATE".
 - 승인 범위: 이미 승인된 작업 항목 안에서 읽기 전용 에이전트를 부르는 것은 다시 묻지 않는다. 코드 적용·푸시 등은 기존 규칙대로.
 - 병렬로 불러도 되는 것(서로 독립인 검토)은 한 번에 부른다.
 

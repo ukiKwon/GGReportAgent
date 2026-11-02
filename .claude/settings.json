@@ -60,6 +60,15 @@
     ],
     "PreToolUse": [
       {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/write-guard.js\""
+          }
+        ]
+      },
+      {
         "matcher": "Agent|Task",
         "hooks": [
           {
@@ -68,6 +77,12 @@
           }
         ]
       }
+    ]
+  },
+  "permissions": {
+    "deny": [
+      "Read(kgi-ggreport-web/config/application.properties)",
+      "Read(uploader/config/application.properties)"
     ]
   },
   "enabledPlugins": {
