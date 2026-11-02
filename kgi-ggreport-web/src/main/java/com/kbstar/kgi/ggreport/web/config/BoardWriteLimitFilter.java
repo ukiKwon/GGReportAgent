@@ -67,11 +67,16 @@ public class BoardWriteLimitFilter implements Filter {
         int status = len < 0 ? 411 : 413;
         String code = len < 0 ? "LENGTH_REQUIRED" : excel ? "FILE_TOO_LARGE" : "BODY_TOO_LARGE";
         String extra = excel ? ",\"max_mb\":" + maxMb : ",\"max_kb\":" + (DRAFT_MAX / 1024);
+        // message 는 고정 문구 + 설정 숫자뿐 — 따옴표·역슬래시를 넣지 않는다(이스케이프 없이 직접 조립한다).
+        String message = len < 0 ? "요청 본문의 길이를 알 수 없어 처리하지 않았습니다. 다시 시도해 주세요."
+                : excel ? "파일이 너무 큽니다. " + maxMb + "MB 이하만 올릴 수 있습니다."
+                : "요청 내용이 너무 큽니다. " + (DRAFT_MAX / 1024) + "KB 이하로 줄여 주세요.";
         HttpServletResponse res = (HttpServletResponse) response;
         res.setStatus(status);
         res.setHeader("Connection", "close");
         res.setContentType("application/json;charset=UTF-8");
-        res.getOutputStream().write(("{\"detail\":{\"code\":\"" + code + "\"" + extra + "}}")
+        res.getOutputStream().write(("{\"detail\":{\"code\":\"" + code + "\",\"message\":\"" + message + "\""
+                + extra + "}}")
                 .getBytes(StandardCharsets.UTF_8));
         accessLog.record(Actor.of(req), "API", req.getMethod(), req.getRequestURI(), status,
                 req.getRemoteAddr(), req.getHeader("User-Agent"), null,

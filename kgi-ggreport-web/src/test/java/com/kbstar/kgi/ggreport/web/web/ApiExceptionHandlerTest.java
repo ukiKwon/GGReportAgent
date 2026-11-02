@@ -75,7 +75,8 @@ public class ApiExceptionHandlerTest {
         Map<?, ?> d = (Map<?, ?>) detail(r);
         assertEquals("FILE_TOO_LARGE", d.get("code"));
         assertEquals(50L, ((Number) d.get("max_mb")).longValue());
-        assertEquals(2, d.size());
+        assertFalse(String.valueOf(d.get("message")).isEmpty());
+        assertEquals(3, d.size());                                // code, message, max_mb
     }
 
     @Test

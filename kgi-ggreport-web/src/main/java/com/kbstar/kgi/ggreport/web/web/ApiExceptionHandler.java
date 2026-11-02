@@ -55,6 +55,7 @@ public class ApiExceptionHandler {
         log.warn("업로드 크기 초과(전역 한도)");
         Map<String, Object> d = new java.util.LinkedHashMap<>();
         d.put("code", "FILE_TOO_LARGE");
+        d.put("message", "파일이 너무 큽니다. " + maxUploadMb + "MB 이하만 올릴 수 있습니다.");
         d.put("max_mb", maxUploadMb);
         return ResponseEntity.status(413).body(detail(d));
     }

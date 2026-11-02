@@ -138,12 +138,20 @@ public class BoardWriteService {
         }
         List<Map<String, Object>> reasons = BoardExcelFill.structure(book, map, refs);
         if (!reasons.isEmpty()) {
-            Map<String, Object> d = detail("STRUCTURE_MISMATCH", "엑셀 양식이 예상한 모양과 다릅니다.");
+            Map<String, Object> d = detail("STRUCTURE_MISMATCH",
+                    "엑셀에 필요한 시트가 없어 처리하지 않았습니다. 시트 이름을 확인해 주세요.");
             d.put("reasons", reasons);
             throw ApiException.withDetail(422, d);
         }
         Map<String, Object> filled = BoardExcelFill.fill(book, map, target.getDoc());
         List<Map<String, Object>> warnings = new ArrayList<>();
+        List<String> labelRefs = BoardExcelFill.labelMismatchRefs(filled);
+        if (!labelRefs.isEmpty()) {
+            Map<String, Object> lw = detail("LABEL_MISMATCH",
+                    "엑셀의 머리글이 예상과 달라 해당 표의 칸을 직접 확인해야 합니다. 대부분 다르면 값을 채우지 않았습니다.");
+            lw.put("tables", labelRefs);
+            warnings.add(lw);
+        }
         if (book.hasExternalLinks()) {
             warnings.add(detail("EXTERNAL_LINK", "다른 파일을 참조하는 연결이 있습니다. 값은 마지막으로 저장된 값입니다."));
         }
