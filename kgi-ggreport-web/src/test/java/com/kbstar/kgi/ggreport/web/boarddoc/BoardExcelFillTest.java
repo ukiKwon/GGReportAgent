@@ -1,7 +1,12 @@
 package com.kbstar.kgi.ggreport.web.boarddoc;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.kbstar.kgi.ggreport.web.docfill.XlsxBook;
+import org.springframework.core.io.ClassPathResource;
+import java.io.InputStream;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.Test;
@@ -243,14 +248,159 @@ public class BoardExcelFillTest {
     }
 
     @Test
-    public void 숨김_서식_판별은_세미콜론만인_구역만() {
-        assertTrue(XlsxBook.hiddenFormat(";;;"));
-        assertTrue(XlsxBook.hiddenFormat(";;"));
-        assertTrue(XlsxBook.hiddenFormat(";;;@"));
-        assertFalse(XlsxBook.hiddenFormat("#,##0"));
-        assertFalse(XlsxBook.hiddenFormat("#,##0;;;"));
-        assertFalse(XlsxBook.hiddenFormat("; ;;"));
-        assertFalse(XlsxBook.hiddenFormat(null));
+    public void 숨김_서식_숫자는_값의_부호에_해당하는_구역으로_판별() {
+        assertTrue(XlsxBook.hiddenNumber(";;;", 5));
+        assertTrue(XlsxBook.hiddenNumber(";;", 5));
+        assertTrue(XlsxBook.hiddenNumber(";;;@", 5));
+        assertTrue(XlsxBook.hiddenNumber("; ;;", 5));                 // 첫 구역이 비어 있다(공백만)
+        assertFalse(XlsxBook.hiddenNumber("#,##0", 5));
+        assertFalse(XlsxBook.hiddenNumber("#,##0", -5));
+        assertFalse(XlsxBook.hiddenNumber("#,##0;;;", 5));            // 양수는 보인다
+        assertTrue(XlsxBook.hiddenNumber("#,##0;;;", -5));
+        assertTrue(XlsxBook.hiddenNumber("#,##0;;;", 0));
+        assertFalse(XlsxBook.hiddenNumber("#,##0;;", 5));
+        assertTrue(XlsxBook.hiddenNumber("#,##0;;", -5));             // 음수 숨김
+        assertTrue(XlsxBook.hiddenNumber("#,##0;;", 0));              // 0 숨김
+        assertFalse(XlsxBook.hiddenNumber("#,##0;-#,##0", -5));       // 2구역
+        assertTrue(XlsxBook.hiddenNumber("#,##0;", -5));
+        assertFalse(XlsxBook.hiddenNumber("#,##0;", 0));              // 2구역: 0은 1번
+        assertTrue(XlsxBook.hiddenNumber("\"\";\"\";\"\"", 5));
+        assertTrue(XlsxBook.hiddenNumber("\"\";\"\";\"\"", -5));
+        assertTrue(XlsxBook.hiddenNumber("\"\";\"\";\"\"", 0));
+        assertFalse(XlsxBook.hiddenNumber("\"원\"#,##0", 5));         // 리터럴을 걷어도 자리표시자가 남는다
+        assertFalse(XlsxBook.hiddenNumber("[Red]0.0_);\\(0.0\\)", 5));
+        assertFalse(XlsxBook.hiddenNumber("General", 5));
+        assertFalse(XlsxBook.hiddenNumber("yyyy-mm-dd", 5));
+        assertFalse(XlsxBook.hiddenNumber("\"a;b\"0", 5));            // 따옴표 안의 ';' 는 구역 구분이 아니다
+        assertFalse(XlsxBook.hiddenNumber(null, 5));
+        assertFalse(XlsxBook.hiddenNumber("", 5));
+    }
+
+    @Test
+    public void 숨김_서식_문자열은_4번째_구역이_있고_숨김일_때만() {
+        assertTrue(XlsxBook.hiddenText(";;;"));
+        assertTrue(XlsxBook.hiddenText("\"\";\"\";\"\";\"\""));
+        assertFalse(XlsxBook.hiddenText(";;;@"));
+        assertFalse(XlsxBook.hiddenText(";;"));                       // 4번째 구역 없음
+        assertFalse(XlsxBook.hiddenText("#,##0"));
+        assertFalse(XlsxBook.hiddenText(null));
+    }
+
+    @Test
+    public void 문자열_칸도_4번째_구역이_비면_HIDDEN_FORMAT() throws Exception {
+        Map<String, Object> out = run(new BoardExcelMap(), wb -> {
+            CellStyle hide = wb.createCellStyle();
+            hide.setDataFormat(wb.createDataFormat().getFormat(";;;"));
+            wb.getSheet("기부금").getRow(1).getCell(0).setCellStyle(hide);   // A2 기관명(문자열)
+        });
+        assertTrue(hasWarning(cell(out, "A", "r1c0"), "HIDDEN_FORMAT"));
+    }
+
+    @Test
+    public void 보통_서식_숫자_칸은_HIDDEN_FORMAT이_없고_음수_0_숨김은_값에_따라() throws Exception {
+        Map<String, Object> out = run(new BoardExcelMap(), wb -> {
+            CellStyle hide = wb.createCellStyle();
+            hide.setDataFormat(wb.createDataFormat().getFormat("#,##0;;"));
+            wb.getSheet("기부금").getRow(1).getCell(2).setCellValue(-3);     // C2 음수 → 숨김
+            wb.getSheet("기부금").getRow(1).getCell(2).setCellStyle(hide);
+            wb.getSheet("기부금").getRow(2).getCell(2).setCellStyle(hide);   // C3 양수 → 보임
+        });
+        assertTrue(hasWarning(cell(out, "A", "r1c2"), "HIDDEN_FORMAT"));
+        assertFalse(hasWarning(cell(out, "A", "r2c1"), "HIDDEN_FORMAT"));
+        assertFalse(hasWarning(cell(out, "A", "r3c1"), "HIDDEN_FORMAT"));    // #,##0 보통 칸
+    }
+
+    // ── 보강: 짝수 경계·rawDecimal·별칭 한도·퍼센트·검사 상한·warnings 집계 ──
+
+    /** 표 A 의 머리글을 주어진 것으로만 바꾼 지도(범위 안·매핑 칸 밖이어야 한다). */
+    private static BoardExcelMap mapWithLabels(String... cellAndExpected) throws Exception {
+        ObjectNode root;
+        try (InputStream in = new ClassPathResource(BoardExcelMap.RESOURCE).getInputStream()) {
+            root = (ObjectNode) new ObjectMapper().readTree(in);
+        }
+        for (JsonNode t : root.get("tables")) {
+            if ("A".equals(t.get("ref").asText())) {
+                ObjectNode labels = ((ObjectNode) t).putObject("labels");
+                for (int i = 0; i < cellAndExpected.length; i += 2) {
+                    labels.put(cellAndExpected[i], cellAndExpected[i + 1]);
+                }
+            }
+        }
+        return new BoardExcelMap(root);
+    }
+
+    @Test
+    public void C1_짝수_경계_라벨_2개_중_1개가_다르면_failed() throws Exception {
+        BoardExcelMap m = mapWithLabels("B4", "전산시스템 구축/운영비용", "B5", "합계");
+        assertEquals("failed", table(run(m, wb -> change(wb, "B5")), "A").get("label_state"));
+        assertEquals("ok", table(run(m, null), "A").get("label_state"));
+    }
+
+    @Test
+    public void label_mismatches는_10건까지만_싣고_failed() throws Exception {
+        String[] a = {"D1", "x1", "D2", "x2", "D3", "x3", "A3", "x4", "A4", "x5", "A5", "x6", "D4", "x7", "D5", "x8",
+                "B1", "x9", "C1", "x10", "A1", "x11"};
+        Map<String, Object> out = run(mapWithLabels(a), null);
+        assertEquals("failed", table(out, "A").get("label_state"));
+        assertEquals(10, ((List<?>) table(out, "A").get("label_mismatches")).size());
+    }
+
+    @Test
+    public void 별칭_10개_100자도_정상_로드() throws Exception {
+        ArrayNode arr = new ObjectMapper().createArrayNode().add("합계");
+        for (int i = 0; i < 8; i++) {
+            arr.add("별칭" + i);
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            sb.append('가');
+        }
+        arr.add(sb.toString());
+        assertEquals(10, arr.size());
+        Map<String, Object> out = run(BoardExcelFixture.mapWithLabel("A", "B5", arr), null);
+        assertEquals("ok", table(out, "A").get("label_state"));
+    }
+
+    @Test
+    public void rawDecimal_소수_6자리_반올림과_41자리_초과는_null() throws Exception {
+        Map<String, Object> out = run(new BoardExcelMap(), wb -> {
+            wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(1234.5678915);
+            wb.getSheet("기부금").getRow(3).getCell(2).setCellValue(1e40);     // 41자리 정수
+        });
+        assertEquals("1234.567892", source(cell(out, "A", "r2c1")).get("raw"));
+        Map<String, Object> huge = cell(out, "A", "r3c1");
+        assertNull(source(huge).get("raw"));
+        assertNull(source(huge).get("rounded"));
+    }
+
+    @Test
+    public void 숫자가_아닌_칸과_읽지_못한_칸은_raw가_null() throws Exception {
+        Map<String, Object> out = run(new BoardExcelMap(), wb ->
+                ((org.apache.poi.xssf.usermodel.XSSFCell) wb.getSheet("기부금").getRow(4).getCell(2)).getCTCell().unsetV());
+        assertNull(source(cell(out, "A", "r1c0")).get("raw"));          // 문자열(numeric=false)
+        assertNull(source(cell(out, "A", "r4c1")).get("raw"));          // problem
+    }
+
+    @Test
+    public void 퍼센트_0점12는_raw_0점12_rounded는_null() throws Exception {
+        Map<String, Object> out = run(new BoardExcelMap(), wb -> {
+            CellStyle pct = wb.createCellStyle();
+            pct.setDataFormat(wb.createDataFormat().getFormat("0%"));
+            wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(0.12);
+            wb.getSheet("기부금").getRow(2).getCell(2).setCellStyle(pct);
+        });
+        Map<String, Object> c = cell(out, "A", "r2c1");
+        assertEquals("12%", c.get("value"));
+        assertEquals("0.12", source(c).get("raw"));
+        assertNull(source(c).get("rounded"));
+    }
+
+    @Test
+    public void summary_warnings는_칸_단위_LABEL_MISMATCH를_세지_않는다() throws Exception {
+        Map<String, Object> out = run(new BoardExcelMap(), B5_TOTAL2);   // 표 A 5칸 모두 LABEL_MISMATCH 경고
+        assertEquals(0, summary(out).get("warnings"));
+        assertEquals(1, summary(out).get("label_mismatch_tables"));
+        assertTrue(hasWarning(cell(out, "A", "r1c2"), "LABEL_MISMATCH"));  // 칸 배열은 그대로
     }
 
     // ── shownNum·plain·rawDecimal ──

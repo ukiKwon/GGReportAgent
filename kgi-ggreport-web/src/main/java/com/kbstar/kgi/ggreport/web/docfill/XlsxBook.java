@@ -184,10 +184,10 @@ public final class XlsxBook implements Closeable {
                 double d = c.getNumericCellValue();
                 CellStyle st = c.getCellStyle();
                 return new Value(fmt.formatRawCellContents(d, st.getDataFormat(), st.getDataFormatString()), raw(d), null, true,
-                        hiddenFormat(st.getDataFormatString()));
+                        hiddenNumber(st.getDataFormatString(), d));
             case STRING:
                 String s = c.getRichStringCellValue().getString();
-                return new Value(s, s, null);
+                return new Value(s, s, null, false, hiddenText(c.getCellStyle().getDataFormatString()));
             case BOOLEAN:
                 String b = c.getBooleanCellValue() ? "TRUE" : "FALSE";
                 return new Value(b, b, null);
@@ -198,18 +198,70 @@ public final class XlsxBook implements Closeable {
         }
     }
 
-    /** 서식에 ';' 가 있고 앞의 숫자 구역(최대 3개)이 전부 빈 문자열이면 숨김 서식(";;;", ";;", ";;;@"). 공백·리터럴이 있으면 아님. */
-    public static boolean hiddenFormat(String f) {
-        if (f == null || f.indexOf(';') < 0) {
+    /**
+     * 숫자 셀의 값 부호에 해당하는 구역이 숨김이면 true. 구역 1개=전체, 2개=양수·0은 1번/음수는 2번,
+     * 3개 이상=양수/음수/0. 서식 문자열은 어디에도 싣지 않는다.
+     */
+    public static boolean hiddenNumber(String f, double d) {
+        List<String> sec = sections(f);
+        if (sec.isEmpty()) {
             return false;
         }
-        String[] parts = f.split(";", -1);
-        for (int i = 0; i < Math.min(parts.length, 3); i++) {
-            if (!parts[i].isEmpty()) {
+        int i;
+        if (sec.size() == 1) {
+            i = 0;
+        } else if (sec.size() == 2) {
+            i = d < 0 ? 1 : 0;
+        } else {
+            i = d > 0 ? 0 : d < 0 ? 1 : 2;
+        }
+        return invisible(sec.get(i));
+    }
+
+    /** 문자열 셀: 4번째 구역이 있고 숨김이면 true. */
+    public static boolean hiddenText(String f) {
+        List<String> sec = sections(f);
+        return sec.size() >= 4 && invisible(sec.get(3));
+    }
+
+    /** 따옴표 리터럴·\x·_x·*x·[...] 를 걷어낸 뒤 자리표시자(0 # ? @)도 영문자(General·날짜 서식)도 없으면 안 보이는 구역. */
+    private static boolean invisible(String stripped) {
+        for (int i = 0; i < stripped.length(); i++) {
+            char ch = stripped.charAt(i);
+            if (ch == '0' || ch == '#' || ch == '?' || ch == '@'
+                    || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
                 return false;
             }
         }
         return true;
+    }
+
+    /** ';' 로 구역을 나누되 따옴표 안·괄호 안의 ';' 는 무시하고, 리터럴·이스케이프·조건 부분은 이미 걷어낸 문자열을 돌려준다. */
+    private static List<String> sections(String f) {
+        List<String> out = new ArrayList<>();
+        if (f == null || f.isEmpty()) {
+            return out;
+        }
+        StringBuilder cur = new StringBuilder();
+        for (int i = 0; i < f.length(); i++) {
+            char ch = f.charAt(i);
+            if (ch == '"') {
+                int e = f.indexOf('"', i + 1);
+                i = e < 0 ? f.length() : e;
+            } else if (ch == '[') {
+                int e = f.indexOf(']', i + 1);
+                i = e < 0 ? f.length() : e;
+            } else if (ch == '\\' || ch == '_' || ch == '*') {
+                i++;
+            } else if (ch == ';') {
+                out.add(cur.toString());
+                cur.setLength(0);
+            } else {
+                cur.append(ch);
+            }
+        }
+        out.add(cur.toString());
+        return out;
     }
 
     /** 숫자 원값 — 정수면 정수 표현(서식에 가려진 13자리도 그대로), 아니면 평문 소수. */

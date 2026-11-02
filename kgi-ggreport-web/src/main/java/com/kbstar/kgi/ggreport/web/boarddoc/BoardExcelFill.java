@@ -155,7 +155,11 @@ public final class BoardExcelFill {
                 total++;
                 Object st = c.get("status");
                 if ("filled".equals(st)) filled++; else if ("review".equals(st)) review++; else failed++;
-                warns += warnings(c).size();
+                for (Map<String, Object> wn : warnings(c)) {      // 머리글 주의는 label_mismatch_tables 로 센다
+                    if (!"LABEL_MISMATCH".equals(wn.get("code"))) {
+                        warns++;
+                    }
+                }
             }
             Map<String, Object> tm = new LinkedHashMap<>();
             tm.put("ref", t.getRef());
@@ -208,6 +212,7 @@ public final class BoardExcelFill {
 
     /**
      * 숫자 셀의 원값 — 소수 6자리 HALF_UP. 숫자 셀이 아니거나 읽을 수 없거나 40자를 넘으면 null.
+     * 소수 6자리 한계, 날짜 서식은 일련번호 — 프런트는 rounded=null이면 raw를 숫자 원값으로만 취급.
      * 정규식을 통과한 뒤에만 BigDecimal 로 바꾸고 예외는 null 로 삼킨다(셀 값을 로그·메시지에 쓰지 않는다).
      */
     static BigDecimal rawDecimal(XlsxBook.Value v) {

@@ -4,16 +4,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
-import org.springframework.dao.DataAccessException;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -60,11 +60,37 @@ public class BoardWriteExceptionHandler {
         return respond(415, detail("UNSUPPORTED_MEDIA_TYPE", MSG_UNSUPPORTED));
     }
 
-    @ExceptionHandler({IllegalStateException.class, IllegalArgumentException.class,
-            DataAccessException.class, UncheckedIOException.class})
-    public ResponseEntity<Map<String, Object>> handleUnexpected(Exception e) {
-        log.error("처리되지 않은 예외 {}", e.getClass().getSimpleName());   // 메시지에 셀 값이 섞일 수 있어 클래스 이름만
+    /** 요청 파라미터 누락·타입 불일치 등 처리기 없는 MVC 예외는 500 이 아니라 400 상수 문구로. */
+    @ExceptionHandler({ServletRequestBindingException.class,    // MissingServletRequestParameterException 포함
+            TypeMismatchException.class})                       // MethodArgumentTypeMismatchException 포함
+    public ResponseEntity<Map<String, Object>> handleBadRequest(Exception e) {
+        return respond(400, detail("BAD_REQUEST", MSG_FALLBACK));
+    }
+
+    /**
+     * 나머지 런타임 예외 전부(ISE·IAE·DataAccess·UncheckedIO·NPE 등) → 500 일반 문구. 더 구체적인 처리기가 우선한다.
+     * (깨진 multipart 는 핸들러 결정 전에 터져 이 advice 범위 밖이다.)
+     */
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<Map<String, Object>> handleUnexpected(RuntimeException e) {
+        log.error("처리되지 않은 예외 {}", describe(e));
         return respond(500, detail("SERVER_ERROR", ApiExceptionHandler.GENERIC_500));
+    }
+
+    /** 로그용 — getMessage() 는 셀 값이 섞일 수 있어 쓰지 않는다. 클래스 이름 + 앞쪽 스택 프레임 8개 + cause 클래스 사슬(최대 5). */
+    static String describe(Throwable e) {
+        StringBuilder sb = new StringBuilder(e.getClass().getName());
+        StackTraceElement[] st = e.getStackTrace();
+        for (int i = 0; i < Math.min(8, st.length); i++) {
+            sb.append("\n    at ").append(st[i]);
+        }
+        sb.append("\n    causes:");
+        Throwable c = e.getCause();
+        for (int i = 0; i < 5 && c != null && c != e; i++) {
+            sb.append(' ').append(c.getClass().getName());
+            c = c.getCause();
+        }
+        return sb.toString();
     }
 
     static String codeOf(int status) {
