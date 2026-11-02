@@ -623,3 +623,5 @@
 
 ### 41. 브라우저 확인 묶음 — 해소(2026-11-02)
 - qa-verifier Playwright 열람 확인: 편집 모드 A1~A10·대시보드 물 붓기 B1~B9 조건부 통과(P0·P1 없음). 보고서 `handoff/agents/qa-verifier/2026-11-02_NEXT41_브라우저확인.md`. P3 6건은 NEXT 44로 이관, 37 작성 모드 확인은 37 자체 QA 단계에서.
+### 38. 이사회 작성 API 오류 detail 형식 통일 — 해소(2026-11-02)
+- f032ae3에서 작성 컨트롤러 전용 advice(`BoardWriteExceptionHandler`)로 모든 오류 `{detail:{code,message}}`(411·413 필터·전역 multipart 포함), 792e18d에서 RuntimeException 객체 응답·500 로그 스택 프레임만. 서버 600/600. 프런트 소비 확인은 NEXT 37 브라우저 확인으로 이관. 전역 `ApiExceptionHandler` 문자열 detail(다른 화면)은 NEXT 35 ⓔ에 남김.
