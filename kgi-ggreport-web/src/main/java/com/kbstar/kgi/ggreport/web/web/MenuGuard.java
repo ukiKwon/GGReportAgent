@@ -68,6 +68,16 @@ public class MenuGuard {
         return actor;
     }
 
+    /** {@link #require} 에 더해 그 메뉴의 작성 권한(사용자 예외 CAN_WRITE 또는 관리자). 401/403 은 DENIED(본문 없음). */
+    public Actor requireWrite(HttpServletRequest req, String menuKey, String deniedMessage) {
+        Actor actor = require(req, menuKey);
+        if (!permissions.canWrite(actor.getEmpNo(), menuKey)) {
+            deny(req, actor, 403, "no write permission: " + menuKey);
+            throw new ApiException(403, deniedMessage);
+        }
+        return actor;
+    }
+
     private void deny(HttpServletRequest req, Actor actor, int status, String why) {
         req.setAttribute(AdminGuard.DENIED_LOGGED, Boolean.TRUE);
         accessLog.record(actor, "DENIED", req.getMethod(), req.getRequestURI(), status,

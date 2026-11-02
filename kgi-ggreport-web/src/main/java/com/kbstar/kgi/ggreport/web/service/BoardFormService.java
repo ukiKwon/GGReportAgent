@@ -64,6 +64,7 @@ public class BoardFormService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("team_key", team);
         out.put("can_edit", permissions.canEdit(empNo, MENU_KEY));
+        out.put("can_write", permissions.canWrite(empNo, MENU_KEY));
         out.put("base", base);
         out.put("items", items);
         return out;
@@ -121,6 +122,42 @@ public class BoardFormService {
         out.put("current_version", f.getCurrentVer());
         out.put("items", items);
         return out;
+    }
+
+    /** 작성 대상. id 는 String(default_doc) 또는 Long(양식 번호). 매핑 칸은 빈 값(sample=false). */
+    public static final class WriteTarget {
+        private final Object id;
+        private final Integer version;
+        private final String name;
+        private final BoardDocSpec.Doc doc;
+
+        WriteTarget(Object id, Integer version, String name, BoardDocSpec.Doc doc) {
+            this.id = id; this.version = version; this.name = name; this.doc = doc;
+        }
+
+        public Object getId() { return id; }
+        public Integer getVersion() { return version; }
+        public String getName() { return name; }
+        public BoardDocSpec.Doc getDoc() { return doc; }
+    }
+
+    /** 남의 팀 404, 보관 양식 400, default_doc+version 400. 권한 문지기는 컨트롤러(requireWrite). */
+    @Transactional(readOnly = true)
+    public WriteTarget formForWrite(String empNo, String id, String version) {
+        if (BoardDocSpec.DEFAULT_ID.equals(id)) {
+            if (version != null && !version.isEmpty()) {
+                throw ApiException.badRequest("기본 양식에는 version 을 쓸 수 없습니다.");
+            }
+            teamOf(empNo);
+            BoardDocSpec.Doc d = BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false);
+            return new WriteTarget(BoardDocSpec.DEFAULT_ID, null, d.getName(), d);
+        }
+        BoardForm f = load(empNo, id);
+        if (!ACTIVE.equals(f.getStatus())) {
+            throw ApiException.badRequest("보관된 양식으로는 작성할 수 없습니다. 먼저 복원해 주세요.");
+        }
+        BoardFormVer v = pickVersion(f, version);
+        return new WriteTarget(f.getFormId(), v.getVerNo(), v.getName(), docOf(f, v, false));
     }
 
     // ── 쓰기 (호출 전에 컨트롤러가 requireEdit 를 지난다) ──

@@ -277,6 +277,54 @@ public final class BoardDocSpec {
         return new Doc(id, name, out.toArray(new Table[0]));
     }
 
+    /**
+     * 화면이 보낸 값을 <b>매핑 칸에만</b> 얹은 새 Doc. values: 표 ref → (칸 키 → 값). 보내지 않은 매핑 칸은 빈칸.
+     * 매핑 칸이 아닌 키·문서에 없는 표는 EditException. 값은 clean(제어문자 거부·trim·100자).
+     * <p>⚠️ 보안 메모: 워드에는 w:t 일반 텍스트로만 쓴다(BoardDocDocx.run → XWPFRun.setText) — 수식 주입 처리가 필요 없다.
+     * 이 값을 필드 코드(fldSimple·instrText)나 하이퍼링크에 넣지 말 것. CSV/xlsx 내보내기가 생기면
+     * =,+,-,@ 로 시작하는 값 앞에 ' 를 붙일 것.
+     */
+    public static Doc withValues(Doc doc, Map<String, Map<String, String>> values) {
+        Map<String, Map<String, String>> in = values == null
+                ? new java.util.HashMap<String, Map<String, String>>() : values;
+        Set<String> refs = new HashSet<>();
+        for (Table t : doc.getTables()) {
+            refs.add(t.getId());
+        }
+        if (!refs.containsAll(in.keySet())) {
+            throw new EditException("알 수 없는 표입니다.");
+        }
+        List<Table> out = new ArrayList<>();
+        for (Table t : doc.getTables()) {
+            Map<String, String> cells = in.get(t.getId()) == null
+                    ? new java.util.HashMap<String, String>() : in.get(t.getId());
+            Set<String> mapped = new HashSet<>();
+            List<List<Cell>> rows = new ArrayList<>();
+            for (int r = 0; r < t.getRows().size(); r++) {
+                List<Cell> dst = new ArrayList<>();
+                for (int i = 0; i < t.getRows().get(r).size(); i++) {
+                    Cell c = t.getRows().get(r).get(i);
+                    String key = cellKey(r, i);
+                    String text = c.getText();
+                    if (c.isMapped()) {
+                        mapped.add(key);
+                        String v = cells.get(key);
+                        text = v == null ? "" : clean(v, MAX_CELL, true, null,
+                                "칸 값은 " + MAX_CELL + "자 이하로 입력해 주세요.", "칸 값에 쓸 수 없는 문자가 있습니다.");
+                    }
+                    dst.add(new Cell(text, c.getColspan(), c.getRowspan(), c.isHeader(), c.isMapped(), c.getAlign()));
+                }
+                rows.add(dst);
+            }
+            if (!mapped.containsAll(cells.keySet())) {
+                throw new EditException("값을 넣을 수 없는 칸이 포함되어 있습니다.");
+            }
+            out.add(new Table(t.getId(), t.getMapping(), t.getTitle(), t.getColumns(), rows,
+                    t.getNotes().toArray(new String[0])));
+        }
+        return new Doc(doc.getId(), doc.getName(), out.toArray(new Table[0]));
+    }
+
     /** 제어문자(줄바꿈·탭 포함)·짝 없는 서로게이트·U+FFFE/FFFF 거부 후 앞뒤 공백 제거, 길이 검사. */
     private static String clean(String raw, int max, boolean allowEmpty, String emptyMsg, String longMsg, String badMsg) {
         if (raw == null) {

@@ -163,6 +163,25 @@ public class PermissionService {
         return (p != null && p.isCanEdit()) || viewOf(u, mine, base, Menus.ADMIN_MENU);
     }
 
+    /** canEdit 과 같은 규칙으로 CAN_WRITE 를 본다. 역할 기본값에는 작성 권한이 없다 — 이사회 자료 작성이 쓴다. */
+    @Transactional(readOnly = true)
+    public boolean canWrite(String empNo, String menuKey) {
+        if (!MenuPerms.isEmpNo(empNo)) {
+            return false;
+        }
+        SysUser u = users.selectByEmpNo(empNo);
+        if (u == null || !"ACTIVE".equals(u.getStatus())) {
+            return false;
+        }
+        Map<String, UserMenuPerm> mine = byMenu(perms.selectByEmpNo(empNo));
+        Map<String, Boolean> base = menus.menusFor(u.getRole());
+        if (!viewOf(u, mine, base, menuKey)) {
+            return false;
+        }
+        UserMenuPerm p = mine.get(menuKey);
+        return (p != null && p.isCanWrite()) || viewOf(u, mine, base, Menus.ADMIN_MENU);
+    }
+
     @Transactional
     public int save(String empNo, List<SysAdminIn.Perm> changes, Actor actor) {
         SysUser u = require(empNo);

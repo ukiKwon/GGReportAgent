@@ -68,6 +68,17 @@ public class ApiExceptionHandlerTest {
     }
 
     @Test
+    public void 전역_업로드_한도_초과는_413_객체이고_파일명이_없다() {
+        ResponseEntity<Map<String, Object>> r = new ApiExceptionHandler(false, "50MB")
+                .handleUploadTooLarge(new org.springframework.web.multipart.MaxUploadSizeExceededException(-1));
+        assertEquals(413, r.getStatusCodeValue());
+        Map<?, ?> d = (Map<?, ?>) detail(r);
+        assertEquals("FILE_TOO_LARGE", d.get("code"));
+        assertEquals(50L, ((Number) d.get("max_mb")).longValue());
+        assertEquals(2, d.size());
+    }
+
+    @Test
     public void 개발축에서는_예외_원문을_싣는다() {
         ResponseEntity<Map<String, Object>> r = new ApiExceptionHandler(true)
                 .handleUnexpected(new IllegalStateException("boom"));

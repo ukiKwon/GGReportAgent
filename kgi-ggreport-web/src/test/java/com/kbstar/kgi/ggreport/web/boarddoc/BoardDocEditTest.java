@@ -179,6 +179,47 @@ public class BoardDocEditTest {
     }
 
     @Test
+    public void withValues는_매핑_칸이_아닌_키와_모르는_표를_거부한다() {
+        BoardDocSpec.Doc base = BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false);
+        Map<String, Map<String, String>> v = new LinkedHashMap<>();
+        Map<String, String> cells = new LinkedHashMap<>();
+        cells.put("r0c0", "x");                                       // 머리글(비매핑) 칸
+        v.put("A", cells);
+        try {
+            BoardDocSpec.withValues(base, v);
+            fail("EditException 이 나와야 한다");
+        } catch (BoardDocSpec.EditException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("값을 넣을 수 없는 칸"));
+        }
+        Map<String, Map<String, String>> unknown = new LinkedHashMap<>();
+        unknown.put("ZZ", new LinkedHashMap<String, String>());
+        try {
+            BoardDocSpec.withValues(base, unknown);
+            fail("EditException 이 나와야 한다");
+        } catch (BoardDocSpec.EditException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("알 수 없는 표"));
+        }
+    }
+
+    @Test
+    public void withValues는_보낸_매핑_칸만_채우고_보내지_않은_매핑_칸은_빈칸() {
+        BoardDocSpec.Doc sample = BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, true);
+        Map<String, Map<String, String>> v = new LinkedHashMap<>();
+        Map<String, String> cells = new LinkedHashMap<>();
+        cells.put("r1c2", "  500  ");
+        v.put("A", cells);
+        BoardDocSpec.Doc d = BoardDocSpec.withValues(sample, v);
+        BoardDocSpec.Table a = table(d, "A");
+        assertEquals("500", a.getRows().get(1).get(2).getText());              // trim
+        assertEquals("", a.getRows().get(1).get(0).getText());                 // 샘플 "대한민국 기관" → 빈칸
+        assertEquals("", a.getRows().get(4).get(1).getText());
+        assertEquals("출연금", a.getRows().get(1).get(1).getText());            // 비매핑 라벨 유지
+        assertEquals("", table(d, "C-4").getRows().get(1).get(1).getText());   // 값을 보내지 않은 표도 빈칸
+        assertEquals(5, d.getTables().size());
+        assertEquals(sample.getName(), d.getName());
+    }
+
+    @Test
     public void 편집한_Doc도_docx로_만들어진다() throws Exception {
         BoardDocSpec.Doc d = BoardDocSpec.build("x", "편집한 양식", list(edit("C-4", "바꾼 제목", "r0c0", "항목")), true);
         XWPFDocument x = new XWPFDocument(new ByteArrayInputStream(BoardDocDocx.build(d)));
