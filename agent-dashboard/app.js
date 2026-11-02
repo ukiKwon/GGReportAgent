@@ -223,7 +223,7 @@ function makeRunner(a, slot, inst) {
     ...a, role: a.id, id: inst > 1 ? a.id + '_' + inst : a.id, name: inst > 1 ? a.name + '#' + inst : a.name,
     inst, extra: inst > 1, slot, laneR: laneOf(slot), speed: 0.92 + (slot % 4) * 0.06,
     face: 1, ph: 0, state: 'rest', settled: true, active: false, task: '',
-    lapF: 0, lastLap: 0, t: 0, R: RC, readyAt: 0, until: 0, returnAt: 0,
+    lapF: 0, lastLap: 0, freshAt: 0, lieAt: null, wetAt: 0, t: 0, R: RC, readyAt: 0, until: 0, returnAt: 0,
     nextSweat: 0, nextPant: 1 + (slot % 7) * 0.4, bubble: null, downPlaced: false, skin: '#f1c9a5',
   };
   const sp = benchSpot(o); o.x = sp.x; o.y = sp.y;
@@ -231,6 +231,8 @@ function makeRunner(a, slot, inst) {
 }
 const runners = AGENTS.map((a, i) => makeRunner(a, i, 1));
 const lapInt = r => Math.floor(r.lapF + 1e-9);
+// 피로 = 누적 바퀴 − 피로 기준점(freshAt, 정수). 물을 맞으면 freshAt만 옮겨 바퀴 수는 그대로 두고 판정(휠체어 15·쓰러짐 25·누워 쉼 15)을 다시 쌓는다.
+const fatInt = r => lapInt(r) - (r.freshAt || 0);
 function spawnExtra(role, inst) {
   const used = new Set(runners.map(r => r.slot));
   for (let sl = BASE_SLOTS; sl < MAX_SLOTS; sl++) {
@@ -259,12 +261,14 @@ function setActive(r, on) {
 }
 
 function updateRunner(r, dt) {
-  const li = lapInt(r);
+  const li = fatInt(r); // 판정(기어가기·휠체어·쓰러짐·누워 쉼·땀)은 피로 기준
+  if (r.state !== 'rest') r.lieAt = null;
   switch (r.state) {
     case 'rest': {
       const sp = li >= 15 ? floorSpot(r) : benchSpot(r);
       r.settled = walk(r, sp.x, sp.y, 120, dt);
       if (r.settled) r.face = 1;
+      if (r.settled && li >= 15 && !r.active) { if (r.lieAt == null) r.lieAt = simTime; } else r.lieAt = null; // 누운 시각(물 붓기 3초 대기 기준)
       if (r.active && simTime >= r.readyAt) { r.state = 'toStart'; r.settled = false; }
       break;
     }
@@ -291,9 +295,9 @@ function updateRunner(r, dt) {
       const nl = lapInt(r);
       if (nl !== r.lastLap) {
         if (nl > r.lastLap && stat.laps < Number.MAX_SAFE_INTEGER) { stat.laps++; stat.dirty = true; } // 자연 완주만 센다(+5·초기화·복귀는 lastLap을 직접 맞추므로 여기 오지 않음)
-        onLap(r, nl); r.lastLap = nl;
+        onLap(r, nl - (r.freshAt || 0)); r.lastLap = nl; // 대사는 피로 기준(freshAt은 정수라 경계가 같다)
       }
-      if (r.lapF >= 25) r.needAmb = true;
+      if (fatInt(r) >= 25) r.needAmb = true;
       const tt = ((r.t % 1) + 1) % 1;
       const inExit = tt * pathLen(r.R) < 2 * L && r.x >= 600 && r.x <= 780; // 아래 휴식 공간으로 빠지는 출구
       if (inExit) {
@@ -325,10 +329,19 @@ function updateRunner(r, dt) {
       }
       break;
     }
+    case 'wet': { // 물 맞고 일어남(피로는 wake()에서 풀림) → 벤치로
+      if (r.active) { r.state = 'toStart'; r.settled = false; break; }
+      if (simTime >= r.until) {
+        r.state = 'rest'; r.readyAt = simTime;
+        if (reduced()) { const b = benchSpot(r); r.x = b.x; r.y = b.y; r.face = 1; r.settled = true; }
+        else { r.settled = false; say(r, '벤치로 갈게요', 1.6); }
+      }
+      break;
+    }
     case 'carried': case 'inAmb': break;
     case 'away': {
       if (simTime >= r.returnAt) {
-        r.state = 'rest'; r.lapF = 0; r.lastLap = 0; r.R = r.laneR; r.wheeled = false; r.needAmb = false;
+        r.state = 'rest'; r.lapF = 0; r.lastLap = 0; r.freshAt = 0; r.R = r.laneR; r.wheeled = false; r.needAmb = false;
         const b = benchSpot(r); r.x = b.x; r.y = b.y; r.readyAt = simTime + 2;
         say(r, '복귀했습니다', 2);
       }
@@ -444,11 +457,40 @@ function updateAmb(dt) {
 /* ---------- 청소부 ---------- */
 // 'cleaner' 에이전트가 일하는 동안 나타나 생수 채우기 → 벤치 닦기 → 트랙 닦기를 반복하고, 일이 끝나면 퇴근한다.
 const CLEANER = { id: 'cleaner', name: '청소부', color: '#26c6da' };
-const jan = { active: false, task: '', present: false, x: -30, y: 770, face: 1, ph: 0, job: 'enter', stage: 0, k: 0, t: 0, bubble: null, trail: [] };
+const jan = { active: false, task: '', present: false, cameo: false, x: -30, y: 770, face: 1, ph: 0, job: 'enter', stage: 0, k: 0, t: 0, bubble: null, trail: [], puddles: [], lvl: 0, tgt: null, resume: '', woke: false, poured: false, lastPour: 0 };
 const bottles = Array(BASE_SLOTS).fill(1); // 생수 잔량(0~1) — 선수가 마시면 줄고 청소부가 채운다
 const JOBS = ['water', 'bench', 'track'];
-const JOB_LABEL = { enter: '출근 중', water: '생수 채우는 중', bench: '벤치 닦는 중', track: '트랙 닦는 중', leave: '퇴근 중' };
+const JOB_LABEL = { enter: '출근 중', water: '생수 채우는 중', bench: '벤치 닦는 중', track: '트랙 닦는 중', splash: '물 뿌려 깨우는 중', leave: '퇴근 중' };
+/* 물 붓기로 깨우기 — 누운 지 3초(simTime, 배속 따름) 지난 선수를 청소부가 수도에서 물을 받아 부어 깨운다.
+   순수 연출: 훅이 기록한 active와 누적 바퀴(lapF·lastLap·stat.laps)는 그대로, 피로 기준점(freshAt)만 옮긴다.
+   cameo = cleaner 에이전트가 일하지 않는데 연출로만 나온 청소부(현황판·칩은 '대기').
+   1분에 한 번(회차 단위): 회차 안에서는 누운 사람을 차례로 모두 깨우고, 다음 회차는 마지막 붓기 끝 + 60초(simTime). */
+const SPLASH_WAIT = 3, SPLASH_COOLDOWN = 60, TAP = { x: 790, y: 712 };
+let splashNext = 0; // 다음 회차를 시작할 수 있는 simTime
+const rmq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+const reduced = () => !!(rmq && rmq.matches);
+const splashOk = r => runners.includes(r) && r.state === 'rest' && r.lieAt != null && !r.active;
+function splashCands() {
+  return runners.filter(r => splashOk(r) && simTime - r.lieAt >= SPLASH_WAIT).sort((a, b) => a.lieAt - b.lieAt || a.slot - b.slot);
+}
+const splashReady = () => !reduced() && simTime >= splashNext && amb.phase === 'idle' && splashCands().length > 0; // 새 회차 시작 조건(회차 안의 다음 대상은 쿨다운 없이 이어간다)
+function wake(r) { // 피로만 푼다 — 바퀴 수는 그대로
+  const d = reduced() ? 1.2 : 1.4;
+  r.state = 'wet'; r.until = simTime + d; r.wetAt = simTime; r.lieAt = null;
+  r.freshAt = lapInt(r); r.wheeled = false; r.needAmb = false; r.R = r.laneR;
+  say(r, '앗 차가워!', d);
+}
+function startSplash() { jan.job = 'splash'; jan.stage = jan.lvl >= 1 ? 2 : 0; jan.tgt = null; jan.poured = false; jan.lastPour = 0; } // 회차 시작
+function endSplash() { // 회차 끝 — 한 번이라도 부었으면 마지막 붓기 끝부터 60초 쿨다운
+  const j = jan; j.tgt = null; j.lvl = 0;
+  if (j.poured) splashNext = j.lastPour + SPLASH_COOLDOWN;
+  if (!j.active) { // 따로 나왔거나 도중에 작업이 끝났으면 퇴근
+    if (!j.cameo) runners.forEach(r => { if (r.lieAt != null) r.lieAt = simTime; }); // 남은 사람은 3초 규칙부터 다시
+    j.job = 'leave'; j.stage = 0; say(j, '수고하세요~', 2);
+  } else { j.cameo = false; j.job = j.resume || 'track'; janNext(); } // 원래 순번으로
+}
 function janNext() {
+  if (jan.job !== 'splash' && splashReady()) { jan.resume = jan.job; startSplash(); return; } // splash > water > bench > track
   const i = JOBS.indexOf(jan.job);
   let nx = JOBS[(i + 1) % JOBS.length];
   if (nx === 'water' && bottles.reduce((s, v) => s + v, 0) / BASE_SLOTS > 0.5) nx = 'bench'; // 생수 총량이 절반을 넘으면 건너뜀
@@ -460,11 +502,14 @@ function updateJanitor(dt) {
   j.ph += dt * 6;
   if (j.bubble && simTime > j.bubble.until) j.bubble = null;
   for (let i = j.trail.length - 1; i >= 0; i--) { j.trail[i].life -= dt / 7; if (j.trail[i].life <= 0) j.trail.splice(i, 1); }
+  for (let i = j.puddles.length - 1; i >= 0; i--) { j.puddles[i].life -= dt / 3; if (j.puddles[i].life <= 0) j.puddles.splice(i, 1); } // 웅덩이 3초 페이드
   if (!j.present) {
-    if (j.active) { j.present = true; j.x = -30; j.y = 770; j.job = 'enter'; j.stage = 0; say(j, '청소 시작!', 2); }
+    if (j.active) { j.present = true; j.cameo = false; j.lvl = 0; j.x = -30; j.y = 770; j.job = 'enter'; j.stage = 0; say(j, '청소 시작!', 2); }
+    else if (splashReady()) { j.present = true; j.cameo = true; j.lvl = 0; j.x = 1310; j.y = 770; j.resume = ''; startSplash(); } // 따로 나옴(오른쪽 끝)
     return;
   }
-  if (!j.active && j.job !== 'leave') { j.job = 'leave'; j.stage = 0; say(j, '수고하세요~', 2); }
+  if (j.cameo && j.active && j.job !== 'leave') j.cameo = false; // 따로 나온 도중 작업 시작 → 같은 캐릭터로 이어감
+  if (!j.active && !j.cameo && j.job !== 'leave' && j.job !== 'splash') { j.job = 'leave'; j.stage = 0; say(j, '수고하세요~', 2); } // splash 중이면 지금 대상까지 끝내고 퇴근
   switch (j.job) {
     case 'enter':
       if (walk(j, 300, 770, 120, dt)) { j.job = 'track'; janNext(); } // 다음 순서인 생수 채우기부터
@@ -493,15 +538,54 @@ function updateJanitor(dt) {
         if (j.t >= j.t0 + 1) j.stage = 2;
       } else if (walk(j, 470, 716, 120, dt)) janNext();
       break;
+    case 'splash': {
+      const t = j.tgt;
+      if (j.stage === 0) { if (walk(j, TAP.x, TAP.y, 130, dt)) { j.stage = 1; j.t = simTime; j.face = -1; say(j, '물 받아요', 0.9); } }
+      else if (j.stage === 1) { // 수도에서 받는다(생수 bottles는 줄이지 않음)
+        j.face = -1; j.lvl = Math.min(1, (simTime - j.t) / 0.9);
+        if (j.lvl >= 1) j.stage = 2;
+      } else if (j.stage === 2) { // 대상 뒤로 운반
+        if (t && !splashOk(t)) { j.tgt = null; say(j, '어? 갔네', 1.2); break; } // 찬 양동이로 다음 대상
+        if (!t) {
+          if (!j.active && !j.cameo) { endSplash(); break; }
+          if (amb.phase !== 'idle') break;
+          const n = splashCands()[0];
+          if (!n) { endSplash(); break; }
+          j.tgt = n; break;
+        }
+        if (amb.phase !== 'idle') break; // 들것 자리와 겹친다 — 구급차가 끝날 때까지 새 운반·붓기 안 함
+        if (walk(j, t.x - 6, t.y - 14, 110, dt)) { j.face = 1; j.stage = 3; j.t = simTime; j.woke = false; say(j, '일어나세요~', 0.8); }
+      } else if (j.stage === 3) { // 붓기 800ms(기울이기 300ms, 물줄기 500ms, 200ms 뒤 젖음)
+        const e = simTime - j.t;
+        j.lvl = Math.max(0, 1 - e / 0.5);
+        if (!j.woke && e >= 0.2) {
+          j.woke = true;
+          for (let k = 0; k < 12; k++) { const s = Math.random() < 0.5 ? -1 : 1; sweat.push({ x: t.x, y: t.y - 8, vx: s * (40 + Math.random() * 40), vy: -60 - Math.random() * 60, life: 0.6 }); }
+          j.puddles.push({ x: t.x, y: t.y, life: 1 });
+          if (splashOk(t)) wake(t); // 붓는 사이 불려 나갔으면 물줄기·웅덩이만(반응·피로 초기화 없음)
+        }
+        if (e >= 0.8) { j.stage = 4; j.t = simTime; j.poured = true; j.lastPour = simTime; }
+      } else { // 반응이 끝나면 다음 대상(한 번에 한 명)
+        if (t && t.state === 'wet') break;
+        j.tgt = null; j.lvl = 0;
+        if ((!j.active && !j.cameo) || !splashCands().length) endSplash(); else j.stage = 0;
+      }
+      break;
+    }
     case 'leave':
-      if (walk(j, -40, 770, 130, dt)) { j.present = false; j.trail.length = 0; }
+      if (walk(j, j.cameo ? 1320 : -40, 770, 130, dt)) { j.present = false; j.cameo = false; j.trail.length = 0; } // 따로 나온 청소부는 오른쪽으로
       break;
   }
+}
+function drawBucket(lvl) { // 청소부 손 기준(+x가 앞). lvl: 물 수위 0~1 — 안쪽 위 띠(x8–16, y−13~−10)
+  c.fillStyle = '#90a4ae'; c.beginPath(); c.moveTo(7, -14); c.lineTo(17, -14); c.lineTo(15, -4); c.lineTo(9, -4); c.closePath(); c.fill();
+  if (lvl > 0) { c.fillStyle = '#4fc3f7'; c.fillRect(8, -10 - 3 * lvl, 8, 3 * lvl); }
+  c.strokeStyle = '#607d8b'; c.lineWidth = 1.5; c.beginPath(); c.arc(12, -14, 4, Math.PI, 0); c.stroke();
 }
 function drawJanitor() {
   const j = jan;
   if (!j.present) return;
-  const working = (j.job === 'water' && j.stage === 1) || (j.job === 'bench' && j.stage >= 1) || (j.job === 'track' && j.stage === 1);
+  const working = (j.job === 'water' && j.stage === 1) || (j.job === 'bench' && j.stage >= 1) || (j.job === 'track' && j.stage === 1) || (j.job === 'splash' && (j.stage === 1 || j.stage >= 3));
   drawPerson({ x: j.x, y: j.y, face: j.face, pose: working ? 'stand' : 'walk', ph: j.ph, color: '#1e88e5', hair: '#4e342e', skin: '#f1c9a5', hat: '#f9a825' });
   c.save(); c.translate(j.x, j.y); c.scale(j.face, 1);
   if (j.job === 'track' && j.stage === 1) { // 대걸레
@@ -517,10 +601,11 @@ function drawJanitor() {
     c.fillStyle = '#4fc3f7'; c.fillRect(-5, -8, 10, 16); c.fillStyle = '#e1f5fe'; c.fillRect(-2, -11, 4, 4);
     c.restore();
     limb(14, -46, 14, -40, 2, '#81d4fa');
-  } else { // 양동이
-    c.fillStyle = '#90a4ae'; c.beginPath(); c.moveTo(7, -14); c.lineTo(17, -14); c.lineTo(15, -4); c.lineTo(9, -4); c.closePath(); c.fill();
-    c.strokeStyle = '#607d8b'; c.lineWidth = 1.5; c.beginPath(); c.arc(12, -14, 4, Math.PI, 0); c.stroke();
-  }
+  } else if (j.job === 'splash' && j.stage === 3) { // 양동이를 (14,−40) 기준으로 0→1.9rad(sine ease-out 300ms) 기울여 붓기
+    const e = simTime - j.t;
+    c.save(); c.translate(14, -40); c.rotate(1.9 * Math.sin(Math.min(1, e / 0.3) * Math.PI / 2)); c.translate(-12, 14);
+    drawBucket(j.lvl); c.restore();
+  } else drawBucket(j.lvl); // 양동이(물 받았으면 수위 표시)
   c.restore();
   const top = j.y - 62, fs = fz(11, 11, 1.4);
   c.save(); c.font = 'bold ' + fs + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
@@ -534,15 +619,48 @@ function drawTrail() { // 닦인 자리(젖은 광택) — 서서히 마른다
     c.fillStyle = 'rgba(255,255,255,' + (0.28 * p.life).toFixed(3) + ')';
     c.beginPath(); c.ellipse(p.x, p.y, 11, 7, 0, 0, Math.PI * 2); c.fill();
   }
+  for (const p of jan.puddles) { // 물 웅덩이 26×6, 3초 페이드
+    c.fillStyle = 'rgba(129,212,250,' + (0.35 * p.life).toFixed(3) + ')';
+    c.beginPath(); c.ellipse(p.x, p.y, 13, 3, 0, 0, Math.PI * 2); c.fill();
+  }
+}
+/* 움직임 줄이기(prefers-reduced-motion): 이동 없이 누운 선수 위 찬 양동이+정지 물방울 3개 600ms → 깨움(1.2s) → 벤치로 즉시, 다음 대상 1.5s 간격, 회차 사이 60초 */
+const rms = { tgt: null, t: 0, next: 0, round: false, last: 0 };
+function updateSplashRM() {
+  if (!rms.tgt) {
+    if (!reduced() || jan.job === 'splash' || amb.phase !== 'idle' || simTime < rms.next) return;
+    if (!rms.round && simTime < splashNext) return; // 회차 쿨다운 중 — 새로 누운 사람은 다음 회차까지 대기
+    const n = splashCands()[0];
+    if (n) { rms.tgt = n; rms.t = simTime; if (!rms.round) { rms.round = true; rms.last = 0; } }
+    else if (rms.round) { rms.round = false; if (rms.last) splashNext = rms.last + SPLASH_COOLDOWN; } // 회차 끝
+    return;
+  }
+  const t = rms.tgt;
+  if (t.state === 'wet') return; // 반응 1.2s — 끝나면 updateRunner가 벤치로 옮긴다
+  if (splashOk(t)) { if (simTime - rms.t >= 0.6) { wake(t); rms.last = simTime; } return; }
+  rms.tgt = null; rms.next = simTime + 1.5;
+}
+function drawSplashFx() {
+  const j = jan, t = j.tgt;
+  if (j.present && j.job === 'splash' && j.stage === 3 && t && simTime - j.t < 0.5) { // 물줄기 500ms: 입구 → 누운 몸 중심
+    const mx = j.x + j.face * 14, my = j.y - 40, tx = t.x, ty = t.y - 8;
+    c.strokeStyle = '#81d4fa'; c.lineWidth = 3.5; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(mx, my); c.quadraticCurveTo(mx + j.face * 4, (my + ty) / 2, tx, ty); c.stroke(); // 휜 정도는 임시값(이관: 디자인)
+  }
+  const rt = rms.tgt;
+  if (rt && rt.state === 'rest') { // 임시 위치(이관: 디자인) — 이름표(y−41~−27) 위
+    c.save(); c.translate(rt.x - 12, rt.y - 50); drawBucket(1); c.restore();
+    for (let k = -1; k <= 1; k++) disc(rt.x + k * 6, rt.y - 48, 2.3, '#8be9ff');
+  }
 }
 function drawCleanerRow(cmp, fnt) {
-  const y = 262 + AGENTS.length * 22;
+  const y = 262 + AGENTS.length * 22, on = jan.present && !jan.cameo; // 따로 나온 청소부(cameo)는 작업이 아니므로 '대기'
   if (jan.active) { c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(398, y - 10, 484, 21); }
   disc(412, y, 6, CLEANER.color);
   c.textAlign = 'left'; c.font = fnt(true, 15, 14, 1.5);
-  c.fillStyle = jan.present ? '#fff' : '#cfd8dc'; c.fillText(CLEANER.name, 426, y);
-  c.font = fnt(false, 13, 11, 1.6); c.fillStyle = jan.present ? '#ffeaa7' : '#b2bec3';
-  c.fillText(jan.present ? JOB_LABEL[jan.job] : '대기', cmp ? 566 : 498, y);
+  c.fillStyle = on ? '#fff' : '#cfd8dc'; c.fillText(CLEANER.name, 426, y);
+  c.font = fnt(false, 13, 11, 1.6); c.fillStyle = on ? '#ffeaa7' : '#b2bec3';
+  c.fillText(on ? JOB_LABEL[jan.job] : '대기', cmp ? 566 : 498, y);
   if (!cmp && jan.task) { c.font = '12px "Malgun Gothic", sans-serif'; c.fillStyle = '#b2bec3'; c.fillText(jan.task, 660, y); }
 }
 
@@ -566,7 +684,7 @@ function updateCoach(dt) {
 const CHEER_N = 28;
 const cheers = Array.from({ length: CHEER_N }, (_, i) => ({ i, bubble: null }));
 let nextShout = 0;
-function waveOn() { return runners.some(r => lapInt(r) >= 15 && ['run', 'toRest', 'down', 'wheelOut'].includes(r.state)); }
+function waveOn() { return runners.some(r => fatInt(r) >= 15 && ['run', 'toRest', 'down', 'wheelOut'].includes(r.state)); }
 function updateCheer() {
   for (const ch of cheers) if (ch.bubble && simTime > ch.bubble.until) ch.bubble = null;
   if (waveOn() && simTime >= nextShout) {
@@ -666,6 +784,10 @@ function drawTable() {
     c.strokeStyle = '#90a4ae'; c.lineWidth = 0.8; c.strokeRect(x, 672, 7, 14);
     c.fillStyle = '#fff'; c.fillRect(x + 1, 669, 5, 3);
   }
+  // 수도꼭지(물 붓기 연출) — 몸통 6×4는 규격값, 관 꺾임·물줄기 끝점은 임시값(이관: 디자인)
+  c.fillStyle = '#90a4ae'; c.fillRect(772, 688, 6, 4);
+  poly([[778, 690], [784, 690], [784, 694]], 2, '#90a4ae');
+  if (jan.present && jan.job === 'splash' && jan.stage === 1) limb(784, 695, 780, 698, 3.5, '#81d4fa');
 }
 
 function drawCoachBox() {
@@ -695,13 +817,14 @@ function drawCoachBox() {
 }
 
 function stateLabel(r) {
-  const li = lapInt(r);
+  const li = fatInt(r);
   switch (r.state) {
     case 'run': return li < 10 ? '달리는 중' : li < 15 ? '기어가는 중' : '휠체어 질주';
     case 'toStart': return '입장 중';
     case 'toRest': case 'drink': return '물 마시는 중';
     case 'down': case 'carried': case 'inAmb': return '이송 중';
     case 'away': return '병원';
+    case 'wet': return '일어나는 중';
     default: return r.active ? '출발 준비' : (li >= 15 ? '쓰러져 휴식' : '벤치 대기');
   }
 }
@@ -738,13 +861,14 @@ function drawInfield() {
 
 /* ---------- 선수·구급 그리기 ---------- */
 function poseOf(r) {
-  const li = lapInt(r);
+  const li = fatInt(r);
   switch (r.state) {
     case 'run': return li < 10 ? 'run' : li < 15 ? 'crawl' : 'wheel';
     case 'toStart': return r.wheeled && li >= 15 ? 'wheel' : 'walk';
     case 'toRest': return 'walk';
     case 'wheelOut': return r.wheelStage ? 'wheel' : 'walk';
     case 'drink': return 'drink';
+    case 'wet': return 'stand';
     case 'down': return 'slump';
     case 'carried': return 'lie';
     case 'rest': return r.settled ? (li >= 15 ? 'lie' : 'sit') : 'walk';
@@ -754,8 +878,9 @@ function poseOf(r) {
 function drawRunner(r) {
   if (r.state === 'inAmb' || r.state === 'away') return;
   const pose = poseOf(r);
-  drawPerson({ x: r.x, y: r.y, face: r.face, pose, ph: r.ph, color: r.color, hair: r.hair, skin: r.skin, dy: r.state === 'carried' ? 6 : 0 });
-  const top = pose === 'crawl' ? r.y - 36 : pose === 'lie' ? r.y - 30 : pose === 'sit' ? r.y - 52 : r.y - 62;
+  const y = r.y - (r.state === 'wet' && !reduced() && simTime - r.wetAt < 0.15 ? 6 : 0); // 물 맞고 6px 튐(150ms)
+  drawPerson({ x: r.x, y, face: r.face, pose, ph: r.ph, color: r.color, hair: r.hair, skin: r.skin, dy: r.state === 'carried' ? 6 : 0 });
+  const top = pose === 'crawl' ? y - 36 : pose === 'lie' ? y - 30 : pose === 'sit' ? y - 52 : y - 62;
   const fs = fz(11, 11, 1.4);
   c.save();
   c.font = 'bold ' + fs + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
@@ -824,9 +949,12 @@ function render() {
   c.fillStyle = '#111'; c.fillText('메인', coach.x, coach.y - 66 - (cfs + 3) / 2); c.restore();
   if (coach.bubble) drawBubbleSide(228, 100, coach.bubble.text);
   drawMedics();
+  const janBack = jan.job === 'splash' && jan.stage === 3; // 붓는 동안만 누운 대상보다 먼저(뒤에) 그린다
+  if (janBack) drawJanitor();
   [...runners].sort((a, b) => a.y - b.y).forEach(drawRunner);
   drawTable();
-  drawJanitor();
+  if (!janBack) drawJanitor();
+  drawSplashFx();
   drawAmb();
   drawSweat();
 }
@@ -839,7 +967,7 @@ function step(dt) {
     const r = runners[i];
     if (r.extra && !r.active && r.state === 'rest' && r.settled) { runners.splice(i, 1); buildChips(); }
   }
-  updateAmb(dt); updateJanitor(dt); updateCoach(dt); updateCheer(); updateSweat(dt);
+  updateAmb(dt); updateJanitor(dt); updateSplashRM(); updateCoach(dt); updateCheer(); updateSweat(dt);
 }
 let last = performance.now();
 function frame(now) {
@@ -889,7 +1017,7 @@ function refreshChips() {
   const cc = document.getElementById('chip-cleaner');
   if (cc) {
     cc.classList.toggle('on', jan.active);
-    cc.querySelector('.st').textContent = jan.present ? JOB_LABEL[jan.job] : (jan.active ? '출근 중' : '대기');
+    cc.querySelector('.st').textContent = jan.present && !jan.cameo ? JOB_LABEL[jan.job] : (jan.active ? '출근 중' : '대기');
     const ct = devBox.querySelector('[data-k=cleaner]'); if (ct) ct.textContent = '청소부' + (jan.active ? ' 멈춤(시험)' : ' 시작(시험)');
   }
   runners.forEach(r => {
@@ -912,7 +1040,7 @@ document.getElementById('full').onclick = () => {
 };
 document.getElementById('allOn').onclick = () => runners.forEach(r => setActive(r, true));
 document.getElementById('allOff').onclick = () => runners.forEach(r => setActive(r, false));
-document.getElementById('reset').onclick = () => runners.forEach(r => { r.lapF = 0; r.lastLap = 0; });
+document.getElementById('reset').onclick = () => runners.forEach(r => { r.lapF = 0; r.lastLap = 0; r.freshAt = 0; });
 
 /* ---------- state.json 폴링 ---------- */
 const prevFeed = {};
