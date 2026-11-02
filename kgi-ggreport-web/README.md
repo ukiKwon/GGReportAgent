@@ -176,13 +176,14 @@ mysql_config_editor set --login-path=ggreport --user=ggreport --host=127.0.0.1 -
 ```
 
 5) **스키마·시드 적용** — `.\scripts\setup-local-win.ps1 -ApplySchema`.
-`001`~`013`을 번호순으로 합쳐 넣고(**`007`은 MySQL 쪽에 없다** — Oracle 전용 미적용 초안),
-끝나면 **테이블 20개 · `INSTITUTIONS` 25행 · `USERS` 25행**이 기대값이다.
-이미 적용돼 있으면 건너뛴다(`002`는 재실행이 안 된다).
+빈 DB면 `001`~`014`를 번호순으로 합쳐 넣는다(**`007`은 MySQL 쪽에 없다** — Oracle 전용 미적용 초안).
+끝나면 **테이블 23개 · `INSTITUTIONS` 25행 · `USERS` 25행**이 기대값이다(001~013 = 20개, 014 이사회 자료 양식 +3개).
+`001`~`013`이 이미 들어간 DB에서 다시 돌리면 기본 묶음은 건너뛰고, 그 뒤에 추가된 스크립트(`014`~)만
+대표 테이블이 없을 때 하나씩 넣는다(`002`·`014`는 재실행이 안 된다).
 
 6) `config/application.properties`의 `<OUT-LOCAL-DB-PASSWORD>`를 3)의 비밀번호로 채우고 §5-1로 간다.
 
-**겪은 함정 3가지**
+**겪은 함정 4가지**
 
 - ⚠️ **`mysql.exe`·`mysqld.exe`는 VC++ 런타임 DLL을 JDK의 `bin\`에서 가져온다**(이 PC에는 VC 재배포 패키지가
   없었다). PATH에 **JDK `bin`이 `mysql`보다 앞서야** 한다. 아니면 아무 메시지 없이 `-1073741515`
@@ -191,6 +192,10 @@ mysql_config_editor set --login-path=ggreport --user=ggreport --host=127.0.0.1 -
   Windows 콘솔 기본이 cp949라서다. `-ApplySchema`는 이 옵션을 넣는다.
 - ⚠️ **`002_seq_no.sql`은 재실행하면 실패한다**(컬럼 추가). 중간에 끊겼다면 어디까지 들어갔는지 보고
   **그 다음 파일부터** 이어서 넣는다.
+- ⚠️ **PowerShell 5.1은 리디렉션된 환경(에이전트·IDE)에서 네이티브 프로그램의 stderr를 오류로 만든다.**
+  `mysqld --initialize-insecure --console`의 `[System]` 로그에서 스크립트가 멈춘 적이 있다(2026-11-02).
+  지금은 종료코드로만 판정하고, 초기화가 끝나면 `C:\dev\mysql-data.initialized` 표지를 남긴다.
+  표지 없이 중간에 끊긴 데이터 폴더는 다시 돌릴 때 `mysql-data.broken-<시각>`으로 옮기고 새로 초기화한다.
 
 > 다운로드 주소가 바뀌면(특히 `cdn.mysql.com`은 옛 버전을 내린다) `-MysqlVersion`·`-JdkUrl`·`-IdeaUrl`
 > 인자로 넘긴다. 쉘이 Git Bash면 `mysql.exe`가 `api-ms-win-crt-*.dll`을 못 찾는다고 할 수 있다 —

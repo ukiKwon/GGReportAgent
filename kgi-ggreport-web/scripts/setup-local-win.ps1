@@ -8,7 +8,7 @@
   Usage (PowerShell 5.1, from kgi-ggreport-web\):
     .\scripts\setup-local-win.ps1                 # install + env vars + init MySQL data dir
     .\scripts\setup-local-win.ps1 -SkipIdea       # without IntelliJ (already installed)
-    .\scripts\setup-local-win.ps1 -ApplySchema    # step 2: create tables + seeds (see README 5-2)
+    .\scripts\setup-local-win.ps1 -ApplySchema    # step 2: create tables + seeds (see README 5-2); re-run later to add new scripts (014+)
 
   Passwords are NEVER handled here. Create the DB user and register the password yourself
   (README 5-2 step 4-5); -ApplySchema reads it from the mysql login-path 'ggreport'.
@@ -44,29 +44,71 @@ function Expand-Once($zip, $dest, $probe) {
     Write-Host "extract $zip -> $dest"
     tar -xf $zip -C $dest            # bsdtar ships with Win10 1803+, far faster than Expand-Archive
 }
+# Run a native exe WITHOUT treating its stderr as a terminating error.
+# PS 5.1 + $ErrorActionPreference='Stop' turns every stderr line into NativeCommandError when the
+# host output is redirected (agent / IDE), and mysqld --console logs even [System] lines to stderr.
+# Success is decided by $LASTEXITCODE only. stderr lines are echoed to the host, stdout is returned.
+function Invoke-Native([string]$Exe, [string[]]$ArgList) {
+    $old = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $Exe @ArgList 2>&1 | ForEach-Object {
+            if ($_ -is [System.Management.Automation.ErrorRecord]) { Write-Host $_.ToString() } else { $_ }
+        }
+    } finally { $ErrorActionPreference = $old }
+}
 
 # ---------------------------------------------------------------- step 2: schema
 if ($ApplySchema) {
     $jdkHome = (Get-ChildItem (Join-Path $DevRoot 'jdk8') -Directory | Select-Object -First 1).FullName
     # mysql.exe loads its VC runtime DLLs from the JDK bin dir -> JDK must be on PATH first
     $env:Path = "$jdkHome\bin;$mysqlHome\bin;$env:Path"
-    $sqlDir = Join-Path $PSScriptRoot '..\src\main\resources\db\mysql'
+    $sqlDir = (Resolve-Path (Join-Path $PSScriptRoot '..\src\main\resources\db\mysql')).Path
     $all = Join-Path $dl 'apply_all.sql'
-    # 007 does not exist for MySQL (Oracle-only draft). Order matters.
-    $files = '001','002','003','004','005','006','008','009','010','011','012','013'
-    $q = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='ggreportdb' AND table_name='INSTITUTIONS'"
-    $has = & mysql --login-path=ggreport -N -e $q
-    if ($LASTEXITCODE -ne 0) { throw "mysql login failed: is the server running and login-path 'ggreport' registered? (README 5-2)" }
-    if ([int]$has -gt 0) { Write-Host 'Schema already applied (INSTITUTIONS exists) - skipping. 002 is NOT re-runnable.'; return }
-    Set-Content $all '' -Encoding UTF8
-    foreach ($n in $files) {
-        Get-Content (Get-ChildItem $sqlDir -Filter "${n}_*.sql").FullName -Raw -Encoding UTF8 | Add-Content $all -Encoding UTF8
+    # Base chain, applied together on an empty DB. 007 does not exist for MySQL (Oracle-only draft).
+    # Order matters. NOT re-runnable (002).
+    $base = '001','002','003','004','005','006','008','009','010','011','012','013'
+    # Scripts added after the base chain: file number -> one table it creates (the probe).
+    # Each is applied on its own if its table is missing. Append new ones here, in order.
+    $later = [ordered]@{ '014' = 'BOARD_FORM' }
+
+    function Test-Table([string]$t) {
+        $r = Invoke-Native 'mysql' @('--login-path=ggreport', '-N', '-e',
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='ggreportdb' AND table_name='$t'")
+        if ($LASTEXITCODE -ne 0) { throw "mysql login failed: is the server running and login-path 'ggreport' registered? (README 5-2)" }
+        return ([int]($r | Select-Object -Last 1) -gt 0)
     }
-    # utf8mb4 is mandatory: the seeds contain Korean and the Windows console default is cp949 (ERROR 1366)
-    & mysql --login-path=ggreport --default-character-set=utf8mb4 ggreportdb -e "source $($all -replace '\\','/')"
-    if ($LASTEXITCODE -ne 0) { throw 'schema apply failed' }
-    & mysql --login-path=ggreport -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='ggreportdb'"
-    Write-Host '^ expect 20 tables (INSTITUTIONS 25 rows, USERS 25 rows)'
+
+    $todo = @()
+    $fresh = -not (Test-Table 'INSTITUTIONS')
+    if ($fresh) {
+        $todo += $base
+    } else {
+        if (-not (Test-Table 'APPROVAL_REQUEST')) {
+            throw 'INSTITUTIONS exists but APPROVAL_REQUEST (012) does not: the base chain is half-applied. Continue by hand from the next file (README 5-2, pitfall on 002).'
+        }
+        Write-Host 'Base chain 001-013 already applied - skipping it (002 is NOT re-runnable).'
+    }
+    foreach ($n in $later.Keys) {
+        if ((-not $fresh) -and (Test-Table $later[$n])) { Write-Host "skip (exists): $n ($($later[$n]))" }
+        else { $todo += $n }
+    }
+
+    if ($todo.Count -eq 0) {
+        Write-Host 'Nothing to apply - schema is up to date.'
+    } else {
+        Write-Host ('apply: ' + ($todo -join ' '))
+        Set-Content $all '' -Encoding UTF8
+        foreach ($n in $todo) {
+            Get-Content (Get-ChildItem $sqlDir -Filter "${n}_*.sql").FullName -Raw -Encoding UTF8 | Add-Content $all -Encoding UTF8
+        }
+        # utf8mb4 is mandatory: the seeds contain Korean and the Windows console default is cp949 (ERROR 1366)
+        Invoke-Native 'mysql' @('--login-path=ggreport', '--default-character-set=utf8mb4', 'ggreportdb', '-e', "source $($all -replace '\\','/')")
+        if ($LASTEXITCODE -ne 0) { throw 'schema apply failed (see above). 002 and 014 are NOT re-runnable: check which tables exist before re-running.' }
+    }
+    Invoke-Native 'mysql' @('--login-path=ggreport', '-N', '-e',
+        "SELECT (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='ggreportdb'), (SELECT COUNT(*) FROM ggreportdb.INSTITUTIONS), (SELECT COUNT(*) FROM ggreportdb.USERS)")
+    Write-Host '^ expect: 23 tables / INSTITUTIONS 25 rows / USERS 25 rows'
     return
 }
 
@@ -102,10 +144,34 @@ $add = $pathAdd | Where-Object { $path -notlike "*$_*" }
 if ($add) { [Environment]::SetEnvironmentVariable('Path', (($path.TrimEnd(';') + ';' + ($add -join ';')).TrimStart(';')), 'User') }
 
 # MySQL data dir: root has an EMPTY password until you set one (README 5-2)
-if (-not (Test-Path (Join-Path $dataDir 'mysql'))) {
+# A finished init leaves a marker NEXT TO the data dir (never inside it: mysqld treats sub-folders as schemas).
+$initOk = "$dataDir.initialized"
+$dataItems = @(if (Test-Path $dataDir) { Get-ChildItem $dataDir -Force })
+if (Test-Path $initOk) {
+    Write-Host "skip (initialised): $dataDir"
+} elseif (($dataItems.Count -gt 0) -and (Test-Path (Join-Path $dataDir 'ggreportdb'))) {
+    # initialised by an older version of this script and already in use -> keep it, just add the marker
+    Set-Content $initOk (Get-Date -Format s) -Encoding ASCII
+    Write-Host "keep (in use, ggreportdb exists): $dataDir"
+} else {
+    if ($dataItems.Count -gt 0) {
+        # non-empty, no marker, no ggreportdb -> an interrupted --initialize. mysqld refuses a
+        # non-empty datadir, so move it aside (kept for inspection; delete it yourself later).
+        if (Get-Process mysqld -ErrorAction SilentlyContinue) {
+            throw "a mysqld process is running - stop it first, then re-run ($dataDir looks half-initialised)"
+        }
+        $bad = "$dataDir.broken-$(Get-Date -Format yyyyMMddHHmmss)"
+        Move-Item $dataDir $bad
+        Write-Host "incomplete data dir moved aside -> $bad"
+    }
     New-Item -ItemType Directory -Force $dataDir | Out-Null
     $env:Path = "$jdkHome\bin;$env:Path"
-    & "$mysqlHome\bin\mysqld.exe" --initialize-insecure "--basedir=$mysqlHome" "--datadir=$dataDir" --console
+    Invoke-Native "$mysqlHome\bin\mysqld.exe" @('--initialize-insecure', "--basedir=$mysqlHome", "--datadir=$dataDir", '--console')
+    if ($LASTEXITCODE -ne 0) { throw "mysqld --initialize-insecure failed (exit $LASTEXITCODE) - see the log above. Re-running moves the partial data dir aside." }
+    if (-not ((Test-Path (Join-Path $dataDir 'mysql.ibd')) -and (Test-Path (Join-Path $dataDir 'sys')))) {
+        throw "mysqld exited 0 but $dataDir has no mysql.ibd / sys - initialisation is incomplete"
+    }
+    Set-Content $initOk (Get-Date -Format s) -Encoding ASCII
 }
 
 # server launcher: bound to 127.0.0.1 only, Xprotocol off, utf8mb4
