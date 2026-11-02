@@ -7,6 +7,8 @@
   const logic = (typeof require === 'function' && typeof module !== 'undefined')
     ? require('./logic.js') : root.logic;
   const board = {};
+  const bw = (typeof require === 'function' && typeof module !== 'undefined')
+    ? require('./board-write.js') : root.boardWrite;
 
   // 이 화면이 열리는 사이드바 항목 id(nav.js의 준비중 항목 'soon:<라벨>'). 서버 메뉴 키는 쓰지 않는다.
   board.SOON_ID = 'soon:이사회 자료';
@@ -642,6 +644,7 @@
     const rows = Array.isArray(tb.rows) ? tb.rows : [];
     return labelIn(tb, rows, gridOf(rows), r, ci);
   };
+  if (bw && bw.setLabeler) bw.setLabeler(board.cellLabel);   // 작성 모드의 칸 이름(툴팁·읽기 이름)
 
   // ── 편집 화면 HTML(순수) ─────────────────────────────────────
   // 값이 든 칸은 입력으로, 매핑 칸은 글자 + '잠김'. 키가 없는 칸은 읽기 전용 글자.
@@ -780,8 +783,10 @@
   // perm: board.permState — 권한 안내는 'no'일 때만(알 수 없음이면 목록 실패 문구만 보인다).
   board.actionsHtml = function (ctx) {
     const c = ctx || {};
+    if (c.mode === 'write') return '';   // 작성 모드의 버튼은 작성 줄(#bd-writebar, board-write.js)에 있다
     if (c.mode === 'edit') return '<button type="button" id="bd-docx" data-act="docx" disabled>워드 내려받기</button>';
-    let h = '<button type="button" id="bd-docx" data-act="docx"' + (c.hasDoc && !c.docxBusy ? '' : ' disabled') + '>워드 내려받기</button>';
+    let h = (c.canWrite ? '<button type="button" id="bd-write" data-act="write">이 양식으로 작성</button>' : '') +
+      '<button type="button" id="bd-docx" data-act="docx"' + (c.hasDoc && !c.docxBusy ? '' : ' disabled') + '>워드 내려받기</button>';
     if (c.editable) {
       h += '<button type="button" id="bd-edit" data-act="edit">양식 편집</button>';
     } else if (c.canCopy) {
@@ -797,6 +802,7 @@
       // 편집도 복제도 못 하는 사람: 버튼이 없는 이유를 한 줄로 알린다(양식을 고르지 않은 빈 화면에는 띄우지 않는다).
       // 권한을 아직 모르거나(목록 응답 전) 알 수 없으면(목록 실패) 띄우지 않는다.
       h += '<span class="bd-hint">양식은 편집 권한이 있는 사람만 고칠 수 있습니다.</span>';
+      h += '<span class="bd-hint">자료 작성은 업무 수정 권한이 있어야 할 수 있습니다.</span>';
     }
     return h;
   };
@@ -820,6 +826,7 @@
   let who = '';           // 화면을 그린 계정(board.whoKey)
   let mounted = false;    // 한 번이라도 화면을 그렸는가(board.profilePlan)
   let docxBusy = false;   // 워드 생성 중(다시 그려져도 버튼을 끈 채로 둔다)
+  let wc = null;          // 작성 모드 컨트롤러(board-write.js)
 
   // errorKind: 'local'(저장 전 검증) | 'server'(저장 응답) — 입력으로 지울 수 있는지 가른다(board.shouldClearError).
   // errorTarget: 검증 오류의 위치(board.validateEditAt) — [고치러 가기]가 쓴다. 서버 오류는 ''.
@@ -831,6 +838,7 @@
     forms = []; canEdit = false; perm = 'unknown'; current = null; mode = 'view'; edit = null;
     editUi = freshUi(); catalog = { status: 'idle' }; copyUi = null;
     docxBusy = false;   // 이전 계정의 워드 생성 응답은 onDocx가 epoch로 버린다
+    if (wc) wc.reset();   // 작성 중이던 엑셀 값·확인 표시도 버린다
   }
   function say(text) { const m = el('bd-msg'); if (m) m.textContent = text || ''; }
   function scroller() { const r = el('bd-root'); return r ? r.parentNode : null; }
@@ -849,9 +857,10 @@
     const form = current && current.form;
     el('bd-actions').innerHTML = board.actionsHtml({
       mode: mode, hasDoc: !!form, docxBusy: docxBusy, editable: !!(form && form.editable === true),
-      canCopy: board.canCopy(form, canEdit), perm: perm, copy: copyUi
+      canCopy: board.canCopy(form, canEdit), perm: perm, copy: copyUi,
+      canWrite: !!form && canEdit === true
     });
-    el('bd-form').disabled = mode === 'edit';
+    el('bd-form').disabled = mode !== 'view';
   }
   function showState(state) { el('bd-body').innerHTML = board.stateHtml(state); }
   function renderView() {
@@ -940,6 +949,32 @@
   }
 
   function onSelect() { openForm(el('bd-form').value); }
+
+  // 작성 모드(board-write.js). 컨트롤러는 한 번만 만든다. exit는 보기 모드로 돌아간다.
+  function writeCtl() {
+    if (wc || !bw || !bw.createController) return wc;
+    wc = bw.createController({
+      el: el, doFetch: doFetch, scroller: scroller,
+      ctx: function () { return current ? { id: current.id, form: current.form } : null; },
+      epoch: function () { return epoch; },
+      who: function () { const p = root.store && root.store.loadProfile ? root.store.loadProfile() : null; return (p && p.name) || ''; },
+      now: function () { return new Date(); },
+      exit: function (focusSel) {
+        mode = 'view';
+        if (current) renderView(); else renderActions();
+        say('');
+        focusFirst([focusSel || '#bd-write', '#bd-docx']);
+      }
+    });
+    return wc;
+  }
+  function startWrite() {
+    const c = writeCtl();
+    if (!c || !current || mode !== 'view' || canEdit !== true) return;
+    mode = 'write'; copyUi = null; say('');
+    renderActions();
+    c.start();
+  }
 
   function onDocx() {
     if (!current || mode !== 'view' || docxBusy) return;
@@ -1208,6 +1243,7 @@
     const act = b.getAttribute('data-act');
     if (act === 'docx') onDocx();
     else if (act === 'edit') startEdit();
+    else if (act === 'write') startWrite();
     else if (act === 'copy') {
       copyUi = { name: str(current && current.form.name) + ' 사본', error: '', busy: false };
       renderActions();
@@ -1241,6 +1277,7 @@
     el('bd-body').onclick = onBodyClick;
     el('bd-body').oninput = onBodyInput;
     el('bd-body').onkeydown = onBodyKey;
+    const wcl = writeCtl(); if (wcl) wcl.attach();
     renderActions();
     showState({ status: 'idle' });
     refreshForms('');
