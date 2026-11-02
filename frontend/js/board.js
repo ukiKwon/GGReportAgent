@@ -14,6 +14,9 @@
   board.FORMS = [{ id: 'default_doc', name: '기본 양식' }];
 
   const NET_ERROR = '서버에 연결하지 못했습니다.';
+  // 목록 응답의 모양이 맞지 않을 때(사용자가 고칠 수 없는 오류라 다음 행동만 안내한다).
+  const LIST_ERROR = '목록을 불러오지 못했습니다. 잠시 후 다시 열어 주세요. 계속되면 담당자에게 알려 주세요.';
+  board.LIST_ERROR = LIST_ERROR;
   const ALIGNS = { left: 1, center: 1, right: 1 };
   // 천 단위 쉼표·소수·%·괄호·부호·△▲(감소 표기)를 허용하는 숫자 표시값. 엑셀 표시값을 그대로 옮기므로 문자열로만 본다.
   const NUM_RE = /^[\s(△▲+-]*\d[\d,]*(\.\d+)?\s*%?\)?$/;
@@ -212,7 +215,7 @@
   board.loadForms = function (fetchFn) {
     return req(fetchFn, board.formsUrl()).then(function (x) {
       if (!x.ok) return fail(x, '양식 목록을 불러오지 못했습니다');
-      if (!x.body || !Array.isArray(x.body.items)) return { ok: false, error: '양식 목록 형식이 맞지 않습니다.' };
+      if (!x.body || !Array.isArray(x.body.items)) return { ok: false, error: LIST_ERROR };
       return { ok: true, items: x.body.items, canEdit: x.body.can_edit === true };
     });
   };
@@ -220,7 +223,7 @@
   board.loadCatalog = function (fetchFn) {
     return req(fetchFn, board.catalogUrl()).then(function (x) {
       if (!x.ok) return fail(x, '추가할 수 있는 표 목록을 불러오지 못했습니다');
-      if (!x.body || !Array.isArray(x.body.items)) return { ok: false, error: '표 목록 형식이 맞지 않습니다.' };
+      if (!x.body || !Array.isArray(x.body.items)) return { ok: false, error: LIST_ERROR };
       return { ok: true, items: x.body.items };
     });
   };
@@ -405,26 +408,43 @@
 
   // 저장 전 클라이언트 검증(서버도 같은 한도로 다시 검사한다). 오류 문구 또는 null.
   board.validateEdit = function (st) {
+    const r = board.validateEditAt(st);
+    return r ? r.msg : null;
+  };
+  // 위치까지 돌려주는 검증. → null | {msg, target}. target: 'name' | 'title:<i>' | 'cell:<i>:<key>'
+  // ([고치러 가기] 버튼이 그 입력으로 포커스를 옮길 때 쓴다 — board.errTargetParts).
+  board.validateEditAt = function (st) {
+    function at(msg, target) { return { msg: msg, target: target }; }
     const name = str(st.name).trim();
-    if (!name) return '양식 이름을 입력해 주세요.';
-    if (name.length > MAX_NAME) return '양식 이름은 ' + MAX_NAME + '자 이내로 입력해 주세요.';
-    if (CTRL_RE.test(st.name)) return '양식 이름에 쓸 수 없는 문자가 있습니다.';
+    if (!name) return at('양식 이름을 입력해 주세요.', 'name');
+    if (name.length > MAX_NAME) return at('양식 이름은 ' + MAX_NAME + '자 이내로 입력해 주세요.', 'name');
+    if (CTRL_RE.test(st.name)) return at('양식 이름에 쓸 수 없는 문자가 있습니다.', 'name');
     for (let i = 0; i < st.tables.length; i++) {
       const t = st.tables[i];
       const label = (i + 1) + '번째 표';
       const title = str(t.title).trim();
       // 서버처럼 빈 제목은 항상 오류(원래 제목이 비어 있던 기존 표도 저장 전에 제목을 채워야 한다).
-      if (!title) return label + '의 제목을 입력해 주세요.';
-      if (title.length > MAX_TITLE) return label + '의 제목은 ' + MAX_TITLE + '자 이내로 입력해 주세요.';
-      if (CTRL_RE.test(t.title)) return label + '의 제목에 쓸 수 없는 문자가 있습니다.';
+      if (!title) return at(label + '의 제목을 입력해 주세요.', 'title:' + i);
+      if (title.length > MAX_TITLE) return at(label + '의 제목은 ' + MAX_TITLE + '자 이내로 입력해 주세요.', 'title:' + i);
+      if (CTRL_RE.test(t.title)) return at(label + '의 제목에 쓸 수 없는 문자가 있습니다.', 'title:' + i);
       const keys = Object.keys(t.cells);
       for (let k = 0; k < keys.length; k++) {
         const v = t.cells[keys[k]];
-        if (v.length > MAX_CELL) return label + '에 ' + MAX_CELL + '자를 넘는 칸이 있습니다.';
-        if (CTRL_RE.test(v)) return label + '의 칸에 쓸 수 없는 문자가 있습니다.';
+        if (v.length > MAX_CELL) return at(label + '에 ' + MAX_CELL + '자를 넘는 칸이 있습니다.', 'cell:' + i + ':' + keys[k]);
+        if (CTRL_RE.test(v)) return at(label + '의 칸에 쓸 수 없는 문자가 있습니다.', 'cell:' + i + ':' + keys[k]);
       }
     }
     return null;
+  };
+  // 오류 위치 문자열 → {kind:'name'|'title'|'cell', i, key} | null. 선택자를 문자열로 만들지 않고
+  // 배선에서 data-key 값을 직접 비교하게 하려고 나눠 돌려준다(키에 따옴표 등이 있어도 안전).
+  board.errTargetParts = function (target) {
+    const s = str(target);
+    if (s === 'name') return { kind: 'name', i: -1, key: '' };
+    const m = /^(title|cell):(\d+)(?::([\s\S]*))?$/.exec(s);
+    if (!m) return null;
+    if (m[1] === 'cell' && m[3] == null) return null;
+    return { kind: m[1], i: parseInt(m[2], 10), key: m[1] === 'cell' ? m[3] : '' };
   };
 
   // 표시 중인 오류 문구를 지금 지워도 되는가. cause: 'confirm'(저장·끝내기 확인 줄을 여는 순간) | 'input'(입력 중).
@@ -437,6 +457,13 @@
     if (cause === 'confirm') return true;
     if (cause === 'input') return u.errorKind === 'local' && !!st && board.validateEdit(st) === null;
     return false;
+  };
+  // 표 구조(순서·개수)가 바뀌었을 때(위로·아래로·빼기 확정·표 추가) 검증 오류를 지울지.
+  // 검증 오류의 위치(title:i 등)가 표 순번을 가리키므로 구조가 바뀌면 낡는다 — 지우고 다음 저장 때 다시 검증한다.
+  // 409 충돌·서버 저장 실패 문구는 구조 변경과 무관하므로 남긴다. 저장 중에는 건드리지 않는다.
+  board.clearOnRestructure = function (ui) {
+    const u = ui || {};
+    return !!u.error && u.errorKind === 'local' && !u.conflict && !u.saving;
   };
 
   // PUT 본문. 구조·매핑은 보내지 않고 재정의 값만 보낸다(표 순서 = 배열 순서).
@@ -518,9 +545,16 @@
     const base = board.FORMS.map(function (f) { return { form_id: f.id, name: f.name, is_default: true }; });
     return {
       canEdit: ok && res.canEdit === true,
+      perm: board.permState(res),
       forms: base.concat(ok && Array.isArray(res.items) ? res.items : []),
       error: ok ? '' : str(res && res.error)
     };
+  };
+  // 편집 권한 3상태. 'unknown'(목록 응답 전·목록 실패: 권한을 알 수 없음) | 'yes' | 'no'.
+  // 권한 안내 한 줄(actionsHtml)은 'no'로 확인됐을 때만 띄운다.
+  board.permState = function (res) {
+    if (!res || !res.ok) return 'unknown';
+    return res.canEdit === true ? 'yes' : 'no';
   };
   // 신원 키. 계정·모드가 바뀌었는지 비교하는 데만 쓴다.
   board.whoKey = function (session) {
@@ -546,9 +580,73 @@
     return res && res.ok ? 'save' : 'error';
   };
 
+  // ── 칸 입력의 읽기 이름(순수) ───────────────────────────────
+  // 병합(colspan·rowspan)을 펼친 격자: g[r][col] = {r, ci, start} (그 자리를 차지한 칸과 시작 열).
+  function gridOf(rows) {
+    const g = rows.map(function () { return []; });
+    rows.forEach(function (row, r) {
+      let col = 0;
+      (Array.isArray(row) ? row : []).forEach(function (c, ci) {
+        while (g[r][col]) col++;
+        const o = (c && typeof c === 'object') ? c : {};
+        const cs = span(o.colspan), rs = span(o.rowspan);
+        for (let rr = r; rr < Math.min(r + rs, rows.length); rr++) {
+          for (let cc = col; cc < col + cs; cc++) g[rr][cc] = { r: r, ci: ci, start: col };
+        }
+        col += cs;
+      });
+    });
+    return g;
+  }
+  function cellAt(rows, e) { return e ? (Array.isArray(rows[e.r]) ? rows[e.r][e.ci] : null) : null; }
+  // 칸의 지금 글자: 편집 중 값(values)이 있으면 그것, 없으면 원래 글자.
+  function nowText(cell, values) {
+    const o = (cell && typeof cell === 'object') ? cell : { text: cell };
+    if (o.key != null && o.key !== '' && values && has(values, String(o.key))) return str(values[String(o.key)]);
+    return str(o.text);
+  }
+  function labelIn(t, rows, g, r, ci) {
+    const vals = t.cells || {};
+    const parts = [str(t.title).trim()];
+    const self = function (e) { return !!e && e.r === r && e.ci === ci; };
+    const hdrRow = headerInRows(rows);
+    const line = g[r] || [];
+    // 행 머리: 같은 행(위에서 내려온 병합 포함)의 첫 header 칸, 없으면 그 행 첫 칸. 머리글 행 칸은 생략.
+    if (!(hdrRow && r === 0)) {
+      let pick = null;
+      for (let col = 0; col < line.length; col++) {
+        const c = cellAt(rows, line[col]);
+        if (c && typeof c === 'object' && c.header === true) { pick = line[col]; break; }
+      }
+      if (!pick) pick = line[0] || null;
+      if (pick && !self(pick)) parts.push(nowText(cellAt(rows, pick), vals).trim());
+    }
+    // 열 머리: 첫 행(header)에서 같은 열 순번을 차지한 칸. 머리글 행이 없으면 columns 배열(문자열)의 같은 순번.
+    let start = -1;
+    for (let col = 0; col < line.length; col++) { if (self(line[col])) { start = line[col].start; break; } }
+    if (start >= 0) {
+      if (hdrRow) {
+        const e = g[0] && g[0][start];
+        if (e && !self(e)) parts.push(nowText(cellAt(rows, e), vals).trim());
+      } else if (Array.isArray(t.columns) && t.columns[start] != null && typeof t.columns[start] !== 'object') {
+        parts.push(str(t.columns[start]).trim());
+      }
+    }
+    const out = parts.filter(function (s) { return s !== ''; });
+    return out.length ? out.join(' · ') : '칸 수정';
+  }
+  // 값 칸 입력의 aria-label: "<표 제목> · <행 머리> · <열 머리>". 구하지 못한 부분은 생략,
+  // 모두 비면 '칸 수정'. t: 편집 상태의 표({title, rows, columns, cells}), r: 행 순번, ci: 그 행 배열 안의 순번.
+  board.cellLabel = function (t, r, ci) {
+    const tb = t || {};
+    const rows = Array.isArray(tb.rows) ? tb.rows : [];
+    return labelIn(tb, rows, gridOf(rows), r, ci);
+  };
+
   // ── 편집 화면 HTML(순수) ─────────────────────────────────────
   // 값이 든 칸은 입력으로, 매핑 칸은 글자 + '잠김'. 키가 없는 칸은 읽기 전용 글자.
-  board.editCellHtml = function (cell, values) {
+  // label: 입력의 aria-label(board.cellLabel). 없으면 '칸 수정'.
+  board.editCellHtml = function (cell, values, label) {
     const p = cellParts(cell);
     if (p.mapped) {
       return openTag(p, ' tabindex="0" aria-readonly="true" title="엑셀 값이 들어가는 칸 · 잠김"') +
@@ -558,7 +656,7 @@
     if (p.key != null && p.key !== '' && p.text !== '' && has(vals, String(p.key))) {
       const v = vals[String(p.key)];
       // 서버는 줄바꿈이 든 칸을 받지 않으므로 입력은 한 줄 input으로 통일한다(줄바꿈 칸이 생기면 이관 참조).
-      const ctl = '<input type="text" class="bd-cell-in" data-key="' + esc(p.key) + '" maxlength="' + MAX_CELL + '" value="' + esc(v) + '" aria-label="칸 수정">';
+      const ctl = '<input type="text" class="bd-cell-in" data-key="' + esc(p.key) + '" maxlength="' + MAX_CELL + '" value="' + esc(v) + '" aria-label="' + esc(label || '칸 수정') + '">';
       return openTag(p) + ctl + '</' + p.tag + '>';
     }
     return openTag(p) + esc(p.text) + '</' + p.tag + '>';
@@ -567,8 +665,11 @@
   board.editTableHtml = function (t) {
     const rows = Array.isArray(t.rows) ? t.rows : [];
     const cols = Array.isArray(t.columns) ? t.columns : [];
-    const body = '<tbody>' + rows.map(function (r) {
-      return '<tr>' + (Array.isArray(r) ? r : []).map(function (c) { return board.editCellHtml(c, t.cells); }).join('') + '</tr>';
+    const g = gridOf(rows);   // 칸마다 읽기 이름을 만들 때 격자를 한 번만 펼친다
+    const body = '<tbody>' + rows.map(function (r, ri) {
+      return '<tr>' + (Array.isArray(r) ? r : []).map(function (c, ci) {
+        return board.editCellHtml(c, t.cells, labelIn(t, rows, g, ri, ci));
+      }).join('') + '</tr>';
     }).join('') + '</tbody>';
     const head = theadHtml(cols, rows);
     const table = (rows.length || head)
@@ -594,9 +695,11 @@
       '<span class="bd-badges">' + board.badgesHtml(badges) + '</span>' +
       '<button type="button" data-act="up" data-i="' + i + '"' + (i === 0 ? ' disabled' : '') + ' aria-label="표 위로 옮기기">위로</button>' +
       '<button type="button" data-act="down" data-i="' + i + '"' + (i === n - 1 ? ' disabled' : '') + ' aria-label="표 아래로 옮기기">아래로</button>' +
-      '<button type="button" data-act="del" data-i="' + i + '"' + (n <= 1 ? ' disabled title="표가 하나뿐이면 뺄 수 없습니다"' : '') + ' aria-label="표 삭제">삭제</button>' +
+      // 문구는 확인 줄('표 빼기')·완료 안내('표를 뺐습니다')와 같은 동사로 맞춘다. data-act는 'del' 그대로.
+      '<button type="button" data-act="del" data-i="' + i + '"' + (n <= 1 ? ' disabled' : '') + ' aria-label="표 빼기">빼기</button>' +
       '<button type="button" class="link-btn" data-act="skip" data-i="' + i + '">이 표 칸 건너뛰기</button>' +
-      '</div>' + ask + board.editTableHtml(t) + '</section>';
+      '</div>' + (n <= 1 ? '<p class="bd-hint">표가 하나뿐이면 뺄 수 없습니다.</p>' : '') +
+      ask + board.editTableHtml(t) + '</section>';
   };
 
   board.editBarHtml = function (st, ui) {
@@ -641,7 +744,10 @@
   // ui: {saving, conflict, error, addOpen, confirm}
   board.editFootHtml = function (st, ui) {
     const u = ui || {};
-    const err = u.error ? '<p id="bd-editerr" class="bd-err" role="alert" tabindex="-1">' + esc(u.error) + '</p>' : '';
+    // 검증 오류(errorTarget 있음)면 문구 끝에 그 입력으로 가는 버튼을 붙인다. 409 충돌에는 붙이지 않는다.
+    const go = (u.errorTarget && !u.conflict)
+      ? ' <button type="button" class="link-btn" data-act="goerr" data-target="' + esc(u.errorTarget) + '">고치러 가기</button>' : '';
+    const err = u.error ? '<p id="bd-editerr" class="bd-err" role="alert" tabindex="-1">' + esc(u.error) + go + '</p>' : '';
     if (u.conflict) {
       return err + '<div class="bd-foot"><button type="button" id="bd-reload" data-act="reload">최신 내용 보기</button></div>';
     }
@@ -669,8 +775,9 @@
       board.editFootHtml(st, u);
   };
 
-  // 위쪽 버튼 줄. ctx: {mode:'view'|'edit', hasDoc, docxBusy, editable, canCopy, copy:null|{name,error,busy}}
+  // 위쪽 버튼 줄. ctx: {mode:'view'|'edit', hasDoc, docxBusy, editable, canCopy, perm, copy:null|{name,error,busy}}
   // docxBusy: 워드 생성 중이면 다시 그려져도 버튼을 끈 채로 둔다(두 번 누름 방지).
+  // perm: board.permState — 권한 안내는 'no'일 때만(알 수 없음이면 목록 실패 문구만 보인다).
   board.actionsHtml = function (ctx) {
     const c = ctx || {};
     if (c.mode === 'edit') return '<button type="button" id="bd-docx" data-act="docx" disabled>워드 내려받기</button>';
@@ -686,6 +793,10 @@
       } else {
         h += '<button type="button" id="bd-copy" data-act="copy">양식 복제하여 편집</button>';
       }
+    } else if (c.hasDoc && c.perm === 'no') {
+      // 편집도 복제도 못 하는 사람: 버튼이 없는 이유를 한 줄로 알린다(양식을 고르지 않은 빈 화면에는 띄우지 않는다).
+      // 권한을 아직 모르거나(목록 응답 전) 알 수 없으면(목록 실패) 띄우지 않는다.
+      h += '<span class="bd-hint">양식은 편집 권한이 있는 사람만 고칠 수 있습니다.</span>';
     }
     return h;
   };
@@ -697,6 +808,7 @@
   let token = 0;          // 늦게 도착한 응답이 새 선택을 덮지 않게 한다
   let forms = [];         // 기본 양식 + GET /board-forms items
   let canEdit = false;    // 목록 응답의 can_edit(복제 가능 판정)
+  let perm = 'unknown';   // 편집 권한 3상태(board.permState) — 권한 안내 한 줄을 띄울지
   let current = null;     // 지금 보이는 양식 {id, form}
   let mode = 'view';      // 'view' | 'edit'
   let edit = null;        // 편집 상태
@@ -710,12 +822,13 @@
   let docxBusy = false;   // 워드 생성 중(다시 그려져도 버튼을 끈 채로 둔다)
 
   // errorKind: 'local'(저장 전 검증) | 'server'(저장 응답) — 입력으로 지울 수 있는지 가른다(board.shouldClearError).
-  function freshUi() { return { saving: false, error: '', errorKind: '', conflict: false, addOpen: false, confirm: null }; }
+  // errorTarget: 검증 오류의 위치(board.validateEditAt) — [고치러 가기]가 쓴다. 서버 오류는 ''.
+  function freshUi() { return { saving: false, error: '', errorKind: '', errorTarget: '', conflict: false, addOpen: false, confirm: null }; }
   function whoNow() { return board.whoKey(root.store && root.store.loadSession ? root.store.loadSession() : null); }
   // 계정이 바뀌면 이전 계정의 목록·권한·편집 상태를 모두 버린다. 진행 중 응답은 토큰으로 무시한다.
   function resetState() {
     token++; listToken++; epoch++;
-    forms = []; canEdit = false; current = null; mode = 'view'; edit = null;
+    forms = []; canEdit = false; perm = 'unknown'; current = null; mode = 'view'; edit = null;
     editUi = freshUi(); catalog = { status: 'idle' }; copyUi = null;
     docxBusy = false;   // 이전 계정의 워드 생성 응답은 onDocx가 epoch로 버린다
   }
@@ -736,7 +849,7 @@
     const form = current && current.form;
     el('bd-actions').innerHTML = board.actionsHtml({
       mode: mode, hasDoc: !!form, docxBusy: docxBusy, editable: !!(form && form.editable === true),
-      canCopy: board.canCopy(form, canEdit), copy: copyUi
+      canCopy: board.canCopy(form, canEdit), perm: perm, copy: copyUi
     });
     el('bd-form').disabled = mode === 'edit';
   }
@@ -773,7 +886,7 @@
     }
     // 입력으로 검증 오류의 원인이 풀렸으면 오류 줄만 뗀다(전체를 다시 그리면 입력 포커스를 잃는다).
     if (board.shouldClearError(editUi, edit, 'input')) {
-      editUi.error = ''; editUi.errorKind = '';
+      editUi.error = ''; editUi.errorKind = ''; editUi.errorTarget = '';
       const e = el('bd-editerr');
       if (e && e.parentNode) e.parentNode.removeChild(e);
     }
@@ -787,6 +900,7 @@
       if (t !== listToken) return;
       const r = board.formsFromList(res);
       canEdit = r.canEdit;
+      perm = r.perm;
       forms = r.forms;
       if (r.error) say(r.error);
       const sel = el('bd-form');
@@ -892,23 +1006,55 @@
 
   function onSave() {
     if (!edit || editUi.saving || board.changeCount(edit) === 0) return;
-    const bad = board.validateEdit(edit);
-    if (bad) { editUi.error = bad; editUi.errorKind = 'local'; renderEdit(['#bd-editerr']); return; }
-    if (board.shouldClearError(editUi, edit, 'confirm')) { editUi.error = ''; editUi.errorKind = ''; }
+    const bad = board.validateEditAt(edit);
+    if (bad) { setLocalError(bad); renderEdit(['#bd-editerr']); return; }
+    if (board.shouldClearError(editUi, edit, 'confirm')) { editUi.error = ''; editUi.errorKind = ''; editUi.errorTarget = ''; }
     editUi.confirm = { act: 'save', ref: '', text: board.saveConfirmText() };
     renderEdit([board.confirmFocus(editUi.confirm)]);
+  }
+
+  // 검증 오류({msg, target})를 화면 상태에 넣는다. target은 [고치러 가기]가 쓴다.
+  function setLocalError(bad) {
+    editUi.error = bad.msg; editUi.errorKind = 'local'; editUi.errorTarget = str(bad.target);
+  }
+  // 표 구조가 바뀌면(위로·아래로·빼기 확정·표 추가) 위치가 낡은 검증 오류를 지운다(board.clearOnRestructure).
+  // 호출한 쪽이 곧바로 renderEdit로 다시 그리므로 #bd-editerr도 함께 사라진다. 409·서버 오류는 남는다.
+  function clearOnRestructure() {
+    if (board.clearOnRestructure(editUi)) { editUi.error = ''; editUi.errorKind = ''; editUi.errorTarget = ''; }
+  }
+  // [고치러 가기]: 오류 위치의 입력으로 포커스를 옮긴다. 칸 입력이 없으면(빈 칸 등) 그 표 제목으로.
+  // data-key는 선택자에 넣지 않고 값을 직접 비교한다.
+  function goToError(target) {
+    const p = board.errTargetParts(target);
+    if (!p) return;
+    const body = el('bd-body');
+    let f = null;
+    if (p.kind === 'name') f = el('bd-name');
+    else {
+      if (p.kind === 'cell') {
+        const sec = body.querySelector('section[data-i="' + p.i + '"]');
+        if (sec) {
+          f = Array.prototype.filter.call(sec.querySelectorAll('[data-key]'), function (x) {
+            return x.getAttribute('data-key') === p.key;
+          })[0] || null;
+        }
+      }
+      if (!f) f = body.querySelector('[data-title="' + p.i + '"]');
+    }
+    if (f && !f.disabled) f.focus();
   }
 
   // 인라인 확인의 [확인]으로만 불린다. 확인 뒤에도 검증을 한 번 더 한다.
   function doSave() {
     if (!edit || editUi.saving || board.changeCount(edit) === 0) return;
-    const bad0 = board.validateEdit(edit);
-    if (bad0) { editUi.error = bad0; editUi.errorKind = 'local'; renderEdit(['#bd-editerr']); return; }
+    const bad0 = board.validateEditAt(edit);
+    if (bad0) { setLocalError(bad0); renderEdit(['#bd-editerr']); return; }
     const snap = edit;
     const id = current.id;
     const ep = epoch;
-    editUi.saving = true; editUi.error = ''; editUi.errorKind = '';
-    say('저장하는 중…');
+    editUi.saving = true; editUi.error = ''; editUi.errorKind = ''; editUi.errorTarget = '';
+    // 진행 문구는 편집 줄(#bd-dirty)과 저장 버튼 두 곳에만 둔다. #bd-msg는 이전 안내만 비운다.
+    say('');
     renderEdit(['#bd-editbar']);   // 저장 중에는 버튼이 모두 꺼지므로 편집 줄에 포커스를 둔다(body로 빠지지 않게)
     board.saveForm(doFetch, snap).then(function (res) {
       if (edit !== snap) return;
@@ -923,6 +1069,7 @@
       editUi.saving = false;
       editUi.error = res.error;
       editUi.errorKind = 'server';
+      editUi.errorTarget = '';
       editUi.conflict = res.conflict === true;
       say('');
       renderEdit([res.conflict ? '#bd-reload' : '#bd-editerr', '#bd-save', '#bd-cancel']);
@@ -932,7 +1079,7 @@
   function onCancel() {
     const n = board.changeCount(edit);
     if (n > 0) {
-      if (board.shouldClearError(editUi, edit, 'confirm')) { editUi.error = ''; editUi.errorKind = ''; }
+      if (board.shouldClearError(editUi, edit, 'confirm')) { editUi.error = ''; editUi.errorKind = ''; editUi.errorTarget = ''; }
       editUi.confirm = { act: 'cancel', ref: '', text: board.cancelConfirmText(n) };
       renderEdit([board.confirmFocus(editUi.confirm)]);
       return;
@@ -969,6 +1116,7 @@
       const idx = edit.tables.findIndex(function (t) { return str(t.ref) === c.ref; });
       if (idx < 0 || edit.tables.length <= 1) { renderEdit(['#bd-add']); return; }
       edit = board.editRemove(edit, idx);
+      clearOnRestructure();
       renderEdit(['[data-title="' + Math.min(idx, edit.tables.length - 1) + '"]', '#bd-add']);
       say('표를 뺐습니다. 저장하면 반영됩니다.');
     }
@@ -997,6 +1145,7 @@
       if (next === edit) return;
       const title = edit.tables[i].title || edit.tables[i].mapping || '표';
       edit = next;
+      clearOnRestructure();
       renderEdit(['[data-act="' + act + '"][data-i="' + (i + dir) + '"]',
         '[data-act="' + (act === 'up' ? 'down' : 'up') + '"][data-i="' + (i + dir) + '"]']);
       say('"' + title + '" 표를 ' + (i + dir + 1) + '번째로 옮겼습니다.');
@@ -1008,6 +1157,8 @@
       runConfirm();
     } else if (act === 'no-confirm') {
       closeConfirm();
+    } else if (act === 'goerr') {
+      goToError(b.getAttribute('data-target'));
     } else if (act === 'skip') {
       focusFirst(['[data-title="' + (i + 1) + '"]', '#bd-add']);
     } else if (act === 'add') {
@@ -1023,6 +1174,7 @@
       const next = board.editAdd(edit, item);
       if (next === edit) { say('이미 들어 있는 표입니다.'); return; }
       edit = next; editUi.addOpen = false;
+      clearOnRestructure();
       const idx = edit.tables.length - 1;
       renderEdit(['[data-title="' + idx + '"]']);
       const sec = el('bd-body').querySelector('section[data-i="' + idx + '"]');
