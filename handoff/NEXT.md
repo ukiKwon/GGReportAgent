@@ -1373,7 +1373,7 @@ DBA 제출용 엑셀은 `uploader/docs/DBA제출_컬럼정의_2026-09-08.xlsx`, 
 - **출처**: `2026-11-02_summary.md`. POI 5.x 전체 최소 JDK 8(5.4.1=2025-04-06), 6.0.0(2026-10-22)부터 JDK 17 → 5.4.1 또는 5.5.x까지. 업로드 지점 완화(ZipGuard 중복 entry 거부)는 37에서 완료.
 - **다음 한 걸음**: 두 pom(web·uploader 5.2.3 하드코딩)·`dependencies.txt` 재생성(xmlbeans·commons-compress·commons-io·commons-codec·log4j-api 동반 추정, `mvn dependency:list`로 확정)·`mvn -o`·골든(PptxBuilder) 회귀, `weblogic.xml` 우선 목록에 `org.apache.xmlbeans.*` 검토.
 
-### 41. 브라우저 확인 묶음 — **Playwright 재설치 대기** [담당: qa-verifier·design-reviewer, 메인 실행]
+### 41. 브라우저 확인 묶음 — **Playwright 설치 완료(2026-11-02, 사용자 범위), 새 세션·/reload-plugins 뒤 실행 가능** [담당: qa-verifier·design-reviewer, 메인 실행]
 - **출처**: `2026-11-02_summary.md`. PC 초기화로 Claude Code 플러그인 전부 삭제(`installed_plugins.json` 비어 있음).
 - **대상**: NEXT 26 qa 4차 체크리스트 10개 + 디자인 지적 반영분, 대시보드 물 붓기(qa 수동 체크리스트 10개·design 좌표 확인), 37 작성 모드(구현 후). 로컬 시험 데이터: 사번 3918264에 tasks 수정 권한, 복제 양식 form_id=1(확인 뒤 정리).
 - **다음 한 걸음**: 사용자 `/plugin`으로 playwright(필요시 impeccable 등) 설치 → 세션 재시작 → IntelliJ 서버 기동 → qa-verifier 열람 확인(쓰기 버튼 금지). 8080·MySQL은 한 세션만.
