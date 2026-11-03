@@ -19,8 +19,10 @@
 
   // view: 한 화면(key) 안의 하위 보기. 시스템 관리 4항목이 같은 'admin' 탭을 쓴다(항목 id = key:view).
   function live(label, key, view) { return view ? { label: label, key: key, view: view } : { label: label, key: key }; }
-  // tag: 사이드바 배지·안내 화면에 쓰는 글. 기본 '준비중', 구현 계획이 잡힌 것만 '구현 예정'.
-  function soon(label, tag, note) { return { label: label, soon: true, tag: tag || '준비중', note: note || '' }; }
+  // tag: 사이드바 배지·안내 화면에 쓰는 글. 기본 '준비중', 구현 계획이 잡힌 것만 '구현 예정'. 빈 글자('')는 배지 없음(이미 열리는 화면).
+  function soon(label, tag, note) { return { label: label, soon: true, tag: tag === '' ? '' : (tag || '준비중'), note: note || '' }; }
+  // 사이드바에 붙일 배지 글(순수). 준비중 항목만, tag가 ''이면 배지 없음.
+  function badgeOf(it) { return it && it.soon ? (it.tag === '' ? '' : (it.tag || '준비중')) : ''; }
 
   nav.CATEGORIES = [
     { id: 'opp', title: '기관 현황', items: [
@@ -37,7 +39,7 @@
       soon('질의사항 정리·내부 검토'), soon('검토 의견·대응 방향'), soon('공동 작성·버전 관리')] },
     { id: 'collab', title: '제안 진행·승인', items: [
       live('제안서 진행 현황', 'workflow'), live('작업함', 'tasks'), live('결재함', 'approvals'),
-      soon('이사회 자료', '구현 예정',
+      soon('이사회 자료', '',
            '수익성 분석표(엑셀)의 수치를 이사회 자료(워드)의 정해진 자리에 자동으로 채웁니다.')] },
     { id: 'result', title: '제출·결과', items: [
       soon('최종 확인·제출'), soon('제출 결과·평가 대응'),
@@ -47,6 +49,7 @@
       live('메뉴 관리', 'admin', 'menus'), live('접근 이력', 'admin', 'audit')] }
   ];
 
+  nav.badgeOf = badgeOf;
   nav.isSales = function (ctx) {
     const c = ctx || {};
     if (c.master) return true;
@@ -129,6 +132,15 @@
   // topbar(기관 분류·CSV·지도 색상)와 임박 TOP5는 지도·지역별에서만 의미가 있다.
   nav.SHOWS_MAP_CONTROLS = ['map', 'regions'];
   nav.showsMapControls = function (tab) { return nav.SHOWS_MAP_CONTROLS.indexOf(tab) >= 0; };
+
+  // 접근 이력에 보낼 화면 이름. 서버(/auth/screen)는 메뉴 키 꼴만 받는다: 이사회 자료는 업무 메뉴 'tasks'의 하위 'tasks:board',
+  // 그 밖의 준비중 화면('soon:…')과 빈 값은 기록하지 않는다(null).
+  nav.screenName = function (id, boardId) {
+    if (!id) return null;
+    if (boardId && id === boardId) return 'tasks:board';
+    if (String(id).indexOf('soon:') === 0) return null;
+    return id;
+  };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = nav;
   else root.nav = nav;

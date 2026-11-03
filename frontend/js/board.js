@@ -540,6 +540,20 @@
     return (v != null ? '새 버전 v' + v + '로 저장했습니다.' : '새 버전으로 저장했습니다.') +
       ' 앞으로 새로 만드는 건부터 적용됩니다.';
   };
+  // 목록을 화면에 적용될 때까지 다시 요청한다(순수). refresh: () => Promise<boolean>(적용됐으면 true).
+  // 복제 응답을 기다리는 사이 이사회 화면 재진입(mount)이 목록 요청을 새로 보내면 이쪽 응답은 버려진다(listToken).
+  board.untilApplied = function (refresh, max) {
+    const n = max > 0 ? max : 3;
+    const go = function (k) {
+      return refresh().then(function (ok) { return (ok === true || k + 1 >= n) ? ok === true : go(k + 1); });
+    };
+    return go(0);
+  };
+  // 복제 뒤 새 양식을 열지 여부(순수). applied: 목록이 적용됐나, selected: 선택 상자 값,
+  // here: 복제를 시작한 양식을 보기 모드로 아직 보고 있나. 하나라도 어긋나면 열지 않고 안내만 한다.
+  board.copyOpenPlan = function (applied, selected, nid, here) {
+    return applied === true && here === true && str(selected) !== '' && str(selected) === str(nid) ? 'open' : 'say';
+  };
   // 목록 응답(loadForms 결과) → 화면 상태. 기본 양식은 items에 없으므로 앞에 붙인다.
   // 목록이 실패하면(예: DB 014 미적용 500) 기본 양식만 남고 편집·복제는 꺼진다.
   board.formsFromList = function (res) {
@@ -644,6 +658,25 @@
     const rows = Array.isArray(tb.rows) ? tb.rows : [];
     return labelIn(tb, rows, gridOf(rows), r, ci);
   };
+  // 표 카드의 영역 이름. 제목이 비면 매핑 이름, 둘 다 없으면 '표'.
+  board.cardLabel = function (t) {
+    const tb = t || {};
+    return (tb.title || tb.mapping || '표') + ' 편집';
+  };
+  // 표의 값 칸 전체의 읽기 이름: {칸 key: label}. 제목·행 머리 값을 고친 뒤 화면의 aria-label을 다시 맞출 때 쓴다.
+  board.cellLabels = function (t) {
+    const tb = t || {};
+    const rows = Array.isArray(tb.rows) ? tb.rows : [];
+    const g = gridOf(rows);
+    const out = {};
+    rows.forEach(function (row, r) {
+      (Array.isArray(row) ? row : []).forEach(function (c, ci) {
+        const k = (c && typeof c === 'object') ? c.key : null;
+        if (k != null && k !== '') out[String(k)] = labelIn(tb, rows, g, r, ci);
+      });
+    });
+    return out;
+  };
   if (bw && bw.setLabeler) bw.setLabeler(board.cellLabel);   // 작성 모드의 칸 이름(툴팁·읽기 이름)
 
   // ── 편집 화면 HTML(순수) ─────────────────────────────────────
@@ -691,7 +724,7 @@
     const ask = (c && c.act === 'del' && !u.saving && !u.conflict && str(c.ref) === str(t.ref))
       ? board.confirmHtml({ act: 'del', text: board.confirmText(st, c) }) : '';
     return '<section class="bd-card bd-card-edit' + (badges.length ? ' is-dirty' : '') + '" data-i="' + i +
-      '" aria-label="' + esc((t.title || t.mapping || '표') + ' 편집') + '">' +
+      '" aria-label="' + esc(board.cardLabel(t)) + '">' +
       '<div class="bd-card-head bd-edit-head">' +
       (t.mapping ? '<span class="bd-map">' + esc(t.mapping) + '</span>' : '') +
       '<input type="text" class="bd-title-in" data-title="' + i + '" maxlength="' + MAX_TITLE + '" value="' + esc(t.title) + '" aria-label="표 제목">' +
@@ -906,16 +939,17 @@
   function refreshForms(selectId) {
     const t = ++listToken;
     return board.loadForms(doFetch).then(function (res) {
-      if (t !== listToken) return;
+      if (t !== listToken) return false;   // 더 새 목록 요청이 있다 — 호출한 쪽이 필요하면 다시 요청한다
       const r = board.formsFromList(res);
       canEdit = r.canEdit;
       perm = r.perm;
       forms = r.forms;
       if (r.error) say(r.error);
       const sel = el('bd-form');
-      if (!sel) return;
+      if (!sel) return false;
       sel.innerHTML = board.formOptionsHtml(forms, selectId || '');
       renderActions();
+      return true;
     });
   }
 
@@ -1023,16 +1057,29 @@
         return;
       }
       const nid = String(res.formId);
+      // 목록 갱신이 재진입 갱신에 밀려도 적용될 때까지 다시 요청한다. 계정이 바뀌면(ep) 요청을 멈춘다.
+      const listed = function (selectId) {
+        return board.untilApplied(function () {
+          return ep !== epoch ? Promise.resolve(true) : refreshForms(selectId);
+        });
+      };
       if (stay) {
-        refreshForms(nid).then(function () {
+        listed(nid).then(function (applied) {
           if (ep !== epoch) return;
-          openForm(nid, { thenEdit: true, msg: '양식을 복제했습니다. 이제 고칠 수 있습니다.' });
+          const s = el('bd-form');
+          const here = !!(current && current.id === src && mode === 'view');
+          if (board.copyOpenPlan(applied, s ? s.value : '', nid, here) === 'open') {
+            openForm(nid, { thenEdit: true, msg: '양식을 복제했습니다. 이제 고칠 수 있습니다.' });
+          } else {
+            // 선택 상자와 본문이 어긋나지 않게 열지 않는다. 복제본은 목록에서 고를 수 있다.
+            say('"' + name + '" 양식을 복제했습니다. 목록에서 골라 고칠 수 있습니다.');
+          }
         });
         return;
       }
       const selNow = el('bd-form');
       const keep = current ? current.id : (selNow ? selNow.value : '');
-      refreshForms(keep).then(function () {
+      listed(keep).then(function () {
         if (ep !== epoch) return;
         say('"' + name + '" 양식을 복제했습니다. 목록에서 골라 고칠 수 있습니다.');
       });
@@ -1224,17 +1271,34 @@
     }
   }
 
+  // 제목·칸 값을 고치면 카드 영역 이름과 칸 입력의 aria-label을 다시 맞춘다(입력 포커스는 건드리지 않는다).
+  function relabel(i) {
+    const tb = edit && edit.tables[i];
+    const sec = el('bd-body').querySelector('section[data-i="' + i + '"]');
+    if (!tb || !sec) return;
+    sec.setAttribute('aria-label', board.cardLabel(tb));
+    const labels = board.cellLabels(tb);
+    Array.prototype.forEach.call(sec.querySelectorAll('input[data-key]'), function (inp) {
+      const k = inp.getAttribute('data-key');
+      inp.setAttribute('aria-label', Object.prototype.hasOwnProperty.call(labels, k) ? labels[k] : '칸 수정');
+    });
+  }
   function onBodyInput(e) {
     if (mode !== 'edit' || !edit) return;
     const t = e.target;
+    let ti = -1;   // 라벨을 다시 맞출 표 순번
     if (t.id === 'bd-name') edit = board.editSetName(edit, t.value);
-    else if (t.hasAttribute && t.hasAttribute('data-title')) edit = board.editSetTitle(edit, parseInt(t.getAttribute('data-title'), 10), t.value);
-    else if (t.hasAttribute && t.hasAttribute('data-key')) {
+    else if (t.hasAttribute && t.hasAttribute('data-title')) {
+      ti = parseInt(t.getAttribute('data-title'), 10);
+      edit = board.editSetTitle(edit, ti, t.value);
+    } else if (t.hasAttribute && t.hasAttribute('data-key')) {
       const sec = t.closest('section[data-i]');
       if (!sec) return;
-      edit = board.editSetCell(edit, parseInt(sec.getAttribute('data-i'), 10), t.getAttribute('data-key'), t.value);
+      ti = parseInt(sec.getAttribute('data-i'), 10);
+      edit = board.editSetCell(edit, ti, t.getAttribute('data-key'), t.value);
     } else return;
     refreshStatus();
+    if (ti >= 0) relabel(ti);
   }
 
   function onControlsClick(e) {

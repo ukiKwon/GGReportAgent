@@ -562,12 +562,13 @@
   // 화면 열람을 접근 이력에 남긴다(서버 모드·로그인 상태·같은 화면 연속 호출 제외). 실패는 무시한다.
   let lastRecorded = null;
   function recordScreen(id) {
-    if (!id || id.indexOf('soon:') === 0 || id === lastRecorded) return;
+    const name = root.nav.screenName(id, root.board && root.board.SOON_ID);
+    if (!name || name === lastRecorded) return;
     const session = root.store.loadSession();
     if (!root.store.isServerMode() || !(session && session.mode === 'account' && session.emp)) return;
-    lastRecorded = id;
+    lastRecorded = name;
     fetch('/auth/screen', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ screen: id }) }).catch(function () { /* 기록 실패가 화면을 막지 않는다 */ });
+      body: JSON.stringify({ screen: name }) }).catch(function () { /* 기록 실패가 화면을 막지 않는다 */ });
   }
 
   function activateItem(item) {
@@ -632,9 +633,10 @@
       const esc = root.logic.esc;
       el.innerHTML = navBuilt.map(function (cat) {
         const items = cat.items.map(function (it) {
-          return '<button class="nav-item' + (it.soon ? ' soon' : '') + '" data-nav="' + esc(it.id) +
+          const badge = root.nav.badgeOf(it);   // 배지가 없으면 흐림(.soon)도 없다 — 이미 열리는 화면이다
+          return '<button class="nav-item' + (badge ? ' soon' : '') + '" data-nav="' + esc(it.id) +
             '" title="' + esc(it.label) + '"><span class="nav-label">' + esc(it.label) + '</span>' +
-            (it.soon ? '<span class="nav-soon-tag">' + esc(it.tag || '준비중') + '</span>' : '') + '</button>';
+            (badge ? '<span class="nav-soon-tag">' + esc(badge) + '</span>' : '') + '</button>';
         }).join('');
         return '<button class="nav-cat" data-cat="' + esc(cat.id) + '" title="' + esc(cat.title) + '">' +
           '<span class="nav-label">' + esc(cat.title) + '</span></button>' +
