@@ -115,7 +115,7 @@
     const d = detailOf(res && res.body);
     const code = d && typeof d.code === 'string' ? d.code : '';
     const msg = d && typeof d.message === 'string' ? d.message : '';
-    const r = { code: code || ('HTTP_' + status), title: '', lines: [], kindsText: '', hint: '', structure: false };
+    const r = { code: code || ('HTTP_' + status), title: '', lines: [], kindsText: '', hint: '', structure: false, canPick: true, canReform: false };
     if (res && res.net) { r.code = 'NET'; r.title = '서버에 연결하지 못했습니다.'; r.hint = '잠시 뒤 다시 올려 주세요.'; return r; }
     if (code === 'MACRO') {
       r.title = '매크로가 들어 있는 파일은 받지 않습니다.'; r.hint = '매크로 없는 .xlsx로 다시 저장해 올려 주세요.';
@@ -148,11 +148,14 @@
       // detail이 없거나 문자열(Spring 기본 본문 등)이면 상태 코드로 일반 문구를 쓴다(문자열 본문은 화면에 내지 않는다).
       if (msg) r.title = msg;
       else if (status === 401) { r.title = '로그인이 필요합니다.'; r.hint = '다시 로그인한 뒤 올려 주세요.'; }
-      else if (status === 403) { r.title = '이 양식으로 자료를 작성할 권한이 없습니다.'; }
+      else if (status === 403) { r.title = '이 양식으로 자료를 작성할 권한이 없습니다.'; r.hint = '업무 수정 권한이 있는 계정으로 다시 로그인해 주세요.'; }
       else if (status === 404) { r.title = '양식을 찾지 못했습니다.'; r.hint = '양식을 다시 골라 주세요.'; }
-      else r.title = '엑셀을 처리하지 못했습니다(' + status + ').';
+      else { r.title = '엑셀을 처리하지 못했습니다.'; r.hint = '파일을 다시 골라 올려 주세요.'; }
       if (status === 503 || status >= 500) r.hint = '잠시 뒤 다시 올려 주세요.';
     }
+    // 버튼: 구조 불일치와 404(양식 없음)는 양식을 다시 고르게 하고, 403은 같은 파일을 다시 올려도 소용없어 파일 고르기를 뺀다.
+    r.canReform = r.structure || status === 404;
+    if (status === 403) r.canPick = false;
     return r;
   };
 
@@ -624,8 +627,9 @@
       (r.lines.length ? '<ul>' + r.lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' : '') +
       (r.kindsText ? '<p class="mono">' + esc(r.kindsText) + '</p>' : '') +
       (r.hint ? '<p>' + esc(r.hint) + '</p>' : '') +
-      '<div class="bd-w-rejbtns"><button type="button" data-w="pick">다른 파일 고르기</button>' +
-      (r.structure ? '<button type="button" data-w="reform">양식 다시 고르기</button>' : '') + '</div></div>';
+      ((r.canPick || r.canReform) ? '<div class="bd-w-rejbtns">' +
+        (r.canPick ? '<button type="button" data-w="pick">다른 파일 고르기</button>' : '') +
+        (r.canReform ? '<button type="button" data-w="reform">양식 다시 고르기</button>' : '') + '</div>' : '') + '</div>';
   };
   bw.leaveHtml = function (kind, y) {
     const b = kind === 'swap' ? ['바꾸고 새로 채우기', '그대로 두기'] : ['작성 내용 버리기', '계속 작성'];
@@ -638,8 +642,10 @@
     let text;
     if (!y.m) text = '이 양식에는 엑셀에서 채울 칸이 없습니다.';
     else if (y.failed > 0 || y.review > 0) {
-      text = '값 ' + (y.filled + y.review) + '칸을 채웠습니다.' + (y.review > 0 ? ' 머리글이 달라 확인이 필요한 칸 ' + y.review + '칸' : '') +
-        (y.failed > 0 ? (y.review > 0 ? ',' : '') + ' 읽지 못한 칸 ' + y.failed + '칸' : '') + '.';
+      const got = y.filled + y.review;
+      // 예: "값 46칸을 채웠고 2칸은 읽지 못했습니다. 머리글이 달라 확인이 필요한 칸이 3칸 있습니다."
+      text = (got > 0 ? '값 ' + got + '칸을 채웠' : '채운 값이 없') + (y.failed > 0 ? '고 ' + y.failed + '칸은 읽지 못했' : '') + '습니다.' +
+        (y.review > 0 ? ' 머리글이 달라 확인이 필요한 칸이 ' + y.review + '칸 있습니다.' : '');
     }
     else text = '값 ' + y.filled + '칸을 모두 채웠습니다. 오른쪽 원본과 대조하며 칸마다 확인해 주세요.';
     let extra = '';
@@ -650,7 +656,7 @@
       (y.failed > 0 ? '<button type="button" data-w="unread">읽지 못한 칸 보기</button>' : '') + '</div>' +
       (items.length ? '<details class="bd-w-warn"><summary>주의 ' + items.length + '건</summary><ul>' +
         items.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ul></details>' : '') +
-      '<p class="bd-w-def">‘원래 값’은 엑셀 칸에 저장된 숫자입니다. 서식으로 가린 값도 보입니다.</p>';
+      '<p class="bd-w-def">‘원래 값’은 엑셀 칸에 저장된 숫자입니다. 엑셀에서 서식으로 가려 보이지 않던 값도 여기에는 나옵니다.</p>';
   };
   bw.filterHtml = function (ws) {
     const y = bw.tally(ws), n = { all: y.m, edited: y.edited, need: y.need, unchecked: y.unchecked };
@@ -790,7 +796,7 @@
     const sel = bw.selected(ws, ui.sel);
     let h = '';
     if (sel && ui.ask && ui.ask.t === sel.t.ref && ui.ask.key === sel.c.key) return bw.askHtml(sel.t, sel.c);
-    if (ui.edit) return '<span class="bd-w-hint">값을 고치는 중입니다. Enter로 확정하고 Esc로 취소합니다.</span>' + (ui.live ? '<div class="bd-w-live">' + esc(ui.live) + '</div>' : '');
+    if (ui.edit) return '<span class="bd-w-hint">값을 고치는 중입니다. Enter로 확정하고 Esc로 취소합니다.</span>';
     if (!sel) {
       h = '<span class="bd-w-hint">표의 칸을 고르면 엑셀 원본 위치와 값이 여기에 나옵니다.</span>';
     } else {
@@ -803,8 +809,7 @@
       h += '<button type="button" data-w="check" aria-pressed="' + !!sel.c.checked + '"' + (i.unreadable && !sel.c.checked ? ' disabled' : '') + '>확인</button>';
       if (notes.length) h += '<div class="bd-w-notes">' + notes.map(function (l) { return '<div>' + esc(l.text) + '</div>'; }).join('') + '</div>';
     }
-    if (ui.live) h += '<div class="bd-w-live">' + esc(ui.live) + '</div>';
-    return h;
+    return h;   // 알림 문장(ui.live)은 writeHtml의 고정 알림 줄(#bd-w-live)에만 둔다
   };
   bw.writeHtml = function (ws, ui) {
     const y = ws ? bw.tally(ws) : null;
@@ -817,7 +822,8 @@
       h += bw.summaryHtml(ws) + bw.filterHtml(ws) + bw.reviewHtml(ws) +
         '<div class="bd-w-grid' + (ui.panelOpen ? '' : ' is-one') + '"><div class="bd-w-tables" id="bd-w-tables">' +
         ws.tables.map(function (t) { return bw.cardHtml(ws, t, ui, rv); }).join('') + '</div>' + bw.sourceHtml(ws, ui) + '</div>' +
-        '<div id="bd-w-status" class="bd-w-status" role="status" aria-live="polite">' + bw.statusHtml(ws, ui) + '</div>';
+        '<div id="bd-w-status" class="bd-w-status"><div id="bd-w-statusbody" class="bd-w-statusbody">' + bw.statusHtml(ws, ui) + '</div>' +
+        '<div id="bd-w-live" class="bd-w-live" role="status" aria-live="polite">' + esc(ui.live) + '</div></div>';
     }
     return h + '</div>';
   };
@@ -1038,7 +1044,10 @@
       measureBar();
       focusTarget(focus);
     }
-    function drawStatus() { const n = $('bd-w-status'); if (n) n.innerHTML = bw.statusHtml(ws, ui); }
+    function drawStatus() {
+      const n = $('bd-w-statusbody'); if (n) n.innerHTML = bw.statusHtml(ws, ui);
+      const l = $('bd-w-live'); if (l) l.textContent = ui.live || '';   // 알림 줄만 읽힌다(상태 줄 본문은 읽지 않는다)
+    }
 
     // 선택은 다시 그리지 않고 클래스만 바꾼다(포커스·스크롤 유지).
     function applySel() {

@@ -625,3 +625,7 @@
 - qa-verifier Playwright 열람 확인: 편집 모드 A1~A10·대시보드 물 붓기 B1~B9 조건부 통과(P0·P1 없음). 보고서 `handoff/agents/qa-verifier/2026-11-02_NEXT41_브라우저확인.md`. P3 6건은 NEXT 44로 이관, 37 작성 모드 확인은 37 자체 QA 단계에서.
 ### 38. 이사회 작성 API 오류 detail 형식 통일 — 해소(2026-11-02)
 - f032ae3에서 작성 컨트롤러 전용 advice(`BoardWriteExceptionHandler`)로 모든 오류 `{detail:{code,message}}`(411·413 필터·전역 multipart 포함), 792e18d에서 RuntimeException 객체 응답·500 로그 스택 프레임만. 서버 600/600. 프런트 소비 확인은 NEXT 37 브라우저 확인으로 이관. 전역 `ApiExceptionHandler` 문자열 detail(다른 화면)은 NEXT 35 ⓔ에 남김.
+### 44(일부). F2·F4 — 해소(2026-11-03)
+- F2 표 제목·칸 이름 수정 후 카드·입력 aria-label 재동기화(`board.js` `cardLabel`·`cellLabels`·`relabel`, `board-edit.test.js` 추가), F4 사이드바 '이사회 자료' 배지 제거(`nav.js` `soon('이사회 자료','',…)`·`badgeOf`, `app.js`). 프런트 506건 통과. 남은 F1·F3·F5·F6은 NEXT 44.
+### 26(일부). N2 복제 직후 목록 갱신 경쟁 — 코드 반영(2026-11-03, 브라우저 재검증은 NEXT 26·45에서)
+- `board.js` `refreshForms`가 마지막 호출 여부를 true/false로 돌려주고 `untilApplied`(최대 3회)·`copyOpenPlan`('open'은 적용됐고 현재 화면이며 선택이 새 양식일 때만)로 복제 뒤 자동 열기 보장. 테스트 추가.

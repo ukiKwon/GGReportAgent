@@ -95,7 +95,7 @@ test('이사회 자료는 제안 진행·승인 아래 "구현 예정", 기관 �
   assert.strictEqual(built.filter(function (c) { return c.id === 'collab'; })[0].title, '제안 진행·승인');
   const board = items(built, 'collab').filter(function (i) { return i.label === '이사회 자료'; })[0];
   assert.ok(board && board.soon);
-  assert.strictEqual(board.tag, '구현 예정');
+  assert.strictEqual(board.tag, '');
   assert.ok(board.note.indexOf('이사회') >= 0);
   assert.ok(!items(built, 'opp').some(function (i) { return i.label === '이사회 자료'; }));
   assert.ok(!items(built, 'docs').some(function (i) { return i.label.indexOf('엑셀') >= 0; }));
@@ -213,4 +213,23 @@ test('준비중 라벨은 정의 전체에서 유일하다(라벨 기반 id의 �
   nav.CATEGORIES.forEach(function (c) { c.items.forEach(function (i) { if (!i.key) labels.push(i.label); }); });
   assert.strictEqual(new Set(labels).size, labels.length);
   assert.strictEqual(labels.length, 17);   // opp 2·bid 4·match 4·docs 3·collab 1·result 3
+});
+
+test('badgeOf: 이사회 자료는 배지 없음, 준비중 항목은 "준비중"(F4)', function () {
+  assert.strictEqual(nav.badgeOf({ soon: true, tag: '' }), '');
+  assert.strictEqual(nav.badgeOf({ soon: true, tag: '준비중' }), '준비중');
+  assert.strictEqual(nav.badgeOf({ soon: false }), '');
+  assert.strictEqual(nav.badgeOf(null), '');
+});
+
+test('screenName: 이사회 자료는 tasks:board, 다른 준비중 화면은 기록하지 않고, 나머지는 그대로', function () {
+  const B = 'soon:이사회 자료';
+  assert.strictEqual(nav.screenName(B, B), 'tasks:board');
+  assert.strictEqual(nav.screenName('soon:다른 화면', B), null);
+  assert.strictEqual(nav.screenName('soon:이사회 자료', undefined), null);
+  assert.strictEqual(nav.screenName('', B), null);
+  assert.strictEqual(nav.screenName(null, B), null);
+  assert.strictEqual(nav.screenName('map', B), 'map');
+  assert.strictEqual(nav.screenName('admin:users', B), 'admin:users');
+  assert.ok(/^[a-z]{2,20}(:[a-z_]{2,20})?$/.test(nav.screenName(B, B)));
 });

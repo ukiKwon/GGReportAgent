@@ -787,3 +787,31 @@ test('board.js·이 테스트 파일에 원시 특수 코드포인트(U+2028/202
     });
   });
 });
+
+test('cellLabels·cardLabel: 표 제목·행 머리를 고치면 읽기 이름이 따라간다(F2)', function () {
+  const t = { title: '', rows: [
+    [{ key: 'h0', text: '구분', header: true }, { key: 'h2', text: '2026년', header: true }],
+    [{ key: 'a0', text: '예금', header: true }, { key: 'a2', text: '20' }]] };
+  assert.strictEqual(board.cellLabels(t).a2, '예금 · 2026년');
+  const x = Object.assign({}, t, { title: 'X' });
+  assert.strictEqual(board.cellLabels(x).a2, 'X · 예금 · 2026년');
+  assert.deepStrictEqual(board.cellLabels(null), {});
+  assert.strictEqual(board.cardLabel({ title: '', mapping: 'A' }), 'A 편집');
+  assert.strictEqual(board.cardLabel({ title: 'X', mapping: 'A' }), 'X 편집');
+  assert.strictEqual(board.cardLabel({}), '표 편집');
+});
+test('untilApplied: 밀리면(false) 최대 횟수까지 다시 요청, 적용되면 멈춘다(N2)', async function () {
+  let n = 0;
+  assert.strictEqual(await board.untilApplied(function () { n++; return Promise.resolve(n >= 2); }), true);
+  assert.strictEqual(n, 2);
+  n = 0;
+  assert.strictEqual(await board.untilApplied(function () { n++; return Promise.resolve(false); }, 3), false);
+  assert.strictEqual(n, 3);
+});
+test('copyOpenPlan: 적용됨·같은 화면·선택 상자가 복제본일 때만 연다(N2)', function () {
+  assert.strictEqual(board.copyOpenPlan(true, '7', '7', true), 'open');
+  assert.strictEqual(board.copyOpenPlan(false, '7', '7', true), 'say');
+  assert.strictEqual(board.copyOpenPlan(true, '3', '7', true), 'say');
+  assert.strictEqual(board.copyOpenPlan(true, '7', '7', false), 'say');
+  assert.strictEqual(board.copyOpenPlan(true, '', '7', true), 'say');
+});

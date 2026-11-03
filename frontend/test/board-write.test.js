@@ -87,7 +87,7 @@ test('rejectFrom: 모든 오류는 detail 객체 기준, 411/413/415/422 문구'
   assert.strictEqual(r.code, 'NET');
   // 문자열 detail은 분기하지 않는다(일반 문구)
   r = bw.rejectFrom({ status: 500, body: { detail: '내부 오류 문자열' } }, ctx);
-  assert.ok(!r.title.includes('내부 오류 문자열') && r.title.includes('500'));
+  assert.ok(!r.title.includes('내부 오류 문자열') && r.title === '엑셀을 처리하지 못했습니다.' && r.hint === '잠시 뒤 다시 올려 주세요.');
 });
 test('rejectFrom: detail이 없거나(Spring 기본 본문) 문자열이어도 상태 코드로 기본 문구', function () {
   const ctx = {};
@@ -95,7 +95,7 @@ test('rejectFrom: detail이 없거나(Spring 기본 본문) 문자열이어도 �
   assert.ok(bw.rejectFrom({ status: 403, body: null }, ctx).title.includes('권한이 없습니다'));
   assert.strictEqual(bw.rejectFrom({ status: 404, body: { detail: '없음' } }, ctx).title, '양식을 찾지 못했습니다.');
   const r = bw.rejectFrom({ status: 502, body: '<html>' }, ctx);
-  assert.ok(r.title.includes('502') && r.hint.includes('잠시 뒤'));
+  assert.ok(!r.title.includes('502') && r.hint.includes('잠시 뒤'));
 });
 test('upload: file만(기본 양식), 서버 양식은 version도, 응답 {ok,status,body}', async function () {
   const saved = global.FormData;
@@ -203,7 +203,7 @@ test('summaryHtml: 부분 실패 문구·읽지 못한 칸 보기·주의 n건 /
   const r = resp(); r.tables[0].cells[0] = cell('r1c1', '', { status: 'failed', reason: 'EMPTY' });
   r.warnings = [{ code: 'EXTERNAL_LINK' }, { code: 'PII_OUTSIDE_RANGE', count: 2 }];
   const h = bw.summaryHtml(ws0(r));
-  assert.ok(h.includes('값 1칸을 채웠습니다. 읽지 못한 칸 1칸.') && h.includes('읽지 못한 칸 보기'));
+  assert.ok(h.includes('값 1칸을 채웠고 1칸은 읽지 못했습니다.') && h.includes('읽지 못한 칸 보기'));
   // 구성 칸을 읽지 못하면 합계 검산은 생략(침묵)되므로 합계 줄은 세지 않는다
   assert.ok(h.includes('<summary>주의 2건</summary>'), '외부 연결 + 작성 범위 밖 개인정보');
   assert.ok(bw.summaryHtml(ws0()).includes('<summary>주의 1건</summary>'), '합계가 맞지 않는 곳 1곳');
@@ -254,7 +254,7 @@ test('writeHtml: 작성 줄 버튼·빈 상태·거부 상자·확인 줄·상�
   ui.rej = null; ui.form.version = 3;
   h = bw.writeHtml(ws, ui);
   assert.ok(h.includes('v3 · 원본 수익성.xlsx(저장 안 됨)') && !/data-w="draft"[^>]*disabled/.test(h));
-  assert.ok(h.includes('id="bd-w-status" class="bd-w-status" role="status" aria-live="polite"'));
+  assert.ok(h.includes('id="bd-w-status" class="bd-w-status"') && h.includes('id="bd-w-live" class="bd-w-live" role="status" aria-live="polite"'));
   assert.ok(h.includes('role="grid"') && !h.includes('bd-mapped') && !h.includes('confirm('));
   ui.leave = 'end';
   assert.ok(bw.writeHtml(ws, ui).includes('id="bd-w-leave-no"'));
@@ -322,7 +322,7 @@ function respLabel(state) {
 test('partial: review 칸은 값이 보이고 확인 전에는 확인됨으로 세지 않으며 요약에 따로 센다', function () {
   const ws = ws0(respLabel('partial')), y = bw.tally(ws);
   assert.deepStrictEqual([y.m, y.n, y.review, y.filled, y.failed, y.need], [2, 0, 2, 0, 0, 2]);
-  assert.ok(bw.summaryHtml(ws).includes('머리글이 달라 확인이 필요한 칸 2칸'));
+  assert.ok(bw.summaryHtml(ws).includes('머리글이 달라 확인이 필요한 칸이 2칸 있습니다'));
   assert.strictEqual(bw.findT(ws, 'A').labelState, 'partial');
   assert.strictEqual(bw.tally(bw.toggleCheck(ws, 'A', 'r1c1')).n, 1);
   // 고쳐도 review는 유지된다(확인해야만 센다)
@@ -338,7 +338,7 @@ test('failed: 모든 칸 비어 채우지 않음, 직접 입력 전에는 확인
   assert.ok(bw.cardHtml(ws, t, bw.freshUi(), null).includes('주의 · 채우지 못함'));
   const lines = bw.infoLines(t, t.cells.r1c1).map(function (x) { return x.text; });
   assert.strictEqual(lines.filter(function (s) { return s.indexOf('머리글') >= 0; }).length, 1);
-  assert.ok(bw.summaryHtml(ws).includes('읽지 못한 칸 2칸'));
+  assert.ok(bw.summaryHtml(ws).includes('2칸은 읽지 못했습니다'));
 });
 
 // ── HIDDEN_FORMAT·review 칸 확인 규칙 ──
@@ -369,4 +369,38 @@ test('review 칸: 확인 전에는 n에 들지 않고 확인 필요 필터에 �
   assert.strictEqual(bw.tally(ws).n, 0);
   assert.strictEqual(bw.tally(ws).review, 1);
   assert.strictEqual(bw.tally(bw.toggleCheck(ws, 'A', 'r1c1')).n, 1);
+});
+
+test('rejectFrom: 403은 할 일 안내, 기타 코드는 숫자 없이 파일 재선택 안내(P3)', function () {
+  const r403 = bw.rejectFrom({ status: 403, body: null }, {});
+  assert.ok(r403.hint.includes('업무 수정 권한이 있는 계정으로 다시 로그인'));
+  const r400 = bw.rejectFrom({ status: 400, body: null }, {});
+  assert.strictEqual(r400.title, '엑셀을 처리하지 못했습니다.');
+  assert.strictEqual(r400.hint, '파일을 다시 골라 올려 주세요.');
+});
+
+test('rejHtml: 403은 파일 고르기 버튼이 없고, 404는 양식 다시 고르기가 있다, 구조 불일치는 둘 다', function () {
+  const ctx = { formName: '기본 양식' };
+  const r403 = bw.rejectFrom({ status: 403, body: null }, ctx);
+  assert.deepStrictEqual([r403.canPick, r403.canReform], [false, false]);
+  const h403 = bw.rejHtml(r403);
+  assert.ok(!h403.includes('data-w="pick"') && !h403.includes('data-w="reform"') && !h403.includes('bd-w-rejbtns'));
+  assert.ok(h403.includes('role="alert"') && h403.includes('권한이 없습니다'));
+  const h404 = bw.rejHtml(bw.rejectFrom({ status: 404, body: { detail: '없음' } }, ctx));
+  assert.ok(h404.includes('data-w="reform"') && h404.includes('data-w="pick"'));
+  const hs = bw.rejHtml(bw.rejectFrom({ status: 422, body: { detail: { code: 'STRUCTURE_MISMATCH', reasons: [] } } }, ctx));
+  assert.ok(hs.includes('data-w="pick"') && hs.includes('data-w="reform"'));
+  const hm = bw.rejHtml(bw.rejectFrom({ status: 422, body: { detail: { code: 'MACRO' } } }, ctx));
+  assert.ok(hm.includes('data-w="pick"') && !hm.includes('data-w="reform"'));
+  const hn = bw.rejHtml(bw.rejectFrom({ status: 0, net: true }, ctx));
+  assert.ok(hn.includes('data-w="pick"') && !hn.includes('data-w="reform"'));
+});
+
+test('index.html: 상태 줄 안 확인 줄은 글자 크기를 상속하고 문구 span은 flex:0 1 auto (P3)', function () {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const a = html.match(/\.bd-w-statusbody > \.bd-confirm \{([^}]*)\}/);
+  assert.ok(a && /font-size:\s*inherit/.test(a[1]));
+  const b = html.match(/\.bd-w-statusbody > \.bd-confirm span \{([^}]*)\}/);
+  assert.ok(b && /flex:\s*0 1 auto/.test(b[1]));
+  assert.ok(/\.bd-confirm span \{ flex:1 1 320px;/.test(html));
 });
