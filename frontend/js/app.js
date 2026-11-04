@@ -227,8 +227,10 @@
     app.loadAccountSwitcher();
   };
 
+  let lastRecorded = null;   // 접근 이력 연속 기록 방지용 — 계정이 바뀌거나 로그아웃하면 비워 새 계정의 첫 화면도 기록한다
   // 프로필이 바뀌면 그 값을 쓰는 화면들을 따라 갱신한다.
   app.onProfileChanged = function () {
+    lastRecorded = null;
     if (root.notify && root.notify.onProfileChange) root.notify.onProfileChange();
     if (root.approvals && root.approvals.onProfileChange) root.approvals.onProfileChange();
     if (root.myinfo && root.myinfo.onProfileChange) root.myinfo.onProfileChange();
@@ -560,7 +562,6 @@
   };
 
   // 화면 열람을 접근 이력에 남긴다(서버 모드·로그인 상태·같은 화면 연속 호출 제외). 실패는 무시한다.
-  let lastRecorded = null;
   function recordScreen(id) {
     const name = root.nav.screenName(id, root.board && root.board.SOON_ID);
     if (!name || name === lastRecorded) return;

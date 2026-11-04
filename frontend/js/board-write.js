@@ -115,7 +115,7 @@
     const d = detailOf(res && res.body);
     const code = d && typeof d.code === 'string' ? d.code : '';
     const msg = d && typeof d.message === 'string' ? d.message : '';
-    const r = { code: code || ('HTTP_' + status), title: '', lines: [], kindsText: '', hint: '', structure: false, canPick: true, canReform: false };
+    const r = { code: code || ('HTTP_' + status), title: '', lines: [], kindsText: '', hint: '', structure: false, canPick: true, canReform: false, canPerm: false };
     if (res && res.net) { r.code = 'NET'; r.title = '서버에 연결하지 못했습니다.'; r.hint = '잠시 뒤 다시 올려 주세요.'; return r; }
     if (code === 'MACRO') {
       r.title = '매크로가 들어 있는 파일은 받지 않습니다.'; r.hint = '매크로 없는 .xlsx로 다시 저장해 올려 주세요.';
@@ -146,16 +146,17 @@
       r.hint = '시트 이름이 같은 엑셀인지 확인해 주세요.';
     } else {
       // detail이 없거나 문자열(Spring 기본 본문 등)이면 상태 코드로 일반 문구를 쓴다(문자열 본문은 화면에 내지 않는다).
-      if (msg) r.title = msg;
+      // 403은 서버 문구보다 우선해 '권한 신청' 안내로 고정한다(다른 계정 로그인 안내가 아니라 신청 경로를 보여 준다).
+      if (status === 403) { r.title = '이 양식으로 자료를 작성하려면 업무 수정 권한이 필요합니다.'; r.hint = '내 정보의 내 권한에서 권한을 신청하면, 승인 후 이어서 작성할 수 있습니다.'; }
+      else if (msg) r.title = msg;
       else if (status === 401) { r.title = '로그인이 필요합니다.'; r.hint = '다시 로그인한 뒤 올려 주세요.'; }
-      else if (status === 403) { r.title = '이 양식으로 자료를 작성할 권한이 없습니다.'; r.hint = '업무 수정 권한이 있는 계정으로 다시 로그인해 주세요.'; }
       else if (status === 404) { r.title = '양식을 찾지 못했습니다.'; r.hint = '양식을 다시 골라 주세요.'; }
       else { r.title = '엑셀을 처리하지 못했습니다.'; r.hint = '파일을 다시 골라 올려 주세요.'; }
       if (status === 503 || status >= 500) r.hint = '잠시 뒤 다시 올려 주세요.';
     }
     // 버튼: 구조 불일치와 404(양식 없음)는 양식을 다시 고르게 하고, 403은 같은 파일을 다시 올려도 소용없어 파일 고르기를 뺀다.
     r.canReform = r.structure || status === 404;
-    if (status === 403) r.canPick = false;
+    if (status === 403) { r.canPick = false; r.canPerm = true; }
     return r;
   };
 
@@ -627,7 +628,8 @@
       (r.lines.length ? '<ul>' + r.lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' : '') +
       (r.kindsText ? '<p class="mono">' + esc(r.kindsText) + '</p>' : '') +
       (r.hint ? '<p>' + esc(r.hint) + '</p>' : '') +
-      ((r.canPick || r.canReform) ? '<div class="bd-w-rejbtns">' +
+      ((r.canPick || r.canReform || r.canPerm) ? '<div class="bd-w-rejbtns">' +
+        (r.canPerm ? '<button type="button" data-w="perm">권한 신청하러 가기</button>' : '') +
         (r.canPick ? '<button type="button" data-w="pick">다른 파일 고르기</button>' : '') +
         (r.canReform ? '<button type="button" data-w="reform">양식 다시 고르기</button>' : '') + '</div>' : '') + '</div>';
   };
@@ -1312,6 +1314,7 @@
         case 'leave-ok': { const k = ui.leave; ui.leave = null; if (k === 'swap') { draw(null); pickFile(); } else finish(); break; }
         case 'leave-no': { const k = ui.leave; ui.leave = null; draw(k === 'swap' ? { w: 'swap' } : { id: 'bd-w-end' }); break; }
         case 'reform': finish('#bd-form'); break;
+        case 'perm': if (env.perms) env.perms(); break;
         case 'filter': ws = bw.setFilter(ws, v); draw({ w: 'filter', v: ws.filter }); break;
         case 'panel': ui.panelOpen = !ui.panelOpen; draw({ w: 'panel' }); break;
         case 'banmore': ui.banOpen[v] = !ui.banOpen[v]; draw({ w: 'banmore', v: v }); break;

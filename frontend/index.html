@@ -72,7 +72,7 @@
   /* 컨트롤 스트립 */
   #topbar { display:flex; gap:16px; align-items:flex-end; padding:10px 20px;
             border-bottom:1px solid var(--line); flex-wrap:wrap; }
-  .filter-title { font-size:10px; color:var(--muted); letter-spacing:.08em; margin-bottom:5px; }
+  .filter-title { font-size:11px; color:var(--muted); letter-spacing:.08em; margin-bottom:5px; }
   #type-filter-wrap { min-width:0; }
   #type-filter { display:flex; gap:6px 14px; font-size:12px; flex-wrap:wrap; }
   #type-filter label { display:flex; align-items:center; gap:5px; color:var(--fg); cursor:pointer;
@@ -324,7 +324,7 @@
                 background:color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter:blur(6px);
                 border:1px solid var(--line-strong); border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.55);
                 display:flex; flex-direction:column; gap:12px; }
-  .login-card h2 { margin:0; font-size:18px; display:flex; align-items:center; gap:9px; }
+  .login-card h1 { margin:0; font-size:18px; display:flex; align-items:center; gap:9px; }
   .login-sub { margin:0 0 4px; color:var(--muted); font-size:12px; }
   .login-card label { display:flex; flex-direction:column; gap:5px; font-size:11px; color:var(--muted); }
   .login-card input, .login-card select { padding:8px 10px; font-size:13px; }
@@ -345,16 +345,13 @@
   #ticker .tk-sep { color:var(--line-strong); margin:0 10px; }
   .gph { width:12px; height:12px; display:inline-block; vertical-align:-2px; }
   #legend .gph { width:10px; height:10px; vertical-align:-1px; }
-  #ticker .tk-live { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:7px;
-                     background:var(--accent-color); vertical-align:1px; animation:tkPulse 2s ease-in-out infinite; }
   #ticker .tk-sync { margin-left:16px; font-size:11px; color:var(--muted); opacity:.8; }
   #ticker > span:not(.tk-cap):not(.tk-sep):not(.tk-sync) { display:inline-block; }
   #ticker .tk-roll { animation:tkRoll .8s cubic-bezier(.5,0,.2,1) both; }
-  @keyframes tkPulse { 0%,100% { opacity:.35; transform:scale(.8); } 50% { opacity:1; transform:scale(1.15); } }
   /* 아래로 굴러 나가고(0~42%) 위에서 다시 내려와 앉는다 — 시계 숫자가 넘어가듯 */
   @keyframes tkRoll { 0% { transform:translateY(0); opacity:1; } 42% { transform:translateY(90%); opacity:0; }
                       43% { transform:translateY(-90%); opacity:0; } 100% { transform:translateY(0); opacity:1; } }
-  @media (prefers-reduced-motion: reduce) { #ticker .tk-live, #ticker .tk-roll { animation:none; } }
+  @media (prefers-reduced-motion: reduce) { #ticker .tk-roll { animation:none; } }
   #ticker .gph.up { width:9px; height:9px; vertical-align:-1px; }
 
   /* 탭 프레임 + 진입 스태거 (한 번만, 가볍게) */
@@ -462,8 +459,8 @@
   .wf-step.done { color:var(--fg); border-color:var(--blue); }
   .wf-step.current { color:var(--fg); border-color:var(--accent-color); box-shadow:0 0 0 1px var(--accent-color); }
   .wf-step.gate { color:var(--fg); border-color:var(--orange); box-shadow:0 0 0 1px var(--orange); }
-  .wf-step .wf-gate { font-style:normal; font-size:10px; color:var(--orange); }
-  .wf-step .wf-cnt { font-style:normal; font-size:10px; color:var(--fg); background:var(--bg);
+  .wf-step .wf-gate { font-style:normal; font-size:11px; color:var(--orange); }
+  .wf-step .wf-cnt { font-style:normal; font-size:11px; color:var(--fg); background:var(--bg);
                      border-radius:6px; padding:0 5px; font-family:var(--mono); }
   .wf-step.sel { outline:2px solid var(--accent-color); }
   .wf-state { font-size:13px; margin:6px 0; }
@@ -729,7 +726,7 @@
   .modal-box { margin:6vh auto; background:var(--panel); border:1px solid var(--line-strong);
                border-radius:var(--r-lg); box-shadow:var(--shadow);
                padding:18px; max-height:84vh; display:flex; flex-direction:column; }
-  .modal-box h3 { margin:0 0 12px; font-size:14px; letter-spacing:-.01em;
+  .modal-box h2, .modal-box h3 { margin:0 0 12px; font-size:14px; letter-spacing:-.01em;
                   padding-bottom:9px; border-bottom:1px solid var(--line); }
   .modal-scroll { display:block; overflow:auto; }
   #popover { display:none; position:fixed; z-index:20; background:rgba(21,26,34,.92);
@@ -785,7 +782,7 @@ review, the verdict, and DESIGN.md
 -->
 <div id="login-view" role="dialog" aria-label="로그인">
   <div class="login-card">
-    <h2><svg width="16" height="16" viewBox="0 0 14 14" aria-hidden="true"><g stroke="#57b8ad" stroke-width="1.6" fill="none"><line x1="3" y1="2" x2="3" y2="12"/><rect x="1.2" y="4.5" width="3.6" height="4" fill="#57b8ad" stroke="none"/><line x1="10" y1="1" x2="10" y2="13"/><rect x="8.2" y="3" width="3.6" height="6.5" fill="none"/></g></svg>기관영업지원 시스템</h2>
+    <h1><svg width="16" height="16" viewBox="0 0 14 14" aria-hidden="true"><g stroke="#57b8ad" stroke-width="1.6" fill="none"><line x1="3" y1="2" x2="3" y2="12"/><rect x="1.2" y="4.5" width="3.6" height="4" fill="#57b8ad" stroke="none"/><line x1="10" y1="1" x2="10" y2="13"/><rect x="8.2" y="3" width="3.6" height="6.5" fill="none"/></g></svg>기관영업지원 시스템</h1>
     <p class="login-sub">함께 만드는 제안서 — 로그인하고 시작하세요</p>
     <label>사번 / 아이디<input id="login-id" autocomplete="off" inputmode="text" placeholder="사번 7자리 또는 임시 계정(예: sales.lead)"></label>
     <label>비밀번호<input id="login-pw" type="password" autocomplete="off" placeholder="프로토타입은 확인하지 않습니다"></label>
@@ -864,7 +861,7 @@ review, the verdict, and DESIGN.md
   <div id="more-modal" class="modal-overlay" style="display:none;">
     <div class="modal-box" style="max-width:720px;">
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
-        <h3 style="margin:0;padding:0;border:none;flex:0 0 auto;">전체 입찰건</h3>
+        <h2 style="margin:0;padding:0;border:none;flex:0 0 auto;">전체 입찰건</h2>
         <input id="more-search" placeholder="기관명·지역·유형 검색" style="flex:1;padding:6px 10px;">
         <button id="more-close">닫기</button>
       </div>

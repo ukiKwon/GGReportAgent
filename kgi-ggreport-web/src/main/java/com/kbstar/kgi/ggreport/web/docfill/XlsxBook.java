@@ -27,6 +27,11 @@ import java.util.*;
 public final class XlsxBook implements Closeable {
 
     public static final int GRID_CLIP = 200;
+    /** 통합문서 전체 병합 영역 상한 — 넘으면 열기 거부(TOO_MANY_CELLS). */
+    public static final int MAX_MERGES = 10000;
+    /** 병합 색인 한 번에 다룰 수 있는 자르기 범위의 행·열 상한. */
+    public static final int MAX_INDEX_ROWS = 5000;
+    public static final int MAX_INDEX_COLS = 200;
 
     public static final class Limits {
         final long maxEntry;
@@ -134,6 +139,10 @@ public final class XlsxBook implements Closeable {
         try {
             pkg = OPCPackage.open(new ByteArrayInputStream(data));
             XlsxBook b = new XlsxBook(pkg, new XSSFWorkbook(pkg), ext);
+            if (b.mergeCount() > MAX_MERGES) {
+                b.close();
+                throw new Rejected(422, "TOO_MANY_CELLS", null);
+            }
             if (b.cellCount(lim.maxCells) > lim.maxCells) {
                 b.close();
                 throw new Rejected(422, "TOO_MANY_CELLS", null);
@@ -341,6 +350,92 @@ public final class XlsxBook implements Closeable {
         out.put("rows", rows);
         out.put("merges", merges);
         return out;
+    }
+
+    /**
+     * 병합 색인 — clip 범위와 겹치는 병합 영역만 행별로 담는다(범위로 잘라 만들어 거대 병합이어도 clip 크기로 한정).
+     * 영역 자체는 원래 좌표 그대로 돌려준다(좌상단 읽기용). 둘 이상이 clip 안에서 같은 칸을 덮으면 {@link #hasOverlap()}.
+     */
+    public static final class MergedIndex {
+        private final Map<Integer, List<CellRangeAddress>> byRow = new HashMap<>();
+        private final int clipFirstCol;
+        private final int clipLastCol;
+        private boolean overlap;
+
+        MergedIndex(CellRangeAddress clip) {
+            this.clipFirstCol = clip.getFirstColumn();
+            this.clipLastCol = clip.getLastColumn();
+        }
+
+        public boolean hasOverlap() {
+            return overlap;
+        }
+
+        /** (row,col) 를 덮는 병합 영역(없으면 null). clip 밖이면 null. */
+        public CellRangeAddress regionAt(int row, int col) {
+            List<CellRangeAddress> l = byRow.get(row);
+            if (l == null) {
+                return null;
+            }
+            for (CellRangeAddress m : l) {
+                if (col >= m.getFirstColumn() && col <= m.getLastColumn()) {
+                    return m;
+                }
+            }
+            return null;
+        }
+
+        private void add(CellRangeAddress m, CellRangeAddress clip) {
+            int r0 = Math.max(m.getFirstRow(), clip.getFirstRow());
+            int r1 = Math.min(m.getLastRow(), clip.getLastRow());
+            int c0 = Math.max(m.getFirstColumn(), clipFirstCol);
+            int c1 = Math.min(m.getLastColumn(), clipLastCol);
+            for (int r = r0; r <= r1 && !overlap; r++) {
+                List<CellRangeAddress> l = byRow.get(r);
+                if (l == null) {
+                    l = new ArrayList<>();
+                    byRow.put(r, l);
+                }
+                for (CellRangeAddress o : l) {
+                    int oc0 = Math.max(o.getFirstColumn(), clipFirstCol);
+                    int oc1 = Math.min(o.getLastColumn(), clipLastCol);
+                    if (oc0 <= c1 && c0 <= oc1) {
+                        overlap = true;
+                        return;                                // 겹침이 확정되면 더 쌓지 않는다
+                    }
+                }
+                l.add(m);
+            }
+        }
+    }
+
+    /** clip(시트 범위 안으로 자른 구역 범위)과 겹치는 병합만 색인. clip 이 행 5,000·열 200 을 넘으면 IllegalArgumentException. */
+    public MergedIndex mergedIndex(Sheet s, CellRangeAddress clip) {
+        if (clip.getLastRow() - clip.getFirstRow() + 1 > MAX_INDEX_ROWS
+                || clip.getLastColumn() - clip.getFirstColumn() + 1 > MAX_INDEX_COLS) {
+            throw new IllegalArgumentException("CLIP_TOO_LARGE");
+        }
+        MergedIndex ix = new MergedIndex(clip);
+        for (CellRangeAddress m : s.getMergedRegions()) {
+            if (clip.intersects(m)) {
+                ix.add(m, clip);
+                if (ix.overlap) {
+                    break;
+                }
+            }
+        }
+        return ix;
+    }
+
+    private int mergeCount() {
+        int n = 0;
+        for (Sheet s : wb) {
+            n += s.getNumMergedRegions();
+            if (n > MAX_MERGES) {
+                return n;
+            }
+        }
+        return n;
     }
 
     private int cellCount(int max) {

@@ -993,6 +993,11 @@
       epoch: function () { return epoch; },
       who: function () { const p = root.store && root.store.loadProfile ? root.store.loadProfile() : null; return (p && p.name) || ''; },
       now: function () { return new Date(); },
+      perms: function () {   // 내 정보 › 내 권한(권한 신청 폼)으로 이동
+        if (root.myinfo && root.myinfo.openView) root.myinfo.openView('perms');
+        const b = document.getElementById('tab-btn-myinfo');
+        if (b) b.click();
+      },
       exit: function (focusSel) {
         mode = 'view';
         if (current) renderView(); else renderActions();

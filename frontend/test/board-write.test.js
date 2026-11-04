@@ -92,7 +92,7 @@ test('rejectFrom: 모든 오류는 detail 객체 기준, 411/413/415/422 문구'
 test('rejectFrom: detail이 없거나(Spring 기본 본문) 문자열이어도 상태 코드로 기본 문구', function () {
   const ctx = {};
   assert.strictEqual(bw.rejectFrom({ status: 401, body: { status: 401, error: 'Unauthorized' } }, ctx).title, '로그인이 필요합니다.');
-  assert.ok(bw.rejectFrom({ status: 403, body: null }, ctx).title.includes('권한이 없습니다'));
+  assert.ok(bw.rejectFrom({ status: 403, body: null }, ctx).title.includes('업무 수정 권한이 필요합니다'));
   assert.strictEqual(bw.rejectFrom({ status: 404, body: { detail: '없음' } }, ctx).title, '양식을 찾지 못했습니다.');
   const r = bw.rejectFrom({ status: 502, body: '<html>' }, ctx);
   assert.ok(!r.title.includes('502') && r.hint.includes('잠시 뒤'));
@@ -373,7 +373,7 @@ test('review 칸: 확인 전에는 n에 들지 않고 확인 필요 필터에 �
 
 test('rejectFrom: 403은 할 일 안내, 기타 코드는 숫자 없이 파일 재선택 안내(P3)', function () {
   const r403 = bw.rejectFrom({ status: 403, body: null }, {});
-  assert.ok(r403.hint.includes('업무 수정 권한이 있는 계정으로 다시 로그인'));
+  assert.ok(r403.hint.includes('내 정보의 내 권한에서 권한을 신청하면'));
   const r400 = bw.rejectFrom({ status: 400, body: null }, {});
   assert.strictEqual(r400.title, '엑셀을 처리하지 못했습니다.');
   assert.strictEqual(r400.hint, '파일을 다시 골라 올려 주세요.');
@@ -384,8 +384,12 @@ test('rejHtml: 403은 파일 고르기 버튼이 없고, 404는 양식 다시 �
   const r403 = bw.rejectFrom({ status: 403, body: null }, ctx);
   assert.deepStrictEqual([r403.canPick, r403.canReform], [false, false]);
   const h403 = bw.rejHtml(r403);
-  assert.ok(!h403.includes('data-w="pick"') && !h403.includes('data-w="reform"') && !h403.includes('bd-w-rejbtns'));
-  assert.ok(h403.includes('role="alert"') && h403.includes('권한이 없습니다'));
+  assert.ok(!h403.includes('data-w="pick"') && !h403.includes('data-w="reform"') && h403.includes('data-w="perm"') && h403.includes('권한 신청하러 가기'));
+  assert.ok(h403.includes('role="alert"') && h403.includes('업무 수정 권한이 필요합니다'));
+  assert.strictEqual(r403.canPerm, true);
+  // 서버 문구가 있어도 403은 권한 신청 안내로 고정
+  const r403m = bw.rejectFrom({ status: 403, body: { detail: { code: 'FORBIDDEN', message: '권한이 없습니다.' } } }, ctx);
+  assert.ok(r403m.title.includes('업무 수정 권한이 필요합니다') && r403m.canPerm);
   const h404 = bw.rejHtml(bw.rejectFrom({ status: 404, body: { detail: '없음' } }, ctx));
   assert.ok(h404.includes('data-w="reform"') && h404.includes('data-w="pick"'));
   const hs = bw.rejHtml(bw.rejectFrom({ status: 422, body: { detail: { code: 'STRUCTURE_MISMATCH', reasons: [] } } }, ctx));
@@ -403,4 +407,23 @@ test('index.html: 상태 줄 안 확인 줄은 글자 크기를 상속하고 문
   const b = html.match(/\.bd-w-statusbody > \.bd-confirm span \{([^}]*)\}/);
   assert.ok(b && /flex:\s*0 1 auto/.test(b[1]));
   assert.ok(/\.bd-confirm span \{ flex:1 1 320px;/.test(html));
+});
+
+test('rejHtml: 권한 신청 버튼은 403에만 있다', function () {
+  const ctx = { formName: '기본 양식' };
+  [[401, null], [404, null], [500, null], [422, { detail: { code: 'MACRO' } }]].forEach(function (c) {
+    const r = bw.rejectFrom({ status: c[0], body: c[1] }, ctx);
+    assert.strictEqual(r.canPerm, false);
+    assert.ok(!bw.rejHtml(r).includes('data-w="perm"'));
+  });
+  assert.ok(!bw.rejHtml(bw.rejectFrom({ status: 0, net: true }, ctx)).includes('data-w="perm"'));
+});
+
+test('index.html: 티커 점·깜박임 제거, 읽는 글자 11px, 제목 단계(P3)', function () {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.ok(!html.includes('tkPulse') && !html.includes('tk-live'));
+  assert.ok(/\.login-card h1 \{/.test(html) && !/\.login-card h2/.test(html));
+  assert.ok(/\.modal-box h2, \.modal-box h3 \{/.test(html));
+  assert.ok(/\.filter-title \{ font-size:11px/.test(html));
+  assert.ok(/\.wf-step \.wf-gate \{[^}]*font-size:11px/.test(html) && /\.wf-step \.wf-cnt \{[^}]*font-size:11px/.test(html));
 });

@@ -194,7 +194,9 @@
     });
   }
 
-  myinfo.mount = function () { view = myinfo.VIEWS[0].key; flash = { text: '', bad: false }; reason = ''; return load(); };
+  let wantView = null;
+  myinfo.openView = function (key) { wantView = myinfo.normView(key); };   // 다음 mount에서 이 보기로 연다(approvals.openTab과 같은 방식)
+  myinfo.mount = function () { view = wantView || myinfo.VIEWS[0].key; wantView = null; flash = { text: '', bad: false }; reason = ''; return load(); };
   myinfo.unmount = function () { /* 폴링이 없어 정리할 것이 없다 */ };
   myinfo.onProfileChange = function () {
     if (!(el('tab-myinfo') && el('tab-myinfo').classList.contains('active'))) return;

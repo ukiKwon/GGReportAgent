@@ -202,6 +202,15 @@
         ],
         "createdAt": "2026-08-21T00:40:01.657Z",
         "reason": "User confirmed 2026-08-21: portfolio/index.html is a standalone light-theme document with its own type ramp; DESIGN.md's ramp describes the dashboard"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "frontend/index.html"
+        ],
+        "createdAt": "2026-11-04T01:46:47.735Z",
+        "reason": "design-reviewer 코드 점검 2026-11-04: marquee 요소 없음, 무한 반복 translateX는 .bd-w-prog i(업로드 진행 막대, 글자 없음, reduced-motion 처리됨) 하나뿐 — 오탐"
       }
     ]
   }
