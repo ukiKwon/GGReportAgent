@@ -449,7 +449,7 @@
     const el = document.getElementById('ticker'); if (!el) return;
     // 항목마다 임박도 색을 입힌다 — 티커 자체가 등락을 말해야 한다(마감 리뷰 반영).
     // ▲는 6개월 이내(상승 = 임박)에만 붙는 시세 표기. 색은 hex 화이트리스트 통과분만.
-    el.innerHTML = '<span class="tk-cap"><i class="tk-live" aria-hidden="true"></i>임박 TOP5</span>' + top.map(function (r) {
+    el.innerHTML = '<span class="tk-cap">임박 TOP5</span>' + top.map(function (r) {
       const band = logic.urgencyOf(r, render.state.today);
       const c = render._safeColor(render.URGENCY_COLORS[band], render.DEFAULT_THEME[band]);
       const mark = band === 'red' ? render.ICONS.up + ' ' : '';
