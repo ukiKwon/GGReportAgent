@@ -330,6 +330,23 @@
             });
           }
         });
+        // 새로 넣은 행·열의 값 칸(양식 칸 input:true·mapped:false, 서버 cells 에 없음): 작성할 때 직접 입력하는 칸으로 만든다.
+        // 기관명 같은 서버 직접 입력 칸(status manual)과 같은 칸 모양이라 렌더·검증·복사·초안 본문·합계 재검산을 그대로 쓴다.
+        // 처음 값은 공란(0으로 치지 않는다). 글자가 이미 있는 예시 값 칸은 건드리지 않는다.
+        rows.forEach(function (row, r) {
+          (Array.isArray(row) ? row : []).forEach(function (fc, ci) {
+            if (!fc || typeof fc !== 'object' || fc.input !== true || fc.mapped === true || str(fc.text) !== '') return;
+            const key = str(fc.key);
+            if (key === '' || has(t.cells, key)) return;
+            t.cells[key] = {
+              key: key, value: '', orig: '', status: 'manual', reason: '', manual: true, parts: [], partCount: 0,
+              convert: null, mainValue: null, subValue: null, src: null, warns: [], serverSum: null,
+              label: str(labeler({ title: ft.title, rows: rows, columns: t.columns, cells: {} }, r, ci)),
+              checked: false, asked: false, why: '', memo: '', whyAsked: false
+            };
+            t.order.push(key);
+          });
+        });
       }
       return t;
     });
@@ -386,7 +403,8 @@
     UNIT_UNKNOWN: '엑셀 표 제목에서 단위를 찾지 못했습니다. 환산한 값이 맞는지 확인해 주세요.',
     HIDDEN_SHEET: '숨겨진 시트의 값입니다.', HIDDEN_ROW: '숨겨진 행의 값입니다.', HIDDEN_COLUMN: '숨겨진 열의 값입니다.',
     HIDDEN_FORMAT: '엑셀 화면에서는 서식으로 가려져 보이지 않는 값입니다. 문서에 넣어도 되는지 확인해 주세요. (글꼴 색 등 서식 밖의 숨김은 검사하지 않습니다.)',
-    LABEL_MISMATCH: '이 표의 머리글이 양식과 달라 위치대로 채웠습니다.'
+    LABEL_MISMATCH: '이 표의 머리글이 양식과 달라 위치대로 채웠습니다.',
+    SUM_HAS_MANUAL_PARTS: '합계 범위 안에 엑셀에서 가져오지 않는 칸(직접 입력)이 있어 합계가 엑셀 값과 다를 수 있습니다. 직접 입력한 값을 확인해 주세요.'
   };
 
   bw.cellInfo = function (t, c) {
@@ -408,14 +426,19 @@
     return true;
   };
   bw.tally = function (ws) {
-    const y = { m: 0, n: 0, edited: 0, need: 0, unchecked: 0, filled: 0, failed: 0, review: 0, sumBad: 0, noReason: 0, hidden: 0, hiddenFmt: 0, empty: 0, manual: 0 };
+    const y = { m: 0, n: 0, edited: 0, need: 0, unchecked: 0, filled: 0, failed: 0, review: 0, sumBad: 0, noReason: 0, hidden: 0, hiddenFmt: 0, empty: 0, manual: 0, sumManual: 0, reviewLabel: 0 };
     eachCell(ws, function (t, c) {
       const i = bw.cellInfo(t, c);
       y.m++;
       if (c.checked) y.n++; else y.unchecked++;
       if (c.manual) y.manual++;
       else if (c.status === 'failed') { y.failed++; if (c.reason === 'PART_EMPTY') y.empty++; }
-      else if (c.status === 'review') y.review++; else y.filled++;
+      else if (c.status === 'review') {
+        y.review++;
+        // 확인이 필요한 까닭: 합계 범위의 직접 입력 칸 때문이면 머리글 불일치로 세지 않는다
+        if (c.warns.indexOf('SUM_HAS_MANUAL_PARTS') < 0) y.reviewLabel++;
+      } else y.filled++;
+      if (c.warns.indexOf('SUM_HAS_MANUAL_PARTS') >= 0) y.sumManual++;
       if (i.edited) y.edited++;
       if (i.need) y.need++;
       if (i.sumBad) y.sumBad++;
@@ -504,6 +527,7 @@
     if (hs > 0) out.push('숨겨진 시트·행·열에서 가져온 값이 ' + hs + '칸 있습니다.');
     if (y.hiddenFmt) out.push('엑셀 화면에서 서식으로 가려져 보이지 않는 값이 ' + y.hiddenFmt + '칸 있습니다.');
     if (y.sumBad) out.push('합계가 맞지 않는 곳이 ' + y.sumBad + '곳 있습니다.');
+    if (y.sumManual) out.push('합계 범위 안에 엑셀에서 가져오지 않는 칸(직접 입력)이 있는 합계가 ' + y.sumManual + '칸 있습니다. 직접 입력한 값을 확인해 주세요.');
     // 단위를 지도에서 가정한 표: 단위별로 한 번만 알린다(확인된 단위는 알리지 않는다).
     const seenUnit = {};
     (ws.assumptions || []).forEach(function (a) {
@@ -527,10 +551,15 @@
     return prefix + '합 ' + fmtPlain(sum) + ' ' + cv.unit_from + ' ÷ ' + str(cv.divisor) + ' = ' + str(result) + ' ' + cv.unit_to + ROUND_NOTE;
   }
   // 환산 줄: 억원 환산(합 ÷ 나눔수), 괄호 병기(앞 값·괄호 안 두 줄), 표시값 합계.
-  function convertLines(c) {
+  function convertLines(t, c) {
     const cv = c.convert;
     if (!cv) return [];
-    if (cv.kind === 'display_sum') return ['구성 칸 ' + cv.of.length + '개의 표시값을 더한 합계입니다'];
+    if (cv.kind === 'display_sum') {
+      // 서버 sums.of(직접 입력 칸 포함)가 있으면 그 개수를 따른다. 없으면 convert.of.
+      let n = cv.of.length;
+      for (let i = 0; i < t.sums.length; i++) if (t.sums[i].total === c.key) { n = t.sums[i].of.length; break; }
+      return ['구성 칸 ' + n + '개의 표시값을 더한 합계입니다'];
+    }
     if (cv.kind === 'eok') return [eokLine('', cv.sum, cv, cv.result != null ? cv.result : c.value)];
     if (cv.kind === 'eok_paren') {
       return [eokLine('앞 값 ', cv.sum, cv, c.mainValue != null ? c.mainValue : cv.result),
@@ -562,7 +591,7 @@
       });
       if (total > MAX_PART_LINES) out.push({ k: 'part', text: '그 밖에 ' + (total - MAX_PART_LINES) + '칸' });
     }
-    convertLines(c).forEach(function (s) { out.push({ k: 'calc', text: s }); });
+    convertLines(t, c).forEach(function (s) { out.push({ k: 'calc', text: s }); });
     if (i.edited) out.push({ k: 'note', text: '수정함 ' + c.value + (c.why ? ' · 사유 ' + bw.whyText(c) : '') });
     if (i.sumBad) out.push({ k: 'note', text: '표시 합 ' + i.sum.expected + ' · 합계 ' + i.sum.actual + ' · 차이 ' + i.sum.diff });
     if (i.unreadable) out.push({ k: 'note', text: (c.reason === 'PART_EMPTY' ? '비어 있음: ' : '읽지 못함: ') + bw.reasonText(c.reason) });
@@ -744,7 +773,7 @@
       // 예: "값 46칸을 채웠고 2칸은 읽지 못했습니다. 그중 1칸은 엑셀 칸이 비어 있습니다. 머리글이 달라 확인이 필요한 칸이 3칸 있습니다."
       text = (got > 0 ? '값 ' + got + '칸을 채웠' : '채운 값이 없') + (y.failed > 0 ? '고 ' + y.failed + '칸은 읽지 못했' : '') + '습니다.' +
         (y.empty > 0 ? ' 그중 ' + y.empty + '칸은 엑셀 칸이 비어 있습니다.' : '') +
-        (y.review > 0 ? ' 머리글이 달라 확인이 필요한 칸이 ' + y.review + '칸 있습니다.' : '');
+        (y.reviewLabel > 0 ? ' 머리글이 달라 확인이 필요한 칸이 ' + y.reviewLabel + '칸 있습니다.' : '');
     }
     else if (y.filled === 0 && y.manual > 0) text = '엑셀에서 가져올 값이 없습니다.';
     else text = '값 ' + y.filled + '칸을 모두 채웠습니다. 오른쪽 원본과 대조하며 칸마다 확인해 주세요.';
@@ -753,6 +782,7 @@
     const items = bw.warnItems(ws);
     return '<div class="bd-w-sum" id="bd-w-sum" role="status" tabindex="-1"><span>' + esc(text) + '</span>' +
       (extra ? '<span>' + esc(extra) + '</span>' : '') +
+      (y.sumManual > 0 ? '<span>' + esc('합계 범위에 직접 입력 칸이 있어 확인이 필요한 합계가 ' + y.sumManual + '칸 있습니다.') + '</span>' : '') +
       (y.manual > 0 ? '<span>' + esc('직접 입력하는 칸 ' + y.manual + '칸은 엑셀에서 가져오지 않습니다.') + '</span>' : '') +
       (y.failed > 0 ? '<button type="button" data-w="unread">읽지 못한 칸 보기</button>' : '') + '</div>' +
       (items.length ? '<details class="bd-w-warn"><summary>주의 ' + items.length + '건</summary><ul>' +
@@ -864,7 +894,7 @@
       return '<tr>' + (Array.isArray(r) ? r : []).map(function (fc) {
         const o = (fc && typeof fc === 'object') ? fc : { text: fc };
         const key = str(o.key);
-        if (o.mapped === true && has(t.cells, key)) {
+        if ((o.mapped === true || o.input === true) && has(t.cells, key)) {
           return bw.valueCellHtml(t, t.cells[key], {
             ui: ui, fc: o, rove: !!rv && rv.t === t.ref && rv.key === key,
             sel: !!ui.sel && ui.sel.t === t.ref && ui.sel.key === key,
@@ -1063,7 +1093,7 @@
   // 복사 값 = 화면 현재 값. 상태 표시(틴트·체크·삼각형·보조 줄·사유·원래 값)는 넣지 않는다.
   function oneLine(s) { return str(s).replace(/[\t\r\n]+/g, ' ').trim(); }
   function cellTextOf(t) {
-    return function (o) { const k = str(o.key); return (o.mapped === true && has(t.cells, k)) ? t.cells[k].value : str(o.text); };
+    return function (o) { const k = str(o.key); return ((o.mapped === true || o.input === true) && has(t.cells, k)) ? t.cells[k].value : str(o.text); };
   }
   function tsvRows(rows, textOf) {
     const g = [];
