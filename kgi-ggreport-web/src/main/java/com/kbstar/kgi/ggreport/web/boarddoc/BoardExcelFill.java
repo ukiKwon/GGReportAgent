@@ -81,7 +81,7 @@ public final class BoardExcelFill {
                 continue;
             }
             if (t.isNamed()) {
-                BoardExcelNamedFill.Result nr = BoardExcelNamedFill.table(ctx, t);
+                BoardExcelNamedFill.Result nr = BoardExcelNamedFill.table(ctx, t, dt);
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> cs = (List<Map<String, Object>>) nr.table.get("cells");
                 for (Map<String, Object> cc : cs) {
@@ -131,7 +131,13 @@ public final class BoardExcelFill {
 
             Map<String, XlsxBook.Value> vals = new HashMap<>();
             Map<String, Map<String, Object>> byKey = new LinkedHashMap<>();
+            Set<String> present = BoardDocSpec.mappedKeys(dt);      // 양식에 연결로 남아 있는 칸만 읽는다
+            int unlinked = 0;
             for (Map.Entry<String, CellReference> e : t.getCells().entrySet()) {
+                if (!present.contains(e.getKey())) {
+                    unlinked++;
+                    continue;
+                }
                 CellReference at = e.getValue();
                 XlsxBook.Value v = b.value(s, at.getRow(), at.getCol());
                 vals.put(e.getKey(), v);
@@ -175,8 +181,38 @@ public final class BoardExcelFill {
                 c.put("sub_value", null);
                 byKey.put(e.getKey(), c);
             }
+            Map<String, List<String>> sumOf = new LinkedHashMap<>();   // 합계 칸 → 남은 부품 + 합계 범위의 사용자 입력 칸
+            Set<String> sumPartial = new HashSet<>();                  // 부품이 줄었거나 사용자 입력 칸이 끼어 엑셀 합계와 비교할 수 없는 합계
+            for (BoardExcelMap.Sum sm : t.getSums()) {
+                List<String> rest = new ArrayList<>();
+                for (String k : sm.getOf()) {
+                    if (byKey.containsKey(k)) {
+                        rest.add(k);
+                    }
+                }
+                if (!byKey.containsKey(sm.getTotal()) || rest.isEmpty()) {
+                    continue;
+                }
+                List<String> typed = manualParts(dt, sm.getTotal(), rest);
+                List<String> all = new ArrayList<>(rest);
+                all.addAll(typed);
+                sumOf.put(sm.getTotal(), all);
+                if (rest.size() != sm.getOf().size() || !typed.isEmpty()) {
+                    sumPartial.add(sm.getTotal());
+                }
+                if (!typed.isEmpty()) {
+                    Map<String, Object> tc = byKey.get(sm.getTotal());
+                    warnings(tc).add(code("SUM_HAS_MANUAL_PARTS"));
+                    if ("filled".equals(tc.get("status"))) {
+                        tc.put("status", "review");
+                    }
+                }
+            }
             if (!"failed".equals(labelState)) {                // failed 표는 검산하지 않는다
                 for (BoardExcelMap.Sum sm : t.getSums()) {
+                    if (!sumOf.containsKey(sm.getTotal()) || sumPartial.contains(sm.getTotal())) {
+                        continue;                              // 부품을 지웠거나 입력 칸이 끼면 엑셀 합계와 맞지 않는 게 당연하다
+                    }
                     BigDecimal acc = BigDecimal.ZERO;
                     boolean ok = true;
                     for (String k : sm.getOf()) {
@@ -211,11 +247,12 @@ public final class BoardExcelFill {
             tm.put("needs_review", needsReview);
             tm.put("label_mismatches", mismatches);
             tm.put("cells", new ArrayList<>(byKey.values()));
+            tm.put("unlinked_count", unlinked);
             List<Map<String, Object>> sumRel = new ArrayList<>();     // 칸 key 기준 합계 관계(프런트 재검산용)
-            for (BoardExcelMap.Sum sm : t.getSums()) {
+            for (Map.Entry<String, List<String>> sm : sumOf.entrySet()) {
                 Map<String, Object> sr = new LinkedHashMap<>();
-                sr.put("total", sm.getTotal());
-                sr.put("of", new ArrayList<>(sm.getOf()));
+                sr.put("total", sm.getKey());
+                sr.put("of", new ArrayList<>(sm.getValue()));
                 sumRel.add(sr);
             }
             tm.put("sums", sumRel);
@@ -241,6 +278,41 @@ public final class BoardExcelFill {
         out.put("tables", tables);
         out.put("sources", sources);
         out.put("unmapped_tables", unmapped);
+        return out;
+    }
+
+    /**
+     * 합계 칸(totalKey)의 합계 범위 — 남은 부품(rest) 중 최상단 행부터 합계 바로 위 행까지 — 에서
+     * 합계와 같은 열에 있는 <b>사용자 직접 입력 칸</b>(input &amp;&amp; !mapped)의 key 목록(표 순서). 범위를 못 찾으면 빈 목록.
+     * 서버는 이 칸들의 값을 모르므로 합계 칸을 review 로 두고 sums.of 에 실어 화면이 다시 계산하게 한다.
+     */
+    static List<String> manualParts(BoardDocSpec.Table dt, String totalKey, List<String> rest) {
+        int totalRow = -1;
+        String totalCol = null;
+        int top = Integer.MAX_VALUE;
+        Set<String> restSet = new HashSet<>(rest);
+        for (int r = 0; r < dt.getRows().size(); r++) {
+            for (BoardDocSpec.Cell c : dt.getRows().get(r)) {
+                if (totalKey.equals(c.getKey())) {
+                    totalRow = r;
+                    totalCol = c.getColId();
+                }
+                if (restSet.contains(c.getKey())) {
+                    top = Math.min(top, r);
+                }
+            }
+        }
+        List<String> out = new ArrayList<>();
+        if (totalRow < 0 || top == Integer.MAX_VALUE || top >= totalRow) {
+            return out;
+        }
+        for (int r = top; r < totalRow; r++) {
+            for (BoardDocSpec.Cell c : dt.getRows().get(r)) {
+                if (totalCol.equals(c.getColId()) && c.isInput() && !c.isMapped()) {
+                    out.add(c.getKey());
+                }
+            }
+        }
         return out;
     }
 

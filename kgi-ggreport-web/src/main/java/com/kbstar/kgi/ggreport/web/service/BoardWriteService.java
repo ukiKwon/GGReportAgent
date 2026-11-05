@@ -133,7 +133,7 @@ public class BoardWriteService {
         }
         List<String> refs = new ArrayList<>();
         for (BoardDocSpec.Table t : target.getDoc().getTables()) {
-            if (map.table(t.getId()) != null) {
+            if (map.table(t.getId()) != null && !BoardDocSpec.mappedKeys(t).isEmpty()) {   // 연결 칸이 하나도 안 남은 표는 시트도 필요 없다
                 refs.add(t.getId());
             }
         }

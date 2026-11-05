@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * 이사회 자료 양식 커스텀. 양식은 팀 단위로 공유하고(TEAM_KEY), 편집하면 새 버전 행을 더한다(불변).
@@ -40,6 +41,10 @@ public class BoardFormService {
      * 칸 수·글자 수는 build 가 이미 제한한다(칸 문구 100자, 구조는 카탈로그 고정). PUT 본문은 필터가 512KB 로 먼저 막는다.
      */
     static final int MAX_JSON_BYTES = 240000;
+    /** 양식 하나의 저장 버전 수 상한(버전은 지우지 않는 불변 행이라 무한히 쌓이는 것을 막는다). */
+    static final int MAX_VERSIONS = 500;
+    /** UNMAP_CONFIRM_REQUIRED 응답에 싣는 사라질 연결 칸 목록의 최대 개수(건수 count 는 전체). */
+    static final int MAX_DROPPED_LIST = 50;
 
     static final String NOT_FOUND = "양식을 찾을 수 없습니다.";
     static final String BAD_FMT = "지원하지 않는 양식 저장 형식입니다.";
@@ -95,6 +100,7 @@ public class BoardFormService {
         }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("catalog_ver", BoardDocSpec.CATALOG_VER);
+        out.put("limits", limits());
         out.put("items", items);
         return out;
     }
@@ -217,6 +223,15 @@ public class BoardFormService {
 
     @Transactional
     public Map<String, Object> save(String empNo, String id, BoardFormIn.Save in) {
+        return save(empNo, id, in, null);
+    }
+
+    /**
+     * 양식 저장. audit 은 구조를 바꾼 저장의 접근 이력 요약(숫자만: "rows+N/-M cols+N/-M unmapped=K")을 받는 곳이다 — 본문·문구는 넘기지 않는다.
+     * 연결(mapped) 칸이 base 버전 대비 사라지면 confirm_unmapped=true 가 아닌 한 400 UNMAP_CONFIRM_REQUIRED 다.
+     */
+    @Transactional
+    public Map<String, Object> save(String empNo, String id, BoardFormIn.Save in, Consumer<String> audit) {
         BoardForm f = load(empNo, id);
         if (!ACTIVE.equals(f.getStatus())) {
             throw ApiException.badRequest("보관된 양식은 수정할 수 없습니다. 먼저 복원해 주세요.");
@@ -233,20 +248,48 @@ public class BoardFormService {
         String name = in.getName() == null ? f.getName() : validName(in.getName());
         rejectPii(name);
         checkNameFree(f.getTeamKey(), name, f.getFormId());
-        BoardDocSpec.Doc doc = buildDoc("form_" + f.getFormId(), name, toEdits(in.getTables()), false);
+        BoardFormVer cur = forms.selectVersion(f.getFormId(), f.getCurrentVer());
+        BoardDocSpec.Doc baseDoc = null;                    // 읽을 수 없는 현재 버전은 카탈로그에서 다시 시작한다(저장으로 복구)
+        if (cur != null) {
+            try {
+                baseDoc = docOf(f, cur, false);
+            } catch (IllegalStateException unreadable) {
+                baseDoc = null;
+            }
+        }
+        BoardDocSpec.Doc doc = buildDoc("form_" + f.getFormId(), name, toEdits(in.getTables()), false, baseDoc);
         rejectPii(doc);
+        List<Map<String, Object>> dropped = droppedMapped(baseDoc, doc);
+        int droppedCount = dropped.size();
+        if (droppedCount > 0 && !Boolean.TRUE.equals(in.getConfirmUnmapped())) {
+            Map<String, Object> d = new LinkedHashMap<>();
+            d.put("code", "UNMAP_CONFIRM_REQUIRED");
+            d.put("message", "엑셀과 연결된 칸 " + droppedCount + "개가 사라집니다. 계속하려면 확인해 주세요.");
+            d.put("count", droppedCount);
+            d.put("dropped", dropped.size() > MAX_DROPPED_LIST ? new ArrayList<>(dropped.subList(0, MAX_DROPPED_LIST)) : dropped);
+            throw ApiException.withDetail(400, d);
+        }
         String json = BoardFormJson.toJson(doc);
         if (json.getBytes(StandardCharsets.UTF_8).length > MAX_JSON_BYTES) {
             throw ApiException.badRequest("양식 내용이 너무 큽니다.");
         }
         verifyRoundTrip(name, json);
-        BoardFormVer cur = forms.selectVersion(f.getFormId(), f.getCurrentVer());
-        // 옛 포맷(fmt 없음)으로 저장된 현재 버전도 같은 내용이면 '바뀐 것 없음' — 현재 버전을 새 포맷으로 정규화해서 비교한다.
+        // 옛 포맷(fmt 없음)으로 저장된 현재 버전도 같은 내용이면 '바뀐 것 없음' — 현재 버전을 새 포맷으로 정규화해서 비교한다(구조 포함).
         if (cur != null && name.equals(cur.getName()) && cur.getCatalogVer() == BoardDocSpec.CATALOG_VER
                 && json.equals(normalizedJson(f, cur))) {
             Map<String, Object> same = view(f, cur, true, true);
             same.put("changed", false);
+            same.put("dropped_mapped", 0);
             return same;
+        }
+        if (f.getCurrentVer() >= MAX_VERSIONS) {
+            throw ApiException.badRequest("이 양식은 저장 이력이 너무 많아 더 저장할 수 없습니다. 새 양식으로 복제해 이어서 작업해 주세요.");
+        }
+        if (audit != null) {
+            String summary = structureSummary(baseDoc, doc, droppedCount);
+            if (summary != null) {
+                audit.accept(summary);
+            }
         }
         int next = f.getCurrentVer() + 1;
         String stamp = Times.nowIso();
@@ -261,7 +304,67 @@ public class BoardFormService {
         f.setUpdatedAt(stamp);
         Map<String, Object> out = view(f, v, true, true);
         out.put("changed", true);
+        out.put("dropped_mapped", droppedCount);
         return out;
+    }
+
+    /** base 버전에 있던 표마다, base 에서 연결이었는데 새 양식의 연결 칸 집합에 없는 key. 표를 통째로 뺀 것·새로 넣은 표는 세지 않는다. */
+    private static List<Map<String, Object>> droppedMapped(BoardDocSpec.Doc base, BoardDocSpec.Doc now) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (base == null) {
+            return out;
+        }
+        for (BoardDocSpec.Table bt : base.getTables()) {
+            BoardDocSpec.Table nt = null;
+            for (BoardDocSpec.Table t : now.getTables()) {
+                if (t.getId().equals(bt.getId())) {
+                    nt = t;
+                }
+            }
+            if (nt == null) {
+                continue;
+            }
+            java.util.Set<String> keep = BoardDocSpec.mappedKeys(nt);
+            for (String key : BoardDocSpec.mappedKeys(bt)) {
+                if (!keep.contains(key)) {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("ref", bt.getId());
+                    m.put("key", key);
+                    out.add(m);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** 접근 이력용 요약(숫자만). 행·열·연결 칸 변화가 없으면 null. 두 양식에 모두 있는 표만 센다. */
+    private static String structureSummary(BoardDocSpec.Doc base, BoardDocSpec.Doc now, int dropped) {
+        int rowsAdd = 0, rowsDel = 0, colsAdd = 0, colsDel = 0;
+        if (base != null) {
+            for (BoardDocSpec.Table bt : base.getTables()) {
+                for (BoardDocSpec.Table t : now.getTables()) {
+                    if (t.getId().equals(bt.getId())) {
+                        for (String r : t.getRowIds()) {
+                            rowsAdd += bt.getRowIds().contains(r) ? 0 : 1;
+                        }
+                        for (String r : bt.getRowIds()) {
+                            rowsDel += t.getRowIds().contains(r) ? 0 : 1;
+                        }
+                        for (String c : t.getColIds()) {
+                            colsAdd += bt.getColIds().contains(c) ? 0 : 1;
+                        }
+                        for (String c : bt.getColIds()) {
+                            colsDel += t.getColIds().contains(c) ? 0 : 1;
+                        }
+                    }
+                }
+            }
+        }
+        if (rowsAdd + rowsDel + colsAdd + colsDel + dropped == 0) {
+            return null;
+        }
+        return "board-form-save rows+" + rowsAdd + "/-" + rowsDel + " cols+" + colsAdd + "/-" + colsDel
+                + " unmapped=" + dropped;
     }
 
     @Transactional
@@ -390,12 +493,24 @@ public class BoardFormService {
         }
     }
 
-    private static BoardDocSpec.Doc buildDoc(String id, String name, List<BoardDocSpec.TableEdit> edits, boolean sample) {
+    private static BoardDocSpec.Doc buildDoc(String id, String name, List<BoardDocSpec.TableEdit> edits, boolean sample,
+                                             BoardDocSpec.Doc base) {
         try {
-            return BoardDocSpec.build(id, name, edits, sample);
+            return BoardDocSpec.build(id, name, edits, sample, base);
         } catch (BoardDocSpec.EditException e) {
             throw ApiException.badRequest(e.getMessage());
         }
+    }
+
+    /** 요청 한도(문구·열·행·칸 수) — 화면이 입력 단계에서 같은 값으로 막을 수 있게 응답에 싣는다. */
+    static Map<String, Object> limits() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("max_rows", BoardDocSpec.MAX_ROWS);
+        m.put("max_cols", BoardDocSpec.MAX_COLS);
+        m.put("max_cell_chars", BoardDocSpec.MAX_CELL);
+        m.put("max_form_cells", BoardDocSpec.MAX_FORM_CELLS);
+        m.put("max_table_cells", BoardDocSpec.MAX_TABLE_CELLS);
+        return m;
     }
 
     private static String validName(String raw) {
@@ -412,7 +527,42 @@ public class BoardFormService {
         }
         List<BoardDocSpec.TableEdit> out = new ArrayList<>();
         for (BoardFormIn.TableIn t : tables) {
-            out.add(t == null ? null : new BoardDocSpec.TableEdit(t.getRef(), t.getTitle(), t.getNotes(), t.getCells()));
+            out.add(t == null ? null : new BoardDocSpec.TableEdit(t.getRef(), t.getTitle(), t.getNotes(), t.getCells(),
+                    toColEdits(t.getCols()), toRowEdits(t.getRows())));
+        }
+        return out;
+    }
+
+    private static List<BoardDocSpec.ColEdit> toColEdits(List<BoardFormIn.ColIn> cols) {
+        if (cols == null) {
+            return null;
+        }
+        List<BoardDocSpec.ColEdit> out = new ArrayList<>();
+        for (BoardFormIn.ColIn c : cols) {
+            out.add(c == null ? new BoardDocSpec.ColEdit(null) : new BoardDocSpec.ColEdit(c.getId()));
+        }
+        return out;
+    }
+
+    private static List<BoardDocSpec.RowEdit> toRowEdits(List<BoardFormIn.RowIn> rows) {
+        if (rows == null) {
+            return null;
+        }
+        List<BoardDocSpec.RowEdit> out = new ArrayList<>();
+        for (BoardFormIn.RowIn r : rows) {
+            if (r == null) {
+                out.add(null);
+                continue;
+            }
+            List<BoardDocSpec.CellEdit> cells = null;
+            if (r.getCells() != null) {
+                cells = new ArrayList<>();
+                for (BoardFormIn.CellIn c : r.getCells()) {
+                    cells.add(c == null ? null : new BoardDocSpec.CellEdit(c.getCol(), c.getText(), c.getColspan(),
+                            c.getRowspan(), c.getHeader(), c.getInput(), c.getAlign()));
+                }
+            }
+            out.add(new BoardDocSpec.RowEdit(r.getId(), cells));
         }
         return out;
     }
@@ -477,6 +627,7 @@ public class BoardFormService {
         m.put("editable", canEdit && ACTIVE.equals(f.getStatus()) && v.getVerNo() == f.getCurrentVer());
         m.put("updated_by", v.getCreatedBy());
         m.put("updated_at", v.getCreatedAt());
+        m.put("limits", limits());
         List<Map<String, Object>> tables = new ArrayList<>();
         for (BoardDocSpec.Table t : doc.getTables()) {
             Map<String, Object> tm = new LinkedHashMap<>();
@@ -504,7 +655,7 @@ public class BoardFormService {
                     cm.put("mapped", c.isMapped());
                     cm.put("input", c.isInput());
                     cm.put("align", c.getAlign());
-                    cm.put("editable", !c.isMapped());      // PR-1: 구조 편집 전이라 기존과 같다(연결 칸만 잠김)
+                    cm.put("editable", true);               // 잠김 폐지: 연결 칸도 고칠 수 있다(속성을 바꾸면 연결이 풀린다)
                     row.add(cm);
                 }
                 rows.add(row);

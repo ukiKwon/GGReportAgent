@@ -284,20 +284,22 @@ public class BoardDocSpecTest {
     }
 
     @Test
-    public void id_정규형은_r_c_와_0_또는_앞자리0없는_4자리까지만() {
-        for (String ok : new String[]{"r0", "r1", "r99", "r100", "r1000", "r9999"}) {
+    public void id_정규형은_r_c_와_0_또는_앞자리0없는_5자리까지만() {
+        assertEquals(99999, BoardDocSpec.MAX_ID_NUM);
+        for (String ok : new String[]{"r0", "r1", "r99", "r100", "r1000", "r9999", "r10000", "r99999"}) {
             assertTrue(ok, BoardDocSpec.isValidRowId(ok));
             assertTrue(ok, BoardDocSpec.isValidColId("c" + ok.substring(1)));
         }
-        for (String bad : new String[]{null, "", "r", "r01", "r00", "r10000", "R1", "c1", "r-1", "r1 ", " r1",
+        for (String bad : new String[]{null, "", "r", "r01", "r00", "r100000", "R1", "c1", "r-1", "r1 ", " r1",
                 "r1\n", "r٣", "r1.0", "r1_c2", "rr1", "r+1", "r0x1"}) {
             assertFalse(String.valueOf(bad), BoardDocSpec.isValidRowId(bad));
         }
-        for (String bad : new String[]{null, "", "c", "c01", "c10000", "C1", "r1", "c1\n", "c٣", "c1_c2"}) {
+        for (String bad : new String[]{null, "", "c", "c01", "c100000", "C1", "r1", "c1\n", "c٣", "c1_c2"}) {
             assertFalse(String.valueOf(bad), BoardDocSpec.isValidColId(bad));
         }
         assertTrue(BoardDocSpec.isValidCellKey("r1_c2"));
-        assertTrue(BoardDocSpec.isValidCellKey("r9999_c0"));
+        assertTrue(BoardDocSpec.isValidCellKey("r99999_c0"));
+        assertFalse(BoardDocSpec.isValidCellKey("r100000_c0"));
         assertFalse(BoardDocSpec.isValidCellKey("r1c2"));
         assertFalse(BoardDocSpec.isValidCellKey("r1_c02"));
         assertFalse(BoardDocSpec.isValidCellKey("r1_c2\n"));
@@ -328,7 +330,7 @@ public class BoardDocSpecTest {
                 {Arrays.asList("r0", "r1"), Arrays.asList("c0", "c1", "x2"), 100, 100},       // 정규형 아님
                 {Arrays.asList("r0", "r1"), Arrays.asList("c0", "c1", "c05"), 100, 100},
                 {Arrays.asList("r0", "r5"), Arrays.asList("c0", "c1", "c2"), 5, 100},         // 카운터 <= 쓰인 숫자
-                {Arrays.asList("r0", "r1"), Arrays.asList("c0", "c1", "c2"), 100, 10001},     // 카운터 상한 초과
+                {Arrays.asList("r0", "r1"), Arrays.asList("c0", "c1", "c2"), 100, 100001},    // 카운터 상한 초과
                 {Arrays.asList("r0"), Arrays.asList("c0", "c1", "c2"), 100, 100},             // 개수 불일치
                 {Arrays.asList("r0", "r1"), Arrays.asList("c0", "c1"), 100, 100}}) {
             try {

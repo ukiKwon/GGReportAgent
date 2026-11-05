@@ -159,14 +159,19 @@ test('editHtml: 제목·이름 값은 이스케이프된다(속성 탈출 불가
   assert.ok(!h.includes('<img'));
   assert.ok(h.includes('&lt;img'));
 });
-test('editHtml: 매핑 칸은 입력 없이 잠김, 일반 칸은 한 줄 입력, 범례 한 줄', function () {
+test('editHtml: 매핑 칸은 입력 없이 틸 칸(잠김 표시·tabindex·aria-readonly 없음), 일반 칸은 한 줄 입력, 안내 문구 한 번', function () {
   const h = board.editHtml(board.editFromForm(form()), {}, null);
-  assert.ok(h.includes('<span class="bd-lock">잠김</span>'));
-  assert.ok(h.includes('aria-readonly="true"'));
+  assert.ok(!h.includes('bd-lock') && !h.includes('잠김'));
+  assert.ok(!h.includes('aria-readonly') && !h.includes('tabindex="0"'));
+  assert.ok(/<td class="bd-a-right bd-num bd-mapped" data-pos="1:1" title="작성할 때 엑셀 값이 들어가는 칸">1,234\.5<\/td>/.test(h));
   assert.ok(h.includes('<input type="text" class="bd-cell-in" data-key="r1c0"'));
   assert.ok(!h.includes('data-key="r1c1"'));
   assert.ok(!/<textarea/.test(h));
-  assert.ok(h.includes('틸 배경 칸은 엑셀 값이 들어가는 칸입니다. 개발자만 연결을 바꿀 수 있습니다.'));
+  assert.ok(h.includes('표 안의 숫자는 예시입니다. 실제 값은 [이 양식으로 작성]에서 엑셀을 올리면 채워집니다.'));
+  assert.ok(h.includes('여기서는 표 제목, 행·열 이름, 행과 열의 구성을 고칠 수 있습니다.') && h.includes('틸 배경 칸은 작성할 때 엑셀 값이 들어가는 자리입니다.'));
+  assert.strictEqual(h.split('id="bd-edit-guide"').length - 1, 1);   // 화면에 한 번만
+  assert.ok(h.indexOf('id="bd-edit-guide"') > h.indexOf('id="bd-editbar"') && h.indexOf('id="bd-edit-guide"') < h.indexOf('id="bd-name"'));
+  assert.ok(!h.includes('개발자만 연결을 바꿀 수 있습니다'));
   assert.ok(h.includes('양식 편집 중 · v3 기준'));
   assert.ok(h.includes('<li>단위: 백만원</li>'));           // 주석은 읽기 전용 글자
   assert.ok(!/<input[^>]*bd-note/.test(h));

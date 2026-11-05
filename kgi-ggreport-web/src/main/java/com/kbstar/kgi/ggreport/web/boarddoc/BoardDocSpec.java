@@ -67,6 +67,11 @@ public final class BoardDocSpec {
             return new Cell(text, cs, rs, header, mapped, align, input, rowId, colId);
         }
 
+        /** 모든 속성을 지정해 만든 칸(구조 편집·복원용). id 는 Table 생성자가 붙인다. */
+        static Cell make(String text, int cs, int rs, boolean header, boolean mapped, String align, boolean input) {
+            return new Cell(text, cs, rs, header, mapped, align, input, null, null);
+        }
+
         /** 행·열 id 를 붙인 사본(Table 생성자가 부여). */
         Cell withIds(String r, String c) {
             return new Cell(text, colspan, rowspan, header, mapped, align, input, r, c);
@@ -117,8 +122,8 @@ public final class BoardDocSpec {
 
         /**
          * 명시 id 생성자: 카탈로그에 열/행을 나중에 더할 때(기존 id 는 그대로, 새 칸은 새 id) 또는 저장본을 복원할 때 쓴다.
-         * rowIds.size()==rows.size(), colIds.size()==columns, id 는 r/c + 0~9999 정규형이며 중복 없음,
-         * nextR/nextC 는 쓰인 숫자보다 크고 10000 이하(재사용 금지 카운터). 위반이면 IllegalStateException.
+         * rowIds.size()==rows.size(), colIds.size()==columns, id 는 r/c + 0~99999 정규형이며 중복 없음,
+         * nextR/nextC 는 쓰인 숫자보다 크고 100000 이하(재사용 금지 카운터). 위반이면 IllegalStateException.
          */
         Table(String id, String mapping, String title, int columns, List<String> rowIds, List<String> colIds,
               int nextR, int nextC, List<List<Cell>> rows, String... notes) {
@@ -176,16 +181,30 @@ public final class BoardDocSpec {
         private final String id;
         private final String name;
         private final List<Table> tables;
+        private final Map<String, int[]> kept;
 
         Doc(String id, String name, Table... tables) {
+            this(id, name, Arrays.asList(tables), Collections.<String, int[]>emptyMap());
+        }
+
+        /** kept: 양식에서 빠진 표의 id 카운터(ref → {next_r, next_c}). 표를 지웠다 다시 넣어도 지운 id 를 재사용하지 않게 보관한다. */
+        Doc(String id, String name, List<Table> tables, Map<String, int[]> kept) {
             this.id = id;
             this.name = name;
-            this.tables = Collections.unmodifiableList(Arrays.asList(tables));
+            this.tables = Collections.unmodifiableList(new ArrayList<>(tables));
+            Map<String, int[]> copy = new java.util.LinkedHashMap<>();
+            for (Map.Entry<String, int[]> e : kept.entrySet()) {
+                copy.put(e.getKey(), new int[]{e.getValue()[0], e.getValue()[1]});
+            }
+            this.kept = Collections.unmodifiableMap(copy);
         }
 
         public String getId() { return id; }
         public String getName() { return name; }
         public List<Table> getTables() { return tables; }
+        /** 빠진 표의 카운터. 응답에는 싣지 않는다. */
+        @JsonIgnore
+        public Map<String, int[]> getKept() { return kept; }
     }
 
     /**
@@ -245,11 +264,16 @@ public final class BoardDocSpec {
     public static final int FORM_FMT = 2;
     /** 사용자가 만든 행/열 id 의 시작 숫자(카탈로그 id 는 이보다 작다). 지운 id 는 재사용하지 않는다. */
     public static final int FIRST_NEW_ID = 100;
-    /** id 숫자 상한(정규형 최대 4자리). 카운터는 이 값+1 까지 갈 수 있다. */
-    public static final int MAX_ID_NUM = 9999;
+    /** id 숫자 상한(정규형 최대 5자리). 카운터는 이 값+1 까지 갈 수 있다. */
+    public static final int MAX_ID_NUM = 99999;
     public static final int MAX_NAME = 60;
     public static final int MAX_TITLE = 100;
     public static final int MAX_CELL = 100;
+    /** 구조 편집 상한: 표당 행·열·앵커 칸(병합으로 가려진 칸은 세지 않는다), 양식 전체 앵커 칸. */
+    public static final int MAX_ROWS = 40;
+    public static final int MAX_COLS = 12;
+    public static final int MAX_TABLE_CELLS = 300;
+    public static final int MAX_FORM_CELLS = 800;
 
     /** 고를 수 있는 표 전체(순서 고정). 지금은 기본 양식의 표 6개다(A, B, C-2, C-3, C-4, C-5). */
     public static List<Table> catalog(boolean sample) {
@@ -268,16 +292,18 @@ public final class BoardDocSpec {
         return null;
     }
 
-    private static final Pattern ROW_ID = Pattern.compile("^r(0|[1-9][0-9]{0,3})$");
-    private static final Pattern COL_ID = Pattern.compile("^c(0|[1-9][0-9]{0,3})$");
-    private static final Pattern CELL_KEY = Pattern.compile("^r(0|[1-9][0-9]{0,3})_c(0|[1-9][0-9]{0,3})$");
+    private static final Pattern ROW_ID = Pattern.compile("^r(0|[1-9][0-9]{0,4})$");
+    private static final Pattern COL_ID = Pattern.compile("^c(0|[1-9][0-9]{0,4})$");
+    private static final Pattern CELL_KEY = Pattern.compile("^r(0|[1-9][0-9]{0,4})_c(0|[1-9][0-9]{0,4})$");
+    /** 새 열의 임시 id(요청 안에서만 쓰이고 서버가 c{카운터}로 바꾼다). */
+    private static final Pattern TEMP_ID = Pattern.compile("^n[1-9][0-9]{0,2}$");
 
-    /** 행 id 정규형: r + (0 또는 앞자리 0 없는 1~4자리 숫자). 구조 편집(PR-2)이 입력 id 를 이 함수로 거른다. */
+    /** 행 id 정규형: r + (0 또는 앞자리 0 없는 1~5자리 숫자). 구조 편집이 입력 id 를 이 함수로 거른다. */
     public static boolean isValidRowId(String s) {
         return s != null && ROW_ID.matcher(s).matches();
     }
 
-    /** 열 id 정규형: c + (0 또는 앞자리 0 없는 1~4자리 숫자). */
+    /** 열 id 정규형: c + (0 또는 앞자리 0 없는 1~5자리 숫자). */
     public static boolean isValidColId(String s) {
         return s != null && COL_ID.matcher(s).matches();
     }
@@ -367,18 +393,107 @@ public final class BoardDocSpec {
         private final String title;
         private final List<String> notes;
         private final Map<String, String> cells;
+        private final List<ColEdit> cols;
+        private final List<RowEdit> rows;
+        private final boolean stored;
+        private final int nextR;
+        private final int nextC;
+        private final boolean keptOnly;
 
+        /** 구조를 보내지 않는 표(칸 문구만 cells 맵으로). 구조는 base 버전(없으면 카탈로그)의 것을 그대로 쓴다. */
         public TableEdit(String ref, String title, List<String> notes, Map<String, String> cells) {
+            this(ref, title, notes, cells, null, null, false, 0, 0, false);
+        }
+
+        /** 구조(cols·rows)를 보내는 표. cols·rows 는 둘 다 있거나 둘 다 없어야 한다(한쪽만 있으면 거부). */
+        public TableEdit(String ref, String title, List<String> notes, Map<String, String> cells,
+                         List<ColEdit> cols, List<RowEdit> rows) {
+            this(ref, title, notes, cells, cols, rows, false, 0, 0, false);
+        }
+
+        private TableEdit(String ref, String title, List<String> notes, Map<String, String> cells,
+                          List<ColEdit> cols, List<RowEdit> rows, boolean stored, int nextR, int nextC, boolean keptOnly) {
             this.ref = ref;
             this.title = title;
             this.notes = notes;
             this.cells = cells == null ? new java.util.LinkedHashMap<String, String>() : cells;
+            this.cols = cols;
+            this.rows = rows;
+            this.stored = stored;
+            this.nextR = nextR;
+            this.nextC = nextC;
+            this.keptOnly = keptOnly;
+        }
+
+        /** 저장본(JSON)에서 복원한 구조. id 는 정규형이고 카운터(nextR/nextC)보다 작아야 한다(임시 id·base 대조 없음). */
+        static TableEdit stored(String ref, String title, List<ColEdit> cols, List<RowEdit> rows, int nextR, int nextC) {
+            return new TableEdit(ref, title, null, null, cols, rows, true, nextR, nextC, false);
+        }
+
+        /** 양식에서 빠진 표의 카운터만 담은 항목(저장본의 kept). */
+        static TableEdit kept(String ref, int nextR, int nextC) {
+            return new TableEdit(ref, null, null, null, null, null, true, nextR, nextC, true);
         }
 
         public String getRef() { return ref; }
         public String getTitle() { return title; }
         public List<String> getNotes() { return notes; }
         public Map<String, String> getCells() { return cells; }
+        public List<ColEdit> getCols() { return cols; }
+        public List<RowEdit> getRows() { return rows; }
+    }
+
+    /** 열 하나. id 는 base 버전의 열 id 그대로 또는 새 열의 임시 id("n1","n2"…). */
+    public static final class ColEdit {
+        private final String id;
+
+        public ColEdit(String id) { this.id = id; }
+
+        public String getId() { return id; }
+    }
+
+    /** 칸 하나(앵커 칸만). col = 칸이 놓인 열의 id(임시 id 포함). 값이 빠진 속성은 기본(1, 1, false, false, "left", ""). */
+    public static final class CellEdit {
+        private final String col;
+        private final String text;
+        private final Integer colspan;
+        private final Integer rowspan;
+        private final Boolean header;
+        private final Boolean input;
+        private final String align;
+
+        public CellEdit(String col, String text, Integer colspan, Integer rowspan, Boolean header, Boolean input,
+                        String align) {
+            this.col = col;
+            this.text = text;
+            this.colspan = colspan;
+            this.rowspan = rowspan;
+            this.header = header;
+            this.input = input;
+            this.align = align;
+        }
+
+        public String getCol() { return col; }
+        public String getText() { return text; }
+        public Integer getColspan() { return colspan; }
+        public Integer getRowspan() { return rowspan; }
+        public Boolean getHeader() { return header; }
+        public Boolean getInput() { return input; }
+        public String getAlign() { return align; }
+    }
+
+    /** 행 하나. id 는 base 버전의 행 id 그대로, 새 행은 null. */
+    public static final class RowEdit {
+        private final String id;
+        private final List<CellEdit> cells;
+
+        public RowEdit(String id, List<CellEdit> cells) {
+            this.id = id;
+            this.cells = cells;
+        }
+
+        public String getId() { return id; }
+        public List<CellEdit> getCells() { return cells; }
     }
 
     /** 사용자 입력이 규칙에 어긋남. 메시지는 사용자에게 그대로 보여도 되는 문구다(내부 정보 없음). */
@@ -400,60 +515,340 @@ public final class BoardDocSpec {
      * 칸을 보내지 않으면 카탈로그 기본 문구가 된다(전체 교체 의미).
      */
     public static Doc build(String id, String name, List<TableEdit> edits, boolean sample) {
+        return build(id, name, edits, sample, null);
+    }
+
+    public static final String BAD_STRUCT = "표 구조가 올바르지 않습니다. 화면을 새로 고친 뒤 다시 편집해 주세요.";
+    private static final String MSG_CELL_LONG = "칸 문구는 " + MAX_CELL + "자 이하로 입력해 주세요.";
+    private static final String MSG_CELL_BAD = "칸 문구에 쓸 수 없는 문자가 있습니다.";
+
+    /**
+     * base 가 있으면(저장 직전의 현재 버전 Doc) 구조 편집의 "기존 id" 는 base 의 해당 표에 있는 것만 인정하고,
+     * 구조를 보내지 않은 표는 base 구조를 그대로 쓴다. 새 행/열 id 는 base 표의 카운터에서 서버가 발급한다(지운 id 재사용 없음).
+     * base 에 없던 표(새로 넣은 표)는 카탈로그 구조에서 시작하고, 예전에 지운 표라면 그때의 카운터를 이어받는다.
+     * 저장본에서 읽은 항목(TableEdit.stored)은 base 대조 없이 정규형 id + 카운터 범위만 본다.
+     */
+    public static Doc build(String id, String name, List<TableEdit> edits, boolean sample, Doc base) {
         if (edits == null || edits.isEmpty()) {
             throw new EditException("표를 하나 이상 넣어 주세요.");
         }
+        Map<String, int[]> carried = new java.util.LinkedHashMap<>();       // 이 요청 이전에 쓰인 카운터(ref → {r, c})
+        Map<String, Table> baseTables = new java.util.HashMap<>();
+        if (base != null) {
+            carried.putAll(base.getKept());
+            for (Table bt : base.getTables()) {
+                baseTables.put(bt.getId(), bt);
+                carried.put(bt.getId(), new int[]{bt.getNextR(), bt.getNextC()});
+            }
+        }
         Set<String> seen = new HashSet<>();
         List<Table> out = new ArrayList<>();
+        Map<String, int[]> kept = new java.util.LinkedHashMap<>();
+        int formCells = 0;
         for (TableEdit e : edits) {
-            Table base = e == null ? null : catalogTable(e.getRef(), sample);
-            if (base == null) {
+            Table cat = e == null ? null : catalogTable(e.ref, sample);
+            if (cat == null) {
                 throw new EditException("알 수 없는 표입니다.");
             }
-            if (!seen.add(base.getId())) {
+            if (e.keptOnly) {
+                if (e.nextR < FIRST_NEW_ID || e.nextR > MAX_ID_NUM + 1 || e.nextC < FIRST_NEW_ID || e.nextC > MAX_ID_NUM + 1) {
+                    throw new EditException(BAD_STRUCT);
+                }
+                kept.put(cat.getId(), new int[]{e.nextR, e.nextC});
+                continue;
+            }
+            if (!seen.add(cat.getId())) {
                 throw new EditException("같은 표를 두 번 넣을 수 없습니다.");
             }
-            if (e.getNotes() != null && !e.getNotes().equals(base.getNotes())) {
+            if (e.getNotes() != null && !e.getNotes().equals(cat.getNotes())) {
                 throw new EditException("표 주석은 수정할 수 없습니다.");
             }
-            String title = e.getTitle() == null ? base.getTitle()
+            String title = e.getTitle() == null ? cat.getTitle()
                     : clean(e.getTitle(), MAX_TITLE, false, "표 제목을 입력해 주세요.",
                             "표 제목은 " + MAX_TITLE + "자 이하로 입력해 주세요.", "표 제목에 쓸 수 없는 문자가 있습니다.");
-            Set<String> editable = editableKeys(base);
-            for (Map.Entry<String, String> c : e.getCells().entrySet()) {
-                if (!editable.contains(c.getKey())) {
-                    throw new EditException("수정할 수 없는 칸이 포함되어 있습니다.");
+            Table known = e.stored ? null : baseTables.get(cat.getId());
+            int[] carry = carried.get(cat.getId());
+            Table t;
+            if (e.cols != null || e.rows != null) {
+                if (!e.getCells().isEmpty()) {
+                    throw bad();                                              // 구조를 보내는 표는 cells 맵을 함께 보낼 수 없다
                 }
-                if (c.getValue() == null) {
-                    throw new EditException("칸 문구가 올바르지 않습니다.");
+                formCells += inputAnchors(e);                                 // 큰 배열을 만들기 전에 합계 상한부터 본다
+                if (formCells > MAX_FORM_CELLS) {
+                    throw new EditException(MSG_FORM_CELLS);
                 }
+                int sr = e.stored ? e.nextR : known != null ? known.getNextR()
+                        : carry != null ? Math.max(FIRST_NEW_ID, carry[0]) : FIRST_NEW_ID;
+                int sc = e.stored ? e.nextC : known != null ? known.getNextC()
+                        : carry != null ? Math.max(FIRST_NEW_ID, carry[1]) : FIRST_NEW_ID;
+                t = assemble(cat, known, e, title, sr, sc);
+            } else {
+                Table src = known != null ? known : cat;
+                formCells += anchorCount(src);
+                if (formCells > MAX_FORM_CELLS) {
+                    throw new EditException(MSG_FORM_CELLS);
+                }
+                int sr = known != null ? known.getNextR() : carry != null ? Math.max(FIRST_NEW_ID, carry[0]) : FIRST_NEW_ID;
+                int sc = known != null ? known.getNextC() : carry != null ? Math.max(FIRST_NEW_ID, carry[1]) : FIRST_NEW_ID;
+                t = fromKnown(cat, src, e, title, sr, sc);
             }
-            List<List<Cell>> rows = new ArrayList<>();
-            for (int r = 0; r < base.getRows().size(); r++) {
-                List<Cell> src = base.getRows().get(r);
-                List<Cell> dst = new ArrayList<>();
-                for (int i = 0; i < src.size(); i++) {
-                    Cell c = src.get(i);
-                    String text = c.getText();
-                    String key = c.getKey();
-                    if (!c.isMapped() && e.getCells().containsKey(key)) {
-                        text = clean(e.getCells().get(key), MAX_CELL, true, null,
-                                "칸 문구는 " + MAX_CELL + "자 이하로 입력해 주세요.", "칸 문구에 쓸 수 없는 문자가 있습니다.");
-                    }
-                    dst.add(c.withText(text));
-                }
-                rows.add(dst);
-            }
-            out.add(new Table(base.getId(), base.getMapping(), title, base.getColumns(),
-                    base.getRowIds(), base.getColIds(), base.getNextR(), base.getNextC(), rows,
-                    base.getNotes().toArray(new String[0])));
+            out.add(t);
         }
-        return new Doc(id, name, out.toArray(new Table[0]));
+        if (out.isEmpty()) {
+            throw new EditException("표를 하나 이상 넣어 주세요.");
+        }
+        for (Map.Entry<String, int[]> c : carried.entrySet()) {              // 이번에 빠진 표의 카운터를 이어서 보관
+            if (!seen.contains(c.getKey())) {
+                int[] k = kept.get(c.getKey());
+                kept.put(c.getKey(), k == null ? c.getValue()
+                        : new int[]{Math.max(k[0], c.getValue()[0]), Math.max(k[1], c.getValue()[1])});
+            }
+        }
+        kept.keySet().removeAll(seen);
+        return new Doc(id, name, out, kept);
+    }
+
+    private static final String MSG_FORM_CELLS = "양식 전체에 넣을 수 있는 칸은 " + MAX_FORM_CELLS + "개까지입니다.";
+
+    private static int anchorCount(Table t) {
+        int n = 0;
+        for (List<Cell> r : t.getRows()) {
+            n += r.size();
+        }
+        return n;
+    }
+
+    /** 요청에 담긴 앵커 칸 수(null 안전 — 검증 전 상한 확인용). */
+    private static int inputAnchors(TableEdit e) {
+        int n = 0;
+        if (e.rows != null) {
+            for (RowEdit r : e.rows) {
+                if (r != null && r.getCells() != null) {
+                    n += r.getCells().size();
+                }
+            }
+        }
+        return n;
+    }
+
+    private static Map<String, Cell> cellsByKey(Table t) {
+        Map<String, Cell> out = new java.util.HashMap<>();
+        for (List<Cell> row : t.getRows()) {
+            for (Cell c : row) {
+                out.put(c.getKey(), c);
+            }
+        }
+        return out;
     }
 
     /**
-     * 화면이 보낸 값을 <b>매핑 칸에만</b> 얹은 새 Doc. values: 표 ref → (칸 키 → 값). 보내지 않은 매핑 칸은 빈칸.
-     * 매핑 칸이 아닌 키·문서에 없는 표는 EditException. 값은 clean(제어문자 거부·trim·100자).
+     * 구조를 보내지 않은 표: src(base 의 표, 없으면 카탈로그) 구조를 그대로 두고 칸 문구만 cells 맵으로 정한다.
+     * 전체 교체 규칙: cells 에 없는 칸은 카탈로그 기본 문구(카탈로그에 없는 사용자 추가 칸은 빈 문구)로 돌아간다.
+     * 연결 칸의 문구는 항상 카탈로그(샘플 또는 빈칸)다.
+     */
+    private static Table fromKnown(Table cat, Table src, TableEdit e, String title, int nextR, int nextC) {
+        Set<String> editable = editableKeys(src);
+        for (Map.Entry<String, String> c : e.getCells().entrySet()) {
+            if (!editable.contains(c.getKey())) {
+                throw new EditException("수정할 수 없는 칸이 포함되어 있습니다.");
+            }
+            if (c.getValue() == null) {
+                throw new EditException("칸 문구가 올바르지 않습니다.");
+            }
+        }
+        Map<String, Cell> catKey = cellsByKey(cat);
+        List<List<Cell>> rows = new ArrayList<>();
+        for (int r = 0; r < src.getRows().size(); r++) {
+            List<Cell> dst = new ArrayList<>();
+            for (Cell c : src.getRows().get(r)) {
+                String key = c.getKey();
+                Cell cc = catKey.get(key);
+                String text;
+                if (c.isMapped()) {
+                    text = cc != null ? cc.getText() : "";
+                } else if (e.getCells().containsKey(key)) {
+                    text = clean(e.getCells().get(key), MAX_CELL, true, null, MSG_CELL_LONG, MSG_CELL_BAD);
+                } else {
+                    text = cc != null && !cc.isMapped() ? cc.getText() : "";
+                }
+                dst.add(c.withText(text));
+            }
+            rows.add(dst);
+        }
+        return new Table(cat.getId(), cat.getMapping(), title, src.getColumns(),
+                src.getRowIds(), src.getColIds(), nextR, nextC, rows, cat.getNotes().toArray(new String[0]));
+    }
+
+    private static EditException bad() {
+        return new EditException(BAD_STRUCT);
+    }
+
+    /** 구조(cols·rows)를 만든다. 모든 상한·id·격자 검증을 여기서 한다. 실패는 EditException(고정 문구, 입력값 미포함). */
+    private static Table assemble(Table cat, Table known, TableEdit e, String title, int startR, int startC) {
+        try {
+            return assembleChecked(cat, known, e, title, startR, startC);
+        } catch (IllegalStateException ex) {
+            throw bad();                                                      // layoutOf·Table 생성자의 규칙 위반을 500 이 아닌 400 으로
+        }
+    }
+
+    private static Table assembleChecked(Table cat, Table known, TableEdit e, String title, int startR, int startC) {
+        List<ColEdit> cols = e.cols;
+        List<RowEdit> rows = e.rows;
+        if (cols == null || rows == null) {
+            throw bad();                                                      // 한쪽만 보낼 수 없다
+        }
+        if (cols.isEmpty() || cols.size() > MAX_COLS) {
+            throw new EditException("열은 1개 이상 " + MAX_COLS + "개 이하여야 합니다.");
+        }
+        if (rows.isEmpty() || rows.size() > MAX_ROWS) {
+            throw new EditException("행은 1개 이상 " + MAX_ROWS + "개 이하여야 합니다.");
+        }
+        int anchors = 0;
+        for (RowEdit r : rows) {
+            if (r == null || r.getCells() == null || r.getCells().size() > cols.size()) {
+                throw bad();
+            }
+            anchors += r.getCells().size();
+            if (anchors > MAX_TABLE_CELLS) {
+                throw new EditException("표 하나에 넣을 수 있는 칸은 " + MAX_TABLE_CELLS + "개까지입니다.");
+            }
+        }
+        boolean stored = e.stored;
+        Table idSource = known != null ? known : cat;
+        Set<String> knownCols = new HashSet<>(idSource.getColIds());
+        Set<String> knownRows = new HashSet<>(idSource.getRowIds());
+        int nextC = startC;
+        int nextR = startR;
+
+        List<String> colIds = new ArrayList<>();
+        Map<String, Integer> colIndex = new java.util.HashMap<>();            // 요청에 쓰인 열 id(임시 포함) → 격자 열 번호
+        for (int i = 0; i < cols.size(); i++) {
+            ColEdit c = cols.get(i);
+            String cid = c == null ? null : c.getId();
+            if (cid == null || colIndex.containsKey(cid)) {
+                throw bad();
+            }
+            if (isValidColId(cid)) {
+                if (stored ? idNum(cid) >= startC : !knownCols.contains(cid)) {
+                    throw bad();                                              // 위조·지운 id 재사용
+                }
+                colIds.add(cid);
+            } else if (!stored && TEMP_ID.matcher(cid).matches()) {
+                colIds.add(null);
+            } else {
+                throw bad();
+            }
+            colIndex.put(cid, i);
+        }
+        for (int i = 0; i < colIds.size(); i++) {
+            if (colIds.get(i) == null) {
+                if (nextC > MAX_ID_NUM) {
+                    throw new EditException("더 이상 열을 추가할 수 없습니다.");
+                }
+                colIds.set(i, "c" + nextC++);
+            }
+        }
+
+        List<String> rowIds = new ArrayList<>();
+        Set<String> rowSeen = new HashSet<>();
+        for (RowEdit r : rows) {
+            String rid = r.getId();
+            if (rid == null) {
+                if (stored) {
+                    throw bad();
+                }
+                rowIds.add(null);
+                continue;
+            }
+            if (!isValidRowId(rid) || !rowSeen.add(rid) || (stored ? idNum(rid) >= startR : !knownRows.contains(rid))) {
+                throw bad();
+            }
+            rowIds.add(rid);
+        }
+        for (int i = 0; i < rowIds.size(); i++) {
+            if (rowIds.get(i) == null) {
+                if (nextR > MAX_ID_NUM) {
+                    throw new EditException("더 이상 행을 추가할 수 없습니다.");
+                }
+                rowIds.set(i, "r" + nextR++);
+            }
+        }
+        if (!stored) {
+            keepCatalogOrder(colIds, cat.getColIds());
+            keepCatalogOrder(rowIds, cat.getRowIds());
+        }
+
+        List<List<Cell>> grid = new ArrayList<>();
+        List<List<String>> declared = new ArrayList<>();
+        for (RowEdit r : rows) {
+            List<Cell> row = new ArrayList<>();
+            List<String> decl = new ArrayList<>();
+            for (CellEdit ce : r.getCells()) {
+                if (ce == null) {
+                    throw bad();
+                }
+                int cs = ce.getColspan() == null ? 1 : ce.getColspan();
+                int rs = ce.getRowspan() == null ? 1 : ce.getRowspan();
+                if (cs < 1 || cs > cols.size() || rs < 1 || rs > rows.size()) {   // 곱셈·덧셈 전에 범위부터
+                    throw bad();
+                }
+                String align = ce.getAlign() == null ? "left" : ce.getAlign();
+                if (!("left".equals(align) || "center".equals(align) || "right".equals(align))) {
+                    throw bad();
+                }
+                boolean header = Boolean.TRUE.equals(ce.getHeader());
+                boolean input = Boolean.TRUE.equals(ce.getInput());
+                if (header && input) {
+                    throw bad();
+                }
+                String text = ce.getText() == null ? ""
+                        : clean(ce.getText(), MAX_CELL, true, null, MSG_CELL_LONG, MSG_CELL_BAD);
+                row.add(Cell.make(text, cs, rs, header, false, align, input));
+                decl.add(ce.getCol());
+            }
+            grid.add(row);
+            declared.add(decl);
+        }
+        int[][] start = layoutOf(cat.getId(), cols.size(), grid);             // 겹침·범위 초과·빈 칸이면 ISE → 호출부가 400
+        Set<String> catMapped = mappedKeys(cat);
+        Map<String, Cell> catKey = cellsByKey(cat);
+        for (int r = 0; r < grid.size(); r++) {
+            for (int i = 0; i < grid.get(r).size(); i++) {
+                Integer idx = declared.get(r).get(i) == null ? null : colIndex.get(declared.get(r).get(i));
+                if (idx == null || idx.intValue() != start[r][i]) {
+                    throw bad();                                              // 칸이 말한 열 ≠ 실제 격자 위치
+                }
+                Cell c = grid.get(r).get(i);
+                String key = cellKey(rowIds.get(r), colIds.get(start[r][i]));
+                if (!c.isHeader() && !c.isInput() && catMapped.contains(key)) {
+                    // 카탈로그 연결 칸 위치에 일반 값 칸이 그대로 있으면 엑셀 연결 유지(문구는 카탈로그의 샘플/빈칸)
+                    grid.get(r).set(i, Cell.make(catKey.get(key).getText(), c.colspan, c.rowspan, false, true, c.align, false));
+                }
+            }
+        }
+        return new Table(cat.getId(), cat.getMapping(), title, cols.size(), rowIds, colIds, nextR, nextC, grid,
+                cat.getNotes().toArray(new String[0]));
+    }
+
+    /** 카탈로그 id(100 미만)끼리의 상대 순서는 바뀔 수 없다(연결 행·열이 다른 머리 밑으로 가는 조용한 오적용 방지). 새 id 는 어디든 가능. */
+    private static void keepCatalogOrder(List<String> ids, List<String> catalogIds) {
+        int last = -1;
+        for (String id : ids) {
+            int k = catalogIds.indexOf(id);
+            if (k >= 0) {
+                if (k < last) {
+                    throw new EditException("기본 양식의 행·열 순서는 바꿀 수 없습니다. 행·열은 새로 끼워 넣을 수 있습니다.");
+                }
+                last = k;
+            }
+        }
+    }
+
+    /**
+     * 화면이 보낸 값을 <b>값 칸에만</b>(엑셀 연결 칸 + 사용자가 직접 입력하는 칸 input&amp;&amp;!mapped) 얹은 새 Doc.
+     * values: 표 ref → (칸 키 → 값). 보내지 않은 값 칸은 빈칸.
+     * 값 칸이 아닌 키(머리글·라벨 등)·문서에 없는 표는 EditException. 값은 clean(제어문자 거부·trim·100자).
      * <p>⚠️ 보안 메모: 워드에는 w:t 일반 텍스트로만 쓴다(BoardDocDocx.run → XWPFRun.setText) — 수식 주입 처리가 필요 없다.
      * 이 값을 필드 코드(fldSimple·instrText)나 하이퍼링크에 넣지 말 것. CSV/xlsx 내보내기가 생기면
      * =,+,-,@ 로 시작하는 값 앞에 ' 를 붙일 것.
@@ -472,7 +867,7 @@ public final class BoardDocSpec {
         for (Table t : doc.getTables()) {
             Map<String, String> cells = in.get(t.getId()) == null
                     ? new java.util.HashMap<String, String>() : in.get(t.getId());
-            Set<String> mapped = new HashSet<>();
+            Set<String> mapped = new HashSet<>();                     // 값을 받을 수 있는 칸: 엑셀 연결 칸 + 직접 입력 칸
             List<List<Cell>> rows = new ArrayList<>();
             for (int r = 0; r < t.getRows().size(); r++) {
                 List<Cell> dst = new ArrayList<>();
@@ -480,7 +875,7 @@ public final class BoardDocSpec {
                     Cell c = t.getRows().get(r).get(i);
                     String key = c.getKey();
                     String text = c.getText();
-                    if (c.isMapped()) {
+                    if (c.isMapped() || c.isInput()) {
                         mapped.add(key);
                         String v = cells.get(key);
                         text = v == null ? "" : clean(v, MAX_CELL, true, null,

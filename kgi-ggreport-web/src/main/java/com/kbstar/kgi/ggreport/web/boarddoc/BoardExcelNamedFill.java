@@ -145,15 +145,35 @@ final class BoardExcelNamedFill {
         void fail(String code, boolean lk) { if (reason == null) { reason = code; } lookup |= lk; }
     }
 
-    static Result table(Ctx c, TableMap t) {
+    /**
+     * 양식(dt)에 <b>아직 연결로 남아 있는</b> 칸만 평가한다 — 사용자가 지운 행·열의 칸은 건너뛰고 unlinked_count 로만 알린다.
+     * derive_sum 은 남은 of 만 합산하고(하나도 없으면 manual), 합계 범위 안에 사용자가 추가한 입력 칸이 있으면
+     * sums.of 에 포함하고 SUM_HAS_MANUAL_PARTS 경고 + review 로 둔다(서버는 그 칸의 값을 모른다).
+     */
+    static Result table(Ctx c, TableMap t, BoardDocSpec.Table dt) {
+        Set<String> present = BoardDocSpec.mappedKeys(dt);
         Acc acc = new Acc();
         Map<String, Eval> evals = new LinkedHashMap<>();
-        for (CellSpec sp : t.getSpecs().values()) { evals.put(sp.key, eval(c, sp, acc)); }
-        for (CellSpec sp : t.getSpecs().values()) { if ("derive_sum".equals(sp.op)) { derive(evals.get(sp.key), sp, evals); } }
+        int unlinked = 0;
+        for (CellSpec sp : t.getSpecs().values()) {
+            if (present.contains(sp.key)) { evals.put(sp.key, eval(c, sp, acc)); } else { unlinked++; }
+        }
+        Map<String, List<String>> manualParts = new HashMap<>();
+        Map<String, List<String>> restOf = new HashMap<>();
+        for (CellSpec sp : t.getSpecs().values()) {
+            if ("derive_sum".equals(sp.op) && evals.containsKey(sp.key)) {
+                List<String> rest = new ArrayList<>();
+                for (String k : sp.of) { if (evals.containsKey(k)) { rest.add(k); } }
+                restOf.put(sp.key, rest);
+                manualParts.put(sp.key, BoardExcelFill.manualParts(dt, sp.key, rest));
+                derive(evals.get(sp.key), sp, rest, manualParts.get(sp.key), evals);
+            }
+        }
         int evaluable = 0, lookupFails = 0;
         List<Map<String, Object>> cells = new ArrayList<>();
         for (CellSpec sp : t.getSpecs().values()) {
             Eval e = evals.get(sp.key);
+            if (e == null) { continue; }
             if (!"manual".equals(sp.op) && !"derive_sum".equals(sp.op)) { evaluable++; if (e.lookup) { lookupFails++; } }
             cells.add(toCell(e));
         }
@@ -163,10 +183,15 @@ final class BoardExcelNamedFill {
         tm.put("label_mismatches", new ArrayList<Object>());      // 머리글 대조는 옛 형식 전용 — 새 형식은 lookup_errors
         tm.put("lookup_errors", acc.lookup);
         tm.put("cells", cells);
+        tm.put("unlinked_count", unlinked);
         List<Map<String, Object>> sumRel = new ArrayList<>();
         for (BoardExcelMap.Sum sm : t.getSums()) {
+            List<String> rest = restOf.get(sm.getTotal());
+            if (rest == null || rest.isEmpty()) { continue; }       // 합계 칸이 없거나 남은 부품이 없다
             Map<String, Object> sr = new LinkedHashMap<>();
-            sr.put("total", sm.getTotal()); sr.put("of", new ArrayList<>(sm.getOf())); sumRel.add(sr);
+            List<String> of = new ArrayList<>(rest);
+            of.addAll(manualParts.get(sm.getTotal()));
+            sr.put("total", sm.getTotal()); sr.put("of", of); sumRel.add(sr);
         }
         tm.put("sums", sumRel);
         Result r = new Result();
@@ -259,20 +284,25 @@ final class BoardExcelNamedFill {
         }
     }
 
-    /** A 합계 — 표시값(억원 둘째 자리)의 합. 하나라도 실패·직접입력이면 failed. */
-    private static void derive(Eval e, CellSpec sp, Map<String, Eval> evals) {
+    /**
+     * A 합계 — 표시값(억원 둘째 자리)의 합. 남은 부품(rest)만 합산한다. 하나라도 실패·직접입력이면 failed,
+     * 남은 부품이 하나도 없으면 manual(사용자가 직접 입력). 합계 범위 안에 사용자 입력 칸(manual)이 있으면 경고 + review.
+     */
+    private static void derive(Eval e, CellSpec sp, List<String> rest, List<String> manual, Map<String, Eval> evals) {
+        if (rest.isEmpty()) { e.status = "manual"; e.reason = "MANUAL_INPUT"; return; }
         BigDecimal acc = BigDecimal.ZERO;
         boolean ok = true;
-        for (String k : sp.of) {
+        for (String k : rest) {
             Eval x = evals.get(k);
             if (x.eok == null) { ok = false; } else { acc = acc.add(x.eok); e.review |= x.review; }
         }
         if (!ok) { e.fail("PART_FAILED", false); e.status = "failed"; return; }
+        if (!manual.isEmpty()) { e.warn.add("SUM_HAS_MANUAL_PARTS"); e.review = true; }
         e.value = BoardNumber.format(acc);
         Map<String, Object> cv = new LinkedHashMap<>();
         cv.put("kind", "display_sum"); cv.put("unit_from", UNIT_TARGET); cv.put("unit_to", UNIT_TARGET);
         cv.put("divisor", null); cv.put("sum", BoardExcelFill.plain(acc)); cv.put("sub_sum", null);
-        cv.put("rounding", "HALF_UP_2"); cv.put("of", new ArrayList<>(sp.of)); cv.put("result", e.value);
+        cv.put("rounding", "HALF_UP_2"); cv.put("of", new ArrayList<>(rest)); cv.put("result", e.value);
         e.convert = cv;
         e.status = e.review ? "review" : "filled";
     }
