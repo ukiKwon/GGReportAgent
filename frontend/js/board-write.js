@@ -320,6 +320,15 @@
           };
           t.order.push(key);
           if (t.grid && s) { const gp = bw.gridPos(t.grid, s.cell); if (gp) t.srcIndex[gp.r + ',' + gp.c] = key; }
+          // 여러 원본 칸을 더한 칸(parts)은 부품 칸도 같은 양식 칸의 원본으로 등록한다(원본 패널에서 모두 강조).
+          // 다른 시트의 부품은 이 표의 원본 격자에 없으므로 건너뛴다. 이미 다른 칸이 차지한 자리는 덮지 않는다.
+          if (t.grid) {
+            parts.forEach(function (pt) {
+              if (pt.sheet !== '' && str(t.grid.sheet) !== '' && pt.sheet !== str(t.grid.sheet)) return;
+              const pp = bw.gridPos(t.grid, pt.cell);
+              if (pp && t.srcIndex[pp.r + ',' + pp.c] == null) t.srcIndex[pp.r + ',' + pp.c] = key;
+            });
+          }
         });
       }
       return t;
