@@ -9,7 +9,7 @@
 //  - 코드(이 파일): 변경 파일 선별, 비밀 검사, git add(경로 지정)·commit·push. 푸시는 `git push origin <현재 브랜치>`로 고정(force·다른 원격·main/master 불가).
 // 안전 규칙
 //  - 원격이 ALLOWED_REMOTE와 다르면 아무것도 하지 않는다.
-//  - 에이전트가 작업 중이거나 최근 10분 안에 사용자 프롬프트가 있었으면 미룬다(5분 간격, 최대 30분). 끝내 바쁘면 이번 회차는 건너뛴다.
+//  - 에이전트가 작업 중이거나 최근 10분 안에 사용자 프롬프트가 있었으면 푸시를 20분씩 계속 미룬다(그날 23:30 까지). 끝내 바쁘면 이번 회차는 건너뛴다.
 //  - 커밋할 것도 올릴 커밋도 없으면 모델을 부르지 않는다(비용 0).
 //  - 비밀로 의심되는 파일(.env·키·인증서·토큰/키 패턴이 든 파일)·로그·state.json·큰 파일·사용자와 무관한 중첩 폴더는 담지 않고 보고만 한다.
 //  - 결과는 agent-dashboard/closing.log(gitignore)에 남긴다.
@@ -150,9 +150,13 @@ function main() {
   if (!take.length && !ahead) { log('정리할 것 없음 — 종료'); return; }
   if (DRY) { log('--dry: 여기서 종료(실제로는 마무리를 수행함)'); return; }
 
-  for (let i = 0; busyReason(); i++) {
-    if (i >= 6) { log('사용 중이라 이번 회차는 건너뜀: ' + busyReason()); return; }
-    log('사용 중(' + busyReason() + ') — 5분 뒤 다시 확인'); sleepSync(5 * 60 * 1000);
+  // 작업 중인 에이전트(또는 최근 사용자 프롬프트)가 있으면 푸시 일정을 20분씩 미룬다(사용자 결정 2026-11-05).
+  // 무한 대기를 막으려고 그날 23:30 까지만 미루고, 그래도 바쁘면 이번 회차는 건너뛴다.
+  const DEFER_MS = 20 * 60 * 1000;
+  const limit = new Date(); limit.setHours(23, 30, 0, 0);
+  for (let n = 1; busyReason(); n++) {
+    if (Date.now() + DEFER_MS > limit.getTime()) { log('사용 중이라 이번 회차는 건너뜀(23:30 한도): ' + busyReason()); return; }
+    log('사용 중(' + busyReason() + ') — 푸시 일정을 20분 미룸(' + n + '번째), 20분 뒤 다시 확인'); sleepSync(DEFER_MS);
   }
 
   log('마무리 시작 (청소부 출근)');

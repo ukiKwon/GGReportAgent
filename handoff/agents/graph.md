@@ -83,4 +83,4 @@ PUSH-GATE   : security(이번 푸시 범위 diff 전체) ∥ pm(항목 상태·N
 
 ## 정기 노드: 18:00 마무리
 
-`cleaner`(청소부) 캐릭터가 매일 오후 6시에 `CLAUDE.md`의 "마무리" 절차(날짜별 summary·NEXT.md 갱신 → 커밋 → 푸시)를 수행한다. 안전 규칙은 `agent-dashboard/closing.js`에 있다 — 작업 중인 에이전트가 있으면 미룬다, `main`/`master`에서는 푸시하지 않는다, 경로를 지정해 커밋한다, 사용자와 무관한 미추적 폴더(`GGReportAgent/`)는 담지 않는다.
+`cleaner`(청소부) 캐릭터가 매일 오후 6시에 `CLAUDE.md`의 "마무리" 절차(날짜별 summary·NEXT.md 갱신 → 커밋 → 푸시)를 수행한다. 안전 규칙은 `agent-dashboard/closing.js`에 있다 — 작업 중인 에이전트가 있으면 푸시를 20분씩 계속 미룬다(그날 23:30 한도, 사용자 결정 2026-11-05), `main`/`master`에서는 푸시하지 않는다, 경로를 지정해 커밋한다, 사용자와 무관한 미추적 폴더(`GGReportAgent/`)는 담지 않는다.
