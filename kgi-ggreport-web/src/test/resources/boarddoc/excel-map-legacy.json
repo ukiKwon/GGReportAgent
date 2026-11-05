@@ -1,6 +1,6 @@
 {
   "mapping_ver": 1,
-  "catalog_ver": 1,
+  "catalog_ver": 2,
   "tables": [
     {"ref": "A", "sheet": "기부금", "range": "A1:D5",
      "labels": {"A1": "기관명", "B1": "구분", "C1": "제공금액", "B2": "출연금", "B3": "예비비",
@@ -14,9 +14,10 @@
     {"ref": "C-2", "sheet": "수익성분석", "range": "A6:G14",
      "labels": {"A6": "구분", "B6": "사업초기", "G6": "계", "A7": "총수익(A)", "A14": "순이익(현재가치(NPV)기준)"},
      "blocks": [{"key_row": 1, "seq": 1, "from": "B7", "rows": 8, "cols": 6}]},
-    {"ref": "C-3", "sheet": "수익성분석", "range": "A17:F22",
-     "labels": {"A17": "구분", "B17": "1년차", "F17": "계", "A18": "총수익(A)", "A22": "미회수투자액(PV)"},
-     "blocks": [{"key_row": 1, "seq": 1, "from": "B18", "rows": 5, "cols": 5}]},
+    {"ref": "C-3", "sheet": "수익성분석", "range": "A17:G22",
+     "labels": {"A17": "구분", "B17": "사업초기", "C17": "1년차", "G17": "계", "A18": "총수익(A)", "A22": "미회수투자액(PV)"},
+     "cells": {"r1_c6": "B18", "r2_c6": "B19", "r3_c6": "B20", "r4_c6": "B21", "r5_c6": "B22"},
+     "blocks": [{"key_row": 1, "seq": 1, "from": "C18", "rows": 5, "cols": 5}]},
     {"ref": "C-4", "sheet": "수익성분석", "range": "A25:C28",
      "labels": {"A25": "구분", "B25": "산출값", "A26": "회수기간법(Payback Period)",
                 "A27": "순현재가치(NPV)", "A28": "내부수익률법(IRR)"},

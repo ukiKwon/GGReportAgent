@@ -225,11 +225,11 @@ public class BoardWriteApiTest {
     }
 
     @Test
-    public void 작성_부여_후_정상_엑셀은_95칸이_샘플과_같다() throws Exception {
+    public void 작성_부여_후_정상_엑셀은_100칸이_샘플과_같다() throws Exception {
         perms(MEMBER, true, false);
         JsonNode out = upload(MEMBER, fixture(), 200).json;
-        assertEquals(95, out.get("summary").get("total").asInt());
-        assertEquals(95, out.get("summary").get("filled").asInt());
+        assertEquals(100, out.get("summary").get("total").asInt());     // 옛 형식 시험 지도: A5 + B14 + C-2 48 + C-3 30 + C-4 3 (C-5 는 지도에 없다)
+        assertEquals(100, out.get("summary").get("filled").asInt());
         assertEquals(0, out.get("summary").get("failed").asInt());
         assertEquals(0, out.get("warnings").size());
         assertEquals(1, out.get("mapping_ver").asInt());
@@ -243,11 +243,12 @@ public class BoardWriteApiTest {
                 checked++;
             }
         }
-        assertEquals(95, checked);
+        assertEquals(100, checked);
         assertEquals("900", cellOf(out, "A", "r4_c2").get("value").asText());     // 수식 캐시
         assertEquals("C5", cellOf(out, "A", "r4_c2").get("source").get("cell").asText());
         assertEquals(5, out.get("sources").size());
-        assertEquals(0, out.get("unmapped_tables").size());
+        assertEquals(1, out.get("unmapped_tables").size());                         // 옛 형식 시험 지도에는 C-5 가 없다
+        assertEquals("C-5", out.get("unmapped_tables").get(0).asText());
     }
 
     @Test
@@ -319,7 +320,7 @@ public class BoardWriteApiTest {
         assertEquals("ok", b.get("label_state").asText());
         assertFalse(b.get("needs_review").asBoolean());
         assertEquals(1, out.get("summary").get("label_mismatch_tables").asInt());
-        assertEquals(90, out.get("summary").get("filled").asInt());
+        assertEquals(95, out.get("summary").get("filled").asInt());
         assertEquals(5, out.get("summary").get("review").asInt());
         assertEquals(0, out.get("summary").get("failed").asInt());
         JsonNode w = warning(out.get("warnings"), "LABEL_MISMATCH");
@@ -344,7 +345,7 @@ public class BoardWriteApiTest {
             assertTrue(c.get("source").get("raw").isNull());
             assertTrue(hasCode(c.get("warnings"), "LABEL_MISMATCH"));
         }
-        assertEquals(90, r.json.get("summary").get("filled").asInt());
+        assertEquals(95, r.json.get("summary").get("filled").asInt());
         assertEquals(5, r.json.get("summary").get("failed").asInt());
         assertEquals("A", warning(r.json.get("warnings"), "LABEL_MISMATCH").get("tables").get(0).asText());
     }

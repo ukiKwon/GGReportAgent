@@ -132,7 +132,7 @@ public class BoardExcelFillTest {
         assertEquals("500", c.get("value"));
         assertTrue(hasWarning(c, "LABEL_MISMATCH"));
         assertEquals(5, ((List<?>) t.get("cells")).size());
-        assertEquals(95 - 5, summary(out).get("filled"));
+        assertEquals(100 - 5, summary(out).get("filled"));
         assertEquals(5, summary(out).get("review"));
         assertEquals(0, summary(out).get("failed"));
         assertEquals(1, summary(out).get("label_mismatch_tables"));
@@ -176,7 +176,7 @@ public class BoardExcelFillTest {
             assertTrue(hasWarning(c, "LABEL_MISMATCH"));
             assertFalse(hasWarning(c, "SUM_MISMATCH"));
         }
-        assertEquals(95 - 5, summary(out).get("filled"));
+        assertEquals(100 - 5, summary(out).get("filled"));
         assertEquals(5, summary(out).get("failed"));
         assertEquals(0, summary(out).get("review"));
     }

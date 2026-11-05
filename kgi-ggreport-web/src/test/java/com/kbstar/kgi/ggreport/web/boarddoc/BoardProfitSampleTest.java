@@ -104,6 +104,36 @@ public class BoardProfitSampleTest {
             throw new AssertionError("detail row not found");
         }
 
+        /**
+         * 세부 산출표(2.~3. 사이)에서 구분 열 0~3 의 비어 있지 않은 값 경로가 tail 로 끝나는 행(정확히 같은 글자)의 col 값을 위에서 아래 순으로.
+         * 일치 행이 expectRows 개가 아니면 실패. BoardLabel·BoardExcelResolve 를 쓰지 않는 독립 오라클이다.
+         */
+        double[] byTail(int col, int expectRows, String... tail) {
+            List<Double> hit = new java.util.ArrayList<>();
+            for (int r = t2 + 1; r < t3; r++) {
+                List<String> p = new java.util.ArrayList<>();
+                for (int c = 0; c < 4; c++) {
+                    String s = str(r, c);
+                    if (!s.isEmpty()) {
+                        p.add(s);
+                    }
+                }
+                boolean ok = p.size() >= tail.length;
+                for (int i = 0; ok && i < tail.length; i++) {
+                    ok = p.get(p.size() - tail.length + i).equals(tail[i]);
+                }
+                if (ok) {
+                    hit.add(num(r, col));
+                }
+            }
+            assertEquals("원본 행 수 " + String.join(" > ", tail), expectRows, hit.size());
+            double[] out = new double[hit.size()];
+            for (int i = 0; i < out.length; i++) {
+                out[i] = hit.get(i);
+            }
+            return out;
+        }
+
         /** 3-2(3. 이후) 구분 열 1 이 prefix 로 시작하는 첫 행의 col 값. */
         double pv(String prefix, int col) {
             for (int r = t3 + 1; r <= s.getLastRowNum(); r++) {
@@ -173,14 +203,14 @@ public class BoardProfitSampleTest {
 
         Map<String, Object> out;
         try (XlsxBook b = BoardSourceFixture.open(data)) {
-            assertTrue(BoardExcelFill.structure(b, new BoardExcelMap(), java.util.Arrays.asList("A", "B", "C-2", "C-3", "C-4")).isEmpty());
+            assertTrue(BoardExcelFill.structure(b, new BoardExcelMap(), java.util.Arrays.asList("A", "B", "C-2", "C-3", "C-4", "C-5")).isEmpty());
             out = BoardExcelFill.fill(b, new BoardExcelMap(), BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false));
         }
 
-        // 요약
+        // 요약: 95 + C-3 사업초기 열 5 + C-5 150
         Map<String, Object> sm = map(out.get("summary"));
-        assertEquals(95, sm.get("total"));
-        assertEquals(94, sm.get("filled"));
+        assertEquals(250, sm.get("total"));
+        assertEquals(249, sm.get("filled"));
         assertEquals(0, sm.get("failed"));
         assertEquals(1, sm.get("manual"));                                  // 기관명
         assertEquals(0, sm.get("review"));
@@ -224,7 +254,28 @@ public class BoardProfitSampleTest {
         for (int j = 1; j <= 5; j++) {
             expect(out, "C-3", "r5_c" + j, un[j - 1]);
         }
+        // C-3 사업초기 열(c6): 출연금 현가(D)+예비비 현가(F) = 5.00+1.00, 미회수 투자액 6.00
+        expect(out, "C-3", "r4_c6", "6.00");
+        expect(out, "C-3", "r5_c6", "6.00");
         assertEquals("3.4년", cell(out, "C-4", "r1_c1").get("value"));
+
+        // C-5 고정값(손계산, 명목): 열 c3=사업초기 c4~c7=1~4년차 c8=계
+        String[][] c5 = {
+                {"r1", "0.00", "0.72", "0.79", "0.86", "0.94", "4.32"},    // 공금예금 수익: 평잔 8000*(1+0.1(t-1)) × 마진 0.9% → 72.0, 79.2, 86.4, 93.6 (5년 100.8), 계 432.0
+                {"r11", "0.00", "8.96", "9.33", null, null, "48.51"},      // 총 수익 = C-2 총수익 행
+                {"r16", "3.00", null, null, null, null, "4.50"},           // 전산구축/운영비: 사업초기 300, 계 300+30*5
+                {"r20", "-8.50", "3.36", "3.70", null, null, "11.66"},     // 예상영업이익 = C-2 영업이익 행
+                {"r21", "5.00", "0.00", "0.00", "0.00", "0.00", "5.00"},   // 협력사업비(출연금)
+                {"r22", "1.00", "0.00", "0.00", "0.00", "0.00", "1.00"},   // 예비비
+                {"r25", "-14.50", "2.47", "2.72", null, null, "0.34"}};    // 법인세 차감후 이익 = C-2 순이익 행
+        for (String[] line : c5) {
+            for (int j = 0; j < 6; j++) {
+                if (line[j + 1] != null) {
+                    expect(out, "C-5", line[0] + "_c" + (3 + j), line[j + 1]);
+                }
+            }
+        }
+        assertEquals(150, list(table(out, "C-5").get("cells")).size());
 
         // 독립 오라클 비교(현재가치 등)
         try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(data))) {
@@ -255,13 +306,54 @@ public class BoardProfitSampleTest {
                 }
                 expect(out, "C-2", "r8_c" + (j + 1), eok(o.pv("순이익(NPV)", PV_COLS[j])));
             }
-            // C-3 (사업초기 열 제외 — y1..y4, 계)
+            // C-3: 1~4년차·계 는 c1~c5, 사업초기는 새 열 c6
             for (int j = 0; j < 5; j++) {
                 int col = PV_COLS[j + 1];
                 String[] want = {eok(o.pv(pl[0], col)), eok(o.pv(pl[1], col)), eok(o.pv(pl[2], col)),
                         eok(o.pv("출연금 현가(D)", col), o.pv("예비비 현가(F)", col))};
                 for (int i = 0; i < 4; i++) {
                     expect(out, "C-3", "r" + (i + 1) + "_c" + (j + 1), want[i]);
+                }
+            }
+            int initCol = PV_COLS[0];
+            String[] wantInit = {eok(o.pv(pl[0], initCol)), eok(o.pv(pl[1], initCol)), eok(o.pv(pl[2], initCol)),
+                    eok(o.pv("출연금 현가(D)", initCol), o.pv("예비비 현가(F)", initCol)), eok(o.pv("미회수 투자액", initCol))};
+            for (int i = 0; i < 5; i++) {
+                expect(out, "C-3", "r" + (i + 1) + "_c6", wantInit[i]);
+            }
+            // C-5: 25행 × 6열을 원본 경로별 합으로 검산(업로드 한 번에 150칸 모두)
+            String[][][][] src = {
+                    {{{"공금예금", "수익"}}}, {{{"MMDA", "수익"}}},
+                    {{{"정기예금(1개월)", "수익"}, {"정기예금(3개월)", "수익"}, {"정기예금(6개월)", "수익"}, {"정기예금(12개월)", "수익"}}},
+                    {{{"보통예금", "수익"}}}, {{{"기관수익 소계"}}},
+                    {{{"부수거래 수익", "임직원", "이익"}}}, {{{"부수거래 수익 소계"}}},
+                    {{{"산하기관 이익", "이익(소계)"}}}, {{{"산하기관 임직원 이익", "이익"}}}, {{{"추가거래 수익 소계"}}},
+                    {{{"총수익(A)"}}},
+                    {{{"인건비/물건비", "영업점 인건비"}, {"인건비/물건비", "영업점 물건비"}}},
+                    {{{"임차료", "영업점 임차료"}}},
+                    {{{"자동화기기", "ATM 구축비"}, {"자동화기기", "ATM 운영비"}}},
+                    {{{"영업점 소계"}}},
+                    {{{"전산비용", "전산구축비(사후관리비용 포함)"}}},
+                    {{{"본부부서 인건비", "본부부서 인건비"}}},        // 같은 경로 2행 합
+                    {{{"기타 소계"}}}, {{{"총비용(B)"}}},
+                    {{{"영업이익(C) = (A)-(B)"}}}, {{{"출연금(D)"}}}, {{{"예비비(F)"}}},
+                    {{{"출연금, 기부금 차감 후 영업이익(G) = (C)-(D)-(E)-(F)"}}},
+                    {{{"법인세 및 법인세분지방소득세(H)"}}}, {{{"예상 순이익(I) = (G)-(H)"}}}};
+            assertEquals(25, src.length);
+            for (int i = 0; i < src.length; i++) {
+                for (int j = 0; j < 6; j++) {
+                    java.util.List<Double> vals = new java.util.ArrayList<>();
+                    for (String[] tail : src[i][0]) {
+                        int expectRows = "본부부서 인건비".equals(tail[0]) ? 2 : 1;
+                        for (double v : o.byTail(DETAIL_COLS[j], expectRows, tail)) {
+                            vals.add(v);
+                        }
+                    }
+                    double[] arr = new double[vals.size()];
+                    for (int k = 0; k < arr.length; k++) {
+                        arr[k] = vals.get(k);
+                    }
+                    expect(out, "C-5", "r" + (i + 1) + "_c" + (3 + j), eok(arr));
                 }
             }
             // C-4
@@ -273,7 +365,7 @@ public class BoardProfitSampleTest {
             assertEquals(o.str(vr, 3), cell(out, "C-4", "r3_c1").get("value"));
 
             // 5년 열은 읽히지 않는다
-            for (String ref : new String[]{"A", "B", "C-2", "C-3", "C-4"}) {
+            for (String ref : new String[]{"A", "B", "C-2", "C-3", "C-4", "C-5"}) {
                 for (Map<String, Object> c : list(table(out, ref).get("cells"))) {
                     for (Map<String, Object> p : list(c.get("parts"))) {
                         CellReference at = new CellReference((String) p.get("cell"));

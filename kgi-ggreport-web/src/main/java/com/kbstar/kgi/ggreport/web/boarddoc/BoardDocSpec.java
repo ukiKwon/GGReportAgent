@@ -169,7 +169,7 @@ public final class BoardDocSpec {
 
     private static String unitOf(String tableId) {
         return "A".equals(tableId) || "B".equals(tableId) || "C-2".equals(tableId) || "C-3".equals(tableId)
-                ? UNIT_EOK : "";
+                || C5_REF.equals(tableId) ? UNIT_EOK : "";
     }
 
     public static final class Doc {
@@ -236,7 +236,11 @@ public final class BoardDocSpec {
     // ── 카탈로그·편집 (양식 커스텀) ──
 
     /** 카탈로그(표 목록·구조·셀 키)가 바뀌면 올린다. 버전 행의 CATALOG_VER 와 달라지면 응답이 낡았다고 알린다. */
-    public static final int CATALOG_VER = 1;
+    public static final int CATALOG_VER = 2;
+    /** CATALOG_VER 2 에서 새로 생긴 열 id(C-3 사업초기). 얼린 v1 구조와 비교할 때 이 열을 뺀다. */
+    public static final String C3_INIT_COL = "c6";
+    /** CATALOG_VER 2 에서 새로 생긴 표(맨 뒤에 덧붙는다). */
+    public static final String C5_REF = "C-5";
     /** 저장 JSON 형식 번호(칸 key 가 r{행id}_c{열id}인 구조 저장). 카탈로그 버전과 별개다 — 이 값만 바뀌면 CATALOG_VER 는 그대로. */
     public static final int FORM_FMT = 2;
     /** 사용자가 만든 행/열 id 의 시작 숫자(카탈로그 id 는 이보다 작다). 지운 id 는 재사용하지 않는다. */
@@ -247,7 +251,7 @@ public final class BoardDocSpec {
     public static final int MAX_TITLE = 100;
     public static final int MAX_CELL = 100;
 
-    /** 고를 수 있는 표 전체(순서 고정). 지금은 기본 양식의 표 5개다. */
+    /** 고를 수 있는 표 전체(순서 고정). 지금은 기본 양식의 표 6개다(A, B, C-2, C-3, C-4, C-5). */
     public static List<Table> catalog(boolean sample) {
         return defaultDoc(sample).getTables();
     }
@@ -618,26 +622,29 @@ public final class BoardDocSpec {
         }
         Table t2 = new Table("C-2", "C-2", "Ⅱ. 명목가치 수익성", 7, c2);
 
-        // page4 표 C-3: NPV 수익성 (1~4년차 + 계)
+        // page4 표 C-3: NPV 수익성 (사업초기 + 1~4년차 + 계). 사업초기 열은 CATALOG_VER 2 에서 더해졌다:
+        // 화면 순서는 구분, 사업초기, 1~4년차, 계 이지만 열 id 는 기존 c1~c5 를 그대로 두고 새 열만 c6 (id 재사용·이동 금지).
         String[] labels3 = {"총수익(A)", "총비용(B)", "예상영업이익(C)=(A-B)", "출연금 및 예비비(D)", "미회수투자액(PV)"};
-        long[][] n = new long[5][4];
-        long[] unrecovered = {1200, 800, 300, 0};
-        for (int t = 1; t <= 4; t++) {
+        long[][] n = new long[5][5];
+        long[] unrecovered = {1600, 1200, 800, 300, 0};
+        for (int t = 0; t <= 4; t++) {
             double d = Math.pow(DISCOUNT, t);
-            n[0][t - 1] = Math.round(revenue[t] / d);
-            n[1][t - 1] = Math.round(cost[t] / d);
-            n[2][t - 1] = n[0][t - 1] - n[1][t - 1];
-            n[3][t - 1] = Math.round(donate[t] / d);
-            n[4][t - 1] = unrecovered[t - 1];
+            n[0][t] = Math.round(revenue[t] / d);
+            n[1][t] = Math.round(cost[t] / d);
+            n[2][t] = n[0][t] - n[1][t];
+            n[3][t] = Math.round(donate[t] / d);
+            n[4][t] = unrecovered[t];
         }
-        List<List<Cell>> c3 = rows(row(head("구분"), head("1년차"), head("2년차"), head("3년차"),
+        List<List<Cell>> c3 = rows(row(head("구분"), head("사업초기"), head("1년차"), head("2년차"), head("3년차"),
                 head("4년차"), head("계")));
         for (int i = 0; i < 5; i++) {
             List<Cell> r = labeled(lab(labels3[i]), f, n[i]);
             r.add(f.v(i == 4 ? 0 : sum(n[i])));
             c3.add(r);
         }
-        Table t3 = new Table("C-3", "C-3", "Ⅲ. 순현재가치(NPV) 수익성", 6, c3);
+        Table t3 = new Table("C-3", "C-3", "Ⅲ. 순현재가치(NPV) 수익성", 7,
+                sequentialIds("r", 6), Arrays.asList("c0", C3_INIT_COL, "c1", "c2", "c3", "c4", "c5"),
+                FIRST_NEW_ID, FIRST_NEW_ID, c3);
 
         // page4 표 C-4: 투자적정성 분석 (판단기준은 고정 문구)
         Table t4 = new Table("C-4", "C-4", "Ⅳ. 투자적정성 분석", 3, rows(
@@ -648,6 +655,55 @@ public final class BoardDocSpec {
                 "※투입비용은 사업기간 내 연차별 비용을 현재가치로 환산한 값을 적용하고, 수익은 매년 발생하는 명목금액 기준으로 산출",
                 "※ 현재가치할인율 3.31% (고정자산 기회비용률)");
 
-        return new Doc(DEFAULT_ID, DEFAULT_NAME, a, b, t2, t3, t4);
+        return new Doc(DEFAULT_ID, DEFAULT_NAME, a, b, t2, t3, t4, c5(f));
+    }
+
+    /** 값 칸 6개(사업초기, 1~4년차, 계). 샘플 문구는 가상 숫자다. */
+    private static void vals6(List<Cell> r, Fill f, int rowNo) {
+        for (int c = 0; c < 6; c++) {
+            r.add(f.v(String.format(Locale.US, "%,.2f", rowNo * 1.25 + c * 0.5)));
+        }
+    }
+
+    /** 라벨 칸(들) 뒤에 값 칸 6개를 붙인 한 행. */
+    private static List<Cell> c5Row(Fill f, int rowNo, Cell... labels) {
+        List<Cell> r = row(labels);
+        vals6(r, f, rowNo);
+        return r;
+    }
+
+    /**
+     * 붙임 5 'Ⅴ. 세부 수익성 분석표(명목가치)' (CATALOG_VER 2 에서 추가, 맨 뒤). 9열: 구분1~3, 사업초기, 1~4년차, 계.
+     * 머리 1행 + 데이터 25행(행 번호 = 데이터 순번). 값 칸 25×6 = 150 은 엑셀 연결 칸이다. 행·열 id 는 기본(r0~r25, c0~c8).
+     */
+    private static Table c5(Fill f) {
+        List<List<Cell>> t = rows(row(head("구분").span(3, 1), head("사업초기"), head("1년차"), head("2년차"),
+                head("3년차"), head("4년차"), head("계")));
+        t.add(c5Row(f, 1, lab("수익").span(1, 11), lab("기관수익").span(1, 5), lab("공금예금 수익(a)")));
+        t.add(c5Row(f, 2, lab("MMDA 수익(b)")));
+        t.add(c5Row(f, 3, lab("정기예금 수익(c)")));
+        t.add(c5Row(f, 4, lab("보통예금 수익(d)")));
+        t.add(c5Row(f, 5, lab("수익금액 소계")));
+        t.add(c5Row(f, 6, lab("부수거래 수익").span(1, 2), lab("본청 공무원 수익(e)")));
+        t.add(c5Row(f, 7, lab("수익금액 소계")));
+        t.add(c5Row(f, 8, lab("추가수익").span(1, 3), lab("산하기관 이익(f)")));
+        t.add(c5Row(f, 9, lab("산하기관 임직원 이익(g)")));
+        t.add(c5Row(f, 10, lab("수익금액 소계")));
+        t.add(c5Row(f, 11, lab("총 수익").span(2, 1)));
+        t.add(c5Row(f, 12, lab("비용").span(1, 8), lab("영업점").span(1, 4), lab("인건비/물건비(h)")));
+        t.add(c5Row(f, 13, lab("임차료(i)")));
+        t.add(c5Row(f, 14, lab("자동화기기 운영(j)")));
+        t.add(c5Row(f, 15, lab("영업점 비용 소계")));
+        t.add(c5Row(f, 16, lab("기타").span(1, 3), lab("전산구축/운영비(k)")));
+        t.add(c5Row(f, 17, lab("본부 인건비/물건비(l)")));
+        t.add(c5Row(f, 18, lab("기타 비용 소계")));
+        t.add(c5Row(f, 19, lab("총 비용").span(2, 1)));
+        t.add(c5Row(f, 20, lab("예상영업이익").span(3, 1)));
+        t.add(c5Row(f, 21, lab("협력사업비(출연금)").span(3, 1)));
+        t.add(c5Row(f, 22, lab("예비비").span(3, 1)));
+        t.add(c5Row(f, 23, lab("법인세 차감전 순이익").span(3, 1)));
+        t.add(c5Row(f, 24, lab("법인세(26.4%)").span(3, 1)));
+        t.add(c5Row(f, 25, lab("법인세 차감후 이익").span(3, 1)));
+        return new Table(C5_REF, C5_REF, "Ⅴ. 세부 수익성 분석표(명목가치)", 9, t);
     }
 }

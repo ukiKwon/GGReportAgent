@@ -43,15 +43,15 @@ public class BoardExcelMapTest {
     }
 
     @Test
-    public void 옛_지도_표_5개_95칸() {
+    public void 옛_지도_표_5개_100칸() {
         BoardExcelMap m = BoardExcelFixture.legacyMap();
         assertEquals(1, m.getMappingVer());
-        assertEquals(5, m.tables().size());
+        assertEquals(5, m.tables().size());                  // C-5 는 옛 형식 시험 지도에 없다
         int n = 0;
         for (BoardExcelMap.TableMap t : m.tables()) {
             n += t.getCells().size();
         }
-        assertEquals(95, n);
+        assertEquals(100, n);                                // A5 + B14 + C-2 48 + C-3 30(사업초기 열 포함) + C-4 3
         assertEquals("C3", m.table("A").getCells().get("r2_c2").formatAsString());       // 옛 지도의 r2c1 이 새 key 로 번역됐다
     }
 
@@ -63,14 +63,16 @@ public class BoardExcelMapTest {
         int total = 0;
         for (BoardDocSpec.Table cat : BoardDocSpec.catalog(false)) {
             java.util.Set<String> mapped = BoardDocSpec.mappedKeys(cat);
-            assertEquals(cat.getId(), mapped, legacy.table(cat.getId()).getCells().keySet());
+            if (!BoardDocSpec.C5_REF.equals(cat.getId())) {          // 옛 형식 시험 지도에는 C-5 가 없다
+                assertEquals(cat.getId(), mapped, legacy.table(cat.getId()).getCells().keySet());
+            }
             assertEquals(cat.getId(), mapped, cur.table(cat.getId()).getSpecs().keySet());
             for (String k : mapped) {
                 assertTrue(k, BoardDocSpec.isValidCellKey(k));
             }
             total += mapped.size();
         }
-        assertEquals(95, total);
+        assertEquals(250, total);                                    // 95 + C-3 사업초기 5 + C-5 150
         // 표 A: 기관명 r1_c0, 출연금 r1_c2, 예비비 r2_c2, 전산 r3_c2, 합계 r4_c2
         assertEquals(new java.util.LinkedHashSet<>(java.util.Arrays.asList("r1_c0", "r1_c2", "r2_c2", "r3_c2", "r4_c2")),
                 legacy.table("A").getCells().keySet());

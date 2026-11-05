@@ -36,7 +36,7 @@ public class BoardDocDocxTest {
     public void 표A_세로_병합이_vMerge로_반영된다() throws Exception {
         XWPFDocument d = read(true);
         try {
-            assertEquals(5, d.getTables().size());
+            assertEquals(6, d.getTables().size());
             XWPFTable a = d.getTables().get(0);
             XWPFTableCell inst = a.getRow(1).getCell(0);
             assertEquals("대한민국 기관", inst.getText());
@@ -73,6 +73,28 @@ public class BoardDocDocxTest {
     }
 
     @Test
+    public void 표C5_9열_머리_가로3칸과_세로_병합() throws Exception {
+        XWPFDocument d = read(true);
+        try {
+            XWPFTable t = d.getTables().get(5);
+            assertEquals(26, t.getRows().size());
+            assertEquals(7, t.getRow(0).getTableCells().size());          // 구분(3칸 병합) + 6열
+            assertEquals(3, t.getRow(0).getCell(0).getCTTc().getTcPr().getGridSpan().getVal().intValue());
+            assertEquals(9, t.getRow(1).getTableCells().size());
+            assertEquals("수익", t.getRow(1).getCell(0).getText());
+            assertEquals(STMerge.RESTART, restartOrNull(t.getRow(1).getCell(0)));
+            assertTrue(isContinue(t.getRow(11).getCell(0)));              // 수익 세로 11행의 마지막
+            assertEquals(8, t.getRow(11).getTableCells().size());         // 이어짐 칸 1 + 총 수익(구분2~3 병합) 1 + 값 6
+            assertEquals(2, t.getRow(11).getCell(1).getCTTc().getTcPr().getGridSpan().getVal().intValue());
+            assertEquals("비용", t.getRow(12).getCell(0).getText());
+            assertEquals(7, t.getRow(20).getTableCells().size());         // 예상영업이익: 구분1~3 병합
+            assertEquals(3, t.getRow(20).getCell(0).getCTTc().getTcPr().getGridSpan().getVal().intValue());
+        } finally {
+            d.close();
+        }
+    }
+
+    @Test
     public void 한글_글꼴이_eastAsia까지_지정된다() throws Exception {
         XWPFDocument d = read(true);
         try {
@@ -93,7 +115,7 @@ public class BoardDocDocxTest {
                 assertFalse("쪽 나눔이 없어야 한다", p.isPageBreak());
             }
             assertEquals(BoardDocSpec.DEFAULT_NAME, d.getParagraphs().get(0).getText());
-            assertEquals(5, d.getTables().size());
+            assertEquals(6, d.getTables().size());
             assertEquals("", d.getTables().get(0).getRow(1).getCell(0).getText());   // 매핑 칸 비어 있음
             assertEquals("출연금", d.getTables().get(0).getRow(1).getCell(1).getText());   // 고정 라벨은 유지
         } finally {
@@ -141,8 +163,9 @@ public class BoardDocDocxTest {
         XWPFDocument d = read(true);
         try {
             double[][] want = {{22, 34, 18, 26}, {6, 12, 11.7, 11.7, 11.7, 11.7, 11.7, 11.7, 11.7},
-                    {28, 12, 12, 12, 12, 12, 12}, {30, 14, 14, 14, 14, 14}, {32, 16, 52}};
-            for (int i = 0; i < 5; i++) {
+                    {28, 12, 12, 12, 12, 12, 12}, {28, 12, 12, 12, 12, 12, 12}, {32, 16, 52},
+                    {10, 12, 22, 9, 9, 9, 9, 9, 11}};
+            for (int i = 0; i < 6; i++) {
                 XWPFTable t = d.getTables().get(i);
                 int[] w = grid(t);
                 assertEquals("표 " + i, want[i].length, w.length);
@@ -183,7 +206,7 @@ public class BoardDocDocxTest {
                     assertTrue("표 제목 keepNext", ps.get(i - 1).getCTP().getPPr().isSetKeepNext());
                 }
             }
-            assertEquals(4, units);   // A, B, C-2, C-3 (C-4 는 단위 없음)
+            assertEquals(5, units);   // A, B, C-2, C-3, C-5 (C-4 는 단위 없음)
         } finally {
             d.close();
         }

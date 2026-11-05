@@ -35,8 +35,8 @@ public class BoardDocSpecTest {
     public void 양식_구조와_없는_id() {
         BoardDocSpec.Doc d = BoardDocSpec.find("default_doc", true);
         assertNotNull(d);
-        assertEquals(5, d.getTables().size());
-        String[] order = {"A", "B", "C-2", "C-3", "C-4"};
+        assertEquals(6, d.getTables().size());
+        String[] order = {"A", "B", "C-2", "C-3", "C-4", "C-5"};
         for (int i = 0; i < order.length; i++) {
             assertEquals(order[i], d.getTables().get(i).getId());
         }
@@ -81,8 +81,15 @@ public class BoardDocSpecTest {
         BoardDocSpec.Table c4 = table(d, "C-4");
         assertEquals(7, c2.getColumns());
         assertEquals(9, c2.getRows().size());
-        assertEquals(6, c3.getColumns());
+        assertEquals(7, c3.getColumns());                  // CATALOG_VER 2: 사업초기 열 추가
         assertEquals(6, c3.getRows().size());
+        assertEquals(Arrays.asList("c0", "c6", "c1", "c2", "c3", "c4", "c5"), c3.getColIds());   // 새 열만 c6, 기존 id 는 그대로
+        assertEquals("사업초기", c3.getRows().get(0).get(1).getText());
+        assertEquals("r0_c6", c3.getRows().get(0).get(1).getKey());
+        assertEquals("r1_c6", c3.getRows().get(1).get(1).getKey());
+        assertTrue(c3.getRows().get(1).get(1).isMapped());
+        assertEquals("r1_c1", c3.getRows().get(1).get(2).getKey());          // 1년차 칸 key 는 밀리지 않았다
+        assertEquals("r1_c5", c3.getRows().get(1).get(6).getKey());          // 계
         assertEquals(3, c4.getColumns());
         assertEquals(4, c4.getRows().size());
         assertEquals(2, c4.getNotes().size());
@@ -93,7 +100,7 @@ public class BoardDocSpecTest {
     @Test
     public void 표마다_단위가_제목과_분리되어_있고_편집해도_유지된다() {
         BoardDocSpec.Doc d = BoardDocSpec.find("default_doc", true);
-        for (String id : new String[]{"A", "B", "C-2", "C-3"}) {
+        for (String id : new String[]{"A", "B", "C-2", "C-3", "C-5"}) {
             assertEquals("(단위: 억원)", table(d, id).getUnit());
             assertFalse(table(d, id).getTitle().contains("단위"));
         }
@@ -172,7 +179,7 @@ public class BoardDocSpecTest {
         assertEquals(BoardDocSpec.FIRST_NEW_ID, a.getNextR());
         assertEquals(BoardDocSpec.FIRST_NEW_ID, a.getNextC());
         assertEquals(100, BoardDocSpec.FIRST_NEW_ID);
-        assertEquals(1, BoardDocSpec.CATALOG_VER);                   // 칸 이름표만 바뀌었다 — 카탈로그 버전은 그대로
+        assertEquals(2, BoardDocSpec.CATALOG_VER);                   // C-3 사업초기 열 + C-5 추가
         assertEquals(2, BoardDocSpec.FORM_FMT);
         assertEquals(Arrays.asList("r0_c0", "r0_c1", "r0_c2", "r0_c3"), keysOf(a, 0));
         assertEquals(Arrays.asList("r1_c0", "r1_c1", "r1_c2", "r1_c3"), keysOf(a, 1));
@@ -195,18 +202,30 @@ public class BoardDocSpecTest {
     }
 
     @Test
-    public void 얼린_v1_번역표는_지금_카탈로그와_칸마다_같고_모르는_것은_null() {
+    public void 얼린_v1_번역표는_v1_모양_카탈로그와_칸마다_같고_모르는_것은_null() {
         for (BoardDocSpec.Table t : BoardDocSpec.catalog(false)) {
+            if (BoardDocSpec.C5_REF.equals(t.getId())) {                   // C-5 는 v2 에서 생긴 표 — v1 번역표에 없다
+                assertNull(BoardLegacyKeys.frozenStarts(1, t.getId()));
+                assertNull(BoardDocSpec.legacyToKey(1, t.getId(), "r0c0"));
+                continue;
+            }
             int[][] starts = BoardLegacyKeys.frozenStarts(1, t.getId());
             assertNotNull(t.getId(), starts);
             assertEquals(t.getRows().size(), starts.length);
             for (int r = 0; r < t.getRows().size(); r++) {
-                assertEquals(t.getRows().get(r).size(), starts[r].length);
-                for (int i = 0; i < t.getRows().get(r).size(); i++) {
-                    assertEquals(t.getId() + " r" + r + "c" + i, t.getRows().get(r).get(i).getKey(),
+                // v1 모양 = 지금 카탈로그에서 v2 에 새로 생긴 열(C-3 의 c6)을 뺀 것
+                List<BoardDocSpec.Cell> v1 = new ArrayList<>();
+                for (BoardDocSpec.Cell c : t.getRows().get(r)) {
+                    if (!("C-3".equals(t.getId()) && BoardDocSpec.C3_INIT_COL.equals(c.getColId()))) {
+                        v1.add(c);
+                    }
+                }
+                assertEquals(v1.size(), starts[r].length);
+                for (int i = 0; i < v1.size(); i++) {
+                    assertEquals(t.getId() + " r" + r + "c" + i, v1.get(i).getKey(),
                             BoardDocSpec.legacyToKey(1, t.getId(), "r" + r + "c" + i));
                 }
-                assertNull(BoardDocSpec.legacyToKey(1, t.getId(), "r" + r + "c" + t.getRows().get(r).size()));
+                assertNull(BoardDocSpec.legacyToKey(1, t.getId(), "r" + r + "c" + v1.size()));
             }
             assertNull(BoardDocSpec.legacyToKey(1, t.getId(), "r" + t.getRows().size() + "c0"));
         }
@@ -221,6 +240,47 @@ public class BoardDocSpecTest {
         assertEquals("r1_c2", BoardDocSpec.resolveKey(1, "A", "r1_c2"));   // 새 정규형은 그대로
         assertNull(BoardDocSpec.resolveKey(1, "A", "r01_c2"));
         assertNull(BoardDocSpec.resolveKey(1, "A", "x"));
+    }
+
+    @Test
+    public void 붙임5_C5_모양과_칸_key() {
+        BoardDocSpec.Table c5 = table(BoardDocSpec.find("default_doc", true), "C-5");
+        assertEquals("Ⅴ. 세부 수익성 분석표(명목가치)", c5.getTitle());
+        assertEquals("(단위: 억원)", c5.getUnit());
+        assertEquals(9, c5.getColumns());
+        assertEquals(26, c5.getRows().size());                              // 머리 1 + 데이터 25
+        assertEquals(Arrays.asList("c0", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"), c5.getColIds());
+        assertEquals(BoardDocSpec.FIRST_NEW_ID, c5.getNextR());
+        assertEquals(BoardDocSpec.FIRST_NEW_ID, c5.getNextC());
+        assertEquals(Arrays.asList("r0_c0", "r0_c3", "r0_c4", "r0_c5", "r0_c6", "r0_c7", "r0_c8"), keysOf(c5, 0));
+        assertEquals(3, c5.getRows().get(0).get(0).getColspan());           // 머리 '구분' 가로 3칸
+        assertEquals(Arrays.asList("r1_c0", "r1_c1", "r1_c2", "r1_c3", "r1_c4", "r1_c5", "r1_c6", "r1_c7", "r1_c8"),
+                keysOf(c5, 1));
+        assertEquals(11, c5.getRows().get(1).get(0).getRowspan());          // 수익
+        assertEquals(5, c5.getRows().get(1).get(1).getRowspan());           // 기관수익
+        assertEquals(Arrays.asList("r2_c2", "r2_c3", "r2_c4", "r2_c5", "r2_c6", "r2_c7", "r2_c8"), keysOf(c5, 2));
+        assertEquals(2, c5.getRows().get(11).get(0).getColspan());          // 총 수익 (구분2~3 병합)
+        assertEquals("r11_c1", c5.getRows().get(11).get(0).getKey());
+        assertEquals(8, c5.getRows().get(12).get(0).getRowspan());          // 비용
+        assertEquals(2, c5.getRows().get(19).get(0).getColspan());          // 총 비용
+        for (int r = 20; r <= 25; r++) {
+            assertEquals(3, c5.getRows().get(r).get(0).getColspan());       // 예상영업이익 … 법인세 차감후 이익
+            assertEquals(7, c5.getRows().get(r).size());
+        }
+        int mapped = 0;
+        for (int r = 0; r < c5.getRows().size(); r++) {
+            for (BoardDocSpec.Cell c : c5.getRows().get(r)) {
+                if (c.isMapped()) {
+                    mapped++;
+                    assertTrue(c.getKey(), r >= 1
+                            && Arrays.asList("c3", "c4", "c5", "c6", "c7", "c8").contains(c.getColId()));
+                }
+            }
+        }
+        assertEquals(150, mapped);                                          // 25행 × 6열
+        assertEquals(150, BoardDocSpec.mappedKeys(c5).size());
+        assertEquals("법인세(26.4%)", c5.getRows().get(24).get(0).getText());
+        assertNull(BoardDocSpec.legacyToKey(2, "C-5", "r1c0"));
     }
 
     @Test

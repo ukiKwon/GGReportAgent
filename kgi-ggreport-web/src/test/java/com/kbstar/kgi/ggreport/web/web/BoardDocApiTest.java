@@ -69,8 +69,9 @@ public class BoardDocApiTest {
         JsonNode d = json(MEMBER, "/board-docs/default_doc", 200);
         assertEquals("default_doc", d.get("id").asText());
         assertFalse(d.has("pages"));
-        assertEquals(5, d.get("tables").size());
+        assertEquals(6, d.get("tables").size());
         assertEquals("C-4", d.get("tables").get(4).get("id").asText());
+        assertEquals("C-5", d.get("tables").get(5).get("id").asText());
         JsonNode a = tbl(d, "A");
         assertEquals("A", a.get("mapping").asText());
         assertEquals(4, a.get("columns").asInt());
@@ -87,6 +88,9 @@ public class BoardDocApiTest {
         assertEquals("(단위: 억원)", tbl(d, "C-2").get("unit").asText());
         assertEquals("(단위: 억원)", tbl(d, "C-3").get("unit").asText());
         assertEquals("", tbl(d, "C-4").get("unit").asText());
+        assertEquals("(단위: 억원)", tbl(d, "C-5").get("unit").asText());
+        assertEquals(9, tbl(d, "C-5").get("columns").asInt());
+        assertEquals(26, tbl(d, "C-5").get("rows").size());
         JsonNode b1 = tbl(d, "B").get("rows").get(1).get(0);
         assertEquals("", b1.get("text").asText());
         assertFalse(b1.get("mapped").asBoolean());

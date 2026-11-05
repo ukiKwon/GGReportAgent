@@ -115,9 +115,11 @@ public final class BoardDocDocx {
         } else if ("C-2".equals(id)) {
             p = new double[]{28, 12, 12, 12, 12, 12, 12};
         } else if ("C-3".equals(id)) {
-            p = new double[]{30, 14, 14, 14, 14, 14};
+            p = new double[]{28, 12, 12, 12, 12, 12, 12};          // 구분 + 사업초기·1~4년차·계 (7열)
         } else if ("C-4".equals(id)) {
             p = new double[]{32, 16, 52};
+        } else if ("C-5".equals(id)) {
+            p = new double[]{10, 12, 22, 9, 9, 9, 9, 9, 11};       // 구분1~3 + 사업초기·1~4년차·계 (9열, 합 100)
         }
         return p != null && p.length == cols ? p : null;
     }
