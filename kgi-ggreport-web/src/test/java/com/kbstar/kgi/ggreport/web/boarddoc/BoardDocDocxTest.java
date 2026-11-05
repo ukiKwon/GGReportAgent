@@ -95,6 +95,45 @@ public class BoardDocDocxTest {
     }
 
     @Test
+    public void 표C5_한_쪽_새_쪽_시작_8pt_간격0_높이_추정이_본문_이하() throws Exception {
+        XWPFDocument d = read(true);
+        try {
+            XWPFParagraph title = null;
+            for (XWPFParagraph p : d.getParagraphs()) {
+                if (p.getText().startsWith("Ⅴ.")) {
+                    title = p;
+                }
+            }
+            assertTrue(title != null && title.isPageBreak());
+            assertEquals(11.0, title.getRuns().get(0).getFontSizeAsDouble(), 0.01);
+            XWPFTable t = d.getTables().get(5);
+            for (int r = 0; r < t.getRows().size(); r++) {
+                for (XWPFTableCell c : t.getRow(r).getTableCells()) {
+                    XWPFParagraph p = c.getParagraphs().get(0);
+                    assertEquals(0, p.getSpacingBefore());
+                    assertEquals(0, p.getSpacingAfter());
+                    assertEquals(1.0, p.getSpacingBetween(), 0.001);
+                    assertEquals("문단 기호 8pt", "16", String.valueOf(p.getCTP().getPPr().getRPr().getSzArray(0).getVal()));
+                    for (XWPFRun run : p.getRuns()) {
+                        assertEquals(8.0, run.getFontSizeAsDouble(), 0.01);
+                    }
+                }
+            }
+            // 다른 표는 9pt 그대로
+            assertEquals(9.0, d.getTables().get(0).getRow(0).getCell(0).getParagraphs().get(0)
+                    .getRuns().get(0).getFontSizeAsDouble(), 0.01);
+            // 높이 추정(보수적): 모든 행이 2줄로 줄바꿈된다고 가정. 한 줄 = 8pt x 1.33(맑은 고딕) x 20 = 213 twips.
+            int lineTw = 213;
+            int est = t.getRows().size() * (2 * lineTw + 3)
+                    + (int) Math.round(11 * 1.33 * 20) + (int) Math.round(9 * 1.33 * 20);   // 제목+단위(새 쪽 시작이라 문서 제목은 제외)
+            int body = BoardDocDocx.PAGE_H - 2 * BoardDocDocx.MARGIN;
+            assertTrue("추정 " + est + " > 본문 " + body, est <= body);
+        } finally {
+            d.close();
+        }
+    }
+
+    @Test
     public void 한글_글꼴이_eastAsia까지_지정된다() throws Exception {
         XWPFDocument d = read(true);
         try {
@@ -112,7 +151,8 @@ public class BoardDocDocxTest {
         XWPFDocument d = read(false);
         try {
             for (XWPFParagraph p : d.getParagraphs()) {
-                assertFalse("쪽 나눔이 없어야 한다", p.isPageBreak());
+                // 붙임 5(C-5)의 제목만 새 쪽에서 시작한다(아래 표C5_한_쪽 테스트). 그 밖엔 쪽 나눔이 없다.
+                assertEquals(p.getText(), p.getText().startsWith("Ⅴ."), p.isPageBreak());
             }
             assertEquals(BoardDocSpec.DEFAULT_NAME, d.getParagraphs().get(0).getText());
             assertEquals(6, d.getTables().size());
