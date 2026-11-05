@@ -14,7 +14,7 @@ final class BoardNamedMapFixture {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    private static final String TEXT = "{'mapping_ver':2,'catalog_ver':1,'areas':{"
+    private static final String TEXT = "{'mapping_ver':2,'catalog_ver':2,'areas':{"
             + "'detail':{'sheet':['수익성분석'],'title':'2. 세부 산출표','until':'3. 투자*','header_has':['사업초기','계'],"
             + "'cols':{'init':'사업초기','y1':'1년','y2':'2년','y3':'3년','y4':'4년','tot':'계'},"
             + "'unit':'백만원','unit_assumed':false,'unit_in_title':true,"

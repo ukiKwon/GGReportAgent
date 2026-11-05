@@ -128,7 +128,7 @@ public class BoardFormApiTest {
     }
 
     private static ObjectNode all(int base, String name) {
-        return body(base, name, tbl("A"), tbl("B"), tbl("C-2"), tbl("C-3"), tbl("C-4"));
+        return body(base, name, tbl("A"), tbl("B"), tbl("C-2"), tbl("C-3"), tbl("C-4"), tbl("C-5"));
     }
 
     private static JsonNode table(JsonNode doc, String id) {
@@ -223,7 +223,7 @@ public class BoardFormApiTest {
         assertEquals("영업", d.get("team_key").asText());
         assertEquals("default_doc", d.get("base_doc").asText());
         assertTrue(d.get("editable").asBoolean());
-        assertEquals(5, d.get("tables").size());
+        assertEquals(6, d.get("tables").size());
         assertEquals(DEFAULT_A_TITLE, table(d, "A").get("title").asText());
         JsonNode inst = table(d, "A").get("rows").get(1).get(0);
         assertEquals("r1_c0", inst.get("key").asText());
@@ -298,7 +298,7 @@ public class BoardFormApiTest {
         ObjectNode b = all(1, "양식 v2");
         b.set("tables", JSON.createArrayNode()
                 .add(cell(cell(tbl("A", "새 제목"), "r0_c0", "기관"), "r4_c1", "총계"))
-                .add(tbl("B")).add(tbl("C-2")).add(tbl("C-3")).add(tbl("C-4")));
+                .add(tbl("B")).add(tbl("C-2")).add(tbl("C-3")).add(tbl("C-4")).add(tbl("C-5")));
         JsonNode r = saved(MEMBER, id, b, 200);
         assertEquals(2, r.get("version").asInt());
         assertEquals(2, r.get("current_version").asInt());
@@ -506,14 +506,19 @@ public class BoardFormApiTest {
     // ── 카탈로그·조회 옵션·docx ──
 
     @Test
-    public void 카탈로그는_표_5개와_버전을_돌려준다() throws Exception {
+    public void 카탈로그는_표_6개와_버전을_돌려준다() throws Exception {
         JsonNode c = call(MEMBER, get("/board-forms/catalog"), null, 200);
-        assertEquals(1, c.get("catalog_ver").asInt());
-        assertEquals(5, c.get("items").size());
+        assertEquals(2, c.get("catalog_ver").asInt());
+        assertEquals(6, c.get("items").size());
         assertEquals("A", c.get("items").get(0).get("ref").asText());
         assertEquals("C-4", c.get("items").get(4).get("ref").asText());
         assertEquals(2, c.get("items").get(4).get("notes").size());
         assertEquals(4, c.get("items").get(0).get("columns").asInt());
+        assertEquals("C-5", c.get("items").get(5).get("ref").asText());
+        assertEquals(9, c.get("items").get(5).get("columns").asInt());
+        assertEquals(26, c.get("items").get(5).get("row_count").asInt());
+        assertEquals("(단위: 억원)", c.get("items").get(5).get("unit").asText());
+        assertEquals(7, c.get("items").get(3).get("columns").asInt());          // C-3: 사업초기 열 추가
         call(null, get("/board-forms/catalog"), null, 401);
     }
 
@@ -559,7 +564,7 @@ public class BoardFormApiTest {
         XWPFDocument d1 = new XWPFDocument(new ByteArrayInputStream(old.getResponse().getContentAsByteArray()));
         try {
             assertEquals("원래 이름", d1.getParagraphs().get(0).getText());
-            assertEquals(5, d1.getTables().size());
+            assertEquals(6, d1.getTables().size());
         } finally {
             d1.close();
         }
@@ -578,7 +583,7 @@ public class BoardFormApiTest {
     @Test
     public void board_docs_기본_양식_칸에도_주소표가_붙는다() throws Exception {
         JsonNode d = call(MEMBER, get("/board-docs/default_doc"), null, 200);
-        assertEquals(5, d.get("tables").size());
+        assertEquals(6, d.get("tables").size());
         // 2026-11-05 사용자 확정: 기본 양식에서도 바로 작성 → 칸 주소표(key)가 있어야 작성 모드가 값 칸을 그린다(NEXT 45 P1)
         assertEquals("r0_c0", d.get("tables").get(0).get("rows").get(0).get(0).get("key").asText());
         assertEquals("r0", d.get("tables").get(0).get("rows").get(0).get(0).get("row_id").asText());
@@ -628,11 +633,11 @@ public class BoardFormApiTest {
             }
         }
         assertFalse(d.get("catalog_outdated").asBoolean());
-        assertEquals(1, d.get("catalog_ver").asInt());                          // 칸 이름표가 바뀌어도 카탈로그 버전은 그대로
+        assertEquals(2, d.get("catalog_ver").asInt());                          // 지금 복제하면 현재 카탈로그(2)로 기록된다
         // DB 에는 새 포맷(fmt 2)으로 저장된다
         BoardFormVer v1 = forms.selectVersion(id, 1);
-        assertTrue(v1.getSpecJson(), v1.getSpecJson().startsWith("{\"fmt\":2,\"catalog_ver\":1,\"tables\":["));
-        assertEquals(1, v1.getCatalogVer());
+        assertTrue(v1.getSpecJson(), v1.getSpecJson().startsWith("{\"fmt\":2,\"catalog_ver\":2,\"tables\":["));
+        assertEquals(2, v1.getCatalogVer());
     }
 
     // ── 요청 fmt ──
@@ -722,30 +727,45 @@ public class BoardFormApiTest {
                 }
             }
         }
-        // 같은 내용으로 다시 저장하면 새 버전이 생기지 않는다(옛 포맷 현재 버전과 내용 비교)
-        ObjectNode same = body(2, null,
-                cell(cell(cell(tbl("A", "옛 제목"), "r0_c0", "옛 기관"), "r4_c1", "옛 합계"), "r4_c3", "옛 비고"),
-                cell(tbl("B"), "r0_c2", "옛 총기대"), tbl("C-2"), tbl("C-3"), tbl("C-4"));
-        JsonNode r = saved(MEMBER, id, same, 200);
-        assertFalse(r.get("changed").asBoolean());
-        assertEquals(2, r.get("version").asInt());
-        assertEquals(2, call(MEMBER, get("/board-forms/" + id + "/versions"), null, 200).get("items").size());
-        // 하나라도 다르면 새 버전(3)이 새 포맷으로 저장된다
-        ObjectNode diff = body(2, null,
+        // 이행 결과: C-5 가 맨 뒤에 덧붙고 C-3 에 사업초기 열이 들어갔다. 옛 버전이라 catalog_outdated 안내가 켜진다.
+        assertEquals("C-5", cur.get("tables").get(5).get("id").asText());
+        assertEquals(7, table(cur, "C-3").get("columns").asInt());
+        assertTrue(cur.get("catalog_outdated").asBoolean());
+        assertEquals(1, cur.get("catalog_ver").asInt());
+        // 같은 내용으로 저장해도 옛 카탈로그(1)로 기록된 버전은 현재 카탈로그(2)로 이행한 새 버전(3)이 된다
+        JsonNode r = saved(MEMBER, id, legacySame(2), 200);
+        assertTrue(r.get("changed").asBoolean());
+        assertEquals(3, r.get("version").asInt());
+        assertEquals(2, forms.selectVersion(id, 3).getCatalogVer());
+        assertFalse(r.get("catalog_outdated").asBoolean());
+        assertEquals("옛 합계", table(r, "A").get("rows").get(4).get(0).get("text").asText());     // 문구 보존
+        // 이행된 버전과 같은 내용으로 다시 저장하면 새 버전이 생기지 않는다
+        JsonNode again = saved(MEMBER, id, legacySame(3), 200);
+        assertFalse(again.get("changed").asBoolean());
+        assertEquals(3, again.get("version").asInt());
+        assertEquals(3, call(MEMBER, get("/board-forms/" + id + "/versions"), null, 200).get("items").size());
+        // 하나라도 다르면 새 버전(4)이 새 포맷으로 저장된다
+        ObjectNode diff = body(3, null,
                 cell(cell(cell(tbl("A", "옛 제목"), "r0_c0", "옛 기관"), "r4_c1", "바뀐 합계"), "r4_c3", "옛 비고"),
-                cell(tbl("B"), "r0_c2", "옛 총기대"), tbl("C-2"), tbl("C-3"), tbl("C-4"));
-        JsonNode r3 = saved(MEMBER, id, diff, 200);
-        assertTrue(r3.get("changed").asBoolean());
-        assertEquals(3, r3.get("version").asInt());
-        assertTrue(forms.selectVersion(id, 3).getSpecJson().startsWith("{\"fmt\":2,"));
+                cell(tbl("B"), "r0_c2", "옛 총기대"), tbl("C-2"), tbl("C-3"), tbl("C-4"), tbl("C-5"));
+        JsonNode r4 = saved(MEMBER, id, diff, 200);
+        assertTrue(r4.get("changed").asBoolean());
+        assertEquals(4, r4.get("version").asInt());
+        assertTrue(forms.selectVersion(id, 4).getSpecJson().startsWith("{\"fmt\":2,"));
         assertTrue(forms.selectVersion(id, 2).getSpecJson().startsWith("{\"catalog_ver\":1,"));   // 옛 버전은 불변
+    }
+
+    private static ObjectNode legacySame(int base) {
+        return body(base, null,
+                cell(cell(cell(tbl("A", "옛 제목"), "r0_c0", "옛 기관"), "r4_c1", "옛 합계"), "r4_c3", "옛 비고"),
+                cell(tbl("B"), "r0_c2", "옛 총기대"), tbl("C-2"), tbl("C-3"), tbl("C-4"), tbl("C-5"));
     }
 
     @Test
     public void 번역표가_없는_옛_버전은_닫힌_실패이고_저장으로_복구할_수_있다() throws Exception {
         grant(MEMBER);
         long id = copy(MEMBER, "양식");
-        putVersion(id, 2, 2, "{\"catalog_ver\":2,\"tables\":[{\"ref\":\"A\"}]}");
+        putVersion(id, 2, 3, "{\"catalog_ver\":3,\"tables\":[{\"ref\":\"A\"}]}");
         JsonNode r = call(MEMBER, get("/board-forms/" + id), null, 500);                   // 기본 구조로 조용히 되돌려 보여 주지 않는다
         assertTrue(r.has("detail"));                                                        // 문구는 개발축 설정에 따라 다르다(상세 on/off)
         call(MEMBER, get("/board-forms/" + id + "/docx"), null, 500);

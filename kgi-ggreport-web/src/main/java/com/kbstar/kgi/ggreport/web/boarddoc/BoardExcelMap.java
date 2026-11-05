@@ -240,7 +240,9 @@ public class BoardExcelMap {
 
     /** 지도 파일의 key(옛 r{행}c{순번} 또는 새 정규형)를 새 key 로. 번역 못 하면 기동 실패(내용은 싣지 않는다). */
     private String newKey(String ref, String key) {
-        String k = BoardDocSpec.resolveKey(mapCatalogVer, ref, key);
+        // 옛 모양(r{행}c{순번})은 정의상 CATALOG_VER 1 의 위치다 — 지도가 선언한 catalog_ver(현재 버전)와 무관하게 얼린 v1 표로 옮긴다.
+        // C-3 사업초기(c6)처럼 v2 에서 생긴 칸은 옛 모양으로 적을 수 없고 새 모양(r1_c6)으로 적는다.
+        String k = BoardDocSpec.resolveKey(1, ref, key);
         if (k == null) {
             bad("key " + ref);
         }

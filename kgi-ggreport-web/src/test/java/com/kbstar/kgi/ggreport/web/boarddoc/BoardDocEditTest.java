@@ -61,9 +61,9 @@ public class BoardDocEditTest {
     }
 
     @Test
-    public void 카탈로그는_표_5개_순서_고정_버전_1() {
-        assertEquals(1, BoardDocSpec.CATALOG_VER);
-        String[] order = {"A", "B", "C-2", "C-3", "C-4"};
+    public void 카탈로그는_표_6개_순서_고정_버전_2() {
+        assertEquals(2, BoardDocSpec.CATALOG_VER);
+        String[] order = {"A", "B", "C-2", "C-3", "C-4", "C-5"};
         List<BoardDocSpec.Table> cat = BoardDocSpec.catalog(true);
         assertEquals(order.length, cat.size());
         for (int i = 0; i < order.length; i++) {
@@ -163,8 +163,8 @@ public class BoardDocEditTest {
         BoardDocSpec.Doc d = BoardDocSpec.build("x", "n", list(
                 edit("A", "새 제목", "r0_c0", "기관"), edit("C-4")), false);
         String json = BoardFormJson.toJson(d);
-        assertEquals(1, BoardFormJson.catalogVer(json));
-        assertTrue(json.startsWith("{\"fmt\":2,\"catalog_ver\":1,"));
+        assertEquals(2, BoardFormJson.catalogVer(json));                       // 저장하면 현재 카탈로그 버전으로 기록
+        assertTrue(json.startsWith("{\"fmt\":2,\"catalog_ver\":2,"));
         // 롤백 안전용으로 옛 모양 cells 맵(r{행}c{순번})을 병기한다
         assertTrue(json.contains("\"cells\":{\"r0c0\":\"기관\""));
         // 표 A 의 기관명 값 칸(r1_c0, 옛 r1c0)은 매핑 칸이라 문구를 담지 않는다. (C-4 의 r1c0 은 고정 라벨이라 담는 게 맞다)
@@ -228,6 +228,122 @@ public class BoardDocEditTest {
         assertEquals(upgraded, BoardFormJson.toJson(BoardDocSpec.build("x", "n", BoardFormJson.parse(upgraded), false)));
     }
 
+    // ── CATALOG_VER 1 → 2 이행 (C-5 덧붙임, C-3 사업초기 열 삽입) ──
+
+    /** 현재 모양으로 쓴 JSON 을 catalog_ver 1 로 저장됐던 모양으로 되돌린다: catalog_ver=1, C-5 제거, C-3 의 새 열(c6) 제거. */
+    private static String asV1(String json) throws Exception {
+        com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.node.ObjectNode root = (com.fasterxml.jackson.databind.node.ObjectNode) om.readTree(json);
+        root.put("catalog_ver", 1);
+        com.fasterxml.jackson.databind.node.ArrayNode tables = (com.fasterxml.jackson.databind.node.ArrayNode) root.get("tables");
+        for (int i = tables.size() - 1; i >= 0; i--) {
+            com.fasterxml.jackson.databind.node.ObjectNode t = (com.fasterxml.jackson.databind.node.ObjectNode) tables.get(i);
+            String ref = t.get("ref").asText();
+            if ("C-5".equals(ref)) {
+                tables.remove(i);
+            } else if ("C-3".equals(ref)) {
+                com.fasterxml.jackson.databind.node.ArrayNode cols = (com.fasterxml.jackson.databind.node.ArrayNode) t.get("cols");
+                for (int j = cols.size() - 1; j >= 0; j--) {
+                    if ("c6".equals(cols.get(j).asText())) {
+                        cols.remove(j);
+                    }
+                }
+                for (com.fasterxml.jackson.databind.JsonNode row : t.get("rows")) {
+                    com.fasterxml.jackson.databind.node.ArrayNode cells = (com.fasterxml.jackson.databind.node.ArrayNode) row.get("cells");
+                    for (int j = cells.size() - 1; j >= 0; j--) {
+                        if ("c6".equals(cells.get(j).get("c").asText())) {
+                            cells.remove(j);
+                        }
+                    }
+                }
+            }
+        }
+        return om.writeValueAsString(root);
+    }
+
+    @Test
+    public void 카탈로그_1로_저장된_fmt2_양식은_C5를_맨뒤에_덧붙이고_C3에_열을_끼우며_문구를_보존한다() throws Exception {
+        Map<String, String> c3Cells = new LinkedHashMap<>();
+        c3Cells.put("r0_c1", "내 1년차");
+        c3Cells.put("r1_c0", "내 총수익");
+        c3Cells.put("r0_c5", "내 계");
+        BoardDocSpec.Doc cur = BoardDocSpec.build("x", "n", list(edit("A", "내 A", "r0_c0", "내 기관명"),
+                new BoardDocSpec.TableEdit("C-3", "내 C-3", null, c3Cells), edit("C-4")), false);
+        String v1 = asV1(BoardFormJson.toJson(cur));
+        assertEquals(1, BoardFormJson.catalogVer(v1));
+        assertFalse(v1.contains("\"c6\""));                                          // v1 에는 새 열이 없다
+        assertTrue(v1.startsWith("{\"fmt\":2,\"catalog_ver\":1,"));
+
+        BoardDocSpec.Doc up = BoardDocSpec.build("x", "n", BoardFormJson.parse(v1), false);
+        assertEquals(Arrays.asList("A", "C-3", "C-4", "C-5"), ids(up));              // C-5 는 맨 뒤, 사용자가 뺀 표는 그대로 없다
+        assertEquals("내 A", table(up, "A").getTitle());
+        assertEquals("내 기관명", table(up, "A").getRows().get(0).get(0).getText());
+        BoardDocSpec.Table c3 = table(up, "C-3");
+        assertEquals("내 C-3", c3.getTitle());
+        assertEquals(7, c3.getColumns());
+        assertEquals(Arrays.asList("c0", "c6", "c1", "c2", "c3", "c4", "c5"), c3.getColIds());
+        assertEquals("사업초기", c3.getRows().get(0).get(1).getText());               // 새 열은 기본 문구
+        assertEquals("r0_c6", c3.getRows().get(0).get(1).getKey());
+        assertEquals("내 1년차", c3.getRows().get(0).get(2).getText());               // 기존 칸 key 는 밀리지 않고 문구 보존
+        assertEquals("r0_c1", c3.getRows().get(0).get(2).getKey());
+        assertEquals("내 계", c3.getRows().get(0).get(6).getText());
+        assertEquals("내 총수익", c3.getRows().get(1).get(0).getText());
+        assertEquals(150, BoardDocSpec.mappedKeys(table(up, "C-5")).size());
+        assertEquals("Ⅴ. 세부 수익성 분석표(명목가치)", table(up, "C-5").getTitle());
+
+        // 이행한 결과를 저장하면 catalog_ver 2 이고, 다시 읽어도 같다(C-5 는 이미 있으므로 또 붙지 않는다)
+        String saved = BoardFormJson.toJson(up);
+        assertTrue(saved.startsWith("{\"fmt\":2,\"catalog_ver\":2,"));
+        assertEquals(saved, BoardFormJson.toJson(BoardDocSpec.build("x", "n", BoardFormJson.parse(saved), false)));
+        // 같은 v1 은 언제나 같은 결과
+        assertEquals(saved, BoardFormJson.toJson(BoardDocSpec.build("x", "n", BoardFormJson.parse(v1), false)));
+    }
+
+    @Test
+    public void 카탈로그_1_전체_표_양식도_이행되고_빠진_열만_다시_만든다() throws Exception {
+        BoardDocSpec.Doc all = BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false);
+        String v1 = asV1(BoardFormJson.toJson(all));
+        BoardDocSpec.Doc up = BoardDocSpec.build("x", "n", BoardFormJson.parse(v1), false);
+        assertEquals(Arrays.asList("A", "B", "C-2", "C-3", "C-4", "C-5"), ids(up));
+        assertEquals(BoardFormJson.toJson(all), BoardFormJson.toJson(up));          // 기본 양식과 똑같이 복원
+    }
+
+    @Test
+    public void 옛_fmt_없는_JSON의_C3는_사업초기_열을_끼우고_C5를_덧붙인다() {
+        String legacy = "{\"catalog_ver\":1,\"tables\":[{\"ref\":\"C-3\",\"cells\":{\"r0c1\":\"옛 1년차\",\"r1c0\":\"옛 총수익\"}}]}";
+        BoardDocSpec.Doc up = BoardDocSpec.build("x", "n", BoardFormJson.parse(legacy), false);
+        assertEquals(Arrays.asList("C-3", "C-5"), ids(up));
+        BoardDocSpec.Table c3 = table(up, "C-3");
+        assertEquals("사업초기", c3.getRows().get(0).get(1).getText());
+        assertEquals("옛 1년차", c3.getRows().get(0).get(2).getText());               // 옛 r0c1 → r0_c1 (1년차)
+        assertEquals("r0_c1", c3.getRows().get(0).get(2).getKey());
+        assertEquals("옛 총수익", c3.getRows().get(1).get(0).getText());
+    }
+
+    @Test
+    public void 카탈로그_1_저장본에_C5가_있거나_C3_구조가_다르면_닫힌_실패() throws Exception {
+        String v2all = BoardFormJson.toJson(BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false));
+        // v1 이라 주장하면서 C-5 를 담았다
+        expectBad(v2all.replace("\"catalog_ver\":2", "\"catalog_ver\":1"));
+        // v2 모양(c6 열 있음)인데 v1 이라고 주장하는 C-3
+        String noC5 = asV1(v2all).replace("\"catalog_ver\":1", "\"catalog_ver\":1");
+        BoardFormJson.parse(noC5);                                                    // 이건 정상
+        com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.node.ObjectNode root = (com.fasterxml.jackson.databind.node.ObjectNode) om.readTree(v2all);
+        com.fasterxml.jackson.databind.node.ArrayNode tables = (com.fasterxml.jackson.databind.node.ArrayNode) root.get("tables");
+        tables.remove(tables.size() - 1);                                             // C-5 만 뺀 v2 모양(c6 있음)
+        root.put("catalog_ver", 1);
+        expectBad(om.writeValueAsString(root));
+    }
+
+    private static List<String> ids(BoardDocSpec.Doc d) {
+        List<String> out = new ArrayList<>();
+        for (BoardDocSpec.Table t : d.getTables()) {
+            out.add(t.getId());
+        }
+        return out;
+    }
+
     private static void expectBad(String json) {
         try {
             BoardFormJson.parse(json);
@@ -245,7 +361,10 @@ public class BoardDocEditTest {
         expectBad("{\"catalog_ver\":1,\"tables\":[{\"ref\":\"A\",\"cells\":{\"r0_c0\":\"x\"}}]}");  // 옛 포맷에 새 key 혼입
         expectBad("{\"fmt\":3,\"catalog_ver\":1,\"tables\":[]}");                       // 모르는 fmt
         expectBad("{\"fmt\":\"2\",\"catalog_ver\":1,\"tables\":[]}");
-        expectBad("{\"fmt\":2,\"catalog_ver\":2,\"tables\":[]}");                       // 코드보다 새로운 카탈로그
+        expectBad("{\"fmt\":2,\"catalog_ver\":3,\"tables\":[]}");                       // 코드보다 새로운 카탈로그
+        expectBad("{\"fmt\":2,\"catalog_ver\":0,\"tables\":[]}");
+        expectBad("{\"fmt\":2,\"catalog_ver\":\"x\",\"tables\":[]}");                   // 모르는 값
+        expectBad("{\"catalog_ver\":3,\"tables\":[{\"ref\":\"A\"}]}");
         // fmt 2 인데 구조가 카탈로그와 다르다 (열 id 하나를 바꾼다)
         String good = BoardFormJson.toJson(BoardDocSpec.build("x", "n", list(edit("A")), false));
         expectBad(good.replace("\"cols\":[\"c0\",\"c1\",\"c2\",\"c3\"]", "\"cols\":[\"c0\",\"c1\",\"c2\",\"c9\"]"));
@@ -313,7 +432,7 @@ public class BoardDocEditTest {
         assertEquals("", a.getRows().get(4).get(1).getText());
         assertEquals("출연금", a.getRows().get(1).get(1).getText());            // 비매핑 라벨 유지
         assertEquals("", table(d, "C-4").getRows().get(1).get(1).getText());   // 값을 보내지 않은 표도 빈칸
-        assertEquals(5, d.getTables().size());
+        assertEquals(6, d.getTables().size());
         assertEquals(sample.getName(), d.getName());
     }
 

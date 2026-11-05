@@ -1,6 +1,6 @@
 {
   "mapping_ver": 2,
-  "catalog_ver": 1,
+  "catalog_ver": 2,
   "areas": {
     "detail": {
       "sheet": ["수익성분석"],
@@ -16,7 +16,23 @@
         "pretax":  {"path": ["출연금, 기부금 차감 후 영업이익(G)"]},
         "tax":     {"path": ["법인세 및 지방소득세(H)|법인세 및 법인세분지방소득세(H)"]},
         "net":     {"path": ["순이익(I)|예상 순이익(I)"]},
-        "it":      {"path": ["전산비용", "전산구축비*"]}
+        "it":      {"path": ["전산비용", "전산구축비*"]},
+        "pub":       {"path": ["공금예금", "수익"]},
+        "mmda":      {"path": ["MMDA", "수익"]},
+        "term":      {"path": ["정기예금(1개월)|정기예금(3개월)|정기예금(6개월)|정기예금(12개월)", "수익"], "count": 4},
+        "sav":       {"path": ["보통예금", "수익"]},
+        "inst_sub":  {"path": ["기관수익 소계"]},
+        "staff":     {"path": ["부수거래 수익", "임직원", "이익"]},
+        "side_sub":  {"path": ["부수거래 수익 소계"]},
+        "sub_org":   {"path": ["산하기관 이익", "이익(소계)"]},
+        "sub_staff": {"path": ["산하기관 임직원 이익", "이익"]},
+        "add_sub":   {"path": ["추가거래 수익 소계"]},
+        "br_cost":   {"path": ["인건비/물건비", "영업점 인건비|영업점 물건비"], "count": 2},
+        "br_rent":   {"path": ["임차료", "영업점 임차료"]},
+        "atm":       {"path": ["자동화기기", "ATM 구축비|ATM 운영비"], "count": 2},
+        "br_sub":    {"path": ["영업점 소계"]},
+        "hq":        {"path": ["본부부서 인건비", "본부부서 인건비"], "count": 2},
+        "etc_sub":   {"path": ["기타 소계"]}
       }
     },
     "calc": {
@@ -50,7 +66,7 @@
       {"row": 1, "cells": [{"op": "manual"}, {"op": "eok", "parts": ["detail.grant"], "col": "tot"}]},
       {"row": 2, "cells": [{"op": "eok", "parts": ["detail.reserve"], "col": "tot"}]},
       {"row": 3, "cells": [{"op": "eok", "parts": ["detail.it"], "col": "tot"}]},
-      {"row": 4, "cells": [{"op": "derive_sum", "of": ["r1c2", "r2c1", "r3c1"]}]}
+      {"row": 4, "cells": [{"op": "derive_sum", "of": ["r1_c2", "r2_c2", "r3_c2"]}]}
     ]},
     {"ref": "B", "lines": [
       {"row": 1, "cells": [
@@ -81,16 +97,43 @@
       {"row": 8, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.npv"]}}
     ]},
     {"ref": "C-3", "lines": [
-      {"row": 1, "cols": ["y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.rev"]}},
-      {"row": 2, "cols": ["y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.cost"]}},
-      {"row": 3, "cols": ["y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.op"]}},
-      {"row": 4, "cols": ["y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.grant", "calc.reserve"]}},
-      {"row": 5, "cols": ["y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.unrecovered"]}}
+      {"row": 1, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.rev"]}},
+      {"row": 2, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.cost"]}},
+      {"row": 3, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.op"]}},
+      {"row": 4, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.grant", "calc.reserve"]}},
+      {"row": 5, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.unrecovered"]}}
     ]},
     {"ref": "C-4", "lines": [
       {"row": 1, "cells": [{"op": "plain", "parts": ["judge.value"], "col": "payback"}]},
       {"row": 2, "cells": [{"op": "eok",   "parts": ["judge.value"], "col": "npv"}]},
       {"row": 3, "cells": [{"op": "plain", "parts": ["judge.value"], "col": "irr"}]}
+    ]},
+    {"ref": "C-5", "lines": [
+      {"row": 1,  "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.pub"]}},
+      {"row": 2,  "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.mmda"]}},
+      {"row": 3,  "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.term"]}},
+      {"row": 4,  "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.sav"]}},
+      {"row": 5,  "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.inst_sub"]}},
+      {"row": 6,  "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.staff"]}},
+      {"row": 7,  "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.side_sub"]}},
+      {"row": 8,  "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.sub_org"]}},
+      {"row": 9,  "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.sub_staff"]}},
+      {"row": 10, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.add_sub"]}},
+      {"row": 11, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.rev"]}},
+      {"row": 12, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.br_cost"]}},
+      {"row": 13, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.br_rent"]}},
+      {"row": 14, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.atm"]}},
+      {"row": 15, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.br_sub"]}},
+      {"row": 16, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.it"]}},
+      {"row": 17, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.hq"]}},
+      {"row": 18, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.etc_sub"]}},
+      {"row": 19, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.cost"]}},
+      {"row": 20, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.op"]}},
+      {"row": 21, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.grant"]}},
+      {"row": 22, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.reserve"]}},
+      {"row": 23, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.pretax"]}},
+      {"row": 24, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.tax"]}},
+      {"row": 25, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.net"]}}
     ]}
   ]
 }

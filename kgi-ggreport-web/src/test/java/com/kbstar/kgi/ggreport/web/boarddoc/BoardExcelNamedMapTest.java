@@ -230,16 +230,31 @@ public class BoardExcelNamedMapTest {
     }
 
     @Test
-    public void 실제_지도_v2는_표_5개_95칸을_읽는다() {
+    public void 실제_지도_v2는_표_6개_250칸을_읽는다() {
         BoardExcelMap m = new BoardExcelMap();
         assertEquals(2, m.getMappingVer());
-        assertEquals(5, m.tables().size());
+        assertEquals(6, m.tables().size());
         int n = 0;
         for (BoardExcelMap.TableMap t : m.tables()) {
             assertTrue(t.isNamed());
             n += t.getSpecs().size();
         }
-        assertEquals(95, n);                                                    // 카탈로그 매핑 칸(S5 전이라 C-3 에 사업초기 열 없음)
+        assertEquals(250, n);                                                   // 95 + C-3 사업초기 5 + C-5 150
+        assertEquals(30, m.table("C-3").getSpecs().size());
         assertEquals("tot", m.table("C-3").getSpecs().get("r5_c5").main.get(0).col);
+        assertEquals("init", m.table("C-3").getSpecs().get("r5_c6").main.get(0).col);   // 새 열 c6
+        assertEquals("unrecovered", m.table("C-3").getSpecs().get("r5_c6").main.get(0).row);
+        assertEquals("y1", m.table("C-3").getSpecs().get("r1_c1").main.get(0).col);     // 기존 칸은 그대로
+        assertEquals(150, m.table("C-5").getSpecs().size());
+        // C-5: 값 칸은 c3(사업초기) ~ c8(계)
+        assertEquals("pub", m.table("C-5").getSpecs().get("r1_c3").main.get(0).row);
+        assertEquals("init", m.table("C-5").getSpecs().get("r1_c3").main.get(0).col);
+        assertEquals("term", m.table("C-5").getSpecs().get("r3_c8").main.get(0).row);
+        assertEquals("tot", m.table("C-5").getSpecs().get("r3_c8").main.get(0).col);
+        assertEquals("rev", m.table("C-5").getSpecs().get("r11_c4").main.get(0).row);
+        assertEquals("y1", m.table("C-5").getSpecs().get("r11_c4").main.get(0).col);
+        assertEquals("net", m.table("C-5").getSpecs().get("r25_c8").main.get(0).row);
+        assertTrue(m.table("C-5").getAreaIds().contains("detail"));
+        assertEquals(1, m.table("C-5").getAreaIds().size());
     }
 }
