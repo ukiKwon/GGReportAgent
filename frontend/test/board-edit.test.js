@@ -663,6 +663,28 @@ test('cellLabel: 병합(colspan·rowspan)을 펼쳐 같은 열 순번의 머리�
   // columns가 숫자(서버의 열 수)면 열 머리는 생략
   assert.strictEqual(board.cellLabel({ title: '표', columns: 4, rows: c.rows }, 0, 1), '표 · 가');
 });
+test('cellLabel: 다단 구분(C-5 모양)은 바깥→안쪽 경로를 모두 잇고 같은 글자는 한 번만', function () {
+  const t = { title: '표', rows: [
+    [{ text: '구분', header: true, colspan: 3 }, { text: '사업초기', header: true }, { text: '안정기', header: true }],
+    [{ key: 'g1', text: '비용', header: true, rowspan: 2 }, { key: 'g2', text: '영업점', header: true, rowspan: 2 }, { key: 'g3', text: '자동화기기 운영(j)', header: true },
+     { key: 'v1', text: '1' }, { key: 'v2', text: '2' }],
+    [{ key: 'h3', text: '인건비', header: true }, { key: 'w1', text: '3' }, { key: 'w2', text: '4' }],
+    [{ key: 'g4', text: '소계', header: true, colspan: 2 }, { key: 'g5', text: '합계', header: true }, { key: 'x1', text: '5' }, { key: 'x2', text: '6' }]] };
+  assert.strictEqual(board.cellLabel(t, 1, 3), '표 · 비용 › 영업점 › 자동화기기 운영(j) · 사업초기');
+  assert.strictEqual(board.cellLabel(t, 1, 4), '표 · 비용 › 영업점 › 자동화기기 운영(j) · 안정기');
+  assert.strictEqual(board.cellLabel(t, 2, 1), '표 · 비용 › 영업점 › 인건비 · 사업초기');   // 위에서 내려온 병합 칸 포함
+  assert.notStrictEqual(board.cellLabel(t, 1, 3), board.cellLabel(t, 2, 1));
+  assert.strictEqual(board.cellLabel(t, 3, 2), '표 · 소계 › 합계 · 사업초기');              // 두 열을 덮는 병합 칸도 한 번만
+  const d = { title: '표', rows: [[{ text: 'X', header: true }, { text: 'Y', header: true }, { text: 'Z', header: true }],
+    [{ key: 'a', text: '합계', header: true }, { key: 'b', text: '합계', header: true }, { key: 'c', text: '1' }]] };
+  assert.strictEqual(board.cellLabel(d, 1, 2), '표 · 합계 · Z');                                 // 같은 글자는 한 번만
+  // 구분 칸 입력: 바깥 구분부터 자기 글자까지, 칸마다 유일
+  assert.strictEqual(board.cellLabel(t, 1, 2), '표 · 비용 › 영업점 › 자동화기기 운영(j) 구분 이름');
+  assert.strictEqual(board.cellLabel(t, 2, 0), '표 · 비용 › 영업점 › 인건비 구분 이름');
+  assert.strictEqual(board.cellLabel(t, 1, 0), '표 · 비용 구분 이름');
+  const all = board.cellLabels(t), vals = Object.keys(all).map(function (k) { return all[k]; });
+  assert.strictEqual(new Set(vals).size, vals.length, '모든 칸 이름이 서로 다르다');
+});
 test('editHtml: 값 칸 입력의 aria-label은 cellLabel, 이스케이프된다', function () {
   const h = board.editHtml(board.editFromForm(form()), {}, null);
   assert.ok(h.includes('data-key="r1c0" maxlength="100" value="대한민국 기관" aria-label="재산상 이익제공 · 구분"'));

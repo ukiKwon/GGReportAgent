@@ -197,6 +197,11 @@
               padding:1px 7px; white-space:nowrap; }
   .bd-cell-in { width:100%; min-width:5em; padding:2px 6px; font-size:12px; }
   textarea.bd-cell-in { resize:vertical; }
+  /* 구분(머리) 칸 입력: 긴 구분 문구(약 131px)가 잘리지 않게 최소 폭을 키운다 */
+  .bd-table th .bd-cell-in { min-width:12em; }
+  /* 작성 화면 '넓게 보기': 왼쪽 표가 눌려 글자가 세로로 끊기지 않게 최소 폭 + 가로 스크롤(.bd-table-wrap) + 단어 단위 줄바꿈 */
+  .bd-w-tables .bd-table { min-width:520px; }
+  .bd-w-tables .bd-table th, .bd-w-tables .bd-table td { word-break:keep-all; }
   .bd-lock { margin-left:6px; font-size:11px; color:var(--muted); border:1px solid var(--line-strong);
              border-radius:8px; padding:1px 7px; white-space:nowrap; }
   .bd-added-note { margin:4px 0 6px; font-size:12px; color:var(--muted); }

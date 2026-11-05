@@ -225,12 +225,39 @@ test('NUM_RE 확장: 괄호 병기·년 단위·음수는 숫자 칸, 글자는 
 });
 
 test('표 단위: unit이 있으면 caption 안에 bd-unit(이스케이프), 없으면 이전과 같다', function () {
-  const t = { title: '수익', rows: [[{ text: '1' }]], unit: '억원' };
+  const t = { title: '수익', rows: [[{ text: '1' }]], unit: '(단위: 억원)' };   // 서버는 괄호째 보낸다
   assert.ok(board.tableHtml(t).includes('<caption>수익<span class="bd-unit">(단위: 억원)</span></caption>'));
+  assert.strictEqual((board.tableHtml(t).match(/\(단위:/g) || []).length, 1);
+  // 맨 값·'단위: ' 접두 값도 한 번만 감싼다
+  assert.ok(board.tableHtml({ title: 'T', rows: [], unit: '억원' }).includes('<span class="bd-unit">(단위: 억원)</span>'));
+  assert.strictEqual(board.unitText('단위: 억원'), '(단위: 억원)');
+  assert.strictEqual(board.unitText(' (단위: 백만원) '), '(단위: 백만원)');
+  assert.strictEqual(board.unitText(null), '');
   assert.ok(board.tableHtml({ title: '수익', rows: [], unit: '' }).includes('<caption>수익</caption>'));
   assert.ok(board.tableHtml({ title: '수익', rows: [] }).includes('<caption>수익</caption>'));
   const h = board.tableHtml({ title: 'T', rows: [], unit: '<b>x</b>' });
   assert.ok(!h.includes('<b>') && h.includes('&lt;b&gt;'));
+});
+
+test('원본 패널: 여러 원본 칸(parts)을 더한 칸은 부품 칸을 모두 같은 양식 칸의 원본으로 등록한다', function () {
+  const resp = { tables: [{ ref: 'A', needs_review: false, label_mismatches: [], sums: [], cells: [
+    rc('r1c1', { value: '6', part_count: 2, source: { sheet: '수익성', cell: 'C2', display: '', raw: null, rounded: null },
+      parts: [part('main', 'C2', '500'), part('sub', 'C3', '100'), part('sub', 'C4', '1', { sheet: '다른시트' })] }),
+    rc('r2c1', { value: '7', source: { sheet: '수익성', cell: 'C3', display: '', raw: null, rounded: null } })] }],
+    sources: [{ ref: 'A', sheet: '수익성', first_row: 2, cols: ['B', 'C'], rows: [['a', '500'], ['b', '100'], ['c', '1']] }], warnings: [] };
+  const ws = bw.buildState(form(), resp, { fileName: 'a.xlsx', formId: 'f' });
+  const idx = ws.tables[0].srcIndex;
+  assert.strictEqual(idx['0,1'], 'r1c1');          // 대표 칸 C2
+  assert.strictEqual(idx['1,1'], 'r2c1');          // C3: 이미 다른 칸이 차지 — 덮지 않는다
+  assert.strictEqual(idx['2,1'], undefined);       // 다른 시트의 부품은 제외
+  const own = bw.mergeSources(ws)[0].owners;
+  assert.ok(own['0,1'].some(function (o) { return o.key === 'r1c1'; }));
+  // 대표 칸 없이 parts만 있어도(source.sheet null) 부품 칸이 등록된다
+  const r2 = JSON.parse(JSON.stringify(resp));
+  r2.tables[0].cells[0].source = { sheet: null, cell: null };
+  r2.tables[0].cells[1].source = { sheet: null, cell: null };
+  const idx2 = bw.buildState(form(), r2, { fileName: 'a.xlsx', formId: 'f' }).tables[0].srcIndex;
+  assert.strictEqual(idx2['0,1'], 'r1c1'); assert.strictEqual(idx2['1,1'], 'r1c1');
 });
 
 test('th scope: 열 머리 col, 병합 머리 colgroup, 행 머리 row', function () {

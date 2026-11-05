@@ -103,6 +103,16 @@
       : '';
   }
 
+  // 표 단위 문구(순수). 서버는 "(단위: 억원)"을 통째로 보낸다 — 괄호로 시작하면 그대로,
+  // '억원'처럼 맨 값이나 '단위: 억원'이 오면 '(단위: 억원)'으로 보정한다. 비면 ''.
+  board.unitText = function (u) {
+    const s = typeof u === 'string' ? u.trim() : '';
+    if (s === '') return '';
+    if (/^[(（]/.test(s)) return s;
+    if (/^단위\s*[:：]/.test(s)) return '(' + s + ')';
+    return '(단위: ' + s + ')';
+  };
+
   board.tableHtml = function (t) {
     const tb = t || {};
     const rows = Array.isArray(tb.rows) ? tb.rows : [];
@@ -116,9 +126,9 @@
         return board.cellHtml(c, rowHead ? (span(c.rowspan) > 1 ? 'rowgroup' : 'row') : undefined);
       }).join('') + '</tr>';
     }).join('') + '</tbody>';
-    const unit = typeof tb.unit === 'string' ? tb.unit.trim() : '';   // 읽기 전용, 비어 있을 수 있다
+    const unit = board.unitText(tb.unit);   // 읽기 전용, 비어 있을 수 있다
     const cap = (tb.title || unit)
-      ? '<caption>' + esc(tb.title) + (unit ? '<span class="bd-unit">(단위: ' + esc(unit) + ')</span>' : '') + '</caption>' : '';
+      ? '<caption>' + esc(tb.title) + (unit ? '<span class="bd-unit">' + esc(unit) + '</span>' : '') + '</caption>' : '';
     return '<div class="bd-table-wrap"><table class="bd-table">' +
       cap + theadHtml(cols, rows) + tbody + '</table></div>' +
       notesHtml(tb.notes);
@@ -644,15 +654,39 @@
     const self = function (e) { return !!e && e.r === r && e.ci === ci; };
     const hdrRow = headerInRows(rows);
     const line = g[r] || [];
-    // 행 머리: 같은 행(위에서 내려온 병합 포함)의 첫 header 칸, 없으면 그 행 첫 칸. 머리글 행 칸은 생략.
-    if (!(hdrRow && r === 0)) {
-      let pick = null;
-      for (let col = 0; col < line.length; col++) {
-        const c = cellAt(rows, line[col]);
-        if (c && typeof c === 'object' && c.header === true) { pick = line[col]; break; }
+    const isHdr = function (e) { const c = cellAt(rows, e); return !!c && typeof c === 'object' && c.header === true; };
+    // 구분(머리) 칸 자신의 입력: "<표 제목> · <바깥 구분 › … › 자기 글자> 구분 이름"
+    let selfAt = -1;
+    for (let col = 0; col < line.length; col++) { if (self(line[col])) { selfAt = col; break; } }
+    if (selfAt >= 0 && isHdr(line[selfAt]) && !(hdrRow && r === 0)) {
+      const seen = {}, seenText = {}, path = [];
+      for (let col = 0; col <= selfAt; col++) {
+        const e = line[col];
+        if (!e || !isHdr(e)) continue;
+        const id = e.r + ',' + e.ci;
+        if (seen[id]) continue;
+        seen[id] = true;
+        const tx = nowText(cellAt(rows, e), vals).trim();
+        if (tx !== '' && !seenText[tx]) { seenText[tx] = true; path.push(tx); }
       }
-      if (!pick) pick = line[0] || null;
-      if (pick && !self(pick)) parts.push(nowText(cellAt(rows, pick), vals).trim());
+      const p = path.join(' › ');
+      return [parts[0], p ? p + ' 구분 이름' : ''].filter(function (s) { return s !== ''; }).join(' · ') || '칸 수정';
+    }
+    // 행 머리: 같은 행(위에서 내려온 병합 포함)의 구분(header) 칸 전부를 바깥→안쪽 순서로 ' › '로 잇는다
+    // (같은 칸·같은 글자는 한 번만). 구분 칸이 없으면 그 행 첫 칸. 머리글 행 칸은 생략.
+    if (!(hdrRow && r === 0)) {
+      const seen = {}, seenText = {}, path = [];
+      const add = function (e) {
+        const id = e.r + ',' + e.ci;
+        if (seen[id] || self(e)) return;
+        seen[id] = true;
+        const tx = nowText(cellAt(rows, e), vals).trim();
+        if (tx !== '' && !seenText[tx]) { seenText[tx] = true; path.push(tx); }
+      };
+      let any = false;
+      for (let col = 0; col < line.length; col++) { if (isHdr(line[col])) { any = true; add(line[col]); } }
+      if (!any && line[0]) add(line[0]);
+      if (path.length) parts.push(path.join(' › '));
     }
     // 열 머리: 첫 행(header)에서 같은 열 순번을 차지한 칸. 머리글 행이 없으면 columns 배열(문자열)의 같은 순번.
     let start = -1;
@@ -668,7 +702,7 @@
     const out = parts.filter(function (s) { return s !== ''; });
     return out.length ? out.join(' · ') : '칸 수정';
   }
-  // 값 칸 입력의 aria-label: "<표 제목> · <행 머리> · <열 머리>". 구하지 못한 부분은 생략,
+  // 값 칸 입력의 aria-label: "<표 제목> · <행 구분 경로(바깥 › 안쪽)> · <열 머리>". 구하지 못한 부분은 생략,
   // 모두 비면 '칸 수정'. t: 편집 상태의 표({title, rows, columns, cells}), r: 행 순번, ci: 그 행 배열 안의 순번.
   board.cellLabel = function (t, r, ci) {
     const tb = t || {};
