@@ -555,8 +555,9 @@ test('삭제 확인 줄(연결 칸이 있는 행·열): 카드 안, 문구·버�
   const sec = h.slice(h.indexOf('<section class="bd-card bd-card-edit" data-i="0"'), h.indexOf('<section class="bd-card bd-card-edit" data-i="1"'));
   assert.ok(sec.includes('class="bd-confirm"') && sec.indexOf('class="bd-confirm"') < sec.indexOf('bd-table-wrap'));
   assert.ok(sec.includes('>행 삭제</button>') && sec.includes('>그대로 두기</button>'));
-  assert.strictEqual((sec.match(/bd-pending-del/g) || []).length, 3);   // 1행의 세 칸(병합 칸 포함)
-  assert.ok(sec.includes('<td class="bd-a-left bd-pending-del" rowspan="4" data-pos="1:0">'));
+  // 1행에서 실제 사라지는 칸만 대기 표시: 이름·값 두 칸. 기관명(rowspan 4)은 앵커가 다음 행으로 옮겨 가 살아남으므로 칠하지 않는다.
+  assert.strictEqual((sec.match(/bd-pending-del/g) || []).length, 2);
+  assert.ok(sec.includes('<td class="bd-a-left" rowspan="4" data-pos="1:0">'));
   assert.ok(!board.editFootHtml(st, { confirm: c }).includes('bd-confirm'));
   assert.strictEqual(board.confirmFocus(c), '#bd-no-confirm');
   assert.strictEqual(board.confirmFocus({ act: 'delcol' }), '#bd-no-confirm');
@@ -636,4 +637,65 @@ test('index.html: 새 CSS는 기존 변수만 쓰고, 잠김 배지 규칙은 �
     assert.ok(/var\(--(panel2?|line|line-strong|muted|fg|red|accent-color)\)?$/.test(v), '새 CSS 변수 금지: ' + v);
   });
   assert.ok(block.includes('.bd-edit-guide') && block.includes('.bd-handle') && block.includes('.bd-rcmenu') && block.includes('.bd-swatch'));
+});
+test('index.html: .bd-table-wrap 은 position:relative(.bd-sr 가 카드 밖으로 새어 #tab-soon 가로 스크롤을 만들지 않는다), 이름 입력란 최소 폭 10em', function () {
+  const html = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'index.html'), 'utf8');
+  const wrap = /\.bd-table-wrap\s*\{([^}]*)\}/.exec(html);
+  assert.ok(wrap && /position:\s*relative/.test(wrap[1]) && /overflow-x:\s*auto/.test(wrap[1]));
+  assert.ok(/\.bd-sr\s*\{[^}]*position:\s*absolute[^}]*clip:\s*rect\(0 0 0 0\)/.test(html));
+  const inp = /\.bd-cell-in\s*\{([^}]*)\}/.exec(html);
+  assert.ok(inp && /min-width:\s*10em/.test(inp[1]));
+});
+test('행 이름: 첫 값 칸 직전까지의 이름 칸 중 글자가 있는 가장 안쪽 칸(오른쪽 비고·판단기준은 제외)', function () {
+  // 표 A 원형: 구분 | 금액 | 비고(rowspan 3, 비어 있음)
+  const a = { id: 'N', ref: 'N', mapping: 'N', title: '표 N', columns: 3, notes: [], row_ids: [1, 2, 3, 4], col_ids: [5, 6, 7],
+    rows: [[H('h0', '구분'), H('h1', '금액'), H('h2', '비고')],
+      [L('a1', '예비비'), M('m1', '10'), L('n1', '', { rowspan: 3 })],
+      [L('a2', '세금'), V('v2', '20')],
+      [L('a3', '이자'), V('v3', '30')]] };
+  const t = stOne(a).tables[0];
+  assert.strictEqual(board.rcRowName(t, 1), '예비비');
+  assert.strictEqual(board.rcRowName(t, 2), '세금');
+  assert.strictEqual(board.rcHandleLabel(t, 'row', 3), "'이자' 행 편집");
+  // C-4: 이름 | 값 | 판단기준 문구
+  const c4 = { id: 'C', ref: 'C', mapping: 'C-4', title: '표 C', columns: 3, notes: [], row_ids: [1, 2], col_ids: [3, 4, 5],
+    rows: [[H('c0', '평가방법'), H('c1', '결과'), H('c2', '판단기준')],
+      [L('c3', '회수기간법(Payback Period)'), M('c4', '1'), L('c5', '3년 이내면 적정')]] };
+  assert.strictEqual(board.rcRowName(stOne(c4).tables[0], 1), '회수기간법(Payback Period)');
+  // 이름을 아직 쓰지 않은 새 행은 바깥 병합 이름을 대신 쓰지 않는다
+  const ins = board.rcInsertRow(stAB(), 0, 2, 'above');
+  assert.strictEqual(board.rcRowName(ins.st.tables[0], 2), '');
+  assert.strictEqual(board.rcRowName(ins.st.tables[0], 3), '세금');
+});
+test('삭제 대기 표시: 그 행에서 시작하고 rowspan 1인 칸만(앵커가 옮겨 가는 병합 칸·걸친 병합 칸은 제외)', function () {
+  const c5 = { id: 'C', ref: 'C', mapping: 'C-5', title: '표 C5', columns: 3, notes: [], row_ids: [1, 2, 3, 4], col_ids: [5, 6, 7],
+    rows: [[H('h0', '구분'), H('h1', '세부'), H('h2', '금액')],
+      [L('s', '수익', { rowspan: 3 }), L('x1', '공금예금', { rowspan: 2 }), M('m1', '1')],
+      [M('m2', '2')],
+      [L('x3', '기타'), M('m3', '3')]] };
+  const st = stOne(c5), t = st.tables[0];
+  assert.deepStrictEqual(board.rcDeleteCells(t, 'row', 1), ['1:2']);          // 수익·공금예금은 살아남는다
+  assert.deepStrictEqual(board.rcDeleteCells(t, 'row', 2), ['2:0']);          // 걸친 병합 칸 제외, 이 행의 값 칸만
+  assert.deepStrictEqual(board.rcDeleteCells(t, 'row', 3), ['3:0', '3:1']);
+  const h = board.editCardHtml(st, 0, { confirm: { act: 'delrow', ref: 'C', idx: 1, text: 'x' } });
+  assert.strictEqual((h.match(/bd-pending-del/g) || []).length, 1);
+  assert.ok(!/rowspan="3"[^>]*bd-pending-del|bd-pending-del[^>]*rowspan="3"/.test(h));
+  // 대상 표시(메뉴)는 걸친 칸 전부를 그대로 쓴다
+  assert.strictEqual(board.rcTargetCells(t, 'row', 1).length, 3);
+});
+test('병합 안쪽에 삽입한 열: 알림은 행 이름 안내, 입력란 aria-label 은 입력 전후 같다', function () {
+  const st = stAB();
+  const r = board.rcInsertCol(st, 1, 0, 'right');   // 표 B 의 병합 머리(구분, colspan 2) 안쪽
+  assert.strictEqual(r.ok, true);
+  const t = r.st.tables[1];
+  assert.strictEqual(board.rcColNameInBody(t, r.key), true);
+  assert.strictEqual(board.rcDoneText('col', 'ins-after', 0, '구분', true), "'구분' 오른쪽에 열을 삽입했습니다. 새 열의 행 이름을 입력해 주세요.");
+  assert.strictEqual(board.rcDoneText('col', 'ins-after', 1, '금액'), "'금액' 오른쪽에 열을 삽입했습니다. 열 이름을 입력해 주세요.");
+  const before = board.cellLabels(t)[r.key];
+  assert.strictEqual(before, '표 B · 2번째 열의 행 이름');
+  const typed = board.editSetCell(r.st, 1, r.key, '신규');
+  assert.strictEqual(board.cellLabels(typed.tables[1])[r.key], before);
+  // 머리 칸이 생기는 열 삽입은 그대로 '열 이름'
+  const c = board.rcInsertCol(st, 0, 2, 'right');
+  assert.strictEqual(board.rcColNameInBody(c.st.tables[0], c.key), false);
 });

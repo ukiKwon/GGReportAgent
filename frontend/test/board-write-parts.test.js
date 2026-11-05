@@ -191,6 +191,58 @@ test('manual: 비어 있으면 "직접 입력", 수정됨으로 세지 않고 fi
   assert.ok(bw.summaryHtml(ws).includes('직접 입력하는 칸 1칸'));
 });
 
+// 새 행·열의 값 칸(input:true·mapped:false, 서버 cells 에 없음)은 작성 때 직접 입력하는 칸이 된다
+function newRowWs() {
+  const f = { form_id: 'f', name: '양식', tables: [{ id: 'A', ref: 'A', mapping: 'A', title: '수익성', columns: 2, notes: [],
+    rows: [[{ key: 'h0', text: '구분', header: true }, { key: 'h1', text: '금액', header: true }],
+      [{ key: 'na', text: '가' }, { key: 'p1', text: '0', mapped: true }],
+      [{ key: 'nb', text: '나' }, { key: 'p2', text: '0', mapped: true }],
+      [{ key: 'nc', text: '합계' }, { key: 'tot', text: '0', mapped: true }],
+      [{ key: 'nd', text: '신규', fresh: true }, { key: 'new9', text: '', input: true, mapped: false, fresh: true }]] }] };
+  const src = { sheet: '수익성', cell: 'C2', display: '', raw: null, rounded: null };
+  const resp = { tables: [{ ref: 'A', needs_review: false, label_mismatches: [], sums: [{ total: 'tot', of: ['p1', 'p2', 'new9'] }], cells: [
+    rc('p1', { value: '10', source: src }), rc('p2', { value: '20', source: src }),
+    rc('tot', { value: '30', status: 'review', source: { sheet: null, cell: null }, warnings: [{ code: 'SUM_HAS_MANUAL_PARTS' }],
+      convert: { kind: 'display_sum', unit_from: '억원', unit_to: '억원', divisor: null, sum: '30', sub_sum: null, of: ['p1', 'p2'], result: '30' } })] }],
+    sources: [], warnings: [] };
+  return bw.buildState(f, resp, { fileName: 'a.xlsx', formId: 'f' });
+}
+test('새 행의 값 칸: 직접 입력 칸으로 그려지고 값이 합계 재검산·초안 본문·복사에 쓰인다(공란은 0으로 치지 않고 건너뜀)', function () {
+  let ws = newRowWs();
+  const t = ws.tables[0];
+  assert.strictEqual(t.cells.new9.manual, true);
+  assert.deepStrictEqual(t.order.slice(-1), ['new9']);
+  const h = bw.cardHtml(ws, t, bw.freshUi(), null);
+  assert.ok(h.includes('data-key="new9"') && h.includes('bd-w-empty">직접 입력</span>'));
+  assert.strictEqual(bw.sumState(t, 'tot'), null);                       // 공란이라 검산 생략
+  assert.strictEqual(bw.tally(ws).sumBad, 0);
+  ws = bw.editCell(ws, 'A', 'new9', '5').ws;
+  const s = bw.sumState(ws.tables[0], 'tot');
+  assert.deepStrictEqual([s.expected, s.actual, s.zero], ['35', '30', false]);
+  assert.strictEqual(bw.draftBody(ws).tables[0].cells.new9, '5');
+  assert.ok(bw.tableCopy(ws, ws.tables[0]).text.split('\n').some(function (l) { return l.split('\t')[1] === '5'; }));
+  ws = bw.editCell(ws, 'A', 'new9', '0').ws;
+  assert.strictEqual(bw.sumState(ws.tables[0], 'tot').expected, '30');
+  assert.strictEqual(bw.sumState(ws.tables[0], 'tot').zero, true);
+  // 글자가 이미 있는 예시 값 칸은 건드리지 않는다
+  const f2 = { form_id: 'f', name: 'x', tables: [{ id: 'A', ref: 'A', title: 't', rows: [[{ key: 'ex', text: '예시', input: true }, { key: 'p1', text: '0', mapped: true }]] }] };
+  const w2 = bw.buildState(f2, { tables: [{ ref: 'A', cells: [rc('p1', { value: '1' })] }] }, {});
+  assert.ok(!w2.tables[0].cells.ex);
+});
+test('SUM_HAS_MANUAL_PARTS: 업무 문구, 요약문은 원인별(머리글 불일치로 단정하지 않음), 구성 칸 N은 서버 sums.of를 따름', function () {
+  const ws = newRowWs(), t = ws.tables[0];
+  assert.ok(bw.infoLines(t, t.cells.tot).some(function (l) {
+    return l.text === '합계 범위 안에 엑셀에서 가져오지 않는 칸(직접 입력)이 있어 합계가 엑셀 값과 다를 수 있습니다. 직접 입력한 값을 확인해 주세요.'; }));
+  const sum = bw.summaryHtml(ws);
+  assert.ok(sum.includes('합계 범위에 직접 입력 칸이 있어 확인이 필요한 합계가 1칸 있습니다.'));
+  assert.ok(!sum.includes('머리글이 달라'));
+  assert.ok(bw.warnItems(ws).some(function (s) { return s.includes('합계 범위 안에 엑셀에서 가져오지 않는 칸(직접 입력)'); }));
+  assert.ok(bw.infoLines(t, t.cells.tot).some(function (l) { return l.text === '구성 칸 3개의 표시값을 더한 합계입니다'; }));
+  // 머리글 불일치로 review 인 칸은 예전 문구 그대로
+  const ws2 = build([rc('r1c1', { value: '1', status: 'review' })]);
+  assert.ok(bw.summaryHtml(ws2).includes('머리글이 달라 확인이 필요한 칸이 1칸 있습니다.'));
+});
+
 test('assumptions: UNIT_ASSUMED(confirmed!==true)는 단위별 한 번만 주의 목록에', function () {
   const ws = build([rc('r1c1', { value: '1' })], { assumptions: [
     { code: 'UNIT_ASSUMED', area: 'a', unit: '백만원', confirmed: false },

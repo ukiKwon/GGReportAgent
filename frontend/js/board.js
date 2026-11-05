@@ -728,21 +728,25 @@
     return null;
   };
 
-  // 이름·위치 문구 ─ 행 이름은 그 행을 덮는 이름 칸 중 가장 안쪽(오른쪽) 칸의 글자(비어 있으면 '').
+  // 이름·위치 문구 ─ 행 이름은 그 행의 왼쪽부터 첫 값 칸 직전까지의 이름 칸 중, 글자가 있는 가장 안쪽 칸의 글자(없으면 '').
+  // 값 칸 오른쪽의 '비고'·'판단기준' 같은 이름 칸은 행 이름이 아니다.
   board.rcRowName = function (t, ri) {
     const rows = (t && t.rows) || [];
     const line = gridOf(rows)[ri] || [];
     const seen = {};
     let name = '';
-    line.forEach(function (e) {
-      if (!e) return;
+    for (let k = 0; k < line.length; k++) {
+      const e = line[k];
+      if (!e) continue;
       const id = e.r + ',' + e.ci;
-      if (seen[id]) return;
+      if (seen[id]) continue;
       seen[id] = true;
       const c = cellAt(rows, e);
-      if (isValueCell(c)) return;
-      name = nowText(c, t.cells || {}).trim();
-    });
+      if (isValueCell(c)) break;
+      const tx = nowText(c, t.cells || {}).trim();
+      if (tx !== '') name = tx;
+      else if (c && c.fresh === true) name = '';   // 아직 이름을 쓰지 않은 새 행의 이름 칸: 바깥 구분 이름을 이 행 이름으로 쓰지 않는다
+    }
     return name;
   };
   // 격자 열 gc의 이름: 머리 행의 그 열을 덮는 칸의 글자(없으면 columns 배열). 병합 아래 하위 열이면 part/total.
@@ -781,9 +785,18 @@
       : board.rcNm(kind, idx, name) + ' ' + rcSide(kind, op) + '에 ' + unitOf(kind) + ' 삽입';
   };
   // 조작 직후 알림 문구
-  board.rcDoneText = function (kind, op, idx, name) {
+  // inBody: 열 삽입인데 새 열에 머리 입력란이 없어(병합 머리 아래) 본문의 행 이름 입력란으로 가는 경우 true
+  board.rcDoneText = function (kind, op, idx, name, inBody) {
     if (op === 'del') return board.rcWhat(kind, idx, name) + '을 삭제했습니다.';
-    return board.rcNm(kind, idx, name) + ' ' + rcSide(kind, op) + '에 ' + unitOf(kind) + '을 삽입했습니다. ' + unitOf(kind) + ' 이름을 입력해 주세요.';
+    const ask = (kind === 'col' && inBody === true) ? '새 열의 행 이름을 입력해 주세요.' : unitOf(kind) + ' 이름을 입력해 주세요.';
+    return board.rcNm(kind, idx, name) + ' ' + rcSide(kind, op) + '에 ' + unitOf(kind) + '을 삽입했습니다. ' + ask;
+  };
+  // 열 삽입 결과의 첫 입력 칸(key)이 머리 행이 아닌 본문에 있는가.
+  board.rcColNameInBody = function (t, key) {
+    const rows = (t && t.rows) || [];
+    if (key == null) return false;
+    if (!headerInRows(rows)) return true;   // 머리 행이 없는 표: 입력란은 본문 이름 칸이다
+    return !(rows[0] || []).some(function (c) { return c && typeof c === 'object' && c.key != null && String(c.key) === String(key); });
   };
   // 되돌린 뒤 알림 문구(label이 '삽입'으로 끝나면 '을', '삭제'면 '를')
   board.rcUndoneText = function (label) {
@@ -805,6 +818,25 @@
       if (!e) return;
       const id = e.r + ':' + e.ci;
       if (!seen[id]) { seen[id] = true; out.push(id); }
+    };
+    if (kind === 'row') (g[idx] || []).forEach(add);
+    else g.forEach(function (line) { add(line[idx]); });
+    return out;
+  };
+  // 삭제로 실제 사라지는 칸의 위치('r:ci'): 그 행(열)에서 시작하고 rowspan(colspan)이 1인 칸만.
+  // 걸쳐 있는 병합 칸·시작은 하지만 여러 행(열)에 걸쳐 내용이 옮겨 가는 병합 칸은 남으므로 제외한다.
+  board.rcDeleteCells = function (t, kind, idx) {
+    const rows = (t && t.rows) || [];
+    const g = gridOf(rows);
+    const out = [], seen = {};
+    const add = function (e) {
+      if (!e) return;
+      const id = e.r + ':' + e.ci;
+      if (seen[id]) return;
+      seen[id] = true;
+      const c = cellAt(rows, e);
+      const o = (c && typeof c === 'object') ? c : {};
+      if (kind === 'row' ? (e.r === idx && span(o.rowspan) === 1) : (e.start === idx && span(o.colspan) === 1)) out.push(id);
     };
     if (kind === 'row') (g[idx] || []).forEach(add);
     else g.forEach(function (line) { add(line[idx]); });
@@ -1181,6 +1213,18 @@
     // 아직 이름이 없는 이름 칸(새로 넣은 행·열의 머리 칸): 경로로 부를 글자가 없으므로 순번으로 부른다.
     //  "<표 제목> · 2번째 열 이름"(머리 행) / "<표 제목> · 3번째 행 이름"
     const mine = rows[r] && rows[r][ci];
+    // 새 열을 기존 행 안쪽(병합 머리 아래)에 넣어 생긴 본문 이름 칸: 입력 전후 같은 이름 "<표 제목> · 3번째 열의 행 이름"
+    if (mine && typeof mine === 'object' && mine.fresh === true && !isValueCell(mine) && !(hdrRow && r === 0) &&
+        (t.rowIds || [])[r] != null) {
+      for (let col = 0; col < line.length; col++) {
+        if (self(line[col])) {
+          if ((t.colIds || [])[line[col].start] == null && Array.isArray(t.colIds)) {
+            return [parts[0], (line[col].start + 1) + '번째 열의 행 이름'].filter(function (s) { return s !== ''; }).join(' · ');
+          }
+          break;
+        }
+      }
+    }
     if (mine && typeof mine === 'object' && mine.fresh === true && !isValueCell(mine) && nowText(mine, vals).trim() === '') {
       let at = -1;
       for (let col = 0; col < line.length; col++) { if (self(line[col])) { at = col; break; } }
@@ -1342,7 +1386,7 @@
     const hdr = headerInRows(rows);
     const menu = opt.menu || null;
     const pend = {};
-    if (opt.pending) board.rcTargetCells(t, opt.pending.kind, opt.pending.idx).forEach(function (k) { pend[k] = true; });
+    if (opt.pending) board.rcDeleteCells(t, opt.pending.kind, opt.pending.idx).forEach(function (k) { pend[k] = true; });
     let bar = '';
     if (handles) {
       bar = '<tr class="bd-colbar"><td class="bd-gut"></td>';
@@ -2041,7 +2085,8 @@
       const h = findHandle(ti, kind, idx);   // 새 머리 칸이 없으면(병합 안쪽 삽입 등) 눌렀던 손잡이로
       if (h) h.focus();
     }
-    rcSay(board.rcDoneText(kind, op, idx, name), op === 'del');
+    const inBody = !row && op !== 'del' && res.key != null && board.rcColNameInBody(edit.tables[ti], res.key);
+    rcSay(board.rcDoneText(kind, op, idx, name, inBody), op === 'del');
   }
   function onRcHandle(b, e) {
     const ti = parseInt(b.getAttribute('data-t'), 10), kind = b.getAttribute('data-kind'), idx = parseInt(b.getAttribute('data-idx'), 10);

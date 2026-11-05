@@ -163,7 +163,8 @@
   .bd-card { border:1px solid var(--line); border-radius:8px; padding:12px 14px; background:var(--panel); }
   .bd-card-head { margin:0 0 2px; }
   .bd-map { font-family:var(--mono); font-size:11px; color:var(--muted); }
-  .bd-table-wrap { overflow-x:auto; margin-bottom:6px; }
+  /* position:relative — 안의 .bd-sr(absolute)가 카드가 아니라 이 상자를 기준으로 잘려, 바깥 가로 스크롤을 만들지 않게 한다 */
+  .bd-table-wrap { position:relative; overflow-x:auto; margin-bottom:6px; }
   .bd-table { border-collapse:collapse; font-size:12px; width:100%; white-space:pre-line; }
   .bd-table caption { text-align:left; font-size:13px; font-weight:600; padding:6px 0; }
   .bd-table th, .bd-table td { border:1px solid var(--line); padding:4px 8px; }
@@ -195,7 +196,8 @@
   .bd-badges { display:inline-flex; gap:4px; }
   .bd-badge { font-size:11px; color:var(--muted); border:1px solid var(--line-strong); border-radius:8px;
               padding:1px 7px; white-space:nowrap; }
-  .bd-cell-in { width:100%; min-width:5em; padding:2px 6px; font-size:12px; }
+  /* 행 이름 입력란: 긴 이름('공금예금 수익(a)' 약 90px)이 잘리지 않게 최소 폭을 10em으로 */
+  .bd-cell-in { width:100%; min-width:10em; padding:2px 6px; font-size:12px; }
   textarea.bd-cell-in { resize:vertical; }
   /* 구분(머리) 칸 입력: 긴 구분 문구(약 131px)가 잘리지 않게 최소 폭을 키운다 */
   .bd-table th .bd-cell-in { min-width:12em; }
