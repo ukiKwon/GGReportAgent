@@ -29,6 +29,40 @@ function resp(over) {
 }
 function ws0(r) { return bw.buildState(form(), r || resp(), { fileName: '수익성.xlsx', formId: 'default_doc' }); }
 
+// 실제 C-5 모양: 행 구분 칸은 header 표시가 없는 일반 글자 칸(lab), 값 칸은 mapped. 머리 행만 header.
+function c5Form() {
+  const L = function (k, t, o) { return Object.assign({ key: k, text: t }, o || {}); };
+  const V = function (k) { return { key: k, text: '0', mapped: true }; };
+  return { form_id: 'default_doc', name: '기본 양식', tables: [
+    { id: 'C-5', ref: 'C-5', mapping: 'C-5', title: 'Ⅴ. 세부 수익성 분석표', columns: 4, notes: [],
+      rows: [[L('r0_c0', '구분', { header: true, colspan: 2 }), L('r0_c2', '사업초기', { header: true }), L('r0_c3', '1년차', { header: true })],
+             [L('r1_c0', '비용', { rowspan: 2 }), L('r1_c1', '자동화기기 운영(j)'), V('r1_c2'), V('r1_c3')],
+             [L('r2_c1', '임차료(i)'), V('r2_c2'), V('r2_c3')],
+             [L('r3_c0', '총 비용', { colspan: 2 }), V('r3_c2'), V('r3_c3')]] }] };
+}
+function c5Resp() {
+  const c = function (k) { return { key: k, value: '1', status: 'filled', reason: null, warnings: [], source: { sheet: 'S', cell: 'C2', display: '1', raw: null, rounded: null } }; };
+  return { form: { id: 'default_doc' }, warnings: [], tables: [{ ref: 'C-5', needs_review: false, label_mismatches: [], sums: [],
+    cells: ['r1_c2', 'r1_c3', 'r2_c2', 'r3_c2'].map(c) }], sources: [] };
+}
+test('작성 모드 칸 이름: 구분에 header 표시가 없는 C-5 모양은 바깥 › 안쪽 경로와 열 머리를 잇는다', function () {
+  const ws = bw.buildState(c5Form(), c5Resp(), { fileName: 'a.xlsx', formId: 'default_doc' });
+  const t = ws.tables[0];
+  assert.strictEqual(t.cells.r1_c2.label, 'Ⅴ. 세부 수익성 분석표 · 비용 › 자동화기기 운영(j) · 사업초기');
+  assert.strictEqual(t.cells.r1_c3.label, 'Ⅴ. 세부 수익성 분석표 · 비용 › 자동화기기 운영(j) · 1년차');
+  assert.strictEqual(t.cells.r2_c2.label, 'Ⅴ. 세부 수익성 분석표 · 비용 › 임차료(i) · 사업초기');   // 위에서 내려온 병합 포함
+  assert.strictEqual(t.cells.r3_c2.label, 'Ⅴ. 세부 수익성 분석표 · 총 비용 · 사업초기');             // 병합 한 칸은 한 번만
+  const first = bw.infoLines(t, t.cells.r1_c2)[0];
+  assert.strictEqual(first.k, 'path');
+  assert.ok(first.text.indexOf('비용 › 자동화기기 운영(j)') >= 0);
+  assert.ok(bw.tipHtml(t, t.cells.r1_c2).indexOf('비용 › 자동화기기 운영(j)') >= 0);
+  assert.ok(bw.cellAria(t, t.cells.r1_c2).indexOf('비용 › 자동화기기 운영(j)') >= 0);
+  assert.ok(bw.statusHtml(ws, { sel: { t: 'C-5', key: 'r1_c2' } }).indexOf('비용 › 자동화기기 운영(j)') >= 0);
+});
+test('작성 모드 칸 이름: 구분 1열 표(기본 A)는 예전 이름 그대로', function () {
+  assert.strictEqual(ws0().tables[0].cells.r1c1.label, '재산상 이익제공 · 출연금 · 금액');
+});
+
 test('shownNum: 서버 BoardExcelFill.shownNum과 같은 벡터', function () {
   const f = function (s) { const v = bw.shownNum(s); return v == null ? null : bw.fmtScaled(v); };
   assert.strictEqual(f('1,234'), '1,234'); assert.strictEqual(f('(1,234)'), '-1,234');

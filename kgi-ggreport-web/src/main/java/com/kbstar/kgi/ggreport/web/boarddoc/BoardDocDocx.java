@@ -59,6 +59,9 @@ public final class BoardDocDocx {
             for (BoardDocSpec.Table t : doc.getTables()) {
                 XWPFParagraph tp = d.createParagraph();
                 keepNext(tp);
+                if (isCompact(t.getId())) {
+                    tp.setPageBreak(true);                                // pageBreakBefore: 항상 새 쪽에서 시작
+                }
                 run(tp, t.getTitle(), 11, true);
                 if (!t.getUnit().isEmpty()) {
                     XWPFParagraph up = d.createParagraph();
@@ -80,6 +83,14 @@ public final class BoardDocDocx {
             throw new IllegalStateException("docx build failed");
         }
     }
+
+    /** 행이 많아 한 쪽에 맞춰야 하는 표(C-5, 26행): 새 쪽 시작 + 8pt + 문단 간격 0. 다른 표는 그대로다. */
+    static boolean isCompact(String id) {
+        return BoardDocSpec.C5_REF.equals(id);
+    }
+
+    static final int COMPACT_PT = 8;
+    static final int CELL_PT = 9;
 
     /** POI 5.2.3 의 setKeepNext 는 pPr 가 없으면 NPE 라 먼저 만든다. */
     private static void keepNext(XWPFParagraph p) {
@@ -159,6 +170,8 @@ public final class BoardDocDocx {
             }
         }
 
+        boolean compact = isCompact(t.getId());
+        int cellPt = compact ? COMPACT_PT : CELL_PT;
         XWPFTable x = d.createTable(rowsN, cols);
         CTTblPr pr = x.getCTTbl().getTblPr() != null ? x.getCTTbl().getTblPr() : x.getCTTbl().addNewTblPr();
         CTTblWidth w = pr.isSetTblW() ? pr.getTblW() : pr.addNewTblW();
@@ -222,11 +235,17 @@ public final class BoardDocDocx {
                     }
                     XWPFParagraph p = tc.getParagraphs().get(0);
                     p.setAlignment(align(cell.getAlign()));
+                    if (compact) {
+                        compactPara(p);
+                    }
                     if (!cell.getText().isEmpty()) {
-                        run(p, cell.getText(), 9, cell.isHeader());
+                        run(p, cell.getText(), cellPt, cell.isHeader());
                     }
                 } else {
                     tcPr.addNewVMerge();                         // 이어짐(val 없음)
+                    if (compact) {
+                        compactPara(tc.getParagraphs().get(0));  // 빈 문단 기호 크기가 행 높이를 키우지 않게
+                    }
                 }
             }
         }
@@ -238,6 +257,17 @@ public final class BoardDocDocx {
                 }
             }
         }
+    }
+
+    /** 간격 앞뒤 0, 줄간격 single, 문단 기호(빈 칸 높이)도 8pt. */
+    private static void compactPara(XWPFParagraph p) {
+        p.setSpacingBefore(0);
+        p.setSpacingAfter(0);
+        p.setSpacingBetween(1.0, org.apache.poi.xwpf.usermodel.LineSpacingRule.AUTO);
+        if (!p.getCTP().isSetPPr()) {
+            p.getCTP().addNewPPr();
+        }
+        p.getCTP().getPPr().addNewRPr().addNewSz().setVal(BigInteger.valueOf(COMPACT_PT * 2L));
     }
 
     private static ParagraphAlignment align(String a) {

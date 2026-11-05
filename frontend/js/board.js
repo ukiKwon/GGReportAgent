@@ -685,7 +685,24 @@
       };
       let any = false;
       for (let col = 0; col < line.length; col++) { if (isHdr(line[col])) { any = true; add(line[col]); } }
-      if (!any && line[0]) add(line[0]);
+      if (!any) {
+        // 구분 칸에 header 표시가 없는 표(실제 양식의 C-5): 행 앞쪽의 글자만 있는 칸(값 칸 mapped·input 이 아닌 칸)을
+        // 값 칸이 나오기 전까지 바깥→안쪽 구분 경로로 본다. 글자가 다른 칸이 둘 이상일 때만 쓰고,
+        // 그렇지 않으면(구분 1열 표 A/B/C-2/C-3/C-4) 예전처럼 그 행 첫 칸만 쓴다.
+        const run = [], runSeen = {}, runText = {};
+        let inRun = true;
+        for (let col = 0; col < line.length && inRun; col++) {
+          const e = line[col], c = cellAt(rows, e);
+          if (!c || typeof c !== 'object' || c.header === true || c.mapped === true || c.input === true) { inRun = false; break; }
+          const id = e.r + ',' + e.ci;
+          if (runSeen[id]) continue;
+          runSeen[id] = true;
+          if (self(e)) { inRun = false; run.length = 0; break; }   // 자기 자신이 라벨 칸이면 예전 규칙
+          const tx = nowText(c, vals).trim();
+          if (tx !== '' && !runText[tx]) { runText[tx] = true; run.push(e); }
+        }
+        if (run.length >= 2) run.forEach(add); else if (line[0]) add(line[0]);
+      }
       if (path.length) parts.push(path.join(' › '));
     }
     // 열 머리: 첫 행(header)에서 같은 열 순번을 차지한 칸. 머리글 행이 없으면 columns 배열(문자열)의 같은 순번.
