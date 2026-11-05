@@ -1,6 +1,7 @@
 package com.kbstar.kgi.ggreport.web.web;
 
 import com.kbstar.kgi.ggreport.web.boarddoc.BoardDocDocx;
+import com.kbstar.kgi.ggreport.web.config.AccessLogInterceptor;
 import com.kbstar.kgi.ggreport.web.boarddoc.BoardDocSpec;
 import com.kbstar.kgi.ggreport.web.dto.BoardFormIn;
 import com.kbstar.kgi.ggreport.web.service.BoardFormService;
@@ -105,7 +106,9 @@ public class BoardFormController {
     public Map<String, Object> save(@PathVariable("id") String id, @RequestBody BoardFormIn.Save in,
                                     HttpServletRequest req) {
         Actor a = guard.requireEdit(req, MENU_KEY, EDIT_DENIED);
-        return service.save(a.getEmpNo(), id, in);
+        // 접근 이력에는 구조 변경의 숫자 요약만 남긴다(본문·문구 없음 — AccessLogInterceptor.DETAIL 규칙)
+        return service.save(a.getEmpNo(), id, in,
+                summary -> req.setAttribute(AccessLogInterceptor.DETAIL, summary));
     }
 
     @PostMapping("/{id}/archive")

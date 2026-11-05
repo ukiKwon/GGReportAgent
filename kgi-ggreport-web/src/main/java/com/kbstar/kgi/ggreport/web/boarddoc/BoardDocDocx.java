@@ -148,6 +148,65 @@ public final class BoardDocDocx {
         return w;
     }
 
+    /** 사용자가 열을 고친 표의 열 최소 비율(%). */
+    static final double MIN_PCT = 5.0;
+
+    /**
+     * 표의 gridCol 너비(twips). 열 구성이 카탈로그와 같은(열을 안 건드린) 표는 {@link #gridWidths(String, int)} 와 똑같다.
+     * 열을 넣거나 뺀 표는 카탈로그 열의 비율은 유지하고 새 열은 평균 비율로 시작해 합 100% 로 정규화한 뒤
+     * 최소 {@value #MIN_PCT}% 를 보장한다. 합은 항상 본문 폭(BODY_W)이다.
+     */
+    static int[] gridWidths(BoardDocSpec.Table t) {
+        BoardDocSpec.Table cat = BoardDocSpec.catalogTable(t.getId(), false);
+        if (cat == null || cat.getColIds().equals(t.getColIds())) {
+            return gridWidths(t.getId(), t.getColumns());
+        }
+        double[] cp = pct(cat.getId(), cat.getColumns());
+        if (cp == null) {
+            cp = new double[cat.getColumns()];
+            java.util.Arrays.fill(cp, 100.0 / cat.getColumns());
+        }
+        double mean = 100.0 / cat.getColumns();
+        int n = t.getColumns();
+        double[] w = new double[n];
+        double sum = 0;
+        for (int i = 0; i < n; i++) {
+            int k = cat.getColIds().indexOf(t.getColIds().get(i));
+            w[i] = k >= 0 ? cp[k] : mean;
+            sum += w[i];
+        }
+        for (int i = 0; i < n; i++) {
+            w[i] = w[i] * 100.0 / sum;
+        }
+        // 최소 비율 보장: 모자란 열은 5% 로 올리고, 나머지 열에서 그만큼을 비율대로 덜어 낸다(합 100 유지)
+        for (int round = 0; round < n; round++) {
+            double lack = 0;
+            double rest = 0;
+            for (int i = 0; i < n; i++) {
+                if (w[i] < MIN_PCT) {
+                    lack += MIN_PCT - w[i];
+                } else {
+                    rest += w[i] - MIN_PCT;
+                }
+            }
+            if (lack == 0) {
+                break;
+            }
+            double scale = rest <= 0 ? 0 : Math.max(0, (rest - lack) / rest);
+            for (int i = 0; i < n; i++) {
+                w[i] = w[i] < MIN_PCT ? MIN_PCT : MIN_PCT + (w[i] - MIN_PCT) * scale;
+            }
+        }
+        int[] out = new int[n];
+        int used = 0;
+        for (int i = 0; i < n - 1; i++) {
+            out[i] = (int) Math.round(BODY_W * w[i] / 100.0);
+            used += out[i];
+        }
+        out[n - 1] = BODY_W - used;
+        return out;
+    }
+
     private static void fill(XWPFDocument d, BoardDocSpec.Table t) {
         int rowsN = t.getRows().size();
         int cols = t.getColumns();
@@ -184,7 +243,7 @@ public final class BoardDocDocx {
             side.setType(STTblWidth.DXA);
             side.setW(BigInteger.valueOf(60));
         }
-        int[] gw = gridWidths(t.getId(), cols);
+        int[] gw = gridWidths(t);
         CTTblGrid grid = x.getCTTbl().getTblGrid() != null ? x.getCTTbl().getTblGrid() : x.getCTTbl().addNewTblGrid();
         while (grid.sizeOfGridColArray() > 0) {
             grid.removeGridCol(0);

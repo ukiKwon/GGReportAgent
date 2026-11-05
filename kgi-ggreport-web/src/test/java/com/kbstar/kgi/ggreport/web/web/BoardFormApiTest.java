@@ -231,7 +231,7 @@ public class BoardFormApiTest {
         assertEquals("c0", inst.get("col_id").asText());
         assertTrue(inst.get("mapped").asBoolean());
         assertFalse(inst.get("input").asBoolean());
-        assertFalse(inst.get("editable").asBoolean());
+        assertTrue(inst.get("editable").asBoolean());                      // 잠김 폐지: 연결 칸도 편집 가능(구조 편집 계약)
         assertEquals("대한민국 기관", inst.get("text").asText());
         assertTrue(table(d, "A").get("rows").get(0).get(0).get("editable").asBoolean());
         // 원본은 DB 행이 아니라 PUT·GET 대상이 아니다
@@ -373,11 +373,14 @@ public class BoardFormApiTest {
         ObjectNode t = tbl("A", "제목만 바꿈");
         t.put("columns", 99);
         t.put("mapping", "Z");
-        t.putArray("rows");
         JsonNode r = saved(MEMBER, id, body(1, null, t), 200);
-        assertEquals(4, table(r, "A").get("columns").asInt());                      // 구조는 서버 카탈로그
+        assertEquals(4, table(r, "A").get("columns").asInt());                      // columns·mapping 은 읽지 않는다
         assertEquals("A", table(r, "A").get("mapping").asText());
         assertEquals(5, table(r, "A").get("rows").size());
+        // rows 만(cols 없이) 보내는 것은 구조 계약 위반
+        ObjectNode half = tbl("A");
+        half.putArray("rows");
+        assertEquals(com.kbstar.kgi.ggreport.web.boarddoc.BoardDocSpec.BAD_STRUCT, saved(MEMBER, id, body(2, null, half), 400).get("detail").asText());
     }
 
     @Test
@@ -627,7 +630,7 @@ public class BoardFormApiTest {
                     assertTrue(key, key.matches("^r(0|[1-9][0-9]{0,3})_c(0|[1-9][0-9]{0,3})$"));
                     assertEquals(c.get("row_id").asText() + "_" + c.get("col_id").asText(), key);
                     assertTrue("중복 " + key, seen.add(key));
-                    assertEquals(!c.get("mapped").asBoolean(), c.get("editable").asBoolean());   // PR-1: 기존과 같이 !mapped
+                    assertTrue(c.get("editable").asBoolean());                                   // 잠김 폐지: 모든 칸 true
                     assertFalse(c.get("input").asBoolean());
                 }
             }
@@ -792,7 +795,7 @@ public class BoardFormApiTest {
             ObjectNode tn = tbl(t.get("ref").asText());
             for (JsonNode row : t.get("rows")) {
                 for (JsonNode c : row) {
-                    if (c.get("editable").asBoolean()) {
+                    if (!c.get("mapped").asBoolean()) {                    // 연결 칸 key 는 cells 맵으로 보낼 수 없다(400)
                         cell(tn, c.get("key").asText(), worst);
                         cells++;
                     }

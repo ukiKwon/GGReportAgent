@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * /board-forms 요청 본문. 키는 snake_case(JacksonConfig). 알 수 없는 키(rows·columns·mapping 등 구조)는
- * 읽지 않고 버린다 — 구조는 서버 카탈로그에서만 나온다.
+ * /board-forms 요청 본문. 키는 snake_case(JacksonConfig). 알 수 없는 키(columns·mapping 등)는 읽지 않고 버린다.
+ * 구조(cols·rows)는 타입이 정해진 DTO 로만 받고, 서버가 base 버전·카탈로그와 대조해 검증한다.
  */
 public final class BoardFormIn {
 
@@ -32,6 +32,14 @@ public final class BoardFormIn {
         private Object fmt;
         private String name;
         private List<TableIn> tables;
+        private Object confirmUnmapped;
+
+        /**
+         * 불리언 true 일 때만 엑셀 연결 칸이 사라지는 저장을 허용한다(생략·false·"true" 같은 문자열·1 은 400 UNMAP_CONFIRM_REQUIRED).
+         * Object 로 받는 이유: Boolean 으로 받으면 "true" 문자열이 조용히 true 로 바뀐다. 서비스는 Boolean.TRUE.equals 로만 본다.
+         */
+        public Object getConfirmUnmapped() { return confirmUnmapped; }
+        public void setConfirmUnmapped(Object confirmUnmapped) { this.confirmUnmapped = confirmUnmapped; }
 
         /**
          * 요청 형식 번호. 생략하거나 정수 1·2 만 허용하고 그 밖(3, 1.5, "2", true 등)은 서비스가 400 으로 거른다
@@ -47,11 +55,22 @@ public final class BoardFormIn {
         public void setTables(List<TableIn> tables) { this.tables = tables; }
     }
 
+    /**
+     * 표 하나. cols·rows 는 구조를 보내는 표에서 둘 다 보내고(한쪽만이면 400), 구조를 보내지 않는 표만 cells(칸 key → 문구)를 쓴다.
+     * 새 열 id 는 임시값 "n1","n2"…, 새 행 id 는 null — 서버가 c{N}/r{N}(100 이상)으로 발급한다.
+     */
     public static class TableIn {
         private String ref;
         private String title;
         private List<String> notes;
         private Map<String, String> cells;
+        private List<ColIn> cols;
+        private List<RowIn> rows;
+
+        public List<ColIn> getCols() { return cols; }
+        public void setCols(List<ColIn> cols) { this.cols = cols; }
+        public List<RowIn> getRows() { return rows; }
+        public void setRows(List<RowIn> rows) { this.rows = rows; }
 
         public String getRef() { return ref; }
         public void setRef(String ref) { this.ref = ref; }
@@ -61,5 +80,48 @@ public final class BoardFormIn {
         public void setNotes(List<String> notes) { this.notes = notes; }
         public Map<String, String> getCells() { return cells; }
         public void setCells(Map<String, String> cells) { this.cells = cells; }
+    }
+
+    public static class ColIn {
+        private String id;
+
+        public String getId() { return id; }
+        public void setId(String id) { this.id = id; }
+    }
+
+    public static class RowIn {
+        private String id;
+        private List<CellIn> cells;
+
+        public String getId() { return id; }
+        public void setId(String id) { this.id = id; }
+        public List<CellIn> getCells() { return cells; }
+        public void setCells(List<CellIn> cells) { this.cells = cells; }
+    }
+
+    /** 앵커 칸 하나. 빠진 속성은 서버가 기본값(1, 1, false, false, "left", "")으로 본다. */
+    public static class CellIn {
+        private String col;
+        private String text;
+        private Integer colspan;
+        private Integer rowspan;
+        private Boolean header;
+        private Boolean input;
+        private String align;
+
+        public String getCol() { return col; }
+        public void setCol(String col) { this.col = col; }
+        public String getText() { return text; }
+        public void setText(String text) { this.text = text; }
+        public Integer getColspan() { return colspan; }
+        public void setColspan(Integer colspan) { this.colspan = colspan; }
+        public Integer getRowspan() { return rowspan; }
+        public void setRowspan(Integer rowspan) { this.rowspan = rowspan; }
+        public Boolean getHeader() { return header; }
+        public void setHeader(Boolean header) { this.header = header; }
+        public Boolean getInput() { return input; }
+        public void setInput(Boolean input) { this.input = input; }
+        public String getAlign() { return align; }
+        public void setAlign(String align) { this.align = align; }
     }
 }

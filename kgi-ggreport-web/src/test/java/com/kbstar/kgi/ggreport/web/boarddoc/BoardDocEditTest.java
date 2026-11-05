@@ -165,14 +165,14 @@ public class BoardDocEditTest {
         String json = BoardFormJson.toJson(d);
         assertEquals(2, BoardFormJson.catalogVer(json));                       // 저장하면 현재 카탈로그 버전으로 기록
         assertTrue(json.startsWith("{\"fmt\":2,\"catalog_ver\":2,"));
-        // 롤백 안전용으로 옛 모양 cells 맵(r{행}c{순번})을 병기한다
-        assertTrue(json.contains("\"cells\":{\"r0c0\":\"기관\""));
-        // 표 A 의 기관명 값 칸(r1_c0, 옛 r1c0)은 매핑 칸이라 문구를 담지 않는다. (C-4 의 r1c0 은 고정 라벨이라 담는 게 맞다)
+        // PR-2: 옛 모양 cells 맵(r{행}c{순번}) 병기는 없다 — 칸 문구는 행·칸 구조 안에만 있다
+        assertFalse(json.contains("\"cells\":{"));
+        assertFalse(json.contains("r0c0"));
+        // 표 A 의 기관명 값 칸(r1_c0)은 연결 칸이라 문구를 담지 않는다(t 가 빈 문자열)
         String aPart = json.substring(json.indexOf("\"ref\":\"A\""), json.indexOf("\"ref\":\"C-4\""));
-        String aLegacy = aPart.substring(aPart.indexOf("\"cells\":{\"r0c0\""));
-        assertFalse(aLegacy.contains("r1c0"));
-        assertTrue(json.substring(json.indexOf("\"ref\":\"C-4\"")).contains("\"r1c0\""));
+        assertTrue(aPart.contains("\"c\":\"c0\",\"t\":\"\",\"cs\":1,\"rs\":4"));
         assertTrue(aPart.contains("\"next_r\":100,\"next_c\":100"));
+        assertFalse(json.contains("\"kept\""));
         BoardDocSpec.Doc again = BoardDocSpec.build("x", "n", BoardFormJson.parse(json), false);
         assertEquals(json, BoardFormJson.toJson(again));
         assertEquals("새 제목", table(again, "A").getTitle());
@@ -365,12 +365,42 @@ public class BoardDocEditTest {
         expectBad("{\"fmt\":2,\"catalog_ver\":0,\"tables\":[]}");
         expectBad("{\"fmt\":2,\"catalog_ver\":\"x\",\"tables\":[]}");                   // 모르는 값
         expectBad("{\"catalog_ver\":3,\"tables\":[{\"ref\":\"A\"}]}");
-        // fmt 2 인데 구조가 카탈로그와 다르다 (열 id 하나를 바꾼다)
+        // 타입이 어긋난 구조는 읽을 때 닫힌 실패
         String good = BoardFormJson.toJson(BoardDocSpec.build("x", "n", list(edit("A")), false));
-        expectBad(good.replace("\"cols\":[\"c0\",\"c1\",\"c2\",\"c3\"]", "\"cols\":[\"c0\",\"c1\",\"c2\",\"c9\"]"));
-        expectBad(good.replace("\"next_r\":100", "\"next_r\":101"));
-        expectBad(good.replace("\"id\":\"r2\"", "\"id\":\"r7\""));
-        expectBad(good.replace("\"rs\":4", "\"rs\":3"));
+        expectBad(good.replace("\"cs\":1", "\"cs\":\"1\""));
+        expectBad(good.replace("\"next_r\":100", "\"next_r\":\"100\""));
+        expectBad(good.replace("\"h\":true", "\"h\":1"));
+        expectBad(good.replace("\"cols\":[\"c0\",\"c1\",\"c2\",\"c3\"]", "\"cols\":[\"c0\",\"c1\",\"c2\",3]"));
+        expectBad(good.replace("\"rows\":[{", "\"rows\":[{\"x\":0,"  ).replace("\"id\":\"r0\"", "\"id\":0"));
+    }
+
+    private static void expectBrokenStructure(String json) {
+        try {
+            BoardDocSpec.build("x", "n", BoardFormJson.parse(json), false);
+            fail("구조 위반이어야 한다: " + json);
+        } catch (BoardDocSpec.EditException expected) {
+            assertEquals(BoardDocSpec.BAD_STRUCT, expected.getMessage());   // 고정 문구
+        } catch (IllegalStateException expected) {
+            assertEquals("stored board form is not valid", expected.getMessage());
+        }
+    }
+
+    @Test
+    public void 저장본_구조_복원은_정규형_id와_카운터_범위만_허용한다() {
+        String good = BoardFormJson.toJson(BoardDocSpec.build("x", "n", list(edit("A")), false));
+        // 열 id 가 칸이 말한 열과 어긋남 / 병합이 어긋나 격자가 안 맞음 / 정규형 아님 / 카운터 이상의 id / 중복 id
+        expectBrokenStructure(good.replace("\"cols\":[\"c0\",\"c1\",\"c2\",\"c3\"]", "\"cols\":[\"c0\",\"c1\",\"c2\",\"c9\"]"));
+        expectBrokenStructure(good.replace("\"rs\":4", "\"rs\":3"));
+        expectBrokenStructure(good.replace("\"id\":\"r2\"", "\"id\":\"r02\""));
+        expectBrokenStructure(good.replace("\"id\":\"r2\"", "\"id\":\"r150\""));
+        expectBrokenStructure(good.replace("\"id\":\"r2\"", "\"id\":\"r1\""));
+        expectBrokenStructure(good.replace("\"next_r\":100", "\"next_r\":4"));
+        expectBrokenStructure(good.replace("\"next_r\":100", "\"next_r\":100001"));
+        // 카운터가 더 크고 id 가 그 밑이면 정상(사용자 구조 복원): r2 → r7 이름만 바뀌고 카운터는 101
+        BoardDocSpec.Doc ok = BoardDocSpec.build("x", "n", BoardFormJson.parse(
+                good.replace("\"id\":\"r2\"", "\"id\":\"r7\"").replace("\"next_r\":100", "\"next_r\":101")), false);
+        assertEquals("r7", table(ok, "A").getRowIds().get(2));
+        assertEquals(101, table(ok, "A").getNextR());
     }
 
     @Test
