@@ -6,9 +6,13 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.kbstar.kgi.ggreport.web.AppTest;
 import com.kbstar.kgi.ggreport.web.domain.AccessLogEntry;
+import com.kbstar.kgi.ggreport.web.domain.BoardForm;
+import com.kbstar.kgi.ggreport.web.domain.BoardFormVer;
+import com.kbstar.kgi.ggreport.web.mapper.BoardFormMapper;
 import com.kbstar.kgi.ggreport.web.service.AccessLogService;
 import com.kbstar.kgi.ggreport.web.service.PermissionService;
 import com.kbstar.kgi.ggreport.web.support.Teams;
+import com.kbstar.kgi.ggreport.web.support.Times;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -59,6 +63,8 @@ public class BoardFormApiTest {
     private PermissionService permissions;
     @Autowired
     private AccessLogService accessLog;
+    @Autowired
+    private BoardFormMapper forms;
 
     // ── 도우미 ──
 
@@ -220,8 +226,11 @@ public class BoardFormApiTest {
         assertEquals(5, d.get("tables").size());
         assertEquals(DEFAULT_A_TITLE, table(d, "A").get("title").asText());
         JsonNode inst = table(d, "A").get("rows").get(1).get(0);
-        assertEquals("r1c0", inst.get("key").asText());
+        assertEquals("r1_c0", inst.get("key").asText());
+        assertEquals("r1", inst.get("row_id").asText());
+        assertEquals("c0", inst.get("col_id").asText());
         assertTrue(inst.get("mapped").asBoolean());
+        assertFalse(inst.get("input").asBoolean());
         assertFalse(inst.get("editable").asBoolean());
         assertEquals("대한민국 기관", inst.get("text").asText());
         assertTrue(table(d, "A").get("rows").get(0).get(0).get("editable").asBoolean());
@@ -269,7 +278,7 @@ public class BoardFormApiTest {
     public void 기존_양식을_원본으로_복제하면_편집_내용을_이어받는다() throws Exception {
         grant(MEMBER);
         long id = copy(MEMBER, "원본");
-        saved(MEMBER, id, body(1, null, cell(tbl("A", "고친 제목"), "r0c0", "고친 머리글")), 200);
+        saved(MEMBER, id, body(1, null, cell(tbl("A", "고친 제목"), "r0_c0", "고친 머리글")), 200);
         ObjectNode b = JSON.createObjectNode();
         b.put("source_form_id", id);
         b.put("name", "사본");
@@ -288,7 +297,7 @@ public class BoardFormApiTest {
         long id = copy(MEMBER, "양식");
         ObjectNode b = all(1, "양식 v2");
         b.set("tables", JSON.createArrayNode()
-                .add(cell(cell(tbl("A", "새 제목"), "r0c0", "기관"), "r4c0", "총계"))
+                .add(cell(cell(tbl("A", "새 제목"), "r0_c0", "기관"), "r4_c1", "총계"))
                 .add(tbl("B")).add(tbl("C-2")).add(tbl("C-3")).add(tbl("C-4")));
         JsonNode r = saved(MEMBER, id, b, 200);
         assertEquals(2, r.get("version").asInt());
@@ -319,7 +328,7 @@ public class BoardFormApiTest {
         grant(MEMBER);
         long id = copy(MEMBER, "양식");
         call(MEMBER, put("/board-forms/" + id), "{\"tables\":[{\"ref\":\"A\"}]}", 400);
-        saved(MEMBER, id, body(1, null, cell(tbl("A", "t1"), "r0c0", "x")), 200);
+        saved(MEMBER, id, body(1, null, cell(tbl("A", "t1"), "r0_c0", "x")), 200);
         JsonNode r = saved(MEMBER, id, body(1, null, tbl("A")), 409);              // 다른 사람이 먼저 저장
         assertTrue(r.get("detail").asText().startsWith("다른 사람이 먼저 저장했습니다"));
         saved(MEMBER, id, body(7, null, tbl("A")), 409);
@@ -356,8 +365,11 @@ public class BoardFormApiTest {
     public void 매핑_칸과_없는_칸_키_전송은_400이고_구조_키는_무시된다() throws Exception {
         grant(MEMBER);
         long id = copy(MEMBER, "양식");
-        saved(MEMBER, id, body(1, null, cell(tbl("A"), "r1c0", "해킹")), 400);
-        saved(MEMBER, id, body(1, null, cell(tbl("A"), "r99c9", "x")), 400);
+        saved(MEMBER, id, body(1, null, cell(tbl("A"), "r1_c0", "해킹")), 400);
+        saved(MEMBER, id, body(1, null, cell(tbl("A"), "r99_c9", "x")), 400);
+        // 낡은 화면이 보내는 옛 모양 key 는 조용히 엉뚱한 칸에 적용되지 않고 400 (문구는 고정, 입력을 되돌려 싣지 않는다)
+        JsonNode oldKey = saved(MEMBER, id, body(1, null, cell(tbl("A"), "r0c0", "낡은화면")), 400);
+        assertEquals("수정할 수 없는 칸이 포함되어 있습니다.", oldKey.get("detail").asText());
         ObjectNode t = tbl("A", "제목만 바꿈");
         t.put("columns", 99);
         t.put("mapping", "Z");
@@ -392,11 +404,11 @@ public class BoardFormApiTest {
         saved(MEMBER, id, body(1, null, tbl("A", rep("가", 101))), 400);
         saved(MEMBER, id, body(1, null, tbl("A", "   ")), 400);
         saved(MEMBER, id, body(1, null, tbl("A", "a\nb")), 400);
-        saved(MEMBER, id, body(1, null, cell(tbl("A"), "r0c0", rep("나", 101))), 400);
-        saved(MEMBER, id, body(1, null, cell(tbl("A"), "r0c0", "a\tb")), 400);
+        saved(MEMBER, id, body(1, null, cell(tbl("A"), "r0_c0", rep("나", 101))), 400);
+        saved(MEMBER, id, body(1, null, cell(tbl("A"), "r0_c0", "a\tb")), 400);
         saved(MEMBER, id, body(1, rep("다", 61), tbl("A")), 400);
         saved(MEMBER, id, body(1, "a\u0007b", tbl("A")), 400);
-        JsonNode ok = saved(MEMBER, id, body(1, null, tbl("A", rep("가", 100)), cell(tbl("B"), "r0c0", rep("나", 100))), 200);
+        JsonNode ok = saved(MEMBER, id, body(1, null, tbl("A", rep("가", 100)), cell(tbl("B"), "r0_c0", rep("나", 100))), 200);
         assertEquals(2, ok.get("version").asInt());
     }
 
@@ -404,7 +416,7 @@ public class BoardFormApiTest {
     public void 보내지_않은_칸은_카탈로그_기본값으로_돌아간다_전체_교체() throws Exception {
         grant(MEMBER);
         long id = copy(MEMBER, "양식");
-        saved(MEMBER, id, body(1, null, cell(tbl("A"), "r0c0", "변경")), 200);
+        saved(MEMBER, id, body(1, null, cell(tbl("A"), "r0_c0", "변경")), 200);
         JsonNode v3 = saved(MEMBER, id, body(2, null, tbl("A")), 200);
         assertEquals("기관명", table(v3, "A").get("rows").get(0).get(0).get("text").asText());
         assertEquals(3, v3.get("version").asInt());
@@ -430,7 +442,7 @@ public class BoardFormApiTest {
         long id = copy(MEMBER, "영업 양식");
         assertEquals(1, call(MEMBER2, get("/board-forms"), null, 200).get("items").size());   // 같은 팀 팀원(권한 없어도 열람)
         call(MEMBER2, get("/board-forms/" + id), null, 200);
-        JsonNode byLead = saved(LEAD, id, body(1, null, cell(tbl("A"), "r0c0", "팀장 수정")), 200);   // 같은 팀 다른 사람
+        JsonNode byLead = saved(LEAD, id, body(1, null, cell(tbl("A"), "r0_c0", "팀장 수정")), 200);   // 같은 팀 다른 사람
         assertEquals(LEAD, byLead.get("updated_by").asText());
         assertEquals(0, call(IT, get("/board-forms"), null, 200).get("items").size());
         JsonNode hidden = call(IT, get("/board-forms/" + id), null, 404);
@@ -478,7 +490,7 @@ public class BoardFormApiTest {
         call(MEMBER, post("/board-forms/" + id + "/archive"), null, 200);          // 멱등
         assertEquals("ACTIVE", call(MEMBER, post("/board-forms/" + id + "/restore"), null, 200).get("status").asText());
         assertEquals(1, call(MEMBER, get("/board-forms"), null, 200).get("items").size());
-        saved(MEMBER, id, body(1, null, cell(tbl("A"), "r0c0", "복원 후 수정")), 200);
+        saved(MEMBER, id, body(1, null, cell(tbl("A"), "r0_c0", "복원 후 수정")), 200);
     }
 
     @Test
@@ -568,7 +580,297 @@ public class BoardFormApiTest {
         JsonNode d = call(MEMBER, get("/board-docs/default_doc"), null, 200);
         assertEquals(5, d.get("tables").size());
         // 2026-11-05 사용자 확정: 기본 양식에서도 바로 작성 → 칸 주소표(key)가 있어야 작성 모드가 값 칸을 그린다(NEXT 45 P1)
-        assertEquals("r0c0", d.get("tables").get(0).get("rows").get(0).get(0).get("key").asText());
+        assertEquals("r0_c0", d.get("tables").get(0).get("rows").get(0).get(0).get("key").asText());
+        assertEquals("r0", d.get("tables").get(0).get("rows").get(0).get(0).get("row_id").asText());
+        assertEquals("c0", d.get("tables").get(0).get("rows").get(0).get(0).get("col_id").asText());
+        assertEquals("r1_c2", d.get("tables").get(0).get("rows").get(1).get(2).get("key").asText());   // 출연금 값 칸
+        assertEquals("[\"c0\",\"c1\",\"c2\",\"c3\"]", d.get("tables").get(0).get("col_ids").toString());
+        assertFalse(d.get("tables").get(0).has("next_r"));                       // 카운터는 응답에 싣지 않는다
         assertNotEquals(0, call(MEMBER, get("/board-docs"), null, 200).get("items").size());
+    }
+
+    // ── 칸 이름표(행id·열id) · 응답 모양 ──
+
+    private static java.util.List<String> texts(JsonNode arr) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (JsonNode n : arr) {
+            out.add(n.asText());
+        }
+        return out;
+    }
+
+    @Test
+    public void 응답_칸에_key_row_id_col_id_input_mapped_editable_표에_row_ids_col_ids() throws Exception {
+        grant(MEMBER);
+        long id = copy(MEMBER, "양식");
+        JsonNode d = call(MEMBER, get("/board-forms/" + id), null, 200);
+        JsonNode a = table(d, "A");
+        assertEquals(java.util.Arrays.asList("r0", "r1", "r2", "r3", "r4"), texts(a.get("row_ids")));
+        assertEquals(java.util.Arrays.asList("c0", "c1", "c2", "c3"), texts(a.get("col_ids")));
+        JsonNode lab = a.get("rows").get(2).get(0);                              // 예비비 라벨: 0열이 세로 병합에 덮여 1열
+        assertEquals("r2_c1", lab.get("key").asText());
+        assertEquals("r2", lab.get("row_id").asText());
+        assertEquals("c1", lab.get("col_id").asText());
+        assertFalse(lab.get("mapped").asBoolean());
+        assertFalse(lab.get("input").asBoolean());
+        assertTrue(lab.get("editable").asBoolean());
+        for (JsonNode t : d.get("tables")) {
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            for (JsonNode row : t.get("rows")) {
+                for (JsonNode c : row) {
+                    String key = c.get("key").asText();
+                    assertTrue(key, key.matches("^r(0|[1-9][0-9]{0,3})_c(0|[1-9][0-9]{0,3})$"));
+                    assertEquals(c.get("row_id").asText() + "_" + c.get("col_id").asText(), key);
+                    assertTrue("중복 " + key, seen.add(key));
+                    assertEquals(!c.get("mapped").asBoolean(), c.get("editable").asBoolean());   // PR-1: 기존과 같이 !mapped
+                    assertFalse(c.get("input").asBoolean());
+                }
+            }
+        }
+        assertFalse(d.get("catalog_outdated").asBoolean());
+        assertEquals(1, d.get("catalog_ver").asInt());                          // 칸 이름표가 바뀌어도 카탈로그 버전은 그대로
+        // DB 에는 새 포맷(fmt 2)으로 저장된다
+        BoardFormVer v1 = forms.selectVersion(id, 1);
+        assertTrue(v1.getSpecJson(), v1.getSpecJson().startsWith("{\"fmt\":2,\"catalog_ver\":1,\"tables\":["));
+        assertEquals(1, v1.getCatalogVer());
+    }
+
+    // ── 요청 fmt ──
+
+    @Test
+    public void fmt는_생략_1_2만_허용하고_그_밖은_400이다() throws Exception {
+        grant(MEMBER);
+        long id = copy(MEMBER, "양식");
+        for (Integer ok : new Integer[]{1, 2}) {
+            ObjectNode b = all(1, null);
+            b.put("fmt", ok.intValue());
+            assertFalse(saved(MEMBER, id, b, 200).get("changed").asBoolean());
+        }
+        ObjectNode none = all(1, null);
+        assertFalse(saved(MEMBER, id, none, 200).get("changed").asBoolean());
+        for (Object bad : new Object[]{0, 3, -1, 99, "2", "x", 1.5, 2.0, true}) {
+            ObjectNode b = all(1, null);
+            if (bad instanceof Integer) {
+                b.put("fmt", ((Integer) bad).intValue());
+            } else if (bad instanceof Double) {
+                b.put("fmt", ((Double) bad).doubleValue());
+            } else if (bad instanceof Boolean) {
+                b.put("fmt", ((Boolean) bad).booleanValue());
+            } else {
+                b.put("fmt", (String) bad);
+            }
+            JsonNode r = saved(MEMBER, id, b, 400);
+            assertEquals("지원하지 않는 양식 저장 형식입니다.", r.get("detail").asText());     // 입력을 되돌려 싣지 않는다
+        }
+        assertEquals(1, call(MEMBER, get("/board-forms/" + id + "/versions"), null, 200).get("items").size());
+    }
+
+    // ── 옛 포맷 복원 ──
+
+    private void putVersion(long id, int ver, int catalogVer, String json) {
+        BoardForm f = forms.selectForm(id);
+        BoardFormVer v = new BoardFormVer();
+        v.setFormId(id);
+        v.setVerNo(ver);
+        v.setName(f.getName());
+        v.setCatalogVer(catalogVer);
+        v.setSpecJson(json);
+        v.setCreatedBy(MEMBER);
+        v.setCreatedAt(Times.nowIso());
+        forms.insertVersion(v);
+        assertEquals(1, forms.updateHeader(id, f.getCurrentVer(), ver, f.getName(), MEMBER, Times.nowIso()));
+    }
+
+    private static final String LEGACY = "{\"catalog_ver\":1,\"tables\":["
+            + "{\"ref\":\"A\",\"title\":\"옛 제목\",\"cells\":{\"r0c0\":\"옛 기관\",\"r4c0\":\"옛 합계\",\"r4c2\":\"옛 비고\"}},"
+            + "{\"ref\":\"B\",\"cells\":{\"r0c1\":\"옛 총기대\"}},{\"ref\":\"C-2\"},{\"ref\":\"C-3\"},{\"ref\":\"C-4\"}]}";
+
+    @Test
+    public void 옛_포맷_버전은_새_key로_복원되고_같은_내용_재저장은_changed_false() throws Exception {
+        grant(MEMBER);
+        long id = copy(MEMBER, "양식");
+        putVersion(id, 2, 1, LEGACY);
+        JsonNode cur = call(MEMBER, get("/board-forms/" + id), null, 200);
+        assertEquals(2, cur.get("version").asInt());
+        JsonNode a = table(cur, "A");
+        assertEquals("옛 제목", a.get("title").asText());
+        assertEquals("옛 기관", a.get("rows").get(0).get(0).get("text").asText());
+        assertEquals("r0_c0", a.get("rows").get(0).get(0).get("key").asText());
+        assertEquals("옛 합계", a.get("rows").get(4).get(0).get("text").asText());       // 옛 r4c0 → r4_c1
+        assertEquals("r4_c1", a.get("rows").get(4).get(0).get("key").asText());
+        assertEquals("옛 비고", a.get("rows").get(4).get(2).get("text").asText());       // 옛 r4c2 → r4_c3
+        assertEquals("r4_c3", a.get("rows").get(4).get(2).get("key").asText());
+        assertEquals("옛 총기대", table(cur, "B").get("rows").get(0).get(1).get("text").asText());
+        assertEquals("r0_c2", table(cur, "B").get("rows").get(0).get(1).get("key").asText());
+        // 눈에 보이는 표 구조(열 수·행별 칸 수·병합·연결 여부·key)는 새 포맷 v1 과 같다
+        JsonNode v1 = call(MEMBER, get("/board-forms/" + id).param("version", "1"), null, 200);
+        assertEquals(v1.get("tables").size(), cur.get("tables").size());
+        for (int t = 0; t < v1.get("tables").size(); t++) {
+            JsonNode x = v1.get("tables").get(t);
+            JsonNode y = cur.get("tables").get(t);
+            assertEquals(x.get("columns").asInt(), y.get("columns").asInt());
+            assertEquals(x.get("row_ids"), y.get("row_ids"));
+            assertEquals(x.get("col_ids"), y.get("col_ids"));
+            for (int r = 0; r < x.get("rows").size(); r++) {
+                assertEquals(x.get("rows").get(r).size(), y.get("rows").get(r).size());
+                for (int i = 0; i < x.get("rows").get(r).size(); i++) {
+                    JsonNode p = x.get("rows").get(r).get(i);
+                    JsonNode q = y.get("rows").get(r).get(i);
+                    for (String f : new String[]{"key", "colspan", "rowspan", "header", "mapped", "input", "align", "editable"}) {
+                        assertEquals(f, p.get(f), q.get(f));
+                    }
+                }
+            }
+        }
+        // 같은 내용으로 다시 저장하면 새 버전이 생기지 않는다(옛 포맷 현재 버전과 내용 비교)
+        ObjectNode same = body(2, null,
+                cell(cell(cell(tbl("A", "옛 제목"), "r0_c0", "옛 기관"), "r4_c1", "옛 합계"), "r4_c3", "옛 비고"),
+                cell(tbl("B"), "r0_c2", "옛 총기대"), tbl("C-2"), tbl("C-3"), tbl("C-4"));
+        JsonNode r = saved(MEMBER, id, same, 200);
+        assertFalse(r.get("changed").asBoolean());
+        assertEquals(2, r.get("version").asInt());
+        assertEquals(2, call(MEMBER, get("/board-forms/" + id + "/versions"), null, 200).get("items").size());
+        // 하나라도 다르면 새 버전(3)이 새 포맷으로 저장된다
+        ObjectNode diff = body(2, null,
+                cell(cell(cell(tbl("A", "옛 제목"), "r0_c0", "옛 기관"), "r4_c1", "바뀐 합계"), "r4_c3", "옛 비고"),
+                cell(tbl("B"), "r0_c2", "옛 총기대"), tbl("C-2"), tbl("C-3"), tbl("C-4"));
+        JsonNode r3 = saved(MEMBER, id, diff, 200);
+        assertTrue(r3.get("changed").asBoolean());
+        assertEquals(3, r3.get("version").asInt());
+        assertTrue(forms.selectVersion(id, 3).getSpecJson().startsWith("{\"fmt\":2,"));
+        assertTrue(forms.selectVersion(id, 2).getSpecJson().startsWith("{\"catalog_ver\":1,"));   // 옛 버전은 불변
+    }
+
+    @Test
+    public void 번역표가_없는_옛_버전은_닫힌_실패이고_저장으로_복구할_수_있다() throws Exception {
+        grant(MEMBER);
+        long id = copy(MEMBER, "양식");
+        putVersion(id, 2, 2, "{\"catalog_ver\":2,\"tables\":[{\"ref\":\"A\"}]}");
+        JsonNode r = call(MEMBER, get("/board-forms/" + id), null, 500);                   // 기본 구조로 조용히 되돌려 보여 주지 않는다
+        assertTrue(r.has("detail"));                                                        // 문구는 개발축 설정에 따라 다르다(상세 on/off)
+        call(MEMBER, get("/board-forms/" + id + "/docx"), null, 500);
+        assertEquals("양식", call(MEMBER, get("/board-forms/" + id).param("version", "1"), null, 200).get("name").asText());
+        JsonNode healed = saved(MEMBER, id, all(2, null), 200);                              // 읽을 수 없는 현재 버전 위에 새 버전
+        assertTrue(healed.get("changed").asBoolean());
+        assertEquals(3, healed.get("version").asInt());
+        call(MEMBER, get("/board-forms/" + id), null, 200);
+    }
+
+    // ── 정상 입력이 거부되지 않는다(이스케이프가 많은 최대 길이) ──
+
+    @Test
+    public void 칸마다_100자_따옴표_섞인_최대_입력도_저장된다() throws Exception {
+        grant(MEMBER);
+        long id = copy(MEMBER, "양식");
+        JsonNode cur = call(MEMBER, get("/board-forms/" + id), null, 200);
+        String worst = rep("\"가", 50);                                                    // 100자, JSON 에서 따옴표마다 이스케이프
+        ObjectNode b = JSON.createObjectNode();
+        b.put("base_version", 1);
+        ArrayNode tables = b.putArray("tables");
+        int cells = 0;
+        for (JsonNode t : cur.get("tables")) {
+            ObjectNode tn = tbl(t.get("ref").asText());
+            for (JsonNode row : t.get("rows")) {
+                for (JsonNode c : row) {
+                    if (c.get("editable").asBoolean()) {
+                        cell(tn, c.get("key").asText(), worst);
+                        cells++;
+                    }
+                }
+            }
+            tables.add(tn);
+        }
+        assertTrue("편집 가능한 칸이 충분히 많아야 한다: " + cells, cells > 50);
+        JsonNode r = saved(MEMBER, id, b, 200);
+        assertEquals(2, r.get("version").asInt());
+        assertEquals(worst, table(r, "A").get("rows").get(0).get(0).get("text").asText());
+        assertTrue(forms.selectVersion(id, 2).getSpecJson().length() > 20000);
+    }
+
+    // ── 서식 문자(Cf) · 개인정보 ──
+
+    @Test
+    public void 서식_문자는_칸_제목_이름에서_400_고정_문구() throws Exception {
+        grant(MEMBER);
+        long id = copy(MEMBER, "양식");
+        for (String ch : new String[]{"‮", "​", "‍", "﻿"}) {
+            JsonNode c = saved(MEMBER, id, body(1, null, cell(tbl("A"), "r0_c0", "a" + ch + "b")), 400);
+            assertEquals("칸 문구에 쓸 수 없는 문자가 있습니다.", c.get("detail").asText());
+            JsonNode t = saved(MEMBER, id, body(1, null, tbl("A", "제" + ch + "목")), 400);
+            assertEquals("표 제목에 쓸 수 없는 문자가 있습니다.", t.get("detail").asText());
+            JsonNode n = saved(MEMBER, id, body(1, "이" + ch + "름", tbl("A")), 400);
+            assertEquals("양식 이름에 쓸 수 없는 문자가 있습니다.", n.get("detail").asText());
+            ObjectNode cp = JSON.createObjectNode();
+            cp.put("name", "복" + ch + "제");
+            assertEquals("양식 이름에 쓸 수 없는 문자가 있습니다.",
+                    call(MEMBER, post("/board-forms/copy"), cp, 400).get("detail").asText());
+        }
+        assertEquals(1, call(MEMBER, get("/board-forms/" + id + "/versions"), null, 200).get("items").size());
+    }
+
+    @Test
+    public void 양식_저장과_복제는_개인정보로_보이는_값이면_422_고정_문구() throws Exception {
+        grant(MEMBER);
+        long id = copy(MEMBER, "양식");
+        String msg = "개인정보로 보이는 값이 있어 저장하지 않았습니다. 해당 문구를 지우고 다시 저장해 주세요.";
+        String[] bad = {"010-1234-5678", "900101-1234567", "kim.team@example.com"};
+        for (String pii : bad) {
+            for (JsonNode r : new JsonNode[]{
+                    saved(MEMBER, id, body(1, null, cell(tbl("A"), "r0_c0", "담당 " + pii)), 422),
+                    saved(MEMBER, id, body(1, null, tbl("A", "제목 " + pii)), 422),
+                    saved(MEMBER, id, body(1, pii, tbl("A")), 422)}) {
+                assertEquals(msg, r.get("detail").asText());
+                assertFalse(r.toString().contains(pii));                               // 검출값을 되돌려 싣지 않는다
+            }
+            ObjectNode cp = JSON.createObjectNode();
+            cp.put("name", "양식 " + pii);
+            assertEquals(msg, call(MEMBER, post("/board-forms/copy"), cp, 422).get("detail").asText());
+        }
+        assertEquals(1, call(MEMBER, get("/board-forms/" + id + "/versions"), null, 200).get("items").size());
+        // 평범한 숫자·금액 문구는 통과한다
+        saved(MEMBER, id, body(1, null, cell(tbl("A", "2026년 4분기 (단위: 억원)"), "r0_c0", "1,234.5")), 200);
+    }
+
+    // ── 본문 크기 한도(필터) ──
+
+    private JsonNode rawBody(String method, String rawPath, String body, int expect) throws Exception {
+        MockHttpServletRequestBuilder b = "PUT".equals(method) ? put(new java.net.URI(rawPath)) : post(new java.net.URI(rawPath));
+        if (body != null) {
+            b = b.contentType(MediaType.APPLICATION_JSON).content(body.getBytes(StandardCharsets.UTF_8));
+        }
+        String text = mockMvc.perform(b).andExpect(status().is(expect)).andReturn().getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+        return text.isEmpty() ? null : JSON.readTree(text);
+    }
+
+    @Test
+    public void 저장은_512KB_복제는_16KB_넘으면_권한_판정_전에_413() throws Exception {
+        String big = "{\"base_version\":1,\"pad\":\"" + rep("a", 600 * 1024) + "\"}";
+        JsonNode r = call(null, put("/board-forms/1"), big, 413);
+        assertEquals("BODY_TOO_LARGE", r.get("detail").get("code").asText());
+        assertEquals(512, r.get("detail").get("max_kb").asInt());
+        assertTrue(r.get("detail").get("message").asText().contains("512KB"));
+        String edge = "{\"base_version\":1,\"pad\":\"" + rep("a", 512 * 1024) + "\"}";      // 한도를 살짝 넘는다(여는 부분 포함)
+        call(null, put("/board-forms/1"), edge, 413);
+        for (String p : new String[]{"/board-forms/1/", "/board-forms/1;a=b", "/board-forms//1", "/board-forms/%31"}) {
+            assertEquals(p, "BODY_TOO_LARGE", rawBody("PUT", p, big, 413).get("detail").get("code").asText());
+        }
+        String mid = "{\"base_version\":1,\"pad\":\"" + rep("a", 100 * 1024) + "\"}";       // 한도 안이면 필터를 지나 권한(403)에서 막힌다
+        call(MEMBER, put("/board-forms/1"), mid, 403);
+
+        String copyBig = "{\"name\":\"x\",\"pad\":\"" + rep("a", 20 * 1024) + "\"}";
+        JsonNode c = call(null, post("/board-forms/copy"), copyBig, 413);
+        assertEquals("BODY_TOO_LARGE", c.get("detail").get("code").asText());
+        assertEquals(16, c.get("detail").get("max_kb").asInt());
+        assertEquals("BODY_TOO_LARGE", rawBody("POST", "/board-forms/copy/", copyBig, 413).get("detail").get("code").asText());
+        call(MEMBER, post("/board-forms/copy"), "{\"name\":\"x\",\"pad\":\"" + rep("a", 10 * 1024) + "\"}", 403);   // 16KB 안
+    }
+
+    @Test
+    public void 본문_길이가_없으면_저장과_복제도_411() throws Exception {
+        JsonNode p = rawBody("PUT", "/board-forms/1", null, 411);
+        assertEquals("LENGTH_REQUIRED", p.get("detail").get("code").asText());
+        JsonNode c = rawBody("POST", "/board-forms/copy", null, 411);
+        assertEquals("LENGTH_REQUIRED", c.get("detail").get("code").asText());
     }
 }

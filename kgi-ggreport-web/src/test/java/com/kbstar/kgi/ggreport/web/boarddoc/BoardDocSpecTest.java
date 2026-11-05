@@ -143,11 +143,143 @@ public class BoardDocSpecTest {
                     for (int i = 0; i < t.getRows().get(r).size(); i++) {
                         String key = t.getRows().get(r).get(i).getKey();
                         assertNotNull(t.getId() + " " + r + "," + i, key);
-                        assertEquals(BoardDocSpec.cellKey(r, i), key);
+                        assertTrue(key, BoardDocSpec.isValidCellKey(key));
+                        BoardDocSpec.Cell cell = t.getRows().get(r).get(i);
+                        assertEquals(BoardDocSpec.cellKey(cell.getRowId(), cell.getColId()), key);
+                        assertEquals("r" + r, cell.getRowId());                       // 카탈로그 행 id = r{원래 행번호}
                         assertTrue("중복 " + key, seen.add(key));
                     }
                 }
-                assertEquals("r0c0", t.getRows().get(0).get(0).getKey());
+                assertEquals("r0_c0", t.getRows().get(0).get(0).getKey());
+            }
+        }
+    }
+
+    private static List<String> keysOf(BoardDocSpec.Table t, int row) {
+        List<String> out = new ArrayList<>();
+        for (BoardDocSpec.Cell c : t.getRows().get(row)) {
+            out.add(c.getKey());
+        }
+        return out;
+    }
+
+    @Test
+    public void 카탈로그_칸_key는_행id_열id_병합칸은_앵커_기준() {
+        BoardDocSpec.Doc d = BoardDocSpec.find("default_doc", true);
+        BoardDocSpec.Table a = table(d, "A");
+        assertEquals(Arrays.asList("r0", "r1", "r2", "r3", "r4"), a.getRowIds());
+        assertEquals(Arrays.asList("c0", "c1", "c2", "c3"), a.getColIds());
+        assertEquals(BoardDocSpec.FIRST_NEW_ID, a.getNextR());
+        assertEquals(BoardDocSpec.FIRST_NEW_ID, a.getNextC());
+        assertEquals(100, BoardDocSpec.FIRST_NEW_ID);
+        assertEquals(1, BoardDocSpec.CATALOG_VER);                   // 칸 이름표만 바뀌었다 — 카탈로그 버전은 그대로
+        assertEquals(2, BoardDocSpec.FORM_FMT);
+        assertEquals(Arrays.asList("r0_c0", "r0_c1", "r0_c2", "r0_c3"), keysOf(a, 0));
+        assertEquals(Arrays.asList("r1_c0", "r1_c1", "r1_c2", "r1_c3"), keysOf(a, 1));
+        assertEquals(Arrays.asList("r2_c1", "r2_c2"), keysOf(a, 2));       // 0열·3열은 위 칸의 세로 병합에 덮여 있다
+        assertEquals(Arrays.asList("r3_c1", "r3_c2"), keysOf(a, 3));
+        assertEquals(Arrays.asList("r4_c1", "r4_c2", "r4_c3"), keysOf(a, 4));
+        assertTrue(a.getRows().get(1).get(2).isMapped());                  // r1_c2 = 출연금 값 칸(엑셀 연결)
+        assertFalse(a.getRows().get(1).get(2).isInput());
+        assertEquals("r1", a.getRows().get(1).get(2).getRowId());
+        assertEquals("c2", a.getRows().get(1).get(2).getColId());
+    }
+
+    @Test
+    public void 표B_가로_병합과_세로_병합_칸의_key() {
+        BoardDocSpec.Table b = table(BoardDocSpec.find("default_doc", true), "B");
+        assertEquals(Arrays.asList("r0_c0", "r0_c2", "r0_c3", "r0_c4", "r0_c5", "r0_c6", "r0_c7", "r0_c8"), keysOf(b, 0));
+        assertEquals("r1_c0", keysOf(b, 1).get(0));
+        assertEquals(9, keysOf(b, 1).size());
+        assertEquals(Arrays.asList("r2_c1", "r2_c2", "r2_c3", "r2_c4", "r2_c5", "r2_c6", "r2_c7", "r2_c8"), keysOf(b, 2));
+    }
+
+    @Test
+    public void 얼린_v1_번역표는_지금_카탈로그와_칸마다_같고_모르는_것은_null() {
+        for (BoardDocSpec.Table t : BoardDocSpec.catalog(false)) {
+            int[][] starts = BoardLegacyKeys.frozenStarts(1, t.getId());
+            assertNotNull(t.getId(), starts);
+            assertEquals(t.getRows().size(), starts.length);
+            for (int r = 0; r < t.getRows().size(); r++) {
+                assertEquals(t.getRows().get(r).size(), starts[r].length);
+                for (int i = 0; i < t.getRows().get(r).size(); i++) {
+                    assertEquals(t.getId() + " r" + r + "c" + i, t.getRows().get(r).get(i).getKey(),
+                            BoardDocSpec.legacyToKey(1, t.getId(), "r" + r + "c" + i));
+                }
+                assertNull(BoardDocSpec.legacyToKey(1, t.getId(), "r" + r + "c" + t.getRows().get(r).size()));
+            }
+            assertNull(BoardDocSpec.legacyToKey(1, t.getId(), "r" + t.getRows().size() + "c0"));
+        }
+        assertEquals("r1_c2", BoardDocSpec.legacyToKey(1, "A", "r1c2"));
+        assertEquals("r2_c2", BoardDocSpec.legacyToKey(1, "A", "r2c1"));
+        assertEquals("r4_c2", BoardDocSpec.legacyToKey(1, "A", "r4c1"));
+        assertNull(BoardDocSpec.legacyToKey(2, "A", "r1c2"));              // 번역표가 없는 버전
+        assertNull(BoardDocSpec.legacyToKey(1, "ZZ", "r1c2"));
+        assertNull(BoardDocSpec.legacyToKey(1, "A", "r1_c2"));
+        assertNull(BoardDocSpec.legacyToKey(1, "A", null));
+        assertEquals("r1_c2", BoardDocSpec.resolveKey(1, "A", "r1c2"));    // 옛 모양은 번역
+        assertEquals("r1_c2", BoardDocSpec.resolveKey(1, "A", "r1_c2"));   // 새 정규형은 그대로
+        assertNull(BoardDocSpec.resolveKey(1, "A", "r01_c2"));
+        assertNull(BoardDocSpec.resolveKey(1, "A", "x"));
+    }
+
+    @Test
+    public void id_정규형은_r_c_와_0_또는_앞자리0없는_4자리까지만() {
+        for (String ok : new String[]{"r0", "r1", "r99", "r100", "r1000", "r9999"}) {
+            assertTrue(ok, BoardDocSpec.isValidRowId(ok));
+            assertTrue(ok, BoardDocSpec.isValidColId("c" + ok.substring(1)));
+        }
+        for (String bad : new String[]{null, "", "r", "r01", "r00", "r10000", "R1", "c1", "r-1", "r1 ", " r1",
+                "r1\n", "r٣", "r1.0", "r1_c2", "rr1", "r+1", "r0x1"}) {
+            assertFalse(String.valueOf(bad), BoardDocSpec.isValidRowId(bad));
+        }
+        for (String bad : new String[]{null, "", "c", "c01", "c10000", "C1", "r1", "c1\n", "c٣", "c1_c2"}) {
+            assertFalse(String.valueOf(bad), BoardDocSpec.isValidColId(bad));
+        }
+        assertTrue(BoardDocSpec.isValidCellKey("r1_c2"));
+        assertTrue(BoardDocSpec.isValidCellKey("r9999_c0"));
+        assertFalse(BoardDocSpec.isValidCellKey("r1c2"));
+        assertFalse(BoardDocSpec.isValidCellKey("r1_c02"));
+        assertFalse(BoardDocSpec.isValidCellKey("r1_c2\n"));
+        assertFalse(BoardDocSpec.isValidCellKey(null));
+    }
+
+    private static List<List<BoardDocSpec.Cell>> grid(int rows, int cols) {
+        List<List<BoardDocSpec.Cell>> out = new ArrayList<>();
+        for (int r = 0; r < rows; r++) {
+            List<BoardDocSpec.Cell> row = new ArrayList<>();
+            for (int c = 0; c < cols; c++) {
+                row.add(new BoardDocSpec.Cell("x", 1, 1, false, false, "left"));
+            }
+            out.add(row);
+        }
+        return out;
+    }
+
+    @Test
+    public void 명시_id_생성자는_기존_id를_그대로_쓰고_새_id는_카운터_밑으로_검증한다() {
+        BoardDocSpec.Table t = new BoardDocSpec.Table("X", "X", "x", 3, Arrays.asList("r0", "r5"),
+                Arrays.asList("c0", "c1", "c7"), 100, 101, grid(2, 3));
+        assertEquals(Arrays.asList("r0_c0", "r0_c1", "r0_c7"), keysOf(t, 0));
+        assertEquals(Arrays.asList("r5_c0", "r5_c1", "r5_c7"), keysOf(t, 1));
+        assertEquals(101, t.getNextC());
+        for (final Object[] bad : new Object[][]{
+                {Arrays.asList("r0", "r0"), Arrays.asList("c0", "c1", "c2"), 100, 100},       // 중복
+                {Arrays.asList("r0", "r1"), Arrays.asList("c0", "c1", "x2"), 100, 100},       // 정규형 아님
+                {Arrays.asList("r0", "r1"), Arrays.asList("c0", "c1", "c05"), 100, 100},
+                {Arrays.asList("r0", "r5"), Arrays.asList("c0", "c1", "c2"), 5, 100},         // 카운터 <= 쓰인 숫자
+                {Arrays.asList("r0", "r1"), Arrays.asList("c0", "c1", "c2"), 100, 10001},     // 카운터 상한 초과
+                {Arrays.asList("r0"), Arrays.asList("c0", "c1", "c2"), 100, 100},             // 개수 불일치
+                {Arrays.asList("r0", "r1"), Arrays.asList("c0", "c1"), 100, 100}}) {
+            try {
+                @SuppressWarnings("unchecked")
+                List<String> rowIds = (List<String>) bad[0];
+                @SuppressWarnings("unchecked")
+                List<String> colIds = (List<String>) bad[1];
+                new BoardDocSpec.Table("X", "X", "x", 3, rowIds, colIds, (Integer) bad[2], (Integer) bad[3], grid(2, 3));
+                org.junit.Assert.fail("IllegalStateException 이 나와야 한다");
+            } catch (IllegalStateException expected) {
+                assertFalse(expected.getMessage(), expected.getMessage().contains("x2"));    // 입력값을 싣지 않는다
             }
         }
     }

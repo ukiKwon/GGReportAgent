@@ -29,9 +29,16 @@ public final class BoardFormIn {
     /** PUT /board-forms/{id} — 전체 교체. 보내지 않은 칸은 카탈로그 기본 문구로 돌아간다. */
     public static class Save {
         private Integer baseVersion;
+        private Object fmt;
         private String name;
         private List<TableIn> tables;
 
+        /**
+         * 요청 형식 번호. 생략하거나 정수 1·2 만 허용하고 그 밖(3, 1.5, "2", true 등)은 서비스가 400 으로 거른다
+         * (Object 로 받는 이유: Integer 로 받으면 1.5 가 조용히 1 로 깎인다). PR-1 은 1·2 모두 같은 cells 맵 본문이다.
+         */
+        public Object getFmt() { return fmt; }
+        public void setFmt(Object fmt) { this.fmt = fmt; }
         public Integer getBaseVersion() { return baseVersion; }
         public void setBaseVersion(Integer baseVersion) { this.baseVersion = baseVersion; }
         public String getName() { return name; }

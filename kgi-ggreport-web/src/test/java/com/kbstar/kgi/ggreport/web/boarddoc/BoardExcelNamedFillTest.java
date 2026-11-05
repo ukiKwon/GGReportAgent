@@ -99,7 +99,7 @@ public class BoardExcelNamedFillTest {
     @Test
     public void A_출연금은_계_열_710을_억원으로() throws Exception {
         Map<String, Object> out = run(null);
-        Map<String, Object> c = cell(out, "A", "r1c2");
+        Map<String, Object> c = cell(out, "A", "r1_c2");
         assertEquals("7.10", c.get("value"));
         assertEquals("filled", c.get("status"));
         assertNull(c.get("reason"));
@@ -107,12 +107,12 @@ public class BoardExcelNamedFillTest {
         assertEquals("710", map(c.get("convert")).get("sum"));
         assertEquals("7.10", map(c.get("convert")).get("result"));
         assertEquals("K8", map(c.get("source")).get("cell"));
-        assertEquals("15.10", cell(out, "A", "r2c1").get("value"));      // 총비용(B) 행 1510
+        assertEquals("15.10", cell(out, "A", "r2_c2").get("value"));      // 총비용(B) 행 1510
     }
 
     @Test
     public void A_전산은_두_행을_합산한다() throws Exception {
-        Map<String, Object> c = cell(run(null), "A", "r3c1");
+        Map<String, Object> c = cell(run(null), "A", "r3_c2");
         assertEquals("35.20", c.get("value"));                             // 1710 + 1810
         assertEquals(2, c.get("part_count"));
         assertEquals("K18", list(c.get("parts")).get(0).get("cell"));
@@ -122,17 +122,17 @@ public class BoardExcelNamedFillTest {
     @Test
     public void A_합계는_표시값의_합이고_관계를_싣는다() throws Exception {
         Map<String, Object> out = run(null);
-        assertEquals("57.40", cell(out, "A", "r4c1").get("value"));
+        assertEquals("57.40", cell(out, "A", "r4_c2").get("value"));
         List<Map<String, Object>> sums = list(table(out, "A").get("sums"));
         assertEquals(1, sums.size());
-        assertEquals("r4c1", sums.get(0).get("total"));
-        assertEquals(Arrays.asList("r1c2", "r2c1", "r3c1"), sums.get(0).get("of"));
+        assertEquals("r4_c2", sums.get(0).get("total"));
+        assertEquals(Arrays.asList("r1_c2", "r2_c2", "r3_c2"), sums.get(0).get("of"));
     }
 
     @Test
     public void 기관명은_직접_입력_칸이다() throws Exception {
         Map<String, Object> out = run(null);
-        Map<String, Object> c = cell(out, "A", "r1c0");
+        Map<String, Object> c = cell(out, "A", "r1_c0");
         assertEquals("manual", c.get("status"));
         assertEquals("MANUAL_INPUT", c.get("reason"));
         assertEquals("", c.get("value"));
@@ -141,7 +141,7 @@ public class BoardExcelNamedFillTest {
 
     @Test
     public void B_괄호_병기는_값_두_개를_따로_준다() throws Exception {
-        Map<String, Object> c = cell(run(null), "B", "r1c5");
+        Map<String, Object> c = cell(run(null), "B", "r1_c5");
         assertEquals("7.10 (15.10)", c.get("value"));
         assertEquals("7.10", c.get("main_value"));
         assertEquals("15.10", c.get("sub_value"));
@@ -149,7 +149,7 @@ public class BoardExcelNamedFillTest {
 
     @Test
     public void B_합산_칸은_부품_둘을_더한_뒤_환산한다() throws Exception {
-        Map<String, Object> c = cell(run(null), "B", "r2c1");
+        Map<String, Object> c = cell(run(null), "B", "r2_c2");
         assertEquals("22.20", c.get("value"));
         assertEquals(2, c.get("part_count"));
         assertEquals("2220", map(c.get("convert")).get("sum"));
@@ -161,15 +161,15 @@ public class BoardExcelNamedFillTest {
             sheet(wb).getRow(17).getCell(10).setCellValue(0.4);
             sheet(wb).getRow(18).getCell(10).setCellValue(0.1);
         });
-        assertEquals("0.01", cell(out, "A", "r3c1").get("value"));         // 개별 반올림이면 0.00
+        assertEquals("0.01", cell(out, "A", "r3_c2").get("value"));         // 개별 반올림이면 0.00
     }
 
     @Test
     public void C4_판단_값() throws Exception {
         Map<String, Object> out = run(null);
-        assertEquals("4", cell(out, "C-4", "r1c1").get("value"));
-        assertEquals("1.23", cell(out, "C-4", "r2c1").get("value"));
-        assertEquals("7", cell(out, "C-4", "r3c1").get("value"));
+        assertEquals("4", cell(out, "C-4", "r1_c1").get("value"));
+        assertEquals("1.23", cell(out, "C-4", "r2_c1").get("value"));
+        assertEquals("7", cell(out, "C-4", "r3_c1").get("value"));
     }
 
     @Test
@@ -186,11 +186,11 @@ public class BoardExcelNamedFillTest {
             Row r = sheet(wb).getRow(7);
             r.removeCell(r.getCell(10));
         });
-        Map<String, Object> c = cell(out, "A", "r1c2");
+        Map<String, Object> c = cell(out, "A", "r1_c2");
         assertEquals("failed", c.get("status"));
         assertEquals("PART_EMPTY", c.get("reason"));
         assertEquals("", c.get("value"));
-        Map<String, Object> sum = cell(out, "A", "r4c1");
+        Map<String, Object> sum = cell(out, "A", "r4_c2");
         assertEquals("failed", sum.get("status"));
         assertEquals("PART_FAILED", sum.get("reason"));                   // 0 으로 치지 않는다
     }
@@ -202,7 +202,7 @@ public class BoardExcelNamedFillTest {
             cell.setCellFormula("1+1");
             ((org.apache.poi.xssf.usermodel.XSSFCell) cell).getCTCell().unsetV();   // 이전 캐시 값이 남으면 값이 있는 것으로 읽힌다
         });
-        Map<String, Object> c = cell(out, "A", "r1c2");
+        Map<String, Object> c = cell(out, "A", "r1_c2");
         assertEquals("failed", c.get("status"));
         assertEquals("NO_CACHED_VALUE", c.get("reason"));
     }
@@ -213,7 +213,7 @@ public class BoardExcelNamedFillTest {
     @SuppressWarnings("unchecked")
     public void 행_라벨이_달라지면_그_칸만_ROW_NOT_FOUND_업로드_글자는_싣지_않는다() throws Exception {
         Map<String, Object> out = run(wb -> sheet(wb).getRow(7).getCell(0).setCellValue("총수익(Z)"));
-        Map<String, Object> c = cell(out, "A", "r1c2");
+        Map<String, Object> c = cell(out, "A", "r1_c2");
         assertEquals("failed", c.get("status"));
         assertEquals("ROW_NOT_FOUND", c.get("reason"));
         Map<String, Object> t = table(out, "A");
@@ -224,23 +224,23 @@ public class BoardExcelNamedFillTest {
         assertEquals("rev", first.get("row_id"));
         assertEquals("ROW_NOT_FOUND", first.get("code"));
         assertFalse(JSON.writeValueAsString(out).contains("총수익(Z)"));
-        assertEquals("filled", cell(out, "A", "r2c1").get("status"));      // 다른 칸은 그대로
+        assertEquals("filled", cell(out, "A", "r2_c2").get("status"));      // 다른 칸은 그대로
     }
 
     @Test
     public void 같은_라벨이_두_행이면_ROW_AMBIGUOUS() throws Exception {
         Map<String, Object> out = run(wb -> sheet(wb).getRow(15).getCell(0).setCellValue("총수익(A)"));
-        assertEquals("ROW_AMBIGUOUS", cell(out, "A", "r1c2").get("reason"));
+        assertEquals("ROW_AMBIGUOUS", cell(out, "A", "r1_c2").get("reason"));
     }
 
     @Test
     public void 구역_제목이_달라지면_그_구역을_쓰는_표_전체가_failed() throws Exception {
         Map<String, Object> out = run(wb -> sheet(wb).getRow(5).getCell(0).setCellValue("2.세부 산출서"));
-        assertEquals("AREA_NOT_FOUND", cell(out, "A", "r1c2").get("reason"));
+        assertEquals("AREA_NOT_FOUND", cell(out, "A", "r1_c2").get("reason"));
         assertEquals("failed", table(out, "A").get("label_state"));
         assertEquals("failed", table(out, "B").get("label_state"));
         assertEquals("ok", table(out, "C-4").get("label_state"));
-        assertEquals("filled", cell(out, "C-4", "r2c1").get("status"));
+        assertEquals("filled", cell(out, "C-4", "r2_c1").get("status"));
     }
 
     @Test
@@ -259,10 +259,10 @@ public class BoardExcelNamedFillTest {
     @Test
     public void 제목_행의_단위가_다르면_review와_UNIT_MISMATCH() throws Exception {
         Map<String, Object> out = run(wb -> sheet(wb).getRow(5).getCell(11).setCellValue("(단위:천원)"));
-        Map<String, Object> c = cell(out, "A", "r1c2");
+        Map<String, Object> c = cell(out, "A", "r1_c2");
         assertEquals("review", c.get("status"));
         assertTrue(hasWarning(c, "UNIT_MISMATCH"));
-        assertEquals("filled", cell(out, "C-4", "r2c1").get("status"));    // 다른 구역은 영향 없음
+        assertEquals("filled", cell(out, "C-4", "r2_c1").get("status"));    // 다른 구역은 영향 없음
     }
 
     @Test
@@ -271,7 +271,7 @@ public class BoardExcelNamedFillTest {
             Row r = sheet(wb).getRow(5);
             r.removeCell(r.getCell(11));
         });
-        Map<String, Object> c = cell(out, "A", "r1c2");
+        Map<String, Object> c = cell(out, "A", "r1_c2");
         assertEquals("filled", c.get("status"));
         assertTrue(hasWarning(c, "UNIT_UNKNOWN"));
     }
@@ -279,7 +279,7 @@ public class BoardExcelNamedFillTest {
     @Test
     public void 숨은_행은_경고만_하고_값은_채운다() throws Exception {
         Map<String, Object> out = run(wb -> sheet(wb).getRow(7).setZeroHeight(true));
-        Map<String, Object> c = cell(out, "A", "r1c2");
+        Map<String, Object> c = cell(out, "A", "r1_c2");
         assertEquals("filled", c.get("status"));
         assertEquals("7.10", c.get("value"));
         assertTrue(hasWarning(c, "HIDDEN_ROW"));

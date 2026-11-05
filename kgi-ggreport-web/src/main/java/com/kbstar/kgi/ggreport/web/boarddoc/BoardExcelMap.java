@@ -76,6 +76,8 @@ public class BoardExcelMap {
     }
 
     private final int mappingVer;
+    /** 지도 파일이 선언한 catalog_ver(= CATALOG_VER 여야 기동). 옛 key 번역표를 고르는 데 쓴다. */
+    private final int mapCatalogVer;
     private final Map<String, TableMap> tables = new LinkedHashMap<>();
     private final Map<String, AreaDef> areas = new LinkedHashMap<>();
 
@@ -90,7 +92,8 @@ public class BoardExcelMap {
 
     BoardExcelMap(JsonNode root) {
         mappingVer = root.path("mapping_ver").asInt(0);
-        if (mappingVer < 1 || root.path("catalog_ver").asInt(-1) != BoardDocSpec.CATALOG_VER) {
+        mapCatalogVer = root.path("catalog_ver").asInt(-1);
+        if (mappingVer < 1 || mapCatalogVer != BoardDocSpec.CATALOG_VER) {
             bad("version");
         }
         readAreas(root.path("areas"));
@@ -116,20 +119,21 @@ public class BoardExcelMap {
             rangeCells += range.getNumberOfCells();
             Map<String, CellReference> cells = new LinkedHashMap<>();
             Iterator<Map.Entry<String, JsonNode>> it = t.path("cells").fields();
-            while (it.hasNext()) {
+            while (it.hasNext()) {                                  // 옛 key(r{행}c{순번}) → 새 key. 번역 못 하면 기동 실패
                 Map.Entry<String, JsonNode> e = it.next();
-                put(cells, e.getKey(), new CellReference(e.getValue().asText()), range, ref);
+                put(cells, newKey(ref, e.getKey()), new CellReference(e.getValue().asText()), range, ref);
             }
             for (JsonNode b : t.path("blocks")) {
                 CellReference from = new CellReference(b.path("from").asText());
                 for (int i = 0; i < b.path("rows").asInt(); i++) {
                     for (int j = 0; j < b.path("cols").asInt(); j++) {
-                        put(cells, BoardDocSpec.cellKey(b.path("key_row").asInt() + i, b.path("seq").asInt() + j),
+                        String old = BoardLegacyKeys.legacyKey(b.path("key_row").asInt() + i, b.path("seq").asInt() + j);
+                        put(cells, newKey(ref, old),
                                 new CellReference(from.getRow() + i, from.getCol() + j), range, ref);
                     }
                 }
             }
-            if (!mappedKeys(cat).equals(cells.keySet())) {
+            if (!BoardDocSpec.mappedKeys(cat).equals(cells.keySet())) {
                 bad("cells " + ref);
             }
             Set<String> addrs = new HashSet<>();
@@ -153,9 +157,9 @@ public class BoardExcelMap {
             for (JsonNode s : t.path("sums")) {
                 List<String> of = new ArrayList<>();
                 for (JsonNode k : s.path("of")) {
-                    of.add(k.asText());
+                    of.add(newKey(ref, k.asText()));
                 }
-                String total = s.path("total").asText();
+                String total = newKey(ref, s.path("total").asText());
                 if (of.isEmpty() || !cells.keySet().containsAll(of) || !cells.containsKey(total)) {
                     bad("sum " + ref);
                 }
@@ -234,16 +238,13 @@ public class BoardExcelMap {
         }
     }
 
-    private static Set<String> mappedKeys(BoardDocSpec.Table t) {
-        Set<String> out = new LinkedHashSet<>();
-        for (int r = 0; r < t.getRows().size(); r++) {
-            for (int i = 0; i < t.getRows().get(r).size(); i++) {
-                if (t.getRows().get(r).get(i).isMapped()) {
-                    out.add(BoardDocSpec.cellKey(r, i));
-                }
-            }
+    /** 지도 파일의 key(옛 r{행}c{순번} 또는 새 정규형)를 새 key 로. 번역 못 하면 기동 실패(내용은 싣지 않는다). */
+    private String newKey(String ref, String key) {
+        String k = BoardDocSpec.resolveKey(mapCatalogVer, ref, key);
+        if (k == null) {
+            bad("key " + ref);
         }
-        return out;
+        return k;
     }
 
     /** 구역 정의 + 시트 별칭 + 단위. 업로드 글자는 담지 않는다(모두 서버 지도에서 온 상수). */
@@ -434,13 +435,14 @@ public class BoardExcelMap {
                 bad("line " + ref);
             }
             for (int i = 0; i < idx.size(); i++) {
-                String key = BoardDocSpec.cellKey(row, idx.get(i));
+                // lines.row·cells 의 위치(행 번호, 그 행에서 연결 칸의 순서)는 카탈로그(=지도의 catalog_ver)의 위치 — 새 key 로 옮긴다
+                String key = cat.getRows().get(row).get(idx.get(i)).getKey();
                 if (specs.put(key, spec(list.get(i), key, ref)) != null) {
                     bad("cell " + ref + " " + key);
                 }
             }
         }
-        if (!mappedKeys(cat).equals(specs.keySet())) {
+        if (!BoardDocSpec.mappedKeys(cat).equals(specs.keySet())) {
             bad("cells " + ref);
         }
         List<Sum> sums = new ArrayList<>();
@@ -485,7 +487,11 @@ public class BoardExcelMap {
                 if (n.has("parts") || n.has("sub") || n.has("col")) {
                     bad("spec " + ref);
                 }
-                of = texts(n.path("of"), 2, 8, 20, "spec " + ref);
+                List<String> oldOf = texts(n.path("of"), 2, 8, 20, "spec " + ref);
+                of = new ArrayList<>();
+                for (String k : oldOf) {                            // 지도의 옛 key(r1c2 …)를 새 key 로 옮긴다
+                    of.add(newKey(ref, k));
+                }
                 if (of.contains(key)) {
                     bad("spec " + ref);
                 }

@@ -221,7 +221,7 @@ public class BoardWriteApiTest {
     public void 수정만_부여하면_작성은_403() throws Exception {
         perms(MEMBER, false, true);
         upload(MEMBER, fixture(), 403);
-        call(MEMBER, post(DRAFT), draftBody("A", "r1c2", "500"), 403);
+        call(MEMBER, post(DRAFT), draftBody("A", "r1_c2", "500"), 403);
     }
 
     @Test
@@ -244,8 +244,8 @@ public class BoardWriteApiTest {
             }
         }
         assertEquals(95, checked);
-        assertEquals("900", cellOf(out, "A", "r4c1").get("value").asText());     // 수식 캐시
-        assertEquals("C5", cellOf(out, "A", "r4c1").get("source").get("cell").asText());
+        assertEquals("900", cellOf(out, "A", "r4_c2").get("value").asText());     // 수식 캐시
+        assertEquals("C5", cellOf(out, "A", "r4_c2").get("source").get("cell").asText());
         assertEquals(5, out.get("sources").size());
         assertEquals(0, out.get("unmapped_tables").size());
     }
@@ -261,7 +261,7 @@ public class BoardWriteApiTest {
     public void 캐시값이_없는_수식은_NO_CACHED_VALUE() throws Exception {
         perms(MEMBER, true, false);
         byte[] x = fixture(wb -> ((XSSFCell) wb.getSheet("기부금").getRow(4).getCell(2)).getCTCell().unsetV());
-        JsonNode c = cellOf(upload(MEMBER, x, 200).json, "A", "r4c1");
+        JsonNode c = cellOf(upload(MEMBER, x, 200).json, "A", "r4_c2");
         assertEquals("failed", c.get("status").asText());
         assertEquals("NO_CACHED_VALUE", c.get("reason").asText());
         assertEquals("", c.get("value").asText());
@@ -271,15 +271,15 @@ public class BoardWriteApiTest {
     public void 숨은_행은_HIDDEN_ROW_합계가_다르면_SUM_MISMATCH() throws Exception {
         perms(MEMBER, true, false);
         JsonNode hidden = upload(MEMBER, fixture(wb -> wb.getSheet("기부금").getRow(2).setZeroHeight(true)), 200).json;
-        assertTrue(hasCode(cellOf(hidden, "A", "r2c1").get("warnings"), "HIDDEN_ROW"));
+        assertTrue(hasCode(cellOf(hidden, "A", "r2_c2").get("warnings"), "HIDDEN_ROW"));
         JsonNode sum = upload(MEMBER, fixture(wb -> wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(400)), 200).json;
-        JsonNode w = warning(cellOf(sum, "A", "r4c1").get("warnings"), "SUM_MISMATCH");
+        JsonNode w = warning(cellOf(sum, "A", "r4_c2").get("warnings"), "SUM_MISMATCH");
         assertEquals("1200", w.get("expected").asText());                         // 500 + 400 + 300 (총계 캐시는 900)
         assertEquals("display", w.get("basis").asText());
         assertEquals("900", w.get("actual").asText());
         assertEquals("-300", w.get("diff").asText());
-        assertEquals("filled", cellOf(sum, "A", "r4c1").get("status").asText());
-        assertEquals("900", cellOf(sum, "A", "r4c1").get("value").asText());     // 재계산 없이 캐시값 그대로
+        assertEquals("filled", cellOf(sum, "A", "r4_c2").get("status").asText());
+        assertEquals("900", cellOf(sum, "A", "r4_c2").get("value").asText());     // 재계산 없이 캐시값 그대로
     }
 
     /** 표 A(머리글 7칸: A1·B1·C1·B2~B5) 중 지정한 칸의 머리글을 바꾼다. */
@@ -367,21 +367,21 @@ public class BoardWriteApiTest {
         perms(MEMBER, true, false);
         JsonNode out = upload(MEMBER, fixture(wb -> wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(1234.5678919)),
                 200).json;
-        JsonNode c = cellOf(out, "A", "r2c1");
+        JsonNode c = cellOf(out, "A", "r2_c2");
         assertEquals("1,235", c.get("value").asText());
         assertEquals("1234.567892", c.get("source").get("raw").asText());
         assertTrue(c.get("source").get("rounded").asBoolean());
-        JsonNode whole = cellOf(out, "A", "r1c2");
+        JsonNode whole = cellOf(out, "A", "r1_c2");
         assertEquals("500", whole.get("source").get("raw").asText());
         assertFalse(whole.get("source").get("rounded").asBoolean());
-        assertEquals("900", cellOf(out, "A", "r4c1").get("source").get("raw").asText());   // 수식 캐시
+        assertEquals("900", cellOf(out, "A", "r4_c2").get("source").get("raw").asText());   // 수식 캐시
     }
 
     @Test
     public void 읽지_못한_칸은_raw가_null() throws Exception {
         perms(MEMBER, true, false);
         byte[] x = fixture(wb -> ((XSSFCell) wb.getSheet("기부금").getRow(4).getCell(2)).getCTCell().unsetV());
-        JsonNode c = cellOf(upload(MEMBER, x, 200).json, "A", "r4c1");
+        JsonNode c = cellOf(upload(MEMBER, x, 200).json, "A", "r4_c2");
         assertTrue(c.get("source").get("raw").isNull());
         assertTrue(c.get("source").get("rounded").isNull());
     }
@@ -395,7 +395,7 @@ public class BoardWriteApiTest {
             wb.getSheet("기부금").getRow(3).getCell(2).setCellValue(0);
             wb.getSheet("기부금").getRow(4).getCell(2).setCellValue(300);
         }), 200).json;
-        assertFalse(hasCode(cellOf(out, "A", "r4c1").get("warnings"), "SUM_MISMATCH"));
+        assertFalse(hasCode(cellOf(out, "A", "r4_c2").get("warnings"), "SUM_MISMATCH"));
     }
 
     // ── 오류 형식 통일 (작성 API 한정) ──
@@ -412,7 +412,7 @@ public class BoardWriteApiTest {
     public void 오류는_모두_detail_객체_code_message() throws Exception {
         assertErr(upload(null, fixture(), 401), "UNAUTHENTICATED");
         assertErr(upload(MEMBER, fixture(), 403), "FORBIDDEN");                       // 작성 권한 없음
-        assertErr(call(MEMBER, post(DRAFT), draftBody("A", "r1c2", "500"), 403), "FORBIDDEN");
+        assertErr(call(MEMBER, post(DRAFT), draftBody("A", "r1_c2", "500"), 403), "FORBIDDEN");
         perms(MEMBER, true, true);
         long other = copyForm(ADMIN, "전산 양식");
         assertErr(upload(MEMBER, "/board-forms/" + other + "/excel", "가상.xlsx", fixture(), null, 404), "NOT_FOUND");
@@ -492,7 +492,7 @@ public class BoardWriteApiTest {
     @Test
     public void 초안_docx는_보낸_값을_담고_캐시하지_않는다() throws Exception {
         perms(MEMBER, true, false);
-        MvcResult r = draftOk(MEMBER, draftBody("A", "r1c2", "500"));
+        MvcResult r = draftOk(MEMBER, draftBody("A", "r1_c2", "500"));
         assertEquals("no-store", r.getResponse().getHeader("Cache-Control"));
         assertEquals("application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 r.getResponse().getContentType());
@@ -502,9 +502,9 @@ public class BoardWriteApiTest {
     @Test
     public void 초안에_비매핑_키나_모르는_표는_400_BAD_VALUE() throws Exception {
         perms(MEMBER, true, false);
-        assertEquals("BAD_VALUE", call(MEMBER, post(DRAFT), draftBody("A", "r0c0", "x"), 400)
+        assertEquals("BAD_VALUE", call(MEMBER, post(DRAFT), draftBody("A", "r0_c0", "x"), 400)
                 .detail().get("code").asText());
-        assertEquals("BAD_VALUE", call(MEMBER, post(DRAFT), draftBody("ZZ", "r1c2", "x"), 400)
+        assertEquals("BAD_VALUE", call(MEMBER, post(DRAFT), draftBody("ZZ", "r1_c2", "x"), 400)
                 .detail().get("code").asText());
     }
 
@@ -619,7 +619,7 @@ public class BoardWriteApiTest {
     public void S11_초안_값은_일반_텍스트로만_들어간다() throws Exception {
         perms(MEMBER, true, false);
         String v = "=1+1 <b>&\"'";
-        byte[] docx = draftOk(MEMBER, draftBody("A", "r1c2", v)).getResponse().getContentAsByteArray();
+        byte[] docx = draftOk(MEMBER, draftBody("A", "r1_c2", v)).getResponse().getContentAsByteArray();
         assertTrue(docxTableHas(docx, 0, v));
         String xml = entry(docx, "word/document.xml");
         assertFalse(xml.contains("fldSimple"));
@@ -629,7 +629,7 @@ public class BoardWriteApiTest {
     @Test
     public void S12_초안_파일명_헤더() throws Exception {
         perms(MEMBER, true, false);
-        String cd = draftOk(MEMBER, draftBody("A", "r1c2", "500")).getResponse().getHeader("Content-Disposition");
+        String cd = draftOk(MEMBER, draftBody("A", "r1_c2", "500")).getResponse().getHeader("Content-Disposition");
         String encoded = URLEncoder.encode(BoardDocSpec.DEFAULT_NAME + "_초안.docx", "UTF-8").replace("+", "%20");
         assertTrue(cd, cd.contains("filename=\"board_draft.docx\""));
         assertTrue(cd, cd.contains("filename*=UTF-8''" + encoded));
@@ -745,7 +745,7 @@ public class BoardWriteApiTest {
     @Test
     public void S15_초안_값의_개인정보는_422_종류만() throws Exception {
         perms(MEMBER, true, false);
-        Res r = call(MEMBER, post(DRAFT), draftBody("A", "r1c2", "010-0000-0000"), 422);
+        Res r = call(MEMBER, post(DRAFT), draftBody("A", "r1_c2", "010-0000-0000"), 422);
         assertEquals("PII_DETECTED", r.detail().get("code").asText());
         assertEquals("휴대폰", r.detail().get("kinds").get(0).get("kind").asText());
         assertFalse(r.text.contains("010-0000-0000"));

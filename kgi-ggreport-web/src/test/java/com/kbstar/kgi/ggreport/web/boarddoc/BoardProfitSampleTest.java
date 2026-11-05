@@ -190,17 +190,17 @@ public class BoardProfitSampleTest {
         assertTrue(((List<?>) out.get("assumptions")).isEmpty());           // 단위는 모두 확정(사용자 2026-11-05)
 
         // 고정값(손계산, 명목)
-        expect(out, "A", "r1c2", "5.00");
-        expect(out, "A", "r2c1", "1.00");
-        expect(out, "A", "r3c1", "4.50");
-        expect(out, "A", "r4c1", "10.50");
+        expect(out, "A", "r1_c2", "5.00");
+        expect(out, "A", "r2_c2", "1.00");
+        expect(out, "A", "r3_c2", "4.50");
+        expect(out, "A", "r4_c2", "10.50");
         String[] b1 = {"48.51", "36.85", "11.66", "5.00 (1.00)", "5.66", "5.32", "0.34"};
         for (int i = 0; i < b1.length; i++) {
-            expect(out, "B", "r1c" + (2 + i), b1[i]);
+            expect(out, "B", "r1_c" + (2 + i), b1[i]);
         }
-        expect(out, "B", "r2c4", "5.00 (1.00)");                            // D·F 모두 사업초기에만 값이 있어 PV 와 같다
-        assertEquals("5.00", cell(out, "B", "r1c5").get("main_value"));
-        assertEquals("1.00", cell(out, "B", "r1c5").get("sub_value"));
+        expect(out, "B", "r2_c5", "5.00 (1.00)");                            // D·F 모두 사업초기에만 값이 있어 PV 와 같다
+        assertEquals("5.00", cell(out, "B", "r1_c5").get("main_value"));
+        assertEquals("1.00", cell(out, "B", "r1_c5").get("sub_value"));
         String[][] c2 = {
                 {"0.00", "8.96", "9.33", null, null, "48.51"},
                 {"8.50", "5.60", "5.63", null, null, "36.85"},
@@ -212,19 +212,19 @@ public class BoardProfitSampleTest {
         for (int r = 0; r < c2.length; r++) {
             for (int j = 0; j < 6; j++) {
                 if (c2[r][j] != null) {
-                    expect(out, "C-2", "r" + (r + 1) + "c" + (j + 1), c2[r][j]);
+                    expect(out, "C-2", "r" + (r + 1) + "_c" + (j + 1), c2[r][j]);
                 }
             }
         }
         for (int j = 1; j <= 4; j++) {
-            expect(out, "C-3", "r4c" + j, "0.00");
+            expect(out, "C-3", "r4_c" + j, "0.00");
         }
-        expect(out, "C-3", "r4c5", "6.00");
+        expect(out, "C-3", "r4_c5", "6.00");
         String[] un = {"5.20", "4.10", "2.80", "1.50", "0.00"};                // 미회수 투자액(PV) 1~4년·계 (5년 칸은 0)
         for (int j = 1; j <= 5; j++) {
-            expect(out, "C-3", "r5c" + j, un[j - 1]);
+            expect(out, "C-3", "r5_c" + j, un[j - 1]);
         }
-        assertEquals("3.4년", cell(out, "C-4", "r1c1").get("value"));
+        assertEquals("3.4년", cell(out, "C-4", "r1_c1").get("value"));
 
         // 독립 오라클 비교(현재가치 등)
         try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(data))) {
@@ -234,26 +234,26 @@ public class BoardProfitSampleTest {
             String[] pl = {"총 수익 현가(A)", "총비용 현가(B)", "예상 영업이익 현가", null,
                     "출연금, 기부금 예비비 차감 후 영업이익 현가", "법인세 및 법인세분 지방소득세 현가(H)", "예상 순이익 현가(I)"};
             // A
-            expect(out, "A", "r1c2", eok(o.detail("출연금(D)", 10)));
-            expect(out, "A", "r2c1", eok(o.detail("예비비(F)", 10)));
-            expect(out, "A", "r3c1", eok(o.detail("전산구축비", 10)));
+            expect(out, "A", "r1_c2", eok(o.detail("출연금(D)", 10)));
+            expect(out, "A", "r2_c2", eok(o.detail("예비비(F)", 10)));
+            expect(out, "A", "r3_c2", eok(o.detail("전산구축비", 10)));
             // B 명목·현재가치
             for (int i = 0; i < 7; i++) {
                 String nominal = i == 3 ? eok(o.detail("출연금(D)", 10)) + " (" + eok(o.detail("예비비(F)", 10)) + ")"
                         : eok(o.detail(dl[i], 10));
                 String present = i == 3 ? eok(o.pv("출연금 현가(D)", 8)) + " (" + eok(o.pv("예비비 현가(F)", 8)) + ")"
                         : eok(o.pv(pl[i], 8));
-                expect(out, "B", "r1c" + (2 + i), nominal);
-                expect(out, "B", "r2c" + (1 + i), present);
+                expect(out, "B", "r1_c" + (2 + i), nominal);
+                expect(out, "B", "r2_c" + (2 + i), present);
             }
             // C-2
             for (int j = 0; j < 6; j++) {
                 for (int i = 0; i < 7; i++) {
                     String want = i == 3 ? eok(o.detail("출연금(D)", DETAIL_COLS[j]), o.detail("예비비(F)", DETAIL_COLS[j]))
                             : eok(o.detail(dl[i], DETAIL_COLS[j]));
-                    expect(out, "C-2", "r" + (i + 1) + "c" + (j + 1), want);
+                    expect(out, "C-2", "r" + (i + 1) + "_c" + (j + 1), want);
                 }
-                expect(out, "C-2", "r8c" + (j + 1), eok(o.pv("순이익(NPV)", PV_COLS[j])));
+                expect(out, "C-2", "r8_c" + (j + 1), eok(o.pv("순이익(NPV)", PV_COLS[j])));
             }
             // C-3 (사업초기 열 제외 — y1..y4, 계)
             for (int j = 0; j < 5; j++) {
@@ -261,16 +261,16 @@ public class BoardProfitSampleTest {
                 String[] want = {eok(o.pv(pl[0], col)), eok(o.pv(pl[1], col)), eok(o.pv(pl[2], col)),
                         eok(o.pv("출연금 현가(D)", col), o.pv("예비비 현가(F)", col))};
                 for (int i = 0; i < 4; i++) {
-                    expect(out, "C-3", "r" + (i + 1) + "c" + (j + 1), want[i]);
+                    expect(out, "C-3", "r" + (i + 1) + "_c" + (j + 1), want[i]);
                 }
             }
             // C-4
             int vr = o.valueRow();
-            assertEquals(o.str(vr, 1), cell(out, "C-4", "r1c1").get("value"));
-            String npv = (String) cell(out, "C-4", "r2c1").get("value");
+            assertEquals(o.str(vr, 1), cell(out, "C-4", "r1_c1").get("value"));
+            String npv = (String) cell(out, "C-4", "r2_c1").get("value");
             assertEquals(eok(o.num(vr, 2)), npv);
             assertTrue("NPV 는 음수 표기", npv.startsWith("-"));
-            assertEquals(o.str(vr, 3), cell(out, "C-4", "r3c1").get("value"));
+            assertEquals(o.str(vr, 3), cell(out, "C-4", "r3_c1").get("value"));
 
             // 5년 열은 읽히지 않는다
             for (String ref : new String[]{"A", "B", "C-2", "C-3", "C-4"}) {
