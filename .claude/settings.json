@@ -9,6 +9,10 @@
           },
           {
             "type": "command",
+            "command": "export PATH=\"$PATH:/c/dev/node/node-v22.23.4-win-x64\"; node \"$CLAUDE_PROJECT_DIR/.claude/hooks/start-note.js\""
+          },
+          {
+            "type": "command",
             "command": "export PATH=\"$PATH:/c/dev/node/node-v22.23.4-win-x64\"; node \"$CLAUDE_PROJECT_DIR/agent-dashboard/start.js\""
           },
           {
@@ -34,6 +38,10 @@
           {
             "type": "command",
             "command": "export PATH=\"$PATH:/c/dev/node/node-v22.23.4-win-x64\"; node \"$CLAUDE_PROJECT_DIR/agent-dashboard/hook.js\" stop"
+          },
+          {
+            "type": "command",
+            "command": "export PATH=\"$PATH:/c/dev/node/node-v22.23.4-win-x64\"; node \"$CLAUDE_PROJECT_DIR/.claude/hooks/save-report.js\""
           }
         ]
       }
