@@ -60,6 +60,16 @@ public class BoardWriteAdviceTest {
     }
 
     @Test
+    public void POI_Error계열은_500_SERVER_ERROR_일반_문구() throws Exception {
+        java.util.List<Error> errors = java.util.Arrays.asList(
+                new NoClassDefFoundError(SECRET), new StackOverflowError(), new ExceptionInInitializerError(new RuntimeException(SECRET)));
+        for (Error err : errors) {
+            org.mockito.Mockito.doThrow(err).when(service).upload(any(), any(), any(), any());   // 반복 재설정: when(...) 형태는 앞선 설정이 터진다
+            assertGeneric500(uploadExpecting(500));
+        }
+    }
+
+    @Test
     public void NullPointer도_RuntimeException_처리기로_500() throws Exception {
         when(service.upload(any(), any(), any(), any())).thenThrow(new NullPointerException(SECRET));
         assertGeneric500(uploadExpecting(500));

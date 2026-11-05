@@ -81,6 +81,7 @@ public class BoardFormService {
             m.put("columns", t.getColumns());
             m.put("row_count", t.getRows().size());
             m.put("notes", t.getNotes());
+            m.put("unit", t.getUnit());
             items.add(m);
         }
         Map<String, Object> out = new LinkedHashMap<>();
@@ -435,6 +436,7 @@ public class BoardFormService {
             }
             tm.put("rows", rows);
             tm.put("notes", t.getNotes());
+            tm.put("unit", t.getUnit());
             tables.add(tm);
         }
         m.put("tables", tables);

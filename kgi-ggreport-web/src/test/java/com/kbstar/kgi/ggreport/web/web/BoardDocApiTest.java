@@ -82,6 +82,11 @@ public class BoardDocApiTest {
         assertFalse(inst.get("header").asBoolean());
         assertEquals("center", inst.get("align").asText());
         assertEquals(2, tbl(d, "C-4").get("notes").size());
+        assertEquals("(단위: 억원)", a.get("unit").asText());
+        assertEquals("(단위: 억원)", tbl(d, "B").get("unit").asText());
+        assertEquals("(단위: 억원)", tbl(d, "C-2").get("unit").asText());
+        assertEquals("(단위: 억원)", tbl(d, "C-3").get("unit").asText());
+        assertEquals("", tbl(d, "C-4").get("unit").asText());
         JsonNode b1 = tbl(d, "B").get("rows").get(1).get(0);
         assertEquals("", b1.get("text").asText());
         assertFalse(b1.get("mapped").asBoolean());
@@ -107,6 +112,7 @@ public class BoardDocApiTest {
                 r.getResponse().getContentType());
         String cd = r.getResponse().getHeader("Content-Disposition");
         assertTrue(cd, cd.contains("filename*=UTF-8''") && cd.contains("%EC"));
+        assertTrue(cd, cd.endsWith("_%EC%83%98%ED%94%8C.docx"));   // _샘플.docx
         byte[] body = r.getResponse().getContentAsByteArray();
         assertTrue(body.length > 1000);
         assertEquals('P', body[0]);

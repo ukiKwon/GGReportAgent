@@ -2,10 +2,12 @@ package com.kbstar.kgi.ggreport.web.service;
 
 import com.kbstar.kgi.ggreport.web.AppTest;
 import com.kbstar.kgi.ggreport.web.boarddoc.BoardExcelFixture;
+import com.kbstar.kgi.ggreport.web.boarddoc.LegacyBoardMapConfig;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +23,9 @@ import static org.junit.Assert.fail;
  */
 @RunWith(SpringRunner.class)
 @AppTest
+@Import(LegacyBoardMapConfig.class)
+// 옛 지도 컨텍스트는 다른 테스트와 컨텍스트가 갈라지므로 H2 이름을 따로 줘야 스키마가 두 번 만들어지지 않는다
+@org.springframework.test.context.TestPropertySource(properties = "spring.datasource.url=jdbc:h2:mem:kgi-ggreport-test-legacymap;DB_CLOSE_DELAY=-1;MODE=Oracle")
 @Transactional
 public class BoardWriteSlotsTest {
 

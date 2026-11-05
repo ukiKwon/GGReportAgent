@@ -77,7 +77,7 @@ public class BoardDocController {
                         "attachment; filename=\"board_doc.docx\"; filename*=UTF-8''" + encoded)
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .contentType(DOCX)
-                .body(BoardDocDocx.build(doc));
+                .body(BoardDocDocx.build(doc, !"blank".equals(values)));
     }
 
     private static BoardDocSpec.Doc load(String id, String values) {

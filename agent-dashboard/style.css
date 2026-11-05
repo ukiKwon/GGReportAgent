@@ -28,6 +28,9 @@ button:focus-visible, select:focus-visible { outline:2px solid var(--accent); ou
 #chips { margin-top:8px; }
 .chip .st { color:var(--dim); font-size:12px; }
 .chip.on .st { color:#55efc4; }
+.chip.fin { border-color:#ffeaa7; }
+.chip.fin .st { color:#ffeaa7; }
+#now .fin { color:#ffeaa7; }
 .dev { margin-top:6px; font-size:12px; color:var(--dim); }
 .dev summary { cursor:pointer; }
 .devrow { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }

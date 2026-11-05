@@ -9,6 +9,10 @@ const MAP = {
 const inst = (s, id) => { const a = s.agents[id] || (s.agents[id] = {}); return a.instances || (a.instances = {}); };
 const oldest = (ins, pred) => Object.keys(ins).filter(pred).sort((x, y) => (ins[x].since || 0) - (ins[y].since || 0))[0];
 const isPending = k => k.startsWith('pending:');
+const finish = (s, id, ins, k) => { // 끝난 인스턴스는 지우지 않고 done으로 옮긴다(active 계산은 instances만 본다)
+  const v = ins[k] || {}; delete ins[k];
+  const a = s.agents[id]; (a.done || (a.done = {}))[k] = { task: v.task || '', since: v.since || 0, doneAt: Date.now() };
+};
 
 let raw = '';
 process.stdin.on('data', d => raw += d);
@@ -32,8 +36,8 @@ process.stdin.on('end', () => {
       const id = MAP[p.agent_type]; if (!id) return;
       update(s => {
         const ins = inst(s, id);
-        if (p.agent_id && ins[p.agent_id]) delete ins[p.agent_id];
-        else { const k = oldest(ins, () => true); if (k) delete ins[k]; }
+        if (p.agent_id && ins[p.agent_id]) finish(s, id, ins, p.agent_id);
+        else { const k = oldest(ins, () => true); if (k) finish(s, id, ins, k); }
       });
     } else if (mode === 'prompt') {
       const text = String(p.prompt || '').replace(/\s+/g, ' ').trim();

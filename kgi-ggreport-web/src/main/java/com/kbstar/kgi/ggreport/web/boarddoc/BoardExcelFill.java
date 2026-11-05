@@ -37,6 +37,23 @@ public final class BoardExcelFill {
         List<Map<String, Object>> out = new ArrayList<>();
         for (String ref : refs) {
             BoardExcelMap.TableMap t = m.table(ref);
+            if (t.isNamed()) {                                  // 구역마다 시트 별칭 중 하나가 있어야 한다
+                for (String id : t.getAreaIds()) {
+                    BoardExcelMap.AreaDef d = m.area(id);
+                    if (d.resolveSheet(b) == null) {
+                        Map<String, Object> r = new LinkedHashMap<>();
+                        r.put("ref", ref);
+                        r.put("code", "SHEET_MISSING");
+                        r.put("sheet", d.getSheets().get(0));
+                        out.add(r);
+                        break;
+                    }
+                }
+                if (out.size() >= MAX_REASONS) {
+                    return out;
+                }
+                continue;
+            }
             if (b.sheet(t.getSheet()) == null) {
                 Map<String, Object> r = new LinkedHashMap<>();
                 r.put("ref", ref);
@@ -55,11 +72,30 @@ public final class BoardExcelFill {
         List<Map<String, Object>> tables = new ArrayList<>();
         List<Map<String, Object>> sources = new ArrayList<>();
         List<String> unmapped = new ArrayList<>();
-        int total = 0, filled = 0, review = 0, failed = 0, warns = 0, labelTables = 0;
+        int total = 0, filled = 0, review = 0, failed = 0, manual = 0, warns = 0, labelTables = 0;
+        BoardExcelNamedFill.Ctx ctx = new BoardExcelNamedFill.Ctx(b, m);     // 구역 찾기 결과는 요청당 한 번씩만
         for (BoardDocSpec.Table dt : doc.getTables()) {
             BoardExcelMap.TableMap t = m.table(dt.getId());
             if (t == null) {
                 unmapped.add(dt.getId());
+                continue;
+            }
+            if (t.isNamed()) {
+                BoardExcelNamedFill.Result nr = BoardExcelNamedFill.table(ctx, t);
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> cs = (List<Map<String, Object>>) nr.table.get("cells");
+                for (Map<String, Object> cc : cs) {
+                    total++;
+                    Object st = cc.get("status");
+                    if ("filled".equals(st)) filled++; else if ("review".equals(st)) review++;
+                    else if ("manual".equals(st)) manual++; else failed++;
+                    warns += warnings(cc).size();
+                }
+                if (Boolean.TRUE.equals(nr.table.get("needs_review"))) {
+                    labelTables++;
+                }
+                tables.add(nr.table);
+                sources.add(nr.source);
                 continue;
             }
             Sheet s = b.sheet(t.getSheet());
@@ -129,6 +165,14 @@ public final class BoardExcelFill {
                 c.put("reason", reason);
                 c.put("source", source);
                 c.put("warnings", w);
+                Map<String, Object> p0 = new LinkedHashMap<>();         // 새 형식 칸과 같은 키를 갖게 한다
+                p0.put("role", "main");
+                p0.putAll(source);
+                c.put("parts", new ArrayList<>(java.util.Collections.singletonList(p0)));
+                c.put("part_count", 1);
+                c.put("convert", null);
+                c.put("main_value", null);
+                c.put("sub_value", null);
                 byKey.put(e.getKey(), c);
             }
             if (!"failed".equals(labelState)) {                // failed 표는 검산하지 않는다
@@ -179,6 +223,8 @@ public final class BoardExcelFill {
             Map<String, Object> src = new LinkedHashMap<>();
             src.put("ref", t.getRef());
             src.putAll(b.grid(t.getSheet(), t.getRange()));
+            src.put("omitted", false);
+            ctx.gridCells += t.getRange().getNumberOfCells();     // 옛 형식 격자도 요청 전체 예산에 포함
             sources.add(src);
         }
         Map<String, Object> summary = new LinkedHashMap<>();
@@ -186,9 +232,11 @@ public final class BoardExcelFill {
         summary.put("filled", filled);
         summary.put("review", review);
         summary.put("failed", failed);
+        summary.put("manual", manual);
         summary.put("warnings", warns);
         summary.put("label_mismatch_tables", labelTables);
         Map<String, Object> out = new LinkedHashMap<>();
+        out.put("assumptions", ctx.assumptions());
         out.put("summary", summary);
         out.put("tables", tables);
         out.put("sources", sources);

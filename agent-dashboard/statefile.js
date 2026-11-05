@@ -3,6 +3,7 @@
 const fs = require('fs'), path = require('path');
 const STATE = path.join(__dirname, 'state.json'), LOCK = STATE + '.lock';
 const TTL = 15 * 60 * 1000; // stop 이벤트가 유실된 인스턴스는 15분 뒤 정리
+const DONE_TTL = 30 * 1000;  // 끝난 인스턴스(done)는 30초만 남긴다(화면 숨김은 app.js DONE_MS와 같은 값)
 const sleep = ms => { try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch (_) {} };
 
 function read() { try { return JSON.parse(fs.readFileSync(STATE, 'utf8')); } catch (_) { return null; } }
@@ -16,7 +17,12 @@ function normalize(s) {
   if (!Number.isFinite(s.stats.since)) s.stats.since = now;
   for (const id of Object.keys(s.agents)) {
     const a = s.agents[id];
-    if (!a || typeof a !== 'object' || !a.instances) continue;
+    if (!a || typeof a !== 'object') continue;
+    if (a.done && typeof a.done === 'object') { // 정리용. 화면 숨김은 app.js가 따로 한다
+      for (const k of Object.keys(a.done)) if (!(now - (a.done[k] && a.done[k].doneAt || 0) <= DONE_TTL)) delete a.done[k];
+      if (!Object.keys(a.done).length) delete a.done;
+    } else if (a.done) delete a.done;
+    if (!a.instances) continue;
     for (const k of Object.keys(a.instances)) if (now - (a.instances[k].since || 0) > TTL) delete a.instances[k];
     const first = Object.values(a.instances).sort((x, y) => (x.since || 0) - (y.since || 0))[0];
     a.active = !!first; a.task = first ? first.task || '' : ''; a.since = first ? first.since : 0;

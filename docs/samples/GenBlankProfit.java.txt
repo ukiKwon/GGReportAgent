@@ -1,0 +1,196 @@
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import java.io.FileOutputStream;
+import java.util.*;
+
+/** 빈 수익성 분석표 양식 — 노란 칸만 입력, 나머지는 수식(소계·계·요약·현가). 구조: handoff/agents/history/2026-11-02_수익성분석표_구조_사용자설명.md */
+public class GenBlank {
+    static class R { String id; String[] path; String note; boolean pct, noTotal; String op; String[] src; }
+    static List<R> rows = new ArrayList<>();
+    static Map<String, Integer> idx = new HashMap<>();
+
+    static R add(String id, String op, String[] src, String note, boolean pct, boolean noTotal, String... path) {
+        R r = new R(); r.id = id; r.op = op; r.src = src; r.note = note; r.pct = pct; r.noTotal = noTotal; r.path = path;
+        idx.put(id, rows.size()); rows.add(r); return r;
+    }
+    static R in(String id, String... path) { return add(id, null, null, null, false, false, path); }
+    static R inPct(String id, String... path) { return add(id, null, null, null, true, true, path); }
+    static R inNoTotal(String id, String... path) { return add(id, null, null, null, false, true, path); }
+    static R f(String id, String op, String[] src, String... path) { return add(id, op, src, null, false, false, path); }
+    static String col(int c) { return String.valueOf((char) ('A' + c)); }
+
+    public static void main(String[] a) throws Exception {
+        // ---------- 구조 ----------
+        String[] pn = {"공금예금", "MMDA", "정기예금(1개월)", "정기예금(3개월)", "정기예금(6개월)", "정기예금(12개월)", "보통예금"};
+        String[] incIds = new String[pn.length];
+        for (int i = 0; i < pn.length; i++) {
+            in("bal" + i, "수익", "기관수익", pn[i], "평잔").noTotal = true;
+            inPct("mar" + i, "수익", "기관수익", pn[i], "마진율");
+            f(incIds[i] = "inc" + i, "MULT2", new String[] {"bal" + i, "mar" + i}, "수익", "기관수익", pn[i], "수익");
+        }
+        f("instSub", "SUM", incIds, "수익", "기관수익 소계");
+        in("empN", "수익", "부수거래 수익", "임직원", "임직원수(명)").noTotal = true;
+        in("empPer", "수익", "부수거래 수익", "임직원", "임직원 수익(1인당)").noTotal = true;
+        inPct("empRatio", "수익", "부수거래 수익", "임직원", "임직원 거래 비율(%)");
+        f("empProfit", "MULT3", new String[] {"empN", "empPer", "empRatio"}, "수익", "부수거래 수익", "임직원", "이익");
+        in("store", "수익", "부수거래 수익", "영업점(출장소)", "점포 운영 수익");
+        inPct("storeG", "수익", "부수거래 수익", "영업점(출장소)", "지점 수익 증가율");
+        f("storeProfit", "COPY", new String[] {"store"}, "수익", "부수거래 수익", "영업점(출장소)", "이익");
+        f("sideSub", "SUM", new String[] {"empProfit", "storeProfit"}, "수익", "부수거래 수익 소계");
+        in("in1", "수익", "추가거래 수익", "산하기관 이익", "기 거래기관 이익");
+        in("in2", "수익", "추가거래 수익", "산하기관 이익", "미 거래기관 이익");
+        f("inSub", "SUM", new String[] {"in1", "in2"}, "수익", "추가거래 수익", "산하기관 이익", "이익(소계)");
+        in("sN", "수익", "추가거래 수익", "산하기관 임직원 이익", "산하기관 임직원수(명)").noTotal = true;
+        in("sPer", "수익", "추가거래 수익", "산하기관 임직원 이익", "산하기관 이익(1인당)").noTotal = true;
+        inPct("sRatio", "수익", "추가거래 수익", "산하기관 임직원 이익", "산하기관 임직원 거래 비율(%)");
+        f("sProfit", "MULT3", new String[] {"sN", "sPer", "sRatio"}, "수익", "추가거래 수익", "산하기관 임직원 이익", "이익");
+        f("addSub", "SUM", new String[] {"inSub", "sProfit"}, "수익", "추가거래 수익 소계");
+        f("revA", "SUM", new String[] {"instSub", "sideSub", "addSub"}, "총수익(A)");
+
+        in("b1", "비용", "영업점", "인건비/물건비", "영업점 인건비");
+        in("b2", "비용", "영업점", "인건비/물건비", "영업점 물건비");
+        in("b3", "비용", "영업점", "점포개설비용", "인테리어, 사무기기 등");
+        in("b4", "비용", "영업점", "임차료", "영업점 임차료");
+        in("b5", "비용", "영업점", "자동화기기", "ATM 구축비");
+        in("b6", "비용", "영업점", "자동화기기", "ATM 운영비");
+        f("brSub", "SUM", new String[] {"b1", "b2", "b3", "b4", "b5", "b6"}, "비용", "영업점 소계");
+        in("c1", "비용", "기타", "전산비용", "전산구축비(사후관리비용 포함)");
+        add("c2", null, null, "임금상승률 반영", false, false, "비용", "기타", "본부부서 인건비", "본부부서 인건비");
+        add("c3", null, null, "물가상승률 반영", false, false, "비용", "기타", "본부부서 인건비", "본부부서 인건비");
+        f("etcSub", "SUM", new String[] {"c1", "c2", "c3"}, "비용", "기타 소계");
+        f("costB", "SUM", new String[] {"brSub", "etcSub"}, "총비용(B)");
+        f("opC", "SUB", new String[] {"revA", "costB"}, "영업이익(C) = (A)-(B)");
+        in("D", "출연금(D)");
+        in("E", "기부금(E)");
+        in("F", "예비비(F)");
+        f("G", "SUB4", new String[] {"opC", "D", "E", "F"}, "출연금, 기부금 차감 후 영업이익(G) = (C)-(D)-(E)-(F)");
+        f("H", "TAX", new String[] {"G"}, "법인세 및 법인세분지방소득세(H)");
+        f("I", "SUB", new String[] {"G", "H"}, "예상 순이익(I) = (G)-(H)");
+
+        Workbook wb = new XSSFWorkbook();
+        Sheet sh = wb.createSheet("수익성분석");
+        Font bold = wb.createFont(); bold.setBold(true);
+        DataFormat df = wb.createDataFormat();
+        CellStyle head = wb.createCellStyle(); head.setFont(bold); head.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex()); head.setFillPattern(FillPatternType.SOLID_FOREGROUND); head.setAlignment(HorizontalAlignment.CENTER); head.setBorderBottom(BorderStyle.THIN);
+        CellStyle lab = wb.createCellStyle(); lab.setVerticalAlignment(VerticalAlignment.CENTER); lab.setBorderBottom(BorderStyle.HAIR);
+        CellStyle calc = wb.createCellStyle(); calc.setDataFormat(df.getFormat("#,##0.0;[Red]-#,##0.0")); calc.setBorderBottom(BorderStyle.HAIR);
+        CellStyle inp = wb.createCellStyle(); inp.cloneStyleFrom(calc); inp.setFillForegroundColor(IndexedColors.LIGHT_YELLOW.getIndex()); inp.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        CellStyle inpPct = wb.createCellStyle(); inpPct.cloneStyleFrom(inp); inpPct.setDataFormat(df.getFormat("0.0"));
+        CellStyle title = wb.createCellStyle(); title.setFont(bold);
+
+        int sumStart = 2, secStart = 15;
+        // ---------- 1. 수익성 요약 ----------
+        Row t0 = sh.createRow(0); t0.createCell(0).setCellValue("1. 수익성 요약"); t0.getCell(0).setCellStyle(title);
+        t0.createCell(3).setCellValue("※ 노란 칸에 입력하세요. 흰 칸은 자동 계산입니다."); t0.createCell(8).setCellValue("(단위:백만원)");
+        String[] h1 = {"구분", "사업초기", "1년", "2년", "3년", "4년", "5년", "계", "NPV"};
+        Row hr = sh.createRow(1); for (int c = 0; c < h1.length; c++) { Cell x = hr.createCell(c); x.setCellValue(h1[c]); x.setCellStyle(head); }
+        String[][] sum1 = { {"총수익(A)", "revA"}, {"총비용(B)", "costB"}, {"영업이익(C) = (A)-(B)", "opC"}, {"출연금(D)", "D"}, {"기부금(E)", "E"}, {"예비비(F)", "F"},
+                {"출연금, 기부금 차감 후 영업이익(G) = (C)-(D)-(E)-(F)", "G"}, {"법인세 및 지방소득세(H)", "H"}, {"순이익(I) = (G)-(H)", "I"} };
+        for (int k = 0; k < sum1.length; k++) {
+            Row x = sh.createRow(sumStart + k); Cell l = x.createCell(0); l.setCellValue(sum1[k][0]); l.setCellStyle(lab);
+            int srcRow = secStart + idx.get(sum1[k][1]) + 1;
+            for (int i = 0; i < 6; i++) { Cell c = x.createCell(1 + i); c.setCellFormula(col(4 + i) + srcRow); c.setCellStyle(calc); }
+            Cell tt = x.createCell(7); tt.setCellFormula("SUM(B" + (sumStart + k + 1) + ":G" + (sumStart + k + 1) + ")"); tt.setCellStyle(calc);
+            StringBuilder npv = new StringBuilder();
+            for (int i = 0; i < 6; i++) { if (i > 0) npv.append("+"); npv.append(col(1 + i)).append(sumStart + k + 1).append("/(1+0.0331)^").append(i); }
+            Cell nn = x.createCell(8); nn.setCellFormula(npv.toString()); nn.setCellStyle(calc);
+        }
+
+        // ---------- 2. 세부 산출표 ----------
+        Row t2 = sh.createRow(13); t2.createCell(0).setCellValue("2. 세부 산출표"); t2.getCell(0).setCellStyle(title); t2.createCell(11).setCellValue("(단위:백만원)");
+        String[] h2 = {"구분", "", "", "", "사업초기", "1년", "2년", "3년", "4년", "5년", "계", "비고"};
+        Row hr2 = sh.createRow(14); for (int c = 0; c < h2.length; c++) { Cell x = hr2.createCell(c); x.setCellValue(h2[c]); x.setCellStyle(head); }
+        sh.addMergedRegion(new CellRangeAddress(14, 14, 0, 3));
+        for (int i = 0; i < rows.size(); i++) {
+            R w = rows.get(i); int rr = secStart + i; Row x = sh.createRow(rr);
+            for (int L = 0; L < w.path.length; L++) { Cell c = x.createCell(L); c.setCellValue(w.path[L]); c.setCellStyle(lab); }
+            for (int L = w.path.length; L < 4; L++) x.createCell(L).setCellStyle(lab);
+            if (w.path.length < 4) sh.addMergedRegion(new CellRangeAddress(rr, rr, w.path.length - 1, 3));
+            for (int y = 0; y < 6; y++) {
+                Cell c = x.createCell(4 + y); String cl = col(4 + y);
+                if (w.op == null) { c.setCellStyle(w.pct ? inpPct : inp); continue; }
+                c.setCellFormula(formula(w, cl)); c.setCellStyle(calc);
+            }
+            if (!w.noTotal) { Cell c = x.createCell(10); c.setCellFormula("SUM(E" + (rr + 1) + ":J" + (rr + 1) + ")"); c.setCellStyle(calc); }
+            if (w.note != null) x.createCell(11).setCellValue(w.note);
+        }
+        for (int L = 0; L < 3; L++) {
+            int i = 0;
+            while (i < rows.size()) {
+                if (rows.get(i).path.length <= L + 1) { i++; continue; }
+                int j = i;
+                while (j + 1 < rows.size() && rows.get(j + 1).path.length > L + 1 && same(rows.get(i).path, rows.get(j + 1).path, L)) j++;
+                if (j > i) sh.addMergedRegion(new CellRangeAddress(secStart + i, secStart + j, L, L));
+                i = j + 1;
+            }
+        }
+
+        // ---------- 3. 투자 및 출연금 적정성 검토 ----------
+        int r = secStart + rows.size() + 2;
+        Row t3 = sh.createRow(r++); t3.createCell(0).setCellValue("3. 투자 및 출연금 적정성 검토"); t3.getCell(0).setCellStyle(title); t3.createCell(8).setCellValue("(단위:백만원)");
+        int judgeHead = r;
+        String[] h31 = {"구분", "회수기간법(Payback Period)", "순 현재가치(NPV)", "내부수익률법(IRR)", "출연금 적정성 검토"};
+        Row a1 = sh.createRow(r++); for (int c = 0; c < 5; c++) { Cell x = a1.createCell(c); x.setCellValue(h31[c]); x.setCellStyle(head); }
+        Row a2 = sh.createRow(r++); a2.createCell(0).setCellValue("값");
+        Cell pay = a2.createCell(1); pay.setCellStyle(inp);
+        Cell npvCell = a2.createCell(2); npvCell.setCellStyle(calc);
+        Cell irrCell = a2.createCell(3); irrCell.setCellStyle(calc);
+        Cell ex = a2.createCell(4); ex.setCellStyle(inp);
+        Row a3 = sh.createRow(r++); a3.createCell(0).setCellValue("투자가부결정기준"); a3.createCell(1).setCellValue("목표기간 보다 회수기간이 짧은 경우"); a3.createCell(2).setCellValue("순현재가치가 \"0\"보다 클 경우"); a3.createCell(3).setCellValue("3.31%보다 높을 경우"); a3.createCell(4).setCellValue("(영업이익 이유) '(산출값)' 백만원");
+        r++;
+        String[] h32 = {"구분", "", "사업초기", "1년", "2년", "3년", "4년", "5년", "계"};
+        Row b0 = sh.createRow(r++); for (int c = 0; c < h32.length; c++) { Cell x = b0.createCell(c); x.setCellValue(h32[c]); x.setCellStyle(head); }
+        sh.addMergedRegion(new CellRangeAddress(r - 1, r - 1, 0, 1));
+        String[][] pvRows = { {"총 수익 현가(A)", "revA"}, {"총비용 현가(B)", "costB"}, {"예상 영업이익 현가(출연금 기부금 제외) (C) = (A)-(B)", "opC"}, {"출연금 현가(D)", "D"}, {"기부금 현가(E)", "E"}, {"예비비 현가(F)", "F"},
+                {"출연금, 기부금 예비비 차감 후 영업이익 현가", "G"}, {"법인세 및 법인세분 지방소득세 현가(H)", "H"}, {"예상 순이익 현가(I)", "I"} };
+        int pvStart = r, pvIRow = -1;
+        for (String[] s : pvRows) {
+            Row x = sh.createRow(r++); x.createCell(0).setCellValue("회수 기간 계산"); x.createCell(1).setCellValue(s[0]);
+            int src = secStart + idx.get(s[1]) + 1;
+            for (int y = 0; y < 6; y++) { Cell c = x.createCell(2 + y); c.setCellFormula(col(4 + y) + src + "/(1+0.0331)^" + y); c.setCellStyle(calc); }
+            Cell c = x.createCell(8); c.setCellFormula("SUM(C" + r + ":H" + r + ")"); c.setCellStyle(calc);
+            if (s[1].equals("I")) pvIRow = r;
+        }
+        { Row x = sh.createRow(r++); x.createCell(0).setCellValue("회수 기간 계산"); x.createCell(1).setCellValue("미회수 투자액(PV)"); for (int y = 0; y < 7; y++) { Cell c = x.createCell(2 + y); c.setCellStyle(inp); } }   // 계산식이 업무마다 달라 입력 칸으로 둔다
+        sh.addMergedRegion(new CellRangeAddress(pvStart, r - 1, 0, 0));
+        int srcI = secStart + idx.get("I") + 1;
+        Row n1 = sh.createRow(r++); n1.createCell(0).setCellValue("순현재가치 계산"); n1.createCell(1).setCellValue("순이익(명목)");
+        for (int y = 0; y < 6; y++) { Cell c = n1.createCell(2 + y); c.setCellFormula(col(4 + y) + srcI); c.setCellStyle(calc); }
+        Cell n1t = n1.createCell(8); n1t.setCellFormula("SUM(C" + r + ":H" + r + ")"); n1t.setCellStyle(calc);
+        int nomRow = r;
+        Row n2 = sh.createRow(r++); n2.createCell(1).setCellValue("순이익(NPV)");
+        for (int y = 0; y < 6; y++) { Cell c = n2.createCell(2 + y); c.setCellFormula(col(2 + y) + nomRow + "/(1+0.0331)^" + y); c.setCellStyle(calc); }
+        Cell n2t = n2.createCell(8); n2t.setCellFormula("SUM(C" + r + ":H" + r + ")"); n2t.setCellStyle(calc);
+        sh.addMergedRegion(new CellRangeAddress(r - 2, r - 1, 0, 0));
+        int npvRow = r;
+        Row ir = sh.createRow(r++); ir.createCell(0).setCellValue("내부수익률 계산"); ir.createCell(1).setCellValue("IRR 검증");
+        Cell irc = ir.createCell(8); irc.setCellFormula("IFERROR(IRR(C" + nomRow + ":H" + nomRow + ")*100,0)"); irc.setCellStyle(calc);
+        npvCell.setCellFormula("I" + npvRow); irrCell.setCellFormula("I" + r);
+        Row cm = sh.createRow(r++); cm.createCell(0).setCellValue("※ 미회수 투자액: 출연금 현재가치 합계액을 사업초기에 반영하여 회수기간 산출 / IRR : 투입비용은 사업기간 내 연차별 비용을 현재가치로 환산한 값을 적용하고, 수익은 매년 발생하는 명목 금액 기준으로 산출");
+        sh.addMergedRegion(new CellRangeAddress(r - 1, r - 1, 0, 8));
+
+        sh.setColumnWidth(0, 14 * 256); sh.setColumnWidth(1, 22 * 256); sh.setColumnWidth(2, 22 * 256); sh.setColumnWidth(3, 24 * 256);
+        for (int c = 4; c <= 10; c++) sh.setColumnWidth(c, 12 * 256); sh.setColumnWidth(11, 18 * 256);
+        wb.getCreationHelper().createFormulaEvaluator().evaluateAll();
+        try (FileOutputStream o = new FileOutputStream(a[0])) { wb.write(o); }
+        System.out.println("rows written: " + r + " (section-2 rows: " + rows.size() + ")");
+    }
+
+    /** 같은 열(cl)의 다른 행을 참조하는 수식. */
+    static String formula(R w, String cl) {
+        int[] n = new int[w.src.length];
+        for (int i = 0; i < n.length; i++) n[i] = 15 + idx.get(w.src[i]) + 1;
+        switch (w.op) {
+            case "SUM": { StringBuilder s = new StringBuilder("SUM("); for (int i = 0; i < n.length; i++) { if (i > 0) s.append(","); s.append(cl).append(n[i]); } return s.append(")").toString(); }
+            case "MULT2": return cl + n[0] + "*" + cl + n[1] + "/100";
+            case "MULT3": return cl + n[0] + "*" + cl + n[1] + "*" + cl + n[2] + "/100";
+            case "COPY": return cl + n[0];
+            case "SUB": return cl + n[0] + "-" + cl + n[1];
+            case "SUB4": return cl + n[0] + "-" + cl + n[1] + "-" + cl + n[2] + "-" + cl + n[3];
+            case "TAX": return "MAX(0," + cl + n[0] + ")*0.264";
+            default: throw new IllegalStateException(w.op);
+        }
+    }
+    static boolean same(String[] x, String[] y, int L) { for (int i = 0; i <= L; i++) if (!x[i].equals(y[i])) return false; return true; }
+}

@@ -531,10 +531,13 @@ public class BoardFormApiTest {
                 cur.getResponse().getContentType());
         String cd = cur.getResponse().getHeader("Content-Disposition");
         assertTrue(cd, cd.contains("filename*=UTF-8''") && cd.contains("%EB"));
+        assertTrue(cd, cd.endsWith("_%EC%83%98%ED%94%8C.docx"));   // _샘플.docx
         XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(cur.getResponse().getContentAsByteArray()));
         try {
             assertEquals("바뀐 이름", d.getParagraphs().get(0).getText());
-            assertEquals("바뀐 표 제목", d.getParagraphs().get(1).getText());
+            assertEquals("샘플 — 표의 수치는 가상 예시입니다.", d.getParagraphs().get(1).getText());   // 보기 모드(sample) 안내
+            assertEquals("바뀐 표 제목", d.getParagraphs().get(2).getText());
+            assertEquals("(단위: 억원)", d.getParagraphs().get(3).getText());
             assertEquals(2, d.getTables().size());
         } finally {
             d.close();
@@ -548,17 +551,24 @@ public class BoardFormApiTest {
         } finally {
             d1.close();
         }
-        mockMvc.perform(get("/board-forms/" + id + "/docx").param("values", "blank").header(Actor.HEADER, MEMBER))
-                .andExpect(status().isOk());
+        MvcResult blank = mockMvc.perform(get("/board-forms/" + id + "/docx").param("values", "blank")
+                .header(Actor.HEADER, MEMBER)).andExpect(status().isOk()).andReturn();
+        XWPFDocument db = new XWPFDocument(new ByteArrayInputStream(blank.getResponse().getContentAsByteArray()));
+        try {
+            assertEquals("바뀐 표 제목", db.getParagraphs().get(1).getText());   // 빈 양식에는 샘플 안내 문구가 없다
+        } finally {
+            db.close();
+        }
         mockMvc.perform(get("/board-forms/" + id + "/docx")).andExpect(status().isUnauthorized());
         mockMvc.perform(get("/board-forms/" + id + "/docx").header(Actor.HEADER, HEAD)).andExpect(status().isForbidden());
     }
 
     @Test
-    public void 기존_board_docs는_영향이_없다() throws Exception {
+    public void board_docs_기본_양식_칸에도_주소표가_붙는다() throws Exception {
         JsonNode d = call(MEMBER, get("/board-docs/default_doc"), null, 200);
         assertEquals(5, d.get("tables").size());
-        assertNull(d.get("tables").get(0).get("rows").get(0).get(0).get("key"));      // 옛 응답에 새 키가 섞이지 않는다
+        // 2026-11-05 사용자 확정: 기본 양식에서도 바로 작성 → 칸 주소표(key)가 있어야 작성 모드가 값 칸을 그린다(NEXT 45 P1)
+        assertEquals("r0c0", d.get("tables").get(0).get("rows").get(0).get(0).get("key").asText());
         assertNotEquals(0, call(MEMBER, get("/board-docs"), null, 200).get("items").size());
     }
 }

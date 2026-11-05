@@ -91,6 +91,20 @@ public class BoardDocSpecTest {
     }
 
     @Test
+    public void 표마다_단위가_제목과_분리되어_있고_편집해도_유지된다() {
+        BoardDocSpec.Doc d = BoardDocSpec.find("default_doc", true);
+        for (String id : new String[]{"A", "B", "C-2", "C-3"}) {
+            assertEquals("(단위: 억원)", table(d, id).getUnit());
+            assertFalse(table(d, id).getTitle().contains("단위"));
+        }
+        assertEquals("", table(d, "C-4").getUnit());
+        BoardDocSpec.Doc e = BoardDocSpec.build("x", "n",
+                java.util.Arrays.asList(new BoardDocSpec.TableEdit("A", "바꾼 제목", null, null)), true);
+        assertEquals("(단위: 억원)", table(e, "A").getUnit());
+        assertEquals("(단위: 억원)", table(BoardDocSpec.withValues(e, null), "A").getUnit());
+    }
+
+    @Test
     public void 빈_양식은_매핑_칸이_모두_비고_샘플은_채워진다() {
         for (boolean sample : new boolean[]{true, false}) {
             BoardDocSpec.Doc d = BoardDocSpec.find("default_doc", sample);
@@ -117,5 +131,39 @@ public class BoardDocSpecTest {
         rows.add(new ArrayList<>(Arrays.asList(a, x)));
         rows.add(new ArrayList<>(Arrays.asList(x, x)));   // 0열이 a 에 덮여 있어 둘째 x 가 격자 밖
         new BoardDocSpec.Table("X", "X", "x", 2, rows);
+    }
+
+    @Test
+    public void 모든_칸에_주소표가_붙고_규칙과_같으며_표_안에서_유일하다() {
+        for (boolean sample : new boolean[] {true, false}) {
+            BoardDocSpec.Doc d = BoardDocSpec.find("default_doc", sample);
+            for (BoardDocSpec.Table t : d.getTables()) {
+                java.util.Set<String> seen = new java.util.HashSet<>();
+                for (int r = 0; r < t.getRows().size(); r++) {
+                    for (int i = 0; i < t.getRows().get(r).size(); i++) {
+                        String key = t.getRows().get(r).get(i).getKey();
+                        assertNotNull(t.getId() + " " + r + "," + i, key);
+                        assertEquals(BoardDocSpec.cellKey(r, i), key);
+                        assertTrue("중복 " + key, seen.add(key));
+                    }
+                }
+                assertEquals("r0c0", t.getRows().get(0).get(0).getKey());
+            }
+        }
+    }
+
+    @Test
+    public void 값_칸_주소표는_편집_가능_키_집합에_들어_있다() {
+        BoardDocSpec.Doc d = BoardDocSpec.find("default_doc", true);
+        for (BoardDocSpec.Table t : d.getTables()) {
+            java.util.Set<String> editable = BoardDocSpec.editableKeys(t);
+            java.util.Set<String> all = new java.util.HashSet<>();
+            for (List<BoardDocSpec.Cell> row : t.getRows()) {
+                for (BoardDocSpec.Cell c : row) {
+                    all.add(c.getKey());
+                }
+            }
+            assertTrue(all.containsAll(editable));
+        }
     }
 }

@@ -77,6 +77,16 @@ public class BoardWriteExceptionHandler {
         return respond(500, detail("SERVER_ERROR", ApiExceptionHandler.GENERIC_500));
     }
 
+    /** POI 등이 던지는 Error(NoClassDefFound·StackOverflow·ExceptionInInitializer…) → 500 일반 문구. OOM 은 삼키지 않는다. */
+    @ExceptionHandler(Error.class)
+    public ResponseEntity<Map<String, Object>> handleError(Error e) {
+        if (e instanceof OutOfMemoryError) {
+            throw e;
+        }
+        log.error("처리되지 않은 오류 {}", describe(e));
+        return respond(500, detail("SERVER_ERROR", ApiExceptionHandler.GENERIC_500));
+    }
+
     /** 로그용 — getMessage() 는 셀 값이 섞일 수 있어 쓰지 않는다. 클래스 이름 + 앞쪽 스택 프레임 8개 + cause 클래스 사슬(최대 5). */
     static String describe(Throwable e) {
         StringBuilder sb = new StringBuilder(e.getClass().getName());

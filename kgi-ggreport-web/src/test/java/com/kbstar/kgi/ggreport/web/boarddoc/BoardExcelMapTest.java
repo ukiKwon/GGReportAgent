@@ -18,7 +18,7 @@ public class BoardExcelMapTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private static ObjectNode raw() throws Exception {
-        try (InputStream in = new ClassPathResource(BoardExcelMap.RESOURCE).getInputStream()) {
+        try (InputStream in = new ClassPathResource(BoardExcelFixture.LEGACY).getInputStream()) {
             return (ObjectNode) JSON.readTree(in);
         }
     }
@@ -43,8 +43,8 @@ public class BoardExcelMapTest {
     }
 
     @Test
-    public void 실제_지도는_표_5개_매핑_칸_95개() {
-        BoardExcelMap m = new BoardExcelMap();
+    public void 옛_지도_표_5개_95칸() {
+        BoardExcelMap m = BoardExcelFixture.legacyMap();
         assertEquals(1, m.getMappingVer());
         assertEquals(5, m.tables().size());
         int n = 0;
@@ -107,7 +107,7 @@ public class BoardExcelMapTest {
         com.fasterxml.jackson.databind.node.ArrayNode arr = JSON.createArrayNode().add("합계").add("총계");
         BoardExcelMap many = BoardExcelFixture.mapWithLabel("A", "B5", arr);
         assertEquals(java.util.Arrays.asList("합계", "총계"), many.table("A").getLabels().get("B5"));
-        assertEquals("기관명", new BoardExcelMap().table("A").getLabels().get("A1").get(0));
+        assertEquals("기관명", BoardExcelFixture.legacyMap().table("A").getLabels().get("A1").get(0));
     }
 
     @Test

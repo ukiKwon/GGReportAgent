@@ -1,25 +1,96 @@
 {
-  "mapping_ver": 1,
+  "mapping_ver": 2,
   "catalog_ver": 1,
+  "areas": {
+    "detail": {
+      "sheet": ["수익성분석"],
+      "title": "2. 세부 산출표", "until": "3. 투자*", "header_has": ["사업초기", "계"],
+      "cols": {"init": "사업초기", "y1": "1년|1년차", "y2": "2년|2년차", "y3": "3년|3년차", "y4": "4년|4년차", "tot": "계"},
+      "unit": "백만원", "unit_assumed": false, "unit_in_title": true,
+      "rows": {
+        "rev":     {"path": ["총수익(A)"]},
+        "cost":    {"path": ["총비용(B)"]},
+        "op":      {"path": ["영업이익(C)"]},
+        "grant":   {"path": ["출연금(D)"]},
+        "reserve": {"path": ["예비비(F)"]},
+        "pretax":  {"path": ["출연금, 기부금 차감 후 영업이익(G)"]},
+        "tax":     {"path": ["법인세 및 지방소득세(H)|법인세 및 법인세분지방소득세(H)"]},
+        "net":     {"path": ["순이익(I)|예상 순이익(I)"]},
+        "it":      {"path": ["전산비용", "전산구축비*"]}
+      }
+    },
+    "calc": {
+      "sheet": ["수익성분석"],
+      "title": "3. 투자 및 출연금 적정성 검토", "header_has": ["사업초기", "계"],
+      "cols": {"init": "사업초기", "y1": "1년|1년차", "y2": "2년|2년차", "y3": "3년|3년차", "y4": "4년|4년차", "tot": "계"},
+      "unit": "백만원", "unit_assumed": false,
+      "rows": {
+        "rev":         {"path": ["총 수익 현가(A)"]},
+        "cost":        {"path": ["총비용 현가(B)"]},
+        "op":          {"path": ["예상 영업이익 현가*"]},
+        "grant":       {"path": ["출연금 현가(D)"]},
+        "reserve":     {"path": ["예비비 현가(F)"]},
+        "pretax":      {"path": ["출연금, 기부금 예비비 차감 후 영업이익 현가*"]},
+        "tax":         {"path": ["법인세 및 법인세분 지방소득세 현가(H)|법인세 및 지방소득세 현가(H)"]},
+        "net":         {"path": ["예상 순이익 현가(I)|순이익 현가(I)"]},
+        "npv":         {"path": ["순이익(NPV)"]},
+        "unrecovered": {"path": ["미회수 투자액*"]}
+      }
+    },
+    "judge": {
+      "sheet": ["수익성분석"],
+      "title": "3. 투자 및 출연금 적정성 검토", "header_has": ["회수기간법*", "내부수익률법*"],
+      "cols": {"payback": "회수기간법*", "npv": "순현재가치(NPV)", "irr": "내부수익률법*"},
+      "unit": "백만원", "unit_assumed": false,
+      "rows": {"value": {"below": 1}}
+    }
+  },
   "tables": [
-    {"ref": "A", "sheet": "기부금", "range": "A1:D5",
-     "labels": {"A1": "기관명", "B1": "구분", "C1": "제공금액", "B2": "출연금", "B3": "예비비",
-                "B4": "전산시스템 구축/운영비용", "B5": "합계"},
-     "cells": {"r1c0": "A2", "r1c2": "C2", "r2c1": "C3", "r3c1": "C4", "r4c1": "C5"},
-     "sums": [{"of": ["r1c2", "r2c1", "r3c1"], "total": "r4c1"}]},
-    {"ref": "B", "sheet": "수익성분석", "range": "A1:I3",
-     "labels": {"A1": "구분", "C1": "총기대수익", "I1": "순이익", "B2": "명목가치", "B3": "현재가치"},
-     "blocks": [{"key_row": 1, "seq": 2, "from": "C2", "rows": 1, "cols": 7},
-                {"key_row": 2, "seq": 1, "from": "C3", "rows": 1, "cols": 7}]},
-    {"ref": "C-2", "sheet": "수익성분석", "range": "A6:G14",
-     "labels": {"A6": "구분", "B6": "사업초기", "G6": "계", "A7": "총수익(A)", "A14": "순이익(현재가치(NPV)기준)"},
-     "blocks": [{"key_row": 1, "seq": 1, "from": "B7", "rows": 8, "cols": 6}]},
-    {"ref": "C-3", "sheet": "수익성분석", "range": "A17:F22",
-     "labels": {"A17": "구분", "B17": "1년차", "F17": "계", "A18": "총수익(A)", "A22": "미회수투자액(PV)"},
-     "blocks": [{"key_row": 1, "seq": 1, "from": "B18", "rows": 5, "cols": 5}]},
-    {"ref": "C-4", "sheet": "수익성분석", "range": "A25:C28",
-     "labels": {"A25": "구분", "B25": "산출값", "A26": "회수기간법(Payback Period)",
-                "A27": "순현재가치(NPV)", "A28": "내부수익률법(IRR)"},
-     "cells": {"r1c1": "B26", "r2c1": "B27", "r3c1": "B28"}}
+    {"ref": "A", "lines": [
+      {"row": 1, "cells": [{"op": "manual"}, {"op": "eok", "parts": ["detail.grant"], "col": "tot"}]},
+      {"row": 2, "cells": [{"op": "eok", "parts": ["detail.reserve"], "col": "tot"}]},
+      {"row": 3, "cells": [{"op": "eok", "parts": ["detail.it"], "col": "tot"}]},
+      {"row": 4, "cells": [{"op": "derive_sum", "of": ["r1c2", "r2c1", "r3c1"]}]}
+    ]},
+    {"ref": "B", "lines": [
+      {"row": 1, "cells": [
+        {"op": "eok", "parts": ["detail.rev"], "col": "tot"},
+        {"op": "eok", "parts": ["detail.cost"], "col": "tot"},
+        {"op": "eok", "parts": ["detail.op"], "col": "tot"},
+        {"op": "paren", "parts": ["detail.grant"], "sub": ["detail.reserve"], "col": "tot"},
+        {"op": "eok", "parts": ["detail.pretax"], "col": "tot"},
+        {"op": "eok", "parts": ["detail.tax"], "col": "tot"},
+        {"op": "eok", "parts": ["detail.net"], "col": "tot"}]},
+      {"row": 2, "cells": [
+        {"op": "eok", "parts": ["calc.rev"], "col": "tot"},
+        {"op": "eok", "parts": ["calc.cost"], "col": "tot"},
+        {"op": "eok", "parts": ["calc.op"], "col": "tot"},
+        {"op": "paren", "parts": ["calc.grant"], "sub": ["calc.reserve"], "col": "tot"},
+        {"op": "eok", "parts": ["calc.pretax"], "col": "tot"},
+        {"op": "eok", "parts": ["calc.tax"], "col": "tot"},
+        {"op": "eok", "parts": ["calc.net"], "col": "tot"}]}
+    ]},
+    {"ref": "C-2", "lines": [
+      {"row": 1, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.rev"]}},
+      {"row": 2, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.cost"]}},
+      {"row": 3, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.op"]}},
+      {"row": 4, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.grant", "detail.reserve"]}},
+      {"row": 5, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.pretax"]}},
+      {"row": 6, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.tax"]}},
+      {"row": 7, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["detail.net"]}},
+      {"row": 8, "cols": ["init","y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.npv"]}}
+    ]},
+    {"ref": "C-3", "lines": [
+      {"row": 1, "cols": ["y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.rev"]}},
+      {"row": 2, "cols": ["y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.cost"]}},
+      {"row": 3, "cols": ["y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.op"]}},
+      {"row": 4, "cols": ["y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.grant", "calc.reserve"]}},
+      {"row": 5, "cols": ["y1","y2","y3","y4","tot"], "spec": {"op": "eok", "parts": ["calc.unrecovered"]}}
+    ]},
+    {"ref": "C-4", "lines": [
+      {"row": 1, "cells": [{"op": "plain", "parts": ["judge.value"], "col": "payback"}]},
+      {"row": 2, "cells": [{"op": "eok",   "parts": ["judge.value"], "col": "npv"}]},
+      {"row": 3, "cells": [{"op": "plain", "parts": ["judge.value"], "col": "irr"}]}
+    ]}
   ]
 }

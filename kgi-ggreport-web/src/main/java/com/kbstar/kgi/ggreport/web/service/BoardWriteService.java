@@ -64,7 +64,8 @@ public class BoardWriteService {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("ref", t.getRef());
             m.put("sheet", t.getSheet());
-            m.put("range", t.getRange().formatAsString());
+            m.put("range", t.getRange() == null ? null : t.getRange().formatAsString());
+            m.put("kind", t.isNamed() ? "named" : "cell_range");
             tables.add(m);
         }
         Map<String, Object> out = new LinkedHashMap<>();
@@ -186,6 +187,9 @@ public class BoardWriteService {
             }
             Map<String, String> cells = t.getCells() == null ? new LinkedHashMap<String, String>() : t.getCells();
             for (String v : cells.values()) {
+                if (v != null && v.length() > BoardDocSpec.MAX_CELL) {   // 개인정보 정규식은 길이에 비례해 느려지므로 먼저 막는다(보안 점검)
+                    throw fail(400, "BAD_VALUE", "칸 문구는 " + BoardDocSpec.MAX_CELL + "자 이하로 입력해 주세요.");
+                }
                 for (Pii.Finding f : Pii.scan(v)) {
                     Integer n = kinds.get(f.getKind());
                     kinds.put(f.getKind(), n == null ? 1 : n + 1);

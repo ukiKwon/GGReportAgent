@@ -80,6 +80,36 @@ public class ApiExceptionHandlerTest {
     }
 
     @Test
+    public void 엑셀_업로드_413은_전역과_작성모드_중_작은_한도로_안내한다() {
+        org.springframework.mock.web.MockHttpServletRequest excel =
+                new org.springframework.mock.web.MockHttpServletRequest("POST", "/board-forms/default_doc/excel");
+        org.springframework.mock.web.MockHttpServletRequest other =
+                new org.springframework.mock.web.MockHttpServletRequest("POST", "/tasks/1/files");
+        org.springframework.web.multipart.MaxUploadSizeExceededException ex =
+                new org.springframework.web.multipart.MaxUploadSizeExceededException(-1);
+        assertEquals(1L, ((Number) ((Map<?, ?>) detail(new ApiExceptionHandler(false, "1MB", 5).handleUploadTooLarge(ex, excel))).get("max_mb")).longValue());
+        assertEquals(5L, ((Number) ((Map<?, ?>) detail(new ApiExceptionHandler(false, "50MB", 5).handleUploadTooLarge(ex, excel))).get("max_mb")).longValue());
+        assertEquals(50L, ((Number) ((Map<?, ?>) detail(new ApiExceptionHandler(false, "50MB", 5).handleUploadTooLarge(ex, other))).get("max_mb")).longValue());
+    }
+
+    @Test
+    public void 깨진_multipart는_400이고_파일명이_없다() {
+        ApiExceptionHandler h = new ApiExceptionHandler(false, "50MB", 5);
+        org.springframework.web.multipart.MultipartException ex =
+                new org.springframework.web.multipart.MultipartException("x secret.xlsx");
+        ResponseEntity<Map<String, Object>> excel = h.handleBadMultipart(ex,
+                new org.springframework.mock.web.MockHttpServletRequest("POST", "/board-forms/default_doc/excel"));
+        assertEquals(400, excel.getStatusCodeValue());
+        Map<?, ?> d = (Map<?, ?>) detail(excel);
+        assertEquals("BAD_REQUEST", d.get("code"));
+        assertFalse(String.valueOf(d).contains("secret"));
+        ResponseEntity<Map<String, Object>> other = h.handleBadMultipart(ex,
+                new org.springframework.mock.web.MockHttpServletRequest("POST", "/tasks/1/files"));
+        assertEquals(400, other.getStatusCodeValue());
+        assertEquals(ApiExceptionHandler.MSG_BAD_MULTIPART, detail(other));
+    }
+
+    @Test
     public void 개발축에서는_예외_원문을_싣는다() {
         ResponseEntity<Map<String, Object>> r = new ApiExceptionHandler(true)
                 .handleUnexpected(new IllegalStateException("boom"));

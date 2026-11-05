@@ -1,0 +1,25 @@
+{
+  "mapping_ver": 1,
+  "catalog_ver": 1,
+  "tables": [
+    {"ref": "A", "sheet": "기부금", "range": "A1:D5",
+     "labels": {"A1": "기관명", "B1": "구분", "C1": "제공금액", "B2": "출연금", "B3": "예비비",
+                "B4": "전산시스템 구축/운영비용", "B5": "합계"},
+     "cells": {"r1c0": "A2", "r1c2": "C2", "r2c1": "C3", "r3c1": "C4", "r4c1": "C5"},
+     "sums": [{"of": ["r1c2", "r2c1", "r3c1"], "total": "r4c1"}]},
+    {"ref": "B", "sheet": "수익성분석", "range": "A1:I3",
+     "labels": {"A1": "구분", "C1": "총기대수익", "I1": "순이익", "B2": "명목가치", "B3": "현재가치"},
+     "blocks": [{"key_row": 1, "seq": 2, "from": "C2", "rows": 1, "cols": 7},
+                {"key_row": 2, "seq": 1, "from": "C3", "rows": 1, "cols": 7}]},
+    {"ref": "C-2", "sheet": "수익성분석", "range": "A6:G14",
+     "labels": {"A6": "구분", "B6": "사업초기", "G6": "계", "A7": "총수익(A)", "A14": "순이익(현재가치(NPV)기준)"},
+     "blocks": [{"key_row": 1, "seq": 1, "from": "B7", "rows": 8, "cols": 6}]},
+    {"ref": "C-3", "sheet": "수익성분석", "range": "A17:F22",
+     "labels": {"A17": "구분", "B17": "1년차", "F17": "계", "A18": "총수익(A)", "A22": "미회수투자액(PV)"},
+     "blocks": [{"key_row": 1, "seq": 1, "from": "B18", "rows": 5, "cols": 5}]},
+    {"ref": "C-4", "sheet": "수익성분석", "range": "A25:C28",
+     "labels": {"A25": "구분", "B25": "산출값", "A26": "회수기간법(Payback Period)",
+                "A27": "순현재가치(NPV)", "A28": "내부수익률법(IRR)"},
+     "cells": {"r1c1": "B26", "r2c1": "B27", "r3c1": "B28"}}
+  ]
+}

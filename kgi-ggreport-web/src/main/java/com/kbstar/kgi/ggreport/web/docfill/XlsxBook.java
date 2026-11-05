@@ -150,11 +150,20 @@ public final class XlsxBook implements Closeable {
             return b;
         } catch (Rejected r) {
             throw r;
-        } catch (Exception e) {                                // InvalidFormat·IO·POIXML·Runtime
+        } catch (Exception | StackOverflowError e) {           // InvalidFormat·IO·POIXML·Runtime·깊은 중첩 XML
             if (pkg != null) {
                 pkg.revert();
             }
             throw new Rejected(422, "BROKEN", e.getClass().getSimpleName());
+        } catch (Error e) {                                    // NoClassDefFound·ExceptionInInitializer 등 = 서버 환경 문제 → 위로(500)
+            if (pkg != null && !(e instanceof OutOfMemoryError)) {
+                try {
+                    pkg.revert();
+                } catch (RuntimeException ignore) {
+                    // 정리 실패는 원래 오류를 가리지 않는다
+                }
+            }
+            throw e;
         }
     }
 
@@ -311,16 +320,42 @@ public final class XlsxBook implements Closeable {
         for (Pii.Finding f : Pii.scan(a)) {
             out.add(f.getKind());
         }
-        if (b != null && !b.equals(a)) {
-            for (Pii.Finding f : Pii.scan(b)) {
-                out.add(f.getKind());
+        if (b != null) {
+            int dot = b.indexOf('.');
+            String bb = dot < 0 ? b : b.substring(0, dot);        // 소수 원값의 소수부가 휴대폰 모양과 우연히 맞는 오탐 방지
+            if (!bb.equals(a)) {
+                for (Pii.Finding f : Pii.scan(bb)) {
+                    out.add(f.getKind());
+                }
             }
         }
         return out;
     }
 
+    /** 수식 글자는 밖으로 내보내지 않고 외부 통합문서 참조('[' 포함) 여부만. 읽다가 실패하면 외부 참조로 본다(보수적). */
+    public boolean hasExternalRef(Sheet s, int row, int col) {
+        Row r = s.getRow(row);
+        Cell c = r == null ? null : r.getCell(col);
+        if (c == null || c.getCellType() != CellType.FORMULA) {
+            return false;
+        }
+        try {
+            return c.getCellFormula().indexOf('[') >= 0;
+        } catch (RuntimeException | StackOverflowError e) {
+            return true;
+        }
+    }
+
     /** 출처 격자: 범위 안 표시값(칸당 200자 자름)·병합. */
     public Map<String, Object> grid(String sheetName, CellRangeAddress range) {
+        return grid(sheetName, range, null, null);
+    }
+
+    /**
+     * 출처 격자 — 지도가 쓰지 않는 열·숨은 행의 값은 싣지 않고 ""로 가린다(자리는 유지).
+     * showCols 가 null 이면 모든 열, 아니면 그 집합의 열만. usedRows 는 숨은 행이어도 지도가 읽은 행(값을 싣는다).
+     */
+    public Map<String, Object> grid(String sheetName, CellRangeAddress range, Set<Integer> showCols, Set<Integer> usedRows) {
         Sheet s = wb.getSheet(sheetName);
         List<String> cols = new ArrayList<>();
         for (int c = range.getFirstColumn(); c <= range.getLastColumn(); c++) {
@@ -328,9 +363,11 @@ public final class XlsxBook implements Closeable {
         }
         List<List<String>> rows = new ArrayList<>();
         for (int r = range.getFirstRow(); r <= range.getLastRow(); r++) {
+            boolean maskRow = usedRows != null && rowHidden(s, r) && !usedRows.contains(r);
             List<String> row = new ArrayList<>();
             for (int c = range.getFirstColumn(); c <= range.getLastColumn(); c++) {
-                Value v = value(s, r, c);
+                boolean mask = maskRow || (showCols != null && !showCols.contains(c));
+                Value v = mask ? Value.EMPTY : value(s, r, c);
                 String d = v.problem == null ? v.display : "";
                 row.add(d.length() > GRID_CLIP ? d.substring(0, GRID_CLIP) : d);
             }
