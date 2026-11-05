@@ -159,6 +159,12 @@ function main() {
     log('사용 중(' + busyReason() + ') — 푸시 일정을 20분 미룸(' + n + '번째), 20분 뒤 다시 확인'); sleepSync(DEFER_MS);
   }
 
+  // 기다리는 사이 사용자가 브랜치를 바꿨을 수 있다 — 커밋 전에 다시 확인한다(보안 점검 2026-11-05).
+  const branchNow = git('rev-parse', '--abbrev-ref', 'HEAD').stdout.trim();
+  if (branchNow !== branch || PROTECTED.includes(branchNow) || branchNow === 'HEAD') {
+    log(`대기 중 브랜치가 바뀌었거나 보호 브랜치라 중단: ${branch} → ${branchNow}`); return;
+  }
+
   log('마무리 시작 (청소부 출근)');
   try { setCleaner(true); } catch (e) { log('대시보드 갱신 실패: ' + e.message); }
   let subject = 'chore: 18:00 자동 마무리';
