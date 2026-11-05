@@ -52,7 +52,54 @@ public class BoardExcelMapTest {
             n += t.getCells().size();
         }
         assertEquals(95, n);
-        assertEquals("C3", m.table("A").getCells().get("r2c1").formatAsString());
+        assertEquals("C3", m.table("A").getCells().get("r2_c2").formatAsString());       // 옛 지도의 r2c1 이 새 key 로 번역됐다
+    }
+
+    @Test
+    public void 번역_전후_엑셀_연결_칸이_1대1로_같다_옛_지도_현재_지도_카탈로그() {
+        BoardExcelMap legacy = BoardExcelFixture.legacyMap();       // mapping_ver 1, 옛 key(r{행}c{순번}) 로 적힌 지도
+        BoardExcelMap cur = new BoardExcelMap();                    // 실제 excel-map.json(수정 없음) — 기동 검증을 통과해야 한다
+        assertEquals(2, cur.getMappingVer());
+        int total = 0;
+        for (BoardDocSpec.Table cat : BoardDocSpec.catalog(false)) {
+            java.util.Set<String> mapped = BoardDocSpec.mappedKeys(cat);
+            assertEquals(cat.getId(), mapped, legacy.table(cat.getId()).getCells().keySet());
+            assertEquals(cat.getId(), mapped, cur.table(cat.getId()).getSpecs().keySet());
+            for (String k : mapped) {
+                assertTrue(k, BoardDocSpec.isValidCellKey(k));
+            }
+            total += mapped.size();
+        }
+        assertEquals(95, total);
+        // 표 A: 기관명 r1_c0, 출연금 r1_c2, 예비비 r2_c2, 전산 r3_c2, 합계 r4_c2
+        assertEquals(new java.util.LinkedHashSet<>(java.util.Arrays.asList("r1_c0", "r1_c2", "r2_c2", "r3_c2", "r4_c2")),
+                legacy.table("A").getCells().keySet());
+        // 합계 관계(of/total)도 같은 새 key 로
+        for (BoardExcelMap m : new BoardExcelMap[]{legacy, cur}) {
+            assertEquals(1, m.table("A").getSums().size());
+            assertEquals("r4_c2", m.table("A").getSums().get(0).getTotal());
+            assertEquals(java.util.Arrays.asList("r1_c2", "r2_c2", "r3_c2"), m.table("A").getSums().get(0).getOf());
+        }
+        // 블록으로 적힌 표(B: 옛 key_row/seq)도 같은 칸 → 같은 엑셀 주소
+        assertEquals("C2", legacy.table("B").getCells().get("r1_c2").formatAsString());
+        assertEquals("I2", legacy.table("B").getCells().get("r1_c8").formatAsString());
+        assertEquals("C3", legacy.table("B").getCells().get("r2_c2").formatAsString());
+        assertEquals("I3", legacy.table("B").getCells().get("r2_c8").formatAsString());
+    }
+
+    @Test
+    public void 번역할_수_없는_key가_있는_지도는_기동_실패() throws Exception {
+        ObjectNode root = raw();
+        cellsOf(root, "C-4").remove("r1c1");
+        cellsOf(root, "C-4").put("r1c9", "B26");                 // 카탈로그에 없는 순번
+        expectInvalid(root);
+        root = raw();
+        cellsOf(root, "C-4").remove("r1c1");
+        cellsOf(root, "C-4").put("r01c1", "B26");                // 정규형이 아닌 key
+        expectInvalid(root);
+        root = raw();
+        ((ObjectNode) tableOf(root, "A").get("sums").get(0)).put("total", "r9c9");   // 합계 key 가 번역 불가
+        expectInvalid(root);
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.kbstar.kgi.ggreport.web.boarddoc;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -9,6 +11,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * 이사회 자료 양식의 표 정의. JSON(화면 HTML 표)과 docx(POI)가 같은 객체를 쓴다.
@@ -39,37 +42,57 @@ public final class BoardDocSpec {
         private final boolean header;
         private final boolean mapped;
         private final String align;
-        private final String key;
+        private final boolean input;
+        private final String rowId;
+        private final String colId;
 
         Cell(String text, int colspan, int rowspan, boolean header, boolean mapped, String align) {
-            this(text, colspan, rowspan, header, mapped, align, null);
+            this(text, colspan, rowspan, header, mapped, align, false, null, null);
         }
 
-        private Cell(String text, int colspan, int rowspan, boolean header, boolean mapped, String align, String key) {
+        private Cell(String text, int colspan, int rowspan, boolean header, boolean mapped, String align,
+                     boolean input, String rowId, String colId) {
             this.text = text;
             this.colspan = colspan;
             this.rowspan = rowspan;
             this.header = header;
             this.mapped = mapped;
             this.align = align;
-            this.key = key;
+            this.input = input;
+            this.rowId = rowId;
+            this.colId = colId;
         }
 
         Cell span(int cs, int rs) {
-            return new Cell(text, cs, rs, header, mapped, align, key);
+            return new Cell(text, cs, rs, header, mapped, align, input, rowId, colId);
         }
 
-        Cell withKey(String k) {
-            return new Cell(text, colspan, rowspan, header, mapped, align, k);
+        /** 행·열 id 를 붙인 사본(Table 생성자가 부여). */
+        Cell withIds(String r, String c) {
+            return new Cell(text, colspan, rowspan, header, mapped, align, input, r, c);
         }
 
-        /** 칸 주소표 r{행}c{순번}. Table 에 들어가면 항상 채워진다(Table 생성자가 부여). */
-        public String getKey() { return key; }
+        /** 문구만 바꾼 사본(나머지 속성·id 유지). */
+        Cell withText(String t) {
+            return new Cell(t, colspan, rowspan, header, mapped, align, input, rowId, colId);
+        }
+
+        /** 사용자가 직접 값을 적는 칸 표시만 바꾼 사본(PR-1 카탈로그에는 없다). */
+        Cell withInput(boolean in) {
+            return new Cell(text, colspan, rowspan, header, mapped, align, in, rowId, colId);
+        }
+
+        /** 칸 주소표 r{행id}_c{열id}(예 r1_c2). 병합 칸은 앵커(왼쪽 위) 칸의 행id/열id. Table 에 들어가면 항상 채워진다. */
+        public String getKey() { return rowId == null || colId == null ? null : cellKey(rowId, colId); }
+        public String getRowId() { return rowId; }
+        public String getColId() { return colId; }
         public String getText() { return text; }
         public int getColspan() { return colspan; }
         public int getRowspan() { return rowspan; }
         public boolean isHeader() { return header; }
         public boolean isMapped() { return mapped; }
+        /** 사용자가 직접 입력하는 값 칸(엑셀 연결 없음). */
+        public boolean isInput() { return input; }
         public String getAlign() { return align; }
     }
 
@@ -81,27 +104,58 @@ public final class BoardDocSpec {
         private final List<List<Cell>> rows;
         private final List<String> notes;
         private final String unit;
+        private final List<String> rowIds;
+        private final List<String> colIds;
+        private final int nextR;
+        private final int nextC;
 
+        /** 카탈로그 기본 생성자: 행 id = r{원래 행번호}, 열 id = c{격자 열번호}, 새 id 카운터는 FIRST_NEW_ID 부터. */
         Table(String id, String mapping, String title, int columns, List<List<Cell>> rows, String... notes) {
+            this(id, mapping, title, columns, sequentialIds("r", rows.size()), sequentialIds("c", columns),
+                    FIRST_NEW_ID, FIRST_NEW_ID, rows, notes);
+        }
+
+        /**
+         * 명시 id 생성자: 카탈로그에 열/행을 나중에 더할 때(기존 id 는 그대로, 새 칸은 새 id) 또는 저장본을 복원할 때 쓴다.
+         * rowIds.size()==rows.size(), colIds.size()==columns, id 는 r/c + 0~9999 정규형이며 중복 없음,
+         * nextR/nextC 는 쓰인 숫자보다 크고 10000 이하(재사용 금지 카운터). 위반이면 IllegalStateException.
+         */
+        Table(String id, String mapping, String title, int columns, List<String> rowIds, List<String> colIds,
+              int nextR, int nextC, List<List<Cell>> rows, String... notes) {
             this.id = id;
             this.unit = unitOf(id);             // 읽기 전용: 표 id 로만 정해지고 사용자 입력으로 바뀌지 않는다
             this.mapping = mapping;
             this.title = title;
             this.columns = columns;
+            checkIds(id, rowIds, rows.size(), nextR, true);
+            checkIds(id, colIds, columns, nextC, false);
+            this.rowIds = Collections.unmodifiableList(new ArrayList<>(rowIds));
+            this.colIds = Collections.unmodifiableList(new ArrayList<>(colIds));
+            this.nextR = nextR;
+            this.nextC = nextC;
+            int[][] start = layoutOf(id, columns, rows);     // 병합 규칙 위반이면 만들 때 바로 실패
             List<List<Cell>> keyed = new ArrayList<>();
             for (int r = 0; r < rows.size(); r++) {
                 List<Cell> kr = new ArrayList<>();
                 for (int i = 0; i < rows.get(r).size(); i++) {
-                    kr.add(rows.get(r).get(i).withKey(cellKey(r, i)));
+                    kr.add(rows.get(r).get(i).withIds(rowIds.get(r), colIds.get(start[r][i])));
                 }
                 keyed.add(Collections.unmodifiableList(kr));
             }
             this.rows = Collections.unmodifiableList(keyed);
             this.notes = Collections.unmodifiableList(Arrays.asList(notes));
-            layout(this);                       // 병합 규칙 위반이면 만들 때 바로 실패
         }
 
         public String getId() { return id; }
+        /** 행 id 목록(행 순서). 카탈로그 행은 r{원래 행번호}. */
+        public List<String> getRowIds() { return rowIds; }
+        /** 열 id 목록(격자 열 순서). 카탈로그 열은 c{원래 격자 열번호}. */
+        public List<String> getColIds() { return colIds; }
+        /** 다음에 발급할 새 행/열 숫자(재사용 금지 카운터). 응답에는 싣지 않는다. */
+        @JsonIgnore
+        public int getNextR() { return nextR; }
+        @JsonIgnore
+        public int getNextC() { return nextC; }
         public String getMapping() { return mapping; }
         public String getTitle() { return title; }
         public int getColumns() { return columns; }
@@ -139,12 +193,16 @@ public final class BoardDocSpec {
      * docx 생성기도 이 결과를 쓴다.
      */
     public static int[][] layout(Table t) {
-        int rowsN = t.rows.size();
-        int cols = t.columns;
+        return layoutOf(t.id, t.columns, t.rows);
+    }
+
+    /** layout 의 본체 — Table 을 만들기 전(id 부여 전)에도 쓰려고 값만 받는다. */
+    private static int[][] layoutOf(String tableId, int cols, List<List<Cell>> rowList) {
+        int rowsN = rowList.size();
         boolean[][] used = new boolean[rowsN][cols];
         int[][] start = new int[rowsN][];
         for (int r = 0; r < rowsN; r++) {
-            List<Cell> row = t.rows.get(r);
+            List<Cell> row = rowList.get(r);
             start[r] = new int[row.size()];
             int c = 0;
             for (int i = 0; i < row.size(); i++) {
@@ -153,12 +211,12 @@ public final class BoardDocSpec {
                     c++;
                 }
                 if (cell.colspan < 1 || cell.rowspan < 1 || c + cell.colspan > cols || r + cell.rowspan > rowsN) {
-                    throw new IllegalStateException("table " + t.id + " layout out of range");
+                    throw new IllegalStateException("table " + tableId + " layout out of range");
                 }
                 for (int dr = 0; dr < cell.rowspan; dr++) {
                     for (int dc = 0; dc < cell.colspan; dc++) {
                         if (used[r + dr][c + dc]) {
-                            throw new IllegalStateException("table " + t.id + " layout overlap");
+                            throw new IllegalStateException("table " + tableId + " layout overlap");
                         }
                         used[r + dr][c + dc] = true;
                     }
@@ -168,7 +226,7 @@ public final class BoardDocSpec {
             }
             for (; c < cols; c++) {
                 if (!used[r][c]) {
-                    throw new IllegalStateException("table " + t.id + " row " + r + " not filled");
+                    throw new IllegalStateException("table " + tableId + " row " + r + " not filled");
                 }
             }
         }
@@ -179,6 +237,12 @@ public final class BoardDocSpec {
 
     /** 카탈로그(표 목록·구조·셀 키)가 바뀌면 올린다. 버전 행의 CATALOG_VER 와 달라지면 응답이 낡았다고 알린다. */
     public static final int CATALOG_VER = 1;
+    /** 저장 JSON 형식 번호(칸 key 가 r{행id}_c{열id}인 구조 저장). 카탈로그 버전과 별개다 — 이 값만 바뀌면 CATALOG_VER 는 그대로. */
+    public static final int FORM_FMT = 2;
+    /** 사용자가 만든 행/열 id 의 시작 숫자(카탈로그 id 는 이보다 작다). 지운 id 는 재사용하지 않는다. */
+    public static final int FIRST_NEW_ID = 100;
+    /** id 숫자 상한(정규형 최대 4자리). 카운터는 이 값+1 까지 갈 수 있다. */
+    public static final int MAX_ID_NUM = 9999;
     public static final int MAX_NAME = 60;
     public static final int MAX_TITLE = 100;
     public static final int MAX_CELL = 100;
@@ -200,19 +264,93 @@ public final class BoardDocSpec {
         return null;
     }
 
-    /** 칸 키: r{행}c{그 행에서 보이는 셀의 순번}. 병합으로 가려진 칸은 rows 에 없으므로 번호도 없다. */
-    public static String cellKey(int row, int seq) {
-        return "r" + row + "c" + seq;
+    private static final Pattern ROW_ID = Pattern.compile("^r(0|[1-9][0-9]{0,3})$");
+    private static final Pattern COL_ID = Pattern.compile("^c(0|[1-9][0-9]{0,3})$");
+    private static final Pattern CELL_KEY = Pattern.compile("^r(0|[1-9][0-9]{0,3})_c(0|[1-9][0-9]{0,3})$");
+
+    /** 행 id 정규형: r + (0 또는 앞자리 0 없는 1~4자리 숫자). 구조 편집(PR-2)이 입력 id 를 이 함수로 거른다. */
+    public static boolean isValidRowId(String s) {
+        return s != null && ROW_ID.matcher(s).matches();
     }
 
-    /** 편집할 수 있는 칸 키(매핑 값 칸이 아닌 칸). */
+    /** 열 id 정규형: c + (0 또는 앞자리 0 없는 1~4자리 숫자). */
+    public static boolean isValidColId(String s) {
+        return s != null && COL_ID.matcher(s).matches();
+    }
+
+    /** 칸 key 정규형 r{행id숫자}_c{열id숫자}. */
+    public static boolean isValidCellKey(String s) {
+        return s != null && CELL_KEY.matcher(s).matches();
+    }
+
+    /** id 의 숫자 부분(정규형일 때만 호출). */
+    static int idNum(String id) {
+        return Integer.parseInt(id.substring(1));
+    }
+
+    /** 칸 키 = 행 id + "_" + 열 id. 예) ("r1","c2") → "r1_c2". 병합 칸은 앵커(왼쪽 위) 칸의 행id/열id. */
+    public static String cellKey(String rowId, String colId) {
+        return rowId + "_" + colId;
+    }
+
+    /** r{prefix}0..r{prefix}{n-1} 형태의 카탈로그 기본 id 목록. */
+    private static List<String> sequentialIds(String prefix, int n) {
+        List<String> out = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            out.add(prefix + i);
+        }
+        return out;
+    }
+
+    /** id 목록 검증(개수·정규형·중복·카운터). 값은 메시지에 싣지 않는다. */
+    private static void checkIds(String tableId, List<String> ids, int expected, int next, boolean row) {
+        if (ids == null || ids.size() != expected || next < 1 || next > MAX_ID_NUM + 1) {
+            throw new IllegalStateException("table " + tableId + " ids invalid");
+        }
+        Set<String> seen = new HashSet<>();
+        for (String id : ids) {
+            if (!(row ? isValidRowId(id) : isValidColId(id)) || !seen.add(id) || idNum(id) >= next) {
+                throw new IllegalStateException("table " + tableId + " ids invalid");
+            }
+        }
+    }
+
+    /**
+     * 옛 key(r{행}c{순번}, 얼린 번역표)를 새 key 로. catalogVer 별 상수라 카탈로그가 바뀌어도 결과가 같다.
+     * 모르는 버전·표·위치·모양이면 null(호출자가 닫힌 실패).
+     */
+    public static String legacyToKey(int catalogVer, String ref, String oldKey) {
+        return BoardLegacyKeys.toKey(catalogVer, ref, oldKey);
+    }
+
+    /** 옛 모양이면 번역하고, 이미 새 정규형이면 그대로, 그 밖이면 null. */
+    public static String resolveKey(int catalogVer, String ref, String key) {
+        if (BoardLegacyKeys.isLegacyShape(key)) {
+            return legacyToKey(catalogVer, ref, key);
+        }
+        return isValidCellKey(key) ? key : null;
+    }
+
+    /** 편집할 수 있는 칸 키(PR-1: 엑셀 연결 칸이 아닌 칸). */
     public static Set<String> editableKeys(Table t) {
         Set<String> out = new LinkedHashSet<>();
-        for (int r = 0; r < t.getRows().size(); r++) {
-            List<Cell> row = t.getRows().get(r);
-            for (int i = 0; i < row.size(); i++) {
-                if (!row.get(i).isMapped()) {
-                    out.add(cellKey(r, i));
+        for (List<Cell> row : t.getRows()) {
+            for (Cell c : row) {
+                if (!c.isMapped()) {
+                    out.add(c.getKey());
+                }
+            }
+        }
+        return out;
+    }
+
+    /** 엑셀 연결 칸 키 집합(카탈로그 표 기준). 엑셀 지도 기동 검증이 쓴다. */
+    public static Set<String> mappedKeys(Table t) {
+        Set<String> out = new LinkedHashSet<>();
+        for (List<Cell> row : t.getRows()) {
+            for (Cell c : row) {
+                if (c.isMapped()) {
+                    out.add(c.getKey());
                 }
             }
         }
@@ -293,16 +431,17 @@ public final class BoardDocSpec {
                 for (int i = 0; i < src.size(); i++) {
                     Cell c = src.get(i);
                     String text = c.getText();
-                    String key = cellKey(r, i);
+                    String key = c.getKey();
                     if (!c.isMapped() && e.getCells().containsKey(key)) {
                         text = clean(e.getCells().get(key), MAX_CELL, true, null,
                                 "칸 문구는 " + MAX_CELL + "자 이하로 입력해 주세요.", "칸 문구에 쓸 수 없는 문자가 있습니다.");
                     }
-                    dst.add(new Cell(text, c.getColspan(), c.getRowspan(), c.isHeader(), c.isMapped(), c.getAlign()));
+                    dst.add(c.withText(text));
                 }
                 rows.add(dst);
             }
-            out.add(new Table(base.getId(), base.getMapping(), title, base.getColumns(), rows,
+            out.add(new Table(base.getId(), base.getMapping(), title, base.getColumns(),
+                    base.getRowIds(), base.getColIds(), base.getNextR(), base.getNextC(), rows,
                     base.getNotes().toArray(new String[0])));
         }
         return new Doc(id, name, out.toArray(new Table[0]));
@@ -335,7 +474,7 @@ public final class BoardDocSpec {
                 List<Cell> dst = new ArrayList<>();
                 for (int i = 0; i < t.getRows().get(r).size(); i++) {
                     Cell c = t.getRows().get(r).get(i);
-                    String key = cellKey(r, i);
+                    String key = c.getKey();
                     String text = c.getText();
                     if (c.isMapped()) {
                         mapped.add(key);
@@ -343,20 +482,25 @@ public final class BoardDocSpec {
                         text = v == null ? "" : clean(v, MAX_CELL, true, null,
                                 "칸 값은 " + MAX_CELL + "자 이하로 입력해 주세요.", "칸 값에 쓸 수 없는 문자가 있습니다.");
                     }
-                    dst.add(new Cell(text, c.getColspan(), c.getRowspan(), c.isHeader(), c.isMapped(), c.getAlign()));
+                    dst.add(c.withText(text));
                 }
                 rows.add(dst);
             }
             if (!mapped.containsAll(cells.keySet())) {
                 throw new EditException("값을 넣을 수 없는 칸이 포함되어 있습니다.");
             }
-            out.add(new Table(t.getId(), t.getMapping(), t.getTitle(), t.getColumns(), rows,
+            out.add(new Table(t.getId(), t.getMapping(), t.getTitle(), t.getColumns(),
+                    t.getRowIds(), t.getColIds(), t.getNextR(), t.getNextC(), rows,
                     t.getNotes().toArray(new String[0])));
         }
         return new Doc(doc.getId(), doc.getName(), out.toArray(new Table[0]));
     }
 
-    /** 제어문자(줄바꿈·탭 포함)·짝 없는 서로게이트·U+FFFE/FFFF 거부 후 앞뒤 공백 제거, 길이 검사. */
+    /**
+     * 제어문자(줄바꿈·탭 포함)·서식 문자(Cf: U+202E 방향 바꿈, U+200B 폭 없는 공백, U+FEFF 등 — ZWJ U+200D 도 포함해 모두)·
+     * 짝 없는 서로게이트·U+FFFE/FFFF 거부 후 앞뒤 공백 제거, 길이 검사.
+     * 눈에 안 보이거나 화면·워드 표시를 뒤집는 글자로 칸 문구를 위장하는 것을 막는다. 오류 문구는 고정(입력을 싣지 않는다).
+     */
     private static String clean(String raw, int max, boolean allowEmpty, String emptyMsg, String longMsg, String badMsg) {
         if (raw == null) {
             throw new EditException(emptyMsg);
@@ -366,7 +510,9 @@ public final class BoardDocSpec {
             i += Character.charCount(cp);
             int type = Character.getType(cp);
             if (type == Character.CONTROL || type == Character.SURROGATE || type == Character.LINE_SEPARATOR
-                    || type == Character.PARAGRAPH_SEPARATOR || cp == 0xFFFE || cp == 0xFFFF) {
+                    || type == Character.PARAGRAPH_SEPARATOR || type == Character.FORMAT
+                    || cp == 0xFFFE || cp == 0xFFFF
+                    || (cp >= 0x2066 && cp <= 0x2069) || cp == 0x061C) {   // Java 8 의 유니코드 표는 방향 격리 문자(Cf)를 아직 모른다
                 throw new EditException(badMsg);
             }
         }

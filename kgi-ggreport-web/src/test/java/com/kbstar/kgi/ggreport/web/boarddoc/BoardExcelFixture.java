@@ -104,10 +104,16 @@ public final class BoardExcelFixture {
         return r.getCell(at.getCol()) != null ? r.getCell(at.getCol()) : r.createCell(at.getCol());
     }
 
-    /** "r{행}c{순번}" → 카탈로그 샘플 문구. */
+    /** 칸 key("r{행id}_c{열id}") → 카탈로그 샘플 문구. */
     public static String sample(BoardDocSpec.Table t, String key) {
-        int c = key.indexOf('c');
-        return t.getRows().get(Integer.parseInt(key.substring(1, c))).get(Integer.parseInt(key.substring(c + 1))).getText();
+        for (List<BoardDocSpec.Cell> row : t.getRows()) {
+            for (BoardDocSpec.Cell c : row) {
+                if (key.equals(c.getKey())) {
+                    return c.getText();
+                }
+            }
+        }
+        throw new AssertionError("cell not found " + key);
     }
 
     /** zip 에 entry 를 더한다(매크로·폭탄 변형용). */

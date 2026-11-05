@@ -9,11 +9,13 @@ import com.kbstar.kgi.ggreport.web.dto.BoardFormIn;
 import com.kbstar.kgi.ggreport.web.mapper.BoardFormMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.support.ApproverRules;
+import com.kbstar.kgi.ggreport.web.support.Pii;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,9 +34,16 @@ public class BoardFormService {
     static final String MENU_KEY = "tasks";
     static final String ACTIVE = "ACTIVE";
     static final String ARCHIVED = "ARCHIVED";
-    static final int MAX_JSON = 60000;
+    /**
+     * 저장 JSON 상한(UTF-8 바이트). 글자 수가 아니라 바이트로 센다 — 구조(fmt 2)·옛 cells 병기까지 담겨도
+     * 정상 입력(칸 문구 100자 × 카탈로그 151칸, 이스케이프 포함)이 거부되지 않을 만큼 넉넉히 잡고, 그 너머만 막는다.
+     * 칸 수·글자 수는 build 가 이미 제한한다(칸 문구 100자, 구조는 카탈로그 고정). PUT 본문은 필터가 512KB 로 먼저 막는다.
+     */
+    static final int MAX_JSON_BYTES = 240000;
 
     static final String NOT_FOUND = "양식을 찾을 수 없습니다.";
+    static final String BAD_FMT = "지원하지 않는 양식 저장 형식입니다.";
+    static final String PII_FOUND = "개인정보로 보이는 값이 있어 저장하지 않았습니다. 해당 문구를 지우고 다시 저장해 주세요.";
     static final String CONFLICT = "다른 사람이 먼저 저장했습니다. 새로 고친 뒤 다시 편집해 주세요.";
     static final String DUP_NAME = "이미 같은 이름의 양식이 있습니다.";
 
@@ -170,6 +179,7 @@ public class BoardFormService {
         }
         String team = teamOf(empNo);
         String name = validName(in.getName());
+        rejectPii(name);
         String baseDoc;
         BoardDocSpec.Doc source;
         if (in.getSourceFormId() != null) {
@@ -214,19 +224,26 @@ public class BoardFormService {
         if (in == null || in.getBaseVersion() == null) {
             throw ApiException.badRequest("기준 버전(base_version)이 필요합니다.");
         }
+        if (!supportedFmt(in.getFmt())) {
+            throw ApiException.badRequest(BAD_FMT);        // 모르는 형식 번호 — 입력값은 되돌려 싣지 않는다
+        }
         if (in.getBaseVersion().intValue() != f.getCurrentVer()) {
             throw new ApiException(409, CONFLICT);
         }
         String name = in.getName() == null ? f.getName() : validName(in.getName());
+        rejectPii(name);
         checkNameFree(f.getTeamKey(), name, f.getFormId());
         BoardDocSpec.Doc doc = buildDoc("form_" + f.getFormId(), name, toEdits(in.getTables()), false);
+        rejectPii(doc);
         String json = BoardFormJson.toJson(doc);
-        if (json.length() > MAX_JSON) {
+        if (json.getBytes(StandardCharsets.UTF_8).length > MAX_JSON_BYTES) {
             throw ApiException.badRequest("양식 내용이 너무 큽니다.");
         }
+        verifyRoundTrip(name, json);
         BoardFormVer cur = forms.selectVersion(f.getFormId(), f.getCurrentVer());
-        if (cur != null && json.equals(cur.getSpecJson()) && name.equals(cur.getName())
-                && cur.getCatalogVer() == BoardDocSpec.CATALOG_VER) {
+        // 옛 포맷(fmt 없음)으로 저장된 현재 버전도 같은 내용이면 '바뀐 것 없음' — 현재 버전을 새 포맷으로 정규화해서 비교한다.
+        if (cur != null && name.equals(cur.getName()) && cur.getCatalogVer() == BoardDocSpec.CATALOG_VER
+                && json.equals(normalizedJson(f, cur))) {
             Map<String, Object> same = view(f, cur, true, true);
             same.put("changed", false);
             return same;
@@ -317,6 +334,59 @@ public class BoardFormService {
             return BoardDocSpec.build("form_" + f.getFormId(), v.getName(), BoardFormJson.parse(v.getSpecJson()), sample);
         } catch (BoardDocSpec.EditException e) {
             throw new IllegalStateException("stored board form is not valid");
+        }
+    }
+
+    /** 현재 버전을 읽어 새 포맷 JSON 으로 다시 쓴 것. 읽을 수 없으면 null(= 같지 않음 → 저장하면 새 버전이 읽을 수 있는 상태로 만든다). */
+    private String normalizedJson(BoardForm f, BoardFormVer cur) {
+        try {
+            return BoardFormJson.toJson(docOf(f, cur, false));
+        } catch (IllegalStateException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 저장 직전 한 번 왕복: 방금 만든 JSON 을 parse → build → toJson 했을 때 똑같아야 한다.
+     * 아니면 읽을 수 없는/다르게 읽히는 버전이 저장될 뻔한 것이므로 서버 결함(500)으로 막는다.
+     */
+    private static void verifyRoundTrip(String name, String json) {
+        try {
+            BoardDocSpec.Doc again = BoardDocSpec.build("rt", name, BoardFormJson.parse(json), false);
+            if (json.equals(BoardFormJson.toJson(again))) {
+                return;
+            }
+        } catch (RuntimeException e) {
+            // 아래에서 고정 문구로 던진다
+        }
+        throw new IllegalStateException("board form round trip failed");
+    }
+
+    /** 요청 fmt: 생략(null) 또는 정수 1·2 만 허용. */
+    static boolean supportedFmt(Object fmt) {
+        if (fmt == null) {
+            return true;
+        }
+        return fmt instanceof Integer && (((Integer) fmt).intValue() == 1 || ((Integer) fmt).intValue() == BoardDocSpec.FORM_FMT);
+    }
+
+    private static void rejectPii(String text) {
+        if (text != null && !Pii.scan(text).isEmpty()) {
+            throw new ApiException(422, PII_FOUND);
+        }
+    }
+
+    /** 제목·사용자가 쓴 칸 문구(엑셀 연결 칸 제외)에 개인정보가 있으면 422 고정 문구. 검출값은 싣지 않는다. */
+    private static void rejectPii(BoardDocSpec.Doc doc) {
+        for (BoardDocSpec.Table t : doc.getTables()) {
+            rejectPii(t.getTitle());
+            for (List<BoardDocSpec.Cell> row : t.getRows()) {
+                for (BoardDocSpec.Cell c : row) {
+                    if (!c.isMapped()) {
+                        rejectPii(c.getText());
+                    }
+                }
+            }
         }
     }
 
@@ -415,6 +485,8 @@ public class BoardFormService {
             tm.put("mapping", t.getMapping());
             tm.put("title", t.getTitle());
             tm.put("columns", t.getColumns());
+            tm.put("row_ids", new ArrayList<>(t.getRowIds()));
+            tm.put("col_ids", new ArrayList<>(t.getColIds()));
             List<List<Map<String, Object>>> rows = new ArrayList<>();
             for (int r = 0; r < t.getRows().size(); r++) {
                 List<BoardDocSpec.Cell> src = t.getRows().get(r);
@@ -422,14 +494,17 @@ public class BoardFormService {
                 for (int i = 0; i < src.size(); i++) {
                     BoardDocSpec.Cell c = src.get(i);
                     Map<String, Object> cm = new LinkedHashMap<>();
-                    cm.put("key", BoardDocSpec.cellKey(r, i));
+                    cm.put("key", c.getKey());
+                    cm.put("row_id", c.getRowId());
+                    cm.put("col_id", c.getColId());
                     cm.put("text", c.getText());
                     cm.put("colspan", c.getColspan());
                     cm.put("rowspan", c.getRowspan());
                     cm.put("header", c.isHeader());
                     cm.put("mapped", c.isMapped());
+                    cm.put("input", c.isInput());
                     cm.put("align", c.getAlign());
-                    cm.put("editable", !c.isMapped());
+                    cm.put("editable", !c.isMapped());      // PR-1: 구조 편집 전이라 기존과 같다(연결 칸만 잠김)
                     row.add(cm);
                 }
                 rows.add(row);

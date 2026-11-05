@@ -41,7 +41,8 @@ public class BoardExcelNamedMapTest {
         assertNull(m.table("C-4").getRange());
         assertEquals(3, m.table("C-4").getSpecs().size());
         assertEquals(1, m.table("A").getSums().size());
-        assertEquals("r4c1", m.table("A").getSums().get(0).getTotal());
+        assertEquals("r4_c2", m.table("A").getSums().get(0).getTotal());        // 지도 파일의 옛 key 가 새 key 로 번역된다
+        assertEquals(java.util.Arrays.asList("r1_c2", "r2_c2", "r3_c2"), m.table("A").getSums().get(0).getOf());
     }
 
     @Test
@@ -123,6 +124,18 @@ public class BoardExcelNamedMapTest {
         r = root();
         ((ArrayNode) cellSpec(r, "A", 4, 0).get("of")).removeAll().add("r1c0").add("r1c2");   // r1c0 = manual
         expectInvalid(r);
+    }
+
+    @Test
+    public void derive의_of_key가_번역_불가_모양이면_기동_실패() {
+        for (String bad : new String[]{"r9c9", "r01c2", "x", "r1c2 ", "r1_c9"}) {
+            ObjectNode r = root();
+            ((ArrayNode) cellSpec(r, "A", 4, 0).get("of")).removeAll().add("r1c2").add(bad);
+            expectInvalid(r);
+        }
+        ObjectNode ok = root();                                                 // 새 정규형으로 적어도 같은 칸이면 통과
+        ((ArrayNode) cellSpec(ok, "A", 4, 0).get("of")).removeAll().add("r1_c2").add("r2c1").add("r3_c2");
+        assertEquals(java.util.Arrays.asList("r1_c2", "r2_c2", "r3_c2"), new BoardExcelMap(ok).table("A").getSums().get(0).getOf());
     }
 
     @Test
@@ -227,6 +240,6 @@ public class BoardExcelNamedMapTest {
             n += t.getSpecs().size();
         }
         assertEquals(95, n);                                                    // 카탈로그 매핑 칸(S5 전이라 C-3 에 사업초기 열 없음)
-        assertEquals("tot", m.table("C-3").getSpecs().get("r5c5").main.get(0).col);
+        assertEquals("tot", m.table("C-3").getSpecs().get("r5_c5").main.get(0).col);
     }
 }

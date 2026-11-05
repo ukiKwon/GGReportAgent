@@ -114,8 +114,8 @@ public class BoardExcelFillTest {
         Map<String, Object> out = run(BoardExcelFixture.legacyMap(), wb -> { });
         List<Map<String, Object>> sums = (List<Map<String, Object>>) table(out, "A").get("sums");
         assertEquals(1, sums.size());
-        assertEquals("r4c1", sums.get(0).get("total"));
-        assertEquals(java.util.Arrays.asList("r1c2", "r2c1", "r3c1"), sums.get(0).get("of"));
+        assertEquals("r4_c2", sums.get(0).get("total"));
+        assertEquals(java.util.Arrays.asList("r1_c2", "r2_c2", "r3_c2"), sums.get(0).get("of"));
         assertTrue(((List<?>) table(out, "B").get("sums")).isEmpty());   // 합계 관계 없는 표는 빈 목록
     }
 
@@ -127,7 +127,7 @@ public class BoardExcelFillTest {
         Map<String, Object> t = table(out, "A");
         assertEquals("partial", t.get("label_state"));
         assertEquals(true, t.get("needs_review"));
-        Map<String, Object> c = cell(out, "A", "r1c2");
+        Map<String, Object> c = cell(out, "A", "r1_c2");
         assertEquals("review", c.get("status"));
         assertEquals("500", c.get("value"));
         assertTrue(hasWarning(c, "LABEL_MISMATCH"));
@@ -187,20 +187,20 @@ public class BoardExcelFillTest {
     public void 숫자_칸은_raw와_rounded를_싣는다() throws Exception {
         Map<String, Object> out = run(BoardExcelFixture.legacyMap(),
                 wb -> wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(1234.5678919));
-        Map<String, Object> c = cell(out, "A", "r2c1");
+        Map<String, Object> c = cell(out, "A", "r2_c2");
         assertEquals("1,235", c.get("value"));
         assertEquals("1234.567892", source(c).get("raw"));
         assertEquals(true, source(c).get("rounded"));
-        Map<String, Object> whole = cell(out, "A", "r1c2");              // 500 정수
+        Map<String, Object> whole = cell(out, "A", "r1_c2");              // 500 정수
         assertEquals("500", source(whole).get("raw"));
         assertEquals(false, source(whole).get("rounded"));
-        assertEquals("900", source(cell(out, "A", "r4c1")).get("raw"));  // 수식 캐시
+        assertEquals("900", source(cell(out, "A", "r4_c2")).get("raw"));  // 수식 캐시
     }
 
     @Test
     public void 문자_칸은_raw가_null() throws Exception {
         Map<String, Object> out = run(BoardExcelFixture.legacyMap(), null);
-        Map<String, Object> c = cell(out, "A", "r1c0");                  // 기관명 칸(문자열)
+        Map<String, Object> c = cell(out, "A", "r1_c0");                  // 기관명 칸(문자열)
         assertEquals("filled", c.get("status"));
         assertNull(source(c).get("raw"));
         assertNull(source(c).get("rounded"));
@@ -215,7 +215,7 @@ public class BoardExcelFillTest {
             wb.getSheet("기부금").getRow(4).getCell(2).setCellValue(3580);      // 합계 칸(수식 캐시값을 덮어씀)
         });
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> ws = (List<Map<String, Object>>) cell(out, "A", "r4c1").get("warnings");
+        List<Map<String, Object>> ws = (List<Map<String, Object>>) cell(out, "A", "r4_c2").get("warnings");
         Map<String, Object> w = null;
         for (Map<String, Object> x : ws) {
             if ("SUM_MISMATCH".equals(x.get("code"))) {
@@ -237,7 +237,7 @@ public class BoardExcelFillTest {
             wb.getSheet("기부금").getRow(3).getCell(2).setCellValue(0);
             wb.getSheet("기부금").getRow(4).getCell(2).setCellValue(300);       // 합계 칸(수식 캐시값을 덮어씀)
         });
-        assertFalse(hasWarning(cell(out, "A", "r4c1"), "SUM_MISMATCH"));
+        assertFalse(hasWarning(cell(out, "A", "r4_c2"), "SUM_MISMATCH"));
     }
 
     // ── C4: ;;; 서식 ──
@@ -250,12 +250,12 @@ public class BoardExcelFillTest {
             wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(1234.5);
             wb.getSheet("기부금").getRow(2).getCell(2).setCellStyle(hide);
         });
-        Map<String, Object> c = cell(out, "A", "r2c1");
+        Map<String, Object> c = cell(out, "A", "r2_c2");
         assertEquals("filled", c.get("status"));                  // POI 는 ;;; 서식에서도 표시값을 돌려준다
         assertFalse(((String) c.get("value")).isEmpty());
         assertTrue(hasWarning(c, "HIDDEN_FORMAT"));
         assertEquals("1234.5", source(c).get("raw"));
-        assertFalse(hasWarning(cell(out, "A", "r1c2"), "HIDDEN_FORMAT"));   // 보통 서식 칸은 경고 없음
+        assertFalse(hasWarning(cell(out, "A", "r1_c2"), "HIDDEN_FORMAT"));   // 보통 서식 칸은 경고 없음
     }
 
     @Test
@@ -304,7 +304,7 @@ public class BoardExcelFillTest {
             hide.setDataFormat(wb.createDataFormat().getFormat(";;;"));
             wb.getSheet("기부금").getRow(1).getCell(0).setCellStyle(hide);   // A2 기관명(문자열)
         });
-        assertTrue(hasWarning(cell(out, "A", "r1c0"), "HIDDEN_FORMAT"));
+        assertTrue(hasWarning(cell(out, "A", "r1_c0"), "HIDDEN_FORMAT"));
     }
 
     @Test
@@ -316,9 +316,9 @@ public class BoardExcelFillTest {
             wb.getSheet("기부금").getRow(1).getCell(2).setCellStyle(hide);
             wb.getSheet("기부금").getRow(2).getCell(2).setCellStyle(hide);   // C3 양수 → 보임
         });
-        assertTrue(hasWarning(cell(out, "A", "r1c2"), "HIDDEN_FORMAT"));
-        assertFalse(hasWarning(cell(out, "A", "r2c1"), "HIDDEN_FORMAT"));
-        assertFalse(hasWarning(cell(out, "A", "r3c1"), "HIDDEN_FORMAT"));    // #,##0 보통 칸
+        assertTrue(hasWarning(cell(out, "A", "r1_c2"), "HIDDEN_FORMAT"));
+        assertFalse(hasWarning(cell(out, "A", "r2_c2"), "HIDDEN_FORMAT"));
+        assertFalse(hasWarning(cell(out, "A", "r3_c2"), "HIDDEN_FORMAT"));    // #,##0 보통 칸
     }
 
     // ── 보강: 짝수 경계·rawDecimal·별칭 한도·퍼센트·검사 상한·warnings 집계 ──
@@ -378,8 +378,8 @@ public class BoardExcelFillTest {
             wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(1234.5678915);
             wb.getSheet("기부금").getRow(3).getCell(2).setCellValue(1e40);     // 41자리 정수
         });
-        assertEquals("1234.567892", source(cell(out, "A", "r2c1")).get("raw"));
-        Map<String, Object> huge = cell(out, "A", "r3c1");
+        assertEquals("1234.567892", source(cell(out, "A", "r2_c2")).get("raw"));
+        Map<String, Object> huge = cell(out, "A", "r3_c2");
         assertNull(source(huge).get("raw"));
         assertNull(source(huge).get("rounded"));
     }
@@ -388,8 +388,8 @@ public class BoardExcelFillTest {
     public void 숫자가_아닌_칸과_읽지_못한_칸은_raw가_null() throws Exception {
         Map<String, Object> out = run(BoardExcelFixture.legacyMap(), wb ->
                 ((org.apache.poi.xssf.usermodel.XSSFCell) wb.getSheet("기부금").getRow(4).getCell(2)).getCTCell().unsetV());
-        assertNull(source(cell(out, "A", "r1c0")).get("raw"));          // 문자열(numeric=false)
-        assertNull(source(cell(out, "A", "r4c1")).get("raw"));          // problem
+        assertNull(source(cell(out, "A", "r1_c0")).get("raw"));          // 문자열(numeric=false)
+        assertNull(source(cell(out, "A", "r4_c2")).get("raw"));          // problem
     }
 
     @Test
@@ -400,7 +400,7 @@ public class BoardExcelFillTest {
             wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(0.12);
             wb.getSheet("기부금").getRow(2).getCell(2).setCellStyle(pct);
         });
-        Map<String, Object> c = cell(out, "A", "r2c1");
+        Map<String, Object> c = cell(out, "A", "r2_c2");
         assertEquals("12%", c.get("value"));
         assertEquals("0.12", source(c).get("raw"));
         assertNull(source(c).get("rounded"));
@@ -411,14 +411,14 @@ public class BoardExcelFillTest {
         Map<String, Object> out = run(BoardExcelFixture.legacyMap(), B5_TOTAL2);   // 표 A 5칸 모두 LABEL_MISMATCH 경고
         assertEquals(0, summary(out).get("warnings"));
         assertEquals(1, summary(out).get("label_mismatch_tables"));
-        assertTrue(hasWarning(cell(out, "A", "r1c2"), "LABEL_MISMATCH"));  // 칸 배열은 그대로
+        assertTrue(hasWarning(cell(out, "A", "r1_c2"), "LABEL_MISMATCH"));  // 칸 배열은 그대로
     }
 
     @Test
     @SuppressWarnings("unchecked")
     public void 옛_형식_칸도_새_형식과_같은_키를_갖는다() throws Exception {
         Map<String, Object> out = run(BoardExcelFixture.legacyMap(), null);
-        Map<String, Object> c = cell(out, "A", "r1c2");
+        Map<String, Object> c = cell(out, "A", "r1_c2");
         assertEquals(1, c.get("part_count"));
         assertNull(c.get("convert"));
         assertNull(c.get("main_value"));
