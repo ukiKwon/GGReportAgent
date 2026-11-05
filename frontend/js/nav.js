@@ -7,7 +7,7 @@
   //     visibleTabs 결과)가 켠 것만 보인다. 이 파일이 메뉴 권한을 새로 만들지 않는다.
   //  2. **`준비중` 항목은 영업 계열에게만 보인다.** 아직 만들지 않은 기능이 다른 팀 화면까지
   //     어지럽히지 않게 한다(요청: 영업팀 전용 기능). 영업 계열 = 영업팀·영업팀장·영업부장·
-  //     디자이너(영업팀 소속) + 마스터.
+  //     디자이너(영업팀 소속) + 마스터. 예외: '이사회 자료'(visibleWithTasks)는 작업함 조회 권한이 있어도 보인다.
   //  3. **한 화면은 한 항목에만 둔다.** 같은 탭을 두 곳에 걸면 어느 쪽이 "지금 위치"인지
   //     하이라이트가 모호해진다.
   //  4. **구현된 기능이 위.** 정의는 업무 흐름 순서지만, build가 카테고리 안에서는 구현 항목을
@@ -20,7 +20,12 @@
   // view: 한 화면(key) 안의 하위 보기. 시스템 관리 4항목이 같은 'admin' 탭을 쓴다(항목 id = key:view).
   function live(label, key, view) { return view ? { label: label, key: key, view: view } : { label: label, key: key }; }
   // tag: 사이드바 배지·안내 화면에 쓰는 글. 기본 '준비중', 구현 계획이 잡힌 것만 '구현 예정'. 빈 글자('')는 배지 없음(이미 열리는 화면).
-  function soon(label, tag, note) { return { label: label, soon: true, tag: tag === '' ? '' : (tag || '준비중'), note: note || '' }; }
+  // withTasks: true면 영업 계열이 아니어도 작업함 조회 권한(visible.tasks)이 있으면 보인다(이사회 자료 — 작성 권한은 전산팀·마스터).
+  function soon(label, tag, note, withTasks) {
+    const o = { label: label, soon: true, tag: tag === '' ? '' : (tag || '준비중'), note: note || '' };
+    if (withTasks) o.visibleWithTasks = true;
+    return o;
+  }
   // 사이드바에 붙일 배지 글(순수). 준비중 항목만, tag가 ''이면 배지 없음.
   function badgeOf(it) { return it && it.soon ? (it.tag === '' ? '' : (it.tag || '준비중')) : ''; }
 
@@ -40,7 +45,7 @@
     { id: 'collab', title: '제안 진행·승인', items: [
       live('제안서 진행 현황', 'workflow'), live('작업함', 'tasks'), live('결재함', 'approvals'),
       soon('이사회 자료', '',
-           '수익성 분석표(엑셀)의 수치를 이사회 자료(워드)의 정해진 자리에 자동으로 채웁니다.')] },
+           '수익성 분석표(엑셀)의 수치를 이사회 자료(워드)의 정해진 자리에 자동으로 채웁니다.', true)] },
     { id: 'result', title: '제출·결과', items: [
       soon('최종 확인·제출'), soon('제출 결과·평가 대응'),
       soon('협약 등록·사후관리')] },
@@ -75,7 +80,7 @@
             liveItems.push({ label: it.label, key: it.key, view: it.view || null, soon: false,
                              id: it.view ? it.key + ':' + it.view : it.key });
           }
-        } else if (sales) {
+        } else if (sales || (it.visibleWithTasks && v.tasks === true)) {
           pending.push({ label: it.label, key: null, id: 'soon:' + it.label, soon: true, tag: it.tag, note: it.note });
         }
       });

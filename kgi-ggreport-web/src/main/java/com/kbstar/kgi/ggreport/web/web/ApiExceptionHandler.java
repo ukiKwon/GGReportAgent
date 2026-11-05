@@ -36,28 +36,59 @@ public class ApiExceptionHandler {
 
     private final boolean verbose;
 
+    static final String MSG_BAD_MULTIPART = "업로드한 내용을 읽을 수 없습니다. 파일을 다시 선택해 올려 주세요.";
+
     private final long maxUploadMb;
+
+    private final long boardMaxMb;
 
     public ApiExceptionHandler(boolean verbose) {
         this(verbose, "50MB");
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
-    public ApiExceptionHandler(@Value("${ggreport.errors.detail:false}") boolean verbose,
-                               @Value("${spring.servlet.multipart.max-file-size:1MB}") String maxFile) {
-        this.verbose = verbose;
-        this.maxUploadMb = org.springframework.util.unit.DataSize.parse(maxFile).toMegabytes();
+    public ApiExceptionHandler(boolean verbose, String maxFile) {
+        this(verbose, maxFile, 5);
     }
 
-    /** 전역 multipart 한도(50MB) 초과 — 500/기본 본문 대신 413 객체. 파일명·크기 값은 싣지 않는다. */
-    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    @org.springframework.beans.factory.annotation.Autowired
+    public ApiExceptionHandler(@Value("${ggreport.errors.detail:false}") boolean verbose,
+                               @Value("${spring.servlet.multipart.max-file-size:1MB}") String maxFile,
+                               @Value("${ggreport.board-write.max-mb:5}") long boardMaxMb) {
+        this.verbose = verbose;
+        this.maxUploadMb = org.springframework.util.unit.DataSize.parse(maxFile).toMegabytes();
+        this.boardMaxMb = boardMaxMb;
+    }
+
     public ResponseEntity<Map<String, Object>> handleUploadTooLarge(Exception e) {
+        return handleUploadTooLarge(e, null);
+    }
+
+    /** 전역 multipart 한도 초과 — 500/기본 본문 대신 413 객체. 작성 모드 엑셀 경로는 실제 적용되는 더 작은 한도로 안내한다. */
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleUploadTooLarge(Exception e,
+                                                                     javax.servlet.http.HttpServletRequest req) {
         log.warn("업로드 크기 초과(전역 한도)");
+        long mb = req != null && com.kbstar.kgi.ggreport.web.config.BoardWriteLimitFilter.isExcelUpload(req)
+                ? Math.min(maxUploadMb, boardMaxMb) : maxUploadMb;
         Map<String, Object> d = new java.util.LinkedHashMap<>();
         d.put("code", "FILE_TOO_LARGE");
-        d.put("message", "파일이 너무 큽니다. " + maxUploadMb + "MB 이하만 올릴 수 있습니다.");
-        d.put("max_mb", maxUploadMb);
+        d.put("message", "파일이 너무 큽니다. " + mb + "MB 이하만 올릴 수 있습니다.");
+        d.put("max_mb", mb);
         return ResponseEntity.status(413).body(detail(d));
+    }
+
+    /** 그 밖의 multipart 해석 실패(끊긴 본문·경계 오류·파트 수 초과 등) — 기본 500 대신 400. 원인 클래스만 로그에 남긴다. */
+    @ExceptionHandler(org.springframework.web.multipart.MultipartException.class)
+    public ResponseEntity<Map<String, Object>> handleBadMultipart(org.springframework.web.multipart.MultipartException e,
+                                                                  javax.servlet.http.HttpServletRequest req) {
+        log.warn("multipart 해석 실패 {}", BoardWriteExceptionHandler.describe(e));
+        if (com.kbstar.kgi.ggreport.web.config.BoardWriteLimitFilter.isExcelUpload(req)) {   // 작성 모드 화면은 detail 객체를 읽는다
+            Map<String, Object> d = new java.util.LinkedHashMap<>();
+            d.put("code", "BAD_REQUEST");
+            d.put("message", MSG_BAD_MULTIPART);
+            return ResponseEntity.status(400).body(detail(d));
+        }
+        return ResponseEntity.status(400).body(detail(MSG_BAD_MULTIPART));
     }
 
     @ExceptionHandler(ApiException.class)

@@ -255,6 +255,19 @@
     return (c >= 0 && r >= 0 && r < grid.rows.length) ? { r: r, c: c } : null;
   };
 
+  function normParts(a) {
+    return (Array.isArray(a) ? a : []).filter(function (p) { return p && typeof p === 'object'; }).map(function (p) {
+      return { role: p.role === 'sub' ? 'sub' : 'main', sheet: str(p.sheet), cell: str(p.cell), display: str(p.display),
+               raw: p.raw == null ? null : str(p.raw), rounded: p.rounded === true ? true : (p.rounded === false ? false : null) };
+    });
+  }
+  function normConvert(cv) {
+    if (!cv || typeof cv !== 'object') return null;
+    const n = function (v) { return v == null ? null : str(v); };
+    return { kind: str(cv.kind), unit_from: str(cv.unit_from), unit_to: str(cv.unit_to), divisor: n(cv.divisor), sum: n(cv.sum),
+             sub_sum: n(cv.sub_sum), of: Array.isArray(cv.of) ? cv.of.map(str) : [], result: n(cv.result) };
+  }
+
   // form: 지금 보는 양식(board의 current.form), resp: 업로드 응답, o: {fileName, formId, version}
   bw.buildState = function (form, resp, o) {
     const opt = o || {};
@@ -281,7 +294,11 @@
         });
         (Array.isArray(rt.cells) ? rt.cells : []).forEach(function (rc) {
           const key = str(rc.key), value = str(rc.value);
-          const s = (rc.source && typeof rc.source === 'object') ? rc.source : null;
+          // source.sheet 가 null 이면(출처 없는 칸: 직접 입력·합계) 출처 없음으로 본다.
+          const s = (rc.source && typeof rc.source === 'object' && rc.source.sheet != null) ? rc.source : null;
+          const manual = rc.status === 'manual' || rc.manual === true;
+          const parts = normParts(rc.parts);
+          const pc = Number(rc.part_count);
           const pos = posIn(rows, key);
           const warns = [];
           let serverSum = null;
@@ -291,7 +308,10 @@
           });
           t.cells[key] = {
             key: key, value: value, orig: value,
-            status: rc.status === 'failed' ? 'failed' : (rc.status === 'review' ? 'review' : 'filled'), reason: str(rc.reason),
+            status: manual ? 'manual' : (rc.status === 'failed' ? 'failed' : (rc.status === 'review' ? 'review' : 'filled')), reason: str(rc.reason),
+            manual: manual, parts: parts, partCount: (isFinite(pc) && pc >= 0) ? Math.max(pc, parts.length) : parts.length,
+            convert: normConvert(rc.convert), mainValue: rc.main_value == null ? null : str(rc.main_value),
+            subValue: rc.sub_value == null ? null : str(rc.sub_value),
             src: s ? { sheet: str(s.sheet), cell: str(s.cell), display: str(s.display),
                        raw: s.raw == null ? null : str(s.raw), rounded: s.rounded === true ? true : (s.rounded === false ? false : null) } : null,
             warns: warns, serverSum: serverSum,
@@ -307,6 +327,7 @@
     return {
       formId: str(opt.formId), version: opt.version, name: str(form && form.name), fileName: str(opt.fileName),
       tables: tables, warnings: Array.isArray(resp && resp.warnings) ? resp.warnings : [],
+      assumptions: Array.isArray(resp && resp.assumptions) ? resp.assumptions : [],
       unmapped: Array.isArray(resp && resp.unmapped_tables) ? resp.unmapped_tables : [], filter: 'all', done: null
     };
   };
@@ -335,9 +356,25 @@
     TOO_LONG: '값이 100자를 넘어 가져오지 못했습니다. 값을 직접 넣어 주세요.',
     NO_CACHED_VALUE: '수식의 계산 결과가 파일에 저장돼 있지 않습니다. 엑셀에서 한 번 저장한 뒤 다시 올리거나 직접 입력하세요.',
     EXCEL_ERROR: '엑셀 칸에 오류 값이 들어 있습니다. 엑셀에서 고친 뒤 다시 올리거나 직접 입력하세요.',
-    LABEL_MISMATCH: '표 머리글이 양식과 많이 달라 값을 채우지 않았습니다. 원본 시트를 보고 직접 입력하거나 올바른 엑셀을 다시 올려 주세요.'
+    LABEL_MISMATCH: '표 머리글이 양식과 많이 달라 값을 채우지 않았습니다. 원본 시트를 보고 직접 입력하거나 올바른 엑셀을 다시 올려 주세요.',
+    PART_EMPTY: '엑셀의 해당 칸이 비어 있어 값을 채우지 않았습니다. 빈 칸은 0으로 계산하지 않습니다. 0이면 엑셀에 0을 넣어 다시 올리거나 여기서 직접 입력하세요.',
+    PART_FAILED: '합계에 들어가는 칸 중 값을 못 채운 칸이 있어 합계를 계산하지 않았습니다. 그 칸을 채우거나 합계를 직접 입력하세요.',
+    NOT_NUMERIC: '엑셀 칸의 값을 숫자로 읽지 못했습니다. 엑셀에서 숫자로 고쳐 다시 올리거나 직접 입력하세요.',
+    NOT_FOUND: '엑셀에서 이 칸의 행·열을 찾지 못했습니다. 시트 구조가 양식과 같은지 확인한 뒤 다시 올리거나 직접 입력하세요.',
+    GENERAL: '엑셀에서 값을 읽지 못했습니다. 직접 입력해 주세요.'
+  };
+  // 사유 코드 → 문구. ROW_/AREA_/HEADER_/COL_ 계열은 한 문구, 모르는 코드는 일반 문구.
+  bw.reasonText = function (code) {
+    const k = str(code);
+    if (has(REASON, k) && k !== 'NOT_FOUND' && k !== 'GENERAL') return REASON[k];
+    if (/^(ROW|AREA|HEADER|COL)_/.test(k)) return REASON.NOT_FOUND;
+    return REASON.GENERAL;
   };
   const WARN = {
+    TEXT_NUMBER: '엑셀에서 글자로 저장된 숫자입니다. 값이 맞는지 확인해 주세요.',
+    EXTERNAL_REF: '다른 파일을 참조하는 수식의 값입니다. 값은 파일에 저장된 마지막 값입니다.',
+    UNIT_MISMATCH: '엑셀 표 제목의 단위가 양식에서 정한 단위와 다릅니다. 환산한 값을 확인해 주세요.',
+    UNIT_UNKNOWN: '엑셀 표 제목에서 단위를 찾지 못했습니다. 환산한 값이 맞는지 확인해 주세요.',
     HIDDEN_SHEET: '숨겨진 시트의 값입니다.', HIDDEN_ROW: '숨겨진 행의 값입니다.', HIDDEN_COLUMN: '숨겨진 열의 값입니다.',
     HIDDEN_FORMAT: '엑셀 화면에서는 서식으로 가려져 보이지 않는 값입니다. 문서에 넣어도 되는지 확인해 주세요. (글꼴 색 등 서식 밖의 숨김은 검사하지 않습니다.)',
     LABEL_MISMATCH: '이 표의 머리글이 양식과 달라 위치대로 채웠습니다.'
@@ -345,7 +382,7 @@
 
   bw.cellInfo = function (t, c) {
     const unreadable = c.status === 'failed' && c.value.trim() === '';
-    const edited = c.value.trim() !== c.orig.trim();
+    const edited = !c.manual && c.value.trim() !== c.orig.trim();   // 직접 입력 칸은 원본이 없어 수정으로 세지 않는다
     const sum = bw.sumState(t, c.key);
     const sumBad = !!(sum && !sum.zero);
     return {
@@ -362,12 +399,14 @@
     return true;
   };
   bw.tally = function (ws) {
-    const y = { m: 0, n: 0, edited: 0, need: 0, unchecked: 0, filled: 0, failed: 0, review: 0, sumBad: 0, noReason: 0, hidden: 0, hiddenFmt: 0 };
+    const y = { m: 0, n: 0, edited: 0, need: 0, unchecked: 0, filled: 0, failed: 0, review: 0, sumBad: 0, noReason: 0, hidden: 0, hiddenFmt: 0, empty: 0, manual: 0 };
     eachCell(ws, function (t, c) {
       const i = bw.cellInfo(t, c);
       y.m++;
       if (c.checked) y.n++; else y.unchecked++;
-      if (c.status === 'failed') y.failed++; else if (c.status === 'review') y.review++; else y.filled++;
+      if (c.manual) y.manual++;
+      else if (c.status === 'failed') { y.failed++; if (c.reason === 'PART_EMPTY') y.empty++; }
+      else if (c.status === 'review') y.review++; else y.filled++;
       if (i.edited) y.edited++;
       if (i.need) y.need++;
       if (i.sumBad) y.sumBad++;
@@ -456,26 +495,68 @@
     if (hs > 0) out.push('숨겨진 시트·행·열에서 가져온 값이 ' + hs + '칸 있습니다.');
     if (y.hiddenFmt) out.push('엑셀 화면에서 서식으로 가려져 보이지 않는 값이 ' + y.hiddenFmt + '칸 있습니다.');
     if (y.sumBad) out.push('합계가 맞지 않는 곳이 ' + y.sumBad + '곳 있습니다.');
+    // 단위를 지도에서 가정한 표: 단위별로 한 번만 알린다(확인된 단위는 알리지 않는다).
+    const seenUnit = {};
+    (ws.assumptions || []).forEach(function (a) {
+      if (!a || a.code !== 'UNIT_ASSUMED' || a.confirmed === true) return;
+      const u = str(a.unit);
+      if (seenUnit[u]) return;
+      seenUnit[u] = 1;
+      out.push('엑셀 표의 단위를 ‘' + u + '’로 가정해 억원으로 환산했습니다. 엑셀 표의 단위가 맞는지 확인해 주세요.');
+    });
     return out;
   };
 
   // ── 출처 정보(툴팁·상태 줄 공통 원천) ──────────────────────────
+  const MAX_PART_LINES = 6;
+  const ROUND_NOTE = ' (소수 둘째 자리에서 반올림)';
+  function fmtPlain(s) {
+    const m = /^(-?)(\d+)(\.\d+)?$/.exec(str(s));
+    return m ? m[1] + group(m[2]) + (m[3] || '') : str(s);
+  }
+  function eokLine(prefix, sum, cv, result) {
+    return prefix + '합 ' + fmtPlain(sum) + ' ' + cv.unit_from + ' ÷ ' + str(cv.divisor) + ' = ' + str(result) + ' ' + cv.unit_to + ROUND_NOTE;
+  }
+  // 환산 줄: 억원 환산(합 ÷ 나눔수), 괄호 병기(앞 값·괄호 안 두 줄), 표시값 합계.
+  function convertLines(c) {
+    const cv = c.convert;
+    if (!cv) return [];
+    if (cv.kind === 'display_sum') return ['구성 칸 ' + cv.of.length + '개의 표시값을 더한 합계입니다'];
+    if (cv.kind === 'eok') return [eokLine('', cv.sum, cv, cv.result != null ? cv.result : c.value)];
+    if (cv.kind === 'eok_paren') {
+      return [eokLine('앞 값 ', cv.sum, cv, c.mainValue != null ? c.mainValue : cv.result),
+              eokLine('괄호 안 ', cv.sub_sum, cv, c.subValue != null ? c.subValue : '')];
+    }
+    return [];
+  }
   bw.infoLines = function (t, c) {
     const i = bw.cellInfo(t, c), out = [];
     out.push({ k: 'path', text: c.label || ((t.mapping ? t.mapping + ' ' : '') + t.title) });
-    if (!c.src) {
+    const total = Math.max(c.partCount || 0, (c.parts || []).length);
+    if (c.manual) {
+      out.push({ k: 'place', text: '엑셀에서 가져오지 않고 직접 입력하는 칸입니다' });
+    } else if (!c.src) {
       out.push({ k: 'place', text: '엑셀에서 가져오지 않은 칸입니다' });
     } else {
-      out.push({ k: 'place', mono: true, text: c.src.sheet + ' 시트 ' + c.src.cell });
-      if (c.src.display !== '') {
+      out.push({ k: 'place', mono: true, text: c.src.sheet + ' 시트 ' + c.src.cell + (total > 1 ? ' 외 ' + (total - 1) + '칸' : '') });
+      if (total <= 1 && c.src.display !== '') {
         let s = '표시 ' + c.src.display;
         if (c.src.raw != null && c.src.rounded === true) s += ' · 원래 값 ' + c.src.raw;   // rounded가 null(%·날짜 서식 등)이면 표시값만
         out.push({ k: 'shown', mono: true, text: s });
       }
     }
+    if (total > 1) {
+      c.parts.slice(0, MAX_PART_LINES).forEach(function (p) {
+        let s = (p.role === 'sub' ? '괄호 안 ' : '') + p.sheet + ' ' + p.cell + ' · ' + (p.display !== '' ? '표시 ' + p.display : '표시 값 없음');
+        if (p.display !== '' && p.raw != null && p.rounded === true) s += ' · 원래 값 ' + p.raw;
+        out.push({ k: 'part', mono: true, text: s });
+      });
+      if (total > MAX_PART_LINES) out.push({ k: 'part', text: '그 밖에 ' + (total - MAX_PART_LINES) + '칸' });
+    }
+    convertLines(c).forEach(function (s) { out.push({ k: 'calc', text: s }); });
     if (i.edited) out.push({ k: 'note', text: '수정함 ' + c.value + (c.why ? ' · 사유 ' + bw.whyText(c) : '') });
     if (i.sumBad) out.push({ k: 'note', text: '표시 합 ' + i.sum.expected + ' · 합계 ' + i.sum.actual + ' · 차이 ' + i.sum.diff });
-    if (i.unreadable) out.push({ k: 'note', text: '읽지 못함: ' + (REASON[c.reason] || REASON.NO_CACHED_VALUE) });
+    if (i.unreadable) out.push({ k: 'note', text: (c.reason === 'PART_EMPTY' ? '비어 있음: ' : '읽지 못함: ') + bw.reasonText(c.reason) });
     c.warns.forEach(function (w) { if (WARN[w] && !(w === 'LABEL_MISMATCH' && c.reason === 'LABEL_MISMATCH')) out.push({ k: 'note', text: WARN[w] }); });
     return out;
   };
@@ -484,10 +565,16 @@
       return '<div class="' + (l.mono ? 'mono' : '') + (l.k === 'note' ? ' sub' : '') + '">' + esc(l.text) + '</div>';
     }).join('');
   };
+  // 서버 값이 정확히 "main (sub)" 이고 아직 고치지 않았으면 {main, sub}, 아니면 null.
+  bw.parenOf = function (c) {
+    if (!c || c.manual || c.mainValue == null || c.subValue == null || c.value !== c.orig) return null;
+    return c.value === c.mainValue + ' (' + c.subValue + ')' ? { main: c.mainValue, sub: c.subValue } : null;
+  };
+  function missText(c) { return c.reason === 'LABEL_MISMATCH' ? '채우지 않음' : (c.reason === 'PART_EMPTY' ? '비어 있음' : '읽지 못함'); }
   bw.cellAria = function (t, c) {
-    const i = bw.cellInfo(t, c);
+    const i = bw.cellInfo(t, c), pr = bw.parenOf(c);
     const parts = [(c.label || t.title).replace(/ · /g, ', '),
-      i.unreadable ? (c.reason === 'LABEL_MISMATCH' ? '채우지 않음' : '읽지 못함') : (c.value === '' ? '비어 있음' : c.value)];
+      i.unreadable ? missText(c) : (pr ? pr.main + ', 괄호 안 ' + pr.sub : (c.value === '' ? (c.manual ? '직접 입력' : '비어 있음') : c.value))];
     if (i.edited) parts.push('수정됨' + (i.hasOrig ? ', 원본 ' + c.orig : ''));
     if (i.sumBad) parts.push('합계 차이 ' + i.sum.diff);
     if (c.warns.some(function (w) { return w !== 'LABEL_MISMATCH'; })) parts.push('주의');
@@ -592,7 +679,7 @@
 
   // ── 화면 조각(HTML) ────────────────────────────────────────
   function freshUi() {
-    return { form: null, upload: null, rej: null, leave: null, panelOpen: true, sel: null, live: '', banOpen: {},
+    return { form: null, upload: null, rej: null, leave: null, panelOpen: true, wide: false, sel: null, live: '', banOpen: {},
              draftBusy: false, draftNote: '', draftErr: false, mapText: '', maxMb: DEFAULT_MAX_MB,
              edit: null, ask: null, copyNote: null };
   }
@@ -645,16 +732,19 @@
     if (!y.m) text = '이 양식에는 엑셀에서 채울 칸이 없습니다.';
     else if (y.failed > 0 || y.review > 0) {
       const got = y.filled + y.review;
-      // 예: "값 46칸을 채웠고 2칸은 읽지 못했습니다. 머리글이 달라 확인이 필요한 칸이 3칸 있습니다."
+      // 예: "값 46칸을 채웠고 2칸은 읽지 못했습니다. 그중 1칸은 엑셀 칸이 비어 있습니다. 머리글이 달라 확인이 필요한 칸이 3칸 있습니다."
       text = (got > 0 ? '값 ' + got + '칸을 채웠' : '채운 값이 없') + (y.failed > 0 ? '고 ' + y.failed + '칸은 읽지 못했' : '') + '습니다.' +
+        (y.empty > 0 ? ' 그중 ' + y.empty + '칸은 엑셀 칸이 비어 있습니다.' : '') +
         (y.review > 0 ? ' 머리글이 달라 확인이 필요한 칸이 ' + y.review + '칸 있습니다.' : '');
     }
+    else if (y.filled === 0 && y.manual > 0) text = '엑셀에서 가져올 값이 없습니다.';
     else text = '값 ' + y.filled + '칸을 모두 채웠습니다. 오른쪽 원본과 대조하며 칸마다 확인해 주세요.';
     let extra = '';
     if (y.noReason > 0) extra = '사유를 고르지 않은 수정 ' + y.noReason + '칸';
     const items = bw.warnItems(ws);
     return '<div class="bd-w-sum" id="bd-w-sum" role="status" tabindex="-1"><span>' + esc(text) + '</span>' +
       (extra ? '<span>' + esc(extra) + '</span>' : '') +
+      (y.manual > 0 ? '<span>' + esc('직접 입력하는 칸 ' + y.manual + '칸은 엑셀에서 가져오지 않습니다.') + '</span>' : '') +
       (y.failed > 0 ? '<button type="button" data-w="unread">읽지 못한 칸 보기</button>' : '') + '</div>' +
       (items.length ? '<details class="bd-w-warn"><summary>주의 ' + items.length + '건</summary><ul>' +
         items.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ul></details>' : '') +
@@ -722,7 +812,8 @@
   // 값 칸(엑셀에서 채운 칸). p: {ui, fc(양식 칸), rove, sel, dim, part}. bd-mapped(틸)는 쓰지 않는다.
   bw.valueCellHtml = function (t, c, o) {
     const p = o || {}, i = bw.cellInfo(t, c), fc = p.fc || {};
-    const al = ALIGNS[fc.align] ? fc.align : (bw.shownNum(c.value) != null ? 'right' : 'left');
+    const pr = bw.parenOf(c);
+    const al = ALIGNS[fc.align] ? fc.align : (pr || bw.shownNum(c.value) != null ? 'right' : 'left');
     const cls = ['bd-w-cell', 'bd-a-' + al];
     if (al === 'right') cls.push('bd-num');
     if (c.checked) cls.push('is-checked');
@@ -732,7 +823,11 @@
     if (p.part) cls.push('is-part');
     if (p.sel) cls.push('is-sel');
     const cs = span(fc.colspan), rs = span(fc.rowspan);
-    let inner = i.unreadable ? '<span class="bd-w-miss">' + (c.reason === 'LABEL_MISMATCH' ? '채우지 않음' : '읽지 못함') + '</span>' : esc(c.value);
+    let inner;
+    if (i.unreadable) inner = '<span class="bd-w-miss' + (c.reason === 'PART_EMPTY' ? ' bd-w-empty' : '') + '">' + missText(c) + '</span>';
+    else if (pr) inner = esc(pr.main) + ' <span class="bd-w-paren">(' + esc(pr.sub) + ')</span>';
+    else if (c.manual && c.value === '') inner = '<span class="bd-w-miss bd-w-empty">직접 입력</span>';
+    else inner = esc(c.value);
     let extra = '';
     if (p.ui && p.ui.edit && p.ui.edit.t === t.ref && p.ui.edit.key === c.key) {
       inner = '<input type="text" id="bd-w-in" class="bd-w-in" maxlength="' + MAX_CELL + '" value="' + esc(p.ui.edit.text) + '" aria-label="' + esc(bw.cellAria(t, c)) + ' 수정">';
@@ -775,24 +870,146 @@
       (t.mapped ? '' : '<p class="bd-hint">이 표는 엑셀에서 값을 가져오지 않습니다.</p>') +
       '<div class="bd-table-wrap"><table class="bd-table bd-w-table" role="grid" aria-label="' + label + '">' + thead + '<tbody>' + body + '</tbody></table></div>' + notes + '</section>';
   };
-  bw.sourceHtml = function (ws, ui) {
-    const head = '<div class="bd-w-srchead"><span>엑셀 원본 · ' + esc(ws.fileName) + '</span><button type="button" data-w="panel" aria-expanded="' + !!ui.panelOpen + '">' +
-      (ui.panelOpen ? '원본 접기' : '원본 펼치기') + '</button></div>';
-    if (!ui.panelOpen) return '<aside id="bd-w-src" class="bd-w-src is-folded" aria-label="엑셀 원본">' + head + '</aside>';
-    const parts = ws.tables.filter(function (t) { return t.grid; }).map(function (t) {
+  // ── 원본 패널 순수 로직: 같은 시트의 표는 격자 하나로 합친다 ──
+  function colNum(L) { let n = 0; const s = str(L).toUpperCase(); for (let i = 0; i < s.length; i++) n = n * 26 + (s.charCodeAt(i) - 64); return n; }
+  function colLetters(n) { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
+  // → [{sheet, first_row, cols[], rows[][], range, tags[{ref,label,r0,c0,r1,c1}], owners{'r,c':[{t,key}]}}]  (좌표는 합집합 격자 기준 0부터)
+  bw.mergeSources = function (ws) {
+    const groups = [];
+    ((ws && ws.tables) || []).forEach(function (t) {
       const g = t.grid;
-      return '<div class="bd-w-srccap">' + esc((t.mapping || t.ref) + ' · ' + g.sheet + ' 시트 · ' + g.range) + '</div>' +
-        '<table class="bd-w-srctbl" role="table" aria-label="' + esc((t.mapping || t.ref) + ' 원본') + '"><thead><tr><th></th>' +
-        g.cols.map(function (c) { return '<th scope="col">' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
-        g.rows.map(function (row, r) {
-          return '<tr><th scope="row">' + (Number(g.first_row) + r) + '</th>' + row.map(function (v, c) {
-            const key = t.srcIndex[r + ',' + c];
-            const on = !!key && !!ui.sel && ui.sel.t === t.ref && ui.sel.key === key;
-            return '<td data-st="' + esc(t.ref) + '"' + (key ? ' data-key="' + esc(key) + '"' : '') + (on ? ' class="is-src"' : '') + '>' + esc(v) + '</td>';
-          }).join('') + '</tr>';
+      if (!g || !Array.isArray(g.cols) || !g.cols.length || !Array.isArray(g.rows) || !isFinite(Number(g.first_row))) return;
+      const sheet = str(g.sheet);
+      let grp = null;
+      for (let i = 0; i < groups.length; i++) if (groups[i].sheet === sheet) { grp = groups[i]; break; }
+      if (!grp) { grp = { sheet: sheet, items: [] }; groups.push(grp); }
+      grp.items.push(t);
+    });
+    return groups.map(function (grp) {
+      let minC = Infinity, maxC = 0, minR = Infinity, maxR = 0;
+      grp.items.forEach(function (t) {
+        const g = t.grid, fr = Number(g.first_row);
+        g.cols.forEach(function (c) { const n = colNum(c); if (n > 0) { minC = Math.min(minC, n); maxC = Math.max(maxC, n); } });
+        minR = Math.min(minR, fr); maxR = Math.max(maxR, fr + g.rows.length - 1);
+      });
+      if (!isFinite(minC) || !isFinite(minR) || maxR < minR) return null;
+      const cols = [];
+      for (let n = minC; n <= maxC; n++) cols.push(colLetters(n));
+      const rows = [];
+      for (let r = minR; r <= maxR; r++) rows.push(cols.map(function () { return ''; }));
+      const tags = [], owners = {};
+      grp.items.forEach(function (t) {
+        const g = t.grid, fr = Number(g.first_row), cn = g.cols.map(colNum);
+        g.rows.forEach(function (row, r) {
+          (Array.isArray(row) ? row : []).forEach(function (v, c) {
+            if (c >= cn.length || cn[c] < 1) return;
+            const rr = fr + r - minR, cc = cn[c] - minC;
+            if (rows[rr][cc] === '') rows[rr][cc] = str(v);
+          });
+        });
+        Object.keys(t.srcIndex || {}).forEach(function (k) {
+          const p = k.split(','), r = Number(p[0]), c = Number(p[1]);
+          if (!(c >= 0 && c < cn.length)) return;
+          const id = (fr + r - minR) + ',' + (cn[c] - minC);
+          (owners[id] = owners[id] || []).push({ t: t.ref, key: t.srcIndex[k] });
+        });
+        const lo = Math.min.apply(null, cn), hi = Math.max.apply(null, cn);
+        tags.push({ ref: t.ref, label: t.mapping || t.ref, r0: fr - minR, c0: lo - minC, r1: fr + g.rows.length - 1 - minR, c1: hi - minC });
+      });
+      return { sheet: grp.sheet, first_row: minR, cols: cols, rows: rows, tags: tags, owners: owners,
+               range: colLetters(minC) + minR + ':' + colLetters(maxC) + maxR };
+    }).filter(Boolean);
+  };
+  // 문장 칸이면 'text', 숫자·빈 칸이면 'num'.
+  bw.srcKind = function (v) {
+    const s = str(v).trim();
+    if (s === '') return 'num';
+    if (bw.shownNum(s) != null) return 'num';
+    return /^[()+\-−△▲\s]*\d[\d,.\s]*[%원]?\)?$/.test(s) ? 'num' : 'text';
+  };
+  // 원본 칸이 선택(t,key)에 해당하는가. own = 여러 양식 칸이 한 원본 칸을 가리킬 때의 "표|키 표|키" 목록.
+  bw.ownsCell = function (own, st, key, sel) {
+    if (!sel) return false;
+    if (own) return own.split(' ').indexOf(sel.t + '|' + sel.key) >= 0;
+    return !!key && st === sel.t && key === sel.key;
+  };
+  bw.srcHasSel = function (sheets, sel) {
+    if (!sel) return false;
+    return sheets.some(function (sh) {
+      return Object.keys(sh.owners).some(function (k) { return sh.owners[k].some(function (o) { return o.t === sel.t && o.key === sel.key; }); });
+    });
+  };
+  // 한 축의 가운데 스크롤. cur 현재 스크롤, pos·size 칸의 위치·크기(내용 좌표), view 보이는 길이, lead 고정 머리 길이, max 스크롤 최댓값.
+  // 이미 완전히 보이면 cur 그대로.
+  bw.centerAxis = function (cur, pos, size, view, lead, max) {
+    if (pos >= cur + lead && pos + size <= cur + view) return cur;
+    const want = pos + size / 2 - (lead + (view - lead) / 2);
+    return Math.round(Math.max(0, Math.min(Math.max(0, max), want)));
+  };
+  // o: {st, sl, w, h, sw, sh, lead:{top,left}, cell:{top,left,w,h}} → {top, left}
+  bw.centerScroll = function (o) {
+    return { top: bw.centerAxis(o.st, o.cell.top, o.cell.h, o.h, o.lead.top, o.sh - o.h),
+             left: bw.centerAxis(o.sl, o.cell.left, o.cell.w, o.w, o.lead.left, o.sw - o.w) };
+  };
+  // 표 점프: 그 칸의 위치를 고정 머리 바로 아래(오른쪽)로.
+  bw.alignScroll = function (pos, lead, view, total) {
+    return Math.round(Math.max(0, Math.min(Math.max(0, total - view), pos - lead)));
+  };
+  // 좌우로 놓았을 때 원본 패널 너비가 360px 미만이면 세로 배치.
+  bw.stackMode = function (gridW, wide, open) {
+    if (open === false) return false;
+    const w = (Number(gridW) - 14) * (wide ? 3 : 2) / 5;
+    return isFinite(w) && Number(gridW) > 0 && w < 360;
+  };
+  bw.gridClass = function (ui) { return 'bd-w-grid' + (ui.panelOpen ? (ui.wide ? ' is-wide' : '') : ' is-one'); };
+
+  bw.sourceHtml = function (ws, ui) {
+    const name = '<span class="bd-w-srcname" title="' + esc(ws.fileName) + '">엑셀 원본 · ' + esc(ws.fileName) + '</span>';
+    const panelBtn = '<button type="button" data-w="panel" aria-expanded="' + !!ui.panelOpen + '">' + (ui.panelOpen ? '원본 접기' : '원본 펼치기') + '</button>';
+    if (!ui.panelOpen) return '<aside id="bd-w-src" class="bd-w-src is-folded" aria-label="엑셀 원본"><div class="bd-w-srchead"><div class="bd-w-srcrow">' + name +
+      '<span class="bd-w-srcbtns">' + panelBtn + '</span></div></div></aside>';
+    const sheets = bw.mergeSources(ws), sel = ui.sel;
+    const jumps = [];
+    sheets.forEach(function (sh) {
+      sh.tags.forEach(function (tg) {
+        jumps.push('<button type="button" class="bd-w-srcjump" data-w="srcjump" data-v="' + esc(tg.ref) + '" aria-label="' + esc(tg.label + ' 표 원본으로 이동') + '"' +
+          (sel && sel.t === tg.ref ? ' aria-current="true"' : '') + '>' + esc(tg.label) + '</button>');
+      });
+    });
+    const head = '<div class="bd-w-srchead"><div class="bd-w-srcrow">' + name + '<span class="bd-w-srcbtns">' +
+      '<button type="button" data-w="srcwide" aria-pressed="' + !!ui.wide + '">넓게 보기</button>' + panelBtn + '</span></div>' +
+      '<div class="bd-w-srcrow bd-w-srcjumps" role="group" aria-label="원본 표로 이동">' + jumps.join('') +
+      '<button type="button" data-w="srcsel"' + (bw.srcHasSel(sheets, sel) ? '' : ' disabled') + '>선택 칸으로</button></div></div>';
+    const parts = sheets.map(function (sh) {
+      const cover = function (r, c) {
+        for (let i = 0; i < sh.tags.length; i++) { const g = sh.tags[i]; if (r >= g.r0 && r <= g.r1 && c >= g.c0 && c <= g.c1) return g.ref; }
+        return sh.tags[0].ref;
+      };
+      return '<div class="bd-w-srccap">' + esc(sh.sheet + ' 시트 · ' + sh.range) + '</div>' +
+        '<table class="bd-w-srctbl" role="table" aria-label="' + esc(sh.sheet + ' 시트 원본') + '"><thead><tr><th></th>' +
+        sh.cols.map(function (c) { return '<th scope="col">' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        sh.rows.map(function (row, r) {
+          const starts = sh.tags.filter(function (g) { return g.r0 === r; });
+          let on0 = false;
+          const tds = row.map(function (v, c) {
+            const own = sh.owners[r + ',' + c] || [], key = own.length ? own[0].key : '';
+            const on = own.some(function (o) { return !!sel && sel.t === o.t && sel.key === o.key; });
+            if (on) on0 = true;
+            const here = starts.filter(function (g) { return g.c0 === c; }).map(function (g) { return g.ref; });
+            const text = bw.srcKind(v) === 'text';
+            const cls = (text ? 'is-text' : '') + (on ? (text ? ' ' : '') + 'is-src' : '');
+            return '<td data-st="' + esc(own.length ? own[0].t : cover(r, c)) + '"' + (key ? ' data-key="' + esc(key) + '"' : '') +
+              (own.length > 1 ? ' data-own="' + esc(own.map(function (o) { return o.t + '|' + o.key; }).join(' ')) + '"' : '') +
+              (here.length ? ' data-tstart="' + esc(here.join(' ')) + '"' : '') + (cls ? ' class="' + cls + '"' : '') +
+              (text ? ' title="' + esc(str(v)) + '"' : '') + '>' + esc(v) + '</td>';
+          }).join('');
+          return '<tr><th scope="row"' + (on0 ? ' class="is-srcrow"' : '') + '>' + starts.map(function (g) {
+            return '<span class="bd-w-srctag" aria-label="' + esc(g.label + ' 표 시작') + '">' + esc(g.label) + '</span>';
+          }).join('') + (sh.first_row + r) + '</th>' + tds + '</tr>';
         }).join('') + '</tbody></table>';
     }).join('');
-    return '<aside id="bd-w-src" class="bd-w-src" aria-label="엑셀 원본">' + head + '<div id="bd-w-srcbody">' + parts + '</div></aside>';
+    return '<aside id="bd-w-src" class="bd-w-src" aria-label="엑셀 원본">' + head +
+      '<div id="bd-w-srcbody" tabindex="0" role="region" aria-label="엑셀 원본 표, 방향키로 스크롤">' + parts + '</div></aside>';
   };
   bw.statusHtml = function (ws, ui) {
     const sel = bw.selected(ws, ui.sel);
@@ -803,12 +1020,15 @@
       h = '<span class="bd-w-hint">표의 칸을 고르면 엑셀 원본 위치와 값이 여기에 나옵니다.</span>';
     } else {
       const L = bw.infoLines(sel.t, sel.c), i = bw.cellInfo(sel.t, sel.c);
-      const main = L.filter(function (l) { return l.k !== 'note'; }), notes = L.filter(function (l) { return l.k === 'note'; });
+      const calc = function (l) { return l.k === 'part' || l.k === 'calc'; };
+      const main = L.filter(function (l) { return l.k !== 'note' && !calc(l); }), notes = L.filter(function (l) { return l.k === 'note'; });
       h = '<span class="bd-w-main">' + main.map(function (l) { return '<span' + (l.mono ? ' class="mono"' : '') + '>' + esc(l.text) + '</span>'; })
         .join('<span class="bd-w-sep" aria-hidden="true">│</span>') + '</span>';
+      const calcHtml = L.filter(calc).map(function (l) { return '<div class="bd-w-calc' + (l.mono ? ' mono' : '') + '">' + esc(l.text) + '</div>'; }).join('');
       if (i.edited && i.hasOrig) h += bw.whyHtml(sel.c);
       if (i.edited) h += '<button type="button" data-w="revert">원본 값으로</button>';
       h += '<button type="button" data-w="check" aria-pressed="' + !!sel.c.checked + '"' + (i.unreadable && !sel.c.checked ? ' disabled' : '') + '>확인</button>';
+      h += calcHtml;
       if (notes.length) h += '<div class="bd-w-notes">' + notes.map(function (l) { return '<div>' + esc(l.text) + '</div>'; }).join('') + '</div>';
     }
     return h;   // 알림 문장(ui.live)은 writeHtml의 고정 알림 줄(#bd-w-live)에만 둔다
@@ -822,7 +1042,7 @@
     if (ws) {
       const rv = bw.roveKey(ws, ui.sel);
       h += bw.summaryHtml(ws) + bw.filterHtml(ws) + bw.reviewHtml(ws) +
-        '<div class="bd-w-grid' + (ui.panelOpen ? '' : ' is-one') + '"><div class="bd-w-tables" id="bd-w-tables">' +
+        '<div class="' + bw.gridClass(ui) + '"><div class="bd-w-tables" id="bd-w-tables">' +
         ws.tables.map(function (t) { return bw.cardHtml(ws, t, ui, rv); }).join('') + '</div>' + bw.sourceHtml(ws, ui) + '</div>' +
         '<div id="bd-w-status" class="bd-w-status"><div id="bd-w-statusbody" class="bd-w-statusbody">' + bw.statusHtml(ws, ui) + '</div>' +
         '<div id="bd-w-live" class="bd-w-live" role="status" aria-live="polite">' + esc(ui.live) + '</div></div>';
@@ -1031,6 +1251,43 @@
       const bar = $('bd-writebar'), r = $('bd-root');
       if (bar && r) r.style.setProperty('--bd-bar-h', bar.offsetHeight + 'px');
     }
+    // 원본 패널 높이 = 뷰포트 − 패널 시작 y − 하단 상태 줄 높이 − 16px (CSS 변수로 넘긴다). 좁으면 세로 배치.
+    function measureSrc() {
+      const r = $('bd-root'), b = bodyEl();
+      if (!r || !b) return;
+      const src = $('bd-w-src'), st = $('bd-w-status'), bar = $('bd-writebar'), grid = b.querySelector('.bd-w-grid');
+      if (st) r.style.setProperty('--bd-status-h', st.offsetHeight + 'px');
+      if (src) r.style.setProperty('--bd-scroll-top', Math.max(bar ? bar.offsetHeight : 0, src.getBoundingClientRect().top) + 'px');
+      if (grid) grid.classList.toggle('is-stack', bw.stackMode(grid.clientWidth, ui.wide, ui.panelOpen));
+    }
+    // 원본 칸의 스크롤 영역 안 위치(내용 좌표)와 고정 머리 크기.
+    function srcMetrics(body, td) {
+      const b = body.getBoundingClientRect(), r = td.getBoundingClientRect();
+      const tbl = td.closest ? td.closest('table') : null, th = tbl ? tbl.querySelector('thead th') : null, rh = td.parentNode ? td.parentNode.firstElementChild : null;
+      return { cell: { top: r.top - b.top - body.clientTop + body.scrollTop, left: r.left - b.left - body.clientLeft + body.scrollLeft, w: r.width, h: r.height },
+               lead: { top: th ? th.offsetHeight : 0, left: rh ? rh.offsetWidth : 0 } };
+    }
+    // 페이지 스크롤은 건드리지 않고 #bd-w-srcbody 안에서만 가운데로(이미 다 보이면 그대로).
+    function scrollSrcTo(td) {
+      const body = $('bd-w-srcbody');
+      if (!body || !td) return;
+      const m = srcMetrics(body, td);
+      const to = bw.centerScroll({ st: body.scrollTop, sl: body.scrollLeft, w: body.clientWidth, h: body.clientHeight,
+                                   sw: body.scrollWidth, sh: body.scrollHeight, lead: m.lead, cell: m.cell });
+      body.scrollTop = to.top; body.scrollLeft = to.left;
+    }
+    function jumpSrc(ref) {
+      const body = $('bd-w-srcbody');
+      if (!body) return;
+      const l = body.querySelectorAll('td[data-tstart]');
+      for (let i = 0; i < l.length; i++) {
+        if ((l[i].getAttribute('data-tstart') || '').split(' ').indexOf(ref) < 0) continue;
+        const m = srcMetrics(body, l[i]);
+        body.scrollTop = bw.alignScroll(m.cell.top, m.lead.top, body.clientHeight, body.scrollHeight);
+        body.scrollLeft = bw.alignScroll(m.cell.left, m.lead.left, body.clientWidth, body.scrollWidth);
+        return;
+      }
+    }
     function draw(focus) {
       const b = bodyEl();
       if (!b) return;
@@ -1038,17 +1295,19 @@
       if (inp && ui.edit) ui.edit.text = inp.value;   // 다시 그려도 입력 중인 글자는 남긴다
       hideTip();
       const sc = env.scroller(), top = sc ? sc.scrollTop : 0;
-      const old = $('bd-w-src'), st = old ? old.scrollTop : 0;
+      const old = $('bd-w-srcbody'), st = old ? old.scrollTop : 0, sl = old ? old.scrollLeft : 0;
       b.innerHTML = bw.writeHtml(ws, ui);
       if (sc) sc.scrollTop = top;
-      const src = $('bd-w-src');
-      if (src) src.scrollTop = st;
       measureBar();
+      measureSrc();
+      const src = $('bd-w-srcbody');
+      if (src) { src.scrollTop = st; src.scrollLeft = sl; }
       focusTarget(focus);
     }
     function drawStatus() {
       const n = $('bd-w-statusbody'); if (n) n.innerHTML = bw.statusHtml(ws, ui);
       const l = $('bd-w-live'); if (l) l.textContent = ui.live || '';   // 알림 줄만 읽힌다(상태 줄 본문은 읽지 않는다)
+      measureSrc();   // 상태 줄 높이가 바뀌면 원본 패널 높이도 따라간다
     }
 
     // 선택은 다시 그리지 않고 클래스만 바꾼다(포커스·스크롤 유지).
@@ -1060,12 +1319,26 @@
         l[i].setAttribute('aria-selected', on ? 'true' : 'false');
         if (s) l[i].tabIndex = on ? 0 : -1;
       }
-      const src = bodyEl().querySelectorAll('td[data-st]');
+      const root = bodyEl(), src = root.querySelectorAll('td[data-st]');
+      const rows = root.querySelectorAll('th.is-srcrow');
+      for (let k = 0; k < rows.length; k++) rows[k].classList.remove('is-srcrow');
+      let hit = null;
       for (let j = 0; j < src.length; j++) {
-        const on = !!s && src[j].getAttribute('data-st') === s.t && src[j].getAttribute('data-key') === s.key;
+        const on = bw.ownsCell(src[j].getAttribute('data-own'), src[j].getAttribute('data-st'), src[j].getAttribute('data-key'), s);
         src[j].classList.toggle('is-src', on);
-        if (on && src[j].scrollIntoView) src[j].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        if (on) {
+          if (!hit) hit = src[j];
+          const rh = src[j].parentNode && src[j].parentNode.firstElementChild;
+          if (rh) rh.classList.add('is-srcrow');
+        }
       }
+      const jb = root.querySelectorAll('[data-w="srcjump"]');
+      for (let m = 0; m < jb.length; m++) {
+        if (s && jb[m].getAttribute('data-v') === s.t) jb[m].setAttribute('aria-current', 'true'); else jb[m].removeAttribute('aria-current');
+      }
+      const sb = root.querySelector('[data-w="srcsel"]');
+      if (sb) sb.disabled = !hit;
+      if (hit) scrollSrcTo(hit);
     }
     function select(t, key, o) {
       const opt = o || {};
@@ -1317,6 +1590,16 @@
         case 'perm': if (env.perms) env.perms(); break;
         case 'filter': ws = bw.setFilter(ws, v); draw({ w: 'filter', v: ws.filter }); break;
         case 'panel': ui.panelOpen = !ui.panelOpen; draw({ w: 'panel' }); break;
+        case 'srcwide': {   // 다시 그리지 않고 클래스만 바꿔 열 비율 전환이 보이게 한다(상태는 메모리에만)
+          ui.wide = !ui.wide;
+          const g = bodyEl().querySelector('.bd-w-grid');
+          if (g) g.classList.toggle('is-wide', !!ui.wide);
+          btn.setAttribute('aria-pressed', ui.wide ? 'true' : 'false');
+          measureSrc();
+          break;
+        }
+        case 'srcjump': jumpSrc(v); break;
+        case 'srcsel': { const b = $('bd-w-srcbody'), hit = b && b.querySelector('td.is-src'); if (hit) scrollSrcTo(hit); break; }
         case 'banmore': ui.banOpen[v] = !ui.banOpen[v]; draw({ w: 'banmore', v: v }); break;
         case 'unread': { ws = bw.setFilter(ws, 'need'); const f = bw.firstUnreadable(ws); if (f) ui.sel = f; draw({ cell: true }); break; }
         case 'draft': doDraft(); break;
@@ -1462,7 +1745,12 @@
         b.addEventListener('input', onInput);
         b.addEventListener('dblclick', onDblClick);
         window.addEventListener('scroll', function () { if (tipFor || tipTimer) hideTip(); }, true);
-        window.addEventListener('resize', function () { hideTip(); measureBar(); });
+        window.addEventListener('resize', function () { hideTip(); measureBar(); measureSrc(); });
+        let srcRaf = 0;   // 페이지 스크롤로 패널 시작 y가 바뀌면 높이를 다시 잰다
+        window.addEventListener('scroll', function (e) {
+          if (!active || srcRaf || (e.target && e.target.id === 'bd-w-srcbody') || typeof requestAnimationFrame !== 'function') return;
+          srcRaf = requestAnimationFrame(function () { srcRaf = 0; measureSrc(); });
+        }, true);
         window.addEventListener('beforeunload', onUnload);
       },
       start: function () {

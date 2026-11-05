@@ -101,6 +101,125 @@ public class BoardDocDocxTest {
         }
     }
 
+    private static XWPFDocument readWith(boolean sample, boolean notice) throws Exception {
+        return new XWPFDocument(new ByteArrayInputStream(BoardDocDocx.build(BoardDocSpec.find("default_doc", sample), notice)));
+    }
+
+    @Test
+    public void A4_세로와_여백_1134가_sectPr에_들어간다() throws Exception {
+        XWPFDocument d = read(true);
+        try {
+            String xml = d.getDocument().getBody().getSectPr().xmlText();
+            assertTrue(xml, xml.contains("w:w=\"11906\"") && xml.contains("w:h=\"16838\""));
+            for (String side : new String[]{"top", "bottom", "left", "right"}) {
+                assertTrue(xml, xml.contains("w:" + side + "=\"1134\""));
+            }
+        } finally {
+            d.close();
+        }
+    }
+
+    private static int[] grid(XWPFTable t) {
+        org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblGrid g = t.getCTTbl().getTblGrid();
+        int[] w = new int[g.sizeOfGridColArray()];
+        for (int i = 0; i < w.length; i++) {
+            w[i] = Integer.parseInt(String.valueOf(g.getGridColArray(i).getW()));
+        }
+        return w;
+    }
+
+    private static int sum(int[] a) {
+        int s = 0;
+        for (int x : a) {
+            s += x;
+        }
+        return s;
+    }
+
+    @Test
+    public void 표는_고정_레이아웃이고_gridCol_비율과_행_속성이_맞다() throws Exception {
+        XWPFDocument d = read(true);
+        try {
+            double[][] want = {{22, 34, 18, 26}, {6, 12, 11.7, 11.7, 11.7, 11.7, 11.7, 11.7, 11.7},
+                    {28, 12, 12, 12, 12, 12, 12}, {30, 14, 14, 14, 14, 14}, {32, 16, 52}};
+            for (int i = 0; i < 5; i++) {
+                XWPFTable t = d.getTables().get(i);
+                int[] w = grid(t);
+                assertEquals("표 " + i, want[i].length, w.length);
+                assertEquals(9638, sum(w));
+                for (int c = 0; c < w.length - 1; c++) {
+                    assertEquals(9638 * want[i][c] / 100.0, w[c], 1.0);
+                }
+                String pr = t.getCTTbl().getTblPr().xmlText();
+                assertTrue(pr, pr.contains("w:tblLayout") && pr.contains("fixed"));
+                assertTrue(pr, pr.contains("w:tblCellMar") && pr.contains("w:w=\"60\""));
+                for (int r = 0; r < t.getRows().size(); r++) {
+                    String tr = t.getRow(r).getCtRow().getTrPr().xmlText();
+                    assertTrue(tr, tr.contains("w:cantSplit"));
+                    assertEquals("머리행 반복 r" + r, r == 0, tr.contains("w:tblHeader"));
+                }
+            }
+            // 머리칸 음영
+            String shd = d.getTables().get(0).getRow(0).getCell(0).getCTTc().getTcPr().xmlText();
+            assertTrue(shd, shd.contains("F2F2F2") && !shd.contains("D9E2F3"));
+        } finally {
+            d.close();
+        }
+    }
+
+    @Test
+    public void 단위_문단은_제목_아래_표_위에_9pt_오른쪽_keepNext() throws Exception {
+        XWPFDocument d = read(true);
+        try {
+            int units = 0;
+            java.util.List<XWPFParagraph> ps = d.getParagraphs();
+            for (int i = 0; i < ps.size(); i++) {
+                XWPFParagraph p = ps.get(i);
+                if ("(단위: 억원)".equals(p.getText())) {
+                    units++;
+                    assertEquals(org.apache.poi.xwpf.usermodel.ParagraphAlignment.RIGHT, p.getAlignment());
+                    assertTrue(p.getCTP().getPPr().isSetKeepNext());
+                    assertEquals(9.0, p.getRuns().get(0).getFontSizeAsDouble(), 0.01);
+                    assertTrue("표 제목 keepNext", ps.get(i - 1).getCTP().getPPr().isSetKeepNext());
+                }
+            }
+            assertEquals(4, units);   // A, B, C-2, C-3 (C-4 는 단위 없음)
+        } finally {
+            d.close();
+        }
+    }
+
+    @Test
+    public void 샘플_안내문구는_요청할_때만_제목_바로_아래에_들어간다() throws Exception {
+        XWPFDocument d = readWith(true, true);
+        try {
+            XWPFParagraph n = d.getParagraphs().get(1);
+            assertEquals("샘플 — 표의 수치는 가상 예시입니다.", n.getText());
+            assertEquals("595959", n.getRuns().get(0).getColor());
+            assertEquals(9.0, n.getRuns().get(0).getFontSizeAsDouble(), 0.01);
+            assertEquals(120, n.getSpacingAfter());
+        } finally {
+            d.close();
+        }
+        XWPFDocument none = readWith(true, false);
+        try {
+            assertFalse("샘플 — 표의 수치는 가상 예시입니다.".equals(none.getParagraphs().get(1).getText()));
+        } finally {
+            none.close();
+        }
+    }
+
+    @Test
+    public void 열_수가_다른_표는_균등_분배로_폴백한다() {
+        int[] w = BoardDocDocx.gridWidths("A", 3);
+        assertEquals(3, w.length);
+        assertEquals(9638, sum(w));
+        assertEquals(3213, w[0]);
+        int[] unknown = BoardDocDocx.gridWidths("ZZ", 2);
+        assertEquals(4819, unknown[0]);
+        assertEquals(4819, unknown[1]);
+    }
+
     @Test
     public void 눈으로_확인할_샘플을_target에_쓴다() throws Exception {
         File dir = new File("target/boarddoc-samples");
@@ -108,7 +227,7 @@ public class BoardDocDocxTest {
         for (boolean sample : new boolean[]{true, false}) {
             FileOutputStream o = new FileOutputStream(new File(dir, sample ? "default_doc_샘플.docx" : "default_doc_빈양식.docx"));
             try {
-                o.write(BoardDocDocx.build(BoardDocSpec.find("default_doc", sample)));
+                o.write(BoardDocDocx.build(BoardDocSpec.find("default_doc", sample), sample));
             } finally {
                 o.close();
             }

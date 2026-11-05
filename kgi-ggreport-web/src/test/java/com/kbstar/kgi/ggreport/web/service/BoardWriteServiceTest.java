@@ -59,7 +59,7 @@ public class BoardWriteServiceTest {
 
     @Test
     public void 슬롯이_없으면_503_BUSY() throws Exception {
-        BoardWriteService s = new BoardWriteService(forms(), new BoardExcelMap(), 5, 20, 40, 200000, 0);
+        BoardWriteService s = new BoardWriteService(forms(), BoardExcelFixture.legacyMap(), 5, 20, 40, 200000, 0);
         ApiException e = rejected(s, BoardExcelFixture.xlsx(null));
         assertEquals(503, e.getStatus());
         assertEquals("BUSY", ((Map<?, ?>) e.getDetailObject()).get("code"));

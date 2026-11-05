@@ -259,3 +259,44 @@ describe('인스턴스 hook — data-auditor', () => {
     assert.strictEqual(a.active, false);
   });
 });
+
+// ── 끝난 인스턴스 30초 유지(done): 진행 중 판정(active)에는 들어가지 않고, 30초 뒤 정리된다 ──
+describe('done 유지(방금 끝남)', () => {
+  it('start 후 stop하면 instances 0개·active=false이고 done에 기록된다', () => {
+    writeState({ laps: 0, since: 1000 });
+    hook('start', JSON.stringify({ agent_type: 'planner', agent_id: 'd1' }));
+    hook('stop', JSON.stringify({ agent_type: 'planner', agent_id: 'd1' }));
+    const a = readState().agents.planner;
+    assert.strictEqual(Object.keys(a.instances).length, 0);
+    assert.strictEqual(a.active, false);
+    assert.ok(a.done && a.done.d1 && Number.isFinite(a.done.d1.doneAt));
+  });
+  it('doneAt이 31초 전이면 다음 갱신에서 정리된다', () => {
+    const s = readState(); s.agents.planner.done = { d1: { task: 'x', since: 1, doneAt: Date.now() - 31000 } };
+    fs.writeFileSync(stateFile(), JSON.stringify(s));
+    hook('idle', '{}');
+    assert.strictEqual(readState().agents.planner.done, undefined);
+  });
+  it('같은 역할 2개 중 1개만 stop하면 active=true 유지, done 1건', () => {
+    writeState({ laps: 0, since: 1000 });
+    hook('start', JSON.stringify({ agent_type: 'qa-verifier', agent_id: 'q1' }));
+    hook('start', JSON.stringify({ agent_type: 'qa-verifier', agent_id: 'q2' }));
+    hook('stop', JSON.stringify({ agent_type: 'qa-verifier', agent_id: 'q1' }));
+    const a = readState().agents.qa;
+    assert.strictEqual(a.active, true);
+    assert.strictEqual(Object.keys(a.instances).length, 1);
+    assert.strictEqual(Object.keys(a.done).length, 1);
+  });
+  it('agent_id 없는 stop은 가장 오래된 인스턴스를 done으로 옮기고, 인스턴스가 없으면 아무 일도 없다', () => {
+    writeState({ laps: 0, since: 1000 });
+    hook('start', JSON.stringify({ agent_type: 'pm', agent_id: 'p1' }));
+    hook('stop', JSON.stringify({ agent_type: 'pm' }));
+    assert.strictEqual(Object.keys(readState().agents.pm.done).length, 1);
+    hook('stop', JSON.stringify({ agent_type: 'pm' }));
+    assert.strictEqual(Object.keys(readState().agents.pm.done).length, 1);
+  });
+  it('app.js DONE_MS와 statefile.js DONE_TTL 값이 같다', () => {
+    const a = readSrc('app.js').match(/const DONE_MS = (\d+) \* 1000/), s = readSrc('statefile.js').match(/const DONE_TTL = (\d+) \* 1000/);
+    assert.ok(a && s && a[1] === s[1]);
+  });
+});

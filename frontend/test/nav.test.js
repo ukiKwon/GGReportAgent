@@ -77,7 +77,9 @@ test('비영업 팀의 카테고리는 구현된 화면만 남는다(빈 카테�
   const v = Object.assign({}, ALL_ON, { approvals: false, admin: false });
   const built = nav.build(v, { role: '예산팀' });
   assert.deepStrictEqual(ids(built), ['opp', 'docs', 'collab']);
-  items(built, 'collab').forEach(function (i) { assert.strictEqual(i.soon, false); });
+  // 이사회 자료(작업함 조회 권한 기준 노출)만 예외 — 나머지는 구현된 화면뿐
+  items(built, 'collab').filter(function (i) { return i.label !== '이사회 자료'; })
+    .forEach(function (i) { assert.strictEqual(i.soon, false); });
 });
 
 test('준비중 항목 id는 라벨 기반으로 안정적이고 서로 다르다', function () {
@@ -204,8 +206,33 @@ test('비영업 역할: 준비중이 숨겨지고 시스템 관리가 맨 아래
   assert.deepStrictEqual(ids(nav.build(ALL_ON, { role: '예산팀' })), ['opp', 'docs', 'collab', 'sys']);
   assert.deepStrictEqual(ids(nav.build(ALL_ON, { role: '전산팀' })), ['opp', 'docs', 'collab', 'sys']);
   nav.build(ALL_ON, { role: '예산팀' }).forEach(function (c) {
-    c.items.forEach(function (i) { assert.strictEqual(i.soon, false); });
+    c.items.filter(function (i) { return i.label !== '이사회 자료'; })
+      .forEach(function (i) { assert.strictEqual(i.soon, false); });
   });
+});
+
+test('이사회 자료: 영업 계열이 아니어도 tasks 조회 권한이 있으면 보이고, tasks가 꺼지면 영업팀 외에는 안 보인다', function () {
+  function hasBoard(v, ctx) {
+    return nav.build(v, ctx).some(function (c) {
+      return c.items.some(function (i) { return i.label === '이사회 자료'; });
+    });
+  }
+  const noTasks = Object.assign({}, ALL_ON, { tasks: false });
+  assert.ok(hasBoard(ALL_ON, { role: '전산팀' }));
+  assert.ok(hasBoard(ALL_ON, { role: '전산팀장' }));
+  assert.ok(hasBoard(ALL_ON, { role: '전산팀', master: true }));
+  assert.ok(hasBoard(ALL_ON, { role: '예산팀' }));
+  assert.ok(!hasBoard(noTasks, { role: '전산팀' }));
+  assert.ok(!hasBoard(noTasks, { role: '예산팀' }));
+  assert.ok(!hasBoard(GUEST, { role: '' }));
+  // 영업팀은 기존대로(tasks 여부와 무관하게 보임)
+  assert.ok(hasBoard(ALL_ON, { role: '영업팀' }));
+  assert.ok(hasBoard(noTasks, { role: '영업팀' }));
+  // 다른 준비중 항목은 영업 계열이 아니면 tasks가 있어도 안 보인다
+  const others = nav.build(ALL_ON, { role: '전산팀' }).reduce(function (n, c) {
+    return n + c.items.filter(function (i) { return i.soon && i.label !== '이사회 자료'; }).length;
+  }, 0);
+  assert.strictEqual(others, 0);
 });
 
 test('준비중 라벨은 정의 전체에서 유일하다(라벨 기반 id의 전제)', function () {

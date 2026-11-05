@@ -80,7 +80,7 @@ public class BoardFormController {
         boolean sample = isSample(values);
         BoardDocSpec.Doc doc = service.docOf(a.getEmpNo(), id, version, sample);
         String base = doc.getName().replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_");
-        String name = base + (sample ? "" : "_빈양식") + ".docx";
+        String name = base + (sample ? "_샘플" : "_빈양식") + ".docx";
         String encoded;
         try {
             encoded = URLEncoder.encode(name, "UTF-8").replace("+", "%20");
@@ -92,7 +92,7 @@ public class BoardFormController {
                         "attachment; filename=\"board_form.docx\"; filename*=UTF-8''" + encoded)
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .contentType(DOCX)
-                .body(BoardDocDocx.build(doc));
+                .body(BoardDocDocx.build(doc, sample));
     }
 
     @PostMapping("/copy")

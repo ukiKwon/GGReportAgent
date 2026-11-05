@@ -103,7 +103,7 @@ public class BoardExcelFillTest {
 
     @Test
     public void 공백은_정규화해서_비교한다() throws Exception {
-        Map<String, Object> out = run(new BoardExcelMap(),
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(),
                 wb -> wb.getSheet("기부금").getRow(4).getCell(1).setCellValue("  합계 "));
         assertEquals("ok", table(out, "A").get("label_state"));
     }
@@ -111,7 +111,7 @@ public class BoardExcelFillTest {
     @Test
     @SuppressWarnings("unchecked")
     public void 표_A는_합계_관계를_칸_key_기준으로_싣는다() throws Exception {
-        Map<String, Object> out = run(new BoardExcelMap(), wb -> { });
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(), wb -> { });
         List<Map<String, Object>> sums = (List<Map<String, Object>>) table(out, "A").get("sums");
         assertEquals(1, sums.size());
         assertEquals("r4c1", sums.get(0).get("total"));
@@ -123,7 +123,7 @@ public class BoardExcelFillTest {
 
     @Test
     public void 일부만_다르면_값을_채우되_review로_두고_filled에서_뺀다() throws Exception {
-        Map<String, Object> out = run(new BoardExcelMap(), B5_TOTAL2);
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(), B5_TOTAL2);
         Map<String, Object> t = table(out, "A");
         assertEquals("partial", t.get("label_state"));
         assertEquals(true, t.get("needs_review"));
@@ -143,9 +143,9 @@ public class BoardExcelFillTest {
     @Test
     public void 절반_미만_다르면_partial_절반_이상이면_failed() throws Exception {
         // 표 A 머리글 7칸: 3칸 다름(3*2<7)=partial, 4칸 다름(4*2>=7)=failed
-        Map<String, Object> three = run(new BoardExcelMap(), wb -> change(wb, "B2", "B3", "B4"));
+        Map<String, Object> three = run(BoardExcelFixture.legacyMap(), wb -> change(wb, "B2", "B3", "B4"));
         assertEquals("partial", table(three, "A").get("label_state"));
-        Map<String, Object> four = run(new BoardExcelMap(), wb -> change(wb, "B2", "B3", "B4", "B5"));
+        Map<String, Object> four = run(BoardExcelFixture.legacyMap(), wb -> change(wb, "B2", "B3", "B4", "B5"));
         assertEquals("failed", table(four, "A").get("label_state"));
     }
 
@@ -157,7 +157,7 @@ public class BoardExcelFillTest {
 
     @Test
     public void failed_표는_모든_칸이_빈값_LABEL_MISMATCH이고_합계_검산도_하지_않는다() throws Exception {
-        Map<String, Object> out = run(new BoardExcelMap(), wb -> {
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(), wb -> {
             change(wb, "B2", "B3", "B4", "B5");
             wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(400);     // 합계가 달라지는 값
         });
@@ -185,7 +185,7 @@ public class BoardExcelFillTest {
 
     @Test
     public void 숫자_칸은_raw와_rounded를_싣는다() throws Exception {
-        Map<String, Object> out = run(new BoardExcelMap(),
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(),
                 wb -> wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(1234.5678919));
         Map<String, Object> c = cell(out, "A", "r2c1");
         assertEquals("1,235", c.get("value"));
@@ -199,7 +199,7 @@ public class BoardExcelFillTest {
 
     @Test
     public void 문자_칸은_raw가_null() throws Exception {
-        Map<String, Object> out = run(new BoardExcelMap(), null);
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(), null);
         Map<String, Object> c = cell(out, "A", "r1c0");                  // 기관명 칸(문자열)
         assertEquals("filled", c.get("status"));
         assertNull(source(c).get("raw"));
@@ -208,7 +208,7 @@ public class BoardExcelFillTest {
 
     @Test
     public void 표시값_합이_표시된_합계와_다르면_SUM_MISMATCH_diff() throws Exception {
-        Map<String, Object> out = run(new BoardExcelMap(), wb -> {
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(), wb -> {
             wb.getSheet("기부금").getRow(1).getCell(2).setCellValue(1234.4);   // 표시 1,234
             wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(2345.4);   // 표시 2,345
             wb.getSheet("기부금").getRow(3).getCell(2).setCellValue(0);
@@ -231,7 +231,7 @@ public class BoardExcelFillTest {
 
     @Test
     public void 표시값_합이_맞으면_원래_값이_달라도_경고_없음() throws Exception {
-        Map<String, Object> out = run(new BoardExcelMap(), wb -> {
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(), wb -> {
             wb.getSheet("기부금").getRow(1).getCell(2).setCellValue(100.2);    // 표시 100
             wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(200.2);    // 표시 200
             wb.getSheet("기부금").getRow(3).getCell(2).setCellValue(0);
@@ -244,7 +244,7 @@ public class BoardExcelFillTest {
 
     @Test
     public void 세미콜론_세개_서식_숫자는_filled이고_HIDDEN_FORMAT_경고와_raw가_있다() throws Exception {
-        Map<String, Object> out = run(new BoardExcelMap(), wb -> {
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(), wb -> {
             CellStyle hide = wb.createCellStyle();
             hide.setDataFormat(wb.createDataFormat().getFormat(";;;"));
             wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(1234.5);
@@ -299,7 +299,7 @@ public class BoardExcelFillTest {
 
     @Test
     public void 문자열_칸도_4번째_구역이_비면_HIDDEN_FORMAT() throws Exception {
-        Map<String, Object> out = run(new BoardExcelMap(), wb -> {
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(), wb -> {
             CellStyle hide = wb.createCellStyle();
             hide.setDataFormat(wb.createDataFormat().getFormat(";;;"));
             wb.getSheet("기부금").getRow(1).getCell(0).setCellStyle(hide);   // A2 기관명(문자열)
@@ -309,7 +309,7 @@ public class BoardExcelFillTest {
 
     @Test
     public void 보통_서식_숫자_칸은_HIDDEN_FORMAT이_없고_음수_0_숨김은_값에_따라() throws Exception {
-        Map<String, Object> out = run(new BoardExcelMap(), wb -> {
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(), wb -> {
             CellStyle hide = wb.createCellStyle();
             hide.setDataFormat(wb.createDataFormat().getFormat("#,##0;;"));
             wb.getSheet("기부금").getRow(1).getCell(2).setCellValue(-3);     // C2 음수 → 숨김
@@ -326,7 +326,7 @@ public class BoardExcelFillTest {
     /** 표 A 의 머리글을 주어진 것으로만 바꾼 지도(범위 안·매핑 칸 밖이어야 한다). */
     private static BoardExcelMap mapWithLabels(String... cellAndExpected) throws Exception {
         ObjectNode root;
-        try (InputStream in = new ClassPathResource(BoardExcelMap.RESOURCE).getInputStream()) {
+        try (InputStream in = new ClassPathResource(BoardExcelFixture.LEGACY).getInputStream()) {
             root = (ObjectNode) new ObjectMapper().readTree(in);
         }
         for (JsonNode t : root.get("tables")) {
@@ -374,7 +374,7 @@ public class BoardExcelFillTest {
 
     @Test
     public void rawDecimal_소수_6자리_반올림과_41자리_초과는_null() throws Exception {
-        Map<String, Object> out = run(new BoardExcelMap(), wb -> {
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(), wb -> {
             wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(1234.5678915);
             wb.getSheet("기부금").getRow(3).getCell(2).setCellValue(1e40);     // 41자리 정수
         });
@@ -386,7 +386,7 @@ public class BoardExcelFillTest {
 
     @Test
     public void 숫자가_아닌_칸과_읽지_못한_칸은_raw가_null() throws Exception {
-        Map<String, Object> out = run(new BoardExcelMap(), wb ->
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(), wb ->
                 ((org.apache.poi.xssf.usermodel.XSSFCell) wb.getSheet("기부금").getRow(4).getCell(2)).getCTCell().unsetV());
         assertNull(source(cell(out, "A", "r1c0")).get("raw"));          // 문자열(numeric=false)
         assertNull(source(cell(out, "A", "r4c1")).get("raw"));          // problem
@@ -394,7 +394,7 @@ public class BoardExcelFillTest {
 
     @Test
     public void 퍼센트_0점12는_raw_0점12_rounded는_null() throws Exception {
-        Map<String, Object> out = run(new BoardExcelMap(), wb -> {
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(), wb -> {
             CellStyle pct = wb.createCellStyle();
             pct.setDataFormat(wb.createDataFormat().getFormat("0%"));
             wb.getSheet("기부금").getRow(2).getCell(2).setCellValue(0.12);
@@ -408,10 +408,25 @@ public class BoardExcelFillTest {
 
     @Test
     public void summary_warnings는_칸_단위_LABEL_MISMATCH를_세지_않는다() throws Exception {
-        Map<String, Object> out = run(new BoardExcelMap(), B5_TOTAL2);   // 표 A 5칸 모두 LABEL_MISMATCH 경고
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(), B5_TOTAL2);   // 표 A 5칸 모두 LABEL_MISMATCH 경고
         assertEquals(0, summary(out).get("warnings"));
         assertEquals(1, summary(out).get("label_mismatch_tables"));
         assertTrue(hasWarning(cell(out, "A", "r1c2"), "LABEL_MISMATCH"));  // 칸 배열은 그대로
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void 옛_형식_칸도_새_형식과_같은_키를_갖는다() throws Exception {
+        Map<String, Object> out = run(BoardExcelFixture.legacyMap(), null);
+        Map<String, Object> c = cell(out, "A", "r1c2");
+        assertEquals(1, c.get("part_count"));
+        assertNull(c.get("convert"));
+        assertNull(c.get("main_value"));
+        assertNull(c.get("sub_value"));
+        assertEquals("main", ((List<Map<String, Object>>) c.get("parts")).get(0).get("role"));
+        assertEquals(0, summary(out).get("manual"));
+        assertTrue(((List<?>) out.get("assumptions")).isEmpty());
+        assertEquals(false, ((List<Map<String, Object>>) out.get("sources")).get(0).get("omitted"));
     }
 
     // ── shownNum·plain·rawDecimal ──

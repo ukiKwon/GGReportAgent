@@ -59,6 +59,9 @@ public class BoardWriteController {
         } catch (ApiException e) {
             audit(req, codeOf(e), size, kinds(e.getDetailObject()));
             throw e;
+        } catch (RuntimeException | Error e) {
+            audit(req, "500", size, 0);        // 예상 못 한 실패도 접근 이력에 남긴다(본문·값 없음)
+            throw e;
         }
     }
 
@@ -71,6 +74,9 @@ public class BoardWriteController {
             doc = service.draft(a.getEmpNo(), id, in);
         } catch (ApiException e) {
             audit(req, codeOf(e), -1, kinds(e.getDetailObject()));
+            throw e;
+        } catch (RuntimeException | Error e) {
+            audit(req, "500", -1, 0);
             throw e;
         }
         audit(req, "OK", -1, 0);

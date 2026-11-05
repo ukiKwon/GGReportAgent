@@ -26,11 +26,18 @@ public final class BoardExcelFixture {
     /** 형식만 맞춘 가상 주민번호 모양 숫자. */
     public static final String FAKE_RRN = "9001011234567";
 
+    /** 옛 형식(range+labels+A1) 지도 — 가상 엑셀 생성과 옛 형식 시험용. 실제 지도(excel-map.json)는 이름·구역 형식(v2). */
+    public static final String LEGACY = "boarddoc/excel-map-legacy.json";
+
     private BoardExcelFixture() {
     }
 
+    public static BoardExcelMap legacyMap() {
+        return new BoardExcelMap(LEGACY);
+    }
+
     public static byte[] xlsx(Consumer<XSSFWorkbook> tweak) throws IOException {
-        BoardExcelMap map = new BoardExcelMap();
+        BoardExcelMap map = legacyMap();
         try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             CellStyle num = wb.createCellStyle();
             num.setDataFormat(wb.createDataFormat().getFormat("#,##0"));
@@ -67,7 +74,7 @@ public final class BoardExcelFixture {
     /** 실제 지도에서 ref 표의 시트 이름만 바꾼 지도 — 시트 이름 대소문자 판정 시험용(service 패키지에서 쓴다). */
     public static BoardExcelMap mapWithSheet(String ref, String sheet) throws IOException {
         ObjectNode root;
-        try (InputStream in = new ClassPathResource(BoardExcelMap.RESOURCE).getInputStream()) {
+        try (InputStream in = new ClassPathResource(LEGACY).getInputStream()) {
             root = (ObjectNode) new ObjectMapper().readTree(in);
         }
         for (JsonNode t : root.get("tables")) {
@@ -81,7 +88,7 @@ public final class BoardExcelFixture {
     /** 실제 지도에서 ref 표의 머리글 한 칸을 주어진 값(문자열 또는 배열)으로 바꾼 지도 — 별칭 시험용. */
     public static BoardExcelMap mapWithLabel(String ref, String cell, JsonNode value) throws IOException {
         ObjectNode root;
-        try (InputStream in = new ClassPathResource(BoardExcelMap.RESOURCE).getInputStream()) {
+        try (InputStream in = new ClassPathResource(LEGACY).getInputStream()) {
             root = (ObjectNode) new ObjectMapper().readTree(in);
         }
         for (JsonNode t : root.get("tables")) {

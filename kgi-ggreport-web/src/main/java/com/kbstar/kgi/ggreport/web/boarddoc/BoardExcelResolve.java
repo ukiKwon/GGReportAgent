@@ -2,6 +2,7 @@ package com.kbstar.kgi.ggreport.web.boarddoc;
 
 import com.kbstar.kgi.ggreport.web.docfill.XlsxBook;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.util.CellRangeAddress;
@@ -111,6 +112,34 @@ public final class BoardExcelResolve {
             this.rows = new ArrayList<>(rows);
         }
 
+        /** 같은 정의에 시트만 바꾼 복사본(시트 별칭 해석용). */
+        private Area(Area o, String sheet) {
+            this.id = o.id;
+            this.sheet = sheet;
+            this.title = o.title;
+            this.until = o.until;
+            this.headerHas = o.headerHas;
+            this.cols = o.cols;
+            this.rows = o.rows;
+        }
+
+        public Area onSheet(String other) {
+            return new Area(this, other);
+        }
+
+        public boolean hasRow(String rowId) {
+            for (RowDef d : rows) {
+                if (d.id.equals(rowId)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public boolean hasCol(String colId) {
+            return cols.containsKey(colId);
+        }
+
         public String getId() {
             return id;
         }
@@ -143,6 +172,8 @@ public final class BoardExcelResolve {
         public boolean sheetHidden;
         public boolean titleHidden;
         public boolean headerHidden;
+        /** 제목 행(0-기준). 단위 표기 확인용. */
+        public int titleRow;
         /** 열 id → 0-기준 열 번호. */
         public final Map<String, Integer> cols = new LinkedHashMap<>();
         public final Set<String> hiddenCols = new LinkedHashSet<>();
@@ -187,6 +218,7 @@ public final class BoardExcelResolve {
             return fail(out, "AREA_AMBIGUOUS", a.id, 0);
         }
         out.titleHidden = XlsxBook.rowHidden(s, rows.get(titleIdx).getRowNum());
+        out.titleRow = rows.get(titleIdx).getRowNum();
 
         // 2) 구역 끝
         int end = rows.size();
@@ -271,7 +303,12 @@ public final class BoardExcelResolve {
             if (lastNum - hn + 1 > XlsxBook.MAX_INDEX_ROWS) {
                 return fail(out, "AREA_TOO_LARGE", a.id, hn + 1);
             }
-            XlsxBook.MergedIndex ix = b.mergedIndex(s, new CellRangeAddress(hn, lastNum, labelStart, minData - 1));
+            XlsxBook.MergedIndex ix;
+            try {
+                ix = b.mergedIndex(s, new CellRangeAddress(hn, lastNum, labelStart, minData - 1));
+            } catch (IllegalArgumentException e) {                 // CLIP_TOO_LARGE — 422 계열 코드로만
+                return fail(out, "AREA_TOO_LARGE", a.id, hn + 1);
+            }
             if (ix.hasOverlap()) {
                 return fail(out, "MERGE_OVERLAP", a.id, hn + 1);
             }
@@ -333,11 +370,20 @@ public final class BoardExcelResolve {
 
     private static boolean rowMatches(XlsxBook b, Sheet s, Row r, List<BoardLabel.Spec> specs) {
         for (Cell c : r) {
-            if (BoardLabel.matchesAnyKey(specs, keyAt(b, s, r.getRowNum(), c.getColumnIndex()))) {
-                return true;
+            if (isText(c) && BoardLabel.matchesAnyKey(specs, keyAt(b, s, r.getRowNum(), c.getColumnIndex()))) {
+                return true;                                        // 숫자 칸은 key 를 계산하지 않는다(성능)
             }
         }
         return false;
+    }
+
+    /** 문자열 셀(문자열 캐시값 수식 포함)인가. */
+    private static boolean isText(Cell c) {
+        CellType t = c.getCellType();
+        if (t == CellType.FORMULA) {
+            t = c.getCachedFormulaResultType();
+        }
+        return t == CellType.STRING;
     }
 
     /** header_has 의 모든 항목이 이 행의 어떤 칸과 일치. 비어 있으면 제목 바로 다음 행(첫 후보)을 머리글로 본다. */

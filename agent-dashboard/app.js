@@ -831,7 +831,7 @@ function stateLabel(r) {
     case 'down': case 'carried': case 'inAmb': return '이송 중';
     case 'away': return '병원';
     case 'wet': return '일어나는 중';
-    default: return r.active ? '출발 준비' : (li >= 15 ? '쓰러져 휴식' : '벤치 대기');
+    default: return r.active ? '출발 준비' : (recentDone(r.role).length ? '방금 끝남' : (li >= 15 ? '쓰러져 휴식' : '벤치 대기'));
   }
 }
 function drawInfield() {
@@ -1016,7 +1016,9 @@ const nowBar = document.getElementById('now');
 function refreshNow() {
   const parts = runners.filter(r => r.active).map(r => '<span class="run">▶</span> <b>' + r.name + '</b>' + (r.task ? ' <span>(' + r.task.replace(/[<>&]/g, '') + ')</span>' : ''));
   if (jan.active) parts.push('<span class="run">▶</span> <b>청소부</b>' + (jan.task ? ' <span>(' + jan.task.replace(/[<>&]/g, '') + ')</span>' : ''));
-  nowBar.innerHTML = parts.length ? '지금 작업 중 ' + parts.length + '명: ' + parts.join('  ·  ') : '지금 작업 중인 에이전트: 없음';
+  const dn = AGENTS.flatMap(a => recentDone(a.id).map(d => '<b>' + a.name + '</b>' + (d.task ? ' <span>(' + String(d.task).replace(/[<>&]/g, '') + ')</span>' : '')));
+  nowBar.innerHTML = (parts.length ? '지금 작업 중 ' + parts.length + '명: ' + parts.join('  ·  ') : '지금 작업 중인 에이전트: 없음')
+    + (dn.length ? '  |  <span class="fin">방금 끝남 ' + dn.length + '건:</span> ' + dn.join('  ·  ') : '');
 }
 function refreshChips() {
   refreshNow();
@@ -1028,8 +1030,10 @@ function refreshChips() {
   }
   runners.forEach(r => {
     const d = document.getElementById('chip-' + r.id); if (!d) return;
+    const fin = !r.active && !r.extra && recentDone(r.role).length > 0;
     d.classList.toggle('on', r.active);
-    d.querySelector('.st').textContent = (r.active ? '작업 중' : '대기') + ' · ' + lapInt(r) + '바퀴';
+    d.classList.toggle('fin', fin);
+    d.querySelector('.st').textContent = (r.active ? '작업 중' : fin ? '방금 끝남' : '대기') + ' · ' + lapInt(r) + '바퀴';
     const t = devBox.querySelector('[data-k=' + r.id + ']');
     if (t) t.textContent = r.name + (r.active ? ' 멈춤(시험)' : ' 시작(시험)');
   });
@@ -1051,6 +1055,9 @@ document.getElementById('reset').onclick = () => runners.forEach(r => { r.lapF =
 /* ---------- state.json 폴링 ---------- */
 const prevFeed = {};
 const FEED_TTL = 15 * 60 * 1000; // stop 이벤트가 유실돼도 15분 뒤엔 쉬게 한다
+const DONE_MS = 30 * 1000;       // 끝난 직후 '방금 끝남'으로 보이는 시간(statefile.js DONE_TTL과 같게)
+const doneFeed = {};             // 역할 → [{task, doneAt}] (prevFeed 캐시와 무관하게 매번 갱신)
+const recentDone = role => { const n = Date.now(); return (doneFeed[role] || []).filter(d => d && n - (d.doneAt || 0) < DONE_MS); };
 function syncRole(role, insts) {
   const rs = runners.filter(r => r.role === role).sort((x, y) => x.inst - y.inst);
   for (let k = rs.length; k < insts.length; k++) { const r = spawnExtra(role, k + 1); if (r) rs.push(r); }
@@ -1067,6 +1074,7 @@ function applyFeed(j) {
   const ag = j.agents || {}, now = Date.now();
   AGENTS.forEach(a => {
     const f = ag[a.id]; if (!f) return;
+    doneFeed[a.id] = f.done && typeof f.done === 'object' ? Object.values(f.done) : [];
     const key = JSON.stringify(f);
     if (prevFeed[a.id] === key) return;
     prevFeed[a.id] = key;

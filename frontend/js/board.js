@@ -21,7 +21,8 @@
   board.LIST_ERROR = LIST_ERROR;
   const ALIGNS = { left: 1, center: 1, right: 1 };
   // 천 단위 쉼표·소수·%·괄호·부호·△▲(감소 표기)를 허용하는 숫자 표시값. 엑셀 표시값을 그대로 옮기므로 문자열로만 본다.
-  const NUM_RE = /^[\s(△▲+-]*\d[\d,]*(\.\d+)?\s*%?\)?$/;
+  // 끝의 '년'(3.2년)과 괄호 병기("5.00 (1.00)", "5.00 (-1.00)")도 숫자로 본다.
+  const NUM_RE = /^[\s(△▲+-]*\d[\d,]*(\.\d+)?\s*(%|년)?\)?(\s+\(-?\d[\d,]*(\.\d+)?\))?$/;
   // 서버(BoardDocSpec.clean)와 같은 규칙: 줄바꿈·탭 포함 제어문자, U+2028/2029, U+FFFE/FFFF는 거부한다.
   // 짝 없는 서로게이트는 서버가 거부하므로 여기서 보지 않는다(저장 오류 문구로 보인다).
   const CTRL_RE = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f' + String.fromCharCode(0x2028, 0x2029, 0xfffe, 0xffff) + ']');
@@ -74,9 +75,16 @@
       (extra || '') + '>';
   }
 
-  board.cellHtml = function (cell) {
+  // scope: th 의 범위(고정 낱말만). 없으면 열 머리(병합이면 colgroup). map 이 넘기는 인덱스(숫자)는 무시한다.
+  const SCOPES = { col: 1, colgroup: 1, row: 1, rowgroup: 1 };
+  board.cellHtml = function (cell, scope) {
     const p = cellParts(cell);
-    return openTag(p, p.mapped ? ' title="엑셀 값이 들어가는 칸"' : '') + esc(p.text) + '</' + p.tag + '>';
+    let extra = p.mapped ? ' title="엑셀 값이 들어가는 칸"' : '';
+    if (p.tag === 'th') {
+      const sc = (typeof scope === 'string' && SCOPES[scope] === 1) ? scope : (p.cs > 1 ? 'colgroup' : 'col');
+      extra = ' scope="' + sc + '"' + extra;
+    }
+    return openTag(p, extra) + esc(p.text) + '</' + p.tag + '>';
   };
 
   function headerInRows(rows) {
@@ -100,10 +108,19 @@
     const rows = Array.isArray(tb.rows) ? tb.rows : [];
     const cols = Array.isArray(tb.columns) ? tb.columns : [];
     const tbody = '<tbody>' + rows.map(function (r) {
-      return '<tr>' + (Array.isArray(r) ? r : []).map(board.cellHtml).join('') + '</tr>';
+      const cells = Array.isArray(r) ? r : [];
+      const hasData = cells.some(function (c) { return !(c && typeof c === 'object' && c.header === true); });
+      return '<tr>' + cells.map(function (c, ci) {
+        // 데이터 칸이 있는 행의 첫 머리 칸은 행 머리(scope=row)
+        const rowHead = ci === 0 && hasData && c && typeof c === 'object' && c.header === true;
+        return board.cellHtml(c, rowHead ? (span(c.rowspan) > 1 ? 'rowgroup' : 'row') : undefined);
+      }).join('') + '</tr>';
     }).join('') + '</tbody>';
+    const unit = typeof tb.unit === 'string' ? tb.unit.trim() : '';   // 읽기 전용, 비어 있을 수 있다
+    const cap = (tb.title || unit)
+      ? '<caption>' + esc(tb.title) + (unit ? '<span class="bd-unit">(단위: ' + esc(unit) + ')</span>' : '') + '</caption>' : '';
     return '<div class="bd-table-wrap"><table class="bd-table">' +
-      (tb.title ? '<caption>' + esc(tb.title) + '</caption>' : '') + theadHtml(cols, rows) + tbody + '</table></div>' +
+      cap + theadHtml(cols, rows) + tbody + '</table></div>' +
       notesHtml(tb.notes);
   };
 
@@ -817,9 +834,9 @@
   board.actionsHtml = function (ctx) {
     const c = ctx || {};
     if (c.mode === 'write') return '';   // 작성 모드의 버튼은 작성 줄(#bd-writebar, board-write.js)에 있다
-    if (c.mode === 'edit') return '<button type="button" id="bd-docx" data-act="docx" disabled>워드 내려받기</button>';
+    if (c.mode === 'edit') return '<button type="button" id="bd-docx" data-act="docx" disabled>샘플 워드 내려받기</button>';
     let h = (c.canWrite ? '<button type="button" id="bd-write" data-act="write">이 양식으로 작성</button>' : '') +
-      '<button type="button" id="bd-docx" data-act="docx"' + (c.hasDoc && !c.docxBusy ? '' : ' disabled') + '>워드 내려받기</button>';
+      '<button type="button" id="bd-docx" data-act="docx"' + (c.hasDoc && !c.docxBusy ? '' : ' disabled') + '>샘플 워드 내려받기</button>';
     if (c.editable) {
       h += '<button type="button" id="bd-edit" data-act="edit">양식 편집</button>';
     } else if (c.canCopy) {
@@ -836,6 +853,11 @@
       // 권한을 아직 모르거나(목록 응답 전) 알 수 없으면(목록 실패) 띄우지 않는다.
       h += '<span class="bd-hint">양식은 편집 권한이 있는 사람만 고칠 수 있습니다.</span>';
       h += '<span class="bd-hint">자료 작성은 업무 수정 권한이 있어야 할 수 있습니다.</span>';
+    }
+    // 양식을 보고 있을 때만: 표의 숫자는 예시라는 안내. 작성 권한이 없는 사람에게는 작성 안내(뒷문장)를 뺀다.
+    if (c.hasDoc) {
+      h += '<p class="bd-legend">표의 숫자는 예시입니다.' +
+        (c.canWrite ? ' 틸 배경 칸은 엑셀 값이 들어가는 칸으로, [이 양식으로 작성]에서 엑셀을 올리면 채워집니다.' : '') + '</p>';
     }
     return h;
   };

@@ -597,7 +597,7 @@ test('shouldClearError: 검증 오류는 원인이 풀리면 입력으로 지우
   assert.strictEqual(board.shouldClearError(null, fixed, 'confirm'), false);
 });
 test('board.js 배선: onSave·onCancel 확인과 refreshStatus 입력 경로가 shouldClearError를 거치고, 입력 경로는 오류 줄만 뗀다', function () {
-  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'js', 'board.js'), 'utf8');
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'js', 'board.js'), 'utf8').replace(/\r\n/g, '\n');   // Windows autocrlf 체크아웃에서도 통과
   function body(name) {
     const s = src.indexOf('function ' + name + '(');
     assert.ok(s >= 0, name + ' 없음');
@@ -737,7 +737,7 @@ test('clearOnRestructure: 검증 오류(local)만 지운다 / 서버 오류·409
   assert.ok(!board.editFootHtml(st, { error: '', errorKind: '', errorTarget: '' }).includes('bd-editerr'));
 });
 test('board.js 배선: 위로·아래로·빼기 확정·표 추가 뒤 clearOnRestructure를 거쳐 다시 그린다', function () {
-  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'js', 'board.js'), 'utf8');
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'js', 'board.js'), 'utf8').replace(/\r\n/g, '\n');   // Windows autocrlf 체크아웃에서도 통과
   function body(name) {
     const s = src.indexOf('function ' + name + '(');
     assert.ok(s >= 0, name + ' 없음');

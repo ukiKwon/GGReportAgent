@@ -35,10 +35,20 @@ public final class BoardNumber {
 
     /** 백만원 → 억원 문자열: ÷100, 소수 둘째 자리 HALF_UP, 천 단위 쉼표, 음수는 ASCII '-', 반올림 뒤 0 이면 "0.00". */
     public static String eok(BigDecimal million) {
+        return format(eokValue(million));
+    }
+
+    /** 백만원 → 억원 숫자(÷100, 소수 둘째 자리 HALF_UP). 합계 파생(derive_sum)이 이 값을 더한다. */
+    public static BigDecimal eokValue(BigDecimal million) {
         if (million == null) {
             throw new IllegalArgumentException("NULL_VALUE");
         }
-        BigDecimal v = million.movePointLeft(2).setScale(2, RoundingMode.HALF_UP);
+        return million.movePointLeft(2).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /** 억원 숫자 → 문자열: 둘째 자리 HALF_UP, 천 단위 쉼표, 음수는 ASCII '-', 0 이면 "0.00". */
+    public static String format(BigDecimal eok) {
+        BigDecimal v = eok.setScale(2, RoundingMode.HALF_UP);
         if (v.signum() == 0) {
             return ZERO_2.toPlainString();
         }

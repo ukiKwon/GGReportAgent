@@ -39,20 +39,32 @@ public final class BoardDocSpec {
         private final boolean header;
         private final boolean mapped;
         private final String align;
+        private final String key;
 
         Cell(String text, int colspan, int rowspan, boolean header, boolean mapped, String align) {
+            this(text, colspan, rowspan, header, mapped, align, null);
+        }
+
+        private Cell(String text, int colspan, int rowspan, boolean header, boolean mapped, String align, String key) {
             this.text = text;
             this.colspan = colspan;
             this.rowspan = rowspan;
             this.header = header;
             this.mapped = mapped;
             this.align = align;
+            this.key = key;
         }
 
         Cell span(int cs, int rs) {
-            return new Cell(text, cs, rs, header, mapped, align);
+            return new Cell(text, cs, rs, header, mapped, align, key);
         }
 
+        Cell withKey(String k) {
+            return new Cell(text, colspan, rowspan, header, mapped, align, k);
+        }
+
+        /** 칸 주소표 r{행}c{순번}. Table 에 들어가면 항상 채워진다(Table 생성자가 부여). */
+        public String getKey() { return key; }
         public String getText() { return text; }
         public int getColspan() { return colspan; }
         public int getRowspan() { return rowspan; }
@@ -68,13 +80,23 @@ public final class BoardDocSpec {
         private final int columns;
         private final List<List<Cell>> rows;
         private final List<String> notes;
+        private final String unit;
 
         Table(String id, String mapping, String title, int columns, List<List<Cell>> rows, String... notes) {
             this.id = id;
+            this.unit = unitOf(id);             // 읽기 전용: 표 id 로만 정해지고 사용자 입력으로 바뀌지 않는다
             this.mapping = mapping;
             this.title = title;
             this.columns = columns;
-            this.rows = Collections.unmodifiableList(rows);
+            List<List<Cell>> keyed = new ArrayList<>();
+            for (int r = 0; r < rows.size(); r++) {
+                List<Cell> kr = new ArrayList<>();
+                for (int i = 0; i < rows.get(r).size(); i++) {
+                    kr.add(rows.get(r).get(i).withKey(cellKey(r, i)));
+                }
+                keyed.add(Collections.unmodifiableList(kr));
+            }
+            this.rows = Collections.unmodifiableList(keyed);
             this.notes = Collections.unmodifiableList(Arrays.asList(notes));
             layout(this);                       // 병합 규칙 위반이면 만들 때 바로 실패
         }
@@ -85,6 +107,15 @@ public final class BoardDocSpec {
         public int getColumns() { return columns; }
         public List<List<Cell>> getRows() { return rows; }
         public List<String> getNotes() { return notes; }
+        /** 단위 표기(예: "(단위: 억원)"). 없으면 빈 문자열. 제목과 분리된 읽기 전용 값. */
+        public String getUnit() { return unit; }
+    }
+
+    public static final String UNIT_EOK = "(단위: 억원)";
+
+    private static String unitOf(String tableId) {
+        return "A".equals(tableId) || "B".equals(tableId) || "C-2".equals(tableId) || "C-3".equals(tableId)
+                ? UNIT_EOK : "";
     }
 
     public static final class Doc {

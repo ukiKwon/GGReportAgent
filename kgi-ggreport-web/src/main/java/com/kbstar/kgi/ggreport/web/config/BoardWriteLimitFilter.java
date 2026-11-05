@@ -43,6 +43,11 @@ public class BoardWriteLimitFilter implements Filter {
         this.maxMb = maxMb;
     }
 
+    /** 엑셀 업로드 경로인가 — 전역 413 처리기가 작성 모드 한도로 문구를 맞추는 데 쓴다. */
+    public static boolean isExcelUpload(HttpServletRequest req) {
+        return "POST".equalsIgnoreCase(req.getMethod()) && EXCEL.matcher(normalize(req.getRequestURI())).find();
+    }
+
     @Override
     public void init(FilterConfig filterConfig) {
     }
