@@ -182,7 +182,10 @@
   .bd-copybox input { width:240px; max-width:100%; }
   .bd-editbar { position:sticky; top:0; z-index:5; display:flex; gap:12px; align-items:center; flex-wrap:wrap;
                 padding:8px 12px; font-size:13px; background:var(--panel); border:1px solid var(--line-strong);
-                border-left:3px solid var(--accent-color); border-radius:8px; }
+                border-left:3px solid var(--accent-color); border-radius:8px;
+                box-shadow:inset 0 1px 0 rgba(255,255,255,.06), var(--shadow); }
+  /* 스크롤 컨테이너 위 여백(14px)으로 아래 표가 작성 바 위로 비치는 틈을 배경색으로 메운다 */
+  .bd-editbar::before { content:""; position:absolute; left:-1px; right:-1px; top:-15px; height:14px; background:var(--bg); }
   .bd-dirty { color:var(--orange); }
   .bd-clean { color:var(--muted); }
   .bd-legend { margin:0; font-size:12px; color:var(--muted); }
@@ -312,19 +315,21 @@
   .bd-w-tables { display:flex; flex-direction:column; gap:10px; min-width:0; }
   .bd-w-src { position:sticky; top:var(--bd-bar-h, 64px); display:flex; flex-direction:column; min-height:160px; overflow:hidden;
               max-height:calc(100vh - var(--bd-scroll-top, var(--bd-bar-h, 64px)) - var(--bd-status-h, 48px) - 16px);
-              padding:8px 10px; background:var(--panel); border:1px solid var(--line-strong); border-radius:8px; }
+              padding:0; background:var(--panel); border:1px solid var(--line-strong); border-radius:8px;
+              box-shadow:inset 0 1px 0 rgba(255,255,255,.06), var(--shadow); }
   .bd-w-src.is-folded { min-height:0; }
-  .bd-w-srchead { flex:none; display:flex; flex-direction:column; gap:6px; font-size:12px; margin-bottom:6px; }
+  .bd-w-srchead { flex:none; display:flex; flex-direction:column; gap:6px; font-size:12px; margin:0; padding:8px 10px;
+                  background:var(--panel2); border-bottom:1px solid var(--line-strong); border-radius:8px 8px 0 0; }
   .bd-w-srcrow { display:flex; gap:6px; align-items:center; flex-wrap:wrap; min-width:0; }
   .bd-w-srcname { flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .bd-w-srcbtns { flex:none; display:inline-flex; gap:6px; }
   .bd-w-srchead button { font-size:11px; padding:2px 8px; }
   .bd-w-srcjump[aria-current="true"] { border-color:var(--accent-color); background:rgba(87,184,173,.13);
                                        background:color-mix(in srgb, var(--accent-color) 13%, transparent); }
-  #bd-w-srcbody { flex:1 1 auto; min-height:0; overflow:auto; border:1px solid var(--line); border-radius:8px; }
+  #bd-w-srcbody { flex:1 1 auto; min-height:0; overflow:auto; margin:8px 10px 10px; background:#0d1117; border:1px solid var(--line); border-radius:8px; }
   .bd-w-srccap { font-family:var(--mono); font-size:11px; color:var(--muted); padding:6px 8px 4px; }
   .bd-w-srctbl { border-collapse:separate; border-spacing:0; width:max-content; min-width:100%; font-size:12px; }
-  .bd-w-srctbl th { font-family:var(--mono); font-size:11px; font-weight:400; color:var(--muted); background:var(--panel2);
+  .bd-w-srctbl th { font-family:var(--mono); font-size:11px; font-weight:400; color:var(--muted); background:var(--panel);
                     border-right:1px solid var(--line); border-bottom:1px solid var(--line); padding:2px 6px; text-align:center; }
   .bd-w-srctbl thead th { position:sticky; top:0; z-index:2; }
   .bd-w-srctbl tbody th { position:sticky; left:0; z-index:1; white-space:nowrap; text-align:right; }
@@ -342,14 +347,17 @@
   /* 원본 패널이 360px 미만이 되는 좁은 화면(JS가 is-stack, 900px 이하는 CSS가): 원본을 아래쪽 고정 창으로 세로 배치 */
   .bd-w-grid.is-stack, .bd-w-grid.is-stack.is-wide, .bd-w-grid.is-stack.is-one { grid-template-columns:minmax(0,1fr); }
   /* 아래로 내려온 원본 패널은 표 영역을 가리므로 높이를 30vh 로 줄인다(작성 바·상태 줄을 빼고도 표가 보이게) */
-  .bd-w-grid.is-stack .bd-w-src { top:auto; bottom:calc(var(--bd-status-h, 48px) + 8px); min-height:0; max-height:30vh; }
+  .bd-w-grid.is-stack .bd-w-src { top:auto; bottom:var(--bd-status-h, 48px); min-height:0; max-height:30vh; border-radius:8px 8px 0 0;
+                                  box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 -8px 24px rgba(8,12,24,.55); }
   @media (max-width:900px) { .bd-w-grid, .bd-w-grid.is-wide, .bd-w-grid.is-one { grid-template-columns:minmax(0,1fr); }
-                             .bd-w-src { top:auto; bottom:calc(var(--bd-status-h, 48px) + 8px); min-height:0; max-height:30vh; } }
+                             .bd-w-src { top:auto; bottom:var(--bd-status-h, 48px); min-height:0; max-height:30vh; border-radius:8px 8px 0 0;
+                                         box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 -8px 24px rgba(8,12,24,.55); } }
   /* 포커스·스크롤 때 칸이 작성 바와 아래쪽 고정 패널(--bd-occl-b: JS 가 잼) 사이에 오게 한다 */
   .bd-w-cell { position:relative; scroll-margin-top:calc(var(--bd-bar-h, 64px) + 8px); scroll-margin-bottom:calc(var(--bd-occl-b, 56px) + 8px); }
   .bd-w-cell:hover { outline:1px dashed var(--accent-color); outline-offset:-2px; }
   .bd-w-cell.is-bad { outline:1px dashed var(--red); outline-offset:-3px; }
   .bd-w-cell.is-sel, .bd-w-cell.is-sel:hover, .bd-w-cell:focus-visible { outline:2px solid var(--accent-color); outline-offset:-2px; }
+  .bd-w-cell.is-sel:not(.is-edited) { background:rgba(87,184,173,.13); background:color-mix(in srgb, var(--accent-color) 13%, transparent); }
   .bd-w-cell.is-dim { color:var(--muted); }
   .bd-w-cell.is-edited { background:rgba(217,160,91,.18); background:color-mix(in srgb, var(--orange) 18%, transparent); }
   .bd-w-cell.is-edited::before { content:""; position:absolute; left:0; top:0; border-style:solid; border-width:6px 6px 0 0;
@@ -368,7 +376,9 @@
   .bd-w-orig { display:block; font-size:11px; font-family:var(--mono); color:#b0b6c0; color:color-mix(in srgb, var(--muted) 70%, #ffffff); }
   .bd-w-in { width:100%; min-width:5em; padding:2px 6px; font-size:12px; font-family:var(--mono); text-align:right; }
   .bd-w-status { position:sticky; bottom:0; z-index:4; padding:10px 14px;
-                 font-size:12px; background:var(--panel2); border:1px solid var(--line-strong); border-radius:8px; }
+                 font-size:12px; background:var(--panel2); border:1px solid var(--line-strong); border-radius:8px;
+                 box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 -8px 24px rgba(8,12,24,.55); }
+  .bd-stacked .bd-w-status { border-top-left-radius:0; border-top-right-radius:0; }   /* 위의 원본 패널과 붙은 도크 */
   .bd-w-statusbody { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .bd-w-statusbody > .bd-confirm { flex:1 1 100%; background:none; border:0; padding:0; font-size:inherit; }
   .bd-w-statusbody > .bd-confirm span { flex:0 1 auto; }

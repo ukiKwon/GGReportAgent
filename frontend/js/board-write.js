@@ -1338,6 +1338,7 @@
       if (st) r.style.setProperty('--bd-status-h', st.offsetHeight + 'px');
       if (src) r.style.setProperty('--bd-scroll-top', Math.max(bar ? bar.offsetHeight : 0, src.getBoundingClientRect().top) + 'px');
       if (grid) grid.classList.toggle('is-stack', bw.stackMode(grid.clientWidth, ui.wide, ui.panelOpen));
+      r.classList.toggle('bd-stacked', !!((grid && grid.classList.contains('is-stack')) || window.innerWidth <= 900));   // 상태 줄이 위의 원본 패널과 붙는 도크 모양(CSS)
       // 아래쪽 고정 패널(원본 패널이 아래로 내려온 좁은 화면 + 상태 줄)이 뷰포트 아래에서 차지하는 높이: 칸의 scroll-margin-bottom 이 쓴다.
       const vh = window.innerHeight || 0, tops = [];
       if (st) tops.push(st.getBoundingClientRect().top);
@@ -1439,13 +1440,23 @@
       if (sb) sb.disabled = !hit;
       if (hit) scrollSrcTo(hit);
     }
+    // 상태 줄 높이가 선택 때문에 달라지므로 측정 뒤 맞추고, 레이아웃이 끝난 다음 프레임에 한 번 더 맞춘다.
+    function keepVisible(n) {
+      if (!n) return;
+      measureSrc(); ensureVisible(n);
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function () { if (active && n.isConnected) { measureSrc(); ensureVisible(n); } });
+    }
     function select(t, key, o) {
       const opt = o || {};
-      if (ui.sel && ui.sel.t === t && ui.sel.key === key && !opt.force) return;
+      if (ui.sel && ui.sel.t === t && ui.sel.key === key && !opt.force) {
+        // 마우스: mousedown 의 focusin 이 먼저 선택하고 상태 줄이 자란 뒤 click 이 온다 — 여기서 한 번 더 가림을 푼다.
+        if (opt.focus) keepVisible(findCell(t, key));
+        return;
+      }
       ui.sel = { t: t, key: key }; ui.live = '';
       hideTip();
       applySel(); drawStatus();
-      if (opt.focus) { const n = findCell(t, key); if (n) { n.focus({ preventScroll: true }); ensureVisible(n); } }
+      if (opt.focus) { const n = findCell(t, key); if (n) { n.focus({ preventScroll: true }); keepVisible(n); } }
       if (opt.tip) tipLater(findCell(t, key), 400);
     }
 
