@@ -1289,7 +1289,8 @@
           const tx = nowText(c, vals).trim();
           if (tx !== '' && !runText[tx]) { runText[tx] = true; run.push(e); }
         }
-        if (run.length >= 2) run.forEach(add); else if (line[0]) add(line[0]);
+        // 글자가 하나뿐이면 그 칸을 쓴다: 첫 칸이 글자 없는 병합 칸(표 B 의 1열 2~3행 빈 칸)이면 그 옆의 '명목가치'·'현재가치'가 행 이름이다.
+        if (run.length >= 2) run.forEach(add); else if (run.length === 1) add(run[0]); else if (line[0]) add(line[0]);
       }
       if (path.length) parts.push(path.join(' › '));
     }

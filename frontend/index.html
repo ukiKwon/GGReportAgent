@@ -328,18 +328,24 @@
   .bd-w-srcrow { display:flex; gap:6px; align-items:center; flex-wrap:wrap; min-width:0; }
   .bd-w-srcname { flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .bd-w-srcbtns { flex:none; display:inline-flex; gap:6px; }
-  .bd-w-srchead button { font-size:11px; padding:2px 8px; }
-  .bd-w-srcjump[aria-current="true"] { border-color:var(--accent-color); background:rgba(87,184,173,.13);
+  .bd-w-srchead button { font-size:11px; padding:2px 8px; min-height:24px; }
+  /* 같은 글자 칩: 카드 왼쪽 .bd-map 과 원본 머리 .bd-w-srcjump 를 같은 모양으로(11px mono · 1px line-strong · radius 8px) */
+  .bd-w-head .bd-map, .bd-w-srcjump { display:inline-flex; align-items:center; min-height:24px; box-sizing:border-box; padding:2px 8px;
+                                      font-family:var(--mono); font-size:11px; line-height:1.2; color:var(--muted);
+                                      border:1px solid var(--line-strong); border-radius:8px; background:transparent; }
+  .bd-w-srcjump { background:var(--panel2); }
+  .bd-w-srcjump[aria-current="true"], .bd-w-card.has-sel .bd-w-head .bd-map { color:var(--fg); border-color:var(--accent-color); background:rgba(87,184,173,.13);
                                        background:color-mix(in srgb, var(--accent-color) 13%, transparent); }
-  #bd-w-srcbody { flex:1 1 auto; min-height:0; overflow:auto; margin:8px 10px 10px; background:#0d1117; border:1px solid var(--line); border-radius:8px; }
+  #bd-w-srcbody { flex:1 1 auto; min-height:0; overflow:auto; margin:8px 10px 10px; background:var(--panel); border:1px solid var(--line); border-radius:8px; }
   .bd-w-srccap { font-family:var(--mono); font-size:11px; color:var(--muted); padding:6px 8px 4px; }
   .bd-w-srctbl { border-collapse:separate; border-spacing:0; width:max-content; min-width:100%; font-size:12px; }
-  .bd-w-srctbl th { font-family:var(--mono); font-size:11px; font-weight:400; color:var(--muted); background:var(--panel);
+  .bd-w-srctbl th { font-family:var(--mono); font-size:11px; font-weight:400; color:var(--muted); background:var(--panel2);
                     border-right:1px solid var(--line); border-bottom:1px solid var(--line); padding:2px 6px; text-align:center; }
   .bd-w-srctbl thead th { position:sticky; top:0; z-index:2; }
   .bd-w-srctbl tbody th { position:sticky; left:0; z-index:1; white-space:nowrap; text-align:right; }
   .bd-w-srctbl thead th:first-child { left:0; z-index:3; }
-  .bd-w-srctbl th.is-srcrow { box-shadow:inset 2px 0 0 var(--accent-color); }
+  .bd-w-srctbl th.is-srcrow { color:var(--fg); box-shadow:inset 2px 0 0 var(--accent-color); }
+  .bd-w-srctbl th.is-srccol { color:var(--fg); box-shadow:inset 0 -2px 0 var(--accent-color); }
   .bd-w-srctag { display:inline-block; margin-right:4px; padding:0 5px; font-family:var(--mono); font-size:11px; color:var(--muted);
                  border:1px solid var(--line-strong); border-radius:8px; }
   .bd-w-srctbl td { font-family:var(--mono); text-align:right; white-space:nowrap; color:var(--muted); padding:3px 6px;
@@ -349,6 +355,22 @@
   .bd-w-srctbl td.is-text { font-family:inherit; text-align:left; max-width:14em; overflow:hidden; text-overflow:ellipsis; }
   .bd-w-srctbl td.is-src { outline:2px solid var(--accent-color); outline-offset:-2px; background:rgba(87,184,173,.13);
                            background:color-mix(in srgb, var(--accent-color) 13%, transparent); }
+  /* 선택 스포트라이트: 칸을 고르면 집중할 곳(선택 칸이 든 카드·원본 대응 칸·상태 줄)만 밝고 나머지는 글자색만 --muted 로 가라앉는다.
+     opacity 로 흐리게 하지 않는다(글자 대비가 떨어진다). 선택 해제하면 JS 가 is-focusing·has-sel 을 떼어 원래대로 돌아온다. */
+  .bd-w-grid.is-focusing .bd-w-card:not(.has-sel) td, .bd-w-grid.is-focusing .bd-w-card:not(.has-sel) th { color:var(--muted); }
+  .bd-w-grid.is-focusing .bd-w-srctbl td[data-key]:not(.is-src) { color:var(--muted); }
+  .bd-w-grid.is-focusing .bd-w-card.has-sel, .bd-w-grid.is-focusing .bd-w-src { border-color:var(--accent-color);
+                                       border-color:color-mix(in srgb, var(--accent-color) 55%, var(--line-strong)); }
+  .bd-w-grid.is-focusing.is-stack .bd-w-src, .bd-stacked .bd-w-grid.is-focusing .bd-w-src { border-top-color:var(--accent-color);
+                                       border-top-color:color-mix(in srgb, var(--accent-color) 55%, var(--line-strong)); }
+  .bd-w-status.is-focusing { border-left:3px solid var(--accent-color); padding-left:12px; }
+  .bd-stacked .bd-w-status.is-focusing { border-top-color:var(--accent-color); border-top-color:color-mix(in srgb, var(--accent-color) 55%, var(--line-strong)); }
+  .bd-w-cmp { flex:1 1 100%; color:var(--fg); }
+  .bd-w-status .bd-w-live.is-sr { position:absolute; width:1px; height:1px; margin:0; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  .bd-w-card, .bd-w-head .bd-map, .bd-w-card td, .bd-w-card th, .bd-w-src, .bd-w-srctbl td, .bd-w-srctbl th, .bd-w-status {
+    transition:color .2s ease, border-color .2s ease, box-shadow .2s ease, background-color .2s ease; }
+  @media (prefers-reduced-motion: reduce) {
+    .bd-w-card, .bd-w-head .bd-map, .bd-w-card td, .bd-w-card th, .bd-w-src, .bd-w-srctbl td, .bd-w-srctbl th, .bd-w-status { transition:none; } }
   /* 원본 패널이 360px 미만이 되는 좁은 화면(JS가 is-stack, 900px 이하는 CSS가): 원본을 아래쪽 고정 창으로 세로 배치 */
   .bd-w-grid.is-stack, .bd-w-grid.is-stack.is-wide, .bd-w-grid.is-stack.is-one { grid-template-columns:minmax(0,1fr); }
   /* 아래로 내려온 원본 패널은 표 영역을 가리므로 높이를 30vh 로 줄인다(작성 바·상태 줄을 빼고도 표가 보이게) */
