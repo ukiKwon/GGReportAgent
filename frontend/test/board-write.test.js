@@ -125,6 +125,49 @@ test('visibleBand·scrollDelta: 1440 — 상태 줄이 38→78→130px 로 자�
     if (h === 38) assert.strictEqual(d, 0 + Math.max(0, 800 - band.bottom));
   });
 });
+test('settleVisible: select 로 상태 줄이 자란 뒤(top 848→756) 칸 815–840 이 가려지면 보정하고 rAF 에서 한 번 더 확인한다 (qa 실측)', function () {
+  const calls = [], frames = [];
+  const L = { stTop: 848, scroll: 0, cell: { top: 815, bottom: 840 } };
+  // select 직후 drawStatus 로 상태 줄이 커진 상태를 모의
+  L.stTop = 756;
+  const d = {
+    measure: function () { calls.push('measure'); },
+    ensure: function () {
+      calls.push('ensure');
+      const band = bw.visibleBand({ vpH: 886, barBottom: 98, covers: [{ top: L.stTop, left: 0, right: 1440 }], cell: { left: 600, right: 700 } });
+      const c = { top: L.cell.top - L.scroll, bottom: L.cell.bottom - L.scroll };
+      L.scroll += bw.scrollDelta(c, band);
+    },
+    raf: function (fn) { calls.push('raf'); frames.push(fn); },
+    alive: function () { return true; }
+  };
+  bw.settleVisible(d);
+  assert.deepStrictEqual(calls, ['measure', 'ensure', 'raf']);
+  assert.ok(L.cell.bottom - L.scroll <= 748, '칸 bottom ' + (L.cell.bottom - L.scroll) + ' <= 748');
+  frames.forEach(function (f) { f(); });
+  assert.deepStrictEqual(calls, ['measure', 'ensure', 'raf', 'measure', 'ensure']);
+  assert.ok(L.cell.bottom - L.scroll <= 748);
+  // 화면이 사라졌으면(alive false) 다음 프레임에서 아무것도 하지 않는다
+  const c2 = [];
+  bw.settleVisible({ measure: function () { c2.push('m'); }, ensure: function () { c2.push('e'); }, raf: function (fn) { fn(); }, alive: function () { return false; } });
+  assert.deepStrictEqual(c2, ['m', 'e']);
+  // raf 가 없는 환경
+  const c3 = [];
+  bw.settleVisible({ measure: function () { c3.push('m'); }, ensure: function () { c3.push('e'); }, raf: null, alive: function () { return true; } });
+  assert.deepStrictEqual(c3, ['m', 'e']);
+});
+test('needSettle: 누른 칸이 현재 선택일 때만 mouseup 에서 보정한다', function () {
+  assert.strictEqual(bw.needSettle({ t: 'C', key: 'r2c1' }, { t: 'C', key: 'r2c1' }), true);
+  assert.strictEqual(bw.needSettle({ t: 'C', key: 'r2c1' }, { t: 'C', key: 'r1c1' }), false);
+  assert.strictEqual(bw.needSettle(null, { t: 'C', key: 'r2c1' }), false);
+  assert.strictEqual(bw.needSettle({ t: 'C', key: 'r2c1' }, null), false);
+});
+test('작성 바 틈 띠: is-stuck 일 때만, 상태 줄 아래 14px 띠가 있다 (index.html)', function () {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.ok(/\.bd-writebar\.is-stuck::before \{[^}]*left:-3px/.test(html));
+  assert.ok(/\.bd-editbar:not\(\.bd-writebar\)::before/.test(html));
+  assert.ok(/\.bd-w-status::after \{[^}]*top:100%;[^}]*height:14px/.test(html));
+});
 test('rejectFrom: 모든 오류는 detail 객체 기준, 411/413/415/422 문구', function () {
   const ctx = { formName: '기본 양식', maxMb: 5 };
   let r = bw.rejectFrom({ status: 422, body: { detail: { code: 'MACRO', message: 'x' } } }, ctx);

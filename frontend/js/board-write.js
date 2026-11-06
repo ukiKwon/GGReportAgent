@@ -1034,6 +1034,16 @@
     if (cell.bottom - cell.top > band.bottom - band.top) return Math.round(cell.top - band.top);
     return Math.round(cell.top < band.top ? cell.top - band.top : cell.bottom - band.bottom);
   };
+  // 선택 뒤 보정(순수 로직, 호출 순서 검증용): 상태 줄이 자란 뒤 높이를 다시 재고 칸을 영역 안으로 옮기고, 다음 프레임에 한 번 더 한다.
+  // d: {measure, ensure, raf, alive}
+  bw.settleVisible = function (d) {
+    d.measure(); d.ensure();
+    if (typeof d.raf === 'function') d.raf(function () { if (d.alive()) { d.measure(); d.ensure(); } });
+  };
+  // 마우스로 칸을 누른 뒤 손을 뗄 때, 그 칸이 현재 선택이면 보정이 필요하다(mouseup 이 상태 줄로 떨어져 click 이 오지 않을 수 있다).
+  bw.needSettle = function (downCell, sel) {
+    return !!(downCell && sel && downCell.t === sel.t && downCell.key === sel.key);
+  };
   bw.gridClass = function (ui) { return 'bd-w-grid' + (ui.panelOpen ? (ui.wide ? ' is-wide' : '') : ' is-one'); };
 
   bw.sourceHtml = function (ws, ui) {
@@ -1400,6 +1410,7 @@
       if (sc) sc.scrollTop = top;
       measureBar();
       measureSrc();
+      markStuck();
       const src = $('bd-w-srcbody');
       if (src) { src.scrollTop = st; src.scrollLeft = sl; }
       focusTarget(focus);
@@ -1443,8 +1454,13 @@
     // 상태 줄 높이가 선택 때문에 달라지므로 측정 뒤 맞추고, 레이아웃이 끝난 다음 프레임에 한 번 더 맞춘다.
     function keepVisible(n) {
       if (!n) return;
-      measureSrc(); ensureVisible(n);
-      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function () { if (active && n.isConnected) { measureSrc(); ensureVisible(n); } });
+      bw.settleVisible({ measure: measureSrc, ensure: function () { ensureVisible(n); },
+        raf: typeof requestAnimationFrame === 'function' ? requestAnimationFrame : null, alive: function () { return active && n.isConnected; } });
+    }
+    // 작성 바가 붙은 뒤에만 위쪽 틈 띠(::before)를 보이게 한다(스크롤 0 에서는 위쪽 툴바를 덮지 않는다).
+    function markStuck() {
+      const bar = $('bd-writebar'), sc = env.scroller();
+      if (bar && sc) bar.classList.toggle('is-stuck', sc.scrollTop > 0);
     }
     function select(t, key, o) {
       const opt = o || {};
@@ -1757,10 +1773,8 @@
       const td = cellOf(e.target);
       if (td && !ui.edit) {
         select(td.getAttribute('data-t'), td.getAttribute('data-key'), { tip: !pointer });
-        if (!pointer) {   // 키보드·Tab 포커스: 브라우저의 기본 스크롤 뒤에 고정 패널에 가려지지 않게 한 번 더 맞춘다
-          ensureVisible(td);
-          if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function () { if (active && td.isConnected) ensureVisible(td); });
-        }
+        // 마우스·키보드 모두: select 가 상태 줄을 키운 뒤(drawStatus) 칸이 고정 패널에 가려지지 않게 맞춘다(click 이 안 와도 보정되도록).
+        keepVisible(td);
       }
     }
     function onChange(e) {
@@ -1860,7 +1874,14 @@
         b.addEventListener('mouseout', onOut);
         b.addEventListener('focusin', onFocusIn);
         b.addEventListener('change', onChange);
-        b.addEventListener('mousedown', function () { pointer = true; setTimeout(function () { pointer = false; }, 300); });
+        let downCell = null;
+        b.addEventListener('mousedown', function (e) { pointer = true; downCell = ui && !ui.edit ? cellOf(e.target) : null; setTimeout(function () { pointer = false; }, 300); });
+        b.addEventListener('mouseup', function () {   // 상태 줄이 자라 mouseup 이 칸 밖에 떨어져도(click 없음) 누른 칸을 다시 보이게 한다
+          const d = downCell; downCell = null;
+          if (!active || !d) return;
+          const k = { t: d.getAttribute('data-t'), key: d.getAttribute('data-key') };
+          if (bw.needSettle(k, ui.sel)) keepVisible(findCell(k.t, k.key));
+        });
         b.addEventListener('dragover', onDrag);
         b.addEventListener('dragleave', onDragLeave);
         b.addEventListener('drop', onDrop);
@@ -1871,7 +1892,7 @@
         let srcRaf = 0;   // 페이지 스크롤로 패널 시작 y가 바뀌면 높이를 다시 잰다
         window.addEventListener('scroll', function (e) {
           if (!active || srcRaf || (e.target && e.target.id === 'bd-w-srcbody') || typeof requestAnimationFrame !== 'function') return;
-          srcRaf = requestAnimationFrame(function () { srcRaf = 0; measureSrc(); });
+          srcRaf = requestAnimationFrame(function () { srcRaf = 0; measureSrc(); markStuck(); });
         }, true);
         window.addEventListener('beforeunload', onUnload);
       },
