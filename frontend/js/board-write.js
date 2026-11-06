@@ -630,6 +630,32 @@
     parts.push(c.checked ? '확인됨' : '미확인');
     return parts.join(', ');
   };
+  // 상태 줄 첫 줄 · 알림 줄: 양식 칸 표시값 ← 엑셀 원본 주소 + 엑셀 화면값(+ 환산 전 단위).
+  //   한 칸: "48.51 억원 ← K54 4,851.4 백만원" / 여러 칸 합: "20.77 억원 ← K45 외 3칸 합". 단위를 모르면 단위는 생략한다.
+  //   직접 입력·출처 없음·읽지 못함·값 없음이면 ''.
+  bw.compareLine = function (t, c) {
+    if (!c || c.manual || !c.src || str(c.value) === '' || bw.cellInfo(t, c).unreadable) return '';
+    const total = Math.max(c.partCount || 0, (c.parts || []).length), cv = c.convert;
+    const now = str(c.value) + (cv && cv.unit_to ? ' ' + str(cv.unit_to) : '');
+    if (total > 1) {
+      const first = (c.parts && c.parts[0] && c.parts[0].cell) || c.src.cell;
+      return now + ' ← ' + str(first) + ' 외 ' + (total - 1) + '칸 합';
+    }
+    if (str(c.src.display) === '') return '';
+    return now + ' ← ' + str(c.src.cell) + ' ' + str(c.src.display) + (cv && cv.kind !== 'display_sum' && cv.unit_from ? ' ' + str(cv.unit_from) : '');
+  };
+  // 알림 줄(#bd-w-live)이 대조 첫 줄과 같으면 화면에서는 숨기고 읽어 주기만 한다(상태 줄 첫 줄과 겹쳐 보이지 않게).
+  bw.liveClass = function (ws, ui) {
+    const s = ws && ui && ui.sel ? bw.selected(ws, ui.sel) : null;
+    return 'bd-w-live' + (s && ui.live && ui.live === bw.compareLine(s.t, s.c) ? ' is-sr' : '');
+  };
+  // 창 크기를 바꾼 뒤 원본 가로 스크롤을 선택 칸에 다시 맞출지: 선택이 있고, 사용자가 원본을 직접 스크롤한 직후(quiet ms)가 아닐 때.
+  bw.RESIZE_QUIET = 1200;
+  bw.resizeRealign = function (o) {
+    if (!o || !o.hasSel) return false;
+    const q = typeof o.quiet === 'number' ? o.quiet : bw.RESIZE_QUIET;
+    return !(Number(o.lastManual) > 0 && Number(o.now) - Number(o.lastManual) < q);
+  };
 
   // ── ② 수정: 고치기 전 확인·사유·재검산 ─────────────────────────
   const WHY = [{ id: 'ROUND', label: '반올림 맞춤' }, { id: 'MAPPING', label: '원본 값과 다르게 가져옴' },
@@ -918,7 +944,7 @@
       }).join('') + '</tr>';
     }).join('');
     const notes = t.notes.length ? '<ul class="bd-notes">' + t.notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>' : '';
-    return '<section class="bd-card bd-w-card" data-t="' + esc(t.ref) + '" aria-label="' + label + '">' + head + bw.bannerHtml(t, !!ui.banOpen[t.ref]) +
+    return '<section class="bd-card bd-w-card' + (ui.sel && ui.sel.t === t.ref ? ' has-sel' : '') + '" data-t="' + esc(t.ref) + '" aria-label="' + label + '">' + head + bw.bannerHtml(t, !!ui.banOpen[t.ref]) +
       (t.mapped ? '' : '<p class="bd-hint">이 표는 엑셀에서 값을 가져오지 않습니다.</p>') +
       '<div class="bd-table-wrap"><table class="bd-table bd-w-table" role="grid" aria-label="' + label + '">' + thead + '<tbody>' + body + '</tbody></table></div>' + notes + '</section>';
   };
@@ -1055,7 +1081,16 @@
   bw.needSettle = function (downCell, sel) {
     return !!(downCell && sel && downCell.t === sel.t && downCell.key === sel.key);
   };
-  bw.gridClass = function (ui) { return 'bd-w-grid' + (ui.panelOpen ? (ui.wide ? ' is-wide' : '') : ' is-one'); };
+  bw.gridClass = function (ui) { return 'bd-w-grid' + (ui.panelOpen ? (ui.wide ? ' is-wide' : '') : ' is-one') + (ui.sel ? ' is-focusing' : ''); };
+  // 원본 칸 (행,열) 가운데 선택 칸이 있는 열 번호들 → 그 열 머리를 is-srccol 로 표시한다.
+  function selCols(sh, sel) {
+    const out = {};
+    if (!sel) return out;
+    Object.keys(sh.owners).forEach(function (k) {
+      if (sh.owners[k].some(function (o) { return o.t === sel.t && o.key === sel.key; })) out[Number(k.split(',')[1])] = true;
+    });
+    return out;
+  }
 
   bw.sourceHtml = function (ws, ui) {
     const name = '<span class="bd-w-srcname" title="' + esc(ws.fileName) + '">엑셀 원본 · ' + esc(ws.fileName) + '</span>';
@@ -1079,9 +1114,10 @@
         for (let i = 0; i < sh.tags.length; i++) { const g = sh.tags[i]; if (r >= g.r0 && r <= g.r1 && c >= g.c0 && c <= g.c1) return g.ref; }
         return sh.tags[0].ref;
       };
+      const hot = selCols(sh, sel);
       return '<div class="bd-w-srccap">' + esc(sh.sheet + ' 시트 · ' + sh.range) + '</div>' +
         '<table class="bd-w-srctbl" role="table" aria-label="' + esc(sh.sheet + ' 시트 원본') + '"><thead><tr><th></th>' +
-        sh.cols.map(function (c) { return '<th scope="col">' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        sh.cols.map(function (c, ci) { return '<th scope="col"' + (hot[ci] ? ' class="is-srccol"' : '') + '>' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
         sh.rows.map(function (row, r) {
           const starts = sh.tags.filter(function (g) { return g.r0 === r; });
           let on0 = false;
@@ -1116,7 +1152,8 @@
       const L = bw.infoLines(sel.t, sel.c), i = bw.cellInfo(sel.t, sel.c);
       const calc = function (l) { return l.k === 'part' || l.k === 'calc'; };
       const main = L.filter(function (l) { return l.k !== 'note' && !calc(l); }), notes = L.filter(function (l) { return l.k === 'note'; });
-      h = '<span class="bd-w-main">' + main.map(function (l) { return '<span' + (l.mono ? ' class="mono"' : '') + '>' + esc(l.text) + '</span>'; })
+      const cmp = bw.compareLine(sel.t, sel.c);
+      h = (cmp ? '<div class="bd-w-cmp mono">' + esc(cmp) + '</div>' : '') + '<span class="bd-w-main">' + main.map(function (l) { return '<span' + (l.mono ? ' class="mono"' : '') + '>' + esc(l.text) + '</span>'; })
         .join('<span class="bd-w-sep" aria-hidden="true">│</span>') + '</span>';
       const calcHtml = L.filter(calc).map(function (l) { return '<div class="bd-w-calc' + (l.mono ? ' mono' : '') + '">' + esc(l.text) + '</div>'; }).join('');
       if (i.edited && i.hasOrig) h += bw.whyHtml(sel.c);
@@ -1138,8 +1175,8 @@
       h += bw.summaryHtml(ws) + bw.filterHtml(ws) + bw.reviewHtml(ws) +
         '<div class="' + bw.gridClass(ui) + '"><div class="bd-w-tables" id="bd-w-tables">' +
         ws.tables.map(function (t) { return bw.cardHtml(ws, t, ui, rv); }).join('') + '</div>' + bw.sourceHtml(ws, ui) + '</div>' +
-        '<div id="bd-w-status" class="bd-w-status"><div id="bd-w-statusbody" class="bd-w-statusbody">' + bw.statusHtml(ws, ui) + '</div>' +
-        '<div id="bd-w-live" class="bd-w-live" role="status" aria-live="polite">' + esc(ui.live) + '</div></div>';
+        '<div id="bd-w-status" class="bd-w-status' + (ui.sel ? ' is-focusing' : '') + '"><div id="bd-w-statusbody" class="bd-w-statusbody">' + bw.statusHtml(ws, ui) + '</div>' +
+        '<div id="bd-w-live" class="' + bw.liveClass(ws, ui) + '" role="status" aria-live="polite">' + esc(ui.live) + '</div></div>';
     }
     return h + '</div>';
   };
@@ -1428,7 +1465,7 @@
     }
     function drawStatus() {
       const n = $('bd-w-statusbody'); if (n) n.innerHTML = bw.statusHtml(ws, ui);
-      const l = $('bd-w-live'); if (l) l.textContent = ui.live || '';   // 알림 줄만 읽힌다(상태 줄 본문은 읽지 않는다)
+      const l = $('bd-w-live'); if (l) { l.textContent = ui.live || ''; l.className = bw.liveClass(ws, ui); }   // 알림 줄만 읽힌다(상태 줄 본문은 읽지 않는다)
       measureSrc();   // 상태 줄 높이가 바뀌면 원본 패널 높이도 따라간다
     }
 
@@ -1444,6 +1481,8 @@
       const root = bodyEl(), src = root.querySelectorAll('td[data-st]');
       const rows = root.querySelectorAll('th.is-srcrow');
       for (let k = 0; k < rows.length; k++) rows[k].classList.remove('is-srcrow');
+      const cols = root.querySelectorAll('th.is-srccol');
+      for (let k2 = 0; k2 < cols.length; k2++) cols[k2].classList.remove('is-srccol');
       let hit = null;
       for (let j = 0; j < src.length; j++) {
         const on = bw.ownsCell(src[j].getAttribute('data-own'), src[j].getAttribute('data-st'), src[j].getAttribute('data-key'), s);
@@ -1452,8 +1491,17 @@
           if (!hit) hit = src[j];
           const rh = src[j].parentNode && src[j].parentNode.firstElementChild;
           if (rh) rh.classList.add('is-srcrow');
+          // 열 머리: 같은 표 안에서 이 칸과 같은 순번의 thead th
+          const tbl = src[j].closest ? src[j].closest('table') : null, hr = tbl && tbl.tHead && tbl.tHead.rows[0];
+          const ch = hr && hr.cells[src[j].cellIndex];
+          if (ch) ch.classList.add('is-srccol');
         }
       }
+      // 선택 스포트라이트: 선택이 있으면 표 영역·선택 칸이 든 카드·상태 줄에 표시, 해제하면 모두 뗀다.
+      const gr = root.querySelector('.bd-w-grid'), stt = $('bd-w-status'), cards = root.querySelectorAll('.bd-w-card');
+      if (gr) gr.classList.toggle('is-focusing', !!s);
+      if (stt) stt.classList.toggle('is-focusing', !!s);
+      for (let q = 0; q < cards.length; q++) cards[q].classList.toggle('has-sel', !!s && cards[q].getAttribute('data-t') === s.t);
       const jb = root.querySelectorAll('[data-w="srcjump"]');
       for (let m = 0; m < jb.length; m++) {
         if (s && jb[m].getAttribute('data-v') === s.t) jb[m].setAttribute('aria-current', 'true'); else jb[m].removeAttribute('aria-current');
@@ -1480,7 +1528,9 @@
         if (opt.focus) keepVisible(findCell(t, key));
         return;
       }
-      ui.sel = { t: t, key: key }; ui.live = '';
+      ui.sel = { t: t, key: key };
+      const ss = lookup(t, key);
+      ui.live = ss ? bw.compareLine(ss.t, ss.c) : '';   // 읽어 주는 첫 줄 = 상태 줄 첫 줄(대조 결과)
       hideTip();
       applySel(); drawStatus();
       if (opt.focus) { const n = findCell(t, key); if (n) { n.focus({ preventScroll: true }); keepVisible(n); } }
@@ -1899,7 +1949,22 @@
         b.addEventListener('input', onInput);
         b.addEventListener('dblclick', onDblClick);
         window.addEventListener('scroll', function () { if (tipFor || tipTimer) hideTip(); }, true);
-        window.addEventListener('resize', function () { hideTip(); measureBar(); measureSrc(); });
+        // 원본을 사용자가 직접 스크롤한 시각(휠·누름·키·터치) — 창 크기 보정이 그 직후엔 건드리지 않게 한다
+        let lastManual = 0, rzRaf = 0;
+        ['wheel', 'pointerdown', 'keydown', 'touchstart'].forEach(function (ev) {
+          b.addEventListener(ev, function (e) { if (e.target && e.target.closest && e.target.closest('#bd-w-srcbody')) lastManual = Date.now(); }, true);
+        });
+        function realignSrc() {
+          rzRaf = 0;
+          if (!active || !ui) return;
+          if (!bw.resizeRealign({ hasSel: !!ui.sel, now: Date.now(), lastManual: lastManual })) return;
+          const body = $('bd-w-srcbody'), hit = body && body.querySelector('td.is-src');
+          if (hit) scrollSrcTo(hit);
+        }
+        window.addEventListener('resize', function () {
+          hideTip(); measureBar(); measureSrc();
+          if (!rzRaf && typeof requestAnimationFrame === 'function') rzRaf = requestAnimationFrame(realignSrc);   // 한 프레임에 한 번만
+        });
         let srcRaf = 0;   // 페이지 스크롤로 패널 시작 y가 바뀌면 높이를 다시 잰다
         window.addEventListener('scroll', function (e) {
           if (!active || srcRaf || (e.target && e.target.id === 'bd-w-srcbody') || typeof requestAnimationFrame !== 'function') return;
