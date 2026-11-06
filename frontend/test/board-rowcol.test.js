@@ -667,6 +667,55 @@ test('행 이름: 첫 값 칸 직전까지의 이름 칸 중 글자가 있는 �
   assert.strictEqual(board.rcRowName(ins.st.tables[0], 2), '');
   assert.strictEqual(board.rcRowName(ins.st.tables[0], 3), '세금');
 });
+test('행 이름(실제 서버 응답 모양): 표 A 첫 열 기관명은 엑셀 연결 칸(rowspan 4)이라도 두 번째 열 라벨이 행 이름', function () {
+  // 서버 BoardDocSpec 표 A: 기관명 칸은 f.vc(...) = mapped 값 칸, 마지막 '비고'는 header 아닌 빈 칸(rowspan 3)
+  const a = { id: 'A', ref: 'A', mapping: 'A', title: '재산상 이익제공 및 기부금(안)', columns: 4, notes: [],
+    row_ids: [1, 2, 3, 4, 5], col_ids: [11, 12, 13, 14],
+    rows: [[H('h0', '기관명'), H('h1', '구분'), H('h2', '제공금액'), H('h3', '비고')],
+      [M('a_org', '대한민국 기관', { rowspan: 4, align: 'center' }), L('a_l1', '출연금'), M('a_v1', '500', { align: 'right' }), L('a_n1', '', { rowspan: 3 })],
+      [L('a_l2', '예비비'), M('a_v2', '100')],
+      [L('a_l3', '전산시스템 구축/운영비용'), M('a_v3', '300')],
+      [L('a_l4', '합계'), M('a_v4', '900'), L('a_n4', '')]] };
+  const t = stOne(a).tables[0];
+  assert.strictEqual(board.rcRowName(t, 1), '출연금');
+  assert.strictEqual(board.rcRowName(t, 2), '예비비');
+  assert.strictEqual(board.rcRowName(t, 3), '전산시스템 구축/운영비용');
+  assert.strictEqual(board.rcRowName(t, 4), '합계');
+  assert.strictEqual(board.rcHandleLabel(t, 'row', 0), '머리 행 편집');
+  assert.strictEqual(board.rcHandleLabel(t, 'row', 2), "'예비비' 행 편집");
+  // 이름 칸이 없고 값 칸 뒤에 '비고'만 있는 행은 행 이름이 아니다(번호로 부른다)
+  const only = { id: 'O', ref: 'O', mapping: 'O', title: '표 O', columns: 3, notes: [], row_ids: [1, 2], col_ids: [3, 4, 5],
+    rows: [[H('o0', '값'), H('o1', '값2'), H('o2', '비고')], [M('o3', '1'), M('o4', '2'), L('o5', '비고 문구')]] };
+  assert.strictEqual(board.rcRowName(stOne(only).tables[0], 1), '');
+  // 첫 열이 값 칸이고 그 뒤에 이름 칸만 남는 모양도 '비고'를 행 이름으로 보지 않는다
+  const tail = { id: 'P', ref: 'P', mapping: 'P', title: '표 P', columns: 2, notes: [], row_ids: [1, 2], col_ids: [3, 4],
+    rows: [[H('p0', '값'), H('p1', '비고')], [M('p2', '1'), L('p3', '비고 문구')]] };
+  assert.strictEqual(board.rcRowName(stOne(tail).tables[0], 1), '');
+});
+test('행 이름(실제 서버 응답 모양): C-4 판단기준 열, C-5 구분 3열 병합·colspan 이름 칸', function () {
+  const c4 = { id: 'C4', ref: 'C-4', mapping: 'C-4', title: '평가 방법', columns: 3, notes: [], row_ids: [1, 2, 3], col_ids: [4, 5, 6],
+    rows: [[H('c0', '평가방법'), H('c1', '결과'), H('c2', '판단기준')],
+      [L('c3', '회수기간법(Payback Period)'), M('c4', '3.2년', { align: 'center' }), L('c5', '목표기간 보다 회수기간 짧을 시 투자 결정')],
+      [L('c6', '순현재가치(NPV)'), M('c7', '2,345', { align: 'center' }), L('c8', '순 현재가치가 "0"보다 클 때 투자 결정')]] };
+  const t4 = stOne(c4).tables[0];
+  assert.strictEqual(board.rcRowName(t4, 1), '회수기간법(Payback Period)');
+  assert.strictEqual(board.rcRowName(t4, 2), '순현재가치(NPV)');
+  // C-5(9열): 구분 3열 머리, 바깥 구분 rowspan·가운데 구분 rowspan, 값 칸 6개
+  function six(p) { return [1, 2, 3, 4, 5, 6].map(function (i) { return M(p + i, String(i)); }); }
+  const c5 = { id: 'C5', ref: 'C-5', mapping: 'C-5', title: 'Ⅴ. 세부 수익성 분석표', columns: 9, notes: [], row_ids: [1, 2, 3, 4, 5],
+    col_ids: [10, 11, 12, 13, 14, 15, 16, 17, 18],
+    rows: [[H('d0', '구분', { colspan: 3 }), H('d1', '사업초기'), H('d2', '1년차'), H('d3', '2년차'), H('d4', '3년차'), H('d5', '4년차'), H('d6', '계')],
+      [L('e0', '수익', { rowspan: 3 }), L('e1', '기관수익', { rowspan: 2 }), L('e2', '공금예금 수익(a)')].concat(six('f')),
+      [L('e3', 'MMDA 수익(b)')].concat(six('g')),
+      [L('e4', '총 수익', { colspan: 2 })].concat(six('h')),
+      [L('e5', '예상영업이익', { colspan: 3 })].concat(six('i'))] };
+  const t5 = stOne(c5).tables[0];
+  assert.strictEqual(board.rcRowName(t5, 1), '공금예금 수익(a)');
+  assert.strictEqual(board.rcRowName(t5, 2), 'MMDA 수익(b)');
+  assert.strictEqual(board.rcRowName(t5, 3), '총 수익');
+  assert.strictEqual(board.rcRowName(t5, 4), '예상영업이익');
+  assert.strictEqual(board.rcHandleLabel(t5, 'row', 4), "'예상영업이익' 행 편집");
+});
 test('삭제 대기 표시: 그 행에서 시작하고 rowspan 1인 칸만(앵커가 옮겨 가는 병합 칸·걸친 병합 칸은 제외)', function () {
   const c5 = { id: 'C', ref: 'C', mapping: 'C-5', title: '표 C5', columns: 3, notes: [], row_ids: [1, 2, 3, 4], col_ids: [5, 6, 7],
     rows: [[H('h0', '구분'), H('h1', '세부'), H('h2', '금액')],

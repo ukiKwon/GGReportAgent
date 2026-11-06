@@ -95,6 +95,23 @@ test('checkFile: xlsm=매크로, 비xlsx, 빈 파일, 한도 초과', function (
   assert.strictEqual(bw.checkFile({ name: 'a.xlsx', size: 0 }, 5).code, 'EMPTY_FILE');
   assert.strictEqual(bw.checkFile({ name: 'a.xlsx', size: 5 * 1024 * 1024 + 1 }, 5).code, 'FILE_TOO_LARGE');
 });
+test('visibleBand·isCovered·scrollDelta: 929x869 — 작성 바(~98)와 원본 패널(395~) 사이에 칸이 오게 한다', function () {
+  const covers = [{ top: 395, left: 288, right: 929 }, { top: 760, left: 288, right: 929 }];
+  const band = bw.visibleBand({ vpH: 869, barBottom: 98, covers: covers, cell: { left: 300, right: 400 } });
+  assert.deepStrictEqual(band, { top: 106, bottom: 387 });
+  // 보고된 사례: 포커스 칸 468~507 은 원본 패널 뒤 → 위로 올려야 한다(양수 = 아래로 스크롤)
+  assert.strictEqual(bw.isCovered({ top: 468, bottom: 507 }, band), true);
+  assert.strictEqual(bw.scrollDelta({ top: 468, bottom: 507 }, band), 120);
+  // 작성 바 뒤(위쪽)로 가린 칸 → 음수
+  assert.strictEqual(bw.scrollDelta({ top: 60, bottom: 90 }, band), -46);
+  // 이미 보이면 0
+  assert.strictEqual(bw.scrollDelta({ top: 200, bottom: 240 }, band), 0);
+  // 가로로 겹치지 않는 패널(원본이 옆에 있는 넓은 화면)은 아래 끝을 줄이지 않는다
+  const wide = bw.visibleBand({ vpH: 869, barBottom: 98, covers: [{ top: 120, left: 700, right: 1200 }, { top: 790, left: 0, right: 1200 }], cell: { left: 100, right: 300 } });
+  assert.strictEqual(wide.bottom, 782);
+  // 칸이 영역보다 크면 위쪽을 맞춘다
+  assert.strictEqual(bw.scrollDelta({ top: 300, bottom: 600 }, { top: 106, bottom: 250 }), 194);
+});
 test('rejectFrom: 모든 오류는 detail 객체 기준, 411/413/415/422 문구', function () {
   const ctx = { formName: '기본 양식', maxMb: 5 };
   let r = bw.rejectFrom({ status: 422, body: { detail: { code: 'MACRO', message: 'x' } } }, ctx);
@@ -107,6 +124,13 @@ test('rejectFrom: 모든 오류는 detail 객체 기준, 411/413/415/422 문구'
   assert.strictEqual(r.title, '파일 크기를 확인하지 못했습니다.');
   r = bw.rejectFrom({ status: 415, body: { detail: { code: 'UNSUPPORTED_MEDIA_TYPE' } } }, ctx);
   assert.ok(r.title.includes('.xlsx'));
+  // 이름이 .xlsx 인데 서버가 NOT_XLSX: 깨진 파일 문구(암호 안내 포함)
+  r = bw.rejectFrom({ status: 415, body: { detail: { code: 'NOT_XLSX' } } }, { formName: 'x', fileName: '보고서.XLSX' });
+  assert.ok(r.title.includes('깨졌거나') && r.hint.includes('암호'));
+  // 확장자 오류(.md): 암호 줄 없음
+  r = bw.rejectFrom({ status: 0, body: { detail: bw.checkFile({ name: 'a.md', size: 3 }, 5) } }, { formName: 'x', fileName: 'a.md' });
+  assert.strictEqual(r.title, '엑셀(.xlsx) 파일만 올릴 수 있습니다.');
+  assert.ok(!r.hint.includes('암호') && r.hint.includes('.xlsm'));
   r = bw.rejectFrom({ status: 422, body: { detail: { code: 'PII_DETECTED', count: 3, kinds: [{ kind: '주민등록번호', count: 2 }, { kind: '휴대폰', count: 1 }] } } }, ctx);
   assert.strictEqual(r.kindsText, '주민등록번호 형식 2건 · 휴대폰 형식 1건');
   assert.ok(r.lines[0].includes('3곳') && r.hint.includes('저장되지 않았습니다'));
@@ -308,6 +332,10 @@ test('tipPlace·navTarget·linearTarget·escAction', function () {
   // 가장자리 8px, 원본 패널(limitRight)을 가리지 않는다
   assert.strictEqual(bw.tipPlace({ left: 950, top: 300, bottom: 320 }, { w: 280, h: 60 }, { w: 1000, h: 800 }, 0, 0).left, 712);
   assert.strictEqual(bw.tipPlace({ left: 600, top: 300, bottom: 320 }, { w: 280, h: 60 }, { w: 1200, h: 800 }, 0, 700).left, 420);
+  // 아래쪽 고정 패널(coverTop)이 있으면 그 위에 둔다. 아래에도 자리가 없으면 칸 근처 위쪽(사이드바 위로 날아가지 않는다)
+  assert.deepStrictEqual(bw.tipPlace({ left: 400, top: 500, bottom: 520 }, { w: 200, h: 60 }, { w: 929, h: 869 }, 98, 0, 395), { left: 400, top: 436, below: false });
+  const lowc = bw.tipPlace({ left: 400, top: 120, bottom: 140 }, { w: 200, h: 60 }, { w: 929, h: 869 }, 98, 0, 180);
+  assert.strictEqual(lowc.below, false); assert.ok(lowc.top >= 106 && lowc.left === 400);
   const items = [{ cx: 10, cy: 10, h: 20 }, { cx: 60, cy: 10, h: 20 }, { cx: 10, cy: 40, h: 20 }, { cx: 60, cy: 40, h: 20 }, { cx: 60, cy: 70, h: 20 }];
   assert.strictEqual(bw.navTarget(items, 0, 'right'), 1); assert.strictEqual(bw.navTarget(items, 0, 'left'), -1);
   assert.strictEqual(bw.navTarget(items, 0, 'down'), 2); assert.strictEqual(bw.navTarget(items, 3, 'down'), 4);

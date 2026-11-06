@@ -341,10 +341,12 @@
                            background:color-mix(in srgb, var(--accent-color) 13%, transparent); }
   /* 원본 패널이 360px 미만이 되는 좁은 화면(JS가 is-stack, 900px 이하는 CSS가): 원본을 아래쪽 고정 창으로 세로 배치 */
   .bd-w-grid.is-stack, .bd-w-grid.is-stack.is-wide, .bd-w-grid.is-stack.is-one { grid-template-columns:minmax(0,1fr); }
-  .bd-w-grid.is-stack .bd-w-src { top:auto; bottom:calc(var(--bd-status-h, 48px) + 8px); min-height:0; max-height:40vh; }
+  /* 아래로 내려온 원본 패널은 표 영역을 가리므로 높이를 30vh 로 줄인다(작성 바·상태 줄을 빼고도 표가 보이게) */
+  .bd-w-grid.is-stack .bd-w-src { top:auto; bottom:calc(var(--bd-status-h, 48px) + 8px); min-height:0; max-height:30vh; }
   @media (max-width:900px) { .bd-w-grid, .bd-w-grid.is-wide, .bd-w-grid.is-one { grid-template-columns:minmax(0,1fr); }
-                             .bd-w-src { top:auto; bottom:calc(var(--bd-status-h, 48px) + 8px); min-height:0; max-height:40vh; } }
-  .bd-w-cell { position:relative; }
+                             .bd-w-src { top:auto; bottom:calc(var(--bd-status-h, 48px) + 8px); min-height:0; max-height:30vh; } }
+  /* 포커스·스크롤 때 칸이 작성 바와 아래쪽 고정 패널(--bd-occl-b: JS 가 잼) 사이에 오게 한다 */
+  .bd-w-cell { position:relative; scroll-margin-top:calc(var(--bd-bar-h, 64px) + 8px); scroll-margin-bottom:calc(var(--bd-occl-b, 56px) + 8px); }
   .bd-w-cell:hover { outline:1px dashed var(--accent-color); outline-offset:-2px; }
   .bd-w-cell.is-bad { outline:1px dashed var(--red); outline-offset:-3px; }
   .bd-w-cell.is-sel, .bd-w-cell.is-sel:hover, .bd-w-cell:focus-visible { outline:2px solid var(--accent-color); outline-offset:-2px; }
@@ -358,6 +360,7 @@
   .bd-w-ck { position:absolute; top:2px; right:2px; width:10px; height:10px; color:#a9b8d8; color:color-mix(in srgb, var(--blue) 70%, #ffffff); }
   .bd-w-miss { font-size:11px; color:var(--red); }
   .bd-w-miss.bd-w-empty, .bd-w-paren { color:var(--muted); }
+  .bd-w-miss.bd-w-empty { white-space:nowrap; }   /* 좁은 새 열(예: 5년차)에서 '직접 입력'이 두 줄로 꺾이지 않게 */
   .bd-w-calc { flex-basis:100%; font-size:12px; color:var(--muted); }
   #bd-tip .mono { overflow-wrap:anywhere; }
   .bd-unit { float:right; margin-left:12px; font-size:11px; font-weight:400; color:var(--muted); }

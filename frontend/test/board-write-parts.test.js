@@ -150,6 +150,15 @@ test('PART_EMPTY: "비어 있음"(muted), 사유 문구, 요약의 "그중 N칸�
   // 비어 있는 칸이 없으면 그 문장은 없다
   assert.ok(!bw.summaryHtml(build([rc('r1c1', { status: 'failed', reason: 'NOT_NUMERIC', value: '' })])).includes('그중'));
 });
+test('요약: 읽지 못한 칸이 전부 PART_EMPTY 이면 "그중" 없이 한 번만 말한다', function () {
+  const all = bw.summaryHtml(build([rc('r1c1', { status: 'failed', reason: 'PART_EMPTY', value: '' }),
+    rc('r2c1', { status: 'failed', reason: 'PART_EMPTY', value: '' }), rc('r3c1', { value: '3' })]));
+  assert.ok(all.includes('값 1칸을 채웠고 2칸은 엑셀 칸이 비어 있어 채우지 않았습니다.'), all);
+  assert.ok(!all.includes('읽지 못했') && !all.includes('그중'));
+  const none = bw.summaryHtml(build([rc('r1c1', { status: 'failed', reason: 'PART_EMPTY', value: '' }),
+    rc('r2c1', { status: 'failed', reason: 'PART_EMPTY', value: '' }), rc('r3c1', { status: 'failed', reason: 'PART_EMPTY', value: '' })]));
+  assert.ok(none.includes('채운 값이 없고, 3칸은 엑셀 칸이 비어 있어 채우지 않았습니다.'), none);
+});
 
 test('reasonText: PART_FAILED·NOT_NUMERIC, 행·열 못 찾음 계열은 한 문구, 모르는 코드는 일반 문구', function () {
   const nf = bw.reasonText('ROW_NOT_FOUND');

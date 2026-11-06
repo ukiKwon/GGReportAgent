@@ -120,7 +120,18 @@
     if (code === 'MACRO') {
       r.title = '매크로가 들어 있는 파일은 받지 않습니다.'; r.hint = '매크로 없는 .xlsx로 다시 저장해 올려 주세요.';
     } else if (code === 'NOT_XLSX' || status === 415) {
-      r.title = '엑셀(.xlsx) 파일만 올릴 수 있습니다.'; r.hint = '암호가 걸린 파일은 암호를 풀고 저장해 주세요.';
+      const fn = str(c.fileName).toLowerCase();
+      if (fn.slice(-5) === '.xlsx') {
+        // 이름은 .xlsx 인데 서버가 엑셀로 읽지 못한 경우(깨진 파일·다른 형식을 이름만 바꾼 파일·암호 파일)
+        r.title = '파일이 깨졌거나 엑셀(.xlsx) 형식이 아닙니다.';
+        r.hint = '엑셀에서 파일이 열리는지 확인하고 .xlsx 로 다시 저장해 올려 주세요. 암호가 걸린 파일은 암호를 풀고 저장해 주세요.';
+      } else if (fn) {
+        // 확장자 오류(.xls·.csv·.md 등): 암호 안내는 붙이지 않는다. .xlsm 은 매크로 안내(MACRO)로 따로 거부한다.
+        r.title = '엑셀(.xlsx) 파일만 올릴 수 있습니다.';
+        r.hint = '.xls·.csv 같은 파일은 엑셀에서 .xlsx 로 저장해 올려 주세요. 매크로가 든 .xlsm 은 받지 않습니다.';
+      } else {
+        r.title = '엑셀(.xlsx) 파일만 올릴 수 있습니다.'; r.hint = '파일이 깨졌거나 암호가 걸려 있으면 엑셀에서 .xlsx 로 다시 저장해 주세요.';
+      }
     } else if (code === 'FILE_TOO_LARGE' || status === 413) {
       const mb = (d && d.max_mb > 0 ? d.max_mb : 0) || c.maxMb || DEFAULT_MAX_MB;
       r.title = '파일이 너무 큽니다(최대 ' + mb + 'MB).'; r.hint = '필요한 시트만 남겨 다시 저장해 올려 주세요.';
@@ -771,8 +782,10 @@
     else if (y.failed > 0 || y.review > 0) {
       const got = y.filled + y.review;
       // 예: "값 46칸을 채웠고 2칸은 읽지 못했습니다. 그중 1칸은 엑셀 칸이 비어 있습니다. 머리글이 달라 확인이 필요한 칸이 3칸 있습니다."
-      text = (got > 0 ? '값 ' + got + '칸을 채웠' : '채운 값이 없') + (y.failed > 0 ? '고 ' + y.failed + '칸은 읽지 못했' : '') + '습니다.' +
-        (y.empty > 0 ? ' 그중 ' + y.empty + '칸은 엑셀 칸이 비어 있습니다.' : '') +
+      const allEmpty = y.failed > 0 && y.empty === y.failed;   // 읽지 못한 칸이 전부 '엑셀 칸이 비어 있음'이면 한 번만 말한다
+      text = (got > 0 ? '값 ' + got + '칸을 채웠' : '채운 값이 없') +
+        (allEmpty ? (got > 0 ? '고 ' : '고, ') + y.failed + '칸은 엑셀 칸이 비어 있어 채우지 않았' : (y.failed > 0 ? '고 ' + y.failed + '칸은 읽지 못했' : '')) + '습니다.' +
+        (!allEmpty && y.empty > 0 ? ' 그중 ' + y.empty + '칸은 엑셀 칸이 비어 있습니다.' : '') +
         (y.reviewLabel > 0 ? ' 머리글이 달라 확인이 필요한 칸이 ' + y.reviewLabel + '칸 있습니다.' : '');
     }
     else if (y.filled === 0 && y.manual > 0) text = '엑셀에서 가져올 값이 없습니다.';
@@ -1000,6 +1013,27 @@
     const w = (Number(gridW) - 14) * (wide ? 3 : 2) / 5;
     return isFinite(w) && Number(gridW) > 0 && w < 360;
   };
+  // ── 선택·포커스한 칸이 고정 패널(작성 바·원본 패널·상태 줄)에 가려지지 않게 하는 계산(순수) ──
+  // o: {vpH, barBottom, covers:[{top,left,right}...], cell:{left,right}}. 칸과 가로로 겹치는 아래쪽 패널 중 가장 위쪽 top 이 보이는 영역의 아래 끝.
+  // 반환 {top, bottom}: 칸이 있어야 할 보이는 영역(위아래 8px 여백 포함).
+  bw.visibleBand = function (o) {
+    const m = 8, cell = o.cell || { left: 0, right: 0 };
+    let floor = Number(o.vpH) || 0;
+    (o.covers || []).forEach(function (c) {
+      const overlap = c.left < cell.right && c.right > cell.left;
+      if (overlap && c.top < floor) floor = c.top;
+    });
+    return { top: Math.max(0, Number(o.barBottom) || 0) + m, bottom: floor - m };
+  };
+  // 칸(top·bottom)이 영역 밖이면 가려진 것.
+  bw.isCovered = function (cell, band) { return cell.top < band.top || cell.bottom > band.bottom; };
+  // 칸을 영역 안으로 옮기는 데 필요한 스크롤 양(양수 = 아래로 스크롤). 이미 보이면 0.
+  // 칸이 영역보다 크면 칸의 위쪽을 영역 위쪽에 맞춘다.
+  bw.scrollDelta = function (cell, band) {
+    if (!bw.isCovered(cell, band)) return 0;
+    if (cell.bottom - cell.top > band.bottom - band.top) return Math.round(cell.top - band.top);
+    return Math.round(cell.top < band.top ? cell.top - band.top : cell.bottom - band.bottom);
+  };
   bw.gridClass = function (ui) { return 'bd-w-grid' + (ui.panelOpen ? (ui.wide ? ' is-wide' : '') : ' is-one'); };
 
   bw.sourceHtml = function (ws, ui) {
@@ -1226,11 +1260,17 @@
   };
   bw.tipAllowed = function (ui) { return !ui.leave && !ui.edit && !ui.ask; };
   // 칸 위 4px·왼쪽 정렬. 위 공간이 작성 줄+8px보다 좁으면 아래, 가장자리 8px 안, 원본 패널(limitRight)은 가리지 않는다.
-  bw.tipPlace = function (cell, tip, vp, barBottom, limitRight) {
+  // coverTop(선택): 아래쪽을 덮는 고정 패널(좁은 화면의 원본 패널·상태 줄)의 위쪽 y. 없으면 뷰포트 아래.
+  bw.tipPlace = function (cell, tip, vp, barBottom, limitRight, coverTop) {
     const gap = 4, edge = 8;
+    const floor = coverTop > 0 ? Math.min(coverTop, vp.h) : vp.h;
     let top = cell.top - gap - tip.h, below = false;
     if (top < (barBottom || 0) + edge) { top = cell.bottom + gap; below = true; }
-    if (below && top + tip.h > vp.h - edge) top = Math.max(edge, vp.h - edge - tip.h);
+    if (below && top + tip.h > floor - edge) {
+      // 아래에도 자리가 없으면, 위쪽에 두되 작성 줄 아래로 밀어 칸 근처에 둔다(칸을 조금 가려도 사이드바 위로 날아가지 않는다).
+      top = coverTop > 0 ? Math.max((barBottom || 0) + edge, cell.top - gap - tip.h) : Math.max(edge, vp.h - edge - tip.h);
+      if (coverTop > 0) below = false;
+    }
     const maxRight = limitRight > 0 ? Math.min(limitRight, vp.w - edge) : vp.w - edge;
     let left = Math.min(cell.left, maxRight - tip.w);
     if (left < edge) left = edge;
@@ -1298,6 +1338,26 @@
       if (st) r.style.setProperty('--bd-status-h', st.offsetHeight + 'px');
       if (src) r.style.setProperty('--bd-scroll-top', Math.max(bar ? bar.offsetHeight : 0, src.getBoundingClientRect().top) + 'px');
       if (grid) grid.classList.toggle('is-stack', bw.stackMode(grid.clientWidth, ui.wide, ui.panelOpen));
+      // 아래쪽 고정 패널(원본 패널이 아래로 내려온 좁은 화면 + 상태 줄)이 뷰포트 아래에서 차지하는 높이: 칸의 scroll-margin-bottom 이 쓴다.
+      const vh = window.innerHeight || 0, tops = [];
+      if (st) tops.push(st.getBoundingClientRect().top);
+      if (src && ((grid && grid.classList.contains('is-stack')) || window.innerWidth <= 900)) tops.push(src.getBoundingClientRect().top);
+      if (tops.length) r.style.setProperty('--bd-occl-b', Math.max(0, Math.round(vh - Math.min.apply(null, tops))) + 'px');
+    }
+    // 칸이 작성 바 아래 ~ 아래쪽 고정 패널 위 사이에 오도록 스크롤한다(WCAG 2.4.11 가려지지 않는 포커스).
+    function ensureVisible(td) {
+      const sc = env.scroller();
+      if (!td || !td.getBoundingClientRect || !sc) return;
+      const bar = $('bd-writebar'), src = $('bd-w-src'), st = $('bd-w-status'), cr = td.getBoundingClientRect();
+      const covers = [];
+      [src, st].forEach(function (n) {
+        if (!n) return;
+        const q = n.getBoundingClientRect();
+        covers.push({ top: q.top, left: q.left, right: q.right });
+      });
+      const band = bw.visibleBand({ vpH: window.innerHeight, barBottom: bar ? bar.getBoundingClientRect().bottom : 0, covers: covers, cell: { left: cr.left, right: cr.right } });
+      const d = bw.scrollDelta({ top: cr.top, bottom: cr.bottom }, band);
+      if (d) sc.scrollTop += d;
     }
     // 원본 칸의 스크롤 영역 안 위치(내용 좌표)와 고정 머리 크기.
     function srcMetrics(body, td) {
@@ -1385,7 +1445,7 @@
       ui.sel = { t: t, key: key }; ui.live = '';
       hideTip();
       applySel(); drawStatus();
-      if (opt.focus) { const n = findCell(t, key); if (n) n.focus(); }
+      if (opt.focus) { const n = findCell(t, key); if (n) { n.focus({ preventScroll: true }); ensureVisible(n); } }
       if (opt.tip) tipLater(findCell(t, key), 400);
     }
 
@@ -1416,10 +1476,15 @@
       if (tipFor && tipFor !== td) tipFor.removeAttribute('aria-describedby');
       const tip = tipNode();
       tip.innerHTML = bw.tipHtml(s.t, s.c);
-      const r = td.getBoundingClientRect(), bar = $('bd-writebar'), src = $('bd-w-src');
+      const r = td.getBoundingClientRect(), bar = $('bd-writebar'), src = $('bd-w-src'), st = $('bd-w-status');
+      // 원본 패널이 칸 오른쪽 옆에 있을 때만 그 왼쪽 끝을 한계로 한다(좁은 화면에서 아래로 내려온 패널의 left 는 사이드바 쪽이라 한계로 쓰면 툴팁이 칸에서 멀어진다).
+      const beside = src && ui.panelOpen && src.getBoundingClientRect().left > r.left;
+      const covers = [];
+      if (st) covers.push(st.getBoundingClientRect().top);
+      if (src && ui.panelOpen && !beside) covers.push(src.getBoundingClientRect().top);
       const p = bw.tipPlace({ left: r.left, top: r.top, bottom: r.bottom }, { w: tip.offsetWidth, h: tip.offsetHeight },
         { w: window.innerWidth, h: window.innerHeight }, bar ? bar.getBoundingClientRect().bottom : 0,
-        (src && ui.panelOpen) ? src.getBoundingClientRect().left - 4 : 0);
+        beside ? src.getBoundingClientRect().left - 4 : 0, covers.length ? Math.min.apply(null, covers) : 0);
       tip.style.left = p.left + 'px'; tip.style.top = p.top + 'px';
       tip.classList.add('is-on');
       td.setAttribute('aria-describedby', 'bd-tip');
@@ -1471,7 +1536,8 @@
     function startUpload(file) {
       if (!active || !formDoc) return;
       const bad = bw.checkFile(file, ui.maxMb);
-      if (bad) { ui.rej = bw.rejectFrom({ status: 0, body: { detail: bad } }, rctx()); draw({ id: 'bd-w-rej' }); return; }
+      const rc = rctx(); rc.fileName = file && file.name;
+      if (bad) { ui.rej = bw.rejectFrom({ status: 0, body: { detail: bad } }, rc); draw({ id: 'bd-w-rej' }); return; }
       const tok = ++upTok, ep = env.epoch();
       ui.rej = null; ui.upload = { name: file.name }; ui.live = '';
       draw({ id: 'bd-w-abort' });
@@ -1485,7 +1551,7 @@
           draw({ id: 'bd-w-sum' });
           return;
         }
-        ui.rej = bw.rejectFrom(res, rctx());
+        ui.rej = bw.rejectFrom(res, rc);
         draw({ id: 'bd-w-rej' });
       });
     }
@@ -1678,7 +1744,13 @@
     function onFocusIn(e) {
       if (!active) return;
       const td = cellOf(e.target);
-      if (td && !ui.edit) select(td.getAttribute('data-t'), td.getAttribute('data-key'), { tip: !pointer });
+      if (td && !ui.edit) {
+        select(td.getAttribute('data-t'), td.getAttribute('data-key'), { tip: !pointer });
+        if (!pointer) {   // 키보드·Tab 포커스: 브라우저의 기본 스크롤 뒤에 고정 패널에 가려지지 않게 한 번 더 맞춘다
+          ensureVisible(td);
+          if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function () { if (active && td.isConnected) ensureVisible(td); });
+        }
+      }
     }
     function onChange(e) {
       if (!active || !ws || !e.target || e.target.id !== 'bd-w-done') return;
@@ -1697,7 +1769,7 @@
         list.push(all[i]);
       }
       const to = (dir === 'next' || dir === 'prev') ? bw.linearTarget(items.length, cur, dir === 'next' ? 1 : -1) : bw.navTarget(items, cur, dir);
-      if (to >= 0 && list[to]) list[to].focus();   // focusin이 선택·툴팁 예약을 한다
+      if (to >= 0 && list[to]) { list[to].focus({ preventScroll: true }); ensureVisible(list[to]); }   // focusin이 선택·툴팁 예약을 한다
     }
     function onEsc(e) {
       const a = bw.escAction({ tip: !!tipFor, edit: !!ui.edit, ask: !!ui.ask, reason: !!(e.target && e.target.closest && e.target.closest('.bd-w-whybox')), leave: !!ui.leave, sel: !!ui.sel });
