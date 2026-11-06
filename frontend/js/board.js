@@ -1099,8 +1099,10 @@
       const ti = tables.findIndex(function (t) { return str(t.ref) === str(c.ref); });
       return ti >= 0 ? '.bd-handle[data-t="' + ti + '"][data-kind="' + (c.act === 'delrow' ? 'row' : 'col') + '"][data-idx="' + (parseInt(c.idx, 10) || 0) + '"]' : '#bd-add';
     }
-    if (c && c.act === 'cancel') return '#bd-cancel';
-    return '#bd-save';
+    // 편집 줄(위)의 버튼으로 연 확인이면 그 버튼으로, 맨 아래 버튼으로 연 확인이면 아래 버튼으로 돌아간다.
+    const top = !!c && c.from === 'top';
+    if (c && c.act === 'cancel') return top ? '#bd-cancel-top' : '#bd-cancel';
+    return top ? '#bd-save-top' : '#bd-save';
   };
   // 확인 줄 버튼 문구(동작별 동사). primary: 실행 버튼에 틸 테두리(저장만).
   board.confirmButtons = function (c) {
@@ -1461,12 +1463,18 @@
     const saving = !!u.saving;
     const stack = Array.isArray(u.undo) ? u.undo : [];
     const last = stack.length ? stack[stack.length - 1] : null;
+    // 긴 양식에서 맨 아래까지 내려가지 않고 끝낼 수 있게 맨 아래와 같은 두 버튼(같은 data-act → 같은 핸들러)을 둔다.
+    // id만 다르고(-top) 접근성 이름은 같다. 409 충돌이면 맨 아래처럼 두지 않는다.
+    const ends = u.conflict ? '' :
+      '<span class="bd-edit-ends">' +
+      '<button type="button" id="bd-save-top" data-act="save"' + ((n === 0 || saving) ? ' disabled' : '') + '>새 버전으로 저장</button>' +
+      '<button type="button" id="bd-cancel-top" data-act="cancel"' + (saving ? ' disabled' : '') + '>편집 끝내기</button></span>';
     // tabindex=-1: 저장 중(버튼이 모두 꺼짐)에 포커스를 둘 곳. 저장 중이면 건수 자리에 진행 문구를 둔다.
     return '<div class="bd-editbar" id="bd-editbar" tabindex="-1"><span>양식 편집 중 · v' + esc(st.version) + ' 기준</span>' +
       '<span id="bd-dirty" class="' + (n ? 'bd-dirty' : 'bd-clean') + '">' + esc(saving ? '저장하는 중…' : board.dirtyText(n)) + '</span>' +
       '<span id="bd-rowcol-msg" class="bd-rowcol-msg" aria-live="polite">' + board.rcMsgInner(u.rcMsg) + '</span>' +
       '<button type="button" id="bd-undo" class="bd-undo" data-act="rc-undo"' + ((last && !saving) ? '' : ' disabled') +
-      ' aria-label="' + esc(last ? '되돌리기: ' + last.label : '되돌리기') + '">되돌리기</button></div>';
+      ' aria-label="' + esc(last ? '되돌리기: ' + last.label : '되돌리기') + '">되돌리기</button>' + ends + '</div>';
   };
   // 안내 문구(잠김 표시 대신): 편집 막대 바로 아래, 양식 이름 줄 위, 화면에 한 번만.
   board.editGuideHtml = function () {
@@ -1670,6 +1678,8 @@
     });
     const s = el('bd-save');
     if (s) s.disabled = n === 0 || editUi.saving;
+    const st2 = el('bd-save-top');
+    if (st2) st2.disabled = n === 0 || editUi.saving;
     if (editUi.confirm) {
       const ct = el('bd-confirm-text');
       if (ct) ct.textContent = board.confirmText(edit, editUi.confirm);
@@ -1841,12 +1851,13 @@
     });
   }
 
-  function onSave() {
+  // from: 'top'이면 편집 줄의 버튼으로 시작한 것(확인을 닫을 때 그 버튼으로 포커스를 돌려준다).
+  function onSave(from) {
     if (!edit || editUi.saving || board.changeCount(edit) === 0) return;
     const bad = board.validateEditAt(edit);
     if (bad) { setLocalError(bad); renderEdit(['#bd-editerr']); return; }
     if (board.shouldClearError(editUi, edit, 'confirm')) { editUi.error = ''; editUi.errorKind = ''; editUi.errorTarget = ''; }
-    editUi.confirm = { act: 'save', ref: '', text: board.saveConfirmText() };
+    editUi.confirm = { act: 'save', ref: '', from: from === 'top' ? 'top' : '', text: board.saveConfirmText() };
     renderEdit([board.confirmFocus(editUi.confirm)]);
   }
 
@@ -1921,11 +1932,11 @@
     });
   }
 
-  function onCancel() {
+  function onCancel(from) {
     const n = board.changeCount(edit);
     if (n > 0) {
       if (board.shouldClearError(editUi, edit, 'confirm')) { editUi.error = ''; editUi.errorKind = ''; editUi.errorTarget = ''; }
-      editUi.confirm = { act: 'cancel', ref: '', text: board.cancelConfirmText(n) };
+      editUi.confirm = { act: 'cancel', ref: '', from: from === 'top' ? 'top' : '', text: board.cancelConfirmText(n) };
       renderEdit([board.confirmFocus(editUi.confirm)]);
       return;
     }
@@ -2244,9 +2255,9 @@
       if (sec && sec.scrollIntoView) sec.scrollIntoView({ block: 'nearest' });
       say('표를 맨 아래에 추가했습니다. 저장하면 반영됩니다.');
     } else if (act === 'save') {
-      onSave();
+      onSave(b.id === 'bd-save-top' ? 'top' : '');
     } else if (act === 'cancel') {
-      onCancel();
+      onCancel(b.id === 'bd-cancel-top' ? 'top' : '');
     } else if (act === 'reload') {
       openForm(current.id, { msg: '최신 내용을 불러왔습니다. 고치려면 [양식 편집]을 다시 눌러 주세요.', focusEdit: true });
     }
