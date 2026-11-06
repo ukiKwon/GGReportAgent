@@ -173,8 +173,9 @@
 - **자세히**: 전체본 '### 46.' 절, `2026-11-04_summary.md`, `2026-11-05_summary.md`.
 
 ### 45. 로컬 설정 누락 후속 + 작성 모드 브라우저 재검증 — **재검증 대기(첫 작업, START.md 1번)** [담당: qa-verifier → backend-dev ∥ frontend-dev]
-- **현재**: 2026-11-03에 사용자가 `config/application.properties`(gitignore, 이 PC 로컬)에 빠진 7키를 붙였다. 2026-11-05에 작성 모드 업로드·초안 워드·행·열 편집을 Playwright로 두 차례 검증해 업로드 500·기본 양식 key 문제는 사실상 해소됐다(qa 보고서 `handoff/agents/qa-verifier/2026-11-05_*`). 칸 key·저장 형식이 크게 바뀐 뒤의 독립 재검증은 아직이다.
+- **현재**: 2026-11-06 qa 재검증 조건부 통과(11-03 FAIL의 업로드 500·key 없음 해소, 화면 5건 수정 `ec6f497`; 머리글 불일치 화면·워드 내부는 미확인). 2026-11-03에 사용자가 `config/application.properties`(gitignore, 이 PC 로컬)에 빠진 7키를 붙였다. 2026-11-05에 작성 모드 업로드·초안 워드·행·열 편집을 Playwright로 두 차례 검증해 업로드 500·기본 양식 key 문제는 사실상 해소됐다(qa 보고서 `handoff/agents/qa-verifier/2026-11-05_*`). 칸 key·저장 형식이 크게 바뀐 뒤의 독립 재검증은 아직이다.
 - **다음 한 걸음**: 8080 재시작을 확인하고, 브라우저는 한 세션만 써서 작성 모드 전체 흐름(업로드→채움→대조→초안 워드)과 양식 편집을 재검증한다(P0~P3 목록, 11-03 FAIL 항목 해소 판정).
+- **사용자 결정(2026-11-06, 현행 유지)**: 빈 입력에서 엑셀 수식이 계산한 0은 그대로 채운다 / '직접 입력' 칸은 비워 둔 채로 확인해도 된다.
 - **사용자 판단 대기**: 시험 데이터 정리(BOARD_FORM id=1, USER_MENU_PERMS (3918264,'tasks'), `uploader/.../.DS_Store`와 `.gitignore`에 `.DS_Store` 추가 제안) · history 문서에 남은 내부 기준값(IRR 3.31%·법인세율 26.4%)을 저장소에 둘지 · 하 등급 후속(`lastRecorded` 로그아웃 초기화 [frontend-dev], X-Emp-No 헤더 위조는 NEXT 35에 묶음) · 기타 이월(sumState 다중 sums 재검산, sums 감산·곱셈 지원 여부, `errText` 상태 코드 표시).
 - **자세히**: 전체본 '### 45.' 절, `2026-11-03_summary.md`.
 
