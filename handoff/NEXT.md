@@ -184,8 +184,8 @@
 - **자세히**: 전체본 '### 47.' 절. `handoff/agents/backend-dev/2026-11-05_행열편집_서버설계요약.md`, `handoff/agents/design-reviewer/2026-11-05_행열편집_화면규격요약.md`. 병합 만들기·풀기는 범위 밖, 이름 입력란 폭·C-5 둘째 줄 삭제 보호는 후속.
 
 ### 48. 보안 후속 묶음(2026-11-05) — **미착수** [담당: security → backend-dev / 메인(write-guard)]
-- **현재**: 4건이 열려 있다. ① 개인정보(Pii) 정규식 ReDoS가 업로드 경로에서 쓰임 ② XSSF 읽기 전 칸 수 사전 계수(대용량 시트 메모리) ③ write-guard 훅이 node가 없으면 실행되지 않음(fail-open) ④ Spring Boot CVE.
-- **다음 한 걸음**: ①②는 security→backend-dev. ③은 `.claude/hooks/write-guard.js`·settings.json이 규칙급이라 메인이 직접 고친다. ④는 POI 상향(40)과 같이 폐쇄망 반입 때 묶을지 판단한다.
+- **현재**: 3건이 열려 있다. ① 개인정보(Pii) 정규식 ReDoS가 업로드 경로에서 쓰임 ② XSSF 읽기 전 칸 수 사전 계수(대용량 시트 메모리) ④ Spring Boot CVE. ③ write-guard fail-open은 2026-11-06 해소(settings.json 훅이 node 없으면 `-write`·플러그인 에이전트 쓰기를 exit 2로 막음, 시뮬레이션 시험 통과).
+- **다음 한 걸음**: ①②는 security→backend-dev. ④는 POI 상향(40)과 같이 폐쇄망 반입 때 묶을지 판단한다.
 - **자세히**: 전체본 '### 48.' 절, `2026-11-05_summary.md` `## Session 18:04`.
 
 ### 49. 자동 마무리 예약 작업이 이 PC에 없음 — **미등록** [담당: cleaner → 메인]
