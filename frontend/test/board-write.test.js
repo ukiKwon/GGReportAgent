@@ -112,6 +112,19 @@ test('visibleBand·isCovered·scrollDelta: 929x869 — 작성 바(~98)와 원본
   // 칸이 영역보다 크면 위쪽을 맞춘다
   assert.strictEqual(bw.scrollDelta({ top: 300, bottom: 600 }, { top: 106, bottom: 250 }), 194);
 });
+test('visibleBand·scrollDelta: 1440 — 상태 줄이 38→78→130px 로 자라도 선택 칸이 항상 영역 안으로 들어온다', function () {
+  // 상태 줄 top = 886 - 높이(바닥 886). 칸 y775~800 (재현 사례)
+  [38, 78, 130].forEach(function (h) {
+    const stTop = 886 - h;
+    const band = bw.visibleBand({ vpH: 886, barBottom: 98, covers: [{ top: stTop, left: 0, right: 1440 }], cell: { left: 600, right: 700 } });
+    assert.strictEqual(band.bottom, stTop - 8);
+    const cell = { top: 775, bottom: 800 };
+    const d = bw.scrollDelta(cell, band);
+    const moved = { top: cell.top - d, bottom: cell.bottom - d };
+    assert.strictEqual(bw.isCovered(moved, band), false, 'h=' + h);
+    if (h === 38) assert.strictEqual(d, 0 + Math.max(0, 800 - band.bottom));
+  });
+});
 test('rejectFrom: 모든 오류는 detail 객체 기준, 411/413/415/422 문구', function () {
   const ctx = { formName: '기본 양식', maxMb: 5 };
   let r = bw.rejectFrom({ status: 422, body: { detail: { code: 'MACRO', message: 'x' } } }, ctx);
