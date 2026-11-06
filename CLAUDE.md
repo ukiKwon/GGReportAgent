@@ -31,6 +31,7 @@ Claude Code가 이 저장소에서 일할 때의 지침이다. **1~6절은 매 �
    - ⓑ `node -v` 확인 + `agent-dashboard/state.json`의 `stats.since`가 이번 세션 시각인지 + 8090 대시보드 기동 여부(`lsof -iTCP:8090`) — node가 PATH에 없으면 훅이 죽어 에이전트가 켜지지 않는다. `start.js`는 서버가 이미 떠 있으면 브라우저를 열지 않는 것이 정상이다.
    - ⓒ `AGENT_DASH_NO_OPEN`·`ENABLE_STOP_REVIEW` 환경변수 값.
    - ⓓ **로컬 설정 키 대조**: `kgi-ggreport-web/config/application.properties`(git 미추적, PC마다 다름)에 `config-envs/out-local/application.properties`의 키가 빠졌는지 **키 이름만** 비교한다(`=` 앞부분, 주석 제외) — 키 누락이 업로드 500으로 늦게 드러난 적이 있다. **값은 읽거나 출력하지 않는다**(비밀번호 포함, `config/` 읽기는 권한으로 막혀 있을 수 있음). 막히면 우회하지 말고 사용자가 터미널에서 돌릴 명령을 안내한다: `diff <(grep -v '^#' config/application.properties | cut -d= -f1 | sort) <(grep -v '^#' config-envs/out-local/application.properties | cut -d= -f1 | sort)`. 빠진 키는 이름과 out-local 값(비밀 아닌 것)만 알린다.
+   - ⓔ **로컬 MySQL(3306)과 8080 서버 기동 여부** — `netstat -ano | grep :3306`로 확인하고, 꺼져 있으면 `C:devmysql-start.cmd`로 띄운다(세션이 바뀌면 꺼진다). DB가 꺼져 있으면 메뉴가 일부만 보이고 화면이 500으로 응답하는데, 화면 버튼이 안 눌리는 것처럼 보인다(2026-11-06 실제 사례).
 
 참조: `agent-dashboard/README.md`, `kgi-ggreport-web/README.md`(§5-2 로컬 환경)
 
