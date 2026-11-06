@@ -65,6 +65,52 @@ test('알림 줄(aria-live): 대조 첫 줄과 같으면 화면에서는 숨기�
   assert.ok(/id="bd-w-live" class="bd-w-live is-sr" role="status" aria-live="polite">48\.51 억원 ← K54 4,851\.4 백만원</.test(w));
 });
 
+test('선택 해제(Esc): 지난 대조 문구는 비우고 낭독 전용 해제 안내만 남으며 화면에는 보이지 않는다', function () {
+  const ws = wsB(), t = ws.tables[0], ui = bw.freshUi();
+  ui.sel = { t: 'B', key: 'n1' }; ui.live = bw.compareLine(t, t.cells.n1);
+  bw.releaseSel(ui);
+  assert.strictEqual(ui.sel, null);
+  assert.notStrictEqual(ui.live, '48.51 억원 ← K54 4,851.4 백만원');
+  assert.strictEqual(ui.live, '선택을 해제했습니다.');
+  assert.strictEqual(bw.liveClass(ws, ui), 'bd-w-live is-sr');
+  const w = bw.writeHtml(ws, ui);
+  assert.ok(!w.includes('K54 4,851.4'));
+  assert.ok(/id="bd-w-live" class="bd-w-live is-sr"[^>]*>선택을 해제했습니다\.</.test(w));
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'board-write.js'), 'utf8');
+  assert.ok(/a === 'sel'\) \{ bw\.releaseSel\(ui\)/.test(src));
+});
+
+test('창 크기 보정: resize 처리에서 측정(measureSrc) 뒤에 선택 칸 보정(keepVisible)을 한다', function () {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'board-write.js'), 'utf8');
+  const i = src.indexOf('function realignSrc()');
+  assert.ok(i > 0);
+  const body = src.slice(i, src.indexOf('window.addEventListener(\'resize\'', i));
+  const m = body.indexOf('measureSrc()'), k = body.indexOf('keepVisible('), r = body.indexOf('bw.resizeRealign(');
+  assert.ok(m >= 0 && k > m, '측정 → 보정 순서');
+  assert.ok(k < r, 'resizeRealign 이 false 여도(원본을 직접 스크롤한 직후) 가림 보정은 한다');
+  assert.ok(/if \(ui\.sel\)/.test(body.slice(m - 20, k)));
+});
+
+test('표 A 칸 이름: 첫 열이 값 칸(기관명 rowspan 4)이어도 네 행이 서로 다른 행 이름을 갖는다', function () {
+  const M = function (k, x, e) { return Object.assign({ key: k, text: x, mapped: true }, e); };
+  const L = function (k, x, e) { return Object.assign({ key: k, text: x }, e); };
+  const rows = [[{ key: 'h0', text: '기관명', header: true }, { key: 'h1', text: '구분', header: true }, { key: 'h2', text: '제공금액', header: true }, { key: 'h3', text: '비고', header: true }],
+    [M('a_org', '대한민국 기관', { rowspan: 4 }), L('a_l1', '출연금'), M('v1', '0'), L('a_n1', '', { rowspan: 3 })],
+    [L('a_l2', '예비비'), M('v2', '0')],
+    [L('a_l3', '전산시스템 구축/운영비용'), M('v3', '0')],
+    [L('a_l4', '합계'), M('v4', '0'), L('a_n4', '')]];
+  const t = { title: '표 제목', columns: 4, rows: rows, cells: {} };
+  const labels = [[1, 2], [2, 1], [3, 1], [4, 1]].map(function (p) { return board.cellLabel(t, p[0], p[1]); });
+  assert.deepStrictEqual(labels, ['표 제목 · 출연금 · 제공금액', '표 제목 · 예비비 · 제공금액', '표 제목 · 전산시스템 구축/운영비용 · 제공금액', '표 제목 · 합계 · 제공금액']);
+  assert.strictEqual(new Set(labels).size, 4);
+  // 첫 열 값 칸 자신은 행 이름이 자기 글자로 새지 않는다
+  assert.ok(!board.cellLabel(t, 1, 0).includes('대한민국 기관'));
+  // 값 칸 뒤에 '비고'만 남는 모양은 행 이름이 아니다(회귀)
+  const only = { title: 'O', columns: 3, cells: {}, rows: [[{ key: 'o0', text: '값', header: true }, { key: 'o1', text: '값2', header: true }, { key: 'o2', text: '비고', header: true }],
+    [M('o3', '1'), M('o4', '2'), L('o5', '비고 문구')]] };
+  assert.ok(!board.cellLabel(only, 1, 1).includes('비고 문구'));
+});
+
 test('선택 상태 클래스: 선택이 있으면 격자·카드·상태 줄·원본 열 머리, 해제하면 모두 없다', function () {
   const ws = wsB();
   const ui = bw.freshUi();

@@ -1278,17 +1278,25 @@
         // 값 칸이 나오기 전까지 바깥→안쪽 구분 경로로 본다. 글자가 다른 칸이 둘 이상일 때만 쓰고,
         // 그렇지 않으면(구분 1열 표 A/B/C-2/C-3/C-4) 예전처럼 그 행 첫 칸만 쓴다.
         const run = [], runSeen = {}, runText = {};
-        let inRun = true;
+        let inRun = true, sawText = false, skipped = false, closed = false;
         for (let col = 0; col < line.length && inRun; col++) {
           const e = line[col], c = cellAt(rows, e);
-          if (!c || typeof c !== 'object' || c.header === true || c.mapped === true || c.input === true) { inRun = false; break; }
+          if (!c || typeof c !== 'object' || c.header === true) { inRun = false; break; }
           const id = e.r + ',' + e.ci;
+          if (c.mapped === true || c.input === true) {
+            // 표 A 의 첫 열(기관명, rowspan 4)처럼 맨 왼쪽이 값 칸이면 건너뛰고 그 뒤 글자 칸(출연금 등)을 행 이름으로 본다(rcRowName 과 같은 규칙).
+            // 글자 칸을 하나라도 모은 뒤에 만나는 값 칸은 그대로 묶음의 끝이다. 건너뛴 칸이 자기 자신이면 예전 규칙.
+            if (run.length === 0 && !sawText) { if (self(e)) { inRun = false; break; } skipped = true; continue; }
+            closed = true; inRun = false; break;
+          }
           if (runSeen[id]) continue;
           runSeen[id] = true;
+          sawText = true;
           if (self(e)) { inRun = false; run.length = 0; break; }   // 자기 자신이 라벨 칸이면 예전 규칙
           const tx = nowText(c, vals).trim();
           if (tx !== '' && !runText[tx]) { runText[tx] = true; run.push(e); }
         }
+        if (skipped && !closed) run.length = 0;   // 앞쪽 값 칸을 건너뛴 경우, 뒤에 값 칸이 이어지지 않는 글자 칸('비고')은 행 이름이 아니다
         // 글자가 하나뿐이면 그 칸을 쓴다: 첫 칸이 글자 없는 병합 칸(표 B 의 1열 2~3행 빈 칸)이면 그 옆의 '명목가치'·'현재가치'가 행 이름이다.
         if (run.length >= 2) run.forEach(add); else if (run.length === 1) add(run[0]); else if (line[0]) add(line[0]);
       }
