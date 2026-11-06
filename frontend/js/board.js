@@ -1652,6 +1652,7 @@
     Array.prototype.forEach.call(el('bd-body').querySelectorAll('.bd-table-wrap'), function (w, k) {
       if (lefts[k]) w.scrollLeft = lefts[k];
     });
+    markEditStuck();
     if (editUi.menu) placeMenu();
     if (focusSelectors) focusFirst(focusSelectors);
   }
@@ -2157,6 +2158,20 @@
   function onBodyScroll(e) {
     if (mode === 'edit' && editUi.menu && e.target && e.target.classList && e.target.classList.contains('bd-table-wrap')) closeMenu(false);
   }
+  // 양식 편집 줄이 실제로 붙은 뒤에만 위쪽 틈 띠(::before)를 켠다(board-write.js 와 같은 기준 bw.isStuck).
+  function markEditStuck() {
+    try {
+      const bar = el('bd-editbar'), sc = scroller();
+      if (bar && sc && bw && bar.getBoundingClientRect && sc.getBoundingClientRect) {
+        bar.classList.toggle('is-stuck', bw.isStuck(bar.getBoundingClientRect().top, sc.getBoundingClientRect().top));
+      }
+    } catch (e) { /* 띠 표시는 장식이라 실패해도 화면 동작을 막지 않는다 */ }
+  }
+  let editStuckRaf = 0;
+  function onEditScroll() {
+    if (mode !== 'edit' || editStuckRaf || typeof requestAnimationFrame !== 'function') return;
+    editStuckRaf = requestAnimationFrame(function () { editStuckRaf = 0; markEditStuck(); });
+  }
   function onWinResize() { if (mode === 'edit' && editUi.menu) closeMenu(false); }
   // 인라인 확인의 [취소]·Esc: 확인 줄만 닫고 포커스를 확인을 띄운 버튼 쪽으로 돌려준다.
   function closeConfirm() {
@@ -2313,6 +2328,7 @@
     el('bd-body').onkeydown = onBodyKey;
     // 같은 함수 참조라 mount가 다시 불려도 중복 등록되지 않는다.
     el('bd-body').addEventListener('scroll', onBodyScroll, true);
+    window.addEventListener('scroll', onEditScroll, true);
     el('bd-body').addEventListener('mouseover', onHandleOn);
     el('bd-body').addEventListener('focusin', onHandleOn);
     el('bd-body').addEventListener('mouseout', onHandleOff);
