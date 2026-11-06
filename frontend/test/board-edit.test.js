@@ -197,6 +197,34 @@ test('editHtml: 저장 버튼은 변경 없으면 비활성, 변경되면 활성
   assert.ok(/id="bd-save" data-act="save" disabled>저장하는 중…/.test(h));
   assert.ok(h.includes('<fieldset class="bd-fs" disabled>'));
 });
+test('편집 줄: [새 버전으로 저장]·[편집 끝내기]가 있고 상태가 맨 아래 버튼과 같다, id 중복 없음', function () {
+  let st = board.editFromForm(form());
+  const bar0 = board.editBarHtml(st, {});
+  assert.ok(/id="bd-save-top" data-act="save" disabled>새 버전으로 저장<\/button>/.test(bar0), '변경 0건이면 저장 비활성');
+  assert.ok(/id="bd-cancel-top" data-act="cancel">편집 끝내기<\/button>/.test(bar0));
+  st = board.editSetTitle(st, 0, '다른 제목');
+  assert.ok(/id="bd-save-top" data-act="save">새 버전으로 저장/.test(board.editBarHtml(st, {})));
+  const sv = board.editBarHtml(st, { saving: true });
+  assert.ok(/id="bd-save-top"[^>]*\sdisabled/.test(sv) && /id="bd-cancel-top"[^>]*\sdisabled/.test(sv), '저장 중 둘 다 비활성');
+  assert.ok(!board.editBarHtml(st, { conflict: true }).includes('bd-save-top'), '충돌 시 맨 아래처럼 두지 않는다');
+  const all = board.editHtml(st, {}, null);
+  const ids = (all.match(/ id="[^"]+"/g) || []);
+  assert.strictEqual(ids.length, new Set(ids).size, 'id 중복 없음');
+});
+test('confirmBack: 편집 줄에서 연 확인은 편집 줄 버튼으로, 아래에서 연 확인은 아래 버튼으로', function () {
+  const st = board.editFromForm(form());
+  assert.strictEqual(board.confirmBack(st, { act: 'save', from: 'top' }), '#bd-save-top');
+  assert.strictEqual(board.confirmBack(st, { act: 'cancel', from: 'top' }), '#bd-cancel-top');
+  assert.strictEqual(board.confirmBack(st, { act: 'save', from: '' }), '#bd-save');
+  assert.strictEqual(board.confirmBack(st, { act: 'cancel' }), '#bd-cancel');
+});
+test('board.js 배선: 편집 줄 버튼은 같은 onSave·onCancel 을 부르고 출처(from)를 넘기며 refreshStatus 가 동기화한다', function () {
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'js', 'board.js'), 'utf8').replace(/\r\n/g, '\n');
+  assert.ok(src.includes("onSave(b.id === 'bd-save-top' ? 'top' : '')"));
+  assert.ok(src.includes("onCancel(b.id === 'bd-cancel-top' ? 'top' : '')"));
+  const s = src.indexOf('function refreshStatus(');
+  assert.ok(src.slice(s, src.indexOf('\n  }\n', s)).includes("el('bd-save-top')"));
+});
 test('editFootHtml: 오류는 role=alert로 이스케이프, 409는 최신 내용 보기만', function () {
   const st = board.editSetTitle(board.editFromForm(form()), 0, 'x');
   let h = board.editFootHtml(st, { error: '<b>실패</b>' });

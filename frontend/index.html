@@ -256,7 +256,10 @@
   .bd-hint { font-size:11px; color:var(--muted); }
   .bd-card-edit > .bd-hint { margin:0 0 6px; }
   .bd-foot { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  #bd-save { border-color:var(--accent-color); }
+  #bd-save, #bd-save-top { border-color:var(--accent-color); }
+  /* 편집 줄의 [새 버전으로 저장]·[편집 끝내기]: 되돌리기(margin-left:auto) 오른쪽에 붙어 우측 정렬, 좁으면 줄바꿈 */
+  .bd-edit-ends { display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  @media (max-width:560px) { .bd-undo { margin-left:0; } }
   #bd-editerr { margin:0; }
   #bd-editbar:focus, #bd-editerr:focus { outline:none; }
   .bd-confirm { display:flex; gap:8px; align-items:flex-start; flex-wrap:wrap; padding:8px 12px; font-size:13px;
