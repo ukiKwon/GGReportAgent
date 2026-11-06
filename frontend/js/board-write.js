@@ -645,10 +645,15 @@
     return now + ' ← ' + str(c.src.cell) + ' ' + str(c.src.display) + (cv && cv.kind !== 'display_sum' && cv.unit_from ? ' ' + str(cv.unit_from) : '');
   };
   // 알림 줄(#bd-w-live)이 대조 첫 줄과 같으면 화면에서는 숨기고 읽어 주기만 한다(상태 줄 첫 줄과 겹쳐 보이지 않게).
+  // 선택을 해제했을 때의 낭독 전용 안내 — 화면에는 보이지 않는다(지난 대조 문구가 안내 문구 아래에 남지 않게).
+  bw.RELEASE_LIVE = '선택을 해제했습니다.';
   bw.liveClass = function (ws, ui) {
     const s = ws && ui && ui.sel ? bw.selected(ws, ui.sel) : null;
-    return 'bd-w-live' + (s && ui.live && ui.live === bw.compareLine(s.t, s.c) ? ' is-sr' : '');
+    if (!s) return 'bd-w-live' + (ui && ui.live === bw.RELEASE_LIVE ? ' is-sr' : '');
+    return 'bd-w-live' + (ui.live && ui.live === bw.compareLine(s.t, s.c) ? ' is-sr' : '');
   };
+  // 선택을 해제하는 한 곳: 대조 문구(ui.live)를 비우고 낭독 전용 해제 안내로 바꾼다.
+  bw.releaseSel = function (ui) { ui.sel = null; ui.live = bw.RELEASE_LIVE; return ui; };
   // 창 크기를 바꾼 뒤 원본 가로 스크롤을 선택 칸에 다시 맞출지: 선택이 있고, 사용자가 원본을 직접 스크롤한 직후(quiet ms)가 아닐 때.
   bw.RESIZE_QUIET = 1200;
   bw.resizeRealign = function (o) {
@@ -1863,7 +1868,7 @@
       e.preventDefault(); e.stopPropagation();
       if (a === 'tip') hideTip();
       else if (a === 'leave') { const k = ui.leave; ui.leave = null; draw(k === 'swap' ? { w: 'swap' } : { id: 'bd-w-end' }); }
-      else if (a === 'sel') { ui.sel = null; applySel(); drawStatus(); }
+      else if (a === 'sel') { bw.releaseSel(ui); applySel(); drawStatus(); }
       else if (a === 'edit') cancelEdit();
       else if (a === 'ask') { restorePanel(); ui.ask = null; draw({ cell: true }); }
       else if (a === 'reason') focusTarget({ cell: true });
@@ -1957,6 +1962,7 @@
         function realignSrc() {
           rzRaf = 0;
           if (!active || !ui) return;
+          if (ui.sel) { measureSrc(); keepVisible(findCell(ui.sel.t, ui.sel.key)); }   // 줄인 창에서 선택 칸이 고정된 원본 패널·상태 줄 뒤로 가려지지 않게(측정 → 보정)
           if (!bw.resizeRealign({ hasSel: !!ui.sel, now: Date.now(), lastManual: lastManual })) return;
           const body = $('bd-w-srcbody'), hit = body && body.querySelector('td.is-src');
           if (hit) scrollSrcTo(hit);
