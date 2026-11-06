@@ -1036,9 +1036,20 @@
   };
   // 선택 뒤 보정(순수 로직, 호출 순서 검증용): 상태 줄이 자란 뒤 높이를 다시 재고 칸을 영역 안으로 옮기고, 다음 프레임에 한 번 더 한다.
   // d: {measure, ensure, raf, alive}
+  // 보정에서 예외가 나도 호출자(선택·툴팁)를 깨지 않도록 각 단계를 감싼다.
   bw.settleVisible = function (d) {
-    d.measure(); d.ensure();
-    if (typeof d.raf === 'function') d.raf(function () { if (d.alive()) { d.measure(); d.ensure(); } });
+    function once() { try { d.measure(); } catch (e) { /* 측정 실패는 무시 */ } try { d.ensure(); } catch (e2) { /* 보정 실패는 무시 */ } }
+    once();
+    try {
+      const raf = d.raf;   // 떼어서 부른다: requestAnimationFrame 을 객체 속성으로 부르면 Illegal invocation
+      if (typeof raf === 'function') raf(function () { if (d.alive()) once(); });
+    } catch (e3) { /* 프레임 예약 실패는 무시 */ }
+  };
+  // 위에 붙는 바(sticky)가 실제로 붙었는지: 바의 현재 top 이 스크롤 영역 top + 위 여백 이하일 때(= 붙은 뒤).
+  bw.STICK_PAD = 14;
+  bw.isStuck = function (barTop, scrollerTop, pad) {
+    const p = typeof pad === 'number' ? pad : bw.STICK_PAD;
+    return barTop <= scrollerTop + p + 0.5;
   };
   // 마우스로 칸을 누른 뒤 손을 뗄 때, 그 칸이 현재 선택이면 보정이 필요하다(mouseup 이 상태 줄로 떨어져 click 이 오지 않을 수 있다).
   bw.needSettle = function (downCell, sel) {
@@ -1455,12 +1466,12 @@
     function keepVisible(n) {
       if (!n) return;
       bw.settleVisible({ measure: measureSrc, ensure: function () { ensureVisible(n); },
-        raf: typeof requestAnimationFrame === 'function' ? requestAnimationFrame : null, alive: function () { return active && n.isConnected; } });
+        raf: typeof requestAnimationFrame === 'function' ? function (fn) { return requestAnimationFrame(fn); } : null, alive: function () { return active && n.isConnected; } });
     }
     // 작성 바가 붙은 뒤에만 위쪽 틈 띠(::before)를 보이게 한다(스크롤 0 에서는 위쪽 툴바를 덮지 않는다).
     function markStuck() {
       const bar = $('bd-writebar'), sc = env.scroller();
-      if (bar && sc) bar.classList.toggle('is-stuck', sc.scrollTop > 0);
+      if (bar && sc) bar.classList.toggle('is-stuck', bw.isStuck(bar.getBoundingClientRect().top, sc.getBoundingClientRect().top));
     }
     function select(t, key, o) {
       const opt = o || {};

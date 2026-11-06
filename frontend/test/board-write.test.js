@@ -138,10 +138,11 @@ test('settleVisible: select 로 상태 줄이 자란 뒤(top 848→756) 칸 815�
       const c = { top: L.cell.top - L.scroll, bottom: L.cell.bottom - L.scroll };
       L.scroll += bw.scrollDelta(c, band);
     },
-    raf: function (fn) { calls.push('raf'); frames.push(fn); },
+    // 브라우저처럼 this 가 전역/undefined 가 아니면 던진다(객체 속성으로 부르면 Illegal invocation)
+    raf: function (fn) { if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation'); calls.push('raf'); frames.push(fn); },
     alive: function () { return true; }
   };
-  bw.settleVisible(d);
+  assert.doesNotThrow(function () { bw.settleVisible(d); });
   assert.deepStrictEqual(calls, ['measure', 'ensure', 'raf']);
   assert.ok(L.cell.bottom - L.scroll <= 748, '칸 bottom ' + (L.cell.bottom - L.scroll) + ' <= 748');
   frames.forEach(function (f) { f(); });
@@ -155,6 +156,16 @@ test('settleVisible: select 로 상태 줄이 자란 뒤(top 848→756) 칸 815�
   const c3 = [];
   bw.settleVisible({ measure: function () { c3.push('m'); }, ensure: function () { c3.push('e'); }, raf: null, alive: function () { return true; } });
   assert.deepStrictEqual(c3, ['m', 'e']);
+  // measure·ensure·raf 가 던져도 호출자는 깨지지 않는다
+  assert.doesNotThrow(function () {
+    bw.settleVisible({ measure: function () { throw new Error('m'); }, ensure: function () { throw new Error('e'); }, raf: function () { throw new Error('r'); }, alive: function () { return true; } });
+  });
+});
+test('isStuck: 바의 현재 top 이 스크롤 영역 top + 14 이하일 때만 붙은 것이다', function () {
+  assert.strictEqual(bw.isStuck(172, 91), false);   // 스크롤 영역 top 91, 바 top 172 → 안 붙음
+  assert.strictEqual(bw.isStuck(106, 91), false);
+  assert.strictEqual(bw.isStuck(105, 91), true);    // 91 + 14
+  assert.strictEqual(bw.isStuck(90, 91), true);
 });
 test('needSettle: 누른 칸이 현재 선택일 때만 mouseup 에서 보정한다', function () {
   assert.strictEqual(bw.needSettle({ t: 'C', key: 'r2c1' }, { t: 'C', key: 'r2c1' }), true);
@@ -162,11 +173,13 @@ test('needSettle: 누른 칸이 현재 선택일 때만 mouseup 에서 보정한
   assert.strictEqual(bw.needSettle(null, { t: 'C', key: 'r2c1' }), false);
   assert.strictEqual(bw.needSettle({ t: 'C', key: 'r2c1' }, null), false);
 });
-test('작성 바 틈 띠: is-stuck 일 때만, 상태 줄 아래 14px 띠가 있다 (index.html)', function () {
+test('틈 띠: 작성 바·양식 편집 줄은 is-stuck 일 때만, 모두 클릭을 가로채지 않는다, 상태 줄 아래 띠 (index.html)', function () {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  assert.ok(/\.bd-writebar\.is-stuck::before \{[^}]*left:-3px/.test(html));
-  assert.ok(/\.bd-editbar:not\(\.bd-writebar\)::before/.test(html));
-  assert.ok(/\.bd-w-status::after \{[^}]*top:100%;[^}]*height:14px/.test(html));
+  assert.ok(/\.bd-writebar\.is-stuck::before \{[^}]*left:-3px[^}]*pointer-events:none/.test(html));
+  assert.ok(/\.bd-editbar:not\(\.bd-writebar\)\.is-stuck::before \{[^}]*pointer-events:none/.test(html));
+  assert.ok(!/\.bd-editbar:not\(\.bd-writebar\)::before/.test(html), '항상 켜진 편집 줄 띠가 없어야 한다');
+  assert.ok(/\.bd-w-status::after \{[^}]*pointer-events:none/.test(html));
+  assert.ok(/\.bd-w-status::after \{[^}]*bottom:-15px;[^}]*height:14px/.test(html), '테두리 바깥에서 시작해 14px');
 });
 test('rejectFrom: 모든 오류는 detail 객체 기준, 411/413/415/422 문구', function () {
   const ctx = { formName: '기본 양식', maxMb: 5 };
