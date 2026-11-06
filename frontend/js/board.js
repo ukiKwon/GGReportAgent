@@ -734,19 +734,29 @@
     const rows = (t && t.rows) || [];
     const line = gridOf(rows)[ri] || [];
     const seen = {};
-    let name = '';
+    const list = [];
     for (let k = 0; k < line.length; k++) {
       const e = line[k];
       if (!e) continue;
       const id = e.r + ',' + e.ci;
       if (seen[id]) continue;
       seen[id] = true;
-      const c = cellAt(rows, e);
+      list.push(cellAt(rows, e));
+    }
+    // 표 A 의 첫 열(기관명, rowspan 4)처럼 맨 왼쪽이 값 칸인 행: 그 앞쪽 값 칸은 건너뛰고, 뒤에 값 칸이 이어지는 이름 칸 묶음을 행 이름으로 본다.
+    // (뒤에 값 칸이 없는 이름 칸 — 예: 값 칸 오른쪽의 '비고' — 만 남으면 행 이름이 아니다.)
+    let i0 = 0;
+    while (i0 < list.length && isValueCell(list[i0])) i0++;
+    let name = '';
+    let k2 = i0;
+    for (; k2 < list.length; k2++) {
+      const c = list[k2];
       if (isValueCell(c)) break;
       const tx = nowText(c, t.cells || {}).trim();
       if (tx !== '') name = tx;
       else if (c && c.fresh === true) name = '';   // 아직 이름을 쓰지 않은 새 행의 이름 칸: 바깥 구분 이름을 이 행 이름으로 쓰지 않는다
     }
+    if (i0 > 0 && k2 >= list.length) return '';
     return name;
   };
   // 격자 열 gc의 이름: 머리 행의 그 열을 덮는 칸의 글자(없으면 columns 배열). 병합 아래 하위 열이면 part/total.
