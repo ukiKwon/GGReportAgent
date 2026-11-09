@@ -17,4 +17,4 @@
     실행 형태가 안 먹는 것이다(2026-08-09 재확인).
 
 ## 구조
-- `js/logic.js` 순수 로직 · `js/store.js` 관심/편집 상태 · `js/export.js` 내보내기 · `js/render.js` D3 렌더 · `js/app.js` 와이어링.
+- `js/logic.js` 순수 로직 · `js/store.js` 관심/편집 상태 · `js/export.js` 내보내기 · `js/render.js` D3 렌더 · `js/overdue.js` 공고 예정일 경과 패널·팝업·사이드바 배지(판정은 logic.js) · `js/app.js` 와이어링.

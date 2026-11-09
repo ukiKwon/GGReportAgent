@@ -232,6 +232,16 @@ this; copy the pattern rather than brightening the token.
 the same mix at 8–12%; teal selections use 13–16%. Status is never a solid
 colored fill.
 
+**The Overdue Stamp Rule.** (2026-11-09) A *pending overdue* item (예정일 경과·
+미처리) is the one sanctioned solid fill in chrome: a neutral ink chip —
+`--fg` background, `#0d1116` text, 11px mono 700, 1px `--fg` border, r6, clock
+glyph + `D+n`. It is an intended exception to the 18% Tint Rule because it adds
+no hue (chroma stays reserved for map data) and must read differently from
+*imminent* (`--red` outline + rising triangle + `D-n`) on color, shape and text.
+Delayed items drop to an outlined chip, in-progress/closed items to plain muted
+text — never via `opacity` (muted on panel falls to 3:1 at .62). Spec and mock:
+`docs/design/2026-11-09_경과패널_시안.html`.
+
 **The Variable-Name Freeze Rule.** The `:root` custom-property names (`--bg`,
 `--panel`, `--panel2`, `--line`, `--line-strong`, `--fg`, `--muted`, `--red`,
 `--orange`, `--yellow`, `--blue`, `--gray`, `--accent-color`,
@@ -422,7 +432,8 @@ mirrored 1:1 by the `.fsw` stroke glyphs in the control strip.
   glass (rgba(21,26,34,.92) + blur(10px) + white-alpha edge), 12px radius.
 
 ### Icon Glyphs (signature)
-`render.ICONS` (heart, star, warning triangle, rising triangle) and the
+`render.ICONS` (heart, star, warning triangle, rising triangle, **overdue clock,
+dotted-circle check** — the last two added 2026-11-09 for the overdue panel) and the
 `.fsw` filter glyphs: inline SVG on a 12×12 viewBox, 1.2–1.4 stroke width,
 `currentColor` (or `--muted` for filters), 9–12px rendered. **No emoji and no
 character-glyph icons in chrome** — the ticker's rising mark is the drawn
