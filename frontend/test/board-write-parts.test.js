@@ -90,14 +90,21 @@ test('툴팁: display_sum은 구성 칸 개수 문구, manual은 직접 입력 �
   assert.deepStrictEqual(texts(ws, 'r2c1', 'place'), ['엑셀에서 가져오지 않고 직접 입력하는 칸입니다']);
 });
 
-test('상태 줄: part·calc 줄은 .bd-w-calc로 분리하고 main 줄에는 섞이지 않는다', function () {
+test('팝업 편집 영역: 구성 칸 주소는 버튼, 환산 줄은 .bd-w-calc 로 따로, 상태 줄에는 계산 줄이 없다', function () {
+  const grid = { ref: 'A', sheet: '수익성', range: '', first_row: 1, cols: ['A', 'B', 'C'], rows: [['', '', ''], ['', '', '60'], ['', '', '40']], merges: [] };
   const ws = build([rc('r1c1', { value: '1.00', part_count: 2, parts: [part('main', 'C2', '60'), part('main', 'C3', '40')],
-    convert: { kind: 'eok', unit_from: '백만원', unit_to: '억원', divisor: 100, sum: '100', sub_sum: null, of: null, result: '1.00' } })]);
+    convert: { kind: 'eok', unit_from: '백만원', unit_to: '억원', divisor: 100, sum: '100', sub_sum: null, of: null, result: '1.00' } })], { sources: [grid] });
   const ui = bw.freshUi(); ui.sel = { t: 'A', key: 'r1c1' };
-  const h = bw.statusHtml(ws, ui);
-  assert.strictEqual((h.match(/class="bd-w-calc/g) || []).length, 3);   // 부품 2 + 환산 1
-  const mainPart = h.slice(h.indexOf('bd-w-main'), h.indexOf('</span></span>') + 14);
-  assert.ok(!mainPart.includes('표시 60'));
+  assert.ok(!bw.statusHtml(ws, ui).includes('bd-w-calc') && !bw.statusHtml(ws, ui).includes('표시 60'));
+  ui.pop = { at: bw.popAtFor(bw.mergeSources(ws), ws, ui.sel), text: null, onlyEdited: false, note: '', err: false, last: null, ret: null };
+  assert.deepStrictEqual(ui.pop.at, { s: 0, r: 1, c: 2 });
+  const h = bw.popEditHtml(ws, ui);
+  assert.strictEqual((h.match(/class="bd-w-calc/g) || []).length, 2);   // 구성 칸 줄 1 + 환산 1
+  assert.ok(h.includes('data-w="srcpart" data-v="C2"') && h.includes('data-w="srcpart" data-v="C3"'));
+  assert.ok(h.includes('합 100 백만원 ÷ 100 = 1.00 억원') && h.includes('이사회 자료에 넣을 값 (억원)'));
+  // 원본 표: 주 원본 C2 는 실선(is-src), 함께 더해지는 C3 는 점선(is-part)
+  const b = bw.srcBodyHtml(ws, ui);
+  assert.ok(/data-a="C2"/.test(b) && b.includes('class="is-src"') && b.includes('class="is-part"'));
 });
 
 test('괄호 병기: 칸에 앞 값 + muted 괄호 값, 오른쪽 정렬, 읽기 이름', function () {

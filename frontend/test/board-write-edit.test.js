@@ -19,23 +19,61 @@ test('sumState: 합계 관계가 있으면 현재 값으로 다시 계산 — �
   assert.deepStrictEqual(bw.sumState(t, 'r3c1'), { expected: '3,579', actual: '3,580', diff: '+1', zero: false });
   assert.strictEqual(bw.sumState(t, 'r1c1'), null);
 });
-test('editCell: 값 변경은 수정됨·확인 해제·확인했음 해제, 같은 값은 변화 없음, 원래 값으로 돌아오면 사유도 지움', function () {
-  let ws = ws0();
-  ['r1c1', 'r2c1', 'r3c1'].forEach(function (k) { ws = bw.toggleCheck(ws, 'A', k); });
-  ws = bw.setDone(ws, true, 'x', '10:00');
+test('editCell: 값 변경은 수정됨·그 표의 확인 해제·검수 완료 해제, 같은 값은 변화 없음, 원래 값으로 돌아오면 사유도 지움', function () {
+  let ws = bw.toggleCheck(ws0(), 'A', 'x', '10:00');   // 표가 하나뿐이라 검수 완료도 함께 붙는다
+  assert.ok(ws.done);
   const same = bw.editCell(ws, 'A', 'r1c1', '1,234');
   assert.strictEqual(same.changed, false); assert.strictEqual(same.ws, ws);
+  assert.strictEqual(same.ws.tables[0].checked.at, '10:00', '같은 값이면 확인이 풀리지 않는다');
   let r = bw.editCell(ws, 'A', 'r1c1', ' 1,235 ');
   assert.strictEqual(r.changed, true); assert.strictEqual(r.released, 'done');
   assert.strictEqual(r.ws.done, null);
   const t = bw.findT(r.ws, 'A');
-  assert.strictEqual(t.cells.r1c1.value, '1,235'); assert.strictEqual(t.cells.r1c1.checked, false);
+  assert.strictEqual(t.cells.r1c1.value, '1,235'); assert.strictEqual(t.checked, null);
+  assert.deepStrictEqual(t.relNote, { label: '출연금 2026', from: '1,234', to: '1,235' });
+  assert.ok(!('checked' in t.cells.r1c1), '칸 단위 checked 는 없다');
   assert.strictEqual(bw.cellInfo(t, t.cells.r1c1).edited, true);
   let w2 = bw.setWhy(r.ws, 'A', 'r1c1', 'ROUND', '');
   assert.strictEqual(bw.findT(w2, 'A').cells.r1c1.why, 'ROUND');
   w2 = bw.editCell(w2, 'A', 'r1c1', '1,234').ws;   // 원래 값
   assert.strictEqual(bw.findT(w2, 'A').cells.r1c1.why, '');
-  assert.strictEqual(bw.editCell(bw.toggleCheck(ws0(), 'A', 'r1c1'), 'A', 'r1c1', '1').released, 'cell');
+  assert.strictEqual(bw.editCell(ws0(), 'A', 'r1c1', '1').released, '', '확인하지 않은 표는 풀 것이 없다');
+  assert.strictEqual(bw.editCell(ws0(), 'A', 'r1c1', '1').ws.tables[0].relNote, null);
+});
+test('editCell: 확인이 풀린 뒤 다시 고치면 relNote 가 최신 값으로 갱신되고, 모두 원본으로 돌아오면 사라진다(표 확인 해제는 유지)', function () {
+  let ws = bw.toggleCheck(ws0(), 'A', 'x', '10:00');
+  ws = bw.editCell(ws, 'A', 'r1c1', '1,235').ws;
+  assert.deepStrictEqual(bw.findT(ws, 'A').relNote, { label: '출연금 2026', from: '1,234', to: '1,235' });
+  ws = bw.editCell(ws, 'A', 'r1c1', '1,240').ws;   // 두 번째 수정: 옛 내용(→1,235)이 남지 않는다
+  assert.deepStrictEqual(bw.findT(ws, 'A').relNote, { label: '출연금 2026', from: '1,235', to: '1,240' });
+  ws = bw.editCell(ws, 'A', 'r2c1', '2,000').ws;   // 다른 칸을 또 고침
+  assert.strictEqual(bw.findT(ws, 'A').relNote.to, '2,000');
+  ws = bw.editCell(ws, 'A', 'r2c1', '2,345').ws;   // 한 칸 되돌림 — 아직 r1c1 이 고쳐진 채라 사유가 남는다
+  assert.ok(bw.findT(ws, 'A').relNote);
+  ws = bw.editCell(ws, 'A', 'r1c1', '1,234').ws;   // 모두 원본
+  const t = bw.findT(ws, 'A');
+  assert.strictEqual(t.relNote, null, '풀림 사유가 없어지면 안내를 지운다');
+  assert.strictEqual(t.checked, null, '표 확인 해제 상태 자체는 유지');
+});
+test('editCell: 표가 둘이면 고친 칸이 속한 표만 확인이 풀리고, 검수 완료만 해제된다(released=table 은 검수 완료 전)', function () {
+  const f = form(); f.tables.push({ id: 'Z', ref: 'Z', mapping: 'Z', title: '다른 표', rows: [[{ key: 'z1', text: '0', mapped: true }]], notes: [] });
+  const resp2 = { tables: [{ ref: 'A', needs_review: false, label_mismatches: [], sums: [], cells: [c('r1c1', '1', 'C2'), c('r2c1', '2', 'C3'), c('r3c1', '3', 'C4')] },
+    { ref: 'Z', needs_review: false, label_mismatches: [], sums: [], cells: [c('z1', '5', 'D1')] }], sources: [], warnings: [], unmapped_tables: [] };
+  let ws = bw.buildState(f, resp2, {});
+  ws = bw.toggleCheck(ws, 'A', 'x', '10:00');
+  assert.strictEqual(ws.done, null, '표 하나만 확인했으니 검수 완료가 아니다');
+  const r = bw.editCell(ws, 'A', 'r1c1', '9');
+  assert.strictEqual(r.released, 'table');
+  assert.strictEqual(bw.findT(r.ws, 'Z').checked, null);
+  ws = bw.toggleCheck(bw.toggleCheck(ws, 'Z', 'x', '10:05'), 'Z', 'x', '10:06');   // Z 확인 → 해제 → (검수 완료 아님)
+  ws = bw.toggleCheck(ws, 'Z', '나', '10:07');
+  assert.deepStrictEqual(ws.done, { who: '나', at: '10:07' });
+  const r2 = bw.editCell(ws, 'Z', 'z1', '6');
+  assert.strictEqual(r2.released, 'done');
+  assert.ok(bw.findT(r2.ws, 'A').checked, '다른 표의 확인은 그대로');
+  assert.strictEqual(r2.ws.done, null);
+  assert.ok(bw.releaseText('table', bw.findT(r2.ws, 'Z')).includes('‘다른 표’ 표의 확인을 풀었습니다') && bw.releaseText('done', bw.findT(r2.ws, 'Z')).includes('검수 완료를 해제'));
+  assert.strictEqual(bw.releaseText('', bw.findT(r2.ws, 'Z')), '');
 });
 test('재검산 문구: +1 → 0 이제 맞습니다, +1 → +2, 합계 칸을 고쳐도 동작', function () {
   const ws = ws0(), lab = '합계';
@@ -61,8 +99,8 @@ test('askLines: 가져온 위치·표시·원래 값, 합계 줄(차이/맞음),
   let l = bw.askLines(t, t.cells.r1c1);
   assert.strictEqual(l[0], '출연금 2026 값은 S 시트 C2에서 가져왔습니다. 표시 1,234 · 원래 값 1233.6');
   assert.strictEqual(l[1], '이 칸이 들어간 합계: 합계 2026 — 표시 합 3,579 · 합계 3,580 · 차이 +1');
-  ws = bw.toggleCheck(ws, 'A', 'r1c1'); t = bw.findT(ws, 'A');
-  assert.ok(bw.askLines(t, t.cells.r1c1).includes('고치면 이 칸의 확인 표시가 해제됩니다.'));
+  ws = bw.toggleCheck(ws, 'A', 'x', 'y'); t = bw.findT(ws, 'A');
+  assert.ok(bw.askLines(t, t.cells.r1c1).includes('고치면 이 표의 확인이 풀립니다.'));
   // 합계가 맞는 상태
   const ok = bw.editCell(ws0(), 'A', 'r2c1', '2,346').ws, t2 = bw.findT(ok, 'A');
   assert.ok(bw.askLines(t2, t2.cells.r1c1).includes('이 칸이 들어간 합계(합계 2026)는 지금 맞습니다.'));
@@ -86,7 +124,7 @@ test('사유: 기본값 없음·선택 사항, [기타]는 메모가 있어야 �
   assert.deepStrictEqual(bw.WHY.map(function (w) { return w.label; }), ['반올림 맞춤', '원본 값과 다르게 가져옴', '원본 오류', '기타']);
   const ws2 = bw.editCell(ws0(), 'A', 'r1c1', '1,230').ws;
   assert.ok(bw.summaryHtml(ws2).includes('사유를 고르지 않은 수정 1칸'));
-  assert.ok(bw.reviewHtml(ws2).includes('이 남아 있어도 ‘확인했음’은 선택할 수 있습니다.'));
+  assert.ok(bw.reviewHtml(ws2).includes('이 남아 있어도 표 확인은 할 수 있습니다.'));
 });
 test('whyHtml: radiogroup·4개·기타만 메모 입력(100자, 80자 이상 카운터)', function () {
   let ws = bw.setWhy(bw.editCell(ws0(), 'A', 'r1c1', '9').ws, 'A', 'r1c1', 'OTHER', new Array(84).join('가'));
@@ -113,13 +151,13 @@ test('validateValue: 100자·제어문자·줄바꿈 거부(서버 clean과 같�
   assert.ok(bw.validateValue('a\nb')); assert.ok(bw.validateValue('a\tb'));
   assert.ok(bw.validateValue('a' + String.fromCharCode(0x2028)));
 });
-test('statusHtml: 수정 칸은 사유 그룹·[원본 값으로]·수정함 줄, 확인 줄이면 확인 줄이 상태 줄을 대신', function () {
+test('statusHtml: 수정 칸은 사유 그룹·[원본 값으로](한 줄), 확인 줄이면 확인 줄이 상태 줄을 대신', function () {
   const ws = bw.editCell(ws0(), 'A', 'r1c1', '1,230').ws, ui = bw.freshUi();
   ui.sel = { t: 'A', key: 'r1c1' };
   const h = bw.statusHtml(ws, ui);
-  assert.ok(h.includes('role="radiogroup"') && h.includes('data-w="revert"') && h.includes('수정함 1,230'));
+  assert.ok(h.includes('role="radiogroup"') && h.includes('data-w="revert"'));
   ui.ask = { t: 'A', key: 'r1c1' };
-  assert.ok(bw.statusHtml(ws, ui).includes('고치기 전 확인') && !bw.statusHtml(ws, ui).includes('data-w="check"'));
+  assert.ok(bw.statusHtml(ws, ui).includes('고치기 전 확인') && !bw.statusHtml(ws, ui).includes('data-w="revert"'));
   ui.ask = null; ui.edit = { t: 'A', key: 'r1c1', text: '' };
   assert.ok(bw.statusHtml(ws, ui).includes('Enter로 확정하고 Esc로 취소'));
   assert.strictEqual(bw.tipAllowed(ui), false);   // 입력·확인 줄 중에는 툴팁 숨김

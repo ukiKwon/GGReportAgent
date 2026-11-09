@@ -296,7 +296,6 @@
   .bd-w-def, .bd-w-note { margin:0; font-size:11px; color:var(--muted); }
   .bd-w-rev { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:12px; }
   .bd-w-count { font-family:var(--mono); font-size:12px; display:inline-flex; gap:4px; align-items:center; }
-  .bd-w-count .bd-w-ck { position:static; }
   .bd-w-chips { display:inline-flex; gap:4px; flex-wrap:wrap; }
   .bd-w-chip { font-size:11px; border:1px solid var(--line-strong); border-radius:8px; padding:1px 8px; color:var(--muted); white-space:nowrap; }
   .bd-w-chip .gph { width:10px; height:10px; margin-right:3px; }
@@ -305,40 +304,85 @@
   .bd-w-chip.is-done { color:var(--fg); background:rgba(124,147,196,.18);
                        background:color-mix(in srgb, var(--blue) 18%, transparent); border-color:var(--blue); }
   .bd-w-head { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px; }
-  .bd-w-title { font-size:13px; }
-  .bd-w-copy { margin-left:auto; display:inline-flex; gap:8px; align-items:center; }
+  .bd-w-card { padding:14px 18px; }
+  .bd-w-title { font-size:15px; font-weight:700; }
+  .bd-w-copy { margin-left:auto; display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  /* 표별 확인(칸이 아니라 표 단위): 라벨 전체가 누르는 영역, 높이 32px 이상 */
+  .bd-w-tcheck { display:inline-flex; align-items:center; gap:6px; min-height:32px; padding:0 10px; font-size:13px;
+                 border:1px solid var(--line-strong); border-radius:10px; cursor:pointer; }
+  .bd-w-tcheck.is-on, .bd-w-tcheck:has(input:checked) { border-color:var(--blue); background:rgba(124,147,196,.18);
+                 background:color-mix(in srgb, var(--blue) 18%, transparent); }
+  .bd-w-tn { font-family:var(--mono); font-size:11px; color:var(--muted); }
+  .bd-w-card.is-released { border-left:3px solid var(--orange); }
+  .bd-w-relnote { margin:0 0 6px; font-size:12px; color:var(--orange); }
+  .bd-w-draftwarn { display:inline-flex; align-items:center; font-size:12px; color:var(--orange); }
+  .bd-w-draftwarn .gph { width:12px; height:12px; margin-right:4px; }
+  /* 작성본 표: 전체 폭, 글자 확대(14px) — 1600px 이상에서만 폭을 묶는다 */
+  .bd-w-tables { max-width:1280px; }
+  .bd-w-tables .bd-table th, .bd-w-tables .bd-table td { font-size:14px; padding:6px 10px; }
+  .bd-w-tables .bd-table th { font-weight:600; }
+  .bd-w-tables .bd-notes { font-size:13px; line-height:1.55; }
+  .bd-w-tables .bd-unit { font-size:12px; }
   .bd-w-ban { display:flex; gap:8px; align-items:flex-start; margin-bottom:8px; padding:8px 12px; font-size:12px; border-radius:8px;
               border:1px solid var(--orange); background:rgba(217,160,91,.08);
               background:color-mix(in srgb, var(--orange) 8%, transparent); }
   .bd-w-ban .gph { flex:none; width:12px; height:12px; margin-top:2px; color:var(--orange); }
   .bd-w-ban ul { margin:4px 0 0; padding:0; list-style:none; font-family:var(--mono); font-size:11px; }
-  .bd-w-grid { display:grid; grid-template-columns:minmax(0,3fr) minmax(0,2fr); gap:14px; align-items:start;
-               transition:grid-template-columns .18s ease; }
-  .bd-w-grid.is-wide { grid-template-columns:minmax(0,2fr) minmax(0,3fr); }
-  .bd-w-grid.is-one { grid-template-columns:minmax(0,1fr) auto; }
-  @media (prefers-reduced-motion: reduce) { .bd-w-grid { transition:none; } }
   .bd-w-tables { display:flex; flex-direction:column; gap:10px; min-width:0; }
-  .bd-w-src { position:sticky; top:var(--bd-bar-h, 64px); display:flex; flex-direction:column; min-height:160px; overflow:hidden;
-              max-height:calc(100vh - var(--bd-scroll-top, var(--bd-bar-h, 64px)) - var(--bd-status-h, 48px) - 16px);
-              padding:0; background:var(--panel); border:1px solid var(--line-strong); border-radius:8px;
-              box-shadow:inset 0 1px 0 rgba(255,255,255,.06), var(--shadow); }
-  .bd-w-src.is-folded { min-height:0; }
-  .bd-w-srchead { flex:none; display:flex; flex-direction:column; gap:6px; font-size:12px; margin:0; padding:8px 10px;
-                  background:var(--panel2); border-bottom:1px solid var(--line-strong); border-radius:8px 8px 0 0; }
-  .bd-w-srcrow { display:flex; gap:6px; align-items:center; flex-wrap:wrap; min-width:0; }
-  .bd-w-srcname { flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .bd-w-srcbtns { flex:none; display:inline-flex; gap:6px; }
-  .bd-w-srchead button { font-size:11px; padding:2px 8px; min-height:24px; }
-  /* 같은 글자 칩: 카드 왼쪽 .bd-map 과 원본 머리 .bd-w-srcjump 를 같은 모양으로(11px mono · 1px line-strong · radius 8px) */
-  .bd-w-head .bd-map, .bd-w-srcjump { display:inline-flex; align-items:center; min-height:24px; box-sizing:border-box; padding:2px 8px;
-                                      font-family:var(--mono); font-size:11px; line-height:1.2; color:var(--muted);
+  /* 같은 글자 칩: 카드 왼쪽 .bd-map 과 팝업 머리 .bd-w-srcjump 를 같은 모양으로(12px mono · 1px line-strong · radius 8px · 높이 26px) */
+  .bd-w-head .bd-map, .bd-w-srcjump { display:inline-flex; align-items:center; min-height:26px; box-sizing:border-box; padding:2px 8px;
+                                      font-family:var(--mono); font-size:12px; line-height:1.2; color:var(--muted);
                                       border:1px solid var(--line-strong); border-radius:8px; background:transparent; }
   .bd-w-srcjump { background:var(--panel2); }
   .bd-w-srcjump[aria-current="true"], .bd-w-card.has-sel .bd-w-head .bd-map { color:var(--fg); border-color:var(--accent-color); background:rgba(87,184,173,.13);
                                        background:color-mix(in srgb, var(--accent-color) 13%, transparent); }
-  #bd-w-srcbody { flex:1 1 auto; min-height:0; overflow:auto; margin:8px 10px 10px; background:var(--panel); border:1px solid var(--line); border-radius:8px; }
+  /* 수익성 분석표 팝업(보기 + 이사회 칸 고치기): 배경 막은 .modal-overlay 재사용, 상자는 --panel·--line-strong·--shadow */
+  #bd-w-srcbody { background:var(--panel); border:1px solid var(--line); border-radius:8px; }
+  .bd-src-ov { overflow:hidden; }
+  /* 뒤쪽 공용 .modal-box(margin·padding·max-height)에 지지 않도록 .modal-box.bd-src-box 로 특이도를 높인다 */
+  .modal-box.bd-src-box { width:min(1320px, calc(100vw - 64px)); height:calc(100vh - 64px); max-height:none; margin:32px auto; padding:0; overflow:hidden;
+                animation:bdsrcin .2s ease; }
+  @keyframes bdsrcin { from { opacity:0; transform:scale(.98); } to { opacity:1; transform:none; } }
+  @media (prefers-reduced-motion: reduce) { .modal-box.bd-src-box { animation:none; } }
+  .bd-src-head { flex:none; display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:12px 16px; border-bottom:1px solid var(--line-strong);
+                 background:var(--panel2); border-radius:var(--r-lg) var(--r-lg) 0 0; }
+  .bd-src-box .bd-src-head h3 { margin:0; padding:0; border:0; font-size:14px; font-weight:700; max-width:46ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bd-src-range { font-size:11px; color:var(--muted); }
+  .bd-src-jumps { display:inline-flex; gap:6px; flex-wrap:wrap; }
+  .bd-src-btns { margin-left:auto; display:inline-flex; gap:8px; }
+  .bd-src-main { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 340px; }
+  .bd-src-main #bd-w-srcbody { overflow:auto; margin:0; border:0; border-radius:0 0 0 var(--r-lg); min-height:0; }
+  .bd-src-edit { overflow:auto; padding:14px 16px; border-left:1px solid var(--line-strong); font-size:13px; display:flex; flex-direction:column; gap:8px; }
+  .bd-src-edit p { margin:0; }
+  .bd-src-guide { font-size:11px; color:var(--muted); }
+  .bd-src-cell { font-size:13px; }
+  .bd-src-sub { font-size:12px; color:var(--muted); margin-bottom:2px; }
+  .bd-src-owners { display:flex; flex-direction:column; gap:4px; }
+  .bd-src-cand { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:6px 8px; border:1px solid var(--line); border-radius:8px; font-size:13px; }
+  label.bd-src-cand { cursor:pointer; }
+  .bd-src-cand.is-on { border-color:var(--accent-color); border-color:color-mix(in srgb, var(--accent-color) 55%, var(--line-strong)); }
+  .bd-src-val { margin-left:auto; font-size:13px; }
+  .bd-src-lab { font-size:13px; }
+  .bd-src-edit .bd-w-in { text-align:right; }
+  .bd-src-btns2, .bd-src-edit .bd-src-btns { display:flex; gap:8px; margin:0; }
+  /* 적용·되돌리기·취소 줄과 결과 알림은 편집 영역이 스크롤돼도 아래에 붙어 항상 보인다 */
+  .bd-src-foot { position:sticky; bottom:0; z-index:1; display:flex; flex-direction:column; gap:6px; margin:auto -16px -14px; padding:8px 16px 14px; background:var(--panel); border-top:1px solid var(--line); }
+  .bd-src-apply { border-color:var(--accent-color); }
+  .bd-src-note { font-size:12px; color:var(--muted); }
+  .bd-src-note:empty { position:absolute; width:1px; height:1px; margin:0; overflow:hidden; clip:rect(0 0 0 0); }   /* 낭독 영역이라 display:none 으로 빼지 않는다 */
+  .bd-src-edit .bd-w-calc { font-size:12px; }
+  .bd-src-edit .link-btn { padding:0 2px; }
+  @media (max-width:1365px) {
+    .modal-box.bd-src-box { width:calc(100vw - 32px); height:calc(100vh - 32px); margin:16px auto; }
+    /* 원본 표는 남는 높이를, 편집 영역은 내용만큼(상한까지)만 쓴다. 상한은 % 가 auto 행에서 순환되므로 창 높이(vh)로 잡는다 */
+    .bd-src-main { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr) auto; }
+    .bd-src-edit { min-height:0; max-height:calc((100vh - 110px) * .62); border-left:0; border-top:1px solid var(--line-strong); }
+    .bd-src-cand { padding:3px 8px; }
+    .bd-src-edit { gap:6px; }
+  }
+  @media (max-width:880px) { .modal-box.bd-src-box { width:100vw; height:100vh; margin:0; border-radius:0; } .bd-src-main { grid-template-rows:minmax(0,1fr) auto; } .bd-src-edit { max-height:calc((100vh - 80px) * .5); } }
   .bd-w-srccap { font-family:var(--mono); font-size:11px; color:var(--muted); padding:6px 8px 4px; }
-  .bd-w-srctbl { border-collapse:separate; border-spacing:0; width:max-content; min-width:100%; font-size:12px; }
+  .bd-w-srctbl { border-collapse:separate; border-spacing:0; width:max-content; min-width:100%; font-size:13px; }
   .bd-w-srctbl th { font-family:var(--mono); font-size:11px; font-weight:400; color:var(--muted); background:var(--panel2);
                     border-right:1px solid var(--line); border-bottom:1px solid var(--line); padding:2px 6px; text-align:center; }
   .bd-w-srctbl thead th { position:sticky; top:0; z-index:2; }
@@ -348,38 +392,44 @@
   .bd-w-srctbl th.is-srccol { color:var(--fg); box-shadow:inset 0 -2px 0 var(--accent-color); }
   .bd-w-srctag { display:inline-block; margin-right:4px; padding:0 5px; font-family:var(--mono); font-size:11px; color:var(--muted);
                  border:1px solid var(--line-strong); border-radius:8px; }
-  .bd-w-srctbl td { font-family:var(--mono); text-align:right; white-space:nowrap; color:var(--muted); padding:3px 6px;
+  .bd-w-srctbl td { font-family:var(--mono); text-align:right; white-space:nowrap; color:var(--muted); padding:3px 8px; position:relative;
                     border-right:1px solid var(--line); border-bottom:1px solid var(--line);
                     scroll-margin-top:28px; scroll-margin-left:96px; }
   .bd-w-srctbl td[data-key] { color:var(--fg); }
   .bd-w-srctbl td.is-text { font-family:inherit; text-align:left; max-width:14em; overflow:hidden; text-overflow:ellipsis; }
   .bd-w-srctbl td.is-src { outline:2px solid var(--accent-color); outline-offset:-2px; background:rgba(87,184,173,.13);
                            background:color-mix(in srgb, var(--accent-color) 13%, transparent); }
-  /* 선택 스포트라이트: 칸을 고르면 집중할 곳(선택 칸이 든 카드·원본 대응 칸·상태 줄)만 밝고 나머지는 글자색만 --muted 로 가라앉는다.
+  /* 고른 칸과 함께 더해지는 다른 원본 칸: 1px 점선 안쪽 테두리, 배경 없음 */
+  .bd-w-srctbl td.is-part { outline:1px dashed var(--accent-color); outline-offset:-3px; }
+  .bd-w-srctbl td.is-at, .bd-w-srctbl td:focus-visible { outline:2px solid var(--accent-color); outline-offset:-2px; }
+  /* 이사회 쪽 값이 수정된 칸: 작성본 .is-edited 와 같은 모양(주황 18% 배경 + 왼쪽 위 삼각형). 셀 값은 엑셀 원래 값 그대로 둔다 */
+  .bd-w-srctbl td.is-edsrc { background:rgba(217,160,91,.18); background:color-mix(in srgb, var(--orange) 18%, transparent); }
+  .bd-w-srctbl td.is-edsrc::before { content:""; position:absolute; left:0; top:0; border-style:solid; border-width:6px 6px 0 0;
+                                     border-color:var(--orange) transparent transparent transparent; }
+  /* 여러 이사회 칸에 쓰이는 칸: 오른쪽 위 작은 숫자 배지 */
+  .bd-w-srctbl td[data-n] { padding-right:18px; }   /* 배지 자리를 따로 비워 값과 겹치거나 붙어 읽히지 않게 한다 */
+  .bd-w-srctbl td[data-n]::after { content:attr(data-n); position:absolute; right:3px; top:1px; font-size:10px; line-height:1; color:var(--muted); }
+  /* [고친 칸만 표시]: 고친 칸 말고는 글자색만 가라앉힌다 */
+  .bd-w-srctbl.is-only-edited td[data-key]:not(.is-edsrc) { color:var(--muted); }
+  /* 선택 스포트라이트: 칸을 고르면 집중할 곳(선택 칸이 든 카드·상태 줄)만 밝고 나머지는 글자색만 --muted 로 가라앉는다.
      opacity 로 흐리게 하지 않는다(글자 대비가 떨어진다). 선택 해제하면 JS 가 is-focusing·has-sel 을 떼어 원래대로 돌아온다. */
-  .bd-w-grid.is-focusing .bd-w-card:not(.has-sel) td, .bd-w-grid.is-focusing .bd-w-card:not(.has-sel) th { color:var(--muted); }
-  .bd-w-grid.is-focusing .bd-w-srctbl td[data-key]:not(.is-src) { color:var(--muted); }
-  .bd-w-grid.is-focusing .bd-w-card.has-sel, .bd-w-grid.is-focusing .bd-w-src { border-color:var(--accent-color);
+  .bd-w-tables.is-focusing .bd-w-card:not(.has-sel) td, .bd-w-tables.is-focusing .bd-w-card:not(.has-sel) th { color:var(--muted); }
+  .bd-w-tables.is-focusing .bd-w-card.has-sel { border-color:var(--accent-color);
                                        border-color:color-mix(in srgb, var(--accent-color) 55%, var(--line-strong)); }
-  .bd-w-grid.is-focusing.is-stack .bd-w-src, .bd-stacked .bd-w-grid.is-focusing .bd-w-src { border-top-color:var(--accent-color);
-                                       border-top-color:color-mix(in srgb, var(--accent-color) 55%, var(--line-strong)); }
+  .bd-w-tables.is-focusing .bd-w-card.is-released.has-sel { border-left-color:var(--orange); }   /* 위 .is-focusing 규칙과 같은 특이도 이상으로, 확인 풀림 주황 3px 유지 */
   .bd-w-status.is-focusing { border-left:3px solid var(--accent-color); padding-left:12px; }
-  .bd-stacked .bd-w-status.is-focusing { border-top-color:var(--accent-color); border-top-color:color-mix(in srgb, var(--accent-color) 55%, var(--line-strong)); }
-  .bd-w-cmp { flex:1 1 100%; color:var(--fg); }
+  /* 상태 줄은 선택했을 때만 보인다. 선택이 없으면(is-idle) 화면에서만 숨기고 낭독 영역(#bd-w-live)은 남긴다 */
+  .bd-w-status.is-idle { position:absolute; width:1px; height:1px; margin:0; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap;
+                         border:0; box-shadow:none; background:none; }
+  .bd-w-status.is-idle::after { display:none; }
+  .bd-w-path { color:var(--fg); }
+  .bd-w-cmp { color:var(--fg); }
   .bd-w-status .bd-w-live.is-sr { position:absolute; width:1px; height:1px; margin:0; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
-  .bd-w-card, .bd-w-head .bd-map, .bd-w-card td, .bd-w-card th, .bd-w-src, .bd-w-srctbl td, .bd-w-srctbl th, .bd-w-status {
+  .bd-w-card, .bd-w-head .bd-map, .bd-w-card td, .bd-w-card th, .bd-w-srctbl td, .bd-w-srctbl th, .bd-w-status {
     transition:color .2s ease, border-color .2s ease, box-shadow .2s ease, background-color .2s ease; }
   @media (prefers-reduced-motion: reduce) {
-    .bd-w-card, .bd-w-head .bd-map, .bd-w-card td, .bd-w-card th, .bd-w-src, .bd-w-srctbl td, .bd-w-srctbl th, .bd-w-status { transition:none; } }
-  /* 원본 패널이 360px 미만이 되는 좁은 화면(JS가 is-stack, 900px 이하는 CSS가): 원본을 아래쪽 고정 창으로 세로 배치 */
-  .bd-w-grid.is-stack, .bd-w-grid.is-stack.is-wide, .bd-w-grid.is-stack.is-one { grid-template-columns:minmax(0,1fr); }
-  /* 아래로 내려온 원본 패널은 표 영역을 가리므로 높이를 30vh 로 줄인다(작성 바·상태 줄을 빼고도 표가 보이게) */
-  .bd-w-grid.is-stack .bd-w-src { top:auto; bottom:var(--bd-status-h, 48px); min-height:0; max-height:30vh; border-radius:8px 8px 0 0;
-                                  box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 -8px 24px rgba(8,12,24,.55); }
-  @media (max-width:900px) { .bd-w-grid, .bd-w-grid.is-wide, .bd-w-grid.is-one { grid-template-columns:minmax(0,1fr); }
-                             .bd-w-src { top:auto; bottom:var(--bd-status-h, 48px); min-height:0; max-height:30vh; border-radius:8px 8px 0 0;
-                                         box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 -8px 24px rgba(8,12,24,.55); } }
-  /* 포커스·스크롤 때 칸이 작성 바와 아래쪽 고정 패널(--bd-occl-b: JS 가 잼) 사이에 오게 한다 */
+    .bd-w-card, .bd-w-head .bd-map, .bd-w-card td, .bd-w-card th, .bd-w-srctbl td, .bd-w-srctbl th, .bd-w-status { transition:none; } }
+  /* 포커스·스크롤 때 칸이 작성 바와 아래쪽 고정 상태 줄(--bd-occl-b: JS 가 잼) 사이에 오게 한다 */
   .bd-w-cell { position:relative; scroll-margin-top:calc(var(--bd-bar-h, 64px) + 8px); scroll-margin-bottom:calc(var(--bd-occl-b, 56px) + 8px); }
   .bd-w-tables button, .bd-w-tables input, .bd-w-tables select, .bd-w-tables textarea, .bd-w-tables a[href] {
     scroll-margin-top:calc(var(--bd-bar-h, 64px) + 8px); scroll-margin-bottom:calc(var(--bd-occl-b, 56px) + 8px); }
@@ -394,22 +444,20 @@
   .bd-w-cell.is-part { box-shadow:inset 0 -2px 0 rgba(217,160,91,.55);
                        box-shadow:inset 0 -2px 0 color-mix(in srgb, var(--orange) 55%, transparent); }
   .bd-w-cell .gph { width:10px; height:10px; margin-left:4px; color:var(--orange); vertical-align:-1px; }
-  .bd-w-ck { position:absolute; top:2px; right:2px; width:10px; height:10px; color:#a9b8d8; color:color-mix(in srgb, var(--blue) 70%, #ffffff); }
   .bd-w-miss { font-size:11px; color:var(--red); }
   .bd-w-miss.bd-w-empty, .bd-w-paren { color:var(--muted); }
   .bd-w-miss.bd-w-empty { white-space:nowrap; }   /* 좁은 새 열(예: 5년차)에서 '직접 입력'이 두 줄로 꺾이지 않게 */
   .bd-w-calc { flex-basis:100%; font-size:12px; color:var(--muted); }
   #bd-tip .mono { overflow-wrap:anywhere; }
-  .bd-unit { float:right; margin-left:12px; font-size:11px; font-weight:400; color:var(--muted); }
+  .bd-unit { float:right; margin-left:12px; font-size:12px; font-weight:400; color:var(--muted); }
   .bd-actions .bd-legend { flex-basis:100%; }
-  .bd-w-orig { display:block; font-size:11px; font-family:var(--mono); color:#b0b6c0; color:color-mix(in srgb, var(--muted) 70%, #ffffff); }
-  .bd-w-in { width:100%; min-width:5em; padding:2px 6px; font-size:12px; font-family:var(--mono); text-align:right; }
-  .bd-w-status { position:sticky; bottom:0; z-index:4; padding:10px 14px;
-                 font-size:12px; background:var(--panel2); border:1px solid var(--line-strong); border-radius:8px;
+  .bd-w-orig { display:block; font-size:12px; font-family:var(--mono); color:#b0b6c0; color:color-mix(in srgb, var(--muted) 70%, #ffffff); }
+  .bd-w-in { width:100%; min-width:5em; padding:2px 6px; font-size:14px; font-family:var(--mono); text-align:right; }
+  .bd-w-status { position:sticky; bottom:0; z-index:4; padding:8px 14px;
+                 font-size:13px; background:var(--panel2); border:1px solid var(--line-strong); border-radius:8px;
                  box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 -8px 24px rgba(8,12,24,.55); }
   /* 아래 #tab-soon 여백(14px)으로 표가 상태 줄 밑에 비치는 틈을 배경색으로 메운다 */
   .bd-w-status::after { content:""; position:absolute; left:-1px; right:-1px; bottom:-15px; height:14px; background:var(--bg); pointer-events:none; }   /* bottom 은 안쪽 테두리 기준: 1px 테두리 바깥에서 시작해 14px */
-  .bd-stacked .bd-w-status { border-top-left-radius:0; border-top-right-radius:0; }   /* 위의 원본 패널과 붙은 도크 */
   .bd-w-statusbody { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .bd-w-statusbody > .bd-confirm { flex:1 1 100%; background:none; border:0; padding:0; font-size:inherit; }
   .bd-w-statusbody > .bd-confirm span { flex:0 1 auto; }

@@ -1,6 +1,6 @@
 (function (root) {
   'use strict';
-  // 이사회 자료 '작성 모드'(NEXT 37) — 엑셀을 올려 양식의 값 칸을 채우고, 오른쪽 원본과 대조하며 칸마다 확인한다.
+  // 이사회 자료 '작성 모드'(NEXT 37) — 엑셀을 올려 양식의 값 칸을 채우고, [수익성 분석표 보기] 팝업의 원본과 대조해 표마다 확인한다.
   // 순수 함수(검증·숫자 파싱·상태 집계·HTML)와 DOM 배선(createController)을 한 파일에 둔다. board.js가 불러 쓴다.
   // 원본 엑셀·원래 값(raw)·확인·수정 표시는 이 화면의 메모리에만 둔다. 브라우저 저장소·초안 요청 본문에 넣지 않는다.
   // 브라우저 확인창 함수는 쓰지 않는다(테스트가 소스 문자열을 검사한다). 확인은 인라인 확인 줄로 한다.
@@ -15,7 +15,6 @@
   // 서버(BoardDocSpec.clean)와 같은 규칙: 제어문자·U+2028/2029·U+FFFE/FFFF 거부
   const CTRL_RE = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f' + String.fromCharCode(0x2028, 0x2029, 0xfffe, 0xffff) + ']');
   const DROP_TITLE = '수익성 분석 엑셀을 올려 주세요';
-  const CHECK_SVG = '<svg class="bd-w-ck" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 5.5 4 8l4.5-6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   function str(v) { return v == null ? '' : String(v); }
   function esc(s) {
@@ -232,10 +231,24 @@
     return '초안 워드를 만들지 못했습니다. 잠시 뒤 다시 눌러 주세요.';
   };
   bw.draftFileName = function (name) { return (str(name).replace(/[\\/:*?"<>|]/g, '_').trim() || 'board') + '_초안.docx'; };
-  bw.draftDoneText = function (ws) {
-    const u = bw.tally(ws).unchecked;
-    return '초안 워드를 내려받았습니다.' + (u > 0 ? ' 확인하지 않은 칸 ' + u + '개가 포함된 초안입니다.' : '');
+  function tname(t) { return str(t.title || t.mapping || t.ref); }
+  // 값 칸이 있는데 아직 '이 표 확인'을 하지 않은 표(초안은 막지 않고 알리기만 한다)
+  bw.uncheckedTables = function (ws) {
+    return ws ? ws.tables.filter(function (t) { return t.order.length > 0 && !t.checked; }) : [];
   };
+  bw.draftDoneText = function (ws) {
+    const u = bw.uncheckedTables(ws);
+    return '초안 워드를 내려받았습니다.' + (u.length ? ' 확인하지 않은 표 ' + u.length + '개(' + u.map(tname).join(', ') + ')가 있는 상태로 초안을 만들었습니다.' : '');
+  };
+  // 받침 판정(조사용): 한글이면 종성 번호(0=받침 없음), 숫자는 읽는 소리의 받침, 그 밖은 받침 없음.
+  const DIGIT_JONG = { '0': 21, '1': 8, '2': 0, '3': 16, '4': 0, '5': 0, '6': 1, '7': 8, '8': 8, '9': 0 };
+  function jong(s) {
+    const w = str(s), ch = w.charAt(w.length - 1), code = ch ? ch.charCodeAt(0) : 0;
+    if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28;
+    return has(DIGIT_JONG, ch) ? DIGIT_JONG[ch] : 0;
+  }
+  bw.josaEul = function (w) { return jong(w) > 0 ? '을' : '를'; };
+  bw.josaEuro = function (w) { const j = jong(w); return (j > 0 && j !== 8) ? '으로' : '로'; };
 
   // ── 상태 모델(순수·불변) ─────────────────────────────────────
   function tableRef(t) { return str(t && (t.ref != null ? t.ref : t.id)); }
@@ -293,6 +306,7 @@
       const t = {
         ref: ref, mapping: str(ft.mapping), title: str(ft.title), rows: rows,
         columns: Array.isArray(ft.columns) ? ft.columns : [], notes: Array.isArray(ft.notes) ? ft.notes : [],
+        checked: null, relNote: null,   // 표 단위 확인: {who, at} | null. relNote: 값을 고쳐 확인이 풀린 표의 안내 {label, from, to}
         mapped: !!rt, needsReview: !!(rt && rt.needs_review === true),
         labelState: rt ? (rt.label_state === 'failed' ? 'failed' : (rt.needs_review === true ? 'partial' : 'ok')) : 'ok',
         mismatches: (rt && Array.isArray(rt.label_mismatches)) ? rt.label_mismatches : [],
@@ -327,7 +341,7 @@
                        raw: s.raw == null ? null : str(s.raw), rounded: s.rounded === true ? true : (s.rounded === false ? false : null) } : null,
             warns: warns, serverSum: serverSum,
             label: pos ? str(labeler({ title: ft.title, rows: rows, columns: t.columns, cells: {} }, pos.r, pos.ci)) : '',
-            checked: false, asked: false, why: '', memo: '', whyAsked: false
+            asked: false, why: '', memo: '', whyAsked: false
           };
           t.order.push(key);
           if (t.grid && s) { const gp = bw.gridPos(t.grid, s.cell); if (gp) t.srcIndex[gp.r + ',' + gp.c] = key; }
@@ -353,7 +367,7 @@
               key: key, value: '', orig: '', status: 'manual', reason: '', manual: true, parts: [], partCount: 0,
               convert: null, mainValue: null, subValue: null, src: null, warns: [], serverSum: null,
               label: str(labeler({ title: ft.title, rows: rows, columns: t.columns, cells: {} }, r, ci)),
-              checked: false, asked: false, why: '', memo: '', whyAsked: false
+              asked: false, why: '', memo: '', whyAsked: false
             };
             t.order.push(key);
           });
@@ -377,6 +391,13 @@
     cells[key] = Object.assign({}, t.cells[key], patch);
     const tables = ws.tables.slice();
     tables[ti] = Object.assign({}, t, { cells: cells });
+    return Object.assign({}, ws, { tables: tables });
+  };
+  bw.patchTable = function (ws, ref, patch) {
+    const ti = ws.tables.findIndex(function (t) { return t.ref === ref; });
+    if (ti < 0) return ws;
+    const tables = ws.tables.slice();
+    tables[ti] = Object.assign({}, ws.tables[ti], patch);
     return Object.assign({}, ws, { tables: tables });
   };
 
@@ -433,15 +454,20 @@
     const f = ws.filter;
     if (f === 'edited') return bw.cellInfo(t, c).edited;
     if (f === 'need') return bw.cellInfo(t, c).need;
-    if (f === 'unchecked') return !c.checked;
+    if (f === 'unchecked') return !t.checked;
     return true;
   };
+  // m: 값 칸 수 · tm: 값 칸이 있는 표 수 · tn: 확인한 표 수 · tu: 확인 안 한 표 수
   bw.tally = function (ws) {
-    const y = { m: 0, n: 0, edited: 0, need: 0, unchecked: 0, filled: 0, failed: 0, review: 0, sumBad: 0, noReason: 0, hidden: 0, hiddenFmt: 0, empty: 0, manual: 0, sumManual: 0, reviewLabel: 0 };
+    const y = { m: 0, tm: 0, tn: 0, tu: 0, edited: 0, need: 0, filled: 0, failed: 0, review: 0, sumBad: 0, noReason: 0, hidden: 0, hiddenFmt: 0, empty: 0, manual: 0, sumManual: 0, reviewLabel: 0 };
+    ws.tables.forEach(function (t) {
+      if (!t.order.length) return;
+      y.tm++;
+      if (t.checked) y.tn++; else y.tu++;
+    });
     eachCell(ws, function (t, c) {
       const i = bw.cellInfo(t, c);
       y.m++;
-      if (c.checked) y.n++; else y.unchecked++;
       if (c.manual) y.manual++;
       else if (c.status === 'failed') { y.failed++; if (c.reason === 'PART_EMPTY') y.empty++; }
       else if (c.status === 'review') {
@@ -462,7 +488,7 @@
   bw.hasWork = function (ws) {
     if (!ws) return false;
     const y = bw.tally(ws);
-    return y.n > 0 || y.edited > 0;
+    return y.tn > 0 || y.edited > 0;
   };
   bw.selected = function (ws, sel) {
     if (!ws || !sel) return null;
@@ -487,26 +513,24 @@
     return null;
   };
 
-  const FILTERS = [['all', '전체'], ['edited', '수정됨'], ['need', '확인 필요'], ['unchecked', '미확인']];
+  const FILTERS = [['all', '전체'], ['edited', '수정됨'], ['need', '확인 필요'], ['unchecked', '확인 안 한 표']];
   bw.setFilter = function (ws, f) {
     return FILTERS.some(function (x) { return x[0] === f; }) ? Object.assign({}, ws, { filter: f }) : ws;
   };
-  // '확인했음'은 모든 칸을 확인했을 때만 유지된다. 확인이 하나라도 빠지면 해제.
+  // '검수 완료'(ws.done)는 값 칸이 있는 모든 표를 확인했을 때만 유지된다. 하나라도 풀리면 해제.
   bw.normalize = function (ws) {
     if (!ws.done) return ws;
     const y = bw.tally(ws);
-    return (y.m > 0 && y.n === y.m) ? ws : Object.assign({}, ws, { done: null });
+    return (y.tm > 0 && y.tn === y.tm) ? ws : Object.assign({}, ws, { done: null });
   };
-  bw.toggleCheck = function (ws, ref, key) {
-    const t = findT(ws, ref), c = t && t.cells[key];
-    if (!c) return ws;
-    if (!c.checked && bw.cellInfo(t, c).unreadable) return ws;   // 읽지 못한 빈 칸은 값을 넣은 뒤에 확인
-    return bw.normalize(bw.patchCell(ws, ref, key, { checked: !c.checked }));
-  };
-  bw.setDone = function (ws, on, who, at) {
-    if (!on) return Object.assign({}, ws, { done: null });
-    const y = bw.tally(ws);
-    return (y.m > 0 && y.n === y.m) ? Object.assign({}, ws, { done: { who: str(who), at: str(at) } }) : ws;
+  // 표 하나의 확인을 켜고 끈다. 읽지 못한 칸·합계 차이가 있어도 확인할 수 있다(칩으로만 경고).
+  // 모든 표가 확인되면 같은 순간 '검수 완료'(마지막 확인 시각)가 자동으로 붙는다.
+  bw.toggleCheck = function (ws, ref, who, at) {
+    const t = findT(ws, ref);
+    if (!t || !t.order.length) return ws;
+    const next = bw.patchTable(ws, ref, t.checked ? { checked: null } : { checked: { who: str(who), at: str(at) }, relNote: null });
+    const y = bw.tally(next);
+    return Object.assign({}, next, { done: (y.tm > 0 && y.tn === y.tm) ? { who: str(who), at: str(at) } : null });
   };
   bw.hhmm = function (d) {
     const p = function (n) { return (n < 10 ? '0' : '') + n; };
@@ -514,11 +538,12 @@
   };
   bw.leaveText = function (kind, y) {
     const parts = [];
-    if (y && y.n > 0) parts.push('확인 ' + y.n + '칸');
+    if (y && y.tn > 0) parts.push('표 확인 ' + y.tn + '개');
     if (y && y.edited > 0) parts.push('수정 ' + y.edited + '칸');
-    const what = parts.join('과 ');
-    if (kind === 'swap') return '새 엑셀로 바꾸면 ' + (what ? what + '이 사라집니다.' : '지금 화면이 새로 채워집니다.');
-    return (what ? what + '이 사라집니다. ' : '') + '작성을 끝낼까요?';
+    const what = parts.join(', ');
+    const ga = jong(what) > 0 ? '이' : '가';
+    if (kind === 'swap') return '새 엑셀로 바꾸면 ' + (what ? what + ga + ' 사라집니다.' : '지금 화면이 새로 채워집니다.');
+    return (what ? what + ga + ' 사라집니다. ' : '') + '작성을 끝낼까요?';
   };
 
   // 주의 목록(요약 줄의 "주의 n건")
@@ -627,8 +652,7 @@
     if (i.edited) parts.push('수정됨' + (i.hasOrig ? ', 원본 ' + c.orig : ''));
     if (i.sumBad) parts.push('합계 차이 ' + i.sum.diff);
     if (c.warns.some(function (w) { return w !== 'LABEL_MISMATCH'; })) parts.push('주의');
-    parts.push(c.checked ? '확인됨' : '미확인');
-    return parts.join(', ');
+    return parts.join(', ');   // 확인 상태는 칸이 아니라 표(카드 aria-label·체크박스)가 전한다
   };
   // 상태 줄 첫 줄 · 알림 줄: 양식 칸 표시값 ← 엑셀 원본 주소 + 엑셀 화면값(+ 환산 전 단위).
   //   한 칸: "48.51 억원 ← K54 4,851.4 백만원" / 여러 칸 합: "20.77 억원 ← K45 외 3칸 합". 단위를 모르면 단위는 생략한다.
@@ -647,20 +671,16 @@
   // 알림 줄(#bd-w-live)이 대조 첫 줄과 같으면 화면에서는 숨기고 읽어 주기만 한다(상태 줄 첫 줄과 겹쳐 보이지 않게).
   // 선택을 해제했을 때의 낭독 전용 안내 — 화면에는 보이지 않는다(지난 대조 문구가 안내 문구 아래에 남지 않게).
   bw.RELEASE_LIVE = '선택을 해제했습니다.';
+  // 선택이 없으면 상태 줄 전체가 화면에서 숨고(is-idle) 낭독 영역만 남는다.
   bw.liveClass = function (ws, ui) {
     const s = ws && ui && ui.sel ? bw.selected(ws, ui.sel) : null;
-    if (!s) return 'bd-w-live' + (ui && ui.live === bw.RELEASE_LIVE ? ' is-sr' : '');
+    if (!s) return 'bd-w-live is-sr';
     return 'bd-w-live' + (ui.live && ui.live === bw.compareLine(s.t, s.c) ? ' is-sr' : '');
   };
+  // 상태 줄은 칸을 골랐을 때만 보인다. 팝업이 열려 있으면 팝업 편집 영역이 같은 일을 하므로 숨긴다.
+  bw.statusIdle = function (ws, ui) { return !ui || !ui.sel || !ws || !bw.selected(ws, ui.sel) || !!ui.pop; };
   // 선택을 해제하는 한 곳: 대조 문구(ui.live)를 비우고 낭독 전용 해제 안내로 바꾼다.
   bw.releaseSel = function (ui) { ui.sel = null; ui.live = bw.RELEASE_LIVE; return ui; };
-  // 창 크기를 바꾼 뒤 원본 가로 스크롤을 선택 칸에 다시 맞출지: 선택이 있고, 사용자가 원본을 직접 스크롤한 직후(quiet ms)가 아닐 때.
-  bw.RESIZE_QUIET = 1200;
-  bw.resizeRealign = function (o) {
-    if (!o || !o.hasSel) return false;
-    const q = typeof o.quiet === 'number' ? o.quiet : bw.RESIZE_QUIET;
-    return !(Number(o.lastManual) > 0 && Number(o.now) - Number(o.lastManual) < q);
-  };
 
   // ── ② 수정: 고치기 전 확인·사유·재검산 ─────────────────────────
   const WHY = [{ id: 'ROUND', label: '반올림 맞춤' }, { id: 'MAPPING', label: '원본 값과 다르게 가져옴' },
@@ -706,7 +726,7 @@
       out.push(x.now.zero ? '이 칸이 들어간 합계(' + nm + ')는 지금 맞습니다.'
         : '이 칸이 들어간 합계: ' + nm + ' — 표시 합 ' + x.now.expected + ' · 합계 ' + x.now.actual + ' · 차이 ' + x.now.diff);
     });
-    if (c.checked) out.push('고치면 이 칸의 확인 표시가 해제됩니다.');
+    if (t.checked) out.push('고치면 이 표의 확인이 풀립니다.');
     return out;
   };
   bw.askHtml = function (t, c) {
@@ -734,10 +754,18 @@
     const v = str(text).trim();
     if (v === c.value) return { ws: ws, released: '', changed: false };
     const patch = { value: v };
-    const released = c.checked ? (ws.done ? 'done' : 'cell') : '';
-    if (c.checked) patch.checked = false;
+    // 값이 바뀌면 그 칸이 속한 표의 확인만 풀린다(한 원본 칸이 두 표에 쓰여도 고친 이사회 칸의 표만).
+    const released = t.checked ? (ws.done ? 'done' : 'table') : '';
     if (v === c.orig.trim()) { patch.why = ''; patch.memo = ''; }   // 원래 값으로 돌아오면 사유도 지운다
-    return { ws: bw.normalize(bw.patchCell(ws, ref, key, patch)), released: released, changed: true };
+    let next = bw.patchCell(ws, ref, key, patch);
+    if (t.checked) next = bw.patchTable(next, ref, { checked: null, relNote: { label: bw.shortLabel(c), from: c.value, to: v } });
+    else if (t.relNote) {
+      // 이미 확인이 풀린 표: 안내는 가장 최근에 고친 값으로 갱신하고, 고친 칸이 하나도 남지 않으면(모두 원본으로 되돌림) 지운다
+      const t2 = findT(next, ref);
+      const any = Object.keys(t2.cells).some(function (k) { return bw.cellInfo(t2, t2.cells[k]).edited; });
+      next = bw.patchTable(next, ref, { relNote: any ? { label: bw.shortLabel(c), from: c.value, to: v } : null });
+    }
+    return { ws: bw.normalize(next), released: released, changed: true };
   };
   bw.setWhy = function (ws, ref, key, why, memo) {
     if (why && !WHY.some(function (w) { return w.id === why; })) return ws;
@@ -756,12 +784,35 @@
       return bw.recheckText(bw.shortLabel(ta.cells[sm.total]), bw.liveSum(tb, sm), bw.liveSum(ta, sm));
     }).filter(Boolean);
   };
+  // 팝업에서 값을 고치는 한 번의 동작(순수). sel 은 고를 이사회 칸 {t,key}. → {ws, note, error, changed, released}
+  // 원본 엑셀 값(orig·src)은 그대로 두고 이사회 칸 값(value)만 bw.editCell 로 바꾼다.
+  bw.popCommit = function (ws, sel, text) {
+    const t = sel && findT(ws, sel.t), c = t && t.cells[sel.key];
+    if (!c) return { ws: ws, note: '', error: false, changed: false, released: '' };
+    const bad = bw.validateValue(text);
+    if (bad) return { ws: ws, note: bad, error: true, changed: false, released: '' };
+    const r = bw.editCell(ws, sel.t, sel.key, text);
+    if (!r.changed) return { ws: ws, note: '값이 같아 바꾸지 않았습니다.', error: false, changed: false, released: '' };
+    const label = bw.shortLabel(c), from = c.value === '' ? '빈 칸' : c.value, to = str(text).trim() === '' ? '빈 칸' : str(text).trim();
+    const back = !c.manual && str(c.orig).trim() !== '' && str(text).trim() === str(c.orig).trim();   // 원본 값으로 되돌린 경우
+    const msgs = [(back ? label + bw.josaEul(label) + ' 원본 값 ' + to + bw.josaEuro(to) + ' 되돌렸습니다.'
+                        : label + bw.josaEul(label) + ' ' + from + '에서 ' + to + bw.josaEuro(to) + ' 고쳤습니다.') +
+      (r.released ? ' ‘' + tname(t) + '’ 표의 확인을 풀었습니다.' : '')];
+    bw.recheckLines(ws, r.ws, sel.t, sel.key).forEach(function (m) { msgs.push(m); });
+    return { ws: r.ws, note: msgs.join(' '), error: false, changed: true, released: r.released };
+  };
+  // 표 확인이 풀렸을 때 낭독 문구(작성본 칸을 직접 고친 경우)
+  bw.releaseText = function (r, t) {
+    if (r === 'done') return '값이 바뀌어 검수 완료를 해제했습니다. ‘' + tname(t) + '’ 표의 확인도 풀렸습니다.';
+    if (r === 'table') return '값이 바뀌어 ‘' + tname(t) + '’ 표의 확인을 풀었습니다.';
+    return '';
+  };
 
   // ── 화면 조각(HTML) ────────────────────────────────────────
   function freshUi() {
-    return { form: null, upload: null, rej: null, leave: null, panelOpen: true, wide: false, sel: null, live: '', banOpen: {},
+    return { form: null, upload: null, rej: null, leave: null, sel: null, live: '', banOpen: {},
              draftBusy: false, draftNote: '', draftErr: false, mapText: '', maxMb: DEFAULT_MAX_MB,
-             edit: null, ask: null, copyNote: null };
+             edit: null, ask: null, copyNote: null, pop: null };
   }
   bw.freshUi = freshUi;
 
@@ -769,10 +820,13 @@
     const f = ui.form || {};
     const title = '자료 작성 중 · ' + str(f.name) + (f.version != null && f.version !== '' ? ' v' + f.version : '') +
       (ws ? ' · 원본 ' + ws.fileName + '(저장 안 됨)' : '');
+    const un = ws ? bw.uncheckedTables(ws).length : 0;
     return '<div class="bd-editbar bd-writebar" id="bd-writebar" tabindex="-1"><div class="bd-wb-row"><span>' + esc(title) + '</span><span class="bd-wb-btns">' +
       '<button type="button" data-w="swap"' + (ws && !ui.upload ? '' : ' disabled') + '>엑셀 바꾸기</button>' +
+      (ws ? '<button type="button" data-w="srcopen"' + (bw.mergeSources(ws).length ? '' : ' disabled') + '>수익성 분석표 보기</button>' : '') +
       (ws ? '<button type="button" data-w="copyall">모든 표 복사</button>' + bw.copyAllNoteHtml(ui) : '') +
-      '<button type="button" id="bd-w-draft" class="bd-wb-main" data-w="draft"' + (ws && !ui.draftBusy ? '' : ' disabled') + '>' +
+      (un > 0 ? '<span class="bd-w-draftwarn" id="bd-w-draftwarn">' + icon('warn') + '확인 안 한 표 ' + un + '개</span>' : '') +
+      '<button type="button" id="bd-w-draft" class="bd-wb-main" data-w="draft"' + (un > 0 ? ' aria-describedby="bd-w-draftwarn"' : '') + (ws && !ui.draftBusy ? '' : ' disabled') + '>' +
       (ui.draftBusy ? '만드는 중…' : '초안 워드 내려받기') + '</button>' +
       '<button type="button" id="bd-w-end" data-w="end">작성 끝내기</button></span></div>' +
       '<p class="bd-wb-note">이 작업은 저장되지 않습니다. 새로고침하거나 창을 닫으면 확인·수정한 내용이 사라집니다.</p>' +
@@ -820,7 +874,7 @@
         (y.reviewLabel > 0 ? ' 머리글이 달라 확인이 필요한 칸이 ' + y.reviewLabel + '칸 있습니다.' : '');
     }
     else if (y.filled === 0 && y.manual > 0) text = '엑셀에서 가져올 값이 없습니다.';
-    else text = '값 ' + y.filled + '칸을 모두 채웠습니다. 오른쪽 원본과 대조하며 칸마다 확인해 주세요.';
+    else text = '값 ' + y.filled + '칸을 모두 채웠습니다. 표마다 [원본 보기]로 수익성 분석표와 맞춰 보고 ‘이 표 확인’을 눌러 주세요.';
     let extra = '';
     if (y.noReason > 0) extra = '사유를 고르지 않은 수정 ' + y.noReason + '칸';
     const items = bw.warnItems(ws);
@@ -834,37 +888,32 @@
       '<p class="bd-w-def">‘원래 값’은 엑셀 칸에 저장된 숫자입니다. 엑셀에서 서식으로 가려 보이지 않던 값도 여기에는 나옵니다.</p>';
   };
   bw.filterHtml = function (ws) {
-    const y = bw.tally(ws), n = { all: y.m, edited: y.edited, need: y.need, unchecked: y.unchecked };
+    const y = bw.tally(ws), n = { all: y.m, edited: y.edited, need: y.need, unchecked: y.tu };
     return '<div class="wf-chips" role="group" aria-label="칸 거르기">' + FILTERS.map(function (f) {
       return '<button type="button" class="wf-chip" data-w="filter" data-v="' + f[0] + '" aria-pressed="' + (ws.filter === f[0]) + '">' + f[1] + '<i>' + n[f[0]] + '</i></button>';
-    }).join('') + '</div><p class="bd-w-def">확인 필요: 읽지 못했거나, 주의가 붙었거나, 합계가 맞지 않거나, 머리글이 다른 표의 칸 · 미확인: 아직 확인 표시를 하지 않은 칸</p>';
+    }).join('') + '</div><p class="bd-w-def">확인 필요: 읽지 못했거나, 주의가 붙었거나, 합계가 맞지 않거나, 머리글이 다른 표의 칸 · 확인 안 한 표: 표 머리의 ‘이 표 확인’을 누르지 않은 표</p>';
   };
+  // 표 확인 현황 한 줄: "표 확인 4/6". 모든 표를 확인하면 '검수 완료 · 마지막 확인 14:32' 칩이 자동으로 붙는다.
   bw.reviewHtml = function (ws) {
-    const y = bw.tally(ws), ok = y.m > 0 && y.n === y.m;
-    let notes = '';
+    const y = bw.tally(ws);
+    if (!y.tm) return '';
     const bits = [];
     if (y.sumBad > 0) bits.push('합계 차이 ' + y.sumBad + '곳');
     if (y.noReason > 0) bits.push('사유를 고르지 않은 수정 ' + y.noReason + '칸');
-    if (bits.length) notes = bits.join(' · ') + '이 남아 있어도 ‘확인했음’은 선택할 수 있습니다.';
-    return '<div class="bd-w-rev"><span class="bd-w-count" id="bd-w-count">' + (ok ? CHECK_SVG : '') + '검수 ' + y.n + '/' + y.m + '</span>' +
-      '<label class="bd-w-donelab"><input type="checkbox" id="bd-w-done"' + (ok ? '' : ' disabled') + (ws.done ? ' checked' : '') + ' aria-describedby="bd-w-donewhy"> 확인했음</label>' +
-      (ws.done ? '<span class="bd-w-chip is-done">검수 완료 · ' + esc((ws.done.who ? ws.done.who + ' ' : '') + ws.done.at) + '</span>' : '') +
-      '<span class="bd-w-note" id="bd-w-donewhy">' + esc(ok ? '모든 값을 원본과 대조해 확인했습니다' : '모든 칸을 확인하면 선택할 수 있습니다(남은 칸 ' + (y.m - y.n) + ')') + '</span>' +
+    const notes = bits.length ? bits.join(' · ') + '이 남아 있어도 표 확인은 할 수 있습니다.' : '';
+    return '<div class="bd-w-rev"><span class="bd-w-count" id="bd-w-count">표 확인 ' + y.tn + '/' + y.tm + '</span>' +
+      (ws.done ? '<span class="bd-w-chip is-done">검수 완료 · 마지막 확인 ' + esc(ws.done.at) + '</span>' : '') +
       (notes ? '<span class="bd-w-note">' + esc(notes) + '</span>' : '') + '</div>';
   };
 
   bw.chipsHtml = function (t) {
     let h = '';
-    let sumN = 0, left = 0;
-    t.order.forEach(function (k) {
-      const c = t.cells[k];
-      if (bw.cellInfo(t, c).sumBad) sumN++;
-      if (!c.checked) left++;
-    });
+    let sumN = 0;
+    t.order.forEach(function (k) { if (bw.cellInfo(t, t.cells[k]).sumBad) sumN++; });
     if (sumN) h += '<span class="bd-w-chip is-warn">' + icon('warn') + '합계 차이 ' + sumN + '</span>';
     if (t.needsReview) {
       if (t.labelState === 'failed') h += '<span class="bd-w-chip is-warn">' + icon('warn') + '주의 · 채우지 못함</span>';
-      else h += left ? '<span class="bd-w-chip is-warn">' + icon('warn') + '주의 · 남은 칸 ' + left + '</span>' : '<span class="bd-w-chip">주의 · 모두 확인함</span>';
+      else h += t.checked ? '<span class="bd-w-chip">주의 · 확인함</span>' : '<span class="bd-w-chip is-warn">' + icon('warn') + '주의 · 머리글 확인 필요</span>';
     }
     return h ? '<span class="bd-w-chips">' + h + '</span>' : '';
   };
@@ -899,7 +948,6 @@
     const al = ALIGNS[fc.align] ? fc.align : (pr || bw.shownNum(c.value) != null ? 'right' : 'left');
     const cls = ['bd-w-cell', 'bd-a-' + al];
     if (al === 'right') cls.push('bd-num');
-    if (c.checked) cls.push('is-checked');
     if (i.edited) cls.push('is-edited');
     if (i.unreadable) cls.push('is-bad');
     if (p.dim) cls.push('is-dim');
@@ -920,12 +968,15 @@
     return '<td class="' + cls.join(' ') + '" role="gridcell" data-t="' + esc(t.ref) + '" data-key="' + esc(c.key) + '" tabindex="' + (p.rove ? '0' : '-1') +
       '" aria-selected="' + (p.sel ? 'true' : 'false') + '" aria-label="' + esc(bw.cellAria(t, c)) + '"' +
       (cs > 1 ? ' colspan="' + cs + '"' : '') + (rs > 1 ? ' rowspan="' + rs + '"' : '') + '>' +
-      '<span class="bd-w-v">' + inner + '</span>' + extra + (warn ? icon('warn') : '') + (c.checked ? CHECK_SVG : '') + '</td>';
+      '<span class="bd-w-v">' + inner + '</span>' + extra + (warn ? icon('warn') : '') + '</td>';
   };
   bw.cardHtml = function (ws, t, ui, rv) {
-    const label = esc(t.title || t.mapping || '표');
+    const dirty = !!t.relNote && !t.checked;
+    const state = t.order.length ? (t.checked ? ', 확인함' : (dirty ? ', 확인 풀림' : '')) : '';
+    const label = esc((t.title || t.mapping || '표') + state);
     const head = '<div class="bd-card-head bd-w-head">' + (t.mapping ? '<span class="bd-map">' + esc(t.mapping) + '</span>' : '') +
-      '<strong class="bd-w-title">' + esc(t.title) + '</strong>' + bw.chipsHtml(t) + bw.copyBtnHtml(t, ui) + '</div>';
+      '<strong class="bd-w-title">' + esc(t.title) + '</strong>' + bw.chipsHtml(t) + bw.copyBtnHtml(t, ui) + '</div>' +
+      (dirty ? '<p class="bd-w-relnote" role="status">값을 고쳐 확인을 풀었습니다(' + esc(t.relNote.label + ' ' + t.relNote.from + ' → ' + t.relNote.to) + '). 다시 확인해 주세요.</p>' : '');
     const any = t.mapped && t.order.some(function (k) { return bw.matches(ws, t, t.cells[k]); });
     if (ws.filter !== 'all' && !any) {
       return '<section class="bd-card bd-w-card is-empty" data-t="' + esc(t.ref) + '" aria-label="' + label + '">' + head + '<p class="bd-hint">해당 칸 없음</p></section>';
@@ -949,7 +1000,7 @@
       }).join('') + '</tr>';
     }).join('');
     const notes = t.notes.length ? '<ul class="bd-notes">' + t.notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>' : '';
-    return '<section class="bd-card bd-w-card' + (ui.sel && ui.sel.t === t.ref ? ' has-sel' : '') + '" data-t="' + esc(t.ref) + '" aria-label="' + label + '">' + head + bw.bannerHtml(t, !!ui.banOpen[t.ref]) +
+    return '<section class="bd-card bd-w-card' + (ui.sel && ui.sel.t === t.ref ? ' has-sel' : '') + (dirty ? ' is-released' : '') + '" data-t="' + esc(t.ref) + '" aria-label="' + label + '">' + head + bw.bannerHtml(t, !!ui.banOpen[t.ref]) +
       (t.mapped ? '' : '<p class="bd-hint">이 표는 엑셀에서 값을 가져오지 않습니다.</p>') +
       '<div class="bd-table-wrap"><table class="bd-table bd-w-table" role="grid" aria-label="' + label + '">' + thead + '<tbody>' + body + '</tbody></table></div>' + notes + '</section>';
   };
@@ -1016,12 +1067,6 @@
     if (own) return own.split(' ').indexOf(sel.t + '|' + sel.key) >= 0;
     return !!key && st === sel.t && key === sel.key;
   };
-  bw.srcHasSel = function (sheets, sel) {
-    if (!sel) return false;
-    return sheets.some(function (sh) {
-      return Object.keys(sh.owners).some(function (k) { return sh.owners[k].some(function (o) { return o.t === sel.t && o.key === sel.key; }); });
-    });
-  };
   // 한 축의 가운데 스크롤. cur 현재 스크롤, pos·size 칸의 위치·크기(내용 좌표), view 보이는 길이, lead 고정 머리 길이, max 스크롤 최댓값.
   // 이미 완전히 보이면 cur 그대로.
   bw.centerAxis = function (cur, pos, size, view, lead, max) {
@@ -1038,13 +1083,7 @@
   bw.alignScroll = function (pos, lead, view, total) {
     return Math.round(Math.max(0, Math.min(Math.max(0, total - view), pos - lead)));
   };
-  // 좌우로 놓았을 때 원본 패널 너비가 360px 미만이면 세로 배치.
-  bw.stackMode = function (gridW, wide, open) {
-    if (open === false) return false;
-    const w = (Number(gridW) - 14) * (wide ? 3 : 2) / 5;
-    return isFinite(w) && Number(gridW) > 0 && w < 360;
-  };
-  // ── 선택·포커스한 칸이 고정 패널(작성 바·원본 패널·상태 줄)에 가려지지 않게 하는 계산(순수) ──
+  // ── 선택·포커스한 칸이 고정 패널(작성 바·상태 줄)에 가려지지 않게 하는 계산(순수) ──
   // o: {vpH, barBottom, covers:[{top,left,right}...], cell:{left,right}}. 칸과 가로로 겹치는 아래쪽 패널 중 가장 위쪽 top 이 보이는 영역의 아래 끝.
   // 반환 {top, bottom}: 칸이 있어야 할 보이는 영역(위아래 8px 여백 포함).
   bw.visibleBand = function (o) {
@@ -1056,15 +1095,7 @@
     });
     return { top: Math.max(0, Number(o.barBottom) || 0) + m, bottom: floor - m };
   };
-  // 원본 패널 높이 계산의 기준 y(뷰포트 좌표) = max(작성 바 bottom, 패널이 놓일 자리의 top). 둘 다 같은 좌표계다.
-  // anchorTop 은 패널 자신이 아니라 패널과 같은 줄에서 시작하는 격자(grid)의 top 을 넘긴다 — 패널 높이에 따라 변하지 않아 되먹임이 없고,
-  // 같은 입력이면 같은 값(고정점)이다. 정수로 맞춰 1px 이하의 떨림이 CSS 높이를 다시 흔들지 않게 한다.
-  bw.srcScrollTop = function (barBottom, anchorTop) {
-    const b = Number(barBottom), a = Number(anchorTop);
-    const lo = isFinite(b) ? b : 0, hi = isFinite(a) ? a : 0;
-    return Math.max(0, Math.round(Math.max(lo, hi)));
-  };
-  // 포커스가 칸 밖의 버튼·입력(예: '이 표 복사')에 갔을 때 고정 패널 뒤에서 꺼내야 하는지: 표 영역 안이고 고정 영역(작성 바·원본·상태 줄) 밖일 때만.
+  // 포커스가 칸 밖의 버튼·입력(예: '이 표 복사')에 갔을 때 고정 패널 뒤에서 꺼내야 하는지: 표 영역 안이고 고정 영역(작성 바·상태 줄) 밖일 때만.
   bw.needsOcclusionFix = function (inTables, inFixed) { return !!inTables && !inFixed; };
   // 칸(top·bottom)이 영역 밖이면 가려진 것.
   bw.isCovered = function (cell, band) { return cell.top < band.top || cell.bottom > band.bottom; };
@@ -1096,7 +1127,6 @@
   bw.needSettle = function (downCell, sel) {
     return !!(downCell && sel && downCell.t === sel.t && downCell.key === sel.key);
   };
-  bw.gridClass = function (ui) { return 'bd-w-grid' + (ui.panelOpen ? (ui.wide ? ' is-wide' : '') : ' is-one') + (ui.sel ? ' is-focusing' : ''); };
   // 원본 칸 (행,열) 가운데 선택 칸이 있는 열 번호들 → 그 열 머리를 is-srccol 로 표시한다.
   function selCols(sh, sel) {
     const out = {};
@@ -1107,12 +1137,149 @@
     return out;
   }
 
-  bw.sourceHtml = function (ws, ui) {
-    const name = '<span class="bd-w-srcname" title="' + esc(ws.fileName) + '">엑셀 원본 · ' + esc(ws.fileName) + '</span>';
-    const panelBtn = '<button type="button" data-w="panel" aria-expanded="' + !!ui.panelOpen + '">' + (ui.panelOpen ? '원본 접기' : '원본 펼치기') + '</button>';
-    if (!ui.panelOpen) return '<aside id="bd-w-src" class="bd-w-src is-folded" aria-label="엑셀 원본"><div class="bd-w-srchead"><div class="bd-w-srcrow">' + name +
-      '<span class="bd-w-srcbtns">' + panelBtn + '</span></div></div></aside>';
-    const sheets = bw.mergeSources(ws), sel = ui.sel;
+  // ── 수익성 분석표 팝업(순수 조각) ─────────────────────────────
+  // 팝업 상태 ui.pop = {at:{s,r,c}|null, text:null|string, onlyEdited, note, err, last:{t,key}|null, ret:{w,v}|null}
+  function srcAddr(sh, r, c) { return sh.cols[c] + (sh.first_row + r); }
+  function cleanRef(s) { return str(s).replace(/\$/g, '').toUpperCase(); }
+  // 선택 칸(sel)의 원본 위치 at. 같은 칸을 가리키는 원본 칸이 여럿이면 주 원본 주소가 있는 칸을 먼저 고른다.
+  bw.popAtFor = function (sheets, ws, sel) {
+    const s = bw.selected(ws, sel);
+    if (!s) return null;
+    const main = s.c.src ? cleanRef(s.c.src.cell) : '';
+    let first = null;
+    for (let i = 0; i < sheets.length; i++) {
+      const keys = Object.keys(sheets[i].owners);
+      for (let k = 0; k < keys.length; k++) {
+        if (!sheets[i].owners[keys[k]].some(function (o) { return o.t === sel.t && o.key === sel.key; })) continue;
+        const p = keys[k].split(','), at = { s: i, r: Number(p[0]), c: Number(p[1]) };
+        if (srcAddr(sheets[i], at.r, at.c) === main) return at;
+        if (!first) first = at;
+      }
+    }
+    return first;
+  };
+  bw.popCands = function (sheets, at) {
+    const sh = at && sheets[at.s];
+    return (sh && sh.owners[at.r + ',' + at.c]) || [];
+  };
+  // 원본 칸을 골랐을 때(순수): at 를 바꾸고, 이사회 칸 선택(ui.sel)을 후보에 맞춘다. 후보가 없으면 선택을 비운다.
+  bw.popSelect = function (ws, ui, sheets, at) {
+    const p = ui.pop;
+    if (!p) return ui;
+    p.at = at; p.text = null; p.note = ''; p.err = false;
+    const cands = bw.popCands(sheets, at).filter(function (o) { return !!bw.selected(ws, o); });
+    if (!cands.length) { ui.sel = null; return ui; }
+    if (!(ui.sel && cands.some(function (o) { return o.t === ui.sel.t && o.key === ui.sel.key; }))) ui.sel = { t: cands[0].t, key: cands[0].key };
+    return ui;
+  };
+  // 입력 칸의 처음 글자: 쓰던 글자가 있으면 그것, 없으면 이사회 칸 현재 값
+  bw.popInputText = function (ws, ui) {
+    const s = bw.selected(ws, ui.sel);
+    if (!s) return '';
+    return ui.pop && ui.pop.text != null ? ui.pop.text : s.c.value;
+  };
+  // Esc: 입력 안이면 입력만 취소하고 팝업은 열어 둔다. 입력 밖이면 닫는다.
+  bw.popEscAction = function (x) { return x && x.input ? 'input' : 'close'; };
+  bw.srcEditedCount = function (ws) { return bw.tally(ws).edited; };
+
+  // 원본 표 영역(#bd-w-srcbody). sel 은 팝업에서 고른 이사회 칸(없으면 강조 없음), at 은 고른 원본 칸.
+  bw.srcBodyHtml = function (ws, ui) {
+    const sheets = bw.mergeSources(ws), p = ui.pop || {}, at = p.at || null, sel = at ? ui.sel : null;
+    const s0 = sel ? bw.selected(ws, sel) : null, main = s0 && s0.c.src ? cleanRef(s0.c.src.cell) : '';
+    const edited = function (o) { const x = bw.selected(ws, o); return !!x && bw.cellInfo(x.t, x.c).edited; };
+    let rove = at ? { s: at.s, r: at.r, c: at.c } : null;
+    if (!rove) {
+      for (let i = 0; i < sheets.length && !rove; i++) {
+        const k = Object.keys(sheets[i].owners)[0];
+        if (k) { const q = k.split(','); rove = { s: i, r: Number(q[0]), c: Number(q[1]) }; }
+      }
+      if (!rove && sheets.length) rove = { s: 0, r: 0, c: 0 };
+    }
+    const parts = sheets.map(function (sh, si) {
+      const cover = function (r, c) {
+        for (let i = 0; i < sh.tags.length; i++) { const g = sh.tags[i]; if (r >= g.r0 && r <= g.r1 && c >= g.c0 && c <= g.c1) return g.ref; }
+        return sh.tags[0].ref;
+      };
+      const hot = selCols(sh, sel);
+      return '<div class="bd-w-srccap">' + esc(sh.sheet + ' 시트 · ' + sh.range) + '</div>' +
+        '<table class="bd-w-srctbl' + (p.onlyEdited ? ' is-only-edited' : '') + '" role="grid" aria-label="' + esc(sh.sheet + ' 시트 원본') + '"><thead><tr><th></th>' +
+        sh.cols.map(function (c, ci) { return '<th scope="col"' + (hot[ci] ? ' class="is-srccol"' : '') + '>' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        sh.rows.map(function (row, r) {
+          const starts = sh.tags.filter(function (g) { return g.r0 === r; });
+          let on0 = false;
+          const tds = row.map(function (v, c) {
+            const own = sh.owners[r + ',' + c] || [], key = own.length ? own[0].key : '';
+            const mine = own.some(function (o) { return !!sel && sel.t === o.t && sel.key === o.key; });
+            const addr = srcAddr(sh, r, c);
+            const on = mine && (main === '' || addr === main), part = mine && !on;
+            const here = at && at.s === si && at.r === r && at.c === c;
+            if (mine) on0 = true;
+            const tags = starts.filter(function (g) { return g.c0 === c; }).map(function (g) { return g.ref; });
+            const text = bw.srcKind(v) === 'text';
+            const cls = [];
+            if (text) cls.push('is-text');
+            if (on) cls.push('is-src'); else if (part) cls.push('is-part'); else if (here) cls.push('is-at');
+            if (own.some(edited)) cls.push('is-edsrc');
+            const label = addr + ' ' + str(v) + (own.length ? ', 이사회 자료에 쓰는 칸 ' + own.length + '개' : ', 쓰지 않는 칸') + (own.some(edited) ? ', 이사회 쪽 수정됨' : '');
+            return '<td data-st="' + esc(own.length ? own[0].t : cover(r, c)) + '"' + (key ? ' data-key="' + esc(key) + '"' : '') +
+              (own.length > 1 ? ' data-own="' + esc(own.map(function (o) { return o.t + '|' + o.key; }).join(' ')) + '" data-n="' + own.length + '"' : '') +
+              (tags.length ? ' data-tstart="' + esc(tags.join(' ')) + '"' : '') + (cls.length ? ' class="' + cls.join(' ') + '"' : '') +
+              (text ? ' title="' + esc(str(v)) + '"' : '') + ' data-s="' + si + '" data-r="' + r + '" data-c="' + c + '" data-a="' + esc(addr) + '"' +
+              ' role="gridcell" tabindex="' + (rove && rove.s === si && rove.r === r && rove.c === c ? '0' : '-1') + '" aria-selected="' + (!!here) + '" aria-label="' + esc(label) + '">' + esc(v) + '</td>';
+          }).join('');
+          return '<tr><th scope="row"' + (on0 ? ' class="is-srcrow"' : '') + '>' + starts.map(function (g) {
+            return '<span class="bd-w-srctag" aria-label="' + esc(g.label + ' 표 시작') + '">' + esc(g.label) + '</span>';
+          }).join('') + (sh.first_row + r) + '</th>' + tds + '</tr>';
+        }).join('') + '</tbody></table>';
+    }).join('');
+    return '<div id="bd-w-srcbody" tabindex="0" role="region" aria-label="수익성 분석표 원본, 방향키로 칸을 옮깁니다">' + parts + '</div>';
+  };
+  // 편집 영역(고른 원본 칸 기준, 위에서 아래로)
+  bw.popEditHtml = function (ws, ui) {
+    const p = ui.pop || {}, sheets = bw.mergeSources(ws);
+    const guide = '<p class="bd-src-guide">엑셀 파일은 바뀌지 않습니다. 고친 값은 이사회 자료에만 들어갑니다.</p>';
+    const note = '<p class="bd-src-note' + (p.err ? ' bd-err' : '') + '" id="bd-src-note" role="' + (p.err ? 'alert' : 'status') + '">' + esc(p.note || '') + '</p>';
+    if (!p.at) return guide + '<p class="bd-w-hint">원본 표에서 칸을 고르면 이사회 자료에 쓰는 값을 여기서 고칠 수 있습니다.</p>' + note;
+    const sh = sheets[p.at.s], v = sh ? str(sh.rows[p.at.r][p.at.c]) : '', addr = sh ? srcAddr(sh, p.at.r, p.at.c) : '';
+    const cands = bw.popCands(sheets, p.at).filter(function (o) { return !!bw.selected(ws, o); });
+    const s = bw.selected(ws, ui.sel);
+    let h = guide + '<div class="bd-src-cell mono">' + esc((sh ? sh.sheet + ' 시트 ' : '') + addr + ' · 표시 ' + (v === '' ? '(빈 칸)' : v)) +
+      (s && s.c.src && cleanRef(s.c.src.cell) === addr && s.c.src.raw != null && s.c.src.rounded === true ? esc(' · 원래 값 ' + s.c.src.raw) : '') + '</div>';
+    if (!cands.length || !s) return h + '<p class="bd-w-hint">이 칸은 이사회 자료에 쓰지 않습니다.</p>' + note;
+    const row = function (o) {
+      const x = bw.selected(ws, o), i = bw.cellInfo(x.t, x.c), on = ui.sel.t === o.t && ui.sel.key === o.key;
+      const name = (x.t.mapping ? '(' + x.t.mapping + ') ' : '') + bw.pathText(x.c, x.t);
+      const val = '<span class="bd-src-val mono">' + esc(x.c.value === '' ? '빈 칸' : x.c.value + (x.c.convert && x.c.convert.unit_to ? ' ' + x.c.convert.unit_to : '')) + '</span>' +
+        (i.edited ? '<span class="bd-w-chip is-warn">수정됨' + (i.hasOrig ? ' · 원본 ' + esc(x.c.orig) : '') + '</span>' : '');
+      return cands.length > 1
+        ? '<label class="bd-src-cand' + (on ? ' is-on' : '') + '"><input type="radio" name="bd-src-cand" data-w="srccand" data-v="' + esc(o.t + '|' + o.key) + '"' + (on ? ' checked' : '') + '> <span>' + esc(name) + '</span>' + val + '</label>'
+        : '<div class="bd-src-cand is-on"><span>' + esc(name) + '</span>' + val + '</div>';
+    };
+    h += '<div class="bd-src-owners" role="' + (cands.length > 1 ? 'radiogroup' : 'group') + '" aria-label="이 칸을 쓰는 이사회 칸"><div class="bd-src-sub">이 칸을 쓰는 이사회 칸 ' + cands.length + '개</div>' + cands.map(row).join('') + '</div>';
+    // 계산(합산·환산) — 구성 칸 주소는 누르면 원본 표에서 그 칸으로 이동한다
+    const L = bw.infoLines(s.t, s.c);
+    const calc = L.filter(function (l) { return l.k === 'calc'; });
+    const partCells = (s.c.parts || []).filter(function (q) { return q.cell !== ''; });
+    if (partCells.length > 1) {
+      h += '<div class="bd-w-calc">구성 칸 ' + partCells.length + '개: ' + partCells.slice(0, 12).map(function (q) {
+        return '<button type="button" class="link-btn mono" data-w="srcpart" data-v="' + esc(cleanRef(q.cell)) + '">' + esc(q.cell) + '</button>';
+      }).join(' ') + (partCells.length > 12 ? ' 외 ' + (partCells.length - 12) + '칸' : '') + '</div>';
+    }
+    calc.forEach(function (l) { h += '<div class="bd-w-calc' + (l.mono ? ' mono' : '') + '">' + esc(l.text) + '</div>'; });
+    const unit = s.c.convert && s.c.convert.unit_to ? ' (' + s.c.convert.unit_to + ')' : '';
+    const i0 = bw.cellInfo(s.t, s.c);
+    h += '<label class="bd-src-lab" for="bd-src-in">이사회 자료에 넣을 값' + esc(unit) + '</label>' +
+      '<input type="text" id="bd-src-in" class="bd-w-in" maxlength="' + MAX_CELL + '" value="' + esc(bw.popInputText(ws, ui)) + '"' + (p.err ? ' aria-invalid="true"' : '') + ' aria-describedby="bd-src-note">';
+    if (i0.edited && i0.hasOrig) h += '<div class="bd-src-sub">수정 사유(선택)</div>' + bw.whyHtml(s.c);
+    h += '<div class="bd-src-foot"><div class="bd-src-btns"><button type="button" class="bd-src-apply" data-w="srcapply">적용</button>' +
+      (i0.edited ? '<button type="button" data-w="srcrevert">원본 값으로</button>' : '') +
+      '<button type="button" data-w="srccancel">취소</button></div>' + note + '</div>';
+    return h;
+  };
+  // 이사회 칸 이름(머리글 제외 표 제목 + 행·열): '5. 수익성 분석 › 명목가치 › 총기대수익'
+  bw.pathText = function (c, t) { return str(c.label || t.title).replace(/ · /g, ' › '); };
+  bw.popHtml = function (ws, ui) {
+    const p = ui.pop || {}, sheets = bw.mergeSources(ws), sel = p.at ? ui.sel : null, n = bw.srcEditedCount(ws);
     const jumps = [];
     sheets.forEach(function (sh) {
       sh.tags.forEach(function (tg) {
@@ -1120,63 +1287,33 @@
           (sel && sel.t === tg.ref ? ' aria-current="true"' : '') + '>' + esc(tg.label) + '</button>');
       });
     });
-    const head = '<div class="bd-w-srchead"><div class="bd-w-srcrow">' + name + '<span class="bd-w-srcbtns">' +
-      '<button type="button" data-w="srcwide" aria-pressed="' + !!ui.wide + '">넓게 보기</button>' + panelBtn + '</span></div>' +
-      '<div class="bd-w-srcrow bd-w-srcjumps" role="group" aria-label="원본 표로 이동">' + jumps.join('') +
-      '<button type="button" data-w="srcsel"' + (bw.srcHasSel(sheets, sel) ? '' : ' disabled') + '>선택 칸으로</button></div></div>';
-    const parts = sheets.map(function (sh) {
-      const cover = function (r, c) {
-        for (let i = 0; i < sh.tags.length; i++) { const g = sh.tags[i]; if (r >= g.r0 && r <= g.r1 && c >= g.c0 && c <= g.c1) return g.ref; }
-        return sh.tags[0].ref;
-      };
-      const hot = selCols(sh, sel);
-      return '<div class="bd-w-srccap">' + esc(sh.sheet + ' 시트 · ' + sh.range) + '</div>' +
-        '<table class="bd-w-srctbl" role="table" aria-label="' + esc(sh.sheet + ' 시트 원본') + '"><thead><tr><th></th>' +
-        sh.cols.map(function (c, ci) { return '<th scope="col"' + (hot[ci] ? ' class="is-srccol"' : '') + '>' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
-        sh.rows.map(function (row, r) {
-          const starts = sh.tags.filter(function (g) { return g.r0 === r; });
-          let on0 = false;
-          const tds = row.map(function (v, c) {
-            const own = sh.owners[r + ',' + c] || [], key = own.length ? own[0].key : '';
-            const on = own.some(function (o) { return !!sel && sel.t === o.t && sel.key === o.key; });
-            if (on) on0 = true;
-            const here = starts.filter(function (g) { return g.c0 === c; }).map(function (g) { return g.ref; });
-            const text = bw.srcKind(v) === 'text';
-            const cls = (text ? 'is-text' : '') + (on ? (text ? ' ' : '') + 'is-src' : '');
-            return '<td data-st="' + esc(own.length ? own[0].t : cover(r, c)) + '"' + (key ? ' data-key="' + esc(key) + '"' : '') +
-              (own.length > 1 ? ' data-own="' + esc(own.map(function (o) { return o.t + '|' + o.key; }).join(' ')) + '"' : '') +
-              (here.length ? ' data-tstart="' + esc(here.join(' ')) + '"' : '') + (cls ? ' class="' + cls + '"' : '') +
-              (text ? ' title="' + esc(str(v)) + '"' : '') + '>' + esc(v) + '</td>';
-          }).join('');
-          return '<tr><th scope="row"' + (on0 ? ' class="is-srcrow"' : '') + '>' + starts.map(function (g) {
-            return '<span class="bd-w-srctag" aria-label="' + esc(g.label + ' 표 시작') + '">' + esc(g.label) + '</span>';
-          }).join('') + (sh.first_row + r) + '</th>' + tds + '</tr>';
-        }).join('') + '</tbody></table>';
-    }).join('');
-    return '<aside id="bd-w-src" class="bd-w-src" aria-label="엑셀 원본">' + head +
-      '<div id="bd-w-srcbody" tabindex="0" role="region" aria-label="엑셀 원본 표, 방향키로 스크롤">' + parts + '</div></aside>';
+    const ranges = sheets.map(function (sh) { return sh.sheet + ' · ' + sh.range; }).join(' / ');
+    return '<div class="modal-box bd-src-box" role="dialog" aria-modal="true" aria-labelledby="bd-src-title">' +
+      '<header class="bd-src-head"><h3 id="bd-src-title" title="' + esc(ws.fileName) + '">수익성 분석표 · ' + esc(ws.fileName) + '</h3>' +
+      '<span class="bd-src-range mono">' + esc(ranges) + '</span>' +
+      '<span class="bd-src-jumps" role="group" aria-label="원본 표로 이동">' + jumps.join('') + '</span>' +
+      '<span class="bd-src-btns"><button type="button" data-w="srcedited" aria-pressed="' + !!p.onlyEdited + '"' + (n > 0 ? '' : ' disabled') + '>고친 칸만 표시 ' + n + '</button>' +
+      '<button type="button" data-w="srcclose">닫기</button></span></header>' +
+      '<div class="bd-src-main">' + bw.srcBodyHtml(ws, ui) + '<aside class="bd-src-edit" id="bd-src-edit" aria-label="이사회 칸 고치기">' + bw.popEditHtml(ws, ui) + '</aside></div></div>';
   };
   bw.statusHtml = function (ws, ui) {
     const sel = bw.selected(ws, ui.sel);
     let h = '';
     if (sel && ui.ask && ui.ask.t === sel.t.ref && ui.ask.key === sel.c.key) return bw.askHtml(sel.t, sel.c);
     if (ui.edit) return '<span class="bd-w-hint">값을 고치는 중입니다. Enter로 확정하고 Esc로 취소합니다.</span>';
-    if (!sel) {
-      h = '<span class="bd-w-hint">표의 칸을 고르면 엑셀 원본 위치와 값이 여기에 나옵니다.</span>';
-    } else {
-      const L = bw.infoLines(sel.t, sel.c), i = bw.cellInfo(sel.t, sel.c);
-      const calc = function (l) { return l.k === 'part' || l.k === 'calc'; };
-      const main = L.filter(function (l) { return l.k !== 'note' && !calc(l); }), notes = L.filter(function (l) { return l.k === 'note'; });
-      const cmp = bw.compareLine(sel.t, sel.c);
-      h = (cmp ? '<div class="bd-w-cmp mono">' + esc(cmp) + '</div>' : '') + '<span class="bd-w-main">' + main.map(function (l) { return '<span' + (l.mono ? ' class="mono"' : '') + '>' + esc(l.text) + '</span>'; })
-        .join('<span class="bd-w-sep" aria-hidden="true">│</span>') + '</span>';
-      const calcHtml = L.filter(calc).map(function (l) { return '<div class="bd-w-calc' + (l.mono ? ' mono' : '') + '">' + esc(l.text) + '</div>'; }).join('');
-      if (i.edited && i.hasOrig) h += bw.whyHtml(sel.c);
-      if (i.edited) h += '<button type="button" data-w="revert">원본 값으로</button>';
-      h += '<button type="button" data-w="check" aria-pressed="' + !!sel.c.checked + '"' + (i.unreadable && !sel.c.checked ? ' disabled' : '') + '>확인</button>';
-      h += calcHtml;
-      if (notes.length) h += '<div class="bd-w-notes">' + notes.map(function (l) { return '<div>' + esc(l.text) + '</div>'; }).join('') + '</div>';
+    if (!sel || ui.pop) return '';   // 칸을 고르지 않았거나 팝업이 열려 있으면 상태 줄은 숨는다(안내 문구 없음)
+    // 한 줄: {표 › 행 › 열} │ 대조 줄 │ [분석표에서 보기] │ (고친 칸이면) 사유 + [원본 값으로]
+    // 계산 줄·부분 칸 목록·경고 문구는 툴팁(#bd-tip)과 팝업 편집 영역에만 둔다.
+    const i = bw.cellInfo(sel.t, sel.c), cmp = bw.compareLine(sel.t, sel.c);
+    h = '<span class="bd-w-path">' + esc(bw.pathText(sel.c, sel.t)) + '</span>' +
+      (cmp ? '<span class="bd-w-sep" aria-hidden="true">│</span><span class="bd-w-cmp mono">' + esc(cmp) + '</span>' : '');
+    if (i.unreadable) {
+      const nt = bw.infoLines(sel.t, sel.c).filter(function (l) { return l.k === 'note'; })[0];
+      if (nt) h += '<span class="bd-w-note">' + esc(nt.text) + '</span>';
     }
+    if (sel.c.src) h += '<button type="button" data-w="srcopen" data-v="*">분석표에서 보기</button>';
+    if (i.edited && i.hasOrig) h += bw.whyHtml(sel.c);
+    if (i.edited) h += '<button type="button" data-w="revert">원본 값으로</button>';
     return h;   // 알림 문장(ui.live)은 writeHtml의 고정 알림 줄(#bd-w-live)에만 둔다
   };
   bw.writeHtml = function (ws, ui) {
@@ -1188,9 +1325,9 @@
     if (ws) {
       const rv = bw.roveKey(ws, ui.sel);
       h += bw.summaryHtml(ws) + bw.filterHtml(ws) + bw.reviewHtml(ws) +
-        '<div class="' + bw.gridClass(ui) + '"><div class="bd-w-tables" id="bd-w-tables">' +
-        ws.tables.map(function (t) { return bw.cardHtml(ws, t, ui, rv); }).join('') + '</div>' + bw.sourceHtml(ws, ui) + '</div>' +
-        '<div id="bd-w-status" class="bd-w-status' + (ui.sel ? ' is-focusing' : '') + '"><div id="bd-w-statusbody" class="bd-w-statusbody">' + bw.statusHtml(ws, ui) + '</div>' +
+        '<div class="bd-w-tables' + (ui.sel ? ' is-focusing' : '') + '" id="bd-w-tables">' +
+        ws.tables.map(function (t) { return bw.cardHtml(ws, t, ui, rv); }).join('') + '</div>' +
+        '<div id="bd-w-status" class="bd-w-status' + (bw.statusIdle(ws, ui) ? ' is-idle' : ' is-focusing') + '"><div id="bd-w-statusbody" class="bd-w-statusbody">' + bw.statusHtml(ws, ui) + '</div>' +
         '<div id="bd-w-live" class="' + bw.liveClass(ws, ui) + '" role="status" aria-live="polite">' + esc(ui.live) + '</div></div>';
     }
     return h + '</div>';
@@ -1256,10 +1393,11 @@
     let unchecked = 0, sumBad = 0, review = 0;
     tables.forEach(function (t) {
       if (t.needsReview) review++;
-      t.order.forEach(function (k) { const c = t.cells[k]; if (!c.checked) unchecked++; if (bw.cellInfo(t, c).sumBad) sumBad++; });
+      if (t.order.length && !t.checked) unchecked++;
+      t.order.forEach(function (k) { if (bw.cellInfo(t, t.cells[k]).sumBad) sumBad++; });
     });
     const out = [];
-    if (unchecked) out.push('확인하지 않은 칸 ' + unchecked + '개');
+    if (unchecked) out.push('확인하지 않은 표 ' + unchecked + '개');
     if (sumBad) out.push('합계 차이 ' + sumBad + '곳');
     if (review) out.push('머리글 주의 표 ' + review + '개');
     return out;
@@ -1311,8 +1449,16 @@
   };
   bw.copyBtnHtml = function (t, ui) {
     const n = ui.copyNote && ui.copyNote.scope === t.ref ? ui.copyNote : null;
-    return '<span class="bd-w-copy"><button type="button" data-w="copy1" data-v="' + esc(t.ref) + '">이 표 복사</button>' +
-      (n ? '<span class="bd-w-note' + (n.err ? ' bd-err' : '') + '" role="' + (n.err ? 'alert' : 'status') + '">' + esc(n.text) + '</span>' : '') + '</span>';
+    // 카드 머리 오른쪽 순서: [원본 보기] → [이 표 복사] → [이 표 확인](마지막 행동이라 맨 끝)
+    return '<span class="bd-w-copy">' +
+      (n ? '<span class="bd-w-note' + (n.err ? ' bd-err' : '') + '" role="' + (n.err ? 'alert' : 'status') + '">' + esc(n.text) + '</span>' : '') +
+      (t.grid ? '<button type="button" data-w="srcopen" data-v="' + esc(t.ref) + '">원본 보기</button>' : '') +
+      '<button type="button" data-w="copy1" data-v="' + esc(t.ref) + '">이 표 복사</button>' + bw.tcheckHtml(t) + '</span>';
+  };
+  bw.tcheckHtml = function (t) {
+    if (!t.order.length) return '';
+    return (t.checked ? '<span class="bd-w-chip is-done">확인함 · ' + esc((t.checked.who ? t.checked.who + ' ' : '') + t.checked.at) + '</span>' : '') +
+      '<label class="bd-w-tcheck' + (t.checked ? ' is-on' : '') + '"><input type="checkbox" data-w="tcheck" data-v="' + esc(t.ref) + '"' + (t.checked ? ' checked' : '') + '> 이 표 확인 <span class="bd-w-tn">' + t.order.length + '칸</span></label>';
   };
   bw.copyAllNoteHtml = function (ui) {
     const n = ui.copyNote && ui.copyNote.scope === 'all' ? ui.copyNote : null;
@@ -1331,7 +1477,7 @@
     if (x.sel) return 'sel';
     return 'none';
   };
-  bw.tipAllowed = function (ui) { return !ui.leave && !ui.edit && !ui.ask; };
+  bw.tipAllowed = function (ui) { return !ui.leave && !ui.edit && !ui.ask && !ui.pop; };
   // 칸 위 4px·왼쪽 정렬. 위 공간이 작성 줄+8px보다 좁으면 아래, 가장자리 8px 안, 원본 패널(limitRight)은 가리지 않는다.
   // coverTop(선택): 아래쪽을 덮는 고정 패널(좁은 화면의 원본 패널·상태 줄)의 위쪽 y. 없으면 뷰포트 아래.
   bw.tipPlace = function (cell, tip, vp, barBottom, limitRight, coverTop) {
@@ -1403,34 +1549,24 @@
       const bar = $('bd-writebar'), r = $('bd-root');
       if (bar && r) r.style.setProperty('--bd-bar-h', bar.offsetHeight + 'px');
     }
-    // 원본 패널 높이 = 뷰포트 − 패널 시작 y − 하단 상태 줄 높이 − 16px (CSS 변수로 넘긴다). 좁으면 세로 배치.
-    function measureSrc() {
-      const r = $('bd-root'), b = bodyEl();
-      if (!r || !b) return;
-      const src = $('bd-w-src'), st = $('bd-w-status'), bar = $('bd-writebar'), grid = b.querySelector('.bd-w-grid');
-      if (st) r.style.setProperty('--bd-status-h', st.offsetHeight + 'px');
-      // 기준은 작성 바 bottom(뷰포트 좌표)과 격자 top(패널 자리) — 패널 자신의 top 은 패널 높이에 따라 움직여 되먹임이 생긴다(원본 패널이 위로 기어오름).
-      const anchor = grid || src;
-      if (src && anchor) r.style.setProperty('--bd-scroll-top', bw.srcScrollTop(bar ? bar.getBoundingClientRect().bottom : 0, anchor.getBoundingClientRect().top) + 'px');
-      if (grid) grid.classList.toggle('is-stack', bw.stackMode(grid.clientWidth, ui.wide, ui.panelOpen));
-      r.classList.toggle('bd-stacked', !!((grid && grid.classList.contains('is-stack')) || window.innerWidth <= 900));   // 상태 줄이 위의 원본 패널과 붙는 도크 모양(CSS)
-      // 아래쪽 고정 패널(원본 패널이 아래로 내려온 좁은 화면 + 상태 줄)이 뷰포트 아래에서 차지하는 높이: 칸의 scroll-margin-bottom 이 쓴다.
-      const vh = window.innerHeight || 0, tops = [];
-      if (st) tops.push(st.getBoundingClientRect().top);
-      if (src && ((grid && grid.classList.contains('is-stack')) || window.innerWidth <= 900)) tops.push(src.getBoundingClientRect().top);
-      if (tops.length) r.style.setProperty('--bd-occl-b', Math.max(0, Math.round(vh - Math.min.apply(null, tops))) + 'px');
+    // 아래 고정 상태 줄이 뷰포트 아래에서 차지하는 높이를 CSS 변수로 넘긴다(칸의 scroll-margin-bottom 이 쓴다). 숨은(is-idle) 상태 줄은 0.
+    function statusShown() { const st = $('bd-w-status'); return !!st && !st.classList.contains('is-idle'); }
+    function measureStatus() {
+      const r = $('bd-root'), st = $('bd-w-status');
+      if (!r) return;
+      const h = (st && statusShown()) ? Math.max(0, Math.round((window.innerHeight || 0) - st.getBoundingClientRect().top)) : 0;
+      r.style.setProperty('--bd-occl-b', h + 'px');
     }
-    // 칸이 작성 바 아래 ~ 아래쪽 고정 패널 위 사이에 오도록 스크롤한다(WCAG 2.4.11 가려지지 않는 포커스).
+    // 칸이 작성 바 아래 ~ 아래쪽 고정 상태 줄 위 사이에 오도록 스크롤한다(WCAG 2.4.11 가려지지 않는 포커스).
     function ensureVisible(td) {
       const sc = env.scroller();
       if (!td || !td.getBoundingClientRect || !sc) return;
-      const bar = $('bd-writebar'), src = $('bd-w-src'), st = $('bd-w-status'), cr = td.getBoundingClientRect();
+      const bar = $('bd-writebar'), st = $('bd-w-status'), cr = td.getBoundingClientRect();
       const covers = [];
-      [src, st].forEach(function (n) {
-        if (!n) return;
-        const q = n.getBoundingClientRect();
+      if (st && statusShown()) {
+        const q = st.getBoundingClientRect();
         covers.push({ top: q.top, left: q.left, right: q.right });
-      });
+      }
       const band = bw.visibleBand({ vpH: window.innerHeight, barBottom: bar ? bar.getBoundingClientRect().bottom : 0, covers: covers, cell: { left: cr.left, right: cr.right } });
       const d = bw.scrollDelta({ top: cr.top, bottom: cr.bottom }, band);
       if (d) sc.scrollTop += d;
@@ -1470,20 +1606,19 @@
       if (inp && ui.edit) ui.edit.text = inp.value;   // 다시 그려도 입력 중인 글자는 남긴다
       hideTip();
       const sc = env.scroller(), top = sc ? sc.scrollTop : 0;
-      const old = $('bd-w-srcbody'), st = old ? old.scrollTop : 0, sl = old ? old.scrollLeft : 0;
       b.innerHTML = bw.writeHtml(ws, ui);
       if (sc) sc.scrollTop = top;
       measureBar();
-      measureSrc();
+      measureStatus();
       markStuck();
-      const src = $('bd-w-srcbody');
-      if (src) { src.scrollTop = st; src.scrollLeft = sl; }
       focusTarget(focus);
     }
     function drawStatus() {
+      const st = $('bd-w-status');
+      if (st) { const idle = bw.statusIdle(ws, ui); st.classList.toggle('is-idle', idle); st.classList.toggle('is-focusing', !idle); }
       const n = $('bd-w-statusbody'); if (n) n.innerHTML = bw.statusHtml(ws, ui);
       const l = $('bd-w-live'); if (l) { l.textContent = ui.live || ''; l.className = bw.liveClass(ws, ui); }   // 알림 줄만 읽힌다(상태 줄 본문은 읽지 않는다)
-      measureSrc();   // 상태 줄 높이가 바뀌면 원본 패널 높이도 따라간다
+      measureStatus();   // 상태 줄이 나타나거나 사라지면 가려짐 여백도 따라간다
     }
 
     // 선택은 다시 그리지 않고 클래스만 바꾼다(포커스·스크롤 유지).
@@ -1495,42 +1630,15 @@
         l[i].setAttribute('aria-selected', on ? 'true' : 'false');
         if (s) l[i].tabIndex = on ? 0 : -1;
       }
-      const root = bodyEl(), src = root.querySelectorAll('td[data-st]');
-      const rows = root.querySelectorAll('th.is-srcrow');
-      for (let k = 0; k < rows.length; k++) rows[k].classList.remove('is-srcrow');
-      const cols = root.querySelectorAll('th.is-srccol');
-      for (let k2 = 0; k2 < cols.length; k2++) cols[k2].classList.remove('is-srccol');
-      let hit = null;
-      for (let j = 0; j < src.length; j++) {
-        const on = bw.ownsCell(src[j].getAttribute('data-own'), src[j].getAttribute('data-st'), src[j].getAttribute('data-key'), s);
-        src[j].classList.toggle('is-src', on);
-        if (on) {
-          if (!hit) hit = src[j];
-          const rh = src[j].parentNode && src[j].parentNode.firstElementChild;
-          if (rh) rh.classList.add('is-srcrow');
-          // 열 머리: 같은 표 안에서 이 칸과 같은 순번의 thead th
-          const tbl = src[j].closest ? src[j].closest('table') : null, hr = tbl && tbl.tHead && tbl.tHead.rows[0];
-          const ch = hr && hr.cells[src[j].cellIndex];
-          if (ch) ch.classList.add('is-srccol');
-        }
-      }
-      // 선택 스포트라이트: 선택이 있으면 표 영역·선택 칸이 든 카드·상태 줄에 표시, 해제하면 모두 뗀다.
-      const gr = root.querySelector('.bd-w-grid'), stt = $('bd-w-status'), cards = root.querySelectorAll('.bd-w-card');
+      // 선택 스포트라이트: 선택이 있으면 표 영역·선택 칸이 든 카드에 표시, 해제하면 모두 뗀다. 상태 줄은 선택이 있을 때만 보인다.
+      const root = bodyEl(), gr = $('bd-w-tables'), cards = root.querySelectorAll('.bd-w-card');
       if (gr) gr.classList.toggle('is-focusing', !!s);
-      if (stt) stt.classList.toggle('is-focusing', !!s);
       for (let q = 0; q < cards.length; q++) cards[q].classList.toggle('has-sel', !!s && cards[q].getAttribute('data-t') === s.t);
-      const jb = root.querySelectorAll('[data-w="srcjump"]');
-      for (let m = 0; m < jb.length; m++) {
-        if (s && jb[m].getAttribute('data-v') === s.t) jb[m].setAttribute('aria-current', 'true'); else jb[m].removeAttribute('aria-current');
-      }
-      const sb = root.querySelector('[data-w="srcsel"]');
-      if (sb) sb.disabled = !hit;
-      if (hit) scrollSrcTo(hit);
     }
     // 상태 줄 높이가 선택 때문에 달라지므로 측정 뒤 맞추고, 레이아웃이 끝난 다음 프레임에 한 번 더 맞춘다.
     function keepVisible(n) {
       if (!n) return;
-      bw.settleVisible({ measure: measureSrc, ensure: function () { ensureVisible(n); },
+      bw.settleVisible({ measure: measureStatus, ensure: function () { ensureVisible(n); },
         raf: typeof requestAnimationFrame === 'function' ? function (fn) { return requestAnimationFrame(fn); } : null, alive: function () { return active && n.isConnected; } });
     }
     // 작성 바가 붙은 뒤에만 위쪽 틈 띠(::before)를 보이게 한다(스크롤 0 에서는 위쪽 툴바를 덮지 않는다).
@@ -1581,15 +1689,12 @@
       if (tipFor && tipFor !== td) tipFor.removeAttribute('aria-describedby');
       const tip = tipNode();
       tip.innerHTML = bw.tipHtml(s.t, s.c);
-      const r = td.getBoundingClientRect(), bar = $('bd-writebar'), src = $('bd-w-src'), st = $('bd-w-status');
-      // 원본 패널이 칸 오른쪽 옆에 있을 때만 그 왼쪽 끝을 한계로 한다(좁은 화면에서 아래로 내려온 패널의 left 는 사이드바 쪽이라 한계로 쓰면 툴팁이 칸에서 멀어진다).
-      const beside = src && ui.panelOpen && src.getBoundingClientRect().left > r.left;
+      const r = td.getBoundingClientRect(), bar = $('bd-writebar'), st = $('bd-w-status');
       const covers = [];
-      if (st) covers.push(st.getBoundingClientRect().top);
-      if (src && ui.panelOpen && !beside) covers.push(src.getBoundingClientRect().top);
+      if (st && statusShown()) covers.push(st.getBoundingClientRect().top);
       const p = bw.tipPlace({ left: r.left, top: r.top, bottom: r.bottom }, { w: tip.offsetWidth, h: tip.offsetHeight },
         { w: window.innerWidth, h: window.innerHeight }, bar ? bar.getBoundingClientRect().bottom : 0,
-        beside ? src.getBoundingClientRect().left - 4 : 0, covers.length ? Math.min.apply(null, covers) : 0);
+        0, covers.length ? Math.min.apply(null, covers) : 0);
       tip.style.left = p.left + 'px'; tip.style.top = p.top + 'px';
       tip.classList.add('is-on');
       td.setAttribute('aria-describedby', 'bd-tip');
@@ -1683,18 +1788,19 @@
         draw({ id: 'bd-w-draft' });
       });
     }
-    function toggle(t, key) {
-      const before = bw.tally(ws), next = bw.toggleCheck(ws, t, key);
-      if (next === ws) { ui.live = '읽지 못한 칸은 값을 넣은 뒤에 확인할 수 있습니다.'; drawStatus(); return; }
+    // 표 하나의 확인을 켜고 끈다. 모든 표를 확인하면 자동으로 '검수 완료', 하나라도 풀면 해제(낭독 문구).
+    function toggleTable(ref) {
+      const before = bw.tally(ws), next = bw.toggleCheck(ws, ref, env.who(), bw.hhmm(env.now()));
+      if (next === ws) return;
       ws = next;
-      const after = bw.tally(ws);
-      ui.live = (after.m > 0 && after.n === after.m && before.n !== before.m) ? '모든 칸을 확인했습니다.' : '';
-      draw({ cell: true });
+      const a = bw.tally(ws), wasAll = before.tm > 0 && before.tn === before.tm, isAll = a.tm > 0 && a.tn === a.tm;
+      ui.live = (isAll && !wasAll) ? '모든 표를 확인해 검수 완료로 표시했습니다.' : (wasAll && !isAll ? '검수 완료를 해제했습니다.' : '');
+      draw({ w: 'tcheck', v: ref });
     }
     function finish(focusSel) {
       active = false; ++upTok;
       if (abortCtl) abortCtl.abort();
-      abortCtl = null; hideTip(); ws = null; formDoc = null; ui = freshUi();
+      abortCtl = null; hideTip(); closePop({ silent: true }); ws = null; formDoc = null; ui = freshUi();
       env.exit(focusSel);
     }
     function askEnd() {
@@ -1705,13 +1811,6 @@
     }
 
     // ── ② 수정 ──
-    function restorePanel() { if (ui.ask && ui.ask.reopen) ui.panelOpen = false; }   // 확인 줄이 잠시 펼친 원본은 취소 때 다시 접는다
-    function scrollSrcCenter() {
-      const s = ui.sel, l = bodyEl().querySelectorAll('td[data-st]');
-      for (let i = 0; i < l.length; i++) {
-        if (s && l[i].getAttribute('data-st') === s.t && l[i].getAttribute('data-key') === s.key && l[i].scrollIntoView) { l[i].scrollIntoView({ block: 'center' }); return; }
-      }
-    }
     function openEdit(t, key, seed) {
       const s = lookup(t, key);
       if (!s) return;
@@ -1726,9 +1825,8 @@
       if (!s || ui.edit) return;
       if (bw.needsAsk(s.t, s.c)) {
         ui.sel = { t: t, key: key };
-        ui.ask = { t: t, key: key, reopen: !ui.panelOpen }; ui.panelOpen = true;
+        ui.ask = { t: t, key: key };
         draw({ id: 'bd-w-ask-no' });
-        scrollSrcCenter();
         return;
       }
       openEdit(t, key, seed);
@@ -1741,8 +1839,7 @@
       const before = ws, r = bw.editCell(ws, e0.t, e0.key, inp.value);
       ui.edit = null; ws = r.ws;
       const msgs = [];
-      if (r.released === 'done') msgs.push('값이 바뀌어 ‘확인했음’을 해제했습니다.');
-      else if (r.released === 'cell') msgs.push('값이 바뀌어 이 칸의 확인 표시를 해제했습니다.');
+      if (r.released) msgs.push(bw.releaseText(r.released, findT(ws, e0.t)));
       bw.recheckLines(before, ws, e0.t, e0.key).forEach(function (m) { msgs.push(m); });
       ui.live = msgs.join(' ');
       let focus = { cell: true };
@@ -1787,6 +1884,225 @@
       });
     }
 
+    // ── 수익성 분석표 팝업(보기 + 이사회 칸 고치기) ──
+    // 팝업 노드는 bd-body 밖(문서 끝)에 한 개 둔다 — 작성 화면이 다시 그려져도 팝업의 스크롤·입력이 살아 있다.
+    let popEl = null;
+    function popNode() {
+      if (popEl && popEl.parentNode) return popEl;
+      popEl = document.getElementById('bd-src-pop');
+      if (!popEl) {
+        popEl = document.createElement('div');
+        popEl.id = 'bd-src-pop'; popEl.className = 'modal-overlay bd-src-ov'; popEl.style.display = 'none';
+        document.body.appendChild(popEl);
+      }
+      if (!popEl.getAttribute('data-wired')) {
+        popEl.setAttribute('data-wired', '1');
+        popEl.addEventListener('click', onPopClick);
+        popEl.addEventListener('keydown', onPopKey);
+        popEl.addEventListener('input', onPopInput);
+      }
+      return popEl;
+    }
+    function srcCell(at) {
+      const b = $('bd-w-srcbody');
+      return (b && at) ? b.querySelector('td[data-s="' + at.s + '"][data-r="' + at.r + '"][data-c="' + at.c + '"]') : null;
+    }
+    function popFocus(f) {
+      if (!f) return;
+      let n = null;
+      if (f.cell) { n = srcCell(f.cell); if (n) { n.focus({ preventScroll: true }); scrollSrcTo(n); return; } }
+      else if (f.id) n = $(f.id);
+      else if (f.body) n = $('bd-w-srcbody');
+      else if (f.w) {
+        const l = popNode().querySelectorAll('[data-w]');
+        for (let i = 0; i < l.length; i++) if (l[i].getAttribute('data-w') === f.w && (f.v == null || l[i].getAttribute('data-v') === f.v)) { n = l[i]; break; }
+      }
+      if (n && !n.disabled && n.focus) n.focus();
+    }
+    // keep: 쓰던 입력 글자를 남긴 채 다시 그린다. 스크롤(원본 표·편집 영역)은 항상 지킨다.
+    function drawPop(focus, keep) {
+      if (!ui.pop || !ws) return;
+      const n = popNode();
+      const inp = $('bd-src-in'); if (keep && inp) ui.pop.text = inp.value;
+      const old = $('bd-w-srcbody'), st = old ? old.scrollTop : 0, sl = old ? old.scrollLeft : 0;
+      const ed = $('bd-src-edit'), es = ed ? ed.scrollTop : 0;
+      n.innerHTML = bw.popHtml(ws, ui);
+      const nb = $('bd-w-srcbody'); if (nb) { nb.scrollTop = st; nb.scrollLeft = sl; }
+      const ne = $('bd-src-edit'); if (ne) ne.scrollTop = es;
+      // 낭독 영역(#bd-src-note)은 새로 만든 요소의 처음 내용이 낭독되지 않으므로, 빈 요소로 먼저 두고 글자만 채워 갱신으로 읽히게 한다
+      const nt = $('bd-src-note');
+      if (nt && nt.textContent) {
+        const msg = nt.textContent; nt.textContent = '';
+        setTimeout(function () { const cur = $('bd-src-note'); if (cur === nt && ui.pop) nt.textContent = msg; }, 30);
+      }
+      popFocus(focus);
+    }
+    function setInert(on) {
+      const b = bodyEl();
+      if (!b) return;
+      if (on) { b.setAttribute('inert', ''); b.setAttribute('aria-hidden', 'true'); } else { b.removeAttribute('inert'); b.removeAttribute('aria-hidden'); }
+    }
+    // ret: 닫을 때 포커스를 돌려줄 버튼 {w, v}. ref: 카드의 [원본 보기]이면 그 표 ref(그 표 위치로 연다).
+    function openPop(ret, ref) {
+      if (!ws || ui.pop || ui.edit || ui.ask || ui.leave) return;
+      const sheets = bw.mergeSources(ws);
+      if (!sheets.length) return;
+      hideTip();
+      ui.pop = { at: null, text: null, onlyEdited: false, note: '', err: false, last: null, ret: ret || null };
+      if (ui.sel && (ref == null || ui.sel.t === ref)) ui.pop.at = bw.popAtFor(sheets, ws, ui.sel);
+      setInert(true);
+      drawStatus();   // 상태 줄은 팝업이 열려 있는 동안 숨는다
+      const n = popNode();
+      n.style.display = 'block';
+      drawPop(null);
+      const at = ui.pop.at;
+      if (at && srcCell(at)) { const td = srcCell(at); td.focus({ preventScroll: true }); scrollSrcTo(td); }
+      else { if (ref != null) jumpSrc(ref); popFocus({ body: true }); }
+    }
+    // silent: 작성을 끝내거나 되돌릴 때 — 화면을 다시 그리지 않는다.
+    function closePop(o) {
+      if (!ui.pop) return;
+      const p = ui.pop;
+      ui.pop = null;
+      if (popEl) { popEl.style.display = 'none'; popEl.innerHTML = ''; }
+      setInert(false);
+      if (o && o.silent) return;
+      // 팝업에서 마지막으로 고친 이사회 칸을 작성본에서 선택하고 가운데로 스크롤한다.
+      if (p.last && lookup(p.last.t, p.last.key)) { ui.sel = { t: p.last.t, key: p.last.key }; ui.live = ''; }
+      draw(null);
+      focusTarget(p.ret);
+      if (p.last) { const td = findCell(p.last.t, p.last.key); if (td && td.scrollIntoView) td.scrollIntoView({ block: 'center' }); }
+    }
+    function popPick(at) {
+      bw.popSelect(ws, ui, bw.mergeSources(ws), at);
+      drawPop({ cell: at });
+    }
+    function popApply() {
+      const inp = $('bd-src-in');
+      if (!ui.pop || !inp || !ui.sel) return;
+      const r = bw.popCommit(ws, ui.sel, inp.value);
+      if (r.error) { ui.pop.text = inp.value; ui.pop.note = r.note; ui.pop.err = true; drawPop({ id: 'bd-src-in' }); return; }
+      ws = r.ws; ui.pop.text = null; ui.pop.note = r.note; ui.pop.err = false;
+      if (r.changed) ui.pop.last = { t: ui.sel.t, key: ui.sel.key };
+      drawPop({ id: 'bd-src-in' });
+    }
+    function popRevert() {
+      const s = ui.sel && lookup(ui.sel.t, ui.sel.key);
+      if (!ui.pop || !s) return;
+      const r = bw.popCommit(ws, ui.sel, s.c.orig);
+      ws = r.ws; ui.pop.text = null; ui.pop.note = r.note; ui.pop.err = r.error;
+      if (r.changed) ui.pop.last = { t: ui.sel.t, key: ui.sel.key };
+      drawPop({ id: 'bd-src-in' });
+    }
+    // 입력 취소(Esc): 쓰던 글자를 버리고 현재 값으로 되돌린다. 팝업은 열어 둔다.
+    function popCancelInput() {
+      const s = ui.sel && lookup(ui.sel.t, ui.sel.key), inp = $('bd-src-in');
+      if (!ui.pop) return;
+      ui.pop.text = null; ui.pop.note = ''; ui.pop.err = false;
+      if (inp && s) { inp.value = s.c.value; inp.removeAttribute('aria-invalid'); }
+      const nt = $('bd-src-note'); if (nt) { nt.textContent = ''; nt.className = 'bd-src-note'; nt.setAttribute('role', 'status'); }
+    }
+    function popAct(btn) {
+      const a = btn.getAttribute('data-w'), v = btn.getAttribute('data-v');
+      switch (a) {
+        case 'srcclose': closePop(); break;
+        case 'srcjump': jumpSrc(v); break;
+        case 'srcedited': {
+          ui.pop.onlyEdited = !ui.pop.onlyEdited;
+          drawPop({ w: 'srcedited' }, true);
+          const hit = ui.pop.onlyEdited ? $('bd-w-srcbody').querySelector('td.is-edsrc') : null;
+          if (hit) scrollSrcTo(hit);
+          break;
+        }
+        case 'srccand': {
+          const k = (v || '').split('|');
+          ui.sel = { t: k[0], key: k.slice(1).join('|') }; ui.pop.text = null; ui.pop.note = ''; ui.pop.err = false;
+          drawPop({ w: 'srccand', v: v });
+          break;
+        }
+        case 'srcpart': {
+          const b = $('bd-w-srcbody'), td = b && b.querySelector('td[data-a="' + v + '"]');
+          if (td) { td.focus({ preventScroll: true }); scrollSrcTo(td); }
+          break;
+        }
+        case 'srcapply': popApply(); break;
+        case 'srcrevert': popRevert(); break;
+        case 'srccancel': ui.pop.text = null; ui.pop.note = ''; ui.pop.err = false; drawPop({ id: 'bd-src-in' }); break;
+        case 'why': {
+          const s = ui.sel && lookup(ui.sel.t, ui.sel.key);
+          if (!s) break;
+          ws = bw.setWhy(ws, ui.sel.t, ui.sel.key, v, s.c.memo);
+          drawPop(v === 'OTHER' ? { id: 'bd-w-memo' } : { w: 'why', v: v }, true);
+          break;
+        }
+        default: break;
+      }
+    }
+    function onPopClick(e) {
+      if (!active || !ui.pop) return;
+      const t = e.target;
+      if (t === popEl) { closePop(); return; }   // 배경을 눌렀을 때만(상자 안쪽은 닫지 않는다)
+      const btn = t.closest ? t.closest('[data-w]') : null;
+      if (btn && !btn.disabled) { popAct(btn); return; }
+      const td = t.closest ? t.closest('td[data-s]') : null;
+      if (td) popPick({ s: Number(td.getAttribute('data-s')), r: Number(td.getAttribute('data-r')), c: Number(td.getAttribute('data-c')) });
+    }
+    function onPopInput(e) {
+      if (!active || !ui.pop || !e.target || e.target.id !== 'bd-w-memo' || !ui.sel) return;
+      ws = bw.setWhy(ws, ui.sel.t, ui.sel.key, 'OTHER', e.target.value);   // 다시 그리지 않는다(포커스 유지)
+      const n = e.target.value.length, cnt = $('bd-w-memocnt'), hint = $('bd-w-memohint');
+      if (cnt) { cnt.textContent = n + '/100'; cnt.hidden = n < 80; }
+      if (hint) hint.hidden = e.target.value.trim() !== '';
+    }
+    // 원본 표 안: 방향키로 칸 이동(선택이 따라온다), Home/End 는 행의 처음/끝, Enter 는 편집 영역으로.
+    function onPopKey(e) {
+      if (!active || !ui.pop || e.key === 'Escape') return;
+      const tg = e.target;
+      if (tg && tg.id === 'bd-src-in') { if (e.key === 'Enter') { e.preventDefault(); popApply(); } return; }
+      if (tg && tg.id === 'bd-w-memo') { if (e.key === 'Enter') { e.preventDefault(); popFocus({ id: 'bd-src-in' }); } return; }
+      if (tg && tg.getAttribute && tg.getAttribute('data-w') === 'why' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+        e.preventDefault();
+        const ids = WHY.map(function (w) { return w.id; }), cur = ids.indexOf(tg.getAttribute('data-v'));
+        const nx = ids[(cur + (e.key === 'ArrowRight' ? 1 : ids.length - 1)) % ids.length];
+        const s0 = ui.sel && lookup(ui.sel.t, ui.sel.key);
+        if (s0) { ws = bw.setWhy(ws, ui.sel.t, ui.sel.key, nx, s0.c.memo); drawPop({ w: 'why', v: nx }, true); }
+        return;
+      }
+      const td = tg && tg.closest ? tg.closest('td[data-s]') : null;
+      if (!td || e.altKey || e.metaKey || e.ctrlKey) return;
+      const at = { s: Number(td.getAttribute('data-s')), r: Number(td.getAttribute('data-r')), c: Number(td.getAttribute('data-c')) };
+      const to = { s: at.s, r: at.r, c: at.c };
+      if (e.key === 'ArrowRight') to.c++; else if (e.key === 'ArrowLeft') to.c--;
+      else if (e.key === 'ArrowDown') to.r++; else if (e.key === 'ArrowUp') to.r--;
+      else if (e.key === 'Home') to.c = 0;
+      else if (e.key === 'End') to.c = 1e6;
+      else if (e.key === 'Enter') { e.preventDefault(); popPick(at); popFocus({ id: 'bd-src-in' }); return; }
+      else return;
+      e.preventDefault();
+      if (to.c === 1e6) { const row = td.parentNode.querySelectorAll('td[data-s]'); to.c = Number(row[row.length - 1].getAttribute('data-c')); }
+      if (!srcCell(to)) return;   // 표 가장자리: 움직이지 않는다
+      popPick(to);
+    }
+    // 창 전체(캡처): 입력 안 Esc 는 입력 취소, 그 밖의 Esc 는 닫기, Tab 은 팝업 안에 가둔다.
+    function onPopWindowKey(e) {
+      if (!active || !ui.pop) return;
+      if (e.key === 'Escape') {
+        e.preventDefault(); e.stopPropagation();
+        if (bw.popEscAction({ input: !!(e.target && e.target.id === 'bd-src-in') }) === 'input') popCancelInput(); else closePop();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const box = popEl && popEl.querySelector('.bd-src-box');
+      if (!box) return;
+      const l = box.querySelectorAll('button, input, [tabindex="0"]'), items = [];
+      for (let i = 0; i < l.length; i++) if (!l[i].disabled && l[i].getClientRects().length > 0) items.push(l[i]);
+      if (!items.length) return;
+      const idx = items.indexOf(document.activeElement);
+      if (idx < 0) { e.preventDefault(); (e.shiftKey ? items[items.length - 1] : items[0]).focus(); return; }
+      if (e.shiftKey && idx === 0) { e.preventDefault(); items[items.length - 1].focus(); }
+      else if (!e.shiftKey && idx === items.length - 1) { e.preventDefault(); items[0].focus(); }
+    }
+
     function act(btn) {
       const a = btn.getAttribute('data-w'), v = btn.getAttribute('data-v');
       switch (a) {
@@ -1799,32 +2115,22 @@
         case 'reform': finish('#bd-form'); break;
         case 'perm': if (env.perms) env.perms(); break;
         case 'filter': ws = bw.setFilter(ws, v); draw({ w: 'filter', v: ws.filter }); break;
-        case 'panel': ui.panelOpen = !ui.panelOpen; draw({ w: 'panel' }); break;
-        case 'srcwide': {   // 다시 그리지 않고 클래스만 바꿔 열 비율 전환이 보이게 한다(상태는 메모리에만)
-          ui.wide = !ui.wide;
-          const g = bodyEl().querySelector('.bd-w-grid');
-          if (g) g.classList.toggle('is-wide', !!ui.wide);
-          btn.setAttribute('aria-pressed', ui.wide ? 'true' : 'false');
-          measureSrc();
-          break;
-        }
-        case 'srcjump': jumpSrc(v); break;
-        case 'srcsel': { const b = $('bd-w-srcbody'), hit = b && b.querySelector('td.is-src'); if (hit) scrollSrcTo(hit); break; }
+        case 'srcopen': openPop({ w: 'srcopen', v: v }, (v == null || v === '*') ? null : v); break;
+        case 'tcheck': toggleTable(v); break;
         case 'banmore': ui.banOpen[v] = !ui.banOpen[v]; draw({ w: 'banmore', v: v }); break;
         case 'unread': { ws = bw.setFilter(ws, 'need'); const f = bw.firstUnreadable(ws); if (f) ui.sel = f; draw({ cell: true }); break; }
         case 'draft': doDraft(); break;
-        case 'check': if (ui.sel) toggle(ui.sel.t, ui.sel.key); break;
         case 'ask-ok': {
           const a0 = ui.ask; ui.ask = null;
           if (a0) { ws = bw.patchCell(ws, a0.t, a0.key, { asked: true }); openEdit(a0.t, a0.key, null); }   // 이번 작업 동안 그 칸은 다시 묻지 않는다
           break;
         }
-        case 'ask-no': restorePanel(); ui.ask = null; draw({ cell: true }); break;
+        case 'ask-no': ui.ask = null; draw({ cell: true }); break;
         case 'why': setWhyFrom(v); break;
         case 'revert': {
           if (!ui.sel) break;
           const s = lookup(ui.sel.t, ui.sel.key);
-          if (s) { const r = bw.editCell(ws, ui.sel.t, ui.sel.key, s.c.orig); ws = r.ws; ui.live = r.released === 'done' ? '값이 바뀌어 ‘확인했음’을 해제했습니다.' : ''; }
+          if (s) { const r = bw.editCell(ws, ui.sel.t, ui.sel.key, s.c.orig); ws = r.ws; ui.live = bw.releaseText(r.released, findT(ws, ui.sel.t)); }
           draw({ cell: true });
           break;
         }
@@ -1842,9 +2148,7 @@
       if (btn && !btn.disabled) { act(btn); return; }
       if (ui.edit) { const inp = $('bd-w-in'); if (inp && !cellOf(t)) return; if (inp) { inp.focus(); return; } }
       const td = cellOf(t);
-      if (td) { select(td.getAttribute('data-t'), td.getAttribute('data-key'), { focus: true }); return; }
-      const st = t.closest ? t.closest('td[data-st]') : null;
-      if (st && st.getAttribute('data-key')) select(st.getAttribute('data-st'), st.getAttribute('data-key'), { focus: true, force: true });
+      if (td) select(td.getAttribute('data-t'), td.getAttribute('data-key'), { focus: true });
     }
     function onFocusIn(e) {
       if (!active) return;
@@ -1856,14 +2160,8 @@
       } else if (!td && e.target && e.target.closest) {
         // 칸이 아닌 버튼(예: '이 표 복사')도 아래쪽 고정 패널·상태 줄 뒤에 가려지지 않게 한다. 선택은 바꾸지 않는다.
         const t = e.target;
-        if (bw.needsOcclusionFix(t.closest('.bd-w-tables'), t.closest('#bd-w-src, #bd-w-status, #bd-writebar'))) keepVisible(t);
+        if (bw.needsOcclusionFix(t.closest('.bd-w-tables'), t.closest('#bd-w-status, #bd-writebar'))) keepVisible(t);
       }
-    }
-    function onChange(e) {
-      if (!active || !ws || !e.target || e.target.id !== 'bd-w-done') return;
-      ws = bw.setDone(ws, !!e.target.checked, env.who(), bw.hhmm(env.now()));
-      ui.live = '';
-      draw({ id: 'bd-w-done' });
     }
     function move(td, dir) {
       const all = cellsAll(), list = [], items = [];
@@ -1886,7 +2184,7 @@
       else if (a === 'leave') { const k = ui.leave; ui.leave = null; draw(k === 'swap' ? { w: 'swap' } : { id: 'bd-w-end' }); }
       else if (a === 'sel') { bw.releaseSel(ui); applySel(); drawStatus(); }
       else if (a === 'edit') cancelEdit();
-      else if (a === 'ask') { restorePanel(); ui.ask = null; draw({ cell: true }); }
+      else if (a === 'ask') { ui.ask = null; draw({ cell: true }); }
       else if (a === 'reason') focusTarget({ cell: true });
     }
     const ARROWS = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
@@ -1906,7 +2204,7 @@
       const td = cellOf(e.target);
       if (!td || e.altKey || e.metaKey) return;
       const t = td.getAttribute('data-t'), key = td.getAttribute('data-key');
-      if (e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); toggle(t, key); return; }
+      if (e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); return; }   // 확인은 표 단위: 칸에서는 Space 로 하지 않는다
       if (ARROWS[e.key]) {
         e.preventDefault();
         if (e.ctrlKey) { if (e.key === 'ArrowDown') move(td, 'next'); else if (e.key === 'ArrowUp') move(td, 'prev'); }   // Ctrl+↓↑: 보이는 칸을 차례로
@@ -1955,7 +2253,6 @@
         b.addEventListener('mouseover', onOver);
         b.addEventListener('mouseout', onOut);
         b.addEventListener('focusin', onFocusIn);
-        b.addEventListener('change', onChange);
         let downCell = null;
         b.addEventListener('mousedown', function (e) { pointer = true; downCell = ui && !ui.edit ? cellOf(e.target) : null; setTimeout(function () { pointer = false; }, 300); });
         b.addEventListener('mouseup', function () {   // 상태 줄이 자라 mouseup 이 칸 밖에 떨어져도(click 없음) 누른 칸을 다시 보이게 한다
@@ -1970,28 +2267,23 @@
         b.addEventListener('input', onInput);
         b.addEventListener('dblclick', onDblClick);
         window.addEventListener('scroll', function () { if (tipFor || tipTimer) hideTip(); }, true);
-        // 원본을 사용자가 직접 스크롤한 시각(휠·누름·키·터치) — 창 크기 보정이 그 직후엔 건드리지 않게 한다
-        let lastManual = 0, rzRaf = 0;
-        ['wheel', 'pointerdown', 'keydown', 'touchstart'].forEach(function (ev) {
-          b.addEventListener(ev, function (e) { if (e.target && e.target.closest && e.target.closest('#bd-w-srcbody')) lastManual = Date.now(); }, true);
-        });
-        function realignSrc() {
+        let rzRaf = 0;
+        function realign() {
           rzRaf = 0;
           if (!active || !ui) return;
-          if (ui.sel) { measureSrc(); keepVisible(findCell(ui.sel.t, ui.sel.key)); }   // 줄인 창에서 선택 칸이 고정된 원본 패널·상태 줄 뒤로 가려지지 않게(측정 → 보정)
-          if (!bw.resizeRealign({ hasSel: !!ui.sel, now: Date.now(), lastManual: lastManual })) return;
-          const body = $('bd-w-srcbody'), hit = body && body.querySelector('td.is-src');
-          if (hit) scrollSrcTo(hit);
+          measureStatus();
+          if (ui.sel && !ui.pop) keepVisible(findCell(ui.sel.t, ui.sel.key));   // 줄인 창에서 선택 칸이 고정 상태 줄 뒤로 가려지지 않게(측정 → 보정)
         }
         window.addEventListener('resize', function () {
-          hideTip(); measureBar(); measureSrc();
-          if (!rzRaf && typeof requestAnimationFrame === 'function') rzRaf = requestAnimationFrame(realignSrc);   // 한 프레임에 한 번만
+          hideTip(); measureBar(); measureStatus();
+          if (!rzRaf && typeof requestAnimationFrame === 'function') rzRaf = requestAnimationFrame(realign);   // 한 프레임에 한 번만
         });
-        let srcRaf = 0;   // 페이지 스크롤로 패널 시작 y가 바뀌면 높이를 다시 잰다
+        let stRaf = 0;   // 페이지 스크롤로 작성 바 위치가 바뀌면 붙음 띠를 다시 맞춘다
         window.addEventListener('scroll', function (e) {
-          if (!active || srcRaf || (e.target && e.target.id === 'bd-w-srcbody') || typeof requestAnimationFrame !== 'function') return;
-          srcRaf = requestAnimationFrame(function () { srcRaf = 0; measureSrc(); markStuck(); });
+          if (!active || stRaf || ui.pop || (e.target && e.target.id === 'bd-w-srcbody') || typeof requestAnimationFrame !== 'function') return;
+          stRaf = requestAnimationFrame(function () { stRaf = 0; markStuck(); });
         }, true);
+        window.addEventListener('keydown', onPopWindowKey, true);   // 팝업 Esc·Tab(전역 Esc보다 먼저 가로챈다)
         window.addEventListener('beforeunload', onUnload);
       },
       start: function () {
@@ -2010,7 +2302,7 @@
       reset: function () {
         active = false; ++upTok;
         if (abortCtl) abortCtl.abort();
-        abortCtl = null; hideTip(); ws = null; formDoc = null; ui = freshUi();
+        abortCtl = null; hideTip(); closePop({ silent: true }); ws = null; formDoc = null; ui = freshUi();
         if (fileInput && fileInput.parentNode) fileInput.parentNode.removeChild(fileInput);
         fileInput = null;
       },

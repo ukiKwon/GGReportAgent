@@ -252,27 +252,32 @@ test('buildState: 칸 이름·합계 서버 경고 정규화·원본 위치 색�
   assert.strictEqual(ws.tables[1].mapped, false);
   assert.deepStrictEqual(t.sums, [{ total: 'r2c1', of: ['r1c1'] }]);
 });
-test('tally·필터: 총 칸·확인·확인 필요(합계 차이)·미확인', function () {
+test('tally·필터: 값 칸 수·확인한 표·확인 필요(합계 차이)·확인 안 한 표', function () {
   let ws = ws0();
   let y = bw.tally(ws);
-  assert.deepStrictEqual([y.m, y.n, y.need, y.unchecked, y.edited, y.sumBad], [2, 0, 1, 2, 0, 1]);
-  ws = bw.toggleCheck(ws, 'A', 'r1c1');
-  assert.strictEqual(bw.tally(ws).n, 1);
+  assert.deepStrictEqual([y.m, y.tm, y.tn, y.tu, y.need, y.edited, y.sumBad], [2, 1, 0, 1, 1, 0, 1]);   // 정적 표 B 는 값 칸이 없어 세지 않는다
+  ws = bw.toggleCheck(ws, 'A', '홍길동', '14:05');
+  assert.deepStrictEqual([bw.tally(ws).tn, bw.tally(ws).tu], [1, 0]);
   assert.strictEqual(bw.matches(bw.setFilter(ws, 'need'), ws.tables[0], ws.tables[0].cells.r2c1), true);
   assert.strictEqual(bw.matches(bw.setFilter(ws, 'unchecked'), ws.tables[0], ws.tables[0].cells.r1c1), false);
+  const un = bw.setFilter(bw.toggleCheck(ws, 'A', 'x', 'y'), 'unchecked');   // 다시 누르면 확인이 풀린다
+  assert.strictEqual(bw.matches(un, un.tables[0], un.tables[0].cells.r1c1), true);
   assert.strictEqual(bw.setFilter(ws, 'x'), ws);
+  assert.ok(bw.filterHtml(ws0()).includes('확인 안 한 표<i>1</i>') && !bw.filterHtml(ws0()).includes('미확인'));
 });
-test('읽지 못한 빈 칸은 확인할 수 없고, 모두 확인해야 확인했음, 하나 풀면 해제', function () {
+test('표 확인: 읽지 못한 칸·합계 차이가 있어도 확인할 수 있고, 전 표를 확인하면 검수 완료가 자동으로 붙고 하나 풀면 해제', function () {
   const r = resp(); r.tables[0].cells[0] = cell('r1c1', '', { status: 'failed', reason: 'NO_CACHED_VALUE' });
   let ws = ws0(r);
-  assert.strictEqual(bw.toggleCheck(ws, 'A', 'r1c1'), ws);
   assert.strictEqual(bw.cellInfo(ws.tables[0], ws.tables[0].cells.r1c1).unreadable, true);
+  assert.ok(bw.toggleCheck(ws, 'A', 'x', 'y').tables[0].checked, '읽지 못한 칸이 있어도 표 확인은 된다');
+  assert.strictEqual(bw.toggleCheck(ws, 'B', 'x', 'y'), ws, '값 칸이 없는 표는 확인 대상이 아니다');
+  assert.strictEqual(bw.toggleCheck(ws, 'ZZ', 'x', 'y'), ws);
   ws = ws0();
-  ws = bw.toggleCheck(bw.toggleCheck(ws, 'A', 'r1c1'), 'A', 'r2c1');
-  assert.strictEqual(bw.setDone(ws, true, '홍길동', '14:05').done.who, '홍길동');
-  assert.strictEqual(bw.setDone(bw.toggleCheck(ws, 'A', 'r1c1'), true, 'x', 'y').done, null);   // 미완이면 거부
-  const done = bw.setDone(ws, true, '홍길동', '14:05');
-  assert.strictEqual(bw.toggleCheck(done, 'A', 'r1c1').done, null);   // 풀면 자동 해제
+  const done = bw.toggleCheck(ws, 'A', '홍길동', '14:05');
+  assert.deepStrictEqual(done.tables[0].checked, { who: '홍길동', at: '14:05' });
+  assert.deepStrictEqual(done.done, { who: '홍길동', at: '14:05' });   // 표가 하나뿐이면 곧바로 검수 완료
+  assert.strictEqual(bw.toggleCheck(done, 'A', 'x', 'y').done, null);   // 풀면 자동 해제
+  assert.strictEqual(bw.toggleCheck(done, 'A', 'x', 'y').tables[0].checked, null);
 });
 test('infoLines: 표시·원래 값(rounded true만), 합계 차이, 읽지 못함 이유, 출처 없음', function () {
   const ws = ws0(), t = ws.tables[0];
@@ -302,7 +307,8 @@ test('valueCellHtml: 이스케이프·gridcell·틸(bd-mapped) 없음·aria-labe
   const h = bw.valueCellHtml(t, t.cells.r1c1, { fc: {}, rove: true });
   assert.ok(h.includes('&lt;b&gt;x&lt;/b&gt;') && !h.includes('<b>x'));
   assert.ok(h.includes('role="gridcell"') && h.includes('tabindex="0"') && !h.includes('bd-mapped'));
-  assert.ok(h.includes('aria-label="재산상 이익제공, 출연금, 금액, &lt;b&gt;x&lt;/b&gt;, 미확인"'));
+  assert.ok(h.includes('aria-label="재산상 이익제공, 출연금, 금액, &lt;b&gt;x&lt;/b&gt;"'), '칸 낭독에는 확인 상태가 없다(표가 전한다)');
+  assert.ok(!h.includes('is-checked') && !h.includes('bd-w-ck'));
 });
 test('cardHtml: 필터에 해당 칸이 없으면 접고, 머리글 주의 표는 배너·칩, 주의 아닌 표에는 없음', function () {
   let ws = ws0();
@@ -315,18 +321,19 @@ test('cardHtml: 필터에 해당 칸이 없으면 접고, 머리글 주의 표�
   assert.ok(h.includes('이 표는 머리글이 양식과 달라 위치대로 값을 채웠습니다.'));
   assert.strictEqual(h.split('<li>양식 ‘').length - 1, 3);
   assert.ok(h.includes('외 1개 더 보기'));
-  assert.ok(h.includes('주의 · 남은 칸 2'));
+  assert.ok(h.includes('주의 · 머리글 확인 필요'));
   assert.ok(bw.cardHtml(ws, ws.tables[0], Object.assign(bw.freshUi(), { banOpen: { A: true } }), null).split('<li>양식 ‘').length - 1 === 4);
-  // 전 칸 확인 뒤에도 배너는 유지, 칩만 바뀐다
-  ['r1c1', 'r2c1'].forEach(function (k) { ws = bw.toggleCheck(ws, 'A', k); });
+  // 표를 확인한 뒤에도 배너는 유지, 칩만 바뀐다
+  ws = bw.toggleCheck(ws, 'A', '홍길동', '14:05');
   const h2 = bw.cardHtml(ws, ws.tables[0], bw.freshUi(), null);
-  assert.ok(h2.includes('bd-w-ban') && h2.includes('주의 · 모두 확인함'));
+  assert.ok(h2.includes('bd-w-ban') && h2.includes('주의 · 확인함') && !h2.includes('머리글 확인 필요'));
   assert.ok(!bw.cardHtml(ws0(), ws0().tables[0], bw.freshUi(), null).includes('bd-w-ban'));
   // 머리글 주의 표는 모든 칸이 확인 필요 필터에 든다
   assert.strictEqual(bw.tally(ws0(r)).need, 2);
 });
 test('summaryHtml: 부분 실패 문구·읽지 못한 칸 보기·주의 n건 / 전부 채움 문구', function () {
-  assert.ok(bw.summaryHtml(ws0()).includes('값 2칸을 모두 채웠습니다. 오른쪽 원본과 대조하며 칸마다 확인해 주세요.'));
+  assert.ok(bw.summaryHtml(ws0()).includes('값 2칸을 모두 채웠습니다. 표마다 [원본 보기]로 수익성 분석표와 맞춰 보고 ‘이 표 확인’을 눌러 주세요.'));
+  assert.ok(!bw.summaryHtml(ws0()).includes('오른쪽 원본'));
   const r = resp(); r.tables[0].cells[0] = cell('r1c1', '', { status: 'failed', reason: 'EMPTY' });
   r.warnings = [{ code: 'EXTERNAL_LINK' }, { code: 'PII_OUTSIDE_RANGE', count: 2 }];
   const h = bw.summaryHtml(ws0(r));
@@ -335,23 +342,57 @@ test('summaryHtml: 부분 실패 문구·읽지 못한 칸 보기·주의 n건 /
   assert.ok(h.includes('<summary>주의 2건</summary>'), '외부 연결 + 작성 범위 밖 개인정보');
   assert.ok(bw.summaryHtml(ws0()).includes('<summary>주의 1건</summary>'), '합계가 맞지 않는 곳 1곳');
 });
-test('reviewHtml: 확인했음은 모두 확인해야 활성, 완료 칩·남은 칸 설명', function () {
+test('reviewHtml: 표 확인 n/m, 전 표를 확인하면 검수 완료 칩(마지막 확인 시각)이 자동으로, 확인했음 체크박스는 없다', function () {
   let ws = ws0();
   let h = bw.reviewHtml(ws);
-  assert.ok(h.includes('검수 0/2') && /id="bd-w-done" disabled/.test(h) && h.includes('모든 칸을 확인하면 선택할 수 있습니다(남은 칸 2)'));
-  ws = bw.toggleCheck(bw.toggleCheck(ws, 'A', 'r1c1'), 'A', 'r2c1');
-  assert.ok(!/id="bd-w-done" disabled/.test(bw.reviewHtml(ws)));
-  h = bw.reviewHtml(bw.setDone(ws, true, '홍길동', '14:05'));
-  assert.ok(h.includes('검수 완료 · 홍길동 14:05') && h.includes(' checked'));
+  assert.ok(h.includes('표 확인 0/1') && !h.includes('bd-w-done') && !h.includes('확인했음') && !h.includes('검수 완료'));
+  assert.ok(h.includes('합계 차이 1곳이 남아 있어도 표 확인은 할 수 있습니다.'));
+  ws = bw.toggleCheck(ws, 'A', '홍길동', '14:05');
+  h = bw.reviewHtml(ws);
+  assert.ok(h.includes('표 확인 1/1') && h.includes('<span class="bd-w-chip is-done">검수 완료 · 마지막 확인 14:05</span>'));
+  assert.strictEqual(bw.reviewHtml(bw.buildState({ tables: [] }, { tables: [] }, {})), '', '값 칸이 있는 표가 없으면 줄이 없다');
+});
+test('cardHtml: 카드 머리 [원본 보기][이 표 복사][이 표 확인 n칸] 순서, 확인함 칩(이름·시각), 확인 풀림 알림 줄·is-released', function () {
+  let ws = ws0();
+  let h = bw.cardHtml(ws, ws.tables[0], bw.freshUi(), null);
+  const a = h.indexOf('data-w="srcopen" data-v="A">원본 보기'), b = h.indexOf('data-w="copy1" data-v="A"'), c = h.indexOf('data-w="tcheck" data-v="A"');
+  assert.ok(a > 0 && b > a && c > b, '원본 보기 → 이 표 복사 → 이 표 확인');
+  assert.ok(h.includes('<span class="bd-w-tn">2칸</span>') && !/data-w="tcheck"[^>]*checked/.test(h) && !h.includes('확인함 ·'));
+  assert.ok(!h.includes('is-released') && !h.includes('bd-w-relnote') && h.includes('aria-label="재산상 이익제공"'));
+  ws = bw.toggleCheck(ws, 'A', '전산팀 마스터', '14:32');
+  h = bw.cardHtml(ws, ws.tables[0], bw.freshUi(), null);
+  assert.ok(/data-w="tcheck" data-v="A" checked/.test(h) && h.includes('<span class="bd-w-chip is-done">확인함 · 전산팀 마스터 14:32</span>'));
+  assert.ok(h.includes('aria-label="재산상 이익제공, 확인함"') && h.includes('bd-w-tcheck is-on'));
+  ws = bw.editCell(ws, 'A', 'r1c1', '1,230').ws;
+  h = bw.cardHtml(ws, ws.tables[0], bw.freshUi(), null);
+  assert.ok(h.includes('bd-card bd-w-card is-released') && h.includes('aria-label="재산상 이익제공, 확인 풀림"'));
+  assert.ok(h.includes('<p class="bd-w-relnote" role="status">값을 고쳐 확인을 풀었습니다(출연금 금액 1,234 → 1,230). 다시 확인해 주세요.</p>'));
+  ws = bw.toggleCheck(ws, 'A', 'x', '15:00');
+  assert.ok(!bw.cardHtml(ws, ws.tables[0], bw.freshUi(), null).includes('bd-w-relnote'), '다시 확인하면 알림 줄이 사라진다');
+  // 정적 표(값 칸 없음)와 원본 격자가 없는 표
+  const st = bw.cardHtml(ws, ws.tables[1], bw.freshUi(), null);
+  assert.ok(!st.includes('data-w="tcheck"') && !st.includes('data-w="srcopen"'));
+});
+test('작성 바: [수익성 분석표 보기], 확인 안 한 표 경고는 버튼 옆에 상시 표시(막지 않음)·aria-describedby', function () {
+  const ws = ws0(), ui = bw.freshUi();
+  let h = bw.barHtml(ws, ui);
+  assert.ok(h.includes('data-w="srcopen">수익성 분석표 보기</button>') && h.indexOf('data-w="swap"') < h.indexOf('data-w="srcopen"'));
+  assert.ok(h.includes('id="bd-w-draftwarn"') && h.includes('확인 안 한 표 1개'));
+  assert.ok(/id="bd-w-draft" class="bd-wb-main" data-w="draft" aria-describedby="bd-w-draftwarn">/.test(h), '초안 버튼은 비활성이 아니다');
+  h = bw.barHtml(bw.toggleCheck(ws, 'A', 'x', 'y'), ui);
+  assert.ok(!h.includes('bd-w-draftwarn') && !h.includes('aria-describedby'));
+  const noSrc = bw.buildState(form(), Object.assign(resp(), { sources: [] }), {});
+  assert.ok(/data-w="srcopen" disabled>수익성 분석표 보기/.test(bw.barHtml(noSrc, ui)), '원본 격자가 없으면 버튼은 비활성');
+  assert.ok(!bw.cardHtml(noSrc, noSrc.tables[0], ui, null).includes('data-w="srcopen"'));
 });
 test('draftBody: 매핑 칸의 현재 값만, 기본 양식은 version 없음, raw·원래 값·사유·확인 상태 없음', function () {
   let ws = ws0();
   let b = bw.draftBody(ws, null);
   assert.deepStrictEqual(b, { tables: [{ ref: 'A', cells: { r1c1: '1,234', r2c1: '1,235' } }] });
-  b = bw.draftBody(bw.toggleCheck(ws, 'A', 'r1c1'), 3);
+  b = bw.draftBody(bw.toggleCheck(ws, 'A', '홍길동', '14:05'), 3);
   assert.strictEqual(b.version, 3);
   const s = JSON.stringify(b);
-  ['raw', '1233.6', 'orig', 'why', 'checked', 'rounded'].forEach(function (k) { assert.ok(s.indexOf(k) < 0, k); });
+  ['raw', '1233.6', 'orig', 'why', 'checked', 'rounded', '홍길동', '14:05'].forEach(function (k) { assert.ok(s.indexOf(k) < 0, k); });
 });
 test('draftErrorText·draftFileName·draftDoneText', function () {
   assert.ok(bw.draftErrorText({ status: 422, body: { detail: { code: 'PII_DETECTED', kinds: [{ kind: '이메일', count: 1 }] } } }).includes('이메일 형식 1건'));
@@ -361,14 +402,17 @@ test('draftErrorText·draftFileName·draftDoneText', function () {
   assert.strictEqual(bw.draftErrorText({ status: 500, body: null }), '초안 워드를 만들지 못했습니다. 잠시 뒤 다시 눌러 주세요.');
   assert.ok(bw.draftErrorText({ net: true }).includes('서버에 연결하지 못했습니다'));
   assert.strictEqual(bw.draftFileName('a/b:c'), 'a_b_c_초안.docx');
-  assert.strictEqual(bw.draftDoneText(ws0()), '초안 워드를 내려받았습니다. 확인하지 않은 칸 2개가 포함된 초안입니다.');
+  assert.strictEqual(bw.draftDoneText(ws0()), '초안 워드를 내려받았습니다. 확인하지 않은 표 1개(재산상 이익제공)가 있는 상태로 초안을 만들었습니다.');
+  assert.strictEqual(bw.draftDoneText(bw.toggleCheck(ws0(), 'A', 'x', 'y')), '초안 워드를 내려받았습니다.');
+  assert.deepStrictEqual(bw.uncheckedTables(ws0()).map(function (t) { return t.ref; }), ['A']);
 });
-test('leaveText·hasWork: 확인·수정 건수 문구, 0건이면 확인 줄 불필요', function () {
-  assert.strictEqual(bw.leaveText('end', { n: 12, edited: 3 }), '확인 12칸과 수정 3칸이 사라집니다. 작성을 끝낼까요?');
-  assert.strictEqual(bw.leaveText('swap', { n: 12, edited: 3 }), '새 엑셀로 바꾸면 확인 12칸과 수정 3칸이 사라집니다.');
-  assert.strictEqual(bw.leaveText('end', { n: 1, edited: 0 }), '확인 1칸이 사라집니다. 작성을 끝낼까요?');
+test('leaveText·hasWork: 확인한 표·수정 건수 문구, 0건이면 확인 줄 불필요', function () {
+  assert.strictEqual(bw.leaveText('end', { tn: 2, edited: 3 }), '표 확인 2개, 수정 3칸이 사라집니다. 작성을 끝낼까요?');
+  assert.strictEqual(bw.leaveText('swap', { tn: 2, edited: 3 }), '새 엑셀로 바꾸면 표 확인 2개, 수정 3칸이 사라집니다.');
+  assert.strictEqual(bw.leaveText('end', { tn: 1, edited: 0 }), '표 확인 1개가 사라집니다. 작성을 끝낼까요?');
+  assert.strictEqual(bw.leaveText('end', { tn: 0, edited: 0 }), '작성을 끝낼까요?');
   assert.strictEqual(bw.hasWork(null), false); assert.strictEqual(bw.hasWork(ws0()), false);
-  assert.strictEqual(bw.hasWork(bw.toggleCheck(ws0(), 'A', 'r1c1')), true);
+  assert.strictEqual(bw.hasWork(bw.toggleCheck(ws0(), 'A', 'x', 'y')), true);
 });
 test('writeHtml: 작성 줄 버튼·빈 상태·거부 상자·확인 줄·상태 줄 라이브', function () {
   const ui = bw.freshUi(); ui.form = { id: 'default_doc', name: '기본 양식', version: undefined };
@@ -381,18 +425,23 @@ test('writeHtml: 작성 줄 버튼·빈 상태·거부 상자·확인 줄·상�
   ui.rej = null; ui.form.version = 3;
   h = bw.writeHtml(ws, ui);
   assert.ok(h.includes('v3 · 원본 수익성.xlsx(저장 안 됨)') && !/data-w="draft"[^>]*disabled/.test(h));
-  assert.ok(h.includes('id="bd-w-status" class="bd-w-status"') && h.includes('id="bd-w-live" class="bd-w-live" role="status" aria-live="polite"'));
+  assert.ok(h.includes('id="bd-w-status" class="bd-w-status is-idle"') && h.includes('id="bd-w-live" class="bd-w-live is-sr" role="status" aria-live="polite"'));
   assert.ok(h.includes('role="grid"') && !h.includes('bd-mapped') && !h.includes('confirm('));
+  assert.ok(!h.includes('id="bd-w-src"') && !h.includes('bd-w-grid') && !h.includes('data-w="panel"'), '오른쪽 원본 패널은 없다');
   ui.leave = 'end';
   assert.ok(bw.writeHtml(ws, ui).includes('id="bd-w-leave-no"'));
 });
-test('statusHtml: 선택 칸의 출처 줄·확인 버튼(aria-pressed)·읽지 못한 칸은 확인 비활성', function () {
+test('statusHtml: 선택한 칸만 한 줄(표 › 행 › 열 · 대조 줄 · 분석표에서 보기), 칸 단위 확인 버튼은 없다', function () {
   const ws = ws0(), ui = bw.freshUi();
-  assert.ok(bw.statusHtml(ws, ui).includes('칸을 고르면'));
+  assert.strictEqual(bw.statusHtml(ws, ui), '', '선택이 없으면 비어 있고 안내 문구도 없다');
   ui.sel = { t: 'A', key: 'r1c1' };
   const h = bw.statusHtml(ws, ui);
-  assert.ok(h.includes('기부금 시트 C2') && h.includes('aria-pressed="false"'));
-  assert.ok(bw.statusHtml(bw.toggleCheck(ws, 'A', 'r1c1'), ui).includes('aria-pressed="true"'));
+  assert.ok(h.includes('재산상 이익제공 › 출연금 › 금액') && h.includes('1,234 ← C2 1,234') && h.includes('data-w="srcopen"'));
+  assert.ok(!h.includes('data-w="check"') && !h.includes('aria-pressed') && !h.includes('기부금 시트'), '시트·표시 둘째 줄은 툴팁과 팝업에만');
+  const r = resp(); r.tables[0].cells[0] = cell('r1c1', '', { status: 'failed', reason: 'NO_CACHED_VALUE' });
+  assert.ok(bw.statusHtml(ws0(r), ui).includes('읽지 못함: 수식의 계산 결과가'), '읽지 못한 칸은 이유를 한 줄로 알린다');
+  assert.strictEqual(bw.statusIdle(ws, ui), false);
+  assert.strictEqual(bw.statusIdle(ws, bw.freshUi()), true);
 });
 test('tipPlace·navTarget·linearTarget·escAction', function () {
   // 위로 4px, 위 공간이 작성 줄+8px보다 좁으면 아래로
@@ -450,19 +499,19 @@ function respLabel(state) {
     else c.status = 'review'; });
   return r;
 }
-test('partial: review 칸은 값이 보이고 확인 전에는 확인됨으로 세지 않으며 요약에 따로 센다', function () {
+test('partial: review 칸은 값이 보이고 표를 확인하기 전에는 확인한 표로 세지 않으며 요약에 따로 센다', function () {
   const ws = ws0(respLabel('partial')), y = bw.tally(ws);
-  assert.deepStrictEqual([y.m, y.n, y.review, y.filled, y.failed, y.need], [2, 0, 2, 0, 0, 2]);
+  assert.deepStrictEqual([y.m, y.tn, y.review, y.filled, y.failed, y.need], [2, 0, 2, 0, 0, 2]);
   assert.ok(bw.summaryHtml(ws).includes('머리글이 달라 확인이 필요한 칸이 2칸 있습니다'));
   assert.strictEqual(bw.findT(ws, 'A').labelState, 'partial');
-  assert.strictEqual(bw.tally(bw.toggleCheck(ws, 'A', 'r1c1')).n, 1);
-  // 고쳐도 review는 유지된다(확인해야만 센다)
-  assert.strictEqual(bw.findT(ws, 'A').cells.r1c1.status, 'review');
-  assert.strictEqual(bw.tally(ws).n, 0);
+  assert.strictEqual(bw.tally(bw.toggleCheck(ws, 'A', 'x', 'y')).tn, 1);
+  // 표를 확인해도 review 칸 상태는 유지된다(칸 단위 확인이 아니다)
+  assert.strictEqual(bw.findT(bw.toggleCheck(ws, 'A', 'x', 'y'), 'A').cells.r1c1.status, 'review');
+  assert.strictEqual(bw.tally(ws).tn, 0);
 });
-test('failed: 모든 칸 비어 채우지 않음, 직접 입력 전에는 확인 불가, 합계 검산 없음, 배너·칩 문구', function () {
+test('failed: 모든 칸 비어 채우지 않음, 직접 입력 전에도 표 확인은 되고(칩으로만 경고), 합계 검산 없음, 배너·칩 문구', function () {
   const ws = ws0(respLabel('failed')), t = ws.tables[0];
-  assert.strictEqual(bw.toggleCheck(ws, 'A', 'r1c1'), ws);
+  assert.ok(bw.toggleCheck(ws, 'A', 'x', 'y').tables[0].checked);
   assert.ok(bw.valueCellHtml(t, t.cells.r1c1, { fc: {} }).includes('채우지 않음'));
   assert.strictEqual(bw.cellInfo(t, t.cells.r2c1).sumBad, false);
   assert.ok(bw.cardHtml(ws, t, bw.freshUi(), null).includes('이 표는 머리글이 양식과 많이 달라 값을 채우지 않았습니다.'));
@@ -483,8 +532,8 @@ test('HIDDEN_FORMAT: 안내 문구, 확인 필요 필터 포함, 확인 전에�
   assert.strictEqual(bw.cellInfo(t, t.cells.r1c1).need, true);
   assert.strictEqual(bw.matches(bw.setFilter(ws, 'need'), t, t.cells.r1c1), true);
   assert.strictEqual(bw.matches(bw.setFilter(ws, 'need'), t, t.cells.r2c1), false);
-  assert.strictEqual(bw.tally(ws).n, 0, '확인 전에는 확인됨이 0');
-  assert.strictEqual(bw.tally(bw.toggleCheck(ws, 'A', 'r1c1')).n, 1, '확인해야만 센다');
+  assert.strictEqual(bw.tally(ws).tn, 0, '확인 전에는 확인한 표가 0');
+  assert.strictEqual(bw.tally(bw.toggleCheck(ws, 'A', 'x', 'y')).tn, 1, '확인해야만 센다');
   assert.ok(bw.valueCellHtml(t, t.cells.r1c1, { fc: {} }).includes('aria-label') && bw.cellAria(t, t.cells.r1c1).includes('주의'));
   assert.ok(bw.summaryHtml(ws).includes('서식으로 가려져 보이지 않는 값이 1칸'));
   // 문자열 칸에도 같은 처리
@@ -492,14 +541,14 @@ test('HIDDEN_FORMAT: 안내 문구, 확인 필요 필터 포함, 확인 전에�
   const t2 = ws0(r2).tables[0];
   assert.strictEqual(bw.cellInfo(t2, t2.cells.r1c1).need, true);
 });
-test('review 칸: 확인 전에는 n에 들지 않고 확인 필요 필터에 포함', function () {
+test('review 칸: 표 확인 전에는 tn 에 들지 않고 확인 필요 필터에 포함', function () {
   const r = resp(); r.tables[0].cells[0] = cell('r1c1', '1,234', { status: 'review' });
   const ws = ws0(r), t = ws.tables[0];
   assert.strictEqual(bw.cellInfo(t, t.cells.r1c1).review, true);
   assert.strictEqual(bw.cellInfo(t, t.cells.r1c1).need, true);
-  assert.strictEqual(bw.tally(ws).n, 0);
+  assert.strictEqual(bw.tally(ws).tn, 0);
   assert.strictEqual(bw.tally(ws).review, 1);
-  assert.strictEqual(bw.tally(bw.toggleCheck(ws, 'A', 'r1c1')).n, 1);
+  assert.strictEqual(bw.tally(bw.toggleCheck(ws, 'A', 'x', 'y')).tn, 1);
 });
 
 test('rejectFrom: 403은 할 일 안내, 기타 코드는 숫자 없이 파일 재선택 안내(P3)', function () {

@@ -33,7 +33,8 @@ test('copyNote: 표 하나·전체 문구, 덧붙임(막지 않음), 글자만 �
   const ws = ws0();
   let s = bw.copyNote(ws, 'A', { ok: true, rich: true });
   assert.ok(s.startsWith('‘A 수익성 <분석>’ 표를 복사했습니다. 워드에서 Ctrl+V로 붙여 넣으세요.'));
-  assert.ok(s.includes('확인하지 않은 칸 2개 / 머리글 주의 표 1개가 그대로 들어 있습니다.'));
+  assert.ok(s.includes('확인하지 않은 표 1개 / 머리글 주의 표 1개가 그대로 들어 있습니다.'));
+  assert.ok(!bw.copyNote(bw.toggleCheck(ws, 'A', 'x', 'y'), 'A', { ok: true, rich: true }).includes('확인하지 않은'), '확인한 표는 경고하지 않는다');
   s = bw.copyNote(ws, 'all', { ok: true, rich: false });
   assert.ok(s.startsWith('표 2개를 제목·주석과 함께 복사했습니다.') && s.includes('글자만 복사됐습니다'));
 });
