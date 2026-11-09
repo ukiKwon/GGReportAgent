@@ -230,7 +230,7 @@ test('3단 구조: 대분류 7개 이름·소속(정의 순서 = 업무 순서 1
   nav.CATEGORIES.forEach(function (c) { by[c.id] = c.items.map(function (i) { return (i.sub || '') + '>' + i.label; }); });
   assert.deepStrictEqual(by.scan, ['기관>전국 지도', '기관>전국 지역별', '기관>기관 사업계획',
     '입찰 공고>입찰 공고 현황', '입찰 공고>공고 자동 수집']);
-  assert.deepStrictEqual(by.plan, ['대상 분석>협약 대상 선정', '대상 분석>기관 입찰 요약서', '대상 분석>배점표 확인 검색',
+  assert.deepStrictEqual(by.plan, ['대상 분석>협약 대상 선정', '대상 분석>기관 정보 요약서', '대상 분석>배점표 확인 검색',
     '질의·부의>기관 공식 질의', '질의·부의>이사회 자료 작성']);
   assert.deepStrictEqual(by.manage, ['진행·결재>제안서 진행 현황', '진행·결재>결재함',
     '제안팀>제안팀 구성·배정', '제안팀>팀 간 지원 요청']);
