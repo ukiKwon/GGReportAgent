@@ -9,8 +9,8 @@
      틴트 차콜 바탕·헤어라인 패널·그레인 위에서, 채도는 지도(임박도)만 갖는다.
      지도 팔레트는 render.js DEFAULT_THEME(파스텔+틸)가 정본이며 테마 모달로
      사용자 조정 가능. 변수명·클래스·id는 JS 생성 마크업과 공유 — 이름 변경 금지. */
-  :root { --bg:#0f1218; --panel:#151a22; --panel2:#1a2029; --line:#232a35;
-          --line-strong:#2e3745; --fg:#e2e7ee; --muted:#8b94a3;
+  :root { --bg:#0f1218; --panel:#181e29; --panel2:#202835; --line:#2d3644;
+          --line-strong:#424e62; --fg:#e2e7ee; --muted:#98a1af;
           --red:#e07856; --orange:#d9a05b; --yellow:#c9bd8f; --blue:#7c93c4; --gray:#5a6273;
           --accent-color:#57b8ad; --ripple-duration:2.2s;
           --mono:Consolas,"Cascadia Mono","Malgun Gothic",monospace;
@@ -42,17 +42,17 @@
   button { background:var(--panel2); color:var(--fg); border:1px solid var(--line-strong);
            border-radius:var(--r); padding:6px 14px; font:inherit; font-size:12px; cursor:pointer;
            white-space:nowrap; transition:background .2s, border-color .2s, transform .2s, box-shadow .2s; }
-  button:hover { background:#202836; border-color:#3a4557; transform:translateY(-1px);
+  button:hover { background:#283141; border-color:#4a566b; transform:translateY(-1px);
                  box-shadow:0 6px 16px rgba(8,12,24,.4); }
   button:active { transform:translateY(0) scale(.98); box-shadow:none; }
-  button[disabled] { opacity:.45; cursor:not-allowed; transform:none; box-shadow:none; }
+  button[disabled] { opacity:.55; cursor:not-allowed; transform:none; box-shadow:none; }
   .btn-like { background:var(--panel2); color:var(--fg); border:1px solid var(--line-strong);
               border-radius:var(--r); padding:6px 14px; font-size:12px; cursor:pointer;
               display:inline-flex; align-items:center; white-space:nowrap;
               transition:background .2s, border-color .2s, transform .2s; }
-  .btn-like:hover { background:#202836; border-color:#3a4557; transform:translateY(-1px); }
+  .btn-like:hover { background:#283141; border-color:#4a566b; transform:translateY(-1px); }
   input[type=text], input[type=date], input[type=number], input:not([type]), select, textarea {
-    background:#0d1117; color:var(--fg); border:1px solid var(--line-strong);
+    background:#0d1117; color:var(--fg); border:1px solid #626d81;
     border-radius:var(--r-sm); padding:5px 10px; font:inherit; font-size:12px; }
 
   /* 헤더 — 여백을 살린 조용한 상단, 탭은 세그먼트 컨트롤 */
@@ -77,7 +77,7 @@
   #type-filter { display:flex; gap:6px 14px; font-size:12px; flex-wrap:wrap; }
   #type-filter label { display:flex; align-items:center; gap:5px; color:var(--fg); cursor:pointer;
                        white-space:nowrap; }
-  #type-filter label:has(input:disabled) { opacity:.4; cursor:default; }
+  #type-filter label:has(input:disabled) { color:var(--muted); cursor:default; }
   .fsw { width:11px; height:11px; stroke:var(--muted); fill:none; stroke-width:1.4; }
   .fsw.fill { fill:var(--muted); stroke:none; }
   .tb-group { display:flex; gap:8px; align-items:center; }
@@ -122,14 +122,28 @@
                     transition:grid-template-rows .28s ease, opacity .22s ease .04s, margin .28s ease, visibility 0s; }
   .nav-items-in { overflow:hidden; min-height:0; display:flex; flex-direction:column; gap:1px; }
   .nav-item { display:flex; align-items:center; justify-content:space-between; gap:6px; width:100%; text-align:left;
-              background:transparent; border:none; padding:7px 10px; font-size:14px; color:var(--muted);
+              background:transparent; border:none; padding:7px 10px; font-size:14px;
+              color:color-mix(in srgb, var(--fg) 70%, var(--muted));
               border-radius:7px; white-space:nowrap; }
   .nav-item:hover { background:var(--panel2); color:var(--fg); transform:none; box-shadow:none; }
   .nav-item.active { background:color-mix(in srgb, var(--accent-color) 16%, transparent); color:var(--fg); }
-  .nav-item.soon { opacity:.6; }
-  .nav-soon-tag { font-size:10px; color:var(--muted); border:1px solid var(--line-strong); border-radius:6px;
-                  padding:0 5px; white-space:nowrap; flex:none; }
+  /* 준비중: 흐림(opacity)으로 구분하지 않는다 — 누를 수 있는 항목이라 글자 대비 4.5:1이 필요하다. 글자색(--muted)·배지로 구분. */
+  .nav-item.soon { opacity:1; color:var(--muted); }
+  .nav-item.soon:hover, .nav-item.soon.active { color:var(--fg); }
+  .nav-soon-tag { font-size:11px; color:var(--muted); border:1px solid var(--line-strong); border-radius:6px;
+                  padding:0 5px; white-space:nowrap; flex:none;
+                  background:repeating-linear-gradient(45deg, rgba(152,161,175,.12) 0 2px, transparent 2px 4px); }
+  /* 중분류 소제목 — 누를 수 없고 들여쓰기도 더하지 않는다(위계는 글자 크기·굵기·색으로만). */
+  .nav-sub { padding:8px 10px 3px; font-size:11px; font-weight:700; color:var(--muted); white-space:nowrap;
+             overflow:hidden; text-overflow:ellipsis; }
+  .nav-items-in > [role="group"]:first-child > .nav-sub { padding-top:4px; }
+  .nav-sub.has-active { color:var(--fg); }
   @media (prefers-reduced-motion: reduce) { .nav-items, .nav-items.open, .nav-cat::after { transition:none; } }
+  /* 좁은 화면(사이드바 200px): 항목 13px, 글자 배지는 10×10 빗금 칩으로(글자는 .sr-only가 읽어 준다) */
+  @media (max-width: 900px) {
+    .nav-item { font-size:13px; padding-left:8px; padding-right:8px; gap:4px; }  /* 라벨 칸 130→136px: '사내 업무 키워드 조회'(130.72px)가 잘리지 않게 */
+    .nav-soon-tag { width:10px; height:10px; padding:0; font-size:0; border-radius:3px; }
+  }
   /* 화면 탭 — 연 화면을 최대 10개까지 보관 */
   #tab-bar { display:flex; align-items:center; gap:8px; padding:6px 12px 0; border-bottom:1px solid var(--line);
              background:var(--panel); min-height:38px; }
@@ -171,8 +185,8 @@
   .bd-table th { background:var(--panel2); font-weight:600; }
   .bd-a-left { text-align:left; } .bd-a-center { text-align:center; } .bd-a-right { text-align:right; }
   .bd-num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
-  .bd-mapped { background:rgba(87,184,173,.10); background:color-mix(in srgb, var(--accent-color) 10%, transparent);
-               border-bottom:1px dotted var(--accent-color); }
+  .bd-mapped { background:rgba(87,184,173,.18); background:color-mix(in srgb, var(--accent-color) 18%, transparent);
+               border-bottom:1px dotted var(--accent-color); box-shadow:inset 2px 0 0 var(--accent-color); }
   .bd-notes { margin:2px 0 10px; padding-left:18px; font-size:12px; color:var(--muted); }
   .bd-err { color:var(--red); }
   /* 이사회 자료 — 양식 편집 모드(채운 주버튼 없음: 저장은 중립 버튼 + 틸 테두리) */
@@ -215,7 +229,8 @@
   .bd-edit-guide p { margin:0; }
   .bd-swatch { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:-2px; border-radius:4px;
                border:1px solid var(--line-strong);
-               background:rgba(87,184,173,.10); background:color-mix(in srgb, var(--accent-color) 10%, transparent); }
+               background:rgba(87,184,173,.18); background:color-mix(in srgb, var(--accent-color) 18%, transparent);
+               box-shadow:inset 2px 0 0 var(--accent-color); }
   .bd-sr { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
   .bd-card-edit { position:relative; }
   .bd-table td.bd-gut, .bd-table .bd-colbar td { border:0; padding:0; text-align:center; background:var(--panel); }
@@ -253,7 +268,7 @@
                   border:1px solid var(--line-strong); border-radius:8px; }
   .bd-add-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
   .bd-add-list li { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  .bd-hint { font-size:11px; color:var(--muted); }
+  .bd-hint { font-size:12px; color:var(--muted); }
   .bd-card-edit > .bd-hint { margin:0 0 6px; }
   .bd-foot { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   #bd-save, #bd-save-top { border-color:var(--accent-color); }
@@ -271,7 +286,8 @@
   .bd-wb-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
   .bd-wb-btns { display:inline-flex; gap:8px; flex-wrap:wrap; margin-left:auto; }
   .bd-wb-btns .bd-wb-main { border-color:var(--accent-color); }
-  .bd-wb-note { margin:0; font-size:11px; color:var(--muted); }
+  .bd-wb-btns .bd-wb-main:disabled { border-color:var(--line-strong); }   /* 비활성일 때 틸 테두리가 주행동처럼 보이지 않게 */
+  .bd-wb-note { margin:0; font-size:12px; color:var(--muted); }
   #bd-writebar:focus, #bd-w-rej:focus, #bd-w-sum:focus, #bd-w-draftnote:focus { outline:none; }
   .bd-w { display:flex; flex-direction:column; gap:10px; }
   .bd-w-drop { border:1px dashed var(--line-strong); border-radius:8px; padding:28px 16px; text-align:center;
@@ -293,7 +309,7 @@
   .bd-w-sum { display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:13px; }
   .bd-w-warn { font-size:12px; } .bd-w-warn summary { cursor:pointer; color:var(--orange); }
   .bd-w-warn ul { margin:4px 0 0; padding-left:18px; color:var(--muted); }
-  .bd-w-def, .bd-w-note { margin:0; font-size:11px; color:var(--muted); }
+  .bd-w-def, .bd-w-note { margin:0; font-size:12px; color:var(--muted); }
   .bd-w-rev { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:12px; }
   .bd-w-count { font-family:var(--mono); font-size:12px; display:inline-flex; gap:4px; align-items:center; }
   .bd-w-chips { display:inline-flex; gap:4px; flex-wrap:wrap; }
@@ -354,7 +370,7 @@
   .bd-src-main #bd-w-srcbody { overflow:auto; margin:0; border:0; border-radius:0 0 0 var(--r-lg); min-height:0; }
   .bd-src-edit { overflow:auto; padding:14px 16px; border-left:1px solid var(--line-strong); font-size:13px; display:flex; flex-direction:column; gap:8px; }
   .bd-src-edit p { margin:0; }
-  .bd-src-guide { font-size:11px; color:var(--muted); }
+  .bd-src-guide { font-size:12px; color:var(--muted); }
   .bd-src-cell { font-size:13px; }
   .bd-src-sub { font-size:12px; color:var(--muted); margin-bottom:2px; }
   .bd-src-owners { display:flex; flex-direction:column; gap:4px; }
@@ -408,7 +424,7 @@
                                      border-color:var(--orange) transparent transparent transparent; }
   /* 여러 이사회 칸에 쓰이는 칸: 오른쪽 위 작은 숫자 배지 */
   .bd-w-srctbl td[data-n] { padding-right:18px; }   /* 배지 자리를 따로 비워 값과 겹치거나 붙어 읽히지 않게 한다 */
-  .bd-w-srctbl td[data-n]::after { content:attr(data-n); position:absolute; right:3px; top:1px; font-size:10px; line-height:1; color:var(--muted); }
+  .bd-w-srctbl td[data-n]::after { content:attr(data-n); position:absolute; right:3px; top:1px; font-size:11px; line-height:1; color:var(--muted); }
   /* [고친 칸만 표시]: 고친 칸 말고는 글자색만 가라앉힌다 */
   .bd-w-srctbl.is-only-edited td[data-key]:not(.is-edsrc) { color:var(--muted); }
   /* 선택 스포트라이트: 칸을 고르면 집중할 곳(선택 칸이 든 카드·상태 줄)만 밝고 나머지는 글자색만 --muted 로 가라앉는다.
@@ -498,7 +514,7 @@
   .login-actions { display:flex; gap:8px; }
   .login-actions button { flex:1; padding:9px 14px; font-size:13px; }
   .login-actions .primary { background:var(--accent-color); color:#0d1116; border-color:transparent; font-weight:700; }
-  .login-hint { margin:0; font-size:11px; color:var(--muted); }
+  .login-hint { margin:0; font-size:12px; color:var(--muted); }
   #notify-badge:not(:empty) { margin-left:2px; background:var(--red); color:#0d1116;
       border-radius:8px; padding:0 6px; font-size:11px; font-family:var(--mono); }
 
@@ -513,7 +529,7 @@
   #ticker .tk-sep { color:var(--line-strong); margin:0 10px; }
   .gph { width:12px; height:12px; display:inline-block; vertical-align:-2px; }
   #legend .gph { width:10px; height:10px; vertical-align:-1px; }
-  #ticker .tk-sync { margin-left:16px; font-size:11px; color:var(--muted); opacity:.8; }
+  #ticker .tk-sync { margin-left:16px; font-size:12px; color:var(--muted); }
   #ticker > span:not(.tk-cap):not(.tk-sep):not(.tk-sync) { display:inline-block; }
   #ticker .tk-roll { animation:tkRoll .8s cubic-bezier(.5,0,.2,1) both; }
   /* 아래로 굴러 나가고(0~42%) 위에서 다시 내려와 앉는다 — 시계 숫자가 넘어가듯 */
@@ -573,7 +589,7 @@
             box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 8px 24px rgba(8,12,24,.45);
             padding:9px 12px; font-size:11px; font-family:var(--mono);
             display:flex; flex-direction:column; gap:5px; }
-  #legend .lg-title { color:var(--muted); font-size:10px; letter-spacing:.08em; margin-bottom:1px; }
+  #legend .lg-title { color:var(--muted); font-size:11px; letter-spacing:.08em; margin-bottom:1px; }
   #legend .lg-item { display:flex; align-items:center; gap:7px; white-space:nowrap; }
   #legend .lg-sw { width:12px; height:12px; border-radius:4px; border:1px solid rgba(0,0,0,.35); display:inline-block; }
   #legend .lg-hatch { background-image:repeating-linear-gradient(45deg, rgba(15,18,24,.5) 0 2px, transparent 2px 4px); }
@@ -710,7 +726,7 @@
   .nt-row.unread { border-left-color:var(--accent-color); background:color-mix(in srgb, var(--accent-color) 7%, transparent); }
   .nt-row.unread pre { font-weight:600; }
   .nt-row.autoread { cursor:pointer; }
-  .nt-row.read { opacity:.55; }
+  .nt-row.read { color:var(--muted); }
   .nt-head { font-size:11px; color:var(--muted); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
   .nt-dot { width:8px; height:8px; border-radius:50%; background:var(--accent-color); flex:none; }
   .nt-new { margin-left:auto; color:var(--accent-color); font-weight:600; }
@@ -754,7 +770,7 @@
                   align-items:center; }
   .dg-bucket h4 span { font-size:11px; color:var(--bg); background:var(--muted);
                        border-radius:6px; padding:0 6px; font-weight:normal; font-family:var(--mono); }
-  .dg-bucket .wf-empty { margin:0 0 0 4px; font-size:12px; opacity:.65; }
+  .dg-bucket .wf-empty { margin:0 0 0 4px; font-size:12px; color:var(--muted); }
   .dg-item { border:1px solid var(--line-strong); border-radius:var(--r-sm); background:var(--panel);
              padding:8px; margin-bottom:6px; cursor:pointer; transition:border-color .2s; }
   .dg-item:hover, .dg-item.on { border-color:var(--accent-color); }
@@ -799,13 +815,13 @@
   .dg-at { margin-left:auto; }
   .dg-team-files { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center;
                    margin:8px 0 0; font-size:12px; }
-  .dg-team-files.none { color:var(--muted); font-size:11px; }
+  .dg-team-files.none { color:var(--muted); font-size:12px; }
   .dg-team-dl { color:var(--accent-color); text-decoration:none; }
   .dg-team-dl:hover { text-decoration:underline; }
   .dg-why { font-size:12px; color:var(--orange); }
   #dg-upload-row, #dg-actions { display:flex; align-items:center; gap:8px; margin:8px 0;
                                 flex-wrap:wrap; }
-  .dg-hint { font-size:11px; color:var(--muted); }
+  .dg-hint { font-size:12px; color:var(--muted); }
   #dg-memo { width:100%; box-sizing:border-box; }
   #dg-actions button:disabled { opacity:.55; cursor:not-allowed; }
 
@@ -847,6 +863,7 @@
   #ad-head { font-size:16px; font-weight:700; color:var(--fg); margin-bottom:4px; }
   #ad-head .dg-hint { font-size:12px; font-weight:400; }
   .ad-flash { min-height:18px; font-size:13px; color:var(--accent-color); margin:2px 0 8px; }
+  #ad-flash:empty { min-height:0; height:0; margin:0; overflow:hidden; }   /* 메시지가 없으면 접는다(aria-live 요소는 그대로 둔다) */
   .ad-flash.bad { color:var(--red); }
   #ad-body { overflow:auto; min-height:0; flex:1 1 auto; }
   .ad-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:6px 0 10px; }
@@ -857,17 +874,20 @@
   .ad-table th, .ad-table td { border-bottom:1px solid var(--line); padding:7px 10px; text-align:left; white-space:nowrap; }
   .ad-table thead th { background:var(--panel2); color:var(--muted); font-weight:600; position:sticky; top:0; }
   .ad-perms td, .ad-perms thead th:not(:first-child) { text-align:center; }
-  .ad-table tr.st-retired td { opacity:.5; }
+  .ad-table tr.st-retired td { color:var(--muted); }
   .ad-table tr.bad td { background:color-mix(in srgb, var(--red) 10%, transparent); }
   .ad-table .mono { font-family:var(--mono); }
   .ad-ops { text-align:right; }
   .ad-ops button { margin-left:4px; padding:3px 9px; font-size:12px; }
   button.danger { color:var(--red); border-color:var(--red); }
+  /* 퇴직: 되돌리기 어려운 동작이라 빨강 글자·테두리·18% 배경으로 구분하고 앞 버튼과 8px 띄운다 */
+  .ad-ops button.retire { margin-left:8px; color:var(--red); border-color:var(--red);
+                          background:rgba(224,120,86,.18); background:color-mix(in srgb, var(--red) 18%, transparent); }
   button.primary { background:var(--accent-color); color:#0d1116; border-color:transparent; font-weight:700; }
-  button:disabled { opacity:.45; cursor:not-allowed; }
+  button:disabled { opacity:.55; cursor:not-allowed; }
   .ad-empty { color:var(--muted); text-align:center !important; padding:18px !important; }
   .ad-badge { display:inline-block; font-size:11px; padding:1px 8px; border-radius:9px; border:1px solid var(--line-strong); color:var(--muted); }
-  .ad-badge.active, .ad-badge.ok { color:var(--accent-color); border-color:var(--accent-color); }
+  .ad-badge.active, .ad-badge.ok { color:var(--blue); border-color:var(--blue); }   /* 정상 상태 = 파랑(틸은 상호작용 전용) */
   .ad-badge.locked, .ad-badge.warn { color:#e0b44c; border-color:#e0b44c; }
   .ad-badge.retired { color:var(--muted); }
   .ad-badge.grade { color:var(--fg); }
@@ -885,7 +905,7 @@
   .ad-grid thead th { background:var(--panel2); }
   .ad-grid tbody th { text-align:left; background:var(--panel2); font-weight:normal; }
   .ad-so { color:var(--muted); }
-  .ad-note { font-size:11px; color:var(--muted); }
+  .ad-note { font-size:12px; color:var(--muted); }
   #ad-actions { display:flex; gap:8px; align-items:center; margin-top:10px; }
 
   /* 모달 — 라운드 + 블러 스크림 + 틴티드 섀도 */
@@ -951,7 +971,7 @@
   .ov-tab-n { font-family:var(--mono); font-size:11px; margin-left:4px; color:var(--muted); font-weight:400; }
   #ov-list { flex:1 1 auto; overflow:auto; min-height:0; }
   .ov-hint, #ov-unknown, #ov-pop-sum, #ov-pop-hint { word-break:keep-all; }
-  .ov-hint { margin:10px 14px; font-size:11px; color:var(--muted); line-height:1.5; }
+  .ov-hint { margin:10px 14px; font-size:12px; color:var(--muted); line-height:1.5; }
   .ov-grp > summary { list-style:none; display:flex; align-items:center; gap:6px; padding:8px 14px; cursor:pointer;
                       font-size:12px; font-weight:700; border-bottom:1px solid var(--line); background:var(--panel2); }
   .ov-grp > summary:focus-visible { outline-offset:-2px; }
@@ -981,7 +1001,7 @@
   .ov-conf.is-check { border:1px dotted var(--muted); color:var(--fg); }
   .ov-empty { padding:28px 14px; text-align:center; color:var(--muted); font-size:12px; line-height:1.6; word-break:keep-all; }
   .ov-empty p { margin:0; }
-  #ov-unknown { margin:0; padding:8px 14px; border-top:1px solid var(--line); font-size:11px; color:var(--muted); }
+  #ov-unknown { margin:0; padding:8px 14px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
   #ov-unknown b { font-family:var(--mono); font-weight:400; color:var(--fg); }
   #ov-count[hidden], #ov-unknown[hidden], #ov-pop-more[hidden], #ov-pop-hint[hidden] { display:none; }
   /* 로그인 직후 팝업 — 기존 .modal-overlay/.modal-box를 쓰되 role=dialog·포커스 가두기는 overdue.js가 맡는다 */
@@ -996,7 +1016,7 @@
   #ov-pop-list .ov-item { padding:8px 2px; }
   #ov-pop-list .ov-meta { grid-column:auto; justify-content:flex-end; }
   #ov-pop-more { margin-top:6px; }
-  #ov-pop-hint { margin:10px 0 0; font-size:11px; color:var(--muted); line-height:1.5; }
+  #ov-pop-hint { margin:10px 0 0; font-size:12px; color:var(--muted); line-height:1.5; }
   .ov-pop-foot { display:flex; align-items:center; gap:8px; margin-top:14px; }
   .ov-pop-foot .sp { flex:1; }
   #ov-pop-all { border-color:color-mix(in srgb, var(--accent-color) 55%, transparent); }
@@ -1304,7 +1324,7 @@ review, the verdict, and DESIGN.md
   <div class="modal-box" style="max-width:360px;margin:8vh auto;">
     <h3>기관 정보 변경</h3>
     <div id="edit-fields" style="overflow:auto;flex:1 1 auto;min-height:0;"></div>
-    <p style="color:var(--muted);font-size:11px;">sources는 쉼표로 구분, 1개 이상 필수(조작 금지).</p>
+    <p style="color:var(--muted);font-size:12px;">sources는 쉼표로 구분, 1개 이상 필수(조작 금지).</p>
     <div style="display:flex;gap:8px;justify-content:flex-end;">
       <button id="edit-cancel">취소</button><button id="edit-save">저장</button>
     </div>
@@ -1314,7 +1334,7 @@ review, the verdict, and DESIGN.md
 <div id="theme-modal" class="modal-overlay" style="display:none;">
   <div class="modal-box modal-scroll" style="max-width:360px;margin:8vh auto;">
     <h3>지도 색상 설정</h3>
-    <p style="color:var(--muted);font-size:11px;margin-top:0;">임박 단계별 면 색과, 선택 강조(물결·구 외곽선 깜빡임)의 색·속도를 조절합니다.</p>
+    <p style="color:var(--muted);font-size:12px;margin-top:0;">임박 단계별 면 색과, 선택 강조(물결·구 외곽선 깜빡임)의 색·속도를 조절합니다.</p>
     <label>임박 6개월↓ <input type="color" data-t="red"></label>
     <label>임박 1년↓ <input type="color" data-t="orange"></label>
     <label>임박 2년↓ <input type="color" data-t="yellow"></label>

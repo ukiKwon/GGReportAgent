@@ -1490,7 +1490,7 @@
     return '<div class="bd-edit-guide" id="bd-edit-guide">' +
       '<p>표 안의 숫자는 예시입니다. 실제 값은 [이 양식으로 작성]에서 엑셀을 올리면 채워집니다.</p>' +
       '<p>여기서는 표 제목, 행·열 이름, 행과 열의 구성을 고칠 수 있습니다. ' +
-      '<span class="bd-swatch" aria-hidden="true"></span>틸 배경 칸은 작성할 때 엑셀 값이 들어가는 자리입니다.</p></div>';
+      '<span class="bd-swatch" aria-hidden="true"></span>틸 배경과 왼쪽 막대가 있는 칸은 작성할 때 엑셀 값이 들어가는 자리입니다.</p></div>';
   };
 
   // cat: {status:'idle'|'loading'|'ready'|'error', items?, error?}
@@ -1586,7 +1586,7 @@
     // 양식을 보고 있을 때만: 표의 숫자는 예시라는 안내. 작성 권한이 없는 사람에게는 작성 안내(뒷문장)를 뺀다.
     if (c.hasDoc) {
       h += '<p class="bd-legend">표의 숫자는 예시입니다.' +
-        (c.canWrite ? ' 틸 배경 칸은 엑셀 값이 들어가는 칸으로, [이 양식으로 작성]에서 엑셀을 올리면 채워집니다.' : '') + '</p>';
+        (c.canWrite ? ' 틸 배경과 왼쪽 막대가 있는 칸은 엑셀 값이 들어가는 칸으로, [이 양식으로 작성]에서 엑셀을 올리면 채워집니다.' : '') + '</p>';
     }
     return h;
   };

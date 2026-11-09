@@ -344,7 +344,7 @@ test('th scope: 열 머리 col, 병합 머리 colgroup, 행 머리 row', functio
 test('버튼 줄: 샘플 워드 버튼 이름과 안내 문구(작성 권한 없으면 뒷문장 없음)', function () {
   const v = board.actionsHtml({ mode: 'view', hasDoc: true, canWrite: true });
   assert.ok(v.includes('>샘플 워드 내려받기</button>') && !v.includes('>워드 내려받기<'));
-  assert.ok(v.includes('<p class="bd-legend">표의 숫자는 예시입니다. 틸 배경 칸은 엑셀 값이 들어가는 칸으로, [이 양식으로 작성]에서 엑셀을 올리면 채워집니다.</p>'));
+  assert.ok(v.includes('<p class="bd-legend">표의 숫자는 예시입니다. 틸 배경과 왼쪽 막대가 있는 칸은 엑셀 값이 들어가는 칸으로, [이 양식으로 작성]에서 엑셀을 올리면 채워집니다.</p>'));
   const n = board.actionsHtml({ mode: 'view', hasDoc: true, canWrite: false });
   assert.ok(n.includes('<p class="bd-legend">표의 숫자는 예시입니다.</p>'));
   assert.ok(board.actionsHtml({ mode: 'edit', hasDoc: true }).includes('disabled>샘플 워드 내려받기</button>'));

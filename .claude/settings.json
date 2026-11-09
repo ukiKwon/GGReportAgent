@@ -1,4 +1,10 @@
 {
+  "permissions": {
+    "deny": [
+      "Read(kgi-ggreport-web/config/application.properties)",
+      "Read(uploader/config/application.properties)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -87,16 +93,10 @@
       }
     ]
   },
-  "permissions": {
-    "deny": [
-      "Read(kgi-ggreport-web/config/application.properties)",
-      "Read(uploader/config/application.properties)"
-    ]
-  },
   "enabledPlugins": {
     "vercel@claude-plugins-official": false,
-    "taste-skill@taste-skill": false,
-    "ui-ux-pro-max@ui-ux-pro-max-skill": false,
+    "taste-skill@taste-skill": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
     "impeccable@impeccable": true
   }
 }

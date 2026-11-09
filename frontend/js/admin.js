@@ -11,6 +11,8 @@
   // (localStorage)라 서버가 신원을 확인할 방법이 없다. 실제 차단은 폐쇄망 +
   // nginx Basic Auth가 맡는다(계획 G).
   const admin = {};
+  // 역할 표시 글(예산팀→재무팀). 값·data-role은 원본 유지, 보이는 글자만 바꾼다. roles.js가 없으면 원본.
+  function rl(role) { return root.roles ? root.roles.roleLabel(role) : role; }
 
   const ADMIN_MENU = 'admin';
   admin.ADMIN_MENU = ADMIN_MENU;
@@ -317,10 +319,10 @@
           esc(m.label) + (m.serverOnly ? ' <span class="ad-so">*</span>' : '') + '</th>';
       }).join('') + '</tr></thead><tbody>' +
       g.rows.map(function (r) {
-        return '<tr><th>' + esc(r.role) + '</th>' + cols.map(function (m) {
+        return '<tr><th>' + esc(rl(r.role)) + '</th>' + cols.map(function (m) {
           const on = r.cells[m.key] ? ' checked' : '';
           return '<td><input type="checkbox" data-role="' + esc(r.role) +
-            '" data-menu="' + esc(m.key) + '"' + on + ' aria-label="' + esc(r.role + ' ' + m.label) + '"></td>';
+            '" data-menu="' + esc(m.key) + '"' + on + ' aria-label="' + esc(rl(r.role) + ' ' + m.label) + '"></td>';
         }).join('') + '</tr>';
       }).join('') + '</tbody></table>' +
       '<p class="ad-note"><span class="ad-so">*</span> 표시는 서버 모드 전용입니다 — ' +
@@ -399,7 +401,7 @@
 
   function roleOptions(selected) {
     return '<option value="">선택</option>' + ((meta && meta.roles) || []).map(function (r) {
-      return '<option value="' + esc(r) + '"' + (r === selected ? ' selected' : '') + '>' + esc(r) + '</option>';
+      return '<option value="' + esc(r) + '"' + (r === selected ? ' selected' : '') + '>' + esc(rl(r)) + '</option>';
     }).join('');
   }
   function gradeOptions(selected) {
@@ -415,7 +417,7 @@
     const u = userById(emp);
     return '<option value="">자동 (팀·직위 기준)</option>' + admin.approverCandidates(users, u || { emp_no: emp }).map(function (c) {
       return '<option value="' + esc(c.emp_no) + '"' + (c.emp_no === selected ? ' selected' : '') + '>' +
-        esc(c.name + ' (' + c.emp_no + ') · ' + c.role + (c.position_title ? ' ' + c.position_title : '')) + '</option>';
+        esc(c.name + ' (' + c.emp_no + ') · ' + rl(c.role) + (c.position_title ? ' ' + c.position_title : '')) + '</option>';
     }).join('');
   }
 
@@ -487,7 +489,7 @@
       (rows.length ? rows.map(function (u) {
         const retiring = confirmRetire === u.emp_no;
         return '<tr class="st-' + esc((u.status || '').toLowerCase()) + '"><td class="mono">' + esc(u.emp_no) + '</td><td>' + esc(u.name) +
-          '</td><td>' + esc(u.role) + '</td><td>' + esc(u.position_title || '') + '</td><td>' +
+          '</td><td>' + esc(rl(u.role)) + '</td><td>' + esc(u.position_title || '') + '</td><td>' +
           esc(admin.gradeLabel(u.approval_grade, grades)) + '</td><td title="' + esc(admin.chainText(u)) + '">' + approverCell(u) +
           '</td><td><span class="ad-badge ' + esc((u.status || '').toLowerCase()) + '">' +
           esc(admin.STATUS_LABELS[u.status] || u.status) + '</span></td><td>' +
@@ -498,7 +500,7 @@
               '<button data-op="lock" data-emp="' + esc(u.emp_no) + '">잠금</button>') +
             (retiring ? '<button class="danger" data-op="retire-yes" data-emp="' + esc(u.emp_no) + '">정말 퇴직</button>' +
               '<button data-op="retire-no">취소</button>' :
-              '<button data-op="retire" data-emp="' + esc(u.emp_no) + '">퇴직</button>')) + '</td></tr>';
+              '<button class="retire" data-op="retire" data-emp="' + esc(u.emp_no) + '">퇴직</button>')) + '</td></tr>';
       }).join('') : '<tr><td colspan="9" class="ad-empty">조건에 맞는 사용자가 없습니다.</td></tr>') + '</tbody></table>' +
       pagerHtml('us', pg.page, pg.pages);
     el('us-size').onchange = function (e) { usersPage.size = admin.normPageSize(e.target.value); usersPage.page = 0; paintUsers(); };
@@ -603,7 +605,7 @@
       '<div class="ad-toolbar"><label class="ad-inline">사용자 <select id="pm-user"><option value="">선택</option>' +
       active.map(function (u) {
         return '<option value="' + esc(u.emp_no) + '"' + (u.emp_no === permEmp ? ' selected' : '') + '>' +
-          esc(u.name + ' (' + u.emp_no + ') · ' + u.role) + '</option>';
+          esc(u.name + ' (' + u.emp_no + ') · ' + rl(u.role)) + '</option>';
       }).join('') + '</select></label>' +
       (me ? '<span class="ad-badge grade">결재 등급 · ' + esc(admin.gradeLabel(me.approval_grade, grades)) + '</span>' : '') + '</div>' +
       (permEmp ? '<table class="ad-table ad-perms"><thead><tr><th>메뉴</th><th>조회</th><th>작성</th><th>수정</th><th>결재</th><th>기준</th></tr></thead><tbody>' +

@@ -168,7 +168,7 @@ test('editHtml: 매핑 칸은 입력 없이 틸 칸(잠김 표시·tabindex·ari
   assert.ok(!h.includes('data-key="r1c1"'));
   assert.ok(!/<textarea/.test(h));
   assert.ok(h.includes('표 안의 숫자는 예시입니다. 실제 값은 [이 양식으로 작성]에서 엑셀을 올리면 채워집니다.'));
-  assert.ok(h.includes('여기서는 표 제목, 행·열 이름, 행과 열의 구성을 고칠 수 있습니다.') && h.includes('틸 배경 칸은 작성할 때 엑셀 값이 들어가는 자리입니다.'));
+  assert.ok(h.includes('여기서는 표 제목, 행·열 이름, 행과 열의 구성을 고칠 수 있습니다.') && h.includes('틸 배경과 왼쪽 막대가 있는 칸은 작성할 때 엑셀 값이 들어가는 자리입니다.'));
   assert.strictEqual(h.split('id="bd-edit-guide"').length - 1, 1);   // 화면에 한 번만
   assert.ok(h.indexOf('id="bd-edit-guide"') > h.indexOf('id="bd-editbar"') && h.indexOf('id="bd-edit-guide"') < h.indexOf('id="bd-name"'));
   assert.ok(!h.includes('개발자만 연결을 바꿀 수 있습니다'));

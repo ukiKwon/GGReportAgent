@@ -349,7 +349,7 @@
       return '<label style="display:block;margin:6px 0;">' + label +
         '<input data-f="' + f + '" value="' + root.logic.esc(val) + '"' +
         (locked ? ' disabled title="기관명은 서버 등록·병합의 기준 이름이라 화면에서 바꿀 수 없습니다"' +
-          ' style="width:100%;opacity:.55;cursor:not-allowed;"' : ' style="width:100%;"') +
+          ' style="width:100%;color:var(--muted);cursor:not-allowed;"' : ' style="width:100%;"') +
         '></label>';
     }).join('');
     const modal = document.getElementById('edit-modal'); modal.style.display = 'block';
@@ -413,7 +413,7 @@
     }).join('') +
       '<label style="display:flex;gap:6px;align-items:center;margin:6px 0;">' +
       '<input type="checkbox" data-f="confirmed"> ' + L.confirmed + '(공고로 확인됨)</label>' +
-      '<p style="color:var(--muted);font-size:11px;">확정여부를 체크하지 않으면 "추정"으로 표시됩니다.</p>';
+      '<p style="color:var(--muted);font-size:12px;">확정여부를 체크하지 않으면 "추정"으로 표시됩니다.</p>';
     const modal = document.getElementById('add-modal'); modal.style.display = 'block';
     document.getElementById('add-cancel').onclick = function () { modal.style.display = 'none'; };
     document.getElementById('add-save').onclick = function () {
@@ -566,6 +566,10 @@
   function recordScreen(id) {
     const name = root.nav.screenName(id, root.board && root.board.SOON_ID);
     if (!name || name === lastRecorded) return;
+    // 키는 있지만 준비중 안내만 연 항목(AI 대화·지식 검색)은 실제로 열람한 화면이 아니므로 기록하지 않는다.
+    const shown = findNavItem(id);
+    const soonTab = document.getElementById('tab-soon');
+    if (shown && shown.pending && soonTab && soonTab.classList.contains('active')) return;
     const session = root.store.loadSession();
     if (!root.store.isServerMode() || !(session && session.mode === 'account' && session.emp)) return;
     lastRecorded = name;
@@ -629,20 +633,39 @@
     const el = document.getElementById('side-nav');
     if (!el) return;
     const sig = navBuilt.map(function (c) {
-      return c.id + ':' + c.items.map(function (i) { return i.id; }).join(',');
+      return c.id + (c.showSubs ? '+' : ':') + c.items.map(function (i) { return i.id + '@' + (i.sub || ''); }).join(',');
     }).join('|');
     if (sig !== navDomSig) {
       const esc = root.logic.esc;
       el.innerHTML = navBuilt.map(function (cat) {
-        const items = cat.items.map(function (it) {
+        function itemHtml(it) {
           const badge = root.nav.badgeOf(it);   // 배지가 없으면 흐림(.soon)도 없다 — 이미 열리는 화면이다
           return '<button class="nav-item' + (badge ? ' soon' : '') + '" data-nav="' + esc(it.id) +
             '" title="' + esc(it.label) + '"><span class="nav-label">' + esc(it.label) + '</span>' +
-            (badge ? '<span class="nav-soon-tag">' + esc(badge) + '</span>' : '') + '</button>';
-        }).join('');
-        return '<button class="nav-cat" data-cat="' + esc(cat.id) + '" title="' + esc(cat.title) + '">' +
+            (badge ? '<span class="nav-soon-tag" aria-hidden="true">' + esc(badge) + '</span>' +
+                     '<span class="sr-only">' + esc(badge) + '</span>' : '') + '</button>';
+        }
+        let items = '';
+        if (cat.showSubs) {
+          // 중분류 = 누를 수 없는 소제목. 같은 sub가 이어지는 구간을 한 묶음(role=group)으로 그린다.
+          const groups = [];
+          cat.items.forEach(function (it) {
+            const last = groups[groups.length - 1];
+            if (last && last.sub === it.sub) last.items.push(it); else groups.push({ sub: it.sub, items: [it] });
+          });
+          items = groups.map(function (g, n) {
+            const sid = 'nav-sub-' + cat.id + '-' + n;
+            return '<div role="group" aria-labelledby="' + esc(sid) + '" data-sub="' + esc(g.sub) + '">' +
+              '<div class="nav-sub" id="' + esc(sid) + '">' + esc(g.sub) + '</div>' + g.items.map(itemHtml).join('') + '</div>';
+          }).join('');
+        } else {
+          items = cat.items.map(itemHtml).join('');
+        }
+        const lid = 'nav-items-' + cat.id;
+        return '<button class="nav-cat" data-cat="' + esc(cat.id) + '" title="' + esc(cat.title) +
+          '" aria-expanded="false" aria-controls="' + esc(lid) + '">' +
           '<span class="nav-label">' + esc(cat.title) + '</span></button>' +
-          '<div class="nav-items" data-for="' + esc(cat.id) + '"><div class="nav-items-in">' + items + '</div></div>';
+          '<div class="nav-items" id="' + esc(lid) + '" data-for="' + esc(cat.id) + '"><div class="nav-items-in">' + items + '</div></div>';
       }).join('');
       navDomSig = sig;
     }
@@ -650,12 +673,20 @@
     el.querySelectorAll('.nav-cat').forEach(function (b) {
       b.classList.toggle('open', b.dataset.cat === openCat);
       b.classList.toggle('has-active', b.dataset.cat === activeCat);
+      b.setAttribute('aria-expanded', b.dataset.cat === openCat ? 'true' : 'false');
     });
     el.querySelectorAll('.nav-items').forEach(function (d) {
       d.classList.toggle('open', d.dataset.for === openCat);
     });
     el.querySelectorAll('.nav-item').forEach(function (b) {
-      b.classList.toggle('active', b.dataset.nav === navActiveId);
+      const on = b.dataset.nav === navActiveId;
+      b.classList.toggle('active', on);
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
+    // 활성 항목이 든 중분류 소제목은 진하게(.has-active).
+    el.querySelectorAll('[role="group"]').forEach(function (g) {
+      const sub = g.querySelector('.nav-sub');
+      if (sub) sub.classList.toggle('has-active', !!g.querySelector('.nav-item.active'));
     });
     // 항목 구성이 바뀌어 DOM을 새로 만들면 '전국 지도' 옆 미처리 배지도 사라지므로 다시 단다.
     if (root.overdue && root.overdue.paintNavBadge) root.overdue.paintNavBadge();

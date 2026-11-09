@@ -3,13 +3,13 @@ name: 금고은행 입찰 현황 히트맵
 description: Premium dark chrome with a pastel urgency map — tinted-charcoal panels, grain and glass carry the frame; saturation belongs to the data.
 colors:
   charcoal-base: "#0f1218"
-  panel: "#151a22"
-  panel-raised: "#1a2029"
+  panel: "#181e29"
+  panel-raised: "#202835"
   input-well: "#0d1117"
-  hairline: "#232a35"
-  hairline-strong: "#2e3745"
+  hairline: "#2d3644"
+  hairline-strong: "#424e62"
   ink: "#e2e7ee"
-  ink-muted: "#8b94a3"
+  ink-muted: "#98a1af"
   teal-accent: "#57b8ad"
   on-accent-dark: "#0d1116"
   watch-gold: "#d8c47a"
@@ -200,14 +200,23 @@ interpolated into markup.
 ### Neutral
 - **Charcoal Base** (`--bg`, #0f1218): page background — charcoal tinted
   toward blue, never pure black.
-- **Panel** (`--panel`, #151a22) / **Panel Raised** (`--panel2`, #1a2029):
+- **Panel** (`--panel`, #181e29) / **Panel Raised** (`--panel2`, #202835):
   the two flat surface steps for panels, cards, buttons, tab housing.
-- **Input Well** (#0d1117): recessed fill for text inputs and selects.
-- **Hairline** (`--line`, #232a35) / **Hairline Strong** (`--line-strong`,
-  #2e3745): row separators vs. component/panel borders; also the scrollbar
-  thumb.
-- **Ink** (`--fg`, #e2e7ee) / **Ink Muted** (`--muted`, #8b94a3): text
-  hierarchy; muted also serves as the default icon stroke.
+  (2026-11-09 visibility pass: values raised from #151a22/#1a2029 so surfaces
+  separate — panel/bg 1.07 → 1.12, panel2/panel 1.07 → 1.13. Names frozen.)
+- **Input Well** (#0d1117): recessed fill for text inputs and selects. Input and
+  select borders use the literal #626d81 (3:1 on the well); no new variable.
+- **Hairline** (`--line`, #2d3644) / **Hairline Strong** (`--line-strong`,
+  #424e62): row separators vs. component/panel borders; also the scrollbar
+  thumb. (Raised 2026-11-09 from #232a35/#2e3745.)
+- **Ink** (`--fg`, #e2e7ee) / **Ink Muted** (`--muted`, #98a1af): text
+  hierarchy; muted also serves as the default icon stroke. De-emphasis (disabled,
+  empty, read, preparing) uses `--muted` color, not `opacity` (opacity drops
+  muted text under 4.5:1); disabled buttons are .55 at most.
+- **Minimum text size**: 11px (the 10px Micro Label tier is retired except SVG
+  map labels); sentence-style hints are 12px; counters/badges stay 11px mono.
+- **Filled primary exception**: besides `#ch-send`, the user-register button in
+  system admin (`button.primary`) is the single filled primary action there.
 - **Watch Gold** (#d8c47a): watched-region outline (with its
   `rgba(216,196,122,.7)` glow) and the region-card star — the one
   non-teal, non-urgency signal color.
@@ -409,6 +418,24 @@ mirrored 1:1 by the `.fsw` stroke glyphs in the control strip.
   hairline, 3px padding) holding transparent 9px-radius buttons in muted
   text; hover brightens text only (no lift); active fills with a 16% teal
   tint and ink text. Server-only tabs are hidden, not disabled.
+
+### Sidebar (left work menu, 3 tiers — 2026-11-09)
+- Tiers: category (`.nav-cat`, 14px/700, one open at a time) · sub-group
+  (`.nav-sub`, a non-clickable 11px/700 `--muted` subheading; `--fg` when it holds
+  the active item) · item (`.nav-item`, 14px).
+- Categories are fixed in business order 1→6 (기관·입찰 현황, 영업 기획, 제안서 관리,
+  제안서 작성, 협약·관계 관리, 공통 도구), 시스템 관리 last. Sub-group headings show only
+  when ≥2 visible sub-groups each have ≥2 visible items; otherwise the whole
+  category is flat.
+- No extra indent for sub-groups (248px sidebar leaves ~146px for a label);
+  hierarchy is size, weight and color only.
+- "준비중" items are never dimmed by opacity: `--muted` text (≥4.5:1) plus an 11px
+  hatched badge. At ≤900px (200px sidebar) items are 13px and the badge becomes a
+  10×10 hatched chip with an sr-only label.
+- Accessibility: `.nav-cat` carries `aria-expanded`/`aria-controls`, the active item
+  `aria-current="page"`, sub-groups `role="group"` + `aria-labelledby`; keyboard is
+  Tab (disclosure pattern). Server menu keys (8), `/menus` and golden 04·05 stay
+  frozen — only labels and grouping live in `nav.js`.
 
 ### Chips / Badges
 - **Status badge** (`.wf-badge`, `.nt-kind`, `.dg-day`, `.dg-tag`): 11px, 1px

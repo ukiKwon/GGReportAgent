@@ -236,6 +236,27 @@ test('CSS 전환: 200ms, prefers-reduced-motion 이면 없음', function () {
 test('CSS: 알림 줄 숨김(is-sr)은 margin 규칙에 지지 않는다', function () {
   assert.ok(/\.bd-w-status \.bd-w-live\.is-sr \{ position:absolute;/.test(html));
 });
+test('CSS 가시성 토큰: :root 5개가 새 값, hover 리터럴, 입력 테두리 3:1(새 변수 없음)', function () {
+  const root = /:root \{([^}]*)\}/.exec(html)[1];
+  const tok = function (n) { return new RegExp('--' + n + ':\\s*(#[0-9a-fA-F]{6})').exec(root)[1].toLowerCase(); };
+  assert.strictEqual(tok('panel'), '#181e29');
+  assert.strictEqual(tok('panel2'), '#202835');
+  assert.strictEqual(tok('line'), '#2d3644');
+  assert.strictEqual(tok('line-strong'), '#424e62');
+  assert.strictEqual(tok('muted'), '#98a1af');
+  assert.ok(/button:hover \{ background:#283141; border-color:#4a566b;/.test(html));
+  assert.ok(!/--line-input/.test(html), '입력 테두리용 새 변수를 만들지 않는다');
+  assert.ok(/input:not\(\[type\]\), select, textarea \{[^}]*border:1px solid #626d81/.test(html));
+});
+test('CSS 가시성: 연결 칸 틸 18%+왼쪽 막대, 비활성 초안 버튼은 중립 테두리, 비활성 버튼 .55, 퇴직 버튼 빨강', function () {
+  assert.ok(/\.bd-mapped \{[^}]*accent-color\) 18%[^}]*box-shadow:inset 2px 0 0 var\(--accent-color\)/.test(html));
+  assert.ok(/\.bd-wb-btns \.bd-wb-main:disabled \{ border-color:var\(--line-strong\); \}/.test(html));
+  assert.ok(/button\[disabled\] \{ opacity:\.55;/.test(html) && /button:disabled \{ opacity:\.55;/.test(html));
+  assert.ok(/\.ad-badge\.active, \.ad-badge\.ok \{ color:var\(--blue\);/.test(html));
+  assert.ok(/\.ad-ops button\.retire \{[^}]*margin-left:8px;[^}]*color:var\(--red\)/.test(html));
+  assert.ok(/#ad-flash:empty \{ min-height:0;/.test(html));
+  assert.ok(/button\.primary \{ background:var\(--accent-color\)/.test(html), '사용자 등록 틸 채움 주버튼은 예외로 유지');
+});
 
 // ── 규칙 순서·특이도 비교(공백 무관) ──
 function allRules() {
