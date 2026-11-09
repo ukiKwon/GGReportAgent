@@ -17,6 +17,7 @@
 | `archive/` | 슬림화 전 NEXT 전체본, 문의서 원문 등 보관본 |
 
 ## 사람이 보는 이력
+- **에이전트별 일괄 정리**: 역할별 이력 파일을 따로 두지 않고, `pm`이 에이전트별로 모아 `docs/pm_history/index.html`의 '에이전트별 정리' 장에 씁니다. 화면 전/후만 `docs/design_history/index.html`에 따로 쌓습니다. 규칙은 `CLAUDE.md` 4절.
 - **PM 주간 이력** — [`docs/pm_history/index.html`](../docs/pm_history/index.html) 한 파일. 매주 금요일 PM이 그 주의 한 일·결정·요건 변경·숫자·열린 항목을 정리해 맨 위에 추가합니다. 브라우저로 열어 봅니다.
 
 ## 옛 체크포인트(2026-07)
