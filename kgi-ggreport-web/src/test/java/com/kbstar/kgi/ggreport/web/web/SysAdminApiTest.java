@@ -152,16 +152,19 @@ public class SysAdminApiTest {
         asAdmin(get("/sysadmin/perms/" + SALES_MEMBER)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.menus[?(@.menu_key=='map')].view").value(hasItem(true)))
                 .andExpect(jsonPath("$.menus[?(@.menu_key=='map')].source").value(hasItem("role")))
-                .andExpect(jsonPath("$.menus[?(@.menu_key=='approvals')].view").value(hasItem(false)))
+                // 결재함은 전원에게 보인다(2026-11-09) — 조회는 켜져 있고 결재(approve)는 꺼져 있다
+                .andExpect(jsonPath("$.menus[?(@.menu_key=='approvals')].view").value(hasItem(true)))
+                .andExpect(jsonPath("$.menus[?(@.menu_key=='approvals')].approve").value(hasItem(false)))
                 .andExpect(jsonPath("$.menus[?(@.menu_key=='approvals')].approvable").value(hasItem(true)))
                 // 모르는(결재 개념이 없는) 메뉴는 결재를 체크해 두지 않는다
                 .andExpect(jsonPath("$.menus[?(@.menu_key=='map')].approve").value(hasItem(false)));
     }
 
     @Test
-    public void 결재를_켜면_조회가_자동으로_켜지고_변경_이력이_남는다() throws Exception {
+    public void 결재를_켜면_사용자_예외로_저장되고_변경_이력이_남는다() throws Exception {
+        // 결재함 조회는 역할 기본값으로 이미 켜져 있다(2026-11-09). 결재(approve)만 켜면 사용자 예외 행이 생긴다.
         asAdmin(json(put("/sysadmin/perms/" + SALES_MEMBER),
-                "{\"changes\":[{\"menu\":\"approvals\",\"view\":false,\"write\":false,\"edit\":false,\"approve\":true}]}"))
+                "{\"changes\":[{\"menu\":\"approvals\",\"view\":true,\"write\":false,\"edit\":false,\"approve\":true}]}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.saved").value(1));
         asAdmin(get("/sysadmin/perms/" + SALES_MEMBER))
                 .andExpect(jsonPath("$.menus[?(@.menu_key=='approvals')].view").value(hasItem(true)))
@@ -169,7 +172,6 @@ public class SysAdminApiTest {
                 .andExpect(jsonPath("$.menus[?(@.menu_key=='approvals')].source").value(hasItem("user")));
         asAdmin(get("/sysadmin/perm-changes").param("emp", SALES_MEMBER)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[*].item").value(hasItem("perm:approvals:CAN_APPROVE")))
-                .andExpect(jsonPath("$.items[*].item").value(hasItem("perm:approvals:CAN_VIEW")))
                 .andExpect(jsonPath("$.items[0].actor_emp_no").value(ADMIN));
     }
 

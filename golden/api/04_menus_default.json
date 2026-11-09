@@ -55,7 +55,7 @@
         "chat": true,
         "knowledge": true,
         "tasks": true,
-        "approvals": false,
+        "approvals": true,
         "admin": false
       },
       "전산팀": {
@@ -65,7 +65,7 @@
         "chat": true,
         "knowledge": true,
         "tasks": true,
-        "approvals": false,
+        "approvals": true,
         "admin": true
       },
       "예산팀": {
@@ -75,7 +75,7 @@
         "chat": true,
         "knowledge": true,
         "tasks": true,
-        "approvals": false,
+        "approvals": true,
         "admin": false
       },
       "영업팀장": {
@@ -115,7 +115,7 @@
         "chat": true,
         "knowledge": true,
         "tasks": true,
-        "approvals": false,
+        "approvals": true,
         "admin": false
       },
       "영업부장": {

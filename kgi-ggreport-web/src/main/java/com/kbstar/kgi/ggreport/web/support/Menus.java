@@ -48,7 +48,7 @@ public final class Menus {
 
     private static final Map<String, Map<String, Boolean>> DEFAULT_MENUS = defaults();
 
-    /** 모르는 역할(오타·옛 소속)에게 주는 값. 관리 화면이나 결재함을 열어주지 않는다. */
+    /** 모르는 역할(오타·옛 소속)에게 주는 값. 관리 화면이나 결재함을 열어주지 않는다(알려진 역할은 결재함이 전원 켜짐). */
     private static final Map<String, Boolean> FALLBACK_MENUS = row();
 
     private static List<String> menuKeys() {
@@ -79,16 +79,17 @@ public final class Menus {
 
     private static Map<String, Map<String, Boolean>> defaults() {
         Map<String, Map<String, Boolean>> out = new LinkedHashMap<>();
-        // 팀원: 자기 작업함 + 협업 도구. 결재는 하지 않는다.
+        // 팀원: 자기 작업함 + 협업 도구 + 결재함. 결재함은 전원에게 보인다(사용자 결정 2026-11-09) —
+        // 승인 권한이 없으면 '내가 올린 요청'과 안내만 본다. 승인 가능 여부는 메뉴가 아니라 결재 규칙이 정한다.
         for (String role : Teams.MEMBER_ROLES) {
-            out.put(role, row("workflow", "chat", "knowledge", "tasks"));
+            out.put(role, row("workflow", "chat", "knowledge", "tasks", "approvals"));
         }
         // 팀장: 거기에 결재함.
         for (String role : Teams.LEAD_ROLES) {
             out.put(role, row("workflow", "chat", "knowledge", "tasks", "approvals"));
         }
         // 디자이너: 받은 것을 열어보고 작업물을 올린다. 워크플로 현황판은 필요 없다.
-        out.put(Teams.DESIGNER_TEAM, row("chat", "knowledge", "tasks"));
+        out.put(Teams.DESIGNER_TEAM, row("chat", "knowledge", "tasks", "approvals"));
         // 영업부장: 전국 지도 · 결재함 · 대화 셋만(사용자가 직접 고른 조합).
         // 워크플로 현황판도 지역별도 보지 않는다 — 결재에 필요한 맥락은 결재함 카드
         // 안에 통째로 실려 오고, 나머지는 켜고 싶으면 전산팀이 권한관리에서 켠다.
