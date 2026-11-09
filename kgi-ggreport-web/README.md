@@ -8,7 +8,7 @@
 - **검증 기준**: `golden/` — "같은 입력 → 같은 출력" 비교가 이관 검증의 전부다.
   화면이 안 바뀌므로 이 비교가 통과하면 화면도 통과한다.
 
-## 진행 상태 (2026-08-27)
+## 진행 상태 (2026-08-27 기준 — 이후 이력은 §11)
 
 | 단계 | 상태 |
 |---|---|
@@ -807,3 +807,29 @@ Python은 안정 정렬 + 마이크로초라 동률이 사실상 없었지만 JD
 
 **합격 기준은 `mvn -o`(오프라인) 통과**다. 온라인 빌드 성공은 반입 완전성의 증명이
 되지 않는다. `mysql-connector-j`는 외부망 로컬 전용이라 반입 대상에서 제외한다.
+
+## 10. 이사회 자료 작성 — 엑셀 업로드 방어와 설정 키 (2026-11-09)
+
+작성 모드(`POST /board-forms/{id}/excel`)가 받는 엑셀은 **파싱 전에** `docfill/ZipGuard`가 걸러 낸다. 일정 규모를 넘는 파일로 서버 메모리·처리 자리를 붙잡는 것을 막기 위해서다(NEXT 48 ①②).
+
+| 설정 키 (`ggreport.board-write.*`) | 기본값 | 뜻 |
+|---|---|---|
+| `max-mb` | 5 | 파일 크기 상한(MB) |
+| `max-unpacked-entry-mb` / `max-unpacked-total-mb` | 20 / 40 | 압축 해제 항목·합계 상한(MB) |
+| `max-cells` / `max-rows` | 200000 / 200000 | 칸·행 수 상한(통합문서 전체 누적) |
+| `max-xml-elements` | 2000000 | 모든 XML 파트의 시작 요소 총수 상한 |
+| `concurrency` | 2 | 동시 처리 자리 수 |
+
+- 키는 코드 기본값만 있고 `config-envs/*/application.properties`에는 넣지 않았다(필요하면 PC마다 `config/application.properties`에 덧쓴다).
+- 계수 대상은 **파일 이름이 아니라 내용이 XML인 파트 전부**다(경로를 바꿔 우회하는 것을 막음). DOCTYPE이 든 파트는 거부한다(XXE).
+- 한 칸 32,767자 초과는 거부(`CELL_TOO_LONG`), 개인정보 검사는 선형 정규식 + 같은 값 메모 + 총량 상한(고유 2천만 자, 방문 5천만 자)을 건다(`support/Pii`, `docfill/XlsxBook`).
+- 거부 코드는 `TOO_MANY_CELLS`·`CELL_TOO_LONG`·`BROKEN` 등이며 화면 문구는 `BoardWriteService.message()`에 있다.
+- 시험: `ZipGuardTest`·`XlsxBookGuardTest`·`PiiTest`·`BoardWriteServiceTest`. 서버 전체 `mvn -q -o test`는 **774건 통과**(2026-11-09). 8080 서버가 같은 `target/`을 쓰면 테스트 전에 멈추고 뒤에 다시 띄운다.
+
+## 11. 작업 기록·이력 위치
+
+이 모듈의 진행 상황은 위 §진행 상태(2026-08-27 기준)보다 새로운 것이 저장소 루트 `handoff/`에 있다.
+
+- 다음 세션 시작점·열린 항목: `handoff/START.md` → `handoff/NEXT.md`
+- 날짜별 작업 기록: `handoff/YYYY-MM-DD_summary.md`
+- 사람이 보는 주간 이력(매주 금요일 PM 갱신): `docs/pm_history/index.html`
