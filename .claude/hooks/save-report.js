@@ -39,6 +39,8 @@ function lastAssistantText(file) {
       if ((m.role || o.type) !== 'assistant') continue;
       const c = m.content;
       if (typeof c === 'string') return c;
+      // 에이전트는 SubagentHandback 도구로 끝내며 보고 본문이 text가 아니라 tool_use 입력(message)에 있다(2026-11-09 확인).
+      if (Array.isArray(c)) { const h = c.filter(b => b && b.type === 'tool_use' && b.name === 'SubagentHandback' && b.input && typeof b.input.message === 'string').map(b => b.input.message).join('\n').trim(); if (h) return h; }
       if (Array.isArray(c)) { const t = c.filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim(); if (t) return t; }
     }
   } catch (_) {}
