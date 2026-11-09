@@ -1,0 +1,158 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>시안 - 공고 예정일 경과 (예시 값)</title>
+<style>
+:root{--bg:#0f1218;--panel:#151a22;--panel2:#1a2029;--line:#232a35;--line-strong:#2e3745;--fg:#e2e7ee;--muted:#8b94a3;--red:#e07856;--accent-color:#57b8ad;--mono:Consolas,"Cascadia Mono","Malgun Gothic",monospace;--shadow:0 12px 32px rgba(8,12,24,.55);--r-lg:14px;--r:10px;color-scheme:dark}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;font-family:"Malgun Gothic","Segoe UI",sans-serif;font-size:13px;background:var(--bg);color:var(--fg);font-variant-numeric:tabular-nums;display:flex;flex-direction:column;overflow:hidden}
+:focus-visible{outline:2px solid var(--accent-color);outline-offset:2px}
+button{background:var(--panel2);color:var(--fg);border:1px solid var(--line-strong);border-radius:var(--r);padding:6px 14px;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap;transition:background .2s,border-color .2s,transform .2s,box-shadow .2s}
+button:hover{background:#202836;border-color:#3a4557;transform:translateY(-1px);box-shadow:0 6px 16px rgba(8,12,24,.4)}
+.link-btn{background:none;border:0;padding:2px 4px;color:var(--muted);font-size:12px;text-decoration:underline;text-underline-offset:2px}
+.link-btn:hover{color:var(--fg);background:none;transform:none;box-shadow:none}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.gph{width:12px;height:12px;display:inline-block;vertical-align:-2px;flex:none}
+header{padding:12px 20px 10px;border-bottom:1px solid var(--line)}header h1{font-size:16px;margin:0}
+#shell{flex:1 1 auto;display:flex;min-height:0}
+#side-nav{flex:0 0 248px;padding:10px 8px;border-right:1px solid var(--line);background:var(--panel)}
+.nav-cat{display:block;width:100%;text-align:left;background:transparent;border:0;padding:9px 10px;font-size:14px;font-weight:700;color:var(--accent-color)}
+.nav-item{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-left:8px;width:calc(100% - 8px);text-align:left;background:transparent;border:0;padding:7px 10px;font-size:14px;color:var(--muted);border-radius:7px}
+.nav-item.active{background:color-mix(in srgb,var(--accent-color) 16%,transparent);color:var(--fg)}
+.nav-count{flex:none;font-family:var(--mono);font-size:11px;font-weight:700;line-height:16px;padding:0 6px;border-radius:6px;background:var(--fg);color:#0d1116}
+#main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;min-height:0}
+#ticker-strip{display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);padding:6px 20px}
+#ticker{flex:1;min-width:0;font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ov-toggle{flex:none;display:inline-flex;align-items:center;gap:6px;padding:3px 6px 3px 10px}
+#ov-toggle[aria-expanded=true]{background:color-mix(in srgb,var(--accent-color) 16%,transparent)}
+.tab-view{padding:14px 20px;flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+#drill-wrap{flex:1 1 auto;min-height:0;display:flex;gap:14px;justify-content:center;position:relative}
+#map-stage{flex:2;position:relative;min-width:0;background:radial-gradient(120% 130% at 30% 15%,#171d28 0%,#101520 55%,#0d1119 100%);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--shadow)}
+.fake-map{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:46%;aspect-ratio:.62;background:#f0a6a9;border-radius:40% 55% 45% 35%/30% 40% 60% 70%}
+#ov-panel{flex:0 0 360px;display:flex;flex-direction:column;min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden}
+#drill-wrap[data-ov=closed] #ov-panel{display:none}
+.ov-head{padding:10px 14px 0;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--panel) 82%,transparent);backdrop-filter:blur(8px)}
+.ov-head-row{display:flex;align-items:center;gap:8px}
+#ov-title{margin:0;font-size:14px;font-weight:700;letter-spacing:-.01em}
+#ov-collapse{margin-left:auto;width:28px;height:28px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:8px}
+.ov-sub{margin:4px 0 8px;font-size:11px;color:var(--muted)}.ov-sub b{font-family:var(--mono);font-weight:400}
+#ov-tabs{display:flex;gap:2px}
+.ov-tab{background:none;border:0;border-bottom:2px solid transparent;border-radius:0;color:var(--muted);padding:6px 8px;font-size:12px}
+.ov-tab:hover{transform:none;box-shadow:none;background:none;color:var(--fg)}
+.ov-tab:focus-visible,.ov-item:focus-visible{outline-offset:-2px}
+.ov-tab[aria-selected=true]{color:var(--fg);border-bottom-color:var(--accent-color);font-weight:600}
+.ov-tab-n{font-family:var(--mono);font-size:11px;margin-left:4px;color:var(--muted);font-weight:400}
+#ov-list{flex:1 1 auto;overflow:auto;min-height:0}
+.ov-hint,#ov-unknown,#ov-pop-sum,#ov-pop-hint{word-break:keep-all}
+.ov-hint{margin:10px 14px;font-size:11px;color:var(--muted);line-height:1.5}
+.ov-grp>summary{list-style:none;display:flex;align-items:center;gap:6px;padding:8px 14px;cursor:pointer;font-size:12px;font-weight:700;border-bottom:1px solid var(--line);background:var(--panel2)}
+.ov-grp>summary::-webkit-details-marker{display:none}
+.ov-grp>summary::before{content:"";border-left:4px solid var(--muted);border-top:3.5px solid transparent;border-bottom:3.5px solid transparent;transition:transform .2s}
+.ov-grp[open]>summary::before{transform:rotate(90deg)}
+.ov-grp-n{font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;margin-left:auto}
+.ov-star{color:#d8c47a}
+.ov-items{list-style:none;margin:0;padding:0}
+.ov-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:8px;row-gap:3px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line)}
+.ov-name{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-meta{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:11px;color:var(--muted)}
+.ov-date{font-family:var(--mono)}
+.ov-who{grid-column:1/-1;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-stamp{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:11px;font-weight:700;line-height:16px;padding:0 6px;border-radius:6px;border:1px solid var(--fg);background:var(--fg);color:#0d1116;white-space:nowrap}
+.ov-stamp.is-line{background:transparent;color:var(--fg);border-color:var(--muted);font-weight:400}
+.ov-stamp.is-plain{background:transparent;border-color:transparent;color:var(--muted);font-weight:400;padding:0}
+.ov-status{font-size:11px;white-space:nowrap}
+.ov-status.is-pending{color:var(--fg);font-weight:700}
+.ov-status.is-delayed{color:var(--fg);border:1px solid var(--muted);border-radius:6px;padding:0 6px}
+.ov-status.is-done{color:var(--muted)}
+.ov-item[data-state=active] .ov-name,.ov-item[data-state=closed] .ov-name{font-weight:400;color:var(--muted)}
+.ov-conf{font-size:11px;line-height:15px;padding:0 5px;border-radius:6px;border:1px solid transparent;color:var(--muted);white-space:nowrap;display:inline-flex;align-items:center;gap:3px}
+.ov-conf.is-est{border:1px dashed var(--line-strong);background-image:repeating-linear-gradient(45deg,rgba(139,148,163,.16) 0 2px,transparent 2px 4px)}
+.ov-conf.is-check{border:1px dotted var(--muted);color:var(--fg)}
+.ov-empty{padding:28px 14px;text-align:center;color:var(--muted);font-size:12px;line-height:1.6}
+#ov-unknown{margin:0;padding:8px 14px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+#ov-unknown b{font-family:var(--mono);font-weight:400;color:var(--fg)}
+@media (max-width:1365px){#ov-panel{position:absolute;top:12px;right:12px;bottom:12px;width:min(360px,calc(100% - 24px));z-index:7}}
+@media (max-width:880px){body{overflow:auto}#drill-wrap{flex-direction:column}#ov-panel{position:static;order:-1;width:100%;max-height:60vh}}
+.modal-overlay{position:fixed;inset:0;background:rgba(8,11,17,.6);backdrop-filter:blur(4px);z-index:30;display:none}
+body.pop-open #ov-pop{display:block}
+.modal-box{margin:6vh auto;background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--r-lg);box-shadow:var(--shadow);padding:18px;max-height:84vh;display:flex;flex-direction:column}
+.ov-pop-box{max-width:520px;width:calc(100vw - 32px)}
+.ov-pop-head{display:flex;align-items:center;gap:8px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+#ov-pop-title{margin:0;font-size:14px;letter-spacing:-.01em}
+#ov-pop-sum{margin:10px 0 8px;font-size:12px;color:var(--muted);line-height:1.6}
+#ov-pop-sido{display:flex;flex-wrap:wrap;gap:4px 12px;margin:0 0 12px;padding:0;list-style:none;font-size:12px}
+#ov-pop-sido b{font-family:var(--mono);margin-left:4px}
+.ov-pop-cap{font-size:11px;color:var(--muted);margin:0 0 4px}
+#ov-pop-list{list-style:none;margin:0;padding:0;border-top:1px solid var(--line);overflow:auto}
+#ov-pop-list .ov-item{padding:8px 2px}#ov-pop-list .ov-meta{grid-column:auto;justify-content:flex-end}
+#ov-pop-hint{margin:10px 0 0;font-size:11px;color:var(--muted);line-height:1.5}
+.ov-pop-foot{display:flex;align-items:center;gap:8px;margin-top:14px}.ov-pop-foot .sp{flex:1}
+#ov-pop-all{border-color:color-mix(in srgb,var(--accent-color) 55%,transparent)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body class="pop-open">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-od" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 3.4V6l1.9 1.3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-chk" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.4"/><line x1="6" y1="5.4" x2="6" y2="8.6" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="3.7" r=".75" fill="currentColor"/></symbol>
+<symbol id="i-star" viewBox="0 0 12 12"><path d="M6 1.2 7.4 4.3l3.3.3-2.5 2.2.8 3.3L6 8.4 3 10.1l.8-3.3L1.3 4.6l3.3-.3Z" fill="currentColor"/></symbol>
+</defs></svg>
+<header><h1>기관영업지원 시스템</h1></header>
+<div id="shell"><nav id="side-nav" aria-label="업무 메뉴">
+<button class="nav-cat">기관 현황</button>
+<button class="nav-item active" data-nav="map" title="공고 예정일 경과 미처리 23건"><span class="nav-label">전국 지도</span><span class="nav-count" aria-hidden="true">23</span><span class="sr-only">, 공고 예정일 경과 미처리 23건</span></button>
+<button class="nav-item" data-nav="regions"><span class="nav-label">전국 지역별</span></button>
+</nav><main id="main">
+<div id="ticker-strip"><div id="ticker">임박 TOP5 (경과 건을 뺀 TOP5, 기획 결정 대기)</div>
+<button id="ov-toggle" aria-expanded="true" aria-controls="ov-panel"><svg class="gph" aria-hidden="true"><use href="#i-od"/></svg>공고 예정일 경과<span class="ov-stamp">미처리 23</span></button></div>
+<section id="tab-map" class="tab-view"><div id="drill-wrap" data-ov="open">
+<div id="map-stage"><div class="fake-map"></div></div>
+<aside id="ov-panel" aria-labelledby="ov-title">
+<div class="ov-head"><div class="ov-head-row"><h2 id="ov-title" tabindex="-1">공고 예정일 경과</h2><span class="ov-stamp" id="ov-count">미처리 23</span>
+<button id="ov-collapse" aria-expanded="true" aria-controls="ov-panel" aria-label="경과 패널 접기"><svg class="gph" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+<p class="ov-sub">기준일 <b>2026-11-09</b>, 최근에 지난 순</p>
+<div id="ov-tabs" role="tablist" aria-label="상태별 보기">
+<button class="ov-tab" id="ov-tab-pending" role="tab" aria-selected="true" aria-controls="ov-list" data-view="pending">미처리<span class="ov-tab-n">23</span></button>
+<button class="ov-tab" id="ov-tab-delayed" role="tab" aria-selected="false" aria-controls="ov-list" tabindex="-1" data-view="delayed">지연·재공고 대기<span class="ov-tab-n">0</span></button>
+<button class="ov-tab" id="ov-tab-done" role="tab" aria-selected="false" aria-controls="ov-list" tabindex="-1" data-view="done">처리됨<span class="ov-tab-n">0</span></button>
+<button class="ov-tab" id="ov-tab-all" role="tab" aria-selected="false" aria-controls="ov-list" tabindex="-1" data-view="all">전체<span class="ov-tab-n">23</span></button></div></div>
+<div id="ov-list" role="tabpanel" aria-labelledby="ov-tab-pending">
+<details class="ov-grp" data-group="watch" open><summary><svg class="gph ov-star" aria-hidden="true"><use href="#i-star"/></svg>관심 지역<span class="ov-grp-n">3</span></summary><ul class="ov-items">
+<li class="ov-item" data-state="pending"><span class="ov-stamp"><svg class="gph" aria-hidden="true"><use href="#i-od"/></svg><span aria-hidden="true">D+91</span><span class="sr-only">예정일 91일 지남</span></span><span class="ov-name">삼척시청</span><span></span><span class="ov-meta"><span class="ov-where">강원</span><span class="ov-date">2026-08-10</span><span class="ov-conf is-fixed">확정</span></span></li>
+<li class="ov-item" data-state="pending"><span class="ov-stamp"><svg class="gph" aria-hidden="true"><use href="#i-od"/></svg><span aria-hidden="true">D+95</span><span class="sr-only">예정일 95일 지남</span></span><span class="ov-name">춘천시청</span><span></span><span class="ov-meta"><span class="ov-where">강원</span><span class="ov-date">2026-08-06</span><span class="ov-conf is-fixed">확정</span></span></li>
+<li class="ov-item" data-state="pending"><span class="ov-stamp"><svg class="gph" aria-hidden="true"><use href="#i-od"/></svg><span aria-hidden="true">D+97</span><span class="sr-only">예정일 97일 지남</span></span><span class="ov-name">양양군청</span><span></span><span class="ov-meta"><span class="ov-where">강원</span><span class="ov-date">2026-08-04</span><span class="ov-conf is-fixed">확정</span></span></li>
+</ul></details>
+<details class="ov-grp" data-group="11"><summary>서울<span class="ov-grp-n">11</span></summary></details>
+<details class="ov-grp" data-group="47" open><summary>경북<span class="ov-grp-n">3</span></summary><ul class="ov-items">
+<li class="ov-item" data-state="pending"><span class="ov-stamp"><svg class="gph" aria-hidden="true"><use href="#i-od"/></svg><span aria-hidden="true">D+102</span><span class="sr-only">예정일 102일 지남</span></span><span class="ov-name">포항시청</span><span></span><span class="ov-meta"><span class="ov-where">경북</span><span class="ov-date">2026-07-30</span><span class="ov-conf is-check" title="이 날짜가 공고일인지 약정 만료일인지 원문을 확인하고 있습니다"><svg class="gph" style="width:10px;height:10px" aria-hidden="true"><use href="#i-chk"/></svg>날짜 의미 확인 중</span></span></li>
+</ul></details>
+<details class="ov-grp" data-group="41"><summary>경기<span class="ov-grp-n">3</span></summary></details>
+<p class="ov-hint">[시안 전용] 2단계 상태 강약 비교용 가상 행(전체 탭 모양)</p>
+<ul class="ov-items">
+<li class="ov-item" data-state="delayed"><span class="ov-stamp is-line"><svg class="gph" aria-hidden="true"><use href="#i-od"/></svg>D+20</span><span class="ov-name">가나시청</span><span class="ov-status is-delayed">지연·재공고 대기</span><span class="ov-meta"><span class="ov-where">경기</span><span class="ov-date">2026-10-20</span><span class="ov-conf is-est" title="지난 입찰일 2022-10-20 + 4년으로 계산한 날짜">추정</span><span class="ov-next">다음 확인 <span class="ov-date">11-20</span></span></span><span class="ov-who">홍길동 11-08 14:20 처리, 의견: 재공고 예정이라고 함</span></li>
+<li class="ov-item" data-state="closed"><span class="ov-stamp is-plain">D+33</span><span class="ov-name">다라구청</span><span class="ov-status is-done">공고 종료</span><span class="ov-meta"><span class="ov-where">서울</span><span class="ov-date">2026-10-07</span><span class="ov-conf is-est">추정</span></span><span class="ov-who">홍길동 11-05 09:10 처리, 의견: 10월 공고 마감 확인</span></li>
+</ul></div>
+<p id="ov-unknown">날짜 미상 <b>185</b>건은 예정일을 몰라 이 목록에서 뺐습니다.</p>
+</aside></div></section></main></div>
+<div id="ov-pop" class="modal-overlay"><div class="modal-box ov-pop-box" role="dialog" aria-modal="true" aria-labelledby="ov-pop-title" aria-describedby="ov-pop-sum">
+<div class="ov-pop-head"><h2 id="ov-pop-title" tabindex="-1">공고 예정일이 지난 미처리 건</h2><span class="ov-stamp" id="ov-pop-n">23건</span></div>
+<p id="ov-pop-sum">예정일이 지났는데 공고 진행 여부가 아직 기록되지 않은 건입니다. 기준일 2026-11-09.</p>
+<ul id="ov-pop-sido" aria-label="시·도별 건수"><li>서울<b>11</b></li><li>경기<b>3</b></li><li>강원<b>3</b></li><li>경북<b>3</b></li><li>인천<b>1</b></li><li>충북<b>1</b></li><li>전북<b>1</b></li></ul>
+<p class="ov-pop-cap">먼저 볼 5건 (관심 지역 먼저, 최근에 지난 순)</p>
+<ul id="ov-pop-list">
+<li class="ov-item" data-state="pending"><span class="ov-stamp"><svg class="gph" aria-hidden="true"><use href="#i-od"/></svg>D+12</span><span class="ov-name">양주시청</span><span class="ov-meta"><span>경기</span><span class="ov-date">2026-10-28</span><span class="ov-conf is-est">추정</span></span></li>
+<li class="ov-item" data-state="pending"><span class="ov-stamp"><svg class="gph" aria-hidden="true"><use href="#i-od"/></svg>D+13</span><span class="ov-name">성북구청</span><span class="ov-meta"><span>서울</span><span class="ov-date">2026-10-27</span><span class="ov-conf is-est">추정</span></span></li>
+<li class="ov-item" data-state="pending"><span class="ov-stamp"><svg class="gph" aria-hidden="true"><use href="#i-od"/></svg>D+20</span><span class="ov-name">금천구청</span><span class="ov-meta"><span>서울</span><span class="ov-date">2026-10-20</span><span class="ov-conf is-est">추정</span></span></li>
+<li class="ov-item" data-state="pending"><span class="ov-stamp"><svg class="gph" aria-hidden="true"><use href="#i-od"/></svg>D+22</span><span class="ov-name">강서구청</span><span class="ov-meta"><span>서울</span><span class="ov-date">2026-10-18</span><span class="ov-conf is-est">추정</span></span></li>
+<li class="ov-item" data-state="pending"><span class="ov-stamp"><svg class="gph" aria-hidden="true"><use href="#i-od"/></svg>D+33</span><span class="ov-name">강북구청</span><span class="ov-meta"><span>서울</span><span class="ov-date">2026-10-07</span><span class="ov-conf is-est">추정</span></span></li>
+</ul>
+<p class="ov-pop-cap" id="ov-pop-more" style="margin-top:6px">외 18건은 경과 패널에서 볼 수 있습니다.</p>
+<p id="ov-pop-hint">관심 지역이 없어 최근에 지난 순으로 골랐습니다. 전국 지역별 화면에서 지역 카드의 별을 누르면 그 지역 건이 먼저 나옵니다. 관심 지역은 PC마다 따로 저장됩니다.</p>
+<div class="ov-pop-foot"><button class="link-btn" id="ov-pop-skip">오늘 더 이상 보지 않기</button><span class="sp"></span><button id="ov-pop-close">닫기</button><button id="ov-pop-all">경과 패널에서 전체 보기</button></div>
+</div></div>
+<script>
+// 시안 전용 동작: 팝업 닫기(Esc 포함), 접기, 토글
+(function(){var pop=document.getElementById('ov-pop'),wrap=document.getElementById('drill-wrap'),tg=document.getElementById('ov-toggle'),cl=document.getElementById('ov-collapse');
+function closePop(){document.body.classList.remove('pop-open');}
+['ov-pop-close','ov-pop-all','ov-pop-skip'].forEach(function(id){document.getElementById(id).onclick=closePop;});
+pop.addEventListener('click',function(e){if(e.target===pop)closePop();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.body.classList.contains('pop-open')){e.stopPropagation();closePop();}});
+function setOpen(o){wrap.dataset.ov=o?'open':'closed';tg.setAttribute('aria-expanded',o);cl.setAttribute('aria-expanded',o);if(!o)tg.focus();}
+tg.onclick=function(){setOpen(wrap.dataset.ov!=='open');};cl.onclick=function(){setOpen(false);};})();
+</script>
+</body></html>
