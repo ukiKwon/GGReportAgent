@@ -91,6 +91,38 @@ test('창 크기 보정: resize 처리에서 측정(measureSrc) 뒤에 선택 �
   assert.ok(/if \(ui\.sel\)/.test(body.slice(m - 20, k)));
 });
 
+test('원본 패널 기준 y(srcScrollTop): 작성 바 bottom 이 하한이고 같은 입력은 같은 값(고정점), 소수·이상값 안전', function () {
+  assert.strictEqual(bw.srcScrollTop(74, 158), 158);          // 패널 자리가 바 아래: 자리 top
+  assert.strictEqual(bw.srcScrollTop(74, -300), 74);          // 스크롤로 자리가 위로 올라감: 바 bottom 이 하한
+  assert.strictEqual(bw.srcScrollTop(74, 74), 74);
+  assert.strictEqual(bw.srcScrollTop(73.6, 12), 74);          // 정수로 맞춤
+  assert.strictEqual(bw.srcScrollTop(NaN, 40), 40);
+  assert.strictEqual(bw.srcScrollTop(undefined, undefined), 0);
+  // 고정점: 높이가 달라져 패널 자신의 top 이 움직여도 입력(바 bottom·격자 top)이 같으면 결과가 같다
+  const a = bw.srcScrollTop(74, -120), b = bw.srcScrollTop(74, -120);
+  assert.strictEqual(a, b);
+  for (let i = 0; i < 5; i++) assert.strictEqual(bw.srcScrollTop(74, -120), a);
+  // 소스: 패널 자신의 top 이 아니라 격자 top 을 기준으로 재고, 높이값(offsetHeight)과 뷰포트 좌표를 섞지 않는다
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'board-write.js'), 'utf8');
+  const i = src.indexOf('function measureSrc()');
+  const body = src.slice(i, src.indexOf('function ensureVisible', i));
+  assert.ok(/const anchor = grid \|\| src;/.test(body));
+  assert.ok(/bw\.srcScrollTop\(bar \? bar\.getBoundingClientRect\(\)\.bottom : 0, anchor\.getBoundingClientRect\(\)\.top\)/.test(body));
+  assert.ok(!/Math\.max\(bar \? bar\.offsetHeight/.test(body));
+});
+
+test('버튼 가림 보정: 칸이 아닌 버튼은 표 영역 안·고정 영역 밖일 때만 보정하고, 칸처럼 scroll-margin 도 가진다', function () {
+  assert.strictEqual(bw.needsOcclusionFix(true, false), true);
+  assert.strictEqual(bw.needsOcclusionFix(true, true), false);    // 원본 패널·상태 줄·작성 바 안의 버튼
+  assert.strictEqual(bw.needsOcclusionFix(null, null), false);    // 표 영역 밖
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'board-write.js'), 'utf8');
+  const i = src.indexOf('function onFocusIn(e)');
+  const body = src.slice(i, src.indexOf('function onChange', i));
+  assert.ok(/bw\.needsOcclusionFix\(t\.closest\('\.bd-w-tables'\), t\.closest\('#bd-w-src, #bd-w-status, #bd-writebar'\)\)\) keepVisible\(t\)/.test(body));
+  assert.ok(!/select\(/.test(body.slice(body.indexOf('else if')) ), '버튼 포커스는 선택을 바꾸지 않는다');
+  assert.ok(/\.bd-w-tables button[^{]*\{[^}]*scroll-margin-top:calc\(var\(--bd-bar-h, 64px\) \+ 8px\)[^}]*scroll-margin-bottom:calc\(var\(--bd-occl-b, 56px\) \+ 8px\)/.test(html));
+});
+
 test('표 A 칸 이름: 첫 열이 값 칸(기관명 rowspan 4)이어도 네 행이 서로 다른 행 이름을 갖는다', function () {
   const M = function (k, x, e) { return Object.assign({ key: k, text: x, mapped: true }, e); };
   const L = function (k, x, e) { return Object.assign({ key: k, text: x }, e); };

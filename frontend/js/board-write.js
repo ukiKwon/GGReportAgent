@@ -1056,6 +1056,16 @@
     });
     return { top: Math.max(0, Number(o.barBottom) || 0) + m, bottom: floor - m };
   };
+  // 원본 패널 높이 계산의 기준 y(뷰포트 좌표) = max(작성 바 bottom, 패널이 놓일 자리의 top). 둘 다 같은 좌표계다.
+  // anchorTop 은 패널 자신이 아니라 패널과 같은 줄에서 시작하는 격자(grid)의 top 을 넘긴다 — 패널 높이에 따라 변하지 않아 되먹임이 없고,
+  // 같은 입력이면 같은 값(고정점)이다. 정수로 맞춰 1px 이하의 떨림이 CSS 높이를 다시 흔들지 않게 한다.
+  bw.srcScrollTop = function (barBottom, anchorTop) {
+    const b = Number(barBottom), a = Number(anchorTop);
+    const lo = isFinite(b) ? b : 0, hi = isFinite(a) ? a : 0;
+    return Math.max(0, Math.round(Math.max(lo, hi)));
+  };
+  // 포커스가 칸 밖의 버튼·입력(예: '이 표 복사')에 갔을 때 고정 패널 뒤에서 꺼내야 하는지: 표 영역 안이고 고정 영역(작성 바·원본·상태 줄) 밖일 때만.
+  bw.needsOcclusionFix = function (inTables, inFixed) { return !!inTables && !inFixed; };
   // 칸(top·bottom)이 영역 밖이면 가려진 것.
   bw.isCovered = function (cell, band) { return cell.top < band.top || cell.bottom > band.bottom; };
   // 칸을 영역 안으로 옮기는 데 필요한 스크롤 양(양수 = 아래로 스크롤). 이미 보이면 0.
@@ -1399,7 +1409,9 @@
       if (!r || !b) return;
       const src = $('bd-w-src'), st = $('bd-w-status'), bar = $('bd-writebar'), grid = b.querySelector('.bd-w-grid');
       if (st) r.style.setProperty('--bd-status-h', st.offsetHeight + 'px');
-      if (src) r.style.setProperty('--bd-scroll-top', Math.max(bar ? bar.offsetHeight : 0, src.getBoundingClientRect().top) + 'px');
+      // 기준은 작성 바 bottom(뷰포트 좌표)과 격자 top(패널 자리) — 패널 자신의 top 은 패널 높이에 따라 움직여 되먹임이 생긴다(원본 패널이 위로 기어오름).
+      const anchor = grid || src;
+      if (src && anchor) r.style.setProperty('--bd-scroll-top', bw.srcScrollTop(bar ? bar.getBoundingClientRect().bottom : 0, anchor.getBoundingClientRect().top) + 'px');
       if (grid) grid.classList.toggle('is-stack', bw.stackMode(grid.clientWidth, ui.wide, ui.panelOpen));
       r.classList.toggle('bd-stacked', !!((grid && grid.classList.contains('is-stack')) || window.innerWidth <= 900));   // 상태 줄이 위의 원본 패널과 붙는 도크 모양(CSS)
       // 아래쪽 고정 패널(원본 패널이 아래로 내려온 좁은 화면 + 상태 줄)이 뷰포트 아래에서 차지하는 높이: 칸의 scroll-margin-bottom 이 쓴다.
@@ -1841,6 +1853,10 @@
         select(td.getAttribute('data-t'), td.getAttribute('data-key'), { tip: !pointer });
         // 마우스·키보드 모두: select 가 상태 줄을 키운 뒤(drawStatus) 칸이 고정 패널에 가려지지 않게 맞춘다(click 이 안 와도 보정되도록).
         keepVisible(td);
+      } else if (!td && e.target && e.target.closest) {
+        // 칸이 아닌 버튼(예: '이 표 복사')도 아래쪽 고정 패널·상태 줄 뒤에 가려지지 않게 한다. 선택은 바꾸지 않는다.
+        const t = e.target;
+        if (bw.needsOcclusionFix(t.closest('.bd-w-tables'), t.closest('#bd-w-src, #bd-w-status, #bd-writebar'))) keepVisible(t);
       }
     }
     function onChange(e) {
