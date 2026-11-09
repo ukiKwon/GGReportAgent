@@ -48,7 +48,7 @@ Claude Code가 이 저장소에서 일할 때의 지침이다. **1~6절은 매 �
 - **`handoff/YYYY-MM-DD_summary.md`** — 하루 1파일, 작업 5개를 끝낼 때마다·마무리 때 한 일·결정·남은 것을 쓴다. 같은 날이면 아래에 `## Session HH:mm`을 이어 붙이며 **기존 섹션은 고치거나 지우지 않는다**(append-only). SessionStart 훅은 NEXT와 파일명 기준 최근 summary(`^\d{4}-\d{2}-\d{2}_summary\.md$`)를 주입한다.
 - **에이전트 보고서**는 SubagentStop 훅(`.claude/hooks/save-report.js`)이 `handoff/agents/<역할>/YYYY-MM-DD_HHmm_<agentId>.md`로 자동 저장한다 — 읽기 전용 에이전트는 파일을 못 쓰고 "메인이 저장"은 자주 빠졌다. 자동본에는 지시·주제가 없으므로, 메인은 주제가 있는 설계·결정 요약만 `날짜_주제.md`로 따로 정리하고 NEXT 항목에 포인터 한 줄을 남긴다.
 
-- **PM 주간 보고서** — 매주 금요일 `pm`이 그 주(월~일)의 한 일·결정·요건 변경·숫자·열린 항목을 정리하고, 메인이 `docs/pm_history/YYYY-Www.html`로 저장해 `docs/pm_history/index.html`(주별 목록)을 갱신한다 — 사용자가 브라우저로 이력을 보기 위해서다(2026-11-09 사용자 요청). 금요일에 세션이 없으면 다음 세션 첫 작업으로 한다.
+- **PM 주간 보고서** — 매주 금요일 `pm`이 그 주(월~일)의 한 일·결정·요건 변경·숫자·열린 항목을 정리하고, 메인이 **한 파일 `docs/pm_history/index.html`** 맨 위(목차 바로 아래)에 새 주 `<section class="week" id="YYYY-Www">`를 추가하고 목차 링크도 더한다 — 사용자가 브라우저에서 파일 하나로 이력을 이어 보기 위해서다(2026-11-09 사용자 요청). 금요일에 세션이 없으면 다음 세션 첫 작업으로 한다.
 
 **"마무리"** = 그날의 summary 작성/갱신 + (상태가 바뀐 항목이 있으면) NEXT 갱신 + `START.md` 갱신 + `git commit` + `git push` **전부**. 사용자가 범위를 좁힌 경우만 예외.
 
