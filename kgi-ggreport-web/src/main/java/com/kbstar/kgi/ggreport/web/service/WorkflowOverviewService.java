@@ -31,7 +31,7 @@ import java.util.Map;
 public class WorkflowOverviewService {
 
     static final String[] STAGE_LABELS = {
-            "입찰현황 파악", "입찰상황 발생", "RFI 공시", "RFI 분석", "제안서 기획",
+            "입찰현황 파악", "입찰상황 발생", "RFP 공시", "RFP 분석", "제안서 기획",
             "세부기획", "취합", "검토", "제출"};
     static final String SUBMITTED = "제출완료";
 

@@ -7,8 +7,8 @@
   workflow.STAGES = [
     { no: 1, label: '입찰현황 파악', gate: null },
     { no: 2, label: '입찰상황 발생', gate: null },
-    { no: 3, label: 'RFI 공시', gate: null },
-    { no: 4, label: 'RFI 분석', gate: null },
+    { no: 3, label: 'RFP 공시', gate: null },
+    { no: 4, label: 'RFP 분석', gate: null },
     { no: 5, label: '제안서 기획', gate: '기획승인' },
     { no: 6, label: '세부기획(3팀)', gate: null },
     { no: 7, label: '취합', gate: '이관결재' },
@@ -141,7 +141,8 @@
     const teams = workflow.piiTeams(payload);
     if (!teams.length) return '';
     return '⚠️ 개인정보 — ' + teams.map(function (t) {
-      return t.team + '팀 ' + t.count + '건';
+      const name = t.team + '팀';
+      return (root.roles ? root.roles.roleLabel(name) : name) + ' ' + t.count + '건';
     }).join(' · ');
   };
 
@@ -368,7 +369,7 @@
   workflow.renderCoverage = function (el, coverage) {
     const rows = workflow.coverageRows(coverage);
     if (!rows.length) {
-      el.innerHTML = '<p class="wf-empty">배점표가 아직 없습니다 — 3단계(RFI 공시·배점표 추출) 이후에 표시됩니다.</p>';
+      el.innerHTML = '<p class="wf-empty">배점표가 아직 없습니다 — 3단계(RFP 공시·배점표 추출) 이후에 표시됩니다.</p>';
       return;
     }
     const sum = workflow.coverageSummary(coverage);
@@ -685,7 +686,7 @@
       return;
     }
     if (!confirm(tier + '차 결재: "' + choice + '" 로 제출합니다.\n결재자: ' +
-                 me.team + ' ' + me.name)) return;
+                 (root.roles ? root.roles.roleLabel(me.team) : me.team) + ' ' + me.name)) return;
 
     fetch('/bidcases/' + encodeURIComponent(rec.bidCaseId) + '/participation-decisions', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

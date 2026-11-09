@@ -58,3 +58,15 @@ test('ALL: 권한관리 표의 행 — 본부장은 더 이상 없다', function
   assert.deepStrictEqual(roles.ALL, ['영업팀', '전산팀', '예산팀',
     '영업팀장', '전산팀장', '예산팀장', '디자이너', '영업부장']);
 });
+
+test('roleLabel: 화면 표기만 예산→재무, 값(ALL·AFFILIATIONS)은 불변', function () {
+  assert.strictEqual(roles.roleLabel('예산팀'), '재무팀');
+  assert.strictEqual(roles.roleLabel('예산팀장'), '재무팀장');
+  ['영업팀', '전산팀장', '디자이너', '영업부장', '', '본부장'].forEach(function (r) {
+    assert.strictEqual(roles.roleLabel(r), r);
+  });
+  assert.strictEqual(roles.roleLabel(null), '');
+  assert.strictEqual(roles.roleLabel(undefined), '');
+  assert.strictEqual(roles.roleLabel('toString'), 'toString');
+  assert.ok(roles.ALL.indexOf('예산팀') >= 0 && roles.AFFILIATIONS.indexOf('예산팀') >= 0);
+});

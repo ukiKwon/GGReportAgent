@@ -93,6 +93,15 @@
     .concat(roles.AFFILIATIONS.map(function (a) { return roles.teamOf(a) + roles.LEAD; }))
     .concat([roles.DESIGNER, roles.FINAL_APPROVER]);
 
+  // 화면 표기 전용 — 예산팀은 '재무팀'으로 부른다(2026-11 개명). **값은 그대로 둔다**:
+  // 서버 전송·저장·권한 키는 여전히 '예산팀'·'예산팀장'이고(동결 계약), 이 함수는
+  // 사용자에게 보이는 글자에만 쓴다. 그 밖의 값은 그대로 돌려준다.
+  const DISPLAY = { '예산팀': '재무팀', '예산팀장': '재무팀장' };
+  roles.roleLabel = function (role) {
+    const text = role == null ? '' : String(role);
+    return Object.prototype.hasOwnProperty.call(DISPLAY, text) ? DISPLAY[text] : text;
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = roles;
   else root.roles = roles;
 })(typeof self !== 'undefined' ? self : this);

@@ -68,7 +68,7 @@
       '<h4 class="ad-sub">대결 설정 <span class="dg-hint">— 부재 기간 동안 내 결재를 대신 처리할 사람(최대 ' + deputy.MAX_DAYS + '일)</span></h4>' +
       '<div class="ad-toolbar"><label class="ad-inline">대결자 <select id="dp-who"><option value="">선택</option>' +
       deputy.candidates(people, me).map(function (u) {
-        return '<option value="' + esc(u.emp_no) + '">' + esc(u.name + ' (' + u.emp_no + ') · ' + u.role +
+        return '<option value="' + esc(u.emp_no) + '">' + esc(u.name + ' (' + u.emp_no + ') · ' + (root.roles ? root.roles.roleLabel(u.role) : u.role) +
           (u.position_title ? ' ' + u.position_title : '')) + '</option>';
       }).join('') + '</select></label>' +
       '<label class="ad-inline">시작 <input type="date" id="dp-from" value="' + today + '" min="' + today + '"></label>' +

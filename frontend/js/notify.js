@@ -230,7 +230,9 @@
       return;
     }
     overlay().style.display = 'block';
-    el('nt-me').textContent = root.store.myRecipients().join(' · ');
+    el('nt-me').textContent = root.store.myRecipients().map(function (r) {
+      return root.roles ? root.roles.roleLabel(r) : r;
+    }).join(' · ');
     fetchList().then(function () {
       tab = notify.defaultTab(notify.split(list, me()));
       paintList();

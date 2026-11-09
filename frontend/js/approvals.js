@@ -249,7 +249,7 @@
 
   function paint() {
     const profile = root.store.loadProfile();
-    el('ap-role').textContent = profile.team || '(소속 없음)';
+    el('ap-role').textContent = (root.roles ? root.roles.roleLabel(profile.team) : profile.team) || '(소속 없음)';
     el('ap-count').textContent = approvals.rows(payload).length ? approvals.summary(payload) : '';
     approvals.render(el('ap-list'), payload, profile);
     el('ap-list').querySelectorAll('button').forEach(function (btn) {

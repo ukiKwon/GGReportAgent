@@ -28,7 +28,7 @@ import java.util.List;
 @Service
 public class ConsistencyService {
 
-    /** 3단계(RFI 공시)부터는 참여 결정이 끝나 있어야 한다 — 1·2단계는 결정 이전이라 정상이다. */
+    /** 3단계(RFP 공시)부터는 참여 결정이 끝나 있어야 한다 — 1·2단계는 결정 이전이라 정상이다. */
     private static final int ADVANCED_STAGE = 3;
 
     private final ConsistencyMapper mapper;

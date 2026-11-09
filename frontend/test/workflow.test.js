@@ -332,7 +332,7 @@ test('renderStageLog: 알림·사람 발화에는 🧠가 붙지 않는다', fun
 const OV = {
   items: [
     { institution_id: 'i1', name: '가기관', region: '서울', stage: 5, stage_label: '제안서 기획', state: 'PENDING_APPROVAL', gate: '기획승인', done: false, bid_count: 2, assignees: ['김가'], updated_at: '2026-10-30T01:05:00Z' },
-    { institution_id: 'i2', name: '나기관', region: '경기', stage: 3, stage_label: 'RFI 공시', state: 'RUNNING', gate: null, done: false, bid_count: 1, assignees: [], updated_at: null },
+    { institution_id: 'i2', name: '나기관', region: '경기', stage: 3, stage_label: 'RFP 공시', state: 'RUNNING', gate: null, done: false, bid_count: 1, assignees: [], updated_at: null },
     { institution_id: 'i3', name: '다기관', region: '서울', stage: 6, stage_label: '세부기획(3팀)', state: 'RUNNING', gate: null, done: false, bid_count: 1, assignees: ['이나', '박다'], updated_at: '2026-10-30T10:05:00' },
     { institution_id: 'i4', name: '라기관', region: '부산', stage: 7, stage_label: '취합', state: 'PENDING_APPROVAL', gate: '이관결재', done: false, bid_count: 3, assignees: [], updated_at: null },
     { institution_id: 'i5', name: '마기관', region: '서울', stage: 8, stage_label: '검토', state: 'FAILED', gate: null, done: false, bid_count: 1, assignees: [], updated_at: null },

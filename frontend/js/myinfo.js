@@ -28,7 +28,7 @@
     return [
       { label: '사번', value: v(m.emp_no) },
       { label: '이름', value: v(m.name) },
-      { label: '소속', value: v(m.role) },
+      { label: '소속', value: v(root.roles ? root.roles.roleLabel(m.role) : m.role) },
       { label: '직급', value: v(m.position_title) },
       { label: '상위 결재자', value: m.approver_name ? m.approver_name + ' (' + m.approver_emp_no + ')' : '없음 (최상위)' },
     ];

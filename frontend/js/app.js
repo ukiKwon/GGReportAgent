@@ -184,7 +184,7 @@
       teamEl.value = parts.affiliation;
     } else {
       const opt = document.createElement('option');
-      opt.textContent = role || '(소속 없음)';
+      opt.textContent = root.roles.roleLabel(role) || '(소속 없음)';
       opt.value = role || '';
       opt.setAttribute(LEGACY_FLAG, '1');
       teamEl.appendChild(opt);
@@ -254,7 +254,7 @@
       if (!body.demo || !body.accounts.length) { sel.style.display = 'none'; return; }
       sel.innerHTML = '<option value="">계정 전환…</option>' + body.accounts.map(function (a) {
         return '<option value="' + root.logic.esc(root.logic.accountValue(a)) + '">' +
-          root.logic.esc(root.logic.accountLabel(a)) + '</option>';
+          root.logic.esc(root.logic.accountLabel(Object.assign({}, a, { team: root.roles.roleLabel(a.team) }))) + '</option>';
       }).join('');
       sel.style.display = '';
       sel.onchange = function () {
@@ -792,7 +792,7 @@
     const idEl = byId('login-id');
     const roleEl = byId('login-role');
     roleEl.innerHTML = '<option value="">직접 입력</option>' + root.login.groups().map(function (g) {
-      return '<optgroup label="' + root.logic.esc(g.title) + '">' + g.accounts.map(function (a) {
+      return '<optgroup label="' + root.logic.esc(root.roles.roleLabel(g.title)) + '">' + g.accounts.map(function (a) {
         return '<option value="' + root.logic.esc(a.id) + '">' + root.logic.esc(root.login.label(a)) + '</option>';
       }).join('') + '</optgroup>';
     }).join('');

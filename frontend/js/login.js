@@ -64,7 +64,7 @@
   // 드롭다운 라벨: "영업팀 · 팀장 (이영업)". 디자이너·마스터는 직위 자리에 그 이름을 쓴다.
   login.label = function (a) {
     if (a.master) return '관리자 · 마스터';
-    return a.affiliation + ' · ' + a.position + ' (' + a.name + ')';
+    return roles.roleLabel(a.affiliation) + ' · ' + a.position + ' (' + a.name + ')';
   };
 
   // 소속별 묶음 — <optgroup>용. 마스터는 따로 "관리자" 묶음.
@@ -106,14 +106,14 @@
   login.chipText = function (session, profile) {
     if (!session || session.mode !== 'account') return '로그인';
     const name = (profile && profile.name) || '';
-    const team = (profile && profile.team) || '';
+    const team = roles.roleLabel((profile && profile.team) || '');
     return [name, team].filter(Boolean).join(' · ') || '로그인';
   };
 
   // 로그인 상태 헤더 우측의 "{소속} {이름}" 글자(칩과 달리 누르는 것이 아니다).
   login.userLabel = function (profile) {
     const name = ((profile && profile.name) || '').trim();
-    const team = ((profile && profile.team) || '').trim();
+    const team = roles.roleLabel(((profile && profile.team) || '').trim());
     return [team, name].filter(Boolean).join(' ');
   };
 
