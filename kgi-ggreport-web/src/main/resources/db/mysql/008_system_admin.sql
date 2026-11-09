@@ -1,6 +1,7 @@
 -- -----------------------------------------------------------------------------
 -- kgi-ggreport-web — MySQL 미러 스키마 (008) : 시스템 관리 — 사용자(사번)·메뉴별 권한·접근 이력
 -- ⚠️ 이 파일은 **정본이 아니다.** 정본은 db/oracle/008_system_admin.sql 이다(외부망 로컬 전용).
+-- ⚠️ FK 없음(정본과 같다). 이미 FK 가 걸린 로컬 DB 는 015_drop_foreign_keys.sql 이 뗀다.
 --
 -- ── 무엇이 들어 있나 ────────────────────────────────────────────────────────────
 --   USERS            사용자. 사번(7자리 숫자)이 키. 결재 등급(팀장급·부장급·대표급).
@@ -44,8 +45,7 @@ CREATE TABLE USER_MENU_PERMS (
     CAN_EDIT    SMALLINT    NOT NULL DEFAULT 0,
     CAN_APPROVE SMALLINT    NOT NULL DEFAULT 0,
     UPDATED_AT  VARCHAR(40) NOT NULL,
-    PRIMARY KEY (EMP_NO, MENU_KEY),
-    CONSTRAINT FK_UMP_USER FOREIGN KEY (EMP_NO) REFERENCES USERS (EMP_NO)
+    PRIMARY KEY (EMP_NO, MENU_KEY)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE ACCESS_LOG (

@@ -9,6 +9,7 @@
 -- ⚠️ NULL 은 "최상위(대표급)" 이거나 "아직 정해지지 않음" 둘 다일 수 있다. 어느 쪽인지는 결재 등급과
 --    자동 규칙으로 서버가 판정해 화면에 알려 준다(컬럼만 보고 판단하지 않는다).
 -- ⚠️ 변경은 PERM_CHANGE_LOG 에 'user:APPROVER' / 'user:APPROVER_MODE' 로 같은 트랜잭션에 남는다.
+-- ⚠️ 외래키(FK)를 두지 않는다. APPROVER_EMP_NO 가 USERS.EMP_NO 에 있는지는 서비스가 저장 전에 확인한다.
 -- ⚠️ 멱등하지 않다. 008 적용 후 한 번만 돌린다. 시드(011)는 009 이후에 적용한다.
 -- -----------------------------------------------------------------------------
 
@@ -17,7 +18,6 @@ ALTER TABLE USERS ADD (
     APPROVER_MANUAL  NUMBER(1) DEFAULT 0 NOT NULL
 );
 
-ALTER TABLE USERS ADD CONSTRAINT FK_USERS_APPROVER FOREIGN KEY (APPROVER_EMP_NO) REFERENCES USERS (EMP_NO);
 ALTER TABLE USERS ADD CONSTRAINT CK_USERS_APPROVER_SELF CHECK (APPROVER_EMP_NO IS NULL OR APPROVER_EMP_NO <> EMP_NO);
 ALTER TABLE USERS ADD CONSTRAINT CK_USERS_APPROVER_MANUAL CHECK (APPROVER_MANUAL IN (0, 1));
 

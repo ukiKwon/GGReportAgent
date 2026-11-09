@@ -12,6 +12,11 @@
 --    번호가 붙은 스크립트로 관리한다 — 설계 §5-(D) 가 backend/db.py 의 기동 시
 --    ALTER TABLE 마이그레이션을 대체하기로 한 방식이다.
 --
+-- ⚠️ 외래키(FK)를 두지 않는다(회사 DB 기준, 2026-11-09). 참조는 서비스가 저장 전에
+--    확인한다: BID_CASES.INSTITUTION_ID -> INSTITUTIONS, TASKS.BID_CASE_ID -> BID_CASES,
+--    MESSAGES.TASK_ID -> TASKS, VECTORS.CHUNK_ID -> CHUNKS. 부모 행은 지우지 않는다.
+--    점검 쿼리는 db/oracle/ops/integrity_check.sql.
+--
 -- 문자셋 전제: AL32UTF8. 모든 VARCHAR2 는 **CHAR 의미**로 선언한다(기본값인 BYTE
 -- 의미로 두면 한글이 1/3 길이만 들어간다). VARCHAR2 의 물리 상한은 의미와 무관하게
 -- 4000 바이트이므로, 한글 3바이트를 감안해 CHAR 길이는 1000 이하로만 쓴다.
@@ -59,9 +64,7 @@ CREATE TABLE BID_CASES (
     NOTICE_ID              VARCHAR2(100 CHAR),
     TITLE                  VARCHAR2(500 CHAR),
     NOTICE_URL             VARCHAR2(1000 CHAR),
-    CONSTRAINT PK_BID_CASES PRIMARY KEY (BID_CASE_ID),
-    CONSTRAINT FK_BID_CASES_INST FOREIGN KEY (INSTITUTION_ID)
-        REFERENCES INSTITUTIONS (INSTITUTION_ID)
+    CONSTRAINT PK_BID_CASES PRIMARY KEY (BID_CASE_ID)
 );
 
 -- 팀별 작업.
@@ -84,9 +87,7 @@ CREATE TABLE TASKS (
     APPROVER       VARCHAR2(100 CHAR),               -- 1차 결재자(그 팀의 팀장)
     FINAL_APPROVER VARCHAR2(100 CHAR),               -- 디자이너 최종본을 결재한 영업부장
     CONSTRAINT PK_TASKS PRIMARY KEY (TASK_ID),
-    CONSTRAINT UK_TASKS_CASE_TEAM UNIQUE (BID_CASE_ID, TEAM),
-    CONSTRAINT FK_TASKS_BID_CASE FOREIGN KEY (BID_CASE_ID)
-        REFERENCES BID_CASES (BID_CASE_ID)
+    CONSTRAINT UK_TASKS_CASE_TEAM UNIQUE (BID_CASE_ID, TEAM)
 );
 
 -- 작업별 대화/기록.
@@ -103,9 +104,7 @@ CREATE TABLE MESSAGES (
     AUTHOR     VARCHAR2(100 CHAR),          -- 사람이 쓴 글의 실명(결재자·담당자)
     STAGE      NUMBER(2),                   -- 기록 당시의 9단계 진행 단계
     MODEL      VARCHAR2(100 CHAR),
-    CONSTRAINT PK_MESSAGES PRIMARY KEY (MESSAGE_ID),
-    CONSTRAINT FK_MESSAGES_TASK FOREIGN KEY (TASK_ID)
-        REFERENCES TASKS (TASK_ID)
+    CONSTRAINT PK_MESSAGES PRIMARY KEY (MESSAGE_ID)
 );
 
 -- 쪽지·알림.
@@ -181,9 +180,7 @@ CREATE TABLE CHUNKS (
 CREATE TABLE VECTORS (
     CHUNK_ID  NUMBER NOT NULL,
     EMBEDDING BLOB   NOT NULL,
-    CONSTRAINT PK_VECTORS PRIMARY KEY (CHUNK_ID),
-    CONSTRAINT FK_VECTORS_CHUNK FOREIGN KEY (CHUNK_ID)
-        REFERENCES CHUNKS (CHUNK_ID)
+    CONSTRAINT PK_VECTORS PRIMARY KEY (CHUNK_ID)
 );
 
 -- 색인 메타(임베딩 모델명·차원 등).
@@ -215,10 +212,8 @@ CREATE TABLE FILES (
 --    원본이 부분 인덱스를 쓰지 않은 이유가 그대로 유효하다.
 CREATE UNIQUE INDEX IDX_BID_CASES_NOTICE ON BID_CASES (SOURCE_SLUG, NOTICE_ID);
 
--- 외래키 컬럼 인덱스.
--- Oracle 에서 인덱스 없는 외래키는 부모 테이블 DML 때 자식 테이블 전체에 락을
--- 걸 수 있다. SQLite 에는 없던 인덱스지만 성능이 아니라 **잠금 회피**가 목적이라
--- 넣는다(조회 결과는 달라지지 않는다).
+-- 참조 칼럼 조회 인덱스(외래키는 두지 않는다). 잠금 회피 목적은 사라졌고
+-- 부모→자식 조회용으로 유지한다.
 CREATE INDEX IDX_BID_CASES_INST  ON BID_CASES (INSTITUTION_ID);
 CREATE INDEX IDX_TASKS_BID_CASE  ON TASKS (BID_CASE_ID);
 CREATE INDEX IDX_MESSAGES_TASK   ON MESSAGES (TASK_ID);

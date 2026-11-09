@@ -26,6 +26,8 @@
 --     일부만 NULL 인 복합 키를 색인하므로 끝난 실행끼리 충돌한다. 두 DB 의 NULL
 --     취급이 여기서 갈린다.)
 --
+-- ⚠️ FK 없음: INSTITUTION_ID·BID_CASE_ID(null 허용)·RUN_ID 존재는 OrchestratorService 가 확인한다.
+--
 -- ⚠️ 001·002·005 와 마찬가지로 **멱등하지 않다.** 한 번만 돌린다.
 --------------------------------------------------------------------------------
 
@@ -48,8 +50,6 @@ CREATE TABLE ORCH_RUN (
     CREATED_AT             VARCHAR2(40 CHAR)  NOT NULL,
     UPDATED_AT             VARCHAR2(40 CHAR)  NOT NULL,
     CONSTRAINT PK_ORCH_RUN PRIMARY KEY (RUN_ID),
-    CONSTRAINT FK_ORCH_RUN_INST FOREIGN KEY (INSTITUTION_ID)
-        REFERENCES INSTITUTIONS (INSTITUTION_ID),
     CONSTRAINT UK_ORCH_RUN_ACTIVE UNIQUE (ACTIVE_INSTITUTION_ID)
 );
 
@@ -74,8 +74,6 @@ CREATE TABLE ORCH_STEP (
     STARTED_AT             VARCHAR2(40 CHAR)  NOT NULL,
     FINISHED_AT            VARCHAR2(40 CHAR),
     CONSTRAINT PK_ORCH_STEP PRIMARY KEY (STEP_ID),
-    CONSTRAINT FK_ORCH_STEP_RUN FOREIGN KEY (RUN_ID)
-        REFERENCES ORCH_RUN (RUN_ID),
     CONSTRAINT UK_ORCH_STEP_SEQ UNIQUE (RUN_ID, SEQ_NO)
 );
 

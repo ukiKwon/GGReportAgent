@@ -16,6 +16,7 @@
 --    인증 주체를 받은 경우이고, 0 이면 화면이 보낸 사번을 그대로 적은 것이다. 0 인 행은 위조 가능.
 -- ⚠️ 보존 기간은 사내 보안 규정을 따른다(기본 가정 1년, 별도 배치로 이관·삭제). 이 스크립트는 지우지 않는다.
 -- ⚠️ 시각은 본체와 같은 ISO 문자열(Times.nowIso)이다.
+-- ⚠️ FK 없음: USER_MENU_PERMS.EMP_NO 가 USERS 에 있는지는 서비스가 저장 전에 확인한다.
 -- ⚠️ 멱등하지 않다. 001~007 적용 후 한 번만 돌린다.
 -- -----------------------------------------------------------------------------
 
@@ -44,8 +45,7 @@ CREATE TABLE USER_MENU_PERMS (
     CAN_EDIT    NUMBER(1) DEFAULT 0 NOT NULL,                    -- 수정
     CAN_APPROVE NUMBER(1) DEFAULT 0 NOT NULL,                    -- 결재(결재 가능 메뉴에서만 1)
     UPDATED_AT  VARCHAR2(40 CHAR) NOT NULL,
-    CONSTRAINT PK_USER_MENU_PERMS PRIMARY KEY (EMP_NO, MENU_KEY),
-    CONSTRAINT FK_UMP_USER FOREIGN KEY (EMP_NO) REFERENCES USERS (EMP_NO)
+    CONSTRAINT PK_USER_MENU_PERMS PRIMARY KEY (EMP_NO, MENU_KEY)
 );
 
 CREATE TABLE ACCESS_LOG (

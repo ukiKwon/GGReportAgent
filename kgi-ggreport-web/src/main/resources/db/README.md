@@ -22,6 +22,11 @@ db/
 |---|---|
 | registry (7) | `INSTITUTIONS` `BID_CASES` `TASKS` `MESSAGES` `NOTIFICATIONS` `ROLE_MENUS` `CHAT_MESSAGES` |
 | 검색 (4) | `CHUNKS` `VECTORS` `META` `FILES` |
+| 공통 코드 (1, 016) | `COMMON_CODE` — 그룹+코드 복합 PK. 시드(017)는 `NOTICE_STATUS` 3종만 |
+| 경과 처리 (1, 018) | `NOTICE_FOLLOWUP` — 공고 예정일 경과 건 처리 이력(추가 전용, PK = 기관+예정일+REV_NO) |
+
+> 001·002 이후의 테이블(006 오케스트레이터, 008 시스템 관리, 010~014 결재·양식)은 각 파일 헤더를 본다.
+> 015는 FK를 떼는 멱등 스크립트(테이블 없음), `ops/integrity_check.sql`은 읽기 전용 점검 쿼리다.
 
 ## 아직 없는 것
 
@@ -57,19 +62,27 @@ db/
 ⚠️ **미러(MySQL)에서도 똑같이 NULL 허용으로 뒀다.** MySQL은 `''`를 담을 수 있지만,
 "아직 안 씀"의 표현이 두 DB에서 갈리면 Mapper를 한 벌로 못 쓴다.
 
-### ② 외래키를 실제로 건다 — SQLite와 달라지는 지점
+### ② 외래키를 걸지 않는다 — 회사 DB 기준(2026-11-09)
 
-`server/db.py`의 `get_connection()`은 `PRAGMA foreign_keys`를 켜지 않는다. 즉 **현재
-Python 시스템에서 외래키는 선언만 돼 있고 강제되지 않는다.** Oracle·MySQL은 강제한다.
+회사 DB는 외래키(FK)를 두지 않는다. 처음에는 원본이 선언한 4건(`BID_CASES→INSTITUTIONS`,
+`TASKS→BID_CASES`, `MESSAGES→TASKS`, `VECTORS→CHUNKS`)과 이후 006·008·010·012·014의
+14건, 모두 18개를 걸었으나 전부 뗐다(001·006·008·010·012·014를 제자리 수정,
+이미 적용된 DB는 `015_drop_foreign_keys.sql`).
 
-정본은 원본이 선언한 3건만 건다 — `BID_CASES→INSTITUTIONS`, `TASKS→BID_CASES`,
-`MESSAGES→TASKS`, 그리고 `VECTORS→CHUNKS`. 원본에 선언이 없는
-`NOTIFICATIONS.INSTITUTION_ID`·`TASK_ID`·`CHAT_MESSAGES.INSTITUTION_ID`에는 **걸지
-않는다** — 알림은 대상이 사라진 뒤에도 남아야 하는 기록이다.
+참조 무결성은 아래 세 가지로 푼다.
+- **서비스 검증**: 자식을 저장하기 전에 부모(기관·공고·작업·사용자 사번 등)가 있는지 확인한다.
+- **공통 코드**: 상태·구분 같은 코드 값은 `COMMON_CODE`(016·017)를 조회해 검증한다.
+- **정합성 점검 쿼리**: `db/oracle/ops/integrity_check.sql`·`db/mysql/ops/integrity_check.sql`
+  (마이그레이션이 아니라 번호가 없다, 읽기 전용, 결과 0행이 정상). 정기적으로 돌린다.
 
-⚠️ **단계 2의 골든 비교에서 지켜볼 것.** 지금 앱이 고아 행을 조용히 만들고 있었다면
-Oracle에서는 INSERT가 거부된다. 그런 경우가 나오면 해당 제약을 빼는 쪽이 아니라
-**왜 고아 행이 생기는지를 먼저 본다** — "동작 동일"이 목표이지 "결함 동일"이 아니다.
+부모 행은 물리 삭제하지 않는다(서버 코드에 DELETE가 없다). 앱이 고아 행을 만들어도 DB가
+막지 못하므로 점검 쿼리가 방어선이다. `DdlRulesTest`가 DDL에 `FOREIGN KEY`·`REFERENCES`가
+다시 들어오는 것을 막는다(015 제외).
+
+원본 설명 그대로 `NOTIFICATIONS.INSTITUTION_ID`·`TASK_ID`·`CHAT_MESSAGES.INSTITUTION_ID`는
+알림이 대상이 사라진 뒤에도 남아야 하는 기록이라 처음부터 FK가 없었다.
+
+CHECK·UNIQUE 제약은 유지한다(경로 A). DBA가 막으면 보고서 경로 B로 간다.
 
 ### ③ 컬럼명 3건을 바꿨다 (예약어·키워드 회피)
 
@@ -81,11 +94,13 @@ Oracle에서는 INSERT가 거부된다. 그런 경우가 나오면 해당 제약
 
 전부 색인 내부용 컬럼이라 API 응답에 그대로 나가지 않는다. 이름 대응은 Mapper가 흡수한다.
 
-### ④ Oracle에만 FK 컬럼 인덱스를 뒀다
+### ④ 참조 칼럼 인덱스를 명시한다
 
-Oracle에서 인덱스 없는 외래키는 부모 테이블 DML 때 자식 테이블 전체에 락을 걸 수 있다.
-성능이 아니라 **잠금 회피**가 목적이라 조회 결과는 달라지지 않는다.
-InnoDB는 외래키에 인덱스를 자동 생성하므로 미러에는 해당 인덱스가 없다.
+FK가 없어 두 DB 모두 자동 생성 인덱스가 없다. 부모→자식 조회에 필요한 칼럼은 인덱스를
+명시한다. Oracle은 `IDX_BID_CASES_INST`·`IDX_TASKS_BID_CASE`·`IDX_MESSAGES_TASK`를 두고,
+MySQL은 `IDX_BID_CASES_INST`·`IDX_MESSAGES_TASK`를 `CREATE TABLE` 안에 명시했다
+(`IDX_TASKS_BID_CASE`는 `UK_TASKS_CASE_TEAM`이 앞 칼럼으로 덮는다). 예전의 "잠금 회피"
+목적은 FK 제거로 사라졌고 조회용으로 유지한다.
 
 ## 적용 방법
 

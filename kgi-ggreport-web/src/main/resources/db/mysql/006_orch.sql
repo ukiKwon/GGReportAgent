@@ -10,6 +10,9 @@
 --    라서 Oracle(전체 NULL 키는 미색인)과 MySQL(NULL 끼리 충돌 없음)이 같은 결과를
 --    낸다 — 복합 UNIQUE 로 바꾸면 Oracle 에서만 끝난 실행끼리 충돌한다.
 --
+-- ⚠️ FK 없음: INSTITUTION_ID·BID_CASE_ID(null 허용)·RUN_ID 존재는 OrchestratorService 가 확인한다.
+--    이미 FK 가 걸린 로컬 DB 는 015_drop_foreign_keys.sql 이 뗀다.
+--
 -- ⚠️ 멱등하지 않다. 한 번만 돌린다.
 -- ---------------------------------------------------------------------------
 
@@ -26,8 +29,6 @@ CREATE TABLE ORCH_RUN (
     CREATED_AT             VARCHAR(40)   NOT NULL,
     UPDATED_AT             VARCHAR(40)   NOT NULL,
     PRIMARY KEY (RUN_ID),
-    CONSTRAINT FK_ORCH_RUN_INST FOREIGN KEY (INSTITUTION_ID)
-        REFERENCES INSTITUTIONS (INSTITUTION_ID),
     CONSTRAINT UK_ORCH_RUN_ACTIVE UNIQUE (ACTIVE_INSTITUTION_ID),
     KEY IDX_ORCH_RUN_INST (INSTITUTION_ID, CREATED_AT)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -46,8 +47,6 @@ CREATE TABLE ORCH_STEP (
     STARTED_AT             VARCHAR(40)   NOT NULL,
     FINISHED_AT            VARCHAR(40),
     PRIMARY KEY (STEP_ID),
-    CONSTRAINT FK_ORCH_STEP_RUN FOREIGN KEY (RUN_ID)
-        REFERENCES ORCH_RUN (RUN_ID),
     CONSTRAINT UK_ORCH_STEP_SEQ UNIQUE (RUN_ID, SEQ_NO),
     KEY IDX_ORCH_STEP_PARENT (PARENT_STEP_ID)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

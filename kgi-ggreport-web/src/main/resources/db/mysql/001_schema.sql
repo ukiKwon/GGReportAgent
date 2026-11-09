@@ -13,6 +13,9 @@
 -- 구현계획 Task 1.3 의 표를 따른다.
 -- -----------------------------------------------------------------------------
 
+-- ⚠️ 외래키(FK)를 두지 않는다(회사 DB 기준, 2026-11-09). 정본(Oracle)과 같다.
+--    이미 FK 가 걸린 로컬 DB 는 015_drop_foreign_keys.sql 이 뗀다.
+
 -- MySQL 은 IF NOT EXISTS 를 지원하므로 이 스크립트는 멱등하다(Oracle 쪽과 다른 점).
 
 -- -----------------------------------------------------------------------------
@@ -59,8 +62,7 @@ CREATE TABLE IF NOT EXISTS BID_CASES (
     -- 반입 dedup 키 (collector/SCHEMA.md §④). NULL 취급은 Oracle·SQLite 와 같아
     -- 두 컬럼이 모두 NULL 인 수동/시드 행은 중복으로 걸리지 않는다.
     UNIQUE KEY IDX_BID_CASES_NOTICE (SOURCE_SLUG, NOTICE_ID),
-    CONSTRAINT FK_BID_CASES_INST FOREIGN KEY (INSTITUTION_ID)
-        REFERENCES INSTITUTIONS (INSTITUTION_ID)
+    KEY IDX_BID_CASES_INST (INSTITUTION_ID)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS TASKS (
@@ -77,9 +79,7 @@ CREATE TABLE IF NOT EXISTS TASKS (
     APPROVER       VARCHAR(100),
     FINAL_APPROVER VARCHAR(100),
     PRIMARY KEY (TASK_ID),
-    UNIQUE KEY UK_TASKS_CASE_TEAM (BID_CASE_ID, TEAM),
-    CONSTRAINT FK_TASKS_BID_CASE FOREIGN KEY (BID_CASE_ID)
-        REFERENCES BID_CASES (BID_CASE_ID)
+    UNIQUE KEY UK_TASKS_CASE_TEAM (BID_CASE_ID, TEAM)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS MESSAGES (
@@ -92,8 +92,7 @@ CREATE TABLE IF NOT EXISTS MESSAGES (
     STAGE      SMALLINT,
     MODEL      VARCHAR(100),
     PRIMARY KEY (MESSAGE_ID),
-    CONSTRAINT FK_MESSAGES_TASK FOREIGN KEY (TASK_ID)
-        REFERENCES TASKS (TASK_ID)
+    KEY IDX_MESSAGES_TASK (TASK_ID)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS NOTIFICATIONS (
@@ -156,9 +155,7 @@ CREATE TABLE IF NOT EXISTS CHUNKS (
 CREATE TABLE IF NOT EXISTS VECTORS (
     CHUNK_ID  BIGINT   NOT NULL,
     EMBEDDING LONGBLOB NOT NULL,
-    PRIMARY KEY (CHUNK_ID),
-    CONSTRAINT FK_VECTORS_CHUNK FOREIGN KEY (CHUNK_ID)
-        REFERENCES CHUNKS (CHUNK_ID)
+    PRIMARY KEY (CHUNK_ID)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS META (
@@ -185,6 +182,6 @@ CREATE TABLE IF NOT EXISTS FILES (
 -- **두 번째 실행에서 깨진다**(테이블은 IF NOT EXISTS 로 넘어가는데 인덱스에서 멈춘다).
 -- 인라인으로 두면 스크립트 전체가 멱등해진다.
 --
--- 정본(Oracle)의 FK 컬럼 인덱스 IDX_BID_CASES_INST / IDX_TASKS_BID_CASE /
--- IDX_MESSAGES_TASK 에 해당하는 것은 만들지 않는다 — InnoDB 는 외래키에 인덱스를
--- 자동 생성한다. Oracle 은 자동 생성하지 않아 정본에만 명시돼 있다.
+-- 외래키가 없어 InnoDB 의 자동 인덱스도 없으므로, 정본(Oracle)의 참조 칼럼 인덱스 중
+-- IDX_BID_CASES_INST / IDX_MESSAGES_TASK 는 위 CREATE TABLE 안에 명시했다.
+-- IDX_TASKS_BID_CASE 는 UK_TASKS_CASE_TEAM (BID_CASE_ID 가 앞) 이 덮어 만들지 않는다.
