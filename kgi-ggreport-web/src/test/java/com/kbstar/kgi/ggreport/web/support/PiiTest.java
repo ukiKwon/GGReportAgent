@@ -126,6 +126,20 @@ public class PiiTest {
         assertTrue(Pii.scan("4111-1111-1111-11119").isEmpty());
     }
 
+    /** 이메일 정규식은 선형이어야 한다 — '@' 없는 긴 로컬파트 문자열(ReDoS)이 1초 안에 끝난다. */
+    @Test(timeout = 1000)
+    public void 긴_영문_연속열도_1초_안에_끝난다() {
+        assertTrue(Pii.scan(new String(new char[100_000]).replace('\0', 'a')).isEmpty());
+        assertTrue(Pii.scan(new String(new char[100_000]).replace('\0', 'a') + "@").isEmpty());
+    }
+
+    @Test
+    public void 앞에_로컬파트_문자가_이어진_이메일은_처음부터_한_건으로_본다() {
+        List<Pii.Finding> found = Pii.scan("x.y_z+1@sub.example.co.kr");
+        assertEquals(1, found.size());
+        assertEquals("x***@sub.example.co.kr", found.get(0).getValue());
+    }
+
     /** 신규 종류는 기존 셋 뒤에 붙는다 — 주민→휴대폰→이메일→외국인→카드. */
     @Test
     public void 검출_순서는_기존_뒤에_신규가_붙는다() {

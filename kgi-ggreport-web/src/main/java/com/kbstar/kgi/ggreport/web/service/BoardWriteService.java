@@ -9,6 +9,7 @@ import com.kbstar.kgi.ggreport.web.support.Pii;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -38,17 +39,27 @@ public class BoardWriteService {
     private final XlsxBook.Limits limits;
     private final Semaphore slots;
 
+    /** 기존 호출부용 — 요소 총수 상한은 기본값. */
+    public BoardWriteService(BoardFormService forms, BoardExcelMap map, int maxMb, int entryMb, int totalMb,
+                             int maxCells, int maxRows, int concurrency) {
+        this(forms, map, maxMb, entryMb, totalMb, maxCells, maxRows, concurrency,
+                XlsxBook.DEFAULT_MAX_XML_ELEMENTS);
+    }
+
+    @Autowired
     public BoardWriteService(BoardFormService forms, BoardExcelMap map,
                              @Value("${ggreport.board-write.max-mb:5}") int maxMb,
                              @Value("${ggreport.board-write.max-unpacked-entry-mb:20}") int entryMb,
                              @Value("${ggreport.board-write.max-unpacked-total-mb:40}") int totalMb,
                              @Value("${ggreport.board-write.max-cells:200000}") int maxCells,
-                             @Value("${ggreport.board-write.concurrency:2}") int concurrency) {
+                             @Value("${ggreport.board-write.max-rows:200000}") int maxRows,
+                             @Value("${ggreport.board-write.concurrency:2}") int concurrency,
+                             @Value("${ggreport.board-write.max-xml-elements:2000000}") int maxXmlElements) {
         this.forms = forms;
         this.map = map;
         this.maxMb = maxMb;
         this.concurrency = concurrency;
-        this.limits = new XlsxBook.Limits(entryMb * MB, totalMb * MB, maxCells);
+        this.limits = new XlsxBook.Limits(entryMb * MB, totalMb * MB, maxCells, maxRows, maxXmlElements);
         this.slots = new Semaphore(concurrency);
     }
 
@@ -124,8 +135,12 @@ public class BoardWriteService {
     private Map<String, Object> process(BoardFormService.WriteTarget target, XlsxBook book) {
         List<XlsxBook.PiiHit> inside = new ArrayList<>();
         List<XlsxBook.PiiHit> outside = new ArrayList<>();
-        for (XlsxBook.PiiHit h : book.scanPii()) {
-            (map.covers(h.sheet, h.row, h.col) ? inside : outside).add(h);
+        try {
+            for (XlsxBook.PiiHit h : book.scanPii()) {
+                (map.covers(h.sheet, h.row, h.col) ? inside : outside).add(h);
+            }
+        } catch (XlsxBook.Rejected r) {
+            throw fail(r.status, r.code, message(r.code));
         }
         if (!inside.isEmpty()) {
             throw ApiException.withDetail(422, pii(detail("PII_DETECTED",
@@ -220,6 +235,7 @@ public class BoardWriteService {
             case "TOO_LARGE_UNPACKED": return "파일 내용이 너무 큽니다(압축을 푼 크기 기준).";
             case "DUPLICATE_ENTRY": return "파일 구조가 올바르지 않습니다(중복 항목).";
             case "TOO_MANY_CELLS": return "칸이 너무 많습니다. 필요한 시트만 남겨 다시 올려 주세요.";
+            case "CELL_TOO_LONG": return "한 칸의 글자가 너무 깁니다(32,767자 이하).";
             default: return MSG_BROKEN;
         }
     }

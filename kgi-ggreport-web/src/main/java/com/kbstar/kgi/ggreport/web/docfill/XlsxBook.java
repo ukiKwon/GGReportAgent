@@ -32,16 +32,38 @@ public final class XlsxBook implements Closeable {
     /** 병합 색인 한 번에 다룰 수 있는 자르기 범위의 행·열 상한. */
     public static final int MAX_INDEX_ROWS = 5000;
     public static final int MAX_INDEX_COLS = 200;
+    /** 시트 행 수 기본 상한(설정 ggreport.board-write.max-rows 의 기본값과 같다). */
+    public static final int DEFAULT_MAX_ROWS = 200000;
+    /** 엑셀 한 칸의 글자 수 한계. 넘으면 CELL_TOO_LONG 으로 거부한다(자르지 않는다). */
+    public static final int MAX_CELL_CHARS = 32767;
+    /** 업로드 1건 개인정보 검사 대상 글자 수 합계 상한 — 넘으면 TOO_MANY_CELLS. */
+    public static final long MAX_PII_SCAN_CHARS = 20_000_000L;
+    /** 개인정보 검사가 방문한 글자 수 총량 상한(메모 적중 포함) — 넘으면 TOO_MANY_CELLS. */
+    public static final long MAX_VISIT_CHARS = 50_000_000L;
+    /** 모든 XML 파트의 시작 요소 총수 기본 상한(설정 ggreport.board-write.max-xml-elements 의 기본값). */
+    public static final int DEFAULT_MAX_XML_ELEMENTS = 2_000_000;
 
     public static final class Limits {
         final long maxEntry;
         final long maxTotal;
         final int maxCells;
+        final int maxRows;
+        final int maxXmlElements;
 
         public Limits(long maxEntry, long maxTotal, int maxCells) {
+            this(maxEntry, maxTotal, maxCells, DEFAULT_MAX_ROWS);
+        }
+
+        public Limits(long maxEntry, long maxTotal, int maxCells, int maxRows) {
+            this(maxEntry, maxTotal, maxCells, maxRows, DEFAULT_MAX_XML_ELEMENTS);
+        }
+
+        public Limits(long maxEntry, long maxTotal, int maxCells, int maxRows, int maxXmlElements) {
             this.maxEntry = maxEntry;
             this.maxTotal = maxTotal;
             this.maxCells = maxCells;
+            this.maxRows = maxRows;
+            this.maxXmlElements = maxXmlElements;
         }
     }
 
@@ -111,6 +133,9 @@ public final class XlsxBook implements Closeable {
     private final XSSFWorkbook wb;
     private final boolean externalLinks;
     private final DataFormatter fmt = new DataFormatter(Locale.KOREA);
+    /** 개인정보 검사가 방문한 글자 수 누계(메모 적중 포함). 단위 테스트가 낮춰 주입할 수 있다. */
+    private long visited;
+    long maxVisitChars = MAX_VISIT_CHARS;
 
     private XlsxBook(OPCPackage pkg, XSSFWorkbook wb, boolean externalLinks) {
         this.pkg = pkg;
@@ -124,7 +149,8 @@ public final class XlsxBook implements Closeable {
         }
         ZipGuard.Result z;
         try {
-            z = ZipGuard.check(data, lim.maxEntry, lim.maxTotal);
+            z = ZipGuard.check(data, lim.maxEntry, lim.maxTotal, lim.maxCells, lim.maxRows, MAX_CELL_CHARS,
+                    lim.maxXmlElements);
         } catch (ZipGuard.Rejected e) {
             throw new Rejected(422, e.code, null);
         }
@@ -202,10 +228,10 @@ public final class XlsxBook implements Closeable {
                 double d = c.getNumericCellValue();
                 CellStyle st = c.getCellStyle();
                 return new Value(fmt.formatRawCellContents(d, st.getDataFormat(), st.getDataFormatString()), raw(d), null, true,
-                        hiddenNumber(st.getDataFormatString(), d));
+                        hiddenNumberM(st.getDataFormatString(), d));
             case STRING:
                 String s = c.getRichStringCellValue().getString();
-                return new Value(s, s, null, false, hiddenText(c.getCellStyle().getDataFormatString()));
+                return new Value(s, s, null, false, hiddenTextM(c.getCellStyle().getDataFormatString()));
             case BOOLEAN:
                 String b = c.getBooleanCellValue() ? "TRUE" : "FALSE";
                 return new Value(b, b, null);
@@ -221,25 +247,74 @@ public final class XlsxBook implements Closeable {
      * 3개 이상=양수/음수/0. 서식 문자열은 어디에도 싣지 않는다.
      */
     public static boolean hiddenNumber(String f, double d) {
-        List<String> sec = sections(f);
-        if (sec.isEmpty()) {
-            return false;
-        }
-        int i;
-        if (sec.size() == 1) {
-            i = 0;
-        } else if (sec.size() == 2) {
-            i = d < 0 ? 1 : 0;
-        } else {
-            i = d > 0 ? 0 : d < 0 ? 1 : 2;
-        }
-        return invisible(sec.get(i));
+        return pickNumber(hiddenFlags(f), d);
     }
 
     /** 문자열 셀: 4번째 구역이 있고 숨김이면 true. */
     public static boolean hiddenText(String f) {
+        return pickText(hiddenFlags(f));
+    }
+
+    /** 서식 문자열별 구역 숨김 판정 메모(인스턴스) — 같은 서식을 칸마다 다시 풀지 않는다. */
+    private final Map<String, boolean[]> flagMemo = new HashMap<>();
+
+    private boolean hiddenNumberM(String f, double d) {
+        return pickNumber(flagsM(f), d);
+    }
+
+    private boolean hiddenTextM(String f) {
+        return pickText(flagsM(f));
+    }
+
+    private boolean[] flagsM(String f) {
+        if (f == null || f.length() > MAX_FORMAT_CHARS) {
+            return NO_FLAGS;
+        }
+        boolean[] fl = flagMemo.get(f);
+        if (fl == null) {
+            fl = hiddenFlags(f);
+            flagMemo.put(f, fl);
+        }
+        return fl;
+    }
+
+    private static final boolean[] NO_FLAGS = new boolean[0];
+
+    /** 서식 문자열 길이 상한 — 넘으면 '숨김 아님'으로 본다(호출 비용 상한). 엑셀 자체 한계도 255자. */
+    static final int MAX_FORMAT_CHARS = 255;
+
+    private static boolean[] hiddenFlags(String f) {
+        if (f == null || f.length() > MAX_FORMAT_CHARS) {
+            return NO_FLAGS;
+        }
         List<String> sec = sections(f);
-        return sec.size() >= 4 && invisible(sec.get(3));
+        if (sec.isEmpty()) {
+            return NO_FLAGS;
+        }
+        boolean[] out = new boolean[sec.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = invisible(sec.get(i));
+        }
+        return out;
+    }
+
+    private static boolean pickNumber(boolean[] fl, double d) {
+        if (fl.length == 0) {
+            return false;
+        }
+        int i;
+        if (fl.length == 1) {
+            i = 0;
+        } else if (fl.length == 2) {
+            i = d < 0 ? 1 : 0;
+        } else {
+            i = d > 0 ? 0 : d < 0 ? 1 : 2;
+        }
+        return fl[i];
+    }
+
+    private static boolean pickText(boolean[] fl) {
+        return fl.length >= 4 && fl[3];
     }
 
     /** 따옴표 리터럴·\x·_x·*x·[...] 를 걷어낸 뒤 자리표시자(0 # ? @)도 영문자(General·날짜 서식)도 없으면 안 보이는 구역. */
@@ -294,11 +369,13 @@ public final class XlsxBook implements Closeable {
     }
 
     /** 통합문서 전체(숨은 시트 포함). 칸마다 표시값·원값 둘 다 검사하고, 종류별로 칸당 1건. 시트 이름도 검사. */
-    public List<PiiHit> scanPii() {
+    public List<PiiHit> scanPii() throws Rejected {
         List<PiiHit> hits = new ArrayList<>();
+        Map<String, Set<String>> memo = new HashMap<>();   // 같은 문자열은 한 번만 검사
+        long[] chars = new long[1];                        // 검사한 글자 수 합계
         for (int i = 0; i < wb.getNumberOfSheets(); i++) {
             Sheet s = wb.getSheetAt(i);
-            Set<String> nameKinds = kinds(s.getSheetName(), null);
+            Set<String> nameKinds = kinds(s.getSheetName(), null, memo, chars);
             String label = nameKinds.isEmpty() ? s.getSheetName() : "#" + (i + 1);
             for (String k : nameKinds) {
                 hits.add(new PiiHit(s.getSheetName(), -1, -1, label, k));
@@ -306,7 +383,7 @@ public final class XlsxBook implements Closeable {
             for (Row r : s) {
                 for (Cell c : r) {
                     Value v = valueOf(c);
-                    for (String k : kinds(v.display, v.raw)) {
+                    for (String k : kinds(v.display, v.raw, memo, chars)) {
                         hits.add(new PiiHit(s.getSheetName(), r.getRowNum(), c.getColumnIndex(), label, k));
                     }
                 }
@@ -315,20 +392,44 @@ public final class XlsxBook implements Closeable {
         return hits;
     }
 
-    private static Set<String> kinds(String a, String b) {
+    private Set<String> kinds(String a, String b, Map<String, Set<String>> memo, long[] chars) throws Rejected {
         Set<String> out = new LinkedHashSet<>();
-        for (Pii.Finding f : Pii.scan(a)) {
-            out.add(f.getKind());
-        }
+        out.addAll(kindsOf(a, memo, chars));
         if (b != null) {
             int dot = b.indexOf('.');
             String bb = dot < 0 ? b : b.substring(0, dot);        // 소수 원값의 소수부가 휴대폰 모양과 우연히 맞는 오탐 방지
             if (!bb.equals(a)) {
-                for (Pii.Finding f : Pii.scan(bb)) {
-                    out.add(f.getKind());
-                }
+                out.addAll(kindsOf(bb, memo, chars));
             }
         }
+        return out;
+    }
+
+    /** 문자열 하나의 개인정보 종류. 32,767자 초과는 거부, 같은 문자열은 메모로 재검사하지 않는다. */
+    private Set<String> kindsOf(String text, Map<String, Set<String>> memo, long[] chars) throws Rejected {
+        if (text == null || text.isEmpty()) {
+            return Collections.emptySet();
+        }
+        if (text.length() > MAX_CELL_CHARS) {
+            throw new Rejected(422, "CELL_TOO_LONG", null);
+        }
+        visited += text.length();                          // 메모 적중도 센다
+        if (visited > maxVisitChars) {
+            throw new Rejected(422, "TOO_MANY_CELLS", null);
+        }
+        Set<String> done = memo.get(text);
+        if (done != null) {
+            return done;
+        }
+        chars[0] += text.length();
+        if (chars[0] > MAX_PII_SCAN_CHARS) {
+            throw new Rejected(422, "TOO_MANY_CELLS", null);
+        }
+        Set<String> out = new LinkedHashSet<>();
+        for (Pii.Finding f : Pii.scan(text)) {
+            out.add(f.getKind());
+        }
+        memo.put(text, out);
         return out;
     }
 

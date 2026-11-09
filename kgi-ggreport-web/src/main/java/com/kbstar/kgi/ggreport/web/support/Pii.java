@@ -24,7 +24,7 @@ public final class Pii {
     private static final Pattern RRN =
             Pattern.compile("(?<!\\d)(\\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\\d|3[01]))[-\\s]?([1-4]\\d{6})(?!\\d)");
     private static final Pattern EMAIL = Pattern.compile(
-            "([A-Za-z0-9._%+-])([A-Za-z0-9._%+-]*)@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})");
+            "(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-])([A-Za-z0-9._%+-]*+)@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})");
     private static final Pattern FOREIGN =
             Pattern.compile("(?<!\\d)(\\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\\d|3[01]))[-\\s]?([5-8]\\d{6})(?!\\d)");
     private static final Pattern CARD =
