@@ -150,6 +150,97 @@
     });
   };
 
+  // ── 공고 예정일 경과(NEXT 30 추가 요건, 1단계 — 화면만) ─────────────────────────
+  // 로컬 날짜 'YYYY-MM-DD'. toISOString()은 UTC라 한국 시각 00~09시에 하루 전 날짜가 나온다
+  // (티커 '기준' 표기가 하루 늦던 버그). 연·월·일을 로컬 값으로 직접 조립한다.
+  logic.localDateStr = function (d) {
+    const p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  };
+
+  // 화면 글자는 '추정', 내부 값은 '추측' 유지(테스트·비교 코드가 이 값에 결합돼 있다).
+  logic.confidenceLabel = function (c) { return c === '추측' ? '추정' : c; };
+  // formatBidDate의 화면용. 내부 값을 그대로 노출하지 않는다.
+  logic.formatBidDateLabel = function (rec) {
+    const e = logic.effectiveBid(rec);
+    return e.date ? (e.date + '(' + logic.confidenceLabel(e.confidence) + ')') : '미상';
+  };
+
+  // 데이터 정정(NEXT 30-1) 전 임시 — 공고일이 contractEnd 칸에 들어 있어 날짜 의미가
+  // 확인될 때까지 '날짜 의미 확인 중'을 붙이는 15기관(region|name, dedupeByInstitution과 같은 키).
+  // 정정이 끝나 contractEnd 의미가 바로잡히면 이 상수와 표식을 함께 지운다.
+  // data/ 파일은 건드리지 않는다.
+  logic.OVERDUE_CHECK_KEYS = [
+    '28|인천광역시', '11|강남구청', '11|동대문구청', '11|종로구청', '11|구로구청', '11|관악구청',
+    '41|광명시청', '42|춘천시청', '42|삼척시청', '42|양양군청', '43|청주시청', '45|정읍시청',
+    '47|포항시청', '47|영천시청', '47|청송군청'];
+  logic.instKey = function (r) { return (r.region || '') + '|' + (r.name || ''); };
+  logic.isDateUnderReview = function (rec) {
+    return logic.OVERDUE_CHECK_KEYS.indexOf(logic.instKey(rec)) >= 0;
+  };
+
+  // 경과 판정: 오늘 > 공고 예정일(유예 없음, 확정·추정 동일). 날짜 미상은 판정하지 않고
+  // 건수만 센다. 기관 단위로 중복을 먼저 제거한다(수원 4구 등이 건수를 부풀리지 않게).
+  // 반환 items는 최근에 지난 순(days 오름차순). days = 예정일이 지난 일수(양수).
+  logic.overdueSummary = function (list, today) {
+    const deduped = logic.dedupeByInstitution(list || []);
+    const items = [];
+    let unknown = 0;
+    deduped.forEach(function (r) {
+      const e = logic.effectiveBid(r);
+      const d = e.date ? logic.daysUntil(e.date, today) : Infinity;
+      if (d === Infinity) { unknown += 1; return; }
+      if (d >= 0) return;               // 오늘이 예정일이거나 아직 남음 — 경과 아님
+      const check = logic.isDateUnderReview(r);
+      items.push({ rec: r, name: r.name || '', region: r.region || '', date: e.date, days: -d,
+        kind: check ? 'check' : (e.confidence === '확정' ? 'fixed' : 'est'), check: check });
+    });
+    items.sort(function (a, b) { return a.days - b.days || (a.name < b.name ? -1 : (a.name > b.name ? 1 : 0)); });
+    return { items: items, unknown: unknown, total: deduped.length };
+  };
+
+  // 패널 묶음: 관심 지역(watched 코드 목록)에 속한 건은 '관심 지역'에만 넣고 시·도 묶음에서는
+  // 뺀다(두 번 세지 않음). 시·도는 건수 많은 순, 같으면 코드 순.
+  logic.groupOverdue = function (items, watched, nameOf) {
+    const w = watched || [];
+    const watch = [], rest = {};
+    items.forEach(function (it) {
+      if (w.indexOf(it.region) >= 0) watch.push(it);
+      else (rest[it.region] = rest[it.region] || []).push(it);
+    });
+    const bySido = Object.keys(rest).map(function (code) {
+      return { code: code, name: nameOf ? nameOf(code) : code, items: rest[code] };
+    }).sort(function (a, b) {
+      return (b.items.length - a.items.length) || (a.code < b.code ? -1 : (a.code > b.code ? 1 : 0));
+    });
+    return { watch: watch, bySido: bySido };
+  };
+
+  // 팝업의 시·도별 건수(관심 지역 구분 없이 전체). 건수 많은 순, 같으면 코드 순.
+  logic.countBySido = function (items, nameOf) {
+    const m = {};
+    items.forEach(function (it) { m[it.region] = (m[it.region] || 0) + 1; });
+    return Object.keys(m).map(function (code) {
+      return { code: code, name: nameOf ? nameOf(code) : code, n: m[code] };
+    }).sort(function (a, b) { return (b.n - a.n) || (a.code < b.code ? -1 : (a.code > b.code ? 1 : 0)); });
+  };
+
+  // 팝업 상위 N건: 관심 지역 먼저 → 최근에 지난 순 → '날짜 의미 확인 중'은 맨 뒤.
+  logic.pickTopOverdue = function (items, watched, n) {
+    const w = watched || [];
+    return items.slice().sort(function (a, b) {
+      return (a.check ? 1 : 0) - (b.check ? 1 : 0)
+        || (w.indexOf(a.region) >= 0 ? 0 : 1) - (w.indexOf(b.region) >= 0 ? 0 : 1)
+        || a.days - b.days
+        || (a.name < b.name ? -1 : (a.name > b.name ? 1 : 0));
+    }).slice(0, n == null ? 5 : n);
+  };
+
+  // 로그인 직후 팝업: 영업 계열 + 미처리 1건 이상 + 오늘 그만 보기 안 눌렀을 때만.
+  logic.shouldShowOverduePopup = function (o) {
+    return !!(o && o.sales && o.count > 0 && !o.skipped);
+  };
+
   logic.REQUIRED_FIELDS = ['name','type','region'];
 
   logic.validateRecord = function (rec) {

@@ -112,6 +112,30 @@
     return [p.team, p.name, s && s.emp].filter(function (v) { return !!v; });
   };
 
+  // 공고 예정일 경과 — 팝업 '오늘 더 이상 보지 않기'(사번+날짜 키라 사람·날짜마다 따로)와 패널 접힘.
+  // localStorage 접근 자체가 막힌 환경(개인정보 보호 모드 등)에서도 화면이 죽지 않게 전부 try/catch.
+  store.overdueSkipKey = function (who, dateStr) {
+    return 'tbd.overdueSkip.' + (who || 'anon') + '.' + dateStr;
+  };
+  store.isOverdueSkipped = function (who, dateStr) {
+    try { const ls = LS(); return !!ls && ls.getItem(store.overdueSkipKey(who, dateStr)) === '1'; }
+    catch (e) { return false; }
+  };
+  store.skipOverdueToday = function (who, dateStr) {
+    try { const ls = LS(); if (!ls) return false; ls.setItem(store.overdueSkipKey(who, dateStr), '1'); return true; }
+    catch (e) { return false; }
+  };
+  // 패널 열림(넓은 화면 도킹일 때만 기억). 저장값 없음 = null.
+  store.loadOverduePanelOpen = function () {
+    try {
+      const v = read('tbd.overduePanel', null);
+      return v === 'open' ? true : (v === 'closed' ? false : null);
+    } catch (e) { return null; }
+  };
+  store.saveOverduePanelOpen = function (open) {
+    try { write('tbd.overduePanel', open ? 'open' : 'closed'); return true; } catch (e) { return false; }
+  };
+
   // 지도 테마(임박 5색 + 물결/깜빡임 색·주기) — IT 담당자가 화면에서 바꾼 값을 보존.
   // 저장값은 부분(partial)일 수 있어 render.applyTheme이 기본값 위에 덮어쓴다.
   store.loadTheme = function () { return read(THEME_KEY, {}); };

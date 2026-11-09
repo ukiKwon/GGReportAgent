@@ -413,7 +413,7 @@
     }).join('') +
       '<label style="display:flex;gap:6px;align-items:center;margin:6px 0;">' +
       '<input type="checkbox" data-f="confirmed"> ' + L.confirmed + '(공고로 확인됨)</label>' +
-      '<p style="color:var(--muted);font-size:11px;">확정여부를 체크하지 않으면 "추측"으로 표시됩니다.</p>';
+      '<p style="color:var(--muted);font-size:11px;">확정여부를 체크하지 않으면 "추정"으로 표시됩니다.</p>';
     const modal = document.getElementById('add-modal'); modal.style.display = 'block';
     document.getElementById('add-cancel').onclick = function () { modal.style.display = 'none'; };
     document.getElementById('add-save').onclick = function () {
@@ -513,6 +513,7 @@
       master: !!(session && session.mode === 'account' && session.id === root.login.MASTER_ID)
     };
   }
+  app.navContext = navContext;
 
   function activeTabKey() {
     const btn = document.querySelector('.tab-btn.active');
@@ -656,6 +657,8 @@
     el.querySelectorAll('.nav-item').forEach(function (b) {
       b.classList.toggle('active', b.dataset.nav === navActiveId);
     });
+    // 항목 구성이 바뀌어 DOM을 새로 만들면 '전국 지도' 옆 미처리 배지도 사라지므로 다시 단다.
+    if (root.overdue && root.overdue.paintNavBadge) root.overdue.paintNavBadge();
   };
 
   app.paintNav = function (visible) {
@@ -739,6 +742,9 @@
     byId('login-view').classList.add('hidden');
     app.paintUserArea();
     app.onProfileChanged();
+    // 공고 예정일 경과 요약 팝업 — 영업 계열에게만, '오늘 더 이상 보지 않기'를 안 눌렀을 때만(overdue.js).
+    // 둘러보기(guest)는 소속이 없어 영업 계열이 아니므로 뜨지 않는다.
+    if (root.overdue && root.overdue.onLogin) root.overdue.onLogin(navContext(), session.emp || session.id || '');
   };
 
   app.logout = function () {
@@ -854,6 +860,7 @@
       app.wireFilters();
       root.render.drawTicker();
       root.render.startTickerSync();
+      if (root.overdue && root.overdue.wire) root.overdue.wire();   // 경과 패널·팝업 이벤트 연결
       document.getElementById('btn-back').addEventListener('click', app.backToNational);
       app.wireExport();
       app.wireData();

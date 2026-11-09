@@ -455,8 +455,10 @@
       border-radius:8px; padding:0 6px; font-size:11px; font-family:var(--mono); }
 
   /* 티커 — 조용한 한 줄, 색은 JS(URGENCY_COLORS)가 저채도 팔레트로 입힌다 */
-  #ticker-strip { border-bottom:1px solid var(--line); padding:6px 20px; }
-  #ticker { font-family:var(--mono); font-size:12px; line-height:1.7; color:var(--muted);
+  /* 오른쪽 끝에 경과 패널 토글(#ov-toggle)이 #ticker의 형제로 앉는다 — drawTicker가 #ticker의
+     innerHTML을 덮어쓰므로 토글은 그 안에 둘 수 없다. */
+  #ticker-strip { display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line); padding:6px 20px; }
+  #ticker { flex:1; min-width:0; font-family:var(--mono); font-size:12px; line-height:1.7; color:var(--muted);
             overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
   #ticker:empty::before { content:"…"; color:var(--muted); }
   #ticker .tk-cap { color:var(--muted); letter-spacing:.08em; margin-right:12px; }
@@ -863,6 +865,98 @@
   #doc-body mark.kn-chunk { background:transparent; color:inherit;
                             box-shadow:inset 0 0 0 1px var(--accent-color); border-radius:4px; }
 
+  /* ── 공고 예정일 경과(패널·팝업·사이드바 배지) ───────────────────────────────
+     경과는 '잉크 도장'이다: 새 색 없이 무채색 채움 + 시계 + D+n. 임박(빨강 테두리 + ▲ + D-n)과
+     색·모양·글자가 모두 다르다. 흐림(진행 중·종료 — 2단계)은 opacity가 아니라 글자색·굵기로만 낮춘다
+     (opacity .62면 --muted 대비가 3:1로 떨어진다). 규격: docs/design/2026-11-09_경과패널_시안.html */
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+             clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+  .nav-count { flex:none; font-family:var(--mono); font-size:11px; font-weight:700; line-height:16px;
+               padding:0 6px; border-radius:6px; background:var(--fg); color:#0d1116; }
+  #ov-toggle { flex:none; display:inline-flex; align-items:center; gap:6px; padding:3px 6px 3px 10px; font-size:12px;
+               background:var(--panel2); border:1px solid var(--line-strong); border-radius:var(--r); }
+  #ov-toggle[aria-expanded=true] { background:color-mix(in srgb, var(--accent-color) 16%, transparent); }
+  #drill-wrap { position:relative; }
+  #ov-panel { flex:0 0 360px; display:flex; flex-direction:column; min-height:0; background:var(--panel);
+              border:1px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--shadow); overflow:hidden; }
+  #drill-wrap:not([data-ov=open]) #ov-panel { display:none; }
+  /* 1366 미만(또는 드릴인 중): 지도 위를 덮는 서랍. 범례(6) 위, 모달(30) 아래. */
+  #drill-wrap[data-ovmode=drawer] #ov-panel { position:absolute; top:12px; right:12px; bottom:12px; flex:none;
+              width:min(360px, calc(100% - 24px)); z-index:7; }
+  #drill-wrap[data-ovmode=drawer][data-ov=open] #ov-panel { animation:ovSlide .2s ease-out; }
+  @keyframes ovSlide { from { transform:translateX(24px); opacity:0; } to { transform:none; opacity:1; } }
+  #drill-wrap[data-ovmode=stack] #ov-panel { position:static; order:-1; flex:none; width:100%; max-height:60vh; }
+  .ov-head { padding:10px 14px 0; border-bottom:1px solid var(--line);
+             background:color-mix(in srgb, var(--panel) 82%, transparent); backdrop-filter:blur(8px); }
+  .ov-head-row { display:flex; align-items:center; gap:8px; }
+  #ov-title { margin:0; font-size:14px; font-weight:700; letter-spacing:-.01em; }
+  #ov-collapse { margin-left:auto; width:28px; height:28px; padding:0; display:inline-flex; align-items:center;
+                 justify-content:center; border-radius:8px; }
+  .ov-sub { margin:4px 0 8px; font-size:11px; color:var(--muted); }
+  .ov-sub b { font-family:var(--mono); font-weight:400; }
+  #ov-tabs { display:flex; gap:2px; }
+  .ov-tab { background:none; border:0; border-bottom:2px solid transparent; border-radius:0; color:var(--muted);
+            padding:6px 8px; font-size:12px; }
+  .ov-tab:hover { transform:none; box-shadow:none; background:none; color:var(--fg); }
+  .ov-tab:focus-visible { outline-offset:-2px; }
+  .ov-tab[aria-selected=true] { color:var(--fg); border-bottom-color:var(--accent-color); font-weight:600; }
+  .ov-tab-n { font-family:var(--mono); font-size:11px; margin-left:4px; color:var(--muted); font-weight:400; }
+  #ov-list { flex:1 1 auto; overflow:auto; min-height:0; }
+  .ov-hint, #ov-unknown, #ov-pop-sum, #ov-pop-hint { word-break:keep-all; }
+  .ov-hint { margin:10px 14px; font-size:11px; color:var(--muted); line-height:1.5; }
+  .ov-grp > summary { list-style:none; display:flex; align-items:center; gap:6px; padding:8px 14px; cursor:pointer;
+                      font-size:12px; font-weight:700; border-bottom:1px solid var(--line); background:var(--panel2); }
+  .ov-grp > summary:focus-visible { outline-offset:-2px; }
+  .ov-grp > summary::-webkit-details-marker { display:none; }
+  .ov-grp > summary::before { content:""; border-left:4px solid var(--muted); border-top:3.5px solid transparent;
+                              border-bottom:3.5px solid transparent; transition:transform .2s; }
+  .ov-grp[open] > summary::before { transform:rotate(90deg); }
+  .ov-grp-n { font-family:var(--mono); font-size:11px; color:var(--muted); font-weight:400; margin-left:auto; }
+  .ov-star { color:#d8c47a; }
+  .ov-items { list-style:none; margin:0; padding:0; }
+  .ov-item { display:grid; grid-template-columns:auto minmax(0,1fr) auto; column-gap:8px; row-gap:3px; align-items:center;
+             padding:9px 14px; border-bottom:1px solid var(--line); }
+  .ov-name { font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ov-meta { grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; font-size:11px; color:var(--muted); }
+  .ov-date { font-family:var(--mono); }
+  /* 도장 폭을 고정해 D+9·D+99·D+999 모두 기관명 x가 같게 */
+  .ov-item > .ov-stamp { min-width:60px; justify-content:center; box-sizing:border-box; }
+  .ov-status { font-size:11px; font-weight:700; color:var(--fg); white-space:nowrap; }
+  .ov-stamp { display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:11px; font-weight:700;
+              line-height:16px; padding:0 6px; border-radius:6px; border:1px solid var(--fg); background:var(--fg);
+              color:#0d1116; white-space:nowrap; }
+  .ov-conf { font-size:11px; line-height:15px; padding:0 5px; border-radius:6px; border:1px solid transparent;
+             color:var(--muted); white-space:nowrap; display:inline-flex; align-items:center; gap:3px; }
+  .ov-conf .gph { width:10px; height:10px; }
+  .ov-conf.is-est { border:1px dashed var(--line-strong);
+                    background-image:repeating-linear-gradient(45deg, rgba(139,148,163,.16) 0 2px, transparent 2px 4px); }
+  .ov-conf.is-check { border:1px dotted var(--muted); color:var(--fg); }
+  .ov-empty { padding:28px 14px; text-align:center; color:var(--muted); font-size:12px; line-height:1.6; word-break:keep-all; }
+  .ov-empty p { margin:0; }
+  #ov-unknown { margin:0; padding:8px 14px; border-top:1px solid var(--line); font-size:11px; color:var(--muted); }
+  #ov-unknown b { font-family:var(--mono); font-weight:400; color:var(--fg); }
+  #ov-count[hidden], #ov-unknown[hidden], #ov-pop-more[hidden], #ov-pop-hint[hidden] { display:none; }
+  /* 로그인 직후 팝업 — 기존 .modal-overlay/.modal-box를 쓰되 role=dialog·포커스 가두기는 overdue.js가 맡는다 */
+  .ov-pop-box { max-width:520px; width:calc(100vw - 32px); }
+  .ov-pop-head { display:flex; align-items:center; gap:8px; padding-bottom:9px; border-bottom:1px solid var(--line); }
+  #ov-pop-title { margin:0; padding:0; border:0; font-size:14px; letter-spacing:-.01em; }
+  #ov-pop-sum { margin:10px 0 8px; font-size:12px; color:var(--muted); line-height:1.6; }
+  #ov-pop-sido { display:flex; flex-wrap:wrap; gap:4px 12px; margin:0 0 12px; padding:0; list-style:none; font-size:12px; }
+  #ov-pop-sido b { font-family:var(--mono); margin-left:4px; }
+  .ov-pop-cap { font-size:11px; color:var(--muted); margin:0 0 4px; }
+  #ov-pop-list { list-style:none; margin:0; padding:0; border-top:1px solid var(--line); overflow:auto; }
+  #ov-pop-list .ov-item { padding:8px 2px; }
+  #ov-pop-list .ov-meta { grid-column:auto; justify-content:flex-end; }
+  #ov-pop-more { margin-top:6px; }
+  #ov-pop-hint { margin:10px 0 0; font-size:11px; color:var(--muted); line-height:1.5; }
+  .ov-pop-foot { display:flex; align-items:center; gap:8px; margin-top:14px; }
+  .ov-pop-foot .sp { flex:1; }
+  #ov-pop-all { border-color:color-mix(in srgb, var(--accent-color) 55%, transparent); }
+  @media (prefers-reduced-motion: reduce) {
+    #drill-wrap[data-ovmode=drawer][data-ov=open] #ov-panel { animation:none; }
+    .ov-grp > summary::before { transition:none; }
+  }
+
   @media (max-width: 880px) {
     body { overflow:auto; }
     header { flex-wrap:wrap; }
@@ -870,7 +964,8 @@
     #topbar { flex-direction:column; align-items:stretch; }
     .tb-group { flex-wrap:wrap; }
     #tab-map.active { overflow-y:auto; }
-    #drill-wrap { flex-direction:column; flex:none; }
+    /* 쌓기: 가운데 정렬이면 내용이 틀보다 클 때 위아래로 갈라져 머리가 잘리고 스크롤도 안 된다 → 위에서부터 */
+    #drill-wrap { flex-direction:column; flex:none; justify-content:flex-start; }
     #map-stage { flex:none; min-height:52vh; }
     /* 좁은 지도에서 지역명 충돌 방지 — 축소 + 준비중 부제 숨김 (마감 리뷰 반영) */
     .label { font-size:10px; stroke-width:2px; }
@@ -963,16 +1058,36 @@ review, the verdict, and DESIGN.md
     <button id="btn-theme"><svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><rect x="0.5" y="0.5" width="5" height="5" rx="1" fill="var(--red)"/><rect x="6.5" y="0.5" width="5" height="5" rx="1" fill="var(--orange)"/><rect x="0.5" y="6.5" width="5" height="5" rx="1" fill="var(--yellow)"/><rect x="6.5" y="6.5" width="5" height="5" rx="1" fill="var(--blue)"/></svg>지도 색상</button>
   </div>
 </div>
-<div id="ticker-strip"><div id="ticker"></div></div>
+<div id="ticker-strip"><div id="ticker"></div>
+  <button id="ov-toggle" type="button" aria-expanded="false" aria-controls="ov-panel"></button></div>
 
 <section id="tab-map" class="tab-view active">
-  <div id="drill-wrap">
+  <div id="drill-wrap" data-ov="closed">
     <div id="map-stage">
       <svg id="map-svg" width="100%" height="100%"></svg>
       <div id="cloud-overlay"></div>
       <div id="legend"></div>
       <div id="breadcrumb" style="display:none;"><button id="btn-back">← 전국</button> <span id="crumb-region"></span></div>
     </div>
+    <!-- 공고 예정일 경과 패널(보기 전용). 1단계는 상태 기록이 없어 지연·처리됨 탭은 비어 있다. 내용은 overdue.js가 채운다. -->
+    <aside id="ov-panel" aria-labelledby="ov-title">
+      <div class="ov-head">
+        <div class="ov-head-row">
+          <h2 id="ov-title" tabindex="-1">공고 예정일 경과</h2>
+          <span class="ov-stamp" id="ov-count" hidden></span>
+          <button id="ov-collapse" type="button" aria-expanded="false" aria-controls="ov-panel" aria-label="경과 패널 접기"><svg class="gph" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <p class="ov-sub" id="ov-sub"></p>
+        <div id="ov-tabs" role="tablist" aria-label="상태별 보기">
+          <button class="ov-tab" id="ov-tab-pending" role="tab" aria-selected="true" aria-controls="ov-list" data-view="pending">미처리<span class="ov-tab-n">0</span></button>
+          <button class="ov-tab" id="ov-tab-delayed" role="tab" aria-selected="false" aria-controls="ov-list" tabindex="-1" data-view="delayed">지연·재공고 대기<span class="ov-tab-n">0</span></button>
+          <button class="ov-tab" id="ov-tab-done" role="tab" aria-selected="false" aria-controls="ov-list" tabindex="-1" data-view="done">처리됨<span class="ov-tab-n">0</span></button>
+          <button class="ov-tab" id="ov-tab-all" role="tab" aria-selected="false" aria-controls="ov-list" tabindex="-1" data-view="all">전체<span class="ov-tab-n">0</span></button>
+        </div>
+      </div>
+      <div id="ov-list" role="tabpanel" aria-labelledby="ov-tab-pending"><p class="ov-empty">기관 목록을 불러오는 중입니다.</p></div>
+      <p id="ov-unknown" hidden></p>
+    </aside>
     <div id="rank-panel" style="display:none;"></div>
   </div>
   <div id="popover" style="display:none;"></div>
@@ -1177,6 +1292,20 @@ review, the verdict, and DESIGN.md
   </div>
 </div>
 
+<!-- 로그인 직후 공고 예정일 경과 요약(영업 계열, 하루 안에 '오늘 더 이상 보지 않기'로 끌 수 있음). Esc·포커스는 overdue.js가 직접 처리한다. -->
+<div id="ov-pop" class="modal-overlay" style="display:none;">
+  <div class="modal-box ov-pop-box" role="dialog" aria-modal="true" aria-labelledby="ov-pop-title" aria-describedby="ov-pop-sum">
+    <div class="ov-pop-head"><h2 id="ov-pop-title" tabindex="-1">공고 예정일이 지난 미처리 건</h2><span class="ov-stamp" id="ov-pop-n"></span></div>
+    <p id="ov-pop-sum"></p>
+    <ul id="ov-pop-sido" aria-label="시·도별 건수"></ul>
+    <p class="ov-pop-cap" id="ov-pop-cap"></p>
+    <ul id="ov-pop-list"></ul>
+    <p class="ov-pop-cap" id="ov-pop-more" hidden></p>
+    <p id="ov-pop-hint" hidden></p>
+    <div class="ov-pop-foot"><button class="link-btn" id="ov-pop-skip" type="button">오늘 더 이상 보지 않기</button><span class="sp"></span><button id="ov-pop-close" type="button">닫기</button><button id="ov-pop-all" type="button">경과 패널에서 전체 보기</button></div>
+  </div>
+</div>
+
 <!-- 순수 로직 -->
 <script src="js/logic.js"></script>
 <script src="js/store.js"></script>
@@ -1218,6 +1347,7 @@ review, the verdict, and DESIGN.md
 <script src="data/institutions.js"></script>
 <!-- 렌더·엔트리 -->
 <script src="js/render.js"></script>
+<script src="js/overdue.js"></script>
 <script src="js/app.js"></script>
 <script>
   // 탭 전환 (와이어링은 app.js가 보강; 여기선 기본 토글 보장)

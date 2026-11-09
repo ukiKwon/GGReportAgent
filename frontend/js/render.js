@@ -9,7 +9,8 @@
   const esc = logic.esc; // 공유 이스케이프(logic.esc) 위임
 
   render.state = {
-    today: new Date(new Date().toISOString().slice(0,10) + 'T00:00:00'),
+    // 로컬 날짜 기준 자정. toISOString()은 UTC라 한국 시각 00~09시에 하루 전 날짜가 된다.
+    today: new Date(logic.localDateStr(new Date()) + 'T00:00:00'),
     // v2(2026-08-09): 전국 확대. korea.js의 17개 시·도 코드 전부를 활성화한다.
     // 비활성 지역은 빗금('준비중')으로 그려지고 클릭·랭킹 집계에서도 빠지므로,
     // 광역 금고 데이터를 넣어도 여기에 코드가 없으면 화면에 아무것도 안 나타난다.
@@ -41,6 +42,10 @@
     warn: '<svg class="gph warn" viewBox="0 0 12 12"><path d="M6 1.6 11 10.4H1Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><line x1="6" y1="4.6" x2="6" y2="7.2" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="8.8" r="0.8" fill="currentColor"/></svg>',
     // 티커 임박(상승) 표기 — 문자 ▲ 대신 같은 획 어휘의 채운 삼각
     up: '<svg class="gph up" viewBox="0 0 12 12"><path d="M6 2.4 10.4 9.6H1.6Z" fill="currentColor"/></svg>',
+    // 공고 예정일 경과 도장(시계) — 임박(▲, 빨강)과 모양·색·글자가 모두 다른 무채색 신호.
+    overdue: '<svg class="gph" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 3.4V6l1.9 1.3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    // '날짜 의미 확인 중' 표식(점선 원 + i)
+    check: '<svg class="gph" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.4"/><line x1="6" y1="5.4" x2="6" y2="8.6" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="3.7" r=".75" fill="currentColor"/></svg>',
   };
   // 호출부(regionUrgencyColor·drawMarkers 등)가 render.URGENCY_COLORS[...]로 직접 참조하므로
   // 객체 정체성을 유지한 채 applyTheme이 키만 덮어쓴다.
@@ -149,6 +154,9 @@
 
   render.drawNational = function () {
     var rp = document.getElementById('rank-panel'); if (rp) rp.style.display='none';
+    // 경과 패널 배치(도킹/덮개/위 쌓기)를 폭을 재기 전에 확정한다 — 패널이 나중에 나타나거나
+    // 사라지면 지도가 옛 폭으로 그려져 잘리거나 한쪽으로 쏠린다.
+    if (root.overdue && root.overdue.syncLayout) root.overdue.syncLayout();
     const svg = d3.select('#map-svg');
     svg.selectAll('*').remove();
     render._ensureDefs(svg);   // 준비중 지역 빗금(#hatch)용 — 이전엔 지역 뷰에서만 호출됐다
@@ -293,6 +301,8 @@
     // 랭킹 패널을 먼저 펼쳐 레이아웃을 확정한 뒤 폭을 잰다 — 그렇지 않으면
     // 패널이 나중에 열리며 SVG가 줄어들어 지도가 확대·좌측 쏠림으로 그려진다.
     var rp0 = document.getElementById('rank-panel'); if (rp0) rp0.style.display = 'block';
+    // 드릴인 중에는 도킹된 경과 패널을 접어(덮개 서랍으로) 랭킹 패널과 3열이 되지 않게 한다.
+    if (root.overdue && root.overdue.syncLayout) root.overdue.syncLayout();
     const svg = d3.select('#map-svg'); svg.selectAll('*').remove();
     const node = svg.node(); const w = node.clientWidth || 900, h = node.clientHeight || 600;
     const fc = (render.REGION_GEO[code] || function(){ return {type:'FeatureCollection',features:[]}; })();
@@ -445,10 +455,15 @@
   render.drawTicker = function () {
     const all = render.allInstitutions().filter(function (r){ return render.state.activeRegions.has(r.region); });
     // 시-단위 중복제거 — 일반구 폴리곤 레코드(수원 4구 등)가 TOP5를 채우지 않게.
-    const top = logic.dedupeByInstitution(logic.sortByUrgency(all, render.state.today)).slice(0, 5);
+    // 이미 예정일이 지난(D<0) 건은 '임박'이 아니라 경과라 뺀다 — 경과는 경과 패널이 맡는다.
+    // 날짜 미상(Infinity)은 예전처럼 맨 뒤에 남는다.
+    const upcoming = all.filter(function (r) {
+      return logic.daysUntil(logic.effectiveBid(r).date, render.state.today) >= 0;
+    });
+    const top = logic.dedupeByInstitution(logic.sortByUrgency(upcoming, render.state.today)).slice(0, 5);
     const el = document.getElementById('ticker'); if (!el) return;
     // 항목마다 임박도 색을 입힌다 — 티커 자체가 등락을 말해야 한다(마감 리뷰 반영).
-    // ▲는 6개월 이내(상승 = 임박)에만 붙는 시세 표기. 색은 hex 화이트리스트 통과분만.
+    // ▲는 6개월 이내(상승 = 임박, D>=0)에만 붙는 시세 표기. 색은 hex 화이트리스트 통과분만.
     el.innerHTML = '<span class="tk-cap">임박 TOP5</span>' + top.map(function (r) {
       const band = logic.urgencyOf(r, render.state.today);
       const c = render._safeColor(render.URGENCY_COLORS[band], render.DEFAULT_THEME[band]);
@@ -456,8 +471,10 @@
       return '<span style="color:color-mix(in srgb, ' + c + ' 72%, #ffffff)">' + mark +
         logic.esc(r.name) + ' ' + logic.esc(logic.formatDDay(r, render.state.today)) + '</span>';
     }).join('<span class="tk-sep">·</span>') +
-      '<span class="tk-sync" title="기준일 시점의 값입니다">기준 ' + render.state.today.toISOString().slice(0, 10) + '</span>';
+      '<span class="tk-sync" title="기준일 시점의 값입니다">기준 ' + logic.localDateStr(render.state.today) + '</span>';
     render._rollTicker();
+    // 경과 건수는 같은 데이터에서 나오므로 티커를 다시 그릴 때(데이터가 바뀔 때마다) 함께 갱신한다.
+    if (root.overdue && root.overdue.refresh) root.overdue.refresh();
   };
 
   // "최신화되는 듯한" 표현 — 값을 새로 가져오는 것이 아니라 **기준일 고정값을 다시 그리는 연출**이다
@@ -536,7 +553,7 @@
       card.innerHTML = '<span class="heart" data-name="' + logic.esc(r.name) + '">' +
         (hearted ? render.ICONS.heartFill : render.ICONS.heartLine) + '</span>' +
         '<b>' + logic.esc(r.name) + '</b> ' + missHtml +
-        '<br><small>' + logic.esc(r.type) + ' · ' + logic.esc(logic.formatBidDate(r)) + '</small>';
+        '<br><small>' + logic.esc(r.type) + ' · ' + logic.esc(logic.formatBidDateLabel(r)) + '</small>';
       card.querySelector('.heart').addEventListener('click', function (e) {
         e.stopPropagation(); store.toggleInterest(r.name); render.drawRankingPanel(code);
       });
@@ -558,7 +575,7 @@
     fields.forEach(function (f) {
       const label = logic.FIELD_LABELS[f] || f;
       if (f === 'contractEnd') {
-        html += '<div>' + label + ': ' + esc(logic.formatBidDate(rec)) + '</div>';
+        html += '<div>' + label + ': ' + esc(logic.formatBidDateLabel(rec)) + '</div>';
         return;
       }
       const missing = v.missing.indexOf(f) >= 0;
@@ -783,7 +800,7 @@
         '<td style="padding:6px;">' + logic.esc(r.name) + '</td>' +
         '<td style="padding:6px;">' + logic.esc(r.type || '') + '</td>' +
         '<td style="padding:6px;">' + logic.esc(render.REGION_NAME_ALL(r.region)) + '</td>' +
-        '<td style="padding:6px;">' + logic.esc(logic.formatBidDate(r)) + '</td>' +
+        '<td style="padding:6px;">' + logic.esc(logic.formatBidDateLabel(r)) + '</td>' +
         '<td style="padding:6px;">' + logic.esc(r.term ? r.term + '년' : '') + '</td>' +
         '<td style="padding:6px;">' + logic.esc(r.updatedAt || '') + '</td></tr>';
     }).join('');
