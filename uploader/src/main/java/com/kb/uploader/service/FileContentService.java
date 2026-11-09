@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.xml.sax.Attributes;
 import org.xml.sax.helpers.DefaultHandler;
 
+import javax.xml.XMLConstants;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 import java.io.IOException;
@@ -108,12 +109,34 @@ public class FileContentService {
         return sb.toString().trim();
     }
 
+    /**
+     * XXE 방어 SAX 팩토리(NEXT 39 S1). DOCTYPE 거부는 필수라 실패하면 예외를 던진다(= 추출 포기).
+     * 나머지는 파서가 지원하지 않으면 건너뛴다(DOCTYPE 거부만으로도 외부 엔티티는 불가).
+     */
+    static SAXParserFactory newSecureSaxFactory() throws Exception {
+        SAXParserFactory factory = SAXParserFactory.newInstance();
+        factory.setNamespaceAware(false);
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        trySetFeature(factory, XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        trySetFeature(factory, "http://xml.org/sax/features/external-general-entities", false);
+        trySetFeature(factory, "http://xml.org/sax/features/external-parameter-entities", false);
+        trySetFeature(factory, "http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+        return factory;
+    }
+
+    private static void trySetFeature(SAXParserFactory factory, String feature, boolean value) {
+        try {
+            factory.setFeature(feature, value);
+        } catch (Exception e) {
+            log.debug("XML 파서가 기능을 지원하지 않아 건너뜀: {}", feature);
+        }
+    }
+
     private String extractHwpxText(String storedPath) {
         StringBuilder sb = new StringBuilder();
+        boolean rejected = false;
         try (ZipFile zip = new ZipFile(storedPath)) {
-            SAXParserFactory factory = SAXParserFactory.newInstance();
-            factory.setNamespaceAware(false);
-            SAXParser parser = factory.newSAXParser();
+            SAXParserFactory factory = newSecureSaxFactory();
 
             Enumeration<? extends ZipEntry> entries = zip.entries();
             while (entries.hasMoreElements()) {
@@ -122,6 +145,7 @@ public class FileContentService {
                 // HWPX 본문: Contents/section*.xml
                 if (name.startsWith("Contents/") && name.endsWith(".xml")) {
                     try (InputStream is = zip.getInputStream(entry)) {
+                        SAXParser parser = factory.newSAXParser(); // 예외 뒤 재사용 방지: 엔트리마다 새로
                         parser.parse(is, new DefaultHandler() {
                             private boolean inText = false;
 
@@ -144,12 +168,23 @@ public class FileContentService {
                                 }
                             }
                         });
-                    } catch (Exception ignored) { }
+                    } catch (org.xml.sax.SAXParseException e) {
+                        // DOCTYPE 거부 포함. 공격 의심 파일이므로 일부만 쓰지 않고 전체를 버린다(아래 null).
+                        rejected = true;
+                        log.warn("HWPX 섹션 파싱 거부: {}", name);
+                        log.debug("HWPX 섹션 파싱 예외", e);
+                    } catch (Exception e) {
+                        log.warn("HWPX 섹션 읽기 실패: {}", name);
+                        log.debug("HWPX 섹션 읽기 예외", e);
+                    }
                 }
             }
         } catch (Exception e) {
-            return "[HWPX 텍스트 추출 실패: " + e.getMessage() + "]";
+            // 반환값에 사유·경로를 싣지 않는다(31행 계약: 실패는 null).
+            log.warn("HWPX 텍스트 추출 실패: {}", storedPath, e);
+            return null;
         }
+        if (rejected) return null;
         return sb.toString().trim();
     }
 }

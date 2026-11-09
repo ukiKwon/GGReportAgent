@@ -91,4 +91,40 @@ public class FileContentServiceTest {
         assertNull(sut.extractText("/some/path/file.zip"));
         assertNull(sut.extractText(null));
     }
+
+    private File makeHwpx(String sectionXml) throws Exception {
+        File f = tempFolder.newFile("t_" + System.nanoTime() + ".hwpx");
+        try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(new java.io.FileOutputStream(f))) {
+            zos.putNextEntry(new java.util.zip.ZipEntry("Contents/section0.xml"));
+            zos.write(sectionXml.getBytes(StandardCharsets.UTF_8));
+            zos.closeEntry();
+        }
+        return f;
+    }
+
+    @Test
+    public void hwpx_정상_본문_추출() throws Exception {
+        File f = makeHwpx("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<hs:sec xmlns:hs=\"x\" xmlns:hp=\"y\"><hp:p><hp:run><hp:t>안녕 본문</hp:t></hp:run></hp:p></hs:sec>");
+        String result = sut.extractText(f.getAbsolutePath());
+        assertNotNull(result);
+        assertTrue(result, result.contains("안녕 본문"));
+    }
+
+    @Test
+    public void hwpx_XXE_DOCTYPE은_거부되고_파일내용이_섞이지_않는다() throws Exception {
+        File secret = tempFolder.newFile("secret.txt");
+        Files.write(secret.toPath(), "TOP_SECRET_MARKER_12345".getBytes(StandardCharsets.UTF_8));
+        File f = makeHwpx("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<!DOCTYPE sec [<!ENTITY xxe SYSTEM \"" + secret.toURI() + "\">]>"
+                + "<hs:sec xmlns:hs=\"x\" xmlns:hp=\"y\"><hp:p><hp:run><hp:t>&xxe;</hp:t></hp:run></hp:p></hs:sec>");
+        assertNull(sut.extractText(f.getAbsolutePath()));
+    }
+
+    @Test
+    public void hwpx_손상_zip은_null이고_메시지가_새지_않는다() throws Exception {
+        File f = tempFolder.newFile("broken.hwpx");
+        Files.write(f.toPath(), "not a zip".getBytes(StandardCharsets.UTF_8));
+        assertNull(sut.extractText(f.getAbsolutePath()));
+    }
 }
