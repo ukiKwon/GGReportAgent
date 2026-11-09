@@ -1,0 +1,54 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PM 주간 보고 2026-W35</title><style>:root{--bg:#f7f8fa;--fg:#1c2330;--mut:#5b6678;--card:#fff;--line:#dde2ea;--acc:#1f6feb;--soft:#eef4ff}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f141b;--fg:#e6ebf2;--mut:#9aa6b8;--card:#171e28;--line:#2a3442;--acc:#6aa7ff;--soft:#1a2740;color-scheme:dark}}
+:root[data-theme=dark]{--bg:#0f141b;--fg:#e6ebf2;--mut:#9aa6b8;--card:#171e28;--line:#2a3442;--acc:#6aa7ff;--soft:#1a2740;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.65 system-ui,"Malgun Gothic",sans-serif;padding:0 16px}
+.wrap{max-width:900px;margin:0 auto;padding-block:28px 60px}h1{font-size:24px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 22px}
+.week,.box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 22px;margin:0 0 16px}
+h2{font-size:19px;margin:0 0 6px}h2 small{color:var(--mut);font-weight:400;font-size:13px;margin-left:8px}h3{font-size:14px;margin:16px 0 4px;color:var(--acc)}
+.lead{background:var(--soft);border-radius:8px;padding:8px 12px;margin:6px 0}ul{margin:4px 0;padding-left:20px}li{margin:3px 0}a{color:var(--acc)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}th{background:var(--soft)}.scroll{overflow-x:auto}
+nav.toc{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 18px}nav.toc a{border:1px solid var(--line);border-radius:999px;padding:2px 10px;background:var(--card);text-decoration:none;font-size:13px}
+.empty{color:var(--mut)}</style></head><body><div class="wrap"><p><a href="index.html">← 전체 이력</a></p><section class="week" id="2026-W35"><h2>2026-W35 <small>08-24 ~ 08-30</small></h2>
+<p class="lead">외부에서 만든 파일 업로드 서비스(uploader)를 들여오고, WebLogic/Java 이관 개발을 본격 시작해 결재 흐름까지 옮겼습니다. 주말에 받은 회신에서 '사내 공용 AI API가 없다'는 사실이 확인돼 전제가 흔들렸습니다.</p>
+<h3>한 일</h3><ul>
+<li>사용자가 외부에서 만든 Java 업로드·분류 서비스(uploader)를 저장소에 들였습니다. 이관 전용 작업 갈래도 새로 만들었고, 설명서를 실물에 맞게 고쳐 빌드가 정상으로 돌게 했습니다.</li>
+<li>실행 환경을 5가지로 확정해 반영했습니다(내부망 Oracle 4곳, 외부망 MySQL 1곳).</li>
+<li>Java 신규 앱 개발을 진행했습니다.
+<ul>
+<li>완료: 골격, 조회 기능(서울 25개 구 기본 데이터 포함), PDF·PPT·배점 검증</li>
+<li>대부분 완료: 결재 흐름</li>
+</ul></li>
+<li>이관 중에 원본 결함을 찾아 고쳤습니다.
+<ul>
+<li>제안서를 취합할 때 전산팀 초안이 통째로 빠지던 문제</li>
+<li>전산팀 AI 대화에 예산팀 자료가 들어가던 문제</li>
+</ul>
+지금 운영 중인 Python 시스템에서도 같이 고쳤습니다.</li>
+<li>WebLogic 문의서를 9건에서 10건으로 개정하고, 부서별로 나눈 3통짜리 발송본을 만들었습니다.</li>
+<li>계획에서 빠져 있던 '쓰기' 기능을 찾아 별도 단계를 만들고, 작업함·결재함·쪽지·권한 저장을 옮겼습니다. 이관 테이블 15개의 컬럼도 문서로 전부 정리했습니다.</li>
+<li>08-30에 사용자(내부 담당)에게 직접 물어 문의서 10건 중 5건의 답을 채웠습니다.</li>
+</ul>
+<h3>결정·요건 변경</h3><ul>
+<li><b>08-25</b> '전자정부 표준프레임워크 준수 필수' 조건을 폐기했습니다. 사용자가 "그게 뭔지 모르겠다"고 해서 다시 확인해 보니, 이관 목적지는 당행 내부 플랫폼이라 적용 대상이 아니었습니다.</li>
+<li><b>08-25</b> 서비스끼리 주고받는 호출은 사내 API 관문과 OAuth 인증을 거친다는 것을 확정 사실로 반영했습니다.</li>
+<li><b>08-25</b> uploader 연결은 Python 이관이 끝난 뒤에 하기로 했습니다. 사용자 지적은 "Java로 가는 게 전제다. 아직 Python인 것만 먼저 변환하면 uploader 붙이기는 일도 아니다"였습니다.</li>
+<li><b>08-26</b> DB는 Oracle을 기준으로 삼고 MySQL은 사본으로 유지합니다. 입력 순서를 보존하는 칸을 추가했고, DB 연결 점검은 설정 파일 읽기 검증까지만 합니다. 모두 사용자 결정입니다.</li>
+<li><b>08-27</b> 다음 첫 작업을 '문의서 발송'으로 정했습니다. 남은 개발이 모두 회신에 막혀 있기 때문입니다(사용자 지시).</li>
+<li><b>08-28</b> 로컬 MySQL로 실제 검증하는 일은 넘어가기로 했습니다(사용자: "DB 검증은 넘어가자").</li>
+<li><b>08-30</b> 회신 내용입니다: 사내 공용 AI API 없음, 임베딩 API 없음, Oracle 11g, WebLogic 12 버전대, 앞단 웹서버 없음. 이에 따라 AI 모델은 직접 올리는 쪽으로 바꿨습니다. AI 기능을 어디까지 쓸지는 서버 사양을 본 뒤 정하기로 미뤘습니다.</li>
+</ul>
+<h3>숫자</h3><p>
+<ul>
+<li>Java 앱 자동 점검: 31건 → 222건</li>
+<li>uploader 점검: 38건</li>
+<li>Python 기능 중 Java로 옮긴 비율: 47개 중 35개(74%)</li>
+<li>기준 결과물 34건 중 30건이 Java 결과와 일치</li>
+<li>문의서 10건 중 5건 회신</li>
+</ul></p>
+<h3>열린 채 넘어간 것</h3><ul>
+<li>문의서 미회신 5건(임베딩, Oracle 문서검색 등)과 서버 사양 확인</li>
+<li>AI 기능 범위 결정(유보)</li>
+<li>설계서·계획서가 회신 내용과 아직 어긋나 있습니다.</li>
+<li>uploader와 본 시스템의 기관 키가 충돌합니다. 둘을 따로 둘지 하나로 합칠지 정해야 합니다.</li>
+<li>Oracle 기준 스키마는 아직 실제 DB에 한 번도 적용해 보지 않았습니다.</li>
+</ul></section></div></body></html>

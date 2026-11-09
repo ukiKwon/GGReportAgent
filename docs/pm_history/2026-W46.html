@@ -1,0 +1,29 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PM 주간 보고 2026-W46</title><style>:root{--bg:#f7f8fa;--fg:#1c2330;--mut:#5b6678;--card:#fff;--line:#dde2ea;--acc:#1f6feb;--soft:#eef4ff}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f141b;--fg:#e6ebf2;--mut:#9aa6b8;--card:#171e28;--line:#2a3442;--acc:#6aa7ff;--soft:#1a2740;color-scheme:dark}}
+:root[data-theme=dark]{--bg:#0f141b;--fg:#e6ebf2;--mut:#9aa6b8;--card:#171e28;--line:#2a3442;--acc:#6aa7ff;--soft:#1a2740;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.65 system-ui,"Malgun Gothic",sans-serif;padding:0 16px}
+.wrap{max-width:900px;margin:0 auto;padding-block:28px 60px}h1{font-size:24px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 22px}
+.week,.box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 22px;margin:0 0 16px}
+h2{font-size:19px;margin:0 0 6px}h2 small{color:var(--mut);font-weight:400;font-size:13px;margin-left:8px}h3{font-size:14px;margin:16px 0 4px;color:var(--acc)}
+.lead{background:var(--soft);border-radius:8px;padding:8px 12px;margin:6px 0}ul{margin:4px 0;padding-left:20px}li{margin:3px 0}a{color:var(--acc)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}th{background:var(--soft)}.scroll{overflow-x:auto}
+nav.toc{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 18px}nav.toc a{border:1px solid var(--line);border-radius:999px;padding:2px 10px;background:var(--card);text-decoration:none;font-size:13px}
+.empty{color:var(--mut)}</style></head><body><div class="wrap"><p><a href="index.html">← 전체 이력</a></p><section class="week" id="2026-W46"><h2>2026-W46 <small>11-09 ~ 11-15 · 진행 중</small></h2>
+<p class="lead">(진행 중) 보안 구멍 3건을 막고 보고서 저장 문제를 해결했다. 작성 모드 화면 오류를 고치는 중이고, 경과 건 팝업 요건이 새로 들어왔다</p>
+<h3>한 일</h3><ul>
+<li>에이전트 보고서가 일부만 저장되던 원인을 찾아 고쳤다(보고 본문이 다른 자리에 담겨 있었음). 내용 없는 보고서 11건을 지웠고, 이후 에이전트 8건이 빠짐없이 1건씩 저장되는 것을 확인했다</li>
+<li>보안 패치: 업로드한 엑셀이 개인정보 검사에서 서버를 오래 붙잡는 문제를 막았고, 너무 큰 파일은 읽기 전에 개수를 세어 거부하게 했다(NEXT 48 ①②). 샘플 엑셀 3개를 실제 화면에 올려 정상 동작을 확인했다</li>
+<li>업로더가 한글(HWPX) 문서를 읽을 때 외부 내용을 끌어올 수 있던 위험(XXE)을 막았고, 실패 메시지에 내부 정보가 드러나지 않게 했다</li>
+<li>작성 모드에서 원본 패널이 스크롤할 때 위로 기어오르던 문제와 버튼이 가려지던 문제를 고쳤다. 독립 검증을 통과했고 저장(커밋)했다</li>
+<li>경과 건 팝업 요건을 받았다. 기획 분석 결과, 공고 상태 칸이 없어 팝업만 만들면 같은 건이 계속 뜬다. 그래서 '데이터 정정 → 상태 칸 → 하루 1회 팝업' 순서를 권장했다</li>
+<li>검증 중에 서버가 브라우저 캐시를 막지 않아, 배포 뒤에도 옛 화면이 돌 수 있는 위험을 새로 찾았다</li>
+</ul>
+<h3>결정·요건 변경</h3><ul>
+<li><b>11-09</b> 입찰 공고 예정일이 지난 건이 있으면 영업팀 담당자에게 팝업으로 알리고 확인을 받기로 함. 기존 입찰 공고 현황 화면과 연결 — 사용자 신규 요건. 세부 6개 질문은 답 대기</li>
+</ul>
+<h3>숫자</h3><p>서버 자동 테스트 774건 통과 · 화면 자동 테스트 613건(호출자 보고) · 1440 화면에서 원본 패널 흔들기 12회 동안 위치가 바뀌지 않음(이전에는 158→74로 밀려 올라감) · 929 화면에서 버튼 5개 모두 보임(이전 0/5)</p>
+<h3>열린 채 넘어간 것</h3><ul>
+<li>머리글이 다른 엑셀을 올렸을 때 나오는 문구를 사용자가 직접 확인</li>
+<li>업로더에 큰 파일 방어 장치를 옮겨 붙이는 일(NEXT 39 나머지)</li>
+<li>화면 캐시 정책(NEXT 53), 경과 건 팝업 질문 6개</li>
+</ul></section></div></body></html>
