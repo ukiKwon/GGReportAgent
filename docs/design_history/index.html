@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>화면 디자인 변경 이력 (전/후)</title>
 <style>
-  :root{--bg:#0f1218;--fg:#e2e7ee;--teal:#57b8ad;--red:#e07856;--blue:#6aa7e0;--gold:#d8c47a}
+  :root{--bg:#0f1218;--fg:#e2e7ee;--teal:#57b8ad;--red:#e07856;--blue:#7c93c4;--gold:#d8c47a}
   *{box-sizing:border-box}
   body{margin:0;padding:24px 20px 80px;background:#0b0e13;color:#dfe5ee;font:14px/1.6 'Malgun Gothic','Segoe UI',sans-serif}
   h1{font-size:22px;margin:0 0 4px} h2{font-size:17px;margin:0 0 6px} h3{font-size:13px;margin:14px 0 6px;color:#9fb0c4}
@@ -65,6 +65,10 @@
   <a href="#c4">④ 사이드바 메뉴 3단</a>
   <a href="#c5">⑤ 이사회 자료 작성 화면</a>
   <a href="#c6">⑥ 버튼·배지 계약 정리</a>
+  <a href="#c7">⑦ 경과 패널·팝업</a>
+  <a href="#c8">⑧ 결재함 전원 노출</a>
+  <a href="#c9">⑨ 재무팀 표기</a>
+  <a href="#c10">⑩ 메뉴 이름 정정</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -186,7 +190,55 @@
   </div>
 </section>
 
-<p class="foot">추가 규칙: 이 파일은 화면(마크업·CSS·문구·메뉴)이 바뀌는 커밋마다 새 장(section.ch)을 위에 더하고, design-reviewer가 커밋 전 확인합니다(CLAUDE.md 5절). 근거 보고서: handoff/agents/design-reviewer/.</p>
+<section class="ch" id="c7">
+  <h2>⑦ 공고 예정일 경과 패널·로그인 팝업 1단계 (2026-11-09, 커밋 eff1443·df572e9)</h2>
+  <div class="why">왜: 입찰 공고 예정일이 지난 건이 지도와 순위 목록에서 다른 건과 구분되지 않았습니다. 영업팀이 확인할 건을 한곳에 모으고, 로그인할 때 하루 한 번 알립니다.</div>
+  <div class="ba">
+    <div class="col before"><header>전</header><div class="body"><div class="mock">
+      <p>예정일이 지난 건도 지도와 순위 카드에서 일반 건과 같은 모양이었습니다.</p>
+      <p class="legend-note">경과 건을 따로 보는 곳도, 알림도 없음</p>
+    </div></div></div>
+    <div class="col after"><header>후</header><div class="body"><div class="mock">
+      <p>전국 지도 옆 경과 패널(360px, 접기 가능, 1366px 미만은 지도 위 서랍) · 항목마다 도장
+        <span style="background:#e2e7ee;color:#0d1116;font:700 11px Consolas,monospace;padding:0 6px;border-radius:6px">D+12</span>
+        <span class="pill" style="color:#e07856;border-color:#e07856">▲ D-30</span></p>
+      <p class="legend-note">로그인 직후 팝업(상위 5건, 전체 보기, 오늘 더 이상 보지 않기) · 사이드바에 미처리 건수 배지. 경과는 새 색 없이 잉크 도장, 임박은 빨강 테두리+▲로 색·모양·글자 모두 다름. 도장 글자 대비 15.3:1</p>
+    </div></div></div>
+  </div>
+</section>
+
+<section class="ch" id="c8">
+  <h2>⑧ 결재함 메뉴 전원 노출 (2026-11-09, 커밋 317e0b0)</h2>
+  <div class="why">왜: 팀원과 전산팀(마스터 포함)은 결재함 메뉴가 없어서, 권한 신청 결과 쪽지의 '내가 올린 요청'으로 들어갈 수 없었습니다.</div>
+  <div class="ba">
+    <div class="col before"><header>전</header><div class="body"><div class="mock"><div class="side"><div class="cat">3 제안서 관리</div><div class="it">제안서 진행 현황</div><div class="it soon">제안팀 구성·배정 <span class="tag">준비중</span></div></div>
+      <p class="legend-note">영업팀·전산팀 팀원·디자이너에게 결재함 없음</p></div></div></div>
+    <div class="col after"><header>후</header><div class="body"><div class="mock"><div class="side"><div class="cat">3 제안서 관리</div><div class="sub">진행·결재</div><div class="it">제안서 진행 현황</div><div class="it">결재함</div><div class="sub">제안팀</div><div class="it soon">제안팀 구성·배정 <span class="tag">준비중</span></div></div>
+      <p class="legend-note">모든 역할에 결재함이 보임(서버 메뉴 키 8개 불변). 승인 권한이 없으면 '내가 올린 요청'만 쓰고, 승인은 서버가 다시 검사. 묶음이 2개·각 2항목이 되면 소제목이 보이는 것은 규칙대로이며 역할별 실화면은 qa 대기(NEXT 62).</p></div></div></div>
+  </div>
+</section>
+
+<section class="ch" id="c9">
+  <h2>⑨ 예산팀을 '재무팀'으로 표기 (2026-11-09, 커밋 b4ee239)</h2>
+  <div class="why">왜: 조직 이름에 맞춰 화면 글자만 바꿨습니다. 저장 값과 권한은 그대로여서 기존 사용자·권한 데이터가 깨지지 않습니다.</div>
+  <div class="ba">
+    <div class="col before"><header>전</header><div class="body"><div class="mock"><p>소속 선택: 영업팀 · 전산팀 · <b>예산팀</b> / 직책: 예산팀장</p></div></div></div>
+    <div class="col after"><header>후</header><div class="body"><div class="mock"><p>소속 선택: 영업팀 · 전산팀 · <b>재무팀</b> / 직책: 재무팀장</p>
+      <p class="legend-note">로그인·프로필·결재·쪽지·대결자·내 정보·시스템 관리에서 표시만 변경. 쪽지 수신자 목록은 고르면 입력칸에 '예산팀'이 남는 곳이 있어 수정 예정(NEXT).</p></div></div></div>
+  </div>
+</section>
+
+<section class="ch" id="c10">
+  <h2>⑩ 메뉴 이름 정정 (2026-11-09, 커밋 0bbf44a·e7e33f0)</h2>
+  <div class="why">왜: 사용자가 정한 원래 이름으로 되돌리거나 바로잡았습니다. 이사회 메뉴는 내부 연결(id)이 그대로라 기존 화면이 끊기지 않습니다.</div>
+  <div class="ba">
+    <div class="col before"><header>전</header><div class="body"><div class="mock"><p>영업 기획 &gt; 질의·부의 &gt; <b>이사회 부의(비용 승인)</b><br>영업 기획 &gt; 대상 분석 &gt; <b>기관 입찰 요약서</b></p></div></div></div>
+    <div class="col after"><header>후</header><div class="body"><div class="mock"><p>영업 기획 &gt; 질의·부의 &gt; <b>이사회 자료 작성</b><br>영업 기획 &gt; 대상 분석 &gt; <b>기관 정보 요약서</b></p>
+      <p class="legend-note">'이 양식으로 작성' 버튼은 서버의 작성 권한(can_write) 기준으로 보입니다(전에는 수정 권한 기준이라 서버와 어긋났음).</p></div></div></div>
+  </div>
+</section>
+
+<p class="foot">추가 규칙: 이 파일은 화면(마크업·CSS·문구·메뉴)이 바뀌는 커밋마다 새 장(section.ch)을 아래에 이어 붙이고, design-reviewer가 커밋 전 확인합니다(CLAUDE.md 5절). 근거 보고서: handoff/agents/design-reviewer/.</p>
 </div>
 </body>
 </html>

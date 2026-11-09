@@ -50,7 +50,7 @@ typography:
     fontSize: "11px"
     fontWeight: 400
   micro-label:
-    fontSize: "10px"
+    fontSize: "11px"
     letterSpacing: "0.08em"
   data-mono:
     fontFamily: "Consolas, \"Cascadia Mono\", \"Malgun Gothic\", monospace"
@@ -76,7 +76,7 @@ components:
     rounded: "{rounded.md}"
     padding: "6px 14px"
   button-default-hover:
-    backgroundColor: "#202836"
+    backgroundColor: "#283141"
   input-field:
     backgroundColor: "{colors.input-well}"
     textColor: "{colors.ink}"
@@ -148,7 +148,7 @@ imminent region, and picks an institution from the ranking panel into the
 workflow.
 
 This remains an Operate-mode working tool as well as a demo. Density is kept —
-a tight 10–16px type ramp, tabular Consolas for every figure — but the finish
+a tight 11–16px type ramp, tabular Consolas for every figure — but the finish
 is soft: 200ms lift-on-hover controls, one staggered entrance, real
 backdrop-blur glass. Hard product constraints carry into the visuals: closed
 network (no CDN, no webfonts — system faces only), vanilla JS, and DOM
@@ -241,7 +241,7 @@ this; copy the pattern rather than brightening the token.
 the same mix at 8–12%; teal selections use 13–16%. Status is never a solid
 colored fill.
 
-**The Overdue Stamp Rule.** (2026-11-09) A *pending overdue* item (예정일 경과·
+**The Overdue Stamp Rule.** (2026-11-09; the sidebar pending-count chip .nav-count uses the same ink chip) A *pending overdue* item (예정일 경과·
 미처리) is the one sanctioned solid fill in chrome: a neutral ink chip —
 `--fg` background, `#0d1116` text, 11px mono 700, 1px `--fg` border, r6, clock
 glyph + `D+n`. It is an intended exception to the 18% Tint Rule because it adds
@@ -281,7 +281,7 @@ network — system faces only).
   (mono), breadcrumb region (mono), card metadata.
 - **Caption** (400, 11px): badges, hints, timestamps, who-lines — `--mono`
   whenever the content is a count, date, or code.
-- **Micro Label** (400, 10px, +0.08em, muted): strip titles ("기관 분류선택",
+- **Micro Label** (400, 11px, +0.08em, muted): strip titles ("기관 분류선택",
   legend title "입찰 임박도").
 
 ### Named Rules
@@ -290,7 +290,7 @@ numbered badges, the ticker — is set in `--mono` (Consolas) so columns of data
 align like a ledger.
 
 **The Tight Operate Ramp Rule.** The type ramp is deliberately compressed to
-10–16px (Operate-mode density; the 16px title is its ceiling, added at finish
+11–16px (SVG map labels alone stay 10px; Operate-mode density; the 16px title is its ceiling, added at finish
 review for demo presence). This is a committed decision, not an oversight: the
 `flat-type-hierarchy` detector finding is suppressed as a sanctioned exception
 in `.impeccable/config.json`. Do not introduce larger display sizes in app
@@ -388,8 +388,8 @@ mirrored 1:1 by the `.fsw` stroke glyphs in the control strip.
 
 ### Buttons
 - **Shape:** softly rounded (10px), 1px `--line-strong` border.
-- **Default:** panel-raised (#1a2029) fill, ink text, 12px, 6px 14px padding.
-- **Hover:** background #202836, border #3a4557, translateY(-1px) + button
+- **Default:** panel-raised (#202835) fill, ink text, 12px, 6px 14px padding.
+- **Hover:** background #283141, border #4a566b, translateY(-1px) + button
   lift shadow, 200ms. **Active:** settles (`translateY(0) scale(.98)`, shadow
   off). **Disabled:** 45–55% opacity, no motion.
 - **Focus:** 2px teal outline, 2px offset (global `:focus-visible`).
@@ -397,11 +397,11 @@ mirrored 1:1 by the `.fsw` stroke glyphs in the control strip.
   on-accent 잉크(#0d1116)/700 — 탭의 유일 주행동이라 사용자 확정으로 승격.
   hover는 82% 흰색 믹스로 밝힘, disabled 50%. 다른 곳에 채운 주버튼을 늘리지
   말 것(One Teal Rule — 상호작용 보이스는 소량이라 튄다).
-- 그 외에는 filled "primary"가 없다 — hierarchy comes from placement.
+- **채운 주버튼 예외 3곳(2026-11-09 확정):** `#ch-send`, 시스템 관리 `button.primary`(사용자 등록), 로그인 제출(`.login-actions .primary`). 각 화면의 유일한 주행동이라 예외로 인정. 그 외에는 filled "primary"가 없다 — hierarchy comes from placement.
   `.btn-like` wraps file inputs in the same skin.
 
 ### Inputs / Fields
-- **Style:** recessed well (#0d1117), 1px `--line-strong` border, 8px radius,
+- **Style:** recessed well (#0d1117), 1px #626d81 border (3:1 on the well), 8px radius,
   5px 10px padding, 12px text; teal caret and `accent-color`.
 - **Focus:** the same global teal outline as buttons.
 - **UA-drawn controls:** `:root` declares `color-scheme: dark`, so the controls
@@ -456,7 +456,7 @@ mirrored 1:1 by the `.fsw` stroke glyphs in the control strip.
 - `modal-box`: panel fill, 1px `--line-strong` border, 14px radius,
   `--shadow`, 18px padding, 6–8vh top margin, internal scroll region — over a
   blurred scrim (`rgba(8,11,17,.6)` + blur(4px)). Popover: fixed, 280px max,
-  glass (rgba(21,26,34,.92) + blur(10px) + white-alpha edge), 12px radius.
+  glass (rgba(24,30,41,.92) + blur(10px) + white-alpha edge), 12px radius.
 
 ### Icon Glyphs (signature)
 `render.ICONS` (heart, star, warning triangle, rising triangle, **overdue clock,
@@ -522,8 +522,8 @@ red-band items only, `·` separators in `--line-strong`, ellipsis overflow.
   closed-network constraint; system faces only.
 - **Don't** cast neutral-black shadows, use hard offset shadows, or drop
   surface radii below the 8px floor — the soft tinted finish is the world.
-- **Don't** exceed the 10–16px type ramp in app chrome; hierarchy comes from
+- **Don't** exceed the 11–16px type ramp in app chrome; hierarchy comes from
   weight, color, and the mono/sans split (Tight Operate Ramp Rule).
 - ~~Don't canonize the two carried off-token literals in `render.js`~~ —
   **해소(2026-08-14)**: 클러스터 배지·geo-retry 배너를 현행 토큰
-  (#1a2029 / #e2e7ee)으로 재도색 완료. 이월 결함 없음.
+  (#202835 / #e2e7ee)으로 재도색 완료. 이월 결함 없음.

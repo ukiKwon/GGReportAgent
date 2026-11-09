@@ -78,3 +78,6 @@ agent-dashboard/closing.log
 # JVM 비정상 종료 기록(PC 계정명·실행 명령 포함)
 hs_err_pid*.log
 replay_pid*.log
+
+# 개인 로컬 설정(제3자 디자인 플러그인 활성화 등)
+.claude/settings.local.json

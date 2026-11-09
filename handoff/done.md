@@ -654,3 +654,6 @@
 
 ### 48(일부). ③ write-guard fail-open — 해소(2026-11-06)
 - node가 없으면 `-write`·플러그인 에이전트의 쓰기를 exit 2로 막음(`bda4c96`, 시뮬레이션 시험 통과). ①②④는 NEXT 48.
+
+### 50. 에이전트 보고서 자동 저장 훅(save-report.js) — 해소(2026-11-09)
+- 원인: 에이전트가 SubagentHandback로 끝내 본문이 tool_use 입력(message)에 있었음. lastAssistantText가 그 입력을 읽게 수정, 빈 보고서 11건 삭제(`6bd2dfa`). 실전 확인: 에이전트 8건이 각 1건씩 전문 저장. 잔여: backend-dev 1246 `_2` 중복·qa 1608 한 줄 보고서는 정리 판단 대기(NEXT 상단 35).

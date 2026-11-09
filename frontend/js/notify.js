@@ -118,7 +118,7 @@
           (r.read ? '' : '<span class="nt-dot" aria-hidden="true"></span>') +
           '<span class="nt-kind ' + notify.kindClass(r.kind) + '">' + esc(r.kind) + '</span> ' +
           esc(r.from) + ' → ' + esc(r.to) +
-          (r.stage ? ' · ' + r.stage + '단계' : '') + ' · ' + esc(notify.formatTime(r.at)) +
+          (r.stage ? ' · ' + esc(r.stage) + '단계' : '') + ' · ' + esc(notify.formatTime(r.at)) +
           (r.read ? '<span class="nt-state">읽음</span>' : '<span class="nt-new">새 쪽지</span>') +
         '</div><pre>' + esc(r.content) + '</pre>' +
         (actions.length ? '<div class="nt-act">' + actions.join('') + '</div>' : '') + '</div>';
