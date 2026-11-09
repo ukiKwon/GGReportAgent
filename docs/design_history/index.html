@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>화면 디자인 변경 이력 (전/후)</title>
+<style>
+  :root{--bg:#0f1218;--fg:#e2e7ee;--teal:#57b8ad;--red:#e07856;--blue:#6aa7e0;--gold:#d8c47a}
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px 20px 80px;background:#0b0e13;color:#dfe5ee;font:14px/1.6 'Malgun Gothic','Segoe UI',sans-serif}
+  h1{font-size:22px;margin:0 0 4px} h2{font-size:17px;margin:0 0 6px} h3{font-size:13px;margin:14px 0 6px;color:#9fb0c4}
+  p{margin:4px 0}.muted{color:#98a1af}.wrap{max-width:1180px;margin:0 auto}
+  nav.toc{margin:14px 0 22px;padding:10px 14px;border:1px solid #2d3644;border-radius:10px;background:#12161d}
+  nav.toc a{color:var(--teal);margin-right:14px;text-decoration:none}
+  section.ch{margin:0 0 34px;padding:18px;border:1px solid #2d3644;border-radius:14px;background:#10141b}
+  .date{font:12px Consolas,monospace;color:#98a1af}
+  .why{margin:6px 0 12px;padding:8px 12px;border-left:3px solid var(--teal);background:#131922;color:#cdd6e2}
+  .ba{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:860px){.ba{grid-template-columns:1fr}}
+  .col{border:1px solid #2d3644;border-radius:12px;overflow:hidden;background:#0f1218}
+  .col>header{padding:6px 12px;font-weight:700;font-size:12px;letter-spacing:.04em}
+  .col.before>header{background:#2a1f1f;color:#e9a99a}.col.after>header{background:#18282a;color:#8fd4c9}
+  .col .body{padding:14px}
+  .sw{display:flex;align-items:center;gap:10px;margin:5px 0;font-size:12px}
+  .sw i{display:inline-block;width:92px;height:24px;border-radius:6px}
+  .sw code{font-family:Consolas,monospace;color:#c3ccd8}
+  .num{font-family:Consolas,monospace}
+  .bad{color:#e9a99a}.good{color:#8fd4c9}
+  table.t{border-collapse:collapse;width:100%;font-size:12.5px} .t th,.t td{border:1px solid #2d3644;padding:5px 8px;text-align:left}.t th{background:#151b24}
+  /* 모의 화면 공통: 전/후 토큰을 CSS 변수로 갈아 끼운다 */
+  .mock{--panel:#151a22;--panel2:#1a2029;--line:#232a35;--ls:#2e3745;--muted:#8b94a3;background:#0f1218;border:1px solid var(--line);border-radius:12px;padding:12px;color:var(--fg)}
+  .after .mock{--panel:#181e29;--panel2:#202835;--line:#2d3644;--ls:#424e62;--muted:#98a1af}
+  .card{background:var(--panel);border:1px solid var(--ls);border-radius:10px;padding:10px;margin:8px 0}
+  .btn{display:inline-block;padding:4px 12px;border-radius:9px;background:var(--panel2);border:1px solid var(--ls);color:var(--fg);font-size:12px;margin-right:6px}
+  .side{width:230px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;font-size:13px}
+  .side .cat{padding:7px 8px;font-weight:700;color:var(--fg)}
+  .side .it{padding:5px 8px 5px 16px;color:#c5ccd7}
+  .side .it.soon{color:var(--muted)}
+  .side .it.soon.old{opacity:.6}
+  .side .sub{padding:7px 8px 2px 8px;font-size:11px;font-weight:700;color:var(--muted)}
+  .tag{font-size:11px;border:1px solid var(--ls);border-radius:6px;padding:0 5px;margin-left:6px;color:var(--muted)}
+  .row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+  .tbl{width:100%;border-collapse:collapse}.tbl td,.tbl th{border:1px solid var(--line);padding:4px 8px;text-align:right;font-family:Consolas,monospace}
+  .tbl th{text-align:left;background:var(--panel2);font-family:inherit}
+  .map{background:rgba(87,184,173,.10)}.after .map{background:rgba(87,184,173,.18);box-shadow:inset 2px 0 0 var(--teal)}
+  .dis{opacity:.45}.after .dis{opacity:.55}
+  .pill{display:inline-block;font-size:11px;padding:1px 8px;border-radius:6px;border:1px solid}
+  .ok-old{color:#57b8ad;border-color:#57b8ad}.ok-new{color:var(--blue);border-color:var(--blue)}
+  .retire{color:#cfd6e0;border-color:#424e62;margin-left:0}.after .retire{color:var(--red);border:1px solid var(--red);background:rgba(224,120,86,.18);margin-left:8px}
+  .hint10{font-size:10px;color:var(--muted)}.hint12{font-size:12px;color:var(--muted)}
+  .pop{border:1px solid var(--ls);border-radius:10px;background:var(--panel);padding:10px;font-size:12px}
+  .pop h4{margin:0 0 6px;font-size:13px}
+  .legend-note{font-size:12px;color:#98a1af;margin-top:6px}
+  .foot{margin-top:30px;color:#98a1af;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>화면 디자인 변경 이력 — 전/후 비교</h1>
+<p class="muted">화면(색·글자·메뉴·화면 구성)이 바뀔 때마다 아래에 <b>전/후</b>를 한 장씩 추가합니다. 디자이너 에이전트(design-reviewer)가 커밋 전에 이 파일에 전/후가 적혔는지 확인합니다. 숫자는 대비 비율(높을수록 잘 보임; 글자 4.5:1·테두리 3:1이 기준)이고, 아래 모의 화면은 실제 화면을 단순화한 그림입니다(정확한 모습은 앱에서 확인).</p>
+<nav class="toc">
+  <a href="#c1">① 면·테두리·보조글자 색</a>
+  <a href="#c2">② 준비중·비활성 흐림</a>
+  <a href="#c3">③ 글자 크기</a>
+  <a href="#c4">④ 사이드바 메뉴 3단</a>
+  <a href="#c5">⑤ 이사회 자료 작성 화면</a>
+  <a href="#c6">⑥ 버튼·배지 계약 정리</a>
+</nav>
+
+<section class="ch" id="c1">
+  <h2>① 면·테두리·보조글자 색 (2026-11-09, 커밋 53564b2)</h2>
+  <div class="why">왜: 패널·카드·사이드바가 배경과 거의 같은 색이라 영역 경계가 안 보이고, 버튼이 테두리가 아니라 글자로만 구분됐습니다. 어두운 테마는 그대로 두고 면과 테두리 단계만 벌렸습니다.</div>
+  <div class="ba">
+    <div class="col before"><header>전</header><div class="body">
+      <div class="sw"><i style="background:#151a22;border:1px solid #232a35"></i><code>패널 #151a22</code> 배경 대비 <span class="num bad">1.07</span></div>
+      <div class="sw"><i style="background:#1a2029"></i><code>패널 위 면 #1a2029</code> 패널 대비 <span class="num bad">1.07</span></div>
+      <div class="sw"><i style="background:#232a35"></i><code>가는 선 #232a35</code> 패널 대비 <span class="num bad">1.21</span></div>
+      <div class="sw"><i style="background:#2e3745"></i><code>테두리 #2e3745</code> 패널 대비 <span class="num bad">1.45</span></div>
+      <div class="sw"><i style="background:#8b94a3"></i><code>보조 글자 #8b94a3</code> 패널 대비 <span class="num">5.71</span></div>
+      <div class="mock"><div class="card">카드(패널)<br><span class="btn">버튼</span><span class="btn">버튼</span></div></div>
+    </div></div>
+    <div class="col after"><header>후</header><div class="body">
+      <div class="sw"><i style="background:#181e29;border:1px solid #2d3644"></i><code>패널 #181e29</code> 배경 대비 <span class="num good">1.12</span></div>
+      <div class="sw"><i style="background:#202835"></i><code>패널 위 면 #202835</code> 패널 대비 <span class="num good">1.13</span></div>
+      <div class="sw"><i style="background:#2d3644"></i><code>가는 선 #2d3644</code> 패널 대비 <span class="num good">1.37</span></div>
+      <div class="sw"><i style="background:#424e62"></i><code>테두리 #424e62</code> 패널 대비 <span class="num good">1.99</span></div>
+      <div class="sw"><i style="background:#98a1af"></i><code>보조 글자 #98a1af</code> 패널 대비 <span class="num good">6.41</span></div>
+      <div class="mock"><div class="card">카드(패널)<br><span class="btn">버튼</span><span class="btn">버튼</span></div></div>
+    </div></div>
+  </div>
+  <p class="legend-note">입력창·선택 상자의 테두리는 3:1 기준을 맞추려고 따로 <b class="num">#626d81</b>(입력 바탕 대비 1.58 → <span class="good num">3.63</span>)을 씁니다. 더 강한 구분이 필요하면 면 #19202b, 테두리 #4a566b 단계로 올릴 수 있습니다.</p>
+</section>
+
+<section class="ch" id="c2">
+  <h2>② 준비중·비활성 흐림 (같은 날)</h2>
+  <div class="why">왜: 준비중 메뉴·비활성 버튼·빈 상태를 투명도로 흐리게 처리해 글자 대비가 2.9~3.8:1까지 떨어졌습니다. 이제는 투명도 대신 보조 글자색을 쓰고 배지로 구분합니다.</div>
+  <div class="ba">
+    <div class="col before"><header>전</header><div class="body"><div class="mock">
+      <div class="side"><div class="cat">기관 현황</div><div class="it">전국 지도</div><div class="it soon old">기관 이력·협약 현황 <span class="tag">준비중</span></div><div class="it soon old">공고 자동 수집(RPA) <span class="tag">준비중</span></div></div>
+      <p class="legend-note">준비중 항목 글자 대비 <b class="num bad">2.88</b> (기준 4.5 미달)</p>
+      <p style="margin-top:10px"><span class="btn dis">엑셀 바꾸기(비활성)</span> <span class="num bad">3.76</span></p>
+    </div></div></div>
+    <div class="col after"><header>후</header><div class="body"><div class="mock">
+      <div class="side"><div class="cat">기관·입찰 현황</div><div class="it">전국 지도</div><div class="it soon">기관 이력·협약 현황 <span class="tag">준비중</span></div><div class="it soon">공고 자동 수집(RPA) <span class="tag">준비중</span></div></div>
+      <p class="legend-note">준비중 항목 글자 대비 <b class="num good">6.41</b> (배지 11px, 빗금 질감)</p>
+      <p style="margin-top:10px"><span class="btn dis">엑셀 바꾸기(비활성)</span> 투명도 .45 → .55</p>
+    </div></div></div>
+  </div>
+  <p class="legend-note">같은 방식으로 지도 분류 필터 비활성(3.31 → 읽기 쉬움), 티커 기준일, 쪽지 읽음 행, 퇴직 사용자 행, 작업함 빈 상태도 투명도 대신 색으로 바뀌었습니다.</p>
+</section>
+
+<section class="ch" id="c3">
+  <h2>③ 글자 크기 (같은 날)</h2>
+  <div class="why">왜: 10px 글자가 5곳, 11px 선언이 약 65곳이라 작고 읽기 어려웠습니다. 최소를 11px로, 문장형 안내는 12px로 올렸습니다(숫자 칩·배지는 11px 유지).</div>
+  <div class="ba">
+    <div class="col before"><header>전</header><div class="body"><div class="mock">
+      <p class="hint10">경과 패널 안내 문장·작성 줄 주의문·팝업 힌트가 10~11px</p>
+      <p class="hint10">지도 범례 제목 10px · 준비중 태그 10px · 숫자 배지 칸 10px</p></div></div></div>
+    <div class="col after"><header>후</header><div class="body"><div class="mock">
+      <p class="hint12">경과 패널 안내 문장·작성 줄 주의문·팝업 힌트가 12px</p>
+      <p style="font-size:11px;color:var(--muted)">지도 범례 제목 11px · 준비중 태그 11px · 숫자 배지 칸 11px (지도 SVG 라벨만 10px 유지)</p></div></div></div>
+  </div>
+</section>
+
+<section class="ch" id="c4">
+  <h2>④ 사이드바 메뉴 3단 (같은 날)</h2>
+  <div class="why">왜: 대표 메뉴와 하위 메뉴가 업무 흐름과 맞지 않아 일관성이 없었습니다. 업무 순서 1→6으로 고정하고, 중분류는 누를 수 없는 소제목 한 줄로 넣었습니다(들여쓰기 없음). 서버 메뉴 키 8개는 그대로입니다.</div>
+  <div class="ba">
+    <div class="col before"><header>전 (2단, 7묶음, 구현된 메뉴가 있는 묶음이 위로 올라감)</header><div class="body"><div class="mock row">
+      <div class="side"><div class="cat">기관 현황</div><div class="cat">제안서 작성</div><div class="cat">제안 진행·승인</div><div class="cat">입찰 공고</div><div class="cat">제안팀 구성</div><div class="cat">제출·결과</div><div class="cat">시스템 관리</div></div>
+      <p class="legend-note">28개 항목, 준비중 17개. '이사회 자료'가 '제안 진행·승인' 아래, '질의사항'이 '제안서 작성' 아래에 있어 업무 순서와 맞지 않음.</p>
+    </div></div></div>
+    <div class="col after"><header>후 (3단, 업무 순서 1→6 고정, 시스템 관리 마지막)</header><div class="body"><div class="mock row">
+      <div class="side">
+        <div class="cat">1 기관·입찰 현황</div><div class="cat">2 영업 기획</div>
+        <div class="sub">대상 분석</div><div class="it soon">협약 대상 선정 <span class="tag">준비중</span></div><div class="it soon">기관 입찰 요약서 <span class="tag">준비중</span></div><div class="it soon">배점표 확인 검색 <span class="tag">준비중</span></div>
+        <div class="sub">질의·부의</div><div class="it soon">기관 공식 질의 <span class="tag">준비중</span></div><div class="it">이사회 자료 작성</div>
+        <div class="cat">3 제안서 관리</div><div class="cat">4 제안서 작성</div><div class="cat">5 협약·관계 관리</div><div class="cat">6 공통 도구</div><div class="cat">시스템 관리</div>
+      </div>
+      <p class="legend-note">32개 항목(구현 11, 준비중 21). 영업 기획이 펼쳐진 모습 예시. 소제목은 항목이 2개 이상인 묶음이 2개 이상일 때만 보입니다. AI 대화·지식 검색은 키는 있지만 '준비중'.</p>
+    </div></div></div>
+  </div>
+</section>
+
+<section class="ch" id="c5">
+  <h2>⑤ 이사회 자료 작성 화면 (2026-11-09, 커밋 9a1b683)</h2>
+  <div class="why">왜: 오른쪽 '엑셀 원본' 패널은 표의 30%만 보였고 같은 대조 정보가 4번 반복됐으며, '확인했음'은 250칸을 모두 눌러야 켜졌습니다. 원본은 크게 보는 팝업으로, 검수는 표 단위 체크로 바꿨습니다.</div>
+  <div class="ba">
+    <div class="col before"><header>전</header><div class="body"><div class="mock">
+      <div class="row">
+        <div style="flex:1.5;min-width:200px"><div class="card"><b>A 재산상 이익제공</b>
+          <table class="tbl"><tr><th>항목</th><td class="map">48.51</td><td class="map">36.85</td></tr></table></div>
+          <div class="card"><b>B 수익성 분석</b><table class="tbl"><tr><th>항목</th><td class="map">20.77</td><td>-</td></tr></table></div></div>
+        <div style="flex:1;min-width:140px" class="card"><b>엑셀 원본</b><div class="hint10">3~4열만 보이고 가로·세로 스크롤 필요</div></div>
+      </div>
+      <div class="card" style="margin-top:6px"><span class="hint10">선택 칸 상태 줄: 48.51억 ← K54 4,851.4백만 · 시트 K54 · 합 ÷ 100 = … [확인]</span></div>
+      <span class="num">검수 0/250</span> <label><input type="checkbox" disabled> 확인했음 (250칸 모두 확인해야 켜짐)</label>
+    </div></div></div>
+    <div class="col after"><header>후</header><div class="body"><div class="mock">
+      <div class="card"><b>A 재산상 이익제공</b> <span class="btn" style="float:right">원본 보기</span> <span class="btn" style="float:right">이 표 복사</span> <label class="btn" style="float:right"><input type="checkbox" checked> 이 표 확인 5칸</label>
+        <table class="tbl" style="margin-top:6px"><tr><th>항목</th><td class="map">48.51</td><td class="map">36.85</td></tr></table></div>
+      <div class="card"><b>B 수익성 분석</b> <span class="pill" style="color:var(--red);border-color:var(--red)">값을 고쳐 확인을 풀었습니다</span>
+        <table class="tbl" style="margin-top:6px"><tr><th>항목</th><td class="map">20.77</td><td>-</td></tr></table></div>
+      <span class="num">표 확인 1/6</span> · <span style="color:var(--red)">확인 안 한 표 5개</span> <span class="btn">초안 워드 내려받기</span> <span class="btn">수익성 분석표 보기</span>
+      <div class="pop" style="margin-top:8px"><h4>수익성 분석표 · 파일명.xlsx (팝업, 크게 보기 + 수정)</h4>
+        원본 표 전체 폭 + 오른쪽 편집 영역: "엑셀 파일은 바뀌지 않습니다. 고친 값은 이사회 자료에만 들어갑니다."
+      </div>
+    </div></div></div>
+  </div>
+  <p class="legend-note">전체 표 글자: 제목 13 → 15px, 본문 12 → 14px. 화면 폭이 1366px 미만이어도 팝업의 [적용]·알림은 아래에 고정돼 항상 보입니다. 메뉴 이름은 원안 '이사회 자료 작성'으로 유지합니다.</p>
+</section>
+
+<section class="ch" id="c6">
+  <h2>⑥ 버튼·배지 계약 정리 (2026-11-09)</h2>
+  <div class="why">왜: 색의 뜻이 어긋난 곳(상태 배지가 상호작용 색, 되돌리기 어려운 '퇴직'이 다른 버튼과 같은 무게, 비활성인데 강조 테두리)을 정리했습니다.</div>
+  <div class="ba">
+    <div class="col before"><header>전</header><div class="body"><div class="mock">
+      <p>사용자 상태 <span class="pill ok-old">사용</span> · 행 버튼 <span class="btn">수정</span><span class="btn">잠금</span><span class="btn retire">퇴직</span></p>
+      <p>이사회 값 칸: <span class="map" style="padding:2px 8px">48.51</span> (일반 칸과 거의 구분 안 됨, 1.18:1)</p>
+    </div></div></div>
+    <div class="col after"><header>후</header><div class="body"><div class="mock">
+      <p>사용자 상태 <span class="pill ok-new">사용</span> · 행 버튼 <span class="btn">수정</span><span class="btn">잠금</span><span class="btn retire">퇴직</span></p>
+      <p>이사회 값 칸: <span class="map" style="padding:2px 8px">48.51</span> (배경 18% + 왼쪽 막대로 색 말고도 구분)</p>
+      <p class="legend-note">'사용자 등록'은 관리 화면의 유일한 주행동이라 채운 틸 버튼 예외로 인정(DESIGN.md 등재).</p>
+    </div></div></div>
+  </div>
+</section>
+
+<p class="foot">추가 규칙: 이 파일은 화면(마크업·CSS·문구·메뉴)이 바뀌는 커밋마다 새 장(section.ch)을 위에 더하고, design-reviewer가 커밋 전 확인합니다(CLAUDE.md 5절). 근거 보고서: handoff/agents/design-reviewer/.</p>
+</div>
+</body>
+</html>

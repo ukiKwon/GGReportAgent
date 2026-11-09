@@ -63,7 +63,7 @@ Claude Code가 이 저장소에서 일할 때의 지침이다. **1~6절은 매 �
 - **읽기 전용이 기본**: 에이전트는 패치·보고서를 돌려주고 **파일 적용·테스트 실행·커밋은 메인이 한다.** `CLAUDE.md`·역할 정의(`.claude/agents/`) 같은 규칙급 문서와 최초 전산환경 세팅(IntelliJ·JDK·MySQL 설치, VSCode 설정)은 메인이 직접 한다. 지시서를 적용할 때는 "**<에이전트>가 작업 지시서 작성을 완료해서 main이 작업한다**"를 먼저 밝히고, 지시서에 없던 메인의 판단은 따로 밝힌다.
 - **쓰기용 `frontend-dev-write`·`backend-dev-write`**: 에이전트가 직접 써야 할 때만, `ListAgents`·실행 중 작업으로 같은 파일을 다루는 에이전트가 없음을 확인한 뒤 **그 작업 하나에 한해** 부른다. 경로 제한은 프롬프트가 아니라 PreToolUse 훅 `.claude/hooks/write-guard.js`가 강제한다 — 허용 경로(`frontend/index.html`·`frontend/js/*.js`·`frontend/test/*.js`, `kgi-ggreport-web/**`) 밖과 `.claude/`·`.git/`·`agent-dashboard/`·비밀번호 설정 파일은 쓸 수 없다. **훅이 실제로 막는지 확인되기 전에는 `-write`를 부르지 않는다.**
 - **커밋·푸시**: 커밋은 **작업 한 바퀴가 끝날 때마다 1회**, 푸시는 오후 6시 자동 마무리(`agent-dashboard/closing.js` — 작업 중인 에이전트가 있으면 20분씩 미루고 그날 23:30에 포기)에서 한다. 사용자가 푸시·PR을 직접 요청하면 예외이고, 병합(`--merge`)은 사용자가 요청할 때만 하며 먼저 묻지도 않는다. **커밋은 경로를 지정한다**(`git add -A`·`git commit -a` 금지 — 남의 미커밋 변경을 담지 않기 위해).
-- **푸시 전 관문(PUSH-GATE)**: 커밋·푸시 전에 `security`(푸시 범위 diff 전체)·`pm`(항목 상태·NEXT 정리)·`cleaner`를 병렬로 부르고, 화면(마크업·CSS·문구)이 바뀌었으면 `design-reviewer`가 커밋 전에 규격과 대조한다. 업로드·권한·입력·비밀값 기능은 설계 단계에서도 `security`가 한 번 본다.
+- **푸시 전 관문(PUSH-GATE)**: 커밋·푸시 전에 `security`(푸시 범위 diff 전체)·`pm`(항목 상태·NEXT 정리)·`cleaner`를 병렬로 부르고, 화면(마크업·CSS·문구·메뉴)이 바뀌었으면 `design-reviewer`가 커밋 전에 규격과 대조하고, **`docs/design_history/index.html`에 전/후 장(section.ch)이 추가됐는지 확인한다**(없으면 메인이 전/후를 써서 더한 뒤 커밋 — 글로는 무엇이 나아졌는지 보이지 않는다는 사용자 요청 2026-11-09). 업로드·권한·입력·비밀값 기능은 설계 단계에서도 `security`가 한 번 본다.
 
 참조: `handoff/agents/README.md`(구성·쓰기 권한 부여 절차), `handoff/agents/graph.md`(그래프·PUSH-GATE), `agent-dashboard/README.md`, `.claude/hooks/`
 

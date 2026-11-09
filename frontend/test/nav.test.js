@@ -96,7 +96,7 @@ test('준비중 id: 명시 id 외에는 soon:라벨, 전부 서로 다르고 21�
   assert.strictEqual(soonIds.length, 21);
   // 이사회 부의: 라벨은 바뀌어도 id는 고정(board.SOON_ID)
   const board = items(built, 'plan').filter(function (i) { return i.id === 'soon:이사회 자료'; })[0];
-  assert.ok(board && board.label === '이사회 부의(비용 승인)');
+  assert.ok(board && board.label === '이사회 자료 작성');
 });
 
 test('이사회 부의는 영업 기획 > 질의·부의 아래 "구현 예정(배지 없음)", 다른 대분류에는 없다', function () {
@@ -231,7 +231,7 @@ test('3단 구조: 대분류 7개 이름·소속(정의 순서 = 업무 순서 1
   assert.deepStrictEqual(by.scan, ['기관>전국 지도', '기관>전국 지역별', '기관>기관 사업계획',
     '입찰 공고>입찰 공고 현황', '입찰 공고>공고 자동 수집']);
   assert.deepStrictEqual(by.plan, ['대상 분석>협약 대상 선정', '대상 분석>기관 입찰 요약서', '대상 분석>배점표 확인 검색',
-    '질의·부의>기관 공식 질의', '질의·부의>이사회 부의(비용 승인)']);
+    '질의·부의>기관 공식 질의', '질의·부의>이사회 자료 작성']);
   assert.deepStrictEqual(by.manage, ['진행·결재>제안서 진행 현황', '진행·결재>결재함',
     '제안팀>제안팀 구성·배정', '제안팀>팀 간 지원 요청']);
   assert.deepStrictEqual(by.write, ['작성>작업함', '작성>공동 작성·버전 관리',
@@ -276,7 +276,7 @@ test('비영업 역할: 준비중이 숨겨지고 시스템 관리가 맨 아래
   assert.deepStrictEqual(ids(nav.build(ALL_ON, { role: '전산팀' })), ['scan', 'plan', 'manage', 'write', 'tools', 'sys']);
 });
 
-test('이사회 부의: 영업 계열이 아니어도 tasks 조회 권한이 있으면 보이고, tasks가 꺼지면 영업팀 외에는 안 보인다', function () {
+test('이사회 자료 작성: 영업 계열이 아니어도 tasks 조회 권한이 있으면 보이고, tasks가 꺼지면 영업팀 외에는 안 보인다', function () {
   function hasBoard(v, ctx) {
     return nav.build(v, ctx).some(function (c) {
       return c.items.some(function (i) { return i.id === 'soon:이사회 자료'; });

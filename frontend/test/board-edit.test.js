@@ -305,7 +305,9 @@ test('copyBody: 기본은 source, 서버 양식은 source_form_id, 이름은 tri
 });
 test('loadForms/loadCatalog: items·can_edit을 꺼내고 형식·HTTP·네트워크 오류는 ok:false', async function () {
   let r = await board.loadForms(function () { return Promise.resolve(res(true, 200, { items: [{ form_id: 7 }], can_edit: true })); });
-  assert.deepStrictEqual(r, { ok: true, items: [{ form_id: 7 }], canEdit: true });
+  assert.deepStrictEqual(r, { ok: true, items: [{ form_id: 7 }], canEdit: true, canWrite: false });   // can_write 없는 구형 응답은 false
+  r = await board.loadForms(function () { return Promise.resolve(res(true, 200, { items: [], can_edit: false, can_write: true })); });
+  assert.deepStrictEqual([r.canEdit, r.canWrite], [false, true]);
   r = await board.loadForms(function () { return Promise.resolve(res(true, 200, {})); });
   assert.strictEqual(r.ok, false);
   r = await board.loadForms(function () { return Promise.resolve(res(false, 403, { detail: '권한이 없습니다' })); });
@@ -485,6 +487,19 @@ test('formsFromList: 목록 실패(DB 014 미적용 500)면 기본 양식만·�
   f = board.formsFromList(r);
   assert.strictEqual(f.forms.length, 2);
   assert.deepStrictEqual([f.canEdit, f.error], [true, '']);
+  assert.strictEqual(f.canWrite, false);   // can_edit만 켜진 응답: 작성 버튼 권한은 없다
+});
+test('formsFromList: can_write만 켜지면 작성 가능·수정 불가, can_edit만 켜지면 작성 불가 — 작성 버튼은 can_write 기준', async function () {
+  let r = await board.loadForms(function () { return Promise.resolve(res(true, 200, { items: [], can_edit: false, can_write: true })); });
+  let f = board.formsFromList(r);
+  assert.deepStrictEqual([f.canWrite, f.canEdit], [true, false]);
+  assert.ok(board.actionsHtml({ mode: 'view', hasDoc: true, canWrite: f.canWrite }).includes('bd-write'));
+  r = await board.loadForms(function () { return Promise.resolve(res(true, 200, { items: [], can_edit: true })); });
+  f = board.formsFromList(r);
+  assert.deepStrictEqual([f.canWrite, f.canEdit], [false, true]);
+  assert.ok(!board.actionsHtml({ mode: 'view', hasDoc: true, canWrite: f.canWrite }).includes('bd-write'));
+  f = board.formsFromList({ ok: false, error: 'x' });
+  assert.strictEqual(f.canWrite, false);
 });
 test('whoKey: 같은 계정은 같은 키, 모드·아이디·사번이 다르면 다른 키, 세션 없으면 빈 문자열', function () {
   const a = { mode: 'account', id: 'kim', emp: '1234567' };

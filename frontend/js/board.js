@@ -245,7 +245,8 @@
     return req(fetchFn, board.formsUrl()).then(function (x) {
       if (!x.ok) return fail(x, '양식 목록을 불러오지 못했습니다');
       if (!x.body || !Array.isArray(x.body.items)) return { ok: false, error: LIST_ERROR };
-      return { ok: true, items: x.body.items, canEdit: x.body.can_edit === true };
+      return { ok: true, items: x.body.items, canEdit: x.body.can_edit === true,
+               canWrite: x.body.can_write === true };   // 구형 응답(can_write 없음)은 false
     });
   };
 
@@ -1155,6 +1156,7 @@
     const base = board.FORMS.map(function (f) { return { form_id: f.id, name: f.name, is_default: true }; });
     return {
       canEdit: ok && res.canEdit === true,
+      canWrite: ok && res.canWrite === true,
       perm: board.permState(res),
       forms: base.concat(ok && Array.isArray(res.items) ? res.items : []),
       error: ok ? '' : str(res && res.error)
@@ -1597,7 +1599,8 @@
 
   let token = 0;          // 늦게 도착한 응답이 새 선택을 덮지 않게 한다
   let forms = [];         // 기본 양식 + GET /board-forms items
-  let canEdit = false;    // 목록 응답의 can_edit(복제 가능 판정)
+  let canEdit = false;    // 목록 응답의 can_edit(복제·수정 가능 판정)
+  let canWrite = false;   // 목록 응답의 can_write(이 양식으로 작성 버튼 판정)
   let perm = 'unknown';   // 편집 권한 3상태(board.permState) — 권한 안내 한 줄을 띄울지
   let current = null;     // 지금 보이는 양식 {id, form}
   let mode = 'view';      // 'view' | 'edit'
@@ -1623,7 +1626,7 @@
   // 계정이 바뀌면 이전 계정의 목록·권한·편집 상태를 모두 버린다. 진행 중 응답은 토큰으로 무시한다.
   function resetState() {
     token++; listToken++; epoch++;
-    forms = []; canEdit = false; perm = 'unknown'; current = null; mode = 'view'; edit = null;
+    forms = []; canEdit = false; canWrite = false; perm = 'unknown'; current = null; mode = 'view'; edit = null;
     editUi = freshUi(); catalog = { status: 'idle' }; copyUi = null;
     docxBusy = false;   // 이전 계정의 워드 생성 응답은 onDocx가 epoch로 버린다
     if (wc) wc.reset();   // 작성 중이던 엑셀 값·확인 표시도 버린다
@@ -1649,7 +1652,7 @@
     el('bd-actions').innerHTML = board.actionsHtml({
       mode: mode, hasDoc: !!form, docxBusy: docxBusy, editable: !!(form && form.editable === true),
       canCopy: board.canCopy(form, canEdit), perm: perm, copy: copyUi,
-      canWrite: !!form && canEdit === true
+      canWrite: !!form && canWrite === true
     });
     el('bd-form').disabled = mode !== 'view';
   }
@@ -1709,6 +1712,7 @@
       if (t !== listToken) return false;   // 더 새 목록 요청이 있다 — 호출한 쪽이 필요하면 다시 요청한다
       const r = board.formsFromList(res);
       canEdit = r.canEdit;
+      canWrite = r.canWrite;
       perm = r.perm;
       forms = r.forms;
       if (r.error) say(r.error);
