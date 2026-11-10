@@ -237,9 +237,8 @@
     if (root.board && root.board.onProfileChange) root.board.onProfileChange();   // 계정이 바뀌면 이사회 화면 상태를 버린다
     app.applyMenuPermissions();
     if (app.paintUserArea) app.paintUserArea();
-    // 워크플로 탭이 이미 그려져 있으면 결재자 입력도 새 이름으로 맞춘다.
-    const by = document.getElementById('wf-by');
-    if (by) by.value = root.store.loadProfile().name || '';
+    // 워크플로 탭이 이미 그려져 있으면 승인·반려 버튼의 권한 표시를 새 계정에 맞춘다.
+    if (root.workflow && root.workflow.onProfileChange) root.workflow.onProfileChange();
   };
 
   // 계정 전환기(데모 전용) — 목록은 서버가 실데이터에서 뽑아준다.

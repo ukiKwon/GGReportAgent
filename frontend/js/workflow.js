@@ -34,6 +34,30 @@
     return !status.running && !status.pending_gate && Number(status.stage) < 9;
   };
 
+  // 게이트 승인·반려 권한 — 영업부장만(서버 /checkpoint가 아니면 403). 화면은 숨기지 않고
+  // 비활성+이유로 보여준다. 둘러보기(사번 없음)도 비활성. 신원은 로그인 세션·프로필에서 읽는다.
+  const FINAL_APPROVER = (root.roles && root.roles.FINAL_APPROVER) || '영업부장';
+  workflow.gateAccess = function (profile, session) {
+    const p = profile || {}, s = session || {};
+    if (s.mode !== 'account' || !/^[0-9]{7}$/.test(s.emp || '')) {
+      return { allowed: false, reason: '로그인한 영업부장만 승인할 수 있어요' };
+    }
+    if ((p.team || '').trim() !== FINAL_APPROVER) {
+      return { allowed: false, reason: '영업부장만 승인할 수 있어요' };
+    }
+    return { allowed: true, reason: '' };
+  };
+
+  // 실패 문구 — 서버가 한글 사유를 주면 그대로, 아니면 상태 코드별 업무 말투.
+  workflow.failText = function (status, body) {
+    const b = body || {};
+    const msg = String(b.detail || b.message || b.error || '');
+    if (/[가-힣]/.test(msg)) return msg;
+    if (status === 403) return '이 작업은 권한이 없어 처리하지 못했어요. 영업부장 계정으로 로그인했는지 확인해 주세요';
+    if (status === 409) return '지금은 처리할 수 없는 상태예요. 화면을 새로 고쳐 다시 확인해 주세요';
+    return '처리하지 못했어요 (' + status + '). 잠시 뒤 다시 시도해 주세요';
+  };
+
   // 카드는 "그 단계에 실제로 기록을 남긴 팀"이다(사용자 요청) — 전체 팀 목록이 아니다.
   // 사람이 낀 단계는 실명이 이기고, 에이전트만 돈 단계는 '{팀} agent'로 적는다.
   // 알림은 팀이 없어서 참여자로 치지 않는다(단계 로그에는 그대로 남는다).
@@ -716,8 +740,17 @@
     if (!run) return;
     run.disabled = !workflow.runnable(lastStatus);
     const gated = !!(lastStatus && lastStatus.pending_gate);
-    ok.disabled = !gated; no.disabled = !gated;
+    const acc = workflow.gateAccess(root.store.loadProfile(), root.store.loadSession());
+    ok.disabled = no.disabled = !(gated && acc.allowed);
+    // 이유는 "승인할 차례인데 권한이 없을 때"만 보인다(대기 중인 게이트가 없으면 말할 거리가 없다).
+    const showWhy = gated && !acc.allowed;
+    const hint = el('wf-gate-hint');
+    if (hint) hint.textContent = showWhy ? acc.reason : '';
+    ok.title = no.title = showWhy ? acc.reason : '';
   }
+  workflow.onProfileChange = function () { if (el('wf-run')) syncButtons(); };   // 계정 전환 때 app.js가 부른다
+
+  function showActErr(text) { const e = el('wf-act-err'); if (e) e.textContent = text; }
 
   function act(url, body) {
     const opts = { method: 'POST' };
@@ -726,9 +759,14 @@
       opts.body = JSON.stringify(body);
     }
     return fetch(url, opts).then(function (r) {
-      if (!r.ok) { alert('요청 실패 (' + r.status + ')'); return; }
+      if (!r.ok) {
+        return r.json().catch(function () { return null; }).then(function (b) {
+          showActErr(workflow.failText(r.status, b));
+        });
+      }
+      showActErr('');
       return refresh().then(startPolling);        // 액션 직후에는 잠시 따라붙는다
-    }).catch(function () { alert('서버 연결 실패 — 처리되지 않았습니다.'); });
+    }).catch(function () { showActErr('서버에 연결하지 못해 처리되지 않았어요'); });
   }
 
   function renderControls() {
@@ -740,13 +778,12 @@
         return '<option value="' + esc(r.institutionId) + '">' + esc(r.name) + '</option>';
       }).join('') + '</select>' +
       '<button id="wf-run">▶ 실행</button>' +
-      // 결재자 이름은 프로필 값으로 미리 채운다 — 매번 입력하지 않게(계획 C2).
-      // 값을 강제하지는 않는다(다른 사람 이름으로 바꿔 넣을 수 있다).
-      '<input id="wf-by" placeholder="결재자 이름" size="10" value="' +
-        esc((root.store && root.store.loadProfile && root.store.loadProfile().name) || '') + '">' +
-      '<input id="wf-comment" placeholder="의견(선택)" size="20">' +
-      '<button id="wf-approve">승인</button>' +
-      '<button id="wf-reject">반려</button>';
+      // 결재자는 서버가 로그인 사번의 이름으로 기록한다 — 입력칸을 두지 않는다.
+      '<input id="wf-comment" placeholder="의견(선택)" size="20" aria-label="결재 의견">' +
+      '<button id="wf-approve" aria-describedby="wf-gate-hint">승인</button>' +
+      '<button id="wf-reject" aria-describedby="wf-gate-hint">반려</button>' +
+      '<span id="wf-gate-hint" class="wf-hint" role="status"></span>' +
+      '<span id="wf-act-err" class="ap-err" role="alert"></span>';
     if (!rows.length) {
       el('wf-panel').innerHTML = '<p class="wf-empty">서버에 등록된 기관이 없습니다 — CSV 반입 후 다시 여세요.</p>';
     }
@@ -759,11 +796,9 @@
     };
     function checkpoint(approved) {
       if (!selectedId) return;
-      // X-User-Id는 ASCII만 허용(브라우저 헤더 제약) — 한글 결재자명은 body의 by로 보낸다.
       act('/institutions/' + encodeURIComponent(selectedId) + '/checkpoint', {
         approved: approved,
         comment: el('wf-comment').value || null,
-        by: el('wf-by').value || null,
       });
     }
     el('wf-approve').onclick = function () { checkpoint(true); };

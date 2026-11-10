@@ -434,3 +434,30 @@ test('renderOverview: 상태별 문구·칩 aria-pressed·이스케이프', func
   wf.renderOverview(el, { status: 'ok', rows: evil, filter: 'all', error: '' });
   assert.ok(el.innerHTML.indexOf('<img') < 0);
 });
+
+const OK_S = { mode: 'account', id: 'x', emp: '1234567' };
+test('gateAccess: 영업부장 + 계정 로그인 + 사번이면 활성', function () {
+  assert.deepStrictEqual(wf.gateAccess({ team: '영업부장' }, OK_S), { allowed: true, reason: '' });
+});
+test('gateAccess: 영업부장이 아니면 비활성 + 이유', function () {
+  ['영업팀장', '영업팀', '예산팀장', '디자이너'].forEach(function (t) {
+    const r = wf.gateAccess({ team: t }, OK_S);
+    assert.strictEqual(r.allowed, false);
+    assert.strictEqual(r.reason, '영업부장만 승인할 수 있어요');
+  });
+});
+test('gateAccess: 둘러보기·사번 없음·세션 없음은 비활성', function () {
+  [{ mode: 'guest', id: '', emp: '' }, { mode: 'account', id: 'x', emp: '' }, null].forEach(function (s) {
+    const r = wf.gateAccess({ team: '영업부장' }, s);
+    assert.strictEqual(r.allowed, false);
+    assert.ok(r.reason.indexOf('로그인') >= 0);
+  });
+  assert.strictEqual(wf.gateAccess(null, null).allowed, false);
+});
+test('failText: 서버 한글 사유는 그대로, 영문·빈 본문은 상태별 업무 문구', function () {
+  assert.strictEqual(wf.failText(403, { detail: '영업부장만 승인할 수 있습니다' }), '영업부장만 승인할 수 있습니다');
+  assert.ok(wf.failText(403, { detail: 'forbidden' }).indexOf('권한') >= 0);
+  assert.ok(wf.failText(403, null).indexOf('권한') >= 0);
+  assert.ok(wf.failText(409, {}).indexOf('상태') >= 0);
+  assert.ok(wf.failText(500, null).indexOf('500') >= 0);
+});

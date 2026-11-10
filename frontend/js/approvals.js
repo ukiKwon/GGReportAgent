@@ -274,7 +274,7 @@
   function load() {
     const role = (root.store.loadProfile().team || '').trim();
     if (!role) { payload = { items: [] }; paint(); return Promise.resolve(); }
-    return fetch('/approvals?role=' + encodeURIComponent(role)).then(function (r) {
+    return fetch('/approvals').then(function (r) {   // 역할은 서버가 로그인 사번으로 정한다
       if (!r.ok) throw new Error('approvals ' + r.status);
       return r.json();
     }).then(function (body) { payload = body; paint(); })
