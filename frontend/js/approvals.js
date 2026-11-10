@@ -148,6 +148,7 @@
         tone: st.tone,
         when: approvals.formatTime(it.created_at),
         reason: ((it.payload || {}).reason) || '',
+        targets: approvals.assigneeLines(it),
         changes: approvals.changeRows(it.payload, categories),
         chips: approvals.stepChips(it.steps),
         note: it.status === 'REJECTED' || it.status === 'CANCELLED' ? (it.result_note || '') : '',
@@ -156,6 +157,34 @@
         canCancel: !!it.can_cancel,
       };
     });
+  };
+
+  // 담당자 변경 요청(ASSIGNEE_CHANGE)의 "누구를 추가·해제하나" 줄. 다른 유형이면 빈 배열.
+  // people(추가·해제가 섞여 온다)을 사번으로 payload의 두 배열과 맞춘다. 못 찾으면 사번을 그대로 보인다.
+  approvals.assigneeLines = function (item) {
+    const it = item || {};
+    if (it.req_type !== 'ASSIGNEE_CHANGE') return [];
+    const p = it.payload || {};
+    const byEmp = {};
+    (it.people || []).forEach(function (x) { if (x) byEmp[String(x.emp_no)] = x; });
+    function label(emp) {
+      const x = byEmp[String(emp)];
+      if (!x || !x.name) return String(emp);
+      return x.name + (x.position_title ? '(' + x.position_title + ')' : '');
+    }
+    const out = [];
+    [['추가', p.add_emp_nos], ['해제', p.remove_emp_nos]].forEach(function (g) {
+      const list = Array.isArray(g[1]) ? g[1] : [];
+      if (list.length) out.push({ kind: g[0], text: list.map(label).join(', ') });
+    });
+    return out;
+  };
+
+  // 위 줄들의 마크업. 이름·직급은 서버 데이터라 반드시 esc.
+  approvals.targetsHtml = function (lines) {
+    return (lines || []).map(function (l) {
+      return '<div class="dg-who ap-target">' + esc(l.kind) + ': ' + esc(l.text) + '</div>';
+    }).join('');
   };
 
   // 내가 올린 요청 탭의 빈 상태 — 권한 신청과 담당자 변경 신청 둘 다 여기서 보인다.
@@ -348,7 +377,7 @@
     } else if (mode === 'mine' && r.canCancel) {
       act = '<div class="ap-act"><button class="ap-req-cancel" data-id="' + esc(r.id) + '">취소</button></div>';
     }
-    return '<div class="ap-card ap-req" data-id="' + esc(r.id) + '">' + head + changesHtml(r.changes) +
+    return '<div class="ap-card ap-req" data-id="' + esc(r.id) + '">' + head + approvals.targetsHtml(r.targets) + changesHtml(r.changes) +
       (r.reason ? '<div class="dg-who">사유: ' + esc(r.reason) + '</div>' : '') + chipsHtml(r.chips) +
       (r.note ? '<div class="dg-who">' + esc(r.note) + '</div>' : '') + act + '<div class="ap-err" role="alert"></div></div>';
   }
@@ -376,7 +405,7 @@
       ? mineRows.map(function (r) { return requestCardHtml(r, 'mine'); }).join('')
       : (reqs.mine ? '<p class="wf-empty">' + esc(approvals.mineEmptyText()) + '</p>' : ''));
     el('ap-req-inbox').innerHTML = err ||
-      (inboxRows.length ? '<div class="ap-sec">권한 신청 요청</div>' +
+      (inboxRows.length ? '<div class="ap-sec">결재 요청</div>' +
         inboxRows.map(function (r) { return requestCardHtml(r, 'inbox'); }).join('') : '');
     el('ap-sec-tasks').style.display = taskCount ? '' : 'none';
     const notice = reqs.inbox && !err ? approvals.inboxNotice(canApprove, inboxCount) : '';

@@ -199,13 +199,20 @@ PATH의 `claude` 또는 VS Code 확장 동봉 `claude.exe`로 아래를 **사용
 스크립트가 함께 거는 사용자 환경변수: `DO_NOT_TRACK=1`(impeccable 텔레메트리 끔), `ENABLE_STOP_REVIEW=0`(security-guidance의 작업 종료 시 diff 리뷰 끔 — PUSH-GATE security와 중복·비용).
 주의: 플러그인 에이전트는 모두 도구를 가져도 `.claude/hooks/write-guard.js`가 쓰기를 막는다. `pr-review-toolkit:silent-failure-hunter`는 플러그인 정의 YAML 오류로 설명 없이 로드된다(지시문에 역할 명시). 규칙 전체는 `handoff/agents/graph.md` "플러그인 사용", 근거는 `handoff/agents/history/2026-11-02_플러그인_조사와_설치.md`.
 
+**새 스크립트(`015`~)를 손으로 넣을 때** — 항상 문자셋 옵션을 붙인다. root 비밀번호가 비어 있으면(2)의 초기 상태) `-p`를 빼야 한다(`-p`를 주고 엔터만 치면 "비밀번호가 틀렸다"로 실패하는 일이 있었다, 2026-11-10).
+
+```
+mysql -u root --default-character-set=utf8mb4 ggreportdb < src/main/resources/db/mysql/019_bid_assignment.sql
+```
+
 **겪은 함정 4가지**
 
 - ⚠️ **`mysql.exe`·`mysqld.exe`는 VC++ 런타임 DLL을 JDK의 `bin\`에서 가져온다**(이 PC에는 VC 재배포 패키지가
   없었다). PATH에 **JDK `bin`이 `mysql`보다 앞서야** 한다. 아니면 아무 메시지 없이 `-1073741515`
   (DLL not found)로 죽는다. `mysql-start.cmd`는 이미 PATH를 잡아 둔다.
 - ⚠️ **`--default-character-set=utf8mb4` 없이 시드를 넣으면** `ERROR 1366 Incorrect string value … NAME_KO`.
-  Windows 콘솔 기본이 cp949라서다. `-ApplySchema`는 이 옵션을 넣는다.
+  Windows 콘솔 기본이 cp949라서다. `-ApplySchema`는 이 옵션을 넣는다. 손으로 넣는 `015`~도 같다
+  (`019`의 코드표 `CODE_NAME`에서 같은 오류가 났다, 2026-11-10).
 - ⚠️ **`002_seq_no.sql`은 재실행하면 실패한다**(컬럼 추가). 중간에 끊겼다면 어디까지 들어갔는지 보고
   **그 다음 파일부터** 이어서 넣는다.
 - ⚠️ **PowerShell 5.1은 리디렉션된 환경(에이전트·IDE)에서 네이티브 프로그램의 stderr를 오류로 만든다.**

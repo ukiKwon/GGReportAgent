@@ -462,7 +462,7 @@
   function freshAssign() { return { sel: [], q: '', confirming: false, busy: false }; }
   function freshState() {
     return { who: '', filter: 'all', query: '', selected: '', rows: [], mineIds: [], mineFail: false, mineLoaded: false,
-             detail: null, assign: freshAssign(), modal: null, seq: 0, mineSeq: 0, refocus: false };
+             detail: null, assign: freshAssign(), modal: null, seq: 0, mineSeq: 0, caseSeq: 0, refocus: false };
   }
   let S = freshState();
   let wired = false;
@@ -587,6 +587,23 @@
     b.click();
   }
 
+  // 앱 시작 때 한 번 받은 /bidcases/latest를 화면이 열릴 때마다 다시 받아 같은 적용 함수로 store를 갱신한다.
+  // 실패·비정상 응답은 조용히 무시하고 기존 목록을 그대로 쓴다(오류 문구 없음).
+  // 응답이 늦게 와서 그 사이 계정이 바뀌었거나(S가 교체됨) 더 새 요청이 나갔으면 버린다.
+  function syncCases() {
+    const snap = S;
+    const token = ++snap.caseSeq;
+    return req('GET', '/bidcases/latest').then(function (cases) {
+      if (snap !== S || token !== S.caseSeq || snap.who !== whoNow()) return;
+      if (!root.serverdata || !root.store.isServerMode()) return;
+      const next = tm.syncedList(root.store.loadData(), cases, root.serverdata.applyBidCases);
+      if (!next) return;
+      root.store.setServerData(next);
+      buildRows();
+      paintList();
+    }).catch(function () { /* 기존 목록 유지 */ });
+  }
+
   function loadMine() {
     const token = ++S.mineSeq;
     return req('GET', '/me/assignments').then(function (list) {
@@ -656,6 +673,7 @@
     if (gate) return;
     buildRows();
     paintList();
+    syncCases();
     loadMine();
     if (S.selected) loadDetail(S.selected); else paintCase();
   }
@@ -913,6 +931,13 @@
     });
     wired = true;
   }
+
+  // 공고 목록 재동기화용 순수 함수 — 응답이 배열이 아니면 null(= 갱신하지 않고 기존 목록 유지).
+  // apply에는 serverdata.applyBidCases를 넘긴다.
+  tm.syncedList = function (current, cases, apply) {
+    if (!Array.isArray(cases) || !Array.isArray(current)) return null;
+    return apply(current, cases);
+  };
 
   // 화면이 열릴 때마다 불린다(app.showSoon). 선택은 유지하고 데이터는 다시 불러온다.
   tm.mount = function () {

@@ -205,3 +205,51 @@ test('mineEmptyText: 권한 신청과 담당자 변경 신청을 둘 다 안내�
   assert.ok(t.indexOf('[내 정보 › 내 권한]') > 0);
   assert.ok(t.indexOf('담당자 변경') > 0 && t.indexOf('[제안팀 구성·배정]') > 0);
 });
+
+// ── 담당자 변경 요청: 카드에 추가·해제 대상 (qa 2026-11-10 P2-1·P2-2) ──
+const ACH = {
+  req_id: 9, req_type: 'ASSIGNEE_CHANGE', type_label: '담당자 변경', title: '담당자 변경 — 노원구',
+  status: 'PENDING', requester_name: '이영업', requester_position: '팀장', created_at: '2026-11-10T01:00:00Z',
+  payload: { bid_case_id: 'bc-1', group_ver: 1, add_emp_nos: ['5640327'], remove_emp_nos: [], reason: '휴직' },
+  people: [{ emp_no: '5640327', name: '배지아', position_title: '계장' },
+           { emp_no: '5047192', name: '안재원', position_title: '대리' }],
+  steps: [], can_decide: true, can_cancel: false,
+};
+
+test('assigneeLines: 추가 1명만 있으면 추가 줄만(해제 줄은 생략)', function () {
+  assert.deepStrictEqual(ap.assigneeLines(ACH), [{ kind: '추가', text: '배지아(계장)' }]);
+});
+
+test('assigneeLines: 해제 1명만 있으면 해제 줄만', function () {
+  const it = Object.assign({}, ACH, { payload: Object.assign({}, ACH.payload, { add_emp_nos: [], remove_emp_nos: ['5047192'] }) });
+  assert.deepStrictEqual(ap.assigneeLines(it), [{ kind: '해제', text: '안재원(대리)' }]);
+});
+
+test('assigneeLines: 추가·해제가 함께 있으면 추가 먼저, 사람을 못 찾으면 사번 표시', function () {
+  const it = Object.assign({}, ACH, { payload: Object.assign({}, ACH.payload, { add_emp_nos: ['5640327', '9999999'], remove_emp_nos: ['5047192'] }) });
+  assert.deepStrictEqual(ap.assigneeLines(it), [
+    { kind: '추가', text: '배지아(계장), 9999999' },
+    { kind: '해제', text: '안재원(대리)' }]);
+});
+
+test('targetsHtml: 이름의 HTML은 이스케이프한다', function () {
+  const it = Object.assign({}, ACH, { people: [{ emp_no: '5640327', name: '<b>배지아</b>', position_title: '계장' }] });
+  const html = ap.targetsHtml(ap.assigneeLines(it));
+  assert.ok(html.indexOf('&lt;b&gt;배지아&lt;/b&gt;') > 0);
+  assert.ok(html.indexOf('<b>') < 0);
+  assert.ok(html.indexOf('추가: ') > 0);
+});
+
+test('assigneeLines: ASSIGNEE_CHANGE가 아닌 유형은 줄이 없다(권한 신청 카드 모델에도 빈 targets)', function () {
+  assert.deepStrictEqual(ap.assigneeLines(Object.assign({}, ACH, { req_type: 'PERMISSION' })), []);
+  assert.deepStrictEqual(ap.assigneeLines(REQ), []);
+  assert.strictEqual(ap.targetsHtml([]), '');
+  assert.deepStrictEqual(ap.requestRows([REQ], CATS)[0].targets, []);
+  assert.deepStrictEqual(ap.requestRows([ACH], CATS)[0].targets, [{ kind: '추가', text: '배지아(계장)' }]);
+});
+
+test('받은 결재 소제목은 유형 중립 "결재 요청"', function () {
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '../js/approvals.js'), 'utf8');
+  assert.ok(src.indexOf('<div class="ap-sec">결재 요청</div>') > 0);
+  assert.ok(src.indexOf('권한 신청 요청') < 0);
+});

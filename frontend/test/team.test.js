@@ -459,3 +459,25 @@ test('P3-6: 배정 확인 줄이 열리면 첫 포커스는 취소', function ()
   const html = tm.assignConfirmHtml(2);
   assert.ok(html.indexOf('id="tm-assign-cancel"') > 0 && html.indexOf('id="tm-assign-ok"') > html.indexOf('id="tm-assign-cancel"'));
 });
+
+test('P3-2: syncedList — 배열 응답만 적용, 아니면 null(기존 목록 유지)', function () {
+  const apply = function (cur, cases) { return cur.concat(cases); };
+  assert.deepStrictEqual(tm.syncedList([1], [2], apply), [1, 2]);
+  assert.strictEqual(tm.syncedList([1], null, apply), null);
+  assert.strictEqual(tm.syncedList([1], { detail: 'x' }, apply), null);
+  assert.strictEqual(tm.syncedList(null, [2], apply), null);
+});
+
+test('P3-2: refresh가 /bidcases/latest를 다시 받고, 늦은 응답은 S·who·토큰으로 버리며, 실패는 조용하다', function () {
+  const refresh = between(TEAM_SRC, 'function refresh()', '// ── 최초 배정');
+  assert.ok(/syncCases\(\);/.test(refresh));
+  const sync = between(TEAM_SRC, 'function syncCases()', 'function loadMine()');
+  assert.ok(sync.indexOf("req('GET', '/bidcases/latest')") > 0);
+  assert.ok(/const snap = S;/.test(sync));
+  assert.ok(/snap !== S \|\| token !== S\.caseSeq \|\| snap\.who !== whoNow\(\)/.test(sync));
+  assert.ok(sync.indexOf('root.serverdata.applyBidCases') > 0);
+  assert.ok(sync.indexOf('root.store.setServerData(next)') > 0);
+  assert.ok(sync.indexOf('buildRows();') > sync.indexOf('setServerData'));
+  assert.ok(/\.catch\(function \(\) \{[^}]*\}\);/.test(sync));
+  assert.ok(/caseSeq: 0/.test(TEAM_SRC));
+});
