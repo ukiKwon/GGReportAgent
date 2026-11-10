@@ -76,6 +76,14 @@ public final class GoldenSnapshot {
         return new GoldenSnapshot(name, method, newUrl, status, requestBody, headers, body);
     }
 
+    /** 헤더 하나를 더한 사본. 골든 파일은 그대로 두고 재생 때만 신원 헤더를 얹는다. */
+    public GoldenSnapshot withHeader(String key, String value) {
+        Map<String, String> h = new LinkedHashMap<>(headers);
+        h.put(key, value);
+        return new GoldenSnapshot(name, method, url, status, requestBody,
+                Collections.unmodifiableMap(h), body);
+    }
+
     public static GoldenSnapshot load(Path file) {
         try {
             JsonNode root = MAPPER.readTree(file.toFile());

@@ -1,5 +1,7 @@
 package com.kbstar.kgi.ggreport.web.web;
 
+import com.kbstar.kgi.ggreport.web.domain.SysUser;
+import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.service.AccessLogService;
 import com.kbstar.kgi.ggreport.web.service.PermissionService;
 import org.springframework.stereotype.Component;
@@ -18,9 +20,12 @@ public class MenuGuard {
     private final PermissionService permissions;
     private final AccessLogService accessLog;
 
-    public MenuGuard(PermissionService permissions, AccessLogService accessLog) {
+    private final SysUserMapper users;
+
+    public MenuGuard(PermissionService permissions, AccessLogService accessLog, SysUserMapper users) {
         this.permissions = permissions;
         this.accessLog = accessLog;
+        this.users = users;
     }
 
     public Actor require(HttpServletRequest req, String menuKey) {
@@ -76,6 +81,35 @@ public class MenuGuard {
             throw new ApiException(403, deniedMessage);
         }
         return actor;
+    }
+
+    /** {@link #require} 통과 후 호출자의 USERS 행. 401/403 은 DENIED(본문 없음). */
+    public SysUser requireUser(HttpServletRequest req, String menuKey) {
+        Actor actor = require(req, menuKey);
+        return userOf(req, actor);
+    }
+
+    /**
+     * {@link #require} 에 더해 USERS.ROLE 이 정확히 {@code role} 일 때만 통과.
+     * ⚠️ X-Emp-No 자기신고 위에 선 <b>업무 규칙</b>이다(실수 방지) — 사칭 방지가 아니다.
+     */
+    public SysUser requireRole(HttpServletRequest req, String menuKey, String role, String deniedMessage) {
+        Actor actor = require(req, menuKey);
+        SysUser u = userOf(req, actor);
+        if (!role.equals(u.getRole() == null ? null : u.getRole().trim())) {
+            deny(req, actor, 403, "role required: " + role);
+            throw new ApiException(403, deniedMessage);
+        }
+        return u;
+    }
+
+    private SysUser userOf(HttpServletRequest req, Actor actor) {
+        SysUser u = users.selectByEmpNo(actor.getEmpNo());
+        if (u == null) {   // require() 가 canView 로 걸러 정상 경로에선 오지 않는다(방어)
+            deny(req, actor, 403, "user not found");
+            throw new ApiException(403, "이 기능을 쓸 권한이 없습니다.");
+        }
+        return u;
     }
 
     private void deny(HttpServletRequest req, Actor actor, int status, String why) {

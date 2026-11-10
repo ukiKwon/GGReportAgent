@@ -1,5 +1,6 @@
 package com.kbstar.kgi.ggreport.web.web;
 
+import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.domain.Task;
 import com.kbstar.kgi.ggreport.web.domain.TaskActorIn;
 import com.kbstar.kgi.ggreport.web.domain.TaskApprovalIn;
@@ -31,6 +32,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletRequest;
 import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -58,9 +60,11 @@ public class TaskController {
     private final TaskCommandService commands;
     private final TaskFileService files;
     private final HandoffService handoffs;
+    private final MenuGuard guard;
 
     public TaskController(TaskQueryService tasks, TaskCommandService commands,
-                          TaskFileService files, HandoffService handoffs) {
+                          TaskFileService files, HandoffService handoffs, MenuGuard guard) {
+        this.guard = guard;
         this.tasks = tasks;
         this.commands = commands;
         this.files = files;
@@ -186,7 +190,10 @@ public class TaskController {
     @PostMapping("/{taskId}/approve")
     public Task approve(@PathVariable String taskId,
                         @RequestBody TaskApprovalIn body,
-                        @RequestHeader("X-User-Id") String userId) {
-        return commands.approve(taskId, body, userId);
+                        @RequestHeader("X-User-Id") String userId,
+                        HttpServletRequest req) {
+        // 401/403 은 MenuGuard 가(접근 이력 DENIED). 역할·본인 검사는 서비스가 결재 단계를 보고 한다.
+        SysUser approver = guard.requireUser(req, "approvals");
+        return commands.approve(taskId, body, userId, approver);
     }
 }

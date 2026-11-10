@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.AppTest;
 import com.kbstar.kgi.ggreport.web.mapper.InstitutionMapper;
+import com.kbstar.kgi.ggreport.web.service.InstitutionCommandService;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,13 +45,46 @@ public class CompleteApiTest {
         return json.readTree(res.getContentAsString()).path("institution_id").asText();
     }
 
+    @Autowired
+    private InstitutionCommandService commands;
+
+    @Autowired
+    private ObjectMapper appJson;   // 서버 설정(snake_case) 그대로
+
+    /**
+     * 내부 로직은 서비스를 직접 부른다 — HTTP 엔드포인트는 2026-11-10 이후 항상 403 이다
+     * (제출 완료는 결재 절차로만, NEXT 59·021). 응답 모양은 예전 HTTP 응답처럼 맞춰 돌려준다.
+     */
     private MockHttpServletResponse complete(String institutionId) throws Exception {
-        MockHttpServletResponse res = mockMvc.perform(
-                        post("/institutions/" + institutionId + "/complete")
-                                .header("X-User-Id", "dave"))
-                .andReturn().getResponse();
+        MockHttpServletResponse res = new MockHttpServletResponse();
         res.setCharacterEncoding("UTF-8");
+        try {
+            res.setStatus(200);
+            res.getWriter().write(appJson.writeValueAsString(commands.complete(institutionId, "dave")));
+        } catch (ApiException e) {
+            res = new MockHttpServletResponse();
+            res.setCharacterEncoding("UTF-8");
+            res.setStatus(e.getStatus());
+            res.getWriter().write(json.writeValueAsString(
+                    java.util.Collections.singletonMap("detail", e.getMessage())));
+        }
         return res;
+    }
+
+    /** ⚠️ 외부 호출은 누가 부르든(부장·마스터·헤더 없음) 403 이고 상태는 그대로다. */
+    @Test
+    public void 엔드포인트는_누가_불러도_403이고_제출완료로_바뀌지_않는다() throws Exception {
+        String id = make("차단구청");
+        institutions.updateStage(id, 9);
+
+        String[][] callers = {{"X-Emp-No", "1473958"}, {"X-Emp-No", "8203417"}, {"X-None", "x"}};
+        for (String[] c : callers) {
+            MockHttpServletResponse res = mockMvc.perform(
+                    post("/institutions/" + id + "/complete").header(c[0], c[1]))
+                    .andReturn().getResponse();
+            assertEquals(c[0] + "=" + c[1], 403, res.getStatus());
+        }
+        assertEquals("단계가 9로 그대로", 9, institutions.selectById(id).getStage());
     }
 
     /**

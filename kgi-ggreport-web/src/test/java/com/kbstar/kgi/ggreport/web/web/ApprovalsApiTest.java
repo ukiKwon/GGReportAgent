@@ -15,13 +15,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 결재함 API — Task 5B.2.
  *
  * <p>결재 라인 자체는 {@code ApprovalsQueueTest} 가 본다. 여기서 보는 것은 <b>배선</b>이다:
- * 경로·필수 파라미터·빈 상태, 그리고 <b>동적 SQL 이 실제로 도는지</b>.
+ * 경로·빈 상태, 그리고 <b>동적 SQL 이 실제로 도는지</b>.
  * {@code MapperStatementBindingTest} 는 파싱까지만 보므로, {@code foreach} 로 만든
  * {@code (팀,상태) OR …} 절이 실행되는 것은 여기서만 확인된다.
  *
+ * <p>2026-11-10부터 <b>결재함의 역할은 X-Emp-No 의 USERS.ROLE 로 서버가 정한다</b>
+ * ({@code ?role=} 은 무시). 시드 사번: 전산팀장 6295038·영업팀장 5047192·영업부장 2674805·
+ * 영업팀 3918264·디자이너 7130526.
+ *
  * <p>데이터를 만들지 않는다 — 이 클래스는 {@code @Transactional} 이 아니라, 넣은 행이
  * 남으면 다른 테스트의 빈 상태 계약을 깨뜨린다(2026-08-28에 실제로 겪었다).
- * 본문이 실린 대조는 {@code GoldenWriteScenarioTest} 가 만든 상태에서 볼 일이다.
  */
 @RunWith(SpringRunner.class)
 @AppTest
@@ -36,7 +39,7 @@ public class ApprovalsApiTest {
      */
     @Test
     public void 팀장_결재함이_빈_목록으로_온다() throws Exception {
-        mockMvc.perform(get("/approvals").param("role", "전산팀장"))
+        mockMvc.perform(get("/approvals").header("X-Emp-No", "6295038"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.role").value("전산팀장"))
                 .andExpect(jsonPath("$.items").isArray())
@@ -46,8 +49,9 @@ public class ApprovalsApiTest {
     /** 영업팀장은 (영업, 디자이너) 두 쌍으로 질의한다 — {@code foreach} 가 실제로 도는 자리. */
     @Test
     public void 영업팀장_결재함도_돈다() throws Exception {
-        mockMvc.perform(get("/approvals").param("role", "영업팀장"))
+        mockMvc.perform(get("/approvals").header("X-Emp-No", "5047192"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("영업팀장"))
                 .andExpect(jsonPath("$.items.length()").value(0));
     }
 
@@ -57,7 +61,7 @@ public class ApprovalsApiTest {
      */
     @Test
     public void 영업부장_결재함은_게이트_조회까지_돌고_빈_목록이다() throws Exception {
-        mockMvc.perform(get("/approvals").param("role", "영업부장"))
+        mockMvc.perform(get("/approvals").header("X-Emp-No", "2674805"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.role").value("영업부장"))
                 .andExpect(jsonPath("$.items.length()").value(0));
@@ -69,25 +73,43 @@ public class ApprovalsApiTest {
      */
     @Test
     public void 결재권한이_없는_역할도_500이_아니라_빈_목록이다() throws Exception {
-        for (String role : new String[]{"영업팀", "디자이너", "없는역할"}) {
-            mockMvc.perform(get("/approvals").param("role", role))
+        String[][] callers = {{"3918264", "영업팀"}, {"7130526", "디자이너"}};
+        for (String[] c : callers) {
+            mockMvc.perform(get("/approvals").header("X-Emp-No", c[0]))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.role").value(role))
+                    .andExpect(jsonPath("$.role").value(c[1]))
                     .andExpect(jsonPath("$.items.length()").value(0));
         }
     }
 
-    /** {@code role} 이 없으면 400 — 없이 열면 남의 결재함까지 보이는 전체 조회가 된다. */
+    /** ⚠️ 남의 결재함 조회 방지 — {@code role=영업부장} 을 붙여도 부른 사람의 역할로 나온다. */
     @Test
-    public void role이_없으면_400이다() throws Exception {
-        mockMvc.perform(get("/approvals"))
-                .andExpect(status().isBadRequest());
+    public void role_파라미터는_무시되고_부른_사람의_결재함이_나온다() throws Exception {
+        mockMvc.perform(get("/approvals").param("role", "영업부장").header("X-Emp-No", "3918264"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("영업팀"))
+                .andExpect(jsonPath("$.items.length()").value(0));
+    }
+
+    /** 사번이 없으면(둘러보기) 200 + 빈 목록 — 화면이 오류 문구를 띄우지 않는다. */
+    @Test
+    public void 사번이_없으면_빈_목록이다() throws Exception {
+        mockMvc.perform(get("/approvals").param("role", "영업부장"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value(""))
+                .andExpect(jsonPath("$.items.length()").value(0));
     }
 
     @Test
-    public void role이_비어_있으면_400이다() throws Exception {
-        mockMvc.perform(get("/approvals").param("role", "  "))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").exists());
+    public void 사번_형식이_아니면_사번이_없는_것과_같다() throws Exception {
+        mockMvc.perform(get("/approvals").header("X-Emp-No", "abc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0));
+    }
+
+    @Test
+    public void 등록되지_않은_사번은_403이다() throws Exception {
+        mockMvc.perform(get("/approvals").header("X-Emp-No", "0000000"))
+                .andExpect(status().isForbidden());
     }
 }

@@ -53,6 +53,14 @@ public class GoldenWriteScenarioTest {
     private GoldenRunner runner;
     private Path goldenDir;
 
+    /** 결재 골든은 X-User-Id(표시명)만 갖는다 — 서버 역할 검사를 통과하도록 재생 때만 팀장 사번을 얹는다. */
+    private static final java.util.Map<String, String> APPROVER_EMP = new java.util.HashMap<>();
+    static {
+        APPROVER_EMP.put("17_task0_approve", "5047192");   // 영업팀장
+        APPROVER_EMP.put("20_task1_approve", "9026715");   // 예산팀장
+        APPROVER_EMP.put("23_task2_approve", "6295038");   // 전산팀장
+    }
+
     @Before
     public void setUp() {
         runner = new GoldenRunner(mockMvc);
@@ -187,6 +195,10 @@ public class GoldenWriteScenarioTest {
                         + " 안 되면 그 다음 요청이 404 로 나서 원인이 흐려진다)");
             }
             snapshot = snapshot.withUrl(url);
+        }
+        String emp = APPROVER_EMP.get(name);
+        if (emp != null) {
+            snapshot = snapshot.withHeader("X-Emp-No", emp);
         }
         GoldenRunner.Result result = runner.run(snapshot);
         if (!result.passed()) {

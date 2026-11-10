@@ -1,11 +1,16 @@
 package com.kbstar.kgi.ggreport.web.web;
 
+import com.kbstar.kgi.ggreport.web.domain.SysUser;
+import com.kbstar.kgi.ggreport.web.dto.ApprovalItem;
 import com.kbstar.kgi.ggreport.web.dto.ApprovalsResponse;
 import com.kbstar.kgi.ggreport.web.service.ApprovalsService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import javax.servlet.http.HttpServletRequest;
+import java.util.Collections;
 
 /**
  * 결재함 — Task 5B.2. Python {@code server/routers/approvals.py}.
@@ -17,25 +22,30 @@ import org.springframework.web.bind.annotation.RestController;
  * {@code APIRouter(prefix="/approvals")} + {@code @router.get("")} 라 정확히
  * {@code /approvals} 이고, 화면이 그 주소로 부른다.
  *
- * <p>⚠️ <b>{@code role} 은 필수다.</b> 없이 열면 남의 결재함까지 보이는 전체 조회가 된다
- * ({@code GET /tasks} 의 {@code team}, {@code GET /notifications} 의 {@code recipient} 와
- * 같은 이유).
+ * <p>⚠️ <b>{@code role} 파라미터는 무시된다.</b> 결재함의 역할은 X-Emp-No 의 USERS.ROLE 로 서버가
+ * 정한다(남의 결재함 조회 방지, 2026-11-10). 사번이 없으면(둘러보기) 빈 목록이다.
  */
 @RestController
 @RequestMapping("/approvals")
 public class ApprovalController {
 
     private final ApprovalsService approvals;
+    private final MenuGuard guard;
 
-    public ApprovalController(ApprovalsService approvals) {
+    public ApprovalController(ApprovalsService approvals, MenuGuard guard) {
         this.approvals = approvals;
+        this.guard = guard;
     }
 
     @GetMapping
-    public ApprovalsResponse list(@RequestParam("role") String role) {
-        if (role.trim().isEmpty()) {
-            throw ApiException.badRequest("role이 비어 있습니다");
+    public ApprovalsResponse list(@RequestParam(name = "role", required = false) String ignoredRole,
+                                  HttpServletRequest req) {
+        // role 파라미터는 호환용으로만 받고 무시한다 — 결재함은 X-Emp-No 의 USERS.ROLE 로 정한다.
+        // 둘러보기(사번 없음)는 빈 목록이다(화면이 오류 문구를 띄우지 않게 200).
+        if (!Actor.of(req).isKnown()) {
+            return new ApprovalsResponse("", Collections.<ApprovalItem>emptyList());
         }
-        return approvals.forRole(role);
+        SysUser me = guard.requireUser(req, "approvals");
+        return approvals.forRole(me.getRole() == null ? "" : me.getRole().trim());
     }
 }

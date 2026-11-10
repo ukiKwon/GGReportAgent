@@ -1,6 +1,8 @@
 package com.kbstar.kgi.ggreport.web.web;
 
 import com.kbstar.kgi.ggreport.web.domain.Institution;
+import com.kbstar.kgi.ggreport.web.domain.SysUser;
+import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.domain.InstitutionImportRow;
 import com.kbstar.kgi.ggreport.web.domain.InstitutionUpdateIn;
 import com.kbstar.kgi.ggreport.web.dto.ArtifactsResponse;
@@ -187,10 +189,12 @@ public class InstitutionController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public Map<String, String> checkpoint(@PathVariable String institutionId,
                                           @RequestBody CheckpointIn body,
-                                          @RequestHeader("X-User-Id") String userId) {
-        String by = body.getBy() == null || body.getBy().trim().isEmpty()
-                ? userId : body.getBy().trim();
-        orchestrator.resume(institutionId, body.isApproved(), by, body.getComment());
+                                          HttpServletRequest req) {
+        // 결재자는 X-Emp-No → USERS 로 정한다. body.by·X-User-Id 는 쓰지 않는다(위조 금지).
+        // 게이트는 영업부장 결재함에만 뜨므로(ApprovalsService.gatesFor) 같은 역할로 맞춘다.
+        SysUser approver = guard.requireRole(req, "approvals", Teams.FINAL_APPROVER,
+                "게이트 결재는 영업부장만 할 수 있습니다.");
+        orchestrator.resume(institutionId, body.isApproved(), approver.getName(), body.getComment());
         return Collections.singletonMap("status", "resumed");
     }
 
@@ -228,9 +232,10 @@ public class InstitutionController {
      * 아카이브하고 최신 공고를 {@code 제출완료} 로 바꾼다.
      */
     @PostMapping("/{institutionId}/complete")
-    public CompleteResponse complete(@PathVariable String institutionId,
-                                     @RequestHeader("X-User-Id") String userId) {
-        return institutionCommands.complete(institutionId, userId);
+    public CompleteResponse complete(@PathVariable String institutionId) {
+        // 외부 호출 차단 — 제출 완료는 '최종 제출 확정' 결재의 승인 후처리에서만(NEXT 59·021).
+        // InstitutionCommandService.complete 는 그때 쓸 내부 메서드로 그대로 둔다.
+        throw new ApiException(403, "제출 완료는 결재 절차로만 처리할 수 있습니다.");
     }
 
     /** 배점표 항목 ↔ 팀 작성물 커버리지 — 배점표 매핑 뷰의 데이터원. */

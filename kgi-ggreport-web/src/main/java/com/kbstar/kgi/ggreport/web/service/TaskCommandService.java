@@ -1,5 +1,6 @@
 package com.kbstar.kgi.ggreport.web.service;
 
+import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.domain.Task;
 import com.kbstar.kgi.ggreport.web.domain.TaskApprovalIn;
 import com.kbstar.kgi.ggreport.web.domain.TaskDraftIn;
@@ -112,11 +113,22 @@ public class TaskCommandService {
      * 담당자에게 사유를 알린다 — 예전에는 조용히 되돌리기만 해서 아무도 몰랐다.
      */
     @Transactional
-    public Task approve(String taskId, TaskApprovalIn body, String userId) {
-        String actor = actor(body.getBy(), userId);
+    public Task approve(String taskId, TaskApprovalIn body, String userId, SysUser approver) {
+        String actor = actor(body.getBy(), userId);   // 저장되는 표시명(골든 17·20·23 호환)
         Task task = requireTask(taskId);
 
         boolean finalStage = isFinalStage(task);
+        // 결재 역할: 최종 단계는 영업부장, 그 밖은 그 팀의 팀장(디자이너 1차는 영업팀장 — Teams.leadOf).
+        String needRole = finalStage ? Teams.FINAL_APPROVER : Teams.leadOf(task.getTeam());
+        if (!needRole.equals(approver.getRole() == null ? null : approver.getRole().trim())) {
+            throw new ApiException(403, "이 작업을 결재할 수 있는 역할이 아닙니다.");
+        }
+        // 본인 작업 결재 금지 — 담당자는 자유 문자열(이름·사번)이라 셋 다 비교한다.
+        String assignee = task.getAssignee();
+        if (assignee != null && (assignee.equals(approver.getEmpNo())
+                || assignee.equals(approver.getName()) || assignee.equals(actor))) {
+            throw new ApiException(403, "본인이 담당한 작업은 결재할 수 없습니다.");
+        }
         String held = finalStage ? task.getFinalApprover() : task.getApprover();
         if (held != null && !held.equals(actor)) {
             throw new ApiException(403, "only the approver can approve");
