@@ -121,7 +121,7 @@
       "영업부장": {
         "map": true,
         "regions": false,
-        "workflow": false,
+        "workflow": true,
         "chat": true,
         "knowledge": false,
         "tasks": false,

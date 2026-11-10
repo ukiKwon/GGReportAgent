@@ -90,10 +90,10 @@ public final class Menus {
         }
         // 디자이너: 받은 것을 열어보고 작업물을 올린다. 워크플로 현황판은 필요 없다.
         out.put(Teams.DESIGNER_TEAM, row("chat", "knowledge", "tasks", "approvals"));
-        // 영업부장: 전국 지도 · 결재함 · 대화 셋만(사용자가 직접 고른 조합).
-        // 워크플로 현황판도 지역별도 보지 않는다 — 결재에 필요한 맥락은 결재함 카드
+        // 영업부장: 전국 지도 · 결재함 · 대화 + 워크플로(2026-11-10 사용자 확정 — 참여결정 3단·게이트 승인 화면).
+        // 지역별은 보지 않는다 — 결재에 필요한 맥락은 결재함 카드
         // 안에 통째로 실려 오고, 나머지는 켜고 싶으면 전산팀이 권한관리에서 켠다.
-        Map<String, Boolean> head = row("approvals", "chat");
+        Map<String, Boolean> head = row("approvals", "chat", "workflow");
         head.put("regions", Boolean.FALSE);
         out.put(Teams.FINAL_APPROVER, head);
         // 전산팀이 시스템 운영자를 겸한다(사용자 확정).

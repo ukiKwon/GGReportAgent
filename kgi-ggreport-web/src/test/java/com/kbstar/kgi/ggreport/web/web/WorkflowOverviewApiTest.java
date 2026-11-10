@@ -76,7 +76,8 @@ public class WorkflowOverviewApiTest {
     @Test
     public void 로그인이_없으면_401_권한이_없거나_미등록이면_403() throws Exception {
         overview(null, 401);
-        overview(HEAD, 403);            // 영업부장은 역할 기본에서 workflow 조회가 꺼져 있다
+        overview("7130526", 403);       // 디자이너는 역할 기본에서 workflow 조회가 꺼져 있다(영업부장은 2026-11-10 켬)
+        overview(HEAD, 200);
         overview("9999999", 403);       // 등록되지 않은 사번
     }
 
