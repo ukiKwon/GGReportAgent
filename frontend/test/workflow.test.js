@@ -467,3 +467,38 @@ test('failText: 합니다체(해요체 없음, NEXT 67 P2-2)', function () {
   assert.strictEqual(wf.failText(409, {}), '지금은 처리할 수 없는 상태입니다. 화면을 새로 고쳐 다시 확인해 주세요.');
   assert.strictEqual(wf.failText(500, null), '처리하지 못했습니다(오류 500). 잠시 뒤 다시 시도해 주세요.');
 });
+
+// ▶ 실행 권한 — 영업팀장 또는 그 기관 입찰 건의 담당자(서버 /run 가드와 같은 규칙)
+const LEAD_P = { team: '영업팀장' }, MEM_P = { team: '영업팀' };
+const REC = { institutionId: 'i1', bidCaseId: 'BC-1' };
+test('runAccess: 영업팀장은 담당 조회 없이도 보인다', function () {
+  assert.strictEqual(wf.runAccess(LEAD_P, OK_S, REC, null, true).allowed, true);
+  assert.strictEqual(wf.runAccess(LEAD_P, OK_S, null, [], false).allowed, true);
+});
+test('runAccess: 그 기관 입찰 건의 담당자는 보인다', function () {
+  assert.strictEqual(wf.runAccess(MEM_P, OK_S, REC, ['BC-9', 'BC-1'], false).allowed, true);
+});
+test('runAccess: 담당이 아닌 팀원은 숨기고 합니다체 이유를 준다', function () {
+  const r = wf.runAccess(MEM_P, OK_S, REC, ['BC-9'], false);
+  assert.strictEqual(r.allowed, false);
+  assert.strictEqual(r.reason, '분석 실행은 영업팀장 또는 이 기관 입찰 건의 담당자만 할 수 있습니다.');
+  assert.strictEqual(wf.runAccess({ team: '영업부장' }, OK_S, REC, ['BC-1'], false).allowed, true);
+  assert.strictEqual(wf.runAccess(MEM_P, OK_S, null, ['BC-1'], false).allowed, false);
+});
+test('runAccess: 조회 실패·조회 전·둘러보기는 숨긴다', function () {
+  const f = wf.runAccess(MEM_P, OK_S, REC, null, true);
+  assert.strictEqual(f.allowed, false);
+  assert.ok(f.reason.indexOf('확인하지 못') >= 0);
+  assert.deepStrictEqual(wf.runAccess(MEM_P, OK_S, REC, null, false), { allowed: false, reason: '' });
+  assert.strictEqual(wf.runAccess(LEAD_P, { mode: 'guest', emp: '' }, REC, [], false).allowed, false);
+});
+test('mineBidCaseIds: 배열이 아니면 null(실패 취급), 항목에서 bid_case_id만 뽑는다', function () {
+  assert.deepStrictEqual(wf.mineBidCaseIds([{ bid_case_id: 'A', assigned_at: 1 }, null, {}]), ['A']);
+  assert.strictEqual(wf.mineBidCaseIds({ detail: 'x' }), null);
+  assert.strictEqual(wf.mineBidCaseIds(undefined), null);
+});
+test('run 403: 서버 한글 메시지를 그대로 쓴다(화면은 textContent라 이스케이프됨)', function () {
+  const m = '분석 실행은 영업팀장 또는 이 기관 입찰 건의 담당자만 할 수 있습니다.';
+  assert.strictEqual(wf.failText(403, { detail: m }), m);
+  assert.strictEqual(wf.failText(403, { message: m }), m);
+});

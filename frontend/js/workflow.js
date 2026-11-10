@@ -34,6 +34,25 @@
     return !status.running && !status.pending_gate && Number(status.stage) < 9;
   };
 
+  // 실행 권한 — 영업팀장 또는 그 기관 입찰 건의 활성 담당자(서버 /run이 아니면 403).
+  // mineIds: GET /me/assignments의 bid_case_id 배열. null이면 아직 못 받았거나 조회 실패.
+  workflow.RUN_LEAD = '영업팀장';
+  workflow.mineBidCaseIds = function (list) {
+    if (!Array.isArray(list)) return null;
+    return list.map(function (x) { return x && x.bid_case_id; }).filter(Boolean);
+  };
+  workflow.runAccess = function (profile, session, record, mineIds, mineFailed) {
+    const p = profile || {}, s = session || {};
+    if (s.mode !== 'account' || !/^[0-9]{7}$/.test(s.emp || '')) {
+      return { allowed: false, reason: '분석 실행은 로그인한 영업팀장 또는 이 기관 입찰 건의 담당자만 할 수 있습니다.' };
+    }
+    if ((p.team || '').trim() === workflow.RUN_LEAD) return { allowed: true, reason: '' };
+    if (mineFailed) return { allowed: false, reason: '담당 정보를 확인하지 못해 실행 버튼을 숨겼습니다. 화면을 새로 고쳐 주세요.' };
+    if (!Array.isArray(mineIds)) return { allowed: false, reason: '' };   // 조회 중 — 깜빡임 방지로 말은 하지 않는다
+    if (record && record.bidCaseId && mineIds.indexOf(record.bidCaseId) >= 0) return { allowed: true, reason: '' };
+    return { allowed: false, reason: '분석 실행은 영업팀장 또는 이 기관 입찰 건의 담당자만 할 수 있습니다.' };
+  };
+
   // 게이트 승인·반려 권한 — 영업부장만(서버 /checkpoint가 아니면 403). 화면은 숨기지 않고
   // 비활성+이유로 보여준다. 둘러보기(사번 없음)도 비활성. 신원은 로그인 세션·프로필에서 읽는다.
   const FINAL_APPROVER = (root.roles && root.roles.FINAL_APPROVER) || '영업부장';
@@ -627,6 +646,20 @@
     });
   }
 
+  // 내 담당 입찰 건 — team.js와 같은 GET /me/assignments. 실패하면 버튼을 숨기고 화면은 그대로 둔다.
+  let mineIds = null, mineFailed = false, mineSeq = 0;
+  function loadMine() {
+    const token = ++mineSeq;
+    return getJson('/me/assignments').then(function (list) {
+      if (token !== mineSeq) return;
+      mineIds = workflow.mineBidCaseIds(list);
+      mineFailed = mineIds === null;
+    }).catch(function () {
+      if (token !== mineSeq) return;
+      mineIds = null; mineFailed = true;
+    }).then(function () { if (el('wf-run')) syncButtons(); });
+  }
+
   // 현황판을 통째로 다시 그린다 — 카드가 단계에 딸려 있어 단계가 바뀌면 카드도 바뀐다.
   // 선택한 기관의 대시보드 레코드 — 공고 일정·참여 결정이 여기 실려 있다(계획 D).
   function currentRecord() {
@@ -738,7 +771,11 @@
   function syncButtons() {
     const run = el('wf-run'), ok = el('wf-approve'), no = el('wf-reject');
     if (!run) return;
-    run.disabled = !workflow.runnable(lastStatus);
+    const ra = workflow.runAccess(root.store.loadProfile(), root.store.loadSession(), currentRecord(), mineIds, mineFailed);
+    run.style.display = ra.allowed ? '' : 'none';
+    run.disabled = !ra.allowed || !workflow.runnable(lastStatus);
+    const rh = el('wf-run-hint');
+    if (rh) rh.textContent = ra.allowed ? '' : ra.reason;
     const gated = !!(lastStatus && lastStatus.pending_gate);
     const acc = workflow.gateAccess(root.store.loadProfile(), root.store.loadSession());
     ok.disabled = no.disabled = !(gated && acc.allowed);
@@ -748,7 +785,12 @@
     if (hint) hint.textContent = showWhy ? acc.reason : '';
     ok.title = no.title = showWhy ? acc.reason : '';
   }
-  workflow.onProfileChange = function () { if (el('wf-run')) syncButtons(); };   // 계정 전환 때 app.js가 부른다
+  workflow.onProfileChange = function () {   // 계정 전환 때 app.js가 부른다 — 담당 목록도 다시 받는다
+    if (!el('wf-run')) return;
+    mineIds = null; mineFailed = false;
+    syncButtons();
+    loadMine();
+  };
 
   function showActErr(text) { const e = el('wf-act-err'); if (e) e.textContent = text; }
 
@@ -778,6 +820,7 @@
         return '<option value="' + esc(r.institutionId) + '">' + esc(r.name) + '</option>';
       }).join('') + '</select>' +
       '<button id="wf-run">▶ 실행</button>' +
+      '<span id="wf-run-hint" class="wf-hint" role="status"></span>' +
       // 결재자는 서버가 로그인 사번의 이름으로 기록한다 — 입력칸을 두지 않는다.
       '<input id="wf-comment" placeholder="의견(선택)" size="20" aria-label="결재 의견">' +
       '<button id="wf-approve" aria-describedby="wf-gate-hint">승인</button>' +
@@ -808,6 +851,7 @@
 
   workflow.mount = function () {
     renderControls();
+    loadMine();
     const sel = el('wf-inst');
     if (selectedId && sel) sel.value = selectedId;   // 상세로 들어가면 다시 선택되므로 폴링은 시작하지 않는다
     setMode('list');
