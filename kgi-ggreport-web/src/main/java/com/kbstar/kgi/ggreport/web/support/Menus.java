@@ -46,6 +46,19 @@ public final class Menus {
 
     public static final List<String> MENU_KEYS = menuKeys();
 
+    /**
+     * 접근 이력 화면 이름 허용 목록(전체 이름, NEXT 70 F-2). 메뉴 키 8개 + 시스템 관리 보기 4개 + 하위 화면.
+     * 프런트 nav.screenName 이 보내는 값과 맞춘다 — 새 화면 이름을 쓰면 여기도 더한다.
+     */
+    public static final List<String> SCREENS = screens();
+
+    private static List<String> screens() {
+        List<String> out = new ArrayList<>(MENU_KEYS);
+        out.addAll(Arrays.asList(ADMIN_MENU + ":users", ADMIN_MENU + ":perms", ADMIN_MENU + ":menus", ADMIN_MENU + ":audit",
+                "tasks:board", "tasks:board_review", "tasks:prep", "tasks:team"));
+        return Collections.unmodifiableList(out);
+    }
+
     private static final Map<String, Map<String, Boolean>> DEFAULT_MENUS = defaults();
 
     /** 모르는 역할(오타·옛 소속)에게 주는 값. 관리 화면이나 결재함을 열어주지 않는다(알려진 역할은 결재함이 전원 켜짐). */

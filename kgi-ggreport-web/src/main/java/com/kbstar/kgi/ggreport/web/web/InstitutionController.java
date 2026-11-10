@@ -16,6 +16,7 @@ import com.kbstar.kgi.ggreport.web.dto.ImportResponse;
 import com.kbstar.kgi.ggreport.web.dto.TimelineResponse;
 import com.kbstar.kgi.ggreport.web.dto.WorkflowStatusResponse;
 import com.kbstar.kgi.ggreport.web.support.InstitutionCsv;
+import com.kbstar.kgi.ggreport.web.service.BidCaseQueryService;
 import com.kbstar.kgi.ggreport.web.service.CorpusService;
 import com.kbstar.kgi.ggreport.web.service.CoverageMapService;
 import com.kbstar.kgi.ggreport.web.service.InstitutionCommandService;
@@ -71,6 +72,7 @@ public class InstitutionController {
     private final WorkflowStatusService workflow;
     private final OrchestratorService orchestrator;
     private final MenuGuard guard;
+    private final BidCaseQueryService bidCases;
 
     public InstitutionController(InstitutionService institutions,
                                  InstitutionCommandService institutionCommands,
@@ -78,8 +80,10 @@ public class InstitutionController {
                                  CoverageMapService coverageMap,
                                  WorkflowStatusService workflow,
                                  OrchestratorService orchestrator,
-                                 MenuGuard guard) {
+                                 MenuGuard guard,
+                                 BidCaseQueryService bidCases) {
         this.guard = guard;
+        this.bidCases = bidCases;
         this.institutions = institutions;
         this.institutionCommands = institutionCommands;
         this.corpus = corpus;
@@ -174,7 +178,16 @@ public class InstitutionController {
      */
     @PostMapping("/{institutionId}/run")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public Map<String, String> run(@PathVariable String institutionId) {
+    public Map<String, String> run(@PathVariable String institutionId, HttpServletRequest req) {
+        // B4(NEXT 70, 사용자 11-10): 영업팀장 또는 그 기관 입찰 건의 활성 담당자만. 영업부장 제외. 그 밖은 403(DENIED).
+        // '진행 이상' 상태 조건은 사전준비 표(024) 뒤에 더한다.
+        SysUser me = guard.requireActiveUser(req);
+        String role = me.getRole() == null ? null : me.getRole().trim();
+        if (!Teams.leadOf(Teams.DESIGNER_HOME_TEAM).equals(role)
+                && !bidCases.isActiveAssigneeOfInstitution(institutionId, me.getEmpNo())) {
+            throw guard.denied(req, new ApiException(403,
+                    "분석 실행은 영업팀장 또는 이 기관 입찰 건의 담당자만 할 수 있습니다."));
+        }
         orchestrator.start(institutions.require(institutionId));
         return Collections.singletonMap("status", "started");
     }

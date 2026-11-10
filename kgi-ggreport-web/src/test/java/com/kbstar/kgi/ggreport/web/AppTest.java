@@ -33,7 +33,7 @@ import java.lang.annotation.Target;
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-@SpringBootTest
+@SpringBootTest(properties = "ggreport.legacy-flow.open=true")   // 골든 10~14·25가 옛 흐름을 재생한다(NEXT 70)
 @AutoConfigureMockMvc
 public @interface AppTest {
 }

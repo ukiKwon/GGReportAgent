@@ -57,8 +57,8 @@ public class AccessLogInterceptor implements HandlerInterceptor {
             return true;
         }
         String last = path.substring(path.lastIndexOf('/') + 1);
-        if (last.indexOf('.') >= 0) {
-            return true;                                   // 정적 파일
+        if (last.indexOf('.') >= 0 && StaticCacheFilter.isStaticPath(path)) {
+            return true;                                   // 정적 파일 — 점이 있어도 API 다운로드(/tasks/1/files/a.xlsx)는 기록한다(NEXT 70 F7)
         }
         return "GET".equals(method) && path.endsWith("/status");   // 폴링
     }

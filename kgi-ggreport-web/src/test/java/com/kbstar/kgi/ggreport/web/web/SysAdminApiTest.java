@@ -265,6 +265,13 @@ public class SysAdminApiTest {
                 .andExpect(jsonPath("$.ok").value(false));
         mockMvc.perform(json(post("/auth/screen"), "{\"screen\":\"hacker\"}").header(Actor.HEADER, "5047192"))
                 .andExpect(jsonPath("$.ok").value(false));
+        // 전체 이름 허용 목록(NEXT 70 F-2): 앞부분(메뉴 키)만 맞는 거짓 이름은 버린다
+        for (String okName : new String[]{"map", "tasks:board", "tasks:prep", "tasks:team", "admin:audit"}) {
+            mockMvc.perform(json(post("/auth/screen"), "{\"screen\":\"" + okName + "\"}").header(Actor.HEADER, "5047192"))
+                    .andExpect(jsonPath("$.ok").value(true));
+        }
+        mockMvc.perform(json(post("/auth/screen"), "{\"screen\":\"tasks:anything\"}").header(Actor.HEADER, "5047192"))
+                .andExpect(jsonPath("$.ok").value(false));
     }
 
     @Test

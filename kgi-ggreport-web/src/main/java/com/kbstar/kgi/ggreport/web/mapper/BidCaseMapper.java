@@ -34,6 +34,9 @@ public interface BidCaseMapper {
     /** {@code get_bid_case}. 없으면 null. */
     BidCase selectById(@Param("bidCaseId") String bidCaseId);
 
+    /** 그 기관의 입찰 건 중 empNo 가 활성 담당자인 건 수(019 BID_ASSIGNMENT). */
+    int countActiveAssigneeByInstitution(@Param("institutionId") String institutionId, @Param("empNo") String empNo);
+
     /** 반입 유일키 {@code (SOURCE_SLUG, NOTICE_ID)} 로 찾는다. 없으면 null. */
     String selectIdByNotice(@Param("sourceSlug") String sourceSlug,
                             @Param("noticeId") String noticeId);

@@ -66,6 +66,12 @@
      WHERE BID_CASE_ID = #{bidCaseId}
   </select>
 
+  <!-- NEXT 70 B4: 그 기관 입찰 건의 활성 담당자인가. 양쪽 방언 같은 문장. -->
+  <select id="countActiveAssigneeByInstitution" resultType="int">
+    SELECT COUNT(*) FROM BID_ASSIGNMENT a JOIN BID_CASES b ON b.BID_CASE_ID = a.BID_CASE_ID
+     WHERE b.INSTITUTION_ID = #{institutionId} AND a.EMP_NO = #{empNo} AND a.ACTIVE_YN = 1
+  </select>
+
   <select id="selectIdByNotice" resultType="string">
     SELECT BID_CASE_ID
       FROM BID_CASES

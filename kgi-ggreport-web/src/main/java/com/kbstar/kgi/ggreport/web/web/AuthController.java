@@ -55,8 +55,7 @@ public class AuthController {
     @PostMapping("/screen")
     public Map<String, Object> screen(@RequestBody SysAdminIn.Screen in, HttpServletRequest req) {
         String s = in.getScreen();
-        boolean ok = s != null && s.matches("[a-z]{2,20}(:[a-z_]{2,20})?")
-                && Menus.MENU_KEYS.contains(s.split(":")[0]);
+        boolean ok = s != null && Menus.SCREENS.contains(s);   // 전체 이름 허용 목록(NEXT 70 F-2) — 앞부분만 맞는 거짓 화면명을 버린다
         if (ok) {
             accessLog.record(Actor.of(req), "SCREEN_VIEW", "POST", "/auth/screen", 200,
                     req.getRemoteAddr(), req.getHeader("User-Agent"), null, s);

@@ -6,6 +6,7 @@ import com.kbstar.kgi.ggreport.web.domain.BidCaseFinalizeIn;
 import com.kbstar.kgi.ggreport.web.domain.ParticipationDecisionIn;
 import com.kbstar.kgi.ggreport.web.domain.ParticipationDecisionOut;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
+import com.kbstar.kgi.ggreport.web.support.LegacyFlowSwitch;
 import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.dto.BidCaseCreateIn;
 import com.kbstar.kgi.ggreport.web.service.BidCaseCommandService;
@@ -40,12 +41,16 @@ public class BidCaseController {
     private final BidCaseCommandService commands;
 
     private final MenuGuard guard;
+    private final AdminGuard adminGuard;
+    private final LegacyFlowSwitch legacy;
 
     public BidCaseController(BidCaseQueryService bidCases, BidCaseCommandService commands,
-                             MenuGuard guard) {
+                             MenuGuard guard, AdminGuard adminGuard, LegacyFlowSwitch legacy) {
         this.bidCases = bidCases;
         this.commands = commands;
         this.guard = guard;
+        this.adminGuard = adminGuard;
+        this.legacy = legacy;
     }
 
     /** 참여결정 단계별 결재 역할(1=영업팀, 2=영업팀장, 3=영업부장). 범위 밖이면 null(서비스가 400). */
@@ -60,7 +65,11 @@ public class BidCaseController {
 
     /** 공고 생성 — 골든 {@code 10}. 본문에서 쓰는 것은 {@code institution_id} 뿐이다. */
     @PostMapping
-    public BidCase create(@RequestBody BidCaseCreateIn body) {
+    public BidCase create(@RequestBody BidCaseCreateIn body, HttpServletRequest req) {
+        // B5(NEXT 70): 옛 흐름이 닫히면 건은 '제안 확정'이 만든다 — 직접 생성은 관리자 전용(401/403 은 AdminGuard 가 DENIED 로 남김)
+        if (!legacy.isOpen()) {
+            adminGuard.require(req);
+        }
         return commands.create(body.getInstitutionId());
     }
 
@@ -77,6 +86,12 @@ public class BidCaseController {
         // 401/403 은 MenuGuard 가 DENIED 로 남긴다. 단계별 역할: 1=영업팀, 2=영업팀장, 3=영업부장.
         // ⚠️ X-Emp-No 자기신고 위의 업무 규칙(실수·선착순 방지)이지 사칭 방지가 아니다.
         // 저장되는 by·role 은 아직 본문 값이다(골든 11~13 유지) — USERS 값 저장은 019 배정과 함께.
+        // B1(NEXT 70, J-1): 옛 흐름이 닫히면 참여 결정 3단은 410 — 신원 확인 뒤 DENIED 로 남긴다.
+        if (!legacy.isOpen()) {
+            guard.requireActiveUser(req);
+            throw guard.denied(req, new ApiException(410,
+                    "참여 결정 3단 결재는 더 이상 쓰지 않습니다. 제안 확정·개설 신청 흐름을 이용하세요."));
+        }
         String need = decisionRole(body.getTier());
         if (need == null) {
             guard.requireUser(req, "approvals");   // 신원만 보고 범위 밖 tier 는 서비스가 400
@@ -92,7 +107,15 @@ public class BidCaseController {
      */
     @GetMapping
     public List<BidCase> forAssignee(@RequestParam("team") String team,
-                                     @RequestParam("assignee") String assignee) {
+                                     @RequestParam("assignee") String assignee,
+                                     HttpServletRequest req) {
+        // B5: 옛 흐름이 닫히면 본인 이름 조회만(남의 담당 건 차단). 이름 일치라 동명이인 한계 — 프런트는 쓰지 않는 경로.
+        if (!legacy.isOpen()) {
+            SysUser me = guard.requireActiveUser(req);
+            if (me.getName() == null || !me.getName().equals(assignee.trim())) {
+                throw guard.denied(req, new ApiException(403, "본인이 담당한 건만 조회할 수 있습니다."));
+            }
+        }
         return bidCases.forAssignee(team, assignee);
     }
 
@@ -103,7 +126,11 @@ public class BidCaseController {
     }
 
     @GetMapping("/{bidCaseId}")
-    public BidCaseDetail detail(@PathVariable String bidCaseId) {
+    public BidCaseDetail detail(@PathVariable String bidCaseId, HttpServletRequest req) {
+        // B5: 옛 흐름이 닫히면 활성 사용자 + 워크플로 열람 권한
+        if (!legacy.isOpen()) {
+            guard.require(req, "workflow");
+        }
         return bidCases.detail(bidCaseId);
     }
 

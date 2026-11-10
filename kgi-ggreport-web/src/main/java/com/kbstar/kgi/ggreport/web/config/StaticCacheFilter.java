@@ -69,6 +69,9 @@ public class StaticCacheFilter implements Filter {
         if (p.isEmpty() || "/".equals(p)) {
             return REVALIDATE;          // 진입점
         }
+        if (!isStaticPath(p)) {
+            return null;           // API 경로(…/files/x.png 등)에는 붙이지 않는다 — 권한 회수 뒤 브라우저 캐시 잔존 방지(NEXT 70 D9)
+        }
         int dot = p.lastIndexOf('.');
         if (dot < 0 || dot < p.lastIndexOf('/')) {
             return null;
@@ -82,5 +85,18 @@ public class StaticCacheFilter implements Filter {
             default:
                 return null;
         }
+    }
+
+    /** 화면 정적 파일의 최상위 폴더. frontend/ 에 새 폴더를 만들면 여기도 더한다(StaticCacheApiTest 가 대조한다). */
+    static final java.util.Set<String> STATIC_DIRS = new java.util.HashSet<String>(
+            java.util.Arrays.asList("js", "css", "img", "geo", "data", "vendor", "fonts"));
+
+    /** 컨텍스트 경로·세미콜론을 뗀 경로가 화면 정적 파일인가: 루트 직속 파일이거나 정적 폴더 아래. */
+    public static boolean isStaticPath(String p) {
+        if (p == null || !p.startsWith("/")) {
+            return false;
+        }
+        int second = p.indexOf('/', 1);
+        return second < 0 || STATIC_DIRS.contains(p.substring(1, second));
     }
 }

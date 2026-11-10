@@ -28,6 +28,11 @@ public class BidCaseQueryService {
         return bidCaseMapper.selectForAssignee(team, assignee);
     }
 
+    /** 그 기관의 어느 입찰 건이든 empNo 가 활성 담당자인가(019 BID_ASSIGNMENT). NEXT 70 B4 실행 가드. */
+    public boolean isActiveAssigneeOfInstitution(String institutionId, String empNo) {
+        return bidCaseMapper.countActiveAssigneeByInstitution(institutionId, empNo) > 0;
+    }
+
     /** 기관별 최신 공고 — 지도가 전체 기관의 입찰일을 그리는 데 쓴다. */
     public List<BidCase> latest() {
         return bidCaseMapper.selectLatestPerInstitution();
