@@ -177,6 +177,28 @@ public class BidAssignmentService {
         return out;
     }
 
+    /** 담당자 후보 — 열람자 규칙은 배정 조회와 같다(영업팀·영업팀장·영업부장, 그 외 403). 본인 포함, 이름순. */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> candidates(SysUser me) {
+        requireSalesTeam(me);
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (SysUser u : mapper.selectCandidates(MEMBER_ROLE, LEAD_ROLE)) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("emp_no", u.getEmpNo());
+            m.put("name", u.getName());
+            m.put("position_title", u.getPositionTitle());
+            m.put("role", roleOf(u));
+            out.add(m);
+        }
+        return out;
+    }
+
+    /** 결재 요청 제목 — {@code 담당자 변경 — 기관명}. 기관을 못 찾으면 bid_case_id 를 쓴다. */
+    public String changeTitle(String bidCaseId) {
+        String name = mapper.selectInstitutionName(bidCaseId);
+        return "담당자 변경 — " + (name == null || name.trim().isEmpty() ? bidCaseId : name.trim());
+    }
+
     // ── 담당자 변경 결재 (S2-b) ────────────────────────────────────────
 
     /** 검증을 통과한 변경 신청 계획 — 결재선(approver)까지 서버가 정한다. */
@@ -518,8 +540,25 @@ public class BidAssignmentService {
         m.put("req_id", r.getReqId());
         m.put("add_emp_nos", textList(p.path("add_emp_nos")));
         m.put("remove_emp_nos", textList(p.path("remove_emp_nos")));
+        m.put("add_people", people(textList(p.path("add_emp_nos"))));
+        m.put("remove_people", people(textList(p.path("remove_emp_nos"))));
         m.put("requested_by", r.getRequesterEmpNo());
+        SysUser requester = users.selectByEmpNo(r.getRequesterEmpNo());
+        m.put("requested_by_name", requester == null ? null : requester.getName());
         return m;
+    }
+
+    /** 사번 목록 → [{emp_no,name}]. USERS 에 없으면 name 은 null. 읽기만 한다. */
+    private List<Map<String, Object>> people(List<String> empNos) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (String e : empNos) {
+            SysUser u = users.selectByEmpNo(e);
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("emp_no", e);
+            m.put("name", u == null ? null : u.getName());
+            out.add(m);
+        }
+        return out;
     }
 
     private static JsonNode readPayload(String s) {

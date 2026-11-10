@@ -315,4 +315,62 @@ public class BidAssignmentApiTest {
                 LEAD, bc, MEMBER);
         assertFalse(service.isActiveAssignee(bc, MEMBER));
     }
+
+    // ── 담당자 후보 ──────────────────────────────────────────────────
+
+    @Test
+    public void 후보는_활성_영업팀과_영업팀장_본인_포함이고_열람자_규칙은_배정_조회와_같다() throws Exception {
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", MEMBER2);   // 비활성은 제외돼야 한다
+        newCase();   // MyBatis 쓰기로 1차 캐시를 비운다(JdbcTemplate 로 USERS 를 바꾼 뒤)
+        for (String emp : new String[]{MEMBER, LEAD, HEAD}) {
+            MvcResult r = getAs("/assignment-candidates", emp);
+            assertEquals(emp, 200, r.getResponse().getStatus());
+            JsonNode arr = json(r);
+            assertTrue(arr.isArray());
+            java.util.Set<String> emps = new java.util.HashSet<>();
+            for (JsonNode n : arr) {
+                emps.add(n.path("emp_no").asText());
+                assertFalse(n.path("name").asText().isEmpty());
+                String role = n.path("role").asText();
+                assertTrue(role.equals("영업팀") || role.equals("영업팀장"));
+                assertTrue(n.has("position_title"));
+            }
+            assertTrue(emps.contains(MEMBER));
+            assertTrue(emps.contains(LEAD));
+            assertTrue(emps.contains("5640327"));
+            assertFalse(emps.contains(MEMBER2));
+            assertFalse(emps.contains(HEAD));
+            assertFalse(emps.contains(DESIGNER));
+            assertFalse(emps.contains(ADMIN));
+            assertFalse(emps.contains(IT));
+            assertEquals(count("SELECT COUNT(*) FROM USERS WHERE STATUS='ACTIVE' AND ROLE IN ('영업팀','영업팀장')"), arr.size());
+        }
+    }
+
+    @Test
+    public void 후보_목록은_DB_이름순과_같고_키는_네_개다() throws Exception {
+        JsonNode arr = json(getAs("/assignment-candidates", LEAD));
+        List<String> expected = jdbc.queryForList(
+                "SELECT EMP_NO FROM USERS WHERE STATUS='ACTIVE' AND ROLE IN ('영업팀','영업팀장') ORDER BY NAME, EMP_NO", String.class);
+        assertEquals(expected.size(), arr.size());
+        for (int i = 0; i < expected.size(); i++) {
+            assertEquals(expected.get(i), arr.get(i).path("emp_no").asText());
+        }
+        assertEquals(4, arr.get(0).size());   // emp_no, name, position_title, role
+    }
+
+    @Test
+    public void 후보는_디자이너_관리자_전산팀이_403_사번_없음_401_미등록_403() throws Exception {
+        for (String emp : new String[]{DESIGNER, ADMIN, IT}) {
+            assertEquals(emp, 403, getAs("/assignment-candidates", emp).getResponse().getStatus());
+        }
+        assertEquals(401, getAs("/assignment-candidates", null).getResponse().getStatus());
+        assertEquals(403, getAs("/assignment-candidates", "9999999").getResponse().getStatus());
+        assertEquals(200, getAs("/assignment-candidates", LEAD).getResponse().getStatus());
+        List<String> details = jdbc.queryForList(
+                "SELECT DETAIL FROM ACCESS_LOG WHERE REQ_PATH='/assignment-candidates' AND STATUS_CODE=200", String.class);
+        for (String d : details) {
+            assertTrue(d == null || (!d.contains(MEMBER) && !d.contains("김영업")));
+        }
+    }
 }

@@ -37,6 +37,21 @@
      ORDER BY a.ASSIGNED_AT, a.EMP_NO
   </select>
 
+  <!-- 담당자 후보: 활성 영업팀·영업팀장(본인 포함). SysUser 의 empNo·name·role·positionTitle 만 채운다. -->
+  <select id="selectCandidates" resultType="SysUser">
+    SELECT EMP_NO, NAME, ROLE, POSITION_TITLE
+      FROM USERS
+     WHERE STATUS = 'ACTIVE' AND ROLE IN (#{memberRole}, #{leadRole})
+     ORDER BY NAME, EMP_NO
+  </select>
+
+  <select id="selectInstitutionName" resultType="string">
+    SELECT i.NAME_KO
+      FROM BID_CASES b
+      JOIN INSTITUTIONS i ON i.INSTITUTION_ID = b.INSTITUTION_ID
+     WHERE b.BID_CASE_ID = #{bidCaseId}
+  </select>
+
   <select id="selectLog" resultType="BidAssignLogView">
     SELECT l.ACTION_CD, c.CODE_NAME AS ACTION_NAME, l.TARGET_EMP_NO, t.NAME AS TARGET_NAME, l.REQ_ID, l.REASON,
            l.ACTOR_EMP_NO, ac.NAME AS ACTOR_NAME, l.EMP_VERIFIED, l.LOGGED_AT

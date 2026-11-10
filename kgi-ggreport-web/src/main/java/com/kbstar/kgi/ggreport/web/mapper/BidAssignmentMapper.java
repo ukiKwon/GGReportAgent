@@ -4,6 +4,7 @@ import com.kbstar.kgi.ggreport.web.domain.BidAssignCase;
 import com.kbstar.kgi.ggreport.web.domain.BidAssignLogView;
 import com.kbstar.kgi.ggreport.web.domain.BidAssignMine;
 import com.kbstar.kgi.ggreport.web.domain.BidAssigneeView;
+import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -29,6 +30,12 @@ public interface BidAssignmentMapper {
                   @Param("verified") int verified, @Param("now") String now);
 
     List<BidAssigneeView> selectActiveAssignees(@Param("bidCaseId") String bidCaseId);
+
+    /** 담당자 후보 — ACTIVE 이고 ROLE 이 memberRole 또는 leadRole 인 사용자, 이름순. */
+    List<SysUser> selectCandidates(@Param("memberRole") String memberRole, @Param("leadRole") String leadRole);
+
+    /** 입찰 건의 기관 이름(NAME_KO). 입찰 건이나 기관 행이 없으면 null. */
+    String selectInstitutionName(@Param("bidCaseId") String bidCaseId);
 
     List<BidAssignLogView> selectLog(@Param("bidCaseId") String bidCaseId);
 

@@ -121,7 +121,7 @@ public class ApprovalRequestService {
         ApprovalRequest r = new ApprovalRequest();
         r.setReqType(ApprovalTypes.ASSIGNEE_CHANGE);
         r.setRequesterEmpNo(me.getEmpNo());
-        r.setTitle("담당자 변경 — " + plan.getBidCaseId());
+        r.setTitle(assignments.changeTitle(plan.getBidCaseId()));
         r.setPayload(write(payload));
         r.setStatus("PENDING");
         r.setCurrentStep(1);

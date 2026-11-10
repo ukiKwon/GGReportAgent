@@ -83,6 +83,16 @@ public class BidAssignmentController {
         return out;
     }
 
+    /**
+     * 담당자 후보(활성 영업팀·영업팀장, 본인 포함, 이름순). 열람자 규칙은 배정 조회와 같다 —
+     * 영업팀·영업팀장·영업부장만, 디자이너·관리자 403(DENIED), 사번 없음 401. 접근 이력에 사번 목록·이름을 넣지 않는다.
+     */
+    @GetMapping("/assignment-candidates")
+    public List<Map<String, Object>> candidates(HttpServletRequest req) {
+        SysUser me = guard.requireActiveUser(req);
+        return denyLogged(req, () -> assignments.candidates(me));
+    }
+
     /** 내가 현재 담당인 입찰 건 — 로그인한 누구나(자기 것만). */
     @GetMapping("/me/assignments")
     public List<Map<String, Object>> mine(HttpServletRequest req) {

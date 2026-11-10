@@ -712,4 +712,44 @@ public class AssigneeChangeApiTest {
         assertEquals(200, postJson("/approval-requests/" + permId + "/cancel", ADMIN, "{}").getResponse().getStatus());
         assertEquals("CANCELLED", reqStatus(permId));
     }
+
+    @Test
+    public void 대기_변경에_이름이_붙는다_추가_해제_상신자_기존_키는_그대로() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER, MEMBER2);
+        long id = submitOk(MEMBER, bc, a(M3), a(MEMBER2));
+        JsonNode pc = json(getAs("/bidcases/" + bc + "/assignments", MEMBER)).path("pending_change");
+        assertEquals(id, pc.path("req_id").asLong());
+        assertEquals(M3, pc.path("add_emp_nos").get(0).asText());
+        assertEquals(MEMBER2, pc.path("remove_emp_nos").get(0).asText());
+        assertEquals(MEMBER, pc.path("requested_by").asText());
+        assertEquals(1, pc.path("add_people").size());
+        assertEquals(M3, pc.path("add_people").get(0).path("emp_no").asText());
+        assertEquals(jdbc.queryForObject("SELECT NAME FROM USERS WHERE EMP_NO=?", String.class, M3),
+                pc.path("add_people").get(0).path("name").asText());
+        assertEquals(MEMBER2, pc.path("remove_people").get(0).path("emp_no").asText());
+        assertEquals(jdbc.queryForObject("SELECT NAME FROM USERS WHERE EMP_NO=?", String.class, MEMBER2),
+                pc.path("remove_people").get(0).path("name").asText());
+        assertEquals(jdbc.queryForObject("SELECT NAME FROM USERS WHERE EMP_NO=?", String.class, MEMBER),
+                pc.path("requested_by_name").asText());
+        assertEquals(2, pc.path("add_people").get(0).size());
+    }
+
+    @Test
+    public void 신청_제목은_담당자_변경_기관명이고_기관이_없으면_건번호() throws Exception {
+        String inst = jdbc.queryForObject("SELECT NAME_KO FROM INSTITUTIONS WHERE INSTITUTION_ID='nowon'", String.class);
+        String bc = newCase();
+        initial(bc, MEMBER);
+        MvcResult r = change(MEMBER, bc, a(MEMBER2), a(), "인력 보강");
+        assertEquals(201, r.getResponse().getStatus());
+        assertEquals("담당자 변경 — " + inst, json(r).path("title").asText());
+
+        String bc2 = newCase();
+        initial(bc2, MEMBER);
+        jdbc.update("UPDATE BID_CASES SET INSTITUTION_ID='no-such-inst' WHERE BID_CASE_ID=?", bc2);
+        flushCache();
+        MvcResult r2 = change(MEMBER, bc2, a(MEMBER2), a(), "인력 보강");
+        assertEquals(201, r2.getResponse().getStatus());
+        assertEquals("담당자 변경 — " + bc2, json(r2).path("title").asText());
+    }
 }
