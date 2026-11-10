@@ -2,7 +2,9 @@ package com.kbstar.kgi.ggreport.web.service;
 
 import com.kbstar.kgi.ggreport.web.config.AppProperties;
 import com.kbstar.kgi.ggreport.web.domain.Institution;
+import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.dto.ApprovalItem;
+import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.dto.ApprovalsResponse;
 import com.kbstar.kgi.ggreport.web.dto.TeamStatus;
 import com.kbstar.kgi.ggreport.web.mapper.InstitutionMapper;
@@ -38,9 +40,12 @@ public class ApprovalsService {
     private final InstitutionMapper institutions;
     private final OrchestratorService orchestrator;
     private final AppProperties properties;
+    private final SysUserMapper users;
 
     public ApprovalsService(TaskMapper tasks, InstitutionMapper institutions,
-                            OrchestratorService orchestrator, AppProperties properties) {
+                            OrchestratorService orchestrator, AppProperties properties,
+                            SysUserMapper users) {
+        this.users = users;
         this.tasks = tasks;
         this.institutions = institutions;
         this.orchestrator = orchestrator;
@@ -93,6 +98,24 @@ public class ApprovalsService {
                         && Teams.APPROVED_STATUS.equals(row.getStatus()));
                 row.setFiles(filesOf(row));
                 items.add(row);
+            }
+        }
+
+        // 팀장이 직접 맡은 작업은 영업부장이 1차 결재한다(2026-11-10) — 영업부장 결재함에도 올린다.
+        if (Teams.FINAL_APPROVER.equals(role)) {
+            List<TeamStatus> pairs = new ArrayList<>();
+            for (String team : Teams.AUTHORING_TEAMS) {
+                pairs.add(new TeamStatus(team, Teams.SUBMITTED_STATUS));
+            }
+            pairs.add(new TeamStatus(Teams.DESIGNER_TEAM, Teams.SUBMITTED_STATUS));
+            List<SysUser> all = users.selectAll();
+            for (ApprovalItem row : tasks.selectApprovalQueue(pairs)) {
+                if (TaskCommandService.isLeadOwned(all, row.getTeam(), row.getAssignee())) {
+                    row.setKind("task");
+                    row.setFinalApproval(false);
+                    row.setFiles(filesOf(row));
+                    items.add(row);
+                }
             }
         }
 

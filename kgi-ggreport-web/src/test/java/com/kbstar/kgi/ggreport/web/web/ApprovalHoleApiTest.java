@@ -102,6 +102,63 @@ public class ApprovalHoleApiTest {
         return mockMvc.perform(b).andReturn().getResponse().getStatus();
     }
 
+    /** 실제 입찰 건에 묶인 작업 — 맥락 조회(selectContext)까지 지나 승인이 끝까지 간다. */
+    private String realTask(String taskId, String team, String assignee, String status) throws Exception {
+        String res = mockMvc.perform(post("/bidcases").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"institution_id\":\"nowon\",\"title\":\"결재 테스트\"}")
+                        .header("X-User-Id", "dave"))
+                .andReturn().getResponse().getContentAsString();
+        String bc = new com.fasterxml.jackson.databind.ObjectMapper().readTree(res).path("bid_case_id").asText();
+        tasks.insert(taskId, bc, team);
+        tasks.claimAssigneeIfUnset(taskId, assignee);
+        tasks.updateStatus(taskId, status);
+        return taskId;
+    }
+
+    @Test
+    public void 실제_입찰건_작업은_팀장이_결재하고_상태가_바뀐다() throws Exception {
+        String id = realTask("task-hole1001", "영업", "dave", Teams.SUBMITTED_STATUS);
+        assertEquals(200, approve(id, "5047192"));
+        assertEquals(Teams.APPROVED_STATUS, tasks.selectById(id).getStatus());
+    }
+
+    @Test
+    public void 팀장이_담당한_작업은_영업부장만_결재한다() throws Exception {
+        String id = realTask("task-hole1002", "영업", "이영업", Teams.SUBMITTED_STATUS);   // 5047192 = 이영업
+        assertEquals(403, approve(id, "5047192"));   // 본인 작업 결재 금지
+        assertEquals(403, approve(id, "3918264"));
+        assertEquals(200, approve(id, "2674805"));   // 영업부장이 결재
+        assertEquals(Teams.APPROVED_STATUS, tasks.selectById(id).getStatus());
+    }
+
+    @Test
+    public void 같은_역할의_다른_사람이_이어받아도_된다() throws Exception {
+        String id = realTask("task-hole1003", "영업", "dave", Teams.SUBMITTED_STATUS);
+        tasks.claimApproverIfUnset(id, "먼저잡은사람");
+        assertEquals(200, approve(id, "5640327"));   // 안재원(영업팀장)
+    }
+
+    @Test
+    public void 사번도_헤더도_없으면_400이_아니라_401이다() throws Exception {
+        String id = realTask("task-hole1004", "영업", "dave", Teams.SUBMITTED_STATUS);
+        assertEquals(401, mockMvc.perform(post("/tasks/" + id + "/approve")
+                        .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andReturn().getResponse().getStatus());
+    }
+
+    @Test
+    public void 영업부장_결재함에_팀장_담당_작업이_올라온다() throws Exception {
+        realTask("task-hole1005", "영업", "이영업", Teams.SUBMITTED_STATUS);
+        String boss = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/approvals").header("X-Emp-No", "2674805"))
+                .andReturn().getResponse().getContentAsString();
+        assertEquals(true, boss.contains("task-hole1005"));
+        String lead = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/approvals").header("X-Emp-No", "5047192"))
+                .andReturn().getResponse().getContentAsString();
+        assertEquals("팀장 담당 건은 팀장 결재함에서 빠진다는 보장은 아니다 — 부장 결재함 포함만 고정", true, boss.length() > 0);
+    }
+
     @Test
     public void 체크포인트는_영업부장만_누른다() throws Exception {
         assertEquals(401, checkpoint(null));

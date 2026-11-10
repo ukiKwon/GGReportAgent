@@ -56,6 +56,10 @@ public class GoldenWriteScenarioTest {
     /** 결재 골든은 X-User-Id(표시명)만 갖는다 — 서버 역할 검사를 통과하도록 재생 때만 팀장 사번을 얹는다. */
     private static final java.util.Map<String, String> APPROVER_EMP = new java.util.HashMap<>();
     static {
+        APPROVER_EMP.put("11_participation_tier1", "3918264");   // 영업팀
+        APPROVER_EMP.put("12_participation_tier2", "5047192");   // 영업팀장
+        APPROVER_EMP.put("13_participation_tier3", "2674805");   // 영업부장
+        APPROVER_EMP.put("24_bidcase_finalize", "2674805");      // 영업부장
         APPROVER_EMP.put("17_task0_approve", "5047192");   // 영업팀장
         APPROVER_EMP.put("20_task1_approve", "9026715");   // 예산팀장
         APPROVER_EMP.put("23_task2_approve", "6295038");   // 전산팀장

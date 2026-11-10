@@ -103,6 +103,12 @@ public class MenuGuard {
         return u;
     }
 
+    /** 서비스·컨트롤러가 낸 403 을 DENIED 로 접근 이력에 남기고 같은 예외를 돌려준다(던지는 것은 호출자). 사유는 고정 문구만. */
+    public ApiException denied(HttpServletRequest req, ApiException e) {
+        deny(req, Actor.of(req), e.getStatus(), e.getMessage());
+        return e;
+    }
+
     private SysUser userOf(HttpServletRequest req, Actor actor) {
         SysUser u = users.selectByEmpNo(actor.getEmpNo());
         if (u == null) {   // require() 가 canView 로 걸러 정상 경로에선 오지 않는다(방어)

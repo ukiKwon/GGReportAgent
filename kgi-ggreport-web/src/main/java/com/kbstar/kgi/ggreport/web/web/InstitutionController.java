@@ -232,10 +232,10 @@ public class InstitutionController {
      * 아카이브하고 최신 공고를 {@code 제출완료} 로 바꾼다.
      */
     @PostMapping("/{institutionId}/complete")
-    public CompleteResponse complete(@PathVariable String institutionId) {
+    public CompleteResponse complete(@PathVariable String institutionId, HttpServletRequest req) {
         // 외부 호출 차단 — 제출 완료는 '최종 제출 확정' 결재의 승인 후처리에서만(NEXT 59·021).
         // InstitutionCommandService.complete 는 그때 쓸 내부 메서드로 그대로 둔다.
-        throw new ApiException(403, "제출 완료는 결재 절차로만 처리할 수 있습니다.");
+        throw guard.denied(req, new ApiException(403, "제출 완료는 결재 절차로만 처리할 수 있습니다."));
     }
 
     /** 배점표 항목 ↔ 팀 작성물 커버리지 — 배점표 매핑 뷰의 데이터원. */

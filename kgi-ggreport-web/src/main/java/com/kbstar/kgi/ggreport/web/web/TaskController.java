@@ -190,10 +190,17 @@ public class TaskController {
     @PostMapping("/{taskId}/approve")
     public Task approve(@PathVariable String taskId,
                         @RequestBody TaskApprovalIn body,
-                        @RequestHeader("X-User-Id") String userId,
+                        @RequestHeader(name = "X-User-Id", required = false) String userId,
                         HttpServletRequest req) {
         // 401/403 은 MenuGuard 가(접근 이력 DENIED). 역할·본인 검사는 서비스가 결재 단계를 보고 한다.
         SysUser approver = guard.requireUser(req, "approvals");
-        return commands.approve(taskId, body, userId, approver);
+        try {
+            return commands.approve(taskId, body, userId, approver);
+        } catch (ApiException e) {
+            if (e.getStatus() == 403) {
+                throw guard.denied(req, e);   // 역할·본인결재 403 도 DENIED 로 남긴다
+            }
+            throw e;
+        }
     }
 }

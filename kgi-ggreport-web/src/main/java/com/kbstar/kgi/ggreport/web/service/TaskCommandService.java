@@ -6,6 +6,7 @@ import com.kbstar.kgi.ggreport.web.domain.TaskApprovalIn;
 import com.kbstar.kgi.ggreport.web.domain.TaskDraftIn;
 import com.kbstar.kgi.ggreport.web.dto.TaskContext;
 import com.kbstar.kgi.ggreport.web.mapper.NotificationMapper;
+import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.mapper.TaskMapper;
 import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
@@ -31,9 +32,11 @@ public class TaskCommandService {
     private final TaskMapper tasks;
     private final NotificationMapper notificationMapper;
     private final NotificationCommandService notifications;
+    private final SysUserMapper users;
 
     public TaskCommandService(TaskMapper tasks, NotificationMapper notificationMapper,
-                              NotificationCommandService notifications) {
+                              NotificationCommandService notifications, SysUserMapper users) {
+        this.users = users;
         this.tasks = tasks;
         this.notificationMapper = notificationMapper;
         this.notifications = notifications;
@@ -85,7 +88,7 @@ public class TaskCommandService {
         tasks.updateStatus(taskId, Teams.SUBMITTED_STATUS);
 
         TaskContext ctx = requireContext(taskId);
-        for (String recipient : submitRecipients(ctx.getTeam())) {
+        for (String recipient : submitRecipients(ctx.getTeam(), isLeadOwned(task))) {
             notifications.create(recipient, "결재요청",
                     ctx.getInstitutionName() + " " + ctx.getTeam()
                             + " 작업물 제출 — 결재를 부탁드립니다.",
@@ -114,12 +117,17 @@ public class TaskCommandService {
      */
     @Transactional
     public Task approve(String taskId, TaskApprovalIn body, String userId, SysUser approver) {
-        String actor = actor(body.getBy(), userId);   // 저장되는 표시명(골든 17·20·23 호환)
+        String actor = (body.getBy() == null || body.getBy().trim().isEmpty())
+                && (userId == null || userId.trim().isEmpty())
+                ? approver.getName() : actor(body.getBy(), userId);   // 저장되는 표시명(골든 17·20·23 호환)
         Task task = requireTask(taskId);
 
         boolean finalStage = isFinalStage(task);
-        // 결재 역할: 최종 단계는 영업부장, 그 밖은 그 팀의 팀장(디자이너 1차는 영업팀장 — Teams.leadOf).
-        String needRole = finalStage ? Teams.FINAL_APPROVER : Teams.leadOf(task.getTeam());
+        // 담당자가 그 작업의 팀장 본인이면 1차 결재는 영업부장이 한다(사용자 확정 2026-11-10).
+        boolean leadOwned = !finalStage && isLeadOwned(task);
+        // 결재 역할: 최종 단계(또는 팀장 담당)는 영업부장, 그 밖은 그 팀의 팀장(디자이너 1차는 영업팀장).
+        String needRole = (finalStage || leadOwned)
+                ? Teams.FINAL_APPROVER : Teams.leadOf(task.getTeam());
         if (!needRole.equals(approver.getRole() == null ? null : approver.getRole().trim())) {
             throw new ApiException(403, "이 작업을 결재할 수 있는 역할이 아닙니다.");
         }
@@ -129,10 +137,8 @@ public class TaskCommandService {
                 || assignee.equals(approver.getName()) || assignee.equals(actor))) {
             throw new ApiException(403, "본인이 담당한 작업은 결재할 수 없습니다.");
         }
-        String held = finalStage ? task.getFinalApprover() : task.getApprover();
-        if (held != null && !held.equals(actor)) {
-            throw new ApiException(403, "only the approver can approve");
-        }
+        // 선점 잠금(held) 비교는 두지 않는다 — 역할 검사가 이미 "같은 역할만"을 보장하고,
+        // 같은 역할의 다른 사람이 이어받아도 된다(사용자 확정 2026-11-10). claim*IfUnset 은 처음 값을 유지한다.
         if (!finalStage && !Teams.SUBMITTED_STATUS.equals(task.getStatus())) {
             throw new ApiException(409, "task not submitted yet");
         }
@@ -184,10 +190,33 @@ public class TaskCommandService {
     }
 
     /** 제출을 결재할 사람. 팀 작업은 그 팀 팀장, <b>디자이너 작업도 영업팀장</b>이다. */
-    private List<String> submitRecipients(String team) {
+    private List<String> submitRecipients(String team, boolean leadOwned) {
         List<String> out = new ArrayList<String>();
-        out.add(Teams.leadOf(team));
+        out.add(leadOwned ? Teams.FINAL_APPROVER : Teams.leadOf(team));
         return out;
+    }
+
+    /** 담당자가 그 작업 팀의 팀장 본인인가 — USERS 의 활성 팀장 행과 사번 또는 이름이 같을 때. */
+    private boolean isLeadOwned(Task task) {
+        return isLeadOwned(users.selectAll(), task.getTeam(), task.getAssignee());
+    }
+
+    /** 이름 중복이면 더 높은 결재(영업부장)로 올라간다(안전한 방향). */
+    public static boolean isLeadOwned(List<SysUser> all, String team, String assignee) {
+        if (assignee == null || assignee.trim().isEmpty()) {
+            return false;
+        }
+        String leadRole = Teams.leadOf(team);
+        for (SysUser u : all) {
+            if (!"ACTIVE".equals(u.getStatus()) || u.getRole() == null
+                    || !leadRole.equals(u.getRole().trim())) {
+                continue;
+            }
+            if (assignee.equals(u.getEmpNo()) || assignee.equals(u.getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

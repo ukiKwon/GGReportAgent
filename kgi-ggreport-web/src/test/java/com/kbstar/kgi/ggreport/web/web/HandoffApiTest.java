@@ -149,7 +149,7 @@ public class HandoffApiTest {
         String bidCaseId = created.path("bid_case_id").asText();
 
         JsonNode confirmed = null;
-        for (String[] step : new String[][]{{"1", "alice"}, {"2", "bob"}, {"3", "carol"}}) {
+        for (String[] step : new String[][]{{"1", "alice", "3918264"}, {"2", "bob", "5047192"}, {"3", "carol", "2674805"}}) {
             String decision = json.createObjectNode()
                     .put("tier", Integer.parseInt(step[0]))
                     .put("role", "영업팀")
@@ -159,7 +159,7 @@ public class HandoffApiTest {
             confirmed = call(post("/bidcases/" + bidCaseId + "/participation-decisions")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(decision)
-                    .header("X-User-Id", step[1]));
+                    .header("X-User-Id", step[1]).header("X-Emp-No", step[2]));
         }
         assertEquals("참여확정이 아니다", "참여확정",
                 confirmed.path("participation_status").asText());

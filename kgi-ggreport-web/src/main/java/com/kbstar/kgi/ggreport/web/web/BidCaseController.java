@@ -5,6 +5,8 @@ import com.kbstar.kgi.ggreport.web.domain.BidCaseDetail;
 import com.kbstar.kgi.ggreport.web.domain.BidCaseFinalizeIn;
 import com.kbstar.kgi.ggreport.web.domain.ParticipationDecisionIn;
 import com.kbstar.kgi.ggreport.web.domain.ParticipationDecisionOut;
+import com.kbstar.kgi.ggreport.web.domain.SysUser;
+import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.dto.BidCaseCreateIn;
 import com.kbstar.kgi.ggreport.web.service.BidCaseCommandService;
 import com.kbstar.kgi.ggreport.web.service.BidCaseQueryService;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 
 /**
@@ -36,9 +39,23 @@ public class BidCaseController {
     private final BidCaseQueryService bidCases;
     private final BidCaseCommandService commands;
 
-    public BidCaseController(BidCaseQueryService bidCases, BidCaseCommandService commands) {
+    private final MenuGuard guard;
+
+    public BidCaseController(BidCaseQueryService bidCases, BidCaseCommandService commands,
+                             MenuGuard guard) {
         this.bidCases = bidCases;
         this.commands = commands;
+        this.guard = guard;
+    }
+
+    /** 참여결정 단계별 결재 역할(1=영업팀, 2=영업팀장, 3=영업부장). 범위 밖이면 null(서비스가 400). */
+    static String decisionRole(int tier) {
+        switch (tier) {
+            case 1:  return Teams.DESIGNER_HOME_TEAM + Teams.TEAM_SUFFIX;
+            case 2:  return Teams.leadOf(Teams.DESIGNER_HOME_TEAM);
+            case 3:  return Teams.FINAL_APPROVER;
+            default: return null;
+        }
     }
 
     /** 공고 생성 — 골든 {@code 10}. 본문에서 쓰는 것은 {@code institution_id} 뿐이다. */
@@ -55,7 +72,17 @@ public class BidCaseController {
      */
     @PostMapping("/{bidCaseId}/participation-decisions")
     public ParticipationDecisionOut decide(@PathVariable String bidCaseId,
-                                           @RequestBody ParticipationDecisionIn body) {
+                                           @RequestBody ParticipationDecisionIn body,
+                                           HttpServletRequest req) {
+        // 401/403 은 MenuGuard 가 DENIED 로 남긴다. 단계별 역할: 1=영업팀, 2=영업팀장, 3=영업부장.
+        // ⚠️ X-Emp-No 자기신고 위의 업무 규칙(실수·선착순 방지)이지 사칭 방지가 아니다.
+        // 저장되는 by·role 은 아직 본문 값이다(골든 11~13 유지) — USERS 값 저장은 019 배정과 함께.
+        String need = decisionRole(body.getTier());
+        if (need == null) {
+            guard.requireUser(req, "approvals");   // 신원만 보고 범위 밖 tier 는 서비스가 400
+        } else {
+            guard.requireRole(req, "approvals", need, "이 단계의 참여 결재 권한이 없습니다.");
+        }
         return commands.submitDecision(bidCaseId, body);
     }
 
@@ -89,7 +116,12 @@ public class BidCaseController {
     @PostMapping("/{bidCaseId}/finalize")
     public BidCaseDetail finalizeBidCase(@PathVariable String bidCaseId,
                                          @RequestBody BidCaseFinalizeIn body,
-                                         @RequestHeader("X-User-Id") String userId) {
-        return commands.finalizeBidCase(bidCaseId, body, userId);
+                                         @RequestHeader(name = "X-User-Id", required = false) String userId,
+                                         HttpServletRequest req) {
+        // 최종 확정은 영업부장만(2026-11-10). 저장 표시명은 기존 X-User-Id(골든 24 유지).
+        SysUser approver = guard.requireRole(req, "approvals", Teams.FINAL_APPROVER,
+                "최종 확정은 영업부장만 할 수 있습니다.");
+        String by = userId == null || userId.trim().isEmpty() ? approver.getName() : userId;
+        return commands.finalizeBidCase(bidCaseId, body, by);
     }
 }
