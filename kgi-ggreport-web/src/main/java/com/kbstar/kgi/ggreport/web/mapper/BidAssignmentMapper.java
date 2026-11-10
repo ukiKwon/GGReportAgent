@@ -44,6 +44,9 @@ public interface BidAssignmentMapper {
     int claimPending(@Param("bidCaseId") String bidCaseId, @Param("groupVer") int groupVer,
                      @Param("reqId") Long reqId, @Param("staleReqId") Long staleReqId);
 
+    /** 취소·정리용 — PENDING_REQ_ID 가 그 요청일 때만 비운다(GROUP_VER·UPDATED_* 는 안 건드림). 다른 요청이 잡았으면 0행. */
+    int releasePending(@Param("bidCaseId") String bidCaseId, @Param("reqId") Long reqId);
+
     /** 승인 반영의 첫 문장 — GROUP_VER 확인 + 증가 + PENDING 비움을 한 문장으로(0행이면 구성이 바뀐 것). */
     int bumpVersion(@Param("bidCaseId") String bidCaseId, @Param("groupVer") int groupVer,
                     @Param("reqId") Long reqId, @Param("by") String by, @Param("now") String now);

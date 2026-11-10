@@ -212,10 +212,13 @@ public class BidAssignmentService {
      * 결재자(400 APPROVER_NOT_RESOLVED). 오류 문구에 사번·이름을 싣지 않는다.
      */
     public ChangePlan planChange(String bidCaseId, List<String> addIn, List<String> removeIn, SysUser me) {
+        boolean lead = LEAD_ROLE.equals(roleOf(me));
+        if (!lead && !MEMBER_ROLE.equals(roleOf(me))) {   // 영업팀·영업팀장 외(디자이너·관리자·영업부장 등)는 건 존재 여부와 무관하게 403
+            throw new ApiException(403, "담당자 변경은 현재 담당자 또는 영업팀장만 신청할 수 있습니다.");
+        }
         requireBidCase(bidCaseId);
         BidAssignCase head = mapper.selectCase(bidCaseId);
         List<BidAssigneeView> cur = head == null ? new ArrayList<BidAssigneeView>() : mapper.selectActiveAssignees(bidCaseId);
-        boolean lead = LEAD_ROLE.equals(roleOf(me));
         if (!lead && !containsEmp(cur, me.getEmpNo())) {
             throw new ApiException(403, "담당자 변경은 현재 담당자 또는 영업팀장만 신청할 수 있습니다.");
         }
@@ -277,6 +280,15 @@ public class BidAssignmentService {
         }
     }
 
+    /** 취소된 변경 신청이 잡고 있던 선점을 푼다. 다른 요청이 선점 중이면 아무것도 바꾸지 않는다(0행). */
+    @Transactional
+    public void releasePending(ApprovalRequest r) {
+        String bid = readPayload(r.getPayload()).path("bid_case_id").asText("");
+        if (!bid.isEmpty()) {
+            mapper.releasePending(bid, r.getReqId());
+        }
+    }
+
     /**
      * 최종 승인 후처리(같은 트랜잭션 — 예외를 던지면 승인까지 되돌아간다). 반환값은 결재 요청의 결과 메모다.
      * 첫 문장(bumpVersion)이 GROUP_VER·선점 확인과 잠금을 겸한다.
@@ -314,11 +326,25 @@ public class BidAssignmentService {
                 throw groupVerChanged();
             }
         }
+        SysUser requester = users.selectByEmpNo(r.getRequesterEmpNo());
+        boolean leadInvolved = requester == null || LEAD_ROLE.equals(roleOf(requester));   // 알 수 없으면 보수적으로 부장만
+        for (String e : active) {   // 현 담당자(해제 대상 포함) 중 영업팀장
+            SysUser u = users.selectByEmpNo(e);
+            if (u != null && LEAD_ROLE.equals(roleOf(u))) {
+                leadInvolved = true;
+            }
+        }
         for (String e : add) {
             if (active.contains(e)) {
                 throw groupVerChanged();
             }
-            requireAssignable(e);   // 상신 뒤 비활성·역할 변경 재검사
+            if (LEAD_ROLE.equals(roleOf(requireAssignable(e)))) {   // 상신 뒤 비활성·역할 변경 재검사
+                leadInvolved = true;
+            }
+        }
+        if (leadInvolved && !HEAD_ROLE.equals(dRole)) {   // 팀장 관련 건은 영업부장만 승인(결재선이 어긋나도 마지막에 한 번 더 막는다)
+            throw coded(409, "APPROVER_ROLE_MISMATCH",
+                    "영업팀장이 관련된 담당자 변경은 영업부장만 승인할 수 있습니다. 반려하거나 취소하고 다시 신청하세요.");
         }
         checkResultSize(active.size() - remove.size() + add.size());
         int verified = actor != null && actor.isVerified() ? 1 : 0;

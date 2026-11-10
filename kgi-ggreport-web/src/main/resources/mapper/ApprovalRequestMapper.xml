@@ -39,16 +39,18 @@
     SELECT <include refid="rcols"/> FROM APPROVAL_REQUEST ORDER BY REQ_ID DESC
   </select>
 
+  <!-- 진행 중(PENDING)인 요청만 바꾼다 — 0행이면 그 사이 다른 결재·취소가 먼저 끝난 것(서비스가 409). -->
   <update id="updateRequest">
     UPDATE APPROVAL_REQUEST SET STATUS = #{status}, CURRENT_STEP = #{currentStep},
            RESULT_NOTE = #{note,jdbcType=VARCHAR}, DECIDED_AT = #{decidedAt,jdbcType=VARCHAR}
-     WHERE REQ_ID = #{id}
+     WHERE REQ_ID = #{id} AND STATUS = 'PENDING'
   </update>
 
+  <!-- 처리 전(PENDING) 단계만 바꾼다 — 0행이면 이미 처리·건너뜀. -->
   <update id="updateStep">
     UPDATE APPROVAL_STEP SET STATUS = #{status}, ACTED_BY = #{actedBy,jdbcType=VARCHAR}, ACTED_AS_DEPUTY = #{deputy},
            COMMENT_TEXT = #{comment,jdbcType=VARCHAR}, ACTED_AT = #{at,jdbcType=VARCHAR}
-     WHERE STEP_ID = #{stepId}
+     WHERE STEP_ID = #{stepId} AND STATUS = 'PENDING'
   </update>
 
 </mapper>

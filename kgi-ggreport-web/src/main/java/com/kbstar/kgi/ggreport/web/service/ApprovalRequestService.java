@@ -241,14 +241,14 @@ public class ApprovalRequestService {
                     + "직급이 맞지 않거나(결재자는 상신자보다 높아야 하고 대결자는 상신자보다 낮으면 안 됩니다), 본인의 요청입니다.");
         }
         String now = Times.nowIso();
-        requests.updateStep(cur.getStepId(), approve ? "APPROVED" : "REJECTED", me.getEmpNo(),
-                "DEPUTY".equals(how) ? 1 : 0, comment.isEmpty() ? null : comment, now);
+        requireOne(requests.updateStep(cur.getStepId(), approve ? "APPROVED" : "REJECTED", me.getEmpNo(),
+                "DEPUTY".equals(how) ? 1 : 0, comment.isEmpty() ? null : comment, now));
         if (!approve) {
             skipRest(steps, cur, now);
-            requests.updateRequest(id, "REJECTED", r.getCurrentStep(), "반려", now);
+            requireOne(requests.updateRequest(id, "REJECTED", r.getCurrentStep(), "반려", now));
             notifyResult(r, requester, me, "반려되었습니다" + (comment.isEmpty() ? "" : " — 사유: " + comment));
         } else if (cur.getStepNo() < steps.size()) {
-            requests.updateRequest(id, "PENDING", cur.getStepNo() + 1, null, null);
+            requireOne(requests.updateRequest(id, "PENDING", cur.getStepNo() + 1, null, null));
             for (ApprovalStep s : steps) {
                 if (s.getStepNo() == cur.getStepNo() + 1) {
                     notifyStep(r, s, requester);          // 다음 결재자(와 그 대결자)에게
@@ -256,7 +256,7 @@ public class ApprovalRequestService {
             }
         } else {
             String note = applyApproved(r, me, actor);
-            requests.updateRequest(id, "APPROVED", cur.getStepNo(), note, now);
+            requireOne(requests.updateRequest(id, "APPROVED", cur.getStepNo(), note, now));   // 0행이면 후처리째 롤백
             notifyResult(r, requester, me, "승인되어 반영되었습니다");
         }
         return view(requests.selectById(id), me);
@@ -266,7 +266,11 @@ public class ApprovalRequestService {
     public Map<String, Object> cancel(Long id, Actor actor) {
         SysUser me = callers.require(actor);
         ApprovalRequest r = require(id);
-        if (!r.getRequesterEmpNo().equals(me.getEmpNo()) && !permissions.canAdmin(me.getEmpNo())) {
+        boolean own = r.getRequesterEmpNo().equals(me.getEmpNo());
+        if (!own && ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType())) {
+            throw new ApiException(403, "이 요청은 신청자 본인만 취소할 수 있습니다.");   // 관리자도 불가(영업팀 내부 정보, 2026-11-10 사용자 결정)
+        }
+        if (!own && !permissions.canAdmin(me.getEmpNo())) {
             throw new ApiException(403, "상신자 본인 또는 관리자만 취소할 수 있습니다.");
         }
         if (!"PENDING".equals(r.getStatus())) {
@@ -274,8 +278,11 @@ public class ApprovalRequestService {
         }
         String now = Times.nowIso();
         skipRest(requests.selectSteps(id), null, now);
-        requests.updateRequest(id, "CANCELLED", r.getCurrentStep(),
-                r.getRequesterEmpNo().equals(me.getEmpNo()) ? "상신자가 취소" : "관리자가 취소", now);
+        requireOne(requests.updateRequest(id, "CANCELLED", r.getCurrentStep(),
+                r.getRequesterEmpNo().equals(me.getEmpNo()) ? "상신자가 취소" : "관리자가 취소", now));
+        if (ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType())) {
+            assignments.releasePending(r);          // 그 요청이 잡고 있던 선점만 푼다(다른 요청의 선점은 그대로)
+        }
         if (!r.getRequesterEmpNo().equals(me.getEmpNo())) {      // 남이 취소했을 때만 알린다
             notifyResult(r, users.selectByEmpNo(r.getRequesterEmpNo()), me, "관리자가 취소했습니다");
         }
@@ -373,7 +380,7 @@ public class ApprovalRequestService {
         return m;
     }
 
-    /** {@code box}: mine(내가 올린 것) · inbox(내가 결재할 것, 대결 포함) · all(관리자 전용, 최근 200건). */
+    /** {@code box}: mine(내가 올린 것) · inbox(내가 결재할 것, 대결 포함) · all(관리자 전용, 담당자 변경 제외, 최근 200건). */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> list(String box, Actor actor) {
         SysUser me = callers.require(actor);
@@ -391,7 +398,12 @@ public class ApprovalRequestService {
             if (!permissions.canAdmin(me.getEmpNo())) {
                 throw new ApiException(403, "이 기능을 쓸 권한이 없습니다.");
             }
-            rows = requests.selectAll();
+            rows = new ArrayList<>();
+            for (ApprovalRequest x : requests.selectAll()) {
+                if (!ApprovalTypes.ASSIGNEE_CHANGE.equals(x.getReqType())) {   // 담당자 변경은 영업팀 내부 정보 — 관리자 전체 목록에서 제외(mine·inbox 는 유지)
+                    rows.add(x);
+                }
+            }
             if (rows.size() > 200) {
                 rows = rows.subList(0, 200);
             }
@@ -476,10 +488,17 @@ public class ApprovalRequestService {
                 ? "DEPUTY" : null;
     }
 
+    /** 상태 전이 문장이 정확히 1행이 아니면 그 사이 다른 결재·취소가 먼저 끝난 것 — 409 로 끝내 트랜잭션 전체를 되돌린다. */
+    private static void requireOne(int rows) {
+        if (rows != 1) {
+            throw new ApiException(409, "이미 처리된 요청입니다.");
+        }
+    }
+
     private void skipRest(List<ApprovalStep> steps, ApprovalStep after, String now) {
         for (ApprovalStep s : steps) {
             if ("PENDING".equals(s.getStatus()) && (after == null || s.getStepNo() > after.getStepNo())) {
-                requests.updateStep(s.getStepId(), "SKIPPED", null, 0, null, now);
+                requests.updateStep(s.getStepId(), "SKIPPED", null, 0, null, now);   // 0행이어도 무시 — 요청 갱신(requireOne)이 판정한다
             }
         }
     }
@@ -607,7 +626,7 @@ public class ApprovalRequestService {
         m.put("can_decide", how != null);
         m.put("acting_as_deputy", "DEPUTY".equals(how));
         m.put("can_cancel", pending && (r.getRequesterEmpNo().equals(me.getEmpNo())
-                || permissions.canAdmin(me.getEmpNo())));
+                || (!ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType()) && permissions.canAdmin(me.getEmpNo()))));
         return m;
     }
 }

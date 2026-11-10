@@ -3,6 +3,10 @@ package com.kbstar.kgi.ggreport.web.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.AppTest;
+import com.kbstar.kgi.ggreport.web.dto.ApprovalIn;
+import com.kbstar.kgi.ggreport.web.mapper.ApprovalRequestMapper;
+import com.kbstar.kgi.ggreport.web.mapper.BidAssignmentMapper;
+import com.kbstar.kgi.ggreport.web.service.ApprovalRequestService;
 import com.kbstar.kgi.ggreport.web.service.BidAssignmentService;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import org.junit.Test;
@@ -25,6 +29,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -56,6 +61,9 @@ public class AssigneeChangeApiTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private BidAssignmentService service;
+    @Autowired private ApprovalRequestService approvals;
+    @Autowired private ApprovalRequestMapper requestMapper;
+    @Autowired private BidAssignmentMapper assignMapper;
     private final ObjectMapper om = new ObjectMapper();
 
     // ── 도우미 ───────────────────────────────────────────────────────
@@ -501,5 +509,207 @@ public class AssigneeChangeApiTest {
             }
         }
         assertTrue(found);
+    }
+
+    // ── 보안 검토 보강(중-1·중-2·하-1·하-4·하-5, 2026-11-10) ───────────────
+
+    private String reqStatus(long id) {
+        return jdbc.queryForObject("SELECT STATUS FROM APPROVAL_REQUEST WHERE REQ_ID=?", String.class, id);
+    }
+
+    private ApprovalIn.Decision decision(String d, String comment) {
+        ApprovalIn.Decision x = new ApprovalIn.Decision();
+        x.setDecision(d);
+        x.setComment(comment);
+        return x;
+    }
+
+    private boolean inBox(String box, String emp, long id) throws Exception {
+        MvcResult r = mockMvc.perform(as(get("/approval-requests").param("box", box), emp)).andReturn();
+        for (JsonNode n : json(r).path("items")) {
+            if (n.path("req_id").asLong() == id) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Test
+    public void 끝난_요청과_단계는_상태_전이_문장이_0행이고_값이_바뀌지_않는다() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER);
+        long id = submitOk(MEMBER, bc, a(MEMBER2), a());
+        assertEquals(200, postJson("/approval-requests/" + id + "/cancel", MEMBER, "{}").getResponse().getStatus());
+        assertEquals(0, requestMapper.updateRequest(id, "APPROVED", 1, "x", Times.nowIso()));
+        assertEquals("CANCELLED", reqStatus(id));
+        Long stepId = jdbc.queryForObject("SELECT STEP_ID FROM APPROVAL_STEP WHERE REQ_ID=?", Long.class, id);
+        assertEquals(0, requestMapper.updateStep(stepId, "APPROVED", LEAD, 0, null, Times.nowIso()));
+        assertEquals("SKIPPED", jdbc.queryForObject("SELECT STATUS FROM APPROVAL_STEP WHERE STEP_ID=?", String.class, stepId));
+    }
+
+    /**
+     * 경합 재현: 같은 트랜잭션 안에서 MyBatis 가 PENDING 으로 읽어 둔(1차 캐시) 요청을 JdbcTemplate 으로 몰래 끝내면,
+     * 서비스는 낡은 PENDING 을 믿고 들어가지만 UPDATE 의 STATUS 조건이 0행을 돌려 409 로 끝난다.
+     */
+    @Test
+    public void 취소된_요청에_결재하면_409_상태는_취소_그대로() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER);
+        long id = submitOk(MEMBER, bc, a(MEMBER2), a());
+        requestMapper.selectById(id);
+        jdbc.update("UPDATE APPROVAL_REQUEST SET STATUS='CANCELLED' WHERE REQ_ID=?", id);
+        try {
+            approvals.decide(id, decision("REJECT", "경합"), Actor.claimed(LEAD));
+            fail("409 여야 한다");
+        } catch (ApiException e) {
+            assertEquals(409, e.getStatus());
+        }
+        assertEquals("CANCELLED", reqStatus(id));
+    }
+
+    @Test
+    public void 승인된_요청에_취소하면_409_상태와_선점은_그대로() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER);
+        long id = submitOk(MEMBER, bc, a(MEMBER2), a());
+        requestMapper.selectById(id);
+        jdbc.update("UPDATE APPROVAL_REQUEST SET STATUS='APPROVED' WHERE REQ_ID=?", id);
+        try {
+            approvals.cancel(id, Actor.claimed(MEMBER));
+            fail("409 여야 한다");
+        } catch (ApiException e) {
+            assertEquals(409, e.getStatus());
+        }
+        assertEquals("APPROVED", reqStatus(id));
+        assertEquals(Long.valueOf(id), pending(bc));
+    }
+
+    @Test
+    public void 순차로도_처리된_요청에_결재_취소는_409() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER);
+        long id = submitOk(MEMBER, bc, a(MEMBER2), a());
+        assertEquals(200, postJson("/approval-requests/" + id + "/cancel", MEMBER, "{}").getResponse().getStatus());
+        assertEquals(409, decide(LEAD, id, "APPROVE", null).getResponse().getStatus());
+        assertEquals(409, postJson("/approval-requests/" + id + "/cancel", MEMBER, "{}").getResponse().getStatus());
+        long id2 = submitOk(MEMBER, bc, a(MEMBER2), a());
+        assertEquals(200, decide(LEAD, id2, "APPROVE", null).getResponse().getStatus());
+        assertEquals(409, postJson("/approval-requests/" + id2 + "/cancel", MEMBER, "{}").getResponse().getStatus());
+        assertEquals("APPROVED", reqStatus(id2));
+    }
+
+    @Test
+    public void 취소하면_그_요청의_선점이_풀리고_다른_요청의_선점은_건드리지_않는다() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER);
+        long id1 = submitOk(MEMBER, bc, a(MEMBER2), a());
+        assertEquals(Long.valueOf(id1), pending(bc));
+        assertEquals(200, postJson("/approval-requests/" + id1 + "/cancel", MEMBER, "{}").getResponse().getStatus());
+        assertNull(pending(bc));
+        assertEquals(1, groupVer(bc));
+        JsonNode view = json(getAs("/bidcases/" + bc + "/assignments", MEMBER));
+        assertTrue(view.path("pending_change").isNull());
+        assertTrue(view.path("viewer").path("can_request_change").asBoolean());
+
+        long id2 = submitOk(MEMBER, bc, a(MEMBER2), a());
+        assertEquals(0, assignMapper.releasePending(bc, id1));
+        assertEquals(Long.valueOf(id2), pending(bc));
+        assertEquals(1, assignMapper.releasePending(bc, id2));
+        assertNull(pending(bc));
+    }
+
+    @Test
+    public void 승인_때_영업팀장이_추가_대상인데_결재자가_영업팀장이면_409_배정_불변() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER);
+        long id = submitOk(MEMBER, bc, a(LEAD2), a());
+        jdbc.update("UPDATE APPROVAL_STEP SET APPROVER_EMP_NO=? WHERE REQ_ID=?", LEAD, id);
+        flushCache();
+        MvcResult r = decide(LEAD, id, "APPROVE", null);
+        assertEquals(409, r.getResponse().getStatus());
+        assertEquals("APPROVER_ROLE_MISMATCH", json(r).path("detail").path("code").asText());
+        assertEquals(1, active(bc));
+        assertFalse(service.isActiveAssignee(bc, LEAD2));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGN_LOG WHERE BID_CASE_ID=? AND ACTION_CD='ADD'", bc));
+    }
+
+    @Test
+    public void 승인_때_현_담당자에_영업팀장이_있는데_결재자가_영업팀장이면_409() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER, LEAD);
+        long id = submitOk(MEMBER, bc, a(MEMBER2), a());
+        jdbc.update("UPDATE APPROVAL_STEP SET APPROVER_EMP_NO=? WHERE REQ_ID=?", LEAD2, id);
+        flushCache();
+        MvcResult r = decide(LEAD2, id, "APPROVE", null);
+        assertEquals(409, r.getResponse().getStatus());
+        assertEquals("APPROVER_ROLE_MISMATCH", json(r).path("detail").path("code").asText());
+        assertEquals(2, active(bc));
+        assertFalse(service.isActiveAssignee(bc, MEMBER2));
+    }
+
+    @Test
+    public void 영업부장_역할자는_팀장_상신_건의_결재선이_바뀌어도_승인한다_대조군() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER);
+        long id = submitOk(LEAD, bc, a(MEMBER2), a());
+        jdbc.update("UPDATE APPROVAL_STEP SET APPROVER_EMP_NO=? WHERE REQ_ID=?", EXEC, id);
+        flushCache();
+        assertEquals(200, decide(EXEC, id, "APPROVE", null).getResponse().getStatus());
+        assertEquals(2, active(bc));
+    }
+
+    @Test
+    public void 영업_계열이_아니면_담당자여도_존재하지_않는_건이어도_403_존재_여부가_드러나지_않는다() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER);
+        jdbc.update("INSERT INTO BID_ASSIGNMENT (BID_CASE_ID, EMP_NO, ACTIVE_YN, ASSIGNED_BY, ASSIGNED_AT) "
+                + "VALUES (?, ?, 1, ?, 'x')", bc, DESIGNER, LEAD);
+        flushCache();
+        for (String emp : new String[]{DESIGNER, ADMIN, IT, HEAD}) {
+            assertEquals(emp, 403, change(emp, bc, a(M3), a(), "사유").getResponse().getStatus());
+            assertEquals(emp, 403, change(emp, "no-such-case", a(M3), a(), "사유").getResponse().getStatus());
+        }
+        assertEquals(0, changeRequests());
+        assertNull(pending(bc));
+        assertEquals(404, change(LEAD, "no-such-case", a(M3), a(), "사유").getResponse().getStatus());
+    }
+
+    @Test
+    public void 관리자_전체_목록에는_담당자_변경이_없고_상신자_결재자_목록에는_있다_권한_신청은_그대로() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER);
+        long id = submitOk(MEMBER, bc, a(MEMBER2), a());
+        MvcResult perm = postJson("/approval-requests/perm", MEMBER,
+                "{\"reason\":\"업무상 필요\",\"changes\":[{\"menu\":\"knowledge\",\"view\":true,\"write\":true}]}");
+        assertEquals(200, perm.getResponse().getStatus());
+        long permId = json(perm).path("req_id").asLong();
+
+        assertFalse(inBox("all", ADMIN, id));
+        assertTrue(inBox("all", ADMIN, permId));
+        MvcResult all = mockMvc.perform(as(get("/approval-requests").param("box", "all"), ADMIN)).andReturn();
+        String body = all.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertFalse(body.contains(bc));
+        assertFalse(body.contains("ASSIGNEE_CHANGE"));
+        assertTrue(inBox("mine", MEMBER, id));
+        assertTrue(inBox("inbox", LEAD, id));
+    }
+
+    @Test
+    public void 담당자_변경은_신청자_본인만_취소_관리자는_403_권한_신청의_관리자_취소는_그대로() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER);
+        long id = submitOk(MEMBER, bc, a(MEMBER2), a());
+        assertEquals(403, postJson("/approval-requests/" + id + "/cancel", ADMIN, "{}").getResponse().getStatus());
+        assertEquals("PENDING", reqStatus(id));
+        assertEquals(Long.valueOf(id), pending(bc));
+        assertEquals(403, postJson("/approval-requests/" + id + "/cancel", MEMBER2, "{}").getResponse().getStatus());
+        assertEquals(200, postJson("/approval-requests/" + id + "/cancel", MEMBER, "{}").getResponse().getStatus());
+        assertEquals("CANCELLED", reqStatus(id));
+
+        MvcResult perm = postJson("/approval-requests/perm", MEMBER,
+                "{\"reason\":\"업무상 필요\",\"changes\":[{\"menu\":\"knowledge\",\"view\":true,\"write\":true}]}");
+        long permId = json(perm).path("req_id").asLong();
+        assertEquals(200, postJson("/approval-requests/" + permId + "/cancel", ADMIN, "{}").getResponse().getStatus());
+        assertEquals("CANCELLED", reqStatus(permId));
     }
 }

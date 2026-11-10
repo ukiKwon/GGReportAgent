@@ -65,6 +65,11 @@
        AND (PENDING_REQ_ID IS NULL OR PENDING_REQ_ID = #{staleReqId,jdbcType=NUMERIC})
   </update>
 
+  <update id="releasePending">
+    UPDATE BID_ASSIGN_CASE SET PENDING_REQ_ID = NULL
+     WHERE BID_CASE_ID = #{bidCaseId} AND PENDING_REQ_ID = #{reqId}
+  </update>
+
   <update id="bumpVersion">
     UPDATE BID_ASSIGN_CASE SET GROUP_VER = GROUP_VER + 1, PENDING_REQ_ID = NULL,
            UPDATED_BY = #{by}, UPDATED_AT = #{now}
