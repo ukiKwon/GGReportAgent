@@ -118,3 +118,11 @@ test('withIdentity: 사번이 있으면 X-Emp-No를 붙이고 입력은 바꾸�
   assert.deepStrictEqual(login.withIdentity(new Map([['A', 'b']]), ''), { A: 'b' });        // 사번 없으면 안 붙임
   assert.deepStrictEqual(login.withIdentity({}, "1234567' OR '1"), {});                    // 형식이 틀리면 안 붙임
 });
+
+test('resetFields: 로그아웃 때 사번·계정 입력을 비운다(요소가 없어도 죽지 않는다)', function () {
+  const idEl = { value: '1234567' }, roleEl = { value: 'sales.lead' };
+  login.resetFields(idEl, roleEl);
+  assert.strictEqual(idEl.value, '');
+  assert.strictEqual(roleEl.value, '');
+  assert.doesNotThrow(function () { login.resetFields(null, undefined); });
+});

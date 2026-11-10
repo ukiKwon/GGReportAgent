@@ -102,6 +102,13 @@
     return out;
   };
 
+  // 로그아웃 때 로그인 화면의 사번·계정 입력을 비운다 — 프로토타입은 비밀번호를 보지 않으므로
+  // 남겨 두면 '로그인'만 눌러도 직전 사람으로 들어간다. 각 요소는 value만 가진 것이면 된다(없으면 건너뜀).
+  login.resetFields = function (idEl, roleEl) {
+    if (idEl) idEl.value = '';
+    if (roleEl) roleEl.value = '';
+  };
+
   // 헤더 칩에 보일 글자.
   login.chipText = function (session, profile) {
     if (!session || session.mode !== 'account') return '로그인';

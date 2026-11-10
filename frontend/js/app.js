@@ -787,6 +787,7 @@
     if (app.showProfileRole) { byId('me-name').value = ''; app.showProfileRole(''); }
     app.paintUserArea();
     app.onProfileChanged();
+    root.login.resetFields(byId('login-id'), byId('login-role'));   // 직전 사번·계정이 남아 있지 않게
     app.showLogin('');
   };
 
