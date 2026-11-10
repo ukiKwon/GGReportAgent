@@ -24,7 +24,8 @@
 
   // ── 문구 (규격 §5-1) ────────────────────────────────────────────────
   const T = {
-    pickHint: '왼쪽에서 입찰 건을 고르세요. 임박한 건이 위에 있습니다.',
+    pickHint: '목록에서 입찰 건을 고르세요. 임박한 건이 위에 있습니다.',
+    pickEmpty: '입찰 건이 등록되면 여기서 담당자를 정합니다.',
     emptyAll: '입찰 공고가 등록된 기관이 없습니다. 공고가 등록되면 여기에 나타납니다.',
     emptyMine: '내가 담당인 입찰 건이 없습니다.',
     emptyQuery: function (q) { return '\'' + q + '\'와 맞는 기관이 없습니다.'; },
@@ -155,6 +156,9 @@
   };
 
   tm.countText = function (n) { return n + '건'; };
+
+  // 오른쪽 칸(선택 전) 안내 — 전체 입찰 건이 0이면 '고르세요'가 아니라 앞으로 어떻게 되는지를 알린다.
+  tm.pickHintText = function (total) { return total > 0 ? T.pickHint : T.pickEmpty; };
 
   // ── 상세: 역할별 표시 (규격 §6-7 — 서버 viewer를 그대로 따른다) ───────
   // phase: assign(최초 배정 폼) | empty(배정 전 안내) | list(담당자 표)
@@ -326,7 +330,7 @@
       rows.map(function (r) {
         return '<tr><td class="tm-t-time">' + esc(r.when) + '</td><td>' + esc(r.content) +
           (r.reflected ? ' <span class="tm-me">· 결재 반영</span>' : '') + '</td><td>' + esc(r.actor) +
-          (r.selfReport ? ' <span class="ad-badge muted tm-selfrep" title="' + esc(T.selfReport) + '" aria-label="' + esc(T.selfReport) + '">자기신고</span>' : '') +
+          (r.selfReport ? ' <span class="ad-badge muted tm-selfrep" title="' + esc(T.selfReport) + '">자기신고</span>' : '') +
           '</td><td class="tm-t-reason">' + esc(r.reason) + '</td></tr>';
       }).join('') + '</tbody></table></div>';
   };
@@ -464,6 +468,7 @@
   let wired = false;
 
   function el(id) { return document.getElementById(id); }
+  function clearQueryBox() { const q = el('tm-q'); if (q) q.value = ''; }   // 계정이 바뀌면 이전 계정의 검색어도 버린다
   function myEmp() { return ((root.store.loadSession() || {}).emp) || ''; }
   function myRole() { return (root.store.loadProfile().team || '').trim(); }
   function whoNow() { return myEmp() + '|' + myRole(); }
@@ -543,7 +548,7 @@
     const d = S.detail;
     if (!S.selected || !d) {
       box.setAttribute('aria-busy', 'false');
-      box.innerHTML = '<h2 id="tm-case-title" class="sr-only">제안팀 구성·배정</h2><p class="wf-empty">' + esc(T.pickHint) + '</p>';
+      box.innerHTML = '<h2 id="tm-case-title" class="sr-only">제안팀 구성·배정</h2><p class="wf-empty">' + esc(tm.pickHintText(S.rows.length)) + '</p>';
       return;
     }
     const row = rowOf(S.selected) || { id: S.selected, name: S.selected, region: '', status: '', date: null, conf: null, dday: '미상', ddayClass: 'unknown' };
@@ -691,7 +696,7 @@
     S.assign.confirming = true;
     el('tm-assign-err').textContent = '';
     el('tm-assign-confirm').innerHTML = tm.assignConfirmHtml(S.assign.sel.length);
-    const ok = el('tm-assign-ok'); if (ok) ok.focus();
+    const cancel = el('tm-assign-cancel'); if (cancel) cancel.focus();   // 첫 포커스는 '취소' — Enter 두 번으로 실수 배정 방지
   }
   function onAssignCancel() {
     cancelConfirm();
@@ -809,7 +814,7 @@
   function handleWriteError(e, where) {
     const info = tm.errorInfo(e && e.status, e && e.detail);
     const target = tm.errorTarget(info, where, !!S.modal);
-    if (info.after === 'closeReload' && S.modal) closeModal(false);
+    if (info.after === 'closeReload' && S.modal) { closeModal(false); S.refocus = true; }   // 다시 그린 뒤 #tm-change-btn(없으면 선택된 목록 항목)으로
     if (target === 'modal') { const b = el('tm-m-err'); if (b) b.textContent = info.text; }
     else if (target === 'assign') { const a = el('tm-assign-err'); if (a) a.textContent = info.text; }
     else el('tm-perr').textContent = info.text;
@@ -877,8 +882,7 @@
   }
   function onModalKey(e) {
     if (!S.modal) return;
-    if (e.key === 'Escape') { e.preventDefault(); requestClose(); return; }
-    if (e.key !== 'Tab') return;
+    if (e.key !== 'Tab') return;      // Esc는 wire()의 document 핸들러가 처리(포커스가 모달 밖이어도 동작)
     const list = Array.prototype.filter.call(el('tm-modal').querySelectorAll('button, input, textarea, a[href]'), function (n) {
       return !n.disabled && n.getClientRects().length > 0;
     });
@@ -892,7 +896,21 @@
     r.addEventListener('click', onClick);
     r.addEventListener('input', onInput);
     r.addEventListener('change', onChange);
-    el('tm-modal').addEventListener('keydown', onModalKey);
+    const md = el('tm-modal');
+    md.addEventListener('keydown', onModalKey);
+    // 배경(오버레이 자체) 클릭 → 직접 닫지 않고 requestClose 경로(작성 중이면 '닫을까요?').
+    // 글상자에서 눌러 끌다가 배경에서 놓는 경우는 닫지 않는다(mousedown 대상도 배경일 때만).
+    let downOnBg = false;
+    md.addEventListener('mousedown', function (e) { downOnBg = (e.target === md); });
+    md.addEventListener('click', function (e) {
+      if (e.target === md && downOnBg) requestClose();
+      downOnBg = false;
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' || !S.modal) return;
+      e.preventDefault();
+      requestClose();
+    });
     wired = true;
   }
 
@@ -901,7 +919,7 @@
     if (typeof document === 'undefined' || !el('tm-root')) return;
     if (!wired) wire();
     const who = whoNow();
-    if (who !== S.who) { S = freshState(); S.who = who; }
+    if (who !== S.who) { S = freshState(); S.who = who; clearQueryBox(); }
     el('tm-modal').style.display = 'none';
     el('tm-modal').innerHTML = '';
     S.modal = null;
@@ -915,6 +933,7 @@
     if (who === S.who) return;
     S = freshState();
     S.who = who;
+    clearQueryBox();
     el('tm-modal').style.display = 'none';
     el('tm-modal').innerHTML = '';
     clearNotices();

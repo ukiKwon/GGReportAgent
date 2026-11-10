@@ -158,6 +158,11 @@
     });
   };
 
+  // 내가 올린 요청 탭의 빈 상태 — 권한 신청과 담당자 변경 신청 둘 다 여기서 보인다.
+  approvals.mineEmptyText = function () {
+    return '올린 요청이 없습니다. 권한은 [내 정보 › 내 권한]에서, 담당자 변경은 [제안팀 구성·배정]에서 신청할 수 있습니다.';
+  };
+
   // 받은 결재 탭의 안내 — 결재 권한이 없으면 숨기지 않고 이유만 알려준다.
   approvals.inboxNotice = function (canApprove, count) {
     if (count > 0) return '';
@@ -369,7 +374,7 @@
     const err = reqError ? '<p class="wf-empty">' + esc(reqError) + '</p>' : '';
     el('ap-pane-mine').innerHTML = err || (mineRows.length
       ? mineRows.map(function (r) { return requestCardHtml(r, 'mine'); }).join('')
-      : (reqs.mine ? '<p class="wf-empty">올린 요청이 없습니다. [내 정보 › 내 권한]에서 권한을 신청할 수 있습니다.</p>' : ''));
+      : (reqs.mine ? '<p class="wf-empty">' + esc(approvals.mineEmptyText()) + '</p>' : ''));
     el('ap-req-inbox').innerHTML = err ||
       (inboxRows.length ? '<div class="ap-sec">권한 신청 요청</div>' +
         inboxRows.map(function (r) { return requestCardHtml(r, 'inbox'); }).join('') : '');

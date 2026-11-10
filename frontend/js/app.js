@@ -143,7 +143,10 @@
   // 모달 탈출구 — 배경 클릭 / Esc. 버튼이 화면 밖으로 밀리는 등 어떤 이유로든
   // 닫기 버튼에 닿지 못해도 화면이 잠기지 않게 한다(사용자 보고: 편집 팝업이 안 닫힘).
   app.wireModalDismiss = function () {
-    const overlays = document.querySelectorAll('.modal-overlay');
+    // #tm-modal은 제외 — 작성 중 닫기 확인(requestClose)을 team.js가 직접 처리한다.
+    const overlays = Array.prototype.filter.call(document.querySelectorAll('.modal-overlay'), function (ov) {
+      return ov.id !== 'tm-modal';
+    });
     overlays.forEach(function (ov) {
       ov.addEventListener('click', function (e) {
         // 안쪽(내용 상자)을 눌렀을 때는 닫지 않는다 — 배경 자체를 눌렀을 때만.

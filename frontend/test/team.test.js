@@ -259,7 +259,7 @@ test('HTML 조각은 서버·사용자 글자를 esc 한다', function () {
   assert.ok(tm.assigneesTableHtml(tm.assigneeRows([{ emp_no: '1', name: X, position_title: X, assigned_at: '' }], '')).indexOf('<img') < 0);
   const hist = tm.historyHtml(tm.historyRows([{ action_name: X, target_name: X, actor_name: X, reason: X, emp_verified: false, logged_at: '2026-11-10T00:00:00Z' }]));
   assert.ok(hist.indexOf('<img') < 0);
-  assert.ok(hist.indexOf('aria-label="로그인 신원을 확인하지 않은 기록입니다"') > 0);
+  assert.ok(hist.indexOf('title="로그인 신원을 확인하지 않은 기록입니다"') > 0);
   assert.ok(hist.indexOf('title="로그인 신원을 확인하지 않은 기록입니다"') > 0);
   assert.ok(hist.indexOf('검증됨') < 0);
   const picks = tm.picksHtml([{ emp_no: '1"><b>', name: X, position_title: X, role: '영업팀' }], [], {});
@@ -386,4 +386,76 @@ test('index.html: #tm-root 마크업·script 순서·CSS 규칙(새 hex·11px �
   assert.ok(/@media \(max-width:880px\)[\s\S]*#tm-wrap \{ flex-direction:column/.test(css));
   assert.ok(/\.tm-pend \{[^}]*var\(--orange\)/.test(css) && css.indexOf('#e0b44c') < 0);
   assert.ok(/\.modal-box\.tm-modal-box \{ max-width:560px/.test(css));
+});
+
+// ── qa 후속(2026-11-10): P2-1, P3-1~P3-6 ──
+function between(src, from, to) {
+  const a = src.indexOf(from), b = src.indexOf(to, a + from.length);
+  assert.ok(a >= 0 && b > a, from + ' .. ' + to);
+  return src.slice(a, b);
+}
+const TEAM_SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'team.js'), 'utf8');
+const APP_SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+
+test('P2-1: 공용 wireModalDismiss는 #tm-modal을 제외하고, team.js가 Esc·배경 클릭을 requestClose로 처리한다', function () {
+  const dismiss = between(APP_SRC, 'app.wireModalDismiss = function', 'const LEGACY_FLAG');
+  assert.ok(/ov\.id !== 'tm-modal'/.test(dismiss));
+  assert.strictEqual((dismiss.match(/querySelectorAll\('\.modal-overlay'\)/g) || []).length, 1);
+  assert.ok(/Array\.prototype\.filter\.call\(document\.querySelectorAll\('\.modal-overlay'\)/.test(dismiss));
+  assert.ok(/if \(e\.target === ov\) ov\.style\.display = 'none'/.test(dismiss));
+  assert.ok(/overlays\.forEach\(function \(ov\) \{ ov\.style\.display = 'none'; \}\)/.test(dismiss));
+
+  const wireSrc = between(TEAM_SRC, 'function wire()', 'tm.mount = function');
+  assert.ok(/e\.target === md && downOnBg\) requestClose\(\)/.test(wireSrc));
+  assert.ok(/e\.key !== 'Escape' \|\| !S\.modal/.test(wireSrc) && /requestClose\(\)/.test(wireSrc));
+  assert.ok(!/style\.display\s*=\s*'none'/.test(wireSrc));
+  const keySrc = between(TEAM_SRC, 'function onModalKey', 'function wire()');
+  assert.ok(!/Escape/.test(keySrc));
+});
+
+test('P3-1: closeReload로 모달을 닫으면 다시 그린 뒤 포커스를 돌려받는다', function () {
+  const src = between(TEAM_SRC, 'function handleWriteError', 'function onClick');
+  assert.ok(/closeReload' && S\.modal\) \{ closeModal\(false\); S\.refocus = true; \}/.test(src));
+  const load = between(TEAM_SRC, 'function loadDetail', 'function afterDetail');
+  assert.strictEqual((load.match(/afterDetail\(\)/g) || []).length, 2);
+});
+
+test('P3-2: 계정이 바뀌면 #tm-q 입력값을 비운다(mount·onProfileChange 둘 다)', function () {
+  assert.ok(/function clearQueryBox\(\) \{ const q = el\('tm-q'\); if \(q\) q\.value = ''; \}/.test(TEAM_SRC));
+  const mount = between(TEAM_SRC, 'tm.mount = function', 'tm.onProfileChange');
+  assert.ok(/S = freshState\(\); S\.who = who; clearQueryBox\(\);/.test(mount));
+  const change = between(TEAM_SRC, 'tm.onProfileChange = function', 'tm.unmount');
+  assert.ok(/clearQueryBox\(\);/.test(change));
+});
+
+test('P3-3: 빈 상태 문구는 긴 검색어에서도 줄바꿈된다(overflow-wrap:anywhere)', function () {
+  const m = /([^{}]*#tm-items \.wf-empty[^{}]*)\{([^}]*)\}/.exec(HTML);
+  assert.ok(m, '#tm-items .wf-empty 규칙');
+  assert.ok(/overflow-wrap\s*:\s*anywhere/.test(m[2]));
+  ['#tm-case .wf-empty', '#tm-gate .wf-empty', '#tm-modal .wf-empty'].forEach(function (s) { assert.ok(m[1].indexOf(s) >= 0, s); });
+});
+
+test('P3-4: 목록 0건이면 오른쪽 안내는 등록 안내, 아니면 위치 중립 문구', function () {
+  assert.strictEqual(tm.pickHintText(0), '입찰 건이 등록되면 여기서 담당자를 정합니다.');
+  const h = tm.pickHintText(3);
+  assert.ok(h.indexOf('목록에서 입찰 건을 고르세요') === 0);
+  assert.ok(h.indexOf('왼쪽') < 0 && tm.pickHintText(0).indexOf('왼쪽') < 0);
+  assert.ok(TEAM_SRC.indexOf('왼쪽') < 0);
+  assert.ok(/tm\.pickHintText\(S\.rows\.length\)/.test(between(TEAM_SRC, 'function paintCase', 'function clearNotices')));
+});
+
+test('P3-5: 자기신고 칩은 aria-label 없이 보이는 글자 그대로, 설명은 title로만', function () {
+  const h = tm.historyHtml(tm.historyRows([{ action_name: '최초 배정', target_name: '홍', actor_name: '이', emp_verified: false, logged_at: '2026-11-10T00:00:00Z' }]));
+  const chip = /<span[^>]*tm-selfrep[^>]*>자기신고<\/span>/.exec(h);
+  assert.ok(chip, '칩 렌더');
+  assert.ok(chip[0].indexOf('aria-label') < 0);
+  assert.ok(/title="[^"]+"/.test(chip[0]));
+});
+
+test('P3-6: 배정 확인 줄이 열리면 첫 포커스는 취소', function () {
+  const src = between(TEAM_SRC, 'function onAssignGo', 'function onAssignCancel');
+  assert.ok(/el\('tm-assign-cancel'\)/.test(src) && /\.focus\(\)/.test(src));
+  assert.ok(src.indexOf('tm-assign-ok') < 0);
+  const html = tm.assignConfirmHtml(2);
+  assert.ok(html.indexOf('id="tm-assign-cancel"') > 0 && html.indexOf('id="tm-assign-ok"') > html.indexOf('id="tm-assign-cancel"'));
 });

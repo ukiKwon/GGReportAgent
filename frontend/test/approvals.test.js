@@ -198,3 +198,10 @@ test('changeCells: before 일부가 빠져도 불리언으로 취급', function 
   const c = ap.changeCells({ view: true, write: false, edit: false, approve: false, before: { view: true } });
   assert.deepStrictEqual(c.map(function (x) { return x.state; }), ['same', 'same', 'same', 'same']);
 });
+
+test('mineEmptyText: 권한 신청과 담당자 변경 신청을 둘 다 안내한다', function () {
+  const t = ap.mineEmptyText();
+  assert.ok(t.indexOf('올린 요청이 없습니다.') === 0);
+  assert.ok(t.indexOf('[내 정보 › 내 권한]') > 0);
+  assert.ok(t.indexOf('담당자 변경') > 0 && t.indexOf('[제안팀 구성·배정]') > 0);
+});
