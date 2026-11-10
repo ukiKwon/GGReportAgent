@@ -83,6 +83,25 @@ public class MenuGuard {
         return actor;
     }
 
+    /**
+     * 메뉴와 무관하게 "등록된 활성 사용자"만 요구한다(사번 없음 401, 미등록·비활성 403 — 둘 다 DENIED, 고정 문구).
+     * 역할 판정은 호출하는 기능이 한다. 영업부장처럼 특정 메뉴가 꺼진 역할도 통과시키려는 용도다.
+     * ⚠️ X-Emp-No 자기신고면 위조 가능하다.
+     */
+    public SysUser requireActiveUser(HttpServletRequest req) {
+        Actor actor = Actor.of(req);
+        if (!actor.isKnown()) {
+            deny(req, actor, 401, "no employee number");
+            throw new ApiException(401, "로그인이 필요합니다.");
+        }
+        SysUser u = users.selectByEmpNo(actor.getEmpNo());
+        if (u == null || !"ACTIVE".equals(u.getStatus())) {
+            deny(req, actor, 403, "inactive or unknown user");
+            throw new ApiException(403, "사용할 수 없는 계정입니다.");
+        }
+        return u;
+    }
+
     /** {@link #require} 통과 후 호출자의 USERS 행. 401/403 은 DENIED(본문 없음). */
     public SysUser requireUser(HttpServletRequest req, String menuKey) {
         Actor actor = require(req, menuKey);

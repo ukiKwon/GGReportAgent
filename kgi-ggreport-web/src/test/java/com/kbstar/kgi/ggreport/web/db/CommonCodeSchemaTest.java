@@ -47,7 +47,7 @@ public class CommonCodeSchemaTest {
     public void 협약_구분은_시드하지_않았다() {
         // 기획 미확정 — 값을 지어내 넣지 않는다.
         assertEquals(0, count("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP = 'CONTRACT_KIND'"));
-        assertEquals(3, count("SELECT COUNT(*) FROM COMMON_CODE"));
+        assertEquals(3, count("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP <> 'ASSIGN_ACTION'"));
     }
 
     @Test(expected = DataIntegrityViolationException.class)

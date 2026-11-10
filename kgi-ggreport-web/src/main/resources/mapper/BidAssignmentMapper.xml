@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- BID_ASSIGN_CASE / BID_ASSIGNMENT / BID_ASSIGN_LOG — 019. 양쪽 방언에서 같은 문장이다(ANSI JOIN, 동적 SQL 없음). -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.BidAssignmentMapper">
+
+  <select id="countBidCase" resultType="int">
+    SELECT COUNT(*) FROM BID_CASES WHERE BID_CASE_ID = #{bidCaseId}
+  </select>
+
+  <select id="selectCase" resultType="BidAssignCase">
+    SELECT BID_CASE_ID, GROUP_VER, PENDING_REQ_ID, CREATED_BY, CREATED_AT, UPDATED_BY, UPDATED_AT
+      FROM BID_ASSIGN_CASE WHERE BID_CASE_ID = #{bidCaseId}
+  </select>
+
+  <insert id="insertCase">
+    INSERT INTO BID_ASSIGN_CASE (BID_CASE_ID, GROUP_VER, CREATED_BY, CREATED_AT, UPDATED_BY, UPDATED_AT)
+    VALUES (#{bidCaseId}, 1, #{by}, #{now}, #{by}, #{now})
+  </insert>
+
+  <insert id="insertAssignment">
+    INSERT INTO BID_ASSIGNMENT (BID_CASE_ID, EMP_NO, ACTIVE_YN, ASSIGNED_BY, ASSIGNED_AT)
+    VALUES (#{bidCaseId}, #{empNo}, 1, #{by}, #{now})
+  </insert>
+
+  <insert id="insertLog">
+    INSERT INTO BID_ASSIGN_LOG (BID_CASE_ID, ACTION_CD, TARGET_EMP_NO, REQ_ID, REASON, ACTOR_EMP_NO, EMP_VERIFIED, LOGGED_AT)
+    VALUES (#{bidCaseId}, #{actionCd}, #{targetEmpNo}, #{reqId,jdbcType=NUMERIC}, #{reason,jdbcType=VARCHAR},
+            #{actorEmpNo}, #{verified}, #{now})
+  </insert>
+
+  <select id="selectActiveAssignees" resultType="BidAssigneeView">
+    SELECT a.EMP_NO, u.NAME, u.POSITION_TITLE, a.ASSIGNED_AT
+      FROM BID_ASSIGNMENT a
+      LEFT JOIN USERS u ON u.EMP_NO = a.EMP_NO
+     WHERE a.BID_CASE_ID = #{bidCaseId} AND a.ACTIVE_YN = 1
+     ORDER BY a.ASSIGNED_AT, a.EMP_NO
+  </select>
+
+  <select id="selectLog" resultType="BidAssignLogView">
+    SELECT l.ACTION_CD, c.CODE_NAME AS ACTION_NAME, l.TARGET_EMP_NO, t.NAME AS TARGET_NAME, l.REQ_ID, l.REASON,
+           l.ACTOR_EMP_NO, ac.NAME AS ACTOR_NAME, l.EMP_VERIFIED, l.LOGGED_AT
+      FROM BID_ASSIGN_LOG l
+      LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'ASSIGN_ACTION' AND c.CODE = l.ACTION_CD
+      LEFT JOIN USERS t ON t.EMP_NO = l.TARGET_EMP_NO
+      LEFT JOIN USERS ac ON ac.EMP_NO = l.ACTOR_EMP_NO
+     WHERE l.BID_CASE_ID = #{bidCaseId}
+     ORDER BY l.LOG_ID
+  </select>
+
+  <select id="selectMine" resultType="BidAssignMine">
+    SELECT BID_CASE_ID, ASSIGNED_AT FROM BID_ASSIGNMENT
+     WHERE EMP_NO = #{empNo} AND ACTIVE_YN = 1
+     ORDER BY ASSIGNED_AT DESC, BID_CASE_ID
+  </select>
+
+  <select id="countActive" resultType="int">
+    SELECT COUNT(*) FROM BID_ASSIGNMENT
+     WHERE BID_CASE_ID = #{bidCaseId} AND EMP_NO = #{empNo} AND ACTIVE_YN = 1
+  </select>
+
+</mapper>
