@@ -59,4 +59,27 @@
      WHERE BID_CASE_ID = #{bidCaseId} AND EMP_NO = #{empNo} AND ACTIVE_YN = 1
   </select>
 
+  <update id="claimPending">
+    UPDATE BID_ASSIGN_CASE SET PENDING_REQ_ID = #{reqId}
+     WHERE BID_CASE_ID = #{bidCaseId} AND GROUP_VER = #{groupVer}
+       AND (PENDING_REQ_ID IS NULL OR PENDING_REQ_ID = #{staleReqId,jdbcType=NUMERIC})
+  </update>
+
+  <update id="bumpVersion">
+    UPDATE BID_ASSIGN_CASE SET GROUP_VER = GROUP_VER + 1, PENDING_REQ_ID = NULL,
+           UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND GROUP_VER = #{groupVer} AND PENDING_REQ_ID = #{reqId}
+  </update>
+
+  <update id="updateRelease">
+    UPDATE BID_ASSIGNMENT SET ACTIVE_YN = 0, RELEASED_BY = #{by}, RELEASED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND EMP_NO = #{empNo} AND ACTIVE_YN = 1
+  </update>
+
+  <update id="updateReactivate">
+    UPDATE BID_ASSIGNMENT SET ACTIVE_YN = 1, ASSIGNED_BY = #{by}, ASSIGNED_AT = #{now},
+           RELEASED_BY = NULL, RELEASED_AT = NULL
+     WHERE BID_CASE_ID = #{bidCaseId} AND EMP_NO = #{empNo} AND ACTIVE_YN = 0
+  </update>
+
 </mapper>

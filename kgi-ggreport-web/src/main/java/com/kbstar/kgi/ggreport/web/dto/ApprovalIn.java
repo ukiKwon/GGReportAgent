@@ -1,5 +1,7 @@
 package com.kbstar.kgi.ggreport.web.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -7,6 +9,27 @@ import java.util.List;
 public class ApprovalIn {
 
     private ApprovalIn() {
+    }
+
+    /**
+     * {@code POST /approval-requests/assignee-change} 본문. 상신자·역할·결재자 사번은 받지 않는다
+     * (서버가 Actor·USERS 로 정하고, 모르는 키는 무시한다).
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class AssigneeChange {
+        private String bidCaseId;
+        private List<String> addEmpNos = new ArrayList<>();
+        private List<String> removeEmpNos = new ArrayList<>();
+        private String reason;
+
+        public String getBidCaseId() { return bidCaseId; }
+        public void setBidCaseId(String v) { this.bidCaseId = v; }
+        public List<String> getAddEmpNos() { return addEmpNos; }
+        public void setAddEmpNos(List<String> v) { this.addEmpNos = v; }
+        public List<String> getRemoveEmpNos() { return removeEmpNos; }
+        public void setRemoveEmpNos(List<String> v) { this.removeEmpNos = v; }
+        public String getReason() { return reason; }
+        public void setReason(String v) { this.reason = v; }
     }
 
     public static class DeputyForm {

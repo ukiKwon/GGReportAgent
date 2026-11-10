@@ -172,7 +172,9 @@ public class InstitutionEditPermApiTest {
         assertEquals(403, create(IT, "비밀기관명"));
         assertEquals(401, create(null, "비밀기관명2"));
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT EVENT_TYPE, STATUS_CODE, REQ_PATH, DETAIL, EMP_NO FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' ORDER BY LOG_ID");
+                // 접근 이력은 테스트 롤백과 별도로 남으므로 이 테스트가 부른 경로(기관 생성)만 본다.
+                "SELECT EVENT_TYPE, STATUS_CODE, REQ_PATH, DETAIL, EMP_NO FROM ACCESS_LOG"
+                        + " WHERE EVENT_TYPE='DENIED' AND REQ_PATH='/institutions' ORDER BY LOG_ID");
         boolean saw403 = false;
         boolean saw401 = false;
         for (Map<String, Object> r : rows) {

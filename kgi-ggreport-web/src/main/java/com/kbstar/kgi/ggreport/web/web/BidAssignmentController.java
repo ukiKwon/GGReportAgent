@@ -2,7 +2,9 @@ package com.kbstar.kgi.ggreport.web.web;
 
 import com.kbstar.kgi.ggreport.web.config.AccessLogInterceptor;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
+import com.kbstar.kgi.ggreport.web.dto.ApprovalIn;
 import com.kbstar.kgi.ggreport.web.dto.BidAssignIn;
+import com.kbstar.kgi.ggreport.web.service.ApprovalRequestService;
 import com.kbstar.kgi.ggreport.web.service.BidAssignmentService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,10 +31,13 @@ import java.util.function.Supplier;
 public class BidAssignmentController {
 
     private final BidAssignmentService assignments;
+    private final ApprovalRequestService approvalRequests;
     private final MenuGuard guard;
 
-    public BidAssignmentController(BidAssignmentService assignments, MenuGuard guard) {
+    public BidAssignmentController(BidAssignmentService assignments, ApprovalRequestService approvalRequests,
+                                   MenuGuard guard) {
         this.assignments = assignments;
+        this.approvalRequests = approvalRequests;
         this.guard = guard;
     }
 
@@ -59,6 +64,23 @@ public class BidAssignmentController {
     public List<Map<String, Object>> history(@PathVariable String bidCaseId, HttpServletRequest req) {
         SysUser me = guard.requireActiveUser(req);
         return denyLogged(req, () -> assignments.history(bidCaseId, me));
+    }
+
+    /**
+     * 담당자 변경 신청(ASSIGNEE_CHANGE). 상신 자격·결재선은 서비스가 정한다(본문에 상신자·결재자 없음).
+     * 접근 이력에는 입찰 건 번호·인원 수·요청 번호만 남긴다(사번 목록·사유·이름 제외).
+     */
+    @PostMapping("/approval-requests/assignee-change")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Map<String, Object> requestChange(@RequestBody ApprovalIn.AssigneeChange in, HttpServletRequest req) {
+        guard.requireActiveUser(req);
+        Actor actor = Actor.of(req);
+        Map<String, Object> out = denyLogged(req, () -> approvalRequests.submitAssigneeChange(in, actor));
+        int add = in.getAddEmpNos() == null ? 0 : in.getAddEmpNos().size();
+        int remove = in.getRemoveEmpNos() == null ? 0 : in.getRemoveEmpNos().size();
+        req.setAttribute(AccessLogInterceptor.DETAIL, "assign case=" + in.getBidCaseId().trim()
+                + " add=" + add + " remove=" + remove + " req=" + out.get("req_id") + " code=CHANGE_REQ");
+        return out;
     }
 
     /** 내가 현재 담당인 입찰 건 — 로그인한 누구나(자기 것만). */

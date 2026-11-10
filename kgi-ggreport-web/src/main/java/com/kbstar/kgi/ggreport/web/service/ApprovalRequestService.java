@@ -16,6 +16,7 @@ import com.kbstar.kgi.ggreport.web.support.ApprovalTypes;
 import com.kbstar.kgi.ggreport.web.support.ApproverRules;
 import com.kbstar.kgi.ggreport.web.support.MenuPerms;
 import com.kbstar.kgi.ggreport.web.support.Menus;
+import com.kbstar.kgi.ggreport.web.support.Pii;
 import com.kbstar.kgi.ggreport.web.support.Ranks;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import com.kbstar.kgi.ggreport.web.web.Actor;
@@ -53,6 +54,7 @@ public class ApprovalRequestService {
     private final ApprovalDeputyService deputies;
     private final PermChangeLogMapper changeLog;
     private final NotificationCommandService notes;
+    private final BidAssignmentService assignments;
 
     /** 쪽지 종류 — 결재자에게 가는 알림 / 상신자에게 가는 결과. 쪽지함이 둘 다 결재함으로 이어 준다. */
     public static final String KIND_ALERT = "결재알림";
@@ -62,7 +64,8 @@ public class ApprovalRequestService {
 
     public ApprovalRequestService(ApprovalRequestMapper requests, SysUserMapper users, CallerService callers,
                                   PermissionService permissions, ApprovalDeputyService deputies,
-                                  PermChangeLogMapper changeLog, NotificationCommandService notes) {
+                                  PermChangeLogMapper changeLog, NotificationCommandService notes,
+                                  BidAssignmentService assignments) {
         this.requests = requests;
         this.users = users;
         this.callers = callers;
@@ -70,6 +73,7 @@ public class ApprovalRequestService {
         this.deputies = deputies;
         this.changeLog = changeLog;
         this.notes = notes;
+        this.assignments = assignments;
     }
 
     public List<Map<String, Object>> types() {
@@ -86,6 +90,50 @@ public class ApprovalRequestService {
     }
 
     // ── 상신 ───────────────────────────────────────────────────────────
+
+    /**
+     * 담당자 변경 신청(019 S2-b). 검증·결재자 계산은 {@link BidAssignmentService#planChange}가 하고(결재선은 서버가 정한다 —
+     * 본문의 결재자·상신자는 받지 않는다), 여기서는 요청·결재선 행을 만들고 입찰 건에 진행 중 신청을 선점한다.
+     * 선점 실패(409)는 이 트랜잭션이 롤백해 요청 행도 남지 않는다.
+     */
+    @Transactional
+    public Map<String, Object> submitAssigneeChange(ApprovalIn.AssigneeChange in, Actor actor) {
+        SysUser me = callers.require(actor);
+        String reason = in.getReason() == null ? "" : in.getReason().trim();
+        if (reason.isEmpty() || reason.length() > 200) {
+            throw new ApiException(400, "변경 사유를 1~200자로 입력하세요.");
+        }
+        if (!Pii.scan(reason).isEmpty()) {
+            throw new ApiException(422, "사유에 개인정보로 보이는 값이 있습니다. 지우고 다시 입력하세요.");   // 검출값은 싣지 않는다
+        }
+        String bid = in.getBidCaseId() == null ? "" : in.getBidCaseId().trim();
+        if (bid.isEmpty() || bid.length() > 64) {
+            throw new ApiException(400, "입찰 건을 지정하세요.");
+        }
+        BidAssignmentService.ChangePlan plan =
+                assignments.planChange(bid, in.getAddEmpNos(), in.getRemoveEmpNos(), me);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("bid_case_id", plan.getBidCaseId());
+        payload.put("group_ver", plan.getGroupVer());
+        payload.put("add_emp_nos", plan.getAdd());
+        payload.put("remove_emp_nos", plan.getRemove());
+        payload.put("reason", reason);
+        ApprovalRequest r = new ApprovalRequest();
+        r.setReqType(ApprovalTypes.ASSIGNEE_CHANGE);
+        r.setRequesterEmpNo(me.getEmpNo());
+        r.setTitle("담당자 변경 — " + plan.getBidCaseId());
+        r.setPayload(write(payload));
+        r.setStatus("PENDING");
+        r.setCurrentStep(1);
+        r.setCreatedAt(Times.nowIso());
+        requests.insert(r);
+        ApprovalStep s = step(1, "LINE", plan.getApprover().getEmpNo());
+        s.setReqId(r.getReqId());
+        requests.insertStep(s);
+        assignments.claimPending(plan, r.getReqId());
+        notifyStep(r, s, me);
+        return view(requests.selectById(r.getReqId()), me);
+    }
 
     @Transactional
     public Map<String, Object> submitPerm(ApprovalIn.PermRequest in, Actor actor) {
@@ -187,7 +235,7 @@ public class ApprovalRequestService {
         List<ApprovalStep> steps = requests.selectSteps(id);
         ApprovalStep cur = current(steps, r);
         SysUser requester = users.selectByEmpNo(r.getRequesterEmpNo());
-        String how = eligibility(me, requester, cur);
+        String how = eligibility(me, requester, cur, r.getReqType());
         if (how == null) {
             throw new ApiException(403, "이 요청을 결재할 수 없습니다 — 결재자(또는 유효한 대결자)가 아니거나, "
                     + "직급이 맞지 않거나(결재자는 상신자보다 높아야 하고 대결자는 상신자보다 낮으면 안 됩니다), 본인의 요청입니다.");
@@ -207,7 +255,7 @@ public class ApprovalRequestService {
                 }
             }
         } else {
-            String note = applyApproved(r, me);
+            String note = applyApproved(r, me, actor);
             requests.updateRequest(id, "APPROVED", cur.getStepNo(), note, now);
             notifyResult(r, requester, me, "승인되어 반영되었습니다");
         }
@@ -256,7 +304,9 @@ public class ApprovalRequestService {
         } else {
             to.add(step.getApproverEmpNo());
             SysUser principal = users.selectByEmpNo(step.getApproverEmpNo());
-            for (String dep : deputies.deputiesOf(step.getApproverEmpNo(), Times.todayKst())) {
+            List<String> deps = ApprovalTypes.NO_PROXY.contains(r.getReqType())
+                    ? new ArrayList<String>() : deputies.deputiesOf(step.getApproverEmpNo(), Times.todayKst());
+            for (String dep : deps) {
                 SysUser d = users.selectByEmpNo(dep);
                 if (d != null && "ACTIVE".equals(d.getStatus()) && !dep.equals(requester.getEmpNo())
                         && Ranks.mayDecide(requester, d) && !to.contains(dep)) {
@@ -333,7 +383,7 @@ public class ApprovalRequestService {
         } else if ("inbox".equals(box)) {
             for (ApprovalRequest r : requests.selectPending()) {
                 if (eligibility(me, users.selectByEmpNo(r.getRequesterEmpNo()),
-                        current(requests.selectSteps(r.getReqId()), r)) != null) {
+                        current(requests.selectSteps(r.getReqId()), r), r.getReqType()) != null) {
                     rows.add(r);
                 }
             }
@@ -408,7 +458,7 @@ public class ApprovalRequestService {
      * {@code null}(불가). 결재자 본인은 상신자보다 직급이 엄격히 높아야 하고({@link Ranks#mayApprove}),
      * 대결자는 같은 직급까지 허용한다({@link Ranks#mayDecide}).
      */
-    private String eligibility(SysUser me, SysUser requester, ApprovalStep step) {
+    private String eligibility(SysUser me, SysUser requester, ApprovalStep step, String reqType) {
         if (me.getEmpNo().equals(requester.getEmpNo())) {
             return null;
         }
@@ -417,6 +467,9 @@ public class ApprovalRequestService {
         }
         if (me.getEmpNo().equals(step.getApproverEmpNo())) {
             return Ranks.mayApprove(requester, me) ? "SELF" : null;
+        }
+        if (ApprovalTypes.NO_PROXY.contains(reqType)) {      // 담당자 변경은 결재자 본인만(대결 불가)
+            return null;
         }
         return Ranks.mayDecide(requester, me)
                 && deputies.principalsOf(me.getEmpNo(), Times.todayKst()).contains(step.getApproverEmpNo())
@@ -432,7 +485,10 @@ public class ApprovalRequestService {
     }
 
     /** 최종 승인 후처리. 권한 신청이면 신청한 사용자의 권한을 반영하고 변경 이력에 요청 번호를 남긴다. */
-    private String applyApproved(ApprovalRequest r, SysUser decider) {
+    private String applyApproved(ApprovalRequest r, SysUser decider, Actor actor) {
+        if (ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType())) {
+            return assignments.applyChange(r, decider, actor);
+        }
         if (!ApprovalTypes.PERM_REQUEST.equals(r.getReqType())) {
             return null;
         }
@@ -483,6 +539,26 @@ public class ApprovalRequestService {
         }
     }
 
+    /** 담당자 변경 요청의 추가·해제 대상 — 사번·이름·직위만. */
+    private List<Map<String, Object>> peopleOf(JsonNode payload) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (String key : new String[]{"add_emp_nos", "remove_emp_nos"}) {
+            for (JsonNode n : payload.path(key)) {
+                String emp = n.asText();
+                SysUser u = seen.add(emp) ? users.selectByEmpNo(emp) : null;
+                if (u != null) {
+                    Map<String, Object> p = new LinkedHashMap<>();
+                    p.put("emp_no", u.getEmpNo());
+                    p.put("name", u.getName());
+                    p.put("position_title", u.getPositionTitle());
+                    out.add(p);
+                }
+            }
+        }
+        return out;
+    }
+
     private String nameOf(String emp) {
         SysUser u = emp == null ? null : users.selectByEmpNo(emp);
         return u == null ? null : u.getName();
@@ -506,6 +582,9 @@ public class ApprovalRequestService {
         m.put("decided_at", r.getDecidedAt());
         m.put("result_note", r.getResultNote());
         m.put("payload", read(r.getPayload()));
+        if (ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType())) {
+            m.put("people", peopleOf(read(r.getPayload())));   // 카드가 사번 대신 이름·직위를 보이게(이 유형만)
+        }
         List<Map<String, Object>> sv = new ArrayList<>();
         for (ApprovalStep s : steps) {
             Map<String, Object> x = new LinkedHashMap<>();
@@ -523,7 +602,8 @@ public class ApprovalRequestService {
         }
         m.put("steps", sv);
         boolean pending = "PENDING".equals(r.getStatus());
-        String how = pending && requester != null ? eligibility(me, requester, current(steps, r)) : null;
+        String how = pending && requester != null
+                ? eligibility(me, requester, current(steps, r), r.getReqType()) : null;
         m.put("can_decide", how != null);
         m.put("acting_as_deputy", "DEPUTY".equals(how));
         m.put("can_cancel", pending && (r.getRequesterEmpNo().equals(me.getEmpNo())

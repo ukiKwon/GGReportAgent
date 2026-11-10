@@ -2,7 +2,9 @@ package com.kbstar.kgi.ggreport.web.support;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 결재 유형 카탈로그. 원칙: <b>기능을 쓰는 것은 결재하지 않고, 확정·신청만 결재한다</b>
@@ -17,6 +19,11 @@ public final class ApprovalTypes {
     }
 
     public static final String PERM_REQUEST = "PERM_REQUEST";
+    public static final String ASSIGNEE_CHANGE = "ASSIGNEE_CHANGE";
+
+    /** 대결 승인을 허용하지 않는 유형 — 결재자 본인만 승인한다(019 담당자 변경). 기존 유형 동작은 그대로다. */
+    public static final Set<String> NO_PROXY =
+            Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(ASSIGNEE_CHANGE)));
 
     public static final class Type {
         private final String key;
@@ -43,7 +50,9 @@ public final class ApprovalTypes {
             new Type("BOARD_FINAL", "이사회 자료 최종 확정", false, "작성자 → 팀장 → 부장"),
             new Type("MATCH_MEMBERS", "과제 매칭 — 멤버 구성", false,
                     "요청 팀 → 상대 부서장(부서장 부재 시 팀장급 대결 가능)"),
-            new Type("FINAL_SUBMIT", "최종 확인·제출 확정", false, "팀장 → 부장")));
+            new Type("FINAL_SUBMIT", "최종 확인·제출 확정", false, "팀장 → 부장"),
+            new Type(ASSIGNEE_CHANGE, "담당자 변경", true,
+                    "담당자(또는 영업팀장) → 영업팀장 (영업팀장이 관련되면 영업부장) · 대결 불가")));
 
     public static Type find(String key) {
         for (Type t : ALL) {
