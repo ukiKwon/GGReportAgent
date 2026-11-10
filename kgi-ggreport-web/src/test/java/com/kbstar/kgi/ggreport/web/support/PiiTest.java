@@ -148,4 +148,45 @@ public class PiiTest {
         assertEquals("[주민등록번호=901231-*******, 휴대폰=010-****-5678, 이메일=a***@b.com, "
                 + "외국인등록번호=901231-*******, 카드번호=4111-****-****-1111]", found.toString());
     }
+
+    // ── scanLoose(security 하-2) ──
+
+    @Test
+    public void scanLoose는_대시류_가운뎃점_점_서식문자_비ASCII_숫자_구분자도_잡는다() {
+        for (String v : new String[]{"900101–1234567", "900101‐1234567", "900101·1234567", "900101.1234567",
+                "900101​-1234567", "٩٠٠١٠١-1234567", "９００１０１-1234567"}) {
+            List<Pii.Finding> f = Pii.scanLoose(v);
+            assertEquals(v, 1, f.size());
+            assertEquals(v, "주민등록번호", f.get(0).getKind());
+            assertFalse(f.get(0).getValue().contains("1234567"));
+        }
+        assertEquals("휴대폰", Pii.scanLoose("010.1234.5678").get(0).getKind());
+        assertEquals("휴대폰", Pii.scanLoose("010–1234–5678").get(0).getKind());
+        assertEquals("외국인등록번호", Pii.scanLoose("901231–5234567").get(0).getKind());
+    }
+
+    @Test
+    public void scanLoose도_이메일을_그대로_찾고_한_값을_두_번_세지_않는다() {
+        List<Pii.Finding> f = Pii.scanLoose("문의: kim.damdang@example.com");
+        assertEquals(1, f.size());
+        assertEquals("이메일", f.get(0).getKind());
+        assertEquals("k***@example.com", f.get(0).getValue());
+        assertEquals(2, Pii.scanLoose("a@b.com 900101-1234567").size());       // 이메일 1 + 주민 1
+        assertEquals(1, Pii.scanLoose("900101-1234567").size());              // '-' 만 있어도 두 변형에서 중복되지 않는다
+    }
+
+    @Test
+    public void scanLoose는_정상_금액과_날짜를_오탐하지_않는다() {
+        for (String v : new String[]{"9.001", "1,234.56", "48.51 (36.85)", "0.1234567", "123456.78", "900101.12", "2026.11.10",
+                "12.5%", "1,234,567,890,123", "9001011.234567", "9·001", "-1,234.5"}) {
+            assertTrue(v, Pii.scanLoose(v).isEmpty());
+        }
+        assertTrue(Pii.scanLoose(null).isEmpty());
+        assertTrue(Pii.scanLoose("").isEmpty());
+    }
+
+    @Test(timeout = 1000)
+    public void scanLoose도_긴_입력에서_선형으로_끝난다() {
+        assertTrue(Pii.scanLoose(new String(new char[100_000]).replace('\0', 'a')).isEmpty());
+    }
 }

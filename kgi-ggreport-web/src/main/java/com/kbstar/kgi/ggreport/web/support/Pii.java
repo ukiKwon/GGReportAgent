@@ -108,6 +108,54 @@ public final class Pii {
         return found;
     }
 
+    private static final String EMAIL_KIND = "이메일";
+
+    /**
+     * 우회 구분자까지 보는 검사(security 하-2) — 사용자 입력(칸 값·메모)용. NFKC 뒤 ① 서식 문자(폭 없는 공백·소프트 하이픈) 제거
+     * ② 십진 숫자(아랍-인도 등 비ASCII)를 ASCII 로 ③ 대시류(en dash 등 DASH_PUNCTUATION, U+2212)를 '-' 로 ④ 숫자류는 '.'·'·' 도 '-' 로 본다.
+     * 이메일은 '.' 이 뜻을 가지므로 ④ 를 적용하지 않은 변형으로 찾는다(한 값이 두 번 세어지지 않는다).
+     * 알려진 오탐: "900101.1234567" 같은 6자리.7자리 소수 — 숫자 칸(소수 2자리)에서는 나오지 않는다.
+     */
+    public static List<Finding> scanLoose(String text) {
+        List<Finding> out = new ArrayList<Finding>();
+        if (text == null || text.isEmpty()) {
+            return out;
+        }
+        for (Finding f : scan(fold(text, true))) {
+            if (!EMAIL_KIND.equals(f.getKind())) {
+                out.add(f);
+            }
+        }
+        for (Finding f : scan(fold(text, false))) {
+            if (EMAIL_KIND.equals(f.getKind())) {
+                out.add(f);
+            }
+        }
+        return out;
+    }
+
+    private static String fold(String text, boolean dotAsDash) {
+        String s = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFKC);
+        StringBuilder b = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); ) {
+            int cp = s.codePointAt(i);
+            i += Character.charCount(cp);
+            int ty = Character.getType(cp);
+            if (ty == Character.FORMAT) {
+                continue;
+            }
+            if (ty == Character.DECIMAL_DIGIT_NUMBER) {
+                b.append((char) ('0' + Character.digit(cp, 10)));
+            } else if (ty == Character.DASH_PUNCTUATION || cp == 0x2212
+                    || (dotAsDash && (cp == '.' || cp == 0x00B7 || cp == 0x30FB || cp == 0x2027))) {
+                b.append('-');
+            } else {
+                b.appendCodePoint(cp);
+            }
+        }
+        return b.toString();
+    }
+
     /** Luhn 검사 — 카드번호 오탐(아무 16자리 숫자)을 걸러낸다. */
     static boolean luhn(String digits) {
         int sum = 0;

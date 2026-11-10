@@ -23,6 +23,9 @@ public interface BoardMaterialMapper {
     /** 입찰 건의 배정 머리 행을 잠근다(security P3). 자격 확인·인계 전에 호출해 같은 건의 배정 변경 승인과 직렬화한다. */
     String lockAssignCase(@Param("bidCaseId") String bidCaseId);
 
+    /** 같은 입찰 건·연도의 자료 번호(오름차순) — 잠그며 읽는다. create 가 lockAssignCase 뒤에 중복 생성을 막는 데 쓴다(없으면 빈 목록). */
+    List<Long> selectIdsByCaseYear(@Param("bidCaseId") String bidCaseId, @Param("year") int year);
+
     int insertMaterial(BoardMaterial m);
 
     /** 이름 칸(기관명·상태명·결과명)까지 채운다. */

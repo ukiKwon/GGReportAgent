@@ -151,8 +151,16 @@ public class BidAssignmentService {
     public List<Map<String, Object>> history(String bidCaseId, SysUser me) {
         requireSalesTeam(me);
         requireBidCase(bidCaseId);
+        // '작성본 인계'(HANDOVER) 행은 그 건에 이사회 자료가 있었다는 사실과 인수자 이름을 드러낸다(security 하-3, 사용자 확정 2026-11-10).
+        // 그 건의 현재 담당자·영업팀장·영업부장에게만 보이고 그 외에게는 응답에서 뺀다. 다른 행은 그대로. 호출자 활성 여부는 컨트롤러가 이미 확인했다.
+        String myRole = roleOf(me);
+        boolean seesHandover = LEAD_ROLE.equals(myRole) || HEAD_ROLE.equals(myRole)
+                || isActiveAssignee(bidCaseId, me.getEmpNo());
         List<Map<String, Object>> out = new ArrayList<>();
         for (BidAssignLogView l : mapper.selectLog(bidCaseId)) {
+            if (!seesHandover && ACTION_HANDOVER.equals(l.getActionCd())) {
+                continue;
+            }
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("action_cd", l.getActionCd());
             m.put("action_name", l.getActionName());

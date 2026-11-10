@@ -27,6 +27,12 @@
     SELECT BID_CASE_ID FROM BID_ASSIGN_CASE WHERE BID_CASE_ID = #{bidCaseId} FOR UPDATE
   </select>
 
+  <select id="selectIdsByCaseYear" resultType="long">
+    SELECT MATERIAL_ID FROM BOARD_MATERIAL
+     WHERE BID_CASE_ID = #{bidCaseId} AND BOARD_YEAR = #{year}
+     ORDER BY MATERIAL_ID FOR UPDATE
+  </select>
+
   <insert id="insertMaterial" useGeneratedKeys="true" keyProperty="materialId" keyColumn="MATERIAL_ID">
     INSERT INTO BOARD_MATERIAL (BID_CASE_ID, INSTITUTION_ID, BOARD_YEAR, STATUS_CD, FORM_ID, FORM_VER, CUR_SNAP,
                                 CREATED_BY, CREATED_AT, UPDATED_BY, UPDATED_AT)

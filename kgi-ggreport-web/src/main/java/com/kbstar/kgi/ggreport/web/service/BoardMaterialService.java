@@ -27,7 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -70,7 +69,14 @@ public class BoardMaterialService {
     /** 숫자 칸(엑셀 연결 칸): 부호 포함 정수부 13자리(천원 단위로 9,999조 원까지), 소수 2자리까지(비율·환산 칸). */
     static final int NUM_INT_DIGITS = 13;
     static final int NUM_FRAC_DIGITS = 2;
-    private static final Pattern NUM = Pattern.compile("-?(?:\\d{1,13}|\\d{1,3}(?:,\\d{3}){1,4})(?:\\.\\d{1,2})?");
+    /** 쉼표 묶음은 정수부 13자리를 넘지 않는 모양만: 1~3자리+(,ddd)×1~3(최대 12자리) 또는 1자리+(,ddd)×4(13자리). */
+    private static final Pattern NUM = Pattern.compile(
+            "-?(?:\\d{1,13}|\\d{1,3}(?:,\\d{3}){1,3}|\\d(?:,\\d{3}){4})(?:\\.\\d{1,2})?");
+    private static final String NUM_MSG = "숫자 칸에는 숫자(정수부 " + NUM_INT_DIGITS + "자리, 소수 " + NUM_FRAC_DIGITS
+            + "자리 이내)만 입력할 수 있습니다.";
+    /** 응답 detail.cells 의 최대 개수와 칸 식별자 허용 모양(클라이언트가 보낸 임의 문자열을 되돌려 싣지 않는다). */
+    static final int MAX_MARKS = 50;
+    private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9_]{1,40}");
 
     static final String PREP = "PREP";
     static final String DRAFT = "DRAFT";
@@ -176,7 +182,9 @@ public class BoardMaterialService {
         if (s == null) {
             throw ApiException.notFound(NOT_FOUND);
         }
-        return snapView(s, true);
+        Map<String, Object> out = snapView(s, true);
+        out.put("form", forms.structureForStored(m.getFormId(), m.getFormVer()));   // 부장·담당자 모두 이것으로 읽기 전용 표를 그린다
+        return out;
     }
 
     @Transactional(readOnly = true)
@@ -245,6 +253,14 @@ public class BoardMaterialService {
         String inst = mapper.selectCaseInstitution(bid);
         if (inst == null) {
             throw ApiException.notFound(NOT_FOUND);
+        }
+        List<Long> same = mapper.selectIdsByCaseYear(bid, year);   // 잠금 안·잠금 읽기 — 동시 생성·두 번 누름도 여기서 걸린다
+        if (!same.isEmpty()) {
+            Map<String, Object> d = new LinkedHashMap<>();
+            d.put("code", "ALREADY_EXISTS");
+            d.put("message", "이 입찰 건의 해당 연도 이사회 자료가 이미 있습니다.");
+            d.put("material_id", same.get(0));   // 이미 담당 자격 검사를 지난 호출자 — 그 건 자료는 어차피 볼 수 있다(존재 은닉 새로 깨지지 않음)
+            throw ApiException.withDetail(409, d);
         }
         String formId = blankToNull(in.getFormId()) == null ? BoardDocSpec.DEFAULT_ID : in.getFormId().trim();
         BoardFormService.WriteTarget target = forms.formForWrite(me.getEmpNo(), formId,
@@ -570,6 +586,7 @@ public class BoardMaterialService {
         out.put("assignees", as == null ? new ArrayList<Map<String, Object>>() : as);
         BoardMaterialSnap s = m.getCurSnap() > 0 ? mapper.selectSnap(m.getMaterialId(), m.getCurSnap()) : null;
         out.put("snapshot", s == null ? null : snapView(s, true));
+        out.put("form", forms.structureForStored(m.getFormId(), m.getFormVer()));
         return out;
     }
 
@@ -686,49 +703,43 @@ public class BoardMaterialService {
     }
 
     /**
-     * 저장할 값 검증·정규화: 표 수·칸 수 한도 → 칸 길이(개인정보 정규식은 길이에 비례해 느리므로 먼저) → 개인정보(422, NFKC 정규화 뒤 검사 —
-     * 전각 숫자로 피하지 못하게) → 숫자 칸 검증(연결 칸: {@link #canonNumber}) → 양식 구조 대조(BoardDocSpec.withValues: 값 칸이 아닌 키·
-     * 모르는 표는 거부, 제어문자·trim·100자) → 값이 있는 칸만 추출. 칸 값은 다른 담당자·결재자 화면에 그려지므로 화면은 esc 만 써야 한다.
+     * 저장할 값 검증·정규화: 표 수·칸 수 한도 → 칸 길이(개인정보 정규식은 길이에 비례해 느리므로 먼저, 400) → 개인정보(422, {@link Pii#scanLoose} —
+     * NFKC·비ASCII 숫자·대시류·서식 문자 우회까지) → 숫자 칸 검증(연결 칸: {@link #canonNumber}, 400) → 양식 구조 대조(BoardDocSpec.withValues:
+     * 값 칸이 아닌 키·모르는 표는 거부, 제어문자·trim·100자) → 값이 있는 칸만 추출 → <b>저장할 최종값으로 개인정보 한 번 더</b>(쉼표 제거로 생기는
+     * 주민번호 모양, security 하-1). 400/422 는 문제 칸 위치(ref·key, 값 없음, 최대 {@value #MAX_MARKS}개)와 총수를 detail 에 싣는다.
+     * 칸 값은 다른 담당자·결재자 화면에 그려지므로 화면은 esc 만 써야 한다.
      */
     private Map<String, Map<String, String>> checkedValues(String empNo, BoardMaterial m, List<BoardWriteIn.TableIn> tables) {
         if (tables == null || tables.size() > MAX_TABLES) {
             throw coded(400, "BAD_REQUEST", "표 목록(tables)이 올바르지 않습니다.");
         }
         Map<String, Map<String, String>> raw = new LinkedHashMap<>();
-        Map<String, Integer> kinds = new LinkedHashMap<>();
+        Marks tooLong = new Marks();
         for (BoardWriteIn.TableIn t : tables) {
             if (t == null || t.getRef() == null || raw.containsKey(t.getRef())
                     || (t.getCells() != null && t.getCells().size() > MAX_CELLS)) {
                 throw coded(400, "BAD_REQUEST", "표 목록(tables)이 올바르지 않습니다.");
             }
             Map<String, String> cells = t.getCells() == null ? new LinkedHashMap<String, String>() : t.getCells();
-            for (String v : cells.values()) {
-                if (v != null && v.length() > BoardDocSpec.MAX_CELL) {
-                    throw coded(400, "BAD_VALUE", "칸 값은 " + BoardDocSpec.MAX_CELL + "자 이하로 입력해 주세요.");
-                }
-                for (Pii.Finding f : Pii.scan(v == null ? null : Normalizer.normalize(v, Normalizer.Form.NFKC))) {
-                    Integer n = kinds.get(f.getKind());
-                    kinds.put(f.getKind(), n == null ? 1 : n + 1);
+            for (Map.Entry<String, String> e : cells.entrySet()) {
+                if (e.getValue() != null && e.getValue().length() > BoardDocSpec.MAX_CELL) {
+                    tooLong.add(t.getRef(), e.getKey());
                 }
             }
             raw.put(t.getRef(), new LinkedHashMap<>(cells));
         }
-        if (!kinds.isEmpty()) {
-            Map<String, Object> d = new LinkedHashMap<>();
-            d.put("code", "PII_DETECTED");
-            d.put("message", "개인정보로 보이는 값이 있어 저장하지 않았습니다. 해당 칸을 지우고 다시 저장해 주세요.");
-            List<Map<String, Object>> ks = new ArrayList<>();
-            for (Map.Entry<String, Integer> e : kinds.entrySet()) {
-                Map<String, Object> k = new LinkedHashMap<>();
-                k.put("kind", e.getKey());
-                k.put("count", e.getValue());
-                ks.add(k);
-            }
-            d.put("kinds", ks);   // 종류·건수만 — 검출된 값은 싣지 않는다
-            throw ApiException.withDetail(422, d);
+        if (tooLong.total > 0) {
+            throw badCells("칸 값은 " + BoardDocSpec.MAX_CELL + "자 이하로 입력해 주세요.", tooLong);
         }
-        BoardDocSpec.Doc base = forms.docForStored(empNo, m.getFormId(), m.getFormVer());
-        for (BoardDocSpec.Table t : base.getTables()) {    // 연결(숫자) 칸은 숫자 검증·정규화
+        Map<String, Integer> kinds = new LinkedHashMap<>();
+        Marks pii = new Marks();
+        scanPii(raw, kinds, pii);
+        if (!kinds.isEmpty()) {
+            throw piiDetected(kinds, pii);
+        }
+        BoardDocSpec.Doc base = forms.docForStoredAny(m.getFormId(), m.getFormVer());   // 팀 범위 없음 — form 구조 조회와 같다(담당자 자격은 이미 통과)
+        Marks badNum = new Marks();
+        for (BoardDocSpec.Table t : base.getTables()) {    // 연결(숫자) 칸은 숫자 검증·정규화 — 틀린 칸을 전부 모아 알린다
             Map<String, String> cells = raw.get(t.getId());
             if (cells == null) {
                 continue;
@@ -737,10 +748,17 @@ public class BoardMaterialService {
                 for (BoardDocSpec.Cell c : row) {
                     String v = c.isMapped() ? cells.get(c.getKey()) : null;
                     if (v != null && !v.trim().isEmpty()) {
-                        cells.put(c.getKey(), canonNumber(v));
+                        if (isNumber(v)) {
+                            cells.put(c.getKey(), canonNumber(v));
+                        } else {
+                            badNum.add(t.getId(), c.getKey());
+                        }
                     }
                 }
             }
+        }
+        if (badNum.total > 0) {
+            throw badCells(NUM_MSG, badNum);
         }
         BoardDocSpec.Doc filled;
         try {
@@ -763,15 +781,87 @@ public class BoardMaterialService {
                 }
             }
         }
+        Map<String, Integer> kinds2 = new LinkedHashMap<>();   // 숫자 정규화(쉼표 제거)·trim 뒤 저장값으로 재검사 — security 하-1
+        Marks pii2 = new Marks();
+        scanPii(out, kinds2, pii2);
+        if (!kinds2.isEmpty()) {
+            throw piiDetected(kinds2, pii2);
+        }
         return out;
+    }
+
+    /** 칸 값 전체를 {@link Pii#scanLoose} 로 훑어 종류별 건수와 검출된 칸 위치를 모은다(값은 모으지 않는다). */
+    private static void scanPii(Map<String, Map<String, String>> byRef, Map<String, Integer> kinds, Marks marks) {
+        for (Map.Entry<String, Map<String, String>> t : byRef.entrySet()) {
+            for (Map.Entry<String, String> c : t.getValue().entrySet()) {
+                List<Pii.Finding> found = Pii.scanLoose(c.getValue());
+                if (found.isEmpty()) {
+                    continue;
+                }
+                marks.add(t.getKey(), c.getKey());
+                for (Pii.Finding f : found) {
+                    Integer n = kinds.get(f.getKind());
+                    kinds.put(f.getKind(), n == null ? 1 : n + 1);
+                }
+            }
+        }
+    }
+
+    private static ApiException piiDetected(Map<String, Integer> kinds, Marks marks) {
+        Map<String, Object> d = new LinkedHashMap<>();
+        d.put("code", "PII_DETECTED");
+        d.put("message", "개인정보로 보이는 값이 있어 저장하지 않았습니다. 해당 칸을 지우고 다시 저장해 주세요.");
+        List<Map<String, Object>> ks = new ArrayList<>();
+        for (Map.Entry<String, Integer> e : kinds.entrySet()) {
+            Map<String, Object> k = new LinkedHashMap<>();
+            k.put("kind", e.getKey());
+            k.put("count", e.getValue());
+            ks.add(k);
+        }
+        d.put("kinds", ks);          // 종류·건수만 — 검출된 값은 싣지 않는다
+        d.put("count", marks.total); // 검출된 칸 수(cells 는 알려진 칸만, 최대 MAX_MARKS)
+        d.put("cells", marks.cells);
+        return ApiException.withDetail(422, d);
+    }
+
+    private static ApiException badCells(String message, Marks marks) {
+        Map<String, Object> d = new LinkedHashMap<>();
+        d.put("code", "BAD_VALUE");
+        d.put("message", message);
+        d.put("count", marks.total);
+        d.put("cells", marks.cells);
+        return ApiException.withDetail(400, d);
+    }
+
+    /** 문제 칸 위치 모음 — 총수는 세고, 목록은 안전한 식별자(SAFE_ID, 개인정보 모양 아님)만 최대 MAX_MARKS 개. */
+    private static final class Marks {
+        final List<Map<String, Object>> cells = new ArrayList<>();
+        int total;
+
+        void add(String ref, String key) {
+            total++;
+            if (cells.size() < MAX_MARKS && safe(ref) && safe(key)) {
+                Map<String, Object> c = new LinkedHashMap<>();
+                c.put("ref", ref);
+                c.put("key", key);
+                cells.add(c);
+            }
+        }
+
+        private static boolean safe(String s) {
+            return s != null && SAFE_ID.matcher(s).matches() && Pii.scanLoose(s).isEmpty();
+        }
+    }
+
+    private static boolean isNumber(String raw) {
+        return NUM.matcher(raw.trim()).matches();
     }
 
     /** 숫자 칸 정규화: 앞뒤 공백 제거 → 천 단위 쉼표 허용(올바른 묶음만) → 정수부 13자리·소수 2자리 → 쉼표 없는 표준형. 아니면 400(입력값 비노출). */
     static String canonNumber(String raw) {
         String v = raw.trim();
         if (!NUM.matcher(v).matches()) {
-            throw coded(400, "BAD_VALUE", "숫자 칸에는 숫자(정수부 " + NUM_INT_DIGITS + "자리, 소수 " + NUM_FRAC_DIGITS
-                    + "자리 이내)만 입력할 수 있습니다.");
+            throw coded(400, "BAD_VALUE", NUM_MSG);
         }
         BigDecimal d = new BigDecimal(v.replace(",", ""));
         if (d.signum() == 0) {
@@ -802,7 +892,7 @@ public class BoardMaterialService {
         if (t.length() > max) {
             throw coded(400, "BAD_VALUE", label + "는 " + max + "자 이하로 입력해 주세요.");
         }
-        if (!Pii.scan(Normalizer.normalize(t, Normalizer.Form.NFKC)).isEmpty()) {
+        if (!Pii.scanLoose(t).isEmpty()) {
             throw coded(422, "PII_DETECTED", label + "에 개인정보로 보이는 값이 있어 저장하지 않았습니다.");
         }
         return t;

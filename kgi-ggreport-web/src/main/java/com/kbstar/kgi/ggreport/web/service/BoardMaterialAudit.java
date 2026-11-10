@@ -9,6 +9,9 @@ import com.kbstar.kgi.ggreport.web.web.Actor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * 확정(CONFIRMED)된 이사회 자료에 대한 모든 행위의 감사 기록(사용자 지시 2026-11-10 "잊지마"): 누가·어느 화면·어느 버튼·언제·어느 자료.
  * 읽기·거부(403)·은닉(404)·충돌(409)·입력 오류(400)도 모두 남긴다 — 확정 자료를 들여다보려는 시도까지 기록하기 위해서다.
@@ -59,6 +62,30 @@ public class BoardMaterialAudit {
         if (ctx == null) {
             return;
         }
+        insert(ctx, action, outcome, actor, ui);
+    }
+
+    /**
+     * 목록 조회 감사(security 하-4③) — 응답에 담긴 행 중 확정(CONFIRMED) 행마다 LIST 한 줄. 한 트랜잭션. 응답 전에 부른다(실패하면 500, 데이터 안 나감).
+     * ⚠️ 부장 목록은 한 번에 최대 LIST_CAP(300)행이 쌓인다 — 기록량 주의.
+     */
+    @Transactional
+    public void recordList(List<Map<String, Object>> items, Actor actor, BoardUiIds.Ui ui) {
+        if (items == null) {
+            return;
+        }
+        for (Map<String, Object> it : items) {
+            Object id = it.get("material_id");
+            if (!BoardMaterialService.CONFIRMED.equals(it.get("status_cd")) || !(id instanceof Number)) {
+                continue;
+            }
+            Object snap = it.get("confirmed_snap");
+            insert(new Ctx(((Number) id).longValue(), (String) it.get("bid_case_id"), (String) it.get("result_cd"),
+                    snap instanceof Number ? Integer.valueOf(((Number) snap).intValue()) : null), "LIST", "OK", actor, ui);
+        }
+    }
+
+    private void insert(Ctx ctx, String action, String outcome, Actor actor, BoardUiIds.Ui ui) {
         BoardMaterialAct a = new BoardMaterialAct();
         a.setMaterialId(ctx.materialId);
         a.setBidCaseId(ctx.bidCaseId);

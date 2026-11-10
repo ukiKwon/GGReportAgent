@@ -27,7 +27,7 @@ import java.util.function.Function;
  * 호출자 확인은 {@link MenuGuard#requireActiveUser}(401/403 DENIED, 메뉴 무관). 권한 판정(담당자·결재 경로)은 서비스가 한다.
  *
  * <p>모든 쓰기(POST)는 헤더 {@code X-Screen-Id}·{@code X-Button-Id} 가 허용 목록 안이어야 한다(아니면 400 UI_ID_REQUIRED, 원문 비노출).
- * 읽기(GET)는 값이 없어도 되지만 확정 자료이면 {@code UNKNOWN}·ui_valid=false 로 남는다. 확정 자료에 대한 모든 호출(거부·은닉 포함)은
+ * 읽기(GET)는 값이 없어도 되지만 확정 자료이면 {@code UNKNOWN}·ui_valid=false 로 남는다. 확정 자료에 대한 호출(거부·은닉 포함, 사번 없는 401은 제외 — 목록은 확정 행마다 LIST)은
  * {@link BoardMaterialAudit} 가 따로 기록한다. 접근 이력(ACCESS_LOG) detail 에는 자료 번호·코드·버전 번호뿐 — 값·메모·사유·사번·이름 없음.
  * ⚠️ X-Emp-No·X-Screen-Id·X-Button-Id 는 모두 자기신고다 — 사칭·위조 방지가 아니다.
  */
@@ -55,8 +55,12 @@ public class BoardMaterialController {
                                     @RequestParam(name = "meeting_from", required = false) String meetingFrom,
                                     @RequestParam(name = "meeting_to", required = false) String meetingTo,
                                     HttpServletRequest req) {
-        SysUser me = guard.requireActiveUser(req);
-        return service.list(me, q, status, year, assignee, meetingFrom, meetingTo);
+        SysUser me = guard.requireActiveUser(req);   // 401/403 은 ACCESS_LOG DENIED 로만 — ACT 없음
+        Map<String, Object> out = service.list(me, q, status, year, assignee, meetingFrom, meetingTo);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) out.get("items");
+        audit.recordList(items, Actor.of(req), BoardUiIds.of(req));   // 확정 행마다 LIST — 응답 전(fail-closed)
+        return out;
     }
 
     @GetMapping("/{id}")
@@ -109,9 +113,17 @@ public class BoardMaterialController {
     private <T> T run(HttpServletRequest req, String id, String action, boolean write, Function<SysUser, T> call) {
         Actor actor = Actor.of(req);
         BoardUiIds.Ui ui = BoardUiIds.of(req);
+        SysUser me;
+        try {
+            me = guard.requireActiveUser(req);
+        } catch (ApiException e) {
+            if (e.getStatus() != 401 && id != null) {   // 사번이 확인된 비활성·미등록(403)만 ACT. 사번 없는 401 은 ACCESS_LOG 에만(기록량 상한 없음 방지)
+                audit.record(audit.before(id), action, outcomeOf(e.getStatus()), actor, ui);
+            }
+            throw e;
+        }
         BoardMaterialAudit.Ctx ctx = id == null ? null : audit.before(id);   // 확정 자료가 아니면 null — 이하 기록 생략
         try {
-            SysUser me = guard.requireActiveUser(req);
             if (write && !ui.isValid()) {
                 throw uiRequired();
             }
@@ -128,6 +140,9 @@ public class BoardMaterialController {
             return out;
         } catch (ApiException e) {
             audit.record(ctx, action, outcomeOf(e.getStatus()), actor, ui);
+            throw e;
+        } catch (RuntimeException e) {   // DataAccess·저장 JSON 결함 등 — ERROR 로 남기고 그대로 던진다(security 하-4①)
+            audit.record(ctx, action, "ERROR", actor, ui);
             throw e;
         }
     }

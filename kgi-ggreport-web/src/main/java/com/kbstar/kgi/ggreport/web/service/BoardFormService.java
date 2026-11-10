@@ -158,6 +158,54 @@ public class BoardFormService {
     }
 
     /**
+     * 이사회 자료 응답에 싣는 양식 구조(값을 놓을 자리) — 값은 없다. 팀 범위를 보지 않는다: 호출자는 이미 그 자료를 볼 수 있는 사람(담당자·영업부장)이다
+     * (인가는 BoardMaterialService.loadVisible). 양식 조회·편집 권한은 바꾸지 않는다. 칸의 editable 은 모두 false(양식 편집이 아니다).
+     * 읽을 수 없으면 서버 결함(500).
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> structureForStored(String formId, int formVer) {
+        if (BoardDocSpec.DEFAULT_ID.equals(formId)) {
+            BoardDocSpec.Doc d = BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false);
+            return structure(d, BoardDocSpec.DEFAULT_ID, null, d.getName(), BoardDocSpec.CATALOG_VER);
+        }
+        Long id = parseId(formId);
+        BoardForm f = id == null ? null : forms.selectForm(id);
+        BoardFormVer v = f == null ? null : forms.selectVersion(f.getFormId(), formVer);
+        if (v == null) {
+            throw new IllegalStateException("stored board form is missing");
+        }
+        return structure(docOf(f, v, false), String.valueOf(f.getFormId()), v.getVerNo(), v.getName(), v.getCatalogVer());
+    }
+
+    /**
+     * 저장 검증용 양식 구조 — {@link #structureForStored} 와 같은 조회(팀 범위 없음), Doc 을 돌려준다. 호출자(저장)는 이미 담당자 자격 검사를 지났다.
+     * 읽을 수 없으면 서버 결함(500).
+     */
+    @Transactional(readOnly = true)
+    public BoardDocSpec.Doc docForStoredAny(String formId, int formVer) {
+        if (BoardDocSpec.DEFAULT_ID.equals(formId)) {
+            return BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false);
+        }
+        Long id = parseId(formId);
+        BoardForm f = id == null ? null : forms.selectForm(id);
+        BoardFormVer v = f == null ? null : forms.selectVersion(f.getFormId(), formVer);
+        if (v == null) {
+            throw new IllegalStateException("stored board form is missing");
+        }
+        return docOf(f, v, false);
+    }
+
+    private static Map<String, Object> structure(BoardDocSpec.Doc doc, String formId, Integer version, String name, int catalogVer) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("form_id", formId);
+        m.put("name", name);
+        m.put("version", version);
+        m.put("catalog_ver", catalogVer);
+        m.put("tables", tablesView(doc, false));
+        return m;
+    }
+
+    /**
      * 저장된 이사회 자료가 가리키는 양식 구조(값 검증용). 보관(ARCHIVED) 양식도 허용한다 — 이미 만든 자료는 계속 저장할 수 있어야 한다.
      * 팀 범위는 load 와 같다(남의 팀 양식은 404). formId 는 'default_doc' 또는 숫자 문자열.
      */
@@ -641,6 +689,12 @@ public class BoardFormService {
         m.put("updated_by", v.getCreatedBy());
         m.put("updated_at", v.getCreatedAt());
         m.put("limits", limits());
+        m.put("tables", tablesView(doc, true));
+        return m;
+    }
+
+    /** 양식 표 목록의 응답 형태. cellEditable 은 칸의 editable 값(양식 편집 화면 true, 이사회 자료의 양식 구조 false). */
+    private static List<Map<String, Object>> tablesView(BoardDocSpec.Doc doc, boolean cellEditable) {
         List<Map<String, Object>> tables = new ArrayList<>();
         for (BoardDocSpec.Table t : doc.getTables()) {
             Map<String, Object> tm = new LinkedHashMap<>();
@@ -668,7 +722,7 @@ public class BoardFormService {
                     cm.put("mapped", c.isMapped());
                     cm.put("input", c.isInput());
                     cm.put("align", c.getAlign());
-                    cm.put("editable", true);               // 잠김 폐지: 연결 칸도 고칠 수 있다(속성을 바꾸면 연결이 풀린다)
+                    cm.put("editable", cellEditable);   // 양식 편집 화면: 잠김 폐지(연결 칸도 고칠 수 있다). 자료의 양식 구조: false
                     row.add(cm);
                 }
                 rows.add(row);
@@ -678,7 +732,6 @@ public class BoardFormService {
             tm.put("unit", t.getUnit());
             tables.add(tm);
         }
-        m.put("tables", tables);
-        return m;
+        return tables;
     }
 }

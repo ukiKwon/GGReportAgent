@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -174,9 +175,13 @@ public class BoardMaterialApiTest {
         assertTrue(j.path("viewer").path("can_write").asBoolean());
         assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MATERIAL_LOG WHERE MATERIAL_ID=? AND EVENT_CD='CREATE'", id));
         assertEquals(0, count("SELECT EMP_VERIFIED FROM BOARD_MATERIAL_LOG WHERE MATERIAL_ID=?", id));   // 자기신고
-        // 같은 기관·같은 연도로 한 건 더 — UNIQUE 없음
-        create(MEMBER, bc, 2026);
-        assertEquals(2, count("SELECT COUNT(*) FROM BOARD_MATERIAL WHERE BID_CASE_ID=? AND BOARD_YEAR=2026", bc));
+        // 같은 기관·같은 연도로 한 건 더 — 409 ALREADY_EXISTS(P1-3), 다른 연도는 된다
+        MvcResult dup = send("/board-materials", MEMBER, "{\"bid_case_id\":\"" + bc + "\",\"year\":2026}");
+        assertEquals(409, dup.getResponse().getStatus());
+        assertEquals("ALREADY_EXISTS", json(dup).path("detail").path("code").asText());
+        assertEquals(id, json(dup).path("detail").path("material_id").asLong());
+        create(MEMBER, bc, 2025);
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MATERIAL WHERE BID_CASE_ID=? AND BOARD_YEAR=2026", bc));
     }
 
     @Test
@@ -558,7 +563,7 @@ public class BoardMaterialApiTest {
         List<Map<String, Object>> acts = jdbc.queryForList(
                 "SELECT ACTION_CD, OUTCOME, STATUS_CD, SNAP_NO, ACTOR_EMP_NO, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID "
                         + "FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? ORDER BY ACT_ID", id);
-        assertEquals(5, acts.size());
+        assertEquals(4, acts.size());   // 사번 없는 401 은 ACT 에 남기지 않는다(ACCESS_LOG 에만)
         assertEquals("VIEW", acts.get(0).get("ACTION_CD"));
         assertEquals("OK", acts.get(0).get("OUTCOME"));
         assertEquals("CONFIRMED", acts.get(0).get("STATUS_CD"));
@@ -576,7 +581,6 @@ public class BoardMaterialApiTest {
         assertEquals(MEMBER2, acts.get(2).get("ACTOR_EMP_NO"));
         assertEquals("SAVE", acts.get(3).get("ACTION_CD"));
         assertEquals("BLOCKED", acts.get(3).get("OUTCOME"));
-        assertEquals("DENIED", acts.get(4).get("OUTCOME"));
         assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=?", draftOther));
         // 값·본문은 기록하지 않는다 — 열 목록에 값 칸이 없다
         assertFalse(acts.get(3).toString().contains("\"6\""));
@@ -628,5 +632,320 @@ public class BoardMaterialApiTest {
 
     private void fail_if_missing_year_accepted(String bc) throws Exception {
         assertEquals(400, send("/board-materials", MEMBER, "{\"bid_case_id\":\"" + bc + "\"}").getResponse().getStatus());
+    }
+
+    // ── 020a 후속 도우미 ────────────────────────────────────────────
+
+    /** 기본 양식의 엑셀 연결 칸 전부({ref,key}). */
+    private static List<String[]> allMapped() {
+        List<String[]> out = new ArrayList<String[]>();
+        for (BoardDocSpec.Table t : BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, true).getTables()) {
+            for (List<BoardDocSpec.Cell> row : t.getRows()) {
+                for (BoardDocSpec.Cell c : row) {
+                    if (c.isMapped()) {
+                        out.add(new String[]{t.getId(), c.getKey()});
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    /** 지정한 칸들에 같은 값을 넣은 저장 본문(표별로 묶는다). */
+    private static String multi(int base, List<String[]> cells, String val) {
+        java.util.Map<String, StringBuilder> byRef = new java.util.LinkedHashMap<String, StringBuilder>();
+        for (String[] c : cells) {
+            StringBuilder sb = byRef.get(c[0]);
+            if (sb == null) {
+                sb = new StringBuilder();
+                byRef.put(c[0], sb);
+            } else {
+                sb.append(',');
+            }
+            sb.append('"').append(c[1]).append("\":\"").append(val).append('"');
+        }
+        StringBuilder out = new StringBuilder("{\"base_snap_no\":").append(base).append(",\"tables\":[");
+        boolean first = true;
+        for (Map.Entry<String, StringBuilder> e : byRef.entrySet()) {
+            out.append(first ? "" : ",").append("{\"ref\":\"").append(e.getKey()).append("\",\"cells\":{").append(e.getValue()).append("}}");
+            first = false;
+        }
+        return out.append("]}").toString();
+    }
+
+    private static String rep(char ch, int n) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < n; i++) {
+            sb.append(ch);
+        }
+        return sb.toString();
+    }
+
+    private void confirm(long... ids) throws Exception {
+        for (long id : ids) {
+            jdbc.update("UPDATE BOARD_MATERIAL SET STATUS_CD='CONFIRMED', CONFIRMED_SNAP=1, CONFIRMED_BY=?, CONFIRMED_AT=? WHERE MATERIAL_ID=?",
+                    LEAD, "2026-11-10T09:00:00+09:00", id);
+        }
+        flushCache();
+    }
+
+    private static boolean hasAction(JsonNode rows, String action) {
+        for (JsonNode n : rows) {
+            if (action.equals(n.path("action_cd").asText())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ── 020a 후속: 양식 구조·중복·숫자 문법·칸 위치·우회 검출·감사 ──────────
+
+    @Test
+    public void 담당자와_영업부장은_자료_응답의_form으로_양식_구조를_받는다_비담당은_404() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = create(MEMBER, bc, 2026);
+        String[] c = cell(true);
+        assertNotNull(c);
+        save(id, MEMBER, body(0, c[0], c[1], "5"), 201);
+        for (String emp : new String[]{MEMBER, HEAD}) {
+            JsonNode d = json(read("/board-materials/" + id, emp));
+            JsonNode f = d.path("form");
+            assertEquals(emp, BoardDocSpec.DEFAULT_ID, f.path("form_id").asText());
+            assertTrue(emp, f.path("version").isNull());                         // 기본 양식은 버전 없음
+            assertTrue(emp, f.path("tables").size() > 0);
+            assertFalse(emp, f.path("tables").get(0).path("rows").get(0).get(0).path("editable").asBoolean());   // 양식 편집이 아니다
+            JsonNode s = json(read("/board-materials/" + id + "/snapshots/1", emp));
+            assertEquals(emp, BoardDocSpec.DEFAULT_ID, s.path("form").path("form_id").asText());
+            assertTrue(emp, s.path("tables").size() > 0);
+            assertFalse(emp, json(read("/board-materials/" + id + "/snapshots", emp)).has("form"));   // 목록 응답에는 없다
+        }
+        assertEquals(404, read("/board-materials/" + id, MEMBER2).getResponse().getStatus());
+        assertEquals(404, read("/board-materials/" + id + "/snapshots/1", MEMBER2).getResponse().getStatus());
+        // 만들기 응답(201)에도 form
+        String bc2 = newCase();
+        assign(bc2, MEMBER);
+        MvcResult made = send("/board-materials", MEMBER, "{\"bid_case_id\":\"" + bc2 + "\",\"year\":2026}");
+        assertTrue(json(made).path("form").path("tables").size() > 0);
+    }
+
+    @Test
+    public void 같은_입찰건_같은_연도는_409_ALREADY_EXISTS_기존_번호만_알린다_비담당은_403() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER, MEMBER2);
+        long id = create(MEMBER, bc, 2026);
+        MvcResult dup = send("/board-materials", MEMBER2, "{\"bid_case_id\":\"" + bc + "\",\"year\":2026}");
+        assertEquals(text(dup), 409, dup.getResponse().getStatus());
+        JsonNode d = json(dup).path("detail");
+        assertEquals("ALREADY_EXISTS", d.path("code").asText());
+        assertEquals(id, d.path("material_id").asLong());
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MATERIAL WHERE BID_CASE_ID=? AND BOARD_YEAR=2026", bc));
+        create(MEMBER2, bc, 2025);                                            // 다른 연도는 된다
+        String bc2 = newCase();
+        assign(bc2, MEMBER);
+        create(MEMBER, bc2, 2026);                                            // 다른 입찰 건은 된다
+        // 존재 은닉: 비담당·부장은 중복 여부와 무관하게 403
+        for (String emp : new String[]{LEAD, HEAD, DESIGNER}) {
+            assertEquals(emp, 403, send("/board-materials", emp, "{\"bid_case_id\":\"" + bc + "\",\"year\":2026}")
+                    .getResponse().getStatus());
+        }
+    }
+
+    @Test
+    public void 숫자_칸은_쉼표가_있어도_정수부_13자리까지() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = create(MEMBER, bc, 2026);
+        String[] c = cell(true);
+        assertNotNull(c);
+        for (String bad : new String[]{"12,345,678,901,234", "99,999,999,999,999", "-12,345,678,901,234", "1,2345", "1,23"}) {
+            assertEquals(bad, "BAD_VALUE", om.readTree(save(id, MEMBER, body(0, c[0], c[1], bad), 400))
+                    .path("detail").path("code").asText());
+        }
+        save(id, MEMBER, body(0, c[0], c[1], "1,234,567,890,123"), 201);       // 13자리
+        assertTrue(jdbc.queryForObject("SELECT VALUES_JSON FROM BOARD_MATERIAL_SNAP WHERE MATERIAL_ID=? AND SNAP_NO=1",
+                String.class, id).contains("\"1234567890123\""));
+    }
+
+    @Test
+    public void 숫자_400_100자_400_칸_422는_문제_칸_위치만_알린다_값은_싣지_않는다() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = create(MEMBER, bc, 2026);
+        List<String[]> mapped = allMapped();
+        assertTrue("기본 양식에 연결 칸이 2개 미만", mapped.size() >= 2);
+        List<String[]> two = mapped.subList(0, 2);
+        // 숫자 형식 위반 2칸
+        String numText = save(id, MEMBER, multi(0, two, "12a"), 400);
+        JsonNode nd = om.readTree(numText).path("detail");
+        assertEquals("BAD_VALUE", nd.path("code").asText());
+        assertEquals(2, nd.path("count").asInt());
+        assertEquals(2, nd.path("cells").size());
+        assertEquals(two.get(0)[0], nd.path("cells").get(0).path("ref").asText());
+        assertEquals(two.get(0)[1], nd.path("cells").get(0).path("key").asText());
+        assertFalse(numText.contains("12a"));
+        // 개인정보 2칸 — 종류·건수·칸 위치, 값 없음
+        String piiText = save(id, MEMBER, multi(0, two, "010-0000-0000"), 422);
+        JsonNode pd = om.readTree(piiText).path("detail");
+        assertEquals("PII_DETECTED", pd.path("code").asText());
+        assertEquals(2, pd.path("count").asInt());
+        assertEquals(2, pd.path("cells").size());
+        assertEquals(two.get(1)[1], pd.path("cells").get(1).path("key").asText());
+        assertEquals(2, pd.path("kinds").get(0).path("count").asInt());
+        assertFalse(piiText.contains("010-0000-0000"));
+        // 100자 초과 1칸
+        String[] c = two.get(0);
+        JsonNode ld = om.readTree(save(id, MEMBER, body(0, c[0], c[1], rep('1', 101)), 400)).path("detail");
+        assertEquals("BAD_VALUE", ld.path("code").asText());
+        assertEquals(1, ld.path("count").asInt());
+        assertEquals(c[1], ld.path("cells").get(0).path("key").asText());
+        // 목록은 최대 50개, count 는 전체(양식 구조 대조 전에 걸리므로 가짜 키로 충분)
+        StringBuilder many = new StringBuilder("{\"base_snap_no\":0,\"tables\":[{\"ref\":\"A\",\"cells\":{");
+        String longVal = rep('1', 101);
+        for (int i = 1; i <= 60; i++) {
+            many.append(i == 1 ? "" : ",").append("\"k").append(i).append("\":\"").append(longVal).append('"');
+        }
+        JsonNode md = om.readTree(save(id, MEMBER, many.append("}}]}").toString(), 400)).path("detail");
+        assertEquals(60, md.path("count").asInt());
+        assertEquals(50, md.path("cells").size());
+        // 안전하지 않은 키는 세기만 하고 되돌려 싣지 않는다
+        String evil = save(id, MEMBER, body(0, "A", "<img src=x onerror=1>", longVal), 400);
+        assertEquals(1, om.readTree(evil).path("detail").path("count").asInt());
+        assertEquals(0, om.readTree(evil).path("detail").path("cells").size());
+        assertFalse(evil.contains("<img"));
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MATERIAL_SNAP WHERE MATERIAL_ID=?", id));
+    }
+
+    @Test
+    public void 숫자_정규화_뒤에_주민번호_모양이_되는_쉼표_묶음은_422() throws Exception {      // security 하-1
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = create(MEMBER, bc, 2026);
+        String[] c = cell(true);
+        assertNotNull(c);
+        String r = save(id, MEMBER, body(0, c[0], c[1], "9,001,011,234,567"), 422);
+        JsonNode d = om.readTree(r).path("detail");
+        assertEquals("PII_DETECTED", d.path("code").asText());
+        assertEquals(c[1], d.path("cells").get(0).path("key").asText());
+        assertFalse(r.contains("9001011234567"));
+        assertFalse(r.contains("9,001"));
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MATERIAL_SNAP WHERE MATERIAL_ID=?", id));
+    }
+
+    @Test
+    public void 구분자_우회_en_dash_가운뎃점_점_폭없는_공백_비ASCII_숫자도_422() throws Exception {      // security 하-2
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = create(MEMBER, bc, 2026);
+        String[] c = cell(true);
+        assertNotNull(c);
+        for (String v : new String[]{"900101–1234567", "900101·1234567", "900101.1234567", "900101​-1234567",
+                "٩٠٠١٠١-1234567", "010–1234–5678"}) {
+            assertEquals(v, "PII_DETECTED", om.readTree(save(id, MEMBER, body(0, c[0], c[1], v), 422))
+                    .path("detail").path("code").asText());
+        }
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MATERIAL_SNAP WHERE MATERIAL_ID=?", id));
+    }
+
+    @Test
+    public void 정상_금액_소수는_개인정보로_오탐하지_않는다() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = create(MEMBER, bc, 2026);
+        String[] c = cell(true);
+        assertNotNull(c);
+        int base = 0;
+        for (String v : new String[]{"9.5", "1,234.56", "123456.78", "0.12", "9001.01", "900101.12", "-1,234.5"}) {
+            save(id, MEMBER, body(base++, c[0], c[1], v), 201);
+        }
+        assertEquals(7, count("SELECT COUNT(*) FROM BOARD_MATERIAL_SNAP WHERE MATERIAL_ID=?", id));
+    }
+
+    @Test
+    public void 목록은_확정_건_행마다_LIST로_남고_확정이_아닌_행과_401은_남지_않는다() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long a = create(MEMBER, bc, 2026);
+        long b = create(MEMBER, bc, 2025);
+        long d = create(MEMBER, bc, 2024);                                     // 확정 아님
+        confirm(a, b);
+        assertEquals(200, read("/board-materials", MEMBER).getResponse().getStatus());
+        for (long id : new long[]{a, b}) {
+            assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='LIST' AND OUTCOME='OK'", id));
+        }
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=?", d));
+        Map<String, Object> row = jdbc.queryForList(
+                "SELECT ACTOR_EMP_NO, STATUS_CD, SCREEN_ID, BUTTON_ID, UI_VALID, EMP_VERIFIED FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=?", a).get(0);
+        assertEquals(MEMBER, row.get("ACTOR_EMP_NO"));
+        assertEquals("CONFIRMED", row.get("STATUS_CD"));
+        assertEquals("board_list", row.get("SCREEN_ID"));
+        assertEquals(0, ((Number) row.get("EMP_VERIFIED")).intValue());        // 자기신고
+        assertEquals(401, read("/board-materials", null).getResponse().getStatus());
+        assertEquals(200, read("/board-materials", MEMBER2).getResponse().getStatus());   // 비담당 — 빈 목록, 기록 없음
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='LIST'", a));
+        assertEquals(200, read("/board-materials", HEAD).getResponse().getStatus());      // 부장 — 전체
+        assertEquals(2, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='LIST'", a));
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=?", d));
+    }
+
+    @Test
+    public void 확정_건에_비활성_계정은_DENIED로_남고_사번_없는_401은_ACT에_남지_않는다() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = create(MEMBER, bc, 2026);
+        confirm(id);
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", DESIGNER);
+        flushCache();
+        assertEquals(403, read("/board-materials/" + id, DESIGNER).getResponse().getStatus());
+        assertEquals(401, read("/board-materials/" + id, null).getResponse().getStatus());
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT OUTCOME, ACTOR_EMP_NO FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=?", id);
+        assertEquals(1, rows.size());
+        assertEquals("DENIED", rows.get(0).get("OUTCOME"));
+        assertEquals(DESIGNER, rows.get(0).get("ACTOR_EMP_NO"));
+    }
+
+    @Test
+    public void 확정_건에서_예상하지_못한_예외가_나도_ACT에_ERROR가_남는다() throws Exception {      // security 하-4①
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = create(MEMBER, bc, 2026);
+        String[] c = cell(true);
+        assertNotNull(c);
+        save(id, MEMBER, body(0, c[0], c[1], "5"), 201);
+        confirm(id);
+        jdbc.update("UPDATE BOARD_MATERIAL_SNAP SET VALUES_JSON='not-json' WHERE MATERIAL_ID=?", id);   // 저장 JSON 결함 → tablesOf ISE
+        flushCache();
+        MvcResult r = read("/board-materials/" + id, MEMBER);
+        assertEquals(500, r.getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='VIEW' AND OUTCOME='ERROR'", id));
+        assertFalse(text(r).contains("not-json"));
+    }
+
+    @Test
+    public void 배정_이력의_인계_행은_담당자_영업팀장_영업부장에게만_보이고_비담당_영업팀원에게는_빠진다() throws Exception {   // security 하-3
+        String bc = newCase();
+        assign(bc, MEMBER, MEMBER2);
+        create(MEMBER, bc, 2026);
+        long req = requestChange(LEAD, bc, new String[]{M3}, new String[]{MEMBER});
+        assertEquals(200, decide(HEAD, req).getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGN_LOG WHERE BID_CASE_ID=? AND ACTION_CD='HANDOVER'", bc));
+        // 보이는 사람: 현재 담당자(남은·새로 추가된), 영업팀장, 영업부장
+        for (String emp : new String[]{MEMBER2, M3, LEAD, HEAD}) {
+            MvcResult r = read("/bidcases/" + bc + "/assignments/history", emp);
+            if (r.getResponse().getStatus() != 200) {
+                continue;   // 부장이 이 API 의 영업팀 한정에 걸리면 403 — 그 판정은 이번 변경이 아니다
+            }
+            assertTrue(emp, hasAction(json(r), "HANDOVER"));
+        }
+        assertTrue(hasAction(json(read("/bidcases/" + bc + "/assignments/history", MEMBER2)), "HANDOVER"));
+        assertTrue(hasAction(json(read("/bidcases/" + bc + "/assignments/history", LEAD)), "HANDOVER"));
+        // 안 보이는 사람: 이 건의 담당이 아닌 영업팀원(M4), 담당에서 빠진 사람(MEMBER)
+        for (String emp : new String[]{M4, MEMBER}) {
+            MvcResult r = read("/bidcases/" + bc + "/assignments/history", emp);
+            assertEquals(emp, 200, r.getResponse().getStatus());
+            assertFalse(emp, hasAction(json(r), "HANDOVER"));
+            assertTrue(emp, hasAction(json(r), "ASSIGN"));   // 다른 행은 그대로
+            assertFalse(emp, text(r).contains(M3 + "\",\"from"));   // 인수자·해제자가 다른 경로로 새지 않는다(HANDOVER 행째 없음)
+        }
     }
 }
