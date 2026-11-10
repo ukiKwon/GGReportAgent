@@ -9,6 +9,7 @@
   const approvals = {};
 
   const designer = (typeof require !== 'undefined') ? require('./designer.js') : root.designer;
+  const errtext = (typeof require !== 'undefined') ? require('./errtext.js') : root.errtext;
 
   approvals.rows = function (payload) {
     return (((payload || {}).items) || []).map(function (it) {
@@ -178,6 +179,8 @@
   approvals.decisionError = function (approve, comment) {
     return !approve && !String(comment || '').trim() ? '반려 사유를 입력하세요.' : '';
   };
+  // 서버 오류 detail(문자열 또는 {code,message})을 화면 글로. 객체를 그대로 Error에 넣으면 "[object Object]"가 뜬다.
+  approvals.errText = function (detail, fallback) { return errtext.message(detail, fallback); };
 
   // ── 렌더·배선 ───────────────────────────────────────────────────────
   function esc(s) {
@@ -239,7 +242,7 @@
     }).then(function (r) {
       if (!r.ok) {
         return r.json().then(function (b) {
-          throw new Error(b.detail || ('처리 실패 (' + r.status + ')'));
+          throw new Error(errtext.message(b.detail, '처리 실패 (' + r.status + ')'));
         });
       }
       return load();
@@ -296,7 +299,7 @@
     return fetch(url).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
         if (!r.ok) {
-          const e = new Error(j.detail || ('요청에 실패했습니다 (' + r.status + ')'));
+          const e = new Error(errtext.message(j.detail, '요청에 실패했습니다 (' + r.status + ')'));
           e.status = r.status;
           throw e;
         }
@@ -398,7 +401,7 @@
     if (body !== undefined) { init.headers = { 'Content-Type': 'application/json' }; init.body = JSON.stringify(body); }
     fetch(url, init).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
-        if (!r.ok) throw new Error(j.detail || ('처리하지 못했습니다 (' + r.status + ')'));
+        if (!r.ok) throw new Error(errtext.message(j.detail, '처리하지 못했습니다 (' + r.status + ')'));
       });
     }).then(function () { return loadRequests(); })
       .catch(function (e) {

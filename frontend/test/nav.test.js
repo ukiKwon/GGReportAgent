@@ -327,3 +327,35 @@ test('screenName: 이사회 자료는 tasks:board, 다른 준비중 화면은 �
   assert.strictEqual(nav.screenName('admin:users', B), 'admin:users');
   assert.ok(/^[a-z]{2,20}(:[a-z_]{2,20})?$/.test(nav.screenName(B, B)));
 });
+
+test('제안팀 구성·배정: 영업팀·영업팀장·영업부장에게만 보이고 디자이너·마스터·타 팀에는 숨는다, 배지 없음, 고정 id', function () {
+  function find(v, ctx) {
+    const hit = [];
+    nav.build(v, ctx).forEach(function (c) { c.items.forEach(function (i) { if (i.label === '제안팀 구성·배정') hit.push(i); }); });
+    return hit[0] || null;
+  }
+  ['영업팀', '영업팀장', '영업부장'].forEach(function (role) {
+    const it = find(ALL_ON, { role: role });
+    assert.ok(it, role);
+    assert.strictEqual(it.id, 'soon:제안팀');
+    assert.strictEqual(nav.badgeOf(it), '');
+  });
+  // 서버 메뉴 키(approvals 등)가 꺼져도 영업팀에는 보인다(열람은 서버가 역할로 정한다)
+  assert.ok(find(Object.assign({}, ALL_ON, { approvals: false, tasks: false, admin: false }), { role: '영업팀' }));
+  // 숨김: 디자이너, 마스터(역할이 영업팀이어도), 타 팀, 역할 없음
+  assert.strictEqual(find(ALL_ON, { role: '디자이너' }), null);
+  assert.strictEqual(find(ALL_ON, { role: '영업팀', master: true }), null);
+  assert.strictEqual(find(ALL_ON, { role: '전산팀', master: true }), null);
+  ['전산팀', '예산팀', '예산팀장', ''].forEach(function (role) { assert.strictEqual(find(ALL_ON, { role: role }), null, role); });
+  // 디자이너는 같은 중분류의 팀 간 지원 요청은 그대로 본다
+  assert.ok(items(nav.build(ALL_ON, { role: '디자이너' }), 'manage').some(function (i) { return i.id === 'soon:팀 간 지원 요청'; }));
+  assert.ok(nav.roleIn(nav.TEAM_ROLES, { role: ' 영업팀 ' }));
+  assert.ok(!nav.roleIn(nav.TEAM_ROLES, undefined));
+});
+
+test('제안팀 구성·배정: 영업팀 제안서 관리는 소제목 유지, 디자이너는 제안팀 중분류에 1개만 남아 평평해진다(showSubs)', function () {
+  const built = nav.build(ALL_ON, { role: '영업팀' });
+  assert.strictEqual(built.filter(function (c) { return c.id === 'manage'; })[0].showSubs, true);
+  const designer = nav.build(ALL_ON, { role: '디자이너' });
+  assert.strictEqual(designer.filter(function (c) { return c.id === 'manage'; })[0].showSubs, false);   // 제안팀 중분류에 '팀 간 지원 요청' 1개만 남는다
+});
