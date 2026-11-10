@@ -133,6 +133,10 @@
   .nav-soon-tag { font-size:11px; color:var(--muted); border:1px solid var(--line-strong); border-radius:6px;
                   padding:0 5px; white-space:nowrap; flex:none;
                   background:repeating-linear-gradient(45deg, rgba(152,161,175,.12) 0 2px, transparent 2px 4px); }
+  /* 라벨이 칸(~144px)보다 길면('제안서 사전준비 프로세스') 말줄임 대신 어절 단위로 최대 2줄까지 줄바꿈한다. */
+  .nav-item { white-space:normal; }
+  .nav-item .nav-label { white-space:normal; word-break:keep-all; line-height:1.3; }
+  .nav-item .nav-soon-tag { align-self:flex-start; margin-top:1px; }
   /* 중분류 소제목 — 누를 수 없고 들여쓰기도 더하지 않는다(위계는 글자 크기·굵기·색으로만). */
   .nav-sub { padding:8px 10px 3px; font-size:11px; font-weight:700; color:var(--muted); white-space:nowrap;
              overflow:hidden; text-overflow:ellipsis; }
@@ -143,6 +147,7 @@
   @media (max-width: 900px) {
     .nav-item { font-size:13px; padding-left:8px; padding-right:8px; gap:4px; }  /* 라벨 칸 130→136px: '사내 업무 키워드 조회'(130.72px)가 잘리지 않게 */
     .nav-soon-tag { width:10px; height:10px; padding:0; font-size:0; border-radius:3px; }
+    .nav-item .nav-soon-tag { margin-top:3px; }   /* 10px 칩을 첫 줄(약 17px) 가운데에 맞춘다 */
   }
   /* 화면 탭 — 연 화면을 최대 10개까지 보관 */
   #tab-bar { display:flex; align-items:center; gap:8px; padding:6px 12px 0; border-bottom:1px solid var(--line);

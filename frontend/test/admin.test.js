@@ -116,7 +116,7 @@ test('menuColumns: 사이드바의 대표 메뉴 순서·이름으로 열을 만
   assert.strictEqual(cols[cols.length - 1].label, '시스템 관리');          // 4개 보기가 한 열
   assert.strictEqual(cols[cols.length - 1].group, '시스템 관리');
   assert.deepStrictEqual(admin.groupSpans(cols).map(function (s) { return s.group + ':' + s.span; }),
-    ['기관·입찰 현황:2', '제안서 관리:2', '제안서 작성:1', '공통 도구:2', '시스템 관리:1']);
+    ['기관·입찰 현황:2', '제안서 작성·관리:3', '공통 도구:2', '시스템 관리:1']);
 });
 
 test('menuColumns: 사이드바에 없는 새 메뉴 키도 빠지지 않는다', function () {

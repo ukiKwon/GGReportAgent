@@ -423,12 +423,14 @@ mirrored 1:1 by the `.fsw` stroke glyphs in the control strip.
 - Tiers: category (`.nav-cat`, 14px/700, one open at a time) · sub-group
   (`.nav-sub`, a non-clickable 11px/700 `--muted` subheading; `--fg` when it holds
   the active item) · item (`.nav-item`, 14px).
-- Categories are fixed in business order 1→6 (기관·입찰 현황, 영업 기획, 제안서 관리,
-  제안서 작성, 협약·관계 관리, 공통 도구), 시스템 관리 last. Sub-group headings show only
-  when ≥2 visible sub-groups each have ≥2 visible items; otherwise the whole
-  category is flat.
-- No extra indent for sub-groups (248px sidebar leaves ~146px for a label);
-  hierarchy is size, weight and color only.
+- Categories are fixed in business order 1→5 (기관·입찰 현황, 영업 추진 준비,
+  제안서 작성·관리, 협약·관계 관리, 공통 도구 — 2026-11-10 재편, NEXT 69), 시스템 관리 last.
+  Sub-group headings show only when ≥2 visible sub-groups each have ≥2 visible items;
+  otherwise the whole category is flat.
+- No extra indent for sub-groups (248px sidebar leaves ~144px for a label);
+  hierarchy is size, weight and color only. A label longer than the column wraps
+  at word (어절) boundaries to at most 2 lines (`word-break:keep-all`) instead of an
+  ellipsis; the badge aligns to the first line.
 - "준비중" items are never dimmed by opacity: `--muted` text (≥4.5:1) plus an 11px
   hatched badge. At ≤900px (200px sidebar) items are 13px and the badge becomes a
   10×10 hatched chip with an sr-only label.

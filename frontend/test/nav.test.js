@@ -44,10 +44,10 @@ test('admin 권한이 꺼지면 시스템 관리 전체가 사라진다', functi
   assert.ok(!nav.build(v, { role: '영업팀' }).some(function (c) { return c.id === 'sys'; }));
 });
 
-test('영업팀장: 6개 업무 대분류(시스템은 권한관리 꺼짐이면 빠짐) — 업무 순서 1→6 고정', function () {
+test('영업팀장: 5개 업무 대분류(시스템은 권한관리 꺼짐이면 빠짐) — 업무 순서 1→5 고정', function () {
   const v = Object.assign({}, ALL_ON, { admin: false });
   const built = nav.build(v, { role: '영업팀장' });
-  assert.deepStrictEqual(ids(built), ['scan', 'plan', 'manage', 'write', 'relate', 'tools']);
+  assert.deepStrictEqual(ids(built), ['scan', 'plan', 'manage', 'relate', 'tools']);
 });
 
 test('서버가 끈 화면은 하위 항목에서도 사라진다', function () {
@@ -56,7 +56,7 @@ test('서버가 끈 화면은 하위 항목에서도 사라진다', function () 
   const labels = items(built, 'manage').map(function (i) { return i.label; });
   assert.ok(labels.indexOf('결재함') < 0);
   assert.ok(labels.indexOf('제안서 진행 현황') >= 0);
-  assert.ok(items(built, 'write').some(function (i) { return i.label === '작업함'; }));
+  assert.ok(items(built, 'manage').some(function (i) { return i.label === '작업함'; }));
 });
 
 test('준비중 항목은 영업 계열(영업팀·팀장·부장·디자이너·마스터)에게만 보인다', function () {
@@ -75,36 +75,36 @@ test('둘러보기(역할 없음): 지도·지역별만, 준비중 없음', func
   assert.deepStrictEqual(items(built, 'scan').map(function (i) { return i.key; }), ['map', 'regions']);
 });
 
-test('비영업 팀: 구현 화면 + 예외(이사회 부의·팀 간 지원 요청·pending 키) 외 준비중은 없다', function () {
+test('비영업 팀: 구현 화면 + 예외(이사회 부의·pending 키) 외 준비중은 없다', function () {
   const v = Object.assign({}, ALL_ON, { approvals: false, admin: false });
   const built = nav.build(v, { role: '예산팀' });
-  assert.deepStrictEqual(ids(built), ['scan', 'plan', 'manage', 'write', 'tools']);
-  const EXCEPT = ['soon:이사회 자료', 'soon:팀 간 지원 요청'];
+  assert.deepStrictEqual(ids(built), ['scan', 'plan', 'manage', 'tools']);
+  const EXCEPT = ['soon:이사회 자료'];
   built.forEach(function (c) {
     c.items.filter(function (i) { return EXCEPT.indexOf(i.id) < 0 && !i.pending; })
       .forEach(function (i) { assert.strictEqual(i.soon, false, i.id); });
   });
 });
 
-test('준비중 id: 명시 id 외에는 soon:라벨, 전부 서로 다르고 21개', function () {
+test('준비중 id: 명시 id 외에는 soon:라벨, 전부 서로 다르고 17개', function () {
   const built = nav.build(ALL_ON, { role: '영업팀장' });
   const all = [];
   built.forEach(function (c) { c.items.forEach(function (i) { all.push(i.id); }); });
   assert.strictEqual(new Set(all).size, all.length);
   assert.strictEqual(items(built, 'relate')[0].id, 'soon:입찰 결과 등록');
   const soonIds = all.filter(function (id) { return id.indexOf('soon:') === 0; });
-  assert.strictEqual(soonIds.length, 21);
+  assert.strictEqual(soonIds.length, 17);
   // 이사회 부의: 라벨은 바뀌어도 id는 고정(board.SOON_ID)
   const board = items(built, 'plan').filter(function (i) { return i.id === 'soon:이사회 자료'; })[0];
   assert.ok(board && board.label === '이사회 자료 작성');
 });
 
-test('이사회 부의는 영업 기획 > 질의·부의 아래 "구현 예정(배지 없음)", 다른 대분류에는 없다', function () {
+test('이사회 부의는 영업 추진 준비 > 이사회 아래 "구현 예정(배지 없음)", 다른 대분류에는 없다', function () {
   const built = nav.build(ALL_ON, { role: '영업팀' });
-  assert.strictEqual(built.filter(function (c) { return c.id === 'plan'; })[0].title, '영업 기획');
+  assert.strictEqual(built.filter(function (c) { return c.id === 'plan'; })[0].title, '영업 추진 준비');
   const board = items(built, 'plan').filter(function (i) { return i.id === 'soon:이사회 자료'; })[0];
   assert.ok(board && board.soon);
-  assert.strictEqual(board.sub, '질의·부의');
+  assert.strictEqual(board.sub, '이사회');
   assert.strictEqual(board.tag, '');
   assert.ok(board.note.indexOf('이사회') >= 0);
   assert.ok(!items(built, 'scan').some(function (i) { return i.id === 'soon:이사회 자료'; }));
@@ -113,11 +113,12 @@ test('이사회 부의는 영업 기획 > 질의·부의 아래 "구현 예정(�
     ['전국 지도', '전국 지역별', '기관 사업계획', '입찰 공고 현황', '공고 자동 수집']);
 });
 
-test('showSubs: 영업팀은 6개 모두 true, 시스템 관리는 false, 예산팀 제안서 관리·둘러보기 기관·입찰 현황은 false', function () {
+test('showSubs: 영업팀은 scan·plan·manage·tools true, 평평한 relate·시스템 관리는 false, 예산팀 제안서 작성·관리·둘러보기 기관·입찰 현황은 false', function () {
   const sales = nav.build(ALL_ON, { role: '영업팀' });
-  ['scan', 'plan', 'manage', 'write', 'relate', 'tools'].forEach(function (id) {
+  ['scan', 'plan', 'manage', 'tools'].forEach(function (id) {
     assert.strictEqual(sales.filter(function (c) { return c.id === id; })[0].showSubs, true, id);
   });
+  assert.strictEqual(sales.filter(function (c) { return c.id === 'relate'; })[0].showSubs, false);
   assert.strictEqual(sales.filter(function (c) { return c.id === 'sys'; })[0].showSubs, false);
   const budget = nav.build(ALL_ON, { role: '예산팀' });
   assert.strictEqual(budget.filter(function (c) { return c.id === 'manage'; })[0].showSubs, false);
@@ -137,28 +138,10 @@ test('pending(AI 대화·지식 검색): 서버 키를 따라 보이고, 준비�
   assert.ok(!off.some(function (c) { return c.id === 'tools'; }));
 });
 
-test('팀 간 지원 요청: 전산·예산(재무)팀에도 tasks 조회 권한이 있으면 보인다', function () {
-  ['전산팀', '예산팀'].forEach(function (role) {
-    assert.ok(items(nav.build(ALL_ON, { role: role }), 'manage').some(function (i) { return i.id === 'soon:팀 간 지원 요청'; }), role);
-  });
-  const noTasks = Object.assign({}, ALL_ON, { tasks: false });
-  assert.ok(!nav.build(noTasks, { role: '예산팀' }).some(function (c) {
-    return c.items.some(function (i) { return i.id === 'soon:팀 간 지원 요청'; });
-  }));
-});
-
-test('팀 간 지원 요청: 아직 열리지 않는 항목이라 배지가 "준비중"이다(배지 없음 \'\' 금지)', function () {
-  ['예산팀', '전산팀', '영업팀'].forEach(function (role) {
-    const it = items(nav.build(ALL_ON, { role: role }), 'manage').filter(function (i) { return i.id === 'soon:팀 간 지원 요청'; })[0];
-    assert.ok(it, role);
-    assert.strictEqual(nav.badgeOf(it), '준비중', role);
-  });
-});
-
-// 디자인 결정 대기: 실서버 역할표에서 영업팀은 approvals:false라 '진행·결재'에 1개만 남아 '제안서 관리'가 소제목 없이 평평해진다.
+// 디자인 결정 대기: 실서버 역할표에서 영업팀은 approvals:false라 '진행·결재'에 1개만 남아 '제안서 작성·관리'가 소제목 없이 평평해진다.
 // 영업팀장(approvals:true)만 소제목이 보여 같은 영업팀 안에서도 모양이 달라진다. 이 모양을 받아들일지는 디자인이 정한다 —
 // 정해지면 이 기대값을 함께 고친다(현재 동작을 못 박아 두는 테스트다).
-test('showSubs(디자인 결정 대기): 결재함 권한이 없는 영업팀의 제안서 관리는 평평하다', function () {
+test('showSubs(디자인 결정 대기): 결재함 권한이 없는 영업팀의 제안서 작성·관리는 평평하다', function () {
   const noApprovals = Object.assign({}, ALL_ON, { approvals: false, admin: false });
   const built = nav.build(noApprovals, { role: '영업팀' });
   assert.strictEqual(built.filter(function (c) { return c.id === 'manage'; })[0].showSubs, false);
@@ -222,29 +205,26 @@ test('categoryOf / showsMapControls', function () {
 });
 
 // ── 메뉴 재편(NEXT 32): 구조·정렬 ─────────────────────────────────────────
-test('3단 구조: 대분류 7개 이름·소속(정의 순서 = 업무 순서 1→6, 시스템 관리 마지막)', function () {
+test('3단 구조: 대분류 6개 이름·소속(정의 순서 = 업무 순서 1→5, 시스템 관리 마지막)', function () {
   assert.deepStrictEqual(nav.CATEGORIES.map(function (c) { return c.id + ':' + c.title; }),
-    ['scan:기관·입찰 현황', 'plan:영업 기획', 'manage:제안서 관리', 'write:제안서 작성',
+    ['scan:기관·입찰 현황', 'plan:영업 추진 준비', 'manage:제안서 작성·관리',
      'relate:협약·관계 관리', 'tools:공통 도구', 'sys:시스템 관리']);
   const by = {};
   nav.CATEGORIES.forEach(function (c) { by[c.id] = c.items.map(function (i) { return (i.sub || '') + '>' + i.label; }); });
   assert.deepStrictEqual(by.scan, ['기관>전국 지도', '기관>전국 지역별', '기관>기관 사업계획',
     '입찰 공고>입찰 공고 현황', '입찰 공고>공고 자동 수집']);
-  assert.deepStrictEqual(by.plan, ['대상 분석>협약 대상 선정', '대상 분석>기관 정보 요약서', '대상 분석>배점표 확인 검색',
-    '질의·부의>기관 공식 질의', '질의·부의>이사회 자료 작성']);
-  assert.deepStrictEqual(by.manage, ['진행·결재>제안서 진행 현황', '진행·결재>결재함',
-    '제안팀>제안팀 구성·배정', '제안팀>팀 간 지원 요청']);
-  assert.deepStrictEqual(by.write, ['작성>작업함', '작성>공동 작성·버전 관리',
-    '검토·제출>내부 검토 의견', '검토·제출>최종 확인·제출']);
-  assert.deepStrictEqual(by.relate, ['결과·협약>입찰 결과 등록', '결과·협약>협약 등록·이행 관리',
-    '기관 관계>협약 이력', '기관 관계>영업 메모·활동 이력', '기관 관계>탈락 기관 대응']);
+  assert.deepStrictEqual(by.plan, ['준비 과제>제안서 사전준비 프로세스', '준비 과제>기관 정보 요약서', '준비 과제>제안서 제출 붙임서류',
+    '이사회>이사회 자료 작성', '이사회>이사회 발표 대본']);
+  assert.deepStrictEqual(by.manage, ['진행·결재>제안서 진행 현황', '진행·결재>결재함', '작성>작업함', '작성>제안팀 구성·배정',
+    '작성>공동 작성·버전 관리', '검토·제출>내부 검토 의견', '검토·제출>최종 확인·제출']);
+  assert.deepStrictEqual(by.relate, ['>입찰 결과 등록', '>협약 이력']);
   assert.deepStrictEqual(by.tools, ['알림·소통>일정·마감 알림', '알림·소통>요청 이력·소통',
     '검색·AI>AI 대화', '검색·AI>지식 검색', '검색·AI>사내 업무 키워드 조회']);
   // 서버 키·view는 동결
   const keys = {};
   nav.CATEGORIES.forEach(function (c) { c.items.forEach(function (i) { if (i.key) keys[i.key + ':' + (i.view || '')] = c.id; }); });
   assert.strictEqual(keys['workflow:'], 'manage');
-  assert.strictEqual(keys['tasks:'], 'write');
+  assert.strictEqual(keys['tasks:'], 'manage');
   assert.strictEqual(keys['chat:'], 'tools');
   assert.strictEqual(nav.CATEGORIES.filter(function (c) { return c.id === 'sys'; })[0].subs, undefined);
   // 구현 11개(키 8개, admin은 보기 4개)
@@ -253,7 +233,7 @@ test('3단 구조: 대분류 7개 이름·소속(정의 순서 = 업무 순서 1
 
 test('영업 계열 표시 순서: 정의 순서 고정, 시스템 관리 맨 아래, 중분류 안에서 구현이 위', function () {
   const built = nav.build(ALL_ON, { role: '영업팀' });
-  assert.deepStrictEqual(ids(built), ['scan', 'plan', 'manage', 'write', 'relate', 'tools', 'sys']);
+  assert.deepStrictEqual(ids(built), ['scan', 'plan', 'manage', 'relate', 'tools', 'sys']);
   built.forEach(function (c) {
     const bySub = {};
     c.items.forEach(function (i) { (bySub[i.sub] = bySub[i.sub] || []).push(i); });
@@ -268,12 +248,12 @@ test('서버가 켠 키가 달라도 대분류 순서는 바뀌지 않는다', f
   const v = { map: false, regions: false, workflow: false, chat: false, knowledge: true,
               tasks: false, approvals: false, admin: true };
   assert.deepStrictEqual(ids(nav.build(v, { role: '영업팀' })),
-    ['scan', 'plan', 'manage', 'write', 'relate', 'tools', 'sys']);
+    ['scan', 'plan', 'manage', 'relate', 'tools', 'sys']);
 });
 
 test('비영업 역할: 준비중이 숨겨지고 시스템 관리가 맨 아래', function () {
-  assert.deepStrictEqual(ids(nav.build(ALL_ON, { role: '예산팀' })), ['scan', 'plan', 'manage', 'write', 'tools', 'sys']);
-  assert.deepStrictEqual(ids(nav.build(ALL_ON, { role: '전산팀' })), ['scan', 'plan', 'manage', 'write', 'tools', 'sys']);
+  assert.deepStrictEqual(ids(nav.build(ALL_ON, { role: '예산팀' })), ['scan', 'plan', 'manage', 'tools', 'sys']);
+  assert.deepStrictEqual(ids(nav.build(ALL_ON, { role: '전산팀' })), ['scan', 'plan', 'manage', 'tools', 'sys']);
 });
 
 test('이사회 자료 작성: 영업 계열이 아니어도 tasks 조회 권한이 있으면 보이고, tasks가 꺼지면 영업팀 외에는 안 보인다', function () {
@@ -293,10 +273,10 @@ test('이사회 자료 작성: 영업 계열이 아니어도 tasks 조회 권한
   // 영업팀은 기존대로(tasks 여부와 무관하게 보임)
   assert.ok(hasBoard(ALL_ON, { role: '영업팀' }));
   assert.ok(hasBoard(noTasks, { role: '영업팀' }));
-  // 다른 준비중 항목은 영업 계열이 아니면 tasks가 있어도 안 보인다(예외: 이사회 부의·팀 간 지원 요청, pending 키 항목)
+  // 다른 준비중 항목은 영업 계열이 아니면 tasks가 있어도 안 보인다(예외: 이사회 부의, pending 키 항목)
   const others = nav.build(ALL_ON, { role: '전산팀' }).reduce(function (n, c) {
     return n + c.items.filter(function (i) {
-      return i.soon && !i.pending && i.id !== 'soon:이사회 자료' && i.id !== 'soon:팀 간 지원 요청';
+      return i.soon && !i.pending && i.id !== 'soon:이사회 자료';
     }).length;
   }, 0);
   assert.strictEqual(others, 0);
@@ -306,7 +286,7 @@ test('준비중 라벨은 정의 전체에서 유일하다(라벨 기반 id의 �
   const labels = [];
   nav.CATEGORIES.forEach(function (c) { c.items.forEach(function (i) { if (!i.key) labels.push(i.label); }); });
   assert.strictEqual(new Set(labels).size, labels.length);
-  assert.strictEqual(labels.length, 21);   // scan 3·plan 5·manage 2·write 3·relate 5·tools 3
+  assert.strictEqual(labels.length, 17);   // scan 3·plan 5·manage 4·relate 2·tools 3
 });
 
 test('badgeOf: 이사회 자료는 배지 없음, 준비중 항목은 "준비중"(F4)', function () {
@@ -347,15 +327,84 @@ test('제안팀 구성·배정: 영업팀·영업팀장·영업부장에게만 �
   assert.strictEqual(find(ALL_ON, { role: '영업팀', master: true }), null);
   assert.strictEqual(find(ALL_ON, { role: '전산팀', master: true }), null);
   ['전산팀', '예산팀', '예산팀장', ''].forEach(function (role) { assert.strictEqual(find(ALL_ON, { role: role }), null, role); });
-  // 디자이너는 같은 중분류의 팀 간 지원 요청은 그대로 본다
-  assert.ok(items(nav.build(ALL_ON, { role: '디자이너' }), 'manage').some(function (i) { return i.id === 'soon:팀 간 지원 요청'; }));
+  // 디자이너는 같은 중분류(작성)의 공동 작성·버전 관리는 그대로 본다
+  assert.ok(items(nav.build(ALL_ON, { role: '디자이너' }), 'manage').some(function (i) { return i.id === 'soon:공동 작성·버전 관리'; }));
   assert.ok(nav.roleIn(nav.TEAM_ROLES, { role: ' 영업팀 ' }));
   assert.ok(!nav.roleIn(nav.TEAM_ROLES, undefined));
 });
 
-test('제안팀 구성·배정: 영업팀 제안서 관리는 소제목 유지, 디자이너는 제안팀 중분류에 1개만 남아 평평해진다(showSubs)', function () {
+test('제안팀 구성·배정: 영업팀·디자이너 모두 제안서 작성·관리 소제목 유지(디자이너는 작성 중분류에 작업함·공동 작성 2개가 남는다, showSubs)', function () {
   const built = nav.build(ALL_ON, { role: '영업팀' });
   assert.strictEqual(built.filter(function (c) { return c.id === 'manage'; })[0].showSubs, true);
   const designer = nav.build(ALL_ON, { role: '디자이너' });
-  assert.strictEqual(designer.filter(function (c) { return c.id === 'manage'; })[0].showSubs, false);   // 제안팀 중분류에 '팀 간 지원 요청' 1개만 남는다
+  assert.strictEqual(designer.filter(function (c) { return c.id === 'manage'; })[0].showSubs, true);   // 작성 중분류에 작업함·공동 작성 2개가 남는다
+});
+
+// ── 메뉴 재편(NEXT 69): 추가 검증 ─────────────────────────────────────────
+test('재편으로 지운 7개 라벨은 정의 어디에도 없다', function () {
+  const removed = ['협약 대상 선정', '배점표 확인 검색', '기관 공식 질의', '팀 간 지원 요청',
+                   '협약 등록·이행 관리', '영업 메모·활동 이력', '탈락 기관 대응'];
+  const labels = [];
+  nav.CATEGORIES.forEach(function (c) { c.items.forEach(function (i) { labels.push(i.label); }); });
+  removed.forEach(function (l) { assert.ok(labels.indexOf(l) < 0, l); });
+  assert.ok(!nav.CATEGORIES.some(function (c) { return c.id === 'write'; }));
+});
+
+test('PREP_ID: soon:사전준비로 고정, 영업 추진 준비(plan)의 제안서 사전준비 프로세스에 붙는다', function () {
+  assert.strictEqual(nav.PREP_ID, 'soon:사전준비');
+  const built = nav.build(ALL_ON, { role: '영업팀' });
+  const it = items(built, 'plan').filter(function (i) { return i.id === nav.PREP_ID; })[0];
+  assert.ok(it);
+  assert.strictEqual(it.label, '제안서 사전준비 프로세스');
+  assert.strictEqual(it.sub, '준비 과제');
+  assert.strictEqual(nav.categoryOf(built, nav.PREP_ID), 'plan');
+});
+
+test('새 준비중 3개(사전준비 프로세스·제출 붙임서류·발표 대본): 배지 "준비중", 영업 계열에게만(tasks가 있는 예산·전산팀에는 안 보인다)', function () {
+  const labels = ['제안서 사전준비 프로세스', '제안서 제출 붙임서류', '이사회 발표 대본'];
+  function find(ctx, label) {
+    const hit = [];
+    nav.build(ALL_ON, ctx).forEach(function (c) { c.items.forEach(function (i) { if (i.label === label) hit.push(i); }); });
+    return hit[0] || null;
+  }
+  labels.forEach(function (l) {
+    const it = find({ role: '영업팀' }, l);
+    assert.ok(it, l);
+    assert.strictEqual(nav.badgeOf(it), '준비중', l);
+    ['예산팀', '전산팀', '전산팀장', ''].forEach(function (role) { assert.strictEqual(find({ role: role }, l), null, l + '/' + role); });
+  });
+});
+
+test('plan·manage의 중분류(subs) 정의와 협약·관계 관리의 평평한 구조', function () {
+  const by = {};
+  nav.CATEGORIES.forEach(function (c) { by[c.id] = c; });
+  assert.deepStrictEqual(by.plan.subs, ['준비 과제', '이사회']);
+  assert.deepStrictEqual(by.manage.subs, ['진행·결재', '작성', '검토·제출']);
+  assert.strictEqual(by.relate.subs, undefined);
+  assert.deepStrictEqual(by.relate.items.map(function (i) { return i.label; }), ['입찰 결과 등록', '협약 이력']);
+});
+
+// qa 69 후속: 실서버 키 조합·경계값·줄바꿈 CSS 고정
+test('영업부장(작업함 키 없음): 작성 소분류에 제안팀·공동 작성 2개가 남아 소제목 유지', function () {
+  const built = nav.build({ map: true, workflow: true, approvals: true, chat: true }, { role: '영업부장' });
+  const manage = built.filter(function (c) { return c.id === 'manage'; })[0];
+  assert.strictEqual(manage.showSubs, true);
+  assert.deepStrictEqual(manage.items.filter(function (i) { return i.sub === '작성'; }).map(function (i) { return i.id; }),
+    ['soon:제안팀', 'soon:공동 작성·버전 관리']);
+});
+
+test('디자이너 tasks 없음: 작성에 공동 작성 1개만 남아 제안서 작성·관리는 평평하다', function () {
+  const built = nav.build(Object.assign({}, ALL_ON, { tasks: false }), { role: '디자이너' });
+  assert.strictEqual(built.filter(function (c) { return c.id === 'manage'; })[0].showSubs, false);
+});
+
+test('재무(예산)팀: 영업 추진 준비에는 이사회 자료 작성 하나만, 소제목 없음', function () {
+  const plan = nav.build(ALL_ON, { role: '예산팀' }).filter(function (c) { return c.id === 'plan'; })[0];
+  assert.deepStrictEqual(plan.items.map(function (i) { return i.id; }), ['soon:이사회 자료']);
+  assert.strictEqual(plan.showSubs, false);
+});
+
+test('사이드바 라벨은 말줄임 대신 어절 단위 줄바꿈(index.html CSS)', function () {
+  const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
+  assert.ok(/\.nav-item \.nav-label \{[^}]*white-space:normal[^}]*word-break:keep-all/.test(html));
 });

@@ -71,6 +71,7 @@
   <a href="#c10">⑩ 메뉴 이름 정정</a>
   <a href="#c11">⑪ 게이트 승인·반려 영업부장만</a>
   <a href="#c12">⑫ 제안팀 구성·배정 화면</a>
+  <a href="#c13">⑬ 사이드바 메뉴 재편</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -292,6 +293,44 @@
       <div class="card" style="margin-top:8px"><b>담당자 변경 — 노원구</b> <span class="pill ok-new">승인·반영됨</span><br>
         <span style="font-size:11px;color:var(--muted)">추가: 배지아(계장)</span><br><span style="font-size:11px;color:var(--muted)">사유: …</span></div>
       <p class="legend-note">'준비중' 배지가 없어졌습니다. 영업팀장은 1~10명을 골라 배정하고, 담당자·팀장은 사유를 적어 변경을 신청합니다(결재자는 시스템이 정함). 자격이 없으면 버튼 대신 "담당자 변경은 현재 담당자 또는 영업팀장이 신청합니다."가 보입니다. 결재함 카드에 '추가:·해제:' 줄이 생겼고, 받은 결재의 묶음 제목은 '결재 요청'입니다. 새 색 없이 기존 토큰만 씁니다. 대비: 본문 13.4, 보조 글자 6.4, 선택 항목 위 보조 글자 약 5.1(기준 4.5). 후보 행 높이 32px(기준 24px). '변경 결재 중' 배지는 결재 진행 중일 때의 모양입니다. 결재 카드 기관명('노원구')과 목록 기관명('노원구청')이 다른 점은 정리 예정(NEXT 67)입니다.</p>
+    </div></div></div>
+  </div>
+</section>
+
+<section class="ch" id="c13">
+  <h2>⑬ 사이드바 메뉴 재편 — 영업 추진 준비·제안서 통합 (2026-11-10)</h2>
+  <div class="why">왜: 현업 의견표(11-10)에서 '빼도 됨'으로 나온 7개는 쓰지 않을 메뉴라 지웠습니다. 제안서 관리와 작성은 한 건의 일을 둘로 나눠 찾기 어려워 한 대분류로 합쳤습니다. 현업 시나리오의 새 일(제안서 사전준비 프로세스·붙임서류·발표 대본)이 들어갈 자리를 만들었습니다. 서버 메뉴 키 8개와 권한은 그대로입니다.</div>
+  <div class="ba">
+    <div class="col before"><header>전</header><div class="body"><div class="mock">
+      <div class="side">
+        <div class="cat">2 영업 기획</div>
+        <div class="sub">대상 분석</div><div class="it soon">협약 대상 선정 <span class="tag">준비중</span></div><div class="it soon">기관 정보 요약서 <span class="tag">준비중</span></div><div class="it soon">배점표 확인 검색 <span class="tag">준비중</span></div>
+        <div class="sub">질의·부의</div><div class="it soon">기관 공식 질의 <span class="tag">준비중</span></div><div class="it">이사회 자료 작성</div>
+        <div class="cat">3 제안서 관리</div>
+        <div class="sub">진행·결재</div><div class="it">제안서 진행 현황</div><div class="it">결재함</div>
+        <div class="sub">제안팀</div><div class="it">제안팀 구성·배정</div><div class="it soon">팀 간 지원 요청 <span class="tag">준비중</span></div>
+        <div class="cat">4 제안서 작성</div>
+        <div class="sub">작성</div><div class="it">작업함</div><div class="it soon">공동 작성·버전 관리 <span class="tag">준비중</span></div>
+        <div class="sub">검토·제출</div><div class="it soon">내부 검토 의견 <span class="tag">준비중</span></div><div class="it soon">최종 확인·제출 <span class="tag">준비중</span></div>
+        <div class="cat">5 협약·관계 관리</div>
+        <div class="sub">결과·협약</div><div class="it soon">입찰 결과 등록 <span class="tag">준비중</span></div><div class="it soon">협약 등록·이행 관리 <span class="tag">준비중</span></div>
+        <div class="sub">기관 관계</div><div class="it soon">협약 이력 <span class="tag">준비중</span></div><div class="it soon">영업 메모·활동 이력 <span class="tag">준비중</span></div><div class="it soon">탈락 기관 대응 <span class="tag">준비중</span></div>
+      </div>
+      <p class="legend-note">업무 대분류 <span class="num">6</span>개, 항목 <span class="num">32</span>개(구현 11·준비중 21). 같은 제안서 일을 '관리'와 '작성' 두 대분류에서 찾아야 했습니다.</p>
+    </div></div></div>
+    <div class="col after"><header>후</header><div class="body"><div class="mock">
+      <div class="side">
+        <div class="cat">2 영업 추진 준비</div>
+        <div class="sub">준비 과제</div><div class="it soon">제안서 사전준비 프로세스 <span class="tag">준비중</span></div><div class="it soon">기관 정보 요약서 <span class="tag">준비중</span></div><div class="it soon">제안서 제출 붙임서류 <span class="tag">준비중</span></div>
+        <div class="sub">이사회</div><div class="it">이사회 자료 작성</div><div class="it soon">이사회 발표 대본 <span class="tag">준비중</span></div>
+        <div class="cat">3 제안서 작성·관리</div>
+        <div class="sub">진행·결재</div><div class="it">제안서 진행 현황</div><div class="it">결재함</div>
+        <div class="sub">작성</div><div class="it">작업함</div><div class="it">제안팀 구성·배정</div><div class="it soon">공동 작성·버전 관리 <span class="tag">준비중</span></div>
+        <div class="sub">검토·제출</div><div class="it soon">내부 검토 의견 <span class="tag">준비중</span></div><div class="it soon">최종 확인·제출 <span class="tag">준비중</span></div>
+        <div class="cat">4 협약·관계 관리</div>
+        <div class="it soon">입찰 결과 등록 <span class="tag">준비중</span></div><div class="it soon">협약 이력 <span class="tag">준비중</span></div>
+      </div>
+      <p class="legend-note">업무 대분류 <span class="num good">5</span>개, 항목 <span class="num good">28</span>개(구현 11·준비중 <span class="num good">17</span>). 제안팀 구성·배정은 '작성' 소분류로 옮겼습니다. 협약·관계 관리는 항목이 2개라 소제목 없이 보입니다. 긴 이름('제안서 사전준비 프로세스')은 말줄임 대신 어절 단위로 두 줄까지 줄바꿈합니다. 재무·전산팀에 보이던 '팀 간 지원 요청'이 사라졌습니다. 이름은 사용자가 정한 것이고 나중에 다듬습니다.</p>
     </div></div></div>
   </div>
 </section>
