@@ -382,7 +382,9 @@ test('index.html: #tm-root 마크업·script 순서·CSS 규칙(새 hex·11px �
   assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(css.replace(/\/\*[\s\S]*?\*\//g, '')), '새 hex 금지(토큰만)');
   (css.match(/font-size:\s*(\d+)px/g) || []).forEach(function (m) { assert.ok(Number(m.match(/(\d+)/)[1]) >= 11, m); });
   assert.ok(!/background:\s*var\(--accent-color\)\s*[;}]/.test(css), '채운 주버튼 금지');
-  assert.ok(/#tm-list\s*\{\s*width:270px/.test(css));
+  assert.ok(/#tm-list\s*\{\s*width:278px/.test(css));
+  assert.ok(/#tm-list\s*\{[^}]*padding:0 4px 4px;[^}]*margin-left:-4px/.test(css));
+  assert.ok(/\.tm-note \{[^}]*word-break:keep-all/.test(css));
   assert.ok(/@media \(max-width:880px\)[\s\S]*#tm-wrap \{ flex-direction:column/.test(css));
   assert.ok(/\.tm-pend \{[^}]*var\(--orange\)/.test(css) && css.indexOf('#e0b44c') < 0);
   assert.ok(/\.modal-box\.tm-modal-box \{ max-width:560px/.test(css));

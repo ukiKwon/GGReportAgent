@@ -832,7 +832,7 @@
   .tm-head b { color:var(--fg); font-weight:600; }
   #tm-gate:empty { display:none; }
   #tm-wrap { flex:1 1 auto; min-height:0; display:flex; gap:12px; }
-  #tm-list { width:270px; flex:0 0 auto; overflow:auto; }
+  #tm-list { width:278px; flex:0 0 auto; overflow:auto; padding:0 4px 4px; margin-left:-4px; }
   #tm-pane { flex:1 1 auto; min-width:0; overflow:auto; }
   .tm-tabrow { display:flex; align-items:center; gap:8px; }
   .tm-tabrow .ap-tabs { flex:1 1 auto; }
@@ -876,7 +876,7 @@
   .tm-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px; }
   .tm-why { margin:8px 0 0; font-size:12px; color:var(--muted); }
   .tm-actions .tm-why { margin:0; }
-  .tm-note { margin:6px 0 0; font-size:12px; color:var(--muted); }
+  .tm-note { margin:6px 0 0; font-size:12px; color:var(--muted); word-break:keep-all; }
   .tm-fs { margin:8px 0 0; padding:8px 12px 10px; border:1px solid var(--line-strong); border-radius:8px; min-width:0; }
   .tm-fs legend { padding:0 6px; font-size:13px; font-weight:600; color:var(--fg); }
   .tm-fs-top { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
@@ -905,7 +905,7 @@
   @media (max-width:880px) {
     #tm-root { flex:0 0 auto; }
     #tm-wrap { flex-direction:column; flex:0 0 auto; }
-    #tm-list { width:auto; max-height:38vh; }
+    #tm-list { width:auto; max-height:38vh; margin-left:0; }
     #tm-pane { overflow:visible; }
     .tm-pick { min-height:36px; }
     .modal-box.tm-modal-box { width:calc(100vw - 24px); max-width:none; margin:12px auto; max-height:calc(100vh - 24px); }

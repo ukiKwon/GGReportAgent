@@ -443,7 +443,7 @@ test('gateAccess: 영업부장이 아니면 비활성 + 이유', function () {
   ['영업팀장', '영업팀', '예산팀장', '디자이너'].forEach(function (t) {
     const r = wf.gateAccess({ team: t }, OK_S);
     assert.strictEqual(r.allowed, false);
-    assert.strictEqual(r.reason, '영업부장만 승인할 수 있어요');
+    assert.strictEqual(r.reason, '승인·반려는 영업부장만 할 수 있습니다.');
   });
 });
 test('gateAccess: 둘러보기·사번 없음·세션 없음은 비활성', function () {
@@ -460,4 +460,10 @@ test('failText: 서버 한글 사유는 그대로, 영문·빈 본문은 상태�
   assert.ok(wf.failText(403, null).indexOf('권한') >= 0);
   assert.ok(wf.failText(409, {}).indexOf('상태') >= 0);
   assert.ok(wf.failText(500, null).indexOf('500') >= 0);
+});
+
+test('failText: 합니다체(해요체 없음, NEXT 67 P2-2)', function () {
+  assert.strictEqual(wf.failText(403, null), '권한이 없어 처리하지 못했습니다. 영업부장 계정으로 로그인했는지 확인해 주세요.');
+  assert.strictEqual(wf.failText(409, {}), '지금은 처리할 수 없는 상태입니다. 화면을 새로 고쳐 다시 확인해 주세요.');
+  assert.strictEqual(wf.failText(500, null), '처리하지 못했습니다(오류 500). 잠시 뒤 다시 시도해 주세요.');
 });

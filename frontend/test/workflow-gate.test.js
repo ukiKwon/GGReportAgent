@@ -74,9 +74,9 @@ test('syncButtons: 대기 게이트 있음 + 영업팀장 → 승인·반려 비
   await arrange('영업팀장', '1234567', GATED);
   assert.strictEqual(els['wf-approve'].disabled, true);
   assert.strictEqual(els['wf-reject'].disabled, true);
-  assert.strictEqual(els['wf-gate-hint'].textContent, '영업부장만 승인할 수 있어요');
-  assert.strictEqual(els['wf-approve'].title, '영업부장만 승인할 수 있어요');
-  assert.strictEqual(els['wf-reject'].title, '영업부장만 승인할 수 있어요');
+  assert.strictEqual(els['wf-gate-hint'].textContent, '승인·반려는 영업부장만 할 수 있습니다.');
+  assert.strictEqual(els['wf-approve'].title, '승인·반려는 영업부장만 할 수 있습니다.');
+  assert.strictEqual(els['wf-reject'].title, '승인·반려는 영업부장만 할 수 있습니다.');
 });
 
 test('syncButtons: 대기 게이트 있음 + 영업부장 → 활성, 힌트 비움', async function () {
@@ -107,7 +107,7 @@ test('gateAccess 경계: team 앞뒤 공백은 trim, 안쪽 공백·6자리·8�
   ['123456', '12345678', ' 1234567', '123456a', ''].forEach(function (emp) {
     const r = wf.gateAccess({ team: '영업부장' }, { mode: 'account', id: 'x', emp: emp });
     assert.strictEqual(r.allowed, false);
-    assert.strictEqual(r.reason, '로그인한 영업부장만 승인할 수 있어요');
+    assert.strictEqual(r.reason, '승인·반려는 로그인한 영업부장만 할 수 있습니다.');
   });
 });
 
@@ -120,13 +120,13 @@ test('onProfileChange: 영업부장 → 로그아웃으로 바뀌면 활성에�
   wf.onProfileChange();
   assert.strictEqual(els['wf-approve'].disabled, true);
   assert.strictEqual(els['wf-reject'].disabled, true);
-  assert.strictEqual(els['wf-gate-hint'].textContent, '로그인한 영업부장만 승인할 수 있어요');
-  assert.strictEqual(els['wf-approve'].title, '로그인한 영업부장만 승인할 수 있어요');
+  assert.strictEqual(els['wf-gate-hint'].textContent, '승인·반려는 로그인한 영업부장만 할 수 있습니다.');
+  assert.strictEqual(els['wf-approve'].title, '승인·반려는 로그인한 영업부장만 할 수 있습니다.');
 });
 
 test('onProfileChange: 영업팀장 → 영업부장으로 바뀌면 활성으로, 문구 사라짐', async function () {
   await arrange('영업팀장', '1234567', GATED);
-  assert.strictEqual(els['wf-gate-hint'].textContent, '영업부장만 승인할 수 있어요');
+  assert.strictEqual(els['wf-gate-hint'].textContent, '승인·반려는 영업부장만 할 수 있습니다.');
   store.saveProfile({ name: '김부장', team: '영업부장' });
   wf.onProfileChange();
   assert.strictEqual(els['wf-approve'].disabled, false);

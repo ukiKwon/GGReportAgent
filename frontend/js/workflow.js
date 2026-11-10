@@ -40,10 +40,10 @@
   workflow.gateAccess = function (profile, session) {
     const p = profile || {}, s = session || {};
     if (s.mode !== 'account' || !/^[0-9]{7}$/.test(s.emp || '')) {
-      return { allowed: false, reason: '로그인한 영업부장만 승인할 수 있어요' };
+      return { allowed: false, reason: '승인·반려는 로그인한 영업부장만 할 수 있습니다.' };
     }
     if ((p.team || '').trim() !== FINAL_APPROVER) {
-      return { allowed: false, reason: '영업부장만 승인할 수 있어요' };
+      return { allowed: false, reason: '승인·반려는 영업부장만 할 수 있습니다.' };
     }
     return { allowed: true, reason: '' };
   };
@@ -53,9 +53,9 @@
     const b = body || {};
     const msg = String(b.detail || b.message || b.error || '');
     if (/[가-힣]/.test(msg)) return msg;
-    if (status === 403) return '이 작업은 권한이 없어 처리하지 못했어요. 영업부장 계정으로 로그인했는지 확인해 주세요';
-    if (status === 409) return '지금은 처리할 수 없는 상태예요. 화면을 새로 고쳐 다시 확인해 주세요';
-    return '처리하지 못했어요 (' + status + '). 잠시 뒤 다시 시도해 주세요';
+    if (status === 403) return '권한이 없어 처리하지 못했습니다. 영업부장 계정으로 로그인했는지 확인해 주세요.';
+    if (status === 409) return '지금은 처리할 수 없는 상태입니다. 화면을 새로 고쳐 다시 확인해 주세요.';
+    return '처리하지 못했습니다(오류 ' + status + '). 잠시 뒤 다시 시도해 주세요.';
   };
 
   // 카드는 "그 단계에 실제로 기록을 남긴 팀"이다(사용자 요청) — 전체 팀 목록이 아니다.
@@ -766,7 +766,7 @@
       }
       showActErr('');
       return refresh().then(startPolling);        // 액션 직후에는 잠시 따라붙는다
-    }).catch(function () { showActErr('서버에 연결하지 못해 처리되지 않았어요'); });
+    }).catch(function () { showActErr('서버에 연결하지 못해 처리되지 않았습니다.'); });
   }
 
   function renderControls() {
