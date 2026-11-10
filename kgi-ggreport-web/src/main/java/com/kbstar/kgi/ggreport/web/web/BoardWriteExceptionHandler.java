@@ -26,7 +26,7 @@ import java.util.Map;
  * (ApiException 의 문자열 사유는 서비스가 만든 한국어 고정 문구라 4xx 에서만 그대로 쓴다. 5xx 는 일반 문구).
  * 서블릿 필터 단계(411/413)·전역 multipart 한도는 이 advice 가 닿지 않아 각자 message 를 싣는다.
  */
-@RestControllerAdvice(assignableTypes = BoardWriteController.class)
+@RestControllerAdvice(assignableTypes = {BoardWriteController.class, BoardMaterialController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class BoardWriteExceptionHandler {
 

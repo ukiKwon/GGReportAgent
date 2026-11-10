@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- BOARD_MATERIAL / _SNAP / _LOG / _ACT — 020. 양쪽 방언에서 같은 문장이다(databaseId 분기 없음).
+     ⚠️ VALUES_JSON 은 CLOB — 정렬·DISTINCT·WHERE 대상에 넣지 않는다. LIKE 는 ESCAPE '!' (서비스가 ! % _ 를 이스케이프).
+     ⚠️ FOR UPDATE 문장(lockAssignCase·selectInvolvedIds)은 집계·DISTINCT 와 함께 쓰지 않는다(Oracle 제약). -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.BoardMaterialMapper">
+
+  <sql id="mcols">m.MATERIAL_ID, m.BID_CASE_ID, m.INSTITUTION_ID, m.BOARD_YEAR, m.STATUS_CD, m.RESULT_CD, m.MEETING_DATE,
+         m.SUBMIT_REQ_ID, m.SUBMIT_SNAP, m.CONFIRMED_SNAP, m.CONFIRMED_BY, m.CONFIRMED_AT,
+         m.FORM_ID, m.FORM_VER, m.CUR_SNAP, m.LAST_SAVED_BY, m.LAST_SAVED_AT,
+         m.CREATED_BY, m.CREATED_AT, m.UPDATED_BY, m.UPDATED_AT</sql>
+
+  <sql id="mnames">i.NAME_KO AS INSTITUTION_NAME, c.CODE_NAME AS STATUS_NAME, rc.CODE_NAME AS RESULT_NAME</sql>
+
+  <sql id="mjoins">
+      LEFT JOIN INSTITUTIONS i ON i.INSTITUTION_ID = m.INSTITUTION_ID
+      LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'BOARD_STATUS' AND c.CODE = m.STATUS_CD
+      LEFT JOIN COMMON_CODE rc ON rc.CODE_GROUP = 'BOARD_RESULT' AND rc.CODE = m.RESULT_CD
+  </sql>
+
+  <select id="selectCaseInstitution" resultType="string">
+    SELECT INSTITUTION_ID FROM BID_CASES WHERE BID_CASE_ID = #{bidCaseId}
+  </select>
+
+  <select id="lockAssignCase" resultType="string">
+    SELECT BID_CASE_ID FROM BID_ASSIGN_CASE WHERE BID_CASE_ID = #{bidCaseId} FOR UPDATE
+  </select>
+
+  <insert id="insertMaterial" useGeneratedKeys="true" keyProperty="materialId" keyColumn="MATERIAL_ID">
+    INSERT INTO BOARD_MATERIAL (BID_CASE_ID, INSTITUTION_ID, BOARD_YEAR, STATUS_CD, FORM_ID, FORM_VER, CUR_SNAP,
+                                CREATED_BY, CREATED_AT, UPDATED_BY, UPDATED_AT)
+    VALUES (#{bidCaseId}, #{institutionId}, #{boardYear}, #{statusCd}, #{formId}, #{formVer}, 0,
+            #{createdBy}, #{createdAt}, #{updatedBy}, #{updatedAt})
+  </insert>
+
+  <select id="selectOne" resultType="BoardMaterial">
+    SELECT <include refid="mcols"/>, <include refid="mnames"/>
+      FROM BOARD_MATERIAL m <include refid="mjoins"/>
+     WHERE m.MATERIAL_ID = #{id}
+  </select>
+
+  <select id="selectList" resultType="BoardMaterial">
+    SELECT <include refid="mcols"/>, <include refid="mnames"/>
+      FROM BOARD_MATERIAL m <include refid="mjoins"/>
+    <where>
+      <if test="!viewAll">
+        m.BID_CASE_ID IN (SELECT a.BID_CASE_ID FROM BID_ASSIGNMENT a WHERE a.EMP_NO = #{empNo} AND a.ACTIVE_YN = 1)
+      </if>
+      <if test="q != null">
+        AND i.NAME_KO LIKE CONCAT(CONCAT('%', #{q}), '%') ESCAPE '!'
+      </if>
+      <if test="status != null">
+        AND m.STATUS_CD = #{status}
+      </if>
+      <if test="year != null">
+        AND m.BOARD_YEAR = #{year}
+      </if>
+      <if test="meetingFrom != null">
+        AND m.MEETING_DATE &gt;= #{meetingFrom}
+      </if>
+      <if test="meetingTo != null">
+        AND m.MEETING_DATE &lt;= #{meetingTo}
+      </if>
+      <if test="assignee != null">
+        AND EXISTS (SELECT 1 FROM BID_ASSIGNMENT a2 JOIN USERS u2 ON u2.EMP_NO = a2.EMP_NO
+                     WHERE a2.BID_CASE_ID = m.BID_CASE_ID AND a2.ACTIVE_YN = 1
+                       AND u2.NAME LIKE CONCAT(CONCAT('%', #{assignee}), '%') ESCAPE '!')
+      </if>
+    </where>
+     ORDER BY m.UPDATED_AT DESC, m.MATERIAL_ID DESC
+  </select>
+
+  <select id="selectAssignees" resultType="BoardMaterialAssignee">
+    SELECT a.BID_CASE_ID, a.EMP_NO, u.NAME
+      FROM BID_ASSIGNMENT a LEFT JOIN USERS u ON u.EMP_NO = a.EMP_NO
+     WHERE a.ACTIVE_YN = 1 AND a.BID_CASE_ID IN
+    <foreach collection="caseIds" item="cid" open="(" separator="," close=")">#{cid}</foreach>
+     ORDER BY a.BID_CASE_ID, a.ASSIGNED_AT, a.EMP_NO
+  </select>
+
+  <update id="updateStartDraft">
+    UPDATE BOARD_MATERIAL SET STATUS_CD = 'DRAFT', UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE MATERIAL_ID = #{id} AND STATUS_CD = 'PREP'
+  </update>
+
+  <update id="updateCurSnap">
+    UPDATE BOARD_MATERIAL SET CUR_SNAP = #{next}, LAST_SAVED_BY = #{by}, LAST_SAVED_AT = #{now},
+           UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE MATERIAL_ID = #{id} AND CUR_SNAP = #{base} AND STATUS_CD IN ('PREP', 'DRAFT')
+  </update>
+
+  <update id="claimSubmit">
+    UPDATE BOARD_MATERIAL SET STATUS_CD = 'SUBMITTED', SUBMIT_REQ_ID = #{reqId}, SUBMIT_SNAP = #{snap},
+           UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE MATERIAL_ID = #{id} AND STATUS_CD = 'DRAFT' AND CUR_SNAP = #{snap}
+  </update>
+
+  <update id="confirm">
+    UPDATE BOARD_MATERIAL SET STATUS_CD = 'CONFIRMED', CONFIRMED_SNAP = SUBMIT_SNAP, CONFIRMED_BY = #{by},
+           CONFIRMED_AT = #{now}, SUBMIT_REQ_ID = NULL, SUBMIT_SNAP = NULL, UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE MATERIAL_ID = #{id} AND STATUS_CD = 'SUBMITTED' AND SUBMIT_REQ_ID = #{reqId}
+  </update>
+
+  <update id="backToDraftByReq">
+    UPDATE BOARD_MATERIAL SET STATUS_CD = 'DRAFT', SUBMIT_REQ_ID = NULL, SUBMIT_SNAP = NULL,
+           UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE MATERIAL_ID = #{id} AND STATUS_CD = 'SUBMITTED' AND SUBMIT_REQ_ID = #{reqId}
+  </update>
+
+  <update id="backToDraftFromConfirmed">
+    UPDATE BOARD_MATERIAL SET STATUS_CD = 'DRAFT', RESULT_CD = NULL, MEETING_DATE = NULL, CONFIRMED_SNAP = NULL,
+           CONFIRMED_BY = NULL, CONFIRMED_AT = NULL, UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE MATERIAL_ID = #{id} AND STATUS_CD = 'CONFIRMED'
+  </update>
+
+  <update id="updateResult">
+    UPDATE BOARD_MATERIAL SET RESULT_CD = #{to}, MEETING_DATE = COALESCE(#{meetingDate,jdbcType=VARCHAR}, MEETING_DATE),
+           UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE MATERIAL_ID = #{id} AND STATUS_CD = 'CONFIRMED'
+       AND COALESCE(RESULT_CD, '-') = COALESCE(#{from,jdbcType=VARCHAR}, '-')
+  </update>
+
+  <insert id="insertSnap">
+    INSERT INTO BOARD_MATERIAL_SNAP (MATERIAL_ID, SNAP_NO, VALUES_JSON, NOTE, SAVED_BY, SAVED_AT)
+    VALUES (#{materialId}, #{snapNo}, #{valuesJson,jdbcType=CLOB}, #{note,jdbcType=VARCHAR}, #{savedBy}, #{savedAt})
+  </insert>
+
+  <select id="selectSnap" resultType="BoardMaterialSnap">
+    SELECT s.MATERIAL_ID, s.SNAP_NO, s.VALUES_JSON, s.NOTE, s.SAVED_BY, u.NAME AS SAVED_BY_NAME, s.SAVED_AT
+      FROM BOARD_MATERIAL_SNAP s LEFT JOIN USERS u ON u.EMP_NO = s.SAVED_BY
+     WHERE s.MATERIAL_ID = #{id} AND s.SNAP_NO = #{snapNo}
+  </select>
+
+  <select id="selectSnaps" resultType="BoardMaterialSnap">
+    SELECT s.MATERIAL_ID, s.SNAP_NO, s.NOTE, s.SAVED_BY, u.NAME AS SAVED_BY_NAME, s.SAVED_AT
+      FROM BOARD_MATERIAL_SNAP s LEFT JOIN USERS u ON u.EMP_NO = s.SAVED_BY
+     WHERE s.MATERIAL_ID = #{id}
+     ORDER BY s.SNAP_NO DESC
+  </select>
+
+  <insert id="insertLog">
+    INSERT INTO BOARD_MATERIAL_LOG (MATERIAL_ID, EVENT_CD, FROM_STATUS, TO_STATUS, FROM_RESULT, TO_RESULT, MEETING_DATE,
+                                    FROM_EMP_NO, TO_EMP_NO, REQ_ID, REASON, ACTOR_EMP_NO, EMP_VERIFIED, LOGGED_AT)
+    VALUES (#{id}, #{eventCd}, #{fromStatus,jdbcType=VARCHAR}, #{toStatus,jdbcType=VARCHAR},
+            #{fromResult,jdbcType=VARCHAR}, #{toResult,jdbcType=VARCHAR}, #{meetingDate,jdbcType=VARCHAR},
+            #{fromEmpNo,jdbcType=VARCHAR}, #{toEmpNo,jdbcType=VARCHAR}, #{reqId,jdbcType=NUMERIC},
+            #{reason,jdbcType=VARCHAR}, #{actor}, #{verified}, #{now})
+  </insert>
+
+  <select id="selectLog" resultType="BoardMaterialLogView">
+    SELECT l.EVENT_CD, l.FROM_STATUS, fs.CODE_NAME AS FROM_STATUS_NAME, l.TO_STATUS, ts.CODE_NAME AS TO_STATUS_NAME,
+           fr.CODE_NAME AS FROM_RESULT_NAME, tr.CODE_NAME AS TO_RESULT_NAME, l.MEETING_DATE,
+           l.FROM_EMP_NO, fu.NAME AS FROM_NAME, l.TO_EMP_NO, tu.NAME AS TO_NAME, l.REQ_ID, l.REASON,
+           l.ACTOR_EMP_NO, au.NAME AS ACTOR_NAME, l.EMP_VERIFIED, l.LOGGED_AT
+      FROM BOARD_MATERIAL_LOG l
+      LEFT JOIN COMMON_CODE fs ON fs.CODE_GROUP = 'BOARD_STATUS' AND fs.CODE = l.FROM_STATUS
+      LEFT JOIN COMMON_CODE ts ON ts.CODE_GROUP = 'BOARD_STATUS' AND ts.CODE = l.TO_STATUS
+      LEFT JOIN COMMON_CODE fr ON fr.CODE_GROUP = 'BOARD_RESULT' AND fr.CODE = l.FROM_RESULT
+      LEFT JOIN COMMON_CODE tr ON tr.CODE_GROUP = 'BOARD_RESULT' AND tr.CODE = l.TO_RESULT
+      LEFT JOIN USERS fu ON fu.EMP_NO = l.FROM_EMP_NO
+      LEFT JOIN USERS tu ON tu.EMP_NO = l.TO_EMP_NO
+      LEFT JOIN USERS au ON au.EMP_NO = l.ACTOR_EMP_NO
+     WHERE l.MATERIAL_ID = #{id}
+     ORDER BY l.LOG_ID
+  </select>
+
+  <select id="selectInvolvedIds" resultType="long">
+    SELECT MATERIAL_ID FROM BOARD_MATERIAL
+     WHERE BID_CASE_ID = #{bidCaseId} AND (CREATED_BY = #{empNo} OR LAST_SAVED_BY = #{empNo})
+     ORDER BY MATERIAL_ID
+     FOR UPDATE
+  </select>
+
+  <select id="countApprovalStep" resultType="int">
+    SELECT COUNT(*) FROM BOARD_MATERIAL_LOG l JOIN APPROVAL_STEP s ON s.REQ_ID = l.REQ_ID
+     WHERE l.MATERIAL_ID = #{id} AND l.EVENT_CD = 'SUBMIT' AND s.APPROVER_EMP_NO = #{empNo}
+  </select>
+
+  <insert id="insertAct">
+    INSERT INTO BOARD_MATERIAL_ACT (MATERIAL_ID, BID_CASE_ID, ACTION_CD, OUTCOME, STATUS_CD, RESULT_CD, SNAP_NO,
+                                    ACTOR_EMP_NO, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, LOGGED_AT)
+    VALUES (#{materialId}, #{bidCaseId}, #{actionCd}, #{outcome}, #{statusCd}, #{resultCd,jdbcType=VARCHAR},
+            #{snapNo,jdbcType=NUMERIC}, #{actorEmpNo,jdbcType=VARCHAR}, #{empVerified}, #{screenId}, #{buttonId},
+            #{uiValid}, #{loggedAt})
+  </insert>
+
+  <select id="selectActs" resultType="BoardMaterialAct">
+    SELECT a.ACT_ID, a.MATERIAL_ID, a.BID_CASE_ID, a.ACTION_CD, a.OUTCOME, a.STATUS_CD, a.RESULT_CD, a.SNAP_NO,
+           a.ACTOR_EMP_NO, u.NAME AS ACTOR_NAME, a.EMP_VERIFIED, a.SCREEN_ID, a.BUTTON_ID, a.UI_VALID, a.LOGGED_AT
+      FROM BOARD_MATERIAL_ACT a LEFT JOIN USERS u ON u.EMP_NO = a.ACTOR_EMP_NO
+     WHERE a.MATERIAL_ID = #{id}
+     ORDER BY a.ACT_ID DESC
+  </select>
+
+</mapper>

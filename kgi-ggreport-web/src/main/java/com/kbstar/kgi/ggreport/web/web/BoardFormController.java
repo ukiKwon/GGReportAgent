@@ -4,6 +4,7 @@ import com.kbstar.kgi.ggreport.web.boarddoc.BoardDocDocx;
 import com.kbstar.kgi.ggreport.web.config.AccessLogInterceptor;
 import com.kbstar.kgi.ggreport.web.boarddoc.BoardDocSpec;
 import com.kbstar.kgi.ggreport.web.dto.BoardFormIn;
+import com.kbstar.kgi.ggreport.web.service.BoardAccess;
 import com.kbstar.kgi.ggreport.web.service.BoardFormService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -38,17 +39,21 @@ public class BoardFormController {
 
     private final MenuGuard guard;
     private final BoardFormService service;
+    private final BoardAccess access;
 
-    public BoardFormController(MenuGuard guard, BoardFormService service) {
+    public BoardFormController(MenuGuard guard, BoardFormService service, BoardAccess access) {
         this.guard = guard;
         this.service = service;
+        this.access = access;
     }
 
     @GetMapping
     public Map<String, Object> list(@RequestParam(name = "status", defaultValue = "active") String status,
                                     HttpServletRequest req) {
         Actor a = guard.require(req, MENU_KEY);
-        return service.list(a.getEmpNo(), status);
+        Map<String, Object> out = service.list(a.getEmpNo(), status);
+        out.put("can_write", access.hasAnyWriteCase(a.getEmpNo()));   // 020: 메뉴 CAN_WRITE 가 아니라 '현재 담당 입찰 건이 있는가'
+        return out;
     }
 
     @GetMapping("/catalog")

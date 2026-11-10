@@ -2,6 +2,7 @@ package com.kbstar.kgi.ggreport.web.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kbstar.kgi.ggreport.web.service.BoardAccess;
 import com.kbstar.kgi.ggreport.web.service.BoardWriteService;
 import org.junit.Test;
 import org.springframework.mock.web.MockMultipartFile;
@@ -33,13 +34,18 @@ public class BoardWriteAdviceTest {
     public BoardWriteAdviceTest() {
         MenuGuard guard = mock(MenuGuard.class);
         when(guard.requireWrite(any(), any(), any())).thenReturn(Actor.claimed(ADMIN));
-        mockMvc = MockMvcBuilders.standaloneSetup(new BoardWriteController(guard, service))
+        when(guard.require(any(), any())).thenReturn(Actor.claimed(ADMIN));
+        // 020a: 작성 자격은 입찰 건 배정(BoardAccess) — 이 시험은 예외 처리기만 보므로 담당자로 둔다.
+        BoardAccess access = mock(BoardAccess.class);
+        when(access.canWriteCase(any(), any())).thenReturn(true);
+        mockMvc = MockMvcBuilders.standaloneSetup(new BoardWriteController(guard, service, access))
                 .setControllerAdvice(new BoardWriteExceptionHandler()).build();
     }
 
     private JsonNode uploadExpecting(int expect) throws Exception {
         String text = mockMvc.perform(multipart(EXCEL)
                 .file(new MockMultipartFile("file", "가상.xlsx", "application/octet-stream", new byte[]{1}))
+                .param("bid_case_id", "bc-advice")
                 .header(Actor.HEADER, ADMIN))
                 .andExpect(status().is(expect)).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         assertFalse(text, text.contains("secret"));

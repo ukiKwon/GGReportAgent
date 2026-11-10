@@ -14,7 +14,13 @@ public class BidAssignLogView {
     /** 1 = 앞단 인증 주체, 0 = 자기신고(위조 가능). */
     private int empVerified;
     private String loggedAt;
+    private String fromEmpNo;    // HANDOVER: 해제된 사람(그 외 null)
+    private String fromName;
 
+    public String getFromEmpNo() { return fromEmpNo; }
+    public void setFromEmpNo(String v) { this.fromEmpNo = v; }
+    public String getFromName() { return fromName; }
+    public void setFromName(String v) { this.fromName = v; }
     public String getActionCd() { return actionCd; }
     public void setActionCd(String v) { this.actionCd = v; }
     public String getActionName() { return actionName; }

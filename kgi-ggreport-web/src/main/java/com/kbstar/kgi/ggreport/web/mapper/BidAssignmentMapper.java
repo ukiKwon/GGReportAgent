@@ -62,6 +62,12 @@ public interface BidAssignmentMapper {
     int updateRelease(@Param("bidCaseId") String bidCaseId, @Param("empNo") String empNo,
                       @Param("by") String by, @Param("now") String now);
 
+    /** 작성본 인계 이력(HANDOVER) — 해제된 사람→받은 사람 쌍마다 1행. 자료 번호는 남기지 않는다(존재 은닉). */
+    int insertHandoverLog(@Param("bidCaseId") String bidCaseId, @Param("toEmpNo") String toEmpNo,
+                          @Param("fromEmpNo") String fromEmpNo, @Param("reqId") Long reqId,
+                          @Param("actorEmpNo") String actorEmpNo, @Param("verified") int verified,
+                          @Param("now") String now);
+
     /** 해제됐던 행 복구(ACTIVE_YN 0→1). 0행이면 행이 없는 것 — 호출자가 insertAssignment 한다. */
     int updateReactivate(@Param("bidCaseId") String bidCaseId, @Param("empNo") String empNo,
                          @Param("by") String by, @Param("now") String now);

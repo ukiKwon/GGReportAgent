@@ -45,6 +45,12 @@ public class BoardWriteLimitFilter implements Filter {
     static final long SAVE_MAX = 512L * 1024;
     private static final Pattern COPY = Pattern.compile("(?:^|/)board-forms/+copy/*$", Pattern.CASE_INSENSITIVE);
     private static final Pattern SAVE = Pattern.compile("(?:^|/)board-forms/+[^/]+/*$", Pattern.CASE_INSENSITIVE);
+    /** POST /board-materials/{id}/snapshots — 저장 JSON 상한 256KB + 요청 껍데기 여유 32KB. */
+    static final long SNAP_MAX = 288L * 1024;
+    private static final Pattern SNAP = Pattern.compile("(?:^|/)board-materials/+[^/]+/+snapshots/*$", Pattern.CASE_INSENSITIVE);
+    /** 그 밖의 board-materials 쓰기(만들기·제출·회수·재작성·결과) — 본문이 작다. 16KB. */
+    private static final Pattern MAT_SMALL = Pattern.compile(
+            "(?:^|/)board-materials(?:/+[^/]+/+(?:submit|withdraw|rework|result))?/*$", Pattern.CASE_INSENSITIVE);
 
     private final AccessLogService accessLog;
     private final int maxMb;
@@ -82,6 +88,8 @@ public class BoardWriteLimitFilter implements Filter {
         long limit = excel ? maxMb * MB + SLACK
                 : post && DRAFT.matcher(path).find() ? DRAFT_MAX
                 : post && COPY.matcher(path).find() ? COPY_MAX
+                : post && SNAP.matcher(path).find() ? SNAP_MAX
+                : post && MAT_SMALL.matcher(path).find() ? COPY_MAX
                 : put && SAVE.matcher(path).find() ? SAVE_MAX : -1;
         long len = req.getContentLengthLong();
         if (limit < 0 || (len >= 0 && len <= limit)) {

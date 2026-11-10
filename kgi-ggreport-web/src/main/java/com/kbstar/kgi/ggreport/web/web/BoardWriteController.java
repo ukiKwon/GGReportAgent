@@ -4,6 +4,7 @@ import com.kbstar.kgi.ggreport.web.boarddoc.BoardDocDocx;
 import com.kbstar.kgi.ggreport.web.boarddoc.BoardDocSpec;
 import com.kbstar.kgi.ggreport.web.config.AccessLogInterceptor;
 import com.kbstar.kgi.ggreport.web.dto.BoardWriteIn;
+import com.kbstar.kgi.ggreport.web.service.BoardAccess;
 import com.kbstar.kgi.ggreport.web.service.BoardWriteService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -18,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 이사회 자료 작성. 지도 조회는 tasks 조회, 업로드·초안은 tasks 작성(CAN_WRITE) 또는 관리자.
+ * 이사회 자료 작성. 지도 조회는 tasks 조회, 업로드·초안은 <b>그 입찰 건의 현재 담당자만</b>(020 — 메뉴 CAN_WRITE·관리자 예외 없음, bid_case_id 필수).
  * ⚠️ 호출자 사번은 X-Emp-No 자기신고일 수 있다(Actor) — 앞단 인증 전에는 보안 경계가 아니다.
  * 접근 이력 detail 에는 결과 code·개인정보 종류 수·파일 크기만 남긴다(파일명·값 없음).
  */
@@ -33,10 +34,33 @@ public class BoardWriteController {
 
     private final MenuGuard guard;
     private final BoardWriteService service;
+    private final BoardAccess access;
 
-    public BoardWriteController(MenuGuard guard, BoardWriteService service) {
+    public BoardWriteController(MenuGuard guard, BoardWriteService service, BoardAccess access) {
         this.guard = guard;
         this.service = service;
+        this.access = access;
+    }
+
+    /**
+     * 020: 작성(엑셀 업로드·초안 docx)은 그 입찰 건의 현재 담당자만 — 메뉴의 CAN_WRITE 로는 더 이상 열리지 않는다(관리자 예외 없음).
+     * bid_case_id 가 없으면 400(BID_CASE_REQUIRED), 담당이 아니면 403(DENIED 기록). 입찰 건 존재 여부는 알리지 않는다.
+     */
+    private void requireCaseWriter(HttpServletRequest req, Actor a, String bidCaseId) {
+        String bid = bidCaseId == null ? "" : bidCaseId.trim();
+        if (bid.isEmpty() || bid.length() > 64) {
+            throw fail(400, "BID_CASE_REQUIRED", "입찰 건(bid_case_id)을 지정하세요.");
+        }
+        if (!access.canWriteCase(a.getEmpNo(), bid)) {
+            throw guard.denied(req, new ApiException(403, WRITE_DENIED));
+        }
+    }
+
+    private static ApiException fail(int status, String code, String message) {
+        java.util.Map<String, Object> d = new java.util.LinkedHashMap<>();
+        d.put("code", code);
+        d.put("message", message);
+        return ApiException.withDetail(status, d);
     }
 
     @GetMapping("/excel-map")
@@ -49,8 +73,10 @@ public class BoardWriteController {
     public Map<String, Object> upload(@PathVariable("id") String id,
                                       @RequestParam(name = "file", required = false) MultipartFile file,
                                       @RequestParam(name = "version", required = false) String version,
+                                      @RequestParam(name = "bid_case_id", required = false) String bidCaseId,
                                       HttpServletRequest req) {
-        Actor a = guard.requireWrite(req, MENU_KEY, WRITE_DENIED);
+        Actor a = guard.require(req, MENU_KEY);
+        requireCaseWriter(req, a, bidCaseId);
         long size = file == null ? 0 : file.getSize();
         try {
             Map<String, Object> out = service.upload(a.getEmpNo(), id, version, file);
@@ -68,7 +94,8 @@ public class BoardWriteController {
     @PostMapping("/{id}/draft-docx")
     public ResponseEntity<byte[]> draft(@PathVariable("id") String id, @RequestBody BoardWriteIn in,
                                         HttpServletRequest req) {
-        Actor a = guard.requireWrite(req, MENU_KEY, WRITE_DENIED);
+        Actor a = guard.require(req, MENU_KEY);
+        requireCaseWriter(req, a, in == null ? null : in.getBidCaseId());
         BoardDocSpec.Doc doc;
         try {
             doc = service.draft(a.getEmpNo(), id, in);

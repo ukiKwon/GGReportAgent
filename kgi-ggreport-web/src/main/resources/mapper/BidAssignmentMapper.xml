@@ -29,6 +29,13 @@
             #{actorEmpNo}, #{verified}, #{now})
   </insert>
 
+  <insert id="insertHandoverLog">
+    INSERT INTO BID_ASSIGN_LOG (BID_CASE_ID, ACTION_CD, TARGET_EMP_NO, FROM_EMP_NO, REQ_ID, REASON,
+                                ACTOR_EMP_NO, EMP_VERIFIED, LOGGED_AT)
+    VALUES (#{bidCaseId}, 'HANDOVER', #{toEmpNo}, #{fromEmpNo}, #{reqId,jdbcType=NUMERIC}, '작성본 인계',
+            #{actorEmpNo}, #{verified}, #{now})
+  </insert>
+
   <select id="selectActiveAssignees" resultType="BidAssigneeView">
     SELECT a.EMP_NO, u.NAME, u.POSITION_TITLE, a.ASSIGNED_AT
       FROM BID_ASSIGNMENT a
@@ -54,11 +61,13 @@
 
   <select id="selectLog" resultType="BidAssignLogView">
     SELECT l.ACTION_CD, c.CODE_NAME AS ACTION_NAME, l.TARGET_EMP_NO, t.NAME AS TARGET_NAME, l.REQ_ID, l.REASON,
-           l.ACTOR_EMP_NO, ac.NAME AS ACTOR_NAME, l.EMP_VERIFIED, l.LOGGED_AT
+           l.ACTOR_EMP_NO, ac.NAME AS ACTOR_NAME, l.EMP_VERIFIED, l.LOGGED_AT,
+           l.FROM_EMP_NO, fr.NAME AS FROM_NAME
       FROM BID_ASSIGN_LOG l
       LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'ASSIGN_ACTION' AND c.CODE = l.ACTION_CD
       LEFT JOIN USERS t ON t.EMP_NO = l.TARGET_EMP_NO
       LEFT JOIN USERS ac ON ac.EMP_NO = l.ACTOR_EMP_NO
+      LEFT JOIN USERS fr ON fr.EMP_NO = l.FROM_EMP_NO
      WHERE l.BID_CASE_ID = #{bidCaseId}
      ORDER BY l.LOG_ID
   </select>

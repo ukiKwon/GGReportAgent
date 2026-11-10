@@ -10,6 +10,7 @@ import com.kbstar.kgi.ggreport.web.domain.BidAssigneeView;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.mapper.ApprovalRequestMapper;
 import com.kbstar.kgi.ggreport.web.mapper.BidAssignmentMapper;
+import com.kbstar.kgi.ggreport.web.mapper.BoardMaterialMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.support.ApproverRules;
 import com.kbstar.kgi.ggreport.web.support.MenuPerms;
@@ -60,6 +61,7 @@ public class BidAssignmentService {
     static final String ACTION_ASSIGN = "ASSIGN";
     static final String ACTION_ADD = "ADD";
     static final String ACTION_RELEASE = "RELEASE";
+    static final String ACTION_HANDOVER = "HANDOVER";   // 020 (insertHandoverLog 가 SQL 에 직접 쓴다 — 코드값 문서용)
     static final String SELF_REASON = "팀장 자기 포함 배정";
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -67,11 +69,14 @@ public class BidAssignmentService {
     private final BidAssignmentMapper mapper;
     private final SysUserMapper users;
     private final ApprovalRequestMapper requests;
+    private final BoardMaterialMapper materials;
 
-    public BidAssignmentService(BidAssignmentMapper mapper, SysUserMapper users, ApprovalRequestMapper requests) {
+    public BidAssignmentService(BidAssignmentMapper mapper, SysUserMapper users, ApprovalRequestMapper requests,
+                                BoardMaterialMapper materials) {
         this.mapper = mapper;
         this.users = users;
         this.requests = requests;
+        this.materials = materials;
     }
 
     /**
@@ -157,6 +162,8 @@ public class BidAssignmentService {
             m.put("reason", l.getReason());
             m.put("actor_emp_no", l.getActorEmpNo());
             m.put("actor_name", l.getActorName());
+            m.put("from_emp_no", l.getFromEmpNo());           // HANDOVER 만 값이 있다(해제된 사람)
+            m.put("from_name", l.getFromName());
             m.put("emp_verified", l.getEmpVerified() == 1);   // false = 자기신고(위조 가능)
             m.put("logged_at", l.getLoggedAt());
             out.add(m);
@@ -382,8 +389,71 @@ public class BidAssignmentService {
             }
             mapper.insertLog(bid, ACTION_ADD, e, r.getReqId(), reason, d, verified, now);
         }
+        handoverMaterials(bid, remove, add, r.getReqId(), d, verified, now);
         cancelPendingSubmit(bid);
         return "담당자 변경 반영: 추가 " + add.size() + "명, 해제 " + remove.size() + "명";
+    }
+
+    /**
+     * 020 — 담당에서 빠지는 사람이 만들었거나 마지막으로 저장한 이사회 자료가 있으면, 새로 추가된 담당자 전원에게 인계한 사실을
+     * 변경 이력(BID_ASSIGN_LOG HANDOVER: 해제된 사람→받은 사람 쌍마다 1행)과 자료 이력(BOARD_MATERIAL_LOG)에 남긴다. 자료는 입찰 건 소속이라
+     * 값·버전은 그대로이고, 현재 담당자 전원이 이어서 쓴다(작성 책임자 칸 없음). 추가가 없으면 남은 담당자 중 쓸 수 있는 사람 전원이 받는 사람이다.
+     * 받는 사람은 USERS ACTIVE ∧ 영업 계열이어야 한다(security P1) — 한 명도 없으면 409 NO_HANDOVER_TARGET 으로 승인째 되돌린다.
+     * 배정 이력에는 자료 번호를 남기지 않는다(존재 은닉, security P2). 같은 트랜잭션이라 하나라도 실패하면 승인까지 되돌아간다.
+     */
+    private void handoverMaterials(String bid, List<String> remove, List<String> add, Long reqId, String decider,
+                                   int verified, String now) {
+        if (remove.isEmpty()) {
+            return;
+        }
+        Map<Long, String> fromOf = new LinkedHashMap<>();   // 자료 번호 → 해제된 사람(여러 명이면 먼저 걸린 사람)
+        for (String from : remove) {
+            for (Long mid : materials.selectInvolvedIds(bid, from)) {   // FOR UPDATE — 같은 건의 자료 생성과 직렬화
+                if (!fromOf.containsKey(mid)) {
+                    fromOf.put(mid, from);
+                }
+            }
+        }
+        if (fromOf.isEmpty()) {
+            return;
+        }
+        List<String> to = new ArrayList<>(add);   // add 는 applyChange 의 requireAssignable 이 이미 ACTIVE·영업 계열로 검사했다
+        if (to.isEmpty()) {
+            for (BidAssigneeView v : mapper.selectActiveAssignees(bid)) {
+                SysUser u = users.selectByEmpNo(v.getEmpNo());
+                boolean ok = u != null && "ACTIVE".equals(u.getStatus())
+                        && (MEMBER_ROLE.equals(roleOf(u)) || LEAD_ROLE.equals(roleOf(u)));
+                if (ok && !to.contains(v.getEmpNo())) {
+                    to.add(v.getEmpNo());
+                }
+            }
+        }
+        if (to.isEmpty()) {
+            throw coded(409, "NO_HANDOVER_TARGET",
+                    "작성본을 넘겨받을 사용 중인 담당자가 없습니다. 담당자를 추가해 다시 신청하세요.");
+        }
+        Set<String> pairs = new LinkedHashSet<>();
+        for (Map.Entry<Long, String> e : fromOf.entrySet()) {
+            for (String t : to) {
+                materials.insertLog(e.getKey(), "HANDOVER", null, null, null, null, null, e.getValue(), t, reqId, null,
+                        decider, verified, now);
+                if (pairs.add(e.getValue() + ">" + t)) {
+                    mapper.insertHandoverLog(bid, t, e.getValue(), reqId, decider, verified, now);
+                }
+            }
+        }
+    }
+
+    /** 그 입찰 건의 현재 활성 담당자 중 영업팀장이 있으면 true(자료 제출은 이 경우 영업부장 결재). */
+    @Transactional(readOnly = true)
+    boolean anyActiveLead(String bidCaseId) {
+        for (BidAssigneeView v : mapper.selectActiveAssignees(bidCaseId)) {
+            SysUser u = users.selectByEmpNo(v.getEmpNo());
+            if (u != null && LEAD_ROLE.equals(roleOf(u))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 021(제출 흐름) 후크 — 담당자가 바뀌면 대기 중인 제출 확정을 취소한다. 019 에서는 자리만이다. */
@@ -494,7 +564,7 @@ public class BidAssignmentService {
      * 없으면 그 역할 활성이 <b>정확히 1명</b>일 때만 그 사람 → 아니면 400. 어느 경우든 상신자보다 직급이 엄격히
      * 높아야 한다({@link Ranks#mayApprove}). 시드에는 영업팀장·영업부장이 각 2명이라 체인이 없으면 정해지지 않는다.
      */
-    private SysUser resolveApprover(SysUser requester, boolean headApproves) {
+    SysUser resolveApprover(SysUser requester, boolean headApproves) {
         String role = headApproves ? HEAD_ROLE : LEAD_ROLE;
         List<SysUser> all = users.selectAll();
         Map<String, SysUser> byEmp = new HashMap<>();

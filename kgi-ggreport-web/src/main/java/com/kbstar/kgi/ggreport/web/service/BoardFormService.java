@@ -157,6 +157,19 @@ public class BoardFormService {
         public BoardDocSpec.Doc getDoc() { return doc; }
     }
 
+    /**
+     * 저장된 이사회 자료가 가리키는 양식 구조(값 검증용). 보관(ARCHIVED) 양식도 허용한다 — 이미 만든 자료는 계속 저장할 수 있어야 한다.
+     * 팀 범위는 load 와 같다(남의 팀 양식은 404). formId 는 'default_doc' 또는 숫자 문자열.
+     */
+    @Transactional(readOnly = true)
+    public BoardDocSpec.Doc docForStored(String empNo, String formId, int formVer) {
+        if (BoardDocSpec.DEFAULT_ID.equals(formId)) {
+            teamOf(empNo);
+            return BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false);
+        }
+        return docOf(empNo, formId, String.valueOf(formVer), false);
+    }
+
     /** 남의 팀 404, 보관 양식 400, default_doc+version 400. 권한 문지기는 컨트롤러(requireWrite). */
     @Transactional(readOnly = true)
     public WriteTarget formForWrite(String empNo, String id, String version) {

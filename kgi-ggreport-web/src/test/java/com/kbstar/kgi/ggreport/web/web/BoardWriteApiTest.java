@@ -106,10 +106,37 @@ public class BoardWriteApiTest {
     private void perms(String emp, boolean write, boolean edit) throws Exception {
         call(ADMIN, put("/sysadmin/perms/" + emp), "{\"changes\":[{\"menu\":\"tasks\",\"view\":true,\"write\":"
                 + write + ",\"edit\":" + edit + ",\"approve\":false}]}", 200);
+        if (write && MEMBER.equals(emp)) {
+            assignMember();   // 020: write=true 는 '이 입찰 건의 담당자로 배정'의 뜻으로 읽는다(메뉴 CAN_WRITE 는 더 이상 열쇠가 아니다)
+        }
+    }
+
+    private String bc;
+    private boolean memberAssigned;
+
+    /** 020: 시험용 입찰 건(테스트 트랜잭션 안에서 만들고 롤백된다). */
+    private String bc() throws Exception {
+        if (bc == null) {
+            String res = mockMvc.perform(post("/bidcases").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"institution_id\":\"nowon\"}").header("X-User-Id", "dave"))
+                    .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+            bc = JSON.readTree(res).path("bid_case_id").asText();
+            assertFalse(bc.isEmpty());
+        }
+        return bc;
+    }
+
+    /** 020: 작성 자격 = 입찰 건 배정. 영업팀장(5047192)이 MEMBER 를 배정한다(한 테스트에 한 번). */
+    private void assignMember() throws Exception {
+        if (!memberAssigned) {
+            call("5047192", post("/bidcases/" + bc() + "/assignments"), "{\"emp_nos\":[\"" + MEMBER + "\"]}", 201);
+            memberAssigned = true;
+        }
     }
 
     private Res upload(String emp, String path, String name, byte[] data, String version, int expect) throws Exception {
         MockMultipartHttpServletRequestBuilder b = multipart(path).file(new MockMultipartFile("file", name, XLSX, data));
+        b.param("bid_case_id", bc());
         if (version != null) {
             b.param("version", version);
         }
@@ -174,8 +201,9 @@ public class BoardWriteApiTest {
         }
     }
 
-    private static ObjectNode draftBody(String ref, String key, String value) {
+    private ObjectNode draftBody(String ref, String key, String value) throws Exception {
         ObjectNode b = JSON.createObjectNode();
+        b.put("bid_case_id", bc());
         ObjectNode t = b.putArray("tables").addObject();
         t.put("ref", ref);
         t.putObject("cells").put(key, value);
@@ -252,8 +280,8 @@ public class BoardWriteApiTest {
     }
 
     @Test
-    public void 관리자는_부여_없이_작성할_수_있다() throws Exception {
-        upload(ADMIN, fixture(), 200);
+    public void 관리자도_배정_없이는_작성할_수_없다() throws Exception {
+        upload(ADMIN, fixture(), 403);   // 020: 관리자·마스터 예외 없음
     }
 
     // ── 값·구조 (#6~#8) ──
@@ -516,7 +544,7 @@ public class BoardWriteApiTest {
         assertFalse(call(MEMBER, get("/board-forms"), null, 200).json.get("can_write").asBoolean());
         perms(MEMBER, true, false);
         assertTrue(call(MEMBER, get("/board-forms"), null, 200).json.get("can_write").asBoolean());
-        assertTrue(call(ADMIN, get("/board-forms"), null, 200).json.get("can_write").asBoolean());
+        assertFalse(call(ADMIN, get("/board-forms"), null, 200).json.get("can_write").asBoolean());   // 020: 담당 건이 없으면 관리자도 false
     }
 
     @Test
