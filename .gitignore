@@ -75,6 +75,9 @@ agent-dashboard/state.json.lock
 agent-dashboard/state.json.*.tmp
 agent-dashboard/closing.log
 
+# 로컬 서버 실행 로그(입력값 조각이 섞일 수 있음, security 020 하-9)
+server*.log
+
 # JVM 비정상 종료 기록(PC 계정명·실행 명령 포함)
 hs_err_pid*.log
 replay_pid*.log

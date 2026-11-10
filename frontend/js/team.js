@@ -3,10 +3,10 @@
   // 제안팀 구성·배정 — 준비중 화면 자리(#tab-soon 안 #tm-root, 고정 id 'soon:제안팀')에서 열린다.
   // 규격: handoff/agents/design-reviewer/2026-11-10_1257_a0866e54.md §5·§6.
   //
-  // 서버 계약(기존): GET/POST /bidcases/{id}/assignments · GET .../assignments/history · GET /me/assignments ·
-  //                 POST /approval-requests/assignee-change
-  // 서버 계약(신규, 백엔드 병행): GET /assignment-candidates → [{emp_no,name,position_title,role}],
-  //                 pending_change.add_people / remove_people:[{emp_no,name}] · requested_by_name
+  // 서버 계약: GET/POST /bidcases/{id}/assignments · GET .../assignments/history · GET /me/assignments ·
+  //           POST /approval-requests/assignee-change · GET /bidcases/latest(목록 재동기화) ·
+  //           GET /assignment-candidates → [{emp_no,name,position_title,role}],
+  //           pending_change.add_people / remove_people:[{emp_no,name}] · requested_by_name
   // 버튼을 보일지는 서버 viewer 플래그를 따른다(화면이 권한을 새로 해석하지 않는다).
   // 이 파일은 순수 함수(위)와 DOM 배선(아래)으로 나뉜다. 순수 함수만 node 테스트 대상이다.
   const tm = {};
