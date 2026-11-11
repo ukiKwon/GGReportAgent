@@ -816,6 +816,89 @@ public class PrepApiTest {
         assertEquals(200, getAs("/bidcases/" + bid + "/prep", MEMBER2).getResponse().getStatus());
     }
 
+    private static String body(MvcResult r) throws Exception {
+        return r.getResponse().getContentAsString(StandardCharsets.UTF_8);
+    }
+
+    /** 반려·회수로 끝난 지난 개설 신청 — 신청자·영업팀장·영업부장은 지명자·의견·사유를 보고, 그 밖은 past_open_requests 요약만(사용자 결정 2026-11-11). */
+    @Test
+    public void 반려된_지난_개설_신청의_지명자_의견_사유는_신청자와_팀장_부장만_보고_나머지는_요약만() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        jdbc.update("UPDATE USERS SET ROLE = '영업팀' WHERE EMP_NO = ?", DESIGNER);   // 제3 영업팀원(지명자도 신청자도 아님)
+        flushCache();
+        MvcResult sub = postJson("/bidcases/" + bid + "/prep/open-requests", MEMBER,
+                "{\"emp_nos\":" + arr(MEMBER2) + ",\"comment\":\"가상 의견 문구\"}");
+        assertEquals(body(sub), 201, sub.getResponse().getStatus());
+        long req = json(sub).path("req_id").asLong();
+        assertEquals(200, decide(LEAD, req, "REJECT", "지명 재검토").getResponse().getStatus());
+        assertEquals("CONFIRMED", state(bid));
+
+        for (String emp : new String[]{MEMBER, LEAD, LEAD2, HEAD}) {   // 신청자·팀장·부장
+            JsonNode v = json(getAs("/bidcases/" + bid + "/prep", emp));
+            assertEquals(emp, req, v.path("open_request").path("req_id").asLong());
+            assertEquals(emp, "REJECTED", v.path("open_request").path("status").asText());
+            assertEquals(emp, MEMBER2, v.path("open_request").path("nominees").get(0).path("emp_no").asText());
+            assertEquals(emp, "가상 의견 문구", v.path("open_request").path("comment").asText());
+            assertEquals(emp, 1, v.path("past_open_requests").path("count").asInt());
+            assertEquals(emp, "REJECTED", v.path("past_open_requests").path("last_status").asText());
+            boolean found = false;
+            for (JsonNode h : json(getAs("/bidcases/" + bid + "/prep/history", emp))) {
+                if ("OPEN_REJECT".equals(h.path("event_cd").asText())) {
+                    assertEquals(emp, "지명 재검토", h.path("reason").asText());
+                    found = true;
+                }
+            }
+            assertTrue(emp, found);
+        }
+        for (String emp : new String[]{MEMBER2, DESIGNER}) {   // 지명자 본인·제3 팀원
+            MvcResult d = getAs("/bidcases/" + bid + "/prep", emp);
+            assertEquals(200, d.getResponse().getStatus());
+            JsonNode v = json(d);
+            assertTrue(emp, v.path("open_request").isNull());
+            assertEquals(emp, 1, v.path("past_open_requests").path("count").asInt());
+            assertEquals(emp, "REJECTED", v.path("past_open_requests").path("last_status").asText());
+            assertFalse(emp, body(d).contains("가상 의견 문구"));
+            assertFalse(emp, body(d).contains("윤서준"));
+            MvcResult h = getAs("/bidcases/" + bid + "/prep/history", emp);
+            assertEquals(200, h.getResponse().getStatus());
+            assertFalse(emp, body(h).contains("지명 재검토"));
+            boolean found = false;
+            for (JsonNode x : json(h)) {
+                if ("OPEN_REJECT".equals(x.path("event_cd").asText())) {
+                    assertTrue(emp, x.path("reason").isNull());
+                    found = true;
+                }
+            }
+            assertTrue(emp, found);
+        }
+        // 감사 원본은 그대로
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_LOG WHERE BID_CASE_ID=? AND EVENT_CD='OPEN_REJECT' AND REASON='지명 재검토'", bid));
+    }
+
+    @Test
+    public void 회수된_지난_개설_신청도_같은_범위로_가리고_여러_번이면_센다() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        long r1 = openReq(bid, MEMBER, MEMBER2);
+        assertEquals(200, postJson("/approval-requests/" + r1 + "/cancel", MEMBER, "").getResponse().getStatus());
+        MvcResult mine = getAs("/bidcases/" + bid + "/prep", MEMBER);
+        assertEquals("CANCELLED", json(mine).path("open_request").path("status").asText());
+        assertEquals(MEMBER2, json(mine).path("open_request").path("nominees").get(0).path("emp_no").asText());
+        assertEquals("WITHDRAWN", json(mine).path("past_open_requests").path("last_status").asText());
+
+        MvcResult other = getAs("/bidcases/" + bid + "/prep", MEMBER2);
+        assertTrue(json(other).path("open_request").isNull());
+        assertEquals(1, json(other).path("past_open_requests").path("count").asInt());
+        assertEquals("WITHDRAWN", json(other).path("past_open_requests").path("last_status").asText());
+
+        long r2 = openReq(bid, MEMBER, MEMBER2);
+        assertEquals(200, decide(LEAD, r2, "REJECT", "지명 재검토").getResponse().getStatus());
+        JsonNode again = json(getAs("/bidcases/" + bid + "/prep", MEMBER2));
+        assertEquals(2, again.path("past_open_requests").path("count").asInt());
+        assertEquals("REJECTED", again.path("past_open_requests").path("last_status").asText());
+        assertFalse(body(getAs("/bidcases/" + bid + "/prep/history", MEMBER2)).contains("지명 재검토"));
+        assertEquals(200, getAs("/bidcases/" + bid + "/prep/history", LEAD).getResponse().getStatus());
+    }
+
     @Test
     public void 상태명_사전준비_중_과제별_완료_조건_업무_언어_꺼진_이유_목록_입찰예상일() throws Exception {
         String bid = opened(INST);

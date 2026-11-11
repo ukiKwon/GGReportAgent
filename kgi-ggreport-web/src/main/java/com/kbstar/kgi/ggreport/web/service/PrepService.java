@@ -161,7 +161,9 @@ public class PrepService {
             m.put("to_state", l.getToState());
             m.put("task_cd", l.getTaskCd());
             m.put("req_id", l.getReqId());
-            m.put("reason", l.getReason());
+            boolean pastOpen = "OPEN_REJECT".equals(l.getEventCd()) || "OPEN_WITHDRAW".equals(l.getEventCd());
+            // 반려·회수 사유는 신청자·영업팀장·영업부장에게만(사용자 결정 2026-11-11) — 가리는 것은 응답뿐, BID_PREP_LOG 원본은 그대로
+            m.put("reason", pastOpen && !canSeePastOpen(me, l.getReqId()) ? null : l.getReason());
             m.put("actor_emp_no", l.getActorEmpNo());
             m.put("actor_name", l.getActorName());
             m.put("emp_verified", l.getEmpVerified() == 1);   // false = 자기신고(위조 가능)
@@ -724,6 +726,18 @@ public class PrepService {
         return false;
     }
 
+    /** 끝난(반려·회수) 개설 신청의 상세를 볼 수 있는가 — 영업팀장·영업부장, 또는 그 신청을 올린 사람. */
+    private boolean canSeePastOpen(SysUser me, Long reqId) {
+        if (isHead(me) || isLead(me)) {
+            return true;
+        }
+        if (reqId == null) {
+            return false;
+        }
+        ApprovalRequest r = requests.selectById(reqId);
+        return r != null && me.getEmpNo().equals(r.getRequesterEmpNo());
+    }
+
     /** 개설 대기 건의 대기 중 신청(BID_OPEN)을 올린 사람인가. */
     private boolean isOpenRequester(SysUser me, BidPrep p) {
         if (!OPEN_PENDING.equals(p.getStateCd()) || p.getOpenReqId() == null) {
@@ -925,7 +939,28 @@ public class PrepService {
             tv.add(x);
         }
         m.put("tasks", tv);
-        m.put("open_request", requestOf(p.getOpenReqId(), true));
+        // 반려·회수로 끝난 지난 개설 신청의 지명자·의견은 신청자·영업팀장·영업부장에게만 — 그 밖에는 past_open_requests 요약만(사용자 결정 2026-11-11)
+        ApprovalRequest lastOpen = p.getOpenReqId() == null ? null : requests.selectById(p.getOpenReqId());
+        boolean lastEnded = lastOpen != null && ("REJECTED".equals(lastOpen.getStatus()) || "CANCELLED".equals(lastOpen.getStatus()));
+        m.put("open_request", lastEnded && !canSeePastOpen(me, lastOpen.getReqId()) ? null : requestOf(p.getOpenReqId(), true));
+        int pastCount = 0;
+        String pastLast = null;
+        for (BidPrepLogView l : logs) {
+            if ("OPEN_REJECT".equals(l.getEventCd())) {
+                pastCount++;
+                pastLast = "REJECTED";
+            } else if ("OPEN_WITHDRAW".equals(l.getEventCd())) {
+                pastCount++;
+                pastLast = "WITHDRAWN";
+            }
+        }
+        Map<String, Object> past = null;
+        if (pastCount > 0) {
+            past = new LinkedHashMap<>();
+            past.put("count", pastCount);
+            past.put("last_status", pastLast);
+        }
+        m.put("past_open_requests", past);   // null = 지난 신청 없음
         m.put("plan_request", requestOf(p.getPlanReqId(), false));
         boolean openRequester = isOpenRequester(me, p);
         Map<String, Object> viewer = new LinkedHashMap<>();
