@@ -418,7 +418,8 @@
 - **다음 한 걸음**: 법원 약 80곳 보관은행(대법원 공고 hwp 변환 필요) · 지방공기업 나머지 약 50곳(클린아이 목록·기관 게시판) · 공기업(나라장터 API 인증키 — 사용자 발급 예정, collector/.env.local 또는 G2B_SERVICE_KEY) · 소재 시군구(기관코드 소재지코드) · 강원·제주 교육청.
 - **자세히**: handoff/agents/planner/2026-11-11_1720_ad92ba4f.md, data-auditor 11-11 1723·1727·1728 보고, collector/SOURCES.md.
 
-### 80. 외부망 주기 수집 파이프라인(수집→추출→포장→운반→반입) — **planner 범위 정리 완료(11-11), 팀 결정으로 1차 시제품(인터넷망 eminwon) 착수** [담당: planner → backend-dev → 메인(9f) → security → data-auditor]
+### 80. 외부망 주기 수집 파이프라인(수집→추출→포장→운반→반입) — **1단계 구현(eminwon 금고 공고 감시, 7d2ac90·d041ba5, collector 테스트 81), 나라장터 소스·스케줄러·미리보기 남음** [담당: planner → backend-dev → 메인(9f) → security → data-auditor]
 - **현재**: 사용자 TO BE(11-11) — 외부망 수집 프로그램이 파일로 내려 주고, 반입 RPA가 운반, 내부는 웹으로 올림. 원칙 ①계약 먼저(폴더=시험·xlsx=운영) ②출처별 플러그인+사이트 설정 표 ③수집(원문 보관)·추출(재실행)·포장·운반 분리 ④증분(출처+공고번호+해시), CLI 하나 ⑤후보로 반입·사람 확정·LLM은 판정만. 계약 v2 레코드 2종(공고 / 기관 일정 후보, 후보는 근거 필수). 팀 결정(planner 권장): 알림=약정 만료 2년 안 기관 위·나머지 접기, 기타(정정·취소) 공고 따로 칸, 1차는 공고 목록·종류까지(첨부 약정기간 추출은 2차), js 직접 편집 중단 시점은 72 이관 때 재결정. 1차=eminwon 73곳 → v2 폴더 배치 → 수집기 쪽 미리보기 보고서(데이터 변경 0).
-- **다음 한 걸음**: backend-dev 코드 구조 설계(진행 중) → 메인 구현(collector/, Python 표준 라이브러리) → data-auditor 회귀 표본 → security(http 폴백·원문 보관·금지 패턴) → 작업 스케줄러 등록(공고 철 주 1회).
+- **구현(11-11 저녁)**: Python 3.12.7(C:\dev\python, embeddable). `python -m collector run --source eminwon [--since][--hosts]` → data/collector/(git 제외) 배치·원문·상태. security 운영 전 필수 조치 반영(TLS 강등 금지·zip 폭탄·첨부 서명·잠금 회수). 나라장터 OpenAPI 확인(…/BidPublicInfoService02, 기능명 끝 02, 조회 7일 이내, 하루 1000회, 키는 collector/.env.local).
+- **다음 한 걸음**: ① sources/g2b.py(주거래은행·금고 제목, 1주 창, 키는 URL·로그·배치에 싣지 않기 — security 지적) ② 작업 스케줄러 주 1회(공고 철) ③ 미리보기 보고서(frontend/data와 비교: 새 소식/이미 반영/값 다름) ④ data-auditor 회귀 표본·종류 판정 검수 ⑤ security 하(下) 남은 것: 원문 보존 기간·연락처 가림(사용자 결정), 웹 반입 첨부 서명 검사(e3 InboxService).
 - **자세히**: handoff/agents/planner/ 11-11 80 기획 보고(a780ca1f), collector/SOURCES.md, collector/SCHEMA.md, NEXT 14·72·76.
