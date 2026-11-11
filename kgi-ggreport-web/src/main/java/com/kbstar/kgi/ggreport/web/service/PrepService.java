@@ -42,8 +42,8 @@ import java.util.Set;
  * 상태 전이는 전부 조건부 UPDATE 이고 0행이면 409 {@code STATE_CHANGED} 다. 신원은 컨트롤러가 {@code MenuGuard.requireActiveUser} 로 정한다.
  *
  * <p>개설 대기 동안 지명자는 결재 payload 에만 있다 — BID_ASSIGNMENT 는 개설 승인 때 처음 쓴다(지명자는 승인 전 권한 없음, security A4).
- * 담당자 판정은 {@link BidAssignmentService#isActiveAssignee} 하나다. 상세·이력은 담당자·영업부장(과 CONFIRMED·개설 전 CANCELLED 의 확정자·영업팀장,
- * 개설 뒤 중단 건의 영업팀장·옛 담당자 — 읽기 전용)에게만 보이고 나머지는 존재하지 않는 건과 같은 404 다. 쓰기(체크 등)의 비담당은 403 이다.
+ * 담당자 판정은 {@link BidAssignmentService#isActiveAssignee} 하나다. 상세·이력은 담당자·영업부장(과 CONFIRMED 의 영업팀 전원, OPEN_PENDING 의 신청자,
+ * 개설 전 CANCELLED 의 확정자·영업팀장, 개설 뒤 중단 건의 영업팀장·옛 담당자 — 읽기 전용)에게만 보이고 나머지는 존재하지 않는 건과 같은 404 다. 쓰기(체크 등)의 비담당은 403 이다.
  *
  * <p>⚠️ 사번은 X-Emp-No 자기신고일 수 있다 — 이 역할 검사는 업무 규칙(실수 방지)이지 사칭 방지가 아니다. 이력의 {@code emp_verified} 는 사실만 적는다.
  * 오류 문구에 사번·이름·값을 싣지 않는다.
@@ -76,7 +76,7 @@ public class PrepService {
         Map<String, String> m = new LinkedHashMap<>();
         m.put(CONFIRMED, "확정됨");
         m.put(OPEN_PENDING, "개설 대기");
-        m.put(IN_PROGRESS, "진행(사전준비 중)");
+        m.put(IN_PROGRESS, "사전준비 중");
         m.put(APPROVAL_PENDING, "기획승인 중");
         m.put(WRITABLE, "작성 가능");
         m.put(WRITING, "작성 중");
@@ -129,6 +129,9 @@ public class PrepService {
             m.put("state_name", stateName(p));
             m.put("progress", progress(ev));
             m.put("assignee_names", names);
+            m.put("can_view", canSee(me, p));   // false 면 상세가 404 — 화면이 행을 눌러도 열리지 않는 표시를 한다
+            String due = p.getContractEnd();
+            m.put("bid_expected_date", due == null || due.trim().isEmpty() ? null : due.trim());   // 기관의 입찰예상일(정렬용)
             out.add(m);
         }
         return out;
@@ -176,7 +179,7 @@ public class PrepService {
         requireSales(me);
         String inst = in == null || in.getInstitutionId() == null ? "" : in.getInstitutionId().trim();
         if (inst.isEmpty() || inst.length() > 64) {
-            throw new ApiException(400, "institution_id가 필요합니다");
+            throw new ApiException(400, "기관을 선택하세요.");
         }
         if (mapper.lockInstitution(inst) == null) {
             throw ApiException.notFound("institution not found");
@@ -695,7 +698,7 @@ public class PrepService {
     }
 
     private boolean canSee(SysUser me, BidPrep p) {
-        if (isHead(me)) {
+        if (isHead(me) || isLead(me)) {   // 영업부장·영업팀장은 모든 상태의 상세·이력을 읽기 전용으로 본다(사용자 결정 2026-11-11, 개설 대기 승인 판단용)
             return true;
         }
         if (assignments.isActiveAssignee(p.getBidCaseId(), me.getEmpNo())) {
@@ -704,15 +707,46 @@ public class PrepService {
         if (!isSales(me)) {
             return false;
         }
+        if (CONFIRMED.equals(p.getStateCd())) {   // 확정됨 — 영업팀 전원이 읽는다(사용자 결정 2026-11-11)
+            return true;
+        }
+        if (OPEN_PENDING.equals(p.getStateCd())) {   // 개설 대기 — 신청자는 읽기 전용으로 본다(신청 회수 버튼용)
+            return isOpenRequester(me, p);
+        }
         boolean cancelled = CANCELLED.equals(p.getStateCd());
-        boolean beforeOpen = CONFIRMED.equals(p.getStateCd()) || (cancelled && p.getOpenedAt() == null);   // 확정 상태·개설 전 확정 취소
+        boolean beforeOpen = cancelled && p.getOpenedAt() == null;   // 개설 전 확정 취소
         if (beforeOpen) {
-            return me.getEmpNo().equals(p.getConfirmedBy()) || isLead(me);
+            return me.getEmpNo().equals(p.getConfirmedBy());
         }
         if (cancelled) {   // 개설 뒤 중단 건 — 읽기 전용: 영업팀장(부장은 위에서 통과)과 옛 담당자(사용자 결정 2026-11-11)
-            return isLead(me) || mapper.countEverAssigned(p.getBidCaseId(), me.getEmpNo()) > 0;
+            return mapper.countEverAssigned(p.getBidCaseId(), me.getEmpNo()) > 0;
         }
         return false;
+    }
+
+    /** 개설 대기 건의 대기 중 신청(BID_OPEN)을 올린 사람인가. */
+    private boolean isOpenRequester(SysUser me, BidPrep p) {
+        if (!OPEN_PENDING.equals(p.getStateCd()) || p.getOpenReqId() == null) {
+            return false;
+        }
+        ApprovalRequest r = requests.selectById(p.getOpenReqId());
+        return r != null && "PENDING".equals(r.getStatus()) && me.getEmpNo().equals(r.getRequesterEmpNo());
+    }
+
+    /** 결재함 BID_OPEN 카드용 — payload 의 지명자(nominee_emp_nos)를 사번·이름·직위로 풀어 준다. 모르는 사번은 건너뛴다. */
+    public List<Map<String, Object>> nomineesOf(String payloadJson) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (String e : textList(readJson(payloadJson).path("nominee_emp_nos"))) {
+            SysUser u = users.selectByEmpNo(e);
+            if (u != null) {
+                Map<String, Object> n = new LinkedHashMap<>();
+                n.put("emp_no", u.getEmpNo());
+                n.put("name", u.getName());
+                n.put("position", u.getPositionTitle());
+                out.add(n);
+            }
+        }
+        return out;
     }
 
     /** 사실 판정(T3·T4·T5)을 다시 맞춘다 — 달라졌으면 조건부 UPDATE + AUTO_DONE/AUTO_UNDONE 이력(행위자 NULL=시스템). */
@@ -887,16 +921,13 @@ public class PrepService {
             x.put("can_check", canCheck);
             x.put("can_uncheck", canUncheck);
             x.put("disabled_reason", canCheck || canUncheck ? null : disabledReason(st, manual, assignee, taskState, t));
+            x.put("done_rule", doneRule(t.getTaskCd()));
             tv.add(x);
         }
         m.put("tasks", tv);
-        m.put("open_request", requestOf(p.getOpenReqId()));
-        m.put("plan_request", requestOf(p.getPlanReqId()));
-        boolean openRequester = false;
-        if (OPEN_PENDING.equals(p.getStateCd()) && p.getOpenReqId() != null) {
-            ApprovalRequest r = requests.selectById(p.getOpenReqId());
-            openRequester = r != null && "PENDING".equals(r.getStatus()) && me.getEmpNo().equals(r.getRequesterEmpNo());
-        }
+        m.put("open_request", requestOf(p.getOpenReqId(), true));
+        m.put("plan_request", requestOf(p.getPlanReqId(), false));
+        boolean openRequester = isOpenRequester(me, p);
         Map<String, Object> viewer = new LinkedHashMap<>();
         viewer.put("is_assignee", assignee);
         viewer.put("is_head", head);
@@ -934,12 +965,33 @@ public class PrepService {
             return "지금 상태에서는 변경할 수 없습니다.";
         }
         if (t.getPrecondKey() != null) {
-            return "체크 전제를 확인할 수 없습니다.";
+            return "이 과제는 아직 직접 체크할 수 없습니다. 선행 확인이 끝난 뒤 다시 시도하세요.";
         }
         return null;
     }
 
-    private Map<String, Object> requestOf(Long reqId) {
+    /** 과제별 완료 조건 문구(화면 안내용). 모르는 과제 코드는 null. */
+    private static String doneRule(String taskCd) {
+        if ("T1".equals(taskCd) || "T2".equals(taskCd)) {
+            return "다 마쳤으면 [완료로 표시]를 누르세요.";
+        }
+        if ("T3".equals(taskCd)) {
+            return "수익성 분석표를 올리고 확정본으로 지정하면 완료됩니다.";
+        }
+        if ("T4".equals(taskCd)) {
+            return "RFP 붙임서류를 모두 올리면 완료됩니다.";
+        }
+        if ("T5".equals(taskCd)) {
+            return "이사회 자료가 확정되면 완료됩니다(부결이어도 완료).";
+        }
+        if ("T6".equals(taskCd)) {
+            return "대본을 마치면 [완료로 표시]를 누르세요.";
+        }
+        return null;
+    }
+
+    /** 결재 요청 요약 — 번호·상태·신청자·신청 시각. 개설 신청(open)이면 지명자(이름·직위)와 의견도 싣는다. */
+    private Map<String, Object> requestOf(Long reqId, boolean open) {
         if (reqId == null) {
             return null;
         }
@@ -950,6 +1002,13 @@ public class PrepService {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("req_id", r.getReqId());
         m.put("status", r.getStatus());
+        m.put("requester", person(r.getRequesterEmpNo()));
+        m.put("requested_at", r.getCreatedAt());
+        if (open) {
+            m.put("nominees", nomineesOf(r.getPayload()));
+            JsonNode c = readJson(r.getPayload()).path("comment");
+            m.put("comment", c.isMissingNode() || c.isNull() || c.asText().isEmpty() ? null : c.asText());
+        }
         return m;
     }
 
@@ -984,6 +1043,9 @@ public class PrepService {
     private static String stateName(BidPrep p) {
         if (CANCELLED.equals(p.getStateCd())) {   // 한 상태 코드, 두 표시명 — 개설 전은 확정 취소, 개설 뒤는 중단(qa P3-3)
             return p.getOpenedAt() == null ? "확정 취소" : "중단(미참여)";
+        }
+        if (IN_PROGRESS.equals(p.getStateCd())) {   // 024 시드 이름('진행(사전준비 중)')은 다시 실행할 수 없어 표시만 여기서 바꾼다
+            return STATE_NAMES.get(IN_PROGRESS);
         }
         if (p.getStateName() != null) {
             return p.getStateName();

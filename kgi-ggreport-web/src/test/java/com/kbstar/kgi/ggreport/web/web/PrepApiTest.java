@@ -723,6 +723,121 @@ public class PrepApiTest {
         assertEquals(3, count("SELECT COUNT(*) FROM TASKS WHERE BID_CASE_ID=?", b3));   // 만든 작업은 기록으로 남는다
     }
 
+    // ── NEXT 70 화면 후속(열람 범위·지명자 이름·완료 조건·상태명, 사용자 결정 2026-11-11) ─────
+
+    private static JsonNode listItem(JsonNode list, String bid) {
+        for (JsonNode n : list) {
+            if (bid.equals(n.path("bid_case_id").asText())) {
+                return n;
+            }
+        }
+        return null;
+    }
+
+    @Test
+    public void 확정됨_상세와_이력은_영업팀_전원이_보고_목록_can_view가_맞다() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        for (String emp : new String[]{MEMBER, MEMBER2, LEAD, LEAD2, HEAD}) {
+            MvcResult r = getAs("/bidcases/" + bid + "/prep", emp);
+            assertEquals(emp, 200, r.getResponse().getStatus());
+            assertEquals("CONFIRMED", json(r).path("state_cd").asText());
+            assertEquals(emp, 200, getAs("/bidcases/" + bid + "/prep/history", emp).getResponse().getStatus());
+            assertTrue(emp, listItem(json(getAs("/preps", emp)), bid).path("can_view").asBoolean());
+        }
+        assertEquals(404, getAs("/bidcases/" + bid + "/prep", DESIGNER).getResponse().getStatus());   // 영업팀이 아니면 그대로 404
+        // 확정됨이 아닌 건(개설 대기 신청자 아님·진행 중 비담당)은 can_view=false
+        String other = opened("dobong");
+        assertFalse(listItem(json(getAs("/preps", MEMBER)), other).path("can_view").asBoolean());
+        assertTrue(listItem(json(getAs("/preps", MEMBER2)), other).path("can_view").asBoolean());   // 담당자
+        assertTrue(listItem(json(getAs("/preps", HEAD)), other).path("can_view").asBoolean());
+    }
+
+    @Test
+    public void 개설_대기는_신청자가_읽기_전용으로_보고_지명자_이름과_의견이_상세와_결재함에_실린다() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        MvcResult sub = postJson("/bidcases/" + bid + "/prep/open-requests", MEMBER,
+                "{\"emp_nos\":" + arr(MEMBER2) + ",\"comment\":\"가상 의견 문구\"}");
+        assertEquals(sub.getResponse().getContentAsString(), 201, sub.getResponse().getStatus());
+        long req = json(sub).path("req_id").asLong();
+
+        MvcResult mine = getAs("/bidcases/" + bid + "/prep", MEMBER);   // 신청자
+        assertEquals(200, mine.getResponse().getStatus());
+        JsonNode v = json(mine);
+        assertEquals("OPEN_PENDING", v.path("state_cd").asText());
+        assertTrue(v.path("viewer").path("can_withdraw_open").asBoolean());
+        assertFalse(v.path("viewer").path("can_request_open").asBoolean());   // 이미 신청 중
+        assertFalse(v.path("viewer").path("can_upload").asBoolean());
+        JsonNode open = v.path("open_request");
+        assertEquals(req, open.path("req_id").asLong());
+        assertEquals("PENDING", open.path("status").asText());
+        assertEquals(MEMBER, open.path("requester").path("emp_no").asText());
+        assertEquals("가상 의견 문구", open.path("comment").asText());
+        assertEquals(1, open.path("nominees").size());
+        assertEquals(MEMBER2, open.path("nominees").get(0).path("emp_no").asText());
+        assertEquals("윤서준", open.path("nominees").get(0).path("name").asText());
+        assertTrue(open.path("nominees").get(0).has("position"));
+        assertTrue(v.path("plan_request").isNull());
+        assertTrue(listItem(json(getAs("/preps", MEMBER)), bid).path("can_view").asBoolean());
+        assertEquals(200, getAs("/bidcases/" + bid + "/prep/history", MEMBER).getResponse().getStatus());
+
+        // 신청자가 아닌 사람: 지명자·다른 영업팀원은 그대로 404, 영업팀장(승인 판단용)·영업부장은 200 이지만 회수 버튼은 없다
+        assertEquals(404, getAs("/bidcases/" + bid + "/prep", MEMBER2).getResponse().getStatus());
+        assertFalse(listItem(json(getAs("/preps", MEMBER2)), bid).path("can_view").asBoolean());
+        MvcResult lead = getAs("/bidcases/" + bid + "/prep", LEAD);   // 사용자 결정 2026-11-11
+        assertEquals(200, lead.getResponse().getStatus());
+        assertEquals("OPEN_PENDING", json(lead).path("state_cd").asText());
+        assertFalse(json(lead).path("viewer").path("can_withdraw_open").asBoolean());
+        assertFalse(json(lead).path("viewer").path("can_upload").asBoolean());
+        assertFalse(json(lead).path("viewer").path("is_assignee").asBoolean());
+        assertEquals(200, getAs("/bidcases/" + bid + "/prep/history", LEAD).getResponse().getStatus());
+        assertTrue(listItem(json(getAs("/preps", LEAD)), bid).path("can_view").asBoolean());
+        assertEquals(403, postJson("/bidcases/" + bid + "/prep/tasks/T1/check", LEAD, "").getResponse().getStatus());
+        MvcResult head = getAs("/bidcases/" + bid + "/prep", HEAD);
+        assertEquals(200, head.getResponse().getStatus());
+        assertFalse(json(head).path("viewer").path("can_withdraw_open").asBoolean());
+
+        // 결재함 카드: 결재자(영업팀장)가 받은 요청에 지명자 이름·직위
+        MvcResult inbox = mockMvc.perform(as(get("/approval-requests").param("box", "inbox"), LEAD)).andReturn();
+        JsonNode card = null;
+        for (JsonNode n : json(inbox).path("items")) {
+            if (n.path("req_id").asLong() == req) {
+                card = n;
+            }
+        }
+        assertNotNull(card);
+        assertEquals("BID_OPEN", card.path("req_type").asText());
+        assertEquals("윤서준", card.path("nominees").get(0).path("name").asText());
+        assertTrue(card.path("nominees").get(0).has("position"));
+        assertEquals("가상 의견 문구", card.path("payload").path("comment").asText());
+
+        // 회수하면 확정됨으로 돌아가 영업팀 전원이 다시 본다
+        assertEquals(200, postJson("/approval-requests/" + req + "/cancel", MEMBER, "").getResponse().getStatus());
+        assertEquals("CONFIRMED", state(bid));
+        assertEquals(200, getAs("/bidcases/" + bid + "/prep", MEMBER2).getResponse().getStatus());
+    }
+
+    @Test
+    public void 상태명_사전준비_중_과제별_완료_조건_업무_언어_꺼진_이유_목록_입찰예상일() throws Exception {
+        String bid = opened(INST);
+        JsonNode v = json(getAs("/bidcases/" + bid + "/prep", MEMBER2));
+        assertEquals("사전준비 중", v.path("state_name").asText());
+        assertEquals("다 마쳤으면 [완료로 표시]를 누르세요.", task(v, "T1").path("done_rule").asText());
+        assertEquals("다 마쳤으면 [완료로 표시]를 누르세요.", task(v, "T2").path("done_rule").asText());
+        assertEquals("수익성 분석표를 올리고 확정본으로 지정하면 완료됩니다.", task(v, "T3").path("done_rule").asText());
+        assertEquals("RFP 붙임서류를 모두 올리면 완료됩니다.", task(v, "T4").path("done_rule").asText());
+        assertEquals("이사회 자료가 확정되면 완료됩니다(부결이어도 완료).", task(v, "T5").path("done_rule").asText());
+        assertEquals("대본을 마치면 [완료로 표시]를 누르세요.", task(v, "T6").path("done_rule").asText());
+        for (JsonNode t : v.path("tasks")) {
+            assertFalse(t.path("disabled_reason").asText(), t.path("disabled_reason").asText().contains("전제"));
+        }
+        JsonNode item = listItem(json(getAs("/preps", MEMBER2)), bid);
+        assertEquals("사전준비 중", item.path("state_name").asText());
+        assertTrue(item.has("bid_expected_date"));   // 값이 없으면 null
+        jdbc.update("UPDATE INSTITUTIONS SET CONTRACT_END = ? WHERE INSTITUTION_ID = ?", "2027-03-31", INST);
+        flushCache();
+        assertEquals("2027-03-31", listItem(json(getAs("/preps", MEMBER2)), bid).path("bid_expected_date").asText());
+    }
+
     @Test
     public void 과제_코드가_형식_밖이면_404이고_감사_칸에는_남기지_않으며_역할_검사가_건_조회보다_먼저다() throws Exception {   // security F4·F5, qa §6-13
         String bid = opened(INST);

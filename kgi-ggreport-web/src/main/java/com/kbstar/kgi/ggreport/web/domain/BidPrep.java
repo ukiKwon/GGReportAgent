@@ -19,6 +19,7 @@ public class BidPrep {
     /** 목록 조회에서만 채운다. */
     private String institutionName;
     private String stateName;
+    private String contractEnd;
 
     public String getBidCaseId() { return bidCaseId; }
     public void setBidCaseId(String v) { this.bidCaseId = v; }
@@ -50,4 +51,6 @@ public class BidPrep {
     public void setInstitutionName(String v) { this.institutionName = v; }
     public String getStateName() { return stateName; }
     public void setStateName(String v) { this.stateName = v; }
+    public String getContractEnd() { return contractEnd; }
+    public void setContractEnd(String v) { this.contractEnd = v; }
 }

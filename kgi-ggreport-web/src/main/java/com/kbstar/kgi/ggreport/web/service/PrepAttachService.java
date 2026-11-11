@@ -108,7 +108,7 @@ public class PrepAttachService {
         }
         String task = taskCdRaw == null ? "" : taskCdRaw.trim();
         if (!TASK_T3.equals(task) && !TASK_T4.equals(task)) {
-            throw coded(400, "BAD_VALUE", "task_cd 는 T3 또는 T4 여야 합니다.");
+            throw coded(400, "BAD_VALUE", "첨부할 과제를 고르세요(수익성 분석표 또는 RFP 붙임서류).");
         }
         if (file == null || file.isEmpty()) {
             throw coded(400, "BAD_VALUE", "파일을 선택하세요.");
@@ -180,7 +180,7 @@ public class PrepAttachService {
 
     // ── 목록(10)·내려받기(11) ────────────────────────────────────────────
 
-    /** 목록 — 활성 담당자·영업부장. 그 밖은 404(건이 없는 것과 같은 응답). 메타만(파일 본체 없음). */
+    /** 목록 — 활성 담당자·영업팀장·영업부장.그 밖은 404(건이 없는 것과 같은 응답). 메타만(파일 본체 없음). */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> list(SysUser me, String bidCaseId) {
         requireViewer(me, bidCaseId);
@@ -226,13 +226,14 @@ public class PrepAttachService {
     // ── 무효 처리(12) ────────────────────────────────────────────────────
 
     /**
-     * 무효 처리(논리 삭제) — 올린 사람이면서 지금 활성 담당자일 때만. 이미 무효면 409 STATE_CHANGED, 확정본이면 409 ATTACH_IN_USE.
+     * 무효 처리(논리 삭제) — 올린 사람이면서 지금 활성 담당자이거나 영업팀장일 때만(사용자 결정 2026-11-11). 이미 무효면 409 STATE_CHANGED, 확정본이면 409 ATTACH_IN_USE.
      * 사유 필수(1~200자, 개인정보 422). 파일은 지우지 않는다.
      */
     @Transactional
     public Map<String, Object> voidAttach(SysUser me, Actor actor, String bidCaseId, String attachIdRaw, PrepIn.Reason in) {
-        if (!assignments.isActiveAssignee(bidCaseId, me.getEmpNo())) {
-            throw new ApiException(403, "이 입찰 건의 담당자만 첨부를 무효 처리할 수 있습니다.");
+        boolean lead = BidAssignmentService.LEAD_ROLE.equals(me.getRole() == null ? "" : me.getRole().trim());
+        if (!lead && !assignments.isActiveAssignee(bidCaseId, me.getEmpNo())) {
+            throw new ApiException(403, "첨부를 올린 담당자 또는 영업팀장만 무효 처리할 수 있습니다.");
         }
         requirePrep(bidCaseId);
         String state = mapper.selectStateForUpdate(bidCaseId);
@@ -247,8 +248,8 @@ public class PrepAttachService {
         if (a == null) {
             throw ApiException.notFound("attachment not found");
         }
-        if (!me.getEmpNo().equals(a.getUploadedBy())) {
-            throw new ApiException(403, "첨부를 올린 담당자만 무효 처리할 수 있습니다.");
+        if (!lead && !me.getEmpNo().equals(a.getUploadedBy())) {
+            throw new ApiException(403, "첨부를 올린 담당자 또는 영업팀장만 무효 처리할 수 있습니다.");
         }
         if (a.getValidYn() != 1) {
             throw stateChanged();
@@ -282,6 +283,7 @@ public class PrepAttachService {
     private void requireViewer(SysUser me, String bidCaseId) {
         boolean ok = bidCaseId != null && !bidCaseId.isEmpty() && bidCaseId.length() <= 64
                 && (BidAssignmentService.HEAD_ROLE.equals(me.getRole() == null ? "" : me.getRole().trim())
+                || BidAssignmentService.LEAD_ROLE.equals(me.getRole() == null ? "" : me.getRole().trim())   // 영업팀장도 열람(사용자 결정 2026-11-11)
                 || assignments.isActiveAssignee(bidCaseId, me.getEmpNo()));
         if (!ok || mapper.selectPrep(bidCaseId) == null) {
             throw ApiException.notFound("prep not found");   // 없는 건과 열람 불가는 같은 응답

@@ -457,7 +457,11 @@ public class PrepAttachApiTest {
         assertEquals(text(none), text(hidden));   // 없는 건과 같은 응답 바이트
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTOR_EMP_NO=? AND ACTION_CD='ATTACH_DOWNLOAD' AND OUTCOME='HIDDEN' AND ATTACH_ID=?", bid, MEMBER, id));
         assertEquals(404, getAs(contentPath(bid, id), DESIGNER).getResponse().getStatus());
-        assertEquals(404, getAs(contentPath(bid, id), LEAD).getResponse().getStatus());   // 영업팀장도 담당이 아니면 열람 불가
+        // 영업팀장은 담당이 아니어도 목록·내려받기 200, 쓰기(업로드·체크)는 403(사용자 결정 2026-11-11)
+        assertEquals(200, getAs(contentPath(bid, id), LEAD).getResponse().getStatus());
+        assertEquals(200, getAs("/bidcases/" + bid + "/prep/attachments", LEAD).getResponse().getStatus());
+        assertEquals(403, upload(bid, LEAD, "T3", "x.xlsx", sheet).getResponse().getStatus());
+        assertEquals(403, postJson("/bidcases/" + bid + "/prep/tasks/T1/check", LEAD, "").getResponse().getStatus());
         assertEquals(404, getAs("/bidcases/" + bid + "/prep/attachments", MEMBER).getResponse().getStatus());
         assertEquals(401, getAs(contentPath(bid, id), null).getResponse().getStatus());
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTOR_EMP_NO=? AND ACTION_CD='ATTACH_LIST' AND OUTCOME='HIDDEN'", bid, MEMBER));
@@ -598,6 +602,36 @@ public class PrepAttachApiTest {
         assertEquals(403, mockMvc.perform(as(put("/bidcases/" + bid + "/prep/tasks/T3/confirmed-file")
                 .contentType(MediaType.APPLICATION_JSON).content("{\"attach_id\":1}"), MEMBER2)).andReturn().getResponse().getStatus());
         assertEquals(403, upload(bid, MEMBER2, "T3", "a.xlsx", xlsx("x")).getResponse().getStatus());
+    }
+
+    @Test
+    public void 무효_처리는_올린_담당자나_영업팀장이_하고_다른_담당자와_비담당_팀원은_403_확정본은_팀장도_409() throws Exception {   // 사용자 결정 2026-11-11
+        String bid = confirm(MEMBER, INST);
+        long open = openReq(bid, MEMBER, MEMBER2, M3);
+        assertEquals(200, decide(LEAD, open, "APPROVE").getResponse().getStatus());
+        long a1 = uploaded(bid, MEMBER2, "T4", "붙임1.pdf", pdf("First attached document pages", false));
+        long a2 = uploaded(bid, MEMBER2, "T4", "붙임2.pdf", pdf("Second attached document pages", false));
+        long t3 = uploaded(bid, MEMBER2, "T3", "확정본.xlsx", xlsx("분석"));
+        String base = "/bidcases/" + bid + "/prep/attachments/";
+
+        assertEquals(403, postJson(base + a1 + "/void", MEMBER, "{\"reason\":\"정리\"}").getResponse().getStatus());   // 담당 아닌 영업팀원
+        assertEquals(403, postJson(base + a1 + "/void", M3, "{\"reason\":\"정리\"}").getResponse().getStatus());       // 담당자지만 올린 사람이 아님
+        assertEquals(403, postJson(base + a1 + "/void", HEAD, "{\"reason\":\"정리\"}").getResponse().getStatus());     // 영업부장은 읽기 전용
+        assertEquals(1, count("SELECT VALID_YN FROM BID_PREP_ATTACH WHERE ATTACH_ID=?", a1));
+
+        MvcResult byLead = postJson(base + a1 + "/void", LEAD, "{\"reason\":\"중복 자료 정리\"}");   // 영업팀장(담당 아님)
+        assertEquals(text(byLead), 200, byLead.getResponse().getStatus());
+        assertEquals(0, count("SELECT VALID_YN FROM BID_PREP_ATTACH WHERE ATTACH_ID=?", a1));
+        assertEquals(LEAD, jdbc.queryForObject("SELECT VOIDED_BY FROM BID_PREP_ATTACH WHERE ATTACH_ID=?", String.class, a1));
+        MvcResult byUploader = postJson(base + a2 + "/void", MEMBER2, "{\"reason\":\"잘못 올림\"}");   // 올린 담당자
+        assertEquals(text(byUploader), 200, byUploader.getResponse().getStatus());
+
+        MvcResult set = mockMvc.perform(as(put("/bidcases/" + bid + "/prep/tasks/T3/confirmed-file")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"attach_id\":" + t3 + "}"), MEMBER2)).andReturn();
+        assertEquals(200, set.getResponse().getStatus());
+        MvcResult inUse = postJson(base + t3 + "/void", LEAD, "{\"reason\":\"교체\"}");
+        assertEquals(409, inUse.getResponse().getStatus());
+        assertEquals("ATTACH_IN_USE", code(json(inUse)));
     }
 
     // ── N1 ───────────────────────────────────────────────────────────

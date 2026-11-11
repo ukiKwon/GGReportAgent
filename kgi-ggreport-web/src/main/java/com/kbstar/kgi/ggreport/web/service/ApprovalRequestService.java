@@ -794,6 +794,8 @@ public class ApprovalRequestService {
         m.put("payload", read(r.getPayload()));
         if (ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType())) {
             m.put("people", peopleOf(read(r.getPayload())));   // 카드가 사번 대신 이름·직위를 보이게(이 유형만)
+        } else if (ApprovalTypes.BID_OPEN.equals(r.getReqType())) {
+            m.put("nominees", prep.nomineesOf(r.getPayload()));   // 개설 신청 카드: 지명자 이름·직위(의견은 payload.comment)
         }
         List<Map<String, Object>> sv = new ArrayList<>();
         for (ApprovalStep s : steps) {
