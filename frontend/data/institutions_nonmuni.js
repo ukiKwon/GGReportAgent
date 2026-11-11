@@ -162,6 +162,12 @@
     {"name":"전주가정법원 남원지원","type":"법원","region":"45","courtKind":"지원","courtType":"가정","opStatus":"개원 예정","openDate":"2028-03-01","bidKind":"공탁금 보관은행","sources":["월/일 미확보 — 개원 예정 법원(보관은행 미지정)"],"updatedAt":"2026-11-11"},
     {"name":"인천지방법원 북부지원","type":"법원","region":"28","courtKind":"지원","courtType":"지방","opStatus":"개원 예정","openDate":"2028-03-01","parentOrgCode":"9740288","bidKind":"공탁금 보관은행","sources":["월/일 미확보 — 개원 예정 법원(보관은행 미지정)"],"updatedAt":"2026-11-11"},
     {"name":"세종지방법원","type":"법원","region":"36","courtKind":"본원","courtType":"지방","opStatus":"개원 예정","openDate":"2031-03-01","bidKind":"공탁금 보관은행","sources":["월/일 미확보 — 개원 예정 법원(보관은행 미지정)"],"updatedAt":"2026-11-11"},
+    // ── 지방공기업(광역 공사·공단) 주거래은행·금고 — data-auditor 2026-11-11(기사 근거, 1차 부분 수집) ──
+    {"name":"서울교통공사","type":"지방공기업","region":"11","bidKind":"주거래은행","bank":"국민은행","lastBid":"2026-07-15","term":4,"contractExpiry":"2030-12-31","sources":["기준일=우선협상대상자 선정 보도일(2026-07-15, 근사 — 공고일 미확인, 본계약 체결 여부 미확인): **KB국민은행** 3회 연속(2020년부터), 차기 2027~2030(4년)","https://www.newspim.com/news/view/20260715000443"],"updatedAt":"2026-11-11"},
+    {"name":"부산교통공사","type":"지방공기업","region":"26","bidKind":"주거래은행","bank":"부산은행","lastBid":"2026-10-08","term":3,"contractExpiry":"2029-12-31","sources":["기준일=약정·보도일(2026-10-08, 근사 — 공고일 미확인): BNK부산은행 차기 선정, 약정 2027~2029(3년). 기존 약정 2026년 말 만료","https://www.fnnews.com/news/202610081009076191"],"updatedAt":"2026-11-11"},
+    {"name":"경기주택도시공사","type":"지방공기업","region":"41","bidKind":"주거래은행","bank":"우리은행","sources":["월/일 미확보 — 우리은행 우선협상(2024년 초 보도, 일자 미상), 4년(기사, 시작·만료일 미명시). 도금고(농협)와 별도 선정","https://go.seoul.co.kr/news/newsView.php?id=20240202500046"],"updatedAt":"2026-11-11"},
+    {"name":"충북개발공사","type":"지방공기업","region":"43","bidKind":"주거래은행","bank":"우리은행","sources":["월/일 미확보 — 2023년 우리은행 독자 선정(시사저널 2026-07-30 간접), 약정기간 미확인","https://www.sisajournal.com/news/articleView.html?idxno=381828"],"updatedAt":"2026-11-11"},
+    {"name":"강원개발공사","type":"지방공기업","region":"42","bidKind":"금고","sources":["월/일 미확보(연수 미확인) — 금고 지정 공고(제2025-109호, 2025-10-17, 강원도 도정마당 타기관 공고) 확인, 선정 결과·약정기간은 첨부 hwpx라 미확인","https://state.gwd.go.kr/portal/bulletin/notification?articleSeq=266106"],"updatedAt":"2026-11-11"},
   ];
   if (typeof module !== 'undefined' && module.exports) module.exports = root.institutionsNonMuni;
 })(typeof window !== 'undefined' ? window : globalThis);
