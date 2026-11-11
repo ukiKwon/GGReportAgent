@@ -1170,7 +1170,7 @@ public class BoardMaterialApiTest {
         assertEquals(text(res1), 200, res1.getResponse().getStatus());
         assertEquals("PASSED", json(res1).path("result_cd").asText());
         assertEquals(1, logCount(id, "RESULT"));
-        MvcResult res2 = setResult(id, MEMBER, "{\"result\":\"REJECTED\"}");
+        MvcResult res2 = setResult(id, MEMBER, "{\"result\":\"REJECTED\",\"meeting_date\":\"2026-12-02\"}");
         assertEquals(text(res2), 200, res2.getResponse().getStatus());
         assertEquals("REJECTED", json(res2).path("result_cd").asText());
         assertEquals(2, logCount(id, "RESULT"));
@@ -1329,6 +1329,187 @@ public class BoardMaterialApiTest {
         assertEquals("OK", ok.get("OUTCOME"));
         assertEquals("board_write", ok.get("SCREEN_ID"));
         assertEquals("result_save", ok.get("BUTTON_ID"));
+    }
+
+    // ── 확정본 워드·개최일 필수·반려/재작성 쪽지(2026-11-11) ──────────
+
+    private static final String DOCX_PATH = "/confirmed-docx";
+
+    private MvcResult downloadDocx(long id, String emp) throws Exception {
+        return actGet("/board-materials/" + id + DOCX_PATH, emp, "board_write", "confirmed_docx");
+    }
+
+    private int newNotes(String recipient, String marker) {
+        return count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE RECIPIENT=? AND CONTENT LIKE ?", recipient, "%" + marker + "%");
+    }
+
+    @Test
+    public void 확정본_워드는_확정_뒤_담당자_부장_확정자만_받고_ACT_DOWNLOAD가_남는다() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER, MEMBER2);
+        long id = create(MEMBER, bc, 2026);
+        String[] c = cell(true);
+        save(id, MEMBER, body(0, c[0], c[1], "7777"), 201);
+        long req = submit(id, MEMBER);
+        assertEquals(200, approveAs(req, LEAD).getResponse().getStatus());
+        MvcResult ok = downloadDocx(id, MEMBER);
+        assertEquals(text(ok), 200, ok.getResponse().getStatus());
+        byte[] bytes = ok.getResponse().getContentAsByteArray();
+        assertTrue(bytes.length > 2 && bytes[0] == 'P' && bytes[1] == 'K');
+        assertTrue(ok.getResponse().getContentType().startsWith(
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
+        assertTrue(ok.getResponse().getHeader("Cache-Control").contains("no-store"));
+        String cd = ok.getResponse().getHeader("Content-Disposition");
+        assertTrue(cd, cd.contains("filename*=UTF-8''"));
+        String fname = java.net.URLDecoder.decode(cd.substring(cd.indexOf("UTF-8''") + 7), "UTF-8");
+        assertTrue(fname, fname.contains("노원"));
+        assertTrue(fname, fname.contains("-2026-이사회자료-확정본-v1.docx"));
+        StringBuilder xml = new StringBuilder();
+        try (java.util.zip.ZipInputStream zin = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(bytes))) {
+            java.util.zip.ZipEntry e;
+            while ((e = zin.getNextEntry()) != null) {
+                if ("word/document.xml".equals(e.getName())) {
+                    java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                    byte[] buf = new byte[4096];
+                    int n;
+                    while ((n = zin.read(buf)) > 0) {
+                        bo.write(buf, 0, n);
+                    }
+                    xml.append(new String(bo.toByteArray(), StandardCharsets.UTF_8));
+                }
+            }
+        }
+        assertTrue(xml.toString().replace(",", "").contains("7777"));
+        for (String emp : new String[]{MEMBER2, HEAD, LEAD}) {   // 두 번째 담당자·영업부장·확정한 팀장
+            assertEquals(emp, 200, downloadDocx(id, emp).getResponse().getStatus());
+        }
+        for (String emp : new String[]{M4, ADMIN, DESIGNER}) {   // 그 외는 없는 번호처럼 404
+            assertEquals(emp, 404, downloadDocx(id, emp).getResponse().getStatus());
+        }
+        assertEquals(404, actGet("/board-materials/999999" + DOCX_PATH, MEMBER, "board_write", "confirmed_docx")
+                .getResponse().getStatus());
+        assertEquals(401, actGet("/board-materials/" + id + DOCX_PATH, null, "board_write", "confirmed_docx")
+                .getResponse().getStatus());
+        assertEquals(4, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='DOWNLOAD' AND OUTCOME='OK'", id));
+        assertEquals(3, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='DOWNLOAD' AND OUTCOME='HIDDEN'", id));
+        Map<String, Object> act = jdbc.queryForMap(
+                "SELECT SCREEN_ID, BUTTON_ID, UI_VALID, SNAP_NO FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='DOWNLOAD' AND OUTCOME='OK' AND ACTOR_EMP_NO=?",
+                id, MEMBER);
+        assertEquals("board_write", act.get("SCREEN_ID"));
+        assertEquals("confirmed_docx", act.get("BUTTON_ID"));
+        assertEquals(1, ((Number) act.get("UI_VALID")).intValue());
+        assertEquals(1, ((Number) act.get("SNAP_NO")).intValue());
+        List<String> details = jdbc.queryForList(
+                "SELECT DETAIL FROM ACCESS_LOG WHERE EVENT_TYPE='API' AND REQ_PATH LIKE '%confirmed-docx' AND DETAIL LIKE '%code=DOWNLOAD%' ORDER BY LOG_ID DESC",
+                String.class);
+        assertFalse(details.isEmpty());
+        assertEquals("board-material id=" + id + " code=DOWNLOAD snap=1", details.get(0));   // 값·기관명 없음
+    }
+
+    @Test
+    public void 확정본_워드는_확정이_아니면_409_NOT_CONFIRMED_식별자_없으면_400() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = create(MEMBER, bc, 2026);
+        MvcResult prep = downloadDocx(id, MEMBER);
+        assertEquals(409, prep.getResponse().getStatus());
+        assertEquals("NOT_CONFIRMED", codeOf(prep));
+        String[] c = cell(true);
+        save(id, MEMBER, body(0, c[0], c[1], "5"), 201);
+        assertEquals("NOT_CONFIRMED", codeOf(downloadDocx(id, MEMBER)));   // DRAFT
+        long req = submit(id, MEMBER);
+        assertEquals("NOT_CONFIRMED", codeOf(downloadDocx(id, MEMBER)));   // SUBMITTED
+        assertEquals(200, approveAs(req, LEAD).getResponse().getStatus());
+        MvcResult noUi = readNoUi("/board-materials/" + id + DOCX_PATH, MEMBER);
+        assertEquals(400, noUi.getResponse().getStatus());
+        assertEquals("UI_ID_REQUIRED", codeOf(noUi));
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='DOWNLOAD' AND OUTCOME='INVALID'", id));
+        assertEquals(400, actGet("/board-materials/" + id + DOCX_PATH, MEMBER, "board_write", "x").getResponse().getStatus());
+        assertEquals(200, downloadDocx(id, MEMBER).getResponse().getStatus());
+        assertEquals(200, rework(id, HEAD, "재확인").getResponse().getStatus());   // DRAFT 로 돌아가면 다시 409
+        assertEquals("NOT_CONFIRMED", codeOf(downloadDocx(id, MEMBER)));
+    }
+
+    @Test
+    public void 결과_개최일은_가결_부결_의결예정_모두_필수() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = confirmedMaterial(bc, 2026, MEMBER, LEAD);
+        String[] bad = {"{\"result\":\"PASSED\"}", "{\"result\":\"REJECTED\"}", "{\"result\":\"SCHEDULED\"}",
+                "{\"result\":\"PASSED\",\"meeting_date\":\"\"}"};
+        for (String b : bad) {
+            MvcResult r = setResult(id, MEMBER, b);
+            assertEquals(b, 400, r.getResponse().getStatus());
+            assertEquals(b, "MEETING_DATE_REQUIRED", codeOf(r));
+        }
+        assertEquals(null, jdbc.queryForMap("SELECT RESULT_CD FROM BOARD_MATERIAL WHERE MATERIAL_ID=?", id).get("RESULT_CD"));
+        assertEquals(0, logCount(id, "RESULT"));
+        assertEquals(400, setResult(id, MEMBER, "{\"result\":\"PASSED\",\"meeting_date\":\"2026-13-45\"}").getResponse().getStatus());
+        for (String r : new String[]{"PASSED", "REJECTED", "SCHEDULED"}) {
+            MvcResult ok = setResult(id, MEMBER, "{\"result\":\"" + r + "\",\"meeting_date\":\"2026-12-02\"}");
+            assertEquals(text(ok), 200, ok.getResponse().getStatus());
+        }
+    }
+
+    @Test
+    public void 반려하면_현재_담당자_전원에게_쪽지_신청자_중복없음_행한_사람_제외() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER, MEMBER2);
+        long id = draftWithSnap(MEMBER, bc, 2026);
+        long req = submit(id, MEMBER);
+        MvcResult rj = reject(LEAD, req, "보완 필요");
+        assertEquals(text(rj), 200, rj.getResponse().getStatus());
+        String marker = "이사회 자료가 반려되어";
+        assertEquals(0, newNotes(MEMBER, marker));    // 신청자는 기존 결재결과(사유 포함)만
+        assertEquals(1, newNotes(MEMBER, "반려되었습니다"));
+        assertEquals(1, newNotes(MEMBER2, marker));
+        assertEquals(0, newNotes(LEAD, marker));
+        assertEquals(0, newNotes(M4, marker));
+        Map<String, Object> n = jdbc.queryForMap(
+                "SELECT KIND, CONTENT, LINK FROM NOTIFICATIONS WHERE RECIPIENT=? AND CONTENT LIKE ?", MEMBER2, "%" + marker + "%");
+        assertEquals("결재결과", n.get("KIND"));
+        assertEquals(null, n.get("LINK"));
+        String content = String.valueOf(n.get("CONTENT"));
+        assertFalse(content.contains("보완 필요"));      // 사유는 쪽지에 싣지 않는다
+        assertTrue(content.contains("2026년"));
+    }
+
+    @Test
+    public void 반려_담당이_신청자_한명뿐이면_새_쪽지_없음() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = draftWithSnap(MEMBER, bc, 2026);
+        long req = submit(id, MEMBER);
+        assertEquals(200, reject(LEAD, req, "보완 필요").getResponse().getStatus());
+        assertEquals(0, newNotes(MEMBER, "이사회 자료가 반려되어"));
+        assertEquals(1, newNotes(MEMBER, "반려되었습니다"));
+    }
+
+    @Test
+    public void 재작성_요구는_결재중이면_신청자_제외_확정이면_담당자_전원에게_쪽지() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER, MEMBER2);
+        long id = draftWithSnap(MEMBER, bc, 2026);
+        String[] c = cell(true);
+        submit(id, MEMBER);
+        assertEquals(200, rework(id, HEAD, "수치 재확인").getResponse().getStatus());   // SUBMITTED
+        String marker = "이사회 자료가 재작성 요구로";
+        assertEquals(0, newNotes(MEMBER, marker));
+        assertEquals(1, newNotes(MEMBER, "재작성을 요구했습니다"));   // 신청자는 기존 알림(사유 포함)
+        assertEquals(1, newNotes(MEMBER2, marker));
+        assertEquals(0, newNotes(HEAD, marker));
+        save(id, MEMBER, body(1, c[0], c[1], "7"), 201);
+        long req2 = submit(id, MEMBER);
+        assertEquals(200, approveAs(req2, LEAD).getResponse().getStatus());
+        assertEquals(200, rework(id, HEAD, "확정 뒤 재확인").getResponse().getStatus());   // CONFIRMED — 신청자 알림 없는 경로
+        assertEquals(1, newNotes(MEMBER, marker));
+        assertEquals(2, newNotes(MEMBER2, marker));
+        assertEquals(0, newNotes(HEAD, marker));
+        save(id, MEMBER, body(2, c[0], c[1], "8"), 201);
+        submit(id, MEMBER);
+        int before = count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE CONTENT LIKE '%이사회 자료가 %'");
+        assertEquals(200, withdraw(id, MEMBER).getResponse().getStatus());   // 회수는 쪽지를 늘리지 않는다
+        assertEquals(before, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE CONTENT LIKE '%이사회 자료가 %'"));
     }
 
     @Test

@@ -367,7 +367,7 @@ test('actError·okText: 코드별 문구와 오류 위치(칸/상자)', function
   assert.strictEqual(mat.actError('submit', { net: true, status: 0 }).btns[0][0], 'refresh');
   assert.strictEqual(mat.actError('submit', e(400, 'UI_ID_REQUIRED')).title, '화면 오류로 처리하지 못했습니다.');
   const d = mat.actError('result', e(400, 'MEETING_DATE_REQUIRED'));
-  assert.ok(d.type === 'field' && d.field === 'date');
+  assert.ok(d.type === 'field' && d.field === 'date' && d.text === '개최일을 입력해 주세요.');
   assert.ok(mat.actError('rework', e(422)).type === 'field' && mat.actError('rework', e(400)).field === 'reason');
   assert.strictEqual(mat.actError('rework', e(409, 'NOT_APPLICABLE')).type, 'box');
   assert.strictEqual(mat.actError('decide', e(409, 'APPROVER_ROLE_MISMATCH')).title, '영업팀장이 관련된 제출이라 영업부장만 승인할 수 있습니다.');
@@ -399,6 +399,45 @@ test('actCall·loadReview: 화면·버튼 헤더, 본문(제출은 없음)', asy
   assert.strictEqual((await mat.actCall(fake(200, {}), 'submit', 'x1')).status, 404, '번호 모양이 아니면 보내지 않는다');
 });
 
+test('lockHtml: 확정일 때만 확정본 워드 버튼(기본 버튼), 내려받는 중·오류 표시', function () {
+  const conf = { status_cd: 'CONFIRMED', confirmed_snap: 6, viewer: { is_assignee: false, can_write: false } };
+  const h = mat.lockHtml(conf);
+  assert.ok(h.includes('id="bd-m-dl"') && h.includes('data-act="confirmed-docx"') && h.includes('확정본 워드 내려받기') && !h.includes('bd-wb-main'));
+  assert.ok(/id="bd-m-dl"[^>]* disabled/.test(mat.lockHtml(conf, { dlBusy: true })) && mat.lockHtml(conf, { dlBusy: true }).includes('내려받는 중…'));
+  const e = mat.lockHtml(conf, { dlError: '<img>' });
+  assert.ok(e.includes('id="bd-m-dlerr"') && e.includes('role="alert"') && e.includes('&lt;img&gt;'));
+  assert.ok(!mat.lockHtml({ status_cd: 'SUBMITTED', viewer: { can_write: false } }).includes('bd-m-dl'));
+});
+
+test('docxFileName·docxError: 파일 이름은 filename*, 없으면 기본 이름 / 오류 문구', function () {
+  assert.strictEqual(mat.docxFileName("attachment; filename=\"board_confirmed.docx\"; filename*=UTF-8''%EB%85%B8%EC%9B%90-2026-v1.docx"), '노원-2026-v1.docx');
+  assert.strictEqual(mat.docxFileName('attachment'), '이사회자료-확정본.docx');
+  assert.strictEqual(mat.docxFileName("attachment; filename*=UTF-8''%E0%A4%A"), '이사회자료-확정본.docx');
+  assert.ok(!mat.docxFileName("attachment; filename*=UTF-8''..%2F..%2Fa.docx").includes('/'));
+  const e = function (status, code) { return { status: status, body: { detail: code ? { code: code } : 'x' } }; };
+  assert.strictEqual(mat.docxError(e(404)), '이 이사회 자료를 찾을 수 없습니다. 담당에서 빠졌거나 없는 자료입니다.');
+  assert.strictEqual(mat.docxError(e(409, 'NOT_CONFIRMED')), '확정된 자료만 확정본을 내려받을 수 있습니다. 새로 고쳐 상태를 확인해 주세요.');
+  assert.strictEqual(mat.docxError(e(400, 'UI_ID_REQUIRED')), '화면 오류로 처리하지 못했습니다. 새로고침한 뒤 다시 시도해 주세요.');
+  assert.strictEqual(mat.docxError(e(500)), '서버에 연결하지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+  assert.strictEqual(mat.docxError({ net: true, status: 0 }), '서버에 연결하지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+});
+
+test('downloadConfirmed: GET confirmed-docx, 화면·버튼 헤더, blob·파일 이름 / 오류는 reject 하지 않는다', async function () {
+  const seen = [];
+  const ok = function (url, init) {
+    seen.push({ url: url, init: init });
+    return Promise.resolve({ ok: true, status: 200, headers: { get: function () { return "attachment; filename*=UTF-8''a%20b.docx"; } }, blob: function () { return Promise.resolve('BLOB'); } });
+  };
+  const r = await mat.downloadConfirmed(ok, '7', mat.screenFor(true));
+  assert.deepStrictEqual(r, { ok: true, blob: 'BLOB', fileName: 'a b.docx' });
+  assert.strictEqual(seen[0].url, '/board-materials/7/confirmed-docx');
+  assert.deepStrictEqual(seen[0].init.headers, { 'X-Screen-Id': 'board_write', 'X-Button-Id': 'confirmed_docx' });
+  const f = await mat.downloadConfirmed(fake(409, { detail: { code: 'NOT_CONFIRMED' } }), '7', 'board_review');
+  assert.ok(!f.ok && f.status === 409 && f.error.includes('확정된 자료만'));
+  assert.ok(!(await mat.downloadConfirmed(NET, '7', 'board_review')).ok);
+  assert.strictEqual((await mat.downloadConfirmed(ok, 'x1', 'board_review')).status, 404);
+});
+
 test('reworkModalHtml·resultRowHtml·reviewHtml: 접근성 속성, 확정 경고, esc, 결재 줄', function () {
   const conf = { institution_name: X, year: 2026, status_cd: 'CONFIRMED', result_cd: 'PASSED', meeting_date: '2026-12-03' };
   const m = mat.reworkModalHtml(conf, { reason: X });
@@ -407,6 +446,10 @@ test('reworkModalHtml·resultRowHtml·reviewHtml: 접근성 속성, 확정 경�
   assert.ok(/id="bd-m-rw-ok"[^>]* disabled/.test(mat.reworkModalHtml({ status_cd: 'SUBMITTED' }, { reason: '  ' })));
   const rr = mat.resultRowHtml(conf, { result: 'SCHEDULED', date: '', error: '의결 예정이면 개최일을 입력해 주세요.', errField: 'date' });
   assert.ok(rr.includes('aria-invalid="true"') && rr.includes('(필수)') && rr.includes('role="alert"'));
+  ['SCHEDULED', 'PASSED', 'REJECTED'].forEach(function (r) {
+    const h = mat.resultRowHtml(conf, { result: r, date: '' });
+    assert.ok(h.includes('(필수)') && !h.includes('(선택)'), '개최일은 결과와 관계없이 필수: ' + r);
+  });
   const d = { material_id: 7, institution_name: X, year: 2026, status_cd: 'SUBMITTED', status_name: '제출(결재 중)', current_snap: 6, assignees: [{ name: X }],
     form: { tables: [] }, snapshot: { snap_no: 6, saved_by_name: X, saved_at: '2026-11-11T01:42:00+00:00', tables: [] } };
   const h = mat.reviewHtml(d, { n: 6, canDecide: true, comment: X });

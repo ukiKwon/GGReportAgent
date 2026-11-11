@@ -22,7 +22,8 @@ public final class BoardUiIds {
             "board_list", "board_write", "board_review", "approvals_inbox", "approvals_mine")));
     public static final Set<String> BUTTONS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             "open", "refresh", "create", "save_version", "submit", "withdraw", "rework", "result_save",
-            "snapshot_open", "history_open", "review_open", "acts_open", "approve", "reject", "cancel_request")));
+            "snapshot_open", "history_open", "review_open", "acts_open", "approve", "reject", "cancel_request",
+            "confirmed_docx")));
 
     private BoardUiIds() {
     }

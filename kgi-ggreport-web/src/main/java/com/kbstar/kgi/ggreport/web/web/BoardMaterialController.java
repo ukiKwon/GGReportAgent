@@ -7,7 +7,9 @@ import com.kbstar.kgi.ggreport.web.service.ApprovalRequestService;
 import com.kbstar.kgi.ggreport.web.service.BoardMaterialAudit;
 import com.kbstar.kgi.ggreport.web.service.BoardMaterialService;
 import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +20,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.servlet.http.HttpServletRequest;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +32,7 @@ import java.util.function.Function;
  * 호출자 확인은 {@link MenuGuard#requireActiveUser}(401/403 DENIED, 메뉴 무관). 권한 판정(담당자·결재 경로)은 서비스가 한다.
  *
  * <p>모든 쓰기(POST)는 헤더 {@code X-Screen-Id}·{@code X-Button-Id} 가 허용 목록 안이어야 한다(아니면 400 UI_ID_REQUIRED, 원문 비노출).
- * 읽기(GET)는 값이 없어도 되지만 확정 자료이면 {@code UNKNOWN}·ui_valid=false 로 남는다. 확정 자료에 대한 호출(거부·은닉 포함, 사번 없는 401은 제외 — 목록은 확정 행마다 LIST)은
+ * 읽기(GET)는 값이 없어도 되지만(단 confirmed-docx 는 식별자 필수) 확정 자료이면 {@code UNKNOWN}·ui_valid=false 로 남는다. 확정 자료에 대한 호출(거부·은닉 포함, 사번 없는 401은 제외 — 목록은 확정 행마다 LIST)은
  * {@link BoardMaterialAudit} 가 따로 기록한다. 접근 이력(ACCESS_LOG) detail 에는 자료 번호·코드·버전 번호뿐 — 값·메모·사유·사번·이름 없음.
  * ⚠️ X-Emp-No·X-Screen-Id·X-Button-Id 는 모두 자기신고다 — 사칭·위조 방지가 아니다.
  */
@@ -96,6 +100,28 @@ public class BoardMaterialController {
     @GetMapping("/{id}/acts")
     public List<Map<String, Object>> acts(@PathVariable String id, HttpServletRequest req) {
         return run(req, id, "ACTS", false, me -> service.acts(me, id));
+    }
+
+    private static final MediaType DOCX = MediaType.parseMediaType(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+
+    /** 확정본 워드 — 확정 자료만. ACT 에 DOWNLOAD(화면·버튼 포함)가 남고, 화면·버튼 식별자가 없으면 400(값이 파일로 나가는 읽기이므로 쓰기처럼 강제). */
+    @GetMapping("/{id}/confirmed-docx")
+    public ResponseEntity<byte[]> confirmedDocx(@PathVariable String id, HttpServletRequest req) {
+        BoardMaterialService.ConfirmedDocx f = run(req, id, "DOWNLOAD", true, me -> service.confirmedDocx(me, id));
+        req.setAttribute(AccessLogInterceptor.DETAIL, "board-material id=" + id + " code=DOWNLOAD snap=" + f.getSnapNo());   // 값·파일명 없음
+        String encoded;
+        try {
+            encoded = URLEncoder.encode(f.getFileName(), "UTF-8").replace("+", "%20");
+        } catch (UnsupportedEncodingException never) {
+            throw new IllegalStateException(never);
+        }
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"board_confirmed.docx\"; filename*=UTF-8''" + encoded)
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .contentType(DOCX)
+                .body(f.getBytes());
     }
 
     // ── 쓰기 ──

@@ -27,7 +27,7 @@
   mat.UI = { LIST: 'board_list', WRITE: 'board_write', REVIEW: 'board_review', INBOX: 'approvals_inbox', MINE: 'approvals_mine' };
   mat.BTN = { OPEN: 'open', REFRESH: 'refresh', CREATE: 'create', SAVE: 'save_version', SNAP: 'snapshot_open', HIST: 'history_open',
               SUBMIT: 'submit', WITHDRAW: 'withdraw', RESULT: 'result_save', REWORK: 'rework',
-              REVIEW_OPEN: 'review_open', APPROVE: 'approve', REJECT: 'reject', CANCEL: 'cancel_request' };
+              REVIEW_OPEN: 'review_open', APPROVE: 'approve', REJECT: 'reject', CANCEL: 'cancel_request', CONFIRMED_DOCX: 'confirmed_docx' };
   mat.headers = function (screen, button) { return { 'X-Screen-Id': screen, 'X-Button-Id': button }; };
   // 담당자(is_assignee)는 잠긴 자료를 봐도 board_write, 그 밖(영업부장·결재자)은 board_review 를 보낸다.
   mat.screenFor = function (isAssignee) { return isAssignee === true ? mat.UI.WRITE : mat.UI.REVIEW; };
@@ -232,6 +232,37 @@
     if (body !== undefined) { init.headers = Object.assign({ 'Content-Type': 'application/json' }, init.headers); init.body = JSON.stringify(body); }
     return req(fetchFn, mat.itemUrl(id) + '/' + spec[0], init);
   };
+  // ── 확정본 워드 내려받기(확정된 자료만) ──
+  mat.DOCX_DEFAULT_NAME = '이사회자료-확정본.docx';
+  mat.docxUrl = function (id) { return mat.itemUrl(id) + '/confirmed-docx'; };
+  // Content-Disposition 의 filename*=UTF-8''… 에서 파일 이름을 읽는다. 읽을 수 없거나 경로·제어 문자가 있으면 기본 이름.
+  mat.docxFileName = function (disposition) {
+    const m = /filename\*\s*=\s*UTF-8''([^;\s]+)/i.exec(str(disposition));
+    let n = '';
+    if (m) { try { n = decodeURIComponent(m[1]); } catch (e) { n = ''; } }
+    n = n.replace(/[\\\/:*?"<>|\u0000-\u001f]/g, '_').trim();
+    return n ? n : mat.DOCX_DEFAULT_NAME;
+  };
+  mat.docxError = function (x) {
+    if (!x || x.net || !x.status || x.status >= 500) return T.NET;
+    const d = detailOf(x), code = d ? str(d.code) : '';
+    if (x.status === 404) return T.NOT_FOUND;
+    if (x.status === 409 && code === 'NOT_CONFIRMED') return '확정된 자료만 확정본을 내려받을 수 있습니다. 새로 고쳐 상태를 확인해 주세요.';
+    if (x.status === 400 && code === 'UI_ID_REQUIRED') return '화면 오류로 처리하지 못했습니다. 새로고침한 뒤 다시 시도해 주세요.';
+    return T.NET;
+  };
+  // 성공 → {ok:true, blob, fileName} / 실패 → {ok:false, status, error}. reject 하지 않는다.
+  mat.downloadConfirmed = function (fetchFn, id, screen) {
+    if (!mat.isId(id)) return Promise.resolve({ ok: false, status: 404, error: T.NOT_FOUND });
+    const fail = function (x) { return { ok: false, status: x.status, error: mat.docxError(x) }; };
+    return fetchFn(mat.docxUrl(id), { headers: mat.headers(screen, mat.BTN.CONFIRMED_DOCX) }).then(function (r) {
+      if (r.ok) {
+        const cd = r.headers && r.headers.get ? r.headers.get('Content-Disposition') : '';
+        return r.blob().then(function (blob) { return { ok: true, blob: blob, fileName: mat.docxFileName(cd) }; });
+      }
+      return r.json().catch(function () { return null; }).then(function (body) { return fail({ status: r.status, body: body }); });
+    }).catch(function () { return { ok: false, status: 0, error: T.NET }; });
+  };
   // 결재자 검토용 읽기(결재함 탭 안에서 연다). 헤더: approvals_inbox / review_open
   mat.loadReview = function (fetchFn, id) {
     if (!mat.isId(id)) return Promise.resolve({ ok: false, status: 404, notFound: true, error: T.NOT_FOUND });
@@ -270,7 +301,7 @@
       if (st === 409) return box('이미 결재가 끝났거나 회수된 제출입니다.', '화면을 새로 고쳐 현재 상태를 확인해 주세요.', R);
       if (st === 403) return box('이 자료의 담당자만 회수할 수 있습니다.', '담당이 바뀌었을 수 있습니다.', B);
     } else if (kind === 'result') {
-      if (st === 400 && code === 'MEETING_DATE_REQUIRED') return field('date', '의결 예정이면 개최일을 입력해 주세요.');
+      if (st === 400 && code === 'MEETING_DATE_REQUIRED') return field('date', '개최일을 입력해 주세요.');
       if (st === 400) return box('의결 결과나 개최일 형식이 올바르지 않습니다.', '다시 골라 주세요.');
       if (st === 409 && code === 'NOT_CONFIRMED') return box('확정된 자료가 아니어서 의결 결과를 저장하지 못했습니다.', '영업부장이 재작성을 요구했을 수 있습니다. 새로 고쳐 확인해 주세요.', R);
       if (st === 409) return box('다른 담당자가 먼저 의결 결과를 바꿨습니다.', '새로 고쳐 최신 결과를 확인한 뒤 다시 입력해 주세요.', R);
@@ -519,8 +550,9 @@
       (viewerOf(d).is_assignee === true ? '<span class="bd-m-rmeta">고친 뒤 [버전 저장]을 하고 다시 제출해 주세요.</span>' : '') + '</section>';
   };
   // 잠금 줄(제출(결재 중)·확정이고 값을 고칠 수 없을 때, 작성 줄 자리). 해당 없으면 ''.
-  mat.lockHtml = function (d) {
-    const cd = str(d && d.status_cd), v = viewerOf(d);
+  // o: {dlBusy, dlError} — 확정일 때만 [확정본 워드 내려받기]가 줄 안에 붙는다(기본 버튼, 틸 아님).
+  mat.lockHtml = function (d, o) {
+    const cd = str(d && d.status_cd), v = viewerOf(d), x = o || {};
     if ((cd !== 'SUBMITTED' && cd !== 'CONFIRMED') || v.can_write === true) return '';
     const asg = v.is_assignee === true;
     let t;
@@ -533,7 +565,11 @@
       t = asg ? '확정된 자료입니다(버전 ' + n + '). 값은 고칠 수 없고 의결 결과와 개최일만 바꿀 수 있습니다. 값을 고쳐야 하면 영업부장에게 재작성 요구를 요청해 주세요.'
               : '확정된 자료입니다(버전 ' + n + '). 고쳐야 하면 [재작성 요구]로 작성 중으로 돌려보냅니다.';
     }
-    return '<div class="bd-m-lock' + (cd === 'CONFIRMED' ? ' is-done' : '') + '" id="bd-m-lock"><p>' + esc(t) + '</p></div>';
+    const dl = cd === 'CONFIRMED'
+      ? '<button type="button" id="bd-m-dl" data-act="confirmed-docx"' + (x.dlBusy ? ' disabled' : '') + '>' + (x.dlBusy ? '내려받는 중…' : '확정본 워드 내려받기') + '</button>' +
+        (x.dlError ? '<p class="bd-m-ferr" id="bd-m-dlerr" role="alert">' + esc(x.dlError) + '</p>' : '')
+      : '';
+    return '<div class="bd-m-lock' + (cd === 'CONFIRMED' ? ' is-done' : '') + '" id="bd-m-lock"><p>' + esc(t) + '</p>' + dl + '</div>';
   };
   // 제출 확인 줄. o: {n(제출할 버전), dirty, unchecked, busy}
   mat.submitRowHtml = function (o) {
@@ -551,12 +587,12 @@
   };
   // 의결 결과 폼. o: {result, date, busy, error, errField}
   mat.resultRowHtml = function (d, o) {
-    const x = o || {}, cur = str(x.result) || 'SCHEDULED', need = cur === 'SCHEDULED';
+    const x = o || {}, cur = str(x.result) || 'SCHEDULED';
     const opt = function (v) { return '<option value="' + v + '"' + (cur === v ? ' selected' : '') + '>' + esc(RESULT_NAME[v]) + '</option>'; };
     const bad = x.error && x.errField === 'date';
     return '<div class="bd-confirm bd-m-actrow bd-m-result" id="bd-m-resrow" role="group" aria-label="의결 결과">' +
       '<label>의결 결과 <select id="bd-m-res"' + (x.busy ? ' disabled' : '') + '>' + opt('SCHEDULED') + opt('PASSED') + opt('REJECTED') + '</select></label>' +
-      '<label>개최일 <span class="bd-m-req" id="bd-m-mreq">' + (need ? '(필수)' : '(선택)') + '</span> <input type="date" id="bd-m-mdate" value="' + esc(x.date) + '"' +
+      '<label>개최일 <span class="bd-m-req" id="bd-m-mreq">(필수)</span> <input type="date" id="bd-m-mdate" value="' + esc(x.date) + '"' +
         (x.busy ? ' disabled' : '') + (bad ? ' aria-invalid="true" aria-describedby="bd-m-ferr"' : '') + '></label>' +
       '<button type="button" id="bd-m-resok" class="bd-wb-main" data-act="res-ok"' + (x.busy ? ' disabled' : '') + '>' + (x.busy ? '저장하는 중…' : '의결 결과 저장') + '</button>' +
       '<button type="button" data-act="res-cancel"' + (x.busy ? ' disabled' : '') + '>취소</button>' +
@@ -1067,7 +1103,35 @@
           form: d.form, snapshot: isObj(d.snapshot) ? d.snapshot : null });
         if (M.wstarted) return;
       }
-      b.innerHTML = mat.lockHtml(d) + mat.writeRoHtml(d, isHead());
+      b.innerHTML = mat.lockHtml(d, M.dl) + mat.writeRoHtml(d, isHead());
+    }
+    // 잠금 줄만 다시 그린다(내려받는 중·오류 표시). 값 표는 건드리지 않는다.
+    function redrawLock() {
+      const n = $('bd-m-lock');
+      if (!n || !M) return;
+      n.outerHTML = mat.lockHtml(M.data, M.dl);
+    }
+    function doDownload() {
+      if (!M || (M.dl && M.dl.dlBusy) || str(M.data.status_cd) !== 'CONFIRMED') return;
+      const cur = M, ep = env.epoch();
+      cur.dl = { dlBusy: true, dlError: '' };
+      redrawLock();
+      mat.downloadConfirmed(env.doFetch, cur.id, screen()).then(function (r) {
+        if (M !== cur || ep !== env.epoch()) return;
+        if (r.ok) {
+          cur.dl = null;
+          const doc = root.document, url = root.URL.createObjectURL(r.blob), a = doc.createElement('a');
+          a.href = url; a.download = r.fileName; a.style.display = 'none';
+          doc.body.appendChild(a); a.click(); doc.body.removeChild(a);
+          setTimeout(function () { root.URL.revokeObjectURL(url); }, 1000);
+        } else cur.dl = { dlBusy: false, dlError: r.error };
+        redrawLock();
+        focusNode($('bd-m-dl'));
+      });
+    }
+    function onBodyClick(e) {
+      const b = e.target && e.target.closest ? e.target.closest('[data-act="confirmed-docx"]') : null;
+      if (b && !b.disabled) doDownload();
     }
     function drawVer() {
       const p = $('bd-m-hist'), cur = M;
@@ -1212,8 +1276,8 @@
       const r = M.ui.res;
       if (sel) r.result = sel.value;
       if (dt) r.date = dt.value;
-      if (r.result === 'SCHEDULED' && !r.date) {   // 요청하지 않고 칸 오류로 알린다
-        r.error = '의결 예정이면 개최일을 입력해 주세요.'; r.errField = 'date';
+      if (!r.date) {   // 의결 예정·가결·부결 모두 개최일 필수 — 요청하지 않고 칸 오류로 알린다
+        r.error = '개최일을 입력해 주세요.'; r.errField = 'date';
         drawMat(true); focusNode($('bd-m-mdate'));
         return;
       }
@@ -1281,7 +1345,6 @@
       if (!t || !M || !M.ui.res) return;
       if (t.id === 'bd-m-res') {
         M.ui.res.result = t.value;
-        const q = $('bd-m-mreq'); if (q) q.textContent = t.value === 'SCHEDULED' ? '(필수)' : '(선택)';
       } else if (t.id === 'bd-m-mdate') M.ui.res.date = t.value;
       else return;
       if (M.ui.res.error || M.ui.res.errField) {   // 값을 바꾸면 칸 오류를 지운다
@@ -1400,6 +1463,7 @@
         $('bd-mat').addEventListener('change', onMatChange);
         $('bd-mat').addEventListener('input', onMatChange);
         const wb = $('bd-body');
+        if (wb) wb.addEventListener('click', onBodyClick);
         if (wb && typeof MutationObserver !== 'undefined') new MutationObserver(syncSubmitTeal).observe(wb, { childList: true, subtree: true, characterData: true });
         const md = $('bd-m-modal');
         if (md) {

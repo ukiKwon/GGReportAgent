@@ -3,6 +3,7 @@ package com.kbstar.kgi.ggreport.web.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kbstar.kgi.ggreport.web.boarddoc.BoardDocDocx;
 import com.kbstar.kgi.ggreport.web.boarddoc.BoardDocSpec;
 import com.kbstar.kgi.ggreport.web.domain.ApprovalRequest;
 import com.kbstar.kgi.ggreport.web.domain.ApprovalStep;
@@ -101,11 +102,16 @@ public class BoardMaterialService {
     private final ApprovalRequestMapper requests;
     private final SysUserMapper users;
     private final BoardMaterialAudit audit;
+    private final NotificationCommandService notes;
+
+    /** 쪽지 종류 — ApprovalRequestService.KIND_RESULT 와 같은 값(notify.js 가 '결재결과'를 그린다). 서비스끼리 참조하지 않으려고 따로 둔다. */
+    static final String KIND_RESULT = "결재결과";
 
     public BoardMaterialService(BoardMaterialMapper mapper, BoardAccess access, BoardFormService forms,
                                 BidAssignmentService assignments, ApprovalRequestMapper requests, SysUserMapper users,
-                                BoardMaterialAudit audit) {
+                                BoardMaterialAudit audit, NotificationCommandService notes) {
         this.audit = audit;
+        this.notes = notes;
         this.mapper = mapper;
         this.access = access;
         this.forms = forms;
@@ -362,8 +368,8 @@ public class BoardMaterialService {
         }
         String to = in.getResult().trim();
         String meeting = optDate(in.getMeetingDate());
-        if (SCHEDULED.equals(to) && meeting == null) {
-            throw coded(400, "MEETING_DATE_REQUIRED", "의결 예정이면 개최일을 입력하세요.");
+        if (meeting == null) {   // 사용자 확정 2026-11-11: 의결 예정·가결·부결 모두 개최일 필수
+            throw coded(400, "MEETING_DATE_REQUIRED", "개최일을 입력하세요.");
         }
         String now = Times.nowIso();
         if (mapper.updateResult(m.getMaterialId(), m.getResultCd(), to, meeting, me.getEmpNo(), now) != 1) {
@@ -442,6 +448,9 @@ public class BoardMaterialService {
             throw coded(409, "CONFLICT", "이미 처리된 요청입니다.");
         }
         mapper.insertLog(mid, event, SUBMITTED, DRAFT, null, null, null, null, null, reqId, null, actorEmp, verified, now);
+        if ("REJECT".equals(event)) {   // 회수·취소(WITHDRAW)는 알리지 않는다 — 담당자 본인의 행동
+            notifyReturned(mapper.selectOne(mid), actorEmp, reqId, false);
+        }
     }
 
     /** 승인 후처리(같은 트랜잭션 — 예외를 던지면 승인까지 되돌아간다). */
@@ -523,6 +532,7 @@ public class BoardMaterialService {
         }
         mapper.insertLog(m.getMaterialId(), "REWORK", m.getStatusCd(), DRAFT, m.getResultCd(), null, null, null, null,
                 m.getSubmitReqId(), plan.getReason(), me.getEmpNo(), verified(actor), now);
+        notifyReturned(m, me.getEmpNo(), SUBMITTED.equals(m.getStatusCd()) ? m.getSubmitReqId() : null, true);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("material_id", m.getMaterialId());
         out.put("status_cd", DRAFT);
@@ -538,7 +548,107 @@ public class BoardMaterialService {
         return n == null ? null : mapper.selectOne(n);
     }
 
+    // ── 확정본 워드 ──
+
+    /** 확정본 워드 한 건 — 파일 이름과 바이트. 값은 응답 본문에만 있다. */
+    public static final class ConfirmedDocx {
+        private final byte[] bytes;
+        private final String fileName;
+        private final int snapNo;
+
+        ConfirmedDocx(byte[] bytes, String fileName, int snapNo) {
+            this.bytes = bytes;
+            this.fileName = fileName;
+            this.snapNo = snapNo;
+        }
+
+        public byte[] getBytes() { return bytes; }
+        public String getFileName() { return fileName; }
+        public int getSnapNo() { return snapNo; }
+    }
+
+    /**
+     * 확정본 워드 내려받기 — 열람 자격은 CONFIRMED 열람 규칙 그대로: 담당자·활성 영업부장·확정한 결재선 팀장(canReviewQuiet), 그 외 404(없는 번호와 같음).
+     * 확정(CONFIRMED)이 아니면 409 NOT_CONFIRMED. 값은 confirmed_snap 버전(현재 버전이 아니라 확정된 그 버전)을 양식(form_id·form_ver 저장값)에 얹는다.
+     */
+    @Transactional(readOnly = true)
+    public ConfirmedDocx confirmedDocx(SysUser me, String id) {
+        BoardMaterial m = canReviewQuiet(me, id);
+        if (m == null) {
+            m = loadVisible(me, id);
+        }
+        if (!CONFIRMED.equals(m.getStatusCd()) || m.getConfirmedSnap() == null) {
+            throw coded(409, "NOT_CONFIRMED", "확정된 자료만 확정본을 내려받을 수 있습니다.");
+        }
+        BoardMaterialSnap s = mapper.selectSnap(m.getMaterialId(), m.getConfirmedSnap());
+        if (s == null) {
+            throw new IllegalStateException("confirmed board snapshot is missing");   // 서버 결함(500)
+        }
+        Map<String, Map<String, String>> values = new LinkedHashMap<>();
+        for (Map<String, Object> t : tablesOf(s.getValuesJson())) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> cells = (Map<String, Object>) t.get("cells");
+            Map<String, String> c = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> e : cells.entrySet()) {
+                c.put(e.getKey(), String.valueOf(e.getValue()));
+            }
+            values.put((String) t.get("ref"), c);
+        }
+        byte[] bytes;
+        try {
+            bytes = BoardDocDocx.build(BoardDocSpec.withValues(forms.docForStoredAny(m.getFormId(), m.getFormVer()), values));
+        } catch (BoardDocSpec.EditException e) {
+            throw new IllegalStateException("stored board material does not fit its form");   // 저장 때 이미 검증한 값 — 서버 결함(500)
+        }
+        String inst = m.getInstitutionName() == null ? "기관" : m.getInstitutionName()
+                .replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_").trim();
+        if (inst.length() > 60) {
+            inst = inst.substring(0, 60);
+        }
+        String name = inst + "-" + m.getBoardYear() + "-이사회자료-확정본-v" + m.getConfirmedSnap() + ".docx";
+        return new ConfirmedDocx(bytes, name, m.getConfirmedSnap());
+    }
+
     // ── 내부 ──
+
+    /**
+     * 반려·재작성 요구 쪽지 — 그 입찰 건의 현재 담당자 전원(배정 조회가 활성만 돌려준다고 보고 USERS ACTIVE 도 확인), 중복 없이, 행한 사람 제외.
+     * 결재 중이던 요청의 신청자는 제외한다 — 그 사람은 ApprovalRequestService.notifyResult 로 이미 '결재결과'(사유 포함)를 받는다(중복 방지).
+     * 본문에는 기관명·연도만 싣고 사유는 싣지 않는다(쪽지는 목록·알림창에 그대로 보이므로 — 사유는 자료 화면 '마지막 되돌림'에서).
+     * 호출 트랜잭션 안이다 — 쪽지 저장이 실패하면 반려·재작성도 되돌아간다(기존 notifyResult 와 같다).
+     */
+    private void notifyReturned(BoardMaterial m, String actorEmp, Long reqId, boolean rework) {
+        if (m == null) {
+            return;
+        }
+        String requesterEmp = null;
+        if (reqId != null) {
+            ApprovalRequest r = requests.selectById(reqId);
+            requesterEmp = r == null ? null : r.getRequesterEmpNo();
+        }
+        Set<String> to = new LinkedHashSet<>();
+        for (BoardMaterialAssignee a : mapper.selectAssignees(Collections.singletonList(m.getBidCaseId()))) {
+            to.add(a.getEmpNo());
+        }
+        to.remove(actorEmp);
+        if (requesterEmp != null) {
+            to.remove(requesterEmp);
+        }
+        if (to.isEmpty()) {
+            return;
+        }
+        SysUser actor = users.selectByEmpNo(actorEmp);
+        String body = "[결재 결과] " + m.getInstitutionName() + " " + m.getBoardYear() + "년 이사회 자료가 "
+                + (rework ? "재작성 요구로 작성 중 상태로 돌아갔습니다" : "반려되어 작성 중 상태로 돌아갔습니다")
+                + ". 사유는 이사회 자료 화면에서 확인하세요.";
+        for (String emp : to) {
+            SysUser u = users.selectByEmpNo(emp);
+            if (u == null || !"ACTIVE".equals(u.getStatus())) {
+                continue;
+            }
+            notes.create(emp, KIND_RESULT, body, null, null, null, null, actor == null ? null : actor.getName());
+        }
+    }
 
     private void lockCaseOf(String id) {
         Long n = parseId(id);
