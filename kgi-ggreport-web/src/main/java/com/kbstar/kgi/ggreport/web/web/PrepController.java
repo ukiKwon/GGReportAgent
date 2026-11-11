@@ -4,19 +4,29 @@ import com.kbstar.kgi.ggreport.web.config.AccessLogInterceptor;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.dto.PrepIn;
 import com.kbstar.kgi.ggreport.web.service.ApprovalRequestService;
+import com.kbstar.kgi.ggreport.web.service.PrepAttachService;
 import com.kbstar.kgi.ggreport.web.service.PrepAudit;
 import com.kbstar.kgi.ggreport.web.service.PrepService;
 import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.PrepUiIds;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -34,12 +44,15 @@ import java.util.function.Supplier;
 public class PrepController {
 
     private final PrepService prep;
+    private final PrepAttachService attach;
     private final ApprovalRequestService approvals;
     private final PrepAudit audit;
     private final MenuGuard guard;
 
-    public PrepController(PrepService prep, ApprovalRequestService approvals, PrepAudit audit, MenuGuard guard) {
+    public PrepController(PrepService prep, PrepAttachService attach, ApprovalRequestService approvals,
+                          PrepAudit audit, MenuGuard guard) {
         this.prep = prep;
+        this.attach = attach;
         this.approvals = approvals;
         this.audit = audit;
         this.guard = guard;
@@ -133,6 +146,78 @@ public class PrepController {
         return run(req, bidCaseId, "HISTORY", null, me -> prep.history(me, bidCaseId));
     }
 
+    // ── T3 확정본·첨부 원본(NEXT 71, 025) ────────────────────────────────
+
+    /** T3 확정본 지정(8) — 활성 담당자. */
+    @PutMapping("/bidcases/{bidCaseId}/prep/tasks/T3/confirmed-file")
+    public Map<String, Object> setConfirmedFile(@PathVariable String bidCaseId, @RequestBody PrepIn.Attach body,
+                                                HttpServletRequest req) {
+        Actor actor = Actor.of(req);
+        Long id = body == null || body.getAttachId() == null || body.getAttachId() < 1 ? null : body.getAttachId();
+        return run(req, bidCaseId, "T3_SET", "T3", id, me -> prep.setConfirmedFile(me, actor, bidCaseId, body));
+    }
+
+    /** T3 확정본 해제(8). */
+    @DeleteMapping("/bidcases/{bidCaseId}/prep/tasks/T3/confirmed-file")
+    public Map<String, Object> clearConfirmedFile(@PathVariable String bidCaseId, HttpServletRequest req) {
+        Actor actor = Actor.of(req);
+        return run(req, bidCaseId, "T3_CLEAR", "T3", null, me -> prep.clearConfirmedFile(me, actor, bidCaseId));
+    }
+
+    /** 첨부 올리기(9) — multipart {@code task_cd}(T3·T4)·{@code file}. 본문 상한은 BoardWriteLimitFilter. */
+    @PostMapping("/bidcases/{bidCaseId}/prep/attachments")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Map<String, Object> uploadAttachment(@PathVariable String bidCaseId,
+                                                @RequestParam(name = "task_cd", required = false) String taskCd,
+                                                @RequestParam(name = "file", required = false) MultipartFile file,
+                                                HttpServletRequest req) {
+        Actor actor = Actor.of(req);
+        return run(req, bidCaseId, "ATTACH_UPLOAD", auditTask(taskCd), null,
+                me -> attach.upload(me, actor, bidCaseId, taskCd, file));
+    }
+
+    /** 첨부 목록(10) — 활성 담당자·영업부장. 메타만. */
+    @GetMapping("/bidcases/{bidCaseId}/prep/attachments")
+    public List<Map<String, Object>> listAttachments(@PathVariable String bidCaseId, HttpServletRequest req) {
+        return run(req, bidCaseId, "ATTACH_LIST", null, null, me -> attach.list(me, bidCaseId));
+    }
+
+    /**
+     * 첨부 내려받기(11) — 활성 담당자·영업부장, 그 밖은 404. 확장자 없는 숫자 id URL. 성공·거부·은닉 모두 BID_PREP_ACT 에 남긴다(응답 전).
+     * 헤더: attachment + filename*(UTF-8), application/octet-stream, Cache-Control: no-store.
+     */
+    @GetMapping("/bidcases/{bidCaseId}/prep/attachments/{attachId}/content")
+    public ResponseEntity<byte[]> downloadAttachment(@PathVariable String bidCaseId, @PathVariable String attachId,
+                                                     HttpServletRequest req) {
+        PrepAttachService.Download d = run(req, bidCaseId, "ATTACH_DOWNLOAD", null, PrepAttachService.parseId(attachId),
+                me -> attach.download(me, bidCaseId, attachId));
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        h.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodeName(d.getName()));
+        h.set(HttpHeaders.CACHE_CONTROL, "no-store");
+        h.set(HttpHeaders.PRAGMA, "no-cache");
+        h.set("X-Content-Type-Options", "nosniff");
+        return new ResponseEntity<>(d.getBytes(), h, HttpStatus.OK);
+    }
+
+    /** 첨부 무효 처리(12) — 올린 담당자, 확정본이면 409. */
+    @PostMapping("/bidcases/{bidCaseId}/prep/attachments/{attachId}/void")
+    public Map<String, Object> voidAttachment(@PathVariable String bidCaseId, @PathVariable String attachId,
+                                              @RequestBody PrepIn.Reason body, HttpServletRequest req) {
+        Actor actor = Actor.of(req);
+        return run(req, bidCaseId, "ATTACH_VOID", null, PrepAttachService.parseId(attachId),
+                me -> attach.voidAttach(me, actor, bidCaseId, attachId, body));
+    }
+
+    /** RFC 5987 값 인코딩(filename*) — 공백은 %20, '*' 는 %2A. */
+    private static String encodeName(String name) {
+        try {
+            return URLEncoder.encode(name, "UTF-8").replace("+", "%20").replace("*", "%2A");
+        } catch (UnsupportedEncodingException never) {
+            throw new IllegalStateException(never);   // UTF-8 은 모든 JRE 에 있다
+        }
+    }
+
     // ── 내부 ────────────────────────────────────────────────────────────
 
     /** 감사 칸(BID_PREP_ACT.TASK_CD, 20자)에 넣을 과제 코드 — 형식 밖(길이·문자)이면 null. 경로 변수 원문을 그대로 저장하지 않는다(security F5). */
@@ -145,6 +230,12 @@ public class PrepController {
      * 서비스가 던진 403 은 DENIED 로 접근 이력에도 남긴다. 성공한 읽기도 응답 전에 기록한다(기록이 실패하면 500, 데이터 안 나감).
      */
     private <T> T run(HttpServletRequest req, String bid, String action, String taskCd, Function<SysUser, T> fn) {
+        return run(req, bid, action, taskCd, null, fn);
+    }
+
+    /** 첨부 번호(attachId)를 아는 행위용 — 감사 표에 번호를 남긴다(파일 이름은 남기지 않는다). 올리기처럼 번호가 결과에서 나오면 결과의 attach_id 를 쓴다. */
+    private <T> T run(HttpServletRequest req, String bid, String action, String taskCd, Long attachId,
+                      Function<SysUser, T> fn) {
         SysUser me = guard.requireActiveUser(req);
         Actor actor = Actor.of(req);
         BoardUiIds.Ui ui = PrepUiIds.of(req);
@@ -153,13 +244,18 @@ public class PrepController {
         try {
             out = fn.apply(me);
         } catch (ApiException e) {
-            audit.record(bid, action, PrepAudit.outcomeOf(e.getStatus()), before, taskCd, actor, ui);
+            audit.record(bid, action, PrepAudit.outcomeOf(e.getStatus()), before, taskCd, attachId, actor, ui);
             if (e.getStatus() == 403) {
                 throw guard.denied(req, e);
             }
             throw e;
         }
-        audit.record(bid, action, "OK", before, taskCd, actor, ui);
+        Long aid = attachId;
+        if (aid == null && out instanceof Map) {
+            Object v = ((Map<?, ?>) out).get("attach_id");
+            aid = v instanceof Long ? (Long) v : null;
+        }
+        audit.record(bid, action, "OK", before, taskCd, aid, actor, ui);
         req.setAttribute(AccessLogInterceptor.DETAIL, "prep case=" + bid + " state=" + before + " code=" + action);
         return out;
     }

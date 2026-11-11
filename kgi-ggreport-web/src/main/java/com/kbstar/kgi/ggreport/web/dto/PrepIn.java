@@ -35,6 +35,15 @@ public class PrepIn {
         public void setReason(String v) { this.reason = v; }
     }
 
+    /** {@code PUT /bidcases/{id}/prep/tasks/T3/confirmed-file} — 확정본으로 지정할 첨부 번호(025). */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class Attach {
+        private Long attachId;
+
+        public Long getAttachId() { return attachId; }
+        public void setAttachId(Long v) { this.attachId = v; }
+    }
+
     /** {@code POST /bidcases/{id}/prep/open-requests} — 개설 신청(담당자 지명 1~10명). */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Open {

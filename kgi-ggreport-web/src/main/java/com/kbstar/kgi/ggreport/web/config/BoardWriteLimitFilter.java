@@ -1,6 +1,7 @@
 package com.kbstar.kgi.ggreport.web.config;
 
 import com.kbstar.kgi.ggreport.web.service.AccessLogService;
+import com.kbstar.kgi.ggreport.web.service.PrepAttachService;
 import com.kbstar.kgi.ggreport.web.web.Actor;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.beans.factory.annotation.Value;
@@ -51,6 +52,8 @@ public class BoardWriteLimitFilter implements Filter {
     /** 그 밖의 board-materials 쓰기(만들기·제출·회수·재작성·결과) — 본문이 작다. 16KB. */
     private static final Pattern MAT_SMALL = Pattern.compile(
             "(?:^|/)board-materials(?:/+[^/]+/+(?:submit|withdraw|rework|result))?/*$", Pattern.CASE_INSENSITIVE);
+    /** POST /bidcases/{id}/prep/attachments — 사전준비 첨부 원본 업로드(NEXT 71). 파일 한도(30MB)+여유 1MB, 엑셀과 같은 방식(래퍼 없이 통과). */
+    private static final Pattern ATTACH = Pattern.compile("(?:^|/)bidcases/+[^/]+/+prep/+attachments/*$", Pattern.CASE_INSENSITIVE);
 
     private final AccessLogService accessLog;
     private final int maxMb;
@@ -85,7 +88,11 @@ public class BoardWriteLimitFilter implements Filter {
         }
         String path = normalize(req.getRequestURI());
         boolean excel = post && EXCEL.matcher(path).find();
+        boolean attach = post && ATTACH.matcher(path).find();
+        boolean file = excel || attach;   // 파일 올리기 — 본문을 읽는 래퍼 없이 헤더 길이만 본다(multipart 해석은 컨테이너)
+        long fileMb = excel ? maxMb : PrepAttachService.MAX_FILE_BYTES / MB;
         long limit = excel ? maxMb * MB + SLACK
+                : attach ? PrepAttachService.MAX_FILE_BYTES + SLACK
                 : post && DRAFT.matcher(path).find() ? DRAFT_MAX
                 : post && COPY.matcher(path).find() ? COPY_MAX
                 : post && SNAP.matcher(path).find() ? SNAP_MAX
@@ -94,15 +101,15 @@ public class BoardWriteLimitFilter implements Filter {
         long len = req.getContentLengthLong();
         if (limit < 0 || (len >= 0 && len <= limit)) {
             // JSON 경로는 헤더 값을 믿지 않고 실제로 읽은 바이트도 센다(거짓 Content-Length·chunked 우회 방지).
-            chain.doFilter(limit < 0 || excel ? request : new CountingRequest(req, limit), response);
+            chain.doFilter(limit < 0 || file ? request : new CountingRequest(req, limit), response);
             return;
         }
         int status = len < 0 ? 411 : 413;
-        String code = len < 0 ? "LENGTH_REQUIRED" : excel ? "FILE_TOO_LARGE" : "BODY_TOO_LARGE";
-        String extra = excel ? ",\"max_mb\":" + maxMb : ",\"max_kb\":" + (limit / 1024);
+        String code = len < 0 ? "LENGTH_REQUIRED" : file ? "FILE_TOO_LARGE" : "BODY_TOO_LARGE";
+        String extra = file ? ",\"max_mb\":" + fileMb : ",\"max_kb\":" + (limit / 1024);
         // message 는 고정 문구 + 설정 숫자뿐 — 따옴표·역슬래시를 넣지 않는다(이스케이프 없이 직접 조립한다).
         String message = len < 0 ? "요청 본문의 길이를 알 수 없어 처리하지 않았습니다. 다시 시도해 주세요."
-                : excel ? "파일이 너무 큽니다. " + maxMb + "MB 이하만 올릴 수 있습니다."
+                : file ? "파일이 너무 큽니다. " + fileMb + "MB 이하만 올릴 수 있습니다."
                 : "요청 내용이 너무 큽니다. " + (limit / 1024) + "KB 이하로 줄여 주세요.";
         HttpServletResponse res = (HttpServletResponse) response;
         res.setStatus(status);

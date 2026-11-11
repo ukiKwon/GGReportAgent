@@ -1,6 +1,7 @@
 package com.kbstar.kgi.ggreport.web.mapper;
 
 import com.kbstar.kgi.ggreport.web.domain.BidPrep;
+import com.kbstar.kgi.ggreport.web.domain.BidPrepAttach;
 import com.kbstar.kgi.ggreport.web.domain.BidPrepLogView;
 import com.kbstar.kgi.ggreport.web.domain.BidPrepTask;
 import org.apache.ibatis.annotations.Mapper;
@@ -9,7 +10,7 @@ import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
 /**
- * PREP_TASK_DEF · BID_PREP · BID_PREP_TASK · BID_PREP_LOG · BID_PREP_ACT (024).
+ * PREP_TASK_DEF · BID_PREP · BID_PREP_TASK · BID_PREP_LOG · BID_PREP_ACT (024) · BID_PREP_ATTACH (025).
  * 상태 전이는 전부 조건부 UPDATE 다 — 0행이면 그 사이 다른 처리가 먼저 끝난 것이다(서비스가 409 STATE_CHANGED).
  */
 @Mapper
@@ -116,7 +117,57 @@ public interface PrepMapper {
 
     int insertAct(@Param("bidCaseId") String bidCaseId, @Param("actionCd") String actionCd,
                   @Param("outcome") String outcome, @Param("stateCd") String stateCd,
-                  @Param("taskCd") String taskCd, @Param("actorEmpNo") String actorEmpNo,
+                  @Param("taskCd") String taskCd, @Param("attachId") Long attachId,
+                  @Param("actorEmpNo") String actorEmpNo,
                   @Param("verified") int verified, @Param("screenId") String screenId,
                   @Param("buttonId") String buttonId, @Param("uiValid") int uiValid, @Param("now") String now);
+
+    /** 첨부·T3 확정본 이력(ATTACH_ADD·ATTACH_VOID·T3_SET·T3_CLEAR) — 첨부 번호 칸이 있는 insertLog. 파일명·값은 넣지 않는다. */
+    int insertLogAttach(@Param("bidCaseId") String bidCaseId, @Param("eventCd") String eventCd,
+                        @Param("fromState") String fromState, @Param("toState") String toState,
+                        @Param("taskCd") String taskCd, @Param("attachId") Long attachId,
+                        @Param("fromAttachId") Long fromAttachId, @Param("reason") String reason,
+                        @Param("actorEmpNo") String actorEmpNo, @Param("verified") int verified,
+                        @Param("now") String now);
+
+    // ── 첨부 원본(025) ──────────────────────────────────────────────────
+
+    /**
+     * 건 행을 FOR UPDATE 로 읽어 상태를 돌려준다(없으면 null). 첨부 올리기·무효 처리·T3 확정본 지정을 한 건 안에서 직렬화한다.
+     * 로컬 캐시를 비우는 읽기라 그 뒤의 건수·합계 조회는 최신이다.
+     */
+    String selectStateForUpdate(@Param("bidCaseId") String bidCaseId);
+
+    /** 첨부 한 행 — 건 번호가 다르면 null(다른 건 첨부를 번호로 찍어도 안 보인다). */
+    BidPrepAttach selectAttach(@Param("bidCaseId") String bidCaseId, @Param("attachId") Long attachId);
+
+    /** 그 건의 첨부(무효 포함) — 번호순. */
+    List<BidPrepAttach> selectAttachList(@Param("bidCaseId") String bidCaseId);
+
+    /** 그 건에 저장된 첨부 수(무효 포함 — 파일은 물리 삭제하지 않으므로 저장 한도는 전체를 센다). */
+    int countAttach(@Param("bidCaseId") String bidCaseId);
+
+    /** 그 건에 저장된 첨부 크기 합(무효 포함). */
+    long sumAttachBytes(@Param("bidCaseId") String bidCaseId);
+
+    /** 그 건의 그 과제에서 무효가 아닌 첨부 수 — T4(RFP_ATTACH) 판정. */
+    int countValidAttachByTask(@Param("bidCaseId") String bidCaseId, @Param("taskCd") String taskCd);
+
+    /** 그 첨부가 이 건의 어떤 과제에서 확정본으로 지정돼 있으면 1 이상. */
+    int countRefUse(@Param("bidCaseId") String bidCaseId, @Param("attachId") Long attachId);
+
+    /** 첨부 행 추가 — 생성된 번호가 {@code a.attachId} 로 채워진다. */
+    int insertAttach(BidPrepAttach a);
+
+    /** 무효 처리(VALID_YN 1→0). 이미 무효면 0행. */
+    int voidAttach(@Param("bidCaseId") String bidCaseId, @Param("attachId") Long attachId,
+                   @Param("by") String by, @Param("now") String now);
+
+    /** T3 확정본 지정(참조·해시·지정자·시각). 과제 행이 없으면 0행. */
+    int setTaskRef(@Param("bidCaseId") String bidCaseId, @Param("taskCd") String taskCd,
+                   @Param("attachId") Long attachId, @Param("sha256") String sha256,
+                   @Param("by") String by, @Param("now") String now);
+
+    /** T3 확정본 해제 — 참조가 있을 때만 비운다(없으면 0행). */
+    int clearTaskRef(@Param("bidCaseId") String bidCaseId, @Param("taskCd") String taskCd);
 }

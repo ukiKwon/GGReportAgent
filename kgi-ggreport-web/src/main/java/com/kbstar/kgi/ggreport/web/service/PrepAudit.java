@@ -26,11 +26,18 @@ public class PrepAudit {
     @Transactional
     public void record(String bidCaseId, String action, String outcome, String stateCd, String taskCd,
                        Actor actor, BoardUiIds.Ui ui) {
+        record(bidCaseId, action, outcome, stateCd, taskCd, null, actor, ui);
+    }
+
+    /** 첨부 행위(올리기·목록·내려받기·무효 처리·확정본 지정)는 첨부 번호도 남긴다(파일명은 남기지 않는다). attachId 는 형식이 맞는 숫자일 때만 넘긴다. */
+    @Transactional
+    public void record(String bidCaseId, String action, String outcome, String stateCd, String taskCd,
+                       Long attachId, Actor actor, BoardUiIds.Ui ui) {
         String bid = bidCaseId == null ? "" : bidCaseId;
         if (bid.length() > 64) {
             bid = bid.substring(0, 64);
         }
-        mapper.insertAct(bid, action, outcome, stateCd == null ? "NONE" : stateCd, taskCd,
+        mapper.insertAct(bid, action, outcome, stateCd == null ? "NONE" : stateCd, taskCd, attachId,
                 actor != null && actor.isKnown() ? actor.getEmpNo() : null,
                 actor != null && actor.isVerified() ? 1 : 0,
                 ui.getScreen(), ui.getButton(), ui.isValid() ? 1 : 0, Times.nowIso());

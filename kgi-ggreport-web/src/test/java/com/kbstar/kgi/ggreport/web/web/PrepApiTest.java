@@ -133,10 +133,24 @@ public class PrepApiTest {
     private void makeReady(String bid) throws Exception {
         assertEquals(200, postJson("/bidcases/" + bid + "/prep/tasks/T1/check", MEMBER2, "").getResponse().getStatus());
         assertEquals(200, postJson("/bidcases/" + bid + "/prep/tasks/T2/check", MEMBER2, "").getResponse().getStatus());
-        jdbc.update("UPDATE BID_PREP_TASK SET REF_ATTACH_ID = 1, REF_BY = ?, REF_AT = ? WHERE BID_CASE_ID = ? AND TASK_CD = 'T3'",
-                MEMBER2, Times.nowIso(), bid);
+        setT3Confirmed(bid);
         jdbc.update("UPDATE BID_PREP_TASK SET KIND_CD = 'OPTIONAL' WHERE BID_CASE_ID = ? AND TASK_CD = 'T5'", bid);
         flushCache();
+    }
+
+    /**
+     * T3 확정본이 지정된 상태를 만든다 — 025 이후 T3 완료는 '그 건의 무효 아닌 T3 첨부를 가리키는 지정'이어야 하므로 첨부 행을 직접 넣고(저장 파일은 필요 없다)
+     * 과제 행이 그것을 가리키게 한다. 실제 업로드·지정 경로는 PrepAttachApiTest 가 본다.
+     */
+    private void setT3Confirmed(String bid) {
+        String sha = "00000000000000000000000000000000000000000000000000000000000000aa";
+        String now = Times.nowIso();
+        jdbc.update("INSERT INTO BID_PREP_ATTACH (BID_CASE_ID, TASK_CD, ORIG_NAME, EXT_CD, SIZE_BYTES, SHA256, STORE_KEY, PII_STATE,"
+                        + " VALID_YN, UPLOADED_BY, UPLOADED_AT, UPLOADED_VERIFIED) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                bid, "T3", "가상.xlsx", "xlsx", 10, sha, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "CHECKED", 1, MEMBER2, now, 0);
+        long id = jdbc.queryForObject("SELECT MAX(ATTACH_ID) FROM BID_PREP_ATTACH WHERE BID_CASE_ID = ?", Long.class, bid);
+        jdbc.update("UPDATE BID_PREP_TASK SET REF_ATTACH_ID = ?, REF_SHA256 = ?, REF_BY = ?, REF_AT = ? WHERE BID_CASE_ID = ? AND TASK_CD = 'T3'",
+                id, sha, MEMBER2, now, bid);
     }
 
     private long planReq(String bid, String emp) throws Exception {
@@ -598,8 +612,7 @@ public class PrepApiTest {
         assertEquals(200, postJson("/bidcases/" + bid + "/prep/tasks/T1/check", MEMBER2, "").getResponse().getStatus());
         assertEquals(200, postJson("/bidcases/" + bid + "/prep/tasks/T2/check", MEMBER2, "").getResponse().getStatus());
         String now = Times.nowIso();
-        jdbc.update("UPDATE BID_PREP_TASK SET REF_ATTACH_ID = 1, REF_BY = ?, REF_AT = ? WHERE BID_CASE_ID = ? AND TASK_CD = 'T3'",
-                MEMBER2, now, bid);
+        setT3Confirmed(bid);
         jdbc.update("INSERT INTO BOARD_MATERIAL (BID_CASE_ID, INSTITUTION_ID, BOARD_YEAR, STATUS_CD, RESULT_CD, FORM_ID, FORM_VER, CUR_SNAP,"
                         + " CREATED_BY, CREATED_AT, UPDATED_BY, UPDATED_AT) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 bid, INST, 2026, "CONFIRMED", "REJECTED", "default_doc", 0, 0, MEMBER2, now, MEMBER2, now);

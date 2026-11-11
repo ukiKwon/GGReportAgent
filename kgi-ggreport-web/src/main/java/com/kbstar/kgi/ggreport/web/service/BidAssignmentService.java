@@ -371,6 +371,11 @@ public class BidAssignmentService {
         if (reason.isEmpty() || reason.length() > 200) {
             reason = null;
         }
+        // N1(security 11-11): 첫 문장 — 사전준비 행을 FOR UPDATE 로 읽는다. 중단(CANCELLED)된 건의 담당자 변경은 승인째 되돌린다(중단과 동시 승인 경합 차단:
+        // 중단의 상태 전이가 같은 행을 잠그므로 어느 쪽이 먼저든 여기서 최신 상태를 본다). 사전준비 행이 없는 옛 건(null)은 그대로 진행한다.
+        if (!bid.isEmpty() && PrepService.CANCELLED.equals(prepMapper.selectStateForUpdate(bid))) {
+            throw coded(409, "PREP_CANCELLED", "중단된 건이라 담당자 변경을 승인할 수 없습니다. 반려하거나 취소하세요.");
+        }
         String d = decider.getEmpNo();
         String dRole = roleOf(decider);
         if ((!LEAD_ROLE.equals(dRole) && !HEAD_ROLE.equals(dRole)) || add.contains(d) || remove.contains(d)) {

@@ -304,6 +304,8 @@
 ### 71. 사전준비 첨부 원본 보관 — **요건 확정, security 설계 검토 반영(70 D절), backend 설계는 025 초안** [담당: security → backend-dev]
 - **현재**: 수익성 분석표·붙임서류 원본 보관, 배정자·영업부장 열람(사용자 2차 Q4). 형식 HWPX·PDF·xlsx·docx, 개인정보 차단은 주민·외국인등록·카드번호만. id URL·no-store·ZipGuard·매크로 거부(security 1701 D). 이사회 칸은 020대로 값만(61과 별개 축).
 - **다음 한 걸음**: 70 본 구현과 함께(020b 뒤). 저장 위치(서버 디스크 vs BLOB)는 운영·DBA 확인. T3 원본과 020 엑셀 업로드는 다음 단계에서 T3 확정본 불러오기로 잇는다.
+- **보안 PUSH-GATE(11-11)**: .gitignore 첨부 폴더 제외로 커밋 허용. 운영 반입 전 필수 — config-envs 4개에 ggreport.prep-attach-dir 절대경로(백업), PDF 능동 요소 재귀 검사·차단 키 확대(/A·/EF·RichMedia·XFA 등), OOXML embeddings·External 관계 거부·중앙 디렉터리 대조. 하: 검사 동시 상한·메모리, T3 해시 디스크 대조, 감사 누락. 영업부장 전 건 원본 열람+자기신고 사번 위험 수용은 사용자 결정(SSO 일정과 묶음).
+- **구현(11-11)**: 025 DDL 쌍·PrepAttachInspector/Service·첨부 API 4개·T3 확정본 지정(해시 대조)·N1, mvn 990 통과. 사용자 답(11-11): 올린 담당자가 빠지면 영업팀장도 무효 처리 가능(후속 반영). 지도 '제안 확정' 버튼은 기관 요약 칸이 비어도 먼저 붙임(72 전, '미확인' 표시). 로컬 MySQL 024→025 미적용.
 - **자세히**: backend-dev 1728 §2·§6, security 1701 D, NEXT 35·61·68.
 
 ### 72. 기관 요약 팝업·현 유치 은행 수정 — **사용자 답 모두 받음(11-10·11-11), 다음은 security ∥ data-auditor → backend 설계** [담당: security ∥ data-auditor → backend-dev → design-reviewer → frontend-dev]

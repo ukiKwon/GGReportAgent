@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!-- PREP_TASK_DEF / BID_PREP / BID_PREP_TASK / BID_PREP_LOG / BID_PREP_ACT — 024. 양쪽 방언에서 같은 문장이다(ANSI JOIN, 동적 SQL 없음). -->
+<!-- PREP_TASK_DEF / BID_PREP / BID_PREP_TASK / BID_PREP_LOG / BID_PREP_ACT — 024, BID_PREP_ATTACH — 025. 양쪽 방언에서 같은 문장이다(ANSI JOIN, 동적 SQL 없음). -->
 <mapper namespace="com.kbstar.kgi.ggreport.web.mapper.PrepMapper">
 
   <select id="selectPrep" resultType="BidPrep">
@@ -174,10 +174,75 @@
   </select>
 
   <insert id="insertAct">
-    INSERT INTO BID_PREP_ACT (BID_CASE_ID, ACTION_CD, OUTCOME, STATE_CD, TASK_CD, ACTOR_EMP_NO, EMP_VERIFIED,
+    INSERT INTO BID_PREP_ACT (BID_CASE_ID, ACTION_CD, OUTCOME, STATE_CD, TASK_CD, ATTACH_ID, ACTOR_EMP_NO, EMP_VERIFIED,
                               SCREEN_ID, BUTTON_ID, UI_VALID, LOGGED_AT)
-    VALUES (#{bidCaseId}, #{actionCd}, #{outcome}, #{stateCd}, #{taskCd,jdbcType=VARCHAR},
+    VALUES (#{bidCaseId}, #{actionCd}, #{outcome}, #{stateCd}, #{taskCd,jdbcType=VARCHAR}, #{attachId,jdbcType=NUMERIC},
             #{actorEmpNo,jdbcType=VARCHAR}, #{verified}, #{screenId}, #{buttonId}, #{uiValid}, #{now})
   </insert>
+
+  <insert id="insertLogAttach">
+    INSERT INTO BID_PREP_LOG (BID_CASE_ID, EVENT_CD, FROM_STATE, TO_STATE, TASK_CD, ATTACH_ID, FROM_ATTACH_ID, REASON,
+                              ACTOR_EMP_NO, EMP_VERIFIED, LOGGED_AT)
+    VALUES (#{bidCaseId}, #{eventCd}, #{fromState,jdbcType=VARCHAR}, #{toState,jdbcType=VARCHAR},
+            #{taskCd,jdbcType=VARCHAR}, #{attachId,jdbcType=NUMERIC}, #{fromAttachId,jdbcType=NUMERIC},
+            #{reason,jdbcType=VARCHAR}, #{actorEmpNo,jdbcType=VARCHAR}, #{verified}, #{now})
+  </insert>
+
+  <!-- 첨부 원본(025) -->
+  <select id="selectStateForUpdate" resultType="string" flushCache="true">
+    SELECT STATE_CD FROM BID_PREP WHERE BID_CASE_ID = #{bidCaseId} FOR UPDATE
+  </select>
+
+  <select id="selectAttach" resultType="BidPrepAttach">
+    SELECT ATTACH_ID, BID_CASE_ID, TASK_CD, ORIG_NAME, EXT_CD, SIZE_BYTES, SHA256, STORE_KEY, PII_STATE, PII_NOTE,
+           VALID_YN, UPLOADED_BY, UPLOADED_AT, UPLOADED_VERIFIED, VOIDED_BY, VOIDED_AT
+      FROM BID_PREP_ATTACH WHERE BID_CASE_ID = #{bidCaseId} AND ATTACH_ID = #{attachId}
+  </select>
+
+  <select id="selectAttachList" resultType="BidPrepAttach">
+    SELECT ATTACH_ID, BID_CASE_ID, TASK_CD, ORIG_NAME, EXT_CD, SIZE_BYTES, SHA256, STORE_KEY, PII_STATE, PII_NOTE,
+           VALID_YN, UPLOADED_BY, UPLOADED_AT, UPLOADED_VERIFIED, VOIDED_BY, VOIDED_AT
+      FROM BID_PREP_ATTACH WHERE BID_CASE_ID = #{bidCaseId}
+     ORDER BY ATTACH_ID
+  </select>
+
+  <select id="countAttach" resultType="int">
+    SELECT COUNT(*) FROM BID_PREP_ATTACH WHERE BID_CASE_ID = #{bidCaseId}
+  </select>
+
+  <select id="sumAttachBytes" resultType="long">
+    SELECT COALESCE(SUM(SIZE_BYTES), 0) FROM BID_PREP_ATTACH WHERE BID_CASE_ID = #{bidCaseId}
+  </select>
+
+  <select id="countValidAttachByTask" resultType="int">
+    SELECT COUNT(*) FROM BID_PREP_ATTACH
+     WHERE BID_CASE_ID = #{bidCaseId} AND TASK_CD = #{taskCd} AND VALID_YN = 1
+  </select>
+
+  <select id="countRefUse" resultType="int">
+    SELECT COUNT(*) FROM BID_PREP_TASK WHERE BID_CASE_ID = #{bidCaseId} AND REF_ATTACH_ID = #{attachId}
+  </select>
+
+  <insert id="insertAttach" useGeneratedKeys="true" keyProperty="attachId" keyColumn="ATTACH_ID">
+    INSERT INTO BID_PREP_ATTACH (BID_CASE_ID, TASK_CD, ORIG_NAME, EXT_CD, SIZE_BYTES, SHA256, STORE_KEY, PII_STATE, PII_NOTE,
+                                 VALID_YN, UPLOADED_BY, UPLOADED_AT, UPLOADED_VERIFIED)
+    VALUES (#{bidCaseId}, #{taskCd}, #{origName}, #{extCd}, #{sizeBytes}, #{sha256}, #{storeKey}, #{piiState},
+            #{piiNote,jdbcType=VARCHAR}, 1, #{uploadedBy}, #{uploadedAt}, #{uploadedVerified})
+  </insert>
+
+  <update id="voidAttach">
+    UPDATE BID_PREP_ATTACH SET VALID_YN = 0, VOIDED_BY = #{by}, VOIDED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND ATTACH_ID = #{attachId} AND VALID_YN = 1
+  </update>
+
+  <update id="setTaskRef">
+    UPDATE BID_PREP_TASK SET REF_ATTACH_ID = #{attachId}, REF_SHA256 = #{sha256}, REF_BY = #{by}, REF_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND TASK_CD = #{taskCd}
+  </update>
+
+  <update id="clearTaskRef">
+    UPDATE BID_PREP_TASK SET REF_ATTACH_ID = NULL, REF_SHA256 = NULL, REF_BY = NULL, REF_AT = NULL
+     WHERE BID_CASE_ID = #{bidCaseId} AND TASK_CD = #{taskCd} AND REF_ATTACH_ID IS NOT NULL
+  </update>
 
 </mapper>

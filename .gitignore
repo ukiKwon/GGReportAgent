@@ -8,6 +8,12 @@ __pycache__/
 data/*
 !data/.gitkeep
 
+# 사전준비 첨부 원본 저장소(NEXT 71) — 서버는 kgi-ggreport-web/ 에서 돌아 기본값 data/prep-attach 가 여기 생긴다.
+# 업로드 원본(개인정보 경고만 받은 파일 포함)이 커밋·푸시되지 않게 막는다(security PUSH-GATE 11-11).
+kgi-ggreport-web/data/
+**/prep-attach/
+**/prep-attach-test/
+
 # 리포 **루트**에 남은 SQLite 잔해. 재구성 전에는 `registry.db`가 루트에 있었고
 # (지금 표준은 `data/registry.db`), 그때 만들어진 40KB짜리가 아직 남아 있는 PC가
 # 있다(NEXT.md 항목 3). 코드는 아무도 이 파일을 안 읽지만 **`data/*` 규칙에 안 걸려

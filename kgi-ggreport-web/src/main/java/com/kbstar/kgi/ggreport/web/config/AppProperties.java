@@ -76,6 +76,16 @@ public class AppProperties {
     public void setBatchesRoot(String batchesRoot) { this.batchesRoot = batchesRoot; }
 
     /**
+     * 제안서 사전준비 첨부 원본(NEXT 71, 025)이 놓일 폴더 — 파일은 서버가 만든 32자리 키 이름으로만 저장한다.
+     * ⚠️ DB 와 함께 이 폴더도 백업 대상이다(파일이 정본). 물리 삭제는 하지 않는다(보존 '계속').
+     * 상대경로는 기동 디렉터리 기준이다. 운영은 웹 루트 밖 경로를 권장한다.
+     */
+    private String prepAttachDir = "data/prep-attach";
+
+    public String getPrepAttachDir() { return prepAttachDir; }
+    public void setPrepAttachDir(String prepAttachDir) { this.prepAttachDir = prepAttachDir; }
+
+    /**
      * 데모 여부. 화면이 QA용 계정 전환기를 띄울지 판단하는 데만 쓴다(운영에선 안 뜬다).
      * Python 은 {@code create_app(demo=…)} 인자였다 — Java 는 설정 키로 받는다.
      */

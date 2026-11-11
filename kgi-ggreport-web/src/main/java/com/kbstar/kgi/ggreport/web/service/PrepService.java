@@ -6,6 +6,7 @@ import com.kbstar.kgi.ggreport.web.domain.ApprovalRequest;
 import com.kbstar.kgi.ggreport.web.domain.BidAssigneeView;
 import com.kbstar.kgi.ggreport.web.domain.BidCase;
 import com.kbstar.kgi.ggreport.web.domain.BidPrep;
+import com.kbstar.kgi.ggreport.web.domain.BidPrepAttach;
 import com.kbstar.kgi.ggreport.web.domain.BidPrepLogView;
 import com.kbstar.kgi.ggreport.web.domain.BidPrepTask;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
@@ -299,8 +300,11 @@ public class PrepService {
         requireTransit(mapper.transit(bidCaseId, p.getStateCd(), CANCELLED, me.getEmpNo(), now));
         log(bidCaseId, "CANCEL", p.getStateCd(), CANCELLED, null, null, reason, me, actor);
         int verified = BoardMaterialService.verified(actor);
-        for (BidAssigneeView v : assignMapper.selectActiveAssignees(bidCaseId)) {
-            if (assignMapper.updateRelease(bidCaseId, v.getEmpNo(), me.getEmpNo(), now) == 1) {
+        // N1(security 11-11): 해제는 조건부 UPDATE 한 문장이다(읽은 뒤 사람별로 풀지 않는다 — 동시 담당자 추가를 놓치지 않게). 이력은 그 문장이
+        // 방금 해제한 행(RELEASED_BY·RELEASED_AT 이 이번 것)을 같은 트랜잭션에서 다시 읽어 남긴다. 위 상태 전이가 BID_PREP 행을 잠가 두었으므로
+        // 동시 담당자 변경 승인(applyChange)은 이 뒤 PREP_CANCELLED 409 로 끝난다.
+        if (assignMapper.updateReleaseAll(bidCaseId, me.getEmpNo(), now) > 0) {
+            for (BidAssigneeView v : assignMapper.selectReleasedAt(bidCaseId, me.getEmpNo(), now)) {
                 assignMapper.insertLog(bidCaseId, BidAssignmentService.ACTION_RELEASE, v.getEmpNo(), null,
                         ABORT_RELEASE_REASON, me.getEmpNo(), verified, now);
             }
@@ -470,6 +474,82 @@ public class PrepService {
         }
         log(bidCaseId, check ? "TASK_CHECK" : "TASK_UNCHECK", p.getStateCd(), p.getStateCd(), t.getTaskCd(), null, null, me, actor);
         return view(me, mapper.selectPrep(bidCaseId), mapper.selectTasks(bidCaseId));
+    }
+
+    // ── T3 확정본 지정(025) ──────────────────────────────────────────────
+
+    /**
+     * T3 확정본 지정(8) — 그 건의 활성 담당자, 과제 행이 있는 상태. 같은 건·T3·무효 아님인 첨부만(아니면 409 ATTACH_NOT_ELIGIBLE).
+     * 첨부는 저장 전에 검사를 통과한 것뿐이라 별도 검사 표시는 없다(UNCHECKED 도 지정할 수 있다). 지정 시점 SHA256 을 과제 행에 저장하고
+     * 이력 T3_SET(이후·이전 첨부 번호)을 남긴다. 같은 첨부를 다시 지정하면 아무것도 바꾸지 않는다. 완료 여부는 사실 판정이 곧바로 맞춘다.
+     */
+    @Transactional
+    public Map<String, Object> setConfirmedFile(SysUser me, Actor actor, String bidCaseId, PrepIn.Attach in) {
+        if (!assignments.isActiveAssignee(bidCaseId, me.getEmpNo())) {
+            throw new ApiException(403, "이 입찰 건의 담당자만 확정본을 지정할 수 있습니다.");
+        }
+        require(bidCaseId);
+        Long attachId = in == null ? null : in.getAttachId();
+        if (attachId == null || attachId.longValue() < 1) {
+            throw coded(400, "BAD_VALUE", "attach_id가 필요합니다.");
+        }
+        String state = lockedTaskState(bidCaseId);
+        BidPrepAttach a = mapper.selectAttach(bidCaseId, attachId);
+        if (a == null || a.getValidYn() != 1 || !"T3".equals(a.getTaskCd())) {
+            throw coded(409, "ATTACH_NOT_ELIGIBLE", "확정본으로 지정할 수 없는 첨부입니다(이 건의 T3 첨부이면서 무효가 아니어야 합니다).");
+        }
+        BidPrepTask t = find(mapper.selectTasks(bidCaseId), "T3");
+        if (t == null) {
+            throw ApiException.notFound("prep task not found");
+        }
+        Long prev = t.getRefAttachId();
+        if (prev == null || !prev.equals(attachId)) {
+            String now = Times.nowIso();
+            requireTransit(mapper.setTaskRef(bidCaseId, "T3", attachId, a.getSha256(), me.getEmpNo(), now));
+            mapper.insertLogAttach(bidCaseId, "T3_SET", state, state, "T3", attachId, prev, null, me.getEmpNo(),
+                    BoardMaterialService.verified(actor), now);
+        }
+        return afterT3Change(me, bidCaseId);
+    }
+
+    /** T3 확정본 해제(8) — 지정이 있을 때만(없으면 409 STATE_CHANGED). 이력 T3_CLEAR(이전 첨부 번호). T3 는 곧바로 미완료로 맞춘다. */
+    @Transactional
+    public Map<String, Object> clearConfirmedFile(SysUser me, Actor actor, String bidCaseId) {
+        if (!assignments.isActiveAssignee(bidCaseId, me.getEmpNo())) {
+            throw new ApiException(403, "이 입찰 건의 담당자만 확정본 지정을 해제할 수 있습니다.");
+        }
+        require(bidCaseId);
+        String state = lockedTaskState(bidCaseId);
+        BidPrepTask t = find(mapper.selectTasks(bidCaseId), "T3");
+        if (t == null) {
+            throw ApiException.notFound("prep task not found");
+        }
+        Long prev = t.getRefAttachId();
+        if (prev == null) {
+            throw stateChanged();
+        }
+        requireTransit(mapper.clearTaskRef(bidCaseId, "T3"));
+        mapper.insertLogAttach(bidCaseId, "T3_CLEAR", state, state, "T3", null, prev, null, me.getEmpNo(),
+                BoardMaterialService.verified(actor), Times.nowIso());
+        return afterT3Change(me, bidCaseId);
+    }
+
+    /** 건 행을 FOR UPDATE 로 잠그고 과제 행이 있는 상태인지 확인한다(아니면 409). 현재 상태를 돌려준다. */
+    private String lockedTaskState(String bidCaseId) {
+        String state = mapper.selectStateForUpdate(bidCaseId);
+        if (state == null) {
+            throw ApiException.notFound("prep not found");
+        }
+        if (!TASK_STATES.contains(state)) {
+            throw stateChanged();
+        }
+        return state;
+    }
+
+    private Map<String, Object> afterT3Change(SysUser me, String bidCaseId) {
+        BidPrep cur = mapper.selectPrep(bidCaseId);
+        List<BidPrepTask> tasks = syncFacts(cur, mapper.selectTasks(bidCaseId));
+        return view(me, cur, tasks);
     }
 
     // ── 기획승인(PREP_APPROVAL) ──────────────────────────────────────────
@@ -654,11 +734,22 @@ public class PrepService {
         return changed ? mapper.selectTasks(p.getBidCaseId()) : tasks;
     }
 
-    /** FACT 판정기. 모르는 키는 false(미완료). T4(RFP_ATTACH)·T3 첨부 유효성은 71(첨부)에서 채운다 — 지금 T3 는 확정본 지정 여부만 본다. */
+    /**
+     * FACT 판정기. 모르는 키는 false(미완료). T3 는 확정본 지정(REF_ATTACH_ID)이 있고 그 첨부가 이 건의 T3 첨부이며 무효가 아니고
+     * 지정 때 저장한 해시와 같을 때만 완료다(025). T4 는 무효가 아닌 T4 첨부가 하나라도 있으면 완료다(과제가 준비중인 동안은 판정하지 않는다).
+     */
     private boolean judgeFact(BidPrep p, BidPrepTask t) {
         String key = t.getFactKey();
         if ("T3_FILE".equals(key)) {
-            return t.getRefAttachId() != null;
+            if (t.getRefAttachId() == null) {
+                return false;
+            }
+            BidPrepAttach a = mapper.selectAttach(p.getBidCaseId(), t.getRefAttachId());
+            return a != null && a.getValidYn() == 1 && "T3".equals(a.getTaskCd())
+                    && (t.getRefSha256() == null || t.getRefSha256().equals(a.getSha256()));
+        }
+        if ("RFP_ATTACH".equals(key)) {
+            return mapper.countValidAttachByTask(p.getBidCaseId(), "T4") > 0;
         }
         if ("BOARD_CONFIRMED".equals(key)) {
             return mapper.countBoardConfirmed(p.getBidCaseId()) > 0;
@@ -818,7 +909,7 @@ public class PrepService {
         viewer.put("can_start_writing", assignee && WRITABLE.equals(p.getStateCd()) && ev.ready);
         viewer.put("can_cancel", isLead(me) && (IN_PROGRESS.equals(p.getStateCd()) || WRITABLE.equals(p.getStateCd())
                 || WRITING.equals(p.getStateCd())));
-        viewer.put("can_upload", false);   // TODO: 첨부(71)
+        viewer.put("can_upload", assignee && taskState);   // 첨부 올리기(71) — 활성 담당자, 과제 행이 있는 상태
         m.put("viewer", viewer);
         return m;
     }

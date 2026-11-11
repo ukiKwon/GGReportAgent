@@ -62,6 +62,13 @@ public interface BidAssignmentMapper {
     int updateRelease(@Param("bidCaseId") String bidCaseId, @Param("empNo") String empNo,
                       @Param("by") String by, @Param("now") String now);
 
+    /** 그 건의 활성 담당자를 한 문장으로 전부 해제(ACTIVE_YN 1→0, RELEASED_BY/AT) — 중단용(N1). 해제한 행 수. */
+    int updateReleaseAll(@Param("bidCaseId") String bidCaseId, @Param("by") String by, @Param("now") String now);
+
+    /** 위 문장이 방금 해제한 행(RELEASED_BY·RELEASED_AT 이 같고 ACTIVE_YN=0) — 같은 트랜잭션에서 다시 읽어 이력을 남긴다. */
+    List<BidAssigneeView> selectReleasedAt(@Param("bidCaseId") String bidCaseId, @Param("by") String by,
+                                           @Param("now") String now);
+
     /** 작성본 인계 이력(HANDOVER) — 해제된 사람→받은 사람 쌍마다 1행. 자료 번호는 남기지 않는다(존재 은닉). */
     int insertHandoverLog(@Param("bidCaseId") String bidCaseId, @Param("toEmpNo") String toEmpNo,
                           @Param("fromEmpNo") String fromEmpNo, @Param("reqId") Long reqId,
