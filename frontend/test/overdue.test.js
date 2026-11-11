@@ -92,37 +92,38 @@ function loadInstitutions() {
   return JSON.parse(JSON.stringify(sandbox.window.institutions));
 }
 
-test('날짜 의미 확인 중 15기관 키가 실제 데이터의 region+name과 모두 맞는다', function () {
-  assert.strictEqual(logic.OVERDUE_CHECK_KEYS.length, 15);
+test('날짜 의미 확인 중 7기관 키가 실제 데이터의 region+name과 모두 맞는다', function () {
+  // 2026-11-11: 회차 종료 8곳을 lastBid로 옮겨 15 → 7(NEXT 30-1)
+  assert.strictEqual(logic.OVERDUE_CHECK_KEYS.length, 7);
   const keys = new Set(loadInstitutions().map(logic.instKey));
   logic.OVERDUE_CHECK_KEYS.forEach(function (k) { assert.ok(keys.has(k), '데이터에 없는 키: ' + k); });
 });
 
 test('확인 중 기관은 check 표식이 붙고 경과 건수에는 포함된다', function () {
-  const list = [rec('포항시청', '47', '2026-07-30'), rec('성북구청', '11', '2026-10-27', { confirmed: false })];
+  const list = [rec('영천시청', '47', '2026-07-30'), rec('성북구청', '11', '2026-10-27', { confirmed: false })];
   const s = logic.overdueSummary(list, TODAY);
   assert.strictEqual(s.items.length, 2);
   const byName = {};
   s.items.forEach(function (i) { byName[i.name] = i; });
-  assert.strictEqual(byName['포항시청'].check, true);
-  assert.strictEqual(byName['포항시청'].kind, 'check');
+  assert.strictEqual(byName['영천시청'].check, true);
+  assert.strictEqual(byName['영천시청'].kind, 'check');
   assert.strictEqual(byName['성북구청'].check, false);
   // 같은 이름이라도 지역이 다르면 확인 중이 아니다(region+name 키)
-  assert.strictEqual(logic.isDateUnderReview(rec('포항시청', '11', '2026-07-30')), false);
+  assert.strictEqual(logic.isDateUnderReview(rec('영천시청', '11', '2026-07-30')), false);
 });
 
 test('pickTopOverdue: 관심 지역 먼저, 최근에 지난 순, 확인 중은 맨 뒤', function () {
   const items = logic.overdueSummary([
     rec('가', '11', '2026-11-08'),                     // D+1, 관심 아님
     rec('나', '42', '2026-10-01'),                     // D+39, 관심
-    rec('포항시청', '47', '2026-11-07'),               // D+2, 확인 중(관심 아님)
+    rec('영천시청', '47', '2026-11-07'),               // D+2, 확인 중(관심 아님)
     rec('다', '42', '2026-11-01'),                     // D+8, 관심
-    rec('춘천시청', '42', '2026-11-06'),               // D+3, 관심이지만 확인 중
+    rec('삼척시청', '42', '2026-11-06'),               // D+3, 관심이지만 확인 중
     rec('라', '41', '2026-11-03'),                     // D+6
   ], TODAY).items;
   const top = logic.pickTopOverdue(items, ['42'], 5).map(function (i) { return i.name; });
-  // 확인 중이 아닌 건: 관심(다 D+8, 나 D+39) → 그 외(가 D+1, 라 D+6). 그 뒤에 확인 중(춘천 D+3, 포항 D+2) 중 관심 먼저.
-  assert.deepStrictEqual(top, ['다', '나', '가', '라', '춘천시청']);
+  // 확인 중이 아닌 건: 관심(다 D+8, 나 D+39) → 그 외(가 D+1, 라 D+6). 그 뒤에 확인 중(삼척 D+3, 영천 D+2) 중 관심 먼저.
+  assert.deepStrictEqual(top, ['다', '나', '가', '라', '삼척시청']);
   // n을 줄이면 확인 중은 밀려난다
   assert.deepStrictEqual(logic.pickTopOverdue(items, ['42'], 4).map(function (i) { return i.name; }), ['다', '나', '가', '라']);
   // 입력을 바꾸지 않는다
@@ -299,12 +300,12 @@ test('itemHtml: D+n 도장, 스크린리더 문장, 기관명 이스케이프', 
 
 test('confHtml: 확인 중은 확정·추정 표식을 대신하고, 추정 근거는 title로 준다', function () {
   const s = logic.overdueSummary([
-    rec('포항시청', '47', '2026-07-30'),
+    rec('영천시청', '47', '2026-07-30'),
     rec('추정건', '41', null, { contractEnd: undefined, confirmed: false, lastBid: '2022-10-20', term: 4 }),
   ], TODAY);
   const byName = {};
   s.items.forEach(function (i) { byName[i.name] = i; });
-  const chk = ov.confHtml(byName['포항시청']);
+  const chk = ov.confHtml(byName['영천시청']);
   assert.ok(chk.includes('is-check') && chk.includes('날짜 의미 확인 중'));
   assert.ok(!chk.includes('확정') && !chk.includes('>추정<'));
   const est = ov.confHtml(byName['추정건']);

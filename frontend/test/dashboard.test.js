@@ -60,13 +60,13 @@ test('확정·확인 중·자료 수정 집계', function () {
   const list = [
     rec('가', '11', 50, { updatedAt: '2026-11-01T10:00:00' }),
     rec('나', '11', 60, { confirmed: false, updatedAt: '2026-11-09' }),
-    rec('강남구청', '11', 70),                                // 날짜 의미 확인 중 15곳 중 하나
+    rec('관악구청', '11', 70),                                // 날짜 의미 확인 중 7곳 중 하나
   ];
   const m = dash.model(list, TODAY);
   assert.strictEqual(m.confirmedN, 2);
   assert.strictEqual(m.underReviewN, 1);
   assert.strictEqual(m.maxUpdated, '2026-11-09');
-  const chk = m.upcoming.filter(function (u) { return u.name === '강남구청'; })[0];
+  const chk = m.upcoming.filter(function (u) { return u.name === '관악구청'; })[0];
   assert.strictEqual(chk.check, true);
   assert.ok(dash.rowHtml(chk, { id: 'x' }).indexOf('날짜 의미 확인 중') >= 0);
 });
