@@ -104,6 +104,44 @@ def _validate_record(record, index: int, batch_dir: Path, seen: set[str]) -> lis
 
     for attachment in record.get("attachments") or []:
         errors.extend(_validate_attachment(attachment, where, batch_dir))
+    errors.extend(_validate_notice_candidate(record, where))
+    return errors
+
+
+# NEXT 80 — notice(공고 사실)·candidate(기관 일정 '후보')는 선택 칸이다(schema_version 1 유지).
+# 있으면 형식을 지켜야 하고, 후보의 모든 값은 근거 문장(basis)을 가져야 한다.
+NOTICE_KINDS = ("계획", "재공고", "결과", "지정", "기타")
+CANDIDATE_DATE_KEYS = ("contract_start", "contract_end", "last_bid", "notice_at", "deadline_at")
+
+
+def _validate_notice_candidate(record: dict, where: str) -> list[str]:
+    errors: list[str] = []
+    notice = record.get("notice")
+    if notice is not None:
+        if not isinstance(notice, dict):
+            errors.append(f"{where}.notice: 객체가 아닙니다")
+        elif notice.get("kind") is not None and notice["kind"] not in NOTICE_KINDS:
+            errors.append(f"{where}.notice.kind: 허용값이 아닙니다 ({notice['kind']!r})")
+    cand = record.get("candidate")
+    if cand is None:
+        return errors
+    if not isinstance(cand, dict):
+        return errors + [f"{where}.candidate: 객체가 아닙니다"]
+    if cand.get("status") != "후보":
+        errors.append(f"{where}.candidate.status: '후보'여야 합니다 ({cand.get('status')!r})")
+    fields = cand.get("fields")
+    basis = cand.get("basis")
+    if not isinstance(fields, dict) or not isinstance(basis, list):
+        return errors + [f"{where}.candidate: fields(객체)·basis(배열)가 필요합니다"]
+    for key in CANDIDATE_DATE_KEYS:
+        if key in fields and not DATE_RE.match(str(fields[key])):
+            errors.append(f"{where}.candidate.fields.{key}: YYYY-MM-DD가 아닙니다 ({fields[key]!r})")
+    if "term" in fields and not (isinstance(fields["term"], int) and fields["term"] > 0):
+        errors.append(f"{where}.candidate.fields.term: 양의 정수여야 합니다")
+    based = {b.get("field") for b in basis if isinstance(b, dict) and isinstance(b.get("text"), str)}
+    for key in fields:
+        if key not in based:
+            errors.append(f"{where}.candidate.fields.{key}: basis(근거)가 없습니다")
     return errors
 
 

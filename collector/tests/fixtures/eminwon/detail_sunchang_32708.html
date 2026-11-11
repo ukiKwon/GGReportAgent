@@ -1,0 +1,331 @@
+﻿
+
+
+
+
+
+
+
+
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="ko" xml:lang="ko">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>순창고시공고</title>
+<style>
+<!--
+/*base*/
+div, p, ul, ol, li, img, a, table, td, th, tr, h1, h2, h3, h4, h5, h6, form, input, span, iframe, dl, dt, dd, caption  {margin:0;padding:0;border:none;}
+table{border-collapse:collapse; vertical-align:top;font-size:100%;}
+img{border: 0 none;}
+
+a {text-decoration:none;color:#222;border:none;margin:0;padding:0;}
+a:visited {text-decoration:none;border:none;}
+a:active {text-decoration:none;border:none;}
+a:hover {text-decoration:none;border:none;}
+
+	
+fieldset{border:none;margin:0; padding:0;}
+img, input.image {border:0 none;}
+form, input{margin:0;padding:0;}
+legend{display:none; margin:0; padding:0;}
+caption{display:none;}
+ul,ol,li {list-style:none;}
+select{font-size:0.95em;}
+textarea{font-size:12px;margin:0;padding:0;}
+label{position:absolute;left:-1000px;}
+
+hr{visibility:hidden;overflow:hidden;position:absolute;width:0;height:0;font-size:0;line-height:0;}
+td *, div *, span *, p * {  vertical-align: top;}
+
+/* common */
+.bbs .empty {height:200px;}
+.bbs th					{ font-size: 12px; line-height:1em; }
+.bbs select					{ font-size: 12px; line-height:1em; }
+.bbs fieldset				{ border:none; }
+.bbs table caption, .bbs fieldset legend		{ display:none; }
+
+/* align */
+.tal, .tal td, .tal li, .tal dd	{ text-align:left; }
+.tac, .tac td, .tac li, .tac dd	{ text-align:center; }
+.tar, .tar td, .tar li, .tar dd	{ text-align:right; }
+
+/*#bbs_search_obj*/
+.bbs	{ position:relative; width:100%; overflow:hidden; }
+
+/* list > articles_info */
+.bbs .articles_info						{ width:100%; height:16px; margin-top:15px; clear:both; }
+.bbs .articles_info dl				{ font-size:0.91em; float:right; }
+.bbs .articles_info dl dt			{ float:left; }
+.bbs .articles_info dl dd			{ margin:0 10px 0 5px; color:#ff6600; font-weight:bold; float:left; }
+.bbs * {line-height:2.0em;font-size:13px;}
+/* list > selcat */
+.def {width:100%;}
+/*.def {width:100%;position:none;}*/
+.bbs .selcat					{ position:relative; width:100%; height:54px; margin-top:15px; background:url("http://www.sunchang.go.kr/images/common_bbs/selcat_bg.gif") no-repeat 50% 0; clear:both; }
+.bbs .selcat legend		{ display:none;}
+.bbs .selcat .desc		{ display:none;}
+.bbs .selcat strong		{ position:absolute; left:370px; top:20px;}
+.bbs .selcat select		{ position:absolute; left:440px; top:21px; width:115px; }
+.bbs .selcat .submitbtn		{ position:absolute; left:560px; top:20px; padding:0; border:none; }
+
+
+/**********************************************************************
+@bbs list
+**********************************************************************/
+/* list > bbs_list */
+.bbs .bbs_list			{ width:100%; margin-top:5px; text-align:center; background-position:0 0; background-repeat:repeat-x; }
+.bbs .bbs_list th, .bbs .bbs_list td   { padding:0px 0; }
+.bbs .bbs_list thead th   { color:#333; background-position:100% 0; background-repeat:no-repeat; }
+
+
+/**********************************************************************
+@bbs view
+**********************************************************************/
+/* view > bbs_view */
+.bbs .bbs_view      { width:100%; margin-top:5px; background-position:0 0; background-repeat:repeat-x; }
+.bbs .bbs_view thead th   { color:#333; background-position:100% 0; background-repeat:no-repeat; }
+.bbs .bbs_view h4   { padding:1px 0 0 0; margin:0; font-size:1em; line-height:1em; background:none; color:#333;}
+.bbs .bbs_view h5   { padding:1px 0 0 0; margin:0; font-size:1em; line-height:1em; background:none; }
+.bbs .bbs_view th, .bbs .bbs_view td   { padding:0 10px 0px 10px; }
+.bbs .bbs_view th		{ width:17%;height:28px; }
+.bbs_list_type1 .bbs_view tbody th   { background:#f9f9f7; vertical-align:middle;border: 1px solid #d9d9d9;}
+.bbs_list_type1 .bbs_view tbody td   { border: 1px solid #d9d9d9; background:white;vertical-align:middle;font-size:14px;}
+
+/* view > bbs_view > type_horizontal */
+.type_horizontal tbody th   { padding:10px; background:#f3fbfe; }
+.type_horizontal tbody td   { padding:10px; }
+
+/* write */
+.bbs .bbs_write      { width:100%; margin-top:5px; }
+.bbs .bbs_write th, .bbs .bbs_write td   { padding:10px; }
+.bbs .bbs_write th		{ width:15%; color:#333; }
+.bbs .bbs_write textarea	{ width:100%; height:350px; }
+.bbs .bbs_write #upfile1	{ width:100%; height:20px; }
+.bbs .bbs_write #subject	{ width:100%; }
+
+
+/**********************************************************************
+@paging
+**********************************************************************/
+/* list > paging */
+.bbs .paging		{ position:relative; width:100%; text-align:center; padding:10px; clear:both; }
+.bbs .paging a	{ padding:0 3px; }
+.bbs .paging img	{ margin-bottom:-4px; }
+.bbs .paging .current_page	{ font-size:1.2em; }
+
+
+/**********************************************************************
+@bbs footer
+**********************************************************************/
+.bbsfooter	{ padding-top:5px; border-top: 1px solid #ccc; }
+/* list > bbsfooter > search */
+.bbsfooter .articles_search	{ position:relative; width:270px; height:20px; float:left; }
+.bbsfooter .articles_search_full	{ left:200px; }
+.bbsfooter .articles_search .layout_select		{ position:absolute; left:0; top:0; width:60px; height:20px; }
+.bbsfooter .articles_search .layout_input		{ position:absolute; left:65px; top:0; width:145px; height:20px; border:solid 1px #ccc }
+.bbsfooter .articles_search .layout_btn			{ position:absolute; left:215px; top:0; }
+
+
+/* list > bbsfooter > bbs_btn */
+.bbsfooter .bbsbtn		{ position:relative; text-align:right; /*white-space:nowrap;*/ float:right; }
+.bbsfooter .bbsbtn img		{ border:0px; }
+
+
+/* type1 *************************************************************/
+/* list > bbs_list_type1 > bbs_list */
+.bbs_list_type1 table {padding:0px;border:0px;border-collapse:collapse;}
+.bbs_list_type1 .bbs_list   { background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_bgl.gif"); }
+.bbs_list_type1 .bbs_list thead th   { height:32px; background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_line.gif"); background-position:100% 0px;background-repeat:no-repeat;vertical-align:middle;}
+.bbs_list_type1 .bbs_list thead th.last   { background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_bgr.gif"); }
+.bbs_list_type1 .bbs_list tbody td, .bbs_list_type1 tbody th   { border-bottom: 1px solid #d9d9d9; }
+.bbs_list_type1 .bbs_list tbody tr.even td, .bbs_list_type1 tbody tr.even th   { background-color:#f9f9f7; }
+.bbs_list_type1 .bbs_list tbody td{padding:0 5px;}
+.bbs_list_type1 .bbs_list tbody td a:hover{text-decoration:underline;}
+
+/* list > bbs_list_type1 > bbs_view */
+.bbs_list_type1 .bbs_view   { background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_bgl.gif"); border-top:solid 2px #ccc;}
+.bbs_list_type1 .bbs_view thead th   { height:32px; background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_bgr.gif"); vertical-align:middle; }
+.bbs_list_type1 .bbs_view thead td   { background:white;vertical-align:middle; }
+.bbs_list_type1 .bbs_view tbody th   { background:#f9f9f7; vertical-align:middle;border-bottom: 1px solid #d9d9d9;}
+.bbs_list_type1 .bbs_view tbody td   { border-bottom: 1px solid #d9d9d9; background:white;vertical-align:middle; }
+
+
+
+
+/* type4 *************************************************************/
+/* list > bbs_list_down > bbs_list */
+.bbs_list_down .bbs_list   { background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_bgl.gif"); }
+.bbs_list_down .bbs_list thead th   { height:32px; background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_line.gif"); }
+.bbs_list_down .bbs_list thead th.last   { background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_bgr.gif"); }
+.bbs_list_down .bbs_list tbody td, .bbs_list_down tbody th   { border-bottom: 1px solid #d9d9d9; }
+.bbs_list_down .bbs_list tbody tr.even td, .bbs_list_down tbody tr.even th   { background-color:#f9f9f7; }
+
+
+/**********************************************************************
+@list def
+**********************************************************************/
+
+
+
+/*Media Print CSS */
+@media print {
+*{color:black !important; background:white !important;}
+body {font-size:10pt;}
+
+#sidearea,#sidearea h2,
+#toparea,
+#charge,
+#copyright,
+#pagetitle,
+#sidequicksite,
+#quick_top,
+#sidebanner,
+#sidequickpage,
+#sidemenu,
+#ci,
+#footer_area {display: none;}
+
+#pagefooter{margin-left:auto;margin-right:auto;}
+
+#body_bg,
+#container {background-image:none;}
+}
+-->
+</style>
+
+<link rel="stylesheet" href="/emwp/css/ofr/PlnOfrStyle.css" type="text/css">
+<script type="text/javascript" src="/emwp/js/cmm/jsp/calendar.js"></script>
+<script type="text/javascript" src="/emwp/js/cmm/jsp/common.js"></script> 
+
+<SCRIPT LANGUAGE="JavaScript">
+//-------------------------------------------------------------------
+// 설명   : 고시공고 목록 조회
+//-------------------------------------------------------------------	
+
+	var stat;
+	function goPage(){
+		var f = document.form1;
+ 
+		f.target = "_self";
+		f.action = "/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do";	
+		f.method.value   = 'selectListOfrNotAncmt'; //Action
+		f.methodnm.value = 'selectListOfrNotAncmtHomepage';
+		f.submit();	
+	}
+//-------------------------------------------------------------------
+// 설명   : 고시공고 첨부파일 다운로드
+//-------------------------------------------------------------------
+	function goDownLoad(de_user_file_nm, de_sys_file_nm, de_file_path){
+		var enc_de_user_file_nm = encodeURI(de_user_file_nm);
+		var enc_de_sys_file_nm = encodeURI(de_sys_file_nm);
+		var enc_de_file_path = encodeURI(de_file_path);
+
+//(2011.08.02)수정 전:	location.href="/emwp/jsp/ofr/FileDown.jsp?user_file_nm="+enc_de_user_file_nm+"&sys_file_nm="+enc_de_sys_file_nm+"&file_path="+enc_de_file_path;
+
+//(2011.08.02)수정부분1 시작
+		if(document.getElementById("hidden_frame").readyState != "loading"){
+			hidden_frame.document.location.href="/emwp/jsp/ofr/FileDown.jsp?user_file_nm="+enc_de_user_file_nm+"&sys_file_nm="+enc_de_sys_file_nm+"&file_path="+enc_de_file_path;
+			hidden_frame.focus();
+		} else {
+			alert("처리중입니다.");
+		}
+//(2011.08.02)수정부분1 종료
+//(2011.08.02)수정부분2 가장 하단의 <iframe name="hidden_frame" ...></iframe> 부분을 반드시 추가해야합니다.		
+	}
+
+</SCRIPT>
+
+
+</head>
+
+<form name="form1" method="post">
+<input type="hidden" name="jndinm" value="OfrNotAncmtEJB">
+<input type="hidden" name="context" value="NTIS">
+<input type="hidden" name="method"  value="selectOfrNotAncmt">
+<input type="hidden" name="methodnm" value="selectOfrNotAncmtRegst">
+<input type="hidden" name="not_ancmt_sj" value="">
+<input type="hidden" name="pageIndex" value='1'>
+<input type="hidden" name="ofr_pageSize" value="10">
+<input type="hidden" name="homepage_pbs_yn" value="Y">
+<!-- 시군구 페이지에 맞게 커스터마이징 된 JSP페이지 여부(Y/N) 설정 반드시 해줘야 함. -->
+<input type="hidden" name="subCheck" value="Y">
+<input type="hidden" name="not_ancmt_se_code" value="01,02,03,04,05,06,07">
+<input type="hidden" name="cha_dep_code_nm" value="">
+<input type="hidden" name="countYn" value="Y">
+<input type="hidden" name="list_gubun" value="">
+<!-- 시작 검색년도 넣기-->
+<input type="hidden" name="yyyy" value="">
+
+<body>
+<!-- bbs S -->
+<div class="bbs bbs_list_type1">
+ 
+	<!-- bbs_view S -->
+	<table class="bbs_view" summary=" 고시/공고/입법예고의  게시물 세부 내용 입니다.">  
+	
+		<caption>고시/공고/입법예고의  게시물 세부 내용</caption>
+ 
+		<tbody>
+			<tr>
+				<th scope="row">고시공고구분</th>
+				<td>공고(일반공고)</td>
+				<th scope="row">게재번호</th>
+				<td></td>
+			</tr>
+			<tr>
+				<th scope="row">고시공고번호</th>
+				<td>순창군 공고 제2026-934호</td>
+				<th scope="row">등록일</th>
+				<td>2026-09-16</td>
+			</tr>
+			<tr>
+				<th scope="row">제목</th>
+				<td>순창군 금고지정 공고</td>
+                <th scope="row">담당부서</th>
+				<td>재무과</td>
+			</tr>
+ 
+			<tr>			
+				<td colspan="4" class="tal">
+					『순창군&nbsp;금고지정&nbsp;및&nbsp;운영조례』제9조&nbsp;제1항의&nbsp;규정에&nbsp;의거하여&nbsp;순창군&nbsp;금고지정&nbsp;결과를&nbsp;붙임과&nbsp;같이&nbsp;공고합니다.
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">첨부파일</th>
+				<td colspan="3">
+				
+								
+		             <a href="javascript:goDownLoad('순창군 금고 지정 공고.hwpx','순창군 금고 지정 공고_ofr_ofr_j6NNUYk6qToB_gHM_20260916165906234_1.hwpx','/ntishome/file/upload/ofr/ofr/20260916')">순창군 금고 지정 공고.hwpx</a><br>
+			
+
+
+
+				</td>
+			</tr>
+		</tbody>
+	</table>
+	<!-- bbs_view E -->
+ 
+	<!-- bbsfooter S -->
+	<div class="bbsfooter">
+ 
+		<!-- bbsbtn s -->
+		<div class="bbsbtn">
+			<a href="javaScript:goPage()"><img src="http://www.sunchang.go.kr/rfc/board/images/basic/icon_list.gif" alt="목록"/></a>
+		</div>
+		<!-- bbsbtn E -->
+ 
+	</div>
+	<!-- bbsfooter E -->
+ 
+</div><iframe name="hidden_frame" id="hidden_frame" height="0" width="0" marginHeight=0 marginWidth=0 frameborder=0 src=""></iframe>
+
+<!-- bbs E -->
+</form>
+
+</body>
+</html>

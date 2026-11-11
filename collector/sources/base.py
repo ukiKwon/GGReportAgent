@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Protocol, runtime_checkable
+from pathlib import Path
+from typing import Iterator, Protocol, runtime_checkable
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 SLUG_RE = re.compile(r"^[a-z0-9-]+$")
@@ -40,6 +41,9 @@ class CollectedNotice:
     region_code: str | None = None
     sub_region_code: str | None = None
     attachments: tuple[AttachmentRef, ...] = field(default_factory=tuple)
+    notice_info: dict | None = None   # manifest records[].notice (공고 사실: 종류·번호·호스트·원문 경로)
+    candidate: dict | None = None     # manifest records[].candidate (기관 일정 '후보' — 사람이 확정)
+    evidence_note: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("notice_id", "title", "institution_name_ko", "evidence_url"):
@@ -58,6 +62,58 @@ class Source(Protocol):
     base_url: str
 
     def fetch(self) -> list[CollectedNotice]: ...
+
+
+# ── 증분 소스(NEXT 80): 수집(원문 보관) → 추출(재실행 가능) → 포장을 나눈다 ──────────────
+
+
+@dataclass(frozen=True)
+class NoticeRef:
+    """목록에서 본 공고 한 건(원문 받기 전). 증분 키 = (source, host, number)."""
+    source: str
+    host: str                      # 발행처. eminwon=호스트, 단일 사이트면 ""
+    number: str                    # 공고번호 원문("제2026-1729호"), 없으면 "mgt<id>"
+    title: str
+    detail_url: str
+    posted_at: str | None = None   # YYYY-MM-DD
+    department: str | None = None
+    native_id: str | None = None   # 소스 내부 상세 id(eminwon: not_ancmt_mgt_no)
+
+    @property
+    def key(self) -> str:
+        return f"{self.host}|{self.number}"
+
+
+@dataclass(frozen=True)
+class RawNotice:
+    ref: NoticeRef
+    raw_dir: Path
+    rel: str                       # 원문 루트 기준 상대경로(posix) — state에 기록
+
+
+@dataclass
+class RunReport:
+    hosts_ok: list[str] = field(default_factory=list)
+    hosts_failed: dict[str, str] = field(default_factory=dict)
+
+
+class SeenIndex(Protocol):
+    def is_seen(self, key: str) -> bool: ...
+
+
+@runtime_checkable
+class IncrementalSource(Protocol):
+    """증분 소스. 사이트 차이는 설정(with_config)으로, 판단은 하지 않는다."""
+    slug: str
+    name_ko: str
+    base_url: str
+
+    def with_config(self, **options) -> "IncrementalSource": ...
+    def list_new(self, seen: SeenIndex, since: str | None = None,
+                 report: RunReport | None = None,
+                 hosts: list[str] | None = None) -> Iterator[NoticeRef]: ...
+    def accepts(self, ref: NoticeRef) -> bool: ...
+    def fetch_raw(self, ref: NoticeRef, store) -> RawNotice: ...
 
 
 SOURCES: dict[str, Source] = {}

@@ -1,0 +1,455 @@
+﻿
+
+
+
+
+
+
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="ko" xml:lang="ko">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>순창고시공고</title>
+<style>
+<!--
+/*base*/
+div, p, ul, ol, li, img, a, table, td, th, tr, h1, h2, h3, h4, h5, h6, form, input, span, iframe, dl, dt, dd, caption  {margin:0;padding:0;border:none;}
+table{border-collapse:collapse; vertical-align:top;font-size:100%;}
+img{border: 0 none;}
+
+a {text-decoration:none;color:#222;border:none;margin:0;padding:0;}
+a:visited {text-decoration:none;border:none;}
+a:active {text-decoration:none;border:none;}
+a:hover {text-decoration:none;border:none;}
+
+	
+fieldset{border:none;margin:0; padding:0;}
+img, input.image {border:0 none;}
+form, input{margin:0;padding:0;}
+legend{display:none; margin:0; padding:0;}
+caption{display:none;}
+ul,ol,li {list-style:none;}
+select{font-size:0.95em;}
+textarea{font-size:12px;margin:0;padding:0;}
+label{position:absolute;left:-1000px;}
+
+hr{visibility:hidden;overflow:hidden;position:absolute;width:0;height:0;font-size:0;line-height:0;}
+td *, div *, span *, p * {  vertical-align: top;}
+
+/* common */
+.bbs .empty {height:200px;}
+.bbs th					{ font-size: 12px; line-height:1em; }
+.bbs select					{ font-size: 12px; line-height:1em; }
+.bbs fieldset				{ border:none; }
+.bbs table caption, .bbs fieldset legend		{ display:none; }
+.bbs_top{text-align:right; font-size:11px;}
+
+
+/* align */
+.tal, .tal td, .tal li, .tal dd	{ text-align:left; }
+.tac, .tac td, .tac li, .tac dd	{ text-align:center; }
+.tar, .tar td, .tar li, .tar dd	{ text-align:right; }
+
+/*#bbs_search_obj*/
+.bbs	{ position:relative; width:100%; overflow:hidden; }
+
+/* list > articles_info */
+.bbs .articles_info						{ width:100%; height:16px; margin-top:15px; clear:both; }
+.bbs .articles_info dl				{ font-size:0.91em; float:right; }
+.bbs .articles_info dl dt			{ float:left; }
+.bbs .articles_info dl dd			{ margin:0 10px 0 5px; color:#ff6600; font-weight:bold; float:left; }
+.bbs * {line-height:2.0em;font-size:13px;}
+/* list > selcat */
+.def {width:100%;}
+/*.def {width:100%;position:none;}*/
+.bbs .selcat					{ position:relative; width:100%; height:54px; margin-top:15px; background:url("http://www.sunchang.go.kr/images/common_bbs/selcat_bg.gif") no-repeat 50% 0; clear:both; }
+.bbs .selcat legend		{ display:none;}
+.bbs .selcat .desc		{ display:none;}
+.bbs .selcat strong		{ position:absolute; left:370px; top:20px;}
+.bbs .selcat select		{ position:absolute; left:440px; top:21px; width:115px; }
+.bbs .selcat .submitbtn		{ position:absolute; left:560px; top:20px; padding:0; border:none; }
+
+
+/**********************************************************************
+@bbs list
+**********************************************************************/
+/* list > bbs_list */
+.bbs .bbs_list			{ width:100%; margin-top:5px; text-align:center; background-position:0 0; background-repeat:repeat-x; }
+.bbs .bbs_list th, .bbs .bbs_list td   { padding:0px 0; }
+.bbs .bbs_list thead th   { color:#333; background-position:100% 0; background-repeat:no-repeat; }
+
+
+/**********************************************************************
+@bbs view
+**********************************************************************/
+/* view > bbs_view */
+.bbs .bbs_view      { width:100%; margin-top:5px; background-position:0 0; background-repeat:repeat-x; }
+.bbs .bbs_view thead th   { color:#333; background-position:100% 0; background-repeat:no-repeat; }
+.bbs .bbs_view h4   { padding:1px 0 0 0; margin:0; font-size:1em; line-height:1em; background:none; color:#333;}
+.bbs .bbs_view h5   { padding:1px 0 0 0; margin:0; font-size:1em; line-height:1em; background:none; }
+.bbs .bbs_view th, .bbs .bbs_view td   { padding:0 10px 0px 10px; }
+.bbs .bbs_view th		{ width:17%;height:28px; }
+
+/* view > bbs_view > type_horizontal */
+.type_horizontal tbody th   { padding:10px; background:#f3fbfe; }
+.type_horizontal tbody td   { padding:10px; }
+
+/* write */
+.bbs .bbs_write      { width:100%; margin-top:5px; }
+.bbs .bbs_write th, .bbs .bbs_write td   { padding:10px; }
+.bbs .bbs_write th		{ width:15%; color:#333; }
+.bbs .bbs_write textarea	{ width:100%; height:350px; }
+.bbs .bbs_write #upfile1	{ width:100%; height:20px; }
+.bbs .bbs_write #subject	{ width:100%; }
+
+
+/**********************************************************************
+@paging
+**********************************************************************/
+/* list > paging */
+.bbs .paging		{ position:relative; width:100%; text-align:center; padding:10px; clear:both; }
+.bbs .paging a	{ padding:0 3px; }
+.bbs .paging img	{ margin-bottom:-4px; }
+.bbs .paging .current_page	{ font-size:1.2em; }
+.bbs .paging{ position:relative; width:350px; padding:10px; clear:both; margin:0 auto;}
+
+
+/**********************************************************************
+@bbs footer
+**********************************************************************/
+.bbsfooter	{ padding-top:5px; border-top: 1px solid #ccc; }
+/* list > bbsfooter > search */
+.bbsfooter .articles_search	{ position:relative; width:270px; height:20px; float:left; }
+.bbsfooter .articles_search_full	{ left:200px; }
+.bbsfooter .articles_search .layout_select		{ position:absolute; left:0; top:0; width:60px; height:20px; }
+.bbsfooter .articles_search .layout_input		{ position:absolute; left:65px; top:0; width:145px; height:20px; border:solid 1px #ccc }
+.bbsfooter .articles_search .layout_btn			{ position:absolute; left:215px; top:0; }
+
+
+/* list > bbsfooter > bbs_btn */
+.bbsfooter .bbsbtn		{ position:relative; text-align:right; /*white-space:nowrap;*/ float:right; }
+.bbsfooter .bbsbtn img		{ border:0px; }
+
+
+/* type1 *************************************************************/
+/* list > bbs_list_type1 > bbs_list */
+.bbs_list_type1 table {padding:0px;border:0px;border-collapse:collapse;}
+.bbs_list_type1 .bbs_list   { background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_bgl.gif"); }
+.bbs_list_type1 .bbs_list thead th   { height:32px; background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_line.gif"); background-position:100% 0px;background-repeat:no-repeat;vertical-align:middle;}
+.bbs_list_type1 .bbs_list thead th.last   { background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_bgr.gif"); }
+.bbs_list_type1 .bbs_list tbody td, .bbs_list_type1 tbody th   { border-bottom: 1px solid #d9d9d9; }
+.bbs_list_type1 .bbs_list tbody tr.even td, .bbs_list_type1 tbody tr.even th   { background-color:#f9f9f7; }
+.bbs_list_type1 .bbs_list tbody td{padding:0 5px;}
+.bbs_list_type1 .bbs_list tbody td a:hover{text-decoration:underline;}
+
+/* list > bbs_list_type1 > bbs_view */
+.bbs_list_type1 .bbs_view   { background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_bgl.gif"); }
+.bbs_list_type1 .bbs_view thead th   { height:32px; background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_bgr.gif"); }
+.bbs_list_type1 .bbs_view tbody th   { background:#f9f9f7; }
+.bbs_list_type1 .bbs_view thead td   { background:white; }
+.bbs_list_type1 .bbs_view tbody th, .bbs_list_type1 .bbs_view tbody td   { border-bottom: 1px solid #d9d9d9; }
+
+
+/* list > bbs_list_type1 > bbs_write */
+.bbs_list_type1 .bbs_write      { border-top: 2px solid #d9d9d9; }
+.bbs_list_type1 .bbs_write tbody th   { border-bottom: 1px solid #d9d9d9; background:#f9f9f7; }
+.bbs_list_type1 .bbs_write tbody td   { border-bottom: 1px solid #d9d9d9; }
+
+
+
+/* type4 *************************************************************/
+/* list > bbs_list_down > bbs_list */
+.bbs_list_down .bbs_list   { background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_bgl.gif"); }
+.bbs_list_down .bbs_list thead th   { height:32px; background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_line.gif"); }
+.bbs_list_down .bbs_list thead th.last   { background-image:url("http://www.sunchang.go.kr/images/common_bbs/type1/thead_bgr.gif"); }
+.bbs_list_down .bbs_list tbody td, .bbs_list_down tbody th   { border-bottom: 1px solid #d9d9d9; }
+.bbs_list_down .bbs_list tbody tr.even td, .bbs_list_down tbody tr.even th   { background-color:#f9f9f7; }
+
+
+/**********************************************************************
+@list def
+**********************************************************************/
+
+
+
+/*Media Print CSS */
+@media print {
+*{color:black !important; background:white !important;}
+body {font-size:10pt;}
+
+#sidearea,#sidearea h2,
+#toparea,
+#charge,
+#copyright,
+#pagetitle,
+#sidequicksite,
+#quick_top,
+#sidebanner,
+#sidequickpage,
+#sidemenu,
+#ci,
+#footer_area {display: none;}
+
+#pagefooter{margin-left:auto;margin-right:auto;}
+
+#body_bg,
+#container {background-image:none;}
+}
+-->
+</style>
+
+<script type="text/javascript" src="/emwp/js/cmm/jsp/calendar.js"></script>
+<script type="text/javascript" src="/emwp/js/cmm/jsp/common.js"></script> 
+<script type="text/javascript" src="/emwp/js/common.js"></script>
+
+
+</head>
+
+<script language="javascript" >	
+//-------------------------------------------------------------------
+// 설명   : 초기화
+//-------------------------------------------------------------------
+	function init() {
+		var f = document.form1;
+		var ck = 'gov.mogaha.ntis.cmm.util.Page@471105a1';
+		if(ck=="null"){
+			srchList();
+		}
+		
+	}
+//-------------------------------------------------------------------
+// 설명   : 고시공고 목록 조회
+//-------------------------------------------------------------------	
+	function search(){
+		var f = document.form1;
+		var key = f.Key.value;
+		
+		if( key == 'B_Subject'){
+			f.not_ancmt_sj.value = f.temp.value; 
+		}else if( key == 'B_Content'){
+			f.not_ancmt_cn.value = f.temp.value;   
+		}else if( key == 'B_Dept'){
+			f.dept_nm.value = f.temp.value;
+		}
+
+ 
+		f.target = "_self";
+		f.action = "/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do";	
+		f.method.value   = 'selectListOfrNotAncmt'; //Action
+		f.methodnm.value = 'selectListOfrNotAncmtHomepage';
+		f.submit();	
+	}			
+//-------------------------------------------------------------------
+// 설명   : 검색버튼 클릭시 페이지정보 초기화 하고 조회
+//-------------------------------------------------------------------
+	function srchList(){
+		 document.form1.pageIndex.value="";    //페이지 인덱스 초기화
+		 search();
+	}
+//-------------------------------------------------------------------
+// 설명   : 페이지 이동시 조회
+//-------------------------------------------------------------------
+	function goPage() {
+		
+		search();
+	}
+//-------------------------------------------------------------------
+// 설명   : 고시공고 상세내용 조회
+//-------------------------------------------------------------------		
+	function searchDetail(not_ancmt_mgt_no) {
+		var f = document.form1;
+		f.not_ancmt_mgt_no.value = not_ancmt_mgt_no ;
+		f.target = "_self";
+		f.action = "/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do";	
+		f.method.value   = 'selectOfrNotAncmt'; //Action
+		f.methodnm.value = 'selectOfrNotAncmtRegst';
+		f.submit();		    
+		
+	}
+//-------------------------------------------------------------------
+// 설명   : 엔터 눌렀을 때, 검색버튼 클릭시와 같은 기능 
+//-------------------------------------------------------------------
+	function enterKey(){
+		var key = event.keyCode; 
+		if( key == 13 ){ 
+			srchList();
+		}
+	}  
+</script>
+
+
+<body leftmargin="0" topmargin="0" onLoad="javascript:init()">
+
+
+<form name="form1" method="post" onsubmit="return false;">
+<input type="hidden" name="pageIndex" value='1'>
+<input type="hidden" name="jndinm"  value="OfrNotAncmtEJB">
+<input type="hidden" name="context" value="NTIS">
+<input type="hidden" name="method"  value="">
+<input type="hidden" name="methodnm" value="">
+<input type="hidden" name="not_ancmt_mgt_no" value="">
+<input type="hidden" name="homepage_pbs_yn" value="Y">
+<!-- 시군구 페이지에 맞게 커스터마이징 된 JSP페이지 여부(Y/N) 설정 반드시 해줘야 함. -->
+<input type="hidden" name="subCheck" value="Y">
+<input type="hidden" name="ofr_pageSize" value="20">
+<input type="hidden" name="not_ancmt_se_code" value="01,02,03,04,05,06,07">
+<input type="hidden" name="title" value="고시공고">
+<input type="hidden" name="cha_dep_code_nm" value="">
+<input type="hidden" name="initValue"  value="Y">
+<input type="hidden" name="countYn" value="Y">
+<input type="hidden" name="list_gubun" value="A">
+<input type="hidden" name="not_ancmt_sj" value="">
+<input type="hidden" name="not_ancmt_cn" value="">
+<input type="hidden" name="dept_nm" value="">
+<!-- 시작 검색년도 넣기-->
+<input type="hidden" name="yyyy" value="">
+
+
+
+
+<!-- bbs S -->
+<p class="bbs_top">전체게시물:5개 페이지:1/1</p>
+<div class="bbs bbs_list_type1">
+  <!-- bbs_list S -->
+  <table summary="순창군 통합알림 게시물 리스트입니다." class="bbs_list list_def">
+    <caption>
+    고시/공고/입법예고
+    </caption>
+    <colgroup>
+    	<col width="8%" />
+        <col width="18%" />
+        <col width="40%" />
+        <col width="8%" />
+        <col width="10%" />
+        <col width="12%" />
+        <col width="8%" />
+    </colgroup>
+    <thead>
+      <tr>
+        <th scope="col">번호</th>
+        <th scope="col">고시공고번호</th>
+        <th scope="col">제목</th>
+        <th scope="col">담당부서</th>
+        <th scope="col">등록일</th>
+        <th scope="col">게재기간</th>
+        <th scope="col" class="last">조회수</th>
+      </tr>
+    </thead>
+    <tbody>
+	
+
+      <tr class="even">
+	
+        <td scope="row"><a href="#" onclick="javaScript:searchDetail('32708')">5</a></td>
+        <td scope="row"><a href="#" onclick="javaScript:searchDetail('32708')">순창군 공고 제2026-934호</a></td>
+        <td class="tal"><a href="#" onclick="javaScript:searchDetail('32708')">순창군 금고지정 공고</a></td>
+        <td ><a href="#" onclick="javaScript:searchDetail('32708')">재무과</a></td>
+        <td><a href="#" onclick="javaScript:searchDetail('32708')">2026-09-16</a></td>
+        <td><a href="#" onclick="javaScript:searchDetail('32708')"></a></td>
+        <td><a href="#" onclick="javaScript:searchDetail('32708')">22</a></td>
+      </tr>
+		
+	  <tr class="odd">
+    
+        <td scope="row"><a href="#" onclick="javaScript:searchDetail('16848')">4</a></td>
+        <td scope="row"><a href="#" onclick="javaScript:searchDetail('16848')">순창군 공고 제2017-685호</a></td>
+        <td class="tal"><a href="#" onclick="javaScript:searchDetail('16848')">순창군 금고 협력사업비 공고</a></td>
+        <td ><a href="#" onclick="javaScript:searchDetail('16848')">재무과</a></td>
+        <td><a href="#" onclick="javaScript:searchDetail('16848')">2017-11-30</a></td>
+        <td><a href="#" onclick="javaScript:searchDetail('16848')"></a></td>
+        <td><a href="#" onclick="javaScript:searchDetail('16848')">85</a></td>
+      </tr>
+		
+
+      <tr class="even">
+	
+        <td scope="row"><a href="#" onclick="javaScript:searchDetail('16768')">3</a></td>
+        <td scope="row"><a href="#" onclick="javaScript:searchDetail('16768')">순창군 공고 제2017-632호</a></td>
+        <td class="tal"><a href="#" onclick="javaScript:searchDetail('16768')">순창군 금고지정 공고</a></td>
+        <td ><a href="#" onclick="javaScript:searchDetail('16768')">재무과</a></td>
+        <td><a href="#" onclick="javaScript:searchDetail('16768')">2017-10-31</a></td>
+        <td><a href="#" onclick="javaScript:searchDetail('16768')"></a></td>
+        <td><a href="#" onclick="javaScript:searchDetail('16768')">91</a></td>
+      </tr>
+		
+	  <tr class="odd">
+    
+        <td scope="row"><a href="#" onclick="javaScript:searchDetail('14491')">2</a></td>
+        <td scope="row"><a href="#" onclick="javaScript:searchDetail('14491')">순창군 공고 제2015-745호</a></td>
+        <td class="tal"><a href="#" onclick="javaScript:searchDetail('14491')">순창군 금고지정 공고</a></td>
+        <td ><a href="#" onclick="javaScript:searchDetail('14491')">재무과</a></td>
+        <td><a href="#" onclick="javaScript:searchDetail('14491')">2015-11-20</a></td>
+        <td><a href="#" onclick="javaScript:searchDetail('14491')"></a></td>
+        <td><a href="#" onclick="javaScript:searchDetail('14491')">147</a></td>
+      </tr>
+		
+
+      <tr class="even">
+	
+        <td scope="row"><a href="#" onclick="javaScript:searchDetail('12345')">1</a></td>
+        <td scope="row"><a href="#" onclick="javaScript:searchDetail('12345')">순창군 공고 제2013-804호</a></td>
+        <td class="tal"><a href="#" onclick="javaScript:searchDetail('12345')">순창군 금고지정 결과 공고</a></td>
+        <td ><a href="#" onclick="javaScript:searchDetail('12345')">재무과</a></td>
+        <td><a href="#" onclick="javaScript:searchDetail('12345')">2013-11-19</a></td>
+        <td><a href="#" onclick="javaScript:searchDetail('12345')"></a></td>
+        <td><a href="#" onclick="javaScript:searchDetail('12345')">139</a></td>
+      </tr>
+		
+
+
+    </tbody>
+  </table>
+  <!--게시판  목록 출력 끝-->
+  <!-- paging S -->
+  <div class="paging" >
+  
+					  		<table border='0' cellspacing='0' cellpadding='0'>
+<tr>
+	<td><img src='/emwp/img/icon/icon_prevend.gif' width='13' height='13' border='0' alt='첫 페이지로 이동' ></td>
+	<td width='3'></td>
+	<td width='28'><img src='/emwp/img/icon/icon_prev.gif' border='0' alt='이전 페이지로 이동' ></td>
+	<td>
+		<span class='page_no'><font><b>1</b></font></span>
+	</td>
+	<td width='28' align='right'><img src='/emwp/img/icon/icon_next.gif' border='0' alt='다음 페이지로 이동' ></td>
+	<td width='3'></td>
+	<td width='20' ><img src='/emwp/img/icon/icon_nextend.gif' width='13' height='13' border='0' alt='마지막 페이지로 이동' ></td></tr>
+</table>
+
+  
+  </div>
+  <!-- paging E -->
+  <!-- bbsfooter S -->
+  <div class="bbsfooter">
+    <!-- articles_search s -->
+    <fieldset class="articles_search">
+    <legend>게시물 검색</legend>
+    <form action="">
+      <label for="Key" class="desc">검색 필드</label>
+     <select name="Key" id="Key" title="검색조건">
+					<option value="B_Subject"   >제 목</option>
+					<option value="B_Content"   >내 용</option>
+					<option value="B_Dept"   >담당부서</option>
+
+				</select>
+
+      <label for="keyword" class="desc">검색어 입력</label>
+      <input type=text id="temp" name="temp" value="" title="검색내용" onkeyPress="javascript:enterKey()" class="layout_input">
+      <a href="#" onclick="javascript:srchList();"><img src="http://www.sunchang.go.kr/images/common_bbs/search.gif" alt="글검색" class="layout_btn"></a>
+    </form>
+    </fieldset>
+    <!-- articles_search E -->
+    <!-- bbsbtn s -->
+    
+    <!-- bbsbtn E -->
+  </div>
+  <!-- bbsfooter E -->
+</div>
+</form>
+
+<!-- bbs E -->
+</body>
+</html>

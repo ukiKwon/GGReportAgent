@@ -15,7 +15,7 @@
 | S6 | 각 법원 홈페이지 새소식('보관은행 변경 안내') | 업무 개시일 | 예: 인천지법 `DcNewsViewAction.work?seqnum=13257&gubun=41` | 은행명이 깨져 읽힘 — 기사와 교차해서만 사용 |
 | S7 | **행정표준 기관코드 전체자료**(code.go.kr) — 사용자가 받은 `docs/samples/기관코드 전체자료.zip`(미추적) | 기관코드 7자리·상위코드·소재지코드·존폐여부 | zip → txt(CP949, 탭 구분) → `iconv`로 UTF-8 | **통함.** 교육청 16·법원 75곳 코드 부여. 소재지코드는 비어 있는 행이 많음 |
 | S8 | 교육청 고시·공고 / 지방교육재정알리미 | 교육금고 공고 원문 | — | **아직 시도 안 함**(교육청 16곳은 기사로만 채움). 강원·제주 미확보 |
-| S9 | **나라장터**(g2b) | 공공기관·공기업 '주거래은행 선정' 입찰 공고(예: 인천국제공항보안 R25BK01106135) | 새 나라장터는 WebSquare JS — 브라우저 자동 입력이 막힘. 조달청 '입찰공고정보서비스' OpenAPI(data.go.kr)는 **인증키 필요** | **막힘.** 금고 지정 공고는 나라장터에 없고(지자체 게시판·기사에만), 공공기관 주거래은행 공고만 있음 |
+| S9 | **나라장터**(g2b) — 조달청 '입찰공고정보서비스' OpenAPI `https://apis.data.go.kr/1230000/ad/BidPublicInfoService02` | 공공기관·공기업·지방공기업 '주거래은행(금고) 선정' 입찰 공고 원문 메타(공고번호·차수·공고기관·공고일) | 인증키는 `collector/.env.local`(`G2B_SERVICE_KEY`, git 제외). 기능 이름도 **끝에 02**: `getBidPblancListInfoServcPPSSrch02`(용역, `bidNtceNm` 제목 검색)·`getBidPblancListInfoServc02`. `inqryDiv=1`·`inqryBgnDt/EndDt=YYYYMMDDHHMM`, **조회 기간은 7일 이내**(넘으면 resultCode 07 '입력범위값 초과'), `numOfRows` 100 가능, `type=json`. **하루 호출 한도 1000회**(사용자 11-11) | **통함(2026-11-11).** 2026년 1주 단위 45회 조회 → '주거래은행' 공고 62건(기관 약 45곳: 국가유산진흥원·부산교통공사·인천교통공사·사학연금·한국부동산원·한국연구재단 등). 지자체 금고 지정 공고는 나라장터에 없다 |
 | S10 | 알리오(공공기관)·클린아이(지방공기업) 공시 | 기관 목록·주소, (있다면) 주거래은행 | — | **아직 시도 안 함**(알리오는 접속 실패 보고). 지방공기업 목록 확정에 필요 |
 | S11 | 의회 회의록·시보/군보 PDF | 약정기간·회차 정황 | WebFetch | 회의록은 일부 통함(밀양·포천·수성·목포), PDF는 압축 스트림이라 못 읽음(공주·사하·동래) |
 
@@ -35,8 +35,15 @@
 
 **가까운 일정(달력)**: 마포 접수 마감 11-19 뒤 결과 공고 · 약정 2026-12-31 만료인데 결과를 못 찾은 11곳(가평·양평·오산·하남·경산·문경·광주 광산·서구·담양·부여·진안) 11~12월 재조회 · 법원 2021 공개경쟁 묶음(전주·춘천·강릉 등) 2026-12 만료 차기 공고.
 
-## 3. 자동화 제안(아직 만들지 않음)
+## 3. 자동화 — 1단계 구현됨(2026-11-11, NEXT 80)
 
+- **실행**: `C:\dev\python\python.exe -m collector run --source eminwon [--since YYYY-MM-DD] [--hosts 호스트|기관key,…]` — 결과는 `data/collector/`(git 제외): 배치 `<시각>_eminwon/`(manifest·files), 원문 `_raw/eminwon/<호스트>/<공고번호>/`, 상태 `_state/state.json`(이미 본 공고·실행 기록). stdout 한 줄 JSON, 종료 코드 0/1/2/3/4. 콘솔이 cp949면 `PYTHONIOENCODING=utf-8`.
+- **구성**: `collector/sources/eminwon.py`(소스) · `eminwon_parse.py`(실측 3유형 목록 파서) · `config/eminwon_hosts.json`(94 호스트 — 기관 key 연결) · `extract/`(종류 판정·hwpx 본문·약정기간) · `pipeline.py`·`cli.py`·`state.py`·`store.py`·`httpclient.py`. 배치에 `notice`(공고 사실)·`candidate`(기관 일정 '후보', 값마다 근거 문장) 칸 — 계약 검증기(`contract/batch_schema.py`)가 검사.
+- **시험**: `python -m pytest collector -q`(실측 fixture, 네트워크 없음). 실측 3곳 시험(마포·순창·제물포) 25초, 마포 계획 공고 첨부에서 새 약정 2027~2030을 자동 추출.
+- **Python**: `C:\dev\python`(3.12.7 embeddable, 2026-11-11 설치) + `Lib/site-packages/ggreportagent.pth`(저장소 경로). 패키지: pytest·fastapi·pydantic·httpx·python-multipart·uvicorn.
+- **남은 것**: 나라장터 소스(`sources/g2b.py`, S9 조건대로 1주 창·하루 1000회 한도), 작업 스케줄러 등록(공고 철 주 1회), 미리보기 보고서(데이터 파일과 비교), xlsx 포장(운영 반입용).
+
+### 처음 제안(참고)
 - **1단계(권장)**: `collector/sources/eminwon.py` — 이 틀(`collector/sources/base.py`)의 소스로 S1 조회를 붙인다. 입력은 `institutions.js` sources의 eminwon 호스트(73개)+스펙 표, 출력은 '새 금고 공고 목록'(호스트·제목·공고번호·게시일·상세 URL). 이전 실행분과 비교해 새 글만 보고. 망 밖(DMZ) 수집기라는 이 폴더의 설계(§③)와도 맞는다.
 - **실행**: 이 PC의 작업 스케줄러(마무리 `agent-dashboard/closing.js`와 같은 방식) 또는 Claude Code 예약 작업. 공고 철 주 1회.
 - **2단계**: S2 사이트별 설정 표(파라미터) 추가, S3 연 1회 반영 스크립트를 저장소에 정식으로 둔다(오늘은 스크래치 스크립트로 했다).

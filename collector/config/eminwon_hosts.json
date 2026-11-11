@@ -1,0 +1,1132 @@
+{
+ "_comment": "eminwon 금고 공고 감시 대상(NEXT 80). frontend/data/institutions.js sources의 eminwon URL + 2026-11-11 curl 실측 호스트. key = 기관 region|name. tls_verify를 끄는 것은 호스트별로만.",
+ "generated": "2026-11-11",
+ "hosts": [
+  {
+   "host": "dobong.eminwon.seoul.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|도봉구청",
+   "name_ko": "도봉구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "dongjak.eminwon.seoul.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|동작구청",
+   "name_ko": "동작구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.brcn.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "44|보령시청",
+   "name_ko": "보령시청",
+   "region_code": "44",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.bsdonggu.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "26|부산 동구청",
+   "name_ko": "부산 동구청",
+   "region_code": "26",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.bsseogu.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "26|부산 서구청",
+   "name_ko": "부산 서구청",
+   "region_code": "26",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.buan.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "45|부안군청",
+   "name_ko": "부안군청",
+   "region_code": "45",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.bukgu.ulsan.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "31|울산 북구청",
+   "name_ko": "울산 북구청",
+   "region_code": "31",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.buyeo.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "44|부여군청",
+   "name_ko": "부여군청",
+   "region_code": "44",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.changwon.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "48|창원시청",
+   "name_ko": "창원시청",
+   "region_code": "48",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.cheonan.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "44|천안시청",
+   "name_ko": "천안시청",
+   "region_code": "44",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.cheongju.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "43|청주시청",
+   "name_ko": "청주시청",
+   "region_code": "43",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.chuncheon.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "42|춘천시청",
+   "name_ko": "춘천시청",
+   "region_code": "42",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.cs.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "47|청송군청",
+   "name_ko": "청송군청",
+   "region_code": "47",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.cwg.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "42|철원군청",
+   "name_ko": "철원군청",
+   "region_code": "42",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.dangjin.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "44|당진시청",
+   "name_ko": "당진시청",
+   "region_code": "44",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.ddc.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "41|동두천시청",
+   "name_ko": "동두천시청",
+   "region_code": "41",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.ddm.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|동대문구청",
+   "name_ko": "동대문구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.ep.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|은평구청",
+   "name_ko": "은평구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gangbuk.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|강북구청",
+   "name_ko": "강북구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gangdong.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|강동구청",
+   "name_ko": "강동구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gangseo.seoul.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|강서구청",
+   "name_ko": "강서구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gbgs.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "47|경산시청",
+   "name_ko": "경산시청",
+   "region_code": "47",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gc.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "47|김천시청",
+   "name_ko": "김천시청",
+   "region_code": "47",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gccity.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "41|과천시청",
+   "name_ko": "과천시청",
+   "region_code": "41",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.geumcheon.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|금천구청",
+   "name_ko": "금천구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gijang.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "26|기장군청",
+   "name_ko": "기장군청",
+   "region_code": "26",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gimpo.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "41|김포시청",
+   "name_ko": "김포시청",
+   "region_code": "41",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gm.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "41|광명시청",
+   "name_ko": "광명시청",
+   "region_code": "41",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.goesan.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "43|괴산군청",
+   "name_ko": "괴산군청",
+   "region_code": "43",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gokseong.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "46|곡성군청",
+   "name_ko": "곡성군청",
+   "region_code": "46",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gongju.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "44|공주시청",
+   "name_ko": "공주시청",
+   "region_code": "44",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.goyang.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "41|고양시청",
+   "name_ko": "고양시청",
+   "region_code": "41",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gp.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "41|가평군청",
+   "name_ko": "가평군청",
+   "region_code": "41",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gumi.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "47|구미시청",
+   "name_ko": "구미시청",
+   "region_code": "47",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gunsan.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "45|군산시청",
+   "name_ko": "군산시청",
+   "region_code": "45",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.guro.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|구로구청",
+   "name_ko": "구로구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gwanak.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|관악구청",
+   "name_ko": "관악구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gwangsan.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "46|광산구청",
+   "name_ko": "광산구청",
+   "region_code": "46",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gwgs.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "42|고성군청",
+   "name_ko": "고성군청",
+   "region_code": "42",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.gyeongju.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "47|경주시청",
+   "name_ko": "경주시청",
+   "region_code": "47",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.hadong.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "48|하동군청",
+   "name_ko": "하동군청",
+   "region_code": "48",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.hanam.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "41|하남시청",
+   "name_ko": "하남시청",
+   "region_code": "41",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.hc.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "48|합천군청",
+   "name_ko": "합천군청",
+   "region_code": "48",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.hongcheon.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "42|홍천군청",
+   "name_ko": "홍천군청",
+   "region_code": "42",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.hongseong.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "44|홍성군청",
+   "name_ko": "홍성군청",
+   "region_code": "44",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.inje.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "42|인제군청",
+   "name_ko": "인제군청",
+   "region_code": "42",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.jemulpo.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "28|제물포구청",
+   "name_ko": "제물포구청",
+   "region_code": "28",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.jeongeup.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "45|정읍시청",
+   "name_ko": "정읍시청",
+   "region_code": "45",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.jeongseon.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "42|정선군청",
+   "name_ko": "정선군청",
+   "region_code": "42",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.jeonju.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "45|전주시청",
+   "name_ko": "전주시청",
+   "region_code": "45",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.jinan.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "45|진안군청",
+   "name_ko": "진안군청",
+   "region_code": "45",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.jindo.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "46|진도군청",
+   "name_ko": "진도군청",
+   "region_code": "46",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.junggu.seoul.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|중구청",
+   "name_ko": "중구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.jungnang.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|중랑구청",
+   "name_ko": "중랑구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.mapo.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|마포구청",
+   "name_ko": "마포구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.osan.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "41|오산시청",
+   "name_ko": "오산시청",
+   "region_code": "41",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.paju.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "41|파주시청",
+   "name_ko": "파주시청",
+   "region_code": "41",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.pc.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "42|평창군청",
+   "name_ko": "평창군청",
+   "region_code": "42",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.pohang.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "47|포항시청",
+   "name_ko": "포항시청",
+   "region_code": "47",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.samcheok.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "42|삼척시청",
+   "name_ko": "삼척시청",
+   "region_code": "42",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.sangju.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "47|상주시청",
+   "name_ko": "상주시청",
+   "region_code": "47",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.sasang.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "26|사상구청",
+   "name_ko": "사상구청",
+   "region_code": "26",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.sd.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|성동구청",
+   "name_ko": "성동구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.sdm.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|서대문구청",
+   "name_ko": "서대문구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.seo.incheon.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "28|서해구청",
+   "name_ko": "서해구청",
+   "region_code": "28",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.seocho.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|서초구청",
+   "name_ko": "서초구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.seogu.gwangju.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "46|광주 서구청",
+   "name_ko": "광주 서구청",
+   "region_code": "46",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.seosan.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "44|서산시청",
+   "name_ko": "서산시청",
+   "region_code": "44",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.sokcho.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "42|속초시청",
+   "name_ko": "속초시청",
+   "region_code": "42",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.sunchang.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "45|순창군청",
+   "name_ko": "순창군청",
+   "region_code": "45",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.suwon.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "41|수원시청",
+   "name_ko": "수원시청",
+   "region_code": "41",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.uljin.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "47|울진군청",
+   "name_ko": "울진군청",
+   "region_code": "47",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.ulju.ulsan.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "31|울주군청",
+   "name_ko": "울주군청",
+   "region_code": "31",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.ulsannamgu.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "31|울산 남구청",
+   "name_ko": "울산 남구청",
+   "region_code": "31",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.usc.go.kr",
+   "schemes": [
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "47|의성군청",
+   "name_ko": "의성군청",
+   "region_code": "47",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.wanju.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "45|완주군청",
+   "name_ko": "완주군청",
+   "region_code": "45",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.yangcheon.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|양천구청",
+   "name_ko": "양천구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.yangju.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "41|양주시청",
+   "name_ko": "양주시청",
+   "region_code": "41",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.yangyang.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "42|양양군청",
+   "name_ko": "양양군청",
+   "region_code": "42",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.yc.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "47|영천시청",
+   "name_ko": "영천시청",
+   "region_code": "47",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.yd.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "47|영덕군청",
+   "name_ko": "영덕군청",
+   "region_code": "47",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.yd21.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "43|영동군청",
+   "name_ko": "영동군청",
+   "region_code": "43",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.ydp.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|영등포구청",
+   "name_ko": "영등포구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.yeoncheon.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "41|연천군청",
+   "name_ko": "연천군청",
+   "region_code": "41",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.yeongam.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "46|영암군청",
+   "name_ko": "영암군청",
+   "region_code": "46",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.yeongju.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "47|영주시청",
+   "name_ko": "영주시청",
+   "region_code": "47",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.yongin.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "41|용인시청",
+   "name_ko": "용인시청",
+   "region_code": "41",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.yongsan.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|용산구청",
+   "name_ko": "용산구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "eminwon.yp21.go.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "41|양평군청",
+   "name_ko": "양평군청",
+   "region_code": "41",
+   "type": "지자체"
+  },
+  {
+   "host": "gangnam.eminwon.seoul.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|강남구청",
+   "name_ko": "강남구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "gwangjin.eminwon.seoul.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|광진구청",
+   "name_ko": "광진구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "jongno.eminwon.seoul.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|종로구청",
+   "name_ko": "종로구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "nowon.eminwon.seoul.kr",
+   "schemes": [
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|노원구청",
+   "name_ko": "노원구청",
+   "region_code": "11",
+   "type": "지자체"
+  },
+  {
+   "host": "songpa.eminwon.seoul.kr",
+   "schemes": [
+    "https",
+    "http"
+   ],
+   "tls_verify": true,
+   "key": "11|송파구청",
+   "name_ko": "송파구청",
+   "region_code": "11",
+   "type": "지자체"
+  }
+ ]
+}

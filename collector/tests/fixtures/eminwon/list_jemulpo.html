@@ -1,0 +1,311 @@
+﻿
+
+
+
+
+
+
+
+ 
+<html>
+<head>
+<title> 입법예고 목록 </title>
+
+<script type="text/javascript" src="/emwp/js/cmm/jsp/calendar.js"></script>
+<script type="text/javascript" src="/emwp/js/cmm/jsp/common.js"></script> 
+<script type="text/javascript" src="/emwp/js/common.js"></script>
+
+<script type="text/javascript" >	
+//-------------------------------------------------------------------
+// 설명   : 초기화
+//-------------------------------------------------------------------	
+	function init() {
+		var f = document.form;
+		var ck = 'gov.mogaha.ntis.cmm.util.Page@70d744df';
+		if(ck=="null"){
+			srchList();
+		}
+		
+	}
+	
+//-------------------------------------------------------------------
+// 설명   : 고시공고 목록 조회
+//-------------------------------------------------------------------	
+	function search(){
+		var f = document.form;
+		var str = f.not_ancmt_sj.value;
+
+		if(str != null && str != ''){
+			var len = str.length;
+			if(len > 0 ){
+				for(var i=0;i<len;i++){
+					if(isEtcChar(str.charAt(i))){
+						alert('특수문자 입력할 수 없습니다');
+						f.not_ancmt_sj.focus();
+						return ;
+					}
+				}
+			}
+		}
+ 
+		f.target = "_self";
+		f.action = "/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do";	
+		f.method.value   = 'selectListOfrNotAncmt'; //Action
+		f.methodnm.value = 'selectListOfrNotAncmtHomepage';
+		f.submit();
+		return ;	
+	}	
+
+	function search2(f){
+		var str = f.not_ancmt_sj.value;
+
+		if(str != null && str != ''){
+			var len = str.length;
+			if(len > 0 ){
+				for(var i=0;i<len;i++){
+					if(isEtcChar(str.charAt(i))){
+						alert('특수문자 입력할 수 없습니다');
+						f.not_ancmt_sj.focus();
+						return false;
+					}
+				}
+			}
+		}
+		return true;	
+	}			
+//-------------------------------------------------------------------
+// 설명   : 검색버튼 클릭시 페이지정보 초기화 하고 조회
+//-------------------------------------------------------------------	
+
+	function srchList(){
+		 document.form.pageIndex.value=""; //페이지 인덱스 초기화
+		 search();
+	}
+	
+//-------------------------------------------------------------------
+// 설명   : 페이지 이동시 조회
+//-------------------------------------------------------------------
+
+
+	function goPage() {
+		search();
+	}
+
+//-------------------------------------------------------------------
+// 설명   : 고시공고 상세내용 조회
+//-------------------------------------------------------------------	
+
+	function searchDetail(not_ancmt_mgt_no) {
+		
+		var f = document.form;
+		f.not_ancmt_mgt_no.value = not_ancmt_mgt_no ;
+		f.target = "_self";
+		f.action = "/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do";	
+		f.method.value   = 'selectOfrNotAncmt'; //Action
+		f.methodnm.value = 'selectOfrNotAncmtRegst';
+		f.submit();		    
+		
+	}
+
+//-------------------------------------------------------------------
+// 설명   : 엔터 눌렀을 때, 검색버튼 클릭시와 같은 기능 
+//-------------------------------------------------------------------	
+	function enterKey(){
+		var key = event.keyCode; 
+		if( key == 13 ){ 
+			srchList();
+		}
+	}  
+//-------------------------------------------------------------------
+// 설명   : 고시공고 예전 자료 보기 조회
+//-------------------------------------------------------------------
+/*
+	function changeDetail() {
+		var url = "http://bukgu.gwangju.kr/phps/board/board_srh.php?b_code=LAW_NOTICE";
+		window.open(url,"viewDetail","toolbar=no,location=no,diretories=no,status=no,menubar=no,scrollbars=yes,resizable=no,width=700,height=670");		
+	}
+	*/
+	
+</script>
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+	<style type="text/css">
+	@import url(http://fonts.googleapis.com/earlyaccess/nanumgothic.css);
+	html, body, div, span, p, dl, dt, dd, ol, ul, li, fieldset, form, label, legend, table, caption, tbody, tfoot, thead, tr, th, td, img, a { margin:0; padding:0; list-style-type:none;	border:none;	font-size:14px; line-height:20px; font-family: 'Nanum Gothic', '나눔고딕', sans-serif; 	color:#333; text-decoration:none; border-collapse:collapse; }
+	.dipy_n { display:none }
+	.left { text-align:left; }
+	.right { text-align:right; }
+	textarea, select { border:1px solid #c9c9c9; background: #fff; }
+	.ir { overflow: hidden; display: block; text-indent: -5000px; font-size: 0; line-height: 0; }
+	div.search { margin-bottom:20px; padding:12px; border:1px solid #cbcbcb; background:#f7f7f7; text-align:center; }
+	div.search select { padding:8px 5px; vertical-align:middle; }
+	div.search form { vertical-align:top; }
+	div.search input[type=text] { width:30%; height:32px; margin:0 5px; border:1px solid #cbcbcb; }
+	div.search input { margin-top:0; }
+	.btn, .btn_blue { display:inline-block; vertical-align:top; padding:7px 15px; border:1px solid #005894; border-radius:3px; color:#fff !important; font-size:15px; font-weight:600; box-shadow:0 1px 1px #bababa; background:#0077c8 url('http://www.icdonggu.go.kr/open_content/main/images/sub/btn_bg.gif') repeat-x left bottom; }
+	div.generalboard .board_lock { margin-right:5px; vertical-align:middle; }
+	table.general_board { margin-top:5px; margin-bottom:20px; }
+	table.general_board thead th { padding:15px 10px; border-top:2px solid #2173bf; border-bottom:1px solid #2173bf; font-size:16px; text-align:center; color:#333; }
+	table.general_board tbody th, table.general_board tbody td { padding:13px; border-bottom:1px solid #cbcbcb; text-align:center; cursor:pointer}
+	table.general_board tbody td.left{text-align:left}
+	table.general_board td img { margin-left:3px; }
+	div.paging { overflow:hidden; clear:both; margin-top:20px; }
+	div.paging ul { float:right; position:relative; left:-50%; }
+	div.paging ul li { float:left; position:relative; left:50%; margin-right:5px; }
+	div.paging a { display:block; width:30px; height:20px; border:1px solid #cbcbcb; background:#fff; padding:5px 0; text-align:center; }
+	div.paging ul li.on a { border:1px solid #006ca4; background:#2173bf; color:#fff; font-weight:bold; text-decoration:underline; }
+	div.paging .first { width:9px; height:6px; margin:7px auto 6px; background:url("http://www.icdonggu.go.kr/open_content/main/images/sub/paging_first.gif") no-repeat; }
+	div.paging .prev { width:4px; height:6px; margin:7px auto 6px; background:url("http://www.icdonggu.go.kr/open_content/main/images/sub/paging_prev.gif") no-repeat; }
+	div.paging .next { width:4px; height:6px; margin:7px auto 6px; background:url("http://www.icdonggu.go.kr/open_content/main/images/sub/paging_next.gif") no-repeat; }
+	div.paging .last { width:9px; height:6px; margin:7px auto 6px; background:url("http://www.icdonggu.go.kr/open_content/main/images/sub/paging_last.gif") no-repeat; }
+	@media all and (max-width:768px) { 
+		table.general_board tbody td.title { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+	}
+	/*MOBILE*/
+	@media all and (max-width:640px) { 
+		.general_board #bbs_no, .general_board .bbs_no,
+		.general_board #bbs_dt, .general_board .bbs_dt,
+		.general_board #bbs_hit, .general_board .bbs_hit { display:none; }	
+	}
+
+	</style>
+</head>
+
+
+<body>
+
+
+<div class="search">	
+<form name="form" action="/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do" method="post" onsubmit="return search2(this);">
+<fieldset>
+
+<p class="g_box center" >
+	<input type="hidden" name="pageIndex" value='1' />
+	<input type="hidden" name="jndinm"  value="OfrNotAncmtEJB" />
+	<input type="hidden" name="context" value="NTIS" />
+	<input type="hidden" name="method"  value="selectListOfrNotAncmt" />
+	<input type="hidden" name="methodnm" value="selectListOfrNotAncmtHomepage" />
+	<input type="hidden" name="not_ancmt_mgt_no" value="" />
+	<input type="hidden" name="homepage_pbs_yn" value="Y" />
+	<input type="hidden" name="subCheck" value="Y" />
+	<input type="hidden" name="ofr_pageSize" value="10" />
+	<input type="hidden" name="not_ancmt_se_code" value="01,02,03,04,05,06,07" />
+	<input type="hidden" name="list_gubun" value="">
+
+<select name="keyField" id="keyField" title="검색분류">
+<optgroup label="검색">
+	<option value="" selected="selected" >제목</option>
+</optgroup>
+</select>
+<input type=text name="not_ancmt_sj" onkeyPress="javascript:enterKey()" class=search size=16 value="금고" title="검색어"></td>
+<input type="submit"  class="btn" value="검색" title="검색"/>
+</p>
+</fieldset>
+
+</form>
+</div>
+
+<div class="generalboard">
+<table width="100%" class="general_board"  summary="본 게시판은 입법예고 게시판입니다. 입법예고번호, 제목, 담당부서, 등록일, 조회수 등을 보여줍니다.">
+<caption class="dipy_n">입법예고 목록</caption>
+		<colgroup>
+		<col width="5%" />
+		<col width="18%" />
+		<col width="*" />
+		<col width="15%" />
+		<col width="13%" />
+		<col width="10%" />
+</colgroup>
+
+<thead>
+			<tr>
+				<th scope="col" id="bbs_no">NO</th>
+				<th scope="col">입법예고번호</th>
+				<th scope="col">제목</th>
+				<th scope="col">담당부서</th>
+				<th scope="col" id="bbs_dt">날짜</th>
+				<th scope="col" id="bbs_hit">조회수</th>
+			</tr>
+</thead>
+	<tbody>
+ 
+  <tr  > 
+   <td  class="bbs_no" >3</td>
+
+	<td ><a href="/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do?not_ancmt_mgt_no=35120&amp;pageIndex=1&amp;jndinm=OfrNotAncmtEJB&amp;context=NTIS&amp;homepage_pbs_yn=Y&amp;subCheck=Y&amp;ofr_pageSize=10&amp;not_ancmt_se_code=01,02,03,04,05,06,07&amp;initValue=Y&amp;countYn=Y&amp;not_ancmt_sj=%EA%B8%88%EA%B3%A0&amp;method=selectOfrNotAncmt&amp;methodnm=selectOfrNotAncmtRegst">구 공고 제2026-1088호</a></td>
+
+    <td class="left" ><p align=left><a href="/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do?not_ancmt_mgt_no=35120&amp;pageIndex=1&amp;jndinm=OfrNotAncmtEJB&amp;context=NTIS&amp;homepage_pbs_yn=Y&amp;subCheck=Y&amp;ofr_pageSize=10&amp;not_ancmt_se_code=01,02,03,04,05,06,07&amp;initValue=Y&amp;countYn=Y&amp;not_ancmt_sj=%EA%B8%88%EA%B3%A0&amp;method=selectOfrNotAncmt&amp;methodnm=selectOfrNotAncmtRegst">인천광역시 제물포구 금고 지정 공고</a></p></td>
+
+    <td>세무과</td>
+
+    <td class="bbs_dt" >2026-11-02</td>
+	<td class="bbs_hit" >11</td>
+  </tr>                   
+  
+	  
+  <tr  > 
+   <td  class="bbs_no" >2</td>
+
+	<td ><a href="/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do?not_ancmt_mgt_no=21737&amp;pageIndex=1&amp;jndinm=OfrNotAncmtEJB&amp;context=NTIS&amp;homepage_pbs_yn=Y&amp;subCheck=Y&amp;ofr_pageSize=10&amp;not_ancmt_se_code=01,02,03,04,05,06,07&amp;initValue=Y&amp;countYn=Y&amp;not_ancmt_sj=%EA%B8%88%EA%B3%A0&amp;method=selectOfrNotAncmt&amp;methodnm=selectOfrNotAncmtRegst">구 공고 제2019-13호</a></td>
+
+    <td class="left" ><p align=left><a href="/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do?not_ancmt_mgt_no=21737&amp;pageIndex=1&amp;jndinm=OfrNotAncmtEJB&amp;context=NTIS&amp;homepage_pbs_yn=Y&amp;subCheck=Y&amp;ofr_pageSize=10&amp;not_ancmt_se_code=01,02,03,04,05,06,07&amp;initValue=Y&amp;countYn=Y&amp;not_ancmt_sj=%EA%B8%88%EA%B3%A0&amp;method=selectOfrNotAncmt&amp;methodnm=selectOfrNotAncmtRegst">금고약정에 따른 협력사업비 공고</a></p></td>
+
+    <td>세무과</td>
+
+    <td class="bbs_dt" >2019-01-07</td>
+	<td class="bbs_hit" >7</td>
+  </tr>                   
+  
+	  
+  <tr  > 
+   <td  class="bbs_no" >1</td>
+
+	<td ><a href="/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do?not_ancmt_mgt_no=21402&amp;pageIndex=1&amp;jndinm=OfrNotAncmtEJB&amp;context=NTIS&amp;homepage_pbs_yn=Y&amp;subCheck=Y&amp;ofr_pageSize=10&amp;not_ancmt_se_code=01,02,03,04,05,06,07&amp;initValue=Y&amp;countYn=Y&amp;not_ancmt_sj=%EA%B8%88%EA%B3%A0&amp;method=selectOfrNotAncmt&amp;methodnm=selectOfrNotAncmtRegst">구 공고 제2018-694호</a></td>
+
+    <td class="left" ><p align=left><a href="/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do?not_ancmt_mgt_no=21402&amp;pageIndex=1&amp;jndinm=OfrNotAncmtEJB&amp;context=NTIS&amp;homepage_pbs_yn=Y&amp;subCheck=Y&amp;ofr_pageSize=10&amp;not_ancmt_se_code=01,02,03,04,05,06,07&amp;initValue=Y&amp;countYn=Y&amp;not_ancmt_sj=%EA%B8%88%EA%B3%A0&amp;method=selectOfrNotAncmt&amp;methodnm=selectOfrNotAncmtRegst">인천광역시 동구 금고 지정 공고</a></p></td>
+
+    <td>세무과</td>
+
+    <td class="bbs_dt" >2018-11-07</td>
+	<td class="bbs_hit" >10</td>
+  </tr>                   
+  
+	  
+	
+
+	</tbody>
+</table>
+</div>
+
+
+<!---- page --->
+<div class="paging">
+	<ul>
+	
+	
+	
+		
+		<li><a href="/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do?pageIndex=1&amp;jndinm=OfrNotAncmtEJB&amp;context=NTIS&amp;homepage_pbs_yn=Y&amp;subCheck=Y&amp;ofr_pageSize=10&amp;not_ancmt_se_code=01,02,03,04,05,06,07&amp;initValue=Y&amp;countYn=Y&amp;not_ancmt_sj=%EA%B8%88%EA%B3%A0&amp;method=selectListOfrNotAncmt&amp;methodnm=selectListOfrNotAncmtHomepage" ><span class="ir first">첫 페이지</span></a>
+		</li>
+		<li>
+		<a href="/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do?pageIndex=1&amp;jndinm=OfrNotAncmtEJB&amp;context=NTIS&amp;homepage_pbs_yn=Y&amp;subCheck=Y&amp;ofr_pageSize=10&amp;not_ancmt_se_code=01,02,03,04,05,06,07&amp;initValue=Y&amp;countYn=Y&amp;not_ancmt_sj=%EA%B8%88%EA%B3%A0&amp;method=selectListOfrNotAncmt&amp;methodnm=selectListOfrNotAncmtHomepage" ><span class="ir prev">이전 페이지</span></a>
+		</li>
+
+		
+			<li class="on">
+			<a href="/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do?pageIndex=1&amp;jndinm=OfrNotAncmtEJB&amp;context=NTIS&amp;homepage_pbs_yn=Y&amp;subCheck=Y&amp;ofr_pageSize=10&amp;not_ancmt_se_code=01,02,03,04,05,06,07&amp;initValue=Y&amp;countYn=Y&amp;not_ancmt_sj=%EA%B8%88%EA%B3%A0&amp;method=selectListOfrNotAncmt&amp;methodnm=selectListOfrNotAncmtHomepage"  title="페이지">1</a>
+			</li>
+			
+		
+		<li>
+		<a href="/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do?pageIndex=1&amp;jndinm=OfrNotAncmtEJB&amp;context=NTIS&amp;homepage_pbs_yn=Y&amp;subCheck=Y&amp;ofr_pageSize=10&amp;not_ancmt_se_code=01,02,03,04,05,06,07&amp;initValue=Y&amp;countYn=Y&amp;not_ancmt_sj=%EA%B8%88%EA%B3%A0&amp;method=selectListOfrNotAncmt&amp;methodnm=selectListOfrNotAncmtHomepage" ><span class="ir next">다음 페이지</span></a>
+		</li>
+		<li>
+		<a href="/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do?pageIndex=1&amp;jndinm=OfrNotAncmtEJB&amp;context=NTIS&amp;homepage_pbs_yn=Y&amp;subCheck=Y&amp;ofr_pageSize=10&amp;not_ancmt_se_code=01,02,03,04,05,06,07&amp;initValue=Y&amp;countYn=Y&amp;not_ancmt_sj=%EA%B8%88%EA%B3%A0&amp;method=selectListOfrNotAncmt&amp;methodnm=selectListOfrNotAncmtHomepage" ><span class="ir last">마지막 페이지</span></a>
+		</li>
+		
+
+
+	</ul>
+</div>
+</body>
+</html>

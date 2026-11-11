@@ -90,3 +90,7 @@ replay_pid*.log
 
 # 개인 로컬 설정(제3자 디자인 플러그인 활성화 등)
 .claude/settings.local.json
+
+# 수집기 로컬 비밀값(나라장터 인증키 등) — 커밋 금지
+collector/.env.local
+collector/.env*.local

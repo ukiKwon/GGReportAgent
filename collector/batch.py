@@ -21,7 +21,7 @@ from contract.batch_schema import validate_batch
 
 SCHEMA_VERSION = 1
 DEFAULT_OUT_ROOT = "data/collector"
-COLLECTOR_VERSION = "0.1.0"
+COLLECTOR_VERSION = "0.2.0"
 
 CSV_HEADERS = [
     "기관명", "기관구분", "지역코드", "구시군코드", "입찰주기", "지난입찰일",
@@ -111,7 +111,7 @@ def _write_record(notice: CollectedNotice, batch_dir: Path) -> dict:
         "term": notice.term,
         "confidence": "확정" if notice.confirmed else "예상",
     }
-    return {
+    record = {
         "notice_id": notice.notice_id,
         "title": notice.title,
         "institution": _drop_empty(
@@ -124,8 +124,14 @@ def _write_record(notice: CollectedNotice, batch_dir: Path) -> dict:
         ),
         "schedule": _drop_empty(schedule),
         "attachments": attachments,
-        "evidence": {"url": notice.evidence_url},
+        "evidence": _drop_empty({"url": notice.evidence_url, "note": notice.evidence_note}),
     }
+    # NEXT 80 — 공고 사실(notice)과 기관 일정 '후보'(candidate)는 선택 칸(schema_version 1 유지).
+    if notice.notice_info:
+        record["notice"] = _drop_empty(notice.notice_info)
+    if notice.candidate:
+        record["candidate"] = notice.candidate
+    return record
 
 
 def _drop_empty(mapping: dict) -> dict:
