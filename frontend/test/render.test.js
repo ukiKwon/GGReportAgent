@@ -40,21 +40,23 @@ test('recordForFeature: 면에 레코드가 여럿이면 가장 임박한 것을
   });
 });
 
-test('recordForFeature: 면 색을 정하는 레코드와 같은 것을 돌려준다', function () {
+test('면 색은 섞기 결과(5단)에서 나오고, 클릭 기관은 그 구의 지자체 중 가장 임박한 것이다', function () {
   const soon = muni('가구청', '2026-09-01');
   const later = muni('나구청', '2027-05-01');
   withFeatureRecords([later, soon], function () {
     const picked = render.recordForFeature({});
-    // 색은 그 레코드의 임박도에서 나온다 — 둘이 같은 값이어야 지도를 믿을 수 있다.
-    assert.strictEqual(render.subUrgencyColor({}),
-      render.URGENCY_COLORS[logic.urgencyOf(picked, TODAY)]);
+    assert.strictEqual(picked.name, '가구청');
+    // 색 = 섞기(임박 +2, 6~12개월 +1 → 평균 1.5 → 진빨강). 클릭용 기관과 섞기용 '가장 임박'이 같다.
+    assert.strictEqual(render.subUrgencyColor({}), render.mixColor(render.featureMixInfo({})));
+    assert.strictEqual(render.subUrgencyColor({}), render.MAP_COLORS.r3);
+    assert.strictEqual(render.imminentForFeature({}).name, picked.name);
   });
 });
 
 test('recordForFeature: 레코드가 없는 면은 null (색은 회색)', function () {
   withFeatureRecords([], function () {
     assert.strictEqual(render.recordForFeature({}), null);
-    assert.strictEqual(render.subUrgencyColor({}), render.URGENCY_COLORS.gray);
+    assert.strictEqual(render.subUrgencyColor({}), render.MAP_COLORS.gray);
   });
 });
 

@@ -658,6 +658,18 @@
   .label { paint-order:stroke; stroke:#eef2f8; stroke-width:3px; stroke-linejoin:round;
            fill:#141922; font-size:13px; font-weight:700; }
   .label .sub { font-size:10px; font-weight:600; fill:#333b4c; }
+  /* ▲n(6개월 안 기관 수) — 라벨과 같은 잉크·후광. 숫자는 mono */
+  .label .tri { font-family:var(--mono); font-size:11px; font-weight:700; stroke-width:2.5px; }
+  .region:focus-visible, .subregion:focus-visible { outline:none; stroke:var(--accent-color); stroke-width:3; }
+  #region-tip { display:none; position:fixed; z-index:21; pointer-events:none; max-width:280px;
+                background:rgba(24,30,41,.92); backdrop-filter:blur(10px);
+                border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px 12px;
+                font-size:12px; box-shadow:var(--shadow); }
+  #region-tip .rt-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:4px; }
+  #region-tip .rt-sw { width:12px; height:12px; border-radius:4px; border:1px solid rgba(0,0,0,.35); flex:none; }
+  #region-tip .rt-row { margin-top:3px; }
+  #region-tip .rt-m, #region-tip .rt-d { font-family:var(--mono); }
+  #region-tip .rt-mu { margin-top:5px; font-size:11px; color:var(--muted); }
   .region.watched { stroke:#d8c47a; stroke-width:3; filter:drop-shadow(0 0 6px rgba(216,196,122,.7)); }
   @keyframes ripple { from { r:6; opacity:.85; } to { r:26; opacity:0; } }
   .ripple-ring { fill:none; stroke:var(--accent-color); stroke-width:3;
@@ -681,6 +693,8 @@
   #legend .lg-item { display:flex; align-items:center; gap:7px; white-space:nowrap; }
   #legend .lg-sw { width:12px; height:12px; border-radius:4px; border:1px solid rgba(0,0,0,.35); display:inline-block; }
   #legend .lg-hatch { background-image:repeating-linear-gradient(45deg, rgba(15,18,24,.5) 0 2px, transparent 2px 4px); }
+  #legend .lg-tri-row { color:var(--fg); }
+  #legend .lg-tri { font-family:var(--mono); font-size:11px; min-width:12px; text-align:center; }
 
   /* 랭킹 — 부드러운 카드 패널, 행 호버 슬라이드 */
   #rank-panel { flex:1; display:none; overflow:auto; max-height:100%;
@@ -1303,6 +1317,7 @@
     #map-stage { flex:none; min-height:52vh; }
     /* 좁은 지도에서 지역명 충돌 방지 — 축소 + 준비중 부제 숨김 (마감 리뷰 반영) */
     .label { font-size:10px; stroke-width:2px; }
+    .label .tri { font-size:10px; stroke-width:2px; }
     .label .sub { display:none; }
     #rank-panel { flex:none; max-height:40vh; }
     #dg-wrap { flex-direction:column; }
@@ -1725,12 +1740,13 @@ review, the verdict, and DESIGN.md
 <div id="theme-modal" class="modal-overlay" style="display:none;">
   <div class="modal-box modal-scroll" style="max-width:360px;margin:8vh auto;">
     <h3>지도 색상 설정</h3>
-    <p style="color:var(--muted);font-size:12px;margin-top:0;">임박 단계별 면 색과, 선택 강조(물결·구 외곽선 깜빡임)의 색·속도를 조절합니다.</p>
-    <label>임박 6개월↓ <input type="color" data-t="red"></label>
-    <label>임박 1년↓ <input type="color" data-t="orange"></label>
-    <label>임박 2년↓ <input type="color" data-t="yellow"></label>
-    <label>임박 2년+ <input type="color" data-t="blue"></label>
-    <label>미상 <input type="color" data-t="gray"></label>
+    <p style="color:var(--muted);font-size:12px;margin-top:0;">지역을 섞은 5단 면 색과, 선택 강조(물결·구 외곽선 깜빡임)의 색·속도를 조절합니다.</p>
+    <label>6개월 안 위주 <input type="color" data-t="r3"></label>
+    <label>1년 안 위주 <input type="color" data-t="r2"></label>
+    <label>섞임 (1년 안 포함) <input type="color" data-t="p"></label>
+    <label>1~2년 위주 <input type="color" data-t="b2"></label>
+    <label>2년 넘음 위주 <input type="color" data-t="b3"></label>
+    <label>날짜 미상 <input type="color" data-t="gray"></label>
     <label>선택 강조색 <input type="color" data-t="accent"></label>
     <label>강조 주기 <input type="range" data-t="rippleDuration" min="1" max="4" step="0.2" style="flex:1;">
       <span id="theme-dur-val" style="width:42px;text-align:right;font-family:var(--mono);"></span></label>

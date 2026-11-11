@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>기관장 카드 시안 · NEXT 77 3단계 (2026-11-11)</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0f1218; --panel:#181e29; --panel2:#202835; --line:#2d3644; --line-strong:#424e62;
+  --fg:#e2e7ee; --muted:#98a1af; --accent-color:#57b8ad;
+  --mono:Consolas,"Cascadia Mono","Malgun Gothic",monospace;
+  --r-sm:8px; --r:10px; --r-lg:14px;
+  --t-r3:#e8606b; --t-r2:#f0a6a9; --t-b2:#7397d8; --t-b3:#4f72b8; --t-gray:#7c8699;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:20px;background:var(--bg);color:var(--fg);
+  font:13px/1.55 "Malgun Gothic","Segoe UI",sans-serif;font-variant-numeric:tabular-nums}
+h1{font-size:16px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px}
+h2{font-size:15px;font-weight:700;letter-spacing:-.01em;margin:0 0 10px}
+p{margin:0 0 6px;max-width:72ch}
+.lead{color:var(--muted);font-size:12px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:2px solid var(--accent-color);outline-offset:2px}
+section.blk{margin-top:22px}
+.unk{font:11px "Malgun Gothic",sans-serif;color:var(--muted);border:1px dashed var(--line-strong);border-radius:6px;padding:0 6px;white-space:nowrap}
+.v{font-family:var(--mono)}
+button{background:var(--panel2);color:var(--fg);border:1px solid var(--line-strong);border-radius:var(--r);
+  font:12px "Malgun Gothic",sans-serif;padding:6px 14px;cursor:pointer;transition:background .2s,border-color .2s}
+button:hover{background:#283141;border-color:#4a566b}
+.deck{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.hc{--t:var(--t-gray);
+  width:272px;min-height:520px;display:flex;flex-direction:column;
+  background:var(--panel);border:1px solid color-mix(in srgb,var(--t) 62%,var(--line-strong));
+  border-radius:var(--r-lg);box-shadow:0 12px 32px rgba(8,12,24,.55);overflow:hidden}
+.hc[data-tier="r3"]{--t:var(--t-r3)} .hc[data-tier="r2"]{--t:var(--t-r2)}
+.hc[data-tier="b2"]{--t:var(--t-b2)} .hc[data-tier="b3"]{--t:var(--t-b3)}
+.hc[data-tier="gray"]{border-style:dashed}
+.face{display:flex;flex-direction:column;flex:1}
+.face[hidden]{display:none}
+.hc.turned .face:not([hidden]){animation:turn .22s cubic-bezier(.22,.9,.3,1)}
+@keyframes turn{from{transform:scaleX(.94);opacity:.4}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.hc.turned .face:not([hidden]){animation:none}}
+.band{padding:10px 14px 9px;border-bottom:1px solid color-mix(in srgb,var(--t) 40%,var(--line));
+  background:
+    repeating-linear-gradient(180deg,color-mix(in srgb,var(--t) 20%,transparent) 0 1px,transparent 1px var(--rule,0px)),
+    color-mix(in srgb,var(--t) 10%,var(--panel))}
+.hc[data-tier="r3"] .band{--rule:3px} .hc[data-tier="r2"] .band{--rule:5px}
+.hc[data-tier="b2"] .band{--rule:9px} .hc[data-tier="b3"] .band{background:color-mix(in srgb,var(--t) 10%,var(--panel))}
+.hc[data-tier="gray"] .band{background:var(--panel)}
+.band-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.tier{font-size:11px;color:color-mix(in srgb,var(--t) 72%,#ffffff);letter-spacing:.02em}
+.org{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+.dday{display:flex;align-items:baseline;gap:8px;margin-top:2px}
+.dday b{font:700 16px var(--mono);color:var(--fg);letter-spacing:-.01em}
+.dday span{font:11px var(--mono);color:var(--muted)}
+.portrait{position:relative;height:168px;margin:12px 14px 0;border-radius:var(--r);
+  background:radial-gradient(circle at 50% 30%,#232c3a,var(--panel2) 70%);border:1px solid var(--line)}
+.portrait svg.sil{position:absolute;left:50%;top:18px;width:108px;height:144px;transform:translateX(-50%)}
+.crop{position:absolute;left:50%;top:12px;width:117px;height:156px;transform:translateX(-50%)}
+.crop i{position:absolute;width:10px;height:10px;border-color:var(--line-strong);border-style:solid}
+.crop i:nth-child(1){left:0;top:0;border-width:1px 0 0 1px}
+.crop i:nth-child(2){right:0;top:0;border-width:1px 1px 0 0}
+.crop i:nth-child(3){left:0;bottom:0;border-width:0 0 1px 1px}
+.crop i:nth-child(4){right:0;bottom:0;border-width:0 1px 1px 0}
+.portrait .ph{position:absolute;right:8px;bottom:6px;font-size:11px;color:var(--muted)}
+.who{padding:10px 14px 0}
+.who h3{font-size:16px;font-weight:700;letter-spacing:-.01em;margin:0}
+.who .pos{font-size:12px;color:var(--muted)}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);margin:10px 14px 0;border:1px solid var(--line);border-radius:var(--r-sm)}
+.facts div{padding:6px 8px;min-width:0}
+.facts div+div{border-left:1px solid var(--line)}
+.facts dt{font-size:11px;color:var(--muted)}
+.facts dd{margin:0;font:700 13px var(--mono);white-space:nowrap}
+.facts dd small{display:block;font:400 11px var(--mono);color:var(--muted)}
+.items{margin:10px 14px 0;display:grid;grid-template-columns:34px 1fr;gap:4px 8px;font-size:12px}
+.items dt{color:var(--muted);font-size:11px;padding-top:1px}
+.items dd{margin:0;min-width:0}
+.items .yr{font-family:var(--mono);color:var(--muted);font-size:11px;margin-right:4px}
+.foot{margin-top:auto;padding:10px 14px 12px;border-top:1px solid var(--line);display:grid;gap:8px}
+.src{font-size:11px;color:var(--muted)}
+.src .v{color:var(--fg)}
+.foot-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.log{font-size:11px;color:var(--muted);display:flex;gap:5px;align-items:center}
+.log svg{flex:none}
+.back-head{padding:12px 14px 8px;border-bottom:1px solid var(--line)}
+.back-head h4{font-size:14px;font-weight:700;letter-spacing:-.01em;margin:0}
+.back-head p{font-size:11px;color:var(--muted);margin:2px 0 0}
+.tl{list-style:none;margin:0;padding:8px 14px 0}
+.tl-t{font-size:11px;color:var(--muted);margin:6px 0 4px}
+.tl li{display:grid;grid-template-columns:66px 1fr;gap:2px 8px;padding:5px 0;border-bottom:1px solid var(--line);font-size:12px}
+.tl li:last-child{border-bottom:0}
+.tl .when{font:11px var(--mono);color:var(--muted);padding-top:1px}
+.tl .s{grid-column:2;font-size:11px;color:var(--muted)}
+.nw{white-space:nowrap}
+.list{max-width:560px;background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--r-lg);overflow:hidden}
+.list-h{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:baseline}
+.list-h h3{font-size:14px;font-weight:700;margin:0;letter-spacing:-.01em}
+.list-h span{font-size:11px;color:var(--muted)}
+.row{--t:var(--t-gray);display:grid;grid-template-columns:4px 28px 1fr auto;gap:0 10px;align-items:center;
+  padding:8px 14px 8px 0;border-bottom:1px solid var(--line);color:var(--fg);text-decoration:none;transition:background .2s}
+.row:last-child{border-bottom:0}
+.row:hover{background:#1a2130}
+.row[data-tier="r3"]{--t:var(--t-r3)} .row[data-tier="r2"]{--t:var(--t-r2)}
+.row[data-tier="b2"]{--t:var(--t-b2)} .row[data-tier="b3"]{--t:var(--t-b3)}
+.row .bar{align-self:stretch;background:var(--t)}
+.row[data-tier="gray"] .bar{background:repeating-linear-gradient(180deg,var(--t) 0 3px,transparent 3px 6px)}
+.mini{width:28px;height:28px;border-radius:50%;background:var(--panel2);border:1px solid var(--line-strong);display:grid;place-items:center}
+.row .nm{min-width:0}
+.row .nm b{font-size:13px}
+.row .nm .ps{font-size:11px;color:var(--muted);margin-left:6px}
+.row .nm .sub{display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rt{text-align:right}
+.row .rt b{font:700 12px var(--mono);display:block}
+.row .rt > span{font-size:11px;color:color-mix(in srgb,var(--t) 72%,#ffffff)}
+.grp{padding:6px 14px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);background:var(--bg)}
+.stamp{display:inline-flex;align-items:center;gap:3px;font:700 11px var(--mono);background:var(--fg);color:#0d1116;border:1px solid var(--fg);border-radius:6px;padding:0 5px}
+.list-f{padding:8px 14px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+.two{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.note{flex:1 1 380px;background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--r-lg);padding:14px}
+.note ul{margin:6px 0 0;padding-left:18px;font-size:12px;max-width:72ch}
+.note li{margin-bottom:4px}
+table{border-collapse:collapse;font-size:12px;width:100%}
+th,td{border-bottom:1px solid var(--line);padding:4px 8px;text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:400;font-size:11px}
+td.n{font-family:var(--mono)}
+.sw{display:inline-block;width:12px;height:12px;border-radius:4px;border:1px solid rgba(0,0,0,.35);vertical-align:-1px;margin-right:6px}
+@media (max-width:620px){body{padding:12px}.hc{width:100%}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="sil" viewBox="0 0 100 133">
+    <circle cx="50" cy="44" r="22" fill="#2d3644" stroke="#424e62" stroke-width="1"/>
+    <path d="M10 133C10 98 28 78 50 78S90 98 90 133Z" fill="#2d3644" stroke="#424e62" stroke-width="1"/>
+  </symbol>
+  <symbol id="eye" viewBox="0 0 12 12">
+    <path d="M1 6C2.6 3.4 4.2 2.4 6 2.4S9.4 3.4 11 6C9.4 8.6 7.8 9.6 6 9.6S2.6 8.6 1 6Z" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <circle cx="6" cy="6" r="1.6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+  </symbol>
+</svg>
+
+<h1>기관장 카드 시안 · 입찰 현황판 3단계</h1>
+<p class="lead">사람·기관은 모두 가상입니다. 카드의 숫자는 평가가 아니라 날짜에서 계산한 사실값이고, 테두리 색은 사람이 아니라 그 기관의 입찰 임박도입니다. 기준일 2026-11-11.</p>
+
+<section class="blk" aria-labelledby="h-cards">
+<h2 id="h-cards">상세 카드 (이름 전체 표시, 열람 기록)</h2>
+<div class="deck">
+
+<article class="hc" id="card-1" data-tier="r3" aria-labelledby="c1-n" aria-describedby="c1-t">
+ <div class="face f-front">
+  <div class="band">
+   <div class="band-top"><span class="tier" id="c1-t">입찰 6개월 안</span><span class="org">가람시청 · 지자체</span></div>
+   <div class="dday"><b aria-hidden="true">D-41</b><span>공고 예정 2026-12-22 확정</span><span class="sr">금고 입찰 공고 예정일까지 41일</span></div>
+  </div>
+  <div class="portrait">
+   <div class="crop" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+   <svg class="sil" role="img" aria-label="사진 없음, 이용 조건 확인 전"><use href="#sil"/></svg>
+   <span class="ph" aria-hidden="true">사진 3:4</span>
+  </div>
+  <div class="who"><h3 id="c1-n">서지운</h3><div class="pos">가람시장 · 민선 9기</div></div>
+  <dl class="facts">
+   <div><dt>재임</dt><dd>4개월<small>첫 취임부터</small></dd></div>
+   <div><dt>임기 남음</dt><dd>1,327일<small>~2030-06-30</small></dd></div>
+   <div><dt>취임일</dt><dd>26-07-01<small>현 임기</small></dd></div>
+  </dl>
+  <dl class="items">
+   <dt>학력</dt><dd><span class="yr">2001</span>가상대학교 행정학 석사</dd>
+   <dt>경력</dt><dd><span class="yr">2022</span>가람시의회 의원<br><span class="yr">2014</span>가상도청 예산담당관</dd>
+  </dl>
+  <div class="foot">
+   <div class="src">출처 <span class="v">3</span>건 · 최근 확인 <span class="v">2026-11-03</span></div>
+   <div class="foot-row">
+    <span class="log"><svg width="12" height="12" aria-hidden="true"><use href="#eye"/></svg>열람 기록이 남습니다</span>
+    <button type="button" data-flip aria-controls="c1-back" aria-expanded="false">경력 전체</button>
+   </div>
+  </div>
+ </div>
+ <div class="face f-back" id="c1-back" hidden>
+  <div class="band" style="padding-bottom:7px">
+   <div class="band-top"><span class="tier">입찰 6개월 안</span><span class="org">가람시청 · 지자체</span></div>
+  </div>
+  <div class="back-head"><h4>서지운 · 학력과 경력</h4><p>공개 보도·기관 누리집에 나온 항목만 적습니다.</p></div>
+  <div class="tl-t" style="padding:0 14px">학력</div>
+  <ul class="tl">
+   <li><span class="when">2001</span><span>가상대학교 행정학 석사</span><span class="s">가람시 누리집 시장 소개 · <span class="nw">확인 11-03</span></span></li>
+   <li><span class="when">1995</span><span>가상대학교 행정학 학사</span><span class="s">가람시 누리집 시장 소개 · <span class="nw">확인 11-03</span></span></li>
+  </ul>
+  <div class="tl-t" style="padding:0 14px">경력</div>
+  <ul class="tl">
+   <li><span class="when">2026-07~</span><span>가람시장</span><span class="s">가람시 누리집 · <span class="nw">확인 11-03</span></span></li>
+   <li><span class="when">2022-2026</span><span>가람시의회 의원</span><span class="s">중앙선관위 후보자 정보 · <span class="nw">확인 11-03</span></span></li>
+   <li><span class="when">2014-2021</span><span>가상도청 예산담당관</span><span class="s">가상일보 <span class="nw">2026-05-20</span> · <span class="nw">확인 11-02</span></span></li>
+  </ul>
+  <div class="foot">
+   <div class="foot-row">
+    <span class="log"><svg width="12" height="12" aria-hidden="true"><use href="#eye"/></svg>열람 기록이 남습니다</span>
+    <button type="button" data-flip aria-controls="c1-back" aria-expanded="true">앞면으로</button>
+   </div>
+  </div>
+ </div>
+</article>
+
+<article class="hc" id="card-2" data-tier="r2" aria-labelledby="c2-n" aria-describedby="c2-t">
+ <div class="face f-front" hidden>
+  <div class="band">
+   <div class="band-top"><span class="tier" id="c2-t">입찰 1년 안</span><span class="org">누리군청 · 지자체</span></div>
+   <div class="dday"><b aria-hidden="true">D-292</b><span>공고 예정 2027-08-30 추정</span><span class="sr">금고 입찰 공고 예정일까지 292일, 추정</span></div>
+  </div>
+  <div class="portrait">
+   <div class="crop" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+   <svg class="sil" role="img" aria-label="사진 없음, 이용 조건 확인 전"><use href="#sil"/></svg>
+   <span class="ph" aria-hidden="true">사진 3:4</span>
+  </div>
+  <div class="who"><h3 id="c2-n">문태하</h3><div class="pos">누리군수 · 재선</div></div>
+  <dl class="facts">
+   <div><dt>재임</dt><dd>4년 4개월<small>첫 취임부터</small></dd></div>
+   <div><dt>임기 남음</dt><dd>1,327일<small>~2030-06-30</small></dd></div>
+   <div><dt>취임일</dt><dd>22-07-01<small>첫 취임</small></dd></div>
+  </dl>
+  <dl class="items">
+   <dt>학력</dt><dd><span class="yr">1992</span>가상대학교 경제학 학사</dd>
+   <dt>경력</dt><dd><span class="yr">2018</span>누리군 부군수<br><span class="yr">2010</span>가상도 기획조정실</dd>
+  </dl>
+  <div class="foot">
+   <div class="src">출처 <span class="v">4</span>건 · 최근 확인 <span class="v">2026-10-28</span></div>
+   <div class="foot-row">
+    <span class="log"><svg width="12" height="12" aria-hidden="true"><use href="#eye"/></svg>열람 기록이 남습니다</span>
+    <button type="button" data-flip aria-controls="c2-back" aria-expanded="false">경력 전체</button>
+   </div>
+  </div>
+ </div>
+ <div class="face f-back" id="c2-back">
+  <div class="band" style="padding-bottom:7px">
+   <div class="band-top"><span class="tier">입찰 1년 안</span><span class="org">누리군청 · 지자체</span></div>
+  </div>
+  <div class="back-head"><h4>문태하 · 학력과 경력</h4><p>공개 보도·기관 누리집에 나온 항목만 적습니다.</p></div>
+  <div class="tl-t" style="padding:0 14px">학력</div>
+  <ul class="tl">
+   <li><span class="when">1992</span><span>가상대학교 경제학 학사</span><span class="s">누리군 누리집 군수 소개 · <span class="nw">확인 10-28</span></span></li>
+  </ul>
+  <div class="tl-t" style="padding:0 14px">경력</div>
+  <ul class="tl">
+   <li><span class="when">2022-07~</span><span>누리군수 (2026 재선)</span><span class="s">중앙선관위 당선인 정보 · <span class="nw">확인 10-28</span></span></li>
+   <li><span class="when">2018-2021</span><span>누리군 부군수</span><span class="s">누리일보 <span class="nw">2022-05-11</span> · <span class="nw">확인 10-28</span></span></li>
+   <li><span class="when">2010-2017</span><span>가상도 기획조정실</span><span class="s">누리일보 <span class="nw">2022-05-11</span> · <span class="nw">확인 10-28</span></span></li>
+   <li><span class="when"><span class="unk">미확인</span></span><span>그 이전 경력</span><span class="s">공개 자료에서 찾지 못함</span></li>
+  </ul>
+  <div class="foot">
+   <div class="foot-row">
+    <span class="log"><svg width="12" height="12" aria-hidden="true"><use href="#eye"/></svg>열람 기록이 남습니다</span>
+    <button type="button" data-flip aria-controls="c2-back" aria-expanded="true">앞면으로</button>
+   </div>
+  </div>
+ </div>
+</article>
+
+<article class="hc" id="card-3" data-tier="b2" aria-labelledby="c3-n" aria-describedby="c3-t">
+ <div class="face f-front">
+  <div class="band">
+   <div class="band-top"><span class="tier" id="c3-t">입찰 1~2년</span><span class="org">한빛공단 · 공공기관</span></div>
+   <div class="dday"><b aria-hidden="true">D-460</b><span>공고 예정 2028-02-14 확정</span><span class="sr">금고 입찰 공고 예정일까지 460일</span></div>
+  </div>
+  <div class="portrait">
+   <div class="crop" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+   <svg class="sil" role="img" aria-label="사진 없음, 이용 조건 확인 전"><use href="#sil"/></svg>
+   <span class="ph" aria-hidden="true">사진 3:4</span>
+  </div>
+  <div class="who"><h3 id="c3-n">권소율</h3><div class="pos">한빛공단 이사장</div></div>
+  <dl class="facts">
+   <div><dt>재임</dt><dd>1년 7개월<small>첫 취임부터</small></dd></div>
+   <div><dt>임기 남음</dt><dd>491일<small>~2028-03-16</small></dd></div>
+   <div><dt>취임일</dt><dd>25-03-17<small>현 임기</small></dd></div>
+  </dl>
+  <dl class="items">
+   <dt>학력</dt><dd><span class="unk">미확인</span></dd>
+   <dt>경력</dt><dd><span class="yr">2021</span>가상연구원 원장<br><span class="yr">2016</span>가상부 정책국장</dd>
+  </dl>
+  <div class="foot">
+   <div class="src">출처 <span class="v">2</span>건 · 최근 확인 <span class="v">2026-09-15</span></div>
+   <div class="foot-row">
+    <span class="log"><svg width="12" height="12" aria-hidden="true"><use href="#eye"/></svg>열람 기록이 남습니다</span>
+    <button type="button" data-flip aria-controls="c3-back" aria-expanded="false">경력 전체</button>
+   </div>
+  </div>
+ </div>
+ <div class="face f-back" id="c3-back" hidden>
+  <div class="band" style="padding-bottom:7px">
+   <div class="band-top"><span class="tier">입찰 1~2년</span><span class="org">한빛공단 · 공공기관</span></div>
+  </div>
+  <div class="back-head"><h4>권소율 · 학력과 경력</h4><p>공개 보도·기관 누리집에 나온 항목만 적습니다.</p></div>
+  <div class="tl-t" style="padding:0 14px">학력</div>
+  <ul class="tl">
+   <li><span class="when"><span class="unk">미확인</span></span><span>공개 보도에서 찾지 못함</span><span class="s">알리오 임원 현황 · <span class="nw">확인 09-15</span></span></li>
+  </ul>
+  <div class="tl-t" style="padding:0 14px">경력</div>
+  <ul class="tl">
+   <li><span class="when">2025-03~</span><span>한빛공단 이사장</span><span class="s">알리오 임원 현황 · <span class="nw">확인 09-15</span></span></li>
+   <li><span class="when">2021-2024</span><span>가상연구원 원장</span><span class="s">가상경제 <span class="nw">2025-03-18</span> · <span class="nw">확인 09-15</span></span></li>
+   <li><span class="when">2016-2020</span><span>가상부 정책국장</span><span class="s">가상경제 <span class="nw">2025-03-18</span> · <span class="nw">확인 09-15</span></span></li>
+  </ul>
+  <div class="foot">
+   <div class="foot-row">
+    <span class="log"><svg width="12" height="12" aria-hidden="true"><use href="#eye"/></svg>열람 기록이 남습니다</span>
+    <button type="button" data-flip aria-controls="c3-back" aria-expanded="true">앞면으로</button>
+   </div>
+  </div>
+ </div>
+</article>
+</div>
+</section>
+
+<section class="blk" aria-labelledby="h-list">
+<h2 id="h-list">목록에서 보이는 모양 (이름 가림, 사진 없음)</h2>
+<div class="list">
+ <div class="list-h"><h3>다가오는 입찰 · 기관장</h3><span>가까운 순</span></div>
+ <a class="row" href="#card-1" data-tier="r3"><i class="bar"></i><span class="mini" aria-hidden="true"><svg width="20" height="26"><use href="#sil"/></svg></span>
+  <span class="nm"><b>서*운</b><span class="ps">가람시장</span><span class="sub">가람시청 · 임기 남음 1,327일</span></span>
+  <span class="rt"><b>D-41</b><span>6개월 안</span></span></a>
+ <a class="row" href="#card-2" data-tier="r2"><i class="bar"></i><span class="mini" aria-hidden="true"><svg width="20" height="26"><use href="#sil"/></svg></span>
+  <span class="nm"><b>문*하</b><span class="ps">누리군수</span><span class="sub">누리군청 · 임기 남음 1,327일</span></span>
+  <span class="rt"><b>D-292</b><span>1년 안 · 추정</span></span></a>
+ <a class="row" href="#card-3" data-tier="b2"><i class="bar"></i><span class="mini" aria-hidden="true"><svg width="20" height="26"><use href="#sil"/></svg></span>
+  <span class="nm"><b>권*율</b><span class="ps">이사장</span><span class="sub">한빛공단 · 임기 남음 491일</span></span>
+  <span class="rt"><b>D-460</b><span>1~2년</span></span></a>
+ <a class="row" href="#h-list" data-tier="b3"><i class="bar"></i><span class="mini" aria-hidden="true"><svg width="20" height="26"><use href="#sil"/></svg></span>
+  <span class="nm"><b>남*</b><span class="ps">솔내구청장</span><span class="sub">솔내구청 · 임기 남음 1,327일</span></span>
+  <span class="rt"><b>D-812</b><span>2년 넘음</span></span></a>
+ <div class="grp">공고 예정일 지남</div>
+ <a class="row" href="#h-list" data-tier="r3"><i class="bar"></i><span class="mini" aria-hidden="true"><svg width="20" height="26"><use href="#sil"/></svg></span>
+  <span class="nm"><b>하*린</b><span class="ps">여울군수</span><span class="sub">여울군청 · 임기 남음 1,327일</span></span>
+  <span class="rt"><b><span class="stamp"><svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 3.4V6l1.8 1.2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>D+24</span></b><span>예정일 지남 · 미처리</span></span></a>
+ <div class="grp">날짜 미상</div>
+ <a class="row" href="#h-list" data-tier="gray"><i class="bar"></i><span class="mini" aria-hidden="true"><svg width="20" height="26"><use href="#sil"/></svg></span>
+  <span class="nm"><b><span class="unk">기관장 미확인</span></b><span class="sub">바다시청 · 수집 전</span></span>
+  <span class="rt"><b>미상</b><span>입찰일 미상</span></span></a>
+ <div class="list-f">이름을 누르면 상세 카드가 열리고 열람 기록이 남습니다.</div>
+</div>
+</section>
+
+<section class="blk" aria-labelledby="h-spec">
+<h2 id="h-spec">규격 메모</h2>
+<div class="two">
+ <div class="note">
+  <table>
+   <thead><tr><th>테두리 단계 (기관의 입찰 임박도)</th><th>색</th><th>머리 띠 가로줄</th><th>단계 글자 대비(실측)</th></tr></thead>
+   <tbody>
+    <tr><td><i class="sw" style="background:var(--t-r3)"></i>6개월 안 · 예정일 지남</td><td class="n">#e8606b</td><td>3px 간격</td><td class="n">6.3:1</td></tr>
+    <tr><td><i class="sw" style="background:var(--t-r2)"></i>1년 안</td><td class="n">#f0a6a9</td><td>5px 간격</td><td class="n">8.6:1</td></tr>
+    <tr><td><i class="sw" style="background:var(--t-b2)"></i>1~2년</td><td class="n">#7397d8</td><td>9px 간격</td><td class="n">6.9:1</td></tr>
+    <tr><td><i class="sw" style="background:var(--t-b3)"></i>2년 넘음</td><td class="n">#4f72b8</td><td>줄 없음</td><td class="n">5.9:1</td></tr>
+    <tr><td><i class="sw" style="background:var(--t-gray)"></i>날짜 미상</td><td class="n">#7c8699</td><td>점선 테두리</td><td class="n">7.0:1</td></tr>
+   </tbody>
+  </table>
+  <ul>
+   <li>예정일이 지난 기관은 테두리는 6개월 안과 같고, 숫자를 잉크 도장(시계 + D+n)으로 바꿉니다(경과 도장 규칙).</li>
+   <li>보라(섞임)는 지역 면 전용입니다. 기관 하나는 섞이지 않으므로 카드에는 없습니다.</li>
+   <li>단계는 색·가로줄 간격·글자(“입찰 6개월 안”) 셋으로 함께 알립니다. 색만으로 전하지 않습니다.</li>
+   <li>사람에 대한 점수·등급·별점은 두지 않습니다. 숫자 칸은 재임·임기 남음·취임일, 머리 띠는 기관의 공고 예정일뿐입니다.</li>
+  </ul>
+ </div>
+ <div class="note">
+  <h2 style="font-size:14px">사진 자리</h2>
+  <ul>
+   <li>자리 크기 117×156 (3:4), 표시 영역 안쪽 가운데, 모서리 재단선이 규격입니다. 원본은 최소 234×312(2배)로 받아 잘라 맞춥니다.</li>
+   <li>사진이 없거나 이용 조건을 확인하지 않았으면 실루엣과 “사진 없음, 이용 조건 확인 전” 이름을 둡니다. 이니셜은 쓰지 않습니다(목록에서 가린 이름이 드러남).</li>
+   <li>목록에서는 사진이 있어도 실루엣만 보입니다. 이름을 가린 목적과 맞춥니다.</li>
+  </ul>
+ </div>
+</div>
+</section>
+
+<script>
+document.querySelectorAll('[data-flip]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var card = b.closest('.hc');
+    var back = card.querySelector('.f-back').hidden;
+    card.querySelector('.f-front').hidden = back;
+    card.querySelector('.f-back').hidden = !back;
+    card.querySelectorAll('[data-flip]').forEach(function (x) { x.setAttribute('aria-expanded', String(back)); });
+    card.classList.remove('turned'); void card.offsetWidth; card.classList.add('turned');
+    card.querySelector((back ? '.f-back' : '.f-front') + ' [data-flip]').focus();
+  });
+});
+</script>
+</body>
+</html>

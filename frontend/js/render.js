@@ -25,8 +25,10 @@
   // 위에서 채도는 지도만 갖는다: 진한 원색은 위에 얹히는 물결/깜빡임을 묻히게 해서
   // 낮췄고(1.0 팔레트 계승), 사용자 확정 근거는 handoff/2026-08-14_summary.md
   // (라이트·원색 계열 8종 비교 후 이 조합 선택).
+  // 2026-11-11(NEXT 78): 지도 면 색이 5단 섞기로 바뀌었다 — r3 진빨강 · r2 빨강 · p 보라(섞임) ·
+  // b2 파랑 · b3 진파랑 · gray 날짜 미상. 값은 design-reviewer 1616 규격 §6(바탕 대비 4.0~9.6:1).
   render.DEFAULT_THEME = {
-    red:'#f0a6a9', orange:'#f3c795', yellow:'#e9e3a8', blue:'#a9c5ea', gray:'#7c8699',
+    r3:'#e8606b', r2:'#f0a6a9', p:'#cf9ad8', b2:'#7397d8', b3:'#4f72b8', gray:'#7c8699',
     // 파스텔 위에서 가장 잘 튀는 채도 높은 틸 — 물결·구 외곽선·크롬 강조가 공유.
     accent:'#57b8ad',
     rippleDuration: 2.2,   // 초. 이전 1.4s에서 한 템포 늦춤
@@ -47,12 +49,39 @@
     // '날짜 의미 확인 중' 표식(점선 원 + i)
     check: '<svg class="gph" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.4"/><line x1="6" y1="5.4" x2="6" y2="8.6" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="3.7" r=".75" fill="currentColor"/></svg>',
   };
-  // 호출부(regionUrgencyColor·drawMarkers 등)가 render.URGENCY_COLORS[...]로 직접 참조하므로
-  // 객체 정체성을 유지한 채 applyTheme이 키만 덮어쓴다.
-  render.URGENCY_COLORS = { red:'', orange:'', yellow:'', blue:'', gray:'' };
+  // MAP_COLORS는 지도 위(지역 면·마커)의 5단 색이고 테마로 바꾼다. URGENCY_COLORS는 **크롬**(티커)의
+  // 옛 4단+미상 색으로 고정이다(규격 §6 '크롬 그대로', 팀 결정 2026-11-11). 지도 위 마커는 기관 하나의
+  // 임박도 band를 BAND_TO_MIX로 5단 색에 대응시켜 MAP_COLORS를 쓴다: red→r3, orange→r2, yellow→b2, blue→b3, gray→gray.
+  render.MAP_KEYS = ['r3','r2','p','b2','b3','gray'];
+  render.BAND_TO_MIX = { red:'r3', orange:'r2', yellow:'b2', blue:'b3', gray:'gray' };
+  render.MAP_COLORS = { r3:'', r2:'', p:'', b2:'', b3:'', gray:'' };
+  render.markerColor = function (band) {
+    const k = render.BAND_TO_MIX[band] || 'gray';
+    return render._safeColor(render.MAP_COLORS[k], render.DEFAULT_THEME[k]);
+  };
+
+  // 이전 테마(red/orange/yellow/blue/gray)를 이어받는다. 끝점 대응은 위 BAND_TO_MIX와 같다.
+  // 테마 창은 저장할 때 다섯 색을 전부 쓰므로, 옛 기본값 그대로인 값은 사용자가 고른 색이 아니라서
+  // 가져오지 않는다(가져오면 새 5단이 옛 파스텔로 덮여 노랑이 파랑 자리에 들어간다).
+  render.LEGACY_DEFAULTS = { red:'#f0a6a9', orange:'#f3c795', yellow:'#e9e3a8', blue:'#a9c5ea', gray:'#7c8699' };
+  render.URGENCY_COLORS = Object.assign({}, render.LEGACY_DEFAULTS);
+  render.migrateTheme = function (saved) {
+    const src = saved || {};
+    const out = Object.assign({}, src);
+    Object.keys(render.LEGACY_DEFAULTS).forEach(function (k) {
+      const to = render.BAND_TO_MIX[k];
+      if (k === to) return;                       // gray는 키 이름이 같아 그대로 이어진다
+      delete out[k];                              // 옛 키는 남기지 않는다
+      const v = src[k];
+      if (typeof v !== 'string' || src[to] !== undefined) return;   // 새 키가 이미 있으면 새 키가 이긴다
+      if (v.toLowerCase() === render.LEGACY_DEFAULTS[k]) return;    // 옛 기본값 그대로 = 고른 색 아님
+      out[to] = v;
+    });
+    return out;
+  };
 
   render.currentTheme = function () {
-    return Object.assign({}, render.DEFAULT_THEME, store.loadTheme() || {});
+    return Object.assign({}, render.DEFAULT_THEME, render.migrateTheme(store.loadTheme()));
   };
 
   render.INACTIVE_FILL = '#c3cad9';   // 준비중 지역 — 진한 라벨이 읽히도록 밝은 중립색
@@ -60,7 +89,7 @@
   // 저장된 테마를 팔레트 객체와 CSS 변수에 반영. app.init 1회 + 설정 저장 시마다 호출.
   render.applyTheme = function () {
     const t = render.currentTheme();
-    ['red','orange','yellow','blue','gray'].forEach(function (k) { render.URGENCY_COLORS[k] = t[k]; });
+    render.MAP_KEYS.forEach(function (k) { render.MAP_COLORS[k] = t[k]; });
     if (typeof document !== 'undefined' && document.documentElement) {
       const s = document.documentElement.style;
       s.setProperty('--accent-color', t.accent);
@@ -72,9 +101,12 @@
 
   // 범례를 실제 테마 색으로 그린다. 이전엔 🔴🟠🟡 이모지가 하드코딩돼 있어
   // 색을 바꿔도 범례만 옛 색으로 남는 문제가 있었다.
+  // 용어 통일(규격 §6): 6개월 안 / 6~12개월 / 1~2년 / 2년 넘음 / 날짜 미상 / 추정.
   render.LEGEND_ITEMS = [
-    ['red','6개월↓'], ['orange','1년↓'], ['yellow','2년↓'], ['blue','2년+'], ['gray','미상'],
+    ['r3','6개월 안 위주'], ['r2','1년 안 위주'], ['p','섞임 (1년 안 포함)'],
+    ['b2','1~2년 위주'], ['b3','2년 넘음 위주'], ['gray','날짜 미상'],
   ];
+  render.MIX_NAME = { r3:'진빨강', r2:'빨강', p:'보라', b2:'파랑', b3:'진파랑', gray:'날짜 미상', none:'기관 없음' };
   // 색은 localStorage(테마)에서 오므로 style 속성에 그대로 끼우지 않고 hex만 통과시킨다.
   render._safeColor = function (c, fallback) {
     return /^#[0-9a-fA-F]{3,8}$/.test(String(c)) ? String(c) : fallback;
@@ -85,14 +117,15 @@
     // 라벨 글자도 해당 등락색으로 — 범례 스스로 색 의미론을 말한다(마감 리뷰 반영).
     // 딥톤 면색 그대로는 작은 글자가 어두워서, 글자용으로만 흰색을 30% 섞어 밝힌다.
     const rows = render.LEGEND_ITEMS.map(function (it) {
-      const c = render._safeColor(render.URGENCY_COLORS[it[0]], render.DEFAULT_THEME[it[0]]);
+      const c = render._safeColor(render.MAP_COLORS[it[0]], render.DEFAULT_THEME[it[0]]);
       const warn = it[0] === 'gray' ? ' ' + render.ICONS.warn : '';
       return '<span class="lg-item" style="color:color-mix(in srgb, ' + c + ' 70%, #ffffff)">' +
         '<i class="lg-sw" style="background:' + c + '"></i>' + logic.esc(it[1]) + warn + '</span>';
     });
     rows.push('<span class="lg-item"><i class="lg-sw lg-hatch" style="background:' +
       render._safeColor(render.INACTIVE_FILL, '#c3cad9') + '"></i>준비중</span>');
-    el.innerHTML = '<div class="lg-title">입찰 임박도</div>' + rows.join('');
+    rows.push('<span class="lg-item lg-tri-row"><b class="lg-tri" aria-hidden="true">▲3</b>6개월 안 기관 수 (속 빈 △는 추정)</span>');
+    el.innerHTML = '<div class="lg-title">입찰 임박도 · 지역 색 섞기</div>' + rows.join('');
   };
   render.applyTheme();
 
@@ -102,12 +135,23 @@
     return render.allInstitutions().filter(function (r) { return r.region === code; });
   };
 
-  // 지자체(면) 레코드 중 해당 region의 최임박 임박도 → 면 색
+  // ── 지역 색 섞기(NEXT 78, C안) ─────────────────────────────────────────────────
+  // 켠 종류의 기관을 모두 섞는다. '켠 종류' 판단은 랭킹과 같은 _rankTypeVisible(지자체는 항상 포함 —
+  // 끄면 면을 지우지 않고 흐리게만 한다는 기존 규칙). 같은 기관이 일반구 폴리곤마다 반복 등록되므로
+  // 기관 단위로 중복을 먼저 뺀다(수원 4구 등이 건수를 부풀리지 않게).
+  render.mixInfo = function (list) {
+    return logic.regionMix(logic.dedupeByInstitution(list), render.state.today);
+  };
+  render.regionMixInfo = function (code) {
+    return render.mixInfo(render.institutionsByRegion(code).filter(function (r) { return render._rankTypeVisible(r); }));
+  };
+  // 섞기 결과 → 면 색. 기관 0곳('none')과 날짜 미상('gray')은 둘 다 회색(규격 §4 P2는 보류).
+  render.mixColor = function (info) {
+    const k = (info && render.MAP_COLORS[info.band] !== undefined && info.band !== 'none') ? info.band : 'gray';
+    return render._safeColor(render.MAP_COLORS[k], render.DEFAULT_THEME[k]);
+  };
   render.regionUrgencyColor = function (code) {
-    const muni = render.institutionsByRegion(code).filter(function (r) { return r.type === '지자체'; });
-    if (!muni.length) return render.URGENCY_COLORS.gray;
-    const sorted = logic.sortByUrgency(muni, render.state.today);
-    return render.URGENCY_COLORS[logic.urgencyOf(sorted[0], render.state.today)];
+    return render.mixColor(render.regionMixInfo(code));
   };
 
   // 도넛(경기)·군도(인천)라 면적가중 중심이 엉뚱한 곳에 찍히는 지역만 앵커를 직접 지정.
@@ -165,14 +209,32 @@
     const proj = d3.geoMercator().fitSize([w, h], fc);
     const path = d3.geoPath(proj);
     const g = svg.append('g').attr('class', 'national-layer');
+    render.hideRegionTip();
+    render._kbDrill = false;   // 전국으로 돌아왔다 — 못 끝난 키보드 드릴인 표식을 버린다
+    // 시도별 섞기 결과는 면 색·▲n·툴팁·aria가 함께 쓰므로 한 번만 계산한다.
+    const mix = {};
+    fc.features.forEach(function (d) {
+      const code = d.properties.code;
+      if (render.state.activeRegions.has(code)) mix[code] = render.regionMixInfo(code);
+    });
 
-    g.selectAll('path.region').data(fc.features).join('path')
+    const regionPaths = g.selectAll('path.region').data(fc.features).join('path')
       .attr('class', 'region').attr('d', path)
       .attr('data-code', function (d){ return d.properties.code; })
       .attr('fill', function (d) {
         const code = d.properties.code;
         // 준비중은 밝은 중립색 — 균일한 진한 라벨이 읽히려면 면이 밝아야 한다.
-        return render.state.activeRegions.has(code) ? render.regionUrgencyColor(code) : render.INACTIVE_FILL;
+        return mix[code] ? render.mixColor(mix[code]) : render.INACTIVE_FILL;
+      })
+      // 키보드·스크린리더: 눌러서 들어갈 수 있는 지역(경계가 있음)만 Tab으로 닿고 button(Enter·Space=드릴인).
+      // 경계가 없는 지역(세종·제주)은 눌러도 아무 일이 없으므로 tabindex를 주지 않는다(이름은 aria-label로 남는다).
+      .attr('tabindex', function (d) { return mix[d.properties.code] && render.hasSubGeo(d.properties.code) ? 0 : null; })
+      .attr('role', function (d) {
+        return mix[d.properties.code] ? (render.hasSubGeo(d.properties.code) ? 'button' : 'img') : null;
+      })
+      .attr('aria-label', function (d) {
+        const m = mix[d.properties.code];
+        return m ? render.mixAriaLabel(d.properties.name, m) : d.properties.name + ', 준비중';
       })
       .attr('stroke', '#07090e').attr('stroke-width', 1)
       // 커서·클릭은 activeRegions가 아니라 hasSubGeo로 판단한다(위 주석 참조).
@@ -180,6 +242,14 @@
       .style('opacity', 1)
       .on('click', function (ev, d) {
         if (!render.hasSubGeo(d.properties.code)) return;
+        if (root.app && root.app.enterRegion) root.app.enterRegion(d.properties.code);
+      });
+    // 지역 툴팁(마우스 올림·포커스) + Enter 드릴인. 준비중 지역은 툴팁이 없다.
+    render.bindRegionTip(regionPaths.filter(function (d) { return !!mix[d.properties.code]; }),
+      function (d) { return render.tipHtml(d.properties.name, mix[d.properties.code], render.state.today); },
+      function (ev, d) {
+        if (!render.hasSubGeo(d.properties.code)) return;
+        render._kbDrill = true;   // 새 화면이 그려지면 포커스를 옮긴다(drawRegion 끝)
         if (root.app && root.app.enterRegion) root.app.enterRegion(d.properties.code);
       });
 
@@ -205,6 +275,9 @@
         .attr('transform', 'translate(' + p[0] + ',' + p[1] + ')');
       const active = render.state.activeRegions.has(d.properties.code);
       t.append('tspan').attr('x', 0).attr('dy', active ? '0.35em' : '0em').text(d.properties.name);
+      // ▲n: 6개월 안 기관 수(모두 추정이면 속 빈 △). 글자(tspan)로 그려 후광·겹침 이동이 라벨과 함께 간다.
+      const mark = active ? logic.urgentMark(mix[d.properties.code]) : '';
+      if (mark) t.append('tspan').attr('class', 'tri').attr('dx', 4).text(mark);
       if (!active) t.append('tspan').attr('class', 'sub').attr('x', 0).attr('dy', '1.15em').text('준비중');
     });
     render._separateLabels(labels);
@@ -274,16 +347,111 @@
   // **면의 색을 정하는 레코드와 면을 눌렀을 때 잡히는 레코드는 같아야 한다** —
   // 다르면 색과 다른 기관이 선택돼 지도를 믿을 수 없게 된다. 그래서 두 곳이
   // 각자 정렬하지 않고 이 함수 하나를 공유한다.
-  render.recordForFeature = function (feature) {
+  // 면 하나를 섞는 기관들: 지자체(municipalityForFeature) + 켠 다른 종류 중 구시군코드가 이 면인 기관.
+  render.recordsForFeature = function (feature) {
     const hit = render.municipalityForFeature(feature);
+    const code = feature && feature.properties && feature.properties.code;
+    let extra = [];
+    if (code && render.state.currentRegion) {
+      extra = render.institutionsByRegion(render.state.currentRegion).filter(function (r) {
+        return r.type !== '지자체' && r.subRegion === code && render._rankTypeVisible(r);
+      });
+    }
+    return logic.dedupeByInstitution(hit.concat(extra));
+  };
+  render.featureMixInfo = function (feature) {
+    return logic.regionMix(render.recordsForFeature(feature), render.state.today);
+  };
+
+  // 섞기 기준의 '가장 임박' 기관 — 툴팁·▲가 가리키는 기관(logic.mostImminent). 날짜가 전부 없으면 null.
+  render.imminentForFeature = function (feature) {
+    return logic.mostImminent(render.recordsForFeature(feature), render.state.today);
+  };
+
+  // **클릭으로 잡히는 기관**은 섞기와 별개다(팀 결정 2026-11-11, 사용자 확정 ⓐ안): 그 구의 지자체가
+  // 먼저, 지자체가 없으면 섞기 기준 가장 임박 기관. 날짜가 전부 없으면 첫 기관 — 눌러서 고를 수는 있다.
+  render.recordForFeature = function (feature) {
+    const muni = logic.dedupeByInstitution(render.municipalityForFeature(feature));
+    if (muni.length) return logic.mostImminent(muni, render.state.today) || muni[0];
+    const hit = render.recordsForFeature(feature);
     if (!hit.length) return null;
-    return logic.sortByUrgency(hit, render.state.today)[0];
+    return logic.mostImminent(hit, render.state.today) || hit[0];
   };
 
   render.subUrgencyColor = function (feature) {
-    const rec = render.recordForFeature(feature);
-    if (!rec) return render.URGENCY_COLORS.gray;  // 해당 구에 지자체 레코드 없음
-    return render.URGENCY_COLORS[logic.urgencyOf(rec, render.state.today)];
+    return render.mixColor(render.featureMixInfo(feature));
+  };
+
+  // 스크린리더용 이름: "서울, 보라, 6개월 안 1곳, 기관 30곳"
+  render.mixAriaLabel = function (name, info) {
+    const parts = [name, render.MIX_NAME[info.band] || render.MIX_NAME.none];
+    if (info.urgent > 0) parts.push('6개월 안 ' + info.urgent + '곳' + (info.urgentAllEst ? '(모두 추정)' : ''));
+    parts.push('기관 ' + info.total + '곳');
+    return parts.join(', ');
+  };
+
+  // 지역 툴팁 문안(마우스 올림·포커스). 규격 §6. 클릭 동작과는 무관하다.
+  render.tipHtml = function (name, info, today) {
+    const c = render.mixColor(info);
+    let h = '<div class="rt-head"><b>' + esc(name) + '</b><i class="rt-sw" style="background:' + c + '"></i></div>';
+    if (!info.total) return h + '<div class="rt-mu">켠 종류의 기관이 없습니다</div>';
+    const im = info.imminent;
+    if (im) {
+      const est = logic.effectiveBid(im).confidence === '추측' ? ' (추정)' : '';
+      h += '<div class="rt-row">가장 임박 ' + esc(im.name || '') + (im.type ? ' · ' + esc(im.type) : '') +
+        ' <span class="rt-d">' + esc(logic.formatDDay(im, today)) + est + '</span></div>' +
+        '<div class="rt-row rt-m">6개월 안 ' + info.within6 + ' · 6~12개월 ' + info.to12 +
+        ' · 1~2년 ' + info.to24 + ' · 2년 넘음 ' + info.over24 + '</div>';
+    } else {
+      h += '<div class="rt-row">날짜가 있는 기관이 없습니다</div>';
+    }
+    h += '<div class="rt-mu">' + (info.unknown
+      ? '기관 ' + info.total + '곳 중 날짜 미상 ' + info.unknown + '곳은 색에 넣지 않음'
+      : '기관 ' + info.total + '곳') + '</div>';
+    return h;
+  };
+  render.showRegionTip = function (html, x, y) {
+    if (typeof document === 'undefined') return;
+    let tip = document.getElementById('region-tip');
+    if (!tip) {
+      tip = document.createElement('div'); tip.id = 'region-tip'; tip.setAttribute('role', 'tooltip');
+      document.body.appendChild(tip);
+    }
+    tip.innerHTML = html; tip.style.display = 'block';
+    render.moveRegionTip(x, y);
+  };
+  render.moveRegionTip = function (x, y) {
+    const tip = typeof document !== 'undefined' && document.getElementById('region-tip');
+    if (!tip || tip.style.display !== 'block') return;
+    tip.style.left = Math.max(8, Math.min(x + 14, window.innerWidth - tip.offsetWidth - 8)) + 'px';
+    tip.style.top = Math.max(8, Math.min(y + 14, window.innerHeight - tip.offsetHeight - 8)) + 'px';
+  };
+  render.hideRegionTip = function () {
+    const tip = typeof document !== 'undefined' && document.getElementById('region-tip');
+    if (tip) tip.style.display = 'none';
+  };
+  render.isActivateKey = function (ev) { return !!ev && (ev.key === 'Enter' || ev.key === ' '); };
+  // 면의 키 처리: Enter·Space가 클릭과 같은 동작. Space의 페이지 스크롤은 막고, 키를 누르고 있어도(repeat) 한 번만.
+  // 동작했으면 true.
+  render.regionKey = function (ev, d, enterFn) {
+    if (!render.isActivateKey(ev) || !enterFn) return false;
+    ev.preventDefault();
+    if (ev.repeat) return false;
+    render.hideRegionTip();
+    enterFn(ev, d);
+    return true;
+  };
+  // 면(path)에 툴팁·키보드 접근을 붙인다. htmlFn(d) → 문안, enterFn(ev, d) → Enter 동작(없으면 키 처리 안 함).
+  render.bindRegionTip = function (sel, htmlFn, enterFn) {
+    sel.on('mouseenter', function (ev, d) { render.showRegionTip(htmlFn(d), ev.clientX, ev.clientY); })
+      .on('mousemove', function (ev) { render.moveRegionTip(ev.clientX, ev.clientY); })
+      .on('mouseleave', function () { render.hideRegionTip(); })
+      .on('focus', function (ev, d) {
+        const r = this.getBoundingClientRect();
+        render.showRegionTip(htmlFn(d), r.left + r.width / 2, r.top + r.height / 2);
+      })
+      .on('blur', function () { render.hideRegionTip(); })
+      .on('keydown', function (ev, d) { render.regionKey(ev, d, enterFn); });
   };
 
   // 지자체 체크박스 OFF → 면 색은 유지하고 흐리게(정보를 지우지 않고 뒤로 물림).
@@ -294,6 +462,7 @@
     // 전체 재렌더 대신 투명도만 갱신 — 재렌더하면 선택 중이던 강조가 사라진다.
     d3.select('#map-svg').selectAll('path.subregion').attr('fill-opacity', render.muniDimOpacity());
     d3.select('#map-svg').selectAll('g.sub-glyph').attr('opacity', render.muniDimOpacity());
+    d3.select('#map-svg').selectAll('text.sub-urgent').attr('opacity', render.muniDimOpacity());
   };
 
   render.drawRegion = function (code) {
@@ -310,10 +479,17 @@
     const path = d3.geoPath(proj);
     render.state.currentRegion = code;
     const g = svg.append('g').attr('class', 'region-layer');
-    g.selectAll('path.subregion').data(fc.features).join('path')
+    render.hideRegionTip();
+    const subMix = {};
+    fc.features.forEach(function (d) { subMix[d.properties.code] = render.featureMixInfo(d); });
+    const subPaths = g.selectAll('path.subregion').data(fc.features).join('path')
       .attr('class', 'subregion').attr('d', path)
       .attr('data-code', function (d){ return d.properties.code; })  // 선택 강조 대상 조회용
-      .attr('fill', function (d){ return render.subUrgencyColor(d); })
+      .attr('fill', function (d){ return render.mixColor(subMix[d.properties.code]); })
+      // 기관이 걸린 면만 Tab으로 닿고 Enter로 고른다(클릭과 같은 동작).
+      .attr('tabindex', function (d) { return subMix[d.properties.code].total ? 0 : null; })
+      .attr('role', function (d) { return subMix[d.properties.code].total ? 'button' : null; })
+      .attr('aria-label', function (d) { return render.mixAriaLabel(d.properties.name, subMix[d.properties.code]); })
       .attr('fill-opacity', render.muniDimOpacity())
       .attr('stroke', '#07090e').attr('stroke-width', 1)
       // 지자체는 좌표가 없어 마커가 그려지지 않으므로(_blinkMunicipality 주석 참조)
@@ -323,14 +499,23 @@
         return render.municipalityForFeature(d).length ? 'pointer' : 'default';
       })
       .on('click', function (ev, d) { render.onSubregionClick(d, ev); });
+    render.bindRegionTip(subPaths.filter(function (d) { return subMix[d.properties.code].total > 0; }),
+      function (d) { return render.tipHtml(d.properties.name, subMix[d.properties.code], render.state.today); },
+      function (ev, d) { render.onSubregionClick(d, ev); });
+    // ▲n — 6개월 안 기관이 있는 면에만. 시군구에는 이름 라벨이 없어 ▲n만 면 가운데에 둔다.
+    g.selectAll('text.label.sub-urgent')
+      .data(fc.features.filter(function (d) { return logic.urgentMark(subMix[d.properties.code]) !== ''; }))
+      .join('text').attr('class', 'label sub-urgent').attr('text-anchor', 'middle')
+      .attr('pointer-events', 'none').attr('opacity', render.muniDimOpacity())
+      .attr('transform', function (d) { const p = path.centroid(d); return 'translate(' + p[0] + ',' + p[1] + ')'; })
+      .append('tspan').attr('class', 'tri').attr('dy', '0.35em')
+      .text(function (d) { return logic.urgentMark(subMix[d.properties.code]); });
     // 날짜 미상 면 글리프 — 마커·랭킹 카드의 recordGlyph('⚠️')와 같은 시각 언어를 면에도 확장.
     // 레코드가 아예 없는 면은 대상이 아니다(표시할 기관 자체가 없으므로 회색만 유지).
     // 이모지 대신 필터 글리프(.fsw)와 같은 획 어휘의 삼각 경고를 직접 그린다(마감 리뷰 반영).
+    // ⚠는 섞기 결과와 같은 판정: 기관이 걸렸는데 날짜 있는 기관이 0곳일 때(면이 회색일 때)만.
     const gw = g.selectAll('g.sub-glyph')
-      .data(fc.features.filter(function (d) {
-        const hit = render.municipalityForFeature(d);
-        return hit.length > 0 && hit.every(function (r) { return !logic.effectiveBid(r).date; });
-      }))
+      .data(fc.features.filter(function (d) { return subMix[d.properties.code].band === 'gray'; }))
       .join('g').attr('class', 'sub-glyph')
       .attr('transform', function (d) {
         const p = path.centroid(d); return 'translate(' + p[0] + ',' + p[1] + ')';
@@ -348,6 +533,12 @@
     if (render.drawMarkers) render.drawMarkers(code); // Task 9
     render.drawRankingPanel(code);
     render.clearSelection();
+    // 키보드(Enter·Space)로 들어왔으면 포커스를 새 화면의 첫 면으로 — 눌렀던 면은 이미 사라졌다.
+    if (render._kbDrill) {
+      render._kbDrill = false;
+      const first = document.querySelector('#map-svg path.subregion[tabindex]');
+      if (first && first.focus) first.focus();
+    }
   };
 
   render.loadRegionGeoWithRetry = function (code, done, fail) {
@@ -424,7 +615,7 @@
       }
       grp.forEach(function (item) {
         const r = item.r, p = item.p, shape = logic.markerShape(r.type);
-        const color = render.URGENCY_COLORS[logic.urgencyOf(r, render.state.today)];
+        const color = render.markerColor(logic.urgencyOf(r, render.state.today));
         const glyph = logic.recordGlyph(r);
         const g = layer.append('g').attr('class','marker').attr('data-name', r.name).attr('transform','translate('+p[0]+','+p[1]+')');
         const hatched = logic.effectiveBid(r).confidence === '추측';
@@ -466,7 +657,7 @@
     // ▲는 6개월 이내(상승 = 임박, D>=0)에만 붙는 시세 표기. 색은 hex 화이트리스트 통과분만.
     el.innerHTML = '<span class="tk-cap">임박 TOP5</span>' + top.map(function (r) {
       const band = logic.urgencyOf(r, render.state.today);
-      const c = render._safeColor(render.URGENCY_COLORS[band], render.DEFAULT_THEME[band]);
+      const c = render._safeColor(render.URGENCY_COLORS[band], render.LEGACY_DEFAULTS[band]);
       const mark = band === 'red' ? render.ICONS.up + ' ' : '';
       return '<span style="color:color-mix(in srgb, ' + c + ' 72%, #ffffff)">' + mark +
         logic.esc(r.name) + ' ' + logic.esc(logic.formatDDay(r, render.state.today)) + '</span>';

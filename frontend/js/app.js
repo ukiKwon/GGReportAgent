@@ -283,15 +283,24 @@
       b.addEventListener('change', function () {
         const s = root.render.state.enabledTypes;
         if (b.checked) s.add(b.dataset.type); else s.delete(b.dataset.type);
-        if (!root.render.state.currentRegion) return;
+        // 켠 종류가 바뀌면 지역 색 섞기(색·▲n·툴팁·aria-label)도 달라진다 — 전국이면 전국을 다시 그린다.
+        // (지자체는 항상 섞이고 끄면 흐려질 뿐이라 전국 면은 그대로다.)
+        if (!root.render.state.currentRegion) {
+          if (b.dataset.type !== '지자체') { root.render.drawNational(); root.render.applyWatchStyles(); }
+          return;
+        }
         if (b.dataset.type === '지자체') {
           // 지자체는 마커가 아니라 면이라, 재렌더 없이 투명도만 갱신한다
           // (재렌더하면 선택 중이던 강조가 사라진다). 랭킹 목록에는 계속 남긴다.
           root.render.applyMuniDimming();
           return;
         }
-        root.render.drawMarkers(root.render.state.currentRegion);
-        root.render.drawRankingPanel(root.render.state.currentRegion);
+        // 지역 화면은 면 색·▲n이 종류에 따라 바뀌므로 면까지 다시 그린다(drawRegion이 마커·랭킹도 그린다).
+        // 다시 그리면 선택 강조가 풀리므로 선택 중이던 기관을 이어서 고른다.
+        const sel = root.render._selectedName;
+        const rec = sel ? root.render.allInstitutions().filter(function (r) { return r.name === sel; })[0] : null;
+        root.render.drawRegion(root.render.state.currentRegion);
+        if (rec) root.render.selectInstitution(rec);
       });
     });
     // 초기 enabledTypes를 체크상태와 동기화

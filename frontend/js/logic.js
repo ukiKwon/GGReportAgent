@@ -258,12 +258,96 @@
   };
 
   logic.markerShape = function (type) {
-    const map = { '대학병원':'circle', '공기업':'square', '공공기관':'triangle', '지자체':'polygon',
-      '대학교':'pentagon' };
+    // '대학'·'병원'은 정본 종류 이름(NEXT 72/78) — 기존 '대학교'·'대학병원'과 같은 모양을 쓴다.
+    const map = { '대학병원':'circle', '병원':'circle', '공기업':'square', '공공기관':'triangle', '지자체':'polygon',
+      '대학교':'pentagon', '대학':'pentagon' };
     return map[type] || 'diamond';
   };
 
+  // 지도 색 섞기가 보는 기관 종류 5종(정본, NEXT 78). 데이터·사이드바의 옛 이름은 종류로 접는다.
+  // FILTERABLE_TYPES는 마커·랭킹 필터의 체크박스 이름(옛 이름)이라 그대로 둔다 — 체크박스(index.html)가
+  // 5종으로 바뀌기 전에 이 목록을 바꾸면 마커·랭킹 필터가 조용히 꺼진다.
+  logic.TYPE_KINDS = ['지자체','공공기관','대학','법원','병원'];
+  logic.KIND_OF_TYPE = { '지자체':'지자체', '공공기관':'공공기관', '공기업':'공공기관',
+    '대학':'대학', '대학교':'대학', '법원':'법원', '병원':'병원', '대학병원':'병원' };
+  logic.kindOf = function (type) { return logic.KIND_OF_TYPE[type] || null; };
+
   logic.FILTERABLE_TYPES = ['공공기관','공기업','대학병원','대학교'];
+
+  // ── 지도 지역 색 섞기(NEXT 78, C안 '바닥 섞기 + ▲개수') ──────────────────────────
+  // 규격: handoff/agents/design-reviewer/2026-11-11_1616_a821ad3f.md §3.
+  // 기관 점수: 6개월 안(경과 포함) +2, 6~12개월 +1, 1~2년 −1, 2년 넘음 −2, 날짜 미상은 계산에서 뺀다(null).
+  logic.instScore = function (rec, today) {
+    const d = logic.daysUntil(logic.effectiveBid(rec).date, today);
+    if (d === Infinity) return null;
+    if (d <= 182) return 2;
+    if (d <= 365) return 1;
+    if (d <= 730) return -1;
+    return -2;
+  };
+
+  // 평균 m → 5단: r3 진빨강 · r2 빨강 · p 보라 · b2 파랑 · b3 진파랑.
+  logic.mixBandOf = function (m) {
+    if (m >= 1.5) return 'r3';
+    if (m >= 0.5) return 'r2';
+    if (m > -0.5) return 'p';
+    if (m > -1.5) return 'b2';
+    return 'b3';
+  };
+
+  // 가장 임박한 기관 = 날짜가 있는 기관 중 남은 일수가 가장 작은 것(경과는 가장 앞). 같은 날이면
+  // 확정이 먼저, 그래도 같으면 입력 순서. ▲를 정한 기관과 면 클릭으로 잡히는 기관이 같아야 한다.
+  logic.mostImminent = function (list, today) {
+    let best = null, bestD = Infinity, bestFixed = false;
+    (list || []).forEach(function (r) {
+      const e = logic.effectiveBid(r);
+      const d = logic.daysUntil(e.date, today);
+      if (d === Infinity) return;
+      const fixed = e.confidence === '확정';
+      if (best === null || d < bestD || (d === bestD && fixed && !bestFixed)) {
+        best = r; bestD = d; bestFixed = fixed;
+      }
+    });
+    return best;
+  };
+
+  // 지역(또는 면) 하나의 섞기 결과. list는 호출자가 켠 종류·기관 단위 중복 제거를 마친 목록.
+  // band: 'none'(기관 0곳) | 'gray'(날짜 있는 기관 0곳) | r3·r2·p·b2·b3.
+  // 6개월 안 또는 6~12개월 기관이 있으면 파랑 쪽으로 못 내려가고 최소 보라(c안 바닥).
+  // urgent = 6개월 안 기관 수(▲n), urgentAllEst = 그 기관이 전부 추정이면 true(속 빈 △).
+  logic.regionMix = function (list, today) {
+    const items = list || [];
+    const info = { total: items.length, dated: 0, unknown: 0, mean: null, band: 'none',
+      within6: 0, to12: 0, to24: 0, over24: 0, urgent: 0, urgentAllEst: false, imminent: null };
+    let sum = 0, allEst = true;
+    items.forEach(function (r) {
+      const s = logic.instScore(r, today);
+      if (s === null) { info.unknown += 1; return; }
+      info.dated += 1; sum += s;
+      if (s === 2) {
+        info.within6 += 1;
+        if (logic.effectiveBid(r).confidence === '확정') allEst = false;
+      } else if (s === 1) info.to12 += 1;
+      else if (s === -1) info.to24 += 1;
+      else info.over24 += 1;
+    });
+    info.urgent = info.within6;
+    info.urgentAllEst = info.urgent > 0 && allEst;
+    if (info.dated === 0) info.band = items.length ? 'gray' : 'none';
+    else {
+      info.mean = sum / info.dated;
+      info.band = logic.mixBandOf(info.mean);
+      if ((info.within6 + info.to12) > 0 && (info.band === 'b2' || info.band === 'b3')) info.band = 'p';
+    }
+    info.imminent = logic.mostImminent(items, today);
+    return info;
+  };
+
+  // 라벨 뒤에 붙는 ▲n. 6개월 안 기관이 없으면 ''. 모두 추정이면 속 빈 △.
+  logic.urgentMark = function (info) {
+    if (!info || !(info.urgent > 0)) return '';
+    return (info.urgentAllEst ? '△' : '▲') + info.urgent;
+  };
 
   logic.visibleMarkers = function (list, enabledTypes) {
     return list.filter(function (r) {

@@ -76,6 +76,7 @@
   <a href="#c15">⑮ 이사회 자료 제출·결재</a>
   <a href="#c16">⑯ 사전준비 프로세스·지도 제안 확정</a>
   <a href="#c17">⑰ 입찰 현황판(첫 화면)</a>
+  <a href="#c18">⑱ 지도 지역 색 섞기</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -449,6 +450,22 @@
     </div>
     <p class="legend-note">영업 계열 역할은 로그인하면 입찰 현황판이 열리고, 전국 지도는 메뉴 바로 아래에 그대로 있습니다. 위 띠는 국민은행 약정 기관 수(출처 문장으로 확인된 6곳만, 미확인 수 함께), 1년 시간 눈금(경과·날짜 미상 수를 양 끝에 함께), 진행 중인 제안 수입니다. 왼쪽은 입찰 예정일이 가까운 순서의 기관 목록과 경과 묶음(기본 펼침, ↑↓ 이동·Enter 상세)이고, 오른쪽은 기관 정보·출처와 지도 팝오버와 같은 [제안 확정]·[사전준비 열기]입니다. 현재 금고 은행·기관장은 근거가 생기기 전까지 점선 칩 '미확인'으로 두고 값을 만들지 않았습니다. 숫자는 a3c6413 시점이며, 같은 날 기관 데이터 최신화(NEXT 14·30-1, 824b0e7~4a34cb6) 뒤에는 1년 안 16 · 경과 10 · 미상 112입니다. 대비: 보조 글자 <span class="num good">6.4</span>:1, 임박 빨강 <span class="num good">5.6</span>:1, 주황 <span class="num good">7.3</span>:1, 다음 한 걸음 틸 테두리 <span class="num good">7.1</span>:1, 경과 도장 약 <span class="num good">14</span>:1. 글자 크기는 11~16px 안이고, 새 색과 채운 버튼은 없습니다.</p>
   </div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c18">
+<h2>⑱ 지도 지역 색 섞기 — 바닥 섞기 + ▲개수 (2026-11-11, NEXT 78)</h2>
+<div class="why">왜: 사용자(11-11)가 "임박하면 빨강, 여유로우면 파랑, 섞이면 보라 계열, 남은 기간별로 진하게 섞는 방식"을 요청했고, 한 지역의 지자체·공공기관·대학·법원·병원을 모두 따져 지도 색을 정하기로 했습니다. 단순 평균은 "급한 1곳 + 여유 9곳" 지역을 가장 여유로운 색으로 만들어 급한 곳을 묻으므로, 바닥 규칙과 ▲개수를 함께 둡니다. 시안: docs/design/2026-11-11_지역색섞기_시안.html(C안 채택).</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+  <p class="hint12">면 색 = 그 지역 <b>지자체 레코드 중 가장 임박한 1건</b>의 5색(빨·주·노·파·회 파스텔). 다른 종류 기관은 색에 들어가지 않았고, 면에는 이름·포커스·키보드 진입이 없었습니다(클릭만).</p>
+  <p style="font-size:12px"><span class="pill" style="background:#f0a6a9;color:#141922">6개월↓</span> <span class="pill" style="background:#f3c795;color:#141922">1년↓</span> <span class="pill" style="background:#e9e3a8;color:#141922">2년↓</span> <span class="pill" style="background:#a9c5ea;color:#141922">2년+</span> <span class="pill" style="background:#7c8699;color:#141922">미상</span></p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <p style="font-size:12px"><span class="pill" style="background:#e8606b;color:#141922">6개월 안 위주</span> <span class="pill" style="background:#f0a6a9;color:#141922">1년 안 위주</span> <span class="pill" style="background:#cf9ad8;color:#141922">섞임</span> <span class="pill" style="background:#7397d8;color:#141922">1~2년 위주</span> <span class="pill" style="background:#4f72b8;color:#eef2f8">2년 넘음 위주</span> <span class="pill" style="background:#7c8699;color:#141922">날짜 미상</span></p>
+  <p class="hint12">서울 <b>▲4</b> · 강원 <b>▲2</b> · 충남 <b>△1</b>(모두 추정) — 지역 이름 옆에 6개월 안 기관 수.</p>
+  <p class="legend-note">켠 종류의 기관을 모두 섞어 5단으로 칠합니다(6개월 안·경과 +2, 6~12개월 +1, 1~2년 −1, 2년 넘음 −2, 미상 제외의 평균). 1년 안 기관이 하나라도 있으면 보라보다 파랑 쪽으로 내려가지 않고, 급한 곳은 색이 아니라 ▲n이 알립니다. 지역에 마우스를 올리거나 Tab으로 닿으면 "가장 임박 ○○ · 6개월 안 n · 6~12개월 n · 1~2년 n · 2년 넘음 n · 날짜 미상 n곳은 색에 넣지 않음" 툴팁이 뜨고, Enter·Space로 들어갑니다. 구를 누르면 기존처럼 그 구의 지자체가 열립니다. 위쪽 알림 띠는 기존 크롬 색을 유지하고, 지도 위 표식만 새 팔레트를 씁니다. 테마 창의 지도 색은 6개(5단+미상)로 바뀌었고, 사용자가 직접 바꾼 옛 색은 끝점으로 이어받습니다. 지금 데이터(지자체만)로 시도 16곳 중 보라 11·파랑 2·진파랑 3. 대비(바탕 #0f1218): <span class="num good">5.6</span> · <span class="num good">9.6</span> · <span class="num good">8.3</span> · <span class="num good">6.4</span> · <span class="num good">4.0</span> · <span class="num good">5.1</span>:1(손계산 근사, 실측 예정).</p>
+</div></div></div>
 </div>
 </section>
 

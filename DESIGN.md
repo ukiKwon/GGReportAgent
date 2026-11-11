@@ -18,11 +18,12 @@ colors:
   reed-yellow: "#c9bd8f"
   slate-blue: "#7c93c4"
   storm-gray: "#5a6273"
-  map-pastel-red: "#f0a6a9"
-  map-pastel-orange: "#f3c795"
-  map-pastel-yellow: "#e9e3a8"
-  map-pastel-blue: "#a9c5ea"
-  map-pastel-gray: "#7c8699"
+  map-mix-deep-red: "#e8606b"
+  map-mix-red: "#f0a6a9"
+  map-mix-purple: "#cf9ad8"
+  map-mix-blue: "#7397d8"
+  map-mix-deep-blue: "#4f72b8"
+  map-mix-gray: "#7c8699"
   map-inactive: "#c3cad9"
 typography:
   title:
@@ -187,12 +188,20 @@ kinds, D-day tags):
 - **Slate Blue** (`--blue`, #7c93c4): 2 years+ — distant; done/sent/normal.
 - **Storm Gray** (`--gray`, #5a6273): date unknown.
 
-### Tertiary — map pastel tier (`render.DEFAULT_THEME`)
-The same five bands lifted to pastels for the large map fills, so an overlaid
-ripple/blink never drowns: **Map Pastel Red** (#f0a6a9), **Map Pastel Orange**
-(#f3c795), **Map Pastel Yellow** (#e9e3a8), **Map Pastel Blue** (#a9c5ea),
-**Map Pastel Gray** (#7c8699), plus **Map Inactive** (#c3cad9) for "준비중"
-regions (hatched overlay) so the dark labels stay legible. All five bands and
+### Tertiary — map mix tier (`render.DEFAULT_THEME`, 2026-11-11 NEXT 78)
+Region faces blend every institution in the region (지자체·공공기관·대학·법원·병원,
+filtered by the visible kinds) on a red↔blue axis: **Map Deep Red** (#e8606b,
+6개월 안 위주), **Map Red** (#f0a6a9, 1년 안 위주), **Map Purple** (#cf9ad8,
+섞임), **Map Blue** (#7397d8, 1~2년 위주), **Map Deep Blue** (#4f72b8, 2년 넘음
+위주), **Map Gray** (#7c8699, 날짜 미상), plus **Map Inactive** (#c3cad9) for
+"준비중" regions (hatched overlay). Score per institution: 6개월 안·경과 +2,
+6~12개월 +1, 1~2년 −1, 2년 넘음 −2, 미상 excluded; mean → 5 bands
+(≥1.5 / ≥0.5 / between / >−1.5 / ≤−1.5). **Floor Rule**: if any institution is
+within 1 year the region never falls below purple. **▲n Rule**: the label
+carries ▲n = 6개월 안 count (△ when all are 추정) — urgency is never carried by
+color alone. Purple exists only for regions; a single institution (marker,
+card) uses the four non-purple bands. Superseded 2026-11-11: the old pastel
+red/orange/yellow/blue set (#f0a6a9/#f3c795/#e9e3a8/#a9c5ea). All bands and
 the accent are user-themable; `render.DEFAULT_THEME` is the design's default,
 and `render._safeColor()` hex-whitelists any stored value before it is
 interpolated into markup.
@@ -230,8 +239,10 @@ accent (interaction). Status color in chrome appears only as muted-tier text,
 **The One Teal Rule.** Teal is reserved for selection, focus, and interaction.
 It never encodes urgency; urgency hues never encode selection.
 
-**The Two-Tier Urgency Rule.** Large fills (map faces) use the pastel tier;
-small chrome (badges, tags, ticker, legend swatches) uses the muted deep tier.
+**The Two-Tier Urgency Rule.** Large fills (map faces, map markers, and the
+institution-head card border/header band at 1px / 10% / 20% rules) use the map
+mix tier; small chrome (badges, tags, ticker, legend swatches outside the map)
+uses the muted deep tier.
 Small text set in a band color over dark ground is lightened with
 `color-mix(in srgb, <band> 70–72%, #ffffff)` — the legend and ticker both do
 this; copy the pattern rather than brightening the token.
