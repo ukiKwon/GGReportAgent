@@ -157,6 +157,7 @@
         when: approvals.formatTime(it.created_at),
         reason: ((it.payload || {}).reason) || '',
         targets: approvals.assigneeLines(it),
+        nomineeLine: approvals.nomineeText(it),
         changes: approvals.changeRows(it.payload, categories),
         chips: approvals.stepChips(it.steps),
         note: it.status === 'REJECTED' || it.status === 'CANCELLED' ? (it.result_note || '') : '',
@@ -214,6 +215,25 @@
     return (lines || []).map(function (l) {
       return '<div class="dg-who ap-target">' + esc(l.kind) + ': ' + esc(l.text) + '</div>';
     }).join('');
+  };
+
+  // 첫 개설 승인(BID_OPEN)의 "지명: 이름(직급), … · 의견: …" 글. 사번은 보이지 않는다.
+  // 지명자가 없거나 다른 유형이면 빈 문자열(줄을 그리지 않는다). 이스케이프는 nomineesHtml 에서.
+  approvals.nomineeText = function (item) {
+    const it = item || {};
+    if (it.req_type !== 'BID_OPEN') return '';
+    const names = (Array.isArray(it.nominees) ? it.nominees : []).filter(function (n) {
+      return n && n.name;
+    }).map(function (n) {
+      return n.name + (n.position ? '(' + n.position + ')' : '');
+    });
+    if (!names.length) return '';
+    const comment = String((it.payload || {}).comment == null ? '' : (it.payload || {}).comment).trim();
+    return '지명: ' + names.join(', ') + (comment ? ' · 의견: ' + comment : '');
+  };
+
+  approvals.nomineesHtml = function (text) {
+    return text ? '<div class="dg-who ap-nominees">' + esc(text) + '</div>' : '';
   };
 
   // 내가 올린 요청 탭의 빈 상태 — 권한 신청과 담당자 변경 신청 둘 다 여기서 보인다.
@@ -414,7 +434,7 @@
     } else if (mode === 'mine' && r.canCancel) {
       act = '<div class="ap-act"><button class="ap-req-cancel" data-id="' + esc(r.id) + '">' + (r.isBoard ? '제출 회수' : '취소') + '</button></div>';
     }
-    return '<div class="ap-card ap-req" data-id="' + esc(r.id) + '">' + head + boardLine + approvals.targetsHtml(r.targets) + changesHtml(r.changes) +
+    return '<div class="ap-card ap-req" data-id="' + esc(r.id) + '">' + head + boardLine + approvals.nomineesHtml(r.nomineeLine) + approvals.targetsHtml(r.targets) + changesHtml(r.changes) +
       (r.reason ? '<div class="dg-who">사유: ' + esc(r.reason) + '</div>' : '') + chipsHtml(r.chips) +
       (r.note ? '<div class="dg-who">' + esc(r.note) + '</div>' : '') + act + '<div class="ap-err" role="alert"></div></div>';
   }

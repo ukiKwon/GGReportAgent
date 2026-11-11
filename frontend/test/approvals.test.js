@@ -44,6 +44,46 @@ test('rows: 빈 입력도 안전하다', function () {
   assert.deepStrictEqual(ap.rows({ items: [] }), []);
 });
 
+// 첫 개설 승인(BID_OPEN) 카드의 지명 줄
+test('nomineeText: 이름(직급) 목록과 의견, 사번은 없다', function () {
+  const t = ap.nomineeText({ req_type: 'BID_OPEN', payload: { comment: '급합니다' },
+    nominees: [{ emp_no: '1001', name: '김하나', position: '과장' }, { emp_no: '1002', name: '이둘', position: '차장' }] });
+  assert.strictEqual(t, '지명: 김하나(과장), 이둘(차장) · 의견: 급합니다');
+  assert.ok(t.indexOf('1001') < 0);
+});
+
+test('nomineeText: 직급이 비면 괄호를, 의견이 비면 의견 부분을 뺀다', function () {
+  assert.strictEqual(ap.nomineeText({ req_type: 'BID_OPEN', payload: { comment: '  ' },
+    nominees: [{ emp_no: '1', name: '김하나', position: '' }, { emp_no: '2', name: '이둘' }] }), '지명: 김하나, 이둘');
+  assert.strictEqual(ap.nomineeText({ req_type: 'BID_OPEN', nominees: [{ name: '김하나', position: '과장' }] }), '지명: 김하나(과장)');
+});
+
+test('nomineeText: 지명자가 없거나 다른 유형이면 빈 글', function () {
+  assert.strictEqual(ap.nomineeText({ req_type: 'BID_OPEN', payload: { comment: 'x' }, nominees: [] }), '');
+  assert.strictEqual(ap.nomineeText({ req_type: 'BID_OPEN' }), '');
+  assert.strictEqual(ap.nomineeText({ req_type: 'ROLE_REQUEST', nominees: [{ name: 'a' }] }), '');
+  assert.strictEqual(ap.nomineeText(null), '');
+});
+
+test('nomineesHtml: dg-who 줄로 그리고 값을 esc 한다, 빈 글이면 줄이 없다', function () {
+  const t = ap.nomineeText({ req_type: 'BID_OPEN', payload: { comment: '<img onerror=1>' },
+    nominees: [{ name: '<b>김</b>', position: '과"장' }] });
+  const h = ap.nomineesHtml(t);
+  assert.ok(h.indexOf('class="dg-who') >= 0);
+  assert.ok(h.indexOf('<b>') < 0 && h.indexOf('<img') < 0);
+  assert.ok(h.indexOf('&lt;b&gt;') >= 0);
+  assert.strictEqual(ap.nomineesHtml(''), '');
+});
+
+test('requestRows: BID_OPEN 만 nomineeLine 을 채운다', function () {
+  const rows = ap.requestRows([
+    { req_id: 'a', req_type: 'BID_OPEN', status: 'PENDING', nominees: [{ name: '김하나', position: '과장' }], payload: {} },
+    { req_id: 'b', req_type: 'ROLE_REQUEST', status: 'PENDING', nominees: [{ name: '김하나' }], payload: {} },
+  ], []);
+  assert.strictEqual(rows[0].nomineeLine, '지명: 김하나(과장)');
+  assert.strictEqual(rows[1].nomineeLine, '');
+});
+
 test('kindLabel: 무엇을 결재하는지 한마디로', function () {
   assert.strictEqual(ap.kindLabel(PAYLOAD.items[0]), '작업물 결재');
   assert.strictEqual(ap.kindLabel(PAYLOAD.items[1]), '최종결재');

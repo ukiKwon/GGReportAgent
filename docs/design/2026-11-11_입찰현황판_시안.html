@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>시안: 입찰 현황판 (NEXT 77, 가짜 데이터)</title>
+<style>
+:root{color-scheme:dark;--bg:#0f1218;--panel:#181e29;--panel2:#202835;--line:#2d3644;--line-strong:#424e62;--fg:#e2e7ee;--muted:#98a1af;
+--red:#e07856;--orange:#d9a05b;--yellow:#c9bd8f;--blue:#7c93c4;--gray:#5a6273;--accent-color:#57b8ad;
+--mono:Consolas,"Cascadia Mono","Malgun Gothic",monospace;--shadow:0 12px 32px rgba(8,12,24,.55);--r-lg:14px;--r:10px;--r-sm:8px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px "Malgun Gothic","Segoe UI",sans-serif;font-variant-numeric:tabular-nums;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+:focus-visible{outline:2px solid var(--accent-color);outline-offset:2px}
+button{font:inherit;font-size:12px;color:var(--fg);background:var(--panel2);border:1px solid var(--line-strong);border-radius:var(--r);padding:6px 14px;cursor:pointer;transition:background .2s,transform .2s,box-shadow .2s}
+button:hover{background:#283141;border-color:#4a566b;transform:translateY(-1px);box-shadow:0 6px 16px rgba(8,12,24,.4)}
+button:active{transform:scale(.98);box-shadow:none}
+input,select{font:inherit;font-size:12px;color:var(--fg);background:#0d1117;border:1px solid #626d81;border-radius:var(--r-sm);padding:5px 10px;caret-color:var(--accent-color)}
+/* 시안 전용 머리 — 실제 화면에는 없다 */
+.mock-bar{display:flex;gap:8px;align-items:center;padding:6px 20px;background:#2a2412;border-bottom:1px solid var(--orange);font-size:12px;color:#f0dcae}
+.mock-bar select{padding:2px 8px}
+.app{flex:1;min-height:0;display:flex}
+.side{width:248px;flex:none;border-right:1px solid var(--line);padding:14px 12px;overflow:auto}
+.side h1{font-size:16px;font-weight:700;letter-spacing:-.01em;margin:0 0 14px;display:flex;gap:8px;align-items:center}
+.side h1 svg{color:var(--accent-color)}
+.nav-cat{font-size:14px;font-weight:700;margin:10px 0 6px}
+.nav-sub{font-size:11px;font-weight:700;color:var(--muted);margin:8px 0 4px}
+.nav-item{display:block;font-size:14px;padding:6px 10px;border-radius:var(--r-sm);color:var(--fg)}
+.nav-item[aria-current]{background:color-mix(in srgb,var(--accent-color) 16%,transparent)}
+.nav-cat.closed{color:var(--muted);font-weight:400}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.tabs{display:flex;gap:4px;padding:8px 20px 0;border-bottom:1px solid var(--line)}
+.tabs span{font-size:12px;padding:6px 14px;border:1px solid var(--line);border-bottom:0;border-radius:9px 9px 0 0;color:var(--muted)}
+.tabs span.on{color:var(--fg);background:var(--panel)}
+/* ===== 입찰 현황판 (#tab-dash 안 #db-root) ===== */
+#db-root{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:14px 20px}
+.db-strip{display:grid;grid-template-columns:1fr 1.7fr 1fr;gap:14px}
+.db-topic{background:var(--panel);border:1px solid var(--line-strong);border-radius:12px;padding:12px 14px;min-width:0}
+.db-topic h2{margin:0 0 8px;font-size:12px;font-weight:700;color:var(--muted);letter-spacing:0}
+.db-fig{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.db-fig b{font-family:var(--mono);font-size:16px;font-weight:700}
+.db-fig .u{font-size:12px;color:var(--muted)}
+.db-fig .sep{color:var(--line-strong)}
+.db-note{margin:6px 0 0;font-size:11px;color:var(--muted);word-break:keep-all}
+.db-unk{font-size:11px;color:var(--muted);border:1px dashed var(--line-strong);border-radius:6px;padding:0 6px;white-space:nowrap}
+/* 시간 눈금 — 이 화면의 서명 요소 */
+.db-ruler{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
+.db-end{font-size:11px;color:var(--muted);text-align:center;line-height:1.35}
+.db-end b{display:block;font-family:var(--mono);font-size:13px;color:var(--fg)}
+.db-track{position:relative;height:30px;border-bottom:1px solid var(--line-strong)}
+.db-seg{position:absolute;bottom:-1px;height:100%;border-left:1px solid var(--line-strong)}
+.db-seg span{position:absolute;bottom:-17px;left:-14px;font:11px var(--mono);color:var(--muted);white-space:nowrap}
+.db-tick{position:absolute;bottom:0;width:3px;height:14px;border-radius:2px;margin-left:-1px}
+.db-tick.red{background:var(--red)}.db-tick.orange{background:var(--orange)}
+.db-tick.sel{height:22px;box-shadow:0 0 0 2px var(--accent-color)}
+.db-buckets{display:flex;gap:14px;margin-top:22px;font-size:11px;color:var(--muted)}
+.db-buckets b{font-family:var(--mono);color:var(--fg);font-size:12px;margin-left:3px}
+.ov-stamp{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:11px;font-weight:700;background:var(--fg);color:#0d1116;border:1px solid var(--fg);border-radius:6px;padding:0 6px}
+.db-stats{margin:0;font-size:11px;color:var(--muted)}
+.db-stats b{font-family:var(--mono);font-weight:400;color:var(--fg)}
+.db-body{flex:1;min-height:0;display:grid;grid-template-columns:360px 1fr;gap:14px}
+.db-list,.db-pane{background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--r-lg);box-shadow:var(--shadow);min-height:0;display:flex;flex-direction:column}
+.db-list-head{padding:12px 14px 10px;border-bottom:1px solid var(--line)}
+.db-list-head h2,.db-pane h2{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em}
+.db-list-head p{margin:2px 0 8px;font-size:12px;color:var(--muted)}
+.db-filters{display:grid;grid-template-columns:1fr 128px;gap:6px}
+.db-scroll{flex:1;min-height:0;overflow:auto}
+.db-grp{display:flex;align-items:center;gap:8px;padding:8px 14px 6px;font-size:11px;color:var(--muted);letter-spacing:.08em}
+.db-grp b{font-family:var(--mono);letter-spacing:0;color:var(--fg);font-weight:400}
+[role=listbox]{list-style:none;margin:0;padding:0}
+[role=listbox]:focus-visible{outline-offset:-2px}
+.db-row{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:9px 14px;border-top:1px solid var(--line);cursor:pointer;transition:background .2s,transform .2s}
+.db-row:hover{background:#1a2130;transform:translateX(3px)}
+.db-row[aria-selected=true]{background:color-mix(in srgb,var(--accent-color) 13%,transparent);box-shadow:inset 2px 0 0 var(--accent-color)}
+.db-row .nm{font-size:13px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.db-row .meta{grid-column:1/-1;font-size:11px;color:var(--muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.db-row .meta .d{font-family:var(--mono)}
+.dg-day{font:11px var(--mono);border-radius:6px;padding:1px 6px;border:1px solid var(--line-strong);white-space:nowrap;align-self:start}
+.dg-day.urgent{border-color:var(--red);color:var(--red)}.dg-day.soon{border-color:var(--orange);color:var(--orange)}
+.wf-badge{border-radius:8px;padding:1px 7px;font-size:11px;border:1px solid var(--line-strong);white-space:nowrap}
+.db-chk{font-size:11px;color:var(--orange)}
+.db-more{display:flex;width:calc(100% - 28px);margin:10px 14px;justify-content:space-between;align-items:center}
+.db-foot{padding:10px 14px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);word-break:keep-all}
+.db-foot a{color:var(--fg)}
+.db-pane{overflow:hidden}
+.db-pane-body{flex:1;min-height:0;overflow:auto;padding:14px 16px}
+.db-head{display:flex;align-items:center;gap:8px}
+.db-head h2:focus{outline:none}.db-head h2:focus-visible{outline:2px solid var(--accent-color)}
+.db-sub{margin:3px 0 12px;font-size:12px;color:var(--muted)}
+.db-sec{border-top:1px solid var(--line);padding:12px 0}
+.db-sec h3{margin:0 0 8px;font-size:13px;font-weight:700;display:flex;gap:8px;align-items:center}
+.db-sec h3 .ph{font-size:11px;font-weight:400;color:var(--muted)}
+.db-dl{display:grid;grid-template-columns:96px 1fr;gap:6px 10px;margin:0}
+.db-dl dt{font-size:11px;color:var(--muted);padding-top:1px}
+.db-dl dd{margin:0;font-size:12px}
+.db-dl .v{font-family:var(--mono)}
+.db-why{font-size:11px;color:var(--muted)}
+.db-src summary{font-size:12px;color:var(--muted);cursor:pointer;margin-top:8px}
+.db-src ol{margin:6px 0 0;padding-left:18px;font-size:11px;color:var(--muted);line-height:1.6;word-break:break-all}
+.db-empty{font-size:12px;color:var(--muted);margin:6px 0 0;word-break:keep-all;line-height:1.55}
+.db-act{border-top:1px solid var(--line);padding:12px 16px;display:flex;flex-direction:column;gap:8px;background:color-mix(in srgb,var(--panel) 82%,transparent)}
+.db-act-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.db-next{border-color:var(--accent-color)}
+.db-act .db-why{margin-left:auto}
+.db-confirm{border:1px dashed var(--line-strong);border-radius:var(--r-sm);padding:10px 12px;font-size:12px;line-height:1.55;word-break:keep-all}
+.db-confirm .db-act-row{margin-top:8px}
+.db-blank{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;color:var(--muted);font-size:12px;word-break:keep-all}
+.db-state{padding:18px 14px;font-size:12px;color:var(--muted);word-break:keep-all;line-height:1.55}
+.db-state[role=alert]{color:var(--fg);border-left:2px solid var(--red);margin:10px 14px;padding:8px 12px;background:color-mix(in srgb,var(--red) 8%,transparent)}
+.db-state button{margin-top:8px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body>
+<div class="mock-bar" role="note">시안 — 기관명·날짜·건수는 모두 가짜입니다(실데이터 아님). 화면 상태 바꿔 보기:
+ <select id="mk-state" aria-label="시안 상태">
+<option value="base">기본(영업팀, 선택 있음)</option><option value="active">이미 사전준비 중인 기관</option>
+<option value="chief">영업부장(확정 버튼 없음)</option><option value="none">미선택</option>
+<option value="empty">1년 안 입찰 0곳</option><option value="filter">검색 결과 없음</option>
+<option value="loading">불러오는 중</option><option value="error">서버 기관 정보 실패</option>
+<option value="p3">3단계: 기관장 프로필 있음</option></select></div>
+<div class="app">
+ <nav class="side" aria-label="업무 메뉴">
+<h1><svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M2 10V5M6 10V2M10 10V7"/></svg>기관영업지원 시스템</h1>
+<div class="nav-cat">기관·입찰 현황</div>
+<div class="nav-sub">기관</div>
+<a class="nav-item" aria-current="page" href="#">입찰 현황판</a>
+<a class="nav-item" href="#">전국 지도</a>
+<a class="nav-item" href="#">전국 지역별</a>
+<div class="nav-cat closed">영업 추진 준비</div><div class="nav-cat closed">제안서 작성·관리</div>
+<div class="nav-cat closed">협약·관계 관리</div><div class="nav-cat closed">공통 도구</div>
+ </nav>
+ <div class="main">
+<div class="tabs" aria-hidden="true"><span class="on">입찰 현황판</span><span>전국 지도</span></div>
+<section id="db-root" aria-label="입찰 현황판">
+ <div class="db-strip">
+  <section class="db-topic" aria-labelledby="db-t1">
+   <h2 id="db-t1">국민은행 금고 약정 기관</h2>
+   <div class="db-fig"><span class="u">확인</span><b>6</b><span class="u">곳</span><span class="sep">/</span><span class="u">미확인</span><b>237</b><span class="u">곳</span></div>
+   <p class="db-note">약정 기록을 모으기 전이라 출처로 확인한 곳만 셉니다. 미확인은 '아님'이 아니라 '아직 모름'입니다.</p>
+  </section>
+  <section class="db-topic" aria-labelledby="db-t2">
+   <h2 id="db-t2">1년 안 입찰 <span id="db-t2n" style="font-family:var(--mono);color:var(--fg)">7</span>곳</h2>
+   <div class="db-ruler">
+    <div class="db-end"><span class="ov-stamp">D+</span><b>9</b>경과</div>
+    <div class="db-track" id="db-track" role="img" aria-label=""></div>
+    <div class="db-end"><b>31</b>날짜 미상</div>
+   </div>
+   <div class="db-buckets" id="db-buckets"></div>
+  </section>
+  <section class="db-topic" aria-labelledby="db-t3">
+   <h2 id="db-t3">지금 제안 진행 중</h2>
+   <div class="db-fig"><b>3</b><span class="u">건</span></div>
+   <p class="db-note">사전준비 2건 · 제안서 작성 1건 (같은 기관은 한 번만 셉니다)</p>
+  </section>
+ </div>
+ <p class="db-stats">조사한 기관 <b>243</b>곳 · 입찰일 공고로 확정 <b>4</b>곳 · 날짜 의미 확인 중 <b>3</b>곳 · 기준일 <b>2026-11-11</b> · 자료 수정 <b>2026-11-10</b></p>
+ <div class="db-body">
+  <section class="db-list" aria-labelledby="db-lt">
+   <div class="db-list-head">
+    <h2 id="db-lt">다가오는 입찰</h2>
+    <p>입찰 예정일이 가까운 순서입니다(1년 안).</p>
+    <div class="db-filters">
+     <input id="db-q" type="search" placeholder="기관명 검색" aria-label="기관명 검색">
+     <select id="db-region" aria-label="지역"><option value="">전체 지역</option><option>서울</option><option>경기</option><option>강원</option><option>충북</option><option>경북</option></select>
+    </div>
+   </div>
+   <div class="db-scroll" id="db-scroll"></div>
+   <div class="db-foot">날짜를 확인하지 못한 <b style="font-family:var(--mono)">31</b>곳은 목록에 없습니다. <a href="#">전국 지도</a>에서 회색 지역으로 볼 수 있습니다.</div>
+  </section>
+  <section class="db-pane" id="db-pane" aria-labelledby="db-name"></section>
+ </div>
+</section>
+ </div>
+</div>
+<script>
+(function(){
+var TODAY=new Date('2026-11-11T00:00:00');
+var DATA=[
+ {id:'a',name:'가람시청',type:'지자체',reg:'경기',sub:'가람시',term:4,last:'2022-12-02',bid:'2026-12-02',conf:'추정',srcN:3,prep:null},
+ {id:'b',name:'나래군청',type:'지자체',reg:'강원',sub:'나래군',term:3,last:'2024-01-15',bid:'2027-01-15',conf:'추정',srcN:2,prep:null},
+ {id:'c',name:'다솔구청',type:'지자체',reg:'서울',sub:'다솔구',term:4,last:'2023-02-20',bid:'2027-02-20',conf:'확정',srcN:4,prep:{st:'사전준비 중',n:'2/4'}},
+ {id:'d',name:'라온시청',type:'지자체',reg:'충북',sub:'라온시',term:4,last:'2023-04-03',bid:'2027-04-03',conf:'추정',srcN:2,prep:null,chk:true},
+ {id:'e',name:'마루군청',type:'지자체',reg:'경북',sub:'마루군',term:4,last:'2023-06-12',bid:'2027-06-12',conf:'추정',srcN:1,prep:null},
+ {id:'f',name:'바름구청',type:'지자체',reg:'서울',sub:'바름구',term:4,last:'2023-08-28',bid:'2027-08-28',conf:'추정',srcN:3,prep:null},
+ {id:'g',name:'새봄특별자치시청',type:'지자체',reg:'경기',sub:'새봄시',term:4,last:'2023-10-30',bid:'2027-10-30',conf:'추정',srcN:2,prep:null}];
+var PAST=[{id:'p1',name:'아라군청',reg:'경북',days:12},{id:'p2',name:'자람시청',reg:'경기',days:40},{id:'p3',name:'차오름구청',reg:'서울',days:85}];
+var st={sel:'a',mode:'base',q:'',reg:'',confirm:false,pastOpen:false};
+function dd(s){return Math.floor((new Date(s+'T00:00:00')-TODAY)/864e5);}
+function band(n){return n<=182?'red':'orange';}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function rows(){var q=st.q.trim();return DATA.filter(function(r){return(!q||r.name.indexOf(q)>=0)&&(!st.reg||r.reg===st.reg);}).sort(function(a,b){return dd(a.bid)-dd(b.bid);});}
+function ruler(){var t=document.getElementById('db-track'),h='',segs=[[30,'D-30'],[90,'D-90'],[180,'D-180'],[365,'1년']],c=[0,0,0,0],data=st.mode==='empty'?[]:DATA;
+ segs.forEach(function(s){h+='<div class="db-seg" style="left:'+(s[0]/365*100)+'%"><span>'+s[1]+'</span></div>';});
+ data.forEach(function(r){var n=dd(r.bid);for(var i=0;i<4;i++)if(n<=segs[i][0]){c[i]++;break;}
+h+='<div class="db-tick '+band(n)+(r.id===st.sel?' sel':'')+'" style="left:'+(n/365*100)+'%" title="'+esc(r.name)+' D-'+n+'"></div>';});
+ t.innerHTML=h;t.setAttribute('aria-label','앞으로 1년 입찰 예정 '+data.length+'곳: 30일 안 '+c[0]+'곳, 31~90일 '+c[1]+'곳, 91~180일 '+c[2]+'곳, 181일~1년 '+c[3]+'곳');
+ document.getElementById('db-buckets').innerHTML='<span>30일 안<b>'+c[0]+'</b></span><span>31~90일<b>'+c[1]+'</b></span><span>91~180일<b>'+c[2]+'</b></span><span>181일~1년<b>'+c[3]+'</b></span>';
+ document.getElementById('db-t2n').textContent=data.length;}
+function rowHtml(r){var n=dd(r.bid);return '<li role="option" id="db-o-'+r.id+'" class="db-row" data-id="'+r.id+'" aria-selected="'+(r.id===st.sel)+'">'+
+ '<span class="nm">'+esc(r.name)+'</span><span class="dg-day '+(n<=182?'urgent':'soon')+'">D-'+n+'</span>'+
+ '<span class="meta">'+esc(r.reg+' '+r.sub)+' · <span class="d">'+r.bid+'</span> '+r.conf+(r.chk?' <span class="db-chk">날짜 의미 확인 중</span>':'')+(r.prep?' <span class="wf-badge">'+r.prep.st+'</span>':'')+'</span></li>';}
+function list(){var s=document.getElementById('db-scroll'),h='';
+ if(st.mode==='loading'){s.innerHTML='<p class="db-state" aria-busy="true">기관 목록을 불러오는 중입니다…</p>';return;}
+ var rs=st.mode==='empty'?[]:rows();
+ if(st.mode==='error')h+='<p class="db-state" role="alert">서버의 기관 정보를 불러오지 못해 내장 자료만 보여 줍니다. 제안 진행 표시와 [제안 확정]은 쓸 수 없습니다.<br><button type="button">다시 불러오기</button></p>';
+ h+='<div class="db-grp" id="db-g1">1년 안 <b>'+rs.length+'</b>곳</div>';
+ if(!rs.length&&st.mode==='empty')h+='<p class="db-state">앞으로 1년 안에 입찰 예정인 기관이 없습니다. 예정일이 지난 기관은 아래 [공고 예정일 경과]에서 봅니다.</p>';
+ else if(!rs.length)h+='<p class="db-state">조건에 맞는 기관이 없습니다. 검색어를 지우거나 지역을 \'전체 지역\'으로 바꾸세요.<br><button type="button" id="db-clear">조건 지우기</button></p>';
+ else h+='<ul role="listbox" id="db-lb" tabindex="0" aria-labelledby="db-g1" aria-activedescendant="db-o-'+st.sel+'">'+rs.map(rowHtml).join('')+'</ul>';
+ h+='<button type="button" class="db-more" id="db-past" aria-expanded="'+st.pastOpen+'" aria-controls="db-pastlist"><span><span class="ov-stamp">D+</span> 공고 예정일 경과 <b style="font-family:var(--mono)">'+PAST.length+'</b>곳</span><span>'+(st.pastOpen?'접기':'펼치기')+'</span></button>';
+ if(st.pastOpen)h+='<ul role="listbox" id="db-pastlist" tabindex="0" aria-label="공고 예정일 경과 기관">'+PAST.map(function(p){return '<li role="option" class="db-row" id="db-o-'+p.id+'" aria-selected="false"><span class="nm">'+esc(p.name)+'</span><span class="ov-stamp">D+'+p.days+'</span><span class="meta">'+esc(p.reg)+' · 공고가 났는지 확인이 필요합니다</span></li>';}).join('')+'</ul>';
+ s.innerHTML=h;}
+function chip(){return '<span class="db-unk">미확인</span>';}
+function pane(){var p=document.getElementById('db-pane'),r=DATA.filter(function(x){return x.id===st.sel;})[0];
+ if(st.mode==='active')r=DATA[2];
+ if(st.mode==='none'||st.mode==='loading'||!r){p.innerHTML='<div class="db-blank">왼쪽 목록에서 기관을 고르세요. 기관 정보와 [제안 확정] 버튼이 여기에 보입니다.</div>';return;}
+ var n=dd(r.bid),h='<div class="db-pane-body"><div class="db-head"><h2 id="db-name" tabindex="-1">'+esc(r.name)+'</h2><span class="dg-day '+(n<=182?'urgent':'soon')+'">D-'+n+'</span>'+(r.prep?'<span class="wf-badge">'+r.prep.st+' '+r.prep.n+'</span>':'')+'</div>'+
+ '<p class="db-sub">'+r.type+' · '+esc(r.reg+' '+r.sub)+'</p>'+
+ '<div class="db-sec"><h3>기관 정보</h3><dl class="db-dl">'+
+ '<dt>입찰 예정일</dt><dd><span class="v">'+r.bid+'</span> '+r.conf+(r.conf==='추정'?' <span class="db-why">— 최근 절차일에 약정 주기를 더한 날입니다</span>':' <span class="db-why">— 공고로 확인한 날입니다</span>')+'</dd>'+
+ '<dt>최근 절차일</dt><dd><span class="v">'+r.last+'</span> <span class="db-why">지정 공고일</span></dd>'+
+ '<dt>약정 주기</dt><dd><span class="v">'+r.term+'</span>년</dd>'+
+ '<dt>임직원 수</dt><dd>'+chip()+'</dd></dl>'+
+ '<details class="db-src"><summary>출처 '+r.srcN+'건 보기</summary><ol><li>기준일=공고일(금고 지정계획 공고) — 가짜 예시 문장</li><li>https://example.invalid/notice/0000</li></ol></details></div>'+
+ '<div class="db-sec"><h3>현재 금고 은행 <span class="ph">2단계</span></h3><dl class="db-dl"><dt>금고 은행</dt><dd>'+chip()+'</dd><dt>약정 기간</dt><dd>'+chip()+'</dd></dl>'+
+ '<p class="db-empty">약정 기록을 모으면 금고 은행과 약정 기간이 출처와 함께 여기에 보입니다.</p></div>';
+ if(st.mode==='p3')h+='<div class="db-sec"><h3>기관장 <span class="ph">3단계</span></h3><dl class="db-dl"><dt>이름</dt><dd>홍*동</dd><dt>직위</dt><dd>시장</dd><dt>임기</dt><dd><span class="v">2026-07-01 ~ 2030-06-30</span></dd></dl><p class="db-empty">학력·경력은 [프로필 보기]를 눌렀을 때만 보이며, 누가 언제 봤는지 기록됩니다.</p><div class="db-act-row" style="margin-top:8px"><button type="button">프로필 보기</button><span class="db-why">출처 1건 · 확인일 2026-11-01</span></div></div>';
+ else h+='<div class="db-sec"><h3>기관장 <span class="ph">3단계</span></h3><dl class="db-dl"><dt>기관장</dt><dd>'+chip()+'</dd></dl><p class="db-empty">기관장 프로필은 수집 예정입니다. 입찰이 1년 안에 있는 기관부터 모읍니다.</p></div>';
+ h+='</div><div class="db-act">';
+ if(st.mode==='error')h+='<div class="db-act-row"><span class="db-why" style="margin:0">서버에 연결되면 [제안 확정]을 쓸 수 있습니다.</span></div>';
+ else if(st.mode==='chief')h+='<div class="db-act-row"><button type="button">전국 지도에서 보기</button><span class="db-why">제안 확정은 영업팀·영업팀장이 합니다.</span></div>';
+ else if(r.prep)h+='<div class="db-act-row"><button type="button" class="db-next">사전준비 열기</button><button type="button">전국 지도에서 보기</button><span class="db-why">이미 제안 확정되어 사전준비가 진행 중입니다.</span></div>';
+ else if(st.confirm)h+='<div class="db-confirm" role="group" aria-labelledby="db-cf-t"><span id="db-cf-t">'+esc(r.name)+'을 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 제안서 사전준비 프로세스]에 이 기관의 준비 건이 생깁니다. 개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</span><div class="db-act-row"><button type="button" class="db-next" id="db-do">확정하기</button><button type="button" id="db-cancel">취소</button></div></div>';
+ else h+='<div class="db-act-row"><button type="button" class="db-next" id="db-cf">제안 확정</button><button type="button">전국 지도에서 보기</button></div>';
+ p.innerHTML=h+'</div>';
+ if(st.confirm){var b=document.getElementById('db-do');b&&b.focus();}}
+function all(){ruler();list();pane();}
+function move(d){var rs=rows();var i=rs.findIndex(function(r){return r.id===st.sel;});i=Math.max(0,Math.min(rs.length-1,i+d));st.sel=rs[i].id;st.confirm=false;all();var lb=document.getElementById('db-lb');lb.focus();var o=document.getElementById('db-o-'+st.sel);o&&o.scrollIntoView({block:'nearest'});}
+document.addEventListener('keydown',function(e){if(e.target.id!=='db-lb')return;
+ if(e.key==='ArrowDown'){e.preventDefault();move(1);}else if(e.key==='ArrowUp'){e.preventDefault();move(-1);}
+ else if(e.key==='Home'){e.preventDefault();move(-999);}else if(e.key==='End'){e.preventDefault();move(999);}
+ else if(e.key==='Enter'){e.preventDefault();var h=document.getElementById('db-name');h&&h.focus();}});
+document.addEventListener('click',function(e){var o=e.target.closest('#db-lb .db-row');if(o){st.sel=o.dataset.id;st.confirm=false;all();document.getElementById('db-lb').focus();return;}
+ if(e.target.closest('#db-past')){st.pastOpen=!st.pastOpen;list();document.getElementById('db-past').focus();return;}
+ if(e.target.id==='db-cf'){st.confirm=true;pane();return;}
+ if(e.target.id==='db-cancel'){st.confirm=false;pane();document.getElementById('db-cf').focus();return;}
+ if(e.target.id==='db-clear'){st.q='';st.reg='';document.getElementById('db-q').value='';document.getElementById('db-region').value='';all();}});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&st.confirm){st.confirm=false;pane();document.getElementById('db-cf').focus();}});
+document.getElementById('db-q').addEventListener('input',function(e){st.q=e.target.value;list();});
+document.getElementById('db-region').addEventListener('change',function(e){st.reg=e.target.value;list();});
+document.getElementById('mk-state').addEventListener('change',function(e){st.mode=e.target.value;st.confirm=false;st.q='';
+ if(st.mode==='filter')st.q='없는이름';document.getElementById('db-q').value=st.q;all();});
+all();})();
+</script></body></html>
