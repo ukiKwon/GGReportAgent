@@ -151,7 +151,8 @@ test('saveError: 응답별 제목·안내·버튼(문구는 규격 §5-3)', func
   assert.strictEqual(e.title, '메모에 개인정보로 보이는 값이 있어 저장하지 않았습니다.');
   e = E(400, { code: 'BAD_VALUE', message: '숫자 칸에는 숫자만', count: 3, cells: [{ ref: 'A', key: 'r1c1' }] });
   assert.deepStrictEqual([e.kind, e.title, e.btns[0][1]], ['bad_num', '숫자 칸 3곳의 값이 저장 형식에 맞지 않습니다.', '그 칸으로 가기']);
-  assert.ok(e.hint.includes('정수 13자리·소수 2자리까지') && e.hint.includes('괄호·△·단위·% 기호는 뺍니다'));
+  assert.ok(e.hint.includes('숫자만 입력해 주세요') && e.hint.includes('단위 칸은 그 칸의 단위(년·%)까지') && e.hint.includes("'5.00 (1.00)'처럼 괄호 값까지"));
+  assert.ok(!e.hint.includes('기호는 뺍니다'));
   e = E(400, { code: 'BAD_VALUE', message: '칸 값은 100자 이하로 입력해 주세요.', count: 1, cells: [{ ref: 'A', key: 'r1c0' }] });
   assert.deepStrictEqual([e.kind, e.title], ['bad_len', '100자를 넘는 칸이 있어 저장하지 않았습니다.']);
   e = E(400, { code: 'BAD_VALUE', message: '메모는 200자 이하로 입력해 주세요.' });
@@ -167,6 +168,33 @@ test('saveError: 응답별 제목·안내·버튼(문구는 규격 §5-3)', func
   assert.deepStrictEqual([e.kind, e.btns[0][1]], ['net', '다시 저장']);
   assert.strictEqual(bw.saveError({ status: 500, body: null }).kind, 'net');
   assert.strictEqual(bw.numberErrorLocal([{ t: 'A', key: 'r1c1' }]).title, '숫자 칸 1곳의 값이 저장 형식에 맞지 않습니다.');
+});
+
+test('errClearedByEdit: 개인정보 오류 칸을 고치면 걷고, 다른 칸·다른 오류는 그대로', function () {
+  const pii = bw.saveError({ status: 422, body: { detail: { code: 'PII_DETECTED', count: 2, kinds: [{ kind: '휴대폰', count: 2 }],
+    cells: [{ ref: 'A', key: 'r1c1' }, { ref: 'A', key: 'r2c1_p' }] } } });
+  assert.strictEqual(bw.errClearedByEdit(pii, 'A', 'r1c1'), true);
+  assert.strictEqual(bw.errClearedByEdit(pii, 'A', 'r2c1'), true);     // 괄호 값 칸은 칸 key 로 모인다
+  assert.strictEqual(bw.errClearedByEdit(pii, 'A', 'r1c0'), false);    // 목록에 없는 칸
+  assert.strictEqual(bw.errClearedByEdit(pii, 'B', 'r1c1'), false);    // 다른 표
+  assert.strictEqual(bw.errClearedByEdit(null, 'A', 'r1c1'), false);
+  const num = bw.numberErrorLocal([{ t: 'A', key: 'r1c1' }]);
+  assert.strictEqual(bw.errClearedByEdit(num, 'A', 'r1c1'), false);    // 숫자 오류는 이 규칙이 아니다
+  const memo = bw.saveError({ status: 422, body: { detail: { code: 'PII_DETECTED' } } });
+  assert.strictEqual(bw.errClearedByEdit(memo, 'A', 'r1c1'), false);
+});
+
+test('autoNeedOff: 저절로 켜진 확인 필요 필터는 문제 칸이 0이 되면 전체로, 직접 고른 필터는 그대로', function () {
+  const num = bw.numericKeys(form());
+  let ws = bw.refreshNumWarn(bw.buildState(form(), resp('48.51 (36.85)', '1,000'), {}), num);
+  ws = bw.setFilter(ws, 'need');
+  assert.ok(bw.tally(ws).need > 0);
+  assert.strictEqual(bw.autoNeedOff(ws, true).filter, 'need');          // 문제가 남아 있으면 유지
+  const fixed = bw.refreshNumWarn(bw.patchCell(ws, 'A', 'r1c1', { value: '48.51' }), num);
+  assert.strictEqual(bw.tally(fixed).need, 0);
+  assert.strictEqual(bw.autoNeedOff(fixed, true).filter, 'all');
+  assert.strictEqual(bw.autoNeedOff(fixed, false).filter, 'need');      // 사용자가 직접 켠 필터
+  assert.strictEqual(bw.autoNeedOff(bw.setFilter(fixed, 'edited'), true).filter, 'edited');   // 다른 필터는 건드리지 않는다
 });
 
 test('saveError·matErrHtml: 서버 메시지·칸 키는 esc, 값은 싣지 않는다', function () {

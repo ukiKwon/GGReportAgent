@@ -475,7 +475,7 @@
     HIDDEN_FORMAT: '엑셀 화면에서는 서식으로 가려져 보이지 않는 값입니다. 문서에 넣어도 되는지 확인해 주세요. (글꼴 색 등 서식 밖의 숨김은 검사하지 않습니다.)',
     LABEL_MISMATCH: '이 표의 머리글이 양식과 달라 위치대로 채웠습니다.',
     SUM_HAS_MANUAL_PARTS: '합계 범위 안에 엑셀에서 가져오지 않는 칸(직접 입력)이 있어 합계가 엑셀 값과 다를 수 있습니다. 직접 입력한 값을 확인해 주세요.',
-    NUM_FORMAT: '숫자 형식이 저장 형식에 맞지 않아 저장할 수 없습니다. 괄호·△·단위·% 기호를 빼고 숫자만 넣어 주세요.',
+    NUM_FORMAT: '숫자 형식이 저장 형식에 맞지 않아 저장할 수 없습니다. 숫자만 입력해 주세요. 단위 칸은 그 칸의 단위까지, 괄호 칸은 괄호 값까지 받습니다.',
     CELL_UNIT_TEXT: '단위가 양식과 다르거나 숫자로 읽히지 않습니다. 숫자만 남겨 주세요.'
   };
 
@@ -556,6 +556,17 @@
   const FILTERS = [['all', '전체'], ['edited', '수정됨'], ['need', '확인 필요'], ['unchecked', '확인 안 한 표']];
   bw.setFilter = function (ws, f) {
     return FILTERS.some(function (x) { return x[0] === f; }) ? Object.assign({}, ws, { filter: f }) : ws;
+  };
+  // 저장이 막혀 '확인 필요'가 저절로 켜진 상태(auto)에서 문제 칸이 0이 되면 [전체]로 되돌린다. 사용자가 직접 고른 필터는 건드리지 않는다.
+  bw.autoNeedOff = function (ws, auto) {
+    if (!auto || !ws || ws.filter !== 'need') return ws;
+    return bw.tally(ws).need === 0 ? bw.setFilter(ws, 'all') : ws;
+  };
+  // 422 개인정보 오류 상자는 목록에 든 칸을 고치면(t: 표 ref, key: 칸 key) 걷는다. 그 밖의 오류 상자는 그대로 둔다.
+  bw.errClearedByEdit = function (err, t, key) {
+    if (!err || err.kind !== 'pii' || !Array.isArray(err.cells)) return false;
+    const k = bw.baseKeyOf(key);
+    return err.cells.some(function (c) { return c.t === t && c.key === k; });
   };
   // '검수 완료'(ws.done)는 값 칸이 있는 모든 표를 확인했을 때만 유지된다. 하나라도 풀리면 해제.
   bw.normalize = function (ws) {
@@ -1786,7 +1797,7 @@
     if (b && b.changed === false) return { title: '버전 ' + n + (jong(String(n)) > 0 ? '과' : '와') + ' 값이 같아 새 버전을 만들지 않았습니다.', note: '' };
     return { title: '버전 ' + n + bw.josaEul(String(n)) + ' 저장했습니다.', note: '담당자 모두가 이 값을 봅니다.' };
   };
-  const NUM_HINT = '숫자만 넣을 수 있습니다(정수 13자리·소수 2자리까지, 천 단위 쉼표 가능). 괄호·△·단위·% 기호는 뺍니다.';
+  const NUM_HINT = "숫자만 입력해 주세요. 단위 칸은 그 칸의 단위(년·%)까지, 출연금(예비비) 칸은 '5.00 (1.00)'처럼 괄호 값까지 받습니다.";
   function numErr(count, cells) {
     return { kind: 'bad_num', title: '숫자 칸 ' + count + '곳의 값이 저장 형식에 맞지 않습니다.', lines: [], mono: '', hint: NUM_HINT,
              cells: cells, count: count, btns: cells.length ? [['m-goto', '그 칸으로 가기']] : [] };
@@ -2222,7 +2233,12 @@
       if (bad) { ui.live = bad; drawStatus(); inp.setAttribute('aria-invalid', 'true'); inp.focus(); return; }
       const before = ws, r = bw.editCell(ws, e0.t, e0.key, inp.value);
       ui.edit = null; ws = r.ws;
-      if (ui.mat) ws = bw.refreshNumWarn(ws, ui.mat.numeric);
+      if (ui.mat) {
+        ws = bw.refreshNumWarn(ws, ui.mat.numeric);
+        if (bw.errClearedByEdit(ui.mat.err, e0.t, e0.key)) ui.mat.err = null;   // 개인정보 오류 칸을 고쳤으면 상자를 걷는다
+        ws = bw.autoNeedOff(ws, ui.mat.autoNeed);
+        if (ws.filter !== 'need') ui.mat.autoNeed = false;
+      }
       const msgs = [];
       if (r.released) msgs.push(bw.releaseText(r.released, findT(ws, e0.t)));
       bw.recheckLines(before, ws, e0.t, e0.key).forEach(function (m) { msgs.push(m); });
@@ -2517,7 +2533,7 @@
         case 'm-goto': gotoErr(); break;
         case 'reform': finish('#bd-form'); break;
         case 'perm': if (env.perms) env.perms(); break;
-        case 'filter': ws = bw.setFilter(ws, v); draw({ w: 'filter', v: ws.filter }); break;
+        case 'filter': if (ui.mat) ui.mat.autoNeed = false; ws = bw.setFilter(ws, v); draw({ w: 'filter', v: ws.filter }); break;
         case 'srcopen': openPop({ w: 'srcopen', v: v }, (v == null || v === '*') ? null : v); break;
         case 'tcheck': toggleTable(v); break;
         case 'banmore': ui.banOpen[v] = !ui.banOpen[v]; draw({ w: 'banmore', v: v }); break;
@@ -2533,7 +2549,15 @@
         case 'revert': {
           if (!ui.sel) break;
           const s = lookup(ui.sel.t, ui.sel.key);
-          if (s) { const r = bw.editCell(ws, ui.sel.t, ui.sel.key, bw.origText(s.c)); ws = r.ws; ui.live = bw.releaseText(r.released, findT(ws, ui.sel.t)); if (ui.mat) ws = bw.refreshNumWarn(ws, ui.mat.numeric); }
+          if (s) {
+            const r = bw.editCell(ws, ui.sel.t, ui.sel.key, bw.origText(s.c)); ws = r.ws; ui.live = bw.releaseText(r.released, findT(ws, ui.sel.t));
+            if (ui.mat) {
+              ws = bw.refreshNumWarn(ws, ui.mat.numeric);
+              if (bw.errClearedByEdit(ui.mat.err, ui.sel.t, ui.sel.key)) ui.mat.err = null;
+              ws = bw.autoNeedOff(ws, ui.mat.autoNeed);
+              if (ws.filter !== 'need') ui.mat.autoNeed = false;
+            }
+          }
           draw({ cell: true });
           break;
         }
@@ -2552,6 +2576,7 @@
       if (bad.length) {   // 서버와 같은 규칙으로 먼저 막는다 — 요청 없이 그 칸으로 간다
         ws = bw.refreshNumWarn(ws, m.numeric);
         m.err = bw.numberErrorLocal(bad); m.err.idx = 0; m.noteOpen = false; m.ok = null;
+        m.autoNeed = ws.filter !== 'need';   // 저절로 켠 경우만 문제가 없어지면 자동으로 끈다
         ws = bw.setFilter(ws, 'need'); ui.sel = { t: bad[0].t, key: bw.baseKeyOf(bad[0].key) };
         draw({ cell: true });
         return;
@@ -2639,6 +2664,7 @@
       e.idx = ((e.idx == null ? -1 : e.idx) + 1) % e.cells.length;
       const c = e.cells[e.idx];
       if (!lookup(c.t, c.key)) { ui.live = '그 칸을 이 화면에서 찾지 못했습니다.'; drawStatus(); return; }
+      if (ui.mat) ui.mat.autoNeed = false;
       ws = bw.setFilter(ws, 'all'); ui.sel = { t: c.t, key: c.key };
       draw({ cell: true });
     }
