@@ -19,7 +19,7 @@ Claude Code가 이 저장소에서 일할 때의 지침이다. **1~6절은 매 �
 - **사용자에게 묻는 것**은 ⓐ업무 의미·모르는 용어 ⓑ메인이 가질 수 없는 실제 값·파일 ⓒ되돌리기 어렵거나 바깥으로 나가는 일(푸시는 마무리 규칙대로)·자격증명뿐이다.
 - **인터뷰**: 모르는 내용·요건 추가·모르는 단어·업무 판정은 추측하지 말고 사용자를 인터뷰한다. 질문은 코드 용어를 그대로 던지지 말고 ⓐ무엇의 이름표인지 ⓑ화면·업무 어디에 쓰이는지 ⓒ선택에 따라 무엇이 달라지는지를 업무 언어로 먼저 설명한 뒤 선택지를 준다(사용자가 용어를 몰라 답 못 하면 질문한 쪽 책임).
 - **질문 경로**: 사용자에게 질문할 수 있는 것은 PM 또는 Main뿐이다. 에이전트의 질문은 `planner`(분석·권장안) → `pm`(정리) → Main(질문) 순으로 거친다.
-- **모델 명시**: 역할 에이전트를 부를 때마다 Agent 도구의 `model`을 역할 정의(`.claude/agents/*.md` frontmatter)에 맞춰 명시한다 — Opus: `planner`·`design-reviewer`·`security`·`qa-verifier`·`pm` / Sonnet: `frontend-dev`·`backend-dev`·`-write` 2개·`cleaner`·`data-auditor`. 메인 세션 모델은 사용자가 `/model`로 고른다.
+- **모델 명시**: 역할 에이전트를 부를 때마다 Agent 도구의 `model`을 역할 정의(`.claude/agents/*.md` frontmatter)에 맞춰 명시한다 — Opus: `planner`·`design-reviewer`·`security`·`qa-verifier`·`pm` / Sonnet: `frontend-dev`·`backend-dev`·`-write` 2개·`cleaner`·`data-auditor`. **예외(2026-11-11 사용자 승인)**: 권한·결재·감사·동시성(락)처럼 되돌리기 어려운 서버 **설계**를 맡길 때는 `backend-dev`를 Opus로 올린다 — 적용(`-write`)·단순 수정은 Sonnet 그대로. 올렸으면 보고에 밝힌다. 메인 세션 모델은 사용자가 `/model`로 고른다.
 
 참조: 역할 정의 `.claude/agents/`, 역할 흐름 `handoff/agents/graph.md`
 
