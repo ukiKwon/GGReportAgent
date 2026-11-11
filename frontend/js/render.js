@@ -811,7 +811,7 @@
       '<span class="dg-day ' + dayCls + '">' + esc(logic.formatDDay(rec, today)) + '</span></div>' +
       (sub ? '<div class="pop-sub">' + esc(sub) + '</div>' : '') +
       '<dl class="pop-grid"><dt>입찰 예정일</dt><dd class="pop-mono">' +
-      (bid.date ? esc(bid.date) + ' (' + esc(logic.confidenceLabel(bid.confidence)) + ')' : '미상') + '</dd>' +
+      (bid.date ? esc(bid.date) + ' (' + esc(bid.basis === 'expiry' ? '추정·약정 만료 기준' : logic.confidenceLabel(bid.confidence)) + ')' : '미상') + '</dd>' +
       '<dt>현 유치 은행</dt><dd>' + unk + '</dd><dt>임직원 수</dt><dd>' + unk + '</dd><dt>기관장</dt><dd>' + unk + '</dd></dl>' +
       '<div class="pop-note">미확인 칸은 기관 정보 이관 뒤 채워집니다.</div>' +
       '<div id="pop-prep-line"></div>' +

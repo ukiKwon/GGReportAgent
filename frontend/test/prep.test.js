@@ -96,7 +96,8 @@ test('app.js: showSoon이 사전준비·현황판 분기를 처리하고, 첫 �
   // 현황판이 열릴 것으로 보면 팝업을 미루고(overduePending), 실제로 안 열리면 applyHome이 그때 띄운다(flushOverdue)
   assert.ok(/root\.nav\.expectsDashHome\(args\.ctx, !!\(root\.dashboard && root\.dashboard\.mount\)\)/.test(APP_SRC));
   assert.ok(/if \(!deferOverdue && root\.overdue && root\.overdue\.onLogin\)/.test(APP_SRC));
-  assert.ok(/if \(item\) \{ overduePending = null; openNavItem\(item\); \} else flushOverdue\(\);/.test(APP_SRC));
+  // 홈 자동 열림은 navHoming 표시를 켜고 연다(사이드바 저장값을 덮어쓰지 않게 — nav.navigatedOpen auto)
+  assert.ok(/if \(item\) \{ overduePending = null; navHoming = true; try \{ openNavItem\(item\); \} finally \{ navHoming = false; \} \} else flushOverdue\(\);/.test(APP_SRC));
   assert.ok(/overduePending = deferOverdue \? args : null;\s*app\.onProfileChanged\(\);/.test(APP_SRC));
   // 공용 모달 닫기에서 #pp-modal은 제외(prep.js가 requestClose로 처리)
   assert.ok(/ov\.id !== 'tm-modal' && ov\.id !== 'pp-modal'/.test(APP_SRC));

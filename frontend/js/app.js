@@ -513,7 +513,10 @@
   // ── 좌측 업무 메뉴 ─────────────────────────────────────────────────────────
   // 화면 전환 자체는 기존 .tab-btn(숨김) 클릭이 그대로 한다 — 권한 계산·폴링 정리·
   // 폴백이 전부 그 경로에 걸려 있어서, 사이드바는 "그 버튼을 누르는 새 손잡이"일 뿐이다.
-  let openCat = null;           // 열려 있는 카테고리는 하나뿐(아코디언)
+  let openCat = null;           // 열려 있는 카테고리는 하나뿐(아코디언) — navOpen.open의 사본. 규칙은 nav.settleOpen·navigatedOpen·toggledOpen
+  let navOpen = root.nav ? root.nav.newOpenState(null) : { open: null, fixed: false, pending: null };
+  let navOpenWho = null;        // 열림 복원을 마친 사용자(사번|guest) — 바뀌면 그 사람의 저장값으로 새로 시작한다
+  let navHoming = false;        // 로그인·새로고침 뒤 홈 화면 자동 열림 중(저장값을 덮어쓰지 않는다)
   let navBuilt = [];
   let navActiveId = null;
   let navTabs = [];             // 우측 화면 탭(메모리만, 최대 nav.MAX_TABS)
@@ -528,6 +531,15 @@
     };
   }
   app.navContext = navContext;
+
+  function navWho() {
+    const s = root.store.loadSession();
+    return s && s.emp ? s.emp : 'guest';
+  }
+  // 사용자가 분류를 직접 펼치거나 접었을 때만 저장한다('none' = 모두 접음). 복원을 마친 사용자(navOpenWho) 키에 쓴다 — 로그아웃 중 guest 키로 새지 않게.
+  function rememberOpenCat() {
+    if (navOpenWho && root.store.saveNavOpen) root.store.saveNavOpen(navOpenWho, openCat);
+  }
 
   function activeTabKey() {
     const btn = document.querySelector('.tab-btn.active');
@@ -593,7 +605,7 @@
     if (!(root.dashboard && root.dashboard.mount)) { flushOverdue(); return; }
     const id = root.nav.homeItemId(navBuilt, navActiveId, navTabs, navContext());
     const item = id ? findNavItem(id) : null;
-    if (item) { overduePending = null; openNavItem(item); } else flushOverdue();
+    if (item) { overduePending = null; navHoming = true; try { openNavItem(item); } finally { navHoming = false; } } else flushOverdue();
   }
 
   // 화면이 바뀔 때마다(어느 경로든) 불린다: 활성 항목 갱신 → 탭 보관 → 그 카테고리만 열기.
@@ -602,7 +614,9 @@
     const item = navActiveId ? findNavItem(navActiveId) : null;
     if (item) {
       navTabs = root.nav.openTab(navTabs, item, navActiveId).tabs;   // 가득 찼으면 보관만 건너뛴다
-      openCat = root.nav.categoryOf(navBuilt, navActiveId);
+      const cat = root.nav.categoryOf(navBuilt, navActiveId);
+      navOpen = root.nav.navigatedOpen(navOpen, cat, navHoming);   // 저장은 하지 않는다(사용자가 직접 펼치거나 접을 때만)
+      openCat = navOpen.open;
     }
     app.drawNav();
     drawTabs();
@@ -717,7 +731,10 @@
         const lid = 'nav-items-' + cat.id;
         return '<button class="nav-cat" data-cat="' + esc(cat.id) + '" title="' + esc(cat.title) +
           '" aria-expanded="false" aria-controls="' + esc(lid) + '">' +
-          '<span class="nav-label">' + esc(cat.title) + '</span></button>' +
+          '<span class="nav-label">' + esc(cat.title) + '</span>' +
+          '<span class="nav-count nav-cat-count" aria-hidden="true" hidden></span><span class="sr-only nav-cat-sr" hidden></span>' +
+          '<span class="sr-only nav-cat-here" hidden>, 지금 보는 화면 포함</span>' +
+          '<svg class="chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true" focusable="false"><path d="M4.5 2.5 8 6l-3.5 3.5"/></svg></button>' +
           '<div class="nav-items" id="' + esc(lid) + '" data-for="' + esc(cat.id) + '"><div class="nav-items-in">' + items + '</div></div>';
       }).join('');
       navDomSig = sig;
@@ -743,6 +760,32 @@
     });
     // 항목 구성이 바뀌어 DOM을 새로 만들면 '전국 지도' 옆 미처리 배지도 사라지므로 다시 단다.
     if (root.overdue && root.overdue.paintNavBadge) root.overdue.paintNavBadge();
+    app.paintCatBadges();
+  };
+
+  // 접힌 분류 제목 오른쪽에 그 안의 배지(공고 예정일 경과 미처리) 합계를 보인다. 펼치면 숨긴다(항목 쪽 배지가 보이므로).
+  // 합계가 같으면 DOM을 건드리지 않는다(MutationObserver가 자기 변경에 다시 돌지 않게).
+  app.paintCatBadges = function () {
+    const el = document.getElementById('side-nav');
+    if (!el || !root.nav || !root.nav.catBadgeSum) return;
+    el.querySelectorAll('.nav-cat').forEach(function (b) {
+      const items = el.querySelector('.nav-items[data-for="' + b.dataset.cat + '"]');
+      const vals = items ? Array.prototype.map.call(items.querySelectorAll('.nav-count'), function (c) { return c.textContent; }) : [];
+      const n = root.nav.catBadgeSum(vals);
+      const open = b.classList.contains('open');
+      const num = b.querySelector('.nav-cat-count'), sr = b.querySelector('.nav-cat-sr'), here = b.querySelector('.nav-cat-here');
+      const showN = n > 0 && !open;
+      if (num) {
+        if (num.textContent !== (n > 0 ? String(n) : '')) num.textContent = n > 0 ? String(n) : '';
+        if (num.hidden !== !showN) num.hidden = !showN;
+      }
+      if (sr) {
+        const t = n > 0 ? ', 공고 예정일 경과 미처리 ' + n + '건' : '';
+        if (sr.textContent !== t) sr.textContent = t;
+        if (sr.hidden !== !showN) sr.hidden = !showN;
+      }
+      if (here) { const showHere = b.classList.contains('has-active') && !open; if (here.hidden !== !showHere) here.hidden = !showHere; }
+    });
   };
 
   app.paintNav = function (visible) {
@@ -756,7 +799,14 @@
       navActiveId = 'map';
       if (mapBtn) mapBtn.click();
     }
-    if (openCat === null && navActiveId) openCat = root.nav.categoryOf(navBuilt, navActiveId);
+    // 열림 복원: 사용자가 바뀌면(첫 그림·로그인·로그아웃) 그 사람이 마지막에 연 분류를 읽고, 분류가 아직 안 보이면 권한이 올 때까지 미룬다.
+    const who = navWho();
+    if (who !== navOpenWho) {   // 사용자가 바뀌면(첫 그림·로그인·로그아웃) 앞 사용자의 열림을 버리고 이 사람의 저장값으로 시작한다
+      navOpenWho = who;
+      navOpen = root.nav.newOpenState(root.store.loadNavOpen ? root.store.loadNavOpen(who) : null);
+    }
+    navOpen = root.nav.settleOpen(navOpen, navBuilt, navActiveId ? root.nav.categoryOf(navBuilt, navActiveId) : null);
+    openCat = navOpen.open;
     const cur = navActiveId ? findNavItem(navActiveId) : null;
     if (cur) navTabs = root.nav.openTab(navTabs, cur, navActiveId).tabs;   // 지금 보는 화면은 처음부터 탭으로
     app.drawNav();
@@ -769,8 +819,10 @@
     el.addEventListener('click', function (e) {
       const cat = e.target.closest('.nav-cat');
       if (cat) {
-        // 아코디언: 다른 카테고리는 닫고, 열린 걸 다시 누르면 닫는다.
-        openCat = (openCat === cat.dataset.cat) ? null : cat.dataset.cat;
+        // 아코디언: 다른 카테고리는 닫고, 열린 걸 다시 누르면 닫는다. 마지막 상태를 기억한다.
+        navOpen = root.nav.toggledOpen(navOpen, cat.dataset.cat);
+        openCat = navOpen.open;
+        rememberOpenCat();
         app.drawNav();
         return;
       }
@@ -788,6 +840,10 @@
       const found = findNavItem(id);
       if (found) openNavItem(found);
     });
+    // 경과 배지(overdue.paintNavBadge)는 drawNav 밖에서도 바뀐다 — 접힌 분류의 합계 배지가 따라오게 한다.
+    if (typeof MutationObserver === 'function') {
+      new MutationObserver(function () { app.paintCatBadges(); }).observe(el, { childList: true, subtree: true });
+    }
     // 첫 그림: 권한 조회 전에는 지도·지역별만(닫는 쪽으로 — menu_rules와 같은 원칙).
     app.paintNav(root.menuRules.visibleTabs(null, false));
   };

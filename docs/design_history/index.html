@@ -77,6 +77,7 @@
   <a href="#c16">⑯ 사전준비 프로세스·지도 제안 확정</a>
   <a href="#c17">⑰ 입찰 현황판(첫 화면)</a>
   <a href="#c18">⑱ 지도 지역 색 섞기</a>
+  <a href="#c19">⑲ 입찰 현황판 재설계·사이드바</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -466,6 +467,51 @@
   <p class="hint12">서울 <b>▲4</b> · 강원 <b>▲2</b> · 충남 <b>△1</b>(모두 추정) — 지역 이름 옆에 6개월 안 기관 수.</p>
   <p class="legend-note">켠 종류의 기관을 모두 섞어 5단으로 칠합니다(6개월 안·경과 +2, 6~12개월 +1, 1~2년 −1, 2년 넘음 −2, 미상 제외의 평균). 1년 안 기관이 하나라도 있으면 보라보다 파랑 쪽으로 내려가지 않고, 급한 곳은 색이 아니라 ▲n이 알립니다. 지역에 마우스를 올리거나 Tab으로 닿으면 "가장 임박 ○○ · 6개월 안 n · 6~12개월 n · 1~2년 n · 2년 넘음 n · 날짜 미상 n곳은 색에 넣지 않음" 툴팁이 뜨고, Enter·Space로 들어갑니다. 구를 누르면 기존처럼 그 구의 지자체가 열립니다. 위쪽 알림 띠는 기존 크롬 색을 유지하고, 지도 위 표식만 새 팔레트를 씁니다. 테마 창의 지도 색은 6개(5단+미상)로 바뀌었고, 사용자가 직접 바꾼 옛 색은 끝점으로 이어받습니다. 지금 데이터(지자체만)로 시도 16곳 중 보라 11·파랑 2·진파랑 3. 대비(바탕 #0f1218): <span class="num good">5.6</span> · <span class="num good">9.6</span> · <span class="num good">8.3</span> · <span class="num good">6.4</span> · <span class="num good">4.0</span> · <span class="num good">5.1</span>:1(손계산 근사, 실측 예정).</p>
 </div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c19">
+<h2>⑲ 입찰 현황판 재설계 — 월별 막대·기간 버튼 + 사이드바 하나만 열림·기억 (2026-11-11, NEXT 77)</h2>
+<div class="why">왜: 사용자(11-11)가 첫 화면이 "꽉꽉 차 있는데 글자가 작다, 도식이 없다"고 했고, '다가오는 입찰'을 기본 6개월로 하되 기간을 바꿀 수 있게, 왼쪽 메뉴를 접고 펼칠 수 있게 해 달라고 했습니다. 측정해 보니 1920 화면에서 현황판 글자의 76%가 11px이었고, 목록은 360px 칸에 몰린 반면 1256px 넓이의 상세 칸은 기관을 고르기 전 한 줄뿐이었습니다. 근거: handoff/agents/design-reviewer/2026-11-11_1627_a41bdf71.md, 시안 docs/design/2026-11-11_입찰현황판_재설계_시안.html.</div>
+<div class="ba">
+  <div class="col before"><header>전</header><div class="body"><div class="mock">
+    <div class="row" style="gap:6px">
+      <div class="card" style="flex:1"><span class="hint10">국민은행 금고 약정</span><br><span class="hint10">확인 6 / 미확인 237</span></div>
+      <div class="card" style="flex:1.7"><span class="hint10">1년 안 입찰 · 30일 안 1 · 31~90일 0 · 91~180일 0 · 181일~1년 12</span><br><span class="hint10">|—▮——————▮▮▮▮▮—|  (3px 틱이 겹침)</span></div>
+      <div class="card" style="flex:1"><span class="hint10">지금 제안 진행 중</span><br><span class="num">n</span>건</div>
+    </div>
+    <div class="row" style="margin-top:8px;gap:6px">
+      <div class="card" style="width:120px"><span class="hint10">다가오는 입찰(1년 안, 고정)<br>기관 A D-18<br>…11px 행이 빽빽</span></div>
+      <div class="card" style="flex:1;min-height:70px"><span class="hint10">기관을 고르세요.</span><br><span class="hint10">(넓은 칸이 비어 있음)</span></div>
+    </div>
+    <div class="side" style="margin-top:8px;width:200px"><div class="cat">기관·입찰 현황 <span class="hint10">▸</span></div><div class="cat">영업 추진 준비 <span class="hint10">▸</span></div></div>
+    <p class="legend-note">현황판 글자 1,155자 중 11px <span class="num bad">875</span>자(<span class="num bad">76%</span>). 목록 360px 고정, 상세 칸은 미선택 때 12px 한 줄. 기간은 1년 고정. 목록에 가로 스크롤바 버그(scrollWidth <span class="num">351</span> &gt; <span class="num">348</span>). 사이드바 펼침 표시는 11px 글자 ▸였고 화면낭독기가 "기관·입찰 현황 ▸"로 읽었으며, 열림 상태는 기억하지 않았습니다.</p>
+  </div></div></div>
+  <div class="col after"><header>후</header><div class="body"><div class="mock">
+    <div class="card"><b style="font-size:13px">월별 입찰 예정</b> <span class="hint12">경과 n곳 · 6개월 안 n곳 · 1년 안 n곳</span>
+      <div class="row" style="gap:6px;margin-top:6px;align-items:flex-end">
+        <span class="btn" style="border-color:var(--fg)">D+ n곳<br><span class="hint12">경과</span></span>
+        <span style="flex:1;display:flex;gap:4px;align-items:flex-end;height:46px;border-bottom:1px solid var(--ls);background:rgba(87,184,173,.05)">
+          <i style="width:10px;height:12px;background:repeating-linear-gradient(45deg,var(--red) 0 2px,transparent 2px 6px);border-top:3px solid var(--red)"></i>
+          <i style="width:10px;height:0"></i><i style="width:10px;height:0"></i><i style="width:10px;height:0"></i><i style="width:10px;height:0"></i><i style="width:10px;height:0"></i>
+          <i style="width:10px;height:12px;background:repeating-linear-gradient(45deg,var(--gold) 0 2px,transparent 2px 6px);border-top:3px solid var(--gold)"></i>
+          <i style="width:10px;height:0"></i>
+          <i style="width:10px;height:36px;background:repeating-linear-gradient(45deg,var(--gold) 0 2px,transparent 2px 6px);border-top:3px solid var(--gold)"></i>
+          <i style="width:10px;height:36px;background:repeating-linear-gradient(45deg,var(--gold) 0 2px,transparent 2px 6px);border-top:3px solid var(--gold)"></i>
+          <i style="width:10px;height:28px;background:repeating-linear-gradient(45deg,var(--gold) 0 2px,transparent 2px 6px);border-top:3px solid var(--gold)"></i>
+        </span>
+        <span class="btn">n곳<br><span class="hint12">1년 뒤</span></span>
+        <span class="btn" style="border-style:dashed">n곳<br><span class="hint12">날짜 미상</span></span>
+      </div>
+      <span class="hint12">채운 막대 = 공고로 확정 · 빗금 = 추정(약정 주기 또는 약정 만료 기준) · ▲ = 6개월 안 · 옅은 틸 창 = 고른 기간</span></div>
+    <div class="row" style="margin-top:8px;gap:6px">
+      <div class="card" style="width:130px;font-size:13px"><b>다가오는 입찰</b><br><span class="btn" style="font-size:11px;padding:1px 6px">3개월</span><span class="btn" style="font-size:11px;padding:1px 6px;background:rgba(87,184,173,.16)">6개월</span><span class="btn" style="font-size:11px;padding:1px 6px">1년</span><span class="btn" style="font-size:11px;padding:1px 6px">전체</span><br><span style="box-shadow:inset 3px 0 0 var(--teal);padding-left:4px">기관 A <span class="tag">D-18</span></span><br><span class="hint12">6개월 뒤 1년 안에 n곳이 더 있습니다. [1년으로 넓히기]</span></div>
+      <div class="card" style="flex:1;font-size:13px"><b>기관 A</b> <span class="tag">D-18</span><br><span class="hint12">약정 주기 막대: 최근 절차일 ━━━━━━━┊ 입찰 예정(추정)</span><br><span class="hint12">기관 정보 · 현재 금고 은행 · 기관장(근거 없으면 '미확인')</span><br><span class="btn" style="border-color:var(--teal)">제안 확정</span><span class="btn">전국 지도에서 보기</span></div>
+      <div class="card" style="width:120px"><span class="hint12">국민은행 금고 약정</span><br><span style="display:inline-grid;grid-template-columns:repeat(9,6px);gap:2px"><i style="width:6px;height:6px;background:var(--fg)"></i><i style="width:6px;height:6px;background:var(--fg)"></i><i style="width:6px;height:6px;border:1px solid var(--muted)"></i><i style="width:6px;height:6px;border:1px solid var(--muted)"></i><i style="width:6px;height:6px;border:1px solid var(--muted)"></i><i style="width:6px;height:6px;border:1px solid var(--muted)"></i><i style="width:6px;height:6px;border:1px solid var(--muted)"></i><i style="width:6px;height:6px;border:1px solid var(--muted)"></i><i style="width:6px;height:6px;border:1px solid var(--muted)"></i></span><br><span class="hint12">제안 진행 단계<br>확정 ▬ · 개설 승인 대기 <span style="color:var(--gold)">▬</span> · 사전준비 ▬ · 기획승인 대기 <span style="color:var(--gold)">▬</span> · 작성 ▬</span></div>
+    </div>
+    <div class="side" style="margin-top:8px;width:200px"><div class="cat" style="color:var(--teal)">기관·입찰 현황 <span class="hint12">⌄</span></div><div class="it" style="background:rgba(87,184,173,.16)">입찰 현황판</div><div class="cat">영업 추진 준비 <span class="hint12">›</span> <span class="tag" style="background:var(--fg);color:#0d1116">n</span></div></div>
+    <p class="legend-note">맨 위 전체 폭에 <b>월별 입찰 예정 막대</b>(이번 달부터 13개월, 높이 분모 최소 4). 아래는 목록 400px | 상세 | 오른쪽 기둥 380px(국민은행 금고 약정 와플: 칸 하나가 기관 하나, 제안 진행 단계 5줄), 1280~1599px에서는 기둥이 위로 올라갑니다. 기간 버튼(3개월·<b>6개월 기본</b>·1년·전체)은 지도 색 경계와 같은 일수(91·182·365일)를 쓰고 마지막 선택을 기억하며, 기간 밖 기관은 "n곳이 더 있습니다 [넓히기]"로 알립니다. 약정 만료일에서 추정한 날짜는 "(추정·약정 만료 기준)"으로 구분합니다. 글자는 목록 이름 <span class="num good">14</span>px, 메타 <span class="num good">12</span>px, 상세 제목 <span class="num good">16</span>px, 패널 제목 <span class="num good">15</span>px/700, 11px은 축 눈금·배지만. 사이드바는 <b>한 번에 하나만 열리고</b>(사용자 결정 11-11), 사용자가 직접 펼치거나 접은 상태를 사번별로 기억합니다(화면 이동은 저장하지 않음). 펼침 표시는 12px 그림 화살표(0.2초 회전)이고 접힌 분류 옆에 경과 미처리 수를 보여 줍니다. 대비(바탕 #181e29): 보조 글자 <span class="num good">6.4</span>:1, 빨강 <span class="num good">5.6</span>:1, 주황 <span class="num good">7.3</span>:1, 틸 창 경계 <span class="num good">7.1</span>:1, 와플 확인 칸 <span class="num good">13.4</span>:1, 미확인 칸 테두리 <span class="num good">3.2</span>:1. 새 색과 채운 버튼은 없습니다(모의 그림은 단순화, n은 그날 자료에 따름).</p>
+  </div></div></div>
 </div>
 </section>
 

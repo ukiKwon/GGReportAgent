@@ -180,6 +180,48 @@
     return null;
   };
 
+  // ── 사이드바 아코디언(한 번에 하나만 열림 + 마지막 상태 기억, 사용자 결정 11-11) — 순수 규칙 ──
+  // 화면 이동: 그 분류를 연다(하나만이므로 다른 분류는 닫힌다). cat이 없으면 지금 상태 유지.
+  nav.openOnNavigate = function (open, cat) { return cat || open || null; };
+  // 제목 클릭: 열린 걸 다시 누르면 닫고, 다른 걸 누르면 그쪽으로 옮긴다.
+  nav.toggleCat = function (open, id) { return open === id ? null : id; };
+  // 저장값은 지금 보이는 분류 id일 때만 쓴다(모르는 id·권한으로 사라진 분류는 버린다).
+  nav.validOpen = function (built, id) {
+    if (!id) return null;
+    return (built || []).some(function (c) { return c.id === id; }) ? id : null;
+  };
+  // 열림 상태 기계(팀 결정 11-11). state = {open: 분류 id|null, fixed: 저장값·사용자 선택이 정했는가, pending: 아직 안 보이는 저장값}.
+  //  - 저장값은 사용자가 분류를 직접 펼치거나 접을 때만 쓴다('none' = 모두 접음). 화면 이동·홈 자동 열림은 저장하지 않는다.
+  //  - 로그인·새로고침 때 저장값이 있으면 그것이 우선이고, 홈(현황판) 자동 열림이 덮어쓰지 않는다. 없으면 현재 화면의 분류.
+  //  - 사용자가 바뀌면 호출자가 새 state({open:null,fixed:false,pending:저장값})로 시작한다(앞 사용자의 open을 쓰지 않는다).
+  nav.NONE_OPEN = 'none';
+  nav.newOpenState = function (saved) { return { open: null, fixed: false, pending: saved || null }; };
+  nav.settleOpen = function (state, built, activeCat) {
+    const s = { open: state.open, fixed: state.fixed, pending: state.pending };
+    if (s.pending) {
+      if (s.pending === nav.NONE_OPEN) { s.open = null; s.fixed = true; s.pending = null; return s; }
+      const ok = nav.validOpen(built, s.pending);
+      if (ok) { s.open = ok; s.fixed = true; s.pending = null; return s; }
+    }
+    if (!s.fixed && s.open === null) s.open = activeCat || null;   // 저장값이 없거나 아직 안 보이면 현재 화면 분류
+    return s;
+  };
+  // 화면이 바뀌었다. auto = 홈 자동 열림(사용자가 연 화면이 아님).
+  nav.navigatedOpen = function (state, cat, auto) {
+    if (!cat) return state;
+    if (!auto) return { open: cat, fixed: true, pending: null };            // 사용자가 연 화면의 분류를 연다(저장은 안 함)
+    if (state.pending || state.fixed) return state;                         // 자동 열림은 저장값·선택을 덮지 않는다
+    return { open: cat, fixed: false, pending: null };
+  };
+  nav.toggledOpen = function (state, id) { return { open: nav.toggleCat(state.open, id), fixed: true, pending: null }; };
+
+  // 접힌 분류 제목 오른쪽 배지 = 그 분류 안 배지 숫자의 합. 숫자가 아닌 값·0 이하는 세지 않는다.
+  nav.catBadgeSum = function (values) {
+    let sum = 0;
+    (values || []).forEach(function (v) { const n = parseInt(v, 10); if (n > 0) sum += n; });
+    return sum;
+  };
+
   // ── 화면 탭(우측 패널 상단) — 메뉴 항목을 연 순서대로 최대 MAX_TABS개 보관 ─────────
   // tabs: [{id,label}]. 모두 순수 함수(입력을 바꾸지 않는다).
   nav.MAX_TABS = 10;

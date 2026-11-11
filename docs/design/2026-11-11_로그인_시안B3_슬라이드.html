@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>기관영업지원 시스템 로그인 — 시안 B-3 (슬라이드 재생)</title>
+<style>
+  :root {
+    --bg:#0f1218; --panel:#181e29; --panel2:#202835; --line:#2d3644; --line-strong:#424e62;
+    --fg:#e2e7ee; --muted:#98a1af; --red:#e07856; --accent-color:#57b8ad;
+    --mono:Consolas,"Cascadia Mono","Malgun Gothic",monospace;
+    --shadow:0 12px 32px rgba(8,12,24,.55);
+    --sans:"Malgun Gothic","맑은 고딕","Segoe UI",sans-serif;
+    --thin:"Malgun Gothic Semilight","Malgun Gothic","맑은 고딕",sans-serif;
+    --serif:Batang,"바탕",BatangChe,serif;
+    --edge:max(24px, calc((100vw - 1200px) / 2));
+    --b3-card:480px; --b3-gap:56px; --b3-dur:6000ms; --b3-swap:320ms;
+    --b3-hot:#e8606b;
+    --b3-far:#4f72b8;
+    color-scheme:dark;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; }
+  body { background:var(--bg); color:var(--fg); font:16px/1.6 var(--sans); word-break:keep-all;
+         font-variant-numeric:tabular-nums; overflow-x:hidden; caret-color:var(--accent-color); }
+  body::before { content:""; position:fixed; inset:0; pointer-events:none; z-index:5; opacity:.045;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+  ::selection { background:var(--accent-color); color:#0d1116; }
+  :focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
+  .nw { white-space:nowrap; }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+
+  .top { height:64px; display:flex; align-items:center; justify-content:space-between;
+         padding:0 var(--edge); border-bottom:1px solid var(--line); }
+  .brand { display:flex; align-items:center; gap:10px; margin:0; font-size:15px; font-weight:700; letter-spacing:-.01em; }
+  .brand svg { color:var(--accent-color); }
+  .top-note { margin:0; font-size:13px; color:var(--muted); }
+
+  .stage { min-height:calc(100vh - 64px); display:grid; grid-template-columns:var(--b3-card) minmax(0, 1fr);
+           gap:var(--b3-gap); align-items:center; padding:32px var(--edge); }
+
+  .card { position:relative; z-index:2; padding:44px 40px 36px; border-radius:14px;
+          background:color-mix(in srgb, var(--panel) 86%, transparent); backdrop-filter:blur(10px);
+          border:1px solid rgba(255,255,255,.08);
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 24px 70px rgba(8,12,24,.6); }
+  .card h1 { margin:0; font:700 26px/1.3 var(--sans); letter-spacing:-.02em; }
+  .lede { margin:10px 0 24px; font-size:15px; color:var(--muted); }
+  form { display:grid; gap:16px; margin:0; }
+  label { display:grid; gap:6px; font-size:13px; color:var(--muted); }
+  input, select { height:48px; padding:0 14px; font:16px var(--sans); color:var(--fg); background:#0d1117;
+                  border:1px solid #626d81; border-radius:8px; width:100%; }
+  input[aria-invalid="true"] { border-color:var(--red); }
+  .msg { min-height:20px; margin:-4px 0 0; font-size:13px; color:var(--red); }
+  .actions { display:flex; gap:12px; align-items:center; }
+  .primary { flex:1; height:50px; border:0; border-radius:25px; background:var(--accent-color); color:#0d1116;
+             font:700 16px var(--sans); cursor:pointer; transition:transform .2s, box-shadow .2s, background-color .2s; }
+  .primary:hover { background:color-mix(in srgb, var(--accent-color) 82%, #fff); transform:translateY(-1px); box-shadow:0 6px 16px rgba(8,12,24,.4); }
+  .primary:active { transform:scale(.98); box-shadow:none; }
+  .primary[disabled] { opacity:.55; cursor:progress; transform:none; box-shadow:none; }
+  .ghost { height:50px; padding:0 18px; border:1px solid #626d81; border-radius:8px; background:transparent;
+           color:var(--fg); font:15px var(--sans); cursor:pointer; transition:background-color .2s; white-space:nowrap; }
+  .ghost:hover { background:var(--panel2); }
+  .hint { margin:4px 0 0; font-size:12px; line-height:1.6; color:var(--muted); }
+
+  .hero { height:min(660px, calc(100vh - 128px)); min-height:560px; display:grid; grid-template-rows:auto minmax(0, 1fr); gap:24px; }
+  .ctl { display:flex; align-items:center; gap:8px; padding-bottom:14px; border-bottom:1px solid var(--line); }
+  .ctl .where { margin:0 auto 0 0; font-size:13px; color:var(--muted); }
+  .ctl .where b { font:700 13px var(--mono); color:var(--fg); margin-right:8px; }
+  .cbtn { height:36px; min-width:36px; display:inline-flex; align-items:center; justify-content:center; gap:6px;
+          padding:0 10px; border:1px solid #626d81; border-radius:10px; background:transparent; color:var(--fg);
+          font:13px var(--sans); cursor:pointer; transition:background-color .2s; }
+  .cbtn:hover { background:var(--panel2); }
+  .cbtn svg { width:12px; height:12px; }
+  .cbtn .i-play { display:none; }
+  .cbtn.paused .i-play { display:block; } .cbtn.paused .i-pause { display:none; }
+  .dots { display:flex; align-items:center; }
+  .dot { position:relative; width:32px; height:32px; padding:0; border:0; background:transparent; cursor:pointer; border-radius:8px; }
+  .dot::before, .dot::after { content:""; position:absolute; top:12px; height:8px; border-radius:4px; }
+  .dot::before { left:12px; width:8px; background:var(--line-strong); transition:background-color .2s; }
+  .dot:hover::before { background:var(--muted); }
+  .dot[aria-current="true"]::before { left:4px; width:24px; background:var(--line-strong); }
+  .dot::after { display:none; }
+  .dot[aria-current="true"]::after { display:block; left:4px; width:24px; background:var(--accent-color);
+         transform-origin:left center; transform:scaleX(1); }
+  .hero[data-play="on"] .dot[aria-current="true"]::after { animation:b3fill var(--b3-dur) linear forwards; animation-play-state:paused; }
+  .hero[data-play="on"].is-running .dot[aria-current="true"]::after { animation-play-state:running; }
+  .hero.reset .dot::after { animation:none !important; }
+  @keyframes b3fill { from { transform:scaleX(0); } to { transform:scaleX(1); } }
+
+  .slides { position:relative; min-height:0; }
+  .slide { position:absolute; inset:0; display:grid; grid-template-rows:auto minmax(0, 1fr) auto; gap:20px;
+           opacity:0; visibility:hidden; transform:translateX(16px);
+           transition:opacity var(--b3-swap) ease, transform var(--b3-swap) cubic-bezier(.22,.9,.3,1), visibility 0s linear var(--b3-swap); }
+  .slide.on { opacity:1; visibility:visible; transform:none; transition-delay:0s; }
+  .say { margin:0; max-width:15em; font:300 40px/1.25 var(--thin); letter-spacing:-.03em; }
+  .vis { min-height:0; }
+  .src { margin:0; font:12px/1.5 var(--mono); color:var(--muted); }
+
+  .notice { margin:0; padding:16px 20px 18px; border:1px solid var(--line-strong); border-top:3px double var(--muted);
+            border-radius:8px; background:var(--panel2); box-shadow:var(--shadow); }
+  .notice .org { margin:0; font-size:12px; color:var(--muted); }
+  .notice h3 { margin:6px 0 12px; font:700 17px/1.4 var(--serif); }
+  .notice dl { margin:0; display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:13px; }
+  .notice dt { color:var(--muted); } .notice dd { margin:0; font-family:var(--mono); }
+
+  .v1 { display:grid; grid-template-columns:minmax(0, 1.15fr) minmax(0, 1fr); gap:24px 32px; align-content:start; }
+  .dday { align-self:center; }
+  .dday .big { margin:0; font:700 64px/1 var(--mono); letter-spacing:-.02em; }
+  .dday .cap { margin:8px 0 12px; font-size:13px; color:var(--muted); }
+  .chip { display:inline-flex; align-items:center; gap:6px; margin:0; padding:2px 8px; border:1px solid var(--red); border-radius:8px;
+          background:color-mix(in srgb, var(--red) 18%, transparent); color:color-mix(in srgb, var(--red) 72%, #fff); font:12px var(--mono); }
+  .chip svg { width:10px; height:10px; }
+  .tl { grid-column:1 / -1; position:relative; height:84px; margin:0; padding:0; list-style:none; }
+  .tl::before { content:""; position:absolute; left:0; right:0; top:41px; height:2px; background:var(--line-strong); }
+  .tl .span { position:absolute; top:34px; height:16px; left:var(--from); right:0; border:1px solid var(--red); border-radius:4px;
+              background:color-mix(in srgb, var(--red) 18%, transparent); }
+  .tl li { position:absolute; left:var(--x); width:0; font-size:12px; color:var(--muted); white-space:nowrap; }
+  .tl li::before { content:""; position:absolute; left:-4px; top:38px; width:8px; height:8px; border-radius:50%; background:var(--muted); }
+  .tl li span { position:absolute; transform:translateX(-50%); }
+  .tl li.up span { top:6px; } .tl li.down span { top:56px; }
+  .tl li.end span { transform:translateX(-100%); } .tl li.start span { transform:none; }
+  .tl li b { font:700 12px var(--mono); color:var(--fg); margin-right:6px; }
+  .tl li.today::before { background:var(--fg); box-shadow:0 0 0 3px var(--bg), 0 0 0 4px var(--fg); }
+  .tl li.today b { color:var(--fg); }
+
+  .v2 { display:grid; grid-template-columns:300px minmax(0, 1fr); gap:28px; align-items:center; }
+  .map { display:block; width:100%; height:auto; }
+  .gu { fill:var(--bg); stroke:var(--line-strong); stroke-width:.8; }
+  .gu.ink { fill:var(--fg); stroke:var(--panel); }
+  .gu.ring { fill:var(--bg); stroke:var(--fg); stroke-width:2; }
+  .gu.hot { fill:var(--b3-hot); stroke:var(--bg); stroke-width:1; }
+  .gu.far { fill:var(--b3-far); stroke:var(--bg); stroke-width:1; }
+  .gu-label { font:700 11px var(--sans); fill:#141922; stroke:#eef2f8; stroke-width:3px; paint-order:stroke; text-anchor:middle; }
+  .rows { margin:0; padding:0; list-style:none; display:grid; gap:14px; }
+  .rows li { display:grid; grid-template-columns:48px minmax(0, 1fr); gap:14px; align-items:center;
+             padding:12px 14px; border:1px solid var(--line-strong); border-radius:8px; background:var(--panel); }
+  .rows svg { width:48px; height:45px; display:block; }
+  .sil { fill:var(--muted); }
+  .rows .name { margin:0; font-size:16px; font-weight:700; letter-spacing:-.01em; }
+  .rows .what { margin:0; font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .rows .what svg { width:12px; height:12px; display:inline; color:var(--muted); }
+  .rows .src { font-size:11px; }
+
+  .v4 { display:grid; grid-template-columns:minmax(0, 400px) minmax(0, 1fr); gap:28px; align-items:center; }
+  .legend { margin:0; padding:0; list-style:none; display:grid; gap:16px; font-size:14px; }
+  .legend li { display:grid; grid-template-columns:14px 1fr; gap:10px; }
+  .legend .sw { width:14px; height:14px; border-radius:4px; margin-top:4px; }
+  .legend .n { font:700 14px var(--mono); }
+  .legend p { margin:2px 0 0; font-size:13px; color:var(--muted); }
+  .note { margin:18px 0 0; padding-top:12px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
+
+  .flow { margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; align-content:center; height:100%; }
+  .flow li { position:relative; padding:18px 16px 20px; border:1px solid var(--line-strong); border-radius:8px; background:var(--panel); }
+  .flow li + li::before { content:""; position:absolute; left:-13px; top:34px; width:12px; height:1px; background:var(--line-strong); }
+  .flow .no { margin:0; font:700 12px var(--mono); color:var(--muted); }
+  .flow h3 { margin:8px 0 6px; font-size:16px; font-weight:700; letter-spacing:-.01em; }
+  .flow p.d { margin:0; font-size:13px; line-height:1.55; color:var(--muted); }
+
+  .ph, .ph-t { display:none; }
+  .no-geo .ph { display:block; fill:none; stroke:var(--line-strong); stroke-dasharray:4 4; }
+  .no-geo .ph-t { display:block; font:12px var(--sans); fill:var(--muted); text-anchor:middle; }
+
+  @media (max-width:1279px) { :root { --b3-card:440px; --b3-gap:40px; } .v2 { grid-template-columns:260px minmax(0, 1fr); } .say { font-size:36px; } }
+  @media (max-height:820px) {
+    .card { padding:32px 36px 28px; } .lede { margin:6px 0 16px; } form { gap:12px; }
+    input, select { height:44px; } .primary, .ghost { height:46px; }
+    .hero { min-height:520px; gap:18px; } .say { font-size:32px; } .dday .big { font-size:52px; }
+    .rows { gap:10px; } .rows li { padding:9px 12px; }
+  }
+  @media (max-width:960px) {
+    .hero { display:none; }
+    .stage { grid-template-columns:minmax(0, 560px); justify-content:center; padding:32px 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .slide { transform:none; transition:none; }
+    .hero .dot[aria-current="true"]::after { animation:none !important; }
+    * { transition:none !important; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <p class="brand">
+    <svg width="16" height="16" viewBox="0 0 14 14" aria-hidden="true"><g stroke="currentColor" stroke-width="1.6" fill="none"><line x1="3" y1="2" x2="3" y2="12"/><rect x="1.2" y="4.5" width="3.6" height="4" fill="currentColor" stroke="none"/><line x1="10" y1="1" x2="10" y2="13"/><rect x="8.2" y="3" width="3.6" height="6.5"/></g></svg>
+    기관영업지원 시스템
+  </p>
+  <p class="top-note">금고 입찰 현황</p>
+</header>
+
+<main class="stage" id="login-view">
+  <section class="card" aria-labelledby="login-title">
+    <h1 id="login-title">로그인</h1>
+    <p class="lede">전국 지자체 금고의 약정 만료 시점을 지도에 모았습니다.</p>
+    <form id="login-form" novalidate>
+      <label>사번 또는 임시 계정
+        <input id="login-id" name="username" autocomplete="username" inputmode="text" placeholder="사번 7자리" aria-describedby="login-msg">
+      </label>
+      <label>비밀번호
+        <input id="login-pw" name="password" type="password" autocomplete="current-password">
+      </label>
+      <label>임시 계정 (팀·직위)
+        <select id="login-role">
+          <option value="">고르면 사번 칸이 채워집니다</option>
+          <optgroup label="영업팀">
+            <option value="3918264">영업팀 · 팀원 (김영업)</option>
+            <option value="5047192">영업팀 · 팀장 (이영업)</option>
+            <option value="2674805">영업팀 · 부장 (박영업)</option>
+            <option value="7130526">영업팀 · 디자이너 (최디자이너)</option>
+          </optgroup>
+          <optgroup label="전산팀">
+            <option value="4482971">전산팀 · 팀원 (권전산)</option>
+            <option value="6295038">전산팀 · 팀장 (오전산)</option>
+          </optgroup>
+          <optgroup label="재무팀">
+            <option value="1857403">재무팀 · 팀원 (정예산)</option>
+            <option value="9026715">재무팀 · 팀장 (한예산)</option>
+          </optgroup>
+          <optgroup label="관리자">
+            <option value="8203417">관리자 · 마스터</option>
+          </optgroup>
+        </select>
+      </label>
+      <p id="login-msg" class="msg" role="status" aria-live="polite"></p>
+      <div class="actions">
+        <button id="login-go" class="primary" type="submit">로그인</button>
+        <button id="login-guest" class="ghost" type="button">로그인 없이 둘러보기</button>
+      </div>
+      <p class="hint">시험 운영 중에는 비밀번호를 확인하지 않습니다.<br>로그인과 화면 사용은 접근 이력에 남습니다.</p>
+    </form>
+  </section>
+
+  <section class="hero" id="hero" aria-roledescription="carousel" aria-label="2026 금고 지정 소식" data-play="on">
+    <div class="ctl" role="group" aria-label="슬라이드 조작">
+      <p class="where" aria-hidden="true"><b><span id="hero-n">1</span> / 5</b><span id="hero-topic">마포구 제안 접수</span></p>
+      <button type="button" class="cbtn" id="hero-play" aria-label="자동 재생 멈추기">
+        <svg class="i-pause" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1.5" width="2.6" height="9" rx=".6" fill="currentColor"/><rect x="7.4" y="1.5" width="2.6" height="9" rx=".6" fill="currentColor"/></svg>
+        <svg class="i-play" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.6 10.2 6 3 10.4Z" fill="currentColor"/></svg>
+        <span class="t">멈춤</span>
+      </button>
+      <button type="button" class="cbtn" id="hero-prev" aria-label="이전 슬라이드">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M7.5 2 3.5 6l4 4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="dots">
+        <button type="button" class="dot" aria-current="true" data-topic="마포구 제안 접수" aria-label="1번째 슬라이드: 마포구 제안 접수"></button>
+        <button type="button" class="dot" data-topic="신규 3구" aria-label="2번째 슬라이드: 신규 3구"></button>
+        <button type="button" class="dot" data-topic="재선정 3구" aria-label="3번째 슬라이드: 재선정 3구"></button>
+        <button type="button" class="dot" data-topic="서울 임박 지도" aria-label="4번째 슬라이드: 서울 임박 지도"></button>
+        <button type="button" class="dot" data-topic="탐지부터 결재까지" aria-label="5번째 슬라이드: 탐지부터 결재까지"></button>
+      </div>
+      <button type="button" class="cbtn" id="hero-next" aria-label="다음 슬라이드">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+
+    <div class="slides" id="hero-slides" aria-live="off">
+      <article class="slide on" role="group" aria-roledescription="슬라이드" aria-label="1 / 5 마포구 제안 접수">
+        <h2 class="say">11월 16일,<br>마포구 제안 접수가 열립니다</h2>
+        <div class="vis v1">
+          <article class="notice">
+            <p class="org">마포구 공고 제2026-1729호</p>
+            <h3>마포구 금고지정 계획 공고</h3>
+            <dl>
+              <dt>공고기간</dt><dd>2026. 10. 29.–11. 18.</dd>
+              <dt>제안서 접수</dt><dd>2026. 11. 16.–11. 19.</dd>
+              <dt>현 약정 만료</dt><dd>2026. 12. 31.</dd>
+            </dl>
+          </article>
+          <div class="dday">
+            <p class="big">D-5</p>
+            <p class="cap">접수 시작까지, 11월 11일 기준</p>
+            <p class="chip"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5 11 10.5H1Z" fill="currentColor"/></svg>6개월 안</p>
+          </div>
+          <ol class="tl" aria-label="마포구 공고 일정">
+            <li class="span" aria-hidden="true" style="--from:85.7%; left:85.7%;"></li>
+            <li class="down start" style="--x:0%"><span><b>10.29</b>공고</span></li>
+            <li class="up today" style="--x:61.9%"><span><b>11.11</b>오늘</span></li>
+            <li class="up" style="--x:85.7%"><span><b>11.16</b>접수 시작</span></li>
+            <li class="down end" style="--x:100%"><span><b>11.19</b>접수 마감</span></li>
+          </ol>
+        </div>
+        <p class="src">출처: 마포구 eminwon 고시공고 원문, 2026-11-11 확인</p>
+      </article>
+
+      <article class="slide" role="group" aria-roledescription="슬라이드" aria-label="2 / 5 신규 3구">
+        <h2 class="say">세 구가 국민은행으로<br>옮겨 왔습니다</h2>
+        <div class="vis v2">
+          <svg class="map" id="map-new" viewBox="0 0 380 300" aria-hidden="true"><rect class="ph" x="6" y="6" width="368" height="288" rx="8"/><text class="ph-t" x="190" y="154">서울 25개 구 경계 자리</text></svg>
+          <ul class="rows">
+            <li><svg viewBox="0 0 160 150" data-gu="11190" aria-hidden="true"><rect class="ph" x="6" y="6" width="148" height="138" rx="8"/></svg>
+              <div><p class="name">영등포구</p><p class="what">우리은행 <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h7M6.5 3 9.5 6l-3 3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="sr">에서</span> 국민은행</p><p class="src">결과 공고 제2026-2038호, 2026.10.29.</p></div></li>
+            <li><svg viewBox="0 0 160 150" data-gu="11250" aria-hidden="true"><rect class="ph" x="6" y="6" width="148" height="138" rx="8"/></svg>
+              <div><p class="name">강동구</p><p class="what">우리은행 <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h7M6.5 3 9.5 6l-3 3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="sr">에서</span> 국민은행, 약정 2027–2030</p><p class="src">보도 2026.11.04.</p></div></li>
+            <li><svg viewBox="0 0 160 150" data-gu="11070" aria-hidden="true"><rect class="ph" x="6" y="6" width="148" height="138" rx="8"/></svg>
+              <div><p class="name">중랑구</p><p class="what">우리은행 <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h7M6.5 3 9.5 6l-3 3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="sr">에서</span> 국민은행, 약정 2027–2030</p><p class="src">보도 2026.11.04.</p></div></li>
+          </ul>
+        </div>
+        <p class="src">출처: 영등포구 eminwon 결과 공고, 보도(2026-11-04). 구 경계: 통계청 2018 행정경계</p>
+      </article>
+
+      <article class="slide" role="group" aria-roledescription="슬라이드" aria-label="3 / 5 재선정 3구">
+        <h2 class="say">세 구는 국민은행을<br>다시 골랐습니다</h2>
+        <div class="vis v2">
+          <svg class="map" id="map-keep" viewBox="0 0 380 300" aria-hidden="true"><rect class="ph" x="6" y="6" width="368" height="288" rx="8"/><text class="ph-t" x="190" y="154">서울 25개 구 경계 자리</text></svg>
+          <ul class="rows">
+            <li><svg viewBox="0 0 160 150" data-gu="11060" aria-hidden="true"><rect class="ph" x="6" y="6" width="148" height="138" rx="8"/></svg>
+              <div><p class="name">동대문구</p><p class="what">약정 체결 <span class="nw">2026.10.21.</span>, 약정 2027–2030</p><p class="src">eminwon 지정 공고 제2026-1459호, 보도</p></div></li>
+            <li><svg viewBox="0 0 160 150" data-gu="11050" aria-hidden="true"><rect class="ph" x="6" y="6" width="148" height="138" rx="8"/></svg>
+              <div><p class="name">광진구</p><p class="what">지정 공고 <span class="nw">2026.11.03.</span></p><p class="src">공고 제2026-1409호, 보도 2026.11.04.</p></div></li>
+            <li><svg viewBox="0 0 160 150" data-gu="11110" aria-hidden="true"><rect class="ph" x="6" y="6" width="148" height="138" rx="8"/></svg>
+              <div><p class="name">노원구</p><p class="what">재공고 <span class="nw">2026.09.18.</span>, 약정 2027–2030</p><p class="src">구 고시공고 검색 결과, 보도 2026.11.04.</p></div></li>
+          </ul>
+        </div>
+        <p class="src">출처: 각 구 고시·공고와 보도, 2026-11-11 확인. 구 경계: 통계청 2018 행정경계</p>
+      </article>
+
+      <article class="slide" role="group" aria-roledescription="슬라이드" aria-label="4 / 5 서울 임박 지도">
+        <h2 class="say">서울 25개 구 가운데<br>4곳은 아직 결과 전입니다</h2>
+        <div class="vis v4">
+          <svg class="map" id="map-heat" viewBox="0 0 380 300" aria-hidden="true"><rect class="ph" x="6" y="6" width="368" height="288" rx="8"/><text class="ph-t" x="190" y="154">서울 25개 구 경계 자리</text></svg>
+          <div>
+            <ul class="legend">
+              <li><span class="sw" style="background:var(--b3-hot)"></span>
+                <div><span class="n">4곳</span> 결과 전, 6개월 안
+                  <p>마포구(접수 11.16–11.19), 용산구(재공고), 관악구, 성북구(보도 기준, 추정 △)</p></div></li>
+              <li><span class="sw" style="background:var(--b3-far)"></span>
+                <div><span class="n">21곳</span> 2026 회차 끝남
+                  <p>다음 회차는 약 4년 뒤(약정 4년 기준 추정)</p></div></li>
+            </ul>
+            <p class="note">구청 금고만 칠한 예시입니다. 실제 지도는 지역 안의 모든 기관을 섞어 칠합니다.</p>
+          </div>
+        </div>
+        <p class="src">출처: 각 구 고시·공고와 보도, 2026-11-11 확인. 구 경계: 통계청 2018 행정경계</p>
+      </article>
+
+      <article class="slide" role="group" aria-roledescription="슬라이드" aria-label="5 / 5 탐지부터 결재까지">
+        <h2 class="say">공고를 찾은 뒤의 일도<br>여기서 이어집니다</h2>
+        <div class="vis">
+          <ol class="flow">
+            <li><p class="no">1</p><h3>공고 탐지</h3><p class="d">지도에서 약정 만료가 가까운 곳을 찾습니다.</p></li>
+            <li><p class="no">2</p><h3>참여 결정</h3><p class="d">입찰에 나갈지 팀이 정합니다.</p></li>
+            <li><p class="no">3</p><h3>제안서 작성</h3><p class="d">제안서와 첨부 자료를 만듭니다.</p></li>
+            <li><p class="no">4</p><h3>결재</h3><p class="d">영업부장 결재로 제출을 확정합니다.</p></li>
+          </ol>
+        </div>
+        <p class="src">2–4단계는 로그인하면 열립니다.</p>
+      </article>
+    </div>
+  </section>
+</main>
+
+<script src="../../frontend/geo/seoul.js"></script>
+<script>
+(function () {
+  'use strict';
+  var NEW = { '11190': 1, '11250': 1, '11070': 1 };
+  var KEEP = { '11060': 1, '11050': 1, '11110': 1 };
+  var HOT = { '11140': '▲1', '11030': '▲1', '11210': '▲1', '11080': '△1' };
+  var K = Math.cos(37.55 * Math.PI / 180), NS = 'http://www.w3.org/2000/svg';
+  function polys(f) { var g = f.geometry; return g.type === 'Polygon' ? [g.coordinates] : g.coordinates; }
+  function each(fs, fn) { fs.forEach(function (f) { polys(f).forEach(function (p) { p.forEach(function (r) { r.forEach(fn); }); }); }); }
+  function fitter(fs, w, h, pad) {
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    each(fs, function (c) { var x = c[0] * K, y = -c[1];
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; });
+    var s = Math.min((w - 2 * pad) / (x1 - x0), (h - 2 * pad) / (y1 - y0));
+    var ox = (w - (x1 - x0) * s) / 2, oy = (h - (y1 - y0) * s) / 2;
+    function pt(c) { return [(c[0] * K - x0) * s + ox, (-c[1] - y0) * s + oy]; }
+    return {
+      d: function (f) { return polys(f).map(function (p) { return p.map(function (r) {
+        return 'M' + r.map(function (c) { var q = pt(c); return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join('L') + 'Z'; }).join(''); }).join(''); },
+      center: function (f) { var a = Infinity, b = Infinity, c2 = -Infinity, d2 = -Infinity;
+        polys(f).forEach(function (p) { p[0].forEach(function (c) { var q = pt(c);
+          a = Math.min(a, q[0]); c2 = Math.max(c2, q[0]); b = Math.min(b, q[1]); d2 = Math.max(d2, q[1]); }); });
+        return [(a + c2) / 2, (b + d2) / 2]; }
+    };
+  }
+  function el(n, at) { var e = document.createElementNS(NS, n); for (var k in at) e.setAttribute(k, at[k]); return e; }
+  function draw(id, cls, label) {
+    var svg = document.getElementById(id), fm = fitter(geo.features, 380, 300, 6);
+    geo.features.slice().sort(function (a, b) { return (cls(a.properties.code) !== 'gu') - (cls(b.properties.code) !== 'gu'); })
+      .forEach(function (ft) { svg.appendChild(el('path', { d: fm.d(ft), 'class': cls(ft.properties.code) })); });
+    geo.features.forEach(function (ft) { var t = label(ft); if (!t) return;
+      var p = fm.center(ft), tx = el('text', { x: p[0].toFixed(1), y: (p[1] + 4).toFixed(1), 'class': 'gu-label' });
+      tx.textContent = t; svg.appendChild(tx); });
+  }
+  var geo = window.geoSeoul;
+  if (!geo || !geo.features) { document.documentElement.classList.add('no-geo'); }
+  else {
+    draw('map-new', function (c) { return NEW[c] ? 'gu ink' : 'gu'; }, function (f) { return NEW[f.properties.code] ? f.properties.name : null; });
+    draw('map-keep', function (c) { return KEEP[c] ? 'gu ring' : 'gu'; }, function (f) { return KEEP[f.properties.code] ? f.properties.name : null; });
+    draw('map-heat', function (c) { return HOT[c] ? 'gu hot' : 'gu far'; },
+      function (f) { var m = HOT[f.properties.code]; return m ? f.properties.name + ' ' + m : null; });
+    Array.prototype.forEach.call(document.querySelectorAll('svg[data-gu]'), function (svg) {
+      var ft = geo.features.filter(function (x) { return x.properties.code === svg.getAttribute('data-gu'); })[0];
+      if (ft) { var f2 = fitter([ft], 160, 150, 6); svg.appendChild(el('path', { d: f2.d(ft), 'class': 'sil' })); }
+    });
+  }
+
+  var hero = document.getElementById('hero'), wrap = document.getElementById('hero-slides');
+  var slides = [].slice.call(wrap.querySelectorAll('.slide')), dots = [].slice.call(hero.querySelectorAll('.dot'));
+  var play = document.getElementById('hero-play'), playTxt = play.querySelector('.t');
+  var count = document.getElementById('hero-n'), topic = document.getElementById('hero-topic');
+  var N = slides.length, DUR = 6000, cur = 0, timer = null, startedAt = 0, left = DUR;
+  var rm = window.matchMedia('(prefers-reduced-motion: reduce)'), narrow = window.matchMedia('(max-width: 960px)');
+  var wantPlay = !rm.matches, hover = false, focus = false;
+
+  function canRun() { return wantPlay && !hover && !focus && !document.hidden && !narrow.matches; }
+  function halt() { if (timer) { clearTimeout(timer); timer = null; left = Math.max(0, left - (Date.now() - startedAt)); } }
+  function run() { if (timer) return; startedAt = Date.now(); timer = setTimeout(function () { timer = null; go(cur + 1); }, left); }
+  function sync() {
+    var r = canRun();
+    if (r) run(); else halt();
+    hero.classList.toggle('is-running', r);
+    hero.setAttribute('data-play', wantPlay ? 'on' : 'off');
+    wrap.setAttribute('aria-live', r ? 'off' : 'polite');
+    play.setAttribute('aria-label', wantPlay ? '자동 재생 멈추기' : '자동 재생 시작');
+    playTxt.textContent = wantPlay ? '멈춤' : '재생';
+    play.classList.toggle('paused', !wantPlay);
+  }
+  function go(n) {
+    n = (n + N) % N; halt(); left = DUR;
+    slides[cur].classList.remove('on'); dots[cur].removeAttribute('aria-current');
+    cur = n;
+    slides[cur].classList.add('on'); dots[cur].setAttribute('aria-current', 'true');
+    count.textContent = String(cur + 1); topic.textContent = dots[cur].getAttribute('data-topic');
+    hero.classList.add('reset'); void hero.offsetWidth; hero.classList.remove('reset');
+    sync();
+  }
+
+  function onPlay() {
+    wantPlay = !wantPlay;
+    if (wantPlay) { hover = false; focus = false; if (left <= 0) left = DUR; }
+    sync();
+  }
+  function onPrev() { go(cur - 1); }
+  function onNext() { go(cur + 1); }
+  function onDot(e) { var i = dots.indexOf(e.currentTarget); if (i >= 0) go(i); }
+  function onKey(e) {
+    var k = e.key, to = k === 'ArrowRight' ? cur + 1 : k === 'ArrowLeft' ? cur - 1 : k === 'Home' ? 0 : k === 'End' ? N - 1 : null;
+    if (to === null) return;
+    e.preventDefault(); var onDotNow = dots.indexOf(document.activeElement) >= 0;
+    go(to); if (onDotNow) dots[cur].focus();
+  }
+  function onEnter() { hover = true; sync(); }
+  function onLeave() { hover = false; sync(); }
+  function onFocusIn() { focus = true; sync(); }
+  function onFocusOut(e) { if (!hero.contains(e.relatedTarget)) { focus = false; sync(); } }
+  function onVis() { sync(); }
+  function onRm() { if (rm.matches) wantPlay = false; sync(); }
+
+  var ctl = hero.querySelector('.ctl');
+  play.addEventListener('click', onPlay);
+  document.getElementById('hero-prev').addEventListener('click', onPrev);
+  document.getElementById('hero-next').addEventListener('click', onNext);
+  dots.forEach(function (d) { d.addEventListener('click', onDot); });
+  ctl.addEventListener('keydown', onKey);
+  hero.addEventListener('mouseenter', onEnter); hero.addEventListener('mouseleave', onLeave);
+  hero.addEventListener('focusin', onFocusIn); hero.addEventListener('focusout', onFocusOut);
+  document.addEventListener('visibilitychange', onVis);
+  function listen(mq, fn, on) { if (mq.addEventListener) mq[on ? 'addEventListener' : 'removeEventListener']('change', fn); else mq[on ? 'addListener' : 'removeListener'](fn); }
+  listen(rm, onRm, true); listen(narrow, onVis, true);
+  sync();
+
+  window.heroCarousel = {
+    destroy: function () {
+      halt(); wantPlay = false; hero.classList.remove('is-running');
+      document.removeEventListener('visibilitychange', onVis);
+      listen(rm, onRm, false); listen(narrow, onVis, false);
+    }
+  };
+
+  var form = document.getElementById('login-form'), id = document.getElementById('login-id'), msg = document.getElementById('login-msg');
+  document.getElementById('login-role').addEventListener('change', function () { if (this.value) { id.value = this.value; id.removeAttribute('aria-invalid'); msg.textContent = ''; } });
+  form.addEventListener('submit', function (e) { e.preventDefault();
+    if (!/^[0-9]{7}$/.test(id.value.trim())) { id.setAttribute('aria-invalid', 'true'); msg.textContent = '사번(숫자 7자리) 또는 임시 계정을 입력하세요.'; id.focus(); return; }
+    msg.textContent = ''; window.heroCarousel.destroy(); });
+})();
+</script>
+</body>
+</html>

@@ -137,6 +137,40 @@
     try { write('tbd.overduePanel', open ? 'open' : 'closed'); return true; } catch (e) { return false; }
   };
 
+  // 입찰 현황판 기간 버튼(개인 보기 선호). 허용 목록 밖이거나 저장소가 막히면 기본 '6'(6개월).
+  store.DASH_WINDOWS = ['3', '6', '12', 'all'];
+  store.loadDashWindow = function () {
+    try {
+      const v = read('tbd.dashWindow', null);
+      return store.DASH_WINDOWS.indexOf(v) >= 0 ? v : '6';
+    } catch (e) { return '6'; }
+  };
+  store.saveDashWindow = function (key) {
+    if (store.DASH_WINDOWS.indexOf(key) < 0) return false;
+    try { write('tbd.dashWindow', key); return true; } catch (e) { return false; }
+  };
+
+  // 사이드바 마지막 열림 분류(하나만 열리는 아코디언). 키 = tbd.navOpen.<사번|guest>, 값 = 분류 id 하나.
+  // 사번이 아닌 값은 guest로, 분류 id 모양이 아닌 값은 없는 것으로 본다(허용 목록 검증은 nav.validOpen이 이어서 한다).
+  function navOpenKey(who) { return 'tbd.navOpen.' + (/^[0-9]{7}$/.test(who || '') ? who : 'guest'); }
+  store.navOpenKey = navOpenKey;
+  store.loadNavOpen = function (who) {
+    try {
+      const v = read(navOpenKey(who), null);
+      return (typeof v === 'string' && /^[a-z]{2,20}$/.test(v)) ? v : null;
+    } catch (e) { return null; }
+  };
+  store.saveNavOpen = function (who, catId) {
+    try {
+      const ls = LS(); if (!ls) return false;
+      // 모두 접음도 기억한다('none'). 모양이 틀린 id는 저장하지 않고 키를 지운다.
+      if (catId === null || catId === undefined || catId === '') write(navOpenKey(who), 'none');
+      else if (/^[a-z]{2,20}$/.test(catId)) write(navOpenKey(who), catId);
+      else ls.removeItem(navOpenKey(who));
+      return true;
+    } catch (e) { return false; }
+  };
+
   // 지도 테마(임박 5색 + 물결/깜빡임 색·주기) — IT 담당자가 화면에서 바꾼 값을 보존.
   // 저장값은 부분(partial)일 수 있어 render.applyTheme이 기본값 위에 덮어쓴다.
   store.loadTheme = function () { return read(THEME_KEY, {}); };
