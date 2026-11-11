@@ -138,14 +138,15 @@
       const btn = document.querySelector('.tab-btn[data-tab="' + back + '"]');
       if (btn) btn.click();
     }
+    applyHome();
   };
 
   // 모달 탈출구 — 배경 클릭 / Esc. 버튼이 화면 밖으로 밀리는 등 어떤 이유로든
   // 닫기 버튼에 닿지 못해도 화면이 잠기지 않게 한다(사용자 보고: 편집 팝업이 안 닫힘).
   app.wireModalDismiss = function () {
-    // #tm-modal은 제외 — 작성 중 닫기 확인(requestClose)을 team.js가 직접 처리한다.
+    // #tm-modal·#pp-modal은 제외 — 작성 중 닫기 확인(requestClose)을 team.js·prep.js가 직접 처리한다.
     const overlays = Array.prototype.filter.call(document.querySelectorAll('.modal-overlay'), function (ov) {
-      return ov.id !== 'tm-modal';
+      return ov.id !== 'tm-modal' && ov.id !== 'pp-modal';
     });
     overlays.forEach(function (ov) {
       ov.addEventListener('click', function (e) {
@@ -239,6 +240,7 @@
     if (root.myinfo && root.myinfo.onProfileChange) root.myinfo.onProfileChange();
     if (root.board && root.board.onProfileChange) root.board.onProfileChange();   // 계정이 바뀌면 이사회 화면 상태를 버린다
     if (root.tm && root.tm.onProfileChange) root.tm.onProfileChange();            // 제안팀 구성·배정도 같다
+    if (root.prep && root.prep.onProfileChange) root.prep.onProfileChange();      // 제안서 사전준비·지도 팝오버 캐시도 같다
     app.applyMenuPermissions();
     if (app.paintUserArea) app.paintUserArea();
     // 워크플로 탭이 이미 그려져 있으면 승인·반려 버튼의 권한 표시를 새 계정에 맞춘다.
@@ -543,17 +545,47 @@
     document.getElementById('soon-title').textContent = label;
     document.getElementById('soon-badge').textContent = tag || '준비중';
     document.getElementById('soon-note').textContent = note || '아직 제공되지 않는 기능입니다. 순서대로 준비하고 있습니다.';
-    // 이사회 자료·제안팀 구성·배정은 새 서버 메뉴 키 없이, 준비중 화면 자리에서 실제 화면으로 열린다.
+    // 이사회 자료·제안팀 구성·배정·제안서 사전준비·입찰 현황판은 새 서버 메뉴 키 없이, 준비중 화면 자리에서 실제 화면으로 열린다.
     const isBoard = !!(root.board && itemId === root.board.SOON_ID);
     const isTeam = !!(root.tm && itemId === root.tm.SOON_ID);
-    document.getElementById('soon-plain').style.display = (isBoard || isTeam) ? 'none' : '';
+    const isPrep = !!(root.prep && itemId === root.prep.SOON_ID);
+    const isDash = !!(root.nav && itemId === root.nav.DASH_ID);
+    const dashReady = isDash && !!(root.dashboard && root.dashboard.mount);   // 본체가 아직 없으면 안내만 보인다
+    if (isDash && !dashReady) {
+      document.getElementById('soon-note').textContent = '입찰 현황판은 준비 중입니다.';
+    }
+    document.getElementById('soon-plain').style.display = (isBoard || isTeam || isPrep || dashReady) ? 'none' : '';
     document.getElementById('bd-root').style.display = isBoard ? '' : 'none';
     document.getElementById('tm-root').style.display = isTeam ? '' : 'none';
+    document.getElementById('pp-root').style.display = isPrep ? '' : 'none';
+    const dashEl = document.getElementById('dash-root');
+    if (dashEl) dashEl.style.display = dashReady ? '' : 'none';
     navActiveId = itemId;
     app.onTabChange('soon');
     if (isBoard) root.board.mount();
     if (isTeam) root.tm.mount();
+    if (isPrep) root.prep.mount();
+    if (dashReady) root.dashboard.mount(dashEl);
   };
+
+  // 로그인(또는 세션이 있는 채로 다시 연 첫 그림) 뒤 첫 화면 — 입찰 현황판이 보이는 사람이고 아직 지도만 보고 있으면 현황판.
+  // 본체(root.dashboard.mount)가 없으면 지금처럼 지도에 둔다. 메뉴 권한이 도착해 항목이 생긴 첫 시점에 한 번만 적용한다.
+  let pendingHome = false;
+  let overduePending = null;   // 현황판이 열릴 것으로 보고 미뤄 둔 경과 요약 팝업 인자 — 현황판이 안 열리면 그때 띄운다
+  function flushOverdue() {
+    const a = overduePending;
+    overduePending = null;
+    if (a && root.overdue && root.overdue.onLogin) root.overdue.onLogin(a.ctx, a.id);
+  }
+  function applyHome() {
+    if (!pendingHome || !root.nav) return;
+    if (!root.store.loadSession()) return;   // 로그인 화면 뒤에서는 아직 기다린다
+    pendingHome = false;
+    if (!(root.dashboard && root.dashboard.mount)) { flushOverdue(); return; }
+    const id = root.nav.homeItemId(navBuilt, navActiveId, navTabs, navContext());
+    const item = id ? findNavItem(id) : null;
+    if (item) { overduePending = null; openNavItem(item); } else flushOverdue();
+  }
 
   // 화면이 바뀔 때마다(어느 경로든) 불린다: 활성 항목 갱신 → 탭 보관 → 그 카테고리만 열기.
   app.syncNavActive = function (tab) {
@@ -604,10 +636,16 @@
     const r = root.nav.openTab(navTabs, item, navActiveId);
     if (r.full) {
       showTabNotice('화면은 최대 ' + root.nav.MAX_TABS + '개까지 열어 둘 수 있습니다. 탭을 닫고 다시 열어 주세요.');
-      return;
+      return false;
     }
     activateItem(item);
+    return true;
   }
+  // 다른 화면(지도 팝오버의 '제안 확정' 등)이 사이드바 항목 id로 화면을 연다. 항목이 안 보이거나 탭이 가득 차면 false.
+  app.openNavItem = function (id) {
+    const found = findNavItem(id);
+    return found ? openNavItem(found) : false;
+  };
 
   function closeNavTab(id) {
     const r = root.nav.closeTab(navTabs, id, navActiveId);
@@ -770,6 +808,7 @@
   };
 
   app.enterApp = function (session, profile) {
+    pendingHome = true;   // 메뉴 권한이 도착하면 입찰 현황판이 첫 화면(applyHome)
     root.store.saveSession(session);
     root.store.saveProfile(profile);
     if (app.showProfileRole) {
@@ -778,10 +817,16 @@
     }
     byId('login-view').classList.add('hidden');
     app.paintUserArea();
-    app.onProfileChanged();
     // 공고 예정일 경과 요약 팝업 — 영업 계열에게만, '오늘 더 이상 보지 않기'를 안 눌렀을 때만(overdue.js).
     // 둘러보기(guest)는 소속이 없어 영업 계열이 아니므로 뜨지 않는다.
-    if (root.overdue && root.overdue.onLogin) root.overdue.onLogin(navContext(), session.emp || session.id || '');
+    // 첫 화면이 입찰 현황판(영업 계열 + 본체 있음)이면 같은 '경과' 정보를 팝업으로 또 보이지 않는다(사용자 결정 11-11).
+    // 메뉴 권한이 오기 전이라 확정할 수 없으므로, 현황판이 열릴 것으로 보면 미뤄 두고 applyHome이 실제 결과로 정한다
+    // (applyHome이 onProfileChanged 안에서 바로 불릴 수 있어 그 전에 정해 둔다).
+    const args = { ctx: navContext(), id: session.emp || session.id || '' };
+    const deferOverdue = root.nav.expectsDashHome(args.ctx, !!(root.dashboard && root.dashboard.mount));
+    overduePending = deferOverdue ? args : null;
+    app.onProfileChanged();
+    if (!deferOverdue && root.overdue && root.overdue.onLogin) root.overdue.onLogin(args.ctx, args.id);
   };
 
   app.logout = function () {
@@ -882,7 +927,7 @@
     byId('btn-logout').addEventListener('click', app.logout);
 
     // 첫 화면: 세션이 있으면 바로 앱, 없으면 로그인(마크업 기본값이 "보임"이라 깜빡임이 없다).
-    if (root.store.loadSession()) view.classList.add('hidden');
+    if (root.store.loadSession()) { view.classList.add('hidden'); pendingHome = true; }
     app.paintUserArea();
   };
 

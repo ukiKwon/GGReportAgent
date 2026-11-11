@@ -10,7 +10,8 @@
   //     어지럽히지 않게 한다(요청: 영업팀 전용 기능). 영업 계열 = 영업팀·영업팀장·영업부장·
   //     디자이너(영업팀 소속) + 마스터. 예외: visibleWithTasks('이사회 자료 작성')는 작업함 조회 권한이 있어도 보인다.
   //     키가 있는데 준비중인 항목(pending: AI 대화·지식 검색)은 서버 키(v[key])가 켠 사람에게 보인다.
-  //     onlyRoles가 있는 항목(제안팀 구성·배정)은 그 역할(영업팀·영업팀장·영업부장)에게만 보인다 — 디자이너·마스터 제외.
+  //     onlyRoles가 있는 항목(제안팀 구성·배정·제안서 사전준비)은 그 역할(영업팀·영업팀장·영업부장)에게만 보인다 — 디자이너·마스터 제외.
+  //     withKey가 있는 항목(입찰 현황판)은 그 서버 키(map)가 켜진 사람 전원에게 보이고, front면 같은 중분류의 맨 앞에 놓인다.
   //  3. **한 화면은 한 항목에만 둔다.** 같은 탭을 두 곳에 걸면 어느 쪽이 "지금 위치"인지
   //     하이라이트가 모호해진다.
   //  4. **대분류 순서는 정의 순서(업무 1→5) 고정, 시스템 관리(last)는 맨 끝.** 중분류 안에서는 구현 → 준비중 순.
@@ -31,11 +32,13 @@
   // tag: 사이드바 배지·안내 화면에 쓰는 글. 기본 '준비중', 구현 계획이 잡힌 것만 '구현 예정'. 빈 글자('')는 배지 없음(이미 열리는 화면).
   // withTasks: true면 영업 계열이 아니어도 작업함 조회 권한(visible.tasks)이 있으면 보인다(이사회 부의).
   // id: 라벨을 고쳐도 열어 둔 탭·화면 연결이 끊기지 않게 고정할 때만 준다(이사회 부의 = board.SOON_ID). 없으면 'soon:'+라벨.
-  function soon(sub, label, tag, note, withTasks, id, onlyRoles) {
+  function soon(sub, label, tag, note, withTasks, id, onlyRoles, withKey, front) {
     const o = { sub: sub, label: label, soon: true, tag: tag === '' ? '' : (tag || '준비중'), note: note || '' };
     if (withTasks) o.visibleWithTasks = true;
     if (id) o.id = id;
     if (onlyRoles) o.onlyRoles = onlyRoles;   // 지정하면 그 역할에게만 보인다(영업 계열 일반 규칙을 대신한다)
+    if (withKey) o.withKey = withKey;         // 지정하면 서버 메뉴 키(v[withKey])가 켜진 사람 전원에게 보인다(역할 제한 없음)
+    if (front) o.front = true;                // 지정하면 같은 중분류 안에서 구현 항목보다 앞에 놓는다
     return o;
   }
   // 사이드바에 붙일 배지 글(순수). 준비중 항목만, tag가 ''이면 배지 없음.
@@ -48,15 +51,19 @@
   const TEAM_ROLES = ['영업팀', '영업팀장', '영업부장'];
   // 제안서 사전준비 프로세스 — NEXT 70에서 실화면이 된다. 라벨을 다듬어도 탭·순서 저장이 끊기지 않게 id를 고정한다.
   const PREP_ID = 'soon:사전준비';
+  // 입찰 현황판 — 본체는 다른 세션(root.dashboard.mount). 서버 메뉴 키 8개가 동결이라 새 키 없이 고정 id의 soon 항목으로 둔다.
+  // 노출 = 서버 map 키가 켜진 사람 전원(영업 계열 제한 없음), 배지 없음, 기관 소분류 맨 앞.
+  const DASH_ID = 'soon:현황판';
 
   // subs: 중분류 순서. 항목마다 sub로 소속을 가리킨다(시스템 관리는 중분류 없음).
   nav.CATEGORIES = [
     { id: 'scan', title: '기관·입찰 현황', subs: ['기관', '입찰 공고'], items: [
+      soon('기관', '입찰 현황판', '', '', false, DASH_ID, undefined, 'map', true),
       live('기관', '전국 지도', 'map'), live('기관', '전국 지역별', 'regions'),
       soon('기관', '기관 사업계획'),
       soon('입찰 공고', '입찰 공고 현황'), soon('입찰 공고', '공고 자동 수집')] },
     { id: 'plan', title: '영업 추진 준비', subs: ['준비 과제', '이사회'], items: [
-      soon('준비 과제', '제안서 사전준비 프로세스', undefined, '', false, PREP_ID),
+      soon('준비 과제', '제안서 사전준비 프로세스', '', '', false, PREP_ID, TEAM_ROLES),
       soon('준비 과제', '기관 정보 요약서'),
       soon('준비 과제', '제안서 제출 붙임서류'),
       soon('이사회', '이사회 자료 작성', '',
@@ -83,6 +90,22 @@
   nav.TEAM_ID = TEAM_ID;
   nav.TEAM_ROLES = TEAM_ROLES;
   nav.PREP_ID = PREP_ID;
+  nav.DASH_ID = DASH_ID;
+  // 로그인 뒤 첫 화면이 입찰 현황판인 역할 — 영업팀·영업팀장·영업부장만(사용자 결정 11-11). 디자이너·마스터·타 팀은 지금처럼 지도.
+  nav.isHomeRole = function (ctx) { return nav.roleIn(TEAM_ROLES, ctx); };
+  // 로그인 뒤 첫 화면: 입찰 현황판이 보이는 영업 계열이고 아직 지도만 보고 있으면 현황판 id, 아니면 null(지금 화면 유지).
+  // 이미 다른 화면을 열었거나 탭을 연 뒤라면 건드리지 않는다.
+  // 로그인 순간(메뉴 권한이 오기 전) 첫 화면이 현황판일 것으로 보는가 — 본체가 있고 영업 계열일 때만.
+  // 경과 요약 팝업은 이때 잠시 미루고, 실제로 현황판이 열리지 않으면(homeItemId가 null) 그때 띄운다.
+  nav.expectsDashHome = function (ctx, dashReady) { return !!dashReady && nav.isHomeRole(ctx); };
+  nav.homeItemId = function (built, activeId, tabs, ctx) {
+    if (!nav.isHomeRole(ctx)) return null;
+    if (nav.categoryOf(built, DASH_ID) === null) return null;
+    if (activeId && activeId !== 'map') return null;
+    const open = tabs || [];
+    for (let i = 0; i < open.length; i += 1) { if (open[i].id !== 'map') return null; }
+    return DASH_ID;
+  };
   // 역할 목록에 드는가. 마스터는 영업팀 소속이 아니라 서버가 열람을 막으므로 항상 false.
   nav.roleIn = function (list, ctx) {
     const c = ctx || {};
@@ -107,12 +130,12 @@
     const out = [];
     const tail = [];
     nav.CATEGORIES.forEach(function (cat) {
-      const bySub = {};   // sub → {live:[], soon:[]}
+      const bySub = {};   // sub → {front:[], live:[], soon:[]}
       const subOrder = (cat.subs || ['']).slice();
-      subOrder.forEach(function (s) { bySub[s] = { live: [], soon: [] }; });
+      subOrder.forEach(function (s) { bySub[s] = { front: [], live: [], soon: [] }; });
       cat.items.forEach(function (it) {
         const sub = it.sub || '';
-        if (!bySub[sub]) { bySub[sub] = { live: [], soon: [] }; subOrder.push(sub); }
+        if (!bySub[sub]) { bySub[sub] = { front: [], live: [], soon: [] }; subOrder.push(sub); }
         if (it.key) {
           if (v[it.key] !== true) return;
           const id = it.view ? it.key + ':' + it.view : it.key;
@@ -122,20 +145,22 @@
           } else {
             bySub[sub].live.push({ label: it.label, key: it.key, view: it.view || null, sub: sub, soon: false, id: id });
           }
-        } else if (it.onlyRoles ? nav.roleIn(it.onlyRoles, ctx) : (sales || (it.visibleWithTasks && v.tasks === true))) {
-          bySub[sub].soon.push({ label: it.label, key: null, sub: sub, id: it.id || 'soon:' + it.label,
-                                 soon: true, tag: it.tag, note: it.note });
+        } else if (it.withKey ? v[it.withKey] === true
+                   : it.onlyRoles ? nav.roleIn(it.onlyRoles, ctx) : (sales || (it.visibleWithTasks && v.tasks === true))) {
+          const built = { label: it.label, key: null, sub: sub, id: it.id || 'soon:' + it.label,
+                          soon: true, tag: it.tag, note: it.note };
+          if (it.front) { built.front = true; bySub[sub].front.push(built); } else bySub[sub].soon.push(built);
         }
       });
       const items = [];
       let shownSubs = 0;
       let eachTwo = true;
       subOrder.forEach(function (s) {
-        const n = bySub[s].live.length + bySub[s].soon.length;
+        const n = bySub[s].front.length + bySub[s].live.length + bySub[s].soon.length;
         if (!n) return;
         shownSubs += 1;
         if (n < 2) eachTwo = false;
-        bySub[s].live.concat(bySub[s].soon).forEach(function (i) { items.push(i); });
+        bySub[s].front.concat(bySub[s].live, bySub[s].soon).forEach(function (i) { items.push(i); });
       });
       if (!items.length) return;
       const built = { id: cat.id, title: cat.title, items: items,

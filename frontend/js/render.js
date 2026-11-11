@@ -560,6 +560,16 @@
       card.addEventListener('mouseenter', function () { render.highlightMarker(r.name, true); });
       card.addEventListener('mouseleave', function () { render.highlightMarker(r.name, false); });
       card.addEventListener('click', function (ev) { render.selectInstitution(r); render.showPopover(r, ev.clientX, ev.clientY); });
+      // 키보드로도 열 수 있다(NEXT 28 최소분): Tab으로 닿고 Enter·Space로 팝오버를 연다. ♥(하트)에서 올라온 키는 건너뛴다.
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('role', 'button');
+      card.addEventListener('keydown', function (ev) {
+        if (ev.target !== card || (ev.key !== 'Enter' && ev.key !== ' ')) return;
+        ev.preventDefault();
+        const rc = card.getBoundingClientRect();
+        render.selectInstitution(r);
+        render.showPopover(r, rc.left - 292, rc.top, { keyboard: true });
+      });
       listEl.appendChild(card);
     });
     // 목록을 새로 그리면 .hi가 사라지므로 현재 선택을 복원한다 —
@@ -567,27 +577,71 @@
     if (render._selectedName) render.highlightCard(render._selectedName, true);
   };
 
-  render.showPopover = function (rec, x, y) {
-    const pop = document.getElementById('popover'); if (!pop) return;
+  // 팝오버 — 기관 요약(이름·D-day·입찰 예정일·미확인 칸) + 다음 행동([제안 확정]·[사전준비 열기], prep.decoratePopover가 채움) + 접힌 원본 정보.
+  // 규격: handoff/agents/design-reviewer/2026-11-11_1421_a3b0ec71.md §6-B. 지역코드·구시군코드·경도·위도는 보이지 않고 [편집] 창에만 있다.
+  render.POP_RAW_FIELDS = ['type', 'term', 'lastBid', 'confirmed', 'sources', 'updatedAt'];
+  render.POP_HIDDEN_FIELDS = ['name', 'region', 'subRegion', 'lng', 'lat'];
+  render.popRawValue = function (rec, f) {
+    if (f === 'sources') return Array.isArray(rec.sources) ? rec.sources : [];
+    if (f === 'confirmed') return rec.confirmed === true ? '확정' : (rec.confirmed === false ? '미확정' : '');
+    if (f === 'term') return rec.term == null || rec.term === '' ? '' : rec.term + '년';
+    return rec[f] == null ? '' : String(rec[f]);
+  };
+  render.popoverHtml = function (rec, today) {
     const v = logic.validateRecord(rec);
-    const fields = logic.ALL_FIELDS;
-    let html = '<b>' + esc(rec.name || '(이름없음)') + '</b><br>';
-    fields.forEach(function (f) {
+    const bid = logic.effectiveBid(rec);
+    const days = logic.daysUntil(bid.date, today);
+    const dayCls = days === Infinity ? 'unknown' : (days <= 182 ? 'urgent' : (days <= 365 ? 'soon' : 'later'));
+    const regionName = (render.REGION_NAME && render.REGION_NAME[rec.region]) || '';
+    const sub = [rec.type, regionName].filter(Boolean).join(' · ');
+    const unk = '<span class="pop-unk">미확인</span>';
+    let raw = '';
+    render.POP_RAW_FIELDS.forEach(function (f) {
       const label = logic.FIELD_LABELS[f] || f;
-      if (f === 'contractEnd') {
-        html += '<div>' + label + ': ' + esc(logic.formatBidDateLabel(rec)) + '</div>';
-        return;
-      }
       const missing = v.missing.indexOf(f) >= 0;
-      let val = f === 'sources' ? (Array.isArray(rec.sources) ? rec.sources.join(', ') : '') : (rec[f] == null ? '' : rec[f]);
-      html += '<div' + (missing ? ' class="miss"' : '') + '>' + label + ': ' + (val ? esc(val) : (missing ? '(누락)' : '')) + '</div>';
+      const val = render.popRawValue(rec, f);
+      let body;
+      if (f === 'sources') {
+        body = val.map(function (s) {
+          const t = String(s);
+          return /^https?:\/\//i.test(t)
+            ? '<a href="' + esc(t) + '" target="_blank" rel="noopener noreferrer">' + esc(t) + '</a>' : esc(t);
+        }).join('<br>');
+      } else body = esc(val);
+      if (!body) body = missing ? '(누락)' : '';
+      raw += '<div' + (missing ? ' class="miss"' : '') + '><span class="pop-rl">' + esc(label) + '</span> ' + body + '</div>';
     });
-    html += '<div style="margin-top:6px;"><button id="pop-edit">편집</button></div>';
-    pop.innerHTML = html;
+    const hiddenMissing = render.POP_HIDDEN_FIELDS.filter(function (f) { return v.missing.indexOf(f) >= 0; })
+      .map(function (f) { return logic.FIELD_LABELS[f] || f; });
+    if (hiddenMissing.length) {
+      raw += '<div class="miss">누락된 칸: ' + esc(hiddenMissing.join(', ')) + ' — [편집]에서 채우세요.</div>';
+    }
+    return '<div class="pop-head"><b id="pop-title" tabindex="-1">' + esc(rec.name || '(이름없음)') + '</b>' +
+      '<span class="dg-day ' + dayCls + '">' + esc(logic.formatDDay(rec, today)) + '</span></div>' +
+      (sub ? '<div class="pop-sub">' + esc(sub) + '</div>' : '') +
+      '<dl class="pop-grid"><dt>입찰 예정일</dt><dd class="pop-mono">' +
+      (bid.date ? esc(bid.date) + ' (' + esc(logic.confidenceLabel(bid.confidence)) + ')' : '미상') + '</dd>' +
+      '<dt>현 유치 은행</dt><dd>' + unk + '</dd><dt>임직원 수</dt><dd>' + unk + '</dd><dt>기관장</dt><dd>' + unk + '</dd></dl>' +
+      '<div class="pop-note">미확인 칸은 기관 정보 이관 뒤 채워집니다.</div>' +
+      '<div id="pop-prep-line"></div>' +
+      '<div class="pop-actions"><span id="pop-prep-slot"></span><button id="pop-edit" type="button">편집</button></div>' +
+      '<details class="pop-raw"><summary>원본 정보</summary>' + raw + '</details>';
+  };
+
+  render.showPopover = function (rec, x, y, opts) {
+    const pop = document.getElementById('popover'); if (!pop) return;
+    const keyboard = !!(opts && opts.keyboard);
+    render._popOpener = keyboard ? document.activeElement : null;   // Esc로 닫으면 연 카드로 돌아간다
+    pop.innerHTML = render.popoverHtml(rec, render.state.today);
     const eb = document.getElementById('pop-edit');
     if (eb) eb.onclick = function () { if (root.app && root.app.openEdit) root.app.openEdit(rec); };
-    pop.style.left = Math.min(x + 12, window.innerWidth - 300) + 'px';
-    pop.style.top = Math.min(y + 12, window.innerHeight - 180) + 'px'; pop.style.display = 'block';
+    pop.style.left = Math.max(8, Math.min(x + 12, window.innerWidth - 300)) + 'px';
+    pop.style.top = '8px'; pop.style.display = 'block';
+    // 실제 높이를 잰 뒤 화면 안에 들어오게 놓는다(미확인 줄·확인 줄이 붙으면 높이가 달라진다). 더 길면 CSS max-height로 스크롤.
+    pop.style.top = Math.max(8, Math.min(y + 12, window.innerHeight - pop.offsetHeight - 8)) + 'px';
+    // 다음 행동 버튼은 사전준비 모듈이 붙인다(서버 호출은 prep.js에만 둔다).
+    if (root.prep && root.prep.decoratePopover) root.prep.decoratePopover(pop, rec);
+    if (keyboard) { const t = document.getElementById('pop-title'); if (t) t.focus(); }
   };
 
   render._selectedName = null;
@@ -688,6 +742,27 @@
     // scrollTop만 직접 옮긴다 — 페이지 전체가 따라 움직이면 안 된다.
     panel.scrollTop += (cr.top - pr.top) - (panel.clientHeight - card.offsetHeight) / 2;
   };
+
+  // Esc로 팝오버 닫기 — 키보드로 열었으면 연 카드로 포커스를 돌린다.
+  if (typeof document !== 'undefined') document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Escape') return;
+    const pop = document.getElementById('popover');
+    if (!pop || pop.style.display !== 'block') return;
+    // 모달이 열려 있으면 그 모달의 Esc가 먼저 — 팝오버는 건드리지 않는다.
+    const modalOpen = Array.prototype.some.call(document.querySelectorAll('.modal-overlay'), function (ov) {
+      return window.getComputedStyle(ov).display !== 'none';
+    });
+    if (modalOpen) return;
+    pop.style.display = 'none';
+    let o = render._popOpener;
+    render._popOpener = null;
+    if (!(o && o.focus && document.body.contains(o))) {
+      // 마우스로 열었으면 연 마커·카드(선택 강조된 카드)로, 없으면 지도 영역으로 돌린다.
+      o = document.querySelector('.rank-card.hi') || document.getElementById('map-stage');
+      if (o && !o.hasAttribute('tabindex')) o.setAttribute('tabindex', '-1');
+    }
+    if (o && o.focus) o.focus();
+  });
 
   // 팝오버 바깥 클릭 시 닫기 + 선택 강조 해제
   if (typeof document !== 'undefined') document.addEventListener('click', function (ev) {

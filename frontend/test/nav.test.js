@@ -69,31 +69,31 @@ test('준비중 항목은 영업 계열(영업팀·팀장·부장·디자이너�
   });
 });
 
-test('둘러보기(역할 없음): 지도·지역별만, 준비중 없음', function () {
+test('둘러보기(역할 없음): 입찰 현황판(서버 map 키 전원)·지도·지역별만, 그 밖의 준비중 없음', function () {
   const built = nav.build(GUEST, { role: '' });
   assert.deepStrictEqual(ids(built), ['scan']);
-  assert.deepStrictEqual(items(built, 'scan').map(function (i) { return i.key; }), ['map', 'regions']);
+  assert.deepStrictEqual(items(built, 'scan').map(function (i) { return i.id; }), ['soon:현황판', 'map', 'regions']);
 });
 
 test('비영업 팀: 구현 화면 + 예외(이사회 부의·pending 키) 외 준비중은 없다', function () {
   const v = Object.assign({}, ALL_ON, { approvals: false, admin: false });
   const built = nav.build(v, { role: '예산팀' });
   assert.deepStrictEqual(ids(built), ['scan', 'plan', 'manage', 'tools']);
-  const EXCEPT = ['soon:이사회 자료'];
+  const EXCEPT = ['soon:이사회 자료', 'soon:현황판'];
   built.forEach(function (c) {
     c.items.filter(function (i) { return EXCEPT.indexOf(i.id) < 0 && !i.pending; })
       .forEach(function (i) { assert.strictEqual(i.soon, false, i.id); });
   });
 });
 
-test('준비중 id: 명시 id 외에는 soon:라벨, 전부 서로 다르고 17개', function () {
+test('준비중 id: 명시 id 외에는 soon:라벨, 전부 서로 다르고 18개', function () {
   const built = nav.build(ALL_ON, { role: '영업팀장' });
   const all = [];
   built.forEach(function (c) { c.items.forEach(function (i) { all.push(i.id); }); });
   assert.strictEqual(new Set(all).size, all.length);
   assert.strictEqual(items(built, 'relate')[0].id, 'soon:입찰 결과 등록');
   const soonIds = all.filter(function (id) { return id.indexOf('soon:') === 0; });
-  assert.strictEqual(soonIds.length, 17);
+  assert.strictEqual(soonIds.length, 18);
   // 이사회 부의: 라벨은 바뀌어도 id는 고정(board.SOON_ID)
   const board = items(built, 'plan').filter(function (i) { return i.id === 'soon:이사회 자료'; })[0];
   assert.ok(board && board.label === '이사회 자료 작성');
@@ -110,7 +110,7 @@ test('이사회 부의는 영업 추진 준비 > 이사회 아래 "구현 예정
   assert.ok(!items(built, 'scan').some(function (i) { return i.id === 'soon:이사회 자료'; }));
   assert.strictEqual(items(built, 'relate')[0].tag, '준비중');
   assert.deepStrictEqual(items(built, 'scan').map(function (i) { return i.label; }),
-    ['전국 지도', '전국 지역별', '기관 사업계획', '입찰 공고 현황', '공고 자동 수집']);
+    ['입찰 현황판', '전국 지도', '전국 지역별', '기관 사업계획', '입찰 공고 현황', '공고 자동 수집']);
 });
 
 test('showSubs: 영업팀은 scan·plan·manage·tools true, 평평한 relate·시스템 관리는 false, 예산팀 제안서 작성·관리·둘러보기 기관·입찰 현황은 false', function () {
@@ -211,7 +211,7 @@ test('3단 구조: 대분류 6개 이름·소속(정의 순서 = 업무 순서 1
      'relate:협약·관계 관리', 'tools:공통 도구', 'sys:시스템 관리']);
   const by = {};
   nav.CATEGORIES.forEach(function (c) { by[c.id] = c.items.map(function (i) { return (i.sub || '') + '>' + i.label; }); });
-  assert.deepStrictEqual(by.scan, ['기관>전국 지도', '기관>전국 지역별', '기관>기관 사업계획',
+  assert.deepStrictEqual(by.scan, ['기관>입찰 현황판', '기관>전국 지도', '기관>전국 지역별', '기관>기관 사업계획',
     '입찰 공고>입찰 공고 현황', '입찰 공고>공고 자동 수집']);
   assert.deepStrictEqual(by.plan, ['준비 과제>제안서 사전준비 프로세스', '준비 과제>기관 정보 요약서', '준비 과제>제안서 제출 붙임서류',
     '이사회>이사회 자료 작성', '이사회>이사회 발표 대본']);
@@ -238,8 +238,10 @@ test('영업 계열 표시 순서: 정의 순서 고정, 시스템 관리 맨 �
     const bySub = {};
     c.items.forEach(function (i) { (bySub[i.sub] = bySub[i.sub] || []).push(i); });
     Object.keys(bySub).forEach(function (s) {
-      const firstSoon = bySub[s].findIndex(function (i) { return i.soon; });
-      if (firstSoon >= 0) bySub[s].slice(firstSoon).forEach(function (i) { assert.strictEqual(i.soon, true, c.id + s); });
+      // front(입찰 현황판)는 같은 중분류의 맨 앞에 놓이므로 '구현 → 준비중' 순서 검사에서 뺀다
+      const rest = bySub[s].filter(function (i) { return !i.front; });
+      const firstSoon = rest.findIndex(function (i) { return i.soon; });
+      if (firstSoon >= 0) rest.slice(firstSoon).forEach(function (i) { assert.strictEqual(i.soon, true, c.id + s); });
     });
   });
 });
@@ -276,7 +278,7 @@ test('이사회 자료 작성: 영업 계열이 아니어도 tasks 조회 권한
   // 다른 준비중 항목은 영업 계열이 아니면 tasks가 있어도 안 보인다(예외: 이사회 부의, pending 키 항목)
   const others = nav.build(ALL_ON, { role: '전산팀' }).reduce(function (n, c) {
     return n + c.items.filter(function (i) {
-      return i.soon && !i.pending && i.id !== 'soon:이사회 자료';
+      return i.soon && !i.pending && i.id !== 'soon:이사회 자료' && i.id !== nav.DASH_ID;
     }).length;
   }, 0);
   assert.strictEqual(others, 0);
@@ -286,7 +288,7 @@ test('준비중 라벨은 정의 전체에서 유일하다(라벨 기반 id의 �
   const labels = [];
   nav.CATEGORIES.forEach(function (c) { c.items.forEach(function (i) { if (!i.key) labels.push(i.label); }); });
   assert.strictEqual(new Set(labels).size, labels.length);
-  assert.strictEqual(labels.length, 17);   // scan 3·plan 5·manage 4·relate 2·tools 3
+  assert.strictEqual(labels.length, 18);   // scan 4(입찰 현황판 포함)·plan 5·manage 4·relate 2·tools 3
 });
 
 test('badgeOf: 이사회 자료는 배지 없음, 준비중 항목은 "준비중"(F4)', function () {
@@ -360,8 +362,8 @@ test('PREP_ID: soon:사전준비로 고정, 영업 추진 준비(plan)의 제안
   assert.strictEqual(nav.categoryOf(built, nav.PREP_ID), 'plan');
 });
 
-test('새 준비중 3개(사전준비 프로세스·제출 붙임서류·발표 대본): 배지 "준비중", 영업 계열에게만(tasks가 있는 예산·전산팀에는 안 보인다)', function () {
-  const labels = ['제안서 사전준비 프로세스', '제안서 제출 붙임서류', '이사회 발표 대본'];
+test('아직 준비중인 2개(제출 붙임서류·발표 대본): 배지 "준비중", 영업 계열에게만(tasks가 있는 예산·전산팀에는 안 보인다). 사전준비 프로세스는 실화면이라 배지 없음', function () {
+  const labels = ['제안서 제출 붙임서류', '이사회 발표 대본'];
   function find(ctx, label) {
     const hit = [];
     nav.build(ALL_ON, ctx).forEach(function (c) { c.items.forEach(function (i) { if (i.label === label) hit.push(i); }); });
