@@ -31,8 +31,8 @@ class State:
                 data = json.loads(self.path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, UnicodeDecodeError) as exc:
                 raise StateError(f"상태 파일을 읽을 수 없습니다: {self.path.name}") from exc
-            if data.get("version") != STATE_VERSION:
-                raise StateError(f"지원하지 않는 상태 버전: {data.get('version')!r}")
+            if data.get("version") != STATE_VERSION or not isinstance(data.get("sources"), dict):
+                raise StateError(f"지원하지 않는 상태 형식: version={data.get('version')!r}")
             self.data = data
 
     def _src(self, slug: str) -> dict:
@@ -61,6 +61,11 @@ class State:
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        if self.path.is_file():                 # 직전 상태 1개를 .bak로 남긴다(손상 시 복구용)
+            try:
+                os.replace(self.path, self.path.with_suffix(".bak"))
+            except OSError:
+                pass
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps(self.data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         os.replace(tmp, self.path)

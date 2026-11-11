@@ -48,9 +48,13 @@ def collect(source, state, store, *, since=None, hosts=None, limit=None, baselin
 def extract_and_pack(source, state, store, out_root, *, redo_all=False, now=None) -> dict:
     slug = source.slug
     notices, keys, errors = [], [], []
+    root = store.root.resolve()
     for key, info in state.with_raw(slug, include_packed=redo_all):
         try:
-            notices.append(notice_from_raw(store.root / info["raw"], info["raw"]))
+            raw_dir = (store.root / info["raw"]).resolve()
+            if not raw_dir.is_relative_to(root):     # 상태 파일이 조작돼도 원문 루트 밖은 읽지 않는다
+                raise ValueError("원문 경로가 루트 밖입니다")
+            notices.append(notice_from_raw(raw_dir, info["raw"]))
             keys.append(key)
         except (OSError, ValueError, KeyError, SourceError) as exc:
             errors.append({"key": key, "error": f"{type(exc).__name__}: {str(exc)[:150]}"})

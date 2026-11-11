@@ -11,6 +11,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 
 from collector.batch import DEFAULT_OUT_ROOT, BatchError
@@ -43,12 +44,26 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
+STALE_LOCK_SEC = 6 * 3600   # 이보다 오래된 잠금은 비정상 종료로 보고 회수(security 7d2ac90)
+
+
 def _lock(path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        return os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-    except FileExistsError:
-        return None
+    for _ in range(2):
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, f"pid={os.getpid()} at={int(time.time())}\n".encode())
+            return fd
+        except FileExistsError:
+            try:
+                age = time.time() - path.stat().st_mtime
+            except OSError:
+                continue
+            if age > STALE_LOCK_SEC:
+                path.unlink(missing_ok=True)       # 오래된 잠금 회수 후 한 번 더 시도
+                continue
+            return None
+    return None
 
 
 def main(argv=None, http=None) -> int:

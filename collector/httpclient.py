@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import socket
 import ssl
 import time
@@ -21,10 +22,20 @@ class FetchHttpError(FetchError):
     """서버가 응답한 오류(4xx/5xx) — 스킴을 바꿔 재시도해도 소용없다."""
 
 
+class FetchTlsError(FetchError):
+    """인증서·TLS 오류 — http로 내려가 재시도하면 안 된다(중간자 강등 방지, security 7d2ac90 지적)."""
+
+
+def _origin(url: str):
+    p = urllib.parse.urlsplit(url)
+    return (p.scheme, p.hostname, p.port or (443 if p.scheme == "https" else 80))
+
+
 class _SameHostRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        if urllib.parse.urlsplit(newurl).hostname != urllib.parse.urlsplit(req.full_url).hostname:
-            raise urllib.error.HTTPError(req.full_url, code, "다른 호스트로의 리다이렉트 차단", headers, fp)
+        newurl = urllib.parse.urljoin(req.full_url, newurl)
+        if _origin(newurl) != _origin(req.full_url):
+            raise urllib.error.HTTPError(req.full_url, code, "다른 출처(스킴·호스트·포트)로의 리다이렉트 차단", headers, fp)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
@@ -50,7 +61,15 @@ class HttpClient:
                 charset = resp.headers.get_content_charset()
         except urllib.error.HTTPError as exc:          # URLError보다 먼저
             raise FetchHttpError(f"HTTP {exc.code}") from exc
-        except (urllib.error.URLError, ssl.SSLError, socket.timeout, OSError) as exc:
+        except urllib.error.URLError as exc:
+            if isinstance(exc.reason, (ssl.SSLError, ssl.CertificateError)):
+                raise FetchTlsError(f"TLS 오류: {str(exc.reason)[:80]}") from exc
+            raise FetchError(f"연결 실패: {type(exc).__name__} {str(exc.reason)[:80]}") from exc
+        except (ssl.SSLError, ssl.CertificateError) as exc:
+            raise FetchTlsError(f"TLS 오류: {str(exc)[:80]}") from exc
+        except http.client.HTTPException as exc:       # 응답이 중간에 끊김 등
+            raise FetchError(f"응답 오류: {type(exc).__name__}") from exc
+        except (socket.timeout, OSError) as exc:
             raise FetchError(f"연결 실패: {type(exc).__name__} {str(getattr(exc, 'reason', exc))[:80]}") from exc
         if len(data) > self.max_bytes:
             raise FetchError("응답이 너무 큽니다")

@@ -169,3 +169,54 @@ def test_contract_rejects_candidate_without_basis(tmp_path):
     rec = {"candidate": {"status": "확정", "fields": {"contract_end": "2030/12/31", "term": 4}, "basis": []}}
     errs = " ".join(_validate_notice_candidate(rec, "r"))
     assert "status" in errs and "YYYY-MM-DD" in errs and "basis" in errs
+
+
+# ── 보안 보강(security 7d2ac90) ─────────────────────────────────────────────────
+def test_tls_error_does_not_fall_back_to_http(tmp_path):
+    from collector.httpclient import FetchTlsError
+
+    class TlsBroken:
+        def __init__(self):
+            self.urls = []
+
+        def get(self, url, verify=True):
+            self.urls.append(url)
+            raise FetchTlsError("TLS 오류")
+
+    http = TlsBroken()
+    src = EminwonSource().with_config(hosts_file=_hosts_file(tmp_path), http=http)
+    report = RunReport()
+    list(src.list_new(State(tmp_path / "s.json").index("eminwon"), None, report, None))
+    assert report.hosts_failed and all(u.startswith("https://") for u in http.urls)
+
+
+def test_attachment_signature_check():
+    from collector.sources.eminwon import signature_ok
+    assert signature_ok("a.pdf", b"%PDF-1.7 ...") and not signature_ok("a.pdf", b"MZ\x90\x00")
+    assert signature_ok("a.hwpx", b"PK\x03\x04...") and not signature_ok("a.hwp", b"PK\x03\x04")
+
+
+def test_hwpx_bad_zip_variants_raise_extract_error():
+    good = (FX / "sunchang_32708.hwpx").read_bytes()
+    with pytest.raises(ExtractError):
+        hwpx_text(good[: len(good) // 2])         # 잘린 zip
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for i in range(60):
+            z.writestr(f"Contents/section{i}.xml", "<hp:p><hp:t>x</hp:t></hp:p>")
+    with pytest.raises(ExtractError):
+        hwpx_text(buf.getvalue())                  # 구간 과다
+
+
+def test_stale_lock_is_reclaimed(tmp_path):
+    import os
+    import time as _t
+    from collector import cli
+    lock = tmp_path / "_state" / "run.lock"
+    lock.parent.mkdir(parents=True)
+    lock.write_text("pid=1")
+    old = _t.time() - cli.STALE_LOCK_SEC - 10
+    os.utime(lock, (old, old))
+    fd = cli._lock(lock)
+    assert fd is not None
+    os.close(fd)

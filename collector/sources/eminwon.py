@@ -15,7 +15,7 @@ from typing import Iterator
 from urllib.parse import quote
 
 from collector.extract.classify import classify, is_watch_kind
-from collector.httpclient import FetchError, FetchHttpError, HttpClient
+from collector.httpclient import FetchError, FetchHttpError, FetchTlsError, HttpClient
 from collector.sources.base import NoticeRef, RawNotice, RunReport, SourceError, register
 from collector.sources.eminwon_parse import decode_body, parse_attachments, parse_list
 
@@ -24,6 +24,14 @@ FILE_PATH = "/emwp/jsp/ofr/FileDown.jsp"
 DEFAULT_HOSTS_FILE = Path(__file__).resolve().parents[1] / "config" / "eminwon_hosts.json"
 HOST_RE = re.compile(r"^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$")
 ALLOWED_EXT = (".hwpx", ".pdf", ".hwp")
+MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
+# 확장자별 파일 서명(내용 확인) — 이름만 .pdf인 바이너리가 망 안으로 들어가지 않게(security 7d2ac90).
+SIGNATURES = {".pdf": (b"%PDF-",), ".hwpx": (b"PK\x03\x04",), ".hwp": (b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",)}
+
+
+def signature_ok(name: str, blob: bytes) -> bool:
+    ext = "." + name.lower().rsplit(".", 1)[-1] if "." in name else ""
+    return any(blob.startswith(sig) for sig in SIGNATURES.get(ext, ()))
 
 
 @dataclass(frozen=True)
@@ -123,8 +131,8 @@ class EminwonSource:
             url = f"{scheme}://{entry.host}{path_query}"
             try:
                 data, charset = self.http.get(url, verify=entry.tls_verify)
-            except FetchHttpError:
-                raise
+            except (FetchHttpError, FetchTlsError):
+                raise                      # 서버 응답 오류·인증서 오류는 http로 내려가 재시도하지 않는다
             except FetchError as exc:
                 last = exc
                 continue
@@ -209,6 +217,12 @@ class EminwonSource:
                 _, blob, _ = self._get(entry, path_q)
             except FetchError as exc:
                 errors.append({"name": name, "error": str(exc)[:120]})
+                continue
+            if len(blob) > MAX_ATTACHMENT_BYTES:
+                errors.append({"name": name, "error": "첨부가 너무 큽니다"})
+                continue
+            if not signature_ok(name, blob):
+                errors.append({"name": name, "error": "파일 서명이 확장자와 다릅니다(받지 않음)"})
                 continue
             files.append((name, blob))
         meta = {
