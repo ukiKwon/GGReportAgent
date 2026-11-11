@@ -13,8 +13,12 @@ process.stdin.on('end', () => {
     const type = String(p.agent_type || '');
     const base = type.replace(/-write$/, '');
     if (!ROLES.includes(base)) return;
-    let text = typeof p.last_assistant_message === 'string' ? p.last_assistant_message : '';
-    if (!text && p.agent_transcript_path) text = lastAssistantText(p.agent_transcript_path);
+    // 우선순위(2026-11-11 수정): ① 대본의 최종 보고(SubagentHandback) ② 보고가 짧으면(요약·"앞 메시지 참조") 대본에서 가장 긴 본문.
+    // last_assistant_message 를 먼저 쓰던 때는 끝내기 직전 한 줄("팝업을 닫겠다")만 저장돼 규격 34KB가 사라진 적이 있다.
+    const last = typeof p.last_assistant_message === 'string' ? p.last_assistant_message.trim() : '';
+    const t = p.agent_transcript_path ? fromTranscript(p.agent_transcript_path) : { handback: '', longest: '' };
+    let text = t.handback;
+    if (text.length < 600) text = [text, t.longest, last].sort((a, b) => b.length - a.length)[0] || '';
     text = String(text || '').trim();
     if (!text) return;
     const root = process.env.CLAUDE_PROJECT_DIR || process.cwd();
@@ -29,6 +33,26 @@ process.stdin.on('end', () => {
     fs.writeFileSync(file, head + text + '\n');
   } catch (_) { /* 보존 실패가 작업을 막지 않는다 */ }
 });
+
+// 대본에서 마지막 SubagentHandback 본문과, 어시스턴트 text 블록 중 가장 긴 것을 함께 돌려준다.
+function fromTranscript(file) {
+  const out = { handback: '', longest: '' };
+  try {
+    for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+      if (!line.trim()) continue;
+      let o; try { o = JSON.parse(line); } catch (_) { continue; }
+      const m = o.message || o;
+      if ((m.role || o.type) !== 'assistant' || !Array.isArray(m.content)) continue;
+      for (const b of m.content) {
+        if (!b) continue;
+        if (b.type === 'tool_use' && b.name === 'SubagentHandback' && b.input && typeof b.input.message === 'string') out.handback = b.input.message.trim();
+        if (b.type === 'text' && typeof b.text === 'string' && b.text.trim().length > out.longest.length) out.longest = b.text.trim();
+      }
+    }
+  } catch (_) {}
+  if (!out.handback && !out.longest) out.longest = lastAssistantText(file);
+  return out;
+}
 
 function lastAssistantText(file) {
   try {

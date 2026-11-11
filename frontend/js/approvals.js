@@ -155,9 +155,30 @@
         canDecide: !!it.can_decide,
         deputy: !!it.acting_as_deputy,
         canCancel: !!it.can_cancel,
+        // 이사회 자료 제출(BOARD_SUBMIT): 자료를 열어 보고 결재한다 — 카드에서 바로 승인·반려하지 않는다
+        isBoard: it.req_type === 'BOARD_SUBMIT',
+        materialId: it.req_type === 'BOARD_SUBMIT' ? String(((it.payload || {}).material_id) == null ? '' : (it.payload || {}).material_id) : '',
+        snapNo: it.req_type === 'BOARD_SUBMIT' ? (Number((it.payload || {}).snap_no) || 0) : 0,
       };
     });
   };
+
+  // 결재함 화면·버튼 식별자 — 서버 BoardUiIds 허용 목록과 같은 이름. 승인·반려·회수·검토 열기에 싣는다(감사 기록).
+  const AP_UI = { INBOX: 'approvals_inbox', MINE: 'approvals_mine' };
+  const AP_BTN = { APPROVE: 'approve', REJECT: 'reject', CANCEL: 'cancel_request', REVIEW: 'review_open' };
+  approvals.UI = AP_UI;
+  approvals.BTN = AP_BTN;
+  approvals.headers = function (screen, button, json) {
+    const h = { 'X-Screen-Id': screen, 'X-Button-Id': button };
+    if (json) h['Content-Type'] = 'application/json';
+    return h;
+  };
+  // board-material.js 의 검토 화면 도우미. 스크립트 순서상 이 파일이 먼저 실려도 호출 시점에 찾는다(없으면 null).
+  function bm() {
+    if (root.boardMat) return root.boardMat;
+    try { if (typeof require === 'function') return require('./board-material.js'); } catch (e) { /* 없으면 검토 화면만 못 연다 */ }
+    return null;
+  }
 
   // 담당자 변경 요청(ASSIGNEE_CHANGE)의 "누구를 추가·해제하나" 줄. 다른 유형이면 빈 배열.
   // people(추가·해제가 섞여 온다)을 사번으로 payload의 두 배열과 맞춘다. 못 찾으면 사번을 그대로 보인다.
@@ -369,15 +390,22 @@
       '<span class="ad-badge ' + r.tone + '">' + esc(r.statusLabel) + '</span>' +
       '<span class="dg-who">' + esc(r.when) + '</span></div>';
     let act = '';
-    if (mode === 'inbox' && r.canDecide) {
-      act = '<div class="ap-act"><input class="ap-comment" data-id="' + esc(r.id) + '" placeholder="의견(반려 시 사유 필수)">' +
+    let boardLine = '';
+    if (r.isBoard && r.snapNo) boardLine = '<div class="dg-who">버전 <span class="mono">' + esc(r.snapNo) + '</span> 제출</div>';
+    if (mode === 'inbox' && r.isBoard) {
+      if (r.canDecide && r.materialId) {
+        act = '<div class="ap-act"><button type="button" class="ap-review-btn" data-id="' + esc(r.id) + '" data-mat="' + esc(r.materialId) + '" data-snap="' + esc(r.snapNo) +
+          '">자료 보고 결재</button>' + (r.deputy ? '<span class="dg-who">대결로 처리</span>' : '') + '</div>';
+      }
+    } else if (mode === 'inbox' && r.canDecide) {
+      act = '<div class="ap-act"><input class="ap-comment" data-id="' + esc(r.id) + '" placeholder="의견(반려 시 사유 필수)" aria-label="의견(반려할 때 사유 필수)">' +
         '<button class="ap-req-ok" data-id="' + esc(r.id) + '">승인</button>' +
         '<button class="ap-req-no" data-id="' + esc(r.id) + '">반려</button>' +
         (r.deputy ? '<span class="dg-who">대결로 처리</span>' : '') + '</div>';
     } else if (mode === 'mine' && r.canCancel) {
-      act = '<div class="ap-act"><button class="ap-req-cancel" data-id="' + esc(r.id) + '">취소</button></div>';
+      act = '<div class="ap-act"><button class="ap-req-cancel" data-id="' + esc(r.id) + '">' + (r.isBoard ? '제출 회수' : '취소') + '</button></div>';
     }
-    return '<div class="ap-card ap-req" data-id="' + esc(r.id) + '">' + head + approvals.targetsHtml(r.targets) + changesHtml(r.changes) +
+    return '<div class="ap-card ap-req" data-id="' + esc(r.id) + '">' + head + boardLine + approvals.targetsHtml(r.targets) + changesHtml(r.changes) +
       (r.reason ? '<div class="dg-who">사유: ' + esc(r.reason) + '</div>' : '') + chipsHtml(r.chips) +
       (r.note ? '<div class="dg-who">' + esc(r.note) + '</div>' : '') + act + '<div class="ap-err" role="alert"></div></div>';
   }
@@ -390,12 +418,29 @@
     const mineOpen = mineRows.filter(function (r) { return r.canCancel; }).length;
 
     el('ap-tabs').innerHTML = approvals.TABS.map(function (t) {
-      const n = t.key === 'mine' ? mineOpen : inboxCount;
-      return '<button type="button" role="tab" class="' + (t.key === tab ? 'on' : '') + '" data-tab="' + t.key + '">' +
+      const n = t.key === 'mine' ? mineOpen : inboxCount, on = t.key === tab;
+      return '<button type="button" role="tab" id="ap-tab-' + t.key + '" class="' + (on ? 'on' : '') + '" data-tab="' + t.key + '" aria-selected="' + (on ? 'true' : 'false') +
+        '" aria-controls="ap-pane-' + t.key + '" tabindex="' + (on ? '0' : '-1') + '">' +
         esc(t.label) + (n ? '<span class="ap-badge">' + n + '</span>' : '') + '</button>';
     }).join('');
     el('ap-tabs').querySelectorAll('button').forEach(function (b) {
       b.onclick = function () { tab = approvals.normTab(b.dataset.tab); paintRequests(); };
+      b.onkeydown = function (e) {   // 좌우 화살표·Home·End 로 탭 이동(roving tabindex)
+        const keys = approvals.TABS.map(function (t) { return t.key; }), i = keys.indexOf(b.dataset.tab);
+        let to = null;
+        if (e.key === 'ArrowRight') to = keys[(i + 1) % keys.length];
+        else if (e.key === 'ArrowLeft') to = keys[(i + keys.length - 1) % keys.length];
+        else if (e.key === 'Home') to = keys[0];
+        else if (e.key === 'End') to = keys[keys.length - 1];
+        if (to == null) return;
+        e.preventDefault();
+        tab = approvals.normTab(to); paintRequests();
+        const nb = el('ap-tab-' + tab); if (nb) nb.focus();
+      };
+    });
+    ['mine', 'inbox'].forEach(function (k) {
+      const p = el('ap-pane-' + k);
+      p.setAttribute('role', 'tabpanel'); p.setAttribute('aria-labelledby', 'ap-tab-' + k);
     });
     el('ap-pane-mine').style.display = tab === 'mine' ? '' : 'none';
     el('ap-pane-inbox').style.display = tab === 'inbox' ? '' : 'none';
@@ -412,7 +457,9 @@
     el('ap-notice').innerHTML = notice ? '<p class="wf-empty">' + esc(notice) + '</p>' : '';
 
     el('ap-pane-mine').querySelectorAll('.ap-req-cancel').forEach(function (b) {
-      b.onclick = function () { act(b, '/approval-requests/' + encodeURIComponent(b.dataset.id) + '/cancel', undefined); };
+      b.onclick = function () {
+        act(b, '/approval-requests/' + encodeURIComponent(b.dataset.id) + '/cancel', undefined, AP_UI.MINE, AP_BTN.CANCEL);
+      };
     });
     el('ap-req-inbox').querySelectorAll('.ap-req-ok,.ap-req-no').forEach(function (b) {
       b.onclick = function () {
@@ -422,17 +469,157 @@
         const bad = approvals.decisionError(approve, comment);
         if (bad) { card.querySelector('.ap-err').textContent = bad; return; }
         act(b, '/approval-requests/' + encodeURIComponent(b.dataset.id) + '/decide',
-          approvals.decisionBody(approve, comment));
+          approvals.decisionBody(approve, comment), AP_UI.INBOX, approve ? AP_BTN.APPROVE : AP_BTN.REJECT);
       };
     });
+    el('ap-req-inbox').querySelectorAll('.ap-review-btn').forEach(function (b) {
+      b.onclick = function () { openReview(b.dataset.id, b.dataset.mat, Number(b.dataset.snap) || 0); };
+    });
+    paintReviewPane();
+  }
+
+  // ── 이사회 자료 제출 검토(결재함 탭 안) ──────────────────────────────────
+  // 받은 결재 카드의 [자료 보고 결재]로 같은 탭 안에서 읽기 전용 자료를 펼치고, 아래 결재 줄에서 승인·반려한다.
+  let review = null;      // {reqId, matId, snapNo, data, loading, loadErr, comment, busy, error}
+  let apFlash = '';       // 결재를 마친 뒤 목록 위에 한 번 보이는 안내(role=status)
+
+  function paneBox(id, role) {   // index.html 을 바꾸지 않고 받은 결재 탭 맨 위에 컨테이너를 만든다
+    let n = el(id);
+    if (!n) {
+      n = document.createElement('div');
+      n.id = id;
+      if (role) { n.setAttribute('role', role); n.setAttribute('aria-live', 'polite'); }
+      const pane = el('ap-pane-inbox');
+      pane.insertBefore(n, pane.firstChild);
+    }
+    return n;
+  }
+  function reviewCanDecide() {
+    const v = review && review.data && review.data.viewer, pid = v ? v.pending_req_id : null;
+    if (pid == null) return false;
+    return (((reqs.inbox || {}).items) || []).some(function (it) { return String(it.req_id) === String(pid) && !!it.can_decide; });
+  }
+  function paintReviewPane() {
+    const flash = paneBox('ap-flash', 'status'), box = paneBox('ap-review-box');
+    wireReview();
+    flash.innerHTML = apFlash && !review ? '<p class="bd-m-ap-msg" id="ap-flash-msg" tabindex="-1">' + esc(apFlash) + '</p>' : '';
+    const rest = ['ap-req-inbox', 'ap-sec-tasks', 'ap-list', 'ap-notice'];
+    if (!review) {
+      box.innerHTML = ''; box.style.display = 'none';
+      rest.forEach(function (id) { if (id !== 'ap-sec-tasks') el(id).style.display = ''; });
+      return;
+    }
+    rest.forEach(function (id) { el(id).style.display = 'none'; });
+    box.style.display = '';
+    const m = bm();
+    if (!m) { box.innerHTML = '<p class="wf-empty" role="alert">검토 화면을 불러오지 못했습니다. 새로고침해 주세요.</p>'; return; }
+    if (review.loading) {
+      box.innerHTML = '<div class="bd-m-review"><button type="button" class="link-btn" data-act="rv-back">← 결재함</button>' + m.loadingHtml + '</div>';
+    } else if (review.loadErr) {
+      box.innerHTML = '<div class="bd-m-review"><button type="button" class="link-btn" id="ap-rv-back" data-act="rv-back">← 결재함</button>' +
+        '<p class="wf-empty bd-err" id="ap-rv-loaderr" role="alert" tabindex="-1">' + esc(review.loadErr) + '</p></div>';
+    } else {
+      box.innerHTML = m.reviewHtml(review.data, { n: review.snapNo, canDecide: reviewCanDecide(), comment: review.comment, busy: review.busy, error: review.error });
+    }
+  }
+  function openReview(reqId, matId, snapNo) {
+    const m = bm();
+    if (!m || !m.isId(matId)) return;
+    review = { reqId: reqId, matId: matId, snapNo: snapNo, data: null, loading: true, loadErr: '', comment: '', busy: '', error: null };
+    apFlash = '';
+    paintReviewPane();
+    const cur = review;
+    m.loadReview(function (u, i) { return fetch(u, i); }, matId).then(function (r) {
+      if (review !== cur) return;
+      cur.loading = false;
+      if (r.ok) cur.data = r.review;
+      else cur.loadErr = r.notFound ? '담당자가 회수했거나 이미 처리된 제출입니다.' : r.error;
+      paintReviewPane();
+      const t = cur.loadErr ? el('ap-rv-loaderr') : el('ap-rv-title');
+      if (t) t.focus();
+    });
+  }
+  function closeReview(msg) {
+    const reqId = review ? review.reqId : '';
+    review = null;
+    if (msg) apFlash = msg;
+    paintRequests();
+    if (msg) {   // 결재를 마쳤다 — 다음 카드의 첫 버튼, 없으면 '받은 결재' 탭으로
+      const next = el('ap-req-inbox').querySelector('.ap-review-btn,.ap-req-ok');
+      const f = next || el('ap-tab-inbox');
+      if (f) f.focus();
+      return;
+    }
+    const back = reqId ? el('ap-req-inbox').querySelector('.ap-review-btn[data-id="' + String(reqId).replace(/[^0-9A-Za-z_-]/g, '') + '"]') : null;
+    const f = back || el('ap-tab-inbox');
+    if (f) f.focus();
+  }
+  function reviewDecide(approve) {
+    const m = bm();
+    if (!review || review.busy || !m || !reviewCanDecide()) return;
+    const cur = review, ta = el('ap-rv-comment');
+    const comment = ta ? ta.value : cur.comment;
+    cur.comment = comment;
+    if (!approve && !comment.trim()) {
+      cur.error = { type: 'field', field: 'comment', text: '반려할 때는 사유를 적어 주세요.' };
+      paintReviewPane();
+      const t = el('ap-rv-comment'); if (t) t.focus();
+      return;
+    }
+    cur.error = null; cur.busy = approve ? 'approve' : 'reject';
+    paintReviewPane();
+    const pid = cur.data.viewer.pending_req_id, title = m.titleOf(cur.data), n = cur.snapNo || Number(cur.data.confirmed_snap) || Number(cur.data.current_snap) || 0;
+    fetch('/approval-requests/' + encodeURIComponent(pid) + '/decide', {
+      method: 'POST', headers: approvals.headers(AP_UI.INBOX, approve ? AP_BTN.APPROVE : AP_BTN.REJECT, true),
+      body: JSON.stringify(approvals.decisionBody(approve, comment)),
+    }).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (b) { return { ok: r.ok, status: r.status, body: b }; });
+    }, function () { return { ok: false, status: 0, body: null, net: true }; }).then(function (x) {
+      if (review !== cur) return;
+      cur.busy = '';
+      if (x.ok) {
+        closeReview(title + '를 ' + (approve ? '승인했습니다. 버전 ' + n + '이 확정되었습니다.' : '반려했습니다. 담당자가 다시 작성합니다.'));
+        loadRequests();
+        return;
+      }
+      cur.error = m.actError('decide', x);
+      paintReviewPane();
+      const t = cur.error.type === 'field' ? el('ap-rv-comment') : el('bd-m-acterr');
+      if (t) t.focus();
+      if (x.status === 404 || x.status === 409) loadRequests();   // 이미 처리된 제출이면 목록도 최신으로
+    });
+  }
+  function onReviewClick(e) {
+    const b = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
+    if (!b || b.disabled) return;
+    const a = b.getAttribute('data-act');
+    if (a === 'rv-back' || a === 'inbox') closeReview('');
+    else if (a === 'rv-approve') reviewDecide(true);
+    else if (a === 'rv-reject') reviewDecide(false);
+  }
+  function onReviewInput(e) {
+    const t = e.target;
+    if (!t || t.id !== 'ap-rv-comment' || !review) return;
+    review.comment = t.value;
+    const c = el('ap-rv-cnt');
+    if (c) { c.textContent = t.value.length + '/500'; c.hidden = t.value.length < 450; }
+  }
+  function wireReview() {
+    const box = paneBox('ap-review-box');
+    if (box.getAttribute('data-wired')) return;
+    box.setAttribute('data-wired', '1');
+    box.addEventListener('click', onReviewClick);
+    box.addEventListener('input', onReviewInput);
   }
 
   // 한 번에 하나만 — 처리 중에는 그 카드의 버튼을 잠근다. 실패하면 카드 안에 이유를 띄운다.
-  function act(btn, url, body) {
+  // screen·button: 결재함 화면·버튼 이름(감사 기록). 모든 유형에 싣는다(서버는 이사회 자료 제출에서만 기록).
+  function act(btn, url, body, screen, button) {
     const card = btn.closest('.ap-req');
+    apFlash = '';
     card.querySelectorAll('button').forEach(function (x) { x.disabled = true; });
-    const init = { method: 'POST' };
-    if (body !== undefined) { init.headers = { 'Content-Type': 'application/json' }; init.body = JSON.stringify(body); }
+    const init = { method: 'POST', headers: approvals.headers(screen, button, body !== undefined) };
+    if (body !== undefined) { init.body = JSON.stringify(body); }
     fetch(url, init).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
         if (!r.ok) throw new Error(errtext.message(j.detail, '처리하지 못했습니다 (' + r.status + ')'));
@@ -470,6 +657,7 @@
   approvals.mount = function () {
     tab = wantTab || approvals.TABS[0].key;
     wantTab = null;
+    review = null; apFlash = '';   // 다른 메뉴에 다녀오면 열어 둔 검토 화면은 닫는다
     load().then(paintRequests);
     loadRequests();             // 대결 설정은 결재함이 아니라 [내 정보 › 대결 설정]에 있다
   };

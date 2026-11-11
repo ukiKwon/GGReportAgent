@@ -222,7 +222,7 @@ test('headHtml·tabsHtml·tabKey: 머리 문구, 값 esc, 020b 버튼 없음, ro
   assert.ok(h.includes('← 이사회 자료 목록') && h.includes('data-act="back"'));
   assert.ok(h.includes('버전 3 · 김영업 <span class="mono">11-07 10:12</span> 저장') && h.includes('양식 기본 양식'));
   assert.ok(!h.includes('<img') && h.includes('&lt;img') && h.includes('2026년 이사회 자료'));
-  assert.ok(!/제출|회수|재작성|의결/.test(h), '020b 버튼은 그리지 않는다');
+  assert.ok(h.includes('data-act="submit-open"') && h.includes('>안건 제출</button>') && !/제출 회수|재작성 요구|의결 결과/.test(h), 'DRAFT 에서는 can_submit 버튼만(다른 can_* 는 상태가 안 맞아 그리지 않는다)');
   const none = mat.headHtml({ institution_name: '노원구', year: 2026, current_snap: 0 });
   assert.ok(none.includes('<span>저장 전</span>') && !none.includes('아직 저장한 버전이 없습니다'), '머리 meta 는 짧게, 문장은 본문에만');
   assert.ok(mat.tabsHtml('write', 0, false).includes('>작성</button>') && !mat.tabsHtml('write', 0, false).includes('>내용</button>'));
@@ -257,8 +257,15 @@ test('snapsHtml·snapViewHtml: 최신이 위, 현재 배지, aria-label, 메모�
 test('histHtml·eventText: 문구, 자기신고 배지는 emp_verified:false 만, 값 esc', function () {
   assert.strictEqual(mat.eventText({ event_cd: 'CREATE' }), '자료를 만들었습니다(준비 중)');
   assert.strictEqual(mat.eventText({ event_cd: 'HANDOVER', from_name: 'A', to_name: 'B' }), '작성본 인계: A → B');
-  assert.strictEqual(mat.eventText({ event_cd: 'REJECT', reason: '다시' }), '반려되었습니다: 다시');
-  assert.strictEqual(mat.eventText({ event_cd: 'RESULT', from_result_name: '예정', to_result_name: '의결' }), '의결 결과: 예정 → 의결');
+  assert.strictEqual(mat.eventText({ event_cd: 'SUBMIT' }), '제출했습니다(결재 요청)');
+  assert.strictEqual(mat.eventText({ event_cd: 'WITHDRAW' }), '제출을 회수했습니다(작성 중으로)');
+  assert.strictEqual(mat.eventText({ event_cd: 'REJECT', reason: null }), '제출이 반려되었습니다(작성 중으로)');
+  assert.strictEqual(mat.eventText({ event_cd: 'CONFIRM' }), '승인되어 확정되었습니다');
+  assert.strictEqual(mat.eventText({ event_cd: 'REWORK', from_status: 'SUBMITTED', reason: '수치 재확인' }), '재작성 요구: 수치 재확인');
+  assert.strictEqual(mat.eventText({ event_cd: 'REWORK', from_status: 'CONFIRMED', from_result_name: '가결', reason: '기준 변경' }), '재작성 요구(확정 해제, 의결 결과 가결 지움): 기준 변경');
+  assert.strictEqual(mat.eventText({ event_cd: 'REWORK', from_status: 'CONFIRMED' }), '재작성 요구(확정 해제)');
+  assert.strictEqual(mat.eventText({ event_cd: 'RESULT', from_result_name: '의결 예정', to_result_name: '가결', meeting_date: '2026-12-03' }), '의결 결과: 의결 예정 → 가결 · 개최일 2026-12-03');
+  assert.strictEqual(mat.eventText({ event_cd: 'RESULT', to_result_name: '의결 예정' }), '의결 결과: 없음 → 의결 예정');
   assert.strictEqual(mat.eventText({ event_cd: 'ZZZ' }), '기록');
   const h = mat.histHtml([
     { event_cd: 'CREATE', actor_name: X, emp_verified: false, logged_at: '2026-11-06T07:40:00+00:00' },
@@ -289,13 +296,106 @@ test('readOnlyHtml: 저장한 값만 그림(서식·정렬), 예시 숫자 없�
   assert.ok(!mat.writeRoHtml({ form: form, snapshot: null }, false).includes('영업부장은'));
 });
 
-test('board-material.js: 확인창·브라우저 저장소·원시 특수 코드포인트 없음, 020b 상수는 꺼짐', function () {
+test('board-material.js: 확인창·브라우저 저장소·원시 특수 코드포인트 없음, 020b 상수는 켜짐', function () {
   const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'board-material.js'), 'utf8');
   assert.ok(!/\bconfirm\s*\(/.test(src));
   assert.ok(!/localStorage|sessionStorage/.test(src));
   [0x2028, 0x2029, 0xfffe, 0xffff].forEach(function (cp) { assert.ok(!src.includes(String.fromCharCode(cp)), cp.toString(16)); });
-  assert.strictEqual(mat.PHASE_020B, false);
+  assert.strictEqual(mat.PHASE_020B, true);
   assert.ok(!/innerHTML\s*\+=/.test(src));
+});
+
+// ── 020b: 제출·회수·의결 결과·재작성 요구·결재자 검토 ──
+test('screenFor: 담당자(is_assignee)는 board_write, 그 밖은 board_review', function () {
+  assert.strictEqual(mat.screenFor(true), 'board_write');
+  assert.strictEqual(mat.screenFor(false), 'board_review');
+  assert.strictEqual(mat.screenFor(undefined), 'board_review');
+});
+
+test('headActsHtml: 상태·viewer 플래그대로 버튼, 수정이 남으면 제출은 틸 아님, PREP 는 disabled', function () {
+  const v = function (o) { return Object.assign({ is_assignee: true, can_write: true, can_submit: true, can_withdraw: false, can_set_result: false, can_rework: false }, o || {}); };
+  const draft = mat.headActsHtml({ status_cd: 'DRAFT', viewer: v() }, { dirty: 0 });
+  assert.ok(draft.includes('bd-wb-main') && draft.includes('>안건 제출</button>'));
+  assert.ok(!mat.headActsHtml({ status_cd: 'DRAFT', viewer: v() }, { dirty: 2 }).includes('bd-wb-main'));
+  const prep = mat.headActsHtml({ status_cd: 'PREP', viewer: v({ can_submit: false }) }, {});
+  assert.ok(/id="bd-m-submit"[^>]* disabled/.test(prep) && prep.includes('버전을 한 번 저장해야 제출할 수 있습니다.'));
+  assert.ok(mat.headActsHtml({ status_cd: 'SUBMITTED', viewer: v({ can_write: false, can_submit: false, can_withdraw: true }) }, {}).includes('>제출 회수</button>'));
+  assert.ok(mat.headActsHtml({ status_cd: 'SUBMITTED', viewer: v({ can_withdraw: true }) }, { busy: 'withdraw' }).includes('회수하는 중…'));
+  const conf = mat.headActsHtml({ status_cd: 'CONFIRMED', result_cd: 'PASSED', viewer: v({ can_set_result: true, can_rework: true }) }, {});
+  assert.ok(conf.includes('의결 결과 바꾸기') && conf.includes('재작성 요구'));
+  assert.ok(mat.headActsHtml({ status_cd: 'CONFIRMED', result_cd: null, viewer: v({ can_set_result: true }) }, {}).includes('의결 결과 입력'));
+  assert.strictEqual(mat.headActsHtml({ status_cd: 'DRAFT', viewer: { can_submit: false } }, {}), '');
+});
+
+test('returnHtml·lockHtml·submitRowHtml: 반환 배너(사유 null 문구, esc), 잠금 줄 문구, 제출 확인 줄', function () {
+  const r = mat.returnHtml({ status_cd: 'DRAFT', viewer: { is_assignee: true }, last_return: { event_cd: 'REJECT', reason: X, actor_name: X, logged_at: '2026-11-11T00:58:00+00:00' } });
+  assert.ok(r.includes('제출이 반려되었습니다.') && !r.includes('<img') && r.includes('&lt;img') && r.includes('고친 뒤 [버전 저장]을 하고 다시 제출해 주세요.'));
+  assert.ok(mat.returnHtml({ status_cd: 'DRAFT', viewer: {}, last_return: { event_cd: 'REWORK', reason: null } }).includes('사유는 개인정보로 보이는 내용이 있어 표시하지 않습니다.'));
+  assert.strictEqual(mat.returnHtml({ status_cd: 'SUBMITTED', last_return: { event_cd: 'REJECT' } }), '');
+  assert.ok(mat.lockHtml({ status_cd: 'SUBMITTED', current_snap: 6, viewer: { is_assignee: true, can_write: false } }).includes('버전 6을 제출해 결재 중입니다.'));
+  assert.ok(mat.lockHtml({ status_cd: 'CONFIRMED', confirmed_snap: 6, viewer: { is_assignee: false, can_write: false } }).includes('[재작성 요구]로 작성 중으로 돌려보냅니다.'));
+  assert.strictEqual(mat.lockHtml({ status_cd: 'DRAFT', viewer: { can_write: true } }), '');
+  const s = mat.submitRowHtml({ n: 6, dirty: 0, unchecked: 2 });
+  assert.ok(s.includes('버전 6 안건 제출') && s.includes('확인 안 한 표 2개(제출은 막지 않습니다)'));
+  assert.ok(mat.submitRowHtml({ n: 6, dirty: 3 }).includes('저장하지 않은 수정 3칸은 제출되지 않습니다.') && !mat.submitRowHtml({ n: 6, dirty: 3 }).includes('data-act="sub-ok"'));
+  assert.ok(mat.submitRowHtml({ n: 6, busy: true }).includes('제출하는 중…'));
+});
+
+test('actError·okText: 코드별 문구와 오류 위치(칸/상자)', function () {
+  const e = function (status, code, msg) { return { status: status, body: { detail: code ? { code: code, message: msg || '' } : (msg || '') } }; };
+  assert.strictEqual(mat.actError('submit', e(409, 'ALREADY_SUBMITTED')).title, '다른 담당자가 이미 제출했습니다.');
+  assert.strictEqual(mat.actError('submit', e(409, 'NO_SNAPSHOT')).btns.length, 0);
+  assert.strictEqual(mat.actError('submit', e(403)).btns[0][0], 'back');
+  assert.strictEqual(mat.actError('submit', { net: true, status: 0 }).btns[0][0], 'refresh');
+  assert.strictEqual(mat.actError('submit', e(400, 'UI_ID_REQUIRED')).title, '화면 오류로 처리하지 못했습니다.');
+  const d = mat.actError('result', e(400, 'MEETING_DATE_REQUIRED'));
+  assert.ok(d.type === 'field' && d.field === 'date');
+  assert.ok(mat.actError('rework', e(422)).type === 'field' && mat.actError('rework', e(400)).field === 'reason');
+  assert.strictEqual(mat.actError('rework', e(409, 'NOT_APPLICABLE')).type, 'box');
+  assert.strictEqual(mat.actError('decide', e(409, 'APPROVER_ROLE_MISMATCH')).title, '영업팀장이 관련된 제출이라 영업부장만 승인할 수 있습니다.');
+  assert.strictEqual(mat.actError('decide', e(422)).field, 'comment');
+  assert.strictEqual(mat.actError('decide', e(404)).btns[0][0], 'inbox');
+  assert.strictEqual(mat.okText('submit', { payload: { snap_no: 7 }, steps: [{ approver_name: '이영업' }] }, { seen: 6 }),
+    '버전 7을 제출했습니다. 이영업이(가) 결재합니다. 화면에서 본 버전 6 뒤에 저장된 버전입니다. [버전 이력]에서 확인해 주세요.');
+  assert.ok(!mat.okText('submit', { payload: { snap_no: 6 }, steps: [] }, { seen: 6 }).includes('뒤에 저장된'));
+  assert.strictEqual(mat.okText('result', { result_cd: 'PASSED' }), "의결 결과를 '가결'(으)로 저장했습니다.");
+});
+
+test('actCall·loadReview: 화면·버튼 헤더, 본문(제출은 없음)', async function () {
+  const seen = [];
+  await mat.actCall(fake(201, {}, seen), 'submit', '7');
+  assert.strictEqual(seen[0].url, '/board-materials/7/submit');
+  assert.deepStrictEqual(seen[0].init.headers, { 'X-Screen-Id': 'board_write', 'X-Button-Id': 'submit' });
+  assert.strictEqual(seen[0].init.body, undefined);
+  await mat.actCall(fake(200, {}, seen), 'rework', '7', { reason: ' 다시 ' });
+  assert.strictEqual(seen[1].init.headers['X-Screen-Id'], 'board_review');
+  assert.strictEqual(seen[1].init.headers['X-Button-Id'], 'rework');
+  assert.deepStrictEqual(JSON.parse(seen[1].init.body), { reason: '다시' });
+  await mat.actCall(fake(200, {}, seen), 'result', '7', { result: 'SCHEDULED', date: '2026-12-03' });
+  assert.deepStrictEqual(JSON.parse(seen[2].init.body), { result: 'SCHEDULED', meeting_date: '2026-12-03' });
+  const r = await mat.loadReview(fake(200, { material_id: 7, status_cd: 'SUBMITTED' }, seen), '7');
+  assert.ok(r.ok);
+  assert.strictEqual(seen[3].url, '/board-materials/7/review');
+  assert.deepStrictEqual(seen[3].init.headers, { 'X-Screen-Id': 'approvals_inbox', 'X-Button-Id': 'review_open' });
+  assert.strictEqual((await mat.actCall(NET, 'withdraw', '7')).net, true);
+  assert.strictEqual((await mat.actCall(fake(200, {}), 'submit', 'x1')).status, 404, '번호 모양이 아니면 보내지 않는다');
+});
+
+test('reworkModalHtml·resultRowHtml·reviewHtml: 접근성 속성, 확정 경고, esc, 결재 줄', function () {
+  const conf = { institution_name: X, year: 2026, status_cd: 'CONFIRMED', result_cd: 'PASSED', meeting_date: '2026-12-03' };
+  const m = mat.reworkModalHtml(conf, { reason: X });
+  assert.ok(m.includes('role="dialog"') && m.includes('aria-modal="true"') && m.includes('aria-describedby="bd-m-rw-desc"'));
+  assert.ok(m.includes('의결 결과 \'가결\'과 개최일 2026-12-03가 지워집니다.') && m.includes('확정 풀고 재작성 요구') && !m.includes('<img'));
+  assert.ok(/id="bd-m-rw-ok"[^>]* disabled/.test(mat.reworkModalHtml({ status_cd: 'SUBMITTED' }, { reason: '  ' })));
+  const rr = mat.resultRowHtml(conf, { result: 'SCHEDULED', date: '', error: '의결 예정이면 개최일을 입력해 주세요.', errField: 'date' });
+  assert.ok(rr.includes('aria-invalid="true"') && rr.includes('(필수)') && rr.includes('role="alert"'));
+  const d = { material_id: 7, institution_name: X, year: 2026, status_cd: 'SUBMITTED', status_name: '제출(결재 중)', current_snap: 6, assignees: [{ name: X }],
+    form: { tables: [] }, snapshot: { snap_no: 6, saved_by_name: X, saved_at: '2026-11-11T01:42:00+00:00', tables: [] } };
+  const h = mat.reviewHtml(d, { n: 6, canDecide: true, comment: X });
+  assert.ok(h.includes('for="ap-rv-comment"') && h.includes('data-act="rv-approve"') && h.includes('data-act="rv-reject"') && h.includes('승인하면 버전 6이 확정되고'));
+  assert.ok(!h.includes('<img') && h.includes('&lt;img'));
+  const g = mat.reviewHtml(d, { n: 6, canDecide: false });
+  assert.ok(!g.includes('rv-approve') && g.includes('이 제출은 지금 결재할 수 없습니다.') && g.includes('결재함으로'));
 });
 
 // ── 숫자 칸 표시·해석(020a): 서버 BoardDocSpec.display 와 같은 규칙 ──

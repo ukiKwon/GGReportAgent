@@ -253,3 +253,23 @@ test('받은 결재 소제목은 유형 중립 "결재 요청"', function () {
   assert.ok(src.indexOf('<div class="ap-sec">결재 요청</div>') > 0);
   assert.ok(src.indexOf('권한 신청 요청') < 0);
 });
+
+test('020b: 결재함 화면·버튼 헤더, BOARD_SUBMIT 카드 모델(자료 번호·버전)', function () {
+  assert.deepStrictEqual(ap.headers('approvals_inbox', 'approve', true), { 'X-Screen-Id': 'approvals_inbox', 'X-Button-Id': 'approve', 'Content-Type': 'application/json' });
+  assert.deepStrictEqual(ap.headers('approvals_mine', 'cancel_request', false), { 'X-Screen-Id': 'approvals_mine', 'X-Button-Id': 'cancel_request' });
+  assert.strictEqual(ap.UI.INBOX, 'approvals_inbox');
+  assert.strictEqual(ap.BTN.REVIEW, 'review_open');
+  const b = ap.requestRows([{ req_id: 9, req_type: 'BOARD_SUBMIT', status: 'PENDING', title: '이사회 자료 제출 — 노원구 2026', payload: { material_id: 7, snap_no: 6 },
+    can_decide: true, can_cancel: false, steps: [] }], CATS)[0];
+  assert.strictEqual(b.isBoard, true);
+  assert.strictEqual(b.materialId, '7');
+  assert.strictEqual(b.snapNo, 6);
+  assert.strictEqual(ap.requestRows([REQ], CATS)[0].isBoard, false);
+});
+
+test('020b: approvals.js 는 확인창 없이 결재 줄에서 처리하고, 결재 요청은 화면·버튼 헤더를 싣는다', function () {
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '../js/approvals.js'), 'utf8');
+  assert.ok(src.indexOf("AP_UI.INBOX, approve ? AP_BTN.APPROVE : AP_BTN.REJECT") > 0);
+  assert.ok(src.indexOf('AP_UI.MINE, AP_BTN.CANCEL') > 0);
+  assert.ok(src.indexOf('aria-selected') > 0 && src.indexOf('tabindex') > 0);
+});

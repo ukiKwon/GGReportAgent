@@ -1829,7 +1829,7 @@
       return e('conflict', '다른 담당자가 먼저 저장했습니다.', where + '내가 고친 ' + (c.k || 0) + '칸은 아직 이 화면에 있습니다.',
         [['m-latest', '최신 버전 보기'], ['m-force', '내 값으로 다시 저장'], ['m-drop', '내 수정 버리고 최신으로']], { cur: Number(c.cur) || 0 });
     }
-    if (status === 409 && code === 'MATERIAL_LOCKED') return e('locked', '제출했거나 확정된 자료라 값을 고칠 수 없습니다.', '화면을 새로 고쳐 현재 상태를 확인해 주세요.', [['m-refresh', '새로 고치기']]);
+    if (status === 409 && code === 'MATERIAL_LOCKED') return e('locked', '이 자료가 제출되었거나 확정되어 값을 저장하지 못했습니다.', '내가 고친 ' + (c.k || 0) + '칸은 아직 이 화면에 있습니다. [모든 표 복사]로 옮겨 둔 뒤 새로 고쳐 주세요.', [['copyall', '모든 표 복사'], ['m-refresh', '새로 고치기']]);
     if (status === 422 && code === 'PII_DETECTED') {
       if (cells !== null) {
         const kinds = (Array.isArray(d.kinds) ? d.kinds : []).map(function (k) { return str(k && k.kind) + ' 형식 ' + (k && k.count) + '건'; }).join(' · ');
@@ -2878,6 +2878,7 @@
       },
       redraw: function () { if (active) draw(null); },
       dirtyCount: function () { return active ? matDirtyN() : 0; },
+      uncheckedCount: function () { return (active && ws) ? bw.uncheckedTables(ws).length : 0; },   // 제출 확인 줄의 '확인 안 한 표 m개'
       askLeave: function (next) {   // 저장하지 않은 수정이 있으면 인라인으로 묻고, 없으면 바로 간다
         if (!active || !ui.mat || matDirtyN() === 0) { next(); return; }
         ui.mat.after = next; ui.leave = 'mat';

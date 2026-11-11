@@ -2378,6 +2378,7 @@
         redraw: function () { if (wc) wc.redraw(); },
         stop: function () { if (wc) wc.stopMat(); },
         dirty: function () { return wc ? wc.dirtyCount() : 0; },
+        unchecked: function () { return wc && wc.uncheckedCount ? wc.uncheckedCount() : 0; },
         askLeave: function (next) { if (wc) wc.askLeave(next); else next(); },
         setSavedLabel: function (label) { if (wc) wc.setSavedLabel(label); },
         active: function () { return !!(wc && wc.isActive()); }

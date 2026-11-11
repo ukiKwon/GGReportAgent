@@ -21,14 +21,16 @@
   const ALIGNS = { left: 1, center: 1, right: 1 };
 
   // ── 상수 ──────────────────────────────────────────────────
-  // 020b(제출·회수·재작성·의결 결과) 버튼은 서버가 can_* 를 보내도 그리지 않는다.
-  mat.PHASE_020B = false;
+  // 020b(제출·회수·재작성·의결 결과) 버튼: 서버가 보내는 viewer.can_* 플래그대로 그린다.
+  mat.PHASE_020B = true;
   // 서버 허용 목록(BoardUiIds)과 같은 이름. 화면을 더하면 서버 목록과 여기를 같이 고친다.
-  mat.UI = { LIST: 'board_list', WRITE: 'board_write', REVIEW: 'board_review' };
-  mat.BTN = { OPEN: 'open', REFRESH: 'refresh', CREATE: 'create', SAVE: 'save_version', SNAP: 'snapshot_open', HIST: 'history_open' };
+  mat.UI = { LIST: 'board_list', WRITE: 'board_write', REVIEW: 'board_review', INBOX: 'approvals_inbox', MINE: 'approvals_mine' };
+  mat.BTN = { OPEN: 'open', REFRESH: 'refresh', CREATE: 'create', SAVE: 'save_version', SNAP: 'snapshot_open', HIST: 'history_open',
+              SUBMIT: 'submit', WITHDRAW: 'withdraw', RESULT: 'result_save', REWORK: 'rework',
+              REVIEW_OPEN: 'review_open', APPROVE: 'approve', REJECT: 'reject', CANCEL: 'cancel_request' };
   mat.headers = function (screen, button) { return { 'X-Screen-Id': screen, 'X-Button-Id': button }; };
-  // 읽기 전용(영업부장·잠긴 자료)으로 연 화면은 board_review 를 보낸다.
-  mat.screenFor = function (canWrite) { return canWrite === true ? mat.UI.WRITE : mat.UI.REVIEW; };
+  // 담당자(is_assignee)는 잠긴 자료를 봐도 board_write, 그 밖(영업부장·결재자)은 board_review 를 보낸다.
+  mat.screenFor = function (isAssignee) { return isAssignee === true ? mat.UI.WRITE : mat.UI.REVIEW; };
 
   const T = {
     NET: '서버에 연결하지 못했습니다. 잠시 뒤 다시 시도해 주세요.',
@@ -41,7 +43,9 @@
     MINE_FAIL: '담당 정보를 불러오지 못했습니다. 다시 시도해 주세요.'
   };
   mat.TEXT = T;
-  const STATUS_NAME = { PREP: '준비 중', DRAFT: '작성 중', SUBMITTED: '결재 중', CONFIRMED: '확정' };
+  const STATUS_NAME = { PREP: '준비 중', DRAFT: '작성 중', SUBMITTED: '제출(결재 중)', CONFIRMED: '확정' };
+  const RESULT_NAME = { SCHEDULED: '의결 예정', PASSED: '가결', REJECTED: '부결' };
+  mat.RESULT_NAME = RESULT_NAME;
   mat.loadingHtml = '<p class="wf-empty" role="status">불러오는 중…</p>';
 
   // ── 작은 순수 함수 ───────────────────────────────────────
@@ -67,6 +71,41 @@
   mat.badgeHtml = function (it) {
     const cd = str(it && it.status_cd);
     return '<span class="bd-badge' + (cd === 'PREP' || cd === '' ? '' : ' is-ink') + '">' + esc(mat.statusName(it)) + '</span>';
+  };
+  // 'YYYY-MM-DD…' → 'YYYY-MM-DD'(아니면 ''), 'MM-DD'
+  mat.dateOf = function (s) { const m = /^(\d{4}-\d{2}-\d{2})/.exec(str(s)); return m ? m[1] : ''; };
+  mat.mdOf = function (s) { const d = mat.dateOf(s); return d ? d.slice(5) : ''; };
+  // 자료 머리의 상태 배지: 제출(결재 중)=주황, 확정=파랑(배경 위에서만 쓴다), 그 밖은 목록과 같은 배지
+  mat.headBadgeHtml = function (d) {
+    const cd = str(d && d.status_cd);
+    if (cd === 'SUBMITTED') return '<span class="wf-badge gap">' + esc(mat.statusName(d)) + '</span>';
+    if (cd === 'CONFIRMED') return '<span class="wf-badge ok">' + esc(mat.statusName(d)) + '</span>';
+    return mat.badgeHtml(d);
+  };
+  // 의결 결과 배지(확정일 때만). 결과가 없으면 ''. 부결도 빨강으로 칠하지 않는다.
+  mat.resultBadgeHtml = function (d) {
+    if (str(d && d.status_cd) !== 'CONFIRMED') return '';
+    const r = str(d.result_cd);
+    if (r === '') return '';
+    if (r === 'SCHEDULED') {
+      const md = mat.mdOf(d.meeting_date);
+      return '<span class="bd-badge is-ink bd-m-rbadge">의결 예정' + (md ? ' · <span class="mono">' + esc(md) + '</span>' : '') + '</span>';
+    }
+    const n = RESULT_NAME[r] || str(d.result_name).trim();
+    return n ? '<span class="bd-badge is-ink bd-m-rbadge">' + esc(n) + '</span>' : '';
+  };
+  // 서버 목록 검색에 없는 조건(제출(결재 중)·확정 상태, 개최일 범위)은 받은 목록에서 화면이 거른다.
+  mat.filterItems = function (items, f) {
+    const x = f || {}, st = x.status === 'SUBMITTED' || x.status === 'CONFIRMED' ? x.status : '';
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(str(x.mfrom)) ? x.mfrom : '', to = /^\d{4}-\d{2}-\d{2}$/.test(str(x.mto)) ? x.mto : '';
+    return (Array.isArray(items) ? items : []).filter(function (it) {
+      if (st && str(it.status_cd) !== st) return false;
+      if (from || to) {
+        const d = mat.dateOf(it.meeting_date);
+        if (!d || (from && d < from) || (to && d > to)) return false;
+      }
+      return true;
+    });
   };
   // from..to 해 목록(now 기준). 목록 검색: now-2 … now+1, 새 자료: now-1 … now+1
   mat.yearOptions = function (now, from, to) {
@@ -178,6 +217,119 @@
     return T.CREATE_FAIL;
   };
 
+  // ── 020b 쓰기(제출·회수·의결 결과·재작성 요구)와 결재자 검토 ──────────────
+  mat.reviewUrl = function (id) { return mat.itemUrl(id) + '/review'; };
+  // kind: submit | withdraw | result | rework. 결과는 reject 하지 않고 {ok,status,body,net} 로 돌려준다.
+  // 화면·버튼 이름은 서버 허용 목록(BoardUiIds)과 같다: 담당자 행동은 board_write, 영업부장 재작성 요구는 board_review.
+  mat.actCall = function (fetchFn, kind, id, p) {
+    const spec = { submit: ['submit', mat.UI.WRITE, mat.BTN.SUBMIT], withdraw: ['withdraw', mat.UI.WRITE, mat.BTN.WITHDRAW],
+                   result: ['result', mat.UI.WRITE, mat.BTN.RESULT], rework: ['rework', mat.UI.REVIEW, mat.BTN.REWORK] }[kind];
+    if (!spec || !mat.isId(id)) return Promise.resolve({ ok: false, status: 404, body: null });
+    const init = { method: 'POST', headers: mat.headers(spec[1], spec[2]) };
+    let body;
+    if (kind === 'result') body = { result: str(p && p.result), meeting_date: str(p && p.date) || null };
+    else if (kind === 'rework') body = { reason: str(p && p.reason).trim() };
+    if (body !== undefined) { init.headers = Object.assign({ 'Content-Type': 'application/json' }, init.headers); init.body = JSON.stringify(body); }
+    return req(fetchFn, mat.itemUrl(id) + '/' + spec[0], init);
+  };
+  // 결재자 검토용 읽기(결재함 탭 안에서 연다). 헤더: approvals_inbox / review_open
+  mat.loadReview = function (fetchFn, id) {
+    if (!mat.isId(id)) return Promise.resolve({ ok: false, status: 404, notFound: true, error: T.NOT_FOUND });
+    return req(fetchFn, mat.reviewUrl(id), { headers: mat.headers(mat.UI.INBOX, mat.BTN.REVIEW_OPEN) }).then(function (x) {
+      if (!x.ok) return readFail(x);
+      const m = mat.normMaterial(x.body);
+      return m ? { ok: true, review: m } : { ok: false, status: x.status, error: T.READ_FAIL };
+    });
+  };
+  // 쓰기 오류 → {type:'box', title, hint, btns} | {type:'field', field:'date'|'reason'|'comment', text}
+  // kind: submit | withdraw | result | rework | decide. x: {status, body, net}
+  mat.actError = function (kind, x) {
+    const d = detailOf(x), code = d ? str(d.code) : '', msg = d ? str(d.message) : detailText(x), st = x ? x.status : 0;
+    const R = [['refresh', '새로 고치기']], B = [['back', '목록으로']], I = [['inbox', '결재함으로']];
+    const box = function (title, hint, btns) { return { type: 'box', title: title, hint: hint || '', btns: btns || [] }; };
+    const field = function (f, text) { return { type: 'field', field: f, text: text }; };
+    if (!x || x.net || st === 0 || st >= 500) return box('서버에 연결하지 못했습니다.', '처리됐는지 확인하려면 [새로 고치기]를 눌러 주세요.', kind === 'decide' ? I : R);
+    if (code === 'UI_ID_REQUIRED') return box('화면 오류로 처리하지 못했습니다.', '새로고침한 뒤 다시 시도해 주세요.');
+    if (kind === 'decide') {
+      if (st === 422) return field('comment', '의견에 개인정보로 보이는 값이 있어 보내지 않았습니다. 그 부분을 지우거나 가린 뒤 다시 보내 주세요.');
+      if (st === 409 && code === 'APPROVER_ROLE_MISMATCH') return box('영업팀장이 관련된 제출이라 영업부장만 승인할 수 있습니다.', '반려하면 담당자가 다시 제출할 수 있습니다.');
+      if (st === 409) return box('이미 처리된 제출입니다.', '담당자가 회수했거나 결재가 이미 끝났습니다.', I);
+      if (st === 404) return box('담당자가 회수했거나 이미 처리된 제출입니다.', '', I);
+      if (st === 403) return box('이 제출을 승인할 수 없습니다.', '이 입찰 건의 담당자이거나 결재할 차례가 아닙니다.', I);
+      return box('처리하지 못했습니다.', msg, I);
+    }
+    if (st === 404) return box('이 이사회 자료를 찾을 수 없습니다.', '담당에서 빠졌거나 없는 자료입니다.', B);
+    if (kind === 'submit') {
+      if (st === 409 && code === 'ALREADY_SUBMITTED') return box('다른 담당자가 이미 제출했습니다.', '화면을 새로 고쳐 결재 상태를 확인해 주세요.', R);
+      if (st === 409 && code === 'MATERIAL_LOCKED') return box('이미 확정된 자료라 제출할 수 없습니다.', '화면을 새로 고쳐 확인해 주세요.', R);
+      if (st === 409 && code === 'NO_SNAPSHOT') return box('저장한 버전이 없어 제출하지 못했습니다.', '먼저 [버전 저장]으로 값을 저장한 뒤 제출해 주세요.');
+      if (st === 409) return box('자료가 그 사이 바뀌어 제출하지 못했습니다.', '새로 고친 뒤 다시 제출해 주세요.', R);
+      if (st === 400 && code === 'APPROVER_NOT_RESOLVED') return box('결재할 사람을 정하지 못해 제출하지 못했습니다.', '영업팀장(또는 영업부장)이 지정되지 않았거나 두 명 이상입니다. 시스템 관리자에게 문의해 주세요.');
+      if (st === 403) return box('이 자료의 담당자만 제출할 수 있습니다.', '담당이 바뀌었을 수 있습니다.', B);
+    } else if (kind === 'withdraw') {
+      if (st === 409) return box('이미 결재가 끝났거나 회수된 제출입니다.', '화면을 새로 고쳐 현재 상태를 확인해 주세요.', R);
+      if (st === 403) return box('이 자료의 담당자만 회수할 수 있습니다.', '담당이 바뀌었을 수 있습니다.', B);
+    } else if (kind === 'result') {
+      if (st === 400 && code === 'MEETING_DATE_REQUIRED') return field('date', '의결 예정이면 개최일을 입력해 주세요.');
+      if (st === 400) return box('의결 결과나 개최일 형식이 올바르지 않습니다.', '다시 골라 주세요.');
+      if (st === 409 && code === 'NOT_CONFIRMED') return box('확정된 자료가 아니어서 의결 결과를 저장하지 못했습니다.', '영업부장이 재작성을 요구했을 수 있습니다. 새로 고쳐 확인해 주세요.', R);
+      if (st === 409) return box('다른 담당자가 먼저 의결 결과를 바꿨습니다.', '새로 고쳐 최신 결과를 확인한 뒤 다시 입력해 주세요.', R);
+      if (st === 403) return box('이 자료의 담당자만 의결 결과를 바꿀 수 있습니다.', '담당이 바뀌었을 수 있습니다.', B);
+    } else if (kind === 'rework') {
+      if (st === 400) return field('reason', /제어|문자/.test(msg) && msg ? msg : '사유를 1~200자로 입력해 주세요.');
+      if (st === 422) return field('reason', '사유에 개인정보로 보이는 값이 있어 보내지 않았습니다. 그 부분을 지우거나 가린 뒤 다시 보내 주세요.');
+      if (st === 409 && code === 'NOT_APPLICABLE') return box('자료가 이미 작성 중으로 돌아가 재작성을 요구할 수 없습니다.', '담당자가 회수했거나 결재자가 반려했을 수 있습니다.', R);
+      if (st === 409) return box('자료 상태가 그 사이 바뀌었습니다.', '새로 고친 뒤 다시 시도해 주세요.', R);
+      if (st === 403) return box('재작성 요구는 영업부장만 할 수 있습니다.', '');
+    }
+    return box('처리하지 못했습니다.', '새로 고친 뒤 다시 시도해 주세요.', R);
+  };
+  // 성공 문구(응답 b 사용). o: {seen(화면에서 본 버전)}
+  mat.okText = function (kind, b, o) {
+    const x = o || {};
+    if (kind === 'submit') {
+      const n = Number(b && b.payload && b.payload.snap_no) || 0, steps = b && Array.isArray(b.steps) ? b.steps : [];
+      const who = steps[0] && str(steps[0].approver_name) ? str(steps[0].approver_name) : '';
+      return '버전 ' + (n || '') + '을 제출했습니다.' + (who ? ' ' + who + '이(가) 결재합니다.' : '') +
+        (n && Number(x.seen) > 0 && n !== Number(x.seen) ? ' 화면에서 본 버전 ' + x.seen + ' 뒤에 저장된 버전입니다. [버전 이력]에서 확인해 주세요.' : '');
+    }
+    if (kind === 'withdraw') return '제출을 회수했습니다. 자료가 작성 중으로 돌아가 다시 고칠 수 있습니다.';
+    if (kind === 'rework') return '재작성을 요구했습니다. 자료가 작성 중으로 돌아갔습니다.';
+    if (kind === 'result') {
+      const r = RESULT_NAME[str(b && b.result_cd)] || str(b && b.result_name);
+      return "의결 결과를 '" + r + "'(으)로 저장했습니다.";
+    }
+    return '';
+  };
+  // 결재함 안 검토 화면(읽기 전용 표 + 결재 줄). d: GET /review 응답, o: {n, canDecide, comment, busy, error:{type,…}}
+  mat.reviewHtml = function (d, o) {
+    const x = o || {}, snap = isObj(d.snapshot) ? d.snapshot : null;
+    const n = Number(x.n) > 0 ? Number(x.n) : (snap && Number(snap.snap_no) > 0 ? Number(snap.snap_no) : savedCount(d));
+    const who = snap ? (str(snap.saved_by_name) ? esc(snap.saved_by_name) + ' ' : '') : '', when = mat.kst(snap ? snap.saved_at : d.last_saved_at);
+    const e = x.error, len = str(x.comment).length;
+    let err = '';
+    if (e && e.type === 'box') err = mat.actErrHtml({ title: e.title, hint: e.hint, btns: e.btns });
+    else if (e && e.type === 'field') err = '<p class="bd-m-ferr" id="ap-rv-err" role="alert">' + esc(e.text) + '</p>';
+    let decide;
+    if (x.canDecide) {
+      decide = '<div class="bd-m-decide" role="group" aria-label="결재"><div class="bd-m-dfield"><label for="ap-rv-comment">의견 (반려할 때 필수)</label>' +
+        '<textarea id="ap-rv-comment" rows="2" maxlength="500"' + (e && e.type === 'field' ? ' aria-invalid="true" aria-describedby="ap-rv-err"' : '') + (x.busy ? ' disabled' : '') + '>' + esc(x.comment) + '</textarea>' +
+        '<span class="bd-m-cnt" id="ap-rv-cnt" aria-live="polite"' + (len < 450 ? ' hidden' : '') + '>' + len + '/500</span></div>' +
+        '<button type="button" id="ap-rv-ok" class="bd-wb-main" data-act="rv-approve"' + (x.busy ? ' disabled' : '') + '>' + (x.busy === 'approve' ? '승인하는 중…' : '승인(확정)') + '</button>' +
+        '<button type="button" id="ap-rv-no" data-act="rv-reject"' + (x.busy ? ' disabled' : '') + '>' + (x.busy === 'reject' ? '반려하는 중…' : '반려') + '</button>' +
+        '<p class="bd-m-dhint">승인하면 버전 ' + esc(n) + '이 확정되고 담당자는 값을 고칠 수 없습니다.</p>' + (e && e.type === 'field' ? err : '') + '</div>' +
+        (e && e.type === 'box' ? err : '');
+    } else {
+      decide = '<div class="bd-m-decide" role="group" aria-label="결재"><p class="bd-m-dhint">이 제출은 지금 결재할 수 없습니다. 담당자가 회수했거나 이미 처리되었습니다.</p>' +
+        '<button type="button" id="ap-rv-gone" data-act="rv-back">결재함으로</button></div>';
+    }
+    return '<div class="bd-m-review" id="ap-review"><button type="button" class="link-btn" id="ap-rv-back" data-act="rv-back">← 결재함</button>' +
+      '<div class="bd-m-head"><h2 id="ap-rv-title" tabindex="-1">' + esc(mat.titleOf(d)) + '</h2>' + mat.headBadgeHtml(d) + '</div>' +
+      '<div class="bd-m-meta"><span>' + (n ? '버전 ' + esc(n) + ' · ' + who + '<span class="mono">' + esc(when) + '</span> 저장' : '저장 전') + '</span><span>담당 ' + esc(mat.assigneesText(d)) + '</span></div>' +
+      '<p class="bd-m-ap-msg">결재할 버전 ' + esc(n) + '의 전체 내용입니다. 읽기 전용입니다.</p>' +
+      mat.readOnlyHtml(d.form, snap ? snap.tables : []) + decide + '</div>';
+  };
+
   // ── 목록 ────────────────────────────────────────────────
   // 이 화면에서 만들 수 있는 입찰 건 = 내 담당 번호(mineIds) ∩ 앱에 실린 입찰 건(records)
   mat.casesFor = function (records, mineIds, regionNames) {
@@ -223,14 +375,15 @@
       const label = name + ' ' + yr + '년 이사회 자료 열기, ' + mat.statusName(it);
       return '<tr><td class="bd-l-name"><button type="button" class="bd-l-open" data-act="open" data-id="' + esc(it.material_id) +
         '" aria-label="' + esc(label) + '">' + esc(name) + '</button></td>' +
-        '<td class="mono">' + esc(yr) + '</td><td>' + mat.badgeHtml(it) + '</td>' +
+        '<td class="mono">' + esc(yr) + '</td><td>' + mat.headBadgeHtml(it) + mat.resultBadgeHtml(it) + '</td>' +
         '<td class="bd-l-who">' + mat.assigneesHtml(it, me) + '</td><td>' + mat.savedHtml(it) + '</td>' +
-        '<td class="mono">' + (savedCount(it) ? 'v' + savedCount(it) : '—') + '</td></tr>';
+        '<td class="mono">' + (savedCount(it) ? 'v' + savedCount(it) : '—') + '</td>' +
+        '<td class="mono">' + (mat.dateOf(it.meeting_date) ? esc(mat.dateOf(it.meeting_date)) : '—') + '</td></tr>';
     }).join('');
     return '<table class="ad-table bd-l-tbl"><caption class="bd-sr">이사회 자료 ' + items.length + '건</caption><thead><tr>' +
-      '<th scope="col">기관명</th><th scope="col" style="width:64px">연도</th><th scope="col" style="width:96px">상태</th>' +
+      '<th scope="col">기관명</th><th scope="col" style="width:64px">연도</th><th scope="col" style="width:112px">상태</th>' +
       '<th scope="col" style="width:220px">담당자</th><th scope="col" style="width:168px">마지막 저장</th>' +
-      '<th scope="col" style="width:56px">버전</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      '<th scope="col" style="width:56px">버전</th><th scope="col" style="width:96px">개최일</th></tr></thead><tbody>' + rows + '</tbody></table>';
   };
   mat.countText = function (L) { return L && L.status === 'ready' ? L.items.length + '건' : ''; };
   // L: {status:'idle'|'loading'|'ready'|'error', items, truncated}
@@ -272,10 +425,13 @@
     const opt = function (v, label, cur) { return '<option value="' + esc(v) + '"' + (str(cur) === str(v) ? ' selected' : '') + '>' + esc(label) + '</option>'; };
     return '<div class="bd-l-search" role="search" aria-label="이사회 자료 검색">' +
       '<input type="text" id="bd-l-q" data-f="q" maxlength="50" placeholder="기관명" aria-label="기관명" value="' + esc(x.q) + '">' +
-      '<select id="bd-l-status" data-f="status" aria-label="상태">' + opt('', '상태 전체', x.status) + opt('PREP', '준비 중', x.status) + opt('DRAFT', '작성 중', x.status) + '</select>' +
+      '<select id="bd-l-status" data-f="status" aria-label="상태">' + opt('', '상태 전체', x.status) + opt('PREP', '준비 중', x.status) + opt('DRAFT', '작성 중', x.status) +
+        opt('SUBMITTED', '제출(결재 중)', x.status) + opt('CONFIRMED', '확정', x.status) + '</select>' +
       '<input type="text" id="bd-l-as" data-f="assignee" maxlength="30" placeholder="담당자 이름" aria-label="담당자 이름" value="' + esc(x.assignee) + '">' +
       '<select id="bd-l-year" data-f="year" aria-label="연도">' + opt('', '연도 전체', x.year) +
         mat.yearOptions(nowYear, -2, 1).map(function (y) { return opt(y, y, x.year); }).join('') + '</select>' +
+      '<label class="bd-l-date">개최일 <input type="date" id="bd-l-mfrom" data-f="mfrom" aria-label="개최일 시작" value="' + esc(x.mfrom) + '"></label>' +
+      '<label class="bd-l-date">~ <input type="date" id="bd-l-mto" data-f="mto" aria-label="개최일 끝" value="' + esc(x.mto) + '"></label>' +
       '<button type="button" class="link-btn" id="bd-l-clear" data-act="clear" hidden>조건 지우기</button>' +
       '<span class="bd-l-count" id="bd-l-count" role="status" aria-live="polite"></span></div>';
   };
@@ -317,16 +473,137 @@
     const s = isObj(d && d.snapshot) ? d.snapshot : null;
     return s ? (str(s.saved_by_name) ? str(s.saved_by_name) + ' · ' : '') + mat.kst(s.saved_at) : '';
   };
-  mat.headHtml = function (d) {
+  function viewerOf(d) { return isObj(d && d.viewer) ? d.viewer : {}; }
+  mat.titleOf = function (d) { return str(d && d.institution_name) + ' ' + str(d && d.year) + '년 이사회 자료'; };
+  // 머리 오른쪽 버튼들(viewer.can_* 플래그대로). o: {open:'submit'|'result'|'', busy:'submit'|'withdraw'|'rework'|'result'|'', dirty:수정 칸 수}
+  mat.headActsHtml = function (d, o) {
+    if (!mat.PHASE_020B) return '';
+    const x = o || {}, v = viewerOf(d), cd = str(d.status_cd), busy = str(x.busy);
+    const off = busy !== '';
+    const b = [];
+    if (cd === 'PREP' && v.is_assignee === true) {
+      b.push('<button type="button" id="bd-m-submit" data-act="submit-open" disabled aria-describedby="bd-m-subwhy">안건 제출</button>' +
+        '<span class="bd-sr" id="bd-m-subwhy">버전을 한 번 저장해야 제출할 수 있습니다.</span>');
+    }
+    if (cd === 'DRAFT' && v.can_submit === true) {
+      const main = !(Number(x.dirty) > 0);   // 수정이 남아 있으면 틸은 작성 줄의 [버전 저장]에 둔다
+      b.push('<button type="button" id="bd-m-submit" data-act="submit-open" class="' + (main ? 'bd-wb-main' : '') + '" aria-expanded="' + (x.open === 'submit' ? 'true' : 'false') +
+        '" aria-controls="bd-m-subrow"' + (off ? ' disabled' : '') + '>안건 제출</button>');
+    }
+    if (cd === 'SUBMITTED' && v.can_withdraw === true) {
+      b.push('<button type="button" id="bd-m-withdraw" data-act="withdraw"' + (off ? ' disabled' : '') + '>' + (busy === 'withdraw' ? '회수하는 중…' : '제출 회수') + '</button>');
+    }
+    if (cd === 'CONFIRMED' && v.can_set_result === true) {
+      b.push('<button type="button" id="bd-m-resbtn" data-act="result-open" aria-expanded="' + (x.open === 'result' ? 'true' : 'false') + '" aria-controls="bd-m-resrow"' +
+        (off ? ' disabled' : '') + '>' + (str(d.result_cd) ? '의결 결과 바꾸기' : '의결 결과 입력') + '</button>');
+    }
+    if ((cd === 'SUBMITTED' || cd === 'CONFIRMED') && v.can_rework === true) {
+      b.push('<button type="button" id="bd-m-rwbtn" data-act="rework-open" aria-haspopup="dialog"' + (off ? ' disabled' : '') + '>재작성 요구</button>');
+    }
+    return b.length ? '<span class="bd-m-acts">' + b.join('') + '</span>' : '';
+  };
+  // 반려·재작성 요구로 작성 중이 된 자료의 사유 배너(DRAFT 일 때만)
+  mat.returnHtml = function (d) {
+    const r = d && d.last_return;
+    if (str(d && d.status_cd) !== 'DRAFT' || !isObj(r)) return '';
+    const ev = str(r.event_cd);
+    if (ev !== 'REJECT' && ev !== 'REWORK') return '';
+    const title = ev === 'REJECT' ? '제출이 반려되었습니다.' : '영업부장이 재작성을 요구했습니다.';
+    const reason = str(r.reason).trim();
+    return '<section class="bd-m-return" id="bd-m-return" aria-labelledby="bd-m-rt"><h3 id="bd-m-rt">' + esc(title) + '</h3>' +
+      '<span class="bd-m-rmeta">' + esc(r.actor_name) + ' · <span class="mono">' + esc(mat.kst(r.logged_at)) + '</span></span>' +
+      (reason ? '<p class="bd-m-reason"><b>사유</b>' + esc(reason) + '</p>'
+              : '<p class="bd-m-reason">사유는 개인정보로 보이는 내용이 있어 표시하지 않습니다.</p>') +
+      (viewerOf(d).is_assignee === true ? '<span class="bd-m-rmeta">고친 뒤 [버전 저장]을 하고 다시 제출해 주세요.</span>' : '') + '</section>';
+  };
+  // 잠금 줄(제출(결재 중)·확정이고 값을 고칠 수 없을 때, 작성 줄 자리). 해당 없으면 ''.
+  mat.lockHtml = function (d) {
+    const cd = str(d && d.status_cd), v = viewerOf(d);
+    if ((cd !== 'SUBMITTED' && cd !== 'CONFIRMED') || v.can_write === true) return '';
+    const asg = v.is_assignee === true;
+    let t;
+    if (cd === 'SUBMITTED') {
+      const n = savedCount(d);
+      t = asg ? '버전 ' + n + '을 제출해 결재 중입니다. 결재가 끝나거나 [제출 회수]를 할 때까지 값을 고칠 수 없습니다.'
+              : '버전 ' + n + '이 결재 중입니다. 되돌려야 하면 [재작성 요구]를 눌러 주세요.';
+    } else {
+      const n = Number(d.confirmed_snap) > 0 ? Number(d.confirmed_snap) : savedCount(d);
+      t = asg ? '확정된 자료입니다(버전 ' + n + '). 값은 고칠 수 없고 의결 결과와 개최일만 바꿀 수 있습니다. 값을 고쳐야 하면 영업부장에게 재작성 요구를 요청해 주세요.'
+              : '확정된 자료입니다(버전 ' + n + '). 고쳐야 하면 [재작성 요구]로 작성 중으로 돌려보냅니다.';
+    }
+    return '<div class="bd-m-lock' + (cd === 'CONFIRMED' ? ' is-done' : '') + '" id="bd-m-lock"><p>' + esc(t) + '</p></div>';
+  };
+  // 제출 확인 줄. o: {n(제출할 버전), dirty, unchecked, busy}
+  mat.submitRowHtml = function (o) {
+    const x = o || {}, n = Number(x.n) || 0;
+    if (Number(x.dirty) > 0) {
+      return '<div class="bd-confirm bd-m-actrow" id="bd-m-subrow" role="group" aria-label="제출 확인"><span>저장하지 않은 수정 ' + esc(x.dirty) +
+        '칸은 제출되지 않습니다. 먼저 [버전 저장]을 눌러 주세요.</span><button type="button" id="bd-m-subsave" class="bd-wb-main" data-act="sub-save">버전 저장하기</button>' +
+        '<button type="button" data-act="sub-cancel">취소</button></div>';
+    }
+    return '<div class="bd-confirm bd-m-actrow" id="bd-m-subrow" role="group" aria-label="제출 확인"><span>버전 ' + esc(n) +
+      '을 제출합니다. 영업팀장이 결재하고, 팀장이 이 건의 담당자이면 영업부장이 결재합니다. 결재가 끝나거나 회수할 때까지 담당자 모두 값을 고칠 수 없습니다.' +
+      (Number(x.unchecked) > 0 ? ' 확인 안 한 표 ' + esc(x.unchecked) + '개(제출은 막지 않습니다)' : '') + '</span>' +
+      '<button type="button" id="bd-m-subok" class="bd-wb-main" data-act="sub-ok"' + (x.busy ? ' disabled' : '') + '>' + (x.busy ? '제출하는 중…' : '버전 ' + esc(n) + ' 안건 제출') + '</button>' +
+      '<button type="button" data-act="sub-cancel"' + (x.busy ? ' disabled' : '') + '>취소</button></div>';
+  };
+  // 의결 결과 폼. o: {result, date, busy, error, errField}
+  mat.resultRowHtml = function (d, o) {
+    const x = o || {}, cur = str(x.result) || 'SCHEDULED', need = cur === 'SCHEDULED';
+    const opt = function (v) { return '<option value="' + v + '"' + (cur === v ? ' selected' : '') + '>' + esc(RESULT_NAME[v]) + '</option>'; };
+    const bad = x.error && x.errField === 'date';
+    return '<div class="bd-confirm bd-m-actrow bd-m-result" id="bd-m-resrow" role="group" aria-label="의결 결과">' +
+      '<label>의결 결과 <select id="bd-m-res"' + (x.busy ? ' disabled' : '') + '>' + opt('SCHEDULED') + opt('PASSED') + opt('REJECTED') + '</select></label>' +
+      '<label>개최일 <span class="bd-m-req" id="bd-m-mreq">' + (need ? '(필수)' : '(선택)') + '</span> <input type="date" id="bd-m-mdate" value="' + esc(x.date) + '"' +
+        (x.busy ? ' disabled' : '') + (bad ? ' aria-invalid="true" aria-describedby="bd-m-ferr"' : '') + '></label>' +
+      '<button type="button" id="bd-m-resok" class="bd-wb-main" data-act="res-ok"' + (x.busy ? ' disabled' : '') + '>' + (x.busy ? '저장하는 중…' : '의결 결과 저장') + '</button>' +
+      '<button type="button" data-act="res-cancel"' + (x.busy ? ' disabled' : '') + '>취소</button>' +
+      (x.error && x.errField ? '<p class="bd-m-ferr" id="bd-m-ferr" role="alert">' + esc(x.error) + '</p>' : '') + '</div>';
+  };
+  // 재작성 요구 모달. o: {reason, busy, error}
+  mat.reworkModalHtml = function (d, o) {
+    const x = o || {}, n = str(x.reason).length, conf = str(d.status_cd) === 'CONFIRMED', has = str(x.reason).trim().length > 0;
+    let desc;
+    if (!conf) desc = '<p id="bd-m-rw-desc">결재 중인 제출을 끝내고 자료를 작성 중으로 돌려보냅니다. 담당자가 고쳐 다시 제출해야 합니다.</p>';
+    else {
+      const rn = str(d.result_cd) ? (RESULT_NAME[str(d.result_cd)] || str(d.result_name)) : '', md = mat.dateOf(d.meeting_date);
+      desc = '<p class="bd-m-warn" id="bd-m-rw-desc">확정된 자료입니다. ' + (rn
+        ? '재작성을 요구하면 확정이 풀리고 <b>의결 결과 \'' + esc(rn) + '\'' + (md ? '과 개최일 ' + esc(md) + '가' : '가') + ' 지워집니다.</b> 지운 값은 작업 이력에만 남습니다.'
+        : '재작성을 요구하면 확정이 풀립니다. 담당자가 고쳐 다시 제출하고 결재를 받아야 합니다.') + '</p>';
+    }
+    return '<div class="modal-overlay" id="bd-m-rw-ov"><div class="modal-box bd-m-modal" id="bd-m-rw" role="dialog" aria-modal="true" aria-labelledby="bd-m-rw-title" aria-describedby="bd-m-rw-desc">' +
+      '<h3 id="bd-m-rw-title">재작성 요구 — ' + esc(mat.titleOf(d)) + '</h3>' + desc +
+      '<label for="bd-m-rw-reason">사유 (필수, 200자까지) <span class="bd-m-cnt" id="bd-m-rw-cnt" aria-live="polite">' + n + '/200</span></label>' +
+      '<textarea id="bd-m-rw-reason" rows="3" maxlength="200" aria-required="true"' + (x.error ? ' aria-invalid="true" aria-describedby="bd-m-rw-err"' : '') + (x.busy ? ' disabled' : '') + '>' + esc(x.reason) + '</textarea>' +
+      (x.error ? '<p class="bd-m-ferr" id="bd-m-rw-err" role="alert">' + esc(x.error) + '</p>' : '') +
+      '<p class="dg-hint">사유는 담당자 화면과 작업 이력에 그대로 보입니다. 이름·연락처 같은 개인정보는 적지 마세요.</p>' +
+      '<div class="bd-m-modal-acts"><button type="button" id="bd-m-rw-cancel" data-act="rw-cancel"' + (x.busy ? ' disabled' : '') + '>취소</button>' +
+      '<button type="button" id="bd-m-rw-ok" data-act="rw-ok"' + (x.busy || !has ? ' disabled' : '') + '>' +
+      (x.busy ? '보내는 중…' : (conf ? '확정 풀고 재작성 요구' : '재작성 요구하기')) + '</button></div></div></div>';
+  };
+  // 오류 상자(020a 작성 화면과 같은 bd-w-rej 모양). e: {title, hint, btns:[[act,label]]}
+  mat.actErrHtml = function (e) {
+    return '<div class="bd-w-rej" id="bd-m-acterr" role="alert" tabindex="-1"><strong>' + esc(e.title) + '</strong>' + (e.hint ? '<p>' + esc(e.hint) + '</p>' : '') +
+      (e.btns && e.btns.length ? '<div class="bd-w-rejbtns">' + e.btns.map(function (b) { return '<button type="button" data-act="' + esc(b[0]) + '">' + esc(b[1]) + '</button>'; }).join('') + '</div>' : '') + '</div>';
+  };
+  mat.headHtml = function (d, o) {
+    const x = o || {};
     const snap = isObj(d.snapshot) ? d.snapshot : null, cur = savedCount(d);
     const saver = snap ? str(snap.saved_by_name) : '';
     const when = mat.kst(snap ? snap.saved_at : d.last_saved_at);
     const meta1 = cur ? '버전 ' + cur + ' · ' + (saver ? esc(saver) + ' ' : '') + '<span class="mono">' + esc(when) + '</span> 저장' : '저장 전';   // 문장 형태("아직 저장한 버전이 없습니다")는 작성 줄·본문에만 둔다
     const formName = isObj(d.form) ? str(d.form.name) : '';
+    let confirmMeta = '';
+    if (mat.PHASE_020B && str(d.status_cd) === 'CONFIRMED') {
+      const cs = Number(d.confirmed_snap) > 0 ? Number(d.confirmed_snap) : 0, ca = mat.kst(d.confirmed_at);
+      confirmMeta = (cs ? '<span>확정 버전 ' + cs + (ca ? ' · <span class="mono">' + esc(ca) + '</span>' : '') + '</span>' : '') +
+        (str(d.result_cd) ? '' : '<span>의결 결과 입력 전</span>');
+    }
     return '<button type="button" class="link-btn bd-m-back" id="bd-m-back" data-act="back">← 이사회 자료 목록</button>' +
-      '<div class="bd-m-head"><h2 id="bd-m-title" tabindex="-1">' + esc(str(d.institution_name) + ' ' + str(d.year) + '년 이사회 자료') + '</h2>' + mat.badgeHtml(d) + '</div>' +
+      '<div class="bd-m-head"><h2 id="bd-m-title" tabindex="-1">' + esc(mat.titleOf(d)) + '</h2>' + mat.headBadgeHtml(d) + mat.resultBadgeHtml(d) + mat.headActsHtml(d, x) + '</div>' +
       '<div class="bd-m-meta"><span>' + meta1 + '</span><span>담당 ' + esc(mat.assigneesText(d)) + '</span>' +
-      (formName ? '<span>양식 ' + esc(formName) + '</span>' : '') + '</div>';
+      (formName ? '<span>양식 ' + esc(formName) + '</span>' : '') + confirmMeta + '</div>' +
+      mat.returnHtml(d) + str(x.rowHtml);
   };
   const TABS = [['write', '작성'], ['ver', '버전 이력'], ['hist', '작업 이력']];
   const PANEL = { write: 'bd-body', ver: 'bd-m-hist', hist: 'bd-m-hist' };
@@ -534,12 +811,21 @@
     switch (str(ev && ev.event_cd)) {
       case 'CREATE': return '자료를 만들었습니다(준비 중)';
       case 'HANDOVER': return '작성본 인계: ' + nm(ev.from_name) + ' → ' + nm(ev.to_name);
-      case 'SUBMIT': return '제출했습니다(결재 중)';
-      case 'WITHDRAW': return '제출을 회수했습니다';
-      case 'CONFIRM': return '확정되었습니다';
-      case 'REJECT': return '반려되었습니다: ' + str(ev.reason);
-      case 'REWORK': return '재작성 요구: ' + str(ev.reason);
-      case 'RESULT': return '의결 결과: ' + nm(ev.from_result_name) + ' → ' + nm(ev.to_result_name);
+      case 'SUBMIT': return '제출했습니다(결재 요청)';
+      case 'WITHDRAW': return '제출을 회수했습니다(작성 중으로)';
+      case 'REJECT': return '제출이 반려되었습니다(작성 중으로)';   // 반려 의견은 결재 단계 행에 있다 — 이력 행에는 사유가 없다
+      case 'CONFIRM': return '승인되어 확정되었습니다';
+      case 'REWORK': {
+        const why = str(ev.reason).trim();
+        const wasConfirmed = str(ev.from_status) === 'CONFIRMED';
+        const fr = str(ev.from_result_name).trim();
+        const head = wasConfirmed ? '재작성 요구(확정 해제' + (fr ? ', 의결 결과 ' + fr + ' 지움' : '') + ')' : '재작성 요구';
+        return why ? head + ': ' + why : head;
+      }
+      case 'RESULT': {
+        const md = mat.dateOf(ev.meeting_date);
+        return '의결 결과: ' + (str(ev.from_result_name).trim() || '없음') + ' → ' + nm(ev.to_result_name) + (md ? ' · 개최일 ' + md : '');
+      }
       default: return '기록';
     }
   };
@@ -565,7 +851,10 @@
     function $(id) { return env.el(id); }
     function me() { return (env.me && env.me()) || {}; }
     function isHead() { return me().role === '영업부장'; }
-    function screen() { return mat.screenFor(!!(M && M.data && M.data.viewer && M.data.viewer.can_write === true)); }
+    // 감사 화면 이름: 담당자는 잠긴 자료를 봐도 board_write, 그 밖(영업부장·결재자)은 board_review
+    function screen() { return mat.screenFor(!!(M && M.data && M.data.viewer && M.data.viewer.is_assignee === true)); }
+    function canWriteNow() { return !isHead() && !!(M && M.data && M.data.viewer && M.data.viewer.can_write === true); }
+    function liveDirty() { return env.write && env.write.dirty ? env.write.dirty() : 0; }
     function filtered() { const f = L.f; return !!(f.q.trim() || f.status || f.year || f.assignee.trim()); }
     function focusNode(n) { if (n && !n.disabled && n.focus) n.focus(); }
     function byAttr(scope, sel, attr, val) {
@@ -711,15 +1000,26 @@
 
     // ── 자료 ──
     function setMsg(t) { const n = $('bd-m-msg'); if (n) n.textContent = t || ''; }
+    // 머리 아래 인라인 줄(제출 확인 / 의결 결과 폼)과 행동 오류 상자
+    function rowHtml() {
+      const u = M.ui, d = M.data;
+      let h = '';
+      if (u.open === 'submit') h += mat.submitRowHtml({ n: savedCount(d), dirty: u.dirty, unchecked: u.unchecked, busy: u.busy === 'submit' });
+      else if (u.open === 'result' && u.res) h += mat.resultRowHtml(d, { result: u.res.result, date: u.res.date, busy: u.busy === 'result', error: u.res.error, errField: u.res.errField });
+      if (u.err && u.err.type === 'box') h += mat.actErrHtml(u.err);
+      return h;
+    }
     function drawMat(keepMsg) {
       const n = $('bd-mat');
       if (!n || !M) return;
       const msg = keepMsg && $('bd-m-msg') ? $('bd-m-msg').textContent : '';
-      n.innerHTML = mat.headHtml(M.data) + mat.tabsHtml(M.tab, savedCount(M.data), isHead()) + '<p id="bd-m-msg" class="bd-m-msg" role="status" aria-live="polite"></p>';
+      n.innerHTML = mat.headHtml(M.data, { open: M.ui.open, busy: M.ui.busy, dirty: liveDirty(), rowHtml: rowHtml() }) +
+        mat.tabsHtml(M.tab, savedCount(M.data), !canWriteNow()) + '<p id="bd-m-msg" class="bd-m-msg" role="status" aria-live="polite"></p>';
       setMsg(msg);
     }
     function enterMaterial(data, msg) {
-      M = { id: str(data.material_id), data: data, tab: 'write', wstarted: false,
+      closeModal(false);
+      M = { id: str(data.material_id), data: data, tab: 'write', wstarted: false, ui: { open: '', busy: '', err: null, res: null, rw: null, dirty: 0, unchecked: 0 },
             ver: { status: 'idle', items: [], view: null, err: '' }, hist: { status: 'idle', items: [], err: '' } };
       showView('material'); drawMat(false); setMsg(msg);
       setTab('write', false);
@@ -765,7 +1065,7 @@
           form: d.form, snapshot: isObj(d.snapshot) ? d.snapshot : null });
         if (M.wstarted) return;
       }
-      b.innerHTML = mat.writeRoHtml(d, isHead());
+      b.innerHTML = mat.lockHtml(d) + mat.writeRoHtml(d, isHead());
     }
     function drawVer() {
       const p = $('bd-m-hist'), cur = M;
@@ -816,6 +1116,7 @@
       openTok++;
       if (env.write) env.write.stop();
       const id = M ? M.id : '';
+      closeModal(false);
       M = null;
       ['bd-body', 'bd-m-hist', 'bd-mat'].forEach(function (k) { const n = $(k); if (n) n.innerHTML = ''; });
       showView('list');
@@ -828,6 +1129,153 @@
       if (!M || !isObj(data) || str(data.material_id) !== M.id) return;
       M.data = data; M.ver.status = 'idle'; M.ver.view = null; M.hist.status = 'idle';
       drawMat(true);
+    }
+
+    // ── 020b 행동: 제출·회수·의결 결과·재작성 요구 ──
+    function reloadMat(msg) {   // 화면을 비우고 최신 자료를 다시 연다(작성 중이던 값은 버려진다)
+      if (!M) return;
+      const id = M.id, t = ++openTok, ep = env.epoch();
+      mat.loadMaterial(env.doFetch, id, screen(), mat.BTN.REFRESH).then(function (r) {
+        if (t !== openTok || ep !== env.epoch()) return;
+        if (!r.ok) { setMsg(r.error); return; }
+        if (env.write) env.write.stop();
+        enterMaterial(r.material, msg || '최신 내용을 불러왔습니다.');
+      });
+    }
+    function closeRow(focusId) {
+      if (!M) return;
+      M.ui.open = ''; M.ui.err = null; drawMat(true);
+      focusNode($(focusId));
+    }
+    function openSubmit() {
+      if (!M || M.ui.busy) return;
+      M.ui.open = 'submit'; M.ui.err = null; M.ui.dirty = liveDirty();
+      M.ui.unchecked = env.write && env.write.unchecked ? env.write.unchecked() : 0;
+      drawMat(true);
+      focusNode($(M.ui.dirty > 0 ? 'bd-m-subsave' : 'bd-m-subok'));
+    }
+    function openResult() {
+      if (!M || M.ui.busy) return;
+      const d = M.data;
+      M.ui.open = 'result'; M.ui.err = null;
+      M.ui.res = { result: str(d.result_cd) || 'SCHEDULED', date: mat.dateOf(d.meeting_date), error: '', errField: '' };
+      drawMat(true);
+      focusNode($('bd-m-res'));
+    }
+    // 성공하면 최신 상세를 받아 머리·버튼·잠금 줄을 새로 그린다(이력 캐시도 비워진다). 포커스는 #bd-m-title.
+    function afterOk(kind, x, seen) {
+      const msg = mat.okText(kind, x.body, { seen: seen }), cur = M, ep = env.epoch();
+      mat.loadMaterial(env.doFetch, cur.id, screen(), mat.BTN.REFRESH).then(function (r) {
+        if (M !== cur || ep !== env.epoch()) return;
+        if (!r.ok) {
+          cur.ui.open = ''; cur.ui.busy = ''; closeModal(false); drawMat(true);
+          setMsg(msg + ' 최신 내용은 [새로 고치기]로 확인해 주세요.');
+          return;
+        }
+        if (env.write) env.write.stop();
+        enterMaterial(r.material, msg);
+      });
+    }
+    function doAct(kind, p) {
+      if (!M || M.ui.busy) return;
+      const cur = M, ep = env.epoch(), seen = savedCount(cur.data);
+      cur.ui.busy = kind; cur.ui.err = null;
+      if (cur.ui.res) { cur.ui.res.error = ''; cur.ui.res.errField = ''; }
+      drawMat(true);
+      mat.actCall(env.doFetch, kind, cur.id, p).then(function (x) {
+        if (M !== cur || ep !== env.epoch()) return;
+        cur.ui.busy = '';
+        if (x.ok) { afterOk(kind, x, seen); return; }
+        const e = mat.actError(kind, x);
+        if (e.type === 'field' && kind === 'result' && cur.ui.res) {
+          cur.ui.res.error = e.text; cur.ui.res.errField = e.field; drawMat(true); focusNode($('bd-m-mdate'));
+        } else if (e.type === 'field' && kind === 'rework' && cur.ui.rw) {
+          cur.ui.rw.busy = false; cur.ui.rw.error = e.text; drawMat(true); drawModal(); focusNode($('bd-m-rw-reason'));
+        } else {
+          cur.ui.open = ''; cur.ui.err = e.type === 'box' ? e : { type: 'box', title: '처리하지 못했습니다.', hint: e.text, btns: [['refresh', '새로 고치기']] };
+          if (cur.ui.rw) { cur.ui.rw = null; drawModal(); }
+          drawMat(true);
+          focusNode($('bd-m-acterr'));
+        }
+      });
+    }
+    function doSubmit() {
+      if (!M) return;
+      if (liveDirty() > 0) { openSubmit(); return; }   // 그 사이 고친 칸이 생겼으면 저장부터
+      doAct('submit');
+    }
+    function doResult() {
+      if (!M || !M.ui.res) return;
+      const sel = $('bd-m-res'), dt = $('bd-m-mdate');
+      const r = M.ui.res;
+      if (sel) r.result = sel.value;
+      if (dt) r.date = dt.value;
+      if (r.result === 'SCHEDULED' && !r.date) {   // 요청하지 않고 칸 오류로 알린다
+        r.error = '의결 예정이면 개최일을 입력해 주세요.'; r.errField = 'date';
+        drawMat(true); focusNode($('bd-m-mdate'));
+        return;
+      }
+      doAct('result', { result: r.result, date: r.date });
+    }
+    function drawModal() {
+      const n = $('bd-m-modal');
+      if (!n) return;
+      n.innerHTML = M && M.ui.rw ? mat.reworkModalHtml(M.data, M.ui.rw) : '';
+    }
+    function closeModal(refocus) {
+      if (M && M.ui) M.ui.rw = null;
+      drawModal();
+      if (refocus) focusNode($('bd-m-rwbtn'));
+    }
+    function openRework() {
+      if (!M || M.ui.busy) return;
+      M.ui.rw = { reason: '', busy: false, error: '' }; M.ui.err = null;
+      drawModal();
+      focusNode($('bd-m-rw-reason'));
+    }
+    function doRework() {
+      if (!M || !M.ui.rw || M.ui.rw.busy) return;
+      const ta = $('bd-m-rw-reason'), reason = (ta ? ta.value : M.ui.rw.reason).trim();
+      if (!reason) return;
+      M.ui.rw.reason = reason; M.ui.rw.busy = true; M.ui.rw.error = '';
+      drawModal();
+      doAct('rework', { reason: reason });
+    }
+    function onModalClick(e) {
+      const b = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
+      if (!b || b.disabled || !M || !M.ui.rw) return;
+      const a = b.getAttribute('data-act');
+      if (a === 'rw-cancel') { if (!M.ui.rw.busy) closeModal(true); }
+      else if (a === 'rw-ok') doRework();
+    }
+    function onModalInput(e) {
+      const t = e.target;
+      if (!t || t.id !== 'bd-m-rw-reason' || !M || !M.ui.rw) return;
+      M.ui.rw.reason = t.value;
+      const c = $('bd-m-rw-cnt'); if (c) c.textContent = t.value.length + '/200';
+      const ok = $('bd-m-rw-ok'); if (ok && !M.ui.rw.busy) ok.disabled = t.value.trim().length === 0;
+    }
+    function onModalKey(e) {   // Tab 은 모달 안에서만 돈다(Esc 는 document 핸들러)
+      if (e.key !== 'Tab' || !M || !M.ui.rw) return;
+      const box = $('bd-m-modal');
+      const list = Array.prototype.filter.call(box.querySelectorAll('button, input, textarea, a[href]'), function (n) {
+        return !n.disabled && n.getClientRects().length > 0;
+      });
+      if (!list.length) { e.preventDefault(); return; }
+      const first = list[0], last = list[list.length - 1], a = root.document && root.document.activeElement;
+      if (e.shiftKey && a === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (a === last || !box.contains(a))) { e.preventDefault(); first.focus(); }
+    }
+    function onDocKey(e) {
+      if (e.key === 'Escape' && M && M.ui && M.ui.rw && !M.ui.rw.busy && view === 'material') { e.preventDefault(); closeModal(true); }
+    }
+    function onMatChange(e) {
+      const t = e.target;
+      if (!t || !M || !M.ui.res) return;
+      if (t.id === 'bd-m-res') {
+        M.ui.res.result = t.value;
+        const q = $('bd-m-mreq'); if (q) q.textContent = t.value === 'SCHEDULED' ? '(필수)' : '(선택)';
+      } else if (t.id === 'bd-m-mdate') M.ui.res.date = t.value;
     }
 
     function onListClick(e) {
@@ -871,10 +1319,30 @@
       const b = e.target && e.target.closest ? e.target.closest('[data-act],[data-tab]') : null;
       if (!b) return;
       if (b.getAttribute('data-tab')) { setTab(b.getAttribute('data-tab'), false); return; }
-      if (b.getAttribute('data-act') === 'back') backToList();
+      const a = b.getAttribute('data-act');
+      if (b.disabled) return;
+      if (a === 'back') backToList();
+      else if (a === 'submit-open') { if (M && M.ui.open === 'submit') closeRow('bd-m-submit'); else openSubmit(); }
+      else if (a === 'sub-cancel') closeRow('bd-m-submit');
+      else if (a === 'sub-ok') doSubmit();
+      else if (a === 'sub-save') {   // 저장하지 않은 수정이 있으면 작성 줄의 [버전 저장]으로 보낸다(제출 줄은 닫는다)
+        if (M) { M.ui.open = ''; drawMat(true); }
+        const sv = $('bd-m-save');
+        if (sv && !sv.disabled) sv.click();
+      }
+      else if (a === 'withdraw') doAct('withdraw');
+      else if (a === 'result-open') { if (M && M.ui.open === 'result') closeRow('bd-m-resbtn'); else openResult(); }
+      else if (a === 'res-cancel') closeRow('bd-m-resbtn');
+      else if (a === 'res-ok') doResult();
+      else if (a === 'rework-open') openRework();
+      else if (a === 'refresh') reloadMat('최신 내용을 불러왔습니다.');
     }
     function onMatKey(e) {
       const t = e.target;
+      if (e.key === 'Escape' && M && !M.ui.busy && t && t.closest) {   // 인라인 줄 안에서 Esc → 닫고 연 버튼으로
+        if (t.closest('#bd-m-subrow')) { e.preventDefault(); closeRow('bd-m-submit'); return; }
+        if (t.closest('#bd-m-resrow')) { e.preventDefault(); closeRow('bd-m-resbtn'); return; }
+      }
       if (!M || !t || !t.getAttribute || t.getAttribute('role') !== 'tab') return;
       const nx = mat.tabKey(M.tab, e.key);
       if (nx) { e.preventDefault(); setTab(nx, true); }
@@ -909,6 +1377,14 @@
         l.addEventListener('keydown', onListKey);
         $('bd-mat').addEventListener('click', onMatClick);
         $('bd-mat').addEventListener('keydown', onMatKey);
+        $('bd-mat').addEventListener('change', onMatChange);
+        const md = $('bd-m-modal');
+        if (md) {
+          md.addEventListener('click', onModalClick);
+          md.addEventListener('input', onModalInput);
+          md.addEventListener('keydown', onModalKey);
+        }
+        if (root.document && root.document.addEventListener) root.document.addEventListener('keydown', onDocKey);
         $('bd-m-hist').addEventListener('click', onHistClick);
       }
     }
@@ -920,6 +1396,7 @@
     function reset() {
       L.tok++; openTok++; clearTimeout(searchTimer);
       L.status = 'idle'; L.items = []; L.truncated = false; L.f = { q: '', status: '', year: '', assignee: '' };
+      closeModal(false);
       mine = null; mineErr = false; np = null; M = null; view = 'none'; built = false; openerId = '';
       if (env.write) env.write.stop();
       ['bd-list', 'bd-mat', 'bd-m-hist'].forEach(function (k) { const n = $(k); if (n) n.innerHTML = ''; });
@@ -946,16 +1423,7 @@
         });
       },
       setHead: setHead,
-      reload: function (msg) {   // 화면을 비우고 최신 자료를 다시 연다(작성 중이던 값은 버려진다)
-        if (!M) return;
-        const id = M.id, t = ++openTok, ep = env.epoch();
-        mat.loadMaterial(env.doFetch, id, screen(), mat.BTN.REFRESH).then(function (r) {
-          if (t !== openTok || ep !== env.epoch()) return;
-          if (!r.ok) { setMsg(r.error); return; }
-          if (env.write) env.write.stop();
-          enterMaterial(r.material, msg || '최신 내용을 불러왔습니다.');
-        });
-      },
+      reload: reloadMat,
       showSnap: function (n) { if (M) { setTab('ver', false); openSnap(n); } }
     };
   };

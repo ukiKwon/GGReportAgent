@@ -142,8 +142,10 @@ test('saveError: 응답별 제목·안내·버튼(문구는 규격 §5-3)', func
   assert.deepStrictEqual(e.btns.map(function (b) { return b[0]; }), ['m-latest', 'm-force', 'm-drop']);
   assert.strictEqual(e.cur, 4);
   assert.strictEqual(E(409, { code: 'CONFLICT' }, { k: 2 }).hint, '내가 고친 2칸은 아직 이 화면에 있습니다.');
-  e = E(409, { code: 'MATERIAL_LOCKED' });
-  assert.deepStrictEqual([e.kind, e.btns[0][0]], ['locked', 'm-refresh']);
+  e = E(409, { code: 'MATERIAL_LOCKED' }, { k: 3 });
+  assert.deepStrictEqual([e.kind, e.btns.map(function (b) { return b[0]; })], ['locked', ['copyall', 'm-refresh']]);
+  assert.strictEqual(e.title, '이 자료가 제출되었거나 확정되어 값을 저장하지 못했습니다.');
+  assert.ok(e.hint.indexOf('내가 고친 3칸') === 0 && e.hint.indexOf('[모든 표 복사]') > 0);
   e = E(422, { code: 'PII_DETECTED', count: 2, kinds: [{ kind: '휴대폰', count: 2 }], cells: [{ ref: 'A', key: 'r1c1' }, { ref: 'A', key: 'r2c1' }] });
   assert.deepStrictEqual([e.kind, e.mono, e.count, e.cells.length, e.btns[0][1]], ['pii', '휴대폰 형식 2건', 2, 2, '확인 필요 칸 보기']);
   e = E(422, { code: 'PII_DETECTED', kinds: [{ kind: '이메일', count: 1 }] });   // 메모(cells 없음)
