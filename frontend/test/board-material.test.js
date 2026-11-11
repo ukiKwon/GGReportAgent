@@ -327,6 +327,24 @@ test('headActsHtml: 상태·viewer 플래그대로 버튼, 수정이 남으면 �
   assert.strictEqual(mat.headActsHtml({ status_cd: 'DRAFT', viewer: { can_submit: false } }, {}), '');
 });
 
+test('headMainOn: 틸은 한 번에 하나 — 수정이 남았거나 제출 확인 줄이 열렸으면 머리 [안건 제출]은 틸 아님', function () {
+  const v = { is_assignee: true, can_write: true, can_submit: true };
+  assert.strictEqual(mat.headMainOn('', 0), true);
+  assert.strictEqual(mat.headMainOn('', 1), false);
+  assert.strictEqual(mat.headMainOn('submit', 0), false);
+  assert.strictEqual(mat.headMainOn('result', 0), true);
+  assert.ok(!mat.headActsHtml({ status_cd: 'DRAFT', viewer: v }, { open: 'submit', dirty: 0 }).includes('bd-wb-main'));
+  assert.ok(mat.submitRowHtml({ n: 6, dirty: 0 }).includes('id="bd-m-subok" class="bd-wb-main"'));
+});
+
+test('resultRowHtml·reworkModalHtml: 오류가 없으면 aria-invalid·오류 문구가 없다(고치면 지우는 화면과 같은 모양)', function () {
+  const rr = mat.resultRowHtml({}, { result: 'PASSED', date: '2026-12-03' });
+  assert.ok(!rr.includes('aria-invalid') && !rr.includes('bd-m-ferr'));
+  const m = mat.reworkModalHtml({ status_cd: 'SUBMITTED' }, { reason: '다시' });
+  assert.ok(!m.includes('aria-invalid') && !m.includes('bd-m-rw-err'));
+  assert.ok(mat.reworkModalHtml({ status_cd: 'SUBMITTED' }, { reason: '다시', error: '오류' }).includes('aria-describedby="bd-m-rw-err"'));
+});
+
 test('returnHtml·lockHtml·submitRowHtml: 반환 배너(사유 null 문구, esc), 잠금 줄 문구, 제출 확인 줄', function () {
   const r = mat.returnHtml({ status_cd: 'DRAFT', viewer: { is_assignee: true }, last_return: { event_cd: 'REJECT', reason: X, actor_name: X, logged_at: '2026-11-11T00:58:00+00:00' } });
   assert.ok(r.includes('제출이 반려되었습니다.') && !r.includes('<img') && r.includes('&lt;img') && r.includes('고친 뒤 [버전 저장]을 하고 다시 제출해 주세요.'));
@@ -385,7 +403,7 @@ test('reworkModalHtml·resultRowHtml·reviewHtml: 접근성 속성, 확정 경�
   const conf = { institution_name: X, year: 2026, status_cd: 'CONFIRMED', result_cd: 'PASSED', meeting_date: '2026-12-03' };
   const m = mat.reworkModalHtml(conf, { reason: X });
   assert.ok(m.includes('role="dialog"') && m.includes('aria-modal="true"') && m.includes('aria-describedby="bd-m-rw-desc"'));
-  assert.ok(m.includes('의결 결과 \'가결\'과 개최일 2026-12-03가 지워집니다.') && m.includes('확정 풀고 재작성 요구') && !m.includes('<img'));
+  assert.ok(m.includes('의결 결과 \'가결\'과 개최일(2026-12-03)이 지워집니다.') &&m.includes('확정 풀고 재작성 요구') && !m.includes('<img'));
   assert.ok(/id="bd-m-rw-ok"[^>]* disabled/.test(mat.reworkModalHtml({ status_cd: 'SUBMITTED' }, { reason: '  ' })));
   const rr = mat.resultRowHtml(conf, { result: 'SCHEDULED', date: '', error: '의결 예정이면 개최일을 입력해 주세요.', errField: 'date' });
   assert.ok(rr.includes('aria-invalid="true"') && rr.includes('(필수)') && rr.includes('role="alert"'));

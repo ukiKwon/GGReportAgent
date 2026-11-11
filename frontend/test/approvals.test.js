@@ -88,6 +88,18 @@ test('탭: 내가 올린 요청이 맨 앞이고, 모르는 키는 맨 앞으로
   assert.strictEqual(ap.normTab(undefined), 'mine');
 });
 
+test('defaultTab·focusAfterDecide: 결재할 건이 있으면 받은 결재로 열고, 결재 뒤 포커스는 다음 카드나 탭', function () {
+  assert.strictEqual(ap.defaultTab([{ canDecide: false }, { canDecide: true }]), 'inbox');
+  assert.strictEqual(ap.defaultTab([{ canDecide: false }]), 'mine');
+  assert.strictEqual(ap.defaultTab([]), 'mine');
+  assert.strictEqual(ap.defaultTab(undefined), 'mine');
+  assert.strictEqual(ap.focusAfterDecide([{ canDecide: true, isBoard: false }]), 'card');
+  assert.strictEqual(ap.focusAfterDecide([{ canDecide: true, isBoard: true, materialId: '7' }]), 'card');
+  assert.strictEqual(ap.focusAfterDecide([{ canDecide: true, isBoard: true, materialId: '' }]), 'tab', '버튼이 없는 이사회 카드는 건너뛴다');
+  assert.strictEqual(ap.focusAfterDecide([{ canDecide: false }]), 'tab');
+  assert.strictEqual(ap.focusAfterDecide(null), 'tab');
+});
+
 test('statusInfo: 요청 상태마다 이름과 색 단계', function () {
   assert.deepStrictEqual(ap.statusInfo('PENDING'), { label: '결재 대기', tone: 'warn' });
   assert.deepStrictEqual(ap.statusInfo('APPROVED'), { label: '승인·반영됨', tone: 'ok' });

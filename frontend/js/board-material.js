@@ -476,6 +476,8 @@
   function viewerOf(d) { return isObj(d && d.viewer) ? d.viewer : {}; }
   mat.titleOf = function (d) { return str(d && d.institution_name) + ' ' + str(d && d.year) + '년 이사회 자료'; };
   // 머리 오른쪽 버튼들(viewer.can_* 플래그대로). o: {open:'submit'|'result'|'', busy:'submit'|'withdraw'|'rework'|'result'|'', dirty:수정 칸 수}
+  // 머리 [안건 제출]이 틸(bd-wb-main)일 때: 수정이 남아 있으면 [버전 저장]이, 제출 확인 줄이 열려 있으면 줄의 [버전 n 안건 제출]이 틸이다(한 번에 하나).
+  mat.headMainOn = function (open, dirty) { return !(Number(dirty) > 0) && open !== 'submit'; };
   mat.headActsHtml = function (d, o) {
     if (!mat.PHASE_020B) return '';
     const x = o || {}, v = viewerOf(d), cd = str(d.status_cd), busy = str(x.busy);
@@ -486,7 +488,7 @@
         '<span class="bd-sr" id="bd-m-subwhy">버전을 한 번 저장해야 제출할 수 있습니다.</span>');
     }
     if (cd === 'DRAFT' && v.can_submit === true) {
-      const main = !(Number(x.dirty) > 0);   // 수정이 남아 있으면 틸은 작성 줄의 [버전 저장]에 둔다
+      const main = mat.headMainOn(x.open, x.dirty);   // 틸은 한 번에 하나
       b.push('<button type="button" id="bd-m-submit" data-act="submit-open" class="' + (main ? 'bd-wb-main' : '') + '" aria-expanded="' + (x.open === 'submit' ? 'true' : 'false') +
         '" aria-controls="bd-m-subrow"' + (off ? ' disabled' : '') + '>안건 제출</button>');
     }
@@ -568,7 +570,7 @@
     else {
       const rn = str(d.result_cd) ? (RESULT_NAME[str(d.result_cd)] || str(d.result_name)) : '', md = mat.dateOf(d.meeting_date);
       desc = '<p class="bd-m-warn" id="bd-m-rw-desc">확정된 자료입니다. ' + (rn
-        ? '재작성을 요구하면 확정이 풀리고 <b>의결 결과 \'' + esc(rn) + '\'' + (md ? '과 개최일 ' + esc(md) + '가' : '가') + ' 지워집니다.</b> 지운 값은 작업 이력에만 남습니다.'
+        ? '재작성을 요구하면 확정이 풀리고 <b>의결 결과 \'' + esc(rn) + '\'' + (md ? '과 개최일(' + esc(md) + ')이' : '이(가)') + ' 지워집니다.</b> 지운 값은 작업 이력에만 남습니다.'
         : '재작성을 요구하면 확정이 풀립니다. 담당자가 고쳐 다시 제출하고 결재를 받아야 합니다.') + '</p>';
     }
     return '<div class="modal-overlay" id="bd-m-rw-ov"><div class="modal-box bd-m-modal" id="bd-m-rw" role="dialog" aria-modal="true" aria-labelledby="bd-m-rw-title" aria-describedby="bd-m-rw-desc">' +
@@ -1254,6 +1256,11 @@
       M.ui.rw.reason = t.value;
       const c = $('bd-m-rw-cnt'); if (c) c.textContent = t.value.length + '/200';
       const ok = $('bd-m-rw-ok'); if (ok && !M.ui.rw.busy) ok.disabled = t.value.trim().length === 0;
+      if (M.ui.rw.error) {   // 사유를 고치기 시작하면 칸 오류를 지운다
+        M.ui.rw.error = '';
+        const er = $('bd-m-rw-err'); if (er && er.parentNode) er.parentNode.removeChild(er);
+        t.removeAttribute('aria-invalid'); t.removeAttribute('aria-describedby');
+      }
     }
     function onModalKey(e) {   // Tab 은 모달 안에서만 돈다(Esc 는 document 핸들러)
       if (e.key !== 'Tab' || !M || !M.ui.rw) return;
@@ -1276,6 +1283,19 @@
         M.ui.res.result = t.value;
         const q = $('bd-m-mreq'); if (q) q.textContent = t.value === 'SCHEDULED' ? '(필수)' : '(선택)';
       } else if (t.id === 'bd-m-mdate') M.ui.res.date = t.value;
+      else return;
+      if (M.ui.res.error || M.ui.res.errField) {   // 값을 바꾸면 칸 오류를 지운다
+        M.ui.res.error = ''; M.ui.res.errField = '';
+        const er = $('bd-m-ferr'); if (er && er.parentNode) er.parentNode.removeChild(er);
+        const dt = $('bd-m-mdate');
+        if (dt) { dt.removeAttribute('aria-invalid'); dt.removeAttribute('aria-describedby'); }
+      }
+    }
+    // 작성 줄의 수정 칸 수가 바뀌면 머리 [안건 제출]의 틸을 맞춘다(머리를 다시 그리지 않고 클래스만 바꾼다)
+    function syncSubmitTeal() {
+      const s = $('bd-m-submit');
+      if (!M || !s || str(M.data.status_cd) !== 'DRAFT' || !s.classList) return;
+      if (mat.headMainOn(M.ui.open, liveDirty())) s.classList.add('bd-wb-main'); else s.classList.remove('bd-wb-main');
     }
 
     function onListClick(e) {
@@ -1378,6 +1398,9 @@
         $('bd-mat').addEventListener('click', onMatClick);
         $('bd-mat').addEventListener('keydown', onMatKey);
         $('bd-mat').addEventListener('change', onMatChange);
+        $('bd-mat').addEventListener('input', onMatChange);
+        const wb = $('bd-body');
+        if (wb && typeof MutationObserver !== 'undefined') new MutationObserver(syncSubmitTeal).observe(wb, { childList: true, subtree: true, characterData: true });
         const md = $('bd-m-modal');
         if (md) {
           md.addEventListener('click', onModalClick);

@@ -66,6 +66,14 @@
   approvals.normTab = function (key) {
     return approvals.TABS.some(function (t) { return t.key === key; }) ? key : approvals.TABS[0].key;
   };
+  // 처음 열 때 받은 결재에 지금 결재할 수 있는 건이 있으면 그 탭으로 연다(rows: requestRows 결과).
+  approvals.defaultTab = function (inboxRows) {
+    return (inboxRows || []).some(function (r) { return r && r.canDecide; }) ? 'inbox' : approvals.TABS[0].key;
+  };
+  // 결재를 마친 뒤 포커스를 어디로 보낼지: 다음 카드의 첫 버튼('card'), 없으면 '받은 결재' 탭('tab').
+  approvals.focusAfterDecide = function (inboxRows) {
+    return (inboxRows || []).some(function (r) { return r && r.canDecide && (!r.isBoard || r.materialId); }) ? 'card' : 'tab';
+  };
 
   const REQ_STATUS = {
     PENDING: { label: '결재 대기', tone: 'warn' },
@@ -346,7 +354,8 @@
   let tab = approvals.TABS[0].key;
   const reqs = { mine: null, inbox: null };   // null = 아직 못 불렀다
   let reqError = '';
-  let canApprove = true;                       // /approval-requests/my-perms — 모르면 안내를 띄우지 않는다
+  let autoTab = false;                         // 처음 연 직후 한 번만 '받은 결재'를 기본 탭으로 고를 수 있다
+  let canApprove = true;                     // /approval-requests/my-perms — 모르면 안내를 띄우지 않는다
 
   function categories() { return root.nav && root.nav.CATEGORIES; }
 
@@ -424,7 +433,7 @@
         esc(t.label) + (n ? '<span class="ap-badge">' + n + '</span>' : '') + '</button>';
     }).join('');
     el('ap-tabs').querySelectorAll('button').forEach(function (b) {
-      b.onclick = function () { tab = approvals.normTab(b.dataset.tab); paintRequests(); };
+      b.onclick = function () { autoTab = false; tab = approvals.normTab(b.dataset.tab); paintRequests(); };
       b.onkeydown = function (e) {   // 좌우 화살표·Home·End 로 탭 이동(roving tabindex)
         const keys = approvals.TABS.map(function (t) { return t.key; }), i = keys.indexOf(b.dataset.tab);
         let to = null;
@@ -434,7 +443,7 @@
         else if (e.key === 'End') to = keys[keys.length - 1];
         if (to == null) return;
         e.preventDefault();
-        tab = approvals.normTab(to); paintRequests();
+        autoTab = false; tab = approvals.normTab(to); paintRequests();
         const nb = el('ap-tab-' + tab); if (nb) nb.focus();
       };
     });
@@ -493,6 +502,10 @@
       pane.insertBefore(n, pane.firstChild);
     }
     return n;
+  }
+  function clearFlash() {
+    apFlash = '';
+    const f = el('ap-flash'); if (f) f.innerHTML = '';
   }
   function reviewCanDecide() {
     const v = review && review.data && review.data.viewer, pid = v ? v.pending_req_id : null;
@@ -579,7 +592,7 @@
       cur.busy = '';
       if (x.ok) {
         closeReview(title + '를 ' + (approve ? '승인했습니다. 버전 ' + n + '이 확정되었습니다.' : '반려했습니다. 담당자가 다시 작성합니다.'));
-        loadRequests();
+        loadRequests().then(function () { refocusAfterLoad('inbox'); });   // 목록을 다시 그리면 포커스가 사라지므로 그 뒤에 되찾는다
         return;
       }
       cur.error = m.actError('decide', x);
@@ -624,11 +637,24 @@
       return r.json().catch(function () { return {}; }).then(function (j) {
         if (!r.ok) throw new Error(errtext.message(j.detail, '처리하지 못했습니다 (' + r.status + ')'));
       });
-    }).then(function () { return loadRequests(); })
+    }).then(function () { return loadRequests().then(function () { refocusAfterLoad(screen === AP_UI.INBOX ? 'inbox' : 'mine'); }); })
       .catch(function (e) {
         card.querySelectorAll('button').forEach(function (x) { x.disabled = false; });
         card.querySelector('.ap-err').textContent = e.message || '서버 연결 실패 — 처리되지 않았습니다.';
       });
+  }
+
+  // 결재·취소 뒤 목록이 다시 그려져 포커스가 body 로 떨어졌을 때만 되찾는다(다른 곳에 있으면 건드리지 않는다).
+  function refocusAfterLoad(box) {
+    const d = root.document, a = d && d.activeElement;
+    if (review || (a && a !== d.body && d.contains(a))) return;
+    let f = null;
+    if (box === 'inbox') {
+      const rows = approvals.requestRows((reqs.inbox || {}).items, categories());
+      if (approvals.focusAfterDecide(rows) === 'card') f = el('ap-req-inbox').querySelector('.ap-review-btn,.ap-req-ok');
+    } else f = el('ap-pane-mine').querySelector('.ap-req-cancel');
+    f = f || el('ap-tab-' + box);
+    if (f) f.focus();
   }
 
   function loadRequests() {
@@ -641,6 +667,7 @@
     ]).then(function (res) {
       reqs.mine = res[0]; reqs.inbox = res[1]; reqError = '';
       canApprove = approvals.canApproveOf(res[2]);
+      if (autoTab) { autoTab = false; tab = approvals.defaultTab(approvals.requestRows(res[1].items, categories())); }
       paintRequests();
     }).catch(function (e) {
       reqError = e && e.status === 401 ? '로그인이 필요합니다. 사번으로 로그인해 주세요.'
@@ -656,13 +683,15 @@
 
   approvals.mount = function () {
     tab = wantTab || approvals.TABS[0].key;
+    autoTab = !wantTab;
     wantTab = null;
-    review = null; apFlash = '';   // 다른 메뉴에 다녀오면 열어 둔 검토 화면은 닫는다
+    review = null; clearFlash();   // 다른 메뉴에 다녀오면 열어 둔 검토 화면은 닫는다
     load().then(paintRequests);
     loadRequests();             // 대결 설정은 결재함이 아니라 [내 정보 › 대결 설정]에 있다
   };
   approvals.unmount = function () { /* 폴링이 없어 정리할 것이 없다 */ };
   approvals.onProfileChange = function () {
+    clearFlash();   // 앞 사용자의 결재 안내 문구가 남지 않게
     if (payload !== null) load().then(paintRequests);
     loadRequests();
   };
