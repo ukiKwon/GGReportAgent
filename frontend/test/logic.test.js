@@ -145,8 +145,26 @@ test('effectiveBid: 약정 만료 기준(NEXT 14) — 만료 6개월 전, 둘 �
   assert.strictEqual(logic.effectiveBid({ contractEnd:'2026-10-29', confirmed:true, contractExpiry:'2026-12-31' }).basis, 'notice');
   // 화면 표기
   assert.strictEqual(logic.formatBidDateLabel({ contractExpiry:'2027-12-31' }), '2027-06-30(추정·약정 만료 기준)');
-  // 말일 보정
+  // 말일 보정·윤년
   assert.strictEqual(logic.addMonths('2026-08-31', -6), '2026-02-28');
+  assert.strictEqual(logic.addMonths('2028-08-31', -6), '2028-02-29');
+  // 잘못된 값은 예외 없이 null(편집 모달 입력이 지도를 멈추지 않게)
+  assert.strictEqual(logic.addMonths('2027-12-3x', -6), null);
+  assert.strictEqual(logic.addMonths('2027-13-01', -6), null);
+  assert.strictEqual(logic.addMonths('2027-12', -6), null);
+  assert.deepStrictEqual(logic.effectiveBid({ contractExpiry: '2027-12-3x' }), { date: null, confidence: '미상' });
+  // 낡은 약정: 새 회차(lastBid)가 만료 추정 이후면 만료일은 무시하고 주기
+  assert.strictEqual(logic.effectiveBid({ lastBid:'2026-09-15', term:4, contractExpiry:'2026-12-31' }).basis, 'cycle');
+});
+
+test('buildCsvTemplate: 예시 행 칸 수 = 헤더 칸 수, 약정만료일 왕복', () => {
+  const lines = logic.buildCsvTemplate().replace(/^﻿/, '').trim().split('\n');
+  assert.strictEqual(lines[1].split(',').length, logic.CSV_HEADERS.length);
+  const recs = logic.parseCsv ? logic.parseCsv(logic.buildCsvTemplate()) : null;
+  if (recs) {
+    assert.strictEqual(recs[0].contractExpiry, '2026-12-31');
+    assert.deepStrictEqual(recs[0].sources, ['공고URL']);
+  }
 });
 
 test('urgencyOf: effectiveBid 기반', () => {

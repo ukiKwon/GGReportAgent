@@ -107,10 +107,10 @@
 
   // 월 가감(말일 보정 — 08-31에서 6개월 빼면 02-28/29). 'YYYY-MM-DD'만 받는다.
   logic.addMonths = function (dateStr, months) {
-    if (!dateStr) return null;
+    if (!dateStr || !/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(String(dateStr))) return null;
     const p = String(dateStr).split('-');
-    if (p.length !== 3) return null;
     const y = Number(p[0]), m = Number(p[1]) - 1 + Number(months), day = Number(p[2]);
+    if (isNaN(m)) return null;
     const first = new Date(Date.UTC(y, m, 1));
     if (isNaN(first.getTime())) return null;
     const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
@@ -134,7 +134,10 @@
   logic.effectiveBid = function (rec) {
     if (rec.contractEnd) return { date: rec.contractEnd, confidence: rec.confirmed ? '확정' : '추측', basis: 'notice' };
     const cyc = (rec.lastBid && rec.term) ? logic.addYears(rec.lastBid, rec.term) : null;
-    const exp = logic.expiryEstimate(rec.contractExpiry);
+    let exp = logic.expiryEstimate(rec.contractExpiry);
+    // 낡은 약정: 마지막 회차(lastBid)가 그 약정 만료 추정일 이후면 이미 새 회차가 끝난 것 — 무시한다
+    // (서버 last_bid나 편집으로 lastBid가 새 회차로 바뀐 경우, qa b497934 지적).
+    if (exp && rec.lastBid && exp <= rec.lastBid) exp = null;
     if (cyc && (!exp || cyc <= exp)) return { date: cyc, confidence: '추측', basis: 'cycle' };
     if (exp) return { date: exp, confidence: '추측', basis: 'expiry' };
     return { date: null, confidence: '미상' };
@@ -442,7 +445,8 @@
   };
 
   logic.buildCsvTemplate = function () {
-    const example = ['마포구청(예시)','지자체','11','11140','2','2022-12-05','','', '', '', '공고URL', '2026-07-25'];
+    // 칸 수 = CSV_HEADERS(13). 순서: …확정여부, 약정만료일, 경도, 위도, 출처, 수정일
+    const example = ['마포구청(예시)','지자체','11','11140','2','2022-12-05','','', '2026-12-31', '', '', '공고URL', '2026-07-25'];
     return '﻿' + logic.CSV_HEADERS.join(',') + '\n' + example.join(',') + '\n';
   };
 
