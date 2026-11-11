@@ -157,7 +157,8 @@
     } else {
       // detail이 없거나 문자열(Spring 기본 본문 등)이면 상태 코드로 일반 문구를 쓴다(문자열 본문은 화면에 내지 않는다).
       // 403은 서버 문구보다 우선해 '권한 신청' 안내로 고정한다(다른 계정 로그인 안내가 아니라 신청 경로를 보여 준다).
-      if (status === 403) { r.title = '이 양식으로 자료를 작성하려면 업무 수정 권한이 필요합니다.'; r.hint = '내 정보의 내 권한에서 권한을 신청하면, 승인 후 이어서 작성할 수 있습니다.'; }
+      if (status === 403 && c.mat) { r.title = '이 입찰 건의 담당자만 작성할 수 있습니다.'; r.hint = '담당이 바뀌었을 수 있습니다. 목록에서 담당 건을 다시 확인해 주세요.'; }
+      else if (status === 403) { r.title = '이 양식으로 자료를 작성하려면 업무 수정 권한이 필요합니다.'; r.hint = '내 정보의 내 권한에서 권한을 신청하면, 승인 후 이어서 작성할 수 있습니다.'; }
       else if (msg) r.title = msg;
       else if (status === 401) { r.title = '로그인이 필요합니다.'; r.hint = '다시 로그인한 뒤 올려 주세요.'; }
       else if (status === 404) { r.title = '양식을 찾지 못했습니다.'; r.hint = '양식을 다시 골라 주세요.'; }
@@ -165,8 +166,9 @@
       if (status === 503 || status >= 500) r.hint = '잠시 뒤 다시 올려 주세요.';
     }
     // 버튼: 구조 불일치와 404(양식 없음)는 양식을 다시 고르게 하고, 403은 같은 파일을 다시 올려도 소용없어 파일 고르기를 뺀다.
-    r.canReform = r.structure || status === 404;
-    if (status === 403) { r.canPick = false; r.canPerm = true; }
+    r.canReform = (r.structure || status === 404) && !c.mat;   // 자료 모드: 만든 뒤에는 양식을 바꿀 수 없다
+    if (status === 403 && c.mat) { r.canPick = false; r.canList = true; }
+    else if (status === 403) { r.canPick = false; r.canPerm = true; }
     return r;
   };
 
@@ -176,10 +178,11 @@
     }).catch(function (e) { return { ok: false, status: 0, body: null, net: true, aborted: !!(e && e.name === 'AbortError') }; });
   }
   // multipart: file(+version, 기본 양식은 version을 보내지 않는다 — 서버가 400)
-  bw.upload = function (fetchFn, id, version, file, signal) {
+  bw.upload = function (fetchFn, id, version, file, signal, bidCaseId) {
     const fd = new FormData();
     fd.append('file', file);
     if (!bw.isBase(id) && version != null && version !== '') fd.append('version', String(version));
+    if (bidCaseId != null && bidCaseId !== '') fd.append('bid_case_id', String(bidCaseId));
     const init = { method: 'POST', body: fd };
     if (signal) init.signal = signal;
     return reqJson(fetchFn, bw.uploadUrl(id), init);
@@ -248,6 +251,7 @@
     return has(DIGIT_JONG, ch) ? DIGIT_JONG[ch] : 0;
   }
   bw.josaEul = function (w) { return jong(w) > 0 ? '을' : '를'; };
+  bw.josaNeun = function (w) { return jong(w) > 0 ? '은' : '는'; };
   bw.josaEuro = function (w) { const j = jong(w); return (j > 0 && j !== 8) ? '으로' : '로'; };
 
   // ── 상태 모델(순수·불변) ─────────────────────────────────────
@@ -436,7 +440,8 @@
     HIDDEN_SHEET: '숨겨진 시트의 값입니다.', HIDDEN_ROW: '숨겨진 행의 값입니다.', HIDDEN_COLUMN: '숨겨진 열의 값입니다.',
     HIDDEN_FORMAT: '엑셀 화면에서는 서식으로 가려져 보이지 않는 값입니다. 문서에 넣어도 되는지 확인해 주세요. (글꼴 색 등 서식 밖의 숨김은 검사하지 않습니다.)',
     LABEL_MISMATCH: '이 표의 머리글이 양식과 달라 위치대로 채웠습니다.',
-    SUM_HAS_MANUAL_PARTS: '합계 범위 안에 엑셀에서 가져오지 않는 칸(직접 입력)이 있어 합계가 엑셀 값과 다를 수 있습니다. 직접 입력한 값을 확인해 주세요.'
+    SUM_HAS_MANUAL_PARTS: '합계 범위 안에 엑셀에서 가져오지 않는 칸(직접 입력)이 있어 합계가 엑셀 값과 다를 수 있습니다. 직접 입력한 값을 확인해 주세요.',
+    NUM_FORMAT: '숫자 형식이 저장 형식에 맞지 않아 저장할 수 없습니다. 괄호·△·단위·% 기호를 빼고 숫자만 넣어 주세요.'
   };
 
   bw.cellInfo = function (t, c) {
@@ -836,7 +841,8 @@
   bw.dropHtml = function (ui) {
     return '<div class="bd-w-drop" id="bd-w-drop" role="group" aria-labelledby="bd-w-droptitle">' +
       '<b id="bd-w-droptitle">' + DROP_TITLE + '</b>' +
-      '<p>엑셀(.xlsx) 파일 1개 · 원본 파일은 저장되지 않습니다. 이 화면을 닫으면 작성 내용도 사라집니다.</p>' +
+      '<p>' + (ui.mat ? '엑셀(.xlsx) 파일 1개 · 원본 파일은 저장되지 않습니다. 값은 [버전 저장]을 눌러야 저장됩니다.'
+                      : '엑셀(.xlsx) 파일 1개 · 원본 파일은 저장되지 않습니다. 이 화면을 닫으면 작성 내용도 사라집니다.') + '</p>' +
       '<button type="button" id="bd-w-pick" data-w="pick">엑셀 파일 고르기</button>' +
       '<p id="bd-w-maplist">' + esc(ui.mapText) + '</p></div>';
   };
@@ -849,12 +855,28 @@
       (r.lines.length ? '<ul>' + r.lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' : '') +
       (r.kindsText ? '<p class="mono">' + esc(r.kindsText) + '</p>' : '') +
       (r.hint ? '<p>' + esc(r.hint) + '</p>' : '') +
-      ((r.canPick || r.canReform || r.canPerm) ? '<div class="bd-w-rejbtns">' +
+      ((r.canPick || r.canReform || r.canPerm || r.canList) ? '<div class="bd-w-rejbtns">' +
+        (r.canList ? '<button type="button" data-w="m-tolist">목록으로</button>' : '') +
         (r.canPerm ? '<button type="button" data-w="perm">권한 신청하러 가기</button>' : '') +
         (r.canPick ? '<button type="button" data-w="pick">다른 파일 고르기</button>' : '') +
         (r.canReform ? '<button type="button" data-w="reform">양식 다시 고르기</button>' : '') + '</div>' : '') + '</div>';
   };
-  bw.leaveHtml = function (kind, y) {
+  bw.leaveHtml = function (kind, y, m) {
+    if (kind === 'mat') {   // 목록으로·탭 닫기: 저장하지 않은 수정이 있을 때
+      return '<div class="bd-confirm" id="bd-w-leave" role="group" aria-labelledby="bd-w-leavetxt"><span id="bd-w-leavetxt">' +
+        esc('저장하지 않은 수정 ' + (m ? m.k : 0) + '칸이 사라집니다. 나가기 전에 저장할까요?') + '</span>' +
+        '<button type="button" id="bd-w-leave-save" class="bd-wb-main" data-w="leave-save">버전 저장 후 나가기</button>' +
+        '<button type="button" id="bd-w-leave-ok" data-w="leave-drop">저장하지 않고 나가기</button>' +
+        '<button type="button" id="bd-w-leave-no" data-w="leave-no">계속 작성</button></div>';
+    }
+    if (kind === 'excel') {   // 저장본·작성 중인 값 위에 엑셀 올리기
+      const n = m ? m.snapNo : 0, k = m ? m.k : 0;
+      const t = '엑셀 값으로 표를 다시 채웁니다. ' + (n > 0 ? '버전 ' + n + bw.josaNeun(String(n)) + ' 저장할 때까지 그대로 남습니다. 직접 입력한 칸은 버전 ' + n + '의 값을 이어받습니다.' : '') +
+        (k > 0 ? ' 저장하지 않은 수정 ' + k + '칸은 사라집니다.' : '');
+      return '<div class="bd-confirm" id="bd-w-leave" role="group" aria-labelledby="bd-w-leavetxt"><span id="bd-w-leavetxt">' + esc(t.trim()) + '</span>' +
+        '<button type="button" id="bd-w-leave-ok" data-w="leave-ok">엑셀로 채우기</button>' +
+        '<button type="button" id="bd-w-leave-no" data-w="leave-no">그대로 두기</button></div>';
+    }
     const b = kind === 'swap' ? ['바꾸고 새로 채우기', '그대로 두기'] : ['작성 내용 버리기', '계속 작성'];
     return '<div class="bd-confirm" id="bd-w-leave" role="group" aria-labelledby="bd-w-leavetxt"><span id="bd-w-leavetxt">' + esc(bw.leaveText(kind, y)) + '</span>' +
       '<button type="button" id="bd-w-leave-ok" data-w="leave-ok">' + b[0] + '</button>' +
@@ -934,7 +956,7 @@
 
   function staticCellHtml(o) {
     const header = o.header === true, tag = header ? 'th' : 'td';
-    const al = ALIGNS[o.align] ? o.align : (header ? 'center' : 'left');
+    const al = has(ALIGNS, o.align) ? o.align : (header ? 'center' : 'left');
     const cs = span(o.colspan), rs = span(o.rowspan);
     return '<' + tag + ' class="bd-a-' + al + '"' + (cs > 1 ? ' colspan="' + cs + '"' : '') + (rs > 1 ? ' rowspan="' + rs + '"' : '') + '>' + esc(o.text) + '</' + tag + '>';
   }
@@ -945,7 +967,7 @@
   bw.valueCellHtml = function (t, c, o) {
     const p = o || {}, i = bw.cellInfo(t, c), fc = p.fc || {};
     const pr = bw.parenOf(c);
-    const al = ALIGNS[fc.align] ? fc.align : (pr || bw.shownNum(c.value) != null ? 'right' : 'left');
+    const al = has(ALIGNS, fc.align) ? fc.align : (pr || bw.shownNum(c.value) != null ? 'right' : 'left');
     const cls = ['bd-w-cell', 'bd-a-' + al];
     if (al === 'right') cls.push('bd-num');
     if (i.edited) cls.push('is-edited');
@@ -1318,13 +1340,16 @@
   };
   bw.writeHtml = function (ws, ui) {
     const y = ws ? bw.tally(ws) : null;
-    let h = '<div class="bd-w" id="bd-w">' + bw.barHtml(ws, ui);
-    if (ui.leave) h += bw.leaveHtml(ui.leave, y);
+    let h = '<div class="bd-w" id="bd-w">' + (ui.mat ? bw.matBarHtml(ws, ui) : bw.barHtml(ws, ui));
+    if (ui.leave) h += bw.leaveHtml(ui.leave, y, ui.mat ? { k: ws ? bw.matDirty(ws, ui.mat.base).length : 0, snapNo: ui.mat.snapNo } : null);
+    if (ui.mat && ui.mat.noteOpen && ws) h += bw.matNoteHtml(ws, ui);
+    if (ui.mat && ui.mat.err) h += bw.matErrHtml(ui.mat.err);
+    if (ui.mat && ui.mat.ok) h += bw.matOkHtml(ui.mat.ok);
     if (ui.rej) h += bw.rejHtml(ui.rej);
     if (ui.upload) h += bw.uploadingHtml(); else if (!ws) h += bw.dropHtml(ui);
     if (ws) {
       const rv = bw.roveKey(ws, ui.sel);
-      h += bw.summaryHtml(ws) + bw.filterHtml(ws) + bw.reviewHtml(ws) +
+      h += (ui.mat && !ui.mat.fromExcel ? bw.matSummaryHtml(ui) : bw.summaryHtml(ws)) + bw.filterHtml(ws) + bw.reviewHtml(ws) +
         '<div class="bd-w-tables' + (ui.sel ? ' is-focusing' : '') + '" id="bd-w-tables">' +
         ws.tables.map(function (t) { return bw.cardHtml(ws, t, ui, rv); }).join('') + '</div>' +
         '<div id="bd-w-status" class="bd-w-status' + (bw.statusIdle(ws, ui) ? ' is-idle' : ' is-focusing') + '"><div id="bd-w-statusbody" class="bd-w-statusbody">' + bw.statusHtml(ws, ui) + '</div>' +
@@ -1363,7 +1388,7 @@
       return '<tr>' + (Array.isArray(row) ? row : []).map(function (fc) {
         const o = (fc && typeof fc === 'object') ? fc : { text: fc };
         const header = o.header === true, txt = textOf(o), tag = header ? 'th' : 'td';
-        const al = ALIGNS[o.align] ? o.align : (header ? 'center' : (bw.shownNum(txt) != null ? 'right' : 'left'));
+        const al = has(ALIGNS, o.align) ? o.align : (header ? 'center' : (bw.shownNum(txt) != null ? 'right' : 'left'));
         const cs = span(o.colspan), rs = span(o.rowspan);
         return '<' + tag + (cs > 1 ? ' colspan="' + cs + '"' : '') + (rs > 1 ? ' rowspan="' + rs + '"' : '') + ' style="' + TD + 'text-align:' + al +
           (header ? ';font-weight:bold;background:#f2f2f2' : '') + '">' + esc(txt).replace(/\n/g, '<br>') + '</' + tag + '>';
@@ -1513,8 +1538,278 @@
   };
   bw.linearTarget = function (n, idx, delta) { const j = idx + delta; return (idx >= 0 && j >= 0 && j < n) ? j : -1; };
 
+  // ── 이사회 자료 버전 저장(020a) ─────────────────────────────
+  // ui.mat = {id, bidCaseId, snapNo(열 때의 버전 = base_snap_no), base:{ref:{칸키:값}}, numeric:{ref:{칸키:true}}, savedLabel,
+  //           fromExcel, noteOpen, note, saving, err, ok, after}
+  // 서버(BoardMaterialService.NUM)와 같은 숫자 문법: 정수부 13자리, 쉼표 묶음, 소수 2자리.
+  const NUM_SERVER = /^-?(?:\d{1,13}|\d{1,3}(?:,\d{3}){1,3}|\d(?:,\d{3}){4})(?:\.\d{1,2})?$/;
+  bw.isServerNumber = function (v) { return NUM_SERVER.test(str(v).trim()); };
+  // 서버 canonNumber 와 같은 정규형(쉼표·앞 0·소수 끝 0 제거, -0 → 0). 숫자가 아니면 null.
+  bw.canonNumber = function (v) {
+    const t = str(v).trim();
+    if (!NUM_SERVER.test(t)) return null;
+    let s = t.replace(/,/g, ''), neg = false;
+    if (s.charAt(0) === '-') { neg = true; s = s.slice(1); }
+    let ip = s, fp = '';
+    const d = s.indexOf('.');
+    if (d >= 0) { ip = s.slice(0, d); fp = s.slice(d + 1); }
+    ip = ip.replace(/^0+(?=\d)/, '');
+    fp = fp.replace(/0+$/, '');
+    if (ip === '0' && fp === '') return '0';
+    return (neg ? '-' : '') + ip + (fp ? '.' + fp : '');
+  };
+  function valueKey(v) { const c = bw.canonNumber(v); return c == null ? str(v).trim() : c; }   // 저장 뒤 서버 정규형과 화면 값을 같게 비교
+  bw.baseOf = function (snapshot) {   // 저장본(snapshot.tables) → {ref:{칸키:값}}
+    const out = {};
+    (snapshot && Array.isArray(snapshot.tables) ? snapshot.tables : []).forEach(function (t) {
+      if (t && t.ref != null && t.cells && typeof t.cells === 'object' && !Array.isArray(t.cells)) {
+        const c = {};
+        Object.keys(t.cells).forEach(function (k) { c[k] = str(t.cells[k]); });
+        out[str(t.ref)] = c;
+      }
+    });
+    return out;
+  };
+  // 양식에서 엑셀 연결(mapped) 칸 = 서버가 숫자로 검증하는 칸
+  bw.numericKeys = function (form) {
+    const out = {};
+    (form && Array.isArray(form.tables) ? form.tables : []).forEach(function (ft) {
+      const ref = tableRef(ft);
+      (Array.isArray(ft.rows) ? ft.rows : []).forEach(function (row) {
+        (Array.isArray(row) ? row : []).forEach(function (fc) {
+          if (fc && typeof fc === 'object' && fc.mapped === true && str(fc.key) !== '') (out[ref] || (out[ref] = {}))[str(fc.key)] = true;
+        });
+      });
+    });
+    return out;
+  };
+  // 상태 B: 저장본으로 채운 표. 모든 값 칸을 '출처 없는 직접 입력' 칸(manual)으로 만든다.
+  bw.stateFromSaved = function (form, base, o) {
+    const tables = (form && Array.isArray(form.tables) ? form.tables : []).map(function (ft) {
+      const ref = tableRef(ft), saved = base[ref] || {}, cells = [];
+      (Array.isArray(ft.rows) ? ft.rows : []).forEach(function (row) {
+        (Array.isArray(row) ? row : []).forEach(function (fc) {
+          if (!fc || typeof fc !== 'object' || !(fc.mapped === true || fc.input === true) || str(fc.key) === '') return;
+          cells.push({ key: str(fc.key), value: has(saved, str(fc.key)) ? str(saved[str(fc.key)]) : '', status: 'manual', source: null });
+        });
+      });
+      return { ref: ref, cells: cells };
+    }).filter(function (t) { return t.cells.length > 0; });
+    return bw.buildState(form, { tables: tables, sources: [], warnings: [] }, Object.assign({ fileName: '' }, o));
+  };
+  // 상태 C: 엑셀을 올린 뒤에도 직접 입력(manual) 칸은 저장본 값을 이어받는다.
+  bw.adoptManual = function (ws, base) {
+    let out = ws;
+    ws.tables.forEach(function (t) {
+      const saved = base[t.ref];
+      if (!t.mapped || !saved) return;
+      t.order.forEach(function (k) {
+        const c = t.cells[k];
+        if (c && c.manual && has(saved, k)) out = bw.patchCell(out, t.ref, k, { value: str(saved[k]), orig: str(saved[k]) });
+      });
+    });
+    return out;
+  };
+  // 저장하지 않은 수정 칸: 지금 값이 열 때의 저장본 값과 다른 칸(숫자는 정규형으로 비교). 값 칸이 있는 표만 본다.
+  bw.matDirty = function (ws, base) {
+    const out = [];
+    ws.tables.forEach(function (t) {
+      if (!t.mapped) return;
+      const saved = base[t.ref] || {};
+      t.order.forEach(function (k) {
+        if (valueKey(t.cells[k].value) !== valueKey(has(saved, k) ? saved[k] : '')) out.push({ t: t.ref, key: k });
+      });
+    });
+    return out;
+  };
+  // 저장 직전 검사: 연결 칸 값이 서버 숫자 문법에 맞지 않는 칸. 괄호 병기("48.51 (36.85)")·△·%·단위가 붙은 값이 걸린다.
+  bw.numberProblems = function (ws, numeric) {
+    const out = [];
+    ws.tables.forEach(function (t) {
+      const nk = numeric && numeric[t.ref];
+      if (!nk) return;
+      t.order.forEach(function (k) {
+        const v = str(t.cells[k].value).trim();
+        if (nk[k] && v !== '' && !NUM_SERVER.test(v)) out.push({ t: t.ref, key: k });
+      });
+    });
+    return out;
+  };
+  // 숫자 형식 위반 칸에 경고(NUM_FORMAT)를 달아 '확인 필요' 필터·경고 표시에 걸리게 한다(고치면 뗀다).
+  bw.refreshNumWarn = function (ws, numeric) {
+    let out = ws;
+    ws.tables.forEach(function (t) {
+      const nk = numeric && numeric[t.ref];
+      if (!nk) return;
+      t.order.forEach(function (k) {
+        const c = t.cells[k];
+        if (!nk[k]) return;
+        const v = str(c.value).trim(), bad = v !== '' && !NUM_SERVER.test(v), on = c.warns.indexOf('NUM_FORMAT') >= 0;
+        if (bad && !on) out = bw.patchCell(out, t.ref, k, { warns: c.warns.concat(['NUM_FORMAT']) });
+        else if (!bad && on) out = bw.patchCell(out, t.ref, k, { warns: c.warns.filter(function (w) { return w !== 'NUM_FORMAT'; }) });
+      });
+    });
+    return out;
+  };
+  // 저장 뒤의 새 기준: 값 칸이 있는 표는 화면 값, 나머지 표는 기존 저장본 그대로(엑셀에 없던 표의 값이 사라지지 않는다).
+  bw.nextBase = function (ws, base) {
+    const out = {};
+    Object.keys(base).forEach(function (ref) { out[ref] = Object.assign({}, base[ref]); });
+    ws.tables.forEach(function (t) {
+      if (!t.mapped) return;
+      const cells = {};
+      t.order.forEach(function (k) { cells[k] = str(t.cells[k].value).trim(); });
+      out[t.ref] = cells;
+    });
+    return out;
+  };
+  bw.bodyFrom = function (next, snapNo, note) {
+    const out = { base_snap_no: Number(snapNo) > 0 ? Number(snapNo) : 0,
+                  tables: Object.keys(next).map(function (ref) { return { ref: ref, cells: next[ref] }; }) };
+    const n = str(note).trim();
+    if (n) out.note = n;
+    return out;
+  };
+  bw.saveBody = function (ws, base, snapNo, note) { return bw.bodyFrom(bw.nextBase(ws, base), snapNo, note); };
+  // 409 뒤 [내 값으로 다시 저장]: 최신 저장본(latest)을 바탕으로 내가 고친 칸(oldBase 와 다른 칸)만 얹는다.
+  // 내 엑셀에 없던 표·내가 건드리지 않은 칸은 최신 값 그대로다. 값이 서버 숫자 문법이 아닌 칸도 그대로 보낸다(서버가 판정).
+  bw.rebaseBase = function (ws, oldBase, latest) {
+    const out = {};
+    Object.keys(latest || {}).forEach(function (ref) { out[ref] = Object.assign({}, latest[ref]); });
+    bw.matDirty(ws, oldBase).forEach(function (d) {
+      const t = ws.tables.filter(function (x) { return x.ref === d.t; })[0];
+      if (!t || !t.cells[d.key]) return;
+      if (!has(out, d.t)) out[d.t] = {};
+      out[d.t][d.key] = str(t.cells[d.key].value).trim();
+    });
+    return out;
+  };
+  bw.rebaseBody = function (ws, oldBase, latest, snapNo, note) { return bw.bodyFrom(bw.rebaseBase(ws, oldBase, latest), snapNo, note); };
+  // 다시 저장한 뒤 화면에 남은 값 중 남이 고친 칸(내가 고치지 않은 칸)을 저장된 값으로 맞춘다.
+  bw.adoptSaved = function (ws, next) {
+    let out = ws;
+    ws.tables.forEach(function (t) {
+      if (!t.mapped || !has(next, t.ref)) return;
+      t.order.forEach(function (k) {
+        if (!has(next[t.ref], k)) return;
+        const v = str(next[t.ref][k]);
+        if (valueKey(t.cells[k].value) !== valueKey(v)) out = bw.patchCell(out, t.ref, k, { value: v, orig: v });
+      });
+    });
+    return out;
+  };
+  bw.snapshotsUrl = function (id) { return '/board-materials/' + encodeURIComponent(id) + '/snapshots'; };
+  // 감사 헤더(화면·버튼 이름)는 board-material.js 의 상수를 쓴다(서버 허용 목록과 같은 이름을 한 곳에서만 관리).
+  const matMod = (typeof require === 'function' && typeof module !== 'undefined') ? require('./board-material.js') : null;
+  bw.postSnapshot = function (fetchFn, id, body) {
+    const m = matMod || root.boardMat;
+    return reqJson(fetchFn, bw.snapshotsUrl(id), { method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, m.headers(m.UI.WRITE, m.BTN.SAVE)), body: JSON.stringify(body) });
+  };
+  bw.okText = function (b) {
+    const n = Number(b && b.snap_no) || 0;
+    if (b && b.changed === false) return { title: '버전 ' + n + (jong(String(n)) > 0 ? '과' : '와') + ' 값이 같아 새 버전을 만들지 않았습니다.', note: '' };
+    return { title: '버전 ' + n + bw.josaEul(String(n)) + ' 저장했습니다.', note: '담당자 모두가 이 값을 봅니다.' };
+  };
+  const NUM_HINT = '숫자만 넣을 수 있습니다(정수 13자리·소수 2자리까지, 천 단위 쉼표 가능). 괄호·△·단위·% 기호는 뺍니다.';
+  function numErr(count, cells) {
+    return { kind: 'bad_num', title: '숫자 칸 ' + count + '곳의 값이 저장 형식에 맞지 않습니다.', lines: [], mono: '', hint: NUM_HINT,
+             cells: cells, count: count, btns: cells.length ? [['m-goto', '그 칸으로 가기']] : [] };
+  }
+  bw.numberErrorLocal = function (list) {
+    return numErr(list.length, list.map(function (x) { return { t: x.t, key: x.key }; }));
+  };
+  // 저장 실패(res: {status, body, net}) → 오류 상자 내용. 서버 문자열은 모두 화면에서 esc 한다.
+  // ctx: {k(내 수정 칸 수), cur, who, atText} — 409 충돌 안내용.
+  bw.saveError = function (res, ctx) {
+    const c = ctx || {}, status = res ? res.status : 0, d = detailOf(res && res.body);
+    const code = d && typeof d.code === 'string' ? d.code : '', msg = d && typeof d.message === 'string' ? d.message : '';
+    const cells = d && Array.isArray(d.cells)
+      ? d.cells.filter(function (x) { return x && typeof x === 'object' && x.ref != null && x.key != null; }).map(function (x) { return { t: str(x.ref), key: str(x.key) }; }) : null;
+    const count = d && d.count > 0 ? Number(d.count) : (cells ? cells.length : 0);
+    const e = function (kind, title, hint, btns, extra) {
+      return Object.assign({ kind: kind, title: title, lines: [], mono: '', hint: hint || '', cells: cells || [], count: count, btns: btns || [] }, extra || {});
+    };
+    const tolist = [['m-tolist', '목록으로']];
+    if (res && res.net) return e('net', '서버에 연결하지 못해 저장하지 않았습니다.', '고친 값은 이 화면에 그대로 있습니다. 잠시 뒤 다시 눌러 주세요.', [['m-retry', '다시 저장']]);
+    if (status === 409 && code === 'CONFLICT') {
+      const who = [c.who, c.atText].filter(Boolean).join(' · ');
+      const where = c.cur > 0 ? '버전 ' + c.cur + (who ? ' · ' + who : '') + '. ' : '';
+      return e('conflict', '다른 담당자가 먼저 저장했습니다.', where + '내가 고친 ' + (c.k || 0) + '칸은 아직 이 화면에 있습니다.',
+        [['m-latest', '최신 버전 보기'], ['m-force', '내 값으로 다시 저장'], ['m-drop', '내 수정 버리고 최신으로']], { cur: Number(c.cur) || 0 });
+    }
+    if (status === 409 && code === 'MATERIAL_LOCKED') return e('locked', '제출했거나 확정된 자료라 값을 고칠 수 없습니다.', '화면을 새로 고쳐 현재 상태를 확인해 주세요.', [['m-refresh', '새로 고치기']]);
+    if (status === 422 && code === 'PII_DETECTED') {
+      if (cells !== null) {
+        const kinds = (Array.isArray(d.kinds) ? d.kinds : []).map(function (k) { return str(k && k.kind) + ' 형식 ' + (k && k.count) + '건'; }).join(' · ');
+        return e('pii', '개인정보로 보이는 값이 있어 저장하지 않았습니다.', '해당 칸을 지우거나 가린 뒤 다시 저장해 주세요.' + (cells.length ? '' : ' 칸 위치는 표시하지 못했습니다.'),
+          cells.length ? [['m-goto', '확인 필요 칸 보기']] : [], { mono: kinds });
+      }
+      return e('pii_memo', '메모에 개인정보로 보이는 값이 있어 저장하지 않았습니다.', '메모를 고친 뒤 다시 저장해 주세요.');
+    }
+    if (status === 400 && code === 'BAD_VALUE') {
+      if (cells !== null) {
+        if (/100자/.test(msg)) return e('bad_len', '100자를 넘는 칸이 있어 저장하지 않았습니다.', '칸 값은 100자 이하로 입력해 주세요.', cells.length ? [['m-goto', '그 칸으로 가기']] : []);
+        return numErr(count, cells);
+      }
+      if (/메모|사유/.test(msg)) return e('bad_memo', msg, '');
+      return e('generic', msg || '저장하지 못했습니다.', '값을 확인한 뒤 다시 저장해 주세요.');
+    }
+    if (status === 400 && code === 'TOO_MANY_VERSIONS') return e('too_many', '저장 이력이 200개를 넘어 더 저장할 수 없습니다.', '시스템 관리자에게 문의해 주세요.');
+    if (status === 400 && code === 'UI_ID_REQUIRED') return e('ui_id', '화면 오류로 저장하지 못했습니다.', '새로고침한 뒤 다시 저장해 주세요. 고친 값은 새로고침하면 사라지니 [모든 표 복사]로 먼저 옮겨 두세요.', [['copyall', '모든 표 복사']]);
+    if (status === 403) return e('forbidden', '이 자료의 담당자가 아니어서 저장할 수 없습니다.', '담당이 바뀌었을 수 있습니다.', tolist);
+    if (status === 404) return e('notfound', '이 이사회 자료를 찾을 수 없습니다.', '담당에서 빠졌거나 없는 자료입니다.', tolist);
+    if (status === 413) return e('too_large', '저장할 내용이 너무 큽니다.', '긴 문구가 든 칸을 줄여 주세요.');
+    return e('net', '서버에 연결하지 못해 저장하지 않았습니다.', '고친 값은 이 화면에 그대로 있습니다. 잠시 뒤 다시 눌러 주세요.', [['m-retry', '다시 저장']]);
+  };
+  // 화면 조각(작성 줄·저장 메모 줄·오류·성공·요약)
+  bw.matBarHtml = function (ws, ui) {
+    const m = ui.mat, k = ws ? bw.matDirty(ws, m.base).length : 0;
+    const state = k > 0 ? '<span class="bd-dirty" id="bd-m-state">저장하지 않은 수정 ' + k + '칸</span>'
+      : '<span class="bd-clean" id="bd-m-state">' + (m.snapNo > 0 ? '버전 ' + m.snapNo + (jong(String(m.snapNo)) > 0 ? '과' : '와') + ' 같음' : '아직 저장한 버전이 없습니다') + '</span>';
+    const un = ws ? bw.uncheckedTables(ws).length : 0;
+    const canSave = !!ws && k > 0 && !m.saving;
+    const why = !canSave && !m.saving;   // 꺼진 이유를 숨김 글자로 알린다(바뀐 칸이 0)
+    const dropShown = !ws && !ui.upload;   // 드롭존이 보이는 동안은 드롭존이 엑셀 올리기의 주 행동이다
+    return '<div class="bd-editbar bd-writebar" id="bd-writebar" tabindex="-1"><div class="bd-wb-row">' + state + '<span class="bd-wb-btns">' +
+      (dropShown ? '' : '<button type="button" data-w="swap"' + (ui.upload ? ' disabled' : '') + '>' + (m.fromExcel ? '엑셀 바꾸기' : '엑셀 올리기') + '</button>') +
+      '<button type="button" data-w="srcopen"' + (ws && bw.mergeSources(ws).length ? '' : ' disabled aria-describedby="bd-m-srcwhy"') + '>수익성 분석표 보기</button>' +
+      '<span class="bd-sr" id="bd-m-srcwhy">엑셀을 올리면 볼 수 있습니다.</span><span class="bd-wb-gap" aria-hidden="true"></span>' +
+      (ws ? '<button type="button" data-w="copyall">모든 표 복사</button>' + bw.copyAllNoteHtml(ui) : '') +
+      (un > 0 ? '<span class="bd-w-draftwarn" id="bd-w-draftwarn">' + icon('warn') + '확인 안 한 표 ' + un + '개</span>' : '') +
+      '<button type="button" id="bd-w-draft" data-w="draft"' + (un > 0 ? ' aria-describedby="bd-w-draftwarn"' : '') + (ws && !ui.draftBusy ? '' : ' disabled') + '>' +
+      (ui.draftBusy ? '만드는 중…' : '초안 워드 내려받기') + '</button><span class="bd-wb-gap" aria-hidden="true"></span>' +
+      '<button type="button" id="bd-m-save" class="bd-wb-main" data-w="m-save" aria-describedby="bd-m-state' + (why ? ' bd-m-savewhy' : '') + '" aria-expanded="' + (m.noteOpen ? 'true' : 'false') + '"' + (canSave ? '' : ' disabled') + '>' +
+      (m.saving ? '저장하는 중…' : '버전 저장') + '</button>' + (why ? '<span class="bd-sr" id="bd-m-savewhy">엑셀을 올리거나 칸 값을 고치면 저장할 수 있습니다.</span>' : '') + '</span></div>' +
+      '<p class="bd-wb-note">[버전 저장]을 눌러야 값이 저장되고 담당자 모두에게 보입니다. 원본 엑셀과 표 확인 표시는 저장되지 않습니다.</p>' +
+      (ui.draftNote ? '<p class="bd-wb-note' + (ui.draftErr ? ' bd-err' : '') + '" id="bd-w-draftnote" tabindex="-1" role="' + (ui.draftErr ? 'alert' : 'status') + '">' + esc(ui.draftNote) + '</p>' : '') + '</div>';
+  };
+  bw.matNoteHtml = function (ws, ui) {
+    const m = ui.mat, k = bw.matDirty(ws, m.base).length, un = bw.uncheckedTables(ws).length, n = str(m.note).length;
+    return '<div class="bd-confirm" id="bd-m-saverow" role="group" aria-label="버전 저장"><span>바뀐 칸 ' + k + ' · 확인 안 한 표 ' + un + '개(저장은 막지 않습니다)</span>' +
+      '<input type="text" id="bd-m-note" class="bd-m-note" maxlength="200" placeholder="메모(선택) 예: 본부 확정치 반영" aria-label="버전 메모" value="' + esc(m.note) + '">' +
+      '<span class="bd-m-notecnt" id="bd-m-notecnt"' + (n < 160 ? ' hidden' : '') + '>' + n + '/200</span>' +
+      '<button type="button" id="bd-m-saveok" class="bd-wb-main" data-w="m-saveok"' + (m.saving ? ' disabled' : '') + '>' + (m.saving ? '저장하는 중…' : '이 내용으로 저장') + '</button>' +
+      '<button type="button" data-w="m-savecancel"' + (m.saving ? ' disabled' : '') + '>취소</button></div>';
+  };
+  bw.matErrHtml = function (e) {
+    return '<div class="bd-w-rej" id="bd-w-rej" role="alert" tabindex="-1"><strong>' + esc(e.title) + '</strong>' +
+      (e.mono ? '<p class="mono">' + esc(e.mono) + '</p>' : '') + (e.hint ? '<p>' + esc(e.hint) + '</p>' : '') +
+      (e.btns.length ? '<div class="bd-w-rejbtns">' + e.btns.map(function (b) { return '<button type="button" data-w="' + esc(b[0]) + '">' + esc(b[1]) + '</button>'; }).join('') + '</div>' : '') + '</div>';
+  };
+  bw.matOkHtml = function (o) {
+    return '<p class="bd-wb-note" id="bd-m-ok" role="status" tabindex="-1"><strong>' + esc(o.title) + '</strong>' + (o.note ? ' ' + esc(o.note) : '') + '</p>';
+  };
+  bw.matSummaryText = function (ui) {
+    const m = ui.mat;
+    return '버전 ' + m.snapNo + '의 값입니다' + (m.savedLabel ? '(' + m.savedLabel + ' 저장)' : '') + '. 원본과 대조하려면 엑셀을 다시 올려 주세요.';
+  };
+  bw.matSummaryHtml = function (ui) {
+    return '<div class="bd-w-sum" id="bd-w-sum" role="status" tabindex="-1"><span>' + esc(bw.matSummaryText(ui)) + '</span></div>';
+  };
+
   // ── DOM 배선 ─────────────────────────────────────────────
-  // env: {el(id), doFetch, scroller(), ctx()→{id,form}|null, epoch(), who(), now(), exit(focusSelector)}
+  // env: {el(id), doFetch, scroller(), ctx()→{id,form}|null, epoch(), who(), now(), exit(focusSelector), mat?: {kst, saved, head, latest, reload, toList}}
   bw.createController = function (env) {
     let ws = null, formDoc = null, ui = freshUi(), active = false, attached = false;
     let upTok = 0, abortCtl = null, fileInput = null, pointer = false;
@@ -1530,7 +1825,7 @@
       return null;
     }
     function lookup(t, key) { const tb = ws && findT(ws, t); return tb && tb.cells[key] ? { t: tb, c: tb.cells[key] } : null; }
-    function rctx() { return { formName: ui.form ? ui.form.name : '', maxMb: ui.maxMb }; }
+    function rctx() { return { formName: ui.form ? ui.form.name : '', maxMb: ui.maxMb, mat: !!ui.mat }; }
 
     function focusTarget(f) {
       if (!f) return;
@@ -1752,11 +2047,15 @@
       ui.rej = null; ui.upload = { name: file.name }; ui.live = '';
       draw({ id: 'bd-w-abort' });
       abortCtl = typeof AbortController === 'function' ? new AbortController() : null;
-      bw.upload(env.doFetch, ui.form.id, ui.form.isBase ? null : ui.form.version, file, abortCtl ? abortCtl.signal : null).then(function (res) {
+      bw.upload(env.doFetch, ui.form.id, ui.form.isBase ? null : ui.form.version, file, abortCtl ? abortCtl.signal : null, ui.mat ? ui.mat.bidCaseId : null).then(function (res) {
         if (tok !== upTok || ep !== env.epoch() || !active) return;   // 취소·계정 변경·작성 종료 뒤의 응답은 버린다
         ui.upload = null; abortCtl = null;
         if (res.ok && res.body && Array.isArray(res.body.tables)) {
           ws = bw.buildState(formDoc, res.body, { fileName: file.name, formId: ui.form.id, version: ui.form.version });
+          if (ui.mat) {   // 직접 입력 칸은 저장본 값을 이어받고, 숫자 형식 위반 칸에 경고를 단다
+            ws = bw.refreshNumWarn(bw.adoptManual(ws, ui.mat.base), ui.mat.numeric);
+            ui.mat.fromExcel = true; ui.mat.err = null; ui.mat.ok = null;
+          }
           ui.rej = null; ui.sel = null; ui.live = ''; ui.draftNote = ''; ui.draftErr = false; ui.copyNote = null;
           draw({ id: 'bd-w-sum' });
           return;
@@ -1776,7 +2075,9 @@
       ui.draftBusy = true; ui.draftNote = ''; ui.draftErr = false;
       draw({ id: 'bd-writebar' });
       const ep = env.epoch();
-      bw.fetchDraft(env.doFetch, ui.form.id, bw.draftBody(ws, ui.form.isBase ? null : ui.form.version)).then(function (res) {
+      const draftReq = bw.draftBody(ws, ui.form.isBase ? null : ui.form.version);
+      if (ui.mat) draftReq.bid_case_id = ui.mat.bidCaseId;
+      bw.fetchDraft(env.doFetch, ui.form.id, draftReq).then(function (res) {
         if (ep !== env.epoch() || !active) return;
         ui.draftBusy = false;
         if (!res.ok) { ui.draftNote = bw.draftErrorText(res); ui.draftErr = true; draw({ id: 'bd-w-draftnote' }); return; }
@@ -1807,8 +2108,11 @@
       if (bw.hasWork(ws)) { ui.leave = 'end'; draw({ id: 'bd-w-leave-no' }); } else finish();
     }
     function askSwap() {
+      if (ui.mat) { if (ws) { ui.leave = 'excel'; draw({ id: 'bd-w-leave-no' }); } else pickFile(); return; }   // 저장본·작성 값 위에 올리면 먼저 알린다
       if (bw.hasWork(ws)) { ui.leave = 'swap'; draw({ id: 'bd-w-leave-no' }); } else pickFile();
     }
+    // 이탈 확인을 닫은 뒤 포커스를 돌려줄 곳
+    function leaveFocus(k) { return (k === 'swap' || k === 'excel') ? { w: 'swap' } : (k === 'mat' ? { w: 'm-save' } : { id: 'bd-w-end' }); }
 
     // ── ② 수정 ──
     function openEdit(t, key, seed) {
@@ -1838,6 +2142,7 @@
       if (bad) { ui.live = bad; drawStatus(); inp.setAttribute('aria-invalid', 'true'); inp.focus(); return; }
       const before = ws, r = bw.editCell(ws, e0.t, e0.key, inp.value);
       ui.edit = null; ws = r.ws;
+      if (ui.mat) ws = bw.refreshNumWarn(ws, ui.mat.numeric);
       const msgs = [];
       if (r.released) msgs.push(bw.releaseText(r.released, findT(ws, e0.t)));
       bw.recheckLines(before, ws, e0.t, e0.key).forEach(function (m) { msgs.push(m); });
@@ -1858,6 +2163,12 @@
       draw(id === 'OTHER' ? { id: 'bd-w-memo' } : { cell: true });
     }
     function onInput(e) {
+      if (active && ui.mat && e.target && e.target.id === 'bd-m-note') {   // 메모는 다시 그리지 않고 글자 수만 센다(160자부터 보임)
+        ui.mat.note = e.target.value;
+        const cnt = $('bd-m-notecnt'), n = e.target.value.length;
+        if (cnt) { cnt.textContent = n + '/200'; cnt.hidden = n < 160; }
+        return;
+      }
       if (!active || !e.target || e.target.id !== 'bd-w-memo' || !ui.sel) return;
       ws = bw.setWhy(ws, ui.sel.t, ui.sel.key, 'OTHER', e.target.value);   // 다시 그리지 않는다(포커스 유지)
       const n = e.target.value.length, cnt = $('bd-w-memocnt'), hint = $('bd-w-memohint');
@@ -2110,8 +2421,20 @@
         case 'abort': abortUpload(); break;
         case 'swap': askSwap(); break;
         case 'end': askEnd(); break;
-        case 'leave-ok': { const k = ui.leave; ui.leave = null; if (k === 'swap') { draw(null); pickFile(); } else finish(); break; }
-        case 'leave-no': { const k = ui.leave; ui.leave = null; draw(k === 'swap' ? { w: 'swap' } : { id: 'bd-w-end' }); break; }
+        case 'leave-ok': { const k = ui.leave; ui.leave = null; if (k === 'swap' || k === 'excel') { draw(null); pickFile(); } else finish(); break; }
+        case 'leave-no': { const k = ui.leave; ui.leave = null; if (ui.mat) ui.mat.after = null; draw(leaveFocus(k)); break; }
+        case 'leave-save': ui.leave = null; saveThenLeave(); break;
+        case 'leave-drop': { const after = ui.mat && ui.mat.after; if (ui.mat) ui.mat.after = null; ui.leave = null; if (after) after(); else draw(null); break; }
+        case 'm-save': openSave(); break;
+        case 'm-saveok': doSaveVersion(); break;
+        case 'm-savecancel': closeSave(); break;
+        case 'm-retry': doSaveVersion(); break;
+        case 'm-force': forceSave(); break;
+        case 'm-latest': { const cur = ui.mat && ui.mat.err ? ui.mat.err.cur : 0; if (cur > 0 && env.mat && env.mat.latest) env.mat.latest(cur); break; }
+        case 'm-drop': if (env.mat && env.mat.reload) env.mat.reload('내 수정을 버리고 최신 버전을 불러왔습니다.'); break;
+        case 'm-refresh': if (env.mat && env.mat.reload) env.mat.reload('화면을 새로 고쳤습니다.'); break;
+        case 'm-tolist': if (env.mat && env.mat.toList) { if (ui.mat) ui.mat.after = null; env.mat.toList(); } break;
+        case 'm-goto': gotoErr(); break;
         case 'reform': finish('#bd-form'); break;
         case 'perm': if (env.perms) env.perms(); break;
         case 'filter': ws = bw.setFilter(ws, v); draw({ w: 'filter', v: ws.filter }); break;
@@ -2130,7 +2453,7 @@
         case 'revert': {
           if (!ui.sel) break;
           const s = lookup(ui.sel.t, ui.sel.key);
-          if (s) { const r = bw.editCell(ws, ui.sel.t, ui.sel.key, s.c.orig); ws = r.ws; ui.live = bw.releaseText(r.released, findT(ws, ui.sel.t)); }
+          if (s) { const r = bw.editCell(ws, ui.sel.t, ui.sel.key, s.c.orig); ws = r.ws; ui.live = bw.releaseText(r.released, findT(ws, ui.sel.t)); if (ui.mat) ws = bw.refreshNumWarn(ws, ui.mat.numeric); }
           draw({ cell: true });
           break;
         }
@@ -2138,6 +2461,106 @@
         case 'copyall': doCopy('all'); break;
         default: break;
       }
+    }
+
+    // ── 이사회 자료 버전 저장(020a) ──
+    function matDirtyN() { return (ui.mat && ws) ? bw.matDirty(ws, ui.mat.base).length : 0; }
+    function openSave() {
+      const m = ui.mat;
+      if (!m || !ws || m.saving || matDirtyN() === 0) return;
+      const bad = bw.numberProblems(ws, m.numeric);
+      if (bad.length) {   // 서버와 같은 규칙으로 먼저 막는다 — 요청 없이 그 칸으로 간다
+        ws = bw.refreshNumWarn(ws, m.numeric);
+        m.err = bw.numberErrorLocal(bad); m.err.idx = 0; m.noteOpen = false; m.ok = null;
+        ws = bw.setFilter(ws, 'need'); ui.sel = { t: bad[0].t, key: bad[0].key };
+        draw({ cell: true });
+        return;
+      }
+      m.noteOpen = true; m.err = null; m.ok = null;
+      draw({ id: 'bd-m-note' });
+    }
+    function closeSave() { if (!ui.mat) return; ui.mat.noteOpen = false; draw({ w: 'm-save' }); }
+    function doSaveVersion(o) {
+      const m = ui.mat;
+      if (!m || !ws || m.saving) return;
+      const inp = $('bd-m-note');
+      if (inp) m.note = inp.value;
+      // 보통 저장: 지금 화면 값이 새 기준. 다시 저장(o.rebase): 최신 저장본 위에 내가 고친 칸만 얹은 값이 새 기준.
+      const rb = o && o.rebase ? o.rebase : null;
+      const next = rb ? bw.rebaseBase(ws, m.base, rb.latest) : bw.nextBase(ws, m.base);
+      const body = bw.bodyFrom(next, rb ? rb.cur : m.snapNo, m.note), mid = m.id, ep = env.epoch();
+      m.saving = true; m.err = null; m.ok = null; m.sent = { next: next, rebased: !!rb };
+      draw(null);
+      bw.postSnapshot(env.doFetch, mid, body).then(function (res) {
+        if (!active || ep !== env.epoch() || !ui.mat || ui.mat.id !== mid) return;
+        ui.mat.saving = false;
+        if (res.ok) onSaved(res); else onSaveFail(res);
+      });
+    }
+    // [내 값으로 다시 저장]: 최신 저장본을 새로 받아, 내가 고친 칸만 그 위에 얹어 저장한다(다른 담당자가 고친 값은 그대로 둔다).
+    function forceSave() {
+      const m = ui.mat;
+      if (!m || !ws || m.saving || m.forcing || !env.mat || !env.mat.head) return;
+      const mid = m.id, ep = env.epoch();
+      m.forcing = true;
+      env.mat.head(mid).then(function (r) {
+        if (!active || ep !== env.epoch() || !ui.mat || ui.mat.id !== mid) return;
+        m.forcing = false;
+        const x = r.ok ? r.material : null, cur = x ? Number(x.current_snap) : 0;
+        if (!x || !(cur > 0)) {
+          m.err = bw.saveError({ status: 0, net: true }); m.err.idx = 0; draw({ id: 'bd-w-rej' });
+          return;
+        }
+        if (env.mat.setHead) env.mat.setHead(x);
+        doSaveVersion({ rebase: { cur: cur, latest: bw.baseOf(x.snapshot) } });
+      });
+    }
+    function onSaved(res) {
+      const m = ui.mat, b = res.body || {};
+      const sent = m.sent || { next: bw.nextBase(ws, m.base), rebased: false };
+      m.sent = null;
+      m.base = sent.next;
+      if (sent.rebased) ws = bw.adoptSaved(ws, sent.next);   // 남이 고친 칸도 저장된 값으로 화면을 맞춘다
+      m.snapNo = Number(b.snap_no) > 0 ? Number(b.snap_no) : m.snapNo;
+      m.savedLabel = '';   // 앞 버전의 저장자·시각을 요약 줄에 남기지 않는다(머리를 다시 받으면 setSavedLabel 로 채운다)
+      m.noteOpen = false; m.note = ''; m.err = null; m.ok = bw.okText(b);
+      const after = m.after; m.after = null;
+      if (env.mat && env.mat.saved) env.mat.saved(b);
+      if (after) { ui.leave = null; after(); return; }
+      draw({ id: 'bd-m-ok' });
+    }
+    function onSaveFail(res) {
+      const m = ui.mat, d = res.body && res.body.detail, code = (d && typeof d === 'object') ? d.code : '', k = matDirtyN();
+      const show = function (ctx) {
+        m.err = bw.saveError(res, ctx); m.err.idx = 0; m.after = null;
+        m.noteOpen = m.err.kind === 'pii_memo' || m.err.kind === 'bad_memo';   // 메모 문제는 메모 줄을 연 채 포커스
+        draw(m.noteOpen ? { id: 'bd-m-note' } : { id: 'bd-w-rej' });
+      };
+      if (res.status === 409 && code === 'CONFLICT' && env.mat && env.mat.head) {   // 충돌 정보는 최신 머리를 다시 받아 채운다
+        const mid = m.id;
+        env.mat.head(mid).then(function (r) {
+          if (!active || !ui.mat || ui.mat.id !== mid) return;
+          const x = r.ok ? r.material : null, s = x && x.snapshot ? x.snapshot : null;
+          if (x && env.mat.setHead) env.mat.setHead(x);   // 머리(버전·저장자)와 버전 이력 캐시를 최신으로
+          show({ k: k, cur: x ? Number(x.current_snap) : 0, who: s ? s.saved_by_name : '', atText: (s && env.mat.kst) ? env.mat.kst(s.saved_at) : '' });
+        });
+        return;
+      }
+      show({ k: k });
+    }
+    function saveThenLeave() {
+      const m = ui.mat;
+      if (bw.numberProblems(ws, m.numeric).length) { m.after = null; openSave(); return; }   // 숫자 오류가 있으면 나가지 않고 그 칸으로
+      doSaveVersion();   // m.after 는 onSaved 가 부른다
+    }
+    function gotoErr() {
+      const e = ui.mat && ui.mat.err;
+      if (!e || !e.cells.length) return;
+      e.idx = ((e.idx == null ? -1 : e.idx) + 1) % e.cells.length;
+      const c = e.cells[e.idx];
+      if (!lookup(c.t, c.key)) { ui.live = '그 칸을 이 화면에서 찾지 못했습니다.'; drawStatus(); return; }
+      ws = bw.setFilter(ws, 'all'); ui.sel = { t: c.t, key: c.key };
+      draw({ cell: true });
     }
 
     // ── 이벤트 ──
@@ -2177,11 +2600,12 @@
       if (to >= 0 && list[to]) { list[to].focus({ preventScroll: true }); ensureVisible(list[to]); }   // focusin이 선택·툴팁 예약을 한다
     }
     function onEsc(e) {
+      if (ui.mat && ui.mat.noteOpen && e.target && e.target.id === 'bd-m-note') { e.preventDefault(); e.stopPropagation(); closeSave(); return; }
       const a = bw.escAction({ tip: !!tipFor, edit: !!ui.edit, ask: !!ui.ask, reason: !!(e.target && e.target.closest && e.target.closest('.bd-w-whybox')), leave: !!ui.leave, sel: !!ui.sel });
       if (a === 'none') return;
       e.preventDefault(); e.stopPropagation();
       if (a === 'tip') hideTip();
-      else if (a === 'leave') { const k = ui.leave; ui.leave = null; draw(k === 'swap' ? { w: 'swap' } : { id: 'bd-w-end' }); }
+      else if (a === 'leave') { const k = ui.leave; ui.leave = null; if (ui.mat) ui.mat.after = null; draw(leaveFocus(k)); }
       else if (a === 'sel') { bw.releaseSel(ui); applySel(); drawStatus(); }
       else if (a === 'edit') cancelEdit();
       else if (a === 'ask') { ui.ask = null; draw({ cell: true }); }
@@ -2192,6 +2616,7 @@
       if (!active) return;
       if (e.key === 'Escape') { onEsc(e); return; }
       if (e.target && e.target.id === 'bd-w-in') { if (e.key === 'Enter') { e.preventDefault(); commitEdit(); } return; }
+      if (e.target && e.target.id === 'bd-m-note') { if (e.key === 'Enter') { e.preventDefault(); doSaveVersion(); } return; }
       if (e.target && e.target.id === 'bd-w-memo') { if (e.key === 'Enter') { e.preventDefault(); draw({ cell: true }); } return; }
       if (e.target && e.target.getAttribute && e.target.getAttribute('data-w') === 'why' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
         e.preventDefault();
@@ -2240,7 +2665,10 @@
       const f = e.dataTransfer.files && e.dataTransfer.files[0];
       if (f) startUpload(f);
     }
-    function onUnload(e) { if (active && bw.hasWork(ws)) { e.preventDefault(); e.returnValue = ''; } }   // 브라우저 이탈은 기본창(확인창 금지의 유일한 예외)
+    function onUnload(e) {   // 브라우저 이탈은 기본창(확인창 금지의 유일한 예외)
+      const work = ui.mat ? matDirtyN() > 0 : bw.hasWork(ws);
+      if (active && work) { e.preventDefault(); e.returnValue = ''; }
+    }
 
     return {
       attach: function () {
@@ -2307,7 +2735,48 @@
         fileInput = null;
       },
       isActive: function () { return active; },
-      hasWork: function () { return active && bw.hasWork(ws); }
+      hasWork: function () { return active && bw.hasWork(ws); },
+      // ── 이사회 자료(020a) 입구 ──
+      setSavedLabel: function (label) {   // 저장 뒤 받아 온 머리의 저장자·시각을 요약 줄에 채운다(다시 그리지 않는다 — 포커스 유지)
+        if (!active || !ui.mat) return;
+        ui.mat.savedLabel = str(label);
+        const s = $('bd-w-sum'), sp = s && s.querySelector ? s.querySelector('span') : null;
+        if (sp && ws && !ui.mat.fromExcel) sp.textContent = bw.matSummaryText(ui);
+      },
+      startMat: function (c) {   // c: {mat:{id,bidCaseId,snapNo,savedLabel}, form(서버 양식 구조), snapshot|null}
+        if (!c || !c.form || !c.mat) return;
+        if (abortCtl) abortCtl.abort();
+        abortCtl = null; hideTip(); closePop({ silent: true });
+        ws = null; formDoc = c.form; ui = freshUi(); active = true; ++upTok;
+        const myUi = ui;
+        const fid = str(c.form.form_id);
+        ui.form = { id: fid, name: str(c.form.name), version: c.form.version, isBase: bw.isBase(fid) };
+        const base = bw.baseOf(c.snapshot), snapNo = Number(c.mat.snapNo) > 0 ? Number(c.mat.snapNo) : 0;
+        ui.mat = { id: str(c.mat.id), bidCaseId: str(c.mat.bidCaseId), snapNo: snapNo, base: base, numeric: bw.numericKeys(c.form),
+                   savedLabel: str(c.mat.savedLabel), fromExcel: false, noteOpen: false, note: '', saving: false, err: null, ok: null, after: null };
+        if (snapNo > 0) ws = bw.stateFromSaved(c.form, base, { formId: fid, version: c.form.version });   // 상태 B
+        const ep = env.epoch();
+        bw.loadMap(env.doFetch).then(function (m) {
+          if (!active || ep !== env.epoch() || ui !== myUi) return;
+          ui.maxMb = m.maxMb;   // 저장본이 있어도(ws 있음) 업로드 한도는 서버 값으로 맞춘다
+          ui.mapText = bw.mapListText(formDoc.tables, m.tables);
+          if (!ws) { const p = $('bd-w-maplist'); if (p) p.textContent = ui.mapText; }
+        });
+        draw(null);
+        return true;
+      },
+      stopMat: function () {
+        active = false; ++upTok;
+        if (abortCtl) abortCtl.abort();
+        abortCtl = null; hideTip(); closePop({ silent: true }); ws = null; formDoc = null; ui = freshUi();
+      },
+      redraw: function () { if (active) draw(null); },
+      dirtyCount: function () { return active ? matDirtyN() : 0; },
+      askLeave: function (next) {   // 저장하지 않은 수정이 있으면 인라인으로 묻고, 없으면 바로 간다
+        if (!active || !ui.mat || matDirtyN() === 0) { next(); return; }
+        ui.mat.after = next; ui.leave = 'mat';
+        draw({ id: 'bd-w-leave-no' });
+      }
     };
   };
 

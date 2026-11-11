@@ -189,4 +189,21 @@ public class PiiTest {
     public void scanLoose도_긴_입력에서_선형으로_끝난다() {
         assertTrue(Pii.scanLoose(new String(new char[100_000]).replace('\0', 'a')).isEmpty());
     }
+
+    @Test
+    public void scanLoose는_숫자_사이_구분자_연속도_잡는다() {
+        assertEquals("900101-*******", Pii.scanLoose("900101 - 1234567").get(0).getValue());
+        assertEquals("900101-*******", Pii.scanLoose("900101--1234567").get(0).getValue());
+        assertEquals("010-****-5678", Pii.scanLoose("010 - 1234 - 5678").get(0).getValue());
+        assertEquals("010-****-5678", Pii.scanLoose("010\t\t1234  5678").get(0).getValue());
+        for (String v : new String[]{"2026 - 11 - 10", "1,234 - 5,678", "100 - 200", "1234567 - 1234567", "20260101 - 1234567",
+                "900101\n\n1234567"}) {
+            assertTrue(v, Pii.scanLoose(v).isEmpty());
+        }
+    }
+
+    @Test(timeout = 1000)
+    public void 구분자_연속_접기도_선형으로_끝난다() {
+        assertTrue(Pii.scanLoose("1" + new String(new char[100_000]).replace('\0', ' ') + "a").isEmpty());
+    }
 }

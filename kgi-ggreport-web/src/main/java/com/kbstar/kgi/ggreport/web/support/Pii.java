@@ -153,8 +153,12 @@ public final class Pii {
                 b.appendCodePoint(cp);
             }
         }
-        return b.toString();
+        // ⑤ 숫자 사이 구분자 연속("900101 - 1234567", "010 - 1234 - 5678")을 '-' 하나로 접는다(security 하-1, 11-10).
+        // 줄바꿈은 접지 않는다(다른 줄의 숫자를 한 값으로 잇는 오탐 방지). 이메일 변형은 건드리지 않는다.
+        return dotAsDash ? SEP_RUN.matcher(b).replaceAll("-") : b.toString();
     }
+
+    private static final Pattern SEP_RUN = Pattern.compile("(?<=\\d)[ \\t-]{2,}(?=\\d)");
 
     /** Luhn 검사 — 카드번호 오탐(아무 16자리 숫자)을 걸러낸다. */
     static boolean luhn(String digits) {

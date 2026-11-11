@@ -9,6 +9,8 @@
   const board = {};
   const bw = (typeof require === 'function' && typeof module !== 'undefined')
     ? require('./board-write.js') : root.boardWrite;
+  const bm = (typeof require === 'function' && typeof module !== 'undefined')
+    ? require('./board-material.js') : root.boardMat;
 
   // 이 화면이 열리는 사이드바 항목 id(nav.js의 준비중 항목 'soon:<라벨>'). 서버 메뉴 키는 쓰지 않는다.
   board.SOON_ID = 'soon:이사회 자료';
@@ -1490,7 +1492,7 @@
   // 안내 문구(잠김 표시 대신): 편집 막대 바로 아래, 양식 이름 줄 위, 화면에 한 번만.
   board.editGuideHtml = function () {
     return '<div class="bd-edit-guide" id="bd-edit-guide">' +
-      '<p>표 안의 숫자는 예시입니다. 실제 값은 [이 양식으로 작성]에서 엑셀을 올리면 채워집니다.</p>' +
+      '<p>표 안의 숫자는 예시입니다. 실제 값은 이사회 자료 목록에서 자료를 열고 엑셀을 올리면 채워집니다.</p>' +
       '<p>여기서는 표 제목, 행·열 이름, 행과 열의 구성을 고칠 수 있습니다. ' +
       '<span class="bd-swatch" aria-hidden="true"></span>틸 배경과 왼쪽 막대가 있는 칸은 작성할 때 엑셀 값이 들어가는 자리입니다.</p></div>';
   };
@@ -1566,8 +1568,7 @@
     const c = ctx || {};
     if (c.mode === 'write') return '';   // 작성 모드의 버튼은 작성 줄(#bd-writebar, board-write.js)에 있다
     if (c.mode === 'edit') return '<button type="button" id="bd-docx" data-act="docx" disabled>샘플 워드 내려받기</button>';
-    let h = (c.canWrite ? '<button type="button" id="bd-write" data-act="write">이 양식으로 작성</button>' : '') +
-      '<button type="button" id="bd-docx" data-act="docx"' + (c.hasDoc && !c.docxBusy ? '' : ' disabled') + '>샘플 워드 내려받기</button>';
+    let h = '<button type="button" id="bd-docx" data-act="docx"' + (c.hasDoc && !c.docxBusy ? '' : ' disabled') + '>샘플 워드 내려받기</button>';
     if (c.editable) {
       h += '<button type="button" id="bd-edit" data-act="edit">양식 편집</button>';
     } else if (c.canCopy) {
@@ -1583,12 +1584,10 @@
       // 편집도 복제도 못 하는 사람: 버튼이 없는 이유를 한 줄로 알린다(양식을 고르지 않은 빈 화면에는 띄우지 않는다).
       // 권한을 아직 모르거나(목록 응답 전) 알 수 없으면(목록 실패) 띄우지 않는다.
       h += '<span class="bd-hint">양식은 편집 권한이 있는 사람만 고칠 수 있습니다.</span>';
-      h += '<span class="bd-hint">자료 작성은 업무 수정 권한이 있어야 할 수 있습니다.</span>';
     }
     // 양식을 보고 있을 때만: 표의 숫자는 예시라는 안내. 작성 권한이 없는 사람에게는 작성 안내(뒷문장)를 뺀다.
     if (c.hasDoc) {
-      h += '<p class="bd-legend">표의 숫자는 예시입니다.' +
-        (c.canWrite ? ' 틸 배경과 왼쪽 막대가 있는 칸은 엑셀 값이 들어가는 칸으로, [이 양식으로 작성]에서 엑셀을 올리면 채워집니다.' : '') + '</p>';
+      h += '<p class="bd-legend">표의 숫자는 예시입니다. 틸 배경과 왼쪽 막대가 있는 칸은 엑셀 값이 들어가는 칸입니다.</p>';
     }
     return h;
   };
@@ -1614,6 +1613,7 @@
   let mounted = false;    // 한 번이라도 화면을 그렸는가(board.profilePlan)
   let docxBusy = false;   // 워드 생성 중(다시 그려져도 버튼을 끈 채로 둔다)
   let wc = null;          // 작성 모드 컨트롤러(board-write.js)
+  let mc = null;          // 이사회 자료 목록·자료 컨트롤러(board-material.js)
 
   // errorKind: 'local'(저장 전 검증) | 'server'(저장 응답) — 입력으로 지울 수 있는지 가른다(board.shouldClearError).
   // errorTarget: 검증 오류의 위치(board.validateEditAt) — [고치러 가기]가 쓴다. 서버 오류는 ''.
@@ -1630,6 +1630,7 @@
     editUi = freshUi(); catalog = { status: 'idle' }; copyUi = null;
     docxBusy = false;   // 이전 계정의 워드 생성 응답은 onDocx가 epoch로 버린다
     if (wc) wc.reset();   // 작성 중이던 엑셀 값·확인 표시도 버린다
+    if (mc) mc.reset();   // 목록·열린 자료도 버린다(다음 mount 에서 새 계정으로 다시 받는다)
   }
   function say(text) { const m = el('bd-msg'); if (m) m.textContent = text || ''; }
   let limitsNow = null;   // 카탈로그 응답의 행·열·칸 한도(양식 응답에 limits가 없을 때 쓴다)
@@ -1655,6 +1656,7 @@
       canWrite: !!form && canWrite === true
     });
     el('bd-form').disabled = mode !== 'view';
+    const bk = el('bd-f-back'); if (bk) bk.disabled = mode !== 'view';
   }
   function showState(state) { el('bd-body').innerHTML = board.stateHtml(state); }
   function renderView() {
@@ -1775,17 +1777,19 @@
         mode = 'view';
         if (current) renderView(); else renderActions();
         say('');
-        focusFirst([focusSel || '#bd-write', '#bd-docx']);
+        focusFirst([focusSel || '#bd-docx']);
+      },
+      mat: {   // 자료 작성 탭이 쓰는 입구(저장 뒤 머리 갱신·충돌 정보·최신 버전 보기·새로 열기·목록으로)
+        kst: bm ? bm.kst : null,
+        saved: function () { if (mc) mc.afterSaved(); },
+        setHead: function (d) { if (mc) mc.setHead(d); },
+        head: function (id) { return mc ? mc.head(id) : Promise.resolve({ ok: false }); },
+        latest: function (n) { if (mc) mc.showSnap(n); },
+        reload: function (msg) { if (mc) mc.reload(msg); },
+        toList: function () { if (mc) mc.toList(); }
       }
     });
     return wc;
-  }
-  function startWrite() {
-    const c = writeCtl();
-    if (!c || !current || mode !== 'view' || canEdit !== true) return;
-    mode = 'write'; copyUi = null; say('');
-    renderActions();
-    c.start();
   }
 
   function onDocx() {
@@ -2316,7 +2320,7 @@
     const act = b.getAttribute('data-act');
     if (act === 'docx') onDocx();
     else if (act === 'edit') startEdit();
-    else if (act === 'write') startWrite();
+    else if (act === 'tolist') leaveForms();
     else if (act === 'copy') {
       copyUi = { name: str(current && current.form.name) + ' 사본', error: '', busy: false };
       renderActions();
@@ -2330,17 +2334,77 @@
     if (t && t.id === 'bd-copyname' && copyUi) copyUi = Object.assign({}, copyUi, { name: t.value });
   }
 
+  // 양식 보기·편집 화면으로(목록의 [양식 보기·편집]). 서버 양식 목록을 다시 받고 지금 선택을 연다.
+  function enterForms() {
+    const m = matCtl();
+    if (!m) return;
+    m.showForm();
+    const sel = el('bd-form');
+    const v = sel ? sel.value : '';
+    openForm(v);
+    refreshForms(v);
+  }
+  // 양식 화면 → 목록. 보기 모드일 때만(편집 중에는 [편집 끝내기]로 먼저 끝낸다).
+  function leaveForms() {
+    if (mode !== 'view') return;
+    token++; current = null; copyUi = null;
+    say('');
+    renderActions();
+    const m = matCtl();
+    if (m) m.leaveForm();
+  }
+  function matCtl() {
+    if (mc || !bm || !bm.createController) return mc;
+    mc = bm.createController({
+      el: el, doFetch: doFetch, epoch: function () { return epoch; },
+      me: function () {
+        const s = (root.store && root.store.loadSession && root.store.loadSession()) || {};
+        const p = (root.store && root.store.loadProfile && root.store.loadProfile()) || {};
+        return { emp: str(s.emp), name: str(p.name), role: str(p.team).trim() };
+      },
+      records: function () { return (root.store && root.store.loadData && root.store.loadData()) || []; },
+      regionNames: function () { return (root.render && root.render.REGION_NAME) || {}; },
+      nowYear: function () { return new Date().getFullYear(); },
+      forms: function () { return forms; },
+      loadForms: function () { return refreshForms(current ? current.id : ''); },
+      toForms: enterForms,
+      teamBtn: function () {   // 제안팀 구성·배정 메뉴 버튼(그 메뉴가 보이는 사람에게만 있다)
+        const id = root.tm && root.tm.SOON_ID, items = document.querySelectorAll('.nav-item');
+        for (let i = 0; i < items.length; i++) if (id && items[i].dataset && items[i].dataset.nav === id) return items[i];
+        return null;
+      },
+      write: {
+        start: function (c) { const w = writeCtl(); return !!(w && w.startMat && w.startMat(c)); },
+        redraw: function () { if (wc) wc.redraw(); },
+        stop: function () { if (wc) wc.stopMat(); },
+        dirty: function () { return wc ? wc.dirtyCount() : 0; },
+        askLeave: function (next) { if (wc) wc.askLeave(next); else next(); },
+        setSavedLabel: function (label) { if (wc) wc.setSavedLabel(label); },
+        active: function () { return !!(wc && wc.isActive()); }
+      }
+    });
+    return mc;
+  }
+
   board.mount = function () {
     const sel = el('bd-form');
+    const m = matCtl();
     if (sel) {
       // 이미 그렸으면 선택값을 날리지 않는다. 계정이 바뀌었으면 상태를 버리고 다시 그린다.
       if (whoNow() !== who) { board.onProfileChange(); return; }
-      refreshForms(current ? current.id : sel.value);   // 다른 곳에서 만든 양식·권한 변화를 반영
+      if (m) m.mount();   // 목록이면 다시 받는다. 자료·양식 화면은 그대로 둔다.
+      if (!m || m.view() === 'form') refreshForms(current ? current.id : sel.value);   // 다른 곳에서 만든 양식·권한 변화를 반영
       return;
     }
     who = whoNow();
     mounted = true;
+    const backRow = el('bd-f-backrow');   // 제목 위 한 줄(자료 화면의 ← 목록과 같은 자리)
+    if (backRow) {
+      backRow.innerHTML = '<button type="button" class="link-btn" id="bd-f-back" data-act="tolist">← 이사회 자료 목록</button>';
+      backRow.onclick = onControlsClick;
+    }
     el('bd-controls').innerHTML =
+      (backRow ? '' : '<button type="button" class="link-btn" id="bd-f-back" data-act="tolist">← 이사회 자료 목록</button>') +
       '<label>양식 <select id="bd-form">' + board.formOptionsHtml([], '') + '</select></label>' +
       '<span id="bd-actions" class="bd-actions"></span>' +
       '<span id="bd-msg" role="status" aria-live="polite"></span>';
@@ -2361,7 +2425,7 @@
     const wcl = writeCtl(); if (wcl) wcl.attach();
     renderActions();
     showState({ status: 'idle' });
-    refreshForms('');
+    if (m) m.mount(); else refreshForms('');   // 첫 화면은 이사회 자료 목록
   };
   // 계정(프로필)이 바뀌면 이전 계정의 목록·권한·편집 중 내용을 버린다(app.js onProfileChanged에서 부른다).
   // 화면이 보이고 있으면 새 계정으로 다시 그린다. 로그아웃(k==='')이면 비워 두기만 한다.
@@ -2373,7 +2437,8 @@
     const r = el('bd-root');
     const plan = board.profilePlan(mounted, k, !!(r && r.style.display !== 'none'));
     if (plan === 'none') return;
-    const c = el('bd-controls'), b = el('bd-body');
+    const c = el('bd-controls'), b = el('bd-body'), br = el('bd-f-backrow');
+    if (br) br.innerHTML = '';
     if (c) c.innerHTML = '';
     if (b) b.innerHTML = '';
     if (plan === 'redraw') board.mount();   // #bd-form이 사라졌으므로 처음부터 다시 그린다

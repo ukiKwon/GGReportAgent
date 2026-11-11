@@ -167,7 +167,7 @@ test('editHtml: 매핑 칸은 입력 없이 틸 칸(잠김 표시·tabindex·ari
   assert.ok(h.includes('<input type="text" class="bd-cell-in" data-key="r1c0"'));
   assert.ok(!h.includes('data-key="r1c1"'));
   assert.ok(!/<textarea/.test(h));
-  assert.ok(h.includes('표 안의 숫자는 예시입니다. 실제 값은 [이 양식으로 작성]에서 엑셀을 올리면 채워집니다.'));
+  assert.ok(h.includes('표 안의 숫자는 예시입니다. 실제 값은 이사회 자료 목록에서 자료를 열고 엑셀을 올리면 채워집니다.'));
   assert.ok(h.includes('여기서는 표 제목, 행·열 이름, 행과 열의 구성을 고칠 수 있습니다.') && h.includes('틸 배경과 왼쪽 막대가 있는 칸은 작성할 때 엑셀 값이 들어가는 자리입니다.'));
   assert.strictEqual(h.split('id="bd-edit-guide"').length - 1, 1);   // 화면에 한 번만
   assert.ok(h.indexOf('id="bd-edit-guide"') > h.indexOf('id="bd-editbar"') && h.indexOf('id="bd-edit-guide"') < h.indexOf('id="bd-name"'));
@@ -493,7 +493,7 @@ test('formsFromList: can_write만 켜지면 작성 가능·수정 불가, can_ed
   let r = await board.loadForms(function () { return Promise.resolve(res(true, 200, { items: [], can_edit: false, can_write: true })); });
   let f = board.formsFromList(r);
   assert.deepStrictEqual([f.canWrite, f.canEdit], [true, false]);
-  assert.ok(board.actionsHtml({ mode: 'view', hasDoc: true, canWrite: f.canWrite }).includes('bd-write'));
+  assert.ok(!board.actionsHtml({ mode: 'view', hasDoc: true, canWrite: f.canWrite }).includes('bd-write'));
   r = await board.loadForms(function () { return Promise.resolve(res(true, 200, { items: [], can_edit: true })); });
   f = board.formsFromList(r);
   assert.deepStrictEqual([f.canWrite, f.canEdit], [false, true]);

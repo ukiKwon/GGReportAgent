@@ -72,6 +72,7 @@
   <a href="#c11">⑪ 게이트 승인·반려 영업부장만</a>
   <a href="#c12">⑫ 제안팀 구성·배정 화면</a>
   <a href="#c13">⑬ 사이드바 메뉴 재편</a>
+  <a href="#c14">⑭ 이사회 자료 목록·버전 저장</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -333,6 +334,38 @@
       <p class="legend-note">업무 대분류 <span class="num good">5</span>개, 항목 <span class="num good">28</span>개(구현 11·준비중 <span class="num good">17</span>). 제안팀 구성·배정은 '작성' 소분류로 옮겼습니다. 협약·관계 관리는 항목이 2개라 소제목 없이 보입니다. 긴 이름('제안서 사전준비 프로세스')은 말줄임 대신 어절 단위로 두 줄까지 줄바꿈합니다. 재무·전산팀에 보이던 '팀 간 지원 요청'이 사라졌습니다. 이름은 사용자가 정한 것이고 나중에 다듬습니다.</p>
     </div></div></div>
   </div>
+</section>
+
+<section class="ch" id="c14">
+<h2>⑭ 이사회 자료 — 목록에서 시작, 버전으로 저장 (2026-11-10, 020a)</h2>
+<div class="why">왜: 이사회 자료는 '기관+연도마다 1건'을 담당자 여럿이 함께 고쳐 쌓는 문서가 됐습니다. 이전 화면은 양식을 골라 엑셀을 올리고 워드를 내려받으면 끝나는 일회성 도구여서 저장이 없었습니다. 담당자가 [이 양식으로 작성]을 눌러도 반응이 없었고, 영업부장에게는 '권한 없음'이 떴습니다.</div>
+<div class="ba">
+  <div class="col before"><header>전</header><div class="body"><div class="mock">
+    <p><b>이사회 자료</b> <span class="hint12">— 양식을 고르면 문서가 표로 표시됩니다</span></p>
+    <p>양식 <span class="btn">기본 양식 ▾</span><span class="btn">이 양식으로 작성</span><span class="btn">샘플 워드 내려받기</span></p>
+    <p class="hint12">자료 작성은 업무 수정 권한이 있어야 할 수 있습니다. <span class="bad">(작성 버튼과 같은 줄에 함께 표시)</span></p>
+    <div class="card" style="border-left:3px solid var(--teal)"><b style="font-size:12px">자료 작성 중 · 기본 양식 · 원본 x.xlsx(저장 안 됨)</b><br>
+      <span class="btn">엑셀 바꾸기</span><span class="btn">모든 표 복사</span><span class="btn" style="border-color:var(--teal)">초안 워드 내려받기</span><span class="btn">작성 끝내기</span>
+      <div class="hint12">이 작업은 저장되지 않습니다. 새로고침하거나 창을 닫으면 확인·수정한 내용이 사라집니다.</div></div>
+    <p class="hint12">영업부장: "이 기능을 쓸 권한이 없습니다."</p>
+    <p class="legend-note">첫 화면이 '양식 고르기'였습니다. 자료 단위로 들어가는 입구도, 저장도, 이어 쓰기도 없었습니다. 담당자의 [이 양식으로 작성]은 버튼이 보이는 기준(작성 권한)과 실행 기준(수정 권한)이 달라 눌러도 아무 일이 없었습니다.</p>
+  </div></div></div>
+  <div class="col after"><header>후</header><div class="body"><div class="mock">
+    <p><b>이사회 자료</b> <span class="hint12">담당 입찰 건의 이사회 자료를 만들고 버전으로 저장합니다</span> <span style="float:right"><span class="hint12" style="text-decoration:underline">양식 보기·편집</span> <span class="btn" style="border-color:var(--teal)">새 이사회 자료</span></span></p>
+    <p class="hint12">검색: 기관명 · 상태 · 담당자 이름 · 연도 <span class="num" style="float:right">1건</span></p>
+    <table class="tbl"><tr><th>기관명</th><th>연도</th><th>상태</th><th>담당자</th><th>마지막 저장</th><th>버전</th></tr>
+      <tr><td style="text-align:left;font-family:inherit"><b>노원구</b></td><td>2026</td><td style="text-align:left"><span class="pill" style="color:var(--muted);border-color:var(--ls)">준비 중</span></td><td style="text-align:left;font-family:inherit;color:var(--muted)">윤서준, <b style="color:var(--fg);font-weight:400">김영업</b>, 배지아</td><td style="text-align:left;font-family:inherit;color:var(--muted)">저장 전</td><td>—</td></tr></table>
+    <div class="card"><span class="hint12" style="text-decoration:underline">← 이사회 자료 목록</span><br>
+      <b>노원구 2026년 이사회 자료</b> <span class="pill" style="color:var(--fg);border-color:var(--ls);background:var(--panel2)">작성 중</span><br>
+      <span class="hint12">버전 3 · 김영업 <span class="num">11-10 17:24</span> 저장 · 담당 윤서준, 김영업, 배지아</span>
+      <p style="margin:6px 0;font-size:12px"><b style="border-bottom:2px solid var(--teal)">작성</b> &nbsp; <span style="color:var(--muted)">버전 이력 3</span> &nbsp; <span style="color:var(--muted)">작업 이력</span></p>
+      <div class="card" style="border-left:3px solid var(--teal);margin:0"><span style="color:#d9a05b;font-size:12px">저장하지 않은 수정 4칸</span>
+        <span style="float:right"><span class="btn">엑셀 바꾸기</span><span class="btn">초안 워드 내려받기</span><span class="btn" style="border-color:var(--teal)">버전 저장</span></span>
+        <div class="hint12" style="clear:both">[버전 저장]을 눌러야 값이 저장되고 담당자 모두에게 보입니다.</div></div></div>
+    <p class="hint12">영업부장: 모든 자료를 읽기 전용으로 봅니다(버튼 없음). 담당이 아닌 사람: "담당으로 배정된 입찰 건의 이사회 자료만 볼 수 있습니다."</p>
+    <p class="legend-note">첫 화면이 <b>자료 목록</b>이 됐습니다. 담당자는 [새 이사회 자료]에서 담당 입찰 건과 연도를 고르고, 이미 있으면 버튼이 [자료 열기]로 바뀝니다. 작성 줄의 [작성 끝내기]는 <b>[버전 저장]</b>으로 바뀌었습니다(메모 200자까지, 담당자 모두에게 공유). 다른 담당자가 먼저 저장하면 "다른 담당자가 먼저 저장했습니다."와 함께 [최신 버전 보기] [내 값으로 다시 저장] [내 수정 버리고 최신으로]가 나옵니다. 상태 배지: 준비 중은 회색 글자(<span class="num good">7.2</span>:1), 작성 중은 잉크 글자(<span class="num good">11.9</span>:1). [버전 저장]은 채운 버튼이 아니라 틸 테두리(<span class="num good">7.0</span>:1)이고, 꺼졌을 때 글자 대비는 <span class="num good">4.65</span>:1입니다. 새 색은 없습니다. 표 확인·원본 팝업·칸 스포트라이트는 그대로입니다. 양식 화면의 [이 양식으로 작성]과 권한 안내는 지웠습니다. 제출·확정·의결 결과 버튼은 다음 단계(020b)에서 보입니다.</p>
+  </div></div></div>
+</div>
 </section>
 
 <p class="foot">추가 규칙: 이 파일은 화면(마크업·CSS·문구·메뉴)이 바뀌는 커밋마다 새 장(section.ch)을 아래에 이어 붙이고, design-reviewer가 커밋 전 확인합니다(CLAUDE.md 5절). 근거 보고서: handoff/agents/design-reviewer/.</p>

@@ -475,12 +475,12 @@ test('loadMap: 실패해도 기본 한도로 계속', async function () {
   r = await bw.loadMap(function () { return Promise.resolve({ ok: false, status: 403, json: function () { return Promise.resolve({ detail: { code: 'FORBIDDEN' } }); } }); });
   assert.strictEqual(r.ok, false); assert.strictEqual(r.maxMb, 5);
 });
-test('board.js 연결: 쓰기 버튼은 canWrite일 때만, 작성 모드는 버튼 줄이 비고, 권한 없음 안내 둘', function () {
-  assert.ok(board.actionsHtml({ mode: 'view', hasDoc: true, canWrite: true }).includes('id="bd-write" data-act="write">이 양식으로 작성'));
-  assert.ok(!board.actionsHtml({ mode: 'view', hasDoc: true }).includes('bd-write'));
+test('board.js 연결: [이 양식으로 작성] 버튼과 업무 수정 권한 안내는 없다, 작성 모드는 버튼 줄이 비고, 편집 권한 안내는 그대로', function () {
+  assert.ok(!board.actionsHtml({ mode: 'view', hasDoc: true, canWrite: true }).includes('bd-write'));
+  assert.ok(!board.actionsHtml({ mode: 'view', hasDoc: true, canWrite: true }).includes('이 양식으로 작성'));
   assert.strictEqual(board.actionsHtml({ mode: 'write', hasDoc: true, canWrite: true }), '');
   const h = board.actionsHtml({ mode: 'view', hasDoc: true, editable: false, canCopy: false, perm: 'no' });
-  assert.ok(h.includes('자료 작성은 업무 수정 권한이 있어야 할 수 있습니다.') && h.includes('양식은 편집 권한이 있는 사람만 고칠 수 있습니다.'));
+  assert.ok(!h.includes('자료 작성은 업무 수정 권한이 있어야 할 수 있습니다.') && h.includes('양식은 편집 권한이 있는 사람만 고칠 수 있습니다.'));
 });
 test('board-write.js: 확인창·브라우저 저장소·원시 특수 코드포인트가 없다', function () {
   const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'board-write.js'), 'utf8');
