@@ -13,7 +13,7 @@
 ## 미해결 이슈 상기 (사용자 지시 11-11: 반드시 기록하고 다음에 반드시 다시 알린다 — 세션 첫 답변에서 핵심 3~5줄 말할 것)
 해소하면 이 목록과 NEXT 항목에서 지우고 done.md로. 정본 세부는 괄호 안 NEXT 번호.
 - **[보안·위험 수용] SSO 전 운영에서 기관장 기능 켜 둠**(사용자 결정) — 자기신고 사번만으로 원문 열람·충돌 해소·사진 교체 가능. SSO(NEXT 35) 전 정보보호 확인 필요(NEXT 77).
-- **[기관장 서버 026 미커밋 수정 중]** qa P1 금지어 오탐(재난안전과장·과학기술정보통신부·이름 고희정 등), 교체 시 옛 후보 정리, config-envs 운영 photo-dir 절대경로, security 중 3건(자기 값 지키기 우회·PNG 청크 폭탄·저장 경로) — 수정 후 mvn·커밋, 로컬 MySQL 026 적용 명령 안내(NEXT 77).
+- **[기관장 서버 4daec38 커밋, 남은 것]** 로컬 MySQL에 026 미적용(사용자 터미널: `mysql -u root -p --default-character-set=utf8mb4 ggreportdb < kgi-ggreport-web/src/main/resources/db/mysql/026_inst_head.sql`), 각 PC `config/application.properties`에 `ggreport.inst-head.*` 키 3개 추가(CLAUDE.md 3ⓓ), 운영 photo-dir 실제 절대경로(prod·stg 자리표시), 미룬 qa 3-7(본문 없는 POST 감사 누락)·3-10(사유에 칸 값 원문 금지 미시행), 2단계 반입 importRows에 금지 패턴·PII 동일 적용, 금지어 목록 기획 확정, 화면(기관장 카드) 미구현(NEXT 77).
 - **[실화면 미확인]** 지도 색 섞기(⑱)·현황판 재설계(⑲)·로그인 슬라이드(⑳) 모두 브라우저 렌더 확인 못 함(Playwright 'already in use') — 1366×768·1920 넘침, 대비 실측, 진행 막대(NEXT 77·78).
 - **[로그인 슬라이드 데이터 낡음]** 서울 임박 지도 장은 11-20 뒤 자동 제외, 마포 접수(11-16~19) 뒤 문구·관악·성북 결과 확인(frontend/data/login-slides.js).
 - **[지도 비지자체 미연결]** institutions_nonmuni.js(124곳, 9f)를 지도·현황판 allInstitutions에 아직 안 합침, subRegion 비어 시도 면만, 개원 예정 법원 제외 처리(NEXT 78).
