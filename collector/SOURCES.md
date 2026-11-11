@@ -30,7 +30,7 @@
 | P5 | **공탁금 보관은행 공고 감시** | 월 1회(공고는 연 수 건, 7~11월) | S5 | 목록 확인은 가능, hwp 본문은 변환기 필요 |
 | P6 | **교육청 교육금고** | 연 1회(대부분 2028·2029 말 만료 — 그 전해 중반) | S8·S4 | 시도 전 |
 | P7 | **기관코드 갱신**(폐지·신설, 예: 전남광주 통합·인천 신설 구) | 분기 1회 | S7 | 가능(파일 대조) |
-| P8 | **공공기관·공기업 주거래은행 공고** | 주 1회 | S9 | **인증키가 있어야 가능**(조달청 OpenAPI) — 사용자 결정 |
+| P8 | **공공기관·공기업 주거래은행 공고** | 주 1회 | S9 | **가능 — 인증키 확보(2026-11-11, collector/.env.local).** 소스(sources/g2b.py) 구현 남음. 1주 창 × 검색어당 1회, 하루 1000회 한도 안 |
 | P9 | 근사 기준일을 원문으로 교체(기사 기준 수십 곳) | 틈날 때 | S1·S2 | 반자동 |
 
 **가까운 일정(달력)**: 마포 접수 마감 11-19 뒤 결과 공고 · 약정 2026-12-31 만료인데 결과를 못 찾은 11곳(가평·양평·오산·하남·경산·문경·광주 광산·서구·담양·부여·진안) 11~12월 재조회 · 법원 2021 공개경쟁 묶음(전주·춘천·강릉 등) 2026-12 만료 차기 공고.
@@ -39,6 +39,7 @@
 
 - **실행**: `C:\dev\python\python.exe -m collector run --source eminwon [--since YYYY-MM-DD] [--hosts 호스트|기관key,…]` — 결과는 `data/collector/`(git 제외): 배치 `<시각>_eminwon/`(manifest·files), 원문 `_raw/eminwon/<호스트>/<공고번호>/`, 상태 `_state/state.json`(이미 본 공고·실행 기록). stdout 한 줄 JSON, 종료 코드 0/1/2/3/4. 콘솔이 cp949면 `PYTHONIOENCODING=utf-8`.
 - **구성**: `collector/sources/eminwon.py`(소스) · `eminwon_parse.py`(실측 3유형 목록 파서) · `config/eminwon_hosts.json`(94 호스트 — 기관 key 연결) · `extract/`(종류 판정·hwpx 본문·약정기간) · `pipeline.py`·`cli.py`·`state.py`·`store.py`·`httpclient.py`. 배치에 `notice`(공고 사실)·`candidate`(기관 일정 '후보', 값마다 근거 문장) 칸 — 계약 검증기(`contract/batch_schema.py`)가 검사.
+- **호스트 설정 만든 방법**: frontend/data/institutions.js 레코드 sources의 eminwon URL(73) + 2026-11-11 curl로 조회가 통한 호스트(지자체 key와 수동 연결)를 합쳐 생성 — 갱신할 때도 같은 두 출처를 합친다(생성 스크립트는 스크래치였음, 다음에 tools/로 옮길 것).
 - **시험**: `python -m pytest collector -q`(실측 fixture, 네트워크 없음). 실측 3곳 시험(마포·순창·제물포) 25초, 마포 계획 공고 첨부에서 새 약정 2027~2030을 자동 추출.
 - **Python**: `C:\dev\python`(3.12.7 embeddable, 2026-11-11 설치) + `Lib/site-packages/ggreportagent.pth`(저장소 경로). 패키지: pytest·fastapi·pydantic·httpx·python-multipart·uvicorn.
 - **남은 것**: 나라장터 소스(`sources/g2b.py`, S9 조건대로 1주 창·하루 1000회 한도), 작업 스케줄러 등록(공고 철 주 1회), 미리보기 보고서(데이터 파일과 비교), xlsx 포장(운영 반입용).
