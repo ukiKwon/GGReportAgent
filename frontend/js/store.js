@@ -34,7 +34,8 @@
   // 덮으면 타 사용자의 서버 변경이 화면에 영영 안 나온다(계획 B 최종리뷰 F4).
   // logic.ALL_FIELDS의 부분집합이지만 여기 두는 이유: store.js는 다른 모듈을 참조하지
   // 않는 구조라, 전역/require 이중 참조를 만드는 대신 자체 상수로 둔다.
-  store.LOCAL_ONLY_FIELDS = ['subRegion', 'confirmed', 'lng', 'lat', 'sources', 'updatedAt'];
+  // contractExpiry(약정 만료일, NEXT 14)도 서버 칸이 없어 overlay가 저장처다.
+  store.LOCAL_ONLY_FIELDS = ['subRegion', 'confirmed', 'contractExpiry', 'lng', 'lat', 'sources', 'updatedAt'];
 
   store.loadEdits = function () { return read(EDIT_KEY, {}); };
   // 저장은 필터링하지 않는다 — 서버↔폴백을 오가도 로컬 편집 이력이 보존돼야 하고,

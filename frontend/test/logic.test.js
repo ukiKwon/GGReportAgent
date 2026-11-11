@@ -95,7 +95,7 @@ test('esc: 일반 문자열/숫자는 그대로(문자열화만)', () => {
 
 test('ALL_FIELDS: 신규 스키마 필드', () => {
   assert.deepStrictEqual(logic.ALL_FIELDS,
-    ['name','type','region','subRegion','term','lastBid','contractEnd','confirmed','lng','lat','sources','updatedAt']);
+    ['name','type','region','subRegion','term','lastBid','contractEnd','confirmed','contractExpiry','lng','lat','sources','updatedAt']);
 });
 
 test('formatBidDate: 괄호 표기', () => {
@@ -120,15 +120,33 @@ test('addYears: 정수 년 더하기', () => {
 test('effectiveBid: 확정/추측/미상 유도', () => {
   // 확정: 날짜 + confirmed
   assert.deepStrictEqual(logic.effectiveBid({ contractEnd:'2026-12-03', confirmed:true }),
-    { date:'2026-12-03', confidence:'확정' });
+    { date:'2026-12-03', confidence:'확정', basis:'notice' });
   // 추측: 날짜 있으나 confirmed 아님(기본)
   assert.deepStrictEqual(logic.effectiveBid({ contractEnd:'2026-12-03' }),
-    { date:'2026-12-03', confidence:'추측' });
+    { date:'2026-12-03', confidence:'추측', basis:'notice' });
   // 추측: 날짜 없고 지난입찰일+주기 → 계산
   assert.deepStrictEqual(logic.effectiveBid({ lastBid:'2022-12-05', term:2 }),
-    { date:'2024-12-05', confidence:'추측' });
+    { date:'2024-12-05', confidence:'추측', basis:'cycle' });
   // 미상: 아무것도 없음
   assert.deepStrictEqual(logic.effectiveBid({}), { date:null, confidence:'미상' });
+});
+
+test('effectiveBid: 약정 만료 기준(NEXT 14) — 만료 6개월 전, 둘 다 있으면 이른 쪽', () => {
+  // 만료만: 12-31 만료 → 같은 해 06-30
+  assert.deepStrictEqual(logic.effectiveBid({ contractExpiry:'2026-12-31' }),
+    { date:'2026-06-30', confidence:'추측', basis:'expiry' });
+  // 연도만: 그해 12-31로 본다
+  assert.strictEqual(logic.effectiveBid({ contractExpiry:'2028' }).date, '2028-06-30');
+  // 주기 추정(2030-10-22)이 만료 기준(2029-06-30)보다 늦으면 만료 기준
+  assert.strictEqual(logic.effectiveBid({ lastBid:'2026-10-22', term:4, contractExpiry:'2029-12-31' }).basis, 'expiry');
+  // 주기 추정이 더 이르면 주기
+  assert.strictEqual(logic.effectiveBid({ lastBid:'2025-03-14', term:4, contractExpiry:'2029-12-31' }).basis, 'cycle');
+  // 실제 뜬 공고(contractEnd)는 언제나 우선
+  assert.strictEqual(logic.effectiveBid({ contractEnd:'2026-10-29', confirmed:true, contractExpiry:'2026-12-31' }).basis, 'notice');
+  // 화면 표기
+  assert.strictEqual(logic.formatBidDateLabel({ contractExpiry:'2027-12-31' }), '2027-06-30(추정·약정 만료 기준)');
+  // 말일 보정
+  assert.strictEqual(logic.addMonths('2026-08-31', -6), '2026-02-28');
 });
 
 test('urgencyOf: effectiveBid 기반', () => {

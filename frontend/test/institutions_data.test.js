@@ -247,7 +247,7 @@ test('모든 레코드가 출처를 가진다 — 근거 없는 행은 두지 �
     // 날짜가 없는(진짜 못 찾은) 레코드까지 URL을 강제하면, 검색해도 안 나오는 곳에
     // 억지로 무관한 URL을 채워 넣는 역효과가 생긴다 — 대신 "찾아봤다"는 사실 자체는
     // 문구로 남기게 한다(침묵과 "검색했으나 없음"을 구분).
-    if (r.lastBid || r.contractEnd) {
+    if (r.lastBid || r.contractEnd || r.contractExpiry) {
       assert.ok(hasUrl, r.name + ': 날짜를 주장하는데 출처에 URL이 없다');
     } else if (!hasUrl) {
       const attempted = r.sources.some(function (s) { return /검색|조사|확인|미확보|미확인/.test(s); });
@@ -329,4 +329,19 @@ test('병합 전제: 서울 25개 구 이름은 다른 지역과 겹치지 않�
   assert.deepStrictEqual(collisions, [],
     '서울 구 이름과 같은 지자체가 다른 지역에 생겼다 — mergeUnion이 이름만 보므로 ' +
     '지역까지 보는 키로 바꿔야 한다');
+});
+
+// NEXT 14(2026-11-11): 약정 만료일은 행안부 금고지정 현황(2026.1.1. 기준)에서 온다 —
+// 형식(YYYY-MM-DD 또는 YYYY)과 범위(2026년 이후)만 지킨다. 2026 회차가 끝난 기관은
+// 낡은 약정이라 넣지 않았으므로, 마지막 회차(lastBid)보다 이른 만료일이 있으면 안 된다.
+test('약정 만료일(contractExpiry) — 형식·범위, 끝난 회차보다 이르지 않다', function () {
+  let n = 0;
+  institutions.forEach(function (r) {
+    if (!r.contractExpiry) return;
+    n++;
+    assert.match(String(r.contractExpiry), /^\d{4}(-\d{2}-\d{2})?$/, r.name + ': 약정 만료일 형식');
+    assert.ok(String(r.contractExpiry).slice(0, 4) >= '2026', r.name + ': 2026년 이전 약정 만료일');
+    if (r.lastBid) assert.ok(String(r.contractExpiry) > r.lastBid, r.name + ': 만료일이 마지막 회차보다 이르다(낡은 약정)');
+  });
+  assert.ok(n >= 150, '약정 만료일이 들어간 기관 수: ' + n);
 });

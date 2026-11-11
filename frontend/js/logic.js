@@ -12,7 +12,7 @@
   // 레코드의 전체 표시 필드(순서 고정) — 편집 모달/팝오버가 공유.
   // 이 중 서버 registry에 대응 필드가 없는 것들은 store.LOCAL_ONLY_FIELDS 참고
   // (서버 모드에서 편집 overlay가 덮어도 되는 필드 = 그것뿐이다).
-  logic.ALL_FIELDS = ['name','type','region','subRegion','term','lastBid','contractEnd','confirmed','lng','lat','sources','updatedAt'];
+  logic.ALL_FIELDS = ['name','type','region','subRegion','term','lastBid','contractEnd','confirmed','contractExpiry','lng','lat','sources','updatedAt'];
 
   // 서버 모드에서 **저장 경로가 아예 없는** 필드. 편집창에서 잠가 무음 실패를 막는다.
   // 기관명(name)이 그렇다: PUT 페이로드에도 InstitutionUpdateIn에도 없고,
@@ -23,7 +23,7 @@
 
   logic.FIELD_LABELS = { name:'기관명', type:'기관구분', region:'지역코드', subRegion:'구시군코드',
     term:'입찰주기', lastBid:'지난 입찰일', contractEnd:'입찰예상일', confirmed:'확정여부',
-    lng:'경도', lat:'위도', sources:'출처', updatedAt:'수정일' };
+    contractExpiry:'약정 만료일', lng:'경도', lat:'위도', sources:'출처', updatedAt:'수정일' };
 
   // 지자체 기관명 → 행정구역 폴리곤명 정규화. '마포구청'→'마포구', '서울시청(예시)'→'서울시'.
   // subRegion 코드가 비어 있는 레코드를 구/시군 면에 붙이는 폴백 매칭에 쓴다.
@@ -105,13 +105,38 @@
     return d.toISOString().slice(0, 10);
   };
 
-  // 유효 입찰예상일 + confidence 유도(저장하지 않음)
+  // 월 가감(말일 보정 — 08-31에서 6개월 빼면 02-28/29). 'YYYY-MM-DD'만 받는다.
+  logic.addMonths = function (dateStr, months) {
+    if (!dateStr) return null;
+    const p = String(dateStr).split('-');
+    if (p.length !== 3) return null;
+    const y = Number(p[0]), m = Number(p[1]) - 1 + Number(months), day = Number(p[2]);
+    const first = new Date(Date.UTC(y, m, 1));
+    if (isNaN(first.getTime())) return null;
+    const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+    first.setUTCDate(Math.min(day, last));
+    return first.toISOString().slice(0, 10);
+  };
+
+  // 약정 만료일 기준 다음 공고 추정(NEXT 14, planner 2026-11-11): 만료 6개월 전.
+  // 12-31 만료 회차의 실제 계획 공고는 07-16~08-25(중앙값 08-12)라 늦게 알리지 않는 쪽으로 둔다.
+  // 'YYYY'만 있으면 그해 12-31로 본다.
+  logic.EXPIRY_LEAD_MONTHS = 6;
+  logic.expiryEstimate = function (expiry) {
+    if (!expiry) return null;
+    const s = /^\d{4}$/.test(String(expiry)) ? expiry + '-12-31' : String(expiry);
+    return logic.addMonths(s, -logic.EXPIRY_LEAD_MONTHS);
+  };
+
+  // 유효 입찰예상일 + confidence 유도(저장하지 않음).
+  // contractEnd(실제 뜬 공고)가 있으면 그것. 없으면 lastBid+term과 약정 만료 기준 추정 중 **이른 쪽**
+  // (늦게 알리는 것보다 일찍 확인하게 하는 편이 낫다). basis: 'notice'|'cycle'|'expiry'.
   logic.effectiveBid = function (rec) {
-    if (rec.contractEnd) return { date: rec.contractEnd, confidence: rec.confirmed ? '확정' : '추측' };
-    if (rec.lastBid && rec.term) {
-      const d = logic.addYears(rec.lastBid, rec.term);
-      if (d) return { date: d, confidence: '추측' };
-    }
+    if (rec.contractEnd) return { date: rec.contractEnd, confidence: rec.confirmed ? '확정' : '추측', basis: 'notice' };
+    const cyc = (rec.lastBid && rec.term) ? logic.addYears(rec.lastBid, rec.term) : null;
+    const exp = logic.expiryEstimate(rec.contractExpiry);
+    if (cyc && (!exp || cyc <= exp)) return { date: cyc, confidence: '추측', basis: 'cycle' };
+    if (exp) return { date: exp, confidence: '추측', basis: 'expiry' };
     return { date: null, confidence: '미상' };
   };
 
@@ -163,7 +188,9 @@
   // formatBidDate의 화면용. 내부 값을 그대로 노출하지 않는다.
   logic.formatBidDateLabel = function (rec) {
     const e = logic.effectiveBid(rec);
-    return e.date ? (e.date + '(' + logic.confidenceLabel(e.confidence) + ')') : '미상';
+    if (!e.date) return '미상';
+    const tag = e.basis === 'expiry' ? '추정·약정 만료 기준' : logic.confidenceLabel(e.confidence);
+    return e.date + '(' + tag + ')';
   };
 
   // 데이터 정정(NEXT 30-1) 전 임시 — 공고일이 contractEnd 칸에 들어 있어 날짜 의미가
@@ -370,9 +397,9 @@
     return logic.sortByUrgency(on, today).concat(logic.sortByUrgency(off, today));
   };
 
-  logic.CSV_HEADERS = ['기관명','기관구분','지역코드','구시군코드','입찰주기','지난입찰일','입찰예상일','확정여부','경도','위도','출처','수정일'];
+  logic.CSV_HEADERS = ['기관명','기관구분','지역코드','구시군코드','입찰주기','지난입찰일','입찰예상일','확정여부','약정만료일','경도','위도','출처','수정일'];
   logic._HEADER_KEY = { '기관명':'name','기관구분':'type','지역코드':'region','구시군코드':'subRegion',
-    '입찰주기':'term','지난입찰일':'lastBid','입찰예상일':'contractEnd','확정여부':'confirmed',
+    '입찰주기':'term','지난입찰일':'lastBid','입찰예상일':'contractEnd','확정여부':'confirmed','약정만료일':'contractExpiry',
     '경도':'lng','위도':'lat','출처':'sources','수정일':'updatedAt' };
 
   // RFC4180 유사: 따옴표/쉼표/개행 처리
