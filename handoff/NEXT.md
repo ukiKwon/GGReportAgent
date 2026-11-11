@@ -412,3 +412,13 @@
 - **9f qa 이관(11-11)**: render.js:814 지도 팝오버 '입찰 예정일'은 formatBidDateLabel로 '(추정·약정 만료 기준)' 표기, 만료 기준 경과(약 18곳) 표기 디자인 판단.
 - **다음 한 걸음**: frontend-dev-write 현황판 재설계+사이드바(②안, 진행 중) → qa / 기관장 설계 보완(security 조건 1~8) → 사용자 답 → 구현. (1단계 구현은 9f 완료.)
 - **자세히**: handoff/agents/planner/ 11-11 현황판 보고(abd7b18c), NEXT 30·70·71·72·75·76.
+
+### 79. 지자체 외 기관 수집(교육청·법원·지방공기업·공공기관) — **1차 124곳 커밋(교육청 16·법원 103·지방공기업 5), 법원 은행·지방공기업 나머지·공기업 남음** [담당: data-auditor → 메인(9f) / 화면 연결 e3]
+- **현재**: 사용자 11-11 "지자체 이외 기관들도 수집". 파일 frontend/data/institutions_nonmuni.js(window.institutionsNonMuni, 칸: type·orgCode·parentOrgCode·bidKind·bank·법원 courtKind·courtType·opStatus·openDate + 날짜 규칙 동일), 테스트 institutions_nonmuni.test.js. 커밋 2a4ee5a(교육청)·a3d8a43(법원)·08a2b38(지방공기업). 국민은행: 법원 인천·수원·부산동부·대구서부, 서울교통공사(우선협상 2027~2030). 종류 접기: 교육청·지방공기업 → 공공기관(e3 kindOf). subRegion 전부 비움(시도 면만).
+- **다음 한 걸음**: 법원 약 80곳 보관은행(대법원 공고 hwp 변환 필요) · 지방공기업 나머지 약 50곳(클린아이 목록·기관 게시판) · 공기업(나라장터 API 인증키 — 사용자 발급 예정, collector/.env.local 또는 G2B_SERVICE_KEY) · 소재 시군구(기관코드 소재지코드) · 강원·제주 교육청.
+- **자세히**: handoff/agents/planner/2026-11-11_1720_ad92ba4f.md, data-auditor 11-11 1723·1727·1728 보고, collector/SOURCES.md.
+
+### 80. 외부망 주기 수집 파이프라인(수집→추출→포장→운반→반입) — **planner 범위 정리 완료(11-11), 팀 결정으로 1차 시제품(인터넷망 eminwon) 착수** [담당: planner → backend-dev → 메인(9f) → security → data-auditor]
+- **현재**: 사용자 TO BE(11-11) — 외부망 수집 프로그램이 파일로 내려 주고, 반입 RPA가 운반, 내부는 웹으로 올림. 원칙 ①계약 먼저(폴더=시험·xlsx=운영) ②출처별 플러그인+사이트 설정 표 ③수집(원문 보관)·추출(재실행)·포장·운반 분리 ④증분(출처+공고번호+해시), CLI 하나 ⑤후보로 반입·사람 확정·LLM은 판정만. 계약 v2 레코드 2종(공고 / 기관 일정 후보, 후보는 근거 필수). 팀 결정(planner 권장): 알림=약정 만료 2년 안 기관 위·나머지 접기, 기타(정정·취소) 공고 따로 칸, 1차는 공고 목록·종류까지(첨부 약정기간 추출은 2차), js 직접 편집 중단 시점은 72 이관 때 재결정. 1차=eminwon 73곳 → v2 폴더 배치 → 수집기 쪽 미리보기 보고서(데이터 변경 0).
+- **다음 한 걸음**: backend-dev 코드 구조 설계(진행 중) → 메인 구현(collector/, Python 표준 라이브러리) → data-auditor 회귀 표본 → security(http 폴백·원문 보관·금지 패턴) → 작업 스케줄러 등록(공고 철 주 1회).
+- **자세히**: handoff/agents/planner/ 11-11 80 기획 보고(a780ca1f), collector/SOURCES.md, collector/SCHEMA.md, NEXT 14·72·76.
