@@ -75,6 +75,7 @@
   <a href="#c14">⑭ 이사회 자료 목록·버전 저장</a>
   <a href="#c15">⑮ 이사회 자료 제출·결재</a>
   <a href="#c16">⑯ 사전준비 프로세스·지도 제안 확정</a>
+  <a href="#c17">⑰ 입찰 현황판(첫 화면)</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -424,6 +425,30 @@
   </div>
   <p class="legend-note">사이드바의 '준비중' 배지가 없어지고 이 메뉴는 영업팀·영업팀장·영업부장에게만 보입니다. 지도 팝오버는 기관명·D-day·입찰 예정일을 위에 두고, 현 유치 은행·임직원 수·기관장은 근거가 생기기 전까지 점선 칩 '미확인'으로 보입니다(빈칸·추정값 없음). 원본 칸은 '원본 정보'에 접혀 있고, 빠진 칸은 이름과 고칠 곳([편집])을 알려 줍니다. 영업팀·영업팀장은 [제안 확정]을, 이미 진행 중이면 [사전준비 열기]를 봅니다. 기관 카드는 Tab으로 닿고 Enter·Space로 열며 Esc로 닫으면 카드로 돌아갑니다. 사전준비 화면은 단계 막대 5칸 → 준비 과제 카드 → 끝 노드 [제안서 작성하기]의 '도식'입니다. 과제마다 완료·할 일·잠김·해당 없음·준비중을 글리프와 글자로 함께 보이고, 꺼진 버튼에는 이유가 같은 줄에 붙습니다. 담당자가 아닌 영업팀장·영업부장에게는 "읽기 전용입니다…" 안내가 한 번만 보입니다. 반려·회수된 지난 개설 신청은 신청자·영업팀장·영업부장 밖에는 "지난 개설 신청 N건 · 마지막 반려됨"처럼 건수만 보입니다. 되돌릴 수 없는 [중단하기]만 빨간 테두리이고, 개설 신청 회수는 다시 신청할 수 있어 바로 실행됩니다. 대비: 보조 글자 <span class="num good">6.4</span>:1, 완료 파랑 <span class="num good">5.4</span>:1, 경고 주황 <span class="num good">7.3</span>:1, 부결·위험 빨강 <span class="num good">5.6</span>:1, 다음 한 걸음 틸 테두리 <span class="num good">7.1</span>:1. 새 색은 없고 채운 버튼도 늘리지 않았습니다. 팝오버 배경은 현 면 색(#181e29 기반)으로 맞췄습니다.</p>
 </div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c17">
+<h2>⑰ 입찰 현황판 — 로그인 첫 화면 (2026-11-11, NEXT 77 1단계, a3c6413·0f76c1a)</h2>
+<div class="why">왜: 사용자(11-11)는 "대시보드는 전국 지도가 아니라 입찰 현황판이 맞다. 기관을 고르면 기관 정보·기관장을 보고 마음에 들면 확정한다"고 했습니다. 이전 첫 화면은 전국 지도라서 다가오는 입찰을 순서대로 보려면 시·도를 하나씩 눌러 들어가야 했고, 국민은행 약정 현황이나 진행 중인 제안 수는 어디에도 모여 있지 않았습니다.</div>
+<div class="ba">
+  <div class="col before"><header>전</header><div class="body"><div class="mock">
+    <div class="side"><div class="cat">1 기관·입찰 현황</div><div class="it">전국 지도</div><div class="it">전국 지역별</div></div>
+    <div class="card" style="margin-top:10px;text-align:center">전국 지도(첫 화면)<br><span class="hint12">시·도를 눌러 들어가야 기관 순위가 보임 · 티커에 임박 TOP5 한 줄</span></div>
+    <p class="legend-note">로그인하면 지도부터 열렸습니다. "1년 안에 입찰이 있는 곳이 몇 곳이고 어디인가"를 한 화면에서 볼 수 없었고, 제안 확정 같은 다음 행동은 지도 팝오버에만 있었습니다.</p>
+  </div></div></div>
+  <div class="col after"><header>후</header><div class="body"><div class="mock">
+    <div class="row" style="gap:6px">
+      <div class="card" style="flex:1"><span class="hint12">국민은행 금고 약정 기관</span><br>확인 <span class="num">6</span> / 미확인 <span class="num">237</span></div>
+      <div class="card" style="flex:1.7"><span class="hint12">1년 안 입찰 <span class="num">4</span>곳</span><br><span class="tag">D+</span> 경과 <span class="num">24</span> |—D-30—D-90—D-180—1년—| 미상 <span class="num">185</span></div>
+      <div class="card" style="flex:1"><span class="hint12">지금 제안 진행 중</span><br><span class="num">n</span>건</div>
+    </div>
+    <div class="row" style="margin-top:8px;gap:6px">
+      <div class="card" style="width:150px">다가오는 입찰<br><span style="box-shadow:inset 2px 0 0 var(--teal)">&nbsp;기관 A <span class="tag">D-183</span></span><br>기관 B <span class="tag">D-256</span><br><span class="hint12">공고 예정일 경과 n곳 · 기본 펼침</span></div>
+      <div class="card" style="flex:1">기관 A <span class="tag">D-183</span><br><span class="hint12">입찰 예정일 · 최근 절차일 · 약정 주기 · 출처</span><br>현재 금고 은행 <span class="tag" style="border-style:dashed">미확인</span> 기관장 <span class="tag" style="border-style:dashed">미확인</span><br><span class="btn" style="border-color:var(--teal)">제안 확정</span><span class="btn">전국 지도에서 보기</span></div>
+    </div>
+    <p class="legend-note">영업 계열 역할은 로그인하면 입찰 현황판이 열리고, 전국 지도는 메뉴 바로 아래에 그대로 있습니다. 위 띠는 국민은행 약정 기관 수(출처 문장으로 확인된 6곳만, 미확인 수 함께), 1년 시간 눈금(경과·날짜 미상 수를 양 끝에 함께), 진행 중인 제안 수입니다. 왼쪽은 입찰 예정일이 가까운 순서의 기관 목록과 경과 묶음(기본 펼침, ↑↓ 이동·Enter 상세)이고, 오른쪽은 기관 정보·출처와 지도 팝오버와 같은 [제안 확정]·[사전준비 열기]입니다. 현재 금고 은행·기관장은 근거가 생기기 전까지 점선 칩 '미확인'으로 두고 값을 만들지 않았습니다. 숫자는 a3c6413 시점이며, 같은 날 기관 데이터 최신화(NEXT 14·30-1, 824b0e7~4a34cb6) 뒤에는 1년 안 16 · 경과 10 · 미상 112입니다. 대비: 보조 글자 <span class="num good">6.4</span>:1, 임박 빨강 <span class="num good">5.6</span>:1, 주황 <span class="num good">7.3</span>:1, 다음 한 걸음 틸 테두리 <span class="num good">7.1</span>:1, 경과 도장 약 <span class="num good">14</span>:1. 글자 크기는 11~16px 안이고, 새 색과 채운 버튼은 없습니다.</p>
+  </div></div></div>
 </div>
 </section>
 
