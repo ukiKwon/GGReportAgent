@@ -1,8 +1,11 @@
 package com.kbstar.kgi.ggreport.web.config;
 
+import com.kbstar.kgi.ggreport.web.service.AccessLogService;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.junit.Test;
+import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -108,5 +111,52 @@ public class BoardWriteLimitFilterTest {
         assertEquals(512 * 1024L, BoardWriteLimitFilter.SAVE_MAX);
         assertEquals(16 * 1024L, BoardWriteLimitFilter.COPY_MAX);
         assertEquals(256 * 1024L, BoardWriteLimitFilter.DRAFT_MAX);
+    }
+
+    // ── 기관장 정보(NEXT 72·77, 026) ─────────────────────────────────────
+
+    private static MockHttpServletResponse filter(String method, String uri, int bodyBytes, boolean withBody) throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest(method, uri);
+        if (withBody) {
+            req.setContent(new byte[bodyBytes]);
+        }
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+        new BoardWriteLimitFilter(org.mockito.Mockito.mock(AccessLogService.class), 5).doFilter(req, res, chain);
+        lastPassed = chain.getRequest() != null;
+        return res;
+    }
+
+    private static boolean lastPassed;
+
+    @Test
+    public void 기관장_사진은_5MB_한도다_6MB_넘으면_413_길이_없으면_411() throws Exception {
+        long over = 6L * 1024 * 1024 + 2;
+        for (String uri : new String[]{"/institutions/x/head/photos", "/institutions//x//head//photos/", "/institutions/x/head/photos;jsessionid=1",
+                "/INSTITUTIONS/x/head/photos"}) {
+            MockHttpServletResponse res = filter("POST", uri, (int) over, true);
+            assertEquals(uri, 413, res.getStatus());
+            String body = res.getContentAsString();
+            assertTrue(body, body.contains("FILE_TOO_LARGE") && body.contains("\"max_mb\":5"));
+            assertFalse(lastPassed);
+        }
+        assertEquals(411, filter("POST", "/institutions/x/head/photos", 0, false).getStatus());
+        MockHttpServletResponse ok = filter("POST", "/institutions/x/head/photos", 1024, true);
+        assertEquals(200, ok.getStatus());
+        assertTrue("한도 안의 사진은 통과한다", lastPassed);
+    }
+
+    @Test
+    public void 기관장_그_밖의_쓰기는_16KB_한도고_GET은_통과한다() throws Exception {
+        for (String uri : new String[]{"/institutions/x/head/items", "/institution-heads/unmatched/1/assign",
+                "/institutions/x/heads", "/institutions/x/heads/3/confirm", "/institutions/x/head/photos/9/void"}) {
+            MockHttpServletResponse res = filter("POST", uri, 20 * 1024, true);
+            assertEquals(uri, 413, res.getStatus());
+            assertTrue(res.getContentAsString().contains("BODY_TOO_LARGE"));
+        }
+        assertEquals(200, filter("GET", "/institution-heads/unmatched/1/assign", 20 * 1024, true).getStatus());
+        assertTrue(lastPassed);
+        assertEquals(200, filter("POST", "/institutions/x/head/items", 1024, true).getStatus());
+        assertTrue("16KB 안의 JSON 은 통과한다", lastPassed);
     }
 }

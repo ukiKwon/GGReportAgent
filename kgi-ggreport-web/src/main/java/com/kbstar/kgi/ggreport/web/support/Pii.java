@@ -134,6 +134,11 @@ public final class Pii {
         return out;
     }
 
+    /** 기관장 정보(026)의 유선전화 검사용 — scanLoose 가 보는 접힘({@code '.'} 구분자 포함)을 그대로 돌려준다. 기존 동작은 바뀌지 않는다. */
+    public static String foldLoose(String t) {
+        return t == null ? "" : fold(t, true);
+    }
+
     private static String fold(String text, boolean dotAsDash) {
         String s = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFKC);
         StringBuilder b = new StringBuilder(s.length());

@@ -1,0 +1,315 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- INST_HEAD / INST_HEAD_ITEM / INST_HEAD_PHOTO / INST_HEAD_LOG / INST_HEAD_ACT — 026(기관장 정보, NEXT 72·77). 양쪽 방언에서 같은 문장이다(ANSI, FOR UPDATE 는 조인·집계 없이).
+     대상 id 는 항상 기관과 묶어 조회한다(IDOR 방지). 모든 SELECT 는 flushCache="true" — 같은 트랜잭션 안 재조회가 낡은 값을 주지 않게. 집계 열은 대문자 별칭. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.InstitutionHeadMapper">
+
+  <sql id="headCols">
+    HEAD_ID, INSTITUTION_ID, SRC_ORG_CD, SRC_ORG_NAME, STATUS_CD, ORIGIN_CD, BATCH_ID, CREATED_BY, CREATED_AT, CREATED_VERIFIED,
+    DECIDED_BY, DECIDED_AT, ENDED_BY, ENDED_AT, MATCHED_BY, MATCHED_AT, MERGED_INTO_ID
+  </sql>
+
+  <sql id="itemCols">
+    ITEM_ID, HEAD_ID, INSTITUTION_ID, FIELD_CD, STATE_CD, ORIGIN_CD, BATCH_ID, VAL_TEXT, VAL_DATE, VAL_FROM, VAL_TO, VAL_FLAG,
+    SRC_KIND_CD, SRC_TITLE, SRC_URL, SRC_PUBLISHED, CHECKED_ON, CREATED_BY, CREATED_AT, CREATED_VERIFIED,
+    DECIDED_BY, DECIDED_AT, SUPERSEDED_BY_ID, VOIDED_BY, VOIDED_AT
+  </sql>
+
+  <sql id="photoCols">
+    PHOTO_ID, HEAD_ID, INSTITUTION_ID, STATE_CD, STORE_KEY, SHA256, ORIG_SHA256, ORIG_EXT, SIZE_BYTES, IMG_W, IMG_H, LICENSE_CD,
+    SRC_KIND_CD, SRC_TITLE, SRC_URL, CHECKED_ON, UPLOADED_BY, UPLOADED_AT, UPLOADED_VERIFIED, ENDED_BY, ENDED_AT
+  </sql>
+
+  <!-- ── 잠금·존재 ── -->
+  <select id="lockInstitution" resultType="string" flushCache="true">
+    SELECT INSTITUTION_ID FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId} FOR UPDATE
+  </select>
+
+  <select id="institutionExists" resultType="string" flushCache="true">
+    SELECT INSTITUTION_ID FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId}
+  </select>
+
+  <select id="countEnabledCode" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP = #{group} AND CODE = #{code} AND ENABLED = 1
+  </select>
+
+  <!-- ── 머리 ── -->
+  <select id="selectCurrentHead" resultType="InstHead" flushCache="true">
+    SELECT <include refid="headCols"/> FROM INST_HEAD
+     WHERE INSTITUTION_ID = #{institutionId} AND STATUS_CD = 'CURRENT'
+  </select>
+
+  <!-- FOR UPDATE 를 걸지 않는다: 쓰기는 모두 기관 행(lockInstitution)을 먼저 잠가 같은 기관 안에서 직렬화된다. 빈 결과에 FOR UPDATE 를 걸면
+       MySQL(RR)에서 인덱스 gap 잠금이 생겨 서로 다른 기관의 동시 INSERT 가 교착한다(qa P3-1). 호출자는 반드시 기관 잠금 뒤에 부른다. -->
+  <select id="selectCurrentHeadForUpdate" resultType="InstHead" flushCache="true">
+    SELECT <include refid="headCols"/> FROM INST_HEAD
+     WHERE INSTITUTION_ID = #{institutionId} AND STATUS_CD = 'CURRENT'
+  </select>
+
+  <select id="selectHeadForUpdate" resultType="InstHead" flushCache="true">
+    SELECT <include refid="headCols"/> FROM INST_HEAD
+     WHERE HEAD_ID = #{headId} AND INSTITUTION_ID = #{institutionId} FOR UPDATE
+  </select>
+
+  <select id="selectHead" resultType="InstHead" flushCache="true">
+    SELECT <include refid="headCols"/> FROM INST_HEAD
+     WHERE HEAD_ID = #{headId} AND INSTITUTION_ID = #{institutionId}
+  </select>
+
+  <select id="selectUnmatchedHead" resultType="InstHead" flushCache="true">
+    SELECT <include refid="headCols"/> FROM INST_HEAD
+     WHERE HEAD_ID = #{headId} AND INSTITUTION_ID IS NULL AND STATUS_CD = 'CANDIDATE'
+  </select>
+
+  <select id="selectHeadByIdForUpdate" resultType="InstHead" flushCache="true">
+    SELECT <include refid="headCols"/> FROM INST_HEAD WHERE HEAD_ID = #{headId} FOR UPDATE
+  </select>
+
+  <select id="selectCandidateHeads" resultType="InstHead" flushCache="true">
+    SELECT <include refid="headCols"/> FROM INST_HEAD
+     WHERE INSTITUTION_ID = #{institutionId} AND STATUS_CD = 'CANDIDATE'
+     ORDER BY HEAD_ID
+  </select>
+
+  <select id="countCandidateHeads" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM INST_HEAD WHERE INSTITUTION_ID = #{institutionId} AND STATUS_CD = 'CANDIDATE'
+  </select>
+
+  <select id="selectUnmatchedHeads" resultType="InstHead" flushCache="true">
+    SELECT <include refid="headCols"/> FROM INST_HEAD
+     WHERE INSTITUTION_ID IS NULL AND STATUS_CD = 'CANDIDATE'
+     ORDER BY HEAD_ID
+  </select>
+
+  <select id="countUnmatchedHeads" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM INST_HEAD WHERE INSTITUTION_ID IS NULL AND STATUS_CD = 'CANDIDATE'
+  </select>
+
+  <insert id="insertHead" useGeneratedKeys="true" keyProperty="headId" keyColumn="HEAD_ID">
+    INSERT INTO INST_HEAD (INSTITUTION_ID, SRC_ORG_CD, SRC_ORG_NAME, STATUS_CD, ORIGIN_CD, BATCH_ID, CREATED_BY, CREATED_AT,
+                           CREATED_VERIFIED, DECIDED_BY, DECIDED_AT)
+    VALUES (#{institutionId,jdbcType=VARCHAR}, #{srcOrgCd,jdbcType=VARCHAR}, #{srcOrgName,jdbcType=VARCHAR}, #{statusCd}, #{originCd},
+            #{batchId,jdbcType=VARCHAR}, #{createdBy}, #{createdAt}, #{createdVerified},
+            #{decidedBy,jdbcType=VARCHAR}, #{decidedAt,jdbcType=VARCHAR})
+  </insert>
+
+  <update id="updateHeadStatus">
+    UPDATE INST_HEAD SET STATUS_CD = #{to}, DECIDED_BY = #{by,jdbcType=VARCHAR}, DECIDED_AT = #{at,jdbcType=VARCHAR}
+     WHERE HEAD_ID = #{headId} AND STATUS_CD = #{from}
+  </update>
+
+  <update id="endHead">
+    UPDATE INST_HEAD SET STATUS_CD = 'FORMER', ENDED_BY = #{by}, ENDED_AT = #{at}
+     WHERE HEAD_ID = #{headId} AND STATUS_CD = 'CURRENT'
+  </update>
+
+  <update id="assignHead">
+    UPDATE INST_HEAD SET INSTITUTION_ID = #{institutionId}, STATUS_CD = #{to}, MERGED_INTO_ID = #{mergedInto,jdbcType=NUMERIC},
+           MATCHED_BY = #{by}, MATCHED_AT = #{at}
+     WHERE HEAD_ID = #{headId} AND INSTITUTION_ID IS NULL AND STATUS_CD = 'CANDIDATE'
+  </update>
+
+  <!-- ── 칸 ── -->
+  <select id="selectItemForUpdate" resultType="InstHeadItem" flushCache="true">
+    SELECT <include refid="itemCols"/> FROM INST_HEAD_ITEM
+     WHERE ITEM_ID = #{itemId} AND INSTITUTION_ID = #{institutionId} FOR UPDATE
+  </select>
+
+  <select id="selectItemsOfHeadField" resultType="InstHeadItem" flushCache="true">
+    SELECT <include refid="itemCols"/> FROM INST_HEAD_ITEM
+     WHERE HEAD_ID = #{headId} AND FIELD_CD = #{fieldCd} AND STATE_CD = #{stateCd}
+     ORDER BY ITEM_ID
+  </select>
+
+  <select id="selectItemsOfHead" resultType="InstHeadItem" flushCache="true">
+    SELECT <include refid="itemCols"/> FROM INST_HEAD_ITEM
+     WHERE HEAD_ID = #{headId} AND STATE_CD = #{stateCd}
+     ORDER BY ITEM_ID
+  </select>
+
+  <select id="selectLiveItemsOfInstitution" resultType="InstHeadItem" flushCache="true">
+    SELECT <include refid="itemCols"/> FROM INST_HEAD_ITEM
+     WHERE INSTITUTION_ID = #{institutionId} AND STATE_CD IN ('CONFIRMED', 'CANDIDATE')
+     ORDER BY ITEM_ID
+  </select>
+
+  <select id="countLiveItems" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM INST_HEAD_ITEM
+     WHERE HEAD_ID = #{headId} AND FIELD_CD = #{fieldCd} AND STATE_CD IN ('CONFIRMED', 'CANDIDATE')
+  </select>
+
+  <select id="countOpenItems" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM INST_HEAD_ITEM WHERE HEAD_ID = #{headId} AND STATE_CD = 'CANDIDATE'
+  </select>
+
+  <insert id="insertItem" useGeneratedKeys="true" keyProperty="itemId" keyColumn="ITEM_ID">
+    INSERT INTO INST_HEAD_ITEM (HEAD_ID, INSTITUTION_ID, FIELD_CD, STATE_CD, ORIGIN_CD, BATCH_ID, VAL_TEXT, VAL_DATE, VAL_FROM, VAL_TO,
+                                VAL_FLAG, SRC_KIND_CD, SRC_TITLE, SRC_URL, SRC_PUBLISHED, CHECKED_ON, CREATED_BY, CREATED_AT,
+                                CREATED_VERIFIED, DECIDED_BY, DECIDED_AT)
+    VALUES (#{headId}, #{institutionId,jdbcType=VARCHAR}, #{fieldCd}, #{stateCd}, #{originCd}, #{batchId,jdbcType=VARCHAR},
+            #{valText,jdbcType=VARCHAR}, #{valDate,jdbcType=VARCHAR}, #{valFrom,jdbcType=VARCHAR}, #{valTo,jdbcType=VARCHAR},
+            #{valFlag,jdbcType=NUMERIC}, #{srcKindCd}, #{srcTitle}, #{srcUrl,jdbcType=VARCHAR}, #{srcPublished,jdbcType=VARCHAR},
+            #{checkedOn}, #{createdBy}, #{createdAt}, #{createdVerified},
+            #{decidedBy,jdbcType=VARCHAR}, #{decidedAt,jdbcType=VARCHAR})
+  </insert>
+
+  <update id="confirmItem">
+    UPDATE INST_HEAD_ITEM SET STATE_CD = 'CONFIRMED', DECIDED_BY = #{by}, DECIDED_AT = #{at}
+     WHERE ITEM_ID = #{itemId} AND STATE_CD = 'CANDIDATE'
+  </update>
+
+  <update id="supersedeItem">
+    UPDATE INST_HEAD_ITEM SET STATE_CD = 'SUPERSEDED', SUPERSEDED_BY_ID = #{supersededBy,jdbcType=NUMERIC}
+     WHERE ITEM_ID = #{itemId} AND STATE_CD = 'CONFIRMED'
+  </update>
+
+  <update id="rejectItem">
+    UPDATE INST_HEAD_ITEM SET STATE_CD = 'REJECTED', DECIDED_BY = #{by}, DECIDED_AT = #{at}
+     WHERE ITEM_ID = #{itemId} AND STATE_CD = 'CANDIDATE'
+  </update>
+
+  <update id="voidItem">
+    UPDATE INST_HEAD_ITEM SET STATE_CD = 'VOIDED', VOIDED_BY = #{by}, VOIDED_AT = #{at}
+     WHERE ITEM_ID = #{itemId} AND STATE_CD = 'CONFIRMED'
+  </update>
+
+  <update id="confirmItemsOfHead">
+    UPDATE INST_HEAD_ITEM SET STATE_CD = 'CONFIRMED', DECIDED_BY = #{by}, DECIDED_AT = #{at}
+     WHERE HEAD_ID = #{headId} AND STATE_CD = 'CANDIDATE'
+  </update>
+
+  <update id="rejectItemsOfHead">
+    UPDATE INST_HEAD_ITEM SET STATE_CD = 'REJECTED', DECIDED_BY = #{by}, DECIDED_AT = #{at}
+     WHERE HEAD_ID = #{headId} AND STATE_CD = 'CANDIDATE'
+  </update>
+
+  <update id="setItemsInstitution">
+    UPDATE INST_HEAD_ITEM SET INSTITUTION_ID = #{institutionId} WHERE HEAD_ID = #{headId}
+  </update>
+
+  <update id="moveCandidateItems">
+    UPDATE INST_HEAD_ITEM SET HEAD_ID = #{toHeadId}, INSTITUTION_ID = #{institutionId}
+     WHERE HEAD_ID = #{fromHeadId} AND STATE_CD = 'CANDIDATE'
+  </update>
+
+  <!-- ── 사진 ── -->
+  <select id="selectPhoto" resultType="InstHeadPhoto" flushCache="true">
+    SELECT <include refid="photoCols"/> FROM INST_HEAD_PHOTO
+     WHERE PHOTO_ID = #{photoId} AND INSTITUTION_ID = #{institutionId}
+  </select>
+
+  <select id="selectPhotoForUpdate" resultType="InstHeadPhoto" flushCache="true">
+    SELECT <include refid="photoCols"/> FROM INST_HEAD_PHOTO
+     WHERE PHOTO_ID = #{photoId} AND INSTITUTION_ID = #{institutionId} FOR UPDATE
+  </select>
+
+  <select id="selectActivePhoto" resultType="InstHeadPhoto" flushCache="true">
+    SELECT <include refid="photoCols"/> FROM INST_HEAD_PHOTO WHERE HEAD_ID = #{headId} AND STATE_CD = 'ACTIVE'
+  </select>
+
+  <!-- FOR UPDATE 없음 — selectCurrentHeadForUpdate 와 같은 이유(기관 행 잠금이 직렬화한다, gap 잠금 교착 방지). -->
+  <select id="selectActivePhotoForUpdate" resultType="InstHeadPhoto" flushCache="true">
+    SELECT <include refid="photoCols"/> FROM INST_HEAD_PHOTO WHERE HEAD_ID = #{headId} AND STATE_CD = 'ACTIVE'
+  </select>
+
+  <!-- 직전에 쓰던 사진 먼저: REPLACED 로 내려간 시각(ENDED_AT)이 최근인 순. 복원 뒤 다시 내려간 사진이 번호 큰 사진보다 앞선다(qa P3-3). -->
+  <select id="selectReplacedPhotos" resultType="InstHeadPhoto" flushCache="true">
+    SELECT <include refid="photoCols"/> FROM INST_HEAD_PHOTO
+     WHERE HEAD_ID = #{headId} AND STATE_CD = 'REPLACED'
+     ORDER BY ENDED_AT DESC, PHOTO_ID DESC
+  </select>
+
+  <insert id="insertPhoto" useGeneratedKeys="true" keyProperty="photoId" keyColumn="PHOTO_ID">
+    INSERT INTO INST_HEAD_PHOTO (HEAD_ID, INSTITUTION_ID, STATE_CD, STORE_KEY, SHA256, ORIG_SHA256, ORIG_EXT, SIZE_BYTES, IMG_W, IMG_H,
+                                 LICENSE_CD, SRC_KIND_CD, SRC_TITLE, SRC_URL, CHECKED_ON, UPLOADED_BY, UPLOADED_AT, UPLOADED_VERIFIED)
+    VALUES (#{headId}, #{institutionId}, #{stateCd}, #{storeKey}, #{sha256}, #{origSha256}, #{origExt}, #{sizeBytes}, #{imgW}, #{imgH},
+            #{licenseCd}, #{srcKindCd}, #{srcTitle}, #{srcUrl,jdbcType=VARCHAR}, #{checkedOn}, #{uploadedBy}, #{uploadedAt},
+            #{uploadedVerified})
+  </insert>
+
+  <update id="updatePhotoState">
+    UPDATE INST_HEAD_PHOTO SET STATE_CD = #{to}, ENDED_BY = #{by,jdbcType=VARCHAR}, ENDED_AT = #{at,jdbcType=VARCHAR}
+     WHERE PHOTO_ID = #{photoId} AND STATE_CD = #{from}
+  </update>
+
+  <!-- ── 목록·집계 ── -->
+  <select id="selectCurrentHeads" resultType="InstHead" flushCache="true">
+    SELECT <include refid="headCols"/> FROM INST_HEAD WHERE STATUS_CD = 'CURRENT' ORDER BY INSTITUTION_ID
+  </select>
+
+  <select id="selectCurrentConfirmedSingleItems" resultType="InstHeadItem" flushCache="true">
+    SELECT i.ITEM_ID, i.HEAD_ID, i.INSTITUTION_ID, i.FIELD_CD, i.STATE_CD, i.ORIGIN_CD, i.VAL_TEXT, i.VAL_DATE, i.VAL_FLAG,
+           i.SRC_KIND_CD, i.SRC_TITLE, i.CHECKED_ON, i.CREATED_BY, i.DECIDED_BY, h.STATUS_CD AS HEAD_STATUS
+      FROM INST_HEAD_ITEM i
+      JOIN INST_HEAD h ON h.HEAD_ID = i.HEAD_ID
+     WHERE h.STATUS_CD = 'CURRENT' AND i.STATE_CD = 'CONFIRMED'
+       AND i.FIELD_CD IN ('NAME', 'POSITION', 'ACTING', 'FIRST_TAKE_OFFICE', 'TERM_START', 'TERM_END')
+  </select>
+
+  <select id="selectOpenCandidateItems" resultType="InstHeadItem" flushCache="true">
+    SELECT i.ITEM_ID, i.HEAD_ID, i.INSTITUTION_ID, i.FIELD_CD, i.STATE_CD, i.ORIGIN_CD, i.VAL_TEXT, i.VAL_DATE, i.VAL_FLAG,
+           i.SRC_KIND_CD, i.SRC_TITLE, i.CHECKED_ON, i.CREATED_BY, i.DECIDED_BY, h.STATUS_CD AS HEAD_STATUS
+      FROM INST_HEAD_ITEM i
+      JOIN INST_HEAD h ON h.HEAD_ID = i.HEAD_ID
+     WHERE i.STATE_CD = 'CANDIDATE' AND i.INSTITUTION_ID IS NOT NULL AND h.STATUS_CD IN ('CURRENT', 'CANDIDATE')
+  </select>
+
+  <!-- 머리 상태로 거른다 — FORMER·REJECTED·MERGED 머리의 열린 칸은 처리할 길이 없으므로 집계하지 않는다(qa P2-1). -->
+  <select id="selectOpenCandidateCounts" resultType="map" flushCache="true">
+    SELECT i.INSTITUTION_ID AS INSTITUTION_ID, COUNT(*) AS N FROM INST_HEAD_ITEM i
+      JOIN INST_HEAD h ON h.HEAD_ID = i.HEAD_ID
+     WHERE i.STATE_CD = 'CANDIDATE' AND i.INSTITUTION_ID IS NOT NULL AND h.STATUS_CD IN ('CURRENT', 'CANDIDATE')
+     GROUP BY i.INSTITUTION_ID
+  </select>
+
+  <select id="selectHeadIdsWithActivePhoto" resultType="long" flushCache="true">
+    SELECT p.HEAD_ID FROM INST_HEAD_PHOTO p
+      JOIN INST_HEAD h ON h.HEAD_ID = p.HEAD_ID
+     WHERE p.STATE_CD = 'ACTIVE' AND h.STATUS_CD = 'CURRENT'
+  </select>
+
+  <select id="selectUnmatchedSummaries" resultType="map" flushCache="true">
+    SELECT h.HEAD_ID AS HEAD_ID,
+           (SELECT MAX(i.VAL_TEXT) FROM INST_HEAD_ITEM i WHERE i.HEAD_ID = h.HEAD_ID AND i.FIELD_CD = 'NAME' AND i.STATE_CD = 'CANDIDATE') AS NAME_VAL,
+           (SELECT MAX(i.VAL_TEXT) FROM INST_HEAD_ITEM i WHERE i.HEAD_ID = h.HEAD_ID AND i.FIELD_CD = 'POSITION' AND i.STATE_CD = 'CANDIDATE') AS POSITION_VAL,
+           (SELECT COUNT(*) FROM INST_HEAD_ITEM i WHERE i.HEAD_ID = h.HEAD_ID AND i.STATE_CD = 'CANDIDATE') AS N
+      FROM INST_HEAD h
+     WHERE h.INSTITUTION_ID IS NULL AND h.STATUS_CD = 'CANDIDATE'
+     ORDER BY h.HEAD_ID
+  </select>
+
+  <select id="selectPhotoChanges" resultType="map" flushCache="true">
+    SELECT l.LOG_ID AS LOG_ID, l.EVENT_CD AS EVENT_CD, l.INSTITUTION_ID AS INSTITUTION_ID, l.HEAD_ID AS HEAD_ID,
+           l.PHOTO_ID AS PHOTO_ID, l.FROM_PHOTO_ID AS FROM_PHOTO_ID, l.ACTOR_EMP_NO AS ACTOR_EMP_NO,
+           l.ACTOR_ROLE AS ACTOR_ROLE, l.SELF_FLAG AS SELF_FLAG, l.LOGGED_AT AS LOGGED_AT,
+           (SELECT MAX(i.VAL_TEXT) FROM INST_HEAD_ITEM i WHERE i.HEAD_ID = l.HEAD_ID AND i.FIELD_CD = 'NAME' AND i.STATE_CD = 'CONFIRMED') AS NAME_VAL
+      FROM INST_HEAD_LOG l
+     WHERE l.EVENT_CD IN ('PHOTO_ADD', 'PHOTO_REPLACE', 'PHOTO_VOID', 'PHOTO_RESTORE') AND l.LOGGED_AT &gt;= #{since}
+     ORDER BY l.LOG_ID DESC
+  </select>
+
+  <!-- ── 이력·감사 ── -->
+  <insert id="insertLog">
+    INSERT INTO INST_HEAD_LOG (INSTITUTION_ID, HEAD_ID, EVENT_CD, ITEM_ID, FROM_ITEM_ID, PHOTO_ID, FROM_PHOTO_ID, FROM_HEAD_ID, BATCH_ID,
+                               REASON, ACTOR_EMP_NO, ACTOR_ROLE, SELF_FLAG, EMP_VERIFIED, LOGGED_AT)
+    VALUES (#{institutionId,jdbcType=VARCHAR}, #{headId,jdbcType=NUMERIC}, #{eventCd}, #{itemId,jdbcType=NUMERIC},
+            #{fromItemId,jdbcType=NUMERIC}, #{photoId,jdbcType=NUMERIC}, #{fromPhotoId,jdbcType=NUMERIC},
+            #{fromHeadId,jdbcType=NUMERIC}, #{batchId,jdbcType=VARCHAR}, #{reason,jdbcType=VARCHAR},
+            #{actorEmpNo,jdbcType=VARCHAR}, #{actorRole,jdbcType=VARCHAR}, #{selfFlag}, #{verified}, #{now})
+  </insert>
+
+  <insert id="insertAct">
+    INSERT INTO INST_HEAD_ACT (INSTITUTION_ID, HEAD_ID, ACTION_CD, OUTCOME, TARGET_ID, ACTOR_EMP_NO, EMP_VERIFIED, SCREEN_ID, BUTTON_ID,
+                               UI_VALID, LOGGED_AT)
+    VALUES (#{institutionId}, #{headId,jdbcType=NUMERIC}, #{actionCd}, #{outcome}, #{targetId,jdbcType=NUMERIC},
+            #{actorEmpNo,jdbcType=VARCHAR}, #{verified}, #{screenId}, #{buttonId}, #{uiValid}, #{now})
+  </insert>
+
+  <select id="countViewsSince" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM INST_HEAD_ACT
+     WHERE ACTOR_EMP_NO = #{actorEmpNo} AND ACTION_CD IN ('VIEW', 'PHOTO_VIEW', 'UNMATCHED_VIEW') AND OUTCOME = 'OK'
+       AND LOGGED_AT &gt;= #{since}
+  </select>
+
+</mapper>

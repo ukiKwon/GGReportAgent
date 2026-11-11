@@ -771,6 +771,7 @@ LLM 어댑터(Task 4.4, **문의 1·6 회신 대기**)가 필요하고, `package
 ## 8. 스키마 DDL
 
 `src/main/resources/db/` — **`oracle/`이 정본**, `mysql/`은 외부망 로컬 미러다.
+**배포 순서(기관장 정보, NEXT 72·77): 코드를 올리기 전에 `026_inst_head.sql` 을 먼저 적용한다** — 아직 적용 전이면 설정 `ggreport.inst-head.enabled=false` 로 배포한다(stg·prod 는 `photo-dir` 자리표시를 웹 루트 밖 절대경로로 바꿔야 기동한다).
 11테이블(registry 7 + 검색 4). 번호 순서대로 **한 번씩** 적용한다(둘 다 멱등하지 않다):
 
 | 스크립트 | 내용 | 검증 |

@@ -86,6 +86,33 @@ public class AppProperties {
     public void setPrepAttachDir(String prepAttachDir) { this.prepAttachDir = prepAttachDir; }
 
     /**
+     * 기관장 정보(NEXT 72·77, 026) 설정 묶음 — {@code ggreport.inst-head.*}. 기본값은 코드에 둔다(키가 빠진 PC 에서도 뜬다).
+     * 스위치 {@code enabled} 는 기본 켬(사용자 결정 2026-11-11) — 끄면 기관장 API 전부 404 FEATURE_OFF 이고 DB 를 건드리지 않는다.
+     * ⚠️ 사진 폴더도 DB 와 함께 백업 대상이다. 운영은 웹 루트 밖 절대경로.
+     */
+    public static class InstHead {
+        private volatile boolean enabled = true;
+        private String photoDir = "data/head-photo";
+        /** 옛 사진 보존 일수 — -1 = 미정(삭제 안 함). 삭제 작업은 아직 없다. */
+        private int photoRetentionDays = -1;
+        /** 사번별 하루 열람(VIEW 계열) 경고 기준 — 넘는 순간 앱 로그 WARN 한 번(값 없음). */
+        private int viewWarnPerDay = 50;
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public String getPhotoDir() { return photoDir; }
+        public void setPhotoDir(String photoDir) { this.photoDir = photoDir; }
+        public int getPhotoRetentionDays() { return photoRetentionDays; }
+        public void setPhotoRetentionDays(int photoRetentionDays) { this.photoRetentionDays = photoRetentionDays; }
+        public int getViewWarnPerDay() { return viewWarnPerDay; }
+        public void setViewWarnPerDay(int viewWarnPerDay) { this.viewWarnPerDay = viewWarnPerDay; }
+    }
+
+    private final InstHead instHead = new InstHead();
+
+    public InstHead getInstHead() { return instHead; }
+
+    /**
      * 데모 여부. 화면이 QA용 계정 전환기를 띄울지 판단하는 데만 쓴다(운영에선 안 뜬다).
      * Python 은 {@code create_app(demo=…)} 인자였다 — Java 는 설정 키로 받는다.
      */

@@ -47,9 +47,10 @@ public class MapperStatementBindingTest {
      * + 시스템 관리 4개(USERS·USER_MENU_PERMS·ACCESS_LOG·PERM_CHANGE_LOG, 008).
      * + 워크플로 개요 1개(WorkflowOverviewMapper — 제안서 진행 현황 목록).
      * + 제안서 사전준비 1개(PrepMapper — NEXT 70, 024).
+     * + 사업 준비·이사회·배정 등은 20 에 이미 포함, 기관장 정보 1개(InstitutionHeadMapper — NEXT 72·77, 026).
      * 개수를 박아 두면 새 Mapper 를 만들고 등록을 잊는 것도 잡힌다.
      */
-    private static final int EXPECTED_MAPPER_COUNT = 20;
+    private static final int EXPECTED_MAPPER_COUNT = 21;
 
     @Autowired
     private SqlSessionFactory sqlSessionFactory;
