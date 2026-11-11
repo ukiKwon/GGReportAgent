@@ -4,7 +4,9 @@
 const { update } = require('./statefile');
 const MAP = {
   'design-reviewer': 'designer', 'qa-verifier': 'qa', 'frontend-dev': 'frontend',
-  'backend-dev': 'backend', 'security': 'security', 'planner': 'planner', 'pm': 'pm', 'cleaner': 'cleaner', 'data-auditor': 'auditor',
+  'backend-dev': 'backend', 'security': 'security',
+  // 쓰기용 변형도 같은 역할 칸에 띄운다(빠져 있어 대시보드에 안 보였음, 2026-11-11)
+  'frontend-dev-write': 'frontend', 'backend-dev-write': 'backend', 'planner': 'planner', 'pm': 'pm', 'cleaner': 'cleaner', 'data-auditor': 'auditor',
 };
 const inst = (s, id) => { const a = s.agents[id] || (s.agents[id] = {}); return a.instances || (a.instances = {}); };
 const oldest = (ins, pred) => Object.keys(ins).filter(pred).sort((x, y) => (ins[x].since || 0) - (ins[y].since || 0))[0];

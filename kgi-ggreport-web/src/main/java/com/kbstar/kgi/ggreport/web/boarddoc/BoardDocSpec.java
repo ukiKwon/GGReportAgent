@@ -45,13 +45,19 @@ public final class BoardDocSpec {
         private final boolean input;
         private final String rowId;
         private final String colId;
+        /** 표시 단위("년","%"). 값은 숫자만 저장하고 화면·워드가 뒤에 붙인다. 없으면 "". 카탈로그가 정한다(저장 JSON 에 없음). */
+        private final String unit;
+        /** 값 두 개 칸(앞 값 + 괄호 안 값). 둘째 값의 key 는 key + SUB_SUFFIX. */
+        private final boolean paren;
+        /** 표시 소수 자릿수 고정(-1 = 저장값 그대로). */
+        private final int dec;
 
         Cell(String text, int colspan, int rowspan, boolean header, boolean mapped, String align) {
-            this(text, colspan, rowspan, header, mapped, align, false, null, null);
+            this(text, colspan, rowspan, header, mapped, align, false, null, null, "", false, -1);
         }
 
         private Cell(String text, int colspan, int rowspan, boolean header, boolean mapped, String align,
-                     boolean input, String rowId, String colId) {
+                     boolean input, String rowId, String colId, String unit, boolean paren, int dec) {
             this.text = text;
             this.colspan = colspan;
             this.rowspan = rowspan;
@@ -61,30 +67,50 @@ public final class BoardDocSpec {
             this.input = input;
             this.rowId = rowId;
             this.colId = colId;
+            this.unit = unit;
+            this.paren = paren;
+            this.dec = dec;
         }
 
         Cell span(int cs, int rs) {
-            return new Cell(text, cs, rs, header, mapped, align, input, rowId, colId);
+            return new Cell(text, cs, rs, header, mapped, align, input, rowId, colId, unit, paren, dec);
         }
 
         /** 모든 속성을 지정해 만든 칸(구조 편집·복원용). id 는 Table 생성자가 붙인다. */
         static Cell make(String text, int cs, int rs, boolean header, boolean mapped, String align, boolean input) {
-            return new Cell(text, cs, rs, header, mapped, align, input, null, null);
+            return new Cell(text, cs, rs, header, mapped, align, input, null, null, "", false, -1);
         }
 
         /** 행·열 id 를 붙인 사본(Table 생성자가 부여). */
         Cell withIds(String r, String c) {
-            return new Cell(text, colspan, rowspan, header, mapped, align, input, r, c);
+            return new Cell(text, colspan, rowspan, header, mapped, align, input, r, c, unit, paren, dec);
         }
 
         /** 문구만 바꾼 사본(나머지 속성·id 유지). */
         Cell withText(String t) {
-            return new Cell(t, colspan, rowspan, header, mapped, align, input, rowId, colId);
+            return new Cell(t, colspan, rowspan, header, mapped, align, input, rowId, colId, unit, paren, dec);
         }
 
         /** 사용자가 직접 값을 적는 칸 표시만 바꾼 사본(PR-1 카탈로그에는 없다). */
         Cell withInput(boolean in) {
-            return new Cell(text, colspan, rowspan, header, mapped, align, in, rowId, colId);
+            return new Cell(text, colspan, rowspan, header, mapped, align, in, rowId, colId, unit, paren, dec);
+        }
+
+        Cell withUnit(String u) {
+            return new Cell(text, colspan, rowspan, header, mapped, align, input, rowId, colId, u, paren, dec);
+        }
+
+        Cell asParen() {
+            return new Cell(text, colspan, rowspan, header, mapped, align, input, rowId, colId, unit, true, dec);
+        }
+
+        Cell withDec(int d) {
+            return new Cell(text, colspan, rowspan, header, mapped, align, input, rowId, colId, unit, paren, d);
+        }
+
+        /** 카탈로그 칸의 표시 속성(unit·paren·dec)만 옮긴 사본. */
+        Cell attrsFrom(Cell o) {
+            return new Cell(text, colspan, rowspan, header, mapped, align, input, rowId, colId, o.unit, o.paren, o.dec);
         }
 
         /** 칸 주소표 r{행id}_c{열id}(예 r1_c2). 병합 칸은 앵커(왼쪽 위) 칸의 행id/열id. Table 에 들어가면 항상 채워진다. */
@@ -99,7 +125,16 @@ public final class BoardDocSpec {
         /** 사용자가 직접 입력하는 값 칸(엑셀 연결 없음). */
         public boolean isInput() { return input; }
         public String getAlign() { return align; }
+        public String getUnit() { return unit; }
+        public boolean isParen() { return paren; }
+        /** 표시 소수 자릿수(-1 = 저장값 그대로). */
+        public int getDec() { return dec; }
+        /** 괄호 칸의 둘째 값 key(괄호 칸이 아니면 null). */
+        public String getSubKey() { return paren && getKey() != null ? getKey() + SUB_SUFFIX : null; }
     }
+
+    /** 괄호 칸 둘째 값의 key 접미사. */
+    public static final String SUB_SUFFIX = "_p";
 
     public static final class Table {
         private final String id;
@@ -821,9 +856,14 @@ public final class BoardDocSpec {
                 }
                 Cell c = grid.get(r).get(i);
                 String key = cellKey(rowIds.get(r), colIds.get(start[r][i]));
+                Cell catCell = catKey.get(key);
                 if (!c.isHeader() && !c.isInput() && catMapped.contains(key)) {
-                    // 카탈로그 연결 칸 위치에 일반 값 칸이 그대로 있으면 엑셀 연결 유지(문구는 카탈로그의 샘플/빈칸)
-                    grid.get(r).set(i, Cell.make(catKey.get(key).getText(), c.colspan, c.rowspan, false, true, c.align, false));
+                    // 카탈로그 연결 칸 위치에 일반 값 칸이 그대로 있으면 엑셀 연결 유지(문구는 카탈로그의 샘플/빈칸, 표시 속성 unit·paren·dec 도 카탈로그 것)
+                    grid.get(r).set(i, Cell.make(catCell.getText(), c.colspan, c.rowspan, false, true, c.align, false)
+                            .attrsFrom(catCell));
+                } else if (!c.isHeader() && !c.isInput() && catCell != null && catCell.isInput() && !catCell.isMapped()) {
+                    // 카탈로그가 직접 입력 칸으로 바꾼 자리(A 기관명). 연결 칸이었던 옛 저장본도 입력 칸으로 올린다(저장 문구는 비어 있었다).
+                    grid.get(r).set(i, Cell.make(c.getText(), c.colspan, c.rowspan, false, false, c.align, true));
                 }
             }
         }
@@ -845,15 +885,28 @@ public final class BoardDocSpec {
         }
     }
 
+    /** 값 칸이 받는 key(문서 순서): 연결 칸·직접 입력 칸, 괄호 칸은 둘째 값 key(key_p) 도. */
+    private static Set<String> valueKeys(Table t) {
+        Set<String> out = new LinkedHashSet<>();
+        for (List<Cell> row : t.getRows()) {
+            for (Cell c : row) {
+                if (c.isMapped() || c.isInput()) {
+                    out.add(c.getKey());
+                    if (c.isParen()) {
+                        out.add(c.getSubKey());
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
     /**
-     * 화면이 보낸 값을 <b>값 칸에만</b>(엑셀 연결 칸 + 사용자가 직접 입력하는 칸 input&amp;&amp;!mapped) 얹은 새 Doc.
-     * values: 표 ref → (칸 키 → 값). 보내지 않은 값 칸은 빈칸.
-     * 값 칸이 아닌 키(머리글·라벨 등)·문서에 없는 표는 EditException. 값은 clean(제어문자 거부·trim·100자).
-     * <p>⚠️ 보안 메모: 워드에는 w:t 일반 텍스트로만 쓴다(BoardDocDocx.run → XWPFRun.setText) — 수식 주입 처리가 필요 없다.
-     * 이 값을 필드 코드(fldSimple·instrText)나 하이퍼링크에 넣지 말 것. CSV/xlsx 내보내기가 생기면
-     * =,+,-,@ 로 시작하는 값 앞에 ' 를 붙일 것.
+     * 화면이 보낸 값 검증·정리: 표 ref·칸 key 가 문서에 있어야 하고(값 칸 + 괄호 칸 둘째 값만), 값은 clean(제어·서식 문자 거부·trim·100자).
+     * 빈 값은 빼고 문서 순서로 돌려준다(빈 표는 생략). 저장용이다 — 표시 가공(단위·소수 자릿수·괄호)은 {@link #withValues}.
+     * 오류는 EditException(고정 문구, 입력값 미포함).
      */
-    public static Doc withValues(Doc doc, Map<String, Map<String, String>> values) {
+    public static Map<String, Map<String, String>> cleanValues(Doc doc, Map<String, Map<String, String>> values) {
         Map<String, Map<String, String>> in = values == null
                 ? new java.util.HashMap<String, Map<String, String>>() : values;
         Set<String> refs = new HashSet<>();
@@ -863,30 +916,83 @@ public final class BoardDocSpec {
         if (!refs.containsAll(in.keySet())) {
             throw new EditException("알 수 없는 표입니다.");
         }
-        List<Table> out = new ArrayList<>();
+        Map<String, Map<String, String>> out = new java.util.LinkedHashMap<>();
         for (Table t : doc.getTables()) {
             Map<String, String> cells = in.get(t.getId()) == null
                     ? new java.util.HashMap<String, String>() : in.get(t.getId());
-            Set<String> mapped = new HashSet<>();                     // 값을 받을 수 있는 칸: 엑셀 연결 칸 + 직접 입력 칸
+            Set<String> allowed = valueKeys(t);
+            if (!allowed.containsAll(cells.keySet())) {
+                throw new EditException("값을 넣을 수 없는 칸이 포함되어 있습니다.");
+            }
+            Map<String, String> cl = new java.util.LinkedHashMap<>();
+            for (String key : allowed) {
+                String v = cells.get(key);
+                if (v != null) {
+                    String s = clean(v, MAX_CELL, true, null,
+                            "칸 값은 " + MAX_CELL + "자 이하로 입력해 주세요.", "칸 값에 쓸 수 없는 문자가 있습니다.");
+                    if (!s.isEmpty()) {
+                        cl.put(key, s);
+                    }
+                }
+            }
+            if (!cl.isEmpty()) {
+                out.put(t.getId(), cl);
+            }
+        }
+        return out;
+    }
+
+    private static final Pattern DISP_NUM = Pattern.compile(
+            "-?(?:\\d{1,13}|\\d{1,3}(?:,\\d{3}){1,4})(?:\\.\\d{1,2})?");
+
+    /** 칸 표시 문구. main/sub 는 clean 을 거친 값(없으면 null). */
+    static String display(Cell c, String main, String sub) {
+        String m = main == null ? "" : main;
+        String s = sub == null ? "" : sub;
+        if (c.isParen()) {
+            if (m.isEmpty() && s.isEmpty()) {
+                return "";
+            }
+            String ms = shown(c, m, false);
+            return s.isEmpty() ? ms : (m.isEmpty() ? "" : ms + " ") + "(" + shown(c, s, false) + ")";
+        }
+        return shown(c, m, true);
+    }
+
+    private static String shown(Cell c, String v, boolean withUnit) {
+        if (v.isEmpty() || !DISP_NUM.matcher(v).matches() || (c.getDec() < 0 && c.getUnit().isEmpty())) {
+            return v;                                   // 숫자가 아니거나 가공 규칙이 없는 칸은 보낸 그대로
+        }
+        java.math.BigDecimal d = new java.math.BigDecimal(v.replace(",", ""));
+        String body = c.getDec() >= 0 ? BoardNumber.fixed(d, c.getDec()) : v;
+        return withUnit ? body + c.getUnit() : body;
+    }
+
+    /**
+     * 화면이 보낸 값을 값 칸에만(연결 칸 + 직접 입력 칸) 얹은 새 Doc — 워드 초안용 <b>표시 문구</b>.
+     * 보내지 않은 값 칸은 빈칸. 표시 규칙(화면과 같다): dec 가 있는 칸은 소수 dec 자리 고정 + 천 단위 쉼표, unit 이 있는 칸은 숫자 뒤에 단위,
+     * 괄호 칸은 "앞 (괄호 안)". 숫자 모양이 아닌 값(옛 초안이 보낸 "5.00 (1.00)" 등)은 가공하지 않고 그대로 쓴다.
+     * <p>⚠️ 보안 메모(기존 유지): 워드에는 w:t 일반 텍스트로만 쓴다(BoardDocDocx.run → XWPFRun.setText). 필드 코드·하이퍼링크에 넣지 말 것.
+     * CSV/xlsx 내보내기가 생기면 =,+,-,@ 로 시작하는 값 앞에 ' 를 붙일 것.
+     */
+    public static Doc withValues(Doc doc, Map<String, Map<String, String>> values) {
+        Map<String, Map<String, String>> cleaned = cleanValues(doc, values);
+        List<Table> out = new ArrayList<>();
+        for (Table t : doc.getTables()) {
+            Map<String, String> cells = cleaned.get(t.getId()) == null
+                    ? new java.util.HashMap<String, String>() : cleaned.get(t.getId());
             List<List<Cell>> rows = new ArrayList<>();
             for (int r = 0; r < t.getRows().size(); r++) {
                 List<Cell> dst = new ArrayList<>();
                 for (int i = 0; i < t.getRows().get(r).size(); i++) {
                     Cell c = t.getRows().get(r).get(i);
-                    String key = c.getKey();
                     String text = c.getText();
                     if (c.isMapped() || c.isInput()) {
-                        mapped.add(key);
-                        String v = cells.get(key);
-                        text = v == null ? "" : clean(v, MAX_CELL, true, null,
-                                "칸 값은 " + MAX_CELL + "자 이하로 입력해 주세요.", "칸 값에 쓸 수 없는 문자가 있습니다.");
+                        text = display(c, cells.get(c.getKey()), c.isParen() ? cells.get(c.getSubKey()) : null);
                     }
                     dst.add(c.withText(text));
                 }
                 rows.add(dst);
-            }
-            if (!mapped.containsAll(cells.keySet())) {
-                throw new EditException("값을 넣을 수 없는 칸이 포함되어 있습니다.");
             }
             out.add(new Table(t.getId(), t.getMapping(), t.getTitle(), t.getColumns(),
                     t.getRowIds(), t.getColIds(), t.getNextR(), t.getNextC(), rows,
@@ -932,7 +1038,7 @@ public final class BoardDocSpec {
 
         Fill(boolean sample) { this.sample = sample; }
 
-        Cell v(String s) { return new Cell(sample ? s : "", 1, 1, false, true, "right"); }
+        Cell v(String s) { return new Cell(sample ? s : "", 1, 1, false, true, "right").withDec(2); }
         Cell vc(String s) { return new Cell(sample ? s : "", 1, 1, false, true, "center"); }
         Cell v(long n) { return v(String.format(Locale.US, "%,d", n)); }
     }
@@ -972,7 +1078,8 @@ public final class BoardDocSpec {
         // page2 표 A: 재산상 이익제공 및 기부금(안), 4열
         Table a = new Table("A", "A", "재산상 이익제공 및 기부금(안)", 4, rows(
                 row(head("기관명"), head("구분"), head("제공금액"), head("비고")),
-                row(f.vc("대한민국 기관").span(1, 4), lab("출연금"), f.v(500), lab("").span(1, 3)),
+                row(Cell.make(f.sample ? "대한민국 기관" : "", 1, 4, false, false, "center", true),
+                        lab("출연금"), f.v(500), lab("").span(1, 3)),
                 row(lab("예비비"), f.v(100)),
                 row(lab("전산시스템 구축/운영비용"), f.v(300)),
                 row(lab("합계"), f.v(900), lab(""))));
@@ -989,6 +1096,8 @@ public final class BoardDocSpec {
             b1.add(f.v(x));
         }
         List<Cell> b2 = labeled(lab("현재가치"), f, pv);
+        b1.set(5, b1.get(5).asParen());      // 명목가치 출연금(예비비) r1_c5
+        b2.set(4, b2.get(4).asParen());      // 현재가치 출연금(예비비) r2_c5
         Table b = new Table("B", "B", "5. 수익성 분석", 9, rows(bHead, b1, b2));
 
         // page4 표 C-2: 명목가치 수익성 (사업초기 + 1~4년차 + 계)
@@ -1044,9 +1153,9 @@ public final class BoardDocSpec {
         // page4 표 C-4: 투자적정성 분석 (판단기준은 고정 문구)
         Table t4 = new Table("C-4", "C-4", "Ⅳ. 투자적정성 분석", 3, rows(
                 row(head("구분"), head("산출값"), head("투자가부 결정 판단기준")),
-                row(lab("회수기간법(Payback Period)"), f.vc("3.2년"), lab("목표기간 보다 회수기간 짧을 시 투자 결정")),
+                row(lab("회수기간법(Payback Period)"), f.vc("3.2년").withUnit("년"),lab("목표기간 보다 회수기간 짧을 시 투자 결정")),
                 row(lab("순현재가치(NPV)"), f.vc("2,345"), lab("순 현재가치가 \"0\"보다 클 때 투자 결정")),
-                row(lab("내부수익률법(IRR)"), f.vc("5.8%"), lab("IRR이 고정자산 기회비용을 상회하는 경우 투자 결정"))),
+                row(lab("내부수익률법(IRR)"), f.vc("5.8%").withUnit("%"),lab("IRR이 고정자산 기회비용을 상회하는 경우 투자 결정"))),
                 "※투입비용은 사업기간 내 연차별 비용을 현재가치로 환산한 값을 적용하고, 수익은 매년 발생하는 명목금액 기준으로 산출",
                 "※ 현재가치할인율 3.31% (고정자산 기회비용률)");
 

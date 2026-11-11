@@ -250,7 +250,7 @@ public final class BoardFormJson {
                 if (!n.path("c").isTextual() || !n.get("c").asText().equals(b.getColId())
                         || n.path("cs").asInt(-1) != b.getColspan() || n.path("rs").asInt(-1) != b.getRowspan()
                         || !n.path("h").isBoolean() || n.get("h").asBoolean() != b.isHeader()
-                        || !n.path("i").isBoolean() || n.get("i").asBoolean() != b.isInput()
+                        || !n.path("i").isBoolean() || n.get("i").asBoolean() != frozenInput(ref, b)
                         || !n.path("a").isTextual() || !n.get("a").asText().equals(b.getAlign())
                         || !n.path("t").isTextual()) {
                     throw new IllegalStateException(BAD);
@@ -261,6 +261,11 @@ public final class BoardFormJson {
             }
         }
         return cells;
+    }
+
+    /** catalog_ver 1 시점의 input 값: A 기관명(r1_c0)은 그때 연결 칸(input=false)이었고 지금은 직접 입력 칸이다. */
+    private static boolean frozenInput(String ref, BoardDocSpec.Cell b) {
+        return b.isInput() && !("A".equals(ref) && "r1_c0".equals(b.getKey()));
     }
 
     public static int catalogVer(String json) {

@@ -79,7 +79,8 @@ public class BoardDocApiTest {
         assertEquals("대한민국 기관", inst.get("text").asText());
         assertEquals(4, inst.get("rowspan").asInt());
         assertEquals(1, inst.get("colspan").asInt());
-        assertTrue(inst.get("mapped").asBoolean());
+        assertFalse(inst.get("mapped").asBoolean());                  // 기관명은 직접 입력 칸(엑셀 연결 아님)
+        assertTrue(inst.get("input").asBoolean());
         assertFalse(inst.get("header").asBoolean());
         assertEquals("center", inst.get("align").asText());
         assertEquals(2, tbl(d, "C-4").get("notes").size());
@@ -102,7 +103,8 @@ public class BoardDocApiTest {
         JsonNode a = tbl(json(MEMBER, "/board-docs/default_doc?values=blank", 200), "A");
         JsonNode inst = a.get("rows").get(1).get(0);
         assertEquals("", inst.get("text").asText());
-        assertTrue(inst.get("mapped").asBoolean());
+        assertFalse(inst.get("mapped").asBoolean());
+        assertTrue(inst.get("input").asBoolean());
         assertEquals("출연금", a.get("rows").get(1).get(1).get("text").asText());
         call(MEMBER, "/board-docs/default_doc?values=xx", 400);
         MvcResult nf = call(MEMBER, "/board-docs/nope", 404);

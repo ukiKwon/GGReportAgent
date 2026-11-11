@@ -58,6 +58,25 @@ public final class BoardNumber {
         return v.signum() < 0 ? "-" + body : body;
     }
 
+    /** 임의 소수 자릿수 고정 표시: HALF_UP, 천 단위 쉼표, 음수는 ASCII '-', 반올림 뒤 0 이면 부호 없는 0.00…(저장값은 이미 소수 2자리 이내라 반올림이 일어나지 않는다). */
+    public static String fixed(BigDecimal v, int scale) {
+        BigDecimal s = v.setScale(scale, RoundingMode.HALF_UP);
+        if (s.signum() == 0) {
+            return BigDecimal.ZERO.setScale(scale).toPlainString();
+        }
+        StringBuilder p = new StringBuilder("#,##0");
+        if (scale > 0) {
+            p.append('.');
+            for (int i = 0; i < scale; i++) {
+                p.append('0');
+            }
+        }
+        DecimalFormat df = new DecimalFormat(p.toString(), DecimalFormatSymbols.getInstance(Locale.ROOT));
+        df.setRoundingMode(RoundingMode.HALF_UP);
+        String body = df.format(s.abs());
+        return s.signum() < 0 ? "-" + body : body;
+    }
+
     /** 한 칸 두 값 병기. */
     public static String paren(String main, String sub) {
         return main + " (" + sub + ")";

@@ -721,6 +721,10 @@ public class BoardFormService {
                     cm.put("header", c.isHeader());
                     cm.put("mapped", c.isMapped());
                     cm.put("input", c.isInput());
+                    cm.put("unit", c.getUnit());                                  // "" | "년" | "%"
+                    cm.put("paren", c.isParen());
+                    cm.put("sub_key", c.isParen() ? c.getSubKey() : null);       // key + "_p"
+                    cm.put("dec", c.getDec() < 0 ? null : (Object) c.getDec());  // 표시 소수 자릿수 고정(없으면 null)
                     cm.put("align", c.getAlign());
                     cm.put("editable", cellEditable);   // 양식 편집 화면: 잠김 폐지(연결 칸도 고칠 수 있다). 자료의 양식 구조: false
                     row.add(cm);

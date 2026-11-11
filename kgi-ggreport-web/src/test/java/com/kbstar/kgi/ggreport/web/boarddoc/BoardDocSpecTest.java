@@ -4,7 +4,10 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -51,7 +54,8 @@ public class BoardDocSpecTest {
         BoardDocSpec.Cell inst = a.getRows().get(1).get(0);
         assertEquals("대한민국 기관", inst.getText());
         assertEquals(4, inst.getRowspan());
-        assertTrue(inst.isMapped());
+        assertTrue(inst.isInput());                        // 기관명은 직접 입력 칸(엑셀 연결 아님)
+        assertFalse(inst.isMapped());
         BoardDocSpec.Cell note = a.getRows().get(1).get(3);
         assertEquals(3, note.getRowspan());
         assertFalse(note.isMapped());
@@ -344,6 +348,102 @@ public class BoardDocSpecTest {
                 assertFalse(expected.getMessage(), expected.getMessage().contains("x2"));    // 입력값을 싣지 않는다
             }
         }
+    }
+
+    // ── 020a: 괄호 칸(paren)·단위(unit)·고정 자릿수(dec)·직접 입력 기관명 ──
+
+    private static Map<String, String> one(String key, String value) {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put(key, value);
+        return m;
+    }
+
+    @Test
+    public void 괄호_칸_B_출연금은_값_둘로_받고_초안_문구는_앞_괄호안_으로_그린다() {
+        BoardDocSpec.Doc d = BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false);
+        Map<String, Map<String, String>> v = new LinkedHashMap<>();
+        Map<String, String> b = new LinkedHashMap<>();
+        b.put("r1_c5", "5");
+        b.put("r1_c5_p", "1");                              // 정규형 저장값
+        b.put("r2_c5", "4.4");                              // 괄호 값 없음(옛 스냅샷 모양)
+        v.put("B", b);
+        Map<String, String> c4 = new LinkedHashMap<>();
+        c4.put("r1_c1", "3.4");
+        c4.put("r3_c1", "0.74");
+        c4.put("r2_c1", "23.45");
+        v.put("C-4", c4);
+        BoardDocSpec.Doc w = BoardDocSpec.withValues(d, v);
+        assertEquals("5.00 (1.00)", table(w, "B").getRows().get(1).get(5).getText());
+        assertEquals("4.40", table(w, "B").getRows().get(2).get(4).getText());
+        assertEquals("3.4년", table(w, "C-4").getRows().get(1).get(1).getText());
+        assertEquals("0.74%", table(w, "C-4").getRows().get(3).get(1).getText());
+        assertEquals("23.45", table(w, "C-4").getRows().get(2).get(1).getText());   // 단위 없는 칸은 그대로
+    }
+
+    @Test
+    public void 표시는_dec2_칸만_고정_자릿수이고_숫자가_아니면_가공하지_않는다() {
+        BoardDocSpec.Doc d = BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false);
+        Map<String, Map<String, String>> v = new LinkedHashMap<>();
+        Map<String, String> a = new LinkedHashMap<>();
+        a.put("r1_c2", "1234.5");
+        a.put("r2_c2", "-0.1");
+        a.put("r3_c2", "5.00 (1.00)");
+        v.put("A", a);
+        BoardDocSpec.Table t = table(BoardDocSpec.withValues(d, v), "A");
+        assertEquals("1,234.50", t.getRows().get(1).get(2).getText());
+        assertEquals("-0.10", t.getRows().get(2).get(1).getText());
+        assertEquals("5.00 (1.00)", t.getRows().get(3).get(1).getText());   // 옛 초안 모양은 그대로
+    }
+
+    @Test
+    public void cleanValues는_괄호_아닌_칸의_p_키를_거부하고_괄호_칸의_p_키는_받는다() {
+        BoardDocSpec.Doc d = BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false);
+        Map<String, Map<String, String>> ok = new LinkedHashMap<>();
+        ok.put("B", one("r1_c5_p", "1"));
+        assertEquals("1", BoardDocSpec.cleanValues(d, ok).get("B").get("r1_c5_p"));
+        Map<String, Map<String, String>> bad = new LinkedHashMap<>();
+        bad.put("B", one("r1_c4_p", "1"));
+        try {
+            BoardDocSpec.cleanValues(d, bad);
+            org.junit.Assert.fail("EditException 이 나와야 한다");
+        } catch (BoardDocSpec.EditException e) {
+            assertTrue(e.getMessage().contains("값을 넣을 수 없는 칸"));
+        }
+    }
+
+    @Test
+    public void A_기관명_r1_c0은_직접_입력_칸이고_텍스트를_담는다() {
+        BoardDocSpec.Doc d = BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false);
+        BoardDocSpec.Cell c = table(d, "A").getRows().get(1).get(0);
+        assertEquals("r1_c0", c.getKey());
+        assertTrue(c.isInput());
+        assertFalse(c.isMapped());
+        Map<String, Map<String, String>> v = new LinkedHashMap<>();
+        v.put("A", one("r1_c0", "노원구"));
+        assertEquals("노원구", table(BoardDocSpec.withValues(d, v), "A").getRows().get(1).get(0).getText());
+    }
+
+    @Test
+    public void 옛_저장_양식의_A_r1_c0_연결_칸은_읽을_때_입력_칸으로_올라온다() throws Exception {
+        BoardDocSpec.Doc d = BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false);
+        com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.node.ObjectNode root =
+                (com.fasterxml.jackson.databind.node.ObjectNode) om.readTree(BoardFormJson.toJson(d));
+        com.fasterxml.jackson.databind.node.ObjectNode cell0 =        // A 표 r1 행의 첫 칸을 옛 모양(i:false)으로
+                (com.fasterxml.jackson.databind.node.ObjectNode) root.get("tables").get(0).get("rows").get(1).get("cells").get(0);
+        assertEquals("c0", cell0.get("c").asText());
+        cell0.put("i", false);
+        BoardDocSpec.Doc back = BoardDocSpec.build(d.getId(), d.getName(),
+                BoardFormJson.parse(om.writeValueAsString(root)), false);
+        BoardDocSpec.Cell c = table(back, "A").getRows().get(1).get(0);
+        assertTrue(c.isInput());
+        assertFalse(c.isMapped());
+        BoardDocSpec.Cell paren = table(back, "B").getRows().get(1).get(5);   // 표시 속성은 저장 JSON 이 아니라 카탈로그에서 복원
+        assertTrue(paren.isParen());
+        assertEquals(2, paren.getDec());
+        assertEquals("년", table(back, "C-4").getRows().get(1).get(1).getUnit());
+        assertEquals("%", table(back, "C-4").getRows().get(3).get(1).getUnit());
+        assertEquals(Collections.singletonList("r1_c5_p"), Collections.singletonList(paren.getSubKey()));
     }
 
     @Test

@@ -25,7 +25,7 @@ final class BoardNamedMapFixture {
             + "'unit':'백만원','unit_assumed':true,'rows':{'value':{'below':1}}}},"
             + "'tables':["
             + "{'ref':'A','lines':["
-            + "{'row':1,'cells':[{'op':'manual'},{'op':'eok','parts':['detail.rev'],'col':'tot'}]},"
+            + "{'row':1,'cells':[{'op':'eok','parts':['detail.rev'],'col':'tot'}]},"
             + "{'row':2,'cells':[{'op':'eok','parts':['detail.cost'],'col':'tot'}]},"
             + "{'row':3,'cells':[{'op':'eok','parts':['detail.it'],'col':'tot'}]},"
             + "{'row':4,'cells':[{'op':'derive_sum','of':['r1c2','r2c1','r3c1']}]}]},"

@@ -130,13 +130,92 @@ public class BoardExcelNamedFillTest {
     }
 
     @Test
-    public void 기관명은_직접_입력_칸이다() throws Exception {
+    public void 기관명은_직접_입력_칸이라_연결_칸_응답에_없다() throws Exception {
         Map<String, Object> out = run(null);
-        Map<String, Object> c = cell(out, "A", "r1_c0");
-        assertEquals("manual", c.get("status"));
-        assertEquals("MANUAL_INPUT", c.get("reason"));
-        assertEquals("", c.get("value"));
-        assertEquals(1, map(out.get("summary")).get("manual"));
+        for (Map<String, Object> c : list(table(out, "A").get("cells"))) {
+            assertFalse("r1_c0".equals(c.get("key")));
+        }
+        assertEquals(4, list(table(out, "A").get("cells")).size());          // r1_c2, r2_c2, r3_c2, r4_c2
+        assertEquals(0, map(out.get("summary")).get("manual"));
+    }
+
+    // ── 단위 칸(C-4 회수기간 "년", 내부수익률 "%") — 엑셀 표시 글자에서 단위를 떼고 숫자만 ──
+
+    /** judge 구역 값 행(r23): 회수기간 = 0열, 내부수익률 = 2열. */
+    private static Consumer<XSSFWorkbook> judge(String payback, String irr) {
+        return wb -> {
+            if (payback != null) { sheet(wb).getRow(23).getCell(0).setCellValue(payback); }
+            if (irr != null) { sheet(wb).getRow(23).getCell(2).setCellValue(irr); }
+        };
+    }
+
+    @Test
+    public void 단위_칸은_엑셀_표시의_단위를_떼고_숫자만_준다() throws Exception {
+        Map<String, Object> out = run(judge("3.4년", "0.74%"));
+        Map<String, Object> pb = cell(out, "C-4", "r1_c1");
+        assertEquals("3.4", pb.get("value"));
+        assertEquals("filled", pb.get("status"));
+        assertFalse(hasWarning(pb, "CELL_UNIT_TEXT"));
+        assertEquals("3.4년", map(pb.get("source")).get("display"));          // 원본 표시는 출처에 남는다
+        assertEquals("0.74", cell(out, "C-4", "r3_c1").get("value"));
+    }
+
+    @Test
+    public void 단위_없는_숫자와_음수_표기는_그대로_통과한다() throws Exception {
+        Map<String, Object> out = run(judge("3.4", "△1.2%"));
+        assertEquals("3.4", cell(out, "C-4", "r1_c1").get("value"));
+        assertEquals("-1.2", cell(out, "C-4", "r3_c1").get("value"));
+        assertEquals("filled", cell(out, "C-4", "r3_c1").get("status"));
+    }
+
+    @Test
+    public void 단위가_다르면_값은_그대로_두고_CELL_UNIT_TEXT와_review() throws Exception {
+        Map<String, Object> pb = cell(run(judge("3.4개월", null)), "C-4", "r1_c1");
+        assertEquals("3.4개월", pb.get("value"));
+        assertEquals("review", pb.get("status"));
+        assertTrue(hasWarning(pb, "CELL_UNIT_TEXT"));
+    }
+
+    @Test
+    public void applyUnit_순수_단위_규칙() {
+        BoardDocSpec.Cell years = BoardDocSpec.catalogTable("C-4", false).getRows().get(1).get(1);
+        BoardDocSpec.Cell npv = BoardDocSpec.catalogTable("C-4", false).getRows().get(2).get(1);
+        assertEquals("년", years.getUnit());
+        assertEquals("", npv.getUnit());
+
+        BoardExcelNamedFill.Eval a = ev("3.4년");
+        BoardExcelNamedFill.applyUnit(a, years);
+        assertEquals("3.4", a.value);
+        assertEquals("filled", a.status);
+
+        BoardExcelNamedFill.Eval b = ev(" 3.40 년 ");                         // 앞뒤·단위 앞 공백, 후행 0
+        BoardExcelNamedFill.applyUnit(b, years);
+        assertEquals("3.4", b.value);
+
+        BoardExcelNamedFill.Eval c = ev("3.4개월");
+        BoardExcelNamedFill.applyUnit(c, years);
+        assertEquals("3.4개월", c.value);
+        assertEquals("review", c.status);
+        assertTrue(c.warn.contains("CELL_UNIT_TEXT"));
+        assertTrue(c.review);
+
+        BoardExcelNamedFill.Eval d = ev("3.4년");                             // 단위 없는 칸(NPV)은 건드리지 않는다
+        BoardExcelNamedFill.applyUnit(d, npv);
+        assertEquals("3.4년", d.value);
+
+        BoardExcelNamedFill.Eval e = ev("3.4년");                             // 실패한 칸(reason)은 건드리지 않는다
+        e.status = "failed";
+        e.reason = "PART_EMPTY";
+        BoardExcelNamedFill.applyUnit(e, years);
+        assertEquals("3.4년", e.value);
+        assertTrue(e.warn.isEmpty());
+    }
+
+    private static BoardExcelNamedFill.Eval ev(String value) {
+        BoardExcelNamedFill.Eval e = new BoardExcelNamedFill.Eval("r1_c1");
+        e.value = value;
+        e.status = "filled";
+        return e;
     }
 
     @Test

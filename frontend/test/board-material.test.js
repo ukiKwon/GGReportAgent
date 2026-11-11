@@ -297,3 +297,80 @@ test('board-material.js: 확인창·브라우저 저장소·원시 특수 코드
   assert.strictEqual(mat.PHASE_020B, false);
   assert.ok(!/innerHTML\s*\+=/.test(src));
 });
+
+// ── 숫자 칸 표시·해석(020a): 서버 BoardDocSpec.display 와 같은 규칙 ──
+function fc(over) { return Object.assign({ key: 'r1_c2', text: '', mapped: true, input: false, unit: '', paren: false, sub_key: null, dec: 2 }, over || {}); }
+
+test('fmtOf: 새 필드가 없는 칸(옛 서버)·가공할 것이 없는 칸·직접 입력 칸은 null', function () {
+  assert.strictEqual(mat.fmtOf({ key: 'k', text: '1', mapped: true }), null);
+  assert.strictEqual(mat.fmtOf(fc({ dec: null })), null);
+  assert.strictEqual(mat.fmtOf({ key: 'r1_c0', input: true, mapped: false, unit: '', paren: false, dec: null }), null);
+  assert.strictEqual(mat.fmtOf(fc({ input: true, mapped: false })), null, '직접 입력 칸은 숫자로 읽지 않는다');
+  assert.strictEqual(mat.fmtOf(null), null);
+  assert.strictEqual(mat.fmtOf(fc({ dec: -1 })), null, '/board-docs 는 dec 없음을 -1 로 보낸다');
+  assert.deepStrictEqual(mat.fmtOf(fc({ dec: -1, unit: '년' })), { dec: null, unit: '년', paren: false, subKey: null });
+  assert.deepStrictEqual(mat.fmtOf(fc()), { dec: 2, unit: '', paren: false, subKey: null });
+  assert.deepStrictEqual(mat.fmtOf(fc({ key: 'r1_c5', paren: true, sub_key: 'r1_c5_p' })), { dec: 2, unit: '', paren: true, subKey: 'r1_c5_p' });
+  assert.deepStrictEqual(mat.fmtOf(fc({ unit: '년', dec: null })), { dec: null, unit: '년', paren: false, subKey: null });
+});
+
+test('display: dec 2 고정·천 단위 쉼표·음수, 단위는 숫자 뒤, 숫자가 아니면 그대로(단위도 안 붙임)', function () {
+  const d2 = fc();
+  assert.strictEqual(mat.display(d2, '1234.5'), '1,234.50');
+  assert.strictEqual(mat.display(d2, '-0.1'), '-0.10');
+  assert.strictEqual(mat.display(d2, '5'), '5.00');
+  assert.strictEqual(mat.display(d2, '1,234'), '1,234.00');
+  assert.strictEqual(mat.display(d2, '-0'), '0.00', '반올림 뒤 0 은 부호 없음');
+  assert.strictEqual(mat.display(d2, ''), '');
+  assert.strictEqual(mat.display(d2, '5.00 (1.00)'), '5.00 (1.00)', '옛 초안 모양은 그대로');
+  assert.strictEqual(mat.display(d2, '해당없음'), '해당없음');
+  assert.strictEqual(mat.display(fc({ unit: '년', dec: null }), '3.4'), '3.4년');
+  assert.strictEqual(mat.display(fc({ unit: '%', dec: null }), '0.74'), '0.74%');
+  assert.strictEqual(mat.display(fc({ unit: '년', dec: null }), '3.4개월'), '3.4개월', '숫자가 아니면 단위를 붙이지 않는다');
+  assert.strictEqual(mat.display({ key: 'k', mapped: true, text: '1' }, '1234.5'), '1234.5', '새 필드가 없는 칸은 가공 없음');
+  const p = fc({ key: 'r1_c5', paren: true, sub_key: 'r1_c5_p' });
+  assert.strictEqual(mat.display(p, '5', '1'), '5.00 (1.00)');
+  assert.strictEqual(mat.display(p, '5', ''), '5.00');
+  assert.strictEqual(mat.display(p, '', ''), '');
+  assert.strictEqual(mat.display(p, '4.4'), '4.40');
+  assert.deepStrictEqual(mat.displayParts(p, '5', '1'), { main: '5.00', sub: '1.00', paren: true });
+  assert.deepStrictEqual(mat.displayParts(d2, '5', '1'), { main: '5.00', sub: '', paren: false });
+});
+
+test('parseCell: 단위 떼기·△·▲·(n)·쉼표·공백, 괄호 칸은 "앞 (괄호안)" 나눔, 다른 단위는 ok=false', function () {
+  const yr = fc({ unit: '년', dec: null }), pc = fc({ unit: '%', dec: null }), d2 = fc(), p = fc({ key: 'r1_c5', paren: true, sub_key: 'r1_c5_p' });
+  assert.deepStrictEqual(mat.parseCell(yr, '3.4년'), { main: '3.4', sub: '', ok: true });
+  assert.deepStrictEqual(mat.parseCell(yr, ' 3.4 년 '), { main: '3.4', sub: '', ok: true });
+  assert.deepStrictEqual(mat.parseCell(pc, '0.74%'), { main: '0.74', sub: '', ok: true });
+  assert.deepStrictEqual(mat.parseCell(yr, '3.4'), { main: '3.4', sub: '', ok: true });
+  assert.strictEqual(mat.parseCell(yr, '3.4%').ok, false, '다른 단위');
+  assert.strictEqual(mat.parseCell(yr, '3.4개월').ok, false);
+  assert.strictEqual(mat.parseCell(d2, '3.4년').ok, false, '단위가 없는 칸에 단위가 붙으면 문제');
+  assert.deepStrictEqual(mat.parseCell(yr, '3.4%'), { main: '3.4%', sub: '', ok: false }, '실패하면 입력 글자 그대로');
+  assert.deepStrictEqual(mat.parseCell(d2, '1,234.5'), { main: '1234.5', sub: '', ok: true });
+  assert.deepStrictEqual(mat.parseCell(d2, '△1,234'), { main: '-1234', sub: '', ok: true });
+  assert.deepStrictEqual(mat.parseCell(d2, '▲5'), { main: '-5', sub: '', ok: true });
+  assert.deepStrictEqual(mat.parseCell(d2, '(1,234)'), { main: '-1234', sub: '', ok: true });
+  assert.deepStrictEqual(mat.parseCell(d2, '-7'), { main: '-7', sub: '', ok: true });
+  assert.deepStrictEqual(mat.parseCell(d2, '1 234'), { main: '1234', sub: '', ok: true }, 'NBSP');
+  assert.deepStrictEqual(mat.parseCell(d2, ''), { main: '', sub: '', ok: true });
+  assert.strictEqual(mat.parseCell(d2, '12a').ok, false);
+  assert.strictEqual(mat.parseCell(d2, '5 (1)').ok, false, '괄호 칸이 아니면 나누지 않는다');
+  assert.deepStrictEqual(mat.parseCell(p, '5.00 (1.00)'), { main: '5.00', sub: '1.00', ok: true });
+  assert.deepStrictEqual(mat.parseCell(p, '1,234.5(△2)'), { main: '1234.5', sub: '-2', ok: true });
+  assert.deepStrictEqual(mat.parseCell(p, '5'), { main: '5', sub: '', ok: true });
+  assert.deepStrictEqual(mat.parseCell(p, '5 ()'), { main: '5', sub: '', ok: true });
+  assert.strictEqual(mat.parseCell(p, '5 (x)').ok, false);
+  assert.deepStrictEqual(mat.parseCell({ key: 'k', text: '' }, ' 글자 '), { main: '글자', sub: '', ok: true }, '숫자 칸이 아니면 그대로');
+});
+
+test('readOnlyHtml: 새 필드가 있는 칸은 양식 표시 규칙(소수 2자리·단위·괄호)으로, 괄호 안만 있어도 보임', function () {
+  const form = { tables: [{ ref: 'B', mapping: 'B', title: 't', columns: [], rows: [
+    [{ key: 'h', text: '구분', header: true }, { key: 'h2', text: '값', header: true }],
+    [fc({ key: 'r1_c1' }), fc({ key: 'r1_c5', paren: true, sub_key: 'r1_c5_p' }), fc({ key: 'r1_c6', unit: '년', dec: null }), fc({ key: 'r1_c7' })]] }] };
+  const h = mat.readOnlyHtml(form, [{ ref: 'B', cells: { r1_c1: '1234.5', r1_c5: '5', r1_c5_p: '1', r1_c6: '3.4' } }]);
+  assert.ok(h.includes('1,234.50') && h.includes('5.00 (1.00)') && h.includes('3.4년'));
+  assert.ok(h.includes('<span class="dg-hint">—</span>'), '값 없는 칸');
+  const only = mat.readOnlyHtml(form, [{ ref: 'B', cells: { r1_c5_p: '2' } }]);
+  assert.ok(only.includes('(2.00)'));
+});

@@ -210,7 +210,7 @@
     if (version != null && version !== '' && isFinite(Number(version))) body.version = Number(version);
     body.tables = ws.tables.filter(function (t) { return t.mapped; }).map(function (t) {
       const cells = {};
-      t.order.forEach(function (k) { cells[k] = str(t.cells[k].value).trim(); });
+      t.order.forEach(function (k) { putValue(cells, k, t.cells[k], false); });
       return { ref: t.ref, cells: cells };
     });
     return body;
@@ -261,6 +261,26 @@
     return null;
   }
   bw.findT = findT;
+  // ── 숫자 칸 표시·해석(020a): 규칙은 board-material.js(mat.fmtOf·display·parseCell)에 한 벌만 둔다 ──
+  // 양식 칸에 unit·paren·sub_key·dec 가 있으면 값 칸은 '정규형 숫자'(value, 괄호 칸은 sub 도 따로)를 들고, 화면은 항상 이 규칙으로 다시 그린다.
+  // 새 필드가 없는 칸(옛 서버·옛 양식)은 fmt 가 없고 예전처럼 value 글자 그대로다.
+  function mm() { return (typeof matMod !== 'undefined' && matMod) || root.boardMat || null; }
+  bw.fmtOf = function (fc) { const m = mm(); return m ? m.fmtOf(fc) : null; };
+  bw.display = function (fc, main, sub) { const m = mm(); return m ? m.display(fc, main, sub) : str(main); };
+  bw.parseCell = function (fc, text) { const m = mm(); return m ? m.parseCell(fc, text) : { main: str(text).trim(), sub: '', ok: true }; };
+  function canonOr(v) { const c = bw.canonNumber(v); return c == null ? str(v) : c; }
+  // 칸의 화면 글자(숫자 칸은 단위·소수 자리·괄호 규칙 적용, 아니면 value 그대로)와 원본 글자
+  bw.cellText = function (c) { return c && c.fmt ? bw.display(c.fmt, c.value, c.sub) : str(c && c.value); };
+  bw.origText = function (c) { return c && c.fmt ? bw.display(c.fmt, c.orig, c.origSub) : str(c && c.orig); };
+  // 서버·저장 본문의 key/값 쌍 추가: 괄호 칸은 둘째 값을 sub_key 로 함께 보낸다(always=false 면 빈 둘째 값은 뺀다)
+  function putValue(into, k, c, always) {
+    into[k] = str(c.value).trim();
+    if (c.fmt && c.fmt.paren && c.fmt.subKey) {
+      const sv = str(c.sub).trim();
+      if (always || sv !== '') into[c.fmt.subKey] = sv;
+    }
+  }
+  bw.baseKeyOf = function (key) { return str(key).replace(/_p$/, ''); };   // 괄호 칸 둘째 값 key(r1_c5_p) → 칸 key(r1_c5)
   function eachCell(ws, fn) { ws.tables.forEach(function (t) { t.order.forEach(function (k) { fn(t, t.cells[k]); }); }); }
   function posIn(rows, key) {
     for (let r = 0; r < rows.length; r++) {
@@ -335,8 +355,21 @@
             const code = str(w && w.code);
             if (code === 'SUM_MISMATCH') serverSum = bw.serverSum(w); else if (code) warns.push(code);
           });
+          // 숫자 칸(양식 칸에 unit·paren·dec): 값은 정규형 숫자로 들고 괄호 칸은 앞 값·괄호 안 값을 따로 둔다.
+          // 서버가 준 main_value·sub_value 가 있으면 그것을, 없으면 value 글자를 같은 규칙으로 해석한다. 숫자가 아니면(단위 오류 등) 글자 그대로.
+          const fcell = pos && Array.isArray(rows[pos.r]) ? rows[pos.r][pos.ci] : null, fmt = bw.fmtOf(fcell);
+          let nv = value, nsub = '';
+          if (fmt) {
+            const one = function (x) { const p = bw.parseCell(fmt, x); return { v: p.ok ? canonOr(p.main) : p.main, ok: p.ok }; };
+            if (fmt.paren && (rc.main_value != null || rc.sub_value != null)) {
+              nv = one(str(rc.main_value)).v; nsub = one(str(rc.sub_value)).v;
+            } else {
+              const p = bw.parseCell(fmt, value);
+              nv = p.ok ? canonOr(p.main) : p.main; nsub = p.ok && fmt.paren ? canonOr(p.sub) : '';
+            }
+          }
           t.cells[key] = {
-            key: key, value: value, orig: value,
+            key: key, value: nv, orig: nv,
             status: manual ? 'manual' : (rc.status === 'failed' ? 'failed' : (rc.status === 'review' ? 'review' : 'filled')), reason: str(rc.reason),
             manual: manual, parts: parts, partCount: (isFinite(pc) && pc >= 0) ? Math.max(pc, parts.length) : parts.length,
             convert: normConvert(rc.convert), mainValue: rc.main_value == null ? null : str(rc.main_value),
@@ -347,6 +380,7 @@
             label: pos ? str(labeler({ title: ft.title, rows: rows, columns: t.columns, cells: {} }, pos.r, pos.ci)) : '',
             asked: false, why: '', memo: '', whyAsked: false
           };
+          if (fmt) Object.assign(t.cells[key], { fmt: fmt, sub: nsub, origSub: nsub });   // 숫자 칸만 — 옛 칸 모양은 그대로
           t.order.push(key);
           if (t.grid && s) { const gp = bw.gridPos(t.grid, s.cell); if (gp) t.srcIndex[gp.r + ',' + gp.c] = key; }
           // 여러 원본 칸을 더한 칸(parts)은 부품 칸도 같은 양식 칸의 원본으로 등록한다(원본 패널에서 모두 강조).
@@ -441,12 +475,13 @@
     HIDDEN_FORMAT: '엑셀 화면에서는 서식으로 가려져 보이지 않는 값입니다. 문서에 넣어도 되는지 확인해 주세요. (글꼴 색 등 서식 밖의 숨김은 검사하지 않습니다.)',
     LABEL_MISMATCH: '이 표의 머리글이 양식과 달라 위치대로 채웠습니다.',
     SUM_HAS_MANUAL_PARTS: '합계 범위 안에 엑셀에서 가져오지 않는 칸(직접 입력)이 있어 합계가 엑셀 값과 다를 수 있습니다. 직접 입력한 값을 확인해 주세요.',
-    NUM_FORMAT: '숫자 형식이 저장 형식에 맞지 않아 저장할 수 없습니다. 괄호·△·단위·% 기호를 빼고 숫자만 넣어 주세요.'
+    NUM_FORMAT: '숫자 형식이 저장 형식에 맞지 않아 저장할 수 없습니다. 괄호·△·단위·% 기호를 빼고 숫자만 넣어 주세요.',
+    CELL_UNIT_TEXT: '단위가 양식과 다르거나 숫자로 읽히지 않습니다. 숫자만 남겨 주세요.'
   };
 
   bw.cellInfo = function (t, c) {
     const unreadable = c.status === 'failed' && c.value.trim() === '';
-    const edited = !c.manual && c.value.trim() !== c.orig.trim();   // 직접 입력 칸은 원본이 없어 수정으로 세지 않는다
+    const edited = !c.manual && (c.value.trim() !== c.orig.trim() || (!!c.fmt && str(c.sub).trim() !== str(c.origSub).trim()));   // 직접 입력 칸은 원본이 없어 수정으로 세지 않는다
     const sum = bw.sumState(t, c.key);
     const sumBad = !!(sum && !sum.zero);
     return {
@@ -633,7 +668,7 @@
       if (total > MAX_PART_LINES) out.push({ k: 'part', text: '그 밖에 ' + (total - MAX_PART_LINES) + '칸' });
     }
     convertLines(t, c).forEach(function (s) { out.push({ k: 'calc', text: s }); });
-    if (i.edited) out.push({ k: 'note', text: '수정함 ' + c.value + (c.why ? ' · 사유 ' + bw.whyText(c) : '') });
+    if (i.edited) out.push({ k: 'note', text: '수정함 ' + bw.cellText(c) + (c.why ? ' · 사유 ' + bw.whyText(c) : '') });
     if (i.sumBad) out.push({ k: 'note', text: '표시 합 ' + i.sum.expected + ' · 합계 ' + i.sum.actual + ' · 차이 ' + i.sum.diff });
     if (i.unreadable) out.push({ k: 'note', text: (c.reason === 'PART_EMPTY' ? '비어 있음: ' : '읽지 못함: ') + bw.reasonText(c.reason) });
     c.warns.forEach(function (w) { if (WARN[w] && !(w === 'LABEL_MISMATCH' && c.reason === 'LABEL_MISMATCH')) out.push({ k: 'note', text: WARN[w] }); });
@@ -646,6 +681,11 @@
   };
   // 서버 값이 정확히 "main (sub)" 이고 아직 고치지 않았으면 {main, sub}, 아니면 null.
   bw.parenOf = function (c) {
+    if (c && c.fmt && c.fmt.paren) {   // 양식이 괄호 칸으로 정한 칸: 앞 값·괄호 안 값은 따로 들고 있고, 표시 규칙(소수 자리)을 적용해 돌려준다
+      if (str(c.sub).trim() === '') return null;
+      const m = mm(), p = m ? m.displayParts(c.fmt, c.value, c.sub) : null;
+      return p ? { main: p.main, sub: p.sub } : null;
+    }
     if (!c || c.manual || c.mainValue == null || c.subValue == null || c.value !== c.orig) return null;
     return c.value === c.mainValue + ' (' + c.subValue + ')' ? { main: c.mainValue, sub: c.subValue } : null;
   };
@@ -653,8 +693,8 @@
   bw.cellAria = function (t, c) {
     const i = bw.cellInfo(t, c), pr = bw.parenOf(c);
     const parts = [(c.label || t.title).replace(/ · /g, ', '),
-      i.unreadable ? missText(c) : (pr ? pr.main + ', 괄호 안 ' + pr.sub : (c.value === '' ? (c.manual ? '직접 입력' : '비어 있음') : c.value))];
-    if (i.edited) parts.push('수정됨' + (i.hasOrig ? ', 원본 ' + c.orig : ''));
+      i.unreadable ? missText(c) : (pr ? pr.main + ', 괄호 안 ' + pr.sub : (c.value === '' ? (c.manual ? '직접 입력' : '비어 있음') : bw.cellText(c)))];
+    if (i.edited) parts.push('수정됨' + (i.hasOrig ? ', 원본 ' + bw.origText(c) : ''));
     if (i.sumBad) parts.push('합계 차이 ' + i.sum.diff);
     if (c.warns.some(function (w) { return w !== 'LABEL_MISMATCH'; })) parts.push('주의');
     return parts.join(', ');   // 확인 상태는 칸이 아니라 표(카드 aria-label·체크박스)가 전한다
@@ -665,7 +705,7 @@
   bw.compareLine = function (t, c) {
     if (!c || c.manual || !c.src || str(c.value) === '' || bw.cellInfo(t, c).unreadable) return '';
     const total = Math.max(c.partCount || 0, (c.parts || []).length), cv = c.convert;
-    const now = str(c.value) + (cv && cv.unit_to ? ' ' + str(cv.unit_to) : '');
+    const now = bw.cellText(c) + (cv && cv.unit_to ? ' ' + str(cv.unit_to) : '');
     if (total > 1) {
       const first = (c.parts && c.parts[0] && c.parts[0].cell) || c.src.cell;
       return now + ' ← ' + str(first) + ' 외 ' + (total - 1) + '칸 합';
@@ -756,19 +796,26 @@
   bw.editCell = function (ws, ref, key, text) {
     const t = findT(ws, ref), c = t && t.cells[key];
     if (!c) return { ws: ws, released: '', changed: false };
-    const v = str(text).trim();
-    if (v === c.value) return { ws: ws, released: '', changed: false };
+    let v = str(text).trim(), sv = '';
+    if (c.fmt) {   // 숫자 칸: 쓴 글자를 해석해 정규형 숫자로 담는다(단위·쉼표·△·(n)·"앞 (괄호안)"). 해석이 안 되면 글자 그대로 담아 숫자 오류로 알린다.
+      const p = bw.parseCell(c.fmt, text);
+      v = p.ok ? canonOr(p.main) : p.main;
+      sv = p.ok && c.fmt.paren ? canonOr(p.sub) : '';
+    }
+    if (v === c.value && sv === str(c.sub)) return { ws: ws, released: '', changed: false };
     const patch = { value: v };
+    if (c.fmt) patch.sub = sv;
     // 값이 바뀌면 그 칸이 속한 표의 확인만 풀린다(한 원본 칸이 두 표에 쓰여도 고친 이사회 칸의 표만).
     const released = t.checked ? (ws.done ? 'done' : 'table') : '';
-    if (v === c.orig.trim()) { patch.why = ''; patch.memo = ''; }   // 원래 값으로 돌아오면 사유도 지운다
+    if (v === c.orig.trim() && (!c.fmt || sv === str(c.origSub).trim())) { patch.why = ''; patch.memo = ''; }   // 원래 값으로 돌아오면 사유도 지운다
+    const from = bw.cellText(c), to = c.fmt ? bw.display(c.fmt, v, sv) : v;
     let next = bw.patchCell(ws, ref, key, patch);
-    if (t.checked) next = bw.patchTable(next, ref, { checked: null, relNote: { label: bw.shortLabel(c), from: c.value, to: v } });
+    if (t.checked) next = bw.patchTable(next, ref, { checked: null, relNote: { label: bw.shortLabel(c), from: from, to: to } });
     else if (t.relNote) {
       // 이미 확인이 풀린 표: 안내는 가장 최근에 고친 값으로 갱신하고, 고친 칸이 하나도 남지 않으면(모두 원본으로 되돌림) 지운다
       const t2 = findT(next, ref);
       const any = Object.keys(t2.cells).some(function (k) { return bw.cellInfo(t2, t2.cells[k]).edited; });
-      next = bw.patchTable(next, ref, { relNote: any ? { label: bw.shortLabel(c), from: c.value, to: v } : null });
+      next = bw.patchTable(next, ref, { relNote: any ? { label: bw.shortLabel(c), from: from, to: to } : null });
     }
     return { ws: bw.normalize(next), released: released, changed: true };
   };
@@ -798,8 +845,11 @@
     if (bad) return { ws: ws, note: bad, error: true, changed: false, released: '' };
     const r = bw.editCell(ws, sel.t, sel.key, text);
     if (!r.changed) return { ws: ws, note: '값이 같아 바꾸지 않았습니다.', error: false, changed: false, released: '' };
-    const label = bw.shortLabel(c), from = c.value === '' ? '빈 칸' : c.value, to = str(text).trim() === '' ? '빈 칸' : str(text).trim();
-    const back = !c.manual && str(c.orig).trim() !== '' && str(text).trim() === str(c.orig).trim();   // 원본 값으로 되돌린 경우
+    const nc = findT(r.ws, sel.t).cells[sel.key];
+    const label = bw.shortLabel(c), fromT = bw.cellText(c), toT = bw.cellText(nc);
+    const from = fromT === '' ? '빈 칸' : fromT, to = toT === '' ? '빈 칸' : toT;
+    const back = !c.manual && str(c.orig).trim() !== '' &&
+      (c.fmt ? (nc.value === str(c.orig).trim() && str(nc.sub) === str(c.origSub).trim()) : str(text).trim() === str(c.orig).trim());   // 원본 값으로 되돌린 경우
     const msgs = [(back ? label + bw.josaEul(label) + ' 원본 값 ' + to + bw.josaEuro(to) + ' 되돌렸습니다.'
                         : label + bw.josaEul(label) + ' ' + from + '에서 ' + to + bw.josaEuro(to) + ' 고쳤습니다.') +
       (r.released ? ' ‘' + tname(t) + '’ 표의 확인을 풀었습니다.' : '')];
@@ -980,12 +1030,12 @@
     if (i.unreadable) inner = '<span class="bd-w-miss' + (c.reason === 'PART_EMPTY' ? ' bd-w-empty' : '') + '">' + missText(c) + '</span>';
     else if (pr) inner = esc(pr.main) + ' <span class="bd-w-paren">(' + esc(pr.sub) + ')</span>';
     else if (c.manual && c.value === '') inner = '<span class="bd-w-miss bd-w-empty">직접 입력</span>';
-    else inner = esc(c.value);
+    else inner = esc(bw.cellText(c));
     let extra = '';
     if (p.ui && p.ui.edit && p.ui.edit.t === t.ref && p.ui.edit.key === c.key) {
       inner = '<input type="text" id="bd-w-in" class="bd-w-in" maxlength="' + MAX_CELL + '" value="' + esc(p.ui.edit.text) + '" aria-label="' + esc(bw.cellAria(t, c)) + ' 수정">';
     }
-    if (i.edited && i.hasOrig) extra += '<span class="bd-w-orig">원본 ' + esc(c.orig) + '</span>';
+    if (i.edited && i.hasOrig) extra += '<span class="bd-w-orig">원본 ' + esc(bw.origText(c)) + '</span>';
     const warn = c.warns.some(function (w) { return w !== 'LABEL_MISMATCH'; }) || i.sumBad;
     return '<td class="' + cls.join(' ') + '" role="gridcell" data-t="' + esc(t.ref) + '" data-key="' + esc(c.key) + '" tabindex="' + (p.rove ? '0' : '-1') +
       '" aria-selected="' + (p.sel ? 'true' : 'false') + '" aria-label="' + esc(bw.cellAria(t, c)) + '"' +
@@ -1198,7 +1248,7 @@
   bw.popInputText = function (ws, ui) {
     const s = bw.selected(ws, ui.sel);
     if (!s) return '';
-    return ui.pop && ui.pop.text != null ? ui.pop.text : s.c.value;
+    return ui.pop && ui.pop.text != null ? ui.pop.text : bw.cellText(s.c);
   };
   // Esc: 입력 안이면 입력만 취소하고 팝업은 열어 둔다. 입력 밖이면 닫는다.
   bw.popEscAction = function (x) { return x && x.input ? 'input' : 'close'; };
@@ -1271,8 +1321,8 @@
     const row = function (o) {
       const x = bw.selected(ws, o), i = bw.cellInfo(x.t, x.c), on = ui.sel.t === o.t && ui.sel.key === o.key;
       const name = (x.t.mapping ? '(' + x.t.mapping + ') ' : '') + bw.pathText(x.c, x.t);
-      const val = '<span class="bd-src-val mono">' + esc(x.c.value === '' ? '빈 칸' : x.c.value + (x.c.convert && x.c.convert.unit_to ? ' ' + x.c.convert.unit_to : '')) + '</span>' +
-        (i.edited ? '<span class="bd-w-chip is-warn">수정됨' + (i.hasOrig ? ' · 원본 ' + esc(x.c.orig) : '') + '</span>' : '');
+      const val = '<span class="bd-src-val mono">' + esc(x.c.value === '' ? '빈 칸' : bw.cellText(x.c) + (x.c.convert && x.c.convert.unit_to ? ' ' + x.c.convert.unit_to : '')) + '</span>' +
+        (i.edited ? '<span class="bd-w-chip is-warn">수정됨' + (i.hasOrig ? ' · 원본 ' + esc(bw.origText(x.c)) : '') + '</span>' : '');
       return cands.length > 1
         ? '<label class="bd-src-cand' + (on ? ' is-on' : '') + '"><input type="radio" name="bd-src-cand" data-w="srccand" data-v="' + esc(o.t + '|' + o.key) + '"' + (on ? ' checked' : '') + '> <span>' + esc(name) + '</span>' + val + '</label>'
         : '<div class="bd-src-cand is-on"><span>' + esc(name) + '</span>' + val + '</div>';
@@ -1362,7 +1412,7 @@
   // 복사 값 = 화면 현재 값. 상태 표시(틴트·체크·삼각형·보조 줄·사유·원래 값)는 넣지 않는다.
   function oneLine(s) { return str(s).replace(/[\t\r\n]+/g, ' ').trim(); }
   function cellTextOf(t) {
-    return function (o) { const k = str(o.key); return ((o.mapped === true || o.input === true) && has(t.cells, k)) ? t.cells[k].value : str(o.text); };
+    return function (o) { const k = str(o.key); return ((o.mapped === true || o.input === true) && has(t.cells, k)) ? bw.cellText(t.cells[k]) : str(o.text); };
   }
   function tsvRows(rows, textOf) {
     const g = [];
@@ -1590,7 +1640,10 @@
       (Array.isArray(ft.rows) ? ft.rows : []).forEach(function (row) {
         (Array.isArray(row) ? row : []).forEach(function (fc) {
           if (!fc || typeof fc !== 'object' || !(fc.mapped === true || fc.input === true) || str(fc.key) === '') return;
-          cells.push({ key: str(fc.key), value: has(saved, str(fc.key)) ? str(saved[str(fc.key)]) : '', status: 'manual', source: null });
+          const rc = { key: str(fc.key), value: has(saved, str(fc.key)) ? str(saved[str(fc.key)]) : '', status: 'manual', source: null };
+          const fm = bw.fmtOf(fc);
+          if (fm && fm.paren && fm.subKey) { rc.main_value = rc.value; rc.sub_value = has(saved, fm.subKey) ? str(saved[fm.subKey]) : ''; }   // 괄호 칸: 둘째 값은 key_p 에 따로 저장돼 있다
+          cells.push(rc);
         });
       });
       return { ref: ref, cells: cells };
@@ -1605,7 +1658,13 @@
       if (!t.mapped || !saved) return;
       t.order.forEach(function (k) {
         const c = t.cells[k];
-        if (c && c.manual && has(saved, k)) out = bw.patchCell(out, t.ref, k, { value: str(saved[k]), orig: str(saved[k]) });
+        if (!c || !c.manual) return;
+        const sk = c.fmt && c.fmt.paren ? c.fmt.subKey : null;
+        if (has(saved, k) || (sk && has(saved, sk))) {
+          const patch = { value: has(saved, k) ? str(saved[k]) : '', orig: has(saved, k) ? str(saved[k]) : '' };
+          if (c.fmt) { const sv = sk && has(saved, sk) ? str(saved[sk]) : ''; patch.sub = sv; patch.origSub = sv; }   // 괄호 칸은 둘째 값도 이어받는다
+          out = bw.patchCell(out, t.ref, k, patch);
+        }
       });
     });
     return out;
@@ -1617,7 +1676,9 @@
       if (!t.mapped) return;
       const saved = base[t.ref] || {};
       t.order.forEach(function (k) {
-        if (valueKey(t.cells[k].value) !== valueKey(has(saved, k) ? saved[k] : '')) out.push({ t: t.ref, key: k });
+        const c = t.cells[k], sk = c.fmt && c.fmt.paren ? c.fmt.subKey : null;
+        if (valueKey(c.value) !== valueKey(has(saved, k) ? saved[k] : '') ||
+            (sk && valueKey(c.sub) !== valueKey(has(saved, sk) ? saved[sk] : ''))) out.push({ t: t.ref, key: k });
       });
     });
     return out;
@@ -1629,12 +1690,23 @@
       const nk = numeric && numeric[t.ref];
       if (!nk) return;
       t.order.forEach(function (k) {
-        const v = str(t.cells[k].value).trim();
-        if (nk[k] && v !== '' && !NUM_SERVER.test(v)) out.push({ t: t.ref, key: k });
+        if (!nk[k]) return;
+        numBad(t.cells[k]).forEach(function (key) { out.push({ t: t.ref, key: key }); });
       });
     });
     return out;
   };
+  // 한 값 칸에서 서버 숫자 문법에 맞지 않는 key 목록. 괄호 칸은 앞 값(key)·괄호 안 값(sub_key)을 따로 보고,
+  // 앞 값 없이 괄호 안 값만 있으면 괄호 안 값 칸이 문제다(서버도 400). 단위 칸에 "3.4개월"처럼 남은 글자는 숫자가 아니라 걸린다.
+  function numBad(c) {
+    const v = str(c.value).trim(), out = [];
+    if (v !== '' && !NUM_SERVER.test(v)) out.push(c.key);
+    if (c.fmt && c.fmt.paren && c.fmt.subKey) {
+      const sv = str(c.sub).trim();
+      if (sv !== '' && (!NUM_SERVER.test(sv) || v === '')) out.push(c.fmt.subKey);
+    }
+    return out;
+  }
   // 숫자 형식 위반 칸에 경고(NUM_FORMAT)를 달아 '확인 필요' 필터·경고 표시에 걸리게 한다(고치면 뗀다).
   bw.refreshNumWarn = function (ws, numeric) {
     let out = ws;
@@ -1644,9 +1716,10 @@
       t.order.forEach(function (k) {
         const c = t.cells[k];
         if (!nk[k]) return;
-        const v = str(c.value).trim(), bad = v !== '' && !NUM_SERVER.test(v), on = c.warns.indexOf('NUM_FORMAT') >= 0;
-        if (bad && !on) out = bw.patchCell(out, t.ref, k, { warns: c.warns.concat(['NUM_FORMAT']) });
-        else if (!bad && on) out = bw.patchCell(out, t.ref, k, { warns: c.warns.filter(function (w) { return w !== 'NUM_FORMAT'; }) });
+        const bad = numBad(c).length > 0, on = c.warns.indexOf('NUM_FORMAT') >= 0, unitTxt = c.warns.indexOf('CELL_UNIT_TEXT') >= 0;
+        // 서버가 단위 문제(CELL_UNIT_TEXT)로 이미 알린 칸은 같은 뜻의 NUM_FORMAT 을 겹쳐 달지 않는다. 숫자로 고치면 둘 다 뗀다.
+        if (bad && !on && !unitTxt) out = bw.patchCell(out, t.ref, k, { warns: c.warns.concat(['NUM_FORMAT']) });
+        else if (!bad && (on || unitTxt)) out = bw.patchCell(out, t.ref, k, { warns: c.warns.filter(function (w) { return w !== 'NUM_FORMAT' && w !== 'CELL_UNIT_TEXT'; }) });
       });
     });
     return out;
@@ -1658,7 +1731,7 @@
     ws.tables.forEach(function (t) {
       if (!t.mapped) return;
       const cells = {};
-      t.order.forEach(function (k) { cells[k] = str(t.cells[k].value).trim(); });
+      t.order.forEach(function (k) { putValue(cells, k, t.cells[k], true); });
       out[t.ref] = cells;
     });
     return out;
@@ -1680,7 +1753,7 @@
       const t = ws.tables.filter(function (x) { return x.ref === d.t; })[0];
       if (!t || !t.cells[d.key]) return;
       if (!has(out, d.t)) out[d.t] = {};
-      out[d.t][d.key] = str(t.cells[d.key].value).trim();
+      putValue(out[d.t], d.key, t.cells[d.key], true);
     });
     return out;
   };
@@ -1692,8 +1765,10 @@
       if (!t.mapped || !has(next, t.ref)) return;
       t.order.forEach(function (k) {
         if (!has(next[t.ref], k)) return;
-        const v = str(next[t.ref][k]);
-        if (valueKey(t.cells[k].value) !== valueKey(v)) out = bw.patchCell(out, t.ref, k, { value: v, orig: v });
+        const c = t.cells[k], v = str(next[t.ref][k]), sk = c.fmt && c.fmt.paren ? c.fmt.subKey : null;
+        const sv = sk && has(next[t.ref], sk) ? str(next[t.ref][sk]) : '';
+        if (sk) { if (valueKey(c.value) !== valueKey(v) || valueKey(c.sub) !== valueKey(sv)) out = bw.patchCell(out, t.ref, k, { value: v, orig: v, sub: sv, origSub: sv }); }
+        else if (valueKey(c.value) !== valueKey(v)) out = bw.patchCell(out, t.ref, k, { value: v, orig: v });
       });
     });
     return out;
@@ -1717,7 +1792,12 @@
              cells: cells, count: count, btns: cells.length ? [['m-goto', '그 칸으로 가기']] : [] };
   }
   bw.numberErrorLocal = function (list) {
-    return numErr(list.length, list.map(function (x) { return { t: x.t, key: x.key }; }));
+    const seen = {}, cells = [];   // 괄호 안 값 칸(key_p)은 칸 key 로 모아 같은 칸은 한 번만
+    list.forEach(function (x) {
+      const key = bw.baseKeyOf(x.key), id = x.t + '|' + key;
+      if (!seen[id]) { seen[id] = 1; cells.push({ t: x.t, key: key }); }
+    });
+    return numErr(cells.length, cells);
   };
   // 저장 실패(res: {status, body, net}) → 오류 상자 내용. 서버 문자열은 모두 화면에서 esc 한다.
   // ctx: {k(내 수정 칸 수), cur, who, atText} — 409 충돌 안내용.
@@ -1725,7 +1805,7 @@
     const c = ctx || {}, status = res ? res.status : 0, d = detailOf(res && res.body);
     const code = d && typeof d.code === 'string' ? d.code : '', msg = d && typeof d.message === 'string' ? d.message : '';
     const cells = d && Array.isArray(d.cells)
-      ? d.cells.filter(function (x) { return x && typeof x === 'object' && x.ref != null && x.key != null; }).map(function (x) { return { t: str(x.ref), key: str(x.key) }; }) : null;
+      ? d.cells.filter(function (x) { return x && typeof x === 'object' && x.ref != null && x.key != null; }).map(function (x) { return { t: str(x.ref), key: bw.baseKeyOf(x.key) }; }) : null;   // key_p(괄호 안 값)는 그 칸(key)으로 보낸다
     const count = d && d.count > 0 ? Number(d.count) : (cells ? cells.length : 0);
     const e = function (kind, title, hint, btns, extra) {
       return Object.assign({ kind: kind, title: title, lines: [], mono: '', hint: hint || '', cells: cells || [], count: count, btns: btns || [] }, extra || {});
@@ -2118,7 +2198,7 @@
     function openEdit(t, key, seed) {
       const s = lookup(t, key);
       if (!s) return;
-      ui.edit = { t: t, key: key, text: seed == null ? s.c.value : seed };
+      ui.edit = { t: t, key: key, text: seed == null ? bw.cellText(s.c) : seed };
       draw(null);
       const inp = $('bd-w-in');
       if (inp) { inp.focus(); if (seed == null) inp.select(); else inp.setSelectionRange(inp.value.length, inp.value.length); }
@@ -2300,7 +2380,7 @@
     function popRevert() {
       const s = ui.sel && lookup(ui.sel.t, ui.sel.key);
       if (!ui.pop || !s) return;
-      const r = bw.popCommit(ws, ui.sel, s.c.orig);
+      const r = bw.popCommit(ws, ui.sel, bw.origText(s.c));
       ws = r.ws; ui.pop.text = null; ui.pop.note = r.note; ui.pop.err = r.error;
       if (r.changed) ui.pop.last = { t: ui.sel.t, key: ui.sel.key };
       drawPop({ id: 'bd-src-in' });
@@ -2310,7 +2390,7 @@
       const s = ui.sel && lookup(ui.sel.t, ui.sel.key), inp = $('bd-src-in');
       if (!ui.pop) return;
       ui.pop.text = null; ui.pop.note = ''; ui.pop.err = false;
-      if (inp && s) { inp.value = s.c.value; inp.removeAttribute('aria-invalid'); }
+      if (inp && s) { inp.value = bw.cellText(s.c); inp.removeAttribute('aria-invalid'); }
       const nt = $('bd-src-note'); if (nt) { nt.textContent = ''; nt.className = 'bd-src-note'; nt.setAttribute('role', 'status'); }
     }
     function popAct(btn) {
@@ -2453,7 +2533,7 @@
         case 'revert': {
           if (!ui.sel) break;
           const s = lookup(ui.sel.t, ui.sel.key);
-          if (s) { const r = bw.editCell(ws, ui.sel.t, ui.sel.key, s.c.orig); ws = r.ws; ui.live = bw.releaseText(r.released, findT(ws, ui.sel.t)); if (ui.mat) ws = bw.refreshNumWarn(ws, ui.mat.numeric); }
+          if (s) { const r = bw.editCell(ws, ui.sel.t, ui.sel.key, bw.origText(s.c)); ws = r.ws; ui.live = bw.releaseText(r.released, findT(ws, ui.sel.t)); if (ui.mat) ws = bw.refreshNumWarn(ws, ui.mat.numeric); }
           draw({ cell: true });
           break;
         }
@@ -2472,7 +2552,7 @@
       if (bad.length) {   // 서버와 같은 규칙으로 먼저 막는다 — 요청 없이 그 칸으로 간다
         ws = bw.refreshNumWarn(ws, m.numeric);
         m.err = bw.numberErrorLocal(bad); m.err.idx = 0; m.noteOpen = false; m.ok = null;
-        ws = bw.setFilter(ws, 'need'); ui.sel = { t: bad[0].t, key: bad[0].key };
+        ws = bw.setFilter(ws, 'need'); ui.sel = { t: bad[0].t, key: bw.baseKeyOf(bad[0].key) };
         draw({ cell: true });
         return;
       }

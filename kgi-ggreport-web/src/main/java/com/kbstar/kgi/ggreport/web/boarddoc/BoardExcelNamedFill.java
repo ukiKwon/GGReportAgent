@@ -131,7 +131,7 @@ final class BoardExcelNamedFill {
         }
     }
 
-    private static final class Eval {
+    static final class Eval {
         final String key;
         String value = "", status = "failed", reason, mainValue, subValue;
         boolean lookup, review;
@@ -155,8 +155,16 @@ final class BoardExcelNamedFill {
         Acc acc = new Acc();
         Map<String, Eval> evals = new LinkedHashMap<>();
         int unlinked = 0;
+        Map<String, BoardDocSpec.Cell> formCells = new HashMap<>();
+        for (List<BoardDocSpec.Cell> fr : dt.getRows()) {
+            for (BoardDocSpec.Cell fc : fr) { formCells.put(fc.getKey(), fc); }
+        }
         for (CellSpec sp : t.getSpecs().values()) {
-            if (present.contains(sp.key)) { evals.put(sp.key, eval(c, sp, acc)); } else { unlinked++; }
+            if (present.contains(sp.key)) {
+                Eval ev = eval(c, sp, acc);
+                applyUnit(ev, formCells.get(sp.key));
+                evals.put(sp.key, ev);
+            } else { unlinked++; }
         }
         Map<String, List<String>> manualParts = new HashMap<>();
         Map<String, List<String>> restOf = new HashMap<>();
@@ -237,7 +245,28 @@ final class BoardExcelNamedFill {
         return e;
     }
 
-    private static void collect(Ctx c, Part p, String role, Eval e, List<BigDecimal> nums, Acc acc, boolean numeric) {
+    /**
+     * 칸에 단위(년·%)가 정해져 있으면 엑셀 표시값에서 그 단위를 떼고 숫자만 남긴다(저장은 숫자만, 단위는 양식이 붙인다).
+     * 단위가 다르거나 숫자로 읽히지 않으면 값은 그대로 두고 CELL_UNIT_TEXT 주의 + review — 사용자가 고친다. 단위 없는 숫자는 그대로 통과.
+     * 반올림은 하지 않는다(소수 3자리 이상이면 저장 때 숫자 오류로 알려진다).
+     */
+    static void applyUnit(Eval e, BoardDocSpec.Cell fc) {
+        if (e == null || fc == null || fc.getUnit().isEmpty() || e.reason != null || e.value.trim().isEmpty()) {
+            return;
+        }
+        String s = e.value.trim();
+        String num = s.endsWith(fc.getUnit()) ? s.substring(0, s.length() - fc.getUnit().length()).trim() : s;
+        BigDecimal n = BoardExcelFill.shownNum(num);
+        if (n == null) {
+            e.warn.add("CELL_UNIT_TEXT");
+            e.review = true;
+            if ("filled".equals(e.status)) { e.status = "review"; }
+            return;
+        }
+        e.value = BoardExcelFill.plain(n);
+    }
+
+    private static void collect(Ctx c, Part p,String role, Eval e, List<BigDecimal> nums, Acc acc, boolean numeric) {
         AreaDef d = c.m.area(p.area);
         Located l = c.locate(p.area);
         if (!l.ok()) { e.fail(l.error, true); acc.lookup(p.area, null, l.error, l.ref, 0, l.row); return; }

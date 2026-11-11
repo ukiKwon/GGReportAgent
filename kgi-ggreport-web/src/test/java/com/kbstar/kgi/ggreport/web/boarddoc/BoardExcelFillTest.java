@@ -131,9 +131,9 @@ public class BoardExcelFillTest {
         assertEquals("review", c.get("status"));
         assertEquals("500", c.get("value"));
         assertTrue(hasWarning(c, "LABEL_MISMATCH"));
-        assertEquals(5, ((List<?>) t.get("cells")).size());
-        assertEquals(100 - 5, summary(out).get("filled"));
-        assertEquals(5, summary(out).get("review"));
+        assertEquals(4, ((List<?>) t.get("cells")).size());              // 기관명(r1_c0)은 직접 입력 칸이라 연결 칸이 아니다
+        assertEquals(99 - 4, summary(out).get("filled"));
+        assertEquals(4, summary(out).get("review"));
         assertEquals(0, summary(out).get("failed"));
         assertEquals(1, summary(out).get("label_mismatch_tables"));
         assertEquals(java.util.Collections.singletonList("A"), BoardExcelFill.labelMismatchRefs(out));
@@ -176,8 +176,8 @@ public class BoardExcelFillTest {
             assertTrue(hasWarning(c, "LABEL_MISMATCH"));
             assertFalse(hasWarning(c, "SUM_MISMATCH"));
         }
-        assertEquals(100 - 5, summary(out).get("filled"));
-        assertEquals(5, summary(out).get("failed"));
+        assertEquals(99 - 4, summary(out).get("filled"));
+        assertEquals(4, summary(out).get("failed"));
         assertEquals(0, summary(out).get("review"));
     }
 
@@ -200,7 +200,7 @@ public class BoardExcelFillTest {
     @Test
     public void 문자_칸은_raw가_null() throws Exception {
         Map<String, Object> out = run(BoardExcelFixture.legacyMap(), null);
-        Map<String, Object> c = cell(out, "A", "r1_c0");                  // 기관명 칸(문자열)
+        Map<String, Object> c = cell(out, "C-4", "r1_c1");                // 문자열 칸(회수기간 "3.2년" — 기관명 r1_c0 은 이제 연결 칸이 아니다)
         assertEquals("filled", c.get("status"));
         assertNull(source(c).get("raw"));
         assertNull(source(c).get("rounded"));
@@ -302,9 +302,9 @@ public class BoardExcelFillTest {
         Map<String, Object> out = run(BoardExcelFixture.legacyMap(), wb -> {
             CellStyle hide = wb.createCellStyle();
             hide.setDataFormat(wb.createDataFormat().getFormat(";;;"));
-            wb.getSheet("기부금").getRow(1).getCell(0).setCellStyle(hide);   // A2 기관명(문자열)
+            BoardExcelFixture.cell(wb.getSheet("수익성분석"), new org.apache.poi.ss.util.CellReference("B26")).setCellStyle(hide);   // C-4 회수기간(문자열)
         });
-        assertTrue(hasWarning(cell(out, "A", "r1_c0"), "HIDDEN_FORMAT"));
+        assertTrue(hasWarning(cell(out, "C-4", "r1_c1"), "HIDDEN_FORMAT"));
     }
 
     @Test
@@ -388,7 +388,7 @@ public class BoardExcelFillTest {
     public void 숫자가_아닌_칸과_읽지_못한_칸은_raw가_null() throws Exception {
         Map<String, Object> out = run(BoardExcelFixture.legacyMap(), wb ->
                 ((org.apache.poi.xssf.usermodel.XSSFCell) wb.getSheet("기부금").getRow(4).getCell(2)).getCTCell().unsetV());
-        assertNull(source(cell(out, "A", "r1_c0")).get("raw"));          // 문자열(numeric=false)
+        assertNull(source(cell(out, "C-4", "r1_c1")).get("raw"));        // 문자열(numeric=false)
         assertNull(source(cell(out, "A", "r4_c2")).get("raw"));          // problem
     }
 

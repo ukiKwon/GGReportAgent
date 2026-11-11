@@ -73,13 +73,13 @@ public class BoardDocEditTest {
     }
 
     @Test
-    public void 칸_키는_행id_열id_매핑_칸은_편집_불가() {
+    public void 칸_키는_행id_열id_매핑_칸은_편집_불가_기관명은_직접_입력이라_편집_가능() {
         Set<String> keys = BoardDocSpec.editableKeys(BoardDocSpec.catalogTable("A", true));
-        assertEquals(10, keys.size());
-        for (String k : new String[]{"r0_c0", "r0_c3", "r1_c1", "r1_c3", "r2_c1", "r3_c1", "r4_c1", "r4_c3"}) {
+        assertEquals(11, keys.size());
+        for (String k : new String[]{"r0_c0", "r0_c3", "r1_c0", "r1_c1", "r1_c3", "r2_c1", "r3_c1", "r4_c1", "r4_c3"}) {
             assertTrue(k, keys.contains(k));
         }
-        for (String k : new String[]{"r1_c0", "r1_c2", "r2_c2", "r3_c2", "r4_c2"}) {
+        for (String k : new String[]{"r1_c2", "r2_c2", "r3_c2", "r4_c2"}) {
             assertFalse(k, keys.contains(k));
         }
         assertEquals("r3_c2", BoardDocSpec.cellKey("r3", "c2"));
@@ -93,7 +93,7 @@ public class BoardDocEditTest {
         assertEquals("새 제목", a.getTitle());
         assertEquals("기관", a.getRows().get(0).get(0).getText());
         assertEquals("구분", a.getRows().get(0).get(1).getText());
-        assertEquals("대한민국 기관", a.getRows().get(1).get(0).getText());     // 매핑 칸(샘플) 유지
+        assertEquals("대한민국 기관", a.getRows().get(1).get(0).getText());     // 직접 입력 칸(기관명)의 카탈로그 샘플 문구 유지
         assertEquals(4, a.getRows().get(1).get(0).getRowspan());                // 구조 유지
         assertEquals("내 양식", d.getName());
         assertEquals("Ⅳ. 투자적정성 분석", table(d, "C-4").getTitle());
@@ -119,7 +119,7 @@ public class BoardDocEditTest {
 
     @Test
     public void 매핑_칸_없는_칸_키_null_값은_거부() {
-        expectEdit(list(edit("A", null, "r1_c0", "x")), "수정할 수 없는 칸");
+        expectEdit(list(edit("A", null, "r1_c2", "x")), "수정할 수 없는 칸");        // 연결 칸(기관명 r1_c0 은 직접 입력 칸이라 편집 가능)
         expectEdit(list(edit("A", null, "r9_c9", "x")), "수정할 수 없는 칸");
         expectEdit(list(edit("A", null, "r0_c0", null)), "올바르지 않습니다");
         expectEdit(list(edit("A", null, "r0c0", "x")), "수정할 수 없는 칸");        // 옛 모양 key 는 번역하지 않고 거부(낡은 화면 보호)
@@ -168,7 +168,7 @@ public class BoardDocEditTest {
         // PR-2: 옛 모양 cells 맵(r{행}c{순번}) 병기는 없다 — 칸 문구는 행·칸 구조 안에만 있다
         assertFalse(json.contains("\"cells\":{"));
         assertFalse(json.contains("r0c0"));
-        // 표 A 의 기관명 값 칸(r1_c0)은 연결 칸이라 문구를 담지 않는다(t 가 빈 문자열)
+        // 표 A 의 기관명 칸(r1_c0)은 직접 입력 칸이다(정식 양식 문구는 빈 문자열, i:true)
         String aPart = json.substring(json.indexOf("\"ref\":\"A\""), json.indexOf("\"ref\":\"C-4\""));
         assertTrue(aPart.contains("\"c\":\"c0\",\"t\":\"\",\"cs\":1,\"rs\":4"));
         assertTrue(aPart.contains("\"next_r\":100,\"next_c\":100"));
@@ -241,6 +241,12 @@ public class BoardDocEditTest {
             String ref = t.get("ref").asText();
             if ("C-5".equals(ref)) {
                 tables.remove(i);
+            } else if ("A".equals(ref)) {
+                for (com.fasterxml.jackson.databind.JsonNode row : t.get("rows")) {      // 그때는 기관명(r1_c0)이 연결 칸(i:false)이었다
+                    if ("r1".equals(row.get("id").asText())) {
+                        ((com.fasterxml.jackson.databind.node.ObjectNode) row.get("cells").get(0)).put("i", false);
+                    }
+                }
             } else if ("C-3".equals(ref)) {
                 com.fasterxml.jackson.databind.node.ArrayNode cols = (com.fasterxml.jackson.databind.node.ArrayNode) t.get("cols");
                 for (int j = cols.size() - 1; j >= 0; j--) {
@@ -457,7 +463,7 @@ public class BoardDocEditTest {
         v.put("A", cells);
         BoardDocSpec.Doc d = BoardDocSpec.withValues(sample, v);
         BoardDocSpec.Table a = table(d, "A");
-        assertEquals("500", a.getRows().get(1).get(2).getText());              // trim
+        assertEquals("500.00", a.getRows().get(1).get(2).getText());           // trim 뒤 억원 칸(dec=2)은 소수 둘째 자리 고정
         assertEquals("", a.getRows().get(1).get(0).getText());                 // 샘플 "대한민국 기관" → 빈칸
         assertEquals("", a.getRows().get(4).get(1).getText());
         assertEquals("출연금", a.getRows().get(1).get(1).getText());            // 비매핑 라벨 유지

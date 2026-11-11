@@ -55,7 +55,7 @@ public class BoardWriteSlotsTest {
         assertEquals(2, service.getConcurrency());
         Map<String, Object> ok = service.upload(ADMIN, "default_doc", null,
                 new MockMultipartFile("file", "가상.xlsx", XLSX, BoardExcelFixture.xlsx(null)));
-        assertEquals(100, ((Map<?, ?>) ok.get("summary")).get("total"));      // 옛 형식 시험 지도(C-5 없음)
+        assertEquals(99, ((Map<?, ?>) ok.get("summary")).get("total"));       // 옛 형식 시험 지도(C-5 없음, 기관명은 직접 입력 칸)
         assertEquals(service.getConcurrency(), service.availableSlots());
     }
 }

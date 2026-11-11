@@ -63,7 +63,7 @@
   },
   "tables": [
     {"ref": "A", "lines": [
-      {"row": 1, "cells": [{"op": "manual"}, {"op": "eok", "parts": ["detail.grant"], "col": "tot"}]},
+      {"row": 1, "cells": [{"op": "eok", "parts": ["detail.grant"], "col": "tot"}]},
       {"row": 2, "cells": [{"op": "eok", "parts": ["detail.reserve"], "col": "tot"}]},
       {"row": 3, "cells": [{"op": "eok", "parts": ["detail.it"], "col": "tot"}]},
       {"row": 4, "cells": [{"op": "derive_sum", "of": ["r1_c2", "r2_c2", "r3_c2"]}]}

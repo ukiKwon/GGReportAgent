@@ -158,6 +158,12 @@ public class BoardProfitSampleTest {
         return sum.movePointLeft(2).setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
+    /** 표시 문자열 끝의 단위를 떼고 trim(서버 applyUnit 과 같은 기대). */
+    private static String stripUnit(String shown, String unit) {
+        String s = shown.trim();
+        return s.endsWith(unit) ? s.substring(0, s.length() - unit.length()).trim() : s;
+    }
+
     // ── 응답 도우미 ──
 
     @SuppressWarnings("unchecked")
@@ -207,12 +213,12 @@ public class BoardProfitSampleTest {
             out = BoardExcelFill.fill(b, new BoardExcelMap(), BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false));
         }
 
-        // 요약: 95 + C-3 사업초기 열 5 + C-5 150
+        // 요약: 94 + C-3 사업초기 열 5 + C-5 150 (기관명은 직접 입력 칸이라 연결 칸이 아니다)
         Map<String, Object> sm = map(out.get("summary"));
-        assertEquals(250, sm.get("total"));
+        assertEquals(249, sm.get("total"));
         assertEquals(249, sm.get("filled"));
         assertEquals(0, sm.get("failed"));
-        assertEquals(1, sm.get("manual"));                                  // 기관명
+        assertEquals(0, sm.get("manual"));
         assertEquals(0, sm.get("review"));
         assertEquals(0, sm.get("warnings"));
         assertEquals(0, sm.get("label_mismatch_tables"));
@@ -257,7 +263,7 @@ public class BoardProfitSampleTest {
         // C-3 사업초기 열(c6): 출연금 현가(D)+예비비 현가(F) = 5.00+1.00, 미회수 투자액 6.00
         expect(out, "C-3", "r4_c6", "6.00");
         expect(out, "C-3", "r5_c6", "6.00");
-        assertEquals("3.4년", cell(out, "C-4", "r1_c1").get("value"));
+        assertEquals("3.4", cell(out, "C-4", "r1_c1").get("value"));            // 단위(년)는 양식이 붙인다 — 엑셀 표시 "3.4년" 에서 뗀다
 
         // C-5 고정값(손계산, 명목): 열 c3=사업초기 c4~c7=1~4년차 c8=계
         String[][] c5 = {
@@ -358,11 +364,11 @@ public class BoardProfitSampleTest {
             }
             // C-4
             int vr = o.valueRow();
-            assertEquals(o.str(vr, 1), cell(out, "C-4", "r1_c1").get("value"));
+            assertEquals(stripUnit(o.str(vr, 1), "년"), cell(out, "C-4", "r1_c1").get("value"));   // 단위는 양식이 붙이므로 값은 숫자만
             String npv = (String) cell(out, "C-4", "r2_c1").get("value");
             assertEquals(eok(o.num(vr, 2)), npv);
             assertTrue("NPV 는 음수 표기", npv.startsWith("-"));
-            assertEquals(o.str(vr, 3), cell(out, "C-4", "r3_c1").get("value"));
+            assertEquals(stripUnit(o.str(vr, 3), "%"), cell(out, "C-4", "r3_c1").get("value"));
 
             // 5년 열은 읽히지 않는다
             for (String ref : new String[]{"A", "B", "C-2", "C-3", "C-4", "C-5"}) {

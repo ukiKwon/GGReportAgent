@@ -422,7 +422,7 @@ public class BoardStructureTest {
         v.put("A", cells);
         BoardDocSpec.Table a = table(BoardDocSpec.withValues(d1, v), "A");
         assertEquals("12.5", a.getRows().get(3).get(1).getText());
-        assertEquals("500", a.getRows().get(1).get(2).getText());
+        assertEquals("500.00", a.getRows().get(1).get(2).getText());                             // 연결 칸(dec=2)은 소수 둘째 자리 고정
         assertEquals("추가 항목", a.getRows().get(3).get(0).getText());                          // 라벨은 그대로
         assertEquals("", table(BoardDocSpec.withValues(d1, null), "A").getRows().get(3).get(1).getText());   // 안 보낸 입력 칸은 빈칸
         for (String key : new String[]{"r100_c1", "r0_c0", "r2_c1"}) {

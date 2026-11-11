@@ -229,10 +229,23 @@ public class BoardFormApiTest {
         assertEquals("r1_c0", inst.get("key").asText());
         assertEquals("r1", inst.get("row_id").asText());
         assertEquals("c0", inst.get("col_id").asText());
-        assertTrue(inst.get("mapped").asBoolean());
-        assertFalse(inst.get("input").asBoolean());
+        assertFalse(inst.get("mapped").asBoolean());                       // 기관명은 직접 입력 칸(엑셀 연결 아님)
+        assertTrue(inst.get("input").asBoolean());
         assertTrue(inst.get("editable").asBoolean());                      // 잠김 폐지: 연결 칸도 편집 가능(구조 편집 계약)
-        assertEquals("대한민국 기관", inst.get("text").asText());
+        assertEquals("", inst.get("text").asText());                       // 복제본(정식 양식)의 기관명 입력 칸은 빈 문구 — 샘플 문구는 샘플 모드(원본)에만
+        assertEquals("", inst.get("unit").asText());                       // 표시 속성(020a): 단위·괄호·소수 자릿수
+        assertFalse(inst.get("paren").asBoolean());
+        assertTrue(inst.get("sub_key").isNull());
+        assertTrue(inst.get("dec").isNull());
+        JsonNode grant = table(d, "A").get("rows").get(1).get(2);          // 출연금 값 칸 r1_c2: 억원 표 연결 칸
+        assertEquals(2, grant.get("dec").asInt());
+        JsonNode paren = table(d, "B").get("rows").get(1).get(5);          // 명목가치 출연금(예비비) r1_c5: 값 두 개
+        assertTrue(paren.get("paren").asBoolean());
+        assertEquals("r1_c5_p", paren.get("sub_key").asText());
+        JsonNode years = table(d, "C-4").get("rows").get(1).get(1);        // 회수기간 r1_c1: 단위 "년"
+        assertEquals("년", years.get("unit").asText());
+        assertTrue(years.get("dec").isNull());
+        assertEquals("%", table(d, "C-4").get("rows").get(3).get(1).get("unit").asText());
         assertTrue(table(d, "A").get("rows").get(0).get(0).get("editable").asBoolean());
         // 원본은 DB 행이 아니라 PUT·GET 대상이 아니다
         call(MEMBER, put("/board-forms/default_doc"), all(1, null), 404);
@@ -306,7 +319,7 @@ public class BoardFormApiTest {
         assertEquals("양식 v2", r.get("name").asText());
         assertEquals("새 제목", table(r, "A").get("title").asText());
         assertEquals("총계", table(r, "A").get("rows").get(4).get(0).get("text").asText());
-        assertEquals("대한민국 기관", table(r, "A").get("rows").get(1).get(0).get("text").asText());
+        assertEquals("", table(r, "A").get("rows").get(1).get(0).get("text").asText());          // 기관명 입력 칸: 정식 양식은 빈 문구
 
         JsonNode v1 = call(MEMBER, get("/board-forms/" + id).param("version", "1"), null, 200);
         assertEquals("양식", v1.get("name").asText());
@@ -365,7 +378,7 @@ public class BoardFormApiTest {
     public void 매핑_칸과_없는_칸_키_전송은_400이고_구조_키는_무시된다() throws Exception {
         grant(MEMBER);
         long id = copy(MEMBER, "양식");
-        saved(MEMBER, id, body(1, null, cell(tbl("A"), "r1_c0", "해킹")), 400);
+        saved(MEMBER, id, body(1, null, cell(tbl("A"), "r1_c2", "해킹")), 400);       // 연결 칸(기관명 r1_c0 은 직접 입력 칸이라 편집 가능)
         saved(MEMBER, id, body(1, null, cell(tbl("A"), "r99_c9", "x")), 400);
         // 낡은 화면이 보내는 옛 모양 key 는 조용히 엉뚱한 칸에 적용되지 않고 400 (문구는 고정, 입력을 되돌려 싣지 않는다)
         JsonNode oldKey = saved(MEMBER, id, body(1, null, cell(tbl("A"), "r0c0", "낡은화면")), 400);
@@ -631,7 +644,8 @@ public class BoardFormApiTest {
                     assertEquals(c.get("row_id").asText() + "_" + c.get("col_id").asText(), key);
                     assertTrue("중복 " + key, seen.add(key));
                     assertTrue(c.get("editable").asBoolean());                                   // 잠김 폐지: 모든 칸 true
-                    assertFalse(c.get("input").asBoolean());
+                    assertEquals(key, "A".equals(t.get("id").asText()) && "r1_c0".equals(key),   // 기관명만 직접 입력 칸
+                            c.get("input").asBoolean());
                 }
             }
         }

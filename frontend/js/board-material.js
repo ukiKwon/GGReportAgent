@@ -362,6 +362,90 @@
     const s = str(v), m = /^(-?)(\d+)(\.\d+)?$/.exec(s);
     return m ? m[1] + m[2].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (m[3] || '') : s;
   };
+  // ── 숫자 칸 표시·입력 해석(020a): 서버 BoardDocSpec.display 와 같은 규칙. board-write.js 도 이 함수를 쓴다 ─────────
+  // 양식 칸의 unit·paren·sub_key·dec → {dec, unit, paren, subKey}. 새 필드가 없거나(옛 서버·옛 모양) 가공할 것이 없으면 null.
+  // 직접 입력(텍스트) 칸(input 이고 mapped 아님)도 null — 숫자로 읽지 않는다. 이미 fmtOf 결과인 객체를 넘겨도 같은 결과.
+  mat.fmtOf = function (cell) {
+    if (!isObj(cell)) return null;
+    if (!(has(cell, 'unit') || has(cell, 'paren') || has(cell, 'dec'))) return null;
+    if (cell.input === true && cell.mapped !== true) return null;
+    const dn = cell.dec == null ? NaN : Number(cell.dec);
+    const dec = isFinite(dn) && dn >= 0 ? Math.floor(dn) : null, unit = str(cell.unit), paren = cell.paren === true;
+    if (dec == null && unit === '' && !paren) return null;
+    const sk = cell.subKey != null ? cell.subKey : cell.sub_key;
+    return { dec: dec, unit: unit, paren: paren, subKey: paren ? (sk != null && str(sk) !== '' ? str(sk) : (str(cell.key) !== '' ? str(cell.key) + '_p' : null)) : null };
+  };
+  const DISP_NUM = /^-?(?:\d{1,13}|\d{1,3}(?:,\d{3}){1,4})(?:\.\d{1,2})?$/;
+  // 소수 dec 자리 고정(HALF_UP) + 천 단위 쉼표. v 는 DISP_NUM 모양. 반올림 뒤 0 이면 부호 없음.
+  function fixedNum(v, dec) {
+    let s = str(v).replace(/,/g, ''), neg = false;
+    if (s.charAt(0) === '-') { neg = true; s = s.slice(1); }
+    const d = s.indexOf('.');
+    let ip = d >= 0 ? s.slice(0, d) : s, fp = d >= 0 ? s.slice(d + 1) : '';
+    if (fp.length > dec) {
+      const up = fp.charAt(dec) >= '5';
+      fp = fp.slice(0, dec);
+      if (up) {
+        const digits = (ip + fp).split('');
+        let i = digits.length - 1;
+        while (i >= 0) { if (digits[i] === '9') { digits[i] = '0'; i--; } else { digits[i] = String(Number(digits[i]) + 1); break; } }
+        if (i < 0) digits.unshift('1');
+        const all = digits.join('');
+        ip = all.slice(0, all.length - dec); fp = all.slice(all.length - dec);
+      }
+    }
+    while (fp.length < dec) fp += '0';
+    const zero = /^0*$/.test(ip + fp);
+    return (neg && !zero ? '-' : '') + ip.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (dec > 0 ? '.' + fp : '');
+  }
+  function shownPart(f, v, withUnit) {
+    if (v === '' || !DISP_NUM.test(v) || (f.dec == null && f.unit === '')) return v;   // 숫자가 아니거나 가공 규칙이 없으면 그대로(단위도 붙이지 않는다)
+    const body = f.dec != null ? fixedNum(v, f.dec) : v;
+    return withUnit ? body + f.unit : body;
+  }
+  // 앞 값·괄호 안 값 표시 글자. 괄호 칸이 아니면 sub 는 ''.
+  mat.displayParts = function (cell, main, sub) {
+    const f = mat.fmtOf(cell), m = str(main).trim(), s = str(sub).trim();
+    if (!f) return { main: m, sub: '', paren: false };
+    if (f.paren) return { main: shownPart(f, m, false), sub: shownPart(f, s, false), paren: true };
+    return { main: shownPart(f, m, true), sub: '', paren: false };
+  };
+  // 칸 표시 글자: 괄호 칸은 "앞 (괄호안)"(괄호 안이 비면 앞 값만), 단위는 숫자 뒤에.
+  mat.display = function (cell, main, sub) {
+    const p = mat.displayParts(cell, main, sub);
+    if (!p.paren) return p.main;
+    const m = str(main).trim(), s = str(sub).trim();
+    if (m === '' && s === '') return '';
+    return s === '' ? p.main : (m === '' ? '' : p.main + ' ') + '(' + p.sub + ')';
+  };
+  // 숫자 한 덩어리 해석 → {v, ok}. 공백·쉼표 제거, 칸 단위로 끝나면 뗌, 음수 -n·△n·▲n·(n). 빈 글자는 {'' , ok}.
+  function numPart(f, x) {
+    let s = str(x).replace(/[\s ,]/g, '');
+    if (s === '') return { v: '', ok: true };
+    if (f.unit !== '' && s.length > f.unit.length && s.slice(-f.unit.length) === f.unit) s = s.slice(0, -f.unit.length);
+    let neg = false;
+    if (/^[△▲]/.test(s)) { neg = true; s = s.slice(1); }
+    else if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1); }
+    else if (s.charAt(0) === '-') { neg = true; s = s.slice(1); }
+    if (!/^\d+(\.\d+)?$/.test(s)) return { v: str(x).trim(), ok: false };
+    return { v: (neg ? '-' : '') + s, ok: true };
+  }
+  // 사용자가 고친 글자 → {main, sub, ok}. 숫자 칸이 아니면(fmtOf null) 글자 그대로 {main: trim, sub: '', ok: true}.
+  // ok 가 false 면 main 은 입력한 글자(trim) 그대로이고 sub 는 ''(서버·화면이 숫자 오류로 알린다).
+  mat.parseCell = function (cell, text) {
+    const f = mat.fmtOf(cell), raw = str(text).replace(/ /g, ' ').trim();
+    if (!f) return { main: raw, sub: '', ok: true };
+    const flat = raw.replace(/,/g, '');
+    if (f.paren) {
+      const m = /^([^\s()]+)\s*\(\s*([^()]*?)\s*\)$/.exec(flat);
+      if (m) {
+        const a = numPart(f, m[1]), b = numPart(f, m[2]);
+        return a.ok && b.ok ? { main: a.v, sub: b.v, ok: true } : { main: raw, sub: '', ok: false };
+      }
+    }
+    const w = numPart(f, flat);
+    return w.ok ? { main: w.v, sub: '', ok: true } : { main: raw, sub: '', ok: false };
+  };
   mat.baseOf = function (tables) {   // 저장본 tables → {ref:{칸키:값}}
     const out = {};
     (Array.isArray(tables) ? tables : []).forEach(function (t) {
@@ -383,7 +467,12 @@
     let inner, num = false;
     if (isVal) {   // 값 칸은 저장한 값만 그린다(양식의 예시 숫자는 그리지 않는다)
       const v = has(vals, key) ? str(vals[key]) : '';
-      if (v === '') inner = '<span class="dg-hint">—</span>';
+      const fm = mat.fmtOf(o), sv = fm && fm.paren && fm.subKey && has(vals, fm.subKey) ? str(vals[fm.subKey]) : '';
+      if (v === '' && sv === '') inner = '<span class="dg-hint">—</span>';
+      else if (fm) {   // 양식이 정한 표시(소수 자리·단위·괄호)로 — 작성 화면·워드와 같은 글자
+        const pp = mat.displayParts(o, v, sv), f = mat.display(o, v, sv);
+        inner = esc(f); num = /^-?[\d,]+(\.\d+)?$/.test(fm.paren ? pp.main : f);
+      }
       else { const f = mat.fmtValue(v); inner = esc(f); num = /^-?[\d,]+(\.\d+)?$/.test(f); }
     } else inner = esc(o.text);
     const al = has(ALIGNS, o.align) ? o.align : (num ? 'right' : (header ? 'center' : 'left'));

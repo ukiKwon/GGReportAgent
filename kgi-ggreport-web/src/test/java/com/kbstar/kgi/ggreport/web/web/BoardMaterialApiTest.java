@@ -767,6 +767,100 @@ public class BoardMaterialApiTest {
                 String.class, id).contains("\"1234567890123\""));
     }
 
+    // ── 020a: 괄호 칸(B 출연금 key_p)·단위 칸(C-4 년·%)·직접 입력 기관명(A r1_c0) ──
+
+    /** 한 표에 여러 칸을 담은 저장 본문. kv 는 key, value 쌍. */
+    private static String bodyOf(int base, String ref, String... kv) {
+        StringBuilder sb = new StringBuilder("{\"base_snap_no\":" + base + ",\"tables\":[{\"ref\":\"" + ref + "\",\"cells\":{");
+        for (int i = 0; i < kv.length; i += 2) {
+            sb.append(i == 0 ? "" : ",").append('"').append(kv[i]).append("\":\"").append(kv[i + 1]).append('"');
+        }
+        return sb.append("}}]}").toString();
+    }
+
+    private String stored(long id, int snap) {
+        return jdbc.queryForObject("SELECT VALUES_JSON FROM BOARD_MATERIAL_SNAP WHERE MATERIAL_ID=? AND SNAP_NO=?",
+                String.class, id, snap);
+    }
+
+    private long assignedMaterial() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        return create(MEMBER, bc, 2026);
+    }
+
+    @Test
+    public void 괄호_칸은_앞_값과_key_p_값을_각각_숫자로_받아_정규형으로_저장한다() throws Exception {
+        long id = assignedMaterial();
+        save(id, MEMBER, bodyOf(0, "B", "r1_c5", "5.00", "r1_c5_p", "1.00"), 201);
+        String s = stored(id, 1);
+        assertTrue(s, s.contains("\"r1_c5\":\"5\""));
+        assertTrue(s, s.contains("\"r1_c5_p\":\"1\""));
+    }
+
+    @Test
+    public void 괄호_값만_있거나_괄호_글자를_통째로_보내면_400_문제_칸_위치만() throws Exception {
+        long id = assignedMaterial();
+        JsonNode only = om.readTree(save(id, MEMBER, bodyOf(0, "B", "r1_c5_p", "1"), 400)).path("detail");
+        assertEquals("BAD_VALUE", only.path("code").asText());
+        assertEquals(1, only.path("count").asInt());
+        assertEquals("B", only.path("cells").get(0).path("ref").asText());
+        assertEquals("r1_c5_p", only.path("cells").get(0).path("key").asText());
+        JsonNode whole = om.readTree(save(id, MEMBER, bodyOf(0, "B", "r1_c5", "5.00 (1.00)"), 400)).path("detail");
+        assertEquals("BAD_VALUE", whole.path("code").asText());
+        assertEquals(1, whole.path("count").asInt());
+        assertEquals("r1_c5", whole.path("cells").get(0).path("key").asText());
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MATERIAL_SNAP WHERE MATERIAL_ID=?", id));
+    }
+
+    @Test
+    public void 괄호_칸이_아닌_칸의_p_키는_구조_오류_400_BAD_VALUE() throws Exception {
+        long id = assignedMaterial();
+        JsonNode d = om.readTree(save(id, MEMBER, bodyOf(0, "B", "r1_c4_p", "1"), 400)).path("detail");
+        assertEquals("BAD_VALUE", d.path("code").asText());
+        assertEquals(0, d.path("cells").size());                                  // 구조 오류는 단일 메시지(칸 목록 없음)
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MATERIAL_SNAP WHERE MATERIAL_ID=?", id));
+    }
+
+    @Test
+    public void 단위_칸은_숫자만_받는다_년_퍼센트_글자가_붙으면_400() throws Exception {
+        long id = assignedMaterial();
+        JsonNode d = om.readTree(save(id, MEMBER, bodyOf(0, "C-4", "r1_c1", "3.4년"), 400)).path("detail");
+        assertEquals("BAD_VALUE", d.path("code").asText());
+        assertEquals("C-4", d.path("cells").get(0).path("ref").asText());
+        assertEquals("r1_c1", d.path("cells").get(0).path("key").asText());
+        JsonNode p = om.readTree(save(id, MEMBER, bodyOf(0, "C-4", "r3_c1", "0.74%"), 400)).path("detail");
+        assertEquals("r3_c1", p.path("cells").get(0).path("key").asText());
+        save(id, MEMBER, bodyOf(0, "C-4", "r1_c1", "3.4", "r3_c1", "0.74"), 201);
+        String s = stored(id, 1);
+        assertTrue(s, s.contains("\"r1_c1\":\"3.4\""));
+        assertTrue(s, s.contains("\"r3_c1\":\"0.74\""));
+    }
+
+    @Test
+    public void 기관명_r1_c0은_직접_입력_칸_텍스트는_저장되고_개인정보는_422() throws Exception {
+        long id = assignedMaterial();
+        save(id, MEMBER, bodyOf(0, "A", "r1_c0", "노원구"), 201);
+        assertTrue(stored(id, 1), stored(id, 1).contains("\"r1_c0\":\"노원구\""));
+        String pii = save(id, MEMBER, bodyOf(1, "A", "r1_c0", "담당 900101-1234567"), 422);
+        JsonNode d = om.readTree(pii).path("detail");
+        assertEquals("PII_DETECTED", d.path("code").asText());
+        assertEquals("A", d.path("cells").get(0).path("ref").asText());
+        assertEquals("r1_c0", d.path("cells").get(0).path("key").asText());
+        assertFalse(pii.contains("900101-1234567"));
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MATERIAL_SNAP WHERE MATERIAL_ID=?", id));
+    }
+
+    @Test
+    public void 옛_스냅샷처럼_key_p_없는_괄호_칸_값도_열리고_같은_값으로_다시_저장된다() throws Exception {
+        long id = assignedMaterial();
+        save(id, MEMBER, bodyOf(0, "B", "r2_c5", "4.4"), 201);                  // 괄호 값 없음(옛 저장 모양)
+        assertFalse(stored(id, 1), stored(id, 1).contains("_p"));
+        assertEquals(200, read("/board-materials/" + id + "/snapshots/1", MEMBER).getResponse().getStatus());
+        JsonNode again = om.readTree(save(id, MEMBER, bodyOf(1, "B", "r2_c5", "4.40"), 200));
+        assertFalse(again.path("changed").asBoolean());
+    }
+
     @Test
     public void 숫자_400_100자_400_칸_422는_문제_칸_위치만_알린다_값은_싣지_않는다() throws Exception {
         String bc = newCase();

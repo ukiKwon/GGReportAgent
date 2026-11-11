@@ -51,7 +51,7 @@ public class BoardExcelMapTest {
         for (BoardExcelMap.TableMap t : m.tables()) {
             n += t.getCells().size();
         }
-        assertEquals(100, n);                                // A5 + B14 + C-2 48 + C-3 30(사업초기 열 포함) + C-4 3
+        assertEquals(99, n);                                 // A4(기관명은 직접 입력 칸) + B14 + C-2 48 + C-3 30(사업초기 열 포함) + C-4 3
         assertEquals("C3", m.table("A").getCells().get("r2_c2").formatAsString());       // 옛 지도의 r2c1 이 새 key 로 번역됐다
     }
 
@@ -72,9 +72,9 @@ public class BoardExcelMapTest {
             }
             total += mapped.size();
         }
-        assertEquals(250, total);                                    // 95 + C-3 사업초기 5 + C-5 150
-        // 표 A: 기관명 r1_c0, 출연금 r1_c2, 예비비 r2_c2, 전산 r3_c2, 합계 r4_c2
-        assertEquals(new java.util.LinkedHashSet<>(java.util.Arrays.asList("r1_c0", "r1_c2", "r2_c2", "r3_c2", "r4_c2")),
+        assertEquals(249, total);                                    // 94 + C-3 사업초기 5 + C-5 150
+        // 표 A: 출연금 r1_c2, 예비비 r2_c2, 전산 r3_c2, 합계 r4_c2 (기관명 r1_c0 은 직접 입력 칸 — 연결 칸이 아니다)
+        assertEquals(new java.util.LinkedHashSet<>(java.util.Arrays.asList("r1_c2", "r2_c2", "r3_c2", "r4_c2")),
                 legacy.table("A").getCells().keySet());
         // 합계 관계(of/total)도 같은 새 key 로
         for (BoardExcelMap m : new BoardExcelMap[]{legacy, cur}) {

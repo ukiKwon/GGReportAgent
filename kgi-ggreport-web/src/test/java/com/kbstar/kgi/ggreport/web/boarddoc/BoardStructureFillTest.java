@@ -125,7 +125,7 @@ public class BoardStructureFillTest {
     @Test
     public void 합계의_부품이_하나도_안_남으면_manual이다() throws Exception {
         Map<String, Object> out = named(totalOnly());
-        assertEquals(4, table(out, "A").get("unlinked_count"));                      // r1_c0, r1_c2, r2_c2, r3_c2
+        assertEquals(3, table(out, "A").get("unlinked_count"));                      // r1_c2, r2_c2, r3_c2 (기관명 r1_c0 은 연결 칸이 아니다)
         assertNull(cell(out, "A", "r1_c2"));
         Map<String, Object> total = cell(out, "A", "r4_c2");
         assertEquals("manual", total.get("status"));

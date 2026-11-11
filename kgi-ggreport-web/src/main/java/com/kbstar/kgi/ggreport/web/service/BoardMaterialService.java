@@ -76,7 +76,7 @@ public class BoardMaterialService {
             + "자리 이내)만 입력할 수 있습니다.";
     /** 응답 detail.cells 의 최대 개수와 칸 식별자 허용 모양(클라이언트가 보낸 임의 문자열을 되돌려 싣지 않는다). */
     static final int MAX_MARKS = 50;
-    private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9_]{1,40}");
+    private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9_-]{1,40}");   // 표 ref 'C-4' 처럼 '-' 포함(빠지면 C-* 표 오류 칸 위치가 응답에서 사라졌다, 11-11)
 
     static final String PREP = "PREP";
     static final String DRAFT = "DRAFT";
@@ -704,7 +704,7 @@ public class BoardMaterialService {
 
     /**
      * 저장할 값 검증·정규화: 표 수·칸 수 한도 → 칸 길이(개인정보 정규식은 길이에 비례해 느리므로 먼저, 400) → 개인정보(422, {@link Pii#scanLoose} —
-     * NFKC·비ASCII 숫자·대시류·서식 문자 우회까지) → 숫자 칸 검증(연결 칸: {@link #canonNumber}, 400) → 양식 구조 대조(BoardDocSpec.withValues:
+     * NFKC·비ASCII 숫자·대시류·서식 문자 우회까지) → 숫자 칸 검증(연결 칸과 괄호 칸 둘째 값(key_p): {@link #canonNumber}, 400; 직접 입력 칸은 텍스트) → 양식 구조 대조(BoardDocSpec.cleanValues:
      * 값 칸이 아닌 키·모르는 표는 거부, 제어문자·trim·100자) → 값이 있는 칸만 추출 → <b>저장할 최종값으로 개인정보 한 번 더</b>(쉼표 제거로 생기는
      * 주민번호 모양, security 하-1). 400/422 는 문제 칸 위치(ref·key, 값 없음, 최대 {@value #MAX_MARKS}개)와 총수를 detail 에 싣는다.
      * 칸 값은 다른 담당자·결재자 화면에 그려지므로 화면은 esc 만 써야 한다.
@@ -746,12 +746,18 @@ public class BoardMaterialService {
             }
             for (List<BoardDocSpec.Cell> row : t.getRows()) {
                 for (BoardDocSpec.Cell c : row) {
-                    String v = c.isMapped() ? cells.get(c.getKey()) : null;
-                    if (v != null && !v.trim().isEmpty()) {
-                        if (isNumber(v)) {
-                            cells.put(c.getKey(), canonNumber(v));
-                        } else {
-                            badNum.add(t.getId(), c.getKey());
+                    if (!c.isMapped()) {
+                        continue;                          // 직접 입력(텍스트) 칸은 개인정보·문자 검사만(위 scanPii, 아래 cleanValues)
+                    }
+                    checkNum(t.getId(), cells, c.getKey(), badNum);
+                    if (c.isParen()) {                    // 괄호 칸: 둘째 값(key_p)도 같은 규칙, 앞 값 없이 괄호 값만 있으면 안 된다
+                        String sub = cells.get(c.getSubKey());
+                        String main = cells.get(c.getKey());
+                        boolean subHas = sub != null && !sub.trim().isEmpty();
+                        boolean mainHas = main != null && !main.trim().isEmpty();
+                        checkNum(t.getId(), cells, c.getSubKey(), badNum);
+                        if (subHas && !mainHas && isNumber(sub)) {
+                            badNum.add(t.getId(), c.getSubKey());
                         }
                     }
                 }
@@ -760,26 +766,11 @@ public class BoardMaterialService {
         if (badNum.total > 0) {
             throw badCells(NUM_MSG, badNum);
         }
-        BoardDocSpec.Doc filled;
+        Map<String, Map<String, String>> out;             // 저장용: 구조 대조(모르는 표·키, _p 가 괄호 칸에만) + clean, 빈 값·빈 표 제외
         try {
-            filled = BoardDocSpec.withValues(base, raw);
+            out = BoardDocSpec.cleanValues(base, raw);
         } catch (BoardDocSpec.EditException e) {
             throw coded(400, "BAD_VALUE", e.getMessage());
-        }
-        Map<String, Map<String, String>> out = new LinkedHashMap<>();
-        for (BoardDocSpec.Table t : filled.getTables()) {
-            for (List<BoardDocSpec.Cell> row : t.getRows()) {
-                for (BoardDocSpec.Cell c : row) {
-                    if ((c.isMapped() || c.isInput()) && c.getText() != null && !c.getText().isEmpty()) {
-                        Map<String, String> cells = out.get(t.getId());
-                        if (cells == null) {
-                            cells = new LinkedHashMap<>();
-                            out.put(t.getId(), cells);
-                        }
-                        cells.put(c.getKey(), c.getText());
-                    }
-                }
-            }
         }
         Map<String, Integer> kinds2 = new LinkedHashMap<>();   // 숫자 정규화(쉼표 제거)·trim 뒤 저장값으로 재검사 — security 하-1
         Marks pii2 = new Marks();
@@ -850,6 +841,18 @@ public class BoardMaterialService {
 
         private static boolean safe(String s) {
             return s != null && SAFE_ID.matcher(s).matches() && Pii.scanLoose(s).isEmpty();
+        }
+    }
+
+    private static void checkNum(String ref, Map<String, String> cells, String key, Marks bad) {
+        String v = cells.get(key);
+        if (v == null || v.trim().isEmpty()) {
+            return;
+        }
+        if (isNumber(v)) {
+            cells.put(key, canonNumber(v));
+        } else {
+            bad.add(ref, key);
         }
     }
 

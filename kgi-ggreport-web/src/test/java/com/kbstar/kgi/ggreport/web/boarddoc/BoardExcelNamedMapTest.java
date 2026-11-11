@@ -122,7 +122,7 @@ public class BoardExcelNamedMapTest {
         expectInvalid(r);
 
         r = root();
-        ((ArrayNode) cellSpec(r, "A", 4, 0).get("of")).removeAll().add("r1c0").add("r1c2");   // r1c0 = manual
+        ((ArrayNode) cellSpec(r, "A", 4, 0).get("of")).removeAll().add("r1c0").add("r1c2");   // r1c0 = 기관명(직접 입력 칸, 연결 칸이 아니라 지도에 없다)
         expectInvalid(r);
     }
 
@@ -230,7 +230,7 @@ public class BoardExcelNamedMapTest {
     }
 
     @Test
-    public void 실제_지도_v2는_표_6개_250칸을_읽는다() {
+    public void 실제_지도_v2는_표_6개_249칸을_읽는다() {
         BoardExcelMap m = new BoardExcelMap();
         assertEquals(2, m.getMappingVer());
         assertEquals(6, m.tables().size());
@@ -239,7 +239,7 @@ public class BoardExcelNamedMapTest {
             assertTrue(t.isNamed());
             n += t.getSpecs().size();
         }
-        assertEquals(250, n);                                                   // 95 + C-3 사업초기 5 + C-5 150
+        assertEquals(249, n);                                                   // 94 + C-3 사업초기 5 + C-5 150
         assertEquals(30, m.table("C-3").getSpecs().size());
         assertEquals("tot", m.table("C-3").getSpecs().get("r5_c5").main.get(0).col);
         assertEquals("init", m.table("C-3").getSpecs().get("r5_c6").main.get(0).col);   // 새 열 c6
