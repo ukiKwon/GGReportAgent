@@ -67,7 +67,7 @@ nav.top a.on{background:var(--ink);color:var(--paper)}
 .rv.in{opacity:1;transform:none}
 .rv.d1{transition-delay:.08s}.rv.d2{transition-delay:.16s}.rv.d3{transition-delay:.24s}
 /* flow */
-.steps{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;position:relative}
+.steps{display:grid;grid-template-columns:repeat(var(--n,5),1fr);gap:12px;position:relative}
 .step{background:var(--paper);border:1px solid var(--hair);border-radius:16px;padding:20px;text-align:left;transition:background .3s,border-color .3s,color .3s;position:relative;overflow:hidden;min-height:132px}
 .step .n{font-size:11px;letter-spacing:.05em;color:var(--ash);margin-bottom:28px;display:block;transition:color .3s}
 .step .t{font-size:18px;line-height:1.25;display:block}
@@ -213,7 +213,20 @@ footer{padding:48px 0 72px;color:var(--ash);font-size:13px}
 .addrow input{flex:1;border:1px solid rgba(33,33,33,.1);border-radius:10px;padding:8px 12px;font:inherit;font-size:14px;background:transparent}
 .addrow input:focus{outline:0;border-color:var(--ink)}
 .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
-@media(max-width:800px){.frow{grid-template-columns:1fr}.fcat .tally{display:none}.scap .num{font-size:44px}}
+/* 지난번 의견 표시 */
+.pv{display:inline-block;font-size:11px;line-height:1.5;letter-spacing:0;color:var(--ash);background:var(--bone);border:1px solid var(--hair);border-radius:6px;padding:0 6px;white-space:nowrap;text-transform:none;margin-left:6px}
+.pv.new{color:var(--ink);border-color:var(--ink);background:var(--paper)}
+.rule .q .pv{margin-left:8px;vertical-align:1px}
+.fgone{border-top:1px solid var(--hair);margin-top:2px;padding-top:10px}
+.fgone summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;color:var(--ash)}
+.fgone summary::-webkit-details-marker{display:none}
+.fgone summary::before{content:"›";display:inline-block;transition:transform .35s var(--ease)}
+.fgone[open] summary::before{transform:rotate(90deg)}
+.fgone summary:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:6px}
+.grow{display:grid;grid-template-columns:minmax(160px,1fr) minmax(200px,2.2fr);gap:16px;align-items:center;padding:10px 0;border-top:1px dashed var(--hair)}
+.grow .fn{font-size:14px;color:var(--ash)}
+.grow textarea{min-height:36px;padding:7px 10px}
+@media(max-width:800px){.frow,.grow{grid-template-columns:1fr}.fcat .tally{display:none}.scap .num{font-size:44px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.rv,.hero .stage{opacity:1;transform:none}.y{transform:scale(1)}html{scroll-behavior:auto}}
 </style>
 </head>
@@ -225,9 +238,9 @@ footer{padding:48px 0 72px;color:var(--ash);font-size:13px}
 </div></nav>
 
 <header class="hero"><div class="wrap">
-  <p class="eyebrow">현업과 함께 보는 화면 기획안 · 2026-11-10 기준 실제 화면</p>
+  <p class="eyebrow">현업과 함께 보는 화면 기획안 · <span data-date></span> 기준 실제 화면</p>
   <h1>입찰 한 건이 <mark>끝까지 흘러가는</mark> 길을, 화면으로 먼저 봅니다</h1>
-  <p class="sub">기관 확인부터 담당자 배정, 이사회 자료, 결재, 제출까지. 지금 만들어진 화면과 앞으로 만들 화면을 업무 순서대로 놓았습니다. 화면마다 “좋다 / 고쳐야 한다”를 눌러 주세요.</p>
+  <p class="sub">기관 확인부터 제안 확정, 사전 준비와 이사회 자료, 제안서 작성·결재·제출, 입찰 결과 등록까지. 지금 만들어진 화면과 앞으로 만들 화면을 업무 순서대로 놓았습니다. 화면마다 “좋다 / 고쳐야 한다”를 눌러 주세요.</p>
   <div class="cta"><a class="btn" href="#flow">업무 흐름부터 보기</a><a class="btn out" href="#screens">바로 화면 보기</a></div>
   <div class="stage frame" id="herostage"><div class="bar"><i></i><i></i><i></i><span>기관영업지원 시스템 · 전국 지도</span></div><div class="shotbox"><img id="heroimg" alt="전국 지도 화면"></div></div>
 </div></header>
@@ -241,7 +254,7 @@ footer{padding:48px 0 72px;color:var(--ash);font-size:13px}
 
 <section id="flow"><div class="wrap">
   <p class="eyebrow rv">01 · 업무 흐름</p>
-  <h2 class="rv d1">영업 담당자의 하루는 이 여섯 단계를 따라갑니다</h2>
+  <h2 class="rv d1">영업 담당자의 하루는 이 다섯 단계를 따라갑니다</h2>
   <p class="lead rv d2">단계를 누르면 그 단계에 속한 화면이 나옵니다. 노란 점은 지금 쓸 수 있는 화면, 회색은 아직 만들지 않은 화면입니다.</p>
   <div class="steps rv" id="steps"></div>
   <div class="flowdetail"><div class="card"><h3 id="fdt"></h3><p id="fdp"></p></div><div class="card"><div class="chips" id="fdchips"></div></div></div>
@@ -271,6 +284,7 @@ footer{padding:48px 0 72px;color:var(--ash);font-size:13px}
   <div class="fhead"><div><h2 class="rv d1">아래 기능 목록은 확정이 아닙니다</h2>
   <p class="lead rv d2" style="margin-bottom:0">지금 메뉴에 올라 있는 기능 전부입니다. 기능마다 꼭 필요한지, 있으면 좋은지, 빼도 되는지 골라 주세요. 목록에 없는 기능은 단계마다 맨 아래에서 더할 수 있습니다.</p></div>
   <div class="legend rv d3"><span><i class="sw" style="background:var(--hl);box-shadow:0 0 0 1px var(--ink) inset"></i>꼭 필요</span><span><i class="sw" style="background:#e9eecb"></i>있으면 좋음</span><span><i class="sw" style="background:var(--smoke)"></i>보류</span><span><i class="sw" style="background:var(--ink)"></i>빼도 됨</span></div></div>
+  <p class="note" id="prevnote" style="margin:0 0 16px"></p>
   <div id="flist"></div>
 </div></section>
 
@@ -279,7 +293,7 @@ footer{padding:48px 0 72px;color:var(--ash);font-size:13px}
   <h2 class="rv d1">누가 어떤 화면을 열 수 있는지 한눈에</h2>
   <p class="lead rv d2">실제 로그인으로 확인한 결과입니다. 열려야 하는데 빠져 있거나, 보이면 안 되는데 열려 있는 칸이 있으면 알려 주세요.</p>
   <div class="tbl rv" id="matrix"></div>
-  <p class="note">영업부장 계정에는 ‘전국 지역별’이 열려 있지 않습니다. 의도한 것인지 확인이 필요합니다.</p>
+  <p class="note" id="headnote">영업부장 계정에는 ‘전국 지역별’이 열려 있지 않습니다. 의도한 것인지 확인이 필요합니다.</p>
 </div></section>
 
 <section id="rules"><div class="wrap">
@@ -297,7 +311,7 @@ footer{padding:48px 0 72px;color:var(--ash);font-size:13px}
   <div style="display:flex;gap:12px;flex-wrap:wrap"><button class="btn" id="copybtn">표로 복사</button><button class="btn out" id="clearbtn">모두 지우기</button></div>
   <textarea id="tsv" readonly></textarea>
 </div></div></section>
-<footer><div class="wrap">화면은 2026-11-10 로컬 개발 서버에서 직접 캡처했습니다. 업무 데이터는 시험용입니다. 화면이 바뀌면 다시 캡처해야 합니다.</div></footer>
+<footer><div class="wrap">화면은 <span data-date></span> 로컬 개발 서버에서 직접 캡처했습니다. 업무 데이터는 시험용입니다. 화면이 바뀌면 다시 캡처해야 합니다.</div></footer>
 
 <script>
 const DATA = /*DATA*/null;
@@ -306,28 +320,31 @@ const $$ = (s, r=document) => [...r.querySelectorAll(s)];
 const el = (t, c, h) => { const e=document.createElement(t); if(c) e.className=c; if(h!=null) e.innerHTML=h; return e; };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const DATE = DATA.date || '';   // 빌드 날짜(build.mjs가 넣는다)
+$('[data-date]').forEach(n => n.textContent = DATE);
+const KEY = 'gg-review-' + DATE;   // 날짜별로 나눠, 지난 파일의 의견이 새 파일에 섞이지 않게 한다
 
 /* ---------- 저장(이 브라우저만) ---------- */
 let store = {};
-try { store = JSON.parse(localStorage.getItem('gg-review') || '{}'); } catch(e) {}
-const save = () => { try { localStorage.setItem('gg-review', JSON.stringify(store)); } catch(e) {} refreshSummary(); };
+try { store = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch(e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch(e) {} refreshSummary(); };
 
 /* ---------- 문구 ---------- */
 const STEPS = [
-  ['기관·입찰 현황','어느 기관이 언제 입찰하는지 먼저 파악합니다. 지도와 목록으로 전국 기관을 보고, 공고 예정일이 지났는데 기록이 없는 건을 챙깁니다.'],
-  ['영업 기획','어느 기관에 제안할지 정하고, 이사회에 올릴 자료를 작성합니다. 배정된 영업팀원만 자료를 쓸 수 있습니다.'],
-  ['제안서 관리','건마다 진행 단계를 보고, 승인이 필요한 일은 결재함으로 올립니다. 팀장·부장이 여기서 판단합니다.'],
-  ['제안서 작성','제안팀이 함께 쓰고, 내부 검토 의견을 모아 최종 확인 후 제출합니다.'],
-  ['협약·관계 관리','입찰 결과를 등록하고 협약 이행과 기관과의 관계 이력을 이어서 관리합니다.'],
-  ['공통 도구','마감 알림, 요청 이력, 사내 업무 키워드 조회 같은 모든 단계에서 쓰는 도구입니다.']
+  ['기관·입찰 현황','전국 지도에서 입찰이 다가온 기관을 확인합니다. 기관을 누르면 지금 금고를 맡은 은행과 근거를 함께 보고, 공고 예정일이 지났는데 기록이 없는 건을 챙깁니다. 제안할 기관을 정하면 여기서 [제안 확정]을 누르게 됩니다(준비중).'],
+  ['영업 추진 준비','제안하기로 정한 기관의 사전 준비를 과제별로 진행합니다. 기관 정보 요약과 기관장 프로필을 쓰고 수익성 분석표·붙임서류를 올리며, 과제를 마칠 때마다 체크가 됩니다. 이사회 자료와 발표 대본도 이 단계에서 만듭니다.'],
+  ['제안서 작성·관리','담당 팀을 꾸리고 담당자를 바꾸는 일부터, 함께 쓰고 검토해 결재를 거쳐 제출 완료까지 이 단계에서 합니다. 건마다 진행 단계와 결재 요청을 한곳에서 봅니다.'],
+  ['협약·관계 관리','제출을 마친 건이 목록으로 모이고, 입찰 결과가 나오면 담당자가 협약 완료 또는 미협약을 등록합니다. 영업팀장이 확인하면 지도의 현재 금고 은행과 기간에 반영됩니다.'],
+  ['공통 도구','마감 알림, 요청 이력, AI 대화·지식 검색, 사내 업무 키워드 조회처럼 모든 단계에서 함께 쓰는 도구입니다.']
 ];
 const SCREEN_INFO = {
   '전국 지도':{who:'영업 담당자 전원',when:'하루를 시작할 때 가장 먼저',what:'전국 기관을 입찰이 얼마나 임박했는지 색으로 보여 줍니다. 오른쪽에는 공고 예정일이 지났는데 아직 기록이 없는 건이 모입니다.'},
   '전국 지역별':{who:'영업 담당자',when:'관심 지역을 정해 챙겨 볼 때',what:'지역별 카드로 기관을 묶어 봅니다. 별을 눌러 둔 지역은 알림과 목록 위쪽에 먼저 나옵니다.'},
-  '이사회 자료 작성':{who:'그 건에 배정된 영업팀원',when:'이사회 부의 전',what:'양식을 고르면 표 형태의 문서가 열리고, 표별로 확인합니다. 배정되지 않은 사람은 수정할 수 없습니다.'},
-  '제안서 진행 현황':{who:'영업팀 전원 · 팀장 · 부장',when:'진행 상황을 점검할 때',what:'기관별로 지금 몇 단계인지, 누가 맡았는지, 마지막으로 언제 바뀌었는지 한 표에 모아 봅니다.'},
-  '결재함':{who:'결재를 올리는 사람 · 받는 사람',when:'승인이 필요한 변경이 생겼을 때',what:'‘내가 올린 요청’과 ‘받은 결재’ 두 칸입니다. 받은 결재는 영업부장이 승인·반려합니다.'},
+  '이사회 자료 작성':{who:'그 건에 배정된 영업팀원(작성) · 영업부장(읽기만)',when:'이사회에 올릴 자료를 기관·연도별로 만들고 고칠 때',what:'기관·연도마다 자료 1건을 목록에서 엽니다. 수익성 분석 엑셀로 칸을 채우고 표마다 확인한 뒤 [버전 저장]을 누르면 담당자 모두에게 보이고, 버전 이력과 작업 이력이 남습니다. 두 사람이 동시에 고쳤다면 최신 저장본에 내 수정만 얹습니다.'},
+  '제안서 진행 현황':{who:'영업팀 전원 · 팀장 · 부장',when:'진행 상황을 점검할 때',what:'기관별로 지금 몇 단계인지, 누가 맡았는지, 마지막으로 언제 바뀌었는지 한 표에 모아 봅니다. 기관을 골라 분석을 실행(▶)하는 것은 영업팀장과 그 기관 담당자만 할 수 있습니다.'},
+  '결재함':{who:'결재를 올리는 사람 · 받는 사람',when:'승인이 필요한 변경이 생겼을 때',what:'‘내가 올린 요청’과 ‘받은 결재’ 두 칸입니다. 담당자 변경 요청에는 바뀌는 사람이 함께 표시되고, 받은 결재는 정해진 결재자만 승인·반려합니다.'},
   '작업함':{who:'작업을 배정받은 사람',when:'내가 해야 할 일을 볼 때',what:'나에게 배정된 일을 모아 보여 줍니다.'},
+  '제안팀 구성·배정':{who:'영업팀원 · 영업팀장 · 영업부장(보기만)',when:'입찰 건의 담당자를 정하거나 바꿀 때',what:'입찰 예정일이 가까운 순으로 입찰 건을 보고, 건마다 담당 영업팀원과 변경 이력을 확인합니다. 담당자를 바꾸려면 현 담당자가 변경을 올리고 결재를 거칩니다.'},
   '사용자 관리':{who:'전산팀 관리자',when:'사람이 들어오고 나갈 때',what:'계정과 소속을 관리합니다.'},
   '권한 관리':{who:'전산팀 관리자',when:'역할이 바뀔 때',what:'역할별로 어떤 메뉴를 열어 줄지 정합니다.'},
   '메뉴 관리':{who:'전산팀 관리자',when:'메뉴를 추가·정리할 때',what:'왼쪽 메뉴의 구성과 이름을 관리합니다.'},
@@ -339,9 +356,30 @@ const RULES = [
   {id:'r3',q:'담당자 변경',t:'현 담당자만 변경을 올릴 수 있고, 부재 시 영업팀장이 직접 합니다',p:'영업팀원 아무나 바꿔 달라고 올릴 수는 없습니다.',o:['동의','다른 의견']},
   {id:'r4',q:'담당자 배정',t:'한 건에 영업팀원 여러 명을 배정할 수 있고, 배정이 곧 권한입니다',p:'배정된 사람 전원이 이사회 자료를 수정할 수 있습니다. 담당자 변경 승인과 제출 1차 확인은 배정자 중 1명 이상이 합니다.',o:['동의','다른 의견']},
   {id:'r5',q:'기본 권한',t:'영업팀 역할이라고 기본으로 열어 주지 않습니다',p:'영업팀원도 배정되어야만 해당 건의 자료를 쓸 수 있습니다.',o:['동의','다른 의견']},
-  {id:'r6',q:'승인과 반려',t:'게이트 승인·반려는 영업부장만 누를 수 있습니다',p:'다른 사람에게는 버튼이 비활성으로 보이고 이유가 함께 표시됩니다.',o:['동의','다른 의견']}
+  {id:'r6',q:'승인과 반려',t:'게이트 승인·반려는 영업부장만 누를 수 있습니다',p:'다른 사람에게는 버튼이 비활성으로 보이고 이유가 함께 표시됩니다.',o:['동의','다른 의견']},
+  {id:'r7',q:'제안 확정',t:'[제안 확정]은 영업팀이 정하고, 결재를 받지 않습니다',p:'기관 정보와 지금 금고를 맡은 은행을 영업팀이 함께 확인한 뒤 누릅니다. 이전에 있던 ‘참여 결정’ 결재(3단계 카드)는 없앱니다.',o:['동의','다른 의견']},
+  {id:'r8',q:'준비 시작',t:'영업팀원 누구나 담당자를 정해 준비 시작을 신청하고, 영업팀장이 승인합니다',p:'영업팀장이 혼자 처음 담당자를 정하던 방식은 없앱니다. 준비를 중간에 멈출 때는 영업팀장이 사유를 남기고, 결재는 받지 않습니다.',o:['동의','다른 의견']},
+  {id:'r9',q:'제안서 작성으로 넘어가기',t:'사전 준비 과제를 모두 마치면 영업부장 기획승인 한 번을 거쳐 [제안서 작성하기]가 열립니다',p:'기관 정보 요약, 기관장 프로필, 수익성 분석표, 붙임서류 같은 과제는 끝내면 체크 표시가 됩니다.',o:['동의','다른 의견']},
+  {id:'r10',q:'제출 결재',t:'제안서 제출은 담당자 1차, 영업팀장 2차 결재를 거쳐 ‘제출 완료’가 됩니다',p:'지난 건을 나중에 등록할 때는 근거 자료를 꼭 붙입니다.',o:['동의','다른 의견']},
+  {id:'r11',q:'입찰 결과',t:'입찰 결과는 ‘협약 완료’와 ‘미협약’ 두 가지로만 등록합니다',p:'담당자가 선정 은행·금고 기간·공고 근거를 함께 적고 영업팀장이 확인하면 지도에 반영됩니다. 2금고만 선정돼도 협약 완료로 봅니다.',o:['동의','다른 의견']},
+  {id:'r12',q:'현재 금고 은행',t:'지금 금고를 맡은 은행은 영업팀 누구나 고칠 수 있고, 고칠 때 출처와 확인일을 남깁니다',p:'고친 기록은 지워지지 않고 쌓입니다.',o:['동의','다른 의견']},
+  {id:'r13',q:'법원',t:'법원의 금고 은행은 공탁금 보관은행으로 봅니다',p:'지도에는 본원 33곳과 지원을 모두 올리고, 은행은 법원이 지정한 단위대로 적습니다. 법원은 기관장 한 명이 아니라 주요 인물별 프로필을 둡니다.',o:['동의','다른 의견']},
+  {id:'r14',q:'기관 정보 수집 범위',t:'기관장·임직원 정보는 제안 확정했고 입찰이 1년 안에 있는 기관부터 모읍니다',p:'결과가 이미 나온 곳도 모읍니다. 임직원 수는 알리오·클린아이·기관 공개값에서 가져오고, 정원·현원은 출처에 적힌 그대로 둡니다.',o:['동의','다른 의견']}
 ];
-const ORDER = ['전국 지도','전국 지역별','이사회 자료 작성','제안서 진행 현황','결재함','작업함','사용자 관리','권한 관리','메뉴 관리','접근 이력'];
+const ORDER = ['전국 지도','전국 지역별','이사회 자료 작성','제안서 진행 현황','결재함','작업함','제안팀 구성·배정','사용자 관리','권한 관리','메뉴 관리','접근 이력'];
+/* 지난번(11-10 미팅) 결과. 현업 PC의 브라우저 저장값이 아니라 이 파일에 넣은 데이터다. */
+const PREV = { date:'2026-11-10',
+  agreed:['r1','r2','r3','r4','r5','r6'],
+  removed:[
+    ['영업 추진 준비','협약 대상 선정'],['영업 추진 준비','배점표 확인 검색'],['영업 추진 준비','기관 공식 질의'],
+    ['제안서 작성·관리','팀 간 지원 요청'],
+    ['협약·관계 관리','협약 등록·이행 관리'],['협약·관계 관리','영업 메모·활동 이력'],['협약·관계 관리','탈락 기관 대응']],
+  added:{
+    '제안서 사전준비 프로세스':'제안서 준비 단계 프로세스(세부 과제 수행 체크)',
+    '제안서 제출 붙임서류':'제안서 제출 붙임서류',
+    '이사회 발표 대본':'이사회 발표 자료 스크립트 생성'},
+  feat:{'전국 지도':'있으면 좋음','기관 사업계획':'보류','입찰 공고 현황':'있으면 좋음','공고 자동 수집':'있으면 좋음','기관 정보 요약서':'꼭 필요','이사회 자료 작성':'꼭 필요','제안서 진행 현황':'있으면 좋음','결재함':'보류','제안팀 구성·배정':'있으면 좋음','공동 작성·버전 관리':'있으면 좋음','내부 검토 의견':'있으면 좋음','최종 확인·제출':'보류','입찰 결과 등록':'꼭 필요','협약 이력':'보류','일정·마감 알림':'있으면 좋음','요청 이력·소통':'보류','AI 대화':'보류','사내 업무 키워드 조회':'보류','사용자 관리':'꼭 필요','권한 관리':'꼭 필요','메뉴 관리':'꼭 필요','접근 이력':'꼭 필요'}
+};
 
 /* ---------- 데이터 가공 ---------- */
 const accts = DATA.accounts;                       // {id:{label,items:[{cat,label,soon,img}]}}
@@ -354,13 +392,14 @@ const soonCount = headItems.filter(i => i.soon).length;
 $('#heroimg').src = DATA.hero;
 const stage = $('#herostage'); requestAnimationFrame(() => setTimeout(() => stage.classList.add('in'), 120));
 function countUp(node, to, ms){ if(reduce){ node.textContent=to; return; } const t0=performance.now(); (function f(t){ const p=Math.min(1,(t-t0)/ms); node.textContent=Math.round(to*(1-Math.pow(1-p,3))); if(p<1) requestAnimationFrame(f); })(t0); }
-const counts = {live:liveLabels.length, soon:soonCount, roles:acctIds.length, steps:6};
+const counts = {live:liveLabels.length, soon:soonCount, roles:acctIds.length, steps:STEPS.length};
 let counted=false;
 new IntersectionObserver((es,ob)=>{ if(es[0].isIntersecting && !counted){ counted=true; $$('#band .val').forEach(v=>countUp(v, counts[v.dataset.k], 1100)); ob.disconnect(); } },{threshold:.4}).observe($('#band'));
 if(reduce) $$('#band .val').forEach(v=>v.textContent=counts[v.dataset.k]);
 
 /* ---------- 흐름 ---------- */
 const stepsEl = $('#steps'), chipsEl = $('#fdchips');
+stepsEl.style.setProperty('--n', STEPS.length);
 let cur = 0, timer = null, userPaused = false;
 STEPS.forEach((s,i)=>{
   const items = headItems.filter(x=>x.cat===s[0]);
@@ -377,11 +416,11 @@ function setStep(i){
   setTimeout(()=>{
     chipsEl.innerHTML='';
     headItems.filter(x=>x.cat===STEPS[i][0]).forEach(x=>chipsEl.appendChild(el('span','chip '+(x.soon?'soon':'live'),esc(x.label))));
-    if(i===5) { /* 공통 도구 뒤에 시스템 관리 안내 */ }
+    if(i===STEPS.length-1) { /* 공통 도구 뒤에 시스템 관리 안내 */ }
     requestAnimationFrame(()=>chipsEl.classList.remove('swap'));
   }, reduce?0:260);
 }
-function auto(){ if(userPaused||reduce) return; timer=setTimeout(()=>{ setStep((cur+1)%6); auto(); },4500); }
+function auto(){ if(userPaused||reduce) return; timer=setTimeout(()=>{ setStep((cur+1)%STEPS.length); auto(); },4500); }
 setStep(0);
 new IntersectionObserver((es)=>{ clearTimeout(timer); if(es[0].isIntersecting) auto(); },{threshold:.35}).observe(stepsEl);
 
@@ -456,10 +495,20 @@ showScreen();
 const FCATS = STEPS.map(s=>s[0]).concat(['시스템 관리']);
 const FV = [['must','꼭 필요'],['nice','있으면 좋음'],['hold','보류'],['no','빼도 됨']];
 const FVL = Object.fromEntries(FV);
+$('#prevnote').textContent = `‘지난번’ 표시는 ${PREV.date.slice(5)} 미팅에서 받은 의견입니다. 화면이 바뀐 곳을 보시고, 지금 생각이 다르면 새로 골라 주세요.`;
+function prevTag(label){
+  if(PREV.added[label]) return {cls:'new', txt:'지난번 새 제안 → 자리 생김', tip:'지난번 제안: '+PREV.added[label]};
+  if(PREV.feat[label]) return {cls:'', txt:'지난번: '+PREV.feat[label]};
+  return null;
+}
+function goneItems(cat, shown){
+  const names = new Set(shown.map(x=>x.label));
+  return PREV.removed.filter(r=>r[0]===cat && !names.has(r[1])).map(r=>r[1]);
+}
 function featItems(cat){
   const seen=new Set(), out=[];
-  const src = cat==='시스템 관리' ? accts.master.items.filter(i=>!FCATS.slice(0,6).includes(i.cat)) : headItems.filter(i=>i.cat===cat);
-  src.forEach(i=>{ if(!seen.has(i.label)){ seen.add(i.label); out.push({label:i.label, st:i.soon?'soon':'live'}); } });
+  const src = cat==='시스템 관리' ? accts.master.items.filter(i=>!FCATS.slice(0,STEPS.length).includes(i.cat)) : headItems.filter(i=>i.cat===cat);
+  src.forEach(i=>{ if(!seen.has(i.label)){ seen.add(i.label); out.push({label:i.label, st:i.soon?'soon':'live', pv:prevTag(i.label)}); } });
   (store.custom||[]).filter(c=>c.cat===cat).forEach(c=>{ if(!seen.has(c.label)){ seen.add(c.label); out.push({label:c.label, st:'new'}); } });
   return out;
 }
@@ -470,18 +519,18 @@ function tally(cat){
   return Object.keys(cnt).map(k=>`<i style="width:${cnt[k]/n*100}%;background:${col[k]}"></i>`).join('');
 }
 function renderFeatures(){
-  const host=$('#flist'), openNow=new Set($$('#flist details[open]').map(d=>d.dataset.cat));
+  const host=$('#flist'), openNow=new Set($('#flist > details[open]').map(d=>d.dataset.cat));
   if(!host.children.length) openNow.add(FCATS[0]);
   host.innerHTML='';
   FCATS.forEach((cat,ci)=>{
     const it=featItems(cat); if(!it.length && cat==='시스템 관리') return;
     const d=el('details','fcat'); d.dataset.cat=cat;
     const live=it.filter(x=>x.st==='live').length;
-    d.innerHTML=`<summary><span class="cn">${ci<6?'0'+(ci+1):'+'}</span><span class="ct">${esc(cat)}</span><span class="cn">기능 ${it.length} · 사용 가능 ${live}</span><span class="tally">${tally(cat)}</span><span class="chev">›</span></summary><div class="fbody"></div>`;
+    d.innerHTML=`<summary><span class="cn">${ci<STEPS.length?'0'+(ci+1):'+'}</span><span class="ct">${esc(cat)}</span><span class="cn">기능 ${it.length} · 사용 가능 ${live}</span><span class="tally">${tally(cat)}</span><span class="chev">›</span></summary><div class="fbody"></div>`;
     const body=$('.fbody',d);
     it.forEach(x=>{
       const k='f:'+x.label, v=store[k]||{};
-      const r=el('div','frow',`<div class="fn">${esc(x.label)}<span class="st ${x.st}">${x.st==='live'?'사용 가능':x.st==='new'?'새 제안':'준비중'}</span></div><div class="seg">${FV.map(f=>`<button class="${f[0]}${v.v===f[0]?' on':''}" data-v="${f[0]}">${f[1]}</button>`).join('')}</div><textarea rows="1" placeholder="왜 그렇게 생각하는지, 바라는 모습"></textarea>`);
+      const r=el('div','frow',`<div class="fn">${esc(x.label)}<span class="st ${x.st}">${x.st==='live'?'사용 가능':x.st==='new'?'새 제안':'준비중'}</span>${x.pv?`<span class="pv ${x.pv.cls}"${x.pv.tip?` title="${esc(x.pv.tip)}"`:''}>${esc(x.pv.txt)}</span>`:''}</div><div class="seg">${FV.map(f=>`<button class="${f[0]}${v.v===f[0]?' on':''}" data-v="${f[0]}">${f[1]}</button>`).join('')}</div><textarea rows="1" placeholder="왜 그렇게 생각하는지, 바라는 모습"></textarea>`);
       $('textarea',r).value=v.m||'';
       $$('.seg button',r).forEach(b=>b.onclick=()=>{ const s=store[k]||(store[k]={}); s.v = s.v===b.dataset.v?'':b.dataset.v; $$('.seg button',r).forEach(y=>y.classList.toggle('on',y.dataset.v===s.v)); $('.tally',d).innerHTML=tally(cat); save(); });
       $('textarea',r).oninput=e=>{ (store[k]||(store[k]={})).m=e.target.value; save(); };
@@ -491,6 +540,19 @@ function renderFeatures(){
     const doAdd=()=>{ const t=$('input',add).value.trim(); if(!t) return; (store.custom||(store.custom=[])).push({cat,label:t}); save(); renderFeatures(); };
     $('button',add).onclick=doAdd; $('input',add).onkeydown=e=>{ if(e.key==='Enter') doAdd(); };
     body.appendChild(add);
+    const gone=goneItems(cat,it);
+    if(gone.length){
+      const g=el('details','fgone',`<summary>지난번 빼기로 한 기능 ${gone.length}</summary>`);
+      gone.forEach(n=>{
+        const k='g:'+n;
+        const gr=el('div','grow',`<div class="fn">${esc(n)}</div><textarea rows="1" aria-label="${esc(n)} 다시 필요한 이유" placeholder="다시 필요하면 적어 주세요"></textarea>`);
+        const ta=$('textarea',gr); ta.value=(store[k]||{}).m||'';
+        ta.oninput=e=>{ (store[k]||(store[k]={})).m=e.target.value; save(); };
+        g.appendChild(gr);
+      });
+      if(gone.some(n=>(store['g:'+n]||{}).m)) g.open=true;
+      body.appendChild(g);
+    }
     const rows=()=>$$('.frow',d);
     d.addEventListener('toggle',()=>{ if(d.open) rows().forEach((r,i)=>setTimeout(()=>r.classList.add('in'), reduce?0:40+i*45)); else rows().forEach(r=>r.classList.remove('in')); });
     if(openNow.has(cat)){ d.open=true; rows().forEach(r=>r.classList.add('in')); }
@@ -503,10 +565,11 @@ renderFeatures();
 const m = el('table'); let h = '<thead><tr><th>화면</th>' + acctIds.map(a=>`<th>${esc(accts[a].label)}</th>`).join('') + '</tr></thead><tbody>';
 liveLabels.forEach(l=>{ h += `<tr><td>${esc(l)}</td>` + acctIds.map(a=>accts[a].items.some(i=>i.label===l&&i.img)?'<td><span class="y"></span></td>':'<td class="nn">—</td>').join('') + '</tr>'; });
 m.innerHTML = h + '</tbody>'; $('#matrix').appendChild(m);
+$('#headnote').hidden = (accts['sales.head']?accts['sales.head'].items:[]).some(i=>i.label==='전국 지역별'&&i.img);   // 지금도 맞을 때만 보인다
 
 /* ---------- 규칙 ---------- */
 RULES.forEach((r,i)=>{
-  const c = el('div','card rule rv d'+(i%3), `<p class="q">${esc(r.q)}</p><h3>${esc(r.t)}</h3><p>${esc(r.p)}</p><div class="opts"></div><textarea rows="1" placeholder="다른 의견이 있다면 적어 주세요"></textarea>`);
+  const c = el('div','card rule rv d'+(i%3), `<p class="q">${esc(r.q)}${PREV.agreed.includes(r.id)?`<span class="pv">지난번 동의(${esc(PREV.date.slice(5))})</span>`:''}</p><h3>${esc(r.t)}</h3><p>${esc(r.p)}</p><div class="opts"></div><textarea rows="1" placeholder="다른 의견이 있다면 적어 주세요"></textarea>`);
   const k='r:'+r.id, opts=$('.opts',c), ta=$('textarea',c);
   r.o.forEach((o,j)=>{ const b=el('button','vote '+(j?'fix':'ok'),esc(o)); b.onclick=()=>{ const v=store[k]||(store[k]={}); v.v = v.v===(j?'fix':'ok')?'':(j?'fix':'ok'); save(); paint(); }; opts.appendChild(b); });
   const paint=()=>{ const v=store[k]||{}; $$('.vote',c).forEach((b,j)=>b.classList.toggle('on', v.v===(j?'fix':'ok'))); ta.value=v.m||''; };
@@ -519,6 +582,7 @@ function rows(){
   const out=[];
   liveLabels.forEach(l=>{ const v=store['s:'+l]; if(v&&(v.v||v.m)) out.push(['화면',l,v.v==='ok'?'좋다':v.v==='fix'?'고쳐야 한다':'메모만',v.m||'']); });
   FCATS.forEach(cat=>featItems(cat).forEach(x=>{ const v=store['f:'+x.label]; if((v&&(v.v||v.m))||x.st==='new') out.push(['기능',`${cat} › ${x.label}`+(x.st==='new'?' (새 제안)':''),v&&v.v?FVL[v.v]:'메모만',(v&&v.m)||'']); }));
+  PREV.removed.forEach(r=>{ const v=store['g:'+r[1]]; if(v&&v.m) out.push(['기능',`${r[0]} › ${r[1]} (지난번 빼기로 함)`,'다시 필요',v.m]); });
   RULES.forEach(r=>{ const v=store['r:'+r.id]; if(v&&(v.v||v.m)) out.push(['규칙',r.t,v.v==='ok'?'동의':v.v==='fix'?'다른 의견':'메모만',v.m||'']); });
   return out;
 }

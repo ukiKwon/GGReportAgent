@@ -27,7 +27,7 @@ for(const a of accts){
       const el=[...document.querySelectorAll('#side-nav .nav-item')].find(e=>e.textContent.trim()===${JSON.stringify(it.full)});if(el)el.click();return 1})()`);
     await c.sleep(1500);
     await c.ev(`[...document.querySelectorAll('button')].filter(b=>b.textContent.trim()==='닫기'&&b.offsetParent).forEach(b=>b.click());0`);await c.sleep(500);
-    if(it.label==='이사회 자료 작성'){await c.ev(`(()=>{const sel=[...document.querySelectorAll('select')].find(e=>e.offsetParent&&[...e.options].some(o=>o.textContent.includes('양식')));if(sel&&sel.options.length>1){sel.selectedIndex=1;sel.dispatchEvent(new Event('change',{bubbles:true}))}return 1})()`);await c.sleep(1500);}
+    if(it.label==='이사회 자료 작성'){await c.sleep(1500);}   // 020a: 목록 화면 그대로 찍는다(목록 조회가 끝날 때까지만 기다림)
     await c.shot(file); it.file=file;
   }
   console.log(a,items.filter(i=>i.file).map(i=>i.label).join(','));

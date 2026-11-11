@@ -59,7 +59,27 @@ public class InboxApiTest {
             if (Files.exists(p)) {
                 deleteTree(p);
             }
-            Files.createDirectories(p);
+            createWithRetry(p);
+        }
+    }
+
+    /** Windows 는 방금 지운 폴더가 '삭제 대기'로 남아 곧바로 만들면 AccessDenied 가 날 수 있다 — 잠깐 기다려 다시 만든다. */
+    private static void createWithRetry(Path p) throws IOException {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                Files.createDirectories(p);
+                return;
+            } catch (java.nio.file.AccessDeniedException exc) {
+                if (attempt >= 10) {
+                    throw exc;
+                }
+                try {
+                    Thread.sleep(100L * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw exc;
+                }
+            }
         }
     }
 
@@ -95,9 +115,25 @@ public class InboxApiTest {
 
     private static final String CSV_HEADER = "기관명,기관구분,지역코드,입찰주기,지난입찰일,입찰예상일";
 
+    private static final String MEMBER = "3918264";     // 영업팀
+    private static final String LEAD = "5047192";       // 영업팀장
+    private static final String HEAD = "2674805";       // 영업부장
+    private static final String DESIGNER = "7130526";   // 디자이너 — 반입 불가
+    private static final String ADMIN = "8203417";      // 시스템 관리자
+    private static final String UNKNOWN = "9999999";    // 미등록 사번
+
+    /** 기본 호출자는 영업팀원 — 기존 계약 테스트는 가드(NEXT 72 S1)를 통과한 뒤의 동작을 본다. */
     private MockHttpServletResponse call(String batchId, String suffix) throws Exception {
-        MockHttpServletResponse res = mockMvc.perform(post("/inbox/" + batchId + suffix))
-                .andReturn().getResponse();
+        return callAs(batchId, suffix, MEMBER);
+    }
+
+    /** emp 가 null 이면 X-Emp-No 헤더를 보내지 않는다. */
+    private MockHttpServletResponse callAs(String batchId, String suffix, String emp) throws Exception {
+        org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder b = post("/inbox/" + batchId + suffix);
+        if (emp != null) {
+            b = b.header("X-Emp-No", emp);
+        }
+        MockHttpServletResponse res = mockMvc.perform(b).andReturn().getResponse();
         res.setCharacterEncoding("UTF-8");
         return res;
     }
@@ -266,6 +302,74 @@ public class InboxApiTest {
         MockHttpServletResponse res = call(BATCH_ID, "/validate");
         assertFalse(json.readTree(res.getContentAsString()).path("ok").asBoolean());
         assertTrue(res.getContentAsString().contains("상위 경로 참조"));
+    }
+
+    // ── 호출자 가드 (NEXT 72 S1) ──────────────────────────────────────
+
+    @Test
+    public void 사번_없이_부르면_401이고_배치는_그대로다() throws Exception {
+        makeBatch(BATCH_ID, manifest(BATCH_ID, record("N-G1", "가드구청", "")),
+                CSV_HEADER + "\n가드구청,자치구,11110,3,,\n");
+        assertEquals(401, callAs(BATCH_ID, "/validate", null).getStatus());
+        assertEquals(401, callAs(BATCH_ID, "/import", null).getStatus());
+        assertTrue(Files.isDirectory(batchDir(BATCH_ID)));
+    }
+
+    @Test
+    public void 영업_계열이_아니면_403이고_배치_존재도_알리지_않는다() throws Exception {
+        makeBatch(BATCH_ID, manifest(BATCH_ID, record("N-G2", "가드구청2", "")),
+                CSV_HEADER + "\n가드구청2,자치구,11110,3,,\n");
+        for (String emp : new String[]{DESIGNER, ADMIN, UNKNOWN}) {
+            assertEquals(emp, 403, callAs(BATCH_ID, "/validate", emp).getStatus());
+            assertEquals(emp, 403, callAs(BATCH_ID, "/import", emp).getStatus());
+        }
+        assertEquals(403, callAs("nope", "/validate", DESIGNER).getStatus());   // 형식 오류 400 보다 가드가 먼저
+        assertTrue(Files.isDirectory(batchDir(BATCH_ID)));
+    }
+
+    @Test
+    public void 영업팀_영업팀장_영업부장은_검사_200이고_팀장이_반입할_수_있다() throws Exception {
+        makeBatch(BATCH_ID, manifest(BATCH_ID, record("N-G3", "가드구청3", "")),
+                CSV_HEADER + "\n가드구청3,자치구,11110,3,,\n");
+        for (String emp : new String[]{MEMBER, LEAD, HEAD}) {
+            assertEquals(emp, 200, callAs(BATCH_ID, "/validate", emp).getStatus());
+        }
+        assertEquals(200, callAs(BATCH_ID, "/import", LEAD).getStatus());
+    }
+
+    // ── 보관본 보존 (S9) · 크기 상한 (S5 일부) ───────────────────────
+
+    @Test
+    public void 같은_batch_id를_다시_반입해도_보관본이_지워지지_않는다() throws Exception {
+        String csv = CSV_HEADER + "\n재보관구청,자치구,11120,3,,\n";
+        makeBatch(BATCH_ID, manifest(BATCH_ID, record("N-A1", "재보관구청", "")), csv);
+        JsonNode first = json.readTree(call(BATCH_ID, "/import").getContentAsString());
+        Files.write(BATCHES.resolve(BATCH_ID).resolve("marker.txt"), "first".getBytes(StandardCharsets.UTF_8));
+
+        makeBatch(BATCH_ID, manifest(BATCH_ID, record("N-A2", "재보관구청", "")), csv);
+        MockHttpServletResponse secondRes = call(BATCH_ID, "/import");
+        assertEquals(secondRes.getContentAsString(), 200, secondRes.getStatus());
+        JsonNode second = json.readTree(secondRes.getContentAsString());
+
+        assertTrue("첫 보관본(감사 근거)이 남아 있어야 한다",
+                Files.isRegularFile(BATCHES.resolve(BATCH_ID).resolve("marker.txt")));
+        assertTrue(second.toString(), Files.isDirectory(BATCHES.resolve(BATCH_ID + "_2")));
+        assertTrue(first.path("archived_to").asText().endsWith(BATCH_ID));
+        assertTrue(second.path("archived_to").asText().endsWith(BATCH_ID + "_2"));
+    }
+
+    @Test
+    public void manifest가_상한을_넘으면_검사는_ok_false_반입은_422다() throws Exception {
+        Path dir = makeBatch(BATCH_ID, "{}", CSV_HEADER + "\n");
+        byte[] big = new byte[8 * 1024 * 1024 + 1];
+        java.util.Arrays.fill(big, (byte) 'a');
+        Files.write(dir.resolve("manifest.json"), big);
+
+        MockHttpServletResponse v = call(BATCH_ID, "/validate");
+        assertEquals(200, v.getStatus());
+        assertFalse(json.readTree(v.getContentAsString()).path("ok").asBoolean());
+        assertTrue(v.getContentAsString().contains("크기 상한"));
+        assertEquals(422, call(BATCH_ID, "/import").getStatus());
     }
 
     // ── 도구 ──────────────────────────────────────────────────────────
