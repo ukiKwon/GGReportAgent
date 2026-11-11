@@ -14,6 +14,7 @@ import com.kbstar.kgi.ggreport.web.mapper.BoardMaterialMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.support.ApproverRules;
 import com.kbstar.kgi.ggreport.web.support.MenuPerms;
+import com.kbstar.kgi.ggreport.web.support.LegacyFlowSwitch;
 import com.kbstar.kgi.ggreport.web.support.Ranks;
 import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.support.Times;
@@ -70,13 +71,15 @@ public class BidAssignmentService {
     private final SysUserMapper users;
     private final ApprovalRequestMapper requests;
     private final BoardMaterialMapper materials;
+    private final LegacyFlowSwitch legacy;
 
     public BidAssignmentService(BidAssignmentMapper mapper, SysUserMapper users, ApprovalRequestMapper requests,
-                                BoardMaterialMapper materials) {
+                                BoardMaterialMapper materials, LegacyFlowSwitch legacy) {
         this.mapper = mapper;
         this.users = users;
         this.requests = requests;
         this.materials = materials;
+        this.legacy = legacy;
     }
 
     /**
@@ -116,28 +119,48 @@ public class BidAssignmentService {
         return m;
     }
 
-    /** 최초 배정 — 영업팀장만. 이미 배정된 건은 409 {@code ASSIGNED_ALREADY}. */
+    /**
+     * 최초 배정 — 영업팀장만. 이미 배정된 건은 409 {@code ASSIGNED_ALREADY}.
+     * 옛 흐름 스위치({@link LegacyFlowSwitch})가 닫히면 이 경로는 막힌다(403 {@code LEGACY_CLOSED}) —
+     * 최초 배정은 '제안 확정 → 개설 신청 → 개설 승인'(NEXT 70)이 {@link #assignInitial} 로만 한다(security B2).
+     */
     @Transactional
     public Map<String, Object> create(String bidCaseId, List<String> empNos, SysUser me, Actor actor) {
         if (!LEAD_ROLE.equals(roleOf(me))) {
             throw new ApiException(403, "최초 배정은 영업팀장만 할 수 있습니다.");
+        }
+        if (!legacy.isOpen()) {
+            throw coded(403, "LEGACY_CLOSED", "최초 배정은 제안 확정·개설 신청 흐름으로만 할 수 있습니다.");
         }
         List<String> targets = validateTargets(empNos);
         requireBidCase(bidCaseId);
         if (mapper.selectCase(bidCaseId) != null) {
             throw alreadyAssigned();
         }
+        int verified = actor != null && actor.isVerified() ? 1 : 0;
+        return assignInitial(bidCaseId, targets, me.getEmpNo(), verified, null);
+    }
+
+    /**
+     * 최초 배정의 핵심 — 머리 행·배정 행·ASSIGN 이력을 한 트랜잭션으로 쓴다. 호출자가 대상 검증(validateTargets)과 권한을 끝낸 뒤 부른다.
+     * {@code byEmp} 는 배정을 확정한 사람(팀장 직접 배정이면 그 팀장, 개설 승인이면 승인자), {@code reqId} 는 개설 결재 요청 번호(직접 배정이면 null).
+     * 이미 머리 행이 있으면 409 {@code ASSIGNED_ALREADY}.
+     */
+    @Transactional
+    public Map<String, Object> assignInitial(String bidCaseId, List<String> targets, String byEmp, int verified, Long reqId) {
+        if (mapper.selectCase(bidCaseId) != null) {
+            throw alreadyAssigned();
+        }
         String now = Times.nowIso();
         try {
-            mapper.insertCase(bidCaseId, me.getEmpNo(), now);
+            mapper.insertCase(bidCaseId, byEmp, now);
         } catch (DuplicateKeyException e) {   // 동시 최초 배정 — 한쪽만 성공
             throw alreadyAssigned();
         }
-        int verified = actor != null && actor.isVerified() ? 1 : 0;
         for (String emp : targets) {
-            mapper.insertAssignment(bidCaseId, emp, me.getEmpNo(), now);
-            String reason = emp.equals(me.getEmpNo()) ? SELF_REASON : null;
-            mapper.insertLog(bidCaseId, ACTION_ASSIGN, emp, null, reason, me.getEmpNo(), verified, now);
+            mapper.insertAssignment(bidCaseId, emp, byEmp, now);
+            String reason = emp.equals(byEmp) ? SELF_REASON : null;
+            mapper.insertLog(bidCaseId, ACTION_ASSIGN, emp, reqId, reason, byEmp, verified, now);
         }
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("bid_case_id", bidCaseId);
@@ -499,7 +522,7 @@ public class BidAssignmentService {
     }
 
     /** 사번 형식·중복·인원 수·ACTIVE·역할을 검사한다. 사번 값은 오류 문구에 싣지 않는다. */
-    private List<String> validateTargets(List<String> empNos) {
+    List<String> validateTargets(List<String> empNos) {
         if (empNos == null || empNos.size() < MIN_ASSIGNEES || empNos.size() > MAX_ASSIGNEES) {
             throw new ApiException(400, "담당자는 " + MIN_ASSIGNEES + "명 이상 " + MAX_ASSIGNEES + "명 이하로 지정하세요.");
         }
@@ -520,7 +543,7 @@ public class BidAssignmentService {
     }
 
     /** 담당자가 될 수 있는 사용자(ACTIVE, 영업팀·영업팀장 — 영업부장·디자이너·타 팀 불가)인지 확인하고 돌려준다. */
-    private SysUser requireAssignable(String e) {
+    SysUser requireAssignable(String e) {
         SysUser u = users.selectByEmpNo(e);
         if (u == null || !"ACTIVE".equals(u.getStatus())) {
             throw new ApiException(400, "등록되지 않았거나 사용 중이 아닌 사용자가 있습니다.");

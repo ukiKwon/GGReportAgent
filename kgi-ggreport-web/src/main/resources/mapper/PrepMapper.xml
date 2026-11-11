@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- PREP_TASK_DEF / BID_PREP / BID_PREP_TASK / BID_PREP_LOG / BID_PREP_ACT — 024. 양쪽 방언에서 같은 문장이다(ANSI JOIN, 동적 SQL 없음). -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.PrepMapper">
+
+  <select id="selectPrep" resultType="BidPrep">
+    SELECT BID_CASE_ID, INSTITUTION_ID, STATE_CD, CONFIRMED_BY, CONFIRMED_AT, OPEN_REQ_ID, PLAN_REQ_ID,
+           OPENED_BY, OPENED_AT, WRITE_BY, WRITE_AT, UPDATED_BY, UPDATED_AT
+      FROM BID_PREP WHERE BID_CASE_ID = #{bidCaseId}
+  </select>
+
+  <select id="selectList" resultType="BidPrep">
+    SELECT p.BID_CASE_ID, p.INSTITUTION_ID, p.STATE_CD, p.CONFIRMED_BY, p.CONFIRMED_AT, p.OPEN_REQ_ID, p.PLAN_REQ_ID,
+           p.OPENED_BY, p.OPENED_AT, p.WRITE_BY, p.WRITE_AT, p.UPDATED_BY, p.UPDATED_AT,
+           i.NAME_KO AS INSTITUTION_NAME, c.CODE_NAME AS STATE_NAME
+      FROM BID_PREP p
+      LEFT JOIN INSTITUTIONS i ON i.INSTITUTION_ID = p.INSTITUTION_ID
+      LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'PREP_STATE' AND c.CODE = p.STATE_CD
+     ORDER BY p.CONFIRMED_AT DESC, p.BID_CASE_ID
+  </select>
+
+  <select id="lockInstitution" resultType="string">
+    SELECT INSTITUTION_ID FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId} FOR UPDATE
+  </select>
+
+  <select id="countActiveByInstitution" resultType="int">
+    SELECT COUNT(*) FROM BID_PREP
+     WHERE INSTITUTION_ID = #{institutionId}
+       AND STATE_CD IN ('CONFIRMED', 'OPEN_PENDING', 'IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE', 'WRITING')
+  </select>
+
+  <insert id="insertPrep">
+    INSERT INTO BID_PREP (BID_CASE_ID, INSTITUTION_ID, STATE_CD, CONFIRMED_BY, CONFIRMED_AT, UPDATED_BY, UPDATED_AT)
+    VALUES (#{bidCaseId}, #{institutionId}, #{stateCd}, #{by}, #{now}, #{by}, #{now})
+  </insert>
+
+  <update id="transit">
+    UPDATE BID_PREP SET STATE_CD = #{toState}, UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND STATE_CD = #{fromState}
+  </update>
+
+  <update id="transitOpenReq">
+    UPDATE BID_PREP SET STATE_CD = #{toState}, OPEN_REQ_ID = #{reqId,jdbcType=NUMERIC},
+           UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND STATE_CD = #{fromState}
+  </update>
+
+  <update id="transitPlanReq">
+    UPDATE BID_PREP SET STATE_CD = #{toState}, PLAN_REQ_ID = #{reqId,jdbcType=NUMERIC},
+           UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND STATE_CD = #{fromState}
+  </update>
+
+  <update id="markOpened">
+    UPDATE BID_PREP SET STATE_CD = 'IN_PROGRESS', OPENED_BY = #{by}, OPENED_AT = #{now},
+           UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND STATE_CD = 'OPEN_PENDING' AND OPEN_REQ_ID = #{reqId}
+  </update>
+
+  <update id="endOpen">
+    UPDATE BID_PREP SET STATE_CD = 'CONFIRMED', UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND STATE_CD = 'OPEN_PENDING' AND OPEN_REQ_ID = #{reqId}
+  </update>
+
+  <update id="approvePlan">
+    UPDATE BID_PREP SET STATE_CD = 'WRITABLE', UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND STATE_CD = 'APPROVAL_PENDING' AND PLAN_REQ_ID = #{reqId}
+  </update>
+
+  <update id="endPlan">
+    UPDATE BID_PREP SET STATE_CD = 'IN_PROGRESS', UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND STATE_CD = 'APPROVAL_PENDING' AND PLAN_REQ_ID = #{reqId}
+  </update>
+
+  <update id="markWriting">
+    UPDATE BID_PREP SET STATE_CD = 'WRITING', WRITE_BY = #{by}, WRITE_AT = #{now},
+           UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND STATE_CD = 'WRITABLE'
+  </update>
+
+  <select id="selectTasks" resultType="BidPrepTask">
+    SELECT t.BID_CASE_ID, t.TASK_CD, t.SORT_NO, t.KIND_CD, t.JUDGE_CD, t.FACT_KEY, t.PRECOND_KEY, t.PREREQ_CD, t.COND_KEY,
+           t.DONE_YN, t.DONE_BY, t.DONE_AT, t.REF_ATTACH_ID, t.REF_SHA256, t.REF_BY, t.REF_AT,
+           d.TASK_NAME AS TASK_NAME, COALESCE(d.READY_YN, 1) AS READY_YN
+      FROM BID_PREP_TASK t
+      LEFT JOIN PREP_TASK_DEF d ON d.TASK_CD = t.TASK_CD
+     WHERE t.BID_CASE_ID = #{bidCaseId}
+     ORDER BY t.SORT_NO, t.TASK_CD
+  </select>
+
+  <!-- 정의 행(BidPrepTask 모양으로 읽는다 — DONE_YN 은 0). 개설 승인이 건별 행으로 복사한다. -->
+  <select id="selectEnabledDefs" resultType="BidPrepTask">
+    SELECT TASK_CD, SORT_NO, KIND_CD, JUDGE_CD, FACT_KEY, PRECOND_KEY, PREREQ_CD, COND_KEY, 0 AS DONE_YN
+      FROM PREP_TASK_DEF WHERE ENABLED = 1 ORDER BY SORT_NO, TASK_CD
+  </select>
+
+  <insert id="insertTask">
+    INSERT INTO BID_PREP_TASK (BID_CASE_ID, TASK_CD, SORT_NO, KIND_CD, JUDGE_CD, FACT_KEY, PRECOND_KEY, PREREQ_CD, COND_KEY, DONE_YN)
+    VALUES (#{bidCaseId}, #{t.taskCd}, #{t.sortNo}, #{t.kindCd}, #{t.judgeCd}, #{t.factKey,jdbcType=VARCHAR},
+            #{t.precondKey,jdbcType=VARCHAR}, #{t.prereqCd,jdbcType=VARCHAR}, #{t.condKey,jdbcType=VARCHAR}, 0)
+  </insert>
+
+  <update id="updateTaskDone">
+    UPDATE BID_PREP_TASK SET DONE_YN = #{done}, DONE_BY = #{by,jdbcType=VARCHAR}, DONE_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND TASK_CD = #{taskCd} AND DONE_YN = #{expect}
+  </update>
+
+  <select id="countBoardConfirmed" resultType="int">
+    SELECT COUNT(*) FROM BOARD_MATERIAL WHERE BID_CASE_ID = #{bidCaseId} AND STATUS_CD = 'CONFIRMED'
+  </select>
+
+  <select id="selectRfpPath" resultType="string">
+    SELECT RFP_PATH FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId}
+  </select>
+
+  <select id="selectInstitutionNameByBid" resultType="string">
+    SELECT i.NAME_KO
+      FROM BID_CASES b
+      JOIN INSTITUTIONS i ON i.INSTITUTION_ID = b.INSTITUTION_ID
+     WHERE b.BID_CASE_ID = #{bidCaseId}
+  </select>
+
+  <insert id="insertLog">
+    INSERT INTO BID_PREP_LOG (BID_CASE_ID, EVENT_CD, FROM_STATE, TO_STATE, TASK_CD, REQ_ID, REASON,
+                              ACTOR_EMP_NO, EMP_VERIFIED, LOGGED_AT)
+    VALUES (#{bidCaseId}, #{eventCd}, #{fromState,jdbcType=VARCHAR}, #{toState,jdbcType=VARCHAR},
+            #{taskCd,jdbcType=VARCHAR}, #{reqId,jdbcType=NUMERIC}, #{reason,jdbcType=VARCHAR},
+            #{actorEmpNo,jdbcType=VARCHAR}, #{verified}, #{now})
+  </insert>
+
+  <select id="selectLog" resultType="BidPrepLogView">
+    SELECT l.EVENT_CD, c.CODE_NAME AS EVENT_NAME, l.FROM_STATE, l.TO_STATE, l.TASK_CD, l.REQ_ID, l.REASON,
+           l.ACTOR_EMP_NO, u.NAME AS ACTOR_NAME, l.EMP_VERIFIED, l.LOGGED_AT
+      FROM BID_PREP_LOG l
+      LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'PREP_EVENT' AND c.CODE = l.EVENT_CD
+      LEFT JOIN USERS u ON u.EMP_NO = l.ACTOR_EMP_NO
+     WHERE l.BID_CASE_ID = #{bidCaseId}
+     ORDER BY l.LOG_ID
+  </select>
+
+  <insert id="insertAct">
+    INSERT INTO BID_PREP_ACT (BID_CASE_ID, ACTION_CD, OUTCOME, STATE_CD, TASK_CD, ACTOR_EMP_NO, EMP_VERIFIED,
+                              SCREEN_ID, BUTTON_ID, UI_VALID, LOGGED_AT)
+    VALUES (#{bidCaseId}, #{actionCd}, #{outcome}, #{stateCd}, #{taskCd,jdbcType=VARCHAR},
+            #{actorEmpNo,jdbcType=VARCHAR}, #{verified}, #{screenId}, #{buttonId}, #{uiValid}, #{now})
+  </insert>
+
+</mapper>

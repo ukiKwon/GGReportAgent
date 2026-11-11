@@ -21,10 +21,20 @@ public final class ApprovalTypes {
     public static final String PERM_REQUEST = "PERM_REQUEST";
     public static final String ASSIGNEE_CHANGE = "ASSIGNEE_CHANGE";
     public static final String BOARD_SUBMIT = "BOARD_SUBMIT";
+    /** 사전준비 개설 신청(NEXT 70) — 승인되면 지명자가 담당자로 배정되고 사전준비가 시작된다. */
+    public static final String BID_OPEN = "BID_OPEN";
+    /** 사전준비 기획승인(NEXT 70) — 영업부장 고정. 승인이 5번 게이트(기획승인) 통과다. */
+    public static final String PREP_APPROVAL = "PREP_APPROVAL";
 
     /** 대결 승인을 허용하지 않는 유형 — 결재자 본인만 승인한다(019 담당자 변경). 기존 유형 동작은 그대로다. */
     public static final Set<String> NO_PROXY =
-            Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(ASSIGNEE_CHANGE, BOARD_SUBMIT)));
+            Collections.unmodifiableSet(new HashSet<String>(
+                    Arrays.asList(ASSIGNEE_CHANGE, BOARD_SUBMIT, BID_OPEN, PREP_APPROVAL)));
+
+    /** 사전준비(NEXT 70)가 쓰는 유형 — 영업팀 내부 정보라 관리자 전체 목록·타인 취소에서 제외한다. */
+    public static boolean isPrep(String key) {
+        return BID_OPEN.equals(key) || PREP_APPROVAL.equals(key);
+    }
 
     public static final class Type {
         private final String key;
@@ -55,7 +65,11 @@ public final class ApprovalTypes {
             new Type(ASSIGNEE_CHANGE, "담당자 변경", true,
                     "담당자(또는 영업팀장) → 영업팀장 (영업팀장이 관련되면 영업부장) · 대결 불가"),
             new Type(BOARD_SUBMIT, "이사회 자료 제출", true,
-                    "담당자 → 영업팀장 (영업팀장이 관련되면 영업부장) · 대결 불가")));
+                    "담당자 → 영업팀장 (영업팀장이 관련되면 영업부장) · 대결 불가"),
+            new Type(BID_OPEN, "사전준비 개설 신청", true,
+                    "신청자 → 영업팀장 (신청자·지명자 중 영업팀장이 있으면 영업부장) · 대결 불가"),
+            new Type(PREP_APPROVAL, "사전준비 기획승인", true,
+                    "담당자 → 영업부장 · 대결 불가")));
 
     public static Type find(String key) {
         for (Type t : ALL) {

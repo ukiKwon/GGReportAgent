@@ -46,9 +46,10 @@ public class MapperStatementBindingTest {
      * + 오케스트레이터 1개(ORCH_RUN·ORCH_STEP 을 함께 다룬다)
      * + 시스템 관리 4개(USERS·USER_MENU_PERMS·ACCESS_LOG·PERM_CHANGE_LOG, 008).
      * + 워크플로 개요 1개(WorkflowOverviewMapper — 제안서 진행 현황 목록).
+     * + 제안서 사전준비 1개(PrepMapper — NEXT 70, 024).
      * 개수를 박아 두면 새 Mapper 를 만들고 등록을 잊는 것도 잡힌다.
      */
-    private static final int EXPECTED_MAPPER_COUNT = 19;
+    private static final int EXPECTED_MAPPER_COUNT = 20;
 
     @Autowired
     private SqlSessionFactory sqlSessionFactory;

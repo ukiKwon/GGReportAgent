@@ -10,6 +10,7 @@ import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.dto.ApprovalIn;
 import com.kbstar.kgi.ggreport.web.dto.BoardMaterialIn;
 import com.kbstar.kgi.ggreport.web.dto.MenuDefinition;
+import com.kbstar.kgi.ggreport.web.dto.PrepIn;
 import com.kbstar.kgi.ggreport.web.dto.SysAdminIn;
 import com.kbstar.kgi.ggreport.web.mapper.ApprovalRequestMapper;
 import com.kbstar.kgi.ggreport.web.mapper.PermChangeLogMapper;
@@ -58,6 +59,7 @@ public class ApprovalRequestService {
     private final NotificationCommandService notes;
     private final BidAssignmentService assignments;
     private final BoardMaterialService materials;
+    private final PrepService prep;
 
     /** 쪽지 종류 — 결재자에게 가는 알림 / 상신자에게 가는 결과. 쪽지함이 둘 다 결재함으로 이어 준다. */
     public static final String KIND_ALERT = "결재알림";
@@ -68,7 +70,9 @@ public class ApprovalRequestService {
     public ApprovalRequestService(ApprovalRequestMapper requests, SysUserMapper users, CallerService callers,
                                   PermissionService permissions, ApprovalDeputyService deputies,
                                   PermChangeLogMapper changeLog, NotificationCommandService notes,
-                                  BidAssignmentService assignments, BoardMaterialService materials) {
+                                  BidAssignmentService assignments, BoardMaterialService materials,
+                                  PrepService prep) {
+        this.prep = prep;
         this.requests = requests;
         this.users = users;
         this.callers = callers;
@@ -164,6 +168,63 @@ public class ApprovalRequestService {
         s.setReqId(r.getReqId());
         requests.insertStep(s);
         materials.claimSubmit(plan, r.getReqId(), me, actor);
+        notifyStep(r, s, me);
+        return view(requests.selectById(r.getReqId()), me);
+    }
+
+    /**
+     * 사전준비 개설 신청(NEXT 70, BID_OPEN). 검증·결재자 계산은 prep.planOpen 이 하고(결재선은 서버가 정한다 — 본문의 결재자·상신자는 받지 않는다),
+     * 여기서는 요청·결재선 행을 만들고 건을 OPEN_PENDING 으로 선점한다. 지명자는 payload 에만 둔다(승인 전에는 배정·권한 없음).
+     * 선점 실패(409)는 이 트랜잭션이 롤백해 요청 행도 남지 않는다.
+     */
+    @Transactional
+    public Map<String, Object> submitBidOpen(String bidCaseId, PrepIn.Open in, Actor actor) {
+        SysUser me = callers.require(actor);
+        PrepService.OpenPlan plan = prep.planOpen(bidCaseId, in == null ? null : in.getEmpNos(),
+                in == null ? null : in.getComment(), me);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("bid_case_id", plan.getBidCaseId());
+        payload.put("nominee_emp_nos", plan.getNominees());
+        if (plan.getComment() != null) {
+            payload.put("comment", plan.getComment());
+        }
+        ApprovalRequest r = new ApprovalRequest();
+        r.setReqType(ApprovalTypes.BID_OPEN);
+        r.setRequesterEmpNo(me.getEmpNo());
+        r.setTitle("사전준비 개설 신청 — " + nameOrEmpty(plan.getInstitutionName()));
+        r.setPayload(write(payload));
+        r.setStatus("PENDING");
+        r.setCurrentStep(1);
+        r.setCreatedAt(Times.nowIso());
+        requests.insert(r);
+        ApprovalStep s = step(1, "LINE", plan.getApprover().getEmpNo());
+        s.setReqId(r.getReqId());
+        requests.insertStep(s);
+        prep.claimOpen(plan, r.getReqId(), me, actor);
+        notifyStep(r, s, me);
+        return view(requests.selectById(r.getReqId()), me);
+    }
+
+    /** 사전준비 기획승인 상신(NEXT 70, PREP_APPROVAL) — 결재자는 영업부장 고정. 필수 과제 완료는 prep.planPlanApproval 이 서버에서 다시 판정한다. */
+    @Transactional
+    public Map<String, Object> submitPrepApproval(String bidCaseId, Actor actor) {
+        SysUser me = callers.require(actor);
+        PrepService.PlanPlan plan = prep.planPlanApproval(bidCaseId, me);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("bid_case_id", plan.getBidCaseId());
+        ApprovalRequest r = new ApprovalRequest();
+        r.setReqType(ApprovalTypes.PREP_APPROVAL);
+        r.setRequesterEmpNo(me.getEmpNo());
+        r.setTitle("사전준비 기획승인 — " + nameOrEmpty(plan.getInstitutionName()));
+        r.setPayload(write(payload));
+        r.setStatus("PENDING");
+        r.setCurrentStep(1);
+        r.setCreatedAt(Times.nowIso());
+        requests.insert(r);
+        ApprovalStep s = step(1, "LINE", plan.getApprover().getEmpNo());
+        s.setReqId(r.getReqId());
+        requests.insertStep(s);
+        prep.claimPlan(plan, r.getReqId(), me, actor);
         notifyStep(r, s, me);
         return view(requests.selectById(r.getReqId()), me);
     }
@@ -312,6 +373,9 @@ public class ApprovalRequestService {
         if (ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())) {   // 이사회 자료 제출 결재 의견: 제어문자 400·개인정보 422(security S2). 다른 유형은 기존 동작 유지
             String checked = BoardMaterialService.checkedText(comment, 500, "의견", !approve);
             comment = checked == null ? "" : checked;
+        } else if (ApprovalTypes.isPrep(r.getReqType())) {   // 사전준비 결재 의견도 같은 규칙(제어문자 400·개인정보 422)
+            String checked = BoardMaterialService.checkedText(comment, 500, "의견", !approve);
+            comment = checked == null ? "" : checked;
         }
         List<ApprovalStep> steps = requests.selectSteps(id);
         ApprovalStep cur = current(steps, r);
@@ -330,6 +394,11 @@ public class ApprovalRequestService {
             if (ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())) {
                 materials.afterSubmitEnded(id, readPayloadMaterialId(r), "REJECT", me.getEmpNo(),
                         actor != null && actor.isVerified() ? 1 : 0);
+            }
+            if (ApprovalTypes.BID_OPEN.equals(r.getReqType())) {
+                prep.afterOpenEnded(id, readPayloadBid(r), "OPEN_REJECT", comment, me, actor != null && actor.isVerified() ? 1 : 0);
+            } else if (ApprovalTypes.PREP_APPROVAL.equals(r.getReqType())) {
+                prep.afterPlanEnded(id, readPayloadBid(r), "PLAN_REJECT", comment, me, actor != null && actor.isVerified() ? 1 : 0);
             }
             notifyResult(r, requester, me, "반려되었습니다" + (comment.isEmpty() ? "" : " — 사유: " + comment));
         } else if (cur.getStepNo() < steps.size()) {
@@ -352,7 +421,8 @@ public class ApprovalRequestService {
         SysUser me = callers.require(actor);
         ApprovalRequest r = require(id);
         boolean own = r.getRequesterEmpNo().equals(me.getEmpNo());
-        if (!own && (ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType()) || ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType()))) {
+        if (!own && (ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType()) || ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())
+                || ApprovalTypes.isPrep(r.getReqType()))) {
             throw new ApiException(403, "이 요청은 신청자 본인만 취소할 수 있습니다.");   // 관리자도 불가(영업팀 내부 정보, 2026-11-10 사용자 결정)
         }
         if (!own && !permissions.canAdmin(me.getEmpNo())) {
@@ -374,6 +444,11 @@ public class ApprovalRequestService {
         if (ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())) {
             materials.afterSubmitEnded(id, readPayloadMaterialId(r), "WITHDRAW", me.getEmpNo(),
                     actor != null && actor.isVerified() ? 1 : 0);   // 신청자 본인 취소 = 회수와 같다
+        }
+        if (ApprovalTypes.BID_OPEN.equals(r.getReqType())) {
+            prep.afterOpenEnded(id, readPayloadBid(r), "OPEN_WITHDRAW", null, me, actor != null && actor.isVerified() ? 1 : 0);
+        } else if (ApprovalTypes.PREP_APPROVAL.equals(r.getReqType())) {
+            prep.afterPlanEnded(id, readPayloadBid(r), "PLAN_WITHDRAW", null, me, actor != null && actor.isVerified() ? 1 : 0);
         }
         if (!r.getRequesterEmpNo().equals(me.getEmpNo())) {      // 남이 취소했을 때만 알린다
             notifyResult(r, users.selectByEmpNo(r.getRequesterEmpNo()), me, "관리자가 취소했습니다");
@@ -492,7 +567,8 @@ public class ApprovalRequestService {
             }
             rows = new ArrayList<>();
             for (ApprovalRequest x : requests.selectAll()) {
-                if (!ApprovalTypes.ASSIGNEE_CHANGE.equals(x.getReqType()) && !ApprovalTypes.BOARD_SUBMIT.equals(x.getReqType())) {   // 영업팀 내부 정보 — 관리자 전체 목록에서 제외(mine·inbox 는 유지)
+                if (!ApprovalTypes.ASSIGNEE_CHANGE.equals(x.getReqType()) && !ApprovalTypes.BOARD_SUBMIT.equals(x.getReqType())
+                        && !ApprovalTypes.isPrep(x.getReqType())) {   // 영업팀 내부 정보 — 관리자 전체 목록에서 제외(mine·inbox 는 유지)
                     rows.add(x);
                 }
             }
@@ -603,6 +679,12 @@ public class ApprovalRequestService {
         if (ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())) {
             return materials.applyConfirm(r, decider, actor);
         }
+        if (ApprovalTypes.BID_OPEN.equals(r.getReqType())) {
+            return prep.applyOpen(r, decider, actor);
+        }
+        if (ApprovalTypes.PREP_APPROVAL.equals(r.getReqType())) {
+            return prep.applyPlanApproval(r, decider, actor);
+        }
         if (!ApprovalTypes.PERM_REQUEST.equals(r.getReqType())) {
             return null;
         }
@@ -631,6 +713,15 @@ public class ApprovalRequestService {
     /** 결재 요청 payload 의 material_id(문자열). 없거나 숫자가 아니면 빈 문자열(→ 후처리가 409). */
     private String readPayloadMaterialId(ApprovalRequest r) {
         return read(r.getPayload()).path("material_id").asText("");
+    }
+
+    /** 사전준비 결재 요청 payload 의 bid_case_id. 없으면 빈 문자열(후크가 아무것도 하지 않는다). */
+    private String readPayloadBid(ApprovalRequest r) {
+        return read(r.getPayload()).path("bid_case_id").asText("");
+    }
+
+    private static String nameOrEmpty(String s) {
+        return s == null ? "" : s;
     }
 
     private static boolean knownMenu(String key) {
@@ -725,7 +816,8 @@ public class ApprovalRequestService {
                 ? eligibility(me, requester, current(steps, r), r.getReqType()) : null;
         m.put("can_decide", how != null);
         m.put("acting_as_deputy", "DEPUTY".equals(how));
-        boolean teamInternal = ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType()) || ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType());
+        boolean teamInternal = ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType()) || ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())
+                || ApprovalTypes.isPrep(r.getReqType());
         m.put("can_cancel", pending && (r.getRequesterEmpNo().equals(me.getEmpNo())
                 || (!teamInternal && permissions.canAdmin(me.getEmpNo()))));
         return m;
