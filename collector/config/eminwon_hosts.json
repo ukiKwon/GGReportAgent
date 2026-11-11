@@ -1,12 +1,11 @@
 {
- "_comment": "eminwon 금고 공고 감시 대상(NEXT 80). frontend/data/institutions.js sources의 eminwon URL + 2026-11-11 curl 실측 호스트. key = 기관 region|name. tls_verify를 끄는 것은 호스트별로만.",
+ "_comment": "eminwon 금고 공고 감시 대상(NEXT 80). frontend/data/institutions.js sources의 eminwon URL + 2026-11-11 curl 실측 호스트. key = 기관 region|name. tls_verify를 끄는 것은 호스트별로만. schemes: 기본 https만(연결 실패 시 http 강등 금지, security 11-11 PUSH-GATE). http만 되는 곳(실측)만 [\"http\"].",
  "generated": "2026-11-11",
  "hosts": [
   {
    "host": "dobong.eminwon.seoul.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|도봉구청",
@@ -17,8 +16,7 @@
   {
    "host": "dongjak.eminwon.seoul.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|동작구청",
@@ -29,8 +27,7 @@
   {
    "host": "eminwon.brcn.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "44|보령시청",
@@ -41,8 +38,7 @@
   {
    "host": "eminwon.bsdonggu.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "26|부산 동구청",
@@ -53,8 +49,7 @@
   {
    "host": "eminwon.bsseogu.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "26|부산 서구청",
@@ -65,8 +60,7 @@
   {
    "host": "eminwon.buan.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "45|부안군청",
@@ -77,8 +71,7 @@
   {
    "host": "eminwon.bukgu.ulsan.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "31|울산 북구청",
@@ -89,8 +82,7 @@
   {
    "host": "eminwon.buyeo.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "44|부여군청",
@@ -101,8 +93,7 @@
   {
    "host": "eminwon.changwon.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "48|창원시청",
@@ -113,8 +104,7 @@
   {
    "host": "eminwon.cheonan.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "44|천안시청",
@@ -125,8 +115,7 @@
   {
    "host": "eminwon.cheongju.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "43|청주시청",
@@ -137,8 +126,7 @@
   {
    "host": "eminwon.chuncheon.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "42|춘천시청",
@@ -149,8 +137,7 @@
   {
    "host": "eminwon.cs.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "47|청송군청",
@@ -161,8 +148,7 @@
   {
    "host": "eminwon.cwg.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "42|철원군청",
@@ -173,8 +159,7 @@
   {
    "host": "eminwon.dangjin.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "44|당진시청",
@@ -185,8 +170,7 @@
   {
    "host": "eminwon.ddc.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "41|동두천시청",
@@ -197,8 +181,7 @@
   {
    "host": "eminwon.ddm.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|동대문구청",
@@ -209,8 +192,7 @@
   {
    "host": "eminwon.ep.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|은평구청",
@@ -221,8 +203,7 @@
   {
    "host": "eminwon.gangbuk.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|강북구청",
@@ -233,8 +214,7 @@
   {
    "host": "eminwon.gangdong.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|강동구청",
@@ -245,8 +225,7 @@
   {
    "host": "eminwon.gangseo.seoul.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|강서구청",
@@ -257,8 +236,7 @@
   {
    "host": "eminwon.gbgs.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "47|경산시청",
@@ -269,8 +247,7 @@
   {
    "host": "eminwon.gc.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "47|김천시청",
@@ -281,8 +258,7 @@
   {
    "host": "eminwon.gccity.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "41|과천시청",
@@ -293,8 +269,7 @@
   {
    "host": "eminwon.geumcheon.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|금천구청",
@@ -305,8 +280,7 @@
   {
    "host": "eminwon.gijang.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "26|기장군청",
@@ -317,8 +291,7 @@
   {
    "host": "eminwon.gimpo.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "41|김포시청",
@@ -329,8 +302,7 @@
   {
    "host": "eminwon.gm.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "41|광명시청",
@@ -341,8 +313,7 @@
   {
    "host": "eminwon.goesan.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "43|괴산군청",
@@ -353,8 +324,7 @@
   {
    "host": "eminwon.gokseong.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "46|곡성군청",
@@ -365,8 +335,7 @@
   {
    "host": "eminwon.gongju.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "44|공주시청",
@@ -377,8 +346,7 @@
   {
    "host": "eminwon.goyang.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "41|고양시청",
@@ -389,8 +357,7 @@
   {
    "host": "eminwon.gp.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "41|가평군청",
@@ -401,8 +368,7 @@
   {
    "host": "eminwon.gumi.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "47|구미시청",
@@ -413,8 +379,7 @@
   {
    "host": "eminwon.gunsan.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "45|군산시청",
@@ -425,8 +390,7 @@
   {
    "host": "eminwon.guro.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|구로구청",
@@ -437,8 +401,7 @@
   {
    "host": "eminwon.gwanak.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|관악구청",
@@ -449,8 +412,7 @@
   {
    "host": "eminwon.gwangsan.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "46|광산구청",
@@ -461,8 +423,7 @@
   {
    "host": "eminwon.gwgs.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "42|고성군청",
@@ -473,8 +434,7 @@
   {
    "host": "eminwon.gyeongju.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "47|경주시청",
@@ -485,8 +445,7 @@
   {
    "host": "eminwon.hadong.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "48|하동군청",
@@ -497,8 +456,7 @@
   {
    "host": "eminwon.hanam.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "41|하남시청",
@@ -509,8 +467,7 @@
   {
    "host": "eminwon.hc.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "48|합천군청",
@@ -521,8 +478,7 @@
   {
    "host": "eminwon.hongcheon.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "42|홍천군청",
@@ -533,8 +489,7 @@
   {
    "host": "eminwon.hongseong.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "44|홍성군청",
@@ -545,8 +500,7 @@
   {
    "host": "eminwon.inje.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "42|인제군청",
@@ -557,8 +511,7 @@
   {
    "host": "eminwon.jemulpo.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "28|제물포구청",
@@ -569,8 +522,7 @@
   {
    "host": "eminwon.jeongeup.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "45|정읍시청",
@@ -581,8 +533,7 @@
   {
    "host": "eminwon.jeongseon.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "42|정선군청",
@@ -593,8 +544,7 @@
   {
    "host": "eminwon.jeonju.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "45|전주시청",
@@ -605,8 +555,7 @@
   {
    "host": "eminwon.jinan.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "45|진안군청",
@@ -617,8 +566,7 @@
   {
    "host": "eminwon.jindo.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "46|진도군청",
@@ -629,8 +577,7 @@
   {
    "host": "eminwon.junggu.seoul.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|중구청",
@@ -641,8 +588,7 @@
   {
    "host": "eminwon.jungnang.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|중랑구청",
@@ -653,8 +599,7 @@
   {
    "host": "eminwon.mapo.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|마포구청",
@@ -665,8 +610,7 @@
   {
    "host": "eminwon.osan.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "41|오산시청",
@@ -677,8 +621,7 @@
   {
    "host": "eminwon.paju.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "41|파주시청",
@@ -689,8 +632,7 @@
   {
    "host": "eminwon.pc.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "42|평창군청",
@@ -701,8 +643,7 @@
   {
    "host": "eminwon.pohang.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "47|포항시청",
@@ -713,8 +654,7 @@
   {
    "host": "eminwon.samcheok.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "42|삼척시청",
@@ -725,8 +665,7 @@
   {
    "host": "eminwon.sangju.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "47|상주시청",
@@ -737,8 +676,7 @@
   {
    "host": "eminwon.sasang.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "26|사상구청",
@@ -749,8 +687,7 @@
   {
    "host": "eminwon.sd.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|성동구청",
@@ -761,8 +698,7 @@
   {
    "host": "eminwon.sdm.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|서대문구청",
@@ -773,7 +709,6 @@
   {
    "host": "eminwon.seo.incheon.kr",
    "schemes": [
-    "https",
     "http"
    ],
    "tls_verify": true,
@@ -785,8 +720,7 @@
   {
    "host": "eminwon.seocho.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|서초구청",
@@ -797,8 +731,7 @@
   {
    "host": "eminwon.seogu.gwangju.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "46|광주 서구청",
@@ -809,8 +742,7 @@
   {
    "host": "eminwon.seosan.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "44|서산시청",
@@ -821,8 +753,7 @@
   {
    "host": "eminwon.sokcho.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "42|속초시청",
@@ -833,8 +764,7 @@
   {
    "host": "eminwon.sunchang.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "45|순창군청",
@@ -845,8 +775,7 @@
   {
    "host": "eminwon.suwon.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "41|수원시청",
@@ -857,8 +786,7 @@
   {
    "host": "eminwon.uljin.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "47|울진군청",
@@ -869,8 +797,7 @@
   {
    "host": "eminwon.ulju.ulsan.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "31|울주군청",
@@ -881,8 +808,7 @@
   {
    "host": "eminwon.ulsannamgu.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "31|울산 남구청",
@@ -893,7 +819,7 @@
   {
    "host": "eminwon.usc.go.kr",
    "schemes": [
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "47|의성군청",
@@ -904,8 +830,7 @@
   {
    "host": "eminwon.wanju.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "45|완주군청",
@@ -916,8 +841,7 @@
   {
    "host": "eminwon.yangcheon.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|양천구청",
@@ -928,8 +852,7 @@
   {
    "host": "eminwon.yangju.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "41|양주시청",
@@ -940,8 +863,7 @@
   {
    "host": "eminwon.yangyang.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "42|양양군청",
@@ -952,8 +874,7 @@
   {
    "host": "eminwon.yc.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "47|영천시청",
@@ -964,8 +885,7 @@
   {
    "host": "eminwon.yd.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "47|영덕군청",
@@ -976,8 +896,7 @@
   {
    "host": "eminwon.yd21.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "43|영동군청",
@@ -988,8 +907,7 @@
   {
    "host": "eminwon.ydp.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|영등포구청",
@@ -1000,8 +918,7 @@
   {
    "host": "eminwon.yeoncheon.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "41|연천군청",
@@ -1012,8 +929,7 @@
   {
    "host": "eminwon.yeongam.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "46|영암군청",
@@ -1024,8 +940,7 @@
   {
    "host": "eminwon.yeongju.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "47|영주시청",
@@ -1036,8 +951,7 @@
   {
    "host": "eminwon.yongin.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "41|용인시청",
@@ -1048,8 +962,7 @@
   {
    "host": "eminwon.yongsan.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|용산구청",
@@ -1060,8 +973,7 @@
   {
    "host": "eminwon.yp21.go.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "41|양평군청",
@@ -1072,8 +984,7 @@
   {
    "host": "gangnam.eminwon.seoul.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|강남구청",
@@ -1084,7 +995,6 @@
   {
    "host": "gwangjin.eminwon.seoul.kr",
    "schemes": [
-    "https",
     "http"
    ],
    "tls_verify": true,
@@ -1096,8 +1006,7 @@
   {
    "host": "jongno.eminwon.seoul.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|종로구청",
@@ -1119,8 +1028,7 @@
   {
    "host": "songpa.eminwon.seoul.kr",
    "schemes": [
-    "https",
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|송파구청",
