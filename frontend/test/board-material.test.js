@@ -449,7 +449,15 @@ test('reworkModalHtml·resultRowHtml·reviewHtml: 접근성 속성, 확정 경�
   ['SCHEDULED', 'PASSED', 'REJECTED'].forEach(function (r) {
     const h = mat.resultRowHtml(conf, { result: r, date: '' });
     assert.ok(h.includes('(필수)') && !h.includes('(선택)'), '개최일은 결과와 관계없이 필수: ' + r);
+    assert.ok(/id="bd-m-mdate"[^>]* required aria-required="true"/.test(h), '개최일 input required: ' + r);
   });
+  // 결과 배지: 가결·부결·의결 예정 모두 개최일(MM-DD)을 붙인다
+  const badge = function (r, n) { return mat.resultBadgeHtml({ status_cd: 'CONFIRMED', result_cd: r, result_name: n, meeting_date: '2026-12-03' }); };
+  assert.ok(badge('PASSED').includes('가결 · <span class="mono">12-03</span>'));
+  assert.ok(badge('REJECTED').includes('부결 · <span class="mono">12-03</span>'));
+  assert.ok(badge('SCHEDULED').includes('의결 예정 · <span class="mono">12-03</span>'));
+  assert.ok(!mat.resultBadgeHtml({ status_cd: 'CONFIRMED', result_cd: 'PASSED' }).includes('·'));
+  assert.strictEqual(mat.resultBadgeHtml({ status_cd: 'SUBMITTED', result_cd: 'PASSED', meeting_date: '2026-12-03' }), '');
   const d = { material_id: 7, institution_name: X, year: 2026, status_cd: 'SUBMITTED', status_name: '제출(결재 중)', current_snap: 6, assignees: [{ name: X }],
     form: { tables: [] }, snapshot: { snap_no: 6, saved_by_name: X, saved_at: '2026-11-11T01:42:00+00:00', tables: [] } };
   const h = mat.reviewHtml(d, { n: 6, canDecide: true, comment: X });

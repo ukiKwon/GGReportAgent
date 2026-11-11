@@ -87,12 +87,11 @@
     if (str(d && d.status_cd) !== 'CONFIRMED') return '';
     const r = str(d.result_cd);
     if (r === '') return '';
-    if (r === 'SCHEDULED') {
-      const md = mat.mdOf(d.meeting_date);
-      return '<span class="bd-badge is-ink bd-m-rbadge">의결 예정' + (md ? ' · <span class="mono">' + esc(md) + '</span>' : '') + '</span>';
-    }
+    const md = mat.mdOf(d.meeting_date);
+    const dt = md ? ' · <span class="mono">' + esc(md) + '</span>' : '';
+    if (r === 'SCHEDULED') return '<span class="bd-badge is-ink bd-m-rbadge">의결 예정' + dt + '</span>';
     const n = RESULT_NAME[r] || str(d.result_name).trim();
-    return n ? '<span class="bd-badge is-ink bd-m-rbadge">' + esc(n) + '</span>' : '';
+    return n ? '<span class="bd-badge is-ink bd-m-rbadge">' + esc(n) + dt + '</span>' : '';
   };
   // 서버 목록 검색에 없는 조건(제출(결재 중)·확정 상태, 개최일 범위)은 받은 목록에서 화면이 거른다.
   mat.filterItems = function (items, f) {
@@ -592,7 +591,7 @@
     const bad = x.error && x.errField === 'date';
     return '<div class="bd-confirm bd-m-actrow bd-m-result" id="bd-m-resrow" role="group" aria-label="의결 결과">' +
       '<label>의결 결과 <select id="bd-m-res"' + (x.busy ? ' disabled' : '') + '>' + opt('SCHEDULED') + opt('PASSED') + opt('REJECTED') + '</select></label>' +
-      '<label>개최일 <span class="bd-m-req" id="bd-m-mreq">(필수)</span> <input type="date" id="bd-m-mdate" value="' + esc(x.date) + '"' +
+      '<label>개최일 <span class="bd-m-req" id="bd-m-mreq">(필수)</span> <input type="date" id="bd-m-mdate" value="' + esc(x.date) + '" required aria-required="true"' +
         (x.busy ? ' disabled' : '') + (bad ? ' aria-invalid="true" aria-describedby="bd-m-ferr"' : '') + '></label>' +
       '<button type="button" id="bd-m-resok" class="bd-wb-main" data-act="res-ok"' + (x.busy ? ' disabled' : '') + '>' + (x.busy ? '저장하는 중…' : '의결 결과 저장') + '</button>' +
       '<button type="button" data-act="res-cancel"' + (x.busy ? ' disabled' : '') + '>취소</button>' +
