@@ -130,6 +130,11 @@ public class PrepRollbackApiTest {
                 jdbc.queryForObject("SELECT STATUS FROM APPROVAL_REQUEST WHERE REQ_ID=?", String.class, req));
         assertEquals("결재 단계도 그대로 대기", 0,
                 count("SELECT COUNT(*) FROM APPROVAL_STEP WHERE REQ_ID=? AND STATUS <> 'PENDING'", req));
+        assertEquals("승인 성공 감사 줄은 결재와 함께 되돌아간다", 0,
+                count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='OPEN_APPROVE' AND OUTCOME='OK'", bid));
+        assertEquals("실패 시도는 따로 한 줄", 1,
+                count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='OPEN_APPROVE' AND OUTCOME='BLOCKED'"
+                        + " AND ACTOR_EMP_NO=? AND STATE_CD='OPEN_PENDING' AND SCREEN_ID='UNKNOWN'", bid, LEAD));
     }
 
     @Test
@@ -146,5 +151,7 @@ public class PrepRollbackApiTest {
         assertEquals("OPEN_PENDING", jdbc.queryForObject("SELECT STATE_CD FROM BID_PREP WHERE BID_CASE_ID=?", String.class, bid));
         assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=?", bid));
         assertEquals("PENDING", jdbc.queryForObject("SELECT STATUS FROM APPROVAL_REQUEST WHERE REQ_ID=?", String.class, req));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='OPEN_APPROVE' AND OUTCOME='DENIED' AND ACTOR_EMP_NO=?", bid, LEAD));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='OPEN_APPROVE' AND OUTCOME='OK'", bid));
     }
 }

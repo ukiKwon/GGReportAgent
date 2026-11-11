@@ -1,6 +1,7 @@
 package com.kbstar.kgi.ggreport.web.service;
 
 import com.kbstar.kgi.ggreport.web.mapper.PrepMapper;
+import com.kbstar.kgi.ggreport.web.support.ApprovalTypes;
 import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import com.kbstar.kgi.ggreport.web.web.Actor;
@@ -9,7 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 사전준비 행위 감사(BID_PREP_ACT, 024) — 누가·어느 화면·어느 버튼·언제·어느 건. 상세 열람(VIEW)·거부(DENIED)·은닉(HIDDEN)·충돌(BLOCKED)·
- * 입력 오류(INVALID)도 남긴다. 컨트롤러에는 트랜잭션이 없으므로 이 기록은 서비스 실패와 무관하게 따로 커밋된다.
+ * 입력 오류(INVALID)도 남긴다. 컨트롤러에는 트랜잭션이 없으므로 컨트롤러가 부른 기록은 서비스 실패와 무관하게 따로 커밋된다.
+ * 예외: 개설·기획승인 결재(BID_OPEN·PREP_APPROVAL)의 회수·승인·반려 성공 줄은 ApprovalRequestService 가 결재와 <b>같은 트랜잭션</b>에서 쓴다
+ * (결재가 되돌아가면 감사 줄도 함께 되돌아간다). 그 실패 시도는 ApprovalLineController 가 따로 커밋해 남긴다.
  * 성공한 읽기는 응답 전에 기록한다(실패하면 500, 데이터 안 나감). 본문·값·사유·파일명은 기록하지 않는다.
  * ⚠️ 사번·화면·버튼은 모두 클라이언트 자기신고다.
  */
@@ -58,5 +61,21 @@ public class PrepAudit {
             return "INVALID";
         }
         return "ERROR";
+    }
+
+    /** 사전준비 결재의 행위 코드 — BID_OPEN → OPEN_{verb}, PREP_APPROVAL → PLAN_{verb}. 다른 유형이면 null. verb: WITHDRAW·APPROVE·REJECT·DECIDE. */
+    public static String approvalAction(String reqType, String verb) {
+        if (ApprovalTypes.BID_OPEN.equals(reqType)) {
+            return "OPEN_" + verb;
+        }
+        if (ApprovalTypes.PREP_APPROVAL.equals(reqType)) {
+            return "PLAN_" + verb;
+        }
+        return null;
+    }
+
+    /** 결재 본문의 decision → 행위 동사. APPROVE·REJECT 밖의 값(400 이 될 값)은 DECIDE — 본문 원문은 저장하지 않는다. */
+    public static String decideVerb(String decision) {
+        return "APPROVE".equals(decision) ? "APPROVE" : "REJECT".equals(decision) ? "REJECT" : "DECIDE";
     }
 }

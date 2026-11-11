@@ -159,6 +159,115 @@ public class PrepApiTest {
         return json(r).path("req_id").asLong();
     }
 
+    private MvcResult postUi(String path, String emp, String body, String screen, String button) throws Exception {
+        MockHttpServletRequestBuilder b = post(path).contentType(MediaType.APPLICATION_JSON).content(body);
+        if (screen != null) { b = b.header("X-Screen-Id", screen); }
+        if (button != null) { b = b.header("X-Button-Id", button); }
+        return mockMvc.perform(as(b, emp)).andReturn();
+    }
+
+    private static String decision(String d, String comment) {
+        return "{\"decision\":\"" + d + "\",\"comment\":" + (comment == null ? "null" : "\"" + comment + "\"") + "}";
+    }
+
+    /** BID_PREP_ACT 에서 건·행위·결과·사번·화면·버튼·ui_valid·직전 상태가 모두 맞는 줄 수. */
+    private int act(String bid, String action, String outcome, String emp, String screen, String button, int valid, String st) {
+        return count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD=? AND OUTCOME=? AND ACTOR_EMP_NO=?"
+                + " AND SCREEN_ID=? AND BUTTON_ID=? AND UI_VALID=? AND STATE_CD=?", bid, action, outcome, emp, screen, button, valid, st);
+    }
+
+    private int acts(String bid, String action) {
+        return count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD=?", bid, action);
+    }
+
+    // ── 결재 감사(개설·기획승인의 회수·승인·반려) ───────────────────────
+
+    @Test
+    public void 개설_신청의_회수_반려_승인은_BID_PREP_ACT에_누가_어느_화면_어느_버튼을_한_줄씩_남긴다() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        long r1 = openReq(bid, MEMBER, MEMBER2);
+        assertEquals(200, postUi("/approval-requests/" + r1 + "/cancel", MEMBER, "", "prep_detail", "withdraw").getResponse().getStatus());
+        assertEquals(1, acts(bid, "OPEN_WITHDRAW"));
+        assertEquals(1, act(bid, "OPEN_WITHDRAW", "OK", MEMBER, "prep_detail", "withdraw", 1, "OPEN_PENDING"));
+
+        long r2 = openReq(bid, MEMBER, MEMBER2);
+        assertEquals(200, postUi("/approval-requests/" + r2 + "/decide", LEAD, decision("REJECT", "지명 재검토"),
+                "approvals_inbox", "reject").getResponse().getStatus());
+        assertEquals(1, acts(bid, "OPEN_REJECT"));
+        assertEquals(1, act(bid, "OPEN_REJECT", "OK", LEAD, "approvals_inbox", "reject", 1, "OPEN_PENDING"));
+
+        long r3 = openReq(bid, MEMBER, MEMBER2);
+        assertEquals(200, postUi("/approval-requests/" + r3 + "/decide", LEAD, decision("APPROVE", null),
+                "approvals_inbox", "approve").getResponse().getStatus());
+        assertEquals("IN_PROGRESS", state(bid));
+        assertEquals(1, acts(bid, "OPEN_APPROVE"));
+        assertEquals(1, act(bid, "OPEN_APPROVE", "OK", LEAD, "approvals_inbox", "approve", 1, "OPEN_PENDING"));
+    }
+
+    @Test
+    public void 기획승인의_결재함_취소_반려_승인도_한_줄씩_남고_결재함_취소_버튼은_허용_목록이다() throws Exception {
+        String bid = opened(INST);
+        makeReady(bid);
+        long r1 = planReq(bid, MEMBER2);
+        assertEquals(200, postUi("/approval-requests/" + r1 + "/cancel", MEMBER2, "", "approvals_mine", "cancel_request").getResponse().getStatus());
+        assertEquals(1, act(bid, "PLAN_WITHDRAW", "OK", MEMBER2, "approvals_mine", "cancel_request", 1, "APPROVAL_PENDING"));
+
+        long r2 = planReq(bid, MEMBER2);
+        assertEquals(200, postUi("/approval-requests/" + r2 + "/decide", HEAD, decision("REJECT", "자료 보완 필요"),
+                "approvals_inbox", "reject").getResponse().getStatus());
+        assertEquals(1, act(bid, "PLAN_REJECT", "OK", HEAD, "approvals_inbox", "reject", 1, "APPROVAL_PENDING"));
+
+        long r3 = planReq(bid, MEMBER2);
+        assertEquals(200, postUi("/approval-requests/" + r3 + "/decide", HEAD, decision("APPROVE", null),
+                "approvals_inbox", "approve").getResponse().getStatus());
+        assertEquals("WRITABLE", state(bid));
+        assertEquals(1, acts(bid, "PLAN_APPROVE"));
+        assertEquals(1, act(bid, "PLAN_APPROVE", "OK", HEAD, "approvals_inbox", "approve", 1, "APPROVAL_PENDING"));
+    }
+
+    @Test
+    public void 결재_머리글이_없거나_목록_밖이면_UNKNOWN으로_남고_원문은_저장하지_않는다() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        long r1 = openReq(bid, MEMBER, MEMBER2);
+        assertEquals(200, postUi("/approval-requests/" + r1 + "/cancel", MEMBER, "", null, null).getResponse().getStatus());
+        assertEquals(1, act(bid, "OPEN_WITHDRAW", "OK", MEMBER, "UNKNOWN", "UNKNOWN", 0, "OPEN_PENDING"));
+
+        long r2 = openReq(bid, MEMBER, MEMBER2);
+        assertEquals(200, postUi("/approval-requests/" + r2 + "/decide", LEAD, decision("REJECT", "지명 재검토"),
+                "board_review", "reject<script>").getResponse().getStatus());   // 이사회 화면 이름은 사전준비 목록 밖
+        assertEquals(1, act(bid, "OPEN_REJECT", "OK", LEAD, "UNKNOWN", "UNKNOWN", 0, "OPEN_PENDING"));
+
+        long r3 = openReq(bid, MEMBER, MEMBER2);
+        assertEquals(200, postUi("/approval-requests/" + r3 + "/decide", LEAD, decision("APPROVE", null),
+                "approvals_inbox", "confirmed_docx").getResponse().getStatus());   // 화면만 맞음
+        assertEquals(1, act(bid, "OPEN_APPROVE", "OK", LEAD, "approvals_inbox", "UNKNOWN", 0, "OPEN_PENDING"));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND (SCREEN_ID='board_review'"
+                + " OR BUTTON_ID LIKE '%script%' OR BUTTON_ID='confirmed_docx')", bid));
+    }
+
+    @Test
+    public void 결재_실패_시도도_결과와_함께_한_줄씩_남고_성공_줄은_없다() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        long r1 = openReq(bid, MEMBER, MEMBER2);
+        assertEquals(401, postUi("/approval-requests/" + r1 + "/decide", null, decision("APPROVE", null),
+                "approvals_inbox", "approve").getResponse().getStatus());
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD LIKE 'OPEN_%' AND ACTOR_EMP_NO IS NULL", bid));
+        assertEquals(403, postUi("/approval-requests/" + r1 + "/cancel", ADMIN, "", "approvals_mine", "cancel_request").getResponse().getStatus());
+        assertEquals(1, act(bid, "OPEN_WITHDRAW", "DENIED", ADMIN, "approvals_mine", "cancel_request", 1, "OPEN_PENDING"));
+        assertEquals(400, postUi("/approval-requests/" + r1 + "/decide", LEAD, decision("REJECT", null),
+                "approvals_inbox", "reject").getResponse().getStatus());
+        assertEquals(1, act(bid, "OPEN_REJECT", "INVALID", LEAD, "approvals_inbox", "reject", 1, "OPEN_PENDING"));
+        assertEquals(400, postUi("/approval-requests/" + r1 + "/decide", LEAD, decision("MAYBE", null),
+                "approvals_inbox", "approve").getResponse().getStatus());
+        assertEquals(1, act(bid, "OPEN_DECIDE", "INVALID", LEAD, "approvals_inbox", "approve", 1, "OPEN_PENDING"));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD IN ('OPEN_REJECT','OPEN_APPROVE') AND OUTCOME='OK'", bid));
+
+        assertEquals(200, postUi("/approval-requests/" + r1 + "/cancel", MEMBER, "", "prep_detail", "withdraw").getResponse().getStatus());
+        assertEquals(409, postUi("/approval-requests/" + r1 + "/cancel", MEMBER, "", "prep_detail", "withdraw").getResponse().getStatus());
+        assertEquals(1, act(bid, "OPEN_WITHDRAW", "BLOCKED", MEMBER, "prep_detail", "withdraw", 1, "CONFIRMED"));
+        assertEquals(1, act(bid, "OPEN_WITHDRAW", "OK", MEMBER, "prep_detail", "withdraw", 1, "OPEN_PENDING"));
+    }
+
     // ── 제안 확정 ────────────────────────────────────────────────────
 
     @Test

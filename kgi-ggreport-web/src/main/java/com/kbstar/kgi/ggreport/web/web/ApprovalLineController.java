@@ -3,6 +3,9 @@ package com.kbstar.kgi.ggreport.web.web;
 import com.kbstar.kgi.ggreport.web.dto.ApprovalIn;
 import com.kbstar.kgi.ggreport.web.service.ApprovalDeputyService;
 import com.kbstar.kgi.ggreport.web.service.ApprovalRequestService;
+import com.kbstar.kgi.ggreport.web.service.PrepAudit;
+import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
+import com.kbstar.kgi.ggreport.web.support.PrepUiIds;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,10 +29,12 @@ public class ApprovalLineController {
 
     private final ApprovalRequestService requests;
     private final ApprovalDeputyService deputies;
+    private final PrepAudit prepAudit;
 
-    public ApprovalLineController(ApprovalRequestService requests, ApprovalDeputyService deputies) {
+    public ApprovalLineController(ApprovalRequestService requests, ApprovalDeputyService deputies, PrepAudit prepAudit) {
         this.requests = requests;
         this.deputies = deputies;
+        this.prepAudit = prepAudit;
     }
 
     @GetMapping("/approval-requests/types")
@@ -54,15 +59,48 @@ public class ApprovalLineController {
         return requests.submitPerm(in, Actor.of(req));
     }
 
+    /**
+     * 결재·반려. 사전준비 결재(BID_OPEN·PREP_APPROVAL)는 BID_PREP_ACT 에 누가·어느 화면·어느 버튼을 남긴다 —
+     * 성공 줄은 서비스가 결재와 같은 트랜잭션에서, 실패 시도는 여기서 따로 커밋한다(시도 한 번에 한 줄). ⚠️ 사번·화면·버튼은 자기신고다.
+     */
     @PostMapping("/approval-requests/{id}/decide")
     public Map<String, Object> decide(@PathVariable("id") Long id, @RequestBody ApprovalIn.Decision in,
                                       HttpServletRequest req) {
-        return requests.decide(id, in, Actor.of(req));
+        BoardUiIds.Ui ui = PrepUiIds.of(req);
+        try {
+            return requests.decide(id, in, Actor.of(req), ui);
+        } catch (ApiException e) {
+            auditPrepFailure(id, PrepAudit.decideVerb(in == null ? null : in.getDecision()), e, req, ui);
+            throw e;
+        }
     }
 
+    /** 취소·회수. 사전준비 결재의 회수는 decide 와 같은 방식으로 BID_PREP_ACT 에 남는다. */
     @PostMapping("/approval-requests/{id}/cancel")
     public Map<String, Object> cancel(@PathVariable("id") Long id, HttpServletRequest req) {
-        return requests.cancel(id, Actor.of(req));
+        BoardUiIds.Ui ui = PrepUiIds.of(req);
+        try {
+            return requests.cancel(id, Actor.of(req), ui);
+        } catch (ApiException e) {
+            auditPrepFailure(id, "WITHDRAW", e, req, ui);
+            throw e;
+        }
+    }
+
+    /**
+     * 사전준비 결재의 실패 시도(403 DENIED·409 BLOCKED·400/422 INVALID·그 밖 ERROR)를 따로 커밋해 남긴다. 사전준비가 아닌 유형·없는 요청(404)은
+     * 남기지 않고, 사번이 없는 401 도 PrepController 와 같이 남기지 않는다. 기존 응답(상태 코드·본문)은 바꾸지 않는다.
+     */
+    private void auditPrepFailure(Long id, String verb, ApiException e, HttpServletRequest req, BoardUiIds.Ui ui) {
+        if (e.getStatus() == 401) {
+            return;
+        }
+        ApprovalRequestService.PrepRef ref = requests.prepRefOf(id);
+        if (ref == null) {
+            return;
+        }
+        prepAudit.record(ref.getBidCaseId(), PrepAudit.approvalAction(ref.getReqType(), verb),
+                PrepAudit.outcomeOf(e.getStatus()), ref.getStateCd(), null, Actor.of(req), ui);
     }
 
     @GetMapping("/approval-deputies")

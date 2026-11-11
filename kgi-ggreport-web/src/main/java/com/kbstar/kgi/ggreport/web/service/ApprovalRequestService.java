@@ -17,6 +17,7 @@ import com.kbstar.kgi.ggreport.web.mapper.PermChangeLogMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.support.ApprovalTypes;
 import com.kbstar.kgi.ggreport.web.support.ApproverRules;
+import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.MenuPerms;
 import com.kbstar.kgi.ggreport.web.support.Menus;
 import com.kbstar.kgi.ggreport.web.support.Pii;
@@ -60,6 +61,7 @@ public class ApprovalRequestService {
     private final BidAssignmentService assignments;
     private final BoardMaterialService materials;
     private final PrepService prep;
+    private final PrepAudit prepAudit;
 
     /** 쪽지 종류 — 결재자에게 가는 알림 / 상신자에게 가는 결과. 쪽지함이 둘 다 결재함으로 이어 준다. */
     public static final String KIND_ALERT = "결재알림";
@@ -71,8 +73,9 @@ public class ApprovalRequestService {
                                   PermissionService permissions, ApprovalDeputyService deputies,
                                   PermChangeLogMapper changeLog, NotificationCommandService notes,
                                   BidAssignmentService assignments, BoardMaterialService materials,
-                                  PrepService prep) {
+                                  PrepService prep, PrepAudit prepAudit) {
         this.prep = prep;
+        this.prepAudit = prepAudit;
         this.requests = requests;
         this.users = users;
         this.callers = callers;
@@ -354,6 +357,15 @@ public class ApprovalRequestService {
 
     @Transactional
     public Map<String, Object> decide(Long id, ApprovalIn.Decision in, Actor actor) {
+        return decide(id, in, actor, BoardUiIds.unknown());
+    }
+
+    /**
+     * prepUi: 사전준비 결재(BID_OPEN·PREP_APPROVAL)의 승인·반려를 BID_PREP_ACT 에 남길 화면·버튼(컨트롤러가 PrepUiIds 로 거른 값).
+     * 그 한 줄은 이 트랜잭션 안에서 쓴다 — 후처리가 실패해 결재가 되돌아가면 감사 줄도 함께 되돌아간다. 다른 유형에는 쓰지 않는다.
+     */
+    @Transactional
+    public Map<String, Object> decide(Long id, ApprovalIn.Decision in, Actor actor, BoardUiIds.Ui prepUi) {
         SysUser me = callers.require(actor);
         ApprovalRequest r = require(id);
         if (!"PENDING".equals(r.getStatus())) {
@@ -385,6 +397,8 @@ public class ApprovalRequestService {
             throw new ApiException(403, "이 요청을 결재할 수 없습니다 — 결재자(또는 유효한 대결자)가 아니거나, "
                     + "직급이 맞지 않거나(결재자는 상신자보다 높아야 하고 대결자는 상신자보다 낮으면 안 됩니다), 본인의 요청입니다.");
         }
+        String prepBid = ApprovalTypes.isPrep(r.getReqType()) ? readPayloadBid(r) : "";
+        String prepBefore = prepBid.isEmpty() ? null : prep.stateOf(prepBid);   // 감사용 — 행위 직전 건 상태
         String now = Times.nowIso();
         requireOne(requests.updateStep(cur.getStepId(), approve ? "APPROVED" : "REJECTED", me.getEmpNo(),
                 "DEPUTY".equals(how) ? 1 : 0, comment.isEmpty() ? null : comment, now));
@@ -413,11 +427,18 @@ public class ApprovalRequestService {
             requireOne(requests.updateRequest(id, "APPROVED", cur.getStepNo(), note, now));   // 0행이면 후처리째 롤백
             notifyResult(r, requester, me, "승인되어 반영되었습니다");
         }
+        auditPrep(r, prepBid, approve ? "APPROVE" : "REJECT", prepBefore, actor, prepUi);
         return view(requests.selectById(id), me);
     }
 
     @Transactional
     public Map<String, Object> cancel(Long id, Actor actor) {
+        return cancel(id, actor, BoardUiIds.unknown());
+    }
+
+    /** prepUi: decide 와 같다 — 사전준비 결재 회수(OPEN_WITHDRAW·PLAN_WITHDRAW)를 같은 트랜잭션에서 BID_PREP_ACT 에 남긴다. */
+    @Transactional
+    public Map<String, Object> cancel(Long id, Actor actor, BoardUiIds.Ui prepUi) {
         SysUser me = callers.require(actor);
         ApprovalRequest r = require(id);
         boolean own = r.getRequesterEmpNo().equals(me.getEmpNo());
@@ -434,6 +455,8 @@ public class ApprovalRequestService {
         if (ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())) {
             materials.planWithdraw(readPayloadMaterialId(r), me);   // 현재 담당자만 취소 가능(담당에서 빠진 신청자는 403/404), 이미 SUBMITTED 가 아니면 409
         }
+        String prepBid = ApprovalTypes.isPrep(r.getReqType()) ? readPayloadBid(r) : "";
+        String prepBefore = prepBid.isEmpty() ? null : prep.stateOf(prepBid);   // 감사용 — 행위 직전 건 상태
         String now = Times.nowIso();
         skipRest(requests.selectSteps(id), null, now);
         requireOne(requests.updateRequest(id, "CANCELLED", r.getCurrentStep(),
@@ -453,6 +476,7 @@ public class ApprovalRequestService {
         if (!r.getRequesterEmpNo().equals(me.getEmpNo())) {      // 남이 취소했을 때만 알린다
             notifyResult(r, users.selectByEmpNo(r.getRequesterEmpNo()), me, "관리자가 취소했습니다");
         }
+        auditPrep(r, prepBid, "WITHDRAW", prepBefore, actor, prepUi);
         return view(requests.selectById(id), me);
     }
 
@@ -718,6 +742,51 @@ public class ApprovalRequestService {
     /** 사전준비 결재 요청 payload 의 bid_case_id. 없으면 빈 문자열(후크가 아무것도 하지 않는다). */
     private String readPayloadBid(ApprovalRequest r) {
         return read(r.getPayload()).path("bid_case_id").asText("");
+    }
+
+    /** 사전준비 결재의 성공 줄(OK) — 호출 트랜잭션 안에서 쓴다(REQUIRES_NEW 아님). bid 가 비면(사전준비 아님) 아무것도 하지 않는다. 의견·사유는 기록하지 않는다. */
+    private void auditPrep(ApprovalRequest r, String bid, String verb, String before, Actor actor, BoardUiIds.Ui ui) {
+        if (bid == null || bid.isEmpty()) {
+            return;
+        }
+        prepAudit.record(bid, PrepAudit.approvalAction(r.getReqType(), verb), "OK", before, null, actor,
+                ui == null ? BoardUiIds.unknown() : ui);
+    }
+
+    /** 감사용 — 사전준비 결재 요청이 가리키는 건과 지금 상태. */
+    public static final class PrepRef {
+        private final String reqType;
+        private final String bidCaseId;
+        private final String stateCd;
+
+        PrepRef(String reqType, String bidCaseId, String stateCd) {
+            this.reqType = reqType;
+            this.bidCaseId = bidCaseId;
+            this.stateCd = stateCd;
+        }
+
+        public String getReqType() { return reqType; }
+        public String getBidCaseId() { return bidCaseId; }
+        public String getStateCd() { return stateCd; }
+    }
+
+    /**
+     * 컨트롤러의 실패 감사용 — 결재 요청이 사전준비 유형(BID_OPEN·PREP_APPROVAL)이면 그 건과 지금 상태, 아니면(없음·다른 유형·payload 불량) null.
+     * 응답에는 쓰지 않는다. 서비스 트랜잭션이 롤백된 뒤 부르므로 상태는 행위 직전 값이다.
+     */
+    @Transactional(readOnly = true)
+    public PrepRef prepRefOf(Long id) {
+        ApprovalRequest r = id == null ? null : requests.selectById(id);
+        if (r == null || !ApprovalTypes.isPrep(r.getReqType())) {
+            return null;
+        }
+        String bid;
+        try {
+            bid = readPayloadBid(r);
+        } catch (ApiException e) {
+            return null;   // 감사 조회가 원래 오류를 덮지 않게
+        }
+        return bid.isEmpty() ? null : new PrepRef(r.getReqType(), bid, prep.stateOf(bid));
     }
 
     private static String nameOrEmpty(String s) {
