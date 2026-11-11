@@ -137,7 +137,7 @@ test('whyHtml: radiogroup·4개·기타만 메모 입력(100자, 80자 이상 �
 test('칸 HTML: 수정 칸은 원본 보조 줄·is-edited, 입력 중이면 input, 합계 칸 선택이면 구성 칸 강조', function () {
   const ws = bw.editCell(ws0(), 'A', 'r1c1', '1,230').ws, t = bw.findT(ws, 'A');
   const h = bw.valueCellHtml(t, t.cells.r1c1, { fc: {} });
-  assert.ok(h.includes('is-edited') && h.includes('<span class="bd-w-orig">원본 1,234</span>') && h.includes('수정됨, 원본 1,234'));
+  assert.ok(h.includes('is-edited') && h.includes('<span class="bd-w-orig">원본 1,234</span>') && h.includes('원본과 다름, 원본 1,234'));
   const ui = bw.freshUi(); ui.edit = { t: 'A', key: 'r1c1', text: '<x' };
   const e = bw.valueCellHtml(t, t.cells.r1c1, { fc: {}, ui: ui });
   assert.ok(e.includes('id="bd-w-in"') && e.includes('value="&lt;x"') && e.includes('maxlength="100"'));

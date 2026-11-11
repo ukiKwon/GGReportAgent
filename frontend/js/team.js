@@ -109,6 +109,17 @@
     return { date: e.date, conf: conf, text: e.date + '(' + conf + ')' };
   };
 
+  // 화면에 보일 기관 이름(planner 2026-11-11 ①기관명 A). 서버 name_ko(예 '노원구')를 먼저 쓰고,
+  // 없으면 번들 이름을 쓰되 지자체만 끝의 '청'을 뗀다(법원·공사 등은 그대로). 서버 값은 rec.serverName.
+  // 이 규칙은 board-material.js의 mat.displayName과 같다.
+  tm.displayName = function (rec) {
+    const r = rec || {};
+    const sv = r.serverName == null ? '' : String(r.serverName).trim();
+    if (sv) return sv;
+    const n = r.name == null ? '' : String(r.name);
+    return r.type === '지자체' ? n.replace(/청$/, '') : n;
+  };
+
   // 레코드 → 목록 행. bidCaseId 없는 기관은 뺀다. 같은 bidCaseId(일반구 폴리곤 반복)는 한 번만.
   // 정렬: 입찰 예정일 오름차순(지난 날짜가 맨 위), 날짜 미상은 맨 아래, 같으면 이름 순.
   tm.listRows = function (records, today, mineIds, regionNames) {
@@ -123,7 +134,7 @@
       const days = logic.daysUntil(bd.date, today);
       out.push({
         id: r.bidCaseId,
-        name: r.name || '',
+        name: tm.displayName(r),
         region: (regionNames && regionNames[r.region]) || r.region || '',
         status: r.participationStatus || '검토중',
         date: bd.date,

@@ -553,7 +553,7 @@
     return null;
   };
 
-  const FILTERS = [['all', '전체'], ['edited', '수정됨'], ['need', '확인 필요'], ['unchecked', '확인 안 한 표']];
+  const FILTERS = [['all', '전체'], ['edited', '원본과 다름'], ['need', '확인 필요'], ['unchecked', '확인 안 한 표']];
   bw.setFilter = function (ws, f) {
     return FILTERS.some(function (x) { return x[0] === f; }) ? Object.assign({}, ws, { filter: f }) : ws;
   };
@@ -705,7 +705,7 @@
     const i = bw.cellInfo(t, c), pr = bw.parenOf(c);
     const parts = [(c.label || t.title).replace(/ · /g, ', '),
       i.unreadable ? missText(c) : (pr ? pr.main + ', 괄호 안 ' + pr.sub : (c.value === '' ? (c.manual ? '직접 입력' : '비어 있음') : bw.cellText(c)))];
-    if (i.edited) parts.push('수정됨' + (i.hasOrig ? ', 원본 ' + bw.origText(c) : ''));
+    if (i.edited) parts.push('원본과 다름' + (i.hasOrig ? ', 원본 ' + bw.origText(c) : ''));
     if (i.sumBad) parts.push('합계 차이 ' + i.sum.diff);
     if (c.warns.some(function (w) { return w !== 'LABEL_MISMATCH'; })) parts.push('주의');
     return parts.join(', ');   // 확인 상태는 칸이 아니라 표(카드 aria-label·체크박스)가 전한다
@@ -1303,7 +1303,7 @@
             if (text) cls.push('is-text');
             if (on) cls.push('is-src'); else if (part) cls.push('is-part'); else if (here) cls.push('is-at');
             if (own.some(edited)) cls.push('is-edsrc');
-            const label = addr + ' ' + str(v) + (own.length ? ', 이사회 자료에 쓰는 칸 ' + own.length + '개' : ', 쓰지 않는 칸') + (own.some(edited) ? ', 이사회 쪽 수정됨' : '');
+            const label = addr + ' ' + str(v) + (own.length ? ', 이사회 자료에 쓰는 칸 ' + own.length + '개' : ', 쓰지 않는 칸') + (own.some(edited) ? ', 이사회 쪽에서 원본과 다름' : '');
             return '<td data-st="' + esc(own.length ? own[0].t : cover(r, c)) + '"' + (key ? ' data-key="' + esc(key) + '"' : '') +
               (own.length > 1 ? ' data-own="' + esc(own.map(function (o) { return o.t + '|' + o.key; }).join(' ')) + '" data-n="' + own.length + '"' : '') +
               (tags.length ? ' data-tstart="' + esc(tags.join(' ')) + '"' : '') + (cls.length ? ' class="' + cls.join(' ') + '"' : '') +
@@ -1333,7 +1333,7 @@
       const x = bw.selected(ws, o), i = bw.cellInfo(x.t, x.c), on = ui.sel.t === o.t && ui.sel.key === o.key;
       const name = (x.t.mapping ? '(' + x.t.mapping + ') ' : '') + bw.pathText(x.c, x.t);
       const val = '<span class="bd-src-val mono">' + esc(x.c.value === '' ? '빈 칸' : bw.cellText(x.c) + (x.c.convert && x.c.convert.unit_to ? ' ' + x.c.convert.unit_to : '')) + '</span>' +
-        (i.edited ? '<span class="bd-w-chip is-warn">수정됨' + (i.hasOrig ? ' · 원본 ' + esc(bw.origText(x.c)) : '') + '</span>' : '');
+        (i.edited ? '<span class="bd-w-chip is-warn">원본과 다름' + (i.hasOrig ? ' · 원본 ' + esc(bw.origText(x.c)) : '') + '</span>' : '');
       return cands.length > 1
         ? '<label class="bd-src-cand' + (on ? ' is-on' : '') + '"><input type="radio" name="bd-src-cand" data-w="srccand" data-v="' + esc(o.t + '|' + o.key) + '"' + (on ? ' checked' : '') + '> <span>' + esc(name) + '</span>' + val + '</label>'
         : '<div class="bd-src-cand is-on"><span>' + esc(name) + '</span>' + val + '</div>';

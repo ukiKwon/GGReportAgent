@@ -516,7 +516,7 @@
         '<button id="wf-ov-reload">새로고침</button></div>' +
       (shown.length
         ? '<table class="ad-table wf-ov"><thead><tr><th>기관</th><th>지역</th><th>현재 단계</th><th>상태</th>' +
-          '<th>공고</th><th>담당자</th><th>마지막 변경</th></tr></thead><tbody>' + body + '</tbody></table>'
+          '<th>공고</th><th>작업 담당</th><th>마지막 변경</th></tr></thead><tbody>' + body + '</tbody></table>'
         : '<p class="wf-empty">' + (all.length ? '이 단계에 해당하는 제안서가 없습니다.' : '등록된 제안서가 없습니다.') + '</p>');
   };
 

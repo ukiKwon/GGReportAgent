@@ -167,7 +167,7 @@ test('popEditHtml: 안내 문구가 맨 위, 입력 라벨·적용·취소, 수�
   const ed = bw.editCell(ws, 'A', 'r0c0', '9').ws;
   h = bw.popEditHtml(ed, ui);
   assert.ok(h.includes('수정 사유(선택)') && h.includes('role="radiogroup" aria-label="수정 사유"') && h.includes('data-w="srcrevert">원본 값으로</button>'));
-  assert.ok(h.includes('수정됨 · 원본 1') && h.includes('value="9"'));
+  assert.ok(h.includes('원본과 다름 · 원본 1') && h.includes('value="9"'));
   ui.pop.note = '숫자가 아닙니다'; ui.pop.err = true; ui.pop.text = '<x';
   h = bw.popEditHtml(ws, ui);
   assert.ok(h.includes('role="alert"') && h.includes('aria-invalid="true"') && h.includes('value="&lt;x"'));
@@ -209,16 +209,16 @@ test('popCommit: 원본 값으로 되돌리면 "원본 값 X로 되돌렸습니�
   assert.ok(r2.changed && r2.note.startsWith('명목가치 총기대수익을 원본 값 36.85로 되돌렸습니다.'), r2.note);
   assert.ok(!/에서/.test(r2.note));
 });
-test('srcBodyHtml: 이사회 쪽에서 고쳐진 원본 칸의 aria-label 에 "이사회 쪽 수정됨"', function () {
+test('srcBodyHtml: 이사회 쪽에서 고쳐진 원본 칸의 aria-label 에 "이사회 쪽에서 원본과 다름"', function () {
   const form = { form_id: 'f', name: 'f', tables: [ft('A')] };
   const c = { key: 'r0c0', value: '7', status: 'filled', reason: null, warnings: [], source: { sheet: 'S', cell: 'A1', display: '3', raw: '3', rounded: false } };
   let ws = bw.buildState(form, { tables: [{ ref: 'A', needs_review: false, label_mismatches: [], sums: [], cells: [c] }],
     sources: [src('A', 'S', 1, ['A', 'B'], [['3', '4']])] }, { fileName: 'a.xlsx' });
-  assert.ok(!bw.srcBodyHtml(ws, popUi()).includes('이사회 쪽 수정됨'));
+  assert.ok(!bw.srcBodyHtml(ws, popUi()).includes('이사회 쪽에서 원본과 다름'));
   ws = bw.editCell(ws, 'A', 'r0c0', '8').ws;
   const h = bw.srcBodyHtml(ws, popUi());
-  assert.ok(/data-a="A1"[^>]*aria-label="[^"]*이사회 쪽 수정됨"/.test(h), h);
-  assert.ok(!/data-a="B1"[^>]*이사회 쪽 수정됨/.test(h), '쓰지 않는 B1 에는 없다');
+  assert.ok(/data-a="A1"[^>]*aria-label="[^"]*이사회 쪽에서 원본과 다름"/.test(h), h);
+  assert.ok(!/data-a="B1"[^>]*이사회 쪽에서 원본과 다름/.test(h), '쓰지 않는 B1 에는 없다');
 });
 test('popEscAction: 입력 안 Esc 는 입력 취소(팝업 유지), 밖은 닫기', function () {
   assert.strictEqual(bw.popEscAction({ input: true }), 'input');

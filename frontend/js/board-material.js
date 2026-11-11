@@ -362,6 +362,15 @@
 
   // ── 목록 ────────────────────────────────────────────────
   // 이 화면에서 만들 수 있는 입찰 건 = 내 담당 번호(mineIds) ∩ 앱에 실린 입찰 건(records)
+  // 화면에 보일 기관 이름(planner 2026-11-11 ①기관명 A). 서버 name_ko(rec.serverName)를 먼저, 없으면 번들 이름에서
+  // 지자체만 끝의 '청'을 뗀다. team.js의 tm.displayName과 같은 규칙.
+  mat.displayName = function (rec) {
+    const r = rec || {};
+    const sv = r.serverName == null ? '' : String(r.serverName).trim();
+    if (sv) return sv;
+    const n = str(r.name);
+    return r.type === '지자체' ? n.replace(/청$/, '') : n;
+  };
   mat.casesFor = function (records, mineIds, regionNames) {
     const mine = Object.create(null);   // 프로토타입 이름(constructor 등)이 담당으로 보이지 않게
     (mineIds || []).forEach(function (id) { mine[id] = true; });
@@ -369,7 +378,7 @@
     (records || []).forEach(function (r) {
       if (!r || !r.bidCaseId || !mine[r.bidCaseId] || seen[r.bidCaseId]) return;
       seen[r.bidCaseId] = true;
-      out.push({ id: str(r.bidCaseId), name: str(r.name), region: str((regionNames && regionNames[r.region]) || r.region || '') });
+      out.push({ id: str(r.bidCaseId), name: mat.displayName(r), region: str((regionNames && regionNames[r.region]) || r.region || '') });
     });
     out.sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
     return out;
@@ -939,7 +948,7 @@
     function formsOf() {
       const l = ((env.forms && env.forms()) || []).map(function (f) { return { id: str(f.form_id != null ? f.form_id : f.id), name: str(f.name) }; })
         .filter(function (f) { return f.id !== ''; });
-      return l.length ? l : [{ id: 'default_doc', name: '기본 양식' }];
+      return l.length ? l : [{ id: 'default_doc', name: '이사회 자료 수익성 분석(기본 양식)' }];
     }
     function casesNow() { return mat.casesFor(env.records && env.records(), mine || [], env.regionNames && env.regionNames()); }
 

@@ -478,7 +478,7 @@ test('confirmHtml: role=group + aria-labelledby, role=alert 없음, 문구 이�
 test('formsFromList: 목록 실패(DB 014 미적용 500)면 기본 양식만·편집 불가, 성공이면 기본+서버 양식', async function () {
   let r = await board.loadForms(function () { return Promise.resolve(res(false, 500, { detail: '서버 오류' })); });
   let f = board.formsFromList(r);
-  assert.deepStrictEqual(f.forms, [{ form_id: 'default_doc', name: '기본 양식', is_default: true }]);
+  assert.deepStrictEqual(f.forms, [{ form_id: 'default_doc', name: '이사회 자료 수익성 분석(기본 양식)', is_default: true }]);
   assert.strictEqual(f.canEdit, false);
   assert.strictEqual(f.error, '서버 오류');
   const h = board.actionsHtml({ mode: 'view', hasDoc: true, editable: false, canCopy: board.canCopy({ editable: false }, f.canEdit) });

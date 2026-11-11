@@ -15,7 +15,8 @@
   // 이 화면이 열리는 사이드바 항목 id(nav.js의 준비중 항목 'soon:<라벨>'). 서버 메뉴 키는 쓰지 않는다.
   board.SOON_ID = 'soon:이사회 자료';
   // 서버 목록(GET /board-forms)을 못 받았을 때의 대체 목록. 평소에는 서버 목록을 쓴다.
-  board.FORMS = [{ id: 'default_doc', name: '기본 양식' }];
+  // 이름은 서버 BoardDocSpec 정본과 같다(워드 파일 이름과 화면 이름이 같아진다 — planner 2026-11-11 ①양식명 A).
+  board.FORMS = [{ id: 'default_doc', name: '이사회 자료 수익성 분석(기본 양식)' }];
 
   const NET_ERROR = '서버에 연결하지 못했습니다.';
   // 목록 응답의 모양이 맞지 않을 때(사용자가 고칠 수 없는 오류라 다음 행동만 안내한다).
