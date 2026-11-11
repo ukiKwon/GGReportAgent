@@ -41,8 +41,8 @@ import java.util.Set;
  * 상태 전이는 전부 조건부 UPDATE 이고 0행이면 409 {@code STATE_CHANGED} 다. 신원은 컨트롤러가 {@code MenuGuard.requireActiveUser} 로 정한다.
  *
  * <p>개설 대기 동안 지명자는 결재 payload 에만 있다 — BID_ASSIGNMENT 는 개설 승인 때 처음 쓴다(지명자는 승인 전 권한 없음, security A4).
- * 담당자 판정은 {@link BidAssignmentService#isActiveAssignee} 하나다. 상세·이력은 담당자·영업부장(과 CONFIRMED·CANCELLED 상태의 확정자·영업팀장)에게만
- * 보이고 나머지는 존재하지 않는 건과 같은 404 다. 쓰기(체크 등)의 비담당은 403 이다.
+ * 담당자 판정은 {@link BidAssignmentService#isActiveAssignee} 하나다. 상세·이력은 담당자·영업부장(과 CONFIRMED·개설 전 CANCELLED 의 확정자·영업팀장,
+ * 개설 뒤 중단 건의 영업팀장·옛 담당자 — 읽기 전용)에게만 보이고 나머지는 존재하지 않는 건과 같은 404 다. 쓰기(체크 등)의 비담당은 403 이다.
  *
  * <p>⚠️ 사번은 X-Emp-No 자기신고일 수 있다 — 이 역할 검사는 업무 규칙(실수 방지)이지 사칭 방지가 아니다. 이력의 {@code emp_verified} 는 사실만 적는다.
  * 오류 문구에 사번·이름·값을 싣지 않는다.
@@ -62,7 +62,8 @@ public class PrepService {
     static final Set<String> TASK_STATES = Collections.unmodifiableSet(new HashSet<String>(
             Arrays.asList(IN_PROGRESS, APPROVAL_PENDING, WRITABLE, WRITING)));
 
-    static final String GATE_PLAN = "기획승인";   // OrchestratorEngine.gateName(GATE_PLAN) — 5번 게이트
+    private static final String ABORT_RELEASE_REASON = "중단으로 담당 해제";
+    private static final String CODE_PATTERN = "[A-Z0-9_]{1,20}";   // 과제 코드 형식 — BID_PREP_ACT.TASK_CD(20) 길이와 맞춘다
 
     private static final String JUDGE_MANUAL = "MANUAL";
     private static final String KIND_REQUIRED = "REQUIRED";
@@ -91,11 +92,10 @@ public class PrepService {
     private final ApprovalRequestMapper requests;
     private final BidCaseMapper bidCases;
     private final BidCaseCommandService commands;
-    private final OrchestratorService orchestrator;
 
     public PrepService(PrepMapper mapper, BidAssignmentService assignments, BidAssignmentMapper assignMapper,
                        SysUserMapper users, ApprovalRequestMapper requests, BidCaseMapper bidCases,
-                       BidCaseCommandService commands, OrchestratorService orchestrator) {
+                       BidCaseCommandService commands) {
         this.mapper = mapper;
         this.assignments = assignments;
         this.assignMapper = assignMapper;
@@ -103,7 +103,6 @@ public class PrepService {
         this.requests = requests;
         this.bidCases = bidCases;
         this.commands = commands;
-        this.orchestrator = orchestrator;
     }
 
     // ── 목록·상세·이력 ────────────────────────────────────────────────────
@@ -184,29 +183,77 @@ public class PrepService {
         if (mapper.countActiveByInstitution(inst) > 0) {
             throw alreadyActive();
         }
+        // ⚠️ 순서 주의: 기관 행 잠금(위) 뒤에 활성 건 수를 센다 — 이 위쪽에 다른 SELECT 를 끼우지 않는다(MySQL RR 첫 일관 읽기, qa P3-8).
         String bid = in.getBidCaseId() == null ? "" : in.getBidCaseId().trim();
+        String now = Times.nowIso();
+        boolean revived = false;
         if (!bid.isEmpty()) {
             BidCase bc = bid.length() > 64 ? null : bidCases.selectById(bid);
             if (bc == null || !inst.equals(bc.getInstitutionId())) {
                 throw ApiException.notFound("bid case not found");
             }
-            if (mapper.selectPrep(bid) != null) {
-                throw alreadyActive();
+            BidPrep old = mapper.selectPrep(bid);
+            if (old != null) {
+                if (!CANCELLED.equals(old.getStateCd())) {
+                    throw coded(409, "PREP_ALREADY_ACTIVE", "이 입찰 건은 이미 제안 확정이 되어 있습니다.");
+                }
+                if (old.getOpenedAt() != null) {   // 개설 뒤 중단된 건 — 새 건으로만 다시 확정한다(사용자 결정 2026-11-11)
+                    throw coded(409, "PREP_ABORTED", "중단된 건은 다시 확정할 수 없습니다. 기관만 지정해 새 건으로 확정하세요.");
+                }
+                requireNoAssignHead(bid);
+                reviveCase(bid, me, actor, now);
+                revived = true;
+            } else {
+                requireNoAssignHead(bid);
             }
         } else {
-            bid = commands.create(inst).getBidCaseId();
+            String back = findRevivable(inst);   // 개설 전 확정 취소 건이 있으면 같은 건을 되살린다
+            if (back != null) {
+                bid = back;
+                reviveCase(bid, me, actor, now);
+                revived = true;
+            } else {
+                bid = commands.create(inst).getBidCaseId();
+            }
         }
-        String now = Times.nowIso();
-        try {
-            mapper.insertPrep(bid, inst, CONFIRMED, me.getEmpNo(), now);
-        } catch (DuplicateKeyException e) {
-            throw alreadyActive();
+        if (!revived) {
+            try {
+                mapper.insertPrep(bid, inst, CONFIRMED, me.getEmpNo(), now);
+            } catch (DuplicateKeyException e) {
+                throw alreadyActive();
+            }
+            log(bid, "CONFIRM", null, CONFIRMED, null, null, null, me, actor);
         }
-        log(bid, "CONFIRM", null, CONFIRMED, null, null, null, me, actor);
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("bid_case_id", bid);
         m.put("state_cd", CONFIRMED);
+        m.put("revived", revived);
         return m;
+    }
+
+    /** F8 — 옛 직접 배정의 머리 행이 있는 건은 확정할 수 없다(개설 승인이 영구 409 가 된다). */
+    private void requireNoAssignHead(String bid) {
+        if (assignMapper.selectCase(bid) != null) {
+            throw coded(409, "ASSIGNED_ALREADY", "이미 담당자 배정 이력이 있는 입찰 건이라 제안 확정으로 진행할 수 없습니다.");
+        }
+    }
+
+    /** 그 기관의 개설 전 확정 취소 건 중 배정 이력이 없는 가장 최근 건. 없으면 null. */
+    private String findRevivable(String inst) {
+        for (String c : mapper.selectRevivable(inst)) {
+            if (assignMapper.selectCase(c) == null) {
+                return c;
+            }
+        }
+        return null;
+    }
+
+    /** CANCELLED(개설 전) → CONFIRMED. 같은 BID_CASE 를 되살리고 이력(CONFIRM, CANCELLED→CONFIRMED)을 남긴다. */
+    private void reviveCase(String bid, SysUser me, Actor actor, String now) {
+        if (mapper.revive(bid, me.getEmpNo(), now) != 1) {
+            throw alreadyActive();
+        }
+        log(bid, "CONFIRM", CANCELLED, CONFIRMED, null, null, null, me, actor);
     }
 
     /** 확정 취소(3) — 확정한 사람 또는 영업팀장, CONFIRMED 에서만. 개설 대기면 409 OPEN_PENDING(먼저 회수). 사유 1~200자. */
@@ -231,7 +278,9 @@ public class PrepService {
 
     /**
      * 중단(미참여) — 개설 뒤(IN_PROGRESS·WRITABLE·WRITING) 영업팀장만, 사유 필수, 결재 없음(사용자 결정 2026-11-10). 기획승인 중이면 409 PLAN_PENDING.
-     * 배정·과제 행은 그대로 둔다(기록 보존) — TODO: 중단 뒤 담당자 권한 회수 여부는 기획 결정 대기.
+     * 활성 담당 배정은 전부 해제한다(ACTIVE_YN=0, RELEASED_BY/AT, 배정 이력 RELEASE 행 — 쓰기 권한 회수, 사용자 결정 2026-11-11). 행은 지우지 않는다.
+     * 대기 중이던 담당자 변경 신청은 GROUP_VER 증가로 무효가 된다(승인하면 409 GROUP_VER_CHANGED). 과제 행·작업(TASKS)은 그대로 둔다(기록 보존).
+     * TODO: 작성 중(WRITING)에 만든 세 팀 작업·이사회 제출 대기 신청의 정리는 후속.
      */
     @Transactional
     public Map<String, Object> abort(SysUser me, Actor actor, String bidCaseId, PrepIn.Reason in) {
@@ -246,8 +295,17 @@ public class PrepService {
             throw stateChanged();
         }
         String reason = BoardMaterialService.checkedText(in == null ? null : in.getReason(), 200, "사유", true);
-        requireTransit(mapper.transit(bidCaseId, p.getStateCd(), CANCELLED, me.getEmpNo(), Times.nowIso()));
+        String now = Times.nowIso();
+        requireTransit(mapper.transit(bidCaseId, p.getStateCd(), CANCELLED, me.getEmpNo(), now));
         log(bidCaseId, "CANCEL", p.getStateCd(), CANCELLED, null, null, reason, me, actor);
+        int verified = BoardMaterialService.verified(actor);
+        for (BidAssigneeView v : assignMapper.selectActiveAssignees(bidCaseId)) {
+            if (assignMapper.updateRelease(bidCaseId, v.getEmpNo(), me.getEmpNo(), now) == 1) {
+                assignMapper.insertLog(bidCaseId, BidAssignmentService.ACTION_RELEASE, v.getEmpNo(), null,
+                        ABORT_RELEASE_REASON, me.getEmpNo(), verified, now);
+            }
+        }
+        mapper.bumpAssignVersion(bidCaseId, me.getEmpNo(), now);
         return stateOut(bidCaseId, CANCELLED);
     }
 
@@ -277,14 +335,14 @@ public class PrepService {
     }
 
     /**
-     * 개설 신청 검증 + 결재자 계산(쓰기 없음). 순서: 건(404) → 자격(403, 영업팀·영업팀장) → 상태(409 OPEN_PENDING·STATE_CHANGED) →
+     * 개설 신청 검증 + 결재자 계산(쓰기 없음). 순서: 자격(403, 영업팀·영업팀장) → 건(404) → 상태(409 OPEN_PENDING·STATE_CHANGED) →
      * 지명(400: 1~10명·활성·영업팀/영업팀장만·영업부장 불가·중복) → 의견(400/422) → 결재자(400 APPROVER_NOT_RESOLVED).
      * 신청자나 지명자 중 영업팀장이 있으면 영업부장이 결재한다(019 규칙 재사용).
      */
     @Transactional(readOnly = true)
     public OpenPlan planOpen(String bidCaseId, List<String> empNos, String comment, SysUser me) {
+        requireSales(me);   // 역할 검사가 건 조회(404)보다 먼저 — 없는 건과 있는 건을 403 으로 구분하지 못하게(security F4)
         BidPrep p = require(bidCaseId);
-        requireSales(me);
         if (OPEN_PENDING.equals(p.getStateCd())) {
             throw coded(409, "OPEN_PENDING", "이미 개설 신청이 진행 중입니다.");
         }
@@ -377,10 +435,13 @@ public class PrepService {
     /** 과제 체크·해제(7) — 그 건의 활성 담당자만(영업부장은 읽기 전용 403). 직접 체크(MANUAL) 과제만. */
     @Transactional
     public Map<String, Object> setTask(SysUser me, Actor actor, String bidCaseId, String taskCd, boolean check) {
-        BidPrep p = require(bidCaseId);
-        if (!assignments.isActiveAssignee(bidCaseId, me.getEmpNo())) {
+        if (!assignments.isActiveAssignee(bidCaseId, me.getEmpNo())) {   // 담당 검사가 건·과제 조회(404)보다 먼저(security F4)
             throw new ApiException(403, "이 입찰 건의 담당자만 변경할 수 있습니다.");
         }
+        if (taskCd == null || !taskCd.matches(CODE_PATTERN)) {   // 형식 밖 코드는 없는 과제와 같은 404(security F5)
+            throw ApiException.notFound("prep task not found");
+        }
+        BidPrep p = require(bidCaseId);
         if (!TASK_STATES.contains(p.getStateCd())) {
             throw stateChanged();
         }
@@ -433,10 +494,10 @@ public class PrepService {
     /** 기획승인 상신 검증(13) — 활성 담당자, IN_PROGRESS, 필수 과제 완료(서버 재판정, 아니면 409 NOT_READY + 미완료 과제 코드). */
     @Transactional
     public PlanPlan planPlanApproval(String bidCaseId, SysUser me) {
-        BidPrep p = require(bidCaseId);
         if (!assignments.isActiveAssignee(bidCaseId, me.getEmpNo())) {
             throw new ApiException(403, "이 입찰 건의 담당자만 기획승인을 요청할 수 있습니다.");
         }
+        BidPrep p = require(bidCaseId);
         if (!IN_PROGRESS.equals(p.getStateCd())) {
             throw stateChanged();
         }
@@ -471,8 +532,8 @@ public class PrepService {
 
     /**
      * 기획승인 승인 후처리(같은 트랜잭션). 영업부장만. 필수 과제를 다시 판정해 미완료면 409 NOT_READY(승인째 되돌아간다).
-     * 승인 = WRITABLE + 5번 게이트(기획승인): 분석이 게이트에서 기다리는 중이면 resume 하고, 아직 도달 전이면 승인 기록만 남긴다.
-     * TODO: 도달 전 승인을 게이트 도달 시 자동 통과시키려면 OrchestratorEngine 수정이 필요하다 — 지금은 부장이 게이트 도달 뒤 /checkpoint 로 승인한다.
+     * 승인 = 승인 기록 + WRITABLE 전이뿐이다. 오케스트레이터 5번 게이트(초안을 검토하고 쓰기 단계로 넘어오는 승인)는 다른 승인이라
+     * 여기서 resume 하지 않는다(사용자 결정 2026-11-11, qa P2-1) — 그 게이트는 기존 /checkpoint 로 따로 승인한다.
      */
     @Transactional
     public String applyPlanApproval(ApprovalRequest r, SysUser decider, Actor actor) {
@@ -493,12 +554,7 @@ public class PrepService {
         requireTransit(mapper.approvePlan(bid, r.getReqId(), decider.getEmpNo(), now));
         mapper.insertLog(bid, "PLAN_APPROVE", APPROVAL_PENDING, WRITABLE, null, r.getReqId(), null,
                 decider.getEmpNo(), BoardMaterialService.verified(actor), now);
-        // resume 은 대기 중일 때만 부른다 — 409 예외가 이 트랜잭션을 rollback-only 로 만들기 때문이다.
-        if (GATE_PLAN.equals(orchestrator.pendingGate(p.getInstitutionId()))) {
-            orchestrator.resume(p.getInstitutionId(), true, decider.getName(), "사전준비 기획승인");
-            return "기획승인 반영 — 5번 게이트 통과";
-        }
-        return "기획승인 반영 — 분석이 아직 5번 게이트(기획승인)에 도달하지 않았습니다";
+        return "기획승인 반영 — 작성 가능";
     }
 
     // ── 제안서 작성하기 ──────────────────────────────────────────────────
@@ -509,12 +565,16 @@ public class PrepService {
      */
     @Transactional
     public Map<String, Object> startWriting(SysUser me, Actor actor, String bidCaseId) {
-        BidPrep p = require(bidCaseId);
         if (!assignments.isActiveAssignee(bidCaseId, me.getEmpNo())) {
             throw new ApiException(403, "이 입찰 건의 담당자만 제안서 작성을 시작할 수 있습니다.");
         }
+        BidPrep p = require(bidCaseId);
         if (!WRITABLE.equals(p.getStateCd())) {
             throw stateChanged();
+        }
+        Eval ev = evaluate(p, syncFacts(p, mapper.selectTasks(bidCaseId)));   // 작성 가능 뒤 필수 과제가 풀렸으면 다시 막는다(qa P2-2)
+        if (!ev.ready) {
+            throw notReady(ev);
         }
         requireTransit(mapper.markWriting(bidCaseId, me.getEmpNo(), Times.nowIso()));
         List<String> created = commands.createTasksForBidCase(bidCaseId);
@@ -561,8 +621,18 @@ public class PrepService {
         if (assignments.isActiveAssignee(p.getBidCaseId(), me.getEmpNo())) {
             return true;
         }
-        boolean beforeOpen = CONFIRMED.equals(p.getStateCd()) || CANCELLED.equals(p.getStateCd());
-        return beforeOpen && isSales(me) && (me.getEmpNo().equals(p.getConfirmedBy()) || isLead(me));
+        if (!isSales(me)) {
+            return false;
+        }
+        boolean cancelled = CANCELLED.equals(p.getStateCd());
+        boolean beforeOpen = CONFIRMED.equals(p.getStateCd()) || (cancelled && p.getOpenedAt() == null);   // 확정 상태·개설 전 확정 취소
+        if (beforeOpen) {
+            return me.getEmpNo().equals(p.getConfirmedBy()) || isLead(me);
+        }
+        if (cancelled) {   // 개설 뒤 중단 건 — 읽기 전용: 영업팀장(부장은 위에서 통과)과 옛 담당자(사용자 결정 2026-11-11)
+            return isLead(me) || mapper.countEverAssigned(p.getBidCaseId(), me.getEmpNo()) > 0;
+        }
+        return false;
     }
 
     /** 사실 판정(T3·T4·T5)을 다시 맞춘다 — 달라졌으면 조건부 UPDATE + AUTO_DONE/AUTO_UNDONE 이력(행위자 NULL=시스템). */
@@ -688,6 +758,15 @@ public class PrepService {
         m.put("emp_verified", confirmVerified);
         m.put("progress", progress(ev));
         m.put("plan_approval_ready", ev.ready);
+        String boardResult = null;   // T5 는 의결 결과와 상관없이 확정(CONFIRMED)이면 완료 — 부결이면 꼬리표만 붙인다(사용자 결정 2026-11-11)
+        for (String rc : mapper.selectBoardResults(bid)) {
+            if (rc != null && !rc.trim().isEmpty()) {
+                boardResult = rc.trim();
+                break;
+            }
+        }
+        m.put("board_result", boardResult);   // SCHEDULED|PASSED|REJECTED|null
+        m.put("board_result_name", boardResultName(boardResult));
         m.put("rewriting", false);   // TODO: T5 확정 뒤 재작성 꼬리표(020 상태 파생)는 후속
         List<Map<String, Object>> as = new ArrayList<>();
         for (BidAssigneeView v : assignMapper.selectActiveAssignees(bid)) {
@@ -736,7 +815,7 @@ public class PrepService {
         viewer.put("can_request_open", CONFIRMED.equals(p.getStateCd()) && isSales(me));
         viewer.put("can_withdraw_open", openRequester);
         viewer.put("can_request_plan_approval", assignee && IN_PROGRESS.equals(p.getStateCd()) && ev.ready);
-        viewer.put("can_start_writing", assignee && WRITABLE.equals(p.getStateCd()));
+        viewer.put("can_start_writing", assignee && WRITABLE.equals(p.getStateCd()) && ev.ready);
         viewer.put("can_cancel", isLead(me) && (IN_PROGRESS.equals(p.getStateCd()) || WRITABLE.equals(p.getStateCd())
                 || WRITING.equals(p.getStateCd())));
         viewer.put("can_upload", false);   // TODO: 첨부(71)
@@ -794,7 +873,27 @@ public class PrepService {
         return m;
     }
 
+    /** 020 BOARD_RESULT 코드 이름(화면 꼬리표용). 모르는 코드는 코드 그대로. */
+    private static String boardResultName(String code) {
+        if (code == null) {
+            return null;
+        }
+        if ("PASSED".equals(code)) {
+            return "가결";
+        }
+        if ("REJECTED".equals(code)) {
+            return "부결";
+        }
+        if ("SCHEDULED".equals(code)) {
+            return "의결 예정";
+        }
+        return code;
+    }
+
     private static String stateName(BidPrep p) {
+        if (CANCELLED.equals(p.getStateCd())) {   // 한 상태 코드, 두 표시명 — 개설 전은 확정 취소, 개설 뒤는 중단(qa P3-3)
+            return p.getOpenedAt() == null ? "확정 취소" : "중단(미참여)";
+        }
         if (p.getStateName() != null) {
             return p.getStateName();
         }

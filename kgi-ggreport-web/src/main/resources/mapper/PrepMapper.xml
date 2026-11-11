@@ -79,6 +79,40 @@
      WHERE BID_CASE_ID = #{bidCaseId} AND STATE_CD = 'WRITABLE'
   </update>
 
+  <update id="revive">
+    UPDATE BID_PREP SET STATE_CD = 'CONFIRMED', CONFIRMED_BY = #{by}, CONFIRMED_AT = #{now},
+           OPEN_REQ_ID = NULL, PLAN_REQ_ID = NULL, UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND STATE_CD = 'CANCELLED' AND OPENED_AT IS NULL
+  </update>
+
+  <select id="selectRevivable" resultType="string">
+    SELECT BID_CASE_ID FROM BID_PREP
+     WHERE INSTITUTION_ID = #{institutionId} AND STATE_CD = 'CANCELLED' AND OPENED_AT IS NULL
+     ORDER BY UPDATED_AT DESC, BID_CASE_ID
+  </select>
+
+  <select id="countActivePrepByCase" resultType="int">
+    SELECT COUNT(*) FROM BID_PREP
+     WHERE BID_CASE_ID = #{bidCaseId}
+       AND STATE_CD IN ('CONFIRMED', 'OPEN_PENDING', 'IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE', 'WRITING')
+  </select>
+
+  <select id="countEverAssigned" resultType="int">
+    SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID = #{bidCaseId} AND EMP_NO = #{empNo}
+  </select>
+
+  <update id="bumpAssignVersion">
+    UPDATE BID_ASSIGN_CASE SET GROUP_VER = GROUP_VER + 1, PENDING_REQ_ID = NULL,
+           UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId}
+  </update>
+
+  <select id="selectBoardResults" resultType="string">
+    SELECT RESULT_CD FROM BOARD_MATERIAL
+     WHERE BID_CASE_ID = #{bidCaseId} AND STATUS_CD = 'CONFIRMED'
+     ORDER BY MATERIAL_ID DESC
+  </select>
+
   <select id="selectTasks" resultType="BidPrepTask">
     SELECT t.BID_CASE_ID, t.TASK_CD, t.SORT_NO, t.KIND_CD, t.JUDGE_CD, t.FACT_KEY, t.PRECOND_KEY, t.PREREQ_CD, t.COND_KEY,
            t.DONE_YN, t.DONE_BY, t.DONE_AT, t.REF_ATTACH_ID, t.REF_SHA256, t.REF_BY, t.REF_AT,

@@ -101,7 +101,7 @@ public class PrepController {
     public Map<String, Object> check(@PathVariable String bidCaseId, @PathVariable String taskCd,
                                      HttpServletRequest req) {
         Actor actor = Actor.of(req);
-        return run(req, bidCaseId, "CHECK", taskCd, me -> prep.setTask(me, actor, bidCaseId, taskCd, true));
+        return run(req, bidCaseId, "CHECK", auditTask(taskCd), me -> prep.setTask(me, actor, bidCaseId, taskCd, true));
     }
 
     /** 과제 체크 해제(7). */
@@ -109,7 +109,7 @@ public class PrepController {
     public Map<String, Object> uncheck(@PathVariable String bidCaseId, @PathVariable String taskCd,
                                        HttpServletRequest req) {
         Actor actor = Actor.of(req);
-        return run(req, bidCaseId, "UNCHECK", taskCd, me -> prep.setTask(me, actor, bidCaseId, taskCd, false));
+        return run(req, bidCaseId, "UNCHECK", auditTask(taskCd), me -> prep.setTask(me, actor, bidCaseId, taskCd, false));
     }
 
     /** 기획승인 요청(13, PREP_APPROVAL 상신). 결재자는 영업부장 고정. */
@@ -134,6 +134,11 @@ public class PrepController {
     }
 
     // ── 내부 ────────────────────────────────────────────────────────────
+
+    /** 감사 칸(BID_PREP_ACT.TASK_CD, 20자)에 넣을 과제 코드 — 형식 밖(길이·문자)이면 null. 경로 변수 원문을 그대로 저장하지 않는다(security F5). */
+    private static String auditTask(String taskCd) {
+        return taskCd != null && taskCd.matches("[A-Z0-9_]{1,20}") ? taskCd : null;
+    }
 
     /**
      * 건 단위 행위 공통 틀 — 활성 사용자 확인(401/403 DENIED) → 행위 직전 상태 잡기 → 실행 → BID_PREP_ACT 기록(성공·실패 모두).

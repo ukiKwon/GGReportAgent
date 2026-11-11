@@ -162,8 +162,9 @@ public class PrepApiTest {
     }
 
     @Test
-    public void 확정_취소는_확정한_사람이나_영업팀장만_사유가_필요하고_취소하면_다시_확정할_수_있다() throws Exception {
+    public void 확정_취소는_확정한_사람이나_영업팀장만_사유가_필요하고_취소하면_같은_건으로_다시_확정된다() throws Exception {
         String bid = confirm(MEMBER, INST);
+        int cases = count("SELECT COUNT(*) FROM BID_CASES WHERE INSTITUTION_ID=?", INST);
         String path = "/bidcases/" + bid + "/prep/unconfirm";
         assertEquals(403, postJson(path, MEMBER2, "{\"reason\":\"사정이 바뀜\"}").getResponse().getStatus());   // 확정자도 팀장도 아님
         assertEquals(400, postJson(path, LEAD, "{\"reason\":\"\"}").getResponse().getStatus());
@@ -171,8 +172,25 @@ public class PrepApiTest {
         assertEquals("CONFIRMED", state(bid));
         assertEquals(200, postJson(path, MEMBER, "{\"reason\":\"기관 사정으로 보류\"}").getResponse().getStatus());
         assertEquals("CANCELLED", state(bid));
-        String again = confirm(LEAD, INST);   // 취소된 건은 활성이 아니라 새로 확정된다
-        assertFalse(again.equals(bid));
+        // 개설 전 확정 취소 건의 열람(security F3): 확정자·영업팀장·영업부장만. 취소 표시명은 '확정 취소'
+        MvcResult seen = getAs("/bidcases/" + bid + "/prep", MEMBER);
+        assertEquals(200, seen.getResponse().getStatus());
+        assertEquals("확정 취소", json(seen).path("state_name").asText());
+        assertEquals(404, getAs("/bidcases/" + bid + "/prep", MEMBER2).getResponse().getStatus());
+        assertEquals(200, getAs("/bidcases/" + bid + "/prep", LEAD).getResponse().getStatus());
+        assertEquals(200, getAs("/bidcases/" + bid + "/prep", HEAD).getResponse().getStatus());
+
+        // 다시 확정하면 같은 BID_CASE 를 되살린다 — 새 건 없음, 확정자 갱신, 이력 CANCELLED→CONFIRMED
+        MvcResult again = postJson("/preps", LEAD, "{\"institution_id\":\"" + INST + "\"}");
+        assertEquals(201, again.getResponse().getStatus());
+        assertEquals(bid, json(again).path("bid_case_id").asText());
+        assertTrue(json(again).path("revived").asBoolean());
+        assertEquals("CONFIRMED", state(bid));
+        assertEquals(cases, count("SELECT COUNT(*) FROM BID_CASES WHERE INSTITUTION_ID=?", INST));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP WHERE INSTITUTION_ID=?", INST));
+        assertEquals(LEAD, jdbc.queryForObject("SELECT CONFIRMED_BY FROM BID_PREP WHERE BID_CASE_ID=?", String.class, bid));
+        assertEquals(2, count("SELECT COUNT(*) FROM BID_PREP_LOG WHERE BID_CASE_ID=? AND EVENT_CD='CONFIRM'", bid));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_LOG WHERE BID_CASE_ID=? AND EVENT_CD='CONFIRM' AND FROM_STATE='CANCELLED' AND TO_STATE='CONFIRMED'", bid));
     }
 
     // ── 개설 신청·승인 ───────────────────────────────────────────────
@@ -418,7 +436,36 @@ public class PrepApiTest {
         assertEquals(200, postJson(path, LEAD2, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
         assertEquals("CANCELLED", state(bid));
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_LOG WHERE BID_CASE_ID=? AND EVENT_CD='CANCEL' AND REASON IS NOT NULL", bid));
-        confirm(MEMBER, INST);   // 중단된 건은 활성이 아니라 같은 기관을 다시 확정할 수 있다
+
+        // 담당 해제(사용자 결정 ③): 활성 배정 0, 해제자·시각 기록, 배정 이력 RELEASE, 변경 신청 무효화용 GROUP_VER 증가
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1", bid));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND EMP_NO=? AND ACTIVE_YN=0 AND RELEASED_BY=? AND RELEASED_AT IS NOT NULL",
+                bid, MEMBER2, LEAD2));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGN_LOG WHERE BID_CASE_ID=? AND ACTION_CD='RELEASE' AND TARGET_EMP_NO=? AND ACTOR_EMP_NO=?",
+                bid, MEMBER2, LEAD2));
+        assertEquals(2, count("SELECT GROUP_VER FROM BID_ASSIGN_CASE WHERE BID_CASE_ID=?", bid));
+        // 쓰기 권한 회수 — 옛 담당자는 체크·작성하기 403, 읽기만 가능(표시명 '중단(미참여)'), 영업팀장·영업부장도 읽기, 확정자(비팀장)·디자이너는 404
+        assertEquals(403, postJson("/bidcases/" + bid + "/prep/tasks/T1/check", MEMBER2, "").getResponse().getStatus());
+        assertEquals(403, postJson("/bidcases/" + bid + "/prep/start-writing", MEMBER2, "").getResponse().getStatus());
+        MvcResult old = getAs("/bidcases/" + bid + "/prep", MEMBER2);
+        assertEquals(200, old.getResponse().getStatus());
+        assertEquals("CANCELLED", json(old).path("state_cd").asText());
+        assertEquals("중단(미참여)", json(old).path("state_name").asText());
+        assertFalse(json(old).path("viewer").path("is_assignee").asBoolean());
+        assertEquals(0, json(old).path("assignees").size());
+        assertEquals(200, getAs("/bidcases/" + bid + "/prep/history", MEMBER2).getResponse().getStatus());
+        assertEquals(200, getAs("/bidcases/" + bid + "/prep", LEAD).getResponse().getStatus());
+        assertEquals(200, getAs("/bidcases/" + bid + "/prep", HEAD).getResponse().getStatus());
+        assertEquals(404, getAs("/bidcases/" + bid + "/prep", MEMBER).getResponse().getStatus());
+        assertEquals(404, getAs("/bidcases/" + bid + "/prep", DESIGNER).getResponse().getStatus());
+
+        // 개설 뒤 중단된 건은 같은 건으로 되살리지 않는다 — 건을 지정하면 409 PREP_ABORTED, 기관만 지정하면 새 건
+        MvcResult named = postJson("/preps", MEMBER, "{\"institution_id\":\"" + INST + "\",\"bid_case_id\":\"" + bid + "\"}");
+        assertEquals(409, named.getResponse().getStatus());
+        assertEquals("PREP_ABORTED", json(named).path("detail").path("code").asText());
+        String fresh = confirm(MEMBER, INST);
+        assertFalse(fresh.equals(bid));
+        assertEquals("CANCELLED", state(bid));
     }
 
     // ── 목록·이력 ────────────────────────────────────────────────────
@@ -481,5 +528,204 @@ public class PrepApiTest {
         }
         assertEquals(201, postJson("/bidcases/" + bc + "/assignments", LEAD, "{\"emp_nos\":" + arr(MEMBER) + "}")
                 .getResponse().getStatus());   // 열림이면 옛 동작 그대로
+    }
+
+    // ── NEXT 70 후속(qa P2-1~P2-6·P3, security F3·F4·F5·F8, 사용자 결정 ①~④) ─────────────
+
+    /** 옛 흐름(공고 반입)으로 생긴 사전준비 행 없는 입찰 건을 만든다. */
+    private String legacyCase(String inst) throws Exception {
+        MvcResult r = mockMvc.perform(post("/bidcases").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"institution_id\":\"" + inst + "\"}").header("X-User-Id", "dave")).andReturn();
+        String bc = json(r).path("bid_case_id").asText();
+        assertFalse(r.getResponse().getContentAsString(), bc.isEmpty());
+        return bc;
+    }
+
+    private MvcResult confirmWith(String emp, String inst, String bid) throws Exception {
+        return postJson("/preps", emp, "{\"institution_id\":\"" + inst + "\",\"bid_case_id\":\"" + bid + "\"}");
+    }
+
+    private static JsonNode task(JsonNode view, String cd) {
+        for (JsonNode t : view.path("tasks")) {
+            if (cd.equals(t.path("task_cd").asText())) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+    @Test
+    public void 기획승인_승인은_오케스트레이터_5번_게이트를_건드리지_않는다() throws Exception {   // 사용자 결정 ① · qa P2-1
+        String bid = opened(INST);
+        makeReady(bid);
+        String now = Times.nowIso();
+        jdbc.update("INSERT INTO ORCH_RUN (RUN_ID, INSTITUTION_ID, STATUS, CURRENT_NODE, PENDING_GATE,"
+                        + " ACTIVE_INSTITUTION_ID, CREATED_AT, UPDATED_AT) VALUES (?,?,?,?,?,?,?,?)",
+                "prep-gate-run", INST, "PENDING_APPROVAL", "rfi", "기획승인", INST, now, now);
+        long req = planReq(bid, MEMBER2);
+        assertEquals(200, decide(HEAD, req, "APPROVE", null).getResponse().getStatus());
+        assertEquals("WRITABLE", state(bid));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_LOG WHERE BID_CASE_ID=? AND EVENT_CD='PLAN_APPROVE'", bid));
+        assertEquals("PENDING_APPROVAL", jdbc.queryForObject("SELECT STATUS FROM ORCH_RUN WHERE RUN_ID=?", String.class, "prep-gate-run"));
+        assertEquals("기획승인", jdbc.queryForObject("SELECT PENDING_GATE FROM ORCH_RUN WHERE RUN_ID=?", String.class, "prep-gate-run"));
+    }
+
+    @Test
+    public void 작성_가능_뒤_필수_과제가_풀리면_작성하기가_다시_막힌다() throws Exception {   // qa P2-2
+        String bid = opened(INST);
+        makeReady(bid);
+        long req = planReq(bid, MEMBER2);
+        assertEquals(200, decide(HEAD, req, "APPROVE", null).getResponse().getStatus());
+        MvcResult before = getAs("/bidcases/" + bid + "/prep", MEMBER2);
+        assertTrue(json(before).path("viewer").path("can_start_writing").asBoolean());
+
+        jdbc.update("UPDATE BID_PREP_TASK SET REF_ATTACH_ID = NULL WHERE BID_CASE_ID = ? AND TASK_CD = 'T3'", bid);   // 확정본 지정이 풀림
+        flushCache();
+        MvcResult after = getAs("/bidcases/" + bid + "/prep", MEMBER2);
+        assertEquals(200, after.getResponse().getStatus());
+        assertFalse(json(after).path("viewer").path("can_start_writing").asBoolean());
+        assertFalse(json(after).path("plan_approval_ready").asBoolean());
+        MvcResult blocked = postJson("/bidcases/" + bid + "/prep/start-writing", MEMBER2, "");
+        assertEquals(409, blocked.getResponse().getStatus());
+        assertEquals("NOT_READY", json(blocked).path("detail").path("code").asText());
+        assertEquals("WRITABLE", state(bid));
+        assertEquals(0, count("SELECT COUNT(*) FROM TASKS WHERE BID_CASE_ID=?", bid));
+    }
+
+    @Test
+    public void 이사회_자료_확정이면_T5가_자동_완료되고_부결이어도_완료_꼬리표만_붙으며_재작성_요구로_풀리면_자동_미완료() throws Exception {   // qa §6-1 · 사용자 결정 ④
+        String bid = opened(INST);
+        assertEquals(200, postJson("/bidcases/" + bid + "/prep/tasks/T1/check", MEMBER2, "").getResponse().getStatus());
+        assertEquals(200, postJson("/bidcases/" + bid + "/prep/tasks/T2/check", MEMBER2, "").getResponse().getStatus());
+        String now = Times.nowIso();
+        jdbc.update("UPDATE BID_PREP_TASK SET REF_ATTACH_ID = 1, REF_BY = ?, REF_AT = ? WHERE BID_CASE_ID = ? AND TASK_CD = 'T3'",
+                MEMBER2, now, bid);
+        jdbc.update("INSERT INTO BOARD_MATERIAL (BID_CASE_ID, INSTITUTION_ID, BOARD_YEAR, STATUS_CD, RESULT_CD, FORM_ID, FORM_VER, CUR_SNAP,"
+                        + " CREATED_BY, CREATED_AT, UPDATED_BY, UPDATED_AT) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                bid, INST, 2026, "CONFIRMED", "REJECTED", "default_doc", 0, 0, MEMBER2, now, MEMBER2, now);
+        flushCache();
+
+        JsonNode v = json(getAs("/bidcases/" + bid + "/prep", MEMBER2));
+        JsonNode t5 = task(v, "T5");
+        assertNotNull(t5);
+        assertEquals("DONE", t5.path("state").asText());                  // 부결이어도 확정이면 완료
+        assertTrue(t5.path("done_by").isNull());                          // 시스템 판정
+        assertEquals("REJECTED", v.path("board_result").asText());
+        assertEquals("부결", v.path("board_result_name").asText());
+        assertTrue(v.path("plan_approval_ready").asBoolean());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_LOG WHERE BID_CASE_ID=? AND EVENT_CD='AUTO_DONE' AND TASK_CD='T5' AND ACTOR_EMP_NO IS NULL", bid));
+
+        jdbc.update("UPDATE BOARD_MATERIAL SET STATUS_CD = 'DRAFT', RESULT_CD = NULL WHERE BID_CASE_ID = ?", bid);   // 영업부장 재작성 요구
+        flushCache();
+        JsonNode w = json(getAs("/bidcases/" + bid + "/prep", MEMBER2));
+        assertEquals("TODO", task(w, "T5").path("state").asText());
+        assertTrue(w.path("board_result").isNull());
+        assertFalse(w.path("plan_approval_ready").asBoolean());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_LOG WHERE BID_CASE_ID=? AND EVENT_CD='AUTO_UNDONE' AND TASK_CD='T5'", bid));
+    }
+
+    @Test
+    public void 사전준비_건에는_스위치와_무관하게_직접_배정이_409이고_개설_승인은_그대로_된다() throws Exception {   // qa P2-3
+        String bid = confirm(MEMBER, INST);
+        String path = "/bidcases/" + bid + "/assignments";
+        MvcResult open = postJson(path, LEAD, "{\"emp_nos\":" + arr(MEMBER) + "}");
+        assertEquals(409, open.getResponse().getStatus());
+        assertEquals("PREP_CASE", json(open).path("detail").path("code").asText());
+        legacy.setOpenForTest(false);
+        try {
+            MvcResult closed = postJson(path, LEAD, "{\"emp_nos\":" + arr(MEMBER) + "}");
+            assertEquals(409, closed.getResponse().getStatus());   // 닫힘이어도 LEGACY_CLOSED(403)가 아니라 같은 409
+            assertEquals("PREP_CASE", json(closed).path("detail").path("code").asText());
+        } finally {
+            legacy.setOpenForTest(true);
+        }
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=?", bid));
+        long req = openReq(bid, MEMBER, MEMBER2);
+        assertEquals(200, decide(LEAD, req, "APPROVE", null).getResponse().getStatus());   // 막다른 길이 없다
+        assertEquals("IN_PROGRESS", state(bid));
+    }
+
+    @Test
+    public void 확정에_건을_지정하는_경로_다른_기관_404_이미_확정_409_정상_201과_새_건_없음() throws Exception {   // qa §6-4
+        String other = legacyCase("dobong");
+        assertEquals(404, confirmWith(MEMBER, INST, other).getResponse().getStatus());
+        assertEquals(404, confirmWith(MEMBER, INST, "no-such-case").getResponse().getStatus());
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP WHERE INSTITUTION_ID=?", INST));
+
+        String lc = legacyCase(INST);
+        int cases = count("SELECT COUNT(*) FROM BID_CASES WHERE INSTITUTION_ID=?", INST);
+        MvcResult ok = confirmWith(MEMBER, INST, lc);
+        assertEquals(201, ok.getResponse().getStatus());
+        assertEquals(lc, json(ok).path("bid_case_id").asText());
+        assertFalse(json(ok).path("revived").asBoolean());
+        assertEquals(cases, count("SELECT COUNT(*) FROM BID_CASES WHERE INSTITUTION_ID=?", INST));   // 새 건이 생기지 않는다
+        assertEquals("CONFIRMED", state(lc));
+
+        MvcResult again = confirmWith(LEAD, INST, lc);   // 이미 확정된 건
+        assertEquals(409, again.getResponse().getStatus());
+        assertEquals("PREP_ALREADY_ACTIVE", json(again).path("detail").path("code").asText());
+    }
+
+    @Test
+    public void 옛_직접_배정의_머리_행이_있는_건은_확정할_수_없다() throws Exception {   // security F8
+        String lc = legacyCase(INST);
+        assertEquals(201, postJson("/bidcases/" + lc + "/assignments", LEAD, "{\"emp_nos\":" + arr(MEMBER) + "}").getResponse().getStatus());
+        MvcResult r = confirmWith(MEMBER, INST, lc);
+        assertEquals(409, r.getResponse().getStatus());
+        assertEquals("ASSIGNED_ALREADY", json(r).path("detail").path("code").asText());
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP WHERE BID_CASE_ID=?", lc));
+    }
+
+    @Test
+    public void 중단은_기획승인_중과_개설_대기에서는_409_작성_가능과_작성_중에서는_200_사유에_개인정보면_422() throws Exception {   // qa §6-5
+        String bid = opened(INST);
+        makeReady(bid);
+        long req = planReq(bid, MEMBER2);
+        String path = "/bidcases/" + bid + "/prep/cancel";
+        MvcResult pending = postJson(path, LEAD, "{\"reason\":\"미참여 결정\"}");
+        assertEquals(409, pending.getResponse().getStatus());
+        assertEquals("PLAN_PENDING", json(pending).path("detail").path("code").asText());
+        assertEquals("APPROVAL_PENDING", state(bid));
+        assertEquals(200, decide(HEAD, req, "APPROVE", null).getResponse().getStatus());
+        assertEquals("WRITABLE", state(bid));
+        assertEquals(422, postJson(path, LEAD, "{\"reason\":\"연락처 010-1234-5678\"}").getResponse().getStatus());
+        assertEquals("WRITABLE", state(bid));
+        assertEquals(200, postJson(path, LEAD, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());   // 작성 가능에서 중단
+        assertEquals("CANCELLED", state(bid));
+
+        String b2 = confirm(MEMBER, INST);   // 개설 대기에서는 중단이 아니라 회수
+        openReq(b2, MEMBER, MEMBER2);
+        assertEquals(409, postJson("/bidcases/" + b2 + "/prep/cancel", LEAD, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
+        assertEquals("OPEN_PENDING", state(b2));
+
+        String b3 = opened("dobong");   // 작성 중에서 중단
+        makeReady(b3);
+        long r3 = planReq(b3, MEMBER2);
+        assertEquals(200, decide(HEAD, r3, "APPROVE", null).getResponse().getStatus());
+        assertEquals(200, postJson("/bidcases/" + b3 + "/prep/start-writing", MEMBER2, "").getResponse().getStatus());
+        assertEquals("WRITING", state(b3));
+        assertEquals(200, postJson("/bidcases/" + b3 + "/prep/cancel", LEAD2, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
+        assertEquals("CANCELLED", state(b3));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1", b3));
+        assertEquals(3, count("SELECT COUNT(*) FROM TASKS WHERE BID_CASE_ID=?", b3));   // 만든 작업은 기록으로 남는다
+    }
+
+    @Test
+    public void 과제_코드가_형식_밖이면_404이고_감사_칸에는_남기지_않으며_역할_검사가_건_조회보다_먼저다() throws Exception {   // security F4·F5, qa §6-13
+        String bid = opened(INST);
+        String longCd = "AAAAAAAAAAAAAAAAAAAAAAAAA";   // 25자
+        assertEquals(404, postJson("/bidcases/" + bid + "/prep/tasks/" + longCd + "/check", MEMBER2, "").getResponse().getStatus());
+        assertEquals(404, postJson("/bidcases/" + bid + "/prep/tasks/t1/uncheck", MEMBER2, "").getResponse().getStatus());
+        assertEquals(2, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND OUTCOME='HIDDEN' AND TASK_CD IS NULL", bid));
+
+        // 없는 건과 있는 건이 같은 403 — 역할·담당 검사가 먼저
+        String none = "/bidcases/no-such-case/prep/";
+        assertEquals(403, postJson("/bidcases/no-such-case/prep/open-requests", DESIGNER, "{\"emp_nos\":" + arr(MEMBER2) + "}").getResponse().getStatus());
+        assertEquals(403, postJson(none + "tasks/T1/check", MEMBER, "").getResponse().getStatus());
+        assertEquals(403, postJson(none + "tasks/T1/check", HEAD, "").getResponse().getStatus());
+        assertEquals(403, postJson(none + "plan-approval-requests", MEMBER, "").getResponse().getStatus());
+        assertEquals(403, postJson(none + "start-writing", MEMBER, "").getResponse().getStatus());
+        assertEquals(403, postJson("/bidcases/" + bid + "/prep/open-requests", DESIGNER, "{\"emp_nos\":" + arr(MEMBER2) + "}").getResponse().getStatus());
+        assertEquals(403, postJson(none + "start-writing", MEMBER2, "").getResponse().getStatus());   // 없는 건에는 담당자가 없다 — 담당이 아니면 403
     }
 }

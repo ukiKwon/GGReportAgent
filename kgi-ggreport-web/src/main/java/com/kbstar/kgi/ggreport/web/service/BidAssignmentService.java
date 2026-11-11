@@ -11,6 +11,7 @@ import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.mapper.ApprovalRequestMapper;
 import com.kbstar.kgi.ggreport.web.mapper.BidAssignmentMapper;
 import com.kbstar.kgi.ggreport.web.mapper.BoardMaterialMapper;
+import com.kbstar.kgi.ggreport.web.mapper.PrepMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.support.ApproverRules;
 import com.kbstar.kgi.ggreport.web.support.MenuPerms;
@@ -72,14 +73,16 @@ public class BidAssignmentService {
     private final ApprovalRequestMapper requests;
     private final BoardMaterialMapper materials;
     private final LegacyFlowSwitch legacy;
+    private final PrepMapper prepMapper;
 
     public BidAssignmentService(BidAssignmentMapper mapper, SysUserMapper users, ApprovalRequestMapper requests,
-                                BoardMaterialMapper materials, LegacyFlowSwitch legacy) {
+                                BoardMaterialMapper materials, LegacyFlowSwitch legacy, PrepMapper prepMapper) {
         this.mapper = mapper;
         this.users = users;
         this.requests = requests;
         this.materials = materials;
         this.legacy = legacy;
+        this.prepMapper = prepMapper;
     }
 
     /**
@@ -128,6 +131,10 @@ public class BidAssignmentService {
     public Map<String, Object> create(String bidCaseId, List<String> empNos, SysUser me, Actor actor) {
         if (!LEAD_ROLE.equals(roleOf(me))) {
             throw new ApiException(403, "최초 배정은 영업팀장만 할 수 있습니다.");
+        }
+        if (bidCaseId != null && !bidCaseId.isEmpty() && bidCaseId.length() <= 64
+                && prepMapper.countActivePrepByCase(bidCaseId) > 0) {   // 스위치와 무관 — 사전준비 건은 개설 승인만이 배정한다(NEXT 70 qa P2-3)
+            throw coded(409, "PREP_CASE", "제안 사전준비가 진행 중인 입찰 건입니다. 담당자는 개설 신청으로 지정하세요.");
         }
         if (!legacy.isOpen()) {
             throw coded(403, "LEGACY_CLOSED", "최초 배정은 제안 확정·개설 신청 흐름으로만 할 수 있습니다.");

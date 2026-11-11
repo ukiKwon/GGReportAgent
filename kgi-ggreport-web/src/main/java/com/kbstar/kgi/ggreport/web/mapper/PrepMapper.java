@@ -63,6 +63,24 @@ public interface PrepMapper {
     /** WRITABLE → WRITING 과 작성 시작자 기록. 재호출은 0행. */
     int markWriting(@Param("bidCaseId") String bidCaseId, @Param("by") String by, @Param("now") String now);
 
+    /** 개설 전 확정 취소(CANCELLED ∧ OPENED_AT 없음) → CONFIRMED 되살림. 확정자·확정 시각을 새로 기록하고 낡은 요청 번호를 비운다. 0행이면 그 사이 바뀐 것. */
+    int revive(@Param("bidCaseId") String bidCaseId, @Param("by") String by, @Param("now") String now);
+
+    /** 그 기관의 개설 전 확정 취소 건(되살릴 수 있는 건) 번호 — 최근 순. */
+    List<String> selectRevivable(@Param("institutionId") String institutionId);
+
+    /** 활성(CONFIRMED~WRITING) 사전준비 행이 있는 건이면 1 — 옛 직접 배정 차단용(BidAssignmentService). */
+    int countActivePrepByCase(@Param("bidCaseId") String bidCaseId);
+
+    /** 그 사번이 그 건의 담당자였던 적이 있으면(해제됐어도) 1 — 중단 건 읽기 전용 열람 판정. */
+    int countEverAssigned(@Param("bidCaseId") String bidCaseId, @Param("empNo") String empNo);
+
+    /** 중단 시 대기 중이던 담당자 변경 신청을 무효로 만든다 — GROUP_VER 증가와 PENDING 비움. 머리 행이 없으면 0행. */
+    int bumpAssignVersion(@Param("bidCaseId") String bidCaseId, @Param("by") String by, @Param("now") String now);
+
+    /** 그 건의 확정(CONFIRMED) 이사회 자료 결과 코드(없으면 null 요소) — 최근 자료 먼저. 부결 꼬리표용. */
+    List<String> selectBoardResults(@Param("bidCaseId") String bidCaseId);
+
     // ── 과제 ────────────────────────────────────────────────────────────
 
     List<BidPrepTask> selectTasks(@Param("bidCaseId") String bidCaseId);
