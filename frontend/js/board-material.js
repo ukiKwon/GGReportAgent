@@ -228,6 +228,7 @@
     let body;
     if (kind === 'result') body = { result: str(p && p.result), meeting_date: str(p && p.date) || null };
     else if (kind === 'rework') body = { reason: str(p && p.reason).trim() };
+    else if (kind === 'submit' && p && Number(p.snap) > 0) body = { snap_no: Number(p.snap) };   // 제출 줄에 보인 버전 n — 서버가 현재 버전과 다르면 SNAPSHOT_CHANGED
     if (body !== undefined) { init.headers = Object.assign({ 'Content-Type': 'application/json' }, init.headers); init.body = JSON.stringify(body); }
     return req(fetchFn, mat.itemUrl(id) + '/' + spec[0], init);
   };
@@ -290,6 +291,10 @@
     }
     if (st === 404) return box('이 이사회 자료를 찾을 수 없습니다.', '담당에서 빠졌거나 없는 자료입니다.', B);
     if (kind === 'submit') {
+      if (st === 409 && code === 'SNAPSHOT_CHANGED') {
+        const cs = Number(d && d.current_snap);
+        return box('다른 담당자가 새 버전을 저장해 제출하지 않았습니다.', (cs > 0 ? '지금 최신은 버전 ' + cs + '입니다. ' : '') + '[새로 고치기]로 바뀐 내용을 확인한 뒤 다시 제출해 주세요.', R);
+      }
       if (st === 409 && code === 'ALREADY_SUBMITTED') return box('다른 담당자가 이미 제출했습니다.', '화면을 새로 고쳐 결재 상태를 확인해 주세요.', R);
       if (st === 409 && code === 'MATERIAL_LOCKED') return box('이미 확정된 자료라 제출할 수 없습니다.', '화면을 새로 고쳐 확인해 주세요.', R);
       if (st === 409 && code === 'NO_SNAPSHOT') return box('저장한 버전이 없어 제출하지 못했습니다.', '먼저 [버전 저장]으로 값을 저장한 뒤 제출해 주세요.');
@@ -551,7 +556,9 @@
     if (ev !== 'REJECT' && ev !== 'REWORK') return '';
     const title = ev === 'REJECT' ? '제출이 반려되었습니다.' : '영업부장이 재작성을 요구했습니다.';
     const reason = str(r.reason).trim();
+    const unlocked = str(r.from_status) === 'CONFIRMED', fr = str(r.from_result_name).trim();
     return '<section class="bd-m-return" id="bd-m-return" aria-labelledby="bd-m-rt"><h3 id="bd-m-rt">' + esc(title) + '</h3>' +
+      (unlocked ? '<p class="bd-m-reason">확정이 풀렸습니다.' + (fr ? " (지워진 의결 결과 '" + esc(fr) + "')" : '') + '</p>' : '') +
       '<span class="bd-m-rmeta">' + esc(r.actor_name) + ' · <span class="mono">' + esc(mat.kst(r.logged_at)) + '</span></span>' +
       (reason ? '<p class="bd-m-reason"><b>사유</b>' + esc(reason) + '</p>'
               : '<p class="bd-m-reason">사유는 개인정보로 보이는 내용이 있어 표시하지 않습니다.</p>') +
@@ -565,9 +572,11 @@
     const asg = v.is_assignee === true;
     let t;
     if (cd === 'SUBMITTED') {
-      const n = savedCount(d);
-      t = asg ? '버전 ' + n + '을 제출해 결재 중입니다. 결재가 끝나거나 [제출 회수]를 할 때까지 값을 고칠 수 없습니다.'
-              : '버전 ' + n + '이 결재 중입니다. 되돌려야 하면 [재작성 요구]를 눌러 주세요.';
+      const n = Number(d.submit_snap) > 0 ? Number(d.submit_snap) : savedCount(d), sb = str(d.submitted_by_name).trim(), ap = str(d.approver_name).trim();
+      if (sb && ap) t = '버전 ' + n + '을 ' + sb + '이(가) 제출해 ' + ap + '이(가) 결재 중입니다. ' +
+        (asg ? '결재가 끝나거나 [제출 회수]를 할 때까지 값을 고칠 수 없습니다.' : '되돌려야 하면 [재작성 요구]를 눌러 주세요.');
+      else t = asg ? '버전 ' + n + '을 제출해 결재 중입니다. 결재가 끝나거나 [제출 회수]를 할 때까지 값을 고칠 수 없습니다.'
+                   : '버전 ' + n + '이 결재 중입니다. 되돌려야 하면 [재작성 요구]를 눌러 주세요.';
     } else {
       const n = Number(d.confirmed_snap) > 0 ? Number(d.confirmed_snap) : savedCount(d);
       t = asg ? '확정된 자료입니다(버전 ' + n + '). 값은 고칠 수 없고 의결 결과와 개최일만 바꿀 수 있습니다. 값을 고쳐야 하면 영업부장에게 재작성 요구를 요청해 주세요.'
@@ -645,10 +654,20 @@
       confirmMeta = (cs ? '<span>확정 버전 ' + cs + (ca ? ' · <span class="mono">' + esc(ca) + '</span>' : '') + '</span>' : '') +
         (str(d.result_cd) ? '' : '<span>의결 결과 입력 전</span>');
     }
+    const cdNow = str(d.status_cd);
+    let subMeta = '';
+    if (cdNow === 'SUBMITTED') {
+      const ss = Number(d.submit_snap) > 0 ? Number(d.submit_snap) : 0, sb = str(d.submitted_by_name).trim(), sa = mat.kst(d.submitted_at), ap = str(d.approver_name).trim();
+      const first = (ss ? '제출 버전 ' + ss : '') + (sb || sa ? (ss ? ' · ' : '') + (sb ? esc(sb) + ' ' : '') + (sa ? '<span class="mono">' + esc(sa) + '</span> ' : '') + '제출' : '');
+      subMeta = (first ? '<span>' + first + '</span>' : '') + (ap ? '<span>결재 ' + esc(ap) + '</span>' : '');
+    } else if (cdNow === 'CONFIRMED') {
+      const ap = str(d.approver_name).trim(), cb = str(d.confirmed_by_name).trim(), sb = str(d.submitted_by_name).trim();
+      subMeta = (sb ? '<span>제출 ' + esc(sb) + '</span>' : '') + (ap ? '<span>결재 ' + esc(ap) + '</span>' : '') + (cb ? '<span>' + esc(cb) + ' 확정</span>' : '');
+    }
     return '<button type="button" class="link-btn bd-m-back" id="bd-m-back" data-act="back">← 이사회 자료 목록</button>' +
       '<div class="bd-m-head"><h2 id="bd-m-title" tabindex="-1">' + esc(mat.titleOf(d)) + '</h2>' + mat.headBadgeHtml(d) + mat.resultBadgeHtml(d) + mat.headActsHtml(d, x) + '</div>' +
       '<div class="bd-m-meta"><span>' + meta1 + '</span><span>담당 ' + esc(mat.assigneesText(d)) + '</span>' +
-      (formName ? '<span>양식 ' + esc(formName) + '</span>' : '') + confirmMeta + '</div>' +
+      (formName ? '<span>양식 ' + esc(formName) + '</span>' : '') + subMeta + confirmMeta + '</div>' +
       mat.returnHtml(d) + str(x.rowHtml);
   };
   const TABS = [['write', '작성'], ['ver', '버전 이력'], ['hist', '작업 이력']];
@@ -853,20 +872,24 @@
       (str(s.note) ? '<p class="bd-m-snapnote">메모: ' + esc(s.note) + '</p>' : '') + mat.readOnlyHtml(s.form, s.tables);
   };
   mat.eventText = function (ev) {
+    const MASKED = '사유는 개인정보로 보이는 내용이 있어 표시하지 않습니다.';
     const nm = function (x) { return str(x) || '—'; };
     switch (str(ev && ev.event_cd)) {
       case 'CREATE': return '자료를 만들었습니다(준비 중)';
       case 'HANDOVER': return '작성본 인계: ' + nm(ev.from_name) + ' → ' + nm(ev.to_name);
       case 'SUBMIT': return '제출했습니다(결재 요청)';
       case 'WITHDRAW': return '제출을 회수했습니다(작성 중으로)';
-      case 'REJECT': return '제출이 반려되었습니다(작성 중으로)';   // 반려 의견은 결재 단계 행에 있다 — 이력 행에는 사유가 없다
+      case 'REJECT': {
+        const why = str(ev.reason).trim();
+        return '제출이 반려되었습니다(작성 중으로): ' + (why || MASKED);
+      }
       case 'CONFIRM': return '승인되어 확정되었습니다';
       case 'REWORK': {
         const why = str(ev.reason).trim();
         const wasConfirmed = str(ev.from_status) === 'CONFIRMED';
         const fr = str(ev.from_result_name).trim();
         const head = wasConfirmed ? '재작성 요구(확정 해제' + (fr ? ', 의결 결과 ' + fr + ' 지움' : '') + ')' : '재작성 요구';
-        return why ? head + ': ' + why : head;
+        return head + ': ' + (why || MASKED);
       }
       case 'RESULT': {
         const md = mat.dateOf(ev.meeting_date);
@@ -1276,7 +1299,7 @@
     function doSubmit() {
       if (!M) return;
       if (liveDirty() > 0) { openSubmit(); return; }   // 그 사이 고친 칸이 생겼으면 저장부터
-      doAct('submit');
+      doAct('submit', { snap: savedCount(M.data) });
     }
     function doResult() {
       if (!M || !M.ui.res) return;

@@ -1677,4 +1677,135 @@ public class BoardMaterialApiTest {
         assertEquals("PENDING", reqStatus(req));
         assertEquals("SUBMITTED", statusOf(id));
     }
+
+    // ── NEXT 66 ②: 제출 버전 고정·제출 정보·되돌림 정보·이력 사유·유형 목록 ──────────
+
+    private String userName(String emp) {
+        return jdbc.queryForObject("SELECT NAME FROM USERS WHERE EMP_NO=?", String.class, emp);
+    }
+
+    private JsonNode historyRow(long id, String emp, String event) throws Exception {
+        JsonNode found = null;
+        for (JsonNode h : json(read("/board-materials/" + id + "/history", emp))) {
+            if (event.equals(h.path("event_cd").asText())) {
+                found = h;   // 마지막 것
+            }
+        }
+        assertNotNull(event, found);
+        return found;
+    }
+
+    @Test
+    public void 제출은_화면의_버전이_지금과_다르면_409_SNAPSHOT_CHANGED_본문이_없으면_지금_버전() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER, MEMBER2);
+        long id = draftWithSnap(MEMBER, bc, 2026);                                        // v1
+        String[] c = cell(true);
+        save(id, MEMBER2, body(1, c[0], c[1], "6"), 201);                                  // 다른 담당자가 v2
+        MvcResult stale = act("/board-materials/" + id + "/submit", MEMBER, "{\"snap_no\":1}", "board_write", "submit");
+        assertEquals(text(stale), 409, stale.getResponse().getStatus());
+        assertEquals("SNAPSHOT_CHANGED", codeOf(stale));
+        assertEquals(2, json(stale).path("detail").path("current_snap").asInt());
+        assertEquals("DRAFT", statusOf(id));
+        assertEquals(0, logCount(id, "SUBMIT"));
+        assertEquals(400, act("/board-materials/" + id + "/submit", MEMBER, "{\"snap_no\":0}", "board_write", "submit").getResponse().getStatus());
+        assertEquals(400, act("/board-materials/" + id + "/submit", MEMBER, "{\"snap_no\":\"x\"}", "board_write", "submit").getResponse().getStatus());
+        MvcResult ok = act("/board-materials/" + id + "/submit", MEMBER, "{\"snap_no\":2}", "board_write", "submit");
+        assertEquals(text(ok), 201, ok.getResponse().getStatus());
+        assertEquals(2, json(ok).path("payload").path("snap_no").asInt());
+        assertEquals(2, count("SELECT SUBMIT_SNAP FROM BOARD_MATERIAL WHERE MATERIAL_ID=?", id));
+        assertEquals("ALREADY_SUBMITTED", codeOf(act("/board-materials/" + id + "/submit", MEMBER, "{\"snap_no\":1}", "board_write", "submit")));   // 상태 판정이 버전보다 먼저
+        // 본문 없음(Content-Type 도 없음) — 옛 화면 호환
+        String bc2 = newCase();
+        assign(bc2, MEMBER);
+        long id2 = draftWithSnap(MEMBER, bc2, 2026);
+        // 본문 없는 POST — 브라우저처럼 Content-Length: 0 (길이 없는 POST 는 쓰기 크기 필터가 411 로 막는다)
+        MvcResult nb = mockMvc.perform(as(post("/board-materials/" + id2 + "/submit").content(new byte[0])
+                .header("X-Screen-Id", "board_write").header("X-Button-Id", "submit"), MEMBER)).andReturn();
+        assertEquals(text(nb), 201, nb.getResponse().getStatus());
+    }
+
+    @Test
+    public void 상세와_검토에_제출_정보_결재자_확정한_사람이_이름으로_실린다() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = draftWithSnap(MEMBER, bc, 2026);
+        JsonNode d0 = detailJson(id, MEMBER);
+        assertTrue(d0.path("submit_snap").isNull());
+        assertTrue(d0.path("approver_name").isNull());
+        assertTrue(d0.path("confirmed_by_name").isNull());
+        long req = submit(id, MEMBER);
+        MvcResult dr = read("/board-materials/" + id, MEMBER);
+        JsonNode d = json(dr);
+        assertEquals(1, d.path("submit_snap").asInt());
+        assertEquals(userName(MEMBER), d.path("submitted_by_name").asText());
+        assertEquals(jdbc.queryForObject("SELECT CREATED_AT FROM APPROVAL_REQUEST WHERE REQ_ID=?", String.class, req),
+                d.path("submitted_at").asText());
+        assertEquals(userName(LEAD), d.path("approver_name").asText());
+        assertFalse(text(dr).contains("\"" + LEAD + "\""));                                // 결재자 사번은 싣지 않는다
+        assertEquals(userName(LEAD), json(review(id, LEAD)).path("approver_name").asText());
+        assertEquals(200, approveAs(req, LEAD).getResponse().getStatus());
+        JsonNode cf = detailJson(id, MEMBER);
+        assertEquals(userName(LEAD), cf.path("confirmed_by_name").asText());
+        assertFalse(cf.path("confirmed_at").isNull());
+        assertTrue(cf.path("submit_snap").isNull());
+        assertTrue(cf.path("approver_name").isNull());
+    }
+
+    @Test
+    public void last_return에_되돌리기_전_상태와_지워진_의결_결과가_실린다() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = draftWithSnap(MEMBER, bc, 2026);
+        String[] c = cell(true);
+        long req = submit(id, MEMBER);
+        assertEquals(200, reject(LEAD, req, "수치 재확인").getResponse().getStatus());
+        JsonNode lr = detailJson(id, MEMBER).path("last_return");
+        assertEquals("SUBMITTED", lr.path("from_status").asText());
+        assertTrue(lr.path("from_result_name").isNull());
+        save(id, MEMBER, body(1, c[0], c[1], "6"), 201);
+        long req2 = submit(id, MEMBER);
+        assertEquals(200, approveAs(req2, LEAD).getResponse().getStatus());
+        assertEquals(200, setResult(id, MEMBER, "{\"result\":\"PASSED\",\"meeting_date\":\"2026-12-01\"}").getResponse().getStatus());
+        assertEquals(200, rework(id, HEAD, "확정 뒤 재확인").getResponse().getStatus());
+        JsonNode lr2 = detailJson(id, MEMBER).path("last_return");
+        assertEquals("REWORK", lr2.path("event_cd").asText());
+        assertEquals("CONFIRMED", lr2.path("from_status").asText());
+        assertEquals(jdbc.queryForObject("SELECT CODE_NAME FROM COMMON_CODE WHERE CODE_GROUP='BOARD_RESULT' AND CODE='PASSED'", String.class),
+                lr2.path("from_result_name").asText());
+    }
+
+    @Test
+    public void 작업_이력의_반려_행에_의견이_보이고_옛_개인정보_모양은_반려_재작성_모두_가린다() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = draftWithSnap(MEMBER, bc, 2026);
+        String[] c = cell(true);
+        long req = submit(id, MEMBER);
+        assertEquals(200, reject(LEAD, req, "수치 재확인").getResponse().getStatus());
+        assertEquals("수치 재확인", historyRow(id, MEMBER, "REJECT").path("reason").asText());
+        save(id, MEMBER, body(1, c[0], c[1], "6"), 201);
+        submit(id, MEMBER);
+        assertEquals(200, rework(id, HEAD, "보완 요청").getResponse().getStatus());
+        assertEquals("보완 요청", historyRow(id, HEAD, "REWORK").path("reason").asText());
+        jdbc.update("UPDATE APPROVAL_STEP SET COMMENT_TEXT=? WHERE REQ_ID=? AND STATUS='REJECTED'", "010-0000-0000", req);   // 옛 데이터 가정
+        jdbc.update("UPDATE BOARD_MATERIAL_LOG SET REASON=? WHERE MATERIAL_ID=? AND EVENT_CD='REWORK'", "010-0000-0000", id);
+        flushCache();
+        assertTrue(historyRow(id, MEMBER, "REJECT").path("reason").isNull());
+        assertTrue(historyRow(id, MEMBER, "REWORK").path("reason").isNull());
+        assertFalse(text(read("/board-materials/" + id + "/history", HEAD)).contains("010-0000-0000"));
+    }
+
+    @Test
+    public void 결재_유형_목록에_구현되지_않은_이사회_최종_확정_자리가_없고_사전준비_유형은_그대로다() throws Exception {
+        boolean board = false, open = false, plan = false;
+        for (JsonNode t : json(readNoUi("/approval-requests/types", MEMBER)).path("types")) {
+            String k = t.path("key").asText();
+            assertFalse("BOARD_FINAL".equals(k));
+            board |= "BOARD_SUBMIT".equals(k);
+            open |= "BID_OPEN".equals(k);
+            plan |= "PREP_APPROVAL".equals(k);
+        }
+        assertTrue(board && open && plan);
+    }
 }

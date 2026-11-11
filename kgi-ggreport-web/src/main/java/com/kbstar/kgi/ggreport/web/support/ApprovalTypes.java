@@ -58,7 +58,6 @@ public final class ApprovalTypes {
     public static final List<Type> ALL = Collections.unmodifiableList(Arrays.asList(
             new Type(PERM_REQUEST, "권한 신청", true,
                     "신청자 → 상위 결재자(팀장) → (시스템 관리·결재 권한이 포함되면) 시스템 관리자 확인"),
-            new Type("BOARD_FINAL", "이사회 자료 최종 확정", false, "작성자 → 팀장 → 부장"),
             new Type("MATCH_MEMBERS", "과제 매칭 — 멤버 구성", false,
                     "요청 팀 → 상대 부서장(부서장 부재 시 팀장급 대결 가능)"),
             new Type("FINAL_SUBMIT", "최종 확인·제출 확정", false, "팀장 → 부장"),

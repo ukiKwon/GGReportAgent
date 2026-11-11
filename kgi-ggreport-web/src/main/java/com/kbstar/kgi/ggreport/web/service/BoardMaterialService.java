@@ -396,12 +396,27 @@ public class BoardMaterialService {
         public SysUser getApprover() { return approver; }
     }
 
-    /** 제출 검증: 보임(404) → 담당자(403) → 상태·버전(409) → 결재자(400 APPROVER_NOT_RESOLVED). */
+    /**
+     * 제출 검증: 보임(404) → 담당자(403) → 입력(400) → 상태·버전(409) → 결재자(400 APPROVER_NOT_RESOLVED).
+     * 상태·현재 버전은 자료 행을 <b>잠그며 다시 읽은 값</b>(현재 읽기)으로 판정한다. 앞의 selectOne 은 락 전에 읽혀 1차 캐시·RR 스냅샷이 낡을 수 있다.
+     * 이 잠금은 호출 트랜잭션(submitBoardMaterial) 끝까지 가므로 그 사이 다른 담당자의 버전 저장(updateCurSnap)은 이 행에서 기다린다 —
+     * 여기서 본 버전 = claimSubmit 이 선점하는 버전(claimSubmit 의 CUR_SNAP 조건은 그대로 두 번째 방어). 잠금 순서: 배정 머리 → 자료 행(applyConfirm·인계와 같다).
+     * snapNo(화면이 보여 준 버전)가 있고 지금 버전과 다르면 409 SNAPSHOT_CHANGED. null 이면 지금 버전(옛 화면 호환).
+     */
     @Transactional
-    public SubmitPlan planSubmit(String id, SysUser me) {
+    public SubmitPlan planSubmit(String id, SysUser me, Integer snapNo) {
         lockCaseOf(id);   // 락 먼저 — 같은 건의 담당 변경 승인과 직렬화. 락 뒤에야 배정을 처음 읽는다(1차 캐시가 낡은 배정을 돌려주지 않게)
         BoardMaterial m = loadVisible(me, id);
         requireWriter(me, m);
+        if (snapNo != null && (snapNo < 1 || snapNo > MAX_SNAPS)) {
+            throw coded(400, "BAD_REQUEST", "제출할 버전(snap_no)이 올바르지 않습니다.");
+        }
+        BoardMaterial live = mapper.lockSubmitRow(m.getMaterialId());
+        if (live == null) {
+            throw ApiException.notFound(NOT_FOUND);
+        }
+        m.setStatusCd(live.getStatusCd());   // 이후 판정·payload·claimSubmit 이 모두 잠근 값을 쓰게 덮는다
+        m.setCurSnap(live.getCurSnap());
         if (SUBMITTED.equals(m.getStatusCd())) {
             throw coded(409, "ALREADY_SUBMITTED", "이미 제출해 결재 중인 자료입니다.");
         }
@@ -410,6 +425,13 @@ public class BoardMaterialService {
         }
         if (!DRAFT.equals(m.getStatusCd()) || m.getCurSnap() < 1) {
             throw coded(409, "NO_SNAPSHOT", "저장한 버전이 있어야 제출할 수 있습니다. 먼저 '버전 저장'을 하세요.");
+        }
+        if (snapNo != null && snapNo.intValue() != m.getCurSnap()) {
+            Map<String, Object> d = new LinkedHashMap<>();
+            d.put("code", "SNAPSHOT_CHANGED");
+            d.put("message", "화면에서 본 버전 이후에 새 버전이 저장되어 제출하지 않았습니다. 새로 고쳐 최신 버전을 확인한 뒤 다시 제출해 주세요.");
+            d.put("current_snap", m.getCurSnap());   // 번호만 — 값·저장한 사람 없음
+            throw ApiException.withDetail(409, d);
         }
         boolean leadInvolved = BidAssignmentService.LEAD_ROLE.equals(BoardAccess.role(me))
                 || assignments.anyActiveLead(m.getBidCaseId());
@@ -638,7 +660,7 @@ public class BoardMaterialService {
             return;
         }
         SysUser actor = users.selectByEmpNo(actorEmp);
-        String body = "[결재 결과] " + m.getInstitutionName() + " " + m.getBoardYear() + "년 이사회 자료가 "
+        String body = (rework ? "[재작성 요구] " : "[결재 결과] ") + m.getInstitutionName() + " " + m.getBoardYear() + "년 이사회 자료가 "
                 + (rework ? "재작성 요구로 작성 중 상태로 돌아갔습니다" : "반려되어 작성 중 상태로 돌아갔습니다")
                 + ". 사유는 이사회 자료 화면에서 확인하세요.";
         for (String emp : to) {
@@ -671,24 +693,72 @@ public class BoardMaterialService {
         if (found == null) {
             return null;
         }
-        String reason = found.getReason();                       // REWORK: 부장이 쓴 사유(checkedText 통과분)
-        if ("REJECT".equals(found.getEventCd()) && found.getReqId() != null) {
-            for (ApprovalStep s : requests.selectSteps(found.getReqId())) {   // REJECT: 결재자 의견(≤500자)은 결재 단계 행에 있다
+        String reason = reasonOf(found);
+        Map<String, Object> x = new LinkedHashMap<>();
+        x.put("event_cd", found.getEventCd());
+        x.put("req_id", found.getReqId());
+        x.put("from_status", found.getFromStatus());              // SUBMITTED(결재 중에서) | CONFIRMED(확정에서, REWORK 만)
+        x.put("from_status_name", found.getFromStatusName());
+        x.put("from_result_name", found.getFromResultName());     // 확정에서 되돌릴 때 지워진 의결 결과 이름, 없으면 null
+        x.put("reason", reason);
+        x.put("actor_name", found.getActorName());
+        x.put("logged_at", found.getLoggedAt());
+        return x;
+    }
+
+    /**
+     * 이력 행의 사유 — REJECT 는 그 요청의 반려 단계 의견(APPROVAL_STEP.COMMENT_TEXT ≤500자, 반려 때 PII 422 검사됨),
+     * 그 외(REWORK 등)는 로그 REASON. 옛 데이터에 개인정보 모양이 있으면 null(lastReturn·작업 이력 공통, security S2 후속).
+     */
+    private String reasonOf(BoardMaterialLogView l) {
+        String reason = l.getReason();
+        if ("REJECT".equals(l.getEventCd()) && l.getReqId() != null) {
+            reason = null;
+            for (ApprovalStep s : requests.selectSteps(l.getReqId())) {
                 if ("REJECTED".equals(s.getStatus())) {
                     reason = s.getCommentText();
                 }
             }
         }
-        if (reason != null && !Pii.scanLoose(reason).isEmpty()) {
-            reason = null;                                       // 보안: 과거 데이터에 개인정보 모양이 있으면 노출하지 않는다
+        return reason != null && !Pii.scanLoose(reason).isEmpty() ? null : reason;
+    }
+
+    /**
+     * 제출·확정 정보(머리 메타·잠금 줄) — 이름·시각·버전 번호뿐(사번 없음). 키는 늘 있고 해당 없으면 null.
+     * SUBMITTED: 제출 버전, 제출한 사람(결재 요청 신청자), 제출 시각(요청 생성 시각), 지금 결재할 사람(현재 단계 PENDING 결재자 — BOARD_SUBMIT 은 대결 없음).
+     * CONFIRMED: 확정한 사람(confirmed_at·confirmed_snap 은 header 에 이미 있다).
+     */
+    private void putSubmission(Map<String, Object> out, BoardMaterial m) {
+        Integer snap = null;
+        String byName = null;
+        String at = null;
+        String approverName = null;
+        String confirmedByName = null;
+        if (SUBMITTED.equals(m.getStatusCd()) && m.getSubmitReqId() != null) {
+            snap = m.getSubmitSnap();
+            ApprovalRequest r = requests.selectById(m.getSubmitReqId());
+            if (r != null) {
+                byName = nameOf(r.getRequesterEmpNo());
+                at = r.getCreatedAt();
+                for (ApprovalStep s : requests.selectSteps(r.getReqId())) {
+                    if (s.getStepNo() == r.getCurrentStep() && "PENDING".equals(s.getStatus())) {
+                        approverName = nameOf(s.getApproverEmpNo());
+                    }
+                }
+            }
+        } else if (CONFIRMED.equals(m.getStatusCd())) {
+            confirmedByName = nameOf(m.getConfirmedBy());
         }
-        Map<String, Object> x = new LinkedHashMap<>();
-        x.put("event_cd", found.getEventCd());
-        x.put("req_id", found.getReqId());
-        x.put("reason", reason);
-        x.put("actor_name", found.getActorName());
-        x.put("logged_at", found.getLoggedAt());
-        return x;
+        out.put("submit_snap", snap);
+        out.put("submitted_by_name", byName);
+        out.put("submitted_at", at);
+        out.put("approver_name", approverName);
+        out.put("confirmed_by_name", confirmedByName);
+    }
+
+    private String nameOf(String emp) {
+        SysUser u = emp == null ? null : users.selectByEmpNo(emp);
+        return u == null ? null : u.getName();
     }
 
     private BoardMaterial loadVisible(SysUser me, String id) {
@@ -757,6 +827,7 @@ public class BoardMaterialService {
         if (DRAFT.equals(m.getStatusCd())) {
             out.put("last_return", lastReturn(m));
         }
+        putSubmission(out, m);
         out.put("form", forms.structureForStored(m.getFormId(), m.getFormVer()));
         return out;
     }
@@ -778,7 +849,7 @@ public class BoardMaterialService {
             x.put("to_emp_no", l.getToEmpNo());
             x.put("to_name", l.getToName());
             x.put("req_id", l.getReqId());
-            x.put("reason", l.getReason());
+            x.put("reason", reasonOf(l));
             x.put("actor_emp_no", l.getActorEmpNo());
             x.put("actor_name", l.getActorName());
             x.put("emp_verified", l.getEmpVerified() == 1);   // false = 자기신고(위조 가능)

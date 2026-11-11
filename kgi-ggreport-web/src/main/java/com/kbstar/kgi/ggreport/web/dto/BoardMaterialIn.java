@@ -40,6 +40,15 @@ public class BoardMaterialIn {
         public void setTables(List<BoardWriteIn.TableIn> v) { this.tables = v; }
     }
 
+    /** POST /board-materials/{id}/submit : {snap_no?} — 화면이 보여 준(제출 줄의) 버전. 없으면(본문 없음·{}) 현재 버전을 제출한다(옛 화면 호환). */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class Submit {
+        private Integer snapNo;
+
+        public Integer getSnapNo() { return snapNo; }
+        public void setSnapNo(Integer v) { this.snapNo = v; }
+    }
+
     /** POST /board-materials/{id}/rework : {reason} */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Rework {

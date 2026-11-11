@@ -51,6 +51,9 @@ public interface BoardMaterialMapper {
     int claimSubmit(@Param("id") Long id, @Param("snap") int snap, @Param("reqId") Long reqId,
                     @Param("by") String by, @Param("now") String now);
 
+    /** 제출 판정용 현재 읽기 — 상태·현재 버전만, 행을 잠근다(planSubmit, 배정 머리 잠금 뒤). 없으면 null. */
+    BoardMaterial lockSubmitRow(@Param("id") Long id);
+
     /** 승인: SUBMITTED 이고 그 요청이 선점 중일 때만 CONFIRMED. */
     int confirm(@Param("id") Long id, @Param("reqId") Long reqId, @Param("by") String by, @Param("now") String now);
 
@@ -81,9 +84,6 @@ public interface BoardMaterialMapper {
 
     /** 그 입찰 건에서 empNo 가 만들었거나 마지막으로 저장한 자료 번호 — 담당 해제 때 인계 이력 대상. 잠근다(security P3). */
     List<Long> selectInvolvedIds(@Param("bidCaseId") String bidCaseId, @Param("empNo") String empNo);
-
-    /** 그 사번이 이 자료의 제출 결재선(단계 결재자)에 있었는가 — 결재 경로 열람 판정. */
-    int countApprovalStep(@Param("id") Long id, @Param("empNo") String empNo);
 
     /** 그 사번이 이 결재 요청(현재 제출 회차)의 단계 결재자인가 — SUBMITTED 열람 판정(과거 회차 결재자 제외). */
     int countStepOfReq(@Param("reqId") Long reqId, @Param("empNo") String empNo);

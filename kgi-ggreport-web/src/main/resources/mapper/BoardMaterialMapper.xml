@@ -96,6 +96,11 @@
      WHERE MATERIAL_ID = #{id} AND CUR_SNAP = #{base} AND STATUS_CD IN ('PREP', 'DRAFT')
   </update>
 
+  <!-- 제출 판정용 현재 읽기(FOR UPDATE — RR 스냅샷이 아니라 최신 커밋 값). JOIN·집계 없이(Oracle FOR UPDATE 제약). 1차 캐시를 거치지 않게 flush. -->
+  <select id="lockSubmitRow" resultType="BoardMaterial" flushCache="true">
+    SELECT MATERIAL_ID, STATUS_CD, CUR_SNAP FROM BOARD_MATERIAL WHERE MATERIAL_ID = #{id} FOR UPDATE
+  </select>
+
   <update id="claimSubmit">
     UPDATE BOARD_MATERIAL SET STATUS_CD = 'SUBMITTED', SUBMIT_REQ_ID = #{reqId}, SUBMIT_SNAP = #{snap},
            UPDATED_BY = #{by}, UPDATED_AT = #{now}
@@ -176,11 +181,6 @@
      WHERE BID_CASE_ID = #{bidCaseId} AND (CREATED_BY = #{empNo} OR LAST_SAVED_BY = #{empNo})
      ORDER BY MATERIAL_ID
      FOR UPDATE
-  </select>
-
-  <select id="countApprovalStep" resultType="int">
-    SELECT COUNT(*) FROM BOARD_MATERIAL_LOG l JOIN APPROVAL_STEP s ON s.REQ_ID = l.REQ_ID
-     WHERE l.MATERIAL_ID = #{id} AND l.EVENT_CD = 'SUBMIT' AND s.APPROVER_EMP_NO = #{empNo}
   </select>
 
   <select id="countStepOfReq" resultType="int">

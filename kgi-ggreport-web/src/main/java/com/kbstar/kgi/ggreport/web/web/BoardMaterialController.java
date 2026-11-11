@@ -144,10 +144,16 @@ public class BoardMaterialController {
         return ResponseEntity.status(changed ? HttpStatus.CREATED : HttpStatus.OK).body(out);
     }
 
-    /** 제출(= 결재 상신, 팀장에게). 본문 없음. */
+    /**
+     * 제출(= 결재 상신, 팀장에게). 본문 {snap_no?} — 화면이 보여 준 버전. 지금 버전과 다르면 409 SNAPSHOT_CHANGED(detail.current_snap 번호만).
+     * 본문이 없거나 snap_no 가 없으면 지금 버전을 제출한다(옛 화면 호환). 접근 이력 detail 은 그대로(입력값 없음).
+     */
     @PostMapping("/{id}/submit")
-    public ResponseEntity<Map<String, Object>> submit(@PathVariable String id, HttpServletRequest req) {
-        Map<String, Object> out = run(req, id, "SUBMIT", true, me -> approvals.submitBoardMaterial(id, Actor.of(req)));
+    public ResponseEntity<Map<String, Object>> submit(@PathVariable String id,
+                                                      @RequestBody(required = false) BoardMaterialIn.Submit in,
+                                                      HttpServletRequest req) {
+        Integer snapNo = in == null ? null : in.getSnapNo();
+        Map<String, Object> out = run(req, id, "SUBMIT", true, me -> approvals.submitBoardMaterial(id, snapNo, Actor.of(req)));
         req.setAttribute(AccessLogInterceptor.DETAIL, "board-material id=" + id + " code=SUBMIT req=" + out.get("req_id"));
         return ResponseEntity.status(HttpStatus.CREATED).body(out);
     }

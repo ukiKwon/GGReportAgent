@@ -148,9 +148,9 @@ public class ApprovalRequestService {
      * 여기서는 요청·결재선 행을 만들고 자료를 SUBMITTED 로 선점한다. 선점 실패(409)는 이 트랜잭션이 롤백해 요청 행도 남지 않는다.
      */
     @Transactional
-    public Map<String, Object> submitBoardMaterial(String materialId, Actor actor) {
+    public Map<String, Object> submitBoardMaterial(String materialId, Integer snapNo, Actor actor) {
         SysUser me = callers.require(actor);
-        BoardMaterialService.SubmitPlan plan = materials.planSubmit(materialId, me);
+        BoardMaterialService.SubmitPlan plan = materials.planSubmit(materialId, me, snapNo);
         BoardMaterial m = plan.getMaterial();
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("material_id", m.getMaterialId());
