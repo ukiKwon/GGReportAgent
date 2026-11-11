@@ -3,6 +3,7 @@ package com.kbstar.kgi.ggreport.web.web;
 import com.kbstar.kgi.ggreport.web.config.AccessLogInterceptor;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.dto.BoardMaterialIn;
+import com.kbstar.kgi.ggreport.web.service.ApprovalRequestService;
 import com.kbstar.kgi.ggreport.web.service.BoardMaterialAudit;
 import com.kbstar.kgi.ggreport.web.service.BoardMaterialService;
 import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
@@ -38,11 +39,14 @@ public class BoardMaterialController {
     private final MenuGuard guard;
     private final BoardMaterialService service;
     private final BoardMaterialAudit audit;
+    private final ApprovalRequestService approvals;
 
-    public BoardMaterialController(MenuGuard guard, BoardMaterialService service, BoardMaterialAudit audit) {
+    public BoardMaterialController(MenuGuard guard, BoardMaterialService service, BoardMaterialAudit audit,
+                                   ApprovalRequestService approvals) {
         this.guard = guard;
         this.service = service;
         this.audit = audit;
+        this.approvals = approvals;
     }
 
     // ── 조회 ──
@@ -83,6 +87,12 @@ public class BoardMaterialController {
         return run(req, id, "HISTORY", false, me -> service.history(me, id));
     }
 
+    /** 결재 경로 열람(읽기 전용) — 결재선 팀장(결재 중 현재 요청·확정 뒤 확정한 사람), 영업부장(모든 상태). */
+    @GetMapping("/{id}/review")
+    public Map<String, Object> review(@PathVariable String id, HttpServletRequest req) {
+        return run(req, id, "REVIEW", false, me -> service.review(me, id));
+    }
+
     @GetMapping("/{id}/acts")
     public List<Map<String, Object>> acts(@PathVariable String id, HttpServletRequest req) {
         return run(req, id, "ACTS", false, me -> service.acts(me, id));
@@ -106,6 +116,40 @@ public class BoardMaterialController {
         req.setAttribute(AccessLogInterceptor.DETAIL, "board-material id=" + id + " code=" + (changed ? "SNAP" : "SNAP_SAME")
                 + " snap=" + out.get("snap_no"));
         return ResponseEntity.status(changed ? HttpStatus.CREATED : HttpStatus.OK).body(out);
+    }
+
+    /** 제출(= 결재 상신, 팀장에게). 본문 없음. */
+    @PostMapping("/{id}/submit")
+    public ResponseEntity<Map<String, Object>> submit(@PathVariable String id, HttpServletRequest req) {
+        Map<String, Object> out = run(req, id, "SUBMIT", true, me -> approvals.submitBoardMaterial(id, Actor.of(req)));
+        req.setAttribute(AccessLogInterceptor.DETAIL, "board-material id=" + id + " code=SUBMIT req=" + out.get("req_id"));
+        return ResponseEntity.status(HttpStatus.CREATED).body(out);
+    }
+
+    /** 회수 — 결재 전(PENDING)인 제출을 담당자가 거둔다. 본문 없음. */
+    @PostMapping("/{id}/withdraw")
+    public Map<String, Object> withdraw(@PathVariable String id, HttpServletRequest req) {
+        Map<String, Object> out = run(req, id, "WITHDRAW", true, me -> approvals.withdrawBoardSubmit(id, Actor.of(req)));
+        req.setAttribute(AccessLogInterceptor.DETAIL, "board-material id=" + id + " code=WITHDRAW");
+        return out;
+    }
+
+    /** 재작성 요구 — 영업부장. 본문 {reason}. */
+    @PostMapping("/{id}/rework")
+    public Map<String, Object> rework(@PathVariable String id, @RequestBody BoardMaterialIn.Rework in,
+                                      HttpServletRequest req) {
+        Map<String, Object> out = run(req, id, "REWORK", true, me -> approvals.reworkBoardMaterial(id, in, Actor.of(req)));
+        req.setAttribute(AccessLogInterceptor.DETAIL, "board-material id=" + id + " code=REWORK");
+        return out;
+    }
+
+    /** 의결 결과 변경 — 확정 뒤 담당자. 본문 {result, meeting_date?}. */
+    @PostMapping("/{id}/result")
+    public Map<String, Object> result(@PathVariable String id, @RequestBody BoardMaterialIn.Result in,
+                                      HttpServletRequest req) {
+        Map<String, Object> out = run(req, id, "RESULT", true, me -> service.changeResult(me, Actor.of(req), id, in));
+        req.setAttribute(AccessLogInterceptor.DETAIL, "board-material id=" + id + " code=RESULT to=" + out.get("result_cd"));
+        return out;
     }
 
     // ── 공통: 호출자 확인 + 화면·버튼 식별자 검증 + 확정 건 감사 기록 + 403 DENIED 기록 ──

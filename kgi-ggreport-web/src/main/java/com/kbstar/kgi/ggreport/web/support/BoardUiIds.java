@@ -22,7 +22,7 @@ public final class BoardUiIds {
             "board_list", "board_write", "board_review", "approvals_inbox", "approvals_mine")));
     public static final Set<String> BUTTONS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             "open", "refresh", "create", "save_version", "submit", "withdraw", "rework", "result_save",
-            "snapshot_open", "history_open", "review_open", "acts_open")));
+            "snapshot_open", "history_open", "review_open", "acts_open", "approve", "reject", "cancel_request")));
 
     private BoardUiIds() {
     }
@@ -41,6 +41,11 @@ public final class BoardUiIds {
         public String getScreen() { return screen; }
         public String getButton() { return button; }
         public boolean isValid() { return valid; }
+    }
+
+    /** 요청이 없는 경로(후처리 등)용 — UNKNOWN·ui_valid=false. */
+    public static Ui unknown() {
+        return new Ui(UNKNOWN, UNKNOWN, false);
     }
 
     public static Ui of(HttpServletRequest req) {

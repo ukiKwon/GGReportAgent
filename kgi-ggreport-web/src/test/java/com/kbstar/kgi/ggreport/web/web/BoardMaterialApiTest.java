@@ -1042,4 +1042,458 @@ public class BoardMaterialApiTest {
             assertFalse(emp, text(r).contains(M3 + "\",\"from"));   // 인수자·해제자가 다른 경로로 새지 않는다(HANDOVER 행째 없음)
         }
     }
+
+    // ── 020b 도우미 ──────────────────────────────────────────────────
+
+    private MvcResult act(String path, String emp, String body, String screen, String button) throws Exception {
+        return mockMvc.perform(as(post(path).contentType(MediaType.APPLICATION_JSON).content(body)
+                .header("X-Screen-Id", screen).header("X-Button-Id", button), emp)).andReturn();
+    }
+
+    private MvcResult actGet(String path, String emp, String screen, String button) throws Exception {
+        return mockMvc.perform(as(get(path).header("X-Screen-Id", screen).header("X-Button-Id", button), emp)).andReturn();
+    }
+
+    private MvcResult review(long id, String emp) throws Exception {
+        return actGet("/board-materials/" + id + "/review", emp, "board_review", "review_open");
+    }
+
+    private long draftWithSnap(String emp, String bc, int year) throws Exception {
+        long id = create(emp, bc, year);
+        String[] c = cell(true);
+        save(id, emp, body(0, c[0], c[1], "5"), 201);
+        return id;
+    }
+
+    private long submit(long id, String emp) throws Exception {
+        MvcResult r = act("/board-materials/" + id + "/submit", emp, "{}", "board_write", "submit");
+        assertEquals(text(r), 201, r.getResponse().getStatus());
+        return json(r).path("req_id").asLong();
+    }
+
+    private MvcResult approveAs(long req, String emp) throws Exception {
+        return act("/approval-requests/" + req + "/decide", emp, "{\"decision\":\"APPROVE\"}", "approvals_inbox", "approve");
+    }
+
+    private MvcResult reject(String emp, long req, String comment) throws Exception {
+        return act("/approval-requests/" + req + "/decide", emp,
+                "{\"decision\":\"REJECT\",\"comment\":\"" + comment + "\"}", "approvals_inbox", "reject");
+    }
+
+    private MvcResult rework(long id, String emp, String reason) throws Exception {
+        return act("/board-materials/" + id + "/rework", emp, "{\"reason\":\"" + reason + "\"}", "board_review", "rework");
+    }
+
+    private MvcResult withdraw(long id, String emp) throws Exception {
+        return act("/board-materials/" + id + "/withdraw", emp, "{}", "board_write", "withdraw");
+    }
+
+    private MvcResult setResult(long id, String emp, String json) throws Exception {
+        return act("/board-materials/" + id + "/result", emp, json, "board_write", "result_save");
+    }
+
+    /** 제출(담당자) → 결재자 승인까지 마쳐 확정된 자료 번호. 호출 전에 담당 배정이 끝나 있어야 한다. */
+    private long confirmedMaterial(String bc, int year, String submitter, String approver) throws Exception {
+        long id = draftWithSnap(submitter, bc, year);
+        long req = submit(id, submitter);
+        MvcResult r = approveAs(req, approver);
+        assertEquals(text(r), 200, r.getResponse().getStatus());
+        assertEquals("CONFIRMED", statusOf(id));
+        return id;
+    }
+
+    private String statusOf(long id) {
+        return jdbc.queryForObject("SELECT STATUS_CD FROM BOARD_MATERIAL WHERE MATERIAL_ID=?", String.class, id);
+    }
+
+    private String reqStatus(long req) {
+        return jdbc.queryForObject("SELECT STATUS FROM APPROVAL_REQUEST WHERE REQ_ID=?", String.class, req);
+    }
+
+    private int logCount(long id, String event) {
+        return count("SELECT COUNT(*) FROM BOARD_MATERIAL_LOG WHERE MATERIAL_ID=? AND EVENT_CD=?", id, event);
+    }
+
+    private JsonNode detailJson(long id, String emp) throws Exception {
+        return json(read("/board-materials/" + id, emp));
+    }
+
+    private String codeOf(MvcResult r) throws Exception {
+        return om.readTree(text(r)).path("detail").path("code").asText();
+    }
+
+    // ── 020b: 제출·결재·회수·반려·재작성·결과 ─────────────────────────
+
+    @Test
+    public void 제출_승인_확정_결과변경_전체_흐름() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = draftWithSnap(MEMBER, bc, 2026);
+        String[] c = cell(true);
+        assertTrue(detailJson(id, MEMBER).path("viewer").path("can_submit").asBoolean());
+        long req = submit(id, MEMBER);
+        assertEquals("SUBMITTED", statusOf(id));
+        assertEquals(1, count("SELECT COUNT(*) FROM APPROVAL_REQUEST WHERE REQ_ID=? AND REQ_TYPE='BOARD_SUBMIT'", req));
+        assertEquals(1, count("SELECT COUNT(*) FROM APPROVAL_STEP WHERE REQ_ID=?", req));
+        assertEquals(LEAD, jdbc.queryForObject("SELECT APPROVER_EMP_NO FROM APPROVAL_STEP WHERE REQ_ID=?", String.class, req));
+        assertEquals(1, logCount(id, "SUBMIT"));
+        assertEquals(1, count("SELECT SUBMIT_SNAP FROM BOARD_MATERIAL WHERE MATERIAL_ID=?", id));
+        MvcResult again = act("/board-materials/" + id + "/submit", MEMBER, "{}", "board_write", "submit");
+        assertEquals(409, again.getResponse().getStatus());
+        assertEquals("ALREADY_SUBMITTED", codeOf(again));
+        MvcResult locked = send("/board-materials/" + id + "/snapshots", MEMBER, body(1, c[0], c[1], "6"));
+        assertEquals(409, locked.getResponse().getStatus());
+        assertEquals("MATERIAL_LOCKED", codeOf(locked));
+        MvcResult rv = review(id, LEAD);                                     // 결재선 팀장 열람(읽기 전용)
+        assertEquals(text(rv), 200, rv.getResponse().getStatus());
+        assertTrue(json(rv).path("snapshot").path("tables").size() > 0);
+        assertFalse(json(rv).path("viewer").path("can_rework").asBoolean());
+        assertEquals(req, json(rv).path("viewer").path("pending_req_id").asLong());
+        assertEquals(404, read("/board-materials/" + id, LEAD).getResponse().getStatus());   // 담당이 아니므로 detail 은 404
+        MvcResult ok = approveAs(req, LEAD);
+        assertEquals(text(ok), 200, ok.getResponse().getStatus());
+        assertEquals("CONFIRMED", statusOf(id));
+        assertEquals(1, count("SELECT CONFIRMED_SNAP FROM BOARD_MATERIAL WHERE MATERIAL_ID=?", id));
+        Map<String, Object> confirm = jdbc.queryForMap(
+                "SELECT OUTCOME, STATUS_CD, SCREEN_ID, BUTTON_ID, UI_VALID, ACTOR_EMP_NO FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='CONFIRM'", id);
+        assertEquals("OK", confirm.get("OUTCOME"));
+        assertEquals("SUBMITTED", confirm.get("STATUS_CD"));                // 행위 직전 상태(security S9)
+        assertEquals("approvals_inbox", confirm.get("SCREEN_ID"));
+        assertEquals("approve", confirm.get("BUTTON_ID"));
+        assertEquals(1, ((Number) confirm.get("UI_VALID")).intValue());
+        assertEquals(LEAD, confirm.get("ACTOR_EMP_NO"));
+        assertEquals(200, review(id, LEAD).getResponse().getStatus());       // 확정한 사람은 확정 뒤에도 열람
+        assertEquals("MATERIAL_LOCKED", codeOf(send("/board-materials/" + id + "/snapshots", MEMBER, body(1, c[0], c[1], "6"))));
+        assertEquals("BLOCKED", jdbc.queryForObject(
+                "SELECT OUTCOME FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='SAVE'", String.class, id));
+        MvcResult res1 = setResult(id, MEMBER, "{\"result\":\"PASSED\",\"meeting_date\":\"2026-12-01\"}");
+        assertEquals(text(res1), 200, res1.getResponse().getStatus());
+        assertEquals("PASSED", json(res1).path("result_cd").asText());
+        assertEquals(1, logCount(id, "RESULT"));
+        MvcResult res2 = setResult(id, MEMBER, "{\"result\":\"REJECTED\"}");
+        assertEquals(text(res2), 200, res2.getResponse().getStatus());
+        assertEquals("REJECTED", json(res2).path("result_cd").asText());
+        assertEquals(2, logCount(id, "RESULT"));
+        Map<String, Object> rvAct = jdbc.queryForMap(
+                "SELECT OUTCOME, SCREEN_ID, BUTTON_ID, ACTOR_EMP_NO FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='REVIEW'", id);
+        assertEquals("OK", rvAct.get("OUTCOME"));
+        assertEquals("board_review", rvAct.get("SCREEN_ID"));
+        assertEquals("review_open", rvAct.get("BUTTON_ID"));
+        assertEquals(LEAD, rvAct.get("ACTOR_EMP_NO"));
+    }
+
+    @Test
+    public void 회수는_담당자_누구나_결재중에만_회수하면_다시_작성() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER, MEMBER2);
+        long id = draftWithSnap(MEMBER, bc, 2026);
+        String[] c = cell(true);
+        long req = submit(id, MEMBER);
+        MvcResult w = withdraw(id, MEMBER2);                                 // 다른 담당자도 회수 가능
+        assertEquals(text(w), 200, w.getResponse().getStatus());
+        assertEquals("DRAFT", json(w).path("status_cd").asText());
+        assertEquals("CANCELLED", reqStatus(req));
+        assertEquals(1, logCount(id, "WITHDRAW"));
+        save(id, MEMBER2, body(1, c[0], c[1], "6"), 201);
+        assertEquals(404, review(id, LEAD).getResponse().getStatus());       // DRAFT 는 결재선 팀장도 못 본다
+        MvcResult w2 = withdraw(id, MEMBER);
+        assertEquals(409, w2.getResponse().getStatus());
+        assertEquals("NOT_SUBMITTED", codeOf(w2));
+        assertEquals(409, approveAs(req, LEAD).getResponse().getStatus());   // 회수된 요청은 결재할 수 없다
+        submit(id, MEMBER);
+        assertEquals(404, withdraw(id, M4).getResponse().getStatus());       // 담당이 아닌 영업팀원
+        assertEquals(404, withdraw(id, LEAD).getResponse().getStatus());     // 담당이 아닌 영업팀장
+        assertEquals("SUBMITTED", statusOf(id));
+    }
+
+    @Test
+    public void 팀장_반려는_작성중으로_사유가_보이고_고쳐_다시_제출() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = draftWithSnap(MEMBER, bc, 2026);
+        String[] c = cell(true);
+        long req = submit(id, MEMBER);
+        assertEquals(400, reject(LEAD, req, "").getResponse().getStatus());   // 반려는 의견 필수
+        MvcResult rj = reject(LEAD, req, "수치 재확인");
+        assertEquals(text(rj), 200, rj.getResponse().getStatus());
+        assertEquals("REJECTED", reqStatus(req));
+        assertEquals("DRAFT", statusOf(id));
+        assertEquals(1, logCount(id, "REJECT"));
+        JsonNode lr = detailJson(id, MEMBER).path("last_return");
+        assertEquals("REJECT", lr.path("event_cd").asText());
+        assertEquals("수치 재확인", lr.path("reason").asText());
+        save(id, MEMBER, body(1, c[0], c[1], "6"), 201);
+        long req2 = submit(id, MEMBER);
+        assertTrue(req2 != req);
+        JsonNode during = detailJson(id, MEMBER).path("last_return");        // 결재 중에는 항목 자체가 없다
+        assertTrue(during.isMissingNode() || during.isNull());
+        MvcResult w = withdraw(id, MEMBER);
+        assertEquals(200, w.getResponse().getStatus());
+        assertTrue(detailJson(id, MEMBER).path("last_return").isNull());     // 다시 제출한 뒤의 회수는 되돌림이 아니다
+        long req3 = submit(id, MEMBER);
+        assertEquals(200, approveAs(req3, LEAD).getResponse().getStatus());
+        assertEquals("CONFIRMED", statusOf(id));
+    }
+
+    @Test
+    public void 영업부장_재작성_요구는_결재중_확정_모두_가능_준비중_작성중은_409() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = draftWithSnap(MEMBER, bc, 2026);
+        String[] c = cell(true);
+        long req = submit(id, MEMBER);
+        // ⓔ 사유 검증(결재 중일 때)
+        assertEquals(400, rework(id, HEAD, "").getResponse().getStatus());
+        assertEquals(400, rework(id, HEAD, rep('가', 201)).getResponse().getStatus());
+        assertEquals(422, rework(id, HEAD, "010-0000-0000").getResponse().getStatus());
+        assertEquals("SUBMITTED", statusOf(id));
+        // ⓓ 영업부장이 아니면 403
+        for (String emp : new String[]{LEAD, MEMBER, ADMIN}) {
+            assertEquals(emp, 403, rework(id, emp, "수치 재확인").getResponse().getStatus());
+        }
+        // ⓐ 결재 중 재작성 요구
+        MvcResult rw = rework(id, HEAD, "수치 재확인");
+        assertEquals(text(rw), 200, rw.getResponse().getStatus());
+        assertEquals("DRAFT", json(rw).path("status_cd").asText());
+        assertEquals("REJECTED", reqStatus(req));
+        assertEquals(HEAD, jdbc.queryForObject("SELECT ACTED_BY FROM APPROVAL_STEP WHERE REQ_ID=? AND STATUS='REJECTED'", String.class, req));
+        assertEquals(1, logCount(id, "REWORK"));
+        assertEquals("수치 재확인", jdbc.queryForObject(
+                "SELECT REASON FROM BOARD_MATERIAL_LOG WHERE MATERIAL_ID=? AND EVENT_CD='REWORK'", String.class, id));
+        JsonNode lr = detailJson(id, MEMBER).path("last_return");
+        assertEquals("REWORK", lr.path("event_cd").asText());
+        assertEquals("수치 재확인", lr.path("reason").asText());
+        // ⓕ 재작성 요구로 끝난 요청은 더 결재할 수 없다
+        assertEquals(409, approveAs(req, LEAD).getResponse().getStatus());
+        // ⓒ 작성 중(DRAFT)에는 요구할 것이 없다
+        MvcResult na = rework(id, HEAD, "수치 재확인");
+        assertEquals(409, na.getResponse().getStatus());
+        assertEquals("NOT_APPLICABLE", codeOf(na));
+        // ⓑ 확정(결과·개최일 입력 뒤)에서도 가능 — 결과·개최일·확정 정보는 비워진다
+        save(id, MEMBER, body(1, c[0], c[1], "7"), 201);
+        long req2 = submit(id, MEMBER);
+        assertEquals(200, approveAs(req2, LEAD).getResponse().getStatus());
+        assertEquals(200, setResult(id, MEMBER, "{\"result\":\"PASSED\",\"meeting_date\":\"2026-12-01\"}").getResponse().getStatus());
+        MvcResult rw2 = rework(id, HEAD, "확정 뒤 재확인");
+        assertEquals(text(rw2), 200, rw2.getResponse().getStatus());
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT STATUS_CD, RESULT_CD, MEETING_DATE, CONFIRMED_SNAP FROM BOARD_MATERIAL WHERE MATERIAL_ID=?", id);
+        assertEquals("DRAFT", row.get("STATUS_CD"));
+        assertEquals(null, row.get("RESULT_CD"));
+        assertEquals(null, row.get("MEETING_DATE"));
+        assertEquals(null, row.get("CONFIRMED_SNAP"));
+        Map<String, Object> act = jdbc.queryForMap(
+                "SELECT OUTCOME, STATUS_CD FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='REWORK'", id);
+        assertEquals("OK", act.get("OUTCOME"));
+        assertEquals("CONFIRMED", act.get("STATUS_CD"));                     // 행위 직전 상태
+        boolean sawFromResult = false;
+        for (JsonNode h : json(read("/board-materials/" + id + "/history", MEMBER))) {
+            if ("REWORK".equals(h.path("event_cd").asText()) && !h.path("from_result_name").isNull()) {
+                sawFromResult = true;                                         // 지워진 결과는 이력에 남는다
+            }
+        }
+        assertTrue(sawFromResult);
+    }
+
+    @Test
+    public void 결과_변경은_확정_뒤_담당자만_감사에_남는다() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = create(MEMBER, bc, 2026);
+        String json = "{\"result\":\"PASSED\",\"meeting_date\":\"2026-12-01\"}";
+        MvcResult prep = setResult(id, MEMBER, json);                         // PREP
+        assertEquals(409, prep.getResponse().getStatus());
+        assertEquals("NOT_CONFIRMED", codeOf(prep));
+        String[] c = cell(true);
+        save(id, MEMBER, body(0, c[0], c[1], "5"), 201);
+        assertEquals("NOT_CONFIRMED", codeOf(setResult(id, MEMBER, json)));   // DRAFT
+        long req = submit(id, MEMBER);
+        assertEquals("NOT_CONFIRMED", codeOf(setResult(id, MEMBER, json)));   // SUBMITTED
+        assertEquals(200, approveAs(req, LEAD).getResponse().getStatus());
+        MvcResult noDate = setResult(id, MEMBER, "{\"result\":\"SCHEDULED\"}");
+        assertEquals(400, noDate.getResponse().getStatus());
+        assertEquals("MEETING_DATE_REQUIRED", codeOf(noDate));
+        assertEquals(400, setResult(id, MEMBER, "{\"result\":\"XX\"}").getResponse().getStatus());
+        assertEquals(400, setResult(id, MEMBER, "{\"result\":\"PASSED\",\"meeting_date\":\"2026-13-45\"}").getResponse().getStatus());
+        assertEquals(404, setResult(id, M4, json).getResponse().getStatus());   // 담당이 아닌 영업팀원
+        assertEquals(403, setResult(id, HEAD, json).getResponse().getStatus()); // 부장은 읽기 전용
+        assertEquals("DENIED", jdbc.queryForObject(
+                "SELECT OUTCOME FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='RESULT' AND ACTOR_EMP_NO=?", String.class, id, HEAD));
+        MvcResult noUi = sendNoUi("/board-materials/" + id + "/result", MEMBER, json);
+        assertEquals(400, noUi.getResponse().getStatus());
+        assertEquals("UI_ID_REQUIRED", codeOf(noUi));
+        assertEquals(null, jdbc.queryForMap("SELECT RESULT_CD FROM BOARD_MATERIAL WHERE MATERIAL_ID=?", id).get("RESULT_CD"));
+        assertEquals(200, setResult(id, MEMBER, json).getResponse().getStatus());
+        Map<String, Object> ok = jdbc.queryForMap(
+                "SELECT OUTCOME, SCREEN_ID, BUTTON_ID FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='RESULT' AND ACTOR_EMP_NO=? AND OUTCOME='OK'", id, MEMBER);
+        assertEquals("OK", ok.get("OUTCOME"));
+        assertEquals("board_write", ok.get("SCREEN_ID"));
+        assertEquals("result_save", ok.get("BUTTON_ID"));
+    }
+
+    @Test
+    public void 제출_검증_버전없음_확정_PREP() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long prep = create(MEMBER, bc, 2026);
+        MvcResult np = act("/board-materials/" + prep + "/submit", MEMBER, "{}", "board_write", "submit");
+        assertEquals(409, np.getResponse().getStatus());
+        assertEquals("NO_SNAPSHOT", codeOf(np));
+        long done = confirmedMaterial(bc, 2025, MEMBER, LEAD);
+        MvcResult locked = act("/board-materials/" + done + "/submit", MEMBER, "{}", "board_write", "submit");
+        assertEquals(409, locked.getResponse().getStatus());
+        assertEquals("MATERIAL_LOCKED", codeOf(locked));
+        long draft = draftWithSnap(MEMBER, bc, 2024);
+        assertEquals(403, act("/board-materials/" + draft + "/submit", HEAD, "{}", "board_write", "submit").getResponse().getStatus());
+        assertEquals(404, act("/board-materials/" + draft + "/submit", M4, "{}", "board_write", "submit").getResponse().getStatus());
+        MvcResult noUi = sendNoUi("/board-materials/" + draft + "/submit", MEMBER, "{}");
+        assertEquals(400, noUi.getResponse().getStatus());
+        assertEquals("UI_ID_REQUIRED", codeOf(noUi));
+        assertEquals("DRAFT", statusOf(draft));
+    }
+
+    @Test
+    public void 본인_결재_금지와_팀장_관련은_부장_결재() throws Exception {
+        String bc = newCase();
+        assign(bc, LEAD);                                                    // 영업팀장 단독 담당
+        long id = draftWithSnap(LEAD, bc, 2026);
+        long req = submit(id, LEAD);
+        assertEquals(HEAD, jdbc.queryForObject("SELECT APPROVER_EMP_NO FROM APPROVAL_STEP WHERE REQ_ID=?", String.class, req));
+        assertEquals(403, approveAs(req, LEAD).getResponse().getStatus());   // 본인 요청 금지
+        assertEquals(200, approveAs(req, HEAD).getResponse().getStatus());
+        assertEquals("CONFIRMED", statusOf(id));
+        String bc2 = newCase();
+        assign(bc2, MEMBER, LEAD);                                           // 팀장이 담당에 끼면 부장이 결재
+        long id2 = draftWithSnap(MEMBER, bc2, 2026);
+        long req2 = submit(id2, MEMBER);
+        assertEquals(HEAD, jdbc.queryForObject("SELECT APPROVER_EMP_NO FROM APPROVAL_STEP WHERE REQ_ID=?", String.class, req2));
+        assertEquals(403, approveAs(req2, LEAD).getResponse().getStatus());
+        MvcResult adminCancel = act("/approval-requests/" + req2 + "/cancel", ADMIN, "{}", "approvals_mine", "cancel_request");
+        assertEquals(403, adminCancel.getResponse().getStatus());            // 관리자도 취소 불가
+        MvcResult all = readNoUi("/approval-requests?box=all", ADMIN);
+        assertEquals(200, all.getResponse().getStatus());
+        assertFalse(text(all).contains("BOARD_SUBMIT"));                     // 관리자 전체 목록에서 제외
+        MvcResult own = act("/approval-requests/" + req2 + "/cancel", MEMBER, "{}", "approvals_mine", "cancel_request");
+        assertEquals(text(own), 200, own.getResponse().getStatus());
+        assertEquals("DRAFT", statusOf(id2));
+        assertEquals(1, logCount(id2, "WITHDRAW"));
+    }
+
+    @Test
+    public void 결재선_팀장_열람은_결재중_확정에만_부장은_모든_상태_그_밖은_404() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = draftWithSnap(MEMBER, bc, 2026);
+        assertEquals(404, review(id, LEAD).getResponse().getStatus());       // DRAFT
+        MvcResult headDraft = review(id, HEAD);                              // 부장은 모든 상태
+        assertEquals(200, headDraft.getResponse().getStatus());
+        assertFalse(json(headDraft).path("viewer").path("can_rework").asBoolean());
+        long req1 = submit(id, MEMBER);
+        assertEquals(200, review(id, LEAD).getResponse().getStatus());       // SUBMITTED, 현재 요청의 결재자
+        assertTrue(json(review(id, HEAD)).path("viewer").path("can_rework").asBoolean());
+        assertEquals(200, withdraw(id, MEMBER).getResponse().getStatus());
+        assertEquals(404, review(id, LEAD).getResponse().getStatus());       // 회수로 DRAFT
+        long req2 = submit(id, MEMBER);
+        assertTrue(req2 != req1);
+        jdbc.update("UPDATE APPROVAL_STEP SET APPROVER_EMP_NO=? WHERE REQ_ID=?", HEAD, req2);   // 이번 회차 결재자는 부장(LEAD 는 지난 회차 결재자)
+        flushCache();
+        assertEquals(404, review(id, LEAD).getResponse().getStatus());       // 과거 회차 결재자는 못 본다
+        assertEquals(200, approveAs(req2, HEAD).getResponse().getStatus());
+        assertEquals("CONFIRMED", statusOf(id));
+        assertEquals(404, review(id, LEAD).getResponse().getStatus());       // 확정한 사람이 아니면 못 본다
+        MvcResult headDone = review(id, HEAD);
+        assertEquals(200, headDone.getResponse().getStatus());
+        assertTrue(json(headDone).path("viewer").path("can_rework").asBoolean());
+        assertEquals(404, review(id, DESIGNER).getResponse().getStatus());
+        assertEquals(404, review(id, ADMIN).getResponse().getStatus());
+        assertEquals(401, review(id, null).getResponse().getStatus());
+    }
+
+    @Test
+    public void 확정_건_acts는_열람자별로_보이고_값은_없다() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = confirmedMaterial(bc, 2026, MEMBER, LEAD);
+        for (String emp : new String[]{MEMBER, HEAD, LEAD}) {
+            MvcResult r = actGet("/board-materials/" + id + "/acts", emp, "board_review", "acts_open");
+            assertEquals(emp, 200, r.getResponse().getStatus());
+            assertFalse(emp, text(r).contains("snapshot"));
+            assertFalse(emp, text(r).contains("reason"));
+        }
+        assertEquals(404, actGet("/board-materials/" + id + "/acts", M4, "board_review", "acts_open").getResponse().getStatus());
+        for (String col : jdbc.queryForList("SELECT * FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=?", id).get(0).keySet()) {
+            String u = col.toUpperCase();
+            assertFalse(col, u.contains("VALUE") || u.contains("REASON") || u.contains("NOTE") || u.contains("BODY"));
+        }
+    }
+
+    @Test
+    public void 결재_유형_목록에_이사회_자료_제출이_있다() throws Exception {
+        MvcResult r = readNoUi("/approval-requests/types", MEMBER);
+        assertEquals(200, r.getResponse().getStatus());
+        boolean found = false;
+        for (JsonNode t : json(r).path("types")) {
+            if ("BOARD_SUBMIT".equals(t.path("key").asText())) {
+                found = true;
+                assertTrue(t.path("submittable").asBoolean());
+            }
+        }
+        assertTrue(found);
+    }
+
+    // ── 020b 보안 검토 반영(S1·S2·S4·S5②) ───────────────────────────
+
+    @Test
+    public void 반려_의견의_개인정보는_422_제어문자는_400_표시_때_옛_개인정보_사유는_가린다() throws Exception {   // security S2
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = draftWithSnap(MEMBER, bc, 2026);
+        long req = submit(id, MEMBER);
+        assertEquals(422, reject(LEAD, req, "010-0000-0000").getResponse().getStatus());
+        assertEquals(400, reject(LEAD, req, "x\\u0007y").getResponse().getStatus());
+        MvcResult okPii = act("/approval-requests/" + req + "/decide", LEAD,
+                "{\"decision\":\"APPROVE\",\"comment\":\"010-0000-0000\"}", "approvals_inbox", "approve");
+        assertEquals(422, okPii.getResponse().getStatus());
+        assertEquals("PENDING", reqStatus(req));
+        assertEquals("SUBMITTED", statusOf(id));
+        assertEquals(200, reject(LEAD, req, "수치 재확인").getResponse().getStatus());
+        jdbc.update("UPDATE APPROVAL_STEP SET COMMENT_TEXT=? WHERE REQ_ID=? AND STATUS='REJECTED'", "010-0000-0000", req);   // 옛 데이터 가정
+        flushCache();
+        JsonNode lr = detailJson(id, MEMBER).path("last_return");
+        assertEquals("REJECT", lr.path("event_cd").asText());
+        assertTrue(lr.path("reason").isNull());
+    }
+
+    @Test
+    public void 승인_순간의_감사_행은_같은_트랜잭션에_행위_직전_상태_화면_버튼과_함께_남는다_헤더가_없으면_UNKNOWN() throws Exception {   // security S1·S9
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = draftWithSnap(MEMBER, bc, 2026);
+        long req = submit(id, MEMBER);
+        MvcResult r = sendNoUi("/approval-requests/" + req + "/decide", LEAD, "{\"decision\":\"APPROVE\"}");
+        assertEquals(text(r), 200, r.getResponse().getStatus());
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT OUTCOME, STATUS_CD, SCREEN_ID, BUTTON_ID, UI_VALID, ACTOR_EMP_NO FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='CONFIRM'", id);
+        assertEquals("OK", row.get("OUTCOME"));
+        assertEquals("SUBMITTED", row.get("STATUS_CD"));
+        assertEquals("UNKNOWN", row.get("SCREEN_ID"));
+        assertEquals("UNKNOWN", row.get("BUTTON_ID"));
+        assertEquals(0, ((Number) row.get("UI_VALID")).intValue());
+        assertEquals(LEAD, row.get("ACTOR_EMP_NO"));
+    }
+
+    @Test
+    public void 담당에서_빠진_신청자의_결재_취소는_막힌다() throws Exception {   // security S5②
+        String bc = newCase();
+        assign(bc, MEMBER, MEMBER2);
+        long id = draftWithSnap(MEMBER, bc, 2026);
+        long req = submit(id, MEMBER);
+        long change = requestChange(LEAD, bc, new String[]{M3}, new String[]{MEMBER});
+        assertEquals(200, decide(HEAD, change).getResponse().getStatus());   // MEMBER 는 더 이상 담당이 아니다
+        MvcResult c = act("/approval-requests/" + req + "/cancel", MEMBER, "{}", "approvals_mine", "cancel_request");
+        int st = c.getResponse().getStatus();
+        assertTrue(text(c), st == 403 || st == 404);
+        assertEquals("PENDING", reqStatus(req));
+        assertEquals("SUBMITTED", statusOf(id));
+    }
 }

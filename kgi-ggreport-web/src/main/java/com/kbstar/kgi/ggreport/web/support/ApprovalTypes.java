@@ -20,10 +20,11 @@ public final class ApprovalTypes {
 
     public static final String PERM_REQUEST = "PERM_REQUEST";
     public static final String ASSIGNEE_CHANGE = "ASSIGNEE_CHANGE";
+    public static final String BOARD_SUBMIT = "BOARD_SUBMIT";
 
     /** 대결 승인을 허용하지 않는 유형 — 결재자 본인만 승인한다(019 담당자 변경). 기존 유형 동작은 그대로다. */
     public static final Set<String> NO_PROXY =
-            Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(ASSIGNEE_CHANGE)));
+            Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(ASSIGNEE_CHANGE, BOARD_SUBMIT)));
 
     public static final class Type {
         private final String key;
@@ -52,7 +53,9 @@ public final class ApprovalTypes {
                     "요청 팀 → 상대 부서장(부서장 부재 시 팀장급 대결 가능)"),
             new Type("FINAL_SUBMIT", "최종 확인·제출 확정", false, "팀장 → 부장"),
             new Type(ASSIGNEE_CHANGE, "담당자 변경", true,
-                    "담당자(또는 영업팀장) → 영업팀장 (영업팀장이 관련되면 영업부장) · 대결 불가")));
+                    "담당자(또는 영업팀장) → 영업팀장 (영업팀장이 관련되면 영업부장) · 대결 불가"),
+            new Type(BOARD_SUBMIT, "이사회 자료 제출", true,
+                    "담당자 → 영업팀장 (영업팀장이 관련되면 영업부장) · 대결 불가")));
 
     public static Type find(String key) {
         for (Type t : ALL) {

@@ -183,6 +183,10 @@
      WHERE l.MATERIAL_ID = #{id} AND l.EVENT_CD = 'SUBMIT' AND s.APPROVER_EMP_NO = #{empNo}
   </select>
 
+  <select id="countStepOfReq" resultType="int">
+    SELECT COUNT(*) FROM APPROVAL_STEP WHERE REQ_ID = #{reqId} AND APPROVER_EMP_NO = #{empNo}
+  </select>
+
   <insert id="insertAct">
     INSERT INTO BOARD_MATERIAL_ACT (MATERIAL_ID, BID_CASE_ID, ACTION_CD, OUTCOME, STATUS_CD, RESULT_CD, SNAP_NO,
                                     ACTOR_EMP_NO, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, LOGGED_AT)

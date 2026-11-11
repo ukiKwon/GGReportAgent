@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.domain.ApprovalRequest;
 import com.kbstar.kgi.ggreport.web.domain.ApprovalStep;
+import com.kbstar.kgi.ggreport.web.domain.BoardMaterial;
 import com.kbstar.kgi.ggreport.web.domain.PermChange;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.dto.ApprovalIn;
+import com.kbstar.kgi.ggreport.web.dto.BoardMaterialIn;
 import com.kbstar.kgi.ggreport.web.dto.MenuDefinition;
 import com.kbstar.kgi.ggreport.web.dto.SysAdminIn;
 import com.kbstar.kgi.ggreport.web.mapper.ApprovalRequestMapper;
@@ -55,6 +57,7 @@ public class ApprovalRequestService {
     private final PermChangeLogMapper changeLog;
     private final NotificationCommandService notes;
     private final BidAssignmentService assignments;
+    private final BoardMaterialService materials;
 
     /** 쪽지 종류 — 결재자에게 가는 알림 / 상신자에게 가는 결과. 쪽지함이 둘 다 결재함으로 이어 준다. */
     public static final String KIND_ALERT = "결재알림";
@@ -65,7 +68,7 @@ public class ApprovalRequestService {
     public ApprovalRequestService(ApprovalRequestMapper requests, SysUserMapper users, CallerService callers,
                                   PermissionService permissions, ApprovalDeputyService deputies,
                                   PermChangeLogMapper changeLog, NotificationCommandService notes,
-                                  BidAssignmentService assignments) {
+                                  BidAssignmentService assignments, BoardMaterialService materials) {
         this.requests = requests;
         this.users = users;
         this.callers = callers;
@@ -74,6 +77,7 @@ public class ApprovalRequestService {
         this.changeLog = changeLog;
         this.notes = notes;
         this.assignments = assignments;
+        this.materials = materials;
     }
 
     public List<Map<String, Object>> types() {
@@ -133,6 +137,79 @@ public class ApprovalRequestService {
         assignments.claimPending(plan, r.getReqId());
         notifyStep(r, s, me);
         return view(requests.selectById(r.getReqId()), me);
+    }
+
+    /**
+     * 이사회 자료 제출(020). 검증·결재자 계산은 materials.planSubmit 이 하고(결재선은 서버가 정한다 — 본문의 결재자·상신자는 받지 않는다),
+     * 여기서는 요청·결재선 행을 만들고 자료를 SUBMITTED 로 선점한다. 선점 실패(409)는 이 트랜잭션이 롤백해 요청 행도 남지 않는다.
+     */
+    @Transactional
+    public Map<String, Object> submitBoardMaterial(String materialId, Actor actor) {
+        SysUser me = callers.require(actor);
+        BoardMaterialService.SubmitPlan plan = materials.planSubmit(materialId, me);
+        BoardMaterial m = plan.getMaterial();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("material_id", m.getMaterialId());
+        payload.put("snap_no", m.getCurSnap());
+        ApprovalRequest r = new ApprovalRequest();
+        r.setReqType(ApprovalTypes.BOARD_SUBMIT);
+        r.setRequesterEmpNo(me.getEmpNo());
+        r.setTitle("이사회 자료 제출 — " + (m.getInstitutionName() == null ? "" : m.getInstitutionName()) + " " + m.getBoardYear());
+        r.setPayload(write(payload));
+        r.setStatus("PENDING");
+        r.setCurrentStep(1);
+        r.setCreatedAt(Times.nowIso());
+        requests.insert(r);
+        ApprovalStep s = step(1, "LINE", plan.getApprover().getEmpNo());
+        s.setReqId(r.getReqId());
+        requests.insertStep(s);
+        materials.claimSubmit(plan, r.getReqId(), me, actor);
+        notifyStep(r, s, me);
+        return view(requests.selectById(r.getReqId()), me);
+    }
+
+    /** 회수 — 담당자 누구나, 결재 전(PENDING)일 때만. 요청은 CANCELLED, 자료는 DRAFT. */
+    @Transactional
+    public Map<String, Object> withdrawBoardSubmit(String materialId, Actor actor) {
+        SysUser me = callers.require(actor);
+        Long reqId = materials.planWithdraw(materialId, me);
+        ApprovalRequest r = require(reqId);
+        if (!"PENDING".equals(r.getStatus())) {
+            throw new ApiException(409, "이미 처리된 요청입니다.");
+        }
+        String now = Times.nowIso();
+        skipRest(requests.selectSteps(reqId), null, now);
+        requireOne(requests.updateRequest(reqId, "CANCELLED", r.getCurrentStep(), "담당자가 회수", now));
+        materials.afterSubmitEnded(reqId, materialId, "WITHDRAW", me.getEmpNo(), actor != null && actor.isVerified() ? 1 : 0);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("material_id", Long.valueOf(materialId));
+        m.put("status_cd", "DRAFT");
+        return m;
+    }
+
+    /**
+     * 재작성 요구 — 영업부장. 결재 중(SUBMITTED)이면 그 결재 요청을 REJECTED(사유 기록)로 끝내고, 확정(CONFIRMED)이면 요청이 없다.
+     * 어느 쪽이든 자료는 DRAFT 로 돌아가고 결과·개최일·확정 정보가 해제된다.
+     */
+    @Transactional
+    public Map<String, Object> reworkBoardMaterial(String materialId, BoardMaterialIn.Rework in, Actor actor) {
+        SysUser me = callers.require(actor);
+        BoardMaterialService.ReworkPlan plan = materials.planRework(materialId, me, in);
+        Long reqId = materials.reworkReqId(plan);
+        if (reqId != null) {
+            ApprovalRequest r = require(reqId);
+            if (!"PENDING".equals(r.getStatus())) {
+                throw new ApiException(409, "이미 처리된 요청입니다.");
+            }
+            String now = Times.nowIso();
+            List<ApprovalStep> steps = requests.selectSteps(reqId);
+            ApprovalStep cur = current(steps, r);
+            requireOne(requests.updateStep(cur.getStepId(), "REJECTED", me.getEmpNo(), 0, plan.getReason(), now));
+            skipRest(steps, cur, now);
+            requireOne(requests.updateRequest(reqId, "REJECTED", r.getCurrentStep(), "영업부장 재작성 요구", now));
+            notifyResult(r, users.selectByEmpNo(r.getRequesterEmpNo()), me, "영업부장이 재작성을 요구했습니다 — 사유: " + plan.getReason());
+        }
+        return materials.applyRework(plan, me, actor);
     }
 
     @Transactional
@@ -232,6 +309,10 @@ public class ApprovalRequestService {
         if (!approve && comment.isEmpty()) {
             throw new ApiException(400, "반려할 때는 의견을 적어야 합니다.");
         }
+        if (ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())) {   // 이사회 자료 제출 결재 의견: 제어문자 400·개인정보 422(security S2). 다른 유형은 기존 동작 유지
+            String checked = BoardMaterialService.checkedText(comment, 500, "의견", !approve);
+            comment = checked == null ? "" : checked;
+        }
         List<ApprovalStep> steps = requests.selectSteps(id);
         ApprovalStep cur = current(steps, r);
         SysUser requester = users.selectByEmpNo(r.getRequesterEmpNo());
@@ -246,6 +327,10 @@ public class ApprovalRequestService {
         if (!approve) {
             skipRest(steps, cur, now);
             requireOne(requests.updateRequest(id, "REJECTED", r.getCurrentStep(), "반려", now));
+            if (ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())) {
+                materials.afterSubmitEnded(id, readPayloadMaterialId(r), "REJECT", me.getEmpNo(),
+                        actor != null && actor.isVerified() ? 1 : 0);
+            }
             notifyResult(r, requester, me, "반려되었습니다" + (comment.isEmpty() ? "" : " — 사유: " + comment));
         } else if (cur.getStepNo() < steps.size()) {
             requireOne(requests.updateRequest(id, "PENDING", cur.getStepNo() + 1, null, null));
@@ -267,7 +352,7 @@ public class ApprovalRequestService {
         SysUser me = callers.require(actor);
         ApprovalRequest r = require(id);
         boolean own = r.getRequesterEmpNo().equals(me.getEmpNo());
-        if (!own && ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType())) {
+        if (!own && (ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType()) || ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType()))) {
             throw new ApiException(403, "이 요청은 신청자 본인만 취소할 수 있습니다.");   // 관리자도 불가(영업팀 내부 정보, 2026-11-10 사용자 결정)
         }
         if (!own && !permissions.canAdmin(me.getEmpNo())) {
@@ -276,12 +361,19 @@ public class ApprovalRequestService {
         if (!"PENDING".equals(r.getStatus())) {
             throw new ApiException(409, "이미 처리된 요청입니다.");
         }
+        if (ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())) {
+            materials.planWithdraw(readPayloadMaterialId(r), me);   // 현재 담당자만 취소 가능(담당에서 빠진 신청자는 403/404), 이미 SUBMITTED 가 아니면 409
+        }
         String now = Times.nowIso();
         skipRest(requests.selectSteps(id), null, now);
         requireOne(requests.updateRequest(id, "CANCELLED", r.getCurrentStep(),
                 r.getRequesterEmpNo().equals(me.getEmpNo()) ? "상신자가 취소" : "관리자가 취소", now));
         if (ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType())) {
             assignments.releasePending(r);          // 그 요청이 잡고 있던 선점만 푼다(다른 요청의 선점은 그대로)
+        }
+        if (ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())) {
+            materials.afterSubmitEnded(id, readPayloadMaterialId(r), "WITHDRAW", me.getEmpNo(),
+                    actor != null && actor.isVerified() ? 1 : 0);   // 신청자 본인 취소 = 회수와 같다
         }
         if (!r.getRequesterEmpNo().equals(me.getEmpNo())) {      // 남이 취소했을 때만 알린다
             notifyResult(r, users.selectByEmpNo(r.getRequesterEmpNo()), me, "관리자가 취소했습니다");
@@ -400,7 +492,7 @@ public class ApprovalRequestService {
             }
             rows = new ArrayList<>();
             for (ApprovalRequest x : requests.selectAll()) {
-                if (!ApprovalTypes.ASSIGNEE_CHANGE.equals(x.getReqType())) {   // 담당자 변경은 영업팀 내부 정보 — 관리자 전체 목록에서 제외(mine·inbox 는 유지)
+                if (!ApprovalTypes.ASSIGNEE_CHANGE.equals(x.getReqType()) && !ApprovalTypes.BOARD_SUBMIT.equals(x.getReqType())) {   // 영업팀 내부 정보 — 관리자 전체 목록에서 제외(mine·inbox 는 유지)
                     rows.add(x);
                 }
             }
@@ -508,6 +600,9 @@ public class ApprovalRequestService {
         if (ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType())) {
             return assignments.applyChange(r, decider, actor);
         }
+        if (ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())) {
+            return materials.applyConfirm(r, decider, actor);
+        }
         if (!ApprovalTypes.PERM_REQUEST.equals(r.getReqType())) {
             return null;
         }
@@ -531,6 +626,11 @@ public class ApprovalRequestService {
         log.setAfterValue("#" + r.getReqId());
         changeLog.insert(log);
         return "권한 반영: " + saved + "개 메뉴";
+    }
+
+    /** 결재 요청 payload 의 material_id(문자열). 없거나 숫자가 아니면 빈 문자열(→ 후처리가 409). */
+    private String readPayloadMaterialId(ApprovalRequest r) {
+        return read(r.getPayload()).path("material_id").asText("");
     }
 
     private static boolean knownMenu(String key) {
@@ -625,8 +725,9 @@ public class ApprovalRequestService {
                 ? eligibility(me, requester, current(steps, r), r.getReqType()) : null;
         m.put("can_decide", how != null);
         m.put("acting_as_deputy", "DEPUTY".equals(how));
+        boolean teamInternal = ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType()) || ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType());
         m.put("can_cancel", pending && (r.getRequesterEmpNo().equals(me.getEmpNo())
-                || (!ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType()) && permissions.canAdmin(me.getEmpNo()))));
+                || (!teamInternal && permissions.canAdmin(me.getEmpNo()))));
         return m;
     }
 }

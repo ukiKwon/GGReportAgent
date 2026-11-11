@@ -85,6 +85,9 @@ public interface BoardMaterialMapper {
     /** 그 사번이 이 자료의 제출 결재선(단계 결재자)에 있었는가 — 결재 경로 열람 판정. */
     int countApprovalStep(@Param("id") Long id, @Param("empNo") String empNo);
 
+    /** 그 사번이 이 결재 요청(현재 제출 회차)의 단계 결재자인가 — SUBMITTED 열람 판정(과거 회차 결재자 제외). */
+    int countStepOfReq(@Param("reqId") Long reqId, @Param("empNo") String empNo);
+
     int insertAct(BoardMaterialAct a);
 
     List<BoardMaterialAct> selectActs(@Param("id") Long id, RowBounds rows);

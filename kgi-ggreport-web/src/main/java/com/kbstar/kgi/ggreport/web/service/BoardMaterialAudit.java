@@ -8,6 +8,9 @@ import com.kbstar.kgi.ggreport.web.support.Times;
 import com.kbstar.kgi.ggreport.web.web.Actor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.List;
 import java.util.Map;
@@ -85,13 +88,33 @@ public class BoardMaterialAudit {
         }
     }
 
+    /**
+     * 승인으로 확정되는 순간의 한 줄(CONFIRM) — {@code BoardMaterialService.applyConfirm} 안에서 같은 트랜잭션으로 부른다(실패하면 승인도 되돌아간다).
+     * 화면·버튼은 현재 요청의 X-Screen-Id/X-Button-Id 에서 얻고, 요청이 없거나 헤더가 없으면 UNKNOWN·ui_valid=false.
+     * STATUS_CD 는 행위 직전 상태(SUBMITTED), SNAP_NO 는 확정되는 버전이다.
+     */
+    @Transactional
+    public void recordConfirm(BoardMaterial m, Actor actor) {
+        BoardUiIds.Ui ui = BoardUiIds.unknown();
+        RequestAttributes ra = RequestContextHolder.getRequestAttributes();
+        if (ra instanceof ServletRequestAttributes) {
+            ui = BoardUiIds.of(((ServletRequestAttributes) ra).getRequest());
+        }
+        insert(new Ctx(m.getMaterialId(), m.getBidCaseId(), m.getResultCd(), m.getCurSnap()),
+                BoardMaterialService.SUBMITTED, "CONFIRM", "OK", actor, ui);
+    }
+
     private void insert(Ctx ctx, String action, String outcome, Actor actor, BoardUiIds.Ui ui) {
+        insert(ctx, BoardMaterialService.CONFIRMED, action, outcome, actor, ui);
+    }
+
+    private void insert(Ctx ctx, String statusCd, String action, String outcome, Actor actor, BoardUiIds.Ui ui) {
         BoardMaterialAct a = new BoardMaterialAct();
         a.setMaterialId(ctx.materialId);
         a.setBidCaseId(ctx.bidCaseId);
         a.setActionCd(action);
         a.setOutcome(outcome);
-        a.setStatusCd(BoardMaterialService.CONFIRMED);
+        a.setStatusCd(statusCd);
         a.setResultCd(ctx.resultCd);
         a.setSnapNo(ctx.snapNo);
         a.setActorEmpNo(actor != null && actor.isKnown() ? actor.getEmpNo() : null);

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.boarddoc.BoardDocSpec;
 import com.kbstar.kgi.ggreport.web.domain.ApprovalRequest;
+import com.kbstar.kgi.ggreport.web.domain.ApprovalStep;
 import com.kbstar.kgi.ggreport.web.domain.BoardMaterial;
 import com.kbstar.kgi.ggreport.web.domain.BoardMaterialAct;
 import com.kbstar.kgi.ggreport.web.domain.BoardMaterialAssignee;
@@ -99,9 +100,12 @@ public class BoardMaterialService {
     private final BidAssignmentService assignments;
     private final ApprovalRequestMapper requests;
     private final SysUserMapper users;
+    private final BoardMaterialAudit audit;
 
     public BoardMaterialService(BoardMaterialMapper mapper, BoardAccess access, BoardFormService forms,
-                                BidAssignmentService assignments, ApprovalRequestMapper requests, SysUserMapper users) {
+                                BidAssignmentService assignments, ApprovalRequestMapper requests, SysUserMapper users,
+                                BoardMaterialAudit audit) {
+        this.audit = audit;
         this.mapper = mapper;
         this.access = access;
         this.forms = forms;
@@ -156,7 +160,7 @@ public class BoardMaterialService {
     public Map<String, Object> detail(SysUser me, String id) {
         BoardMaterial m = loadVisible(me, id);
         Map<String, Object> out = body(m);
-        out.put("viewer", viewer(m, access.canWriteCase(me.getEmpNo(), m.getBidCaseId())));
+        out.put("viewer", viewer(me, m, access.canWriteCase(me.getEmpNo(), m.getBidCaseId())));
         return out;
     }
 
@@ -195,14 +199,16 @@ public class BoardMaterialService {
     // ── 조회(결재 경로) ──
 
     /**
-     * 검토 열람(읽기 전용) — ⓐ그 자료의 제출 결재선에 결재자로 있었던 사람 ⓑ활성 영업부장(제출 이후 SUBMITTED·CONFIRMED 만).
-     * 담당자는 detail 을 쓴다. 그 외·준비 중·작성 중 자료는 404(없는 번호와 같음).
+     * 검토 열람(읽기 전용) — ⓐ결재선 팀장(SUBMITTED 면 현재 요청의 결재자, CONFIRMED 면 확정한 사람만) ⓑ활성 영업부장(모든 상태, BoardAccess 와 같음).
+     * 재작성 요구(planRework)만 SUBMITTED·CONFIRMED 로 한정한다. 담당자는 detail 을 쓴다. 그 외는 404(없는 번호와 같음).
      */
     @Transactional(readOnly = true)
     public Map<String, Object> review(SysUser me, String id) {
         BoardMaterial m = loadReviewable(me, id);
         Map<String, Object> out = body(m);
-        out.put("viewer", viewer(m, false));
+        Map<String, Object> v = viewer(me, m, false);
+        v.put("pending_req_id", SUBMITTED.equals(m.getStatusCd()) ? m.getSubmitReqId() : null);   // 결재함 카드를 찾아 결재 버튼으로 잇는 용도
+        out.put("viewer", v);
         return out;
     }
 
@@ -345,6 +351,7 @@ public class BoardMaterialService {
     /** 결과 변경(의결 예정·가결·부결·개최일) — 확정된 자료에서 담당자만. 값(버전)은 건드리지 않는다. */
     @Transactional
     public Map<String, Object> changeResult(SysUser me, Actor actor, String id, BoardMaterialIn.Result in) {
+        lockCaseOf(id);
         BoardMaterial m = loadVisible(me, id);
         requireWriter(me, m);
         if (!CONFIRMED.equals(m.getStatusCd())) {
@@ -384,8 +391,9 @@ public class BoardMaterialService {
     }
 
     /** 제출 검증: 보임(404) → 담당자(403) → 상태·버전(409) → 결재자(400 APPROVER_NOT_RESOLVED). */
-    @Transactional(readOnly = true)
+    @Transactional
     public SubmitPlan planSubmit(String id, SysUser me) {
+        lockCaseOf(id);   // 락 먼저 — 같은 건의 담당 변경 승인과 직렬화. 락 뒤에야 배정을 처음 읽는다(1차 캐시가 낡은 배정을 돌려주지 않게)
         BoardMaterial m = loadVisible(me, id);
         requireWriter(me, m);
         if (SUBMITTED.equals(m.getStatusCd())) {
@@ -445,6 +453,7 @@ public class BoardMaterialService {
         if (m == null) {
             throw coded(409, "CONFLICT", "이미 처리된 요청입니다.");
         }
+        mapper.lockAssignCase(m.getBidCaseId());   // 순서: 결재 단계 행(decide) → 배정 머리 → 자료 행. 019 applyChange 와 같다
         String d = decider.getEmpNo();
         String dRole = BoardAccess.role(decider);
         if ((!BidAssignmentService.LEAD_ROLE.equals(dRole) && !BidAssignmentService.HEAD_ROLE.equals(dRole))
@@ -464,6 +473,7 @@ public class BoardMaterialService {
         }
         mapper.insertLog(m.getMaterialId(), "CONFIRM", SUBMITTED, CONFIRMED, null, null, null, null, null, r.getReqId(),
                 null, d, verified(actor), now);
+        audit.recordConfirm(m, actor);   // 같은 트랜잭션 — 승인 순간의 화면·버튼·사번(security S1). m 은 확정 직전 상태(SUBMITTED)
         return "이사회 자료 확정";
     }
 
@@ -530,6 +540,47 @@ public class BoardMaterialService {
 
     // ── 내부 ──
 
+    private void lockCaseOf(String id) {
+        Long n = parseId(id);
+        BoardMaterial pre = n == null ? null : mapper.selectOne(n);
+        if (pre != null) {
+            mapper.lockAssignCase(pre.getBidCaseId());
+        }
+    }
+
+    /** 마지막 제출 이후 되돌려진 사실(반려·재작성 요구) — 없으면 null. 이후 SUBMIT 이 있으면 지운다. 회수는 되돌림이 아니다. */
+    private Map<String, Object> lastReturn(BoardMaterial m) {
+        BoardMaterialLogView found = null;
+        for (BoardMaterialLogView l : mapper.selectLog(m.getMaterialId())) {
+            if ("REJECT".equals(l.getEventCd()) || "REWORK".equals(l.getEventCd())) {
+                found = l;
+            } else if ("SUBMIT".equals(l.getEventCd())) {
+                found = null;
+            }
+        }
+        if (found == null) {
+            return null;
+        }
+        String reason = found.getReason();                       // REWORK: 부장이 쓴 사유(checkedText 통과분)
+        if ("REJECT".equals(found.getEventCd()) && found.getReqId() != null) {
+            for (ApprovalStep s : requests.selectSteps(found.getReqId())) {   // REJECT: 결재자 의견(≤500자)은 결재 단계 행에 있다
+                if ("REJECTED".equals(s.getStatus())) {
+                    reason = s.getCommentText();
+                }
+            }
+        }
+        if (reason != null && !Pii.scanLoose(reason).isEmpty()) {
+            reason = null;                                       // 보안: 과거 데이터에 개인정보 모양이 있으면 노출하지 않는다
+        }
+        Map<String, Object> x = new LinkedHashMap<>();
+        x.put("event_cd", found.getEventCd());
+        x.put("req_id", found.getReqId());
+        x.put("reason", reason);
+        x.put("actor_name", found.getActorName());
+        x.put("logged_at", found.getLoggedAt());
+        return x;
+    }
+
     private BoardMaterial loadVisible(SysUser me, String id) {
         Long n = parseId(id);
         BoardMaterial m = n == null ? null : mapper.selectOne(n);
@@ -558,8 +609,14 @@ public class BoardMaterialService {
         if (BoardAccess.isHead(me)) {   // 영업부장은 모든 상태를 읽는다(사용자 확정 2026-11-10)
             return m;
         }
-        boolean lineSeen = mapper.countApprovalStep(m.getMaterialId(), me.getEmpNo()) > 0;
-        return lineSeen ? m : null;
+        // 결재선 팀장: 결재 중이면 '현재 요청(SUBMIT_REQ_ID)의 결재자', 확정이면 '확정한 사람(CONFIRMED_BY)'만. 반려·재작성으로 DRAFT 가 되거나 과거 회차 결재자는 못 본다.
+        boolean seen;
+        if (SUBMITTED.equals(m.getStatusCd())) {
+            seen = m.getSubmitReqId() != null && mapper.countStepOfReq(m.getSubmitReqId(), me.getEmpNo()) > 0;
+        } else {
+            seen = CONFIRMED.equals(m.getStatusCd()) && me.getEmpNo().equals(m.getConfirmedBy());
+        }
+        return seen ? m : null;
     }
 
     private void requireWriter(SysUser me, BoardMaterial m) {
@@ -568,15 +625,16 @@ public class BoardMaterialService {
         }
     }
 
-    private Map<String, Object> viewer(BoardMaterial m, boolean assignee) {
+    private Map<String, Object> viewer(SysUser me, BoardMaterial m, boolean assignee) {
         Map<String, Object> v = new LinkedHashMap<>();
         boolean editable = PREP.equals(m.getStatusCd()) || DRAFT.equals(m.getStatusCd());
+        boolean afterSubmit = SUBMITTED.equals(m.getStatusCd()) || CONFIRMED.equals(m.getStatusCd());
         v.put("is_assignee", assignee);
         v.put("can_write", assignee && editable);
         v.put("can_submit", assignee && DRAFT.equals(m.getStatusCd()) && m.getCurSnap() > 0);
         v.put("can_withdraw", assignee && SUBMITTED.equals(m.getStatusCd()));
         v.put("can_set_result", assignee && CONFIRMED.equals(m.getStatusCd()));
-        v.put("can_rework", !assignee && (SUBMITTED.equals(m.getStatusCd()) || CONFIRMED.equals(m.getStatusCd())));
+        v.put("can_rework", afterSubmit && "ACTIVE".equals(me.getStatus()) && BoardAccess.isHead(me));   // 결재선 팀장은 false
         return v;
     }
 
@@ -586,6 +644,9 @@ public class BoardMaterialService {
         out.put("assignees", as == null ? new ArrayList<Map<String, Object>>() : as);
         BoardMaterialSnap s = m.getCurSnap() > 0 ? mapper.selectSnap(m.getMaterialId(), m.getCurSnap()) : null;
         out.put("snapshot", s == null ? null : snapView(s, true));
+        if (DRAFT.equals(m.getStatusCd())) {
+            out.put("last_return", lastReturn(m));
+        }
         out.put("form", forms.structureForStored(m.getFormId(), m.getFormVer()));
         return out;
     }
