@@ -78,6 +78,7 @@
   <a href="#c17">⑰ 입찰 현황판(첫 화면)</a>
   <a href="#c18">⑱ 지도 지역 색 섞기</a>
   <a href="#c19">⑲ 입찰 현황판 재설계·사이드바</a>
+  <a href="#c20">⑳ 로그인 화면 — 슬라이드 재생</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -511,6 +512,55 @@
     </div>
     <div class="side" style="margin-top:8px;width:200px"><div class="cat" style="color:var(--teal)">기관·입찰 현황 <span class="hint12">⌄</span></div><div class="it" style="background:rgba(87,184,173,.16)">입찰 현황판</div><div class="cat">영업 추진 준비 <span class="hint12">›</span> <span class="tag" style="background:var(--fg);color:#0d1116">n</span></div></div>
     <p class="legend-note">맨 위 전체 폭에 <b>월별 입찰 예정 막대</b>(이번 달부터 13개월, 높이 분모 최소 4). 아래는 목록 400px | 상세 | 오른쪽 기둥 380px(국민은행 금고 약정 와플: 칸 하나가 기관 하나, 제안 진행 단계 5줄), 1280~1599px에서는 기둥이 위로 올라갑니다. 기간 버튼(3개월·<b>6개월 기본</b>·1년·전체)은 지도 색 경계와 같은 일수(91·182·365일)를 쓰고 마지막 선택을 기억하며, 기간 밖 기관은 "n곳이 더 있습니다 [넓히기]"로 알립니다. 약정 만료일에서 추정한 날짜는 "(추정·약정 만료 기준)"으로 구분합니다. 글자는 목록 이름 <span class="num good">14</span>px, 메타 <span class="num good">12</span>px, 상세 제목 <span class="num good">16</span>px, 패널 제목 <span class="num good">15</span>px/700, 11px은 축 눈금·배지만. 사이드바는 <b>한 번에 하나만 열리고</b>(사용자 결정 11-11), 사용자가 직접 펼치거나 접은 상태를 사번별로 기억합니다(화면 이동은 저장하지 않음). 펼침 표시는 12px 그림 화살표(0.2초 회전)이고 접힌 분류 옆에 경과 미처리 수를 보여 줍니다. 대비(바탕 #181e29): 보조 글자 <span class="num good">6.4</span>:1, 빨강 <span class="num good">5.6</span>:1, 주황 <span class="num good">7.3</span>:1, 틸 창 경계 <span class="num good">7.1</span>:1, 와플 확인 칸 <span class="num good">13.4</span>:1, 미확인 칸 테두리 <span class="num good">3.2</span>:1. 새 색과 채운 버튼은 없습니다(모의 그림은 단순화, n은 그날 자료에 따름).</p>
+  </div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c20">
+<h2>⑳ 로그인 화면 — 왼쪽 고정 카드 + 오른쪽 슬라이드 재생 (2026-11-11, 시안 B-3)</h2>
+<div class="why">왜: 옛 로그인은 380px 카드 하나와, 금고·입찰과 관계없는 만화 인물 6명 배경 그림이 전부였고, 실패 문구는 화면낭독기에 읽히지 않았습니다. 사용자(11-11)는 어두운 배경을 고르고, 제목 문장 두 안을 모두 거절한 뒤 "슬라이드로 재생되면 좋겠다", "계속 반복", "조작 줄은 아래에 눈에 덜 띄게", "법원·공공·대학·병원은 일정 띠와 기관 카드로"를 정했습니다. 슬라이드 내용은 사용자가 직접 고칠 수 있게 frontend/data/login-slides.js 한 파일로 분리했습니다. 근거: handoff/agents/design-reviewer/2026-11-11_1628_ad47a36d.md(진단), 2026-11-11_1700_a9f1f7d6.md(B-3 시안).</div>
+<div class="ba">
+  <div class="col before"><header>전</header><div class="body"><div class="mock">
+    <div class="row" style="justify-content:center;align-items:center;min-height:180px;position:relative">
+      <span class="hint10" style="position:absolute;left:8px;top:8px">배경: 원 안의 만화 인물 6명을 틸 점선으로 이은 그림(40% 투명)</span>
+      <div class="card" style="width:190px">
+        <b style="font-size:13px">기관영업지원 시스템 로그인</b><br>
+        <span class="hint10">사번 [__________]</span><br>
+        <span class="hint10">비밀번호 [__________]</span><br>
+        <span class="hint10">임시 계정 [▼]</span><br>
+        <span class="btn">로그인</span><span class="btn">둘러보기</span>
+      </div>
+    </div>
+    <p class="legend-note">380px 카드, 제목 <span class="num bad">18</span>px(예외로 문서화되지 않음). 두 버튼이 같은 모양이라 주행동이 보이지 않았습니다. 배경 그림은 제품과 관계가 없었고, 실패 문구에 <code>aria-live</code>가 없었습니다.</p>
+  </div></div></div>
+  <div class="col after"><header>후</header><div class="body"><div class="mock">
+    <div class="row" style="gap:10px;align-items:stretch;flex-wrap:nowrap">
+      <div class="card" style="width:150px;flex:none">
+        <b style="font-size:15px">로그인</b><br>
+        <span class="hint12">전국 지자체 금고의 약정 만료 시점을 지도에 모았습니다.</span><br>
+        <span class="hint10">사번 또는 임시 계정 [______]</span><br>
+        <span class="hint10">비밀번호 [______]</span><br>
+        <span class="hint10">임시 계정 (팀·직위) [▼]</span><br>
+        <span class="btn" style="background:var(--teal);color:#0d1116;border-color:transparent;border-radius:999px;font-weight:700">로그인</span><span class="btn" style="border-color:#626d81;background:transparent">둘러보기</span>
+      </div>
+      <div style="flex:1;min-width:0">
+        <p style="font-size:18px;font-weight:300;line-height:1.25;margin:0 0 8px">11월 16일,<br>마포구 제안 접수가 열립니다</p>
+        <div class="row" style="gap:8px;flex-wrap:nowrap">
+          <div class="card" style="flex:1.15;margin:0;border-top:3px double var(--muted)"><span class="hint10">마포구 공고 제2026-1729호</span><br><b style="font-size:12px;font-family:Batang,serif">마포구 금고지정 계획 공고</b><br><span class="hint10">제안서 접수 2026. 11. 16.–11. 19.</span></div>
+          <div style="flex:1"><span class="num" style="font-size:26px;font-weight:700">D-5</span><br><span class="hint10">접수 시작까지</span><br><span class="pill" style="color:var(--red);border-color:var(--red);background:rgba(224,120,86,.18)">▲ 6개월 안</span></div>
+        </div>
+        <p class="hint10" style="margin-top:6px">출처: 마포구 eminwon 고시공고 원문</p>
+        <div class="row" style="gap:4px;align-items:center;opacity:.55;margin-top:6px;flex-wrap:nowrap">
+          <span class="hint10" style="flex:1">1 / 7 마포구 제안 접수</span>
+          <span class="btn" style="padding:1px 6px;font-size:11px">❚❚ 멈춤</span><span class="btn" style="padding:1px 6px;font-size:11px">‹</span>
+          <span style="display:inline-block;width:14px;height:4px;border-radius:2px;background:var(--teal)"></span>
+          <span style="display:inline-block;width:4px;height:4px;border-radius:2px;background:#626d81"></span>
+          <span style="display:inline-block;width:4px;height:4px;border-radius:2px;background:#626d81"></span>
+          <span class="btn" style="padding:1px 6px;font-size:11px">›</span>
+        </div>
+      </div>
+    </div>
+    <p class="legend-note">왼쪽 카드(폭 <span class="num good">480</span>px, 제목 "로그인" <span class="num good">26</span>px, 틸 알약 주버튼 하나)는 고정이고, 오른쪽은 6초마다 계속 반복해 넘어가는 슬라이드입니다: 접수 일정(마감 뒤 자동 제외)·국민은행으로 옮겨 온 구·다시 고른 구·서울 임박 지도·탐지→결재 흐름, 그리고 법원·공공기관·대학·병원은 지도 대신 '다가오는 일정 띠'(6개월 안 입찰 자동 계산)와 '기관 카드 묶음'. 조작 줄은 슬라이드 아래에 작고 흐리게 두고 마우스·키보드가 들어오면 또렷해집니다. 마우스·포커스·탭 숨김·움직임 줄이기 설정에서 멈춥니다. 로그인 화면이 떠 있는 동안 뒤 화면은 키보드로 닿지 않습니다(inert). 대비(계산값): 본문 <span class="num good">15.1</span>:1, 보조 글자 <span class="num good">7.2</span>:1, 주버튼 글자 <span class="num good">8.0</span>:1, 포커스 링 약 <span class="num good">8</span>:1, 보조 버튼 테두리 <span class="num good">3.3</span>:1, 꺼진 점 <span class="num good">3.6</span>:1. 모의 그림은 단순화했고 장 수·D-n은 날짜에 따라 바뀝니다.</p>
   </div></div></div>
 </div>
 </section>

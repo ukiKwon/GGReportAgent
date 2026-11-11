@@ -863,11 +863,23 @@
     if (label) label.textContent = root.login.userLabel(root.store.loadProfile());
   };
 
+  // 로그인 화면이 떠 있는 동안 뒤의 헤더·본문은 Tab·낭독기에서 막는다(inert) — 가려진 버튼으로 포커스가 새지 않게.
+  app.setBehindInert = function (on) {
+    ['header', 'shell'].forEach(function (k) {
+      const el = k === 'header' ? document.querySelector('body > header') : byId(k);
+      if (!el) return;
+      if (on) el.setAttribute('inert', ''); else el.removeAttribute('inert');
+    });
+  };
+
   app.showLogin = function (message) {
     const view = byId('login-view');
     if (!view) return;
     view.classList.remove('hidden');
+    app.setBehindInert(true);
+    if (root.loginHero) root.loginHero.mount();   // 보일 때마다 다시 그린다(날짜가 바뀌었을 수 있다). 이미 떠 있으면 아무 일 없음.
     byId('login-msg').textContent = message || '';
+    byId('login-id').removeAttribute('aria-invalid');
     byId('login-pw').value = '';
     byId('login-id').focus();
   };
@@ -881,6 +893,8 @@
       app.showProfileRole(profile.team);
     }
     byId('login-view').classList.add('hidden');
+    app.setBehindInert(false);
+    if (root.loginHero) root.loginHero.destroy();   // 숨은 화면에서 6초 타이머가 돌지 않게
     app.paintUserArea();
     // 공고 예정일 경과 요약 팝업 — 영업 계열에게만, '오늘 더 이상 보지 않기'를 안 눌렀을 때만(overdue.js).
     // 둘러보기(guest)는 소속이 없어 영업 계열이 아니므로 뜨지 않는다.
@@ -939,30 +953,40 @@
     }
     const idEl = byId('login-id');
     const roleEl = byId('login-role');
-    roleEl.innerHTML = '<option value="">직접 입력</option>' + root.login.groups().map(function (g) {
+    roleEl.innerHTML = '<option value="">고르면 사번 칸이 채워집니다</option>' + root.login.groups().map(function (g) {
       return '<optgroup label="' + root.logic.esc(root.roles.roleLabel(g.title)) + '">' + g.accounts.map(function (a) {
         return '<option value="' + root.logic.esc(a.id) + '">' + root.logic.esc(root.login.label(a)) + '</option>';
       }).join('') + '</optgroup>';
     }).join('');
     // 팀/직위를 고르면 아이디가 채워지고, 아이디를 직접 치면 드롭다운이 따라간다.
-    roleEl.addEventListener('change', function () { if (roleEl.value) idEl.value = roleEl.value; });
+    // 사번 칸의 오류 표시(aria-invalid)는 고치기 시작하면 바로 지운다.
+    function clearInvalid() { idEl.removeAttribute('aria-invalid'); }
+    roleEl.addEventListener('change', function () { if (roleEl.value) { idEl.value = roleEl.value; clearInvalid(); byId('login-msg').textContent = ''; } });
     idEl.addEventListener('input', function () {
       const a = root.login.byId(idEl.value);
       roleEl.value = a ? a.id : '';
+      clearInvalid();
     });
 
     // 사번(또는 임시 계정)으로 서버에 확인한다. 서버가 없으면(file://) 임시 계정 목록으로만 들어간다.
     // 서버 응답이 있으면 그 사용자 정보(이름·역할)를 쓴다 — DB에만 있는 사용자도 로그인된다.
+    let loginBusy = false;   // 서버 응답을 기다리는 동안 Enter·버튼·둘러보기가 또 실행되지 않게
     function submit() {
+      if (loginBusy) return;
       const typed = idEl.value.trim();
       const a = root.login.authenticate(typed, byId('login-pw').value);
       const emp = root.login.empNoFor(typed);
-      if (!emp && !a) { byId('login-msg').textContent = '사번(숫자 7자리) 또는 임시 계정을 입력하세요.'; return; }
+      if (!emp && !a) {
+        byId('login-msg').textContent = '사번(숫자 7자리) 또는 임시 계정을 입력하세요.';
+        idEl.setAttribute('aria-invalid', 'true'); idEl.focus();
+        return;
+      }
       if (!emp || !root.store.isServerMode()) {
         if (!a) { byId('login-msg').textContent = '서버에 연결되지 않아 임시 계정으로만 들어갈 수 있습니다.'; return; }
         app.enterApp({ mode: 'account', id: a.id, emp: a.empNo }, { name: a.name, team: a.role });
         return;
       }
+      loginBusy = true;
       byId('login-go').disabled = true;
       fetch('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ emp_no: emp }) }).then(function (r) {
@@ -974,7 +998,7 @@
         // 서버가 안 닿는다. 임시 계정이면 들어가되, 사용자에게 기록이 남지 않음을 알린다.
         if (a) { app.enterApp({ mode: 'account', id: a.id, emp: a.empNo }, { name: a.name, team: a.role }); return; }
         byId('login-msg').textContent = '서버에 연결하지 못했습니다.';
-      }).then(function () { byId('login-go').disabled = false; });
+      }).then(function () { loginBusy = false; byId('login-go').disabled = false; });
     }
     byId('login-go').addEventListener('click', submit);
     [idEl, byId('login-pw')].forEach(function (el) {
@@ -982,6 +1006,7 @@
     });
     // 둘러보기 = 프로필을 비운 채 지금까지의 '/' 화면(지도·지역별)으로 들어간다.
     byId('login-guest').addEventListener('click', function () {
+      if (loginBusy) return;
       app.enterApp({ mode: 'guest', id: '' }, { name: '', team: '' });
     });
 
@@ -992,7 +1017,15 @@
     byId('btn-logout').addEventListener('click', app.logout);
 
     // 첫 화면: 세션이 있으면 바로 앱, 없으면 로그인(마크업 기본값이 "보임"이라 깜빡임이 없다).
-    if (root.store.loadSession()) { view.classList.add('hidden'); pendingHome = true; }
+    // 세션이 있으면 로그인 화면은 처음부터 숨겨지므로 히어로를 켜지 않고(destroy는 안전한 no-op), 없으면 mount한다.
+    if (root.store.loadSession()) {
+      view.classList.add('hidden'); pendingHome = true;
+      app.setBehindInert(false);
+      if (root.loginHero) root.loginHero.destroy();
+    } else {
+      app.setBehindInert(true);
+      if (root.loginHero) root.loginHero.mount();
+    }
     app.paintUserArea();
   };
 

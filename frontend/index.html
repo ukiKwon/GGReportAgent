@@ -584,27 +584,183 @@
   @media (prefers-reduced-motion: reduce) { #bd-tip { transition:none; } }
   @media (max-width:900px) { #side-nav { flex-basis:200px; } }
 
-  /* 로그인 오버레이 — 배경 이미지는 40% 투명도(img/login-bg.svg, 실사진으로 교체 가능) */
-  #login-view { position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center;
-                background:radial-gradient(ellipse at 30% 20%, #16232b, var(--bg) 70%); }
-  #login-view::before { content:""; position:absolute; inset:0; opacity:.4; pointer-events:none;
-                        /* img/login-bg.jpg 를 넣으면 그 사진이 이긴다. 없으면(404) svg 일러스트로 폴백. */
-                        background:url("img/login-bg.jpg") center/cover no-repeat,
-                                   url("img/login-bg.svg") center/cover no-repeat; }
+  /* 로그인 화면 — 왼쪽 고정 카드 + 오른쪽 슬라이드 재생(시안 docs/design/2026-11-11_로그인_시안B3_슬라이드.html).
+     로그인 표면은 앱 크롬(11~16px)보다 큰 글자(슬라이드 제목 40px·D-day 64px)를 쓰는 예외다.
+     색은 앱 :root 변수를 그대로 쓰고, 이 화면 전용 값만 --lg-* 로 둔다(테마를 바꿀 때 이 줄만 고친다). */
+  :root { --lg-card:480px; --lg-gap:56px; --lg-dur:6000ms; --lg-swap:320ms;
+          --lg-hot:#e8606b; --lg-far:#4f72b8;
+          --lg-sans:"Malgun Gothic","맑은 고딕","Segoe UI",sans-serif;
+          --lg-thin:"Malgun Gothic Semilight","Malgun Gothic","맑은 고딕",sans-serif;
+          --lg-serif:Batang,"바탕",BatangChe,serif;
+          --lg-edge:max(24px, calc((100vw - 1200px) / 2)); }
+  #login-view { position:fixed; inset:0; z-index:100; overflow-y:auto; overflow-x:hidden; background:var(--bg); color:var(--fg);
+                font:16px/1.6 var(--lg-sans); word-break:keep-all; }
   #login-view.hidden { display:none; }
-  .login-card { position:relative; width:min(380px, calc(100vw - 32px)); padding:28px 28px 22px;
-                background:color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter:blur(6px);
-                border:1px solid var(--line-strong); border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.55);
-                display:flex; flex-direction:column; gap:12px; }
-  .login-card h1 { margin:0; font-size:18px; display:flex; align-items:center; gap:9px; }
-  .login-sub { margin:0 0 4px; color:var(--muted); font-size:12px; }
-  .login-card label { display:flex; flex-direction:column; gap:5px; font-size:11px; color:var(--muted); }
-  .login-card input, .login-card select { padding:8px 10px; font-size:13px; }
-  .login-msg { min-height:16px; font-size:12px; color:var(--red); }
-  .login-actions { display:flex; gap:8px; }
-  .login-actions button { flex:1; padding:9px 14px; font-size:13px; }
-  .login-actions .primary { background:var(--accent-color); color:#0d1116; border-color:transparent; font-weight:700; }
-  .login-hint { margin:0; font-size:12px; color:var(--muted); }
+  #login-view [hidden] { display:none !important; }
+  :where(#login-view p, #login-view h1, #login-view h2, #login-view h3, #login-view ul, #login-view ol, #login-view dl, #login-view dd) { margin:0; }
+  :where(#login-view ul, #login-view ol) { padding:0; list-style:none; }
+  .lg-top { height:64px; display:flex; align-items:center; justify-content:space-between;
+            padding:0 var(--lg-edge); border-bottom:1px solid var(--line); }
+  .lg-brand { display:flex; align-items:center; gap:10px; font-size:15px; font-weight:700; letter-spacing:-.01em; }
+  .lg-brand svg { color:var(--accent-color); }
+  .lg-note { font-size:13px; color:var(--muted); }
+  .lg-stage { min-height:calc(100vh - 64px); display:grid; grid-template-columns:var(--lg-card) minmax(0, 1fr);
+              gap:var(--lg-gap); align-items:center; padding:32px var(--lg-edge); }
+  .lg-nw { white-space:nowrap; }
+
+  /* 로그인 카드(고정) */
+  .login-card { position:relative; z-index:2; padding:44px 40px 36px; border-radius:14px;
+                background:color-mix(in srgb, var(--panel) 86%, transparent); backdrop-filter:blur(10px);
+                border:1px solid rgba(255,255,255,.08);
+                box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 24px 70px rgba(8,12,24,.6); }
+  .login-card h1 { font-size:26px; font-weight:700; line-height:1.3; letter-spacing:-.02em; }
+  .lg-lede { margin:10px 0 24px; font-size:15px; color:var(--muted); }
+  .lg-form { display:grid; gap:16px; }
+  .login-card label { display:grid; gap:6px; font-size:13px; color:var(--muted); }
+  #login-view .login-card input, #login-view .login-card select { height:48px; padding:0 14px; font:16px var(--lg-sans); width:100%;
+                  color:var(--fg); background:#0d1117; border:1px solid #626d81; border-radius:8px; }
+  #login-view .login-card input[aria-invalid="true"] { border-color:var(--red); }
+  .login-msg { min-height:20px; margin:-4px 0 0; font-size:13px; color:var(--red); }
+  .login-actions { display:flex; gap:12px; align-items:center; }
+  #login-view .lg-primary { flex:1; height:50px; padding:0 14px; border:0; border-radius:25px; background:var(--accent-color); color:#0d1116;
+             font:700 16px var(--lg-sans); cursor:pointer; transition:transform .2s, box-shadow .2s, background-color .2s; }
+  #login-view .lg-primary:hover { background:color-mix(in srgb, var(--accent-color) 82%, #fff); transform:translateY(-1px); box-shadow:0 6px 16px rgba(8,12,24,.4); }
+  #login-view .lg-primary:active { transform:scale(.98); box-shadow:none; }
+  #login-view .lg-primary[disabled] { opacity:.55; cursor:progress; transform:none; box-shadow:none; }
+  #login-view .lg-ghost { height:50px; padding:0 18px; border:1px solid #626d81; border-radius:8px; background:transparent;
+           color:var(--fg); font:15px var(--lg-sans); cursor:pointer; transition:background-color .2s; white-space:nowrap; }
+  #login-view .lg-ghost:hover { background:var(--panel2); border-color:#626d81; transform:none; box-shadow:none; }
+  #login-view .lg-ghost:active, #login-view .lg-cbtn:active, #login-view .lg-dot:active { transform:none; box-shadow:none; }
+  .login-hint { margin:4px 0 0; font-size:12px; line-height:1.6; color:var(--muted); }
+
+  /* 히어로 슬라이드 */
+  .lg-hero { height:min(660px, calc(100vh - 128px)); min-height:560px; display:grid; grid-template-rows:minmax(0, 1fr) auto; gap:16px; }
+  /* 조작 줄은 DOM에서는 슬라이드 앞(읽는 순서), 화면에서는 슬라이드 아래. 평소엔 작고 흐리게, 히어로에 마우스·포커스가 있으면 또렷하게 */
+  .lg-slides { grid-row:1; }
+  .lg-ctl { grid-row:2; display:flex; align-items:center; gap:6px; padding-top:10px; border-top:1px solid var(--line);
+            opacity:.55; transition:opacity .2s; }
+  .lg-hero:hover .lg-ctl, .lg-hero:focus-within .lg-ctl { opacity:1; }
+  .lg-where { margin:0 auto 0 0; font-size:12px; color:var(--muted); }
+  .lg-where b { font:700 12px var(--mono); color:var(--fg); margin-right:8px; }
+  #login-view .lg-cbtn { height:28px; min-width:28px; display:inline-flex; align-items:center; justify-content:center; gap:5px;
+          padding:0 8px; border:1px solid #626d81; border-radius:8px; background:transparent; color:var(--fg);
+          font:12px var(--lg-sans); cursor:pointer; transition:background-color .2s; }
+  #login-view .lg-cbtn:hover { background:var(--panel2); border-color:#626d81; transform:none; box-shadow:none; }
+  .lg-cbtn svg { width:10px; height:10px; }
+  .lg-cbtn .i-play { display:none; }
+  .lg-cbtn.paused .i-play { display:block; } .lg-cbtn.paused .i-pause { display:none; }
+  .lg-dots { display:flex; align-items:center; }
+  #login-view .lg-dot { position:relative; width:24px; height:24px; padding:0; border:0; background:transparent; cursor:pointer; border-radius:6px; }
+  #login-view .lg-dot:hover { background:transparent; transform:none; box-shadow:none; }
+  .lg-dot::before, .lg-dot::after { content:""; position:absolute; top:9px; height:6px; border-radius:3px; }
+  .lg-dot::before { left:9px; width:6px; background:#626d81; transition:background-color .2s; }
+  .lg-dot:hover::before { background:var(--muted); }
+  .lg-dot[aria-current="true"]::before { left:0; width:24px; background:#626d81; }
+  .lg-dot::after { display:none; }
+  .lg-dot[aria-current="true"]::after { display:block; left:0; width:24px; background:var(--accent-color); transform-origin:left center; transform:scaleX(1); }
+  /* 자동 재생 중일 때만 남은 시간을 채움 막대로 보여 준다. --lg-delay(음수)는 멈췄다 재생할 때 지난 시간만큼 앞에서 시작하게 한다 */
+  .lg-hero[data-play="on"] .lg-dot[aria-current="true"]::after { animation:lgfill var(--lg-dur) linear forwards; animation-delay:var(--lg-delay, 0ms); animation-play-state:paused; }
+  .lg-hero[data-play="on"].is-running .lg-dot[aria-current="true"]::after { animation-play-state:running; }
+  .lg-hero.reset .lg-dot::after { animation:none !important; }
+  @keyframes lgfill { from { transform:scaleX(0); } to { transform:scaleX(1); } }
+  .lg-slides { position:relative; min-height:0; }
+  .lg-slide { position:absolute; inset:0; display:grid; grid-template-rows:auto minmax(0, 1fr) auto; gap:20px;
+              opacity:0; visibility:hidden; transform:translateX(16px);
+              transition:opacity var(--lg-swap) ease, transform var(--lg-swap) cubic-bezier(.22,.9,.3,1), visibility 0s linear var(--lg-swap); }
+  .lg-slide.on { opacity:1; visibility:visible; transform:none; transition-delay:0s; }
+  .lg-say { max-width:15em; font:300 40px/1.25 var(--lg-thin); letter-spacing:-.03em; }
+  .lg-vis { min-height:0; }
+  .lg-src { font:12px/1.5 var(--mono); color:var(--muted); }
+  .lg-notice { padding:16px 20px 18px; border:1px solid var(--line-strong); border-top:3px double var(--muted);
+               border-radius:8px; background:var(--panel2); box-shadow:var(--shadow); }
+  .lg-notice .lg-org { font-size:12px; color:var(--muted); }
+  .lg-notice h3 { margin:6px 0 12px; font:700 17px/1.4 var(--lg-serif); }
+  .lg-notice dl { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:13px; }
+  .lg-notice dt { color:var(--muted); } .lg-notice dd { font-family:var(--mono); }
+  .lg-v1 { display:grid; grid-template-columns:minmax(0, 1.15fr) minmax(0, 1fr); gap:24px 32px; align-content:start; }
+  .lg-dday { align-self:center; }
+  .lg-dday .lg-big { font:700 64px/1 var(--mono); letter-spacing:-.02em; }
+  .lg-dday .lg-cap { margin:8px 0 12px; font-size:13px; color:var(--muted); }
+  .lg-chip { display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border:1px solid var(--red); border-radius:8px;
+             background:color-mix(in srgb, var(--red) 18%, transparent); color:color-mix(in srgb, var(--red) 72%, #fff); font:12px var(--mono); }
+  .lg-chip svg { width:10px; height:10px; }
+  .lg-tlw { grid-column:1 / -1; position:relative; height:84px; }
+  .lg-tlw::before { content:""; position:absolute; left:0; right:0; top:41px; height:2px; background:var(--line-strong); }
+  .lg-tlspan { position:absolute; top:34px; height:16px; left:85.7%; right:0; border:1px solid var(--red); border-radius:4px;
+               background:color-mix(in srgb, var(--red) 18%, transparent); }
+  .lg-tl { position:absolute; inset:0; }
+  .lg-tl li { position:absolute; left:var(--x); width:0; font-size:12px; color:var(--muted); white-space:nowrap; }
+  .lg-tl li::before { content:""; position:absolute; left:-4px; top:38px; width:8px; height:8px; border-radius:50%; background:var(--muted); }
+  .lg-tl li span { position:absolute; transform:translateX(-50%); }
+  .lg-tl li.up span { top:6px; } .lg-tl li.down span { top:56px; }
+  .lg-tl li.end span { transform:translateX(-100%); } .lg-tl li.start span { transform:none; }
+  .lg-tl li b { font:700 12px var(--mono); color:var(--fg); margin-right:6px; }
+  .lg-tl li.today::before { background:var(--fg); box-shadow:0 0 0 3px var(--bg), 0 0 0 4px var(--fg); }
+  .lg-tl li.lg-quiet span { display:none; }   /* 점은 남기고 글자만 숨김(접수 시작 글자와 겹칠 때) */
+  .lg-v2 { display:grid; grid-template-columns:300px minmax(0, 1fr); gap:28px; align-items:center; }
+  .lg-map { display:block; width:100%; height:auto; }
+  .lg-gu { fill:var(--bg); stroke:var(--line-strong); stroke-width:.8; }
+  .lg-gu.lg-ink { fill:var(--fg); stroke:var(--panel); }
+  .lg-gu.lg-ring { fill:var(--bg); stroke:var(--fg); stroke-width:2; }
+  .lg-gu.lg-hot { fill:var(--lg-hot); stroke:var(--bg); stroke-width:1; }
+  .lg-gu.lg-far { fill:var(--lg-far); stroke:var(--bg); stroke-width:1; }
+  .lg-gu-label { font:700 11px var(--lg-sans); fill:#141922; stroke:#eef2f8; stroke-width:3px; paint-order:stroke; text-anchor:middle; }
+  .lg-rows { display:grid; gap:14px; }
+  .lg-rows li { display:grid; grid-template-columns:48px minmax(0, 1fr); gap:14px; align-items:center;
+                padding:12px 14px; border:1px solid var(--line-strong); border-radius:8px; background:var(--panel); }
+  .lg-rows svg { width:48px; height:45px; display:block; }
+  .lg-sil { fill:var(--muted); }
+  .lg-rows .lg-name { font-size:16px; font-weight:700; letter-spacing:-.01em; }
+  .lg-rows .lg-what { font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .lg-rows .lg-what svg { width:12px; height:12px; display:inline; color:var(--muted); }
+  .lg-rows .lg-src { font-size:11px; }
+  .lg-v4 { display:grid; grid-template-columns:minmax(0, 400px) minmax(0, 1fr); gap:28px; align-items:center; }
+  .lg-legend { display:grid; gap:16px; font-size:14px; }
+  .lg-legend li { display:grid; grid-template-columns:14px 1fr; gap:10px; }
+  .lg-legend .lg-sw { width:14px; height:14px; border-radius:4px; margin-top:4px; }
+  .lg-legend .lg-n { font:700 14px var(--mono); }
+  .lg-legend p { margin:2px 0 0; font-size:13px; color:var(--muted); }
+  .lg-legend .lg-hotsw { background:var(--lg-hot); } .lg-legend .lg-farsw { background:var(--lg-far); }
+  .lg-memo { margin:18px 0 0; padding-top:12px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
+  .lg-flow { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; align-content:center; height:100%; }
+  .lg-flow li { position:relative; padding:18px 16px 20px; border:1px solid var(--line-strong); border-radius:8px; background:var(--panel); }
+  .lg-flow li + li::before { content:""; position:absolute; left:-13px; top:34px; width:12px; height:1px; background:var(--line-strong); }
+  .lg-flow .lg-no { font:700 12px var(--mono); color:var(--muted); }
+  .lg-flow h3 { margin:8px 0 6px; font-size:16px; font-weight:700; letter-spacing:-.01em; }
+  .lg-flow p.lg-d { font-size:13px; line-height:1.55; color:var(--muted); }
+  .lg-badge { display:inline-block; padding:0 7px; border:1px solid var(--line-strong); border-radius:8px; font-size:11px; line-height:18px; color:var(--muted); white-space:nowrap; }
+  .lg-bids { display:grid; gap:0; align-content:start; border-left:2px solid var(--line-strong); margin-left:6px; }
+  .lg-bids li { display:grid; grid-template-columns:64px minmax(0, 1fr) auto; gap:14px; align-items:center; padding:7px 0 7px 16px; border-bottom:1px solid var(--line); font-size:14px; }
+  .lg-bids .lg-bday { font:700 14px var(--mono); }
+  .lg-bids .lg-bname { display:flex; align-items:center; gap:10px; min-width:0; font-weight:700; letter-spacing:-.01em; }
+  .lg-bids .lg-bdate { font:12px var(--mono); color:var(--muted); }
+  .lg-cards { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; align-content:start; }
+  .lg-cards li { padding:14px 16px 14px; border:1px solid var(--line-strong); border-radius:8px; background:var(--panel); display:grid; gap:4px; align-content:start; }
+  .lg-cards .lg-chead { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .lg-cards .lg-cname { font-size:16px; font-weight:700; letter-spacing:-.01em; }
+  .lg-cards .lg-cbank { font-size:15px; }
+  .lg-cards .lg-cterm { font:12px var(--mono); color:var(--muted); }
+  .lg-cards .lg-pending { justify-self:start; padding:0 7px; border:1px dashed var(--muted); border-radius:8px; font-size:11px; line-height:18px; color:var(--fg); }
+  .lg-cards .lg-src { margin-top:4px; font-size:11px; }
+  .lg-ph { fill:none; stroke:var(--line-strong); stroke-dasharray:4 4; }   /* 경계 파일을 못 읽을 때의 자리 표시 */
+  .lg-ph-t { font:12px var(--lg-sans); fill:var(--muted); text-anchor:middle; }
+  .lg-stage.lg-solo { grid-template-columns:minmax(0, 560px); justify-content:center; }
+  @media (max-width:1279px) { :root { --lg-card:440px; --lg-gap:40px; } .lg-v2 { grid-template-columns:260px minmax(0, 1fr); } .lg-say { font-size:36px; } }
+  @media (max-height:820px) {
+    .login-card { padding:32px 36px 28px; } .lg-lede { margin:6px 0 16px; } .lg-form { gap:12px; }
+    #login-view .login-card input, #login-view .login-card select { height:44px; } #login-view .lg-primary, #login-view .lg-ghost { height:46px; }
+    .lg-hero { min-height:520px; gap:18px; } .lg-say { font-size:32px; } .lg-dday .lg-big { font-size:52px; }
+    .lg-rows { gap:10px; } .lg-rows li { padding:9px 12px; }
+  }
+  @media (max-width:960px) {
+    .lg-hero { display:none; }
+    .lg-stage { grid-template-columns:minmax(0, 560px); justify-content:center; padding:32px 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lg-slide { transform:none; transition:none; }
+    .lg-hero .lg-dot[aria-current="true"]::after { animation:none !important; }
+    #login-view * { transition:none !important; }
+  }
   #notify-badge:not(:empty) { margin-left:2px; background:var(--red); color:#0d1116;
       border-radius:8px; padding:0 6px; font-size:11px; font-family:var(--mono); }
 
@@ -1510,19 +1666,60 @@ FORM: taste-redesign 다크크롬 하이브리드 — 실험 2라운드(8종) �
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish
 review, the verdict, and DESIGN.md
 -->
-<div id="login-view" role="dialog" aria-label="로그인">
-  <div class="login-card">
-    <h1><svg width="16" height="16" viewBox="0 0 14 14" aria-hidden="true"><g stroke="#57b8ad" stroke-width="1.6" fill="none"><line x1="3" y1="2" x2="3" y2="12"/><rect x="1.2" y="4.5" width="3.6" height="4" fill="#57b8ad" stroke="none"/><line x1="10" y1="1" x2="10" y2="13"/><rect x="8.2" y="3" width="3.6" height="6.5" fill="none"/></g></svg>기관영업지원 시스템</h1>
-    <p class="login-sub">함께 만드는 제안서 — 로그인하고 시작하세요</p>
-    <label>사번 / 아이디<input id="login-id" autocomplete="off" inputmode="text" placeholder="사번 7자리 또는 임시 계정(예: sales.lead)"></label>
-    <label>비밀번호<input id="login-pw" type="password" autocomplete="off" placeholder="프로토타입은 확인하지 않습니다"></label>
-    <label>팀 / 직위<select id="login-role"></select></label>
-    <div id="login-msg" class="login-msg"></div>
-    <div class="login-actions">
-      <button id="login-go" class="primary">로그인</button>
-      <button id="login-guest">둘러보기</button>
-    </div>
-    <p class="login-hint">사번(숫자 7자리)으로 로그인합니다. 팀/직위를 고르면 임시 계정이 자동으로 채워집니다. 로그인과 화면 사용은 접근 이력에 기록됩니다.</p>
+<div id="login-view" role="region" aria-label="로그인 화면">
+  <div class="lg-top">
+    <p class="lg-brand">
+      <svg width="16" height="16" viewBox="0 0 14 14" aria-hidden="true"><g stroke="currentColor" stroke-width="1.6" fill="none"><line x1="3" y1="2" x2="3" y2="12"/><rect x="1.2" y="4.5" width="3.6" height="4" fill="currentColor" stroke="none"/><line x1="10" y1="1" x2="10" y2="13"/><rect x="8.2" y="3" width="3.6" height="6.5"/></g></svg>
+      기관영업지원 시스템
+    </p>
+    <p class="lg-note">금고 입찰 현황</p>
+  </div>
+  <div class="lg-stage">
+    <section class="login-card" aria-labelledby="login-title">
+      <h1 id="login-title">로그인</h1>
+      <p class="lg-lede">전국 지자체 금고의 약정 만료 시점을 지도에 모았습니다.</p>
+      <div class="lg-form">
+        <label>사번 또는 임시 계정
+          <input id="login-id" name="username" autocomplete="username" inputmode="text" placeholder="사번 7자리" aria-describedby="login-msg">
+        </label>
+        <label>비밀번호
+          <input id="login-pw" name="password" type="password" autocomplete="current-password">
+        </label>
+        <label>임시 계정 (팀·직위)
+          <select id="login-role"></select>
+        </label>
+        <p id="login-msg" class="login-msg" role="status" aria-live="polite"></p>
+        <div class="login-actions">
+          <button id="login-go" class="lg-primary" type="button">로그인</button>
+          <button id="login-guest" class="lg-ghost" type="button">로그인 없이 둘러보기</button>
+        </div>
+        <p class="login-hint">시험 운영 중에는 비밀번호를 확인하지 않습니다.<br>로그인과 화면 사용은 접근 이력에 남습니다.</p>
+      </div>
+    </section>
+
+    <!-- 히어로: 문구·사실은 data/login-slides.js, 그리기·재생·날짜 계산은 js/login-hero.js -->
+    <!-- hidden 속성은 슬라이드가 한 장도 없을 때 js/login-hero.js가 켠다 -->
+    <section class="lg-hero" id="lg-hero" aria-roledescription="슬라이드 묶음" aria-label="2026 금고 지정 소식" data-play="on">
+      <div class="lg-ctl" role="group" aria-label="슬라이드 조작">
+        <p class="lg-where" aria-hidden="true"><b><span id="lg-n">1</span> / <span id="lg-total">1</span></b><span id="lg-topic"></span></p>
+        <button type="button" class="lg-cbtn" id="lg-play" aria-label="자동 재생 멈추기">
+          <svg class="i-pause" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1.5" width="2.6" height="9" rx=".6" fill="currentColor"/><rect x="7.4" y="1.5" width="2.6" height="9" rx=".6" fill="currentColor"/></svg>
+          <svg class="i-play" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.6 10.2 6 3 10.4Z" fill="currentColor"/></svg>
+          <span class="lg-t">멈춤</span>
+        </button>
+        <button type="button" class="lg-cbtn" id="lg-prev" aria-label="이전 슬라이드">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M7.5 2 3.5 6l4 4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="lg-dots" id="lg-dots"></div>
+        <button type="button" class="lg-cbtn" id="lg-next" aria-label="다음 슬라이드">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+
+      <div class="lg-slides" id="lg-slides" aria-live="off">
+        <!-- 슬라이드 내용은 data/login-slides.js를 고친다. js/login-hero.js가 그것을 읽어 여기에 그린다 -->
+      </div>
+    </section>
   </div>
 </div>
 
@@ -1876,6 +2073,8 @@ review, the verdict, and DESIGN.md
 <script src="js/designer.js"></script>
 <script src="js/menu_rules.js"></script>
 <script src="js/login.js"></script>
+<script src="data/login-slides.js"></script>
+<script src="js/login-hero.js"></script>
 <script src="js/nav.js"></script>
 <script src="js/errtext.js"></script>
 <script src="js/approvals.js"></script>
@@ -1909,6 +2108,7 @@ review, the verdict, and DESIGN.md
 <script src="geo/gyeongbuk.js"></script>
 <script src="geo/gyeongnam.js"></script>
 <script src="data/institutions.js"></script>
+<script src="data/institutions_nonmuni.js"></script>
 <!-- 렌더·엔트리 -->
 <script src="js/render.js"></script>
 <script src="js/overdue.js"></script>

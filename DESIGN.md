@@ -408,7 +408,7 @@ mirrored 1:1 by the `.fsw` stroke glyphs in the control strip.
   on-accent 잉크(#0d1116)/700 — 탭의 유일 주행동이라 사용자 확정으로 승격.
   hover는 82% 흰색 믹스로 밝힘, disabled 50%. 다른 곳에 채운 주버튼을 늘리지
   말 것(One Teal Rule — 상호작용 보이스는 소량이라 튄다).
-- **채운 주버튼 예외 3곳(2026-11-09 확정):** `#ch-send`, 시스템 관리 `button.primary`(사용자 등록), 로그인 제출(`.login-actions .primary`). 각 화면의 유일한 주행동이라 예외로 인정. 그 외에는 filled "primary"가 없다 — hierarchy comes from placement.
+- **채운 주버튼 예외 3곳(2026-11-09 확정):** `#ch-send`, 시스템 관리 `button.primary`(사용자 등록), 로그인 제출(`.login-actions .lg-primary`, 알약형 — Login Surface 참고). 각 화면의 유일한 주행동이라 예외로 인정. 그 외에는 filled "primary"가 없다 — hierarchy comes from placement.
   `.btn-like` wraps file inputs in the same skin.
 
 ### Inputs / Fields
@@ -464,6 +464,23 @@ mirrored 1:1 by the `.fsw` stroke glyphs in the control strip.
   panels carry `--shadow`.
 - **Hover:** border warms toward teal (55% mix on region cards) with card
   lift; **Selected:** teal ring/outline or 13% teal tint.
+
+### Login Surface (표면 예외, 2026-11-11 — 시안 B-3)
+로그인 화면(`#login-view`)은 앱 크롬이 아니라 **문 앞 표면**이다. 앱의 Tight Operate Ramp(11–16px)를
+따르지 않는 유일한 곳이며, 예외는 아래 목록에 적힌 것만이다. 로그인 뒤 화면에 이 값들을 가져가지 않는다.
+- **큰 글자(이 셋만):** 슬라이드 문구 `.lg-say` 300 / **40px**(폭 ≤1279px 36px, 높이 ≤820px 32px), Malgun Gothic Semilight ·
+  D-day `.lg-big` 700 / **64px**(높이 ≤820px 52px) `--mono` · 카드 제목 `.login-card h1` 700 / **26px**. 공고 조각 제목
+  `.lg-notice h3`만 17px Batang(공고문 인쇄체 흉내, 시스템 글꼴). 나머지 글자는 11–16px 램프 그대로.
+- **알약 주버튼:** `.login-actions .lg-primary` — 높이 50px, 반경 25px, 틸 채움 + #0d1116/700. 채운 주버튼 예외 3곳 중 하나.
+  보조 `.lg-ghost`는 반경 8px 고스트(1px #626d81, hover에도 유지). 알약 반경은 이 버튼에만 쓴다.
+- **슬라이드 규칙:** 내용은 `frontend/data/login-slides.js`(실측 사실 + 출처 줄, 근거 없는 수치 금지)에만 둔다. 6초 자동 넘김,
+  **계속 반복**(사용자 결정 11-11), 320ms 페이드+16px 이동. 조작 줄(재생/멈춤 글자 버튼·이전·점·다음)은 DOM에서 슬라이드 앞,
+  **화면에서는 슬라이드 아래에 작고 흐리게**(히어로 hover·focus 때 또렷, 사용자 결정 11-11). 자동 재생 중 `aria-live="off"`,
+  멈추면 `polite`. hover·포커스·탭 숨김·폭 ≤960px에서 정지, reduced-motion이면 처음부터 정지. 접수 일정은 마감 뒤 자동으로
+  빠지고, 슬라이드가 0장이면 카드만 가운데 둔다.
+- **색:** 앱 `:root` 변수만 쓰고 화면 전용 값은 `--lg-*`로만 둔다(이름 동결 규칙 적용). 채도는 서울 지도(`--lg-hot`·`--lg-far`
+  = 지도 섞기 팔레트 복제 — 지도 팔레트가 바뀌면 같이 고친다)와 접수 칩(`--red` 18% 틴트)만. 틸은 포커스·주버튼·현재 점에만.
+- **덮개:** `position:fixed` 덮개이므로 보이는 동안 뒤의 헤더와 `#shell`은 `inert`.
 
 ### Modals & Popover
 - `modal-box`: panel fill, 1px `--line-strong` border, 14px radius,
@@ -536,7 +553,7 @@ red-band items only, `·` separators in `--line-strong`, ellipsis overflow.
 - **Don't** cast neutral-black shadows, use hard offset shadows, or drop
   surface radii below the 8px floor — the soft tinted finish is the world.
 - **Don't** exceed the 11–16px type ramp in app chrome; hierarchy comes from
-  weight, color, and the mono/sans split (Tight Operate Ramp Rule).
+  weight, color, and the mono/sans split (Tight Operate Ramp Rule). (로그인 표면은 Login Surface 예외 목록만 허용)
 - ~~Don't canonize the two carried off-token literals in `render.js`~~ —
   **해소(2026-08-14)**: 클러스터 배지·geo-retry 배너를 현행 토큰
   (#202835 / #e2e7ee)으로 재도색 완료. 이월 결함 없음.
