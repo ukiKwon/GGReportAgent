@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import io
+import struct
 import zlib
 
 from collector.extract.hwpx import ExtractError
@@ -14,6 +15,7 @@ from collector.extract.hwpx import ExtractError
 MAX_FILE_BYTES = 30 * 1024 * 1024
 MAX_SECTIONS = 50
 MAX_SECTION_BYTES = 30 * 1024 * 1024      # 풀린 뒤 크기 상한(zip 폭탄과 같은 방어)
+MAX_TEXT_CHARS = 2_000_000                # 뽑은 글 전체 상한(security 11-12 — 메모리 보호)
 HWPTAG_PARA_TEXT = 67                     # HWPTAG_BEGIN(16) + 51
 _CHAR_CTRL = {0, 10, 13} | set(range(24, 32))      # 1 WCHAR 짜리 제어 문자
 _SPAN_CTRL = set(range(1, 32)) - _CHAR_CTRL         # 8 WCHAR(16바이트)를 차지하는 인라인·확장 제어
@@ -28,19 +30,24 @@ def _inflate(data: bytes) -> bytes:
 
 
 def _para_text(raw: bytes) -> str:
-    chars, i, n = [], 0, len(raw) - 1
+    """제어 문자 사이 글 덩어리를 한 번에 decode(글자마다 객체를 만들지 않음 — security 11-12)."""
+    parts, i, start, n = [], 0, 0, len(raw) - 1
     while i < n:
         c = raw[i] | (raw[i + 1] << 8)
         if c < 32:
+            if i > start:
+                parts.append(raw[start:i].decode("utf-16-le", errors="replace"))
             if c in (10, 13):
-                chars.append("\n")
+                parts.append("\n")
             elif c == 9:
-                chars.append("\t")
+                parts.append("\t")
             i += 16 if c in _SPAN_CTRL else 2
+            start = i
             continue
-        chars.append(chr(c))
         i += 2
-    return "".join(chars)
+    if start < min(i, len(raw)):
+        parts.append(raw[start:min(i, len(raw) - len(raw) % 2)].decode("utf-16-le", errors="replace"))
+    return "".join(parts)
 
 
 def _records(buf: bytes):
@@ -84,17 +91,22 @@ def hwp5_text(data: bytes) -> str:
                                and e[1].startswith("Section")), key=lambda e: int(e[1][7:] or 0))
             if not sections or len(sections) > MAX_SECTIONS:
                 raise ExtractError("HWP 본문 구간 수가 이상합니다")
-            out = []
+            out, total = [], 0
             for sec in sections:
                 raw = ole.openstream(sec).read(MAX_FILE_BYTES + 1)
                 buf = _inflate(raw) if compressed else raw
                 for tag, payload in _records(buf):
                     if tag == HWPTAG_PARA_TEXT:
-                        out.append(_para_text(payload).strip("\n"))
+                        text = _para_text(payload).strip("\n")
+                        total += len(text)
+                        if total > MAX_TEXT_CHARS:
+                            raise ExtractError("HWP 글이 너무 깁니다")
+                        out.append(text)
             return "\n".join(t for t in out if t.strip())
         finally:
             ole.close()
     except ExtractError:
         raise
-    except (OSError, ValueError, zlib.error, IndexError) as exc:
+    except (OSError, ValueError, zlib.error, IndexError, KeyError, TypeError, AttributeError,
+            RecursionError, MemoryError, struct.error) as exc:      # olefile 내부 예외도 감싼다(security 11-12)
         raise ExtractError(f"HWP를 읽을 수 없습니다({type(exc).__name__})") from exc

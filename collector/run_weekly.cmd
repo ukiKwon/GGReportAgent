@@ -6,9 +6,9 @@ setlocal
 set PYTHONIOENCODING=utf-8
 cd /d "%~dp0.."
 if not exist "data\collector\_logs" mkdir "data\collector\_logs"
-for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HHmm"') do set TS=%%i
+for /f %%i in ('%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HHmm"') do set TS=%%i
 rem eminwon: only notices posted in the last 60 days (without --since every page back to 2009 is collected)
-for /f %%i in ('powershell -NoProfile -Command "Get-Date (Get-Date).AddDays(-60) -Format yyyy-MM-dd"') do set SINCE=%%i
+for /f %%i in ('%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command "Get-Date (Get-Date).AddDays(-60) -Format yyyy-MM-dd"') do set SINCE=%%i
 set LOG=data\collector\_logs\%TS%_weekly.log
 echo [%TS%] eminwon >> "%LOG%"
 "C:\dev\python\python.exe" -m collector run --source eminwon --since %SINCE% >> "%LOG%" 2>&1

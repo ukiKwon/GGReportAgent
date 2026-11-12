@@ -10,3 +10,4 @@ pypdf
 langgraph
 langgraph-checkpoint-sqlite
 numpy
+olefile==0.47          # collector 구형 HWP 읽기(사용자 승인 2026-11-12, BSD)
