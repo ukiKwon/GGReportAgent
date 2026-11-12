@@ -244,7 +244,9 @@ def test_vaccine_policy():
     from collector.privacy import vaccine_policy
     assert vaccine_policy("https://eminwon.sunchang.go.kr/x") == "생략"
     assert vaccine_policy("http://eminwon.sunchang.go.kr/x") == "사용자 확인"
-    assert vaccine_policy("https://gangnam.eminwon.seoul.kr/x") == "사용자 확인"
+    assert vaccine_policy("https://gangnam.eminwon.seoul.kr/x") == "생략"          # 지자체 공식 도메인(11-12 결정)
+    assert vaccine_policy("http://nowon.eminwon.seoul.kr/x") == "사용자 확인"      # http는 생략 불가
+    assert vaccine_policy("https://example.com/x") == "사용자 확인"
     assert vaccine_policy("eminwon.mapo.go.kr", "https") == "생략"
 
 

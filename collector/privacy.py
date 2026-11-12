@@ -2,7 +2,8 @@
 
 - 담당자 연락처는 **모두 가린다**: 원문 보관본(상세 HTML)·hwpx 첨부 본문·배치 텍스트·근거 문장.
   안을 고칠 수 없는 PDF·구형 HWP는 원문 보관소(망 밖)에만 두고, 망 안으로 가는 배치에는 싣지 않는다.
-- 첨부 반입 백신: **https + 국가기관 도메인(go.kr)**이면 생략, 그 외(go.kr이 아니거나 http)는 반입 전에 사용자 확인.
+- 첨부 반입 백신: **https + 국가기관(go.kr)·광역 지자체 공식 도메인(seoul.kr·incheon.kr·gwangju.kr·ulsan.kr)**이면
+  생략, 그 외(목록 밖 도메인이거나 http)는 반입 전에 사용자 확인.
 """
 
 from __future__ import annotations
@@ -17,7 +18,8 @@ _PHONE = re.compile(
     r"(?<![\d-])(?:\(?0(?:2|[3-6][1-5]|70|50\d?|1[016789])\)?[\s.\-~]?\d{3,4}[\s.\-]\d{4}"
     r"|1[5-9]\d{2}[\s.\-]\d{4})(?![\d-])")
 _EMAIL = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
-GOV_SUFFIXES = (".go.kr",)
+# 국가기관(go.kr) + 광역 지자체 공식 도메인(사용자 결정 11-12: https면 백신 생략 — 지자체 공식 고시공고 시스템).
+GOV_SUFFIXES = (".go.kr", ".seoul.kr", ".incheon.kr", ".gwangju.kr", ".ulsan.kr")
 
 
 def mask_contacts(text: str) -> tuple[str, int]:
