@@ -71,11 +71,16 @@ def _unlock(path: Path, token: str) -> None:
 
 def _lock(path: Path, token: str = ""):
     path.parent.mkdir(parents=True, exist_ok=True)
-    for _ in range(2):
+    for attempt in range(3):
         try:
             fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             os.write(fd, f"pid={os.getpid()} token={token} at={int(time.time())}\n".encode())
             return fd
+        except PermissionError:                # Windows: 방금 지운 잠금이 '삭제 대기'(백신 핸들) — 잠깐 뒤 다시(qa P3-4)
+            if attempt == 2:
+                return None                    # 끝내 못 만들면 '다른 실행 중'(4)
+            time.sleep(1.0)
+            continue
         except FileExistsError:
             try:
                 seen = path.read_bytes()           # 내용 먼저, 시각은 나중 — 오래됨이 확인된 파일의 내용만 seen이 된다
@@ -92,16 +97,21 @@ def _reclaim(path: Path, seen: bytes) -> bool:
     """오래된 잠금은 '회수 표식'(O_EXCL)을 쥔 한 실행만, 다시 읽은 내용이 처음 본 것과 같을 때만 지운다(qa P3-D).
     True = 지웠거나 이미 없음, False = 다른 실행이 회수 중·이미 새 잠금·지울 수 없음('다른 실행 중' 4)."""
     mark = path.with_name(path.name + ".reclaim")
-    try:
-        fd = os.open(mark, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-    except FileExistsError:
+    fd = None
+    for _ in range(2):
         try:
-            if time.time() - mark.stat().st_mtime > STALE_RECLAIM_SEC:
-                mark.unlink(missing_ok=True)       # 회수 도중 죽은 표식 — 이번은 넘기고 다음 실행이 회수
+            fd = os.open(mark, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            break
+        except FileExistsError:
+            try:
+                if time.time() - mark.stat().st_mtime <= STALE_RECLAIM_SEC:
+                    return False                   # 다른 실행이 회수 중
+                mark.unlink(missing_ok=True)       # 회수 도중 죽은 표식 — 지우고 이번 호출에서 한 번 더(qa P3-3)
+            except OSError:
+                return False
         except OSError:
-            pass
-        return False
-    except OSError:
+            return False
+    if fd is None:
         return False
     try:
         os.close(fd)

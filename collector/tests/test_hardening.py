@@ -428,9 +428,8 @@ def test_stale_reclaim_mark_cleared_then_next_run_proceeds(tmp_path):
     mark = lock.with_name("run.lock.reclaim")
     mark.write_text("")
     os.utime(mark, (1, 1))
-    assert cli._lock(lock, "aaaa") is None and not mark.exists()
-    fd = cli._lock(lock, "aaaa")
-    assert fd is not None
+    fd = cli._lock(lock, "aaaa")                         # 오래된 표식은 지우고 같은 호출에서 회수(qa P3-3)
+    assert fd is not None and not mark.exists()
     os.close(fd)
     assert "token=aaaa" in lock.read_text()
 
@@ -449,8 +448,8 @@ def test_run_weekly_cmd_is_ascii():
 def test_run_weekly_exit_is_worst(tmp_path, e, g, want):
     import subprocess
     text = CMD.read_text(encoding="ascii")
-    py_e = '"C:\dev\python\python.exe" -m collector run --source eminwon --since %SINCE%'
-    py_g = '"C:\dev\python\python.exe" -m collector run --source g2b'
+    py_e = r'"C:\dev\python\python.exe" -m collector run --source eminwon --since %SINCE%'
+    py_g = r'"C:\dev\python\python.exe" -m collector run --source g2b'
     assert text.count(py_e) == 1 and text.count(py_g) == 1
     d = tmp_path / "collector"
     d.mkdir()
@@ -461,3 +460,13 @@ def test_run_weekly_exit_is_worst(tmp_path, e, g, want):
     assert r.returncode == want
     log = next((tmp_path / "data" / "collector" / "_logs").glob("*_weekly.log")).read_text(encoding="ascii")
     assert f"final exit={want}" in log
+
+
+def test_lock_permission_error_retries_then_busy(tmp_path, monkeypatch):
+    lock = tmp_path / "_state" / "run.lock"
+    lock.parent.mkdir(parents=True)
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    real = os.open
+    monkeypatch.setattr(cli.os, "open", lambda *a, **k: (_ for _ in ()).throw(PermissionError("delete pending")))
+    assert cli._lock(lock, "aaaa") is None                        # traceback 대신 '다른 실행 중'(4)
+    monkeypatch.setattr(cli.os, "open", real)
