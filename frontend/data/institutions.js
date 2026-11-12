@@ -16,6 +16,9 @@
 //    회차가 끝나면(선정·결과 공고) 그 회차의 1차 계획 공고일을 lastBid로 옮기고 contractEnd·
 //    confirmed는 지운다. 재공고가 있었으면 1차 공고일, 모르면 재공고일을 쓰고 sources에 밝힌다.
 //    덮어쓴 옛 lastBid는 sources에 '이전 회차 기준일=…'로 남긴다(NEXT 30-1, 2026-11-11).
+//  - receiveFrom/receiveTo(제안서 접수 시작·마감)·noticeNo(공고번호)·noticeUrl(공고 원문 주소): 진행 중 공고(confirmed)의
+//    '공고 진행' 표시용(e3 화면). sources 원문으로 확인된 값만, 모르면 비운다(2026-11-12). 시도별 적용 블록이 extra에서 옮긴다.
+//  - 비지자체 파일(institutions_nonmuni.js)만의 칸: g2bCode = 나라장터 기관코드(행정표준 orgCode 아님, 화면 미사용).
 //  - 근거로 월/일을 특정하지 못한 곳은 **날짜를 비워 둔다**(지어내지 않는다).
 //    지도에서 회색 + '?'로 남고, 아는 사실은 sources에 문장으로 남긴다.
 window.institutions = [

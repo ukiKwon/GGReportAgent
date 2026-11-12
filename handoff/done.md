@@ -678,3 +678,12 @@
 - 확인: 프런트 테스트 741 통과, qa 조건부 통과(실서버 5계정·1280/880px). 900px 이하 준비중 칩 정렬(qa P3-1)은 메인 판단으로 margin-top:3px. DESIGN.md 사이드바 절·design_history ⑬장. PUSH-GATE security·design·cleaner·pm 차단 없음.
 - 남은 P3·판단은 NEXT 32(2줄 규칙·평평 6항목·디자이너 실계정·req-review 템플릿), 61(재무팀 진입점·대분류 이름), 58(고정 id 기준), 70(접근 이력·서버 가드)로 넘김.
 - 근거: design-reviewer 1626·PUSH-GATE, frontend-dev 1635, qa-verifier 1648, security·pm·cleaner PUSH-GATE 11-10.
+
+### 80(일부). 나라장터 소스·미리보기·주간 자동 수집·TLS 예외 — 해소(2026-11-12)
+- 나라장터 소스 81177f5, 미리보기·보강 9bc6b9e, 작업 스케줄러 'GGReport collector weekly' 매주 월 09:00 5b0b025(사용자 ⓐ), 호스트별 TLS 예외 c07d963(security·qa 통과), known_failing·요청 마감·잠금 토큰 182d45b. 출처 2026-11-12_summary.md 9f 섹션.
+
+### 79(일부). 공공기관·법원·지방공기업 171곳, 옛 eminwon 주소 정정 — 해소(2026-11-12)
+- 3a8cc19·4a0f1a0·2ef478a·62e11f8·8eff81a(124→171곳), 접수 기간 칸 365eaa9·7eb670b, 옛 eminwon 주소 정정 fae2065.
+
+### 14(일부). 강남 2026 회차 근거·은행명 표기 결정 — 해소(2026-11-12)
+- 45f014b(강남 신한 단독 응찰, 헤럴드 2026-09-12), 9e28789(은행명 데이터 일괄 치환 안 함, 은행 코드표로 정본화).
