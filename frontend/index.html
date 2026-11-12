@@ -1714,6 +1714,85 @@
   }
   @media (prefers-reduced-motion:reduce) { .db-row { transition:none; } .db-row:hover { transform:none; } }
   /* 입찰 현황판 끝 */
+
+  /* 기관장 카드 시작 — 입찰 현황판 상세 칸의 '기관장' 절 + 편집 모달. 시안 docs/design/2026-11-11_기관장카드_시안.html. 새 hex 없음(토큰만), 최소 11px.
+     큰 숫자(.hc-big b) 하나만 굵게 키운다. 점수·등급·별점 없음, 테두리 색으로 사람을 가르지 않는다. */
+  .hc-sec h3 { margin:0 0 12px; }
+  .hc-state { margin:0 0 10px; font-size:13px; }
+  .hc-act { margin:10px 0 0; }
+  .hc-card { border:1px solid var(--line-strong); border-radius:var(--r-lg, 14px); background:var(--panel); overflow:hidden; }
+  .hc-band { display:flex; flex-direction:column; gap:4px; padding:12px 16px; border-bottom:1px solid var(--line-strong); background:color-mix(in srgb, var(--accent-color) 9%, var(--panel)); }
+  .hc-big { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .hc-big .k, .hc-big .s { font-size:13px; color:var(--muted); }
+  .hc-big b { font:700 28px/1.1 var(--mono); letter-spacing:-.02em; }
+  .hc-bigsrc { font-size:12px; color:var(--muted); line-height:1.5; word-break:keep-all; }
+  .hc-body { display:grid; grid-template-columns:132px minmax(0, 1fr); gap:16px; padding:16px 16px 12px; }
+  .hc-frame { position:relative; width:117px; height:156px; margin:0 auto; overflow:hidden; border:1px solid var(--line-strong); border-radius:var(--r, 10px); background:var(--panel2); }
+  .hc-frame img { display:block; width:100%; height:100%; object-fit:cover; }
+  .hc-sil { position:absolute; left:50%; bottom:0; width:96px; height:128px; transform:translateX(-50%); }
+  .hc-sil circle, .hc-sil path { fill:var(--line); stroke:var(--line-strong); stroke-width:1; }
+  .hc-cap { margin:6px 0 0; font-size:12px; color:var(--muted); line-height:1.45; word-break:keep-all; overflow-wrap:anywhere; }
+  .hc-who { min-width:0; }
+  .hc-who h4 { margin:0; font-size:18px; font-weight:700; letter-spacing:-.01em; }
+  .hc-pos { margin-top:2px; font-size:13px; color:var(--muted); }
+  .hc-badge { display:inline-block; margin-left:6px; padding:0 6px; border:1px solid var(--line-strong); border-radius:6px; font-size:12px; color:var(--fg); }
+  .hc-facts { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); margin:12px 0 0; border:1px solid var(--line); border-radius:var(--r-sm, 8px); }
+  .hc-facts > div { min-width:0; padding:8px 10px; }
+  .hc-facts > div + div { border-left:1px solid var(--line); }
+  .hc-facts dt { font-size:12px; color:var(--muted); }
+  .hc-facts dd { margin:2px 0 0; font-size:13px; }
+  .hc-facts small { display:block; margin-top:2px; font-size:12px; line-height:1.4; }
+  .hc-src { font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+  .hc-src a, .hc-bigsrc a { color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent-color); text-underline-offset:3px; }
+  .hc-items { display:grid; grid-template-columns:44px minmax(0, 1fr); gap:10px 12px; margin:0; padding:0 16px 14px; }
+  .hc-items dt { font-size:12px; color:var(--muted); padding-top:2px; }
+  .hc-items dd { margin:0; font-size:13px; min-width:0; }
+  .hc-items ul { list-style:none; margin:0; padding:0; }
+  .hc-items li { margin:0 0 6px; line-height:1.5; }
+  .hc-items .yr { margin-right:6px; font:12px var(--mono); color:var(--muted); }
+  .hc-more summary { font-size:12px; color:var(--muted); cursor:pointer; }
+  .hc-foot { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; padding:10px 16px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
+  .hc-foot .v { font-family:var(--mono); color:var(--fg); }
+  .hc-foot .sp { margin-left:auto; display:flex; gap:6px; }
+  .hc-foot button { font-size:12px; padding:5px 12px; }
+  .hc-cand { border-color:var(--accent-color); }
+  .modal-box.hc-modal { width:min(720px, calc(100vw - 32px)); max-height:calc(100vh - 64px); }
+  .modal-box.hc-modal.hc-busy { opacity:.7; }
+  .hc-modal h3:focus, #hc-m-status:focus { outline:none; }
+  .hc-m-body { flex:1 1 auto; min-height:0; padding-right:4px; }
+  .hc-m-sec { border-top:1px solid var(--line); padding:14px 0; }
+  .hc-m-sec h4 { margin:0 0 10px; font-size:14px; font-weight:700; }
+  .hc-m-sec .v { font-family:var(--mono); font-weight:400; }
+  details.hc-m-sec summary { cursor:pointer; font-size:13px; font-weight:700; }
+  .hc-hint { margin:0 0 10px; font-size:12px; color:var(--muted); line-height:1.5; word-break:keep-all; }
+  .hc-ok, .hc-err { margin:8px 0 0; font-size:13px; line-height:1.5; word-break:keep-all; }
+  .hc-err { color:var(--red); }
+  .hc-list { list-style:none; margin:0; padding:0; }
+  .hc-row { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:4px 12px; padding:10px 0; border-top:1px solid var(--line); font-size:13px; }
+  .hc-row:first-child { border-top:0; }
+  .hc-main { min-width:0; overflow-wrap:anywhere; }
+  .hc-btns { display:flex; gap:6px; align-items:flex-start; flex-wrap:wrap; justify-content:flex-end; }
+  .hc-btns button { font-size:12px; padding:5px 12px; }
+  .hc-by { font-size:12px; color:var(--muted); }
+  .hc-why { grid-column:1 / -1; font-size:12px; color:var(--muted); }
+  .hc-confirmbox { grid-column:1 / -1; border:1px dashed var(--line-strong); border-radius:var(--r-sm, 8px); padding:10px 12px; font-size:13px; line-height:1.5; }
+  .hc-confirmbox p { margin:0 0 8px; }
+  .hc-danger { border-color:var(--red); }
+  .hc-form { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px 12px; }
+  .hc-valrow { display:contents; }
+  .hc-lab { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); min-width:0; }
+  .hc-lab input, .hc-lab select { width:100%; font-size:13px; padding:7px 10px; min-width:0; }
+  .hc-lab input[aria-invalid="true"] { border-color:var(--red); }
+  .hc-form .wide, .hc-confirmbox .hc-lab { grid-column:1 / -1; }
+  .hc-actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .hc-m-foot { display:flex; justify-content:flex-end; padding-top:12px; border-top:1px solid var(--line); }
+  @media (max-width:880px) {
+    .hc-body { grid-template-columns:1fr; }
+    .hc-form { grid-template-columns:1fr; }
+    .hc-row { grid-template-columns:1fr; }
+    .hc-btns { justify-content:flex-start; }
+  }
+  /* 기관장 카드 끝 */
 </style>
 </head>
 <body>
@@ -2150,6 +2229,7 @@ review, the verdict, and DESIGN.md
 <script src="js/team.js"></script>
 <script src="js/prep.js"></script>
 <script src="data/kb-verified.js"></script>
+<script src="js/headcard.js"></script>
 <script src="js/dashboard.js"></script>
 <script src="js/deputy.js"></script>
 <script src="js/admin.js"></script>

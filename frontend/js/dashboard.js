@@ -647,7 +647,8 @@
       bank = '<div class="db-sec"><h3>현재 금고 은행</h3><dl class="db-dl"><dt>금고 은행</dt><dd>' + chip() + '</dd><dt>약정 기간</dt><dd>' + chip() + '</dd></dl>' +
         '<p class="db-empty">약정 기록을 모으면 금고 은행과 약정 기간이 출처와 함께 여기에 보입니다.</p></div>';
     }
-    const chief = '<div class="db-sec"><h3>기관장</h3><dl class="db-dl"><dt>기관장</dt><dd>' + chip() + '</dd></dl>' +
+    // c.headHtml: headcard.js가 만든 '기관장' 절(서버 기관장 API 카드). 없으면(모듈 미로드·순수 테스트) 예전 자리표시를 둔다.
+    const chief = typeof c.headHtml === 'string' ? c.headHtml : '<div class="db-sec"><h3>기관장</h3><dl class="db-dl"><dt>기관장</dt><dd>' + chip() + '</dd></dl>' +
       '<p class="db-empty">기관장 프로필은 수집 예정입니다. 입찰이 1년 안에 있는 기관부터 모읍니다.</p></div>';
     return '<div class="db-pane-body">' + head + info + bank + chief + '</div><div class="db-act">' + dash.actHtml(it, c) + '</div>';
   };
@@ -781,6 +782,20 @@
     });
   }
 
+  // 기관장 카드(headcard.js). 입찰 D-day는 임기 만료일을 모를 때 카드 맨 위 큰 숫자가 된다(공고 진행 중인 기관은 넘기지 않는다).
+  function empNo() { try { return String((root.store.loadSession() || {}).emp || ''); } catch (e) { return ''; } }
+  function headBid(it) {
+    if (!it || it.notice || !it.date || typeof it.days !== 'number') return null;
+    return { days: it.overdue ? -it.days : it.days, date: it.date, label: it.label };
+  }
+  function headEnv(it) {
+    return { serverMode: serverMode(), hasEmp: hasEmp(), role: role(), emp: empNo(), today: todayDate(), bid: headBid(it), repaint: repaintHead };
+  }
+  function repaintHead() { if (host && M && st.sel) renderPane(); }
+  function headSection(it) {
+    return root.headcard ? root.headcard.paneSection(it.rec, headEnv(it)) : undefined;
+  }
+
   function renderPane() {
     const el = $('db-pane');
     if (!el) return;
@@ -791,7 +806,7 @@
     const ctx = { serverMode: serverMode() && hasEmp(), role: role(), session: root.store.loadSession && root.store.loadSession() };
     const act = dash.actionKind(it.rec, ctx, actives, root.prep);
     el.innerHTML = dash.paneHtml(it, { act: act, confirm: st.confirm && act === 'confirm', busy: st.busy,
-      kb: dash.kbEntry(it.rec, root.KB_VERIFIED), role: ctx.role, today: todayDate() });
+      kb: dash.kbEntry(it.rec, root.KB_VERIFIED), role: ctx.role, today: todayDate(), headHtml: headSection(it) });
     if (st.confirm && act === 'confirm') { const b = $('db-do'); if (b) b.focus(); }
   }
 
@@ -978,6 +993,12 @@
     // 띠 카드: 목록 선택과 상세 칸이 같이 바뀐다(목록 쪽 그 행으로 스크롤). 포커스는 눌린 카드에 그대로 둔다.
     const card = t.closest('.db-nb-card');
     if (card && host.contains(card)) { select(card.getAttribute('data-key')); return; }
+    // 기관장 카드의 [편집]·[기관장 추가]·[새로 고침] (headcard.js가 모달·요청을 맡는다)
+    const hcb = t.closest('[data-hc]');
+    if (hcb && host.contains(hcb) && root.headcard) {
+      root.headcard.onPaneClick(hcb.getAttribute('data-hc'), function () { return headEnv(findItem(st.sel)); });
+      return;
+    }
     const btn = t.closest('button');
     if (!btn) return;
     switch (btn.id) {
@@ -1027,6 +1048,7 @@
 
   dash.unmount = function () {
     seq += 1;
+    if (root.headcard) root.headcard.reset();   // 열린 편집 모달·사진 Blob 주소를 정리한다
     if (ac) ac.abort();
     ac = null;
     if (host) host.innerHTML = '';
