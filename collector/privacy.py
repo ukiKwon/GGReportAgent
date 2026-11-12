@@ -11,6 +11,8 @@ from __future__ import annotations
 import io
 import re
 import zipfile
+import zlib
+from urllib.parse import urlsplit
 
 MASK = "[연락처 가림]"
 # 전화(지역번호·휴대전화·대표번호), 괄호형 지역번호, 이메일. 날짜(2026-11-12)·공고번호(제2026-123호)는 건드리지 않는다.
@@ -36,23 +38,36 @@ def mask_contacts(text: str) -> tuple[str, int]:
     return text, n
 
 
+MAX_HWPX_ENTRIES = 500          # zip 폭탄 방어 — 항목 수·합계는 extract/hwpx.py와 같은 상한(security 11-12)
+
+
 def mask_hwpx(data: bytes) -> tuple[bytes, int]:
-    """hwpx 안 Contents/*.xml의 연락처를 가린 새 hwpx. 읽을 수 없으면 ValueError."""
+    """hwpx 안 Contents/*.xml·Preview/PrvText.txt의 연락처를 가린 새 hwpx. 첫 쪽 미리보기 그림(Preview/PrvImage.*)은
+    가릴 수 없어 뺀다(한글은 미리보기 없이도 연다). 읽을 수 없거나 너무 크면 ValueError."""
+    from collector.extract.hwpx import MAX_TOTAL_BYTES, ExtractError, _read_capped
     try:
         src = zipfile.ZipFile(io.BytesIO(data))
+        infos = src.infolist()
+        if len(infos) > MAX_HWPX_ENTRIES:
+            raise ExtractError("hwpx 항목이 너무 많습니다")
         out = io.BytesIO()
-        total = 0
+        total, budget = 0, MAX_TOTAL_BYTES
         with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as dst:
-            for info in src.infolist():
-                blob = src.read(info)
-                if info.filename.startswith("Contents/") and info.filename.endswith(".xml"):
+            for info in infos:
+                name = info.filename
+                if name.startswith("Preview/PrvImage"):
+                    continue                       # 그림 속 연락처는 가릴 수 없다
+                blob = _read_capped(src, info, budget)
+                budget -= len(blob)
+                if (name.startswith("Contents/") and name.endswith(".xml")) or name == "Preview/PrvText.txt":
                     text, n = mask_contacts(blob.decode("utf-8", errors="replace"))
                     total += n
                     blob = text.encode("utf-8")
-                ctype = zipfile.ZIP_STORED if info.filename == "mimetype" else zipfile.ZIP_DEFLATED
-                dst.writestr(info.filename, blob, compress_type=ctype)
+                ctype = zipfile.ZIP_STORED if name == "mimetype" else zipfile.ZIP_DEFLATED
+                dst.writestr(name, blob, compress_type=ctype)
         return out.getvalue(), total
-    except (zipfile.BadZipFile, RuntimeError, OSError, EOFError) as exc:
+    except (zipfile.BadZipFile, zipfile.LargeZipFile, zlib.error, NotImplementedError, ExtractError,
+            RuntimeError, OSError, EOFError) as exc:
         raise ValueError(f"hwpx 마스킹 실패({type(exc).__name__})") from exc
 
 
@@ -63,8 +78,8 @@ def vaccine_policy(url_or_host: str, scheme: str | None = None, *, relaxed: bool
         return "사용자 확인"
     host = url_or_host
     if "://" in url_or_host:
-        scheme, rest = url_or_host.split("://", 1)
-        host = rest.split("/", 1)[0]
+        p = urlsplit(url_or_host)               # 사용자 정보(x.go.kr:p@evil.com)에 속지 않게 표준 해석(security 11-12)
+        scheme, host = p.scheme, p.hostname or ""
     host = host.lower().split(":")[0]
     if scheme == "https" and host.endswith(GOV_SUFFIXES):
         return "생략"

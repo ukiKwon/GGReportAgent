@@ -224,3 +224,47 @@ def test_lock_reclaim_unlink_failure_is_busy(tmp_path, monkeypatch):
     os.utime(lock, (1, 1))                                           # 아주 오래된 잠금
     monkeypatch.setattr(Path, "unlink", lambda self, missing_ok=False: (_ for _ in ()).throw(PermissionError("locked")))
     assert cli._lock(lock, "y") is None                              # traceback 대신 '다른 실행 중'
+
+
+
+# ── hwpx 마스킹 보강(security 11-12) ───────────────────────────────────────────
+def _hwpx(entries):
+    import io, zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, blob in entries:
+            z.writestr(name, blob)
+    return buf.getvalue()
+
+
+def test_mask_hwpx_preview_text_masked_and_image_dropped():
+    import io, zipfile
+    from collector.privacy import mask_hwpx
+    data = _hwpx([("mimetype", b"application/hwp+zip"),
+                  ("Contents/section0.xml", "<hp:t>문의 02-2147-1234</hp:t>".encode()),
+                  ("Preview/PrvText.txt", "담당 063-650-1234".encode()),
+                  ("Preview/PrvImage.png", b"PNG fake")])
+    out, n = mask_hwpx(data)
+    z = zipfile.ZipFile(io.BytesIO(out))
+    assert n == 2 and "Preview/PrvImage.png" not in z.namelist()
+    assert "1234" not in z.read("Preview/PrvText.txt").decode() and "1234" not in z.read("Contents/section0.xml").decode()
+
+
+def test_mask_hwpx_bomb_and_corrupt_are_value_errors(monkeypatch):
+    from collector import privacy
+    from collector.extract import hwpx
+    monkeypatch.setattr(hwpx, "MAX_SECTION_BYTES", 1000)
+    big = _hwpx([("Contents/section0.xml", b"a" * 5000)])          # 압축은 작지만 풀면 상한 초과
+    with pytest.raises(ValueError):
+        privacy.mask_hwpx(big)
+    with pytest.raises(ValueError):
+        privacy.mask_hwpx(b"PK broken")
+    many = _hwpx([(f"x/{i}", b"") for i in range(privacy.MAX_HWPX_ENTRIES + 1)])
+    with pytest.raises(ValueError):
+        privacy.mask_hwpx(many)
+
+
+def test_vaccine_policy_userinfo_trick():
+    from collector.privacy import vaccine_policy
+    assert vaccine_policy("https://x.go.kr:p@evil.com/a.hwpx") == "사용자 확인"
+    assert vaccine_policy("https://www.g2b.go.kr/x") == "생략"
