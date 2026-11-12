@@ -456,7 +456,9 @@ test('이스케이프: 기관명·출처·검증 문장의 <script>가 그대로
 test('경과 행: D+ 도장과 확인 안내, 선택·진행 배지는 1년 안 행만', function () {
   const m = dash.model([rec('경과시청', '11', -7)], TODAY);
   const h = dash.rowHtml(m.overdue[0], { id: 'db-p-0', selected: false, prepActive: true });
-  assert.ok(h.indexOf('ov-stamp">D+7') >= 0 && h.indexOf('공고가 났는지 확인이 필요합니다') >= 0);
+  assert.ok(h.indexOf('ov-stamp">D+7') >= 0 && h.indexOf('공고 진행 중 · 결과 확인이 필요합니다') >= 0);   // 확정 공고가 지남
+  const est = dash.model([rec('추정시청', '11', -7, { confirmed: false })], TODAY);
+  assert.ok(dash.rowHtml(est.overdue[0], {}).indexOf('공고가 났는지 확인이 필요합니다') >= 0);       // 추정 날짜가 지남
   assert.ok(h.indexOf('role="option"') >= 0 && h.indexOf('data-key="11|경과시청"') >= 0);
   assert.strictEqual(h.indexOf('사전준비 중'), -1);
 });

@@ -63,7 +63,7 @@
     const overdue = ov.items.map(function (it) {
       return { key: logic.instKey(it.rec), rec: it.rec, name: it.name, region: it.region, date: it.date, days: it.days,
         confidence: logic.effectiveBid(it.rec).confidence, label: bidLabel(logic.effectiveBid(it.rec)),
-        basis: logic.effectiveBid(it.rec).basis || '', check: it.check, band: 'overdue', overdue: true };
+        basis: logic.effectiveBid(it.rec).basis || '', check: it.check, kind: it.kind, band: 'overdue', overdue: true };
     });
     const expiryN = upcoming.filter(function (u) { return u.basis === 'expiry'; }).length;
     return { upcoming: upcoming, later: later, overdue: overdue, unknownN: ov.unknown, beyondN: later.length, expiryN: expiryN,
@@ -284,6 +284,11 @@
   function mono(s) { return '<span class="v">' + esc(s) + '</span>'; }
   function chip() { return '<span class="pop-unk">미확인</span>'; }
   function dayText(days) { return days === 0 ? 'D-day' : 'D-' + days; }
+  // 경과 행 안내: 실제 뜬 공고(확정)의 날짜가 지났으면 공고는 이미 났고 결과를 기다리는 중이다(9f·qa 11-12 —
+  // contractEnd=공고일 규칙이라 진행 중 공고가 경과로 잡힌다). 추정 날짜가 지났으면 공고 여부부터 확인.
+  dash.overdueNote = function (it) {
+    return it.kind === 'fixed' ? '공고 진행 중 · 결과 확인이 필요합니다' : '공고가 났는지 확인이 필요합니다';
+  };
   function chkHtml(it) { return it.check ? ' <span class="db-chk">날짜 의미 확인 중</span>' : ''; }
 
   dash.rowHtml = function (it, o) {
@@ -291,7 +296,7 @@
     const tag = it.overdue ? '<span class="ov-stamp">D+' + it.days + '</span>'
       : '<span class="dg-day ' + esc(it.band) + '">' + dayText(it.days) + '</span>';
     const meta = it.overdue
-      ? esc(dash.regionName(it.region)) + ' · 공고가 났는지 확인이 필요합니다' + chkHtml(it)
+      ? esc(dash.regionName(it.region)) + ' · ' + esc(dash.overdueNote(it)) + chkHtml(it)
       : esc(dash.regionName(it.region)) + ' · <span class="d">' + esc(it.date) + '</span> ' + esc(it.label) + chkHtml(it) +
         (o.prepActive ? ' <span class="wf-badge pp-neutral">사전준비 중</span>' : '');
     return '<li role="option" id="' + esc(o.id || '') + '" class="db-row" data-key="' + esc(it.key) + '" aria-selected="' + (o.selected ? 'true' : 'false') + '">' +
