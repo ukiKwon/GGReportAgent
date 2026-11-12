@@ -36,3 +36,10 @@ test('지자체 외 기관 — 같은 기관이 두 번 없고, 화면 날짜 �
   const withDate = list.filter(function (r) { return r.lastBid || r.contractEnd || r.contractExpiry; });
   withDate.forEach(function (r) { assert.ok(logic.effectiveBid(r).date, r.name + ': 날짜가 계산되지 않는다'); });
 });
+
+test('지자체 외 기관 — 진행 중 공고(contractEnd)는 공고일·원문 확인 표시', function () {
+  list.filter(function (r) { return r.contractEnd; }).forEach(function (r) {
+    assert.strictEqual(r.confirmed, true, r.name + ': contractEnd에는 confirmed');
+    assert.match(r.sources[0], /^기준일=공고일/, r.name + ': contractEnd는 공고일(NEXT 30-1)');
+  });
+});
