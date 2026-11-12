@@ -277,7 +277,8 @@
   app.wireFilters = function () {
     const boxes = document.querySelectorAll('#type-filter input[type=checkbox]');
     // 데이터 없는 유형 비활성
-    const present = new Set(root.render.allInstitutions().map(function (r){ return r.type; }));
+    // 체크박스는 정본 종류 5종(logic.TYPE_KINDS) — 데이터의 옛 이름(공기업·대학병원 등)은 kindOf로 접어 센다.
+    const present = new Set(root.render.allInstitutions().map(function (r){ return root.logic.kindOf(r.type); }));
     boxes.forEach(function (b) {
       if (!present.has(b.dataset.type)) { b.checked = false; b.disabled = true; }
       b.addEventListener('change', function () {

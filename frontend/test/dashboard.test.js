@@ -22,7 +22,8 @@ function rec(name, region, days, extra) {
 // ── 구간 경계 ──────────────────────────────────────────────────────
 test('1년 경계: 0 포함·365 포함·366은 1년 뒤(later)', function () {
   const days = [0, 30, 31, 90, 91, 180, 181, 182, 183, 365, 366];
-  const list = days.map(function (d) { return rec('기관' + d, '11', d); });
+  // 추정(confirmed:false)으로 둔다 — 확정 공고가 오늘 난 곳(0일)은 '진행 중'이라 예정에 들지 않는다(2026-11-12).
+  const list = days.map(function (d) { return rec('기관' + d, '11', d, { confirmed: false }); });
   const m = dash.model(list, TODAY);
   assert.strictEqual(m.upcoming.length, 10);
   assert.strictEqual(m.beyondN, 1);
@@ -49,7 +50,7 @@ test('WINDOWS 매핑·기본 6·잘못된 키는 6', function () {
 });
 
 test('windowItems 경계: 6개월은 182 포함·183 제외·0 포함, 전체는 1년 뒤도 포함', function () {
-  const list = [0, 91, 92, 182, 183, 365, 366, 900].map(function (d) { return rec('기관' + d, '11', d); });
+  const list = [0, 91, 92, 182, 183, 365, 366, 900].map(function (d) { return rec('기관' + d, '11', d, { confirmed: false }); });
   const m = dash.model(list, TODAY);
   const days = function (k) { return dash.windowItems(m, k).map(function (u) { return u.days; }); };
   assert.deepStrictEqual(days('6'), [0, 91, 92, 182]);
@@ -205,7 +206,7 @@ test('termBar: lastBid 없으면 null, 비율 0~100, 추정이면 점선, 경과
   assert.strictEqual(conf.est, false);
   const future = dash.termBar(mk({ lastBid: '2030-01-01' }), T);                // 최근 절차일이 미래 → 0으로 자른다
   assert.strictEqual(future.pct, 0);
-  const over = dash.model([rec('경과', '11', -5, { lastBid: '2022-01-01' })], T).overdue[0];
+  const over = dash.model([rec('경과', '11', -5, { lastBid: '2022-01-01', confirmed: false })], T).overdue[0];   // 확정이면 −5일은 '진행 중'
   const o = dash.termBar(over, T);
   assert.strictEqual(o.pct, 100); assert.strictEqual(o.over, true);
   const html = dash.termBarHtml(over, T);
@@ -242,7 +243,7 @@ test('기간 버튼 마크업: 네이티브 라디오 4개·선택 1개·숨은 
 test('경과·미상 집계와 기관 단위 중복 제거(수원 4구가 1곳)', function () {
   const list = [
     rec('수원시청', '41', 40), rec('수원시청', '41', 40), rec('수원시청', '41', 40), rec('수원시청', '41', 40),
-    rec('경과시청', '11', -5), rec('경과군청', '11', -1),
+    rec('경과시청', '11', -5, { confirmed: false }), rec('경과군청', '11', -1, { confirmed: false }),   // 확정이면 '진행 중'이라 경과가 아니다
     { name: '미상구청', region: '11', type: '지자체' },
   ];
   const m = dash.model(list, TODAY);
@@ -270,7 +271,7 @@ test('확정·확인 중·자료 수정 집계', function () {
 });
 
 test('1년 안 0곳: 시간표는 0을 숨기지 않고 경과·1년 뒤·날짜 미상 칸을 함께 보인다', function () {
-  const m = dash.model([rec('경과시청', '11', -3), rec('먼시청', '11', 500), { name: '미상구청', region: '11', type: '지자체' }], TODAY);
+  const m = dash.model([rec('경과시청', '11', -3, { confirmed: false }), rec('먼시청', '11', 500), { name: '미상구청', region: '11', type: '지자체' }], TODAY);
   assert.strictEqual(m.upcoming.length, 0);
   const h = dash.timelineHtml(m, TODAY, '6');
   assert.ok(h.indexOf('1년 안 <b>0</b>곳') >= 0 && h.indexOf('<span class="n">1곳</span><span class="t">공고 예정일 경과') >= 0);
@@ -437,7 +438,7 @@ test('paneHtml: 금고 순번(slot)은 있을 때만 표시, 값이 없으면 �
 
 test('이스케이프: 기관명·출처·검증 문장의 <script>가 그대로 나가지 않는다', function () {
   const evil = '<script>alert(1)</script>';
-  const m = dash.model([rec(evil, '11', 20, { sources: [evil, 'https://example.invalid/a"onmouseover="x'] }), rec(evil + '2', '11', -3)], TODAY);
+  const m = dash.model([rec(evil, '11', 20, { sources: [evil, 'https://example.invalid/a"onmouseover="x'] }), rec(evil + '2', '11', -3, { confirmed: false })], TODAY);
   const html = [
     dash.rowHtml(m.upcoming[0], { id: evil, selected: true, prepActive: true }),
     dash.rowHtml(m.overdue[0], { id: 'p' }),
@@ -454,9 +455,9 @@ test('이스케이프: 기관명·출처·검증 문장의 <script>가 그대로
 });
 
 test('경과 행: D+ 도장과 확인 안내, 선택·진행 배지는 1년 안 행만', function () {
-  const m = dash.model([rec('경과시청', '11', -7)], TODAY);
+  const m = dash.model([rec('경과시청', '11', -150)], TODAY);   // 확정 공고 후 150일 — 120일을 넘어 경과다
   const h = dash.rowHtml(m.overdue[0], { id: 'db-p-0', selected: false, prepActive: true });
-  assert.ok(h.indexOf('ov-stamp">D+7') >= 0 && h.indexOf('공고 진행 중 · 결과 확인이 필요합니다') >= 0);   // 확정 공고가 지남
+  assert.ok(h.indexOf('ov-stamp">D+150') >= 0 && h.indexOf('공고 진행 중 · 결과 확인이 필요합니다') >= 0);   // 확정 공고가 지남
   const est = dash.model([rec('추정시청', '11', -7, { confirmed: false })], TODAY);
   assert.ok(dash.rowHtml(est.overdue[0], {}).indexOf('공고가 났는지 확인이 필요합니다') >= 0);       // 추정 날짜가 지남
   assert.ok(h.indexOf('role="option"') >= 0 && h.indexOf('data-key="11|경과시청"') >= 0);
@@ -491,7 +492,7 @@ test('약정 만료 기준 추정은 목록 행·메타·상세 어디서나 같
 });
 
 test('visibleKeys: 기간 안 + 펼친 경과 묶음만(접히면 경과 제외), 조건은 둘 다에 건다', function () {
-  const m = dash.model([rec('가', '11', 10), rec('나', '26', 300), rec('다', '11', -4), rec('라', '26', -2)], TODAY);
+  const m = dash.model([rec('가', '11', 10), rec('나', '26', 300), rec('다', '11', -4, { confirmed: false }), rec('라', '26', -2, { confirmed: false })], TODAY);
   assert.deepStrictEqual(dash.visibleKeys(m, '6', {}, true).sort(), ['11|가', '11|다', '26|라']);
   assert.deepStrictEqual(dash.visibleKeys(m, '6', {}, false), ['11|가']);          // 접힌 묶음의 선택은 풀려야 한다
   assert.deepStrictEqual(dash.visibleKeys(m, '12', { region: '26' }, true).sort(), ['26|나', '26|라']);

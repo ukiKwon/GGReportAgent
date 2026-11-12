@@ -43,23 +43,27 @@ test('markerShape 매핑', () => {
   assert.strictEqual(logic.markerShape('연구소'), 'diamond'); // 미정의 폴백
 });
 
-test('FILTERABLE_TYPES: 대학교 포함, 지자체는 제외(면이라 랭킹에서 숨기지 않음)', () => {
-  assert.ok(logic.FILTERABLE_TYPES.indexOf('대학교') >= 0);
-  assert.strictEqual(logic.FILTERABLE_TYPES.indexOf('지자체'), -1);
+test('FILTERABLE_TYPES는 없어졌다 — 필터는 종류 정본 5종(TYPE_KINDS)이다(2026-11-12)', () => {
+  assert.strictEqual(logic.FILTERABLE_TYPES, undefined);
+  assert.deepStrictEqual(logic.TYPE_KINDS, ['지자체', '공공기관', '대학', '법원', '병원']);
 });
 
-test('visibleMarkers: 지자체 제외 + 유형 필터 + 미정의 항상표시', () => {
+test('visibleMarkers: 지자체 제외 + 종류(kindOf) 필터 + 종류 모르는 유형 항상표시', () => {
   const list = [
     { name:'구청', type:'지자체', region:'11' },
     { name:'병원', type:'대학병원', region:'11' },
     { name:'공사', type:'공기업', region:'11' },
     { name:'대학', type:'대학교', region:'11' },
+    { name:'교육청', type:'교육청', region:'11' },
+    { name:'법원', type:'법원', region:'11' },
     { name:'연구소', type:'연구소', region:'11' },
   ];
-  const enabled = new Set(['대학병원']); // 공기업·대학교 꺼짐
+  const enabled = new Set(['병원', '법원']); // 공공기관(공기업·교육청)·대학 꺼짐
   const vis = logic.visibleMarkers(list, enabled).map(r => r.name);
-  // 지자체 제외, 공기업·대학교(필터 대상, 꺼짐) 제외, 연구소(미정의) 표시
-  assert.deepStrictEqual(vis.sort(), ['병원','연구소'].sort());
+  // 지자체 제외, 공기업·교육청(공공기관 꺼짐)·대학교(대학 꺼짐) 제외, 연구소(종류 모름) 표시
+  assert.deepStrictEqual(vis.sort(), ['병원', '법원', '연구소'].sort());
+  // 기본(전부 켬)이면 지자체만 빠진다
+  assert.strictEqual(logic.visibleMarkers(list, new Set(logic.TYPE_KINDS)).length, list.length - 1);
 });
 
 test('normalizeMuniName: 기관명 → 행정구역 폴리곤명', () => {

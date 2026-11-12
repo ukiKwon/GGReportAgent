@@ -12,8 +12,10 @@ const ov = require('../js/overdue.js');
 
 const TODAY = new Date('2026-11-09T00:00:00');   // 로컬 자정
 
+// 기본은 추정(confirmed:false) — 확정 공고는 공고일부터 120일 안이면 '진행 중'이라 경과 목록에 들지 않는다(2026-11-12).
+// 확정 공고가 경과로 잡히는 경우를 보려면 120일 넘게 지난 날짜에 confirmed:true를 명시한다.
 function rec(name, region, contractEnd, extra) {
-  return Object.assign({ name: name, region: region, type: '지자체', contractEnd: contractEnd, confirmed: true }, extra || {});
+  return Object.assign({ name: name, region: region, type: '지자체', contractEnd: contractEnd, confirmed: false }, extra || {});
 }
 
 // ── 기준일 포맷 ─────────────────────────────────────────────────────────────
@@ -43,7 +45,7 @@ test('overdueSummary: 오늘 > 예정일이면 경과, 당일·미래는 아니�
 
 test('overdueSummary: 확정과 추정을 똑같이 센다(추정 = lastBid+term, confirmed 아님)', function () {
   const list = [
-    rec('확정건', '11', '2026-10-01'),
+    rec('확정건', '11', '2026-06-01', { confirmed: true }),   // 공고 후 161일 — 120일을 넘어 경과로 잡힌다
     rec('추정건', '41', null, { contractEnd: undefined, confirmed: false, lastBid: '2022-10-20', term: 4 }),   // 2026-10-20
     rec('예상일건', '42', '2026-10-05', { confirmed: false }),
   ];
@@ -278,7 +280,7 @@ test('쌓기 모드(880px 이하) CSS: 틀이 위에서부터 쌓여 패널 머�
 test('도장 폭 고정 CSS와 전체 탭의 미처리 표시', function () {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   assert.ok(/\.ov-item > \.ov-stamp\s*\{[^}]*min-width:\s*60px/.test(html));
-  const s = logic.overdueSummary([rec('가구청', '11', '2026-10-28', { confirmed: true })], TODAY);
+  const s = logic.overdueSummary([rec('가구청', '11', '2026-06-28', { confirmed: true })], TODAY);
   const all = ov.listHtml(s, 'all', { watched: [] });
   assert.ok(all.includes('class="ov-status">미처리<'));
   const pending = ov.listHtml(s, 'pending', { watched: [] });

@@ -776,7 +776,9 @@
   .gph { width:12px; height:12px; display:inline-block; vertical-align:-2px; }
   #legend .gph { width:10px; height:10px; vertical-align:-1px; }
   #ticker .tk-sync { margin-left:16px; font-size:12px; color:var(--muted); }
-  #ticker > span:not(.tk-cap):not(.tk-sep):not(.tk-sync) { display:inline-block; }
+  #ticker > span:not(.tk-cap):not(.tk-sep):not(.tk-sync):not(.tk-n) { display:inline-block; }
+  /* '공고 중 n' 칩 — 테두리만(채움 없음). 캡션 바로 뒤, 항목 굴림에는 끼지 않는다 */
+  #ticker .tk-n { font-size:11px; font-weight:700; color:var(--fg); border:1px solid var(--fg); border-radius:6px; padding:0 6px; margin-right:12px; }
   #ticker .tk-roll { animation:tkRoll .8s cubic-bezier(.5,0,.2,1) both; }
   /* 아래로 굴러 나가고(0~42%) 위에서 다시 내려와 앉는다 — 시계 숫자가 넘어가듯 */
   @keyframes tkRoll { 0% { transform:translateY(0); opacity:1; } 42% { transform:translateY(90%); opacity:0; }
@@ -816,6 +818,8 @@
   .label { paint-order:stroke; stroke:#eef2f8; stroke-width:3px; stroke-linejoin:round;
            fill:#141922; font-size:13px; font-weight:700; }
   .label .sub { font-size:10px; font-weight:600; fill:#333b4c; }
+  /* 둘째 줄 '공고 n'(공고 진행 중 기관 수) — 10px/700, 글자색은 라벨(부모)을 그대로 따르고 후광도 라벨과 같다 */
+  .label .sub.notice { font-weight:700; fill:inherit; }
   /* ▲n(6개월 안 기관 수) — 라벨과 같은 잉크·후광. 숫자는 mono */
   .label .tri { font-family:var(--mono); font-size:11px; font-weight:700; stroke-width:2.5px; }
   .region:focus-visible, .subregion:focus-visible { outline:none; stroke:var(--accent-color); stroke-width:3; }
@@ -828,6 +832,10 @@
   #region-tip .rt-row { margin-top:3px; }
   #region-tip .rt-m, #region-tip .rt-d { font-family:var(--mono); }
   #region-tip .rt-mu { margin-top:5px; font-size:11px; color:var(--muted); }
+  /* 공고 진행 중 블록 — 왼쪽 2px 빨강(70%) 막대. 이름은 마감 전 2곳 + 결과 확인 1곳 */
+  #region-tip .rt-notice { border-left:2px solid color-mix(in srgb, var(--red) 70%, var(--fg)); padding:2px 0 2px 8px; margin:4px 0 6px; }
+  #region-tip .rt-notice .rt-d { color:color-mix(in srgb, var(--red) 72%, var(--fg)); }
+  #region-tip .rt-notice .rt-w, #region-tip .rt-notice .rt-m { color:var(--muted); }
   .region.watched { stroke:#d8c47a; stroke-width:3; filter:drop-shadow(0 0 6px rgba(216,196,122,.7)); }
   @keyframes ripple { from { r:6; opacity:.85; } to { r:26; opacity:0; } }
   .ripple-ring { fill:none; stroke:var(--accent-color); stroke-width:3;
@@ -853,6 +861,8 @@
   #legend .lg-hatch { background-image:repeating-linear-gradient(45deg, rgba(15,18,24,.5) 0 2px, transparent 2px 4px); }
   #legend .lg-tri-row { color:var(--fg); }
   #legend .lg-tri { font-family:var(--mono); font-size:11px; min-width:12px; text-align:center; }
+  /* '공고 n' 칩 — 라벨 둘째 줄의 글자와 같은 말. 잉크/바탕을 뒤집은 작은 칩(토큰만) */
+  #legend .lg-nchip { display:inline-block; font:700 10px var(--mono); font-style:normal; color:var(--bg); background:var(--fg); border-radius:4px; padding:0 4px; min-width:12px; text-align:center; }
 
   /* 랭킹 — 부드러운 카드 패널, 행 호버 슬라이드 */
   #rank-panel { flex:1; display:none; overflow:auto; max-height:100%;
@@ -1477,6 +1487,7 @@
     .label { font-size:10px; stroke-width:2px; }
     .label .tri { font-size:10px; stroke-width:2px; }
     .label .sub { display:none; }
+    .label .sub.notice { display:inline; }
     #rank-panel { flex:none; max-height:40vh; }
     #dg-wrap { flex-direction:column; }
     #dg-list { width:auto; max-height:38vh; }
@@ -1534,7 +1545,8 @@
   .db-leg b { font-family:var(--mono); font-weight:400; color:var(--fg); }
   /* 작업 줄: 목록 | 상세 | 기둥 */
   .db-work { flex:1 1 0; min-height:440px; display:grid; grid-template-columns:400px minmax(0, 1fr) 380px; gap:20px; }
-  .db-list, .db-pane { display:flex; flex-direction:column; min-height:0; min-width:0; background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r-lg, 14px); box-shadow:var(--shadow); }
+  /* 목록·상세는 높이를 고정하고 안(#db-scroll·.db-pane-body)에서 스크롤한다 — 841px 화면에서 701px(2026-11-12 규격 C-2) */
+  .db-list, .db-pane { height:clamp(440px, calc(100vh - 140px), 820px); display:flex; flex-direction:column; min-height:0; min-width:0; background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r-lg, 14px); box-shadow:var(--shadow); }
   .db-pane { overflow:hidden; }
   .db-list-head { padding:18px 20px 14px; border-bottom:1px solid var(--line); }
   .db-per { display:inline-flex; margin:12px 0; padding:3px; gap:2px; background:var(--bg); border:1px solid var(--line); border-radius:12px; min-width:0; }
@@ -1601,7 +1613,7 @@
   .db-act .db-why { margin-left:auto; }
   .db-confirm { border:1px dashed var(--line-strong); border-radius:var(--r-sm, 8px); padding:12px 14px; font-size:13px; line-height:1.5; word-break:keep-all; }
   .db-confirm .db-act-row { margin-top:8px; }
-  .db-blank { flex:1 1 auto; display:flex; align-items:center; justify-content:center; padding:24px; text-align:center; color:var(--muted); font-size:13px; word-break:keep-all; line-height:1.5; }
+  .db-blank { flex:1 1 auto; display:flex; align-items:flex-start; justify-content:center; padding:48px 24px 24px; text-align:center; color:var(--muted); font-size:13px; word-break:keep-all; line-height:1.5; }
   .db-state { padding:18px 20px; font-size:13px; color:var(--muted); word-break:keep-all; line-height:1.5; margin:0; }
   .db-state button { margin-top:8px; }
   .db-state[role=alert] { color:var(--fg); border-left:2px solid var(--red); margin:10px 20px; padding:8px 12px; background:color-mix(in srgb, var(--red) 8%, transparent); }
@@ -1631,10 +1643,54 @@
   .stg .b { display:block; height:12px; border-radius:3px; background:color-mix(in srgb, var(--fg) 22%, var(--panel)); border:1px solid color-mix(in srgb, var(--fg) 55%, var(--panel)); }
   .stg .b.g { background:color-mix(in srgb, var(--orange) 18%, var(--panel)); border-color:var(--orange); }
   .stg .b.z { width:2px; background:var(--line-strong); border:0; }
-  /* 1280~1599px: 기둥이 시간표 아래 한 줄(두 칸)로 올라간다 */
+  /* 지금 공고가 난 기관 띠(#db-notice, #db-root 맨 위) — 마감 전 카드(빨강 테두리)와 마감일 미확인 카드(무채색 테두리).
+     규격 design-reviewer 2026-11-12_1522_a614097e §6-B, 시안 docs/design/2026-11-12_진행중공고_시안.html. 빨강은 마감 전 카드와 '마감 D-n' 칩에만 쓴다. */
+  .db-nb { flex:none; padding:16px 20px; }
+  .db-nb[hidden] { display:none; }
+  .db-nb .db-h .end { margin-left:auto; font-size:12px; }
+  .db-nb-row { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:10px; margin-top:12px; }
+  .db-nb-row.one { grid-template-columns:minmax(0, 1fr) minmax(0, 3fr); }
+  .db-nb-card { display:grid; grid-template-columns:64px minmax(0, 1fr); min-width:0; min-height:86px; padding:0; text-align:left; white-space:normal; overflow:hidden; border-radius:var(--r, 10px);
+                border:1px solid color-mix(in srgb, var(--red) 55%, var(--line-strong)); background:color-mix(in srgb, var(--red) 8%, var(--panel)); }
+  .db-nb-card:hover { border-color:var(--red); background:color-mix(in srgb, var(--red) 8%, var(--panel)); }
+  .db-nb-card.wait { border-color:color-mix(in srgb, var(--fg) 45%, var(--line-strong)); background:var(--panel); }
+  .db-nb-card.wait:hover { border-color:var(--fg); background:var(--panel); }
+  .db-nb-card[aria-pressed=true] { outline:2px solid var(--accent-color); outline-offset:2px; }
+  .db-nb-stub { display:flex; flex-direction:column; justify-content:center; align-items:center; gap:2px; padding:8px 4px; border-right:1px dashed var(--line-strong); }
+  .db-nb-stub small { font-size:12px; color:var(--muted); }
+  .db-nb-stub b { font:700 16px var(--mono); color:var(--red); }
+  .db-nb-card.wait .db-nb-stub b { color:var(--fg); }
+  .db-nb-body { display:flex; flex-direction:column; gap:2px; min-width:0; padding:9px 10px; }
+  .db-nb-body .nm { font-size:13px; font-weight:700; line-height:1.35; word-break:keep-all; overflow-wrap:anywhere; overflow:hidden; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; }
+  .db-nb-body .mt, .db-nb-body .rc { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .db-nb-body .mt { color:var(--muted); }
+  .db-nb-body .d { font-family:var(--mono); }
+  .db-nb-more { display:flex; justify-content:center; align-items:center; min-width:0; min-height:86px; border-style:dashed; color:var(--muted); font-size:12px; }
+  .db-nb-aside { align-self:center; margin:0; font-size:12px; color:var(--muted); line-height:1.6; word-break:keep-all; }
+  .db-nb-aside b { font-family:var(--mono); font-weight:400; color:var(--fg); }
+  /* 목록 칩 세 갈래: 마감 D-n(빨강 테두리) / 공고 후 n일(무채색) / 경과 D+ 도장(.ov-stamp, 기존) */
+  .db-chip { align-self:start; font:12px var(--mono); border-radius:6px; padding:1px 7px; border:1px solid; white-space:nowrap; }
+  .db-chip.open { color:var(--red); border-color:var(--red); background:color-mix(in srgb, var(--red) 12%, transparent); }
+  .db-chip.wait { color:var(--fg); border-color:color-mix(in srgb, var(--fg) 60%, var(--panel)); font-family:inherit; }
+  .db-chip.wait .v { font-family:var(--mono); }
+  /* 상세 '공고 진행' 절의 공고 막대: 공고일 → 오늘 → 접수 창 → 약정 만료 */
+  .db-ntrk { position:relative; height:56px; margin:4px 0 8px; }
+  .db-ntrk .base { position:absolute; left:0; right:0; top:22px; height:8px; border-radius:4px; background:var(--panel2); border:1px solid var(--line-strong); }
+  .db-ntrk .done { position:absolute; left:0; top:22px; height:8px; border-radius:4px 0 0 4px; background:color-mix(in srgb, var(--fg) 22%, var(--panel)); }
+  .db-ntrk .win { position:absolute; top:16px; height:20px; border-radius:4px; background:color-mix(in srgb, var(--red) 18%, transparent); border:1px solid var(--red); }
+  .db-ntrk .win.past { background:color-mix(in srgb, var(--muted) 18%, transparent); border-color:var(--muted); }
+  .db-ntrk .tick { position:absolute; top:14px; height:24px; border-left:1px solid var(--fg); }
+  .db-ntrk .tick.end { border-left:2px dashed var(--muted); }
+  .db-ntrk .lb { position:absolute; top:40px; font:12px var(--mono); color:var(--muted); white-space:nowrap; transform:translateX(-50%); }
+  .db-ntrk .lb.l { transform:none; }
+  .db-ntrk .lb.r { transform:translateX(-100%); }
+  .db-ntrk .lb.top { top:-2px; color:var(--fg); }
+  .db-dl a { color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent-color); text-underline-offset:3px; }
+  /* 1280~1599px: 순서는 띠 → 월별 → 목록|상세 → 와플·단계 — 기둥(.db-rail)이 목록·상세 아래 한 줄(두 칸)로 내려간다 */
   @media (max-width:1599px) {
-    .db-work { flex:1 0 auto; min-height:0; grid-template-columns:380px minmax(0, 1fr); grid-template-rows:auto minmax(440px, 1fr); }
-    .db-rail { grid-column:1 / -1; grid-row:1; flex-direction:row; }
+    .db-work { flex:1 0 auto; min-height:0; grid-template-columns:380px minmax(0, 1fr); grid-template-rows:auto auto; }
+    .db-list, .db-pane { grid-row:1; }
+    .db-rail { grid-column:1 / -1; grid-row:2; flex-direction:row; }
     .db-rail > * { flex:1 1 0; }
     .db-axis .yf { display:none; }
     .db-axis .ys { display:inline; }
@@ -1643,8 +1699,11 @@
     .db-tl-body { grid-template-columns:1fr 1fr; }
     .db-chart-wrap { grid-column:1 / -1; grid-row:1; }
     .db-work { grid-template-columns:1fr; grid-template-rows:none; }
+    .db-list, .db-pane, .db-rail { grid-row:auto; grid-column:auto; }
     .db-rail { flex-direction:column; }
-    .db-list { max-height:40vh; }
+    .db-list { height:auto; max-height:40vh; }
+    .db-pane { height:auto; min-height:320px; }
+    .db-nb-row, .db-nb-row.one { grid-template-columns:repeat(2, minmax(0, 1fr)); }
   }
   @media (prefers-reduced-motion:reduce) { .db-row { transition:none; } .db-row:hover { transform:none; } }
   /* 입찰 현황판 끝 */
@@ -1756,12 +1815,12 @@ review, the verdict, and DESIGN.md
   <div id="type-filter-wrap">
     <div class="filter-title">기관 분류선택</div>
     <div id="type-filter">
-      <!-- 글리프는 지도 마커 도형(logic.markerShape)과 1:1 — 지자체=면, ▲, ■, ●, ⬟ 순 -->
+      <!-- 종류 정본 5종(logic.TYPE_KINDS) — 값은 logic.kindOf로 판정. 글리프는 지도 마커 도형(logic.markerShape)과 같다: 지자체=면, ▲, ⬟, ◆, ● 순 -->
       <label><input type="checkbox" data-type="지자체" checked><svg class="fsw fill" viewBox="0 0 12 12" aria-hidden="true"><rect x="1" y="3" width="10" height="6"/></svg>지자체(면)</label>
       <label><input type="checkbox" data-type="공공기관" checked><svg class="fsw" viewBox="0 0 12 12" aria-hidden="true"><polygon points="6,1.5 11,10.5 1,10.5"/></svg>공공기관</label>
-      <label><input type="checkbox" data-type="공기업" checked><svg class="fsw" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="2" width="8" height="8"/></svg>공기업</label>
-      <label><input type="checkbox" data-type="대학병원" checked><svg class="fsw" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.5"/></svg>대학병원</label>
-      <label><input type="checkbox" data-type="대학교" checked><svg class="fsw" viewBox="0 0 12 12" aria-hidden="true"><polygon points="6,1 10.76,4.45 8.94,10.05 3.06,10.05 1.24,4.45"/></svg>대학교</label>
+      <label><input type="checkbox" data-type="대학" checked><svg class="fsw" viewBox="0 0 12 12" aria-hidden="true"><polygon points="6,1 10.76,4.45 8.94,10.05 3.06,10.05 1.24,4.45"/></svg>대학</label>
+      <label><input type="checkbox" data-type="법원" checked><svg class="fsw" viewBox="0 0 12 12" aria-hidden="true"><polygon points="6,1 11,6 6,11 1,6"/></svg>법원</label>
+      <label><input type="checkbox" data-type="병원" checked><svg class="fsw" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.5"/></svg>병원</label>
     </div>
   </div>
   <div class="tb-group">

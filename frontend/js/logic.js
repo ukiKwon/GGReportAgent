@@ -209,14 +209,56 @@
     return logic.OVERDUE_CHECK_KEYS.indexOf(logic.instKey(rec)) >= 0;
   };
 
+  // ── 공고 진행 중(2026-11-12, design-reviewer 1522 규격) ──────────────────────────
+  // 확정 공고(confirmed + contractEnd = 공고일)가 오늘 이전 0~120일이면 '진행 중'이다. 공고일이 오늘 이후면
+  // 기존대로 6개월 안 '예정'이다. 날짜 규칙(effectiveBid·contractExpiry)은 건드리지 않고 진행 중 여부만 따로 판정한다.
+  // 접수 마감일(receiveTo)이 있으면 마감 전(receiving)·마감 지남(awaiting)으로 가르고, 없으면 마감일 미확인(unknown).
+  logic.NOTICE_ACTIVE_DAYS = 120;
+  function validYmd(s) {
+    return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s + 'T00:00:00').getTime());
+  }
+  // → null | { phase:'receiving'|'awaiting'|'unknown', since:공고 후 일수, receiveFrom, receiveTo, deadlineDays }
+  logic.noticeState = function (rec, today) {
+    if (!rec || !rec.confirmed || !rec.contractEnd) return null;
+    const since = 0 - logic.daysUntil(rec.contractEnd, today);   // 0 - x: -0이 되지 않게
+    if (!(since >= 0 && since <= logic.NOTICE_ACTIVE_DAYS)) return null;
+    const to = validYmd(rec.receiveTo) ? rec.receiveTo : null;
+    const from = validYmd(rec.receiveFrom) ? rec.receiveFrom : null;
+    const dl = to ? logic.daysUntil(to, today) : null;
+    const phase = to === null ? 'unknown' : (dl >= 0 ? 'receiving' : 'awaiting');
+    return { phase: phase, since: since, receiveFrom: from, receiveTo: to, deadlineDays: dl };
+  };
+  // 진행 중 목록: 마감 전(마감 가까운 순) → 마감일 미확인 → 마감 지남(결과 확인), 뒤의 둘은 공고 후 일수 순. 기관 단위 중복 제거.
+  const NOTICE_RANK = { receiving: 0, unknown: 1, awaiting: 2 };
+  logic.noticeSummary = function (list, today) {
+    const deduped = logic.dedupeByInstitution(list || []);
+    const items = [];
+    deduped.forEach(function (r) {
+      const ns = logic.noticeState(r, today);
+      if (!ns) return;
+      items.push({ rec: r, name: r.name || '', region: r.region || '', date: r.contractEnd, phase: ns.phase, since: ns.since,
+        receiveFrom: ns.receiveFrom, receiveTo: ns.receiveTo, deadlineDays: ns.deadlineDays });
+    });
+    items.sort(function (a, b) {
+      return NOTICE_RANK[a.phase] - NOTICE_RANK[b.phase]
+        || (a.phase === 'receiving' ? a.deadlineDays - b.deadlineDays : 0)
+        || a.since - b.since
+        || (a.name < b.name ? -1 : (a.name > b.name ? 1 : 0));
+    });
+    const n = function (p) { return items.filter(function (it) { return it.phase === p; }).length; };
+    return { items: items, receiving: n('receiving'), unknown: n('unknown'), awaiting: n('awaiting'), total: deduped.length };
+  };
+
   // 경과 판정: 오늘 > 공고 예정일(유예 없음, 확정·추정 동일). 날짜 미상은 판정하지 않고
   // 건수만 센다. 기관 단위로 중복을 먼저 제거한다(수원 4구 등이 건수를 부풀리지 않게).
+  // 진행 중 공고(noticeState)는 check 판정보다 먼저 걸러 경과에 넣지 않는다 — noticeSummary가 맡는다.
   // 반환 items는 최근에 지난 순(days 오름차순). days = 예정일이 지난 일수(양수).
   logic.overdueSummary = function (list, today) {
     const deduped = logic.dedupeByInstitution(list || []);
     const items = [];
-    let unknown = 0;
+    let unknown = 0, notice = 0;
     deduped.forEach(function (r) {
+      if (logic.noticeState(r, today)) { notice += 1; return; }
       const e = logic.effectiveBid(r);
       const d = e.date ? logic.daysUntil(e.date, today) : Infinity;
       if (d === Infinity) { unknown += 1; return; }
@@ -226,7 +268,7 @@
         kind: check ? 'check' : (e.confidence === '확정' ? 'fixed' : 'est'), check: check });
     });
     items.sort(function (a, b) { return a.days - b.days || (a.name < b.name ? -1 : (a.name > b.name ? 1 : 0)); });
-    return { items: items, unknown: unknown, total: deduped.length };
+    return { items: items, unknown: unknown, total: deduped.length, notice: notice };
   };
 
   // 패널 묶음: 관심 지역(watched 코드 목록)에 속한 건은 '관심 지역'에만 넣고 시·도 묶음에서는
@@ -294,25 +336,29 @@
     return map[type] || 'diamond';
   };
 
-  // 지도 색 섞기가 보는 기관 종류 5종(정본, NEXT 78). 데이터·사이드바의 옛 이름은 종류로 접는다.
-  // FILTERABLE_TYPES는 마커·랭킹 필터의 체크박스 이름(옛 이름)이라 그대로 둔다 — 체크박스(index.html)가
-  // 5종으로 바뀌기 전에 이 목록을 바꾸면 마커·랭킹 필터가 조용히 꺼진다.
+  // 지도 색 섞기·'기관 분류선택' 필터가 보는 기관 종류 5종(정본, NEXT 78). 데이터의 옛 이름은 종류로 접는다.
+  // 옛 필터 이름(공공기관·공기업·대학병원·대학교, FILTERABLE_TYPES)은 2026-11-12에 없앴다 — 필터는 이제 종류 5종이다.
   logic.TYPE_KINDS = ['지자체','공공기관','대학','법원','병원'];
+  // 교육청·지방공기업은 당분간 공공기관으로 접는다(팀 결정 2026-11-12, 지자체 외 기관 168곳 연결).
   logic.KIND_OF_TYPE = { '지자체':'지자체', '공공기관':'공공기관', '공기업':'공공기관',
+    '교육청':'공공기관', '지방공기업':'공공기관',
     '대학':'대학', '대학교':'대학', '법원':'법원', '병원':'병원', '대학병원':'병원' };
   logic.kindOf = function (type) { return logic.KIND_OF_TYPE[type] || null; };
-
-  logic.FILTERABLE_TYPES = ['공공기관','공기업','대학병원','대학교'];
 
   // ── 지도 지역 색 섞기(NEXT 78, C안 '바닥 섞기 + ▲개수') ──────────────────────────
   // 규격: handoff/agents/design-reviewer/2026-11-11_1616_a821ad3f.md §3.
   // 기관 점수: 6개월 안 +2, 6~12개월 +1, 1~2년 −1, 2년 넘음 −2. 날짜 미상과 예정일이 지난(경과) 기관은
   // 계산에서 뺀다(null) — 경과는 '공고 예정일 경과' 목록에서 따로 다룬다(사용자 2026-11-12).
+  // 진행 중 공고(noticeState)는 경과가 아니다(isOverdue=false). 점수는 마감 전·마감일 미확인이 +2(진행 중은 가장 급함,
+  // 마감일을 모르는 곳은 칸이 채워질 때까지 +2), 마감 지난(결과 확인) 곳은 색에서 뺀다(null — 빨강은 진짜 급한 것만).
   logic.isOverdue = function (rec, today) {
+    if (logic.noticeState(rec, today)) return false;
     const d = logic.daysUntil(logic.effectiveBid(rec).date, today);
     return d !== Infinity && d < 0;
   };
   logic.instScore = function (rec, today) {
+    const ns = logic.noticeState(rec, today);
+    if (ns) return ns.phase === 'awaiting' ? null : 2;
     const d = logic.daysUntil(logic.effectiveBid(rec).date, today);
     if (d === Infinity || d < 0) return null;
     if (d <= 182) return 2;
@@ -332,7 +378,14 @@
 
   // 가장 임박한 기관 = 날짜가 있는 기관 중 남은 일수가 가장 작은 것(경과는 가장 앞). 같은 날이면
   // 확정이 먼저, 그래도 같으면 입력 순서. ▲를 정한 기관과 면 클릭으로 잡히는 기관이 같아야 한다.
+  // 접수 마감 전인 진행 중 공고(receiving)가 있으면 마감이 가장 가까운 그곳이 맨 앞이다.
   logic.mostImminent = function (list, today) {
+    let rbest = null, rd = Infinity;
+    (list || []).forEach(function (r) {
+      const ns = logic.noticeState(r, today);
+      if (ns && ns.phase === 'receiving' && ns.deadlineDays < rd) { rbest = r; rd = ns.deadlineDays; }
+    });
+    if (rbest) return rbest;
     let best = null, bestD = Infinity, bestFixed = false;
     (list || []).forEach(function (r) {
       const e = logic.effectiveBid(r);
@@ -350,12 +403,24 @@
   // band: 'none'(기관 0곳) | 'gray'(경과 아닌 날짜 있는 기관 0곳) | r3·r2·p·b2·b3.
   // 색은 평균 점수만으로 정한다(사용자 2026-11-12 — '최소 보라' 바닥 규칙 뺌). 경과 기관은 overdue로만 센다.
   // urgent = 6개월 안 기관 수(▲n), urgentAllEst = 그 기관이 전부 추정이면 true(속 빈 △).
+  // 공고 진행 중(noticeState): notice = 진행 중 전체, noticeOpen = 마감 전+마감일 미확인(점수 +2), receiving = 마감 전,
+  // awaiting = 마감 지남(결과 확인, 색에서 뺌), notices = 이름·상태 목록(툴팁용). 진행 중은 urgent(▲)에 세지 않는다(B안).
   logic.regionMix = function (list, today) {
     const items = list || [];
     const info = { total: items.length, dated: 0, unknown: 0, mean: null, band: 'none',
-      overdue: 0, within6: 0, to12: 0, to24: 0, over24: 0, urgent: 0, urgentAllEst: false, imminent: null };
+      overdue: 0, within6: 0, to12: 0, to24: 0, over24: 0, urgent: 0, urgentAllEst: false, imminent: null,
+      notice: 0, noticeOpen: 0, receiving: 0, awaiting: 0, notices: [] };
     let sum = 0, allEst = true;
     items.forEach(function (r) {
+      const ns = logic.noticeState(r, today);
+      if (ns) {
+        info.notice += 1;
+        if (ns.phase === 'awaiting') { info.awaiting += 1; return; }
+        info.noticeOpen += 1;
+        if (ns.phase === 'receiving') info.receiving += 1;
+        info.dated += 1; sum += 2;
+        return;
+      }
       if (logic.isOverdue(r, today)) { info.overdue += 1; return; }
       const s = logic.instScore(r, today);
       if (s === null) { info.unknown += 1; return; }
@@ -374,7 +439,11 @@
       info.mean = sum / info.dated;
       info.band = logic.mixBandOf(info.mean);
     }
-    info.imminent = logic.mostImminent(items.filter(function (r) { return !logic.isOverdue(r, today); }), today);
+    // '가장 임박'은 공고 전 예정 기관 중에서 고른다 — 진행 중 공고는 notices가 따로 말한다.
+    info.imminent = logic.mostImminent(items.filter(function (r) {
+      return !logic.isOverdue(r, today) && !logic.noticeState(r, today);
+    }), today);
+    if (info.notice) info.notices = logic.noticeSummary(items, today).items;
     return info;
   };
 
@@ -384,11 +453,13 @@
     return (info.urgentAllEst ? '△' : '▲') + info.urgent;
   };
 
-  logic.visibleMarkers = function (list, enabledTypes) {
+  // 마커로 그릴 기관: 지자체(면)는 뺀다. 나머지는 종류(kindOf) 5종 중 켠 것만, 종류를 모르는 유형(◆)은 항상 표시.
+  logic.visibleMarkers = function (list, enabledKinds) {
     return list.filter(function (r) {
-      if (r.type === '지자체') return false;
-      if (logic.FILTERABLE_TYPES.indexOf(r.type) >= 0) return enabledTypes.has(r.type);
-      return true; // 미정의 유형(◆)은 항상 표시
+      const kind = logic.kindOf(r.type);
+      if (kind === '지자체') return false;
+      if (kind === null) return true;
+      return enabledKinds.has(kind);
     });
   };
 

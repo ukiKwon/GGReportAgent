@@ -27,7 +27,7 @@ function undated(n) {
 
 test('instScore: 6개월 안 +2, 6~12개월 +1, 1~2년 −1, 2년 넘음 −2, 미상·경과 null', () => {
   assert.strictEqual(logic.instScore(rec(30), TODAY), 2);
-  assert.strictEqual(logic.instScore(rec(-40), TODAY), null);   // 경과는 따로 관리(사용자 2026-11-12)
+  assert.strictEqual(logic.instScore(rec(-40, false), TODAY), null);   // 경과는 따로 관리(사용자 2026-11-12). 확정 공고 −40일은 '진행 중'이라 추정으로 쓴다
   assert.strictEqual(logic.instScore(rec(250), TODAY), 1);
   assert.strictEqual(logic.instScore(rec(500), TODAY), -1);
   assert.strictEqual(logic.instScore(rec(1000), TODAY), -2);
@@ -195,11 +195,12 @@ test('클릭 기관은 그 구의 지자체 우선, 섞기 가장 임박은 더 
 });
 
 test('경과 건은 색·▲·가장 임박에서 빠지고 overdue로만 센다(사용자 2026-11-12)', () => {
-  const m = logic.regionMix([rec(-100, true, '경과'), rec(D.OVER, true, '먼')], TODAY);
+  // 확정 공고는 120일 넘게 지나야 경과다(그 안은 '진행 중')
+  const m = logic.regionMix([rec(-150, true, '경과'), rec(D.OVER, true, '먼')], TODAY);
   assert.strictEqual(m.overdue, 1); assert.strictEqual(m.within6, 0); assert.strictEqual(m.urgent, 0);
   assert.strictEqual(m.mean, -2); assert.strictEqual(m.band, 'b3');
   assert.strictEqual(m.imminent.name, '먼');
-  const only = logic.regionMix([rec(-100, true, '경과')], TODAY);
+  const only = logic.regionMix([rec(-150, true, '경과')], TODAY);
   assert.strictEqual(only.band, 'gray'); assert.strictEqual(only.imminent, null);
   const h = render.tipHtml('경과곳', m, TODAY);
   assert.ok(h.includes('기관 2곳 중 예정일 경과 1곳은 색에 넣지 않음'), h);
@@ -233,7 +234,7 @@ test('테마 5단: 기본값, 마커는 지도 팔레트, 티커(크롬)는 옛 
 
 test('instScore 경계: 0·182 / 183·365 / 366·730 / 731 / −1일', () => {
   assert.strictEqual(logic.instScore(rec(0), TODAY), 2);
-  assert.strictEqual(logic.instScore(rec(-1), TODAY), null);
+  assert.strictEqual(logic.instScore(rec(-1, false), TODAY), null);
   assert.strictEqual(logic.instScore(rec(182), TODAY), 2);
   assert.strictEqual(logic.instScore(rec(183), TODAY), 1);
   assert.strictEqual(logic.instScore(rec(365), TODAY), 1);
