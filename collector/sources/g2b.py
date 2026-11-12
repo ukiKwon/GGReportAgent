@@ -94,6 +94,7 @@ class G2bSource:
         self._today = today
         self._items: dict[str, dict] = {}
         self.calls = 0
+        self._report: RunReport | None = None
 
     def with_config(self, http=None, env=None, today=None, hosts_file=None, **config) -> "G2bSource":
         # 주지 않은 연결·설정은 기존 값을 유지한다(시험용 가짜 API가 실제 호출로 바뀌지 않게).
@@ -120,9 +121,12 @@ class G2bSource:
         self.calls += 1
         q = (f"serviceKey={quote(key, safe='')}&numOfRows=100&pageNo={page}&inqryDiv=1"
              f"&inqryBgnDt={b:%Y%m%d}0000&inqryEndDt={e:%Y%m%d}2359&bidNtceNm={quote(keyword, safe='')}&type=json")
+        url = f"{base}/{OPERATION}?{q}"
         try:
-            data, _ = self.http.get(f"{base}/{OPERATION}?{q}", verify=True)
-        except FetchError as exc:          # 오류 문구에 URL(=키)을 싣지 않는다 — httpclient도 URL을 안 싣는다
+            data, _ = self.http.get(url, verify=True)
+        except FetchError as exc:          # 오류 문구에 URL(=키)을 싣지 않는다 — 기록은 키를 가린 URL(redact_url)
+            if self._report is not None:
+                self._report.record_failure(url, f"검색 '{keyword}' {b}~{e} {page}쪽", 1, exc, host="g2b")
             raise SourceError(f"나라장터 조회 실패: {exc}") from None
         try:
             resp = json.loads(data.decode("utf-8"))["response"]
@@ -140,6 +144,7 @@ class G2bSource:
 
     def list_new(self, seen, since=None, report=None, hosts=None) -> Iterator[NoticeRef]:
         report = report if report is not None else RunReport()
+        self._report = report
         base, key = self._endpoint()
         today = self._today or datetime.date.today()
         start = (datetime.date.fromisoformat(since) if since
@@ -207,6 +212,8 @@ class G2bSource:
             try:
                 blob, _ = self.http.get(url, verify=True)
             except FetchError as exc:
+                if self._report is not None:
+                    self._report.record_failure(url, f"첨부 {ref.number} {name}"[:120], 1, exc, host="g2b")
                 errors.append({"name": name, "error": str(exc)[:120]})
                 continue
             if len(blob) > MAX_ATTACHMENT_BYTES or not signature_ok(name, blob):

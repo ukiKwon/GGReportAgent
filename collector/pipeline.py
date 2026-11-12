@@ -42,6 +42,7 @@ def collect(source, state, store, *, since=None, hosts=None, limit=None, baselin
     summary = {"source": slug, "new": len(new), "new_keys": new, "skipped": skipped, "failed": failed,
                "hosts_ok": len(report.hosts_ok), "hosts_failed": report.hosts_failed,
                "hosts_failed_known": known, "hosts_failed_new": fresh,
+               "fetch_failures": report.fetch_failures,
                "warnings": report.warnings}
     state.add_run(slug, dict(summary, started_at=started, finished_at=_now_iso(),
                              baseline=baseline, since=since))

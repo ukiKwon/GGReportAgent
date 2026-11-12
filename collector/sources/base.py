@@ -97,6 +97,16 @@ class RunReport:
     hosts_failed: dict[str, str] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)      # TLS 예외 재검토일 지남 등(실행은 계속)
     known_failing: dict[str, str] = field(default_factory=dict)   # 이번 실행 대상 중 '늘 실패' 표시 호스트 → 사유
+    # 실패한 요청 하나하나(사용자 11-12): 어느 URL로 무엇을 하다가 몇 번 시도 끝에 실패했는지. URL의 키 값은 가린다.
+    fetch_failures: list[dict] = field(default_factory=list)
+
+    def record_failure(self, url: str, purpose: str, attempts: int, error: BaseException | str, host: str = "") -> None:
+        from collector.httpclient import redact_url
+        import datetime as _dt
+        self.fetch_failures.append({
+            "host": host, "purpose": purpose, "url": redact_url(url), "attempts": attempts,
+            "error": f"{type(error).__name__}: {error}"[:200] if isinstance(error, BaseException) else str(error)[:200],
+            "at": _dt.datetime.now().astimezone().isoformat(timespec="seconds")})
 
 
 class SeenIndex(Protocol):

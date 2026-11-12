@@ -268,3 +268,50 @@ def test_vaccine_policy_userinfo_trick():
     from collector.privacy import vaccine_policy
     assert vaccine_policy("https://x.go.kr:p@evil.com/a.hwpx") == "사용자 확인"
     assert vaccine_policy("https://www.g2b.go.kr/x") == "생략"
+
+
+# ── 실패 요청 기록(사용자 11-12) ────────────────────────────────────────────────
+def test_fetch_failures_record_url_purpose_attempts(tmp_path, capsys):
+    from collector.httpclient import FetchTimeoutError as T
+    from collector.sources.eminwon import EminwonConfig, EminwonSource, HostEntry
+    from collector.sources.base import RunReport
+    from collector.state import State
+
+    class Slow:
+        def get(self, url, verify=True):
+            raise T("연결 실패: timed out")
+
+    report = RunReport()
+    src = EminwonSource(EminwonConfig(second_pass=False), Slow(), (HostEntry("e.test.go.kr", "45|시험", "시험"),),
+                        sleep=lambda s: None)
+    list(src.list_new(State(tmp_path / "s.json").index("eminwon"), None, report, None))
+    f = report.fetch_failures
+    assert len(f) == 1 and f[0]["attempts"] == 3 and f[0]["purpose"] == "목록 1쪽"
+    assert f[0]["url"].startswith("https://e.test.go.kr/") and "timed out" in f[0]["error"] and f[0]["host"] == "e.test.go.kr"
+
+
+def test_fetch_failures_in_summary_and_key_redacted(tmp_path, capsys):
+    import datetime
+    from collector.httpclient import FetchError as FE, redact_url
+    from collector.sources.g2b import G2bSource
+    secret = "f" * 64
+
+    class Down:
+        def get(self, url, verify=True):
+            raise FE("연결 실패")
+
+    src = G2bSource().with_config(http=Down(), env={"G2B_ENDPOINT_URL": "https://apis.example.invalid/x",
+                                                    "G2B_SERVICE_KEY": secret},
+                                  today=datetime.date(2026, 11, 11), keywords=("주거래",))
+    import collector.cli as c
+    orig = c.get_source
+    c.get_source = lambda slug: src
+    try:
+        main(["collect", "--source", "g2b", "--since", "2026-11-09", "--out-root", str(tmp_path / "out")])
+    finally:
+        c.get_source = orig
+    out = capsys.readouterr().out
+    assert secret not in out
+    ff = json.loads(out)["collect"]["fetch_failures"]
+    assert ff and ff[0]["attempts"] == 1 and "serviceKey=***" in ff[0]["url"] and "주거래" in ff[0]["purpose"]
+    assert redact_url("https://h/x?serviceKey=abc&a=1") == "https://h/x?serviceKey=***&a=1"

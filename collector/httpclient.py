@@ -95,6 +95,20 @@ def _tls_error(exc: Exception) -> FetchTlsError:
     return FetchTlsHandshakeError(msg)
 
 
+SECRET_PARAMS = {"servicekey", "key", "apikey", "api_key", "token", "access_token"}
+
+
+def redact_url(url: str) -> str:
+    """기록용 URL — 키·토큰 같은 질의 값은 ***로(나라장터 serviceKey 등). 해석 못 하면 경로까지만."""
+    try:
+        p = urllib.parse.urlsplit(url)
+        q = [(k, "***" if k.lower() in SECRET_PARAMS else v)
+             for k, v in urllib.parse.parse_qsl(p.query, keep_blank_values=True)]
+        return urllib.parse.urlunsplit((p.scheme, p.hostname or "", p.path, urllib.parse.urlencode(q, safe="*,%"), ""))
+    except ValueError:
+        return url.split("?", 1)[0]
+
+
 def _origin(url: str):
     p = urllib.parse.urlsplit(url)
     return (p.scheme, p.hostname, p.port or (443 if p.scheme == "https" else 80))

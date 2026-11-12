@@ -193,6 +193,7 @@ class EminwonSource:
         self._sleep = sleep or time.sleep          # 재시도 백오프(시험에서 주입)
         self._today = today
         self._deadline: float | None = None       # list_new 시작 때 정함(time.monotonic 기준)
+        self._report: RunReport | None = None     # 실패 요청 기록처(list_new가 정함 — fetch_raw도 같은 보고서에)
 
     def with_config(self, hosts_file=None, http=None, hosts=None, sleep=None, today=None,
                     **config) -> "EminwonSource":
@@ -225,7 +226,7 @@ class EminwonSource:
     def fetch(self):
         raise SourceError("eminwon은 CLI로 실행합니다: python -m collector run --source eminwon")
 
-    def _fetch(self, entry: HostEntry, url: str, retries: bool):
+    def _fetch(self, entry: HostEntry, url: str, retries: bool, purpose: str = "요청"):
         """시간 초과·연결 실패는 backoff 간격으로 최대 len(backoff)회, 핸드셰이크 실패는 handshake_retries회 재시도.
         인증서 검증 오류·HTTP 오류는 재시도하지 않는다(security 11-12)."""
         if self._deadline is not None and time.monotonic() > self._deadline:
@@ -234,20 +235,25 @@ class EminwonSource:
         handshake_left = self.config.handshake_retries if retries else 0
         for attempt in range(len(backoff) + 1):
             try:
-                if entry.tls is None:
-                    return self.http.get(url, verify=True)          # 가짜 HTTP(시험)와 같은 시그니처 유지
-                return self.http.get(url, verify=True, tls=entry.tls)
-            except FetchTlsHandshakeError:
-                if handshake_left <= 0 or attempt >= len(backoff):
-                    raise
-                handshake_left -= 1
-            except FetchTimeoutError:
-                if attempt >= len(backoff):
-                    raise
+                try:
+                    if entry.tls is None:
+                        return self.http.get(url, verify=True)          # 가짜 HTTP(시험)와 같은 시그니처 유지
+                    return self.http.get(url, verify=True, tls=entry.tls)
+                except FetchTlsHandshakeError:
+                    if handshake_left <= 0 or attempt >= len(backoff):
+                        raise
+                    handshake_left -= 1
+                except FetchTimeoutError:
+                    if attempt >= len(backoff):
+                        raise
+            except FetchError as exc:                # 마지막 실패 — 무엇을 몇 번 시도했는지 남긴다(사용자 11-12)
+                if self._report is not None:
+                    self._report.record_failure(url, purpose, attempt + 1, exc, host=entry.host)
+                raise
             self._sleep(backoff[attempt])
         raise FetchError("연결 실패")                               # 도달하지 않음
 
-    def _get(self, entry: HostEntry, path_query: str, retries: bool = True):
+    def _get(self, entry: HostEntry, path_query: str, retries: bool = True, purpose: str = "요청"):
         order = list(entry.schemes)
         pref = self._scheme.get(entry.host)
         if pref in order:
@@ -257,7 +263,7 @@ class EminwonSource:
         for scheme in order:
             url = f"{scheme}://{entry.host}{path_query}"
             try:
-                data, charset = self._fetch(entry, url, retries)
+                data, charset = self._fetch(entry, url, retries, purpose)
             except (FetchHttpError, FetchTlsError):
                 raise                      # 서버 응답 오류·인증서 오류는 http로 내려가 재시도하지 않는다
             except FetchError as exc:
@@ -287,7 +293,8 @@ class EminwonSource:
     def _list_host(self, entry: HostEntry, retries: bool = True):
         rows, seen_ids = [], set()
         for page in range(1, self.config.max_pages + 1):
-            _, data, charset = self._get(entry, f"{LIST_PATH}?{self._list_query(page)}", retries)
+            _, data, charset = self._get(entry, f"{LIST_PATH}?{self._list_query(page)}", retries,
+                                         purpose=f"목록 {page}쪽" + ("(2nd pass)" if not retries else ""))
             page_rows = [r for r in parse_list(decode_body(data, charset)[0]) if r.mgt_no not in seen_ids]
             seen_ids.update(r.mgt_no for r in page_rows)
             rows.extend(page_rows)
@@ -326,6 +333,7 @@ class EminwonSource:
 
     def list_new(self, seen, since=None, report=None, hosts=None) -> Iterator[NoticeRef]:
         report = report if report is not None else RunReport()
+        self._report = report
         entries = self._select(hosts)
         self._review_warnings(entries, report)
         report.known_failing.update({e.host: e.known_failing for e in entries if e.known_failing})
@@ -362,7 +370,8 @@ class EminwonSource:
     def fetch_raw(self, ref: NoticeRef, store) -> RawNotice:
         entry = self._entry(ref.host)
         try:
-            _, data, charset = self._get(entry, f"{LIST_PATH}?{self._detail_query(ref.native_id or '')}")
+            _, data, charset = self._get(entry, f"{LIST_PATH}?{self._detail_query(ref.native_id or '')}",
+                                         purpose=f"상세 {ref.number}")
         except FetchError as exc:
             raise SourceError(f"상세 조회 실패({ref.host}): {exc}") from exc
         text, encoding = decode_body(data, charset)
@@ -380,7 +389,7 @@ class EminwonSource:
                       f"&sys_file_nm={quote(link.sys_file_nm, safe='')}"
                       f"&file_path={quote(link.file_path, safe='')}")
             try:
-                _, blob, _ = self._get(entry, path_q)
+                _, blob, _ = self._get(entry, path_q, purpose=f"첨부 {ref.number} {name}"[:120])
             except FetchError as exc:
                 errors.append({"name": name, "error": str(exc)[:120]})
                 continue
