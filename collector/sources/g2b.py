@@ -34,7 +34,7 @@ KEEP_PREFIX = ("ntceSpecDocUrl", "ntceSpecFileNm")
 ALLOWED_DOC_HOST = "www.g2b.go.kr"
 MAX_WINDOW_DAYS = 7
 # '금고' 검색은 잡음이 많다(오금고등학교·새마을금고·요금고지서 — 2026-11-12 실측 76건). 금고 지정·주거래은행 문맥만 받는다.
-RELEVANT = re.compile(r"주거래|금고\(?(?:은행|지정|선정|업무|취급|사업자|운영|약정|입찰|관리)|\(금고\)")
+RELEVANT = re.compile(r"주거래|지정금융기관|금고\(?(?:은행|지정|선정|업무|취급|사업자|운영|약정|입찰|관리)|\(금고\)")
 NOISE = re.compile(r"요금고지|금고등학교|시스템|구축|유지보수|전산|감리|연계")
 
 
@@ -59,7 +59,7 @@ def _load_env(path: Path = ENV_FILE) -> dict:
 
 @dataclass(frozen=True)
 class G2bConfig:
-    keywords: tuple[str, ...] = ("주거래", "금고")
+    keywords: tuple[str, ...] = ("주거래", "금고", "지정금융기관")
     lookback_days: int = 14             # --since가 없을 때 오늘부터 거꾸로
     max_calls: int = 200                # 하루 1000회 한도 안(실행당 상한)
     max_attachments: int = 5
