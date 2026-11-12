@@ -418,12 +418,12 @@
 - **다음 한 걸음**: frontend-dev-write 현황판 재설계+사이드바(②안, 진행 중) → qa / 기관장 설계 보완(security 조건 1~8) → 사용자 답 → 구현. (1단계 구현은 9f 완료.)
 - **자세히**: handoff/agents/planner/ 11-11 현황판 보고(abd7b18c), NEXT 30·70·71·72·75·76.
 
-### 79. 지자체 외 기관 수집 — **171곳 커밋(11-12), 결과 미확인 약 27곳·법원 86곳 은행·소재 시군구 남음** [담당: data-auditor → 메인(9f) / 화면 연결 e3]
-- **현재**: frontend/data/institutions_nonmuni.js 171곳(교육청 16·법원 103·지방공기업·나라장터 공공기관, 3a8cc19~8eff81a). 접수 기간 칸 receiveFrom/To(365eaa9·7eb670b), 날짜 규칙은 지자체와 같음. 근거 없는 지방공기업 25곳은 넣지 않음. 기획 대기: 재단법인 6곳 종류, 기관명 표기(재단법인·(재)).
-- **다음 한 걸음**: ① 공공기관 결과 미확인 약 27곳 → 기관 입찰 게시판 수집기(80 다음 소스 후보, 웹 조회로는 0건) ② 법원 86곳 보관은행 → 대법원 공고가 옛 hwp라 못 엶(사용자가 한글로 열어 주거나 라이브러리 설치 승인) ③ 소재 시군구 → **기관코드 파일로는 불가 확인(11-12, 사용자 ⓐ로 재다운로드·필요 칸만 추출 후 즉시 삭제)**: 법원 75곳 중 소재지코드 47곳 빈 값, '00000' 자리표시(서울중앙·서부·의정부 → 포천으로 잘못 매칭), 서울북부는 노원(실제 도봉) — 신뢰 불가라 채우지 않음, 주소 칸도 법원은 전부 NULL. 대안: 법원 위치는 NEXT 72(e3) 법원 위치 설계·scourt 청사안내 주소로 ④ 법원 새소식 출처 → e3 날짜 규칙 뒤.
-- **자세히**: handoff/2026-11-12_summary.md 9f 섹션, planner 11-11 ad92ba4f, data-auditor 11-11·11-12 보고, collector/SOURCES.md.
+### 79. 지자체 외 기관 수집 — **171곳 커밋, 법원 보관은행 정기 공고 7건 원문 반영(956cf2f), 결과 미확인 약 27곳·공고에 없는 법원 남음** [담당: data-auditor → 메인(9f) / 화면 연결 e3]
+- **현재**: frontend/data/institutions_nonmuni.js 171곳(교육청 16·법원 103·지방공기업·나라장터 공공기관). 법원 26곳은 대법원 정기 공고 원문(구형 HWP, hwp5.py)으로 lastBid=공고일·term 5·만료 원문 날짜, 2021 별지 15곳 만료 2026-12-31 확정, 제주 날짜 비움. 근거 없는 지방공기업 25곳은 넣지 않음. 기획 대기: 재단법인 6곳 종류, 기관명 표기.
+- **다음 한 걸음**: ① 공공기관 결과 미확인 약 27곳 → 기관 입찰 게시판 수집기 ② 공고에 없는 법원과 2021 별지 17곳·제주의 재지정 경로(NEXT 72와 함께) ③ 소재 시군구는 기관코드 자료로 불가(c956042) → NEXT 72 법원 위치 ④ 법원 새소식 출처는 e3 날짜 규칙 뒤.
+- **자세히**: handoff/agents/history/2026-11-12_법원_공탁금_정기공고_원문표.md, collector/extract/hwp5.py, 11-12 summary 9f 18:30, collector/SOURCES.md 법원 소절.
 
-### 80. 외부망 주기 수집 파이프라인 — **eminwon·나라장터·미리보기·주간 자동 수집(월 09:00) 가동, qa 182d45b 검토와 하(下) 후속 남음** [담당: 메인(9f) → security → qa]
+### 80. 외부망 주기 수집 파이프라인 — **eminwon·나라장터·미리보기·주간 자동 수집(월 09:00) 가동, 첫 실행 확인 대기** [담당: 메인(9f) → security → qa]
 - **현재**: `python -m collector run --source eminwon|g2b`, `preview --batch <id>`, 작업 'GGReport collector weekly'(collector/run_weekly.cmd, 로그 data/collector/_logs/, LLM 0, 해제 `schtasks /Delete /TN "GGReport collector weekly" /F`). TLS 예외(c07d963), known_failing·요청 마감·잠금 토큰(182d45b). 실패 요청 기록 fetch_failures(URL 키 가림·목적·시도 횟수, 11-12 사용자). ※ 11-12 git 이력 재작성으로 이 항목의 해시는 옛 값 — handoff/archive/2026-11-12_git-hash-map.tsv로 찾는다. 사용자 결정: 연락처 전부 마스킹, 백신은 https+go.kr·광역 지자체 공식 도메인이면 생략. 운영 방식은 collector/SOURCES.md §3.
-- **다음 한 걸음**: qa 182d45b 반영 끝(read1·잠금), 남은 qa P3 3건(오류 종류 단위 known·만료, 스케줄러 결과 eminwon 코드, 잠금 회수 경쟁) 진행 중 → 첫 주간 실행(11-16 09:00) 로그·fetch_failures 확인(서울 3곳은 known_failing이라 종료 코드 0이 정상) → 남은 하(下): 원문 보존 기간(NEXT 35), 웹 반입 첨부 서명 검사(e3), 서울 도봉·중구·강남 다른 출처 보완(강남 보도 1건), 기관 게시판·법원 새소식 소스, xlsx 포장.
+- **다음 한 걸음**: qa P3 3건 반영 끝(00f15d6·645f526) → 첫 주간 실행(11-16 09:00) 로그·fetch_failures 확인(서울 3곳은 known_failing이라 종료 코드 0이 정상) → 남은 하(下): 원문 보존 기간(NEXT 35), 웹 반입 첨부 서명 검사(e3), 서울 도봉·중구·강남 다른 출처 보완(강남 보도 1건), 기관 게시판·법원 새소식 소스, xlsx 포장.
 - **자세히**: planner a780ca1f, collector/SOURCES.md·SCHEMA.md, security·qa 11-12 보고, 11-12 summary.
