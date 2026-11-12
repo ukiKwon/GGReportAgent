@@ -782,10 +782,12 @@
     });
   }
 
-  // 기관장 카드(headcard.js). 입찰 D-day는 임기 만료일을 모를 때 카드 맨 위 큰 숫자가 된다(공고 진행 중인 기관은 넘기지 않는다).
+  // 기관장 카드(headcard.js). 입찰 D-day는 임기 만료일을 모를 때 카드 맨 위 큰 숫자가 된다.
+  // 공고 진행 중인 기관은 입찰 예정일이 없으므로 접수 중이면 마감 D-n(출처: 공고), 그 밖이면 '공고 진행 중' 칩이 되도록 notice 정보를 넘긴다.
   function empNo() { try { return String((root.store.loadSession() || {}).emp || ''); } catch (e) { return ''; } }
   function headBid(it) {
-    if (!it || it.notice || !it.date || typeof it.days !== 'number') return null;
+    if (it && it.notice) return { notice: true, receiving: it.phase === 'receiving', days: it.deadlineDays, date: it.receiveTo || '' };
+    if (!it || !it.date || typeof it.days !== 'number') return null;
     return { days: it.overdue ? -it.days : it.days, date: it.date, label: it.label };
   }
   function headEnv(it) {

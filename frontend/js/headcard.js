@@ -16,8 +16,9 @@
   hc.BTN = {
     open: 'open_card', refresh: 'refresh', headAdd: 'head_add', headConfirm: 'head_confirm', headReject: 'head_reject',
     itemAdd: 'item_add', itemConfirm: 'item_confirm', itemReject: 'item_reject', itemWithdraw: 'item_withdraw', itemVoid: 'item_void',
-    photoUpload: 'photo_upload', photoView: 'photo_view', photoVoid: 'photo_void', photoRestore: 'photo_restore',
+    photoUpload: 'photo_upload', photoView: 'photo_view', photoVoid: 'photo_void', photoRestore: 'photo_restore',   // photoRestore: 4단계(사진 변경 이력 화면)에서 쓴다
   };
+  hc.DEBOUNCE_MS = 400;   // 기관을 고른 뒤 이 시간 안에 다른 기관으로 옮기면 앞 기관은 읽지 않는다(열람 기록이 과하게 쌓이지 않게). 0이면 바로 읽는다(시험용)
   hc.SALES_ROLES = ['영업팀', '영업팀장', '영업부장'];
   hc.LEAD_ROLES = ['영업팀장', '영업부장'];
   // HEAD_FIELD 8종(서버 026_inst_head.sql). kind: text|flag|date|period
@@ -57,7 +58,7 @@
     none: '이 기관의 기관장은 아직 등록되지 않았습니다. 공개 자료를 확인해 출처와 함께 등록하세요.',
     off: '기관장 정보 기능을 쓰지 않도록 설정되어 있습니다(사용 안 함). 관리자가 켜면 이 자리에 카드가 보입니다.',
     login: '로그인한 사번이 확인되지 않아 기관장 정보를 볼 수 없습니다. 다시 로그인하세요.',
-    denied: '기관장 정보는 영업팀·영업팀장·영업부장만 볼 수 있습니다.',
+    denied: '이 정보를 볼 권한이 없습니다(영업 계열 사용자만, 또는 사용자 등록 상태 확인 필요).',
     role: '기관장 정보는 영업팀·영업팀장·영업부장만 볼 수 있습니다.',
     notfound: '서버에서 이 기관을 찾지 못했습니다. 서버에 등록된 기관만 기관장 정보를 관리합니다.',
     noid: '서버에 등록된 기관만 기관장 정보를 관리합니다. 이 기관은 내장 자료에만 있어 기관장 정보를 쓸 수 없습니다.',
@@ -115,6 +116,15 @@
       const f = h.fields && h.fields.TERM_END;
       return { type: 'term', k: t.k, big: t.big, s: t.s, text: t.text, date: te, src: f && f.source ? f.source : null };
     }
+    // 공고 진행 중인 기관: 접수 중이면 '마감 D-n'(출처: 공고), 그 밖(마감일 미확인·마감 지남)은 '공고 진행 중' 칩
+    if (bid && bid.notice) {
+      const d = bid.days;
+      if (bid.receiving && typeof d === 'number' && isFinite(d) && d >= 0) {
+        const big = d === 0 ? 'D-day' : 'D-' + d;
+        return { type: 'notice', receiving: true, k: '마감', big: big, s: '', text: '마감 ' + big, date: str(bid.date), src: null };
+      }
+      return { type: 'notice', receiving: false, k: '', big: '', s: '', text: '공고 진행 중', date: '', src: null };
+    }
     if (bid && bid.date && typeof bid.days === 'number' && isFinite(bid.days)) {
       const d = bid.days;
       const big = d < 0 ? 'D+' + (-d) : (d === 0 ? 'D-day' : 'D-' + d);
@@ -155,19 +165,21 @@
   }
 
   // ── 순수: 카드 ─────────────────────────────────────────────────────
-  const SIL = '<svg class="hc-sil" viewBox="0 0 100 133" role="img" aria-label="사진 없음"><circle cx="50" cy="44" r="22"/><path d="M10 133C10 98 28 78 50 78S90 98 90 133Z"/></svg>';
+  function sil(label) {
+    return '<svg class="hc-sil" viewBox="0 0 100 133" role="img" aria-label="' + esc(label) + '"><circle cx="50" cy="44" r="22"/><path d="M10 133C10 98 28 78 50 78S90 98 90 133Z"/></svg>';
+  }
 
   function photoHtml(h, view) {
     const p = h.photo;
-    let frame = SIL, cap = '사진 없음. 공공누리 제1유형 사진이나 기관이 허락한 사진만 올릴 수 있습니다.';
+    let frame = sil('사진 없음'), cap = '사진 없음. 공공누리 제1유형 사진이나 기관이 허락한 사진만 올릴 수 있습니다.';
     if (p) {
       const ph = view && view.photo ? view.photo : {};
       const lic = hc.licenseLabel(p.license_cd);
       const src = p.source || {};
       cap = '사진 · ' + esc(lic) + (src.title ? ' · ' + esc(src.title) : '');
       if (ph.url && ph.id === p.photo_id) frame = '<img src="' + esc(ph.url) + '" alt="기관장 사진" width="117" height="156">';
-      else if (ph.state === 'err') cap = '사진을 불러오지 못했습니다. [새로 고침]으로 다시 시도하세요. · ' + esc(lic);
-      else cap = '사진을 불러오는 중… · ' + esc(lic);
+      else if (ph.state === 'err') { frame = sil('사진을 불러오지 못했습니다'); cap = '사진을 불러오지 못했습니다. [새로 고침]으로 다시 시도하세요. · ' + esc(lic); }
+      else { frame = sil('사진 불러오는 중'); cap = '사진을 불러오는 중… · ' + esc(lic); }
       return '<div class="hc-photo"><div class="hc-frame">' + frame + '</div><p class="hc-cap">' + cap + '</p></div>';
     }
     return '<div class="hc-photo"><div class="hc-frame">' + frame + '</div><p class="hc-cap">' + esc(cap) + '</p></div>';
@@ -195,12 +207,15 @@
     const d = view.data || {}, h = d.head || {};
     const big = hc.bigInfo(h, ctx.bid, ctx.today);
     let band;
-    if (big) {
+    if (big && big.type === 'notice' && !big.receiving) {
+      band = '<div class="hc-big"><span class="pop-unk">공고 진행 중</span></div><span class="hc-bigsrc">출처: 공고 · 임기 만료일은 아직 확인되지 않았습니다</span>';
+    } else if (big) {
       const aria = big.text + (big.s ? ' ' + big.s : '');
-      const sub = big.type === 'term'
-        ? '<span class="hc-bigsrc">만료일 ' + mono(big.date) + ' ' + hc.srcHtml(big.src) + '</span>'
-        : '<span class="hc-bigsrc">공고 예정 ' + mono(big.date) + (big.label ? ' ' + esc(big.label) : '') + ' · 임기 만료일은 아직 확인되지 않았습니다</span>';
-      band = '<div class="hc-big" role="group" aria-label="' + esc(aria) + '"><span class="k" aria-hidden="true">' + esc(big.k) + '</span><b aria-hidden="true">' + esc(big.big) + '</b>' +
+      let sub;
+      if (big.type === 'term') sub = '<span class="hc-bigsrc">만료일 ' + mono(big.date) + ' ' + hc.srcHtml(big.src) + '</span>';
+      else if (big.type === 'notice') sub = '<span class="hc-bigsrc">출처: 공고 · 접수 마감 ' + mono(big.date) + ' · 임기 만료일은 아직 확인되지 않았습니다</span>';
+      else sub = '<span class="hc-bigsrc">공고 예정 ' + mono(big.date) + (big.label ? ' ' + esc(big.label) : '') + ' · 임기 만료일은 아직 확인되지 않았습니다</span>';
+      band ='<div class="hc-big" role="group" aria-label="' + esc(aria) + '"><span class="k" aria-hidden="true">' + esc(big.k) + '</span><b aria-hidden="true">' + esc(big.big) + '</b>' +
         (big.s ? '<span class="s" aria-hidden="true">' + esc(big.s) + '</span>' : '') + '</div>' + sub;
     } else {
       band = '<div class="hc-big"><span class="k">임기 만료일과 입찰 예정일을 모릅니다</span></div><span class="hc-bigsrc">' + chip() + '</span>';
@@ -238,6 +253,8 @@
     else if (st === 'error') {
       body = '<p class="db-empty hc-state" role="alert">' + esc(view.text || (view.code ? hc.TEXT.error : hc.TEXT.network)) + (view.code ? ' (' + esc(view.code) + ')' : '') + '</p>' +
         '<p class="hc-act"><button type="button" data-hc="refresh">다시 불러오기</button></p>';
+    } else if (st === 'denied' || st === 'notfound' || st === 'login') {   // 꺼짐(off)을 뺀 오류 상태는 다시 불러올 수 있다
+      body = stateHtml(hc.TEXT[st], '<p class="hc-act"><button type="button" data-hc="refresh">다시 불러오기</button></p>');
     } else if (hc.TEXT[st]) body = stateHtml(hc.TEXT[st]);
     else body = stateHtml(hc.TEXT.error);
     return '<div class="db-sec hc-sec" id="hc-sec"><h3>기관장</h3>' + body + '</div>';
@@ -295,22 +312,27 @@
   };
 
   // ── 상태(현재 선택한 기관 하나) ────────────────────────────────────
-  function fresh() { return { instId: '', status: 'idle', data: null, text: '', code: 0, photo: { id: 0, url: '', state: '' }, repaint: null }; }
+  // emp = 이 상태를 읽은 사번(사용자가 바뀌면 다시 읽는다). timer/cancel = 기관 선택 뒤 대기 중인 읽기(debounce)
+  function fresh() { return { instId: '', emp: '', status: 'idle', data: null, text: '', code: 0, quietFail: false, photo: { id: 0, url: '', state: '' }, repaint: null, cancel: null }; }
   let V = fresh();
-  function revoke(v) {
-    if (v && v.photo && v.photo.url && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(v.photo.url);
+  function revokeUrl(u) {
+    if (u && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(u);
   }
+  function revoke(v) { if (v && v.photo) revokeUrl(v.photo.url); }
   hc.view = function () { return V; };
-  hc.reset = function () { revoke(V); V = fresh(); if (hc.closeModal) hc.closeModal(false); };
+  hc.reset = function () { if (V.cancel) V.cancel(); revoke(V); V = fresh(); if (hc.closeModal) hc.closeModal(false); };
+  // 사용자(사번·계정)가 바뀌거나 로그아웃할 때 app.js가 부른다 — 앞 사용자가 읽은 카드·사진·열린 모달을 버린다.
+  hc.onProfileChange = function () { hc.reset(); };
 
   function syncPhoto(mine) {
     const p = mine.data && mine.data.head && mine.data.head.photo;
     if (!p) { revoke(mine); mine.photo = { id: 0, url: '', state: '' }; return; }
-    if (mine.photo.id === p.photo_id && mine.photo.url) return;
+    if (mine.photo.id === p.photo_id && (mine.photo.url || mine.photo.state === 'loading')) return;   // 이미 받았거나 받는 중이면 다시 요청하지 않는다
     revoke(mine);
     mine.photo = { id: p.photo_id, url: '', state: 'loading' };
     hc.fetchPhoto(mine.instId, p.photo_id).then(function (blob) {
       if (V !== mine || mine.photo.id !== p.photo_id) return;
+      revokeUrl(mine.photo.url);
       mine.photo.url = (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') ? URL.createObjectURL(blob) : '';
       mine.photo.state = mine.photo.url ? 'ok' : 'err';
     }).catch(function () {
@@ -325,24 +347,39 @@
       if (V !== mine) return;
       mine.data = d;
       mine.status = d && d.head ? 'ok' : 'none';
-      mine.text = ''; mine.code = 0;
+      mine.text = ''; mine.code = 0; mine.quietFail = false;
       syncPhoto(mine);
     }).catch(function (e) {
       if (V !== mine) return;
+      if (quiet) { mine.quietFail = true; return; }   // 저장 뒤 조용한 재조회가 실패해도 카드·모달은 그대로 두고 모달 안에서 알린다
       const c = hc.classify(e.status, e.detail);
       mine.status = c.status; mine.text = c.text || ''; mine.code = e.status || 0;
     }).then(function () { if (V === mine && mine.repaint) mine.repaint(); });
   }
 
   // 같은 기관을 고르고 있는 동안은 한 번만 읽는다(다시 그릴 때마다 열람 기록이 쌓이지 않게). 기관이 바뀌면 새로 읽는다.
-  hc.ensure = function (instId, repaint) {
-    if (V.instId === instId && V.status !== 'idle') { V.repaint = repaint || V.repaint; return Promise.resolve(); }
+  // 사번(emp)이 달라지면(사용자 전환) 같은 기관이어도 다시 읽는다. 기관을 고른 뒤 DEBOUNCE_MS가 지나야 읽는다 —
+  // 그 안에 다른 기관으로 옮기면(reset이 대기를 취소) 앞 기관은 읽지 않는다.
+  hc.ensure = function (instId, repaint, emp) {
+    const who = str(emp);
+    if (V.instId === instId && V.emp === who && V.status !== 'idle') { V.repaint = repaint || V.repaint; return Promise.resolve(); }
     hc.reset();
-    V.instId = instId; V.status = 'loading'; V.repaint = repaint || null;
-    return loadInto(V, hc.BTN.open, false);
+    const mine = V;
+    mine.instId = instId; mine.emp = who; mine.status = 'loading'; mine.repaint = repaint || null;
+    const ms = Number(hc.DEBOUNCE_MS) || 0;
+    if (ms <= 0) return loadInto(mine, hc.BTN.open, false);
+    return new Promise(function (resolve) {
+      const t = setTimeout(function () {
+        mine.cancel = null;
+        if (V !== mine) { resolve(); return; }
+        loadInto(mine, hc.BTN.open, false).then(resolve);
+      }, ms);
+      mine.cancel = function () { clearTimeout(t); mine.cancel = null; resolve(); };
+    });
   };
   hc.refresh = function (quiet, button) {
     if (!V.instId) return Promise.resolve();
+    if (V.cancel) V.cancel();   // 대기 중이던 읽기는 이 요청이 대신한다(캐시 없이 바로 다시 읽는다)
     const p = loadInto(V, button || hc.BTN.refresh, !!quiet);
     if (!quiet && V.repaint) V.repaint();   // [새로 고침]을 누르면 바로 '불러오는 중'으로 바뀐다
     return p;
@@ -364,7 +401,7 @@
       if (V.instId) hc.reset();
       return hc.sectionHtml({ status: g }, env);
     }
-    hc.ensure(rec.institutionId, env.repaint);
+    hc.ensure(rec.institutionId, env.repaint, env.emp);
     return hc.sectionHtml(V, env);
   };
 
@@ -474,7 +511,8 @@
 
   function msgHtml(M) {
     if (!M || !M.msg || !M.msg.text) return '';
-    return M.msg.err ? '<p class="hc-err" role="alert">' + esc(M.msg.text) + '</p>' : '<p class="hc-ok">' + esc(M.msg.text) + '</p>';
+    const retry = M.msg.retry ? '<p class="hc-act"><button type="button" data-m="reload">다시 불러오기</button></p>' : '';
+    return (M.msg.err ? '<p class="hc-err" role="alert">' + esc(M.msg.text) + '</p>' : '<p class="hc-ok">' + esc(M.msg.text) + '</p>') + retry;
   }
   // 위험 행위(기각·무효·교체 확정)는 확인 단계를 모달 안에서 한 번 더 거친다. 브라우저 확인창은 쓰지 않는다.
   function pendingHtml(p) {
@@ -484,7 +522,7 @@
       '<div class="hc-actions"><button type="button" data-m="do" class="hc-danger">' + esc(p.go) + '</button><button type="button" data-m="cancel">취소</button></div></div>';
   }
   function isPending(M, act, id) { return !!(M && M.pending && M.pending.act === act && String(M.pending.id) === String(id)); }
-  function whyHtml(id, code) { return '<small class="hc-why" id="' + id + '">' + esc(BLOCK[code] || '지금은 처리할 수 없습니다.') + '</small>'; }
+  function whyHtml(id, code) { return '<small class="hc-why" id="' + esc(id) + '">' + esc(BLOCK[code] || '지금은 처리할 수 없습니다.') + '</small>'; }
 
   function candidateRow(c, d, M, ctx) {
     const self = !!(ctx.emp && c.created_by === ctx.emp);
@@ -510,9 +548,14 @@
     const rejectBtn = '<button type="button" data-m="ask-reject-head" data-id="' + esc(ch.head_id) + '" data-self="' + (self ? '1' : '0') + '" aria-label="' + esc(lab + (self ? ' 회수' : ' 기각')) + '"' +
       (ch.can_reject ? '' : ' disabled aria-describedby="hc-hr-' + esc(ch.head_id) + '"') + '>' + (self ? '회수' : '기각') + '</button>';
     const pend = isPending(M, 'confirm-head', ch.head_id) || isPending(M, 'reject-head', ch.head_id) ? pendingHtml(M.pending) : '';
+    // 교체 확정의 근거가 보이도록 서버가 주는 항목(임기일·학력·경력 등)과 출처를 요약해 보여 준다(최대 6건, 나머지는 건수만).
+    const its = Array.isArray(ch.items) ? ch.items : [];
+    const sum = its.slice(0, 6).map(function (it) {
+      return '<div class="hc-src"><b>' + esc(hc.fieldLabel(it.field_cd)) + '</b> ' + mono(hc.valueText(it)) + ' ' + hc.srcHtml(it.source) + '</div>';
+    }).join('') + (its.length > 6 ? '<div class="hc-src">외 ' + (its.length - 6) + '건</div>' : '');
     return '<li class="hc-row"><div class="hc-main"><b>' + esc(ch.name || '이름 미확인') + '</b> ' + esc(ch.position || '') +
       ' <span class="hc-badge">' + (cur ? '현 기관장 ' + esc(cur) + '과 충돌' : '후보') + '</span>' +
-      '<div><span class="hc-src">항목 ' + (Number(ch.item_count) || 0) + '건</span> <span class="hc-by">입력 ' + esc(ch.created_by) + '</span></div></div>' +
+      '<div><span class="hc-src">항목 ' + (Number(ch.item_count) || 0) + '건</span> <span class="hc-by">입력 ' + esc(ch.created_by) + '</span></div>' + sum + '</div>' +
       '<div class="hc-btns">' + confirmBtn + rejectBtn + '</div>' +
       (ch.can_confirm ? '' : whyHtml('hc-hc-' + ch.head_id, ch.block_code)) + (ch.can_reject ? '' : whyHtml('hc-hr-' + ch.head_id, ch.reject_block_code)) +
       pend + '</li>';
@@ -560,9 +603,9 @@
           (can ? '<div class="hc-btns"><button type="button" data-m="ask-void-photo" data-id="' + esc(p.photo_id) + '" aria-label="현재 사진 무효 처리">무효 처리</button></div>' : '') +
           (isPending(M, 'void-photo', p.photo_id) ? pendingHtml(M.pending) : '') + '</li></ul>';
       }
-      const rest = M && M.voidedPhoto && hc.isLead(d.viewer_role)
-        ? '<p class="hc-act"><button type="button" data-m="restore-photo" data-id="' + esc(M.voidedPhoto) + '">방금 무효 처리한 사진 복원</button></p>' : '';
-      out += '<section class="hc-m-sec" aria-labelledby="hc-s3"><h4 id="hc-s3">사진</h4>' + photoRow + rest + '</section>';
+      // 무효 처리한 사진의 복원 버튼은 없다 — 서버는 무효 시 바로 앞 사진을 자동으로 되살리고 VOIDED는 복원할 수 없다(409).
+      // 보관된(REPLACED) 사진 복원은 4단계 '사진 변경 이력' 화면에서 한다.
+      out += '<section class="hc-m-sec" aria-labelledby="hc-s3"><h4 id="hc-s3">사진</h4>' + photoRow + '</section>';
     }
     return out;
   };
@@ -619,9 +662,9 @@
     });
     return o;
   }
-  function setMsg(text, err) {
+  function setMsg(text, err, retry) {
     if (!M) return;
-    M.msg = { text: text, err: !!err };
+    M.msg = { text: text, err: !!err, retry: !!retry };
     const el = q('#hc-m-status');
     if (el) el.innerHTML = msgHtml(M);
   }
@@ -635,17 +678,20 @@
   function focusStatus() { const s = q('#hc-m-status'); if (s) s.focus(); }
 
   // 쓰기 한 건: 요청 → 다시 읽기(카드·모달 갱신) → 안내. 진행 중에는 다른 클릭을 받지 않는다.
-  function act(fn, okText, withForms) {
+  // btn = 방금 수행한 쓰기의 버튼 ID — 뒤따르는 자동 재조회도 같은 버튼 ID로 감사 기록에 남는다(서버 허용 목록의 값만).
+  function act(fn, okText, withForms, btn) {
     if (!M || M.busy) return;
+    const reBtn = btn || hc.BTN.refresh;
     M.busy = true;
     q('.hc-modal').classList.add('hc-busy');
     q('.hc-modal').setAttribute('aria-busy', 'true');
     fn().then(function (res) {
       M.pending = null;
       const okMsg = typeof okText === 'function' ? okText(res) : okText;
-      return hc.refresh(true, hc.BTN.refresh).then(function () {
+      return hc.refresh(true, reBtn).then(function () {
         if (!M) return;
-        setMsg(okMsg, false);
+        if (V.quietFail) setMsg('저장은 됐지만 새로 읽지 못했습니다. 화면의 내용이 최신이 아닐 수 있습니다.', true, true);
+        else setMsg(okMsg, false);
         repaintModal(withForms);
         focusStatus();
       });
@@ -654,7 +700,7 @@
       setMsg(hc.errText(e.status, e.detail), true);
       if (e.status === 409 || e.status === 404) {   // 그 사이 바뀐 건 — 최신으로 다시 읽어 목록을 맞춘다
         M.pending = null;
-        return hc.refresh(true, hc.BTN.refresh).then(function () { repaintModal(false); focusStatus(); });
+        return hc.refresh(true, reBtn).then(function () { repaintModal(false); focusStatus(); });
       }
       repaintModal(false);
       focusStatus();
@@ -670,9 +716,14 @@
   function headUrl(id, tail) { return base(V.instId) + '/heads/' + encodeURIComponent(id) + '/' + tail; }
   function photoUrl(id, tail) { return base(V.instId) + '/head/photos/' + encodeURIComponent(id) + '/' + tail; }
 
+  // 선택자 문자열에 넣는 값은 CSS.escape(없으면 영숫자·-_만 남긴다)
+  function cssq(v) {
+    const s = str(v);
+    return typeof CSS !== 'undefined' && CSS && typeof CSS.escape === 'function' ? CSS.escape(s) : s.replace(/[^\w-]/g, '');
+  }
   function askPending(p, btn) {
     M.pending = p;
-    M.askSel = '[data-m="' + btn.getAttribute('data-m') + '"][data-id="' + btn.getAttribute('data-id') + '"]';
+    M.askSel = '[data-m="' + cssq(btn.getAttribute('data-m')) + '"][data-id="' + cssq(btn.getAttribute('data-id')) + '"]';
     repaintModal(false);
     const r = q('#hc-reason') || q('[data-m=do]');
     if (r) r.focus();
@@ -696,18 +747,31 @@
       if (!reason) { setMsg('사유를 적으세요.', true); const r = q('#hc-reason'); if (r) { r.setAttribute('aria-invalid', 'true'); r.focus(); } return; }
       if (reason.length > hc.REASON_MAX) { setMsg('사유는 ' + hc.REASON_MAX + '자 이내로 적으세요.', true); return; }
     }
-    if (p.act === 'reject-item') act(function () { return hc.request('POST', itemUrl(p.id, 'reject'), { reason: reason }, p.self ? hc.BTN.itemWithdraw : hc.BTN.itemReject); }, p.self ? '후보를 회수했습니다.' : '후보를 기각했습니다.');
-    else if (p.act === 'void-item') act(function () { return hc.request('POST', itemUrl(p.id, 'void'), { reason: reason }, hc.BTN.itemVoid); }, '확정값을 무효 처리했습니다.');
-    else if (p.act === 'reject-head') act(function () { return hc.request('POST', headUrl(p.id, 'reject'), { reason: reason }, hc.BTN.headReject); }, p.self ? '후보 기관장을 회수했습니다.' : '후보 기관장을 기각했습니다.');
-    else if (p.act === 'confirm-head') act(function () { return hc.request('POST', headUrl(p.id, 'confirm'), undefined, hc.BTN.headConfirm); }, '기관장으로 확정했습니다.', true);
+    if (p.act === 'reject-item') {
+      const b = p.self ? hc.BTN.itemWithdraw : hc.BTN.itemReject;
+      act(function () { return hc.request('POST', itemUrl(p.id, 'reject'), { reason: reason }, b); }, p.self ? '후보를 회수했습니다.' : '후보를 기각했습니다.', false, b);
+    } else if (p.act === 'void-item') act(function () { return hc.request('POST', itemUrl(p.id, 'void'), { reason: reason }, hc.BTN.itemVoid); }, '확정값을 무효 처리했습니다.', false, hc.BTN.itemVoid);
+    else if (p.act === 'reject-head') act(function () { return hc.request('POST', headUrl(p.id, 'reject'), { reason: reason }, hc.BTN.headReject); }, p.self ? '후보 기관장을 회수했습니다.' : '후보 기관장을 기각했습니다.', false, hc.BTN.headReject);
+    else if (p.act === 'confirm-head') act(function () { return hc.request('POST', headUrl(p.id, 'confirm'), undefined, hc.BTN.headConfirm); }, '기관장으로 확정했습니다.', true, hc.BTN.headConfirm);
     else if (p.act === 'void-photo') {
-      act(function () {
-        return hc.request('POST', photoUrl(p.id, 'void'), { reason: reason }, hc.BTN.photoVoid).then(function (res) {
-          M.voidedPhoto = p.id;   // 팀장·부장은 이 모달이 열려 있는 동안 되살릴 수 있다
-          return res;
-        });
-      }, '사진을 무효 처리했습니다.');
+      // 서버가 무효 처리와 함께 바로 앞 사진을 자동으로 되살린다 — 응답의 restored_photo_id로 결과를 안내한다.
+      act(function () { return hc.request('POST', photoUrl(p.id, 'void'), { reason: reason }, hc.BTN.photoVoid); }, function (res) {
+        return res && res.restored_photo_id ? '사진을 무효 처리했습니다. 바로 앞 사진으로 되돌렸습니다.' : '사진을 무효 처리했습니다. 사진이 없어졌습니다(실루엣 표시).';
+      }, false, hc.BTN.photoVoid);
     }
+  }
+
+  // 저장 뒤 새로 읽지 못했을 때 모달 안 [다시 불러오기]
+  function reloadInModal() {
+    if (!M || M.busy) return;
+    M.busy = true;
+    hc.refresh(true, hc.BTN.refresh).then(function () {
+      if (!M) return;
+      if (V.quietFail) setMsg('아직 새로 읽지 못했습니다. 서버 연결을 확인하고 다시 시도하세요.', true, true);
+      else setMsg('새로 읽었습니다.', false);
+      repaintModal(true);
+      focusStatus();
+    }).then(function () { if (M) M.busy = false; });
   }
 
   function onMClick(e) {
@@ -719,7 +783,8 @@
       case 'close': hc.closeModal(true); break;
       case 'cancel': cancelPending(); break;
       case 'do': doPending(); break;
-      case 'confirm-item': act(function () { return hc.request('POST', itemUrl(id, 'confirm'), undefined, hc.BTN.itemConfirm); }, '후보를 확정했습니다.'); break;
+      case 'reload': reloadInModal(); break;
+      case 'confirm-item': act(function () { return hc.request('POST', itemUrl(id, 'confirm'), undefined, hc.BTN.itemConfirm); }, '후보를 확정했습니다.', false, hc.BTN.itemConfirm); break;
       case 'ask-reject-item': askPending({ act: 'reject-item', id: id, self: self, reason: true, go: self ? '회수하기' : '기각하기', text: self ? '내가 낸 후보를 회수합니다. 사유를 적으세요.' : '이 후보를 기각합니다. 기각하면 되돌릴 수 없습니다.' }, b); break;
       case 'ask-void-item': askPending({ act: 'void-item', id: id, reason: true, go: '무효 처리하기', text: '이 확정값을 무효 처리합니다. 카드에서 사라지고 기록만 남습니다.' }, b); break;
       case 'ask-reject-head': askPending({ act: 'reject-head', id: id, self: self, reason: true, go: self ? '회수하기' : '기각하기', text: self ? '내가 낸 후보 기관장을 회수합니다. 사유를 적으세요.' : '이 후보 기관장을 기각합니다. 기각하면 되돌릴 수 없습니다.' }, b); break;
@@ -729,7 +794,6 @@
         break;
       }
       case 'ask-void-photo': askPending({ act: 'void-photo', id: id, reason: true, go: '무효 처리하기', text: '현재 사진을 무효 처리합니다. 바로 앞 사진이 있으면 자동으로 되살아납니다.' }, b); break;
-      case 'restore-photo': act(function () { return hc.request('POST', photoUrl(id, 'restore'), undefined, hc.BTN.photoRestore).then(function (r) { M.voidedPhoto = 0; return r; }); }, '사진을 복원했습니다.'); break;
       default: break;
     }
   }
@@ -744,16 +808,16 @@
     const headId = V.data && V.data.head ? V.data.head.head_id : 0;
     if (kind === 'add-item') {
       act(function () { return hc.addItem(V.instId, headId, v.field_cd, v); },
-        function (r) { return r && r.state === 'CONFIRMED' ? '확정 항목으로 입력했습니다.' : '후보로 넣었습니다. 위 확정 대기 후보에서 확정하세요.' + (r && r.conflict ? ' 확정값과 다른 값이라 영업팀장·영업부장이 처리합니다.' : ''); }, true);
+        function (r) { return r && r.state === 'CONFIRMED' ? '확정 항목으로 입력했습니다.' : '후보로 넣었습니다. 위 확정 대기 후보에서 확정하세요.' + (r && r.conflict ? ' 확정값과 다른 값이라 영업팀장·영업부장이 처리합니다.' : ''); }, true, hc.BTN.itemAdd);
     } else if (kind === 'add-head') {
       act(function () { return hc.addHead(V.instId, v); },
-        function (r) { return r && r.state === 'CURRENT' ? '기관장을 등록했습니다.' : '후보 기관장으로 넣었습니다. 위 확정 대기 후보에서 처리하세요.'; }, true);
+        function (r) { return r && r.state === 'CURRENT' ? '기관장을 등록했습니다.' : '후보 기관장으로 넣었습니다. 위 확정 대기 후보에서 처리하세요.'; }, true, hc.BTN.headAdd);
     } else if (kind === 'photo') {
       const fileEl = form.elements.file;
       const file = fileEl && fileEl.files && fileEl.files[0];
       const bad = hc.photoCheck(v, file);
       if (bad) { setMsg(bad, true); focusStatus(); return; }
-      act(function () { return hc.uploadPhoto(V.instId, headId, v, file); }, '사진을 올렸습니다.', true);
+      act(function () { return hc.uploadPhoto(V.instId, headId, v, file); }, '사진을 올렸습니다.', true, hc.BTN.photoUpload);
     }
   }
 
@@ -786,7 +850,7 @@
   hc.openModal = function (envFn, opts) {
     if (typeof document === 'undefined' || M) return;
     if (V.status !== 'ok' && V.status !== 'none') return;
-    M = { envFn: envFn, opener: document.activeElement, pending: null, askSel: '', field: 'NAME', busy: false, msg: null, voidedPhoto: 0, el: null };
+    M = { envFn: envFn, opener: document.activeElement, pending: null, askSel: '', field: 'NAME', busy: false, msg: null, el: null };
     const tmp = document.createElement('div');
     tmp.innerHTML = hc.modalHtml(V, M, envNow());
     M.el = tmp.firstChild;

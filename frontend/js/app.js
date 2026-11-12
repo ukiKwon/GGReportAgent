@@ -235,6 +235,7 @@
   // 프로필이 바뀌면 그 값을 쓰는 화면들을 따라 갱신한다.
   app.onProfileChanged = function () {
     lastRecorded = null;
+    if (root.headcard && root.headcard.onProfileChange) root.headcard.onProfileChange();   // 앞 사용자가 읽은 기관장 카드·사진·모달을 버린다
     if (root.notify && root.notify.onProfileChange) root.notify.onProfileChange();
     if (root.approvals && root.approvals.onProfileChange) root.approvals.onProfileChange();
     if (root.myinfo && root.myinfo.onProfileChange) root.myinfo.onProfileChange();
@@ -914,6 +915,7 @@
     if (root.store.isServerMode() && (root.store.loadSession() || {}).emp) {
       fetch('/auth/logout', { method: 'POST' }).catch(function () { /* 기록 실패가 로그아웃을 막지 않는다 */ });
     }
+    if (root.headcard && root.headcard.onProfileChange) root.headcard.onProfileChange();   // 세션을 지우기 전에 기관장 카드 상태를 비운다
     root.store.clearSession();
     root.store.saveProfile({ name: '', team: '' });
     if (app.showProfileRole) { byId('me-name').value = ''; app.showProfileRole(''); }

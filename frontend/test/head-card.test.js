@@ -9,6 +9,7 @@ const ROOT = path.join(__dirname, '..');
 const logic = require('../js/logic.js');
 const dash = require('../js/dashboard.js');
 const hc = require('../js/headcard.js');
+hc.DEBOUNCE_MS = 0;   // 기관 선택 뒤 대기(400ms)는 해당 시험에서만 켠다
 
 const TODAY = new Date(2026, 10, 12);   // 2026-11-12 로컬 자정
 
@@ -113,7 +114,7 @@ test('cardHtml: 확정 항목·출처·큰 숫자·학력 경력(최근 순)·�
   assert.ok(h.indexOf('출처 <span class="v">8</span>건') >= 0 && h.indexOf('2026-11-03') >= 0);
   assert.ok(h.indexOf('열람 기록이 남습니다') >= 0);
   assert.ok(h.indexOf('data-hc="edit"') >= 0 && h.indexOf('data-hc="refresh"') >= 0);
-  assert.ok(h.indexOf('후보') < 0 || h.indexOf('확정 대기 후보') < 0);                    // 후보가 없으면 배지 없음
+  assert.ok(h.indexOf('확정 대기 후보') < 0 && h.indexOf('hc-cand') < 0);                 // 후보가 없으면 배지 없음
   assert.ok(!/\d\s*점|등급|별점/.test(h));                                               // 점수·등급 없음
 });
 
@@ -180,7 +181,8 @@ test('이스케이프: 이름·직위·출처·경력의 <script>가 그대로 �
   assert.strictEqual(html.indexOf('<script>'), -1);
   assert.ok(html.indexOf('&lt;script&gt;') >= 0);
   assert.ok(!/href="[^"]*"onmouseover/.test(html));
-  assert.ok(!/onerror="z/.test(html.replace(/&quot;/g, '')) || html.indexOf('onerror="z') < 0);
+  assert.strictEqual(html.indexOf('onerror="z'), -1);                                  // 따옴표가 &quot;로 바뀌어 속성이 갈라지지 않는다
+  assert.ok(html.indexOf('blob:x&quot; onerror=&quot;z') >= 0);
   assert.strictEqual(html.indexOf('" onerror="'), -1);
 });
 
@@ -203,7 +205,10 @@ test('sectionHtml: 상태마다 말이 다르다(없음·꺼짐·권한·서버 
   const none = s('none');
   assert.ok(none.indexOf('아직 등록되지 않았습니다') >= 0 && none.indexOf('data-hc="add-head"') >= 0 && none.indexOf('기관장 추가') >= 0);
   assert.ok(s('off').indexOf('사용 안 함') >= 0);
-  assert.ok(s('denied').indexOf('영업팀·영업팀장·영업부장만') >= 0 && s('role').indexOf('영업팀·영업팀장·영업부장만') >= 0);
+  assert.ok(s('denied').indexOf('이 정보를 볼 권한이 없습니다') >= 0 && s('denied').indexOf('사용자 등록 상태 확인 필요') >= 0);   // 원인을 단정하지 않는다
+  assert.ok(s('role').indexOf('영업팀·영업팀장·영업부장만') >= 0);
+  ['denied', 'notfound', 'login', 'error'].forEach(function (k) { assert.ok(s(k, { text: 'x', code: 500 }).indexOf('data-hc="refresh"') >= 0, k); });   // 다시 불러오기
+  ['off', 'role', 'noid', 'offline', 'none'].forEach(function (k) { assert.ok(s(k).indexOf('data-hc="refresh"') < 0, k); });
   assert.ok(s('login').indexOf('다시 로그인') >= 0);
   assert.ok(s('notfound').indexOf('서버에 등록된 기관만 기관장 정보를 관리합니다') >= 0);
   assert.ok(s('noid').indexOf('서버에 등록된 기관만 기관장 정보를 관리합니다') >= 0 && s('noid').indexOf('data-hc="add-head"') < 0);
@@ -282,7 +287,7 @@ test('ensure: 오류 응답을 상태로 나눈다(404 FEATURE_OFF=사용 안 �
   const cases = [
     [{ status: 404, json: { detail: { code: 'FEATURE_OFF', message: '이 기능은 꺼져 있습니다.' } } }, 'off', '사용 안 함'],
     [{ status: 404, json: { detail: 'not found' } }, 'notfound', '서버에 등록된 기관만'],
-    [{ status: 403, json: { detail: '이 기능을 쓸 권한이 없습니다.' } }, 'denied', '영업팀·영업팀장·영업부장만'],
+    [{ status: 403, json: { detail: '이 기능을 쓸 권한이 없습니다.' } }, 'denied', '이 정보를 볼 권한이 없습니다'],
     [{ status: 401, json: { detail: '사번이 필요합니다.' } }, 'login', '다시 로그인'],
     [{ status: 500, json: { detail: '서버 오류가 발생했습니다.' } }, 'error', '서버 오류가 발생했습니다.'],
     [{ status: 502 }, 'error', '불러오지 못했습니다'],
@@ -533,11 +538,36 @@ test('모달: 후보 기관장 확정은 현 기관장이 바뀐다는 확인 �
   assert.ok(p.indexOf('이전 기관장으로 바뀝니다') >= 0 && p.indexOf('id="hc-reason"') < 0 && p.indexOf('data-m="do"') >= 0);
 });
 
-test('모달: 방금 무효 처리한 사진 복원은 팀장·부장에게만', function () {
-  const mem = hc.modalHtml(view(), { voidedPhoto: 5 }, { today: TODAY, emp: '2002' });
-  assert.ok(mem.indexOf('data-m="restore-photo"') < 0);
+test('모달: 무효 처리한 사진의 복원 버튼은 없다(서버가 직전 사진을 자동 복원, VOIDED는 복원 불가 409)', function () {
   const lead = hc.modalHtml(view({ viewer_role: '영업부장' }), { voidedPhoto: 5 }, { today: TODAY, emp: '2002' });
-  assert.ok(lead.indexOf('data-m="restore-photo" data-id="5"') >= 0);
+  assert.ok(lead.indexOf('restore-photo') < 0 && lead.indexOf('사진 복원') < 0);
+  const src = fs.readFileSync(path.join(ROOT, 'js/headcard.js'), 'utf8');
+  assert.ok(src.indexOf('M.voidedPhoto') < 0 && src.indexOf("'restore'") < 0);
+});
+
+test('모달: 후보 기관장 행에 서버가 준 항목(임기일·학력·경력)과 출처 요약, 이스케이프 유지', function () {
+  const evil = '<img src=x onerror=1>';
+  const items = [
+    { item_id: 31, field_cd: 'TERM_END', value: '2030-06-30', source: { kind: 'NEC', title: '당선인 정보', url: 'https://nec.go.kr/x', checked_on: '2026-11-02' }, created_by: '1001' },
+    { item_id: 32, field_cd: 'CAREER', value: evil, from: '2018', to: '2022', source: { kind: 'OTHER', title: 't', url: 'javascript:alert(1)', checked_on: '2026-11-02' }, created_by: '1001' },
+  ];
+  const v = view({ candidate_heads: [{ head_id: 9, name: '김후보', position: '시장', created_by: '1001', item_count: 2, items: items, can_confirm: true, can_reject: true }] });
+  const h = hc.modalHtml(v, {}, { today: TODAY, emp: '2002' });
+  assert.ok(h.indexOf('임기 만료일') >= 0 && h.indexOf('2030-06-30') >= 0 && h.indexOf('당선인 정보') >= 0 && h.indexOf('href="https://nec.go.kr/x"') >= 0);
+  assert.ok(h.indexOf('2018~2022') >= 0 && h.indexOf('<img src=x') < 0 && h.indexOf('&lt;img src=x') >= 0);
+  assert.ok(h.indexOf('javascript:') < 0 || h.indexOf('href="javascript:') < 0);
+  const many = hc.modalHtml(view({ candidate_heads: [{ head_id: 9, name: 'a', position: 'b', created_by: '1', item_count: 8, items: [1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return Object.assign({}, items[0], { item_id: i }); }), can_confirm: true, can_reject: true }] }), {}, { today: TODAY, emp: '2002' });
+  assert.ok(many.indexOf('외 2건') >= 0);
+  assert.ok(hc.modalHtml(view({ candidate_heads: [{ head_id: 9, name: 'a', position: 'b', created_by: '1', item_count: 0, can_confirm: true, can_reject: true }] }), {}, { today: TODAY, emp: '2002' }).indexOf('항목 0건') >= 0);   // items 없어도 깨지지 않는다
+});
+
+test('모달: 행 id·설명 연결 속성은 이스케이프된다', function () {
+  const bad = '9" onfocus="x';
+  const v = view({ candidates: [cand(bad, { can_confirm: false, block_code: 'LEAD_ONLY' })],
+    candidate_heads: [{ head_id: bad, name: 'a', position: 'b', created_by: '1', item_count: 0, can_confirm: false, block_code: 'SELF_RESOLVE', can_reject: true }] });
+  const h = hc.modalHtml(v, {}, { today: TODAY, emp: '2002' });
+  assert.strictEqual(h.indexOf('" onfocus="'), -1);
+  assert.ok(h.indexOf('id="hc-wc-9&quot; onfocus=&quot;x"') >= 0 && h.indexOf('id="hc-hc-9&quot; onfocus=&quot;x"') >= 0);
 });
 
 // ── 계약: 서버 허용 목록·대시보드·스타일 ──────────────────────────
@@ -585,4 +615,214 @@ test('CSS 블록: 새 hex 없음·12px 미만 글자 없음·움직임 없음', 
   assert.ok(/\.hc-big b \{[^}]*font:700 28px/.test(css));
   assert.ok(/\.modal-box\.hc-modal \{/.test(css));
   assert.ok(!/animation|transition/.test(css));                                   // 움직임 없음(감소 설정과 충돌할 일이 없다)
+});
+
+// ── 검토 지적 반영(2026-11-12) ─────────────────────────────────────
+test('배선: app.js가 로그아웃(세션 지우기 전)과 프로필 변경에서 headcard.onProfileChange를 부른다', function () {
+  const a = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+  const call = 'root.headcard.onProfileChange()';
+  assert.ok(a.indexOf(call) >= 0);
+  assert.ok(a.indexOf(call) < a.indexOf('app.onProfileChanged = function') + 400 && a.indexOf(call) > a.indexOf('app.onProfileChanged = function'));
+  const lo = a.indexOf('app.logout = function');
+  const lg = a.indexOf(call, lo);
+  assert.ok(lg > lo && lg < a.indexOf('root.store.clearSession()', lo));   // clearSession 직전에
+});
+
+test('공고 진행 중 기관: 접수 중이면 마감 D-n(출처: 공고), 그 밖은 공고 진행 중 칩, 임기를 알면 임기가 먼저', function () {
+  const noTerm = view({ head: { term_end: null, fields: { NAME: field(1, '서지운') } } });
+  const b = hc.bigInfo(noTerm.data.head, { notice: true, receiving: true, days: 5, date: '2026-11-17' }, TODAY);
+  assert.strictEqual(b.type, 'notice'); assert.strictEqual(b.big, 'D-5'); assert.strictEqual(b.text, '마감 D-5');
+  assert.strictEqual(hc.bigInfo(noTerm.data.head, { notice: true, receiving: true, days: 0, date: '2026-11-12' }, TODAY).big, 'D-day');
+  const recv = hc.cardHtml(noTerm, { today: TODAY, bid: { notice: true, receiving: true, days: 5, date: '2026-11-17' } });
+  assert.ok(recv.indexOf('<b aria-hidden="true">D-5</b>') >= 0 && recv.indexOf('aria-label="마감 D-5"') >= 0 && recv.indexOf('출처: 공고') >= 0 && recv.indexOf('2026-11-17') >= 0);
+  assert.ok(recv.indexOf('모릅니다') < 0);
+  [{ notice: true, receiving: false, days: null, date: '' }, { notice: true, receiving: true, days: -3, date: '2026-11-09' }].forEach(function (bid) {
+    const chipHtml = hc.cardHtml(noTerm, { today: TODAY, bid: bid });
+    assert.ok(chipHtml.indexOf('공고 진행 중') >= 0 && chipHtml.indexOf('모릅니다') < 0 && chipHtml.indexOf('출처: 공고') >= 0);
+  });
+  const known = hc.bigInfo(detail().head, { notice: true, receiving: true, days: 5, date: '2026-11-17' }, TODAY);
+  assert.strictEqual(known.type, 'term');
+});
+
+test('사진 불러오는 중에는 실루엣 aria-label이 사진 불러오는 중', function () {
+  const photo = { photo_id: 3, license_cd: 'KOGL1', source: SRC, checked_on: '2026-11-03', uploaded_by: '1001' };
+  const loading = hc.cardHtml(view({ head: { photo: photo } }, { photo: { id: 3, url: '', state: 'loading' } }), { today: TODAY });
+  assert.ok(loading.indexOf('aria-label="사진 불러오는 중"') >= 0 && loading.indexOf('aria-label="사진 없음"') < 0);
+  assert.ok(hc.cardHtml(view(), { today: TODAY }).indexOf('aria-label="사진 없음"') >= 0);
+});
+
+test('ensure: 사번이 달라지면 같은 기관이어도 다시 읽고, onProfileChange는 상태를 비운다', async function () {
+  const calls = fakeFetch(function () { return { status: 200, json: detail() }; });
+  try {
+    const rec = { institutionId: '11010' };
+    hc.paneSection(rec, env({ emp: '2002' }));
+    await settle();
+    hc.paneSection(rec, env({ emp: '2002' }));
+    assert.strictEqual(calls.length, 1);
+    hc.paneSection(rec, env({ emp: '3003' }));          // 사용자 전환
+    await settle();
+    assert.strictEqual(calls.length, 2);
+    assert.strictEqual(hc.view().emp, '3003');
+    hc.onProfileChange();
+    assert.strictEqual(hc.view().status, 'idle');
+    assert.strictEqual(hc.view().instId, '');
+    assert.strictEqual(hc.view().data, null);
+  } finally { cleanup(); }
+});
+
+test('ensure: 기관을 짧은 간격으로 3번 고르면 요청은 1번(400ms 대기, 앞 선택은 취소)', async function (t) {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  hc.DEBOUNCE_MS = 400;
+  const calls = fakeFetch(function () { return { status: 200, json: detail() }; });
+  try {
+    hc.paneSection({ institutionId: '11010' }, env());
+    t.mock.timers.tick(100);
+    hc.paneSection({ institutionId: '11020' }, env());
+    t.mock.timers.tick(100);
+    hc.paneSection({ institutionId: '11030' }, env());
+    hc.paneSection({ institutionId: '11030' }, env());   // 같은 기관을 다시 그려도 대기가 다시 시작되지 않는다
+    t.mock.timers.tick(399);
+    await settle();
+    assert.strictEqual(calls.length, 0);
+    assert.strictEqual(hc.view().status, 'loading');
+    t.mock.timers.tick(1);
+    await settle();
+    assert.strictEqual(calls.length, 1);
+    assert.strictEqual(calls[0].url, '/institutions/11030/head');
+    assert.strictEqual(hc.view().status, 'ok');
+  } finally { hc.DEBOUNCE_MS = 0; cleanup(); }
+});
+
+test('사진: 받는 중에 다시 읽어도 본문 요청은 한 번(중복 요청 없음)', async function () {
+  const photo = { photo_id: 3, license_cd: 'KOGL1', source: SRC, checked_on: '2026-11-03', uploaded_by: '1001' };
+  const calls = fakeFetch(function (url) {
+    if (/content$/.test(url)) return { status: 200 };
+    return { status: 200, json: detail({ head: { photo: photo } }) };
+  });
+  try {
+    await hc.ensure('11010', function () {}, '2002');
+    hc.refresh(true, 'refresh'); hc.refresh(true, 'refresh');
+    await settle();
+    assert.strictEqual(calls.filter(function (c) { return /content$/.test(c.url); }).length, 1);
+    assert.ok(/^blob:/.test(hc.view().photo.url));
+  } finally { cleanup(); }
+});
+
+// 가짜 DOM — openModal·act·doPending·closeModal 흐름을 노드에서 돌린다.
+function fakeDom() {
+  const stubs = {};
+  function el(name) {
+    if (!stubs[name]) {
+      const cls = new Set(), attrs = {};
+      stubs[name] = { innerHTML: '', value: '', focused: 0, cls: cls,
+        classList: { add: function (c) { cls.add(c); }, remove: function (c) { cls.delete(c); } },
+        focus: function () { this.focused += 1; }, setAttribute: function (k, v) { attrs[k] = v; }, removeAttribute: function (k) { delete attrs[k]; },
+        getAttribute: function (k) { return attrs[k] === undefined ? null : attrs[k]; } };
+    }
+    return stubs[name];
+  }
+  const map = { '#hc-m-status': 'status', '#hc-m-lists': 'lists', '#hc-m-forms': 'forms', '.hc-modal': 'modal', '#hc-m-title': 'title', '#hc-reason': 'reason', '[data-m=do]': 'do' };
+  const modalEl = { handlers: {}, parentNode: null,
+    addEventListener: function (t, f) { this.handlers[t] = f; },
+    querySelector: function (sel) { return map[sel] ? el(map[sel]) : null; },
+    querySelectorAll: function () { return []; }, contains: function () { return true; } };
+  const body = { appendChild: function (e) { e.parentNode = body; }, removeChild: function (e) { e.parentNode = null; }, contains: function () { return true; } };
+  global.document = { activeElement: null, body: body, getElementById: function () { return el('opener'); },
+    createElement: function () { return { firstChild: null, set innerHTML(h) { this.firstChild = modalEl; } }; } };
+  return {
+    el: el, modalEl: modalEl,
+    click: function (dataM, id) {
+      const b = { getAttribute: function (k) { return ({ 'data-m': dataM, 'data-id': id, 'data-self': '0' })[k] || null; } };
+      modalEl.handlers.click({ target: { closest: function () { return b; } } });
+    },
+    off: function () { delete global.document; },
+  };
+}
+
+test('모달 흐름(가짜 DOM): 사진 무효 → 확인 → 사유 → 요청 → 안내(restored_photo_id) → 자동 재조회는 같은 버튼 ID → 닫기', async function () {
+  const photo = { photo_id: 3, license_cd: 'KOGL1', source: SRC, checked_on: '2026-11-03', uploaded_by: '2002' };
+  const photo2 = Object.assign({}, photo, { photo_id: 2 });
+  let voided = false;
+  const calls = fakeFetch(function (url, init) {
+    if (init.method === 'POST' && /\/void$/.test(url)) { voided = true; return { status: 200, json: { photo_id: 3, restored_photo_id: 2 } }; }
+    if (/content$/.test(url)) return { status: 200 };
+    return { status: 200, json: detail({ viewer_role: '영업팀장', head: { photo: voided ? photo2 : photo } }) };
+  });
+  const dom = fakeDom();
+  try {
+    await hc.ensure('11010', function () {}, '2002');
+    await settle();
+    hc.openModal(function () { return env({ emp: '2002' }); });
+    assert.strictEqual(hc.isModalOpen(), true);
+    dom.click('ask-void-photo', '3');
+    assert.ok(dom.el('lists').innerHTML.indexOf('id="hc-reason"') >= 0);              // 확인 단계(사유 입력)
+    assert.strictEqual(calls.filter(function (c) { return c.init.method === 'POST'; }).length, 0);   // 아직 요청 없음
+    dom.el('reason').value = '다른 기관장 사진';
+    dom.click('do', '3');
+    await settle();
+    const post = calls.filter(function (c) { return c.init.method === 'POST'; })[0];
+    assert.strictEqual(post.url, '/institutions/11010/head/photos/3/void');
+    assert.strictEqual(post.init.headers['X-Button-Id'], 'photo_void');
+    assert.strictEqual(JSON.parse(post.init.body).reason, '다른 기관장 사진');
+    const after = calls.slice(calls.indexOf(post) + 1).filter(function (c) { return /\/head$/.test(c.url); })[0];
+    assert.strictEqual(after.init.headers['X-Button-Id'], 'photo_void');                // 자동 재조회 = 방금 한 쓰기의 버튼 ID(허용 목록 값)
+    assert.ok(dom.el('status').innerHTML.indexOf('바로 앞 사진으로 되돌렸습니다') >= 0);
+    assert.ok(!dom.el('modal').cls.has('hc-busy'));
+    assert.strictEqual(hc.view().data.head.photo.photo_id, 2);
+    dom.click('close');
+    assert.strictEqual(hc.isModalOpen(), false);
+    assert.strictEqual(dom.modalEl.parentNode, null);
+  } finally { hc.closeModal(false); dom.off(); cleanup(); }
+});
+
+test('모달 흐름(가짜 DOM): 무효 뒤 앞 사진이 없으면(restored_photo_id 없음) 실루엣 안내', async function () {
+  const photo = { photo_id: 3, license_cd: 'KOGL1', source: SRC, checked_on: '2026-11-03', uploaded_by: '2002' };
+  let voided = false;
+  fakeFetch(function (url, init) {
+    if (init.method === 'POST' && /\/void$/.test(url)) { voided = true; return { status: 200, json: { photo_id: 3, restored_photo_id: null } }; }
+    if (/content$/.test(url)) return { status: 200 };
+    return { status: 200, json: detail({ head: { photo: voided ? null : photo } }) };
+  });
+  const dom = fakeDom();
+  try {
+    await hc.ensure('11010', function () {}, '2002');
+    await settle();
+    hc.openModal(function () { return env({ emp: '2002' }); });
+    dom.click('ask-void-photo', '3');
+    dom.el('reason').value = '잘못 올림';
+    dom.click('do', '3');
+    await settle();
+    assert.ok(dom.el('status').innerHTML.indexOf('사진이 없어졌습니다(실루엣 표시)') >= 0);
+    assert.strictEqual(hc.view().data.head.photo, null);
+  } finally { hc.closeModal(false); dom.off(); cleanup(); }
+});
+
+test('모달 흐름(가짜 DOM): 저장 뒤 재조회가 실패해도 모달은 열려 있고 [다시 불러오기]', async function () {
+  const photo = { photo_id: 3, license_cd: 'KOGL1', source: SRC, checked_on: '2026-11-03', uploaded_by: '2002' };
+  let failHead = false, restored = null;
+  fakeFetch(function (url, init) {
+    if (init.method === 'POST' && /\/void$/.test(url)) { failHead = true; return { status: 200, json: { photo_id: 3, restored_photo_id: restored } }; }
+    if (/content$/.test(url)) return { status: 200 };
+    if (failHead) return { fail: true };
+    return { status: 200, json: detail({ head: { photo: photo } }) };
+  });
+  const dom = fakeDom();
+  try {
+    await hc.ensure('11010', function () {}, '2002');
+    await settle();
+    hc.openModal(function () { return env({ emp: '2002' }); });
+    dom.click('ask-void-photo', '3');
+    dom.el('reason').value = '잘못 올림';
+    dom.click('do', '3');
+    await settle();
+    assert.strictEqual(hc.isModalOpen(), true);                                          // 닫지 않는다
+    assert.strictEqual(hc.view().status, 'ok');                                          // 카드도 그대로
+    const s = dom.el('status').innerHTML;
+    assert.ok(s.indexOf('저장은 됐지만 새로 읽지 못했습니다') >= 0 && s.indexOf('data-m="reload"') >= 0 && s.indexOf('다시 불러오기') >= 0);
+    failHead = false;
+    dom.click('reload');
+    await settle();
+    assert.ok(dom.el('status').innerHTML.indexOf('새로 읽었습니다') >= 0 && dom.el('status').innerHTML.indexOf('data-m="reload"') < 0);
+    assert.strictEqual(hc.isModalOpen(), true);
+  } finally { hc.closeModal(false); dom.off(); cleanup(); }
 });
