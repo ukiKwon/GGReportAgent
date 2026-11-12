@@ -422,6 +422,6 @@
 - **자세히**: handoff/2026-11-12_summary.md 9f 섹션, planner 11-11 ad92ba4f, data-auditor 11-11·11-12 보고, collector/SOURCES.md.
 
 ### 80. 외부망 주기 수집 파이프라인 — **eminwon·나라장터·미리보기·주간 자동 수집(월 09:00) 가동, qa 182d45b 검토와 하(下) 후속 남음** [담당: 메인(9f) → security → qa]
-- **현재**: `python -m collector run --source eminwon|g2b`, `preview --batch <id>`, 작업 'GGReport collector weekly'(collector/run_weekly.cmd, 로그 data/collector/_logs/, LLM 0, 해제 `schtasks /Delete /TN "GGReport collector weekly" /F`). TLS 예외(c07d963), known_failing·요청 마감·잠금 토큰(182d45b). 사용자 결정: 연락처 전부 마스킹, 백신은 https+go.kr·광역 지자체 공식 도메인이면 생략. 운영 방식은 collector/SOURCES.md §3.
-- **다음 한 걸음**: qa 182d45b 결과 반영 → 첫 주간 실행(11-16 09:00) 로그 확인(서울 3곳은 known_failing이라 종료 코드 0이 정상) → 남은 하(下): 원문 보존 기간(NEXT 35), 웹 반입 첨부 서명 검사(e3), 서울 도봉·중구·강남 다른 출처 보완(강남 보도 1건), 기관 게시판·법원 새소식 소스, xlsx 포장.
+- **현재**: `python -m collector run --source eminwon|g2b`, `preview --batch <id>`, 작업 'GGReport collector weekly'(collector/run_weekly.cmd, 로그 data/collector/_logs/, LLM 0, 해제 `schtasks /Delete /TN "GGReport collector weekly" /F`). TLS 예외(c07d963), known_failing·요청 마감·잠금 토큰(182d45b). 실패 요청 기록 fetch_failures(URL 키 가림·목적·시도 횟수, 11-12 사용자). ※ 11-12 git 이력 재작성으로 이 항목의 해시는 옛 값 — handoff/archive/2026-11-12_git-hash-map.tsv로 찾는다. 사용자 결정: 연락처 전부 마스킹, 백신은 https+go.kr·광역 지자체 공식 도메인이면 생략. 운영 방식은 collector/SOURCES.md §3.
+- **다음 한 걸음**: qa 182d45b 반영 끝(read1·잠금), 남은 qa P3 3건(오류 종류 단위 known·만료, 스케줄러 결과 eminwon 코드, 잠금 회수 경쟁) 진행 중 → 첫 주간 실행(11-16 09:00) 로그·fetch_failures 확인(서울 3곳은 known_failing이라 종료 코드 0이 정상) → 남은 하(下): 원문 보존 기간(NEXT 35), 웹 반입 첨부 서명 검사(e3), 서울 도봉·중구·강남 다른 출처 보완(강남 보도 1건), 기관 게시판·법원 새소식 소스, xlsx 포장.
 - **자세히**: planner a780ca1f, collector/SOURCES.md·SCHEMA.md, security·qa 11-12 보고, 11-12 summary.
