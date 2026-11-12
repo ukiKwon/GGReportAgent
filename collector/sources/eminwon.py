@@ -16,8 +16,9 @@ from typing import Iterator
 from urllib.parse import quote
 
 from collector.extract.classify import classify, is_watch_kind
-from collector.httpclient import (ALLOWED_CIPHERS, FetchConnError, FetchError, FetchHttpError, FetchTimeoutError,
-                                  FetchTlsError, FetchTlsHandshakeError, HttpClient, TlsPolicy)
+from collector.httpclient import (ALLOWED_CIPHERS, FAIL_KINDS, FetchConnError, FetchError, FetchHttpError,
+                                  FetchTimeoutError, FetchTlsError, FetchTlsHandshakeError, HttpClient, TlsPolicy,
+                                  error_kind)
 from collector.privacy import mask_contacts, mask_hwpx, vaccine_policy
 from collector.sources.base import NoticeRef, RawNotice, RunReport, SourceError, register
 from collector.sources.eminwon_parse import decode_body, parse_attachments, parse_list
@@ -58,6 +59,8 @@ class HostEntry:
     tls_review_by: str | None = None   # 지나면 실행 보고 warnings
     known_failing: str | None = None       # 늘 실패하는 호스트의 사유(알려진 실패 — 종료 코드 3 제외)
     known_failing_since: str | None = None # 표시 등록일 YYYY-MM-DD
+    known_failing_kind: str | None = None  # 알려진 실패 종류(FAIL_KINDS) — 다른 종류로 실패하면 새 실패(qa P3-B)
+    known_failing_review_by: str | None = None  # 지나면 실행 보고 warnings(since 뒤 1년 안)
 
     @property
     def tls_relaxed(self) -> bool:
@@ -160,8 +163,17 @@ def load_hosts(path: Path, ca_dir: Path = CA_DIR) -> tuple[HostEntry, ...]:
         if known is not None and (not isinstance(known, str) or not known.strip() or len(known) > 300):
             raise _bad(host, "known_failing은 300자 이내 사유 글")
         known_since = _date(item, "known_failing_since", host)
-        if known is not None and not known_since:
-            raise _bad(host, "known_failing에는 known_failing_since(YYYY-MM-DD)가 필요합니다")
+        known_kind, known_review = item.get("known_failing_kind"), _date(item, "known_failing_review_by", host)
+        if known is not None:
+            if not (known_since and known_kind is not None and known_review):
+                raise _bad(host, "known_failing에는 known_failing_since·known_failing_kind·known_failing_review_by(YYYY-MM-DD)가 필요합니다")
+            if known_kind not in FAIL_KINDS:
+                raise _bad(host, f"known_failing_kind는 {'·'.join(FAIL_KINDS)} 중 하나")
+            k0, k1 = datetime.date.fromisoformat(known_since), datetime.date.fromisoformat(known_review)
+            if not k0 < k1 <= k0 + datetime.timedelta(days=MAX_REVIEW_DAYS):
+                raise _bad(host, "known_failing_review_by는 known_failing_since 뒤 1년 안")
+        elif known_kind is not None or known_review is not None or known_since is not None:
+            raise _bad(host, "known_failing_since·kind·review_by는 known_failing과 함께만")
         if measured and review:
             d0, d1 = datetime.date.fromisoformat(measured), datetime.date.fromisoformat(review)
             if not d0 < d1 <= d0 + datetime.timedelta(days=MAX_REVIEW_DAYS):
@@ -170,7 +182,8 @@ def load_hosts(path: Path, ca_dir: Path = CA_DIR) -> tuple[HostEntry, ...]:
                               region_code=item.get("region_code"), type=item.get("type"),
                               tls_verify=True, schemes=schemes, tls=tls, tls_reason=reason,
                               tls_measured=measured, tls_review_by=review,
-                              known_failing=known, known_failing_since=known_since)
+                              known_failing=known, known_failing_since=known_since,
+                              known_failing_kind=known_kind, known_failing_review_by=known_review)
     return tuple(out.values())
 
 
@@ -330,6 +343,8 @@ class EminwonSource:
         for e in entries:
             if e.tls_review_by and e.tls_review_by < today:
                 report.warnings.append(f"{e.host}: TLS 예외 재검토일({e.tls_review_by}) 지남 — 다시 실측해 설정을 갱신하세요")
+            if e.known_failing_review_by and e.known_failing_review_by < today:
+                report.warnings.append(f"{e.host}: 알려진 실패 재검토일({e.known_failing_review_by}) 지남 — 다시 확인해 known_failing을 갱신하거나 해제하세요")
 
     def list_new(self, seen, since=None, report=None, hosts=None) -> Iterator[NoticeRef]:
         report = report if report is not None else RunReport()
@@ -337,6 +352,7 @@ class EminwonSource:
         entries = self._select(hosts)
         self._review_warnings(entries, report)
         report.known_failing.update({e.host: e.known_failing for e in entries if e.known_failing})
+        report.known_failing_kind.update({e.host: e.known_failing_kind for e in entries if e.known_failing})
         self._deadline = time.monotonic() + self.config.max_run_sec
         retry_later: list[HostEntry] = []
         for entry in entries:
@@ -344,6 +360,7 @@ class EminwonSource:
                 rows = self._list_host(entry)
             except FetchError as exc:
                 report.hosts_failed[entry.host] = str(exc)[:200]
+                report.hosts_failed_kind[entry.host] = error_kind(exc)
                 if isinstance(exc, (FetchConnError, FetchTlsHandshakeError)):
                     retry_later.append(entry)
                 continue
@@ -359,8 +376,10 @@ class EminwonSource:
                 rows = self._list_host(entry, retries=False)
             except FetchError as exc:
                 report.hosts_failed[entry.host] = f"재수거도 실패: {exc}"[:200]
+                report.hosts_failed_kind[entry.host] = error_kind(exc)
                 continue
             del report.hosts_failed[entry.host]
+            report.hosts_failed_kind.pop(entry.host, None)
             self._mark_ok(entry, report)
             yield from self._refs(entry, rows, seen, since)
 

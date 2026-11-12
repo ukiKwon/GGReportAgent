@@ -12,8 +12,23 @@ for /f %%i in ('powershell -NoProfile -Command "Get-Date (Get-Date).AddDays(-60)
 set LOG=data\collector\_logs\%TS%_weekly.log
 echo [%TS%] eminwon >> "%LOG%"
 "C:\dev\python\python.exe" -m collector run --source eminwon --since %SINCE% >> "%LOG%" 2>&1
-echo eminwon exit=%ERRORLEVEL% >> "%LOG%"
+set RC_E=%ERRORLEVEL%
+echo eminwon exit=%RC_E% >> "%LOG%"
 echo [%TS%] g2b >> "%LOG%"
 "C:\dev\python\python.exe" -m collector run --source g2b >> "%LOG%" 2>&1
-echo g2b exit=%ERRORLEVEL% >> "%LOG%"
-endlocal
+set RC_G=%ERRORLEVEL%
+echo g2b exit=%RC_G% >> "%LOG%"
+rem Task Scheduler "Last Run Result" = worst of the two (qa P3-E).
+rem rank: 0 ok < 4 other run in progress (skipped) < 3 new failure (results made) < 1, 2 or any other code
+set R_E=3
+if "%RC_E%"=="0" set R_E=0
+if "%RC_E%"=="4" set R_E=1
+if "%RC_E%"=="3" set R_E=2
+set R_G=3
+if "%RC_G%"=="0" set R_G=0
+if "%RC_G%"=="4" set R_G=1
+if "%RC_G%"=="3" set R_G=2
+set FINAL=%RC_E%
+if %R_G% GTR %R_E% set FINAL=%RC_G%
+echo final exit=%FINAL% >> "%LOG%"
+endlocal & exit /b %FINAL%

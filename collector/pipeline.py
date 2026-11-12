@@ -37,11 +37,19 @@ def collect(source, state, store, *, since=None, hosts=None, limit=None, baselin
         state.mark_seen(slug, ref.key, raw=raw.rel, **info)   # 원문 보관에 성공한 뒤에만 '본 것'
         state.save()
         new.append(ref.key)
-    known = {h: m for h, m in report.hosts_failed.items() if h in report.known_failing}
-    fresh = {h: m for h, m in report.hosts_failed.items() if h not in report.known_failing}
+    want, got = report.known_failing_kind, report.hosts_failed_kind
+
+    def _is_known(h: str) -> bool:      # 호스트+실패 종류가 모두 맞을 때만 알려진 실패(qa P3-B)
+        return h in report.known_failing and want.get(h) is not None and got.get(h) == want.get(h)
+
+    known = {h: m for h, m in report.hosts_failed.items() if _is_known(h)}
+    fresh = {h: m for h, m in report.hosts_failed.items() if not _is_known(h)}
+    for h in fresh:
+        if h in report.known_failing:
+            report.warnings.append(f"{h}: 알려진 실패({want.get(h)})와 다른 원인({got.get(h, 'other')})으로 실패 — 새 실패로 분류")
     summary = {"source": slug, "new": len(new), "new_keys": new, "skipped": skipped, "failed": failed,
                "hosts_ok": len(report.hosts_ok), "hosts_failed": report.hosts_failed,
-               "hosts_failed_known": known, "hosts_failed_new": fresh,
+               "hosts_failed_known": known, "hosts_failed_new": fresh, "hosts_failed_kind": dict(got),
                "fetch_failures": report.fetch_failures,
                "warnings": report.warnings}
     state.add_run(slug, dict(summary, started_at=started, finished_at=_now_iso(),

@@ -1,6 +1,6 @@
 """python -m collector — 실행 명령은 이것 하나(작업 스케줄러·RPA·에이전트가 같은 명령을 부른다).
 
-종료 코드: 0 정상(알려진 실패 호스트만 실패한 경우 포함), 1 실패(접속된 호스트 없음 포함), 2 사용법, 3 새 호스트·공고 실패(결과는 만들어짐), 4 다른 실행 중.
+종료 코드: 0 정상(알려진 실패 호스트가 표시된 종류로만 실패한 경우 포함), 1 실패(접속된 호스트 없음 포함 — 알려진 실패 호스트만 지정해도 1), 2 사용법, 3 새 호스트·공고 실패 또는 알려진 호스트의 다른 원인 실패(결과는 만들어짐), 4 다른 실행 중.
 stdout은 한 줄 JSON(요약). 요청 쿼리·본문은 로그에 찍지 않는다.
 """
 
@@ -53,6 +53,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 STALE_LOCK_SEC = 6 * 3600   # 이보다 오래된 잠금은 비정상 종료로 보고 회수(security 7d2ac90)
+STALE_RECLAIM_SEC = 600     # 회수 표식이 이보다 오래되면 회수 도중 죽은 것으로 보고 지운다(qa P3-D)
 
 
 def _unlock(path: Path, token: str) -> None:
@@ -77,17 +78,51 @@ def _lock(path: Path, token: str = ""):
             return fd
         except FileExistsError:
             try:
+                seen = path.read_bytes()           # 내용 먼저, 시각은 나중 — 오래됨이 확인된 파일의 내용만 seen이 된다
                 age = time.time() - path.stat().st_mtime
             except OSError:
                 continue
-            if age > STALE_LOCK_SEC:
-                try:
-                    path.unlink(missing_ok=True)   # 오래된 잠금 회수 후 한 번 더 시도
-                except OSError:
-                    return None                    # 지울 수 없으면 '다른 실행 중'(4)으로
-                continue
+            if age > STALE_LOCK_SEC and _reclaim(path, seen):
+                continue                           # 회수(또는 이미 해제) — O_EXCL로 한 번 더 시도
             return None
     return None
+
+
+def _reclaim(path: Path, seen: bytes) -> bool:
+    """오래된 잠금은 '회수 표식'(O_EXCL)을 쥔 한 실행만, 다시 읽은 내용이 처음 본 것과 같을 때만 지운다(qa P3-D).
+    True = 지웠거나 이미 없음, False = 다른 실행이 회수 중·이미 새 잠금·지울 수 없음('다른 실행 중' 4)."""
+    mark = path.with_name(path.name + ".reclaim")
+    try:
+        fd = os.open(mark, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        try:
+            if time.time() - mark.stat().st_mtime > STALE_RECLAIM_SEC:
+                mark.unlink(missing_ok=True)       # 회수 도중 죽은 표식 — 이번은 넘기고 다음 실행이 회수
+        except OSError:
+            pass
+        return False
+    except OSError:
+        return False
+    try:
+        os.close(fd)
+        try:
+            now = path.read_bytes()
+        except FileNotFoundError:
+            return True                            # 그새 주인이 정상 해제
+        except OSError:
+            return False
+        if now != seen:
+            return False                           # 다른 실행이 먼저 회수해 새 잠금을 만들었다 — 지우지 않는다
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:                            # 백신·색인·열린 핸들(Windows)
+            return False
+        return True
+    finally:
+        try:
+            mark.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def main(argv=None, http=None) -> int:

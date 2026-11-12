@@ -16,7 +16,9 @@
    "tls_measured": "2026-11-12",
    "tls_review_by": "2027-05-12",
    "known_failing": "만료된 사설 CA 서명 인증서 — 예외 없이 실패 유지(tls_reason 참조), 공고는 다른 출처로 보완",
-   "known_failing_since": "2026-11-12"
+   "known_failing_since": "2026-11-12",
+   "known_failing_kind": "tls_verify",
+   "known_failing_review_by": "2027-05-12"
   },
   {
    "host": "dongjak.eminwon.seoul.kr",
@@ -602,7 +604,9 @@
    "tls_measured": "2026-11-12",
    "tls_review_by": "2027-05-12",
    "known_failing": "만료된 사설 CA 서명 인증서 — 예외 없이 실패 유지(tls_reason 참조), 공고는 다른 출처로 보완",
-   "known_failing_since": "2026-11-12"
+   "known_failing_since": "2026-11-12",
+   "known_failing_kind": "tls_verify",
+   "known_failing_review_by": "2027-05-12"
   },
   {
    "host": "eminwon.jungnang.go.kr",
@@ -1035,7 +1039,9 @@
    "tls_measured": "2026-11-12",
    "tls_review_by": "2027-05-12",
    "known_failing": "만료된 사설 CA 서명 인증서 — 예외 없이 실패 유지(tls_reason 참조), 공고는 다른 출처로 보완",
-   "known_failing_since": "2026-11-12"
+   "known_failing_since": "2026-11-12",
+   "known_failing_kind": "tls_verify",
+   "known_failing_review_by": "2027-05-12"
   },
   {
    "host": "gwangjin.eminwon.seoul.kr",

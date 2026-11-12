@@ -44,6 +44,10 @@ class FetchTlsHandshakeError(FetchTlsError):
     간헐 발생(메인 실측 11-12) — 소스가 1회까지 재시도할 수 있다. http 강등은 여전히 금지."""
 
 
+class FetchTlsConfigError(FetchTlsError):
+    """우리 쪽 TLS 설정 오류(검증 끄기 요청·컨텍스트 생성 실패) — 서버 인증서 문제(tls_verify)와 구분(qa P3-B)."""
+
+
 class FetchConnError(FetchError):
     """연결 실패(DNS·거부 등) — 재시도하지 않고 실행 끝 2nd pass에서 1회 더 본다."""
 
@@ -55,6 +59,19 @@ class FetchTimeoutError(FetchConnError):
 def _conn_error(exc: BaseException, msg: str) -> FetchConnError:
     timed_out = isinstance(exc, TimeoutError) or "timed out" in str(exc).lower()
     return (FetchTimeoutError if timed_out else FetchConnError)(msg)
+
+
+# 실패 종류(qa P3-B): 알려진 실패는 호스트+종류가 모두 맞을 때만. 하위 클래스를 먼저 본다.
+FAIL_KINDS = ("tls_config", "tls_handshake", "tls_verify", "http", "timeout", "conn", "other")
+
+
+def error_kind(exc: BaseException) -> str:
+    for cls, kind in ((FetchTlsConfigError, "tls_config"), (FetchTlsHandshakeError, "tls_handshake"),
+                      (FetchTlsError, "tls_verify"), (FetchHttpError, "http"),
+                      (FetchTimeoutError, "timeout"), (FetchConnError, "conn")):
+        if isinstance(exc, cls):
+            return kind
+    return "other"
 
 
 @dataclass(frozen=True)
@@ -167,11 +184,11 @@ class HttpClient:
         if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
             raise FetchError("http/https만 허용합니다")
         if not verify:
-            raise FetchTlsError("TLS 검증 끄기는 지원하지 않습니다(설정 오류)")
+            raise FetchTlsConfigError("TLS 검증 끄기는 지원하지 않습니다(설정 오류)")
         try:
             ctx = self._context(tls)
         except (ValueError, ssl.SSLError, OSError) as exc:
-            raise FetchTlsError(f"TLS 설정 오류: {type(exc).__name__}") from exc
+            raise FetchTlsConfigError(f"TLS 설정 오류: {type(exc).__name__}") from exc
         if not self._first:
             self._sleep(self.delay)        # 기관 서버에 부담을 주지 않는 간격
         self._first = False

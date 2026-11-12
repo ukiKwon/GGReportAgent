@@ -10,7 +10,9 @@ import pytest
 
 from collector import cli
 from collector.cli import main
-from collector.httpclient import FetchError, FetchTimeoutError, HttpClient
+from collector.httpclient import (FetchConnError, FetchError, FetchHttpError, FetchTimeoutError, FetchTlsConfigError,
+                                  FetchTlsError, FetchTlsHandshakeError, HttpClient, error_kind)
+from collector.sources.base import SourceError
 from collector.sources.eminwon import load_hosts
 from collector.store import RawStore
 
@@ -23,18 +25,20 @@ def _two_hosts(tmp_path):
     path.write_text(json.dumps({"hosts": [
         {"host": "eminwon.sunchang.example", "key": "45|순창군청", "name_ko": "순창군청"},
         {"host": "known.example", "key": "11|알려진구청", "name_ko": "알려진구청",
-         "known_failing": "만료된 사설 인증서", "known_failing_since": "2026-11-12"},
+         "known_failing": "만료된 사설 인증서", "known_failing_since": "2026-11-12",
+         "known_failing_kind": "tls_verify", "known_failing_review_by": "2027-05-12"},
     ]}, ensure_ascii=False), encoding="utf-8")
     return path
 
 
 class _Http:
-    def __init__(self, failing=("known.example",)):
+    def __init__(self, failing=("known.example",), exc=None):
         self.failing = failing
+        self.exc = exc or FetchTlsError("TLS 오류: certificate verify failed")
 
     def get(self, url, verify=True):
         if any(h in url for h in self.failing):
-            raise FetchError("연결 실패")
+            raise self.exc
         if "method=selectListOfrNotAncmt" in url:
             return ((FX / "list_sunchang.html").read_bytes() if "pageIndex=1" in url else b""), None
         if "FileDown.jsp" in url:
@@ -49,6 +53,7 @@ def test_known_failing_only_exit_zero(tmp_path, capsys):
     assert code == 0
     assert list(c["hosts_failed_known"]) == ["known.example"] and c["hosts_failed_new"] == {}
     assert "known.example" in c["hosts_failed"]          # 기존 키 유지
+    assert c["hosts_failed_kind"] == {"known.example": "tls_verify"}
 
 
 def test_all_hosts_down_is_one(tmp_path, capsys):
@@ -315,3 +320,144 @@ def test_fetch_failures_in_summary_and_key_redacted(tmp_path, capsys):
     ff = json.loads(out)["collect"]["fetch_failures"]
     assert ff and ff[0]["attempts"] == 1 and "serviceKey=***" in ff[0]["url"] and "주거래" in ff[0]["purpose"]
     assert redact_url("https://h/x?serviceKey=abc&a=1") == "https://h/x?serviceKey=***&a=1"
+
+
+
+# ── P3-B 실패 종류·만료 ──────────────────────────────────────────────────────────
+def test_error_kind_by_class():
+    import ssl
+    from collector.httpclient import _tls_error
+    excs = (FetchTlsError("x"), FetchTlsHandshakeError("x"), FetchTlsConfigError("x"), FetchHttpError("x"),
+            FetchTimeoutError("x"), FetchConnError("x"), FetchError("x"))
+    assert [error_kind(e) for e in excs] == ["tls_verify", "tls_handshake", "tls_config", "http", "timeout", "conn", "other"]
+    assert error_kind(_tls_error(ssl.SSLCertVerificationError(1, "certificate has expired"))) == "tls_verify"
+    assert error_kind(_tls_error(ssl.SSLError(1, "handshake failure"))) == "tls_handshake"
+    with pytest.raises(FetchTlsConfigError):
+        HttpClient(delay=0).get("https://x.example/", verify=False)
+
+
+@pytest.mark.parametrize("exc,kind", [(FetchHttpError("HTTP 500"), "http"), (FetchConnError("연결 실패: gaierror"), "conn")])
+def test_known_host_other_cause_is_new(tmp_path, capsys, exc, kind):
+    code = main(["collect", "--source", "eminwon", "--hosts-file", str(_two_hosts(tmp_path)),
+                 "--out-root", str(tmp_path / "out")], http=_Http(exc=exc))
+    c = json.loads(capsys.readouterr().out)["collect"]
+    assert code == 3 and list(c["hosts_failed_new"]) == ["known.example"] and c["hosts_failed_known"] == {}
+    assert c["hosts_failed_kind"] == {"known.example": kind}
+    assert any("known.example" in w and "다른 원인" in w for w in c["warnings"])
+
+
+@pytest.mark.parametrize("extra,ok", [
+    ({}, False),
+    ({"known_failing_kind": "tls_verify", "known_failing_review_by": "2027-05-12"}, True),
+    ({"known_failing_kind": "dns", "known_failing_review_by": "2027-05-12"}, False),
+    ({"known_failing_kind": "tls_verify", "known_failing_review_by": "2027-11-14"}, False),
+    ({"known_failing_kind": "tls_verify", "known_failing_review_by": "2026-11-12"}, False),
+])
+def test_known_failing_fields_validated(tmp_path, extra, ok):
+    path = tmp_path / "h.json"
+    item = {"host": "k.example", "known_failing": "사유", "known_failing_since": "2026-11-12", **extra}
+    path.write_text(json.dumps({"hosts": [item]}, ensure_ascii=False), encoding="utf-8")
+    if ok:
+        assert load_hosts(path)[0].known_failing_kind == "tls_verify"
+    else:
+        with pytest.raises(SourceError):
+            load_hosts(path)
+
+
+def test_known_failing_kind_without_reason_rejected(tmp_path):
+    path = tmp_path / "h.json"
+    path.write_text(json.dumps({"hosts": [{"host": "k.example", "known_failing_kind": "tls_verify"}]}), encoding="utf-8")
+    with pytest.raises(SourceError):
+        load_hosts(path)
+
+
+def test_known_failing_review_expired_warns(tmp_path):
+    import datetime
+    from collector.sources.base import RunReport
+    from collector.sources.eminwon import EminwonConfig, EminwonSource, HostEntry
+    from collector.state import State
+    e = HostEntry("known.example", "11|알려진구청", "알려진구청", known_failing="사유", known_failing_since="2026-11-12",
+                  known_failing_kind="tls_verify", known_failing_review_by="2027-05-12")
+    report = RunReport()
+    src = EminwonSource(EminwonConfig(second_pass=False), _Http(), (e,), sleep=lambda s: None,
+                        today=datetime.date(2027, 5, 13))
+    list(src.list_new(State(tmp_path / "s.json").index("eminwon"), None, report, None))
+    assert any("재검토일(2027-05-12)" in w for w in report.warnings)
+    assert report.hosts_failed_kind == {"known.example": "tls_verify"}
+
+
+def test_real_config_known_failing_kind_and_review():
+    from collector.sources.eminwon import DEFAULT_HOSTS_FILE
+    hs = [h for h in load_hosts(DEFAULT_HOSTS_FILE) if h.known_failing]
+    assert {h.known_failing_kind for h in hs} == {"tls_verify"}
+    assert all(h.known_failing_review_by == "2027-05-12" for h in hs)
+
+
+# ── P3-D 잠금 회수 경쟁 ──────────────────────────────────────────────────────────
+def _stale(lock, text):
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text(text)
+    os.utime(lock, (1, 1))
+
+
+def test_reclaim_race_keeps_other_runs_new_lock(tmp_path, monkeypatch):
+    lock = tmp_path / "_state" / "run.lock"
+    _stale(lock, "pid=1 token=old at=1\n")
+    orig = cli._reclaim
+
+    def racing(path, seen):
+        path.write_text("pid=2 token=bbbb at=2\n")      # 다른 실행이 먼저 회수하고 새 잠금을 만듦
+        return orig(path, seen)
+    monkeypatch.setattr(cli, "_reclaim", racing)
+    assert cli._lock(lock, "aaaa") is None
+    assert "token=bbbb" in lock.read_text()
+    assert not lock.with_name("run.lock.reclaim").exists()
+
+
+def test_reclaim_mark_held_is_busy(tmp_path):
+    lock = tmp_path / "_state" / "run.lock"
+    _stale(lock, "pid=1 token=old at=1\n")
+    lock.with_name("run.lock.reclaim").write_text("")    # 다른 실행이 회수 중
+    assert cli._lock(lock, "aaaa") is None
+    assert "token=old" in lock.read_text()
+
+
+def test_stale_reclaim_mark_cleared_then_next_run_proceeds(tmp_path):
+    lock = tmp_path / "_state" / "run.lock"
+    _stale(lock, "pid=1 token=old at=1\n")
+    mark = lock.with_name("run.lock.reclaim")
+    mark.write_text("")
+    os.utime(mark, (1, 1))
+    assert cli._lock(lock, "aaaa") is None and not mark.exists()
+    fd = cli._lock(lock, "aaaa")
+    assert fd is not None
+    os.close(fd)
+    assert "token=aaaa" in lock.read_text()
+
+
+# ── P3-E run_weekly.cmd 최종 종료 코드 ───────────────────────────────────────────
+CMD = Path(__file__).resolve().parents[1] / "run_weekly.cmd"
+
+
+def test_run_weekly_cmd_is_ascii():
+    CMD.read_bytes().decode("ascii")
+
+
+@pytest.mark.skipif(os.name != "nt" or not shutil.which("powershell"), reason="Windows cmd 배치")
+@pytest.mark.parametrize("e,g,want", [(0, 0, 0), (3, 0, 3), (0, 3, 3), (1, 3, 1), (3, 1, 1), (4, 0, 4),
+                                      (0, 4, 4), (4, 3, 3), (2, 0, 2), (1, 4, 1)])
+def test_run_weekly_exit_is_worst(tmp_path, e, g, want):
+    import subprocess
+    text = CMD.read_text(encoding="ascii")
+    py_e = '"C:\dev\python\python.exe" -m collector run --source eminwon --since %SINCE%'
+    py_g = '"C:\dev\python\python.exe" -m collector run --source g2b'
+    assert text.count(py_e) == 1 and text.count(py_g) == 1
+    d = tmp_path / "collector"
+    d.mkdir()
+    (d / "run_weekly.cmd").write_text(text.replace(py_e, "cmd /c exit %FAKE_E%").replace(py_g, "cmd /c exit %FAKE_G%"),
+                                      encoding="ascii")
+    r = subprocess.run(["cmd", "/c", str(d / "run_weekly.cmd")], env=dict(os.environ, FAKE_E=str(e), FAKE_G=str(g)),
+                       capture_output=True, timeout=120)
+    assert r.returncode == want
+    log = next((tmp_path / "data" / "collector" / "_logs").glob("*_weekly.log")).read_text(encoding="ascii")
+    assert f"final exit={want}" in log
