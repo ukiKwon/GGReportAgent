@@ -220,3 +220,47 @@ def test_stale_lock_is_reclaimed(tmp_path):
     fd = cli._lock(lock)
     assert fd is not None
     os.close(fd)
+
+
+# ── 사용자 결정 11-12: 연락처 마스킹·백신 판정 ──────────────────────────────────────
+def test_mask_contacts_keeps_dates_and_numbers():
+    from collector.privacy import MASK, mask_contacts
+    text, n = mask_contacts("담당: 재무과 063-650-1234, 010-1234-5678, (02)2147-1234, 1588-1234, a.b@x.go.kr / 공고 제2026-934호 2026-09-16")
+    assert n == 5 and text.count(MASK) == 5
+    assert "제2026-934호" in text and "2026-09-16" in text
+
+
+def test_mask_hwpx_rewrites_section():
+    from collector.privacy import MASK, mask_hwpx
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("mimetype", "application/hwp+zip")
+        z.writestr("Contents/section0.xml", "<hp:p><hp:t>문의 063-650-1234</hp:t></hp:p>")
+    out, n = mask_hwpx(buf.getvalue())
+    assert n == 1 and MASK in hwpx_text(out) and "063-650-1234" not in hwpx_text(out)
+
+
+def test_vaccine_policy():
+    from collector.privacy import vaccine_policy
+    assert vaccine_policy("https://eminwon.sunchang.go.kr/x") == "생략"
+    assert vaccine_policy("http://eminwon.sunchang.go.kr/x") == "사용자 확인"
+    assert vaccine_policy("https://gangnam.eminwon.seoul.kr/x") == "사용자 확인"
+    assert vaccine_policy("eminwon.mapo.go.kr", "https") == "생략"
+
+
+def test_end_to_end_masks_and_flags(tmp_path, capsys):
+    import re as _re
+    out = tmp_path / "out"
+    main(["run", "--source", "eminwon", "--hosts-file", str(_hosts_file(tmp_path)),
+          "--out-root", str(out)], http=FakeHttp())
+    summary = json.loads(capsys.readouterr().out)
+    raw = (out / "_raw" / "eminwon" / "eminwon.sunchang.example" / "제2026-934호")
+    detail = (raw / "detail.html").read_text(encoding="utf-8")
+    assert not _re.search(r"0\d{1,2}-\d{3,4}-\d{4}", detail)
+    meta = json.loads((raw / "meta.json").read_text(encoding="utf-8"))
+    assert meta["vaccine"] == "사용자 확인"        # 시험 호스트는 go.kr이 아니고 https 성공 여부와 무관하게 확인 대상
+    batch = out / summary["pack"]["batch_id"]
+    manifest = json.loads((batch / "manifest.json").read_text(encoding="utf-8"))
+    rec = next(r for r in manifest["records"] if r["notice"]["number"] == "제2026-934호")
+    assert rec["notice"]["vaccine"] == "사용자 확인" and rec["notice_id"] in summary["pack"]["vaccine_confirm"]
+    assert not _re.search(r"0\d{1,2}-\d{3,4}-\d{4}", json.dumps(rec, ensure_ascii=False))

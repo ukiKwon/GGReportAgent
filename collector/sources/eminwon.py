@@ -16,6 +16,7 @@ from urllib.parse import quote
 
 from collector.extract.classify import classify, is_watch_kind
 from collector.httpclient import FetchError, FetchHttpError, FetchTlsError, HttpClient
+from collector.privacy import mask_contacts, mask_hwpx, vaccine_policy
 from collector.sources.base import NoticeRef, RawNotice, RunReport, SourceError, register
 from collector.sources.eminwon_parse import decode_body, parse_attachments, parse_list
 
@@ -205,6 +206,9 @@ class EminwonSource:
         text, encoding = decode_body(data, charset)
         files: list[tuple[str, bytes]] = []
         errors: list[dict] = []
+        masked_text, masked_n = mask_contacts(text)          # 사용자 결정 11-12: 연락처 전부 가림
+        detail_bytes = masked_text.encode("utf-8")
+        unmaskable: list[str] = []
         for link in parse_attachments(text)[: self.config.max_attachments]:
             name = link.user_file_nm
             if not name.lower().endswith(ALLOWED_EXT):
@@ -224,17 +228,29 @@ class EminwonSource:
             if not signature_ok(name, blob):
                 errors.append({"name": name, "error": "파일 서명이 확장자와 다릅니다(받지 않음)"})
                 continue
+            if name.lower().endswith(".hwpx"):
+                try:
+                    blob, n = mask_hwpx(blob)
+                    masked_n += n
+                except ValueError as exc:
+                    errors.append({"name": name, "error": str(exc)})
+                    continue
+            else:
+                unmaskable.append(name)                     # PDF·구형 HWP — 망 안 배치에는 싣지 않는다
             files.append((name, blob))
+        scheme = self._scheme.get(entry.host, entry.schemes[0])
         meta = {
             "source": self.slug, "host": ref.host, "number": ref.number, "title": ref.title,
             "posted_at": ref.posted_at, "department": ref.department, "native_id": ref.native_id,
-            "detail_url": ref.detail_url, "encoding": encoding,
+            "detail_url": ref.detail_url, "encoding": "utf-8", "source_encoding": encoding,
+            "contacts_masked": masked_n, "unmaskable_attachments": unmaskable,
+            "vaccine": vaccine_policy(entry.host, scheme),
             "institution": {"key": entry.key, "name_ko": entry.name_ko,
                             "region_code": entry.region_code, "type": entry.type},
             "fetched_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
             "attachment_errors": errors,
         }
-        raw_dir = store.write(self.slug, ref.host, ref.number, data, files, meta)
+        raw_dir = store.write(self.slug, ref.host, ref.number, detail_bytes, files, meta)
         return RawNotice(ref=ref, raw_dir=raw_dir, rel=store.rel(raw_dir))
 
 

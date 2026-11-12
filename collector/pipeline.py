@@ -64,4 +64,8 @@ def extract_and_pack(source, state, store, out_root, *, redo_all=False, now=None
     for key in keys:
         state.set_batch(slug, key, result.batch_id)
     state.save()
-    return {"batch_id": result.batch_id, "records": result.record_count, "extract_errors": errors}
+    # 반입 전 사용자 확인이 필요한 첨부(사용자 결정 11-12: https+go.kr이 아니면 백신 생략 불가)
+    confirm = [n.notice_id for n in notices
+               if n.attachments and (n.notice_info or {}).get("vaccine") != "생략"]
+    return {"batch_id": result.batch_id, "records": result.record_count, "extract_errors": errors,
+            "vaccine_confirm": confirm}

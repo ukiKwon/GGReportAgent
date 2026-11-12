@@ -11,6 +11,7 @@ from pathlib import Path
 from collector.extract.classify import ROLE, classify, is_candidate_kind
 from collector.extract.hwpx import ExtractError, hwpx_text
 from collector.extract.terms import find_deadline, find_period, years_between
+from collector.privacy import mask_contacts, vaccine_policy
 from collector.sources.base import AttachmentRef, CollectedNotice
 
 _STRIP_BLOCK = re.compile(r"<(script|style)\b.*?</\1>", re.S | re.I)
@@ -54,8 +55,13 @@ def notice_from_raw(raw_dir: Path, rel: str) -> CollectedNotice:
     texts: list[tuple[str, str]] = []
     atts: list[AttachmentRef] = []
     notes: list[str] = []
+    unmaskable = set(meta.get("unmaskable_attachments", []))
     for a in meta.get("attachments", []):
         blob = (raw_dir / a["stored"]).read_bytes()
+        if a["name"] in unmaskable or not a["name"].lower().endswith(".hwpx"):
+            # 연락처를 가릴 수 없는 첨부(PDF·구형 HWP)는 망 안 배치에 싣지 않는다(사용자 결정 11-12).
+            notes.append(f"첨부 미포함(연락처 가림 불가, 원문 보관소에만): {a['name']}")
+            continue
         atts.append(AttachmentRef(filename=Path(a["stored"]).name, data=blob))
         if a["name"].lower().endswith(".hwpx"):
             try:
@@ -65,11 +71,12 @@ def notice_from_raw(raw_dir: Path, rel: str) -> CollectedNotice:
     for err in meta.get("attachment_errors", []):
         notes.append(f"첨부 받기 실패 {err.get('name')}: {err.get('error')}")
     texts.append(("상세 본문", _html_text((raw_dir / "detail.html").read_bytes(), meta.get("encoding", "utf-8"))))
+    texts = [(origin, mask_contacts(text)[0]) for origin, text in texts]   # 이중 방어: 근거 문장에 연락처 금지
     inst = meta["institution"]
     candidate = build_candidate(kind, meta.get("posted_at"), texts) if is_candidate_kind(kind) else None
     return CollectedNotice(
         notice_id=f"{meta['host']}#{meta['number']}",
-        title=meta["title"],
+        title=mask_contacts(meta["title"])[0],
         institution_name_ko=inst["name_ko"],
         evidence_url=meta["detail_url"],
         posted_at=meta.get("posted_at"),
@@ -79,7 +86,9 @@ def notice_from_raw(raw_dir: Path, rel: str) -> CollectedNotice:
         attachments=tuple(atts),
         notice_info={"kind": kind, "number": meta["number"], "host": meta["host"],
                      "institution_key": inst.get("key"), "mgt_no": meta.get("native_id"),
-                     "department": meta.get("department"), "raw_path": rel},
+                     "department": meta.get("department"), "raw_path": rel,
+                     "vaccine": meta.get("vaccine") or vaccine_policy(meta["detail_url"]),
+                     "contacts_masked": meta.get("contacts_masked")},
         candidate=candidate,
         evidence_note="; ".join(notes) or None,
     )
