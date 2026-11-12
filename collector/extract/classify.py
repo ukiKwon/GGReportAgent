@@ -13,7 +13,7 @@ ROLE = {"계획": "진행중", "재공고": "진행중", "결과": "회차종료
 
 def classify(title: str) -> str:
     t = re.sub(r"\s+", "", title)
-    if "금고" not in t:
+    if "금고" not in t and "주거래" not in t:
         return "무관"
     if any(re.sub(r"\s+", "", w) in t for w in EXCLUDE):
         return "제외"

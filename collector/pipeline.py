@@ -31,8 +31,8 @@ def collect(source, state, store, *, since=None, hosts=None, limit=None, baselin
             break
         try:
             raw = source.fetch_raw(ref, store)
-        except SourceError as exc:
-            failed.append({"key": ref.key, "error": str(exc)[:200]})
+        except (SourceError, OSError) as exc:      # 한 공고의 저장 실패가 실행 전체를 멈추지 않게
+            failed.append({"key": ref.key, "error": f"{type(exc).__name__}: {str(exc)[:200]}"})
             continue
         state.mark_seen(slug, ref.key, raw=raw.rel, **info)   # 원문 보관에 성공한 뒤에만 '본 것'
         state.save()

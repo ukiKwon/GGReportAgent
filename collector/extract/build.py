@@ -9,6 +9,8 @@ import re
 from pathlib import Path
 
 from collector.extract.classify import ROLE, classify, is_candidate_kind
+
+BID_SOURCES = {"g2b"}   # 목록이 입찰공고만 담는 출처
 from collector.extract.hwpx import ExtractError, hwpx_text
 from collector.extract.terms import find_deadline, find_period, years_between
 from collector.privacy import mask_contacts, vaccine_policy
@@ -52,6 +54,8 @@ def build_candidate(kind: str, posted_at: str | None, texts: list[tuple[str, str
 def notice_from_raw(raw_dir: Path, rel: str) -> CollectedNotice:
     meta = json.loads((raw_dir / "meta.json").read_text(encoding="utf-8"))
     kind = classify(meta["title"])
+    if meta.get("source") in BID_SOURCES and kind in ("지정", "결과", "기타") and "취소" not in meta["title"]:
+        kind = "계획"           # 입찰공고 출처(나라장터)는 모두 진행 중 공고 — '금고 지정' 제목도 결과가 아니다
     texts: list[tuple[str, str]] = []
     atts: list[AttachmentRef] = []
     notes: list[str] = []

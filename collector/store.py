@@ -9,6 +9,7 @@ import hashlib
 import json
 import re
 import shutil
+import time
 from pathlib import Path
 
 _UNSAFE = re.compile(r'[\x00-\x1f/\\:*?"<>|]')
@@ -52,7 +53,15 @@ class RawStore:
                            "size": len(blob), "sha256": hashlib.sha256(blob).hexdigest()})
         meta = dict(meta, attachments=stored, detail_sha256=hashlib.sha256(detail).hexdigest())
         (tmp / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        if final.exists():
-            shutil.rmtree(final)
-        tmp.rename(final)
+        # Windows: 방금 쓴 파일을 백신·색인이 잠깐 잡으면 rename이 거부된다(WinError 5) — 잠시 뒤 다시 시도.
+        for attempt in range(6):
+            try:
+                if final.exists():
+                    shutil.rmtree(final)
+                tmp.rename(final)
+                return final
+            except PermissionError:
+                if attempt == 5:
+                    raise
+                time.sleep(0.5 * (attempt + 1))
         return final
