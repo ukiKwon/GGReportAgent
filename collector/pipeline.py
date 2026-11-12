@@ -38,7 +38,8 @@ def collect(source, state, store, *, since=None, hosts=None, limit=None, baselin
         state.save()
         new.append(ref.key)
     summary = {"source": slug, "new": len(new), "new_keys": new, "skipped": skipped, "failed": failed,
-               "hosts_ok": len(report.hosts_ok), "hosts_failed": report.hosts_failed}
+               "hosts_ok": len(report.hosts_ok), "hosts_failed": report.hosts_failed,
+               "warnings": report.warnings}
     state.add_run(slug, dict(summary, started_at=started, finished_at=_now_iso(),
                              baseline=baseline, since=since))
     state.save()

@@ -95,6 +95,7 @@ class RawNotice:
 class RunReport:
     hosts_ok: list[str] = field(default_factory=list)
     hosts_failed: dict[str, str] = field(default_factory=dict)
+    warnings: list[str] = field(default_factory=list)      # TLS 예외 재검토일 지남 등(실행은 계속)
 
 
 class SeenIndex(Protocol):

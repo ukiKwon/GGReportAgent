@@ -56,8 +56,11 @@ def mask_hwpx(data: bytes) -> tuple[bytes, int]:
         raise ValueError(f"hwpx 마스킹 실패({type(exc).__name__})") from exc
 
 
-def vaccine_policy(url_or_host: str, scheme: str | None = None) -> str:
-    """'생략' 또는 '사용자 확인'. https + go.kr만 생략."""
+def vaccine_policy(url_or_host: str, scheme: str | None = None, *, relaxed: bool = False) -> str:
+    """'생략' 또는 '사용자 확인'. https + 공식 도메인만 생략.
+    TLS 예외(ca_extra·ciphers·pin_sha256) 호스트는 도메인과 무관하게 '사용자 확인'(security 11-12)."""
+    if relaxed:
+        return "사용자 확인"
     host = url_or_host
     if "://" in url_or_host:
         scheme, rest = url_or_host.split("://", 1)

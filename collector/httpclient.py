@@ -1,17 +1,30 @@
-"""표준 라이브러리 HTTP 클라이언트. TLS 검증은 기본 ON — 끄는 것은 호스트별 설정으로만."""
+"""표준 라이브러리 HTTP 클라이언트. TLS 검증은 항상 ON — 검증 끄기는 지원하지 않는다(security 11-12).
+
+호스트별 TLS 예외는 TlsPolicy 하나로만: 중간 CA 추가(ca_file)·암호 묶음 허용 목록(ciphers)·공개키 지문 고정(pins).
+재시도는 하지 않는다(소스가 FetchConnError·FetchTlsHandshakeError를 보고 결정).
+"""
 
 from __future__ import annotations
 
+import functools
 import http.client
-import socket
 import ssl
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from dataclasses import dataclass
+from pathlib import Path
+
+from collector.tlscert import check_pinned
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+TLS_MSG_LEN = 160          # 자체 서명 종류를 구분할 수 있게 80→160(security 11-12)
+# 허용 목록은 실측한 서버 묶음만 좁게(security 11-12 — DEFAULT:@SECLEVEL=1은 너무 넓어 뺐다). SECLEVEL은 기본값(2) 유지.
+CIPHERS_DHE_SHA = "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA"   # 청주·정읍·영동: DHE-RSA-AES256-SHA만
+CIPHERS_RSA_GCM = "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:AES256-GCM-SHA384:AES128-GCM-SHA256"   # 속초·의성: AES256-GCM-SHA384(RSA 키 교환)만
+ALLOWED_CIPHERS = frozenset({CIPHERS_DHE_SHA, CIPHERS_RSA_GCM})   # SECLEVEL=0·min_tls(TLS1.0/1.1)는 미지원
 
 
 class FetchError(Exception):
@@ -24,6 +37,62 @@ class FetchHttpError(FetchError):
 
 class FetchTlsError(FetchError):
     """인증서·TLS 오류 — http로 내려가 재시도하면 안 된다(중간자 강등 방지, security 7d2ac90 지적)."""
+
+
+class FetchTlsHandshakeError(FetchTlsError):
+    """인증서 검증이 아닌 핸드셰이크 실패(SSLV3_ALERT_HANDSHAKE_FAILURE·EOF 등). 부하분산 뒤 일부 서버 설정 차이로
+    간헐 발생(메인 실측 11-12) — 소스가 1회까지 재시도할 수 있다. http 강등은 여전히 금지."""
+
+
+class FetchConnError(FetchError):
+    """연결 실패(DNS·거부 등) — 재시도하지 않고 실행 끝 2nd pass에서 1회 더 본다."""
+
+
+class FetchTimeoutError(FetchConnError):
+    """시간 초과 — 소스가 백오프 후 재시도할 수 있다(security 11-12: 재시도는 시간 초과만)."""
+
+
+def _conn_error(exc: BaseException, msg: str) -> FetchConnError:
+    timed_out = isinstance(exc, TimeoutError) or "timed out" in str(exc).lower()
+    return (FetchTimeoutError if timed_out else FetchConnError)(msg)
+
+
+@dataclass(frozen=True)
+class TlsPolicy:
+    ca_file: Path | None = None
+    ciphers: str | None = None
+    pins: tuple[str, ...] = ()
+
+    @property
+    def relaxed(self) -> bool:
+        return bool(self.ca_file or self.ciphers or self.pins)
+
+
+def build_context(tls: TlsPolicy | None = None) -> ssl.SSLContext:
+    ctx = ssl.create_default_context()
+    if ctx.verify_flags & ssl.VERIFY_X509_PARTIAL_CHAIN:      # 3.13+ 기본값 — 추가 중간 CA가 신뢰 앵커가 되지 않게
+        ctx.verify_flags ^= ssl.VERIFY_X509_PARTIAL_CHAIN
+    if tls is None:
+        return ctx
+    if tls.ciphers is not None:
+        if tls.ciphers not in ALLOWED_CIPHERS:
+            raise ValueError("허용하지 않는 ciphers")
+        ctx.set_ciphers(tls.ciphers)
+    if tls.pins:
+        if tls.ca_file is not None:
+            raise ValueError("pins와 ca_file은 함께 쓸 수 없습니다")
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE        # 검증은 _PinnedHTTPSConnection이 지문·호스트명·유효기간으로 직접
+    elif tls.ca_file is not None:
+        ctx.load_verify_locations(cafile=str(tls.ca_file))   # 이 호스트 컨텍스트에만
+    return ctx
+
+
+def _tls_error(exc: Exception) -> FetchTlsError:
+    msg = f"TLS 오류: {str(exc)[:TLS_MSG_LEN]}"
+    if isinstance(exc, ssl.SSLCertVerificationError):      # = ssl.CertificateError
+        return FetchTlsError(msg)
+    return FetchTlsHandshakeError(msg)
 
 
 def _origin(url: str):
@@ -39,20 +108,56 @@ class _SameHostRedirect(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args, pins: tuple[str, ...], **kwargs):
+        super().__init__(*args, **kwargs)
+        self._pins = pins
+
+    def connect(self):
+        super().connect()
+        try:   # 요청을 보내기 전(=응답 본문을 읽기 전)에 지문·호스트명·유효기간 대조
+            check_pinned(self.sock.getpeercert(binary_form=True), self._pins, self.host)
+        except ssl.SSLCertVerificationError:
+            self.close()
+            raise
+
+
+class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
+    def __init__(self, context: ssl.SSLContext, pins: tuple[str, ...]):
+        super().__init__(context=context)
+        self._pins = pins
+
+    def https_open(self, req):
+        return self.do_open(functools.partial(_PinnedHTTPSConnection, pins=self._pins), req, context=self._context)
+
+
 class HttpClient:
     def __init__(self, timeout: float = 20.0, max_bytes: int = 20 * 1024 * 1024,
                  delay: float = 1.0, sleep=time.sleep) -> None:
         self.timeout, self.max_bytes, self.delay, self._sleep = timeout, max_bytes, delay, sleep
         self._first = True
+        self._contexts: dict = {}
 
-    def get(self, url: str, verify: bool = True) -> tuple[bytes, str | None]:
+    def _context(self, tls: TlsPolicy | None) -> ssl.SSLContext:
+        if tls not in self._contexts:
+            self._contexts[tls] = build_context(tls)
+        return self._contexts[tls]
+
+    def get(self, url: str, verify: bool = True, tls: TlsPolicy | None = None) -> tuple[bytes, str | None]:
         if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
             raise FetchError("http/https만 허용합니다")
+        if not verify:
+            raise FetchTlsError("TLS 검증 끄기는 지원하지 않습니다(설정 오류)")
+        try:
+            ctx = self._context(tls)
+        except (ValueError, ssl.SSLError, OSError) as exc:
+            raise FetchTlsError(f"TLS 설정 오류: {type(exc).__name__}") from exc
         if not self._first:
             self._sleep(self.delay)        # 기관 서버에 부담을 주지 않는 간격
         self._first = False
-        ctx = ssl.create_default_context() if verify else ssl._create_unverified_context()
-        opener = urllib.request.build_opener(_SameHostRedirect, urllib.request.HTTPSHandler(context=ctx))
+        https = (_PinnedHTTPSHandler(ctx, tls.pins) if tls is not None and tls.pins
+                 else urllib.request.HTTPSHandler(context=ctx))
+        opener = urllib.request.build_opener(_SameHostRedirect, https)
         req = urllib.request.Request(url, headers={
             "User-Agent": UA, "Accept": "*/*", "Accept-Language": "ko-KR,ko;q=0.9"})
         try:
@@ -62,15 +167,15 @@ class HttpClient:
         except urllib.error.HTTPError as exc:          # URLError보다 먼저
             raise FetchHttpError(f"HTTP {exc.code}") from exc
         except urllib.error.URLError as exc:
-            if isinstance(exc.reason, (ssl.SSLError, ssl.CertificateError)):
-                raise FetchTlsError(f"TLS 오류: {str(exc.reason)[:80]}") from exc
-            raise FetchError(f"연결 실패: {type(exc).__name__} {str(exc.reason)[:80]}") from exc
-        except (ssl.SSLError, ssl.CertificateError) as exc:
-            raise FetchTlsError(f"TLS 오류: {str(exc)[:80]}") from exc
+            if isinstance(exc.reason, ssl.SSLError):
+                raise _tls_error(exc.reason) from exc
+            raise _conn_error(exc.reason, f"연결 실패: {type(exc).__name__} {str(exc.reason)[:80]}") from exc
+        except ssl.SSLError as exc:
+            raise _tls_error(exc) from exc
         except http.client.HTTPException as exc:       # 응답이 중간에 끊김 등
             raise FetchError(f"응답 오류: {type(exc).__name__}") from exc
-        except (socket.timeout, OSError) as exc:
-            raise FetchError(f"연결 실패: {type(exc).__name__} {str(getattr(exc, 'reason', exc))[:80]}") from exc
+        except OSError as exc:                         # socket.timeout = TimeoutError ⊂ OSError
+            raise _conn_error(exc, f"연결 실패: {type(exc).__name__} {str(getattr(exc, 'reason', exc))[:80]}") from exc
         if len(data) > self.max_bytes:
             raise FetchError("응답이 너무 큽니다")
         return data, charset

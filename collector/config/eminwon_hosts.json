@@ -1,5 +1,5 @@
 {
- "_comment": "eminwon 금고 공고 감시 대상(NEXT 80). frontend/data/institutions.js sources의 eminwon URL + 2026-11-11 curl 실측 호스트. key = 기관 region|name. tls_verify를 끄는 것은 호스트별로만. schemes: 기본 https만(연결 실패 시 http 강등 금지, security 11-11 PUSH-GATE). http만 되는 곳(실측)만 [\"http\"].",
+ "_comment": "eminwon 금고 공고 감시 대상(NEXT 80). frontend/data/institutions.js sources의 eminwon URL + 2026-11-11 curl 실측 호스트. key = 기관 region|name. tls_verify false는 로더가 거부(security 11-12). TLS 예외는 ca_extra(config/ca/의 중간 CA .pem 이름)·ciphers(허용 목록)·pin_sha256과 tls_reason·tls_measured·tls_review_by로만. schemes: 기본 https만(연결 실패 시 http 강등 금지, security 11-11 PUSH-GATE). http만 되는 곳(실측)만 [\"http\"].",
  "generated": "2026-11-11",
  "hosts": [
   {
@@ -11,7 +11,10 @@
    "key": "11|도봉구청",
    "name_ko": "도봉구청",
    "region_code": "11",
-   "type": "지자체"
+   "type": "지자체",
+   "tls_reason": "만료된 사설 CA 서명 인증서(verify 10, 루트 CN=210.220.71.198 자체 서명) — 예외 없이 실패 유지, 다른 출처로 보완",
+   "tls_measured": "2026-11-12",
+   "tls_review_by": "2027-05-12"
   },
   {
    "host": "dongjak.eminwon.seoul.kr",
@@ -110,7 +113,11 @@
    "key": "43|청주시청",
    "name_ko": "청주시청",
    "region_code": "43",
-   "type": "지자체"
+   "type": "지자체",
+   "ciphers": "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA",
+   "tls_reason": "DHE-RSA-AES256-SHA만 받음 — Python 기본 목록(!SHA1)으로는 handshake failure(openssl 실측), 인증서 검증은 유지",
+   "tls_measured": "2026-11-12",
+   "tls_review_by": "2027-05-12"
   },
   {
    "host": "eminwon.chuncheon.go.kr",
@@ -143,7 +150,11 @@
    "key": "42|철원군청",
    "name_ko": "철원군청",
    "region_code": "42",
-   "type": "지자체"
+   "type": "지자체",
+   "ca_extra": "rapidssl_tls_rsa_ca_g1.pem",
+   "tls_reason": "중간 인증서 미전송(verify 21, openssl 실측) — RapidSSL TLS RSA CA G1, AIA·CA 공식 저장소 받아 공개 루트까지 검증 확인",
+   "tls_measured": "2026-11-12",
+   "tls_review_by": "2027-05-12"
   },
   {
    "host": "eminwon.dangjin.go.kr",
@@ -319,7 +330,11 @@
    "key": "46|곡성군청",
    "name_ko": "곡성군청",
    "region_code": "46",
-   "type": "지자체"
+   "type": "지자체",
+   "ca_extra": "thawte_tls_rsa_ca_g1.pem",
+   "tls_reason": "중간 인증서 미전송(verify 21, openssl 실측) — Thawte TLS RSA CA G1, AIA·CA 공식 저장소 받아 공개 루트까지 검증 확인",
+   "tls_measured": "2026-11-12",
+   "tls_review_by": "2027-05-12"
   },
   {
    "host": "eminwon.gongju.go.kr",
@@ -495,7 +510,11 @@
    "key": "42|인제군청",
    "name_ko": "인제군청",
    "region_code": "42",
-   "type": "지자체"
+   "type": "지자체",
+   "ca_extra": "sectigo_public_server_auth_ca_dv_r36.pem",
+   "tls_reason": "중간 인증서 미전송(verify 21, openssl 실측) — Sectigo Public Server Authentication CA DV R36, AIA·CA 공식 저장소 받아 공개 루트까지 검증 확인",
+   "tls_measured": "2026-11-12",
+   "tls_review_by": "2027-05-12"
   },
   {
    "host": "eminwon.jemulpo.go.kr",
@@ -517,7 +536,11 @@
    "key": "45|정읍시청",
    "name_ko": "정읍시청",
    "region_code": "45",
-   "type": "지자체"
+   "type": "지자체",
+   "ciphers": "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA",
+   "tls_reason": "DHE-RSA-AES256-SHA만 받음 — Python 기본 목록(!SHA1)으로는 handshake failure(openssl 실측), 인증서 검증은 유지",
+   "tls_measured": "2026-11-12",
+   "tls_review_by": "2027-05-12"
   },
   {
    "host": "eminwon.jeongseon.go.kr",
@@ -572,7 +595,10 @@
    "key": "11|중구청",
    "name_ko": "중구청",
    "region_code": "11",
-   "type": "지자체"
+   "type": "지자체",
+   "tls_reason": "만료된 사설 CA 서명 인증서(verify 10, 루트 CN=210.220.71.198 자체 서명) — 예외 없이 실패 유지, 다른 출처로 보완",
+   "tls_measured": "2026-11-12",
+   "tls_review_by": "2027-05-12"
   },
   {
    "host": "eminwon.jungnang.go.kr",
@@ -682,7 +708,11 @@
    "key": "11|성동구청",
    "name_ko": "성동구청",
    "region_code": "11",
-   "type": "지자체"
+   "type": "지자체",
+   "ca_extra": "sectigo_public_server_auth_ca_dv_r36.pem",
+   "tls_reason": "중간 인증서 미전송(verify 21, openssl 실측) — Sectigo Public Server Authentication CA DV R36, AIA·CA 공식 저장소 받아 공개 루트까지 검증 확인",
+   "tls_measured": "2026-11-12",
+   "tls_review_by": "2027-05-12"
   },
   {
    "host": "eminwon.sdm.go.kr",
@@ -748,7 +778,12 @@
    "key": "42|속초시청",
    "name_ko": "속초시청",
    "region_code": "42",
-   "type": "지자체"
+   "type": "지자체",
+   "ca_extra": "sectigo_public_server_auth_ca_dv_r36.pem",
+   "tls_reason": "중간 인증서 미전송(verify 21, openssl 실측) — Sectigo Public Server Authentication CA DV R36, AIA·CA 공식 저장소 받아 공개 루트까지 검증 확인 / AES256-GCM-SHA384(RSA 키 교환)만 받음 — Python 기본 목록(ECDHE/DHE만)으로는 handshake failure(openssl 실측), 인증서 검증은 유지",
+   "tls_measured": "2026-11-12",
+   "tls_review_by": "2027-05-12",
+   "ciphers": "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:AES256-GCM-SHA384:AES128-GCM-SHA256"
   },
   {
    "host": "eminwon.sunchang.go.kr",
@@ -759,7 +794,11 @@
    "key": "45|순창군청",
    "name_ko": "순창군청",
    "region_code": "45",
-   "type": "지자체"
+   "type": "지자체",
+   "ca_extra": "rapidssl_tls_rsa_ca_g1.pem",
+   "tls_reason": "중간 인증서 미전송(verify 21, openssl 실측) — RapidSSL TLS RSA CA G1, AIA·CA 공식 저장소 받아 공개 루트까지 검증 확인",
+   "tls_measured": "2026-11-12",
+   "tls_review_by": "2027-05-12"
   },
   {
    "host": "eminwon.suwon.go.kr",
@@ -814,7 +853,11 @@
    "key": "47|의성군청",
    "name_ko": "의성군청",
    "region_code": "47",
-   "type": "지자체"
+   "type": "지자체",
+   "ciphers": "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:AES256-GCM-SHA384:AES128-GCM-SHA256",
+   "tls_reason": "AES256-GCM-SHA384(RSA 키 교환)만 받음 — Python 기본 목록(ECDHE/DHE만)으로는 handshake failure(openssl 실측), 인증서 검증은 유지",
+   "tls_measured": "2026-11-12",
+   "tls_review_by": "2027-05-12"
   },
   {
    "host": "eminwon.wanju.go.kr",
@@ -891,7 +934,11 @@
    "key": "43|영동군청",
    "name_ko": "영동군청",
    "region_code": "43",
-   "type": "지자체"
+   "type": "지자체",
+   "ciphers": "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA",
+   "tls_reason": "DHE-RSA-AES256-SHA만 받음 — Python 기본 목록(!SHA1)으로는 handshake failure(openssl 실측), 인증서 검증은 유지",
+   "tls_measured": "2026-11-12",
+   "tls_review_by": "2027-05-12"
   },
   {
    "host": "eminwon.ydp.go.kr",
@@ -979,7 +1026,10 @@
    "key": "11|강남구청",
    "name_ko": "강남구청",
    "region_code": "11",
-   "type": "지자체"
+   "type": "지자체",
+   "tls_reason": "만료된 사설 CA 서명 인증서(verify 10, 루트 CN=210.220.71.198 자체 서명) — 예외 없이 실패 유지, 다른 출처로 보완",
+   "tls_measured": "2026-11-12",
+   "tls_review_by": "2027-05-12"
   },
   {
    "host": "gwangjin.eminwon.seoul.kr",

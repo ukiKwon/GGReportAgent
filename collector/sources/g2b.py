@@ -227,7 +227,7 @@ class G2bSource:
             "source": self.slug, "host": "g2b", "number": ref.number, "title": ref.title,
             "posted_at": ref.posted_at, "department": item.get("ntceInsttNm"), "native_id": ref.native_id,
             "detail_url": ref.detail_url, "encoding": "utf-8", "contacts_masked": masked,
-            "unmaskable_attachments": unmaskable, "vaccine": vaccine_policy(ref.detail_url),
+            "unmaskable_attachments": unmaskable, "vaccine": vaccine_policy(ref.detail_url, relaxed=False),
             "deadline_at": _ymd(item.get("bidClseDt")), "re_notice": item.get("reNtceYn") == "Y",
             "institution": {"key": None, "name_ko": inst, "region_code": None, "type": "공공기관",
                             "org_code_g2b": item.get("dminsttCd")},
