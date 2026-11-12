@@ -1,0 +1,287 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>시안: 공고 진행 중 표현 — 지도·입찰 현황판 (2026-11-12)</title><style>
+:root{color-scheme:dark;--bg:#0f1218;--panel:#181e29;--panel2:#202835;--line:#2d3644;--line-strong:#424e62;--fg:#e2e7ee;--muted:#98a1af;--red:#e07856;--orange:#d9a05b;--blue:#7c93c4;--accent-color:#57b8ad;--mono:Consolas,"Cascadia Mono","Malgun Gothic",monospace;--shadow:0 12px 32px rgba(8,12,24,.55);--r-lg:14px;--r:10px;--r-sm:8px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.5 "Malgun Gothic","Segoe UI",sans-serif;font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--accent-color);outline-offset:2px}
+button{font:inherit;font-size:12px;color:var(--fg);background:var(--panel2);border:1px solid var(--line-strong);border-radius:var(--r);padding:6px 14px;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s}
+button:hover{background:#283141;border-color:#4a566b;transform:translateY(-1px);box-shadow:0 6px 16px rgba(8,12,24,.4)}
+.v,.d{font-family:var(--mono)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.mock-bar{padding:6px 20px;background:#2a2412;border-bottom:1px solid var(--orange);font-size:12px;color:#f0dcae}
+.doc{max-width:1080px;margin:0 auto;padding:24px 24px 48px}
+.doc>h1{font-size:16px;margin:0 0 4px;letter-spacing:-.01em}
+.doc>p.lead{margin:0 0 24px;color:var(--muted);font-size:13px;max-width:72ch}
+.part{margin:0 0 36px}
+.part>h2{font-size:15px;margin:0 0 4px;letter-spacing:-.01em}
+.part>p{margin:0 0 14px;color:var(--muted);font-size:12px;max-width:80ch}
+.pnl{background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--r-lg);box-shadow:var(--shadow)}
+
+/* ── 지도 선택지 ── */
+.opts{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.opt{padding:14px 14px 12px;position:relative}
+.opt.rec{border-color:var(--accent-color)}
+.opt h3{margin:0 0 2px;font-size:14px}.opt .tag{font-size:11px;color:var(--accent-color);border:1px solid color-mix(in srgb,var(--accent-color) 55%,transparent);border-radius:6px;padding:0 6px;margin-left:6px;vertical-align:1px}
+.opt .why{margin:0 0 8px;font-size:12px;color:var(--muted);min-height:36px}
+.stage{border-radius:12px;background:radial-gradient(120% 100% at 0 0,#171d28,#101520 60%,#0d1119);border:1px solid var(--line)}
+.stage svg{display:block;width:100%;height:auto}
+.label{font:700 13px "Malgun Gothic",sans-serif;fill:#141922;stroke:#eef2f8;stroke-width:3px;paint-order:stroke;stroke-linejoin:round}
+.label .tri{font-size:12px}
+.label .sub{font-size:10px;font-weight:700}
+.lg{margin-top:10px;padding:8px 10px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(24,30,41,.72);font:11px var(--mono);color:var(--muted);display:grid;gap:4px}
+.lg b.tri{color:var(--fg)}
+.lg .nchip{display:inline-block;font:700 10px var(--mono);color:#141922;background:#eef2f8;border-radius:4px;padding:0 4px;margin-right:4px}
+.lg .cut{text-decoration:line-through;color:color-mix(in srgb,var(--muted) 70%,var(--panel))}
+
+/* 툴팁 */
+.tipwrap{display:grid;grid-template-columns:300px 1fr;gap:20px;margin-top:16px;align-items:start}
+.tip{background:rgba(24,30,41,.92);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px;font-size:12px}
+.tip .h{display:flex;align-items:center;gap:8px;margin-bottom:6px}.tip .h b{font-size:13px}.tip .sw{width:12px;height:12px;border-radius:4px;background:#f0a6a9}
+.tip .blk{border-left:2px solid color-mix(in srgb,var(--red) 70%,#fff);padding:2px 0 2px 8px;margin-bottom:8px}
+.tip .blk .t{font-weight:700}.tip .blk .t .v{font-weight:400;color:var(--muted)}
+.tip .r{color:var(--fg)}.tip .r .dd{font-family:var(--mono);color:color-mix(in srgb,var(--red) 72%,#fff)}
+.tip .w{color:var(--muted)}.tip .w .dd{font-family:var(--mono);color:var(--fg)}
+.tip .mu{color:var(--muted);font-size:11px;margin-top:4px}
+.spec{font-size:12px;color:var(--muted);margin:0;padding-left:16px}.spec li{margin-bottom:4px}.spec b{color:var(--fg);font-weight:400}
+
+/* 티커 */
+.tk{display:flex;align-items:center;gap:10px;padding:6px 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font:12px var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;margin-top:8px}
+.tk .cap{letter-spacing:.08em;font-size:11px}
+.tk .n{font:700 11px var(--mono);color:var(--fg);border:1px solid var(--fg);border-radius:6px;padding:0 6px}
+.tk .it{color:color-mix(in srgb,var(--red) 72%,#fff)}.tk .it.y{color:color-mix(in srgb,#c9bd8f 72%,#fff)}
+.tk .sep{color:var(--line-strong)}.tk .ttl{font-family:"Malgun Gothic",sans-serif;font-size:11px;color:var(--muted);min-width:96px}
+
+/* ── 현황판 프레임(1280 화면의 본문 폭 1032px) ── */
+.frame{width:1032px;max-width:100%;border:1px dashed var(--line-strong);border-radius:16px;padding:20px 24px;display:flex;flex-direction:column;gap:20px;background:var(--bg)}
+.state-pick{display:inline-flex;gap:2px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:3px;margin-bottom:10px}
+.state-pick label{position:relative}.state-pick input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+.state-pick span{display:block;padding:5px 12px;border-radius:9px;font-size:12px;color:var(--muted)}
+.state-pick input:checked+span{background:color-mix(in srgb,var(--accent-color) 16%,transparent);color:var(--fg)}
+.state-pick input:focus-visible+span{outline:2px solid var(--accent-color);outline-offset:1px}
+.db-h{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.db-h h2{margin:0;font-size:15px;letter-spacing:-.01em}
+.db-h .sum{font-size:13px;color:var(--muted)}.db-h .sum b{font-family:var(--mono);color:var(--fg)}
+.db-h .end{margin-left:auto}
+
+/* 띠 */
+.db-nb{padding:16px 20px}
+.db-nb[hidden]{display:none}
+.nb-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:12px}
+.nb-row.one{grid-template-columns:minmax(0,1fr) minmax(0,3fr)}
+.nb-card{display:grid;grid-template-columns:60px 1fr;text-align:left;padding:0;border-radius:var(--r);border:1px solid color-mix(in srgb,var(--red) 55%,var(--line-strong));background:color-mix(in srgb,var(--red) 8%,var(--panel));min-height:86px;white-space:normal}
+.nb-card:hover{border-color:var(--red);background:color-mix(in srgb,var(--red) 8%,var(--panel))}
+.nb-card[aria-pressed=true]{outline:2px solid var(--accent-color);outline-offset:2px}
+.nb-stub{display:flex;flex-direction:column;justify-content:center;align-items:center;border-right:1px dashed var(--line-strong);padding:8px 4px}
+.nb-stub small{font-size:11px;color:var(--muted)}.nb-stub b{font:700 16px var(--mono);color:var(--red)}
+.nb-body{padding:9px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.nb-body .nm{font-size:13px;font-weight:700;word-break:keep-all;line-height:1.35}
+.nb-body .mt{font-size:12px;color:var(--muted)}
+.nb-body .rc{font-size:12px;color:var(--fg)}.nb-body .rc .d{color:var(--fg)}
+.nb-more{border-style:dashed;justify-content:center;align-items:center;display:flex;color:var(--muted);font-size:12px}
+.nb-aside{align-self:center;font-size:12px;color:var(--muted);line-height:1.6;word-break:keep-all}.nb-aside b{font-family:var(--mono);color:var(--fg)}
+
+/* 월별 막대(축약 표시) */
+.db-tl{padding:16px 20px}
+.tl-mini{display:grid;grid-template-columns:120px 1fr 120px 120px;gap:14px;margin-top:12px;align-items:end;height:96px}
+.tile{border:1px solid var(--line-strong);border-radius:12px;height:96px;padding:10px;display:flex;flex-direction:column;justify-content:flex-end;font-size:12px;color:var(--muted)}
+.tile b{font:700 16px var(--mono);color:var(--fg)}.tile.ov{border-color:var(--fg)}
+.tile.unk{border-style:dashed}
+.bars{height:96px;border-bottom:1px solid var(--line-strong);display:grid;grid-template-columns:repeat(13,1fr);gap:6px;align-items:end;position:relative}
+.bars i{display:block;width:60%;margin:0 auto;border-radius:3px 3px 0 0;background:repeating-linear-gradient(45deg,var(--orange) 0 2px,color-mix(in srgb,var(--orange) 22%,var(--panel)) 2px 6px);border-top:3px solid var(--orange)}
+.bars i.u{background:repeating-linear-gradient(45deg,var(--red) 0 2px,color-mix(in srgb,var(--red) 22%,var(--panel)) 2px 6px);border-top-color:var(--red)}
+
+/* 작업 영역 */
+.db-work{display:grid;grid-template-columns:380px minmax(0,1fr);gap:20px}
+.db-list,.db-pane{display:flex;flex-direction:column;height:clamp(440px,calc(100vh - 140px),820px);min-width:0;overflow:hidden}
+.db-list-head{padding:16px 20px 12px;border-bottom:1px solid var(--line)}
+.db-scroll{flex:1;min-height:0;overflow:auto}
+.grp{padding:12px 20px 6px;font-size:12px;color:var(--muted)}.grp b{font-family:var(--mono);color:var(--fg)}
+ul{list-style:none;margin:0;padding:0}
+.row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:11px 20px;border-top:1px solid var(--line);cursor:pointer}
+.row:hover{background:#1a2130}
+.row[aria-selected=true]{background:color-mix(in srgb,var(--accent-color) 13%,transparent);box-shadow:inset 3px 0 0 var(--accent-color)}
+.row .nm{font-size:14px;font-weight:700}.row .meta{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.chip{font:12px var(--mono);border-radius:6px;padding:1px 7px;border:1px solid;align-self:start;white-space:nowrap}
+.chip.open{color:var(--red);border-color:var(--red);background:color-mix(in srgb,var(--red) 12%,transparent)}
+.chip.wait{color:var(--fg);border-color:color-mix(in srgb,var(--fg) 60%,var(--panel));font-family:"Malgun Gothic",sans-serif}
+.chip.wait .v{font-family:var(--mono)}
+.chip.soon{color:var(--red)}
+.stamp{font:700 12px var(--mono);background:var(--fg);color:#0d1116;border-radius:6px;padding:1px 7px;align-self:start}
+.chk{font-size:11px;border:1px dashed var(--line-strong);border-radius:6px;padding:0 5px;margin-left:4px}
+.more{display:flex;justify-content:space-between;width:calc(100% - 40px);margin:12px 20px}
+
+.pane-body{flex:1;min-height:0;overflow:auto;padding:18px 24px}
+.ph{display:flex;align-items:center;gap:10px}.ph h2{margin:0;font-size:16px}
+.psub{margin:2px 0 14px;font-size:13px;color:var(--muted)}
+.sec{border-top:1px solid var(--line);padding:14px 0}.sec h3{margin:0 0 10px;font-size:14px}
+.ntrk{position:relative;height:44px;margin:4px 0 10px}
+.ntrk .base{position:absolute;left:0;right:0;top:16px;height:8px;border-radius:4px;background:var(--panel2);border:1px solid var(--line-strong)}
+.ntrk .done{position:absolute;left:0;top:16px;height:8px;border-radius:4px 0 0 4px;background:color-mix(in srgb,var(--fg) 22%,var(--panel))}
+.ntrk .win{position:absolute;top:10px;height:20px;border-radius:4px;background:color-mix(in srgb,var(--red) 18%,transparent);border:1px solid var(--red)}
+.ntrk .tick{position:absolute;top:8px;height:24px;border-left:1px solid var(--fg)}
+.ntrk .tick.end{border-left:2px dashed var(--muted)}
+.ntrk .lb{position:absolute;top:32px;font:11px var(--mono);color:var(--muted);white-space:nowrap;transform:translateX(-50%)}
+.ntrk .lb.l{transform:none}.ntrk .lb.r{transform:translateX(-100%)}
+.ntrk .lb.top{top:-6px;color:var(--fg)}
+.dl{display:grid;grid-template-columns:96px 1fr;gap:6px 12px;margin:0}.dl dt{font-size:12px;color:var(--muted)}.dl dd{margin:0;font-size:13px}
+.dl a{color:var(--fg);text-decoration:underline;text-decoration-color:var(--accent-color);text-underline-offset:3px}
+.note{font-size:12px;color:var(--muted);margin:8px 0 0;word-break:keep-all}
+.act{border-top:1px solid var(--line);padding:12px 24px;display:flex;gap:10px}
+.act .go{border-color:var(--accent-color);font-size:13px;padding:8px 16px}
+.blank{display:flex;align-items:flex-start;justify-content:center;padding:48px 24px 24px;color:var(--muted);text-align:center;word-break:keep-all}
+.rail{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.rail .pnl{padding:16px 20px;color:var(--muted);font-size:12px}
+.anno{font-size:11px;color:var(--accent-color);margin:-12px 0 0}
+@media (prefers-reduced-motion:reduce){button{transition:none}button:hover{transform:none}}
+</style></head><body>
+<div class="mock-bar" role="note">시안 — 기관명·날짜는 2026-11-12 institutions.js·institutions_nonmuni.js 레코드의 출처(sources) 글에서 옮겼다. 접수·마감일은 아직 레코드 칸이 아니라 출처 글에만 있다. 면 색과 월별 막대 높이는 예시다.</div>
+<div class="doc">
+<h1>공고 진행 중 — 지도 표식과 현황판 띠</h1>
+<p class="lead">공고가 이미 난 기관은 '예정일 경과'가 아니라 가장 급한 일입니다. 다만 그중 접수 마감 전인 곳만 빨강을 쓰고, 마감이 지났거나 모르는 곳은 무채색 '공고 후 n일'로 결과를 확인하게 합니다.</p>
+
+<section class="part" aria-labelledby="p1">
+<h2 id="p1">1. 지도 — 선택지 세 가지</h2>
+<p>세 안 모두 진행 중 기관의 면 색 점수는 +2(결정대로)입니다. 차이는 라벨 표식뿐입니다.</p>
+<div class="opts">
+ <article class="pnl opt"><h3>A. ▲에 포함</h3><p class="why">사용자 결정 그대로. 지도만 보면 '6개월 뒤 예정'과 '지금 접수 중'이 같아 보입니다.</p>
+  <div class="stage"><svg viewBox="0 0 300 180" role="img" aria-label="A안 예시: 서울 ▲5, 대전 ▲1, 경남 △2">
+   <path d="M30 40 L120 26 L140 80 L96 120 L36 104Z" fill="#f0a6a9" stroke="#0f1420"/><path d="M150 30 L230 36 L240 90 L170 96Z" fill="#cf9ad8" stroke="#0f1420"/><path d="M120 120 L250 108 L270 160 L140 168Z" fill="#cf9ad8" stroke="#0f1420"/>
+   <text class="label" x="84" y="78" text-anchor="middle">서울<tspan class="tri" dx="4">▲5</tspan></text>
+   <text class="label" x="196" y="68" text-anchor="middle">대전<tspan class="tri" dx="4">▲1</tspan></text>
+   <text class="label" x="196" y="144" text-anchor="middle">경남<tspan class="tri" dx="4">△2</tspan></text></svg></div>
+  <div class="lg"><span><b class="tri">▲3</b> 6개월 안 기관 + 공고 진행 중 (속 빈 △는 추정)</span></div></article>
+
+ <article class="pnl opt rec"><h3>B. 라벨 둘째 줄 '공고 n'<span class="tag">권장</span></h3><p class="why">▲는 '앞으로', 공고는 '이미 났음'. 모양과 글자로 나뉘고 ▲의 뜻은 그대로입니다.</p>
+  <div class="stage"><svg viewBox="0 0 300 180" role="img" aria-label="B안 예시: 서울 공고 진행 중 5곳, 대전 공고 진행 중 1곳, 경남 6개월 안 추정 2곳">
+   <path d="M30 40 L120 26 L140 80 L96 120 L36 104Z" fill="#f0a6a9" stroke="#0f1420"/><path d="M150 30 L230 36 L240 90 L170 96Z" fill="#cf9ad8" stroke="#0f1420"/><path d="M120 120 L250 108 L270 160 L140 168Z" fill="#cf9ad8" stroke="#0f1420"/>
+   <text class="label" x="84" y="72" text-anchor="middle">서울<tspan class="sub" x="84" dy="1.25em">공고 5</tspan></text>
+   <text class="label" x="196" y="62" text-anchor="middle">대전<tspan class="sub" x="196" dy="1.25em">공고 1</tspan></text>
+   <text class="label" x="196" y="144" text-anchor="middle">경남<tspan class="tri" dx="4">△2</tspan></text></svg></div>
+  <div class="lg"><span><b class="tri">▲3</b> 6개월 안 공고 예정 기관 수 (속 빈 △는 추정)</span><span><i class="nchip">공고 2</i>공고가 나서 진행 중인 기관 수 (공고일부터 120일)</span></div></article>
+
+ <article class="pnl opt"><h3>C. 빨강 점선 외곽선</h3><p class="why">관심 지역 금색 외곽선·선택 틸 깜빡임과 겹치고, 색만으로 전달합니다. 기각.</p>
+  <div class="stage"><svg viewBox="0 0 300 180" role="img" aria-label="C안 예시: 서울과 대전에 빨강 점선 외곽선">
+   <path d="M30 40 L120 26 L140 80 L96 120 L36 104Z" fill="#f0a6a9" stroke="#e07856" stroke-width="2.5" stroke-dasharray="5 3"/><path d="M150 30 L230 36 L240 90 L170 96Z" fill="#cf9ad8" stroke="#e07856" stroke-width="2.5" stroke-dasharray="5 3"/><path d="M120 120 L250 108 L270 160 L140 168Z" fill="#cf9ad8" stroke="#0f1420"/>
+   <text class="label" x="84" y="78" text-anchor="middle">서울</text><text class="label" x="196" y="68" text-anchor="middle">대전</text>
+   <text class="label" x="196" y="144" text-anchor="middle">경남<tspan class="tri" dx="4">△2</tspan></text></svg></div>
+  <div class="lg"><span>— 점선: 공고 진행 중</span></div></article>
+</div>
+
+<div class="tipwrap">
+ <div class="tip" role="tooltip" aria-label="서울 툴팁 예시">
+  <div class="h"><b>서울</b><i class="sw"></i></div>
+  <div class="blk"><div class="t">공고 진행 중 5곳 <span class="v">— 마감 전 2 · 결과 확인 3</span></div>
+   <div class="r">송파문화재단 <span class="dd">마감 D-4</span></div>
+   <div class="r">마포구청 <span class="dd">접수 11.16~11.19</span></div>
+   <div class="w">성북구청 <span class="dd">공고 후 77일</span> 외 2곳</div></div>
+  <div>가장 임박(공고 전) 없음</div>
+  <div class="mu">기관 30곳 중 예정일 경과 n곳·날짜 미상 n곳은 색에 넣지 않음</div>
+ </div>
+ <ul class="spec">
+  <li><b>툴팁 첫 블록</b> = 공고 진행 중. 왼쪽 2px 빨강 72% 막대. 이름은 마감 전 최대 2곳, 결과 확인은 1곳 + '외 n곳'.</li>
+  <li><b>마감일 칸이 없을 때</b>: '마포구청 공고 10.29 · 공고 후 14일 · 마감일 미확인' (빨강을 쓰지 않음).</li>
+  <li><b>스크린리더 이름</b>: "서울, 빨강, 공고 진행 중 5곳(마감 전 2곳), 6개월 안 0곳, 기관 30곳".</li>
+  <li><b>라벨 둘째 줄</b>: 10px/700 #141922, 후광 #eef2f8 3px(대비 15.7:1). render.js '준비중' tspan.sub 자리를 다시 씀.</li>
+ </ul>
+</div>
+
+<h2 style="font-size:14px;margin:20px 0 0">상단 임박 TOP5 티커</h2>
+<div class="tk" aria-label="티커 예시: 지금"><span class="ttl">지금(대체 규칙)</span><span class="cap">임박 TOP5</span><span class="n">공고 중 14</span><span class="it">▲ 하동군청 D-31</span><span class="sep">·</span><span class="it">▲ 공주시청 D-123</span><span class="sep">·</span><span class="it">▲ 합천군청 D-182</span><span class="sep">·</span><span class="it y">울산광역시 D-230</span></div>
+<div class="tk" aria-label="티커 예시: 마감일 칸이 생긴 뒤"><span class="ttl">마감일 칸 뒤</span><span class="cap">임박 TOP5</span><span class="it">▲ 송파문화재단 마감 D-4</span><span class="sep">·</span><span class="it">▲ 마포구청 마감 D-7</span><span class="sep">·</span><span class="it">▲ 한국섬진흥원 마감 D-11</span><span class="sep">·</span><span class="it">▲ 사립학교교직원연금공단 마감 D-25</span><span class="sep">·</span><span class="it">▲ 하동군청 D-31</span></div>
+<p class="note">시안의 ▲ 글자는 실제 화면에서 ICONS.up 그림으로 그립니다. 결과 확인 건은 티커에 넣지 않습니다(급한 일이 아니라 확인할 일).</p>
+</section>
+
+<section class="part" aria-labelledby="p2">
+<h2 id="p2">2. 입찰 현황판 — 1280px 화면(본문 1032px)</h2>
+<p>순서: 공고가 난 기관 띠 → 월별 입찰 예정 → 목록|상세(높이 고정, 안에서 스크롤) → 국민은행 약정·제안 진행 단계. 처음 열면 마감이 가장 가까운 기관이 선택되어 상세 칸이 비지 않습니다.</p>
+<fieldset class="state-pick"><legend class="sr">띠 상태 보기</legend>
+ <label><input type="radio" name="st" value="5" checked><span>비지자체 연결 뒤(5곳)</span></label>
+ <label><input type="radio" name="st" value="1"><span>지금 — 지자체만(1곳)</span></label>
+ <label><input type="radio" name="st" value="0"><span>0곳(띠 숨김)</span></label></fieldset>
+
+<div class="frame">
+ <section class="pnl db-nb" id="nb" aria-labelledby="nb-h">
+  <div class="db-h"><h2 id="nb-h">지금 공고가 난 기관</h2><span class="sum" id="nb-sum"></span><button type="button" class="end">결과 확인 <span class="v">9</span>곳 보기</button></div>
+  <div class="nb-row" id="nb-row"></div>
+ </section>
+
+ <section class="pnl db-tl" aria-labelledby="tl-h">
+  <div class="db-h"><h2 id="tl-h">월별 입찰 예정</h2><span class="sum">경과 <b>11</b>곳 · 6개월 안 <b>3</b>곳 · 1년 안 <b>43</b>곳</span></div>
+  <div class="tl-mini" aria-hidden="true"><div class="tile ov"><b>11곳</b>공고 예정일 경과</div>
+   <div class="bars"><span></span><i class="u" style="height:14px"></i><span></span><span></span><i class="u" style="height:14px"></i><span></span><i class="u" style="height:14px"></i><i style="height:80px"></i><span></span><i style="height:14px"></i><span></span><span></span><span></span></div>
+   <div class="tile"><b>179곳</b>1년 뒤</div><div class="tile unk"><b>0곳</b>날짜 미상</div></div>
+  <p class="note">막대는 지금 구현 그대로(축약해서 그림). 경과 수가 21 → 11로 줄어드는 것은 진행 중을 경과에서 뺀 결과(기획 확인).</p>
+ </section>
+
+ <div class="db-work">
+  <section class="pnl db-list" aria-labelledby="lt">
+   <div class="db-list-head"><div class="db-h"><h2 id="lt">다가오는 입찰</h2></div></div>
+   <div class="db-scroll">
+    <div class="grp" id="g0">공고 진행 중 <b>10</b>곳 · 마감 전 먼저</div>
+    <ul role="listbox" tabindex="0" aria-labelledby="g0" id="lb0">
+     <li role="option" aria-selected="true" class="row" data-k="mapo"><span class="nm">마포구청</span><span class="chip open">마감 D-7</span><span class="meta">서울 · 접수 <span class="d">11.16~11.19</span> · 접수 시작 D-4</span></li>
+     <li role="option" aria-selected="false" class="row"><span class="nm">성북구청</span><span class="chip wait">공고 후 <span class="v">77</span>일</span><span class="meta">서울 · 마감 지남(<span class="d">09-18</span>) · 결과가 났는지 확인하세요</span></li>
+     <li role="option" aria-selected="false" class="row"><span class="nm">용산구청</span><span class="chip wait">공고 후 <span class="v">85</span>일</span><span class="meta">서울 · 마감일 미확인 · 결과가 났는지 확인하세요</span></li>
+     <li role="option" aria-selected="false" class="row"><span class="nm">관악구청</span><span class="chip wait">공고 후 <span class="v">91</span>일</span><span class="meta">서울 · 마감일 미확인 · 결과가 났는지 확인하세요 <span class="chk">날짜 의미 확인 중</span></span></li>
+    </ul>
+    <div class="grp" id="g1">6개월 안 <b>3</b>곳 · 가까운 순</div>
+    <ul role="listbox" tabindex="0" aria-labelledby="g1">
+     <li role="option" aria-selected="false" class="row"><span class="nm">하동군청</span><span class="chip soon" style="border-color:var(--red)">D-31</span><span class="meta">경남 · <span class="d">2026-12-13</span> 추정</span></li>
+     <li role="option" aria-selected="false" class="row"><span class="nm">공주시청</span><span class="chip soon" style="border-color:var(--red)">D-123</span><span class="meta">충남 · <span class="d">2027-03-15</span> 추정</span></li>
+    </ul>
+    <button type="button" class="more" aria-expanded="false"><span><span class="stamp">D+</span> 공고 예정일 경과 <b class="v">11</b>곳</span><span>펼치기</span></button>
+   </div>
+  </section>
+
+  <section class="pnl db-pane" aria-labelledby="pn">
+   <div class="pane-body">
+    <div class="ph"><h2 id="pn">마포구청</h2><span class="chip open">마감 D-7</span></div>
+    <p class="psub">지자체 · 서울 · 현 금고 우리은행</p>
+    <div class="sec"><h3>공고 진행</h3>
+     <div class="ntrk" role="img" aria-label="공고 2026-10-29, 오늘 11-12, 접수 11-16부터 11-19까지, 현 약정 만료 12-31">
+      <div class="base"></div><div class="done" style="width:22%"></div>
+      <div class="tick" style="left:0"></div><span class="lb l" style="left:0">공고 10.29</span>
+      <div class="tick" style="left:22%"></div><span class="lb top" style="left:22%">오늘 11.12</span>
+      <div class="win" style="left:29%;width:5.5%"></div><span class="lb" style="left:32%">접수 11.16~19</span>
+      <div class="tick end" style="left:100%"></div><span class="lb r" style="left:100%">약정 만료 12.31</span>
+     </div>
+     <dl class="dl">
+      <dt>공고</dt><dd><span class="v">2026-10-29</span> 「마포구 금고지정 계획 공고」 <span class="v">제2026-1729호</span></dd>
+      <dt>공고 기간</dt><dd><span class="v">2026-10-29 ~ 11-18</span></dd>
+      <dt>접수</dt><dd><span class="v">2026-11-16(월) ~ 11-19(목)</span> · 마감 <span class="v">D-7</span></dd>
+      <dt>현 약정 만료</dt><dd><span class="v">2026-12-31</span></dd>
+      <dt>출처</dt><dd>eminwon 고시공고 원문, 2026-11-11 확인 · <a href="#" onclick="return false">공고 게시판 열기</a> <span class="note" style="display:inline">(인터넷 연결 필요)</span></dd>
+     </dl>
+     <p class="note">링크가 게시판 목록 주소라 '원문'이 아니라 '게시판'이라고 씁니다. 나라장터 공고번호 주소면 '공고 원문 열기'.</p>
+    </div>
+    <div class="sec"><h3>기관장</h3><dl class="dl"><dt>기관장</dt><dd><span style="font-size:12px;color:var(--muted);border:1px dashed var(--line-strong);border-radius:6px;padding:0 6px">미확인</span></dd></dl></div>
+   </div>
+   <div class="act"><button type="button" class="go">제안 확정</button><button type="button">전국 지도에서 보기</button></div>
+  </section>
+ </div>
+ <p class="anno">목록·상세 높이 = clamp(440px, 100vh − 140px, 820px). 841px 화면에서 701px(지금 1998px).</p>
+
+ <div class="rail"><section class="pnl" aria-label="국민은행 금고 약정">국민은행 금고 약정 — 지금 구현 그대로, 목록 아래로 옮김</section><section class="pnl" aria-label="제안 진행 단계">제안 진행 단계 — 지금 구현 그대로, 목록 아래로 옮김</section></div>
+</div>
+
+<h2 style="font-size:14px;margin:24px 0 8px">상세 칸 — 고를 것이 없을 때만</h2>
+<div class="pnl" style="width:560px;height:200px;display:flex"><div class="blank" style="flex:1">왼쪽 목록에서 기관을 고르세요. 기관 정보와 [제안 확정] 버튼이 여기에 보입니다.</div></div>
+<p class="note">안내문은 칸 위쪽(48px)에 둡니다. 가운데 정렬이면 높은 칸에서 첫 화면 밖으로 나갑니다.</p>
+</section>
+</div>
+<script>
+var CARDS=[
+ {k:'songpa',d:'D-4',nm:'재단법인 송파문화재단',mt:'서울 · 공공기관',rc:'마감 <span class="d">11.16(월) 17:00</span>'},
+ {k:'mapo',d:'D-7',nm:'마포구청',mt:'서울 · 지자체',rc:'접수 <span class="d">11.16~11.19</span>'},
+ {k:'seom',d:'D-11',nm:'한국섬진흥원',mt:'전남 · 공공기관',rc:'마감 <span class="d">11.23(월) 10:00</span>'},
+ {k:'tp',d:'D-25',nm:'사립학교교직원연금공단',mt:'전남 · 공공기관',rc:'마감 <span class="d">12.07(월) 15:00</span>'},
+ {k:'innopolis',d:'D-26',nm:'(재)연구개발특구진흥재단',mt:'대전 · 공공기관',rc:'마감 <span class="d">12.08(화) 10:00</span>'}];
+function card(c){return '<button type="button" class="nb-card" aria-pressed="'+(c.k==='mapo')+'" aria-label="'+c.nm.replace(/"/g,'')+', 마감 '+c.d+'"><span class="nb-stub"><small>마감</small><b>'+c.d+'</b></span><span class="nb-body"><span class="nm">'+c.nm+'</span><span class="mt">'+c.mt+'</span><span class="rc">'+c.rc+'</span></span></button>';}
+function paint(n){var nb=document.getElementById('nb'),row=document.getElementById('nb-row'),sum=document.getElementById('nb-sum');
+ if(n===0){nb.hidden=true;return;} nb.hidden=false;
+ sum.innerHTML='접수 마감 전 <b>'+n+'</b>곳 · 결과 확인 <b>9</b>곳';
+ if(n===1){row.className='nb-row one';row.innerHTML=card(CARDS[1])+'<p class="nb-aside">공고가 나서 결과를 기다리는 기관 <b>9</b>곳 — 결과 공고가 났는지 확인하세요. 마감이 지났거나 마감일을 모르는 곳이라 빨강으로 표시하지 않습니다.</p>';}
+ else{row.className='nb-row';row.innerHTML=CARDS.slice(0,n).map(card).join('');}}
+document.querySelectorAll('input[name=st]').forEach(function(r){r.addEventListener('change',function(){paint(+r.value);});});
+paint(5);
+</script>
+</body></html>
