@@ -306,10 +306,15 @@
 
   // ── 지도 지역 색 섞기(NEXT 78, C안 '바닥 섞기 + ▲개수') ──────────────────────────
   // 규격: handoff/agents/design-reviewer/2026-11-11_1616_a821ad3f.md §3.
-  // 기관 점수: 6개월 안(경과 포함) +2, 6~12개월 +1, 1~2년 −1, 2년 넘음 −2, 날짜 미상은 계산에서 뺀다(null).
+  // 기관 점수: 6개월 안 +2, 6~12개월 +1, 1~2년 −1, 2년 넘음 −2. 날짜 미상과 예정일이 지난(경과) 기관은
+  // 계산에서 뺀다(null) — 경과는 '공고 예정일 경과' 목록에서 따로 다룬다(사용자 2026-11-12).
+  logic.isOverdue = function (rec, today) {
+    const d = logic.daysUntil(logic.effectiveBid(rec).date, today);
+    return d !== Infinity && d < 0;
+  };
   logic.instScore = function (rec, today) {
     const d = logic.daysUntil(logic.effectiveBid(rec).date, today);
-    if (d === Infinity) return null;
+    if (d === Infinity || d < 0) return null;
     if (d <= 182) return 2;
     if (d <= 365) return 1;
     if (d <= 730) return -1;
@@ -342,15 +347,16 @@
   };
 
   // 지역(또는 면) 하나의 섞기 결과. list는 호출자가 켠 종류·기관 단위 중복 제거를 마친 목록.
-  // band: 'none'(기관 0곳) | 'gray'(날짜 있는 기관 0곳) | r3·r2·p·b2·b3.
-  // 6개월 안 또는 6~12개월 기관이 있으면 파랑 쪽으로 못 내려가고 최소 보라(c안 바닥).
+  // band: 'none'(기관 0곳) | 'gray'(경과 아닌 날짜 있는 기관 0곳) | r3·r2·p·b2·b3.
+  // 색은 평균 점수만으로 정한다(사용자 2026-11-12 — '최소 보라' 바닥 규칙 뺌). 경과 기관은 overdue로만 센다.
   // urgent = 6개월 안 기관 수(▲n), urgentAllEst = 그 기관이 전부 추정이면 true(속 빈 △).
   logic.regionMix = function (list, today) {
     const items = list || [];
     const info = { total: items.length, dated: 0, unknown: 0, mean: null, band: 'none',
-      within6: 0, to12: 0, to24: 0, over24: 0, urgent: 0, urgentAllEst: false, imminent: null };
+      overdue: 0, within6: 0, to12: 0, to24: 0, over24: 0, urgent: 0, urgentAllEst: false, imminent: null };
     let sum = 0, allEst = true;
     items.forEach(function (r) {
+      if (logic.isOverdue(r, today)) { info.overdue += 1; return; }
       const s = logic.instScore(r, today);
       if (s === null) { info.unknown += 1; return; }
       info.dated += 1; sum += s;
@@ -367,9 +373,8 @@
     else {
       info.mean = sum / info.dated;
       info.band = logic.mixBandOf(info.mean);
-      if ((info.within6 + info.to12) > 0 && (info.band === 'b2' || info.band === 'b3')) info.band = 'p';
     }
-    info.imminent = logic.mostImminent(items, today);
+    info.imminent = logic.mostImminent(items.filter(function (r) { return !logic.isOverdue(r, today); }), today);
     return info;
   };
 

@@ -25,9 +25,9 @@ function undated(n) {
   return out;
 }
 
-test('instScore: 6개월 안·경과 +2, 6~12개월 +1, 1~2년 −1, 2년 넘음 −2, 미상 null', () => {
+test('instScore: 6개월 안 +2, 6~12개월 +1, 1~2년 −1, 2년 넘음 −2, 미상·경과 null', () => {
   assert.strictEqual(logic.instScore(rec(30), TODAY), 2);
-  assert.strictEqual(logic.instScore(rec(-40), TODAY), 2);      // 경과 포함
+  assert.strictEqual(logic.instScore(rec(-40), TODAY), null);   // 경과는 따로 관리(사용자 2026-11-12)
   assert.strictEqual(logic.instScore(rec(250), TODAY), 1);
   assert.strictEqual(logic.instScore(rec(500), TODAY), -1);
   assert.strictEqual(logic.instScore(rec(1000), TODAY), -2);
@@ -52,18 +52,18 @@ test('섞기 가: 6개월 안 1곳뿐 → 진빨강 ▲1', () => {
   const m = logic.regionMix(recs(D.W6, 1), TODAY);
   assert.strictEqual(m.band, 'r3'); assert.strictEqual(logic.urgentMark(m), '▲1');
 });
-test('섞기 나: 6개월 안 1 + 2년 넘음 9 → 보라 ▲1 (평균은 진파랑이지만 바닥이 막는다)', () => {
+test('섞기 나: 6개월 안 1 + 2년 넘음 9 → 평균대로 진파랑 ▲1 (바닥 규칙 없음, 사용자 2026-11-12)', () => {
   const m = logic.regionMix(recs(D.W6, 1).concat(recs(D.OVER, 9)), TODAY);
   assert.ok(m.mean < -1.5);
-  assert.strictEqual(m.band, 'p'); assert.strictEqual(m.urgent, 1);
+  assert.strictEqual(m.band, 'b3'); assert.strictEqual(m.urgent, 1);
 });
 test('섞기 다: 6개월 안 5 + 2년 넘음 5 → 보라 ▲5', () => {
   const m = logic.regionMix(recs(D.W6, 5).concat(recs(D.OVER, 5)), TODAY);
   assert.strictEqual(m.band, 'p'); assert.strictEqual(logic.urgentMark(m), '▲5');
 });
-test('섞기 라: 6~12개월 1 + 2년 넘음 9 → 보라, ▲ 없음', () => {
+test('섞기 라: 6~12개월 1 + 2년 넘음 9 → 평균대로 진파랑, ▲ 없음', () => {
   const m = logic.regionMix(recs(D.M12, 1).concat(recs(D.OVER, 9)), TODAY);
-  assert.strictEqual(m.band, 'p'); assert.strictEqual(logic.urgentMark(m), '');
+  assert.strictEqual(m.band, 'b3'); assert.strictEqual(logic.urgentMark(m), '');
 });
 test('섞기 마: 6~12개월 2 → 빨강', () => {
   assert.strictEqual(logic.regionMix(recs(D.M12, 2), TODAY).band, 'r2');
@@ -134,8 +134,8 @@ function withFeatureRecords(records, fn) {
   finally { render.municipalityForFeature = origLookup; render.state.today = origToday; }
 }
 
-test('subUrgencyColor: 켠 기관을 섞은 5단 색(나 시나리오 = 보라)', () => {
-  withFeatureRecords(recs(D.W6, 1).concat(recs(D.OVER, 9)), () => {
+test('subUrgencyColor: 켠 기관을 섞은 5단 색(다 시나리오 = 보라)', () => {
+  withFeatureRecords(recs(D.W6, 5).concat(recs(D.OVER, 5)), () => {
     assert.strictEqual(render.subUrgencyColor({}), render.MAP_COLORS.p);
   });
 });
@@ -194,12 +194,15 @@ test('클릭 기관은 그 구의 지자체 우선, 섞기 가장 임박은 더 
   });
 });
 
-test('경과 건은 규격대로 +2·▲에 포함된다(동작 고정, NEXT 78 기획 이관 전)', () => {
+test('경과 건은 색·▲·가장 임박에서 빠지고 overdue로만 센다(사용자 2026-11-12)', () => {
   const m = logic.regionMix([rec(-100, true, '경과'), rec(D.OVER, true, '먼')], TODAY);
-  assert.strictEqual(m.within6, 1); assert.strictEqual(m.urgent, 1);
-  assert.strictEqual(m.mean, 0);
-  assert.strictEqual(m.band, 'p');
-  assert.strictEqual(logic.regionMix([rec(-100, true, '경과')], TODAY).band, 'r3');
+  assert.strictEqual(m.overdue, 1); assert.strictEqual(m.within6, 0); assert.strictEqual(m.urgent, 0);
+  assert.strictEqual(m.mean, -2); assert.strictEqual(m.band, 'b3');
+  assert.strictEqual(m.imminent.name, '먼');
+  const only = logic.regionMix([rec(-100, true, '경과')], TODAY);
+  assert.strictEqual(only.band, 'gray'); assert.strictEqual(only.imminent, null);
+  const h = render.tipHtml('경과곳', m, TODAY);
+  assert.ok(h.includes('기관 2곳 중 예정일 경과 1곳은 색에 넣지 않음'), h);
 });
 
 test('recordForFeature: 날짜가 전부 없으면 첫 기관을 돌려준다(눌러서 고를 수는 있다)', () => {
@@ -230,7 +233,7 @@ test('테마 5단: 기본값, 마커는 지도 팔레트, 티커(크롬)는 옛 
 
 test('instScore 경계: 0·182 / 183·365 / 366·730 / 731 / −1일', () => {
   assert.strictEqual(logic.instScore(rec(0), TODAY), 2);
-  assert.strictEqual(logic.instScore(rec(-1), TODAY), 2);
+  assert.strictEqual(logic.instScore(rec(-1), TODAY), null);
   assert.strictEqual(logic.instScore(rec(182), TODAY), 2);
   assert.strictEqual(logic.instScore(rec(183), TODAY), 1);
   assert.strictEqual(logic.instScore(rec(365), TODAY), 1);
@@ -239,10 +242,10 @@ test('instScore 경계: 0·182 / 183·365 / 366·730 / 731 / −1일', () => {
   assert.strictEqual(logic.instScore(rec(731), TODAY), -2);
 });
 
-test('바닥: 평균이 정확히 −0.5여도 6~12개월 기관이 있으면 보라, 없으면 파랑', () => {
+test('바닥 없음: 평균이 −0.5면 6~12개월 기관이 있어도 파랑', () => {
   const withFloor = logic.regionMix([rec(D.M12, true, 'a'), rec(D.OVER, true, 'b')], TODAY);   // (+1 −2)/2 = −0.5
   assert.strictEqual(withFloor.mean, -0.5);
-  assert.strictEqual(withFloor.band, 'p');
+  assert.strictEqual(withFloor.band, 'b2');
   const noFloor = logic.regionMix([rec(D.Y2, true, 'a'), rec(D.Y2, true, 'b'), rec(D.OVER, true, 'c'), rec(D.OVER, true, 'd')], TODAY); // −1.5
   assert.strictEqual(noFloor.band, 'b3');
 });
@@ -309,6 +312,6 @@ test('tipHtml: 가장 임박·구간 수·미상 안내, 추정이면 (추정), 
 
 test('mixAriaLabel: 이름, 색 이름, 6개월 안 곳수, 기관 수', () => {
   const info = logic.regionMix(recs(D.W6, 1).concat(recs(D.OVER, 9)), TODAY);
-  assert.strictEqual(render.mixAriaLabel('서울', info), '서울, 보라, 6개월 안 1곳, 기관 10곳');
+  assert.strictEqual(render.mixAriaLabel('서울', info), '서울, ' + render.MIX_NAME.b3 + ', 6개월 안 1곳, 기관 10곳');
   assert.strictEqual(render.mixAriaLabel('빈곳', logic.regionMix([], TODAY)), '빈곳, 기관 없음, 기관 0곳');
 });

@@ -103,7 +103,7 @@
   // 색을 바꿔도 범례만 옛 색으로 남는 문제가 있었다.
   // 용어 통일(규격 §6): 6개월 안 / 6~12개월 / 1~2년 / 2년 넘음 / 날짜 미상 / 추정.
   render.LEGEND_ITEMS = [
-    ['r3','6개월 안 위주'], ['r2','1년 안 위주'], ['p','섞임 (1년 안 포함)'],
+    ['r3','6개월 안 위주'], ['r2','1년 안 위주'], ['p','섞임 (급한 곳·여유 있는 곳 반반)'],
     ['b2','1~2년 위주'], ['b3','2년 넘음 위주'], ['gray','날짜 미상'],
   ];
   render.MIX_NAME = { r3:'진빨강', r2:'빨강', p:'보라', b2:'파랑', b3:'진파랑', gray:'날짜 미상', none:'기관 없음' };
@@ -365,7 +365,7 @@
 
   // 섞기 기준의 '가장 임박' 기관 — 툴팁·▲가 가리키는 기관(logic.mostImminent). 날짜가 전부 없으면 null.
   render.imminentForFeature = function (feature) {
-    return logic.mostImminent(render.recordsForFeature(feature), render.state.today);
+    return render.featureMixInfo(feature).imminent;   // 경과 기관은 빼고 고른다
   };
 
   // **클릭으로 잡히는 기관**은 섞기와 별개다(팀 결정 2026-11-11, 사용자 확정 ⓐ안): 그 구의 지자체가
@@ -405,8 +405,11 @@
     } else {
       h += '<div class="rt-row">날짜가 있는 기관이 없습니다</div>';
     }
-    h += '<div class="rt-mu">' + (info.unknown
-      ? '기관 ' + info.total + '곳 중 날짜 미상 ' + info.unknown + '곳은 색에 넣지 않음'
+    const left = [];
+    if (info.overdue) left.push('예정일 경과 ' + info.overdue + '곳');
+    if (info.unknown) left.push('날짜 미상 ' + info.unknown + '곳');
+    h += '<div class="rt-mu">' + (left.length
+      ? '기관 ' + info.total + '곳 중 ' + left.join('·') + '은 색에 넣지 않음'
       : '기관 ' + info.total + '곳') + '</div>';
     return h;
   };
