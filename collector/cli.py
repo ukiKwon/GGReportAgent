@@ -62,7 +62,10 @@ def _unlock(path: Path, token: str) -> None:
     except OSError:
         return
     if mine:
-        path.unlink(missing_ok=True)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:                        # 백신·색인이 잡은 경우 — 원래 종료 코드를 덮지 않는다(다음 실행이 6시간 뒤 회수)
+            pass
 
 
 def _lock(path: Path, token: str = ""):
@@ -78,7 +81,10 @@ def _lock(path: Path, token: str = ""):
             except OSError:
                 continue
             if age > STALE_LOCK_SEC:
-                path.unlink(missing_ok=True)       # 오래된 잠금 회수 후 한 번 더 시도
+                try:
+                    path.unlink(missing_ok=True)   # 오래된 잠금 회수 후 한 번 더 시도
+                except OSError:
+                    return None                    # 지울 수 없으면 '다른 실행 중'(4)으로
                 continue
             return None
     return None

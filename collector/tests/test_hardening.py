@@ -183,3 +183,44 @@ def test_undeletable_bak_raises_clear_error_and_keeps_raw(tmp_path, monkeypatch)
     with pytest.raises(OSError, match="잔여물"):
         s.write("eminwon", "h", "n1", b"v2", [], {})
     assert (final / "detail.html").read_bytes() == b"v1"
+
+
+class _SlowRead1:
+    """read1 한 번 = 소켓 한 번(시계 20초). read는 n을 채울 때까지 여러 번 기다리는 실제 동작을 흉내."""
+    headers = types.SimpleNamespace(get_content_charset=lambda: None)
+
+    def __init__(self, data, clock):
+        self.data, self.clock = data, clock
+
+    def read1(self, n):
+        self.clock.t += 20.0
+        out, self.data = self.data[:1], self.data[1:]
+        return out
+
+    def read(self, n):
+        out = b""
+        while len(out) < n and self.data:
+            out += self.read1(n)
+        return out
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_deadline_applies_within_small_body(monkeypatch):
+    clock = _Clock()
+    _patch_opener(monkeypatch, _SlowRead1(b"a" * 100, clock))       # 64KB 미만 본문, 1바이트씩 20초
+    with pytest.raises(FetchTimeoutError):
+        HttpClient(timeout=10, delay=0, sleep=lambda s: None, clock=clock).get("https://drip.example/x")
+    assert clock.t < 100                                             # 마감(30초) 직후 멈춤 — 2000초 기다리지 않음
+
+
+def test_lock_reclaim_unlink_failure_is_busy(tmp_path, monkeypatch):
+    lock = tmp_path / "run.lock"
+    lock.write_text("pid=1 token=x at=1\n")
+    os.utime(lock, (1, 1))                                           # 아주 오래된 잠금
+    monkeypatch.setattr(Path, "unlink", lambda self, missing_ok=False: (_ for _ in ()).throw(PermissionError("locked")))
+    assert cli._lock(lock, "y") is None                              # traceback 대신 '다른 실행 중'

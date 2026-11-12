@@ -73,7 +73,7 @@ class EminwonConfig:
     max_attachments: int = 5
     delay_sec: float = 1.0
     timeout: float = 45.0                              # security 11-12: 단일 45초(urllib은 연결·읽기를 못 나눈다)
-    retry_backoff: tuple[float, ...] = (30.0, 90.0)    # 시간 초과·연결 실패 재시도 간격(최대 2회)
+    retry_backoff: tuple[float, ...] = (30.0, 90.0)    # 시간 초과 재시도 간격(최대 2회 — 연결 거부·DNS는 재시도 없이 2nd pass)
     handshake_retries: int = 1                         # 인증서 검증이 아닌 핸드셰이크 실패(메인 실측 11-12)
     second_pass: bool = True                           # 실행 끝에 일시 실패 호스트만 1회 더(재시도 없이)
     max_run_sec: float = 3 * 3600                      # 이 시간을 넘기면 백오프·2nd pass 생략(잠금 6시간 안, qa 11-12 P2-1)

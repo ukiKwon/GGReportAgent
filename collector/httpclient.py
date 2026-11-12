@@ -172,10 +172,13 @@ class HttpClient:
                 charset = resp.headers.get_content_charset()
                 chunks: list[bytes] = []
                 total = 0
+                # read1: 소켓을 한 번만 읽고 돌아온다 — read(n)은 n바이트를 채울 때까지 안에서 여러 번 기다려
+                # 마감 검사를 건너뛴다(qa 11-12 P2-A). read1이 없는 응답 객체(시험 가짜)는 read로.
+                read = getattr(resp, "read1", None) or resp.read
                 while total <= self.max_bytes:
                     if self._clock() - started > self.deadline:
                         raise FetchTimeoutError("요청 전체 마감 시간 초과")
-                    chunk = resp.read(min(READ_CHUNK, self.max_bytes + 1 - total))
+                    chunk = read(min(READ_CHUNK, self.max_bytes + 1 - total))
                     if not chunk:
                         break
                     chunks.append(chunk)
