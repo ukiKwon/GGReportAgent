@@ -66,6 +66,12 @@ def test_hwpx_rejects_non_zip_and_bad_dates():
 
 
 @pytest.mark.parametrize("title,kind", [
+    ("정부출연연구기관 주거래은행 선정 계획 공고", "계획"),
+    ("서울특별시 강남구 금고 지정 공고", "지정"),
+    ("금고 출연금 지원 공고", "제외"),
+    ("「2027년 상하수도 요금고지서 제작 및 출력(봉합)」수의계약 안내 공고", "제외"),
+    ("서울특별시 ○○구 금고 이율 공시", "제외"),
+    ("서울특별시 ○○구 금고지정 결과 및 운영현황 공고", "결과"),
     ("서울특별시 마포구 금고지정 계획 공고", "계획"),
     ("서울특별시 용산구 금고지정계획 재공고", "재공고"),
     ("서울특별시 동작구 금고지정 결과 공고", "결과"),
@@ -266,3 +272,30 @@ def test_end_to_end_masks_and_flags(tmp_path, capsys):
     rec = next(r for r in manifest["records"] if r["notice"]["number"] == "제2026-934호")
     assert rec["notice"]["vaccine"] == "사용자 확인" and rec["notice_id"] in summary["pack"]["vaccine_confirm"]
     assert not _re.search(r"0\d{1,2}-\d{3,4}-\d{4}", json.dumps(rec, ensure_ascii=False))
+
+
+def test_notice_failure_gives_exit_code_3(tmp_path, capsys):
+    from collector.httpclient import FetchError
+
+    class DetailDown(FakeHttp):
+        def get(self, url, verify=True):
+            if "not_ancmt_mgt_no=" in url and "FileDown.jsp" not in url:
+                raise FetchError("연결 실패")
+            return super().get(url, verify)
+
+    code = main(["run", "--source", "eminwon", "--hosts-file", str(_hosts_file(tmp_path)),
+                 "--out-root", str(tmp_path / "out")], http=DetailDown())
+    data = json.loads(capsys.readouterr().out)
+    assert data["collect"]["failed"] and not data["collect"]["hosts_failed"]
+    assert code == 3
+
+
+def test_real_host_config_schemes():
+    from collector.sources.eminwon import DEFAULT_HOSTS_FILE, load_hosts
+    hosts = {h.host: h for h in load_hosts(DEFAULT_HOSTS_FILE)}
+    http_ok = {h for h, e in hosts.items() if "http" in e.schemes}
+    assert http_ok == {"gwangjin.eminwon.seoul.kr", "eminwon.seo.incheon.kr"}
+    assert hosts["eminwon.nowon.kr"].schemes == ("https",)
+    assert hosts["eminwon.uiseong.go.kr"].schemes == ("https",)
+    assert "nowon.eminwon.seoul.kr" not in hosts and "eminwon.usc.go.kr" not in hosts
+    assert "eminwon.bsseogu.go.kr" not in hosts      # 11-12 DNS 없음(본 사이트 www.bsseogu.go.kr만 살아 있음)

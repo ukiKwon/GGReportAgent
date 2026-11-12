@@ -51,11 +51,32 @@ def build_candidate(kind: str, posted_at: str | None, texts: list[tuple[str, str
     return {"status": "후보", "kind": kind, "role": ROLE[kind], "fields": fields, "basis": basis}
 
 
+def _bid_kind(kind: str, title: str, raw_dir: Path) -> str:
+    """입찰공고 출처(나라장터): 원문의 공고 종류·재공고 표시가 제목보다 우선한다(data-auditor 11-12 검수).
+
+    변경·취소 공고는 새 회차가 아니므로 '기타', 재공고 표시(reNtceYn=Y)나 제목의 재공고는 '재공고',
+    나머지는 진행 중 공고('계획') — '금고 지정' 제목도 결과 공고가 아니다. 처음 보는 공고 종류(연기공고 등)도 '계획'.
+    """
+    if kind in ("제외", "무관"):
+        return kind              # 금리·송달 등은 입찰 출처여도 후보가 아니다(qa 11-12 P3-5)
+    try:
+        item = json.loads((raw_dir / "detail.html").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        item = {}
+    item = item if isinstance(item, dict) else {}
+    notice_kind = str(item.get("ntceKindNm") or "")
+    if "취소" in notice_kind or "변경" in notice_kind or "취소" in title:
+        return "기타"
+    if kind == "재공고" or item.get("reNtceYn") == "Y":
+        return "재공고"
+    return "계획"
+
+
 def notice_from_raw(raw_dir: Path, rel: str) -> CollectedNotice:
     meta = json.loads((raw_dir / "meta.json").read_text(encoding="utf-8"))
     kind = classify(meta["title"])
-    if meta.get("source") in BID_SOURCES and kind in ("지정", "결과", "기타") and "취소" not in meta["title"]:
-        kind = "계획"           # 입찰공고 출처(나라장터)는 모두 진행 중 공고 — '금고 지정' 제목도 결과가 아니다
+    if meta.get("source") in BID_SOURCES:
+        kind = _bid_kind(kind, meta["title"], raw_dir)
     texts: list[tuple[str, str]] = []
     atts: list[AttachmentRef] = []
     notes: list[str] = []

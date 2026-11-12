@@ -47,17 +47,6 @@
    "type": "지자체"
   },
   {
-   "host": "eminwon.bsseogu.go.kr",
-   "schemes": [
-    "https"
-   ],
-   "tls_verify": true,
-   "key": "26|부산 서구청",
-   "name_ko": "부산 서구청",
-   "region_code": "26",
-   "type": "지자체"
-  },
-  {
    "host": "eminwon.buan.go.kr",
    "schemes": [
     "https"
@@ -817,7 +806,7 @@
    "type": "지자체"
   },
   {
-   "host": "eminwon.usc.go.kr",
+   "host": "eminwon.uiseong.go.kr",
    "schemes": [
     "https"
    ],
@@ -1015,9 +1004,9 @@
    "type": "지자체"
   },
   {
-   "host": "nowon.eminwon.seoul.kr",
+   "host": "eminwon.nowon.kr",
    "schemes": [
-    "http"
+    "https"
    ],
    "tls_verify": true,
    "key": "11|노원구청",

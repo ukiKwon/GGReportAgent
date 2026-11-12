@@ -1,6 +1,6 @@
 """python -m collector — 실행 명령은 이것 하나(작업 스케줄러·RPA·에이전트가 같은 명령을 부른다).
 
-종료 코드: 0 정상, 1 실패, 2 사용법, 3 일부 호스트 실패(결과는 만들어짐), 4 다른 실행 중.
+종료 코드: 0 정상, 1 실패(접속된 호스트 없음 포함), 2 사용법, 3 일부 호스트·공고 실패(결과는 만들어짐), 4 다른 실행 중.
 stdout은 한 줄 JSON(요약). 요청 쿼리·본문은 로그에 찍지 않는다.
 """
 
@@ -16,6 +16,7 @@ from pathlib import Path
 
 from collector.batch import DEFAULT_OUT_ROOT, BatchError
 from collector.pipeline import collect, extract_and_pack
+from collector.preview import PreviewError, run_preview
 from collector.sources import get_source, list_sources
 from collector.sources.base import SourceError
 from collector.state import State, StateError
@@ -28,6 +29,12 @@ def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="python -m collector")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("sources", help="등록된 소스 목록")
+    pv = sub.add_parser("preview", help="수집 배치를 화면 데이터와 견준 미리보기 보고서(preview.html·csv) 만들기")
+    pv.add_argument("--batch", required=True, help="배치 ID(<out-root> 아래 폴더 이름)")
+    pv.add_argument("--out-root", default=os.environ.get("COLLECTOR_OUT_ROOT", DEFAULT_OUT_ROOT))
+    pv.add_argument("--institutions-js", help="기본: frontend/data/institutions.js")
+    pv.add_argument("--nonmuni-js", help="기본: frontend/data/institutions_nonmuni.js")
+    pv.add_argument("--screen-json", help="화면 최종 배열을 덤프한 JSON(주면 두 js 해석 대신 사용)")
     for name, helptext in (("run", "수집+추출+포장"), ("collect", "수집(원문 보관)만"),
                            ("extract", "보관된 원문에서 추출+포장(네트워크 없음)")):
         s = sub.add_parser(name, help=helptext)
@@ -71,6 +78,15 @@ def main(argv=None, http=None) -> int:
     if args.cmd == "sources":
         print(json.dumps(list_sources(), ensure_ascii=False))
         return 0
+    if args.cmd == "preview":
+        try:
+            out = run_preview(args.batch, args.out_root, institutions_js=args.institutions_js,
+                              nonmuni_js=args.nonmuni_js, screen_json=args.screen_json)
+        except PreviewError as exc:
+            print(f"실패: {exc}", file=sys.stderr)
+            return 1
+        print(json.dumps(out, ensure_ascii=False))
+        return 0
     if getattr(args, "since", None) and not DATE_RE.match(args.since):
         print("--since는 YYYY-MM-DD여야 합니다", file=sys.stderr)
         return 2
@@ -99,8 +115,11 @@ def main(argv=None, http=None) -> int:
             hosts = [h.strip() for h in args.hosts.split(",") if h.strip()] if args.hosts else None
             out["collect"] = collect(source, state, store, since=args.since, hosts=hosts,
                                      limit=args.limit, baseline=args.baseline)
-            if out["collect"]["hosts_failed"]:
-                code = 1 if not out["collect"]["hosts_ok"] else 3
+            c = out["collect"]
+            if c["hosts_failed"] and not c["hosts_ok"]:
+                code = 1                     # 접속된 호스트가 하나도 없다
+            elif c["hosts_failed"] or c["failed"]:
+                code = 3                     # 일부 호스트·공고 실패 — 결과는 만들어졌다
         if args.cmd in ("run", "extract") and not getattr(args, "baseline", False):
             out["pack"] = extract_and_pack(source, state, store, root, redo_all=args.all)
         print(json.dumps(out, ensure_ascii=False))

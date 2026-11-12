@@ -149,3 +149,19 @@ def test_bid_source_titles_are_open_notices(tmp_path):
             "institution": {"key": None, "name_ko": "기관", "region_code": None, "type": "공공기관"}},
             ensure_ascii=False), encoding="utf-8")
         assert notice_from_raw(d, "g2b/g2b/X-000").notice_info["kind"] == want, title
+
+
+def test_bid_kind_uses_raw_flags(tmp_path):
+    from collector.extract.build import notice_from_raw
+    cases = (({"ntceKindNm": "취소공고"}, "기타"), ({"ntceKindNm": "변경공고"}, "기타"),
+             ({"ntceKindNm": "등록공고", "reNtceYn": "Y"}, "재공고"), ({"ntceKindNm": "등록공고", "reNtceYn": "N"}, "계획"))
+    for i, (item, want) in enumerate(cases):
+        d = tmp_path / f"k{i}"
+        (d / "attachments").mkdir(parents=True)
+        (d / "detail.html").write_text(json.dumps(item, ensure_ascii=False), encoding="utf-8")
+        (d / "meta.json").write_text(json.dumps({
+            "source": "g2b", "host": "g2b", "number": "X-000", "title": "해양환경공단 주거래은행 사업자 선정",
+            "posted_at": "2026-05-18", "detail_url": "https://www.g2b.go.kr/x", "encoding": "utf-8",
+            "attachments": [], "institution": {"key": None, "name_ko": "기관", "region_code": None, "type": "공공기관"}},
+            ensure_ascii=False), encoding="utf-8")
+        assert notice_from_raw(d, "g2b/g2b/X-000").notice_info["kind"] == want, item

@@ -25,6 +25,16 @@ def safe_name(name: str, limit: int = 100) -> str:
     return base[:limit]
 
 
+
+def _restore(final: Path, bak: Path) -> None:
+    """교체 실패 시 .bak을 제자리로. 복구 자체가 실패하면 .bak을 남겨 다음 실행이 복구한다."""
+    try:
+        if bak.exists() and not final.exists():
+            bak.rename(final)
+    except OSError:
+        pass
+
+
 class RawStore:
     def __init__(self, root: Path | str) -> None:
         self.root = Path(root)
@@ -53,15 +63,24 @@ class RawStore:
                            "size": len(blob), "sha256": hashlib.sha256(blob).hexdigest()})
         meta = dict(meta, attachments=stored, detail_sha256=hashlib.sha256(detail).hexdigest())
         (tmp / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        # 기존 원문은 지우지 않고 .bak으로 옮겼다가, 새 폴더가 자리 잡은 뒤에만 지운다(중간에 실패해도 원문이 남는다).
+        bak = final.parent / f".bak-{final.name}"
+        if bak.exists():                      # 이전 실행이 교체 도중 끊긴 흔적
+            if final.exists():
+                shutil.rmtree(bak, ignore_errors=True)
+            else:
+                bak.rename(final)             # 원문 복구 뒤 아래에서 정상 교체
         # Windows: 방금 쓴 파일을 백신·색인이 잠깐 잡으면 rename이 거부된다(WinError 5) — 잠시 뒤 다시 시도.
         for attempt in range(6):
             try:
                 if final.exists():
-                    shutil.rmtree(final)
+                    final.rename(bak)
                 tmp.rename(final)
-                return final
-            except PermissionError:
-                if attempt == 5:
-                    raise
-                time.sleep(0.5 * (attempt + 1))
-        return final
+            except OSError as exc:
+                _restore(final, bak)
+                if isinstance(exc, PermissionError) and attempt < 5:
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+                raise
+            shutil.rmtree(bak, ignore_errors=True)
+            return final
