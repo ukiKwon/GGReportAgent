@@ -500,6 +500,7 @@ window.institutions = [
     };
     if (extra.lastBid) rec.lastBid = extra.lastBid;
     if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    ['receiveFrom', 'receiveTo', 'noticeNo', 'noticeUrl'].forEach(function (k) { if (extra[k]) rec[k] = extra[k]; });   // 공고 진행 표시(e3, 11-12)
     window.institutions.push(rec);
   });
 })();
@@ -724,6 +725,7 @@ window.institutions = [
       if (extra.term) rec.term = extra.term;
       if (extra.lastBid) rec.lastBid = extra.lastBid;
       if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+      ['receiveFrom', 'receiveTo', 'noticeNo', 'noticeUrl'].forEach(function (k) { if (extra[k]) rec[k] = extra[k]; });   // 공고 진행 표시(e3, 11-12)
       window.institutions.push(rec);
     });
   });
@@ -832,6 +834,7 @@ window.institutions = [
     if (extra.term) rec.term = extra.term;
     if (extra.lastBid) rec.lastBid = extra.lastBid;
     if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    ['receiveFrom', 'receiveTo', 'noticeNo', 'noticeUrl'].forEach(function (k) { if (extra[k]) rec[k] = extra[k]; });   // 공고 진행 표시(e3, 11-12)
     window.institutions.push(rec);
   });
 })();
@@ -898,6 +901,7 @@ window.institutions = [
     if (extra.term) rec.term = extra.term;
     if (extra.lastBid) rec.lastBid = extra.lastBid;
     if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    ['receiveFrom', 'receiveTo', 'noticeNo', 'noticeUrl'].forEach(function (k) { if (extra[k]) rec[k] = extra[k]; });   // 공고 진행 표시(e3, 11-12)
     window.institutions.push(rec);
   });
 })();
@@ -945,6 +949,7 @@ window.institutions = [
     if (extra.term) rec.term = extra.term;
     if (extra.lastBid) rec.lastBid = extra.lastBid;
     if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    ['receiveFrom', 'receiveTo', 'noticeNo', 'noticeUrl'].forEach(function (k) { if (extra[k]) rec[k] = extra[k]; });   // 공고 진행 표시(e3, 11-12)
     window.institutions.push(rec);
   });
 })();
@@ -1005,6 +1010,7 @@ window.institutions = [
     if (extra.term) rec.term = extra.term;
     if (extra.lastBid) rec.lastBid = extra.lastBid;
     if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    ['receiveFrom', 'receiveTo', 'noticeNo', 'noticeUrl'].forEach(function (k) { if (extra[k]) rec[k] = extra[k]; });   // 공고 진행 표시(e3, 11-12)
     window.institutions.push(rec);
   });
 })();
@@ -1110,6 +1116,7 @@ window.institutions = [
     if (extra.term) rec.term = extra.term;
     if (extra.lastBid) rec.lastBid = extra.lastBid;
     if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    ['receiveFrom', 'receiveTo', 'noticeNo', 'noticeUrl'].forEach(function (k) { if (extra[k]) rec[k] = extra[k]; });   // 공고 진행 표시(e3, 11-12)
     window.institutions.push(rec);
   });
 })();
@@ -1262,6 +1269,7 @@ window.institutions = [
     if (extra.term) rec.term = extra.term;
     if (extra.lastBid) rec.lastBid = extra.lastBid;
     if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    ['receiveFrom', 'receiveTo', 'noticeNo', 'noticeUrl'].forEach(function (k) { if (extra[k]) rec[k] = extra[k]; });   // 공고 진행 표시(e3, 11-12)
     window.institutions.push(rec);
   });
 })();
@@ -1364,6 +1372,7 @@ window.institutions = [
     if (extra.term) rec.term = extra.term;
     if (extra.lastBid) rec.lastBid = extra.lastBid;
     if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    ['receiveFrom', 'receiveTo', 'noticeNo', 'noticeUrl'].forEach(function (k) { if (extra[k]) rec[k] = extra[k]; });   // 공고 진행 표시(e3, 11-12)
     window.institutions.push(rec);
   });
 })();
@@ -1484,6 +1493,7 @@ window.institutions = [
     if (extra.term) rec.term = extra.term;
     if (extra.lastBid) rec.lastBid = extra.lastBid;
     if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    ['receiveFrom', 'receiveTo', 'noticeNo', 'noticeUrl'].forEach(function (k) { if (extra[k]) rec[k] = extra[k]; });   // 공고 진행 표시(e3, 11-12)
     window.institutions.push(rec);
   });
 })();
@@ -1597,6 +1607,7 @@ window.institutions = [
     if (extra.term) rec.term = extra.term;
     if (extra.lastBid) rec.lastBid = extra.lastBid;
     if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    ['receiveFrom', 'receiveTo', 'noticeNo', 'noticeUrl'].forEach(function (k) { if (extra[k]) rec[k] = extra[k]; });   // 공고 진행 표시(e3, 11-12)
     window.institutions.push(rec);
   });
 })();
@@ -1698,6 +1709,7 @@ window.institutions = [
     if (extra.term) rec.term = extra.term;
     if (extra.lastBid) rec.lastBid = extra.lastBid;
     if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    ['receiveFrom', 'receiveTo', 'noticeNo', 'noticeUrl'].forEach(function (k) { if (extra[k]) rec[k] = extra[k]; });   // 공고 진행 표시(e3, 11-12)
     window.institutions.push(rec);
   });
 })();
@@ -1870,6 +1882,7 @@ window.institutions = [
     if (extra.term) rec.term = extra.term;
     if (extra.lastBid) rec.lastBid = extra.lastBid;
     if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    ['receiveFrom', 'receiveTo', 'noticeNo', 'noticeUrl'].forEach(function (k) { if (extra[k]) rec[k] = extra[k]; });   // 공고 진행 표시(e3, 11-12)
     window.institutions.push(rec);
   });
 })();
@@ -1994,6 +2007,7 @@ window.institutions = [
     if (extra.term) rec.term = extra.term;
     if (extra.lastBid) rec.lastBid = extra.lastBid;
     if (extra.contractEnd) { rec.contractEnd = extra.contractEnd; rec.confirmed = !!extra.confirmed; }
+    ['receiveFrom', 'receiveTo', 'noticeNo', 'noticeUrl'].forEach(function (k) { if (extra[k]) rec[k] = extra[k]; });   // 공고 진행 표시(e3, 11-12)
     window.institutions.push(rec);
   });
 })();

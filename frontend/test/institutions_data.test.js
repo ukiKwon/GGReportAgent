@@ -345,3 +345,13 @@ test('약정 만료일(contractExpiry) — 형식·범위, 끝난 회차보다 �
   });
   assert.ok(n >= 150, '약정 만료일이 들어간 기관 수: ' + n);
 });
+
+test('공고 진행 칸(receiveFrom·receiveTo·noticeNo)이 시도별 적용 블록을 거쳐 레코드까지 온다(11-12 회귀)', function () {
+  const mapo = institutions.find(function (r) { return r.region === '11' && r.name === '마포구청'; });
+  assert.ok(mapo, '마포구청 레코드');
+  assert.strictEqual(mapo.receiveFrom, '2026-11-16');
+  assert.strictEqual(mapo.receiveTo, '2026-11-19');
+  assert.strictEqual(mapo.noticeNo, '제2026-1729호');
+  const samcheok = institutions.find(function (r) { return r.region === '42' && r.name === '삼척시청'; });
+  assert.strictEqual(samcheok && samcheok.receiveTo, '2026-08-18');
+});
