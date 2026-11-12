@@ -1,6 +1,6 @@
 """python -m collector — 실행 명령은 이것 하나(작업 스케줄러·RPA·에이전트가 같은 명령을 부른다).
 
-종료 코드: 0 정상, 1 실패(접속된 호스트 없음 포함), 2 사용법, 3 일부 호스트·공고 실패(결과는 만들어짐), 4 다른 실행 중.
+종료 코드: 0 정상(알려진 실패 호스트만 실패한 경우 포함), 1 실패(접속된 호스트 없음 포함), 2 사용법, 3 새 호스트·공고 실패(결과는 만들어짐), 4 다른 실행 중.
 stdout은 한 줄 JSON(요약). 요청 쿼리·본문은 로그에 찍지 않는다.
 """
 
@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 import re
+import secrets
 import sys
 import time
 from pathlib import Path
@@ -54,12 +55,22 @@ def _parser() -> argparse.ArgumentParser:
 STALE_LOCK_SEC = 6 * 3600   # 이보다 오래된 잠금은 비정상 종료로 보고 회수(security 7d2ac90)
 
 
-def _lock(path: Path):
+def _unlock(path: Path, token: str) -> None:
+    """내용이 내 토큰일 때만 삭제 — 회수된 잠금을 지우고 남의 잠금을 날리지 않는다(qa 11-12)."""
+    try:
+        mine = f"token={token}" in path.read_text(encoding="ascii", errors="replace").split()
+    except OSError:
+        return
+    if mine:
+        path.unlink(missing_ok=True)
+
+
+def _lock(path: Path, token: str = ""):
     path.parent.mkdir(parents=True, exist_ok=True)
     for _ in range(2):
         try:
             fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.write(fd, f"pid={os.getpid()} at={int(time.time())}\n".encode())
+            os.write(fd, f"pid={os.getpid()} token={token} at={int(time.time())}\n".encode())
             return fd
         except FileExistsError:
             try:
@@ -103,7 +114,8 @@ def main(argv=None, http=None) -> int:
 
     root = Path(args.out_root)
     lock_path = root / "_state" / "run.lock"
-    fd = _lock(lock_path)
+    token = secrets.token_hex(8)
+    fd = _lock(lock_path, token)
     if fd is None:
         print(f"다른 실행이 진행 중입니다(비정상 종료였다면 {lock_path} 삭제)", file=sys.stderr)
         return 4
@@ -118,8 +130,8 @@ def main(argv=None, http=None) -> int:
             c = out["collect"]
             if c["hosts_failed"] and not c["hosts_ok"]:
                 code = 1                     # 접속된 호스트가 하나도 없다
-            elif c["hosts_failed"] or c["failed"]:
-                code = 3                     # 일부 호스트·공고 실패 — 결과는 만들어졌다
+            elif c["hosts_failed_new"] or c["failed"]:
+                code = 3                     # 새 호스트·공고 실패 — 결과는 만들어졌다(알려진 실패만이면 0)
         if args.cmd in ("run", "extract") and not getattr(args, "baseline", False):
             out["pack"] = extract_and_pack(source, state, store, root, redo_all=args.all)
         print(json.dumps(out, ensure_ascii=False))
@@ -129,4 +141,4 @@ def main(argv=None, http=None) -> int:
         return 1
     finally:
         os.close(fd)
-        lock_path.unlink(missing_ok=True)
+        _unlock(lock_path, token)

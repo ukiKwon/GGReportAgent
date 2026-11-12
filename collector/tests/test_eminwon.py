@@ -179,22 +179,54 @@ def test_contract_rejects_candidate_without_basis(tmp_path):
 
 
 # ── 보안 보강(security 7d2ac90) ─────────────────────────────────────────────────
-def test_tls_error_does_not_fall_back_to_http(tmp_path):
-    from collector.httpclient import FetchTlsError
+def _mixed_hosts_file(tmp_path):
+    path = tmp_path / "mixed.json"
+    path.write_text(json.dumps({"hosts": [{
+        "host": "mixed.example", "key": "45|혼합군청", "name_ko": "혼합군청",
+        "schemes": ["https", "http"]}]}, ensure_ascii=False), encoding="utf-8")
+    return path
 
-    class TlsBroken:
+
+def test_mixed_schemes_tls_failure_never_downgrades_to_http(tmp_path):
+    """schemes가 ["https","http"]여도 TLS 오류(검증·핸드셰이크)는 http로 내려가지 않는다."""
+    from collector.httpclient import FetchTlsError, FetchTlsHandshakeError
+
+    for exc_type in (FetchTlsError, FetchTlsHandshakeError):
+        class TlsBroken:
+            def __init__(self):
+                self.urls = []
+
+            def get(self, url, verify=True):
+                self.urls.append(url)
+                raise exc_type("TLS 오류")
+
+        http = TlsBroken()
+        src = EminwonSource().with_config(hosts_file=_mixed_hosts_file(tmp_path), http=http,
+                                          sleep=lambda s: None)
+        report = RunReport()
+        list(src.list_new(State(tmp_path / f"s_{exc_type.__name__}.json").index("eminwon"), None, report, None))
+        assert report.hosts_failed and http.urls and all(u.startswith("https://") for u in http.urls)
+
+
+def test_mixed_schemes_connection_refused_falls_back_to_http(tmp_path):
+    """현재 동작 명시: 연결 거부(FetchConnError)는 혼합 schemes에서 http로 강등한다(혼합 schemes는 현재 설정에 없음)."""
+    from collector.httpclient import FetchConnError
+
+    class Refused:
         def __init__(self):
             self.urls = []
 
         def get(self, url, verify=True):
             self.urls.append(url)
-            raise FetchTlsError("TLS 오류")
+            raise FetchConnError("연결 거부")
 
-    http = TlsBroken()
-    src = EminwonSource().with_config(hosts_file=_hosts_file(tmp_path), http=http)
+    http = Refused()
+    src = EminwonSource().with_config(hosts_file=_mixed_hosts_file(tmp_path), http=http,
+                                      sleep=lambda s: None, second_pass=False)
     report = RunReport()
     list(src.list_new(State(tmp_path / "s.json").index("eminwon"), None, report, None))
-    assert report.hosts_failed and all(u.startswith("https://") for u in http.urls)
+    assert http.urls[0].startswith("https://") and http.urls[1].startswith("http://")
+    assert "mixed.example" in report.hosts_failed
 
 
 def test_attachment_signature_check():

@@ -67,7 +67,13 @@ class RawStore:
         bak = final.parent / f".bak-{final.name}"
         if bak.exists():                      # 이전 실행이 교체 도중 끊긴 흔적
             if final.exists():
-                shutil.rmtree(bak, ignore_errors=True)
+                for wait in (0.0, 0.5, 1.0):  # Windows 백신·색인이 잡은 파일은 잠깐 뒤 지워진다
+                    time.sleep(wait)
+                    shutil.rmtree(bak, ignore_errors=True)
+                    if not bak.exists():
+                        break
+                else:
+                    raise OSError(f"이전 교체 잔여물을 지울 수 없습니다({bak.name}) — 수동 삭제 필요")
             else:
                 bak.rename(final)             # 원문 복구 뒤 아래에서 정상 교체
         # Windows: 방금 쓴 파일을 백신·색인이 잠깐 잡으면 rename이 거부된다(WinError 5) — 잠시 뒤 다시 시도.

@@ -56,6 +56,8 @@ class HostEntry:
     tls_reason: str | None = None  # 실측 오류 문구
     tls_measured: str | None = None
     tls_review_by: str | None = None   # 지나면 실행 보고 warnings
+    known_failing: str | None = None       # 늘 실패하는 호스트의 사유(알려진 실패 — 종료 코드 3 제외)
+    known_failing_since: str | None = None # 표시 등록일 YYYY-MM-DD
 
     @property
     def tls_relaxed(self) -> bool:
@@ -154,6 +156,12 @@ def load_hosts(path: Path, ca_dir: Path = CA_DIR) -> tuple[HostEntry, ...]:
         measured, review = _date(item, "tls_measured", host), _date(item, "tls_review_by", host)
         if tls is not None and not (reason and measured and review):
             raise _bad(host, "TLS 예외에는 tls_reason·tls_measured·tls_review_by가 필요합니다")
+        known = item.get("known_failing")
+        if known is not None and (not isinstance(known, str) or not known.strip() or len(known) > 300):
+            raise _bad(host, "known_failing은 300자 이내 사유 글")
+        known_since = _date(item, "known_failing_since", host)
+        if known is not None and not known_since:
+            raise _bad(host, "known_failing에는 known_failing_since(YYYY-MM-DD)가 필요합니다")
         if measured and review:
             d0, d1 = datetime.date.fromisoformat(measured), datetime.date.fromisoformat(review)
             if not d0 < d1 <= d0 + datetime.timedelta(days=MAX_REVIEW_DAYS):
@@ -161,7 +169,8 @@ def load_hosts(path: Path, ca_dir: Path = CA_DIR) -> tuple[HostEntry, ...]:
         out[host] = HostEntry(host=host, key=item.get("key") or host, name_ko=item.get("name_ko") or host,
                               region_code=item.get("region_code"), type=item.get("type"),
                               tls_verify=True, schemes=schemes, tls=tls, tls_reason=reason,
-                              tls_measured=measured, tls_review_by=review)
+                              tls_measured=measured, tls_review_by=review,
+                              known_failing=known, known_failing_since=known_since)
     return tuple(out.values())
 
 
@@ -303,6 +312,12 @@ class EminwonSource:
             local.add(ref.key)
             yield ref
 
+    @staticmethod
+    def _mark_ok(entry: HostEntry, report: RunReport) -> None:
+        report.hosts_ok.append(entry.host)
+        if entry.known_failing:
+            report.warnings.append(f"{entry.host}: 알려진 실패 호스트가 성공 — 표시 해제 검토")
+
     def _review_warnings(self, entries, report: RunReport) -> None:
         today = (self._today or datetime.date.today()).isoformat()
         for e in entries:
@@ -313,6 +328,7 @@ class EminwonSource:
         report = report if report is not None else RunReport()
         entries = self._select(hosts)
         self._review_warnings(entries, report)
+        report.known_failing.update({e.host: e.known_failing for e in entries if e.known_failing})
         self._deadline = time.monotonic() + self.config.max_run_sec
         retry_later: list[HostEntry] = []
         for entry in entries:
@@ -323,7 +339,7 @@ class EminwonSource:
                 if isinstance(exc, (FetchConnError, FetchTlsHandshakeError)):
                     retry_later.append(entry)
                 continue
-            report.hosts_ok.append(entry.host)
+            self._mark_ok(entry, report)
             yield from self._refs(entry, rows, seen, since)
         if not self.config.second_pass:
             return
@@ -337,7 +353,7 @@ class EminwonSource:
                 report.hosts_failed[entry.host] = f"재수거도 실패: {exc}"[:200]
                 continue
             del report.hosts_failed[entry.host]
-            report.hosts_ok.append(entry.host)
+            self._mark_ok(entry, report)
             yield from self._refs(entry, rows, seen, since)
 
     def accepts(self, ref: NoticeRef) -> bool:

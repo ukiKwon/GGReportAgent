@@ -96,6 +96,7 @@ class RunReport:
     hosts_ok: list[str] = field(default_factory=list)
     hosts_failed: dict[str, str] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)      # TLS 예외 재검토일 지남 등(실행은 계속)
+    known_failing: dict[str, str] = field(default_factory=dict)   # 이번 실행 대상 중 '늘 실패' 표시 호스트 → 사유
 
 
 class SeenIndex(Protocol):

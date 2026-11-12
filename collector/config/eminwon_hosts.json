@@ -14,7 +14,9 @@
    "type": "지자체",
    "tls_reason": "만료된 사설 CA 서명 인증서(verify 10, 루트 CN=210.220.71.198 자체 서명) — 예외 없이 실패 유지, 다른 출처로 보완",
    "tls_measured": "2026-11-12",
-   "tls_review_by": "2027-05-12"
+   "tls_review_by": "2027-05-12",
+   "known_failing": "만료된 사설 CA 서명 인증서 — 예외 없이 실패 유지(tls_reason 참조), 공고는 다른 출처로 보완",
+   "known_failing_since": "2026-11-12"
   },
   {
    "host": "dongjak.eminwon.seoul.kr",
@@ -598,7 +600,9 @@
    "type": "지자체",
    "tls_reason": "만료된 사설 CA 서명 인증서(verify 10, 루트 CN=210.220.71.198 자체 서명) — 예외 없이 실패 유지, 다른 출처로 보완",
    "tls_measured": "2026-11-12",
-   "tls_review_by": "2027-05-12"
+   "tls_review_by": "2027-05-12",
+   "known_failing": "만료된 사설 CA 서명 인증서 — 예외 없이 실패 유지(tls_reason 참조), 공고는 다른 출처로 보완",
+   "known_failing_since": "2026-11-12"
   },
   {
    "host": "eminwon.jungnang.go.kr",
@@ -1029,7 +1033,9 @@
    "type": "지자체",
    "tls_reason": "만료된 사설 CA 서명 인증서(verify 10, 루트 CN=210.220.71.198 자체 서명) — 예외 없이 실패 유지, 다른 출처로 보완",
    "tls_measured": "2026-11-12",
-   "tls_review_by": "2027-05-12"
+   "tls_review_by": "2027-05-12",
+   "known_failing": "만료된 사설 CA 서명 인증서 — 예외 없이 실패 유지(tls_reason 참조), 공고는 다른 출처로 보완",
+   "known_failing_since": "2026-11-12"
   },
   {
    "host": "gwangjin.eminwon.seoul.kr",

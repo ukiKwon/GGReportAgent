@@ -1,0 +1,185 @@
+"""수집기 보강(qa 11-12): 알려진 실패 호스트·요청 전체 마감·잠금 토큰·.bak 잔여물."""
+
+import json
+import os
+import shutil
+import types
+from pathlib import Path
+
+import pytest
+
+from collector import cli
+from collector.cli import main
+from collector.httpclient import FetchError, FetchTimeoutError, HttpClient
+from collector.sources.eminwon import load_hosts
+from collector.store import RawStore
+
+FX = Path(__file__).parent / "fixtures" / "eminwon"
+
+
+# ── ① known_failing ─────────────────────────────────────────────────────────────
+def _two_hosts(tmp_path):
+    path = tmp_path / "hosts.json"
+    path.write_text(json.dumps({"hosts": [
+        {"host": "eminwon.sunchang.example", "key": "45|순창군청", "name_ko": "순창군청"},
+        {"host": "known.example", "key": "11|알려진구청", "name_ko": "알려진구청",
+         "known_failing": "만료된 사설 인증서", "known_failing_since": "2026-11-12"},
+    ]}, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+class _Http:
+    def __init__(self, failing=("known.example",)):
+        self.failing = failing
+
+    def get(self, url, verify=True):
+        if any(h in url for h in self.failing):
+            raise FetchError("연결 실패")
+        if "method=selectListOfrNotAncmt" in url:
+            return ((FX / "list_sunchang.html").read_bytes() if "pageIndex=1" in url else b""), None
+        if "FileDown.jsp" in url:
+            return (FX / "sunchang_32708.hwpx").read_bytes(), None
+        return (FX / "detail_sunchang_32708.html").read_bytes(), None
+
+
+def test_known_failing_only_exit_zero(tmp_path, capsys):
+    code = main(["collect", "--source", "eminwon", "--hosts-file", str(_two_hosts(tmp_path)),
+                 "--out-root", str(tmp_path / "out")], http=_Http())
+    c = json.loads(capsys.readouterr().out)["collect"]
+    assert code == 0
+    assert list(c["hosts_failed_known"]) == ["known.example"] and c["hosts_failed_new"] == {}
+    assert "known.example" in c["hosts_failed"]          # 기존 키 유지
+
+
+def test_all_hosts_down_is_one(tmp_path, capsys):
+    code = main(["collect", "--source", "eminwon", "--hosts-file", str(_two_hosts(tmp_path)),
+                 "--out-root", str(tmp_path / "out")],
+                http=_Http(failing=("known.example", "sunchang")))
+    capsys.readouterr()
+    assert code == 1                                     # 접속된 호스트가 하나도 없으면 기존대로 1
+
+
+def test_unknown_host_failure_with_one_ok_is_three(tmp_path, capsys):
+    path = tmp_path / "h.json"
+    path.write_text(json.dumps({"hosts": [
+        {"host": "eminwon.sunchang.example", "key": "45|순창군청", "name_ko": "순창군청"},
+        {"host": "bad.example", "key": "11|새실패", "name_ko": "새실패"},
+    ]}, ensure_ascii=False), encoding="utf-8")
+    code = main(["collect", "--source", "eminwon", "--hosts-file", str(path),
+                 "--out-root", str(tmp_path / "out")], http=_Http(failing=("bad.example",)))
+    c = json.loads(capsys.readouterr().out)["collect"]
+    assert code == 3 and list(c["hosts_failed_new"]) == ["bad.example"] and c["hosts_failed_known"] == {}
+
+
+def test_known_host_success_warns(tmp_path, capsys):
+    code = main(["collect", "--source", "eminwon", "--hosts-file", str(_two_hosts(tmp_path)),
+                 "--out-root", str(tmp_path / "out")], http=_Http(failing=()))
+    c = json.loads(capsys.readouterr().out)["collect"]
+    assert code == 0 and c["hosts_failed_known"] == {}
+    assert any("known.example" in w and "표시 해제 검토" in w for w in c["warnings"])
+
+
+def test_known_failing_requires_since(tmp_path):
+    path = tmp_path / "h.json"
+    path.write_text(json.dumps({"hosts": [{"host": "k.example", "known_failing": "사유"}]}), encoding="utf-8")
+    with pytest.raises(Exception):
+        load_hosts(path)
+
+
+def test_real_config_known_failing_marked():
+    from collector.sources.eminwon import DEFAULT_HOSTS_FILE
+    known = {h.host for h in load_hosts(DEFAULT_HOSTS_FILE) if h.known_failing}
+    assert known == {"dobong.eminwon.seoul.kr", "eminwon.junggu.seoul.kr", "gangnam.eminwon.seoul.kr"}
+
+
+# ── ② 요청 전체 마감 ────────────────────────────────────────────────────────────
+class _Clock:
+    t = 0.0
+
+    def __call__(self):
+        return self.t
+
+
+class _Resp:
+    headers = types.SimpleNamespace(get_content_charset=lambda: None)
+
+    def __init__(self, data, clock, step):
+        self.data, self.clock, self.step = data, clock, step
+
+    def read(self, n):
+        self.clock.t += self.step
+        out, self.data = self.data[:n], self.data[n:]
+        return out
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _patch_opener(monkeypatch, resp):
+    class Opener:
+        def open(self, req, timeout=None):
+            return resp
+    monkeypatch.setattr("collector.httpclient.urllib.request.build_opener", lambda *a: Opener())
+
+
+def test_total_deadline_raises_timeout(monkeypatch):
+    clock = _Clock()
+    _patch_opener(monkeypatch, _Resp(b"x" * (200 * 1024), clock, step=20.0))
+    c = HttpClient(timeout=10, delay=0, sleep=lambda s: None, clock=clock)    # 마감 = 30초
+    with pytest.raises(FetchTimeoutError):
+        c.get("https://slow.example/x")
+
+
+def test_fast_body_reads_fully_in_chunks(monkeypatch):
+    clock = _Clock()
+    _patch_opener(monkeypatch, _Resp(b"y" * (200 * 1024), clock, step=0.1))
+    data, _ = HttpClient(timeout=10, delay=0, sleep=lambda s: None, clock=clock).get("https://ok.example/x")
+    assert len(data) == 200 * 1024
+
+
+def test_max_bytes_still_enforced(monkeypatch):
+    clock = _Clock()
+    _patch_opener(monkeypatch, _Resp(b"z" * 100, clock, step=0.0))
+    c = HttpClient(timeout=10, max_bytes=50, delay=0, sleep=lambda s: None, clock=clock)
+    with pytest.raises(FetchError, match="너무 큽니다"):
+        c.get("https://big.example/x")
+
+
+# ── ③ 잠금 토큰 ─────────────────────────────────────────────────────────────────
+def test_unlock_only_removes_own_token(tmp_path):
+    lock = tmp_path / "_state" / "run.lock"
+    fd = cli._lock(lock, "aaaa")
+    os.close(fd)
+    assert "token=aaaa" in lock.read_text()
+    lock.write_text("pid=9 token=bbbb at=1\n")          # 회수 후 다른 실행이 새로 만든 잠금
+    cli._unlock(lock, "aaaa")
+    assert lock.exists()                                 # 남의 잠금은 남긴다
+    cli._unlock(lock, "bbbb")
+    assert not lock.exists()
+
+
+def test_main_releases_own_lock(tmp_path, capsys):
+    out = tmp_path / "out"
+    main(["collect", "--source", "eminwon", "--hosts-file", str(_two_hosts(tmp_path)),
+          "--out-root", str(out)], http=_Http())
+    capsys.readouterr()
+    assert not (out / "_state" / "run.lock").exists()
+
+
+# ── ⑤ .bak 잔여물 ───────────────────────────────────────────────────────────────
+def test_undeletable_bak_raises_clear_error_and_keeps_raw(tmp_path, monkeypatch):
+    s = RawStore(tmp_path)
+    final = s.write("eminwon", "h", "n1", b"v1", [], {})
+    bak = final.parent / ".bak-n1"
+    bak.mkdir()
+    (bak / "junk").write_text("x")
+    monkeypatch.setattr("collector.store.time.sleep", lambda sec: None)
+    orig = shutil.rmtree
+    monkeypatch.setattr("collector.store.shutil.rmtree",
+                        lambda p, *a, **k: None if os.path.basename(str(p)).startswith(".bak-") else orig(p, *a, **k))
+    with pytest.raises(OSError, match="잔여물"):
+        s.write("eminwon", "h", "n1", b"v2", [], {})
+    assert (final / "detail.html").read_bytes() == b"v1"

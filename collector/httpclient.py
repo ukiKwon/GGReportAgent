@@ -131,10 +131,16 @@ class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
         return self.do_open(functools.partial(_PinnedHTTPSConnection, pins=self._pins), req, context=self._context)
 
 
+READ_CHUNK = 64 * 1024     # 본문을 나눠 읽으며 요청 전체 마감 시각을 확인(qa 11-12 P2-3)
+
+
 class HttpClient:
     def __init__(self, timeout: float = 20.0, max_bytes: int = 20 * 1024 * 1024,
-                 delay: float = 1.0, sleep=time.sleep) -> None:
+                 delay: float = 1.0, sleep=time.sleep, deadline: float | None = None,
+                 clock=time.monotonic) -> None:
         self.timeout, self.max_bytes, self.delay, self._sleep = timeout, max_bytes, delay, sleep
+        self.deadline = deadline if deadline is not None else timeout * 3   # 요청 시작~본문 끝 전체 상한(초)
+        self._clock = clock
         self._first = True
         self._contexts: dict = {}
 
@@ -160,10 +166,21 @@ class HttpClient:
         opener = urllib.request.build_opener(_SameHostRedirect, https)
         req = urllib.request.Request(url, headers={
             "User-Agent": UA, "Accept": "*/*", "Accept-Language": "ko-KR,ko;q=0.9"})
+        started = self._clock()
         try:
             with opener.open(req, timeout=self.timeout) as resp:   # http.client = HTTP/1.1
-                data = resp.read(self.max_bytes + 1)
                 charset = resp.headers.get_content_charset()
+                chunks: list[bytes] = []
+                total = 0
+                while total <= self.max_bytes:
+                    if self._clock() - started > self.deadline:
+                        raise FetchTimeoutError("요청 전체 마감 시간 초과")
+                    chunk = resp.read(min(READ_CHUNK, self.max_bytes + 1 - total))
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    total += len(chunk)
+                data = b"".join(chunks)
         except urllib.error.HTTPError as exc:          # URLError보다 먼저
             raise FetchHttpError(f"HTTP {exc.code}") from exc
         except urllib.error.URLError as exc:

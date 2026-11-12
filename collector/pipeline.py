@@ -37,8 +37,11 @@ def collect(source, state, store, *, since=None, hosts=None, limit=None, baselin
         state.mark_seen(slug, ref.key, raw=raw.rel, **info)   # 원문 보관에 성공한 뒤에만 '본 것'
         state.save()
         new.append(ref.key)
+    known = {h: m for h, m in report.hosts_failed.items() if h in report.known_failing}
+    fresh = {h: m for h, m in report.hosts_failed.items() if h not in report.known_failing}
     summary = {"source": slug, "new": len(new), "new_keys": new, "skipped": skipped, "failed": failed,
                "hosts_ok": len(report.hosts_ok), "hosts_failed": report.hosts_failed,
+               "hosts_failed_known": known, "hosts_failed_new": fresh,
                "warnings": report.warnings}
     state.add_run(slug, dict(summary, started_at=started, finished_at=_now_iso(),
                              baseline=baseline, since=since))
