@@ -33,9 +33,11 @@
   // ── HTML 조각(순수) ─────────────────────────────────────────────────────────
   ov.TITLE_CHECK = '이 날짜가 공고일인지 약정 만료일인지 원문을 확인하고 있습니다';
 
+  // 확정 공고가 공고 후 120일을 넘긴 건(noticeExpired)은 '예정일 경과'가 아니라 '공고 후 n일'이다 — 공고는 났고 결과만 모른다.
+  ov.NOTICE_EXPIRED_NOTE = function (it) { return '공고 후 ' + it.days + '일 · 결과 미확인 — 결과 공고를 확인하세요'; };
   ov.stampHtml = function (it) {
     return '<span class="ov-stamp">' + icon('overdue') + '<span aria-hidden="true">D+' + it.days + '</span>' +
-      '<span class="sr-only">예정일 ' + it.days + '일 지남</span></span>';
+      '<span class="sr-only">' + (it.noticeExpired ? '공고 후 ' + it.days + '일 지남' : '예정일 ' + it.days + '일 지남') + '</span></span>';
   };
 
   // 날짜 근거 표식. '날짜 의미 확인 중'이면 확정·추정 표식을 대신한다.
@@ -60,7 +62,8 @@
       ov.stampHtml(it) + '<span class="ov-name" title="' + esc(it.name) + '">' + esc(it.name) + '</span>' +
       (slot ? (view === 'all' ? '<span class="ov-status">미처리</span>' : '<span></span>') : '') +
       '<span class="ov-meta"><span class="ov-where">' + esc(nameOf(it.region)) + '</span>' +
-      '<span class="ov-date">' + esc(it.date) + '</span>' + ov.confHtml(it) + '</span></li>';
+      '<span class="ov-date">' + esc(it.date) + '</span>' + ov.confHtml(it) +
+      (it.noticeExpired ? '<span class="ov-note">' + esc(ov.NOTICE_EXPIRED_NOTE(it)) + '</span>' : '') + '</span></li>';
   };
 
   function groupHtml(code, title, items, open, isWatch, view) {
@@ -106,7 +109,9 @@
     return {
       n: items.length,
       nText: items.length + '건',
-      sum: '예정일이 지났는데 공고 진행 여부가 아직 기록되지 않은 건입니다. 기준일 ' + dateStr + '.',
+      sum: items.length && items.every(function (it) { return it.noticeExpired; })
+        ? '공고가 난 지 120일이 넘었는데 결과가 아직 기록되지 않은 건입니다. 기준일 ' + dateStr + '.'
+        : '예정일이 지났는데 공고 진행 여부가 아직 기록되지 않은 건입니다. 기준일 ' + dateStr + '.',
       sidoHtml: logic.countBySido(items, nameOf).map(function (s) {
         return '<li>' + esc(s.name) + '<b>' + s.n + '</b></li>';
       }).join(''),

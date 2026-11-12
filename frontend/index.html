@@ -1555,8 +1555,11 @@
   .db-per span { display:block; padding:6px 14px; border-radius:9px; font-size:13px; color:var(--muted); }
   .db-per input:checked + span { background:color-mix(in srgb, var(--accent-color) 16%, transparent); color:var(--fg); font-weight:700; }
   .db-per input:focus-visible + span { outline:2px solid var(--accent-color); outline-offset:1px; }
-  .db-filters { display:grid; grid-template-columns:1fr 128px; gap:8px; }
-  .db-filters input, .db-filters select { font-size:13px; padding:7px 10px; }
+  .db-filters { display:grid; grid-template-columns:minmax(0, 1fr) 128px; gap:8px; }
+  .db-filters input, .db-filters select { font-size:13px; padding:7px 10px; min-width:0; }
+  /* 종류 select가 함께 보이면 검색칸은 윗줄 전체, 지역·종류는 아랫줄에 반씩 — 400px 목록(안쪽 338px)에서 칸 밖으로 넘치지 않게(qa 11-12 M4) */
+  .db-filters.has-type { grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); }
+  .db-filters.has-type input { grid-column:1 / -1; }
   .db-scroll { flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; }
   .db-grp { padding:12px 20px 8px; font-size:12px; color:var(--muted); }
   .db-grp b { font-family:var(--mono); color:var(--fg); font-weight:400; }
@@ -1685,6 +1688,10 @@
   .db-ntrk .lb.l { transform:none; }
   .db-ntrk .lb.r { transform:translateX(-100%); }
   .db-ntrk .lb.top { top:-2px; color:var(--fg); }
+  /* 접수 창 라벨: 기본은 막대 위 줄(top2), 오늘 라벨과 겹치면 셋째 줄(low, .r3로 막대 높이를 늘림) */
+  .db-ntrk .lb.top2 { top:-2px; }
+  .db-ntrk .lb.low { top:60px; }
+  .db-ntrk.r3 { height:78px; }
   .db-dl a { color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent-color); text-underline-offset:3px; }
   /* 1280~1599px: 순서는 띠 → 월별 → 목록|상세 → 와플·단계 — 기둥(.db-rail)이 목록·상세 아래 한 줄(두 칸)로 내려간다 */
   @media (max-width:1599px) {

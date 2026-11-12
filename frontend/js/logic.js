@@ -214,10 +214,19 @@
   // 기존대로 6개월 안 '예정'이다. 날짜 규칙(effectiveBid·contractExpiry)은 건드리지 않고 진행 중 여부만 따로 판정한다.
   // 접수 마감일(receiveTo)이 있으면 마감 전(receiving)·마감 지남(awaiting)으로 가르고, 없으면 마감일 미확인(unknown).
   logic.NOTICE_ACTIVE_DAYS = 120;
+  // 접수 마감일을 모르는(unknown) 공고는 공고 후 30일 이내만 '접수 중일 수 있다'고 본다(지도 +2·띠 카드). 31~120일은 마감이
+  // 지났을 가능성이 커 awaiting처럼 지도 색에서 빼고 띠 카드에도 넣지 않는다(목록 '결과 확인' 쪽, qa 11-12 M3).
+  logic.NOTICE_UNKNOWN_OPEN_DAYS = 30;
+  // http(s) 주소만 통과시키는 공용 검사: 앞뒤 공백을 자르고 공백 없는 http/https 주소면 그 값, 아니면 null.
+  logic.safeHttpUrl = function (s) {
+    const t = String(s == null ? '' : s).trim();
+    return /^https?:\/\/\S+$/i.test(t) ? t : null;
+  };
   function validYmd(s) {
     return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s + 'T00:00:00').getTime());
   }
-  // → null | { phase:'receiving'|'awaiting'|'unknown', since:공고 후 일수, receiveFrom, receiveTo, deadlineDays }
+  // → null | { phase:'receiving'|'awaiting'|'unknown', since:공고 후 일수, receiveFrom, receiveTo, deadlineDays,
+  //            late: 마감일 미확인이고 공고 후 30일 초과, check: awaiting 또는 late — '결과 확인' 묶음 }
   logic.noticeState = function (rec, today) {
     if (!rec || !rec.confirmed || !rec.contractEnd) return null;
     const since = 0 - logic.daysUntil(rec.contractEnd, today);   // 0 - x: -0이 되지 않게
@@ -226,10 +235,13 @@
     const from = validYmd(rec.receiveFrom) ? rec.receiveFrom : null;
     const dl = to ? logic.daysUntil(to, today) : null;
     const phase = to === null ? 'unknown' : (dl >= 0 ? 'receiving' : 'awaiting');
-    return { phase: phase, since: since, receiveFrom: from, receiveTo: to, deadlineDays: dl };
+    const late = phase === 'unknown' && since > logic.NOTICE_UNKNOWN_OPEN_DAYS;
+    return { phase: phase, since: since, receiveFrom: from, receiveTo: to, deadlineDays: dl,
+      late: late, check: phase === 'awaiting' || late };
   };
-  // 진행 중 목록: 마감 전(마감 가까운 순) → 마감일 미확인 → 마감 지남(결과 확인), 뒤의 둘은 공고 후 일수 순. 기관 단위 중복 제거.
-  const NOTICE_RANK = { receiving: 0, unknown: 1, awaiting: 2 };
+  // 진행 중 목록: 마감 전(마감 가까운 순) → 마감일 미확인(30일 이내) → 결과 확인(마감 지남·마감일 미확인 30일 초과), 뒤의 둘은 공고 후 일수 순.
+  // 기관 단위 중복 제거. unknown = 30일 이내 미확인만, awaiting = 마감 지남, late = 30일 초과 미확인, check = awaiting + late.
+  function noticeRank(it) { return it.phase === 'receiving' ? 0 : (it.check ? 2 : 1); }
   logic.noticeSummary = function (list, today) {
     const deduped = logic.dedupeByInstitution(list || []);
     const items = [];
@@ -237,16 +249,19 @@
       const ns = logic.noticeState(r, today);
       if (!ns) return;
       items.push({ rec: r, name: r.name || '', region: r.region || '', date: r.contractEnd, phase: ns.phase, since: ns.since,
-        receiveFrom: ns.receiveFrom, receiveTo: ns.receiveTo, deadlineDays: ns.deadlineDays });
+        receiveFrom: ns.receiveFrom, receiveTo: ns.receiveTo, deadlineDays: ns.deadlineDays, late: ns.late, check: ns.check });
     });
     items.sort(function (a, b) {
-      return NOTICE_RANK[a.phase] - NOTICE_RANK[b.phase]
+      return noticeRank(a) - noticeRank(b)
         || (a.phase === 'receiving' ? a.deadlineDays - b.deadlineDays : 0)
         || a.since - b.since
         || (a.name < b.name ? -1 : (a.name > b.name ? 1 : 0));
     });
-    const n = function (p) { return items.filter(function (it) { return it.phase === p; }).length; };
-    return { items: items, receiving: n('receiving'), unknown: n('unknown'), awaiting: n('awaiting'), total: deduped.length };
+    const n = function (f) { return items.filter(f).length; };
+    return { items: items, receiving: n(function (it) { return it.phase === 'receiving'; }),
+      unknown: n(function (it) { return it.phase === 'unknown' && !it.late; }),
+      awaiting: n(function (it) { return it.phase === 'awaiting'; }),
+      late: n(function (it) { return it.late; }), check: n(function (it) { return it.check; }), total: deduped.length };
   };
 
   // 경과 판정: 오늘 > 공고 예정일(유예 없음, 확정·추정 동일). 날짜 미상은 판정하지 않고
@@ -264,8 +279,11 @@
       if (d === Infinity) { unknown += 1; return; }
       if (d >= 0) return;               // 오늘이 예정일이거나 아직 남음 — 경과 아님
       const check = logic.isDateUnderReview(r);
+      // noticeExpired: 확정 공고(confirmed + contractEnd = 공고일)가 공고 후 120일을 넘긴 것 — 공고는 났고 결과만 모른다.
+      // 'check'(날짜 의미 확인 중)여도 확정 공고면 true. 추정 날짜 경과는 false(공고 여부부터 확인).
       items.push({ rec: r, name: r.name || '', region: r.region || '', date: e.date, days: -d,
-        kind: check ? 'check' : (e.confidence === '확정' ? 'fixed' : 'est'), check: check });
+        kind: check ? 'check' : (e.confidence === '확정' ? 'fixed' : 'est'), check: check,
+        noticeExpired: e.confidence === '확정' && e.basis === 'notice' && -d > logic.NOTICE_ACTIVE_DAYS });
     });
     items.sort(function (a, b) { return a.days - b.days || (a.name < b.name ? -1 : (a.name > b.name ? 1 : 0)); });
     return { items: items, unknown: unknown, total: deduped.length, notice: notice };
@@ -350,7 +368,7 @@
   // 기관 점수: 6개월 안 +2, 6~12개월 +1, 1~2년 −1, 2년 넘음 −2. 날짜 미상과 예정일이 지난(경과) 기관은
   // 계산에서 뺀다(null) — 경과는 '공고 예정일 경과' 목록에서 따로 다룬다(사용자 2026-11-12).
   // 진행 중 공고(noticeState)는 경과가 아니다(isOverdue=false). 점수는 마감 전·마감일 미확인이 +2(진행 중은 가장 급함,
-  // 마감일을 모르는 곳은 칸이 채워질 때까지 +2), 마감 지난(결과 확인) 곳은 색에서 뺀다(null — 빨강은 진짜 급한 것만).
+  // 마감일을 모르는 곳은 공고 후 30일 이내만 +2), 마감 지난·마감일 미확인 30일 초과(결과 확인) 곳은 색에서 뺀다(null — 빨강은 진짜 급한 것만).
   logic.isOverdue = function (rec, today) {
     if (logic.noticeState(rec, today)) return false;
     const d = logic.daysUntil(logic.effectiveBid(rec).date, today);
@@ -358,7 +376,7 @@
   };
   logic.instScore = function (rec, today) {
     const ns = logic.noticeState(rec, today);
-    if (ns) return ns.phase === 'awaiting' ? null : 2;
+    if (ns) return ns.check ? null : 2;
     const d = logic.daysUntil(logic.effectiveBid(rec).date, today);
     if (d === Infinity || d < 0) return null;
     if (d <= 182) return 2;
@@ -403,19 +421,19 @@
   // band: 'none'(기관 0곳) | 'gray'(경과 아닌 날짜 있는 기관 0곳) | r3·r2·p·b2·b3.
   // 색은 평균 점수만으로 정한다(사용자 2026-11-12 — '최소 보라' 바닥 규칙 뺌). 경과 기관은 overdue로만 센다.
   // urgent = 6개월 안 기관 수(▲n), urgentAllEst = 그 기관이 전부 추정이면 true(속 빈 △).
-  // 공고 진행 중(noticeState): notice = 진행 중 전체, noticeOpen = 마감 전+마감일 미확인(점수 +2), receiving = 마감 전,
-  // awaiting = 마감 지남(결과 확인, 색에서 뺌), notices = 이름·상태 목록(툴팁용). 진행 중은 urgent(▲)에 세지 않는다(B안).
+  // 공고 진행 중(noticeState): notice = 진행 중 전체, noticeOpen = 마감 전+마감일 미확인 30일 이내(점수 +2), receiving = 마감 전,
+  // awaiting = 마감 지남, late = 마감일 미확인 30일 초과(둘 다 결과 확인, 색에서 뺌), notices = 이름·상태 목록(툴팁용). 진행 중은 urgent(▲)에 세지 않는다(B안).
   logic.regionMix = function (list, today) {
     const items = list || [];
     const info = { total: items.length, dated: 0, unknown: 0, mean: null, band: 'none',
       overdue: 0, within6: 0, to12: 0, to24: 0, over24: 0, urgent: 0, urgentAllEst: false, imminent: null,
-      notice: 0, noticeOpen: 0, receiving: 0, awaiting: 0, notices: [] };
+      notice: 0, noticeOpen: 0, receiving: 0, awaiting: 0, late: 0, notices: [] };
     let sum = 0, allEst = true;
     items.forEach(function (r) {
       const ns = logic.noticeState(r, today);
       if (ns) {
         info.notice += 1;
-        if (ns.phase === 'awaiting') { info.awaiting += 1; return; }
+        if (ns.check) { if (ns.late) info.late += 1; else info.awaiting += 1; return; }
         info.noticeOpen += 1;
         if (ns.phase === 'receiving') info.receiving += 1;
         info.dated += 1; sum += 2;

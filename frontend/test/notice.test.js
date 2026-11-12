@@ -11,6 +11,7 @@ const logic = require('../js/logic.js');
 const store = require('../js/store.js');
 const render = require('../js/render.js');
 const dash = require('../js/dashboard.js');
+const ov = require('../js/overdue.js');
 const nonmuni = require('../data/institutions_nonmuni.js');
 
 const TODAY = new Date('2026-11-12T00:00:00');   // 로컬 자정
@@ -210,11 +211,12 @@ test('tipHtml 첫 블록: 공고 진행 중 n곳 — 마감 전 a · 결과 확�
   const info = logic.regionMix(TIP_LIST, TODAY);
   const h = render.tipHtml('서울', info, TODAY);
   assert.ok(h.includes('공고 진행 중 4곳'), h);
-  assert.ok(h.includes('마감 전 2 · 결과 확인 2'), h);
+  assert.ok(h.includes('마감 전 2 · 마감일 미확인 1 · 결과 확인 1'), h);
   assert.ok(h.includes('송파문화재단 <span class="rt-d">마감 D-4</span>'), h);
   assert.ok(h.includes('마포구청 <span class="rt-d">접수 ' + md(4) + '~' + md(7) + '</span>'), h);
   assert.ok(h.indexOf('송파문화재단') < h.indexOf('마포구청'), '마감 가까운 순');
-  assert.ok(h.includes('성북구청 <span class="rt-m">공고 ' + md(-20) + ' · 공고 후 20일 · 마감일 미확인</span> 외 1곳'), h);
+  assert.ok(h.includes('성북구청 <span class="rt-m">공고 ' + md(-20) + ' · 공고 후 20일 · 마감일 미확인</span></div>'), h);
+  assert.ok(h.includes('정읍시청 <span class="rt-m">공고 후 50일</span>'), h);
   assert.ok(h.indexOf('공고 진행 중 4곳') < h.indexOf('가장 임박'), '첫 블록이 먼저');
   assert.ok(h.includes('가장 임박 하동군청'), h);
   assert.ok(h.includes('기관 5곳 중 마감 지난 공고 1곳은 색에 넣지 않음'), h);
@@ -284,7 +286,7 @@ test('dash.model: 진행 중은 notice(마감 전→미확인→결과 확인), 
   assert.deepStrictEqual(m.notice.map(n => n.name), ['마감3', '오늘공고', '미확인', '지남']);
   assert.deepStrictEqual(m.upcoming.map(u => u.name), ['예정']);
   assert.deepStrictEqual(m.overdue.map(o => o.name), ['경과']);
-  assert.deepStrictEqual(m.noticeN, { receiving: 2, unknown: 1, awaiting: 1 });
+  assert.deepStrictEqual(m.noticeN, { receiving: 2, unknown: 1, awaiting: 1, late: 0, check: 1 });
   assert.strictEqual(m.notice[0].startDays, null);
   assert.ok(dash.timelineHtml(m, TODAY, '6').includes('<span class="n">1곳</span><span class="t">공고 예정일 경과'));   // D+ 타일도 진행 중이 빠진 수
   assert.ok(dash.timelineHtml(m, TODAY, '6').includes('경과 <b>1</b>곳'));
@@ -298,7 +300,7 @@ test('행 칩 세 갈래: 마감 D-n(빨강 테두리) / 공고 후 n일(무채�
   assert.ok(r1.includes('<span class="db-chip open">마감 D-4</span>') && r1.includes('접수 <span class="d">' + md(2) + '~' + md(4) + '</span> · 접수 시작 D-2'), r1);
   assert.ok(r1.includes('data-phase="receiving"'));
   const r2 = dash.rowHtml(by('미확인'), { id: 'b' });
-  assert.ok(r2.includes('<span class="db-chip wait">공고 후 <span class="v">20</span>일</span>') && r2.includes('마감일 미확인 · 결과가 났는지 확인하세요'), r2);
+  assert.ok(r2.includes('<span class="db-chip wait">공고 후 <span class="v">20</span>일</span>') && r2.includes('마감일 미확인 · 접수 기간은 공고 원문에서 확인하세요'), r2);
   const r3 = dash.rowHtml(by('지남'), { id: 'c' });
   assert.ok(r3.includes('공고 후 <span class="v">50</span>일') && r3.includes('마감 지남(<span class="d">' + plus(-5).slice(5) + '</span>)'), r3);
   assert.ok(dash.rowHtml(m.overdue[0], { id: 'd' }).includes('ov-stamp">D+200'));
@@ -373,7 +375,7 @@ test('상세 \'공고 진행\' 절: 맨 위, 공고 막대(접수 칸 없으면 
     sources: ['기준일=공고일', g2b] })], TODAY).notice[0];
   const h = dash.paneHtml(withRecv, { act: 'none', today: TODAY });
   assert.ok(h.indexOf('<h3>공고 진행</h3>') >= 0 && h.indexOf('<h3>공고 진행</h3>') < h.indexOf('<h3>기관 정보</h3>'));
-  assert.ok(h.includes('class="db-ntrk" role="img"') && h.includes('class="win"') && h.includes('접수 ' + md(4) + '~' + md(7)));
+  assert.ok(/class="db-ntrk( r3)?" role="img"/.test(h) && h.includes('class="win"') && h.includes('접수 ' + md(4) + '~' + md(7)));
   assert.ok(h.includes('<dt>공고 번호</dt><dd><span class="v">제2026-1729호</span></dd>'));
   assert.ok(h.includes('<dt>공고일</dt><dd><span class="v">' + plus(-14) + '</span></dd>'));
   assert.ok(h.includes('<dt>접수</dt>') && h.includes('마감 <span class="v">D-7</span>'));
@@ -420,4 +422,131 @@ test('현황판 마크업·CSS: 띠 첫 자식, 높이 고정, 순서, 안내문
   assert.ok(/\.db-nb-body \.nm \{[^}]*-webkit-line-clamp:2/.test(css));          // 긴 기관명은 2줄 말줄임
   assert.ok(/\.db-chip\.open \{[^}]*var\(--red\)/.test(css) && !/\.db-chip\.wait \{[^}]*var\(--red\)/.test(css));   // 빨강은 마감 전에만
   assert.deepStrictEqual(css.replace(/\/\*[\s\S]*?\*\//g, '').match(/#[0-9a-fA-F]{3,8}\b/g), null);
+});
+
+// ── qa 11-12 반영(M1·M3·M4·M5·L2·M2·보안) ──────────────────────────────
+test('M1: 120일 넘긴 확정 공고는 \'공고 후 n일 · 결과 미확인\', 추정 날짜 경과만 \'공고가 났는지\'', () => {
+  const s = logic.overdueSummary([nrec('확정121', 121), nrec('관악구청', 121), { name: '추정', region: '11', type: '지자체', contractEnd: plus(-121), confirmed: false }], TODAY);
+  const by = n => s.items.filter(i => i.name === n)[0];
+  assert.strictEqual(by('확정121').noticeExpired, true);
+  assert.strictEqual(by('관악구청').noticeExpired, true);          // 날짜 의미 확인 중 키여도 확정 공고면 true
+  assert.strictEqual(by('관악구청').kind, 'check');
+  assert.strictEqual(by('추정').noticeExpired, false);
+  const m = dash.model([nrec('확정121', 121), nrec('관악구청', 121), { name: '추정', region: '11', type: '지자체', contractEnd: plus(-121), confirmed: false }], TODAY);
+  const row = n => dash.rowHtml(m.overdue.filter(o => o.name === n)[0], { id: 'x' });
+  const note = '공고 후 121일 · 결과 미확인 — 결과 공고를 확인하세요';
+  assert.ok(row('확정121').includes(note) && !row('확정121').includes('공고 진행 중'), row('확정121'));
+  assert.ok(row('관악구청').includes(note) && row('관악구청').includes('날짜 의미 확인 중'), row('관악구청'));   // 꼬리표 유지
+  assert.ok(row('추정').includes('공고가 났는지 확인이 필요합니다') && !row('추정').includes('결과 미확인'));
+  // 경과 패널·팝업
+  const it = s.items.filter(i => i.name === '확정121')[0];
+  assert.ok(ov.itemHtml(it, true, 'all').includes(note));
+  assert.ok(ov.stampHtml(it).includes('공고 후 121일 지남'));
+  assert.ok(ov.stampHtml(by('추정')).includes('예정일 121일 지남'));
+  assert.ok(ov.popupParts({ items: [it] }, [], '2026-11-12').sum.includes('공고가 난 지 120일'));
+});
+
+test('M3: 마감일 미확인은 공고 후 30일까지만 +2·띠 카드, 31일부터는 결과 확인 쪽(지도 색·띠 카드에서 뺀다)', () => {
+  assert.strictEqual(logic.NOTICE_UNKNOWN_OPEN_DAYS, 30);
+  const u30 = nrec('u30', 30), u31 = nrec('u31', 31);
+  assert.strictEqual(logic.noticeState(u30, TODAY).late, false);
+  assert.strictEqual(logic.noticeState(u31, TODAY).late, true);
+  assert.strictEqual(logic.noticeState(u31, TODAY).check, true);
+  assert.strictEqual(logic.noticeState(nrec('r', 31, { receiveTo: plus(2) }), TODAY).check, false);   // 마감 전은 늦어도 마감 전
+  assert.strictEqual(logic.instScore(u30, TODAY), 2);
+  assert.strictEqual(logic.instScore(u31, TODAY), null);
+  const s = logic.noticeSummary([u31, u30, nrec('지남', 5, { receiveTo: plus(-1) }), nrec('마감', 40, { receiveTo: plus(1) })], TODAY);
+  assert.deepStrictEqual(s.items.map(i => i.name), ['마감', 'u30', '지남', 'u31']);   // 마감 전 → 미확인 → 결과 확인(공고 후 일수 순)
+  assert.deepStrictEqual([s.receiving, s.unknown, s.late, s.awaiting, s.check], [1, 1, 1, 1, 2]);
+  const mix = logic.regionMix([u30, u31], TODAY);
+  assert.strictEqual(mix.notice, 2); assert.strictEqual(mix.noticeOpen, 1); assert.strictEqual(mix.late, 1); assert.strictEqual(mix.awaiting, 0);
+  assert.strictEqual(mix.dated, 1);
+  assert.strictEqual(logic.regionMix([u31], TODAY).band, 'gray');
+  // 띠: u31은 카드에서 빠지고 '결과 확인' 쪽
+  const m = dash.model([nrec('송파', 8, { receiveTo: plus(4) }), u30, u31], TODAY);
+  const h = dash.noticeBandHtml(m, '');
+  assert.ok(h.includes('접수 마감 전 <b>1</b>곳 · 마감일 미확인 <b>1</b>곳 · 결과 확인 <b>1</b>곳'), h);
+  assert.strictEqual((h.match(/class="db-nb-card/g) || []).length, 2);
+  assert.ok(!h.includes('data-key="11|u31"') && h.includes('data-key="11|u30"') && h.includes('id="db-nb-wait"'));
+  // 문구: 30일 이내는 원문 확인, 31일부터는 결과 확인. 목록 행은 data-check로 '결과 확인 보기' 대상을 표시한다
+  const by = n => m.notice.filter(x => x.name === n)[0];
+  assert.ok(dash.rowHtml(by('u30'), { id: 'a' }).includes('마감일 미확인 · 접수 기간은 공고 원문에서 확인하세요'));
+  const r31 = dash.rowHtml(by('u31'), { id: 'b' });
+  assert.ok(r31.includes('마감일 미확인 · 결과가 났는지 확인하세요') && r31.includes('data-check="1"'), r31);
+  assert.ok(!dash.rowHtml(by('u30'), { id: 'a' }).includes('data-check'));
+  // 툴팁: 미확인(30일 이내)과 결과 확인을 나눠 센다. 지도 '공고 n'은 진행 중 전체 수 그대로
+  const tip = render.tipHtml('서울', logic.regionMix([nrec('r', 5, { receiveTo: plus(3) }), u30, u31], TODAY), TODAY);
+  assert.ok(tip.includes('마감 전 1 · 마감일 미확인 1 · 결과 확인 1'), tip);
+  assert.strictEqual(render.noticeSubText(logic.regionMix([u30, u31], TODAY)), '공고 2');
+});
+
+test('L2: 공고일이 오늘인 확정 공고는 티커 TOP5에 D-day로 들지 않고 \'공고 중 n\'에만 센다', () => {
+  const el = { innerHTML: '', querySelectorAll: () => [] };
+  const prevToday = render.state.today;
+  render.state.today = TODAY;
+  try {
+    withDoc({ getElementById: id => (id === 'ticker' ? el : null) }, () => {
+      store.setServerData([nrec('공고당일', 0, { receiveTo: plus(5) }),
+        { name: '예정시청', region: '11', type: '지자체', contractEnd: plus(30), confirmed: false }]);
+      render.drawTicker();
+      assert.ok(el.innerHTML.includes('>공고 중 1</span>'), el.innerHTML);
+      assert.ok(!el.innerHTML.includes('공고당일'), el.innerHTML);
+      assert.ok(el.innerHTML.includes('예정시청'));
+    });
+  } finally { store.clearServerData(); render.state.today = prevToday; }
+});
+
+test('M2: 국민은행 금고 약정 와플의 분모는 지자체만(법원·교육청 등 제외)', () => {
+  const list = [nrec('가', 5), nrec('나', 5), nrec('법원A', 5, { type: '법원', region: '26' }), nrec('교육청A', 5, { type: '교육청', region: '27' })];
+  assert.deepStrictEqual(dash.kbCount(list, ['11|가', '26|법원A']), { confirmed: 1, unconfirmed: 1, total: 2 });
+});
+
+test('보안: safeHttpUrl 공용 검사, 팝오버·상세 출처·재시도 배너가 이를 쓰고 이름을 이스케이프한다', () => {
+  assert.strictEqual(logic.safeHttpUrl('  https://a.example/x?y=1  '), 'https://a.example/x?y=1');
+  assert.strictEqual(logic.safeHttpUrl('HTTP://a.example'), 'HTTP://a.example');
+  ['javascript:alert(1)', 'https://a b', 'https://', '', null, undefined, 'ftp://a.example'].forEach(v => assert.strictEqual(logic.safeHttpUrl(v), null, String(v)));
+  assert.deepStrictEqual(dash.noticeLink({ noticeUrl: ' javascript:x ', sources: ['  https://a.example/x  '] }), { url: 'https://a.example/x', name: '공고 게시판 열기' });
+  const rsrc = fs.readFileSync(path.join(ROOT, 'js/render.js'), 'utf8');
+  const dsrc = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8');
+  assert.ok(rsrc.includes('logic.safeHttpUrl(t)') && !/test\(t\)\s*\?\s*'<a href/.test(rsrc));
+  assert.ok(dsrc.includes('logic.safeHttpUrl(t)') && dsrc.includes('map(logic.safeHttpUrl)'));
+  assert.ok(rsrc.includes("banner.innerHTML = logic.esc(name) + '지역 정보를"));
+  const up = dash.model([{ name: '가', region: '11', type: '지자체', contractEnd: plus(30), confirmed: false, sources: ['  https://example.invalid/a  ', 'javascript:alert(1)'] }], TODAY).upcoming[0];
+  const hu = dash.paneHtml(up, { act: 'none', today: TODAY });
+  assert.ok(hu.includes('<a href="https://example.invalid/a"') && !hu.includes('href="javascript'));
+});
+
+test('M4: 현황판 목록 머리 필터 행은 inline grid가 아니라 index.html 클래스(minmax(0,1fr)·min-width:0·종류가 있으면 두 줄)', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const dsrc = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8');
+  assert.ok(/\.db-filters \{[^}]*grid-template-columns:minmax\(0, 1fr\) 128px/.test(html));
+  assert.ok(/\.db-filters input, \.db-filters select \{[^}]*min-width:0/.test(html));
+  assert.ok(/\.db-filters\.has-type \{[^}]*grid-template-columns:minmax\(0, 1fr\) minmax\(0, 1fr\)/.test(html));
+  assert.ok(/\.db-filters\.has-type input \{[^}]*grid-column:1 \/ -1/.test(html));
+  assert.ok(!dsrc.includes('gridTemplateColumns') && dsrc.includes("classList.toggle('has-type'"));
+});
+
+test('M5: 공고 막대 라벨 — 접수 창 라벨은 위 줄, 오늘 라벨과 겹치면 셋째 줄(공고일·마감·약정 만료가 가까운 경우)', () => {
+  const trk = (since, extra) => {
+    const it = dash.model([nrec('기관', since, extra)], TODAY).notice[0];
+    return { t: dash.noticeTrack(it, TODAY), h: dash.noticeSecHtml(it, TODAY) };
+  };
+  // 공고 11.03(9일 전), 마감 11.16(4일 뒤) — qa가 겹침을 잰 경우: 오늘·접수 라벨이 같은 줄에 겹치므로 셋째 줄
+  const close = trk(9, { receiveTo: plus(4) });
+  assert.strictEqual(close.t.recvRow, 'low');
+  assert.ok(close.h.includes('class="db-ntrk r3"') && /class="lb low"[^>]*>마감 /.test(close.h), close.h);
+  // 접수 창이 오늘과 멀면 위 줄
+  const far = trk(60, { receiveFrom: plus(40), receiveTo: plus(50) });
+  assert.strictEqual(far.t.recvRow, 'top');
+  assert.ok(/class="lb top2"/.test(far.h) && !far.h.includes('db-ntrk r3'));
+  // 라벨 중심은 막대 안(0~100%)에 머문다
+  [close, far, trk(1, { receiveTo: plus(1) }), trk(119, { receiveTo: plus(1) })].forEach(x => {
+    assert.ok(x.t.recvCenter >= 0 && x.t.recvCenter <= 100, String(x.t.recvCenter));
+  });
+  // 공고일·마감·약정 만료가 모두 가까운 경우(약정 만료가 마감 직후): 겹치지 않는 줄에 둔다
+  const tight = trk(9, { receiveFrom: plus(2), receiveTo: plus(4), contractExpiry: plus(10) });
+  assert.strictEqual(tight.t.recvRow, 'low');
+  // 접수 칸이 없으면 창·라벨 없음(줄 늘림도 없음)
+  const none = trk(9);
+  assert.ok(!none.h.includes('class="lb top2"') && !none.h.includes('class="lb low"') && !none.h.includes('db-ntrk r3'));
 });

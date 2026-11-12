@@ -412,7 +412,8 @@
       if (n.receiveFrom && n.receiveTo) return '접수 ' + mdText(n.receiveFrom) + '~' + mdText(n.receiveTo);
       return '마감 ' + (n.deadlineDays === 0 ? 'D-day' : 'D-' + n.deadlineDays);
     }
-    if (n.phase === 'unknown') return '공고 ' + mdText(n.date) + ' · 공고 후 ' + n.since + '일 · 마감일 미확인';
+    if (n.phase === 'unknown' && !n.late) return '공고 ' + mdText(n.date) + ' · 공고 후 ' + n.since + '일 · 마감일 미확인';
+    if (n.late) return '공고 후 ' + n.since + '일 · 마감일 미확인';
     return '공고 후 ' + n.since + '일';
   };
 
@@ -430,17 +431,23 @@
     const c = render.mixColor(info);
     let h = '<div class="rt-head"><b>' + esc(name) + '</b><i class="rt-sw" style="background:' + c + '"></i></div>';
     if (!info.total) return h + '<div class="rt-mu">켠 종류의 기관이 없습니다</div>';
-    // 첫 블록: 공고 진행 중. 마감 전은 마감 가까운 순 최대 2곳, 결과 확인(마감일 미확인·마감 지남)은 1곳 + '외 n곳'.
+    // 첫 블록: 공고 진행 중. 마감 전은 마감 가까운 순 최대 2곳, 마감일 미확인(공고 후 30일 이내)은 1곳 + '외 n곳',
+    // 결과 확인(마감 지남·마감일 미확인 30일 초과)은 1곳 + '외 n곳'.
     if (info.notice > 0) {
       const list = info.notices || [];
       const rcv = list.filter(function (n) { return n.phase === 'receiving'; });
-      const rest = list.filter(function (n) { return n.phase !== 'receiving'; });
+      const unk = list.filter(function (n) { return n.phase === 'unknown' && !n.late; });
+      const rest = list.filter(function (n) { return n.phase !== 'receiving' && n.check; });
       h += '<div class="rt-notice"><div class="rt-row"><b>공고 진행 중 ' + info.notice + '곳</b> <span class="rt-m">— 마감 전 ' +
-        rcv.length + ' · 결과 확인 ' + rest.length + '</span></div>';
+        rcv.length + (unk.length ? ' · 마감일 미확인 ' + unk.length : '') + ' · 결과 확인 ' + rest.length + '</span></div>';
       rcv.slice(0, 2).forEach(function (n) {
         h += '<div class="rt-row">' + esc(n.name) + ' <span class="rt-d">' + esc(render.noticeWhen(n)) + '</span></div>';
       });
       if (rcv.length > 2) h += '<div class="rt-row rt-m">마감 전 외 ' + (rcv.length - 2) + '곳</div>';
+      if (unk.length) {
+        h += '<div class="rt-row">' + esc(unk[0].name) + ' <span class="rt-m">' + esc(render.noticeWhen(unk[0])) + '</span>' +
+          (unk.length > 1 ? ' 외 ' + (unk.length - 1) + '곳' : '') + '</div>';
+      }
       if (rest.length) {
         h += '<div class="rt-row rt-w">' + esc(rest[0].name) + ' <span class="rt-m">' + esc(render.noticeWhen(rest[0])) + '</span>' +
           (rest.length > 1 ? ' 외 ' + (rest.length - 1) + '곳' : '') + '</div>';
@@ -460,6 +467,7 @@
     const left = [];
     if (info.overdue) left.push('예정일 경과 ' + info.overdue + '곳');
     if (info.awaiting) left.push('마감 지난 공고 ' + info.awaiting + '곳');
+    if (info.late) left.push('마감일 미확인·결과 확인 공고 ' + info.late + '곳');
     if (info.unknown) left.push('날짜 미상 ' + info.unknown + '곳');
     h += '<div class="rt-mu">' + (left.length
       ? '기관 ' + info.total + '곳 중 ' + left.join('·') + '은 색에 넣지 않음'
@@ -611,7 +619,7 @@
       banner.textContent = msg;
       if (n < 2) { setTimeout(function(){ attempt(n + 1); }, 600); }
       else {
-        banner.innerHTML = name + '지역 정보를 다시 확인해주세요. <button id="geo-retry-btn">다시 시도</button>';
+        banner.innerHTML = logic.esc(name) + '지역 정보를 다시 확인해주세요. <button id="geo-retry-btn">다시 시도</button>';
         document.getElementById('geo-retry-btn').onclick = function () { banner.remove(); render.loadRegionGeoWithRetry(code, done, fail); };
         if (fail) fail();
       }
@@ -704,8 +712,10 @@
     // 시-단위 중복제거 — 일반구 폴리곤 레코드(수원 4구 등)가 TOP5를 채우지 않게.
     // 이미 예정일이 지난(D<0) 건은 '임박'이 아니라 경과라 뺀다 — 경과는 경과 패널이 맡는다.
     // 날짜 미상(Infinity)은 예전처럼 맨 뒤에 남는다.
+    // 진행 중 공고(noticeState — 공고일이 오늘인 확정 공고도 D-day로 잡힌다)는 '공고 중 n' 칩이 맡으므로 TOP5에서 뺀다(이중 집계 방지).
     const upcoming = all.filter(function (r) {
-      return logic.daysUntil(logic.effectiveBid(r).date, render.state.today) >= 0;
+      return !logic.noticeState(r, render.state.today) &&
+        logic.daysUntil(logic.effectiveBid(r).date, render.state.today) >= 0;
     });
     const top = logic.dedupeByInstitution(logic.sortByUrgency(upcoming, render.state.today)).slice(0, 5);
     const el = document.getElementById('ticker'); if (!el) return;
@@ -854,9 +864,9 @@
       let body;
       if (f === 'sources') {
         body = val.map(function (s) {
-          const t = String(s);
-          return /^https?:\/\//i.test(t)
-            ? '<a href="' + esc(t) + '" target="_blank" rel="noopener noreferrer">' + esc(t) + '</a>' : esc(t);
+          const t = String(s), u = logic.safeHttpUrl(t);
+          return u
+            ? '<a href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">' + esc(t) + '</a>' : esc(t);
         }).join('<br>');
       } else body = esc(val);
       if (!body) body = missing ? '(누락)' : '';

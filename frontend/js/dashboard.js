@@ -64,21 +64,22 @@
     const overdue = ov.items.map(function (it) {
       return { key: logic.instKey(it.rec), rec: it.rec, name: it.name, region: it.region, date: it.date, days: it.days,
         confidence: logic.effectiveBid(it.rec).confidence, label: bidLabel(logic.effectiveBid(it.rec)),
-        basis: logic.effectiveBid(it.rec).basis || '', check: it.check, kind: it.kind, band: 'overdue', overdue: true };
+        basis: logic.effectiveBid(it.rec).basis || '', check: it.check, kind: it.kind, noticeExpired: !!it.noticeExpired,
+        band: 'overdue', overdue: true };
     });
     // 공고 진행 중(noticeSummary 순서: 마감 전 → 마감일 미확인 → 마감 지남). 경과(overdue)에는 들지 않는다.
     const nsum = logic.noticeSummary(src, today);
     const notice = nsum.items.map(function (it) {
       const rec = it.rec, e = logic.effectiveBid(rec);
       return { key: logic.instKey(rec), rec: rec, name: it.name, region: it.region, date: it.date, days: it.since, since: it.since,
-        phase: it.phase, receiveFrom: it.receiveFrom, receiveTo: it.receiveTo, deadlineDays: it.deadlineDays,
+        phase: it.phase, late: !!it.late, resultCheck: !!it.check, receiveFrom: it.receiveFrom, receiveTo: it.receiveTo, deadlineDays: it.deadlineDays,
         startDays: it.receiveFrom ? logic.daysUntil(it.receiveFrom, today) : null,
         confidence: e.confidence, label: bidLabel(e), basis: e.basis || '', check: logic.isDateUnderReview(rec),
         band: 'notice', overdue: false, notice: true };
     });
     const expiryN = upcoming.filter(function (u) { return u.basis === 'expiry'; }).length;
     return { upcoming: upcoming, later: later, overdue: overdue, notice: notice,
-      noticeN: { receiving: nsum.receiving, unknown: nsum.unknown, awaiting: nsum.awaiting },
+      noticeN: { receiving: nsum.receiving, unknown: nsum.unknown, awaiting: nsum.awaiting, late: nsum.late, check: nsum.check },
       unknownN: ov.unknown, beyondN: later.length, expiryN: expiryN,
       total: deduped.length, confirmedN: confirmedN, underReviewN: underReviewN, maxUpdated: maxUpdated };
   };
@@ -224,7 +225,9 @@
     return set;
   };
   dash.kbCount = function (list, verifiedKeys) {
-    const set = dash.kbKeys(verifiedKeys), deduped = logic.dedupeByInstitution(list || []);
+    // 카드 제목이 '국민은행 금고 약정'이라 분모는 지자체만 센다(법원 공탁금·교육청·공공기관 등 비지자체 168곳 제외, qa 11-12 M2).
+    const set = dash.kbKeys(verifiedKeys), deduped = logic.dedupeByInstitution(list || [])
+      .filter(function (r) { return logic.kindOf(r.type) === '지자체'; });
     let c = 0;
     deduped.forEach(function (r) { if (Object.prototype.hasOwnProperty.call(set, logic.instKey(r))) c += 1; });
     return { confirmed: c, unconfirmed: deduped.length - c, total: deduped.length };
@@ -313,8 +316,11 @@
   function dayText(days) { return days === 0 ? 'D-day' : 'D-' + days; }
   // 경과 행 안내: 실제 뜬 공고(확정)의 날짜가 지났으면 공고는 이미 났고 결과를 기다리는 중이다(9f·qa 11-12 —
   // contractEnd=공고일 규칙이라 진행 중 공고가 경과로 잡힌다). 추정 날짜가 지났으면 공고 여부부터 확인.
+  // 120일을 넘긴 확정 공고(noticeExpired)는 '진행 중'이 아니라 '공고 후 n일 · 결과 미확인'이다('날짜 의미 확인 중'이어도 확정이면 같은 문구,
+  // 꼬리표는 chkHtml이 붙인다). 추정 날짜 경과만 공고가 났는지부터 확인한다.
   dash.overdueNote = function (it) {
-    return it.kind === 'fixed' ? '공고 진행 중 · 결과 확인이 필요합니다' : '공고가 났는지 확인이 필요합니다';
+    const expired = it.noticeExpired !== undefined ? it.noticeExpired : it.kind === 'fixed';
+    return expired ? '공고 후 ' + it.days + '일 · 결과 미확인 — 결과 공고를 확인하세요' : '공고가 났는지 확인이 필요합니다';
   };
   function chkHtml(it) { return it.check ? ' <span class="db-chk">날짜 의미 확인 중</span>' : ''; }
 
@@ -336,8 +342,15 @@
       return span + (it.startDays > 0 ? ' · 접수 시작 ' + esc(ddText(it.startDays)) : '');
     }
     if (it.phase === 'awaiting') return '마감 지남(<span class="d">' + esc(mdDash(it.receiveTo)) + '</span>) · 결과가 났는지 확인하세요';
-    return '마감일 미확인 · 결과가 났는지 확인하세요';
+    // 마감일 미확인: 공고 후 30일 이내(NOTICE_UNKNOWN_OPEN_DAYS)면 접수 중일 수 있어 원문 확인을, 31일부터는 마감이 지났을 가능성이 커 결과 확인을 안내한다.
+    return it.late ? '마감일 미확인 · 결과가 났는지 확인하세요' : '마감일 미확인 · 접수 기간은 공고 원문에서 확인하세요';
   };
+  // '결과 확인' 묶음 = 마감 지남 + 마감일 미확인 30일 초과. 띠 카드·지도 색에서 빠지고 목록에서만 보인다.
+  // 결과 확인 = 마감 지남 또는 마감일 미확인인데 공고 후 30일 넘음(check 칸이 없는 항목도 같은 규칙으로 판정)
+  function isCheck(it) {
+    if (it.resultCheck !== undefined) return !!it.resultCheck;   // check 칸은 '날짜 의미 확인 중' 뜻이라 따로 둔다
+    return it.phase === 'awaiting' || (it.phase === 'unknown' && it.since > logic.NOTICE_UNKNOWN_OPEN_DAYS);
+  }
   dash.noticeGroupLabel = function (items) {
     const r = items.filter(function (it) { return it.phase === 'receiving'; }).length;
     return '공고 진행 중 <b>' + items.length + '</b>곳' + (r && r < items.length ? ' · 마감 전 먼저' : '');
@@ -346,21 +359,20 @@
   // 출처 글에서 날짜를 뽑아 쓰지 않는다. http(s)만 통과시킨다.
   dash.noticeLink = function (rec) {
     const cands = [rec && rec.noticeUrl].concat(rec && Array.isArray(rec.sources) ? rec.sources : []);
-    const url = cands.map(function (s) { return String(s == null ? '' : s).trim(); })
-      .filter(function (t) { return /^https?:\/\/\S+$/i.test(t); })[0];
+    const url = cands.map(logic.safeHttpUrl).filter(function (t) { return t; })[0];
     if (!url) return null;
     return { url: url, name: (/g2b\.go\.kr/i.test(url) && /bidPbancNo=/i.test(url)) ? '공고 원문 열기' : '공고 게시판 열기' };
   };
 
-  // 지금 공고가 난 기관 띠(#db-notice 안쪽). 카드 = 마감 전 + 마감일 미확인(마감 지난 곳은 목록에서만), 마감 가까운 순, 5칸.
+  // 지금 공고가 난 기관 띠(#db-notice 안쪽). 카드 = 마감 전 + 마감일 미확인 30일 이내(결과 확인 묶음은 목록에서만), 마감 가까운 순, 5칸.
   // 6곳 이상이면 다섯째 칸이 '+n곳 더'. 카드가 0곳이면 ''(띠를 숨긴다). selKey = 지금 목록에서 고른 기관.
   dash.noticeBandHtml = function (m, selKey) {
     const all = (m && m.notice) || [];
-    const open = all.filter(function (it) { return it.phase !== 'awaiting'; });
+    const open = all.filter(function (it) { return !isCheck(it); });
     if (!open.length) return '';
     const r = all.filter(function (it) { return it.phase === 'receiving'; }).length;
-    const u = all.filter(function (it) { return it.phase === 'unknown'; }).length;
-    const w = all.filter(function (it) { return it.phase === 'awaiting'; }).length;
+    const u = all.filter(function (it) { return it.phase === 'unknown' && !isCheck(it); }).length;
+    const w = all.filter(isCheck).length;
     const sum = '접수 마감 전 <b>' + r + '</b>곳' + (u ? ' · 마감일 미확인 <b>' + u + '</b>곳' : '') + (w ? ' · 결과 확인 <b>' + w + '</b>곳' : '');
     const head = '<div class="db-h"><h2 id="db-nb-h">지금 공고가 난 기관</h2><span class="sum">' + sum + '</span>' +
       (w ? '<button type="button" class="end" id="db-nb-wait">결과 확인 <b>' + w + '</b>곳 보기</button>' : '') + '</div>';
@@ -398,22 +410,42 @@
     const hasWin = toD !== null;
     const winFrom = hasWin ? pct(fromD !== null ? fromD : toD) : 0;
     const winTo = hasWin ? pct(toD) : 0;
-    return { nowPct: pct(nowD), hasWin: hasWin, winFrom: winFrom, winTo: Math.max(winTo, winFrom + 1.2),
+    const nowPct = pct(nowD);
+    // 라벨 줄 배치(qa 11-12 M5): 접수 창 라벨은 막대 위 줄(top)에 두고, 위 줄의 '오늘' 라벨과 px 기준으로 겹치면 맨 아래 셋째 줄(low)로 내린다.
+    // 막대 폭은 모르므로 TRACK_PX 추정치로 라벨 폭을 %로 바꿔 계산한다(공고일·약정 만료 라벨은 가운데 줄 양 끝이라 겹치지 않는다).
+    const nowText = nowLabelText(today);
+    const recvText = dash.noticeRecvLabel(it);
+    const wNow = labelPct(nowText), wRecv = labelPct(recvText);
+    const nowRight = nowPct > 88;
+    const nowL = nowRight ? nowPct - wNow : nowPct - wNow / 2, nowR = nowRight ? nowPct : nowPct + wNow / 2;
+    const center = Math.max(wRecv / 2, Math.min(100 - wRecv / 2, (winFrom + Math.max(winTo, winFrom + 1.2)) / 2));
+    const overlap = hasWin && center - wRecv / 2 < nowR + LABEL_GAP_PCT && center + wRecv / 2 > nowL - LABEL_GAP_PCT;
+    return { nowPct: nowPct, hasWin: hasWin, winFrom: winFrom, winTo: Math.max(winTo, winFrom + 1.2),
+      recvCenter: center, recvText: recvText, recvRow: overlap ? 'low' : 'top', nowText: nowText,
       hasExp: hasExp, expDate: hasExp ? exp : '', endLabel: hasExp ? '약정 만료 ' + mdDot(exp) : '공고 후 ' + logic.NOTICE_ACTIVE_DAYS + '일' };
+  };
+  // 막대 라벨 폭 추정: 12px 고정폭 글꼴 기준 한글 12px·그 밖 7.2px, 막대 폭 TRACK_PX 추정.
+  const TRACK_PX = 420, LABEL_GAP_PCT = 1.5;
+  function labelPct(s) {
+    let px = 0;
+    String(s).split('').forEach(function (ch) { px += ch.charCodeAt(0) >= 0x1100 ? 12 : 7.2; });
+    return px / TRACK_PX * 100;
+  }
+  function nowLabelText(today) { return '오늘' + (today ? ' ' + mdDot(logic.localDateStr(today)) : ''); }
+  dash.noticeRecvLabel = function (it) {
+    return it.receiveFrom && it.receiveTo ? '접수 ' + mdDot(it.receiveFrom) + '~' + mdDot(it.receiveTo) : (it.receiveTo ? '마감 ' + mdDot(it.receiveTo) : '');
   };
   dash.noticeSecHtml = function (it, today) {
     const rec = it.rec, t = dash.noticeTrack(it, today || new Date());
     const nowS = today ? mdDash(logic.localDateStr(today)) : '';
-    const recvLabel = it.receiveFrom && it.receiveTo ? '접수 ' + mdDot(it.receiveFrom) + '~' + mdDot(it.receiveTo) : (it.receiveTo ? '마감 ' + mdDot(it.receiveTo) : '');
     const aria = '공고 ' + it.date + (nowS ? ', 오늘 ' + nowS : '') +
       (it.receiveFrom && it.receiveTo ? ', 접수 ' + mdDash(it.receiveFrom) + '부터 ' + mdDash(it.receiveTo) + '까지' : (it.receiveTo ? ', 마감 ' + mdDash(it.receiveTo) : '')) +
       (t.hasExp ? ', 현 약정 만료 ' + mdDash(t.expDate) : '');
-    const winCenter = (t.winFrom + t.winTo) / 2;
-    const trk = '<div class="db-ntrk" role="img" aria-label="' + esc(aria) + '"><div class="base"></div><div class="done" style="width:' + t.nowPct.toFixed(1) + '%"></div>' +
+    const trk = '<div class="db-ntrk' + (t.hasWin && t.recvRow === 'low' ? ' r3' : '') + '" role="img" aria-label="' + esc(aria) + '"><div class="base"></div><div class="done" style="width:' + t.nowPct.toFixed(1) + '%"></div>' +
       '<div class="tick" style="left:0"></div><span class="lb l" style="left:0">공고 ' + esc(mdDot(it.date)) + '</span>' +
       '<div class="tick" style="left:' + t.nowPct.toFixed(1) + '%"></div><span class="lb top' + (t.nowPct > 88 ? ' r' : '') + '" style="left:' + t.nowPct.toFixed(1) + '%">오늘' + (nowS ? ' ' + esc(nowS.replace('-', '.')) : '') + '</span>' +
       (t.hasWin ? '<div class="win' + (it.phase === 'receiving' ? '' : ' past') + '" style="left:' + t.winFrom.toFixed(1) + '%;width:' + (t.winTo - t.winFrom).toFixed(1) + '%"></div>' +
-        '<span class="lb" style="left:' + Math.max(12, Math.min(76, winCenter)).toFixed(1) + '%">' + esc(recvLabel) + '</span>' : '') +
+        '<span class="lb ' + (t.recvRow === 'low' ? 'low' : 'top2') + '" style="left:' + t.recvCenter.toFixed(1) + '%">' + esc(t.recvText) + '</span>' : '') +
       '<div class="tick end" style="left:100%"></div><span class="lb r" style="left:100%">' + esc(t.endLabel) + '</span></div>';
     const unk = '<span class="pop-unk">마감일 미확인</span>';
     let recv;
@@ -433,7 +465,7 @@
   dash.rowHtml = function (it, o) {
     o = o || {};
     if (it.notice) {
-      return '<li role="option" id="' + esc(o.id || '') + '" class="db-row" data-key="' + esc(it.key) + '" data-phase="' + esc(it.phase) +
+      return '<li role="option" id="' + esc(o.id || '') + '" class="db-row" data-key="' + esc(it.key) + '" data-phase="' + esc(it.phase) + (isCheck(it) ? '" data-check="1' : '') +
         '" aria-selected="' + (o.selected ? 'true' : 'false') + '"><span class="nm">' + esc(it.name) + '</span>' + dash.noticeChipHtml(it) +
         '<span class="meta">' + esc(dash.regionName(it.region)) + ' · ' + dash.noticeNote(it) + chkHtml(it) +
         (o.prepActive ? ' <span class="wf-badge pp-neutral">사전준비 중</span>' : '') + '</span></li>';
@@ -580,7 +612,8 @@
   }
   function srcItem(s) {
     const t = String(s == null ? '' : s).trim();
-    if (/^https?:\/\/\S+$/.test(t)) return '<li><a href="' + esc(t) + '" target="_blank" rel="noopener noreferrer">' + esc(t) + '</a></li>';
+    const u = logic.safeHttpUrl(t);
+    if (u) return '<li><a href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">' + esc(t) + '</a></li>';
     return '<li>' + esc(t) + '</li>';
   }
 
@@ -897,7 +930,7 @@
         ty.value = st.type;
       } else st.type = '';
       const fl = $('db-filters');
-      if (fl) fl.style.gridTemplateColumns = show ? '1fr 112px 96px' : '';
+      if (fl && fl.classList) fl.classList.toggle('has-type', !!show);   // 배치는 index.html의 .db-filters.has-type이 맡는다
     }
   }
 
@@ -948,7 +981,7 @@
     const btn = t.closest('button');
     if (!btn) return;
     switch (btn.id) {
-      case 'db-nb-wait': { const o = host.querySelector('.db-row[data-phase="awaiting"]'); const lb = o && o.closest('[role=listbox]'); if (o && o.scrollIntoView) o.scrollIntoView({ block: 'nearest' }); if (lb) lb.focus(); break; }
+      case 'db-nb-wait': { const o = host.querySelector('.db-row[data-check="1"]'); const lb = o && o.closest('[role=listbox]'); if (o && o.scrollIntoView) o.scrollIntoView({ block: 'nearest' }); if (lb) lb.focus(); break; }
       case 'db-nb-more': { const lb = $('db-nlb'); if (lb) { if (lb.scrollIntoView) lb.scrollIntoView({ block: 'nearest' }); lb.focus(); } break; }
       case 'db-past': st.pastOpen = !st.pastOpen; pruneSelection(); renderList(); { const b = $('db-past'); if (b) b.focus(); } break;
       case 'db-clear': st.q = ''; st.region = ''; st.type = ''; fillFilters(); renderList(); { const q = $('db-q'); if (q) q.focus(); } break;
