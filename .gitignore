@@ -14,6 +14,11 @@ kgi-ggreport-web/data/
 **/prep-attach/
 **/prep-attach-test/
 
+# 기관장 사진(NEXT 77) — 서버 저장소 기본값 data/head-photo(kgi-ggreport-web/ 아래)와 수집 원본(data/collector/head-photo-src).
+# 공공누리 표시가 없는 공식 누리집 사진을 로컬 작업용으로 쓰므로 커밋·푸시하지 않는다(사용자 11-13). 위 kgi-ggreport-web/data/·data/* 규칙과 겹쳐도 명시한다.
+**/head-photo/
+**/head-photo-src/
+
 # 리포 **루트**에 남은 SQLite 잔해. 재구성 전에는 `registry.db`가 루트에 있었고
 # (지금 표준은 `data/registry.db`), 그때 만들어진 40KB짜리가 아직 남아 있는 PC가
 # 있다(NEXT.md 항목 3). 코드는 아무도 이 파일을 안 읽지만 **`data/*` 규칙에 안 걸려
