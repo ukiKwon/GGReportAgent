@@ -137,7 +137,7 @@ public class HeadPhotoService {
                 throw InstitutionHeadService.hidden();
             }
             InstHead cur = mapper.selectCurrentHeadForUpdate(instId);
-            if (cur == null) {
+            if (cur == null || InstitutionHeadService.isEmptyHead(mapper, cur.getHeadId())) {   // 빈 머리도 현 기관장 없음(11-13 가)
                 throw coded(409, "NO_HEAD", "현 기관장이 없어 사진을 올릴 수 없습니다. 먼저 기관장을 등록하세요.");
             }
             if (!cur.getHeadId().equals(headId)) {
@@ -265,8 +265,11 @@ public class HeadPhotoService {
         InstitutionHeadService.writeLog(mapper, "PHOTO_VOID", instId, p.getHeadId(), null, null, photoId, null, null, null, reason,
                 me, actor, self);
         Long restored = null;
+        // 권한대행 밖 확정 칸이 하나도 없는 머리면 되살리지 않는다 — 이 무효로 머리가 비어 '현 기관장 없음'이 된다(11-13 가). 되살리면 이름 없는 사진만 남는다.
+        List<InstHeadPhoto> prevs = mapper.countShownItems(p.getHeadId()) > 0
+                ? mapper.selectReplacedPhotos(p.getHeadId()) : new ArrayList<InstHeadPhoto>();
         // 직전에 쓰던 사진 순(REPLACED 로 내려간 시각이 최근인 순)으로 보며, 파일이 남아 있는 첫 사진을 복원한다(없으면 다음 후보, 다 없으면 사진 없음).
-        for (InstHeadPhoto prev : mapper.selectReplacedPhotos(p.getHeadId())) {
+        for (InstHeadPhoto prev : prevs) {
             Path f = pathOf(prev.getStoreKey());
             if (f != null && Files.isRegularFile(f, LinkOption.NOFOLLOW_LINKS)
                     && mapper.updatePhotoState(prev.getPhotoId(), "REPLACED", "ACTIVE", null, null) == 1) {
@@ -280,6 +283,7 @@ public class HeadPhotoService {
         out.put("photo_id", photoId);
         out.put("head_id", p.getHeadId());
         out.put("restored_photo_id", restored);
+        out.put("head_empty", InstitutionHeadService.isEmptyHead(mapper, p.getHeadId()));
         return out;
     }
 
@@ -300,6 +304,9 @@ public class HeadPhotoService {
         }
         if (!"CURRENT".equals(h.getStatusCd()) || !"REPLACED".equals(p.getStateCd())) {
             throw InstitutionHeadService.stateChanged();
+        }
+        if (InstitutionHeadService.isEmptyHead(mapper, p.getHeadId())) {   // 빈 머리 = 현 기관장 없음 — 사진만 되살려 이름 없는 카드를 만들지 않는다
+            throw coded(409, "NO_HEAD", "현 기관장이 없어 사진을 복원할 수 없습니다. 먼저 기관장을 등록하세요.");
         }
         Path f = pathOf(p.getStoreKey());
         if (f == null || !Files.isRegularFile(f, LinkOption.NOFOLLOW_LINKS)) {

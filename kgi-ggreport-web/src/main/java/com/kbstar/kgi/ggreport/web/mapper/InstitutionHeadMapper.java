@@ -65,6 +65,9 @@ public interface InstitutionHeadMapper {
     /** CURRENT → FORMER(교체 확정자·시각 기록). */
     int endHead(@Param("headId") Long headId, @Param("by") String by, @Param("at") String at);
 
+    /** 빈 머리 CURRENT → VOIDED(비어 있음 판정은 호출자가 기관 잠금 뒤에). 0행이면 그 사이 바뀐 것. */
+    int voidEmptyHead(@Param("headId") Long headId, @Param("by") String by, @Param("at") String at);
+
     /** 매칭 대기(INSTITUTION_ID 없음 ∧ CANDIDATE) → 기관 지정. to 는 CANDIDATE 또는 MERGED, mergedInto 는 MERGED 일 때만. */
     int assignHead(@Param("headId") Long headId, @Param("institutionId") String institutionId, @Param("to") String to,
                    @Param("mergedInto") Long mergedInto, @Param("by") String by, @Param("at") String at);
@@ -89,6 +92,12 @@ public interface InstitutionHeadMapper {
 
     /** 머리의 열린(CANDIDATE) 칸 수(머리당 50 상한). */
     int countOpenItems(@Param("headId") Long headId);
+
+    /** 권한대행(ACTING) 밖의 CONFIRMED 칸 수 — 빈 머리 판정용. */
+    int countShownItems(@Param("headId") Long headId);
+
+    /** ACTIVE 사진 수(0 또는 1) — 빈 머리 판정용. */
+    int countActivePhotos(@Param("headId") Long headId);
 
     int insertItem(InstHeadItem i);
 
@@ -150,6 +159,9 @@ public interface InstitutionHeadMapper {
 
     /** CURRENT 머리 중 ACTIVE 사진이 있는 머리 번호. */
     List<Long> selectHeadIdsWithActivePhoto();
+
+    /** CURRENT 중 빈 머리(권한대행 밖 확정 칸·ACTIVE 사진 없음) 번호. */
+    List<Long> selectEmptyCurrentHeadIds();
 
     /** 매칭 대기 머리별 이름·직위(후보 칸)·열린 칸 수 — 열 HEAD_ID·NAME_VAL·POSITION_VAL·N. */
     List<Map<String, Object>> selectUnmatchedSummaries();

@@ -33,7 +33,11 @@ public class InstHeadDdlPairTest {
             "VALUES \\('PHOTO_LICENSE', '([A-Z0-9_]+)', '[^']*', \\d+, (\\d), ");
 
     private static List<String> inserts(String dialect) throws IOException {
-        Path f = DB.resolve(dialect).resolve("026_inst_head.sql");
+        return inserts(dialect, "026_inst_head.sql");
+    }
+
+    private static List<String> inserts(String dialect, String file) throws IOException {
+        Path f = DB.resolve(dialect).resolve(file);
         assertTrue(f + " 가 없다 — 작업 디렉터리가 kgi-ggreport-web/ 인지 확인", Files.exists(f));
         List<String> out = new ArrayList<>();
         boolean in = false;
@@ -100,5 +104,15 @@ public class InstHeadDdlPairTest {
                 assertTrue(dialect + " 에 " + t + " 가 없다", sql.contains("CREATE TABLE " + t + " ("));
             }
         }
+    }
+
+    @Test
+    public void 빈_기관장_정리_027_두_파일의_INSERT_블록이_같고_2행이다() throws IOException {
+        List<String> oracle = inserts("oracle", "027_inst_head_voided.sql");
+        List<String> mysql = inserts("mysql", "027_inst_head_voided.sql");
+        assertEquals(2, oracle.size());
+        assertEquals("글자 그대로(순서까지) 같다", oracle, mysql);
+        assertTrue(oracle.get(0).contains("('HEAD_STATUS', 'VOIDED',"));
+        assertTrue(oracle.get(1).contains("('HEAD_EVENT', 'HEAD_VOID',"));
     }
 }

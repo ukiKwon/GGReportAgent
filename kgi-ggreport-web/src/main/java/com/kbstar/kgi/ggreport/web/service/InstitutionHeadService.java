@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
 /**
  * 기관장 정보(NEXT 72·77, 026) — 목록·대기열·상세·등록·칸 입력·확정·기각·무효·매칭 대기 후보. 사진은 {@link HeadPhotoService}.
  *
- * <p>규칙: 값은 칸마다 출처와 함께 1행(후보·확정·대체). 현 기관장이 없으면 직접 입력이 곧 확정(CURRENT/CONFIRMED), 있으면 다른 값은 후보(CANDIDATE)로 들어가
+ * <p>규칙: 값은 칸마다 출처와 함께 1행(후보·확정·대체). 현 기관장이 없으면(빈 머리 포함 — {@link #isEmptyHead}) 직접 입력이 곧 확정(CURRENT/CONFIRMED), 있으면 다른 값은 후보(CANDIDATE)로 들어가
  * 충돌 해소({@link HeadRules})를 거친다. 이전 기관장(FORMER)·바뀐 값(SUPERSEDED)은 지우지 않고 화면에서 숨긴다.
  * <b>모든 대상 id 는 기관과 묶어 조회한다</b> — 행이 없으면 404(그 id 가 있다는 사실이 새지 않게), 있는데 상태가 다르면 409 STATE_CHANGED.
  * 쓰기는 전부 한 트랜잭션이고 <b>기관 행 잠금이 먼저</b>다 — 같은 기관의 쓰기는 거기서 직렬화된다(그래서 현 머리·ACTIVE 사진 조회는 FOR UPDATE 없이 읽는다:
@@ -98,6 +98,10 @@ public class InstitutionHeadService {
         return coded(409, "STATE_CHANGED", "그 사이 상태가 바뀌었습니다. 새로 고친 뒤 다시 시도하세요.");
     }
 
+    static ApiException noHead() {
+        return coded(409, "NO_HEAD", "현 기관장이 없습니다. [기관장 추가]로 먼저 등록하세요.");
+    }
+
     static ApiException forbidden(String code) {
         String msg;
         if ("LEAD_ONLY".equals(code)) {
@@ -134,6 +138,39 @@ public class InstitutionHeadService {
 
     private static int self(SysUser me, String proposer) {
         return me.getEmpNo() != null && me.getEmpNo().equals(proposer) ? 1 : 0;
+    }
+
+    /**
+     * 빈 머리 — CURRENT 이지만 권한대행(ACTING) 밖의 확정 칸(이름·직위·날짜·학력·경력)과 ACTIVE 사진이 하나도 없다(확정 값을 모두 무효 처리한 결과).
+     * 서버는 이것을 '현 기관장 없음'으로 본다(11-13 사용자 결정 가). 화면 headcard.js hc.isEmptyHead 와 같은 기준이다(권한대행 '아니오'는 카드에 안 보이므로 뺀다).
+     * 호출자는 기관 행 잠금 뒤에 부른다(같은 기관의 쓰기는 거기서 직렬화된다).
+     */
+    static boolean isEmptyHead(InstitutionHeadMapper mapper, Long headId) {
+        return mapper.countShownItems(headId) == 0 && mapper.countActivePhotos(headId) == 0;
+    }
+
+    /** 판정용 현 기관장 — CURRENT 머리가 없거나 빈 머리면 null(충돌 아님). 기관 잠금 뒤에 부른다. */
+    private InstHead liveCurrent(String instId) {
+        InstHead cur = mapper.selectCurrentHeadForUpdate(instId);
+        return cur != null && isEmptyHead(mapper, cur.getHeadId()) ? null : cur;
+    }
+
+    /**
+     * 빈 머리 정리 — CURRENT → VOIDED(숨김, 이전 기관장 FORMER 와 구분 — 이름 없는 머리가 이전 기관장 이력에 쌓이지 않게)로 내리고,
+     * 그 머리의 열린 후보 칸을 새 현 머리로 옮긴다(후보 그대로 — 새 확정값과 다시 비교돼 다르면 충돌, 잃지 않게). 확정 칸(권한대행 등)은 옮기지 않는다.
+     * 이력: HEAD_VOID(HEAD_ID=새 머리, FROM_HEAD_ID=빈 머리) + 옮겼으면 HEAD_MERGE. 옮긴 칸 수를 돌려준다.
+     * ⚠️ 머리 확정(A8)에서는 confirmItemsOfHead 뒤에 부른다 — 앞에서 부르면 옮긴 후보까지 함께 확정된다.
+     */
+    private int retireEmptyHead(Long emptyHeadId, Long intoHeadId, String instId, SysUser me, Actor actor, String now, int selfFlag) {
+        if (mapper.voidEmptyHead(emptyHeadId, me.getEmpNo(), now) != 1) {
+            throw stateChanged();
+        }
+        int moved = mapper.moveCandidateItems(emptyHeadId, intoHeadId, instId);
+        log("HEAD_VOID", instId, intoHeadId, null, null, emptyHeadId, null, me, actor, selfFlag);
+        if (moved > 0) {
+            log("HEAD_MERGE", instId, intoHeadId, null, null, emptyHeadId, null, me, actor, selfFlag);
+        }
+        return moved;
     }
 
     /** 같음 비교 키 — 글자는 공백 무시, 날짜는 문자열, 권한대행은 0/1. */
@@ -346,8 +383,12 @@ public class InstitutionHeadService {
         }
         Map<String, Integer> open = openCounts();
         Set<Long> photos = new HashSet<>(mapper.selectHeadIdsWithActivePhoto());
+        Set<Long> empty = new HashSet<>(mapper.selectEmptyCurrentHeadIds());
         List<Map<String, Object>> out = new ArrayList<>();
         for (InstHead h : heads) {
+            if (empty.contains(h.getHeadId())) {
+                continue;   // 빈 머리 = 현 기관장 없음 — 목록에 이름 없는 행을 내지 않는다
+            }
             Map<String, InstHeadItem> m = byHead.containsKey(h.getHeadId()) ? byHead.get(h.getHeadId()) : new HashMap<String, InstHeadItem>();
             InstHeadItem name = m.get("NAME");
             InstHeadItem pos = m.get("POSITION");
@@ -390,8 +431,11 @@ public class InstitutionHeadService {
         for (InstHeadItem i : mapper.selectCurrentConfirmedSingleItems()) {
             addTo(confirmed, i.getHeadId() + "|" + i.getFieldCd(), i);
         }
+        Set<Long> emptyHeads = new HashSet<>(mapper.selectEmptyCurrentHeadIds());
         for (InstHead h : mapper.selectCurrentHeads()) {
-            instWithCurrent.add(h.getInstitutionId());
+            if (!emptyHeads.contains(h.getHeadId())) {   // 빈 머리면 후보 기관장을 충돌로 세지 않는다(상세·A8 과 같은 기준)
+                instWithCurrent.add(h.getInstitutionId());
+            }
         }
         List<InstHeadItem> openItems = mapper.selectOpenCandidateItems();
         for (InstHeadItem i : openItems) {
@@ -474,8 +518,10 @@ public class InstitutionHeadService {
         out.put("viewer_verified", actor != null && actor.isVerified());
 
         List<Map<String, Object>> candidates = new ArrayList<>();
+        boolean headEmpty = true;   // 현 기관장 없음 = head:null 이거나 빈 머리(isEmptyHead 와 같은 기준 — 권한대행 칸 제외)
         if (cur == null) {
             out.put("head", null);
+            out.put("head_empty", true);
         } else {
             List<InstHeadItem> items = byHead.containsKey(cur.getHeadId()) ? byHead.get(cur.getHeadId()) : new ArrayList<InstHeadItem>();
             Map<String, List<InstHeadItem>> confirmedBy = new HashMap<>();
@@ -494,6 +540,7 @@ public class InstitutionHeadService {
             Map<String, Object> fieldsOut = new LinkedHashMap<>();
             String lastChecked = null;
             int sourceCount = 0;
+            int shownCount = 0;   // 권한대행 밖 확정 칸 수 — 빈 머리 판정
             List<Map<String, Object>> edu = new ArrayList<>();
             List<Map<String, Object>> career = new ArrayList<>();
             for (InstHeadItem i : items) {
@@ -501,6 +548,9 @@ public class InstitutionHeadService {
                     continue;
                 }
                 sourceCount++;
+                if (!"ACTING".equals(i.getFieldCd())) {
+                    shownCount++;
+                }
                 if (i.getCheckedOn() != null && (lastChecked == null || lastChecked.compareTo(i.getCheckedOn()) < 0)) {
                     lastChecked = i.getCheckedOn();
                 }
@@ -548,7 +598,9 @@ public class InstitutionHeadService {
             }
             h.put("source_count", sourceCount);
             h.put("last_checked_on", lastChecked);
-            out.put("head", h);
+            out.put("head", h);   // 빈 머리도 머리는 그대로 낸다(그 머리의 후보 처리·화면 호환) — 판정은 head_empty 로
+            headEmpty = shownCount == 0 && p == null;
+            out.put("head_empty", headEmpty);
 
             for (InstHeadItem i : items) {
                 if (!"CANDIDATE".equals(i.getStateCd())) {
@@ -571,11 +623,12 @@ public class InstitutionHeadService {
         }
         out.put("candidates", candidates);
 
+        InstHead live = headEmpty ? null : cur;   // 빈 머리면 후보 기관장은 충돌이 아니다(현 기관장 없음과 같다)
         List<Map<String, Object>> candHeads = new ArrayList<>();
         for (InstHead ch : mapper.selectCandidateHeads(instId)) {
             List<InstHeadItem> items = byHead.containsKey(ch.getHeadId()) ? byHead.get(ch.getHeadId()) : new ArrayList<InstHeadItem>();
-            boolean conflict = cur != null;
-            Set<String> owners = ownersOf(cur);
+            boolean conflict = live != null;
+            Set<String> owners = ownersOf(live);
             String bc = HeadRules.blockCode(HeadRules.Action.CONFIRM, role, emp, ch.getCreatedBy(), owners, conflict);
             String br = HeadRules.blockCode(HeadRules.Action.REJECT, role, emp, ch.getCreatedBy(), owners, conflict);
             Map<String, Object> m = new LinkedHashMap<>();
@@ -616,7 +669,7 @@ public class InstitutionHeadService {
 
     // ── 등록(A4)·칸 입력(A5) ─────────────────────────────────────────────
 
-    /** 기관장 등록 — 현 기관장이 없으면 바로 확정(CURRENT), 있으면 후보 머리(CANDIDATE, 충돌). 결과 state: CURRENT | CANDIDATE. */
+    /** 기관장 등록 — 현 기관장이 없거나 빈 머리면 바로 확정(CURRENT, 빈 머리는 VOIDED 로 정리·열린 후보는 새 머리로), 있으면 후보 머리(CANDIDATE, 충돌). 결과 state: CURRENT | CANDIDATE. */
     @Transactional
     public Map<String, Object> addHead(SysUser me, Actor actor, String instId, HeadIn.Head in) {
         if (in == null) {
@@ -636,11 +689,13 @@ public class InstitutionHeadService {
             throw hidden();
         }
         InstHead cur = mapper.selectCurrentHeadForUpdate(instId);
-        if (cur != null && mapper.countCandidateHeads(instId) >= CANDIDATE_HEAD_MAX) {
+        // 빈 머리(권한대행 밖 확정 칸·사진 없음) = 현 기관장 없음(11-13 사용자 결정 가) — 바로 확정하고 빈 머리는 아래에서 VOIDED 로 정리한다
+        InstHead emptied = cur != null && isEmptyHead(mapper, cur.getHeadId()) ? cur : null;
+        boolean direct = cur == null || emptied != null;
+        if (!direct && mapper.countCandidateHeads(instId) >= CANDIDATE_HEAD_MAX) {
             throw coded(409, "CANDIDATE_LIMIT", "열린 후보 기관장이 너무 많습니다. 기존 후보를 먼저 처리하세요.");
         }
         String now = Times.nowIso();
-        boolean direct = cur == null;
         InstHead h = new InstHead();
         h.setInstitutionId(instId);
         h.setStatusCd(direct ? "CURRENT" : "CANDIDATE");
@@ -670,11 +725,14 @@ public class InstitutionHeadService {
             ids.add(addHeadItem(h, "TERM_END", state, me, actor, src, now, null, end, null));
         }
         log("HEAD_ADD", instId, h.getHeadId(), null, null, null, null, me, actor, 1);
+        int moved = emptied == null ? 0 : retireEmptyHead(emptied.getHeadId(), h.getHeadId(), instId, me, actor, now, 1);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("head_id", h.getHeadId());
         out.put("state", direct ? "CURRENT" : "CANDIDATE");
         out.put("conflict", !direct);
         out.put("item_ids", ids);
+        out.put("voided_head_id", emptied == null ? null : emptied.getHeadId());
+        out.put("moved_item_count", moved);
         return out;
     }
 
@@ -719,6 +777,9 @@ public class InstitutionHeadService {
         }
         if (!"CURRENT".equals(head.getStatusCd())) {
             throw stateChanged();
+        }
+        if (isEmptyHead(mapper, head.getHeadId())) {   // 빈 머리 = 현 기관장 없음 — 새 값은 [기관장 추가](A4)로 넣는다(이름 없는 머리 되살리기 방지)
+            throw noHead();
         }
         if (mapper.countOpenItems(head.getHeadId()) >= OPEN_ITEM_MAX
                 || ("EDU".equals(field) && mapper.countLiveItems(head.getHeadId(), field) >= EDU_MAX)
@@ -834,7 +895,7 @@ public class InstitutionHeadService {
         boolean conflict;
         Set<String> owners;
         if ("CANDIDATE".equals(head.getStatusCd())) {
-            InstHead cur = mapper.selectCurrentHead(instId);
+            InstHead cur = liveCurrent(instId);   // 빈 머리면 null — 충돌 아님(A8·A9 와 같은 기준)
             conflict = cur != null;
             owners = ownersOf(cur);
         } else if ("CURRENT".equals(head.getStatusCd())) {
@@ -895,6 +956,7 @@ public class InstitutionHeadService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("item_id", itemId);
         out.put("head_id", head.getHeadId());
+        out.put("head_empty", isEmptyHead(mapper, head.getHeadId()));   // 참이면 화면은 같은 팝업에서 [기관장 추가] 양식으로 바꾼다
         return out;
     }
 
@@ -918,8 +980,10 @@ public class InstitutionHeadService {
             throw stateChanged();
         }
         InstHead cur = mapper.selectCurrentHeadForUpdate(instId);
+        boolean curEmpty = cur != null && isEmptyHead(mapper, cur.getHeadId());   // 빈 머리 = 현 기관장 없음 → 충돌 아님
+        InstHead live = curEmpty ? null : cur;
         String bc = HeadRules.blockCode(HeadRules.Action.CONFIRM, me.getRole(), me.getEmpNo(), head.getCreatedBy(),
-                ownersOf(cur), cur != null);
+                ownersOf(live), live != null);
         if (bc != null) {
             throw forbidden(bc);
         }
@@ -936,12 +1000,13 @@ public class InstitutionHeadService {
         }
         String now = Times.nowIso();
         Long formerId = null;
-        if (cur != null) {
-            if (mapper.endHead(cur.getHeadId(), me.getEmpNo(), now) != 1) {
+        if (live != null) {
+            if (mapper.endHead(live.getHeadId(), me.getEmpNo(), now) != 1) {
                 throw stateChanged();
             }
-            formerId = cur.getHeadId();
+            formerId = live.getHeadId();
             // 옛 기관장(FORMER)의 열린 후보 칸은 처리할 길이 없어지므로 자동 기각한다(qa P2-1). 사유 코드 HEAD_REPLACED.
+            // 빈 머리는 FORMER 로 내리지 않고(VOIDED) 후보도 기각하지 않는다 — 아래에서 새 머리로 옮긴다.
             if (mapper.rejectItemsOfHead(formerId, me.getEmpNo(), now) > 0) {
                 log("ITEM_REJECT", instId, formerId, null, null, null, "HEAD_REPLACED", me, actor, 0);
             }
@@ -951,6 +1016,10 @@ public class InstitutionHeadService {
         }
         mapper.confirmItemsOfHead(headId, me.getEmpNo(), now);
         int self = self(me, head.getCreatedBy());
+        int moved = 0;
+        if (curEmpty) {   // ⚠️ confirmItemsOfHead 뒤 — 옮긴 칸은 후보로 남는다
+            moved = retireEmptyHead(cur.getHeadId(), headId, instId, me, actor, now, self);
+        }
         if (formerId != null) {
             log("HEAD_REPLACE", instId, headId, null, null, formerId, null, me, actor, self);
         }
@@ -958,6 +1027,8 @@ public class InstitutionHeadService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("head_id", headId);
         out.put("former_head_id", formerId);
+        out.put("voided_head_id", curEmpty ? cur.getHeadId() : null);
+        out.put("moved_item_count", moved);
         return out;
     }
 
@@ -973,7 +1044,7 @@ public class InstitutionHeadService {
         if (!"CANDIDATE".equals(head.getStatusCd())) {
             throw stateChanged();
         }
-        InstHead cur = mapper.selectCurrentHeadForUpdate(instId);
+        InstHead cur = liveCurrent(instId);   // 빈 머리면 null — 충돌 아님
         String bc = HeadRules.blockCode(HeadRules.Action.REJECT, me.getRole(), me.getEmpNo(), head.getCreatedBy(),
                 ownersOf(cur), cur != null);
         if (bc != null) {

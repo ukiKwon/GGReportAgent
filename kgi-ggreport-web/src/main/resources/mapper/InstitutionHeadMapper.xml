@@ -104,6 +104,14 @@
      WHERE HEAD_ID = #{headId} AND STATUS_CD = 'CURRENT'
   </update>
 
+  <!-- 빈 머리 정리 — CURRENT → VOIDED(숨김, FORMER 와 구분). 0행이면 그 사이 바뀐 것(409).
+       '비어 있음' 판정은 호출자가 기관 잠금 뒤 isEmptyHead 로 한다 — 여기서 다른 표를 하위 질의로 읽으면 MySQL RR 이 그 색인에 gap 잠금을 걸어
+       다른 기관의 INSERT 를 막을 수 있어 넣지 않는다(43-44행 원칙, security 11-13). -->
+  <update id="voidEmptyHead">
+    UPDATE INST_HEAD SET STATUS_CD = 'VOIDED', ENDED_BY = #{by}, ENDED_AT = #{at}
+     WHERE HEAD_ID = #{headId} AND STATUS_CD = 'CURRENT'
+  </update>
+
   <update id="assignHead">
     UPDATE INST_HEAD SET INSTITUTION_ID = #{institutionId}, STATUS_CD = #{to}, MERGED_INTO_ID = #{mergedInto,jdbcType=NUMERIC},
            MATCHED_BY = #{by}, MATCHED_AT = #{at}
@@ -141,6 +149,15 @@
 
   <select id="countOpenItems" resultType="int" flushCache="true">
     SELECT COUNT(*) FROM INST_HEAD_ITEM WHERE HEAD_ID = #{headId} AND STATE_CD = 'CANDIDATE'
+  </select>
+
+  <!-- 빈 머리 판정(11-13 가) — 권한대행(ACTING) 밖의 확정 칸 수·ACTIVE 사진 수. 둘 다 0 이면 '현 기관장 없음'(화면 hc.isEmptyHead 와 같은 기준). 호출자는 기관 잠금 뒤에 부른다. -->
+  <select id="countShownItems" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM INST_HEAD_ITEM WHERE HEAD_ID = #{headId} AND STATE_CD = 'CONFIRMED' AND FIELD_CD &lt;&gt; 'ACTING'
+  </select>
+
+  <select id="countActivePhotos" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM INST_HEAD_PHOTO WHERE HEAD_ID = #{headId} AND STATE_CD = 'ACTIVE'
   </select>
 
   <insert id="insertItem" useGeneratedKeys="true" keyProperty="itemId" keyColumn="ITEM_ID">
@@ -267,6 +284,14 @@
     SELECT p.HEAD_ID FROM INST_HEAD_PHOTO p
       JOIN INST_HEAD h ON h.HEAD_ID = p.HEAD_ID
      WHERE p.STATE_CD = 'ACTIVE' AND h.STATUS_CD = 'CURRENT'
+  </select>
+
+  <!-- CURRENT 중 빈 머리 번호 — 목록(A1)·대기열(A2)이 '현 기관장 없음'으로 거른다. -->
+  <select id="selectEmptyCurrentHeadIds" resultType="long" flushCache="true">
+    SELECT h.HEAD_ID FROM INST_HEAD h
+     WHERE h.STATUS_CD = 'CURRENT'
+       AND NOT EXISTS (SELECT 1 FROM INST_HEAD_ITEM i WHERE i.HEAD_ID = h.HEAD_ID AND i.STATE_CD = 'CONFIRMED' AND i.FIELD_CD &lt;&gt; 'ACTING')
+       AND NOT EXISTS (SELECT 1 FROM INST_HEAD_PHOTO p WHERE p.HEAD_ID = h.HEAD_ID AND p.STATE_CD = 'ACTIVE')
   </select>
 
   <select id="selectUnmatchedSummaries" resultType="map" flushCache="true">

@@ -56,6 +56,7 @@
   hc.TEXT = {
     loading: '기관장 정보를 불러오는 중입니다…',
     none: '이 기관의 기관장은 아직 등록되지 않았습니다. 공개 자료를 확인해 출처와 함께 등록하세요.',
+    emptied: '기관장 정보가 모두 무효 처리되어 지금 확정된 기관장이 없습니다.',
     off: '기관장 정보 기능을 쓰지 않도록 설정되어 있습니다(사용 안 함). 관리자가 켜면 이 자리에 카드가 보입니다.',
     login: '로그인한 사번이 확인되지 않아 기관장 정보를 볼 수 없습니다. 다시 로그인하세요.',
     denied: '이 정보를 볼 권한이 없습니다(영업 계열 사용자만, 또는 사용자 등록 상태 확인 필요).',
@@ -88,6 +89,20 @@
   hc.licenseLabel = function (cd) { return LICENSE_NAMES[cd] || str(cd); };
   hc.isSales = function (role) { return hc.SALES_ROLES.indexOf(trim(role)) >= 0; };
   hc.isLead = function (role) { return hc.LEAD_ROLES.indexOf(trim(role)) >= 0; };
+  // 서버 A3 응답(d)에 확정된 기관장이 없는가. head:null이거나, 확정 값을 모두 무효 처리해 이름·확정 항목·사진이 하나도 없는 빈 머리면 참.
+  // 이름 없이 다른 확정 항목(직위·학력·경력·사진)이 남아 있으면 거짓 — 보이는 값과 무효 처리 버튼을 숨기지 않는다.
+  hc.isEmptyHead = function (d) {
+    if (d && typeof d.head_empty === 'boolean') return d.head_empty;   // 서버 판정(InstitutionHeadService.isEmptyHead)이 정본, 없을 때만 아래 대비 판정
+    const h = d && d.head;
+    if (!h) return true;
+    if (trim(h.name)) return false;
+    // 권한대행 여부(ACTING)는 '아니오'도 확정 항목으로 남지만 카드에 보이지 않으므로 판정에서 뺀다(qa 11-13 P2-2)
+    if (h.fields && Object.keys(h.fields).some(function (k) { return k !== 'ACTING'; })) return false;
+    if ((h.education || []).length || (h.career || []).length) return false;
+    return !h.photo;
+  };
+  // 확정 대기 후보 수(후보 항목 + 후보 기관장)
+  hc.candCount = function (d) { return ((d && d.candidates) || []).length + ((d && d.candidate_heads) || []).length; };
 
   // 임기 남은 기간. today는 자정 Date. 만료일이 없거나 형식이 틀리면 null.
   //  1개월 이상 남음 → '임기 n년 n개월'(0인 쪽은 생략) / 1개월 미만 → 'D-n'(임기 만료까지) / 오늘 → 'D-day' / 지남 → '만료 n일 지남'
@@ -185,10 +200,28 @@
     return '<div class="hc-photo"><div class="hc-frame">' + frame + '</div><p class="hc-cap">' + esc(cap) + '</p></div>';
   }
 
-  function factHtml(label, h, fieldCd, val) {
-    const f = h.fields && h.fields[fieldCd];
-    return '<div><dt>' + esc(label) + '</dt><dd>' + (val ? mono(val) + '<small>' + hc.srcHtml(f && f.source) + '</small>' : chip()) + '</dd></div>';
-  }
+  function srcKey(s) { return s ? [str(s.kind), trim(s.title), trim(s.url), str(s.checked_on)].join('\u0001') : ''; }
+  // 날짜 3칸(첫 취임일·현 임기 시작·임기 만료). 출처가 같으면 각주 하나로 모으고 값 옆에는 표식(1, 2…)만 둔다.
+  // 값이 없는 칸은 표식 없이 미확인 칩. 칸(dd)이 aria-describedby로 각주를 가리킨다.
+  hc.factsHtml = function (h) {
+    const specs = [['첫 취임일', 'FIRST_TAKE_OFFICE', 'first_take_office'], ['현 임기 시작', 'TERM_START', 'term_start'], ['임기 만료', 'TERM_END', 'term_end']];
+    const notes = [];
+    const cells = specs.map(function (sp) {
+      const val = h[sp[2]];
+      if (!val) return '<div><dt>' + esc(sp[0]) + '</dt><dd>' + chip() + '</dd></div>';
+      const f = h.fields && h.fields[sp[1]];
+      const s = f && f.source ? f.source : null;
+      const key = srcKey(s);
+      let n = 0;
+      for (let i = 0; i < notes.length; i += 1) { if (notes[i].key === key) { n = i + 1; break; } }
+      if (!n) { notes.push({ key: key, src: s }); n = notes.length; }
+      return '<div><dt>' + esc(sp[0]) + '</dt><dd aria-describedby="hc-fn-' + n + '">' + mono(val) + '<sup class="hc-fnref" aria-hidden="true">' + n + '</sup><span class="sr-only">(출처 ' + n + ')</span></dd></div>';
+    }).join('');
+    const foot = notes.map(function (x, i) {
+      return '<p class="hc-fn" id="hc-fn-' + (i + 1) + '"><sup aria-hidden="true">' + (i + 1) + '</sup><span class="sr-only">출처 ' + (i + 1) + ':</span> ' + (x.src ? '출처: ' : '') + hc.srcHtml(x.src) + '</p>';
+    }).join('');
+    return '<dl class="hc-facts">' + cells + '</dl>' + (foot ? '<div class="hc-fns">' + foot + '</div>' : '');
+  };
 
   function listHtml(items, emptyText) {
     if (!items.length) return '<span class="hc-none">' + chip(emptyText) + '</span>';
@@ -223,15 +256,14 @@
     const nameHtml = h.name ? esc(h.name) : chip('이름 미확인');
     const pos = h.position ? esc(h.position) : chip('직위 미확인');
     const acting = h.acting ? '<span class="hc-badge">권한대행</span>' : '';
-    const cands = (d.candidates || []).length + (d.candidate_heads || []).length;
+    const cands = hc.candCount(d);
     const candBtn = cands ? '<button type="button" class="hc-cand" data-hc="edit">확정 대기 후보 ' + cands + '건 보기</button>' : '';
     const edu = sortPeriod(h.education), career = sortPeriod(h.career);
     return '<article class="hc-card" aria-labelledby="hc-name">' +
       '<div class="hc-band">' + band + '</div>' +
       '<div class="hc-body">' + photoHtml(h, view) +
       '<div class="hc-who"><h4 id="hc-name">' + nameHtml + '</h4><div class="hc-pos">' + pos + acting + '</div>' +
-      '<dl class="hc-facts">' + factHtml('첫 취임일', h, 'FIRST_TAKE_OFFICE', h.first_take_office) +
-      factHtml('현 임기 시작', h, 'TERM_START', h.term_start) + factHtml('임기 만료', h, 'TERM_END', h.term_end) + '</dl></div></div>' +
+      hc.factsHtml(h) + '</div></div>' +
       '<dl class="hc-items"><dt>학력</dt><dd>' + listHtml(edu, '학력 미확인') + '</dd><dt>경력</dt><dd>' + listHtml(career, '경력 미확인') + '</dd></dl>' +
       '<div class="hc-foot"><span>출처 <span class="v">' + (Number(h.source_count) || 0) + '</span>건 · 최근 확인 ' +
       (h.last_checked_on ? mono(h.last_checked_on) : chip()) + '</span>' + candBtn +
@@ -248,7 +280,14 @@
     const st = view && view.status;
     let body;
     if (st === 'ok') body = hc.cardHtml(view, ctx);
-    else if (st === 'none') body = stateHtml(hc.TEXT.none, '<p class="hc-act"><button type="button" class="db-next" data-hc="add-head">기관장 추가</button></p>');
+    else if (st === 'none') {
+      const nd = view.data, nc = hc.candCount(nd);
+      const voided = !!(nd && nd.head);   // 무효 처리로 비게 된 경우(head:null이 아님)
+      body = stateHtml(voided ? hc.TEXT.emptied + ' 공개 자료를 확인해 출처와 함께 추가하세요.' : hc.TEXT.none,
+        '<p class="hc-act"><button type="button" class="db-next" data-hc="add-head">기관장 추가</button>' +
+        (nc ? '<button type="button" class="hc-cand" data-hc="edit">확정 대기 후보 ' + nc + '건 보기</button>' : '') +
+        '<button type="button" data-hc="refresh">새로 고침</button></p>');   // 다른 사람이 그 사이 등록했을 수 있다(design 11-13)
+    }
     else if (st === 'loading' || st === 'idle' || !st) body = '<p class="db-empty hc-state" role="status" aria-busy="true">' + esc(hc.TEXT.loading) + '</p>';
     else if (st === 'error') {
       body = '<p class="db-empty hc-state" role="alert">' + esc(view.text || (view.code ? hc.TEXT.error : hc.TEXT.network)) + (view.code ? ' (' + esc(view.code) + ')' : '') + '</p>' +
@@ -346,7 +385,7 @@
     return hc.request('GET', base(mine.instId) + '/head', undefined, button).then(function (d) {
       if (V !== mine) return;
       mine.data = d;
-      mine.status = d && d.head ? 'ok' : 'none';
+      mine.status = hc.isEmptyHead(d) ? 'none' : 'ok';
       mine.text = ''; mine.code = 0; mine.quietFail = false;
       syncPhoto(mine);
     }).catch(function (e) {
@@ -497,9 +536,9 @@
     return '<label class="hc-lab wide">' + esc(f.label) + '(' + f.max + '자 이내)<input type="text" name="value" maxlength="' + f.max + '" required autocomplete="off"' +
       (f.cd === 'NAME' ? ' placeholder="숫자는 쓸 수 없습니다"' : '') + '></label>';
   };
-  function headFormHtml(prefix, today, submitLabel) {
+  function headFormHtml(prefix, today, submitLabel, descId) {
     return '<form class="hc-form" data-form="add-head" novalidate>' +
-      '<label class="hc-lab">이름(30자 이내, 숫자 불가)<input type="text" name="name" id="' + prefix + '-name" maxlength="30" required autocomplete="off"></label>' +
+      '<label class="hc-lab">이름(30자 이내, 숫자 불가)<input type="text" name="name" id="' + prefix + '-name" maxlength="30" required autocomplete="off"' + (descId ? ' aria-describedby="' + esc(descId) + '"' : '') + '></label>' +
       '<label class="hc-lab">직위(40자 이내)<input type="text" name="position" maxlength="40" required autocomplete="off" placeholder="예: 가람시장"></label>' +
       '<label class="hc-lab">권한대행 여부<select name="acting">' + opt('', '모름(비워 둠)', true) + opt('0', '아니오(정식 임명)', false) + opt('1', '예(권한대행)', false) + '</select></label>' +
       '<label class="hc-lab">첫 취임일(선택)<input type="date" name="first_take_office" min="1900-01-01"></label>' +
@@ -590,7 +629,7 @@
       out += '<ul class="hc-list">' + heads.map(function (x) { return candidateHeadRow(x, d, M, ctx); }).join('') + cands.map(function (x) { return candidateRow(x, d, M, ctx); }).join('') + '</ul>';
     } else out += '<p class="db-empty">확정을 기다리는 후보가 없습니다.</p>';
     out += '</section>';
-    if (h) {
+    if (h && !hc.isEmptyHead(d)) {
       const items = confirmedItems(h);
       out += '<section class="hc-m-sec" aria-labelledby="hc-s2"><h4 id="hc-s2">확정된 항목 <span class="v">' + items.length + '</span>건</h4>' +
         (items.length ? '<ul class="hc-list">' + items.map(function (x) { return confirmedRow(x, d, M, ctx); }).join('') + '</ul>' : '<p class="db-empty">확정된 항목이 없습니다.</p>') + '</section>';
@@ -615,9 +654,11 @@
     ctx = ctx || {};
     const d = view.data || {}, h = d.head;
     let out = '';
-    if (!h) {
+    if (hc.isEmptyHead(d)) {
+      // head:null이든 빈 머리든 서버는 바로 확정한다(빈 머리는 숨김 처리·열린 후보는 새 기관장으로 옮김). 동시에 먼저 등록한 사람이 있으면 후보로 들어간다.
+      const hint = (h ? hc.TEXT.emptied + ' ' : '현 기관장이 없어 ') + '입력한 값이 바로 확정됩니다. 공개 자료로 확인한 사실만 출처와 함께 적으세요.';
       out += '<section class="hc-m-sec" aria-labelledby="hc-s4"><h4 id="hc-s4">기관장 등록</h4>' +
-        '<p class="hc-hint">현 기관장이 없어 입력한 값이 바로 확정됩니다. 공개 자료로 확인한 사실만 출처와 함께 적으세요.</p>' + headFormHtml('hf', ctx.today, '등록') + '</section>';
+        '<p class="hc-hint" id="hc-s4-hint">' + esc(hint) + '</p>' + headFormHtml('hf', ctx.today, '등록', 'hc-s4-hint') + '</section>';
       return out;
     }
     const fcd = (M && M.field) || 'NAME';
@@ -668,14 +709,23 @@
     const el = q('#hc-m-status');
     if (el) el.innerHTML = msgHtml(M);
   }
+  // 반환: 이번 다시 그리기로 기관장 상태가 바뀌어 입력 양식을 새로 그렸고 그 결과가 'none'이면 true(호출자가 양식 첫 칸으로 포커스를 옮긴다)
   function repaintModal(withForms) {
-    if (!M) return;
-    if (V.status !== 'ok' && V.status !== 'none') { hc.closeModal(true); return; }
+    if (!M) return false;
+    if (V.status !== 'ok' && V.status !== 'none') { hc.closeModal(true); return false; }
+    const switched = M.mode !== V.status;
+    M.mode = V.status;
     const l = q('#hc-m-lists');
     if (l) l.innerHTML = hc.modalListsHtml(V, M, envNow());
-    if (withForms) { const f = q('#hc-m-forms'); if (f) f.innerHTML = hc.modalFormsHtml(V, M, envNow()); }
+    if (withForms || switched) { const f = q('#hc-m-forms'); if (f) f.innerHTML = hc.modalFormsHtml(V, M, envNow()); }
+    return switched && V.status === 'none';
   }
   function focusStatus() { const s = q('#hc-m-status'); if (s) s.focus(); }
+  // 기관장이 없게 된 직후에는 같은 팝업의 '기관장 등록' 양식 첫 칸(이름)으로, 그 밖에는 결과 안내로.
+  function focusAfter(toNone) {
+    if (toNone) { const n = q('#hf-name'); if (n) { n.focus(); return; } }
+    focusStatus();
+  }
 
   // 쓰기 한 건: 요청 → 다시 읽기(카드·모달 갱신) → 안내. 진행 중에는 다른 클릭을 받지 않는다.
   // btn = 방금 수행한 쓰기의 버튼 ID — 뒤따르는 자동 재조회도 같은 버튼 ID로 감사 기록에 남는다(서버 허용 목록의 값만).
@@ -692,15 +742,14 @@
         if (!M) return;
         if (V.quietFail) setMsg('저장은 됐지만 새로 읽지 못했습니다. 화면의 내용이 최신이 아닐 수 있습니다.', true, true);
         else setMsg(okMsg, false);
-        repaintModal(withForms);
-        focusStatus();
+        focusAfter(repaintModal(withForms));
       });
     }).catch(function (e) {
       if (!M) return;
       setMsg(hc.errText(e.status, e.detail), true);
       if (e.status === 409 || e.status === 404) {   // 그 사이 바뀐 건 — 최신으로 다시 읽어 목록을 맞춘다
         M.pending = null;
-        return hc.refresh(true, reBtn).then(function () { repaintModal(false); focusStatus(); });
+        return hc.refresh(true, reBtn).then(function () { focusAfter(repaintModal(false)); });
       }
       repaintModal(false);
       focusStatus();
@@ -769,8 +818,7 @@
       if (!M) return;
       if (V.quietFail) setMsg('아직 새로 읽지 못했습니다. 서버 연결을 확인하고 다시 시도하세요.', true, true);
       else setMsg('새로 읽었습니다.', false);
-      repaintModal(true);
-      focusStatus();
+      focusAfter(repaintModal(true));
     }).then(function () { if (M) M.busy = false; });
   }
 
@@ -850,7 +898,7 @@
   hc.openModal = function (envFn, opts) {
     if (typeof document === 'undefined' || M) return;
     if (V.status !== 'ok' && V.status !== 'none') return;
-    M = { envFn: envFn, opener: document.activeElement, pending: null, askSel: '', field: 'NAME', busy: false, msg: null, el: null };
+    M = { envFn: envFn, opener: document.activeElement, pending: null, askSel: '', field: 'NAME', busy: false, msg: null, el: null, mode: V.status };
     const tmp = document.createElement('div');
     tmp.innerHTML = hc.modalHtml(V, M, envNow());
     M.el = tmp.firstChild;
@@ -869,7 +917,10 @@
     M = null;
     if (m.el && m.el.parentNode) m.el.parentNode.removeChild(m.el);
     if (refocus && typeof document !== 'undefined') {
-      const t = m.opener && document.body.contains(m.opener) ? m.opener : document.getElementById('db-name');
+      // 처음 누른 버튼이 다시 그려져 사라졌으면(ok↔none 전환) 지금 보이는 [기관장 추가]·[편집]으로, 그것도 없으면 기관 이름으로
+      const qs = function (s) { return typeof document.querySelector === 'function' ? document.querySelector(s) : null; };
+      const t = m.opener && document.body.contains(m.opener) ? m.opener
+        : (qs('#hc-sec [data-hc="add-head"]') || qs('#hc-sec [data-hc="edit"]') || document.getElementById('db-name'));
       if (t && t.focus) t.focus();
     }
   };

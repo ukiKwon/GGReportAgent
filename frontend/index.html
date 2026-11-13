@@ -1719,7 +1719,7 @@
      큰 숫자(.hc-big b) 하나만 굵게 키운다. 점수·등급·별점 없음, 테두리 색으로 사람을 가르지 않는다. */
   .hc-sec h3 { margin:0 0 12px; }
   .hc-state { margin:0 0 10px; font-size:13px; }
-  .hc-act { margin:10px 0 0; }
+  .hc-act { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 0; }
   .hc-card { border:1px solid var(--line-strong); border-radius:var(--r-lg, 14px); background:var(--panel); overflow:hidden; }
   .hc-band { display:flex; flex-direction:column; gap:4px; padding:12px 16px; border-bottom:1px solid var(--line-strong); background:color-mix(in srgb, var(--accent-color) 9%, var(--panel)); }
   .hc-big { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
@@ -1741,7 +1741,10 @@
   .hc-facts > div + div { border-left:1px solid var(--line); }
   .hc-facts dt { font-size:12px; color:var(--muted); }
   .hc-facts dd { margin:2px 0 0; font-size:13px; }
-  .hc-facts small { display:block; margin-top:2px; font-size:12px; line-height:1.4; }
+  .hc-fnref { margin-left:4px; font-size:12px; line-height:0; color:var(--muted); }
+  .hc-fns { margin-top:6px; }
+  .hc-fn { margin:0 0 2px; font-size:12px; line-height:1.5; color:var(--muted); overflow-wrap:anywhere; }
+  .hc-fn sup { margin-right:4px; font-size:12px; }
   .hc-src { font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
   .hc-src a, .hc-bigsrc a { color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent-color); text-underline-offset:3px; }
   .hc-items { display:grid; grid-template-columns:44px minmax(0, 1fr); gap:10px 12px; margin:0; padding:0 16px 14px; }

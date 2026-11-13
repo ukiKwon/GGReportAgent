@@ -208,7 +208,8 @@ test('sectionHtml: 상태마다 말이 다르다(없음·꺼짐·권한·서버 
   assert.ok(s('denied').indexOf('이 정보를 볼 권한이 없습니다') >= 0 && s('denied').indexOf('사용자 등록 상태 확인 필요') >= 0);   // 원인을 단정하지 않는다
   assert.ok(s('role').indexOf('영업팀·영업팀장·영업부장만') >= 0);
   ['denied', 'notfound', 'login', 'error'].forEach(function (k) { assert.ok(s(k, { text: 'x', code: 500 }).indexOf('data-hc="refresh"') >= 0, k); });   // 다시 불러오기
-  ['off', 'role', 'noid', 'offline', 'none'].forEach(function (k) { assert.ok(s(k).indexOf('data-hc="refresh"') < 0, k); });
+  ['off', 'role', 'noid', 'offline'].forEach(function (k) { assert.ok(s(k).indexOf('data-hc="refresh"') < 0, k); });
+  assert.ok(s('none').indexOf('data-hc="refresh"') >= 0, 'none');   // 그 사이 다른 사람이 등록했을 수 있어 다시 읽기(design 11-13)
   assert.ok(s('login').indexOf('다시 로그인') >= 0);
   assert.ok(s('notfound').indexOf('서버에 등록된 기관만 기관장 정보를 관리합니다') >= 0);
   assert.ok(s('noid').indexOf('서버에 등록된 기관만 기관장 정보를 관리합니다') >= 0 && s('noid').indexOf('data-hc="add-head"') < 0);
@@ -825,4 +826,80 @@ test('모달 흐름(가짜 DOM): 저장 뒤 재조회가 실패해도 모달은 
     assert.ok(dom.el('status').innerHTML.indexOf('새로 읽었습니다') >= 0 && dom.el('status').innerHTML.indexOf('data-m="reload"') < 0);
     assert.strictEqual(hc.isModalOpen(), true);
   } finally { hc.closeModal(false); dom.off(); cleanup(); }
+});
+
+// ── 확정된 기관장이 없는 경우(11-13 사용자 답 가: 이름까지 무효 처리 → 기관장 없음) ──
+const EMPTY_HEAD = { name: null, position: null, acting: false, first_take_office: null, term_start: null, term_end: null,
+  fields: {}, education: [], career: [], photo: null, source_count: 0, last_checked_on: null };
+test('isEmptyHead: head:null·확정 값이 모두 무효 처리된 머리는 비었다, 보이는 값이 남으면 아니다', function () {
+  assert.strictEqual(hc.isEmptyHead(null), true);
+  assert.strictEqual(hc.isEmptyHead({}), true);
+  assert.strictEqual(hc.isEmptyHead({ head: null }), true);
+  assert.strictEqual(hc.isEmptyHead(detail({ head: EMPTY_HEAD })), true);
+  assert.strictEqual(hc.isEmptyHead(detail({ head: Object.assign({}, EMPTY_HEAD, { name: '  ' }) })), true);
+  assert.strictEqual(hc.isEmptyHead(detail()), false);
+  assert.strictEqual(hc.isEmptyHead(detail({ head: Object.assign({}, EMPTY_HEAD, { name: '서지운' }) })), false);
+  assert.strictEqual(hc.isEmptyHead(detail({ head: Object.assign({}, EMPTY_HEAD, { fields: { POSITION: field(2, '가람시장') } }) })), false);
+  assert.strictEqual(hc.isEmptyHead(detail({ head: Object.assign({}, EMPTY_HEAD, { career: [{ item_id: 11, field_cd: 'CAREER', value: 'x', source: SRC }] }) })), false);
+  assert.strictEqual(hc.isEmptyHead(detail({ head: Object.assign({}, EMPTY_HEAD, { photo: { photo_id: 3 } }) })), false);
+  assert.strictEqual(hc.isEmptyHead(detail({ head: Object.assign({}, EMPTY_HEAD, { fields: { ACTING: field(6, 'false') } }) })), true);   // 권한대행 '아니오'만 남음 — 카드에 안 보이므로 빈 머리
+  assert.strictEqual(hc.isEmptyHead(detail({ head: Object.assign({}, EMPTY_HEAD, { fields: { ACTING: field(6, 'false'), POSITION: field(2, '가람시장') } }) })), false);
+});
+test('candCount: 후보 항목 + 후보 기관장, 없으면 0', function () {
+  assert.strictEqual(hc.candCount(null), 0);
+  assert.strictEqual(hc.candCount({ candidates: [1, 2], candidate_heads: [3] }), 3);
+  assert.strictEqual(hc.candCount({}), 0);
+});
+test('ensure: 이름까지 무효 처리돼 빈 머리만 남으면 none + [기관장 추가], 후보가 있으면 수와 [편집]', async function () {
+  const cand = { item_id: 20, field_cd: 'NAME', value: '박후보', source: SRC, created_by: '1', can_confirm: true, can_reject: true };
+  const ch = { head_id: 9, name: '김후보', position: '시장', created_by: '1', item_count: 2, can_confirm: true, can_reject: true };
+  fakeFetch(function () { return { status: 200, json: detail({ head: EMPTY_HEAD, candidates: [cand], candidate_heads: [ch] }) }; });
+  try {
+    await hc.ensure('11010', function () {});
+    assert.strictEqual(hc.view().status, 'none');
+    const h = hc.sectionHtml(hc.view(), env());
+    assert.ok(h.indexOf('hc-card') < 0 && h.indexOf('이름 미확인') < 0);
+    assert.ok(h.indexOf('data-hc="add-head"') >= 0 && h.indexOf('기관장 정보가 모두 무효 처리되어 지금 확정된 기관장이 없습니다') >= 0);
+    assert.ok(h.indexOf('확정 대기 후보 2건 보기') >= 0 && h.indexOf('data-hc="edit"') >= 0);
+    hc.reset();
+    fakeFetch(function () { return { status: 200, json: detail({ head: EMPTY_HEAD }) }; });
+    await hc.ensure('11010', function () {});
+    const h0 = hc.sectionHtml(hc.view(), env());
+    assert.ok(h0.indexOf('data-hc="add-head"') >= 0 && h0.indexOf('data-hc="edit"') < 0 && h0.indexOf('확정 대기 후보') < 0);
+  } finally { cleanup(); }
+});
+test('모달: 빈 머리(none)도 기관장 등록 양식 + 안내문 연결 + 후보 목록은 그대로', function () {
+  const cand = { item_id: 20, field_cd: 'NAME', value: '박후보', source: SRC, created_by: '1', can_confirm: true, can_reject: true };
+  const h = hc.modalHtml(view({ head: EMPTY_HEAD, candidates: [cand] }, { status: 'none' }), {}, { today: TODAY, emp: '2002' });
+  assert.ok(h.indexOf('data-form="add-head"') >= 0 && h.indexOf('data-form="add-item"') < 0 && h.indexOf('data-form="photo"') < 0);
+  assert.ok(h.indexOf('id="hf-name"') >= 0 && h.indexOf('aria-describedby="hc-s4-hint"') >= 0 && h.indexOf('id="hc-s4-hint"') >= 0);
+  assert.ok(h.indexOf('기관장 정보가 모두 무효 처리되어 지금 확정된 기관장이 없습니다') >= 0);
+  assert.ok(h.indexOf('바로 확정됩니다') >= 0);   // 서버가 빈 머리도 현 기관장 없음으로 보고 바로 확정한다
+  assert.strictEqual(hc.isEmptyHead({ head: EMPTY_HEAD, head_empty: false }), false);   // 서버 판정이 정본
+  assert.strictEqual(hc.isEmptyHead({ head: { name: '서지운' }, head_empty: true }), true);
+  assert.ok(h.indexOf('id="hc-s2"') < 0 && h.indexOf('확정 대기 후보 <span class="v">1</span>건') >= 0);
+  assert.ok(h.indexOf('data-m="confirm-item"') >= 0);
+  const nul = hc.modalHtml(view({ head: null }, { status: 'none' }), {}, { today: TODAY, emp: '2002' });
+  assert.ok(nul.indexOf('바로 확정됩니다') >= 0);
+});
+test('cardHtml: 날짜 3칸의 출처는 같으면 각주 한 줄, 다르면 표식을 나눈다', function () {
+  const seg = function (html) { return html.slice(html.indexOf('<dl class="hc-facts">'), html.indexOf('<dl class="hc-items">')); };
+  const same = seg(hc.cardHtml(view({ head: { fields: { NAME: field(1, '서지운'), FIRST_TAKE_OFFICE: field(3, '2022-07-01'), TERM_START: field(4, '2026-07-01'), TERM_END: field(5, '2030-06-30') } } }), { today: TODAY }));
+  assert.strictEqual((same.match(/class="hc-fn"/g) || []).length, 1);
+  assert.strictEqual((same.match(/class="hc-fnref"/g) || []).length, 3);
+  assert.strictEqual((same.match(/aria-describedby="hc-fn-1"/g) || []).length, 3);
+  assert.strictEqual((same.match(/가람시 누리집/g) || []).length, 1);
+  assert.ok(same.indexOf('<p class="hc-fn" id="hc-fn-1">') >= 0 && same.indexOf('출처: ') >= 0);
+  const diff = seg(hc.cardHtml(view(), { today: TODAY }));
+  assert.strictEqual((diff.match(/class="hc-fn"/g) || []).length, 2);
+  assert.ok(/임기 만료<\/dt><dd aria-describedby="hc-fn-2">/.test(diff));
+  assert.ok(/첫 취임일<\/dt><dd aria-describedby="hc-fn-1">/.test(diff) && /현 임기 시작<\/dt><dd aria-describedby="hc-fn-1">/.test(diff));
+  assert.ok(diff.indexOf('id="hc-fn-2"') >= 0 && diff.indexOf('<span class="v">2030-06-30</span>') >= 0);
+});
+test('cardHtml: 값이 없는 칸은 표식 없이 미확인, 각주 값은 이스케이프', function () {
+  const none = hc.cardHtml(view({ head: { first_take_office: null, term_start: null, term_end: null, fields: {} } }), { today: TODAY });
+  assert.ok(none.indexOf('hc-fnref') < 0 && none.indexOf('hc-fns') < 0);
+  const evil = hc.cardHtml(view({ head: { fields: { FIRST_TAKE_OFFICE: field(3, '2022-07-01', { kind: 'OTHER', title: '<img src=x onerror=y>', url: null, checked_on: '2026-11-03' }) } } }), { today: TODAY });
+  assert.strictEqual(evil.indexOf('<img src=x'), -1);
+  assert.ok(evil.indexOf('&lt;img src=x') >= 0);
 });

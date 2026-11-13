@@ -1,6 +1,7 @@
 package com.kbstar.kgi.ggreport.web.web;
 
 import com.kbstar.kgi.ggreport.web.AppTest;
+import com.kbstar.kgi.ggreport.web.support.Times;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -82,5 +83,31 @@ public class InstitutionHeadConcurrencyApiTest extends HeadApiTestBase {
         assertEquals(1, count("SELECT COUNT(*) FROM INST_HEAD WHERE INSTITUTION_ID=? AND STATUS_CD='CANDIDATE'", INST4));
         assertEquals(2, count("SELECT COUNT(*) FROM INST_HEAD_LOG WHERE EVENT_CD='HEAD_ADD' AND INSTITUTION_ID=?", INST4));
         assertEquals("ACT 도 둘 다 커밋됐다", 2, count("SELECT COUNT(*) FROM INST_HEAD_ACT WHERE ACTION_CD='HEAD_ADD' AND OUTCOME='OK' AND INSTITUTION_ID=?", INST4));
+    }
+
+    @Test
+    public void 빈_머리만_있는_기관에_동시_등록해도_CURRENT는_하나고_빈_머리는_한_번만_정리된다() throws Exception {
+        String now = Times.nowIso();
+        jdbc.update("INSERT INTO INST_HEAD (INSTITUTION_ID, STATUS_CD, ORIGIN_CD, CREATED_BY, CREATED_AT, CREATED_VERIFIED, DECIDED_BY, DECIDED_AT)"
+                + " VALUES (?, 'CURRENT', 'MANUAL', ?, ?, 0, ?, ?)", INST4, L1, now, L1, now);
+        long empty = jdbc.queryForObject("SELECT HEAD_ID FROM INST_HEAD WHERE INSTITUTION_ID=? AND STATUS_CD='CURRENT'", Long.class, INST4);
+        CountDownLatch go = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<Integer> a = pool.submit(add(T1, "홍길동", go));
+            Future<Integer> b = pool.submit(add(T2, "김철수", go));
+            go.countDown();
+            List<Integer> statuses = new ArrayList<>();
+            statuses.add(a.get(30, TimeUnit.SECONDS));
+            statuses.add(b.get(30, TimeUnit.SECONDS));
+            Collections.sort(statuses);
+            assertEquals("먼저 잡은 쪽 201(빈 머리 정리), 나중 쪽 202(후보)", java.util.Arrays.asList(201, 202), statuses);
+        } finally {
+            pool.shutdownNow();
+        }
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_HEAD WHERE INSTITUTION_ID=? AND STATUS_CD='CURRENT'", INST4));
+        assertEquals("VOIDED", headStatus(empty));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_HEAD WHERE INSTITUTION_ID=? AND STATUS_CD='CANDIDATE'", INST4));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_HEAD_LOG WHERE EVENT_CD='HEAD_VOID' AND FROM_HEAD_ID=?", empty));
     }
 }
