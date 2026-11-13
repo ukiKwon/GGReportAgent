@@ -264,6 +264,26 @@
       late: n(function (it) { return it.late; }), check: n(function (it) { return it.check; }), total: deduped.length };
   };
 
+  // 지도 팝오버·순위표용 공고 진행 한눈 표현(dashboard.js의 칩·noticeNote와 같은 용어). 진행 중이 아니면 null.
+  // badge: 접수 마감 전 '마감 D-n' / 마감일 미확인(30일 이내) '공고 진행 중' / 마감 지남·미확인 30일 초과 '결과 확인'.
+  // cls: 팝오버 배지 색 계열(.dg-day) — 접수 마감 전만 urgent, 나머지는 unknown(무채색).
+  // detail = '2026-10-29 · 접수 11.16~11.19', line = '공고 ' + detail.
+  logic.noticeBrief = function (rec, today) {
+    const ns = logic.noticeState(rec, today);
+    if (!ns) return null;
+    const md = function (s) { const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(String(s || '')); return m ? m[1] + '.' + m[2] : ''; };
+    let badge, cls;
+    if (ns.phase === 'receiving') { badge = '마감 ' + (ns.deadlineDays === 0 ? 'D-day' : 'D-' + ns.deadlineDays); cls = 'urgent'; }
+    else if (ns.check) { badge = '결과 확인'; cls = 'unknown'; }
+    else { badge = '공고 진행 중'; cls = 'unknown'; }
+    let span;
+    if (ns.receiveFrom && ns.receiveTo) span = '접수 ' + md(ns.receiveFrom) + '~' + md(ns.receiveTo);
+    else if (ns.receiveTo) span = '마감 ' + md(ns.receiveTo);
+    else span = '마감일 미확인';
+    const detail = rec.contractEnd + ' · ' + span;
+    return { badge: badge, cls: cls, detail: detail, line: '공고 ' + detail, phase: ns.phase, state: ns };
+  };
+
   // 경과 판정: 오늘 > 공고 예정일(유예 없음, 확정·추정 동일). 날짜 미상은 판정하지 않고
   // 건수만 센다. 기관 단위로 중복을 먼저 제거한다(수원 4구 등이 건수를 부풀리지 않게).
   // 진행 중 공고(noticeState)는 check 판정보다 먼저 걸러 경과에 넣지 않는다 — noticeSummary가 맡는다.

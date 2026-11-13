@@ -55,7 +55,7 @@
   };
   hc.TEXT = {
     loading: '기관장 정보를 불러오는 중입니다…',
-    none: '이 기관의 기관장은 아직 등록되지 않았습니다. 공개 자료를 확인해 출처와 함께 등록하세요.',
+    none: '이 기관의 기관장은 아직 등록되지 않았습니다. 공개 자료를 확인해 출처와 함께 추가하세요.',
     emptied: '기관장 정보가 모두 무효 처리되어 지금 확정된 기관장이 없습니다.',
     off: '기관장 정보 기능을 쓰지 않도록 설정되어 있습니다(사용 안 함). 관리자가 켜면 이 자리에 카드가 보입니다.',
     login: '로그인한 사번이 확인되지 않아 기관장 정보를 볼 수 없습니다. 다시 로그인하세요.',
@@ -103,6 +103,8 @@
   };
   // 확정 대기 후보 수(후보 항목 + 후보 기관장)
   hc.candCount = function (d) { return ((d && d.candidates) || []).length + ((d && d.candidate_heads) || []).length; };
+  // 편집 팝업 제목: 확정된 기관장이 없으면 '기관장 추가', 있으면 '기관장 정보 편집'(ok↔none 전환 때 repaintModal이 다시 쓴다)
+  hc.modalTitle = function (view) { return hc.isEmptyHead(view && view.data) ? '기관장 추가' : '기관장 정보 편집'; };
 
   // 임기 남은 기간. today는 자정 Date. 만료일이 없거나 형식이 틀리면 null.
   //  1개월 이상 남음 → '임기 n년 n개월'(0인 쪽은 생략) / 1개월 미만 → 'D-n'(임기 만료까지) / 오늘 → 'D-day' / 지남 → '만료 n일 지남'
@@ -628,6 +630,7 @@
     const d = view.data || {}, h = d.head;
     let out = '';
     const cands = d.candidates || [], heads = d.candidate_heads || [];
+    if (!cands.length && !heads.length && hc.isEmptyHead(d)) return '';   // 기관장도 후보도 없으면 '0건' 절을 숨겨 양식이 맨 위에 온다
     out += '<section class="hc-m-sec" aria-labelledby="hc-s1"><h4 id="hc-s1">확정 대기 후보 <span class="v">' + (cands.length + heads.length) + '</span>건</h4>';
     if (cands.length + heads.length) {
       out += '<ul class="hc-list">' + heads.map(function (x) { return candidateHeadRow(x, d, M, ctx); }).join('') + cands.map(function (x) { return candidateRow(x, d, M, ctx); }).join('') + '</ul>';
@@ -661,8 +664,8 @@
     if (hc.isEmptyHead(d)) {
       // head:null이든 빈 머리든 서버는 바로 확정한다(빈 머리는 숨김 처리·열린 후보는 새 기관장으로 옮김). 동시에 먼저 등록한 사람이 있으면 후보로 들어간다.
       const hint = (h ? hc.TEXT.emptied + ' ' : '현 기관장이 없어 ') + '입력한 값이 바로 확정됩니다. 공개 자료로 확인한 사실만 출처와 함께 적으세요.';
-      out += '<section class="hc-m-sec" aria-labelledby="hc-s4"><h4 id="hc-s4">기관장 등록</h4>' +
-        '<p class="hc-hint" id="hc-s4-hint">' + esc(hint) + '</p>' + headFormHtml('hf', ctx.today, '등록', 'hc-s4-hint') + '</section>';
+      out += '<section class="hc-m-sec" aria-labelledby="hc-s4"><h4 id="hc-s4">기관장 추가</h4>' +
+        '<p class="hc-hint" id="hc-s4-hint">' + esc(hint) + '</p>' + headFormHtml('hf', ctx.today, '추가', 'hc-s4-hint') + '</section>';
       return out;
     }
     const fcd = (M && M.field) || 'NAME';
@@ -686,7 +689,7 @@
 
   hc.modalHtml = function (view, M, ctx) {
     return '<div class="modal-overlay hc-ov" id="hc-m-ov"><div class="modal-box hc-modal" role="dialog" aria-modal="true" aria-labelledby="hc-m-title">' +
-      '<h3 id="hc-m-title" tabindex="-1">기관장 정보 편집</h3>' +
+      '<h3 id="hc-m-title" tabindex="-1">' + esc(hc.modalTitle(view)) + '</h3>' +
       '<div class="modal-scroll hc-m-body">' +
       '<p class="hc-hint">공개 자료로 확인한 사실만 출처와 함께 적습니다. 입력·확정·기각·무효는 처리한 사람과 함께 모두 기록됩니다.</p>' +
       '<div id="hc-m-status" tabindex="-1" aria-live="polite">' + msgHtml(M) + '</div>' +
@@ -721,11 +724,12 @@
     M.mode = V.status;
     const l = q('#hc-m-lists');
     if (l) l.innerHTML = hc.modalListsHtml(V, M, envNow());
+    if (switched) { const t = q('#hc-m-title'); if (t) t.textContent = hc.modalTitle(V); }
     if (withForms || switched) { const f = q('#hc-m-forms'); if (f) f.innerHTML = hc.modalFormsHtml(V, M, envNow()); }
     return switched && V.status === 'none';
   }
   function focusStatus() { const s = q('#hc-m-status'); if (s) s.focus(); }
-  // 기관장이 없게 된 직후에는 같은 팝업의 '기관장 등록' 양식 첫 칸(이름)으로, 그 밖에는 결과 안내로.
+  // 기관장이 없게 된 직후에는 같은 팝업의 '기관장 추가' 양식 첫 칸(이름)으로, 그 밖에는 결과 안내로.
   function focusAfter(toNone) {
     if (toNone) { const n = q('#hf-name'); if (n) { n.focus(); return; } }
     focusStatus();
@@ -863,7 +867,7 @@
         function (r) { return r && r.state === 'CONFIRMED' ? '확정 항목으로 입력했습니다.' : '후보로 넣었습니다. 위 확정 대기 후보에서 확정하세요.' + (r && r.conflict ? ' 확정값과 다른 값이라 영업팀장·영업부장이 처리합니다.' : ''); }, true, hc.BTN.itemAdd);
     } else if (kind === 'add-head') {
       act(function () { return hc.addHead(V.instId, v); },
-        function (r) { return r && r.state === 'CURRENT' ? '기관장을 등록했습니다.' : '후보 기관장으로 넣었습니다. 위 확정 대기 후보에서 처리하세요.'; }, true, hc.BTN.headAdd);
+        function (r) { return r && r.state === 'CURRENT' ? '기관장을 추가했습니다.' : '후보 기관장으로 넣었습니다. 위 확정 대기 후보에서 처리하세요.'; }, true, hc.BTN.headAdd);
     } else if (kind === 'photo') {
       const fileEl = form.elements.file;
       const file = fileEl && fileEl.files && fileEl.files[0];

@@ -788,6 +788,11 @@
     return render.state.enabledTypes.has(kind);
   };
 
+  // 순위표 둘째 줄 글: 공고 진행 중이면 '공고 날짜 · 접수 기간'(경과·예정으로 보이지 않게), 아니면 입찰 예정일(신뢰도).
+  render.rankLineText = function (r, today) {
+    const nb = logic.noticeBrief(r, today);
+    return (r.type == null ? '' : r.type) + ' · ' + (nb ? nb.line : logic.formatBidDateLabel(r));
+  };
   render.drawRankingPanel = function (code) {
     const panel = document.getElementById('rank-panel'); if (!panel) return;
     panel.style.display = 'block';
@@ -814,7 +819,7 @@
       card.innerHTML = '<span class="heart" data-name="' + logic.esc(r.name) + '">' +
         (hearted ? render.ICONS.heartFill : render.ICONS.heartLine) + '</span>' +
         '<b>' + logic.esc(r.name) + '</b> ' + missHtml +
-        '<br><small>' + logic.esc(r.type) + ' · ' + logic.esc(logic.formatBidDateLabel(r)) + '</small>';
+        '<br><small>' + logic.esc(render.rankLineText(r, render.state.today)) + '</small>';
       card.querySelector('.heart').addEventListener('click', function (e) {
         e.stopPropagation(); store.toggleInterest(r.name); render.drawRankingPanel(code);
       });
@@ -851,8 +856,10 @@
   render.popoverHtml = function (rec, today) {
     const v = logic.validateRecord(rec);
     const bid = logic.effectiveBid(rec);
+    const nb = logic.noticeBrief(rec, today);   // 공고 진행 중이면 경과(D+)·예정이 아니라 공고 표현으로
     const days = logic.daysUntil(bid.date, today);
-    const dayCls = days === Infinity ? 'unknown' : (days <= 182 ? 'urgent' : (days <= 365 ? 'soon' : 'later'));
+    const dayCls = nb ? nb.cls : (days === Infinity ? 'unknown' : (days <= 182 ? 'urgent' : (days <= 365 ? 'soon' : 'later')));
+    const dayText = nb ? nb.badge : logic.formatDDay(rec, today);
     const regionName = (render.REGION_NAME && render.REGION_NAME[rec.region]) || '';
     const sub = [rec.type, regionName].filter(Boolean).join(' · ');
     const unk = '<span class="pop-unk">미확인</span>';
@@ -878,11 +885,12 @@
       raw += '<div class="miss">누락된 칸: ' + esc(hiddenMissing.join(', ')) + ' — [편집]에서 채우세요.</div>';
     }
     return '<div class="pop-head"><b id="pop-title" tabindex="-1">' + esc(rec.name || '(이름없음)') + '</b>' +
-      '<span class="dg-day ' + dayCls + '">' + esc(logic.formatDDay(rec, today)) + '</span></div>' +
+      '<span class="dg-day ' + dayCls + '">' + esc(dayText) + '</span></div>' +
       (sub ? '<div class="pop-sub">' + esc(sub) + '</div>' : '') +
-      '<dl class="pop-grid"><dt>입찰 예정일</dt><dd class="pop-mono">' +
-      (bid.date ? esc(bid.date) + ' (' + esc(bid.basis === 'expiry' ? '추정·약정 만료 기준' : logic.confidenceLabel(bid.confidence)) + ')' : '미상') + '</dd>' +
-      '<dt>현 유치 은행</dt><dd>' + unk + '</dd><dt>임직원 수</dt><dd>' + unk + '</dd><dt>기관장</dt><dd>' + unk + '</dd></dl>' +
+      '<dl class="pop-grid"><dt>' + (nb ? '공고 진행' : '입찰 예정일') + '</dt><dd class="pop-mono">' +
+      (nb ? esc(nb.detail)
+        : (bid.date ? esc(bid.date) + ' (' + esc(bid.basis === 'expiry' ? '추정·약정 만료 기준' : logic.confidenceLabel(bid.confidence)) + ')' : '미상')) + '</dd>' +
+      '<dt>현 유치 은행</dt><dd>' + unk + '</dd><dt>임직원 수</dt><dd>' + unk + '</dd><dt>기관장</dt><dd><span class="pop-unk">현황판에서 확인</span></dd></dl>' +
       '<div class="pop-note">미확인 칸은 기관 정보 이관 뒤 채워집니다.</div>' +
       '<div id="pop-prep-line"></div>' +
       '<div class="pop-actions"><span id="pop-prep-slot"></span><button id="pop-edit" type="button">편집</button></div>' +

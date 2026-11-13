@@ -631,7 +631,9 @@ test('render.js: 팝오버 마크업(규격 §6-B) — 요약·미확인 칩·�
   assert.ok(h.indexOf('id="pop-title"') > 0 && h.indexOf('tabindex="-1"') > 0);
   assert.ok(/class="dg-day (urgent|soon|later|unknown)"/.test(h));
   assert.ok(h.indexOf('입찰 예정일') > 0 && h.indexOf('2027-03-02 (추정)') > 0);
-  assert.strictEqual((h.match(/<span class="pop-unk">미확인<\/span>/g) || []).length, 3);
+  assert.strictEqual((h.match(/<span class="pop-unk">미확인<\/span>/g) || []).length, 2);
+  // 기관장 줄은 현황판 안내 자리표시(서버 열람 기록을 지도 훑기로 쌓지 않는다)
+  assert.ok(h.indexOf('<dt>기관장</dt><dd><span class="pop-unk">현황판에서 확인</span></dd>') > 0);
   ['현 유치 은행', '임직원 수', '기관장'].forEach(function (l) { assert.ok(h.indexOf(l) > 0, l); });
   assert.ok(h.indexOf('미확인 칸은 기관 정보 이관 뒤 채워집니다.') > 0);
   assert.ok(h.indexOf('id="pop-prep-slot"') > 0 && h.indexOf('id="pop-edit"') > 0);
@@ -653,4 +655,30 @@ test('사전준비 화면 문구에는 \'기획승인\'이 없다(진행 현황 
     assert.ok(!/기획승인/.test(prep.nextLine({ state_cd: st, tasks: [] }) || ''), st);
   });
   assert.ok(!/기획승인/.test(JSON.stringify(prep.T || {})));
+});
+
+test('팝오버·순위표: 공고 진행 중 기관은 마감 D-n과 공고 줄로, D+·확정 표기를 쓰지 않는다(NEXT 78, 11-13)', function () {
+  const render = require('../js/render.js');
+  const logic = require('../js/logic.js');
+  const today = new Date('2026-11-13T00:00:00');
+  const mapo = { name: '마포구청', type: '지자체', region: '11', subRegion: '11440', lng: 126.9, lat: 37.55, term: 4,
+    lastBid: '2022-10-01', contractEnd: '2026-10-29', confirmed: true, receiveFrom: '2026-11-16', receiveTo: '2026-11-19',
+    sources: [], updatedAt: '2026-11-13' };
+  const h = render.popoverHtml(mapo, today);
+  assert.ok(h.indexOf('마감 D-6') > 0);
+  assert.strictEqual(h.indexOf('D+'), -1);
+  assert.strictEqual(h.indexOf('입찰 예정일'), -1);
+  assert.ok(h.indexOf('2026-10-29 · 접수 11.16~11.19') > 0);
+  assert.ok(/class="dg-day urgent"/.test(h));
+  assert.strictEqual(render.rankLineText(mapo, today), '지자체 · 공고 2026-10-29 · 접수 11.16~11.19');
+  const noEnd = Object.assign({}, mapo, { receiveFrom: undefined, receiveTo: undefined });
+  assert.ok(render.popoverHtml(noEnd, today).indexOf('공고 진행 중</span>') > 0);
+  assert.ok(render.popoverHtml(noEnd, new Date('2026-12-10T00:00:00')).indexOf('결과 확인</span>') > 0);
+  assert.ok(render.rankLineText(noEnd, today).indexOf('마감일 미확인') > 0);
+  const h2 = render.popoverHtml(mapo, new Date('2026-11-25T00:00:00'));
+  assert.ok(h2.indexOf('결과 확인</span>') > 0 && h2.indexOf('D+') === -1);
+  const old = Object.assign({}, mapo, { contractEnd: '2026-06-01', receiveFrom: undefined, receiveTo: undefined });
+  assert.ok(render.popoverHtml(old, today).indexOf('D+') > 0);
+  assert.ok(render.popoverHtml(old, today).indexOf('입찰 예정일') > 0);
+  assert.ok(logic.noticeBrief({ name: 'x', confirmed: false, contractEnd: '2026-10-29' }, today) === null);
 });

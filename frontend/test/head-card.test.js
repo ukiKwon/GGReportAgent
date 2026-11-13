@@ -464,7 +464,7 @@ test('모달: 항목 종류 8종·출처 종류 7종·이용 조건(필수, 선�
 test('모달: 기관장이 없으면 입력 틀은 기관장 등록, 있으면 항목 후보·사진·교체 후보', function () {
   const none = hc.modalHtml(view({ head: null }, { status: 'none' }), {}, { today: TODAY, emp: '2002' });
   assert.ok(none.indexOf('data-form="add-head"') >= 0 && none.indexOf('data-form="add-item"') < 0 && none.indexOf('data-form="photo"') < 0);
-  assert.ok(none.indexOf('id="hf-name"') >= 0 && none.indexOf('>등록</button>') >= 0);
+  assert.ok(none.indexOf('id="hf-name"') >= 0 && none.indexOf('>추가</button>') >= 0);
   const has = hc.modalHtml(view(), {}, { today: TODAY, emp: '2002' });
   assert.ok(has.indexOf('data-form="add-item"') >= 0 && has.indexOf('data-form="photo"') >= 0 && has.indexOf('data-form="add-head"') >= 0);
   assert.strictEqual((has.match(/id="hf-name"/g) || []).length, 1);                       // id 중복 없음
@@ -722,7 +722,7 @@ function fakeDom() {
     }
     return stubs[name];
   }
-  const map = { '#hc-m-status': 'status', '#hc-m-lists': 'lists', '#hc-m-forms': 'forms', '.hc-modal': 'modal', '#hc-m-title': 'title', '#hc-reason': 'reason', '[data-m=do]': 'do' };
+  const map = { '#hc-m-status': 'status', '#hc-m-lists': 'lists', '#hc-m-forms': 'forms', '.hc-modal': 'modal', '#hc-m-title': 'title', '#hc-reason': 'reason', '[data-m=do]': 'do', '#hf-name': 'hfname' };
   const modalEl = { handlers: {}, parentNode: null,
     addEventListener: function (t, f) { this.handlers[t] = f; },
     querySelector: function (sel) { return map[sel] ? el(map[sel]) : null; },
@@ -910,4 +910,71 @@ test('canVoidOf: 서버 can_void가 있으면 그 값(남이 확정한 내 값�
   assert.strictEqual(hc.canVoidOf({}, '1001', '영업팀', '1001'), true);
   const h = hc.modalHtml(view({ head: { fields: { NAME: Object.assign(field(1, '서지운'), { created_by: '2002', can_void: false }) } } }), {}, { today: TODAY, emp: '2002' });
   assert.ok(h.indexOf('data-m="ask-void-item" data-id="1"') < 0);
+});
+
+test('모달: none이면 제목 \'기관장 추가\', 후보가 0건이면 후보 절을 숨기고 후보가 있으면 보인다. ok면 \'기관장 정보 편집\'', function () {
+  const ctx = { today: TODAY, emp: '2002' };
+  const nul = hc.modalHtml(view({ head: null }, { status: 'none' }), {}, ctx);
+  assert.ok(nul.indexOf('<h3 id="hc-m-title" tabindex="-1">기관장 추가</h3>') >= 0);
+  assert.ok(nul.indexOf('id="hc-s1"') < 0 && nul.indexOf('후보가 없습니다') < 0);
+  assert.ok(nul.indexOf('<h4 id="hc-s4">기관장 추가</h4>') >= 0 && nul.indexOf('>추가</button>') >= 0);
+  const cand = { item_id: 20, field_cd: 'NAME', value: '박후보', source: SRC, created_by: '1', can_confirm: true, can_reject: true };
+  const withCand = hc.modalHtml(view({ head: EMPTY_HEAD, candidates: [cand] }, { status: 'none' }), {}, ctx);
+  assert.ok(withCand.indexOf('기관장 추가</h3>') >= 0 && withCand.indexOf('id="hc-s1"') >= 0);
+  const ok = hc.modalHtml(view(), {}, ctx);
+  assert.ok(ok.indexOf('>기관장 정보 편집</h3>') >= 0 && ok.indexOf('id="hc-s1"') >= 0);
+  assert.strictEqual(hc.modalTitle({ data: { head: null } }), '기관장 추가');
+  assert.strictEqual(hc.modalTitle(view()), '기관장 정보 편집');
+});
+
+test('모달 흐름(가짜 DOM): ok에서 마지막 확정값을 무효 처리해 기관장이 없어지면 모달은 열린 채 제목·양식이 none으로, 이름 칸에 포커스', async function () {
+  let voided = false;
+  fakeFetch(function (url, init) {
+    if (init && init.method === 'POST' && /\/void$/.test(url)) { voided = true; return { status: 200, json: { item_id: 1, head_empty: true } }; }
+    if (voided) return { status: 200, json: Object.assign(detail({ head: EMPTY_HEAD }), { head_empty: true }) };
+    return { status: 200, json: detail({ viewer_role: '영업팀장' }) };
+  });
+  const dom = fakeDom();
+  try {
+    await hc.ensure('11010', function () {}, '2002');
+    await settle();
+    hc.openModal(function () { return env({ emp: '2002' }); });
+    assert.strictEqual(hc.view().status, 'ok');
+    dom.click('ask-void-item', '1');
+    dom.el('reason').value = '잘못 입력';
+    dom.click('do', '1');
+    await settle();
+    assert.strictEqual(hc.view().status, 'none');
+    assert.strictEqual(hc.isModalOpen(), true);
+    assert.ok(dom.el('forms').innerHTML.indexOf('data-form="add-head"') >= 0 && dom.el('forms').innerHTML.indexOf('data-form="add-item"') < 0);
+    assert.strictEqual(dom.el('title').textContent, '기관장 추가');
+    assert.strictEqual(dom.el('lists').innerHTML.indexOf('id="hc-s1"'), -1);
+    assert.ok(dom.el('hfname').focused >= 1);
+  } finally { hc.closeModal(false); dom.off(); cleanup(); }
+});
+
+test('모달 흐름(가짜 DOM): none에서 후보 기관장을 확정해 기관장이 생기면 제목·양식이 ok로, 포커스는 안내로', async function () {
+  const ch = { head_id: 9, name: '김후보', position: '시장', created_by: '1', item_count: 2, can_confirm: true, can_reject: true };
+  let confirmed = false;
+  fakeFetch(function (url, init) {
+    if (init && init.method === 'POST' && /\/heads\/9\/confirm$/.test(url)) { confirmed = true; return { status: 200, json: { head_id: 9 } }; }
+    if (confirmed) return { status: 200, json: detail() };
+    return { status: 200, json: Object.assign(detail({ head: EMPTY_HEAD, candidate_heads: [ch] }), { head_empty: true }) };
+  });
+  const dom = fakeDom();
+  try {
+    await hc.ensure('11010', function () {}, '2002');
+    await settle();
+    hc.openModal(function () { return env({ emp: '2002' }); });
+    assert.strictEqual(hc.view().status, 'none');
+    dom.click('ask-confirm-head', '9');
+    dom.click('do', '9');
+    await settle();
+    assert.strictEqual(hc.view().status, 'ok');
+    assert.strictEqual(hc.isModalOpen(), true);
+    assert.ok(dom.el('forms').innerHTML.indexOf('data-form="add-item"') >= 0);
+    assert.strictEqual(dom.el('title').textContent, '기관장 정보 편집');
+    assert.strictEqual(dom.el('hfname').focused, 0);
+    assert.ok(dom.el('status').focused >= 1);
+  } finally { hc.closeModal(false); dom.off(); cleanup(); }
 });
