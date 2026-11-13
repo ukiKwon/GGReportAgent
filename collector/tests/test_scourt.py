@@ -268,3 +268,12 @@ def test_httpclient_post_sends_form_body(monkeypatch):
     assert req.get_header("Content-type") == "application/x-www-form-urlencoded" and data.decode("cp949") == "공고"
     with pytest.raises(httpclient.FetchError):
         HttpClient(delay=0).post("https://x.go.kr/", "문자열")           # 바이트가 아니면 거부
+
+
+def test_attachment_path_outside_raw_dir_rejected(tmp_path):
+    from collector.extract.build import attachment_path
+    d = tmp_path / "raw"
+    d.mkdir()
+    assert attachment_path(d, "attachments/01_a.hwp") == (d / "attachments" / "01_a.hwp").resolve()
+    with pytest.raises(ValueError):
+        attachment_path(d, "../secret.txt")

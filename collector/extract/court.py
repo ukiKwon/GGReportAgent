@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from collector.extract.build import _html_text
+from collector.extract.build import _html_text, attachment_path
 from collector.extract.classify import ROLE, classify_court
 from collector.extract.hwp5 import hwp5_text
 from collector.extract.hwpx import ExtractError, hwpx_text
@@ -98,7 +98,7 @@ def _texts(raw_dir: Path, meta: dict) -> tuple[list[tuple[str, str]], list[str]]
     texts: list[tuple[str, str]] = []
     notes: list[str] = []
     for a in meta.get("attachments", []):
-        name, blob = a["name"], (raw_dir / a["stored"]).read_bytes()
+        name, blob = a["name"], attachment_path(raw_dir, a["stored"]).read_bytes()
         try:
             if name.lower().endswith(".hwp"):
                 texts.append((f"hwp:{name}", hwp5_text(blob)))

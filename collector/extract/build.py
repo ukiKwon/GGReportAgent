@@ -73,6 +73,15 @@ def _bid_kind(kind: str, title: str, raw_dir: Path) -> str:
     return "계획"
 
 
+def attachment_path(raw_dir: Path, stored: str) -> Path:
+    """meta.json의 첨부 위치를 원문 폴더 안으로 제한한다(조작된 meta로 밖의 파일을 읽지 않게 — security 11-13)."""
+    base = raw_dir.resolve()
+    path = (base / stored).resolve()
+    if not path.is_relative_to(base):
+        raise ValueError("첨부 경로가 원문 폴더 밖입니다")
+    return path
+
+
 def notice_from_raw(raw_dir: Path, rel: str) -> CollectedNotice:
     meta = json.loads((raw_dir / "meta.json").read_text(encoding="utf-8"))
     kind = classify(meta["title"])
@@ -83,7 +92,7 @@ def notice_from_raw(raw_dir: Path, rel: str) -> CollectedNotice:
     notes: list[str] = []
     unmaskable = set(meta.get("unmaskable_attachments", []))
     for a in meta.get("attachments", []):
-        blob = (raw_dir / a["stored"]).read_bytes()
+        blob = attachment_path(raw_dir, a["stored"]).read_bytes()
         if a["name"].lower().endswith(".hwp"):
             # 구형 HWP: 파일은 싣지 않고(바이너리 안 연락처를 못 가림) 글만 뽑아 근거 글로 쓴다(11-13).
             # 아래 일괄 mask_contacts를 반드시 거친다. 읽기 실패·olefile 미설치는 notes로만.

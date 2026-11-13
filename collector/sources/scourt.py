@@ -30,7 +30,7 @@ VIEW_URL = "https://www.scourt.go.kr/portal/news/NewsViewAction.work"
 FILE_URL = "https://file.scourt.go.kr//AttachDownload"      # 슬래시 두 개는 원래 주소 그대로
 HOST = "scourt.go.kr"                                       # 증분 키의 host 칸
 ALLOWED_HOSTS = {"www.scourt.go.kr", "file.scourt.go.kr"}
-ANCHOR_RE = re.compile(r"<a\b[^>]*seqnum=(\d{1,9})(?!\d)[^>]*>(.*?)</a>", re.S | re.I)
+ANCHOR_RE = re.compile(r"<a\b[^>]{0,500}seqnum=(\d{1,9})(?!\d)[^>]{0,500}>(.{0,2000}?)</a>", re.S | re.I)   # 길이 상한(security 11-13)
 DOWNLOAD_RE = re.compile(r"download\(\s*['\"]([^'\"]*)['\"]\s*,\s*['\"]([^'\"]*)['\"]\s*\)")
 FID_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,120}$")
 
@@ -203,7 +203,7 @@ class ScourtSource:
                 errors.append({"name": name[:80], "error": "첨부 식별자 형식이 올바르지 않음(받지 않음)"})
                 continue
             try:
-                blob, _ = self._request("POST", FILE_URL, f"첨부 {ref.number} {name}"[:120],
+                blob, _ = self._request("POST", FILE_URL, mask_contacts(f"첨부 {ref.number} {name}")[0][:120],
                                         f"file={quote_plus(fid)}&path=001&downFile=x".encode("ascii"))
             except FetchError as exc:
                 errors.append({"name": name[:80], "error": str(exc)[:120]})
