@@ -43,3 +43,23 @@ test('지자체 외 기관 — 진행 중 공고(contractEnd)는 공고일·원�
     assert.match(r.sources[0], /^기준일=공고일/, r.name + ': contractEnd는 공고일(NEXT 30-1)');
   });
 });
+
+test('법원 따름 표기(followsCourt) — 가정·회생·행정만, 따르는 법원 값과 같아야 한다(11-13)', function () {
+  const byCode = {};
+  list.forEach(function (r) { if (r.orgCode) byCode[r.orgCode] = r; });
+  const keys = ['bank', 'lastBid', 'term', 'contractExpiry', 'contractEnd', 'confirmed'];
+  list.forEach(function (r) {
+    assert.strictEqual(!!r.followsCourt, !!r.followKind, r.name + ': followsCourt·followKind는 함께');
+    if (!r.followsCourt) return;
+    assert.strictEqual(r.followKind, '공탁소 관할', r.name + ': followKind');
+    assert.ok(['가정', '회생', '행정'].indexOf(r.courtType) >= 0, r.name + ': 지방법원·지원은 따름 표기 금지(개별 지정 사례)');
+    const p = byCode[r.followsCourt];
+    assert.ok(p, r.name + ': 따르는 법원이 목록에 없다');
+    assert.ok(!p.followsCourt && p.courtType === '지방' && p.opStatus === '운영', r.name + ': 따르는 법원은 운영 중 지방법원(연쇄 금지)');
+    keys.forEach(function (k) { assert.deepStrictEqual(r[k], p[k], r.name + ': ' + k + '가 ' + p.name + '와 다르다 — 같이 고칠 것'); });
+    assert.ok(r.sources[0].indexOf(p.name + ' 값 따름') >= 0, r.name + ': 첫 줄에 따름 표기');
+  });
+  list.filter(function (r) { return r.opStatus === '개원 예정'; }).forEach(function (r) {
+    assert.ok(!r.followsCourt && !r.lastBid && !r.contractExpiry, r.name + ': 개원 예정은 비움');
+  });
+});
