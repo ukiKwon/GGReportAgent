@@ -125,5 +125,5 @@ def notice_from_raw(raw_dir: Path, rel: str) -> CollectedNotice:
                      "vaccine": meta.get("vaccine") or vaccine_policy(meta["detail_url"]),
                      "contacts_masked": meta.get("contacts_masked")},
         candidate=candidate,
-        evidence_note="; ".join(notes) or None,
+        evidence_note=mask_contacts("; ".join(notes))[0] or None,   # 첨부 파일명·오류 문구도 연락처 가림(security 11-13)
     )

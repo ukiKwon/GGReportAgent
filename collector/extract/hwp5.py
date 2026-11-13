@@ -93,6 +93,8 @@ def hwp5_text(data: bytes) -> str:
                 raise ExtractError("HWP 본문 구간 수가 이상합니다")
             out, total = [], 0
             for sec in sections:
+                if ole.get_size(sec) > MAX_FILE_BYTES:   # 선언 크기를 먼저 본다(메모리 증폭 방어, security 11-13)
+                    raise ExtractError("HWP 구간 선언 크기가 너무 큽니다")
                 raw = ole.openstream(sec).read(MAX_FILE_BYTES + 1)
                 buf = _inflate(raw) if compressed else raw
                 for tag, payload in _records(buf):
@@ -108,5 +110,7 @@ def hwp5_text(data: bytes) -> str:
     except ExtractError:
         raise
     except (OSError, ValueError, zlib.error, IndexError, KeyError, TypeError, AttributeError,
-            RecursionError, MemoryError, struct.error) as exc:      # olefile 내부 예외도 감싼다(security 11-12)
+            RecursionError, MemoryError, struct.error, ArithmeticError) as exc:   # olefile 내부 예외도 감싼다(security 11-12)
+        raise ExtractError(f"HWP를 읽을 수 없습니다({type(exc).__name__})") from exc
+    except Exception as exc:                 # 외부 파일 해석 — 그 밖의 예외도 공고 하나로 막는다(security 11-13)
         raise ExtractError(f"HWP를 읽을 수 없습니다({type(exc).__name__})") from exc

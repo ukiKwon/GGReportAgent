@@ -457,7 +457,7 @@ def classify(facts: dict, screen):
             return CAT_DONE, "이전 회차(수집 약정 만료 %s < 화면 현 약정 만료 %s)" % (facts["contract_end"], s_exp)
         cut = _to_date(s_exp)
         newest_any = max([d for d in (facts["notice_at"], facts["deadline_at"]) if d] or [""])
-        if cut and newest_any and _to_date(newest_any) and _to_date(newest_any) < cut.replace(year=cut.year - 6):
+        if cut and newest_any and _to_date(newest_any) and _to_date(newest_any) < cut - datetime.timedelta(days=365 * 6 + 1):   # 2월 29일 안전(security 11-13)
             return CAT_DONE, "이전 회차로 보임(공고 %s, 화면 현 약정 만료 %s)" % (newest_any, s_exp)
 
     if by:

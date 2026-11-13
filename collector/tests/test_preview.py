@@ -179,3 +179,11 @@ def test_previous_round_not_reported_as_new_or_diff(tmp_path):
     root, bid, ij, nj = _setup(tmp_path, [old_round, very_old])
     out = run_preview(bid, root, screen_json=screen)
     assert out["counts"] == {CAT_NEW: 0, CAT_DIFF: 0, CAT_DONE: 2, CAT_MISSING: 0}
+
+
+def test_feb29_expiry_does_not_crash(tmp_path):
+    screen = tmp_path / "screen.json"
+    screen.write_text(json.dumps([{"name": "괴산군", "region": "43", "contractExpiry": "2028-02-29"}],
+                                 ensure_ascii=False), encoding="utf-8")
+    root, bid, ij, nj = _setup(tmp_path, [_rec("g", "괴산군청", key="43|괴산군청", notice_at="2010-01-01")])
+    assert run_preview(bid, root, screen_json=screen)["counts"][CAT_DONE] == 1
