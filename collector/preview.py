@@ -449,12 +449,22 @@ def classify(facts: dict, screen):
     elif facts["deadline_at"] and facts["deadline_at"] == contract_end:
         by = "마감일 일치"
 
+    s_exp = _date(screen.get("contractExpiry"))
+    # 지난 회차(11-13 미리보기 오탐): 수집한 약정 만료가 화면 현 약정 만료보다 이르거나, 공고가 현 약정 시작 전(만료-6년)이면
+    # 이미 지나간 회차다 — '새 소식'·'값 다름'으로 올리지 않는다.
+    if s_exp:
+        if facts["contract_end"] and facts["contract_end"] < s_exp:
+            return CAT_DONE, "이전 회차(수집 약정 만료 %s < 화면 현 약정 만료 %s)" % (facts["contract_end"], s_exp)
+        cut = _to_date(s_exp)
+        newest_any = max([d for d in (facts["notice_at"], facts["deadline_at"]) if d] or [""])
+        if cut and newest_any and _to_date(newest_any) and _to_date(newest_any) < cut.replace(year=cut.year - 6):
+            return CAT_DONE, "이전 회차로 보임(공고 %s, 화면 현 약정 만료 %s)" % (newest_any, s_exp)
+
     if by:
         diffs = []
         s_term = _term(screen.get("term"))
         if facts["term"] and s_term and facts["term"] != s_term:
             diffs.append("약정 연수 수집 %d년 ≠ 화면 %d년" % (facts["term"], s_term))
-        s_exp = _date(screen.get("contractExpiry"))
         if facts["contract_end"] and s_exp and facts["contract_end"] != s_exp:
             diffs.append("약정 만료 수집 %s ≠ 화면 %s" % (facts["contract_end"], s_exp))
         if diffs:

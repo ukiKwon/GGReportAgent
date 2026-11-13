@@ -166,3 +166,16 @@ def test_cli_preview(tmp_path, capsys):
     summary = json.loads(capsys.readouterr().out)
     assert summary["records"] == 5 and summary["counts"][CAT_NEW] == 1
     assert cli.main(["preview", "--batch", "nope", "--out-root", str(root)]) == 1
+
+
+def test_previous_round_not_reported_as_new_or_diff(tmp_path):
+    screen = tmp_path / "screen.json"
+    screen.write_text(json.dumps([{"name": "괴산군", "region": "43", "contractExpiry": "2028-12-31"},
+                                  {"name": "영암군", "region": "46", "contractExpiry": "2027-12-31"}],
+                                 ensure_ascii=False), encoding="utf-8")
+    old_round = _rec("g", "괴산군청", key="43|괴산군청", notice_at="2018-02-21")
+    old_round["candidate"]["fields"]["contract_end"] = "2020-12-31"
+    very_old = _rec("y", "영암군청", key="46|영암군청", notice_at="2010-08-25")
+    root, bid, ij, nj = _setup(tmp_path, [old_round, very_old])
+    out = run_preview(bid, root, screen_json=screen)
+    assert out["counts"] == {CAT_NEW: 0, CAT_DIFF: 0, CAT_DONE: 2, CAT_MISSING: 0}
