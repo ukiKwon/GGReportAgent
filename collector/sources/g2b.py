@@ -23,6 +23,7 @@ from urllib.parse import quote, urlsplit
 from collector.httpclient import FetchError, HttpClient
 from collector.privacy import mask_contacts, mask_hwpx, vaccine_policy
 from collector.sources.base import NoticeRef, RawNotice, RunReport, SourceError, register
+from collector.sources.g2b_results import CapReached, ResultLookup
 
 ENV_FILE = Path(__file__).resolve().parents[1] / ".env.local"
 OPERATION = "getBidPblancListInfoServcPPSSrch02"
@@ -63,6 +64,7 @@ class G2bConfig:
     lookback_days: int = 14             # --since가 없을 때 오늘부터 거꾸로
     max_calls: int = 200                # 하루 1000회 한도 안(실행당 상한)
     max_attachments: int = 5
+    max_result_calls: int = 150         # 낙찰·개찰 조회 상한(목록 상한과 따로, 합쳐도 하루 1000회 안)
     delay_sec: float = 0.5
     timeout: float = 30.0
     env_file: Path = ENV_FILE
@@ -95,6 +97,8 @@ class G2bSource:
         self._items: dict[str, dict] = {}
         self.calls = 0
         self._report: RunReport | None = None
+        self._lookup: ResultLookup | None = None
+        self._capped = False
 
     def with_config(self, http=None, env=None, today=None, hosts_file=None, **config) -> "G2bSource":
         # 주지 않은 연결·설정은 기존 값을 유지한다(시험용 가짜 API가 실제 호출로 바뀌지 않게).
@@ -186,6 +190,77 @@ class G2bSource:
     def accepts(self, ref: NoticeRef) -> bool:
         return relevant(ref.title)          # 금고 지정·주거래은행 문맥만(잡음 제목은 원문을 받지 않는다)
 
+    def _result_for(self, bid_no, bid_ord, opened: str | None) -> tuple[dict | None, str | None]:
+        """개찰일이 지난 공고만 낙찰·개찰을 찾는다. 실패는 문구만 남기고 수집을 멈추지 않는다."""
+        today = self._today or datetime.date.today()
+        if not opened or opened >= today.isoformat() or not bid_no:
+            return None, None
+        try:
+            if self._lookup is None:
+                base, key = self._endpoint()
+                self._lookup = ResultLookup(self.http, base, key, self._report, self.config.max_result_calls)
+            return self._lookup.lookup(bid_no, bid_ord), None
+        except CapReached as exc:
+            self._capped = True
+            return None, str(exc)[:120]
+        except SourceError as exc:
+            return None, str(exc)[:120]
+
+    def refresh_results(self, state, store, report: RunReport | None = None) -> dict:
+        """이미 받은 공고(원문 보관소)의 결과를 다시 찾는다 — 개찰 뒤 낙찰이 올라온 옛 공고 보강(NEXT 79).
+        건너뜀: 낙찰이 이미 붙은 것, 유찰로 끝난 것(재공고는 새 번호로 따로 받는다), 개찰 전.
+        덜 최근에 조회한 원문부터 돈다(상한에 닿아도 뒤쪽 원문이 굶지 않게 — security 11-13).
+        meta.json만 원자적으로 고치고, 후보는 extract --all로 다시 만든다."""
+        self._report = report if report is not None else RunReport()
+        done = {"checked": 0, "award": 0, "opening": 0, "error": 0, "skipped": 0, "not_opened": 0}
+        root = store.root.resolve()
+        todo = []
+        for _key, info in state.with_raw(self.slug, include_packed=True):
+            raw_dir = (store.root / info["raw"]).resolve()
+            meta_path, detail_path = raw_dir / "meta.json", raw_dir / "detail.html"
+            try:
+                if not raw_dir.is_relative_to(root) or meta_path.is_symlink() or detail_path.is_symlink():
+                    raise ValueError("원문 폴더 밖")
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                item = json.loads(detail_path.read_text(encoding="utf-8"))
+                if not isinstance(meta, dict) or not isinstance(item, dict):
+                    raise ValueError("형식")
+            except (OSError, ValueError):
+                done["skipped"] += 1
+                continue
+            res = meta.get("g2b_result") or {}
+            if res.get("award") or (res.get("opening") or {}).get("progrsDivCdNm") == "유찰":
+                done["skipped"] += 1
+                continue
+            todo.append((str(meta.get("g2b_result_checked_at") or ""), meta_path, meta, item))
+        todo.sort(key=lambda t: t[0])
+        for _checked, meta_path, meta, item in todo:
+            opened = _ymd(item.get("opengDt"))
+            result, err = self._result_for(item.get("bidNtceNo"), item.get("bidNtceOrd"), opened)
+            if result is None and err is None:
+                done["not_opened"] += 1                # 개찰 전·개찰일 없음·공고번호 없음
+                continue
+            if self._capped:
+                break                                  # 상한 — 이 원문은 고치지 않고 다음 실행에(조회가 덜 최근인 순)
+            done["checked"] += 1
+            meta["opened_at"] = opened
+            meta["g2b_result_error"] = err
+            if err:
+                done["error"] += 1                     # 일시 오류 — 이전 결과(개찰완료 등)는 지우지 않는다
+            else:
+                meta["g2b_result"] = result
+                meta["g2b_result_checked_at"] = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+                if result.get("award"):
+                    done["award"] += 1
+                elif result.get("opening"):
+                    done["opening"] += 1
+            tmp = meta_path.with_name("meta.json.tmp")   # 원자적 교체 — 중간에 끊겨도 meta.json이 잘리지 않는다
+            tmp.write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+            os.replace(tmp, meta_path)
+        done["calls"] = self._lookup.calls if self._lookup else 0
+        done["fetch_failures"] = list(self._report.fetch_failures)
+        return done
+
     def fetch_raw(self, ref: NoticeRef, store) -> RawNotice:
         src = self._items.get(ref.key)
         if not src:
@@ -230,6 +305,8 @@ class G2bSource:
                 unmaskable.append(name)
             files.append((name, blob))
         inst = item.get("dminsttNm") or item.get("ntceInsttNm") or "미상"
+        opened = _ymd(item.get("opengDt"))
+        result, result_error = self._result_for(item.get("bidNtceNo"), item.get("bidNtceOrd"), opened)
         meta = {
             "source": self.slug, "host": "g2b", "number": ref.number, "title": ref.title,
             "posted_at": ref.posted_at, "department": item.get("ntceInsttNm"), "native_id": ref.native_id,
@@ -240,6 +317,7 @@ class G2bSource:
                             "org_code_g2b": item.get("dminsttCd")},
             "fetched_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
             "attachment_errors": errors,
+            "opened_at": opened, "g2b_result": result, "g2b_result_error": result_error,
         }
         raw_dir = store.write(self.slug, "g2b", ref.number, text.encode("utf-8"), files, meta)
         return RawNotice(ref=ref, raw_dir=raw_dir, rel=store.rel(raw_dir))

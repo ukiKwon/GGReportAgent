@@ -49,6 +49,9 @@ def _parser() -> argparse.ArgumentParser:
             s.add_argument("--baseline", action="store_true", help="현재 목록을 본 것으로만 표시")
         if name != "collect":
             s.add_argument("--all", action="store_true", help="포장 끝난 원문도 다시 추출(새 배치)")
+    rs = sub.add_parser("results", help="이미 받은 나라장터 공고의 낙찰·개찰 결과 다시 찾기(원문 meta만 갱신 — 후보는 extract --all)")
+    rs.add_argument("--source", required=True)
+    rs.add_argument("--out-root", default=os.environ.get("COLLECTOR_OUT_ROOT", DEFAULT_OUT_ROOT))
     return p
 
 
@@ -174,6 +177,12 @@ def main(argv=None, http=None) -> int:
         state, store = State(root / "_state" / "state.json"), RawStore(root / "_raw")
         out: dict = {}
         code = 0
+        if args.cmd == "results":
+            if not hasattr(source, "refresh_results"):
+                print("결과 다시 찾기를 지원하지 않는 소스입니다(g2b만)", file=sys.stderr)
+                return 2
+            out["results"] = source.refresh_results(state, store)
+            code = 3 if out["results"]["error"] else 0
         if args.cmd in ("run", "collect"):
             hosts = [h.strip() for h in args.hosts.split(",") if h.strip()] if args.hosts else None
             out["collect"] = collect(source, state, store, since=args.since, hosts=hosts,

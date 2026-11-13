@@ -25,9 +25,9 @@ def test_hwp_text_masked_and_used_but_file_not_shipped(tmp_path, monkeypatch):
     seen = {}
     real = build.build_candidate
 
-    def spy(kind, posted_at, texts):
+    def spy(kind, posted_at, texts, *rest):
         seen["texts"] = texts
-        return real(kind, posted_at, texts)
+        return real(kind, posted_at, texts, *rest)
     monkeypatch.setattr(build, "build_candidate", spy)
     n = build.notice_from_raw(_raw(tmp_path), "r")
     assert n.attachments == () or list(n.attachments) == []
