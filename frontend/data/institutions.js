@@ -268,11 +268,15 @@ window.institutions = [
       ],
     },
     "11230": {   // 강남구 — 2026 회차 종료(NEXT 30-1, 2026-11-11에 contractEnd → lastBid)
-      lastBid: "2026-07-30", updatedAt: "2026-11-12",
+      lastBid: "2026-07-30", updatedAt: "2026-11-13",
       sources: [
         "기준일=공고일(금고지정 계획 공고, 공고 제2026-1843호, 2026-07-30) — 회차 종료: 「강남구 금고지정 공고」(제2026-2459호, 2026-10-23) eminwon 목록에서 확인(2026-11-11). 신한 유지(기사). https://www.ngetnews.com/news/articleView.html?idxno=555569 (2026-11-04)",
         "2026-09-12 보도: 강남·서초는 현 금고은행(신한)만 응찰해 1차 접수를 마침 — 공고일·접수일은 기사에 없음(data-auditor 11-12)",
         "https://biz.heraldcorp.com/article/10871132",
+        "결과 공고 제2026-2459호(2026-10-23, 재무과, 현 약정 2026.12.31 만료) 원문 페이지는 구 누리집(eminwon 아님)에서 열림 — 선정 은행·약정기간은 첨부(eminwon, 인증서 문제)에만 있어 미확인(data-auditor 11-13)",
+        "https://www.gangnam.go.kr/notice/view.do?mid=ID05_0402&not_ancmt_mgt_no=65649",
+        "1차 접수 유찰·재공고 보도(2026-08-29, 재공고 날짜는 기사에 없음)",
+        "https://biz.heraldcorp.com/article/10856119",
         "구청 고시공고 게시판(eminwon) 제목 검색으로 직접 확인 — 2026-11-12부터 이 게시판은 만료된 사설 인증서라 수집기로 못 받음(collector known_failing)",
         "https://gangnam.eminwon.seoul.kr/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do",
       ],
