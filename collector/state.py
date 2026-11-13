@@ -50,9 +50,12 @@ class State:
     def set_batch(self, slug: str, key: str, batch_id: str) -> None:
         self._src(slug)["seen"][key]["batch_id"] = batch_id
 
+    def set_unreadable(self, slug: str, key: str, reason: str) -> None:
+        self._src(slug)["seen"][key]["unreadable"] = reason
+
     def with_raw(self, slug: str, include_packed: bool) -> list[tuple[str, dict]]:
         return sorted((k, v) for k, v in self._src(slug)["seen"].items()
-                      if v.get("raw") and (include_packed or not v.get("batch_id")))
+                      if v.get("raw") and (include_packed or not (v.get("batch_id") or v.get("unreadable"))))
 
     def add_run(self, slug: str, run: dict) -> None:
         runs = self._src(slug)["runs"]

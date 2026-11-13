@@ -181,6 +181,16 @@ class HttpClient:
         return self._contexts[tls]
 
     def get(self, url: str, verify: bool = True, tls: TlsPolicy | None = None) -> tuple[bytes, str | None]:
+        return self._open(url, None, verify, tls)
+
+    def post(self, url: str, body: bytes, verify: bool = True,
+             tls: TlsPolicy | None = None) -> tuple[bytes, str | None]:
+        """application/x-www-form-urlencoded POST. 본문은 호출자가 퍼센트 인코딩한 바이트(작은 크기만)."""
+        if not isinstance(body, (bytes, bytearray)) or len(body) > 4096:
+            raise FetchError("POST 본문은 4KB 이하 바이트여야 합니다")
+        return self._open(url, bytes(body), verify, tls)
+
+    def _open(self, url: str, body: bytes | None, verify: bool, tls: TlsPolicy | None) -> tuple[bytes, str | None]:
         if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
             raise FetchError("http/https만 허용합니다")
         if not verify:
@@ -195,8 +205,10 @@ class HttpClient:
         https = (_PinnedHTTPSHandler(ctx, tls.pins) if tls is not None and tls.pins
                  else urllib.request.HTTPSHandler(context=ctx))
         opener = urllib.request.build_opener(_SameHostRedirect, https)
-        req = urllib.request.Request(url, headers={
-            "User-Agent": UA, "Accept": "*/*", "Accept-Language": "ko-KR,ko;q=0.9"})
+        headers = {"User-Agent": UA, "Accept": "*/*", "Accept-Language": "ko-KR,ko;q=0.9"}
+        if body is not None:
+            headers["Content-Type"] = "application/x-www-form-urlencoded"
+        req = urllib.request.Request(url, data=body, headers=headers)
         started = self._clock()
         try:
             with opener.open(req, timeout=self.timeout) as resp:   # http.client = HTTP/1.1

@@ -43,3 +43,23 @@ def is_candidate_kind(kind: str) -> bool:
 def is_watch_kind(kind: str) -> bool:
     """원문을 받아 둘 가치가 있는 종류(후보 종류 + 정정·취소 같은 '기타')."""
     return kind in CANDIDATE_KINDS or kind == "기타"
+
+
+# ── 법원 전용(소스 scourt): 대법원 새소식 '공탁금 보관은행' 공고. 일반 classify는 이 제목을 '무관'으로 거른다. ──
+COURT_CONTEXT = ("공탁금", "보관은행", "보관업무")
+
+
+def classify_court(title: str) -> str:
+    """지정계획 공고=계획, 지정 결과=지정, 변경 안내·취소=기타, 법원보관금 취급은행=제외, 그 외 무관."""
+    t = re.sub(r"\s+", "", title)
+    if "법원보관금" in t and "공탁금" not in t:
+        return "제외"                       # 경매보증금 등 법원보관금 취급은행 — 공탁금과 별개
+    if not any(w in t for w in COURT_CONTEXT):
+        return "무관"
+    if any(w in t for w in ("취소", "변경", "업무개시", "담당은행")):
+        return "기타"
+    if "계획" in t:                           # '지정계획'은 '지정'보다 먼저 본다
+        return "계획"
+    if "결과" in t or "지정" in t:
+        return "지정"
+    return "무관"

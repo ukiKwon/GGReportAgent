@@ -127,3 +127,15 @@ def notice_from_raw(raw_dir: Path, rel: str) -> CollectedNotice:
         candidate=candidate,
         evidence_note=mask_contacts("; ".join(notes))[0] or None,   # 첨부 파일명·오류 문구도 연락처 가림(security 11-13)
     )
+
+
+COURT_SOURCES = {"scourt"}
+
+
+def notices_from_raw(raw_dir: Path, rel: str) -> list[CollectedNotice]:
+    """원문 하나 → 레코드 목록. 보통 1건, 법원 공고(1건에 법원 여러 곳)는 법원별로 나눈다."""
+    meta = json.loads((raw_dir / "meta.json").read_text(encoding="utf-8"))
+    if meta.get("source") in COURT_SOURCES:
+        from collector.extract.court import court_notices      # 순환 import 방지(court가 이 모듈의 _html_text를 씀)
+        return court_notices(raw_dir, rel, meta)
+    return [notice_from_raw(raw_dir, rel)]
