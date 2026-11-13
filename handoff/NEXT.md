@@ -425,8 +425,8 @@
 
 ### 81. 법원 공탁금 보관은행 수집 소스(S5 대법원·S6 각 법원 새소식) — **기획 끝(planner 11-13), 구현 대기** [담당: backend-dev → data-auditor → security → qa / 메인(9f)]
 - **현재**: 범위 = 정기 공고·지정 결과·보관업무 담당은행 변경 안내·수시 공고(법원보관금 취급은행 제외). 결정(11-13): 만료 = 지정 끝났으면 새 지정기간 끝(사용자, 서울동부·남부 2031-12-31 반영), 2021 별지처럼 연수 없는 묶음은 lastBid=공고일·term 비움(팀), S5 매주·S6 월 1회(팀). 구형 HWP 읽기·근거 글 연결 끝(hwp5.py·63ed4e1·5aebf1a). classify.py가 '공탁금 보관은행' 제목을 '무관'으로 거름 → 법원 전용 종류 판정 필요, 공고 1건 → 법원별 레코드, cp949 검색어·응답, 법원별 호스트·gubun 표.
-- **다음 한 걸음**: data-auditor 예규 재지정·연장 조항·별지 15/17 대조·gubun 표본(진행 중) → backend-dev 소스 설계(IncrementalSource 틀) → security(새 호스트 약 97곳 백신·크기) → 구현·qa. 새 출처를 주간 자동 수집에 넣는 건 11-16 첫 실행 확인 뒤(PM).
-- **자세히**: handoff/agents/planner/ 2026-11-13(법원 수집 설계), handoff/agents/history/2026-11-12_법원_공탁금_정기공고_원문표.md, collector/SOURCES.md 법원 소절, NEXT 72·79.
+- **다음 한 걸음**: data-auditor 11-13 끝: 만료 뒤 경로 = 공개경쟁(매년 1~2곳) 또는 정기적격성심사로 재지정·연장(예규 제6조제2항·대법원 2017 보도자료·감사원 지적 — 간접 확인, 조문 원문은 미확보), 별지 17 = 레코드 15(시법원 김해·거제 없음, 군산 레코드는 익산시법원 행이라 근거를 기사로 바꿈), 각 법원 새소식 gubun=41 고정·법원별 cbub_code 다름, 응답은 EUC-KR → → backend-dev 소스 설계(IncrementalSource 틀) → security(새 호스트 약 97곳 백신·크기) → 구현·qa. 새 출처를 주간 자동 수집에 넣는 건 11-16 첫 실행 확인 뒤(PM).
+- **자세히**: handoff/agents/planner/ 2026-11-13(법원 수집 설계), handoff/agents/data-auditor/ 2026-11-13(재지정 경로), handoff/agents/history/2026-11-12_법원_공탁금_정기공고_원문표.md, collector/SOURCES.md 법원 소절, NEXT 72·79.
 
 ### 80. 외부망 주기 수집 파이프라인 — **eminwon·나라장터·미리보기·주간 자동 수집(월 09:00) 가동, 첫 실행 확인 대기** [담당: 메인(9f) → security → qa]
 - **현재**: `python -m collector run --source eminwon|g2b`, `preview --batch <id>`, 작업 'GGReport collector weekly'(collector/run_weekly.cmd, 로그 data/collector/_logs/, LLM 0, 해제 `schtasks /Delete /TN "GGReport collector weekly" /F`). TLS 예외(c07d963), known_failing·요청 마감·잠금 토큰(182d45b). 실패 요청 기록 fetch_failures(URL 키 가림·목적·시도 횟수, 11-12 사용자). ※ 11-12 git 이력 재작성으로 이 항목의 해시는 옛 값 — handoff/archive/2026-11-12_git-hash-map.tsv로 찾는다. 사용자 결정: 연락처 전부 마스킹, 백신은 https+go.kr·광역 지자체 공식 도메인이면 생략. 운영 방식은 collector/SOURCES.md §3.
