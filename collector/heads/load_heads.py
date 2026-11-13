@@ -95,6 +95,17 @@ def main(argv=None) -> int:
             count["exists"] += 1
             hid = d["head"]["head_id"]
             has_photo = bool(d["head"].get("photo"))
+            if not a.dry_run and d["head"].get("name") == h["name"]:          # 같은 사람이고 서버 칸이 비었으면 학력·경력만 채운다
+                src = h.get("items_source") or h["source"]
+                for fc, key, vals in (("EDU", "education", h.get("edu", [])), ("CAREER", "career", h.get("career", []))):
+                    if d["head"].get(key):
+                        continue
+                    for v in vals:
+                        s2, r2 = _req(a.base, "POST", f"/institutions/{inst}/head/items",
+                                      {"head_id": hid, "field_cd": fc, "value": v, "source": src}, "item_add")
+                        if s2 >= 300:
+                            count["item_fail"] += 1
+                            print("  칸 실패", inst, fc, s2, r2.get("code"))
         else:
             if a.dry_run:
                 print("등록 예정", inst, h["name"]); continue

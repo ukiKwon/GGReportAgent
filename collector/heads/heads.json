@@ -279,9 +279,29 @@
     "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
     "checked_on": "2026-11-13"
    },
-   "edu": [],
-   "career": [],
-   "photo": null
+   "edu": [
+    "원광대학교 졸업",
+    "서울시립대학교 도시행정학과 석사"
+   ],
+   "career": [
+    "서울특별시의회 의원(3선)",
+    "제8대 서울특별시의회 행정자치위원장",
+    "국회의원 보좌관"
+   ],
+   "photo": {
+    "url": "https://ceo.dobong.go.kr/images/2026/sub/ceo_intro.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "도봉구청장 걸어온 길(공공누리 표시 없음 — 로컬 작업용)",
+    "page": "https://ceo.dobong.go.kr/Contents.asp?code=10000653",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "도봉구청장 걸어온 길",
+    "url": "https://ceo.dobong.go.kr/Contents.asp?code=10000653",
+    "checked_on": "2026-11-13"
+   }
   },
   {
    "institution_id": "nowon",
@@ -592,6 +612,563 @@
     "변호사"
    ],
    "photo": null
+  },
+  {
+   "institution_id": "lg-11-407ce3e346",
+   "name": "오세훈",
+   "position": "서울특별시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "서울특별시 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://www.etnews.com/20260604000133",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "서울특별시 단체장 프로필(학력·경력)",
+    "url": "https://mayor.seoul.go.kr/oh/intro/history.do",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "고려대학교 법학과 졸업",
+    "고려대학교 대학원 법학 석·박사"
+   ],
+   "career": [
+    "환경운동연합 법률위원장·변호사",
+    "제16대 국회의원",
+    "제33·34·38·39대 서울특별시장"
+   ],
+   "photo": null,
+   "first_take_office": "2006-07-01"
+  },
+  {
+   "institution_id": "lg-26-d8a5ca61cd",
+   "name": "전재수",
+   "position": "부산광역시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "부산광역시 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://www.busan.go.kr/mayor/profile",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "부산광역시 단체장 프로필(학력·경력)",
+    "url": "https://www.busan.go.kr/mayor/profile",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "동국대학교 역사교육과 학사",
+    "동국대학교 대학원 정치학 석사"
+   ],
+   "career": [
+    "제24대 해양수산부 장관",
+    "제20·21·22대 국회의원",
+    "청와대 제2부속실장"
+   ],
+   "photo": {
+    "url": "https://www.busan.go.kr/humanframe/theme/mayor26/assets/img/content/profile_img_03_white2.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "부산광역시 단체장 소개(공공누리 표시 없음 — 로컬 작업용, 인물 사진인지 사람이 확인)",
+    "checked_on": "2026-11-13"
+   }
+  },
+  {
+   "institution_id": "lg-27-740be3e0ec",
+   "name": "추경호",
+   "position": "대구광역시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "대구광역시 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://mayor.daegu.go.kr/index.do?menu_id=00938605",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "대구광역시 단체장 프로필(학력·경력)",
+    "url": "https://mayor.daegu.go.kr/index.do?menu_id=00938605",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "고려대학교 경영학과 졸업",
+    "미국 오리건대학교 대학원 경제학 석사"
+   ],
+   "career": [
+    "경제부총리 겸 기획재정부 장관",
+    "국무조정실장",
+    "제20·21·22대 국회의원"
+   ],
+   "photo": {
+    "url": "https://mayor.daegu.go.kr/cmsh/mayor.daegu.go.kr/images/2026/content/img_ceo_pic.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "대구광역시 단체장 소개(공공누리 표시 없음 — 로컬 작업용, 인물 사진인지 사람이 확인)",
+    "checked_on": "2026-11-13"
+   }
+  },
+  {
+   "institution_id": "lg-28-e3a8120a9e",
+   "name": "박찬대",
+   "position": "인천광역시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "인천광역시 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://www.incheon.go.kr/mayor_9/MA01020000",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "인천광역시 단체장 프로필(학력·경력)",
+    "url": "https://www.incheon.go.kr/mayor_9/MA01020000",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "인하대학교 경영학 학사",
+    "서울대학교 대학원 경영학 석사"
+   ],
+   "career": [
+    "금융감독원·삼일회계법인 근무",
+    "제20·21·22대 국회의원(인천 연수구갑)"
+   ],
+   "photo": {
+    "url": "https://www.incheon.go.kr/humanframe/theme/mayor_9/assets/image/sub2026/img_mayor_01_new.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "인천광역시 단체장 소개(공공누리 표시 없음 — 로컬 작업용, 인물 사진인지 사람이 확인)",
+    "checked_on": "2026-11-13"
+   }
+  },
+  {
+   "institution_id": "lg-46-cc5f697b48",
+   "name": "민형배",
+   "position": "전남광주통합특별시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "전남광주통합특별시 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://www.thepowernews.co.kr/view.php?ud=202607010346207972caa2b7671d_7",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "전남광주통합특별시 단체장 프로필(학력·경력)",
+    "url": "https://www.jeonnam-gwangju.go.kr/mayor/contentsView.do?pageId=mayor6",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "전남대학교 사회학과 학사",
+    "전남대학교 대학원 사회학 박사"
+   ],
+   "career": [
+    "광주 광산구청장(민선 5·6기)",
+    "대통령비서실 자치발전비서관·사회정책비서관",
+    "제21·22대 국회의원(광주 광산구을)"
+   ],
+   "photo": {
+    "url": "https://www.jeonnam-gwangju.go.kr/home/mayor/images/main/img_mayor.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "전남광주통합특별시 단체장 소개(공공누리 표시 없음 — 로컬 작업용, 인물 사진인지 사람이 확인)",
+    "checked_on": "2026-11-13"
+   }
+  },
+  {
+   "institution_id": "lg-30-d53eaece00",
+   "name": "허태정",
+   "position": "대전광역시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "대전광역시 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://www.daejeon.go.kr/mayor/mayorContentsHtmlView.do?menuSeq=6944",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "대전광역시 단체장 프로필(학력·경력)",
+    "url": "https://www.daejeon.go.kr/mayor/mayorContentsHtmlView.do?menuSeq=6944",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "충남대학교 철학과 졸업"
+   ],
+   "career": [
+    "제12대 대전광역시장",
+    "대전광역시 유성구청장(민선 5·6기)",
+    "대통령비서실 행정관"
+   ],
+   "photo": {
+    "url": "https://www.daejeon.go.kr/images/mayor/contents/resume_photo.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "대전광역시 단체장 소개(공공누리 표시 없음 — 로컬 작업용, 인물 사진인지 사람이 확인)",
+    "checked_on": "2026-11-13"
+   },
+   "first_take_office": "2018-07-01"
+  },
+  {
+   "institution_id": "lg-31-65fcd4d8ee",
+   "name": "김상욱",
+   "position": "울산광역시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "울산광역시 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://www.ulsan.go.kr/u/mayor/contents.ulsan?mId=001001005000000000",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "울산광역시 단체장 프로필(학력·경력)",
+    "url": "https://www.ulsan.go.kr/u/mayor/contents.ulsan?mId=001001005000000000",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "고려대학교 법과대학 법학 학사",
+    "부산대학교 법학전문대학원 법학 석사"
+   ],
+   "career": [
+    "법무법인 더정성 대표변호사",
+    "제22대 국회의원(울산 남구갑)"
+   ],
+   "photo": {
+    "url": "https://www.ulsan.go.kr/u/storyCms/mayor/uploads/mayor_insa.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "울산광역시 단체장 소개(공공누리 표시 없음 — 로컬 작업용, 인물 사진인지 사람이 확인)",
+    "checked_on": "2026-11-13"
+   }
+  },
+  {
+   "institution_id": "lg-36-3f68638fe5",
+   "name": "조상호",
+   "position": "세종특별자치시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "세종특별자치시 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://www.sejong.go.kr/mayor/sub01_02.do",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "세종특별자치시 단체장 프로필(학력·경력)",
+    "url": "https://www.sejong.go.kr/mayor/sub01_02.do",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "고려대학교 대학원 정치외교학 석사(박사과정 수료)",
+    "건국대학교 글로컬캠퍼스 행정학과"
+   ],
+   "career": [
+    "세종특별자치시 경제부시장·정무부시장",
+    "국정기획위원회 위원",
+    "국회의원 보좌관"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-41-77433edc2c",
+   "name": "추미애",
+   "position": "경기도지사",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "경기도 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://www.gg.go.kr/governor/user/about/profile.view",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "경기도 단체장 프로필(학력·경력)",
+    "url": "https://www.gg.go.kr/governor/user/about/profile.view",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "한양대학교 법학과 졸업",
+    "사법연수원 14기 수료"
+   ],
+   "career": [
+    "법무부장관",
+    "국회 법제사법위원회 위원장",
+    "판사(춘천·인천·전주지법, 광주고법)"
+   ],
+   "photo": {
+    "url": "https://www.gg.go.kr/governor/resources/governor/media/img/sub/profile.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "경기도 단체장 소개(공공누리 표시 없음 — 로컬 작업용, 인물 사진인지 사람이 확인)",
+    "checked_on": "2026-11-13"
+   }
+  },
+  {
+   "institution_id": "lg-42-dde7e7b9e5",
+   "name": "우상호",
+   "position": "강원특별자치도지사",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "강원특별자치도 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://state.gwd.go.kr/governor-gs/sh-story/profile",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "강원특별자치도 단체장 프로필(학력·경력)",
+    "url": "https://state.gwd.go.kr/governor-gs/sh-story/profile",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "연세대학교 국어국문학과 졸업",
+    "연세대학교 행정대학원 행정학 석사"
+   ],
+   "career": [
+    "대통령비서실 정무수석비서관",
+    "제17·19·20·21대 국회의원"
+   ],
+   "photo": {
+    "url": "https://state.gwd.go.kr/upload/image_attach/2026/06/img_mayor01.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "강원특별자치도 단체장 소개(공공누리 표시 없음 — 로컬 작업용, 인물 사진인지 사람이 확인)",
+    "checked_on": "2026-11-13"
+   }
+  },
+  {
+   "institution_id": "lg-43-9cc45b3381",
+   "name": "신용한",
+   "position": "충청북도지사",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "충청북도 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://www.chungbuk.go.kr/governor/contents.do?key=749",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "충청북도 단체장 프로필(학력·경력)",
+    "url": "https://www.chungbuk.go.kr/governor/contents.do?key=722",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "연세대학교 법과대학 법학 학사",
+    "성균관대학교 국정전문대학원 행정학 박사"
+   ],
+   "career": [
+    "대통령직속 지방시대위원회 부위원장",
+    "대통령직속 청년위원회 위원장",
+    "서원대학교 석좌교수"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-44-4f3dcb9ad4",
+   "name": "박수현",
+   "position": "충청남도지사",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "충청남도 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://www.chungnam.go.kr/governor/main/contents.do?menuNo=600003",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "충청남도 단체장 프로필(학력·경력)",
+    "url": "https://www.chungnam.go.kr/governor/main/contents.do?menuNo=600003",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "연세대학교 행정대학원 행정학 석사(사회복지전공)",
+    "한국방송통신대학교 행정학 학사"
+   ],
+   "career": [
+    "국정기획위원회 국가균형성장 특별위원장",
+    "청와대 대변인·국민소통수석비서관",
+    "제19·22대 국회의원"
+   ],
+   "photo": {
+    "url": "https://www.chungnam.go.kr/static/governor/img/profile-img.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "충청남도 단체장 소개(공공누리 표시 없음 — 로컬 작업용, 인물 사진인지 사람이 확인)",
+    "checked_on": "2026-11-13"
+   }
+  },
+  {
+   "institution_id": "lg-45-1928f89b78",
+   "name": "이원택",
+   "position": "전북특별자치도지사",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "전북특별자치도 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://www.jeonbuk.go.kr/governor/index.jeonbuk?menuCd=DOM_000000201003000000",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "전북특별자치도 단체장 프로필(학력·경력)",
+    "url": "https://www.jeonbuk.go.kr/governor/index.jeonbuk?menuCd=DOM_000000201003000000",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "전북대학교 화학공업공학과 졸업"
+   ],
+   "career": [
+    "제21·22대 국회의원",
+    "전라북도 정무부지사",
+    "대통령비서실 행정관"
+   ],
+   "photo": {
+    "url": "https://www.jeonbuk.go.kr/upload_data/user_file/02_governor/sub01/goverprofile.jpg",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "전북특별자치도 단체장 소개(공공누리 표시 없음 — 로컬 작업용, 인물 사진인지 사람이 확인)",
+    "checked_on": "2026-11-13"
+   }
+  },
+  {
+   "institution_id": "lg-47-07d78f631e",
+   "name": "이철우",
+   "position": "경상북도지사",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "경상북도 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://www.gb.go.kr/governor/page/10506/10208.do",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "경상북도 단체장 프로필(학력·경력)",
+    "url": "https://www.gb.go.kr/governor/page/10506/10208.do",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "경북대학교 수학교육과 졸업",
+    "연세대학교 행정대학원 정치학 석사"
+   ],
+   "career": [
+    "경상북도 정무부지사",
+    "제18·19·20대 국회의원",
+    "제32·33대 경상북도지사"
+   ],
+   "photo": {
+    "url": "https://www.gb.go.kr/resources/templates/governor/assets/images/sub/historyImg1.jpg",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "경상북도 단체장 소개(공공누리 표시 없음 — 로컬 작업용, 인물 사진인지 사람이 확인)",
+    "checked_on": "2026-11-13"
+   },
+   "first_take_office": "2018-07-01"
+  },
+  {
+   "institution_id": "lg-48-b5ce46c085",
+   "name": "박완수",
+   "position": "경상남도지사",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "경상남도 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://www.gyeongnam.go.kr/governor/index.gyeong?menuCd=DOM_000002817002000000",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "OTHER",
+    "title": "경상남도 단체장 프로필(학력·경력)",
+    "url": "https://ko.wikipedia.org/wiki/%EB%B0%95%EC%99%84%EC%88%98",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "경남대학교 행정학과 졸업",
+    "경남대학교 대학원 행정학 석·박사"
+   ],
+   "career": [
+    "통합창원시장",
+    "인천국제공항공사 사장",
+    "제20·21대 국회의원"
+   ],
+   "photo": {
+    "url": "https://www.gyeongnam.go.kr/upload_data/board_data/BBS_0000516/172740223341130.jpg",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "경상남도 단체장 소개(공공누리 표시 없음 — 로컬 작업용, 인물 사진인지 사람이 확인)",
+    "checked_on": "2026-11-13"
+   },
+   "first_take_office": "2022-07-01"
+  },
+  {
+   "institution_id": "lg-50-17f4a9b5da",
+   "name": "위성곤",
+   "position": "제주특별자치도지사",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "제주특별자치도 단체장 소개·2026-07-01 취임(임기 4년)",
+    "url": "https://www.jeju.go.kr/dojisa/index.htm",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "제주특별자치도 단체장 프로필(학력·경력)",
+    "url": "https://www.jeju.go.kr/dojisa/info/profile.htm",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "제주대학교 농과대학 졸업",
+    "제주대학교 행정대학원 정치외교학과 석사과정 수료"
+   ],
+   "career": [
+    "제8·9·10대 제주특별자치도의회 의원",
+    "제20·21·22대 국회의원",
+    "국회 기후위기특별위원회 위원장"
+   ],
+   "photo": {
+    "url": "https://www.jeju.go.kr/pub/site/dojisa/2026/images/sub/img-profile.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "제주특별자치도 단체장 소개(공공누리 표시 없음 — 로컬 작업용, 인물 사진인지 사람이 확인)",
+    "checked_on": "2026-11-13"
+   }
   }
  ]
 }
