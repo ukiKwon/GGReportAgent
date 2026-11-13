@@ -12,17 +12,17 @@
    6. **시험 데이터는 넘어오지 않는다** — 업로드·결재 시험 행, 9f가 11-13에 넣은 **서울 25개 구청장 기관장**도 옛 PC 로컬 DB에만 있다. 새 PC 현황판 기관장 카드는 '기관장 없음'이 정상(아래 질문 Q1).
    7. `data/`(수집 로그 `data/collector/_logs/` 등)는 git에 없다 — 옛 PC에만 있다.
    8. 점검: `cd kgi-ggreport-web && mvn -q -o test`(서버 1141 통과), `node --test "frontend/test/*.test.js"`(화면 1092 통과), `node --test kgi-ggreport-web/tools/db/apply-mysql.test.mjs`(8). 8080 기동 뒤 현황판·지도 상세 팝업 확인.
-1. **11-16(월) 09:00 첫 주간 수집 확인 (NEXT 80)** — 작업 'GGReport collector weekly'는 **옛 PC 작업 스케줄러**에 있다(Q2). 점검표 `handoff/agents/history/2026-11-13_주간수집_첫실행_점검표.md`. 정상이면 scourt를 run_weekly에 넣고 전국법원소식 감시 검색 추가(NEXT 81).
+1. **11-16(월) 09:00 첫 주간 수집 확인 (NEXT 80)** — 작업 'GGReport collector weekly'는 **옛 PC 작업 스케줄러**에 있다 — 옛 PC를 켜 두고 그쪽 로그로 확인(사용자 11-13). 점검표 `handoff/agents/history/2026-11-13_주간수집_첫실행_점검표.md`. 정상이면 scourt를 run_weekly에 넣고 전국법원소식 감시 검색 추가(NEXT 81).
 2. **NEXT 72 기관 이관 dry-run** (막힘 해소 효과가 가장 큼): 지자체 264곳 + 지자체 외 172곳, 기관 ID 키. data-auditor 매핑표 ∥ security → backend-dev 설계 → 적용. 이게 끝나야 기관장 확대(입찰 1년 안 55곳), 현재 금고 은행·약정 기록, 새 PC 기관장 재등록이 풀린다.
 3. **NEXT 78 후속(화면)**: design-reviewer 11-13 P2(요약 카드 [기관장 보기] 버튼 24px, 지도 상세 팝업 제목 포커스 링, 기관장 카드 사진 안내문 4줄 꺾임) → 되돌림 경로(작은 요약 카드·headcard.decoratePopover) 폐기 여부 → noticeNote·칩 문구를 logic.noticeBrief로 통합 → 감사 화면 이름 map_detail 분리 판단. security 후속: dashboard.js `/preps` POST 2곳(현황판·지도 팝업)을 공용 요청 함수+화면 머리글로(감사 화면 이름 맞춤).
 4. **보안 남은 것 (NEXT 70)**: PrepService:164-166 확정 취소·중단·반려 사유가 이력에 그대로 노출(중), ApprovalLineController requireActiveUser+403·실패 감사(하). backend-dev → security.
 5. 틈나는 대로: NEXT 77 학력·경력 상한(빈 기관장 정리 때), NEXT 79 공공기관 미확인 4곳·교육청 3곳, NEXT 64 ①④, apply-mysql.mjs 비밀번호 전달을 --defaults-extra-file로(security 하). 낡은 NEXT 제목 정리(32·70·72·77·78·79·81 — handoff/agents/pm/2026-11-13 PUSH-GATE 보고 3절 표).
 
-## 사용자에게 물을 것 (11-13 마무리 때 물음, 답 받으면 지운다)
-- **Q1 서울 25 구청장 기관장 기록(옛 PC DB에만 있음)**: 가 옛 PC에서 내보내 새 PC에 넣기 / 나 새 PC는 비워 두고 NEXT 72 이관 뒤 55곳과 함께 다시 등록(권장 — 이관 전 등록은 기관 ID가 바뀌면 다시 해야 함) / 다 지금 새 PC에서 다시 등록.
-- **Q2 11-16 주간 수집을 어느 PC에서 볼지**: 가 옛 PC를 켜 두고 그쪽에서 로그 확인(권장) / 나 새 PC에 새로 등록하고 옛 PC 작업 삭제 / 다 둘 다(중복 수집 위험).
-- **Q3 옛 PC의 미커밋 `.claude/agents/*.md`(6개)·`.claude/settings.json` 변경**: e3가 만든 것이 아니라 커밋에서 뺐다 — 담을지·버릴지 사용자 확인.
-- 그 밖 정본은 `handoff/NEXT.md` 상단 질문 모음.
+## 사용자 답 (11-13 마무리, "권장안대로")
+- **Q1 서울 25 구청장**: 새 PC는 비워 둔다 — NEXT 72 기관 이관 뒤 입찰 1년 안 55곳과 함께 다시 등록(이관 전 등록은 기관 ID가 바뀌면 다시 해야 함). 새 PC 기관장 카드가 '기관장 없음'인 것은 정상.
+- **Q2 11-16 주간 수집**: 옛 PC를 켜 두고 그쪽에서 로그(data/collector/_logs/)를 본다. 새 PC에는 등록하지 않는다(중복 수집 방지).
+- **Q3 옛 PC 미커밋 .claude/ 변경**: 확인 결과 agents/*.md 6개는 줄바꿈(CRLF)만 다르고 내용 변경 없음, settings.json은 WebFetch 허용 도메인 9개(뉴스·data.go.kr·law.go.kr — 수집 조사 때 승인한 것) 추가뿐. 권장안이 없던 질문이라 옛 PC에 그대로 두고 커밋하지 않았다 — 새 PC에서 같은 조회 때 다시 승인 창이 뜰 수 있음.
+- 그 밖 정본은  상단 질문 모음.
 
 ## 미해결 이슈 상기 (사용자 지시 11-11: 반드시 기록하고 다음에 반드시 다시 알린다 — 세션 첫 답변에서 핵심 3~5줄 말할 것)
 해소하면 이 목록과 NEXT 항목에서 지우고 done.md로. 정본 세부는 괄호 안 NEXT 번호.
