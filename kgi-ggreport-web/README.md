@@ -85,7 +85,8 @@
 mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS ggreportdb DEFAULT CHARSET utf8mb4;"
 mysql -u root -p -e "CREATE USER IF NOT EXISTS 'ggreport'@'localhost' IDENTIFIED BY '<원하는-비밀번호>'; \
                      GRANT ALL PRIVILEGES ON ggreportdb.* TO 'ggreport'@'localhost'; FLUSH PRIVILEGES;"
-mysql -u root -p ggreportdb < src/main/resources/db/mysql/001_schema.sql
+# 스키마는 번호 전부(001~)를 적용 스크립트가 순서대로 적용한다(§5-3). 저장소 루트에서:
+node kgi-ggreport-web/tools/db/apply-mysql.mjs
 
 # 2) 환경 선택 — 설정 파일을 복사한다(프로파일 인자가 아니다, §3)
 cd kgi-ggreport-web
@@ -223,6 +224,34 @@ mysql -u root --default-character-set=utf8mb4 ggreportdb < src/main/resources/db
 > 다운로드 주소가 바뀌면(특히 `cdn.mysql.com`은 옛 버전을 내린다) `-MysqlVersion`·`-JdkUrl`·`-IdeaUrl`
 > 인자로 넘긴다. 쉘이 Git Bash면 `mysql.exe`가 `api-ms-win-crt-*.dll`을 못 찾는다고 할 수 있다 —
 > PowerShell에서 실행한다.
+
+### 5-3. DB 마이그레이션 적용 스크립트 · PC 옮길 때 체크리스트 (2026-11-13)
+
+로컬 MySQL 전용이다(회사 Oracle은 DBA가 `db/oracle`을 직접 적용). `db/mysql/NNN_*.sql`(하위 `ops/` 제외)을 번호순으로 적용하고, DB 안 `SCHEMA_MIGRATION` 표(번호·파일명·sha256·적용 시각·적용자, 외래키 없음)에 적용 기록을 남긴다. 외부 패키지·pom 변경 없음(Node 22).
+
+```powershell
+# 저장소 루트에서 (cmd도 같음). PATH에 node가 없으면 C:\dev\node\node-v22.23.4-win-x64\node.exe 로:
+node kgi-ggreport-web\tools\db\apply-mysql.mjs --status        # 파일별 적용 여부
+node kgi-ggreport-web\tools\db\apply-mysql.mjs                 # 적용 (비밀번호는 한 번 묻고 화면에 안 보임)
+node kgi-ggreport-web\tools\db\apply-mysql.mjs --dry-run       # 적용 예정 목록만
+node kgi-ggreport-web\tools\db\apply-mysql.mjs --baseline 028  # 실행 없이 028까지 '적용됨' 기록
+# 옵션: --host localhost --port 3306 --user root --db ggreportdb
+#       --mysql "C:\경로\mysql.exe"  (mysql.exe가 PATH에 없을 때)
+```
+- **이미 손으로 적용한 DB는 반드시 `--baseline <마지막 적용 번호>`를 먼저** 한다. 기록이 없는 DB에서 처음부터 돌리면 비멱등 파일(002 등)이 터진다 — 스크립트는 표(`INSTITUTIONS`)가 이미 있는데 기록이 없으면 적용을 거부하고 이 안내를 보여 준다. 빈 DB에는 `--baseline`이 거부된다(그냥 실행).
+- 파일 하나가 실패하면 그 자리에서 멈추고 파일명·mysql 오류를 보여 주며 기록하지 않는다. MySQL DDL은 롤백되지 않아 **그 파일이 중간까지 적용됐을 수 있으니** 확인 후 고쳐 다시 실행한다.
+- 이미 적용 기록된 파일의 내용이 바뀌면(sha256 불일치, 줄바꿈 차이는 무시) 경고하고 아무것도 적용하지 않고 멈춘다. 적용한 SQL은 고치지 않고 새 번호로 추가한다.
+- 비밀번호는 `MYSQL_PWD` 환경변수로만 자식 mysql에 전달한다(명령줄·로그 비노출). `MYSQL_PWD`가 이미 설정돼 있으면 묻지 않는다.
+- 단위 시험(DB 불필요): `node --test kgi-ggreport-web/tools/db/apply-mysql.test.mjs`
+
+**PC 옮길 때 체크리스트**
+1. 저장소를 **새로 받는다**(2026-11-12 git 이력 재작성 — 예전에 받아 둔 폴더는 지우고 새로 clone, 기존 폴더에서 `git pull` 하지 않는다).
+2. MySQL 설치·기동 뒤 DB 만들기: §5의 `CREATE DATABASE`·`CREATE USER` 두 줄.
+3. 스키마: **처음 만드는 DB는 그냥 실행**(`node kgi-ggreport-web\tools\db\apply-mysql.mjs`), 이미 손으로 적용해 둔 DB는 `--baseline <번호>` 후 실행.
+4. `config-envs/out-local/application.properties` → `config/application.properties` 복사 후 `<OUT-LOCAL-DB-PASSWORD>` 등 비밀값을 채운다(값은 git에 없다). 다른 PC의 설정 파일에 빠진 키가 없는지 키 이름만 비교한다(CLAUDE.md 3절 ⓓ).
+5. 시험 데이터(업로드·결재·기관장 시험 행 등 DB 안 데이터)는 옮겨지지 않는다 — 새 PC는 SQL 파일의 시드(003·009·011·013·017 등)까지만 채워진다.
+
+**새 SQL을 추가할 때**: 기존 번호보다 큰 번호로 `db/mysql`·`db/oracle` **쌍**을 만들고, 로컬 MySQL 적용은 이 스크립트로 한다(`mysql < 파일` 수동 적용 금지 — 기록이 어긋난다). 적용한 파일은 고치지 않는다.
 
 ## 6. WebLogic 배포
 
@@ -772,7 +801,7 @@ LLM 어댑터(Task 4.4, **문의 1·6 회신 대기**)가 필요하고, `package
 
 `src/main/resources/db/` — **`oracle/`이 정본**, `mysql/`은 외부망 로컬 미러다.
 **배포 순서(기관장 정보, NEXT 72·77): 코드를 올리기 전에 `026_inst_head.sql` 을 먼저 적용한다** — 아직 적용 전이면 설정 `ggreport.inst-head.enabled=false` 로 배포한다(stg·prod 는 `photo-dir` 자리표시를 웹 루트 밖 절대경로로 바꿔야 기동한다).
-11테이블(registry 7 + 검색 4). 번호 순서대로 **한 번씩** 적용한다(둘 다 멱등하지 않다):
+11테이블(registry 7 + 검색 4). 번호 순서대로 **한 번씩** 적용한다(둘 다 멱등하지 않다). 로컬 MySQL은 적용 스크립트(§5-3)로 번호순·기록과 함께 적용한다(Oracle은 DBA 몫):
 
 | 스크립트 | 내용 | 검증 |
 |---|---|---|
