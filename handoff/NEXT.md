@@ -420,8 +420,13 @@
 
 ### 79. 지자체 외 기관 수집 — **171곳 커밋, 법원 보관은행 정기 공고 7건 원문 반영(956cf2f), 결과 미확인 약 27곳·공고에 없는 법원 남음** [담당: data-auditor → 메인(9f) / 화면 연결 e3]
 - **현재**: frontend/data/institutions_nonmuni.js 171곳(교육청 16·법원 103·지방공기업·나라장터 공공기관). 법원 26곳은 대법원 정기 공고 원문(구형 HWP, hwp5.py)으로 lastBid=공고일·term 5·만료 원문 날짜, 2021 별지 15곳 만료 2026-12-31 확정, 제주 날짜 비움. 근거 없는 지방공기업 25곳은 넣지 않음. 기획 대기: 재단법인 6곳 종류, 기관명 표기.
-- **다음 한 걸음**: ① 공공기관 결과 미확인 약 27곳 → 기관 입찰 게시판 수집기 ② 공고에 없는 법원과 2021 별지 17곳·제주의 재지정 경로(NEXT 72와 함께) ③ 소재 시군구는 기관코드 자료로 불가(c956042) → NEXT 72 법원 위치 ④ 법원 새소식 출처는 e3 날짜 규칙 뒤.
+- **다음 한 걸음**: ① 공공기관 결과 미확인 약 27곳 → **나라장터 낙찰·계약정보 OpenAPI 시험이 먼저**(planner 11-13: 기관 게시판 파서는 보류, ALIO는 그다음) — 사용자 11-13 ⓐ 두 서비스 활용 신청(사용자 계정 data.go.kr) 뒤 backend-dev가 공고번호 5~10개로 시험(10회 이내). 우선협상만 확인된 곳은 bank 넣고 '우선협상, 계약 미확인' 표기(팀 결정) ② 공고에 없는 법원과 2021 별지 17곳·제주의 재지정 경로(NEXT 72와 함께) ③ 소재 시군구는 기관코드 자료로 불가(c956042) → NEXT 72 법원 위치 ④ 법원 새소식 출처는 e3 날짜 규칙 뒤.
 - **자세히**: handoff/agents/history/2026-11-12_법원_공탁금_정기공고_원문표.md, collector/extract/hwp5.py, 11-12 summary 9f 18:30, collector/SOURCES.md 법원 소절.
+
+### 81. 법원 공탁금 보관은행 수집 소스(S5 대법원·S6 각 법원 새소식) — **기획 끝(planner 11-13), 구현 대기** [담당: backend-dev → data-auditor → security → qa / 메인(9f)]
+- **현재**: 범위 = 정기 공고·지정 결과·보관업무 담당은행 변경 안내·수시 공고(법원보관금 취급은행 제외). 결정(11-13): 만료 = 지정 끝났으면 새 지정기간 끝(사용자, 서울동부·남부 2031-12-31 반영), 2021 별지처럼 연수 없는 묶음은 lastBid=공고일·term 비움(팀), S5 매주·S6 월 1회(팀). 구형 HWP 읽기·근거 글 연결 끝(hwp5.py·63ed4e1·5aebf1a). classify.py가 '공탁금 보관은행' 제목을 '무관'으로 거름 → 법원 전용 종류 판정 필요, 공고 1건 → 법원별 레코드, cp949 검색어·응답, 법원별 호스트·gubun 표.
+- **다음 한 걸음**: data-auditor 예규 재지정·연장 조항·별지 15/17 대조·gubun 표본(진행 중) → backend-dev 소스 설계(IncrementalSource 틀) → security(새 호스트 약 97곳 백신·크기) → 구현·qa. 새 출처를 주간 자동 수집에 넣는 건 11-16 첫 실행 확인 뒤(PM).
+- **자세히**: handoff/agents/planner/ 2026-11-13(법원 수집 설계), handoff/agents/history/2026-11-12_법원_공탁금_정기공고_원문표.md, collector/SOURCES.md 법원 소절, NEXT 72·79.
 
 ### 80. 외부망 주기 수집 파이프라인 — **eminwon·나라장터·미리보기·주간 자동 수집(월 09:00) 가동, 첫 실행 확인 대기** [담당: 메인(9f) → security → qa]
 - **현재**: `python -m collector run --source eminwon|g2b`, `preview --batch <id>`, 작업 'GGReport collector weekly'(collector/run_weekly.cmd, 로그 data/collector/_logs/, LLM 0, 해제 `schtasks /Delete /TN "GGReport collector weekly" /F`). TLS 예외(c07d963), known_failing·요청 마감·잠금 토큰(182d45b). 실패 요청 기록 fetch_failures(URL 키 가림·목적·시도 횟수, 11-12 사용자). ※ 11-12 git 이력 재작성으로 이 항목의 해시는 옛 값 — handoff/archive/2026-11-12_git-hash-map.tsv로 찾는다. 사용자 결정: 연락처 전부 마스킹, 백신은 https+go.kr·광역 지자체 공식 도메인이면 생략. 운영 방식은 collector/SOURCES.md §3.
