@@ -69,10 +69,10 @@ public class HeadRulesTest {
 
     @Test
     public void 무효_권한과_역할_판정() {
-        assertTrue(HeadRules.canVoid("영업팀장", ACTOR, OTHER));
-        assertTrue(HeadRules.canVoid("영업부장", ACTOR, OTHER));
-        assertTrue(HeadRules.canVoid("영업팀", ACTOR, ACTOR));
-        assertFalse(HeadRules.canVoid("영업팀", ACTOR, OTHER));
+        assertTrue(HeadRules.canVoid("영업팀장", ACTOR, OTHER, OTHER));
+        assertTrue(HeadRules.canVoid("영업부장", ACTOR, OTHER, OTHER));
+        assertTrue(HeadRules.canVoid("영업팀", ACTOR, ACTOR, ACTOR));
+        assertFalse(HeadRules.canVoid("영업팀", ACTOR, OTHER, OTHER));
         assertTrue(HeadRules.isSales(" 영업팀 "));
         assertTrue(HeadRules.isSales("영업팀장"));
         assertTrue(HeadRules.isSales("영업부장"));
@@ -80,5 +80,20 @@ public class HeadRulesTest {
         assertFalse(HeadRules.isSales(null));
         assertTrue(HeadRules.isLead("영업부장"));
         assertFalse(HeadRules.isLead("영업팀"));
+    }
+
+    @Test
+    public void 무효_권한은_확정자도_본다_남이_확정한_값은_팀장_부장만() {
+        String[] deciders = {ACTOR, OTHER, null};
+        for (String role : new String[]{"영업팀", "영업팀장", "영업부장"}) {
+            for (boolean creatorSelf : new boolean[]{false, true}) {
+                for (String d : deciders) {
+                    boolean want = !"영업팀".equals(role) || (creatorSelf && (d == null || ACTOR.equals(d)));
+                    assertEquals(role + "/creatorSelf=" + creatorSelf + "/decider=" + d, want,
+                            HeadRules.canVoid(role, ACTOR, creatorSelf ? ACTOR : OTHER, d));
+                }
+            }
+        }
+        assertFalse("사번 없으면 불가", HeadRules.canVoid("영업팀", null, null, null));
     }
 }

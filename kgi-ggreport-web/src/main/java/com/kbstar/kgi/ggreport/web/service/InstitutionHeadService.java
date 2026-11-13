@@ -111,7 +111,7 @@ public class InstitutionHeadService {
         } else if ("OWN_VALUE_GUARD".equals(code)) {
             msg = "본인이 입력·확정한 값과 충돌하는 후보는 직접 기각할 수 없습니다.";
         } else if ("NOT_OWNER".equals(code)) {
-            msg = "그 값을 넣은 사람 또는 영업팀장·영업부장만 무효 처리할 수 있습니다.";
+            msg = "본인이 넣고 확정한 값(사진은 본인이 올린 것)만 본인이 무효 처리할 수 있습니다. 그 밖에는 영업팀장·영업부장에게 요청하세요.";
         } else {
             msg = "이 기능을 쓸 권한이 없습니다.";
         }
@@ -141,6 +141,19 @@ public class InstitutionHeadService {
     }
 
     /**
+     * 같은 값을 새 출처로 다시 확인(대체)할 때의 확정자 — 앞 값을 확정한 사람을 이어받는다. 남이 확정한 값을 같은 값으로 다시 넣거나(A5)
+     * 같은 값 후보를 직접 확정해(A6) '내 값'으로 바꾼 뒤 무효하는 우회를 막는다(무효 권한은 확정자도 본다). 실제로 누른 사람은 INST_HEAD_LOG·ACT 에 남는다.
+     * 앞 값의 확정자가 비어 있으면(옛 행) 입력자, 그것도 없으면 me.
+     */
+    static String carriedDecider(InstHeadItem prev, String me) {
+        String d = prev.getDecidedBy() != null ? prev.getDecidedBy() : prev.getCreatedBy();
+        return d == null ? me : d;
+    }
+
+    static final String VOID_BY_ADD = "BY_ADD";          // 빈 머리 정리 사유 — 기관장 등록(A4)
+    static final String VOID_BY_CONFIRM = "BY_CONFIRM";  // 빈 머리 정리 사유 — 후보 머리 확정(A8)
+
+    /**
      * 빈 머리 — CURRENT 이지만 권한대행(ACTING) 밖의 확정 칸(이름·직위·날짜·학력·경력)과 ACTIVE 사진이 하나도 없다(확정 값을 모두 무효 처리한 결과).
      * 서버는 이것을 '현 기관장 없음'으로 본다(11-13 사용자 결정 가). 화면 headcard.js hc.isEmptyHead 와 같은 기준이다(권한대행 '아니오'는 카드에 안 보이므로 뺀다).
      * 호출자는 기관 행 잠금 뒤에 부른다(같은 기관의 쓰기는 거기서 직렬화된다).
@@ -161,14 +174,17 @@ public class InstitutionHeadService {
      * 이력: HEAD_VOID(HEAD_ID=새 머리, FROM_HEAD_ID=빈 머리) + 옮겼으면 HEAD_MERGE. 옮긴 칸 수를 돌려준다.
      * ⚠️ 머리 확정(A8)에서는 confirmItemsOfHead 뒤에 부른다 — 앞에서 부르면 옮긴 후보까지 함께 확정된다.
      */
-    private int retireEmptyHead(Long emptyHeadId, Long intoHeadId, String instId, SysUser me, Actor actor, String now, int selfFlag) {
+    // cause: VOID_BY_ADD | VOID_BY_CONFIRM — 무엇이 정리를 일으켰는지 REASON 에 남긴다(security 하). SELF_FLAG 는 처리자가 빈 머리를 만든 사람인지.
+    private int retireEmptyHead(InstHead emptied, Long intoHeadId, String instId, SysUser me, Actor actor, String now, String cause) {
+        Long emptyHeadId = emptied.getHeadId();
         if (mapper.voidEmptyHead(emptyHeadId, me.getEmpNo(), now) != 1) {
             throw stateChanged();
         }
         int moved = mapper.moveCandidateItems(emptyHeadId, intoHeadId, instId);
-        log("HEAD_VOID", instId, intoHeadId, null, null, emptyHeadId, null, me, actor, selfFlag);
+        int selfFlag = self(me, emptied.getCreatedBy());
+        log("HEAD_VOID", instId, intoHeadId, null, null, emptyHeadId, cause, me, actor, selfFlag);
         if (moved > 0) {
-            log("HEAD_MERGE", instId, intoHeadId, null, null, emptyHeadId, null, me, actor, selfFlag);
+            log("HEAD_MERGE", instId, intoHeadId, null, null, emptyHeadId, cause, me, actor, selfFlag);
         }
         return moved;
     }
@@ -554,10 +570,11 @@ public class InstitutionHeadService {
                 if (i.getCheckedOn() != null && (lastChecked == null || lastChecked.compareTo(i.getCheckedOn()) < 0)) {
                     lastChecked = i.getCheckedOn();
                 }
-                if ("EDU".equals(i.getFieldCd())) {
-                    edu.add(itemMap(i));
-                } else if ("CAREER".equals(i.getFieldCd())) {
-                    career.add(itemMap(i));
+                boolean canVoid = HeadRules.canVoid(role, emp, i.getCreatedBy(), i.getDecidedBy());   // 화면의 [무효 처리] 버튼 판정 — 서버 voidItem 과 같은 규칙
+                if ("EDU".equals(i.getFieldCd()) || "CAREER".equals(i.getFieldCd())) {
+                    Map<String, Object> m = itemMap(i);
+                    m.put("can_void", canVoid);
+                    ("EDU".equals(i.getFieldCd()) ? edu : career).add(m);
                 } else {
                     Map<String, Object> f = new LinkedHashMap<>();
                     f.put("item_id", i.getItemId());
@@ -565,6 +582,7 @@ public class InstitutionHeadService {
                     f.put("source", sourceMap(i));
                     f.put("created_by", i.getCreatedBy());
                     f.put("created_verified", i.getCreatedVerified() == 1);
+                    f.put("can_void", canVoid);
                     fieldsOut.put(i.getFieldCd(), f);
                 }
             }
@@ -594,6 +612,7 @@ public class InstitutionHeadService {
                 pm.put("checked_on", p.getCheckedOn());
                 pm.put("uploaded_by", p.getUploadedBy());
                 pm.put("uploaded_verified", p.getUploadedVerified() == 1);
+                pm.put("can_void", HeadRules.canVoid(role, emp, p.getUploadedBy(), null));
                 h.put("photo", pm);
             }
             h.put("source_count", sourceCount);
@@ -725,7 +744,7 @@ public class InstitutionHeadService {
             ids.add(addHeadItem(h, "TERM_END", state, me, actor, src, now, null, end, null));
         }
         log("HEAD_ADD", instId, h.getHeadId(), null, null, null, null, me, actor, 1);
-        int moved = emptied == null ? 0 : retireEmptyHead(emptied.getHeadId(), h.getHeadId(), instId, me, actor, now, 1);
+        int moved = emptied == null ? 0 : retireEmptyHead(emptied, h.getHeadId(), instId, me, actor, now, VOID_BY_ADD);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("head_id", h.getHeadId());
         out.put("state", direct ? "CURRENT" : "CANDIDATE");
@@ -805,8 +824,14 @@ public class InstitutionHeadService {
         String now = x.getCreatedAt();
         if (confirm) {
             x.setStateCd("CONFIRMED");
-            x.setDecidedBy(me.getEmpNo());
-            x.setDecidedAt(now);
+            if (old != null) {   // 같은 값 재확인 — 앞 값의 확정자를 이어받는다(carriedDecider)
+                String d = carriedDecider(old, me.getEmpNo());
+                x.setDecidedBy(d);
+                x.setDecidedAt(d.equals(me.getEmpNo()) || old.getDecidedAt() == null ? now : old.getDecidedAt());
+            } else {
+                x.setDecidedBy(me.getEmpNo());
+                x.setDecidedAt(now);
+            }
         }
         mapper.insertItem(x);
         log("ITEM_ADD", instId, head.getHeadId(), x.getItemId(), null, null, null, me, actor, 1);
@@ -856,13 +881,22 @@ public class InstitutionHeadService {
         }
         String now = Times.nowIso();
         Long supersededId = null;
+        String decider = me.getEmpNo();
+        String decidedAt = now;
         if (SINGLE.contains(item.getFieldCd()) && !conf.isEmpty()) {
             supersededId = conf.get(0).getItemId();
+            if (!conflict) {   // 충돌 없는 대체 = 같은 값 재확인 — 앞 값의 확정자를 이어받는다(충돌 해소 확정은 누른 팀장·부장이 확정자)
+                InstHeadItem prev = conf.get(0);
+                decider = carriedDecider(prev, me.getEmpNo());
+                if (!decider.equals(me.getEmpNo()) && prev.getDecidedAt() != null) {
+                    decidedAt = prev.getDecidedAt();
+                }
+            }
             if (mapper.supersedeItem(supersededId, me.getEmpNo(), now, itemId) != 1) {
                 throw stateChanged();
             }
         }
-        if (mapper.confirmItem(itemId, me.getEmpNo(), now) != 1) {
+        if (mapper.confirmItem(itemId, decider, decidedAt) != 1) {
             throw stateChanged();
         }
         log("ITEM_CONFIRM", instId, head.getHeadId(), itemId, supersededId, null, null, me, actor, self(me, item.getCreatedBy()));
@@ -920,7 +954,7 @@ public class InstitutionHeadService {
         return out;
     }
 
-    /** 확정값 무효 — 그 값을 넣은 사람 또는 팀장·부장. 사유 필수. */
+    /** 확정값 무효 — 그 값을 넣고 확정도 본인이 한 사람 또는 팀장·부장(남이 확정한 값은 팀장·부장만, 11-13 사용자 결정). 사유 필수. */
     @Transactional
     public Map<String, Object> voidItem(SysUser me, Actor actor, String instId, Long itemId, HeadIn.Reason in) {
         String reason = HeadText.requireReason(in == null ? null : in.getReason());
@@ -939,7 +973,7 @@ public class InstitutionHeadService {
         if (!"CURRENT".equals(head.getStatusCd())) {
             throw stateChanged();
         }
-        if (!HeadRules.canVoid(me.getRole(), me.getEmpNo(), item.getCreatedBy())) {
+        if (!HeadRules.canVoid(me.getRole(), me.getEmpNo(), item.getCreatedBy(), item.getDecidedBy())) {
             throw forbidden("NOT_OWNER");
         }
         if (SINGLE.contains(item.getFieldCd())) {   // 확정값을 무효로 만들어 충돌을 없앤 뒤 자기 후보를 직접 확정하는 우회 차단(security 중-1)
@@ -1018,7 +1052,7 @@ public class InstitutionHeadService {
         int self = self(me, head.getCreatedBy());
         int moved = 0;
         if (curEmpty) {   // ⚠️ confirmItemsOfHead 뒤 — 옮긴 칸은 후보로 남는다
-            moved = retireEmptyHead(cur.getHeadId(), headId, instId, me, actor, now, self);
+            moved = retireEmptyHead(cur, headId, instId, me, actor, now, VOID_BY_CONFIRM);
         }
         if (formerId != null) {
             log("HEAD_REPLACE", instId, headId, null, null, formerId, null, me, actor, self);

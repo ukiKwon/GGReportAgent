@@ -903,3 +903,11 @@ test('cardHtml: 값이 없는 칸은 표식 없이 미확인, 각주 값은 이�
   assert.strictEqual(evil.indexOf('<img src=x'), -1);
   assert.ok(evil.indexOf('&lt;img src=x') >= 0);
 });
+
+test('canVoidOf: 서버 can_void가 있으면 그 값(남이 확정한 내 값은 false), 없으면 입력자 기준 대비 판정', function () {
+  assert.strictEqual(hc.canVoidOf({ can_void: false }, '1001', '영업팀', '1001'), false);
+  assert.strictEqual(hc.canVoidOf({ can_void: true }, '1001', '영업팀', '2002'), true);
+  assert.strictEqual(hc.canVoidOf({}, '1001', '영업팀', '1001'), true);
+  const h = hc.modalHtml(view({ head: { fields: { NAME: Object.assign(field(1, '서지운'), { created_by: '2002', can_void: false }) } } }), {}, { today: TODAY, emp: '2002' });
+  assert.ok(h.indexOf('data-m="ask-void-item" data-id="1"') < 0);
+});

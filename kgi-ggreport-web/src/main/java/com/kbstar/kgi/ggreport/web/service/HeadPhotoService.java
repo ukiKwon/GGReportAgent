@@ -254,7 +254,7 @@ public class HeadPhotoService {
         if (!"CURRENT".equals(h.getStatusCd()) || !"ACTIVE".equals(p.getStateCd())) {
             throw InstitutionHeadService.stateChanged();
         }
-        if (!HeadRules.canVoid(me.getRole(), me.getEmpNo(), p.getUploadedBy())) {
+        if (!HeadRules.canVoid(me.getRole(), me.getEmpNo(), p.getUploadedBy(), null)) {   // 사진은 확정 단계가 없다 — 올린 사람 기준
             throw InstitutionHeadService.forbidden("NOT_OWNER");
         }
         String now = Times.nowIso();

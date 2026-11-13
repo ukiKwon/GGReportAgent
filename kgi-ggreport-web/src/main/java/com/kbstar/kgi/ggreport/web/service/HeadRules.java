@@ -61,8 +61,15 @@ public final class HeadRules {
         return null;   // 확정값 입력자가 남의 후보를 '확정'(자기 값 양보)하는 것은 허용
     }
 
-    /** 확정값·사진 무효 — 그것을 넣은 사람 또는 팀장·부장. */
-    public static boolean canVoid(String role, String actor, String creator) {
-        return isLead(role) || (actor != null && actor.equals(creator));
+    /**
+     * 확정값·사진 무효 — 팀장·부장, 또는 그 값을 넣고(creator) 확정도 본인이 한(decidedBy) 사람(11-13 사용자 결정, security 중).
+     * 남이 확정한 값은 넣은 사람이라도 팀장·부장만 무효한다. 사진은 확정 단계가 없어 decidedBy=null(올린 사람 기준).
+     * 확정자가 비어 있는 옛 행도 넣은 사람 기준이다. ⚠️ 사번·역할은 X-Emp-No 자기신고 위의 업무 규칙이다.
+     */
+    public static boolean canVoid(String role, String actor, String creator, String decidedBy) {
+        if (isLead(role)) {
+            return true;
+        }
+        return actor != null && actor.equals(creator) && (decidedBy == null || actor.equals(decidedBy));
     }
 }

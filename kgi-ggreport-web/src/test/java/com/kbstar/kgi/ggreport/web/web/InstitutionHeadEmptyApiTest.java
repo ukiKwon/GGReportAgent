@@ -99,7 +99,7 @@ public class InstitutionHeadEmptyApiTest extends HeadApiTestBase {
         assertEquals("이름 없는 머리가 이전 기관장 이력에 쌓이지 않는다", 0,
                 count("SELECT COUNT(*) FROM INST_HEAD WHERE INSTITUTION_ID=? AND STATUS_CD='FORMER'", INST));
         assertEquals(1, count("SELECT COUNT(*) FROM INST_HEAD_LOG WHERE EVENT_CD='HEAD_VOID' AND HEAD_ID=? AND FROM_HEAD_ID=?"
-                + " AND ACTOR_EMP_NO=? AND SELF_FLAG=1", h2, empty, T1));
+                + " AND ACTOR_EMP_NO=? AND SELF_FLAG=0 AND REASON='BY_ADD'", h2, empty, T1));
         assertEquals(0, count("SELECT COUNT(*) FROM INST_HEAD_LOG WHERE EVENT_CD='HEAD_REPLACE' AND FROM_HEAD_ID=?", empty));
         assertEquals("누가·어느 버튼은 감사 표에", 1, count("SELECT COUNT(*) FROM INST_HEAD_ACT WHERE ACTION_CD='HEAD_ADD'"
                 + " AND OUTCOME='OK' AND HEAD_ID=? AND ACTOR_EMP_NO=?", h2, T1));
@@ -155,7 +155,7 @@ public class InstitutionHeadEmptyApiTest extends HeadApiTestBase {
         assertEquals("확정한 머리로 옮겨진다", cand, headOfItem(open));
         assertEquals("옮긴 후보는 함께 확정되지 않는다", 2, count("SELECT COUNT(*) FROM INST_HEAD_ITEM WHERE HEAD_ID=? AND STATE_CD='CONFIRMED'", cand));
         assertEquals(0, count("SELECT COUNT(*) FROM INST_HEAD_LOG WHERE EVENT_CD='ITEM_REJECT' AND REASON='HEAD_REPLACED' AND HEAD_ID=?", head));
-        assertEquals(1, count("SELECT COUNT(*) FROM INST_HEAD_LOG WHERE EVENT_CD='HEAD_VOID' AND HEAD_ID=? AND FROM_HEAD_ID=?", cand, head));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_HEAD_LOG WHERE EVENT_CD='HEAD_VOID' AND HEAD_ID=? AND FROM_HEAD_ID=? AND REASON='BY_CONFIRM'", cand, head));
         assertEquals(1, count("SELECT COUNT(*) FROM INST_HEAD_LOG WHERE EVENT_CD='HEAD_CONFIRM' AND HEAD_ID=? AND SELF_FLAG=1", cand));
     }
 

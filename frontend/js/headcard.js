@@ -506,6 +506,10 @@
     if (name && !/\.(jpe?g|png)$/.test(name)) return 'JPG 또는 PNG 사진만 올릴 수 있습니다.';
     return '';
   };
+  // 서버가 내려 준 can_void(입력자·확정자·역할을 함께 본 판정, 11-13)가 정본 — 없을 때만 아래 대비 판정(입력자 기준)
+  hc.canVoidOf = function (x, createdBy, viewerRole, emp) {
+    return x && typeof x.can_void === 'boolean' ? x.can_void : hc.canVoid(createdBy, viewerRole, emp);
+  };
   hc.canVoid = function (createdBy, viewerRole, emp) {
     return hc.isLead(viewerRole) || (!!emp && !!createdBy && createdBy === emp);
   };
@@ -601,7 +605,7 @@
   }
   function confirmedRow(it, d, M, ctx) {
     const lab = hc.fieldLabel(it.field_cd);
-    const can = hc.canVoid(it.created_by, d.viewer_role, ctx.emp);
+    const can = hc.canVoidOf(it, it.created_by, d.viewer_role, ctx.emp);
     const btn = can ? '<div class="hc-btns"><button type="button" data-m="ask-void-item" data-id="' + esc(it.item_id) + '" aria-label="' + esc(lab + ' 확정값 무효 처리') + '">무효 처리</button></div>' : '';
     const pend = isPending(M, 'void-item', it.item_id) ? pendingHtml(M.pending) : '';
     return '<li class="hc-row"><div class="hc-main"><b>' + esc(lab) + '</b> ' + mono(hc.valueText(it)) +
@@ -612,7 +616,7 @@
     const f = h.fields || {};
     hc.FIELDS.forEach(function (fd) {
       const x = f[fd.cd];
-      if (x) out.push({ item_id: x.item_id, field_cd: fd.cd, value: x.value, source: x.source, created_by: x.created_by });
+      if (x) out.push({ item_id: x.item_id, field_cd: fd.cd, value: x.value, source: x.source, created_by: x.created_by, can_void: x.can_void });
     });
     sortPeriod(h.education).concat(sortPeriod(h.career)).forEach(function (it) { out.push(it); });
     return out;
@@ -636,7 +640,7 @@
       const p = h.photo;
       let photoRow = '<p class="db-empty">올려 둔 사진이 없습니다.</p>';
       if (p) {
-        const can = hc.canVoid(p.uploaded_by, d.viewer_role, ctx.emp);
+        const can = hc.canVoidOf(p, p.uploaded_by, d.viewer_role, ctx.emp);
         photoRow = '<ul class="hc-list"><li class="hc-row"><div class="hc-main"><b>현재 사진</b> ' + esc(hc.licenseLabel(p.license_cd)) +
           '<div>' + hc.srcHtml(p.source) + ' <span class="hc-by">올림 ' + esc(p.uploaded_by) + '</span></div></div>' +
           (can ? '<div class="hc-btns"><button type="button" data-m="ask-void-photo" data-id="' + esc(p.photo_id) + '" aria-label="현재 사진 무효 처리">무효 처리</button></div>' : '') +
