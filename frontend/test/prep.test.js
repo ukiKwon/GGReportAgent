@@ -633,7 +633,7 @@ test('render.js: 팝오버 마크업(규격 §6-B) — 요약·미확인 칩·�
   assert.ok(h.indexOf('입찰 예정일') > 0 && h.indexOf('2027-03-02 (추정)') > 0);
   assert.strictEqual((h.match(/<span class="pop-unk">미확인<\/span>/g) || []).length, 2);
   // 기관장 줄은 현황판 안내 자리표시(서버 열람 기록을 지도 훑기로 쌓지 않는다)
-  assert.ok(h.indexOf('<dt>기관장</dt><dd><span class="pop-unk">현황판에서 확인</span></dd>') > 0);
+  assert.ok(h.indexOf('<dt>기관장</dt><dd id="pop-head"><span class="pop-unk">현황판에서 확인</span></dd>') > 0);
   ['현 유치 은행', '임직원 수', '기관장'].forEach(function (l) { assert.ok(h.indexOf(l) > 0, l); });
   assert.ok(h.indexOf('미확인 칸은 기관 정보 이관 뒤 채워집니다.') > 0);
   assert.ok(h.indexOf('id="pop-prep-slot"') > 0 && h.indexOf('id="pop-edit"') > 0);

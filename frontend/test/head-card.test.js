@@ -579,6 +579,7 @@ test('화면 이름·버튼 ID는 서버 HeadUiIds 허용 목록 안의 값이�
   const screens = /SCREENS = [\s\S]*?asList\(([\s\S]*?)\)\)\);/.exec(java)[1].match(/"[a-z_]+"/g).map(function (s) { return s.slice(1, -1); });
   const buttons = /BUTTONS = [\s\S]*?asList\(([\s\S]*?)\)\)\);/.exec(java)[1].match(/"[a-z_]+"/g).map(function (s) { return s.slice(1, -1); });
   assert.ok(screens.indexOf(hc.SCREEN) >= 0, hc.SCREEN);
+  assert.ok(screens.indexOf(hc.POP_SCREEN) >= 0, hc.POP_SCREEN);
   Object.keys(hc.BTN).forEach(function (k) { assert.ok(buttons.indexOf(hc.BTN[k]) >= 0, hc.BTN[k]); });
 });
 
@@ -977,4 +978,116 @@ test('모달 흐름(가짜 DOM): none에서 후보 기관장을 확정해 기관
     assert.strictEqual(dom.el('hfname').focused, 0);
     assert.ok(dom.el('status').focused >= 1);
   } finally { hc.closeModal(false); dom.off(); cleanup(); }
+});
+
+// ── 지도 팝오버 [기관장 보기] (사용자 11-13: 버튼을 눌렀을 때만 읽는다) ──
+function fakePop() {
+  const dd = { innerHTML: '<span class="pop-unk">현황판에서 확인</span>' };
+  const out = { innerHTML: '' };
+  const attrs = {};
+  const btn = { textContent: '기관장 보기', setAttribute: function (k, v) { attrs[k] = v; }, removeAttribute: function (k) { delete attrs[k]; } };
+  const pop = { style: { display: 'block' }, handlers: {}, stopped: 0, dd: dd, out: out, btn: btn, attrs: attrs,
+    addEventListener: function (t, f) { this.handlers[t] = f; },
+    querySelector: function (sel) {
+      if (sel === '#pop-head') return dd;
+      if (sel === '#pop-head-out') return dd.innerHTML.indexOf('id="pop-head-out"') >= 0 ? out : null;
+      if (sel === '[data-pop-head]') return dd.innerHTML.indexOf('data-pop-head') >= 0 ? btn : null;
+      return null;
+    },
+    click: function () { const self = this; self.handlers.click({ target: { closest: function () { return btn; } }, stopPropagation: function () { self.stopped += 1; } }); } };
+  return pop;
+}
+const POP_REC = { name: '가람시', institutionId: '11010', type: '지자체' };
+const POP_ENV = { serverMode: true, hasEmp: true, role: '영업팀', today: TODAY };
+
+test('팝오버 [기관장 보기]: 서버 모드·로그인·영업 계열·서버 기관일 때만 버튼, 아니면 기존 칩 그대로, 클릭 전 fetch 0회', function () {
+  const calls = fakeFetch(function () { return { status: 200, json: {} }; });
+  try {
+    ['영업팀', '영업팀장', '영업부장'].forEach(function (role) {
+      const p = fakePop(); hc.decoratePopover(p, POP_REC, Object.assign({}, POP_ENV, { role: role }));
+      assert.ok(p.dd.innerHTML.indexOf('data-pop-head="view"') >= 0 && p.dd.innerHTML.indexOf('type="button"') >= 0, role);
+      assert.ok(p.dd.innerHTML.indexOf('aria-live="polite"') >= 0);
+    });
+    [Object.assign({}, POP_ENV, { serverMode: false }), Object.assign({}, POP_ENV, { hasEmp: false }), Object.assign({}, POP_ENV, { role: '기획팀' })].forEach(function (e) {
+      const p = fakePop(); hc.decoratePopover(p, POP_REC, e);
+      assert.strictEqual(p.dd.innerHTML, '<span class="pop-unk">현황판에서 확인</span>');
+    });
+    const p2 = fakePop(); hc.decoratePopover(p2, { name: '내장기관' }, POP_ENV);
+    assert.strictEqual(p2.dd.innerHTML, '<span class="pop-unk">현황판에서 확인</span>');
+    assert.strictEqual(calls.length, 0);
+  } finally { cleanup(); }
+});
+
+test('팝오버 [기관장 보기]: 클릭하면 1회 읽고 화면 map_popover·버튼 head_view, 이름·직위·임기·출처 요약, 다시 누르면 재조회', async function () {
+  const calls = fakeFetch(function () {
+    return { status: 200, json: { head: { name: '서지운', position: '가람시장', term_end: '2030-06-30', acting: false,
+      fields: { TERM_END: { item_id: 5, value: '2030-06-30', source: { kind: 'NEC', title: '당선인 정보', url: null, checked_on: '2026-11-02' } } } } } };
+  });
+  try {
+    const p = fakePop(); hc.decoratePopover(p, POP_REC, POP_ENV);
+    p.click();
+    assert.strictEqual(p.attrs['aria-disabled'], 'true');
+    assert.ok(p.out.innerHTML.indexOf('불러오는 중') >= 0);
+    p.click();
+    await settle();
+    assert.strictEqual(calls.length, 1);
+    assert.strictEqual(calls[0].url, '/institutions/11010/head');
+    assert.strictEqual(calls[0].init.method, 'GET');
+    assert.strictEqual(calls[0].init.headers['X-Screen-Id'], 'map_popover');
+    assert.strictEqual(calls[0].init.headers['X-Button-Id'], 'head_view');
+    assert.ok(p.out.innerHTML.indexOf('서지운') >= 0 && p.out.innerHTML.indexOf('가람시장') >= 0);
+    assert.ok(p.out.innerHTML.indexOf('2030-06-30') >= 0);
+    assert.ok(p.out.innerHTML.indexOf('당선인 정보') >= 0 && p.out.innerHTML.indexOf('현황판에서 자세히') >= 0);
+    assert.strictEqual(p.btn.textContent, '다시 불러오기');
+    assert.strictEqual(p.attrs['aria-disabled'], undefined);
+    assert.strictEqual(p.stopped, 2);
+    p.click(); await settle();
+    assert.strictEqual(calls.length, 2);
+    assert.ok(!calls.some(function (c) { return /photos/.test(c.url); }));
+  } finally { cleanup(); }
+});
+
+test('팝오버 [기관장 보기]: 빈 머리·404 FEATURE_OFF·404·403·401·연결 실패 표시, 값은 이스케이프', async function () {
+  const cases = [
+    [{ status: 200, json: { head: null, candidates: [], candidate_heads: [] } }, '등록된 기관장이 없습니다'],
+    [{ status: 200, json: { head: null, head_empty: true } }, '등록된 기관장이 없습니다'],
+    [{ status: 404, json: { detail: { code: 'FEATURE_OFF', message: '꺼짐' } } }, '기능이 꺼져 있습니다'],
+    [{ status: 404, json: { detail: 'not found' } }, '이 기관을 찾지 못했습니다'],
+    [{ status: 403, json: { detail: '권한 없음' } }, '볼 권한이 없습니다'],
+    [{ status: 401, json: { detail: '사번' } }, '다시 로그인'],
+    [{ fail: true }, '서버에 연결하지 못했습니다'],
+  ];
+  try {
+    for (const c of cases) {
+      fakeFetch(function () { return c[0]; });
+      const p = fakePop(); hc.decoratePopover(p, POP_REC, POP_ENV);
+      p.click(); await settle();
+      assert.ok(p.out.innerHTML.indexOf(c[1]) >= 0, c[1] + ' / ' + p.out.innerHTML);
+    }
+    fakeFetch(function () { return { status: 200, json: { head: { name: '<img src=x onerror=1>', position: '"장"', term_end: '2030-06-30', fields: {} } } }; });
+    const p = fakePop(); hc.decoratePopover(p, POP_REC, POP_ENV);
+    p.click(); await settle();
+    assert.strictEqual(p.out.innerHTML.indexOf('<img'), -1);
+    assert.ok(p.out.innerHTML.indexOf('&lt;img') >= 0);
+  } finally { cleanup(); }
+});
+
+test('팝오버 [기관장 보기]: 닫히거나 다른 기관으로 바뀐 뒤 늦게 온 응답은 버린다', async function () {
+  fakeFetch(function () { return { status: 200, json: { head: { name: '서지운', term_end: '2030-06-30', fields: {} } } }; });
+  try {
+    const p = fakePop(); hc.decoratePopover(p, POP_REC, POP_ENV);
+    p.click(); p.style.display = 'none'; await settle();
+    assert.strictEqual(p.out.innerHTML.indexOf('서지운'), -1);
+    const q = fakePop(); hc.decoratePopover(q, POP_REC, POP_ENV);
+    q.click(); hc.decoratePopover(q, { name: '다른시', institutionId: '11020' }, POP_ENV); await settle();
+    assert.strictEqual(q.out.innerHTML.indexOf('서지운'), -1);
+  } finally { cleanup(); }
+});
+
+test('배선: render.js가 팝오버 마크업에 pop-head를 두고 showPopover가 headcard.decoratePopover를 부른다', function () {
+  const rsrc = fs.readFileSync(path.join(ROOT, 'js', 'render.js'), 'utf8');
+  assert.ok(rsrc.indexOf('<dd id="pop-head">') >= 0);
+  assert.ok(/root\.headcard\.decoratePopover\(pop, rec\)/.test(rsrc));
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert.ok(html.indexOf('src="js/headcard.js"') >= 0 && html.indexOf('src="js/headcard.js"') < html.indexOf('src="js/render.js"'));
 });

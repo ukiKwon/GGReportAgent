@@ -890,7 +890,7 @@
       '<dl class="pop-grid"><dt>' + (nb ? '공고 진행' : '입찰 예정일') + '</dt><dd class="pop-mono">' +
       (nb ? esc(nb.detail)
         : (bid.date ? esc(bid.date) + ' (' + esc(bid.basis === 'expiry' ? '추정·약정 만료 기준' : logic.confidenceLabel(bid.confidence)) + ')' : '미상')) + '</dd>' +
-      '<dt>현 유치 은행</dt><dd>' + unk + '</dd><dt>임직원 수</dt><dd>' + unk + '</dd><dt>기관장</dt><dd><span class="pop-unk">현황판에서 확인</span></dd></dl>' +
+      '<dt>현 유치 은행</dt><dd>' + unk + '</dd><dt>임직원 수</dt><dd>' + unk + '</dd><dt>기관장</dt><dd id="pop-head"><span class="pop-unk">현황판에서 확인</span></dd></dl>' +
       '<div class="pop-note">미확인 칸은 기관 정보 이관 뒤 채워집니다.</div>' +
       '<div id="pop-prep-line"></div>' +
       '<div class="pop-actions"><span id="pop-prep-slot"></span><button id="pop-edit" type="button">편집</button></div>' +
@@ -910,6 +910,8 @@
     pop.style.top = Math.max(8, Math.min(y + 12, window.innerHeight - pop.offsetHeight - 8)) + 'px';
     // 다음 행동 버튼은 사전준비 모듈이 붙인다(서버 호출은 prep.js에만 둔다).
     if (root.prep && root.prep.decoratePopover) root.prep.decoratePopover(pop, rec);
+    // 기관장은 [기관장 보기]를 눌렀을 때만 서버에서 읽는다(자동 조회 금지, 사용자 11-13). 호출 규칙은 headcard.js.
+    if (root.headcard && root.headcard.decoratePopover) root.headcard.decoratePopover(pop, rec);
     if (keyboard) { const t = document.getElementById('pop-title'); if (t) t.focus(); }
   };
 

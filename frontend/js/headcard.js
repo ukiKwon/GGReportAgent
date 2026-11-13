@@ -13,10 +13,12 @@
 
   // ── 상수(서버와 같은 값) ────────────────────────────────────────────
   hc.SCREEN = 'head_card';
+  hc.POP_SCREEN = 'map_popover';   // 지도 팝오버 [기관장 보기] 전용 화면 이름(서버 HeadUiIds.SCREENS에 이미 있음)
   hc.BTN = {
     open: 'open_card', refresh: 'refresh', headAdd: 'head_add', headConfirm: 'head_confirm', headReject: 'head_reject',
     itemAdd: 'item_add', itemConfirm: 'item_confirm', itemReject: 'item_reject', itemWithdraw: 'item_withdraw', itemVoid: 'item_void',
     photoUpload: 'photo_upload', photoView: 'photo_view', photoVoid: 'photo_void', photoRestore: 'photo_restore',   // photoRestore: 4단계(사진 변경 이력 화면)에서 쓴다
+    popView: 'head_view',   // 지도 팝오버 [기관장 보기](화면 map_popover)
   };
   hc.DEBOUNCE_MS = 400;   // 기관을 고른 뒤 이 시간 안에 다른 기관으로 옮기면 앞 기관은 읽지 않는다(열람 기록이 과하게 쌓이지 않게). 0이면 바로 읽는다(시험용)
   hc.SALES_ROLES = ['영업팀', '영업팀장', '영업부장'];
@@ -302,7 +304,7 @@
   };
 
   // ── 요청 ───────────────────────────────────────────────────────────
-  function uiHeaders(button) { return { 'X-Screen-Id': hc.SCREEN, 'X-Button-Id': button }; }
+  function uiHeaders(button, screen) { return { 'X-Screen-Id': screen || hc.SCREEN, 'X-Button-Id': button }; }
   function base(instId) { return '/institutions/' + encodeURIComponent(instId); }
   function failFrom(r, j) {
     const e = new Error('http ' + r.status);
@@ -311,8 +313,8 @@
     return e;
   }
   // 성공하면 JSON, 실패하면 status·detail을 단 Error(네트워크 실패는 status 없음). 멀티파트는 form에 FormData를 넘긴다(Content-Type은 브라우저가 정한다).
-  hc.request = function (method, url, body, button, form) {
-    const init = { method: method, headers: uiHeaders(button) };
+  hc.request = function (method, url, body, button, form, screen) {
+    const init = { method: method, headers: uiHeaders(button, screen) };
     if (form) init.body = form;
     else if (body !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body); }
     return fetch(url, init).then(function (r) {
@@ -363,7 +365,14 @@
   hc.view = function () { return V; };
   hc.reset = function () { if (V.cancel) V.cancel(); revoke(V); V = fresh(); if (hc.closeModal) hc.closeModal(false); };
   // 사용자(사번·계정)가 바뀌거나 로그아웃할 때 app.js가 부른다 — 앞 사용자가 읽은 카드·사진·열린 모달을 버린다.
-  hc.onProfileChange = function () { hc.reset(); };
+  hc.onProfileChange = function () {
+    hc.reset();
+    // 지도 팝오버의 기관장 결과도 버린다 — 계정이 바뀐 뒤 앞 사번의 늦은 응답이 새 사용자 화면에 붙지 않게(security 11-13 하)
+    if (typeof document !== 'undefined' && document.getElementById) {
+      const pop = document.getElementById('popover');
+      if (pop) { pop.__hcTok = (pop.__hcTok || 0) + 1; pop.__hcBusy = false; pop.__hcRec = null; const o = pop.querySelector && pop.querySelector('#pop-head-out'); if (o) o.innerHTML = ''; }
+    }
+  };
 
   function syncPhoto(mine) {
     const p = mine.data && mine.data.head && mine.data.head.photo;
@@ -944,6 +953,103 @@
     if (what === 'edit') { hc.openModal(envFn, {}); return null; }
     if (what === 'add-head') { hc.openModal(envFn, { focus: 'add-head' }); return null; }
     return null;
+  };
+
+  // ── 지도 팝오버 [기관장 보기] ───────────────────────────────────────
+  // 버튼을 눌렀을 때만 서버(GET /institutions/{id}/head)를 읽는다(자동 조회 금지 — 지도를 훑을 때 열람 기록이 쌓이지 않게, 사용자 11-13).
+  // 감사 기록 화면=map_popover, 버튼=head_view. 사진은 부르지 않는다. 결과는 팝오버 DOM에만 두고(캐시 없음) 팝오버를 닫거나
+  // 다른 기관을 고르면 showPopover가 다시 써서 버려진다. 같은 기관에서 다시 누르면 다시 읽는다.
+  hc.POP_ERR = {
+    off: '기관장 정보 기능이 꺼져 있습니다.',
+    login: '로그인한 사번이 확인되지 않습니다. 다시 로그인하세요.',
+    denied: '이 정보를 볼 권한이 없습니다.',
+    notfound: '서버에서 이 기관을 찾지 못했습니다.',
+    error: '기관장 정보를 불러오지 못했습니다.',
+  };
+  // 브라우저에서만: 서버 모드·사번·역할·오늘(자정). 노드 시험은 env를 직접 넘긴다(dashboard.js와 같은 출처).
+  hc.popEnv = function () {
+    const s = root.store;
+    function pick(f) { try { return f(); } catch (e) { return undefined; } }
+    const d = new Date();
+    return {
+      serverMode: !!pick(function () { return s.isServerMode(); }),
+      hasEmp: !!pick(function () { return (s.loadSession() || {}).emp; }),
+      role: pick(function () { return (s.loadProfile().team || '').trim(); }) || '',
+      today: new Date(d.getFullYear(), d.getMonth(), d.getDate()),
+    };
+  };
+  // view.status: loading | ok | none | off | login | denied | notfound | error(text는 서버 문구·연결 실패 안내)
+  hc.popHeadHtml = function (view, today) {
+    const st = view && view.status;
+    if (st === 'loading') return '<span class="pop-hmore">불러오는 중…</span>';
+    if (st === 'ok') {
+      const h = (view.data && view.data.head) || {};
+      const f = h.fields || {};
+      const te = trim(h.term_end);
+      const ti = te ? hc.termInfo(te, today) : null;
+      const src = (te && f.TERM_END && f.TERM_END.source) || (f.NAME && f.NAME.source) || null;
+      const who = (h.name ? '<b>' + esc(h.name) + '</b>' : chip('이름 미확인')) + (h.position ? ' ' + esc(h.position) : '') + (h.acting ? ' (권한대행)' : '');
+      const term = ti ? esc(ti.text) + ' · 만료 ' + mono(te) : chip('임기 만료일 미확인');
+      return '<div class="pop-hrow">' + who + '</div><div class="pop-hrow">' + term + '</div>' +
+        '<div class="pop-hrow">출처: ' + hc.srcHtml(src) + '</div><div class="pop-hrow pop-hmore">현황판에서 자세히 확인하세요.</div>';
+    }
+    if (st === 'none') return '<span class="pop-hmore">등록된 기관장이 없습니다. 현황판에서 추가할 수 있습니다.</span>';
+    return '<span class="pop-hmore">' + esc((view && view.text) || hc.POP_ERR[st] || hc.POP_ERR.error) + '</span>';
+  };
+  function popWire(pop) {
+    if (pop.__hcWired) return;
+    pop.__hcWired = true;
+    pop.addEventListener('click', function (ev) {
+      const t = ev.target && ev.target.closest ? ev.target.closest('[data-pop-head]') : null;
+      if (!t) return;
+      ev.stopPropagation();   // 결과를 쓰면 버튼 자리가 다시 그려질 수 있다 — 문서의 '바깥 클릭' 핸들러가 팝오버를 닫지 않게 한다
+      hc.popLoad(pop);
+    });
+  }
+  function popFit(pop) {   // 결과가 붙어 길어진 팝오버가 화면 아래로 넘지 않게
+    if (typeof window === 'undefined' || !pop.style) return;
+    pop.style.top = Math.max(8, Math.min(parseFloat(pop.style.top) || 8, window.innerHeight - pop.offsetHeight - 8)) + 'px';
+  }
+  // render.showPopover가 팝오버 마크업을 쓴 직후 부른다. 조회는 하지 않는다 — 조건을 통과하면 버튼만 놓는다.
+  hc.decoratePopover = function (pop, rec, env) {
+    if (!pop || typeof pop.querySelector !== 'function') return;
+    const dd = pop.querySelector('#pop-head');
+    if (!dd) return;
+    pop.__hcTok = (pop.__hcTok || 0) + 1;   // 앞 기관의 늦은 응답은 버린다
+    pop.__hcBusy = false;
+    pop.__hcRec = null;
+    popWire(pop);
+    const e = env || hc.popEnv();
+    if (hc.gate(rec, e)) return;   // 정적 모드·로그인 없음·비영업·서버에 없는 기관 → 기존 '현황판에서 확인' 칩 그대로
+    pop.__hcRec = rec;
+    pop.__hcToday = e.today;
+    dd.innerHTML = '<button type="button" class="pop-hbtn" data-pop-head="view">기관장 보기</button>' +
+      '<span class="pop-hlog">열람 기록이 남습니다</span><div class="pop-hout" id="pop-head-out" aria-live="polite"></div>';
+  };
+  hc.popLoad = function (pop) {
+    const rec = pop.__hcRec;
+    if (!rec || !rec.institutionId || pop.__hcBusy) return Promise.resolve();
+    const tok = pop.__hcTok;
+    const btn = pop.querySelector('[data-pop-head]');
+    const out = pop.querySelector('#pop-head-out');
+    pop.__hcBusy = true;
+    if (btn) btn.setAttribute('aria-disabled', 'true');   // disabled는 포커스를 잃는다
+    if (out) out.innerHTML = hc.popHeadHtml({ status: 'loading' });
+    function finish(view) {
+      if (pop.__hcTok !== tok || pop.__hcRec !== rec || (pop.style && pop.style.display !== 'block')) { if (pop.__hcTok === tok) pop.__hcBusy = false; return; }   // 닫히거나 다른 기관으로 바뀜
+      pop.__hcBusy = false;
+      const o = pop.querySelector('#pop-head-out');
+      if (o) o.innerHTML = hc.popHeadHtml(view, pop.__hcToday);
+      const b = pop.querySelector('[data-pop-head]');
+      if (b) { b.removeAttribute('aria-disabled'); b.textContent = '다시 불러오기'; }
+      popFit(pop);
+    }
+    return hc.request('GET', base(rec.institutionId) + '/head', undefined, hc.BTN.popView, undefined, hc.POP_SCREEN).then(function (d) {
+      finish(hc.isEmptyHead(d) ? { status: 'none' } : { status: 'ok', data: d });
+    }).catch(function (e) {
+      const c = hc.classify(e && e.status, e && e.detail);
+      finish({ status: c.status, text: c.text || '' });
+    });
   };
 
   if (isNode) module.exports = hc;

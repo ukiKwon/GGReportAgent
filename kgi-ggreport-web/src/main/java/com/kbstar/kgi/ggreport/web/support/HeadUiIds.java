@@ -18,7 +18,7 @@ public final class HeadUiIds {
     public static final Set<String> BUTTONS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             "open_card", "refresh", "head_add", "head_confirm", "head_reject", "item_add", "item_confirm", "item_reject",
             "item_withdraw", "item_void", "photo_upload", "photo_view", "photo_void", "photo_restore", "open_queue",
-            "open_unmatched", "unmatched_view", "unmatched_assign", "unmatched_reject", "open_photo_changes")));
+            "open_unmatched", "unmatched_view", "unmatched_assign", "unmatched_reject", "open_photo_changes", "head_view")));   // head_view: 지도 팝오버 [기관장 보기](화면 map_popover, 11-13)
 
     private HeadUiIds() {
     }
