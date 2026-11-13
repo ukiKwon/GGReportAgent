@@ -24,7 +24,9 @@ for(const a of Object.keys(labels)){
   accounts[a]={label:labels[a],items:idx[a].map(i=>{const o={cat:i.cat,label:i.label,soon:i.soon};if(i.file){const k=i.file.split('/')[1].replace('.jpg','');imgs[k]=b64(i.file);o.img=k;}return o;})};
 }
 const st=JSON.parse(fs.readFileSync(path.join(here,'stories.json'),'utf8'));const stories={};
-for(const k in st){stories[k]=st[k].map((x,i)=>{const id=(k==='전국 지도'?'sm':'sb')+i;imgs[id]=b64(x.f);if(x.todo)console.warn('좌표 임시값(TODO):',k,i+1,x.todo);return {img:id,x:x.x,y:x.y,t:x.t,d:x.d};});}
+let hot={};try{hot=JSON.parse(fs.readFileSync('story/hot.json','utf8'));}catch{}   // stories.mjs가 잰 강조점(있으면 x·y보다 우선)
+let ki=0;
+for(const k in st){const kk=ki++;stories[k]=st[k].map((x,i)=>{const id='s'+kk+'_'+i;imgs[id]=b64(x.f);const h=hot[x.f];if(x.todo&&!h)console.warn('좌표 임시값(TODO):',k,i+1,x.todo);return {img:id,x:h?h[0]:x.x,y:h?h[1]:x.y,t:x.t,d:x.d};});}
 const data={date,accounts,imgs,stories,hero:b64('cap/sales_head_0.jpg')};
 // </script> 로 스크립트가 끊기지 않게 < 를 이스케이프한다(security PUSH-GATE 11-11 #6)
 const html=tpl.replace('/*DATA*/null',()=>JSON.stringify(data).replace(/</g,'\\u003c'));
