@@ -7,7 +7,8 @@
    1. 저장소를 **새로 clone**한다 — 11-12 git 이력 재작성 때문에 예전 폴더에서 pull하지 않는다(옛 해시 표 `handoff/archive/2026-11-12_git-hash-map.tsv`).
    2. JDK 8·MySQL 8.4·Node 22 준비(필요하면 `scripts/setup-local-win.ps1`, 플러그인은 CLAUDE.md 7절). Playwright MCP는 node 절대경로 + `--browser chrome`으로 고친다.
    3. DB 만들기: README §5의 `CREATE DATABASE`·`CREATE USER` 두 줄(비밀번호는 문서에 적지 않는다).
-   4. 스키마: **빈 DB이므로 `--baseline` 없이** `node kgi-ggreport-web\tools\db\apply-mysql.mjs` → `--status`로 001~028 모두 '적용됨' 확인.
+   4. 스키마: **빈 DB이므로 `--baseline` 없이** `node kgi-ggreport-web\tools\db\apply-mysql.mjs` → `--status`로 001~029 모두 '적용됨' 확인(029 = 기관 전체 시드 415행, 9f 11-13 — 이게 NEXT 72 기관 이관의 DB 쪽이다).
+   4-1. **기관장 등록(사용자 할 일, 9f 11-13)**: ① 위 4번으로 029 적용 ② `mysql -u root -p --default-character-set=utf8mb4 ggreportdb < kgi-ggreport-web/tools/db/local-only/L01_photo_license_local.sql`(로컬 전용 사진 이용 코드 — **내부망·운영 적용 금지**) ③ 8080을 띄운 뒤 `python -m collector.heads.load_heads` → collector/heads/heads.json 41명(서울 구청장 25·시도지사 16) 등록·사진 업로드(사진은 git 밖에 내려받음, 사람이 인물 맞는지 확인). 이미 있는 기관장은 건너뛰고 빈 학력·경력만 채운다. Q1 답(이관 뒤 재등록)과 같은 흐름. 029 뒤 화면이 DB 기관 415건과 내장 자료를 어떻게 합치는지(서울 '마포구' ↔ '마포구청') 프런트 확인 필요.
    5. `config-envs/out-local/application.properties` → `config/application.properties` 복사 후 비밀값 채움, 키 이름 대조(CLAUDE.md 3절 ⓓ, 기관장 키 4개 포함).
    6. **시험 데이터는 넘어오지 않는다** — 업로드·결재 시험 행, 9f가 11-13에 넣은 **서울 25개 구청장 기관장**도 옛 PC 로컬 DB에만 있다. 새 PC 현황판 기관장 카드는 '기관장 없음'이 정상(아래 질문 Q1).
    7. `data/`(수집 로그 `data/collector/_logs/` 등)는 git에 없다 — 옛 PC에만 있다.
