@@ -146,8 +146,25 @@ def court_notices(raw_dir: Path, rel: str, meta: dict) -> list[CollectedNotice]:
         if parsed:
             origin = o
             break
+    if not parsed:
+        # 2020 공고처럼 【공개경쟁 대상법원】 표시 없이 제목에 법원명을 쓴 경우(예: 「제주지방법원 및 광주지방법원
+        # 순천지원 공탁금 보관은행 지정계획 공고」) — 제목의 법원명 + 첨부 글의 지정기간(11-13 실측).
+        title_courts = _dedupe(_norm(c) for c in COURT_RE.findall(title))
+        if title_courts:
+            body = next((t for o, t in texts if o != "상세 본문"), texts[-1][1] if texts else "")
+            parsed = {"courts": title_courts, "rows": {}, "period": notice_period(body), "new_bank": new_bank_start(body)}
+            origin = "제목(법원명)·" + next((o for o, _ in texts if o != "상세 본문"), "상세 본문")
     if not parsed or len(parsed["courts"]) > MAX_COURTS:
-        raise CourtUnreadable(mask_contacts("대상 법원을 읽지 못함(읽기 불가) — " + "; ".join(notes))[0][:200])
+        why = ("법원 수가 상한(%d)을 넘음" % MAX_COURTS if parsed else
+               "대상 법원 표시(【공개경쟁 대상법원】)·별지 표·제목 법원명을 찾지 못함")
+        raise CourtUnreadable(mask_contacts(f"대상 법원을 읽지 못함(읽기 불가) — {why}" + ("; " + "; ".join(notes) if notes else ""))[0][:200])
+    # 시·군법원은 화면 범위 밖(NEXT 72) — 후보를 만들지 않고 메모만(qa 11-13 P2-1, 팀 결정)
+    out_of_scope = [c for c in parsed["courts"] if re.search(r"(시법원|군법원)$", c)]
+    if out_of_scope:
+        parsed["courts"] = [c for c in parsed["courts"] if c not in out_of_scope]
+        notes = notes + [f"범위 밖 시·군법원 {len(out_of_scope)}곳 제외: " + ", ".join(out_of_scope)]
+    if not parsed["courts"]:
+        raise CourtUnreadable("대상 법원이 모두 범위 밖(시·군법원)")
     number = meta.get("notice_no")
     if not number:
         for _, t in texts:

@@ -185,13 +185,13 @@ def test_court_notices_2025_two_courts(tmp_path, monkeypatch):
 def test_court_notices_2021_appendix_17_rows_validate(tmp_path, monkeypatch):
     monkeypatch.setattr(court, "hwp5_text", lambda b: TEXT_2021)
     ns = notices_from_raw(_raw(tmp_path, "공탁금 보관은행 지정계획 공고", "2021-07-26", number="seq1637"), "r")
-    assert len(ns) == 17 and len({n.notice_id for n in ns}) == 17
+    assert len(ns) == 14 and len({n.notice_id for n in ns}) == 14        # 시법원 3곳(김해·거제·익산)은 범위 밖
     by = {n.institution_name_ko: n.candidate["fields"] for n in ns}
     assert by["춘천지방법원 강릉지원"]["contract_start"] == "2022-03-12"
-    assert by["전주지방법원 군산지원 익산시법원"]["contract_end"] == "2026-12-31"
+    assert "전주지방법원 군산지원 익산시법원" not in by and "범위 밖 시·군법원 3곳" in ns[0].evidence_note
     assert all("term" not in f and f["last_bid"] == "2021-07-26" for f in by.values())
     result = write_batch(ScourtSource(), ns, tmp_path / "out")
-    assert validate_batch(result.path) == [] and result.record_count == 17
+    assert validate_batch(result.path) == [] and result.record_count == 14
 
 
 def test_court_notices_result_uses_notice_at_not_last_bid(tmp_path, monkeypatch):
@@ -277,3 +277,24 @@ def test_attachment_path_outside_raw_dir_rejected(tmp_path):
     assert attachment_path(d, "attachments/01_a.hwp") == (d / "attachments" / "01_a.hwp").resolve()
     with pytest.raises(ValueError):
         attachment_path(d, "../secret.txt")
+
+
+TEXT_2020 = ("법원행정처 공고 제 2020-162 호\n제주지방법원 및 광주지방법원 순천지원 공탁금 보관은행 지정계획 공고\n"
+             "3. 지정기간 및 조건\n○ 지정기간 :\n- 5년(2021. 1. 1. ~ 2025. 12. 31.)으로 하되, 다만, 새로운 은행이 선정되는 경우의 "
+             "지정기간은 2021. 3. 1. ~ 2025. 12. 31.로 하고\n")
+
+
+def test_title_courts_fallback_2020(tmp_path, monkeypatch):
+    monkeypatch.setattr(court, "hwp5_text", lambda b: TEXT_2020)
+    ns = notices_from_raw(_raw(tmp_path, "제주지방법원 및 광주지방법원 순천지원 공탁금 보관은행 지정계획 공고",
+                               "2020-07-27", number="seq1424"), "r")
+    assert [n.institution_name_ko for n in ns] == ["제주지방법원", "광주지방법원 순천지원"]
+    f = ns[0].candidate["fields"]
+    assert f["contract_start"] == "2021-01-01" and f["contract_end"] == "2025-12-31" and f["term"] == 5
+
+
+def test_unreadable_reason_says_why(tmp_path, monkeypatch):
+    monkeypatch.setattr(court, "hwp5_text", lambda b: "아무 법원 이름도 없는 글")
+    with pytest.raises(court.CourtUnreadable) as ei:
+        notices_from_raw(_raw(tmp_path, "공탁금 보관은행 지정계획 공고", "2019-07-01", number="seq1225"), "r")
+    assert "찾지 못함" in str(ei.value)
