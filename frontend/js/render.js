@@ -825,7 +825,7 @@
       });
       card.addEventListener('mouseenter', function () { render.highlightMarker(r.name, true); });
       card.addEventListener('mouseleave', function () { render.highlightMarker(r.name, false); });
-      card.addEventListener('click', function (ev) { render.selectInstitution(r); render.showPopover(r, ev.clientX, ev.clientY); });
+      card.addEventListener('click', function (ev) { render.selectInstitution(r); render.openRecord(r, card, ev.clientX, ev.clientY); });
       // 키보드로도 열 수 있다(NEXT 28 최소분): Tab으로 닿고 Enter·Space로 팝오버를 연다. ♥(하트)에서 올라온 키는 건너뛴다.
       card.setAttribute('tabindex', '0');
       card.setAttribute('role', 'button');
@@ -834,7 +834,7 @@
         ev.preventDefault();
         const rc = card.getBoundingClientRect();
         render.selectInstitution(r);
-        render.showPopover(r, rc.left - 292, rc.top, { keyboard: true });
+        render.openRecord(r, card, rc.left - 292, rc.top, { keyboard: true });
       });
       listEl.appendChild(card);
     });
@@ -853,16 +853,9 @@
     if (f === 'term') return rec.term == null || rec.term === '' ? '' : rec.term + '년';
     return rec[f] == null ? '' : String(rec[f]);
   };
-  render.popoverHtml = function (rec, today) {
+  // 접이식 '원본 정보'의 안쪽 줄들(지도 팝오버·지도 상세 팝업 공용). 지역코드·구시군코드·경도·위도는 보이지 않고 누락만 알린다.
+  render.popRawHtml = function (rec) {
     const v = logic.validateRecord(rec);
-    const bid = logic.effectiveBid(rec);
-    const nb = logic.noticeBrief(rec, today);   // 공고 진행 중이면 경과(D+)·예정이 아니라 공고 표현으로
-    const days = logic.daysUntil(bid.date, today);
-    const dayCls = nb ? nb.cls : (days === Infinity ? 'unknown' : (days <= 182 ? 'urgent' : (days <= 365 ? 'soon' : 'later')));
-    const dayText = nb ? nb.badge : logic.formatDDay(rec, today);
-    const regionName = (render.REGION_NAME && render.REGION_NAME[rec.region]) || '';
-    const sub = [rec.type, regionName].filter(Boolean).join(' · ');
-    const unk = '<span class="pop-unk">미확인</span>';
     let raw = '';
     render.POP_RAW_FIELDS.forEach(function (f) {
       const label = logic.FIELD_LABELS[f] || f;
@@ -884,6 +877,18 @@
     if (hiddenMissing.length) {
       raw += '<div class="miss">누락된 칸: ' + esc(hiddenMissing.join(', ')) + ' — [편집]에서 채우세요.</div>';
     }
+    return raw;
+  };
+  render.popoverHtml = function (rec, today) {
+    const bid = logic.effectiveBid(rec);
+    const nb = logic.noticeBrief(rec, today);   // 공고 진행 중이면 경과(D+)·예정이 아니라 공고 표현으로
+    const days = logic.daysUntil(bid.date, today);
+    const dayCls = nb ? nb.cls : (days === Infinity ? 'unknown' : (days <= 182 ? 'urgent' : (days <= 365 ? 'soon' : 'later')));
+    const dayText = nb ? nb.badge : logic.formatDDay(rec, today);
+    const regionName = (render.REGION_NAME && render.REGION_NAME[rec.region]) || '';
+    const sub = [rec.type, regionName].filter(Boolean).join(' · ');
+    const unk = '<span class="pop-unk">미확인</span>';
+    const raw = render.popRawHtml(rec);
     return '<div class="pop-head"><b id="pop-title" tabindex="-1">' + esc(rec.name || '(이름없음)') + '</b>' +
       '<span class="dg-day ' + dayCls + '">' + esc(dayText) + '</span></div>' +
       (sub ? '<div class="pop-sub">' + esc(sub) + '</div>' : '') +
@@ -897,6 +902,16 @@
       '<details class="pop-raw"><summary>원본 정보</summary>' + raw + '</details>';
   };
 
+  // 지도에서 기관을 누르면: 현황판 상세와 같은 내용의 팝업(dashboard.openDetail)을 연다(사용자 11-13). 대시보드 모듈이 없으면 예전 요약 카드로 대신한다.
+  // opener = 닫으면 포커스가 돌아갈 요소. x·y·opts는 요약 카드로 되돌아갈 때만 쓴다.
+  render.openRecord = function (rec, opener, x, y, opts) {
+    const d = root.dashboard;
+    if (d && typeof d.openDetail === 'function' && d.openDetail(rec, { opener: opener })) {
+      const pop = document.getElementById('popover'); if (pop) pop.style.display = 'none';
+      return;
+    }
+    render.showPopover(rec, x, y, opts);
+  };
   render.showPopover = function (rec, x, y, opts) {
     const pop = document.getElementById('popover'); if (!pop) return;
     const keyboard = !!(opts && opts.keyboard);
@@ -974,7 +989,7 @@
   };
 
   render.onMarkerClick = function (rec) {
-    render.showPopover(rec, window.innerWidth/2, 120);
+    render.openRecord(rec, document.activeElement, window.innerWidth/2, 120);
     render.selectInstitution(rec);
   };
 
@@ -1038,7 +1053,7 @@
   // 팝오버 바깥 클릭 시 닫기 + 선택 강조 해제
   if (typeof document !== 'undefined') document.addEventListener('click', function (ev) {
     const pop = document.getElementById('popover');
-    const outside = !(ev.target.closest && ev.target.closest('.rank-card, .marker'));
+    const outside = !(ev.target.closest && ev.target.closest('.rank-card, .marker, .dm-ov, .hc-ov'));   // 지도 상세 팝업·그 위의 기관장 편집 창 안의 클릭은 선택 강조를 풀지 않는다
     if (pop && pop.style.display === 'block' && !pop.contains(ev.target) && outside) pop.style.display = 'none';
     // 지도 빈 곳·패널 여백 클릭 → 강조 해제(팝오버 내부 클릭은 선택 유지)
     if (outside && !(pop && pop.contains(ev.target)) && render._selectedName) {

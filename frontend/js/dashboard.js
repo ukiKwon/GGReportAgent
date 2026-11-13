@@ -300,6 +300,14 @@
   };
 
   // 지도 팝오버와 같은 버튼 규칙: root.prep.popoverAction이 정한다. 반환 모양이 문자열이든 {kind|action|type}이든 받는다.
+  // [제안 확정]·[사전준비 열기] 판정에 넘길 맥락 — prep.popoverEligible이 account·master를 본다(지도 팝오버 prep.js popCtx와 같은 값).
+  // 11-13: 현황판이 account를 넘기지 않아 [제안 확정]이 늘 숨던 문제를 바로잡음.
+  function actCtx() {
+    const ses = (function () { try { return root.store && root.store.loadSession && root.store.loadSession(); } catch (e) { return null; } })();
+    const acc = !!(ses && ses.mode === 'account' && ses.emp);
+    return { serverMode: serverMode() && hasEmp(), role: role(), session: ses, account: acc,
+      master: !!(acc && root.login && ses.id === root.login.MASTER_ID) };
+  }
   dash.actionKind = function (rec, ctx, actives, prepApi) {
     if (!prepApi || typeof prepApi.popoverAction !== 'function' || !ctx || !ctx.serverMode) return 'unavailable';
     let r;
@@ -621,8 +629,8 @@
   dash.paneHtml = function (it, c) {
     c = c || {};
     const rec = it.rec, srcs = Array.isArray(rec.sources) ? rec.sources : [];
-    const head = '<div class="db-head"><h2 id="db-name" tabindex="-1">' + esc(it.name) + '</h2>' +
-      (it.notice ? dash.noticeChipHtml(it) : it.overdue ? '<span class="ov-stamp">D+' + it.days + '</span>' : '<span class="dg-day ' + esc(it.band) + '">' + dayText(it.days) + '</span>') +
+    const head = '<div class="db-head"><h2 id="' + esc(c.nameId || 'db-name') + '" tabindex="-1">' + esc(it.name) + '</h2>' +
+      (it.unknown ? '<span class="dg-day unknown">날짜 미상</span>' : it.notice ? dash.noticeChipHtml(it) : it.overdue ? '<span class="ov-stamp">D+' + it.days + '</span>' : '<span class="dg-day ' + esc(it.band) + '">' + dayText(it.days) + '</span>') +
       (c.act === 'open' ? '<span class="wf-badge pp-neutral">사전준비 중</span>' : '') + '</div>' +
       '<p class="db-sub">' + esc(dash.kindOfRec(rec)) + ' · ' + esc(dash.regionName(rec.region)) + '</p>';
     const why = it.confidence === '확정' ? '— 공고로 확인한 날입니다'
@@ -632,7 +640,7 @@
     const lp = lastProcNote(rec);
     // 진행 중 공고는 맨 위 '공고 진행' 절이 공고일·접수·약정 만료를 맡는다 — 예정일 막대·'입찰 예정일' 줄은 두지 않는다.
     const info = (it.notice ? dash.noticeSecHtml(it, c.today) : dash.termBarHtml(it, c.today)) + '<div class="db-sec"><h3>기관 정보</h3><dl class="db-dl">' +
-      (it.notice ? '' : '<dt>입찰 예정일</dt><dd>' + mono(it.date) + ' ' + esc(it.label) + chkHtml(it) + ' <span class="db-why">' + why + '</span></dd>') +
+      (it.notice ? '' : it.unknown ? '<dt>입찰 예정일</dt><dd>' + chip() + '</dd>' : '<dt>입찰 예정일</dt><dd>' + mono(it.date) + ' ' + esc(it.label) + chkHtml(it) + ' <span class="db-why">' + why + '</span></dd>') +
       '<dt>최근 절차일</dt><dd>' + (rec.lastBid ? mono(rec.lastBid) + (lp ? ' <span class="db-why">' + esc(lp) + '</span>' : '') : chip()) + '</dd>' +
       '<dt>약정 주기</dt><dd>' + (rec.term ? mono(rec.term) + '년' : chip()) + '</dd></dl>' +
       (srcs.length ? '<details class="db-src"><summary>출처 ' + srcs.length + '건 보기</summary><ol>' + srcs.map(srcItem).join('') + '</ol></details>' : '') + '</div>';
@@ -650,11 +658,12 @@
     // c.headHtml: headcard.js가 만든 '기관장' 절(서버 기관장 API 카드). 없으면(모듈 미로드·순수 테스트) 예전 자리표시를 둔다.
     const chief = typeof c.headHtml === 'string' ? c.headHtml : '<div class="db-sec"><h3>기관장</h3><dl class="db-dl"><dt>기관장</dt><dd>' + chip() + '</dd></dl>' +
       '<p class="db-empty">기관장 프로필은 수집 예정입니다. 입찰이 1년 안에 있는 기관부터 모읍니다.</p></div>';
-    return '<div class="db-pane-body">' + head + info + bank + chief + '</div><div class="db-act">' + dash.actHtml(it, c) + '</div>';
+    return '<div class="db-pane-body">' + head + info + bank + chief + (typeof c.tailHtml === 'string' ? c.tailHtml : '') + '</div><div class="db-act">' + dash.actHtml(it, c) + '</div>';
   };
 
   dash.actHtml = function (it, c) {
-    const map = '<button type="button" id="db-map">전국 지도에서 보기</button>';
+    const map = c.mapHtml !== undefined ? c.mapHtml : '<button type="button" id="db-map">전국 지도에서 보기</button>';
+    if (c.act === 'wait') return '<div class="db-act-row"><span class="db-why">사전준비 진행 상태를 확인하는 중입니다.</span>' + map + '</div>';
     if (c.act === 'unavailable') return '<div class="db-act-row"><span class="db-why">서버에 연결되면 [제안 확정]을 쓸 수 있습니다.</span>' + map + '</div>';
     if (c.act === 'open') return '<div class="db-act-row"><button type="button" class="db-next" id="db-open">사전준비 열기</button>' + map + '<span class="db-why">이미 제안 확정되어 사전준비가 진행 중입니다.</span></div>';
     if (c.act === 'confirm') {
@@ -805,7 +814,7 @@
     if (!it) { el.removeAttribute('aria-labelledby'); el.setAttribute('aria-label', '기관 상세'); el.innerHTML = dash.blankHtml(); return; }
     el.removeAttribute('aria-label'); el.setAttribute('aria-labelledby', 'db-name');
     const actives = dash.activePreps(st.preps);
-    const ctx = { serverMode: serverMode() && hasEmp(), role: role(), session: root.store.loadSession && root.store.loadSession() };
+    const ctx = actCtx();
     const act = dash.actionKind(it.rec, ctx, actives, root.prep);
     el.innerHTML = dash.paneHtml(it, { act: act, confirm: st.confirm && act === 'confirm', busy: st.busy,
       kb: dash.kbEntry(it.rec, root.KB_VERIFIED), role: ctx.role, today: todayDate(), headHtml: headSection(it) });
@@ -860,6 +869,16 @@
     return true;
   }
 
+  // [제안 확정] 실패 응답 → { again: 이미 진행 중이라 목록을 다시 받아야 함, msg: 화면 문구 }. 현황판·지도 상세 팝업 공용.
+  dash.confirmFail = function (x) {
+    const e = root.errtext ? root.errtext.parse(x.body && x.body.detail) : { code: '', message: '' };
+    if (e.code === 'PREP_ALREADY_ACTIVE') return { again: true, msg: '' };
+    const known = root.prep && root.prep.ERR_BY_CODE && root.prep.ERR_BY_CODE[e.code];
+    const msg = (known && (known.message || known.text)) || e.message ||
+      ((x.r.status === 401 || x.r.status === 403) ? '제안 확정 권한이 없습니다(' + x.r.status + '). 로그인 사번과 권한을 확인하세요.'
+        : '제안 확정하지 못했습니다(' + x.r.status + '). 잠시 뒤 다시 시도하세요.');
+    return { again: false, msg: String(msg) };
+  };
   function doConfirm() {
     const it = st.sel ? findItem(st.sel) : null;
     const id = it && it.rec.institutionId;
@@ -876,13 +895,9 @@
             if (!goPrep(made || x.body)) renderPane();
           });
         }
-        const e = root.errtext ? root.errtext.parse(x.body && x.body.detail) : { code: '', message: '' };
-        if (e.code === 'PREP_ALREADY_ACTIVE') return loadProgress();   // 버튼이 [사전준비 열기]로 바뀐다
-        const known = root.prep && root.prep.ERR_BY_CODE && root.prep.ERR_BY_CODE[e.code];
-        const msg = (known && (known.message || known)) || e.message ||
-          ((x.r.status === 401 || x.r.status === 403) ? '제안 확정 권한이 없습니다(' + x.r.status + '). 로그인 사번과 권한을 확인하세요.'
-            : '제안 확정하지 못했습니다(' + x.r.status + '). 잠시 뒤 다시 시도하세요.');
-        flash(String(msg), true);
+        const f = dash.confirmFail(x);
+        if (f.again) return loadProgress();   // 버튼이 [사전준비 열기]로 바뀐다
+        flash(f.msg, true);
         renderPane();
       })
       .catch(function () { st.busy = false; flash('서버에 연결하지 못했습니다. 서버가 켜져 있는지 확인하세요.', true); renderPane(); });
@@ -1024,6 +1039,187 @@
       default: break;
     }
   }
+
+  // ── 지도 상세 팝업(2026-11-13, 사용자 결정): 지도에서 기관을 누르면 현황판 오른쪽 상세 칸과 같은 내용을 모달로 연다 ──
+  // 현황판 상태(st·host·M)를 건드리지 않는다. 열려 있는 동안만 dm.cur = { el, rec, it, opener, preps, prepSt, confirm, busy, down }.
+  // 기관장 카드는 headcard가 한 기관만 쥔다 — 열 때 ensure(화면 이름 map_popover)로 잡고, 닫을 때 reset한다.
+  const dm = { cur: null };
+
+  // 지도의 기관 한 건 → 상세 칸이 쓰는 항목. 현황판 목록의 같은 기관 항목과 같다(날짜 있는 기관). 날짜가 없으면 unknown 항목.
+  dash.itemForRec = function (rec, today) {
+    const m = dash.model([rec], today);
+    const it = m.notice.concat(m.upcoming, m.later, m.overdue)[0];
+    if (it) return it;
+    return { key: logic.instKey(rec), rec: rec, name: rec.name || '', region: rec.region || '', date: '', days: null, confidence: '',
+      label: '', basis: '', check: false, band: 'unknown', overdue: false, unknown: true };
+  };
+
+  function dmFlash(msg, isErr) {
+    const m = dm.cur;
+    if (!m) return;
+    const f = m.el.querySelector('#dm-flash'), e = m.el.querySelector('#dm-err');
+    if (f) f.textContent = isErr ? '' : msg;
+    if (e) { e.textContent = isErr ? msg : ''; e.hidden = !isErr; }
+  }
+  function dmRepaint() { if (dm.cur) dmRender(); }
+  function dmHeadEnv(m) {
+    return { serverMode: serverMode(), hasEmp: hasEmp(), role: role(), emp: empNo(), today: todayDate(), bid: headBid(m.it), repaint: dmRepaint, screen: 'map_popover' };
+  }
+  function dmActives(m) {
+    const id = m.rec && m.rec.institutionId;
+    return id ? dash.activePreps(m.preps).filter(function (p) { return instId(p) === id; })[0] || null : null;
+  }
+
+  // 상세를 다시 그린다. 위 상자(#dm-box)·알림 줄은 그대로 두고 #dm-pane만 바꾸며, 스크롤·포커스를 이어 준다.
+  function dmRender() {
+    const m = dm.cur;
+    if (!m) return;
+    const pane = m.el.querySelector('#dm-pane');
+    if (!pane) return;
+    const body0 = pane.querySelector('.db-pane-body');
+    const top = body0 ? body0.scrollTop : 0;
+    const a = document.activeElement;
+    const inPane = !!(a && pane.contains && pane.contains(a));
+    const keepId = inPane ? (a.id || '') : '';
+    const keepHc = inPane && a.getAttribute ? (a.getAttribute('data-hc') || '') : '';
+    const ctx = actCtx();
+    let act = dash.actionKind(m.rec, ctx, dash.activePreps(m.preps), root.prep);
+    if (m.prepSt === 'loading' && act !== 'unavailable') act = 'wait';   // 진행 중인지 모르는 동안 [제안 확정]을 보였다 바꾸지 않는다
+    const raw = root.render && root.render.popRawHtml ? root.render.popRawHtml(m.rec) : '';
+    pane.innerHTML = dash.paneHtml(m.it, {
+      act: act, confirm: m.confirm && act === 'confirm', busy: m.busy, kb: dash.kbEntry(m.rec, root.KB_VERIFIED), role: ctx.role, today: todayDate(),
+      headHtml: root.headcard ? root.headcard.paneSection(m.rec, dmHeadEnv(m)) : undefined,
+      nameId: 'dm-name',
+      mapHtml: '<button type="button" id="dm-edit">편집</button><button type="button" id="dm-close">닫기</button>',
+      tailHtml: raw ? '<div class="db-sec"><details class="pop-raw"><summary>원본 정보</summary>' + raw + '</details></div>' : '',
+    });
+    const nb = pane.querySelector('.db-pane-body');
+    if (nb) nb.scrollTop = top;
+    if (inPane) {   // 다시 그린 요소로 포커스를 돌린다(없으면 제목으로)
+      let t = keepId ? pane.querySelector('#' + keepId) : null;
+      if (!t && keepHc) t = pane.querySelector('[data-hc="' + keepHc + '"]');
+      if (!t) t = pane.querySelector('#dm-name');
+      if (t && t.focus) t.focus();
+    }
+    if (m.confirm && act === 'confirm') { const b = pane.querySelector('#db-do'); if (b) b.focus(); }
+  }
+
+  function dmLoadPreps(m) {
+    if (!serverMode() || !hasEmp()) { m.prepSt = 'offline'; m.preps = null; return Promise.resolve(); }
+    m.prepSt = 'loading';
+    return fetchJson('/preps').then(function (r) {
+      if (dm.cur !== m) return;
+      m.prepSt = r.status;
+      m.preps = r.status === 'ok' ? (Array.isArray(r.data) ? r.data : (r.data && r.data.items) || []) : null;
+      dmRender();
+    });
+  }
+
+  function dmDoConfirm(m) {
+    const id = m.rec.institutionId;
+    if (!id || m.busy) return;
+    m.busy = true; dmRender();
+    fetch('/preps', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ institution_id: id }) })
+      .then(function (r) { return r.json().catch(function () { return null; }).then(function (body) { return { r: r, body: body }; }); })
+      .then(function (x) {
+        if (dm.cur !== m) return;
+        m.busy = false; m.confirm = false;
+        if (x.r.ok) {
+          if (goPrep(x.body)) { dash.closeDetail(false); return; }   // 사전준비 화면으로 간다(지도 팝업은 닫는다)
+          dmFlash(m.it.name + dash.josaEul(m.it.name) + ' 제안 확정했습니다. 메뉴의 [제안서 사전준비 프로세스]에서 여세요.', false);
+          return dmLoadPreps(m).then(function () { dmRender(); });
+        }
+        const f = dash.confirmFail(x);
+        if (f.again) return dmLoadPreps(m);   // 버튼이 [사전준비 열기]로 바뀐다
+        dmFlash(f.msg, true);
+        dmRender();
+      })
+      .catch(function () { if (dm.cur !== m) return; m.busy = false; dmFlash('서버에 연결하지 못했습니다. 서버가 켜져 있는지 확인하세요.', true); dmRender(); });
+  }
+
+  function dmClick(e) {
+    const m = dm.cur, t = e.target;
+    if (!m || !t) return;
+    if (t === m.el) { if (m.down === m.el) dash.closeDetail(true); return; }   // 바깥(배경) 클릭 — 글을 드래그하다 배경에서 놓은 경우는 닫지 않는다
+    if (!t.closest) return;
+    const hcb = t.closest('[data-hc]');
+    if (hcb && root.headcard) { root.headcard.onPaneClick(hcb.getAttribute('data-hc'), function () { return dmHeadEnv(m); }); return; }
+    const btn = t.closest('button');
+    if (!btn) return;
+    switch (btn.id) {
+      case 'dm-close': dash.closeDetail(true); break;
+      case 'dm-edit': { const r = m.rec; dash.closeDetail(false); if (root.app && root.app.openEdit) root.app.openEdit(r); break; }   // 편집 창이 팝업 뒤에 깔리지 않게 먼저 닫는다
+      case 'db-cf': m.confirm = true; dmRender(); break;
+      case 'db-cancel': m.confirm = false; dmRender(); { const b = m.el.querySelector('#db-cf'); if (b) b.focus(); } break;
+      case 'db-do': dmDoConfirm(m); break;
+      case 'db-open': { const p = dmActives(m); if (p && goPrep(p)) dash.closeDetail(false); else dmFlash('사전준비 화면을 열지 못했습니다. 메뉴의 [제안서 사전준비 프로세스]에서 여세요.', true); break; }
+      default: break;
+    }
+  }
+
+  function dmKey(e) {
+    const m = dm.cur;
+    if (!m) return;
+    if (e.key === 'Escape') {
+      e.preventDefault(); e.stopPropagation();
+      if (m.busy) return;
+      if (m.confirm) { m.confirm = false; dmRender(); const b = m.el.querySelector('#db-cf'); if (b) b.focus(); return; }
+      dash.closeDetail(true);
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const f = Array.prototype.filter.call(m.el.querySelectorAll('button, input, select, textarea, a[href], summary, [tabindex="0"]'), function (x) {
+      return !x.disabled && x.getAttribute('aria-disabled') !== 'true' && x.offsetParent !== null;
+    });
+    const box = m.el.querySelector('#dm-box');
+    if (!f.length) { e.preventDefault(); if (box && box.focus) box.focus(); return; }
+    const first = f[0], last = f[f.length - 1], a = document.activeElement;
+    if (e.shiftKey && (a === first || f.indexOf(a) < 0)) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (a === last || !m.el.contains(a))) { e.preventDefault(); first.focus(); }
+  }
+
+  // opts.opener = 누른 카드·마커(닫으면 포커스가 돌아간다). 열었으면 true.
+  dash.openDetail = function (rec, opts) {
+    if (typeof document === 'undefined' || !rec) return false;
+    if (dm.cur) dash.closeDetail(false);
+    const m = { rec: rec, it: dash.itemForRec(rec, todayDate()), opener: (opts && opts.opener) || document.activeElement,
+      preps: null, prepSt: 'offline', confirm: false, busy: false, down: null, el: null };
+    const ov = document.createElement('div');
+    ov.className = 'modal-overlay dm-ov';
+    ov.id = 'dm-ov';
+    ov.innerHTML = '<div class="modal-box dm-box" id="dm-box" role="dialog" aria-modal="true" aria-labelledby="dm-name" tabindex="-1">' +
+      '<div id="dm-flash" class="db-flash" role="status"></div><div id="dm-err" class="db-state" role="alert" hidden></div>' +
+      '<div id="dm-pane" class="dm-pane"></div></div>';
+    m.el = ov;
+    dm.cur = m;
+    document.body.appendChild(ov);
+    ov.addEventListener('mousedown', function (e) { m.down = e.target; });
+    ov.addEventListener('click', dmClick);
+    ov.addEventListener('keydown', dmKey);
+    dmLoadPreps(m);   // 상태를 받는 동안 'wait'로 그리고, 도착하면 다시 그린다
+    dmRender();
+    const t = ov.querySelector('#dm-name') || ov.querySelector('#dm-box');
+    if (t && t.focus) t.focus();
+    return true;
+  };
+
+  dash.closeDetail = function (refocus) {
+    const m = dm.cur;
+    if (!m) return;
+    dm.cur = null;
+    if (root.headcard) root.headcard.reset();   // 열린 기관장 편집 창·사진 Blob 주소·대기 중 조회를 정리한다
+    if (m.el && m.el.parentNode) m.el.parentNode.removeChild(m.el);
+    if (refocus && typeof document !== 'undefined') {
+      let o = m.opener;
+      if (!(o && o.focus && document.body.contains(o))) {
+        // 눌렀던 카드가 다시 그려져 사라졌으면 선택 강조된 카드로, 없으면 지도 영역으로(render.js Esc 처리와 같은 규칙)
+        o = document.querySelector('.rank-card.hi') || document.getElementById('map-stage');
+        if (o && !o.hasAttribute('tabindex')) o.setAttribute('tabindex', '-1');
+      }
+      if (o && o.focus) o.focus();
+    }
+  };
+  dash.isDetailOpen = function () { return !!dm.cur; };
 
   dash.mount = function (el) {
     if (!el) return;

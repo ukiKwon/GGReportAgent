@@ -393,7 +393,7 @@
   // quiet=true면 카드를 '불러오는 중'으로 바꾸지 않는다(편집 모달에서 저장한 뒤 다시 읽을 때).
   function loadInto(mine, button, quiet) {
     if (!quiet) mine.status = 'loading';
-    return hc.request('GET', base(mine.instId) + '/head', undefined, button).then(function (d) {
+    return hc.request('GET', base(mine.instId) + '/head', undefined, button, undefined, mine.screen || undefined).then(function (d) {
       if (V !== mine) return;
       mine.data = d;
       mine.status = hc.isEmptyHead(d) ? 'none' : 'ok';
@@ -410,12 +410,13 @@
   // 같은 기관을 고르고 있는 동안은 한 번만 읽는다(다시 그릴 때마다 열람 기록이 쌓이지 않게). 기관이 바뀌면 새로 읽는다.
   // 사번(emp)이 달라지면(사용자 전환) 같은 기관이어도 다시 읽는다. 기관을 고른 뒤 DEBOUNCE_MS가 지나야 읽는다 —
   // 그 안에 다른 기관으로 옮기면(reset이 대기를 취소) 앞 기관은 읽지 않는다.
-  hc.ensure = function (instId, repaint, emp) {
+  hc.ensure = function (instId, repaint, emp, screen) {
     const who = str(emp);
     if (V.instId === instId && V.emp === who && V.status !== 'idle') { V.repaint = repaint || V.repaint; return Promise.resolve(); }
     hc.reset();
     const mine = V;
     mine.instId = instId; mine.emp = who; mine.status = 'loading'; mine.repaint = repaint || null;
+    if (screen) mine.screen = screen;   // 지도 상세 팝업은 'map_popover'(서버 허용 목록에 있음). 없으면 기본 head_card
     const ms = Number(hc.DEBOUNCE_MS) || 0;
     if (ms <= 0) return loadInto(mine, hc.BTN.open, false);
     return new Promise(function (resolve) {
@@ -451,7 +452,7 @@
       if (V.instId) hc.reset();
       return hc.sectionHtml({ status: g }, env);
     }
-    hc.ensure(rec.institutionId, env.repaint, env.emp);
+    hc.ensure(rec.institutionId, env.repaint, env.emp, env.screen);
     return hc.sectionHtml(V, env);
   };
 
@@ -937,7 +938,8 @@
       // 처음 누른 버튼이 다시 그려져 사라졌으면(ok↔none 전환) 지금 보이는 [기관장 추가]·[편집]으로, 그것도 없으면 기관 이름으로
       const qs = function (s) { return typeof document.querySelector === 'function' ? document.querySelector(s) : null; };
       const t = m.opener && document.body.contains(m.opener) ? m.opener
-        : (qs('#hc-sec [data-hc="add-head"]') || qs('#hc-sec [data-hc="edit"]') || document.getElementById('db-name'));
+        : (qs('#dm-box [data-hc="add-head"]') || qs('#dm-box [data-hc="edit"]') || qs('#dm-name')   // 지도 상세 팝업이 열려 있으면 그 안에서 먼저(숨은 현황판에도 같은 id가 있을 수 있다)
+          || qs('#hc-sec [data-hc="add-head"]') || qs('#hc-sec [data-hc="edit"]') || document.getElementById('db-name'));
       if (t && t.focus) t.focus();
     }
   };

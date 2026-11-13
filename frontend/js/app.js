@@ -236,6 +236,7 @@
   app.onProfileChanged = function () {
     lastRecorded = null;
     if (root.headcard && root.headcard.onProfileChange) root.headcard.onProfileChange();   // 앞 사용자가 읽은 기관장 카드·사진·모달을 버린다
+    if (root.dashboard && root.dashboard.closeDetail) root.dashboard.closeDetail(false);   // 앞 사용자가 연 지도 상세 팝업(기관장 카드 포함)을 닫는다
     if (root.notify && root.notify.onProfileChange) root.notify.onProfileChange();
     if (root.approvals && root.approvals.onProfileChange) root.approvals.onProfileChange();
     if (root.myinfo && root.myinfo.onProfileChange) root.myinfo.onProfileChange();

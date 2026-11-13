@@ -1374,6 +1374,15 @@
              border-radius:12px; padding:12px; font-size:12px; max-width:280px;
              max-height:calc(100vh - 16px); overflow:auto; overscroll-behavior:contain;
              box-shadow:var(--shadow); }
+  /* 지도 상세 팝업 시작 — 지도에서 기관을 누르면 열리는 현황판 상세(dashboard.openDetail). 배경·상자는 .modal-overlay/.modal-box 재사용, 안쪽은 현황판 .db-* 그대로 */
+  .modal-box.dm-box { width:min(720px, calc(100vw - 32px)); max-height:calc(100vh - 64px); margin:32px auto; padding:0; overflow:hidden; display:flex; flex-direction:column; }
+  .dm-box:focus { outline:none; }
+  .dm-pane { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+  .dm-box .db-pane-body { max-width:none; overflow:auto; }
+  .dm-box .db-head h2, .dm-box .db-sec h3 { padding-bottom:0; border-bottom:0; }
+  .dm-box .db-flash { padding:10px 24px 0; }
+  .dm-box .db-state[role=alert] { margin:10px 24px 0; }
+  /* 지도 상세 팝업 끝 */
   #theme-modal label { display:flex; align-items:center; gap:8px; margin:8px 0; }
   #theme-modal input[type=color] { width:44px; height:26px; padding:0;
       border:1px solid var(--line-strong); background:none; }
