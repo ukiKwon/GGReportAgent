@@ -38,8 +38,11 @@ NONMUNI_JS = """(function (root) {
 
 
 def _rec(nid, name, key=None, region=None, number=None, mgt_no=None, notice_at=None, term=None,
-         url=None, title="금고 지정 공고"):
+         url=None, title="금고 지정 공고", bank=None, award_at=None, bank_status=None):
     fields = {}
+    for k, v in (("bank", bank), ("award_at", award_at), ("bank_status", bank_status)):
+        if v:
+            fields[k] = v
     if notice_at:
         fields["notice_at"] = notice_at
     if term:
@@ -187,3 +190,66 @@ def test_feb29_expiry_does_not_crash(tmp_path):
                                  ensure_ascii=False), encoding="utf-8")
     root, bid, ij, nj = _setup(tmp_path, [_rec("g", "괴산군청", key="43|괴산군청", notice_at="2010-01-01")])
     assert run_preview(bid, root, screen_json=screen)["counts"][CAT_DONE] == 1
+
+
+def _bank_rows(tmp_path, bank):
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    url = "https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=R26BK01272452&bidPbancOrd=000"
+    rec = _rec("b", "(재)한국승강기안전공단", number="R26BK01272452-000", mgt_no="R26BK01272452",
+               notice_at="2026-01-14", url=url, bank=bank, award_at="2026-02-03",
+               bank_status="우선협상, 계약 미확인")
+    root, bid, ij, nj = _setup(tmp_path, [rec])
+    nj.write_text(NONMUNI_JS.replace("region: '48',", "region: '48', bank: '농협은행',"), encoding="utf-8")
+    screens, _ = load_screen(ij, nj)
+    return build_rows([rec], screens)[0]
+
+
+def test_bank_same_after_stripping_company_branch_alias(tmp_path):
+    r = _bank_rows(tmp_path, "주식회사 농협은행 서울시청금융센터")
+    assert r["cat"] == CAT_DONE
+    assert r["s_bank"] == "농협은행" and r["award_at"] == "2026-02-03"
+    assert _bank_rows(tmp_path / "b2", "(주)농협은행(대전지점)")["cat"] == CAT_DONE
+    assert _bank_rows(tmp_path / "b3", "NH농협은행")["cat"] == CAT_DONE
+
+
+def test_bank_different_is_diff(tmp_path):
+    r = _bank_rows(tmp_path, "㈜하나은행 광주지점")
+    assert r["cat"] == CAT_DIFF and "낙찰자 수집" in r["reason"] and "하나은행" in r["reason"]
+
+
+def test_bank_missing_is_not_diff_and_columns_appended(tmp_path):
+    r = _bank_rows(tmp_path / "a", None)
+    assert r["cat"] == CAT_DONE and r["bank"] == ""
+    root, bid, ij, nj = _setup(tmp_path / "x", [_rec("a", "서울특별시", key="11|서울특별시", notice_at="2026-09-01",
+                                                       bank="국민은행", award_at="2026-10-01",
+                                                       bank_status="우선협상, 계약 미확인")])
+    run_preview(bid, root, institutions_js=ij, nonmuni_js=nj)
+    lines = (root / bid / "preview.csv").read_bytes().decode("utf-8-sig").splitlines()
+    cols = lines[0].split(",")
+    assert cols[13] == "근거URL" and cols[14:] == ["낙찰자(수집)", "낙찰일(수집)", "낙찰상태(수집)", "화면_bank"]
+    assert "국민은행" in lines[1] and "2026-10-01" in lines[1]
+    assert (root / bid / "preview.html").read_text(encoding="utf-8").count("<th>") == 18
+
+
+def test_bank_same_rules():
+    from collector.preview import _bank_same
+    same = [("iM뱅크", "아이엠뱅크"), ("대구은행", "아이엠뱅크"), ("DGB대구은행", "아이엠뱅크"), ("BNK경남은행", "경남은행"),
+            ("SC제일은행", "제일은행"), ("KB국민은행", "국민은행"), ("NH농협은행 김포시지부", "농협은행"),
+            ("농협은행 (주) 김포시지부", "농협은행"), ("주식회사 국민은행", "국민은행"), ("국민은행", "")]
+    diff = [("지역농협", "농협은행"), ("국민은행·농협은행", "국민은행"), ("국민은행", "농협은행"), ("하나은행", "우리은행")]
+    for a, b in same:
+        assert _bank_same(a, b), (a, b)
+    for a, b in diff:
+        assert not _bank_same(a, b), (a, b)
+    assert _bank_same("국민은행·농협은행", "NH농협은행, KB국민은행")
+
+
+def test_bank_column_formula_guarded(tmp_path):
+    root, bid, ij, nj = _setup(tmp_path, [_rec("a", "서울특별시", key="11|서울특별시", notice_at="2026-09-01",
+                                                 bank="=HYPERLINK(1)")])
+    run_preview(bid, root, institutions_js=ij, nonmuni_js=nj)
+    line = (root / bid / "preview.csv").read_bytes().decode("utf-8-sig").splitlines()[1]
+    assert "'=HYPERLINK" in line
+    html = (root / bid / "preview.html").read_text(encoding="utf-8")
+    rows = [r for r in html.split("<tr") if "<td" in r]
+    assert rows and all(r.count("<td") == 18 for r in rows)

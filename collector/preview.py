@@ -409,6 +409,8 @@ def _facts(rec: dict) -> dict:
         "contract_end": _date(fields.get("contract_end")) or _date(sched.get("contract_end")),
         "last_bid": _date(fields.get("last_bid")) or _date(sched.get("last_bid")),
         "term": _term(fields.get("term")) or _term(sched.get("term")),
+        "bank": _s(fields.get("bank")), "award_at": _date(fields.get("award_at")),
+        "bank_status": _s(fields.get("bank_status")),
     }
 
 
@@ -426,6 +428,33 @@ def _has_token(text: str, token: str) -> bool:
 def _near(a: str, b: str) -> bool:
     da, db = _to_date(a), _to_date(b)
     return da is not None and db is not None and abs((da - db).days) <= NEAR_DAYS
+
+
+_BANK_BRANCH = ("금융센터", "지점", "지부", "출장소")
+_BANK_PREFIX = re.compile(r"^(?:dgb|kb|ibk|bnk|nh|sh|jb|sc|kdb)", re.I)   # 금융그룹 영문 접두(같은 은행)
+_BANK_ALIAS = {"im뱅크": "아이엠뱅크", "대구은행": "아이엠뱅크", "농협": "농협은행"}   # 대구은행→iM뱅크(2024 상호 변경)
+_BANK_SPLIT = re.compile(r"[·ㆍ・‧,/]|\s및\s")       # 공동(1·2금고) 표기는 은행별로 나눠 비교한다(qa 11-13 P2)
+
+
+def _bank_one(name) -> str:
+    n = re.sub(r"[(（][^)）]*[)）]", " ", _s(name))          # 괄호 안(지점명·주식회사 표기) 제거
+    words = n.split()
+    kept = [w for w in words if not w.endswith(_BANK_BRANCH)] if len(words) > 1 else words
+    n = _BANK_PREFIX.sub("", _norm(" ".join(kept))).lower()
+    return _BANK_ALIAS.get(n, n)
+
+
+def _bank_norm(name) -> frozenset:
+    return frozenset(x for x in (_bank_one(part) for part in _BANK_SPLIT.split(_s(name))) if x)
+
+
+def _bank_same(a, b) -> bool:
+    x, y = _bank_norm(a), _bank_norm(b)
+    if not x or not y:
+        return True            # 한쪽이 비면 '다름'으로 보지 않는다(화면 빈칸은 CSV 열로 눈으로 확인)
+    if len(x) != len(y):
+        return False           # 단독 금고 ↔ 공동 금고는 다름
+    return all(any(i == j or (min(len(i), len(j)) >= 4 and (i in j or j in i)) for j in y) for i in x)
 
 
 def classify(facts: dict, screen):
@@ -467,6 +496,8 @@ def classify(facts: dict, screen):
             diffs.append("약정 연수 수집 %d년 ≠ 화면 %d년" % (facts["term"], s_term))
         if facts["contract_end"] and s_exp and facts["contract_end"] != s_exp:
             diffs.append("약정 만료 수집 %s ≠ 화면 %s" % (facts["contract_end"], s_exp))
+        if facts["bank"] and not _bank_same(facts["bank"], screen.get("bank")):
+            diffs.append("낙찰자 수집 %s ≠ 화면 %s" % (facts["bank"], _s(screen.get("bank"))))
         if diffs:
             return CAT_DIFF, "반영된 회차(%s)인데 " % by + "; ".join(diffs)
         return CAT_DONE, "화면에 이미 있음(%s)" % by
@@ -487,7 +518,8 @@ def classify(facts: dict, screen):
 
 
 CSV_COLUMNS = ("분류", "사유", "공고ID", "제목", "수집_기관명", "화면_기관명", "공고일", "마감일",
-               "약정만료(수집)", "약정연수(수집)", "화면_lastBid", "화면_contractEnd", "화면_약정연수", "근거URL")
+               "약정만료(수집)", "약정연수(수집)", "화면_lastBid", "화면_contractEnd", "화면_약정연수", "근거URL",
+               "낙찰자(수집)", "낙찰일(수집)", "낙찰상태(수집)", "화면_bank")
 
 
 def build_rows(records: list, screens: list) -> list:
@@ -511,6 +543,8 @@ def build_rows(records: list, screens: list) -> list:
             "s_contract_end": _date(screen.get("contractEnd")) if screen else "",
             "s_term": (_term(screen.get("term")) or "") if screen else "",
             "url": facts["url"],
+            "bank": facts["bank"], "award_at": facts["award_at"], "bank_status": facts["bank_status"],
+            "s_bank": _s(screen.get("bank")) if screen else "",
         })
     order = {c: i for i, c in enumerate(CATEGORIES)}
     rows.sort(key=lambda r: (order[r["cat"]], r["name"], r["notice_at"] or ""))
@@ -536,7 +570,7 @@ def build_csv(rows: list) -> str:
         w.writerow([_csv_cell(x) for x in (
             r["cat"], r["reason"], r["id"], r["title"], r["name"], r["screen_name"], r["notice_at"],
             r["deadline_at"], r["contract_end"], r["term"], r["s_last_bid"], r["s_contract_end"],
-            r["s_term"], r["url"])])
+            r["s_term"], r["url"], r["bank"], r["award_at"], r["bank_status"], r["s_bank"])])
     return buf.getvalue()
 
 
@@ -557,7 +591,7 @@ def _parse_note(info: dict) -> str:
 
 def build_html(manifest: dict, rows: list, info: dict, counts: dict) -> str:
     src = manifest.get("source") if isinstance(manifest.get("source"), dict) else {}
-    head = ("<tr>" + "".join("<th>%s</th>" % _e(c) for c in CSV_COLUMNS[:-1]) + "<th>근거</th></tr>")
+    head = ("<tr>" + "".join("<th>%s</th>" % _e(c) for c in CSV_COLUMNS[:13] + CSV_COLUMNS[14:]) + "<th>근거</th></tr>")   # 근거URL은 링크로 맨 끝
     body = []
     for r in rows:
         url = r["url"]
@@ -566,7 +600,8 @@ def build_html(manifest: dict, rows: list, info: dict, counts: dict) -> str:
         else:
             link = _e(url)
         cells = (r["cat"], r["reason"], r["id"], r["title"], r["name"], r["screen_name"], r["notice_at"],
-                 r["deadline_at"], r["contract_end"], r["term"], r["s_last_bid"], r["s_contract_end"], r["s_term"])
+                 r["deadline_at"], r["contract_end"], r["term"], r["s_last_bid"], r["s_contract_end"], r["s_term"],
+                 r["bank"], r["award_at"], r["bank_status"], r["s_bank"])
         body.append('<tr class="%s">%s<td>%s</td></tr>'
                     % (CAT_CLASS[r["cat"]], "".join("<td>%s</td>" % _e(c) for c in cells), link))
     summary = " · ".join("%s %d건" % (c, counts[c]) for c in CATEGORIES)
