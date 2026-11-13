@@ -35,10 +35,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 제안서 사전준비(NEXT 70, 024) — 제안 확정 → 개설 신청·승인 → 과제 체크 → 기획승인 → 작성하기.
+ * 제안서 사전준비(NEXT 70, 024) — 제안 확정 → 개설 신청·승인 → 과제 체크 → 사전준비 승인 → 작성하기.
  *
- * <p>상태 7개: CONFIRMED(확정됨) · OPEN_PENDING(개설 대기) · IN_PROGRESS(진행) · APPROVAL_PENDING(기획승인 중) ·
- * WRITABLE(작성 가능) · WRITING(작성 중) · CANCELLED(확정 취소·중단). '기획승인 가능'은 저장하지 않고 필수 과제 완료로 파생한다.
+ * <p>상태 7개: CONFIRMED(확정됨) · OPEN_PENDING(개설 대기) · IN_PROGRESS(진행) · APPROVAL_PENDING(사전준비 승인 중) ·
+ * WRITABLE(작성 가능) · WRITING(작성 중) · CANCELLED(확정 취소·중단). '사전준비 승인 가능'은 저장하지 않고 필수 과제 완료로 파생한다.
  * 상태 전이는 전부 조건부 UPDATE 이고 0행이면 409 {@code STATE_CHANGED} 다. 신원은 컨트롤러가 {@code MenuGuard.requireActiveUser} 로 정한다.
  *
  * <p>개설 대기 동안 지명자는 결재 payload 에만 있다 — BID_ASSIGNMENT 는 개설 승인 때 처음 쓴다(지명자는 승인 전 권한 없음, security A4).
@@ -77,7 +77,7 @@ public class PrepService {
         m.put(CONFIRMED, "확정됨");
         m.put(OPEN_PENDING, "개설 대기");
         m.put(IN_PROGRESS, "사전준비 중");
-        m.put(APPROVAL_PENDING, "기획승인 중");
+        m.put(APPROVAL_PENDING, "사전준비 승인 중");
         m.put(WRITABLE, "작성 가능");
         m.put(WRITING, "작성 중");
         m.put(CANCELLED, "확정 취소");
@@ -283,7 +283,7 @@ public class PrepService {
     }
 
     /**
-     * 중단(미참여) — 개설 뒤(IN_PROGRESS·WRITABLE·WRITING) 영업팀장만, 사유 필수, 결재 없음(사용자 결정 2026-11-10). 기획승인 중이면 409 PLAN_PENDING.
+     * 중단(미참여) — 개설 뒤(IN_PROGRESS·WRITABLE·WRITING) 영업팀장만, 사유 필수, 결재 없음(사용자 결정 2026-11-10). 사전준비 승인 중이면 409 PLAN_PENDING.
      * 활성 담당 배정은 전부 해제한다(ACTIVE_YN=0, RELEASED_BY/AT, 배정 이력 RELEASE 행 — 쓰기 권한 회수, 사용자 결정 2026-11-11). 행은 지우지 않는다.
      * 대기 중이던 담당자 변경 신청은 GROUP_VER 증가로 무효가 된다(승인하면 409 GROUP_VER_CHANGED). 과제 행·작업(TASKS)은 그대로 둔다(기록 보존).
      * TODO: 작성 중(WRITING)에 만든 세 팀 작업·이사회 제출 대기 신청의 정리는 후속.
@@ -295,7 +295,7 @@ public class PrepService {
         }
         BidPrep p = require(bidCaseId);
         if (APPROVAL_PENDING.equals(p.getStateCd())) {
-            throw coded(409, "PLAN_PENDING", "기획승인 요청이 진행 중입니다. 먼저 회수하거나 반려된 뒤 중단하세요.");
+            throw coded(409, "PLAN_PENDING", "사전준비 승인 요청이 진행 중입니다. 먼저 회수하거나 반려된 뒤 중단하세요.");
         }
         if (!IN_PROGRESS.equals(p.getStateCd()) && !WRITABLE.equals(p.getStateCd()) && !WRITING.equals(p.getStateCd())) {
             throw stateChanged();
@@ -557,9 +557,9 @@ public class PrepService {
         return view(me, cur, tasks);
     }
 
-    // ── 기획승인(PREP_APPROVAL) ──────────────────────────────────────────
+    // ── 사전준비 승인(PREP_APPROVAL) ──────────────────────────────────────────
 
-    /** 검증을 통과한 기획승인 상신 계획 — 결재자는 영업부장 고정. */
+    /** 검증을 통과한 사전준비 승인 상신 계획 — 결재자는 영업부장 고정. */
     public static final class PlanPlan {
         private final String bidCaseId;
         private final String institutionName;
@@ -576,11 +576,11 @@ public class PrepService {
         public SysUser getApprover() { return approver; }
     }
 
-    /** 기획승인 상신 검증(13) — 활성 담당자, IN_PROGRESS, 필수 과제 완료(서버 재판정, 아니면 409 NOT_READY + 미완료 과제 코드). */
+    /** 사전준비 승인 상신 검증(13) — 활성 담당자, IN_PROGRESS, 필수 과제 완료(서버 재판정, 아니면 409 NOT_READY + 미완료 과제 코드). */
     @Transactional
     public PlanPlan planPlanApproval(String bidCaseId, SysUser me) {
         if (!assignments.isActiveAssignee(bidCaseId, me.getEmpNo())) {
-            throw new ApiException(403, "이 입찰 건의 담당자만 기획승인을 요청할 수 있습니다.");
+            throw new ApiException(403, "이 입찰 건의 담당자만 사전준비 승인을 요청할 수 있습니다.");
         }
         BidPrep p = require(bidCaseId);
         if (!IN_PROGRESS.equals(p.getStateCd())) {
@@ -603,7 +603,7 @@ public class PrepService {
         log(plan.getBidCaseId(), "PLAN_SUBMIT", IN_PROGRESS, APPROVAL_PENDING, null, reqId, null, me, actor);
     }
 
-    /** 기획승인이 반려·회수로 끝났을 때 — APPROVAL_PENDING(그 요청)이면 IN_PROGRESS 로 되돌린다. */
+    /** 사전준비 승인이 반려·회수로 끝났을 때 — APPROVAL_PENDING(그 요청)이면 IN_PROGRESS 로 되돌린다. */
     @Transactional
     public void afterPlanEnded(Long reqId, String bidCaseId, String event, String reason, SysUser by, int verified) {
         if (bidCaseId == null || bidCaseId.isEmpty()) {
@@ -616,14 +616,14 @@ public class PrepService {
     }
 
     /**
-     * 기획승인 승인 후처리(같은 트랜잭션). 영업부장만. 필수 과제를 다시 판정해 미완료면 409 NOT_READY(승인째 되돌아간다).
+     * 사전준비 승인 승인 후처리(같은 트랜잭션). 영업부장만. 필수 과제를 다시 판정해 미완료면 409 NOT_READY(승인째 되돌아간다).
      * 승인 = 승인 기록 + WRITABLE 전이뿐이다. 오케스트레이터 5번 게이트(초안을 검토하고 쓰기 단계로 넘어오는 승인)는 다른 승인이라
      * 여기서 resume 하지 않는다(사용자 결정 2026-11-11, qa P2-1) — 그 게이트는 기존 /checkpoint 로 따로 승인한다.
      */
     @Transactional
     public String applyPlanApproval(ApprovalRequest r, SysUser decider, Actor actor) {
         if (!isHead(decider)) {
-            throw new ApiException(403, "이 기획승인을 처리할 수 없습니다.");
+            throw new ApiException(403, "이 사전준비 승인을 처리할 수 없습니다.");
         }
         String bid = readJson(r.getPayload()).path("bid_case_id").asText("");
         BidPrep p = bid.isEmpty() ? null : mapper.selectPrep(bid);
@@ -639,7 +639,7 @@ public class PrepService {
         requireTransit(mapper.approvePlan(bid, r.getReqId(), decider.getEmpNo(), now));
         mapper.insertLog(bid, "PLAN_APPROVE", APPROVAL_PENDING, WRITABLE, null, r.getReqId(), null,
                 decider.getEmpNo(), BoardMaterialService.verified(actor), now);
-        return "기획승인 반영 — 작성 가능";
+        return "사전준비 승인 반영 — 작성 가능";
     }
 
     // ── 제안서 작성하기 ──────────────────────────────────────────────────
@@ -817,7 +817,7 @@ public class PrepService {
     private static final class Eval {
         final Map<String, String> state = new LinkedHashMap<>();   // 과제 코드 → LOCKED|TODO|DONE|NOT_APPLICABLE|PREPARING
         final Map<String, String> lockedBy = new HashMap<>();
-        final List<String> missing = new ArrayList<>();            // 기획승인에 필요한데 끝나지 않은 과제
+        final List<String> missing = new ArrayList<>();            // 사전준비 승인에 필요한데 끝나지 않은 과제
         int done;
         int total;
         boolean ready;

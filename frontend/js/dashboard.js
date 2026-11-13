@@ -270,7 +270,7 @@
     { key: 'confirmed', label: '제안 확정', gate: false },
     { key: 'openPending', label: '개설 승인 대기', gate: true },
     { key: 'inProgress', label: '사전준비', gate: false },
-    { key: 'approvalPending', label: '기획승인 대기', gate: true },
+    { key: 'approvalPending', label: '사전준비 승인 대기', gate: true },
     { key: 'writing', label: '제안서 작성', gate: false }];
   const STAGE_OF = { CONFIRMED: 0, OPEN_PENDING: 1, IN_PROGRESS: 2, APPROVAL_PENDING: 3, WRITABLE: 4, WRITING: 4 };
   // preps·overview 모두 null이면 null. preps가 null이면(권한 밖) 제안서 작성 한 줄만(onlyWriting).

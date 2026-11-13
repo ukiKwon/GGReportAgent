@@ -208,7 +208,7 @@ public class ApprovalRequestService {
         return view(requests.selectById(r.getReqId()), me);
     }
 
-    /** 사전준비 기획승인 상신(NEXT 70, PREP_APPROVAL) — 결재자는 영업부장 고정. 필수 과제 완료는 prep.planPlanApproval 이 서버에서 다시 판정한다. */
+    /** 사전준비 승인 상신(NEXT 70, PREP_APPROVAL) — 결재자는 영업부장 고정. 필수 과제 완료는 prep.planPlanApproval 이 서버에서 다시 판정한다. */
     @Transactional
     public Map<String, Object> submitPrepApproval(String bidCaseId, Actor actor) {
         SysUser me = callers.require(actor);
@@ -218,7 +218,7 @@ public class ApprovalRequestService {
         ApprovalRequest r = new ApprovalRequest();
         r.setReqType(ApprovalTypes.PREP_APPROVAL);
         r.setRequesterEmpNo(me.getEmpNo());
-        r.setTitle("사전준비 기획승인 — " + nameOrEmpty(plan.getInstitutionName()));
+        r.setTitle("사전준비 승인 — " + nameOrEmpty(plan.getInstitutionName()));
         r.setPayload(write(payload));
         r.setStatus("PENDING");
         r.setCurrentStep(1);

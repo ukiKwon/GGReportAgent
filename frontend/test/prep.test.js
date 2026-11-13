@@ -220,7 +220,7 @@ test('missingNames·nextLine: 필수·조건부 중 끝나지 않은 것만(준�
   const v = { state_cd: 'IN_PROGRESS', tasks: TASKS };
   assert.deepStrictEqual(prep.missingNames(v), ['기관장 프로필', '수익성 분석표 확정본', '이사회 자료']);
   assert.strictEqual(prep.nextLine(v), '남은 필수 과제: 기관장 프로필, 수익성 분석표 확정본, 이사회 자료');
-  assert.ok(prep.nextLine({ state_cd: 'IN_PROGRESS', tasks: [] }).indexOf('기획승인 요청') >= 0);
+  assert.ok(prep.nextLine({ state_cd: 'IN_PROGRESS', tasks: [] }).indexOf('사전준비 승인 요청') >= 0);
   assert.ok(prep.nextLine({ state_cd: 'CONFIRMED' }).indexOf('개설 신청') >= 0);
 });
 
@@ -329,7 +329,7 @@ test('QA·디자인 후속: 중단 건 무효 처리 불가, T3 파일만, 확�
     viewer: {}, meEmp: ME });
   assert.ok(h.indexOf('a.xlsx') > 0 && h.indexOf('rfp.pdf') < 0);
   assert.ok(prep.confirmHtml('x', 'a', 'b', 'ok', 'no', '', '완료 취소 확인').indexOf('aria-label="완료 취소 확인"') > 0);
-  assert.ok(caseOf(viewOf('IN_PROGRESS', { viewer: { is_assignee: true, can_request_plan_approval: true } }), { confirm: { kind: 'plan' } }).indexOf('aria-label="기획승인 요청 확인"') > 0);
+  assert.ok(caseOf(viewOf('IN_PROGRESS', { viewer: { is_assignee: true, can_request_plan_approval: true } }), { confirm: { kind: 'plan' } }).indexOf('aria-label="사전준비 승인 요청 확인"') > 0);
   assert.ok(caseOf(viewOf('WRITABLE', { viewer: { is_assignee: true, can_start_writing: true } }), { confirm: { kind: 'start' } }).indexOf('aria-label="제안서 작성 시작 확인"') > 0);
   assert.ok(caseOf(viewOf('WRITABLE'), { confirm: { kind: 'uncheck', task: 'T1' } }).indexOf('aria-label="완료 취소 확인"') > 0);
   assert.ok(prep.closeConfirmHtml().indexOf('aria-label="닫기 확인"') > 0);
@@ -482,7 +482,7 @@ test('listRows·filterRows·tabCounts: 단계→가나다 정렬, 진행 중/취
 test('stateBadge·boardTag: 상태 배지 모양, 서버 상태명 임시 정리, 부결 꼬리표(T5는 완료로 본다)', function () {
   assert.strictEqual(prep.stateBadge('CONFIRMED', '확정됨').cls, 'pp-neutral');
   assert.strictEqual(prep.stateBadge('OPEN_PENDING', '개설 대기').cls, 'gap');
-  assert.strictEqual(prep.stateBadge('APPROVAL_PENDING', '기획승인 중').cls, 'gap');
+  assert.strictEqual(prep.stateBadge('APPROVAL_PENDING', '사전준비 승인 중').cls, 'gap');
   assert.strictEqual(prep.stateBadge('WRITABLE', '작성 가능').cls, 'ok');
   assert.strictEqual(prep.stateBadge('WRITING', '작성 중').cls, 'ok');
   assert.strictEqual(prep.stateBadge('CANCELLED', '중단(미참여)').cls, 'pp-cancel');
@@ -517,8 +517,8 @@ test('caseHtml: 머리·단계 막대·과제 카드·끝 노드가 상태별로
   assert.ok(h.indexOf('data-act="check" data-task="T2"') > 0);
   assert.ok(h.indexOf('aria-label="\'기관장 프로필\' 완료로 표시"') > 0);
   assert.ok(h.indexOf('준비중</span>') > 0);                       // T6 준비중 배지
-  assert.ok(h.indexOf('필수 과제 3개가 남았습니다') > 0);            // 끝 노드의 꺼진 [기획승인 요청] 이유
-  assert.ok(h.indexOf('필수 과제를 마치고 영업부장 기획승인을 받으면 켜집니다.') > 0);
+  assert.ok(h.indexOf('필수 과제 3개가 남았습니다') > 0);            // 끝 노드의 꺼진 [사전준비 승인 요청] 이유
+  assert.ok(h.indexOf('필수 과제를 마치고 영업부장 사전준비 승인을 받으면 켜집니다.') > 0);
   // 확정본이 끝나야 열리는 T5, 사전준비 헤더 [중단…]은 can_cancel일 때만
   assert.strictEqual(h.indexOf('data-act="abort-open"'), -1);
   assert.ok(caseOf(viewOf('IN_PROGRESS', { viewer: { is_assignee: true, can_cancel: true } })).indexOf('data-act="abort-open"') > 0);
@@ -545,9 +545,9 @@ test('caseHtml: CONFIRMED·OPEN_PENDING·APPROVAL_PENDING·WRITABLE·WRITING·CA
   // 서버가 지명자를 아직 안 주면 그 줄이 없다(폴백)
   assert.strictEqual(caseOf(viewOf('OPEN_PENDING', { tasks: [], open_request: { req_id: 7 }, viewer: {} })).indexOf('지명:'), -1);
   assert.strictEqual(caseOf(viewOf('OPEN_PENDING', { tasks: [], open_request: { req_id: 7 }, viewer: {} })).indexOf('data-act="withdraw"'), -1);
-  // 기획승인 대기: 영업팀장에게만 꺼진 [중단…]과 이유
+  // 사전준비 승인 대기: 영업팀장에게만 꺼진 [중단…]과 이유
   const ap = caseOf(viewOf('APPROVAL_PENDING'), { role: '영업팀장' });
-  assert.ok(ap.indexOf('기획승인 요청 중에는 중단할 수 없습니다.') > 0 && /disabled[^>]*aria-describedby="pp-why-abort"/.test(ap));
+  assert.ok(ap.indexOf('사전준비 승인 요청 중에는 중단할 수 없습니다.') > 0 && /disabled[^>]*aria-describedby="pp-why-abort"/.test(ap));
   assert.strictEqual(caseOf(viewOf('APPROVAL_PENDING'), { role: '영업팀' }).indexOf('pp-why-abort'), -1);
   assert.ok(ap.indexOf('회수는 [결재함 › 내가 올린 요청]에서 합니다.') > 0);
   // 작성 가능: [제안서 작성하기] 다음 한 걸음, 확인 줄
@@ -565,14 +565,14 @@ test('caseHtml: CONFIRMED·OPEN_PENDING·APPROVAL_PENDING·WRITABLE·WRITING·CA
   assert.strictEqual(cx.indexOf('data-act='), -1);
 });
 
-test('caseHtml: 기획승인 요청 뒤 [완료 취소]는 확인 줄을 거친다(그 전에는 바로)', function () {
+test('caseHtml: 사전준비 승인 요청 뒤 [완료 취소]는 확인 줄을 거친다(그 전에는 바로)', function () {
   const v = viewOf('WRITABLE');
   const asked = caseOf(v, { confirm: { kind: 'uncheck', task: 'T1' } });
-  assert.ok(asked.indexOf('기획승인 요청 뒤입니다. 완료를 취소하면 기획승인·작성 시작이 막힙니다.') > 0);
+  assert.ok(asked.indexOf('사전준비 승인 요청 뒤입니다. 완료를 취소하면 사전준비 승인·작성 시작이 막힙니다.') > 0);
   assert.ok(asked.indexOf('data-act="uncheck-ok"') > 0 && asked.indexOf('그대로 두기') > 0 && asked.indexOf('data-first="1"') > 0);
   assert.strictEqual(caseOf(v).indexOf('uncheck-ok'), -1);
   const plan = caseOf(viewOf('IN_PROGRESS', { viewer: { is_assignee: true, can_request_plan_approval: true } }), { confirm: { kind: 'plan' } });
-  assert.ok(plan.indexOf('영업부장에게 기획승인을 요청합니다. 요청 중에는 중단할 수 없습니다.') > 0 && plan.indexOf('data-act="plan-ok"') > 0);
+  assert.ok(plan.indexOf('영업부장에게 사전준비 승인을 요청합니다. 요청 중에는 중단할 수 없습니다.') > 0 && plan.indexOf('data-act="plan-ok"') > 0);
 });
 
 test('caseHtml: 기관명·파일명·지명자 이름의 <script>는 이스케이프된다', function () {
@@ -646,4 +646,11 @@ test('render.js: 팝오버 마크업(규격 §6-B) — 요약·미확인 칩·�
   assert.ok(/card\.setAttribute\('tabindex', '0'\)/.test(RENDER_SRC) && /card\.setAttribute\('role', 'button'\)/.test(RENDER_SRC));
   assert.ok(/ev\.key !== 'Enter' && ev\.key !== ' '/.test(RENDER_SRC));
   assert.ok(/ev\.key !== 'Escape'/.test(RENDER_SRC) && /root\.prep\.decoratePopover\(pop, rec\)/.test(RENDER_SRC));
+});
+
+test('사전준비 화면 문구에는 \'기획승인\'이 없다(진행 현황 기획승인과 이름을 나눔, 11-13)', function () {
+  ['IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE'].forEach(function (st) {
+    assert.ok(!/기획승인/.test(prep.nextLine({ state_cd: st, tasks: [] }) || ''), st);
+  });
+  assert.ok(!/기획승인/.test(JSON.stringify(prep.T || {})));
 });

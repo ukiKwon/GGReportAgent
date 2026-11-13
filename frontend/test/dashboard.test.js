@@ -185,7 +185,7 @@ test('stageCardHtml: dl 구조·막대 aria-hidden·승인 대기만 주황 g·�
   const html = dash.stageCardHtml({ state: 'ok', stages: r });
   assert.ok(html.indexOf('<dl class="stg">') >= 0 && html.indexOf('<dt>개설 승인 대기</dt>') >= 0 && html.indexOf('합계 <b>2</b>건') >= 0);
   assert.ok(html.indexOf('class="bw" aria-hidden="true"') >= 0);
-  assert.strictEqual((html.match(/class="b g"/g) || []).length, 1);                 // 개설 승인 대기 1건만 주황(기획승인 대기는 0이라 꼬리)
+  assert.strictEqual((html.match(/class="b g"/g) || []).length, 1);                 // 개설 승인 대기 1건만 주황(사전준비 승인 대기는 0이라 꼬리)
   assert.ok(html.indexOf('class="b z"') >= 0);
   assert.ok(html.indexOf('같은 기관은 한 번만 셉니다.') >= 0);
   assert.ok(dash.stageCardHtml({ state: 'offline' }).indexOf('서버에 연결하면 보입니다.') >= 0);
@@ -537,4 +537,9 @@ test('CSS 블록: 11px 미만 글자·새 hex 없음, 시작/끝 주석', functi
   assert.ok(sizes.filter(function (n) { return n === 11; }).length <= Math.ceil(sizes.length * 0.2), '11px 선언이 많다: ' + sizes.join(','));
   assert.ok(html.indexOf('<script src="js/dashboard.js"></script>') > html.indexOf('<script src="data/kb-verified.js"></script>'));
   assert.ok(html.indexOf('<script src="js/dashboard.js"></script>') < html.indexOf('<script src="js/app.js"></script>'));
+});
+
+test('진행 단계 범례: 사전준비 쪽 승인은 \'사전준비 승인 대기\'(진행 현황 기획승인과 이름을 나눔, 11-13)', function () {
+  const labels = dash.STAGES.map(function (s) { return s.label; });
+  assert.ok(labels.indexOf('사전준비 승인 대기') >= 0 && labels.join('').indexOf('기획승인') < 0);
 });

@@ -25,7 +25,7 @@
   prep.TABS = [{ key: 'active', label: '진행 중' }, { key: 'closed', label: '취소·중단' }];
   prep.STATE_ORDER = ['CONFIRMED', 'OPEN_PENDING', 'IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE', 'WRITING', 'CANCELLED'];
   const TASK_STATES = ['IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE', 'WRITING'];
-  const AFTER_PLAN = ['APPROVAL_PENDING', 'WRITABLE', 'WRITING'];   // 기획승인 요청 뒤 — 완료 취소는 확인 줄을 한 번 거친다
+  const AFTER_PLAN = ['APPROVAL_PENDING', 'WRITABLE', 'WRITING'];   // 사전준비 승인 요청 뒤 — 완료 취소는 확인 줄을 한 번 거친다
 
   // ── 문구 (규격 §5) ───────────────────────────────────────────────
   const T = {
@@ -57,18 +57,18 @@
     na: '해당 없음',
     openOnlySales: '개설 신청은 영업팀·영업팀장이 합니다.',
     openPending: '개설 신청이 승인을 기다리고 있습니다.',
-    planPending: '영업부장 기획승인을 기다리고 있습니다. 회수는 [결재함 › 내가 올린 요청]에서 합니다.',
-    planNoStart: '기획승인을 받으면 켜집니다.',
-    startNoYet: '필수 과제를 마치고 영업부장 기획승인을 받으면 켜집니다.',
+    planPending: '영업부장 사전준비 승인을 기다리고 있습니다. 회수는 [결재함 › 내가 올린 요청]에서 합니다.',
+    planNoStart: '사전준비 승인을 받으면 켜집니다.',
+    startNoYet: '필수 과제를 마치고 영업부장 사전준비 승인을 받으면 켜집니다.',
     startOnlyAssignee: '제안서 작성 시작은 담당자가 합니다.',
-    planOnlyAssignee: '기획승인 요청은 담당자가 합니다.',
-    planCannot: '지금은 기획승인을 요청할 수 없습니다.',
-    abortNoPlan: '기획승인 요청 중에는 중단할 수 없습니다.',
+    planOnlyAssignee: '사전준비 승인 요청은 담당자가 합니다.',
+    planCannot: '지금은 사전준비 승인을 요청할 수 없습니다.',
+    abortNoPlan: '사전준비 승인 요청 중에는 중단할 수 없습니다.',
     writing: '제안서 작성 중입니다.',
     toWorkflow: '제안서 진행 현황 열기',
-    planConfirm: '영업부장에게 기획승인을 요청합니다. 요청 중에는 중단할 수 없습니다.',
+    planConfirm: '영업부장에게 사전준비 승인을 요청합니다. 요청 중에는 중단할 수 없습니다.',
     startConfirm: '작성을 시작하면 영업·전산·재무 세 팀 작업이 만들어지고 [제안서 진행 현황]에 나타납니다. 되돌릴 수 없습니다.',
-    uncheckConfirm: '기획승인 요청 뒤입니다. 완료를 취소하면 기획승인·작성 시작이 막힙니다.',
+    uncheckConfirm: '사전준비 승인 요청 뒤입니다. 완료를 취소하면 사전준비 승인·작성 시작이 막힙니다.',
     closeAsk: '적은 내용이 사라집니다. 닫을까요?',
     fileHint: 'HWPX·PDF·xlsx·docx, 한 파일 30MB 이하',
     fileEmpty: '아직 올린 파일이 없습니다. 수익성 분석표를 올리고 확정본으로 지정하면 이 과제가 완료됩니다.',
@@ -89,7 +89,7 @@
     okOpen: '개설 신청을 올렸습니다. 승인되면 지명한 담당자에게 준비 과제가 열립니다.',
     okCheck: function (n) { return '\'' + n + '\'를 완료로 표시했습니다.'; },
     okUncheck: function (n) { return '\'' + n + '\'의 완료를 취소했습니다.'; },
-    okPlan: '영업부장에게 기획승인을 요청했습니다.',
+    okPlan: '영업부장에게 사전준비 승인을 요청했습니다.',
     okStart: '제안서 작성을 시작했습니다. 세 팀 작업이 [제안서 진행 현황]에 생겼습니다.',
     okUnconfirm: '제안 확정을 취소했습니다.',
     okAbort: '사전준비를 중단했습니다. 담당 배정이 풀렸습니다.',
@@ -107,7 +107,7 @@
     PREP_ALREADY_ACTIVE: { text: '이 기관은 이미 제안 확정되어 사전준비가 진행 중입니다. [사전준비 열기]로 진행 상황을 보세요.', after: 'keep' },
     PREP_ABORTED: { text: '사전준비를 중단한 건은 다시 확정할 수 없습니다. 지도에서 기관을 골라 새로 확정하세요.', after: 'keep' },
     ASSIGNED_ALREADY: { text: '이 입찰 건은 예전 방식으로 담당자가 배정되어 있어 제안 확정으로 진행할 수 없습니다. [제안팀 구성·배정]에서 담당자를 확인하세요.', after: 'keep' },
-    PLAN_PENDING: { text: '기획승인 요청이 진행 중이라 중단할 수 없습니다. 요청이 회수되거나 반려된 뒤 중단하세요.', after: 'closeReload' },
+    PLAN_PENDING: { text: '사전준비 승인 요청이 진행 중이라 중단할 수 없습니다. 요청이 회수되거나 반려된 뒤 중단하세요.', after: 'closeReload' },
     STATE_CHANGED: { text: '그사이 다른 사람이 이 건의 상태를 바꿨습니다. 최신 상태를 다시 불러왔으니 확인한 뒤 다시 하세요.', after: 'closeReload' },
     NOT_MANUAL: { text: '자동으로 완료되는 과제라 직접 체크할 수 없습니다.', after: 'reload' },
     TASK_NOT_AVAILABLE: { text: '지금은 이 과제를 체크할 수 없습니다. 선행 과제나 상태가 바뀌었을 수 있어 다시 불러왔습니다.', after: 'reload' },
@@ -160,7 +160,7 @@
   };
 
   // ── 상태 배지·꼬리표 ─────────────────────────────────────────────
-  const DEFAULT_NAMES = { CONFIRMED: '확정됨', OPEN_PENDING: '개설 대기', IN_PROGRESS: '사전준비 중', APPROVAL_PENDING: '기획승인 중',
+  const DEFAULT_NAMES = { CONFIRMED: '확정됨', OPEN_PENDING: '개설 대기', IN_PROGRESS: '사전준비 중', APPROVAL_PENDING: '사전준비 승인 중',
                           WRITABLE: '작성 가능', WRITING: '작성 중', CANCELLED: '확정 취소' };
   const BADGE_CLS = { CONFIRMED: 'pp-neutral', OPEN_PENDING: 'gap', IN_PROGRESS: 'pp-neutral', APPROVAL_PENDING: 'gap',
                       WRITABLE: 'ok', WRITING: 'ok', CANCELLED: 'pp-cancel' };
@@ -275,7 +275,7 @@
 
   // ── 상세: 단계 막대 ───────────────────────────────────────────────
   const STEP_DEFS = [{ n: 1, label: '제안 확정', sub: '' }, { n: 2, label: '개설 승인', sub: '영업팀장' }, { n: 3, label: '사전준비', sub: '' },
-                     { n: 4, label: '기획승인', sub: '영업부장' }, { n: 5, label: '제안서 작성', sub: '' }];
+                     { n: 4, label: '사전준비 승인', sub: '영업부장' }, { n: 5, label: '제안서 작성', sub: '' }];
   const STEP_SR = { done: '완료', current: '현재 단계', gate: '승인 대기', todo: '' };
   const DONE_COUNT = { CONFIRMED: 1, OPEN_PENDING: 1, IN_PROGRESS: 2, APPROVAL_PENDING: 3, WRITABLE: 4, WRITING: 5 };
 
@@ -413,10 +413,10 @@
       case 'OPEN_PENDING': return '영업팀장의 개설 승인을 기다립니다.';
       case 'IN_PROGRESS': {
         const miss = prep.missingNames(v);
-        return miss.length ? '남은 필수 과제: ' + miss.join(', ') : '필수 과제를 모두 마쳤습니다. [기획승인 요청]을 누르세요.';
+        return miss.length ? '남은 필수 과제: ' + miss.join(', ') : '필수 과제를 모두 마쳤습니다. [사전준비 승인 요청]을 누르세요.';
       }
-      case 'APPROVAL_PENDING': return '영업부장의 기획승인을 기다립니다.';
-      case 'WRITABLE': return '기획승인을 받았습니다. [제안서 작성하기]로 작성을 시작하세요.';
+      case 'APPROVAL_PENDING': return '영업부장의 사전준비 승인을 기다립니다.';
+      case 'WRITABLE': return '사전준비 승인을 받았습니다. [제안서 작성하기]로 작성을 시작하세요.';
       case 'WRITING': return T.writing;
       default: return '';
     }
@@ -591,9 +591,9 @@
           else planWhy = miss.length ? '필수 과제 ' + miss.length + '개가 남았습니다: ' + miss.join(', ') + '.' : T.planCannot;
         }
         return '<div class="pp-end">' + (vw.can_request_plan_approval
-          ? '<div class="pp-end-row">' + btn('plan-ask', '기획승인 요청', { cls: 'pp-next-btn' }) + '</div>'
-          : disabledNext('plan-ask', '기획승인 요청', planWhy, 'pp-why-plan')) +
-          (c && c.kind === 'plan' ? confirmHtml(T.planConfirm, 'plan-no', 'plan-ok', '요청 올리기', '취소', '', '기획승인 요청 확인') : '') +
+          ? '<div class="pp-end-row">' + btn('plan-ask', '사전준비 승인 요청', { cls: 'pp-next-btn' }) + '</div>'
+          : disabledNext('plan-ask', '사전준비 승인 요청', planWhy, 'pp-why-plan')) +
+          (c && c.kind === 'plan' ? confirmHtml(T.planConfirm, 'plan-no', 'plan-ok', '요청 올리기', '취소', '', '사전준비 승인 요청 확인') : '') +
           disabledNext('start-ask', '제안서 작성하기', T.startNoYet, 'pp-why-start') + '</div>';
       }
       case 'APPROVAL_PENDING':

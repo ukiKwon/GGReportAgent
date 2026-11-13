@@ -23,7 +23,7 @@ public final class ApprovalTypes {
     public static final String BOARD_SUBMIT = "BOARD_SUBMIT";
     /** 사전준비 개설 신청(NEXT 70) — 승인되면 지명자가 담당자로 배정되고 사전준비가 시작된다. */
     public static final String BID_OPEN = "BID_OPEN";
-    /** 사전준비 기획승인(NEXT 70) — 영업부장 고정. 승인이 5번 게이트(기획승인) 통과다. */
+    /** 사전준비 승인(NEXT 70) — 영업부장 고정. 진행 현황 5번 게이트(기획승인)와는 별개 승인이다(사용자 11-11 ①, 이름 구분 11-13). */
     public static final String PREP_APPROVAL = "PREP_APPROVAL";
 
     /** 대결 승인을 허용하지 않는 유형 — 결재자 본인만 승인한다(019 담당자 변경). 기존 유형 동작은 그대로다. */
@@ -67,7 +67,7 @@ public final class ApprovalTypes {
                     "담당자 → 영업팀장 (영업팀장이 관련되면 영업부장) · 대결 불가"),
             new Type(BID_OPEN, "사전준비 개설 신청", true,
                     "신청자 → 영업팀장 (신청자·지명자 중 영업팀장이 있으면 영업부장) · 대결 불가"),
-            new Type(PREP_APPROVAL, "사전준비 기획승인", true,
+            new Type(PREP_APPROVAL, "사전준비 승인", true,
                     "담당자 → 영업부장 · 대결 불가")));
 
     public static Type find(String key) {
