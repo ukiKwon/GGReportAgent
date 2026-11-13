@@ -1,0 +1,597 @@
+{
+ "schema": 1,
+ "note": "기관장 공개 정보(이름·직위·임기·학력·경력, 출처). 사진은 photo.url만 두고 파일은 git 밖(data/collector/head-photo-src)에 내려받는다.",
+ "heads": [
+  {
+   "institution_id": "mapo",
+   "name": "유동균",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "마포구청장 소개(민선 7기 첫 취임) + 2026 당선 보도",
+    "url": "https://www.mapo.go.kr/site/mayor/content/mayor0104",
+    "checked_on": "2026-11-13"
+   },
+   "first_take_office": "2018-07-01",
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "마포구청장 소개",
+    "url": "https://www.mapo.go.kr/site/mayor/content/mayor0104",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "연세대학교 행정대학원 졸업(정치학 석사)"
+   ],
+   "career": [
+    "민선 7기 마포구청장(2018.07~2022.06)",
+    "제9대 서울특별시의회 의원(2014.07~2018.03)"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "jongno",
+   "name": "유찬종",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "2026-07-01 서울 구청장 취임 보도(학력·경력)",
+    "url": "https://www.jjctv.co.kr/article/view/jjc202607010026?d=pc",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "연세대학교 법학과"
+   ],
+   "career": [
+    "종로구의회 의원",
+    "서울특별시의회 의원"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "jung",
+   "name": "김길성",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "2026-07-01 서울 구청장 취임 보도(학력·경력)",
+    "url": "https://www.jjctv.co.kr/article/view/jjc202607010026?d=pc",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "연세대학교 행정대학원 행정학 석사"
+   ],
+   "career": [
+    "민선 8기 중구청장",
+    "용인도시공사 사장",
+    "청와대 행정관"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "yongsan",
+   "name": "김경대",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "2026-07-01 서울 구청장 취임 보도(학력·경력)",
+    "url": "https://www.jjctv.co.kr/article/view/jjc202607010026?d=pc",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "중앙대학교 대학원 행정학 박사"
+   ],
+   "career": [
+    "용산구의회 의원(3선)",
+    "국회의원 선임비서관"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "seongdong",
+   "name": "유보화",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "2026-07-01 서울 구청장 취임 보도(학력·경력)",
+    "url": "https://www.jjctv.co.kr/article/view/jjc202607010026?d=pc",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "서울시립대학교 도시과학대학원 도시행정학 석사"
+   ],
+   "career": [
+    "성동구 부구청장",
+    "서울특별시 공무원(약 30년)"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "gwangjin",
+   "name": "김경호",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "2026-07-01 서울 구청장 취임 보도(학력·경력)",
+    "url": "https://www.jjctv.co.kr/article/view/jjc202607010026?d=pc",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "전남대학교 경영학과",
+    "미국 오리건대학교 행정학 석사"
+   ],
+   "career": [
+    "민선 8기 광진구청장",
+    "서울특별시의회 사무처장",
+    "서울특별시 도시교통본부장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "dongdaemun",
+   "name": "최동민",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "2026-07-01 서울 구청장 취임 보도(학력·경력)",
+    "url": "https://www.jjctv.co.kr/article/view/jjc202607010026?d=pc",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "서울시립대학교 법학과"
+   ],
+   "career": [
+    "청와대 행정관",
+    "서울특별시장 정무보좌관",
+    "국토해양부 과장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "jungnang",
+   "name": "류경기",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "2026-07-01 서울 구청장 취임 보도(학력·경력)",
+    "url": "https://www.jjctv.co.kr/article/view/jjc202607010026?d=pc",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "서울대학교 정치학과"
+   ],
+   "career": [
+    "중랑구청장(민선 7·8기)",
+    "서울특별시 행정1부시장",
+    "서울특별시 기획조정실장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "seongbuk",
+   "name": "이승로",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [],
+   "career": [],
+   "photo": null
+  },
+  {
+   "institution_id": "gangbuk",
+   "name": "정창수",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [],
+   "career": [],
+   "photo": null
+  },
+  {
+   "institution_id": "dobong",
+   "name": "김동욱",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [],
+   "career": [],
+   "photo": null
+  },
+  {
+   "institution_id": "nowon",
+   "name": "서준오",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "2026-07-01 서울 구청장 취임 보도(학력·경력)",
+    "url": "https://www.jjctv.co.kr/article/view/jjc202607010026?d=pc",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "서울산업대학교 토목공학과",
+    "연세대학교 공학대학원 환경공학 석사"
+   ],
+   "career": [
+    "서울특별시의회 의원",
+    "청와대 행정관",
+    "노원구청장 비서실장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "eunpyeong",
+   "name": "김미경",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [],
+   "career": [],
+   "photo": null
+  },
+  {
+   "institution_id": "seodaemun",
+   "name": "박운기",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [],
+   "career": [],
+   "photo": null
+  },
+  {
+   "institution_id": "yangcheon",
+   "name": "이기재",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [],
+   "career": [],
+   "photo": null
+  },
+  {
+   "institution_id": "gangseo",
+   "name": "진교훈",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [],
+   "career": [],
+   "photo": null
+  },
+  {
+   "institution_id": "guro",
+   "name": "장인홍",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [],
+   "career": [],
+   "photo": null
+  },
+  {
+   "institution_id": "geumcheon",
+   "name": "최기찬",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "2026-07-01 서울 구청장 취임 보도(학력·경력)",
+    "url": "https://www.jjctv.co.kr/article/view/jjc202607010026?d=pc",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "동국대학교 석사",
+    "서울시립대학교 행정학 박사과정"
+   ],
+   "career": [
+    "서울특별시의회 의원(제10·11대)",
+    "제10대 서울특별시의회 후반기 교육위원장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "yeongdeungpo",
+   "name": "조유진",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "2026-07-01 서울 구청장 취임 보도(학력·경력)",
+    "url": "https://www.jjctv.co.kr/article/view/jjc202607010026?d=pc",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "서울대학교 법과대학"
+   ],
+   "career": [
+    "국회 정책연구위원",
+    "청와대 행정관",
+    "국회의원 비서관"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "dongjak",
+   "name": "류삼영",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "2026-07-01 서울 구청장 취임 보도(학력·경력)",
+    "url": "https://www.jjctv.co.kr/article/view/jjc202607010026?d=pc",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "경찰대학(4기)",
+    "동아대학교 대학원 법학 박사"
+   ],
+   "career": [
+    "경찰 35년(2022년 명예퇴직)"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "gwanak",
+   "name": "박준희",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [],
+   "career": [],
+   "photo": null
+  },
+  {
+   "institution_id": "seocho",
+   "name": "전성수",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [],
+   "career": [],
+   "photo": null
+  },
+  {
+   "institution_id": "gangnam",
+   "name": "김현기",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [],
+   "career": [],
+   "photo": null
+  },
+  {
+   "institution_id": "songpa",
+   "name": "서강석",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "2026-07-01 서울 구청장 취임 보도(학력·경력)",
+    "url": "https://www.jjctv.co.kr/article/view/jjc202607010026?d=pc",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "서울대학교 행정대학원",
+    "서울시립대학교 행정학 박사"
+   ],
+   "career": [
+    "민선 8기 송파구청장",
+    "서울특별시 재무국장",
+    "성동구 부구청장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "gangdong",
+   "name": "이수희",
+   "position": "구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "2026 지방선거 서울 구청장 당선인 보도(한국금융신문·시정일보 일치) — 임기는 공직선거법상 2026-07-01부터 4년",
+    "url": "https://www.fntimes.com/html/view.php?ud=202606042218035298b372994c95_18",
+    "checked_on": "2026-11-13"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "2026-07-01 서울 구청장 취임 보도(학력·경력)",
+    "url": "https://www.jjctv.co.kr/article/view/jjc202607010026?d=pc",
+    "checked_on": "2026-11-13"
+   },
+   "edu": [
+    "이화여자대학교 정책과학대학원 정책학 석사"
+   ],
+   "career": [
+    "민선 8기 강동구청장",
+    "변호사"
+   ],
+   "photo": null
+  }
+ ]
+}
