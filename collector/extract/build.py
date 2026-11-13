@@ -11,6 +11,7 @@ from pathlib import Path
 from collector.extract.classify import ROLE, classify, is_candidate_kind
 
 BID_SOURCES = {"g2b"}   # 목록이 입찰공고만 담는 출처
+from collector.extract.hwp5 import hwp5_text
 from collector.extract.hwpx import ExtractError, hwpx_text
 from collector.extract.terms import find_deadline, find_period, years_between
 from collector.privacy import mask_contacts, vaccine_policy
@@ -83,8 +84,17 @@ def notice_from_raw(raw_dir: Path, rel: str) -> CollectedNotice:
     unmaskable = set(meta.get("unmaskable_attachments", []))
     for a in meta.get("attachments", []):
         blob = (raw_dir / a["stored"]).read_bytes()
+        if a["name"].lower().endswith(".hwp"):
+            # 구형 HWP: 파일은 싣지 않고(바이너리 안 연락처를 못 가림) 글만 뽑아 근거 글로 쓴다(11-13).
+            # 아래 일괄 mask_contacts를 반드시 거친다. 읽기 실패·olefile 미설치는 notes로만.
+            try:
+                texts.append((f"hwp:{a['name']}", hwp5_text(blob)))
+            except ExtractError as exc:
+                notes.append(f"{a['name']}: {exc}")
+            notes.append(f"첨부 미포함(연락처 가림 불가, 원문 보관소에만): {a['name']}")
+            continue
         if a["name"] in unmaskable or not a["name"].lower().endswith(".hwpx"):
-            # 연락처를 가릴 수 없는 첨부(PDF·구형 HWP)는 망 안 배치에 싣지 않는다(사용자 결정 11-12).
+            # 연락처를 가릴 수 없는 첨부(PDF)는 망 안 배치에 싣지 않는다(사용자 결정 11-12).
             notes.append(f"첨부 미포함(연락처 가림 불가, 원문 보관소에만): {a['name']}")
             continue
         atts.append(AttachmentRef(filename=Path(a["stored"]).name, data=blob))
