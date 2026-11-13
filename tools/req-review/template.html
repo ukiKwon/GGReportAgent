@@ -135,6 +135,7 @@ tbody tr{transition:background .3s}tbody tr:hover{background:var(--bone)}
 .rule h3{font-size:20px;line-height:1.3;margin:0 0 8px}
 .rule p{margin:0 0 16px;color:var(--ash);font-size:15px}
 .rule .opts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.rule .dby{font-size:13px;color:var(--ash);margin:-8px 0 14px}
 @media(max-width:800px){.rules{grid-template-columns:1fr}}
 /* summary */
 .sum{background:var(--obsidian);color:var(--paper);border-radius:16px;padding:32px}
@@ -233,7 +234,7 @@ footer{padding:48px 0 72px;color:var(--ash);font-size:13px}
 <body>
 <nav class="top"><div class="wrap">
   <span class="brand"><span class="dot"></span>기관영업지원 시스템 · 화면 기획안</span>
-  <a href="#flow">업무 흐름</a><a href="#screens">화면 보기</a><a href="#features">기능 논의</a><a href="#roles">역할별 메뉴</a><a href="#rules">정해 둔 규칙</a>
+  <a href="#flow">업무 흐름</a><a href="#screens">화면 보기</a><a href="#features">기능 논의</a><a href="#roles">역할별 메뉴</a><a href="#rules">정해 둔 규칙</a><a href="#decisions">의사결정안</a>
   <a href="#summary" class="cta btn sm" style="color:var(--ink)">내 의견 <span id="navcount">0</span></a>
 </div></nav>
 
@@ -303,8 +304,15 @@ footer{padding:48px 0 72px;color:var(--ash);font-size:13px}
   <div class="rules" id="rulelist"></div>
 </div></section>
 
+<section id="decisions"><div class="wrap">
+  <p class="eyebrow rv">06 · 의사결정안</p>
+  <h2 class="rv d1">자료를 모으며 정한 판단입니다. 현업 기준과 다르면 알려 주세요</h2>
+  <p class="lead rv d2">기관 일정·은행 데이터를 채우다 생긴 질문에 대해 먼저 정해 둔 답입니다. 누가 언제 정했는지와 실제 예를 함께 적었습니다.</p>
+  <div class="rules" id="decisionlist"></div>
+</div></section>
+
 <section id="summary"><div class="wrap"><div class="sum">
-  <p class="eyebrow" style="color:#9a9998">06 · 내 의견 모아 보기</p>
+  <p class="eyebrow" style="color:#9a9998">07 · 내 의견 모아 보기</p>
   <h2>여기까지 남긴 의견</h2>
   <p class="lead">이 브라우저에만 저장됩니다. 끝나면 표로 복사해 메일이나 엑셀에 붙여 넣으세요.</p>
   <div class="sumrows" id="sumrows"></div>
@@ -321,7 +329,7 @@ const el = (t, c, h) => { const e=document.createElement(t); if(c) e.className=c
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const DATE = DATA.date || '';   // 빌드 날짜(build.mjs가 넣는다)
-$('[data-date]').forEach(n => n.textContent = DATE);
+$$('[data-date]').forEach(n => n.textContent = DATE);
 const KEY = 'gg-review-' + DATE;   // 날짜별로 나눠, 지난 파일의 의견이 새 파일에 섞이지 않게 한다
 
 /* ---------- 저장(이 브라우저만) ---------- */
@@ -352,6 +360,7 @@ const SCREEN_INFO = {
   '메뉴 관리':{who:'전산팀 관리자',when:'메뉴를 추가·정리할 때',what:'왼쪽 메뉴의 구성과 이름을 관리합니다.'},
   '접근 이력':{who:'전산팀 관리자',when:'누가 무엇을 열었는지 확인할 때',what:'권한이 없어 막힌 시도와 접근 기록을 봅니다.'}
 };
+const DECISIONS = [{"id": "d1", "q": "법원 약정 만료일", "t": "법원 공탁금 보관은행은 다음 회차 지정이 끝났으면 새 지정기간의 끝을, 아직이면 지금 약정의 끝을 약정 만료일로 봅니다.", "why": "이미 다음 은행이 정해진 곳은 다음 입찰이 그 새 기간 끝 무렵입니다. 지금 약정 끝으로 두면 입찰이 끝난 곳이 '곧 입찰'로 잘못 보입니다.", "by": "사용자 결정 11-13", "ex": "서울동부·남부지방법원: 새 지정 2027~2031 → 약정 만료일 2031-12-31"}, {"id": "d2", "q": "공공기관 만료일", "t": "공공기관도 낙찰 뒤 공고문에 새 계약기간이 있으면 그 끝을 약정 만료일로 봅니다.", "why": "법원과 같은 규칙입니다. 다음 입찰 예상 시기는 만료 6개월 전으로 추정합니다.", "by": "사용자 결정 11-13(권장안 채택)", "ex": "한국디자인진흥원 2027-01-01~2030-12-31 → 다음 입찰 예상 2030-06 무렵 / 한국사학진흥재단 ~2029-06-30"}, {"id": "d3", "q": "약정 연수", "t": "약정 연수는 공고문에 'N년'이라고 적힌 것만 씁니다. 연수가 없으면 직전 입찰일도 비우고 약정 만료일로만 다음 입찰을 추정합니다.", "why": "날짜 차이로 계산하면 중간 변경·연장 때문에 틀린 연수가 나올 수 있습니다. 비워 두면 화면에 '미확인'으로 보입니다.", "by": "사용자 결정 11-13(법원) + 화면 규칙", "ex": "서울중앙지방법원: 약정기간 2022.3.5.~2026.12.31.만 있고 연수 표기가 없음 → 직전 입찰일 비움"}, {"id": "d4", "q": "낙찰 표시·은행명", "t": "나라장터 낙찰 결과는 '우선협상, 계약 미확인'으로 표시하고, 은행 이름은 '주식회사·(주)·지점명'을 떼고 화면 표기로 맞춥니다.", "why": "나라장터 계약정보는 공고번호로 찾을 수 없어 실제 계약 여부를 확인하지 못합니다. 은행 이름은 표기가 갈리면 같은 은행이 따로 집계됩니다.", "by": "팀 결정 11-13 — 현업 확인 필요(아이엠뱅크와 iM뱅크, 농협은행과 NH농협 중 어느 표기로 할지)", "ex": "'농협은행(주) ○○지점' → 농협은행 / DGIST → 아이엠뱅크"}, {"id": "d5", "q": "근로복지공단", "t": "근로복지공단에서 우리은행이 낙찰된 입찰은 '중소기업퇴직연금기금' 주거래은행 건이라 공단 본부와 따로 한 줄로 둡니다.", "why": "합치면 공단 전체의 주거래은행이 우리은행으로 바뀐 것처럼 보입니다. 공단 본부 자체 입찰은 아직 확인하지 못했습니다.", "by": "사용자 결정 11-13(권장안 채택)", "ex": "근로복지공단(본부): 미확인 / 근로복지공단 중소기업퇴직연금기금: 우리은행"}, {"id": "d6", "q": "취소 뒤 재공고", "t": "입찰이 취소되고 새 공고로 낙찰되면 직전 입찰일은 낙찰된 새 공고일로 봅니다. 유찰 뒤 재공고는 지금처럼 1차 공고일로 봅니다.", "why": "취소된 공고는 실제로 입찰이 진행되지 않은 것으로 봅니다. 유찰은 같은 회차가 이어진 것이라 처음 공고일을 그대로 씁니다.", "by": "팀 결정 11-13 — 현업 확인 필요", "ex": "한국디자인진흥원: 04-29 공고 취소 → 06-12 새 공고로 낙찰 → 회차 기준일 06-12"}, {"id": "d7", "q": "시·군법원 제외", "t": "시·군법원은 수집 대상에서 뺍니다.", "why": "공탁금 보관은행은 지방법원 본원·지원 단위로 정해지고, 지금 화면도 그 단위만 보여 줍니다. 넣으려면 화면 범위부터 넓혀야 합니다.", "by": "팀 결정 11-13 — 현업 확인 필요", "ex": "김해·거제·익산 시법원 → 목록에 넣지 않음"}, {"id": "d8", "q": "자동 수집은 후보", "t": "자동으로 모은 값은 언제나 '후보'이고, 사람이 확인해야 확정됩니다.", "why": "기사·공고문은 틀리거나 늦게 고쳐질 수 있습니다. 확인 전 값으로 영업 판단을 하지 않게 하려는 것입니다.", "by": "기존 원칙(유지)", "ex": "나라장터 낙찰 7곳 반영 → 모두 '계약 미확인'으로 표시"}, {"id": "d9", "q": "연락처·파일 검사", "t": "수집한 담당자 연락처는 모두 가리고, 공공기관 공식 사이트(go.kr 보안 주소)에서 받은 파일만 백신 검사를 생략합니다.", "why": "개인 연락처를 보관하지 않으려는 것입니다. 공식 사이트는 출처를 믿을 수 있어 검사 시간을 줄입니다. 그 밖의 출처는 그대로 검사합니다.", "by": "사용자 결정 11-12", "ex": "나라장터 결과의 담당자 전화·대표자 칸 → 보관하지 않음"}];
 const RULES = [
   {id:'r1',q:'이사회 자료 열람',t:'남의 이사회 자료는 관리자도 열어 볼 수 없습니다',p:'영업 기밀이라 배정된 영업팀원만 수정하고, 관리자·마스터(전산팀)는 열람도 하지 않습니다.',o:['동의','다른 의견']},
   {id:'r2',q:'결재선 위의 열람',t:'영업부장은 열람 가능, 디자이너는 불가',p:'결재선의 위에 있는 영업부장은 볼 수 있고, 디자이너는 볼 수 없습니다.',o:['동의','다른 의견']},
@@ -525,7 +534,7 @@ function tally(cat){
   return Object.keys(cnt).map(k=>`<i style="width:${cnt[k]/n*100}%;background:${col[k]}"></i>`).join('');
 }
 function renderFeatures(){
-  const host=$('#flist'), openNow=new Set($('#flist > details[open]').map(d=>d.dataset.cat));
+  const host=$('#flist'), openNow=new Set($$('#flist > details[open]').map(d=>d.dataset.cat));
   if(!host.children.length) openNow.add(FCATS[0]);
   host.innerHTML='';
   FCATS.forEach((cat,ci)=>{
@@ -583,6 +592,16 @@ RULES.forEach((r,i)=>{
   paint(); $('#rulelist').appendChild(c);
 });
 
+/* ---------- 의사결정안 ---------- */
+DECISIONS.forEach((d,i)=>{
+  const c = el('div','card rule rv d'+(i%3), `<p class="q">${esc(d.q)}</p><h3>${esc(d.t)}</h3><p>${esc(d.why)}</p><p class="dby">${esc(d.by)}${d.ex?` · 예: ${esc(d.ex)}`:''}</p><div class="opts"></div><textarea rows="1" placeholder="다른 의견이 있다면 적어 주세요"></textarea>`);
+  const k='d:'+d.id, opts=$('.opts',c), ta=$('textarea',c);
+  ['이대로 좋다','다른 의견'].forEach((o,j)=>{ const b=el('button','vote '+(j?'fix':'ok'),esc(o)); b.onclick=()=>{ const v=store[k]||(store[k]={}); v.v = v.v===(j?'fix':'ok')?'':(j?'fix':'ok'); save(); paint(); }; opts.appendChild(b); });
+  const paint=()=>{ const v=store[k]||{}; $$('.vote',c).forEach((b,j)=>b.classList.toggle('on', v.v===(j?'fix':'ok'))); ta.value=v.m||''; };
+  ta.oninput=()=>{ (store[k]||(store[k]={})).m=ta.value; save(); };
+  paint(); $('#decisionlist').appendChild(c);
+});
+
 /* ---------- 요약 ---------- */
 function rows(){
   const out=[];
@@ -590,6 +609,7 @@ function rows(){
   FCATS.forEach(cat=>featItems(cat).forEach(x=>{ const v=store['f:'+x.label]; if((v&&(v.v||v.m))||x.st==='new') out.push(['기능',`${cat} › ${x.label}`+(x.st==='new'?' (새 제안)':''),v&&v.v?FVL[v.v]:'메모만',(v&&v.m)||'']); }));
   PREV.removed.forEach(r=>{ const v=store['g:'+r[1]]; if(v&&v.m) out.push(['기능',`${r[0]} › ${r[1]} (지난번 빼기로 함)`,'다시 필요',v.m]); });
   RULES.forEach(r=>{ const v=store['r:'+r.id]; if(v&&(v.v||v.m)) out.push(['규칙',r.t,v.v==='ok'?'동의':v.v==='fix'?'다른 의견':'메모만',v.m||'']); });
+  DECISIONS.forEach(d=>{ const v=store['d:'+d.id]; if(v&&(v.v||v.m)) out.push(['의사결정',d.t,v.v==='ok'?'동의':v.v==='fix'?'다른 의견':'메모만',v.m||'']); });
   return out;
 }
 function refreshSummary(){
@@ -605,7 +625,7 @@ refreshSummary();
 const rio = new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); rio.unobserve(e.target); } }),{threshold:.12});
 $$('.rv').forEach(n=>rio.observe(n));
 const nio = new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting) $$('nav.top a[href^="#"]:not(.cta)').forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id)); }),{rootMargin:'-45% 0px -50% 0px'});
-['flow','screens','features','roles','rules'].forEach(id=>nio.observe($('#'+id)));
+['flow','screens','features','roles','rules','decisions'].forEach(id=>nio.observe($('#'+id)));
 </script>
 </body>
 </html>
