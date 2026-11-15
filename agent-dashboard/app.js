@@ -1104,6 +1104,7 @@ const qUi = {
   badge: document.getElementById('qbadge'), btn: document.getElementById('qbtn'),
   panel: document.getElementById('qpanel'), close: document.getElementById('qclose'), live: document.getElementById('qlive'),
 };
+const Q_AUTO_MS = 30 * 1000; // 질문 목록 자동 확인 주기(state.json 폴링 2초와 별개)
 const qSet = (el, t) => { if (el.textContent !== t) el.textContent = t; }; // 같은 글자면 건드리지 않는다
 function qMakeCard() {
   const li = document.createElement('li');
@@ -1187,7 +1188,7 @@ async function pollQuestions(manual) {
   } catch (e) { err = true; /* 서버 없음(데모)·끊김 -> '읽지 못했습니다' 안내 */ }
   finally { if (timer) clearTimeout(timer); qUi.busy = false; qUi.refresh.removeAttribute('aria-busy'); }
   qRender(qUi.last, err);
-  qSet(qUi.checked, (qUi.okAt ? '확인 ' + qClock(qUi.okAt) : '확인 전') + ' · 2초마다 자동 확인');
+  qSet(qUi.checked, (qUi.okAt ? '확인 ' + qClock(qUi.okAt) : '확인 전') + ' · 30초마다 자동 확인');
   if (manual) qSet(qUi.live, err ? '질문 목록을 읽지 못했습니다' : '질문 목록을 새로 읽었습니다 — 미응답 ' + qGroups(qUi.last).counts.pending + '건');
 }
 function qSetTab(name, focus) {
@@ -1228,7 +1229,7 @@ async function poll() {
   } catch (e) { live = false; }
   el.textContent = live ? '● 라이브 (state.json)' : '○ 데모 모드 (서버 없이 버튼으로 조작)';
   el.classList.toggle('live', live);
-  await pollQuestions();
+  if (!qUi.autoAt || Date.now() - qUi.autoAt >= Q_AUTO_MS) { qUi.autoAt = Date.now(); await pollQuestions(); } // 질문 목록은 30초마다(사용자 11-15), 즉시 확인은 새로고침 버튼
   checkVersion();
   setTimeout(poll, 2000);
 }
