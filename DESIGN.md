@@ -391,9 +391,11 @@ buttons, 3px inset); small inline chips and `<mark>`s run 3–8px. Every
 surface is bounded by a 1px hairline (`--line-strong` for component edges,
 `--line` for internal separators). Diagonal 45° hatching (4px period, SVG
 pattern) is the "준비중 / guessed date" texture. Map marker silhouettes keep
-the fixed shape-per-type code — municipality = filled polygon face,
-▲ public agency, ■ public enterprise, ● university hospital, ⬟ university —
-mirrored 1:1 by the `.fsw` stroke glyphs in the control strip.
+the fixed shape-per-kind code (six kinds, judged by `logic.kindOf`) —
+municipality = filled polygon face, ■ education office, ▲ public agency,
+⬟ university, ◆ court, ● hospital; a type with no known kind draws as a
+horizontal bar (◆ is the court only). Mirrored 1:1 by the `.fsw` stroke
+glyphs in the control strip (all six on by default, 2026-11-15).
 
 ## Components
 

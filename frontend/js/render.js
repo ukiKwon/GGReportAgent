@@ -17,7 +17,7 @@
     // 광역 금고 데이터를 넣어도 여기에 코드가 없으면 화면에 아무것도 안 나타난다.
     activeRegions: new Set(['11','26','27','28','30','31','36',
                             '41','42','43','44','45','46','47','48','50']),
-    // '기관 분류선택' 필터가 켠 종류(정본 5종 logic.TYPE_KINDS, kindOf로 판정). 기본은 전부 켬.
+    // '기관 분류선택' 필터가 켠 종류(정본 6종 logic.TYPE_KINDS, kindOf로 판정). 기본은 전부 켬.
     enabledTypes: new Set(logic.TYPE_KINDS),
     currentRegion: null,
     rankSort: 'urgency',   // 'urgency' | 'interest'
@@ -651,6 +651,7 @@
       }
       return 'M' + pts.join(' L') + ' Z';
     }
+    if (shape === 'bar') return 'M' + (-9) + ',' + (-5) + ' h18 v10 h-18 Z'; // 종류를 모르는 유형 — 가로 막대(◆는 법원뿐)
     return ''; // circle은 <circle>로 별도
   };
 
@@ -681,7 +682,7 @@
         return;
       }
       grp.forEach(function (item) {
-        const r = item.r, p = item.p, shape = logic.markerShape(r.type);
+        const r = item.r, p = item.p, shape = logic.markerShape(logic.kindOf(r.type));
         const color = render.markerColor(logic.urgencyOf(r, render.state.today));
         const glyph = logic.recordGlyph(r);
         const g = layer.append('g').attr('class','marker').attr('data-name', r.name).attr('transform','translate('+p[0]+','+p[1]+')');
@@ -784,7 +785,7 @@
     // 티커(drawTicker)와 같은 규칙. 폴리곤 강조는 _blinkMunicipality가 전 폴리곤을 잡는다.
     return logic.dedupeByInstitution(sorted);
   };
-  // 랭킹·섞기 유형 필터: 지자체는 항상 포함(끄면 면을 흐리게만), 종류를 모르는 유형은 항상 표시, 그 외는 켠 종류(enabledTypes=종류 5종)만.
+  // 랭킹·섞기 유형 필터: 지자체는 항상 포함(끄면 면을 흐리게만), 종류를 모르는 유형은 항상 표시, 그 외는 켠 종류(enabledTypes=종류 6종)만.
   render._rankTypeVisible = function (r) {
     const kind = logic.kindOf(r.type);
     if (kind === '지자체' || kind === null) return true;

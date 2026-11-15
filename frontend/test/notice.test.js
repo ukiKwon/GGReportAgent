@@ -124,8 +124,8 @@ test('overdueSummary: 진행 중은 경과 목록에서 빠지고(check 판정�
 });
 
 // ── 종류 5종·지자체 외 합침 ─────────────────────────────────────────
-test('KIND_OF_TYPE: 교육청·지방공기업은 공공기관으로 접는다', () => {
-  assert.strictEqual(logic.kindOf('교육청'), '공공기관');
+test('KIND_OF_TYPE: 교육청은 따로(11-15), 지방공기업은 공공기관으로 접는다', () => {
+  assert.strictEqual(logic.kindOf('교육청'), '교육청');
   assert.strictEqual(logic.kindOf('지방공기업'), '공공기관');
   nonmuni.forEach(r => assert.ok(logic.kindOf(r.type), r.name + ': 종류를 모른다 ' + r.type));
 });
@@ -159,7 +159,7 @@ test('지자체 외 기관 합침: 개원 예정 법원은 빼고, 지도·현�
   }
 });
 
-test('필터 5종: 기본 전부 켬, 종류(kindOf)로 판정, 지자체는 항상 포함·종류 모르는 유형은 항상 표시', () => {
+test('필터 6종: 기본 전부 켬, 종류(kindOf)로 판정, 지자체는 항상 포함·종류 모르는 유형은 항상 표시', () => {
   assert.deepStrictEqual(Array.from(render.state.enabledTypes).sort(), logic.TYPE_KINDS.slice().sort());
   const prev = render.state.enabledTypes;
   try {
@@ -169,10 +169,11 @@ test('필터 5종: 기본 전부 켬, 종류(kindOf)로 판정, 지자체는 항
     assert.strictEqual(render._rankTypeVisible({ type: '법원' }), false);
     assert.strictEqual(render._rankTypeVisible({ type: '연구소' }), true);
     render.state.enabledTypes = new Set(['지자체', '공공기관']);
-    ['교육청', '지방공기업', '공기업', '공공기관'].forEach(t => assert.strictEqual(render._rankTypeVisible({ type: t }), true, t));
+    ['지방공기업', '공기업', '공공기관'].forEach(t => assert.strictEqual(render._rankTypeVisible({ type: t }), true, t));
+    assert.strictEqual(render._rankTypeVisible({ type: '교육청' }), false);   // 교육청은 따로 — 공공기관을 켜도 안 따라온다
     assert.strictEqual(render._rankTypeVisible({ type: '대학교' }), false);
     // 섞기는 켠 종류만: 공공기관을 끄면 그 기관의 진행 중 공고가 빠진다
-    const list = [{ name: '구청', region: '11', type: '지자체' }, nrec('교육청A', 10, { type: '교육청', receiveTo: plus(4) })];
+    const list = [{ name: '구청', region: '11', type: '지자체' }, nrec('공단A', 10, { type: '공공기관', receiveTo: plus(4) })];
     render.state.today = TODAY;
     assert.strictEqual(render.mixInfo(list.filter(render._rankTypeVisible)).notice, 1);
     render.state.enabledTypes = new Set(['지자체']);
@@ -180,7 +181,7 @@ test('필터 5종: 기본 전부 켬, 종류(kindOf)로 판정, 지자체는 항
   } finally { render.state.enabledTypes = prev; }
 });
 
-test('index.html 필터 체크박스는 정본 5종, 옛 이름(공기업·대학병원·대학교)은 없다', () => {
+test('index.html 필터 체크박스는 정본 6종(기타 없음), 옛 이름(공기업·대학병원·대학교)은 없다', () => {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const types = (html.match(/<input type="checkbox" data-type="[^"]+" checked>/g) || []).map(s => /data-type="([^"]+)"/.exec(s)[1]);
   assert.deepStrictEqual(types, logic.TYPE_KINDS);
@@ -401,10 +402,11 @@ test('상세 \'공고 진행\' 절: 맨 위, 공고 막대(접수 칸 없으면 
 test('종류 표시는 kindOf: 필터 선택지·상세 부제', () => {
   const list = [{ name: 'a', region: '11', type: '교육청' }, { name: 'b', region: '11', type: '지방공기업' }, { name: 'c', region: '11', type: '지자체' },
     { name: 'd', region: '11', type: '법원' }];
-  assert.deepStrictEqual(dash.typeOptions(list), ['지자체', '공공기관', '법원']);
-  assert.strictEqual(dash.filterItems([{ name: 'a', region: '11', rec: list[0] }, { name: 'c', region: '11', rec: list[2] }], { type: '공공기관' }).length, 1);
+  assert.deepStrictEqual(dash.typeOptions(list), ['지자체', '교육청', '공공기관', '법원']);
+  assert.strictEqual(dash.filterItems([{ name: 'a', region: '11', rec: list[0] }, { name: 'b', region: '11', rec: list[1] }, { name: 'c', region: '11', rec: list[2] }], { type: '공공기관' }).length, 1);
+  assert.strictEqual(dash.filterItems([{ name: 'a', region: '11', rec: list[0] }, { name: 'c', region: '11', rec: list[2] }], { type: '교육청' }).length, 1);
   const it = dash.model([nrec('교육청A', 5, { type: '교육청', receiveTo: plus(3) })], TODAY).notice[0];
-  assert.ok(dash.paneHtml(it, { act: 'none', today: TODAY }).includes('<p class="db-sub">공공기관 · '));
+  assert.ok(dash.paneHtml(it, { act: 'none', today: TODAY }).includes('<p class="db-sub">교육청 · '));
 });
 
 test('현황판 마크업·CSS: 띠 첫 자식, 높이 고정, 순서, 안내문 위쪽 정렬, 새 hex 없음', () => {

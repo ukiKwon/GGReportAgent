@@ -112,8 +112,8 @@ test('regionMix.imminent는 mostImminent와 같은 기관이다', () => {
   assert.strictEqual(logic.regionMix(list, TODAY).imminent.name, '확정');
 });
 
-test('종류 정본 5종과 옛 이름 접기, markerShape는 옛 매핑 그대로', () => {
-  assert.deepStrictEqual(logic.TYPE_KINDS, ['지자체','공공기관','대학','법원','병원']);
+test('종류 정본 6종과 옛 이름 접기, markerShape는 종류 기준(NEXT 82)', () => {
+  assert.deepStrictEqual(logic.TYPE_KINDS, ['지자체','교육청','공공기관','대학','법원','병원']);
   assert.strictEqual(logic.kindOf('공기업'), '공공기관');
   assert.strictEqual(logic.kindOf('대학교'), '대학');
   assert.strictEqual(logic.kindOf('대학병원'), '병원');

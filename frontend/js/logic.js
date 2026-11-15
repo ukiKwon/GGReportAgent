@@ -410,18 +410,20 @@
   };
 
   logic.markerShape = function (type) {
-    // '대학'·'병원'은 정본 종류 이름(NEXT 72/78) — 기존 '대학교'·'대학병원'과 같은 모양을 쓴다.
-    const map = { '대학병원':'circle', '병원':'circle', '공기업':'square', '공공기관':'triangle', '지자체':'polygon',
-      '대학교':'pentagon', '대학':'pentagon' };
-    return map[type] || 'diamond';
+    // 모양은 종류(kind) 기준(NEXT 82): 종류 이름이나 옛 유형 이름 모두 받는다(kindOf가 접는다 — 종류 이름은 그대로 통과).
+    // 종류를 모르는 유형은 가로 막대 — ◆는 법원 하나뿐이다.
+    const map = { '병원':'circle', '교육청':'square', '공공기관':'triangle', '지자체':'polygon',
+      '대학':'pentagon', '법원':'diamond' };
+    return map[logic.kindOf(type)] || 'bar';
   };
 
-  // 지도 색 섞기·'기관 분류선택' 필터가 보는 기관 종류 5종(정본, NEXT 78). 데이터의 옛 이름은 종류로 접는다.
-  // 옛 필터 이름(공공기관·공기업·대학병원·대학교, FILTERABLE_TYPES)은 2026-11-12에 없앴다 — 필터는 이제 종류 5종이다.
-  logic.TYPE_KINDS = ['지자체','공공기관','대학','법원','병원'];
-  // 교육청·지방공기업은 당분간 공공기관으로 접는다(팀 결정 2026-11-12, 지자체 외 기관 168곳 연결).
+  // 지도 색 섞기·'기관 분류선택' 필터가 보는 기관 종류 6종(정본, NEXT 78·82). 데이터의 옛 이름은 종류로 접는다.
+  // 옛 필터 이름(공공기관·공기업·대학병원·대학교, FILTERABLE_TYPES)은 2026-11-12에 없앴다 — 필터는 이제 종류 6종이다.
+  logic.TYPE_KINDS = ['지자체','교육청','공공기관','대학','법원','병원'];
+  // 지방공기업은 공공기관으로 접는다(팀 결정 2026-11-12). 교육청은 따로(사용자 결정 2026-11-15, NEXT 82).
+  // 재단법인은 '기타'로 빼지 않고 공공기관 유지(같은 결정).
   logic.KIND_OF_TYPE = { '지자체':'지자체', '공공기관':'공공기관', '공기업':'공공기관',
-    '교육청':'공공기관', '지방공기업':'공공기관',
+    '교육청':'교육청', '지방공기업':'공공기관',
     '대학':'대학', '대학교':'대학', '법원':'법원', '병원':'병원', '대학병원':'병원' };
   logic.kindOf = function (type) { return logic.KIND_OF_TYPE[type] || null; };
 
@@ -533,7 +535,7 @@
     return (info.urgentAllEst ? '△' : '▲') + info.urgent;
   };
 
-  // 마커로 그릴 기관: 지자체(면)는 뺀다. 나머지는 종류(kindOf) 5종 중 켠 것만, 종류를 모르는 유형(◆)은 항상 표시.
+  // 마커로 그릴 기관: 지자체(면)는 뺀다. 나머지는 종류(kindOf) 6종 중 켠 것만, 종류를 모르는 유형(가로 막대)은 항상 표시.
   logic.visibleMarkers = function (list, enabledKinds) {
     return list.filter(function (r) {
       const kind = logic.kindOf(r.type);

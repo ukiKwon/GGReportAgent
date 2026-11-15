@@ -36,16 +36,32 @@ test('recordGlyph: ! 우선(필수누락), 그다음 ⚠️(유효일 없음)', 
 
 test('markerShape 매핑', () => {
   assert.strictEqual(logic.markerShape('대학병원'), 'circle');
-  assert.strictEqual(logic.markerShape('공기업'), 'square');
+  // 모양은 종류(kindOf) 기준(NEXT 82): 공기업은 공공기관으로 접혀 ▲, 정사각형은 교육청
+  assert.strictEqual(logic.markerShape('공기업'), 'triangle');
+  assert.strictEqual(logic.markerShape('교육청'), 'square');
   assert.strictEqual(logic.markerShape('공공기관'), 'triangle');
   assert.strictEqual(logic.markerShape('지자체'), 'polygon');
   assert.strictEqual(logic.markerShape('대학교'), 'pentagon');
-  assert.strictEqual(logic.markerShape('연구소'), 'diamond'); // 미정의 폴백
+  assert.strictEqual(logic.markerShape('법원'), 'diamond');
+  assert.strictEqual(logic.markerShape('연구소'), 'bar'); // 종류를 모르는 유형 — ◆(법원)가 아니라 가로 막대
+  assert.strictEqual(logic.markerShape(logic.kindOf('연구소')), 'bar'); // kind=null도 막대
 });
 
-test('FILTERABLE_TYPES는 없어졌다 — 필터는 종류 정본 5종(TYPE_KINDS)이다(2026-11-12)', () => {
+test('FILTERABLE_TYPES는 없어졌다 — 필터는 종류 정본 6종(TYPE_KINDS)이다(2026-11-12, 교육청 분리 11-15)', () => {
   assert.strictEqual(logic.FILTERABLE_TYPES, undefined);
-  assert.deepStrictEqual(logic.TYPE_KINDS, ['지자체', '공공기관', '대학', '법원', '병원']);
+  assert.deepStrictEqual(logic.TYPE_KINDS, ['지자체', '교육청', '공공기관', '대학', '법원', '병원']);
+});
+
+test('종류별 마커 모양: 지자체 외 5종이 서로 다르고 diamond는 법원 하나뿐, 교육청은 따로, 재단법인은 공공기관', () => {
+  const kinds = logic.TYPE_KINDS.filter(k => k !== '지자체');
+  const shapes = kinds.map(k => logic.markerShape(k));
+  assert.strictEqual(new Set(shapes).size, kinds.length, shapes.join(','));
+  assert.deepStrictEqual(logic.TYPE_KINDS.filter(k => logic.markerShape(k) === 'diamond'), ['법원']);
+  assert.strictEqual(logic.kindOf('교육청'), '교육청');
+  assert.strictEqual(logic.kindOf('지방공기업'), '공공기관');
+  // 재단법인 이름 기관(type은 공공기관)은 '기타'로 빼지 않고 공공기관 — 사용자 결정 11-15
+  assert.strictEqual(logic.kindOf('공공기관'), '공공기관');
+  assert.strictEqual(logic.markerShape(logic.kindOf('공공기관')), 'triangle');
 });
 
 test('visibleMarkers: 지자체 제외 + 종류(kindOf) 필터 + 종류 모르는 유형 항상표시', () => {
@@ -58,9 +74,9 @@ test('visibleMarkers: 지자체 제외 + 종류(kindOf) 필터 + 종류 모르�
     { name:'법원', type:'법원', region:'11' },
     { name:'연구소', type:'연구소', region:'11' },
   ];
-  const enabled = new Set(['병원', '법원']); // 공공기관(공기업·교육청)·대학 꺼짐
+  const enabled = new Set(['병원', '법원']); // 공공기관(공기업)·교육청·대학 꺼짐
   const vis = logic.visibleMarkers(list, enabled).map(r => r.name);
-  // 지자체 제외, 공기업·교육청(공공기관 꺼짐)·대학교(대학 꺼짐) 제외, 연구소(종류 모름) 표시
+  // 지자체 제외, 공기업(공공기관 꺼짐)·교육청(교육청 꺼짐)·대학교(대학 꺼짐) 제외, 연구소(종류 모름) 표시
   assert.deepStrictEqual(vis.sort(), ['병원', '법원', '연구소'].sort());
   // 기본(전부 켬)이면 지자체만 빠진다
   assert.strictEqual(logic.visibleMarkers(list, new Set(logic.TYPE_KINDS)).length, list.length - 1);

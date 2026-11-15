@@ -195,7 +195,7 @@
     out.sort(function (a, b) { return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0); });
     return out;
   };
-  // 종류 표시는 정본 5종(logic.kindOf) — 교육청·지방공기업·공기업 같은 옛·세부 이름은 접는다. 모르는 이름은 그대로.
+  // 종류 표시는 정본 6종(logic.kindOf) — 지방공기업·공기업 같은 옛·세부 이름은 접는다(교육청은 11-15부터 따로). 모르는 이름은 그대로.
   dash.kindOfRec = function (rec) { return logic.kindOf(rec && rec.type) || (rec && rec.type) || ''; };
   dash.typeOptions = function (list) {
     const seen = {}, out = [];
