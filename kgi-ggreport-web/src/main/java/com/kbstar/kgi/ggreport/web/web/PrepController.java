@@ -270,29 +270,36 @@ public class PrepController {
                       Function<SysUser, T> fn) {
         Actor actor = Actor.of(req);
         BoardUiIds.Ui ui = PrepUiIds.of(req);
+        String auditBid = caseKey(bid);   // 경로 원문이 형식 밖이면 NONE — 감사 칸에 자유 문구를 넣지 않는다(security 11-15)
         SysUser me;
         try {
             me = guard.requireActiveUser(req);
         } catch (ApiException e) {
             if (e.getStatus() == 403) {   // 사번이 확인된 비활성·미등록만 ACT(BoardMaterial·ApprovalLine 과 같음). 401 은 ACCESS_LOG 에만
-                auditFailure(bid, action, "DENIED", null, taskCd, attachId, actor, ui);
+                auditFailure(auditBid, action, "DENIED", null, taskCd, attachId, actor, ui);
             }
             throw e;
         }
-        String before = prep.stateOf(bid);
+        String before;
+        try {
+            before = prep.stateOf(bid);
+        } catch (RuntimeException e) {   // 상태 조회의 DB 오류도 ERROR 로 남긴다
+            auditFailure(auditBid, action, "ERROR", NO_CASE, taskCd, attachId, actor, ui);
+            throw e;
+        }
         T out;
         try {
             out = fn.apply(me);
         } catch (ApiException e) {
             if (e.getStatus() != 401) {
-                auditFailure(bid, action, PrepAudit.outcomeOf(e.getStatus()), before, taskCd, attachId, actor, ui);
+                auditFailure(auditBid, action, PrepAudit.outcomeOf(e.getStatus()), before, taskCd, attachId, actor, ui);
             }
             if (e.getStatus() == 403) {
                 throw guard.denied(req, e);
             }
             throw e;
         } catch (RuntimeException e) {   // DB 오류 등 — ERROR 로 남기고 그대로 던진다
-            auditFailure(bid, action, "ERROR", before, taskCd, attachId, actor, ui);
+            auditFailure(auditBid, action, "ERROR", before, taskCd, attachId, actor, ui);
             throw e;
         }
         Long aid = attachId;
@@ -321,7 +328,12 @@ public class PrepController {
 
     /** 제안 확정 실패 줄의 건 칸 — 본문 bid_case_id 가 건 번호 형식이면 그 값, 아니면 NONE. 기관 id·자유 문구는 넣지 않는다. */
     private static String confirmKey(PrepIn.Confirm body) {
-        String b = body == null || body.getBidCaseId() == null ? "" : body.getBidCaseId().trim();
+        return caseKey(body == null ? null : body.getBidCaseId());
+    }
+
+    /** 감사 칸용 건 번호 — 건 번호 형식([A-Za-z0-9._-]{1,64})이면 그 값, 아니면 NONE. */
+    private static String caseKey(String bid) {
+        String b = bid == null ? "" : bid.trim();
         return b.matches("[A-Za-z0-9._-]{1,64}") ? b : NO_CASE;
     }
 
