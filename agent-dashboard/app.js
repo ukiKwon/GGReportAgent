@@ -1092,6 +1092,98 @@ function applyFeed(j) {
   }
   refreshNow(); refreshChips();
 }
+/* ---------- 사용자에게 물은 질문 패널 ---------- */
+const qUi = {
+  cards: new Map(), sig: null, count: null, last: [],
+  list: document.getElementById('qlist'), doneList: document.getElementById('qdonelist'),
+  doneSum: document.getElementById('qdonesum'), empty: document.getElementById('qempty'),
+  badge: document.getElementById('qbadge'), btn: document.getElementById('qbtn'),
+  panel: document.getElementById('qpanel'), close: document.getElementById('qclose'), live: document.getElementById('qlive'),
+};
+const qSet = (el, t) => { if (el.textContent !== t) el.textContent = t; }; // 같은 글자면 건드리지 않는다
+function qMakeCard() {
+  const li = document.createElement('li');
+  const st = document.createElement('div'); st.className = 'qst';
+  const lab = document.createElement('span'); lab.className = 'qlab';
+  const days = document.createElement('span'); days.className = 'qdays';
+  st.append(lab, days);
+  li.append(st);
+  ['qsum', 'qrec', 'qmeta'].forEach(c => { const d = document.createElement('div'); d.className = c; li.append(d); });
+  return li;
+}
+function qFill(li, q, now) { // 모든 글자는 textContent 로만 넣는다(장부 문자열을 HTML 로 해석하지 않음)
+  const cls = qClassify(q), str = v => String(v == null ? '' : v);
+  const q$ = c => li.querySelector('.' + c);
+  const sum = str(q.summary);
+  li.className = 'qcard ' + cls;
+  // 카드에서 말줄임된 요지·선택지·권장안·답 전문은 마우스를 올리면 보인다(qa P2)
+  li.title = [sum, q.options && '선택지: ' + str(q.options), q.recommend && '권장: ' + str(q.recommend), q.answer && '답: ' + str(q.answer)].filter(Boolean).join('\n');
+  qSet(q$('qsum'), sum);
+  if (cls === 'done') {
+    qSet(q$('qlab'), '✓ 해소 · ' + qMd(q.answeredAt || q.askedAt));
+    qSet(q$('qdays'), ''); q$('qdays').classList.remove('over');
+    qSet(q$('qrec'), str(q.answer)); qSet(q$('qmeta'), '');
+    return;
+  }
+  const n = qElapsedDays(q.askedAt, now);
+  qSet(q$('qlab'), cls === 'open' ? '● 미답' : cls === 'hold' ? '● 보류' : '● 답함·반영 대기');
+  qSet(q$('qdays'), n == null ? '' : ' · ' + qDaysLabel(n));
+  q$('qdays').classList.toggle('over', qIsPending(q) && qOverdue(n));
+  qSet(q$('qrec'), cls === 'answered' ? (q.answer ? '답: ' + str(q.answer) : '') : (q.recommend ? '권장: ' + str(q.recommend) : ''));
+  const nx = Array.isArray(q.next) && q.next.length ? ' · NEXT ' + q.next.map(str).join(', ') : '';
+  qSet(q$('qmeta'), q.askedAt ? '물은 날 ' + qMd(q.askedAt) + nx : nx.slice(3));
+}
+function qSync(box, items, keep, now) { // id 기준 차분: 있는 카드는 재사용하고 순서만 맞춘다(details·포커스 보존)
+  items.forEach((q, i) => {
+    let id = q.id == null ? box.id + '#' + i : String(q.id); // id 없음·중복이어도 카드가 사라지지 않게 키를 겹치지 않게 만든다
+    while (keep.has(id)) id += '+';
+    keep.add(id);
+    let li = qUi.cards.get(id);
+    if (!li) { li = qMakeCard(); qUi.cards.set(id, li); }
+    qFill(li, q, now);
+    if (box.children[i] !== li) box.insertBefore(li, box.children[i] || null);
+  });
+}
+function qRender(list, err) {
+  const now = new Date(), sp = qSplit(list);
+  const sig = JSON.stringify(sp) + '|' + (err ? 1 : 0) + '|' + now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate(); // 자정이 지나면 경과일도 갱신
+  if (sig === qUi.sig) return;
+  qUi.sig = sig;
+  const keep = new Set();
+  qSync(qUi.list, sp.active, keep, now);
+  qSync(qUi.doneList, sp.done, keep, now);
+  qUi.cards.forEach((li, id) => { if (!keep.has(id)) { li.remove(); qUi.cards.delete(id); } });
+  // 장부 읽기 실패(편집 중 깨진 JSON 등)는 직전 목록을 그대로 두고 안내만 붙인다
+  qSet(qUi.empty, !err ? '지금 답을 기다리는 질문이 없습니다' : list.length ? '질문 장부를 읽지 못했습니다 — 직전 목록을 보여 줍니다' : '질문 장부를 읽지 못했습니다(대시보드 서버 연결 확인)');
+  qUi.empty.hidden = !err && sp.active.length > 0;
+  qSet(qUi.doneSum, '해소된 질문 ' + sp.done.length + '건');
+  qSet(qUi.badge, String(sp.pendingCount)); qUi.badge.hidden = sp.pendingCount === 0;
+  qSet(qUi.btn, '질문 ' + sp.pendingCount);
+  if (qUi.count !== sp.pendingCount) { qUi.count = sp.pendingCount; qSet(qUi.live, '답을 기다리는 질문 ' + sp.pendingCount + '건'); }
+}
+async function pollQuestions() {
+  let err = false;
+  const ac = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = ac && setTimeout(() => ac.abort(), 3000); // 응답이 멈춰도 state.json 폴링이 같이 멈추지 않게
+  try {
+    const res = await fetch('/api/questions', { cache: 'no-store', signal: ac ? ac.signal : undefined });
+    if (!res.ok) throw new Error(res.status);
+    const j = await res.json();
+    if (j && j.error) err = true;
+    else if (j && Array.isArray(j.questions)) qUi.last = j.questions;
+  } catch (e) { err = true; /* 서버 없음(데모)·끊김 -> '읽지 못했습니다' 안내(질문이 없다는 뜻으로 오해하지 않게) */ }
+  finally { if (timer) clearTimeout(timer); }
+  qRender(qUi.last, err);
+}
+function qSetOpen(open, back) {
+  qUi.panel.classList.toggle('open', open);
+  qUi.btn.setAttribute('aria-expanded', String(open));
+  if (open) qUi.close.focus(); else if (back) qUi.btn.focus();
+}
+qUi.btn.onclick = () => qSetOpen(!qUi.panel.classList.contains('open'));
+qUi.close.onclick = () => qSetOpen(false, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && qUi.panel.classList.contains('open')) qSetOpen(false, true); });
+window.matchMedia('(min-width:1100px)').addEventListener('change', e => { if (e.matches) qSetOpen(false); });
 async function poll() {
   const el = document.getElementById('conn');
   try {
@@ -1101,6 +1193,7 @@ async function poll() {
   } catch (e) { live = false; }
   el.textContent = live ? '● 라이브 (state.json)' : '○ 데모 모드 (서버 없이 버튼으로 조작)';
   el.classList.toggle('live', live);
+  await pollQuestions();
   checkVersion();
   setTimeout(poll, 2000);
 }

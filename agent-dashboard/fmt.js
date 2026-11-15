@@ -12,4 +12,31 @@ function fmtLaps(n) {
   const whole = Math.floor(t / 10), frac = t % 10;
   return whole.toLocaleString('en-US') + (frac ? '.' + frac : '') + U[i][1];
 }
-if (typeof module !== 'undefined' && module.exports) module.exports = { fmtLaps };
+
+// ---- 사용자에게 물은 질문 패널용 순수 함수 (DOM 무관 — test/questions.test.js) ----
+const Q_DAY = 864e5;
+function qDayNum(s) { // 'YYYY-MM-DD' -> 일 번호(UTC 자정 기준, DST 영향 없음). 형식이 틀리면 NaN
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s == null ? '' : s));
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / Q_DAY : NaN;
+}
+function qClassify(q) { const s = q && q.status; return s === 'done' || s === 'answered' || s === 'hold' ? s : 'open'; }
+function qIsPending(q) { const c = qClassify(q); return c === 'open' || c === 'hold'; }
+function qElapsedDays(askedAt, now) { // 물은 날부터 오늘까지 달력 일수. 날짜 오류 null, 미래는 0
+  const a = qDayNum(askedAt); if (!Number.isFinite(a)) return null;
+  const d = now || new Date();
+  return Math.max(0, Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / Q_DAY - a);
+}
+function qDaysLabel(n) { return n == null ? '' : n === 0 ? '오늘' : n + '일째'; }
+function qOverdue(n) { return n != null && n > 7; }
+function qMd(s) { const m = /^\d{4}-(\d{2}-\d{2})/.exec(String(s == null ? '' : s)); return m ? m[1] : ''; }
+function qSplit(list) { // -> { active:[미답(open/hold) 오래된 순 → answered 오래된 순], done:[최근 해소 먼저], pendingCount }
+  const L = Array.isArray(list) ? list.filter(q => q && typeof q === 'object') : [];
+  const day = q => { const n = qDayNum(q.askedAt); return Number.isFinite(n) ? n : Infinity; };
+  const idc = (x, y) => String(x.id).localeCompare(String(y.id), 'en', { numeric: true });
+  const active = L.filter(q => qClassify(q) !== 'done').sort((x, y) =>
+    (qIsPending(x) ? 0 : 1) - (qIsPending(y) ? 0 : 1) || day(x) - day(y) || idc(x, y));
+  const dk = q => { const n = qDayNum(q.answeredAt || q.askedAt); return Number.isFinite(n) ? n : -Infinity; };
+  const done = L.filter(q => qClassify(q) === 'done').sort((x, y) => dk(y) - dk(x) || idc(x, y));
+  return { active, done, pendingCount: L.filter(qIsPending).length };
+}
+if (typeof module !== 'undefined' && module.exports) module.exports = { fmtLaps, qClassify, qIsPending, qElapsedDays, qDaysLabel, qOverdue, qMd, qSplit };

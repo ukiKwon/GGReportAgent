@@ -21,6 +21,23 @@ DEFAULT = {"coach": {"task": ""}, "stats": {"laps": 0, "since": 0}, "agents": {k
 
 
 MAX_BODY = 16 * 1024
+QFILE = ROOT.parent / "handoff" / "questions.json"  # 고정 경로(요청 값으로 경로를 만들지 않는다)
+MAX_Q = 256 * 1024
+
+
+def read_questions():
+    """어떤 실패도 {questions:[],error}로 돌려 대시보드가 죽지 않게 한다. 오류 문구에 경로·예외 내용을 싣지 않는다."""
+    try:
+        if not QFILE.is_file():
+            return {"questions": [], "error": "questions.json not found"}
+        if QFILE.stat().st_size > MAX_Q:
+            return {"questions": [], "error": "questions.json too large"}
+        j = json.loads(QFILE.read_bytes().decode("utf-8-sig"))
+        if not isinstance(j, dict) or not isinstance(j.get("questions"), list):
+            return {"questions": [], "error": "questions.json bad format"}
+        return {"questions": [q for q in j["questions"] if isinstance(q, dict)]}
+    except (OSError, ValueError):
+        return {"questions": [], "error": "questions.json unreadable"}
 ALLOW = frozenset(("index.html", "app.js", "fmt.js", "style.css", "state.json"))  # 정적 서빙 허용 목록(그 외·디렉터리는 404)
 
 
@@ -45,6 +62,15 @@ class Handler(SimpleHTTPRequestHandler):
         if self.headers.get("Host", "").split(":")[0] not in ("localhost", "127.0.0.1"):
             self.send_error(403, "bad host")
             return None
+        if self.path.split("?")[0].split("#")[0] == "/api/questions":  # 읽기 전용 API
+            body = json.dumps(read_questions(), ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(body)
+            return None
         try:
             name = unquote(self.path.split("?")[0].split("#")[0], errors="strict")
         except ValueError:
@@ -58,6 +84,11 @@ class Handler(SimpleHTTPRequestHandler):
         return super().send_head()
 
     def do_POST(self):
+        if self.path.split("?")[0] == "/api/questions":
+            self.send_response(405)
+            self.send_header("Allow", "GET, HEAD")
+            self.end_headers()
+            return
         if self.path.split("?")[0] != "/api/state":
             self.send_error(404)
             return

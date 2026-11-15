@@ -300,3 +300,84 @@ describe('done 유지(방금 끝남)', () => {
     assert.ok(a && s && a[1] === s[1]);
   });
 });
+
+// ── /api/questions: handoff/questions.json(ROOT/../handoff)을 읽는 읽기 전용 API. 부모 폴더가 달라야 해서 base/agent-dashboard + base/handoff 구조로 따로 띄운다 ──
+describe('/api/questions', () => {
+  let base, qport, qchild;
+  const qfile = () => path.join(base, 'handoff', 'questions.json');
+  const qreq = (method, p, headers = {}) => new Promise((resolve, reject) => {
+    const r = http.request({ host: '127.0.0.1', port: qport, method, path: p, headers }, res => {
+      let b = ''; res.setEncoding('utf8'); res.on('data', d => b += d); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: b }));
+    });
+    r.on('error', reject); r.end();
+  });
+  before(async () => {
+    base = fs.mkdtempSync(path.join(os.tmpdir(), 'agdash-q-'));
+    const dash = path.join(base, 'agent-dashboard'); fs.mkdirSync(dash); fs.mkdirSync(path.join(base, 'handoff'));
+    for (const f of FILES) fs.copyFileSync(path.join(SRC, f), path.join(dash, f));
+    qport = await freePort();
+    qchild = spawn(process.execPath, [path.join(dash, 'serve.js'), String(qport)], { cwd: dash, stdio: ['ignore', 'pipe', 'inherit'] });
+    await new Promise((resolve, reject) => {
+      qchild.on('error', reject);
+      qchild.stdout.on('data', d => { if (String(d).includes('agent-dashboard:')) resolve(); });
+      setTimeout(() => reject(new Error('server start timeout')), 10000);
+    });
+  });
+  after(async () => {
+    if (qchild) { const done = new Promise(r => qchild.once('exit', r)); qchild.kill(); await done; }
+    try { fs.rmSync(base, { recursive: true, force: true }); } catch (_) {}
+  });
+
+  it('정상 파일은 200·JSON·no-store로 questions를 돌려준다', async () => {
+    fs.writeFileSync(qfile(), JSON.stringify({ questions: [{ id: 'Q-1', summary: '요약', status: 'open', next: [72] }, 'x', null] }));
+    const r = await qreq('GET', '/api/questions?x=1');
+    assert.strictEqual(r.status, 200);
+    assert.match(r.headers['content-type'], /application\/json/);
+    assert.strictEqual(r.headers['cache-control'], 'no-store');
+    const j = JSON.parse(r.body);
+    assert.strictEqual(j.error, undefined);
+    assert.deepStrictEqual(j.questions, [{ id: 'Q-1', summary: '요약', status: 'open', next: [72] }]); // 객체 아닌 항목은 걸러진다
+  });
+  it('파일이 없으면 200 + 빈 목록 + error', async () => {
+    fs.rmSync(qfile(), { force: true });
+    const r = await qreq('GET', '/api/questions');
+    assert.strictEqual(r.status, 200);
+    const j = JSON.parse(r.body);
+    assert.deepStrictEqual(j.questions, []); assert.ok(j.error);
+    assert.ok(!r.body.includes(base), '오류에 경로가 실리면 안 된다');
+  });
+  it('깨진 JSON·형식 불일치는 200 + 빈 목록 + error', async () => {
+    for (const txt of ['{broken', '[]', '{"questions":"x"}', '']) {
+      fs.writeFileSync(qfile(), txt);
+      const r = await qreq('GET', '/api/questions');
+      assert.strictEqual(r.status, 200, txt);
+      const j = JSON.parse(r.body); assert.deepStrictEqual(j.questions, [], txt); assert.ok(j.error, txt);
+    }
+  });
+  it('256KB 초과는 200 + 빈 목록 + error(본문을 읽지 않는다)', async () => {
+    fs.writeFileSync(qfile(), '{"questions":[{"summary":"' + 'a'.repeat(260 * 1024) + '"}]}');
+    const j = JSON.parse((await qreq('GET', '/api/questions')).body);
+    assert.deepStrictEqual(j.questions, []); assert.ok(j.error);
+  });
+  it('UTF-8 BOM이 있어도 읽힌다(Windows 편집기 대비)', async () => {
+    fs.writeFileSync(qfile(), '﻿{"questions":[{"id":"Q-2"}]}');
+    assert.strictEqual(JSON.parse((await qreq('GET', '/api/questions')).body).questions.length, 1);
+  });
+  it('POST·PUT·DELETE는 405이고 파일은 그대로다', async () => {
+    fs.writeFileSync(qfile(), '{"questions":[]}');
+    for (const m of ['POST', 'PUT', 'DELETE']) {
+      const r = await qreq(m, '/api/questions', { 'Content-Type': 'application/json' });
+      assert.strictEqual(r.status, 405, m); assert.match(r.headers.allow, /GET/);
+    }
+    assert.strictEqual(fs.readFileSync(qfile(), 'utf8'), '{"questions":[]}');
+  });
+  it('Host 변조는 403, HEAD는 200이고 본문 없음', async () => {
+    assert.strictEqual((await qreq('GET', '/api/questions', { Host: 'evil.com' })).status, 403);
+    const h = await qreq('HEAD', '/api/questions');
+    assert.strictEqual(h.status, 200); assert.strictEqual(h.body, '');
+  });
+  it('/handoff/questions.json 직접 접근은 404(정적 허용 목록 밖)', async () => {
+    assert.strictEqual((await qreq('GET', '/handoff/questions.json')).status, 404);
+    assert.strictEqual((await qreq('GET', '/../handoff/questions.json')).status, 404);
+  });
+});
