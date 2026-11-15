@@ -232,4 +232,41 @@ public class InstitutionEditRulesTest {
         assertTrue(InstitutionEditRules.diffImport(cur, row).isEmpty());
         assertTrue(InstitutionEditRules.diffImport(cur, new InstitutionImportRow()).isEmpty());
     }
+
+    // ---- importDateChanged (qa §4) · P3-1 · P3-3 (2026-11-15)
+
+    private static InstitutionImportRow rowEnd(String end) {
+        InstitutionImportRow r = new InstitutionImportRow();
+        r.setContractEnd(end);
+        return r;
+    }
+
+    private static Institution instEnd(String end) {
+        Institution i = inst();
+        i.setContractEnd(end);
+        return i;
+    }
+
+    @Test
+    public void importDateChanged_다섯_경우() {
+        assertTrue(InstitutionEditRules.importDateChanged(instEnd(null), rowEnd("2026-10-29")));        // 처음 채움
+        assertFalse(InstitutionEditRules.importDateChanged(instEnd("2026-10-29"), rowEnd("2026-10-29"))); // 같은 날짜
+        assertFalse(InstitutionEditRules.importDateChanged(instEnd("2026-10-29"), rowEnd(null)));         // 안 보냄
+        assertFalse(InstitutionEditRules.importDateChanged(instEnd("2026-10-29"), rowEnd("")));           // 빈 문자열 = 안 보냄
+        assertTrue(InstitutionEditRules.importDateChanged(null, rowEnd("2026-10-29")));                   // cur 없음
+    }
+
+    @Test
+    public void diffImport는_빈_문자열_날짜를_안_보낸_것으로_본다() {
+        assertTrue(InstitutionEditRules.diffImport(confirmed(), rowEnd("")).isEmpty());
+    }
+
+    @Test
+    public void 같은_날짜의_공백_포함_입력은_trim해서_upd에_반영하고_이력은_없다() {
+        InstitutionUpdateIn u = new InstitutionUpdateIn();
+        u.setContractEnd(" 2027-03-01 ");
+        List<InstitutionEditRules.Change> ch = InstitutionEditRules.resolve(confirmed(), u, CODES);
+        assertTrue(ch.isEmpty());
+        assertEquals("2027-03-01", u.getContractEnd());
+    }
 }

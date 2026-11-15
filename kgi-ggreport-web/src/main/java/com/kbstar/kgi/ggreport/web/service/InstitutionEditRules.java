@@ -76,8 +76,8 @@ final class InstitutionEditRules {
         importPlain(out, "TYPE", cur.getType(), row.getType());
         importPlain(out, "LAST_BID", cur.getLastBid(), row.getLastBid());
         importPlain(out, "TERM", str(cur.getTerm()), str(row.getTerm()));
-        String newEnd = row.getContractEnd();
-        if (newEnd != null && !Objects.equals(cur.getContractEnd(), newEnd)) {
+        if (importDateChanged(cur, row)) {   // SQL 판정과 같은 함수 — 빈 문자열 = 안 보냄(qa P3-3)
+            String newEnd = row.getContractEnd();
             out.add(new Change("CONTRACT_END", cut(cur.getContractEnd()), cut(newEnd), null, null));
             if (cur.isContractEndConfirmed()) {
                 out.add(new Change("CONTRACT_END_CONFIRMED", "Y", "N", null, null));   // 확정 강등
@@ -135,6 +135,9 @@ final class InstitutionEditRules {
         }
         boolean confChanged = newConf != oldConf;
         if (!dateChanged && !confChanged && !urlSent && !noSent) {
+            if (dateSent) {
+                upd.setContractEnd(newDate);   // 같은 날짜여도 공백 제거본을 저장한다(qa P3-1). 값은 기존과 같은 날짜
+            }
             return;   // 바뀐 것 없음 — 출처 없는 옛 확정 행을 건드리지 않는다
         }
 

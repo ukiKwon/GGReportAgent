@@ -7,6 +7,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
@@ -17,11 +19,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 /**
  * 반입 배치 검사·반영 — Task 5B.5. {@code POST /inbox/{batch}/validate} · {@code /import}.
@@ -50,6 +55,9 @@ public class InboxApiTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     private final ObjectMapper json = new ObjectMapper();
 
@@ -264,6 +272,45 @@ public class InboxApiTest {
         MockHttpServletResponse res = call(BATCH_ID, "/import");
         assertEquals(422, res.getStatus());
         assertTrue(res.getContentAsString().contains("CSV에 없는 기관명"));
+    }
+
+    /** 확정된 기관의 날짜를 inbox 배치가 바꾸면 확정이 내려가고 이력은 inbox_apply·사번 NULL 로 남는다(qa 후속, 2026-11-15). */
+    @Test
+    public void inbox가_확정_날짜를_바꾸면_확정_0_출처_NULL_이력은_inbox_apply() throws Exception {
+        String name = "이력반입구청";
+        String created = mockMvc.perform(post("/institutions").header("X-Emp-No", MEMBER)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"name_ko\":\"" + name + "\"}"))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        String id = json.readTree(created).path("institution_id").asText();
+        MockHttpServletResponse p = mockMvc.perform(put("/institutions/" + id).header("X-Emp-No", MEMBER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"contract_end\":\"2027-03-01\",\"contract_end_confirmed\":true,\"contract_end_src_no\":\"제2026-1393호\"}"))
+                .andReturn().getResponse();
+        assertEquals(p.getContentAsString(), 200, p.getStatus());
+
+        makeBatch(BATCH_ID, manifest(BATCH_ID, record("N-H1", name, "")),
+                CSV_HEADER + "\n" + name + ",자치구,11110,3,,2027-09-09\n");
+        MockHttpServletResponse res = call(BATCH_ID, "/import");
+        assertEquals(res.getContentAsString(), 200, res.getStatus());
+
+        assertEquals("2027-09-09", jdbc.queryForObject(
+                "SELECT CONTRACT_END FROM INSTITUTIONS WHERE INSTITUTION_ID = ?", String.class, id));
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM INSTITUTIONS WHERE INSTITUTION_ID = ? AND CONTRACT_END_CONFIRMED <> 0",
+                Integer.class, id).intValue());
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM INSTITUTIONS WHERE INSTITUTION_ID = ? AND CONTRACT_END_SRC_URL IS NULL AND CONTRACT_END_SRC_NO IS NULL",
+                Integer.class, id).intValue());
+
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT FIELD_CD, ACTOR_EMP_NO, SCREEN_ID FROM INST_EDIT_LOG WHERE INSTITUTION_ID = ?"
+                        + " AND SCREEN_ID = 'inbox_apply' AND FIELD_CD IN ('CONTRACT_END','CONTRACT_END_CONFIRMED') ORDER BY LOG_ID", id);
+        assertEquals(2, rows.size());
+        for (Map<String, Object> row : rows) {
+            assertEquals(null, row.get("ACTOR_EMP_NO"));
+        }
+        assertEquals("CONTRACT_END", rows.get(0).get("FIELD_CD"));
+        assertEquals("CONTRACT_END_CONFIRMED", rows.get(1).get("FIELD_CD"));
     }
 
     // ── 첨부 ──────────────────────────────────────────────────────────

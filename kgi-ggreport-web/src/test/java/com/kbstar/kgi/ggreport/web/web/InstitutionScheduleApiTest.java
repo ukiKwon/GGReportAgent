@@ -333,4 +333,31 @@ public class InstitutionScheduleApiTest {
                 "SELECT COUNT(*) FROM INST_EDIT_LOG WHERE INSTITUTION_ID = ? AND SCREEN_ID = 'csv_import' AND FIELD_CD IN ('CONTRACT_END','CONTRACT_END_CONFIRMED')",
                 Integer.class, id).intValue());
     }
+
+    @Test
+    public void 같은_날짜를_공백과_함께_보내면_DB에는_공백_없이_저장되고_확정은_유지된다() throws Exception {
+        String id = confirmedRow("공백구청1");
+        int before = logCount(id);
+        JsonNode r = ok(put(id, "{\"contract_end\":\" 2027-03-01 \"}"));
+        assertEquals("2027-03-01", r.path("contract_end").asText());
+        assertEquals("2027-03-01", jdbc.queryForObject(
+                "SELECT CONTRACT_END FROM INSTITUTIONS WHERE INSTITUTION_ID = ?", String.class, id));
+        assertTrue(get(id).path("contract_end_confirmed").asBoolean());
+        assertEquals(before, logCount(id));
+    }
+
+    @Test
+    public void CSV가_빈_날짜를_처음_채우면_확정은_0_유지_이력은_CONTRACT_END_한_행() throws Exception {
+        String id = create("반입구청3");                      // CONTRACT_END = NULL
+        csv("반입구청3", "2027-09-09");
+        JsonNode r = get(id);
+        assertEquals("2027-09-09", r.path("contract_end").asText());
+        assertFalse(r.path("contract_end_confirmed").asBoolean());
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM INST_EDIT_LOG WHERE INSTITUTION_ID = ? AND SCREEN_ID = 'csv_import' AND FIELD_CD = 'CONTRACT_END'",
+                Integer.class, id).intValue());
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM INST_EDIT_LOG WHERE INSTITUTION_ID = ? AND SCREEN_ID = 'csv_import' AND FIELD_CD = 'CONTRACT_END_CONFIRMED'",
+                Integer.class, id).intValue());
+    }
 }
