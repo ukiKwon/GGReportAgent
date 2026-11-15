@@ -58,10 +58,6 @@
           {
             "type": "command",
             "command": "export PATH=\"$PATH:/c/dev/node/node-v22.23.4-win-x64\"; node \"$CLAUDE_PROJECT_DIR/agent-dashboard/hook.js\" prompt"
-          },
-          {
-            "type": "command",
-            "command": "export PATH=\"$PATH:/c/dev/node/node-v22.23.4-win-x64\"; node \"$CLAUDE_PROJECT_DIR/.claude/hooks/capture-questions.js\" answer"
           }
         ]
       }
