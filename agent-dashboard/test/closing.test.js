@@ -18,7 +18,7 @@ function git(...a) {
 }
 
 function writeState({ at, active = [] }) { // store.read()는 정규화하지 않으므로 active를 직접 쓴다
-  const ids = ['designer', 'qa', 'frontend', 'backend', 'security', 'planner', 'pm', 'auditor', 'cleaner'];
+  const ids = require('../statefile').IDS; // 원본 한 곳
   fs.writeFileSync(path.join(dash, 'state.json'), JSON.stringify({
     coach: at === undefined ? { task: '' } : { task: '', at },
     stats: { laps: 0, since: 1000 },
@@ -92,6 +92,8 @@ describe('closing.js busyReason (--dry)', () => {
     assert.strictEqual(runDry(), '아님');
   });
   it('임시 폴더 로그에만 기록하고 커밋 수는 그대로다', () => {
+    writeState({ at: Date.now() });
+    runDry('--now'); // 앞 시험의 실행 결과에 기대지 않고 스스로 한 번 돌린다
     assert.ok(fs.existsSync(path.join(dash, 'closing.log')));
     assert.strictEqual(git('rev-list', '--count', 'HEAD').trim(), '1');
   });

@@ -46,4 +46,5 @@ function update(fn) {
     fs.writeFileSync(tmp, JSON.stringify(s, null, 2)); fs.renameSync(tmp, STATE);
   } finally { if (locked) try { fs.unlinkSync(LOCK); } catch (_) {} }
 }
-module.exports = { STATE, read, update };
+const IDS = ['designer', 'qa', 'frontend', 'backend', 'security', 'planner', 'pm', 'auditor', 'cleaner']; // 에이전트 id 정본(serve.js·시험이 공유)
+module.exports = { STATE, IDS, read, update };

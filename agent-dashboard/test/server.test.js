@@ -7,7 +7,7 @@ const { spawn, spawnSync } = require('child_process');
 
 const SRC = path.join(__dirname, '..');
 const FILES = ['serve.js', 'statefile.js', 'hook.js', 'closing.js', 'index.html', 'app.js', 'fmt.js', 'style.css'];
-const IDS = ['designer', 'qa', 'frontend', 'backend', 'security', 'planner', 'pm', 'auditor', 'cleaner'];
+const { IDS } = require('../statefile'); // 원본 한 곳
 let tmp, port, child;
 
 const stateFile = () => path.join(tmp, 'state.json');
@@ -226,9 +226,8 @@ describe('id 일치(hook.js · app.js · serve.js)', () => {
     return m[1];
   };
   const serveIds = () => {
-    const m = /const IDS = \[([^\]]*)\]/.exec(readSrc('serve.js'));
-    assert.ok(m, 'serve.js에서 IDS를 찾지 못함');
-    return allMatches(/'([\w-]+)'/g, m[1]);
+    assert.ok(/const IDS = store\.IDS;/.test(readSrc('serve.js')), 'serve.js가 statefile IDS를 쓰지 않음');
+    return IDS;
   };
 
   it('app.js의 청소부 id는 cleaner이고 AGENTS에는 없다', () => {
