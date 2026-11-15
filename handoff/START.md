@@ -10,7 +10,7 @@
 2. **②** 대조 결과 빈틈만 backend/frontend-dev → 적용·시험 → 커밋, NEXT 66·68·64 다시 쓰기, Q-11-10-01 done.
 3. **③ NEXT 64② 2단계(패치 C)**: 열림 상태 `POST /bidcases` 무가드 닫기 — Prep* 시험 생성 도우미에 관리자 사번(다른 세션이 Prep* 쓰는지 확인 뒤) → mvn → security → 커밋. 그 전 운영 배포는 `ggreport.legacy-flow.open=false`(docs/이관작업 README 4단계).
 4. **④** 1-c 결정대로 NEXT 78 후속(frontend-dev → qa, 화면 바뀌면 design·design_history).
-5. **푸시**: 사용자가 허용할 때만. 그때 PUSH-GATE 결과(11-15 security·cleaner 보고)를 다시 보고 올린다.
+5. **푸시(맨 먼저)**: 11-15 마무리에서 사용자가 푸시를 승인했지만 **새 PC에 GitHub 인증이 없어 실패**(Invalid username or token). 사용자가 `C:devghingh.exe auth login` → `gh auth setup-git` 한 뒤 `git push origin kgi-report-web-dev`(로컬 커밋 46건, PUSH-GATE 11-15 통과 — security 차단 없음). 토큰은 Contents·Pull requests Read and write.
 6. **11-16(월) 09:00 주간 수집 확인(NEXT 80)** — 옛 PC 작업 스케줄러. 종료 코드 0 정상, 3이면 새 실패. 정상이면 scourt를 run_weekly에(NEXT 81).
 7. **11-20(금) W47 산출물**: PM 주간 보고·에이전트별 정리(docs/pm_history), 요구사항 파악 자료(docs/요구사항 파악/index_2026-11-20.html — 종류 6종·기관 정보 변경 창 설명 포함), 질문 장부 '이번 주 질문' 표.
 
