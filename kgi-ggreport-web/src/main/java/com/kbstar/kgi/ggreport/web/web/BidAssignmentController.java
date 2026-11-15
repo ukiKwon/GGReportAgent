@@ -72,8 +72,12 @@ public class BidAssignmentController {
      */
     @PostMapping("/approval-requests/assignee-change")
     @ResponseStatus(HttpStatus.CREATED)
-    public Map<String, Object> requestChange(@RequestBody ApprovalIn.AssigneeChange in, HttpServletRequest req) {
-        guard.requireActiveUser(req);
+    public Map<String, Object> requestChange(@RequestBody(required = false) ApprovalIn.AssigneeChange in,
+                                             HttpServletRequest req) {
+        guard.requireActiveUser(req);                       // 401·403 이 먼저
+        if (in == null || in.getBidCaseId() == null || in.getBidCaseId().trim().isEmpty()) {
+            throw new ApiException(400, "입찰 건을 지정하세요.");   // 서비스와 같은 문구
+        }
         Actor actor = Actor.of(req);
         Map<String, Object> out = denyLogged(req, () -> approvalRequests.submitAssigneeChange(in, actor));
         int add = in.getAddEmpNos() == null ? 0 : in.getAddEmpNos().size();

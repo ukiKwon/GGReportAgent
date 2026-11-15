@@ -40,7 +40,8 @@ public class AccessLogInterceptor implements HandlerInterceptor {
 
     @Override
     public void afterCompletion(HttpServletRequest req, HttpServletResponse res, Object handler, Exception ex) {
-        String path = req.getRequestURI();
+        // 컨텍스트 경로(/ggreport)·;jsessionid 를 뗀 경로로 판정하고 그 값을 기록한다 — 컨텍스트가 없으면 이전과 같다.
+        String path = StaticCacheFilter.stripContext(req.getRequestURI(), req.getContextPath());
         if (skip(req.getMethod(), path) || req.getAttribute(AdminGuard.DENIED_LOGGED) != null) {
             return;
         }

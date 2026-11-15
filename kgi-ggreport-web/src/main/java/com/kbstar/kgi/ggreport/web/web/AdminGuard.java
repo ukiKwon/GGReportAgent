@@ -41,7 +41,8 @@ public class AdminGuard {
 
     private void deny(HttpServletRequest req, Actor actor, int status, String why) {
         req.setAttribute(DENIED_LOGGED, Boolean.TRUE);
-        accessLog.record(actor, "DENIED", req.getMethod(), req.getRequestURI(), status,
+        accessLog.record(actor, "DENIED", req.getMethod(),
+                com.kbstar.kgi.ggreport.web.config.StaticCacheFilter.stripContext(req.getRequestURI(), req.getContextPath()), status,
                 req.getRemoteAddr(), req.getHeader("User-Agent"), null, why);
     }
 }

@@ -106,6 +106,24 @@ public class AssigneeChangeApiTest {
         return mockMvc.perform(as(post(path).contentType(MediaType.APPLICATION_JSON).content(body), emp)).andReturn();
     }
 
+    @Test
+    public void 본문이_null_이거나_비어_있으면_400_업무_문구_사번이_없으면_401이_먼저() throws Exception {
+        MvcResult r = postJson(PATH, LEAD, "null");
+        assertEquals(400, r.getResponse().getStatus());
+        assertTrue(r.getResponse().getContentAsString(StandardCharsets.UTF_8).contains("입찰 건을 지정하세요"));
+        assertEquals(400, postJson(PATH, LEAD, "").getResponse().getStatus());     // 본문 없음
+        assertEquals(401, postJson(PATH, null, "null").getResponse().getStatus());  // 사번 없음이 먼저
+        assertEquals(401, postJson(PATH, null, "").getResponse().getStatus());
+    }
+
+    @Test
+    public void bid_case_id_가_없거나_공백이면_400() throws Exception {
+        assertEquals(400, postJson(PATH, LEAD, "{\"reason\":\"인력 조정\"}").getResponse().getStatus());
+        assertEquals(400, postJson(PATH, LEAD,
+                "{\"bid_case_id\":\"  \",\"add_emp_nos\":[],\"remove_emp_nos\":[],\"reason\":\"인력 조정\"}")
+                .getResponse().getStatus());
+    }
+
     private MvcResult getAs(String path, String emp) throws Exception {
         return mockMvc.perform(as(get(path), emp)).andReturn();
     }

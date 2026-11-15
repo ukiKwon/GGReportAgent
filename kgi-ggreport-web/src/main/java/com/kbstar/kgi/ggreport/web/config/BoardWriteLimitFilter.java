@@ -127,7 +127,8 @@ public class BoardWriteLimitFilter implements Filter {
         res.getOutputStream().write(("{\"detail\":{\"code\":\"" + code + "\",\"message\":\"" + message + "\""
                 + extra + "}}")
                 .getBytes(StandardCharsets.UTF_8));
-        accessLog.record(Actor.of(req), "API", req.getMethod(), req.getRequestURI(), status,
+        accessLog.record(Actor.of(req), "API", req.getMethod(),
+                StaticCacheFilter.stripContext(req.getRequestURI(), req.getContextPath()), status,
                 req.getRemoteAddr(), req.getHeader("User-Agent"), null,
                 "board-write code=" + code + " size=" + len);
     }

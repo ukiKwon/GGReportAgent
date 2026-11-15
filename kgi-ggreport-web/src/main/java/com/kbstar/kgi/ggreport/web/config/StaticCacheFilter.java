@@ -53,19 +53,46 @@ public class StaticCacheFilter implements Filter {
     public void destroy() {
     }
 
+    /**
+     * 요청 URI 에서 컨텍스트 경로(예 /ggreport)와 ;jsessionid 같은 경로 매개변수를 뗀 경로. 쿼리는 getRequestURI 에 없다.
+     * 경로 매개변수는 마디마다 ';' 부터 다음 '/' 앞까지만 뗀다 — Spring 이 라우팅에 쓰는 경로와 같게 해서,
+     * /bidcases/1;a=b/finalize 가 /bidcases/1 로 잘려 기록되는 위장을 막는다(security·qa 11-15).
+     * 접근 이력과 정적 판정이 같이 쓴다(WebLogic 컨텍스트 경로 대응). uri 가 null 이면 null.
+     */
+    public static String stripContext(String uri, String ctx) {
+        if (uri == null) {
+            return null;
+        }
+        String p = uri;
+        if (ctx != null && !ctx.isEmpty() && p.startsWith(ctx)
+                && (p.length() == ctx.length() || p.charAt(ctx.length()) == '/' || p.charAt(ctx.length()) == ';')) {
+            p = p.substring(ctx.length());
+        }
+        if (p.indexOf(';') < 0) {
+            return p;
+        }
+        StringBuilder sb = new StringBuilder(p.length());
+        boolean inParam = false;
+        for (int i = 0; i < p.length(); i++) {
+            char c = p.charAt(i);
+            if (c == ';') {
+                inParam = true;
+            } else if (c == '/') {
+                inParam = false;
+                sb.append(c);
+            } else if (!inParam) {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
     /** 정책 문자열, 대상 아니면 null. 쿼리는 getRequestURI 에 없고 ;jsessionid 는 잘라낸다. */
     public static String policyFor(String uri, String ctx) {
         if (uri == null) {
             return null;
         }
-        String p = uri;
-        if (ctx != null && !ctx.isEmpty() && p.startsWith(ctx)) {
-            p = p.substring(ctx.length());
-        }
-        int semi = p.indexOf(';');
-        if (semi >= 0) {
-            p = p.substring(0, semi);
-        }
+        String p = stripContext(uri, ctx);
         if (p.isEmpty() || "/".equals(p)) {
             return REVALIDATE;          // 진입점
         }
