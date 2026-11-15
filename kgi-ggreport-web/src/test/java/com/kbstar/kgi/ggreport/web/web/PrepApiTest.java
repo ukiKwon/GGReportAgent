@@ -1082,17 +1082,14 @@ public class PrepApiTest {
     }
 
     @Test
-    public void 중단_사유는_영업팀장_영업부장만_보고_옛_담당자는_못_본다() throws Exception {
+    public void 중단_사유는_영업팀장_영업부장과_옛_담당자가_본다() throws Exception {
         String bid = opened(INST);
         assertEquals(200, postJson("/bidcases/" + bid + "/prep/cancel", LEAD, "{\"reason\":\"가상 중단 사유\"}").getResponse().getStatus());
-        for (String emp : new String[]{LEAD, LEAD2, HEAD}) {
+        // 옛 담당자(MEMBER2)도 본다 — 사용자 답 2026-11-15 ⓐ 보여 주기(Q-2026-11-15-05)
+        for (String emp : new String[]{LEAD, LEAD2, HEAD, MEMBER2}) {
             assertEquals(emp, "가상 중단 사유", eventRow(bid, emp, "CANCEL").path("reason").asText());
         }
-        JsonNode old = eventRow(bid, MEMBER2, "CANCEL");   // 옛 담당자 — 열람은 200, 사유는 null(열린 질문 1 답에 따라 바뀜)
-        assertNotNull(old);
-        assertTrue(old.path("reason").isNull());
-        assertFalse(body(getAs("/bidcases/" + bid + "/prep/history", MEMBER2)).contains("가상 중단 사유"));
-        assertEquals(404, getAs("/bidcases/" + bid + "/prep/history", MEMBER).getResponse().getStatus());
+        assertEquals(404, getAs("/bidcases/" + bid + "/prep/history", MEMBER).getResponse().getStatus());   // 담당이 아니었던 팀원은 열람 자체가 없다
     }
 
     @Test

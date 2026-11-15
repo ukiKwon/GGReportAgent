@@ -164,6 +164,9 @@ public class PrepService {
         visible(me, bidCaseId);
         List<Map<String, Object>> out = new ArrayList<>();
         String cycleConfirmer = null;   // 바로 앞 CONFIRM 의 행위자 — 그 확정을 취소한 UNCONFIRM 의 당사자(LOG_ID 오름차순이라 먼저 잡힌다)
+        // 그 건의 현재·옛 담당자 — 확정 취소·중단 사유를 본다(사용자 답 2026-11-15 ⓐ 보여 주기, Q-2026-11-15-05)
+        boolean caseAssignee = assignments.isActiveAssignee(bidCaseId, me.getEmpNo())
+                || mapper.countEverAssigned(bidCaseId, me.getEmpNo()) > 0;
         for (BidPrepLogView l : mapper.selectLog(bidCaseId)) {
             if ("CONFIRM".equals(l.getEventCd())) {
                 cycleConfirmer = l.getActorEmpNo();
@@ -175,7 +178,7 @@ public class PrepService {
             m.put("to_state", l.getToState());
             m.put("task_cd", l.getTaskCd());
             m.put("req_id", l.getReqId());
-            m.put("reason", canSeeReason(me, l, cycleConfirmer) ? l.getReason() : null);
+            m.put("reason", canSeeReason(me, l, cycleConfirmer, caseAssignee) ? l.getReason() : null);
             m.put("actor_emp_no", l.getActorEmpNo());
             m.put("actor_name", l.getActorName());
             m.put("emp_verified", l.getEmpVerified() == 1);   // false = 자기신고(위조 가능)
@@ -750,8 +753,11 @@ public class PrepService {
         return r != null && me.getEmpNo().equals(r.getRequesterEmpNo());
     }
 
-    /** 이력 사유 열람 — 결정의 당사자·영업팀장·영업부장만. 공개 목록(ATTACH_VOID)만 열람자 모두에게, 그 밖 새 이벤트는 팀장·부장만. */
-    private boolean canSeeReason(SysUser me, BidPrepLogView l, String cycleConfirmer) {
+    /**
+     * 이력 사유 열람 — 결정의 당사자·영업팀장·영업부장만. 확정 취소·중단 사유는 그 건의 현재·옛 담당자도 본다(사용자 답 11-15 ⓐ).
+     * 공개 목록(ATTACH_VOID)만 열람자 모두에게, 그 밖 새 이벤트는 팀장·부장만.
+     */
+    private boolean canSeeReason(SysUser me, BidPrepLogView l, String cycleConfirmer, boolean caseAssignee) {
         String ev = l.getEventCd();
         if (PUBLIC_REASON_EVENTS.contains(ev) || l.getReason() == null) {
             return true;
@@ -760,7 +766,7 @@ public class PrepService {
             return canSeePastOpen(me, l.getReqId());
         }
         if (ACT_REASON_EVENTS.contains(ev)) {
-            if (isHead(me) || isLead(me)) {
+            if (isHead(me) || isLead(me) || caseAssignee) {
                 return true;
             }
             String e = me.getEmpNo();
