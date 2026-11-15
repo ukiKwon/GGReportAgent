@@ -1,5 +1,5 @@
 const test = require('node:test'), assert = require('node:assert');
-const { qClassify, qIsPending, qElapsedDays, qDaysLabel, qOverdue, qSplit, qMd } = require('../fmt.js');
+const { qClassify, qIsPending, qElapsedDays, qDaysLabel, qOverdue, qSplit, qMd, qGroups, qClock } = require('../fmt.js');
 const NOW = new Date(2026, 10, 15, 9, 30); // 2026-11-15 로컬
 
 test('qClassify: 알 수 없는 값은 미답(open)', () => {
@@ -60,4 +60,31 @@ test('qSplit: 입력 불변·이상값 무시', () => {
   assert.strictEqual(s.active.length, 1);
   assert.deepStrictEqual(qSplit(undefined), { active: [], done: [], pendingCount: 0 });
   assert.deepStrictEqual(qSplit({}), { active: [], done: [], pendingCount: 0 });
+});
+
+test('qGroups: 미응답(open·hold) 최근 물은 순, 응답(answered) 최근 답한 순, 해소 따로', () => {
+  const L = [
+    { id: 'Q-1', status: 'open', askedAt: '2026-11-10' },
+    { id: 'Q-2', status: 'hold', askedAt: '2026-11-12' },
+    { id: 'Q-3', status: 'open', askedAt: '2026-11-12' },
+    { id: 'Q-4', status: 'answered', askedAt: '2026-11-01', answeredAt: '2026-11-14' },
+    { id: 'Q-5', status: 'answered', askedAt: '2026-11-13' },
+    { id: 'Q-6', status: 'done', askedAt: '2026-11-02', answeredAt: '2026-11-11' },
+    { id: 'Q-7', status: 'open' },
+  ];
+  const g = qGroups(L);
+  assert.deepStrictEqual(g.pending.map(q => q.id), ['Q-3', 'Q-2', 'Q-1', 'Q-7']);
+  assert.deepStrictEqual(g.answered.map(q => q.id), ['Q-4', 'Q-5']);
+  assert.deepStrictEqual(g.done.map(q => q.id), ['Q-6']);
+  assert.deepStrictEqual(g.counts, { pending: 4, answered: 2, done: 1 });
+  assert.deepStrictEqual(qGroups(undefined).counts, { pending: 0, answered: 0, done: 0 });
+});
+test('qGroups: 같은 날은 번호 큰 것이 위(10 > 9 > 2)', () => {
+  const g = qGroups(['2', '10', '9'].map(n => ({ id: 'Q-2026-11-15-' + n, status: 'open', askedAt: '2026-11-15' })));
+  assert.deepStrictEqual(g.pending.map(q => q.id.slice(-2)), ['10', '-9', '-2']);
+});
+test('qClock: HH:MM:SS, 잘못된 값은 빈 문자열', () => {
+  assert.strictEqual(qClock(new Date(2026, 10, 15, 9, 5, 7)), '09:05:07');
+  assert.strictEqual(qClock(new Date(NaN)), '');
+  assert.strictEqual(qClock('09:00'), '');
 });

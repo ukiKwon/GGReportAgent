@@ -38,4 +38,19 @@ function qSplit(list) { // -> { active:[해소 전 전부, 최근에 물은 순(
   const done = L.filter(q => qClassify(q) === 'done').sort((x, y) => dk(y) - dk(x) || idc(x, y));
   return { active, done, pendingCount: L.filter(qIsPending).length };
 }
-if (typeof module !== 'undefined' && module.exports) module.exports = { fmtLaps, qClassify, qIsPending, qElapsedDays, qDaysLabel, qOverdue, qMd, qSplit };
+function qGroups(list) { // 탭 묶음 -> { pending:[open·hold 최근에 물은 순], answered:[최근 답한 순], done:[최근 해소 순], counts } (사용자 2026-11-15 미응답/응답 탭)
+  const L = Array.isArray(list) ? list.filter(q => q && typeof q === 'object') : [];
+  const dn = s => { const n = qDayNum(s); return Number.isFinite(n) ? n : -Infinity; };
+  const idc = (x, y) => String(y.id).localeCompare(String(x.id), 'en', { numeric: true }); // 같은 날은 번호 큰(나중) 것이 위
+  const by = key => (x, y) => dn(key(y)) - dn(key(x)) || idc(x, y);
+  const pending = L.filter(qIsPending).sort(by(q => q.askedAt));
+  const answered = L.filter(q => qClassify(q) === 'answered').sort(by(q => q.answeredAt || q.askedAt));
+  const done = L.filter(q => qClassify(q) === 'done').sort(by(q => q.answeredAt || q.askedAt));
+  return { pending, answered, done, counts: { pending: pending.length, answered: answered.length, done: done.length } };
+}
+function qClock(d) { // Date -> 'HH:MM:SS'(잘못된 값은 '')
+  if (!(d instanceof Date) || !Number.isFinite(d.getTime())) return '';
+  const z = n => String(n).padStart(2, '0');
+  return z(d.getHours()) + ':' + z(d.getMinutes()) + ':' + z(d.getSeconds());
+}
+if (typeof module !== 'undefined' && module.exports) module.exports = { fmtLaps, qClassify, qIsPending, qElapsedDays, qDaysLabel, qOverdue, qMd, qSplit, qGroups, qClock };

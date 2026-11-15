@@ -42,11 +42,22 @@ button:focus-visible, select:focus-visible { outline:2px solid var(--accent); ou
 /* 기본(1100px 미만) = 오른쪽 서랍 */
 #qpanel { position:fixed; top:0; right:0; bottom:0; z-index:20; width:min(360px,90vw); overflow:auto; background:var(--panel); border-left:1px solid var(--line); box-shadow:-8px 0 24px rgba(0,0,0,.45); transform:translateX(100%); visibility:hidden; transition:transform .2s ease, visibility 0s linear .2s; }
 #qpanel.open { transform:none; visibility:visible; transition:transform .2s ease, visibility 0s; }
-.qhead { position:sticky; top:0; z-index:1; display:flex; align-items:center; gap:8px; padding:10px 12px; background:var(--panel); border-bottom:1px solid var(--line); }
+.qtop { position:sticky; top:0; z-index:1; background:var(--panel); border-bottom:1px solid var(--line); }
+.qhead { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 12px 4px; }
+.qrefresh { margin-left:auto; padding:3px 10px; font-size:12px; }
+.qrefresh[aria-busy="true"] { opacity:.6; }
+.qchecked { margin:0 12px 6px; font-size:12px; color:var(--dim); }
+.qtabs { display:flex; padding:0 8px; }
+.qtab { flex:1; padding:8px 6px; font-size:13px; background:transparent; border:0; border-bottom:3px solid transparent; border-radius:0; color:var(--dim); cursor:pointer; }
+.qtab:hover { color:var(--text); }
+.qtab[aria-selected="true"] { color:var(--text); font-weight:700; border-bottom-color:var(--accent); }
+.qtab:focus-visible { outline:2px solid var(--accent); outline-offset:-4px; }
+.qnote { margin:10px 12px 0; font-size:12px; color:#ff7675; }
+.qnote[hidden], #qpanel [role="tabpanel"][hidden], .qempty[hidden], .qdonebox[hidden] { display:none; }
 .qhead h2 { margin:0; font-size:16px; }
 .qbadge { min-width:22px; padding:1px 7px; border-radius:11px; background:var(--accent); color:#10151c; font-size:13px; font-weight:700; text-align:center; }
 .qbadge[hidden] { display:none; }
-.qclose { margin-left:auto; padding:3px 10px; font-size:12px; }
+.qclose { padding:3px 10px; font-size:12px; }
 .qempty { margin:12px; font-size:13px; color:var(--dim); }
 .qlist { list-style:none; margin:8px 12px; padding:0; display:flex; flex-direction:column; gap:8px; }
 .qlist:empty { display:none; }
@@ -74,6 +85,6 @@ button:focus-visible, select:focus-visible { outline:2px solid var(--accent); ou
   main > .stage, main > #chips, main > .dev { grid-column:1; }
   #chips, .dev { margin-top:0; }
   #qpanel { position:static; grid-column:2; grid-row:1 / -1; min-height:0; width:auto; transform:none; visibility:visible; box-shadow:none; border:1px solid var(--line); border-radius:10px; transition:none; }
-  .qhead { border-radius:10px 10px 0 0; }
+  .qtop { border-radius:10px 10px 0 0; }
   .qbtn, .qclose { display:none; }
 }

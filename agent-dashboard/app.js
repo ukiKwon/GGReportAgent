@@ -1094,9 +1094,13 @@ function applyFeed(j) {
 }
 /* ---------- 사용자에게 물은 질문 패널 ---------- */
 const qUi = {
-  cards: new Map(), sig: null, count: null, last: [],
-  list: document.getElementById('qlist'), doneList: document.getElementById('qdonelist'),
-  doneSum: document.getElementById('qdonesum'), empty: document.getElementById('qempty'),
+  cards: new Map(), sig: null, count: null, last: [], busy: false, okAt: null, tab: 'pending',
+  list: document.getElementById('qlist'), answered: document.getElementById('qanswered'), doneList: document.getElementById('qdonelist'),
+  doneBox: document.getElementById('qdone'), doneSum: document.getElementById('qdonesum'), empty: document.getElementById('qempty'),
+  emptyAns: document.getElementById('qempty-answered'), note: document.getElementById('qnote'), checked: document.getElementById('qchecked'),
+  refresh: document.getElementById('qrefresh'),
+  tabs: { pending: document.getElementById('qtab-pending'), answered: document.getElementById('qtab-answered') },
+  panes: { pending: document.getElementById('qpane-pending'), answered: document.getElementById('qpane-answered') },
   badge: document.getElementById('qbadge'), btn: document.getElementById('qbtn'),
   panel: document.getElementById('qpanel'), close: document.getElementById('qclose'), live: document.getElementById('qlive'),
 };
@@ -1145,23 +1149,32 @@ function qSync(box, items, keep, now) { // id 기준 차분: 있는 카드는 �
   });
 }
 function qRender(list, err) {
-  const now = new Date(), sp = qSplit(list);
-  const sig = JSON.stringify(sp) + '|' + (err ? 1 : 0) + '|' + now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate(); // 자정이 지나면 경과일도 갱신
+  const now = new Date(), g = qGroups(list);
+  const sig = JSON.stringify(g) + '|' + (err ? 1 : 0) + '|' + now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate(); // 자정이 지나면 경과일도 갱신
   if (sig === qUi.sig) return;
   qUi.sig = sig;
   const keep = new Set();
-  qSync(qUi.list, sp.active, keep, now);
-  qSync(qUi.doneList, sp.done, keep, now);
+  qSync(qUi.list, g.pending, keep, now);
+  qSync(qUi.answered, g.answered, keep, now);
+  qSync(qUi.doneList, g.done, keep, now);
   qUi.cards.forEach((li, id) => { if (!keep.has(id)) { li.remove(); qUi.cards.delete(id); } });
-  // 장부 읽기 실패(편집 중 깨진 JSON 등)는 직전 목록을 그대로 두고 안내만 붙인다
-  qSet(qUi.empty, !err ? '지금 답을 기다리는 질문이 없습니다' : list.length ? '질문 장부를 읽지 못했습니다 — 직전 목록을 보여 줍니다' : '질문 장부를 읽지 못했습니다(대시보드 서버 연결 확인)');
-  qUi.empty.hidden = !err && sp.active.length > 0;
-  qSet(qUi.doneSum, '해소된 질문 ' + sp.done.length + '건');
-  qSet(qUi.badge, String(sp.pendingCount)); qUi.badge.hidden = sp.pendingCount === 0;
-  qSet(qUi.btn, '질문 ' + sp.pendingCount);
-  if (qUi.count !== sp.pendingCount) { qUi.count = sp.pendingCount; qSet(qUi.live, '답을 기다리는 질문 ' + sp.pendingCount + '건'); }
+  // 장부 읽기 실패(편집 중 깨진 JSON·서버 끊김)는 직전 목록을 그대로 두고 안내만 붙인다
+  qUi.note.hidden = !err;
+  qSet(qUi.note, list.length ? '질문 장부를 읽지 못했습니다 — 직전 목록을 보여 줍니다' : '질문 장부를 읽지 못했습니다(대시보드 서버 연결 확인)');
+  const blank = err && !list.length;
+  qUi.empty.hidden = blank || g.counts.pending > 0;
+  qUi.emptyAns.hidden = blank || g.counts.answered + g.counts.done > 0;
+  qUi.doneBox.hidden = g.counts.done === 0;
+  qSet(qUi.doneSum, '해소된 질문 ' + g.counts.done + '건');
+  qSet(qUi.tabs.pending, '미응답 ' + g.counts.pending);
+  qSet(qUi.tabs.answered, '응답 ' + (g.counts.answered + g.counts.done)); // 응답 탭 수 = 답함 + 해소
+  qSet(qUi.badge, String(g.counts.pending)); qUi.badge.hidden = g.counts.pending === 0;
+  qSet(qUi.btn, '질문 ' + g.counts.pending);
+  if (qUi.count !== g.counts.pending) { qUi.count = g.counts.pending; qSet(qUi.live, '답을 기다리는 질문 ' + g.counts.pending + '건'); }
 }
-async function pollQuestions() {
+async function pollQuestions(manual) {
+  if (qUi.busy) return; // 자동·수동 확인이 겹치면 뒤의 것은 건너뛴다(연타 방지)
+  qUi.busy = true; qUi.refresh.setAttribute('aria-busy', 'true');
   let err = false;
   const ac = typeof AbortController === 'function' ? new AbortController() : null;
   const timer = ac && setTimeout(() => ac.abort(), 3000); // 응답이 멈춰도 state.json 폴링이 같이 멈추지 않게
@@ -1170,11 +1183,33 @@ async function pollQuestions() {
     if (!res.ok) throw new Error(res.status);
     const j = await res.json();
     if (j && j.error) err = true;
-    else if (j && Array.isArray(j.questions)) qUi.last = j.questions;
-  } catch (e) { err = true; /* 서버 없음(데모)·끊김 -> '읽지 못했습니다' 안내(질문이 없다는 뜻으로 오해하지 않게) */ }
-  finally { if (timer) clearTimeout(timer); }
+    else if (j && Array.isArray(j.questions)) { qUi.last = j.questions; qUi.okAt = new Date(); }
+  } catch (e) { err = true; /* 서버 없음(데모)·끊김 -> '읽지 못했습니다' 안내 */ }
+  finally { if (timer) clearTimeout(timer); qUi.busy = false; qUi.refresh.removeAttribute('aria-busy'); }
   qRender(qUi.last, err);
+  qSet(qUi.checked, (qUi.okAt ? '확인 ' + qClock(qUi.okAt) : '확인 전') + ' · 2초마다 자동 확인');
+  if (manual) qSet(qUi.live, err ? '질문 목록을 읽지 못했습니다' : '질문 목록을 새로 읽었습니다 — 미응답 ' + qGroups(qUi.last).counts.pending + '건');
 }
+function qSetTab(name, focus) {
+  if (!qUi.tabs[name]) name = 'pending';
+  qUi.tab = name;
+  for (const k of Object.keys(qUi.tabs)) {
+    const on = k === name;
+    qUi.tabs[k].setAttribute('aria-selected', String(on)); qUi.tabs[k].tabIndex = on ? 0 : -1;
+    qUi.panes[k].hidden = !on;
+  }
+  if (focus) qUi.tabs[name].focus();
+  try { localStorage.setItem('dash.qtab', name); } catch (_) {}
+}
+Object.keys(qUi.tabs).forEach(k => { qUi.tabs[k].onclick = () => qSetTab(k); });
+document.getElementById('qtabs').addEventListener('keydown', e => {
+  const ks = Object.keys(qUi.tabs), i = ks.indexOf(qUi.tab);
+  const to = e.key === 'ArrowRight' ? ks[(i + 1) % ks.length] : e.key === 'ArrowLeft' ? ks[(i + ks.length - 1) % ks.length]
+    : e.key === 'Home' ? ks[0] : e.key === 'End' ? ks[ks.length - 1] : null;
+  if (to) { e.preventDefault(); qSetTab(to, true); }
+});
+try { const t = localStorage.getItem('dash.qtab'); if (t === 'pending' || t === 'answered') qSetTab(t); } catch (_) {}
+qUi.refresh.onclick = () => pollQuestions(true);
 function qSetOpen(open, back) {
   qUi.panel.classList.toggle('open', open);
   qUi.btn.setAttribute('aria-expanded', String(open));
