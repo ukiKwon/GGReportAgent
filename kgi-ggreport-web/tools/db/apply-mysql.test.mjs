@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   parseMigrationName, normalizeVersion, sortMigrations, checksum,
   planMigrations, parseArgs, parseAppliedRows, insertSql,
+  escapeOptionValue, buildOptionsFileContent, buildMysqlArgs, withOptionsFile,
 } from './apply-mysql.mjs';
 
 test('파일 이름 규칙', () => {
@@ -67,4 +69,75 @@ test('기록 행 파싱·INSERT 문 (값 검증, 비밀번호 무관)', () => {
   assert.ok(sql.includes("'o_brien'"));
   assert.throws(() => insertSql([{ version: '001', name: "x'; DROP.sql", sha }], 'me'), /올바르지/);
   assert.throws(() => insertSql([{ version: '001', name: '001_a.sql', sha: 'zz' }], 'me'), /올바르지/);
+});
+
+test('옵션 파일 값 이스케이프: 백슬래시·따옴표·제어문자만, # ; 공백 작은따옴표는 그대로', () => {
+  assert.equal(escapeOptionValue("a b#c;d'e"), "a b#c;d'e");
+  assert.equal(escapeOptionValue('a\\b'), 'a\\\\b');
+  assert.equal(escapeOptionValue('a"b'), 'a\\"b');
+  assert.equal(escapeOptionValue('a\nb\rc\td'), 'a\\nb\\rc\\td');
+  assert.equal(escapeOptionValue('\\"'), '\\\\\\"');
+  assert.throws(() => escapeOptionValue('a\0b'), /쓸 수 없는/);
+});
+
+test('옵션 파일 내용: [client] 와 password 한 줄뿐', () => {
+  const c = buildOptionsFileContent('p#s;w "d"\\');
+  assert.equal(c, '[client]\npassword="p#s;w \\"d\\"\\\\"\n');
+  assert.equal(c.split('\n').filter(Boolean).length, 2);
+});
+
+test('mysql 인자: --defaults-extra-file 이 맨 앞, 없으면 생략', () => {
+  const cfg = { host: 'h', port: '3306', user: 'u' };
+  const a = buildMysqlArgs(cfg, ['--batch', 'db'], '/tmp/x/client.cnf');
+  assert.equal(a[0], '--defaults-extra-file=/tmp/x/client.cnf');
+  assert.deepEqual(a.slice(1, 7), ['-h', 'h', '-P', '3306', '-u', 'u']);
+  assert.equal(a[a.length - 1], 'db');
+  assert.ok(!buildMysqlArgs(cfg, [], null).some((x) => x.startsWith('--defaults-extra-file')));
+  assert.ok(!a.some((x) => x.includes('password')));
+});
+
+test('withOptionsFile: 내용 기록·권한, 정상 종료 뒤 삭제', async () => {
+  let seen;
+  await withOptionsFile('pw"1', (f) => {
+    seen = f;
+    assert.equal(readFileSync(f, 'utf8'), '[client]\npassword="pw\\"1"\n');
+    if (process.platform !== 'win32') assert.equal(statSync(f).mode & 0o777, 0o600);
+    assert.ok(path.basename(path.dirname(f)).startsWith('apply-mysql-'));
+    return 0;
+  });
+  assert.ok(!existsSync(seen));
+  assert.ok(!existsSync(path.dirname(seen)));
+});
+
+test('withOptionsFile: fn 이 예외를 던져도 삭제하고 예외는 그대로 전달', async () => {
+  let seen;
+  await assert.rejects(() => withOptionsFile('secret', (f) => { seen = f; throw new Error('boom'); }), /boom/);
+  assert.ok(!existsSync(seen));
+  assert.ok(!existsSync(path.dirname(seen)));
+});
+
+test('withOptionsFile: 실행 도중 프로세스가 끝나도(exit) 임시 폴더를 지운다', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const mod = pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), 'apply-mysql.mjs')).href;
+  const script = `import { withOptionsFile } from ${JSON.stringify(mod)};
+    await withOptionsFile('pw', (f) => { process.stdout.write(f); process.exit(0); });`;
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(r.stdout.endsWith('client.cnf'), r.stdout);
+  assert.ok(!existsSync(r.stdout));
+  assert.ok(!existsSync(path.dirname(r.stdout)));
+});
+
+test('withOptionsFile: 비밀번호 없으면 파일을 만들지 않음, 쓰기 실패해도 폴더 정리', async () => {
+  assert.equal(await withOptionsFile('', (f) => f), null);
+  const base = mkdtempSync(path.join(os.tmpdir(), 'apply-mysql-test-'));
+  try {
+    let created;
+    await assert.rejects(() => withOptionsFile('x', () => 1, {
+      tmpdir: base,
+      mkdtemp: (p) => { created = mkdtempSync(p); return created; },
+      write: () => { throw new Error('disk'); },
+    }), /disk/);
+    assert.ok(!existsSync(created));
+  } finally { rmSync(base, { recursive: true, force: true }); }
 });

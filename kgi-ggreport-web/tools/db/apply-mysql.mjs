@@ -4,7 +4,7 @@
 // 사용법: node apply-mysql.mjs --help   (README §5-3)
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -28,8 +28,9 @@ const USAGE = `사용법: node apply-mysql.mjs [옵션]
   --dir <폴더>         SQL 폴더(기본: 이 저장소의 src/main/resources/db/mysql)
   --help
 
-비밀번호는 한 번만 묻고(입력 숨김) MYSQL_PWD 환경변수로 mysql 에 넘깁니다.
-환경변수 MYSQL_PWD 가 이미 설정돼 있으면 묻지 않고 그 값을 씁니다.`;
+비밀번호는 한 번만 묻고(입력 숨김), 실행 중에만 존재하는 임시 옵션 파일(--defaults-extra-file)로
+mysql 에 넘깁니다. 파일은 mysql 호출이 끝나면(성공·실패·예외 모두) 지웁니다.
+환경변수 MYSQL_PWD 가 이미 설정돼 있으면 묻지 않고 그 값을 씁니다(입력 방식만 그렇고, mysql 에는 환경변수로 넘기지 않음).`;
 
 // ---------- 순수 함수 (단위 시험 대상) ----------
 
@@ -134,6 +135,80 @@ export function insertSql(rows, by) {
   return `INSERT INTO ${TABLE} (VERSION, FILE_NAME, CHECKSUM, APPLIED_BY) VALUES ${values.join(',')};`;
 }
 
+/**
+ * MySQL 옵션 파일 값 이스케이프 — 큰따옴표로 감싼 값 안에서 \ " 와 제어문자만 이스케이프한다.
+ * (옵션 파일 문법: 따옴표 안에서는 # ; 공백 ' 가 그대로 문자다. 지원 이스케이프: \b \t \n \r \\ \s \")
+ */
+export function escapeOptionValue(value) {
+  const s = String(value);
+  if (s.includes('\0')) throw new Error('비밀번호에 쓸 수 없는 문자가 있습니다');
+  return s.replace(/[\\"\b\t\n\r]/g, (c) => ({ '\\': '\\\\', '"': '\\"', '\b': '\\b', '\t': '\\t', '\n': '\\n', '\r': '\\r' }[c]));
+}
+
+/** 옵션 파일 내용. 비밀번호만 담는다(host/user/port 는 이미 검증된 명령행 인자로 넘김). */
+export function buildOptionsFileContent(password) {
+  return `[client]\npassword="${escapeOptionValue(password)}"\n`;
+}
+
+/** mysql 인자. --defaults-extra-file 은 반드시 맨 앞(MySQL 규칙: 다른 옵션보다 먼저). optionsFile 이 없으면 생략. */
+export function buildMysqlArgs(cfg, extra, optionsFile) {
+  const args = [];
+  if (optionsFile) args.push(`--defaults-extra-file=${optionsFile}`);
+  args.push('-h', cfg.host, '-P', cfg.port, '-u', cfg.user, '--default-character-set=utf8mb4', ...extra);
+  return args;
+}
+
+/**
+ * 비밀번호용 임시 옵션 파일을 만들어 fn(경로)을 실행하고, 성공·실패·예외 어느 경우든 finally 에서 지운다.
+ * 비밀번호가 비어 있으면 파일을 만들지 않고 fn(null).
+ * io 는 시험용 주입(기본: 실제 fs, OS 임시 폴더). 폴더 이름은 mkdtemp 가 무작위로 붙인다.
+ * 권한: 폴더는 mkdtemp 기본(Linux/macOS 0o700), 파일 0o600(flag 'wx' = 이미 있으면 실패).
+ * Windows 는 mode 가 대부분 무시되고 사용자별 %TEMP% 의 상속 ACL 에 기댄다 —
+ * 그래서 수명을 최소화(호출 직후 삭제)하는 것이 주된 방어다.
+ */
+export async function withOptionsFile(password, fn, io = {}) {
+  const { tmpdir = os.tmpdir(), mkdtemp = mkdtempSync, write = writeFileSync, rm = rmSync } = io;
+  if (!password) return fn(null);
+  let dir = null;
+  try {
+    dir = mkdtemp(path.join(tmpdir, 'apply-mysql-'));
+    LIVE_DIRS.add(dir);
+    hookExitCleanup();
+    const file = path.join(dir, 'client.cnf');
+    write(file, buildOptionsFileContent(password), { flag: 'wx', mode: 0o600 });
+    return await fn(file);
+  } finally {
+    if (dir) {
+      LIVE_DIRS.delete(dir);
+      try { rm(dir, { recursive: true, force: true }); } catch { warnLeftover(dir); }
+    }
+  }
+}
+
+// 강제 종료(Ctrl+C·kill)로 finally 가 돌지 않아도 비밀번호 파일이 남지 않게 — 종료 직전 동기 삭제(security 11-15 중).
+const LIVE_DIRS = new Set();
+let exitHooked = false;
+function warnLeftover(dir) {
+  process.stderr.write(`경고: 비밀번호 임시 폴더를 지우지 못했습니다. 직접 지우세요: ${dir}\n`);   // 경로만, 값 없음
+}
+function cleanupLiveDirs() {
+  for (const d of LIVE_DIRS) {
+    try { rmSync(d, { recursive: true, force: true }); } catch { warnLeftover(d); }
+  }
+  LIVE_DIRS.clear();
+}
+function hookExitCleanup() {
+  if (exitHooked) return;
+  exitHooked = true;
+  process.once('exit', cleanupLiveDirs);
+}
+/** CLI 로 실행될 때만 신호 처리기를 단다(시험·import 에서는 달지 않음). 신호 → exit 이벤트 → 동기 삭제. */
+export function installSignalCleanup() {
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+    process.once(sig, () => { cleanupLiveDirs(); process.exit(130); });
+  }
+}
+
 // ---------- 입출력 ----------
 
 function askPassword(prompt) {
@@ -162,11 +237,12 @@ function askPassword(prompt) {
   });
 }
 
-function runMysql(cfg, extra, input) {
+function spawnMysql(cfg, extra, input, optionsFile) {
   return new Promise((resolve) => {
-    const args = ['-h', cfg.host, '-P', cfg.port, '-u', cfg.user, '--default-character-set=utf8mb4', ...extra];
+    const args = buildMysqlArgs(cfg, extra, optionsFile);
+    // 비밀번호는 옵션 파일로만 넘긴다 — 부모 환경의 MYSQL_PWD 는 자식에게 물려주지 않는다.
     const env = { ...process.env };
-    if (cfg.password) env.MYSQL_PWD = cfg.password; else delete env.MYSQL_PWD;
+    delete env.MYSQL_PWD;
     const redact = (s) => (cfg.password && cfg.password.length >= 3 ? s.split(cfg.password).join('***') : s);
     const child = spawn(cfg.mysql, args, { env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
     let out = '', err = '';
@@ -179,6 +255,16 @@ function runMysql(cfg, extra, input) {
     child.stdin.on('error', () => {});
     child.stdin.end(input);
   });
+}
+
+async function runMysql(cfg, extra, input) {
+  try {
+    return await withOptionsFile(cfg.password, (file) => spawnMysql(cfg, extra, input, file));
+  } catch (e) {
+    // fs 오류 메시지에는 경로만 있고 비밀번호는 없지만, 내부 정보를 줄이려고 고정 문구로 바꾼다.
+    const msg = e && e.message === '비밀번호에 쓸 수 없는 문자가 있습니다' ? e.message : `비밀번호 임시 파일 처리 실패(${(e && e.code) || '오류'})`;
+    return { code: -1, stdout: '', stderr: msg };
+  }
 }
 
 const query = (cfg, sql) => runMysql(cfg, ['--batch', '--skip-column-names', cfg.db], sql);
@@ -323,5 +409,6 @@ function printStatus(files, applied, plan) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  installSignalCleanup();
   main(process.argv.slice(2)).then((code) => { process.exitCode = code; });
 }
