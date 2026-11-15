@@ -290,7 +290,7 @@
 - **다음 한 걸음**: 상단 I-4(둘러보기 결재함) 사용자 답. 개인 view=false 반영은 시험 계정 데이터 변경이 필요해 허락 후 확인. 그 뒤 done.md로.
 - **자세히**: handoff/agents/qa-verifier/2026-11-10_0856_*, security 1831.
 
-### 83. apply-mysql 비밀번호 임시 옵션 파일 전환(35a0ccc) — **실제 DB 접속 확인 대기, 회귀 의심** [담당: backend-dev]
+### 83. apply-mysql 비밀번호 임시 옵션 파일 전환(35a0ccc) — **실제 DB 접속 확인 대기(회귀 가능성 낮음: 사용자 11-15 `mysql -u root -p` 직접 접속도 실패 → 입력한 root 비밀번호 문제)** [담당: backend-dev]
 - **현재**: 11-15 3d가 MYSQL_PWD 환경변수 → --defaults-extra-file 임시 파일로 바꿈(단위 15 통과). 사용자 실행 `--status`가 `ERROR 1045 Access denied (using password: YES)` — 비밀번호 오입력인지 옵션 파일 이스케이프·쓰기 결함인지 미확정.
 - **다음 한 걸음**: 사용자 ⓐ `mysql -u root -p -e "select 1"`로 비밀번호 확인 ⓑ 되면 옛 버전 `git show 35a0ccc~1:kgi-ggreport-web/tools/db/apply-mysql.mjs > %TEMP%\apply-old.mjs` → `node %TEMP%\apply-old.mjs --status --dir kgi-ggreport-web\src\main\resources\db\mysql`. 옛 것만 되면 35a0ccc 결함 → 고치거나 되돌림(`git revert 35a0ccc`). 그 전까지 DB 적용이 막히면 옛 버전 명령으로 우회.
 - **자세히**: handoff/2026-11-15_summary.md ## Session 20:20 (3d) 끝 줄, security 11-15 apply-mysql 보고서.
