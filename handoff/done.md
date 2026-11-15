@@ -699,3 +699,11 @@
 - **31(일부) closing.test 6번 순서 의존·IDS 사본** — IDS 정본 statefile.js, 시험이 공유 — a3e15b9.
 - **64 ④ 담당자 변경 신청 빈 본문 500** → 가드 뒤 400 — 0d85ba6.
 - **70 하 감사 격리 시험** — PrepAuditIsolationTest 31건 — 671e6ba·15f519b. **70 가드 후속 AccessLogInterceptor 컨텍스트 경로** — 0d85ba6. **security 11-13 dashboard.js /preps POST 2곳 머리글** — 076cd3c.
+
+## 2026-11-15 (4b 마무리) — NEXT 83 해소
+- 11-15 사용자 실DB `apply-mysql.mjs --status --user ggreport` 확인: 001~032 정상(적용됨 28·대기 0·변경됨 0), 임시 옵션 파일 경로로 접속 성공·잔존 0 — 35a0ccc 회귀 없음. 1045는 root `-p` 입력 때문(이 PC root는 빈 비밀번호).
+> ### 83. apply-mysql 비밀번호 임시 옵션 파일 전환(35a0ccc) — **실제 DB 접속 확인 대기(회귀 가능성 낮음: 사용자 11-15 `mysql -u root -p` 직접 접속도 실패 → 입력한 root 비밀번호 문제)** [담당: backend-dev]
+> - **현재**: 11-15 3d가 MYSQL_PWD 환경변수 → --defaults-extra-file 임시 파일로 바꿈(단위 15 통과). 사용자 실행 `--status`가 `ERROR 1045 Access denied (using password: YES)` — 비밀번호 오입력인지 옵션 파일 이스케이프·쓰기 결함인지 미확정.
+> - **다음 한 걸음**: 사용자 ⓐ `mysql -u root -p -e "select 1"`로 비밀번호 확인 ⓑ 되면 옛 버전 `git show 35a0ccc~1:kgi-ggreport-web/tools/db/apply-mysql.mjs > %TEMP%\apply-old.mjs` → `node %TEMP%\apply-old.mjs --status --dir kgi-ggreport-web\src\main\resources\db\mysql`. 옛 것만 되면 35a0ccc 결함 → 고치거나 되돌림(`git revert 35a0ccc`). 그 전까지 DB 적용이 막히면 옛 버전 명령으로 우회.
+> - **자세히**: handoff/2026-11-15_summary.md ## Session 20:20 (3d) 끝 줄, security 11-15 apply-mysql 보고서.
+

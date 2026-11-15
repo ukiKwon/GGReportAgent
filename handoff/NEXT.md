@@ -290,12 +290,7 @@
 - **다음 한 걸음**: 상단 I-4(둘러보기 결재함) 사용자 답. 개인 view=false 반영은 시험 계정 데이터 변경이 필요해 허락 후 확인. 그 뒤 done.md로.
 - **자세히**: handoff/agents/qa-verifier/2026-11-10_0856_*, security 1831.
 
-### 83. apply-mysql 비밀번호 임시 옵션 파일 전환(35a0ccc) — **실제 DB 접속 확인 대기(회귀 가능성 낮음: 사용자 11-15 `mysql -u root -p` 직접 접속도 실패 → 입력한 root 비밀번호 문제)** [담당: backend-dev]
-- **현재**: 11-15 3d가 MYSQL_PWD 환경변수 → --defaults-extra-file 임시 파일로 바꿈(단위 15 통과). 사용자 실행 `--status`가 `ERROR 1045 Access denied (using password: YES)` — 비밀번호 오입력인지 옵션 파일 이스케이프·쓰기 결함인지 미확정.
-- **다음 한 걸음**: 사용자 ⓐ `mysql -u root -p -e "select 1"`로 비밀번호 확인 ⓑ 되면 옛 버전 `git show 35a0ccc~1:kgi-ggreport-web/tools/db/apply-mysql.mjs > %TEMP%\apply-old.mjs` → `node %TEMP%\apply-old.mjs --status --dir kgi-ggreport-web\src\main\resources\db\mysql`. 옛 것만 되면 35a0ccc 결함 → 고치거나 되돌림(`git revert 35a0ccc`). 그 전까지 DB 적용이 막히면 옛 버전 명령으로 우회.
-- **자세히**: handoff/2026-11-15_summary.md ## Session 20:20 (3d) 끝 줄, security 11-15 apply-mysql 보고서.
-
-### 70. 제안 확정·첫 개설 승인·제안서 사전준비 프로세스 — **서버 구현 완료(11-11, 보안 하 11-15 fc3bfee·75d59ff), 화면·남은 하(下)·사유 열람 범위 답 대기** [담당: backend-dev → security → design-reviewer → frontend-dev → qa / data-auditor]
+### 70. 제안 확정·첫 개설 승인·제안서 사전준비 프로세스 — **서버 구현 완료(11-11, 보안 하 11-15 fc3bfee·75d59ff), 화면·남은 하(下)(사유 열람 범위는 답 반영 b877885)** [담당: backend-dev → security → design-reviewer → frontend-dev → qa / data-auditor]
 - **현재**: 흐름은 제안 확정(팀, 결재 없음) → 개설 신청(영업팀원 누구나 담당 지정)+영업팀장 매칭 승인 → 사전준비 과제 T1~T6 → 영업부장 기획승인(5번 게이트와 같은 한 번) → '제안서 작성하기'. 참여 결정 3단 카드·팀장 직접 최초 배정은 폐지. 개설 뒤 중단은 영업팀장이 사유 기록(결재 없음). ▶ 실행은 영업팀장·그 기관 담당자만. 붙임은 HWPX·PDF만, 개인정보는 주민·외국인등록·카드번호만 차단·이메일·전화는 경고(사용자 11-10). 가드(9ef863c, 서버 903 통과): LegacyFlowSwitch(기본 열림, '제안서 작성하기'와 함께 닫음)·B1·B4·B5·D9·F-2. backend 설계: 024_bid_prep·025_bid_prep_attach 초안, 엔드포인트 16개, 감사 표 BID_PREP_ACT. 골든은 지금 스위치로 유지, 사전준비 완성 뒤 새 흐름으로 개정(사용자 권장안 승인).
 - **다음 한 걸음**: ① 020b 커밋 뒤 DDL 확정 → B2·B3·T5·감사 표 → ApprovalTypes·후크 → 화면(그 전에는 020 서버 파일을 건드리지 않는다) ② data-auditor: 참여확정·보류 건수와 배정 유무(읽기 전용, 지금 가능) ③ 가드 후속: 스위치 false 커밋 때 config-envs 키 명시+기본 닫힘 시험·README, /run 진행 상태 조건(024 뒤), 제안팀 화면 열람 기록(tasks:team). (AccessLogInterceptor 컨텍스트 경로 제거는 11-15 해소 0d85ba6 — 접근 이력 경로는 컨텍스트·마디별 ;매개변수를 뗀 값, DENIED·게시판 413 행도 같은 형식. 형식 바뀐 날짜(11-15)는 보존 정책 35 검토 때 메모)
 - **서버 1차 구현(11-11)**: 024 DDL 쌍·Prep*(서비스·컨트롤러·매퍼·감사)·결재 BID_OPEN/PREP_APPROVAL·assignInitial, mvn 957 통과(기대값 3건 조정). security 1207 차단 없음(F1 스위치 운영 닫기, F2 B3 미구현, F3~F9 하), qa 1209 조건부(P2-1 기획승인≠5번 게이트 시점, P2-2 작성하기 재판정 누락, P2-3 스위치 열림 중 직접 배정→개설 영구 409, P2-4 T3 지정 API 없음(71), P2-5 재확정 시 새 건, P2-6 중단 뒤 배정 유지). 화면 미노출. 로컬 MySQL 024 미적용(사용자 터미널).
@@ -447,3 +442,8 @@
 - **현재(11-15 4b, 사용자 결정 2단계)**: ① 시도 교육청은 '교육청'으로 따로 구분 ② **재단법인은 '기타'로 빼지 않고 일단 '공공기관'으로 분류한다 — 애매하지만 이렇게 정리(사용자 11-15, PM·기획자 공유 필수)**. 그래서 '기타' 종류는 만들지 않고 번들·DB TYPE도 바꾸지 않는다(033 시드 불필요). 교육청 type은 번들·DB 모두 이미 '교육청' — 화면 접기 표(KIND_OF_TYPE)만 고친다. 종류 순서 지자체·교육청·공공기관·대학·법원·병원, 기본 전부 켬.
 - **다음 한 걸음**: frontend-dev — TYPE_KINDS 6종·KIND_OF_TYPE 교육청→교육청, markerShape를 kind 기준으로(교육청·지방공기업이 법원◆로 그려지던 결함 — 법원을 꺼도 ◆24 남음), 교육청 ■(±7), 모르는 유형 기본값 ◆→가로 막대, 필터 체크박스 1개 추가·주석, 시험 notice 128·186/logic 48/mix 116 + '◆는 법원뿐' → qa. DESIGN.md 393–396 마커 문단 갱신, design_history 전/후 장.
 - **자세히**: planner 11-15(교육청·기타 범위 — '기타' 부분은 사용자 결정으로 폐기), design-reviewer 11-15(마커·필터 규격 — '기타' 행 제외하고 적용), questions.json Q-2026-11-13-02.
+
+### 84. 관리자 범위(전산팀장 포함)·PUSH-GATE security 하 묶음 (11-15 4b) [담당: backend-dev(Opus — 권한 설계) → security / backend-dev]
+- **현재**: ① 사용자 답(11-15 ⓐ): **전산팀원·전산팀장 모두 관리자**. 지금은 Menus.java:113 '전산팀'에만 ADMIN_MENU — 한 줄로 바꾸면 '마지막 관리자' 보호(SysAdminApiTest 2건·MenuSaveApiTest 1건)·골든 조회 2건이 깨져(메인 11-15 실측, 되돌림) 관리자 수 판정·골든 기대값을 함께 설계해야 함. BidCaseReadGuardApiTest '전산팀장 닫힘 생성 403' 시험도 200으로. ② security PUSH-GATE 11-15(handoff/agents/security/2026-11-15 최신) 하: capture-questions.js Stop 경로가 아직 사용자 글을 장부 answer에 씀(160·95줄 — 사용자 결정 '답 자동 기록 끔'과 어긋남, 다음 푸시 전), InstitutionEditRules.url 서식 문자 codePoint 단위·TYPE·LAST_BID 길이 상한, apply-mysql 강제 종료 시 임시 파일 잔존, DENIED·413 원문 URI 형식(1959 #3)·화면·버튼 조합 검증(1933 #1)·동시 저장 OLD_VAL(1901 L3)·JSON 파서 400 본문 시험(L5). 원격 저장소 공개 여부 확인(회사 인프라 사양 문서가 이미 여럿 추적됨).
+- **다음 한 걸음**: backend-dev(Opus) ① 설계 → 적용·mvn → security. ② capture-questions는 훅 담당(9b) 몫이면 그 세션에, 아니면 backend-dev.
+- **자세히**: security 11-15 PUSH-GATE 보고, questions.json(관리자 범위 질문), NEXT 64②.
