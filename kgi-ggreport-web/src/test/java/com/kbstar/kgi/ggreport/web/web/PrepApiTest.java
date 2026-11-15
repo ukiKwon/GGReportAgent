@@ -1048,4 +1048,94 @@ public class PrepApiTest {
         assertEquals(403, postJson("/bidcases/" + bid + "/prep/open-requests", DESIGNER, "{\"emp_nos\":" + arr(MEMBER2) + "}").getResponse().getStatus());
         assertEquals(403, postJson(none + "start-writing", MEMBER2, "").getResponse().getStatus());   // 없는 건에는 담당자가 없다 — 담당이 아니면 403
     }
+
+    // ── NEXT 70: 이력 사유 가림 확장·결재 앞단 확인(2026-11-15, backend-dev 설계) ───────────────
+
+    private JsonNode eventRow(String bid, String emp, String event) throws Exception {
+        MvcResult h = getAs("/bidcases/" + bid + "/prep/history", emp);
+        assertEquals(emp, 200, h.getResponse().getStatus());
+        for (JsonNode x : json(h)) {
+            if (event.equals(x.path("event_cd").asText())) {
+                return x;
+            }
+        }
+        return null;
+    }
+
+    @Test
+    public void 확정_취소_사유는_취소한_사람_확정자_팀장_부장만_보고_되살린_건의_다른_팀원은_못_본다() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        assertEquals(200, postJson("/bidcases/" + bid + "/prep/unconfirm", LEAD, "{\"reason\":\"가상 보류 사유\"}").getResponse().getStatus());
+        jdbc.update("UPDATE USERS SET ROLE = '영업팀' WHERE EMP_NO = ?", DESIGNER);
+        flushCache();
+        assertEquals(bid, confirm(MEMBER2, INST));   // 개설 전 취소 건은 같은 건으로 되살아나 영업팀 전원이 이력을 본다
+        for (String emp : new String[]{MEMBER, LEAD, LEAD2, HEAD}) {   // 확정자·취소자(팀장)·팀장·부장
+            assertEquals(emp, "가상 보류 사유", eventRow(bid, emp, "UNCONFIRM").path("reason").asText());
+        }
+        for (String emp : new String[]{MEMBER2, DESIGNER}) {   // 되살린 사람·제3 팀원
+            JsonNode x = eventRow(bid, emp, "UNCONFIRM");
+            assertNotNull(emp, x);
+            assertTrue(emp, x.path("reason").isNull());
+            assertFalse(emp, body(getAs("/bidcases/" + bid + "/prep/history", emp)).contains("가상 보류 사유"));
+        }
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_LOG WHERE BID_CASE_ID=? AND EVENT_CD='UNCONFIRM' AND REASON='가상 보류 사유'", bid));
+    }
+
+    @Test
+    public void 중단_사유는_영업팀장_영업부장만_보고_옛_담당자는_못_본다() throws Exception {
+        String bid = opened(INST);
+        assertEquals(200, postJson("/bidcases/" + bid + "/prep/cancel", LEAD, "{\"reason\":\"가상 중단 사유\"}").getResponse().getStatus());
+        for (String emp : new String[]{LEAD, LEAD2, HEAD}) {
+            assertEquals(emp, "가상 중단 사유", eventRow(bid, emp, "CANCEL").path("reason").asText());
+        }
+        JsonNode old = eventRow(bid, MEMBER2, "CANCEL");   // 옛 담당자 — 열람은 200, 사유는 null(열린 질문 1 답에 따라 바뀜)
+        assertNotNull(old);
+        assertTrue(old.path("reason").isNull());
+        assertFalse(body(getAs("/bidcases/" + bid + "/prep/history", MEMBER2)).contains("가상 중단 사유"));
+        assertEquals(404, getAs("/bidcases/" + bid + "/prep/history", MEMBER).getResponse().getStatus());
+    }
+
+    @Test
+    public void 사전준비_승인_반려_의견은_신청자_팀장_부장만_보고_공동_담당자는_못_본다() throws Exception {
+        jdbc.update("UPDATE USERS SET ROLE = '영업팀' WHERE EMP_NO = ?", DESIGNER);
+        flushCache();
+        String bid = confirm(MEMBER, INST);
+        long open = openReq(bid, MEMBER, MEMBER2, DESIGNER);
+        assertEquals(200, decide(LEAD, open, "APPROVE", null).getResponse().getStatus());
+        makeReady(bid);
+        long plan = planReq(bid, MEMBER2);
+        assertEquals(200, decide(HEAD, plan, "REJECT", "가상 보완 의견").getResponse().getStatus());
+        assertEquals("IN_PROGRESS", state(bid));
+        for (String emp : new String[]{MEMBER2, LEAD, LEAD2, HEAD}) {   // 신청자·팀장·부장
+            assertEquals(emp, "가상 보완 의견", eventRow(bid, emp, "PLAN_REJECT").path("reason").asText());
+        }
+        JsonNode co = eventRow(bid, DESIGNER, "PLAN_REJECT");   // 공동 담당자(신청자 아님) — 열린 질문 1 답에 따라 바뀜
+        assertNotNull(co);
+        assertTrue(co.path("reason").isNull());
+        assertEquals(404, getAs("/bidcases/" + bid + "/prep/history", MEMBER).getResponse().getStatus());
+    }
+
+    @Test
+    public void 결재_앞단_비활성_403과_서비스_403은_접근이력_DENIED와_BID_PREP_ACT에_남고_401은_ACT에_없다() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        long r1 = openReq(bid, MEMBER, MEMBER2);
+        String decidePath = "/approval-requests/" + r1 + "/decide";
+        String cancelPath = "/approval-requests/" + r1 + "/cancel";
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", LEAD);
+        flushCache();
+        MvcResult r = postUi(decidePath, LEAD, decision("APPROVE", null), "approvals_inbox", "approve");
+        assertEquals(403, r.getResponse().getStatus());
+        assertTrue(body(r).contains("사용할 수 없는 계정입니다."));
+        assertEquals("OPEN_PENDING", state(bid));
+        assertEquals(1, act(bid, "OPEN_APPROVE", "DENIED", LEAD, "approvals_inbox", "approve", 1, "OPEN_PENDING"));
+        assertEquals(1, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND EMP_NO=? AND REQ_PATH=? AND STATUS_CODE=403", LEAD, decidePath));
+        // 서비스가 낸 403(남의 신청 회수)도 접근 이력 DENIED — 전에는 일반 API 줄이었다
+        assertEquals(403, postUi(cancelPath, ADMIN, "", "approvals_mine", "cancel_request").getResponse().getStatus());
+        assertEquals(1, act(bid, "OPEN_WITHDRAW", "DENIED", ADMIN, "approvals_mine", "cancel_request", 1, "OPEN_PENDING"));
+        assertEquals(1, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND EMP_NO=? AND REQ_PATH=? AND STATUS_CODE=403", ADMIN, cancelPath));
+        // 사번 없는 401 — 접근 이력에만
+        assertEquals(401, postUi(decidePath, null, decision("APPROVE", null), "approvals_inbox", "approve").getResponse().getStatus());
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTOR_EMP_NO IS NULL", bid));
+        assertEquals(1, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND EMP_NO IS NULL AND REQ_PATH=? AND STATUS_CODE=401", decidePath));
+    }
 }

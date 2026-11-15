@@ -72,6 +72,16 @@ public class PrepService {
 
     private static final Map<String, String> STATE_NAMES = stateNames();
 
+    /** 결재 요청에 묶인 사유 — 그 요청의 신청자·영업팀장·영업부장만(사용자 결정 2026-11-11 개설 신청 규칙을 사전준비 승인으로 넓힘, NEXT 70). */
+    private static final Set<String> REQ_REASON_EVENTS = Collections.unmodifiableSet(new HashSet<String>(
+            Arrays.asList("OPEN_REJECT", "OPEN_WITHDRAW", "PLAN_REJECT", "PLAN_WITHDRAW")));
+    /** 요청 없이 쓴 사유(확정 취소·중단) — 쓴 사람·(확정 취소면) 그 확정의 확정자·영업팀장·영업부장만(NEXT 70). */
+    private static final Set<String> ACT_REASON_EVENTS = Collections.unmodifiableSet(new HashSet<String>(
+            Arrays.asList("UNCONFIRM", "CANCEL")));
+    /** 이력을 볼 수 있는 사람 모두에게 사유를 보이는 이벤트 — 허용 목록(security 11-15: 새 이벤트가 생겨도 사유가 새지 않게 fail-closed). */
+    private static final Set<String> PUBLIC_REASON_EVENTS = Collections.unmodifiableSet(new HashSet<String>(
+            Arrays.asList("ATTACH_VOID")));
+
     private static Map<String, String> stateNames() {
         Map<String, String> m = new LinkedHashMap<>();
         m.put(CONFIRMED, "확정됨");
@@ -148,12 +158,16 @@ public class PrepService {
         return view(me, p, tasks);
     }
 
-    /** 이력(16) — 상세와 같은 열람 규칙. */
+    /** 이력(16) — 상세와 같은 열람 규칙. 사유 칸은 {@link #canSeeReason} 으로 가린다(가리는 것은 응답뿐, BID_PREP_LOG 원본은 그대로). */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> history(SysUser me, String bidCaseId) {
         visible(me, bidCaseId);
         List<Map<String, Object>> out = new ArrayList<>();
+        String cycleConfirmer = null;   // 바로 앞 CONFIRM 의 행위자 — 그 확정을 취소한 UNCONFIRM 의 당사자(LOG_ID 오름차순이라 먼저 잡힌다)
         for (BidPrepLogView l : mapper.selectLog(bidCaseId)) {
+            if ("CONFIRM".equals(l.getEventCd())) {
+                cycleConfirmer = l.getActorEmpNo();
+            }
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("event_cd", l.getEventCd());
             m.put("event_name", l.getEventName());
@@ -161,9 +175,7 @@ public class PrepService {
             m.put("to_state", l.getToState());
             m.put("task_cd", l.getTaskCd());
             m.put("req_id", l.getReqId());
-            boolean pastOpen = "OPEN_REJECT".equals(l.getEventCd()) || "OPEN_WITHDRAW".equals(l.getEventCd());
-            // 반려·회수 사유는 신청자·영업팀장·영업부장에게만(사용자 결정 2026-11-11) — 가리는 것은 응답뿐, BID_PREP_LOG 원본은 그대로
-            m.put("reason", pastOpen && !canSeePastOpen(me, l.getReqId()) ? null : l.getReason());
+            m.put("reason", canSeeReason(me, l, cycleConfirmer) ? l.getReason() : null);
             m.put("actor_emp_no", l.getActorEmpNo());
             m.put("actor_name", l.getActorName());
             m.put("emp_verified", l.getEmpVerified() == 1);   // false = 자기신고(위조 가능)
@@ -726,7 +738,7 @@ public class PrepService {
         return false;
     }
 
-    /** 끝난(반려·회수) 개설 신청의 상세를 볼 수 있는가 — 영업팀장·영업부장, 또는 그 신청을 올린 사람. */
+    /** 끝난(반려·회수) 결재 요청(개설 신청·사전준비 승인)의 상세·사유를 볼 수 있는가 — 영업팀장·영업부장, 또는 그 신청을 올린 사람. */
     private boolean canSeePastOpen(SysUser me, Long reqId) {
         if (isHead(me) || isLead(me)) {
             return true;
@@ -736,6 +748,25 @@ public class PrepService {
         }
         ApprovalRequest r = requests.selectById(reqId);
         return r != null && me.getEmpNo().equals(r.getRequesterEmpNo());
+    }
+
+    /** 이력 사유 열람 — 결정의 당사자·영업팀장·영업부장만. 공개 목록(ATTACH_VOID)만 열람자 모두에게, 그 밖 새 이벤트는 팀장·부장만. */
+    private boolean canSeeReason(SysUser me, BidPrepLogView l, String cycleConfirmer) {
+        String ev = l.getEventCd();
+        if (PUBLIC_REASON_EVENTS.contains(ev) || l.getReason() == null) {
+            return true;
+        }
+        if (REQ_REASON_EVENTS.contains(ev)) {
+            return canSeePastOpen(me, l.getReqId());
+        }
+        if (ACT_REASON_EVENTS.contains(ev)) {
+            if (isHead(me) || isLead(me)) {
+                return true;
+            }
+            String e = me.getEmpNo();
+            return e.equals(l.getActorEmpNo()) || ("UNCONFIRM".equals(ev) && e.equals(cycleConfirmer));
+        }
+        return isHead(me) || isLead(me);
     }
 
     /** 개설 대기 건의 대기 중 신청(BID_OPEN)을 올린 사람인가. */
