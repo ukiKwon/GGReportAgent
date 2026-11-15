@@ -500,4 +500,88 @@ public class PrepAuditIsolationTest {
         verify(audit, never()).record(any(), any(), any(), any(), any(), any(), any());
         assertEquals(0, logs.list.size());
     }
+
+    // ── qa 11-15 P3 추가: 형식 밖 건 번호 · 첨부 행위 · 결재 401 · PREP_APPROVAL 행위 코드 ──
+
+    @Test
+    public void 확정_본문_건번호가_형식_밖이면_NONE으로_감사하고_상태조회_없이_원래_409가_나간다() throws Exception {
+        ApiException original = api(409);
+        when(prep.confirm(any(), any(), any())).thenThrow(original);
+        PrepIn.Confirm body = new PrepIn.Confirm();
+        body.setBidCaseId("a b<");   // [A-Za-z0-9._-]{1,64} 밖 → caseKey = NONE
+
+        assertThrowsSame(original, () -> prepCtl.confirm(body, req()));
+
+        verify(audit).record(eq("NONE"), eq("CONFIRM"), eq("BLOCKED"), eq("NONE"), isNull(), isNull(), any(), any());
+        verify(prep, never()).stateOf(any());   // bid 가 NONE 이면 auditFailure 가 상태를 읽지 않는다
+        assertOneWarn("사전준비 실패 감사를 남기지 못했다", "action=CONFIRM", "BLOCKED");
+    }
+
+    @Test
+    public void 첨부_내려받기가_비담당_404여도_감사가_터지면_원래_404가_나가고_첨부번호가_감사에_실린다() throws Exception {
+        ApiException hidden = api(404);
+        when(attach.download(any(), eq(BID), eq("42"))).thenThrow(hidden);
+
+        assertThrowsSame(hidden, () -> prepCtl.downloadAttachment(BID, "42", req()));
+
+        verify(audit).record(eq(BID), eq("ATTACH_DOWNLOAD"), eq("HIDDEN"), eq("OPEN_PENDING"), isNull(), eq(42L), any(), any());
+        assertOneWarn("사전준비 실패 감사를 남기지 못했다", "action=ATTACH_DOWNLOAD", "HIDDEN");
+    }
+
+    @Test
+    public void 결재_앞단_401은_감사도_로그도_없이_401이_그대로다() throws Exception {
+        givenPrepApproval();
+        ApiException unauth = api(401);
+        when(guard.requireActiveUser(any(HttpServletRequest.class))).thenThrow(unauth);
+
+        assertThrowsSame(unauth, () -> lineCtl.decide(101L, decision("APPROVE"), new MockHttpServletRequest()));
+        assertThrowsSame(unauth, () -> lineCtl.cancel(101L, new MockHttpServletRequest()));
+
+        verify(approvals, never()).prepRefOf(any());
+        verify(approvals, never()).decide(any(), any(), any(), any());
+        verify(audit, never()).record(any(), any(), any(), any(), any(), any(), any());
+        assertEquals("401 은 ACCESS_LOG 에만 — 감사 실패 로그도 없다", 0, logs.list.size());
+    }
+
+    @Test
+    public void 결재_서비스가_낸_401도_감사하지_않고_401이_그대로다() throws Exception {
+        givenPrepApproval();
+        ApiException unauth = api(401);
+        when(approvals.decide(eq(101L), any(), any(), any())).thenThrow(unauth);
+        when(approvals.cancel(eq(101L), any(), any())).thenThrow(unauth);
+
+        assertThrowsSame(unauth, () -> lineCtl.decide(101L, decision("APPROVE"), req()));
+        assertThrowsSame(unauth, () -> lineCtl.cancel(101L, req()));
+
+        verify(approvals, never()).prepRefOf(any());
+        verify(audit, never()).record(any(), any(), any(), any(), any(), any(), any());
+        assertEquals(0, logs.list.size());
+    }
+
+    @Test
+    public void 기획승인_PREP_APPROVAL_결재_실패는_PLAN_계열_행위코드로_감사하려다_터져도_원래_예외가_나간다() throws Exception {
+        when(approvals.prepRefOf(any())).thenReturn(prepRef(ApprovalTypes.PREP_APPROVAL, BID, "APPROVAL_PENDING"));
+        ApiException blocked = api(409);
+        when(approvals.decide(eq(101L), any(), any(), any())).thenThrow(blocked);
+        when(approvals.cancel(eq(101L), any(), any())).thenThrow(blocked);
+
+        assertThrowsSame(blocked, () -> lineCtl.decide(101L, decision("REJECT"), req()));
+        assertThrowsSame(blocked, () -> lineCtl.cancel(101L, req()));
+
+        verify(audit).record(eq(BID), eq("PLAN_REJECT"), eq("BLOCKED"), eq("APPROVAL_PENDING"), isNull(), any(), any());
+        verify(audit).record(eq(BID), eq("PLAN_WITHDRAW"), eq("BLOCKED"), eq("APPROVAL_PENDING"), isNull(), any(), any());
+        assertEquals("두 시도 각각 WARN 한 줄", 2, logs.list.size());
+    }
+
+    @Test
+    public void 결재_decision이_이상값이면_DECIDE_계열_행위코드로_감사하고_원래_예외가_나간다() throws Exception {
+        when(approvals.prepRefOf(any())).thenReturn(prepRef(ApprovalTypes.PREP_APPROVAL, BID, "APPROVAL_PENDING"));
+        ApiException invalid = api(400);
+        when(approvals.decide(eq(101L), any(), any(), any())).thenThrow(invalid);
+
+        assertThrowsSame(invalid, () -> lineCtl.decide(101L, decision("XYZ"), req()));
+
+        verify(audit).record(eq(BID), eq("PLAN_DECIDE"), eq("INVALID"), eq("APPROVAL_PENDING"), isNull(), any(), any());
+        assertOneWarn("사전준비 결재 실패 감사를 남기지 못했다", "verb=DECIDE", "INVALID");
+    }
 }

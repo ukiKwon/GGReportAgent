@@ -288,3 +288,48 @@ test('prep.postConfirm: 머리글을 싣고, 실패는 status·detail을 단 Err
     assert.strictEqual(calls[1].init.headers['X-Screen-Id'], 'map_popover');
   } finally { global.fetch = prev; }
 });
+
+// ── security 11-15 하: 사번(X-Emp-No)이 화면 머리글과 함께 실제 요청에 실린다 ──
+// app.js는 module.exports가 없어 loadFresh 반환값이 아니라 가짜 self의 app을 쓴다. 최상위 외부 의존은 document.addEventListener 한 줄뿐.
+test('installIdentityHeader 설치 후 prep.postConfirm 요청: X-Emp-No가 X-Screen-Id·X-Button-Id와 함께 실린다', async function () {
+  const sent = [];
+  const rawFetch = function (url, init) {
+    sent.push({ url: url, init: init });
+    return Promise.resolve({ ok: true, status: 201, json: function () { return Promise.resolve({ bid_case_id: 'B1' }); } });
+  };
+  let session = { mode: 'account', id: 'x', emp: '3918264' };
+  const fakeSelf = {
+    fetch: rawFetch,
+    store: { loadSession: function () { return session; } },
+    login: require('../js/login.js')
+  };
+  const prevDoc = global.document, prevFetch = global.fetch;
+  global.document = { addEventListener: function () {} };
+  try {
+    loadFresh('../js/app.js', fakeSelf);
+    assert.strictEqual(typeof fakeSelf.app.installIdentityHeader, 'function');
+    fakeSelf.app.installIdentityHeader();
+    assert.strictEqual(fakeSelf.fetch.__identity, true, '전역 fetch가 신원 래퍼로 바뀌었다');
+    global.fetch = fakeSelf.fetch;            // 브라우저에서는 self === window라 같은 객체 — prep.js는 전역 fetch를 직접 부른다
+
+    const prep = require('../js/prep.js');
+    await prep.postConfirm('I1', 'bid_board');
+    const h = sent[0].init.headers;
+    assert.strictEqual(sent[0].url, '/preps');
+    assert.strictEqual(h['X-Emp-No'], '3918264');
+    assert.strictEqual(h['X-Screen-Id'], 'bid_board');
+    assert.strictEqual(h['X-Button-Id'], 'confirm');
+
+    await prep.postConfirm('I2', 'map_popover');
+    assert.strictEqual(sent[1].init.headers['X-Emp-No'], '3918264');
+    assert.strictEqual(sent[1].init.headers['X-Screen-Id'], 'map_popover');
+
+    session = null;                            // 로그아웃 상태면 사번을 붙이지 않되 화면 머리글은 그대로
+    await prep.postConfirm('I3', 'bid_board');
+    assert.strictEqual(sent[2].init.headers['X-Emp-No'], undefined);
+    assert.strictEqual(sent[2].init.headers['X-Screen-Id'], 'bid_board');
+  } finally {
+    if (prevDoc === undefined) delete global.document; else global.document = prevDoc;
+    global.fetch = prevFetch;
+  }
+});
