@@ -146,7 +146,7 @@
   app.wireModalDismiss = function () {
     // #tm-modal·#pp-modal은 제외 — 작성 중 닫기 확인(requestClose)을 team.js·prep.js가 직접 처리한다.
     const overlays = Array.prototype.filter.call(document.querySelectorAll('.modal-overlay'), function (ov) {
-      return ov.id !== 'tm-modal' && ov.id !== 'pp-modal';
+      return ov.id !== 'tm-modal' && ov.id !== 'pp-modal' && ov.id !== 'edit-modal';   // #edit-modal은 instedit.js가 저장 안 한 변경 확인과 함께 닫는다
     });
     overlays.forEach(function (ov) {
       ov.addEventListener('click', function (e) {
@@ -353,66 +353,17 @@
     };
   };
 
-  app.openEdit = function (rec) {
-    const wrap = document.getElementById('edit-fields');
-    const fields = root.logic.ALL_FIELDS;
-    // 서버 모드에서 저장 경로가 없는 필드는 잠근다 — 예전에는 고칠 수 있는 것처럼 보이고
-    // 저장을 눌러도 서버·화면 어디에도 반영되지 않으면서 오류도 안 났다(무음 실패).
-    const serverMode = root.store.isServerMode();
-    wrap.innerHTML = fields.map(function (f) {
-      const val = f === 'sources' ? (Array.isArray(rec.sources) ? rec.sources.join(', ') : '') : (rec[f] || '');
-      const locked = serverMode && root.logic.SERVER_UNSAVABLE_FIELDS.indexOf(f) >= 0;
-      const label = (root.logic.FIELD_LABELS[f] || f) + (locked ? ' (서버 모드에서는 변경 불가)' : '');
-      return '<label style="display:block;margin:6px 0;">' + label +
-        '<input data-f="' + f + '" value="' + root.logic.esc(val) + '"' +
-        (locked ? ' disabled title="기관명은 서버 등록·병합의 기준 이름이라 화면에서 바꿀 수 없습니다"' +
-          ' style="width:100%;color:var(--muted);cursor:not-allowed;"' : ' style="width:100%;"') +
-        '></label>';
-    }).join('');
-    const modal = document.getElementById('edit-modal'); modal.style.display = 'block';
-    document.getElementById('edit-cancel').onclick = function () { modal.style.display = 'none'; };
-    document.getElementById('edit-save').onclick = function () {
-      const partial = {};
-      wrap.querySelectorAll('input[data-f]').forEach(function (inp) {
-        if (inp.disabled) return;   // 잠긴 필드는 저장 대상이 아니다(값도 원본 그대로다)
-        const f = inp.dataset.f;
-        partial[f] = f === 'sources' ? inp.value.split(',').map(function (s){ return s.trim(); }).filter(Boolean) : inp.value;
-      });
-      const v = root.logic.validateRecord(Object.assign({}, rec, partial));
-      if (!v.valid) { alert('필수 필드 누락: ' + v.missing.map(function(k){return root.logic.FIELD_LABELS[k]||k;}).join(', ')); return; }
-      // 서버 모드이고 서버에 등록된 레코드면 서버 필드는 PUT으로 반영(부분 갱신 — undefined는
-      // JSON.stringify가 제거). lng·lat·sources 등 서버에 없는 필드는 아래 setEdit(로컬 overlay)만 담당.
-      // 값을 **비운 것**과 **안 건드린 것**은 다르다. 잠긴(비활성) 입력은 partial에
-      // 아예 없으므로 undefined → JSON.stringify가 키를 지운다(= 서버가 보존).
-      // 비워서 저장한 칸은 null로 보내 서버가 지우게 한다 — 예전에는 term이
-      // `'' ? Number : undefined`라 **비울 방법이 없었다**(B 이월).
-      function clearable(v) { return v === undefined ? undefined : (v === '' ? null : v); }
-      const serverPatch = root.serverdata ? {
-        region_code: clearable(partial.region), type: clearable(partial.type),
-        contract_end: clearable(partial.contractEnd), last_bid: clearable(partial.lastBid),
-        term: partial.term === undefined ? undefined
-          : (partial.term === '' ? null : Number(partial.term)),
-      } : null;
-      if (root.store.isServerMode() && rec.institutionId) {
-        fetch('/institutions/' + rec.institutionId, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(serverPatch),
-        }).then(function (r) {
-          if (!r.ok) { alert('서버 저장 실패 (' + r.status + ')'); return; }
-          return app.bootstrapServer().then(function () {
-            if (root.render.state.currentRegion) root.render.drawRegion(root.render.state.currentRegion);
-            root.render.drawTicker();
-          });
-        }).catch(function () { alert('서버 연결 실패 — 저장되지 않았습니다.'); });
-      } else if (root.store.isServerMode()) {
-        // 서버 미등록 행(번들에만 있는 기관) — PUT할 대상이 없고, overlay도 서버 필드는
-        // 더 이상 적용하지 않으므로(F4) 조용히 사라지지 않도록 알린다.
-        alert('서버에 등록되지 않은 기관이라 서버 필드(기관구분·지역·주기·입찰일)는 저장되지 않습니다.\n좌표·출처 등 로컬 전용 필드만 저장됩니다.');
-      }
-      root.store.setEdit(rec.name, partial); modal.style.display = 'none';   // 로컬 전용 필드 overlay는 항상 유지
-      if (root.render.state.currentRegion) { root.render.drawRegion(root.render.state.currentRegion); }
-      root.render.drawTicker();
-    };
+  // 기관 편집 창(NEXT 72) — 입찰 예정일(추정/공고로 확정+출처)·운영 상태·기본 정보를 묶음별로 저장한다. 본체는 instedit.js.
+  // opts = { opener, focus:'status', from:'map_popover'|'bid_board' }. from은 서버로 가는 요청이 없어 쓰지 않는다(PUT은 institution_edit).
+  app.openEdit = function (rec, opts) {
+    root.instedit.open(rec, Object.assign({}, opts, {
+      bootstrap: function () { return app.bootstrapServer(); },
+      repaint: function () {
+        if (root.render.state.currentRegion) root.render.drawRegion(root.render.state.currentRegion);
+        root.render.drawTicker();
+        if (root.dashboard && root.dashboard.refresh) root.dashboard.refresh();   // 현황판이 열려 있으면 다시 그린다
+      },
+    }));
   };
   app.wireExport = function () {
     document.getElementById('btn-export').addEventListener('click', function () {
@@ -427,10 +378,12 @@
     wrap.innerHTML = fields.map(function (f) {
       return '<label style="display:block;margin:6px 0;">' + L[f] +
         '<input data-f="' + f + '" style="width:100%;"></label>';
-    }).join('') +
-      '<label style="display:flex;gap:6px;align-items:center;margin:6px 0;">' +
-      '<input type="checkbox" data-f="confirmed"> ' + L.confirmed + '(공고로 확인됨)</label>' +
-      '<p style="color:var(--muted);font-size:12px;">확정여부를 체크하지 않으면 "추정"으로 표시됩니다.</p>';
+    }).join('') + (root.store.isServerMode()
+      // 서버 모드: 확정 여부는 서버 칸이고 출처와 함께만 정한다(030) — 만든 뒤 [편집]의 '입찰 예정일'에서 고른다.
+      ? '<p style="color:var(--muted);font-size:12px;">입찰 예정일은 추정으로 등록됩니다. 공고로 확정하려면 만든 뒤 [편집]에서 공고 링크나 번호와 함께 고르세요.</p>'
+      : '<label style="display:flex;gap:6px;align-items:center;margin:6px 0;">' +
+        '<input type="checkbox" data-f="confirmed"> ' + L.confirmed + '(공고로 확인됨)</label>' +
+        '<p style="color:var(--muted);font-size:12px;">확정여부를 체크하지 않으면 "추정"으로 표시됩니다.</p>');
     const modal = document.getElementById('add-modal'); modal.style.display = 'block';
     document.getElementById('add-cancel').onclick = function () { modal.style.display = 'none'; };
     document.getElementById('add-save').onclick = function () {

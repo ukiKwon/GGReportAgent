@@ -35,7 +35,8 @@
   // logic.ALL_FIELDS의 부분집합이지만 여기 두는 이유: store.js는 다른 모듈을 참조하지
   // 않는 구조라, 전역/require 이중 참조를 만드는 대신 자체 상수로 둔다.
   // contractExpiry(약정 만료일, NEXT 14)도 서버 칸이 없어 overlay가 저장처다.
-  store.LOCAL_ONLY_FIELDS = ['subRegion', 'confirmed', 'contractExpiry', 'lng', 'lat', 'sources', 'updatedAt'];
+  // 확정 여부(confirmed)는 030부터 서버 칸(contract_end_confirmed)이라 여기서 뺐다 — 로컬 overlay가 서버 값을 덮지 않는다(NEXT 72).
+  store.LOCAL_ONLY_FIELDS = ['subRegion', 'contractExpiry', 'lng', 'lat', 'sources', 'updatedAt'];
 
   store.loadEdits = function () { return read(EDIT_KEY, {}); };
   // 저장은 필터링하지 않는다 — 서버↔폴백을 오가도 로컬 편집 이력이 보존돼야 하고,
@@ -53,9 +54,6 @@
       if (!serverMode) return Object.assign({}, r, patch);   // file://에선 overlay가 유일 저장소
       const filtered = {};
       store.LOCAL_ONLY_FIELDS.forEach(function (f) {
-        // 반입된 공고가 있는 행은 확정여부의 출처가 생겼다 — 로컬 추측이 공고를 덮으면
-        // 지도가 실제 공고와 다른 말을 하게 된다(계획 D).
-        if (f === 'confirmed' && r.bidCaseId) return;
         if (Object.prototype.hasOwnProperty.call(patch, f)) filtered[f] = patch[f];
       });
       return Object.assign({}, r, filtered);

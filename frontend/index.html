@@ -1257,6 +1257,7 @@
   .pop-grid dt { font-size:11px; color:var(--muted); }
   .pop-grid dd { margin:0; font-size:12px; }
   .pop-mono { font-family:var(--mono); }
+  .pop-mono .db-why, .pop-mono a { font-family:"Malgun Gothic","Segoe UI",sans-serif; }
   .pop-note { font-size:11px; color:var(--muted); }
   #pop-prep-line:not(:empty) { margin-top:8px; font-size:12px; color:var(--fg); }
   .pop-actions { display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap; }
@@ -1812,6 +1813,45 @@
     .hc-btns { justify-content:flex-start; }
   }
   /* 기관장 카드 끝 */
+  /* 기관 편집 창 시작(NEXT 72) — 묶음 3개(입찰 예정일·운영 상태·기본 정보). 규격: design-reviewer 2026-11-15_1928_a7fbd71e §6 */
+  .modal-box.ie-box { max-width:560px; margin:5vh auto; }
+  .modal-box.ie-box:focus { outline:none; }
+  .ie-sub { margin:-4px 0 10px; font-size:12px; color:var(--muted); word-break:keep-all; }
+  .ie-sub .v, .ie-note .v, .ie-cur .v, .ie-warn .v, .pop-grid .v { font-family:var(--mono); }
+  .ie-body { overflow:auto; flex:1 1 auto; min-height:0; }
+  .ie-lone { margin:0 0 12px; }
+  .ie-fs { margin:0 0 12px; padding:8px 12px 12px; border:1px solid var(--line-strong); border-radius:8px; min-width:0; }
+  .ie-fs > legend { padding:0 6px; font-size:13px; font-weight:600; color:var(--fg); }
+  .ie-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px 12px; }
+  .ie-lab { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); min-width:0; }
+  .ie-lab input { width:100%; font-size:13px; padding:6px 10px; min-width:0; }
+  .ie-lab input[aria-invalid="true"] { border-color:var(--red); }
+  .ie-wide { grid-column:1 / -1; }
+  .ie-radio { grid-column:1 / -1; display:flex; gap:16px; align-items:center; border:0; margin:0; padding:0; font-size:13px; color:var(--fg); }
+  .ie-radio legend { float:left; padding:0; margin-right:4px; font-size:12px; color:var(--muted); }
+  .ie-radio label { display:flex; align-items:center; gap:6px; min-height:28px; cursor:pointer; }
+  .ie-radio input:disabled { cursor:not-allowed; }
+  .ie-note, .ie-cur { grid-column:1 / -1; margin:0; font-size:12px; line-height:1.5; color:var(--muted); word-break:keep-all; }
+  .ie-note:empty { display:none; }
+  .ie-cur a { color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent-color); text-underline-offset:3px; }
+  .ie-src { grid-column:1 / -1; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px 12px; }
+  .ie-src[hidden], .ie-cur[hidden], .ie-note[hidden] { display:none; }
+  .ie-src .ie-note { grid-column:1 / -1; }
+  .ie-warn { grid-column:1 / -1; margin:0; padding:6px 10px; font-size:12px; line-height:1.5; color:var(--fg); word-break:keep-all;
+             border:1px solid var(--orange); border-radius:6px; background:rgba(217,160,91,.12); background:color-mix(in srgb, var(--orange) 12%, transparent); }
+  .ie-err { grid-column:1 / -1; margin:0; font-size:12px; color:color-mix(in srgb, var(--red) 72%, #fff); }
+  .ie-err:empty, .ie-ok:empty { display:none; }
+  .ie-ok { grid-column:1 / -1; margin:0; font-size:12px; color:var(--muted); text-align:right; }
+  .ie-row { grid-column:1 / -1; display:flex; justify-content:flex-end; gap:8px; }
+  .ie-det { margin:0 0 12px; }
+  .ie-det > summary { cursor:pointer; font-size:13px; color:var(--muted); padding:6px 0; }
+  .ie-det[open] > summary { margin-bottom:6px; }
+  .ie-det .ie-fs { margin-bottom:0; }
+  .ie-foot { display:flex; flex-direction:column; align-items:flex-end; gap:8px; padding-top:10px; margin-top:4px; border-top:1px solid var(--line); }
+  .ie-cbox { align-self:stretch; }
+  .ie-cbox .ie-row { justify-content:flex-start; }
+  @media (max-width:560px) { .ie-grid, .ie-src { grid-template-columns:1fr; } }
+  /* 기관 편집 창 끝 */
 </style>
 </head>
 <body>
@@ -2171,12 +2211,12 @@ review, the verdict, and DESIGN.md
 </div>
 
 <div id="edit-modal" class="modal-overlay" style="display:none;">
-  <div class="modal-box" style="max-width:360px;margin:8vh auto;">
-    <h3>기관 정보 변경</h3>
-    <div id="edit-fields" style="overflow:auto;flex:1 1 auto;min-height:0;"></div>
-    <p style="color:var(--muted);font-size:12px;">sources는 쉼표로 구분, 1개 이상 필수(조작 금지).</p>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button id="edit-cancel">취소</button><button id="edit-save">저장</button>
+  <div class="modal-box ie-box" id="ie-box" role="dialog" aria-modal="true" aria-labelledby="ie-t" tabindex="-1">
+    <h3 id="ie-t">기관 정보 변경</h3>
+    <p class="ie-sub" id="ie-sub"></p>
+    <div class="ie-body" id="edit-fields"></div>
+    <div class="ie-foot" id="ie-foot">
+      <button type="button" id="edit-cancel">닫기</button>
     </div>
   </div>
 </div>
@@ -2241,6 +2281,7 @@ review, the verdict, and DESIGN.md
 <script src="js/login-hero.js"></script>
 <script src="js/nav.js"></script>
 <script src="js/errtext.js"></script>
+<script src="js/instedit.js"></script>
 <script src="js/approvals.js"></script>
 <script src="js/board-write.js"></script>
 <script src="js/board-material.js"></script>

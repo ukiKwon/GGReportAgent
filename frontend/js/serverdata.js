@@ -8,7 +8,14 @@
     institution_id: 'institutionId', name_ko: 'name', region_code: 'region',
     type: 'type', contract_end: 'contractEnd', last_bid: 'lastBid',
     term: 'term', stage: 'stage',
+    // 030(2026-11-15): 기관 코드·운영 상태 칸. 서버가 있는 칸은 번들 값을 이긴다(mergeUnion이 e.rec를 덮어 씀).
+    org_code: 'orgCode', g2b_code: 'g2bCode', open_date: 'openDate',
+    contract_end_confirmed: 'confirmed',   // 확정 여부는 서버 칸이다(store LOCAL_ONLY_FIELDS에서 뺌). false도 값이다
+    contract_end_src_url: 'contractEndSrcUrl', contract_end_src_no: 'contractEndSrcNo',
+    op_src_url: 'opSrcUrl', op_src_no: 'opSrcNo', open_check_needed: 'openCheckNeeded',
   };
+  // 서버 op_status(OPERATING|PLANNED) → 화면 opStatus('운영'|'개원 예정'). logic.isOpeningCourt·overlayExtras가 이 글자로 판정한다.
+  const OP_LABEL = { OPERATING: '운영', PLANNED: '개원 예정' };
 
   serverdata.mapServerRow = function (row) {
     const rec = {};
@@ -16,6 +23,13 @@
       // 빈 문자열도 '값 없음' — DB의 '' 가 번들 값(지역 등)을 지우지 않게(qa 11-15 P3-3)
       if (row[k] !== null && row[k] !== undefined && row[k] !== '') rec[FIELD_MAP[k]] = row[k];
     });
+    if (Object.prototype.hasOwnProperty.call(OP_LABEL, row.op_status)) rec.opStatus = OP_LABEL[row.op_status];
+    // 편집 창의 초기값은 공고(bid_cases)로 덮이기 전의 기관 행 값이어야 한다 — applyBidCases가 contractEnd·confirmed를 덮으므로
+    // 덮이기 전 값을 따로 둔다(030 서버 응답일 때만 — 옛 서버 응답엔 만들지 않는다).
+    if (typeof row.contract_end_confirmed === 'boolean') {
+      rec._inst = { contractEnd: row.contract_end || null, confirmed: row.contract_end_confirmed,
+        srcUrl: row.contract_end_src_url || null, srcNo: row.contract_end_src_no || null };
+    }
     return rec;
   };
 
@@ -99,15 +113,22 @@
     (bidCases || []).forEach(function (b) { byInst[b.institution_id] = b; });
     return (list || []).map(function (r) {
       const b = r.institutionId && byInst[r.institutionId];
-      if (!b) return r;
+      if (!b) {
+        if (!r._bid) return r;
+        const stale = Object.assign({}, r);   // 다시 적용할 때 공고가 없어졌으면 낡은 _bid를 지운다
+        delete stale._bid;
+        return stale;
+      }
       const rec = Object.assign({}, r, {
         bidCaseId: b.bid_case_id,
         participationStatus: b.participation_status,
         participationDecision: b.participation_decision || [],
       });
       // 날짜가 없는 공고(일정 미상)면 기존 값을 남긴다 — 있던 정보를 지우지 않는다.
-      if (b.confirmed_date) { rec.contractEnd = b.confirmed_date; rec.confirmed = true; }
-      else if (b.expected_date) { rec.contractEnd = b.expected_date; rec.confirmed = false; }
+      // _bid = 이 날짜가 공고에서 왔다는 표시 — 편집 창 안내(기관 기본값과 다름)와 확정 출처 표시(공고 날짜면 숨김)가 쓴다.
+      delete rec._bid;   // 공고에 날짜가 없으면 이 공고는 날짜를 덮지 않았다 — 이전 적용분의 표시를 남기지 않는다
+      if (b.confirmed_date) { rec.contractEnd = b.confirmed_date; rec.confirmed = true; rec._bid = { date: b.confirmed_date, confirmed: true }; }
+      else if (b.expected_date) { rec.contractEnd = b.expected_date; rec.confirmed = false; rec._bid = { date: b.expected_date, confirmed: false }; }
       return rec;
     });
   };

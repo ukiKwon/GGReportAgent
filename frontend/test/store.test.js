@@ -139,11 +139,21 @@ test('applyEdits: 공고가 있는 행은 로컬 확정여부가 공고를 덮�
   store.clearServerData();
 });
 
-test('applyEdits: 공고가 없는 행은 로컬 확정여부가 그대로 적용된다', function () {
+// NEXT 72(030): 확정 여부는 서버 칸(contract_end_confirmed)이라 LOCAL_ONLY_FIELDS에서 빠졌다.
+// 서버 모드에서는 공고 유무와 관계없이 서버 값이 이기고, 옛 로컬 overlay가 덮지 못한다.
+test('applyEdits: 확정여부는 서버 칸이라 공고가 없는 행에서도 로컬 overlay가 서버 값을 덮지 못한다(030)', function () {
   freshLS();
   store.setEdit('광진구', { confirmed: true });
   store.setServerData([{ name: '광진구', confirmed: false }]);
 
-  assert.strictEqual(store.applyEdits(store.loadData())[0].confirmed, true);
+  assert.strictEqual(store.applyEdits(store.loadData())[0].confirmed, false);
+  assert.ok(store.LOCAL_ONLY_FIELDS.indexOf('confirmed') < 0);
   store.clearServerData();
+});
+
+test('applyEdits: 파일 모드(서버 없음)는 확정여부 overlay도 그대로 적용된다(로컬이 유일 저장처)', function () {
+  freshLS();
+  store.setEdit('광진구', { confirmed: true });
+  store.clearServerData();
+  assert.strictEqual(store.applyEdits([{ name: '광진구', confirmed: false }])[0].confirmed, true);
 });

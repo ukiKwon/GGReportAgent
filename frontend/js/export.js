@@ -3,7 +3,9 @@
   const exporter = {};
   const logic = (typeof require !== 'undefined') ? require('./logic.js') : root.logic;
   exporter.serializeInstitutions = function (list) {
-    return 'window.institutions = ' + JSON.stringify(list, null, 2) + ';\n';
+    // _로 시작하는 키(_inst·_bid 등)는 화면 내부용이라 데이터 파일에 넣지 않는다.
+    const text = JSON.stringify(list, function (k, v) { return k.charAt(0) === '_' ? undefined : v; }, 2);
+    return 'window.institutions = ' + text + ';\n';
   };
   exporter.downloadInstitutions = function (list) {
     const text = '// 편집 반영본 — frontend/data/institutions.js 로 교체하세요.\n' +

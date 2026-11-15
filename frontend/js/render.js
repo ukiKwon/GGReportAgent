@@ -5,6 +5,7 @@
   // node --test로 열 수 있어야 면 클릭 규칙을 테스트로 고정할 수 있다.
   const logic = (typeof require !== 'undefined') ? require('./logic.js') : root.logic;
   const store = (typeof require !== 'undefined') ? require('./store.js') : root.store;
+  const ie = (typeof require !== 'undefined') ? require('./instedit.js') : root.instedit;   // 확정 날짜 옆 출처·개원 예정 줄(NEXT 72)
 
   const esc = logic.esc; // 공유 이스케이프(logic.esc) 위임
 
@@ -896,7 +897,8 @@
       (sub ? '<div class="pop-sub">' + esc(sub) + '</div>' : '') +
       '<dl class="pop-grid"><dt>' + (nb ? '공고 진행' : '입찰 예정일') + '</dt><dd class="pop-mono">' +
       (nb ? esc(nb.detail)
-        : (bid.date ? esc(bid.date) + ' (' + esc(bid.basis === 'expiry' ? '추정·약정 만료 기준' : logic.confidenceLabel(bid.confidence)) + ')' : '미상')) + '</dd>' +
+        : (bid.date ? esc(bid.date) + ' (' + esc(bid.basis === 'expiry' ? '추정·약정 만료 기준' : logic.confidenceLabel(bid.confidence)) + ')' + ie.confirmSrcHtml(rec) : '미상')) + '</dd>' +
+      (ie.opLineHtml(rec) ? '<dt>운영 상태</dt><dd>' + ie.opLineHtml(rec) + '</dd>' : '') +
       '<dt>현 유치 은행</dt><dd>' + unk + '</dd><dt>임직원 수</dt><dd>' + unk + '</dd><dt>기관장</dt><dd id="pop-head"><span class="pop-unk">현황판에서 확인</span></dd></dl>' +
       '<div class="pop-note">미확인 칸은 기관 정보 이관 뒤 채워집니다.</div>' +
       '<div id="pop-prep-line"></div>' +

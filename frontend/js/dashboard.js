@@ -5,6 +5,7 @@
   // DOM 부분(mount/unmount)은 app.js가 #dash-root를 넘겨 부른다. 새 판정 로직은 만들지 않고 logic.js 함수를 조합한다.
   const isNode = typeof require === 'function' && typeof module !== 'undefined';
   const logic = isNode ? require('./logic.js') : root.logic;
+  const ie = isNode ? require('./instedit.js') : root.instedit;   // 확정 날짜 옆 출처·개원 예정 줄·개원 확인 필요 목록(NEXT 72)
   const dash = {};
   const esc = logic.esc;
 
@@ -603,6 +604,23 @@
       '</div></div>';
   };
 
+  // 개원 확인 필요(NEXT 72, 규격 6-E): '공고 예정일 경과' 토글 바로 아래, n>0일 때만. 기본 접힘. D-day 태그는 두지 않는다(입찰 대상이 아님).
+  dash.openCheckRowHtml = function (r, id, selected) {
+    return '<li role="option" id="' + esc(id) + '" class="db-row" data-key="' + esc(logic.instKey(r)) + '" aria-selected="' + (selected ? 'true' : 'false') + '">' +
+      '<span class="nm">' + esc(r.name) + '</span><span class="db-chk">개원 확인 필요</span>' +
+      '<span class="meta">' + esc(dash.regionName(r.region)) + ' · 개원 예정일 <span class="d">' + esc(r.openDate || '') + '</span> 지남</span></li>';
+  };
+  dash.openCheckHtml = function (recs, open, sel) {
+    if (!recs || !recs.length) return '';
+    let h = '<button type="button" class="db-more" id="db-chk" aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="db-chklist"><span>개원 확인 필요 <b>' + recs.length + '</b>곳</span><span>' + (open ? '접기' : '펼치기') + '</span></button>';
+    if (open) {
+      h += '<ul role="listbox" id="db-chklist" tabindex="0" aria-label="개원 확인 필요 기관">' + recs.map(function (r, i) {
+        return dash.openCheckRowHtml(r, 'db-c-' + i, logic.instKey(r) === sel);
+      }).join('') + '</ul>';
+    }
+    return h;
+  };
+
   dash.blankHtml = function () {
     return '<div class="db-blank">왼쪽 목록에서 기관을 고르세요. 기관 정보와 [제안 확정] 버튼이 여기에 보입니다.</div>';
   };
@@ -624,8 +642,9 @@
   dash.paneHtml = function (it, c) {
     c = c || {};
     const rec = it.rec, srcs = Array.isArray(rec.sources) ? rec.sources : [];
+    const oc = ie.isOpenCheck(rec);   // 개원 예정일이 지난 개원 예정 기관 — 입찰 대상이 아니라 날짜 줄·D-day 대신 '개원 확인 필요'
     const head = '<div class="db-head"><h2 id="' + esc(c.nameId || 'db-name') + '" tabindex="-1">' + esc(it.name) + '</h2>' +
-      (it.unknown ? '<span class="dg-day unknown">날짜 미상</span>' : it.notice ? dash.noticeChipHtml(it) : it.overdue ? '<span class="ov-stamp">D+' + it.days + '</span>' : '<span class="dg-day ' + esc(it.band) + '">' + dayText(it.days) + '</span>') +
+      (oc ? '<span class="db-chk">개원 확인 필요</span>' : it.unknown ?'<span class="dg-day unknown">날짜 미상</span>' : it.notice ? dash.noticeChipHtml(it) : it.overdue ? '<span class="ov-stamp">D+' + it.days + '</span>' : '<span class="dg-day ' + esc(it.band) + '">' + dayText(it.days) + '</span>') +
       (c.act === 'open' ? '<span class="wf-badge pp-neutral">사전준비 중</span>' : '') + '</div>' +
       '<p class="db-sub">' + esc(dash.kindOfRec(rec)) + ' · ' + esc(dash.regionName(rec.region)) + '</p>';
     const why = it.confidence === '확정' ? '— 공고로 확인한 날입니다'
@@ -634,10 +653,11 @@
       : '— 최근 절차일에 약정 주기를 더한 날입니다';
     const lp = lastProcNote(rec);
     // 진행 중 공고는 맨 위 '공고 진행' 절이 공고일·접수·약정 만료를 맡는다 — 예정일 막대·'입찰 예정일' 줄은 두지 않는다.
-    const info = (it.notice ? dash.noticeSecHtml(it, c.today) : dash.termBarHtml(it, c.today)) + '<div class="db-sec"><h3>기관 정보</h3><dl class="db-dl">' +
-      (it.notice ? '' : it.unknown ? '<dt>입찰 예정일</dt><dd>' + chip() + '</dd>' : '<dt>입찰 예정일</dt><dd>' + mono(it.date) + ' ' + esc(it.label) + chkHtml(it) + ' <span class="db-why">' + why + '</span></dd>') +
+    const info = (it.notice ? dash.noticeSecHtml(it, c.today) : oc ? '' : dash.termBarHtml(it, c.today)) +'<div class="db-sec"><h3>기관 정보</h3><dl class="db-dl">' +
+      (it.notice || oc ? '' : it.unknown ? '<dt>입찰 예정일</dt><dd>' + chip() + '</dd>' : '<dt>입찰 예정일</dt><dd>' + mono(it.date) + ' ' + esc(it.label) + chkHtml(it) + ' <span class="db-why">' + why + '</span>' + ie.confirmSrcHtml(rec) + '</dd>') +
       '<dt>최근 절차일</dt><dd>' + (rec.lastBid ? mono(rec.lastBid) + (lp ? ' <span class="db-why">' + esc(lp) + '</span>' : '') : chip()) + '</dd>' +
-      '<dt>약정 주기</dt><dd>' + (rec.term ? mono(rec.term) + '년' : chip()) + '</dd></dl>' +
+      '<dt>약정 주기</dt><dd>' + (rec.term ? mono(rec.term) + '년' : chip()) + '</dd>' +
+      (ie.opLineHtml(rec) ? '<dt>운영 상태</dt><dd>' + ie.opLineHtml(rec) + '</dd>' : '') + '</dl>' +
       (srcs.length ? '<details class="db-src"><summary>출처 ' + srcs.length + '건 보기</summary><ol>' + srcs.map(srcItem).join('') + '</ol></details>' : '') + '</div>';
     let bank;
     if (c.kb) {
@@ -658,6 +678,8 @@
 
   dash.actHtml = function (it, c) {
     const map = c.mapHtml !== undefined ? c.mapHtml : '<button type="button" id="db-map">전국 지도에서 보기</button>';
+    // 개원 확인 필요 기관은 입찰 대상이 아니라 [제안 확정]을 두지 않는다 — 운영 상태를 확인해 바꾸는 창으로 보낸다(NEXT 72, 기획 결정).
+    if (c.act === 'opencheck') return '<div class="db-act-row"><span class="db-why">개원했는지 확인하고 출처와 함께 운영 상태를 바꾸세요.</span><button type="button" id="db-edit">기관 정보 변경</button></div>';
     if (c.act === 'wait') return '<div class="db-act-row"><span class="db-why">사전준비 진행 상태를 확인하는 중입니다.</span>' + map + '</div>';
     if (c.act === 'unavailable') return '<div class="db-act-row"><span class="db-why">서버에 연결되면 [제안 확정]을 쓸 수 있습니다.</span>' + map + '</div>';
     if (c.act === 'open') return '<div class="db-act-row"><button type="button" class="db-next" id="db-open">사전준비 열기</button>' + map + '<span class="db-why">이미 제안 확정되어 사전준비가 진행 중입니다.</span></div>';
@@ -674,7 +696,7 @@
   };
 
   // ── DOM ───────────────────────────────────────────────────────────
-  const st = { sel: '', q: '', region: '', type: '', win: dash.DEFAULT_WINDOW, pastOpen: true, confirm: false, busy: false, flash: '', err: '',
+  const st = { sel: '', q: '', region: '', type: '', win: dash.DEFAULT_WINDOW, pastOpen: true, chkOpen: false, confirm: false, busy: false, flash: '', err: '',
     preps: null, overview: null, prepSt: 'offline', ovSt: 'offline', prepCode: 0, ovCode: 0 };
   let host = null, ac = null, M = null, LIST = [], seq = 0;
 
@@ -690,7 +712,16 @@
     } catch (e) { return root.institutions || []; }
   }
   function allItems() { return M ? M.upcoming.concat(M.later || [], M.overdue, M.notice || []) : []; }
-  function findItem(key) { return allItems().filter(function (it) { return it.key === key; })[0] || null; }
+  // 개원 확인 필요 기관(서버 open_check_needed) — 입찰 목록(dataList)에서는 빠지는 개원 예정 법원이라 서버 행에서 따로 모은다.
+  function openCheckRecs() {
+    if (!serverMode()) return [];
+    try { return ie.openCheckList(root.store.loadData() || []); } catch (e) { return []; }
+  }
+  function openCheckItem(key) {
+    const r = openCheckRecs().filter(function (x) { return logic.instKey(x) === key; })[0];
+    return r ? dash.itemForRec(r, todayDate()) : null;
+  }
+  function findItem(key) { return allItems().filter(function (it) { return it.key === key; })[0] || (st.chkOpen ? openCheckItem(key) : null) || null; }
   function activeFor(rec) {
     const id = rec && rec.institutionId;
     return id ? dash.activePreps(st.preps).filter(function (p) { return instId(p) === id; })[0] || null : null;
@@ -766,6 +797,9 @@
       h += past.length ? '<ul role="listbox" id="db-pastlist" tabindex="0" aria-label="공고 예정일 경과 기관">' + optionsFor(past, 'db-p-') + '</ul>'
         : '<p class="db-state">' + (filtered ? '조건에 맞는 경과 기관이 없습니다.' : '예정일이 지난 기관이 없습니다.') + '</p>';
     }
+    h += dash.openCheckHtml(openCheckRecs().filter(function (r) {
+      return (!st.region || r.region === st.region) && (!st.q.trim() || String(r.name || '').indexOf(st.q.trim()) >= 0) && (!st.type || dash.kindOfRec(r) === st.type);   // 종류 판정은 filterItems와 같은 kindOfRec
+    }), st.chkOpen);
     el.innerHTML = h;
     markSelected();
     const foot = $('db-foot');
@@ -810,7 +844,7 @@
     el.removeAttribute('aria-label'); el.setAttribute('aria-labelledby', 'db-name');
     const actives = dash.activePreps(st.preps);
     const ctx = actCtx();
-    const act = dash.actionKind(it.rec, ctx, actives, root.prep);
+    const act = ie.isOpenCheck(it.rec) ? 'opencheck' : dash.actionKind(it.rec, ctx, actives, root.prep);
     el.innerHTML = dash.paneHtml(it, { act: act, confirm: st.confirm && act === 'confirm', busy: st.busy,
       kb: dash.kbEntry(it.rec, root.KB_VERIFIED), role: ctx.role, today: todayDate(), headHtml: headSection(it) });
     if (st.confirm && act === 'confirm') { const b = $('db-do'); if (b) b.focus(); }
@@ -927,6 +961,7 @@
   // 선택한 기관이 지금 보이는 목록(기간 안 + 펼친 경과 묶음)에 없으면 선택을 풀어 listbox와 상세가 어긋나지 않게 한다.
   function pruneSelection() {
     if (!M || !st.sel) return;
+    if (st.chkOpen && openCheckItem(st.sel)) return;   // 개원 확인 필요 목록에서 고른 기관은 기간 창과 무관하다
     const f = { q: st.q, region: st.region, type: st.type };
     const vis = dash.visibleKeys(M, st.win, f, st.pastOpen);
     if (vis.indexOf(st.sel) < 0) { st.sel = ''; st.confirm = false; markSelected(); renderPane(); }
@@ -969,8 +1004,8 @@
     const rootEl = $('db-root');
     if (rootEl) rootEl.setAttribute('aria-busy', 'false');
     fillFilters();
-    if (st.sel && !allItems().some(function (it) { return it.key === st.sel; })) st.sel = '';   // 데이터가 바뀌어 사라진 기관
-    else if (st.sel && dash.visibleKeys(M, st.win, { q: st.q, region: st.region, type: st.type }, st.pastOpen).indexOf(st.sel) < 0) st.sel = '';   // 저장된 기간 밖
+    if (st.sel && !findItem(st.sel)) st.sel = '';   // 데이터가 바뀌어 사라진 기관(개원 확인 필요 목록 포함)
+    else if (st.sel && !(st.chkOpen && openCheckItem(st.sel)) && dash.visibleKeys(M, st.win, { q: st.q, region: st.region, type: st.type }, st.pastOpen).indexOf(st.sel) < 0) st.sel = '';   // 저장된 기간 밖
     // 고른 곳이 없으면 자동 선택(마감 전 가장 가까운 곳 → 기간 창 첫 행) — 상세 칸이 빈 상자로 열리지 않게. 포커스는 옮기지 않는다.
     if (!st.sel) st.sel = dash.autoSelectKey(M, st.win, { q: st.q, region: st.region, type: st.type });
     renderAll();
@@ -1017,6 +1052,13 @@
       case 'db-nb-wait': { const o = host.querySelector('.db-row[data-check="1"]'); const lb = o && o.closest('[role=listbox]'); if (o && o.scrollIntoView) o.scrollIntoView({ block: 'nearest' }); if (lb) lb.focus(); break; }
       case 'db-nb-more': { const lb = $('db-nlb'); if (lb) { if (lb.scrollIntoView) lb.scrollIntoView({ block: 'nearest' }); lb.focus(); } break; }
       case 'db-past': st.pastOpen = !st.pastOpen; pruneSelection(); renderList(); { const b = $('db-past'); if (b) b.focus(); } break;
+      case 'db-chk': {
+        const wasSel = st.sel && openCheckItem(st.sel);
+        st.chkOpen = !st.chkOpen;
+        if (!st.chkOpen && wasSel) { st.sel = ''; renderPane(); }   // 접으면 그 목록에서 고른 기관의 상세도 닫는다
+        renderList(); { const b = $('db-chk'); if (b) b.focus(); } break;
+      }
+      case 'db-edit': { const it = st.sel ? findItem(st.sel) : null; if (it && root.app && root.app.openEdit) root.app.openEdit(it.rec, { from: 'bid_board', focus: 'status' }); break; }
       case 'db-clear': st.q = ''; st.region = ''; st.type = ''; fillFilters(); renderList(); { const q = $('db-q'); if (q) q.focus(); } break;
       case 'db-cf': st.confirm = true; renderPane(); break;
       case 'db-cancel': st.confirm = false; renderPane(); { const b = $('db-cf'); if (b) b.focus(); } break;
@@ -1143,7 +1185,7 @@
     if (!btn) return;
     switch (btn.id) {
       case 'dm-close': dash.closeDetail(true); break;
-      case 'dm-edit': { const r = m.rec; dash.closeDetail(false); if (root.app && root.app.openEdit) root.app.openEdit(r); break; }   // 편집 창이 팝업 뒤에 깔리지 않게 먼저 닫는다
+      case 'dm-edit': { const r = m.rec; dash.closeDetail(false); if (root.app && root.app.openEdit) root.app.openEdit(r, { from: 'map_popover', opener: m.opener }); break; }   // 편집 창이 팝업 뒤에 깔리지 않게 먼저 닫는다
       case 'db-cf': m.confirm = true; dmRender(); break;
       case 'db-cancel': m.confirm = false; dmRender(); { const b = m.el.querySelector('#db-cf'); if (b) b.focus(); } break;
       case 'db-do': dmDoConfirm(m); break;
@@ -1238,6 +1280,9 @@
     refreshData();       // 고른 기관이 없으면 자동 선택한다(마감 전 가장 가까운 곳 → 기간 창 첫 행, 포커스 이동 없음). 선택은 세션 안에서만 기억한다.
     loadProgress();
   };
+
+  // 기관 편집 저장 뒤 서버 목록이 바뀌면 현황판(열려 있을 때만)을 다시 그린다.
+  dash.refresh = function () { if (host && M) refreshData(); };
 
   dash.unmount = function () {
     seq += 1;
