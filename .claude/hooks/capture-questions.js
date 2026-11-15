@@ -100,13 +100,19 @@ function fromAskDetailed(input, res) {
 }
 const fromAsk = input => fromAskDetailed(input, null).map(x => x.q);
 
+// 사람이 친 글이 아닌 자동 주입 메시지(에이전트 보고·작업 알림·다른 세션 메시지·시스템 알림)는 답도 턴 경계도 아니다
+// (2026-11-15 사고: 에이전트 보고가 질문의 답으로 기록됨)
+const INJECTED = /^\s*(?:<(?:agent-message|task-notification|cross-session-message|system-reminder|command-name|command-message|local-command-stdout|bash-input|bash-stdout)\b|\[SYSTEM NOTIFICATION|\[Subagent hand-back\])/i;
+function isInjected(text) { return INJECTED.test(String(text || '')); }
+
 function isRealPrompt(o) {
   if (!o || o.type !== 'user' || o.isSidechain || o.isMeta) return false;
   const c = o.message && o.message.content;
-  if (typeof c === 'string') return c.trim().length > 0;
+  if (typeof c === 'string') return c.trim().length > 0 && !isInjected(c);
   if (!Array.isArray(c)) return false;
   if (c.some(b => b && b.type === 'tool_result')) return false;
-  return c.some(b => b && b.type === 'text' && typeof b.text === 'string' && b.text.trim());
+  const texts = c.filter(b => b && b.type === 'text' && typeof b.text === 'string' && b.text.trim()).map(b => b.text);
+  return texts.length > 0 && !texts.every(isInjected);
 }
 
 function resText(c) {
@@ -294,7 +300,8 @@ function runAnswer(payload, opts) {
   const o = opts || {};
   const root = o.root || process.env.CLAUDE_PROJECT_DIR || (payload && payload.cwd) || process.cwd();
   const ledger = path.join(root, 'handoff', 'questions.json');
-  const prompt = payload && typeof payload.prompt === 'string' ? payload.prompt.trim() : '';
+  const raw = payload && typeof payload.prompt === 'string' ? payload.prompt : '';
+  const prompt = isInjected(raw) ? '' : promptText(raw); // 자동 주입 메시지는 답이 아니다, 편집기 태그는 뺀다
   if (!prompt || prompt.startsWith('/') || !payload.transcript_path || !fs.existsSync(ledger)) return 0;
   const keys = new Set(extractTarget(readTailLines(payload.transcript_path), prompt).map(s => normKey(parseQuestion(s).summary)).filter(Boolean));
   if (!keys.size) return 0;

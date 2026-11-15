@@ -246,3 +246,17 @@ test('answer: 기록된 입력에 편집기 태그 블록이 섞여도 같은 �
   assert.strictEqual(cq.runAnswer({ transcript_path: s.tr, prompt: '네' }, { root: s.dir, now: NOW }), 2);
   s.done();
 });
+
+test('사고 재발 방지: 에이전트 보고·작업 알림·다른 세션 메시지는 답으로 기록하지 않고 턴 경계로도 보지 않는다', () => {
+  for (const p of ['<agent-message from="a1">[Subagent hand-back] 보고</agent-message>', '<task-notification><task-id>x</task-id></task-notification>',
+    '<cross-session-message from="s">알림</cross-session-message>', '[SYSTEM NOTIFICATION - NOT USER INPUT] done']) {
+    const s = setup(L4, [user('x'), ASKED]);
+    assert.strictEqual(cq.runAnswer({ transcript_path: s.tr, prompt: p }, { root: s.dir, now: NOW }), 0, p);
+    assert.strictEqual(fs.readFileSync(s.led, 'utf8'), L4);
+    s.done();
+  }
+  // transcript에 주입 메시지가 끼어 있어도 질문 턴이 끊기지 않고, 그 뒤 사람의 답이 붙는다
+  const s = setup(L4, [user('x'), ASKED, user('<agent-message from="a1">보고</agent-message>'), asst(text('보고 받았어요'))]);
+  assert.strictEqual(cq.runAnswer({ transcript_path: s.tr, prompt: 'ⓐ로 해' }, { root: s.dir, now: NOW }), 2);
+  s.done();
+});
