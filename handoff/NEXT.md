@@ -436,3 +436,8 @@
 - **현재**: `python -m collector run --source eminwon|g2b`, `preview --batch <id>`, 작업 'GGReport collector weekly'(collector/run_weekly.cmd, 로그 data/collector/_logs/, LLM 0, 해제 `schtasks /Delete /TN "GGReport collector weekly" /F`). TLS 예외(2708cae), known_failing·요청 마감·잠금 토큰(9304960). 실패 요청 기록 fetch_failures(URL 키 가림·목적·시도 횟수, 11-12 사용자). ※ 11-12 git 이력 재작성으로 이 항목의 해시는 옛 값 — handoff/archive/2026-11-12_git-hash-map.tsv로 찾는다. 사용자 결정: 연락처 전부 마스킹, 백신은 https+go.kr·광역 지자체 공식 도메인이면 생략. 운영 방식은 collector/SOURCES.md §3.
 - **다음 한 걸음**: qa P3 3건 반영 끝(00f15d6·645f526) → 첫 주간 실행(11-16 09:00) 로그·fetch_failures 확인(점검표 handoff/agents/history/2026-11-13_주간수집_첫실행_점검표.md — 시간 초과 12곳이면 '예상된 3')(서울 3곳은 known_failing이라 종료 코드 0이 정상) → 남은 하(下): 원문 보존 기간(NEXT 35), 웹 반입 첨부 서명 검사(e3), 서울 도봉·중구·강남 다른 출처 보완(강남 보도 1건), 기관 게시판·법원 새소식 소스, xlsx 포장.
 - **자세히**: planner a780ca1f, collector/SOURCES.md·SCHEMA.md, security·qa 11-12 보고, 11-12 summary.
+
+### 82. 기관 종류 6종 — 교육청 따로(재단법인은 공공기관 유지) (Q-2026-11-13-02 사용자 답 11-15) [담당: frontend-dev → qa]
+- **현재(11-15 4b, 사용자 결정 2단계)**: ① 시도 교육청은 '교육청'으로 따로 구분 ② **재단법인은 '기타'로 빼지 않고 일단 '공공기관'으로 분류한다 — 애매하지만 이렇게 정리(사용자 11-15, PM·기획자 공유 필수)**. 그래서 '기타' 종류는 만들지 않고 번들·DB TYPE도 바꾸지 않는다(033 시드 불필요). 교육청 type은 번들·DB 모두 이미 '교육청' — 화면 접기 표(KIND_OF_TYPE)만 고친다. 종류 순서 지자체·교육청·공공기관·대학·법원·병원, 기본 전부 켬.
+- **다음 한 걸음**: frontend-dev — TYPE_KINDS 6종·KIND_OF_TYPE 교육청→교육청, markerShape를 kind 기준으로(교육청·지방공기업이 법원◆로 그려지던 결함 — 법원을 꺼도 ◆24 남음), 교육청 ■(±7), 모르는 유형 기본값 ◆→가로 막대, 필터 체크박스 1개 추가·주석, 시험 notice 128·186/logic 48/mix 116 + '◆는 법원뿐' → qa. DESIGN.md 393–396 마커 문단 갱신, design_history 전/후 장.
+- **자세히**: planner 11-15(교육청·기타 범위 — '기타' 부분은 사용자 결정으로 폐기), design-reviewer 11-15(마커·필터 규격 — '기타' 행 제외하고 적용), questions.json Q-2026-11-13-02.
