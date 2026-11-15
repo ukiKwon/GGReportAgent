@@ -693,3 +693,9 @@
 - **77(일부) 빈 기관장·무효 권한·이름** — 이름까지 무효면 기관장 없음·팝업 등록 바로 확정·VOIDED·출처 각주(a35b6b0), 남이 확정한 값은 팀장·부장만 무효·can_void(9235403), '추가' 동사 통일·전환 테스트(d870cbe). 사전준비 쪽 '기획승인'→'사전준비 승인'(3d2166c).
 - **78(일부) 지도** — 요약 카드·순위표 '공고 진행 중'(마포 D+15 오표시 해소, d870cbe), [기관장 보기](fe2187a), 지도 기관 클릭 → 현황판 상세 팝업·[제안 확정] 숨김 버그 수정(d830c5b).
 - **로컬 MySQL 적용 스크립트** — kgi-ggreport-web/tools/db/apply-mysql.mjs·README §5-3(362cdcd), 이 PC 027·028 적용·--baseline 028.
+
+## 2026-11-15 해소 (3d, 출처 handoff/2026-11-15_summary.md ## Session 20:20 (3d))
+- **43 대시보드 연출 로직 테스트 분리** — 판정을 fmt.js 순수 함수(lapIntOf·fatOf·isSplashOk·pickSplashCands·lastPourAfter·nextSplashAt)로 떼고 app.js 위임, test/anim.test.js 11건(qa ①~⑥) — b54fe09.
+- **31(일부) closing.test 6번 순서 의존·IDS 사본** — IDS 정본 statefile.js, 시험이 공유 — a3e15b9.
+- **64 ④ 담당자 변경 신청 빈 본문 500** → 가드 뒤 400 — 0d85ba6.
+- **70 하 감사 격리 시험** — PrepAuditIsolationTest 31건 — 671e6ba·15f519b. **70 가드 후속 AccessLogInterceptor 컨텍스트 경로** — 0d85ba6. **security 11-13 dashboard.js /preps POST 2곳 머리글** — 076cd3c.
