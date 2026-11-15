@@ -2,8 +2,20 @@
 
 마지막 갱신: 2026-11-13 마무리 (다른 PC 이전 준비) — 오늘 요약: `handoff/2026-11-13_summary.md`(9f 18:05 · e3 18:00)
 
+## 11-15 대시보드 '물은 질문' 패널 (9b 세션 — 구현 완료)
+- 사용자 답: 권장안대로(반영 뒤 접기·진행 중도 미답·열린 것만 이관), 대시보드는 design_history 대상 아님.
+- 정본 장부 `handoff/questions.json`(48건: 미답 44·답함 4), 서버 `GET /api/questions`(읽기 전용), 화면 오른쪽 패널. 기록 규칙은 `agent-dashboard/README.md`. **질문하면 장부에 open 추가 → 답 answered → 반영 커밋 뒤 done**.
+- 남은 것: 이관 때 '낡았을 수 있다'고 뺀 질문(NEXT 54 Q1~7·55 구조안·76 Q2·Q3·로그인 제목) 확인 후 열린 것만 추가, 대시보드 질문 4건(Q-2026-11-15-01~04) done 처리, serve.py 405·RecursionError(하).
+
+## 11-15(일) 새 PC 첫 세션 진행 상황 (이 절이 아래보다 우선)
+- **새 PC 환경 완료**: C:\dev에 JDK8·MySQL 8.4.13·gh(setup-local-win.ps1 -SkipIdea), 플러그인 7종+env(-ClaudePlugins), Playwright MCP는 전역 `@playwright/mcp` + node 절대경로 + `--browser chrome`. ggreportdb 001~029 적용(표 44·기관 415·사용자 25). 시험: 서버 1141·화면 1092·apply-mysql 8 모두 통과. 8080 기동·/institutions 200. Maven은 IntelliJ 동봉(`C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.2\plugins\maven\lib\maven3\bin\mvn.cmd`), python은 PATH에 없음(기관장 재등록 때 잡는다).
+- **PM 작업 순서 ①~④ 완료(4b, 커밋만·미푸시)**: ① 029 뒤 기관 합치기 1c85609(화면 436→430, 개원 예정 6 제외, 지자체 외 번들 칸 보존) ② NEXT 70 보안 fc3bfee(사유 가림 허용 목록·ApprovalLine 앞단) ②' 후속 75d59ff·e04acf3(PrepController 감사 틀, 감사 칸 형식 검사) ③ NEXT 78 화면 P2 49a3dbb(design ㉘) ④ NEXT 제목 정리. 시험: 서버 1147·화면 1108. security·qa·design 모두 차단 없음.
+- **다음 세션 할 일**: (a) 푸시 — PUSH-GATE(security ∥ pm ∥ cleaner) 뒤 `git push`(오늘 커밋 6건 미푸시) (b) ⑤ NEXT 72 서버 후속(InstitutionSeedAllPairTest 쌍 테스트·030 contractExpiry·orgCode 칸 설계 — planner 먼저) (c) 사용자 답 대기 Q-2026-11-15-05(사전준비 사유를 공동·옛 담당자에게도, 권장 보이기) (d) 하 등급 남은 것: 감사 격리 시험(PrepAudit 실패 시 원 응답 유지), 확정 실패 기관 추적 여부(기획), 되돌림 경로(요약 카드·decoratePopover) 폐기 판단, 팝오버 배지를 '공고 후 n일'로 맞출지(기획), 서버 모드에서 지역·구분 편집 허용(기획, qa P2-1 폴백 적용됨), store.loadData() 직접 쓰는 화면(team·workflow·chat·knowledge)에 개원 예정 법원 노출.
+- 사용자 알림만: 11-16 주간 수집은 옛 PC 로그 확인 / 요구사항 자료 11-13 캡처 실명 육안 확인.
+- 이 PC 메모: git user.name/email은 저장소 로컬 설정(ukiKwon). 8080은 `C:/dev/jdk8/.../java -jar target/kgi-ggreport-web.war`, MySQL은 `C:\dev\mysql-start.cmd`(세션 끝나면 꺼짐). VS Code를 완전히 재시작해야 PATH(JDK8·mysql·gh) 적용.
+
 ## 다음 세션 먼저 할 일
-0. **새 PC 준비 (맨 먼저, `kgi-ggreport-web/README.md` §5-3)**
+0. **새 PC 준비 (11-15 완료 — 위 절 참조)**
    1. 저장소를 **새로 clone**한다 — 11-12 git 이력 재작성 때문에 예전 폴더에서 pull하지 않는다(옛 해시 표 `handoff/archive/2026-11-12_git-hash-map.tsv`).
    2. JDK 8·MySQL 8.4·Node 22 준비(필요하면 `scripts/setup-local-win.ps1`, 플러그인은 CLAUDE.md 7절). Playwright MCP는 node 절대경로 + `--browser chrome`으로 고친다.
    3. DB 만들기: README §5의 `CREATE DATABASE`·`CREATE USER` 두 줄(비밀번호는 문서에 적지 않는다).
