@@ -13,7 +13,8 @@
   serverdata.mapServerRow = function (row) {
     const rec = {};
     Object.keys(FIELD_MAP).forEach(function (k) {
-      if (row[k] !== null && row[k] !== undefined) rec[FIELD_MAP[k]] = row[k];
+      // 빈 문자열도 '값 없음' — DB의 '' 가 번들 값(지역 등)을 지우지 않게(qa 11-15 P3-3)
+      if (row[k] !== null && row[k] !== undefined && row[k] !== '') rec[FIELD_MAP[k]] = row[k];
     });
     return rec;
   };
@@ -45,28 +46,47 @@
   // 어긋나 **같은 구가 카드 두 장**으로 떴다(서울 지자체 25 → 50). 지도 쪽
   // municipalityForFeature는 이미 normalizeMuniName으로 둘을 같은 구로 보고 있었다 —
   // 병합만 그 기준을 안 쓰고 있던 것이다.
-  // ⚠️ 이름만으로 맞추므로 **같은 이름이 지역을 넘어 존재하면 엉뚱하게 합쳐진다.**
-  //    지금 번들에서 구 단위는 서울뿐이고(다른 지역은 시/군) 서버 25개 이름 중
-  //    번들에 두 번 이상 나오는 것은 없다 — 아래 테스트가 그 전제를 고정한다.
+  // 같은 정규화 이름이 지역을 넘어 있을 수 있어(029 뒤 415행 — 부산·대구 중구 등) **지역까지 본다**.
+  // 후보 우선순위: ① 지역이 같은 서버 행 ② 서버 지역이 빈 행 ③ (번들 지역이 비면) 첫 행.
+  // 서버 지역이 있고 번들과 다르면 합치지 않는다. 지자체와 비지자체도 서로 합치지 않는다.
+  // 일반구 반복행(수원 4구 등)은 번들 N행이 서버 1행을 같이 쓴다.
   function mergeKey(name) {
     return logic.normalizeMuniName(name);
   }
+  function sameKind(a, b) { return !a || !b || (a === '지자체') === (b === '지자체'); }
 
   serverdata.mergeUnion = function (bundle, serverRows) {
+    const entries = serverRows.map(function (r) {
+      return { key: mergeKey(r.name_ko), rec: serverdata.mapServerRow(r) };
+    });
     const byName = {};
-    serverRows.forEach(function (r) { byName[mergeKey(r.name_ko)] = serverdata.mapServerRow(r); });
-    const seen = {};
+    entries.forEach(function (e) { (byName[e.key] = byName[e.key] || []).push(e); });
+    // 이름별 번들 지역 — ④ 폴백이 '그 지역에 번들 짝이 따로 있는 서버 행'을 가져가지 않게.
+    const bundleRegions = {};
+    bundle.forEach(function (b) {
+      const k = mergeKey(b.name);
+      (bundleRegions[k] = bundleRegions[k] || {})[b.region || ''] = true;
+    });
+    function pick(b) {
+      const k = mergeKey(b.name);
+      const ok = (byName[k] || []).filter(function (e) { return sameKind(e.rec.type, b.type); });
+      return ok.filter(function (e) { return e.rec.region && e.rec.region === b.region; })[0] ||
+             ok.filter(function (e) { return !e.rec.region; })[0] ||
+             (!b.region ? ok[0] : null) ||
+             // ④ 서버 쪽에서 지역을 고친 기관(편집 저장) — 같은 이름·종류의 서버 행이 하나뿐이고 그 지역에 번들 짝이
+             //    없으면 합친다. 안 그러면 같은 기관이 번들 행·서버 행 두 장으로 갈라진다(qa 11-15 P2-1).
+             (ok.length === 1 && !bundleRegions[k][ok[0].rec.region] ? ok[0] : null) || null;
+    }
+    const used = new Set();
     const out = bundle.map(function (b) {
-      const s = byName[mergeKey(b.name)];
-      if (!s) return b;
-      seen[mergeKey(b.name)] = true;
+      const e = pick(b);
+      if (!e) return b;
+      used.add(e);
       // 번들 이름을 남긴다 — 서버 필드로 덮으면 화면 표기가 `강동구청`에서
       // `강동구`로 조용히 바뀐다. 이름의 진실은 지도 번들 쪽이다(사용자 확정 ⓐ안).
-      return Object.assign({}, b, s, { name: b.name });
+      return Object.assign({}, b, e.rec, { name: b.name });
     });
-    serverRows.forEach(function (r) {
-      if (!seen[mergeKey(r.name_ko)]) out.push(serverdata.mapServerRow(r));
-    });
+    entries.forEach(function (e) { if (!used.has(e)) out.push(e.rec); });
     return out;
   };
 

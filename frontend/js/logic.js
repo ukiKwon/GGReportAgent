@@ -205,6 +205,23 @@
     '11|관악구청', '41|광명시청', '42|삼척시청', '42|양양군청', '45|정읍시청',
     '47|영천시청', '47|청송군청'];
   logic.instKey = function (r) { return (r.region || '') + '|' + (r.name || ''); };
+  // 개원 예정 법원은 아직 금고 입찰 대상이 아니라 지도·현황판 목록에서 뺀다.
+  logic.isOpeningCourt = function (r) { return !!r && r.type === '법원' && r.opStatus === '개원 예정'; };
+  // base(서버 병합 목록) 위에 extras(지자체 외 번들)를 얹는다. 같은 instKey면 extras 칸을 바탕으로
+  // base가 가진 칸이 덮는다(서버 값 우선, 서버에 없는 칸은 번들 값 보존). 없으면 extras 행을 뒤에 붙인다.
+  // 029(기관 415행) 뒤 서버 최소행이 번들의 은행·약정 만료·확정·개원 예정 표식을 가리던 문제(2026-11-15).
+  logic.overlayExtras = function (base, extras) {
+    const byKey = {};
+    (extras || []).forEach(function (x) { byKey[logic.instKey(x)] = x; });
+    const have = {};
+    const out = (base || []).map(function (r) {
+      const k = logic.instKey(r);
+      have[k] = true;
+      return byKey[k] ? Object.assign({}, byKey[k], r) : r;
+    });
+    (extras || []).forEach(function (x) { if (!have[logic.instKey(x)]) out.push(x); });
+    return out;
+  };
   logic.isDateUnderReview = function (rec) {
     return logic.OVERDUE_CHECK_KEYS.indexOf(logic.instKey(rec)) >= 0;
   };

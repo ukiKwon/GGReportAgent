@@ -133,18 +133,20 @@
 
   render.baseInstitutions = function () { return store.loadData() || window.institutions || []; };
   // 지자체 외 기관(교육청·법원·공공기관·지방공기업·대학·병원, data/institutions_nonmuni.js)을 지도·현황판 목록에 합친다.
-  // 개원 예정 법원은 아직 금고 입찰 대상이 아니라 뺀다. base에 같은 region|name이 이미 있으면 base가 이긴다(서버 병합 대비).
+  // 개원 예정 법원은 아직 금고 입찰 대상이 아니라 뺀다. base에 같은 region|name이 이미 있으면 base 칸이 덮고
+  // 번들 칸(은행·약정 만료·확정·opStatus 등)은 보존한다 — 서버(029, 415행)가 지자체 외 최소행을 주기 때문.
+  // 개원 예정 필터는 합친 뒤에 건다 — DB에서 온 개원 예정 법원은 opStatus를 번들에서 받아야 걸러진다.
   // baseInstitutions는 그대로 둔다 — 기관 추가(app.openAdd)가 이 목록을 저장하므로 합친 168곳이 저장소에 복제되지 않게.
-  render.nonMuniInstitutions = function () {
+  render._nonMuniRaw = function () {
     const g = (typeof window !== 'undefined') ? window : root;
-    const src = (g && Array.isArray(g.institutionsNonMuni)) ? g.institutionsNonMuni : [];
-    return src.filter(function (r) { return !(r.type === '법원' && r.opStatus === '개원 예정'); });
+    return (g && Array.isArray(g.institutionsNonMuni)) ? g.institutionsNonMuni : [];
+  };
+  render.nonMuniInstitutions = function () {
+    return render._nonMuniRaw().filter(function (r) { return !logic.isOpeningCourt(r); });
   };
   render.allInstitutions = function () {
-    const base = render.baseInstitutions();
-    const have = new Set(base.map(logic.instKey));
-    const extra = render.nonMuniInstitutions().filter(function (r) { return !have.has(logic.instKey(r)); });
-    return store.applyEdits(extra.length ? base.concat(extra) : base);
+    const merged = logic.overlayExtras(render.baseInstitutions(), render._nonMuniRaw());
+    return store.applyEdits(merged.filter(function (r) { return !logic.isOpeningCourt(r); }));
   };
   render.institutionsByRegion = function (code) {
     return render.allInstitutions().filter(function (r) { return r.region === code; });
