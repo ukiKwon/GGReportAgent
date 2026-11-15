@@ -290,6 +290,11 @@
 - **다음 한 걸음**: 상단 I-4(둘러보기 결재함) 사용자 답. 개인 view=false 반영은 시험 계정 데이터 변경이 필요해 허락 후 확인. 그 뒤 done.md로.
 - **자세히**: handoff/agents/qa-verifier/2026-11-10_0856_*, security 1831.
 
+### 83. apply-mysql 비밀번호 임시 옵션 파일 전환(35a0ccc) — **실제 DB 접속 확인 대기, 회귀 의심** [담당: backend-dev]
+- **현재**: 11-15 3d가 MYSQL_PWD 환경변수 → --defaults-extra-file 임시 파일로 바꿈(단위 15 통과). 사용자 실행 `--status`가 `ERROR 1045 Access denied (using password: YES)` — 비밀번호 오입력인지 옵션 파일 이스케이프·쓰기 결함인지 미확정.
+- **다음 한 걸음**: 사용자 ⓐ `mysql -u root -p -e "select 1"`로 비밀번호 확인 ⓑ 되면 옛 버전 `git show 35a0ccc~1:kgi-ggreport-web/tools/db/apply-mysql.mjs > %TEMP%\apply-old.mjs` → `node %TEMP%\apply-old.mjs --status --dir kgi-ggreport-web\src\main\resources\db\mysql`. 옛 것만 되면 35a0ccc 결함 → 고치거나 되돌림(`git revert 35a0ccc`). 그 전까지 DB 적용이 막히면 옛 버전 명령으로 우회.
+- **자세히**: handoff/2026-11-15_summary.md ## Session 20:20 (3d) 끝 줄, security 11-15 apply-mysql 보고서.
+
 ### 70. 제안 확정·첫 개설 승인·제안서 사전준비 프로세스 — **서버 구현 완료(11-11, 보안 하 11-15 fc3bfee·75d59ff), 화면·남은 하(下)·사유 열람 범위 답 대기** [담당: backend-dev → security → design-reviewer → frontend-dev → qa / data-auditor]
 - **현재**: 흐름은 제안 확정(팀, 결재 없음) → 개설 신청(영업팀원 누구나 담당 지정)+영업팀장 매칭 승인 → 사전준비 과제 T1~T6 → 영업부장 기획승인(5번 게이트와 같은 한 번) → '제안서 작성하기'. 참여 결정 3단 카드·팀장 직접 최초 배정은 폐지. 개설 뒤 중단은 영업팀장이 사유 기록(결재 없음). ▶ 실행은 영업팀장·그 기관 담당자만. 붙임은 HWPX·PDF만, 개인정보는 주민·외국인등록·카드번호만 차단·이메일·전화는 경고(사용자 11-10). 가드(9ef863c, 서버 903 통과): LegacyFlowSwitch(기본 열림, '제안서 작성하기'와 함께 닫음)·B1·B4·B5·D9·F-2. backend 설계: 024_bid_prep·025_bid_prep_attach 초안, 엔드포인트 16개, 감사 표 BID_PREP_ACT. 골든은 지금 스위치로 유지, 사전준비 완성 뒤 새 흐름으로 개정(사용자 권장안 승인).
 - **다음 한 걸음**: ① 020b 커밋 뒤 DDL 확정 → B2·B3·T5·감사 표 → ApprovalTypes·후크 → 화면(그 전에는 020 서버 파일을 건드리지 않는다) ② data-auditor: 참여확정·보류 건수와 배정 유무(읽기 전용, 지금 가능) ③ 가드 후속: 스위치 false 커밋 때 config-envs 키 명시+기본 닫힘 시험·README, /run 진행 상태 조건(024 뒤), 제안팀 화면 열람 기록(tasks:team). (AccessLogInterceptor 컨텍스트 경로 제거는 11-15 해소 0d85ba6 — 접근 이력 경로는 컨텍스트·마디별 ;매개변수를 뗀 값, DENIED·게시판 413 행도 같은 형식. 형식 바뀐 날짜(11-15)는 보존 정책 35 검토 때 메모)
