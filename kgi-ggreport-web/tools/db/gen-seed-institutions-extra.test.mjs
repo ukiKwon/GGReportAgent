@@ -92,7 +92,10 @@ test('--extra 기본 번호·이름', () => {
   assert.equal(parseArgs([]).number, '029');
 });
 
-test('029 모드 출력은 커밋된 029 와 바이트 단위로 같다(--extra 없이)', () => {
+// 원본 해시 줄은 뺀다 — 번들에 029 가 쓰지 않는 칸(noticeNo 등)만 더해도 해시가 바뀌어 실패하던 결합(qa P2-3, 2026-11-15).
+// 029 가 실제로 담는 행·규칙은 그대로 비교한다. 029 칸(이름·지역·종류·날짜·주기)이 바뀌면 여전히 실패해야 한다 — 그때는 새 번호로.
+const noHash = (s) => s.replace(/^-- 원본\(frontend\/data\) 해시:.*$/m, '-- 원본 해시: (비교 제외)');
+test('029 모드 출력은 커밋된 029 와 같다(--extra 없이, 원본 해시 줄 제외)', () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const tmp = mkdtempSync(path.join(os.tmpdir(), 'gen029-'));
   const log = console.log; const warn = console.warn;
@@ -104,6 +107,6 @@ test('029 모드 출력은 커밋된 029 와 바이트 단위로 같다(--extra 
     const f = '029_seed_institutions_all.sql';
     const a = readFileSync(path.join(tmp, d, f), 'utf8');
     const b = readFileSync(path.resolve(here, '../../src/main/resources/db', d, f), 'utf8').replace(/\r\n/g, '\n');   // 체크아웃 줄바꿈 차이만 흡수
-    assert.equal(a, b, `${d}/${f} 불일치`);
+    assert.equal(noHash(a), noHash(b), `${d}/${f} 불일치`);
   }
 });

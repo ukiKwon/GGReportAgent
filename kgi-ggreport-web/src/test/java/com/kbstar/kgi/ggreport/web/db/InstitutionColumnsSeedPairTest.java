@@ -1,6 +1,8 @@
 package com.kbstar.kgi.ggreport.web.db;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -8,6 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,10 +31,22 @@ import static org.junit.Assert.assertTrue;
  * <p>값 열(id 뒤, 앞 6개는 029 와 같다): 0 이름 · 1 지역 · 2 종류 · 3 계약만료 · 4 마지막입찰 · 5 term · 6 orgCode · 7 g2bCode ·
  * 8 opStatus · 9 openDate · 10 확정(0/1) · 11 출처 링크 · 12 출처 번호.
  */
+@RunWith(Parameterized.class)
 public class InstitutionColumnsSeedPairTest {
 
+    /** 같은 생성기 --extra 출력 — 031(첫 채우기)·032(출처 보강, 2026-11-15 사용자 답 ⓑ)를 같은 규칙으로 본다. */
+    @Parameterized.Parameters(name = "{0}")
+    public static Collection<Object[]> files() {
+        return Arrays.asList(new Object[][]{{"031_seed_institution_columns.sql"}, {"032_seed_institution_sources.sql"}});
+    }
+
+    private final String FILE;
+
+    public InstitutionColumnsSeedPairTest(String file) {
+        this.FILE = file;
+    }
+
     private static final Path DB = Paths.get("src/main/resources/db");
-    private static final String FILE = "031_seed_institution_columns.sql";
     private static final String SEED29 = "029_seed_institutions_all.sql";
 
     private static final Pattern TOKEN = Pattern.compile(

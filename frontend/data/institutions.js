@@ -247,7 +247,7 @@ window.institutions = [
   // 구별로 원문을 실제로 확인한 것만 추가로 얹는다(날짜·추가 출처).
   const VERIFIED = {
     "11080": {   // 성북구 — 지정공고 원문 확인(2018·2022 두 회차로 4년 주기 실증) + 2026 회차 진행 중
-      lastBid: "2022-10-27", contractEnd: "2026-08-27", confirmed: true, updatedAt: "2026-11-11",
+      lastBid: "2022-10-27", contractEnd: "2026-08-27", confirmed: true, noticeNo: "제2026-1393호", noticeUrl: "https://www.sb.go.kr/www/selectEminwonView.do?key=6977&notAncmtMgtNo=44442&notAncmtSeCode=", updatedAt: "2026-11-11",
       sources: [
         "2026 회차 **진행 중** — 「서울특별시 성북구 금고지정 계획 공고」(제2026-1393호, 2026-08-27) 구 자체 게시판 원문(2026-11-11): 서류 열람 08-31~09-02 · 신청 09-16~18 · 단수금고 · 공개경쟁 · 약정 2027-01-01~2030-12-31(4년). 결과 공고는 아직 목록에 없음",
         "https://www.sb.go.kr/www/selectEminwonView.do?key=6977&notAncmtMgtNo=44442&notAncmtSeCode=",
@@ -386,7 +386,7 @@ window.institutions = [
       ],
     },
     "11210": {   // 관악구
-      contractEnd: "2026-08-13", confirmed: true, updatedAt: "2026-11-12",
+      contractEnd: "2026-08-13", confirmed: true, noticeNo: "제2026-1549호", updatedAt: "2026-11-12",
       receiveFrom: "2026-09-03", receiveTo: "2026-09-04",   // 접수 기간(sources 원문, e3 공고 진행 표시용)
       sources: [
         "기준일=공고일(「서울특별시 관악구 금고지정 계획 공고」 제2026-1549호) — **진행 중**",
@@ -620,7 +620,7 @@ window.institutions = [
       ],
     },
     "광명시": {   // ★ 2026년 진행 중 공고 — 경기 첫 실물 증거(서울 강남·동대문에 이어 3번째)
-      contractEnd: "2026-08-04", confirmed: true,
+      contractEnd: "2026-08-04", confirmed: true, noticeNo: "제2026-1764호",
       sources: [
         "기준일=공고일 — 「광명시 금고 지정 계획 재공고」(제2026-1764호, 2026-08-04) **진행 중**",
         "공고기간 2026-08-04~08-11 · 세정과 · 첨부 hwpx — eminwon 상세 원문 확인(2026-08-10)",
@@ -1195,7 +1195,7 @@ window.institutions = [
       sources: ["기준일=약정 체결일(2023-07-04, 근사): 농협 단수금고 853.15점, 약정 2024-01-01~2027-12-31", "https://www.newsis.com/view/NISX20230705_0002364360", "월/일 미확보 — eminwon 접속 불가 확인(2026-08-10): DNS는 있으나 https·http 모두 ERR_CONNECTION_TIMED_OUT. 시 홈페이지 고시공고 등 다른 채널 필요"],
     },
     "삼척시청": {   // 진행 중 재공고 — 광명·강남 유형(contractEnd=공고일). hwpx 승격(2026-08-13)으로 term 확보
-      contractEnd: "2026-08-10", confirmed: true, term: 4,
+      contractEnd: "2026-08-10", confirmed: true, noticeNo: "제2026-1254호", term: 4,
       receiveFrom: "2026-08-14", receiveTo: "2026-08-18",   // 접수 08-14~18(sources 원문)
       sources: [
         "기준일=공고일(금고지정 계획 재공고 결의, 제2026-1254호, 2026-08-10, 조회 당일 게재) — **진행 중**: 원문에 '약정기간 2026-12-31 만료' 명시, 1개 기관만 제안하여 재공고",
@@ -1258,7 +1258,7 @@ window.institutions = [
       ],
     },
     "양양군청": {   // 진행 중 제안공고 — 광명·강남 유형. 배점표 별표1·2 추출 완료(§㉘)
-      contractEnd: "2026-08-04", confirmed: true,
+      contractEnd: "2026-08-04", confirmed: true, noticeNo: "제2026-820호",
       sources: [
         "기준일=공고일(군금고 지정 제안 공고, 제2026-820호, 2026-08-04) — **진행 중**: 공개경쟁, 첨부에 신청안내·평가 배점기준(별표1)·세부평가기준(별표2) hwpx",
         "별표1·2 전문 추출(2026-08-13, 스펙 §㉘): 계 100 = 신용도·재무 27 / 금리 17 / 주민 편의성 21 / 금고업무 관리능력 22 / 지역사회 기여·협력 7 / 지역경제 금융기여 6 — 3단 계층(계→대분류→세부 괄호배점). 순위별 균등 배점(하한 60%, 편차 4~10%). ⚠️ 다운로드가 FileDownNew.jsp POST(암호화 인자 그대로) 변종",
@@ -1551,7 +1551,7 @@ window.institutions = [
       sources: ["기준일=심의·지정일(2025-09-25, 근사): 1금고 NH농협·2금고 전북은행, 약정 2026~2029(4년)", "https://www.news1.kr/local/jeonbuk/5926523", "월/일 미확보 — eminwon 조회(2026-08-11): '금고'는 「금고지정및운영에관한조례 일부개정 입법예고」(2009-07-27) 1건뿐 → 비움"],
     },
     "정읍시청": {   // 진행 중 지정계획 — 원문에 차기 약정 3년 명시
-      contractEnd: "2026-08-05", confirmed: true, term: 3,
+      contractEnd: "2026-08-05", confirmed: true, noticeNo: "제2026-1457호", term: 3,
       sources: [
         "기준일=공고일(금고 지정계획 공고, 제2026-1457호, 2026-08-05) — **진행 중**(공고기간 ~08-25): 원문에 '약정 2026-12-31 만료, 차기 약정기간 2027-01-01~2029-12-31(**3년**), 복수금고(1금고 일반회계·기금 6종/2금고 특별회계·기금 5종), 공개경쟁' 명시",
         "지정 결과 공고 2012·2014, 협력사업비 2015-01-13도 확인. 직전 회차 지정공고 미게시라 lastBid는 비움",
@@ -1799,7 +1799,7 @@ window.institutions = [
       ],
     },
     "영천시청": {   // 진행 중 지정신청 공고
-      contractEnd: "2026-08-11", confirmed: true,
+      contractEnd: "2026-08-11", confirmed: true, noticeNo: "제2026-1222호",
       sources: [
         "기준일=공고일(영천시 금고지정 신청 공고, 제2026-1222호, 2026-08-11 — 조사 전날 게재, 세정과) — **진행 중**(공고기간 ~08-30): 원문에 '현행 약정 2026-12-31 만료, 경쟁(순위 1·2위 지정=복수금고)' 명시. 차기 약정기간은 첨부 hwpx에만 → term 비움",
         "https://eminwon.yc.go.kr/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do",
@@ -1830,7 +1830,7 @@ window.institutions = [
       ],
     },
     "청송군청": {   // 진행 중 지정계획 공고
-      contractEnd: "2026-07-24", confirmed: true,
+      contractEnd: "2026-07-24", confirmed: true, noticeNo: "제2026-864호",
       sources: [
         "기준일=공고일(청송군 금고지정 계획 공고, 제2026-864호, 2026-07-24, 재무과) — **진행 중**: 원문에 '약정 2026-12-31 만료' 명시. 계획 상세(약정기간·금고 수)는 첨부 hwpx에만 → term 비움",
         "지정 2018-06-07 + 협력 2018-06-11·2022-05-19(간격 불규칙) → 주기 단정 안 함",
