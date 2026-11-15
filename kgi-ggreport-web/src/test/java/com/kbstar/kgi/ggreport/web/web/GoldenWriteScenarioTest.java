@@ -53,7 +53,8 @@ public class GoldenWriteScenarioTest {
     private GoldenRunner runner;
     private Path goldenDir;
 
-    /** 결재 골든은 X-User-Id(표시명)만 갖는다 — 서버 역할 검사를 통과하도록 재생 때만 팀장 사번을 얹는다. */
+    /** 결재 골든은 X-User-Id(표시명)만 갖는다 — 서버 역할 검사를 통과하도록 재생 때만 사번을 얹는다(골든 파일은 그대로).
+     *  14·25 는 NEXT 64② 가드 뒤라 열람자 사번을 얹는다. */
     private static final java.util.Map<String, String> APPROVER_EMP = new java.util.HashMap<>();
     static {
         APPROVER_EMP.put("11_participation_tier1", "3918264");   // 영업팀
@@ -63,6 +64,8 @@ public class GoldenWriteScenarioTest {
         APPROVER_EMP.put("17_task0_approve", "5047192");   // 영업팀장
         APPROVER_EMP.put("20_task1_approve", "9026715");   // 예산팀장
         APPROVER_EMP.put("23_task2_approve", "6295038");   // 전산팀장
+        APPROVER_EMP.put("14_bidcase_detail_confirmed", "3918264");   // 영업팀 — workflow 열람
+        APPROVER_EMP.put("25_bidcases_assignee_view", "5047192");     // 영업팀장 — 영업 팀 담당자 목록(dave는 사용자 아님)
     }
 
     @Before

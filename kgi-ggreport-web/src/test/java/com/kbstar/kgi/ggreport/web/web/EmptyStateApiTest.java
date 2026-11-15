@@ -38,7 +38,7 @@ public class EmptyStateApiTest {
     @Test
     public void 담당자_공고목록이_빈_배열이다() throws Exception {
         // 골든 25 와 같은 질의(팀=영업, 담당=dave).
-        mockMvc.perform(get("/bidcases").param("team", "영업").param("assignee", "dave"))
+        mockMvc.perform(get("/bidcases").param("team", "영업").param("assignee", "dave").header("X-Emp-No", "5047192"))
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]", true));
     }
