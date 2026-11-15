@@ -1138,4 +1138,61 @@ public class PrepApiTest {
         assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTOR_EMP_NO IS NULL", bid));
         assertEquals(1, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND EMP_NO IS NULL AND REQ_PATH=? AND STATUS_CODE=401", decidePath));
     }
+
+    // ── NEXT 70 하: PrepController 감사를 ApprovalLine audited 틀에 맞춤(2026-11-15) ───────────────
+
+    private int confirmActs(String emp, String outcome) {
+        return count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID='NONE' AND ACTION_CD='CONFIRM' AND OUTCOME=?"
+                + " AND ACTOR_EMP_NO=? AND STATE_CD='NONE'", outcome, emp);
+    }
+
+    @Test
+    public void 제안_확정_실패는_BID_PREP_ACT에_DENIED_HIDDEN_INVALID_BLOCKED로_남고_401은_ACT에_없다() throws Exception {
+        String body = "{\"institution_id\":\"" + INST + "\"}";
+        int anon = count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='CONFIRM' AND ACTOR_EMP_NO IS NULL");
+        int d0 = confirmActs(DESIGNER, "DENIED"), h0 = confirmActs(HEAD, "DENIED");
+        int hu0 = act(NO_CASE_ID, "CONFIRM", "DENIED", HEAD, "map_popover", "confirm", 1, NO_CASE_ID);
+        int m0 = confirmActs(MEMBER, "HIDDEN"), i0 = confirmActs(MEMBER, "INVALID"), l0 = confirmActs(LEAD, "BLOCKED");
+        assertEquals(401, postUi("/preps", null, body, "map_popover", "confirm").getResponse().getStatus());
+        assertEquals(anon, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='CONFIRM' AND ACTOR_EMP_NO IS NULL"));
+        assertEquals(403, postUi("/preps", DESIGNER, body, "map_popover", "confirm").getResponse().getStatus());
+        assertEquals(403, postUi("/preps", HEAD, body, "map_popover", "confirm").getResponse().getStatus());
+        assertEquals(d0 + 1, confirmActs(DESIGNER, "DENIED"));
+        assertEquals(h0 + 1, confirmActs(HEAD, "DENIED"));
+        assertEquals(hu0 + 1, act(NO_CASE_ID, "CONFIRM", "DENIED", HEAD, "map_popover", "confirm", 1, NO_CASE_ID));   // 화면·버튼까지
+        assertEquals(404, postJson("/preps", MEMBER, "{\"institution_id\":\"no-such-inst\"}").getResponse().getStatus());
+        assertEquals(404, confirmWith(MEMBER, INST, "bad id!").getResponse().getStatus());   // 형식 밖 bid → NONE
+        assertEquals(m0 + 2, confirmActs(MEMBER, "HIDDEN"));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID='bad id!'"));
+        assertEquals(400, postJson("/preps", MEMBER, "{\"institution_id\":\"\"}").getResponse().getStatus());
+        assertEquals(i0 + 1, confirmActs(MEMBER, "INVALID"));
+        String bid = confirm(MEMBER, INST);
+        assertEquals(409, postJson("/preps", LEAD, body).getResponse().getStatus());           // 건 미지정 → NONE
+        assertEquals(l0 + 1, confirmActs(LEAD, "BLOCKED"));
+        assertEquals(409, postUi("/preps", LEAD, "{\"institution_id\":\"" + INST + "\",\"bid_case_id\":\"" + bid + "\"}",
+                "map_popover", "confirm").getResponse().getStatus());                              // 건 지정 → 그 건·직전 상태
+        assertEquals(1, act(bid, "CONFIRM", "BLOCKED", LEAD, "map_popover", "confirm", 1, "CONFIRMED"));
+    }
+
+    private static final String NO_CASE_ID = "NONE";
+
+    @Test
+    public void 비활성_사용자의_건_행위_403은_BID_PREP_ACT에_DENIED로_남고_401은_ACT에_없다() throws Exception {
+        String bid = opened(INST);
+        String path = "/bidcases/" + bid + "/prep/tasks/T1/check";
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", MEMBER2);
+        flushCache();
+        MvcResult r = postUi(path, MEMBER2, "", "prep_detail", "check");
+        assertEquals(403, r.getResponse().getStatus());
+        assertTrue(body(r).contains("사용할 수 없는 계정입니다."));                               // 응답 본문 그대로
+        assertEquals(1, act(bid, "CHECK", "DENIED", MEMBER2, "prep_detail", "check", 1, "IN_PROGRESS"));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='CHECK' AND OUTCOME='DENIED' AND TASK_CD='T1'", bid));
+        assertEquals(1, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND EMP_NO=? AND REQ_PATH=? AND STATUS_CODE=403", MEMBER2, path));
+        int locked0 = confirmActs(MEMBER2, "DENIED");
+        assertEquals(403, postJson("/preps", MEMBER2, "{\"institution_id\":\"dobong\"}").getResponse().getStatus());
+        assertEquals(locked0 + 1, confirmActs(MEMBER2, "DENIED"));                                // 확정 앞단 403 도 NONE 으로
+        assertEquals(401, postUi(path, null, "", "prep_detail", "check").getResponse().getStatus());
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTOR_EMP_NO IS NULL", bid));
+        assertEquals("IN_PROGRESS", state(bid));
+    }
 }

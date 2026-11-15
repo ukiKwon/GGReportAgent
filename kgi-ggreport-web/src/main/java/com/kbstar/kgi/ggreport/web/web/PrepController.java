@@ -9,6 +9,8 @@ import com.kbstar.kgi.ggreport.web.service.PrepAudit;
 import com.kbstar.kgi.ggreport.web.service.PrepService;
 import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.PrepUiIds;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -34,6 +36,7 @@ import java.util.function.Supplier;
 
 /**
  * 제안서 사전준비(NEXT 70). 호출자 확인은 {@link MenuGuard#requireActiveUser}(401/403 DENIED, 메뉴 무관 — 영업부장은 tasks 메뉴가 꺼져 있다).
+ * 사번이 확인된 403 은 BID_PREP_ACT 에도 DENIED, 사번 없는 401 은 ACCESS_LOG 에만(security 11-15 판정, ApprovalLine·BoardMaterial 과 같음).
  * 역할 검사 403 은 서비스가 던지고 여기서 DENIED 로 접근 이력에 남긴다. 접근 이력(ACCESS_LOG.DETAIL)에는 {@code prep case=… state=… code=…}
  * 만 남기고 사번 목록·사유·이름·값은 넣지 않는다. 건 단위 행위는 {@code BID_PREP_ACT} 에도 결과(OK·DENIED·HIDDEN·BLOCKED·INVALID)와 함께 남긴다.
  * 상세·이력의 비담당은 404(없는 건과 같은 응답)다. ⚠️ X-Emp-No 자기신고 위의 업무 규칙이다 — 사칭 방지가 아니다.
@@ -42,6 +45,10 @@ import java.util.function.Supplier;
  */
 @RestController
 public class PrepController {
+
+    private static final Logger LOG = LoggerFactory.getLogger(PrepController.class);
+    /** 건이 없을 때의 감사 칸 값 — STATE_CD 의 '건 없음'(PrepAudit·PrepService.stateOf)과 같은 표기. */
+    private static final String NO_CASE = "NONE";
 
     private final PrepService prep;
     private final PrepAttachService attach;
@@ -69,11 +76,35 @@ public class PrepController {
     @PostMapping("/preps")
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> confirm(@RequestBody PrepIn.Confirm body, HttpServletRequest req) {
-        SysUser me = guard.requireActiveUser(req);
         Actor actor = Actor.of(req);
-        Map<String, Object> out = denyLogged(req, () -> prep.confirm(me, actor, body));
+        BoardUiIds.Ui ui = PrepUiIds.of(req);
+        String key = confirmKey(body);
+        SysUser me;
+        try {
+            me = guard.requireActiveUser(req);
+        } catch (ApiException e) {
+            if (e.getStatus() == 403) {   // 사번이 확인된 비활성·미등록만 ACT. 사번 없는 401 은 ACCESS_LOG 에만
+                auditFailure(key, "CONFIRM", "DENIED", null, null, null, actor, ui);
+            }
+            throw e;
+        }
+        Map<String, Object> out;
+        try {
+            out = prep.confirm(me, actor, body);
+        } catch (ApiException e) {
+            if (e.getStatus() != 401) {
+                auditFailure(key, "CONFIRM", PrepAudit.outcomeOf(e.getStatus()), null, null, null, actor, ui);
+            }
+            if (e.getStatus() == 403) {
+                throw guard.denied(req, e);
+            }
+            throw e;
+        } catch (RuntimeException e) {   // DB 오류 등 — ERROR 로 남기고 그대로 던진다(전역 처리기가 500)
+            auditFailure(key, "CONFIRM", "ERROR", null, null, null, actor, ui);
+            throw e;
+        }
         String bid = String.valueOf(out.get("bid_case_id"));
-        audit.record(bid, "CONFIRM", "OK", "NONE", null, actor, PrepUiIds.of(req));
+        audit.record(bid, "CONFIRM", "OK", NO_CASE, null, actor, ui);
         req.setAttribute(AccessLogInterceptor.DETAIL, "prep case=" + bid + " state=CONFIRMED code=CONFIRM");
         return out;
     }
@@ -227,6 +258,7 @@ public class PrepController {
 
     /**
      * 건 단위 행위 공통 틀 — 활성 사용자 확인(401/403 DENIED) → 행위 직전 상태 잡기 → 실행 → BID_PREP_ACT 기록(성공·실패 모두).
+     * 실패 감사가 실패해도 원래 응답을 덮지 않는다.
      * 서비스가 던진 403 은 DENIED 로 접근 이력에도 남긴다. 성공한 읽기도 응답 전에 기록한다(기록이 실패하면 500, 데이터 안 나감).
      */
     private <T> T run(HttpServletRequest req, String bid, String action, String taskCd, Function<SysUser, T> fn) {
@@ -236,18 +268,31 @@ public class PrepController {
     /** 첨부 번호(attachId)를 아는 행위용 — 감사 표에 번호를 남긴다(파일 이름은 남기지 않는다). 올리기처럼 번호가 결과에서 나오면 결과의 attach_id 를 쓴다. */
     private <T> T run(HttpServletRequest req, String bid, String action, String taskCd, Long attachId,
                       Function<SysUser, T> fn) {
-        SysUser me = guard.requireActiveUser(req);
         Actor actor = Actor.of(req);
         BoardUiIds.Ui ui = PrepUiIds.of(req);
+        SysUser me;
+        try {
+            me = guard.requireActiveUser(req);
+        } catch (ApiException e) {
+            if (e.getStatus() == 403) {   // 사번이 확인된 비활성·미등록만 ACT(BoardMaterial·ApprovalLine 과 같음). 401 은 ACCESS_LOG 에만
+                auditFailure(bid, action, "DENIED", null, taskCd, attachId, actor, ui);
+            }
+            throw e;
+        }
         String before = prep.stateOf(bid);
         T out;
         try {
             out = fn.apply(me);
         } catch (ApiException e) {
-            audit.record(bid, action, PrepAudit.outcomeOf(e.getStatus()), before, taskCd, attachId, actor, ui);
+            if (e.getStatus() != 401) {
+                auditFailure(bid, action, PrepAudit.outcomeOf(e.getStatus()), before, taskCd, attachId, actor, ui);
+            }
             if (e.getStatus() == 403) {
                 throw guard.denied(req, e);
             }
+            throw e;
+        } catch (RuntimeException e) {   // DB 오류 등 — ERROR 로 남기고 그대로 던진다
+            auditFailure(bid, action, "ERROR", before, taskCd, attachId, actor, ui);
             throw e;
         }
         Long aid = attachId;
@@ -258,6 +303,26 @@ public class PrepController {
         audit.record(bid, action, "OK", before, taskCd, aid, actor, ui);
         req.setAttribute(AccessLogInterceptor.DETAIL, "prep case=" + bid + " state=" + before + " code=" + action);
         return out;
+    }
+
+    /**
+     * 실패 시도를 BID_PREP_ACT 에 남긴다. before 가 null 이면(앞단 거부·확정 실패) 여기서 건 상태를 읽는다(건 없음이면 NONE).
+     * 기록이 실패해도 원래 응답(403·404·409…)을 덮지 않는다 — 서버 로그에 예외 종류만(ApprovalLineController.auditPrepFailure 와 같음).
+     */
+    private void auditFailure(String bid, String action, String outcome, String before, String taskCd, Long attachId,
+                              Actor actor, BoardUiIds.Ui ui) {
+        try {
+            String st = before != null ? before : NO_CASE.equals(bid) ? NO_CASE : prep.stateOf(bid);
+            audit.record(bid, action, outcome, st, taskCd, attachId, actor, ui);
+        } catch (RuntimeException ex) {
+            LOG.warn("사전준비 실패 감사를 남기지 못했다: action={} outcome={} cause={}", action, outcome, ex.getClass().getSimpleName());
+        }
+    }
+
+    /** 제안 확정 실패 줄의 건 칸 — 본문 bid_case_id 가 건 번호 형식이면 그 값, 아니면 NONE. 기관 id·자유 문구는 넣지 않는다. */
+    private static String confirmKey(PrepIn.Confirm body) {
+        String b = body == null || body.getBidCaseId() == null ? "" : body.getBidCaseId().trim();
+        return b.matches("[A-Za-z0-9._-]{1,64}") ? b : NO_CASE;
     }
 
     /** 서비스의 역할 403 을 DENIED 로 접근 이력에 남긴다(BidAssignmentController 와 같은 방식). */
