@@ -12,7 +12,6 @@
   <h1>🏟️ 에이전트 대시보드</h1>
   <span id="conn" class="conn">○ 데모 모드</span>
   <div class="tools">
-    <button id="qbtn" class="qbtn" type="button" aria-expanded="false" aria-controls="qpanel">질문 0</button>
     <label>화면 속도
       <select id="speed">
         <option value="1">1x</option>
@@ -26,7 +25,6 @@
   </div>
 </header>
 <div id="now" aria-live="polite">지금 작업 중인 에이전트: 없음</div>
-<p id="qlive" class="sr" aria-live="polite"></p>
 <main>
   <div class="stage"><canvas id="c" role="img" aria-label="에이전트 작업 현황 트랙. 각 에이전트가 선수로 달리며 바퀴 수가 작업량을 나타냅니다" width="1280" height="800"></canvas><div id="toasts"></div></div>
   <section id="chips" aria-label="에이전트 작업 상태"></section>
@@ -39,34 +37,6 @@
       <span id="devchips"></span>
     </div>
   </details>
-  <aside id="qpanel" aria-labelledby="qtitle" tabindex="0">
-    <div class="qtop">
-      <div class="qhead">
-        <h2 id="qtitle">사용자에게 물은 질문</h2>
-        <span id="qbadge" class="qbadge" hidden>0</span>
-        <button id="qrefresh" class="qrefresh" type="button" aria-label="질문 목록 새로고침">↻ 새로고침</button>
-        <button id="qclose" class="qclose" type="button">닫기</button>
-      </div>
-      <p id="qchecked" class="qchecked">확인 전 · 30초마다 자동 확인</p>
-      <div id="qtabs" class="qtabs" role="tablist" aria-label="질문 묶음">
-        <button id="qtab-pending" class="qtab" type="button" role="tab" aria-selected="true" aria-controls="qpane-pending" tabindex="0">미응답 0</button>
-        <button id="qtab-answered" class="qtab" type="button" role="tab" aria-selected="false" aria-controls="qpane-answered" tabindex="-1">응답 0</button>
-      </div>
-    </div>
-    <p id="qnote" class="qnote" hidden></p>
-    <div id="qpane-pending" role="tabpanel" aria-labelledby="qtab-pending">
-      <p id="qempty" class="qempty">답을 기다리는 질문이 없습니다</p>
-      <ul id="qlist" class="qlist"></ul>
-    </div>
-    <div id="qpane-answered" role="tabpanel" aria-labelledby="qtab-answered" hidden>
-      <p id="qempty-answered" class="qempty">아직 답한 질문이 없습니다</p>
-      <ul id="qanswered" class="qlist"></ul>
-      <details id="qdone" class="qdonebox">
-        <summary id="qdonesum">해소된 질문 0건</summary>
-        <ul id="qdonelist" class="qlist"></ul>
-      </details>
-    </div>
-  </aside>
 </main>
 <script src="fmt.js"></script>
 <script src="app.js"></script>
