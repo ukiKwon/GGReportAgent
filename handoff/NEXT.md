@@ -363,6 +363,7 @@
 - **자세히**: planner 1542 Q6-1.
 
 ### 64. 서버 1단계: 결재 구멍 닫기 — **구멍은 닫고 커밋(2d685cc·cc4d490·3f27819·6ea364c·da5b65d, 2026-11-10), 후속 보강만 남음** [담당: backend-dev → security]
+- **11-15 4b 64② 1단계(29eb429)**: 상세·담당자 목록 가드+감사(CASE_VIEW·CASE_LIST), 닫힘 생성은 관리자만. security 차단 없음 — **남은 것**: ① 열림 상태 `POST /bidcases` 무가드(2단계 패치 C — Prep* 시험 생성 도우미에 관리자 사번, 그 전 운영은 legacy-flow.open=false, docs/이관작업/README 4단계) ② [기획] 관리자 기본값이 '전산팀'(팀원)에만 있고 '전산팀장'엔 없음 — 의도 확인(시험이 현재 동작 고정) ③ /bidcases/latest 응답의 결재자 이름 필드 축소 검토 ④ assignee 비교 대소문자(S-1 사번화 때). 근거 handoff/agents/security/2026-11-15 최신.
 - **현재**: `/complete` 403, approve 역할·본인결재 금지(팀장 담당 작업은 영업부장 결재), checkpoint 영업부장만, approvals 사번 기준, 참여결정·최종확정 문지기, 게이트 버튼 영업부장만·`wf-by` 제거. PUSH-GATE security(11-10): 차단 없음.
 - **다음 한 걸음**: ① 테스트 보강 T-1·T-2(성공 경로 2xx·상태 전이, checkpoint 결재자명, DENIED 1행) 반영 여부 확인. ② `BidCaseController` 공고 생성·조회 3곳(`POST /bidcases`·`GET /bidcases?team&assignee`·`GET /bidcases/{id}`)에 가드 없음(중, 기존). ③ `StaticCacheFilter`가 API 첨부 다운로드에도 이미지 5분 캐시를 붙임(하) → API 경로 제외. ~~④ 담당자 변경 신청 본문 null → 500~~ 11-15 해소 0d85ba6(가드 뒤 400 '입찰 건을 지정하세요.'). ⑤ S-1(팀장 이름 문자열 우회)은 작업 담당자 사번화 때.
 - **자세히**: handoff/agents/backend-dev/2026-11-10_0900_aec4d7ab.md, handoff/agents/security/2026-11-10_ PUSH-GATE 최신.
