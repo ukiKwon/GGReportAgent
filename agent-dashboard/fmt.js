@@ -53,4 +53,13 @@ function qClock(d) { // Date -> 'HH:MM:SS'(잘못된 값은 '')
   const z = n => String(n).padStart(2, '0');
   return z(d.getHours()) + ':' + z(d.getMinutes()) + ':' + z(d.getSeconds());
 }
-if (typeof module !== 'undefined' && module.exports) module.exports = { fmtLaps, qClassify, qIsPending, qElapsedDays, qDaysLabel, qOverdue, qMd, qSplit, qGroups, qClock };
+// ---- 대시보드 연출 순수 함수 (DOM·전역 무관 — test/anim.test.js). app.js가 이 이름들로 위임한다(NEXT 43) ----
+const lapIntOf = lapF => Math.floor(lapF + 1e-9);
+const fatOf = (lapF, freshAt) => lapIntOf(lapF) - (freshAt || 0); // 피로 = 누적 바퀴 - 기준점
+const isSplashOk = r => !!r && r.state === 'rest' && r.lieAt != null && !r.active;
+function pickSplashCands(list, simTime, wait) { // 누운 지 wait초 지난 대상, 오래 누운 순(같으면 slot 순)
+  return list.filter(r => isSplashOk(r) && simTime - r.lieAt >= wait).sort((a, b) => a.lieAt - b.lieAt || a.slot - b.slot);
+}
+const lastPourAfter = (prev, hit, now) => hit ? now : prev; // 실제로 깨운 붓기 끝만 갱신
+const nextSplashAt = (prev, poured, lastPour, cooldown) => poured ? lastPour + cooldown : prev; // 깨운 적 없으면 쿨다운 없음
+if (typeof module !== 'undefined' && module.exports) module.exports = { fmtLaps, qClassify, qIsPending, qElapsedDays, qDaysLabel, qOverdue, qMd, qSplit, qGroups, qClock, lapIntOf, fatOf, isSplashOk, pickSplashCands, lastPourAfter, nextSplashAt };

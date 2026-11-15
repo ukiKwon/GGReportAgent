@@ -83,12 +83,25 @@ class Handler(SimpleHTTPRequestHandler):
         self.path = "/" + name
         return super().send_head()
 
+    def _questions_ro(self):  # /api/questions는 읽기 전용 — serve.js와 같이 Host 403 우선, 그 외 쓰기 계열은 405
+        if self.headers.get("Host", "").split(":")[0] not in ("localhost", "127.0.0.1"):
+            self.send_error(403, "bad host")
+            return
+        self.send_response(405)
+        self.send_header("Allow", "GET, HEAD")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def do_PUT(self):
+        if self.path.split("?")[0] == "/api/questions":
+            return self._questions_ro()
+        self.send_error(501, "Unsupported method")
+
+    do_DELETE = do_PATCH = do_PUT
+
     def do_POST(self):
         if self.path.split("?")[0] == "/api/questions":
-            self.send_response(405)
-            self.send_header("Allow", "GET, HEAD")
-            self.end_headers()
-            return
+            return self._questions_ro()
         if self.path.split("?")[0] != "/api/state":
             self.send_error(404)
             return
@@ -127,8 +140,8 @@ class Handler(SimpleHTTPRequestHandler):
                 else:
                     del patch["stats"]
             STATE.write_text(json.dumps(merge(cur, patch), ensure_ascii=False, indent=2), encoding="utf-8")
-        except (ValueError, OSError) as e:
-            self.send_error(400, str(e))
+        except (ValueError, TypeError, OSError, RecursionError):  # 깊이 중첩 본문·state.json 칸 형식 오류도 400으로 — 예외 문구는 싣지 않는다
+            self.send_error(400, "bad request")
             return
         self.send_response(204)
         self.end_headers()

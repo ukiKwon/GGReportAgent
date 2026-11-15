@@ -230,9 +230,9 @@ function makeRunner(a, slot, inst) {
   return o;
 }
 const runners = AGENTS.map((a, i) => makeRunner(a, i, 1));
-const lapInt = r => Math.floor(r.lapF + 1e-9);
+const lapInt = r => lapIntOf(r.lapF);
 // 피로 = 누적 바퀴 − 피로 기준점(freshAt, 정수). 물을 맞으면 freshAt만 옮겨 바퀴 수는 그대로 두고 판정(휠체어 15·쓰러짐 25·누워 쉼 15)을 다시 쌓는다.
-const fatInt = r => lapInt(r) - (r.freshAt || 0);
+const fatInt = r => fatOf(r.lapF, r.freshAt);
 function spawnExtra(role, inst) {
   const used = new Set(runners.map(r => r.slot));
   for (let sl = BASE_SLOTS; sl < MAX_SLOTS; sl++) {
@@ -469,9 +469,9 @@ const SPLASH_WAIT = 3, SPLASH_COOLDOWN = 60, TAP = { x: 792, y: 712 };
 let splashNext = 0; // 다음 회차를 시작할 수 있는 simTime
 const rmq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
 const reduced = () => !!(rmq && rmq.matches);
-const splashOk = r => runners.includes(r) && r.state === 'rest' && r.lieAt != null && !r.active;
+const splashOk = r => runners.includes(r) && isSplashOk(r);
 function splashCands() {
-  return runners.filter(r => splashOk(r) && simTime - r.lieAt >= SPLASH_WAIT).sort((a, b) => a.lieAt - b.lieAt || a.slot - b.slot);
+  return pickSplashCands(runners, simTime, SPLASH_WAIT);
 }
 const splashReady = () => !reduced() && simTime >= splashNext && amb.phase === 'idle' && splashCands().length > 0; // 새 회차 시작 조건(회차 안의 다음 대상은 쿨다운 없이 이어간다)
 function wake(r) { // 피로만 푼다 — 바퀴 수는 그대로
@@ -483,7 +483,7 @@ function wake(r) { // 피로만 푼다 — 바퀴 수는 그대로
 function startSplash() { jan.job = 'splash'; jan.stage = 0; jan.tgt = null; jan.poured = false; jan.lastPour = 0; } // 회차 시작
 function endSplash() { // 회차 끝 — 한 번이라도 부었으면 마지막 붓기 끝부터 60초 쿨다운
   const j = jan; j.tgt = null; j.lvl = 0;
-  if (j.poured) splashNext = j.lastPour + SPLASH_COOLDOWN;
+  splashNext = nextSplashAt(splashNext, j.poured, j.lastPour, SPLASH_COOLDOWN);
   if (!j.active) { // 따로 나왔거나 도중에 작업이 끝났으면 퇴근
     if (!j.cameo) runners.forEach(r => { if (r.lieAt != null) r.lieAt = simTime; }); // 남은 사람은 3초 규칙부터 다시
     j.job = 'leave'; j.stage = 0; say(j, '수고하세요~', 2);
@@ -564,7 +564,7 @@ function updateJanitor(dt) {
           j.puddles.push({ x: t.x + 4, y: t.y + 1, life: 1 });
           if (splashOk(t)) { wake(t); j.hit = true; j.poured = true; } // 붓는 사이 불려 나갔으면 물줄기·웅덩이만 — 실제로 깨운 경우만 쿨다운 대상
         }
-        if (e >= 0.8) { if (j.hit) j.lastPour = simTime; j.stage = 4; j.t = simTime; }
+        if (e >= 0.8) { j.lastPour = lastPourAfter(j.lastPour, j.hit, simTime); j.stage = 4; j.t = simTime; }
       } else { // 반응이 끝나면 다음 대상(한 번에 한 명)
         if (t && t.state === 'wet') break;
         j.tgt = null; j.lvl = 0;
@@ -629,7 +629,7 @@ function drawTrail() { // 닦인 자리(젖은 광택) — 서서히 마른다
 const rms = { tgt: null, t: 0, next: 0, round: false, last: 0 };
 function updateSplashRM() {
   if (!reduced()) { // 도중에 꺼짐 — 진행 중 회차를 종료 처리, 깨운 적 있으면 쿨다운
-    if (rms.tgt || rms.round) { if (rms.last) splashNext = rms.last + SPLASH_COOLDOWN; rms.tgt = null; rms.round = false; rms.last = 0; }
+    if (rms.tgt || rms.round) { splashNext = nextSplashAt(splashNext, !!rms.last, rms.last, SPLASH_COOLDOWN); rms.tgt = null; rms.round = false; rms.last = 0; }
     return;
   }
   if (!rms.tgt) {
@@ -637,7 +637,7 @@ function updateSplashRM() {
     if (!rms.round && simTime < splashNext) return; // 회차 쿨다운 중 — 새로 누운 사람은 다음 회차까지 대기
     const n = splashCands()[0];
     if (n) { rms.tgt = n; rms.t = simTime; if (!rms.round) { rms.round = true; rms.last = 0; } }
-    else if (rms.round) { rms.round = false; if (rms.last) splashNext = rms.last + SPLASH_COOLDOWN; } // 회차 끝
+    else if (rms.round) { rms.round = false; splashNext = nextSplashAt(splashNext, !!rms.last, rms.last, SPLASH_COOLDOWN); } // 회차 끝
     return;
   }
   const t = rms.tgt;
