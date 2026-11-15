@@ -1171,6 +1171,16 @@ public class PrepApiTest {
         assertEquals(1, act(bid, "CONFIRM", "BLOCKED", LEAD, "map_popover", "confirm", 1, "CONFIRMED"));
     }
 
+    @Test
+    public void 입찰_현황판_제안_확정의_403_실패_감사는_화면_버튼이_bid_board_confirm으로_남는다() throws Exception {
+        String body = "{\"institution_id\":\"" + INST + "\"}";
+        int d0 = act(NO_CASE_ID, "CONFIRM", "DENIED", DESIGNER, "bid_board", "confirm", 1, "NONE");
+        int u0 = count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='CONFIRM' AND OUTCOME='DENIED' AND ACTOR_EMP_NO=? AND SCREEN_ID='UNKNOWN'", DESIGNER);
+        assertEquals(403, postUi("/preps", DESIGNER, body, "bid_board", "confirm").getResponse().getStatus());
+        assertEquals(d0 + 1, act(NO_CASE_ID, "CONFIRM", "DENIED", DESIGNER, "bid_board", "confirm", 1, "NONE"));
+        assertEquals(u0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='CONFIRM' AND OUTCOME='DENIED' AND ACTOR_EMP_NO=? AND SCREEN_ID='UNKNOWN'", DESIGNER));
+    }
+
     private static final String NO_CASE_ID = "NONE";
 
     @Test

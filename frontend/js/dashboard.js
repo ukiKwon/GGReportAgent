@@ -898,6 +898,24 @@
     return true;
   }
 
+  // [확정] POST 공용. prep.js가 있으면 그 요청 경로(화면 머리글·캐시 무효화)를 쓰고, 없으면 같은 머리글을 직접 달아 보낸다.
+  // 반환은 confirmFail이 받는 { r:{ok,status}, body } 모양. 네트워크 실패는 던진다.
+  dash.postConfirm = function (id, screen) {
+    const P = root.prep;
+    if (P && P.postConfirm) {
+      return P.postConfirm(id, screen).then(function (j) {
+        return { r: { ok: true, status: 200 }, body: (j && Object.keys(j).length) ? j : null };
+      }, function (e) {
+        if (e && e.status) return { r: { ok: false, status: e.status }, body: { detail: e.detail } };
+        throw e;
+      });
+    }
+    return fetch('/preps', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Screen-Id': screen, 'X-Button-Id': 'confirm' },
+      body: JSON.stringify({ institution_id: id }) })
+      .then(function (r) { return r.json().catch(function () { return null; }).then(function (body) { return { r: r, body: body }; }); });
+  };
+
   // [제안 확정] 실패 응답 → { again: 이미 진행 중이라 목록을 다시 받아야 함, msg: 화면 문구 }. 현황판·지도 상세 팝업 공용.
   dash.confirmFail = function (x) {
     const e = root.errtext ? root.errtext.parse(x.body && x.body.detail) : { code: '', message: '' };
@@ -913,8 +931,7 @@
     const id = it && it.rec.institutionId;
     if (!it || !id || st.busy) return;
     st.busy = true; renderPane();
-    fetch('/preps', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ institution_id: id }) })
-      .then(function (r) { return r.json().catch(function () { return null; }).then(function (body) { return { r: r, body: body }; }); })
+    dash.postConfirm(id, 'bid_board')
       .then(function (x) {
         st.busy = false; st.confirm = false;
         if (x.r.ok) {
@@ -1156,8 +1173,7 @@
     const id = m.rec.institutionId;
     if (!id || m.busy) return;
     m.busy = true; dmRender();
-    fetch('/preps', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ institution_id: id }) })
-      .then(function (r) { return r.json().catch(function () { return null; }).then(function (body) { return { r: r, body: body }; }); })
+    dash.postConfirm(id, 'map_popover')
       .then(function (x) {
         if (dm.cur !== m) return;
         m.busy = false; m.confirm = false;

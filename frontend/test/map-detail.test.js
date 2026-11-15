@@ -175,3 +175,116 @@ test('[제안 확정] 맥락: 현황판·지도 팝업 모두 account·master를
   assert.strictEqual(prep.popoverAction(r, { serverMode: true, role: '영업팀장' }, []).kind, 'none');               // account 없으면 숨는다(옛 동작)
   assert.strictEqual(prep.popoverAction(r, { serverMode: true, account: true, role: '영업팀장' }, []).kind, 'confirm');
 });
+
+// ── 감사 머리글(11-15 planner): 현황판 bid_board/confirm, 지도 상세 팝업 map_popover/confirm ──
+
+test('postConfirm(대비 경로): 화면·버튼 머리글을 싣는다 — 현황판 bid_board, 지도 팝업 map_popover', async function () {
+  const prev = global.fetch, calls = [];
+  global.fetch = function (url, init) { calls.push({ url: url, init: init }); return Promise.resolve({ ok: true, status: 201, json: function () { return Promise.resolve({ bid_case_id: 'B1' }); } }); };
+  try {
+    const x = await dash.postConfirm('I1', 'bid_board');
+    await dash.postConfirm('I2', 'map_popover');
+    assert.strictEqual(calls[0].url, '/preps');
+    assert.strictEqual(calls[0].init.method, 'POST');
+    assert.strictEqual(calls[0].init.headers['X-Screen-Id'], 'bid_board');
+    assert.strictEqual(calls[0].init.headers['X-Button-Id'], 'confirm');
+    assert.strictEqual(JSON.parse(calls[0].init.body).institution_id, 'I1');
+    assert.strictEqual(calls[1].init.headers['X-Screen-Id'], 'map_popover');
+    assert.strictEqual(x.r.ok, true);
+  } finally { global.fetch = prev; }
+});
+
+test('dashboard.js: 두 [확정]은 직접 fetch하지 않고 postConfirm으로 화면 id를 넘긴다', function () {
+  const src = read('js/dashboard.js');
+  assert.ok(src.indexOf("dash.postConfirm(id, 'bid_board')") >= 0);
+  assert.ok(src.indexOf("dash.postConfirm(id, 'map_popover')") >= 0);
+  const rest = src.replace(/dash\.postConfirm = function[\s\S]*?\r?\n  };\r?\n/, '');
+  assert.ok(rest.length < src.length, 'postConfirm 본문을 걸러냈다');
+  assert.strictEqual((rest.match(/fetch\('\/preps', \{ method: 'POST'/g) || []).length, 0);
+});
+
+// 브라우저에서 실제로 타는 경로(prep.js가 있을 때) — 가짜 prep을 self에 두고 dashboard.js를 새로 불러 어댑터 분기를 본다(qa 11-15 P2).
+function loadFresh(rel, selfObj) {
+  const file = require.resolve(rel);
+  const saved = require.cache[file];
+  const hadSelf = Object.prototype.hasOwnProperty.call(global, 'self');
+  const prevSelf = global.self;
+  delete require.cache[file];
+  global.self = selfObj;
+  try { return require(rel); }
+  finally {
+    if (hadSelf) global.self = prevSelf; else delete global.self;
+    if (saved) require.cache[file] = saved; else delete require.cache[file];
+  }
+}
+function loadDashWithPrep(fakePrep) {
+  return loadFresh('../js/dashboard.js', { prep: fakePrep, errtext: require('../js/errtext.js') });
+}
+
+test('dash.postConfirm(prep 경로): 성공 본문 매핑 — 빈 객체는 null, 그 밖은 그대로', async function () {
+  let reply = {};
+  const d = loadDashWithPrep({ postConfirm: function (id, screen) { this.last = [id, screen]; return Promise.resolve(reply); } });
+  let x = await d.postConfirm('I1', 'bid_board');
+  assert.strictEqual(x.r.ok, true);
+  assert.strictEqual(x.body, null);
+  reply = { bid_case_id: 'B1' };
+  x = await d.postConfirm('I1', 'map_popover');
+  assert.deepStrictEqual(x.body, { bid_case_id: 'B1' });
+});
+
+test('dash.postConfirm(prep 경로): 실패는 {r,body}로 바꿔 confirmFail이 같은 판정을 내린다, 네트워크 오류는 그대로 던진다', async function () {
+  let fail;
+  const d = loadDashWithPrep({ postConfirm: function () { return Promise.reject(fail); } });
+  fail = Object.assign(new Error('http 409'), { status: 409, detail: { code: 'PREP_ALREADY_ACTIVE' } });
+  let x = await d.postConfirm('I1', 'bid_board');
+  assert.strictEqual(x.r.ok, false);
+  assert.strictEqual(d.confirmFail(x).again, true);
+  fail = Object.assign(new Error('http 403'), { status: 403 });
+  x = await d.postConfirm('I1', 'bid_board');
+  assert.ok(d.confirmFail(x).msg.indexOf('권한이 없습니다(403)') >= 0);
+  fail = new TypeError('Failed to fetch');
+  await assert.rejects(d.postConfirm('I1', 'bid_board'), TypeError);
+});
+
+test('prep.postConfirm: 성공·실패 모두 진행 중 캐시를 비워 다음 fetchActives가 다시 받는다', async function () {
+  const store = { loadSession: function () { return { emp: '3918264' }; }, loadProfile: function () { return { team: '영업팀' }; } };
+  const prep = loadFresh('../js/prep.js', { store: store });
+  const prev = global.fetch, urls = [];
+  let postOk = true;
+  global.fetch = function (url, init) {
+    urls.push((init && init.method) + ' ' + url);
+    if (init && init.method === 'POST') return Promise.resolve(postOk
+      ? { ok: true, status: 201, json: function () { return Promise.resolve({ bid_case_id: 'B1' }); } }
+      : { ok: false, status: 409, json: function () { return Promise.resolve({ detail: {} }); } });
+    return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve([]); } });
+  };
+  try {
+    prep.invalidateActives();
+    await prep.fetchActives();
+    await prep.fetchActives();                                   // 캐시 적중 — GET 1번
+    await prep.postConfirm('I1', 'bid_board');
+    await prep.fetchActives();                                   // 성공 뒤 다시 GET
+    postOk = false;
+    await prep.postConfirm('I1', 'bid_board').catch(function () {});
+    await prep.fetchActives();                                   // 실패 뒤에도 다시 GET
+    assert.strictEqual(urls.filter(function (u) { return u === 'GET /preps'; }).length, 3);
+  } finally { global.fetch = prev; }
+});
+
+test('prep.postConfirm: 머리글을 싣고, 실패는 status·detail을 단 Error로 던진다', async function () {
+  const prep = require('../js/prep.js');
+  const prev = global.fetch, calls = [];
+  let ok = true;
+  global.fetch = function (url, init) { calls.push({ url: url, init: init }); return Promise.resolve(ok
+    ? { ok: true, status: 201, json: function () { return Promise.resolve({ bid_case_id: 'B1' }); } }
+    : { ok: false, status: 409, json: function () { return Promise.resolve({ detail: { code: 'PREP_ALREADY_ACTIVE' } }); } }); };
+  try {
+    const j = await prep.postConfirm('I1', 'bid_board');
+    assert.strictEqual(j.bid_case_id, 'B1');
+    assert.strictEqual(calls[0].init.headers['X-Screen-Id'], 'bid_board');
+    assert.strictEqual(calls[0].init.headers['X-Button-Id'], 'confirm');
+    ok = false;
+    await assert.rejects(prep.postConfirm('I1', 'map_popover'), function (e) { return e.status === 409 && e.detail.code === 'PREP_ALREADY_ACTIVE'; });
+    assert.strictEqual(calls[1].init.headers['X-Screen-Id'], 'map_popover');
+  } finally { global.fetch = prev; }
+});

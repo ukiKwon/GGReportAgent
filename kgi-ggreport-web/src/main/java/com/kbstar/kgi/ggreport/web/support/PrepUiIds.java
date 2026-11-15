@@ -10,12 +10,13 @@ import java.util.Set;
  * 사전준비 요청이 싣는 "어느 화면·어느 버튼" 식별자({@code X-Screen-Id}·{@code X-Button-Id}). {@link BoardUiIds} 와 같은 규칙 —
  * 허용 목록 밖의 값은 원문을 저장하지 않고 {@code UNKNOWN} 으로 바꾼다(400 아님 — 머리글 필수화는 NEXT 68 S8). ⚠️ 클라이언트 자기신고 값이다.
  * 결재함(approvals.js)이 개설·기획승인 결재를 회수·승인·반려할 때 보내는 approvals_mine/cancel_request·approvals_inbox/approve|reject 도 여기서 거른다.
+ * 입찰 현황판(dashboard.js doConfirm 의 [제안 확정])은 bid_board/confirm 으로 보낸다 — HeadUiIds 가 현황판을 부르는 이름과 같다.
  * 화면을 새로 만들면 여기 목록과 프런트 상수를 같이 더한다.
  */
 public final class PrepUiIds {
 
     public static final Set<String> SCREENS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
-            "prep_list", "prep_detail", "prep_history", "approvals_inbox", "approvals_mine", "map_popover")));
+            "prep_list", "prep_detail", "prep_history", "approvals_inbox", "approvals_mine", "map_popover", "bid_board")));
     public static final Set<String> BUTTONS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             "open", "refresh", "confirm", "unconfirm", "open_request", "withdraw", "check", "uncheck",
             "plan_request", "start_writing", "history_open", "cancel_prep", "approve", "reject", "cancel_request",

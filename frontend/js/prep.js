@@ -871,6 +871,12 @@
     return p;
   };
   prep.invalidateActives = invalidateCache;
+  // 현황판·지도 상세 팝업의 [확정]이 쓰는 공용 요청. 화면 머리글(X-Screen-Id·X-Button-Id)을 싣고, 성공·실패 모두 진행 중 캐시를 비운다.
+  prep.postConfirm = function (institutionId, screen) {
+    return req('POST', '/preps', { institution_id: institutionId }, ui(screen, 'confirm')).then(
+      function (j) { invalidateCache(); return j; },
+      function (e) { invalidateCache(); throw e; });
+  };
 
   function popCtx() {
     const session = root.store.loadSession();
