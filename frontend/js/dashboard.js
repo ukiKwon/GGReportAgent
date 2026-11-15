@@ -338,20 +338,15 @@
   function mdDot(s) { return mdDash(s).replace('-', '.'); }
   function ddText(n) { return n === 0 ? 'D-day' : 'D-' + n; }
   // 칩 두 갈래(셋째는 경과 D+ 도장): 마감 D-n(빨강 테두리) / 공고 후 n일(무채색). 마감일을 모르거나 지난 곳은 빨강을 쓰지 않는다.
+  // 문구의 정본은 logic.noticeText(지도 팝오버 noticeBrief와 공유, 2026-11-15) — 여기서는 HTML로 감싸기만 한다.
   dash.noticeChipHtml = function (it) {
-    if (it.phase === 'receiving') return '<span class="db-chip open">마감 ' + esc(ddText(it.deadlineDays)) + '</span>';
-    return '<span class="db-chip wait">공고 후 <span class="v">' + esc(it.since) + '</span>일</span>';
+    const c = logic.noticeText(it).chip;
+    if (c.kind === 'open') return '<span class="db-chip open">' + esc(c.lead + c.value) + '</span>';
+    return '<span class="db-chip wait">' + esc(c.lead) + '<span class="v">' + esc(c.value) + '</span>' + esc(c.tail) + '</span>';
   };
-  // 목록 행의 둘째 줄(지역 뒤): 상태별 문구.
+  // 목록 행의 둘째 줄(지역 뒤): 상태별 문구. 날짜 조각만 <span class="d">로 감싼다.
   dash.noticeNote = function (it) {
-    if (it.phase === 'receiving') {
-      const span = it.receiveFrom && it.receiveTo ? '접수 <span class="d">' + esc(mdDot(it.receiveFrom) + '~' + mdDot(it.receiveTo)) + '</span>'
-        : '마감 <span class="d">' + esc(mdDot(it.receiveTo)) + '</span>';
-      return span + (it.startDays > 0 ? ' · 접수 시작 ' + esc(ddText(it.startDays)) : '');
-    }
-    if (it.phase === 'awaiting') return '마감 지남(<span class="d">' + esc(mdDash(it.receiveTo)) + '</span>) · 결과가 났는지 확인하세요';
-    // 마감일 미확인: 공고 후 30일 이내(NOTICE_UNKNOWN_OPEN_DAYS)면 접수 중일 수 있어 원문 확인을, 31일부터는 마감이 지났을 가능성이 커 결과 확인을 안내한다.
-    return it.late ? '마감일 미확인 · 결과가 났는지 확인하세요' : '마감일 미확인 · 접수 기간은 공고 원문에서 확인하세요';
+    return logic.noticeText(it).note.map(function (s) { return s[1] ? '<span class="d">' + esc(s[0]) + '</span>' : esc(s[0]); }).join('');
   };
   // '결과 확인' 묶음 = 마감 지남 + 마감일 미확인 30일 초과. 띠 카드·지도 색에서 빠지고 목록에서만 보인다.
   // 결과 확인 = 마감 지남 또는 마감일 미확인인데 공고 후 30일 넘음(check 칸이 없는 항목도 같은 규칙으로 판정)

@@ -650,7 +650,10 @@ test('사진 불러오는 중에는 실루엣 aria-label이 사진 불러오는 
   const photo = { photo_id: 3, license_cd: 'KOGL1', source: SRC, checked_on: '2026-11-03', uploaded_by: '1001' };
   const loading = hc.cardHtml(view({ head: { photo: photo } }, { photo: { id: 3, url: '', state: 'loading' } }), { today: TODAY });
   assert.ok(loading.indexOf('aria-label="사진 불러오는 중"') >= 0 && loading.indexOf('aria-label="사진 없음"') < 0);
-  assert.ok(hc.cardHtml(view(), { today: TODAY }).indexOf('aria-label="사진 없음"') >= 0);
+  // 사진 없음: 실루엣은 장식(aria-hidden), 캡션 '사진 없음'이 한 번만 읽힌다(design 11-15 P3-1)
+  const noPhoto = hc.cardHtml(view(), { today: TODAY });
+  assert.ok(noPhoto.indexOf('aria-label="사진 없음"') < 0 && /class="hc-sil"[^>]*aria-hidden="true"/.test(noPhoto));
+  assert.ok(/<p class="hc-cap">사진 없음<\/p>/.test(noPhoto));
 });
 
 test('ensure: 사번이 달라지면 같은 기관이어도 다시 읽고, onProfileChange는 상태를 비운다', async function () {

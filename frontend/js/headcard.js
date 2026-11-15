@@ -184,13 +184,15 @@
   }
 
   // ── 순수: 카드 ─────────────────────────────────────────────────────
+  // label이 없으면 장식(aria-hidden) — 캡션이 같은 말을 할 때 낭독기가 두 번 읽지 않게(design 11-15 P3-1).
   function sil(label) {
-    return '<svg class="hc-sil" viewBox="0 0 100 133" role="img" aria-label="' + esc(label) + '"><circle cx="50" cy="44" r="22"/><path d="M10 133C10 98 28 78 50 78S90 98 90 133Z"/></svg>';
+    const a11y = label ? 'role="img" aria-label="' + esc(label) + '"' : 'aria-hidden="true"';
+    return '<svg class="hc-sil" viewBox="0 0 100 133" ' + a11y + '><circle cx="50" cy="44" r="22"/><path d="M10 133C10 98 28 78 50 78S90 98 90 133Z"/></svg>';
   }
 
   function photoHtml(h, view) {
     const p = h.photo;
-    let frame = sil('사진 없음'), cap = '사진 없음. 공공누리 제1유형 사진이나 기관이 허락한 사진만 올릴 수 있습니다.';
+    let frame = sil(''), cap = '사진 없음';   // 이용 조건은 편집 팝업 '사진 올리기' 절 안내에 있다(1280폭 4줄 꺾임, 11-13 design P2)
     if (p) {
       const ph = view && view.photo ? view.photo : {};
       const lic = hc.licenseLabel(p.license_cd);

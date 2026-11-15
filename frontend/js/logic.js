@@ -285,12 +285,36 @@
   // badge: 접수 마감 전 '마감 D-n' / 마감일 미확인(30일 이내) '공고 진행 중' / 마감 지남·미확인 30일 초과 '결과 확인'.
   // cls: 팝오버 배지 색 계열(.dg-day) — 접수 마감 전만 urgent, 나머지는 unknown(무채색).
   // detail = '2026-10-29 · 접수 11.16~11.19', line = '공고 ' + detail.
+  // 현황판 칩·둘째 줄 문구의 정본(2026-11-15 통합 — dashboard.noticeChipHtml·noticeNote가 이것을 HTML로 감싼다).
+  // n = noticeState 결과 또는 현황판 모델 항목(phase·since·receiveFrom·receiveTo·deadlineDays·late·startDays).
+  // chip = {kind:'open'|'wait', lead, value, tail, text}, note = [[글, 날짜인가]...], noteText = 이어 붙인 글.
+  logic.noticeText = function (n) {
+    const md = function (s, sep) { const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(String(s || '')); return m ? m[1] + sep + m[2] : ''; };
+    const dd = function (k) { return k === 0 ? 'D-day' : 'D-' + k; };
+    let chip, note;
+    if (n.phase === 'receiving') {
+      chip = { kind: 'open', lead: '마감 ', value: dd(n.deadlineDays), tail: '' };
+      note = n.receiveFrom && n.receiveTo
+        ? [['접수 ', false], [md(n.receiveFrom, '.') + '~' + md(n.receiveTo, '.'), true]]
+        : [['마감 ', false], [md(n.receiveTo, '.'), true]];
+      if (n.startDays > 0) note.push([' · 접수 시작 ' + dd(n.startDays), false]);
+    } else {
+      chip = { kind: 'wait', lead: '공고 후 ', value: String(n.since), tail: '일' };
+      // 마감일 미확인: 공고 후 30일 이내(NOTICE_UNKNOWN_OPEN_DAYS)면 접수 중일 수 있어 원문 확인을, 31일부터는 결과 확인을 안내한다.
+      if (n.phase === 'awaiting') note = [['마감 지남(', false], [md(n.receiveTo, '-'), true], [') · 결과가 났는지 확인하세요', false]];
+      else note = [[n.late ? '마감일 미확인 · 결과가 났는지 확인하세요' : '마감일 미확인 · 접수 기간은 공고 원문에서 확인하세요', false]];
+    }
+    chip.text = chip.lead + chip.value + chip.tail;
+    return { chip: chip, note: note, noteText: note.map(function (s) { return s[0]; }).join('') };
+  };
   logic.noticeBrief = function (rec, today) {
     const ns = logic.noticeState(rec, today);
     if (!ns) return null;
+    const startDays = ns.receiveFrom ? logic.daysUntil(ns.receiveFrom, today) : null;
+    const t = logic.noticeText(Object.assign({}, ns, { startDays: startDays }));
     const md = function (s) { const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(String(s || '')); return m ? m[1] + '.' + m[2] : ''; };
     let badge, cls;
-    if (ns.phase === 'receiving') { badge = '마감 ' + (ns.deadlineDays === 0 ? 'D-day' : 'D-' + ns.deadlineDays); cls = 'urgent'; }
+    if (ns.phase === 'receiving') { badge = t.chip.text; cls = 'urgent'; }
     else if (ns.check) { badge = '결과 확인'; cls = 'unknown'; }
     else { badge = '공고 진행 중'; cls = 'unknown'; }
     let span;
@@ -298,7 +322,8 @@
     else if (ns.receiveTo) span = '마감 ' + md(ns.receiveTo);
     else span = '마감일 미확인';
     const detail = rec.contractEnd + ' · ' + span;
-    return { badge: badge, cls: cls, detail: detail, line: '공고 ' + detail, phase: ns.phase, state: ns };
+    return { badge: badge, cls: cls, detail: detail, line: '공고 ' + detail, phase: ns.phase, state: ns,
+      chip: t.chip, note: t.note, noteText: t.noteText };
   };
 
   // 경과 판정: 오늘 > 공고 예정일(유예 없음, 확정·추정 동일). 날짜 미상은 판정하지 않고
