@@ -29,12 +29,11 @@ function qElapsedDays(askedAt, now) { // 물은 날부터 오늘까지 달력 �
 function qDaysLabel(n) { return n == null ? '' : n === 0 ? '오늘' : n + '일째'; }
 function qOverdue(n) { return n != null && n > 7; }
 function qMd(s) { const m = /^\d{4}-(\d{2}-\d{2})/.exec(String(s == null ? '' : s)); return m ? m[1] : ''; }
-function qSplit(list) { // -> { active:[미답(open/hold) 오래된 순 → answered 오래된 순], done:[최근 해소 먼저], pendingCount }
+function qSplit(list) { // -> { active:[해소 전 전부, 최근에 물은 순(사용자 2026-11-15)], done:[최근 해소 먼저], pendingCount }
   const L = Array.isArray(list) ? list.filter(q => q && typeof q === 'object') : [];
-  const day = q => { const n = qDayNum(q.askedAt); return Number.isFinite(n) ? n : Infinity; };
+  const day = q => { const n = qDayNum(q.askedAt); return Number.isFinite(n) ? n : -Infinity; };
   const idc = (x, y) => String(x.id).localeCompare(String(y.id), 'en', { numeric: true });
-  const active = L.filter(q => qClassify(q) !== 'done').sort((x, y) =>
-    (qIsPending(x) ? 0 : 1) - (qIsPending(y) ? 0 : 1) || day(x) - day(y) || idc(x, y));
+  const active = L.filter(q => qClassify(q) !== 'done').sort((x, y) => day(y) - day(x) || idc(y, x)); // 같은 날은 번호 큰(나중) 것이 위
   const dk = q => { const n = qDayNum(q.answeredAt || q.askedAt); return Number.isFinite(n) ? n : -Infinity; };
   const done = L.filter(q => qClassify(q) === 'done').sort((x, y) => dk(y) - dk(x) || idc(x, y));
   return { active, done, pendingCount: L.filter(qIsPending).length };

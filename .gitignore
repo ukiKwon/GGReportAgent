@@ -99,3 +99,7 @@ replay_pid*.log
 # 수집기 로컬 비밀값(나라장터 인증키 등) — 커밋 금지
 collector/.env.local
 collector/.env*.local
+
+# 질문 장부 자동 수집 훅의 잠금·임시 파일
+handoff/questions.json.lock
+handoff/questions.json.*.tmp

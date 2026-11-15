@@ -37,7 +37,7 @@ test('qMd: 날짜에서 월-일', () => {
   assert.strictEqual(qMd('x'), '');
   assert.strictEqual(qMd(undefined), '');
 });
-test('qSplit: 미답(open/hold) 오래된 순 → answered 오래된 순, done 은 따로(최근 해소 먼저)', () => {
+test('qSplit: 해소 전 질문은 최근에 물은 순(같은 날은 번호 큰 것 위, 날짜 없음은 맨 뒤), done 은 따로(최근 해소 먼저)', () => {
   const L = [
     { id: 'a', status: 'answered', askedAt: '2026-11-01' },
     { id: 'b', status: 'open', askedAt: '2026-11-10' },
@@ -48,7 +48,7 @@ test('qSplit: 미답(open/hold) 오래된 순 → answered 오래된 순, done �
     { id: 'g', status: 'open' },
   ];
   const s = qSplit(L);
-  assert.deepStrictEqual(s.active.map(q => q.id), ['c', 'b', 'f', 'g', 'a']);
+  assert.deepStrictEqual(s.active.map(q => q.id), ['f', 'b', 'c', 'a', 'g']);
   assert.deepStrictEqual(s.done.map(q => q.id), ['e', 'd']);
   assert.strictEqual(s.pendingCount, 4);
 });
