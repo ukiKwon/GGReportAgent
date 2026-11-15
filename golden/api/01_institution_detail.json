@@ -15,6 +15,16 @@
     "stage": 1,
     "giganlist_dir": "corpus/institutions/dobong",
     "rfp_path": null,
-    "pptx_path": null
+    "pptx_path": null,
+    "org_code": null,
+    "g2b_code": null,
+    "op_status": "OPERATING",
+    "open_date": null,
+    "contract_end_confirmed": false,
+    "contract_end_src_url": null,
+    "contract_end_src_no": null,
+    "op_src_url": null,
+    "op_src_no": null,
+    "open_check_needed": false
   }
 }

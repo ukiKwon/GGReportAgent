@@ -15,6 +15,7 @@ import com.kbstar.kgi.ggreport.web.dto.CoverageMapResponse;
 import com.kbstar.kgi.ggreport.web.dto.ImportResponse;
 import com.kbstar.kgi.ggreport.web.dto.TimelineResponse;
 import com.kbstar.kgi.ggreport.web.dto.WorkflowStatusResponse;
+import com.kbstar.kgi.ggreport.web.support.InstUiIds;
 import com.kbstar.kgi.ggreport.web.support.InstitutionCsv;
 import com.kbstar.kgi.ggreport.web.service.BidCaseQueryService;
 import com.kbstar.kgi.ggreport.web.service.CorpusService;
@@ -115,13 +116,14 @@ public class InstitutionController {
      * 기관 편집 — 원본 {@code PUT /institutions/{id}} (부분 갱신).
      *
      * <p>보내지 않은 필드는 보존, {@code null} 로 보낸 필드는 지움.
-     * 없는 기관이면 <b>404</b>.
+     * 없는 기관이면 <b>404</b>. 확정/추정·운영 상태 규칙은 {@code InstitutionEditRules}(위반 400, 고정 문구),
+     * 바뀐 칸은 INST_EDIT_LOG 에 칸별로 남는다(사번·{@code X-Screen-Id}·{@code X-Button-Id} 자기신고).
      */
     @PutMapping("/{institutionId}")
     public Institution update(@PathVariable String institutionId,
                               @RequestBody InstitutionUpdateIn body, HttpServletRequest req) {
-        guard.requireInstitutionEdit(req);
-        return institutionCommands.update(institutionId, body);
+        Actor actor = guard.requireInstitutionEdit(req);
+        return institutionCommands.update(institutionId, body, actor, InstUiIds.of(req));
     }
 
     /**
@@ -133,10 +135,10 @@ public class InstitutionController {
      */
     @PostMapping("/import")
     public ImportResponse importCsv(@RequestParam("file") MultipartFile file, HttpServletRequest req) throws IOException {
-        guard.requireInstitutionEdit(req);
+        Actor actor = guard.requireInstitutionEdit(req);
         List<String> ids;
         try {
-            ids = institutionCommands.importCsv(file.getBytes());
+            ids = institutionCommands.importCsv(file.getBytes(), actor);
         } catch (InstitutionCsv.CsvFormatException exc) {
             throw ApiException.badRequest(exc.getMessage());
         }

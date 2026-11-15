@@ -7,11 +7,15 @@ import com.kbstar.kgi.ggreport.web.dto.CompleteResponse;
 import com.kbstar.kgi.ggreport.web.mapper.BidCaseMapper;
 import com.kbstar.kgi.ggreport.web.mapper.InstitutionMapper;
 import com.kbstar.kgi.ggreport.web.support.Ids;
+import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
+import com.kbstar.kgi.ggreport.web.support.InstUiIds;
 import com.kbstar.kgi.ggreport.web.support.InstitutionCsv;
+import com.kbstar.kgi.ggreport.web.web.Actor;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,12 +36,14 @@ public class InstitutionCommandService {
     private final InstitutionMapper mapper;
     private final BidCaseMapper bidCases;
     private final ArchiveService archive;
+    private final InstitutionEditLogger editLogger;
 
     public InstitutionCommandService(InstitutionMapper mapper, BidCaseMapper bidCases,
-                                     ArchiveService archive) {
+                                     ArchiveService archive, InstitutionEditLogger editLogger) {
         this.mapper = mapper;
         this.bidCases = bidCases;
         this.archive = archive;
+        this.editLogger = editLogger;
     }
 
     /**
@@ -70,7 +76,7 @@ public class InstitutionCommandService {
 
         String institutionId = Ids.institution();
         mapper.insert(institutionId, row);
-        return mapper.selectById(institutionId);
+        return InstitutionRules.decorate(mapper.selectById(institutionId), LocalDate.now(InstitutionRules.SEOUL));
     }
 
     /**
@@ -89,16 +95,21 @@ public class InstitutionCommandService {
      * 자동으로 무시된다 — 화면 편집이 진행 단계를 되돌릴 수 없어야 한다.
      */
     @Transactional
-    public Institution update(String institutionId, InstitutionUpdateIn upd) {
+    public Institution update(String institutionId, InstitutionUpdateIn upd, Actor actor, BoardUiIds.Ui ui) {
         Institution existing = mapper.selectById(institutionId);
         if (existing == null) {
             throw ApiException.notFound("institution not found");
         }
         if (upd.nothingSet()) {
-            return existing;
+            return InstitutionRules.decorate(existing, LocalDate.now(InstitutionRules.SEOUL));
         }
+        // 위반이면 400 — 아직 아무것도 쓰지 않았다. 묶음 칸(날짜·확정·출처)은 resolve 가 한꺼번에 upd 에 써 넣는다.
+        List<InstitutionEditRules.Change> changes = InstitutionEditRules.resolve(existing, upd,
+                (g, c) -> mapper.countEnabledCode(g, c) > 0);
         mapper.updateFields(institutionId, upd);
-        return mapper.selectById(institutionId);
+        // 같은 트랜잭션 — 화면 저장은 이력 없이 값만 바뀌지 않는다(CSV·inbox 반입도 같은 기록기로 남긴다).
+        editLogger.log(institutionId, changes, actor, ui);
+        return InstitutionRules.decorate(mapper.selectById(institutionId), LocalDate.now(InstitutionRules.SEOUL));
     }
 
     /**
@@ -119,20 +130,24 @@ public class InstitutionCommandService {
      * @return 반입된 기관 id 목록(표의 행 순서 그대로, 기존 행이면 그 id)
      */
     @Transactional
-    public List<String> importCsv(byte[] raw) {
+    public List<String> importCsv(byte[] raw, Actor actor) {
         List<InstitutionImportRow> rows = InstitutionCsv.parse(raw);
         List<String> ids = new ArrayList<>(rows.size());
         for (InstitutionImportRow row : rows) {
-            ids.add(upsert(row));
+            ids.add(upsert(row, actor));
         }
         return ids;
     }
 
-    /** {@code repository.upsert_institution} — 이름이 키다. */
-    private String upsert(InstitutionImportRow row) {
+    /** {@code repository.upsert_institution} — 이름이 키다. 기존 행이 바뀌면 칸별 이력(csv_import)을 남긴다(보안 검토 B3). */
+    private String upsert(InstitutionImportRow row, Actor actor) {
         String existingId = mapper.selectIdByName(row.getNameKo());
         if (existingId != null) {
-            mapper.updateFromImport(existingId, row);
+            Institution before = mapper.selectById(existingId);   // 바뀌기 전 값 — 같은 트랜잭션
+            mapper.updateFromImport(existingId, row, InstitutionEditRules.importDateChanged(before, row));
+            if (before != null) {
+                editLogger.log(existingId, InstitutionEditRules.diffImport(before, row), actor, InstUiIds.csvImport());
+            }
             return existingId;
         }
         String institutionId = Ids.institution();

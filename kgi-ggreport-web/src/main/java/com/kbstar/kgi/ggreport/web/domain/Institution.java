@@ -26,6 +26,51 @@ public class Institution {
     private String giganlistDir;
     private String rfpPath;
     private String pptxPath;
+    /** 행정표준 기관코드(7자리). 지자체는 NEXT 76 판정 전까지 null. */
+    private String orgCode;
+    /** 나라장터 기관코드(보조 키). */
+    private String g2bCode;
+    /** OPERATING | PLANNED (COMMON_CODE INST_OP_STATUS). */
+    private String opStatus = "OPERATING";
+    /** 'YYYY' | 'YYYY-MM' | 'YYYY-MM-DD'. 길이 4·7·10 = 연·월·일 정밀도. */
+    private String openDate;
+    private boolean contractEndConfirmed;
+    private String contractEndSrcUrl;
+    private String contractEndSrcNo;
+    private String opSrcUrl;
+    private String opSrcNo;
+    /** 계산 플래그(DB 칸 아님) — 개원 예정인데 개원일이 지남. 서비스가 채운다. */
+    private boolean openCheckNeeded;
+
+    public String getOrgCode() { return orgCode; }
+    public void setOrgCode(String orgCode) { this.orgCode = orgCode; }
+
+    public String getG2bCode() { return g2bCode; }
+    public void setG2bCode(String g2bCode) { this.g2bCode = g2bCode; }
+
+    public String getOpStatus() { return opStatus; }
+    public void setOpStatus(String opStatus) { this.opStatus = opStatus; }
+
+    public String getOpenDate() { return openDate; }
+    public void setOpenDate(String openDate) { this.openDate = openDate; }
+
+    public boolean isContractEndConfirmed() { return contractEndConfirmed; }
+    public void setContractEndConfirmed(boolean contractEndConfirmed) { this.contractEndConfirmed = contractEndConfirmed; }
+
+    public String getContractEndSrcUrl() { return contractEndSrcUrl; }
+    public void setContractEndSrcUrl(String contractEndSrcUrl) { this.contractEndSrcUrl = contractEndSrcUrl; }
+
+    public String getContractEndSrcNo() { return contractEndSrcNo; }
+    public void setContractEndSrcNo(String contractEndSrcNo) { this.contractEndSrcNo = contractEndSrcNo; }
+
+    public String getOpSrcUrl() { return opSrcUrl; }
+    public void setOpSrcUrl(String opSrcUrl) { this.opSrcUrl = opSrcUrl; }
+
+    public String getOpSrcNo() { return opSrcNo; }
+    public void setOpSrcNo(String opSrcNo) { this.opSrcNo = opSrcNo; }
+
+    public boolean isOpenCheckNeeded() { return openCheckNeeded; }
+    public void setOpenCheckNeeded(boolean openCheckNeeded) { this.openCheckNeeded = openCheckNeeded; }
 
     public String getInstitutionId() { return institutionId; }
     public void setInstitutionId(String institutionId) { this.institutionId = institutionId; }

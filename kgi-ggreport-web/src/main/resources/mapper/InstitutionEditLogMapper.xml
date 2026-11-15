@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- INST_EDIT_LOG — 기관 편집 이력(추가 전용). INSERT 만 둔다. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.InstitutionEditLogMapper">
+  <insert id="insert">
+    INSERT INTO INST_EDIT_LOG (BATCH_KEY, INSTITUTION_ID, FIELD_CD, OLD_VAL, NEW_VAL, SRC_URL, SRC_NO,
+                               ACTOR_EMP_NO, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, LOGGED_AT)
+    VALUES (#{batchKey}, #{institutionId}, #{fieldCd}, #{oldVal,jdbcType=VARCHAR}, #{newVal,jdbcType=VARCHAR},
+            #{srcUrl,jdbcType=VARCHAR}, #{srcNo,jdbcType=VARCHAR}, #{actorEmpNo,jdbcType=VARCHAR}, #{verified},
+            #{screenId}, #{buttonId}, #{uiValid}, #{now})
+  </insert>
+</mapper>

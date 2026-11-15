@@ -6,6 +6,7 @@ import com.kbstar.kgi.ggreport.web.domain.InstitutionImportRow;
 import com.kbstar.kgi.ggreport.web.mapper.BidCaseMapper;
 import com.kbstar.kgi.ggreport.web.mapper.InstitutionMapper;
 import com.kbstar.kgi.ggreport.web.support.Ids;
+import com.kbstar.kgi.ggreport.web.support.InstUiIds;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.stereotype.Service;
@@ -33,8 +34,11 @@ public class InboxDbApplier {
     private final BidCaseMapper bidCases;
     private final BidCaseCommandService bidCaseCommands;
 
+    private final InstitutionEditLogger editLogger;
+
     public InboxDbApplier(InstitutionMapper institutions, BidCaseMapper bidCases,
-                          BidCaseCommandService bidCaseCommands) {
+                          BidCaseCommandService bidCaseCommands, InstitutionEditLogger editLogger) {
+        this.editLogger = editLogger;
         this.institutions = institutions;
         this.bidCases = bidCases;
         this.bidCaseCommands = bidCaseCommands;
@@ -84,7 +88,11 @@ public class InboxDbApplier {
     private String upsertInstitution(InstitutionImportRow row) {
         String existingId = institutions.selectIdByName(row.getNameKo());
         if (existingId != null) {
-            institutions.updateFromImport(existingId, row);
+            com.kbstar.kgi.ggreport.web.domain.Institution before = institutions.selectById(existingId);   // 바뀌기 전 값(같은 트랜잭션)
+            institutions.updateFromImport(existingId, row, InstitutionEditRules.importDateChanged(before, row));
+            if (before != null) {   // 보안 검토 B3 — 반입이 바꾼 칸도 이력에 남긴다(사번 없는 배치라 actor=null)
+                editLogger.log(existingId, InstitutionEditRules.diffImport(before, row), null, InstUiIds.inboxApply());
+            }
             return existingId;
         }
         String institutionId = Ids.institution();

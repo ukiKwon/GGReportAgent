@@ -243,8 +243,9 @@ public class DynamicSqlTest {
         String sql = sql(InstitutionMapper.class, "selectAll", params());
         assertFalse(sql, sql.toUpperCase().contains("SCORING_TABLE"));
         assertFalse("SELECT * 는 테이블에 컬럼이 늘면 응답이 바뀐다: " + sql, sql.contains("*"));
+        // 11개 → 20개: 030(2026-11-15) ORG_CODE·G2B_CODE·OP_STATUS·OPEN_DATE·CONTRACT_END_CONFIRMED·출처 4칸 추가
         assertEquals("컬럼 수가 달라졌다: " + sql,
-                10, countChar(sql.substring(0, sql.indexOf("FROM")), ','));
+                19, countChar(sql.substring(0, sql.indexOf("FROM")), ','));
     }
 
     private static int countChar(String s, char c) {

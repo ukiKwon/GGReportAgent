@@ -72,6 +72,40 @@ public class InstitutionUpdateIn {
         this.term = term;
     }
 
+    // ---- 030: 확정 여부·출처·운영 상태·개원 예정일 (규칙은 InstitutionEditRules) ----
+    private Boolean contractEndConfirmed;
+    private String contractEndSrcUrl;
+    private String contractEndSrcNo;
+    private String opStatus;
+    private String openDate;
+    private String opSrcUrl;
+    private String opSrcNo;
+
+    public Boolean getContractEndConfirmed() { return contractEndConfirmed; }
+    public void setContractEndConfirmed(Boolean v) { present.add("contractEndConfirmed"); this.contractEndConfirmed = v; }
+
+    /** Mapper XML 이 숫자 칸에 넣는 값(true=1). null 이면 0 — resolve 가 항상 값을 정해 둔다. */
+    @JsonIgnore
+    public int getContractEndConfirmedInt() { return Boolean.TRUE.equals(contractEndConfirmed) ? 1 : 0; }
+
+    public String getContractEndSrcUrl() { return contractEndSrcUrl; }
+    public void setContractEndSrcUrl(String v) { present.add("contractEndSrcUrl"); this.contractEndSrcUrl = blankToNull(v); }
+
+    public String getContractEndSrcNo() { return contractEndSrcNo; }
+    public void setContractEndSrcNo(String v) { present.add("contractEndSrcNo"); this.contractEndSrcNo = blankToNull(v); }
+
+    public String getOpStatus() { return opStatus; }
+    public void setOpStatus(String v) { present.add("opStatus"); this.opStatus = blankToNull(v); }
+
+    public String getOpenDate() { return openDate; }
+    public void setOpenDate(String v) { present.add("openDate"); this.openDate = blankToNull(v); }
+
+    public String getOpSrcUrl() { return opSrcUrl; }
+    public void setOpSrcUrl(String v) { present.add("opSrcUrl"); this.opSrcUrl = blankToNull(v); }
+
+    public String getOpSrcNo() { return opSrcNo; }
+    public void setOpSrcNo(String v) { present.add("opSrcNo"); this.opSrcNo = blankToNull(v); }
+
     /**
      * 이 필드가 요청 본문에 <b>실려 왔는지</b>. 값이 {@code null} 인 것과 다르다.
      *

@@ -28,11 +28,23 @@
     <result property="giganlistDir"  column="GIGANLIST_DIR"/>
     <result property="rfpPath"       column="RFP_PATH"/>
     <result property="pptxPath"      column="PPTX_PATH"/>
+    <result property="orgCode"              column="ORG_CODE"/>
+    <result property="g2bCode"              column="G2B_CODE"/>
+    <result property="opStatus"             column="OP_STATUS"/>
+    <result property="openDate"             column="OPEN_DATE"/>
+    <result property="contractEndConfirmed" column="CONTRACT_END_CONFIRMED"/>
+    <result property="contractEndSrcUrl"    column="CONTRACT_END_SRC_URL"/>
+    <result property="contractEndSrcNo"     column="CONTRACT_END_SRC_NO"/>
+    <result property="opSrcUrl"             column="OP_SRC_URL"/>
+    <result property="opSrcNo"              column="OP_SRC_NO"/>
   </resultMap>
 
+  <!-- REGION_CODE 빈 문자열 → null (qa P3-3). NULLIF 대신 CASE — Oracle 의 '' 리터럴과 충돌이 없다 -->
   <sql id="columns">
-    INSTITUTION_ID, NAME_KO, REGION_CODE, TYPE, CONTRACT_END, LAST_BID,
-    TERM, STAGE, GIGANLIST_DIR, RFP_PATH, PPTX_PATH
+    INSTITUTION_ID, NAME_KO, CASE WHEN REGION_CODE = '' THEN NULL ELSE REGION_CODE END AS REGION_CODE,
+    TYPE, CONTRACT_END, LAST_BID, TERM, STAGE, GIGANLIST_DIR, RFP_PATH, PPTX_PATH,
+    ORG_CODE, G2B_CODE, OP_STATUS, OPEN_DATE, CONTRACT_END_CONFIRMED,
+    CONTRACT_END_SRC_URL, CONTRACT_END_SRC_NO, OP_SRC_URL, OP_SRC_NO
   </sql>
 
   <select id="selectAll" resultMap="institution">
@@ -74,6 +86,13 @@
            TYPE         = COALESCE(#{row.type,jdbcType=VARCHAR},        TYPE),
            TERM         = COALESCE(#{row.term,jdbcType=DECIMAL},        TERM),
            LAST_BID     = COALESCE(#{row.lastBid,jdbcType=VARCHAR},     LAST_BID),
+           <!-- 날짜가 바뀌면 확정·출처를 지운다(보안 검토·qa P3-4). '바뀌는가'는 호출부가 바뀌기 전 값과 비교해 넘긴다 —
+                SQL 안에서 null 파라미터를 비교하면 DB 마다 타입 추론이 달라 H2 가 실패했다(11-15) -->
+           <if test="dateChanged">
+           CONTRACT_END_CONFIRMED = 0,
+           CONTRACT_END_SRC_URL = NULL,
+           CONTRACT_END_SRC_NO = NULL,
+           </if>
            CONTRACT_END = COALESCE(#{row.contractEnd,jdbcType=VARCHAR}, CONTRACT_END)
      WHERE INSTITUTION_ID = #{institutionId}
   </update>
@@ -94,9 +113,21 @@
       <if test="upd.present('contractEnd')">CONTRACT_END = #{upd.contractEnd,jdbcType=VARCHAR},</if>
       <if test="upd.present('lastBid')">LAST_BID = #{upd.lastBid,jdbcType=VARCHAR},</if>
       <if test="upd.present('term')">TERM = #{upd.term,jdbcType=DECIMAL},</if>
+      <if test="upd.present('contractEndConfirmed')">CONTRACT_END_CONFIRMED = #{upd.contractEndConfirmedInt,jdbcType=NUMERIC},</if>
+      <if test="upd.present('contractEndSrcUrl')">CONTRACT_END_SRC_URL = #{upd.contractEndSrcUrl,jdbcType=VARCHAR},</if>
+      <if test="upd.present('contractEndSrcNo')">CONTRACT_END_SRC_NO = #{upd.contractEndSrcNo,jdbcType=VARCHAR},</if>
+      <if test="upd.present('opStatus')">OP_STATUS = #{upd.opStatus,jdbcType=VARCHAR},</if>
+      <if test="upd.present('openDate')">OPEN_DATE = #{upd.openDate,jdbcType=VARCHAR},</if>
+      <if test="upd.present('opSrcUrl')">OP_SRC_URL = #{upd.opSrcUrl,jdbcType=VARCHAR},</if>
+      <if test="upd.present('opSrcNo')">OP_SRC_NO = #{upd.opSrcNo,jdbcType=VARCHAR},</if>
     </set>
     WHERE INSTITUTION_ID = #{institutionId}
   </update>
+
+  <!-- 공통 코드가 켜져 있는지(운영 상태 허용 값 확인) -->
+  <select id="countEnabledCode" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP = #{codeGroup} AND CODE = #{code} AND ENABLED = 1
+  </select>
 
   <insert id="insertSeedDistrict">
     INSERT INTO INSTITUTIONS

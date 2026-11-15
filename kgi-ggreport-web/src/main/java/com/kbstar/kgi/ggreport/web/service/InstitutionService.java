@@ -5,6 +5,7 @@ import com.kbstar.kgi.ggreport.web.mapper.InstitutionMapper;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -20,12 +21,17 @@ public class InstitutionService {
     }
 
     public List<Institution> list() {
-        return mapper.selectAll();
+        List<Institution> all = mapper.selectAll();
+        LocalDate today = LocalDate.now(InstitutionRules.SEOUL);
+        for (Institution i : all) {
+            InstitutionRules.decorate(i, today);   // open_check_needed 계산 플래그
+        }
+        return all;
     }
 
     /** 없으면 null. 404 로 바꾸는 것은 {@link #require} 의 몫이다. */
     public Institution find(String institutionId) {
-        return mapper.selectById(institutionId);
+        return InstitutionRules.decorate(mapper.selectById(institutionId), LocalDate.now(InstitutionRules.SEOUL));
     }
 
     /**
@@ -40,6 +46,6 @@ public class InstitutionService {
         if (institution == null) {
             throw ApiException.notFound("institution not found");
         }
-        return institution;
+        return InstitutionRules.decorate(institution, LocalDate.now(InstitutionRules.SEOUL));
     }
 }

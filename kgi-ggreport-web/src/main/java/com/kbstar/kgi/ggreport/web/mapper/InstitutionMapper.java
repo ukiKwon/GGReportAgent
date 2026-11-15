@@ -43,7 +43,8 @@ public interface InstitutionMapper {
      * 그쪽은 {@code null} 을 "지움"으로 본다.
      */
     int updateFromImport(@Param("institutionId") String institutionId,
-                         @Param("row") InstitutionImportRow row);
+                         @Param("row") InstitutionImportRow row,
+                         @Param("dateChanged") boolean dateChanged);   // 입찰 예정일이 바뀌는가 — 호출부가 바뀌기 전 값과 비교(확정·출처를 지움)
 
     /**
      * {@code update_institution} — 본문에 <b>실제로 담겨 온 필드만</b> 갱신한다.
@@ -55,8 +56,11 @@ public interface InstitutionMapper {
     int updateFields(@Param("institutionId") String institutionId,
                      @Param("upd") InstitutionUpdateIn upd);
 
+    /** 공통 코드(그룹·코드)가 켜져 있으면 1, 아니면 0. 기관 운영 상태({@code INST_OP_STATUS}) 허용 값 확인에 쓴다. */
+    int countEnabledCode(@Param("codeGroup") String codeGroup, @Param("code") String code);
+
     /**
-     * {@code seed_giganlist_districts} 의 신규 행 — 자치구 시드 전용이라
+     * {@code seed_giganlist_districts} 의 신규 행— 자치구 시드 전용이라
      * {@link #insert} 와 컬럼 구성이 다르다({@code GIGANLIST_DIR} 이 있고
      * {@code TERM}/{@code LAST_BID}/{@code CONTRACT_END} 가 없다).
      */

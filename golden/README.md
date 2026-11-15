@@ -64,3 +64,4 @@
   여부를 받을 것(랭킹 차이도 같은 절차).
 - 참여확정 직후 시스템이 분석 자동 시작을 시도하고, 공고문(rfp_path)이 없어
   실패하면 **영업팀 쪽지로 남긴다** — `24_notifications_sales`의 1건이 그것이다.
+- **00·01(기관 목록·상세)은 2026-11-15 기관 칸 확장(030)으로 Java가 Python 스냅샷에서 의도적으로 벗어난다** — 각 기관에 org_code·g2b_code·op_status·open_date·contract_end_confirmed·출처 4칸·open_check_needed 10키 추가(시험 DB는 003 시드만이라 기본값).

@@ -16,7 +16,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/dobong",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "dongdaemun",
@@ -29,7 +39,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/dongdaemun",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "dongjak",
@@ -42,7 +62,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/dongjak",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "eunpyeong",
@@ -55,7 +85,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/eunpyeong",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "gangbuk",
@@ -68,7 +108,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/gangbuk",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "gangdong",
@@ -81,7 +131,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/gangdong",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "gangnam",
@@ -94,7 +154,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/gangnam",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "gangseo",
@@ -107,7 +177,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/gangseo",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "geumcheon",
@@ -120,7 +200,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/geumcheon",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "guro",
@@ -133,7 +223,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/guro",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "gwanak",
@@ -146,7 +246,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/gwanak",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "gwangjin",
@@ -159,7 +269,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/gwangjin",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "jongno",
@@ -172,7 +292,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/jongno",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "jung",
@@ -185,7 +315,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/jung",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "jungnang",
@@ -198,7 +338,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/jungnang",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "mapo",
@@ -211,7 +361,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/mapo",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "nowon",
@@ -224,7 +384,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/nowon",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "seocho",
@@ -237,7 +407,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/seocho",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "seodaemun",
@@ -250,7 +430,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/seodaemun",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "seongbuk",
@@ -263,7 +453,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/seongbuk",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "seongdong",
@@ -276,7 +476,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/seongdong",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "songpa",
@@ -289,7 +499,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/songpa",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "yangcheon",
@@ -302,7 +522,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/yangcheon",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "yeongdeungpo",
@@ -315,7 +545,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/yeongdeungpo",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     },
     {
       "institution_id": "yongsan",
@@ -328,7 +568,17 @@
       "stage": 1,
       "giganlist_dir": "corpus/institutions/yongsan",
       "rfp_path": null,
-      "pptx_path": null
+      "pptx_path": null,
+      "org_code": null,
+      "g2b_code": null,
+      "op_status": "OPERATING",
+      "open_date": null,
+      "contract_end_confirmed": false,
+      "contract_end_src_url": null,
+      "contract_end_src_no": null,
+      "op_src_url": null,
+      "op_src_no": null,
+      "open_check_needed": false
     }
   ]
 }
