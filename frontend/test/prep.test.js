@@ -658,3 +658,8 @@ test('닫기 확인 줄은 처음엔 비어 있고, 문구는 닫으려 할 때�
   assert.ok(prep.closeConfirmHtml().indexOf('적은 내용이 사라집니다. 닫을까요?') > 0);
   assert.ok(/<div id="pp-m-confirm"><\/div>/.test(SRC));   // 초기 마크업은 빈 자리
 });
+
+test('닫기 확인 줄 버튼은 [계속 작성]·[버리고 닫기] — 창 아래 [닫기]·[취소]와 이름이 겹치지 않게(사용자 11-16)', () => {
+  const h = prep.closeConfirmHtml();
+  assert.ok(h.indexOf('>계속 작성</button>') > 0 && h.indexOf('>버리고 닫기</button>') > 0);
+});

@@ -753,7 +753,7 @@
 
   prep.closeConfirmHtml = function () {
     return '<div class="pp-confirm" role="group" aria-label="닫기 확인"><span>' + esc(T.closeAsk) + '</span>' +
-      '<button type="button" id="pp-m-keep">계속 작성</button><button type="button" id="pp-m-discard">닫기</button></div>';
+      '<button type="button" id="pp-m-keep">계속 작성</button><button type="button" id="pp-m-discard">버리고 닫기</button></div>';
   };
 
   // ── 오류 → { text, after, code } (§5-1). tasks: 상세 과제(NOT_READY의 missing 코드를 이름으로), where: 어디서 난 오류인가 ──
