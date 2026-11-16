@@ -37,7 +37,7 @@ const TRACK_TXT = {
 const T = THEME === 'site' ? Object.assign({}, TRACK_TXT, SITE.txt) : TRACK_TXT;
 
 const cv = document.getElementById('c');
-const c = cv.getContext('2d');
+let c = cv.getContext('2d'); // let: site.js가 정적 배경을 오프스크린에 그릴 때 잠깐 바꿔 끼운다
 let simTime = 0, speedMul = 1, soundOn = false, live = false;
 let coachTask = '';
 const stat = { laps: 0, since: null, dirty: false }; // 세션 누적 바퀴수 (since=null이면 서버 값을 아직 못 받은 상태)

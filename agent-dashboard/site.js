@@ -146,6 +146,75 @@ const SITE = (() => {
     if (z && r.role === 'auditor') drawBubble(x, y - 76, '빔 ' + (12 + crane.placed % 30) + '개');
   }
 
+  /* 흙길·안쪽 기초·바깥 소품 — 정적 그림이라 처음 한 번 오프스크린에 그려 두고 매 프레임 붙인다 */
+  let groundCv = null;
+  function drawGround() {
+    if (!groundCv) {
+      groundCv = document.createElement('canvas'); groundCv.width = W; groundCv.height = H;
+      const g = groundCv.getContext('2d'), prev = c; c = g;
+      try { paintGround(); } finally { c = prev; }
+    }
+    c.drawImage(groundCv, 0, 0);
+  }
+  function ruts(pts, alpha0, fade) { // 쌍선 바퀴 자국
+    for (const off of [-4, 4]) {
+      for (let k = 1; k < pts.length; k++) {
+        const a = fade ? alpha0 * (1 - k / pts.length) : alpha0;
+        c.strokeStyle = 'rgba(92,66,40,' + a.toFixed(3) + ')'; c.lineWidth = 1.5; c.lineCap = 'round';
+        const [x1, y1, nx1, ny1] = pts[k - 1], [x2, y2, nx2, ny2] = pts[k];
+        c.beginPath(); c.moveTo(x1 + nx1 * off, y1 + ny1 * off); c.lineTo(x2 + nx2 * off, y2 + ny2 * off); c.stroke();
+      }
+    }
+  }
+  function branch(x1, y1, x2, y2) {
+    const d = Math.hypot(x2 - x1, y2 - y1) || 1, nx = -(y2 - y1) / d, ny = (x2 - x1) / d, pts = [];
+    for (let k = 0; k <= 6; k++) pts.push([lerp(x1, x2, k / 6), lerp(y1, y2, k / 6), nx, ny]);
+    ruts(pts, 0.35, true);
+  }
+  function paintGround() {
+    // 1) 끊긴 바퀴 자국 두 줄
+    [[158, 0], [182, 2.1]].forEach(([R0, ph]) => {
+      for (let i = 0; i < 90; i++) {
+        if ((i * 7 + ph * 10) % 11 < 4) continue;
+        const pts = [];
+        for (let k = 0; k < 4; k++) {
+          const t = i / 90 + k * 0.008 / 3, R = R0 + Math.sin(t * 37 + ph) * 5, p = pathPos(t, R);
+          pts.push([p.x, p.y, -p.hy, p.hx]);
+        }
+        ruts(pts, 0.35, false);
+      }
+    });
+    // 2) 지선(야적장·크레인·출입구)
+    branch(962, 512, 992, 550); branch(1016, 400, 1066, 575); branch(690, 531, 690, 538); branch(720, 531, 720, 538);
+    // 3) 복공판 16장(몰아서)
+    [[.03, 160], [.045, 176], [.06, 168], [.21, 186], [.23, 150], [.24, 172], [.40, 164], [.415, 182], [.55, 154], [.57, 170], [.585, 190], [.71, 160], [.74, 178], [.86, 166], [.875, 184], [.95, 152]].forEach(([t, R], i) => {
+      const p = pathPos(t, R);
+      c.save(); c.translate(p.x, p.y); c.rotate(Math.atan2(p.hy, p.hx) + ((i % 5) - 2) * 0.09);
+      c.fillStyle = '#80868b'; c.fillRect(-14, -8, 28, 16);
+      c.strokeStyle = '#5b6166'; c.lineWidth = 1; c.strokeRect(-14, -8, 28, 16);
+      c.strokeStyle = '#6b7176'; c.beginPath(); c.moveTo(-14, -8 + 16 / 3); c.lineTo(14, -8 + 16 / 3); c.moveTo(-14, -8 + 32 / 3); c.lineTo(14, -8 + 32 / 3); c.stroke();
+      c.restore();
+    });
+    // 4) 안쪽 좌우 비대칭: 왼쪽 타설 끝난 슬래브, 오른쪽 배근 중인 철근망
+    c.fillStyle = '#a3a59f'; c.fillRect(340, 285, 46, 90); c.strokeStyle = '#8d6e63'; c.lineWidth = 2; c.strokeRect(340, 285, 46, 90);
+    c.strokeStyle = '#6d4c41'; c.lineWidth = 1;
+    for (let x = 898; x <= 940; x += 8) { c.beginPath(); c.moveTo(x, 300); c.lineTo(x, 372); c.stroke(); }
+    for (let y = 300; y <= 372; y += 8) { c.beginPath(); c.moveTo(898, y); c.lineTo(940, y); c.stroke(); }
+    c.strokeStyle = '#8d6e63'; c.lineWidth = 2; c.strokeRect(898, 300, 42, 72);
+    // 5) 바깥 소품: 모래 더미·벽돌 팔레트·굴착기·철근 다발
+    c.fillStyle = '#d9b47a'; c.beginPath(); c.moveTo(40, 262); c.lineTo(80, 226); c.lineTo(120, 262); c.closePath(); c.fill();
+    c.fillStyle = '#c49a5e'; c.beginPath(); c.moveTo(80, 226); c.lineTo(120, 262); c.lineTo(86, 262); c.closePath(); c.fill();
+    c.fillStyle = '#b5543c'; c.fillRect(52, 430, 44, 22); c.strokeStyle = '#8a3f2c'; c.lineWidth = 1;
+    for (const y of [437, 444]) { c.beginPath(); c.moveTo(52, y); c.lineTo(96, y); c.stroke(); }
+    for (let x = 63; x < 96; x += 11) { c.beginPath(); c.moveTo(x, 430); c.lineTo(x, 452); c.stroke(); }
+    c.fillStyle = '#8d6e63'; c.fillRect(52, 452, 44, 4);
+    c.fillStyle = '#37474f'; rrect(140, 578, 96, 14, 7); c.fill();
+    c.fillStyle = '#607d8b'; for (let x = 148; x < 236; x += 14) disc(x, 585, 3, '#607d8b');
+    c.fillStyle = YEL; c.fillRect(156, 548, 56, 30); c.fillStyle = GLASS; c.fillRect(190, 552, 16, 12);
+    limb(212, 556, 256, 530, 6, YEL); limb(256, 530, 286, 586, 4, YEL);
+    c.fillStyle = '#37474f'; c.fillRect(280, 582, 12, 10);
+    for (const y of [100, 104, 108]) limb(250, y, 330, y, 2, STEEL);
+  }
   /* ---------- 배경 ---------- */
   function drawBg() {
     const g = c.createLinearGradient(0, 0, 0, 36); g.addColorStop(0, '#8ecae6'); g.addColorStop(1, '#cfe8f3');
@@ -156,11 +225,7 @@ const SITE = (() => {
     // 가설 울타리
     c.fillStyle = '#e8eef2'; c.fillRect(218, 36, 1062 - 218, 16);
     c.fillStyle = '#1e5aa8'; c.fillRect(218, 46, 1062 - 218, 3);
-    // 운반로(트랙 기하 그대로)
-    stadium(200); c.fillStyle = '#8a6a45'; c.fill();
-    stadium(130); c.fillStyle = '#b08a5a'; c.fill();
-    c.strokeStyle = '#74573a'; c.lineWidth = 2; for (const R of [130, 200]) { stadium(R); c.stroke(); }
-    c.strokeStyle = 'rgba(217,194,154,.7)'; c.setLineDash([10, 10]); c.lineWidth = 1.2; for (const R of [148, 165, 182]) { stadium(R); c.stroke(); } c.setLineDash([]);
+    drawGround(); // 운반로: 닫힌 띠·차선 없이 흙길(바퀴 자국·복공판·지선) — 트랙처럼 보이지 않게(사용자 11-16, design 11-16)
     // 휴게 패드
     c.fillStyle = '#cfd2cc'; c.fillRect(0, 600, W, 200); c.fillStyle = '#a9ada6'; c.fillRect(0, 600, W, 4);
     // 출입구 기둥·차단봉
@@ -264,7 +329,7 @@ const SITE = (() => {
       if (p.y > CY + 200 && p.x > 440 && p.x < 760) continue; // 출입구
       if (p.y < 110 && p.x > 500 && p.x < 1000) continue;     // 윗쪽 소품 구간
       if (p.x > 930 && p.y > 480) continue;                    // 야적장
-      if (ch.i % 2) continue;                                  // 신호수는 듬성듬성
+      if (![5, 12, 19, 26].includes(ch.i)) continue;        // 신호수는 몇 명만 — 타원으로 늘어서면 관중석(트랙)처럼 보인다(사용자 11-16)
       const i = ch.i, x = p.x, jump = on ? Math.abs(Math.sin(simTime * 6 - i * 0.55)) * 4 : 0, y = p.y - jump;
       limb(x - 2, y - 12, x - 2, y, 3, '#2d3436'); limb(x + 2, y - 12, x + 2, y, 3, '#2d3436');
       limb(x, y - 12, x, y - 26, 8, '#c6ff00'); c.fillStyle = '#f5f5f5'; c.fillRect(x - 4, y - 21, 8, 1.5);
