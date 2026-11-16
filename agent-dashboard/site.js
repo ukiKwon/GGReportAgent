@@ -20,12 +20,11 @@ const SITE = (() => {
   const LAPS_PER_FLOOR = 5;
   const ZONES = [[0, '지상', '#8ecae6'], [20, '구름', '#5fa8d3'], [60, '성층권', '#1b3a6b'], [120, '우주', '#05070f']]; // 하루 실제 누적을 보고 조정(planner)
   const BLD = { x: 1110, w: 140, baseY: 588, floorH: 18, maxMain: 16 }; // 16층이면 크레인 지브·운전석 이름표가 고도 창(y≤205) 아래에 보인다
-  const CR = { mastX: 1088, jib: 160, counter: 56, phiYard: Math.PI, phiBld: 0, phiRest: 0.35, tYard: 93, tBld: 92, hookRest: 20 };
-  const YARD = { x: 940, y: 556, w: 110 };
+  const CR = { mastX: 1088, jib: 160, counter: 56, phiYard: Math.PI, phiBld: 0, phiRest: 0.35, tYard: 78, tBld: 92, hookRest: 20 };
+  const YARD = { x: 968, y: 556, w: 84 }; // 단면도(x≤960)와 리프트(x≥1053) 사이
   const LIFT = { x: 1066, base: 584 }, LIFT_RATE = 0.2, LIFT_IN = 0.2, LIFT_OUT = 0.85; // 리프트 레일(크레인 마스트 왼쪽)·구간 비율
   let cageY = LIFT.base;
   const ALT = { x: 1040, y: 12, w: 228, h: 190, ruler: 22, title: 18 };
-  const ROLE_T = { security: [.01, .05], auditor: [.21, .25], backend: [.29, .33], pm: [.36, .40], frontend: [.43, .47], designer: [.53, .57], planner: [.62, .66], qa: [.82, .86] };
   const STEEL = '#a8432b', WALL = '#d5d0c4', GLASS = '#7fb3d5', GLASS_HI = '#d6eaf8', SLAB = '#8f959a', YEL = '#f2b705';
 
   let bonus = 0, zoneSeen = -1, zoneSince = null;
@@ -38,8 +37,6 @@ const SITE = (() => {
   const zoneIdx = f => { let i = 0; for (let k = 0; k < ZONES.length; k++) if (f >= ZONES[k][0]) i = k; return i; };
   const mainTopY = () => BLD.baseY - Math.min(floors(), BLD.maxMain - (floors() > BLD.maxMain ? 1 : 0)) * BLD.floorH; // 잘리면 맨 윗줄은 지그재그 단면이라 보이는 꼭대기는 한 층 아래
   const jibY = () => Math.max(60, mainTopY() - 3 * BLD.floorH - 22);
-  const tOf = r => ((r.t % 1) + 1) % 1;
-  const inZone = r => { const z = ROLE_T[r.role]; if (!z || r.state !== 'run') return false; const t = tOf(r); return t >= z[0] && t <= z[1]; };
   const ease = k => k * k * (3 - 2 * k);
   const lerp = (a, b, k) => a + (b - a) * k;
   function lerpColor(a, b, k) {
@@ -155,91 +152,110 @@ const SITE = (() => {
     if (z && r.role === 'auditor') drawBubble(x, y - 76, '빔 ' + (12 + crane.placed % 30) + '개');
   }
 
-  /* 흙길·안쪽 기초·바깥 소품 — 정적 그림이라 처음 한 번 오프스크린에 그려 두고 매 프레임 붙인다 */
-  let groundCv = null;
-  function drawGround() {
-    if (!groundCv) {
-      groundCv = document.createElement('canvas'); groundCv.width = W; groundCv.height = H;
-      const g = groundCv.getContext('2d'), prev = c; c = g;
-      try { paintGround(); } finally { c = prev; }
-    }
-    c.drawImage(groundCv, 0, 0);
+  /* ---------- 3층 단면도 경로(트랙 대신, 사용자 11-16) ----------
+     1층 출입구 → 오른쪽 계단 → 2층 → 왼쪽 계단 → 3층 끝까지 갔다가 같은 길로 내려온다. 왕복 1번 = 1공정.
+     app.js의 pathPos·pathLen·startPt·출구 판정이 공사판에서는 이 함수들을 쓴다. 차선 R(141~201)은 앞뒤 깊이(±9px)로만 쓴다. */
+  const F1 = 588, F2 = 448, F3 = 308, ROOF = 168, SEC = { x0: 240, x1: 960 };
+  const ROUTE = [[690, F1], [820, F1], [940, F1 - 70], [820, F2], [380, F2], [260, F2 - 70], [380, F3], [900, F3]];
+  const SEG = []; let ONE = 0;
+  for (let i = 1; i < ROUTE.length; i++) { const [x1, y1] = ROUTE[i - 1], [x2, y2] = ROUTE[i], l = Math.hypot(x2 - x1, y2 - y1); SEG.push({ x1, y1, x2, y2, l, s0: ONE }); ONE += l; }
+  const SPEED_K = 1.4; // 왕복 길이가 트랙 한 바퀴의 약 1.9배라 걸음을 조금 빠르게
+  function routePos(t, R) {
+    t = ((t % 1) + 1) % 1;
+    let s = t * 2 * ONE, back = false;
+    if (s > ONE) { s = 2 * ONE - s; back = true; }
+    let g = SEG[SEG.length - 1];
+    for (const sg of SEG) if (s <= sg.s0 + sg.l) { g = sg; break; }
+    const k = Math.max(0, Math.min(1, (s - g.s0) / g.l)), dx = (g.x2 - g.x1) / g.l, dy = (g.y2 - g.y1) / g.l, d = ((R || 165) - 165) * 0.25;
+    return { x: g.x1 + (g.x2 - g.x1) * k, y: g.y1 + (g.y2 - g.y1) * k + d, hx: back ? -dx : dx, hy: back ? -dy : dy };
   }
-  function ruts(pts, alpha0, fade) { // 쌍선 바퀴 자국
-    for (const off of [-4, 4]) {
-      for (let k = 1; k < pts.length; k++) {
-        const a = fade ? alpha0 * (1 - k / pts.length) : alpha0;
-        c.strokeStyle = 'rgba(92,66,40,' + a.toFixed(3) + ')'; c.lineWidth = 1.5; c.lineCap = 'round';
-        const [x1, y1, nx1, ny1] = pts[k - 1], [x2, y2, nx2, ny2] = pts[k];
-        c.beginPath(); c.moveTo(x1 + nx1 * off, y1 + ny1 * off); c.lineTo(x2 + nx2 * off, y2 + ny2 * off); c.stroke();
-      }
-    }
+  const startT = r => 0.004 + (r.slot % 8) * 0.004 + (r.slot >= 8 ? 0.002 : 0);
+  const startPt = r => routePos(startT(r), r.laneR);
+  const entry = R => Object.assign(routePos(0, R), { t: 0 });
+  const inExit = tt => tt < 0.012 || tt > 0.985; // 1층 출입구 근처
+  // 역할 구역: [층 높이, x 시작, x 끝]
+  const ZONE = { security: [F1, 690, 745], auditor: [F1, 765, 820], frontend: [F2, 740, 820], designer: [F2, 560, 650], planner: [F2, 390, 470], qa: [F3, 430, 520], pm: [F3, 780, 880], backend: [F3, 880, 900] };
+  const inZone = r => { const z = ZONE[r.role]; return !!z && r.state === 'run' && Math.abs(r.y - z[0]) < 14 && r.x >= z[1] && r.x <= z[2]; };
+
+  /* 단면도 정적 그림 — 처음 한 번 오프스크린에 그려 두고 매 프레임 붙인다 */
+  let secCv = null;
+  function drawSection() {
+    if (!secCv) { secCv = document.createElement('canvas'); secCv.width = W; secCv.height = H; const prev = c; c = secCv.getContext('2d'); try { paintSection(); } finally { c = prev; } }
+    c.drawImage(secCv, 0, 0);
   }
-  function branch(x1, y1, x2, y2) {
-    const d = Math.hypot(x2 - x1, y2 - y1) || 1, nx = -(y2 - y1) / d, ny = (x2 - x1) / d, pts = [];
-    for (let k = 0; k <= 6; k++) pts.push([lerp(x1, x2, k / 6), lerp(y1, y2, k / 6), nx, ny]);
-    ruts(pts, 0.35, true);
+  function stairs(x1, y1, x2, y2, n) { // 계단 한 단(디딤판 n개)과 난간
+    const sx = (x2 - x1) / n, sy = (y2 - y1) / n;
+    c.fillStyle = '#9ea3a8'; c.beginPath(); c.moveTo(x1, y1);
+    for (let i = 0; i < n; i++) { c.lineTo(x1 + sx * i, y1 + sy * (i + 1)); c.lineTo(x1 + sx * (i + 1), y1 + sy * (i + 1)); }
+    c.lineTo(x2, y2 + 9); c.lineTo(x1 + sx, y1 + 9); c.closePath(); c.fill();
+    c.strokeStyle = '#6d7378'; c.lineWidth = 1; c.stroke();
+    c.strokeStyle = YEL; c.lineWidth = 2; c.beginPath(); c.moveTo(x1, y1 - 26); c.lineTo(x2, y2 - 26); c.stroke();
+    for (const [px, py] of [[x1, y1], [x2, y2]]) { c.beginPath(); c.moveTo(px, py); c.lineTo(px, py - 26); c.stroke(); }
   }
-  function paintGround() {
-    // 1) 끊긴 바퀴 자국 두 줄
-    [[158, 0], [182, 2.1]].forEach(([R0, ph]) => {
-      for (let i = 0; i < 90; i++) {
-        if ((i * 7 + ph * 10) % 11 < 4) continue;
-        const pts = [];
-        for (let k = 0; k < 4; k++) {
-          const t = i / 90 + k * 0.008 / 3, R = R0 + Math.sin(t * 37 + ph) * 5, p = pathPos(t, R);
-          pts.push([p.x, p.y, -p.hy, p.hx]);
-        }
-        ruts(pts, 0.35, false);
-      }
+  function slab(y, g0, g1) { // 슬래브(계단 자리 g0~g1은 뚫림)
+    const { x0, x1 } = SEC;
+    c.fillStyle = '#8f959a';
+    if (g0 == null) c.fillRect(x0 - 6, y, x1 - x0 + 12, 9); else { c.fillRect(x0 - 6, y, g0 - x0 + 6, 9); c.fillRect(g1, y, x1 + 6 - g1, 9); }
+    c.fillStyle = '#6d7378'; c.fillRect(x0 - 6, y + 9, x1 - x0 + 12, 1);
+  }
+  function paintSection() {
+    const { x0, x1 } = SEC;
+    [[ROOF + 9, F3, '#cfc9bd'], [F3 + 9, F2, '#d7d1c5'], [F2 + 9, F1, '#ded8cc']].forEach(([a, b, col]) => { // 층마다 안벽(거푸집 벽) 색을 조금 다르게
+      c.fillStyle = col; c.fillRect(x0, a, x1 - x0, b - a);
+      c.fillStyle = 'rgba(0,0,0,.08)'; for (let x = x0 + 22; x < x1; x += 40) for (let y = a + 16; y < b - 6; y += 30) c.fillRect(x, y, 3, 3); // 폼타이 자국
     });
-    // 2) 지선(야적장·크레인·출입구)
-    branch(962, 512, 992, 550); branch(1016, 400, 1066, 575); branch(690, 531, 690, 538); branch(720, 531, 720, 538);
-    // 3) 복공판 16장(몰아서)
-    [[.03, 160], [.045, 176], [.06, 168], [.21, 186], [.23, 150], [.24, 172], [.40, 164], [.415, 182], [.55, 154], [.57, 170], [.585, 190], [.71, 160], [.74, 178], [.86, 166], [.875, 184], [.95, 152]].forEach(([t, R], i) => {
-      const p = pathPos(t, R);
-      c.save(); c.translate(p.x, p.y); c.rotate(Math.atan2(p.hy, p.hx) + ((i % 5) - 2) * 0.09);
-      c.fillStyle = '#80868b'; c.fillRect(-14, -8, 28, 16);
-      c.strokeStyle = '#5b6166'; c.lineWidth = 1; c.strokeRect(-14, -8, 28, 16);
-      c.strokeStyle = '#6b7176'; c.beginPath(); c.moveTo(-14, -8 + 16 / 3); c.lineTo(14, -8 + 16 / 3); c.moveTo(-14, -8 + 32 / 3); c.lineTo(14, -8 + 32 / 3); c.stroke();
-      c.restore();
+    c.fillStyle = '#a7aca9'; for (const x of [x0, 596, x1 - 10]) c.fillRect(x, ROOF, 10, F1 - ROOF + 9); // 기둥
+    slab(ROOF); slab(F3, 256, 384); slab(F2, 816, 944); slab(F1);
+    for (let x = x0 + 6; x < x1; x += 28) limb(x, ROOF, x, ROOF - 14, 2, STEEL); // 옥상에 삐죽 나온 철근(공사 중)
+    stairs(820, F1, 940, F1 - 70, 6); c.fillStyle = '#9ea3a8'; c.fillRect(940, F1 - 70, 18, 9); stairs(940, F1 - 70, 820, F2, 6);
+    stairs(380, F2, 260, F2 - 70, 6); c.fillStyle = '#9ea3a8'; c.fillRect(242, F2 - 70, 18, 9); stairs(260, F2 - 70, 380, F3, 6);
+    c.fillStyle = '#6d7378'; c.font = 'bold 15px "Malgun Gothic", sans-serif'; c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+    c.fillText('3층', 612, ROOF + 30); c.fillText('2층', 612, F3 + 30); c.fillText('1층', 612, F2 + 30); // 가운데 기둥 옆(왼쪽 끝은 계단에 가림)
+    // 1층 왼쪽 자재 적치: 벽돌 팔레트·철근 다발·모래
+    for (const bx of [276, 330]) { c.fillStyle = '#b5543c'; c.fillRect(bx, F1 - 24, 44, 20); c.strokeStyle = '#8a3f2c'; c.lineWidth = 1; for (const y of [F1 - 17, F1 - 10]) { c.beginPath(); c.moveTo(bx, y); c.lineTo(bx + 44, y); c.stroke(); } c.fillStyle = '#8d6e63'; c.fillRect(bx, F1 - 4, 44, 4); }
+    for (const y of [F1 - 4, F1 - 8, F1 - 12]) limb(400, y, 520, y, 2.5, STEEL);
+    c.fillStyle = '#d9b47a'; c.beginPath(); c.moveTo(540, F1); c.lineTo(572, F1 - 28); c.lineTo(604, F1); c.closePath(); c.fill();
+  }
+  function drawLights() { // 층마다 매달린 작업등
+    for (const [y, xs] of [[ROOF + 9, [430, 760]], [F3 + 9, [500, 700]], [F2 + 9, [480, 660]]]) for (const x of xs) {
+      limb(x, y, x, y + 14, 1, '#37474f');
+      c.fillStyle = 'rgba(255,241,118,' + (0.18 + 0.06 * Math.sin(simTime * 3 + x)).toFixed(3) + ')'; c.beginPath(); c.arc(x, y + 18, 22, 0, Math.PI * 2); c.fill();
+      disc(x, y + 17, 4, '#fff59d');
+    }
+  }
+  function drawBoard() { // 공정 현황(위쪽 하늘 자리, 두 줄)
+    const X = 236, Y = 8, Wd = 794, Hh = 150;
+    c.fillStyle = 'rgba(0,0,0,.62)'; rrect(X, Y, Wd, Hh, 10); c.fill();
+    c.textBaseline = 'middle'; c.textAlign = 'left'; c.fillStyle = '#fff'; c.font = 'bold 16px "Malgun Gothic", sans-serif';
+    c.fillText(txt.boardTitle, X + 14, Y + 18);
+    c.textAlign = 'right'; c.font = '12px "Malgun Gothic", sans-serif'; c.fillStyle = '#b2bec3';
+    c.fillText(txt.running(runners.filter(r => r.state === 'run').length), X + Wd - 12, Y + 18);
+    AGENTS.map(a => ({ a })).concat([{ cleaner: true }]).forEach((row, i) => {
+      const x0 = X + 10 + (i < 5 ? 0 : 392), y = Y + 44 + (i % 5) * 22;
+      let name, color, st, laps = '', task = '', hi = false, bright = false;
+      if (row.cleaner) { const on = jan.present && !jan.cameo; name = CLEANER.name; color = CLEANER.color; st = on ? JOB_LABEL[jan.job] : '대기'; task = jan.task || ''; hi = jan.active; bright = on; }
+      else {
+        const rs = runners.filter(r => r.role === row.a.id), act = rs.filter(r => r.active), lead = rs.find(r => r.state === 'run') || act[0] || rs[0];
+        name = row.a.name + (act.length > 1 ? ' ×' + act.length : ''); color = row.a.color; st = stateLabel(lead);
+        laps = Math.max(...rs.map(lapInt)) + txt.unit; task = rs.map(r => r.task).filter(Boolean).join(' / '); hi = act.length > 0; bright = lead.state === 'run';
+      }
+      if (hi) { c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(x0 - 4, y - 10, 384, 21); }
+      disc(x0 + 6, y, 5.5, color);
+      c.textAlign = 'left'; c.font = 'bold 14px "Malgun Gothic", sans-serif'; c.fillStyle = bright ? '#fff' : '#cfd8dc'; c.fillText(name, x0 + 18, y);
+      c.font = '12px "Malgun Gothic", sans-serif'; c.fillStyle = bright ? '#ffeaa7' : '#b2bec3'; c.fillText(st, x0 + 100, y);
+      if (laps) { c.textAlign = 'right'; c.font = 'bold 14px "Malgun Gothic", sans-serif'; c.fillStyle = '#fff'; c.fillText(laps, x0 + 252, y); }
+      if (task) { c.textAlign = 'left'; c.font = '11px "Malgun Gothic", sans-serif'; c.fillStyle = '#b2bec3'; let tk = task; while (tk.length > 1 && c.measureText(tk).width > 118) tk = tk.slice(0, -2) + '…'; c.fillText(tk, x0 + 260, y); }
     });
-    // 4) 안쪽 좌우 비대칭: 왼쪽 타설 끝난 슬래브, 오른쪽 배근 중인 철근망
-    c.fillStyle = '#a3a59f'; c.fillRect(340, 285, 46, 90); c.strokeStyle = '#8d6e63'; c.lineWidth = 2; c.strokeRect(340, 285, 46, 90);
-    c.strokeStyle = '#6d4c41'; c.lineWidth = 1;
-    for (let x = 898; x <= 940; x += 8) { c.beginPath(); c.moveTo(x, 300); c.lineTo(x, 372); c.stroke(); }
-    for (let y = 300; y <= 372; y += 8) { c.beginPath(); c.moveTo(898, y); c.lineTo(940, y); c.stroke(); }
-    c.strokeStyle = '#8d6e63'; c.lineWidth = 2; c.strokeRect(898, 300, 42, 72);
-    // 5) 바깥 소품: 모래 더미·벽돌 팔레트·굴착기·철근 다발
-    c.fillStyle = '#d9b47a'; c.beginPath(); c.moveTo(40, 262); c.lineTo(80, 226); c.lineTo(120, 262); c.closePath(); c.fill();
-    c.fillStyle = '#c49a5e'; c.beginPath(); c.moveTo(80, 226); c.lineTo(120, 262); c.lineTo(86, 262); c.closePath(); c.fill();
-    c.fillStyle = '#b5543c'; c.fillRect(52, 430, 44, 22); c.strokeStyle = '#8a3f2c'; c.lineWidth = 1;
-    for (const y of [437, 444]) { c.beginPath(); c.moveTo(52, y); c.lineTo(96, y); c.stroke(); }
-    for (let x = 63; x < 96; x += 11) { c.beginPath(); c.moveTo(x, 430); c.lineTo(x, 452); c.stroke(); }
-    c.fillStyle = '#8d6e63'; c.fillRect(52, 452, 44, 4);
-    c.fillStyle = '#37474f'; rrect(140, 578, 96, 14, 7); c.fill();
-    c.fillStyle = '#607d8b'; for (let x = 148; x < 236; x += 14) disc(x, 585, 3, '#607d8b');
-    c.fillStyle = YEL; c.fillRect(156, 548, 56, 30); c.fillStyle = GLASS; c.fillRect(190, 552, 16, 12);
-    limb(212, 556, 256, 530, 6, YEL); limb(256, 530, 286, 586, 4, YEL);
-    c.fillStyle = '#37474f'; c.fillRect(280, 582, 12, 10);
-    for (const y of [100, 104, 108]) limb(250, y, 330, y, 2, STEEL);
   }
   /* ---------- 배경 ---------- */
   function drawBg() {
-    const g = c.createLinearGradient(0, 0, 0, 36); g.addColorStop(0, '#8ecae6'); g.addColorStop(1, '#cfe8f3');
-    c.fillStyle = g; c.fillRect(0, 0, W, 36);
-    c.fillStyle = '#9fb3c2'; for (let x = 230, i = 0; x < 1030; x += 46, i++) { const h = 8 + (i * 7) % 13; c.fillRect(x, 36 - h, 34, h); }
-    c.fillStyle = '#b08a5a'; c.fillRect(0, 36, W, 564);
-    c.fillStyle = '#9c774a'; for (let i = 0; i < 260; i++) { const x = (i * 197) % W, y = 60 + (i * 89) % 530; c.fillRect(x, y, 3, 2); }
-    // 가설 울타리
-    c.fillStyle = '#e8eef2'; c.fillRect(218, 36, 1062 - 218, 16);
-    c.fillStyle = '#1e5aa8'; c.fillRect(218, 46, 1062 - 218, 3);
-    drawGround(); // 운반로: 닫힌 띠·차선 없이 흙길(바퀴 자국·복공판·지선) — 트랙처럼 보이지 않게(사용자 11-16, design 11-16)
+    const g = c.createLinearGradient(0, 0, 0, 170); g.addColorStop(0, '#8ecae6'); g.addColorStop(1, '#cfe8f3');
+    c.fillStyle = g; c.fillRect(0, 0, W, 170);
+    c.fillStyle = '#b08a5a'; c.fillRect(0, 164, W, 436);
+    c.fillStyle = '#9c774a'; for (let i = 0; i < 200; i++) { const x = (i * 197) % W, y = 172 + (i * 89) % 420; c.fillRect(x, y, 3, 2); }
+    drawSection(); // 3층 단면도(트랙 대신, 사용자 11-16)
     // 휴게 패드
     c.fillStyle = '#cfd2cc'; c.fillRect(0, 600, W, 200); c.fillStyle = '#a9ada6'; c.fillRect(0, 600, W, 4);
-    // 출입구 기둥·차단봉
-    for (const x of [596, 784]) { c.fillStyle = '#546e7a'; c.fillRect(x - 3, 540, 6, 60); }
-    for (let i = 0; i < 6; i++) { c.fillStyle = i % 2 ? '#1f1f1f' : YEL; c.fillRect(596 + i * 31, 540, 31, 5); }
     // 휴게 컨테이너
     c.fillStyle = '#2e7d6b'; c.fillRect(40, 628, 420, 58);
     c.fillStyle = 'rgba(255,255,255,.12)'; for (let x = 48; x < 460; x += 14) c.fillRect(x, 630, 3, 54);
@@ -249,7 +265,7 @@ const SITE = (() => {
     c.fillStyle = '#e85d2a'; c.fillRect(790, 694, 380, 8);
     c.fillStyle = '#f5f5f5'; for (let x = 790; x < 1170; x += 40) c.fillRect(x, 694, 20, 8);
     label('휴게 컨테이너', 12, 620); label('벤치', 40, 776); label('🧊 정수기', 560, 776); label('⛱️ 그늘 휴게', 800, 782);
-    c.fillStyle = 'rgba(255,255,255,.85)'; c.font = fz(12, 11, 1.3) + 'px "Malgun Gothic", sans-serif'; c.fillText('현장 출입구 ▲', 600, 596);
+    c.fillStyle = 'rgba(255,255,255,.85)'; c.font = fz(12, 11, 1.3) + 'px "Malgun Gothic", sans-serif'; c.fillText('▲ 1층 출입구', 650, 616);
   }
   function drawYard() {
     for (let i = 0; i < 4; i++) drawBeam(YARD.x + (i % 2) * 6, YARD.y + 20 - i * 8, YARD.w - 10);
@@ -260,25 +276,28 @@ const SITE = (() => {
     c.fillStyle = '#7f2f1d'; c.fillRect(x, y + 2.5, w, 2);
   }
   function drawProps() {
-    // 보안: 출입 통제 라바콘
-    for (let i = 0; i < 4; i++) { const x = 475 + i * 26, y = 576; c.fillStyle = '#ff6d00'; c.beginPath(); c.moveTo(x - 6, y); c.lineTo(x + 6, y); c.lineTo(x, y - 18); c.closePath(); c.fill(); c.fillStyle = '#fff'; c.fillRect(x - 3, y - 10, 6, 3); c.fillStyle = '#333'; c.fillRect(x - 8, y, 16, 2); }
-    if (prop.cones > 0) { c.strokeStyle = 'rgba(255,23,68,' + (0.4 + 0.4 * Math.sin(simTime * 6)) + ')'; c.lineWidth = 2; c.beginPath(); c.moveTo(475, 566); c.lineTo(553, 566); c.stroke(); }
-    // 기획: 공정표 화이트보드 + 측량 삼각대
-    c.fillStyle = '#fafafa'; c.fillRect(530, 52, 80, 40); c.strokeStyle = '#546e7a'; c.lineWidth = 2; c.strokeRect(530, 52, 80, 40);
+    // 1층 보안: 출입 통제 라바콘
+    for (const x of [700, 728]) { const y = F1; c.fillStyle = '#ff6d00'; c.beginPath(); c.moveTo(x - 6, y); c.lineTo(x + 6, y); c.lineTo(x, y - 18); c.closePath(); c.fill(); c.fillStyle = '#fff'; c.fillRect(x - 3, y - 10, 6, 3); }
+    if (prop.cones > 0) { c.strokeStyle = 'rgba(255,23,68,' + (0.4 + 0.4 * Math.sin(simTime * 6)).toFixed(3) + ')'; c.lineWidth = 2; c.beginPath(); c.moveTo(700, F1 - 12); c.lineTo(728, F1 - 12); c.stroke(); }
+    // 1층 데이터: 자재 검수 팔레트(바코드)
+    c.fillStyle = '#c8a26b'; c.fillRect(772, F1 - 30, 40, 26); c.fillStyle = '#8d6e63'; c.fillRect(770, F1 - 4, 44, 4);
+    c.fillStyle = '#263238'; for (let k = 0; k < 6; k++) c.fillRect(780 + k * 3, F1 - 22, k % 2 ? 1 : 2, 10);
+    // 2층 기획: 공정표 화이트보드
+    c.fillStyle = '#fafafa'; c.fillRect(395, F2 - 92, 70, 40); c.strokeStyle = '#546e7a'; c.lineWidth = 2; c.strokeRect(395, F2 - 92, 70, 40);
     const bars = Math.floor(prop.wb);
-    for (let i = 0; i < 5; i++) { c.fillStyle = i < bars ? ['#f9a825', '#0984e3', '#6c5ce7', '#00b894', '#e84393'][i] : '#e0e0e0'; c.fillRect(536 + i * 8, 58 + i * 6, 24, 4); }
-    limb(625, 70, 618, 92, 1.5, '#5d4037'); limb(625, 70, 632, 92, 1.5, '#5d4037'); limb(625, 70, 625, 92, 1.5, '#5d4037'); c.fillStyle = YEL; c.fillRect(620, 64, 10, 6);
-    // 디자이너: 도면 테이블(레이저 수평선)
-    c.fillStyle = '#8d6e63'; c.fillRect(715, 72, 60, 6); c.fillRect(719, 78, 4, 14); c.fillRect(767, 78, 4, 14);
-    c.fillStyle = '#90caf9'; c.fillRect(719, 66, 52, 7); c.strokeStyle = '#1e5aa8'; c.lineWidth = 0.8; c.strokeRect(719, 66, 52, 7);
-    if (runners.some(r => r.role === 'designer' && inZone(r))) { c.strokeStyle = 'rgba(255,23,68,.8)'; c.lineWidth = 1; c.beginPath(); c.moveTo(700, 60); c.lineTo(900, 60); c.stroke(); }
-    // 프론트: 비계 + 칠해지는 벽
-    c.fillStyle = '#d5d0c4'; c.fillRect(920, 52, 60, 40);
-    c.fillStyle = '#ffb74d'; c.fillRect(920, 52, 60 * prop.paint, 40);
-    c.strokeStyle = '#78909c'; c.lineWidth = 2; for (const x of [918, 950, 982]) { c.beginPath(); c.moveTo(x, 50); c.lineTo(x, 92); c.stroke(); } for (const y of [62, 78]) { c.beginPath(); c.moveTo(916, y); c.lineTo(984, y); c.stroke(); }
-    // QA: 검사대(시편 + 체크)
-    c.fillStyle = '#b8bcc0'; c.fillRect(140, 330, 74, 20); c.fillStyle = '#90a4ae'; c.fillRect(146, 320, 18, 10); c.fillRect(170, 316, 18, 14); c.fillRect(194, 322, 14, 8);
-    label('품질 검사대', 140, 366, '#3e2f1c');
+    for (let i = 0; i < 5; i++) { c.fillStyle = i < bars ? ['#f9a825', '#0984e3', '#6c5ce7', '#00b894', '#e84393'][i] : '#e0e0e0'; c.fillRect(400 + i * 7, F2 - 86 + i * 6, 22, 4); }
+    // 2층 디자이너: 도면 테이블(레이저 수평선)
+    c.fillStyle = '#8d6e63'; c.fillRect(575, F2 - 26, 60, 5); c.fillRect(579, F2 - 21, 4, 21); c.fillRect(627, F2 - 21, 4, 21);
+    c.fillStyle = '#90caf9'; c.fillRect(579, F2 - 32, 52, 6); c.strokeStyle = '#1e5aa8'; c.lineWidth = 0.8; c.strokeRect(579, F2 - 32, 52, 6);
+    if (runners.some(r => r.role === 'designer' && inZone(r))) { c.strokeStyle = 'rgba(255,23,68,.8)'; c.lineWidth = 1; c.beginPath(); c.moveTo(SEC.x0 + 10, F2 - 70); c.lineTo(SEC.x1 - 10, F2 - 70); c.stroke(); }
+    // 2층 프론트: 칠해지는 벽 + 작은 비계
+    c.fillStyle = '#c9c3b6'; c.fillRect(742, F2 - 100, 70, 72); c.fillStyle = '#ffb74d'; c.fillRect(742, F2 - 100, 70 * prop.paint, 72);
+    c.strokeStyle = '#78909c'; c.lineWidth = 2; for (const x of [740, 814]) { c.beginPath(); c.moveTo(x, F2); c.lineTo(x, F2 - 104); c.stroke(); } for (const y of [F2 - 36, F2 - 72]) { c.beginPath(); c.moveTo(738, y); c.lineTo(816, y); c.stroke(); }
+    // 3층 QA: 검사대
+    c.fillStyle = '#b8bcc0'; c.fillRect(440, F3 - 22, 74, 6); c.fillRect(444, F3 - 16, 4, 16); c.fillRect(506, F3 - 16, 4, 16);
+    c.fillStyle = '#90a4ae'; c.fillRect(446, F3 - 32, 18, 10); c.fillRect(470, F3 - 36, 18, 14); c.fillRect(494, F3 - 30, 14, 8);
+    // 3층 PM: 무전 중계 안테나
+    limb(868, F3, 868, F3 - 56, 2, '#455a64'); disc(868, F3 - 58, 3, Math.floor(simTime * 2) % 2 ? '#ff5252' : '#b71c1c');
   }
   function drawBuilding() {
     const f = floors(), n = Math.min(f, BLD.maxMain), cut = f > BLD.maxMain;
@@ -357,25 +376,19 @@ const SITE = (() => {
       c.fillStyle = YEL; c.fillRect(x - 12, cy - 35, 24, 3);
     }
   }
-  function drawSignalers() { // 치어리더 대체: 깃발 신호수
+  function drawSignalers() { // 치어리더 대체: 깃발 신호수 2명(단면도 왼쪽 바깥)
     const on = waveOn();
-    for (const ch of cheers) {
-      const p = pathPos((ch.i + 0.5) / CHEER_N, R_CHEER);
-      if (p.y > CY + 200 && p.x > 440 && p.x < 760) continue; // 출입구
-      if (p.y < 110 && p.x > 500 && p.x < 1000) continue;     // 윗쪽 소품 구간
-      if (p.x > 930 && p.y > 480) continue;                    // 야적장
-      if (![5, 12, 19, 26].includes(ch.i)) continue;        // 신호수는 몇 명만 — 타원으로 늘어서면 관중석(트랙)처럼 보인다(사용자 11-16)
-      const i = ch.i, x = p.x, jump = on ? Math.abs(Math.sin(simTime * 6 - i * 0.55)) * 4 : 0, y = p.y - jump;
+    [[5, 205, 450], [19, 205, 596]].forEach(([i, x, y0]) => {
+      const ch = cheers[i], jump = on ? Math.abs(Math.sin(simTime * 6 - i * 0.55)) * 4 : 0, y = y0 - jump;
       limb(x - 2, y - 12, x - 2, y, 3, '#2d3436'); limb(x + 2, y - 12, x + 2, y, 3, '#2d3436');
       limb(x, y - 12, x, y - 26, 8, '#c6ff00'); c.fillStyle = '#f5f5f5'; c.fillRect(x - 4, y - 21, 8, 1.5);
       const a = on ? Math.sin(simTime * 6 - i * 0.55) : Math.sin(simTime * 2 + i) * 0.3;
       const hx = x + 6 + Math.sin(a) * 4, hy = y - 30 - Math.cos(a) * 6;
-      limb(x + 3, y - 24, hx, hy, 3, '#f1c9a5');
-      limb(hx, hy, hx, hy - 12, 1.5, '#5d4037');
+      limb(x + 3, y - 24, hx, hy, 3, '#f1c9a5'); limb(hx, hy, hx, hy - 12, 1.5, '#5d4037');
       c.fillStyle = i % 4 ? '#ff1744' : '#00c853'; c.fillRect(hx, hy - 12, 9 + Math.sin(simTime * 8 + i) * 2, 6);
       disc(x, y - 31, 5, '#f1c9a5'); c.fillStyle = '#ffc400'; c.beginPath(); c.arc(x, y - 33, 5.6, Math.PI, 0); c.fill();
       if (ch.bubble) drawBubble(x, y - 44, ch.bubble.text);
-    }
+    });
   }
   function drawOffice() { // 현장사무소(코치석 대체)
     c.fillStyle = '#e9ecef'; c.fillRect(14, 40, 196, 116);
@@ -473,11 +486,12 @@ const SITE = (() => {
     drawYard();
     drawBuilding();
     drawProps();
-    drawInfield();
+    drawLights();
     drawBench();
     drawOffice(); drawScoreboard();
     drawSignalers();
-    drawCoach('#f5f5f5', true); // 현장소장은 흰 안전모(한국 현장 관례)
+    drawBoard();
+    drawCoach('#f5f5f5', true, true); // 현장소장은 흰 안전모(한국 현장 관례), 말풍선은 아래로(위는 현황판)
     drawCrane();
     drawLift();
     drawMedics();
@@ -494,5 +508,5 @@ const SITE = (() => {
     drawAltitude();
   }
 
-  return { txt, render, update, place, drawTool, addBonus: n => { bonus += n; }, floors };
+  return { txt, render, update, place, drawTool, addBonus: n => { bonus += n; }, floors, pathPos: routePos, pathLen: () => 2 * ONE, startT, startPt, entry, inExit, speedK: SPEED_K };
 })();

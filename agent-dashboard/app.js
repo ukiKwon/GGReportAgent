@@ -51,8 +51,9 @@ if (window.ResizeObserver) new ResizeObserver(() => {
 }).observe(cv);
 
 /* ---------- 트랙 경로 ---------- */
-function pathLen(R) { return 4 * L + 2 * Math.PI * R; }
+function pathLen(R) { return THEME === 'site' ? SITE.pathLen(R) : 4 * L + 2 * Math.PI * R; } // 공사판은 3층 단면도 왕복 경로(site.js)
 function pathPos(t, R) {
+  if (THEME === 'site') return SITE.pathPos(t, R);
   t = ((t % 1) + 1) % 1;
   let s = t * pathLen(R);
   const S = 2 * L, arc = Math.PI * R;
@@ -239,7 +240,7 @@ const row2 = r => r.slot >= BASE_SLOTS;
 const benchSpot = r => row2(r) ? { x: 82 + (r.slot - BASE_SLOTS) * 46, y: 752 } : { x: 70 + r.slot * 46, y: BENCH_Y };
 const floorSpot = r => row2(r) ? { x: 822 + (r.slot - BASE_SLOTS) * 45, y: 722 } : { x: 800 + r.slot * 45, y: 752 };
 const drinkSpot = r => ({ x: 566 + (r.slot % BASE_SLOTS) * 28 + (row2(r) ? 14 : 0), y: 686 });
-const startPt = r => ({ x: 470 + (r.slot % BASE_SLOTS) * 10 + (row2(r) ? 5 : 0), y: CY + r.laneR });
+const startPt = r => THEME === 'site' ? SITE.startPt(r) : ({ x: 470 + (r.slot % BASE_SLOTS) * 10 + (row2(r) ? 5 : 0), y: CY + r.laneR });
 function makeRunner(a, slot, inst) {
   const o = {
     ...a, role: a.id, id: inst > 1 ? a.id + '_' + inst : a.id, name: inst > 1 ? a.name + '#' + inst : a.name,
@@ -298,14 +299,14 @@ function updateRunner(r, dt) {
       if (!r.active) { r.state = 'rest'; r.readyAt = simTime + 1; break; }
       const sp = startPt(r);
       if (walk(r, sp.x, sp.y, 130, dt)) {
-        r.state = 'run'; r.v = 0; r.R = r.laneR; r.t = (sp.x - (CX - L)) / pathLen(r.R); r.face = 1;
+        r.state = 'run'; r.v = 0; r.R = r.laneR; r.t = THEME === 'site' ? SITE.startT(r) : (sp.x - (CX - L)) / pathLen(r.R); r.face = 1;
       }
       break;
     }
     case 'run': {
       const mode = li < 10 ? 'run' : li < 15 ? 'crawl' : 'wheel';
       // 속도는 px/s 기준(바깥 차선이라고 빨라지지 않게)이고, 단계가 바뀌어도 서서히 변한다
-      const want = r.speed * (mode === 'run' ? 170 : mode === 'crawl' ? 90 : 120);
+      const want = r.speed * (mode === 'run' ? 170 : mode === 'crawl' ? 90 : 120) * (THEME === 'site' ? SITE.speedK : 1);
       r.v = (r.v || want) + (want - (r.v || want)) * Math.min(1, dt * 2);
       const sp = r.v / pathLen(r.R);
       r.t += sp * dt; r.lapF += sp * dt;
@@ -321,7 +322,7 @@ function updateRunner(r, dt) {
       }
       if (fatInt(r) >= 25) r.needAmb = true;
       const tt = ((r.t % 1) + 1) % 1;
-      const inExit = tt * pathLen(r.R) < 2 * L && r.x >= 600 && r.x <= 780; // 아래 휴식 공간으로 빠지는 출구
+      const inExit = THEME === 'site' ? SITE.inExit(tt) : tt * pathLen(r.R) < 2 * L && r.x >= 600 && r.x <= 780; // 아래 휴식 공간으로 빠지는 출구(공사판은 1층 출입구)
       if (inExit) {
         if (r.needAmb) { r.state = 'down'; r.downPlaced = false; break; }
         if (li >= 15 && !r.wheeled) { r.wheeled = true; r.wheelStage = 0; r.state = 'wheelOut'; break; }
@@ -404,7 +405,7 @@ function updateSweat(dt) {
 /* ---------- 구급차 ---------- */
 // 구급차는 아래 휴식 공간에 정차한다. 의료원이 내려 들것에 환자를 싣고 트랙을 한 바퀴 달린 뒤 돌아와 싣고 떠난다.
 const amb = { phase: 'idle', x: 1420, y: 735, ang: Math.PI, queue: [], patient: null, g: { x: 1165, y: 735, ang: 0, face: 1, tl: 0 }, t0: 0 };
-const AMB_T0 = (700 - (CX - L)) / pathLen(RC);
+const AMB_T0 = THEME === 'site' ? 0 : (700 - (CX - L)) / pathLen(RC);
 const AMB_DOOR = { x: 1165, y: 735 };
 
 function moveTo(o, tx, ty, sp, dt) {
@@ -551,7 +552,7 @@ function updateJanitor(dt) {
       else if (j.stage === 2) { j.face = -1; j.x -= 45 * dt; if (j.x <= 60) janNext(); }
       break;
     case 'track': // 출입구로 올라가 트랙을 한 바퀴 걸레질한다
-      if (j.stage === 0) { if (walk(j, 470, 500, 120, dt)) { j.stage = 1; j.t = (470 - (CX - L)) / pathLen(150); j.t0 = j.t; j.lastTrail = j.t; } }
+      if (j.stage === 0) { const e = THEME === 'site' ? SITE.entry(150) : { x: 470, y: 500, t: (470 - (CX - L)) / pathLen(150) }; if (walk(j, e.x, e.y, 120, dt)) { j.stage = 1; j.t = e.t; j.t0 = j.t; j.lastTrail = j.t; } }
       else if (j.stage === 1) {
         j.t += 85 / pathLen(150) * dt;
         const p = pathPos(j.t, 150); j.x = p.x; j.y = p.y;
@@ -927,7 +928,7 @@ function drawRunner(r) {
   if (r.bubble) {
     // 아래쪽 차선 선수의 말풍선이 현황판(y218~444)을 덮으면 발 아래로 뒤집는다
     const bt = top - fs - 3 - 22 * fz(14, 12, 1.4) / 14 - 2;
-    if (!ov && r.y > 444 && r.x > 300 && r.x < 980 && bt < 444) drawBubble(x, r.y + 6, r.bubble.text, true);
+    if (!ov && THEME !== 'site' && r.y > 444 && r.x > 300 && r.x < 980 && bt < 444) drawBubble(x, r.y + 6, r.bubble.text, true);
     else drawBubble(x, top - fs - 3, r.bubble.text);
   }
 }
@@ -970,13 +971,13 @@ function drawSweat() {
   c.globalAlpha = 1;
 }
 
-function drawCoach(hat, vest) {
+function drawCoach(hat, vest, below) {
   drawPerson({ x: coach.x, y: coach.y, face: 1, pose: 'coach', ph: coach.ph, color: '#2d3436', hair: '#222', skin: '#f1c9a5', hat: hat || '#1e272e', vest });
   c.save(); const cfs = fz(11, 11, 1.4);
   c.font = 'bold ' + cfs + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillStyle = '#ffd166'; rrect(coach.x - 22, coach.y - 66 - (cfs + 3), 44, cfs + 3, 4); c.fill();
   c.fillStyle = '#111'; c.fillText('메인', coach.x, coach.y - 66 - (cfs + 3) / 2); c.restore();
-  if (coach.bubble) drawBubbleSide(228, 100, coach.bubble.text);
+  if (coach.bubble) { if (below) drawBubble(coach.x, coach.y + 16, coach.bubble.text, true); else drawBubbleSide(228, 100, coach.bubble.text); }
 }
 function render() {
   if (THEME === 'site') return SITE.render();
