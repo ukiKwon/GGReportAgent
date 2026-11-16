@@ -649,3 +649,12 @@ test('순위표: 공고 진행 중 기관은 공고 줄로 표시한다(NEXT 78,
   assert.ok(render.rankLineText(noEnd, today).indexOf('마감일 미확인') > 0);
   assert.ok(logic.noticeBrief({ name: 'x', confirmed: false, contractEnd: '2026-10-29' }, today) === null);
 });
+
+test('개설 신청 의견란은 창 폭에 맞춘다(#pp-reason width:100%, 사용자 11-16)', () => {
+  assert.match(HTML, /#pp-reason\s*\{[^}]*width:\s*100%[^}]*box-sizing:\s*border-box/);
+});
+
+test('닫기 확인 줄은 처음엔 비어 있고, 문구는 닫으려 할 때만 쓰는 closeConfirmHtml 안에만 있다', () => {
+  assert.ok(prep.closeConfirmHtml().indexOf('적은 내용이 사라집니다. 닫을까요?') > 0);
+  assert.ok(/<div id="pp-m-confirm"><\/div>/.test(SRC));   // 초기 마크업은 빈 자리
+});
