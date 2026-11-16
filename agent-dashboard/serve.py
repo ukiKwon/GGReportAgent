@@ -38,7 +38,7 @@ def read_questions():
         return {"questions": [q for q in j["questions"] if isinstance(q, dict)]}
     except (OSError, ValueError):
         return {"questions": [], "error": "questions.json unreadable"}
-ALLOW = frozenset(("index.html", "app.js", "fmt.js", "style.css", "state.json"))  # 정적 서빙 허용 목록(그 외·디렉터리는 404)
+ALLOW = frozenset(("index.html", "app.js", "fmt.js", "site.js", "style.css", "state.json"))  # 정적 서빙 허용 목록(그 외·디렉터리는 404)
 
 
 def merge(base, patch):

@@ -16,6 +16,26 @@ const AGENTS = [
   { id: 'auditor',  name: '데이터',   color: '#afb42b', hair: '#37474f' },
 ];
 
+/* ---------- 테마: track(육상 트랙, 기본) | site(공사판 — site.js) ----------
+   상태기계·경로·판정은 같고, 그림과 문구만 테마가 바꾼다. 전환은 새로고침(바퀴 누적은 state.json stats로 유지). */
+const THEME = (() => {
+  let t = '';
+  try { t = new URLSearchParams(location.search).get('theme') || localStorage.getItem('agentDashTheme') || ''; } catch (e) { /* 저장소 막힘 */ }
+  let ok = false; try { ok = typeof SITE !== 'undefined'; } catch (e) { /* site.js 초기화 실패 → 트랙으로 */ }
+  return t === 'site' && ok ? 'site' : 'track';
+})();
+const TRACK_TXT = {
+  unit: '바퀴', go: '기동! 뛰어!', stop: '들어와!', wheelIn: '휠체어 탑승!', drink: '꿀꺽꿀꺽', down: '으윽…', toBench: '벤치로 갈게요',
+  back: '복귀했습니다', pant: '헉헉', wet: '앗 차가워!', lap10: '더는 못 뛰겠어… 기어갈게요!', lap15: '휠체어 부탁해요!', lap25: '윽…',
+  ambGo: n => '🚑 구급차 출동 — ' + n + ' (지쳐 쓰러짐)', ambDone: n => '🏥 ' + n + ' 병원 이송 완료 — 곧 복귀',
+  coachBusy: ['뛰어!', '더 빨리!', '페이스 유지!', '좋아, 계속!'], coachIdle: ['쉬어~', '물 마셔!', '다음 작업 대기!'], cheer: '화이팅!',
+  cleaner: '청소부', jobs: { enter: '출근 중', water: '생수 채우는 중', bench: '벤치 닦는 중', track: '트랙 닦는 중', splash: '물 뿌려 깨우는 중', leave: '퇴근 중' },
+  janStart: '청소 시작!', janJob: { water: '생수 채울게요', bench: '벤치 닦자~', track: '트랙 닦자~' }, janTap: '물 받아요', janGone: '어? 갔네', janWake: '일어나세요~', janBye: '수고하세요~',
+  st: { run: '달리는 중', crawl: '기어가는 중', wheel: '휠체어 질주', toStart: '입장 중', drink: '물 마시는 중', amb: '이송 중', away: '병원', wet: '일어나는 중', ready: '출발 준비', done: '방금 끝남', lying: '쓰러져 휴식', idle: '벤치 대기' },
+  boardTitle: '🏁 에이전트 현황', running: n => '뛰는 중 ' + n + '명', scoreBusy: '작업 중 ', mainLbl: '메인: ', reset: '바퀴 초기화',
+};
+const T = THEME === 'site' ? Object.assign({}, TRACK_TXT, SITE.txt) : TRACK_TXT;
+
 const cv = document.getElementById('c');
 const c = cv.getContext('2d');
 let simTime = 0, speedMul = 1, soundOn = false, live = false;
@@ -72,6 +92,7 @@ function poly(pts, w, col) {
 }
 function disc(x, y, r, col) { c.fillStyle = col; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); }
 function head(x, y, o, hat) {
+  hat = hat || o.hardhat;
   disc(x, y, 7, o.skin || '#f1c9a5');
   c.fillStyle = o.hair || '#222';
   c.beginPath(); c.arc(x, y - 1, 7.4, Math.PI * 1.05, Math.PI * 1.95); c.fill();
@@ -99,6 +120,7 @@ function drawPerson(o) {
         poly([[0, -20], [Math.sin(ang) * 9, -10], [Math.sin(ang) * 14 - (back && run ? 7 : 0), back && run ? -6 : 0]], 5, pants);
       }
       limb(0, -20, lean, -37, 9, col);
+      if (o.vest) { c.fillStyle = '#f5f5f5'; c.fillRect(lean * 0.45 - 4.5, -30, 9, 2); c.fillRect(lean * 0.7 - 4.5, -25, 9, 1.5); }
       for (const sg of [1, -1]) {
         const ang = -a * sg;
         if (o.pose === 'coach' && sg === 1) {
@@ -255,8 +277,8 @@ function walk(r, tx, ty, sp, dt) {
 function setActive(r, on) {
   if (r.active === on) return;
   r.active = on;
-  if (on) say(coach, '기동! 뛰어!', 2);
-  else say(coach, '들어와!', 2);
+  if (on) say(coach, T.go, 2);
+  else say(coach, T.stop, 2);
   refreshChips();
 }
 
@@ -309,13 +331,13 @@ function updateRunner(r, dt) {
     }
     case 'wheelOut': { // 트랙 아래 휴식 공간으로 나가 휠체어를 타고 다시 입장
       if (!r.wheelStage) {
-        if (walk(r, 690, 652, 110, dt)) { r.wheelStage = 1; r.until = simTime + 1.6; say(r, '휠체어 탑승!', 1.6); }
+        if (walk(r, 690, 652, 110, dt)) { r.wheelStage = 1; r.until = simTime + 1.6; say(r, T.wheelIn, 1.6); }
       } else if (simTime >= r.until) { r.wheelStage = 0; r.state = 'toStart'; }
       break;
     }
     case 'toRest': {
       const sp = drinkSpot(r);
-      if (walk(r, sp.x, sp.y, 130, dt)) { r.state = 'drink'; r.until = simTime + 2.6; r.face = 1; say(r, '꿀꺽꿀꺽', 2); bottles[r.slot % BASE_SLOTS] = Math.max(0, bottles[r.slot % BASE_SLOTS] - 0.4); }
+      if (walk(r, sp.x, sp.y, 130, dt)) { r.state = 'drink'; r.until = simTime + 2.6; r.face = 1; say(r, T.drink, 2); bottles[r.slot % BASE_SLOTS] = Math.max(0, bottles[r.slot % BASE_SLOTS] - 0.4); }
       break;
     }
     case 'drink': {
@@ -325,7 +347,7 @@ function updateRunner(r, dt) {
     }
     case 'down': {
       if (!r.downPlaced) {
-        if (walk(r, 860 + (r.slot % 4) * 28, 672 + (row2(r) ? 22 : 0), 100, dt)) { r.downPlaced = true; amb.queue.push(r); say(r, '으윽…', 3); }
+        if (walk(r, 860 + (r.slot % 4) * 28, 672 + (row2(r) ? 22 : 0), 100, dt)) { r.downPlaced = true; amb.queue.push(r); say(r, T.down, 3); }
       }
       break;
     }
@@ -334,7 +356,7 @@ function updateRunner(r, dt) {
       if (simTime >= r.until) {
         r.state = 'rest'; r.readyAt = simTime;
         if (reduced()) { const b = benchSpot(r); r.x = b.x; r.y = b.y; r.face = 1; r.settled = true; }
-        else { r.settled = false; say(r, '벤치로 갈게요', 1.6); }
+        else { r.settled = false; say(r, T.toBench, 1.6); }
       }
       break;
     }
@@ -343,13 +365,13 @@ function updateRunner(r, dt) {
       if (simTime >= r.returnAt) {
         r.state = 'rest'; r.freshAt = lapInt(r); r.R = r.laneR; r.wheeled = false; r.needAmb = false; // 바퀴(lapF·lastLap)는 그대로, 피로만 회복
         const b = benchSpot(r); r.x = b.x; r.y = b.y; r.readyAt = simTime + 2;
-        say(r, '복귀했습니다', 2);
+        say(r, T.back, 2);
       }
       break;
     }
   }
   // 땀·헉헉 (5바퀴 이상)
-  if (li >= 5 && (r.state === 'run' || r.state === 'toRest' || r.state === 'down' || r.state === 'wheelOut')) {
+  if (li >= 5 && !(r.ovK > 0) && (r.state === 'run' || r.state === 'toRest' || r.state === 'down' || r.state === 'wheelOut')) {
     if (simTime >= r.nextSweat) {
       r.nextSweat = simTime + 0.13;
       const hy = r.y - (li >= 10 && li < 15 && r.state === 'run' ? 24 : 48);
@@ -357,16 +379,16 @@ function updateRunner(r, dt) {
     }
     if (simTime >= r.nextPant) {
       r.nextPant = simTime + 2.6 + Math.random();
-      say(r, '헉헉', 1.2); pantSound();
+      say(r, T.pant, 1.2); pantSound();
     }
   }
   if (r.bubble && simTime > r.bubble.until) r.bubble = null;
 }
 
 function onLap(r, li) {
-  if (li === 10) say(r, '더는 못 뛰겠어… 기어갈게요!', 2);
-  if (li === 15) say(r, '휠체어 부탁해요!', 2);
-  if (li === 25) say(r, '윽…', 2);
+  if (li === 10) say(r, T.lap10, 2);
+  if (li === 15) say(r, T.lap15, 2);
+  if (li === 25) say(r, T.lap25, 2);
 }
 
 /* ---------- 땀 입자 ---------- */
@@ -408,7 +430,7 @@ function updateAmb(dt) {
     case 'idle':
       if (a.queue.length) {
         a.patient = a.queue.shift(); a.phase = 'arrive'; a.x = 1420; a.y = 735; a.ang = Math.PI;
-        toast('🚑 구급차 출동 — ' + a.patient.name + ' (지쳐 쓰러짐)');
+        toast(T.ambGo(a.patient.name));
       }
       break;
     case 'arrive':
@@ -447,7 +469,7 @@ function updateAmb(dt) {
     case 'leave':
       if (drive(1440, 735, 240, dt)) {
         a.phase = 'idle'; a.patient.state = 'away'; a.patient.returnAt = simTime + 4;
-        toast('🏥 ' + a.patient.name + ' 병원 이송 완료 — 곧 복귀');
+        toast(T.ambDone(a.patient.name));
       }
       break;
   }
@@ -456,11 +478,11 @@ function updateAmb(dt) {
 
 /* ---------- 청소부 ---------- */
 // 'cleaner' 에이전트가 일하는 동안 나타나 생수 채우기 → 벤치 닦기 → 트랙 닦기를 반복하고, 일이 끝나면 퇴근한다.
-const CLEANER = { id: 'cleaner', name: '청소부', color: '#26c6da' };
+const CLEANER = { id: 'cleaner', name: T.cleaner, color: '#26c6da' };
 const jan = { active: false, task: '', present: false, cameo: false, x: -30, y: 770, face: 1, ph: 0, job: 'enter', stage: 0, k: 0, t: 0, bubble: null, trail: [], puddles: [], lvl: 0, tgt: null, resume: '', woke: false, hit: false, poured: false, lastPour: 0 };
 const bottles = Array(BASE_SLOTS).fill(1); // 생수 잔량(0~1) — 선수가 마시면 줄고 청소부가 채운다
 const JOBS = ['water', 'bench', 'track'];
-const JOB_LABEL = { enter: '출근 중', water: '생수 채우는 중', bench: '벤치 닦는 중', track: '트랙 닦는 중', splash: '물 뿌려 깨우는 중', leave: '퇴근 중' };
+const JOB_LABEL = T.jobs;
 /* 물 붓기로 깨우기 — 누운 지 3초(simTime, 배속 따름) 지난 선수를 청소부가 수도에서 물을 받아 부어 깨운다.
    순수 연출: 훅이 기록한 active와 누적 바퀴(lapF·lastLap·stat.laps)는 그대로, 피로 기준점(freshAt)만 옮긴다.
    cameo = cleaner 에이전트가 일하지 않는데 연출로만 나온 청소부(현황판·칩은 '대기').
@@ -478,7 +500,7 @@ function wake(r) { // 피로만 푼다 — 바퀴 수는 그대로
   const d = reduced() ? 1.2 : 1.4;
   r.state = 'wet'; r.until = simTime + d; r.wetAt = simTime; r.lieAt = null;
   r.freshAt = lapInt(r); r.wheeled = false; r.needAmb = false; r.R = r.laneR;
-  say(r, '앗 차가워!', d);
+  say(r, T.wet, d);
 }
 function startSplash() { jan.job = 'splash'; jan.stage = 0; jan.tgt = null; jan.poured = false; jan.lastPour = 0; } // 회차 시작
 function endSplash() { // 회차 끝 — 한 번이라도 부었으면 마지막 붓기 끝부터 60초 쿨다운
@@ -486,7 +508,7 @@ function endSplash() { // 회차 끝 — 한 번이라도 부었으면 마지막
   splashNext = nextSplashAt(splashNext, j.poured, j.lastPour, SPLASH_COOLDOWN);
   if (!j.active) { // 따로 나왔거나 도중에 작업이 끝났으면 퇴근
     if (!j.cameo) runners.forEach(r => { if (r.lieAt != null) r.lieAt = simTime; }); // 남은 사람은 3초 규칙부터 다시
-    j.job = 'leave'; j.stage = 0; say(j, '수고하세요~', 2);
+    j.job = 'leave'; j.stage = 0; say(j, T.janBye, 2);
   } else { j.cameo = false; j.job = j.resume || 'track'; janNext(); } // 원래 순번으로
 }
 function janNext() {
@@ -495,7 +517,7 @@ function janNext() {
   let nx = JOBS[(i + 1) % JOBS.length];
   if (nx === 'water' && bottles.reduce((s, v) => s + v, 0) / BASE_SLOTS > 0.5) nx = 'bench'; // 생수 총량이 절반을 넘으면 건너뜀
   jan.job = nx; jan.stage = 0; jan.k = 0;
-  say(jan, { water: '생수 채울게요', bench: '벤치 닦자~', track: '트랙 닦자~' }[jan.job], 1.8);
+  say(jan, T.janJob[jan.job], 1.8);
 }
 function updateJanitor(dt) {
   const j = jan;
@@ -504,12 +526,12 @@ function updateJanitor(dt) {
   for (let i = j.trail.length - 1; i >= 0; i--) { j.trail[i].life -= dt / 7; if (j.trail[i].life <= 0) j.trail.splice(i, 1); }
   for (let i = j.puddles.length - 1; i >= 0; i--) { j.puddles[i].life -= dt / 3; if (j.puddles[i].life <= 0) j.puddles.splice(i, 1); } // 웅덩이 3초 페이드
   if (!j.present) {
-    if (j.active) { j.present = true; j.cameo = false; j.lvl = 0; j.x = -30; j.y = 770; j.job = 'enter'; j.stage = 0; say(j, '청소 시작!', 2); }
+    if (j.active) { j.present = true; j.cameo = false; j.lvl = 0; j.x = -30; j.y = 770; j.job = 'enter'; j.stage = 0; say(j, T.janStart, 2); }
     else if (splashReady()) { j.present = true; j.cameo = true; j.lvl = 0; j.x = 1310; j.y = 770; j.resume = ''; startSplash(); } // 따로 나옴(오른쪽 끝)
     return;
   }
   if (j.cameo && j.active && j.job !== 'leave') j.cameo = false; // 따로 나온 도중 작업 시작 → 같은 캐릭터로 이어감
-  if (!j.active && !j.cameo && j.job !== 'leave' && j.job !== 'splash') { j.job = 'leave'; j.stage = 0; say(j, '수고하세요~', 2); } // splash 중이면 지금 대상까지 끝내고 퇴근
+  if (!j.active && !j.cameo && j.job !== 'leave' && j.job !== 'splash') { j.job = 'leave'; j.stage = 0; say(j, T.janBye, 2); } // splash 중이면 지금 대상까지 끝내고 퇴근
   switch (j.job) {
     case 'enter':
       if (walk(j, 300, 770, 120, dt)) { j.job = 'track'; janNext(); } // 다음 순서인 생수 채우기부터
@@ -540,12 +562,12 @@ function updateJanitor(dt) {
       break;
     case 'splash': {
       const t = j.tgt;
-      if (j.stage === 0) { if (walk(j, TAP.x, TAP.y, 130, dt)) { j.stage = 1; j.t = simTime; j.face = -1; say(j, '물 받아요', 0.9); } }
+      if (j.stage === 0) { if (walk(j, TAP.x, TAP.y, 130, dt)) { j.stage = 1; j.t = simTime; j.face = -1; say(j, T.janTap, 0.9); } }
       else if (j.stage === 1) { // 수도에서 받는다(생수 bottles는 줄이지 않음)
         j.face = -1; j.lvl = Math.min(1, (simTime - j.t) / 0.9);
         if (j.lvl >= 1) j.stage = 2;
       } else if (j.stage === 2) { // 대상 뒤로 운반
-        if (t && !splashOk(t)) { j.tgt = null; say(j, '어? 갔네', 1.2); break; } // 찬 양동이로 다음 대상
+        if (t && !splashOk(t)) { j.tgt = null; say(j, T.janGone, 1.2); break; } // 찬 양동이로 다음 대상
         if (!t) {
           if (!j.active && !j.cameo) { endSplash(); break; }
           if (amb.phase !== 'idle') break;
@@ -554,7 +576,7 @@ function updateJanitor(dt) {
           j.tgt = n; break;
         }
         if (amb.phase !== 'idle') break; // 들것 자리와 겹친다 — 구급차가 끝날 때까지 새 운반·붓기 안 함
-        if (walk(j, t.x - 6, t.y - 14, 110, dt)) { j.face = 1; j.stage = 3; j.t = simTime; j.woke = false; j.hit = false; say(j, '일어나세요~', 0.8); }
+        if (walk(j, t.x - 6, t.y - 14, 110, dt)) { j.face = 1; j.stage = 3; j.t = simTime; j.woke = false; j.hit = false; say(j, T.janWake, 0.8); }
       } else if (j.stage === 3) { // 붓기 800ms(기울이기 300ms, 물줄기 500ms, 200ms 뒤 젖음)
         const e = simTime - j.t;
         j.lvl = Math.max(0, Math.min(1, 1 - (e - 0.15) / 0.5)); // 기울이는 동안(e<0.15) 가득, 물줄기 구간(0.15–0.65)에 비움
@@ -678,10 +700,10 @@ function updateCoach(dt) {
   if (simTime >= coach.next) {
     coach.next = simTime + 4 + Math.random() * 3;
     if (runners.some(r => r.active)) {
-      const l = ['뛰어!', '더 빨리!', '페이스 유지!', '좋아, 계속!'];
+      const l = T.coachBusy;
       say(coach, l[Math.floor(Math.random() * l.length)], 2);
     } else if (!coach.bubble) {
-      say(coach, ['쉬어~', '물 마셔!', '다음 작업 대기!'][Math.floor(Math.random() * 3)], 2);
+      say(coach, T.coachIdle[Math.floor(Math.random() * T.coachIdle.length)], 2);
     }
   }
 }
@@ -695,7 +717,7 @@ function updateCheer() {
   for (const ch of cheers) if (ch.bubble && simTime > ch.bubble.until) ch.bubble = null;
   if (waveOn() && simTime >= nextShout) {
     nextShout = simTime + 2.4;
-    for (let k = 0; k < 3; k++) say(cheers[Math.floor(Math.random() * CHEER_N)], '화이팅!', 1.6);
+    for (let k = 0; k < 3; k++) say(cheers[Math.floor(Math.random() * CHEER_N)], T.cheer, 1.6);
   }
 }
 function drawCheer(ch) {
@@ -797,6 +819,9 @@ function drawTable() {
 }
 
 function drawCoachBox() {
+  drawCoachShelter(); drawScoreboard();
+}
+function drawCoachShelter() {
   // 코치석
   c.fillStyle = '#6d4c41'; c.fillRect(14, 156, 196, 12);
   c.fillStyle = '#8d6e63'; c.fillRect(14, 168, 196, 6);
@@ -805,16 +830,18 @@ function drawCoachBox() {
   c.fillStyle = '#4e342e'; c.fillRect(14, 46, 196, 12); // 간판 보
   c.fillStyle = '#fff'; c.font = 'bold ' + fz(12, 11, 1.2) + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillText('감독 · 코치석', 110, 52);
+}
+function drawScoreboard() {
   // 전광판
   c.fillStyle = '#111'; rrect(14, 186, 196, 84, 6); c.fill();
   c.strokeStyle = '#444'; c.lineWidth = 2; c.stroke();
   const n = runners.filter(r => r.active).length;
   c.fillStyle = '#ffb300'; c.font = 'bold 13px monospace'; c.textAlign = 'left';
-  c.fillText('작업 중 ' + n + ' / ' + runners.length, 24, 204);
-  c.fillText('누적 ' + fmtLaps(stat.laps) + '바퀴', 24, 224); // 고정 위치(스크롤 아님)
+  c.fillText(T.scoreBusy + n + ' / ' + runners.length, 24, 204);
+  c.fillText('누적 ' + fmtLaps(stat.laps) + T.unit, 24, 224); // 고정 위치(스크롤 아님)
   c.save();
   c.beginPath(); c.rect(20, 234, 184, 30); c.clip();
-  const txt = coachTask ? '메인: ' + coachTask : '메인: 대기 중';
+  const txt = T.mainLbl + (coachTask || '대기 중');
   const tw = c.measureText(txt).width, avail = 180;
   const off = tw > avail ? -((simTime * 30) % (tw + 40)) : 0;
   c.fillStyle = '#ffb300'; c.fillText(txt, 24 + off, 250);
@@ -825,24 +852,24 @@ function drawCoachBox() {
 function stateLabel(r) {
   const li = fatInt(r);
   switch (r.state) {
-    case 'run': return li < 10 ? '달리는 중' : li < 15 ? '기어가는 중' : '휠체어 질주';
-    case 'toStart': return '입장 중';
-    case 'toRest': case 'drink': return '물 마시는 중';
-    case 'down': case 'carried': case 'inAmb': return '이송 중';
-    case 'away': return '병원';
-    case 'wet': return '일어나는 중';
-    default: return r.active ? '출발 준비' : (recentDone(r.role).length ? '방금 끝남' : (li >= 15 ? '쓰러져 휴식' : '벤치 대기'));
+    case 'run': return li < 10 ? T.st.run : li < 15 ? T.st.crawl : T.st.wheel;
+    case 'toStart': return T.st.toStart;
+    case 'toRest': case 'drink': return T.st.drink;
+    case 'down': case 'carried': case 'inAmb': return T.st.amb;
+    case 'away': return T.st.away;
+    case 'wet': return T.st.wet;
+    default: return r.active ? T.st.ready : (recentDone(r.role).length ? T.st.done : (li >= 15 ? T.st.lying : T.st.idle));
   }
 }
 function drawInfield() {
   const cmp = K < 0.8; // 좁은 창: 글자를 키우고 task 열은 접는다(task는 위쪽 #now 줄에 있음)
   const fnt = (bold, px, min, cap) => (bold ? 'bold ' : '') + (cmp ? fz(px, min, cap) : px) + 'px "Malgun Gothic", sans-serif';
-  c.fillStyle = 'rgba(0,0,0,.45)'; rrect(392, 218, 496, 248, 10); c.fill();
+  c.fillStyle = T.boardBg || 'rgba(0,0,0,.45)'; rrect(392, 218, 496, 248, 10); c.fill();
   c.textBaseline = 'middle';
   c.fillStyle = '#fff'; c.font = fnt(true, 17, 14, 1.4); c.textAlign = 'left';
-  c.fillText('🏁 에이전트 현황', 408, 236);
+  c.fillText(T.boardTitle, 408, 236);
   c.textAlign = 'right'; c.font = fnt(false, 12, 11, 1.5); c.fillStyle = '#b2bec3';
-  c.fillText('뛰는 중 ' + runners.filter(r => r.state === 'run').length + '명', 872, 236);
+  c.fillText(T.running(runners.filter(r => r.state === 'run').length), 872, 236);
   AGENTS.forEach((a, i) => {
     const y = 262 + i * 22;
     const rs = runners.filter(r => r.role === a.id), act = rs.filter(r => r.active);
@@ -855,7 +882,7 @@ function drawInfield() {
     c.font = fnt(false, 13, 11, 1.6); c.fillStyle = run ? '#ffeaa7' : '#b2bec3';
     c.fillText(stateLabel(lead), cmp ? 566 : 498, y);
     c.textAlign = 'right'; c.font = fnt(true, 16, 14, 1.4); c.fillStyle = '#fff';
-    c.fillText(Math.max(...rs.map(lapInt)) + '바퀴', cmp ? 872 : 650, y);
+    c.fillText(Math.max(...rs.map(lapInt)) + T.unit, cmp ? 872 : 650, y);
     if (cmp) return;
     c.textAlign = 'left'; c.font = '12px "Malgun Gothic", sans-serif'; c.fillStyle = '#b2bec3';
     let tk = rs.map(r => r.task).filter(Boolean).join(' / ');
@@ -883,22 +910,25 @@ function poseOf(r) {
 }
 function drawRunner(r) {
   if (r.state === 'inAmb' || r.state === 'away') return;
-  const pose = poseOf(r);
-  const y = r.y - (r.state === 'wet' && !reduced() && simTime - r.wetAt < 0.15 ? 6 : 0); // 물 맞고 6px 튐(150ms)
-  drawPerson({ x: r.x, y, face: r.face, pose, ph: r.ph, color: r.color, hair: r.hair, skin: r.skin, dy: r.state === 'carried' ? 6 : 0 });
-  const top = pose === 'crawl' ? y - 36 : pose === 'lie' ? y - 30 : pose === 'sit' ? y - 52 : y - 62;
+  const site = THEME === 'site', ov = site ? SITE.place(r) : null; // 공사판: 백엔드는 크레인 운전석·건물 꼭대기로 옮겨 그린다
+  let pose = poseOf(r), x = r.x, face = r.face, s = 1;
+  let y = r.y - (r.state === 'wet' && !reduced() && simTime - r.wetAt < 0.15 ? 6 : 0); // 물 맞고 6px 튐(150ms)
+  if (ov) { x = ov.x; y = ov.y; s = ov.s || 1; face = ov.face || face; if (ov.pose) pose = ov.pose; }
+  drawPerson({ x, y, s, face, pose, ph: r.ph, color: r.color, hair: r.hair, skin: r.skin, dy: r.state === 'carried' ? 6 : 0, hardhat: site ? '#ffc400' : null, vest: site });
+  if (site) SITE.drawTool(r, pose, x, y, face, s, !!ov);
+  const top = ov ? y - 62 * s : pose === 'crawl' ? y - 36 : pose === 'lie' ? y - 30 : pose === 'sit' ? y - 52 : y - 62;
   const fs = fz(11, 11, 1.4);
   c.save();
   c.font = 'bold ' + fs + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
   const w = c.measureText(r.name).width + 8;
-  c.fillStyle = r.color; rrect(r.x - w / 2, top - fs, w, fs + 3, 4); c.fill();
-  c.fillStyle = '#fff'; c.fillText(r.name, r.x, top);
+  c.fillStyle = r.color; rrect(x - w / 2, top - fs, w, fs + 3, 4); c.fill();
+  c.fillStyle = site && (r.role === 'planner' || r.role === 'auditor') ? '#1f1f1f' : '#fff'; c.fillText(r.name, x, top); // 공사판: 밝은 역할색 위 글자 대비(design 11-16)
   c.restore();
   if (r.bubble) {
     // 아래쪽 차선 선수의 말풍선이 현황판(y218~444)을 덮으면 발 아래로 뒤집는다
     const bt = top - fs - 3 - 22 * fz(14, 12, 1.4) / 14 - 2;
-    if (r.y > 444 && r.x > 300 && r.x < 980 && bt < 444) drawBubble(r.x, r.y + 6, r.bubble.text, true);
-    else drawBubble(r.x, top - fs - 3, r.bubble.text);
+    if (!ov && r.y > 444 && r.x > 300 && r.x < 980 && bt < 444) drawBubble(x, r.y + 6, r.bubble.text, true);
+    else drawBubble(x, top - fs - 3, r.bubble.text);
   }
 }
 function drawMedics() {
@@ -940,7 +970,16 @@ function drawSweat() {
   c.globalAlpha = 1;
 }
 
+function drawCoach(hat, vest) {
+  drawPerson({ x: coach.x, y: coach.y, face: 1, pose: 'coach', ph: coach.ph, color: '#2d3436', hair: '#222', skin: '#f1c9a5', hat: hat || '#1e272e', vest });
+  c.save(); const cfs = fz(11, 11, 1.4);
+  c.font = 'bold ' + cfs + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = '#ffd166'; rrect(coach.x - 22, coach.y - 66 - (cfs + 3), 44, cfs + 3, 4); c.fill();
+  c.fillStyle = '#111'; c.fillText('메인', coach.x, coach.y - 66 - (cfs + 3) / 2); c.restore();
+  if (coach.bubble) drawBubbleSide(228, 100, coach.bubble.text);
+}
 function render() {
+  if (THEME === 'site') return SITE.render();
   drawField();
   drawTrail();
   drawInfield();
@@ -948,12 +987,7 @@ function render() {
   drawCoachBox();
   // 치어리더는 위쪽부터
   [...cheers].sort((a, b) => pathPos((a.i + .5) / CHEER_N, R_CHEER).y - pathPos((b.i + .5) / CHEER_N, R_CHEER).y).forEach(drawCheer);
-  drawPerson({ x: coach.x, y: coach.y, face: 1, pose: 'coach', ph: coach.ph, color: '#2d3436', hair: '#222', skin: '#f1c9a5', hat: '#1e272e' });
-  c.save(); const cfs = fz(11, 11, 1.4);
-  c.font = 'bold ' + cfs + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.fillStyle = '#ffd166'; rrect(coach.x - 22, coach.y - 66 - (cfs + 3), 44, cfs + 3, 4); c.fill();
-  c.fillStyle = '#111'; c.fillText('메인', coach.x, coach.y - 66 - (cfs + 3) / 2); c.restore();
-  if (coach.bubble) drawBubbleSide(228, 100, coach.bubble.text);
+  drawCoach();
   drawMedics();
   const janBack = jan.job === 'splash' && jan.stage === 3; // 붓는 동안만 누운 대상보다 먼저(뒤에) 그린다
   if (janBack) drawJanitor();
@@ -974,10 +1008,11 @@ function step(dt) {
     if (r.extra && !r.active && r.state === 'rest' && r.settled) { runners.splice(i, 1); buildChips(); }
   }
   updateAmb(dt); updateJanitor(dt); updateSplashRM(); updateCoach(dt); updateCheer(); updateSweat(dt);
+  if (THEME === 'site') SITE.update(dt);
 }
 let last = performance.now();
 function frame(now) {
-  const dt = Math.min(0.033, (now - last) / 1000); last = now; // 탭 전환·끊김 뒤에도 한 번에 뛰지 않게 상한
+  const dt = Math.max(0, Math.min(0.033, (now - last) / 1000)); last = now; // 탭 전환·끊김 뒤에도 한 번에 뛰지 않게 상한, 첫 프레임 시각이 시작보다 앞서면 음수 → 좌표 NaN(선수 사라짐)이라 0으로
   for (let k = 0; k < speedMul; k++) step(dt);
   render();
   requestAnimationFrame(frame);
@@ -1000,7 +1035,7 @@ function buildChips() {
     // 시험 도구: 에이전트별 수동 시작/멈춤, 바퀴 +5
     const t = document.createElement('button'); t.type = 'button'; t.dataset.k = r.id;
     t.onclick = () => setActive(r, !r.active);
-    const p = document.createElement('button'); p.type = 'button'; p.textContent = r.name + ' +5바퀴';
+    const p = document.createElement('button'); p.type = 'button'; p.textContent = r.name + ' +5' + T.unit;
     p.onclick = () => { r.lapF += 5; r.lastLap = lapInt(r); };
     devBox.append(t, p);
   });
@@ -1015,7 +1050,7 @@ function buildChips() {
 const nowBar = document.getElementById('now');
 function refreshNow() {
   const parts = runners.filter(r => r.active).map(r => '<span class="run">▶</span> <b>' + r.name + '</b>' + (r.task ? ' <span>(' + r.task.replace(/[<>&]/g, '') + ')</span>' : ''));
-  if (jan.active) parts.push('<span class="run">▶</span> <b>청소부</b>' + (jan.task ? ' <span>(' + jan.task.replace(/[<>&]/g, '') + ')</span>' : ''));
+  if (jan.active) parts.push('<span class="run">▶</span> <b>' + CLEANER.name + '</b>' + (jan.task ? ' <span>(' + jan.task.replace(/[<>&]/g, '') + ')</span>' : ''));
   const dn = AGENTS.flatMap(a => recentDone(a.id).map(d => '<b>' + a.name + '</b>' + (d.task ? ' <span>(' + String(d.task).replace(/[<>&]/g, '') + ')</span>' : '')));
   nowBar.innerHTML = (parts.length ? '지금 작업 중 ' + parts.length + '명: ' + parts.join('  ·  ') : '지금 작업 중인 에이전트: 없음')
     + (dn.length ? '  |  <span class="fin">방금 끝남 ' + dn.length + '건:</span> ' + dn.join('  ·  ') : '');
@@ -1026,19 +1061,33 @@ function refreshChips() {
   if (cc) {
     cc.classList.toggle('on', jan.active);
     cc.querySelector('.st').textContent = jan.present && !jan.cameo ? JOB_LABEL[jan.job] : (jan.active ? '출근 중' : '대기');
-    const ct = devBox.querySelector('[data-k=cleaner]'); if (ct) ct.textContent = '청소부' + (jan.active ? ' 멈춤(시험)' : ' 시작(시험)');
+    const ct = devBox.querySelector('[data-k=cleaner]'); if (ct) ct.textContent = CLEANER.name + (jan.active ? ' 멈춤(시험)' : ' 시작(시험)');
   }
   runners.forEach(r => {
     const d = document.getElementById('chip-' + r.id); if (!d) return;
     const fin = !r.active && !r.extra && recentDone(r.role).length > 0;
     d.classList.toggle('on', r.active);
     d.classList.toggle('fin', fin);
-    d.querySelector('.st').textContent = (r.active ? '작업 중' : fin ? '방금 끝남' : '대기') + ' · ' + lapInt(r) + '바퀴';
+    d.querySelector('.st').textContent = (r.active ? '작업 중' : fin ? '방금 끝남' : '대기') + ' · ' + lapInt(r) + T.unit;
     const t = devBox.querySelector('[data-k=' + r.id + ']');
     if (t) t.textContent = r.name + (r.active ? ' 멈춤(시험)' : ' 시작(시험)');
   });
 }
 setInterval(refreshChips, 1000);
+(() => {
+  const sel = document.getElementById('theme'); sel.value = THEME;
+  sel.onchange = () => {
+    try { localStorage.setItem('agentDashTheme', sel.value); } catch (e) { /* 저장 못 해도 주소로 전환 */ }
+    const u = new URL(location.href); u.searchParams.set('theme', sel.value); location.href = u.toString();
+  };
+  if (THEME === 'site') {
+    document.getElementById('ttl').textContent = '🏗️ 에이전트 대시보드'; document.body.classList.add('theme-site');
+    cv.setAttribute('aria-label', T.aria);
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = '누적 +100공정(시험)';
+    b.onclick = () => SITE.addBonus(100); // 화면 연출만 — state.json 누적 값은 바꾸지 않는다
+    document.getElementById('reset').after(b);
+  }
+})();
 document.getElementById('speed').onchange = e => { speedMul = +e.target.value; };
 document.getElementById('sound').onclick = e => {
   soundOn = !soundOn; e.target.textContent = soundOn ? '🔊 소리 끄기' : '🔇 소리 켜기';
@@ -1050,6 +1099,7 @@ document.getElementById('full').onclick = () => {
 };
 document.getElementById('allOn').onclick = () => runners.forEach(r => setActive(r, true));
 document.getElementById('allOff').onclick = () => runners.forEach(r => setActive(r, false));
+document.getElementById('reset').textContent = T.reset;
 document.getElementById('reset').onclick = () => runners.forEach(r => { r.lapF = 0; r.lastLap = 0; r.freshAt = 0; });
 
 /* ---------- state.json 폴링 ---------- */

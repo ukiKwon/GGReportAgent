@@ -36,3 +36,4 @@ button:focus-visible, select:focus-visible { outline:2px solid var(--accent); ou
 .devrow { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
 #devchips { display:contents; }
 .chip button { display:none; }
+.theme-site #toasts { right:21%; } /* 공사판: 오른쪽 위 고도 창을 가리지 않게 */

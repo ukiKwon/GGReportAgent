@@ -9,9 +9,15 @@
 </head>
 <body>
 <header>
-  <h1>🏟️ 에이전트 대시보드</h1>
+  <h1 id="ttl">🏟️ 에이전트 대시보드</h1>
   <span id="conn" class="conn">○ 데모 모드</span>
   <div class="tools">
+    <label>테마
+      <select id="theme">
+        <option value="track">🏟️ 트랙</option>
+        <option value="site">🏗️ 공사판</option>
+      </select>
+    </label>
     <label>화면 속도
       <select id="speed">
         <option value="1">1x</option>
@@ -39,6 +45,7 @@
   </details>
 </main>
 <script src="fmt.js"></script>
+<script src="site.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

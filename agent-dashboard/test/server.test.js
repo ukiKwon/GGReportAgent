@@ -6,7 +6,7 @@ const fs = require('fs'), os = require('os'), path = require('path'), net = requ
 const { spawn, spawnSync } = require('child_process');
 
 const SRC = path.join(__dirname, '..');
-const FILES = ['serve.js', 'statefile.js', 'hook.js', 'closing.js', 'index.html', 'app.js', 'fmt.js', 'style.css'];
+const FILES = ['serve.js', 'statefile.js', 'hook.js', 'closing.js', 'index.html', 'app.js', 'fmt.js', 'site.js', 'style.css'];
 const { IDS } = require('../statefile'); // 원본 한 곳
 let tmp, port, child;
 
@@ -195,7 +195,7 @@ describe('HTTP 메서드 405/501 (NEXT 31)', () => {
 
 describe('정적 노출', () => {
   it('허용 파일은 200', async () => {
-    for (const p of ['/', '/index.html', '/app.js', '/fmt.js', '/style.css', '/state.json', '/app.js?x=1']) {
+    for (const p of ['/', '/index.html', '/app.js', '/fmt.js', '/site.js', '/style.css', '/state.json', '/app.js?x=1']) {
       assert.strictEqual((await req('GET', p)).status, 200, p);
     }
   });
