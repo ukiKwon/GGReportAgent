@@ -309,10 +309,10 @@ function updateRunner(r, dt) {
       // 속도는 px/s 기준(바깥 차선이라고 빨라지지 않게)이고, 단계가 바뀌어도 서서히 변한다
       const want = r.speed * (mode === 'run' ? 170 : mode === 'crawl' ? 90 : 120) * (THEME === 'site' ? SITE.speedK : 1);
       r.v = (r.v || want) + (want - (r.v || want)) * Math.min(1, dt * 2);
-      const sp = r.v / pathLen(r.R);
+      const sp = r.v / (THEME === 'site' ? SITE.roleLen(r) : pathLen(r.R)); // 공사판은 역할별 업무 동선 길이
       r.t += sp * dt; r.lapF += sp * dt;
       r.R += (r.laneR - r.R) * Math.min(1, dt * 2.5);
-      const p = pathPos(r.t, r.R);
+      const p = THEME === 'site' ? SITE.rolePos(r) : pathPos(r.t, r.R);
       r.x = p.x; r.y = p.y;
       if (p.hx > 0.05) r.face = 1; else if (p.hx < -0.05) r.face = -1;
       r.ph += dt * (mode === 'run' ? 8 : mode === 'crawl' ? 4 : 5);
@@ -323,7 +323,7 @@ function updateRunner(r, dt) {
       }
       if (fatInt(r) >= 25) r.needAmb = true;
       const tt = ((r.t % 1) + 1) % 1;
-      const inExit = THEME === 'site' ? SITE.inExit(tt) : tt * pathLen(r.R) < 2 * L && r.x >= 600 && r.x <= 780; // 아래 휴식 공간으로 빠지는 출구(공사판은 1층 출입구)
+      const inExit = THEME === 'site' ? SITE.inExit(r, tt) : tt * pathLen(r.R) < 2 * L && r.x >= 600 && r.x <= 780; // 아래 휴식 공간으로 빠지는 출구(공사판은 1층 출입구)
       if (inExit) {
         if (r.needAmb) { r.state = 'down'; r.downPlaced = false; break; }
         if (li >= 15 && !r.wheeled) { r.wheeled = true; r.wheelStage = 0; r.state = 'wheelOut'; break; }
@@ -914,6 +914,7 @@ function drawRunner(r) {
   if (r.state === 'inAmb' || r.state === 'away') return;
   const site = THEME === 'site', ov = site ? SITE.place(r) : null; // 공사판: 백엔드는 크레인 운전석·건물 꼭대기로 옮겨 그린다
   let pose = poseOf(r), x = r.x, face = r.face, s = 1;
+  if (site && pose === 'run') pose = 'walk'; // 공사판은 뛰지 않고 걷는다
   let y = r.y - (r.state === 'wet' && !reduced() && simTime - r.wetAt < 0.15 ? 6 : 0); // 물 맞고 6px 튐(150ms)
   if (ov) { x = ov.x; y = ov.y; s = ov.s || 1; face = ov.face || face; if (ov.pose) pose = ov.pose; }
   drawPerson({ x, y, s, face, pose, ph: r.ph, color: r.color, hair: r.hair, skin: r.skin, dy: r.state === 'carried' ? 6 : 0, hardhat: site ? '#ffc400' : null, vest: site });
