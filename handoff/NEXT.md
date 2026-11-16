@@ -100,6 +100,7 @@
 - **자세히**: 전체본 '### 6.' 절, `handoff/2026-08-05_summary.md`(Session 01:45), `INSTALL.md`
 
 ### 9. WebLogic/Java 이관 — **단계 1·2·5·5-B 완료, 4 대부분. 남은 것은 문의 회신 대기**
+- **11-16 9f 배포 메모**: 033(ROLE_MENUS 전산팀장 admin)·036(PERM_CHANGE_LOG 화면·버튼·검증 여부·TARGET_ROLE) 추가 — 운영은 DB 먼저 Java 나중. PermChangeLogMapper recent 의 FETCH FIRST 와 008~034 IDENTITY 는 12c 문법(운영 11g면 대체본 필요). 출처 2026-11-16_summary.md Session 14:40 (9f).
 - **현재**: `kgi-ggreport-web/`(Spring Boot 2.7 WAR, JDK 8, Oracle+MyBatis)에서 골격·REST·결재 흐름·PDF/PPTX·쓰기 API(5-B 8개)가 끝났다(2026-08-31 기준 테스트 295건, 이후 이사회 자료·권한 등으로 서버 754건까지 증가). 문의서는 발송본까지 만들었고(`docs/이관문의서_WebLogic_확인사항.md`, `df95616`) 발송·회신은 사용자 몫이다. 내부 Oracle이 11g라 12c 문법(`GENERATED ... IDENTITY` 3개 파일, `FETCH FIRST` 1곳과 `DynamicSqlTest` 단언)을 고쳐야 하며 아직 코드는 손대지 않았다.
 - **다음 한 걸음**: 문의서를 발송하고, 2·3번(임베딩·Oracle Text) 회신이 오면 단계 3 검색을, 1·6번(사내 LLM API·경유지 OAuth) 회신이 오면 Task 4.4 LLM 어댑터와 노드 4개를 구현한다. 문의 5-1(WorkManager JNDI)과 7번(프록시 설정 요청서) 회신도 기다린다. 11g 대응은 회신과 무관하므로 최신 브랜치를 확인한 뒤 착수할 수 있다.
 - **자세히**: 전체본 '### 9.' 절, `docs/superpowers/plans/2026-08-10-weblogic-java-migration.md`, `kgi-ggreport-web/README.md` §7, `handoff/2026-08-28_summary.md`
@@ -454,6 +455,7 @@
 - **자세히**: planner 11-15(교육청·기타 범위 — '기타' 부분은 사용자 결정으로 폐기), design-reviewer 11-15(마커·필터 규격 — '기타' 행 제외하고 적용), questions.json Q-2026-11-13-02.
 
 ### 84. 관리자 범위(전산팀장 포함)·PUSH-GATE security 하 묶음 (11-15 4b) [담당: backend-dev(Opus — 권한 설계) → security / backend-dev]
+- **11-16 오후 9f**: 033·036 로컬 적용 완료(사용자). 사용자 결정 반영 — 전산팀원 권한 신청은 전산팀장 한 번(e0cba0d·d8bab0d), 관리자 본인 정보·상태·결재자·메뉴 권한·자기 역할 줄은 다른 관리자만, 화면·버튼·검증 여부 증적(6799b01·dfd1a67). 후속 A(결재 반영·코퍼스 증적, validate 가드·toRealPath, decide/finalize 실패 감사)·B(admin.js 머리글·본인 행 비활성) 진행 중, ②(url 서식 문자·apply-mysql 임시 파일·전역 500 스택 로그) 내일. **배포 메모: DB 036 먼저 Java 나중, Oracle FETCH FIRST 11g 확인.** 출처 2026-11-16_summary.md Session 14:40 (9f).
 - **11-16 9f**: ① 적용(10be5e1) — 기본 격자·골든 그대로, 033 ROLE_MENUS 전산팀장 admin=1(MySQL·Oracle 쌍), 잠김 방지를 '활성 관리자 남음'으로. mvn 1288 중 1건(기대값) 고쳐 통과. **로컬 MySQL에 033 적용 대기(사용자)**. security 11-16 차단 없음 — 후속: 전산팀장이 결재선 1단계와 ADMIN 단계를 함께 승인 가능(직무 분리, 사용자 질문), PUT /menus 변경 이력 없음(backend-dev), 전역 500 처리기 스택 로그. ②(capture-questions)는 그대로.
 - **현재**: ① 사용자 답(11-15 ⓐ): **전산팀원·전산팀장 모두 관리자**. 지금은 Menus.java:113 '전산팀'에만 ADMIN_MENU — 한 줄로 바꾸면 '마지막 관리자' 보호(SysAdminApiTest 2건·MenuSaveApiTest 1건)·골든 조회 2건이 깨져(메인 11-15 실측, 되돌림) 관리자 수 판정·골든 기대값을 함께 설계해야 함. BidCaseReadGuardApiTest '전산팀장 닫힘 생성 403' 시험도 200으로. ② security PUSH-GATE 11-15(handoff/agents/security/2026-11-15 최신) 하: (capture-questions 답 자동 기록은 11-16 2e 11fe8fc로 해소) InstitutionEditRules.url 서식 문자 codePoint 단위·TYPE·LAST_BID 길이 상한, apply-mysql 강제 종료 시 임시 파일 잔존, DENIED·413 원문 URI 형식(1959 #3)·화면·버튼 조합 검증(1933 #1)·동시 저장 OLD_VAL(1901 L3)·JSON 파서 400 본문 시험(L5). 원격 저장소 공개 여부 확인(회사 인프라 사양 문서가 이미 여럿 추적됨).
 - **다음 한 걸음**: ① 후속은 9f(위 줄). ② 나머지 하 묶음(url 서식 문자·apply-mysql 임시 파일 등)은 기관 사업계획 세션 커밋 뒤 backend-dev.
