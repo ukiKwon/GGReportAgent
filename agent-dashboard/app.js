@@ -304,6 +304,7 @@ function updateRunner(r, dt) {
       break;
     }
     case 'run': {
+      if (THEME === 'site' && SITE.hold(r, dt)) { r.v = 0; break; } // 공사판: 자기 구역에서 작업 중이거나 엘리베이터 이용 중
       const mode = li < 10 ? 'run' : li < 15 ? 'crawl' : 'wheel';
       // 속도는 px/s 기준(바깥 차선이라고 빨라지지 않게)이고, 단계가 바뀌어도 서서히 변한다
       const want = r.speed * (mode === 'run' ? 170 : mode === 'crawl' ? 90 : 120) * (THEME === 'site' ? SITE.speedK : 1);
