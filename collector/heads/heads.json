@@ -1178,6 +1178,1180 @@
     "src_title": "제주특별자치도 단체장 소개(공공누리 표시 없음 — 로컬 작업용, 인물 사진인지 사람이 확인)",
     "checked_on": "2026-11-13"
    }
+  },
+  {
+   "institution_id": "lg-46-c1563ca1e1",
+   "name": "김이강",
+   "position": "광주 서구청장",
+   "acting": false,
+   "first_take_office": "2022-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "뉴스핌 전국 227개 기초단체장 당선인 명단 / 헤럴드경제 광주 5개 구청장 석권(무투표 당선)",
+    "url": "https://www.newspim.com/news/view/20260604000948",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "광주 서구청 구청장 프로필",
+    "url": "https://www.seogu.gwangju.kr/menu.es?mid=a50102000000",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "살레시오고등학교 졸업",
+    "한국외국어대학교 무역학과 졸업",
+    "전남대학교 경영대학원 졸업"
+   ],
+   "career": [
+    "광주광역시 정무특별보좌관",
+    "광주광역시 대변인",
+    "대통령직속 일자리위원회 대외협력관"
+   ],
+   "photo": null,
+   "photo_note": "사진 주소가 열리지 않음(11-16) — 브라우저로 다시 찾을 것"
+  },
+  {
+   "institution_id": "lg-48-3bfa107769",
+   "name": "김현수",
+   "position": "하동군수",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "뉴스핌 [2026 민심 부울경]김현수 하동군수 당선자",
+    "url": "https://www.newspim.com/news/view/20260604000036",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "경남일보 [화제의 당선인] 김현수",
+    "url": "https://www.gnnews.co.kr/news/articleView.html?idxno=638651",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "대아고등학교 졸업",
+    "고려대학교 신문방송학과 졸업"
+   ],
+   "career": [
+    "KBS 창원방송총국 보도국장",
+    "경상남도 대외협력특별보좌관"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-44-8d8980494c",
+   "name": "최원철",
+   "position": "공주시장",
+   "acting": false,
+   "first_take_office": "2022-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "충청뉴스 최원철 공주시장 재선 성공",
+    "url": "https://www.ccnnews.co.kr/news/articleView.html?idxno=410445",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "공주시 열린시장실 걸어온길",
+    "url": "http://council.gongju.go.kr/mayor/sub04_02.do",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "공주대학교사범대학 부설고등학교 졸업",
+    "인천대학교 건축공학과 졸업"
+   ],
+   "career": [
+    "제10대 공주시장",
+    "국회의원 정진석 의원실 보좌관",
+    "공주대학교 발전위원회 위원"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-48-7f37fabd71",
+   "name": "김윤철",
+   "position": "합천군수",
+   "acting": false,
+   "first_take_office": "2022-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "아시아경제 김윤철 합천군수 당선인",
+    "url": "https://view.asiae.co.kr/article/2026060418310078911",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "김윤철(정치인) 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EA%B9%80%EC%9C%A4%EC%B2%A0_(%EC%A0%95%EC%B9%98%EC%9D%B8)",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "마산공업고등학교 졸업",
+    "고려대학교 세종캠퍼스 영어영문학과 졸업"
+   ],
+   "career": [
+    "제3대 합천군의회 의원",
+    "제8대·제11대 경상남도의회 의원"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-42-3df9022c0d",
+   "name": "이상호",
+   "position": "태백시장",
+   "acting": false,
+   "first_take_office": "2022-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "뉴스핌 전국 기초단체장 당선인 명단",
+    "url": "https://www.newspim.com/news/view/20260604000948",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "태백시 시장 프로필",
+    "url": "https://www.taebaek.go.kr/mayor/contents.do?key=1265",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "한양대학교 행정·지방자치대학원 지방자치학 석사"
+   ],
+   "career": [
+    "제10대 강원도의회 의원",
+    "강원도 시장군수협의회 부회장",
+    "제17대 태백시장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-48-f5358efaa0",
+   "name": "강기윤",
+   "position": "창원시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "뉴스핌 전국 기초단체장 당선인 명단",
+    "url": "https://www.newspim.com/news/view/20260604000948",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "강기윤 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EA%B0%95%EA%B8%B0%EC%9C%A4",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "창원대학교 행정학 학사",
+    "중앙대학교 대학원 행정학 석사"
+   ],
+   "career": [
+    "제7·8대 경상남도의회 의원",
+    "제19·21대 국회의원",
+    "한국남동발전 사장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-47-85bc30fe9b",
+   "name": "주낙영",
+   "position": "경주시장",
+   "acting": false,
+   "first_take_office": "2018-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "뉴스핌 전국 기초단체장 당선인 명단",
+    "url": "https://www.newspim.com/news/view/20260604000948",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "경주시 열린시장실 걸어온길",
+    "url": "https://www.gyeongju.go.kr/mayor/page.do?mnu_uid=1396",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "성균관대학교 행정학 학사",
+    "서울대학교 행정대학원 행정학 석사",
+    "경북대학교 대학원 행정학 박사"
+   ],
+   "career": [
+    "제29회 행정고시 합격",
+    "경상북도 행정부지사",
+    "지방행정연수원장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-47-61fa4c5ecb",
+   "name": "안재민",
+   "position": "상주시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "아주경제 안재민 상주시장 취임",
+    "url": "https://www.ajunews.com/view/20260701131005520",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "상주시 열린시장실 안재민입니다",
+    "url": "https://www.sangju.go.kr/chairman/page/12476/10659.tc",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "상주고등학교 졸업",
+    "국민대학교 언론정보학부 졸업",
+    "고려대학교 대학원 행정학 석사"
+   ],
+   "career": [
+    "국회의원 임이자 의원실 보좌관",
+    "정보통신정책연구원 연구원",
+    "국민대학교 총학생회장"
+   ],
+   "photo": {
+    "url": "https://www.sangju.go.kr/resources/templates/chairman/assets/images/sub/anjaemin_photo2.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "상주시 열린시장실 인물 사진(공공저작물 자유이용 제24조의2 — 로컬 작업용)",
+    "page": "https://www.sangju.go.kr/chairman/page/12476/10659.tc",
+    "checked_on": "2026-11-16"
+   }
+  },
+  {
+   "institution_id": "lg-44-6c22823315",
+   "name": "오세현",
+   "position": "아산시장",
+   "acting": false,
+   "first_take_office": "2018-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "뉴스핌 전국 기초단체장 당선인 명단",
+    "url": "https://www.newspim.com/news/view/20260604000948",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "오세현 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EC%98%A4%EC%84%B8%ED%98%84",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "경희대학교 정치외교학과 졸업",
+    "미국 센트럴미시간대학교 행정학 석사"
+   ],
+   "career": [
+    "충청남도 복지보건국장",
+    "아산시 부시장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-41-ca7b1020c1",
+   "name": "최대호",
+   "position": "안양시장",
+   "acting": false,
+   "first_take_office": "2010-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "뉴스핌 전국 기초단체장 당선인 명단",
+    "url": "https://www.newspim.com/news/view/20260604000948",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "뉴스타운 [김병철 인물탐구①] 최대호 안양시장",
+    "url": "https://www.newstown.co.kr/news/articleView.html?idxno=717856",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "연세대학교 원주캠퍼스 역사문화학 학사",
+    "고려대학교 교육대학원 석사",
+    "고려대학교 대학원 교육학 박사"
+   ],
+   "career": [
+    "필탑학원 이사장",
+    "고려대학교 사범대학 연구 조교수",
+    "경기도 시장군수협의회 회장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-42-44cbd0db48",
+   "name": "김중남",
+   "position": "강릉시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "파이낸셜뉴스 김중남 강릉시장 당선",
+    "url": "https://www.fnnews.com/news/202606041229100204",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "김중남 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EA%B9%80%EC%A4%91%EB%82%A8",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "강릉고등학교 졸업",
+    "강원대학교 졸업"
+   ],
+   "career": [
+    "강릉시청 직장협의회 사무국장",
+    "전국공무원노동조합 위원장",
+    "강릉시민단체협의회 대표"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-47-8bc14335ed",
+   "name": "배낙호",
+   "position": "김천시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "경북일보 배낙호 김천시장 취임",
+    "url": "https://www.kyongbuk.co.kr/news/articleView.html?idxno=4036864",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "배낙호 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EB%B0%B0%EB%82%99%ED%98%B8",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "김천중앙고등학교 졸업"
+   ],
+   "career": [
+    "김천시의회 의원(제5·6·7대)",
+    "김천시의회 의장",
+    "김천상무프로축구단 대표이사"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-43-c08be0e429",
+   "name": "이동석",
+   "position": "충주시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "충주시 열린시장실 프로필(민선 9기 제12대)",
+    "url": "https://www.chungju.go.kr/mayor/contents.do?key=4052",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "충주시 열린시장실 프로필",
+    "url": "https://www.chungju.go.kr/mayor/contents.do?key=4052",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "미국 캘리포니아대 산타바버라 정치학 학사",
+    "뉴욕대학교 대학원 정치학 석사"
+   ],
+   "career": [
+    "해양수산부장관 정책보좌관",
+    "대통령비서실 행정관",
+    "MBN 정치부 기자"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-44-cd1f3da5e6",
+   "name": "김기재",
+   "position": "당진시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "뉴스핌 전국 기초단체장 당선인 명단",
+    "url": "https://www.newspim.com/news/view/20260604000948",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "김기재(1974년) 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EA%B9%80%EA%B8%B0%EC%9E%AC_(1974%EB%85%84)",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "북일고등학교 졸업",
+    "한일장신대학교 인문사회과학부 졸업",
+    "한양대학교 공공정책대학원 지방자치학 석사"
+   ],
+   "career": [
+    "당진신문 대표이사",
+    "제3대 당진시의회 전반기 의장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-42-d1404c889f",
+   "name": "최승준",
+   "position": "정선군수",
+   "acting": false,
+   "first_take_office": "2010-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "네이트뉴스 최승준 정선군수 당선인(4선)",
+    "url": "https://m.news.nate.com/view/20260603n27951",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "정선군 프로필",
+    "url": "https://www.jeongseon.go.kr/pledge/personal/profile",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "정선종합고등학교 졸업",
+    "신구전문학교(현 신구대학) 졸업",
+    "대원과학대학 사회복지과 졸업"
+   ],
+   "career": [
+    "제4대 정선군의회 의원",
+    "제5대 정선군의회 의장",
+    "제40·42·43대 정선군수"
+   ],
+   "photo": {
+    "url": "https://www.jeongseon.go.kr/page/pledge//images/sub/profile.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "정선군 프로필 페이지 인물 사진(공공저작물 자유이용 제24조의2 — 로컬 작업용)",
+    "page": "https://www.jeongseon.go.kr/pledge/personal/profile",
+    "checked_on": "2026-11-16"
+   }
+  },
+  {
+   "institution_id": "lg-42-60b259dfc5",
+   "name": "김동일",
+   "position": "철원군수",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "강원일보 [동정]김동일 철원군수",
+    "url": "https://www.kwnews.co.kr/article/20261013500709",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "강원일보 출마합니다 — 김동일",
+    "url": "https://www.kwnews.co.kr/article/20260427500690",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "비봉고등학교 졸업",
+    "세종사이버대학교 경영학 학사"
+   ],
+   "career": [
+    "강원도의회 의원(4선)",
+    "제9대 강원도의회 의장",
+    "철원군 이장협의회 회장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-44-e06fa9d9cc",
+   "name": "이응우",
+   "position": "계룡시장",
+   "acting": false,
+   "first_take_office": "2022-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "이응우 위키백과(제7대 계룡시장 2026-07-01 취임)",
+    "url": "https://ko.wikipedia.org/wiki/%EC%9D%B4%EC%9D%91%EC%9A%B0",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "계룡시 열린시장실 시장 프로필",
+    "url": "https://www.gyeryong.go.kr/chief/html/sub01/0102.html",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "육군3사관학교 졸업",
+    "배재대학교 행정학 박사"
+   ],
+   "career": [
+    "육군 대령(30년 근무, 항공병과)",
+    "아시아나항공 비상계획관",
+    "배재대학교 대외협력교수"
+   ],
+   "photo": {
+    "url": "https://gyeryong.go.kr/chief/img/sub01/sub0102_img01.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "계룡시 열린시장실 시장 프로필 사진(공공저작물 자유이용 제24조의2 — 로컬 작업용)",
+    "page": "https://www.gyeryong.go.kr/chief/html/sub01/0102.html",
+    "checked_on": "2026-11-16"
+   }
+  },
+  {
+   "institution_id": "lg-41-7c7d84214d",
+   "name": "이충우",
+   "position": "여주시장",
+   "acting": false,
+   "first_take_office": "2022-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "경인일보 [취임 인터뷰] 이충우 여주시장",
+    "url": "https://www.kyeongin.com/article/1767989",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "이충우(1960년) 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EC%9D%B4%EC%B6%A9%EC%9A%B0_(1960%EB%85%84)",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "여주자영농업고등학교 졸업",
+    "안성농업전문대학 농업토목과 졸업",
+    "한경국립대학교 토목공학과 졸업"
+   ],
+   "career": [
+    "여주군청 건설과장",
+    "경기도청 사무관",
+    "제4대 여주시장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-41-82780f4398",
+   "name": "김보라",
+   "position": "안성시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "경인일보 [취임 인터뷰] 김보라 안성시장",
+    "url": "https://www.kyeongin.com/article/1767533",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "한국경제 김보라 안성시장 인터뷰",
+    "url": "https://www.hankyung.com/article/2023010394001",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "연세대학교 간호학과 졸업",
+    "평택대학교 사회개발대학원 사회복지학 석사"
+   ],
+   "career": [
+    "제9대 경기도의회 의원",
+    "안성시장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-45-53be5f9566",
+   "name": "황인홍",
+   "position": "무주군수",
+   "acting": false,
+   "first_take_office": "2018-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "[6·3선거] 황인홍 무주군수 3선 고지 (아시아경제)",
+    "url": "https://view.asiae.co.kr/article/2026060401185469782",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [],
+   "career": [
+    "무주군수(민선 7·8기)"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-44-32f03bd415",
+   "name": "이완섭",
+   "position": "서산시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "서산시장 당선 보도 (다음 뉴스)",
+    "url": "https://v.daum.net/v/20260604103800510",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "이완섭 - 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EC%9D%B4%EC%99%84%EC%84%AD",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "공주고등학교 졸업",
+    "숭실대 대학원 IT정책경영학 박사"
+   ],
+   "career": [
+    "행정안전부 지방성과관리과장",
+    "서산시 부시장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-45-14326a2d11",
+   "name": "양충모",
+   "position": "남원시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "[6·3선거] 양충모 남원시장 당선인 (아시아경제)",
+    "url": "https://view.asiae.co.kr/article/2026060403341564650",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "양충모 - 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EC%96%91%EC%B6%A9%EB%AA%A8",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "연세대 경제학 학사",
+    "서울대 행정대학원 행정학 석사",
+    "가천대 대학원 경영학 박사"
+   ],
+   "career": [
+    "제4대 새만금개발청장",
+    "경기도경제과학진흥원 이사장",
+    "전북도 감사위원장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-44-c69dea8c26",
+   "name": "장기수",
+   "position": "천안시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "시민운동가에서 천안시장까지…장기수 (세계일보)",
+    "url": "https://www.segye.com/newsView/20260604501311",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "단국대학교 경영학과 졸업"
+   ],
+   "career": [
+    "천안시의회 부의장",
+    "충남청소년진흥원장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-41-d628dc9b4f",
+   "name": "한대희",
+   "position": "군포시장",
+   "acting": false,
+   "first_take_office": "2018-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "NEC",
+    "title": "한대희 당선인 (cpmadang, 선관위 자료 인용)",
+    "url": "https://cpmadang.org/%ED%9B%84%EB%B3%B4/%ED%95%9C%EB%8C%80%ED%9D%AC%E9%9F%93%E5%A4%A7%E7%86%99-1",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "한대희 - 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%ED%95%9C%EB%8C%80%ED%9D%AC",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "전주고등학교 졸업"
+   ],
+   "career": [
+    "제15대 군포시장(2018~2022)",
+    "출판사 한울림 대표",
+    "노무현재단 기획위원"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-41-d2dfbc4eab",
+   "name": "신상진",
+   "position": "성남시장",
+   "acting": false,
+   "first_take_office": "2022-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "신상진 성남시장 재선 성공 (뉴스핌)",
+    "url": "https://www.newspim.com/news/view/20260604000158",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "신상진 - 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EC%8B%A0%EC%83%81%EC%A7%84",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "서울대학교 의과대학 졸업"
+   ],
+   "career": [
+    "제32대 대한의사협회장",
+    "제17~20대 국회의원"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-46-6a9ad9b088",
+   "name": "박성현",
+   "position": "광양시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "무소속 박성현 후보, 광양시장 당선 (서울신문)",
+    "url": "https://www.seoul.co.kr/news/politics/2026/06/04/20260604500017",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "박성현 광양시장 당선인은 누구인가? (시사25)",
+    "url": "https://www.sisa25.kr/news/articleView.html?idxno=15357",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "한국해양대 항해학과 졸업",
+    "일본 큐슈대 대학원 공학박사(선박시스템공학)"
+   ],
+   "career": [
+    "국립목포해양대 제7대 총장",
+    "여수광양항만공사 제5대 사장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-41-f33f3e78c4",
+   "name": "정명근",
+   "position": "화성시장",
+   "acting": false,
+   "first_take_office": "2022-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "화성시장 프로필(화성특례시)",
+    "url": "https://www.hscity.go.kr/mayor/introduce/profile.jsp",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "화성시장 프로필(화성특례시)",
+    "url": "https://www.hscity.go.kr/mayor/introduce/profile.jsp",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "수성고등학교 졸업",
+    "중국사회과학원 대학원 국제정치학 석사"
+   ],
+   "career": [
+    "국회의원 보좌관",
+    "대통령직속 국가균형발전위 국민소통특위 위원",
+    "제8·9대 화성시장"
+   ],
+   "photo": {
+    "url": "https://www.hscity.go.kr/resources/mayor/images/profile_20260629.jpg",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "화성시 시장실 인물 사진(공공저작물 자유이용 제24조의2 — 로컬 작업용)",
+    "page": "https://www.hscity.go.kr/mayor/introduce/profile.jsp",
+    "checked_on": "2026-11-16"
+   }
+  },
+  {
+   "institution_id": "lg-31-1802a826da",
+   "name": "김영길",
+   "position": "울산 중구청장",
+   "acting": false,
+   "first_take_office": "2022-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "김영길 울산 중구청장 당선…재선 성공 (뉴시스)",
+    "url": "https://www.newsis.com/view/NISX20260604_0003655336",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "울산대 산업대학원 건축·도시학 석사"
+   ],
+   "career": [
+    "울산 중구의원"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-45-380f720d0d",
+   "name": "정성주",
+   "position": "김제시장",
+   "acting": false,
+   "first_take_office": "2022-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "정성주입니다 > 주요약력 (김제시 열린시장실)",
+    "url": "https://www.gimje.go.kr/mayor/index.gimje?menuCd=DOM_000000201002000000",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "정성주입니다 > 주요약력 (김제시 열린시장실)",
+    "url": "https://www.gimje.go.kr/mayor/index.gimje?menuCd=DOM_000000201002000000",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "군산고등학교 졸업",
+    "벽성대학교 토목환경과 졸업"
+   ],
+   "career": [
+    "제7대 김제시의회 전반기 의장",
+    "제5대 김제시의회 의원"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-48-b54cb7a9bf",
+   "name": "변광용",
+   "position": "거제시장",
+   "acting": false,
+   "first_take_office": "2018-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "변광용, 거제시장 당선 (거제신문)",
+    "url": "https://www.geojenews.co.kr/news/articleView.html?idxno=94909",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "거제시장 후보 총정리 (경남진)",
+    "url": "https://gyeongnamzine.com/6836",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "서울대 사범대 체육교육 학사",
+    "연세대 행정대학원 행정학 석사"
+   ],
+   "career": [
+    "거제시장(2018~2022)",
+    "거제시장(2025 재보궐)"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-31-7182b5a716",
+   "name": "이순걸",
+   "position": "울주군수",
+   "acting": false,
+   "first_take_office": "2022-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "[6·3 지선] 이순걸 울산 울주군수 당선 (뉴스1)",
+    "url": "https://www.news1.kr/local/ulsan/6186840",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "이순걸 (정치인) - 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EC%9D%B4%EC%88%9C%EA%B1%B8_(%EC%A0%95%EC%B9%98%EC%9D%B8)",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "경남대 무역학과 졸업",
+    "울산대 정책대학원 사회복지학 석사"
+   ],
+   "career": [
+    "제4대 울주군의회 의원",
+    "제5대 울주군의회 후반기 의장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-47-a2d0a5195c",
+   "name": "황병직",
+   "position": "영주시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "황병직 압승… 영주시장 당선 확정 (뉴스신)",
+    "url": "https://www.newsshin.co.kr/news/articleView.html?idxno=304886",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "황병직 - 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%ED%99%A9%EB%B3%91%EC%A7%81",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "동양대 경영학과 졸업",
+    "경북대 행정대학원 석사"
+   ],
+   "career": [
+    "영주시의원(제5·6대)",
+    "경북도의원(제10·11대)"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-45-0404ff42ff",
+   "name": "김재준",
+   "position": "군산시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "걸어온 길 (군산시장 열린시장실)",
+    "url": "https://www.gunsan.go.kr/mayor/m518",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "HOMEPAGE",
+    "title": "걸어온 길 (군산시장 열린시장실)",
+    "url": "https://www.gunsan.go.kr/mayor/m518",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "전북대학교 경제학과 졸업",
+    "전북대학교 대학원 경제학과 졸업"
+   ],
+   "career": [
+    "대통령비서실 춘추관장",
+    "국회의장 공보수석비서관",
+    "국회의원 보좌관"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-31-f6d939ef9f",
+   "name": "이동권",
+   "position": "울산 북구청장",
+   "acting": false,
+   "first_take_office": "2018-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "HOMEPAGE",
+    "title": "울산광역시 북구 열린구청장실 인사말",
+    "url": "https://www.bukgu.ulsan.kr/mayor/lay2/S387T388C556/contents.do",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "이동권 (1957년) - 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EC%9D%B4%EB%8F%99%EA%B6%8C_(1957%EB%85%84)",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "동아대 법학 학사",
+    "동아대 대학원 법학 석사"
+   ],
+   "career": [
+    "청와대 국민권익비서관",
+    "울산 북구청장(2018~2022)"
+   ],
+   "photo": null,
+   "photo_note": "사진 주소가 열리지 않음(11-16) — 브라우저로 다시 찾을 것"
+  },
+  {
+   "institution_id": "lg-47-4533eba038",
+   "name": "김장호",
+   "position": "구미시장",
+   "acting": false,
+   "first_take_office": "2022-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "김장호 구미시장 재선 성공 (경북일보)",
+    "url": "https://www.kyongbuk.co.kr/news/articleView.html?idxno=4074592",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "김장호 (정치인) - 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EA%B9%80%EC%9E%A5%ED%98%B8_(%EC%A0%95%EC%B9%98%EC%9D%B8)",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "경북대 경제학 학사",
+    "KDI 국제정책대학원 정책학 석사",
+    "오하이오주립대 공공정책학 석사"
+   ],
+   "career": [
+    "경상북도 기획조정실장",
+    "울진군 부군수",
+    "국토교통부 혁신도시발전추진단 지원국장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-31-6ed7802483",
+   "name": "천기옥",
+   "position": "울산 동구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "천기옥 울산 동구청장 당선 (여성신문)",
+    "url": "https://www.womennews.co.kr/news/articleView.html?idxno=278408",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "천기옥 - 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EC%B2%9C%EA%B8%B0%EC%98%A5",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "울산대 지역개발학 학사"
+   ],
+   "career": [
+    "울산 동구의회 의장",
+    "울산시의원(제6·7대)"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-26-e7b6137ade",
+   "name": "서태경",
+   "position": "사상구청장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "[인물포커스] 서태경 부산 사상구청장 당선인 (KNN)",
+    "url": "https://news.knn.co.kr/news/article/189365",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "중앙대학교 졸업"
+   ],
+   "career": [
+    "청와대 행정관",
+    "국회의원 보좌관"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-45-c6f3e43480",
+   "name": "조지훈",
+   "position": "전주시장",
+   "acting": false,
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "[6·3선거] 조지훈 전주시장 당선인 (아시아경제)",
+    "url": "https://view.asiae.co.kr/article/2026060403270160839",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "조지훈 (정치인) - 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EC%A1%B0%EC%A7%80%ED%9B%88_(%EC%A0%95%EC%B9%98%EC%9D%B8)",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "전북대 무역학과 학사",
+    "전북대 대학원 행정학 석사"
+   ],
+   "career": [
+    "전주시의회 의장",
+    "전북경제통상진흥원장"
+   ],
+   "photo": null
+  },
+  {
+   "institution_id": "lg-26-dd5d3d2f47",
+   "name": "공한수",
+   "position": "부산 서구청장",
+   "acting": false,
+   "first_take_office": "2018-07-01",
+   "term_start": "2026-07-01",
+   "term_end": "2030-06-30",
+   "source": {
+    "kind": "PRESS",
+    "title": "부산 서구청장에 공한수 당선 (다음 뉴스)",
+    "url": "https://v.daum.net/v/20260604020600884",
+    "checked_on": "2026-11-16"
+   },
+   "items_source": {
+    "kind": "PRESS",
+    "title": "공한수 - 위키백과",
+    "url": "https://ko.wikipedia.org/wiki/%EA%B3%B5%ED%95%9C%EC%88%98",
+    "checked_on": "2026-11-16"
+   },
+   "edu": [
+    "부산상업고등학교 졸업",
+    "동아대 정치외교학 학사",
+    "동아대 대학원 정치학 석사"
+   ],
+   "career": [
+    "부산시의원(제6·7대)",
+    "부산 서구청장(2018~)"
+   ],
+   "photo": null
   }
  ]
 }
