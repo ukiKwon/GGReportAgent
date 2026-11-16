@@ -216,7 +216,7 @@ const SITE = (() => {
         c.fillStyle = YEL; c.fillRect(x - 15, E.y - 47, 30, 3);
       }
     }
-    if (!front) { c.fillStyle = '#546e7a'; c.font = 'bold 11px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic'; for (const E of EL) c.fillText('EV', E.x, E.hi - 60); }
+    if (!front) { c.fillStyle = '#4a4f55'; c.font = 'bold 11px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic'; for (const E of EL) c.fillText('EV', E.x, E.hi - 60); }
   }
   function drawPops() { c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = 'bold 15px "Malgun Gothic", sans-serif'; for (const p of pops) { c.globalAlpha = Math.max(0, p.life / 0.9); c.fillStyle = p.col; c.fillText(p.t, p.x, p.y); } c.globalAlpha = 1; }
 
@@ -346,9 +346,10 @@ const SITE = (() => {
   }
 
   /* 단면도 정적 그림 — 처음 한 번 오프스크린에 그려 두고 매 프레임 붙인다 */
-  let secCv = null;
+  let secCv = null, secK = 0;
   function drawSection() {
-    if (!secCv) { secCv = document.createElement('canvas'); secCv.width = W; secCv.height = H; const prev = c; c = secCv.getContext('2d'); try { paintSection(); } finally { c = prev; } }
+    if (secCv && secK !== K) secCv = null; // 화면 배율이 바뀌면 이름표 글자 크기를 다시 맞춰 그린다
+    if (!secCv) { secK = K; secCv = document.createElement('canvas'); secCv.width = W; secCv.height = H; const prev = c; c = secCv.getContext('2d'); try { paintSection(); } finally { c = prev; } }
     c.drawImage(secCv, 0, 0);
   }
   function stairs(x1, y1, x2, y2, n) { // 계단 한 단(디딤판 n개)과 난간
@@ -377,7 +378,7 @@ const SITE = (() => {
     for (let x = x0 + 6; x < x1; x += 28) limb(x, ROOF, x, ROOF - 14, 2, STEEL); // 옥상에 삐죽 나온 철근(공사 중)
     stairs(820, F1, 940, F1 - 70, 6); c.fillStyle = '#9ea3a8'; c.fillRect(940, F1 - 70, 18, 9); stairs(940, F1 - 70, 820, F2, 6);
     stairs(380, F2, 260, F2 - 70, 6); c.fillStyle = '#9ea3a8'; c.fillRect(242, F2 - 70, 18, 9); stairs(260, F2 - 70, 380, F3, 6);
-    c.fillStyle = '#6d7378'; c.font = 'bold 15px "Malgun Gothic", sans-serif'; c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+    c.fillStyle = '#4a4f55'; c.font = 'bold 15px "Malgun Gothic", sans-serif'; c.textAlign = 'left'; c.textBaseline = 'alphabetic';
     c.fillText('3층', 252, ROOF + 30); c.fillText('2층', 252, F3 + 30); c.fillText('1층', 252, F2 + 30);
     // 공간 이름표 — 이 자리에서 무슨 일을 하는지(사용자 11-16)
     [['자재 하역장', 325, F2 + 24], ['철근 가공장', 460, F2 + 24], ['출입 통제소', 664, F2 + 24],
@@ -390,7 +391,7 @@ const SITE = (() => {
   }
   function drawBoard() { // 공정 현황(위쪽 하늘 자리, 두 줄)
     const X = 236, Y = 8, Wd = 794, Hh = 150;
-    c.fillStyle = 'rgba(0,0,0,.62)'; rrect(X, Y, Wd, Hh, 10); c.fill();
+    c.fillStyle = 'rgba(0,0,0,.78)'; rrect(X, Y, Wd, Hh, 10); c.fill(); // 하늘 위 보조 글자 대비(design 11-16)
     c.textBaseline = 'middle'; c.textAlign = 'left'; c.fillStyle = '#fff'; c.font = 'bold 16px "Malgun Gothic", sans-serif';
     c.fillText(txt.boardTitle, X + 14, Y + 18);
     c.textAlign = 'right'; c.font = '12px "Malgun Gothic", sans-serif'; c.fillStyle = '#b2bec3';
@@ -430,7 +431,7 @@ const SITE = (() => {
     c.fillStyle = '#e85d2a'; c.fillRect(790, 694, 380, 8);
     c.fillStyle = '#f5f5f5'; for (let x = 790; x < 1170; x += 40) c.fillRect(x, 694, 20, 8);
     label('휴게 컨테이너', 12, 620); label('벤치', 40, 776); label('🧊 정수기', 560, 776); label('⛱️ 그늘 휴게', 800, 782);
-    c.fillStyle = 'rgba(255,255,255,.85)'; c.font = fz(12, 11, 1.3) + 'px "Malgun Gothic", sans-serif'; c.fillText('▲ 1층 출입구', 600, 616);
+    label('▲ 1층 출입구', 600, 616, '#3e2f1c'); // 휴게 패드 위 대비(design 11-16 P1: 흰 글자 1.4:1 → 8.5:1)
   }
   function drawYard() {
     for (let i = 0; i < 4; i++) drawBeam(YARD.x + (i % 2) * 6, YARD.y + 20 - i * 8, YARD.w - 10);
@@ -440,7 +441,8 @@ const SITE = (() => {
     c.fillStyle = STEEL; c.fillRect(x, y, w, 7);
     c.fillStyle = '#7f2f1d'; c.fillRect(x, y + 2.5, w, 2);
   }
-  function sign(text, x, y) { c.font = 'bold 11px "Malgun Gothic", sans-serif'; const w = c.measureText(text).width + 10; c.fillStyle = '#ffd54f'; c.fillRect(x - w / 2, y - 8, w, 16); c.strokeStyle = '#8d6e63'; c.lineWidth = 1; c.strokeRect(x - w / 2, y - 8, w, 16); c.fillStyle = '#3e2f1c'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, x, y + 0.5); }
+  // 이름표 글자는 화면이 작아져도 11px 아래로 안 내려감(design 11-16)
+  function sign(text, x, y) { c.font = 'bold ' + fz(11, 11, 1.3) + 'px "Malgun Gothic", sans-serif'; const w = c.measureText(text).width + 10; c.fillStyle = '#ffd54f'; c.fillRect(x - w / 2, y - 8, w, 16); c.strokeStyle = '#8d6e63'; c.lineWidth = 1; c.strokeRect(x - w / 2, y - 8, w, 16); c.fillStyle = '#3e2f1c'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, x, y + 0.5); }
   function boxes(x, y, n) { for (let i = 0; i < n; i++) { const bx = x + (i % 3) * 13, by = y - 12 - Math.floor(i / 3) * 12; c.fillStyle = '#c8a26b'; c.fillRect(bx, by, 12, 11); c.strokeStyle = '#8d6e63'; c.lineWidth = 1; c.strokeRect(bx, by, 12, 11); } c.fillStyle = '#8d6e63'; c.fillRect(x - 2, y - 2, 42, 2); }
   function drawProps() {
     // 1층: 출입 통제소(라바콘·통제선)
