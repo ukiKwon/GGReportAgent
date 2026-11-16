@@ -1,6 +1,18 @@
 // 대시보드 연출 판정 순수 함수(fmt.js) — NEXT 43 qa 케이스 ①~⑥. app.js는 이 함수들로 위임한다.
 const test = require('node:test'), assert = require('node:assert');
-const { lapIntOf, fatOf, isSplashOk, pickSplashCands, lastPourAfter, nextSplashAt } = require('../fmt.js');
+const { lapIntOf, fatOf, isSplashOk, pickSplashCands, lastPourAfter, nextSplashAt, planetOf } = require('../fmt.js');
+
+test('planetOf: 120층마다 다음 행성 1층부터(공사판 ③안, 11-16)', () => {
+  assert.deepStrictEqual(planetOf(0, 3, 120), { planet: 0, floor: 1, total: 1 });
+  assert.deepStrictEqual(planetOf(357, 3, 120), { planet: 0, floor: 120, total: 120 });
+  assert.deepStrictEqual(planetOf(360, 3, 120), { planet: 1, floor: 1, total: 121 });
+  assert.deepStrictEqual(planetOf(437, 3, 120), { planet: 1, floor: 26, total: 146 });
+  assert.deepStrictEqual(planetOf(-5, 3, 120), { planet: 0, floor: 1, total: 1 });
+  assert.deepStrictEqual(planetOf(NaN, 3, 120), { planet: 0, floor: 1, total: 1 });
+  assert.deepStrictEqual(planetOf(359, 3, 120), { planet: 0, floor: 120, total: 120 });
+  assert.deepStrictEqual(planetOf(720, 3, 120), { planet: 2, floor: 1, total: 241 });
+  assert.strictEqual(planetOf(20000, 3, 120).planet, 55);
+});
 const CD = 60;
 const R = (o) => Object.assign({ state: 'rest', lieAt: 0, active: false, slot: 0 }, o);
 

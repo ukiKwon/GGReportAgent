@@ -61,5 +61,7 @@ function pickSplashCands(list, simTime, wait) { // 누운 지 wait초 지난 대
   return list.filter(r => isSplashOk(r) && simTime - r.lieAt >= wait).sort((a, b) => a.lieAt - b.lieAt || a.slot - b.slot);
 }
 const lastPourAfter = (prev, hit, now) => hit ? now : prev; // 실제로 깨운 붓기 끝만 갱신
+// 공사판 행성: 누적 → 전체 층 T = floor(누적/perFloor)+1, 행성 번호 = floor((T-1)/perPlanet)(0=지구), 그 행성의 층 = (T-1)%perPlanet+1(사용자 11-16)
+function planetOf(laps, perFloor, perPlanet) { const T = Math.floor(Math.max(0, Number(laps) || 0) / perFloor) + 1; return { planet: Math.floor((T - 1) / perPlanet), floor: (T - 1) % perPlanet + 1, total: T }; }
 const nextSplashAt = (prev, poured, lastPour, cooldown) => poured ? lastPour + cooldown : prev; // 깨운 적 없으면 쿨다운 없음
-if (typeof module !== 'undefined' && module.exports) module.exports = { fmtLaps, qClassify, qIsPending, qElapsedDays, qDaysLabel, qOverdue, qMd, qSplit, qGroups, qClock, lapIntOf, fatOf, isSplashOk, pickSplashCands, lastPourAfter, nextSplashAt };
+if (typeof module !== 'undefined' && module.exports) module.exports = { fmtLaps, qClassify, qIsPending, qElapsedDays, qDaysLabel, qOverdue, qMd, qSplit, qGroups, qClock, lapIntOf, fatOf, isSplashOk, pickSplashCands, lastPourAfter, nextSplashAt, planetOf };

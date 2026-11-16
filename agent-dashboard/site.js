@@ -29,12 +29,29 @@ const SITE = (() => {
 
   let bonus = 0, zoneSeen = -1, zoneSince = null;
   const crane = { phi: CR.phiRest, trolley: 70, hook: CR.hookRest, phase: 'rest', t: 0, beam: false };
+  const smoke = []; // 발사 연기
   const sparks = [], pops = [], marks = []; // pops: 떠오르는 글자, marks: QA 하자 표시(빨강 → 확인되면 초록 ✔)
   const dlv = { 2: 2, 3: 1 }; // 층별 납품 자재 더미 수
   const sky = { planeX: -40, planeNext: 2, ufoX: -60, ufoNext: 6, cloudOff: 0 };
   const prop = { wb: 0, paint: 0, cones: 0, tile: 0 };
 
-  const floors = () => Math.floor((stat.laps + bonus) / LAPS_PER_FLOOR) + 1;
+  const PER_PLANET = 120; // 우주(120층)에 닿으면 건물이 로켓으로 떠나고 다음 행성 1층부터(사용자 11-16 ③안)
+  const pinfo = () => planetOf(stat.laps + bonus, LAPS_PER_FLOOR, PER_PLANET);
+  const floors = () => pinfo().floor, planet = () => pinfo().planet;
+  const PLANETS = [ // [이름, 하늘 위, 하늘 아래, 흙, 흙 점, 우주에서 본 행성]
+    ['지구', '#8ecae6', '#cfe8f3', '#b08a5a', '#9c774a', '#1565c0'], ['화성', '#e8a87c', '#f6d5b8', '#b5532f', '#8e3b1f', '#c1440e'],
+    ['얼음 행성', '#b3d9f2', '#eaf6fd', '#a7c7d9', '#7fa6bd', '#8fd3f4'], ['보라 행성', '#9c88c9', '#d9cff0', '#7e6b8f', '#5e4d70', '#7e57c2'],
+    ['사막 행성', '#f2c57c', '#fbe7c2', '#d9a960', '#b8874a', '#e0a050'], ['초록 행성', '#8fd3b0', '#d9f2e4', '#5f8f5a', '#46703f', '#43a047']];
+  const planetName = p => p < PLANETS.length ? PLANETS[p][0] : '행성 ' + (p + 1);
+  const palOf = p => PLANETS[p % PLANETS.length];
+  const LAUNCH_SEC = 6.5;
+  let launch = null, planetSeen = -1, planetSince = null;
+  function pal() { // 지금 그릴 땅·하늘 색(발사 끝무렵 1초 동안 새 행성 색으로 바뀜)
+    if (!launch) return palOf(planet());
+    const a = palOf(launch.from), b = palOf(launch.to), k = Math.max(0, Math.min(1, launch.t - 5));
+    return a.map((v, i) => i === 0 ? (k < 0.5 ? a[0] : b[0]) : lerpColor(a[i], b[i], k));
+  }
+
   const zoneIdx = f => { let i = 0; for (let k = 0; k < ZONES.length; k++) if (f >= ZONES[k][0]) i = k; return i; };
   const mainTopY = () => BLD.baseY - Math.min(floors(), BLD.maxMain - (floors() > BLD.maxMain ? 1 : 0)) * BLD.floorH; // 잘리면 맨 윗줄은 지그재그 단면이라 보이는 꼭대기는 한 층 아래
   const jibY = () => Math.max(60, mainTopY() - 3 * BLD.floorH - 22);
@@ -61,6 +78,15 @@ const SITE = (() => {
   function update(dt) {
     // 구간 도달 토스트 — 세션(stats.since)마다 구간별 1회, 첫 로드는 조용히 맞춘다
     if (stat.since !== null) {
+      const p = planet();
+      if (planetSince !== stat.since) { planetSince = stat.since; planetSeen = p; }
+      else if (p > planetSeen) { startLaunch(planetSeen, p); planetSeen = p; }
+      else if (p < planetSeen) planetSeen = p;
+    }
+    if (launch && reduced()) launch = null; // 도중에 움직임 줄이기를 켜면 바로 끝
+    if (launch) { launch.t += dt; if (Math.random() < dt * 30 && launch.t < 3.5) smoke.push({ x: BLD.x + 10 + Math.random() * (BLD.w - 20), y: BLD.baseY + 4, vx: (Math.random() - 0.5) * 80, vy: -10 - Math.random() * 20, r: 6 + Math.random() * 6, life: 1.6 }); if (launch.t >= LAUNCH_SEC) launch = null; }
+    for (let i = smoke.length - 1; i >= 0; i--) { const q = smoke[i]; q.life -= dt; q.x += q.vx * dt; q.y += q.vy * dt; q.r += dt * 10; if (q.life <= 0) smoke.splice(i, 1); }
+    if (stat.since !== null) {
       const zi = zoneIdx(floors());
       if (zoneSince !== stat.since) { zoneSince = stat.since; zoneSeen = zi; }
       else if (zi > zoneSeen) {
@@ -69,7 +95,7 @@ const SITE = (() => {
       } else if (zi < zoneSeen) zoneSeen = zi;
     }
     updateCrane(dt);
-    for (const [k2, y] of [['cab', jibY() + 21], ['top', mainTopY()]]) if (easeY[k2] != null) { const d = y - easeY[k2]; easeY[k2] += Math.sign(d) * Math.min(Math.abs(d), 40 * dt); } // 층이 오르면 건물을 따라 천천히 올라감
+    for (const [k2, y] of [['jib', jibY()], ['cab', jibY() + 21], ['top', mainTopY()]]) if (easeY[k2] != null) { const d = y - easeY[k2]; easeY[k2] += Math.sign(d) * Math.min(Math.abs(d), (launch ? 120 : 40) * dt); } // 층이 오르면 건물을 따라 천천히 올라감
     // 백엔드: 일하는 동안 크레인 운전석(1번)·건물 꼭대기(2번째부터)로 1초에 걸쳐 오르내린다
     for (const r of runners) {
       if (r.role !== 'backend') continue;
@@ -90,7 +116,7 @@ const SITE = (() => {
       }
       if (want && k0 < LIFT_IN && r.ovK >= LIFT_IN) say(r, '리프트 탑승!', 1.5);
       if (!want && k0 > LIFT_IN && r.ovK <= LIFT_IN) say(r, '1층 도착', 1.2);
-      if (r.extra && r.ovK >= 1 && Math.random() < dt * 9) { // 용접 불꽃
+      if (r.extra && r.ovK >= 1 && !launch && Math.random() < dt * 9) { // 용접 불꽃
         const p = topSpot(r);
         for (let k = 0; k < 3; k++) sparks.push({ x: p.x + p.face * 10, y: p.y - 18, vx: (Math.random() - 0.5) * 90, vy: -40 - Math.random() * 60, life: 0.5 });
       }
@@ -117,7 +143,7 @@ const SITE = (() => {
     if (simTime > sky.ufoNext) { sky.ufoX += dt * 55; if (sky.ufoX > ALT.w + 60) { sky.ufoX = -60; sky.ufoNext = simTime + 9 + Math.random() * 8; } }
   }
   function updateCrane(dt) {
-    const k = crane, on = backendAct().length > 0;
+    const k = crane, on = backendAct().length > 0 && !launch; // 발사 중에는 인양을 멈춘다(qa 11-16)
     const go = (key, to, rate) => { const d = to - k[key], s = rate * dt; if (Math.abs(d) <= s) { k[key] = to; return true; } k[key] += Math.sign(d) * s; return false; };
     const bldDrop = mainTopY() - 4 - jibY();
     const yardDrop = YARD.y - 10 - jibY();
@@ -135,7 +161,7 @@ const SITE = (() => {
   }
 
   /* ---------- 백엔드 위치 덮어쓰기 ---------- */
-  const easeY = { cab: null, top: null, t: 0 };
+  const easeY = { jib: null, cab: null, top: null, t: 0 };
   function smoothY(key, y) { const v = easeY[key]; if (v == null || Math.abs(y - v) > 400) return (easeY[key] = y); return v; } // 실제 값은 update에서 따라감
   function cabSpot() { return { x: CR.mastX - 2, y: smoothY('cab', jibY() + 21), s: 0.42, face: -1, pose: 'stand' }; }
   function topSpot(r) {
@@ -149,6 +175,7 @@ const SITE = (() => {
     if (working(r)) { const st = r.work.st; return { x: r.x, y: r.y, s: 1, face: st.fx == null ? r.face : (st.fx >= r.x ? 1 : -1), pose: st.act === 'cctv' ? 'sit' : 'stand', work: true }; }
     if (r.role !== 'backend' || !r.ovK) return null;
     const tgt = r.extra ? topSpot(r) : cabSpot(), k = r.ovK;
+    if (k >= 1 && r.extra && launch && launch.t < 5) return Object.assign({}, tgt, { y: BLD.baseY - (BLD.maxMain - 1) * BLD.floorH + launchDy() }); // 꼭대기 작업자는 로켓 지붕에 타고 함께 떠남(qa 11-16 P2)
     if (k >= 1) return tgt;
     // 건설용 리프트: ① 리프트 앞까지 걸어감 → ② 케이지 타고 수직 상승 → ③ 운전석·꼭대기로 걸어 들어감(내려올 땐 반대)
     if (k < LIFT_IN) { const p = r.lp || { x: r.x, y: r.y }; return { x: p.x, y: p.y, s: 1, face: p.face || 1, pose: 'walk' }; }
@@ -415,10 +442,10 @@ const SITE = (() => {
   }
   /* ---------- 배경 ---------- */
   function drawBg() {
-    const g = c.createLinearGradient(0, 0, 0, 170); g.addColorStop(0, '#8ecae6'); g.addColorStop(1, '#cfe8f3');
+    const P = pal(), g = c.createLinearGradient(0, 0, 0, 170); g.addColorStop(0, P[1]); g.addColorStop(1, P[2]); // 행성마다 하늘·흙 색
     c.fillStyle = g; c.fillRect(0, 0, W, 170);
-    c.fillStyle = '#b08a5a'; c.fillRect(0, 164, W, 436);
-    c.fillStyle = '#9c774a'; for (let i = 0; i < 200; i++) { const x = (i * 197) % W, y = 172 + (i * 89) % 420; c.fillRect(x, y, 3, 2); }
+    c.fillStyle = P[3]; c.fillRect(0, 164, W, 436);
+    c.fillStyle = P[4]; for (let i = 0; i < 200; i++) { const x = (i * 197) % W, y = 172 + (i * 89) % 420; c.fillRect(x, y, 3, 2); }
     drawSection(); // 3층 단면도(트랙 대신, 사용자 11-16)
     // 휴게 패드
     c.fillStyle = '#cfd2cc'; c.fillRect(0, 600, W, 200); c.fillStyle = '#a9ada6'; c.fillRect(0, 600, W, 4);
@@ -505,10 +532,10 @@ const SITE = (() => {
       c.fillStyle = '#fff'; c.font = 'bold ' + fz(11, 11, 1.3) + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.fillText('↑ 고도 창', BLD.x + BLD.w / 2, y + 12);
     }
     c.fillStyle = '#3e2f1c'; c.font = 'bold ' + fz(12, 11, 1.3) + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
-    c.fillText(f + '층', BLD.x + BLD.w / 2, BLD.baseY + 10);
+    c.fillText((planet() ? planetName(planet()) + ' ' : '') + f + '층', BLD.x + BLD.w / 2, BLD.baseY + 10);
   }
   function drawCrane() {
-    const k = crane, jy = jibY(), cos = Math.cos(k.phi);
+    const k = crane, jy = smoothY('jib', jibY()), cos = Math.cos(k.phi);
     // 기초·마스트(격자)
     c.fillStyle = '#9e9e9e'; c.fillRect(1070, 584, 36, 8);
     c.fillStyle = YEL; c.fillRect(CR.mastX - 6, jy, 12, 584 - jy);
@@ -530,7 +557,7 @@ const SITE = (() => {
     if (k.beam) { const bw = 60 * Math.max(0.35, Math.abs(Math.sin(k.phi + Math.PI / 2))); drawBeam(tx - bw / 2, hy + 7, bw); limb(tx, hy + 5, tx - bw / 2 + 2, hy + 7, 1, '#37474f'); limb(tx, hy + 5, tx + bw / 2 - 2, hy + 7, 1, '#37474f'); }
     if (k.phase === 'place' && simTime - k.t < 0.6) { c.fillStyle = 'rgba(255,255,255,.8)'; c.beginPath(); c.arc(tx, mainTopY() - 2, 4 + (simTime - k.t) * 30, 0, Math.PI * 2); c.fill(); }
   }
-  function liftTop() { return jibY() + 21 - 34; }
+  function liftTop() { return smoothY('jib', jibY()) + 21 - 34; }
   let cages = [LIFT.base];
   function updateCage() { // 타고 있는 백엔드마다 케이지 하나(동시에 둘이면 둘), 아무도 안 타면 마지막 자리에 멈춤
     const ys = [];
@@ -584,8 +611,48 @@ const SITE = (() => {
     c.globalAlpha = 1;
   }
 
+  /* ---------- 로켓 분리 발사(사용자 11-16 ③안) ---------- */
+  function startLaunch(from, to) {
+    toast('🚀 ' + (from + 1) + '호 건물 발사! — ' + planetName(to) + ' 도착, 1층부터');
+    if (reduced()) return; // 움직임 줄이기: 알림만, 그림은 바로 새 행성
+    launch = { t: 0, from, to };
+    for (const r of runners) if (r.role === 'backend' && !r.extra && r.ovK >= 1) say(r, '다녀와!', 2);
+  }
+  function rocketTower(x, y, w, n, fh, flame) { // 옛 건물을 로켓으로: 유리 층 + 뾰족 머리 + 날개 + 불꽃
+    for (let i = 0; i < n; i++) { const fy = y - (i + 1) * fh; c.fillStyle = i >= n - 2 ? WALL : GLASS; c.fillRect(x, fy, w, fh); if (i < n - 2) { c.fillStyle = GLASS_HI; for (let b = 0; b < 4; b++) c.fillRect(x + 5 + b * w / 4, fy + fh * 0.25, w / 4 - 12, Math.max(1, fh * 0.15)); } c.fillStyle = SLAB; c.fillRect(x - 1, fy + fh - 2, w + 2, 2); }
+    const top = y - n * fh;
+    c.fillStyle = '#e53935'; c.beginPath(); c.moveTo(x - 2, top); c.lineTo(x + w / 2, top - w * 0.6); c.lineTo(x + w + 2, top); c.closePath(); c.fill();
+    c.fillStyle = '#c62828'; c.beginPath(); c.moveTo(x, y); c.lineTo(x - w * 0.18, y + fh * 1.2); c.lineTo(x, y - fh * 2); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(x + w, y); c.lineTo(x + w + w * 0.18, y + fh * 1.2); c.lineTo(x + w, y - fh * 2); c.closePath(); c.fill();
+    if (flame > 0) for (let k = 0; k < 3; k++) { const fx = x + w * (0.25 + k * 0.25), L = flame * (0.7 + 0.3 * Math.sin(simTime * 40 + k * 2)); c.fillStyle = 'rgba(255,152,0,.9)'; c.beginPath(); c.moveTo(fx - w * 0.09, y); c.lineTo(fx + w * 0.09, y); c.lineTo(fx, y + L); c.closePath(); c.fill(); c.fillStyle = 'rgba(255,241,118,.95)'; c.beginPath(); c.moveTo(fx - w * 0.045, y); c.lineTo(fx + w * 0.045, y); c.lineTo(fx, y + L * 0.55); c.closePath(); c.fill(); }
+  }
+  const launchDy = () => { const t = launch.t; return t < 1.5 ? Math.sin(t * 60) * 2 : -ease(Math.min(1, (t - 1.5) / 3.5)) * 760; };
+  function drawLaunch() { // 0~1.5초 점화·흔들림, 1.5~5초 위로 날아감
+    const t = launch.t, n = BLD.maxMain - 1, dy = launchDy();
+    rocketTower(BLD.x, BLD.baseY + dy, BLD.w, n, BLD.floorH, t < 0.4 ? t * 60 : 26 + Math.min(40, (t - 0.4) * 30));
+  }
+  function drawSmoke() { for (const q of smoke) { c.globalAlpha = Math.max(0, Math.min(0.55, q.life / 1.6 * 0.55)); disc(q.x, q.y, q.r, '#eceff1'); } c.globalAlpha = 1; }
+  function drawAltLaunch() { // 고도 창: 별 사이로 솟는 작은 로켓
+    const A = ALT, t = launch.t, ix = A.x + A.ruler, iw = A.w - A.ruler, iy = A.y + A.title, ih = A.h - A.title;
+    c.save();
+    c.fillStyle = '#1f1f1f'; rrect(A.x - 3, A.y - 3, A.w + 6, A.h + 6, 6); c.fill();
+    c.beginPath(); c.rect(A.x, iy, A.w, ih); c.clip();
+    const g = c.createLinearGradient(0, iy, 0, iy + ih); g.addColorStop(0, '#05070f'); g.addColorStop(1, '#1b3a6b'); c.fillStyle = g; c.fillRect(A.x, iy, A.w, ih);
+    c.fillStyle = '#fff'; for (let i = 0; i < 40; i++) { const sy = iy + ((i * 37 + t * 120 * (1 + i % 3)) % ih); c.fillRect(ix + (i * 53) % iw, sy, 1.5, 1.5); } // 별이 아래로 흐름 = 로켓 상승
+    const P0 = palOf(launch.from), P1 = palOf(launch.to);
+    c.fillStyle = P0[5]; c.beginPath(); c.arc(A.x + A.w / 2, iy + ih + 260 + Math.max(0, t - 1.5) * 90, 280, 0, Math.PI * 2); c.fill(); // 떠나는 행성
+    if (t > 4.2) { c.globalAlpha = Math.min(1, (t - 4.2) / 1.2); c.fillStyle = P1[5]; c.beginPath(); c.arc(A.x + A.w / 2, iy - 220 + (t - 4.2) * 60, 230, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1; } // 다가오는 새 행성
+    const ry = iy + ih - 30 - ease(Math.min(1, Math.max(0, t - 1.2) / 3.5)) * (ih - 70);
+    rocketTower(A.x + A.w / 2 - 9, ry, 18, 6, 6, 10 + Math.sin(simTime * 30) * 3);
+    c.restore();
+    c.fillStyle = '#1f1f1f'; c.fillRect(A.x, A.y, A.w, A.title);
+    c.fillStyle = '#ffd166'; c.font = 'bold ' + fz(12, 11, 1.2) + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'left'; c.textBaseline = 'middle';
+    c.fillText('🚀 ' + planetName(launch.from) + ' → ' + planetName(launch.to), A.x + 6, A.y + A.title / 2 + 1);
+  }
+
   /* ---------- 고도 창 ---------- */
   function drawAltitude() {
+    if (launch && !reduced()) return drawAltLaunch();
     const f = floors();
     if (f <= BLD.maxMain) return;
     const A = ALT, zi = zoneIdx(f), ix = A.x + A.ruler, iw = A.w - A.ruler, iy = A.y + A.title, ih = A.h - A.title;
@@ -597,7 +664,7 @@ const SITE = (() => {
     c.fillStyle = g; c.fillRect(ix, iy, iw, ih);
     const starA = Math.max(0, Math.min(1, (f - 50) / 40));
     if (starA > 0) { c.fillStyle = 'rgba(255,255,255,' + starA + ')'; for (let i = 0; i < 40; i++) { const sx = ix + (i * 53) % iw, sy = iy + (i * 37) % ih; c.fillRect(sx, sy, (i % 5) ? 1 : 1.5, (i % 5) ? 1 : 1.5); } }
-    if (f >= ZONES[3][0]) { c.fillStyle = '#1565c0'; c.beginPath(); c.arc(ix + iw / 2, iy + ih + 380, 400, 0, Math.PI * 2); c.fill(); c.strokeStyle = 'rgba(129,212,250,.8)'; c.lineWidth = 3; c.stroke(); }
+    if (f >= ZONES[3][0]) { c.fillStyle = palOf(planet())[5]; c.beginPath(); c.arc(ix + iw / 2, iy + ih + 380, 400, 0, Math.PI * 2); c.fill(); c.strokeStyle = 'rgba(129,212,250,.8)'; c.lineWidth = 3; c.stroke(); }
     // 구름(지상~성층권)
     const cloudA = f < 10 ? f / 10 : f < 70 ? 1 : Math.max(0, 1 - (f - 70) / 30);
     if (cloudA > 0) { c.fillStyle = 'rgba(255,255,255,' + (0.85 * cloudA) + ')'; for (let i = 0; i < 4; i++) { const cx = ix + ((i * 70 + sky.cloudOff * (1 + i * 0.3)) % (iw + 60)) - 30, cy = iy + 30 + i * 38; disc(cx, cy, 9, c.fillStyle); disc(cx + 10, cy - 4, 11, c.fillStyle); disc(cx + 22, cy, 8, c.fillStyle); } }
@@ -656,7 +723,7 @@ const SITE = (() => {
     // 제목
     c.fillStyle = '#1f1f1f'; c.fillRect(A.x, A.y, A.w, A.title);
     c.fillStyle = '#ffd166'; c.font = 'bold ' + fz(12, 11, 1.2) + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'left'; c.textBaseline = 'middle';
-    c.fillText('🏗️ 고도 ' + f + '층 · ' + ZONES[zi][1], A.x + 6, A.y + A.title / 2 + 1);
+    c.fillText('🏗️ ' + (planet() ? planetName(planet()) + ' · ' : '고도 ') + f + '층 · ' + ZONES[zi][1], A.x + 6, A.y + A.title / 2 + 1);
   }
 
   /* ---------- 그리기 순서 ---------- */
@@ -664,7 +731,7 @@ const SITE = (() => {
     drawBg();
     drawTrail();
     drawYard();
-    drawBuilding();
+    if (launch && launch.t < 5 && !reduced()) drawLaunch(); else drawBuilding();
     drawProps();
     drawElevators(false);
     drawBench();
@@ -687,8 +754,9 @@ const SITE = (() => {
     drawSweat();
     drawSparks();
     drawPops();
+    drawSmoke();
     drawAltitude();
   }
 
-  return { txt, render, update, place, drawTool, addBonus: n => { bonus += n; }, floors, hold, pathPos: routePos, pathLen: () => 2 * ONE, rolePos, roleLen, startT, startPt, entry, inExit, speedK: SPEED_K };
+  return { txt, render, update, place, drawTool, addBonus: n => { bonus += n; }, floors, planet, hold, pathPos: routePos, pathLen: () => 2 * ONE, rolePos, roleLen, startT, startPt, entry, inExit, speedK: SPEED_K };
 })();
