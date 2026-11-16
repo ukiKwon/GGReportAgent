@@ -22,6 +22,8 @@ const SITE = (() => {
   const BLD = { x: 1110, w: 140, baseY: 588, floorH: 18, maxMain: 16 }; // 16층이면 크레인 지브·운전석 이름표가 고도 창(y≤205) 아래에 보인다
   const CR = { mastX: 1088, jib: 160, counter: 56, phiYard: Math.PI, phiBld: 0, phiRest: 0.35, tYard: 93, tBld: 92, hookRest: 20 };
   const YARD = { x: 940, y: 556, w: 110 };
+  const LIFT = { x: 1066, base: 584 }, LIFT_RATE = 0.2, LIFT_IN = 0.2, LIFT_OUT = 0.85; // 리프트 레일(크레인 마스트 왼쪽)·구간 비율
+  let cageY = LIFT.base;
   const ALT = { x: 1040, y: 12, w: 228, h: 190, ruler: 22, title: 18 };
   const ROLE_T = { security: [.01, .05], auditor: [.21, .25], backend: [.29, .33], pm: [.36, .40], frontend: [.43, .47], designer: [.53, .57], planner: [.62, .66], qa: [.82, .86] };
   const STEEL = '#a8432b', WALL = '#d5d0c4', GLASS = '#7fb3d5', GLASS_HI = '#d6eaf8', SLAB = '#8f959a', YEL = '#f2b705';
@@ -73,7 +75,10 @@ const SITE = (() => {
     for (const r of runners) {
       if (r.role !== 'backend') continue;
       const want = r.active && r.state === 'run' && fatOf(r.lapF, r.freshAt) < 10;
-      r.ovK = Math.max(0, Math.min(1, (r.ovK || 0) + (want ? dt : -dt)));
+      const k0 = r.ovK || 0;
+      r.ovK = Math.max(0, Math.min(1, k0 + (want ? dt : -dt) * LIFT_RATE)); // 리프트로 오르내림(약 5초)
+      if (want && k0 < LIFT_IN && r.ovK >= LIFT_IN) say(r, '리프트 탑승!', 1.5);
+      if (!want && k0 > LIFT_IN && r.ovK <= LIFT_IN) say(r, '1층 도착', 1.2);
       if (r.extra && r.ovK >= 1 && Math.random() < dt * 9) { // 용접 불꽃
         const p = topSpot(r);
         for (let k = 0; k < 3; k++) sparks.push({ x: p.x + p.face * 10, y: p.y - 18, vx: (Math.random() - 0.5) * 90, vy: -40 - Math.random() * 60, life: 0.5 });
@@ -118,9 +123,13 @@ const SITE = (() => {
   }
   function place(r) {
     if (r.role !== 'backend' || !r.ovK) return null;
-    const tgt = r.extra ? topSpot(r) : cabSpot(), k = ease(r.ovK);
+    const tgt = r.extra ? topSpot(r) : cabSpot(), k = r.ovK;
     if (k >= 1) return tgt;
-    return { x: lerp(r.x, tgt.x, k), y: lerp(r.y, tgt.y, k), s: lerp(1, tgt.s, k), face: tgt.face, pose: 'walk' };
+    // 건설용 리프트: ① 리프트 앞까지 걸어감 → ② 케이지 타고 수직 상승 → ③ 운전석·꼭대기로 걸어 들어감(내려올 땐 반대)
+    if (k < LIFT_IN) { const q = ease(k / LIFT_IN); return { x: lerp(r.x, LIFT.x, q), y: lerp(r.y, LIFT.base, q), s: 1, face: LIFT.x >= r.x ? 1 : -1, pose: 'walk' }; }
+    if (k < LIFT_OUT) { const q = ease((k - LIFT_IN) / (LIFT_OUT - LIFT_IN)); return { x: LIFT.x, y: lerp(LIFT.base, tgt.y, q), s: lerp(1, tgt.s, q), face: 1, pose: 'stand', riding: true }; }
+    const q = ease((k - LIFT_OUT) / (1 - LIFT_OUT));
+    return { x: lerp(LIFT.x, tgt.x, q), y: tgt.y, s: tgt.s, face: tgt.x >= LIFT.x ? 1 : -1, pose: 'walk' };
   }
 
   /* ---------- 손에 든 도구 ---------- */
@@ -322,6 +331,32 @@ const SITE = (() => {
     if (k.beam) { const bw = 60 * Math.max(0.35, Math.abs(Math.sin(k.phi + Math.PI / 2))); drawBeam(tx - bw / 2, hy + 7, bw); limb(tx, hy + 5, tx - bw / 2 + 2, hy + 7, 1, '#37474f'); limb(tx, hy + 5, tx + bw / 2 - 2, hy + 7, 1, '#37474f'); }
     if (k.phase === 'place' && simTime - k.t < 0.6) { c.fillStyle = 'rgba(255,255,255,.8)'; c.beginPath(); c.arc(tx, mainTopY() - 2, 4 + (simTime - k.t) * 30, 0, Math.PI * 2); c.fill(); }
   }
+  function liftTop() { return jibY() + 21 - 34; }
+  let cages = [LIFT.base];
+  function updateCage() { // 타고 있는 백엔드마다 케이지 하나(동시에 둘이면 둘), 아무도 안 타면 마지막 자리에 멈춤
+    const ys = [];
+    for (const r of runners) { if (r.role !== 'backend' || !r.ovK) continue; const p = place(r); if (p && p.riding) ys.push(p.y); }
+    if (ys.length) { cages = ys; cageY = ys[0]; } else cages = [cageY];
+  }
+  function drawLift() {
+    updateCage();
+    const x = LIFT.x, top = liftTop();
+    c.fillStyle = '#9e9e9e'; c.fillRect(x - 13, LIFT.base, 26, 6);
+    c.strokeStyle = '#78909c'; c.lineWidth = 2;
+    for (const dx of [-11, 11]) { c.beginPath(); c.moveTo(x + dx, LIFT.base); c.lineTo(x + dx, top); c.stroke(); }
+    c.lineWidth = 1; for (let y = top; y < LIFT.base; y += 14) { c.beginPath(); c.moveTo(x - 11, y); c.lineTo(x + 11, y + 14); c.stroke(); }
+    c.fillStyle = 'rgba(38,50,56,.55)'; for (const cy of cages) c.fillRect(x - 10, cy - 32, 20, 32); // 케이지 뒤판
+    c.fillStyle = '#3e2f1c'; c.font = 'bold ' + fz(11, 11, 1.2) + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+    c.fillText('리프트', x - 26, LIFT.base - 4);
+  }
+  function drawLiftFront() {
+    const x = LIFT.x;
+    for (const cy of cages) {
+      c.strokeStyle = YEL; c.lineWidth = 2; c.strokeRect(x - 10, cy - 32, 20, 32);
+      c.lineWidth = 1; for (const dx of [-4, 3]) { c.beginPath(); c.moveTo(x + dx, cy - 32); c.lineTo(x + dx, cy); c.stroke(); }
+      c.fillStyle = YEL; c.fillRect(x - 12, cy - 35, 24, 3);
+    }
+  }
   function drawSignalers() { // 치어리더 대체: 깃발 신호수
     const on = waveOn();
     for (const ch of cheers) {
@@ -444,10 +479,12 @@ const SITE = (() => {
     drawSignalers();
     drawCoach('#f5f5f5', true); // 현장소장은 흰 안전모(한국 현장 관례)
     drawCrane();
+    drawLift();
     drawMedics();
     const janBack = jan.job === 'splash' && jan.stage === 3;
     if (janBack) drawJanitor();
     [...runners].sort((a, b) => a.y - b.y).forEach(drawRunner);
+    drawLiftFront();
     drawTable();
     if (!janBack) drawJanitor();
     drawSplashFx();
