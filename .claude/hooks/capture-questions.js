@@ -41,7 +41,9 @@ function parseQuestion(str) {
 function mask(s) {
   // security 11-15 보강: _접두 키·한글 키·공백 구분, URL 쿼리 값, Bearer, AWS 키, 사설 IP, 유선·국제 전화, 계좌·카드(숫자 10자리 이상 묶음 — 날짜는 제외)
   return String(s || '')
-    .replace(/(^|[^A-Za-z])((?:access_|refresh_|x[_-]?)?(?:password|passwd|pwd|pw|token|secret|api[_-]?key|key|auth|sid|jsessionid|session)|비밀번호|비번|암호)((?:은|는|이|가)?\s*[=:]\s*|(?:은|는|이|가)?\s+)\S+/gi, '$1$2=[가림]')
+    .replace(/(^|[^A-Za-z])((?:access_|refresh_|x[_-]?)?(?:password|passwd|pwd|pw|token|secret|api[_-]?key|key|auth|sid|jsessionid|session)|비밀번호|비번|암호)(\s*[=:]\s*|\s+)\S+/gi, '$1$2=[가림]')
+    // 조사가 붙은 한글 키("비밀번호는 abc123")는 값이 한글이 아닐 때만 — "암호가 걸린 파일" 같은 문장은 두다(11-16 오탐 수정)
+    .replace(/(비밀번호|비번|암호)(?:은|는|이|가)(\s*[=:]\s*|\s+)[^\s가-힣]+/g, '$1=[가림]')
     .replace(/\bBearer\s+\S+/gi, 'Bearer [가림]')
     .replace(/([?&][^=\s&]+=)[^&\s]+/g, '$1[가림]')
     .replace(/\bAKIA[0-9A-Z]{16}\b/g, '[가림]')

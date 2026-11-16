@@ -215,4 +215,6 @@ test('사용자가 붙여 넣은 🙋 블록·에이전트 보고 속 🙋 블�
 test('mask: 키워드 뒤에 한국어 조사가 붙어도 값을 가린다(security 11-16 하)', () => {
   const t = cq.parseQuestion('비밀번호는 abc123 이고 암호가 zz9 입니다').summary;
   assert.ok(!/abc123|zz9/.test(t), t);
+  const u = cq.parseQuestion('업로더에 암호가 걸린 엑셀이 있나요?').summary;   // 값이 한글이면 문장이다(11-16 오탐)
+  assert.strictEqual(u, '업로더에 암호가 걸린 엑셀이 있나요?');
 });
