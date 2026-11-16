@@ -8,6 +8,10 @@ const BAD = new Set(['__proto__', 'constructor', 'prototype']);
 const MAX_BODY = 16 * 1024;
 const ALLOW = new Set(['index.html', 'app.js', 'fmt.js', 'style.css', 'state.json']); // 정적 서빙 허용 목록(그 외·디렉터리는 404)
 const HOST_OK = h => /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(h || '');
+// 이 밖은 501(NEXT 31). CONNECT 는 Node 가 'connect' 이벤트로 넘겨 여기 오지 않고(받는 곳이 없어 연결 종료),
+// Node 파서가 모르는 이름(FOO 등)은 핸들러 전에 400 — 501 은 PROPFIND 처럼 파서는 알지만 안 쓰는 메서드에만 나온다.
+const KNOWN_METHODS = new Set(['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'TRACE']);
+const notAllowed = (res, allow) => { res.writeHead(405, { Allow: allow }); res.end('method not allowed'); };
 const QFILE = path.join(ROOT, '..', 'handoff', 'questions.json'), MAX_Q = 256 * 1024; // 고정 경로(요청 값으로 경로를 만들지 않는다)
 const readQuestions = () => { // 어떤 실패도 {questions:[],error}로 — 대시보드가 죽지 않게. 오류 문구에는 경로·예외 내용을 싣지 않는다
   try {
@@ -24,7 +28,9 @@ if (!fs.existsSync(STATE)) fs.writeFileSync(STATE, JSON.stringify({ coach: { tas
 store.update(() => {}); // 기존 state.json에 stats가 없으면 normalize가 채운다
 http.createServer((req, res) => {
   if (!HOST_OK(req.headers.host)) { res.writeHead(403); return res.end('bad host'); }
+  if (!KNOWN_METHODS.has(req.method)) { res.writeHead(501); return res.end('not implemented'); }
   const url = req.url.split('?')[0];
+  if (url === '/api/state' && req.method !== 'POST') return notAllowed(res, 'POST');
   if (req.method === 'POST' && url === '/api/state') {
     if (!/^application\/json/i.test(req.headers['content-type'] || '')) { res.writeHead(415); return res.end('json only'); }
     let body = '', big = false;
@@ -51,6 +57,7 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     return res.end(req.method === 'HEAD' ? undefined : JSON.stringify(readQuestions()));
   }
+  if (req.method !== 'GET' && req.method !== 'HEAD') return notAllowed(res, 'GET, HEAD'); // /api/version·정적·없는 경로 공통(405가 404보다 먼저)
   if (url === '/api/version') { // 화면 코드가 바뀌면 열린 탭이 스스로 새로고침하도록 파일 수정 시각을 알려 준다
     const v = ['index.html', 'app.js', 'fmt.js', 'style.css'].map(n => { try { return fs.statSync(path.join(ROOT, n)).mtimeMs; } catch (_) { return 0; } }).reduce((a, b) => Math.max(a, b), 0); // 브랜치 전환 등으로 파일이 잠깐 없어도 서버가 죽지 않게
     res.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' }); return res.end(String(v));

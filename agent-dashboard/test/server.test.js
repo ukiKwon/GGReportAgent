@@ -138,6 +138,61 @@ describe('서버 stats POST', () => {
   });
 });
 
+describe('HTTP 메서드 405/501 (NEXT 31)', () => {
+  const rawReq = (method, p, headers = {}) => new Promise((resolve, reject) => {
+    const r = http.request({ host: '127.0.0.1', port, method, path: p, headers }, res => {
+      let b = ''; res.setEncoding('utf8'); res.on('data', d => b += d); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: b }));
+    });
+    r.on('error', reject); r.end();
+  });
+  it('/api/state는 POST 외 메서드가 405 + Allow: POST이고 상태는 그대로다', async () => {
+    writeState({ laps: 5, since: 1000 });
+    const before = fs.readFileSync(stateFile(), 'utf8');
+    for (const m of ['GET', 'HEAD', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']) {
+      const r = await rawReq(m, '/api/state', { 'Content-Type': 'application/json' });
+      assert.strictEqual(r.status, 405, m); assert.strictEqual(r.headers.allow, 'POST', m);
+    }
+    assert.strictEqual(fs.readFileSync(stateFile(), 'utf8'), before);
+  });
+  it('정적 파일·/api/version·없는 경로도 쓰기·OPTIONS는 405 + Allow: GET, HEAD', async () => {
+    for (const p of ['/', '/app.js', '/state.json', '/api/version', '/nope', '/closing.log']) {
+      for (const m of ['POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']) {
+        const r = await rawReq(m, p);
+        assert.strictEqual(r.status, 405, m + ' ' + p); assert.strictEqual(r.headers.allow, 'GET, HEAD', m + ' ' + p);
+      }
+    }
+  });
+  it('TRACE·쿼리 붙은 경로도 같은 규칙(qa 11-16)', async () => {
+    let r = await rawReq('TRACE', '/app.js');
+    assert.strictEqual(r.status, 405); assert.strictEqual(r.headers.allow, 'GET, HEAD');
+    r = await rawReq('GET', '/api/state?x=1');
+    assert.strictEqual(r.status, 405); assert.strictEqual(r.headers.allow, 'POST');
+    r = await rawReq('PUT', '/api/version?x=1');
+    assert.strictEqual(r.status, 405); assert.strictEqual(r.headers.allow, 'GET, HEAD');
+  });
+  it('GET·HEAD는 영향 없다(정적 200·없는 파일 404)', async () => {
+    assert.strictEqual((await rawReq('GET', '/app.js')).status, 200);
+    assert.strictEqual((await rawReq('HEAD', '/api/version')).status, 200);
+    assert.strictEqual((await rawReq('GET', '/closing.log')).status, 404);
+  });
+  it('파서는 알지만 지원하지 않는 메서드(PROPFIND·PURGE)는 501이다', async () => {
+    for (const m of ['PROPFIND', 'PURGE']) {
+      for (const p of ['/', '/api/state', '/api/questions', '/api/version']) {
+        assert.strictEqual((await rawReq(m, p)).status, 501, m + ' ' + p);
+      }
+    }
+  });
+  it('Host 변조는 메서드보다 먼저 403이다', async () => {
+    for (const m of ['PUT', 'OPTIONS', 'PROPFIND']) {
+      assert.strictEqual((await rawReq(m, '/app.js', { Host: 'evil.com' })).status, 403, m);
+    }
+  });
+  it('거부된 요청 뒤에도 서버가 살아 있고 POST /api/state는 정상이다', async () => {
+    assert.strictEqual((await postJson({ coach: { task: '' } })).status, 204);
+    assert.strictEqual((await rawReq('GET', '/')).status, 200);
+  });
+});
+
 describe('정적 노출', () => {
   it('허용 파일은 200', async () => {
     for (const p of ['/', '/index.html', '/app.js', '/fmt.js', '/style.css', '/state.json', '/app.js?x=1']) {
