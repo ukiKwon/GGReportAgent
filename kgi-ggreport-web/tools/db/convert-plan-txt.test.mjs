@@ -62,6 +62,34 @@ test('동작: 한 파일의 분야별로 번호가 새로 시작한다', () => {
   assert.equal(rows[1].budget.state, 'NOT_IN_SOURCE');
 });
 
+test('중구 6장 형식: 머리 끝 \' - 계 N\' + 다음 줄 연차, 사업개요 뒤 연차, \' - 예산 표 미확인\'', () => {
+  const txt = [
+    '# 시민소통화합분야 (1개 역점과제, 3개 세부사업, 총 투자계획 5,121백만원, 2022~2026)',
+    '',
+    '[세부사업 목록 및 예산(백만원, 계=2022~2026 누계)]',
+    '',
+    '과제1. 주민 자치',
+    ' 1. 구민과 함께 만들어가는 주민자치(공약/계속)  - 계 4,713',
+    '    (2022:723, 2023:996, 2024:998, 2025:998, 2026:998)',
+    ' 2. 중구대표축제 정동야행 추진(공약사업) - 계 408',
+    '    - 사업개요: 문화재 야행',
+    '    (2022:-, 2023:98, 2024:100, 2025:100, 2026:110)',
+    ' 3. 구청장 소통문자로 민원서비스 운영(신규사업) - 예산 표 미확인',
+  ].join('\n');
+  const rows = buildRows(parseChapter(txt, 5, 'jung'), 'jung', 't', []);
+  assert.equal(rows.length, 3);
+  assert.equal(rows[0].name, '구민과 함께 만들어가는 주민자치');
+  assert.equal(rows[0].budget.state, 'AMOUNT');
+  assert.equal(rows[0].budget.amount, '4,713');
+  assert.equal(rows[0].budget.years, '2022:723;2023:996;2024:998;2025:998;2026:998');
+  assert.ok(rows[0].content.includes('사업구분: 공약/계속'));
+  assert.equal(rows[1].name, '중구대표축제 정동야행 추진');
+  assert.equal(rows[1].budget.amount, '408');
+  assert.ok(!rows[1].content.includes('2023:98'));
+  assert.equal(rows[2].name, '구청장 소통문자로 민원서비스 운영');
+  assert.equal(rows[2].budget.state, 'UNVERIFIED');
+});
+
 test('실제 원문: 동대문·동작·중구 행 수가 인덱스와 일치하고 오류가 없다', () => {
   const spec = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'corpus', 'institutions');
   for (const [id, n, docs] of [['dongdaemun', 122, 5], ['dongjak', 95, 13], ['jung', 125, 5]]) {

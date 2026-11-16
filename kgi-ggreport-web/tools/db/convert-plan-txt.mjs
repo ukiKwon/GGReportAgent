@@ -400,11 +400,23 @@ export function buildRows(chapter, budgetKind, tag, errs) {
       content = [...topicLine(it), ...segs, ...it.lines.filter((_, i) => i !== bi)];
       budget = bi >= 0 ? labeledBudget(it.lines[bi].replace(BUDGET_LINE_RE, '')) : blankBudget('NOT_IN_SOURCE');
     } else if (budgetKind === 'jung') {
-      const cm = /\(((?:공약|신규|계속)[^()]*)\)\s*$/.exec(it.head);
-      name = (cm ? it.head.slice(0, cm.index) : it.head).trim();
-      const bi = it.lines.findIndex((l) => /^예산\s*:/.test(l));
-      content = [...topicLine(it), ...(cm ? [`사업구분: ${cm[1].trim()}`] : []), ...it.lines.filter((_, i) => i !== bi)];
-      budget = bi >= 0 ? jungBudget(it.lines[bi].replace(/^예산\s*:\s*/, ''), chapter.unit) : blankBudget('NOT_IN_SOURCE');
+      // 중구 6장(시민소통화합)은 '사업명(구분) - 계 N' 다음 줄에 '(2022:…)'(이어 붙어 머리나 마지막 글머리 끝으로 온다), '- 예산 표 미확인'도 머리 끝(data-auditor 11-16)
+      let head = it.head;
+      let tail = null;
+      const tm = /^(.*?\S)\s+-\s+((?:계\s|예산\s).*)$/.exec(head);
+      if (tm) { head = tm[1]; tail = tm[2].trim(); }
+      const lines = it.lines.slice();
+      if (tail !== null && lines.length) {
+        const last = lines[lines.length - 1];
+        const ym = /^(.*?)\s*(\(\d{4}:[^()]*\))\s*$/.exec(last);
+        if (ym) { tail += ' ' + ym[2]; if (ym[1].trim()) lines[lines.length - 1] = ym[1].trim(); else lines.pop(); }
+      }
+      const cm = /\(((?:공약|신규|계속)[^()]*)\)\s*$/.exec(head);
+      name = (cm ? head.slice(0, cm.index) : head).trim();
+      const bi = lines.findIndex((l) => /^예산\s*:/.test(l));
+      content = [...topicLine(it), ...(cm ? [`사업구분: ${cm[1].trim()}`] : []), ...lines.filter((_, i) => i !== bi)];
+      if (tail !== null) budget = jungBudget(tail.replace(/^예산\s*/, ''), chapter.unit);
+      else budget = bi >= 0 ? jungBudget(lines[bi].replace(/^예산\s*:\s*/, ''), chapter.unit) : blankBudget('NOT_IN_SOURCE');
     } else {
       const bi = it.lines.findIndex((l) => /^예산\s*:/.test(l));
       const braw = bi >= 0 ? it.lines[bi].replace(/^예산\s*:\s*/, '') : null;
