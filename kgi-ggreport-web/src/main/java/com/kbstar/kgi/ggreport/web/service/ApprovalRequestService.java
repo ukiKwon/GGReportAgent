@@ -22,6 +22,7 @@ import com.kbstar.kgi.ggreport.web.support.MenuPerms;
 import com.kbstar.kgi.ggreport.web.support.Menus;
 import com.kbstar.kgi.ggreport.web.support.Pii;
 import com.kbstar.kgi.ggreport.web.support.Ranks;
+import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import com.kbstar.kgi.ggreport.web.web.Actor;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
@@ -328,8 +329,17 @@ public class ApprovalRequestService {
         }
         List<ApprovalStep> steps = new ArrayList<>();
         SysUser line = lineApprover(me);
+        boolean adminByLine = false;
         if (line != null) {
             steps.add(step(steps.size() + 1, "LINE", line.getEmpNo()));
+            // 전산팀 결재선에서 상위 결재자(전산팀장)가 이미 시스템 관리자면 관리자 확인을 그 결재로 갈음한다
+            // (2026-11-16 사용자 결정: 전산팀원 권한 신청은 전산팀장 결재로 끝, 범위는 전산팀만 ⓑ). 상신 시점 스냅샷이고,
+            // 결재 시점에도 결재하는 사람이 관리자여야 한다(eligibility — 관리자가 아닌 대결자가 혼자 최종 승인하지 못하게).
+            if (needsAdmin && IT_TEAM.equals(Teams.teamOf(me.getRole())) && IT_TEAM.equals(Teams.teamOf(line.getRole()))
+                    && permissions.canAdmin(line.getEmpNo())) {
+                needsAdmin = false;
+                adminByLine = true;
+            }
         } else {
             needsAdmin = true;      // 최상위(대표급)는 올릴 곳이 없어 관리자 확인으로 갈음한다
         }
@@ -339,6 +349,9 @@ public class ApprovalRequestService {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("reason", reason);
         payload.put("changes", payloadChanges);
+        if (adminByLine) {
+            payload.put("admin_by_line", Boolean.TRUE);   // 서버만 쓴다 — 요청 DTO(ApprovalIn.PermRequest)에는 이 키가 없다
+        }
         ApprovalRequest r = new ApprovalRequest();
         r.setReqType(ApprovalTypes.PERM_REQUEST);
         r.setRequesterEmpNo(me.getEmpNo());
@@ -395,7 +408,7 @@ public class ApprovalRequestService {
         List<ApprovalStep> steps = requests.selectSteps(id);
         ApprovalStep cur = current(steps, r);
         SysUser requester = users.selectByEmpNo(r.getRequesterEmpNo());
-        String how = eligibility(me, requester, cur, r.getReqType());
+        String how = eligibility(me, requester, cur, r);
         if (how == null) {
             throw new ApiException(403, "이 요청을 결재할 수 없습니다 — 결재자(또는 유효한 대결자)가 아니거나, "
                     + "직급이 맞지 않거나(결재자는 상신자보다 높아야 하고 대결자는 상신자보다 낮으면 안 됩니다), 본인의 요청입니다.");
@@ -510,7 +523,8 @@ public class ApprovalRequestService {
             for (String dep : deps) {
                 SysUser d = users.selectByEmpNo(dep);
                 if (d != null && "ACTIVE".equals(d.getStatus()) && !dep.equals(requester.getEmpNo())
-                        && Ranks.mayDecide(requester, d) && !to.contains(dep)) {
+                        && Ranks.mayDecide(requester, d) && !to.contains(dep)
+                        && (!adminByLine(r) || permissions.canAdmin(dep))) {   // 관리자 확인을 갈음한 건은 관리자 대결자만
                     to.add(dep);
                     viaDeputy.put(dep, principal == null ? "" : principal.getName());
                 }
@@ -584,7 +598,7 @@ public class ApprovalRequestService {
         } else if ("inbox".equals(box)) {
             for (ApprovalRequest r : requests.selectPending()) {
                 if (eligibility(me, users.selectByEmpNo(r.getRequesterEmpNo()),
-                        current(requests.selectSteps(r.getReqId()), r), r.getReqType()) != null) {
+                        current(requests.selectSteps(r.getReqId()), r), r) != null) {
                     rows.add(r);
                 }
             }
@@ -665,22 +679,37 @@ public class ApprovalRequestService {
      * {@code null}(불가). 결재자 본인은 상신자보다 직급이 엄격히 높아야 하고({@link Ranks#mayApprove}),
      * 대결자는 같은 직급까지 허용한다({@link Ranks#mayDecide}).
      */
-    private String eligibility(SysUser me, SysUser requester, ApprovalStep step, String reqType) {
+    private String eligibility(SysUser me, SysUser requester, ApprovalStep step, ApprovalRequest r) {
+        String reqType = r.getReqType();
         if (me.getEmpNo().equals(requester.getEmpNo())) {
             return null;
         }
         if ("ADMIN".equals(step.getKind())) {
             return permissions.canAdmin(me.getEmpNo()) ? "SELF" : null;
         }
+        String how;
         if (me.getEmpNo().equals(step.getApproverEmpNo())) {
-            return Ranks.mayApprove(requester, me) ? "SELF" : null;
+            how = Ranks.mayApprove(requester, me) ? "SELF" : null;
+        } else if (ApprovalTypes.NO_PROXY.contains(reqType)) {      // 담당자 변경은 결재자 본인만(대결 불가)
+            how = null;
+        } else {
+            how = Ranks.mayDecide(requester, me)
+                    && deputies.principalsOf(me.getEmpNo(), Times.todayKst()).contains(step.getApproverEmpNo())
+                    ? "DEPUTY" : null;
         }
-        if (ApprovalTypes.NO_PROXY.contains(reqType)) {      // 담당자 변경은 결재자 본인만(대결 불가)
+        // 관리자 확인을 상위 결재자 결재로 갈음한 권한 신청: 결재하는 사람(본인·대결자)이 지금도 관리자여야 한다.
+        if (how != null && adminByLine(r) && !permissions.canAdmin(me.getEmpNo())) {
             return null;
         }
-        return Ranks.mayDecide(requester, me)
-                && deputies.principalsOf(me.getEmpNo(), Times.todayKst()).contains(step.getApproverEmpNo())
-                ? "DEPUTY" : null;
+        return how;
+    }
+
+    private static final String IT_TEAM = "전산";
+
+    /** 상신 때 전산팀장이 관리자여서 ADMIN 단계를 붙이지 않은 권한 신청인가(payload 는 서버가 만든 값만 담는다). */
+    private static boolean adminByLine(ApprovalRequest r) {
+        return ApprovalTypes.PERM_REQUEST.equals(r.getReqType())
+                && read(r.getPayload()).path("admin_by_line").asBoolean(false);
     }
 
     /** 상태 전이 문장이 정확히 1행이 아니면 그 사이 다른 결재·취소가 먼저 끝난 것 — 409 로 끝내 트랜잭션 전체를 되돌린다. */
@@ -895,7 +924,7 @@ public class ApprovalRequestService {
         m.put("steps", sv);
         boolean pending = "PENDING".equals(r.getStatus());
         String how = pending && requester != null
-                ? eligibility(me, requester, current(steps, r), r.getReqType()) : null;
+                ? eligibility(me, requester, current(steps, r), r) : null;
         m.put("can_decide", how != null);
         m.put("acting_as_deputy", "DEPUTY".equals(how));
         boolean teamInternal = ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType()) || ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())

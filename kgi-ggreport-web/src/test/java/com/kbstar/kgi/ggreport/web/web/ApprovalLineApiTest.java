@@ -573,4 +573,79 @@ public class ApprovalLineApiTest {
         assertEquals(1, got.size());
         assertTrue(got.get(0).get("content").asText().contains("취소"));
     }
+
+    // ── 2026-11-16 사용자 결정: 전산팀원 권한 신청은 관리자인 전산팀장 결재로 끝(범위는 전산팀만 ⓑ) ──
+    private static final String IT_MEMBER = "4482971";   // 권전산(전산팀, 대리) → 상위 결재자 오전산
+    private static final String IT_LEAD = "6295038";     // 오전산(전산팀장)
+    private static final String IT_SENIOR = "6513840";   // 양서현(전산팀, 과장) — 역할 기본값으로 관리자
+
+    /** 033 과 같은 상태(전산팀장 × 권한관리)를 시험 트랜잭션 안에서만 켜고 끈다. */
+    private void itLeadAdmin(boolean on) throws Exception {
+        call(ADMIN, put("/menus"), "{\"changes\":[{\"role\":\"전산팀장\",\"menu\":\"admin\",\"enabled\":" + on + "}]}", 200);
+    }
+
+    @Test
+    public void 전산팀원이_결재_권한을_신청하면_관리자인_전산팀장_승인_한_번으로_반영된다() throws Exception {
+        itLeadAdmin(true);
+        JsonNode r = submit(IT_MEMBER, APPROVALS_APPROVE, 200);
+        long id = r.get("req_id").asLong();
+        assertEquals(1, r.get("steps").size());
+        assertEquals("LINE", r.get("steps").get(0).get("kind").asText());
+        assertEquals(IT_LEAD, r.get("steps").get(0).get("approver_emp_no").asText());
+        assertFalse(inInbox(ADMIN, id));                       // 다른 관리자에게는 가지 않는다
+        JsonNode done = decide(IT_LEAD, id, "APPROVE", "확인", 200);
+        assertEquals("APPROVED", done.get("status").asText());
+        assertTrue(permOn(IT_MEMBER, "approvals", "approve"));
+    }
+
+    @Test
+    public void 전산팀원이_권한관리를_신청해도_전산팀장_한_단계다() throws Exception {
+        itLeadAdmin(true);
+        JsonNode r = submit(IT_MEMBER, "[{\"menu\":\"admin\",\"view\":true}]", 200);
+        assertEquals(1, r.get("steps").size());
+        assertEquals("APPROVED", decide(IT_LEAD, r.get("req_id").asLong(), "APPROVE", null, 200).get("status").asText());
+    }
+
+    @Test
+    public void 전산팀장이_관리자가_아니면_전산팀원_신청에도_관리자_확인이_붙는다() throws Exception {
+        JsonNode r = submit(IT_MEMBER, APPROVALS_APPROVE, 200);   // 시험 DB 기본값: 033 미적용
+        assertEquals(2, r.get("steps").size());
+        assertEquals("ADMIN", r.get("steps").get(1).get("kind").asText());
+    }
+
+    @Test
+    public void 영업팀원의_결재_권한_신청은_지금처럼_관리자_확인을_거친다() throws Exception {
+        itLeadAdmin(true);
+        JsonNode r = submit(MEMBER, APPROVALS_APPROVE, 200);
+        assertEquals(2, r.get("steps").size());
+        assertEquals("ADMIN", r.get("steps").get(1).get("kind").asText());
+    }
+
+    @Test
+    public void 관리자가_아닌_대결자는_관리자_확인을_갈음한_신청을_결재할_수_없다() throws Exception {
+        itLeadAdmin(true);
+        deputy(IT_LEAD, null, LEAD2, 0, 2, 200);               // 영업팀장(비관리자)을 대결자로
+        long id = submit(IT_MEMBER, APPROVALS_APPROVE, 200).get("req_id").asLong();
+        assertFalse(inInbox(LEAD2, id));
+        assertEquals(0, notesTo(LEAD2, "결재알림").size());
+        decide(LEAD2, id, "APPROVE", null, 403);
+        assertFalse(permOn(IT_MEMBER, "approvals", "approve"));
+    }
+
+    @Test
+    public void 상신_뒤_전산팀장이_관리자에서_빠지면_결재할_수_없다() throws Exception {
+        itLeadAdmin(true);
+        long id = submit(IT_MEMBER, APPROVALS_APPROVE, 200).get("req_id").asLong();
+        itLeadAdmin(false);
+        assertFalse(inInbox(IT_LEAD, id));
+        decide(IT_LEAD, id, "APPROVE", null, 403);
+        assertFalse(permOn(IT_MEMBER, "approvals", "approve"));
+    }
+
+    @Test
+    public void 전산팀원의_일반_메뉴_신청은_원래대로_한_단계다() throws Exception {
+        itLeadAdmin(true);
+        JsonNode r = submit(IT_MEMBER, KNOWLEDGE_WRITE, 200);
+        assertEquals(1, r.get("steps").size());
+    }
 }
