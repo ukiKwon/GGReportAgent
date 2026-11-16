@@ -846,6 +846,7 @@
   }
   .subregion.selected { stroke:var(--accent-color);
                         animation: muni-blink var(--ripple-duration) ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .subregion.selected { animation:none; stroke-width:3; } }
   .marker.hi > * { stroke:#fff; stroke-width:2.5; }
 
   /* 범례 — 진짜 글래스: blur + 1px 엣지 + 이너 하이라이트 */
@@ -875,7 +876,8 @@
   .rank-head b { font-size:12px; letter-spacing:.06em; }
   .rank-head select, .rank-head .rk-type { padding:3px 8px; font-size:12px; }
   .rank-card { padding:9px 14px; margin:0; border-bottom:1px solid var(--line);
-               cursor:pointer; transition:background .2s, transform .2s; }
+               cursor:pointer; transition:background .2s, transform .2s; user-select:none; }
+  .rank-card:focus-visible { outline:2px solid var(--accent-color); outline-offset:-2px; }
   .rank-card:hover { background:#1a2130; transform:translateX(3px); }
   .rank-card.hi { background:color-mix(in srgb, var(--accent-color) 13%, transparent);
                   box-shadow:inset 2px 0 0 var(--accent-color); }

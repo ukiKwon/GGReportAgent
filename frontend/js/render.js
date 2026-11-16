@@ -826,9 +826,15 @@
       card.querySelector('.heart').addEventListener('click', function (e) {
         e.stopPropagation(); store.toggleInterest(r.name); render.drawRankingPanel(code);
       });
+      card.querySelector('.heart').addEventListener('dblclick', function (e) { e.stopPropagation(); });
       card.addEventListener('mouseenter', function () { render.highlightMarker(r.name, true); });
       card.addEventListener('mouseleave', function () { render.highlightMarker(r.name, false); });
-      card.addEventListener('click', function (ev) { render.selectInstitution(r); render.openRecord(r, card, ev.clientX, ev.clientY); });
+      // 한 번 누르면 지도에 표시(반짝), 두 번 누르면 기관 상세 팝업(사용자 11-16). 한 번 동작은 되풀이해도 결과가 같아
+      // 더블클릭에서 click이 먼저 두 번 와도 지연 타이머 없이 충돌하지 않는다. 상세는 dblclick·Enter에서만 열린다.
+      card.addEventListener('click', function () { render.showOnMap(r); });
+      card.addEventListener('dblclick', function (ev) { ev.preventDefault(); render.showOnMap(r); render.openRecord(r, card, ev.clientX, ev.clientY); });
+      card.addEventListener('focus', function () { render.showOnMap(r); });   // Tab으로 훑어도 지도에 표시된다
+      card.title = '한 번 누르면 지도에 표시, 두 번 누르거나 Enter를 누르면 기관 상세';
       // 키보드로도 열 수 있다(NEXT 28 최소분): Tab으로 닿고 Enter·Space로 팝오버를 연다. ♥(하트)에서 올라온 키는 건너뛴다.
       card.setAttribute('tabindex', '0');
       card.setAttribute('role', 'button');
@@ -903,8 +909,29 @@
     render._selectedName = rec ? rec.name : null;
     if (!rec) return;
     if (rec.type === '지자체') render._blinkMunicipality(rec);
-    else render._drawRipple(rec.name);
+    else if (typeof rec.lng === 'number' && typeof rec.lat === 'number') render._drawRipple(rec.name);
+    else render._blinkSubRegion(rec);              // 좌표 없는 법원·교육청 등은 소재 시군구 면을 반짝(사용자 11-16)
     render.highlightCard(rec.name, true);
+  };
+
+  // 지자체가 아닌 기관의 소재 시군구(subRegion) 면 코드 — 이 지도에 그 면이 있을 때만. 없으면 [].
+  render.faceCodesForSubRegion = function (rec, fc) {
+    if (!rec || !rec.subRegion || !fc || !fc.features) return [];
+    return fc.features.filter(function (f) { return f.properties && f.properties.code === rec.subRegion; })
+      .map(function (f) { return f.properties.code; });
+  };
+  render._blinkSubRegion = function (rec) {
+    const fc = (render.REGION_GEO[render.state.currentRegion] || function () { return null; })();
+    const codes = render.faceCodesForSubRegion(rec, fc);
+    if (!codes.length) return;
+    d3.select('#map-svg').selectAll('path.subregion')
+      .filter(function () { return codes.indexOf(this.getAttribute('data-code')) >= 0; })
+      .classed('selected', true).raise();
+  };
+  // 카드를 누르거나 포커스가 올 때: 같은 기관이 이미 표시 중이면 다시 그리지 않는다(반짝임이 처음부터 다시 시작되는 깜박임 방지).
+  render.showOnMap = function (rec) {
+    if (render._selectedName === rec.name && document.querySelector('#map-svg path.subregion.selected, #map-svg g.ripple-layer')) return;
+    render.selectInstitution(rec);
   };
 
   // 지자체: 좌표(마커)가 없으므로 물결 대신 해당 구 외곽선을 깜빡인다.

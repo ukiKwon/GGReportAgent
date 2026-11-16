@@ -331,3 +331,23 @@ test('installIdentityHeader 설치 후 prep.postConfirm 요청: X-Emp-No가 X-Sc
     global.fetch = prevFetch;
   }
 });
+
+// ── 사용자 11-16: 순위 카드 한 번=지도 반짝, 두 번=상세 팝업, 비지자체는 소재 구 면 반짝 ──
+test('render.js: 카드 click은 지도 표시만(상세 안 열림), dblclick이 상세, focus도 지도 표시, ♥ 더블클릭은 막는다', function () {
+  const r = read('js/render.js');
+  assert.ok(r.indexOf("card.addEventListener('click', function () { render.showOnMap(r); });") > 0);
+  const dbl = r.slice(r.indexOf("card.addEventListener('dblclick'"));
+  assert.ok(dbl.length > 0 && /^[^\n]*render\.openRecord\(r, card/.test(dbl));
+  assert.ok(r.indexOf("card.addEventListener('focus', function () { render.showOnMap(r); });") > 0);
+  assert.ok(/\.heart'\)\.addEventListener\('dblclick', function \(e\) \{ e\.stopPropagation\(\); \}\)/.test(r));
+  assert.ok(/else render\._blinkSubRegion\(rec\);/.test(r));
+});
+
+test('render.faceCodesForSubRegion: subRegion 면만, 없거나 지도에 없으면 []', function () {
+  const render = require('../js/render.js');
+  const fc = { features: [{ properties: { code: '11010' } }, { properties: { code: '11220' } }] };
+  assert.deepStrictEqual(render.faceCodesForSubRegion({ subRegion: '11220' }, fc), ['11220']);
+  assert.deepStrictEqual(render.faceCodesForSubRegion({}, fc), []);
+  assert.deepStrictEqual(render.faceCodesForSubRegion({ subRegion: '99999' }, fc), []);
+  assert.deepStrictEqual(render.faceCodesForSubRegion({ subRegion: '11220' }, null), []);
+});
