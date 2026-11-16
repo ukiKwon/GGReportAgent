@@ -187,7 +187,14 @@ public class BidCaseAuditIsolationTest {
         } catch (IllegalStateException e) {
             assertSame(auditFailure, e);
         }
-        assertEquals("성공 줄 실패는 실패-감사 격리 경로(WARN)를 타지 않는다", 0, logs.list.size());
+        // 성공 줄 실패는 WARN 격리 경로를 타지 않고 ERROR 한 줄만 남긴다(NEXT 70, planner 11-16)
+        assertEquals(1, logs.list.size());
+        ch.qos.logback.classic.spi.ILoggingEvent ev = logs.list.get(0);
+        assertEquals(ch.qos.logback.classic.Level.ERROR, ev.getLevel());
+        String msg = ev.getFormattedMessage();
+        assertTrue(msg, msg.startsWith("입찰 건 성공 감사를 남기지 못했다") && msg.contains("action=CASE_VIEW ")
+                && msg.contains("case=" + BID) && msg.contains("cause=IllegalStateException"));
+        assertNull("스택트레이스를 싣지 않는다", ev.getThrowableProxy());
     }
 
     @Test
