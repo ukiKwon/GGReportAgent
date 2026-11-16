@@ -103,3 +103,6 @@ collector/.env*.local
 # 질문 장부 자동 수집 훅의 잠금·임시 파일
 handoff/questions.json.lock
 handoff/questions.json.*.tmp
+
+# 기관 사업계획 원문 PDF(기관 공개자료, 용량 큼) — 이 PC에만 둔다(사용자 결정 2026-11-16). 시드에는 문서명·쪽수만 적는다.
+collector/business_plan/
