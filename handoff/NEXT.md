@@ -471,3 +471,8 @@
 - **S1 완료(ff18847)**: 분석 때 RFP 원문 .full.txt 저장 + GET /api/rfps/{id}/fulltext(원문 없는 옛 건은 code=fulltext_missing → 재분석). security: 차단 없음.
 - **다음 한 걸음**: ⓐ 사용자 확인 — 올라오는 공고문에 은행 내부 메모·주석이 섞일 수 있는지(섞이면 무인증 노출 '상' → 인증 먼저) ⓑ 화면 '원문 보기'는 textContent로만·fulltext_missing 안내(프런트, kgi 연동 때) ⓒ uploader /api/** 무인증 부채는 문의 03-4ⓒ.
 - **자세히**: planner 11-16 NEXT 87 보고, security 11-16 NEXT 86 ①③ 확인 보고, NEXT 17·21·25.
+
+### 89. 기관 상세 '현재 금고 은행'·약정 기간 직접 수정(수정자 표시) — 기획·서버 설계 완료, 적용 대기 [담당: security → backend-dev 적용(메인) → design-reviewer → frontend-dev → qa]
+- **현재**: 사용자 11-16 ⓐ(화면에서 직접 고침, 수집 안 됐어도 영업 담당자 입력, 수정자가 옆에 보이게), 현황판 '국민은행이 맡은 기관' 숫자에는 직접 입력을 넣지 않음(ⓐ, Q-2026-11-16-93). 기획: 약정 기록 표(추가 전용·취소 행)+은행 코드표, 출처 4종(담당자 확인=부서+확인일), 권한 canEditInstitution+영업팀, 직접 입력 우선 표시+수집값 다르면 병기, contractExpiry 자동 반영 안 함. 서버 설계: DB 039 쌍(약정 기록·은행 코드), API(최신·이력·저장·취소), 화면·버튼 institution_edit/save_bank_contract.
+- **다음 한 걸음**: security 설계 검토 → 메인이 039·서버 패치 적용·mvn → 로컬 MySQL 039 적용(사용자) → design-reviewer 화면 규격(상세 절 4번째 갈래·변경 창 '금고 약정' 묶음) → frontend-dev → qa·design_history.
+- **자세히**: handoff/agents/planner/2026-11-16_1642_ad0ec34d.md, handoff/agents/backend-dev/2026-11-16_1659_ac437049.md, 출처 2026-11-16_summary.md Session 14:40 (9f) 이후.
