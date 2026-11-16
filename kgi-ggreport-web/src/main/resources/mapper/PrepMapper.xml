@@ -30,6 +30,14 @@
        AND STATE_CD IN ('CONFIRMED', 'OPEN_PENDING', 'IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE', 'WRITING')
   </select>
 
+  <!-- 공고 상태 기록(037) '공고 종료' 확인 판단용. 상태 목록은 countActiveByInstitution 과 같아야 한다(바꾸면 둘 다). -->
+  <select id="selectActiveStatesByInstitution" resultType="string" flushCache="true">
+    SELECT STATE_CD FROM BID_PREP
+     WHERE INSTITUTION_ID = #{institutionId}
+       AND STATE_CD IN ('CONFIRMED', 'OPEN_PENDING', 'IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE', 'WRITING')
+     ORDER BY UPDATED_AT DESC
+  </select>
+
   <insert id="insertPrep">
     INSERT INTO BID_PREP (BID_CASE_ID, INSTITUTION_ID, STATE_CD, CONFIRMED_BY, CONFIRMED_AT, UPDATED_BY, UPDATED_AT)
     VALUES (#{bidCaseId}, #{institutionId}, #{stateCd}, #{by}, #{now}, #{by}, #{now})

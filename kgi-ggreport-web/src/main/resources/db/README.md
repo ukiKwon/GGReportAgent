@@ -23,7 +23,7 @@ db/
 | registry (7) | `INSTITUTIONS` `BID_CASES` `TASKS` `MESSAGES` `NOTIFICATIONS` `ROLE_MENUS` `CHAT_MESSAGES` |
 | 검색 (4) | `CHUNKS` `VECTORS` `META` `FILES` |
 | 공통 코드 (1, 016) | `COMMON_CODE` — 그룹+코드 복합 PK. 시드(017)는 `NOTICE_STATUS` 3종만 |
-| 경과 처리 (1, 018) | `NOTICE_FOLLOWUP` — 공고 예정일 경과 건 처리 이력(추가 전용, PK = 기관+예정일+REV_NO) |
+| 공고 상태 기록 (2, 037) | `NOTICE_ROUND`(회차, PK = 기관+회차 순번) · `NOTICE_ROUND_LOG`(판정 이력, 추가 전용). 018 `NOTICE_FOLLOWUP` 은 폐기 |
 
 > 001·002 이후의 테이블(006 오케스트레이터, 008 시스템 관리, 010~014 결재·양식)은 각 파일 헤더를 본다.
 > 015는 FK를 떼는 멱등 스크립트(테이블 없음), `ops/integrity_check.sql`은 읽기 전용 점검 쿼리다.

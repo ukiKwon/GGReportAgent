@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- NOTICE_ROUND / NOTICE_ROUND_LOG — 037(공고 상태 기록, NEXT 30 2단계). 양쪽 방언에서 같은 문장(ANSI). 페이징은 RowBounds(FETCH FIRST 없음 — 11g).
+     쓰기는 기관 행 잠금(lockInstitution)이 먼저 — 같은 기관의 저장은 거기서 직렬화되므로 회차·이력 조회에는 FOR UPDATE 를 걸지 않는다
+     (빈 결과 FOR UPDATE 는 MySQL gap 잠금 교착, InstitutionHeadMapper 선례). 조회는 flushCache — 같은 트랜잭션 안의 앞선 결과 캐시를 타지 않게. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.NoticeRoundMapper">
+
+  <select id="lockInstitution" resultType="NoticeInstRef" flushCache="true">
+    SELECT INSTITUTION_ID, LAST_BID FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId} FOR UPDATE
+  </select>
+
+  <select id="selectInstitution" resultType="NoticeInstRef" flushCache="true">
+    SELECT INSTITUTION_ID, LAST_BID FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId}
+  </select>
+
+  <sql id="roundCols">INSTITUTION_ID, ROUND_SEQ, SOURCE_CD, ANCHOR_LAST_BID, TARGET_TERM_YEAR, OPENED_AT, OPENED_BY,
+    CLOSED_AT, CLOSE_REASON_CD, CLOSED_BY, CLOSED_LAST_BID</sql>
+
+  <sql id="logCols">l.INSTITUTION_ID, l.ROUND_SEQ, l.REV_NO, l.STATUS_CD, l.PREV_STATUS_CD, l.OPINION, l.NEXT_CHECK_DATE, l.PREV_NEXT_CHECK,
+    l.ACTIVE_PREP, l.ACTIVE_PREP_STATE, l.SNAP_DUE_DATE, l.SNAP_DUE_BASIS, l.SNAP_DUE_CONFIRMED, l.SNAP_AUTO_KIND, l.SNAP_AUTO_DAYS,
+    l.SNAP_LAST_BID, l.HANDLER_EMP_NO, l.HANDLER_NAME, l.EMP_VERIFIED, l.SCREEN_ID, l.BUTTON_ID, l.UI_VALID, l.HANDLED_AT</sql>
+
+  <!-- 열린 회차는 1개여야 하지만(integrity Q10) 깨졌을 때 selectOne 예외가 나지 않게 목록으로 받고 가장 큰 순번을 쓴다. -->
+  <select id="selectOpenRounds" resultType="NoticeRound" flushCache="true">
+    SELECT <include refid="roundCols"/> FROM NOTICE_ROUND
+     WHERE INSTITUTION_ID = #{institutionId} AND CLOSED_AT IS NULL ORDER BY ROUND_SEQ DESC
+  </select>
+
+  <select id="selectMaxRoundSeq" resultType="int" flushCache="true">
+    SELECT COALESCE(MAX(ROUND_SEQ), 0) FROM NOTICE_ROUND WHERE INSTITUTION_ID = #{institutionId}
+  </select>
+
+  <insert id="insertRound">
+    INSERT INTO NOTICE_ROUND (INSTITUTION_ID, ROUND_SEQ, SOURCE_CD, ANCHOR_LAST_BID, OPENED_AT, OPENED_BY)
+    VALUES (#{institutionId}, #{roundSeq}, #{sourceCd}, #{anchorLastBid,jdbcType=VARCHAR}, #{now}, #{by})
+  </insert>
+
+  <update id="fillAnchor">
+    UPDATE NOTICE_ROUND SET ANCHOR_LAST_BID = #{lastBid}
+     WHERE INSTITUTION_ID = #{institutionId} AND ROUND_SEQ = #{roundSeq} AND CLOSED_AT IS NULL AND ANCHOR_LAST_BID IS NULL
+  </update>
+
+  <update id="closeRound">
+    UPDATE NOTICE_ROUND SET CLOSED_AT = #{now}, CLOSE_REASON_CD = #{reasonCd}, CLOSED_BY = #{by},
+           CLOSED_LAST_BID = #{lastBid,jdbcType=VARCHAR}
+     WHERE INSTITUTION_ID = #{institutionId} AND ROUND_SEQ = #{roundSeq} AND CLOSED_AT IS NULL
+  </update>
+
+  <select id="selectLatestLog" resultType="NoticeRoundLog" flushCache="true">
+    SELECT <include refid="logCols"/> FROM NOTICE_ROUND_LOG l
+     WHERE l.INSTITUTION_ID = #{institutionId} AND l.ROUND_SEQ = #{roundSeq}
+       AND NOT EXISTS (SELECT 1 FROM NOTICE_ROUND_LOG n
+                        WHERE n.INSTITUTION_ID = l.INSTITUTION_ID AND n.ROUND_SEQ = l.ROUND_SEQ AND n.REV_NO > l.REV_NO)
+  </select>
+
+  <insert id="insertLog" parameterType="NoticeRoundLog">
+    INSERT INTO NOTICE_ROUND_LOG (INSTITUTION_ID, ROUND_SEQ, REV_NO, STATUS_CD, PREV_STATUS_CD, OPINION, NEXT_CHECK_DATE, PREV_NEXT_CHECK,
+        ACTIVE_PREP, ACTIVE_PREP_STATE, SNAP_DUE_DATE, SNAP_DUE_BASIS, SNAP_DUE_CONFIRMED, SNAP_AUTO_KIND, SNAP_AUTO_DAYS, SNAP_LAST_BID,
+        HANDLER_EMP_NO, HANDLER_NAME, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, HANDLED_AT)
+    VALUES (#{institutionId}, #{roundSeq}, #{revNo}, #{statusCd}, #{prevStatusCd,jdbcType=VARCHAR}, #{opinion,jdbcType=VARCHAR},
+        #{nextCheckDate,jdbcType=VARCHAR}, #{prevNextCheck,jdbcType=VARCHAR}, #{activePrep}, #{activePrepState,jdbcType=VARCHAR},
+        #{snapDueDate,jdbcType=VARCHAR}, #{snapDueBasis,jdbcType=VARCHAR}, #{snapDueConfirmed}, #{snapAutoKind,jdbcType=VARCHAR},
+        #{snapAutoDays,jdbcType=NUMERIC}, #{snapLastBid,jdbcType=VARCHAR}, #{handlerEmpNo}, #{handlerName}, #{empVerified},
+        #{screenId}, #{buttonId}, #{uiValid}, #{handledAt})
+  </insert>
+
+  <select id="selectOpenCurrent" resultType="NoticeRoundView" flushCache="true">
+    SELECT r.INSTITUTION_ID, r.ROUND_SEQ, r.ANCHOR_LAST_BID, i.LAST_BID AS CUR_LAST_BID,
+           l.REV_NO, l.STATUS_CD, l.NEXT_CHECK_DATE, l.HANDLER_NAME, l.EMP_VERIFIED, l.HANDLED_AT
+      FROM NOTICE_ROUND r
+      JOIN NOTICE_ROUND_LOG l ON l.INSTITUTION_ID = r.INSTITUTION_ID AND l.ROUND_SEQ = r.ROUND_SEQ
+      LEFT JOIN INSTITUTIONS i ON i.INSTITUTION_ID = r.INSTITUTION_ID
+     WHERE r.CLOSED_AT IS NULL
+       AND NOT EXISTS (SELECT 1 FROM NOTICE_ROUND_LOG n
+                        WHERE n.INSTITUTION_ID = l.INSTITUTION_ID AND n.ROUND_SEQ = l.ROUND_SEQ AND n.REV_NO > l.REV_NO)
+     ORDER BY r.INSTITUTION_ID, r.ROUND_SEQ DESC
+  </select>
+
+  <select id="selectRounds" resultType="NoticeRound" flushCache="true">
+    SELECT <include refid="roundCols"/> FROM NOTICE_ROUND WHERE INSTITUTION_ID = #{institutionId} ORDER BY ROUND_SEQ DESC
+  </select>
+
+  <select id="selectLogs" resultType="NoticeRoundLog" flushCache="true">
+    SELECT <include refid="logCols"/> FROM NOTICE_ROUND_LOG l
+     WHERE l.INSTITUTION_ID = #{institutionId} ORDER BY l.ROUND_SEQ DESC, l.REV_NO DESC
+  </select>
+</mapper>

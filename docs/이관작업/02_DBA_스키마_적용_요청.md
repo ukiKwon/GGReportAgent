@@ -51,7 +51,7 @@
 | 015 | 외래키 떼기 | **조건부(A3)** | 여러 번 돌려도 됨 |
 | 016 | 공통 코드표 | 적용 | 한 번 |
 | 017 | 공통 코드 값(공고 상태 3종) | 적용 | 016 뒤 한 번 |
-| 018 | 공고 예정일 경과 처리 이력 | 적용 | 016·017 뒤 한 번 |
+| 018 | 공고 예정일 경과 처리 이력 | **적용하지 않음** | 037이 대체(키가 예정일이라 예정일을 고치면 이력이 끊김, 2026-11-16) |
 | 019 | 입찰 건 담당자 배정·이력 | 적용 | 016·017 뒤 한 번 |
 | 020 | 이사회 자료 저장·제출·확정·이력·열람 기록 | 적용 | 019 뒤 한 번 |
 | 021~023 | (번호 비어 있음) | — | [확인 필요: 예약 번호] |
@@ -64,6 +64,7 @@
 | 030 | 기관 칸 추가 + 기관 수정 이력 + 운영 상태 코드 | 적용 | 029·016 뒤 한 번 |
 | 031 | 기관 새 칸 값 채우기(142곳) | 적용 | 030 직후 한 번 |
 | 032 | 기관 새 칸 값 채우기 보강(150곳) | 적용 | 031 뒤 한 번 |
+| 037 | 공고 상태 기록(입찰 회차·판정 이력) + 코드 4그룹 | 적용 | 016·017 뒤 한 번. IDENTITY·FETCH FIRST 없음(11g 그대로 가능). **새 서버 프로그램보다 먼저**. [033~036은 각 작업에서 따로 기재] |
 
 ⚠️ **적용 순서 — DB가 먼저, 서버가 나중입니다.** 026과 030·031·032가 적용된 뒤에 새 서버 프로그램을 올립니다. 반대로 하면 기관 목록 화면이 오류가 납니다. 적용이 끝나면 알려 주십시오. 배포 일정을 맞추겠습니다.
 
@@ -75,7 +76,9 @@
 | INST_HEAD_LOG, INST_HEAD_ACT(기관장 정보 이력·열람 기록) | **SELECT·INSERT만** | 026 |
 | INST_EDIT_LOG(기관 수정 이력) | **SELECT·INSERT만** | 030 |
 | INST_HEAD, INST_HEAD_ITEM, INST_HEAD_PHOTO | SELECT·INSERT·UPDATE(**DELETE 없음**) | 026 |
-| NOTICE_FOLLOWUP, BID_ASSIGN_LOG, BOARD_MATERIAL_SNAP·_LOG·_ACT, BID_PREP_LOG·_ACT | SELECT·INSERT만 **검토 요청** | 추가 전용으로 설계한 이력 표입니다. [확인 필요: 개발 쪽 최종 확인 뒤 확정] |
+| NOTICE_ROUND_LOG(공고 판정 이력) | **SELECT·INSERT만** | 037 |
+| NOTICE_ROUND(입찰 회차) | SELECT·INSERT + 칸 단위 UPDATE(ANCHOR_LAST_BID, CLOSED_AT, CLOSE_REASON_CD, CLOSED_BY, CLOSED_LAST_BID), **DELETE 없음** | 037 |
+| BID_ASSIGN_LOG, BOARD_MATERIAL_SNAP·_LOG·_ACT, BID_PREP_LOG·_ACT | SELECT·INSERT만 **검토 요청** | 추가 전용으로 설계한 이력 표입니다. [확인 필요: 개발 쪽 최종 확인 뒤 확정] |
 | 그 밖의 표 | [빈칸: 개발 쪽 확인 뒤 기재] | |
 
 - DB 비밀번호는 WAS 콘솔의 DataSource(`jdbc/ggreportDS`)에만 넣습니다. 설정 파일에는 두지 않습니다.

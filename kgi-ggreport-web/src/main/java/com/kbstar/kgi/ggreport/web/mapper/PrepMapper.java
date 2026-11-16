@@ -29,6 +29,9 @@ public interface PrepMapper {
     /** 그 기관의 활성(CONFIRMED~WRITING) 건 수. */
     int countActiveByInstitution(@Param("institutionId") String institutionId);
 
+    /** 그 기관의 활성(CONFIRMED~WRITING) 건 상태 코드 — 최근 갱신 순. 공고 상태 기록(037)의 '공고 종료' 확인용(상태 목록은 countActiveByInstitution 과 같다). */
+    List<String> selectActiveStatesByInstitution(@Param("institutionId") String institutionId);
+
     int insertPrep(@Param("bidCaseId") String bidCaseId, @Param("institutionId") String institutionId,
                    @Param("stateCd") String stateCd, @Param("by") String by, @Param("now") String now);
 
