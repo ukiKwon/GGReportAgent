@@ -436,6 +436,36 @@ test('paneHtml: 금고 순번(slot)은 있을 때만 표시, 값이 없으면 �
   assert.ok(bare.indexOf('pop-unk') >= 0);                                     // 최근 절차일·약정 주기 없음 → 칩(빈칸·'-' 금지)
 });
 
+test('paneHtml: KB_NEXT 항목은 현재 은행과 2027년부터 국민은행을 함께 보이고, now가 없으면 미확인', function () {
+  const it = dash.model([rec('송파구청', '11', 40, { lastBid: '2024-09-24', term: 4 })], TODAY).upcoming[0];
+  const withNow = dash.paneHtml(it, { act: 'none', kb: null, next: { key: '11|송파구청', from: '2027', now: '우리은행', term: '2027~2030',
+    src_date: '2026-10-06', url: 'https://www.hankyung.com/article/2026100662561', quote: '국민은행 선정(우리은행에서 이동)' } });
+  assert.ok(withNow.indexOf('현재 금고 우리은행 · 2027년부터 국민은행(약정 2027~2030)') >= 0);
+  assert.ok(withNow.indexOf('국민은행 선정(우리은행에서 이동)') >= 0 && withNow.indexOf('출처 기준일 2026-10-06') >= 0);
+  assert.ok(/<a href="https:\/\/www\.hankyung\.com\/article\/2026100662561"[^>]*rel="noopener noreferrer">출처 보기<\/a>/.test(withNow));
+  const noNow = dash.paneHtml(it, { act: 'none', kb: null, next: { key: '45|전북대학교병원', from: '2027', term: '2027~2031', quote: 'q' } });
+  assert.ok(/현재 은행 <span class="pop-unk"[^>]*>미확인<\/span> · 2027년부터 국민은행\(약정 2027~2031\)/.test(noNow), noNow);
+  const noTerm = dash.paneHtml(it, { act: 'none', kb: null, next: { key: 'k', from: '2027', now: '신한은행', quote: 'q' } });
+  assert.ok(noTerm.indexOf('2027년부터 국민은행</dd>') >= 0);                 // term 없으면 괄호 생략
+  const bothKb = dash.paneHtml(it, { act: 'none', kb: { key: 'x', slot: 1, quote: '검증 문장' }, next: { key: 'x', now: 'Z', quote: 'n' } });
+  assert.ok(bothKb.indexOf('KB국민은행 · 1금고') >= 0 && bothKb.indexOf('2027년부터 국민은행') < 0);   // KB_VERIFIED 우선
+});
+
+test('paneHtml: 청주처럼 leaves가 있으면 2027년부터 다른 은행 줄과 근거를 보인다', function () {
+  const it = dash.model([rec('청주시청', '43', 40, { lastBid: '2024-09-24', term: 4 })], TODAY).upcoming[0];
+  const h = dash.paneHtml(it, { act: 'none', kb: { key: '43|청주시청', slot: 2, leaves: '2027', quote: 'q', next: '국민은행 빠짐' } });
+  assert.ok(h.indexOf('<dt>2027년부터</dt><dd>다른 은행 <span class="db-why">국민은행 빠짐</span></dd>') >= 0);
+  assert.strictEqual(dash.paneHtml(it, { act: 'none', kb: { key: 'x', slot: 2, quote: 'q' } }).indexOf('다른 은행'), -1);
+});
+
+test('paneHtml: KB_NEXT 문장·출처 주소는 이스케이프되고 위험 주소는 링크가 되지 않는다', function () {
+  const evil = '<script>alert(1)</script>';
+  const it = dash.model([rec('송파구청', '11', 40, { lastBid: '2024-09-24', term: 4 })], TODAY).upcoming[0];
+  const h = dash.paneHtml(it, { act: 'none', next: { key: 'k', now: evil, quote: evil, src_date: evil, url: 'javascript:alert(1)' } });
+  assert.strictEqual(h.indexOf('<script>alert'), -1);
+  assert.strictEqual(h.indexOf('javascript:'), -1);
+});
+
 test('이스케이프: 기관명·출처·검증 문장의 <script>가 그대로 나가지 않는다', function () {
   const evil = '<script>alert(1)</script>';
   const m = dash.model([rec(evil, '11', 20, { sources: [evil, 'https://example.invalid/a"onmouseover="x'] }), rec(evil + '2', '11', -3, { confirmed: false })], TODAY);

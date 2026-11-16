@@ -706,8 +706,18 @@
       const slot = c.kb.slot ? ' · ' + esc(c.kb.slot) + '금고' : '';
       bank = '<div class="db-sec"><h3>현재 금고 은행</h3><dl class="db-dl"><dt>금고 은행</dt><dd>KB국민은행' + slot + '</dd>' +
         '<dt>근거</dt><dd>' + esc(c.kb.quote || '') + (c.kb.src_date ? ' <span class="db-why">출처 기준일 ' + esc(c.kb.src_date) + '</span>' : '') + '</dd>' +
+        (c.kb.leaves ? '<dt>' + esc(c.kb.leaves) + '년부터</dt><dd>다른 은행' + (c.kb.next ? ' <span class="db-why">' + esc(c.kb.next) + '</span>' : '') + '</dd>' : '') +
         '<dt>약정 기간</dt><dd>' + chip() + '</dd></dl>' +
         '<p class="db-empty">출처 문장으로 확인한 현 금고만 보입니다. 약정 기록을 모으면 약정 기간이 함께 보입니다.</p></div>';
+    } else if (c.next) {
+      // 2027년부터 국민은행으로 바뀌는 기관(KB_NEXT). now = 지금 금고 은행(없으면 미확인). 출처 링크는 <dd> 안 — 버튼 밖.
+      const nx = c.next, nu = logic.safeHttpUrl(nx.url);
+      bank = '<div class="db-sec"><h3>현재 금고 은행</h3><dl class="db-dl"><dt>금고 은행</dt><dd>' +
+        (nx.now ? '현재 금고 ' + esc(nx.now) : '현재 은행 ' + chip()) +
+        ' · ' + esc(nx.from || '2027') + '년부터 국민은행' + (nx.term ? '(약정 ' + esc(nx.term) + ')' : '') + '</dd>' +
+        '<dt>근거</dt><dd>' + esc(nx.quote || '') + (nx.src_date ? ' <span class="db-why">출처 기준일 ' + esc(nx.src_date) + '</span>' : '') +
+        (nu ? ' <a href="' + esc(nu) + '" target="_blank" rel="noopener noreferrer">출처 보기</a>' : '') + '</dd></dl>' +
+        '<p class="db-empty">' + (nx.now ? '지금 금고 은행은 출처 문장으로 확인했습니다. ' : '') + esc(nx.from || '2027') + '년 약정은 선정 결과 기준이며 본계약 여부는 출처에서 다시 확인하세요.</p></div>';
     } else {
       bank = '<div class="db-sec"><h3>현재 금고 은행</h3><dl class="db-dl"><dt>금고 은행</dt><dd>' + chip() + '</dd><dt>약정 기간</dt><dd>' + chip() + '</dd></dl>' +
         '<p class="db-empty">약정 기록을 모으면 금고 은행과 약정 기간이 출처와 함께 여기에 보입니다.</p></div>';
@@ -894,7 +904,7 @@
     const ctx = actCtx();
     const act = ie.isOpenCheck(it.rec) ? 'opencheck' : dash.actionKind(it.rec, ctx, actives, root.prep);
     el.innerHTML = dash.paneHtml(it, { act: act, confirm: st.confirm && act === 'confirm', busy: st.busy,
-      kb: dash.kbEntry(it.rec, root.KB_VERIFIED), role: ctx.role, today: todayDate(), headHtml: headSection(it),
+      kb: dash.kbEntry(it.rec, root.KB_VERIFIED), next: dash.kbEntry(it.rec, root.KB_NEXT), role: ctx.role, today: todayDate(), headHtml: headSection(it),
       recordHtml: ie.isOpenCheck(it.rec) ? '' : dash.recordSecHtml() });
     if (st.confirm && act === 'confirm') { const b = $('db-do'); if (b) b.focus(); }
   }
@@ -1211,7 +1221,7 @@
     if (m.prepSt === 'loading' && act !== 'unavailable') act = 'wait';   // 진행 중인지 모르는 동안 [제안 확정]을 보였다 바꾸지 않는다
     const raw = root.render && root.render.popRawHtml ? root.render.popRawHtml(m.rec) : '';
     pane.innerHTML = dash.paneHtml(m.it, {
-      act: act, confirm: m.confirm && act === 'confirm', busy: m.busy, kb: dash.kbEntry(m.rec, root.KB_VERIFIED), role: ctx.role, today: todayDate(),
+      act: act, confirm: m.confirm && act === 'confirm', busy: m.busy, kb: dash.kbEntry(m.rec, root.KB_VERIFIED), next: dash.kbEntry(m.rec, root.KB_NEXT), role: ctx.role, today: todayDate(),
       headHtml: root.headcard ? root.headcard.paneSection(m.rec, dmHeadEnv(m)) : undefined,
       nameId: 'dm-name',
       mapHtml: '<button type="button" id="dm-edit">편집</button><button type="button" id="dm-close">닫기</button>',

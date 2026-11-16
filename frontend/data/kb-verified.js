@@ -44,19 +44,20 @@
   ];
   // 2027년부터 국민은행이 맡기로 선정된 기관 — 지금 은행은 아니라 현재 목록(KB_VERIFIED)과 겹치지 않게 따로 둔다(사용자 11-16, 입찰 현황판 '2027년부터 국민은행' 묶음).
   // 값은 각 기관 sources(institutions.js·institutions_nonmuni.js)에 적힌 것만. term은 원문에 약정 기간이 있을 때만(강북·영등포는 비움).
+  // now = 2026년 지금 금고 은행(sources '현 금고'·더게티뉴스 11-04 표 '기존 은행', data-auditor 11-16 대조). 전북대병원은 저장소에 근거가 없어 비움.
   root.KB_NEXT = [
-    { key: '11|중랑구청', name: '중랑구청', from: '2027', term: '2027~2030', src_date: '2026-11-04',
+    { key: '11|중랑구청', name: '중랑구청', from: '2027', now: '우리은행', term: '2027~2030', src_date: '2026-11-04',
       url: 'https://www.ngetnews.com/news/articleView.html?idxno=555569', quote: '국민은행 선정(우리은행에서 이동), 약정 2027~2030' },
-    { key: '11|강북구청', name: '강북구청', from: '2027', src_date: '2026-11-04',
+    { key: '11|강북구청', name: '강북구청', from: '2027', now: '신한은행', src_date: '2026-11-04',
       url: 'https://www.ngetnews.com/news/articleView.html?idxno=555569', quote: '국민은행 신규(지정 결과 공고 제2026-1493호, 2026-10-13)' },
-    { key: '11|영등포구청', name: '영등포구청', from: '2027', src_date: '2026-11-04',
+    { key: '11|영등포구청', name: '영등포구청', from: '2027', now: '우리은행', src_date: '2026-11-04',
       url: 'https://www.ngetnews.com/news/articleView.html?idxno=555569', quote: '국민은행 선정(우리은행에서 이동, 지정 결과 공고 제2026-2038호, 2026-10-29)' },
-    { key: '11|송파구청', name: '송파구청', from: '2027', term: '2027~2030', src_date: '2026-10-06',
+    { key: '11|송파구청', name: '송파구청', from: '2027', now: '우리은행', term: '2027~2030', src_date: '2026-10-06',
       url: 'https://www.hankyung.com/article/2026100662561', quote: '국민은행 선정(우리은행에서 이동), 약정 2027~2030' },
-    { key: '11|강동구청', name: '강동구청', from: '2027', term: '2027~2030', src_date: '2026-11-04',
+    { key: '11|강동구청', name: '강동구청', from: '2027', now: '우리은행', term: '2027~2030', src_date: '2026-11-04',
       url: 'https://www.ngetnews.com/news/articleView.html?idxno=555569', quote: '국민은행 선정(우리은행에서 이동), 약정 2027~2030' },
     { key: '45|전북대학교병원', name: '전북대학교병원', from: '2027', term: '2027~2031', src_date: '2026-09-16',
-      url: 'https://www.jjan.kr/article/20260928500503', quote: '우선협상대상자 국민은행(2026-09-16), 약정 2027~2031(5년) — 본계약 미확인' }
+      url: 'https://www.jjan.kr/article/20260928500503', quote: '우선협상대상자 국민은행(2026-09-16), 약정 2027~2031(5년) — 본계약 미확인(2026-09-28 기사 기준, 이후 보도 못 찾음)' }
   ];
   if (typeof module !== 'undefined' && module.exports) module.exports = root.KB_VERIFIED;
 })(typeof window !== 'undefined' ? window : globalThis);
