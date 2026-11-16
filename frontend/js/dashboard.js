@@ -673,7 +673,9 @@
     // c.headHtml: headcard.js가 만든 '기관장' 절(서버 기관장 API 카드). 없으면(모듈 미로드·순수 테스트) 예전 자리표시를 둔다.
     const chief = typeof c.headHtml === 'string' ? c.headHtml : '<div class="db-sec"><h3>기관장</h3><dl class="db-dl"><dt>기관장</dt><dd>' + chip() + '</dd></dl>' +
       '<p class="db-empty">기관장 프로필은 수집 예정입니다. 입찰이 1년 안에 있는 기관부터 모읍니다.</p></div>';
-    return '<div class="db-pane-body">' + head + info + bank + chief + (typeof c.tailHtml === 'string' ? c.tailHtml : '') + '</div><div class="db-act">' + dash.actHtml(it, c) + '</div>';
+    // 사업계획 절(plans.js가 dash.plansHook으로 등록): 기관장 절 뒤, tail 앞. plans.js가 없으면(순수 테스트) 두지 않는다.
+    const plansSec = typeof c.plansHtml === 'string' ? c.plansHtml : (typeof dash.plansHook === 'function' ? dash.plansHook(rec, c) : '');
+    return '<div class="db-pane-body">' + head + info + bank + chief + plansSec + (typeof c.tailHtml === 'string' ? c.tailHtml : '') + '</div><div class="db-act">' + dash.actHtml(it, c) + '</div>';
   };
 
   dash.actHtml = function (it, c) {

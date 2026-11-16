@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- INST_PLAN_* — 034(기관 사업계획 1단계). 두 방언에서 같은 문장. INSERT·SELECT 만 — 판은 쌓기만 한다. 모든 SELECT 는 flushCache. 집계·Map 열은 대문자 별칭. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.InstitutionPlanMapper">
+
+  <sql id="importCols">IMPORT_ID, INSTITUTION_ID, ORIGIN_CD, FILE_DATE, FILE_SHA256, FILE_BYTES, ITEM_COUNT, DOC_COUNT, WARN_COUNT, BATCH_ID, IMPORTED_BY, IMPORTED_AT, IMPORTED_VERIFIED</sql>
+  <sql id="docCols">DOC_ID, IMPORT_ID, INSTITUTION_ID, DOC_SEQ, TITLE, SRC_KIND_CD, PERIOD_FROM, PERIOD_TO, SRC_URL, URL_MISSING, CHECKED_ON, COLLECTOR_AGENT, PAGE_RANGE, NOTE</sql>
+  <sql id="itemCols">ITEM_ID, DOC_ID, IMPORT_ID, INSTITUTION_ID, ROW_NO, FIELD_NO, FIELD_NAME, ITEM_NO, PARENT_NO, ITEM_NAME, CONTENT, BUDGET_STATE_CD, BUDGET_AMOUNT, BUDGET_UNIT_CD, BUDGET_YEARS, PAGE_NO, CHECK_CD, PROGRESS_CD, EXEC_RATE, NOTE</sql>
+
+  <select id="lockInstitution" resultType="string" flushCache="true">
+    SELECT INSTITUTION_ID FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId} FOR UPDATE
+  </select>
+  <select id="selectInstitutionName" resultType="string" flushCache="true">
+    SELECT NAME_KO FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId}
+  </select>
+  <select id="selectInstitutionsIn" resultType="map" flushCache="true">
+    SELECT INSTITUTION_ID AS INSTITUTION_ID, NAME_KO AS NAME_KO, REGION_CODE AS REGION_CODE, TYPE AS INST_TYPE
+      FROM INSTITUTIONS WHERE INSTITUTION_ID IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+  </select>
+  <select id="selectPlanCodes" resultType="map" flushCache="true">
+    SELECT CODE_GROUP AS CODE_GROUP, CODE AS CODE, CODE_NAME AS CODE_NAME FROM COMMON_CODE
+     WHERE ENABLED = 1 AND CODE_GROUP IN ('PLAN_SRC_KIND', 'PLAN_CHECK', 'PLAN_BUDGET_STATE', 'PLAN_BUDGET_UNIT', 'PLAN_PROGRESS')
+     ORDER BY CODE_GROUP, SORT_NO
+  </select>
+
+  <select id="selectLatestImport" resultType="InstPlanImport" flushCache="true">
+    SELECT <include refid="importCols"/> FROM INST_PLAN_IMPORT
+     WHERE IMPORT_ID = (SELECT MAX(IMPORT_ID) FROM INST_PLAN_IMPORT WHERE INSTITUTION_ID = #{institutionId})
+  </select>
+  <select id="countImportsByOrigin" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM INST_PLAN_IMPORT WHERE INSTITUTION_ID = #{institutionId} AND ORIGIN_CD = #{originCd}
+  </select>
+  <select id="selectLatestImports" resultType="InstPlanImport" flushCache="true">
+    SELECT <include refid="importCols"/> FROM INST_PLAN_IMPORT
+     WHERE IMPORT_ID IN (SELECT MAX(IMPORT_ID) FROM INST_PLAN_IMPORT GROUP BY INSTITUTION_ID)
+     ORDER BY INSTITUTION_ID
+  </select>
+  <select id="selectLatestDocs" resultType="InstPlanDoc" flushCache="true">
+    SELECT <include refid="docCols"/> FROM INST_PLAN_DOC
+     WHERE IMPORT_ID IN (SELECT MAX(IMPORT_ID) FROM INST_PLAN_IMPORT GROUP BY INSTITUTION_ID)
+     ORDER BY IMPORT_ID, DOC_SEQ
+  </select>
+  <select id="selectDocsOfImport" resultType="InstPlanDoc" flushCache="true">
+    SELECT <include refid="docCols"/> FROM INST_PLAN_DOC WHERE IMPORT_ID = #{importId} ORDER BY DOC_SEQ
+  </select>
+  <select id="selectItemsOfImport" resultType="InstPlanItem" flushCache="true">
+    SELECT <include refid="itemCols"/> FROM INST_PLAN_ITEM WHERE IMPORT_ID = #{importId} ORDER BY DOC_ID, ROW_NO
+  </select>
+
+  <insert id="insertImport" useGeneratedKeys="true" keyProperty="importId" keyColumn="IMPORT_ID">
+    INSERT INTO INST_PLAN_IMPORT (INSTITUTION_ID, ORIGIN_CD, FILE_DATE, FILE_SHA256, FILE_BYTES, ITEM_COUNT, DOC_COUNT, WARN_COUNT,
+                                  BATCH_ID, IMPORTED_BY, IMPORTED_AT, IMPORTED_VERIFIED)
+    VALUES (#{institutionId}, #{originCd}, #{fileDate}, #{fileSha256}, #{fileBytes}, #{itemCount}, #{docCount}, #{warnCount},
+            #{batchId,jdbcType=VARCHAR}, #{importedBy}, #{importedAt}, #{importedVerified})
+  </insert>
+  <insert id="insertDoc" useGeneratedKeys="true" keyProperty="docId" keyColumn="DOC_ID">
+    INSERT INTO INST_PLAN_DOC (IMPORT_ID, INSTITUTION_ID, DOC_SEQ, TITLE, SRC_KIND_CD, PERIOD_FROM, PERIOD_TO, SRC_URL, URL_MISSING,
+                               CHECKED_ON, COLLECTOR_AGENT, PAGE_RANGE, NOTE)
+    VALUES (#{importId}, #{institutionId}, #{docSeq}, #{title}, #{srcKindCd}, #{periodFrom}, #{periodTo}, #{srcUrl,jdbcType=VARCHAR},
+            #{urlMissing}, #{checkedOn}, #{collectorAgent}, #{pageRange,jdbcType=VARCHAR}, #{note,jdbcType=VARCHAR})
+  </insert>
+  <insert id="insertItem">
+    INSERT INTO INST_PLAN_ITEM (DOC_ID, IMPORT_ID, INSTITUTION_ID, ROW_NO, FIELD_NO, FIELD_NAME, ITEM_NO, PARENT_NO, ITEM_NAME, CONTENT,
+                                BUDGET_STATE_CD, BUDGET_AMOUNT, BUDGET_UNIT_CD, BUDGET_YEARS, PAGE_NO, CHECK_CD, PROGRESS_CD, EXEC_RATE, NOTE)
+    VALUES (#{docId}, #{importId}, #{institutionId}, #{rowNo}, #{fieldNo,jdbcType=VARCHAR}, #{fieldName,jdbcType=VARCHAR}, #{itemNo},
+            #{parentNo,jdbcType=VARCHAR}, #{itemName}, #{content,jdbcType=VARCHAR}, #{budgetStateCd}, #{budgetAmount,jdbcType=DECIMAL},
+            #{budgetUnitCd,jdbcType=VARCHAR}, #{budgetYears,jdbcType=VARCHAR}, #{pageNo,jdbcType=VARCHAR}, #{checkCd},
+            #{progressCd,jdbcType=VARCHAR}, #{execRate,jdbcType=DECIMAL}, #{note,jdbcType=VARCHAR})
+  </insert>
+  <insert id="insertAct">
+    INSERT INTO INST_PLAN_ACT (INSTITUTION_ID, IMPORT_ID, ACTION_CD, OUTCOME, ITEM_COUNT, FILE_SHA256, ACTOR_EMP_NO, EMP_VERIFIED,
+                               SCREEN_ID, BUTTON_ID, UI_VALID, LOGGED_AT)
+    VALUES (#{institutionId}, #{importId,jdbcType=BIGINT}, #{actionCd}, #{outcome}, #{itemCount,jdbcType=INTEGER}, #{sha,jdbcType=VARCHAR},
+            #{empNo,jdbcType=VARCHAR}, #{empVerified}, #{screenId}, #{buttonId}, #{uiValid}, #{loggedAt})
+  </insert>
+</mapper>

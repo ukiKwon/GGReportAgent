@@ -146,6 +146,34 @@ public class BoardWriteLimitFilterTest {
         assertTrue("한도 안의 사진은 통과한다", lastPassed);
     }
 
+    // ── 기관 사업계획(034) ───────────────────────────────────────────────
+
+    @Test
+    public void 사업계획_반입은_5MB_한도다_6MB_넘으면_413_FILE_TOO_LARGE() throws Exception {
+        int over = (int) (6L * 1024 * 1024 + 1);
+        for (String uri : new String[]{"/institutions/x/plans/import", "/institutions//x//plans//import/", "/institutions/x/plans/import;jsessionid=1",
+                "/INSTITUTIONS/x/plans/import"}) {
+            MockHttpServletResponse res = filter("POST", uri, over, true);
+            assertEquals(uri, 413, res.getStatus());
+            String body = res.getContentAsString();
+            assertTrue(body, body.contains("FILE_TOO_LARGE") && body.contains("\"max_mb\":5"));
+            assertFalse(lastPassed);
+        }
+        assertEquals(411, filter("POST", "/institutions/x/plans/import", 0, false).getStatus());
+        assertEquals(200, filter("POST", "/institutions/x/plans/import", 1024, true).getStatus());
+        assertTrue("한도 안의 파일은 통과한다", lastPassed);
+    }
+
+    @Test
+    public void 자료_없음_목록_본문은_64KB_한도다() throws Exception {
+        MockHttpServletResponse res = filter("POST", "/institution-plans/missing.csv", 65 * 1024, true);
+        assertEquals(413, res.getStatus());
+        assertTrue(res.getContentAsString().contains("BODY_TOO_LARGE"));
+        assertFalse(lastPassed);
+        assertEquals(200, filter("POST", "/institution-plans/missing.csv", 64 * 1024, true).getStatus());
+        assertTrue(lastPassed);
+    }
+
     @Test
     public void 기관장_그_밖의_쓰기는_16KB_한도고_GET은_통과한다() throws Exception {
         for (String uri : new String[]{"/institutions/x/head/items", "/institution-heads/unmatched/1/assign",

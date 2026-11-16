@@ -213,4 +213,13 @@ public class InstitutionImportApiTest {
         assertEquals("따옴표,구청", made.path("name_ko").asText());
         assertEquals("열이 밀리면 여기가 어긋난다", "자치구", made.path("type").asText());
     }
+
+    /** 따옴표가 닫히지 않으면 나머지 파일을 한 칸으로 삼키지 않고 400 으로 막는다(2026-11-16, CsvLimits). */
+    @Test
+    public void 닫히지_않은_따옴표는_400이다() throws Exception {
+        MockHttpServletResponse res = upload((HEADER + "\n\"따옴표,구청,자치구,11230,3,,\n").getBytes(StandardCharsets.UTF_8));
+
+        assertEquals(400, res.getStatus());
+        assertTrue(res.getContentAsString(), json.readTree(res.getContentAsString()).path("detail").asText().contains("닫히지"));
+    }
 }

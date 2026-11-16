@@ -58,8 +58,9 @@ public final class InstitutionCsv {
      * </ol>
      */
     public static List<InstitutionImportRow> parse(byte[] raw) {
+        CsvLimits.checkSize(raw.length);
         String text = decode(raw);
-        List<List<String>> records = CsvReader.readAll(text);
+        List<List<String>> records = CsvLimits.INSTITUTION.readAll(text);
         if (records.isEmpty()) {
             return new ArrayList<>();
         }
@@ -163,82 +164,5 @@ public final class InstitutionCsv {
         return raw;
     }
 
-    /**
-     * RFC 4180 최소 구현 — 따옴표 · 이스케이프({@code ""}) · 필드 안 줄바꿈까지.
-     *
-     * <p>직접 만든 이유는 폐쇄망이다. CSV 라이브러리 하나를 위해 반입 절차를 한 번
-     * 더 돌리는 것보다, 계약이 고정된 표 하나를 읽는 코드를 두는 편이 싸다
-     * (설계 §2 "망" 행).
-     */
-    static final class CsvReader {
-
-        private CsvReader() {
-        }
-
-        static List<List<String>> readAll(String text) {
-            // 줄 단위로 읽지 않는다 — 따옴표 안에 줄바꿈이 들어올 수 있어 문자 단위로 훑는다.
-            List<List<String>> out = new ArrayList<>();
-            List<String> record = new ArrayList<>();
-            StringBuilder field = new StringBuilder();
-            boolean quoted = false;
-            boolean any = false;
-
-            for (int i = 0; i < text.length(); i++) {
-                char c = text.charAt(i);
-                if (quoted) {
-                    if (c == '"') {
-                        if (i + 1 < text.length() && text.charAt(i + 1) == '"') {
-                            field.append('"');
-                            i++;
-                        } else {
-                            quoted = false;
-                        }
-                    } else {
-                        field.append(c);
-                    }
-                    continue;
-                }
-                if (c == '"') {
-                    quoted = true;
-                    any = true;
-                } else if (c == ',') {
-                    record.add(field.toString());
-                    field.setLength(0);
-                    any = true;
-                } else if (c == '\r') {
-                    // CRLF 의 CR 은 버린다. 단독 CR 도 줄바꿈으로 본다.
-                    if (i + 1 < text.length() && text.charAt(i + 1) == '\n') {
-                        continue;
-                    }
-                    record.add(field.toString());
-                    field.setLength(0);
-                    out.add(record);
-                    record = new ArrayList<>();
-                    any = false;
-                } else if (c == '\n') {
-                    record.add(field.toString());
-                    field.setLength(0);
-                    out.add(record);
-                    record = new ArrayList<>();
-                    any = false;
-                } else {
-                    field.append(c);
-                    any = true;
-                }
-            }
-            if (any || field.length() > 0) {
-                record.add(field.toString());
-                out.add(record);
-            }
-            // 완전히 빈 줄은 행으로 세지 않는다(엑셀이 끝에 붙이는 빈 줄).
-            List<List<String>> cleaned = new ArrayList<>();
-            for (List<String> r : out) {
-                if (r.size() == 1 && r.get(0).trim().isEmpty()) {
-                    continue;
-                }
-                cleaned.add(r);
-            }
-            return cleaned;
-        }
-    }
+    // CSV 리더(RFC 4180 최소 구현)와 반입 상한은 CsvLimits 로 옮겼다(2026-11-16, 사업계획 반입과 공용).
 }

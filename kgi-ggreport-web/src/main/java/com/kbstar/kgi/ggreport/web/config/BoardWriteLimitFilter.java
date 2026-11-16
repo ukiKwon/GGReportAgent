@@ -3,6 +3,7 @@ package com.kbstar.kgi.ggreport.web.config;
 import com.kbstar.kgi.ggreport.web.service.AccessLogService;
 import com.kbstar.kgi.ggreport.web.service.HeadPhotoService;
 import com.kbstar.kgi.ggreport.web.service.PrepAttachService;
+import com.kbstar.kgi.ggreport.web.support.CsvLimits;
 import com.kbstar.kgi.ggreport.web.web.Actor;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.beans.factory.annotation.Value;
@@ -57,6 +58,11 @@ public class BoardWriteLimitFilter implements Filter {
     private static final Pattern ATTACH = Pattern.compile("(?:^|/)bidcases/+[^/]+/+prep/+attachments/*$", Pattern.CASE_INSENSITIVE);
     /** POST /institutions/{id}/head/photos — 기관장 사진(026). 5MB + 여유 1MB, 래퍼 없이 통과(multipart). */
     private static final Pattern HEAD_PHOTO = Pattern.compile("(?:^|/)institutions/+[^/]+/+head/+photos/*$", Pattern.CASE_INSENSITIVE);
+    /** POST /institutions/{id}/plans/import — 기관 사업계획 CSV(034). 5MB + 여유 1MB, 래퍼 없이 통과(multipart). */
+    private static final Pattern PLAN_IMPORT = Pattern.compile("(?:^|/)institutions/+[^/]+/+plans/+import/*$", Pattern.CASE_INSENSITIVE);
+    /** POST /institution-plans/missing.csv — 기관 id 최대 1,000개 JSON. 64KB. */
+    static final long PLAN_LIST_MAX = 64L * 1024;
+    private static final Pattern PLAN_MISSING = Pattern.compile("(?:^|/)institution-plans/+missing\\.csv/*$", Pattern.CASE_INSENSITIVE);
     /** 그 밖의 기관장 쓰기(JSON) — 16KB. */
     private static final Pattern HEAD_SMALL = Pattern.compile(
             "(?:^|/)(?:institutions/+[^/]+/+heads?(?:/+[^/]+)*|institution-heads(?:/+[^/]+)+)/*$", Pattern.CASE_INSENSITIVE);
@@ -96,11 +102,15 @@ public class BoardWriteLimitFilter implements Filter {
         boolean excel = post && EXCEL.matcher(path).find();
         boolean attach = post && ATTACH.matcher(path).find();
         boolean photo = post && HEAD_PHOTO.matcher(path).find();
-        boolean file = excel || attach || photo;   // 파일 올리기 — 본문을 읽는 래퍼 없이 헤더 길이만 본다(multipart 해석은 컨테이너)
-        long fileMb = excel ? maxMb : photo ? HeadPhotoService.MAX_FILE_BYTES / MB : PrepAttachService.MAX_FILE_BYTES / MB;
+        boolean plan = post && PLAN_IMPORT.matcher(path).find();
+        boolean file = excel || attach || photo || plan;   // 파일 올리기 — 본문을 읽는 래퍼 없이 헤더 길이만 본다(multipart 해석은 컨테이너)
+        long fileMb = excel ? maxMb : photo ? HeadPhotoService.MAX_FILE_BYTES / MB
+                : plan ? CsvLimits.MAX_FILE_BYTES / MB : PrepAttachService.MAX_FILE_BYTES / MB;
         long limit = excel ? maxMb * MB + SLACK
                 : attach ? PrepAttachService.MAX_FILE_BYTES + SLACK
                 : photo ? HeadPhotoService.MAX_FILE_BYTES + SLACK
+                : plan ? CsvLimits.MAX_FILE_BYTES + SLACK
+                : post && PLAN_MISSING.matcher(path).find() ? PLAN_LIST_MAX
                 : post && HEAD_SMALL.matcher(path).find() ? COPY_MAX
                 : post && DRAFT.matcher(path).find() ? DRAFT_MAX
                 : post && COPY.matcher(path).find() ? COPY_MAX

@@ -243,6 +243,7 @@
     if (root.board && root.board.onProfileChange) root.board.onProfileChange();   // 계정이 바뀌면 이사회 화면 상태를 버린다
     if (root.tm && root.tm.onProfileChange) root.tm.onProfileChange();            // 제안팀 구성·배정도 같다
     if (root.prep && root.prep.onProfileChange) root.prep.onProfileChange();      // 제안서 사전준비·지도 팝오버 캐시도 같다
+    if (root.plans && root.plans.onProfileChange) root.plans.onProfileChange();   // 기관 사업계획 현황·상세 캐시도 같다
     app.applyMenuPermissions();
     if (app.paintUserArea) app.paintUserArea();
     // 워크플로 탭이 이미 그려져 있으면 승인·반려 버튼의 권한 표시를 새 계정에 맞춘다.
@@ -527,22 +528,26 @@
     const isTeam = !!(root.tm && itemId === root.tm.SOON_ID);
     const isPrep = !!(root.prep && itemId === root.prep.SOON_ID);
     const isDash = !!(root.nav && itemId === root.nav.DASH_ID);
+    const isPlans = !!(root.plans && itemId === root.plans.SOON_ID);   // 기관 사업계획(서버 map 키 읽기 전용 화면)
     const dashReady = isDash && !!(root.dashboard && root.dashboard.mount);   // 본체가 아직 없으면 안내만 보인다
     if (isDash && !dashReady) {
       document.getElementById('soon-note').textContent = '입찰 현황판은 준비 중입니다.';
     }
-    document.getElementById('soon-plain').style.display = (isBoard || isTeam || isPrep || dashReady) ? 'none' : '';
+    document.getElementById('soon-plain').style.display = (isBoard || isTeam || isPrep || dashReady || isPlans) ? 'none' : '';
     document.getElementById('bd-root').style.display = isBoard ? '' : 'none';
     document.getElementById('tm-root').style.display = isTeam ? '' : 'none';
     document.getElementById('pp-root').style.display = isPrep ? '' : 'none';
     const dashEl = document.getElementById('dash-root');
     if (dashEl) dashEl.style.display = dashReady ? '' : 'none';
+    const plansEl = document.getElementById('plans-root');
+    if (plansEl) plansEl.style.display = isPlans ? '' : 'none';
     navActiveId = itemId;
     app.onTabChange('soon');
     if (isBoard) root.board.mount();
     if (isTeam) root.tm.mount();
     if (isPrep) root.prep.mount();
     if (dashReady) root.dashboard.mount(dashEl);
+    if (isPlans && plansEl) root.plans.mount(plansEl);
   };
 
   // 로그인(또는 세션이 있는 채로 다시 연 첫 그림) 뒤 첫 화면 — 입찰 현황판이 보이는 사람이고 아직 지도만 보고 있으면 현황판.

@@ -49,8 +49,10 @@ public class CommonCodeSchemaTest {
         assertEquals(0, count("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP = 'CONTRACT_KIND'"));
         // 019 ASSIGN_ACTION·020 BOARD_STATUS·BOARD_RESULT·024·025 PREP_* 는 다른 기능의 코드표라 제외(남는 것 = NOTICE_STATUS 3행).
         // 026 HEAD_*·PHOTO_LICENSE 8그룹(기관장 정보)도 같은 이유로 제외. 030 INST_OP_STATUS(기관 운영 상태)도 제외.
+        // 034 PLAN_* 7그룹(기관 사업계획)도 같은 이유로 제외.
         assertEquals(3, count("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP NOT IN ('ASSIGN_ACTION', 'BOARD_STATUS', 'BOARD_RESULT', 'PREP_STATE', 'PREP_KIND', 'PREP_JUDGE', 'PREP_EVENT', 'PREP_PII',"
-                + " 'HEAD_STATUS', 'HEAD_ORIGIN', 'HEAD_FIELD', 'HEAD_ITEM_STATE', 'HEAD_SRC', 'HEAD_PHOTO_STATE', 'PHOTO_LICENSE', 'HEAD_EVENT', 'INST_OP_STATUS')"));
+                + " 'HEAD_STATUS', 'HEAD_ORIGIN', 'HEAD_FIELD', 'HEAD_ITEM_STATE', 'HEAD_SRC', 'HEAD_PHOTO_STATE', 'PHOTO_LICENSE', 'HEAD_EVENT', 'INST_OP_STATUS',"
+                + " 'PLAN_SRC_KIND', 'PLAN_CHECK', 'PLAN_BUDGET_STATE', 'PLAN_BUDGET_UNIT', 'PLAN_PROGRESS', 'PLAN_ORIGIN', 'PLAN_ACTION')"));
     }
 
     @Test(expected = DataIntegrityViolationException.class)

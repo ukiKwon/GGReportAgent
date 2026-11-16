@@ -50,8 +50,9 @@ public class MapperStatementBindingTest {
      * + 사업 준비·이사회·배정 등은 20 에 이미 포함, 기관장 정보 1개(InstitutionHeadMapper — NEXT 72·77, 026).
      * 개수를 박아 두면 새 Mapper 를 만들고 등록을 잊는 것도 잡힌다.
      * + 기관 편집 이력 1개(InstitutionEditLogMapper — NEXT 72, 030, 2026-11-15).
+     * + 기관 사업계획 1개(InstitutionPlanMapper — 034, 2026-11-16).
      */
-    private static final int EXPECTED_MAPPER_COUNT = 22;
+    private static final int EXPECTED_MAPPER_COUNT = 23;
 
     @Autowired
     private SqlSessionFactory sqlSessionFactory;

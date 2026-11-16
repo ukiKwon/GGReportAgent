@@ -1832,6 +1832,52 @@
   .ie-cbox .ie-row { justify-content:flex-start; }
   @media (max-width:560px) { .ie-grid, .ie-src { grid-template-columns:1fr; } }
   /* 기관 편집 창 끝 */
+
+  /* 기관 사업계획 시작 — #tab-soon 안 #plans-root. 규격: design-reviewer 2026-11-16_1007_a15c69be.md 보충 A~G. 목록·상세는 입찰 현황판의 .db-list/.db-pane/.db-row/.db-per를 그대로 쓴다.
+     새 hex 없음(토큰만), 글자 11px 이상, 채운 주버튼 없음. 점선 칩 .pop-unk = 미확인, 실선 외곽 .pp-cancel = 사실로 끝남(기간 지남·폐기), 주황 .gap = 오래됨, 중립 .pp-neutral = 종류 이름 */
+  #plans-root { width:100%; flex:1 0 auto; display:flex; flex-direction:column; gap:12px; align-self:stretch; }
+  #plans-root .v { font-family:var(--mono); }
+  #plans-root .db-head { flex-wrap:wrap; }
+  .pl-work { display:grid; grid-template-columns:380px minmax(0, 1fr); gap:20px; }
+  #plans-root .db-list, #plans-root .db-pane { height:clamp(440px, calc(100vh - 190px), 820px); }
+  .pl-pers { display:flex; flex-wrap:wrap; column-gap:10px; }
+  .pl-pers .db-per { margin:8px 0 0; }
+  .pl-pers + .db-filters { margin-top:12px; }
+  .pl-kwrow { margin:12px 0 4px; }
+  .pl-kwrow input { width:100%; box-sizing:border-box; font-size:13px; padding:7px 10px; }
+  .pl-imp { margin:4px 0 0; }
+  .pl-doc { border-top:1px solid var(--line); padding:16px 0; margin-top:12px; }
+  .pl-doc-h { display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin:0 0 12px; }
+  .pl-doc-h h3 { margin:0; font-size:14px; font-weight:700; }
+  .pl-doc > .db-why { margin:8px 0 0; line-height:1.5; word-break:keep-all; }
+  .pl-warn { margin:8px 0 0; padding:6px 10px; font-size:12px; line-height:1.5; word-break:keep-all; border-left:2px solid var(--orange); }
+  .pl-note, .pl-content { white-space:pre-line; overflow-wrap:anywhere; }
+  .pl-src { overflow-wrap:anywhere; }
+  .pl-tbl { width:100%; border-collapse:collapse; margin-top:12px; font-size:13px; }
+  .pl-tbl th { padding:6px 8px; font-size:12px; font-weight:400; color:var(--muted); text-align:left; border-bottom:1px solid var(--line-strong); }
+  .pl-tbl td { padding:8px; border-top:1px solid var(--line); vertical-align:top; text-align:left; }
+  .pl-tbl th.pl-no, .pl-tbl td.pl-no { width:52px; white-space:nowrap; }
+  .pl-tbl th.pl-bud, .pl-tbl td.pl-bud { width:112px; text-align:right; white-space:nowrap; }
+  .pl-tbl th.pl-pg, .pl-tbl td.pl-pg { width:44px; text-align:right; white-space:nowrap; font-family:var(--mono); }
+  .pl-tbl .pl-fld th { padding:12px 8px 4px; font-size:12px; font-weight:700; color:var(--fg); border-top:1px solid var(--line-strong); border-bottom:0; }
+  .pl-tbl .pl-child td.pl-nm { padding-left:24px; }
+  .pl-name { font-weight:600; }
+  .pl-content { display:block; margin-top:2px; font-size:12px; color:var(--muted); line-height:1.5; }
+  .pl-prog { display:block; margin-top:2px; }
+  .pl-dim td, .pl-dim .pl-content { color:var(--muted); }
+  .pl-bud .u { font-size:11px; color:var(--muted); }
+  .pl-bud .db-why { display:block; font-size:11px; }
+  .pl-open { margin:8px 0 0; }
+  .pl-open .link-btn { min-height:24px; padding:4px 2px; color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent-color); text-underline-offset:3px; }
+  .pl-slot:empty { display:none; }
+  #pl-foot .db-link { padding:4px; min-height:24px; }
+  .pl-open .v { font-family:var(--mono); }   /* 현황판·지도 상세(#plans-root 밖)에서도 버튼 안 숫자를 mono로 */
+  @media (max-width:880px) {
+    .pl-work { grid-template-columns:1fr; }
+    #plans-root .db-list { height:auto; max-height:40vh; }
+    #plans-root .db-pane { height:auto; min-height:320px; }
+  }
+  /* 기관 사업계획 끝 */
 </style>
 </head>
 <body>
@@ -2156,6 +2202,7 @@ review, the verdict, and DESIGN.md
     <div id="pp-modal" class="modal-overlay" style="display:none;"></div>
   </div>
   <div id="dash-root" style="display:none;"></div>
+  <div id="plans-root" style="display:none;"></div>
 </section>
 </main>
 </div>
@@ -2271,6 +2318,7 @@ review, the verdict, and DESIGN.md
 <script src="data/kb-verified.js"></script>
 <script src="js/headcard.js"></script>
 <script src="js/dashboard.js"></script>
+<script src="js/plans.js"></script>
 <script src="js/deputy.js"></script>
 <script src="js/admin.js"></script>
 <script src="js/myinfo.js"></script>

@@ -5,8 +5,6 @@ import com.kbstar.kgi.ggreport.web.domain.InstitutionImportRow;
 import com.kbstar.kgi.ggreport.web.domain.InstitutionUpdateIn;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -273,25 +271,7 @@ final class InstitutionEditRules {
         if (v.isEmpty()) {
             return null;
         }
-        if (v.length() > 500) {
-            throw bad(URL_MSG);
-        }
-        for (int i = 0; i < v.length(); i++) {
-            char c = v.charAt(i);
-            // 제어문자·공백·DEL, 그리고 보이지 않는 서식 문자(방향 뒤집기 U+202E·폭 0 공백 U+200B 등, 보안 검토 L2)
-            if (c <= ' ' || c == 0x7f || Character.getType(c) == Character.FORMAT) {
-                throw bad(URL_MSG);
-            }
-        }
-        URI u;
-        try {
-            u = new URI(v);
-        } catch (URISyntaxException e) {
-            throw bad(URL_MSG);
-        }
-        String sc = u.getScheme();
-        if (sc == null || !(sc.equalsIgnoreCase("http") || sc.equalsIgnoreCase("https"))
-                || u.getHost() == null || u.getUserInfo() != null) {
+        if (!com.kbstar.kgi.ggreport.web.support.SafeUrl.isHttp(v)) {
             throw bad(URL_MSG);
         }
         return v;
