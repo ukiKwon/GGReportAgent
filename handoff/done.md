@@ -713,3 +713,6 @@
 
 ### 85. uploader ApplicationContextTest 3건 실패 — **해소 11-16 (2e)**
 - 원인: 시험 설정에 `spring.sql.init.encoding` 없음 → 새 PC JDK8 기본 MS949로 schema-mysql.sql 한글 컬럼명이 깨져 H2 구문 오류. uploader/src/test/resources/application.properties에 UTF-8 한 줄(운영 WAR 영향 없음). uploader 65/65 통과.
+
+### 86. uploader 업로드 남은 위험 — **해소 11-16 (2e)**
+- 검색 목록만·본문 추출 제거·암호화 OOXML 분석 거부·다운로드 오류 문구 고정(cb39a09), 목차 대조 구현 일치(5e811d3). 사용자 11-16 Q1 ⓐ·Q2 ⓒ(본문 제공 저장형 설계는 NEXT 87). security 11-16 닫기 가능.
