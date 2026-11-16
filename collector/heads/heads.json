@@ -1052,13 +1052,8 @@
     "전라북도 정무부지사",
     "대통령비서실 행정관"
    ],
-   "photo": {
-    "url": "https://www.jeonbuk.go.kr/upload_data/user_file/02_governor/sub01/goverprofile.jpg",
-    "license": "LOCAL_ONLY",
-    "src_kind": "HOMEPAGE",
-    "src_title": "전북특별자치도 단체장 소개(공공누리 표시 없음 — 로컬 작업용, 인물 사진인지 사람이 확인)",
-    "checked_on": "2026-11-13"
-   }
+   "photo": null,
+   "photo_note": "goverprofile.jpg 는 인물 사진이 아니라 연혁 이미지(사용자 확인 2026-11-16) — 브라우저로 다시 찾을 것"
   },
   {
    "institution_id": "lg-47-07d78f631e",
