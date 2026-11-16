@@ -54,6 +54,45 @@
 
   // ── 순수 규칙(테스트 대상) ─────────────────────────────────────────────
 
+  // 시스템 관리 쓰기 요청의 화면·버튼 식별자(서버 AdminUiIds 와 같은 값). GET 에는 붙이지 않는다.
+  admin.UI = {
+    menuSave:    { screen: 'admin_menus', button: 'menu_save' },
+    userCreate:  { screen: 'admin_users', button: 'user_create' },
+    userSave:    { screen: 'admin_users', button: 'user_save' },
+    approverSave:{ screen: 'admin_users', button: 'approver_save' },
+    permSave:    { screen: 'admin_perms', button: 'perm_save' },
+    // 상태 변경은 status 값이 아니라 op 로 고른다(unlock·restore 가 둘 다 ACTIVE).
+    status: {
+      lock:         { screen: 'admin_users', button: 'user_lock' },
+      unlock:       { screen: 'admin_users', button: 'user_unlock' },
+      restore:      { screen: 'admin_users', button: 'user_restore' },
+      'retire-yes': { screen: 'admin_users', button: 'user_retire' }
+    }
+  };
+  admin.headersFor = function (ui, hasBody) {
+    const h = {};
+    if (hasBody) h['Content-Type'] = 'application/json';
+    if (ui && ui.screen) { h['X-Screen-Id'] = ui.screen; h['X-Button-Id'] = ui.button; }
+    return Object.keys(h).length ? h : null;
+  };
+  // 권한 변경 이력의 '화면·버튼' 칸 라벨. 맵에 없는 값은 원문, UNKNOWN·빈 값은 '알 수 없음', 둘 다면 '기록 없음'.
+  admin.UI_LABELS = {
+    screens: { admin_users: '사용자 관리', admin_perms: '권한 관리', admin_menus: '메뉴 관리' },
+    buttons: { menu_save: '저장', user_create: '등록', user_save: '저장', approver_save: '저장·결재자',
+               user_lock: '잠금', user_unlock: '잠금 해제', user_retire: '정말 퇴직', user_restore: '복직', perm_save: '저장' }
+  };
+  function uiKnown(v) { return v != null && String(v) !== '' && String(v) !== 'UNKNOWN'; }
+  admin.uiHtml = function (screen, button) {
+    const hs = uiKnown(screen), hb = uiKnown(button);
+    if (!hs && !hb) return '<span class="ad-note">기록 없음</span>';
+    const unk = '<span class="ad-note">알 수 없음</span>';
+    const sc = hs ? esc(admin.UI_LABELS.screens[screen] || screen) : unk;
+    const bt = hb ? esc(admin.UI_LABELS.buttons[button] || button) : unk;
+    return sc + ' [' + bt + ']';
+  };
+  // 로그인한 사람 본인인가(서버 SelfChange 와 같은 기준 = 세션 사번).
+  admin.isSelf = function (u, emp) { return !!emp && !!u && String(u.emp_no) === String(emp); };
+
   admin.VIEWS = { users: '사용자 관리', perms: '권한 관리', menus: '메뉴 관리', audit: '접근 이력' };
   admin.VIEW_HINTS = {
     users: '사번(숫자 7자리)으로 사용자를 등록·수정합니다. 삭제하지 않고 퇴직 처리해 이력을 남깁니다.',
@@ -119,11 +158,30 @@
 
   // 결재자로 고를 수 있는 사람 — 사용 중이고, 결재 등급이 있고, 자기 자신이 아니고, 고리를 만들지 않는 사람.
   // 서버가 같은 검사를 다시 한다(화면 검사는 선택지를 줄여 줄 뿐).
-  admin.approverCandidates = function (users, user) {
+  admin.approverCandidates = function (users, user, selfEmp) {
     return (users || []).filter(function (c) {
       if (c.emp_no === user.emp_no || c.status !== 'ACTIVE' || c.approval_grade === 'NONE') return false;
+      if (selfEmp && c.emp_no === selfEmp) return false;   // 로그인한 사람은 결재자로 정하지 못한다(다른 관리자가 한다)
       return !(c.chain || []).some(function (x) { return x.emp_no === user.emp_no; });
     });
+  };
+
+  // 결재자 select 구성. candidates=고를 수 있는 사람, kept=현재 지정값이 후보 밖일 때 남겨 둘 사람(없으면 null),
+  // selfOmitted=본인이 원래 후보 조건을 만족하는데 본인이라 빠졌는가(안내 문구를 보일지 결정).
+  admin.approverChoices = function (users, user, current, selfEmp) {
+    const list = users || [];
+    const cands = admin.approverCandidates(list, user, selfEmp);
+    const out = { candidates: cands, kept: null, selfOmitted: false };
+    if (selfEmp) out.selfOmitted = admin.approverCandidates(list, user).some(function (c) { return c.emp_no === selfEmp; });
+    if (current && !cands.some(function (c) { return c.emp_no === current; })) {
+      const p = list.filter(function (x) { return x.emp_no === current; })[0];
+      out.kept = { emp_no: current, name: p ? p.name : '', isSelf: !!selfEmp && current === selfEmp };
+    }
+    return out;
+  };
+  admin.keptApproverLabel = function (k) {
+    return (k.name ? k.name + ' (' + k.emp_no + ')' : k.emp_no) +
+      (k.isSelf ? ' — 본인, 현재 지정(바꾸지 않으면 그대로)' : ' — 현재 지정, 지금은 고를 수 없음');
   };
 
   // 지정 필요·재지정 필요인 사용 중 사용자 수(퇴직자는 세지 않는다).
@@ -263,9 +321,14 @@
     if (el('ad-body')) paint();
   };
 
-  function api(method, url, body) {
+  function myEmp() {
+    try { return String(((root.store && root.store.loadSession && root.store.loadSession()) || {}).emp || ''); } catch (e) { return ''; }
+  }
+  function api(method, url, body, ui) {
     const init = { method: method };
-    if (body !== undefined) { init.headers = { 'Content-Type': 'application/json' }; init.body = JSON.stringify(body); }
+    const hdr = admin.headersFor(ui, body !== undefined);
+    if (hdr) init.headers = hdr;
+    if (body !== undefined) init.body = JSON.stringify(body);
     return fetch(url, init).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
         if (!r.ok) {
@@ -304,25 +367,30 @@
   let loaded = null;      // 서버에서 받은 원본(diff의 기준)
   let draft = null;       // 화면에서 만진 값
 
-  admin.render = function (container, payload) {
+  admin.render = function (container, payload, opts) {
     const g = admin.grid(payload);
     if (!g.rows.length) {
       container.innerHTML = '<p class="wf-empty">역할 정보를 불러오지 못했습니다.</p>';
       return;
     }
     const cols = admin.menuColumns(payload.menus, root.nav && root.nav.CATEGORIES);
+    const selfRole = (opts && opts.selfRole) || '';
+    const hasSelf = !!selfRole && g.rows.some(function (r) { return r.role === selfRole; });
     container.innerHTML =
-      '<table class="ad-grid"><thead><tr><th rowspan="2">역할</th>' +
+      (hasSelf ? '<p class="ad-note" id="mg-self-note" style="margin:0 0 8px">본인 역할(' + esc(rl(selfRole)) + ') 줄은 다른 역할의 관리자가 바꿉니다.</p>' : '') +
+      '<table class="ad-grid"' + (hasSelf ? ' aria-describedby="mg-self-note"' : '') + '><thead><tr><th rowspan="2">역할</th>' +
       admin.groupSpans(cols).map(function (s) { return '<th colspan="' + s.span + '">' + esc(s.group) + '</th>'; }).join('') +
       '</tr><tr>' + cols.map(function (m) {
         return '<th' + (m.serverOnly ? ' title="서버 모드에서만 열립니다"' : '') + '>' +
           esc(m.label) + (m.serverOnly ? ' <span class="ad-so">*</span>' : '') + '</th>';
       }).join('') + '</tr></thead><tbody>' +
       g.rows.map(function (r) {
-        return '<tr><th>' + esc(rl(r.role)) + '</th>' + cols.map(function (m) {
+        const mine = hasSelf && r.role === selfRole;
+        return '<tr><th>' + esc(rl(r.role)) + (mine ? ' <span class="ad-badge">본인 역할</span>' : '') + '</th>' + cols.map(function (m) {
           const on = r.cells[m.key] ? ' checked' : '';
           return '<td><input type="checkbox" data-role="' + esc(r.role) +
-            '" data-menu="' + esc(m.key) + '"' + on + ' aria-label="' + esc(rl(r.role) + ' ' + m.label) + '"></td>';
+            '" data-menu="' + esc(m.key) + '"' + on + (mine ? ' disabled aria-describedby="mg-self-note"' : '') +
+            ' aria-label="' + esc(rl(r.role) + ' ' + m.label) + '"></td>';
         }).join('') + '</tr>';
       }).join('') + '</tbody></table>' +
       '<p class="ad-note"><span class="ad-so">*</span> 표시는 서버 모드 전용입니다 — ' +
@@ -340,7 +408,7 @@
   }
 
   function paintMenusGrid() {
-    admin.render(el('ad-grid'), { menus: loaded.menus, roles: draft });
+    admin.render(el('ad-grid'), { menus: loaded.menus, roles: draft }, { selfRole: selfRole });
     el('ad-grid').querySelectorAll('input[type=checkbox]').forEach(function (box) {
       box.onchange = function () {
         draft = collect();
@@ -350,8 +418,23 @@
     say('');
   }
 
+  // 로그인한 사람의 역할 — 사용자 목록의 본인 행. 목록이 없으면 한 번 불러온다. 모르면 '' (줄을 잠그지 않는다).
+  let selfRole = '';
+  function ensureSelfRole() {
+    const emp = myEmp();
+    if (!emp) { selfRole = ''; return Promise.resolve(''); }
+    function pick() {
+      const me = users.filter(function (u) { return admin.isSelf(u, emp); })[0];
+      selfRole = (me && me.role) || '';
+      return selfRole;
+    }
+    if (users.length) return Promise.resolve(pick());
+    return api('GET', '/sysadmin/users').then(function (res) { users = res.users || []; return pick(); })
+      .catch(function () { selfRole = ''; return ''; });
+  }
+
   function loadMenus() {
-    return fetch('/menus').then(function (r) {
+    return ensureSelfRole().then(function () { return fetch('/menus'); }).then(function (r) {
       if (!r.ok) throw new Error('menus ' + r.status);
       return r.json();
     }).then(function (body) {
@@ -368,7 +451,7 @@
     if (warn) { say(warn, true); return; }
     const changes = admin.diff(loaded.roles, draft);
     if (!changes.length) { say('바뀐 것이 없습니다.'); return; }
-    api('PUT', '/menus', { changes: changes }).then(function () {
+    api('PUT', '/menus', { changes: changes }, admin.UI.menuSave).then(function () {
       // 내 소속의 권한이 바뀌었을 수 있다 — 탭을 즉시 다시 계산한다.
       if (root.app && root.app.applyMenuPermissions) root.app.applyMenuPermissions();
       return loadMenus().then(function () { say(changes.length + '건을 저장했습니다.'); });
@@ -413,12 +496,19 @@
 
   function userById(emp) { return users.filter(function (x) { return x.emp_no === emp; })[0]; }
 
-  function approverOptions(emp, selected) {
+  // 본인은 목록에서 뺀다. 단 현재 지정값이 후보 밖이면 selected option 으로 남겨, 저장해도 '자동'으로 바뀌지 않게 한다.
+  function approverChoicesFor(emp, selected) {
     const u = userById(emp);
-    return '<option value="">자동 (팀·직위 기준)</option>' + admin.approverCandidates(users, u || { emp_no: emp }).map(function (c) {
-      return '<option value="' + esc(c.emp_no) + '"' + (c.emp_no === selected ? ' selected' : '') + '>' +
-        esc(c.name + ' (' + c.emp_no + ') · ' + rl(c.role) + (c.position_title ? ' ' + c.position_title : '')) + '</option>';
-    }).join('');
+    return admin.approverChoices(users, u || { emp_no: emp }, selected, myEmp());
+  }
+  function approverOptions(emp, selected) {
+    const ch = approverChoicesFor(emp, selected);
+    return '<option value="">자동 (팀·직위 기준)</option>' +
+      (ch.kept ? '<option value="' + esc(ch.kept.emp_no) + '" selected>' + esc(admin.keptApproverLabel(ch.kept)) + '</option>' : '') +
+      ch.candidates.map(function (c) {
+        return '<option value="' + esc(c.emp_no) + '"' + (c.emp_no === selected ? ' selected' : '') + '>' +
+          esc(c.name + ' (' + c.emp_no + ') · ' + rl(c.role) + (c.position_title ? ' ' + c.position_title : '')) + '</option>';
+      }).join('');
   }
 
   // 고른 결재자 기준의 체인 미리보기. 자동이면 현재 자동 결과(또는 왜 못 정했는지)를 보여 준다.
@@ -452,7 +542,11 @@
       '<label>직위<select id="uf-pos">' + rankOptions(f.position_title) + '</select></label>' +
       '<label>결재 등급<select id="uf-grade">' + gradeOptions(f.approval_grade) + '</select></label>' +
       (editing.isNew ? '<div class="ad-note ad-form-wide">상위 결재자는 팀·직위로 자동 결정됩니다. 등록 후 목록에서 확인하고, 바꿀 일이 있으면 수정에서 지정하세요.</div>'
-        : '<label>상위 결재자<select id="uf-appr">' + approverOptions(f.emp_no, f.approver_value) + '</select></label>' +
+        : '<label>상위 결재자<select id="uf-appr" aria-describedby="' +
+            (approverChoicesFor(f.emp_no, f.approver_value).selfOmitted ? 'uf-appr-note ' : '') + 'uf-chain">' +
+            approverOptions(f.emp_no, f.approver_value) + '</select></label>' +
+          (approverChoicesFor(f.emp_no, f.approver_value).selfOmitted
+            ? '<div class="ad-note ad-form-wide" id="uf-appr-note">본인은 결재자 목록에 없습니다 — 본인을 결재자로 정하는 일은 다른 관리자가 합니다.</div>' : '') +
           '<div class="ad-note ad-form-wide" id="uf-chain">' + esc(chainPreview(f.emp_no, f.approver_value)) + '</div>') +
       '<div class="ad-form-actions"><button id="uf-save" class="primary">' + (editing.isNew ? '등록' : '저장') +
       '</button><button id="uf-cancel">취소</button></div></div>';
@@ -465,6 +559,27 @@
       esc(admin.APPROVER_STATE_LABELS[st] || st) + '</span>';
     return (u.approver_name ? esc(u.approver_name) + ' ' : '') + badge;
   }
+
+  // 사용자 한 행. 본인 행은 조작 버튼 대신 안내 한 줄(복직 포함 — 본인 상태 변경은 서버가 막는다, 사용자 11-16 ⓑ).
+  admin.userRow = function (u, o) {
+    const self = !!(o && o.self), grades = (o && o.grades) || DEFAULT_GRADES, retiring = !!(o && o.retiring);
+    const emp = esc(u.emp_no);
+    const ops = self ? '<span class="ad-note">다른 관리자가 바꿉니다</span>' :
+      (u.status === 'RETIRED' ? '<button data-op="restore" data-emp="' + emp + '">복직</button>' :
+        '<button data-op="edit" data-emp="' + emp + '">수정</button>' +
+        (u.status === 'LOCKED' ? '<button data-op="unlock" data-emp="' + emp + '">잠금 해제</button>' :
+          '<button data-op="lock" data-emp="' + emp + '">잠금</button>') +
+        (retiring ? '<button class="danger" data-op="retire-yes" data-emp="' + emp + '">정말 퇴직</button>' +
+          '<button data-op="retire-no">취소</button>' :
+          '<button class="retire" data-op="retire" data-emp="' + emp + '">퇴직</button>'));
+    return '<tr class="st-' + esc((u.status || '').toLowerCase()) + (self ? ' is-self' : '') + '"><td class="mono">' + emp + '</td><td>' + esc(u.name) +
+      (self ? ' <span class="ad-badge">본인</span>' : '') +
+      '</td><td>' + esc(rl(u.role)) + '</td><td>' + esc(u.position_title || '') + '</td><td>' +
+      esc(admin.gradeLabel(u.approval_grade, grades)) + '</td><td title="' + esc(admin.chainText(u)) + '">' + approverCell(u) +
+      '</td><td><span class="ad-badge ' + esc((u.status || '').toLowerCase()) + '">' +
+      esc(admin.STATUS_LABELS[u.status] || u.status) + '</span></td><td>' +
+      esc(u.last_login_at ? admin.formatTime(u.last_login_at) : '-') + '</td><td class="ad-ops">' + ops + '</td></tr>';
+  };
 
   function paintUsers() {
     const q = userQuery.trim().toLowerCase();
@@ -487,20 +602,7 @@
       (editing ? userForm() : '') +
       '<table class="ad-table"><thead><tr><th>사번</th><th>이름</th><th>역할</th><th>직위</th><th>결재 등급</th><th>상위 결재자</th><th>상태</th><th>최근 로그인</th><th></th></tr></thead><tbody>' +
       (rows.length ? rows.map(function (u) {
-        const retiring = confirmRetire === u.emp_no;
-        return '<tr class="st-' + esc((u.status || '').toLowerCase()) + '"><td class="mono">' + esc(u.emp_no) + '</td><td>' + esc(u.name) +
-          '</td><td>' + esc(rl(u.role)) + '</td><td>' + esc(u.position_title || '') + '</td><td>' +
-          esc(admin.gradeLabel(u.approval_grade, grades)) + '</td><td title="' + esc(admin.chainText(u)) + '">' + approverCell(u) +
-          '</td><td><span class="ad-badge ' + esc((u.status || '').toLowerCase()) + '">' +
-          esc(admin.STATUS_LABELS[u.status] || u.status) + '</span></td><td>' +
-          esc(u.last_login_at ? admin.formatTime(u.last_login_at) : '-') + '</td><td class="ad-ops">' +
-          (u.status === 'RETIRED' ? '<button data-op="restore" data-emp="' + esc(u.emp_no) + '">복직</button>' :
-            '<button data-op="edit" data-emp="' + esc(u.emp_no) + '">수정</button>' +
-            (u.status === 'LOCKED' ? '<button data-op="unlock" data-emp="' + esc(u.emp_no) + '">잠금 해제</button>' :
-              '<button data-op="lock" data-emp="' + esc(u.emp_no) + '">잠금</button>') +
-            (retiring ? '<button class="danger" data-op="retire-yes" data-emp="' + esc(u.emp_no) + '">정말 퇴직</button>' +
-              '<button data-op="retire-no">취소</button>' :
-              '<button class="retire" data-op="retire" data-emp="' + esc(u.emp_no) + '">퇴직</button>')) + '</td></tr>';
+        return admin.userRow(u, { self: admin.isSelf(u, myEmp()), grades: grades, retiring: confirmRetire === u.emp_no });
       }).join('') : '<tr><td colspan="9" class="ad-empty">조건에 맞는 사용자가 없습니다.</td></tr>') + '</tbody></table>' +
       pagerHtml('us', pg.page, pg.pages);
     el('us-size').onchange = function (e) { usersPage.size = admin.normPageSize(e.target.value); usersPage.page = 0; paintUsers(); };
@@ -545,10 +647,10 @@
     if (bad) { say(bad, true); return; }
     const apprEl = el('uf-appr');
     const change = !editing.isNew && apprEl ? admin.approverChange(userById(form.emp_no), apprEl.value) : null;
-    const req = editing.isNew ? api('POST', '/sysadmin/users', form)
-      : api('PUT', '/sysadmin/users/' + encodeURIComponent(form.emp_no), form).then(function () {
+    const req = editing.isNew ? api('POST', '/sysadmin/users', form, admin.UI.userCreate)
+      : api('PUT', '/sysadmin/users/' + encodeURIComponent(form.emp_no), form, admin.UI.userSave).then(function () {
         // 역할·등급을 바꾼 뒤에 결재자를 정한다(자동 모드 사용자는 서버가 이미 다시 계산했다).
-        return change ? api('PUT', '/sysadmin/users/' + encodeURIComponent(form.emp_no) + '/approver', change) : null;
+        return change ? api('PUT', '/sysadmin/users/' + encodeURIComponent(form.emp_no) + '/approver', change, admin.UI.approverSave) : null;
       });
     req.then(function () {
       say(editing.isNew ? '등록했습니다.' : '저장했습니다.');
@@ -573,7 +675,7 @@
     const status = { lock: 'LOCKED', unlock: 'ACTIVE', restore: 'ACTIVE', 'retire-yes': 'RETIRED' }[op];
     if (!status) return;
     confirmRetire = null;
-    api('PUT', '/sysadmin/users/' + encodeURIComponent(emp) + '/status', { status: status })
+    api('PUT', '/sysadmin/users/' + encodeURIComponent(emp) + '/status', { status: status }, admin.UI.status[op])
       .then(function () { say('변경했습니다.'); return loadUsers(); })
       .catch(function (e) { say(fail(e), true); paintUsers(); });
   }
@@ -597,6 +699,7 @@
     const grades = (meta && meta.grades) || DEFAULT_GRADES;
     const active = users.filter(function (u) { return u.status !== 'RETIRED'; });
     const me = users.filter(function (u) { return u.emp_no === permEmp; })[0];
+    const isSelfPerm = !!permEmp && admin.isSelf({ emp_no: permEmp }, myEmp());
     const changes = admin.permChanges(permLoaded, permDraft);
     // 메뉴 이름은 사이드바의 현재 이름을 따른다(서버의 옛 라벨 '지식'·'권한관리' 대신).
     const names = {};
@@ -605,14 +708,16 @@
       '<div class="ad-toolbar"><label class="ad-inline">사용자 <select id="pm-user"><option value="">선택</option>' +
       active.map(function (u) {
         return '<option value="' + esc(u.emp_no) + '"' + (u.emp_no === permEmp ? ' selected' : '') + '>' +
-          esc(u.name + ' (' + u.emp_no + ') · ' + rl(u.role)) + '</option>';
+          esc(u.name + ' (' + u.emp_no + ') · ' + rl(u.role) + (admin.isSelf(u, myEmp()) ? ' — 본인' : '')) + '</option>';
       }).join('') + '</select></label>' +
       (me ? '<span class="ad-badge grade">결재 등급 · ' + esc(admin.gradeLabel(me.approval_grade, grades)) + '</span>' : '') + '</div>' +
-      (permEmp ? '<table class="ad-table ad-perms"><thead><tr><th>메뉴</th><th>조회</th><th>작성</th><th>수정</th><th>결재</th><th>기준</th></tr></thead><tbody>' +
+      (permEmp ? (isSelfPerm ? '<p class="ad-note" id="pm-self-note" style="margin:0 0 8px">본인 권한은 다른 관리자가 바꿉니다 — 여기서는 볼 수만 있습니다.</p>' : '') +
+        '<table class="ad-table ad-perms"' + (isSelfPerm ? ' aria-describedby="pm-self-note"' : '') + '><thead><tr><th>메뉴</th><th>조회</th><th>작성</th><th>수정</th><th>결재</th><th>기준</th></tr></thead><tbody>' +
         permDraft.map(function (r, i) {
           function box(field, disabled, tip) {
             return '<td><input type="checkbox" data-i="' + i + '" data-f="' + field + '"' + (r[field] ? ' checked' : '') +
-              (disabled ? ' disabled' : '') + (tip ? ' title="' + esc(tip) + '"' : '') +
+              (disabled || isSelfPerm ? ' disabled' : '') + (isSelfPerm ? ' aria-describedby="pm-self-note"' : '') +
+              (tip ? ' title="' + esc(tip) + '"' : '') +
               ' aria-label="' + esc(r.label + ' ' + FIELD_KO[field]) + '"></td>';
           }
           return '<tr><th>' + esc(names[r.menu_key] || r.label) + '</th>' + box('view') + box('write') + box('edit') +
@@ -620,12 +725,14 @@
             '<td><span class="ad-badge ' + (r.source === 'user' ? 'warn' : 'muted') + '">' +
             (r.source === 'user' ? '개별 설정' : '역할 기본') + '</span></td></tr>';
         }).join('') + '</tbody></table>' +
-        '<div id="ad-actions"><button id="pm-save" class="primary"' + (changes.length ? '' : ' disabled') + '>저장' +
-        (changes.length ? ' (' + changes.length + '개 메뉴)' : '') + '</button><button id="pm-reset">되돌리기</button></div>' +
+        (isSelfPerm ? '' : '<div id="ad-actions"><button id="pm-save" class="primary"' + (changes.length ? '' : ' disabled') + '>저장' +
+          (changes.length ? ' (' + changes.length + '개 메뉴)' : '') + '</button><button id="pm-reset">되돌리기</button></div>') +
         '<h4 class="ad-sub">변경 이력</h4>' +
-        (permHistory.length ? '<table class="ad-table"><thead><tr><th>시각</th><th>변경자</th><th>항목</th><th>이전</th><th>이후</th></tr></thead><tbody>' +
+        (permHistory.length ? '<table class="ad-table"><thead><tr><th>시각</th><th>변경자</th><th>화면·버튼</th><th>항목</th><th>이전</th><th>이후</th></tr></thead><tbody>' +
           permHistory.map(function (h) {
-            return '<tr><td>' + esc(admin.formatTime(h.changed_at)) + '</td><td class="mono">' + esc(h.actor_emp_no || '-') +
+            return '<tr><td>' + esc(admin.formatTime(h.changed_at)) + '</td><td><span class="mono">' + esc(h.actor_emp_no || '-') + '</span> ' +
+              (h.emp_verified ? '<span class="ad-badge ok">검증됨</span>' : '<span class="ad-badge muted">자기신고</span>') +
+              '</td><td>' + admin.uiHtml(h.screen_id, h.button_id) +
               '</td><td>' + esc(admin.permItemLabel(h.item)) + '</td><td>' + esc(admin.permValueLabel(h.item, h.before_value, false)) + '</td><td>' +
               esc(admin.permValueLabel(h.item, h.after_value, true)) + '</td></tr>';
           }).join('') + '</tbody></table>' : '<p class="ad-empty">아직 변경 이력이 없습니다.</p>')
@@ -639,9 +746,10 @@
         paintPerms();
       };
     });
+    if (isSelfPerm) return;   // 본인 권한은 보기만 — 저장·되돌리기 버튼이 없다
     el('pm-reset').onclick = function () { permDraft = JSON.parse(JSON.stringify(permLoaded)); paintPerms(); };
     el('pm-save').onclick = function () {
-      api('PUT', '/sysadmin/perms/' + encodeURIComponent(permEmp), { changes: changes })
+      api('PUT', '/sysadmin/perms/' + encodeURIComponent(permEmp), { changes: changes }, admin.UI.permSave)
         .then(function (r) { say(r.saved + '개 메뉴의 권한을 저장했습니다.'); return loadPerms(); })
         .catch(function (e) { say(fail(e), true); });
     };

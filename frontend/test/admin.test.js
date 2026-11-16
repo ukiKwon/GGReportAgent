@@ -236,3 +236,86 @@ test('permItemLabel/permValueLabel: 결재자 이력은 한글로, 나머지는 
   assert.strictEqual(admin.permValueLabel('user:APPROVER', 'RANK', true), 'RANK');
   assert.strictEqual(admin.permValueLabel('user:APPROVER_RELEASED', null, true), '');
 });
+
+// ── 2026-11-16 사용자 결정 ⓑ: 관리자 본인 정보·권한·자기 역할 줄은 다른 관리자가 + 화면·버튼 식별자 ──
+const SELF = '8203417';
+const U = function (emp, extra) { return Object.assign({ emp_no: emp, name: 'N' + emp, role: '영업팀', status: 'ACTIVE', approval_grade: 'TEAM_LEAD', chain: [] }, extra || {}); };
+
+test('UI 대응표: 쓰기 화면·버튼 식별자(서버 AdminUiIds 와 같다)', function () {
+  assert.deepStrictEqual(admin.UI.menuSave, { screen: 'admin_menus', button: 'menu_save' });
+  assert.deepStrictEqual(admin.UI.userCreate, { screen: 'admin_users', button: 'user_create' });
+  assert.deepStrictEqual(admin.UI.userSave, { screen: 'admin_users', button: 'user_save' });
+  assert.deepStrictEqual(admin.UI.approverSave, { screen: 'admin_users', button: 'approver_save' });
+  assert.deepStrictEqual(admin.UI.permSave, { screen: 'admin_perms', button: 'perm_save' });
+  assert.deepStrictEqual(Object.keys(admin.UI.status).sort(), ['lock', 'retire-yes', 'restore', 'unlock'].sort());
+  assert.strictEqual(admin.UI.status.unlock.button, 'user_unlock');
+  assert.strictEqual(admin.UI.status.restore.button, 'user_restore');
+  assert.strictEqual(admin.UI.status['retire-yes'].button, 'user_retire');
+  assert.strictEqual(admin.UI.status.lock.button, 'user_lock');
+});
+
+test('headersFor: 쓰기만 식별자를 붙이고 GET 은 아무것도 없다', function () {
+  assert.strictEqual(admin.headersFor(undefined, false), null);
+  assert.deepStrictEqual(admin.headersFor(admin.UI.permSave, true),
+    { 'Content-Type': 'application/json', 'X-Screen-Id': 'admin_perms', 'X-Button-Id': 'perm_save' });
+  assert.deepStrictEqual(admin.headersFor(undefined, true), { 'Content-Type': 'application/json' });
+});
+
+test('userRow: 본인 행은 배지·안내만, 버튼 없음. 남의 행은 버튼', function () {
+  const me = admin.userRow(U(SELF), { self: true });
+  assert.ok(me.indexOf('<span class="ad-badge">본인</span>') >= 0);
+  assert.ok(me.indexOf('<span class="ad-note">다른 관리자가 바꿉니다</span>') >= 0);
+  assert.ok(me.indexOf('<button') < 0);
+  assert.ok(me.indexOf('is-self') >= 0);
+  assert.ok(admin.userRow(U(SELF, { status: 'RETIRED' }), { self: true }).indexOf('<button') < 0);
+  const other = admin.userRow(U('1111111'), { self: false });
+  assert.ok(other.indexOf('data-op="edit"') >= 0 && other.indexOf('본인') < 0);
+  assert.ok(admin.userRow(U('1111111', { status: 'RETIRED' }), {}).indexOf('data-op="restore"') >= 0);
+});
+
+test('approverChoices: 본인은 후보에서 빠지고 안내 대상이 된다', function () {
+  const target = U('1111111'), me = U(SELF), peer = U('2222222');
+  const ch = admin.approverChoices([target, me, peer], target, '', SELF);
+  assert.deepStrictEqual(ch.candidates.map(function (c) { return c.emp_no; }), ['2222222']);
+  assert.strictEqual(ch.selfOmitted, true);
+  assert.strictEqual(ch.kept, null);
+  const noGrade = admin.approverChoices([target, U(SELF, { approval_grade: 'NONE' }), peer], target, '', SELF);
+  assert.strictEqual(noGrade.selfOmitted, false);
+  assert.strictEqual(admin.approverCandidates([target, me, peer], target).length, 2);
+});
+
+test('approverChoices: 현재 지정값이 후보 밖이어도 남겨 저장해도 자동으로 안 바뀐다', function () {
+  const target = U('1111111', { approver_mode: 'MANUAL', approver_emp_no: SELF });
+  const me = U(SELF), retired = U('3333333', { status: 'RETIRED', name: '퇴직자' });
+  const s = admin.approverChoices([target, me], target, SELF, SELF);
+  assert.deepStrictEqual(s.kept, { emp_no: SELF, name: 'N' + SELF, isSelf: true });
+  assert.ok(admin.keptApproverLabel(s.kept).indexOf('본인, 현재 지정(바꾸지 않으면 그대로)') > 0);
+  const r = admin.approverChoices([target, retired], target, '3333333', SELF);
+  assert.strictEqual(r.kept.isSelf, false);
+  assert.ok(admin.keptApproverLabel(r.kept).indexOf('현재 지정, 지금은 고를 수 없음') > 0);
+  const ok = admin.approverChoices([target, U('2222222')], target, '2222222', SELF);
+  assert.strictEqual(ok.kept, null);
+});
+
+test('render: 자기 역할 줄은 배지·안내·disabled, 역할을 모르면 잠그지 않는다', function () {
+  const box = { innerHTML: '' };
+  const role = Object.keys(PAYLOAD.roles)[0];
+  admin.render(box, PAYLOAD, { selfRole: role });
+  assert.ok(box.innerHTML.indexOf('id="mg-self-note"') >= 0);
+  assert.ok(box.innerHTML.indexOf('<span class="ad-badge">본인 역할</span>') >= 0);
+  const sec = box.innerHTML.split('data-role="' + role + '"');
+  assert.ok(sec.length > 1 && sec.slice(1).every(function (x) { return x.slice(0, 200).indexOf('disabled aria-describedby="mg-self-note"') >= 0; }));
+  const none = { innerHTML: '' };
+  admin.render(none, PAYLOAD);
+  assert.ok(none.innerHTML.indexOf('disabled') < 0 && none.innerHTML.indexOf('mg-self-note') < 0);
+});
+
+test('uiHtml: 라벨 맵·UNKNOWN·기록 없음·이스케이프', function () {
+  assert.strictEqual(admin.uiHtml('admin_users', 'user_lock'), '사용자 관리 [잠금]');
+  assert.strictEqual(admin.uiHtml('admin_users', 'approver_save'), '사용자 관리 [저장·결재자]');
+  assert.ok(admin.uiHtml('admin_users', 'UNKNOWN').indexOf('알 수 없음') > 0);
+  assert.ok(admin.uiHtml('UNKNOWN', 'UNKNOWN').indexOf('기록 없음') > 0);
+  assert.ok(admin.uiHtml(null, undefined).indexOf('기록 없음') > 0);
+  assert.strictEqual(admin.uiHtml('x_screen', 'x_btn'), 'x_screen [x_btn]');
+  assert.ok(admin.uiHtml('<b>', 'b').indexOf('<b>') < 0);
+});
