@@ -223,7 +223,7 @@
 - **현재**: 2026-11-06 qa 재검증 조건부 통과(11-03 FAIL의 업로드 500·key 없음 해소, 화면 5건 수정 `ec6f497`; 머리글 불일치 화면·워드 내부는 미확인). 2026-11-03에 사용자가 `config/application.properties`(gitignore, 이 PC 로컬)에 빠진 7키를 붙였다. 2026-11-05에 작성 모드 업로드·초안 워드·행·열 편집을 Playwright로 두 차례 검증해 업로드 500·기본 양식 key 문제는 사실상 해소됐다(qa 보고서 `handoff/agents/qa-verifier/2026-11-05_*`). 2026-11-06 독립 재검증은 조건부 통과.
 - **다음 한 걸음**: 남은 확인 3건 — ① 머리글 다름 화면(샘플 `docs/samples/수익성분석표_샘플_머리글다름.xlsx`) ② 929px·창 크기 가림 보정 실화면 qa(NEXT 51과 함께) ③ (완료 2026-11-06: 사용자가 Word로 붙임 5가 새 쪽 한 장에 들어가는 것을 확인) 초안 워드 파일 내부. 남은 둘이 끝나면 done.md로 옮긴다. 로컬 MySQL이 꺼져 있으면 메뉴 일부 누락·화면 500이 나니 먼저 확인한다(CLAUDE.md 3절 ⓔ).
 - **사용자 결정(2026-11-06, 현행 유지)**: 빈 입력에서 엑셀 수식이 계산한 0은 그대로 채운다 / '직접 입력' 칸은 비워 둔 채로 확인해도 된다.
-- **사용자 판단 대기**: 시험 데이터 정리(BOARD_FORM id=1, USER_MENU_PERMS (3918264,'tasks'), `uploader/.../.DS_Store`와 `.gitignore`에 `.DS_Store` 추가 제안) · history 문서에 남은 내부 기준값(IRR 3.31%·법인세율 26.4%)을 저장소에 둘지 · 하 등급 후속(`lastRecorded` 로그아웃 초기화 [frontend-dev], X-Emp-No 헤더 위조는 NEXT 35에 묶음) · 기타 이월(sumState 다중 sums 재검산, sums 감산·곱셈 지원 여부, `errText` 상태 코드 표시).
+- **사용자 판단 대기**: 시험 데이터 정리(BOARD_FORM id=1, USER_MENU_PERMS (3918264,'tasks'), `uploader/.../.DS_Store`와 `.gitignore`에 `.DS_Store` 추가 제안) · history 문서에 남은 내부 기준값(IRR 3.30%·법인세율 26.4%)을 저장소에 둘지 · 하 등급 후속(`lastRecorded` 로그아웃 초기화 [frontend-dev], X-Emp-No 헤더 위조는 NEXT 35에 묶음) · 기타 이월(sumState 다중 sums 재검산, sums 감산·곱셈 지원 여부, `errText` 상태 코드 표시).
 - **자세히**: 전체본 '### 45.' 절, `2026-11-03_summary.md`.
 
 ### 47. 이사회 양식 행·열 편집 후속 — **구현 완료(26), 사용자 답 3건 대기(기본값으로 동작 중)·접근성 1건** [담당: planner → pm → Main / design-reviewer → frontend-dev]

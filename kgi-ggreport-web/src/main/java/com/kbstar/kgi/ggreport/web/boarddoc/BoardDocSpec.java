@@ -22,7 +22,7 @@ public final class BoardDocSpec {
 
     public static final String DEFAULT_ID = "default_doc";
     public static final String DEFAULT_NAME = "이사회 자료 수익성 분석(기본 양식)";
-    private static final double DISCOUNT = 1.0331;   // 고정자산 기회비용률 3.31%
+    private static final double DISCOUNT = 1.0330;   // 고정자산 기회비용률 3.30%
     private static final double TAX = 0.22;
 
     private BoardDocSpec() {
@@ -1157,7 +1157,7 @@ public final class BoardDocSpec {
                 row(lab("순현재가치(NPV)"), f.vc("2,345").withDec(2), lab("순 현재가치가 \"0\"보다 클 때 투자 결정")),
                 row(lab("내부수익률법(IRR)"), f.vc("5.8%").withUnit("%"),lab("IRR이 고정자산 기회비용을 상회하는 경우 투자 결정"))),
                 "※투입비용은 사업기간 내 연차별 비용을 현재가치로 환산한 값을 적용하고, 수익은 매년 발생하는 명목금액 기준으로 산출",
-                "※ 현재가치할인율 3.31% (고정자산 기회비용률)");
+                "※ 현재가치할인율 3.30% (고정자산 기회비용률)");
 
         return new Doc(DEFAULT_ID, DEFAULT_NAME, a, b, t2, t3, t4, c5(f));
     }

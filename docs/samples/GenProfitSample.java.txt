@@ -6,7 +6,7 @@ import java.util.*;
 
 /** 수익성 분석표 샘플(값은 모두 가짜). 구조는 handoff/agents/history/2026-11-02_수익성분석표_구조_사용자설명.md 기준. */
 public class Gen {
-    static final double R = 0.0331;
+    static final double R = 0.0330;
     static double pv(double v, int t) { return v / Math.pow(1 + R, t); }
 
     static class DRow {
@@ -152,7 +152,7 @@ public class Gen {
         String[] h31 = {"구분", "회수기간법(Payback Period)", "순 현재가치(NPV)", "내부수익률법(IRR)", "출연금 적정성 검토"};
         Row a1 = sh.createRow(r++); for (int c = 0; c < 5; c++) { Cell x = a1.createCell(c); x.setCellValue(h31[c]); x.setCellStyle(head); }
         Row a2 = sh.createRow(r++); a2.createCell(0).setCellValue("값"); a2.createCell(1).setCellValue("3.4년"); a2.createCell(2).setCellValue(Math.round(npv * 10) / 10.0); a2.createCell(3).setCellValue(Double.isNaN(irr) ? "해당 없음" : String.format("%.2f%%", irr * 100)); a2.createCell(4).setCellValue("(영업이익 이유) " + Math.round(total(opC)) + " 백만원");
-        Row a3 = sh.createRow(r++); a3.createCell(0).setCellValue("투자가부결정기준"); a3.createCell(1).setCellValue("목표기간 보다 회수기간이 짧은 경우"); a3.createCell(2).setCellValue("순현재가치가 \"0\"보다 클 경우"); a3.createCell(3).setCellValue("3.31%보다 높을 경우"); a3.createCell(4).setCellValue("(영업이익 이유) '" + Math.round(total(opC)) + "' 백만원");
+        Row a3 = sh.createRow(r++); a3.createCell(0).setCellValue("투자가부결정기준"); a3.createCell(1).setCellValue("목표기간 보다 회수기간이 짧은 경우"); a3.createCell(2).setCellValue("순현재가치가 \"0\"보다 클 경우"); a3.createCell(3).setCellValue("3.30%보다 높을 경우"); a3.createCell(4).setCellValue("(영업이익 이유) '" + Math.round(total(opC)) + "' 백만원");
         r++;
         String[] h32 = {"구분", "", "사업초기", "1년", "2년", "3년", "4년", "5년", "계"};
         Row b0 = sh.createRow(r++); for (int c = 0; c < h32.length; c++) { Cell x = b0.createCell(c); x.setCellValue(h32[c]); x.setCellStyle(head); }

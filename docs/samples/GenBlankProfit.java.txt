@@ -93,7 +93,7 @@ public class GenBlank {
             for (int i = 0; i < 6; i++) { Cell c = x.createCell(1 + i); c.setCellFormula(col(4 + i) + srcRow); c.setCellStyle(calc); }
             Cell tt = x.createCell(7); tt.setCellFormula("SUM(B" + (sumStart + k + 1) + ":G" + (sumStart + k + 1) + ")"); tt.setCellStyle(calc);
             StringBuilder npv = new StringBuilder();
-            for (int i = 0; i < 6; i++) { if (i > 0) npv.append("+"); npv.append(col(1 + i)).append(sumStart + k + 1).append("/(1+0.0331)^").append(i); }
+            for (int i = 0; i < 6; i++) { if (i > 0) npv.append("+"); npv.append(col(1 + i)).append(sumStart + k + 1).append("/(1+0.0330)^").append(i); }
             Cell nn = x.createCell(8); nn.setCellFormula(npv.toString()); nn.setCellStyle(calc);
         }
 
@@ -137,7 +137,7 @@ public class GenBlank {
         Cell npvCell = a2.createCell(2); npvCell.setCellStyle(calc);
         Cell irrCell = a2.createCell(3); irrCell.setCellStyle(calc);
         Cell ex = a2.createCell(4); ex.setCellStyle(inp);
-        Row a3 = sh.createRow(r++); a3.createCell(0).setCellValue("투자가부결정기준"); a3.createCell(1).setCellValue("목표기간 보다 회수기간이 짧은 경우"); a3.createCell(2).setCellValue("순현재가치가 \"0\"보다 클 경우"); a3.createCell(3).setCellValue("3.31%보다 높을 경우"); a3.createCell(4).setCellValue("(영업이익 이유) '(산출값)' 백만원");
+        Row a3 = sh.createRow(r++); a3.createCell(0).setCellValue("투자가부결정기준"); a3.createCell(1).setCellValue("목표기간 보다 회수기간이 짧은 경우"); a3.createCell(2).setCellValue("순현재가치가 \"0\"보다 클 경우"); a3.createCell(3).setCellValue("3.30%보다 높을 경우"); a3.createCell(4).setCellValue("(영업이익 이유) '(산출값)' 백만원");
         r++;
         String[] h32 = {"구분", "", "사업초기", "1년", "2년", "3년", "4년", "5년", "계"};
         Row b0 = sh.createRow(r++); for (int c = 0; c < h32.length; c++) { Cell x = b0.createCell(c); x.setCellValue(h32[c]); x.setCellStyle(head); }
@@ -148,7 +148,7 @@ public class GenBlank {
         for (String[] s : pvRows) {
             Row x = sh.createRow(r++); x.createCell(0).setCellValue("회수 기간 계산"); x.createCell(1).setCellValue(s[0]);
             int src = secStart + idx.get(s[1]) + 1;
-            for (int y = 0; y < 6; y++) { Cell c = x.createCell(2 + y); c.setCellFormula(col(4 + y) + src + "/(1+0.0331)^" + y); c.setCellStyle(calc); }
+            for (int y = 0; y < 6; y++) { Cell c = x.createCell(2 + y); c.setCellFormula(col(4 + y) + src + "/(1+0.0330)^" + y); c.setCellStyle(calc); }
             Cell c = x.createCell(8); c.setCellFormula("SUM(C" + r + ":H" + r + ")"); c.setCellStyle(calc);
             if (s[1].equals("I")) pvIRow = r;
         }
@@ -160,7 +160,7 @@ public class GenBlank {
         Cell n1t = n1.createCell(8); n1t.setCellFormula("SUM(C" + r + ":H" + r + ")"); n1t.setCellStyle(calc);
         int nomRow = r;
         Row n2 = sh.createRow(r++); n2.createCell(1).setCellValue("순이익(NPV)");
-        for (int y = 0; y < 6; y++) { Cell c = n2.createCell(2 + y); c.setCellFormula(col(2 + y) + nomRow + "/(1+0.0331)^" + y); c.setCellStyle(calc); }
+        for (int y = 0; y < 6; y++) { Cell c = n2.createCell(2 + y); c.setCellFormula(col(2 + y) + nomRow + "/(1+0.0330)^" + y); c.setCellStyle(calc); }
         Cell n2t = n2.createCell(8); n2t.setCellFormula("SUM(C" + r + ":H" + r + ")"); n2t.setCellStyle(calc);
         sh.addMergedRegion(new CellRangeAddress(r - 2, r - 1, 0, 0));
         int npvRow = r;
