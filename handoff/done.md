@@ -710,3 +710,6 @@
 
 ### 39. uploader POI 진입점 가드 — **해소 11-16 (2e)**
 - 1단계 web ZipGuard 이식·POI ZipSecureFile 한도(b2450b4), 2단계 중앙 목차 대조·RFP hwpx 가드·XML 스트리밍(5df6c1e), N1 목차 쪽 내용 재검사(bebb749). security 11-16 3회 검토 끝 '닫아도 됨'. 남은 기획·하 위험은 NEXT 86, 기존 시험 실패는 NEXT 85.
+
+### 85. uploader ApplicationContextTest 3건 실패 — **해소 11-16 (2e)**
+- 원인: 시험 설정에 `spring.sql.init.encoding` 없음 → 새 PC JDK8 기본 MS949로 schema-mysql.sql 한글 컬럼명이 깨져 H2 구문 오류. uploader/src/test/resources/application.properties에 UTF-8 한 줄(운영 WAR 영향 없음). uploader 65/65 통과.

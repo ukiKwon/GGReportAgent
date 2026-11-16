@@ -167,8 +167,8 @@
 - **자세히**: 전체본 '### 30.' 절 — "할 일 체크리스트" 1~7번·"하지 말 것"(근거 없는 날짜 금지, `/menus`·골든 04·05 동결).
 
 ### 31. 역할별 에이전트 팀·그래프·대시보드 — **9개+쓰기용 2개·그래프·대시보드 가동 중, 소항목만 남음** [담당: backend-dev, frontend-dev]
-- **현재**: 모델 배치(Opus/Sonnet)·`write-guard.js`·PUSH-GATE까지 적용 완료(2026-11-02, `85e73c0`). `closing.js` 18:00 자동 마무리가 가동 중이고(이 PC 예약 작업은 NEXT 49), 서버 마무리·테스트 65건은 통과했다.
-- **다음 한 걸음**: `[담당: backend-dev]` python이 있는 PC에서 `serve.py`를 `py_compile`과 실행으로 확인한다(11-15 3d가 /api/questions 쓰기 405·Host 403, 중첩 본문·형식 오류 400을 고침 b54fe09 — 실행 확인은 아직. 확인 명령은 handoff/agents/frontend-dev/2026-11-15_1942_aabaa508.md 4절). serve.py·serve.js의 OPTIONS 등 기타 메서드 405/501 맞추기(qa 11-15 P3). `[담당: frontend-dev]` 두 번째 줄 slot 15 좌표(구급차 겹침), 낮음 보류 UI 소항목. (closing.test 6번 순서 의존·IDS 단일화는 11-15 해소 a3e15b9)
+- **현재**: 모델 배치·`write-guard.js`·PUSH-GATE 적용(85e73c0), `closing.js` 18:00 자동 마무리 가동(예약 작업 NEXT 49). serve.js 미지원 메서드 405(+Allow)·501은 11-16 2e 7fbd0a8(qa 조건부 통과).
+- **다음 한 걸음**: `[담당: backend-dev]` python PC에서 `serve.py` 확인 — b54fe09 실행 확인(명령: frontend-dev 2026-11-15_1942 4절) + 같은 405/501 규칙 '패치 C'(frontend-dev 2026-11-16 보고서) 적용. `[담당: frontend-dev]` slot 15 좌표(구급차 겹침)·낮음 보류 UI 소항목.
 - **자세히**: 전체본 '### 31.' 절 — "남은 일 (담당 태그)", "정합 메모"(design·qa 보고서의 '열림'은 낡은 스냅샷), `handoff/agents/graph.md`·`README.md`. 미연결 `.claude/hooks/agent-guard.ps1`은 정리 후보.
 
 ### 32. 사이드바 메뉴 구성 재편 — **3단계 해당 없음으로 종결, 후속 3건(ⓐ~ⓒ) + 69 후속 ⓓ(ⓔ 해소, 비차단)** [담당: planner]
@@ -451,17 +451,12 @@
 
 ### 84. 관리자 범위(전산팀장 포함)·PUSH-GATE security 하 묶음 (11-15 4b) [담당: backend-dev(Opus — 권한 설계) → security / backend-dev]
 - **11-16 9f**: ① 적용(10be5e1) — 기본 격자·골든 그대로, 033 ROLE_MENUS 전산팀장 admin=1(MySQL·Oracle 쌍), 잠김 방지를 '활성 관리자 남음'으로. mvn 1288 중 1건(기대값) 고쳐 통과. **로컬 MySQL에 033 적용 대기(사용자)**. security 11-16 차단 없음 — 후속: 전산팀장이 결재선 1단계와 ADMIN 단계를 함께 승인 가능(직무 분리, 사용자 질문), PUT /menus 변경 이력 없음(backend-dev), 전역 500 처리기 스택 로그. ②(capture-questions)는 그대로.
-- **현재**: ① 사용자 답(11-15 ⓐ): **전산팀원·전산팀장 모두 관리자**. 지금은 Menus.java:113 '전산팀'에만 ADMIN_MENU — 한 줄로 바꾸면 '마지막 관리자' 보호(SysAdminApiTest 2건·MenuSaveApiTest 1건)·골든 조회 2건이 깨져(메인 11-15 실측, 되돌림) 관리자 수 판정·골든 기대값을 함께 설계해야 함. BidCaseReadGuardApiTest '전산팀장 닫힘 생성 403' 시험도 200으로. ② security PUSH-GATE 11-15(handoff/agents/security/2026-11-15 최신) 하: capture-questions.js Stop 경로가 아직 사용자 글을 장부 answer에 씀(160·95줄 — 사용자 결정 '답 자동 기록 끔'과 어긋남, 다음 푸시 전), InstitutionEditRules.url 서식 문자 codePoint 단위·TYPE·LAST_BID 길이 상한, apply-mysql 강제 종료 시 임시 파일 잔존, DENIED·413 원문 URI 형식(1959 #3)·화면·버튼 조합 검증(1933 #1)·동시 저장 OLD_VAL(1901 L3)·JSON 파서 400 본문 시험(L5). 원격 저장소 공개 여부 확인(회사 인프라 사양 문서가 이미 여럿 추적됨).
-- **11-16 2e**: ② capture-questions 답 자동 기록 경로 삭제(11fe8fc) — qa 조건부 통과·security '해소'. 남은 하: url 서식 문자·apply-mysql 임시 파일(기관 사업계획 세션 커밋 뒤).
-- **다음 한 걸음**: backend-dev(Opus) ① 설계 → 적용·mvn → security. ② 나머지 하 묶음은 backend-dev.
+- **현재**: ① 사용자 답(11-15 ⓐ): **전산팀원·전산팀장 모두 관리자**. 지금은 Menus.java:113 '전산팀'에만 ADMIN_MENU — 한 줄로 바꾸면 '마지막 관리자' 보호(SysAdminApiTest 2건·MenuSaveApiTest 1건)·골든 조회 2건이 깨져(메인 11-15 실측, 되돌림) 관리자 수 판정·골든 기대값을 함께 설계해야 함. BidCaseReadGuardApiTest '전산팀장 닫힘 생성 403' 시험도 200으로. ② security PUSH-GATE 11-15(handoff/agents/security/2026-11-15 최신) 하: (capture-questions 답 자동 기록은 11-16 2e 11fe8fc로 해소) InstitutionEditRules.url 서식 문자 codePoint 단위·TYPE·LAST_BID 길이 상한, apply-mysql 강제 종료 시 임시 파일 잔존, DENIED·413 원문 URI 형식(1959 #3)·화면·버튼 조합 검증(1933 #1)·동시 저장 OLD_VAL(1901 L3)·JSON 파서 400 본문 시험(L5). 원격 저장소 공개 여부 확인(회사 인프라 사양 문서가 이미 여럿 추적됨).
+- **다음 한 걸음**: ① 후속은 9f(위 줄). ② 나머지 하 묶음(url 서식 문자·apply-mysql 임시 파일 등)은 기관 사업계획 세션 커밋 뒤 backend-dev.
 - **자세히**: security 11-15 PUSH-GATE 보고, questions.json(관리자 범위 질문), NEXT 64②.
 
-### 85. uploader ApplicationContextTest 3건 기존 실패 (11-16 2e, Q-2026-11-16-22 답 ⓐ) [담당: backend-dev]
-- **현재**: `cd uploader && mvn -q -o test` 56건 중 ApplicationContextTest 3건만 'Failed to load ApplicationContext'(IllegalState) — NEXT 39 적용 전 기준선부터 같음(새 PC, 원인 미확인: DB·설정 파일·WebLogic 의존 추정).
-- **다음 한 걸음**: surefire-reports 원인 줄 확인 → backend-dev 원인·수정안. 나중에.
-- **자세히**: `uploader/target/surefire-reports/`, 2e 세션 11-16.
-
-### 86. uploader 업로드 남은 위험 — 파일 검색 본문 재추출·암호화 문서 (NEXT 39 후속, 11-16 2e) [담당: planner → backend-dev → security]
-- **현재**: NEXT 39 닫음(b2450b4·5df6c1e·bebb749). 남은 것: (중·기획) `/api/files/search`가 GET마다 결과 파일 전부 `extractText`(FileSearchApiController:54, FileContentService:46 주석 '삭제됨'은 사실과 다름) / (중·기획) 암호화 OOXML은 isZip=false라 ZipGuard 건너뜀 — 허용 여부 / (하) 목차 대조는 java.util.zip 기준, POI는 commons-compress일 수 있어 해석 차이 여지.
+### 86. uploader 업로드 남은 위험 — 파일 검색 본문 재추출·암호화 문서 (NEXT 39 후속, 11-16 2e) [담당: backend-dev → security]
+- **planner 11-16**: 검색은 C(목록만·본문 추출 제거, 18-B 확인 수단 유지), 암호화 OOXML은 A(분석만 거부·원본 보관·사유 기록), 목차 차이는 a(수용+기록, POI zip 구현 1회 확인). 저장소 안 호출부 0건. 최종 삭제·페이징·인증은 문의 6-2·4ⓒ 회신 뒤(NEXT 17·21). 사용자 Q1(암호 문서 유무)·Q2(외부 호출자) 대기, backend-dev 패치안 준비 중.
+- **현재**: NEXT 39 닫음(b2450b4·5df6c1e·bebb749). 남은 것: (중·기획) `/api/files/search`가 GET마다 결과 파일 전부 `extractText`(FileSearchApiController:54, FileContentService:46 주석은 11-16 cc025a7로 바로잡음) / (중·기획) 암호화 OOXML은 isZip=false라 ZipGuard 건너뜀 — 허용 여부 / (하) 목차 대조는 java.util.zip 기준, POI는 commons-compress일 수 있어 해석 차이 여지.
 - **다음 한 걸음**: planner — 검색 기능 존치·삭제·경량화, 암호화 문서 허용 여부 선택지 정리(운영 호출부 확인 먼저) → 결정되면 backend-dev 패치.
 - **자세히**: security 11-16 보고서 3건(handoff/agents/security/2026-11-16_*), backend-dev 11-16 NEXT 39 보고서.
