@@ -1,14 +1,19 @@
 package com.kbstar.kgi.ggreport.web.service;
 
 import com.kbstar.kgi.ggreport.web.domain.RoleMenu;
+import com.kbstar.kgi.ggreport.web.domain.SysUser;
+import com.kbstar.kgi.ggreport.web.domain.UserMenuPerm;
 import com.kbstar.kgi.ggreport.web.dto.MenuChangesIn;
 import com.kbstar.kgi.ggreport.web.mapper.RoleMenuMapper;
+import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
+import com.kbstar.kgi.ggreport.web.mapper.UserMenuPermMapper;
 import com.kbstar.kgi.ggreport.web.support.Menus;
 import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,9 +30,13 @@ import java.util.Map;
 public class MenuService {
 
     private final RoleMenuMapper mapper;
+    private final SysUserMapper users;
+    private final UserMenuPermMapper perms;
 
-    public MenuService(RoleMenuMapper mapper) {
+    public MenuService(RoleMenuMapper mapper, SysUserMapper users, UserMenuPermMapper perms) {
         this.mapper = mapper;
+        this.users = users;
+        this.perms = perms;
     }
 
     /** {@code {역할: {메뉴: 켜짐}}} — 저장된 것만. 없으면 빈 맵. */
@@ -84,11 +93,11 @@ public class MenuService {
             }
             row.put(change.getMenu(), change.isEnabled());
         }
-        if (!anyoneCanAdminister(after)) {
+        if (!activeAdminRemains(after)) {
             throw ApiException.badRequest(
-                    "권한관리 메뉴를 모든 역할에서 끌 수 없습니다 — "
+                    "이 저장 뒤에는 권한관리를 볼 수 있는 활성 사용자가 한 명도 남지 않습니다 — "
                             + "그러면 아무도 이 화면에 들어올 수 없어 되돌릴 방법이 없습니다. "
-                            + "먼저 다른 역할에 권한관리를 켜 주세요.");
+                            + "먼저 다른 역할이나 사용자에게 권한관리를 켜 주세요.");
         }
 
         for (MenuChangesIn.MenuChange change : changes) {
@@ -97,9 +106,27 @@ public class MenuService {
         return changes.size();
     }
 
-    private static boolean anyoneCanAdminister(Map<String, Map<String, Boolean>> grid) {
-        for (Map<String, Boolean> row : grid.values()) {
-            if (Boolean.TRUE.equals(row.get(Menus.ADMIN_MENU))) {
+    /**
+     * 저장 뒤 격자에서 권한관리를 볼 수 있는 <b>활성 사용자</b>가 남는가 — PermissionService.canAdmin 과 같은 규칙
+     * (사용자 예외 행 > 역할 격자)을 '저장 뒤 격자'로 계산한다. 격자 칸만 보면 그 역할에 활성 사용자가 없거나
+     * 모두 예외로 꺼져 있어도 통과해 잠길 수 있다(NEXT 84). PermissionService 가 이 클래스에 의존하므로
+     * 거꾸로 부르지 못해 같은 규칙을 여기 다시 쓴다 — 규칙을 바꾸면 두 곳을 함께 고친다.
+     */
+    private boolean activeAdminRemains(Map<String, Map<String, Boolean>> grid) {
+        Map<String, Boolean> exception = new HashMap<>();
+        for (UserMenuPerm p : perms.selectAll()) {
+            if (Menus.ADMIN_MENU.equals(p.getMenuKey())) {
+                exception.put(p.getEmpNo(), p.isCanView());
+            }
+        }
+        for (SysUser u : users.selectAll()) {
+            if (!"ACTIVE".equals(u.getStatus())) {
+                continue;
+            }
+            Boolean own = exception.get(u.getEmpNo());
+            Map<String, Boolean> row = grid.get(u.getRole());
+            boolean view = own != null ? own : row != null && Boolean.TRUE.equals(row.get(Menus.ADMIN_MENU));
+            if (view) {
                 return true;
             }
         }

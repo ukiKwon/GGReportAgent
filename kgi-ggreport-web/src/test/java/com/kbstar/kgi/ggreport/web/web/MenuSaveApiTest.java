@@ -150,4 +150,41 @@ public class MenuSaveApiTest {
     public void 빈_변경목록은_0건_저장이다() throws Exception {
         save("[]").andExpect(status().isOk()).andExpect(jsonPath("$.saved").value(0));
     }
+
+    // ── NEXT 84: 잠김 방지는 '칸'이 아니라 '권한관리를 볼 수 있는 활성 사용자'로 판정한다 ──
+
+    private void userAdminView(String emp, boolean view) throws Exception {
+        mockMvc.perform(put("/sysadmin/perms/" + emp).header(Actor.HEADER, ADMIN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"changes\":[{\"menu\":\"admin\",\"view\":" + view + "}]}"))
+                .andExpect(status().isOk());
+    }
+
+    /** 전산팀장 역할에 켜 두면(033 과 같은 상태) 전산팀 역할의 권한관리를 꺼도 된다. */
+    @Test
+    public void 전산팀장에_켜두면_전산팀_역할의_권한관리를_꺼도_된다() throws Exception {
+        save("[{\"role\":\"전산팀장\",\"menu\":\"admin\",\"enabled\":true},{\"role\":\"전산팀\",\"menu\":\"admin\",\"enabled\":false}]")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.saved").value(2));
+    }
+
+    /** 역할 칸은 켜져 있어도 그 역할 사람이 모두 사용자 예외로 꺼져 있으면 잠기는 저장이다 — 거부. */
+    @Test
+    public void 역할에_켜져_있어도_볼_수_있는_활성_사용자가_없으면_거부한다() throws Exception {
+        save("[{\"role\":\"전산팀장\",\"menu\":\"admin\",\"enabled\":true}]").andExpect(status().isOk());
+        userAdminView("6295038", false);
+        userAdminView("8892046", false);
+        save("[{\"role\":\"전산팀\",\"menu\":\"admin\",\"enabled\":false}]")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").exists());
+        mockMvc.perform(get("/menus").param("role", "전산팀"))
+                .andExpect(jsonPath("$.menus.admin").value(true));
+    }
+
+    /** 사용자 예외로 관리자인 사람이 남으면 역할 칸을 모두 꺼도 잠기지 않는다. */
+    @Test
+    public void 사용자_예외_관리자가_남으면_역할_권한관리를_모두_꺼도_된다() throws Exception {
+        userAdminView(SALES_MEMBER, true);
+        save("[{\"role\":\"전산팀\",\"menu\":\"admin\",\"enabled\":false}]").andExpect(status().isOk());
+    }
 }

@@ -109,7 +109,8 @@ public final class Menus {
         Map<String, Boolean> head = row("approvals", "chat", "workflow");
         head.put("regions", Boolean.FALSE);
         out.put(Teams.FINAL_APPROVER, head);
-        // 전산팀이 시스템 운영자를 겸한다(사용자 확정).
+        // 전산팀이 시스템 운영자를 겸한다(사용자 확정). 전산팀장도 관리자다(2026-11-15 사용자 답 ⓐ, NEXT 84) —
+        // 단 이 기본 격자가 아니라 ROLE_MENUS 저장값(db 033)으로 켠다. 이 격자는 골든 04·05·server/menus.py 와 같아야 한다.
         out.get("전산팀").put(ADMIN_MENU, Boolean.TRUE);
         return Collections.unmodifiableMap(out);
     }
