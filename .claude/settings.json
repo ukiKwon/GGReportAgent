@@ -1,5 +1,16 @@
 {
   "permissions": {
+    "allow": [
+      "WebFetch(domain:view.asiae.co.kr)",
+      "WebFetch(domain:www.joongangenews.com)",
+      "WebFetch(domain:www.khan.co.kr)",
+      "WebFetch(domain:www.ngetnews.com)",
+      "WebFetch(domain:www.inews365.com)",
+      "WebFetch(domain:www.thefairnews.co.kr)",
+      "WebFetch(domain:www.ebn.co.kr)",
+      "WebFetch(domain:www.data.go.kr)",
+      "WebFetch(domain:www.law.go.kr)"
+    ],
     "deny": [
       "Read(kgi-ggreport-web/config/application.properties)",
       "Read(uploader/config/application.properties)"
