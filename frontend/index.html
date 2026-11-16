@@ -1900,19 +1900,20 @@
   .pl-warn { margin:8px 0 0; padding:6px 10px; font-size:12px; line-height:1.5; word-break:keep-all; border-left:2px solid var(--orange); }
   .pl-note, .pl-content { white-space:pre-line; overflow-wrap:anywhere; }
   .pl-src { overflow-wrap:anywhere; }
-  .pl-tbl { width:100%; border-collapse:collapse; margin-top:12px; font-size:13px; }
+  .pl-tbl { width:100%; max-width:680px; table-layout:fixed; border-collapse:collapse; margin-top:12px; font-size:13px; }
   .pl-tbl th { padding:6px 8px; font-size:12px; font-weight:400; color:var(--muted); text-align:left; border-bottom:1px solid var(--line-strong); }
   .pl-tbl td { padding:8px; border-top:1px solid var(--line); vertical-align:top; text-align:left; }
-  .pl-tbl th.pl-no, .pl-tbl td.pl-no { width:52px; white-space:nowrap; }
-  .pl-tbl th.pl-bud, .pl-tbl td.pl-bud { width:112px; text-align:right; white-space:nowrap; }
+  .pl-tbl th.pl-no, .pl-tbl td.pl-no { width:64px; white-space:nowrap; }
+  .pl-tbl th.pl-bud, .pl-tbl td.pl-bud { width:160px; text-align:right; white-space:nowrap; }
   .pl-tbl .pl-fld th { padding:12px 8px 4px; font-size:12px; font-weight:700; color:var(--fg); border-top:1px solid var(--line-strong); border-bottom:0; }
   .pl-tbl .pl-child td.pl-nm { padding-left:24px; }
+  .pl-tbl td.pl-nm { overflow-wrap:anywhere; }
   .pl-name { font-weight:600; }
   .pl-content { display:block; margin-top:2px; font-size:12px; color:var(--muted); line-height:1.5; }
   .pl-prog { display:block; margin-top:2px; }
   .pl-dim td, .pl-dim .pl-content { color:var(--muted); }
   .pl-bud .u { font-size:11px; color:var(--muted); }
-  .pl-bud .db-why { display:block; font-size:11px; }
+  .pl-bud .db-why { display:block; font-size:11px; line-height:1.4; white-space:normal; word-break:keep-all; overflow-wrap:anywhere; }   /* 원문 표기만 칸 안에서 줄바꿈 — 긴 문구가 예산 열 전체를 넓히지 않게(11-16 사용자 지적) */
   .pl-open { margin:8px 0 0; }
   .pl-open .link-btn { min-height:24px; padding:4px 2px; color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent-color); text-underline-offset:3px; }
   .pl-slot:empty { display:none; }

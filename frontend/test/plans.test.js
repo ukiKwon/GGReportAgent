@@ -445,3 +445,20 @@ test('paneHtml: 훅이 있으면 기관장 절 뒤·tail 앞에 사업계획 절
     plans.resetStatus();
   }
 });
+
+// 11-16 사용자 지적: 예산 칸 원문 표기가 nowrap이라 예산 열 전체가 388px로 넓어져 사업명과 금액이 멀어졌다(실측 1280폭 사업명 92px).
+// 고정 배치 + 원문 표기만 줄바꿈 계약을 지킨다(선택자 블록 안 속성만 본다).
+function cssBlock(sel) {
+  const i = HTML.indexOf(sel + ' {');
+  assert.ok(i >= 0, sel + ' 규칙이 있어야 한다');
+  return HTML.slice(i, HTML.indexOf('}', i));
+}
+test('사업표: 고정 배치·폭 상한, 예산 열 고정 폭, 원문 표기는 칸 안에서 줄바꿈', () => {
+  const tbl = cssBlock('.pl-tbl');
+  assert.match(tbl, /table-layout:fixed/);
+  assert.match(tbl, /max-width:\d+px/);
+  assert.match(cssBlock('.pl-tbl th.pl-bud, .pl-tbl td.pl-bud'), /width:\d+px/);
+  const why = cssBlock('.pl-bud .db-why');
+  assert.match(why, /white-space:normal/);
+  assert.match(why, /overflow-wrap:anywhere/);
+});
