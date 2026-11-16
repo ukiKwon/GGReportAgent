@@ -154,6 +154,37 @@ public class ZipGuardTest {
         assertTrue(ZipGuard.checkOoxmlFile(ok).names.contains("xl/workbook.xml"));
     }
 
+    @Test
+    public void 암호화_ooxml은_ENCRYPTED_일반_xls는_통과_손상_ole은_BROKEN() throws Exception {
+        Path enc = tmp.newFile("enc.xlsx").toPath();
+        Files.write(enc, ZipFixtures.encryptedOoxml(ZipFixtures.zip("a.txt", new byte[]{'x'})));
+        try {
+            ZipGuard.rejectEncryptedOoxml(enc);
+            fail("거부되어야 한다");
+        } catch (ZipGuard.Rejected e) {
+            assertEquals("ENCRYPTED", e.code);
+        }
+        Path xls = tmp.newFile("plain.xls").toPath();
+        try (org.apache.poi.hssf.usermodel.HSSFWorkbook wb = new org.apache.poi.hssf.usermodel.HSSFWorkbook();
+             java.io.OutputStream os = Files.newOutputStream(xls)) {
+            wb.createSheet("s");
+            wb.write(os);
+        }
+        assertTrue(ZipGuard.isOle(xls));
+        ZipGuard.rejectEncryptedOoxml(xls);              // 예외 없음
+        Path z = tmp.newFile("p.xlsx").toPath();
+        Files.write(z, ZipFixtures.zip("a.txt", new byte[]{'x'}));
+        ZipGuard.rejectEncryptedOoxml(z);                // zip 은 대상 아님
+        Path bad = tmp.newFile("bad.xls").toPath();
+        Files.write(bad, new byte[]{(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0, 1, 2, 3});
+        try {
+            ZipGuard.rejectEncryptedOoxml(bad);
+            fail("거부되어야 한다");
+        } catch (ZipGuard.Rejected e) {
+            assertEquals("BROKEN", e.code);
+        }
+    }
+
     private static String fileCode(Path f) {
         try {
             ZipGuard.checkOoxmlFile(f);

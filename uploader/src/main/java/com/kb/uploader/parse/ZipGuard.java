@@ -74,6 +74,43 @@ public final class ZipGuard {
         }
     }
 
+    /** 첫 4바이트가 OLE2 서명(D0 CF 11 E0)인가. 읽기 실패는 false. */
+    static boolean isOle(Path file) {
+        try (InputStream in = Files.newInputStream(file)) {
+            byte[] h = new byte[4];
+            int n = 0;
+            int r;
+            while (n < 4 && (r = in.read(h, n, 4 - n)) > 0) {
+                n += r;
+            }
+            return n == 4 && (h[0] & 0xFF) == 0xD0 && (h[1] & 0xFF) == 0xCF && h[2] == 0x11 && (h[3] & 0xFF) == 0xE0;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
+     * 암호화 OOXML(OLE 안의 EncryptedPackage/EncryptionInfo)을 거부한다(NEXT 86, 사용자 11-16: 암호 문서 없음 → 분석 거부).
+     * 이런 파일은 PK 로 시작하지 않아 zip 검사를 건너뛰고, POI 가 기본 키로 복호화하면 해제된 zip 은 검사를 받지 않는다.
+     * 일반 xls/ppt(OLE)는 통과한다. 사유는 코드(ENCRYPTED)만 쓴다.
+     */
+    public static void rejectEncryptedOoxml(Path file) throws Rejected {
+        if (!isOle(file)) {
+            return;
+        }
+        try (org.apache.poi.poifs.filesystem.POIFSFileSystem fs =
+                     new org.apache.poi.poifs.filesystem.POIFSFileSystem(file.toFile(), true)) {
+            org.apache.poi.poifs.filesystem.DirectoryNode root = fs.getRoot();
+            for (String n : root.getEntryNames()) {      // 대소문자 무시(POI 가 이름을 느슨하게 찾을 경우 대비, security 11-16 N1)
+                if ("EncryptedPackage".equalsIgnoreCase(n) || "EncryptionInfo".equalsIgnoreCase(n)) {
+                    throw new Rejected("ENCRYPTED");
+                }
+            }
+        } catch (IOException | RuntimeException ex) {
+            throw new Rejected("BROKEN");
+        }
+    }
+
     /** 파일을 스트림으로 읽으며 검사하고(통째로 메모리에 올리지 않는다), 중앙 목차와 대조한다. */
     public static Result check(Path file, long maxEntry, long maxTotal, int maxCells, int maxRows,
                                int maxCellChars, int maxXmlElements) throws Rejected {
@@ -238,7 +275,7 @@ public final class ZipGuard {
         }
     }
 
-    /** code: TOO_LARGE_UNPACKED | DUPLICATE_ENTRY | TOO_MANY_CELLS | CELL_TOO_LONG | BROKEN. 메시지·스택 없음. */
+    /** code: TOO_LARGE_UNPACKED | DUPLICATE_ENTRY | TOO_MANY_CELLS | CELL_TOO_LONG | BROKEN | ENCRYPTED. 메시지·스택 없음. */
     public static final class Rejected extends Exception {
         public final String code;
 

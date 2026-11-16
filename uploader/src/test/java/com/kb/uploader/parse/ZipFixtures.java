@@ -137,6 +137,22 @@ public final class ZipFixtures {
         return out;
     }
 
+    /** 암호화 OOXML 모양(OLE + EncryptionInfo + EncryptedPackage)을 만든다. 비밀번호는 시험용 가상값. */
+    public static byte[] encryptedOoxml(byte[] plainZip) throws Exception {
+        try (org.apache.poi.poifs.filesystem.POIFSFileSystem fs = new org.apache.poi.poifs.filesystem.POIFSFileSystem()) {
+            org.apache.poi.poifs.crypt.EncryptionInfo info =
+                    new org.apache.poi.poifs.crypt.EncryptionInfo(org.apache.poi.poifs.crypt.EncryptionMode.standard);
+            org.apache.poi.poifs.crypt.Encryptor enc = info.getEncryptor();
+            enc.confirmPassword("test-pw");
+            try (java.io.OutputStream os = enc.getDataStream(fs)) {
+                os.write(plainZip);
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            fs.writeFilesystem(out);
+            return out.toByteArray();
+        }
+    }
+
     private static int cdStart(byte[] zip) {
         return le32(zip, zip.length - 22 + 16);    // 주석 없는 EOCD 가정
     }

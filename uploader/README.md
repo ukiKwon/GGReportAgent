@@ -197,9 +197,12 @@ GET /api/files/search?institution=&year=&keyword=
 | `year` | `""` | 연도 4자리 |
 | `keyword` | `""` | 파일명 키워드 |
 
-**응답**: `{ "items": [ { id, originalName, institutionName, year, category, status,
-uploadedAt, content } ] }` — `content`는 `FileContentService`가 추출한 **본문
-텍스트**입니다(PDFBox/POI). 매 호출마다 파일을 읽어 추출하므로 건수가 많으면 느립니다.
+**응답**: `{ "files": [ { id, originalName, institution, year, category, status,
+uploadedAt } ] }` — **목록 메타데이터만** 돌려줍니다(NEXT 86, 2026-11-16: 매 호출 파일 읽기·본문
+노출 제거). 본문이 필요하면 `/download`(Base64)를 씁니다. 본문 제공은 업로드 분석 때 저장한 본문을
+돌려주는 저장형으로 따로 설계합니다(확장 고려, 키 추가는 기존 호출자와 호환).
+
+> 비밀번호로 암호화한 엑셀·파워포인트(OOXML)는 분석하지 않습니다(사유 코드 `ENCRYPTED`, 로그에만 기록, 원본은 보관).
 
 ```
 GET /api/files/{id}/download

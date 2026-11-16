@@ -129,6 +129,14 @@ public class FileContentServiceTest {
     }
 
     @Test
+    public void 암호화_xlsx는_null() throws Exception {
+        File f = tempFolder.newFile("enc.xlsx");
+        Files.write(f.toPath(), com.kb.uploader.parse.ZipFixtures.encryptedOoxml(
+                com.kb.uploader.parse.ZipFixtures.zip("a.txt", new byte[]{'x'})));
+        assertNull(sut.extractText(f.getAbsolutePath()));
+    }
+
+    @Test
     public void hwpx_중복_entry는_null() throws Exception {
         byte[] ok = Files.readAllBytes(makeHwpx("<hs:sec xmlns:hs=\"x\" xmlns:hp=\"y\"><hp:t>본문</hp:t></hs:sec>").toPath());
         File f = tempFolder.newFile("dup.hwpx");

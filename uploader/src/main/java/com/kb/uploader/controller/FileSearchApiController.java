@@ -4,7 +4,6 @@ import com.kb.uploader.domain.UploadedFile;
 import com.kb.uploader.dto.FileDownloadResponse;
 import com.kb.uploader.dto.FileSearchResponse;
 import com.kb.uploader.mapper.UploadedFileMapper;
-import com.kb.uploader.service.FileContentService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,12 +26,9 @@ import java.util.stream.Collectors;
 public class FileSearchApiController {
 
     private final UploadedFileMapper fileMapper;
-    private final FileContentService contentService;
 
-    public FileSearchApiController(UploadedFileMapper fileMapper,
-                                   FileContentService contentService) {
+    public FileSearchApiController(UploadedFileMapper fileMapper) {
         this.fileMapper = fileMapper;
-        this.contentService = contentService;
     }
 
     @GetMapping("/search")
@@ -50,8 +46,8 @@ public class FileSearchApiController {
                         f.getYear(),
                         f.getCategory(),
                         f.getStatus(),
-                        f.getUploadedAt() != null ? f.getUploadedAt().toString() : null,
-                        contentService.extractText(f.getStoredPath())))
+                        // 본문(content)은 싣지 않는다 — 매 요청 파일 추출 부하·본문 노출 제거(NEXT 86). 본문 제공은 저장형으로 별도 설계(사용자 11-16 ⓒ 고려)
+                        f.getUploadedAt() != null ? f.getUploadedAt().toString() : null))
                 .collect(Collectors.toList());
 
         return new FileSearchResponse(items);
@@ -75,8 +71,10 @@ public class FileSearchApiController {
         try {
             bytes = Files.readAllBytes(path);
         } catch (IOException e) {
+            // 예외 메시지(서버 경로가 섞일 수 있음)는 응답에 싣지 않고 로그에만(security 11-16 N2)
+            org.slf4j.LoggerFactory.getLogger(FileSearchApiController.class).warn("파일 읽기 실패: id={}", id, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Collections.singletonMap("error", "파일 읽기 실패: " + e.getMessage()));
+                    .body(Collections.singletonMap("error", "파일 읽기 실패"));
         }
 
         return ResponseEntity.ok(new FileDownloadResponse(

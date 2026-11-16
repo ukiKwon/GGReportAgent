@@ -244,7 +244,7 @@ WAR 안에 **`ojdbc8-21.7.0.0.jar`가 들어 있습니다.** WebLogic도 자체 
 | 화면 | `GET /` | 대시보드가 뜨고 통계가 0으로 표시 |
 | 기관 등록 | `GET /institutions` → 등록 | **시퀀스가 없으면 여기서 실패**합니다 |
 | 업로드 | `POST /upload` (파일 1건) | 200 + 결과 화면. `/app/uploader/unclassified/`에 파일 생성 |
-| 검색 API | `GET /api/files/search` | `{"items":[…]}` — **빈 배열이 아니어야** 정상 |
+| 검색 API | `GET /api/files/search` | `{"files":[…]}` — **빈 배열이 아니어야** 정상(본문 없는 목록, NEXT 86) |
 | 자동 분류 | 업로드 후 최대 5분 | 파일이 `classified/{카테고리}/{연도}/{기관}/`로 이동 |
 
 > ⚠️ **검색 API가 빈 배열만 돌려주면** Oracle의 빈 문자열↔NULL 처리 문제일 수

@@ -177,6 +177,19 @@ public class InstitutionServiceTest {
         }
     }
 
+    @Test
+    public void 암호화_xlsx_가져오기는_BROKEN으로_거부되고_삭제하지_않는다() throws Exception {
+        byte[] enc = com.kb.uploader.parse.ZipFixtures.encryptedOoxml(
+                com.kb.uploader.parse.ZipFixtures.zip("a.txt", new byte[]{'x'}));
+        try {
+            sut.importFromXlsx(enc);
+            fail("거부되어야 한다");
+        } catch (java.io.IOException e) {
+            assertEquals("XLSX 거부: BROKEN", e.getMessage());
+        }
+        verify(institutionMapper, never()).deleteAll();
+    }
+
     @Test(expected = java.io.IOException.class)
     public void importFromXlsx_과대_해제_크기_zip은_거부() throws Exception {
         when(institutionMapper.findAll()).thenReturn(Arrays.asList(new Institution("KAIST", "대학교")));

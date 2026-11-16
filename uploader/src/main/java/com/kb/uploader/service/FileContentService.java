@@ -44,8 +44,9 @@ import java.util.zip.ZipFile;
  * </ol>
  *
  * <p>그동안 이 동작을 바꾸지 못한 이유는 {@code /api/files/search} 응답의
- * {@code content} 가 그 문자열을 그대로 싣고 있었기 때문이다. 그 API 는 재정의로 빠졌으나
- * {@code FileSearchApiController} 에 아직 남아 있다 — 존치·삭제는 NEXT 86 에서 정한다.
+ * {@code content} 가 그 문자열을 그대로 싣고 있었기 때문이다. NEXT 86(11-16)에서 search 는 목록만
+ * 돌려주도록 존치하고 본문(content)을 뺐다. 지금 {@code extractText} 를 부르는 운영 코드는 0건이다
+ * (시험과 parseDoc(NEXT 21)·본문 저장형 제공(사용자 11-16, 확장 고려) 대비로 보존).
  *
  * <p>실패 사유는 <b>로그에만</b> 남긴다 — 응답·파일에는 싣지 않는다.
  */
@@ -197,12 +198,19 @@ public class FileContentService {
         return sb.toString().trim();
     }
 
-    /** zip(PK) 일 때만 검사한다. xls(OLE)는 건너뜀. 거부는 IOException → extractText 의 catch 가 null 로 바꾼다. */
+    /**
+     * zip(PK)이면 목차·크기 검사, 아니면(xls=OLE) 암호화 OOXML 여부만 본다(NEXT 86).
+     * 거부는 IOException → extractText 의 catch 가 null 로 바꾼다.
+     */
     private static void guardZip(Path file) throws IOException {
-        if (!ZipGuard.isZip(file)) return;
         try {
-            ZipGuard.checkOoxmlFile(file);      // POI 와 같은 zip 구현으로 목차 대조 (NEXT 86)
+            if (ZipGuard.isZip(file)) {
+                ZipGuard.checkOoxmlFile(file);      // POI 와 같은 zip 구현으로 목차 대조 (NEXT 86)
+            } else {
+                ZipGuard.rejectEncryptedOoxml(file);
+            }
         } catch (ZipGuard.Rejected e) {
+            log.warn("엑셀 거부: {}", e.code);       // 코드만. 경로 없음
             throw new IOException("ZIP 거부: " + e.code);
         }
     }
