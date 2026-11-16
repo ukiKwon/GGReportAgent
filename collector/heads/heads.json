@@ -886,7 +886,14 @@
     "국정기획위원회 위원",
     "국회의원 보좌관"
    ],
-   "photo": null
+   "photo": {
+    "url": "https://www.sejong.go.kr/images/mayor/main/mayor.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "세종특별자치시 열린시장실 시장 사진(공공누리 표시 없음 — 로컬 작업용)",
+    "page": "https://www.sejong.go.kr/mayor/index.do",
+    "checked_on": "2026-11-16"
+   }
   },
   {
    "institution_id": "lg-41-77433edc2c",
@@ -987,7 +994,14 @@
     "대통령직속 청년위원회 위원장",
     "서원대학교 석좌교수"
    ],
-   "photo": null
+   "photo": {
+    "url": "https://www.chungbuk.go.kr/site/governor_2026/images/contents/cts722_v2.jpg",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "충청북도 도지사실 프로필 사진(공공누리 표시 없음 — 로컬 작업용)",
+    "page": "https://www.chungbuk.go.kr/governor/contents.do?key=722",
+    "checked_on": "2026-11-16"
+   }
   },
   {
    "institution_id": "lg-44-4f3dcb9ad4",
