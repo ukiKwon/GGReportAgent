@@ -120,4 +120,14 @@ public class BidCaseGuardApiTest {
                 .content("{\"approved\":true}").header("X-Emp-No", "3918264")).andReturn();
         assertEquals(1, acts(id, "FINALIZE_APPROVE", "DENIED"));
     }
+
+    @Test
+    public void 서비스가_거절한_최종확정도_증적에_남는다() throws Exception {   // qa 11-16 P2-1 — 작업이 2차완료가 아니라 409
+        String id = newCase();
+        int s = mockMvc.perform(post("/bidcases/" + id + "/finalize").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"approved\":true}").header("X-Emp-No", "2674805")).andReturn().getResponse().getStatus();
+        String outcome = s == 409 ? "BLOCKED" : s == 400 ? "INVALID" : s == 404 ? "HIDDEN" : "ERROR";
+        assertEquals(1, acts(id, "FINALIZE_APPROVE", outcome));
+        assertEquals(0, acts(id, "FINALIZE_APPROVE", "OK"));
+    }
 }

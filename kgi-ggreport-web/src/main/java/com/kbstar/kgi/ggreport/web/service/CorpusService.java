@@ -107,8 +107,12 @@ public class CorpusService {
         return i;
     }
 
+    /** 글자(code point) 기준 60자 — UTF-16 단위로 자르면 반쪽 문자가 생겨 utf8mb4 INSERT 가 실패할 수 있다(security 11-16 하-1). */
     private static String cut60(String v) {
-        return v == null ? null : (v.length() > 60 ? v.substring(0, 60) : v);
+        if (v == null || v.codePointCount(0, v.length()) <= 60) {
+            return v;
+        }
+        return v.substring(0, v.offsetByCodePoints(0, 60));
     }
 
     /**
@@ -126,7 +130,12 @@ public class CorpusService {
         if (raw == null || raw.trim().isEmpty()) {
             throw ApiException.badRequest("상대경로만 허용됩니다");
         }
-        Path candidate = Paths.get(raw.trim());
+        Path candidate;
+        try {
+            candidate = Paths.get(raw.trim());
+        } catch (java.nio.file.InvalidPathException e) {   // Windows 금지 문자 등 — 500·입력 경로 로그 대신 400(security 11-16 하-3)
+            throw ApiException.badRequest("상대경로만 허용됩니다");
+        }
         if (candidate.isAbsolute()) {
             throw ApiException.badRequest("상대경로만 허용됩니다");
         }

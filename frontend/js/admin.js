@@ -77,8 +77,8 @@
   };
   // 권한 변경 이력의 '화면·버튼' 칸 라벨. 맵에 없는 값은 원문, UNKNOWN·빈 값은 '알 수 없음', 둘 다면 '기록 없음'.
   admin.UI_LABELS = {
-    screens: { admin_users: '사용자 관리', admin_perms: '권한 관리', admin_menus: '메뉴 관리' },
-    buttons: { menu_save: '저장', user_create: '등록', user_save: '저장', approver_save: '저장·결재자',
+    screens: { admin_users: '사용자 관리', admin_perms: '권한 관리', admin_menus: '메뉴 관리', approvals_inbox: '결재함' },
+    buttons: { approve: '승인', reject: '반려', menu_save: '저장', user_create: '등록', user_save: '저장', approver_save: '저장·결재자',
                user_lock: '잠금', user_unlock: '잠금 해제', user_retire: '정말 퇴직', user_restore: '복직', perm_save: '저장' }
   };
   function uiKnown(v) { return v != null && String(v) !== '' && String(v) !== 'UNKNOWN'; }
@@ -91,6 +91,7 @@
     return sc + ' [' + bt + ']';
   };
   // 로그인한 사람 본인인가(서버 SelfChange 와 같은 기준 = 세션 사번).
+  // ⚠️ 화면은 본인 행의 버튼을 숨기기만 한다 — 실제 차단은 서버 SelfChange·MenuService(사번은 자기신고).
   admin.isSelf = function (u, emp) { return !!emp && !!u && String(u.emp_no) === String(emp); };
 
   admin.VIEWS = { users: '사용자 관리', perms: '권한 관리', menus: '메뉴 관리', audit: '접근 이력' };
@@ -176,9 +177,11 @@
     if (current && !cands.some(function (c) { return c.emp_no === current; })) {
       const p = list.filter(function (x) { return x.emp_no === current; })[0];
       out.kept = { emp_no: current, name: p ? p.name : '', isSelf: !!selfEmp && current === selfEmp };
+      if (out.kept.isSelf) out.selfOmitted = false;   // '본인, 현재 지정' 옵션이 이미 설명하므로 안내를 겹치지 않는다(qa 11-16 P2-2)
     }
     return out;
   };
+  // 반환값은 HTML 이 아니라 글자다 — 호출처에서 반드시 esc() 로 감싼다(이름은 관리자가 입력한 값).
   admin.keptApproverLabel = function (k) {
     return (k.name ? k.name + ' (' + k.emp_no + ')' : k.emp_no) +
       (k.isSelf ? ' — 본인, 현재 지정(바꾸지 않으면 그대로)' : ' — 현재 지정, 지금은 고를 수 없음');

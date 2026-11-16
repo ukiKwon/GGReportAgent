@@ -263,4 +263,10 @@ public class CorpusApiTest {
         assertEquals("corpus_register", row.get("SCREEN_ID"));
         assertEquals("corpus_link", row.get("BUTTON_ID"));
     }
+
+    @Test
+    public void 쓸_수_없는_문자가_든_경로는_500이_아니라_400이다() throws Exception {   // security 11-16 하-3
+        assertEquals(400, call("/validate", "a|b").getStatus());
+        assertEquals(400, call("", "a|b").getStatus());
+    }
 }

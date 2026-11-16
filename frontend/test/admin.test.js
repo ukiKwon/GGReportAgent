@@ -319,3 +319,11 @@ test('uiHtml: 라벨 맵·UNKNOWN·기록 없음·이스케이프', function () 
   assert.strictEqual(admin.uiHtml('x_screen', 'x_btn'), 'x_screen [x_btn]');
   assert.ok(admin.uiHtml('<b>', 'b').indexOf('<b>') < 0);
 });
+
+test('approverChoices: 현재 지정이 본인이면 안내 문구를 겹치지 않고, 그대로 저장하면 변경 없음', function () {
+  const target = U('1111111', { approver_mode: 'MANUAL', approver_emp_no: SELF });
+  const s = admin.approverChoices([target, U(SELF)], target, SELF, SELF);
+  assert.strictEqual(s.kept.isSelf, true);
+  assert.strictEqual(s.selfOmitted, false);
+  assert.strictEqual(admin.approverChange(target, SELF), null);
+});
