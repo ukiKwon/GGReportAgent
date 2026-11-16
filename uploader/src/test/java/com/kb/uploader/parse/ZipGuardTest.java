@@ -131,6 +131,40 @@ public class ZipGuardTest {
     }
 
     @Test
+    public void commons_경로도_숨김_중복_내용바꿔치기를_거부하고_정상은_통과() throws Exception {
+        Path hid = tmp.newFile("hid.xlsx").toPath();
+        Files.write(hid, hiddenBomb());
+        assertEquals("BROKEN", fileCode(hid));
+        Path dup = tmp.newFile("dup.xlsx").toPath();
+        Files.write(dup, ZipFixtures.duplicateEntry(smallXlsx(), "xl/workbook.xml"));
+        assertEquals("DUPLICATE_ENTRY", fileCode(dup));
+        String evil = "<!DOCTYPE a [<!ENTITY e \"x\">]><a>&e;</a>";
+        StringBuilder good = new StringBuilder("<a>");
+        while (good.length() < evil.length() - 4) {
+            good.append('x');
+        }
+        good.append("</a>");
+        Path sw = tmp.newFile("sw.xlsx").toPath();
+        Files.write(sw, ZipFixtures.swapHidden(
+                ZipFixtures.zip("xl/a.xml", good.toString().getBytes(StandardCharsets.UTF_8)),
+                ZipFixtures.zip("xl/a.xml", evil.getBytes(StandardCharsets.UTF_8))));
+        assertEquals("BROKEN", fileCode(sw));
+        Path ok = tmp.newFile("ok.xlsx").toPath();
+        Files.write(ok, smallXlsx());
+        assertTrue(ZipGuard.checkOoxmlFile(ok).names.contains("xl/workbook.xml"));
+    }
+
+    private static String fileCode(Path f) {
+        try {
+            ZipGuard.checkOoxmlFile(f);
+            fail("거부되어야 한다");
+            return null;
+        } catch (ZipGuard.Rejected e) {
+            return e.code;
+        }
+    }
+
+    @Test
     public void 정상_xlsx_pptx_hwpx_파일은_통과() throws Exception {
         Path x = tmp.newFile("n.xlsx").toPath();
         Files.write(x, smallXlsx());

@@ -1,15 +1,18 @@
 package com.kb.uploader.parse;
 
 import java.io.ByteArrayInputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -32,6 +35,9 @@ import javax.xml.stream.XMLStreamReader;
  * entry 이름 집합·개수·실제 해제 크기가 스트림 결과와 다르면 BROKEN 으로 거부한다(가짜 서명 뒤 숨김 방어).
  * byte[] 입력은 InputStream 으로 여는 호출부(InstitutionService)용이라 스트림 검사만 한다.
  * XML 파트는 메모리에 모으지 않고 크기를 세는 스트림을 StAX 에 바로 넘긴다.
+ * 파일 입력의 목차 대조는 열기 쪽과 같은 zip 구현으로 한다: POI 로 여는 xlsx·pptx 는 commons-compress ZipFile
+ * (POI 5.2.3 ZipSecureFile 의 부모 — javap 확인, checkOoxmlFile), HWPX 는 java.util.zip.ZipFile
+ * (hwpxlib 1.0.9 HWPXReader·FileContentService 가 쓰는 구현 — javap 확인, checkUploadFile). NEXT 86 ⑥.
  */
 public final class ZipGuard {
 
@@ -40,7 +46,12 @@ public final class ZipGuard {
 
     /** 업로드 파일(제안서 pptx·엑셀·hwpx) — web PrepAttachInspector 의 한도와 같다. */
     public static Result checkUploadFile(Path file) throws Rejected {
-        return check(file, 100 * MB, 200 * MB, 5000000, 1100000, Integer.MAX_VALUE, 30000000);
+        return check(file, 100 * MB, 200 * MB, 5000000, 1100000, Integer.MAX_VALUE, 30000000, false);
+    }
+
+    /** POI 로 여는 파일(xlsx·pptx)용. 한도는 checkUploadFile 과 같고, 목차를 POI 와 같은 commons-compress 로 대조한다. */
+    public static Result checkOoxmlFile(Path file) throws Rejected {
+        return check(file, 100 * MB, 200 * MB, 5000000, 1100000, Integer.MAX_VALUE, 30000000, true);
     }
 
     /** 기관 목록 xlsx(작은 파일) — web ZipGuardTest 의 정상 xlsx 통과 값. */
@@ -66,13 +77,19 @@ public final class ZipGuard {
     /** 파일을 스트림으로 읽으며 검사하고(통째로 메모리에 올리지 않는다), 중앙 목차와 대조한다. */
     public static Result check(Path file, long maxEntry, long maxTotal, int maxCells, int maxRows,
                                int maxCellChars, int maxXmlElements) throws Rejected {
+        return check(file, maxEntry, maxTotal, maxCells, maxRows, maxCellChars, maxXmlElements, false);
+    }
+
+    /** commons=true 면 목차를 commons-compress 로, false 면 java.util.zip 으로 읽는다. */
+    public static Result check(Path file, long maxEntry, long maxTotal, int maxCells, int maxRows,
+                               int maxCellChars, int maxXmlElements, boolean commons) throws Rejected {
         Result r;
         try (InputStream in = Files.newInputStream(file)) {
             r = scan(in, maxEntry, maxTotal, maxCells, maxRows, maxCellChars, maxXmlElements);
         } catch (IOException e) {
             throw new Rejected("BROKEN");
         }
-        verifyDirectory(file, r, maxEntry, maxTotal, maxCells, maxRows, maxCellChars, maxXmlElements);
+        verifyDirectory(file, commons, r, maxEntry, maxTotal, maxCells, maxRows, maxCellChars, maxXmlElements);
         return r;
     }
 
@@ -82,20 +99,19 @@ public final class ZipGuard {
      * 내용 검사(DOCTYPE·칸·행·요소·글자 수)도 목차 쪽 바이트로 다시 한다 — 같은 이름·같은 크기로 내용만 바꿔 숨긴
      * entry 를 여는 쪽이 읽는 경우 방어(security 11-16 N1).
      */
-    private static void verifyDirectory(Path file, Result stream, long maxEntry, long maxTotal, int maxCells,
-                                        int maxRows, int maxCellChars, int maxXmlElements) throws Rejected {
+    private static void verifyDirectory(Path file, boolean commons, Result stream, long maxEntry, long maxTotal,
+                                        int maxCells, int maxRows, int maxCellChars, int maxXmlElements)
+            throws Rejected {
         Set<String> seen = new HashSet<>();
         long[] total = new long[1];
         long[] counts = new long[3];
         byte[] buf = new byte[8192];
-        try (ZipFile zf = new ZipFile(file.toFile())) {
-            Enumeration<? extends ZipEntry> en = zf.entries();
-            while (en.hasMoreElements()) {
-                ZipEntry e = en.nextElement();
+        try (Dir dir = commons ? new CommonsDir(file) : new JdkDir(file)) {
+            for (int i = 0; i < dir.count(); i++) {
                 if (seen.size() >= MAX_ENTRIES) {
                     throw new Rejected("TOO_LARGE_UNPACKED");
                 }
-                String name = normalize(e.getName());
+                String name = normalize(dir.name(i));
                 if (!seen.add(name)) {
                     throw new Rejected("DUPLICATE_ENTRY");
                 }
@@ -103,7 +119,7 @@ public final class ZipGuard {
                 if (expected == null) {
                     throw new Rejected("BROKEN");           // 목차에만 있는 entry = 가짜 서명 뒤 숨김
                 }
-                try (InputStream is = zf.getInputStream(e)) {
+                try (InputStream is = dir.open(i)) {
                     Meter m = new Meter(is, maxEntry, maxTotal, total);
                     int filled = 0;
                     int r;
@@ -129,6 +145,73 @@ public final class ZipGuard {
         }
         if (seen.size() != stream.sizes.size()) {
             throw new Rejected("BROKEN");                       // 스트림에만 있는 entry
+        }
+    }
+
+    /** 중앙 목차 열거 추상화. 열기 쪽 구현(JDK/commons-compress)에 맞춰 같은 구현으로 읽는다. */
+    private interface Dir extends Closeable {
+        int count();
+
+        String name(int i);
+
+        InputStream open(int i) throws IOException;
+    }
+
+    private static final class JdkDir implements Dir {
+        private final ZipFile zf;
+        private final List<ZipEntry> entries = new ArrayList<>();
+
+        JdkDir(Path file) throws IOException {
+            zf = new ZipFile(file.toFile());
+            Enumeration<? extends ZipEntry> en = zf.entries();
+            while (en.hasMoreElements()) {
+                entries.add(en.nextElement());
+            }
+        }
+
+        public int count() {
+            return entries.size();
+        }
+
+        public String name(int i) {
+            return entries.get(i).getName();
+        }
+
+        public InputStream open(int i) throws IOException {
+            return zf.getInputStream(entries.get(i));
+        }
+
+        public void close() throws IOException {
+            zf.close();
+        }
+    }
+
+    private static final class CommonsDir implements Dir {
+        private final org.apache.commons.compress.archivers.zip.ZipFile zf;
+        private final List<org.apache.commons.compress.archivers.zip.ZipArchiveEntry> entries = new ArrayList<>();
+
+        CommonsDir(Path file) throws IOException {
+            zf = new org.apache.commons.compress.archivers.zip.ZipFile(file.toFile());
+            Enumeration<org.apache.commons.compress.archivers.zip.ZipArchiveEntry> en = zf.getEntries();
+            while (en.hasMoreElements()) {
+                entries.add(en.nextElement());
+            }
+        }
+
+        public int count() {
+            return entries.size();
+        }
+
+        public String name(int i) {
+            return entries.get(i).getName();
+        }
+
+        public InputStream open(int i) throws IOException {
+            return zf.getInputStream(entries.get(i));
+        }
+
+        public void close() throws IOException {
+            zf.close();
         }
     }
 

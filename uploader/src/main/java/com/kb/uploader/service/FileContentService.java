@@ -201,7 +201,7 @@ public class FileContentService {
     private static void guardZip(Path file) throws IOException {
         if (!ZipGuard.isZip(file)) return;
         try {
-            ZipGuard.checkUploadFile(file);
+            ZipGuard.checkOoxmlFile(file);      // POI 와 같은 zip 구현으로 목차 대조 (NEXT 86)
         } catch (ZipGuard.Rejected e) {
             throw new IOException("ZIP 거부: " + e.code);
         }

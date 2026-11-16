@@ -113,6 +113,12 @@
       <artifactId>poi-ooxml</artifactId>
       <version>5.2.3</version>
     </dependency>
+    <!-- NEXT 86: ZipGuard 가 POI(ZipSecureFile)와 같은 zip 구현으로 목차를 대조한다. poi-ooxml 5.2.3 이 쓰는 버전과 같게 둔다. -->
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-compress</artifactId>
+      <version>1.21</version>
+    </dependency>
     <!-- Jackson (JSON import/export) -->
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>

@@ -12,8 +12,6 @@ import org.apache.poi.sl.usermodel.TextShape;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,13 +23,14 @@ public class PptExtractor {
     public List<SlideContent> extract(Path file) throws IOException {
         if (ZipGuard.isZip(file)) {          // pptx 만 검사, ppt(OLE)는 건너뜀 (NEXT 39)
             try {
-                ZipGuard.checkUploadFile(file);
+                ZipGuard.checkOoxmlFile(file);   // POI 와 같은 zip 구현으로 목차 대조 (NEXT 86)
             } catch (ZipGuard.Rejected e) {
                 throw new IOException("ZIP 거부: " + e.code);
             }
         }
-        try (InputStream in = Files.newInputStream(file);
-             SlideShow<?, ?> show = SlideShowFactory.create(in)) {
+        // File 로 열어야 POI 가 ZipSecureFile(commons-compress 목차)로 읽어 checkOoxmlFile 대조와 같은 구현이 된다(security 11-16).
+        // 읽기 전용(readOnly=true) — 닫을 때 원본에 다시 쓰지 않는다.
+        try (SlideShow<?, ?> show = SlideShowFactory.create(file.toFile(), null, true)) {
             List<SlideContent> result = new ArrayList<>();
             int index = 1;
             for (Slide<?, ?> slide : show.getSlides()) {
