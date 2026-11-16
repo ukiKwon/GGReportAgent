@@ -41,6 +41,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -89,7 +90,7 @@ public class InstitutionPlanService {
         BoardUiIds.Ui ui = PlanUiIds.upload();
         String sha = null;
         try {
-            if (!PlanCsv.validId(instId)) throw ApiException.notFound("institution not found");
+            instId = canonicalId(instId);   // 이하 저장·잠금·감사·파일명 대조는 정식 표기로
             if (file == null || file.isEmpty()) throw ApiException.badRequest("파일을 선택하세요.");
             if (file.getSize() > CsvLimits.MAX_FILE_BYTES) throw tooLarge();
             String fileDate = fileDate(instId, file.getOriginalFilename());   // 원래 파일 이름은 어디에도 저장하지 않는다
@@ -113,7 +114,7 @@ public class InstitutionPlanService {
         BoardUiIds.Ui ui = PlanUiIds.seed();
         String sha = null;
         try {
-            if (!PlanCsv.validId(instId)) throw ApiException.notFound("institution not found");
+            instId = canonicalId(instId);
             Resource res = seedResource(instId);
             if (res == null) throw ApiException.notFound("이 기관의 시드 파일이 없습니다.");
             String fileDate = fileDate(instId, res.getFilename());
@@ -250,7 +251,7 @@ public class InstitutionPlanService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> detail(String instId) {
-        if (!PlanCsv.validId(instId)) throw ApiException.notFound("institution not found");
+        instId = canonicalId(instId);
         String name = mapper.selectInstitutionName(instId);
         if (name == null) throw ApiException.notFound("institution not found");
         LocalDate today = today();
@@ -395,17 +396,25 @@ public class InstitutionPlanService {
         }
         Set<String> have = new HashSet<>();
         for (InstPlanImport i : mapper.selectLatestImports()) have.add(i.getInstitutionId());
-        Map<String, Map<String, Object>> byId = new HashMap<>();
+        Map<String, List<Map<String, Object>>> byUpper = new HashMap<>();
         for (Map<String, Object> row : mapper.selectInstitutionsIn(new ArrayList<>(ids))) {
-            byId.put(str(row.get("INSTITUTION_ID")), row);
+            byUpper.computeIfAbsent(str(row.get("INSTITUTION_ID")).toUpperCase(Locale.ROOT), k -> new ArrayList<>()).add(row);
         }
         StringBuilder sb = new StringBuilder("\uFEFF");   // UTF-8 BOM(엑셀이 한글을 바로 읽게)
         line(sb, "기관ID", "기관명", "지역코드", "기관구분", "올릴 파일 이름");
         int n = 0;
+        Set<String> done = new HashSet<>();
         for (String id : ids) {
-            Map<String, Object> row = byId.get(id);
-            if (have.contains(id) || row == null) continue;   // 자료가 있거나 없는 기관 id 는 건너뛴다(사유를 싣지 않는다)
-            line(sb, id, str(row.get("NAME_KO")), str(row.get("REGION_CODE")), str(row.get("INST_TYPE")), id + "_YYYYMMDD_plan.csv");
+            List<Map<String, Object>> cand = byUpper.get(id.toUpperCase(Locale.ROOT));   // id 는 validId 를 통과한 ASCII
+            Map<String, Object> row = null;
+            if (cand != null) {
+                for (Map<String, Object> c : cand) if (id.equals(str(c.get("INSTITUTION_ID")))) row = c;
+                if (row == null && cand.size() == 1) row = cand.get(0);
+            }
+            if (row == null) continue;   // 없는 기관 id 는 건너뛴다(사유를 싣지 않는다)
+            String canon = str(row.get("INSTITUTION_ID"));
+            if (!done.add(canon) || have.contains(canon)) continue;   // 자료가 있거나, 같은 기관을 대소문자만 달리 두 번 보내도 한 줄
+            line(sb, canon, str(row.get("NAME_KO")), str(row.get("REGION_CODE")), str(row.get("INST_TYPE")), canon + "_YYYYMMDD_plan.csv");
             n++;
         }
         return new CsvOut(sb.toString().getBytes(StandardCharsets.UTF_8), n);
@@ -427,13 +436,21 @@ public class InstitutionPlanService {
     }
 
     // ── 보조 ──
+    /** 경로·본문의 기관ID → INSTITUTIONS 의 정식 표기. 형식 검사 → 대소문자 무시 조회 → 정확히 일치하는 것 우선, 하나뿐이면 그것, 없거나 모호하면 404(11-16 팀 결정: 대문자 나라장터 ID 43건 허용). */
+    private String canonicalId(String raw) {
+        if (!PlanCsv.validId(raw)) throw ApiException.notFound("institution not found");
+        List<String> hit = mapper.selectIdsIgnoreCase(raw);
+        if (hit.contains(raw)) return raw;
+        if (hit.size() == 1) return hit.get(0);
+        throw ApiException.notFound("institution not found");
+    }
     static String fileDate(String instId, String original) {
         String name = original == null ? "" : original;
         int cut = Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\'));
         if (cut >= 0) name = name.substring(cut + 1);
         Matcher m = PlanCsv.FILE_NAME.matcher(name);
         if (!m.matches()) throw ApiException.badRequest("파일 이름은 {기관ID}_{확인일YYYYMMDD}_plan.csv 형식이어야 합니다.");
-        if (!m.group(1).equals(instId)) throw ApiException.badRequest("파일 이름의 기관ID가 반입 대상 기관과 다릅니다.");
+        if (!m.group(1).equalsIgnoreCase(instId)) throw ApiException.badRequest("파일 이름의 기관ID가 반입 대상 기관과 다릅니다.");
         String d = m.group(2);
         String iso = d.substring(0, 4) + "-" + d.substring(4, 6) + "-" + d.substring(6);
         try {

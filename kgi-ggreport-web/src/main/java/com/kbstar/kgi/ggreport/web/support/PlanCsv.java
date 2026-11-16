@@ -222,7 +222,8 @@ public final class PlanCsv {
     private static Doc doc(Row c, Options opt, Codes codes) {
         int row = c.row;
         Doc d = new Doc();
-        if (!text(c.get(H_INST), row, 64, false, true).equals(opt.institutionId)) {
+        String csvInst = text(c.get(H_INST), row, 64, false, true);
+        if (!ID.matcher(csvInst).matches() || !csvInst.equalsIgnoreCase(opt.institutionId)) {   // ASCII 검사 뒤에 대소문자 무시 비교(유니코드 접힘 차단). 저장은 서비스의 정식 표기
             throw CsvLimits.bad(row, "기관ID가 반입 대상 기관과 다릅니다.");
         }
         d.title = required(text(c.get(H_TITLE), row, 200, false, true), row, "문서명");

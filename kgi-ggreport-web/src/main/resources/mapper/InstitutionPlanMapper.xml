@@ -13,10 +13,14 @@
   <select id="selectInstitutionName" resultType="string" flushCache="true">
     SELECT NAME_KO FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId}
   </select>
+  <!-- 대문자 기관 ID(나라장터 코드) — 대소문자를 가리지 않고 정식 표기를 찾는다(MySQL·Oracle 결과 일치, 11-16 팀 결정) -->
+  <select id="selectIdsIgnoreCase" resultType="string" flushCache="true">
+    SELECT INSTITUTION_ID FROM INSTITUTIONS WHERE UPPER(INSTITUTION_ID) = UPPER(#{institutionId})
+  </select>
   <select id="selectInstitutionsIn" resultType="map" flushCache="true">
     SELECT INSTITUTION_ID AS INSTITUTION_ID, NAME_KO AS NAME_KO, REGION_CODE AS REGION_CODE, TYPE AS INST_TYPE
-      FROM INSTITUTIONS WHERE INSTITUTION_ID IN
-    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+      FROM INSTITUTIONS WHERE UPPER(INSTITUTION_ID) IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">UPPER(#{id})</foreach>
   </select>
   <select id="selectPlanCodes" resultType="map" flushCache="true">
     SELECT CODE_GROUP AS CODE_GROUP, CODE AS CODE, CODE_NAME AS CODE_NAME FROM COMMON_CODE

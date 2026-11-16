@@ -445,4 +445,50 @@ public class InstitutionPlanApiTest {
         many.append("]}");
         assertEquals(400, missing(many.toString(), SALES).getStatus());
     }
+    // ── 대문자 기관 ID(나라장터 코드, 11-16 팀 결정) — 대소문자 무시로 받고 정식 표기로 저장·조회 ──
+    private static final String MIX = "t-Plan-AB1";
+
+    @Test
+    public void 대문자_기관ID로_반입하고_조회한다() throws Exception {
+        jdbc.update("INSERT INTO INSTITUTIONS (INSTITUTION_ID, NAME_KO) VALUES (?, '시험기관(가상)')", MIX);
+        LocalDate d = today().minusDays(1);
+        String body = csv(row(MIX, "https://example.kr/plan.pdf", iso(d), "plan-collector/1.0", "2023", "2030", "1", "", "시험 사업", "원문에 없음", "", ""));
+        MockHttpServletResponse res = upload(MIX, fileName(MIX, d), body, ADMIN);
+        assertEquals(res.getContentAsString(), 201, res.getStatus());
+        assertEquals(MIX, body(res).path("institution_id").asText());
+        res = getAs("/institutions/" + MIX + "/plans", SALES);
+        assertEquals(200, res.getStatus());
+        assertEquals(MIX, body(res).path("institution_id").asText());
+    }
+
+    @Test
+    public void 소문자로_요청해도_정식_표기로_저장된다() throws Exception {
+        jdbc.update("INSERT INTO INSTITUTIONS (INSTITUTION_ID, NAME_KO) VALUES (?, '시험기관(가상)')", MIX);
+        LocalDate d = today().minusDays(1);
+        String body = csv(row("T-PLAN-ab1", "https://example.kr/plan.pdf", iso(d), "plan-collector/1.0", "2023", "2030", "1", "", "시험 사업", "원문에 없음", "", ""));
+        MockHttpServletResponse res = upload("t-plan-ab1", fileName("T-plan-AB1", d), body, ADMIN);
+        assertEquals(res.getContentAsString(), 201, res.getStatus());
+        assertEquals(MIX, body(res).path("institution_id").asText());
+        assertEquals(MIX, jdbc.queryForObject("SELECT INSTITUTION_ID FROM INST_PLAN_IMPORT WHERE IMPORT_ID = (SELECT MAX(IMPORT_ID) FROM INST_PLAN_IMPORT)", String.class));
+        assertEquals(MIX, body(getAs("/institutions/t-plan-ab1/plans", SALES)).path("institution_id").asText());
+    }
+
+    @Test
+    public void 없는_기관ID는_404이고_권한검사가_먼저다() throws Exception {
+        assertEquals(404, getAs("/institutions/no-such-inst/plans", SALES).getStatus());
+        assertEquals(404, upload("no-such-inst", fileName("no-such-inst", today().minusDays(1)), "x", ADMIN).getStatus());
+        assertEquals(404, seed("no-such-inst", ADMIN).getStatus());
+        assertEquals(403, upload("no-such-inst", fileName("no-such-inst", today().minusDays(1)), "x", SALES).getStatus());
+    }
+
+    @Test
+    public void 자료없음_목록은_대소문자만_다른_ID를_한_줄로_정식_표기로_낸다() throws Exception {
+        jdbc.update("INSERT INTO INSTITUTIONS (INSTITUTION_ID, NAME_KO) VALUES (?, '시험기관(가상)')", MIX);
+        MockHttpServletResponse res = missing("{\"institution_ids\":[\"t-plan-ab1\",\"T-PLAN-AB1\"]}", SALES);
+        assertEquals(200, res.getStatus());
+        String text = new String(res.getContentAsByteArray(), StandardCharsets.UTF_8);
+        assertTrue(text, text.contains(MIX + "_YYYYMMDD_plan.csv"));
+        assertEquals(text, 2, text.split("\r\n").length);   // 머리 + 1행
+    }
+
 }
