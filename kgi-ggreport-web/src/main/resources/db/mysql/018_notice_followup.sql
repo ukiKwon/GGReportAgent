@@ -1,6 +1,5 @@
 -- -----------------------------------------------------------------------------
 -- kgi-ggreport-web — MySQL 미러 (018) : 공고 예정일 경과 건 처리 이력 NOTICE_FOLLOWUP
--- ⛔ 폐기(2026-11-16): 037 NOTICE_ROUND·NOTICE_ROUND_LOG 가 대체한다(키가 예정일이라 예정일을 고치면 이력이 끊김). 새 DB·운영에는 돌리지 않는다.
 -- ⚠️ 정본이 아니다. 정본은 db/oracle/018_notice_followup.sql (추가 전용·현재 상태 규칙·참조 목록은 정본 헤더).
 -- 외래키 없음. 키 = (INSTITUTION_ID, DUE_DATE, REV_NO), 현재 상태 = 최대 REV_NO.
 -- ⚠️ 멱등하지 않다 — 016·017 적용 후 한 번만. 되돌리기: DROP TABLE NOTICE_FOLLOWUP;
