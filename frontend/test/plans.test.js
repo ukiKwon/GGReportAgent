@@ -116,13 +116,15 @@ test('budgetCell 계산값: 서버 AMOUNT 계산값이면 값+계산값 표시�
   assert.strictEqual(c.sr, '하위사업 합계 계산값 3,400 백만원');
   const bad = { is_calculated: true, state_cd: 'UNVERIFIED', amount: null, unit_cd: null, child_count: 2 };
   const u = plans.budgetCell(item({ budget: { state_cd: 'NOT_IN_SOURCE', amount: null, unit_cd: null }, calculated: bad }), 'MIL_KRW');
-  assert.ok(u.html.indexOf('원문에 없음') >= 0 && u.html.indexOf('계산값') < 0);
+  assert.ok(u.html.indexOf('예산 미기재') >= 0 && u.html.indexOf('원문에 없음') < 0 && u.html.indexOf('계산값') < 0);
 });
 
-test('budgetCell 나머지 상태: 확인안됨·원문에 없음은 점선 칩, 해당없음은 칩 없는 글자, 금액이 비어도 0을 만들지 않는다', function () {
+test('budgetCell 나머지 상태: 확인안됨은 점선 칩, 예산 미기재·해당없음은 칩 없는 글자, 금액이 비어도 0을 만들지 않는다', function () {
   const mk = function (s) { return plans.budgetCell(item({ budget: { state_cd: s, amount: null, unit_cd: null } }), 'MIL_KRW'); };
   assert.ok(/<span class="pop-unk">확인안됨<\/span>/.test(mk('UNVERIFIED').html));
-  assert.ok(/<span class="pop-unk">원문에 없음<\/span>/.test(mk('NOT_IN_SOURCE').html));
+  const nis = mk('NOT_IN_SOURCE');
+  assert.ok(/<span class="db-why">예산 미기재<\/span>/.test(nis.html) && nis.html.indexOf('pop-unk') < 0 && nis.html.indexOf('원문에 없음') < 0);
+  assert.strictEqual(nis.sr, '예산 미기재');
   const na = mk('NOT_APPLICABLE');
   assert.ok(na.html.indexOf('해당없음') >= 0 && na.html.indexOf('pop-unk') < 0);
   assert.ok(/<span class="pop-unk">확인안됨<\/span>/.test(plans.budgetCell(item({ budget: { state_cd: 'AMOUNT', amount: null, unit_cd: 'MIL_KRW' } }), 'MIL_KRW').html));
@@ -131,25 +133,25 @@ test('budgetCell 나머지 상태: 확인안됨·원문에 없음은 점선 칩,
 });
 
 // ── 출처·쪽(보충 A) ─────────────────────────────────────────────────
-test('srcLineHtml: URL 있으면 종류·링크 제목·확인일 순서 + rel/target + 인터넷 PC 안내, 없으면 글자 + 출처 URL 없음 칩', function () {
+test('srcLineHtml: URL 있으면 종류·링크 제목·확인일 순서 + rel/target + 인터넷 PC 안내, 없으면 글자 + 원문 문서 중립 배지', function () {
   const h = plans.srcLineHtml(doc());
   assert.ok(idx(h, '공약이행') < idx(h, '<a ') && idx(h, '<a ') < idx(h, '확인 '));
   assert.ok(h.indexOf('href="https://example.go.kr/plan" target="_blank" rel="noopener noreferrer"') >= 0);
   assert.ok(h.indexOf('(인터넷 PC에서 열림)') >= 0);
-  assert.ok(h.indexOf('출처 URL 없음') < 0);
+  assert.ok(h.indexOf('출처 URL 없음') < 0 && h.indexOf('원문 문서') < 0);
   const n = plans.srcLineHtml(doc({ src_url: null, url_missing: true }));
   assert.ok(n.indexOf('<a ') < 0 && n.indexOf('민선8기 공약 실천계획') >= 0);
-  assert.ok(/<span class="pop-unk">출처 URL 없음<\/span>/.test(n));
-  assert.ok(idx(n, '확인 ') < idx(n, '출처 URL 없음'));
+  assert.ok(/<span class="wf-badge pp-neutral"[^>]*>원문 문서<\/span>/.test(n) && n.indexOf('pop-unk') < 0 && n.indexOf('출처 URL 없음') < 0);
+  assert.ok(idx(n, '확인 ') < idx(n, '원문 문서'));
 });
 
 test('srcLineHtml·docHtml: url_missing이 참이면 src_url이 있어도 링크를 내지 않고 안내와 같은 기준을 쓴다', function () {
   const d = doc({ url_missing: true });   // src_url 은 안전한 https 주소로 남아 있다
   const h = plans.srcLineHtml(d);
   assert.ok(h.indexOf('<a ') < 0 && h.indexOf('href=') < 0 && h.indexOf('인터넷 PC에서 열림') < 0);
-  assert.ok(/<span class="pop-unk">출처 URL 없음<\/span>/.test(h));
+  assert.ok(/<span class="wf-badge pp-neutral"[^>]*>원문 문서<\/span>/.test(h) && h.indexOf('출처 URL 없음') < 0);
   const c = plans.docHtml(d, '');
-  assert.ok(c.indexOf('<a ') < 0 && c.indexOf('원문 쪽수로 대조하세요.') < 0 && c.indexOf('출처 URL 없음') >= 0);
+  assert.ok(c.indexOf('<a ') < 0 && c.indexOf('원문 쪽수로 대조하세요.') < 0 && c.indexOf('원문 문서') >= 0 && c.indexOf('출처 URL 없음') < 0);
   const ok = plans.docHtml(doc(), '');   // url_missing 거짓 + 주소 있음 = 링크
   assert.ok(ok.indexOf('<a href="https://example.go.kr/plan"') >= 0 && ok.indexOf('원문 쪽수로 대조하세요.') < 0);
 });
@@ -157,7 +159,7 @@ test('srcLineHtml·docHtml: url_missing이 참이면 src_url이 있어도 링크
 test('srcLineHtml: javascript: 같은 주소는 링크로 쓰지 않고 이스케이프한다', function () {
   const h = plans.srcLineHtml(doc({ src_url: 'javascript:alert(1)', title: '<b>x</b>' }));
   assert.ok(h.indexOf('href=') < 0 && h.indexOf('<b>') < 0 && h.indexOf('&lt;b&gt;') >= 0);
-  assert.ok(h.indexOf('출처 URL 없음') >= 0);
+  assert.ok(h.indexOf('원문 문서') >= 0 && h.indexOf('출처 URL 없음') < 0);
 });
 
 test('쪽수는 화면에 없다: 쪽 칸·미확인 칩·원문 N쪽 이름·문서 쪽·표 머리 쪽 모두 나오지 않는다(사용자 결정 11-16)', function () {
@@ -236,7 +238,7 @@ test('docHtml: 종류 칩·확인 상태 3칸(미조사 없음)·안내 줄(확�
   assert.ok(h.indexOf('기간 지남') < 0 && h.indexOf('12개월') < 0);
   const n = plans.docHtml(doc({ src_url: null, url_missing: true, check_counts: { confirmed: 5, partial: 0, unconfirmed: 0, not_checked: 0 },
     period_ended: true, period_to: 2022, stale: true, checked_on: '2024-03-02', note: '<i>메모</i>\n둘째 줄' }), '');
-  assert.ok(n.indexOf('원문 쪽수로 대조하세요.') < 0 && n.indexOf('출처 URL 없음') >= 0);
+  assert.ok(n.indexOf('원문 쪽수로 대조하세요.') < 0 && n.indexOf('원문 문서') >= 0 && n.indexOf('출처 URL 없음') < 0);
   assert.ok(n.indexOf('폐기된 사업이 아닙니다') < 0);            // 확인안됨 0건이면 안내 없음
   assert.ok(n.indexOf('wf-badge pp-cancel">기간 지남</span>') >= 0 && n.indexOf('2022년에 끝난 계획입니다. 누리집에 새 계획이 있는지 확인하세요.') >= 0);
   assert.ok(n.indexOf('확인 <span class="v">2024-03-02</span> 뒤로 12개월 넘게 다시 확인하지 않았습니다.') >= 0);

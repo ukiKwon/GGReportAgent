@@ -55,7 +55,7 @@
   };
 
   // ── 순수: 예산·쪽·출처 ─────────────────────────────────────────────
-  // 보충 C: 금액 / 금액·계산값 / 확인안됨 / 원문에 없음 / 해당없음. 원문의 '-'·빈칸을 0으로 바꾸지 않는다.
+  // 보충 C: 금액 / 금액·계산값 / 확인안됨 / 예산 미기재 / 해당없음. 원문의 '-'·빈칸을 0으로 바꾸지 않는다.
   // headUnit = 문서 안 금액 단위가 하나일 때 그 코드(열 머리 '예산(백만원)'에 쓰고 칸에서는 단위를 뺀다).
   // 계산값(item.calculated)은 서버가 낸 것(AMOUNT)일 때만 쓴다. 계산값이 확인안됨이면 상위사업 자신의 상태를 그대로 보인다.
   plans.budgetCell = function (it, headUnit) {
@@ -73,7 +73,7 @@
         sr: (calc ? '하위사업 합계 계산값 ' : '') + n + ' ' + u,
       };
     }
-    if (state === 'NOT_IN_SOURCE') return { html: unk('원문에 없음'), sr: '원문에 없음' };
+    if (state === 'NOT_IN_SOURCE') return { html: '<span class="db-why">예산 미기재</span>', sr: '예산 미기재' };   // 사실이라 점선 칩을 쓰지 않는다
     if (state === 'NOT_APPLICABLE') return { html: '<span class="db-why">해당없음</span>', sr: '해당없음' };   // 사실이라 점선 칩을 쓰지 않는다
     return { html: unk('확인안됨'), sr: '확인안됨' };
   };
@@ -84,7 +84,7 @@
   // 쪽수는 화면에 보이지 않는다(사용자 결정 2026-11-16) — 쪽 열·'미확인' 칩 없음.
   // url_missing 이 참이면 src_url 이 있어도 링크를 내지 않는다(한 규칙: url_missing 우선 — docHtml 의 noUrl 안내와 같은 기준).
   function srcUrlOf(d) { return d.url_missing ? null : logic.safeHttpUrl(d.src_url); }
-  // 보충 A: 출처 줄 순서 = 종류 · 제목 · 확인일. URL 있으면 링크 + '(인터넷 PC에서 열림)', 없으면 글자만 + '출처 URL 없음' 칩.
+  // 보충 A: 출처 줄 순서 = 종류 · 제목 · 확인일. URL 있으면 링크 + '(인터넷 PC에서 열림)', 없으면 글자만 + '원문 문서' 중립 배지(웹 주소 없음).
   plans.srcLineHtml = function (d) {
     const parts = [];
     const kind = str(d.src_kind_name || d.src_kind_cd).trim();
@@ -94,7 +94,7 @@
     if (url) parts.push('<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + esc(title || url) + '</a>');
     else if (title) parts.push(esc(title));
     if (ymd(d.checked_on)) parts.push('확인 ' + mono(ymd(d.checked_on)));
-    return '<span class="pl-src">' + parts.join(' · ') + '</span>' + (url ? ' <span class="db-why">(인터넷 PC에서 열림)</span>' : ' ' + unk('출처 URL 없음'));
+    return '<span class="pl-src">' + parts.join(' · ') + '</span>' + (url ? ' <span class="db-why">(인터넷 PC에서 열림)</span>' : ' <span class="wf-badge pp-neutral" title="원문 문서(웹 주소 없음)">원문 문서</span>');
   };
 
   // ── 순수: 사업 행·표 ───────────────────────────────────────────────
