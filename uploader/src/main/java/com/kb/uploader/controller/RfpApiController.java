@@ -108,11 +108,53 @@ public class RfpApiController {
         }
 
         if (wantsRawMarkdown(format, accept)) {
-            return ResponseEntity.ok().contentType(MARKDOWN).body(markdown);
+            return ResponseEntity.ok().contentType(MARKDOWN)
+                    .header("X-Content-Type-Options", "nosniff").body(markdown);   // 외부 문서 — 브라우저 내용 추측 금지(security 11-16)
         }
         Map<String, Object> body = summary(f);
         body.put("markdown", markdown);
         return ResponseEntity.ok(body);
+    }
+
+    private static final MediaType PLAIN_UTF8 = new MediaType("text", "plain", StandardCharsets.UTF_8);
+
+    /**
+     * RFP 원문 전체 글자(text/plain, NEXT 87 '원문 보기'). 분석 때 저장해 둔 파일을 그대로 읽는다 — 재추출하지 않는다.
+     * 404 는 두 종류다: 없음/반려/삭제/종류 불일치/파싱 미성공은 한 문구, 원문 파일만 없는 옛 분석 건은 code 로 구분.
+     */
+    @GetMapping("/{id}/fulltext")
+    public ResponseEntity<?> fulltext(@PathVariable Long id) {
+        Optional<UploadedFile> found = fileMapper.findActiveById(id);
+        if (!found.isPresent() || !DocumentType.RFP.equals(found.get().getDocType())) {
+            log.info("RFP 원문 404(없음/비활성/종류 불일치): id={}", id);
+            return error(HttpStatus.NOT_FOUND, NOT_FOUND_MSG);
+        }
+        UploadedFile f = found.get();
+        if (!f.isParsed() || f.getOutputPath() == null) {
+            log.info("RFP 원문 404(파싱 미성공): id={}", id);
+            return error(HttpStatus.NOT_FOUND, NOT_FOUND_MSG);
+        }
+        try {
+            Path full = com.kb.uploader.service.FileStorageService.fullTextPathOf(f.getOutputPath());
+            if (full == null || !Files.isRegularFile(full)) {
+                log.info("RFP 원문 파일 없음(재분석 필요): id={}", id);
+                Map<String, String> body = new LinkedHashMap<String, String>();
+                body.put("error", "원문이 없습니다. 재분석이 필요합니다.");
+                body.put("code", "fulltext_missing");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+            }
+            String text = new String(Files.readAllBytes(full), StandardCharsets.UTF_8);
+            boolean truncated = text.lastIndexOf(com.kb.uploader.service.DocumentParseService.TRUNCATED_MARK)
+                    >= Math.max(0, text.length() - 400);
+            return ResponseEntity.ok().contentType(PLAIN_UTF8)
+                    .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                    .header("X-Content-Type-Options", "nosniff")   // 원문은 외부 문서 — 브라우저 내용 추측 금지(security 11-16)
+                    .header("X-Fulltext-Truncated", String.valueOf(truncated))
+                    .body(text);
+        } catch (IOException | RuntimeException e) {
+            log.warn("RFP 원문 읽기 실패: id={}", id, e);
+            return error(HttpStatus.INTERNAL_SERVER_ERROR, "원문 읽기 실패");
+        }
     }
 
     /** {@code ?format=text} 가 우선이고, 없으면 Accept 헤더가 md/plain 만 받겠다고 한 경우. */

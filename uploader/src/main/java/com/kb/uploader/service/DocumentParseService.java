@@ -49,6 +49,8 @@ public class DocumentParseService {
     private static final Logger log = LoggerFactory.getLogger(DocumentParseService.class);
 
     static final String UNKNOWN_NOTICE_DATE = "공고일미상";
+    /** 원문 파일 끝에 붙는 잘림 표지. 조회 쪽이 이 접두를 보고 X-Fulltext-Truncated 를 단다(NEXT 87). */
+    public static final String TRUNCATED_MARK = "[※ 원문이 길어 여기서 잘렸습니다";
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -62,11 +64,15 @@ public class DocumentParseService {
     private final FileStorageService storageService;
     private final InstitutionMapper institutionMapper;
     private final UploadedFileMapper fileMapper;
+    private final int fullTextMaxChars;
 
     public DocumentParseService(PptExtractor pptExtractor, RfpExtractor rfpExtractor,
                                 InstitutionMatcher institutionMatcher, DateDetector dateDetector,
                                 RfpSummaryWriter rfpSummaryWriter, FileStorageService storageService,
-                                InstitutionMapper institutionMapper, UploadedFileMapper fileMapper) {
+                                InstitutionMapper institutionMapper, UploadedFileMapper fileMapper,
+                                @org.springframework.beans.factory.annotation.Value("${upload.rfp-fulltext-max-chars:1000000}")
+                                int fullTextMaxChars) {
+        this.fullTextMaxChars = Math.min(Math.max(fullTextMaxChars, 1000), 5000000);   // 최대 약 15MB 상한(security 11-16)
         this.pptExtractor = pptExtractor;
         this.rfpExtractor = rfpExtractor;
         this.institutionMatcher = institutionMatcher;
@@ -106,9 +112,10 @@ public class DocumentParseService {
         if (!found.isPresent()) return Optional.empty();
         UploadedFile file = found.get();
         try {
+            storageService.deleteFullTextIfExists(file.getOutputPath());   // RFP 원문(NEXT 87) — md 경로 기준이라 먼저
             storageService.deleteIfExists(file.getOutputPath());   // 성공 건만 값이 있다
         } catch (Exception e) {
-            log.warn("이전 산출물 삭제 실패: {}", file.getOutputPath(), e);
+            log.warn("이전 산출물 삭제 실패: id={}", file.getId(), e);
         }
         return Optional.of(parse(file));
     }
@@ -165,8 +172,30 @@ public class DocumentParseService {
         Path out = storageService.writeOutput(storageService.getRfpMdDir(), fileName,
                 markdown.getBytes(StandardCharsets.UTF_8));
 
+        // 원문 전체 글자: 분석 때 1회 저장(조회 때 재추출 금지, NEXT 87 사용자 11-16 ⓑ). 실패해도 요약 분석은 성공으로 둔다.
+        try {
+            storageService.writeFullText(out.toString(), limitFullText(doc.fullText()).getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            log.warn("RFP 원문 저장 실패(요약은 성공): id={}", file.getId(), e);
+            try {
+                storageService.deleteFullTextIfExists(out.toString());   // 같은 이름 옛 원문이 이 건 것으로 나가지 않게(security 11-16 #4)
+            } catch (Exception ignore) {
+                // 지우기 실패는 원문 없음보다 나쁘지 않다 — 로그는 위에서 남김
+            }
+        }
+
         logNotes(file, notes);
         file.markParsed(inst.getName(), inst.getCategory(), notice.orElse(null), out.toString(), now);
+    }
+
+    /** 상한(글자 수)을 넘으면 자르고 끝에 표지를 붙인다. 서로게이트 쌍은 쪼개지 않는다. */
+    String limitFullText(String text) {
+        if (text == null) return "";
+        if (text.length() <= fullTextMaxChars) return text;
+        int cut = fullTextMaxChars;
+        if (Character.isHighSurrogate(text.charAt(cut - 1))) cut--;
+        return text.substring(0, cut) + "\n\n" + TRUNCATED_MARK + " (전체 " + text.length()
+                + "자 중 " + cut + "자). 원본 파일을 확인하세요.]\n";
     }
 
     private List<Institution> institutions() {

@@ -158,6 +158,29 @@ public class FileStorageService {
     }
 
     /**
+     * RFP 원문 전체 글자 파일 경로(NEXT 87). 요약 md 경로의 {@code .md} 를 {@code .full.txt} 로 바꾼 것이다
+     * (DB 컬럼 없이 계산 — 스키마 무변경안). md 경로가 아니면 null.
+     */
+    public static Path fullTextPathOf(String mdOutputPath) {
+        if (mdOutputPath == null || !mdOutputPath.toLowerCase().endsWith(".md")) return null;
+        return Paths.get(mdOutputPath.substring(0, mdOutputPath.length() - 3) + ".full.txt");
+    }
+
+    /** 원문 파일을 쓴다(같은 이름이면 교체). md 경로가 아니면 쓰지 않고 null. */
+    public Path writeFullText(String mdOutputPath, byte[] content) throws IOException {
+        Path target = fullTextPathOf(mdOutputPath);
+        if (target == null) return null;
+        Files.write(target, content);
+        return target;
+    }
+
+    /** 재분석 때 이전 원문 파일도 지운다. 없거나 md 경로가 아니면 조용히 넘어간다. */
+    public void deleteFullTextIfExists(String mdOutputPath) throws IOException {
+        Path p = fullTextPathOf(mdOutputPath);
+        if (p != null) Files.deleteIfExists(p);
+    }
+
+    /**
      * 파일명에서 경로 구분자를 떼어 낸다.
      * ⚠️ 브라우저에 따라 전체 경로를 보내고, 악의적 요청은 "../" 를 섞는다.
      *    그대로 resolve 하면 저장 디렉터리 밖으로 나간다.
