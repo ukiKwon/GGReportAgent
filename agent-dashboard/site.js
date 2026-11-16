@@ -28,7 +28,7 @@ const SITE = (() => {
   const STEEL = '#a8432b', WALL = '#d5d0c4', GLASS = '#7fb3d5', GLASS_HI = '#d6eaf8', SLAB = '#8f959a', YEL = '#f2b705';
 
   let bonus = 0, zoneSeen = -1, zoneSince = null;
-  const crane = { phi: CR.phiRest, trolley: 70, hook: CR.hookRest, phase: 'rest', t: 0, beam: false, placed: 0 };
+  const crane = { phi: CR.phiRest, trolley: 70, hook: CR.hookRest, phase: 'rest', t: 0, beam: false };
   const sparks = [], pops = [], marks = []; // pops: 떠오르는 글자, marks: QA 하자 표시(빨강 → 확인되면 초록 ✔)
   const dlv = { 2: 2, 3: 1 }; // 층별 납품 자재 더미 수
   const sky = { planeX: -40, planeNext: 2, ufoX: -60, ufoNext: 6, cloudOff: 0 };
@@ -127,7 +127,7 @@ const SITE = (() => {
     switch (k.phase) {
       case 'rest': k.phase = 'swingYard'; break;
       case 'swingYard': { const a = go('phi', CR.phiYard, Math.PI / 3), b = go('trolley', CR.tYard, 40), h = go('hook', CR.hookRest, 120); if (a && b && h) k.phase = 'lower'; break; }
-      case 'lower': if (go('hook', k.beam ? bldDrop : yardDrop, 150)) { if (k.beam) { k.beam = false; k.placed++; k.phase = 'place'; k.t = simTime; } else { k.beam = true; k.phase = 'lift'; } } break;
+      case 'lower': if (go('hook', k.beam ? bldDrop : yardDrop, 150)) { if (k.beam) { k.beam = false; k.phase = 'place'; k.t = simTime; } else { k.beam = true; k.phase = 'lift'; } } break;
       case 'lift': if (go('hook', CR.hookRest, 150)) k.phase = 'swingBld'; break;
       case 'swingBld': { const a = go('phi', CR.phiBld, Math.PI / 3), b = go('trolley', CR.tBld, 40), h = go('hook', CR.hookRest, 150); if (a && b && h) k.phase = 'lower'; break; }
       case 'place': if (simTime - k.t > 1.2 && go('hook', CR.hookRest, 150)) k.phase = on ? 'swingYard' : 'rest'; break;
@@ -387,13 +387,6 @@ const SITE = (() => {
     for (const bx of [276, 330]) { c.fillStyle = '#b5543c'; c.fillRect(bx, F1 - 24, 44, 20); c.strokeStyle = '#8a3f2c'; c.lineWidth = 1; for (const y of [F1 - 17, F1 - 10]) { c.beginPath(); c.moveTo(bx, y); c.lineTo(bx + 44, y); c.stroke(); } c.fillStyle = '#8d6e63'; c.fillRect(bx, F1 - 4, 44, 4); }
     for (const y of [F1 - 4, F1 - 8, F1 - 12]) limb(400, y, 520, y, 2.5, STEEL);
     c.fillStyle = '#d9b47a'; c.beginPath(); c.moveTo(540, F1); c.lineTo(572, F1 - 28); c.lineTo(604, F1); c.closePath(); c.fill();
-  }
-  function drawLights() { // 층마다 매달린 작업등
-    for (const [y, xs] of [[ROOF + 9, [430, 760]], [F3 + 9, [500, 700]], [F2 + 9, [480, 660]]]) for (const x of xs) {
-      limb(x, y, x, y + 14, 1, '#37474f');
-      c.fillStyle = 'rgba(255,241,118,' + (0.18 + 0.06 * Math.sin(simTime * 3 + x)).toFixed(3) + ')'; c.beginPath(); c.arc(x, y + 18, 22, 0, Math.PI * 2); c.fill();
-      disc(x, y + 17, 4, '#fff59d');
-    }
   }
   function drawBoard() { // 공정 현황(위쪽 하늘 자리, 두 줄)
     const X = 236, Y = 8, Wd = 794, Hh = 150;
