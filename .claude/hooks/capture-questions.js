@@ -16,18 +16,33 @@ function stripFences(text) {
   return String(text || '').replace(/```[\s\S]*?```/g, '\n').replace(/```[\s\S]*$/, '\n');
 }
 
+// summary/options 경계(NEXT 88): '문장 안 첫 ⓐ'가 아니라 선택지 목록의 시작 = 첫 ⓑ 바로 앞의 마지막 ⓐ.
+// ⓑ가 없으면 첫 ⓐ(기존 동작). 앞 문장이 MIN_SUMMARY자 미만이면 자르지 않는다('앞서'만 남던 Q-2026-11-16-42 사례).
+const MIN_SUMMARY = 3;   // "앞서"처럼 한두 글자만 남는 경우만 막는다(10이면 "두 번째 질문" 같은 정상 짧은 질문까지 안 잘림)
+// 선택지 목록의 ⓐ = 그 뒤에 나오는 첫 원문자가 ⓑ인 첫 ⓐ("앞서 ⓑ로 정한…? ⓐ 유지 ⓑ 변경"도 맞게 — qa 11-16). 없으면 첫 ⓐ.
+function splitIndex(s) {
+  let i = -1;
+  for (let k = s.indexOf('ⓐ'); k >= 0; k = s.indexOf('ⓐ', k + 1)) {
+    const m = /[ⓐ-ⓩ]/.exec(s.slice(k + 1));
+    if (m && m[0] === 'ⓑ') { i = k; break; }
+  }
+  if (i < 0) i = s.indexOf('ⓐ');
+  if (i <= 0) return -1;
+  return s.slice(0, i).replace(/[\s:：/\-—]+$/, '').length < MIN_SUMMARY ? -1 : i;
+}
+
 // 한 질문 문자열 → {summary, options, recommend}
 function parseQuestion(str) {
   const s = clean(str);
-  const i = s.indexOf('ⓐ');
+  const i = splitIndex(s);
   let summary = s, options = '';
   if (i > 0) {
     summary = s.slice(0, i).trim().replace(/[\s:：/\-—]+$/, '');
     options = s.slice(i).trim();
   }
   const recs = [];
-  for (const seg of options.split(/(?=[ⓐ-ⓩ])/)) {
-    if (MARK.test(seg)) {
+  for (const seg of (i > 0 ? options : s).split(/(?=[ⓐ-ⓩ])/)) {
+    if (/^[ⓐ-ⓩ]/.test(seg) && MARK.test(seg)) {
       const r = seg.replace(MARK_G, ' ').replace(/^[ⓐ-ⓩ]\s*/, '').replace(/\s*\/\s*$/, '').trim();
       if (r) recs.push(r);
     }
@@ -139,6 +154,42 @@ function extractQuestions(lines) {
 }
 
 const normKey = s => String(s || '').toLowerCase().replace(/[\s\p{P}\p{S}]/gu, '');
+
+// 같은 날 유사 중복 판정(NEXT 88). 괄호 속(권장 표시 등)을 지운 뒤 normKey.
+const dkey = s => normKey(String(s || '').replace(/[(（][^)）]*[)）]/g, ''));
+const bigrams = k => { const set = new Set(); for (let i = 0; i < k.length - 1; i++) set.add(k.slice(i, i + 2)); return set; };
+function overlap(a, b) { // 겹친 2-gram ÷ 짧은 쪽 2-gram 수
+  const A = bigrams(a), B = bigrams(b); if (!A.size || !B.size) return 0;
+  let n = 0; for (const x of A) if (B.has(x)) n++;
+  return n / Math.min(A.size, B.size);
+}
+const spans = s => (String(s || '').match(/`[^`]{15,}`/g) || []).map(normKey);
+// 같은 명령 코드 스팬(15자↑)이 같거나, summary 2-gram 겹침 0.75↑(짧은 쪽 15자↑) — 그리고 선택지도 비슷(둘 다 비었거나 겹침 0.6↑)
+// 한두 낱말만 바꿔 끼운 다른 질문인가(기관명 도봉→노원, 막을까요→허용할까요, 034→035) — qa 11-16 과잉 병합 방지.
+// 앞뒤 낱말이 같고 가운데 1~2낱말만 다르며, 바뀐 낱말끼리 앞 2글자도 다르거나 숫자가 다르면 '다른 질문'.
+// (확인합니다→확인해요처럼 앞부분이 같은 어미 변화는 같은 질문으로 둔다.)
+function swapped(sa, sb) {
+  const tok = s => String(s || '').replace(/[(（][^)）]*[)）]/g, '').split(/\s+/).map(normKey).filter(Boolean);
+  const A = tok(sa), B = tok(sb);
+  let p = 0; while (p < A.length && p < B.length && A[p] === B[p]) p++;
+  let q = 0; while (q < A.length - p && q < B.length - p && A[A.length - 1 - q] === B[B.length - 1 - q]) q++;
+  const ma = A.slice(p, A.length - q), mb = B.slice(p, B.length - q);
+  if (!ma.length || !mb.length || ma.length > 2 || mb.length > 2) return false;
+  const ja = ma.join(''), jb = mb.join('');
+  const digits = x => (x.match(/\d+/g) || []).join(',');
+  return digits(ja) !== digits(jb) || ja.slice(0, 2) !== jb.slice(0, 2);
+}
+function similar(p, ex) {
+  const a = dkey(p.summary), b = dkey(ex.summary);
+  if (!a || !b) return false;
+  if (swapped(p.summary, ex.summary)) return false;
+  const sa = spans(p.summary), sb = spans(ex.summary);
+  const same = sa.some(x => sb.includes(x)) || (Math.min(a.length, b.length) >= 15 && overlap(a, b) >= 0.75);
+  if (!same) return false;
+  const oa = dkey(p.options), ob = dkey(ex.options);
+  if (!oa && !ob) return true;
+  return !!oa && !!ob && overlap(oa, ob) >= 0.6;
+}
 const ymd = d => { const z = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; };
 
 function nextNums(summary) {
@@ -154,6 +205,8 @@ function addToLedger(raw, qstrs, now) {
   if (!data || !Array.isArray(data.questions)) return null;
   const seen = new Set(data.questions.map(q => normKey(q && q.summary)));
   const today = ymd(now || new Date()), prefix = `Q-${today}-`;
+  const pool = data.questions.filter(q => q && (q.askedAt === today || String(q.id || '').startsWith(prefix)))
+    .map(q => ({ summary: q.summary, options: q.options }));   // 같은 날 항목만 유사 판정(NEXT 88)
   let max = 0;
   for (const q of data.questions) {
     const id = q && typeof q.id === 'string' ? q.id : '';
@@ -165,7 +218,9 @@ function addToLedger(raw, qstrs, now) {
     if (!p.summary) continue;
     const k = normKey(p.summary);
     if (!k || seen.has(k)) continue;
+    if (pool.some(x => similar(p, x))) continue;
     seen.add(k);
+    pool.push({ summary: p.summary, options: p.options });
     items.push({ id: `${prefix}${String(++max).padStart(2, '0')}`, summary: p.summary, askedAt: today, next: nextNums(p.summary),
       options: p.options, recommend: p.recommend, status: 'open', answer: '', answeredAt: '', appliedRef: '', source: 'auto' });
   }

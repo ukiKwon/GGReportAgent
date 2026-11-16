@@ -218,3 +218,91 @@ test('mask: 키워드 뒤에 한국어 조사가 붙어도 값을 가린다(secu
   const u = cq.parseQuestion('업로더에 암호가 걸린 엑셀이 있나요?').summary;   // 값이 한글이면 문장이다(11-16 오탐)
   assert.strictEqual(u, '업로더에 암호가 걸린 엑셀이 있나요?');
 });
+
+// ---- NEXT 88: 경계·유사 중복 (원문은 장부 Q-2026-11-16-21·42·41·24·29·26·30·37 기반) ----
+test('경계: 문장 속 ⓐ 참조가 있어도 ⓑ 앞의 마지막 ⓐ에서 자른다 (Q-21)', () => {
+  const p = cq.parseQuestion('2단계를 생략하는 범위를 어디까지로 할까요? 나중에 다른 팀 사람(예: 예산팀장)이 관리자 권한을 받으면, ⓐ에서는 그 사람 혼자 자기 팀원에게 결재 권한을 줄 수 있게 돼요. ⓐ 모든 팀: 1단계 결재자가 관리자이면 어느 팀이든 거기서 끝 ⓑ 전산팀만: 전산팀원 → 전산팀장일 때만 한 번으로 끝, 다른 팀은 지금처럼 관리자 확인을 거침 (권장)');
+  assert.ok(p.summary.endsWith('줄 수 있게 돼요.'), p.summary);
+  assert.ok(p.options.startsWith('ⓐ 모든 팀:'), p.options);
+  assert.strictEqual(p.recommend, '전산팀만: 전산팀원 → 전산팀장일 때만 한 번으로 끝, 다른 팀은 지금처럼 관리자 확인을 거침');
+});
+
+test('경계: "앞서 ⓐ로 허용한…" 문장이 summary에 남고 선택지는 뒤쪽 목록 (Q-42)', () => {
+  const p = cq.parseQuestion('앞서 ⓐ로 허용한 본인 메뉴 권한 변경도, 같은 원칙에 맞춰 다른 관리자만 바꾸게 바꿀까요? ⓐ 메뉴 권한은 본인도 바꿈 (지금처럼) ⓑ 메뉴 권한도 본인 것은 다른 관리자만 바꿈 (원칙에 맞음, 권장)');
+  assert.strictEqual(p.summary, '앞서 ⓐ로 허용한 본인 메뉴 권한 변경도, 같은 원칙에 맞춰 다른 관리자만 바꾸게 바꿀까요?');
+  assert.ok(p.options.startsWith('ⓐ 메뉴 권한은 본인도 바꿈'), p.options);
+});
+
+test('경계: summary가 3자 미만이면 자르지 않고, 권장은 그대로 뽑는다', () => {
+  const p = cq.parseQuestion('앞서 ⓐ예 (권장) ⓑ아니오');
+  assert.strictEqual(p.summary, '앞서 ⓐ예 ⓑ아니오');
+  assert.strictEqual(p.options, '');
+  assert.strictEqual(p.recommend, '예');
+});
+
+test('경계: 앞 문맥 없는 짧은 한 줄(Q-41)도 기존대로 자른다', () => {
+  const p = cq.parseQuestion('확인 전까지는 어떻게 둘까? ⓐ 지금처럼 13개를 둔다 . ⓑ 묶는다. ⓒ 뺀다.');
+  assert.strictEqual(p.summary, '확인 전까지는 어떻게 둘까?');
+  assert.ok(p.options.startsWith('ⓐ 지금처럼'));
+});
+
+const L16 = (...rows) => '{"questions":[\n' + rows.map((r, n) => JSON.stringify({ id: 'Q-' + (r[2] || '2026-11-16') + '-0' + (n + 1), summary: r[0], askedAt: r[2] || '2026-11-16', next: [],
+  options: r[1] || '', recommend: '', status: r[3] || 'open', answer: '', answeredAt: '', appliedRef: '' })).join(',\n') + '\n]}\n';
+const D16 = new Date(2026, 10, 16, 9);
+const PW_OPTS = 'ⓐ거의 없다, 분석 안 해도 된다 ⓑ자주 온다, 암호를 풀어 다시 올리라는 안내 문구를 넣는다 ⓒ사내 문서보안(DRM)이 걸린 채 온다·모르겠다, 일단 막고 내부망에서 따로 확인한다';
+const CMD = '`cd C:\\github\\GGReportAgent\\kgi-ggreport-web && node tools/db/apply-mysql.mjs --user ggreport`';
+
+test('중복: 같은 명령 코드 스팬이면 문장이 달라도 같은 질문 (Q-24·29·32·49)', () => {
+  const led = L16(['로컬 DB에 새 사업계획 표를 만들려면 터미널에서 아래 명령을 한 번 돌려 줘. ' + CMD]);
+  assert.strictEqual(cq.addToLedger(led, ['(아직 안 돌렸으면) 앞에서 부탁한 034 DB 적용 명령도 터미널에서 돌려 줘. ' + CMD], D16), null);
+  assert.strictEqual(cq.addToLedger(led, ['034 DB 적용 명령을 아직 기다리고 있어. ' + CMD], D16), null);
+  const r = cq.addToLedger(led, ['노원 한 줄만 더 돌려 줘. `curl -X POST localhost:8080/institutions/nowon/plans/seed`'], D16);
+  assert.strictEqual(r.added.length, 1); // 다른 명령은 별개
+});
+
+test('중복: 일부 문장이 빠지고 마스킹 글자만 다른 같은 질문 (Q-26·30·37·38)', () => {
+  const q26 = "업로더에 올라오는 공고문·제안서 중에 암호=[가림] 엑셀·파워포인트가 있나요? 서버가 파일 내용을 뽑는 '문서 분석' 단계의 일입니다. 막으면 암호=[가림] 원본만 남고 분석 결과는 '분석 실패(암호=[가림] 표시됩니다.";
+  const led = L16([q26, PW_OPTS]);
+  const q38 = "업로더에 올라오는 공고문·제안서 중에 암호가 걸린 엑셀·파워포인트가 있나요? 막으면 암호가 걸린 원본만 남고 분석 결과는 '분석 실패'로 남습니다. " + PW_OPTS;
+  assert.strictEqual(cq.addToLedger(led, [q38], D16), null);
+  const q30 = "업로더에 올라오는 공고문·제안서 중에 암호=[가림] 엑셀·파워포인트가 있나요? 막으면 암호=[가림] 원본만 남고 분석 결과는 '분석 실패(암호=[가림] 남습니다. " + PW_OPTS;
+  assert.strictEqual(cq.addToLedger(led, [q30], D16), null);
+});
+
+test('중복: 문구가 거의 같아도 선택지가 다르면 별개, 같은 질문이 한 번에 두 번 나와도 1건만', () => {
+  const sm = '이번 변경을 도봉 데이터에 먼저 적용할까요? 시드 파일은 그대로 두고 화면만 확인합니다.';
+  const sm2 = '이번 변경을 도봉 데이터에 먼저 적용할까요? 시드 파일은 그대로 두고 화면만 확인해요.';
+  const led = L16([sm, 'ⓐ적용한다 ⓑ보류한다']);
+  assert.strictEqual(cq.addToLedger(led, [sm2 + ' ⓐ적용한다 ⓑ보류한다'], D16), null);
+  assert.strictEqual(cq.addToLedger(led, [sm2 + ' ⓐ노원부터 ⓑ광진부터 ⓒ전체 한꺼번에'], D16).added.length, 1);
+  assert.strictEqual(cq.addToLedger(led, [sm2 + ' ⓐ노원부터 ⓑ광진부터 ⓒ전체 한꺼번에', sm2 + ' ⓐ노원부터 ⓑ광진부터 ⓒ전체 한꺼번에'], D16).added.length, 1);
+});
+
+test('중복: 유사 판정은 같은 날만 — 전날 비슷한 질문은 새로 넣고, 기존 항목은 바뀌지 않는다', () => {
+  const sm = '이번 변경을 도봉 데이터에 먼저 적용할까요? 시드 파일은 그대로 두고 화면만 확인합니다.';
+  const led = L16([sm, '', '2026-11-15', 'answered']);
+  const r = cq.addToLedger(led, ['이번 변경을 도봉 데이터에 먼저 적용할까요? 시드 파일은 그대로 두고 화면만 확인해요.'], D16);
+  assert.strictEqual(r.added.length, 1);
+  assert.strictEqual(r.added[0].status, 'open'); assert.strictEqual(r.added[0].answer, '');
+  assert.strictEqual(JSON.parse(r.text).questions[0].status, 'answered');
+});
+
+test('경계: 문장 안에서 ⓑ를 먼저 말해도 선택지 목록에서 자른다 (qa 11-16)', () => {
+  const p = cq.parseQuestion('앞서 ⓑ로 정한 기준을 유지할까요? ⓐ 유지 ⓑ 변경');
+  assert.strictEqual(p.summary, '앞서 ⓑ로 정한 기준을 유지할까요?');
+  assert.strictEqual(p.options, 'ⓐ 유지 ⓑ 변경');
+});
+
+test('중복 아님: 기관명·반대 동사·번호만 바꾼 같은 틀 질문은 각각 넣는다 (qa 11-16)', () => {
+  const led = L16(['도봉 사업계획 PDF 원본 파일 경로를 알려줘']);
+  assert.strictEqual(cq.addToLedger(led, ['노원 사업계획 PDF 원본 파일 경로를 알려줘'], D16).added.length, 1);
+  const led2 = L16(['업로드한 암호 문서는 분석을 막을까요?', 'ⓐ예 ⓑ아니오']);
+  assert.strictEqual(cq.addToLedger(led2, ['업로드한 암호 문서는 분석을 허용할까요? ⓐ예 ⓑ아니오'], D16).added.length, 1);
+  const led3 = L16(['로컬 DB에 034 마이그레이션을 적용해 줄 수 있어?']);
+  assert.strictEqual(cq.addToLedger(led3, ['로컬 DB에 035 마이그레이션을 적용해 줄 수 있어?'], D16).added.length, 1);
+});
+
+test('중복 아님: 15자 미만 짧은 비슷한 질문은 둘 다 넣는다', () => {
+  const led = L16(['시드를 어떻게 넣을까?']);
+  assert.strictEqual(cq.addToLedger(led, ['시드를 언제 넣을까?'], D16).added.length, 1);
+});
