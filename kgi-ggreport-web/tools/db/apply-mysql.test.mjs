@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -8,6 +8,7 @@ import {
   parseMigrationName, normalizeVersion, sortMigrations, checksum,
   planMigrations, parseArgs, parseAppliedRows, insertSql,
   escapeOptionValue, buildOptionsFileContent, buildMysqlArgs, withOptionsFile,
+  planMark, SCHEMA_PROBES, sweepStaleTempDirs,
 } from './apply-mysql.mjs';
 
 test('파일 이름 규칙', () => {
@@ -140,4 +141,45 @@ test('withOptionsFile: 비밀번호 없으면 파일을 만들지 않음, 쓰기
     }), /disk/);
     assert.ok(!existsSync(created));
   } finally { rmSync(base, { recursive: true, force: true }); }
+});
+
+test('--mark-applied 옵션 파싱', () => {
+  assert.deepEqual(parseArgs(['--mark-applied', '38,033,36,38']).markApplied, ['033', '036', '038']);
+  assert.throws(() => parseArgs(['--mark-applied']));
+  assert.throws(() => parseArgs(['--mark-applied', '033,x']), /쉼표/);
+  assert.throws(() => parseArgs(['--mark-applied', '033', '--baseline', '30']), /함께/);
+  assert.throws(() => parseArgs(['--mark-applied', '033', '--status']), /함께/);
+  assert.equal(parseArgs(['--mark-applied', '033', '--dry-run']).dryRun, true);
+});
+
+test('planMark: 대상·이미 기록·파일 없음·검사 없음', () => {
+  const files = ['033', '036', '099'].map((v) => ({ version: v, name: `${v}_x.sql`, sha: 'a'.repeat(64) }));
+  const applied = new Map([['036', { file_name: '036_x.sql', checksum: 'a'.repeat(64) }]]);
+  const p = planMark(['033', '036', '099', '098'], files, applied);
+  assert.deepEqual(p.targets.map((f) => f.version), ['033']);
+  assert.deepEqual(p.skipped, ['036']);
+  assert.equal(p.errors.length, 2);   // 099 검사 없음, 098 파일 없음
+});
+
+test('SCHEMA_PROBES: 실제 db/mysql 에 있는 번호만, 쿼리는 SELECT 한 문장', () => {
+  const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../src/main/resources/db/mysql');
+  const have = new Set(readdirSync(dir).map((n) => n.slice(0, 3)));
+  for (const [v, sql] of Object.entries(SCHEMA_PROBES)) {
+    assert.ok(have.has(v), v);
+    assert.match(sql, /^SELECT IF\(.*;$/);
+    assert.equal(sql.split(';').length, 2);
+  }
+});
+
+test('sweepStaleTempDirs: 오래된 apply-mysql-XXXXXX 만 지우고 새것·다른 이름은 둔다', () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'sweep-test-'));
+  try {
+    const mk = (n, ageMs) => {
+      const p = path.join(root, n); mkdirSync(p); writeFileSync(path.join(p, 'client.cnf'), 'x');
+      const t = new Date(Date.now() - ageMs); utimesSync(p, t, t); return p;
+    };
+    const old = mk('apply-mysql-abc123', 2 * 3600000), fresh = mk('apply-mysql-def456', 1000), other = mk('keep-me', 2 * 3600000);
+    assert.deepEqual(sweepStaleTempDirs({ tmpdir: root }), ['apply-mysql-abc123']);
+    assert.equal(existsSync(old), false); assert.equal(existsSync(fresh), true); assert.equal(existsSync(other), true);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

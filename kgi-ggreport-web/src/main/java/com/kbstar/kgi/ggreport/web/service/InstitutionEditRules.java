@@ -21,6 +21,8 @@ final class InstitutionEditRules {
     private static final Pattern OPEN = Pattern.compile("\\d{4}(-\\d{2}(-\\d{2})?)?");
     private static final Pattern NO = Pattern.compile("[\\p{L}\\p{N}][\\p{L}\\p{N} _./()\\-]{0,49}");
     private static final String URL_MSG = "출처 링크는 http 또는 https 주소(500자 이내)여야 합니다.";
+    static final int TYPE_MAX = 50;      // INSTITUTIONS.TYPE VARCHAR(50)
+    static final int LAST_BID_MAX = 40;  // INSTITUTIONS.LAST_BID VARCHAR(40) (004 이후)
 
     interface CodeCheck {
         boolean enabled(String group, String code);
@@ -50,6 +52,8 @@ final class InstitutionEditRules {
     static List<Change> resolve(Institution cur, InstitutionUpdateIn upd, CodeCheck codes) {
         List<Change> out = new ArrayList<>();
         plain(out, "REGION_CODE", cur.getRegionCode(), upd.present("regionCode"), upd.getRegionCode());
+        maxLen(upd.present("type"), upd.getType(), TYPE_MAX, "기관 유형은 " + TYPE_MAX + "자 이내여야 합니다.");
+        maxLen(upd.present("lastBid"), upd.getLastBid(), LAST_BID_MAX, "최근 입찰 정보는 " + LAST_BID_MAX + "자 이내여야 합니다.");
         plain(out, "TYPE", cur.getType(), upd.present("type"), upd.getType());
         plain(out, "LAST_BID", cur.getLastBid(), upd.present("lastBid"), upd.getLastBid());
         plain(out, "TERM", str(cur.getTerm()), upd.present("term"), str(upd.getTerm()));
@@ -289,6 +293,13 @@ final class InstitutionEditRules {
             throw bad("공고 번호 형식이 올바르지 않습니다(50자 이내, 문자·숫자·공백·-_./()).");
         }
         return v;
+    }
+
+    /** 보낸 칸이 DB 칸 길이(코드 포인트)를 넘으면 400 — 안 막으면 DB 오류로 500 이 된다(84② 11-16). 문구에 입력값을 싣지 않는다. */
+    private static void maxLen(boolean sent, String v, int max, String msg) {
+        if (sent && v != null && v.codePointCount(0, v.length()) > max) {
+            throw bad(msg);
+        }
     }
 
     private static ApiException bad(String m) {

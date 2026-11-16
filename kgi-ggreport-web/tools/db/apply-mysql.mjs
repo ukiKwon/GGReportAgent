@@ -4,7 +4,7 @@
 // 사용법: node apply-mysql.mjs --help   (README §5-3)
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -19,6 +19,9 @@ const USAGE = `사용법: node apply-mysql.mjs [옵션]
   --status             파일별 적용 여부 표만 보여 줌(변경 없음)
   --dry-run            적용할 파일 목록만 보여 줌(변경 없음)
   --baseline <번호>    그 번호까지 '실행 없이' 적용됨으로 기록 (이미 손으로 적용한 DB용, 예: --baseline 028)
+  --mark-applied <번호,번호>  mysql 로 직접 적용한 파일만 골라 '실행 없이' 기록. 실제 스키마·데이터를 검사해
+                       맞을 때만 기록한다(예: --mark-applied 033,036,038). --dry-run 과 함께 쓰면 검사만 한다.
+                       이미 적용 기록이 있는 DB 에서만 쓴다(없으면 --baseline 먼저).
 
   --host <호스트>      기본 localhost
   --port <포트>        기본 3306
@@ -66,6 +69,47 @@ export function checksum(buf) {
  * files: [{version,name,sha}], applied: Map(version -> {file_name, checksum})
  * → { pending, done, mismatched, orphans }
  */
+/** --mark-applied 가 '정말 적용돼 있나'를 확인하는 번호별 검사(결과 1이면 통과). 검사가 없는 번호는 기록하지 않는다 — 새 파일을 손으로 적용할 일이 있으면 여기에 한 줄 추가. */
+export const SCHEMA_PROBES = {
+  '033': "SELECT IF(COUNT(*)>=1,1,0) FROM ROLE_MENUS WHERE ROLE='전산팀장' AND MENU='admin';",   // 데이터 증거(관리자가 끈 뒤에도 행은 남는다)
+  '036': "SELECT IF(COUNT(*)=5,1,0) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND UPPER(TABLE_NAME)='PERM_CHANGE_LOG' AND UPPER(COLUMN_NAME) IN ('SCREEN_ID','BUTTON_ID','UI_VALID','EMP_VERIFIED','TARGET_ROLE');",
+  '037': "SELECT IF(COUNT(*)=2,1,0) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND UPPER(TABLE_NAME) IN ('NOTICE_ROUND','NOTICE_ROUND_LOG');",
+  '038': "SELECT IF(COUNT(*)>=1,1,0) FROM INSTITUTIONS WHERE INSTITUTION_ID='org-9740520' AND REGION_CODE='47';",   // 데이터 정정 — 대표 1행
+};
+
+/** versions → { targets(파일), skipped(이미 기록), errors }. 파일 없음·검사 없음은 errors. */
+export function planMark(versions, files, applied) {
+  const byVer = new Map(files.map((f) => [f.version, f]));
+  const targets = [], skipped = [], errors = [];
+  for (const v of versions) {
+    const f = byVer.get(v);
+    if (!f) errors.push(`${v}: 해당 번호의 파일이 없습니다`);
+    else if (applied.has(v)) skipped.push(v);
+    else if (!SCHEMA_PROBES[v]) errors.push(`${v}: 적용 여부를 확인할 검사가 없어 기록하지 않습니다(SCHEMA_PROBES 에 추가 필요)`);
+    else targets.push(f);
+  }
+  return { targets, skipped, errors };
+}
+
+/** 오래된(기본 1시간) apply-mysql-XXXXXX 임시 폴더를 지운다 — 강제 종료로 finally·exit 훅이 못 돈 경우의 마지막 방어. 지운 폴더 이름 목록을 돌려준다. */
+export function sweepStaleTempDirs(io = {}) {
+  const { tmpdir = os.tmpdir(), now = Date.now(), maxAgeMs = 3600000 } = io;
+  const removed = [];
+  let names;
+  try { names = readdirSync(tmpdir); } catch { return removed; }
+  for (const n of names) {
+    if (!/^apply-mysql-[A-Za-z0-9]{6}$/.test(n)) continue;
+    const p = path.join(tmpdir, n);
+    try {
+      const st = lstatSync(p);   // 링크는 따라가지 않는다
+      if (!st.isDirectory() || now - st.mtimeMs < maxAgeMs) continue;
+      rmSync(p, { recursive: true, force: true });
+      removed.push(n);
+    } catch { /* 건드릴 수 없으면 그대로 둔다 */ }
+  }
+  return removed;
+}
+
 export function planMigrations(files, applied) {
   const pending = [], done = [], mismatched = [];
   for (const f of files) {
@@ -81,7 +125,7 @@ export function planMigrations(files, applied) {
 
 export function parseArgs(argv) {
   const o = { host: 'localhost', port: '3306', user: 'root', db: 'ggreportdb', mysql: 'mysql',
-    dir: null, status: false, dryRun: false, baseline: null, help: false };
+    dir: null, status: false, dryRun: false, baseline: null, markApplied: null, help: false };
   const val = (i, flag) => {
     if (i + 1 >= argv.length || argv[i + 1].startsWith('--')) throw new Error(`${flag} 뒤에 값이 필요합니다`);
     return argv[i + 1];
@@ -103,6 +147,11 @@ export function parseArgs(argv) {
         if (!v) throw new Error('--baseline 값은 1~3자리 숫자여야 합니다 (예: 028)');
         o.baseline = v; break;
       }
+      case '--mark-applied': {
+        const vs = val(i++, a).split(',').map((x) => normalizeVersion(x.trim()));
+        if (vs.some((v) => !v)) throw new Error('--mark-applied 값은 쉼표로 구분한 1~3자리 숫자여야 합니다 (예: 033,036,038)');
+        o.markApplied = [...new Set(vs)].sort(); break;
+      }
       default: throw new Error(`알 수 없는 옵션: ${a}`);
     }
   }
@@ -110,7 +159,8 @@ export function parseArgs(argv) {
   if (!/^\d{1,5}$/.test(o.port)) throw new Error('--port 는 숫자여야 합니다');
   if (!/^[A-Za-z0-9._-]+$/.test(o.user)) throw new Error('--user 형식이 올바르지 않습니다');
   if (!/^[A-Za-z0-9_]+$/.test(o.db)) throw new Error('--db 형식이 올바르지 않습니다');
-  if (o.status && (o.baseline || o.dryRun)) throw new Error('--status 는 다른 동작 옵션과 함께 쓸 수 없습니다');
+  if (o.status && (o.baseline || o.dryRun || o.markApplied)) throw new Error('--status 는 다른 동작 옵션과 함께 쓸 수 없습니다');
+  if (o.baseline && o.markApplied) throw new Error('--baseline 과 --mark-applied 는 함께 쓸 수 없습니다');
   if (o.baseline && o.dryRun) throw new Error('--baseline 과 --dry-run 은 함께 쓸 수 없습니다');
   return o;
 }
@@ -204,7 +254,7 @@ function hookExitCleanup() {
 }
 /** CLI 로 실행될 때만 신호 처리기를 단다(시험·import 에서는 달지 않음). 신호 → exit 이벤트 → 동기 삭제. */
 export function installSignalCleanup() {
-  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK']) {   // SIGBREAK: Windows Ctrl+Break·콘솔 닫기
     process.once(sig, () => { cleanupLiveDirs(); process.exit(130); });
   }
 }
@@ -310,6 +360,8 @@ export async function main(argv) {
   let opt;
   try { opt = parseArgs(argv); } catch (e) { console.error(`오류: ${e.message}\n\n${USAGE}`); return 2; }
   if (opt.help) { console.log(USAGE); return 0; }
+  const swept = sweepStaleTempDirs();
+  if (swept.length) console.error(`알림: 이전 실행이 남긴 임시 폴더 ${swept.length}개를 지웠습니다.`);
 
   const here = path.dirname(fileURLToPath(import.meta.url));
   const dir = opt.dir ? path.resolve(opt.dir) : path.resolve(here, '../../src/main/resources/db/mysql');
@@ -342,6 +394,7 @@ export async function main(argv) {
     for (const v of plan.orphans) console.error(`경고: 기록은 있으나 파일이 없는 번호 ${v} (${applied.get(v).file_name})`);
 
     if (opt.baseline) return await doBaseline(cfg, files, applied, opt);
+    if (opt.markApplied) return await doMarkApplied(cfg, files, applied, opt);
 
     if (plan.pending.length && applied.size === 0 && (await tableExists(cfg, MARKER_TABLE))) {
       console.error(`중단: 이 DB에는 이미 표(${MARKER_TABLE})가 있는데 적용 기록이 없습니다. 손으로 적용한 DB로 보입니다.`);
@@ -379,6 +432,40 @@ export async function main(argv) {
     console.error(`오류: ${e.message}`);
     return 1;
   }
+}
+
+async function doMarkApplied(cfg, files, applied, opt) {
+  if (applied.size === 0) {
+    console.error('중단: 적용 기록이 비어 있습니다. 먼저 --baseline <번호> 로 앞 번호를 기록하세요(안 그러면 다음 실행이 001 부터 다시 돕니다).');
+    return 2;
+  }
+  const { targets, skipped, errors } = planMark(opt.markApplied, files, applied);
+  for (const v of skipped) console.log(`이미 기록됨: ${v}`);
+  if (errors.length) {
+    for (const e of errors) console.error(`중단: ${e}`);
+    console.error('아무것도 기록하지 않았습니다.');
+    return 2;
+  }
+  const missing = [];
+  for (const f of targets) {
+    const r = await query(cfg, SCHEMA_PROBES[f.version]);
+    if (r.code !== 0) throw new Error(`${f.name} 검사 쿼리 실패: ${r.stderr.trim() || '오류'}`);
+    if (r.stdout.trim() !== '1') missing.push(f.name);
+  }
+  if (missing.length) {
+    console.error(`중단: 다음 파일은 DB 에 적용된 흔적이 없습니다 — ${missing.join(', ')}\n먼저 mysql 로 적용하거나 번호를 빼세요. 아무것도 기록하지 않았습니다.`);
+    return 2;
+  }
+  if (targets.length === 0) { console.log('기록할 파일이 없습니다.'); return 0; }
+  if (opt.dryRun) {
+    console.log('[dry-run] 검사 통과, 기록 예정:');
+    for (const f of targets) console.log(`  ${f.name}`);
+    return 0;
+  }
+  const r = await query(cfg, insertSql(targets, `${who()} (mark-applied)`));   // 현재 파일의 sha256 만 기록한다
+  if (r.code !== 0) { console.error(`기록 실패: ${r.stderr.trim()}`); return 1; }
+  console.log(`실행 없이 기록했습니다: ${targets.map((f) => f.name).join(', ')}`);
+  return 0;
 }
 
 async function doBaseline(cfg, files, applied, opt) {

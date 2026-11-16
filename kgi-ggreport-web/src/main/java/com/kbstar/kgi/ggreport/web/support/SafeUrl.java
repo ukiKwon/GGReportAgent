@@ -11,16 +11,21 @@ public final class SafeUrl {
     private SafeUrl() {
     }
 
-    /** v 는 앞뒤 공백을 자른 값. 제어·공백·DEL·서식 문자(U+202E·U+200B 등), http(s) 아님, 호스트 없음, 계정정보 있음이면 false. */
+    /** v 는 앞뒤 공백을 자른 값. 제어(C0·C1)·공백류(NBSP·U+2028 등)·DEL·서식 문자(U+202E·U+200B·보조면 포함)·짝 없는 서로게이트,
+     *  http(s) 아님, 호스트 없음, 계정정보 있음이면 false. 글자는 코드 포인트 단위로 본다(84② 11-16). */
     public static boolean isHttp(String v) {
         if (v == null || v.isEmpty() || v.length() > MAX) {
             return false;
         }
-        for (int i = 0; i < v.length(); i++) {
-            char c = v.charAt(i);
-            if (c <= ' ' || c == 0x7f || Character.getType(c) == Character.FORMAT) {
+        for (int i = 0; i < v.length(); ) {
+            int cp = v.codePointAt(i);
+            int t = Character.getType(cp);
+            if (cp <= ' ' || cp == 0x7f
+                    || t == Character.FORMAT || t == Character.CONTROL || t == Character.SURROGATE
+                    || t == Character.SPACE_SEPARATOR || t == Character.LINE_SEPARATOR || t == Character.PARAGRAPH_SEPARATOR) {
                 return false;
             }
+            i += Character.charCount(cp);
         }
         URI u;
         try {

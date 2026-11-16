@@ -269,4 +269,29 @@ public class InstitutionEditRulesTest {
         assertTrue(ch.isEmpty());
         assertEquals("2027-03-01", u.getContractEnd());
     }
+
+    @Test
+    public void 링크_보조면_서식문자와_공백류_거부() {
+        String[] bads = {"http://x.kr/" + new String(Character.toChars(0xE0001)), "http://x.kr/\uD800",
+                "http://x.kr/\u0085", "http://x.kr/ ", "http://x.kr/ ", "http://x.kr/　"};
+        for (String bad : bads) {
+            final String v = bad;
+            rejects(() -> InstitutionEditRules.url(v));
+        }
+        assertEquals("https://x.kr/가나", InstitutionEditRules.url("https://x.kr/가나"));
+    }
+
+    @Test
+    public void 유형_최근입찰_길이_상한() {
+        InstitutionUpdateIn u = new InstitutionUpdateIn();
+        u.setType(String.join("", java.util.Collections.nCopies(51, "가")));
+        rejects(() -> InstitutionEditRules.resolve(inst(), u, CODES));
+        InstitutionUpdateIn ok = new InstitutionUpdateIn();
+        ok.setType(String.join("", java.util.Collections.nCopies(50, "가")));
+        ok.setLastBid(String.join("", java.util.Collections.nCopies(40, "1")));
+        assertEquals(2, InstitutionEditRules.resolve(inst(), ok, CODES).size());
+        InstitutionUpdateIn big = new InstitutionUpdateIn();
+        big.setLastBid(String.join("", java.util.Collections.nCopies(41, "1")));
+        rejects(() -> InstitutionEditRules.resolve(inst(), big, CODES));
+    }
 }

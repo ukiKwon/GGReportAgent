@@ -105,9 +105,31 @@ public class ApiExceptionHandler {
     @ExceptionHandler({IllegalStateException.class, IllegalArgumentException.class,
             DataAccessException.class, UncheckedIOException.class})
     public ResponseEntity<Map<String, Object>> handleUnexpected(Exception e) {
-        log.error("처리되지 않은 예외", e);
+        // 로그는 한 줄(클래스·우리 코드 첫 프레임·뿌리 원인 클래스) + 상관 ID — 메시지(SQL 값 등)·스택은 싣지 않는다(84② 11-16). 스택은 DEBUG 때만.
+        String ref = java.util.UUID.randomUUID().toString().substring(0, 8);
+        log.error("처리되지 않은 예외 ref={} {}", ref, oneLine(e));
+        log.debug("처리되지 않은 예외 상세 ref={}", ref, e);
         String detail = verbose ? e.getClass().getSimpleName() + ": " + e.getMessage() : GENERIC_500;
-        return ResponseEntity.status(500).body(detail(detail));
+        return ResponseEntity.status(500).header("X-Error-Ref", ref).body(detail(detail));
+    }
+
+    /** 로그용 한 줄 — 예외 클래스 + com.kbstar 첫 프레임 + 뿌리 원인 클래스. 메시지는 쓰지 않는다. */
+    static String oneLine(Throwable e) {
+        StringBuilder sb = new StringBuilder(e.getClass().getName());
+        for (StackTraceElement f : e.getStackTrace()) {
+            if (f.getClassName().startsWith("com.kbstar.")) {
+                sb.append(" at ").append(f);
+                break;
+            }
+        }
+        Throwable root = e;
+        for (int i = 0; i < 10 && root.getCause() != null && root.getCause() != root; i++) {
+            root = root.getCause();
+        }
+        if (root != e) {
+            sb.append(" root=").append(root.getClass().getName());
+        }
+        return sb.toString();
     }
 
     /**
