@@ -81,12 +81,7 @@
     const c = plans.budgetCell(it, headUnit);
     return '<td class="pl-bud"><span aria-hidden="true">' + c.html + '</span><span class="sr-only">' + esc(c.sr) + '</span></td>';
   }
-  // 보충 A: 쪽 열은 항상 둔다. 쪽이 없으면 '미확인' 칩.
-  function pageTd(p) {
-    const t = str(p).trim();
-    if (!t) return '<td class="pl-pg">' + unk('미확인') + '</td>';
-    return '<td class="pl-pg" aria-label="원문 ' + esc(t) + '쪽">' + esc(t) + '쪽</td>';
-  }
+  // 쪽수는 화면에 보이지 않는다(사용자 결정 2026-11-16) — 쪽 열·'미확인' 칩 없음.
   // url_missing 이 참이면 src_url 이 있어도 링크를 내지 않는다(한 규칙: url_missing 우선 — docHtml 의 noUrl 안내와 같은 기준).
   function srcUrlOf(d) { return d.url_missing ? null : logic.safeHttpUrl(d.src_url); }
   // 보충 A: 출처 줄 순서 = 종류 · 제목 · 확인일. URL 있으면 링크 + '(인터넷 PC에서 열림)', 없으면 글자만 + '출처 URL 없음' 칩.
@@ -150,7 +145,8 @@
     const dropped = it.progress_cd === 'DROPPED';
     const tags = [];
     if (dropped) tags.push(badge('pp-cancel', '폐기'));
-    if (it.check_cd && it.check_cd !== 'CONFIRMED') tags.push(unk(CHECK[it.check_cd] || CHECK.NOT_CHECKED));
+    // 부분확인·확인안됨만 칩을 단다. 미조사(NOT_CHECKED)·모르는 값은 칩 없음(사용자 결정 2026-11-16).
+    if (it.check_cd === 'PARTIAL' || it.check_cd === 'UNCONFIRMED') tags.push(unk(CHECK[it.check_cd]));
     const prog = [];
     if (it.progress_cd && it.progress_cd !== 'DROPPED' && PROGRESS[it.progress_cd]) prog.push(esc(PROGRESS[it.progress_cd]));
     if (it.exec_rate != null && str(it.exec_rate) !== '') prog.push('이행률 ' + mono(str(it.exec_rate) + '%'));
@@ -159,7 +155,7 @@
       (prog.length ? '<span class="db-why pl-prog">' + prog.join(' · ') + '</span>' : '') +
       (str(it.note).trim() ? '<span class="pl-content">' + esc(it.note) + '</span>' : '') + '</td>';
     return '<tr class="pl-row' + (it.parent_no != null ? ' pl-child' : '') + (dropped ? ' pl-dim' : '') + '">' +
-      '<td class="pl-no">' + mono(it.item_no) + '</td>' + nm + budgetTd(it, headUnit) + pageTd(it.page) + '</tr>';
+      '<td class="pl-no">' + mono(it.item_no) + '</td>' + nm + budgetTd(it, headUnit) + '</tr>';
   };
   plans.itemsTableHtml = function (items, headUnit, kw, title) {
     const list = Array.isArray(items) ? items : [];
@@ -169,10 +165,10 @@
     if (!shown.length) return count + '<p class="db-empty">조건에 맞는 사업이 없습니다. 검색어를 지우세요.</p>';
     const hu = headUnit && UNIT[headUnit] ? headUnit : '';
     const head = '<thead><tr><th scope="col" class="pl-no">번호</th><th scope="col">사업명</th><th scope="col" class="pl-bud">예산' +
-      (hu ? '(' + esc(UNIT[hu]) + ')' : '') + '</th><th scope="col" class="pl-pg">쪽</th></tr></thead>';
+      (hu ? '(' + esc(UNIT[hu]) + ')' : '') + '</th></tr></thead>';
     const body = plans.groupByField(plans.orderItems(shown)).map(function (g) {
       const label = [g.no, g.name].filter(Boolean).join(' ');
-      return '<tbody>' + (label ? '<tr class="pl-fld"><th scope="rowgroup" colspan="4">' + esc(label) + '</th></tr>' : '') +
+      return '<tbody>' + (label ? '<tr class="pl-fld"><th scope="rowgroup" colspan="3">' + esc(label) + '</th></tr>' : '') +
         g.items.map(function (it) { return plans.itemRowHtml(it, hu); }).join('') + '</tbody>';
     }).join('');
     return count + '<table class="pl-tbl"><caption class="sr-only">' + esc(title || '') + ' 사업표</caption>' + head + body + '</table>';
@@ -181,7 +177,9 @@
   // ── 순수: 문서 카드·상세 ───────────────────────────────────────────
   plans.checkCountsHtml = function (cc) {
     const c = cc || {};
-    return [['확인됨', 'confirmed'], ['부분확인', 'partial'], ['확인안됨', 'unconfirmed'], ['미조사', 'not_checked']].map(function (p) {
+    const cols = [['확인됨', 'confirmed'], ['부분확인', 'partial'], ['확인안됨', 'unconfirmed']];
+    if (!cols.some(function (p) { return Number(c[p[1]]) > 0; })) return '';   // 셋 다 0이면 줄 전체를 감춘다(미조사는 세지 않는다)
+    return cols.map(function (p) {
       return esc(p[0]) + ' ' + mono(Number(c[p[1]]) || 0);
     }).join(' · ');
   };
@@ -189,18 +187,16 @@
     const items = Array.isArray(d.items) ? d.items : [];
     const cc = d.check_counts || {};
     const hid = 'pl-d' + esc(d.doc_id);
-    const noUrl = !srcUrlOf(d);
+    const checks = plans.checkCountsHtml(cc);
     const notes = [];
     if (d.period_ended) notes.push('<p class="db-why">' + esc(d.period_to) + '년에 끝난 계획입니다. 누리집에 새 계획이 있는지 확인하세요.</p>');
     if (d.stale) notes.push('<p class="pl-warn">확인 ' + mono(ymd(d.checked_on)) + ' 뒤로 12개월 넘게 다시 확인하지 않았습니다.</p>');
-    if (noUrl) notes.push('<p class="db-why">원문 쪽수로 대조하세요.</p>');
     if (Number(cc.unconfirmed) > 0) notes.push('<p class="db-why">\'확인안됨\'은 원문에서 아직 대조하지 못한 사업입니다. 폐기된 사업이 아닙니다.</p>');
     return '<section class="pl-doc" aria-labelledby="' + hid + '"><div class="pl-doc-h"><h3 id="' + hid + '">' + esc(d.title) + '</h3>' +
       badge('pp-neutral', str(d.src_kind_name || d.src_kind_cd) || '기타') + (d.period_ended ? ' ' + badge('pp-cancel', '기간 지남') : '') + '</div>' +
       '<dl class="db-dl"><dt>출처</dt><dd>' + plans.srcLineHtml(d) + '</dd>' +
       '<dt>대상 기간</dt><dd>' + mono(plans.periodText(d)) + '</dd>' +
-      '<dt>확인 상태</dt><dd>' + plans.checkCountsHtml(cc) + '</dd>' +
-      (str(d.page_range).trim() ? '<dt>문서 쪽</dt><dd>' + mono(d.page_range) + '쪽</dd>' : '') +
+      (checks ? '<dt>확인 상태</dt><dd>' + checks + '</dd>' : '') +
       (str(d.note).trim() ? '<dt>비고</dt><dd class="pl-note">' + esc(d.note) + '</dd>' : '') + '</dl>' +
       notes.join('') + plans.itemsTableHtml(items, d.budget_unit_cd, kw, d.title) + '</section>';
   };
