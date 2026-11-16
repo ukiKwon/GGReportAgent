@@ -92,6 +92,15 @@ public class MenuService {
      */
     @Transactional
     public int save(List<MenuChangesIn.MenuChange> changes, Actor actor, BoardUiIds.Ui ui) {
+        // 자기 역할 줄은 다른 역할의 관리자가 바꾼다 — 본인 메뉴 권한이 함께 바뀌므로(사용자 11-16 ⓐ, security 중-1)
+        SysUser me = actor != null && actor.isKnown() ? users.selectByEmpNo(actor.getEmpNo()) : null;
+        if (me != null) {
+            for (MenuChangesIn.MenuChange change : changes) {
+                if (me.getRole() != null && me.getRole().equals(change.getRole())) {
+                    throw ApiException.badRequest("본인 역할(" + me.getRole() + ")의 메뉴는 다른 역할의 관리자가 바꿉니다.");
+                }
+            }
+        }
         for (MenuChangesIn.MenuChange change : changes) {
             if (!Menus.MENU_KEYS.contains(change.getMenu())) {
                 throw ApiException.badRequest("모르는 메뉴입니다: " + change.getMenu());

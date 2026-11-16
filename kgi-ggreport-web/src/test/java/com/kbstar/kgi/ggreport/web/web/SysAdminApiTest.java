@@ -40,6 +40,9 @@ public class SysAdminApiTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private com.kbstar.kgi.ggreport.web.service.UserAdminService userAdmin;
+
     private ResultActions asAdmin(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder b)
             throws Exception {
         return mockMvc.perform(b.header(Actor.HEADER, ADMIN));
@@ -338,5 +341,18 @@ public class SysAdminApiTest {
                 .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
         org.junit.Assert.assertTrue(text, text.contains("user:CREATE") && text.contains("user:NAME") && text.contains("가상직원")
                 && text.contains("user:POSITION_TITLE") && text.contains("user:APPROVAL_GRADE"));
+    }
+
+    @Test
+    public void 마지막_관리자_보호는_서비스에서도_지켜진다() throws Exception {   // API 로는 본인 변경 400 이 먼저라 서비스로 고정(security 중-2)
+        leaveOnlyMaster();
+        try {
+            userAdmin.setStatus(ADMIN, "LOCKED", Actor.claimed("6513840"));
+            org.junit.Assert.fail("마지막 관리자는 잠글 수 없어야 한다");
+        } catch (ApiException e) {
+            org.junit.Assert.assertEquals(400, e.getStatus());
+            org.junit.Assert.assertTrue(e.getMessage(), String.valueOf(e.getMessage()).contains("마지막 관리자")
+                    || String.valueOf(e.getDetailObject()).contains("마지막 관리자"));
+        }
     }
 }

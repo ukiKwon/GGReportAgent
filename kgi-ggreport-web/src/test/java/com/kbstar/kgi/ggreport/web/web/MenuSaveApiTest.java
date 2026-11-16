@@ -32,6 +32,18 @@ public class MenuSaveApiTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private com.kbstar.kgi.ggreport.web.service.MenuService menuService;
+
+    /** 서비스 직접 호출(행위자 없음) — 본인 역할 줄 규칙 없이 잠김 방지 판정만 본다. */
+    private void saveDirect(String role, String menu, boolean enabled) {
+        com.kbstar.kgi.ggreport.web.dto.MenuChangesIn.MenuChange c = new com.kbstar.kgi.ggreport.web.dto.MenuChangesIn.MenuChange();
+        c.setRole(role);
+        c.setMenu(menu);
+        c.setEnabled(enabled);
+        menuService.save(java.util.Collections.singletonList(c));
+    }
+
     private org.springframework.test.web.servlet.ResultActions save(String changes) throws Exception {
         return saveAs(ADMIN, changes);
     }
@@ -110,10 +122,17 @@ public class MenuSaveApiTest {
      */
     @Test
     public void 권한관리를_모든_역할에서_끄는_저장은_거부한다() throws Exception {
-        // 기본값에서 admin 이 켜진 곳은 전산팀 하나다(Menus 기본 격자).
+        // 기본값에서 admin 이 켜진 곳은 전산팀 하나다(Menus 기본 격자). API 로는 마스터(전산팀) 본인 역할 줄이라 먼저 400.
         save("[{\"role\":\"전산팀\",\"menu\":\"admin\",\"enabled\":false}]")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").exists());
+        // 잠김 방지 판정 자체는 서비스에서 고정한다(행위자 없음)
+        try {
+            saveDirect("전산팀", "admin", false);
+            org.junit.Assert.fail("모든 관리자가 사라지는 저장은 400 이어야 한다");
+        } catch (com.kbstar.kgi.ggreport.web.web.ApiException e) {
+            org.junit.Assert.assertEquals(400, e.getStatus());
+        }
 
         // 거부됐으므로 저장 전 상태 그대로여야 한다 — 반쯤 적용되면 안 된다.
         mockMvc.perform(get("/menus").param("role", "전산팀"))
@@ -123,7 +142,8 @@ public class MenuSaveApiTest {
     /** 다른 역할에 먼저 켜 두면 옮기는 것은 된다 — 잠기는 저장만 막는 것이지 고정이 아니다. */
     @Test
     public void 다른_역할에_먼저_켜두면_옮길_수_있다() throws Exception {
-        save("[{\"role\":\"영업팀장\",\"menu\":\"admin\",\"enabled\":true},"
+        userAdminView(SALES_MEMBER, true);   // 다른 역할(영업팀)의 관리자가 바꾼다 — 자기 역할 줄은 못 바꾼다(11-16)
+        saveAs(SALES_MEMBER, "[{\"role\":\"영업팀장\",\"menu\":\"admin\",\"enabled\":true},"
                 + "{\"role\":\"전산팀\",\"menu\":\"admin\",\"enabled\":false}]")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.saved").value(2));
@@ -163,7 +183,8 @@ public class MenuSaveApiTest {
     /** 전산팀장 역할에 켜 두면(033 과 같은 상태) 전산팀 역할의 권한관리를 꺼도 된다. */
     @Test
     public void 전산팀장에_켜두면_전산팀_역할의_권한관리를_꺼도_된다() throws Exception {
-        save("[{\"role\":\"전산팀장\",\"menu\":\"admin\",\"enabled\":true},{\"role\":\"전산팀\",\"menu\":\"admin\",\"enabled\":false}]")
+        userAdminView(SALES_MEMBER, true);
+        saveAs(SALES_MEMBER, "[{\"role\":\"전산팀장\",\"menu\":\"admin\",\"enabled\":true},{\"role\":\"전산팀\",\"menu\":\"admin\",\"enabled\":false}]")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.saved").value(2));
     }
@@ -174,9 +195,12 @@ public class MenuSaveApiTest {
         save("[{\"role\":\"전산팀장\",\"menu\":\"admin\",\"enabled\":true}]").andExpect(status().isOk());
         userAdminView("6295038", false);
         userAdminView("8892046", false);
-        save("[{\"role\":\"전산팀\",\"menu\":\"admin\",\"enabled\":false}]")
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").exists());
+        try {   // 행위자 없는 서비스 호출로 잠김 방지만 본다(API 로는 마스터 본인 역할 줄이라 먼저 400)
+            saveDirect("전산팀", "admin", false);
+            org.junit.Assert.fail();
+        } catch (com.kbstar.kgi.ggreport.web.web.ApiException e) {
+            org.junit.Assert.assertEquals(400, e.getStatus());
+        }
         mockMvc.perform(get("/menus").param("role", "전산팀"))
                 .andExpect(jsonPath("$.menus.admin").value(true));
     }
@@ -185,6 +209,14 @@ public class MenuSaveApiTest {
     @Test
     public void 사용자_예외_관리자가_남으면_역할_권한관리를_모두_꺼도_된다() throws Exception {
         userAdminView(SALES_MEMBER, true);
-        save("[{\"role\":\"전산팀\",\"menu\":\"admin\",\"enabled\":false}]").andExpect(status().isOk());
+        saveAs(SALES_MEMBER, "[{\"role\":\"전산팀\",\"menu\":\"admin\",\"enabled\":false}]").andExpect(status().isOk());
+    }
+
+    @Test
+    public void 관리자는_자기_역할_줄을_바꿀_수_없다() throws Exception {   // 사용자 11-16 ⓐ, security 중-1
+        save("[{\"role\":\"전산팀\",\"menu\":\"chat\",\"enabled\":false}]")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("다른 역할의 관리자")));
+        save("[{\"role\":\"예산팀\",\"menu\":\"chat\",\"enabled\":false}]").andExpect(status().isOk());
     }
 }

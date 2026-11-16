@@ -276,4 +276,15 @@ public class ApproverApiTest {
         assertEquals("5047192", userMapper.selectByEmpNo("3918264").getApproverEmpNo());
         assertNull(userMapper.selectByEmpNo("1473958").getApproverEmpNo());
     }
+
+    @Test
+    public void 관리자는_본인을_남의_결재자로_지정할_수_없다() throws Exception {   // security 11-16 S2
+        asAdmin(json(put("/sysadmin/perms/6295038"), "{\"changes\":[{\"menu\":\"admin\",\"view\":true}]}"))
+                .andExpect(status().isOk());   // 전산팀장을 관리자로
+        mockMvc.perform(json(put("/sysadmin/users/4482971/approver"), "{\"approver_emp_no\":\"6295038\",\"mode\":\"MANUAL\"}")
+                .header(Actor.HEADER, "6295038"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("본인을")));
+        setApprover("4482971", "6295038", "MANUAL", 200);   // 다른 관리자(마스터)가 지정하면 된다
+    }
 }

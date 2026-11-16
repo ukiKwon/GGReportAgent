@@ -50,6 +50,9 @@ public class GoldenWriteScenarioTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
     private GoldenRunner runner;
     private Path goldenDir;
 
@@ -107,6 +110,12 @@ public class GoldenWriteScenarioTest {
         // ③ 최종 확정 → 그 뒤의 조회 5종. 확정이 기관 단계를 7로 올리므로 25~30 이
         //    전부 그 값을 본다 — 순서를 바꾸면 stage 가 1로 남아 넷이 함께 깨진다.
         play("24_bidcase_finalize", bidCaseId);
+        // 참여 결정·최종 확정의 증적 정본은 BID_PREP_ACT 의 서버 사번 — 응답의 by(alice/bob/carol)는 표시값(security 11-16 S6)
+        String actSql = "SELECT ACTOR_EMP_NO FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD=? AND OUTCOME='OK'";
+        assertEquals("3918264", jdbc.queryForObject(actSql, String.class, bidCaseId, "DECISION_T1"));
+        assertEquals("5047192", jdbc.queryForObject(actSql, String.class, bidCaseId, "DECISION_T2"));
+        assertEquals("2674805", jdbc.queryForObject(actSql, String.class, bidCaseId, "DECISION_T3"));
+        assertEquals("2674805", jdbc.queryForObject(actSql, String.class, bidCaseId, "FINALIZE_APPROVE"));
         확정이_3팀_초안을_제안서로_묶는다();
         play("25_bidcases_assignee_view", null);
         play("26_tasks_team_view", null);
