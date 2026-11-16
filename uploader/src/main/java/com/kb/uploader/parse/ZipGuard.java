@@ -72,17 +72,21 @@ public final class ZipGuard {
         } catch (IOException e) {
             throw new Rejected("BROKEN");
         }
-        verifyDirectory(file, r, maxEntry, maxTotal);
+        verifyDirectory(file, r, maxEntry, maxTotal, maxCells, maxRows, maxCellChars, maxXmlElements);
         return r;
     }
 
     /**
      * 열기 쪽이 읽는 중앙 목차를 java.util.zip.ZipFile 로 읽어 스트림 검사 결과와 대조한다.
      * 이름 집합·개수가 다르거나 entry 별 실제 해제 크기가 다르면 BROKEN. 목차의 크기 필드는 쓰지 않고 실제로 읽어 센다.
+     * 내용 검사(DOCTYPE·칸·행·요소·글자 수)도 목차 쪽 바이트로 다시 한다 — 같은 이름·같은 크기로 내용만 바꿔 숨긴
+     * entry 를 여는 쪽이 읽는 경우 방어(security 11-16 N1).
      */
-    private static void verifyDirectory(Path file, Result stream, long maxEntry, long maxTotal) throws Rejected {
+    private static void verifyDirectory(Path file, Result stream, long maxEntry, long maxTotal, int maxCells,
+                                        int maxRows, int maxCellChars, int maxXmlElements) throws Rejected {
         Set<String> seen = new HashSet<>();
-        long total = 0;
+        long[] total = new long[1];
+        long[] counts = new long[3];
         byte[] buf = new byte[8192];
         try (ZipFile zf = new ZipFile(file.toFile())) {
             Enumeration<? extends ZipEntry> en = zf.entries();
@@ -99,21 +103,27 @@ public final class ZipGuard {
                 if (expected == null) {
                     throw new Rejected("BROKEN");           // 목차에만 있는 entry = 가짜 서명 뒤 숨김
                 }
-                long size = 0;
-                int n;
                 try (InputStream is = zf.getInputStream(e)) {
-                    while ((n = is.read(buf)) > 0) {
-                        size += n;
-                        total += n;
-                        if (size > maxEntry || total > maxTotal) {
-                            throw new Rejected("TOO_LARGE_UNPACKED");
-                        }
+                    Meter m = new Meter(is, maxEntry, maxTotal, total);
+                    int filled = 0;
+                    int r;
+                    while (filled < SNIFF && (r = m.read(buf, filled, SNIFF - filled)) > 0) {
+                        filled += r;
+                    }
+                    if (looksXml(buf, filled)) {
+                        InputStream xml = new SequenceInputStream(new ByteArrayInputStream(buf, 0, filled), m);
+                        countXml(xml, m, counts, maxCells, maxRows, maxCellChars, maxXmlElements);
+                    }
+                    while (m.read(buf, 0, buf.length) > 0) {
+                        // 나머지를 읽어 센다
+                    }
+                    if (m.size != expected.longValue()) {
+                        throw new Rejected("BROKEN");
                     }
                 }
-                if (size != expected.longValue()) {
-                    throw new Rejected("BROKEN");
-                }
             }
+        } catch (Over ex) {
+            throw new Rejected("TOO_LARGE_UNPACKED");
         } catch (IOException | IllegalArgumentException ex) {   // ZipException 포함
             throw new Rejected("BROKEN");
         }

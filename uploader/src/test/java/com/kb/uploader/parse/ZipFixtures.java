@@ -115,6 +115,32 @@ public final class ZipFixtures {
         return out;
     }
 
+    /**
+     * entry 1개짜리 zip 두 개(같은 이름·같은 해제 크기)로, 스트림은 shown 을 읽고 목차는 hidden 을 가리키는 파일을 만든다:
+     * [shown 로컬 부분][가짜 PK\1\2][hidden 로컬 부분][hidden 목차·EOCD(오프셋 보정)]. 내용 바꿔치기 시험용(security N1).
+     */
+    public static byte[] swapHidden(byte[] shown, byte[] hidden) {
+        int shownCd = cdStart(shown);
+        int hiddenCd = cdStart(hidden);
+        int base = shownCd + 4;
+        byte[] out = new byte[base + hidden.length];
+        System.arraycopy(shown, 0, out, 0, shownCd);
+        out[shownCd] = 'P';
+        out[shownCd + 1] = 'K';
+        out[shownCd + 2] = 1;
+        out[shownCd + 3] = 2;
+        System.arraycopy(hidden, 0, out, base, hidden.length);
+        int cen = base + hiddenCd;
+        put32(out, cen + 42, le32(out, cen + 42) + base);              // 로컬 헤더 위치
+        int eocd = base + hidden.length - 22;
+        put32(out, eocd + 16, le32(out, eocd + 16) + base);            // 목차 시작 위치
+        return out;
+    }
+
+    private static int cdStart(byte[] zip) {
+        return le32(zip, zip.length - 22 + 16);    // 주석 없는 EOCD 가정
+    }
+
     private static int le16(byte[] b, int i) {
         return (b[i] & 0xFF) | ((b[i + 1] & 0xFF) << 8);
     }

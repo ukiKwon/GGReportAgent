@@ -100,6 +100,37 @@ public class ZipGuardTest {
     }
 
     @Test
+    public void 같은_이름_같은_크기로_내용만_바꿔_숨긴_DOCTYPE도_BROKEN() throws Exception {
+        String evil = "<!DOCTYPE a [<!ENTITY e \"x\">]><a>&e;</a>";
+        StringBuilder good = new StringBuilder("<a>");
+        while (good.length() < evil.length() - 4) {
+            good.append('x');
+        }
+        good.append("</a>");
+        assertEquals(evil.length(), good.length());
+        byte[] z = ZipFixtures.swapHidden(
+                ZipFixtures.zip("Contents/section0.xml", good.toString().getBytes(StandardCharsets.UTF_8)),
+                ZipFixtures.zip("Contents/section0.xml", evil.getBytes(StandardCharsets.UTF_8)));
+        assertEquals(1, ZipGuard.check(z, MB, 10 * MB).names.size());   // 스트림만으로는 정상 내용만 보인다
+        Path f = tmp.newFile("swap.hwpx").toPath();
+        Files.write(f, z);
+        try (java.util.zip.ZipFile zf = new java.util.zip.ZipFile(f.toFile())) {   // 여는 쪽은 숨은 내용을 읽는다(픽스처 확인)
+            java.util.zip.ZipEntry en = zf.entries().nextElement();
+            byte[] body = new byte[evil.length()];
+            try (java.io.DataInputStream in = new java.io.DataInputStream(zf.getInputStream(en))) {
+                in.readFully(body);
+            }
+            assertEquals(evil, new String(body, StandardCharsets.UTF_8));
+        }
+        try {
+            ZipGuard.checkUploadFile(f);
+            fail("거부되어야 한다");
+        } catch (ZipGuard.Rejected e) {
+            assertEquals("BROKEN", e.code);
+        }
+    }
+
+    @Test
     public void 정상_xlsx_pptx_hwpx_파일은_통과() throws Exception {
         Path x = tmp.newFile("n.xlsx").toPath();
         Files.write(x, smallXlsx());
