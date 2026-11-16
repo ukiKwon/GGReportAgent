@@ -380,6 +380,7 @@
     if (it.resultCheck !== undefined) return !!it.resultCheck;   // check 칸은 '날짜 의미 확인 중' 뜻이라 따로 둔다
     return it.phase === 'awaiting' || (it.phase === 'unknown' && it.since > logic.NOTICE_UNKNOWN_OPEN_DAYS);
   }
+  dash.isNoticeCheck = isCheck;   // 기관 사업계획(plans.js)이 같은 '결과 확인' 판정을 쓴다
   dash.noticeGroupLabel = function (items) {
     const r = items.filter(function (it) { return it.phase === 'receiving'; }).length;
     return '공고 진행 중 <b>' + items.length + '</b>곳' + (r && r < items.length ? ' · 마감 전 먼저' : '');

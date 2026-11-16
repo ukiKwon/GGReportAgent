@@ -263,9 +263,11 @@
     return m;
   };
   // 공고 진행 중(notice) 먼저, 그다음 기간 창(windowItems). 서버 현황은 institutionId 로만 붙인다. map 이 null 이면 st 는 모두 null(아직 모름).
+  // '결과 확인' 기관(마감 지남·마감일 미확인 30일 초과)은 입찰 임박이 아니므로 뺀다 — 바닥 안내(checkNoteHtml)가 수를 알리고, 직접 열면 pin 으로 보인다(사용자 11-16).
   plans.listRows = function (M, key, f, map) {
     const d = D();
-    const items = (M.notice || []).concat(d.windowItems(M, key));
+    const open = (M.notice || []).filter(function (it) { return !d.isNoticeCheck(it); });
+    const items = open.concat(d.windowItems(M, key));
     return d.filterItems(items, f || {}).map(function (it) {
       const id = it.rec && it.rec.institutionId ? String(it.rec.institutionId) : '';
       return { key: it.key, it: it, id: id, st: id && map ? (map[id] || null) : null };
@@ -297,6 +299,15 @@
     if (m > n) h += (h ? '<br>' : '') + '서버에 등록되지 않은 ' + mono(m - n) + '곳은 목록에 넣을 수 없습니다.';
     return h;
   };
+  // 목록에서 뺀 '결과 확인' 기관 안내. n = 지역·검색을 적용한 수, canOpen = 입찰 공고 현황 메뉴가 보이는가. 0곳이면 ''.
+  // 한 줄로 둔다(QA 11-16: 3~4줄이면 1280×720에서 목록 칸이 행 2개로 눌림). 이유 설명은 title(마우스 올림).
+  plans.checkNoteHtml = function (n, canOpen) {
+    n = Number(n) || 0;
+    if (!n) return '';
+    const why = '마감이 지났거나, 마감일 기록 없이 공고 후 ' + logic.NOTICE_UNKNOWN_OPEN_DAYS + '일이 지난 곳입니다.';
+    return '<p class="pl-fn" title="' + esc(why) + '">결과 확인할 기관 ' + mono(n) + '곳은 목록에서 뺐습니다' +
+      (canOpen ? ' · <button type="button" class="db-link" id="pl-to-notice">입찰 공고 현황에서 보기</button>' : '') + '</p>';
+  };
   plans.winHtml = function (key) {
     const d = D(), k = d.windowKey(key);
     return '<legend class="sr-only">입찰 예정일 기간</legend>' + d.WINDOW_KEYS.map(function (w) {
@@ -327,8 +338,10 @@
       tag = '<span class="dg-day ' + esc(it.band) + '">' + (it.days === 0 ? 'D-day' : 'D-' + esc(it.days)) + '</span>';
       meta = region + ' · <span class="d">' + esc(it.date) + '</span> ' + esc(it.label);
     }
+    if (o.pinned) meta += ' · 직접 연 기관';   // 목록 밖에서 직접 연 기관(현황판·지도에서 열었거나 결과 확인 기관)
     const badges = o.loaded ? plans.statusBadgesHtml(r.st) : '';
-    return '<li role="option" id="' + esc(o.id || '') + '" class="db-row" data-key="' + esc(r.key) + '" aria-selected="' + (o.selected ? 'true' : 'false') + '">' +
+    const mark = (o.pinned ? ' data-pin="1"' : '') + (it.notice && d.isNoticeCheck(it) ? ' data-check="1"' : '');
+    return '<li role="option" id="' + esc(o.id || '') + '" class="db-row" data-key="' + esc(r.key) + '" aria-selected="' + (o.selected ? 'true' : 'false') + '"' + mark + '>' +
       '<span class="nm">' + esc(it.name) + '</span>' + tag + '<span class="meta">' + meta + (badges ? ' ' + badges : '') + '</span></li>';
   };
 
@@ -395,7 +408,7 @@
       (ymd(st.oldest_checked_on) ? '<dt>확인일</dt><dd>' + mono(ymd(st.oldest_checked_on)) + ' <span class="db-why">가장 오래된 문서 기준</span></dd>' : '') + '</dl>' + open;
   };
   // 기관 사업계획 화면을 이 사용자가 열 수 있는가 = 사이드바에 그 항목이 그려져 있는가(nav.build 가 이미 역할·서버 메뉴 키로 걸러 그린다).
-  // app.js 의 findNavItem 은 밖으로 나와 있지 않아 사이드바 DOM(data-nav)로 본다. 사이드바가 아직 없으면(시험·로그인 전) 열 수 있다고 본다.
+  // 이 판정은 사이드바 DOM(data-nav)으로 본다(입찰 공고 현황 쪽 noticeMenuVisible 은 app.findNavItem 을 쓴다). 사이드바가 아직 없으면(시험·로그인 전) 열 수 있다고 본다.
   // plans.menuCheck 에 함수를 넣으면 그 결과를 쓴다(시험용).
   plans.menuCheck = null;
   plans.menuVisible = function () {
@@ -404,6 +417,16 @@
     const btns = document.querySelectorAll('#side-nav [data-nav]');
     if (!btns.length) return true;
     return Array.prototype.some.call(btns, function (b) { return b.getAttribute('data-nav') === plans.SOON_ID; });
+  };
+  // 입찰 공고 현황 메뉴가 이 사용자에게 보이는가(overdue.js 와 같은 방식: app.findNavItem). 사이드바·app 이 없으면(시험·로그인 전) 보인다고 본다.
+  // plans.noticeMenuCheck 에 함수를 넣으면 그 결과를 쓴다(시험용).
+  plans.noticeMenuCheck = null;
+  plans.noticeMenuVisible = function () {
+    if (typeof plans.noticeMenuCheck === 'function') return !!plans.noticeMenuCheck();
+    const A = root.app, N = root.nav;
+    if (!A || !A.findNavItem || !N || !N.NOTICE_ID) return true;
+    if (typeof document !== 'undefined' && !document.querySelectorAll('#side-nav [data-nav]').length) return true;
+    return !!A.findNavItem(N.NOTICE_ID);
   };
   plans.paneSection = function (rec, c) {
     let id = rec && rec.institutionId ? String(rec.institutionId) : '';
@@ -459,7 +482,7 @@
     let rows = map ? plans.filterByStatus(base, S.stat) : base;
     if (S.pin && !rows.some(function (r) { return r.key === S.pin.key; })) {
       const id = S.pin.id;
-      rows = [{ key: S.pin.key, it: S.pin.it, id: id, st: id && map ? (map[id] || null) : null }].concat(rows);
+      rows = [{ key: S.pin.key, it: S.pin.it, id: id, st: id && map ? (map[id] || null) : null, pinned: true }].concat(rows);
     }
     return { rows: rows, base: base };
   }
@@ -473,7 +496,7 @@
     let h = '';
     if (vr.rows.length) {
       h += '<ul role="listbox" id="pl-lb" tabindex="0" aria-labelledby="pl-g">' + vr.rows.map(function (r, i) {
-        return plans.rowHtml(r, { id: 'pl-o-' + i, selected: !!(S.selRow && S.selRow.key === r.key), loaded: ok });
+        return plans.rowHtml(r, { id: 'pl-o-' + i, selected: !!(S.selRow && S.selRow.key === r.key), loaded: ok, pinned: !!r.pinned });
       }).join('') + '</ul>';
     } else if (ok && S.stat !== 'all' && vr.base.length) {
       h += '<p class="db-state">' + (S.stat === 'none' ? '자료 없는 기관이 없습니다.' : '사업계획 자료가 있는 기관이 아직 없습니다. 위에서 [모두]를 고르세요.') + '</p>';
@@ -497,9 +520,16 @@
   function renderFoot() {
     const el = $('pl-foot');
     if (!el || !M) return;
-    if (!ready()) { el.innerHTML = ''; return; }
-    const base = visibleRows().base;
-    el.innerHTML = plans.footHtml(plans.missingIds(base).length, base.filter(function (r) { return !r.st; }).length, S.dlBusy);
+    // 결과 확인 안내는 서버 현황과 무관(로컬 데이터로 계산) — 연결이 없어도 보인다. CSV 문단만 현황을 받은 뒤에 그린다.
+    const d = D();
+    const n = d.filterItems(M.notice || [], { q: S.q, region: S.region }).filter(d.isNoticeCheck).length;
+    let h = plans.checkNoteHtml(n, plans.noticeMenuVisible());
+    if (ready()) {
+      const base = visibleRows().base;
+      const csv = plans.footHtml(plans.missingIds(base).length, base.filter(function (r) { return !r.st; }).length, S.dlBusy);
+      if (csv) h += '<p class="pl-fn">' + csv + '</p>';
+    }
+    el.innerHTML = h;
   }
   const OFFLINE_MSG = '서버에 연결되면 사업계획 현황이 보입니다.';
   function renderBanner() {
@@ -604,6 +634,7 @@
       }
     }
     if (!it) { it = d.itemForRec(rec, todayDate()); S.pin = { key: key, it: it, id: id }; }
+    else if (it.notice && d.isNoticeCheck(it)) S.pin = { key: key, it: it, id: id };   // 결과 확인 기관은 목록에서 빠졌으므로 맨 위에 붙여 연다
     S.selRow = { key: key, it: it, id: id, st: null };
     S.focusTitle = true;
   }
@@ -655,6 +686,11 @@
     if (!btn) return;
     switch (btn.id) {
       case 'pl-dl': downloadMissing(); break;
+      case 'pl-to-notice':
+        // 열기 실패(탭 가득 참 등)는 app.openNavItem 이 스스로 안내한다 — 여기서는 app 이 없을 때만 알린다(QA 11-16).
+        if (root.app && root.app.openNavItem && root.nav) root.app.openNavItem(root.nav.NOTICE_ID);
+        else setFlash('입찰 공고 현황을 열 수 없습니다. 왼쪽 메뉴의 [입찰 공고 현황]에서 여세요.');
+        break;
       case 'pl-retry': ensureStatus(true).then(function () { const l = $('pl-lb'); if (l) l.focus(); }); onStatus(); break;
       case 'pl-retry-detail': if (S.selRow) { delete S.cache[S.selRow.id]; loadDetail(S.selRow.id); renderPane(); } break;
       case 'pl-clear': S.q = ''; S.region = ''; fillControls(); renderList(); renderFoot(); break;

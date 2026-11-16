@@ -477,3 +477,84 @@ test('itemRowHtml: 원문 표기 행은 비고에 예산 원문을 다시 보이
   const a = plans.itemRowHtml({ item_no: '5-1', name: '공공일자리', budget: { state_cd: 'AMOUNT', amount: 23570, unit_cd: 'MIL_KRW' }, note: '예산 원문: 계 23,570 (연도별)' }, 'MIL_KRW');
   assert.ok(a.indexOf('예산 원문: 계 23,570 (연도별)') >= 0);
 });
+
+// ── 결과 확인 기관 분리(2026-11-16 사용자 지적: 마감일 미확인 기관이 3·6개월 목록에 보임) ──
+function checkModel() {
+  const list = [
+    rec('접수구', '11', -5, { institutionId: 'rc', confirmed: true, receiveFrom: plus(-5), receiveTo: plus(10) }),   // 접수 중
+    rec('마감구', '11', -40, { institutionId: 'aw', confirmed: true, receiveTo: plus(-10) }),                         // 마감 지남 → 결과 확인
+    rec('미상31', '11', -31, { institutionId: 'u31', confirmed: true }),                                              // 마감일 기록 없음 31일 → 결과 확인
+    rec('미상30', '11', -30, { institutionId: 'u30', confirmed: true }),                                              // 30일 → 유지
+    rec('가구', '11', 10, { institutionId: 'ga' }),
+  ];
+  return dash.model(list, TODAY);
+}
+function byName(arr, n) { return arr.filter(function (it) { return it.name === n; })[0]; }
+
+test('dash.isNoticeCheck: 결과 확인 판정 정본을 내보낸다', function () {
+  const m = checkModel();
+  assert.strictEqual(typeof dash.isNoticeCheck, 'function');
+  assert.strictEqual(dash.isNoticeCheck(byName(m.notice, '마감구')), true);
+  assert.strictEqual(dash.isNoticeCheck(byName(m.notice, '미상31')), true);
+  assert.strictEqual(dash.isNoticeCheck(byName(m.notice, '미상30')), false);
+  assert.strictEqual(dash.isNoticeCheck(byName(m.notice, '접수구')), false);
+});
+
+test('listRows: 결과 확인 기관은 어느 기간에서도 빼고, 접수 중·마감일 기록 없음 30일 이내는 남긴다', function () {
+  const m = checkModel();
+  ['3', '6', 'all'].forEach(function (w) {
+    const names = plans.listRows(m, w, {}, null).map(function (r) { return r.it.name; });
+    assert.ok(names.indexOf('마감구') < 0 && names.indexOf('미상31') < 0, w);
+    assert.ok(names.indexOf('접수구') >= 0 && names.indexOf('미상30') >= 0, w);
+  });
+  assert.strictEqual(dash.filterItems(m.notice, {}).filter(dash.isNoticeCheck).length, 2);
+  assert.strictEqual(dash.filterItems(m.notice, { q: '마감' }).filter(dash.isNoticeCheck).length, 1);   // 검색은 적용
+  assert.strictEqual(plans.checkNoteHtml(dash.filterItems(m.notice, { region: '99' }).filter(dash.isNoticeCheck).length, true), '');   // 지역으로 0곳이면 안내 없음
+  const listed = plans.listRows(m, 'all', {}, null).filter(function (r) { return r.it.notice; }).length;
+  assert.strictEqual(listed + dash.filterItems(m.notice, {}).filter(dash.isNoticeCheck).length, m.notice.length);   // 목록 + 안내 = 공고 전체(겹침·빠짐 없음)
+  const winKeys = dash.windowItems(m, 'all').map(function (x) { return x.name; });
+  assert.ok(winKeys.indexOf('마감구') < 0 && winKeys.indexOf('미상31') < 0);   // 기간 창으로 되돌아오지 않음
+});
+
+test('checkNoteHtml: 0곳은 빈 문자열, 숫자는 mono, 30은 logic 상수, 버튼은 메뉴가 보일 때만, 미확인 글자 없음', function () {
+  assert.strictEqual(plans.checkNoteHtml(0, true), '');
+  assert.strictEqual(plans.checkNoteHtml(undefined, true), '');
+  const on = plans.checkNoteHtml(3, true);
+  assert.ok(on.indexOf('>결과 확인할 기관 <span class="v">3</span>곳은 목록에서 뺐습니다') > 0);
+  assert.ok(on.indexOf('title="마감이 지났거나, 마감일 기록 없이 공고 후 ' + logic.NOTICE_UNKNOWN_OPEN_DAYS + '일이 지난 곳입니다."') > 0);   // 설명은 title — 바닥은 한 줄
+  assert.strictEqual(plans.checkNoteHtml(3, true).split('</p>').length, 2);
+  assert.ok(on.indexOf('id="pl-to-notice">입찰 공고 현황에서 보기</button>') > 0);
+  assert.ok(on.indexOf('미확인') < 0);
+  const off = plans.checkNoteHtml(3, false);
+  assert.ok(off.indexOf('<button') < 0 && off.indexOf('<span class="v">3</span>곳') > 0);
+});
+
+test('noticeMenuVisible: 사이드바·app 이 없으면 보임, noticeMenuCheck 로 가린다', function () {
+  try {
+    assert.strictEqual(plans.noticeMenuVisible(), true);
+    plans.noticeMenuCheck = function () { return false; };
+    assert.strictEqual(plans.noticeMenuVisible(), false);
+  } finally { plans.noticeMenuCheck = null; }
+});
+
+test('rowHtml: 고정 행은 data-pin·직접 연 기관, 결과 확인이면 data-check, 일반 행에는 없다', function () {
+  const m = checkModel();
+  const aw = byName(m.notice, '마감구'), rc = byName(m.notice, '접수구'), ga = byName(m.upcoming, '가구');
+  const pc = plans.rowHtml({ key: aw.key, it: aw, id: 'aw', st: null }, { pinned: true });
+  assert.ok(pc.indexOf(' data-pin="1"') > 0 && pc.indexOf(' data-check="1"') > 0 && pc.indexOf(' · 직접 연 기관') > 0);
+  const pp = plans.rowHtml({ key: ga.key, it: ga, id: 'ga', st: null }, { pinned: true });
+  assert.ok(pp.indexOf(' data-pin="1"') > 0 && pp.indexOf('data-check') < 0);
+  const nr = plans.rowHtml({ key: rc.key, it: rc, id: 'rc', st: null }, {});
+  assert.ok(nr.indexOf('data-pin') < 0 && nr.indexOf('data-check') < 0 && nr.indexOf('직접 연 기관') < 0);
+});
+
+test('소스: pin 행 pinned, applyPending 결과 확인은 pin, 안내는 ready() 앞, 버튼은 nav.NOTICE_ID', function () {
+  assert.ok(SRC.indexOf('pinned: true }].concat(rows)') > 0);
+  assert.ok(SRC.indexOf('pinned: !!r.pinned') > 0);
+  assert.ok(SRC.indexOf('else if (it.notice && d.isNoticeCheck(it)) S.pin =') > 0);
+  const foot = SRC.slice(SRC.indexOf('function renderFoot()'), SRC.indexOf('const OFFLINE_MSG'));
+  assert.ok(foot.indexOf('plans.checkNoteHtml(') > 0 && foot.indexOf('plans.checkNoteHtml(') < foot.indexOf('if (ready())'));
+  assert.ok(SRC.indexOf("case 'pl-to-notice':") > 0 && SRC.indexOf('root.app.openNavItem(root.nav.NOTICE_ID)') > 0);
+  assert.ok(SRC.indexOf('if (!(root.app && root.app.openNavItem && root.nav && root.app.openNavItem(') < 0);   // 탭 가득 참은 app 이 안내 — 중복 flash 없음
+  assert.strictEqual(nav.NOTICE_ID, 'soon:입찰 공고 현황');
+});
