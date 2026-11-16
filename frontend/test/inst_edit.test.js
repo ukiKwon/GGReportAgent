@@ -8,7 +8,6 @@ const ie = require('../js/instedit.js');
 const sd = require('../js/serverdata.js');
 const logic = require('../js/logic.js');
 const dash = require('../js/dashboard.js');
-const render = require('../js/render.js');
 
 const ROOT = path.join(__dirname, '..');
 const TODAY = new Date('2026-11-15T00:00:00');
@@ -294,13 +293,12 @@ test('confirmSrcHtml: 기관 행 확정만 출처를 단다 — 출처 없는 �
   assert.strictEqual(ie.confirmSrcHtml({ confirmed: true }), '');
 });
 
-test('현황판 상세·지도 팝오버: 확정 날짜 옆에 출처가 보이고, 개원 예정 기관에만 운영 상태 줄이 있다', function () {
+test('현황판 상세: 확정 날짜 옆에 출처가 보이고, 개원 예정 기관에만 운영 상태 줄이 있다', function () {
   const rec = { name: '나시청', type: '지자체', region: '11', contractEnd: '2026-12-31', confirmed: true, lastBid: '2022-12-01', term: 4,
     institutionId: 'y', _inst: { contractEnd: '2026-12-31', confirmed: true, srcUrl: 'https://www.g2b.go.kr/a', srcNo: 'R1' } };
   const pane = dash.paneHtml(dash.itemForRec(rec, TODAY), { act: 'none', today: TODAY });
   assert.ok(pane.indexOf('>g2b.go.kr</a>') >= 0 && pane.indexOf('공고 번호 <span class="v">R1</span>') >= 0);
   assert.strictEqual(pane.indexOf('<dt>운영 상태</dt>'), -1);
-  assert.ok(render.popoverHtml(rec, TODAY).indexOf('>g2b.go.kr</a>') >= 0);
   const viaBid = Object.assign({}, rec, { _bid: { date: '2026-12-31', confirmed: true } });
   assert.strictEqual(dash.paneHtml(dash.itemForRec(viaBid, TODAY), { act: 'none', today: TODAY }).indexOf('>g2b.go.kr</a>'), -1);
   const plan = { name: '가법원', type: '법원', region: '11', opStatus: '개원 예정', openDate: '2028-03', institutionId: 'z', _inst: { confirmed: false }, opSrcNo: 'N1' };
@@ -394,8 +392,7 @@ test('내보내기: _로 시작하는 내부 키(_inst·_bid)는 데이터 파�
   assert.ok(text.indexOf('"contractEnd": "2026-12-31"') > 0 && text.indexOf('window.institutions = [') === 0);
 });
 
-test('배선: 팝오버 출처 줄은 본문 글꼴(.pop-mono .db-why, .pop-mono a)', function () {
-  assert.ok(/\.pop-mono \.db-why, \.pop-mono a \{ font-family:"Malgun Gothic","Segoe UI",sans-serif; \}/.test(read('index.html')));
+test('배선: 개원 확인 필요 목록도 종류 필터를 따른다', function () {
   assert.ok(/dash\.kindOfRec\(r\) === st\.type/.test(read('js/dashboard.js')));   // 개원 확인 필요 목록도 종류 필터를 따른다
 });
 

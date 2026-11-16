@@ -300,8 +300,8 @@
     return { stages: stages, total: counts.reduce(function (a, b) { return a + b; }, 0), onlyWriting: !havePreps };
   };
 
-  // 지도 팝오버와 같은 버튼 규칙: root.prep.popoverAction이 정한다. 반환 모양이 문자열이든 {kind|action|type}이든 받는다.
-  // [제안 확정]·[사전준비 열기] 판정에 넘길 맥락 — prep.popoverEligible이 account·master를 본다(지도 팝오버 prep.js popCtx와 같은 값).
+  // 현황판·지도 상세 팝업 공용 버튼 규칙: root.prep.popoverAction이 정한다. 반환 모양이 문자열이든 {kind|action|type}이든 받는다.
+  // [제안 확정]·[사전준비 열기] 판정에 넘길 맥락 — prep.popoverEligible이 account·master를 본다.
   // 11-13: 현황판이 account를 넘기지 않아 [제안 확정]이 늘 숨던 문제를 바로잡음.
   function actCtx() {
     const ses = (function () { try { return root.store && root.store.loadSession && root.store.loadSession(); } catch (e) { return null; } })();

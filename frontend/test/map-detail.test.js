@@ -124,16 +124,14 @@ test('Tab 가두기: 포커스할 곳이 없으면 상자(#dm-box)에 머문다'
 });
 
 // ── 배선(소스 단언) ────────────────────────────────────────────────
-test('render.js: 카드 클릭·키보드·마커가 모두 render.openRecord → dashboard.openDetail, 팝오버는 되돌림용으로 남는다', function () {
+test('render.js: 카드 클릭·키보드·마커가 모두 render.openRecord → dashboard.openDetail(요약 카드 없음, NEXT 78)', function () {
   const r = read('js/render.js');
   assert.ok(/render\.openRecord\(r, card, ev\.clientX, ev\.clientY\)/.test(r));
   assert.ok(/render\.openRecord\(r, card, rc\.left - 292, rc\.top, \{ keyboard: true \}\)/.test(r));
   assert.ok(/render\.onMarkerClick = function \(rec\) \{\s*render\.openRecord\(rec, document\.activeElement/.test(r));
-  assert.ok(/d\.openDetail\(rec, \{ opener: opener \}\)/.test(r) && /render\.showPopover\(rec, x, y, opts\)/.test(r));
+  assert.ok(/d\.openDetail\(rec, \{ opener: opener \}\)/.test(r) && r.indexOf('showPopover') < 0 && r.indexOf("getElementById('popover')") < 0);
   assert.ok(r.indexOf('.rank-card, .marker, .dm-ov, .hc-ov') > 0);
   const render = require('../js/render.js');
-  const x = { name: '노원구청', type: '지자체', region: '11', term: 4, lastBid: '2023-03-02', contractEnd: '2027-03-02', sources: ['https://example.test/a'] };
-  assert.ok(render.popoverHtml(x, TODAY).indexOf('<details class="pop-raw"><summary>원본 정보</summary>' + render.popRawHtml(x) + '</details>') > 0);
   assert.strictEqual(render.popRawHtml({ name: '<script>x</script>', sources: ['<script>y</script>'] }).indexOf('<script>'), -1);
 });
 

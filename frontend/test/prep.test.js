@@ -113,8 +113,6 @@ test('index.html: #pp-root 마크업·#dash-root 한 줄·#popover 속성·scrip
   assert.ok(/role="tablist"/.test(HTML.slice(HTML.indexOf('id="pp-tabs"') - 40, HTML.indexOf('id="pp-tabs"') + 80)));
   assert.ok(/<div id="dash-root" style="display:none;"><\/div>/.test(HTML));
   assert.strictEqual(HTML.split('id="dash-root"').length, 2);
-  assert.ok(/<div id="popover" role="dialog" aria-labelledby="pop-title" style="display:none;"><\/div>/.test(HTML));
-  assert.ok(/#popover \{[^}]*background:rgba\(24,30,41,\.92\)/.test(HTML));
   const at = function (s) { return HTML.indexOf('<script src="js/' + s + '"></script>'); };
   assert.ok(at('prep.js') > at('team.js') && at('prep.js') < at('app.js') && at('prep.js') < at('render.js'));
   const a = HTML.indexOf('/* 제안서 사전준비 시작'), b = HTML.indexOf('/* 제안서 사전준비 끝 */');
@@ -342,7 +340,6 @@ test('QA·디자인 후속: 중단 건 무효 처리 불가, T3 파일만, 확�
   // 확정 확인 줄: [취소] 다음 [확정하기](첫 포커스는 확정하기 유지 — 소스에서 go에 focus)
   const pc = prep.popConfirmHtml('노원구청');
   assert.ok(pc.indexOf('data-pp-pop="cancel"') < pc.indexOf('data-pp-pop="go"'));
-  assert.ok(/popClick[\s\S]*querySelector\('\[data-pp-pop="go"\]'\); if \(go\) go\.focus\(\)/.test(SRC));
   // 첫 화면 판정(순수): 본체가 있고 영업 계열일 때만 현황판을 기대, 실제 결정은 homeItemId
   assert.strictEqual(nav.expectsDashHome({ role: '영업팀' }, true), true);
   assert.strictEqual(nav.expectsDashHome({ role: '영업팀' }, false), false);
@@ -350,16 +347,14 @@ test('QA·디자인 후속: 중단 건 무효 처리 불가, T3 파일만, 확�
   assert.strictEqual(nav.expectsDashHome({ role: '영업팀', master: true }, true), false);
   const noMap = nav.build(Object.assign({}, ALL_ON, { map: false }), { role: '영업팀' });
   assert.strictEqual(nav.homeItemId(noMap, 'map', [], { role: '영업팀' }), null);   // map 키가 없으면 열리지 않음 → 경과 팝업을 그때 띄운다
-  // 팝오버 Esc·높이
-  assert.ok(/modalOpen/.test(RENDER_SRC) && /rank-card\.hi/.test(RENDER_SRC) && /pop\.offsetHeight/.test(RENDER_SRC));
-  assert.ok(/#popover \{[^}]*max-height:calc\(100vh - 16px\); overflow:auto; overscroll-behavior:contain/.test(HTML));
 });
 
 test('소스: 첨부·지도 확정은 PrepUiIds 허용값을 보낸다', function () {
-  ['map_popover', 'attach_upload', 'attach_download', 'attach_void', 't3_set', 't3_clear'].forEach(function (id) {
+  ['attach_upload', 'attach_download', 'attach_void', 't3_set', 't3_clear'].forEach(function (id) {
     assert.ok(SRC.indexOf("'" + id + "'") > 0, id);
   });
-  assert.ok(SRC.indexOf("ui('map_popover', 'confirm')") > 0);
+  // 지도 상세 팝업의 [확정]은 dashboard.js가 공용 postConfirm에 화면 이름 map_popover를 실어 보낸다
+  assert.ok(fs.readFileSync(path.join(__dirname, '..', 'js', 'dashboard.js'), 'utf8').indexOf("dash.postConfirm(id, 'map_popover')") > 0);
   assert.ok(SRC.indexOf('NAME_FIX') < 0);
 });
 
@@ -433,7 +428,6 @@ test('입찰 현황판(dashboard.js)이 기대하는 root.prep 계약: popoverAc
   assert.ok(prep.ERR_BY_CODE && typeof prep.ERR_BY_CODE === 'object' && prep.ERR_BY_CODE.PREP_ALREADY_ACTIVE.text);
   assert.strictEqual(typeof prep.popConfirmHtml, 'function');
   assert.strictEqual(typeof prep.errorInfo, 'function');
-  assert.strictEqual(typeof prep.decoratePopover, 'function');
   // 반환은 { kind: 'none'|'confirm'|'open', bid } — 'open'(열기)·'confirm'(확정) 글자를 그대로 쓴다
   const r = prep.popoverAction({ institutionId: 'I1' }, { serverMode: true, account: true, role: '영업팀' }, []);
   assert.deepStrictEqual(r, { kind: 'confirm', bid: '' });
@@ -623,31 +617,17 @@ test('gateOf: 서버 없음 → 로그인 → 권한 순', function () {
   assert.strictEqual(prep.gateOf({ serverMode: true, emp: '1', role: '영업부장' }), null);
 });
 
-test('render.js: 팝오버 마크업(규격 §6-B) — 요약·미확인 칩·접힌 원본 정보, 내부 칸(지역코드·경도·위도)은 보이지 않는다', function () {
+test('render.popRawHtml: 접힌 원본 정보 줄(규격 §6-B) — 내부 칸(지역코드·경도·위도)은 보이지 않고 누락만 알린다', function () {
   const render = require('../js/render.js');
   const rec = { name: '노원구청', type: '지자체', region: '11', subRegion: '11350', lng: 127.05, lat: 37.65, term: 4,
                 lastBid: '2023-03-02', contractEnd: '2027-03-02', confirmed: false, sources: ['https://example.test/a', '내부 문서'], updatedAt: '2026-11-01' };
-  const h = render.popoverHtml(rec, new Date('2026-11-11T00:00:00'));
-  assert.ok(h.indexOf('id="pop-title"') > 0 && h.indexOf('tabindex="-1"') > 0);
-  assert.ok(/class="dg-day (urgent|soon|later|unknown)"/.test(h));
-  assert.ok(h.indexOf('입찰 예정일') > 0 && h.indexOf('2027-03-02 (추정)') > 0);
-  assert.strictEqual((h.match(/<span class="pop-unk">미확인<\/span>/g) || []).length, 2);
-  // 기관장 줄은 현황판 안내 자리표시(서버 열람 기록을 지도 훑기로 쌓지 않는다)
-  assert.ok(h.indexOf('<dt>기관장</dt><dd id="pop-head"><span class="pop-unk">현황판에서 확인</span></dd>') > 0);
-  ['현 유치 은행', '임직원 수', '기관장'].forEach(function (l) { assert.ok(h.indexOf(l) > 0, l); });
-  assert.ok(h.indexOf('미확인 칸은 기관 정보 이관 뒤 채워집니다.') > 0);
-  assert.ok(h.indexOf('id="pop-prep-slot"') > 0 && h.indexOf('id="pop-edit"') > 0);
-  assert.ok(h.indexOf('<details class="pop-raw"><summary>원본 정보</summary>') > 0);
+  const h = render.popRawHtml(rec);
   ['지역코드', '구시군코드', '경도', '위도'].forEach(function (l) { assert.strictEqual(h.indexOf(l), -1, l); });
   assert.ok(h.indexOf('href="https://example.test/a"') > 0 && h.indexOf('rel="noopener noreferrer"') > 0);
-  // 누락된 숨김 칸은 접힌 원본 정보 안에서 알린다
-  assert.ok(render.popoverHtml(Object.assign({}, rec, { region: '' }), new Date('2026-11-11T00:00:00')).indexOf('누락된 칸: 지역코드') > 0);
-  // 이스케이프
-  assert.strictEqual(render.popoverHtml(Object.assign({}, rec, { name: '<script>x</script>' }), new Date('2026-11-11T00:00:00')).indexOf('<script>'), -1);
-  // 키보드: 랭킹 카드는 Tab으로 닿고 Enter·Space로 열며, Esc로 닫는다
+  assert.ok(render.popRawHtml(Object.assign({}, rec, { region: '' })).indexOf('누락된 칸: 지역코드') > 0);
+  // 키보드: 랭킹 카드는 Tab으로 닿고 Enter·Space로 연다
   assert.ok(/card\.setAttribute\('tabindex', '0'\)/.test(RENDER_SRC) && /card\.setAttribute\('role', 'button'\)/.test(RENDER_SRC));
   assert.ok(/ev\.key !== 'Enter' && ev\.key !== ' '/.test(RENDER_SRC));
-  assert.ok(/ev\.key !== 'Escape'/.test(RENDER_SRC) && /root\.prep\.decoratePopover\(pop, rec\)/.test(RENDER_SRC));
 });
 
 test('사전준비 화면 문구에는 \'기획승인\'이 없다(진행 현황 기획승인과 이름을 나눔, 11-13)', function () {
@@ -657,28 +637,15 @@ test('사전준비 화면 문구에는 \'기획승인\'이 없다(진행 현황 
   assert.ok(!/기획승인/.test(JSON.stringify(prep.T || {})));
 });
 
-test('팝오버·순위표: 공고 진행 중 기관은 마감 D-n과 공고 줄로, D+·확정 표기를 쓰지 않는다(NEXT 78, 11-13)', function () {
+test('순위표: 공고 진행 중 기관은 공고 줄로 표시한다(NEXT 78, 11-13)', function () {
   const render = require('../js/render.js');
   const logic = require('../js/logic.js');
   const today = new Date('2026-11-13T00:00:00');
   const mapo = { name: '마포구청', type: '지자체', region: '11', subRegion: '11440', lng: 126.9, lat: 37.55, term: 4,
     lastBid: '2022-10-01', contractEnd: '2026-10-29', confirmed: true, receiveFrom: '2026-11-16', receiveTo: '2026-11-19',
     sources: [], updatedAt: '2026-11-13' };
-  const h = render.popoverHtml(mapo, today);
-  assert.ok(h.indexOf('마감 D-6') > 0);
-  assert.strictEqual(h.indexOf('D+'), -1);
-  assert.strictEqual(h.indexOf('입찰 예정일'), -1);
-  assert.ok(h.indexOf('2026-10-29 · 접수 11.16~11.19') > 0);
-  assert.ok(/class="dg-day urgent"/.test(h));
   assert.strictEqual(render.rankLineText(mapo, today), '지자체 · 공고 2026-10-29 · 접수 11.16~11.19');
   const noEnd = Object.assign({}, mapo, { receiveFrom: undefined, receiveTo: undefined });
-  assert.ok(render.popoverHtml(noEnd, today).indexOf('공고 진행 중</span>') > 0);
-  assert.ok(render.popoverHtml(noEnd, new Date('2026-12-10T00:00:00')).indexOf('결과 확인</span>') > 0);
   assert.ok(render.rankLineText(noEnd, today).indexOf('마감일 미확인') > 0);
-  const h2 = render.popoverHtml(mapo, new Date('2026-11-25T00:00:00'));
-  assert.ok(h2.indexOf('결과 확인</span>') > 0 && h2.indexOf('D+') === -1);
-  const old = Object.assign({}, mapo, { contractEnd: '2026-06-01', receiveFrom: undefined, receiveTo: undefined });
-  assert.ok(render.popoverHtml(old, today).indexOf('D+') > 0);
-  assert.ok(render.popoverHtml(old, today).indexOf('입찰 예정일') > 0);
   assert.ok(logic.noticeBrief({ name: 'x', confirmed: false, contractEnd: '2026-10-29' }, today) === null);
 });

@@ -55,9 +55,8 @@ test('noticeBrief: 배지·둘째 줄이 noticeText와 같은 정본에서 나�
   assert.strictEqual(b.noteText, '접수 11.14~11.19 · 접수 시작 D-2');
 });
 
-test('11-13 design P2: 요약 카드 [기관장 보기] 24px, 지도 상세 제목 링 없음(현황판 링 유지)', () => {
+test('11-13 design P2: 지도 상세 제목 링 없음(현황판 링 유지)', () => {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  assert.ok(/\.pop-hbtn \{[^}]*padding:3px 10px;[^}]*min-height:24px/.test(html));
   assert.ok(html.includes('.dm-box .db-head h2:focus, .dm-box .db-head h2:focus-visible { outline:none; }'));
   assert.ok(/\.db-head h2:focus-visible \{ outline:2px solid/.test(html));
 });

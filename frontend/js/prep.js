@@ -1,7 +1,7 @@
 (function (root) {
   'use strict';
   // 제안서 사전준비 프로세스 — 준비중 화면 자리(#tab-soon 안 #pp-root, 고정 id 'soon:사전준비')에서 열린다.
-  // 지도 팝오버의 [제안 확정]·[사전준비 열기]와 입찰 현황판의 같은 버튼이 이 파일의 순수 함수(popoverAction 등)를 함께 쓴다.
+  // 입찰 현황판·지도 상세 팝업의 [제안 확정]·[사전준비 열기]가 이 파일의 순수 함수(popoverAction 등)를 함께 쓴다.
   // 규격: handoff/agents/design-reviewer/2026-11-11_1421_a3b0ec71.md §5·§6.
   //
   // 서버 계약: GET/POST /preps · GET /bidcases/{id}/prep(상세·viewer 플래그) · .../prep/history ·
@@ -815,7 +815,7 @@
   };
 
   // ════════════════════════════════════════════════════════════════
-  // 아래는 DOM 배선 — mount()·decoratePopover()가 불릴 때만 실행된다(노드 테스트 대상 아님).
+  // 아래는 DOM 배선 — mount()가 불릴 때만 실행된다(노드 테스트 대상 아님).
   // ════════════════════════════════════════════════════════════════
   function freshState() {
     return { who: '', tab: 'active', query: '', selected: '', rows: [], listState: 'loading', detail: null,
@@ -852,7 +852,7 @@
     });
   }
 
-  // ── 지도 팝오버·현황판이 쓰는 '진행 중 건' 캐시 ──
+  // ── 현황판·지도 상세 팝업이 쓰는 '진행 중 건' 캐시 ──
   const cache = { who: '', at: 0, rows: null, pending: null };
   const CACHE_MS = 30000;
   function invalidateCache() { cache.at = 0; cache.rows = null; cache.pending = null; }
@@ -877,13 +877,6 @@
       function (j) { invalidateCache(); return j; },
       function (e) { invalidateCache(); throw e; });
   };
-
-  function popCtx() {
-    const session = root.store.loadSession();
-    return { serverMode: root.store.isServerMode(), account: !!(session && session.mode === 'account' && session.emp),
-             master: !!(session && session.mode === 'account' && root.login && session.id === root.login.MASTER_ID), role: myRole() };
-  }
-  prep.currentPopCtx = popCtx;
 
   // ── 목록 ──
   function paintGate(gate) {
@@ -1489,118 +1482,6 @@
     const ok = !!(root.app && root.app.openNavItem && root.app.openNavItem(root.nav.PREP_ID));
     if (!ok) S.flash = '';
     return ok;
-  };
-
-  // ── 지도 팝오버 붙이기(render.showPopover가 부른다) ──
-  function popAttach(pop) {
-    if (pop.__ppWired) return;
-    pop.__ppWired = true;
-    pop.addEventListener('click', function (ev) {
-      const t = ev.target && ev.target.closest ? ev.target.closest('[data-pp-pop]') : null;
-      if (!t) return;
-      // 누른 버튼이 곧 다시 그려져 DOM에서 빠진다 — 문서의 '바깥 클릭' 핸들러가 팝오버를 닫지 않게 여기서 멈춘다.
-      ev.stopPropagation();
-      popClick(pop, t.getAttribute('data-pp-pop'));
-    });
-  }
-  function popRows(pop) { return pop.__ppRows === undefined ? null : pop.__ppRows; }
-
-  function renderPopSlot(pop, rec, actives) {
-    const slot = pop.querySelector('#pop-prep-slot');
-    const line = pop.querySelector('#pop-prep-line');
-    const actions = pop.querySelector('.pop-actions');
-    if (!slot) return;
-    if (actions) actions.style.display = '';
-    pop.__ppRec = rec;
-    pop.__ppRows = actives;
-    const act = prep.popoverAction(rec, popCtx(), actives);
-    pop.__ppAct = act;
-    const row = prep.activeFor(rec, actives);
-    if (line) {
-      if (row) {
-        const m = prep.listRowModel(row);
-        line.innerHTML = '제안 진행 ' + badgeHtml(m.badge) + ' <span class="tm-mono">' + m.done + '/' + m.total + '</span>';
-      } else line.innerHTML = '';
-    }
-    if (act.kind === 'confirm') slot.innerHTML = '<button type="button" class="pp-next-btn" data-pp-pop="ask">제안 확정</button>';
-    else if (act.kind === 'open') slot.innerHTML = '<button type="button" class="pp-next-btn" data-pp-pop="open">사전준비 열기</button>';
-    else slot.innerHTML = '';
-  }
-
-  function popClick(pop, what) {
-    const rec = pop.__ppRec;
-    if (!rec) return;
-    const line = pop.querySelector('#pop-prep-line');
-    const actions = pop.querySelector('.pop-actions');
-    if (what === 'ask') {
-      if (actions) actions.style.display = 'none';
-      if (line) line.innerHTML = prep.popConfirmHtml(str(rec.name));
-      const go = pop.querySelector('[data-pp-pop="go"]'); if (go) go.focus();
-      return;
-    }
-    if (what === 'cancel') {
-      renderPopSlot(pop, rec, popRows(pop));
-      const b = pop.querySelector('[data-pp-pop="ask"]'); if (b) b.focus();
-      return;
-    }
-    if (what === 'open') {
-      const act = pop.__ppAct;
-      if (!act || !act.bid) return;
-      pop.style.display = 'none';
-      prep.openCase(act.bid, '');
-      return;
-    }
-    if (what === 'go') popConfirm(pop, rec);
-  }
-
-  function popConfirm(pop, rec) {
-    if (pop.__ppBusy) return;
-    pop.__ppBusy = true;
-    const errBox = pop.querySelector('#pop-prep-err');
-    if (errBox) errBox.textContent = '';
-    ['go', 'cancel'].forEach(function (k) { const b = pop.querySelector('[data-pp-pop="' + k + '"]'); if (b) b.disabled = true; });
-    req('POST', '/preps', { institution_id: rec.institutionId }, ui('map_popover', 'confirm')).then(function (res) {
-      pop.__ppBusy = false;
-      invalidateCache();
-      pop.style.display = 'none';
-      const name = str(rec.name);
-      prep.openCase(res && res.bid_case_id, res && res.revived ? T.okRevived : T.okConfirm(name));
-    }).catch(function (e) {
-      pop.__ppBusy = false;
-      const info = prep.errorInfo(e && e.status, e && e.detail, [], 'confirm');
-      if (info.code === 'PREP_ALREADY_ACTIVE') {
-        invalidateCache();
-        prep.fetchActives().then(function (rows) {
-          renderPopSlot(pop, rec, rows);
-          const line = pop.querySelector('#pop-prep-line');
-          if (line) line.insertAdjacentHTML('beforeend', '<div class="ap-err" role="alert">' + esc(info.text) + '</div>');
-          const b = pop.querySelector('[data-pp-pop="open"]'); if (b) b.focus();
-        });
-        return;
-      }
-      ['go', 'cancel'].forEach(function (k) { const b = pop.querySelector('[data-pp-pop="' + k + '"]'); if (b) b.disabled = false; });
-      const eb = pop.querySelector('#pop-prep-err');
-      if (eb) eb.textContent = info.text;
-    });
-  }
-
-  prep.decoratePopover = function (pop, rec) {
-    if (typeof document === 'undefined' || !pop) return;
-    const slot = pop.querySelector('#pop-prep-slot');
-    if (!slot) return;
-    popAttach(pop);
-    pop.__ppBusy = false;
-    pop.__ppRec = rec;
-    pop.__ppRows = undefined;
-    pop.__ppAct = null;
-    const ctx = popCtx();
-    if (!prep.popoverEligible(rec, ctx)) return;
-    const tok = (pop.__ppTok || 0) + 1;
-    pop.__ppTok = tok;
-    prep.fetchActives().then(function (rows) {
-      if (pop.__ppTok !== tok || pop.style.display !== 'block' || pop.__ppRec !== rec) return;
-      renderPopSlot(pop, rec, rows);
-    });
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = prep;

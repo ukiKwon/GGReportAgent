@@ -5,7 +5,6 @@
   // node --test로 열 수 있어야 면 클릭 규칙을 테스트로 고정할 수 있다.
   const logic = (typeof require !== 'undefined') ? require('./logic.js') : root.logic;
   const store = (typeof require !== 'undefined') ? require('./store.js') : root.store;
-  const ie = (typeof require !== 'undefined') ? require('./instedit.js') : root.instedit;   // 확정 날짜 옆 출처·개원 예정 줄(NEXT 72)
 
   const esc = logic.esc; // 공유 이스케이프(logic.esc) 위임
 
@@ -847,8 +846,7 @@
     if (render._selectedName) render.highlightCard(render._selectedName, true);
   };
 
-  // 팝오버 — 기관 요약(이름·D-day·입찰 예정일·미확인 칸) + 다음 행동([제안 확정]·[사전준비 열기], prep.decoratePopover가 채움) + 접힌 원본 정보.
-  // 규격: handoff/agents/design-reviewer/2026-11-11_1421_a3b0ec71.md §6-B. 지역코드·구시군코드·경도·위도는 보이지 않고 [편집] 창에만 있다.
+  // 접힌 '원본 정보'(지도 상세 팝업 tailHtml) — 규격: handoff/agents/design-reviewer/2026-11-11_1421_a3b0ec71.md §6-B. 지역코드·구시군코드·경도·위도는 보이지 않고 [편집] 창에만 있다.
   render.POP_RAW_FIELDS = ['type', 'term', 'lastBid', 'confirmed', 'sources', 'updatedAt'];
   render.POP_HIDDEN_FIELDS = ['name', 'region', 'subRegion', 'lng', 'lat'];
   render.popRawValue = function (rec, f) {
@@ -857,7 +855,7 @@
     if (f === 'term') return rec.term == null || rec.term === '' ? '' : rec.term + '년';
     return rec[f] == null ? '' : String(rec[f]);
   };
-  // 접이식 '원본 정보'의 안쪽 줄들(지도 팝오버·지도 상세 팝업 공용). 지역코드·구시군코드·경도·위도는 보이지 않고 누락만 알린다.
+  // 접이식 '원본 정보'의 안쪽 줄들(지도 상세 팝업). 지역코드·구시군코드·경도·위도는 보이지 않고 누락만 알린다.
   render.popRawHtml = function (rec) {
     const v = logic.validateRecord(rec);
     let raw = '';
@@ -883,56 +881,10 @@
     }
     return raw;
   };
-  render.popoverHtml = function (rec, today) {
-    const bid = logic.effectiveBid(rec);
-    const nb = logic.noticeBrief(rec, today);   // 공고 진행 중이면 경과(D+)·예정이 아니라 공고 표현으로
-    const days = logic.daysUntil(bid.date, today);
-    const dayCls = nb ? nb.cls : (days === Infinity ? 'unknown' : (days <= 182 ? 'urgent' : (days <= 365 ? 'soon' : 'later')));
-    const dayText = nb ? nb.badge : logic.formatDDay(rec, today);
-    const regionName = (render.REGION_NAME && render.REGION_NAME[rec.region]) || '';
-    const sub = [rec.type, regionName].filter(Boolean).join(' · ');
-    const unk = '<span class="pop-unk">미확인</span>';
-    const raw = render.popRawHtml(rec);
-    return '<div class="pop-head"><b id="pop-title" tabindex="-1">' + esc(rec.name || '(이름없음)') + '</b>' +
-      '<span class="dg-day ' + dayCls + '">' + esc(dayText) + '</span></div>' +
-      (sub ? '<div class="pop-sub">' + esc(sub) + '</div>' : '') +
-      '<dl class="pop-grid"><dt>' + (nb ? '공고 진행' : '입찰 예정일') + '</dt><dd class="pop-mono">' +
-      (nb ? esc(nb.detail)
-        : (bid.date ? esc(bid.date) + ' (' + esc(bid.basis === 'expiry' ? '추정·약정 만료 기준' : logic.confidenceLabel(bid.confidence)) + ')' + ie.confirmSrcHtml(rec) : '미상')) + '</dd>' +
-      (ie.opLineHtml(rec) ? '<dt>운영 상태</dt><dd>' + ie.opLineHtml(rec) + '</dd>' : '') +
-      '<dt>현 유치 은행</dt><dd>' + unk + '</dd><dt>임직원 수</dt><dd>' + unk + '</dd><dt>기관장</dt><dd id="pop-head"><span class="pop-unk">현황판에서 확인</span></dd></dl>' +
-      '<div class="pop-note">미확인 칸은 기관 정보 이관 뒤 채워집니다.</div>' +
-      '<div id="pop-prep-line"></div>' +
-      '<div class="pop-actions"><span id="pop-prep-slot"></span><button id="pop-edit" type="button">편집</button></div>' +
-      '<details class="pop-raw"><summary>원본 정보</summary>' + raw + '</details>';
-  };
-
-  // 지도에서 기관을 누르면: 현황판 상세와 같은 내용의 팝업(dashboard.openDetail)을 연다(사용자 11-13). 대시보드 모듈이 없으면 예전 요약 카드로 대신한다.
-  // opener = 닫으면 포커스가 돌아갈 요소. x·y·opts는 요약 카드로 되돌아갈 때만 쓴다.
-  render.openRecord = function (rec, opener, x, y, opts) {
+  // 지도에서 기관을 누르면 현황판 상세와 같은 내용의 팝업(dashboard.openDetail)을 연다(사용자 11-13). opener = 닫으면 포커스가 돌아갈 요소.
+  render.openRecord = function (rec, opener) {
     const d = root.dashboard;
-    if (d && typeof d.openDetail === 'function' && d.openDetail(rec, { opener: opener })) {
-      const pop = document.getElementById('popover'); if (pop) pop.style.display = 'none';
-      return;
-    }
-    render.showPopover(rec, x, y, opts);
-  };
-  render.showPopover = function (rec, x, y, opts) {
-    const pop = document.getElementById('popover'); if (!pop) return;
-    const keyboard = !!(opts && opts.keyboard);
-    render._popOpener = keyboard ? document.activeElement : null;   // Esc로 닫으면 연 카드로 돌아간다
-    pop.innerHTML = render.popoverHtml(rec, render.state.today);
-    const eb = document.getElementById('pop-edit');
-    if (eb) eb.onclick = function () { if (root.app && root.app.openEdit) root.app.openEdit(rec); };
-    pop.style.left = Math.max(8, Math.min(x + 12, window.innerWidth - 300)) + 'px';
-    pop.style.top = '8px'; pop.style.display = 'block';
-    // 실제 높이를 잰 뒤 화면 안에 들어오게 놓는다(미확인 줄·확인 줄이 붙으면 높이가 달라진다). 더 길면 CSS max-height로 스크롤.
-    pop.style.top = Math.max(8, Math.min(y + 12, window.innerHeight - pop.offsetHeight - 8)) + 'px';
-    // 다음 행동 버튼은 사전준비 모듈이 붙인다(서버 호출은 prep.js에만 둔다).
-    if (root.prep && root.prep.decoratePopover) root.prep.decoratePopover(pop, rec);
-    // 기관장은 [기관장 보기]를 눌렀을 때만 서버에서 읽는다(자동 조회 금지, 사용자 11-13). 호출 규칙은 headcard.js.
-    if (root.headcard && root.headcard.decoratePopover) root.headcard.decoratePopover(pop, rec);
-    if (keyboard) { const t = document.getElementById('pop-title'); if (t) t.focus(); }
+    if (d && typeof d.openDetail === 'function') d.openDetail(rec, { opener: opener });
   };
 
   render._selectedName = null;
@@ -999,7 +951,7 @@
   };
 
   // 면 클릭 → 오른쪽 랭킹 목록의 그 카드로 포커스(사용자 요청). 마커 클릭과 달리
-  // **팝오버는 띄우지 않는다** — 목적이 목록으로 시선을 옮기는 것인데 팝오버가
+  // **상세 팝업은 열지 않는다** — 목적이 목록으로 시선을 옮기는 것인데 팝업이
   // 그 카드를 가릴 수 있다(사용자 확정 ⓐ안).
   render.onSubregionClick = function (feature, ev) {
     // 면 색을 정한 바로 그 레코드를 고른다(recordForFeature 주석 참조).
@@ -1010,8 +962,6 @@
     // 그 document 핸들러는 .rank-card/.marker 밖 클릭을 전부 빈 곳으로 보므로,
     // 여기서 멈추지 않으면 방금 한 선택이 곧바로 풀린다.
     if (ev && ev.stopPropagation) ev.stopPropagation();
-    const pop = document.getElementById('popover');
-    if (pop) pop.style.display = 'none';   // 카드 클릭으로 열려 있던 것은 닫는다
     render.selectInstitution(rec);
     render.focusCard(rec.name);
   };
@@ -1034,34 +984,10 @@
     panel.scrollTop += (cr.top - pr.top) - (panel.clientHeight - card.offsetHeight) / 2;
   };
 
-  // Esc로 팝오버 닫기 — 키보드로 열었으면 연 카드로 포커스를 돌린다.
-  if (typeof document !== 'undefined') document.addEventListener('keydown', function (ev) {
-    if (ev.key !== 'Escape') return;
-    const pop = document.getElementById('popover');
-    if (!pop || pop.style.display !== 'block') return;
-    // 모달이 열려 있으면 그 모달의 Esc가 먼저 — 팝오버는 건드리지 않는다.
-    const modalOpen = Array.prototype.some.call(document.querySelectorAll('.modal-overlay'), function (ov) {
-      return window.getComputedStyle(ov).display !== 'none';
-    });
-    if (modalOpen) return;
-    pop.style.display = 'none';
-    let o = render._popOpener;
-    render._popOpener = null;
-    if (!(o && o.focus && document.body.contains(o))) {
-      // 마우스로 열었으면 연 마커·카드(선택 강조된 카드)로, 없으면 지도 영역으로 돌린다.
-      o = document.querySelector('.rank-card.hi') || document.getElementById('map-stage');
-      if (o && !o.hasAttribute('tabindex')) o.setAttribute('tabindex', '-1');
-    }
-    if (o && o.focus) o.focus();
-  });
-
-  // 팝오버 바깥 클릭 시 닫기 + 선택 강조 해제
+  // 지도 빈 곳·패널 여백 클릭 → 선택 강조 해제. 지도 상세 팝업·그 위의 기관장 편집 창 안의 클릭은 풀지 않는다.
   if (typeof document !== 'undefined') document.addEventListener('click', function (ev) {
-    const pop = document.getElementById('popover');
-    const outside = !(ev.target.closest && ev.target.closest('.rank-card, .marker, .dm-ov, .hc-ov'));   // 지도 상세 팝업·그 위의 기관장 편집 창 안의 클릭은 선택 강조를 풀지 않는다
-    if (pop && pop.style.display === 'block' && !pop.contains(ev.target) && outside) pop.style.display = 'none';
-    // 지도 빈 곳·패널 여백 클릭 → 강조 해제(팝오버 내부 클릭은 선택 유지)
-    if (outside && !(pop && pop.contains(ev.target)) && render._selectedName) {
+    const outside = !(ev.target.closest && ev.target.closest('.rank-card, .marker, .dm-ov, .hc-ov'));
+    if (outside && render._selectedName) {
       render._selectedName = null; render.clearSelection();
     }
   });
