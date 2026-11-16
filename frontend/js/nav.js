@@ -54,6 +54,8 @@
   // 입찰 현황판 — 본체는 다른 세션(root.dashboard.mount). 서버 메뉴 키 8개가 동결이라 새 키 없이 고정 id의 soon 항목으로 둔다.
   // 노출 = 서버 map 키가 켜진 사람 전원(영업 계열 제한 없음), 배지 없음, 기관 소분류 맨 앞.
   const DASH_ID = 'soon:현황판';
+  // 입찰 공고 현황 — 고정 id. 라벨이 바뀌어도 id(경과 팝업·화면 연결의 기준)가 따라 바뀌지 않게 한다(11-16 이름 논의 뒤).
+  const NOTICE_ID = 'soon:입찰 공고 현황';
 
   // subs: 중분류 순서. 항목마다 sub로 소속을 가리킨다(시스템 관리는 중분류 없음).
   nav.CATEGORIES = [
@@ -61,7 +63,7 @@
       soon('기관', '입찰 현황판', '', '', false, DASH_ID, undefined, 'map', true),
       live('기관', '전국 지도', 'map'), live('기관', '전국 지역별', 'regions'),
       soon('기관', '기관 사업계획'),
-      soon('입찰 공고', '입찰 공고 현황'), soon('입찰 공고', '공고 자동 수집')] },
+      soon('입찰 공고', '입찰 공고 현황', undefined, '', false, NOTICE_ID), soon('입찰 공고', '공고 자동 수집')] },
     { id: 'plan', title: '영업 추진 준비', subs: ['준비 과제', '이사회'], items: [
       soon('준비 과제', '제안서 사전준비 프로세스', '', '', false, PREP_ID, TEAM_ROLES),
       soon('준비 과제', '기관 정보 요약서'),
@@ -91,6 +93,7 @@
   nav.TEAM_ROLES = TEAM_ROLES;
   nav.PREP_ID = PREP_ID;
   nav.DASH_ID = DASH_ID;
+  nav.NOTICE_ID = NOTICE_ID;
   // 로그인 뒤 첫 화면이 입찰 현황판인 역할 — 영업팀·영업팀장·영업부장만(사용자 결정 11-11). 디자이너·마스터·타 팀은 지금처럼 지도.
   nav.isHomeRole = function (ctx) { return nav.roleIn(TEAM_ROLES, ctx); };
   // 로그인 뒤 첫 화면: 입찰 현황판이 보이는 영업 계열이고 아직 지도만 보고 있으면 현황판 id, 아니면 null(지금 화면 유지).

@@ -291,6 +291,16 @@ test('준비중 라벨은 정의 전체에서 유일하다(라벨 기반 id의 �
   assert.strictEqual(labels.length, 18);   // scan 4(입찰 현황판 포함)·plan 5·manage 4·relate 2·tools 3
 });
 
+test('입찰 공고 현황: id는 soon:입찰 공고 현황 고정(NOTICE_ID), 배지 준비중', function () {
+  assert.strictEqual(nav.NOTICE_ID, 'soon:입찰 공고 현황');
+  const it = nav.CATEGORIES.filter(function (c) { return c.id === 'scan'; })[0].items
+    .filter(function (i) { return i.id === nav.NOTICE_ID; })[0];
+  assert.ok(it, 'NOTICE_ID 항목이 scan에 있다');
+  assert.strictEqual(it.label, '입찰 공고 현황');
+  assert.strictEqual(it.sub, '입찰 공고');
+  assert.strictEqual(nav.badgeOf(it), '준비중');
+});
+
 test('badgeOf: 이사회 자료는 배지 없음, 준비중 항목은 "준비중"(F4)', function () {
   assert.strictEqual(nav.badgeOf({ soon: true, tag: '' }), '');
   assert.strictEqual(nav.badgeOf({ soon: true, tag: '준비중' }), '준비중');

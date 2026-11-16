@@ -18,7 +18,7 @@
     open: false,
     opened: null,         // 펼쳐 둔 묶음(data-group) 집합 — 다시 그려도 유지. null이면 기본값
     wired: false,
-    pop: null,            // 팝업이 열려 있는 동안 {who, date, returnTo}
+    pop: null,            // 팝업이 열려 있는 동안 {who, date, dash, returnTo} — dash: 현황판 위에서 열렸는지
   };
 
   // 같은 파일이 브라우저(전역)와 node(테스트) 양쪽에서 돌도록 render는 늦게 찾는다.
@@ -102,7 +102,8 @@
   ov.HINT_POP = '관심 지역이 없어 최근에 지난 순으로 골랐습니다. 전국 지역별 화면에서 지역 카드의 별을 누르면 그 지역 건이 먼저 나옵니다. 관심 지역은 PC마다 따로 저장됩니다.';
 
   // 팝업에 채울 값 전부(순수). 상위 5건: 관심 지역 먼저, 최근에 지난 순, 확인 중은 뒤.
-  ov.popupParts = function (summary, watched, dateStr) {
+  // onDash: 현황판 위에서 열리면 안내 줄의 목적지도 현황판 경과 묶음으로(design-reviewer 11-16).
+  ov.popupParts = function (summary, watched, dateStr, onDash) {
     const items = (summary && summary.items) || [];
     const w = watched || [];
     const top = logic.pickTopOverdue(items, w, 5);
@@ -117,7 +118,8 @@
       }).join(''),
       cap: '먼저 볼 ' + top.length + '건 (관심 지역 먼저, 최근에 지난 순)',
       listHtml: top.map(function (it) { return ov.itemHtml(it, false); }).join(''),
-      more: items.length > 5 ? '외 ' + (items.length - 5) + '건은 경과 패널에서 볼 수 있습니다.' : '',
+      more: items.length > 5 ? '외 ' + (items.length - 5) + '건은 '
+        + (onDash ? '현황판의 [공고 예정일 경과]에서' : '경과 패널에서') + ' 볼 수 있습니다.' : '',
       hint: w.length ? '' : ov.HINT_POP,
     };
   };
@@ -270,6 +272,16 @@
 
   function onMap() { const v = $('tab-map'); return !!(v && v.classList.contains('active')); }
   function goMap() { const b = $('tab-btn-map'); if (b && !onMap()) b.click(); }
+  // 로그인 경과 팝업의 마지막 버튼 — 현황판 위에서 뜨면 현황판의 경과 묶음으로, 지도 위에서 뜨면 지금처럼 경과 패널로(design-reviewer 11-16 P1-2).
+  ov.POP_ALL_MAP = '경과 패널에서 전체 보기';
+  ov.POP_ALL_DASH = '현황판에서 경과 건 보기';
+  ov.popAllLabel = function (onDash) { return onDash ? ov.POP_ALL_DASH : ov.POP_ALL_MAP; };
+  // 현황판이 지금 보이는지: 탭 활성 + 마운트 + #dash-root가 숨지 않음(같은 #tab-soon 자리의 사전준비·이사회 화면이면 false — qa 11-16 P3-1).
+  function onDash() {
+    const v = $('tab-soon'), d = root.dashboard, el = $('dash-root');
+    return !!(v && v.classList.contains('active') && el && el.style.display !== 'none'
+      && d && d.isMounted && d.isMounted());
+  }
 
   // 팝업 '전체 보기'와 토글(전국 지역별 화면에서)이 쓴다: 지도 화면으로 옮긴 뒤 패널을 연다.
   ov.openPanel = function (focusTitle) {
@@ -301,7 +313,8 @@
 
   ov.showPopup = function (who, dateStr) {
     const pop = $('ov-pop'); if (!pop) return false;
-    const p = ov.popupParts(ov.state.summary, watched(), dateStr);
+    const dash = onDash();
+    const p = ov.popupParts(ov.state.summary, watched(), dateStr, dash);
     const set = function (id, html) { const e = $(id); if (e) e.innerHTML = html; };
     set('ov-pop-n', esc(p.nText));
     set('ov-pop-sum', esc(p.sum));
@@ -310,8 +323,9 @@
     set('ov-pop-list', p.listHtml);
     const more = $('ov-pop-more'); if (more) { more.textContent = p.more; more.hidden = !p.more; }
     const hint = $('ov-pop-hint'); if (hint) { hint.textContent = p.hint; hint.hidden = !p.hint; }
+    const allBtn = $('ov-pop-all'); if (allBtn) allBtn.textContent = ov.popAllLabel(dash);
     const ae = document.activeElement;
-    ov.state.pop = { who: who, date: dateStr, returnTo: ae && ae !== document.body ? ae : null };
+    ov.state.pop = { who: who, date: dateStr, dash: dash, returnTo: ae && ae !== document.body ? ae : null };
     pop.style.display = 'block';
     const t = $('ov-pop-title'); if (t) t.focus();
     return true;
@@ -382,7 +396,13 @@
       if (st) store.skipOverdueToday(st.who, st.date);   // 저장소가 막혀도 팝업은 닫힌다
       ov.closePopup(true);
     });
-    if (all) all.addEventListener('click', function () { ov.closePopup(false); ov.openPanel(true); });
+    if (all) all.addEventListener('click', function () {
+      const st = ov.state.pop;
+      // 열 때 판정에 더해 누르는 순간에도 현황판이 보이는지 다시 본다(열린 뒤 지도로 옮겨진 경우 — qa 11-16 P3-2).
+      const toDash = !!(st && st.dash && onDash() && root.dashboard.showPast);
+      ov.closePopup(false);
+      if (toDash) root.dashboard.showPast(); else ov.openPanel(true);   // 현황판 위면 지도로 끌지 않는다
+    });
 
     // Esc·배경 클릭·Tab은 이 팝업이 직접 처리한다 — app.wireModalDismiss의 전역 Esc는
     // 오버레이를 숨기기만 하고 포커스를 돌려주지 않는다. window 캡처 단계에서 가로챈다.

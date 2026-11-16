@@ -1275,6 +1275,9 @@
     }
   };
   dash.isDetailOpen = function () { return !!dm.cur; };
+  // 로그인 경과 팝업이 현황판 위에서 쓴다(overdue.js): 마운트 여부·경과 묶음 펼침+포커스.
+  dash.isMounted = function () { return !!host; };
+  dash.showPast = function () { if (host) showPast(); };
 
   dash.mount = function (el) {
     if (!el) return;
