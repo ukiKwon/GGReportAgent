@@ -1,5 +1,5 @@
 const test = require('node:test'), assert = require('node:assert');
-const fs = require('fs'), os = require('os'), path = require('path');
+const fs = require('fs'), os = require('os'), path = require('path'), { spawnSync } = require('child_process');
 const cq = require('../../.claude/hooks/capture-questions.js');
 const NOW = new Date(2026, 10, 15, 9, 30);
 
@@ -126,7 +126,7 @@ test('run: 파일 전체 흐름 — 추가되고, 깨진 장부는 그대로', (
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-// ---- 사용자 답 자동 기록(answer 모드, backend-dev 11-15) ----
+// ---- 답 자동 기록 폐기 확인(NEXT 84 ②) — 훅은 질문 추가만, answer·status는 손대지 않는다 ----
 const item = (n, summary, status, answer) => JSON.stringify({ id: 'Q-2026-11-15-0' + n, summary, askedAt: '2026-11-15', next: [], options: '', recommend: '', status, answer: answer || '', answeredAt: status === 'open' ? '' : '2026-11-14', appliedRef: '' });
 const ODD = '{"id":"Q-2026-11-15-04",  "summary":"완료된 질문" , "status":"done","answer":"x"}';
 const L4 = '{"questions":[\r\n' + [item(1, '질문 하나', 'open'), item(2, '질문 둘', 'open'), item(3, '이미 답한 질문', 'answered', '원래 답'), ODD].join(',\r\n') + '\r\n]}\r\n';
@@ -140,69 +140,33 @@ function setup(ledger, lines) {
   return { dir, led, tr, done: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
-test('answer: 직전 턴 질문 2개 open → answered, 이미 answered/done은 그대로, 다른 줄 바이트 불변', () => {
-  const s = setup(L4, [user('x'), ASKED]);
-  assert.strictEqual(cq.runAnswer({ transcript_path: s.tr, prompt: '  둘 다\n  ⓐ로 해줘 ' }, { root: s.dir, now: NOW }), 2);
-  const raw = fs.readFileSync(s.led, 'utf8'), a = raw.split('\r\n'), b = L4.split('\r\n');
-  const d = JSON.parse(raw).questions;
-  for (const i of [0, 1]) {
-    assert.strictEqual(d[i].status, 'answered'); assert.strictEqual(d[i].answer, '둘 다 ⓐ로 해줘');
-    assert.strictEqual(d[i].answeredAt, '2026-11-15'); assert.strictEqual(d[i].answerSource, 'auto');
+
+test('답 자동 기록 없음: 사용자 글·주입 메시지가 뒤따라도 기존 질문의 answer·status·다른 줄이 바이트 그대로', () => {
+  const replies = ['둘 다 ⓐ로 해줘', '네', '/clear', 'password=abc123', '<agent-message from="a1">[Subagent hand-back] 보고</agent-message>',
+    '<task-notification><task-id>x</task-id></task-notification>', '[SYSTEM NOTIFICATION - NOT USER INPUT] done'];
+  for (const r of replies) {
+    const s = setup(L4, [user('x'), ASKED, user(r), asst(text('진행합니다'))]);
+    assert.strictEqual(cq.run({ transcript_path: s.tr }, { root: s.dir, now: NOW }), 0, r); // 4건 모두 이미 장부에 있음 → 추가 0
+    assert.strictEqual(fs.readFileSync(s.led, 'utf8'), L4, r);
+    const q = JSON.parse(fs.readFileSync(s.led, 'utf8')).questions;
+    assert.deepStrictEqual(q.slice(0, 2).map(x => [x.status, x.answer]), [['open', ''], ['open', '']]);
+    assert.deepStrictEqual([q[2].status, q[2].answer], ['answered', '원래 답']);
+    s.done();
   }
-  assert.strictEqual(a.length, b.length);
-  assert.strictEqual(a[0], b[0]); assert.strictEqual(a[3], b[3]); assert.strictEqual(a[4], b[4]); assert.strictEqual(a[5], b[5]);
-  assert.ok(a[1].endsWith(',') && a[2].endsWith(','));
-  assert.ok(!/(^|[^\r])\n/.test(raw));
-  s.done();
 });
 
-test('answer: 새 prompt가 이미 transcript에 있거나, 같은 글을 두 번 쳐도 대상 턴은 직전 질문 턴', () => {
-  let s = setup(L4, [user('x'), ASKED, user('네')]);
-  assert.strictEqual(cq.runAnswer({ transcript_path: s.tr, prompt: '네' }, { root: s.dir, now: NOW }), 2); s.done();
-  s = setup(L4, [user('네'), ASKED]);
-  assert.strictEqual(cq.runAnswer({ transcript_path: s.tr, prompt: '네' }, { root: s.dir, now: NOW }), 2); s.done();
-});
-
-test('answer: 두 턴 전 질문은 건드리지 않는다', () => {
-  const s = setup(L4, [user('x'), ASKED, user('y'), asst(text('답했어요')), user('z'), asst(text('진행'))]);
-  assert.strictEqual(cq.runAnswer({ transcript_path: s.tr, prompt: '응' }, { root: s.dir, now: NOW }), 0);
+test('답 자동 기록 없음: answer 모드 코드·내보내기가 없고, CLI에 answer 인자를 줘도 장부의 답이 바뀌지 않는다', () => {
+  for (const k of ['runAnswer', 'answerLedger', 'extractTarget']) assert.strictEqual(cq[k], undefined, k);
+  const s = setup(L4, [user('x'), ASKED, user('ⓐ로 해줘')]);
+  const hook = path.join(__dirname, '..', '..', '.claude', 'hooks', 'capture-questions.js');
+  const r = spawnSync(process.execPath, [hook, 'answer'], { input: JSON.stringify({ transcript_path: s.tr, cwd: s.dir, prompt: 'ⓐ로 해줘' }),
+    env: Object.assign({}, process.env, { CLAUDE_PROJECT_DIR: s.dir }), encoding: 'utf8' });
+  assert.strictEqual(r.status, 0); assert.strictEqual(r.stdout, '');
   assert.strictEqual(fs.readFileSync(s.led, 'utf8'), L4);
   s.done();
 });
 
-test('answer: 빈 prompt·슬래시 명령은 아무것도 안 함', () => {
-  const s = setup(L4, [user('x'), ASKED]);
-  for (const p of ['', '   ', '/clear', '  /compact now', undefined])
-    assert.strictEqual(cq.runAnswer({ transcript_path: s.tr, prompt: p }, { root: s.dir, now: NOW }), 0);
-  assert.strictEqual(fs.readFileSync(s.led, 'utf8'), L4);
-  s.done();
-});
-
-test('answer: 비밀값·이메일은 가리고 300자로 자른다', () => {
-  const s = setup(L4, [user('x'), ASKED]);
-  cq.runAnswer({ transcript_path: s.tr, prompt: 'password=abc123 a.b@c.com ' + 'ㄱ'.repeat(400) }, { root: s.dir, now: NOW });
-  const ans = JSON.parse(fs.readFileSync(s.led, 'utf8')).questions[0].answer;
-  assert.ok(!/abc123|a\.b@c\.com/.test(ans) && ans.includes('[가림]'));
-  assert.ok(ans.length <= 300);
-  s.done();
-});
-
-test('answer: 깨진 장부·없는 장부는 손대지 않고 예외도 없다', () => {
-  const broken = '{"questions":[\r\n{oops';
-  const s = setup(broken, [user('x'), ASKED]);
-  assert.strictEqual(cq.runAnswer({ transcript_path: s.tr, prompt: '응' }, { root: s.dir, now: NOW }), 0);
-  assert.strictEqual(fs.readFileSync(s.led, 'utf8'), broken);
-  fs.rmSync(s.led);
-  assert.strictEqual(cq.runAnswer({ transcript_path: s.tr, prompt: '응' }, { root: s.dir, now: NOW }), 0);
-  assert.ok(!fs.existsSync(s.led));
-  s.done();
-});
-
-test('answerLedger: 대상 키가 장부에 없으면 null(원문 불변)', () => {
-  assert.strictEqual(cq.answerLedger(L4, new Set(['없는질문']), '응', NOW), null);
-});
-
-test('Stop 수집: AskUserQuestion에 같은 턴 tool_result 답이 있으면 answered로 바로 추가, 거절·답 없음은 open', () => {
+test('Stop 수집: AskUserQuestion은 tool_result 답이 있어도 항상 open·answer 빈 값으로만 추가', () => {
   const tu = (id, q) => ({ type: 'tool_use', id, name: 'AskUserQuestion', input: { questions: [{ question: q, options: [{ label: '가안' }, { label: '나안' }] }] } });
   const res = (id, content, err) => JSON.stringify({ type: 'user', isSidechain: false, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content, is_error: err }] } });
   const s = setup(LEDGER, [user('x'),
@@ -211,10 +175,10 @@ test('Stop 수집: AskUserQuestion에 같은 턴 tool_result 답이 있으면 an
     asst(tu('t3', '답 없는 질문?'))]);
   assert.strictEqual(cq.run({ transcript_path: s.tr }, { root: s.dir, now: NOW }), 3);
   const q = JSON.parse(fs.readFileSync(s.led, 'utf8')).questions;
-  assert.strictEqual(q[1].status, 'answered'); assert.strictEqual(q[1].answer, '나안');
-  assert.strictEqual(q[1].answeredAt, '2026-11-15'); assert.strictEqual(q[1].answerSource, 'auto');
-  assert.strictEqual(q[2].status, 'open'); assert.strictEqual(q[2].answer, '');
-  assert.strictEqual(q[3].status, 'open');
+  for (const i of [1, 2, 3]) {
+    assert.strictEqual(q[i].status, 'open'); assert.strictEqual(q[i].answer, '');
+    assert.strictEqual(q[i].answeredAt, ''); assert.ok(!('answerSource' in q[i]));
+  }
   s.done();
 });
 
@@ -225,38 +189,30 @@ test('mask 보강: _접두·한글 키, URL 쿼리, Bearer, 사설 IP, 유선·�
   assert.ok(t.includes('2026-11-15') && t.includes('NEXT 72'), t);
 });
 
-test('answer: 이번 턴이 비었고 마지막 기록 프롬프트가 지금 입력과 다르면 그 앞 턴 질문을 건드리지 않는다', () => {
-  const s = setup(L4, [user('x'), ASKED, user('중단')]);
-  assert.strictEqual(cq.runAnswer({ transcript_path: s.tr, prompt: '다른 새 입력' }, { root: s.dir, now: NOW }), 0);
-  assert.strictEqual(fs.readFileSync(s.led, 'utf8'), L4);
-  s.done();
-});
-
-test('Stop 수집: 직전 턴 질문이 이제야 들어가면 그 뒤 사용자 입력을 답으로 answered(기록 지연·Esc 중단 대비)', () => {
+test('Stop 수집: 직전 턴 질문이 이제야 들어가도 그 뒤 사용자 입력을 답으로 쓰지 않고 open(기록 지연·Esc 중단 대비)', () => {
   const s = setup(LEDGER, [user('x'), asst(text('🙋 **물어볼게:**\n- 늦게 잡힌 질문')), user('ⓐ로 해'), asst(text('진행합니다'))]);
   assert.strictEqual(cq.run({ transcript_path: s.tr }, { root: s.dir, now: NOW }), 1);
   const q = JSON.parse(fs.readFileSync(s.led, 'utf8')).questions[1];
-  assert.strictEqual(q.status, 'answered'); assert.strictEqual(q.answer, 'ⓐ로 해'); assert.strictEqual(q.answerSource, 'auto');
+  assert.strictEqual(q.status, 'open'); assert.strictEqual(q.answer, ''); assert.strictEqual(q.answeredAt, ''); assert.ok(!('answerSource' in q));
   s.done();
 });
 
-test('answer: 기록된 입력에 편집기 태그 블록이 섞여도 같은 입력으로 본다', () => {
-  const tagged = JSON.stringify({ type: 'user', isSidechain: false, message: { role: 'user', content: [{ type: 'text', text: '<ide_opened_file>a.js</ide_opened_file>' }, { type: 'text', text: '네' }] } });
-  const s = setup(L4, [user('x'), ASKED, tagged]);
-  assert.strictEqual(cq.runAnswer({ transcript_path: s.tr, prompt: '네' }, { root: s.dir, now: NOW }), 2);
+test('주입 메시지(에이전트 보고)는 턴 경계가 아니다: 사이에 끼어도 직전 질문 턴이 끊기지 않는다', () => {
+  const lines = [user('x'), asst(text('🙋 **물어볼게:**\n- 보고 낀 질문')), user('<agent-message from="a1">보고</agent-message>'), asst(text('받았어요'))];
+  assert.deepStrictEqual(cq.extractQuestions(lines), ['보고 낀 질문']);
+  const s = setup(LEDGER, lines);
+  assert.strictEqual(cq.run({ transcript_path: s.tr }, { root: s.dir, now: NOW }), 1);
   s.done();
 });
 
-test('사고 재발 방지: 에이전트 보고·작업 알림·다른 세션 메시지는 답으로 기록하지 않고 턴 경계로도 보지 않는다', () => {
-  for (const p of ['<agent-message from="a1">[Subagent hand-back] 보고</agent-message>', '<task-notification><task-id>x</task-id></task-notification>',
-    '<cross-session-message from="s">알림</cross-session-message>', '[SYSTEM NOTIFICATION - NOT USER INPUT] done']) {
-    const s = setup(L4, [user('x'), ASKED]);
-    assert.strictEqual(cq.runAnswer({ transcript_path: s.tr, prompt: p }, { root: s.dir, now: NOW }), 0, p);
-    assert.strictEqual(fs.readFileSync(s.led, 'utf8'), L4);
-    s.done();
-  }
-  // transcript에 주입 메시지가 끼어 있어도 질문 턴이 끊기지 않고, 그 뒤 사람의 답이 붙는다
-  const s = setup(L4, [user('x'), ASKED, user('<agent-message from="a1">보고</agent-message>'), asst(text('보고 받았어요'))]);
-  assert.strictEqual(cq.runAnswer({ transcript_path: s.tr, prompt: 'ⓐ로 해' }, { root: s.dir, now: NOW }), 2);
-  s.done();
+test('사용자가 붙여 넣은 🙋 블록·에이전트 보고 속 🙋 블록은 수집하지 않고, isMeta 사용자 줄은 턴 경계가 아니다(qa 11-16)', () => {
+  assert.deepStrictEqual(cq.extractQuestions([user('🙋 **물어볼게:**\n- 붙여넣은 질문'), asst(text('ok'))]), []);
+  assert.deepStrictEqual(cq.extractQuestions([user('x'), user('<agent-message from="a1">🙋 **물어볼게:**\n- 에이전트 질문</agent-message>'), asst(text('ok'))]), []);
+  const meta = JSON.stringify({ type: 'user', isSidechain: false, isMeta: true, message: { role: 'user', content: '메타' } });
+  assert.deepStrictEqual(cq.extractQuestions([user('x'), asst(text('🙋 **물어볼게:**\n- q1')), meta, asst(text('계속'))]), ['q1']);
+});
+
+test('mask: 키워드 뒤에 한국어 조사가 붙어도 값을 가린다(security 11-16 하)', () => {
+  const t = cq.parseQuestion('비밀번호는 abc123 이고 암호가 zz9 입니다').summary;
+  assert.ok(!/abc123|zz9/.test(t), t);
 });
