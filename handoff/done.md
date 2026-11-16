@@ -707,3 +707,6 @@
 > - **다음 한 걸음**: 사용자 ⓐ `mysql -u root -p -e "select 1"`로 비밀번호 확인 ⓑ 되면 옛 버전 `git show 35a0ccc~1:kgi-ggreport-web/tools/db/apply-mysql.mjs > %TEMP%\apply-old.mjs` → `node %TEMP%\apply-old.mjs --status --dir kgi-ggreport-web\src\main\resources\db\mysql`. 옛 것만 되면 35a0ccc 결함 → 고치거나 되돌림(`git revert 35a0ccc`). 그 전까지 DB 적용이 막히면 옛 버전 명령으로 우회.
 > - **자세히**: handoff/2026-11-15_summary.md ## Session 20:20 (3d) 끝 줄, security 11-15 apply-mysql 보고서.
 
+
+### 39. uploader POI 진입점 가드 — **해소 11-16 (2e)**
+- 1단계 web ZipGuard 이식·POI ZipSecureFile 한도(b2450b4), 2단계 중앙 목차 대조·RFP hwpx 가드·XML 스트리밍(5df6c1e), N1 목차 쪽 내용 재검사(bebb749). security 11-16 3회 검토 끝 '닫아도 됨'. 남은 기획·하 위험은 NEXT 86, 기존 시험 실패는 NEXT 85.
