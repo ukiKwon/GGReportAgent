@@ -464,7 +464,8 @@
 - **11-16 오후 9f**: 033·036 로컬 적용 완료(사용자). 사용자 결정 반영 — 전산팀원 권한 신청은 전산팀장 한 번(e0cba0d·d8bab0d), 관리자 본인 정보·상태·결재자·메뉴 권한·자기 역할 줄은 다른 관리자만, 화면·버튼·검증 여부 증적(6799b01·dfd1a67). 후속 A(결재 반영·코퍼스 증적, validate 가드·toRealPath, decide/finalize 실패 감사)·B(admin.js 머리글·본인 행 비활성) 진행 중, ②(url 서식 문자·apply-mysql 임시 파일·전역 500 스택 로그) 내일. **배포 메모: DB 036 먼저 Java 나중, Oracle FETCH FIRST 11g 확인.** 출처 2026-11-16_summary.md Session 14:40 (9f).
 - **11-16 9f**: ① 적용(10be5e1) — 기본 격자·골든 그대로, 033 ROLE_MENUS 전산팀장 admin=1(MySQL·Oracle 쌍), 잠김 방지를 '활성 관리자 남음'으로. mvn 1288 중 1건(기대값) 고쳐 통과. **로컬 MySQL에 033 적용 대기(사용자)**. security 11-16 차단 없음 — 후속: 전산팀장이 결재선 1단계와 ADMIN 단계를 함께 승인 가능(직무 분리, 사용자 질문), PUT /menus 변경 이력 없음(backend-dev), 전역 500 처리기 스택 로그. ②(capture-questions)는 그대로.
 - **현재**: ① 사용자 답(11-15 ⓐ): **전산팀원·전산팀장 모두 관리자**. 지금은 Menus.java:113 '전산팀'에만 ADMIN_MENU — 한 줄로 바꾸면 '마지막 관리자' 보호(SysAdminApiTest 2건·MenuSaveApiTest 1건)·골든 조회 2건이 깨져(메인 11-15 실측, 되돌림) 관리자 수 판정·골든 기대값을 함께 설계해야 함. BidCaseReadGuardApiTest '전산팀장 닫힘 생성 403' 시험도 200으로. ② security PUSH-GATE 11-15(handoff/agents/security/2026-11-15 최신) 하: (capture-questions 답 자동 기록은 11-16 2e 11fe8fc로 해소) InstitutionEditRules.url 서식 문자 codePoint 단위·TYPE·LAST_BID 길이 상한, apply-mysql 강제 종료 시 임시 파일 잔존, DENIED·413 원문 URI 형식(1959 #3)·화면·버튼 조합 검증(1933 #1)·동시 저장 OLD_VAL(1901 L3)·JSON 파서 400 본문 시험(L5). 원격 저장소 공개 여부 확인(회사 인프라 사양 문서가 이미 여럿 추적됨).
-- **다음 한 걸음**: ① 후속은 9f(위 줄). ② 나머지 하 묶음(url 서식 문자·apply-mysql 임시 파일 등)은 기관 사업계획 세션 커밋 뒤 backend-dev.
+- **11-16 저녁 9f**: ② 일부 적용(43ff794) — SafeUrl 코드 포인트 단위(보조면 서식·C1·공백류), TYPE 50·LAST_BID 40 상한(400), 처리 안 된 예외 로그 한 줄+X-Error-Ref, apply-mysql `--mark-applied`(033·036·037·038 스키마 검사 뒤 기록만)·오래된 임시 폴더 정리·SIGBREAK. mvn 1458 통과.
+- **다음 한 걸음**: 사용자 터미널 `node kgi-ggreport-web/tools/db/apply-mysql.mjs --mark-applied 033,036,037,038 --dry-run` → 통과면 --dry-run 빼고 기록(037은 먼저 mysql 직접 적용, 040은 c0가 검사 줄 추가). 남은 하: DENIED·413 원문 URI·화면·버튼 조합 검증·동시 저장 OLD_VAL·JSON 400 본문 시험, ApiExceptionHandler 로그 한 줄 시험(미작성).
 - **자세히**: security 11-15 PUSH-GATE 보고, questions.json(관리자 범위 질문), NEXT 64②.
 
 ### 87. uploader 파일 검색 본문 제공(저장형) 설계 — 확장 고려 (사용자 11-16 Q2 ⓒ, NEXT 86 후속) [담당: planner → backend-dev → security]
@@ -475,7 +476,13 @@
 - **다음 한 걸음**: ⓐ 해소 — 사용자 11-16 답: 공고문에 내부 메모 섞이지 않음(5753ecd) ⓑ 화면 '원문 보기'는 textContent로만·fulltext_missing 안내(프런트, kgi 연동 때) ⓒ uploader /api/** 무인증 부채는 문의 03-4ⓒ.
 - **자세히**: planner 11-16 NEXT 87 보고, security 11-16 NEXT 86 ①③ 확인 보고, NEXT 17·21·25.
 
-### 89. 기관 상세 '현재 금고 은행'·약정 기간 직접 수정(수정자 표시) — 기획·서버 설계 완료, 적용 대기 [담당: security → backend-dev 적용(메인) → design-reviewer → frontend-dev → qa]
+### 89. 기관 상세 '현재 금고 은행'·약정 기간 직접 수정(수정자 표시) — 설계·보안·화면 규격 완료, 039 적용 대기 [담당: 메인 적용 → frontend-dev → qa]
 - **현재**: 사용자 11-16 ⓐ(화면에서 직접 고침, 수집 안 됐어도 영업 담당자 입력, 수정자가 옆에 보이게), 현황판 '국민은행이 맡은 기관' 숫자에는 직접 입력을 넣지 않음(ⓐ, Q-2026-11-16-93). 기획: 약정 기록 표(추가 전용·취소 행)+은행 코드표, 출처 4종(담당자 확인=부서+확인일), 권한 canEditInstitution+영업팀, 직접 입력 우선 표시+수집값 다르면 병기, contractExpiry 자동 반영 안 함. 서버 설계: DB 039 쌍(약정 기록·은행 코드), API(최신·이력·저장·취소), 화면·버튼 institution_edit/save_bank_contract.
-- **다음 한 걸음**: security 설계 검토 → 메인이 039·서버 패치 적용·mvn → 로컬 MySQL 039 적용(사용자) → design-reviewer 화면 규격(상세 절 4번째 갈래·변경 창 '금고 약정' 묶음) → frontend-dev → qa·design_history.
-- **자세히**: handoff/agents/planner/2026-11-16_1642_ad0ec34d.md, handoff/agents/backend-dev/2026-11-16_1659_ac437049.md, 출처 2026-11-16_summary.md Session 14:40 (9f) 이후.
+- **11-16 저녁 9f 결정**: security(1718) 적용 전 S3 기타 은행명 우회·S4 상대 이름·S5 번호/URL 전화·S7 서식 문자·S9 MySQL 실파일 반영. 팀: B07 BNK부산은행·B08 BNK경남은행·B13 수협은행 신설·X01/X02 ENABLED=0, S2 같은 순위 겹침 409 DUP_RANK+confirm_overlap, S10 취소 사유 코드 필수, S1 수정자 옆 '(로그인 확인 전)' 표지(화면), 순위는 지자체·교육청 1·2금고만/법원·공공기관 순위 없음·공동 지정만, '맡는 회계' 칸(BANK_ACCOUNT 5). **사용자 S6 ⓐ**: 고치기는 영업팀 누구나, 취소는 본인·영업팀장(부장 포함 여부 확인 — HeadRules.isLead).
+- **다음 한 걸음**: 메인이 개정 패치(backend-dev 2026-11-16 개정 보고 + 델타 보고, 039 번호 유지 — c0는 040 사용) 적용 → mvn → 로컬 MySQL 039 직접 적용(사용자) → `--mark-applied 039`(SCHEMA_PROBES 039 줄 추가) → frontend-dev(design 규격 6-1·6-2, 상세 dashboard.js는 c0 커밋 확인) → qa → design_history ㊸.
+- **자세히**: handoff/agents/ 의 11-16 저녁 보고 — backend-dev(개정·델타), security 1718, design-reviewer(규격·시안·design_history 초안), data-auditor(코드표 검수), planner(정책·순위/회계). 출처 2026-11-16_summary.md Session 18:40 (9f).
+
+### 90. 외부 확인(미리 돌려두기) — 기관별 다음 입찰 공고를 외부망에서 매일 미리 찾아 반입, 현황판에 수집 시각과 함께 (사용자 11-16, Q-2026-11-16-98·99) [담당: backend-dev(SCHEMA 확장) → security → design-reviewer → frontend-dev]
+- **현재**: 사용자 결정 — 실시간 반출 없음, 외부 에이전트가 미리 찾고 반입 흐름(외부 경로 → RPA → uploader → 서버)으로. 대상 전체 기관(지자체·법원·대학·병원·공공기관), 폐쇄망에서 링크 안 열림 → 공고문 파일(연락처 가림·휴대폰 삭제)도 반입, 보도는 공고 경로에서 못 찾은 기관만 보조('보도(참고)', 본문 저장 안 함, 포털 키·약관은 착수 때 승인), RPA 매일 → 외부 수집 평일 매일. 기관 종류별 경로: 지자체 eminwon·홈페이지 고시 / 공공기관 나라장터 API(공공데이터포털 키) / 법원 대법원·각 법원 새소식 / 교육청 고시(신규) / 대학·병원 나라장터 일부·자체 게시판(신규, NEXT 79). planner: '찾음·찾지 못함·조회 실패' 기록, 매칭 신뢰도 3단계(높음만 행에), 결과는 지도 색·예정일을 바꾸지 않음(후보).
+- **다음 한 걸음**: backend-dev — collector SCHEMA v1 확장(찾지 못함·보도·매칭 신뢰도 레코드) + 반입 개인정보 재검사 → security → 1단계(공고만, 현황판 행 한 줄 '외부 확인 MM-DD HH:mm').
+- **자세히**: handoff/agents/planner/ 11-16 저녁 보고([1] 외부 확인), collector/SOURCES.md(S1~S11), 출처 2026-11-16_summary.md Session 18:40 (9f).

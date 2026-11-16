@@ -1,51 +1,35 @@
 # 다음 세션 시작점 (항상 최신 1개 — 덮어쓴다)
 
-마지막 갱신: 2026-11-15(일) 마무리 (새 PC 첫날 — 세션 4b·3d·9b) — 오늘 요약: `handoff/2026-11-15_summary.md`
+마지막 갱신: 2026-11-16(월) 마무리 (세션 9f·c0·d9·4c) — 오늘 요약: `handoff/2026-11-16_summary.md`
 
-## 다음 세션 먼저 할 일 (PM 11-15 저녁 순서 — `handoff/agents/pm/2026-11-15_2048_aff0bd7d.md`, 진행 여부는 묻지 않고 바로 실행)
-0. **환경**: VS Code를 완전히 재시작했으면 PATH(JDK8·mysql·gh)가 잡힌다. 아니면 경로 직접 지정 — Maven은 IntelliJ 동봉 `C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2025.2.2\plugins\maven\lib\maven3\bin\mvn.cmd`, JDK `C:\dev\jdk8\jdk8u504-b01`. MySQL은 `C:\dev\mysql-start.cmd`(세션마다 꺼짐), 8080은 `java -jar target/kgi-ggreport-web.war`(kgi-ggreport-web에서). 로컬 DB는 001~032 적용됨.
-   - DB 적용: 이 PC MySQL root는 비밀번호가 비어 있다(`mysql -u root`, `-p` 없이). 적용 도구는 `--user ggreport`(NEXT 83 해소 11-15).
-   - `.claude/worktrees/` 빈 폴더(prep-audit-test·mysql-cred)는 VS Code 잠금으로 남은 것 — 재시작 뒤 지운다(커밋 대상 아님).
-1. **① 병렬(읽기 전용)**: qa-verifier(Opus)로 NEXT 66·68·64 반영 대조 — 66ⓐⓑⓒ·② 후속·68 내려받기 기록·64 ①③이 **이미 코드에 들어가 있는 것으로 보임**(PM 대조: BoardMaterialService:371·637, BidAssignmentService:395-488, StaticCacheFilter:100). Q-2026-11-10-01(이어받을 담당자 모두 비활성 → 승인 막고 안내, 답 ⓐ) 빈틈 2개 판정 포함. ∥ planner(Opus) 기획 묶음(NEXT 70 하 500 유지·WARN/ERROR, 78 요약 카드·decoratePopover 폐기·map_detail 분리, 64② 열림 동안 목록 범위) — 팀 결정, 사용자에게 묻지 않음.
-2. **②** 대조 결과 빈틈만 backend/frontend-dev → 적용·시험 → 커밋, NEXT 66·68·64 다시 쓰기, Q-11-10-01 done.
-3. **③ NEXT 64② 2단계(패치 C)**: 열림 상태 `POST /bidcases` 무가드 닫기 — Prep* 시험 생성 도우미에 관리자 사번(다른 세션이 Prep* 쓰는지 확인 뒤) → mvn → security → 커밋. 그 전 운영 배포는 `ggreport.legacy-flow.open=false`(docs/이관작업 README 4단계).
-4. **④** 1-c 결정대로 NEXT 78 후속(frontend-dev → qa, 화면 바뀌면 design·design_history).
-5. **푸시(맨 먼저)**: 11-15 마무리에서 사용자가 푸시를 승인했지만 **새 PC에 GitHub 인증이 없어 실패**(Invalid username or token). 사용자가 `C:devghingh.exe auth login` → `gh auth setup-git` 한 뒤 `git push origin kgi-report-web-dev`(로컬 커밋 46건, PUSH-GATE 11-15 통과 — security 차단 없음). 토큰은 Contents·Pull requests Read and write.
-6. **11-16(월) 09:00 주간 수집 확인(NEXT 80)** — 옛 PC 작업 스케줄러. 종료 코드 0 정상, 3이면 새 실패. 정상이면 scourt를 run_weekly에(NEXT 81).
-7. **11-20(금) W47 산출물**: PM 주간 보고·에이전트별 정리(docs/pm_history), 요구사항 파악 자료(docs/요구사항 파악/index_2026-11-20.html — 종류 6종·기관 정보 변경 창 설명 포함, **입찰 현황판(우리 상태)·입찰 공고 현황(전국 공고 목록) 역할 설명 + 현업 의사결정 질문: 공고 상세에서 공고문 PDF 보기·배점표 정리까지 할지(Q-2026-11-16-36, NEXT 30)** 및 planner a4752802·aeec666f의 현업 확인 질문), 질문 장부 '이번 주 질문' 표.
-8. **대시보드 공사판(NEXT 31, 11-16 4c)**: 8090은 새 코드로 재기동됨(헤더 테마 → 공사판). 남은 것: design_history ㉞ 후속 장(3층 단면도·엘리베이터·업무 동선) → 하루 누적을 본 뒤 고도 구간 경계(20/60/120층)·층당 3공정 조정.
+## 다음 세션 먼저 할 일 (PM 11-16 마무리 순서 — handoff/agents/pm/ 11-16 최신, 묻지 않고 실행)
+0. **환경**: MySQL `C:\dev\mysql-start.cmd`, `ListAgents`, 8080 담당 정함(아침 d9 → 9f). JDK `C:\Users\superuser\AppData\Local\Programs\Eclipse Adoptium\jdk8u504-b01`, Maven `C:\Users\superuser\tools\apache-maven-3.9.16\bin`. 8080은 `java -jar target/kgi-ggreport-web.war`(kgi-ggreport-web에서).
+1. **사용자 터미널 1회**: 037(·040, c0가 SCHEMA_PROBES 040 줄을 넣은 뒤) mysql 직접 적용 → `node kgi-ggreport-web/tools/db/apply-mysql.mjs --mark-applied 033,036,037,038 --dry-run` → 통과면 `--dry-run` 빼고 실제 기록. 039는 89 적용 뒤 따로(mysql 직접 + `--mark-applied 039`).
+2. **병렬**: d9 = war 재빌드 → 8080 → 사용자 관리자 curl 4건(동대문·동작·중구·노원 새 판) → 화면 확인(NEXT 56-3). ∥ 9f = NEXT 89 개정·델타 패치 파일 적용(handoff/agents/backend-dev/2026-11-16_1813·1814, 빌드는 d9 뒤). ∥ c0 = NEXT 30 2단계 화면(frontend-dev-write, 플랜 모드 끄고 — frontend-dev 1821 계획대로).
+3. **9f**: 89 mvn → 039 로컬(사용자) → 8080 재기동 → security(적용분) → 커밋. 89 화면은 c0의 dashboard.js 커밋 뒤(frontend-dev → qa → design_history ㊸, design-reviewer 11-16 규격 6-1·6-2).
+4. **기다리는 동안 9f**: NEXT 90 외부 확인 — collector SCHEMA v1 확장(찾지 못함·보도·매칭 신뢰도)·반입 개인정보 재검사 설계(backend-dev → security).
+5. NEXT 84 남은 하(DENIED·413 URI·동시 저장 OLD_VAL·JSON 400 시험·ApiExceptionHandler 로그 시험, 5xx ApiException 로그 메시지), 56 이관 기획(중구 연차 7행·동작 중복 3건).
+6. **11-20(금) W47**: PM 주간 보고·에이전트별 정리·'이번 주 질문' 표(docs/pm_history), 요구사항 자료 docs/요구사항 파악/index_2026-11-20.html(현황판/공고 현황 역할, 공고 PDF·배점표 현업 질문 Q-36, 종류 6종·기관 정보 변경 창).
+7. **대시보드 공사판(NEXT 31, 4c)**: design_history ㉞ 후속 장 → 고도 구간·공정 조정.
 
-## 11-16 새 작업 — 기관 사업계획(NEXT 56-3)
-- (11-16 저녁 d9) 1단계·표시 정리·결과 확인 기관 제외·대문자 ID·공식 계획서 3구 시드까지 커밋(마지막 30b7625). 언론 정리 19구는 넣지 않음(사용자). **11-17 첫 일: war 재빌드 → 8080 재기동(담당 세션 확인) → 사용자 관리자 curl 4건(동대문·동작·중구·노원 새 판) → 화면 확인.** 정본은 NEXT 56 (3).
+## 내일 다시 물을 것 (질문은 plan 모드 + 선택식, 답 받을 때까지 멈춤)
+- 금고 약정 취소에 영업부장도 포함?(Q-106 후속 — 지금 설계 HeadRules.isLead = 팀장·부장, 기관장 무효와 같음. 답 전에는 팀장·부장 모두로 적용)
+- 로컬 DB 적용 실행(Q-94, 위 1번)
+- 옛 PC 주간 수집 결과 0/3(Q-19, NEXT 80·81)
 
-## 사용자 답 받고 구현 대기
-- **관리자 범위(NEXT 84)**: 사용자 답 ⓐ(11-15) — 전산팀원·전산팀장 모두 관리자. 한 줄 수정으로는 '마지막 관리자' 보호·골든 4건이 깨져 되돌림 → backend-dev(Opus) 설계부터. **다음 세션 ① 병렬 작업에 같이 넣는다.**
-
-## 11-15 사용자 결정 (요약 — 정본은 summary·NEXT·questions.json)
-- PM 주도: 다음 작업 진행 여부는 묻지 않는다(PM이 정하고 메인이 실행). 질문은 업무 의미·실제 값·되돌리기 어려운 일만.
-- 사전준비 확정 취소·중단 사유는 그 건의 현재·옛 담당자도 본다(b877885).
-- 입찰 예정일 확정은 출처(공고 링크·번호) 필수, 개원 예정 법원은 자동 전환 없이 '개원 확인 필요'(030·b04299b). 출처 없던 확정 9곳 중 8곳은 메모의 공고 번호로 확정 유지, 용산은 추정(145fe95).
-- 기관 종류 6종: 시도 교육청은 '교육청'으로 따로, **재단법인은 '기타'로 빼지 않고 공공기관 유지**(32b4767) — PM·기획자 공유.
-- 이관 문의서 3통은 `docs/이관작업/`에 작업 계획으로 정리, **지금은 의논하지 않음** — 내부망 이관 때 사용자가 직접(cc7e9fa).
-- 질문 패널은 대시보드에서 뺌, 답 자동 기록 끔 — 질문 수집 훅만, 답·해소는 메인이 장부에 기록(9b 85b1b6f·9012020).
-
-## 미해결 이슈 상기 (사용자 지시 11-11: 세션 첫 답변에서 핵심 3~5줄 말할 것)
+## 미해결 이슈 상기 (세션 첫 답변에서 3~5줄)
 해소하면 이 목록과 NEXT 항목에서 지우고 done.md로. 정본 세부는 괄호 안 NEXT 번호.
-- **[PUSH-GATE 하 묶음]** capture-questions Stop 경로가 사용자 글을 장부에 씀(다음 푸시 전에 고칠 것), 그 밖 하 등급은 NEXT 84. 원격 저장소 공개 여부 확인.
-- **[운영 배포 조건]** 064② 2단계 전에는 legacy-flow 닫고 배포, DB(026·030~032) 먼저 서버 나중(반대면 기관 목록 500), 회사 Oracle이 11g면 IDENTITY 11개 파일 대체본 필요(docs/이관작업 02-A1, NEXT 9).
-- **[다른 PC 이전]** 옛 PC에만 남는 것: 로컬 DB 시험 행·서울 25 구청장(재등록 대기 — 기관 ID 확정됨, 029~032), `data/collector/` 로그·주간 수집 예약 작업(옛 PC 유지).
-- **[요구사항 자료 캡처 확인]** docs/요구사항 파악/index_2026-11-13.html 캡처의 실명·사번·연락처를 현업에 보내기 전 눈으로 확인.
-- **[보안·위험 수용] SSO 전 운영에서 기관장 기능 켜 둠**(자기신고 사번) — SSO(NEXT 35) 전 정보보호 확인(docs/이관작업 01).
-- **[기관장 남은 것]** 운영 photo-dir 절대경로, 2~4단계, 코드표 읽기 API, 학력·경력 상한, 금지어 목록(기획), 사진 이용 근거(공공저작물).
-- **[NEXT 72 하]** 무잠금 묶음 쓰기(P2-1), 반입 날짜 형식 검사(P2-2), 추정+출처 입력 버림(P3-2, 기획), 출처 미확인 8곳은 메모 번호(원문 재확인은 성북만).
-- **[실화면 1280폭]** 현황판 상세 첫 화면 빈 상자, 6개월 안 수가 화면마다 다름, 지도 상단 '기준 2026-1…' 잘림(NEXT 77·78).
-- **[로그인 슬라이드]** 서울 임박 지도 장은 11-20 뒤 자동 제외, 마포 접수(11-16~19) 뒤 문구·관악·성북 결과 확인(frontend/data/login-slides.js).
-- **[법원·공공기관]** 정보공개청구 여부(NEXT 81), 공공기관 결과 미확인(NEXT 79).
-- **[git 이력 재작성 11-12]** 다른 PC는 새로 clone.
+- **[운영 배포 순서]** DB 먼저(026·030~040) 서버 나중. Oracle 11g면 FETCH FIRST·IDENTITY 대체본(NEXT 9). 064② 2단계 전에는 legacy-flow 닫고 배포.
+- **[할인율 가짜 값]** 코드·문서를 3.30%로 임시로 가림 → 이사회 수익성 화면 숫자도 가짜. 설정값 분리·IRR 칸 연동은 Q-104·105(NEXT 37·66).
+- **[보안 하·위험 수용]** NEXT 84 남은 하, 원격 저장소 공개 여부. SSO 전 기관장 기능 켜 둠(NEXT 35). 기관장 사진 저작권법 24조의2는 로컬 수집만 — 운영 전 다시 확인.
+- **[화면 확인]** 실화면 1280폭(NEXT 77·78), 요구사항 자료 캡처의 실명·사번 확인, 로그인 슬라이드 서울 임박 지도 장 11-20 뒤 제외·마포 결과.
+- **[다른 PC 이전]** 옛 PC에만: 로컬 DB 시험 행·서울 25 구청장, `data/collector/` 로그·주간 수집 예약 작업. git 이력 재작성(11-12) — 다른 PC는 새로 clone.
 
-## 세션 분담 (여러 세션이 동시에 일할 때)
-- 시작할 때 `ListAgents`로 다른 세션을 보고, 쓰기용 에이전트를 부르기 전·서버/DB를 쓰기 전에 그 세션에 담당 파일을 묻는다(11-15 4b·3d·9b가 이 방식으로 충돌 없이 병합). 별도 작업이면 worktree, 병합 동안 다른 세션은 커밋을 멈춘다.
-- 같은 날 summary는 먼저 쓴 세션이 파일을 만들고 다른 세션은 이어 붙이기만. 커밋은 경로 지정, NEXT는 항목 단위 Edit, questions.json은 매번 최신본을 읽고 항목 단위로.
+## 세션 분담
+- 8080·target/: 한 세션씩(아침 d9 → 9f). dashboard.js: c0 먼저, 89 화면은 그 뒤. index.html: c0는 d9 `.pl-*` 블록 끝 뒤에 덧붙임.
+- 9f = 서버·DB 도구·collector, c0 = 공고 상태 화면, d9 = 사업계획·8080 아침, 4c = agent-dashboard(NEXT 31).
+- DB 번호: 039 = 9f 금고 약정(미적용), 040 = c0 NO_BID, 다음 새 파일은 041부터.
+- 커밋은 경로 지정, NEXT는 항목 단위 Edit, questions.json은 최신본을 읽고 항목 단위로.
 
 ## 사용자 목표·방향 (불변)
 내부망에서 화면에 필요한 DB와 LLM 최소 기능. **LLM은 업무 서비스·DB가 다 만들어진 뒤.** DB는 MySQL(로컬)+Oracle(회사) 쌍, **회사 DB에는 외래키 없음**(코드표는 가능), 로컬 MySQL 적용은 `kgi-ggreport-web/tools/db/apply-mysql.mjs`. 메뉴·업무 흐름은 업무 대분류 5 + 시스템 관리. **사무실 PC 전용**(좁은 폭 미지원). **결재 끝난 건의 모든 행위는 누가·어느 화면·어느 버튼인지 기록**(잊지 말 것). 입찰 현황판은 지금 모양 그대로 현업과 무엇을 살릴지 정한다(11-13).
