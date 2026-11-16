@@ -62,7 +62,7 @@
     { id: 'scan', title: '기관·입찰 현황', subs: ['기관', '입찰 공고'], items: [
       soon('기관', '입찰 현황판', '', '', false, DASH_ID, undefined, 'map', true),
       live('기관', '전국 지도', 'map'), live('기관', '전국 지역별', 'regions'),
-      soon('기관', '기관 사업계획'),
+      soon('기관', '기관 사업계획', '', '', false, 'soon:기관 사업계획'),   // 실제 화면(plans.js) — 배지 없음, id는 자동 id와 같게 고정
       soon('입찰 공고', '입찰 공고 현황', undefined, '', false, NOTICE_ID), soon('입찰 공고', '공고 자동 수집')] },
     { id: 'plan', title: '영업 추진 준비', subs: ['준비 과제', '이사회'], items: [
       soon('준비 과제', '제안서 사전준비 프로세스', '', '', false, PREP_ID, TEAM_ROLES),
