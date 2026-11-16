@@ -648,4 +648,12 @@ public class ApprovalLineApiTest {
         JsonNode r = submit(IT_MEMBER, KNOWLEDGE_WRITE, 200);
         assertEquals(1, r.get("steps").size());
     }
+
+    @Test
+    public void 신청_본문에_admin_by_line을_넣어도_관리자_확인은_빠지지_않는다() throws Exception {   // security 11-16 F2(a)
+        JsonNode r = call(MEMBER, post("/approval-requests/perm"),
+                "{\"reason\":\"업무상 필요\",\"admin_by_line\":true,\"changes\":" + APPROVALS_APPROVE + "}", 200);
+        assertEquals(2, r.get("steps").size());
+        assertEquals("ADMIN", r.get("steps").get(1).get("kind").asText());
+    }
 }

@@ -335,7 +335,7 @@ public class ApprovalRequestService {
             // 전산팀 결재선에서 상위 결재자(전산팀장)가 이미 시스템 관리자면 관리자 확인을 그 결재로 갈음한다
             // (2026-11-16 사용자 결정: 전산팀원 권한 신청은 전산팀장 결재로 끝, 범위는 전산팀만 ⓑ). 상신 시점 스냅샷이고,
             // 결재 시점에도 결재하는 사람이 관리자여야 한다(eligibility — 관리자가 아닌 대결자가 혼자 최종 승인하지 못하게).
-            if (needsAdmin && IT_TEAM.equals(Teams.teamOf(me.getRole())) && IT_TEAM.equals(Teams.teamOf(line.getRole()))
+            if (needsAdmin && (IT_TEAM + Teams.TEAM_SUFFIX).equals(me.getRole()) && Teams.leadOf(IT_TEAM).equals(line.getRole())
                     && permissions.canAdmin(line.getEmpNo())) {
                 needsAdmin = false;
                 adminByLine = true;
