@@ -44,8 +44,8 @@ import java.util.zip.ZipFile;
  * </ol>
  *
  * <p>그동안 이 동작을 바꾸지 못한 이유는 {@code /api/files/search} 응답의
- * {@code content} 가 그 문자열을 그대로 싣고 있었기 때문이다. 그 API 가 재정의로
- * <b>삭제</b>되면서(운영 호출부 0건) 계약이 사라졌다.
+ * {@code content} 가 그 문자열을 그대로 싣고 있었기 때문이다. 그 API 는 재정의로 빠졌으나
+ * {@code FileSearchApiController} 에 아직 남아 있다 — 존치·삭제는 NEXT 86 에서 정한다.
  *
  * <p>실패 사유는 <b>로그에만</b> 남긴다 — 응답·파일에는 싣지 않는다.
  */
