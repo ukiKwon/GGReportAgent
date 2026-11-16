@@ -69,6 +69,7 @@ const SITE = (() => {
       } else if (zi < zoneSeen) zoneSeen = zi;
     }
     updateCrane(dt);
+    for (const [k2, y] of [['cab', jibY() + 21], ['top', mainTopY()]]) if (easeY[k2] != null) { const d = y - easeY[k2]; easeY[k2] += Math.sign(d) * Math.min(Math.abs(d), 40 * dt); } // 층이 오르면 건물을 따라 천천히 올라감
     // 백엔드: 일하는 동안 크레인 운전석(1번)·건물 꼭대기(2번째부터)로 1초에 걸쳐 오르내린다
     for (const r of runners) {
       if (r.role !== 'backend') continue;
@@ -82,9 +83,9 @@ const SITE = (() => {
       } else if (!want && k0 <= LIFT_IN && k0 > 0) {
         if (!r.lp) r.lp = { x: LIFT.x, y: LIFT.base };
         if (walkPt(r.lp, r.x, r.y, dt)) { r.ovK = 0; r.lp = null; }
-      } else {
+      } else if (k0 > 0) { // 0이면 지상 동선 그대로(여기서 리프트로 되돌리던 버그, 11-16)
         r.ovK = Math.max(want ? LIFT_IN : 0, Math.min(1, k0 + (want ? dt : -dt) * LIFT_RATE)); // 리프트 상승·하강·운전석으로 걸어 들어감
-        if (!want && r.ovK <= LIFT_IN) { r.ovK = LIFT_IN * 0.999; r.lp = { x: LIFT.x, y: LIFT.base }; }
+        if (!want && k0 > LIFT_IN && r.ovK <= LIFT_IN) { r.ovK = LIFT_IN * 0.999; r.lp = { x: LIFT.x, y: LIFT.base }; }
         if (want && r.ovK >= LIFT_IN) r.lp = null;
       }
       if (want && k0 < LIFT_IN && r.ovK >= LIFT_IN) say(r, '리프트 탑승!', 1.5);
@@ -134,15 +135,17 @@ const SITE = (() => {
   }
 
   /* ---------- 백엔드 위치 덮어쓰기 ---------- */
-  function cabSpot() { return { x: CR.mastX - 2, y: jibY() + 21, s: 0.42, face: -1, pose: 'stand' }; }
+  const easeY = { cab: null, top: null, t: 0 };
+  function smoothY(key, y) { const v = easeY[key]; if (v == null || Math.abs(y - v) > 400) return (easeY[key] = y); return v; } // 실제 값은 update에서 따라감
+  function cabSpot() { return { x: CR.mastX - 2, y: smoothY('cab', jibY() + 21), s: 0.42, face: -1, pose: 'stand' }; }
   function topSpot(r) {
     const sway = Math.sin(simTime * 0.4 + r.slot) * 0.5 + 0.5;
-    return { x: BLD.x + 22 + sway * (BLD.w - 44), y: mainTopY(), s: 0.75, face: Math.cos(simTime * 0.4 + r.slot) > 0 ? 1 : -1, pose: 'stand' };
+    return { x: BLD.x + 22 + sway * (BLD.w - 44), y: smoothY('top', mainTopY()), s: 0.75, face: Math.cos(simTime * 0.4 + r.slot) > 0 ? 1 : -1, pose: 'stand' };
   }
   const LIFT_WALK = 120;
   function walkPt(p, tx, ty, dt) { const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy), m = LIFT_WALK * dt; if (Math.abs(dx) > 0.5) p.face = dx > 0 ? 1 : -1; if (d <= m) { p.x = tx; p.y = ty; return true; } p.x += dx / d * m; p.y += dy / d * m; return false; }
   function place(r) {
-    if (r.el) return { x: r.x, y: r.y, s: 1, face: r.face, pose: r.el.phase === 'ride' ? 'stand' : 'walk' };
+    if (r.el) { const li = fatOf(r.lapF, r.freshAt); return { x: r.x, y: r.y, s: 1, face: r.face, pose: li >= 15 ? 'wheel' : li >= 10 ? 'crawl' : r.el.phase === 'ride' ? 'stand' : 'walk' }; } // 수레·기어가기 자세 유지(qa P3-3)
     if (working(r)) { const st = r.work.st; return { x: r.x, y: r.y, s: 1, face: st.fx == null ? r.face : (st.fx >= r.x ? 1 : -1), pose: st.act === 'cctv' ? 'sit' : 'stand', work: true }; }
     if (r.role !== 'backend' || !r.ovK) return null;
     const tgt = r.extra ? topSpot(r) : cabSpot(), k = r.ovK;
@@ -242,7 +245,7 @@ const SITE = (() => {
   const STAIR = { 1: { pts: [[820, F1], [940, F1 - 70], [820, F2]], el: 0 }, 2: { pts: [[380, F2], [260, F2 - 70], [380, F3]], el: 1 } }; // 키 = 아래층
   const JOBS = {
     security: [[664, 1, 'gate', 2.5, '출입 통제', 640], [262, 1, 'flash', 2.5, '외벽 점검', 240], [540, 2, 'flash', 2.2, '실내 점검'], [770, 3, 'flash', 2.2, '창호 점검', 770]],
-    qa: [[226, 1, 'defect', 2.8, '외벽 하자 확인', 240], [700, 2, 'defect', 2.8, '도장 하자 확인', 720], [480, 3, 'defect', 2.8, '슬래브 균열 확인', 500], [975, 1, 'defect', 2.5, '외벽 하자 확인', 960]],
+    qa: [[226, 1, 'defect', 2.8, '외벽 하자 확인', 240], [700, 2, 'defect', 2.8, '도장 하자 확인', 720], [480, 3, 'defect', 2.8, '슬래브 균열 확인', 500], [870, 1, 'defect', 2.5, '계단 하자 확인', 900]],
     auditor: [[330, 1, 'pickup', 2, '자재 수령'], [532, 2, 'drop', 2, '2층 자재 납품'], [330, 1, 'pickup', 2, '자재 수령'], [697, 3, 'drop', 2, '3층 자재 납품']],
     planner: [[465, 2, 'board', 3.5, '공정표 갱신', 465], [660, 3, 'clip', 2.5, '공정 진척 확인'], [560, 1, 'clip', 2, '자재 일정 확인']],
     designer: [[605, 2, 'draw', 3.5, '도면 수정', 605], [740, 3, 'laser', 2.8, '현장 실측 대조', 800]],
@@ -278,7 +281,7 @@ const SITE = (() => {
   const sOf = r => (((r.t % 1) + 1) % 1) * rtOf(r).len;
   const roleLen = r => rtOf(r).len;
   const rolePos = r => rtPos(rtOf(r), sOf(r), r.R);
-  const startT = r => (6 + (r.slot % 8) * 5 + (r.slot >= 8 ? 2 : 0)) / rtOf(r).len;
+  const startT = r => (2 + (r.slot % 8) * 2 + (r.slot >= 8 ? 1 : 0)) / rtOf(r).len; // 첫 정류장 창(s≥22)보다 앞에서 출발(qa 11-16 P3-2)
   const startPt = r => rtPos(rtOf(r), startT(r) * rtOf(r).len, r.laneR);
   const entry = R => Object.assign(routePos(0, R), { t: 0 }); // 정리반 청소는 공용 왕복 길
   const inExit = (r, tt) => { const L0 = rtOf(r).len, s = tt * L0; return s < 18 || s > L0 - 18; }; // 1층 출입구 근처
@@ -315,7 +318,7 @@ const SITE = (() => {
   function startWork(r, st) {
     r.work = { st, at: simTime, until: simTime + st.dur }; r.lastPop = -1;
     say(r, st.say, 1.4);
-    if (st.act === 'defect') { r.work.mark = { x: st.fx != null ? st.fx : st.x + 20, y: FY[st.f] - 40, ok: false, until: 1e9 }; marks.push(r.work.mark); }
+    if (st.act === 'defect') { r.work.mark = { x: st.fx != null ? st.fx : st.x + 20, y: FY[st.f] - 40, ok: false, until: simTime + st.dur + 8 }; marks.push(r.work.mark); } // 작업이 끊겨도 빨간 표시가 남지 않게(until)
   }
   function endWork(r) {
     const st = r.work.st;
@@ -560,7 +563,7 @@ const SITE = (() => {
   }
   function drawSignalers() { // 치어리더 대체: 깃발 신호수 2명(단면도 왼쪽 바깥)
     const on = waveOn();
-    [[5, 205, 450], [19, 205, 596]].forEach(([i, x, y0]) => {
+    [[5, 150, 450], [19, 150, 596]].forEach(([i, x, y0]) => {
       const ch = cheers[i], jump = on ? Math.abs(Math.sin(simTime * 6 - i * 0.55)) * 4 : 0, y = y0 - jump;
       limb(x - 2, y - 12, x - 2, y, 3, '#2d3436'); limb(x + 2, y - 12, x + 2, y, 3, '#2d3436');
       limb(x, y - 12, x, y - 26, 8, '#c6ff00'); c.fillStyle = '#f5f5f5'; c.fillRect(x - 4, y - 21, 8, 1.5);

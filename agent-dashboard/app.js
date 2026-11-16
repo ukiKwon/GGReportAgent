@@ -299,7 +299,7 @@ function updateRunner(r, dt) {
       if (!r.active) { r.state = 'rest'; r.readyAt = simTime + 1; break; }
       const sp = startPt(r);
       if (walk(r, sp.x, sp.y, 130, dt)) {
-        r.state = 'run'; r.v = 0; r.R = r.laneR; r.t = THEME === 'site' ? SITE.startT(r) : (sp.x - (CX - L)) / pathLen(r.R); r.face = 1;
+        r.state = 'run'; r.v = 0; r.R = r.laneR; r.t = THEME === 'site' ? SITE.startT(r) : (sp.x - (CX - L)) / pathLen(r.R); r.workKey = r.elKey = null; // 새 출근은 정류장·엘리베이터 판단을 처음부터(qa 11-16 P3-1) r.face = 1;
       }
       break;
     }
@@ -1008,7 +1008,7 @@ function step(dt) {
   runners.forEach(r => updateRunner(r, dt));
   for (let i = runners.length - 1; i >= 0; i--) { // 일을 마치고 쉬고 있는 추가 인스턴스는 화면에서 뺀다
     const r = runners[i];
-    if (r.extra && !r.active && r.state === 'rest' && r.settled) { runners.splice(i, 1); buildChips(); }
+    if (r.extra && !r.active && r.state === 'rest' && r.settled && !(r.ovK > 0)) { runners.splice(i, 1); buildChips(); } // 공사판: 리프트에서 걸어 내려오는 중(ovK>0)이면 아직 빼지 않는다(qa 11-16 P2-1)
   }
   updateAmb(dt); updateJanitor(dt); updateSplashRM(); updateCoach(dt); updateCheer(); updateSweat(dt);
   if (THEME === 'site') SITE.update(dt);
