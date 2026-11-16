@@ -5,7 +5,7 @@
 // 추가 칸: orgCode(행정표준 기관코드 7자리, 존폐 0 — docs/samples 기관코드 전체자료 2026-11), parentOrgCode,
 // bidKind('금고'|'공탁금 보관은행'|'주거래은행'), 법원은 courtKind('본원'|'지원')·opStatus('운영'|'개원 예정')·openDate.
 // 법원 contractExpiry: 다음 회차 지정이 끝났으면 새 지정기간의 끝(예: 서울동부·남부 2027~2031 → 2031-12-31), 아니면 현 약정 끝(사용자 결정 2026-11-13).
-// region = 시도 2자리(지도 코드 체계). subRegion = 본사 소재 시군구 폴리곤 코드 (frontend/geo/*.js의 code, 행정표준 시군구 코드 아님) — 소재지 주소를 공식 누리집으로 대조해 채우고 그 URL을 sources 끝에 둔다. 지금은 서울만(2026-11-16 data-auditor, 한국사회복지공제회는 서초·강남 확인 대기), 그 밖의 시도는 비움.
+// region = 시도 2자리(지도 코드 체계). subRegion = 본사 소재 시군구 폴리곤 코드 (frontend/geo/*.js의 code, 행정표준 시군구 코드 아님) — 소재지 주소를 공식 누리집으로 대조해 채우고 그 URL을 sources 끝에 둔다. 지금은 서울만(2026-11-16 data-auditor, 한국사회복지공제회는 도로명주소로 서초구 반포동 확인), 그 밖의 시도는 비움.
 // type: '교육청'·'법원'·'공공기관'·'지방공기업'·'대학'·'병원' — 지도 종류는 logic.kindOf가 접는다(교육청·지방공기업 → 공공기관, e3 11-11).
 (function (root) {
   const E = function (o) { return Object.assign({ type: '교육청', bidKind: '금고', updatedAt: '2026-11-11' }, o); };
@@ -194,8 +194,8 @@
       sources: ['월/일 미확보(결과·약정 연수 미확인) — 주거래은행·법인카드 공고 2026-03-26(R26BK01424392, 마감 04-07) → 재공고 04-08(R26BK01450324, reNtceYn=Y, 마감 04-21)', U('R26BK01424392'), U('R26BK01450324'), 'https://fis.kr/ko/intro/intro/way_to_come'] }),
     G({ name: '경기창조경제혁신센터', region: '41', g2bCode: 'B553527',
       sources: ['월/일 미확보(마감일·결과·약정 연수 미확인) — 공고 2026-03-27(R26BK01425470) → 재공고 04-08(R26BK01450576, reNtceYn=Y), 원문 마감 칸 비어 있음', U('R26BK01425470'), U('R26BK01450576')] }),
-    G({ name: '한국사회복지공제회', region: '11', g2bCode: 'Z028676', bank: '우리은행', lastBid: '2026-03-31', term: 3,
-      sources: ['기준일=나라장터 1차 공고일(2026-03-31, R26BK01431796) — 결과: 우리은행 주거래은행 협약 2026-06-04, 향후 3년(기사; 공고와 같은 건인지 제목 대조는 못 함)', 'http://www.thefairnews.co.kr/news/articleView.html?idxno=78684', U('R26BK01431796')] }),
+    G({ name: '한국사회복지공제회', region: '11', subRegion: '11220', g2bCode: 'Z028676', bank: '우리은행', lastBid: '2026-03-31', term: 3,
+      sources: ['기준일=나라장터 1차 공고일(2026-03-31, R26BK01431796) — 결과: 우리은행 주거래은행 협약 2026-06-04, 향후 3년(기사; 공고와 같은 건인지 제목 대조는 못 함)', 'http://www.thefairnews.co.kr/news/articleView.html?idxno=78684', U('R26BK01431796'), 'https://www.kwcu.or.kr/front/intro/location.do?brd_kind=5&top_no=1'] }),
     G({ name: '한국광기술원', bidKind: '금고', region: '46', g2bCode: 'Z001790',
       sources: ['월/일 미확보(결과·약정 연수 미확인) — 금고(주거래은행) 공고 2026-04-16(R26BK01471721, 마감 04-27) → 재공고 04-27(R26BK01491632, reNtceYn=Y, 마감 05-07)', U('R26BK01471721'), U('R26BK01491632')] }),
     G({ name: '근로복지공단본부', region: '31', g2bCode: 'Z004905', updatedAt: '2026-11-13',
