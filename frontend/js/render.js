@@ -97,6 +97,7 @@
       s.setProperty('--ripple-duration', t.rippleDuration + 's');
     }
     render.drawLegend();   // 색을 바꾸면 범례도 같이 바뀌어야 한다
+    render._watchLegend();
     return t;
   };
 
@@ -111,6 +112,23 @@
   // 색은 localStorage(테마)에서 오므로 style 속성에 그대로 끼우지 않고 hex만 통과시킨다.
   render._safeColor = function (c, fallback) {
     return /^#[0-9a-fA-F]{3,8}$/.test(String(c)) ? String(c) : fallback;
+  };
+  // 범례가 지도 판 아래 띠로 붙어(11-16) 범례 높이가 바뀌면 지도 그림 높이도 바뀐다 — 첫 렌더 뒤 범례 내용이 늘면
+  // 지도 아래쪽이 잘리므로, 높이가 바뀔 때 지금 보이는 지도를 한 번 다시 맞춘다(선택 강조는 유지).
+  render._watchLegend = function () {
+    if (render._legendRO || typeof ResizeObserver === 'undefined' || typeof document === 'undefined') return;
+    const el = document.getElementById('legend'); if (!el) return;
+    let lastH = el.offsetHeight, t = null;
+    render._legendRO = new ResizeObserver(function () {
+      const h = el.offsetHeight; if (h === lastH) return; lastH = h;
+      clearTimeout(t);
+      t = setTimeout(function () {
+        const sel = render._selectedName;
+        if (render.state.currentRegion) render.drawRegion(render.state.currentRegion); else render.drawNational();
+        if (sel) { const rec = render.allInstitutions().filter(function (r) { return r.name === sel; })[0]; if (rec) render.selectInstitution(rec); }
+      }, 80);
+    });
+    render._legendRO.observe(el);
   };
   render.drawLegend = function () {
     if (typeof document === 'undefined') return;

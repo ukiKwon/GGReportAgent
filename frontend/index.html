@@ -807,7 +807,9 @@
   #map-stage { flex:2; position:relative; width:100%; height:100%;
                background:radial-gradient(120% 130% at 30% 15%, #171d28 0%, #101520 55%, #0d1119 100%);
                border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden;
-               box-shadow:var(--shadow); }
+               box-shadow:var(--shadow); display:flex; flex-direction:column; }
+  /* 지도 판: 위 = 지도 그림(남은 높이), 아래 = 범례 띠 — 범례가 면을 덮지 않게(design-reviewer 11-16 A안) */
+  #map-svg { flex:1 1 0; min-height:0; height:auto; }
   #cloud-overlay { position:absolute; inset:0; background:radial-gradient(circle at 50% 45%, rgba(15,18,24,0) 0%, rgba(15,18,24,.85) 70%);
                    opacity:0; pointer-events:none; transition:opacity .7s ease; }
   #cloud-overlay.active { opacity:1; }
@@ -849,21 +851,19 @@
   @media (prefers-reduced-motion: reduce) { .subregion.selected { animation:none; stroke-width:3; } }
   .marker.hi > * { stroke:#fff; stroke-width:2.5; }
 
-  /* 범례 — 진짜 글래스: blur + 1px 엣지 + 이너 하이라이트 */
-  #legend { position:absolute; right:12px; bottom:12px; z-index:6; pointer-events:none;
-            background:rgba(21,26,34,.68); backdrop-filter:blur(10px);
-            border:1px solid rgba(255,255,255,.08); border-radius:12px;
-            box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 8px 24px rgba(8,12,24,.45);
-            padding:9px 12px; font-size:11px; font-family:var(--mono);
-            display:flex; flex-direction:column; gap:5px; }
-  #legend .lg-title { color:var(--muted); font-size:11px; letter-spacing:.08em; margin-bottom:1px; }
+  /* 범례 — 판 하단 도킹 띠(지도 그림 영역 밖). 떠 있는 글래스 상자가 남동쪽 면(서초·강남 등)을 덮던 문제(11-16) */
+  #legend { position:static; flex:none; z-index:auto;
+            display:flex; flex-direction:row; flex-wrap:wrap; align-items:center; column-gap:14px; row-gap:4px;
+            padding:8px 14px 10px; border-top:1px solid var(--line);
+            font-size:11px; font-family:var(--mono); }
+  #legend .lg-title { color:var(--muted); font-size:11px; letter-spacing:.08em; margin:0 2px 0 0; }
   #legend .lg-item { display:flex; align-items:center; gap:7px; white-space:nowrap; }
   #legend .lg-sw { width:12px; height:12px; border-radius:4px; border:1px solid rgba(0,0,0,.35); display:inline-block; }
   #legend .lg-hatch { background-image:repeating-linear-gradient(45deg, rgba(15,18,24,.5) 0 2px, transparent 2px 4px); }
   #legend .lg-tri-row { color:var(--fg); }
   #legend .lg-tri { font-family:var(--mono); font-size:11px; min-width:12px; text-align:center; }
   /* '공고 n' 칩 — 라벨 둘째 줄의 글자와 같은 말. 잉크/바탕을 뒤집은 작은 칩(토큰만) */
-  #legend .lg-nchip { display:inline-block; font:700 10px var(--mono); font-style:normal; color:var(--bg); background:var(--fg); border-radius:4px; padding:0 4px; min-width:12px; text-align:center; }
+  #legend .lg-nchip { display:inline-block; font:700 11px var(--mono); font-style:normal; color:var(--bg); background:var(--fg); border-radius:4px; padding:0 4px; min-width:12px; text-align:center; }
 
   /* 랭킹 — 부드러운 카드 패널, 행 호버 슬라이드 */
   #rank-panel { flex:1; display:none; overflow:auto; max-height:100%;
