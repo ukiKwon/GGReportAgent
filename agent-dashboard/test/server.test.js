@@ -73,48 +73,74 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { console.warn('임시 폴더 정리 실패(수동 삭제 필요):', tmp, e.code); }
 });
 
+const T0 = Date.now(); // 오늘(누적은 하루 유지 — 날짜가 바뀌어야 리셋, 11-16)
 describe('hook session 모드', () => {
   for (const src of ['startup', 'clear']) {
-    it(src + '는 stats를 리셋한다', () => {
-      writeState({ laps: 7, since: 1000 });
+    it(src + '는 같은 날이면 stats를 유지한다', () => {
+      writeState({ laps: 7, since: T0 });
+      const r = hook('session', JSON.stringify({ source: src }));
+      assert.strictEqual(r.status, 0);
+      assert.deepStrictEqual(readState().stats, { laps: 7, since: T0 });
+    });
+    it(src + '는 날짜가 지난 stats를 리셋한다', () => {
+      writeState({ laps: 7, since: 1000, agents: { qa: { lapF: 3, freshAt: 0 } } });
       const r = hook('session', JSON.stringify({ source: src }));
       assert.strictEqual(r.status, 0);
       const s = readState().stats;
       assert.strictEqual(s.laps, 0);
       assert.ok(s.since > 1000);
+      assert.strictEqual(s.agents, undefined);
     });
   }
   const UNCHANGED = [['resume', JSON.stringify({ source: 'resume' })], ['compact', JSON.stringify({ source: 'compact' })], ['빈 입력', ''], ['깨진 JSON', '{broken']];
   for (const [name, input] of UNCHANGED) {
     it(name + '은 stats 불변이고 exit 0', () => {
-      writeState({ laps: 7, since: 1000 });
+      writeState({ laps: 7, since: T0 });
       const r = hook('session', input);
       assert.strictEqual(r.status, 0);
-      assert.deepStrictEqual(readState().stats, { laps: 7, since: 1000 });
+      assert.deepStrictEqual(readState().stats, { laps: 7, since: T0 });
     });
   }
 });
 
 describe('서버 stats POST', () => {
-  before(() => writeState({ laps: 5, since: 1000 }));
+  before(() => writeState({ laps: 5, since: T0 }));
   it('정상 반영', async () => {
-    assert.strictEqual((await postJson({ stats: { laps: 10, since: 1000 } })).status, 204);
-    assert.deepStrictEqual(readState().stats, { laps: 10, since: 1000 });
+    assert.strictEqual((await postJson({ stats: { laps: 10, since: T0 } })).status, 204);
+    assert.deepStrictEqual(readState().stats, { laps: 10, since: T0 });
   });
   it('값 감소는 무시', async () => {
-    await postJson({ stats: { laps: 3, since: 1000 } });
+    await postJson({ stats: { laps: 3, since: T0 } });
     assert.strictEqual(readState().stats.laps, 10);
   });
   it('since 불일치는 무시', async () => {
-    await postJson({ stats: { laps: 99, since: 999 } });
-    assert.deepStrictEqual(readState().stats, { laps: 10, since: 1000 });
+    await postJson({ stats: { laps: 99, since: T0 - 1 } });
+    assert.deepStrictEqual(readState().stats, { laps: 10, since: T0 });
   });
   for (const bad of ['50', -1, null, true, {}]) {
     it('laps=' + JSON.stringify(bad) + '은 무시', async () => {
-      await postJson({ stats: { laps: bad, since: 1000 } });
-      assert.deepStrictEqual(readState().stats, { laps: 10, since: 1000 });
+      await postJson({ stats: { laps: bad, since: T0 } });
+      assert.deepStrictEqual(readState().stats, { laps: 10, since: T0 });
     });
   }
+  it('에이전트별 진행(agents)은 저장되고 줄어들지 않는다(하루 유지)', async () => {
+    await postJson({ stats: { laps: 10, since: T0, agents: { qa: { lapF: 2.5, freshAt: 1 }, backend_2: { lapF: 1.25, freshAt: 0 } } } });
+    assert.deepStrictEqual(readState().stats.agents, { qa: { lapF: 2.5, freshAt: 1 }, backend_2: { lapF: 1.25, freshAt: 0 } });
+    await postJson({ stats: { laps: 10, since: T0, agents: { qa: { lapF: 1, freshAt: 0 } } } });
+    assert.strictEqual(readState().stats.agents.qa.lapF, 2.5);
+  });
+  it('agents의 잘못된 키·값은 버린다', async () => {
+    await postJson({ stats: { laps: 10, since: T0, agents: { __proto__x: { lapF: 9 }, cleaner: { lapF: 9 }, qa_10: { lapF: 9 }, pm: { lapF: -1 }, planner: { lapF: '9' }, designer: { lapF: 3, freshAt: 9 }, auditor: [1] } } });
+    const ag = readState().stats.agents;
+    assert.deepStrictEqual(Object.keys(ag).sort(), ['backend_2', 'qa']);
+  });
+  it('날짜가 지난 stats는 다음 쓰기 때 0부터', async () => {
+    writeState({ laps: 50, since: 1000, agents: { qa: { lapF: 5, freshAt: 0 } } });
+    await postJson({ coach: { task: 'x' } });
+    const s = readState().stats;
+    assert.strictEqual(s.laps, 0); assert.ok(s.since > 1000); assert.strictEqual(s.agents, undefined);
+    writeState({ laps: 10, since: T0 });
+  });
   it('text/plain은 415', async () => {
     assert.strictEqual((await req('POST', '/api/state', { headers: { 'Content-Type': 'text/plain' }, body: '{}' })).status, 415);
   });

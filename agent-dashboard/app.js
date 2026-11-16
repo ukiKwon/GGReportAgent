@@ -261,6 +261,7 @@ function spawnExtra(role, inst) {
   for (let sl = BASE_SLOTS; sl < MAX_SLOTS; sl++) {
     if (used.has(sl)) continue;
     const r = makeRunner(AGENTS.find(a => a.id === role), sl, inst);
+    restoreOne(r); // 이 인스턴스의 오늘 진행을 되살림
     runners.push(r); buildChips(); return r;
   }
   return null; // 자리가 없으면 표시만 생략(표에는 집계)
@@ -1116,12 +1117,20 @@ function syncRole(role, insts) {
   for (let k = rs.length; k < insts.length; k++) { const r = spawnExtra(role, k + 1); if (r) rs.push(r); }
   rs.forEach((r, k) => { const f = insts[k]; r.task = f ? f.task || '' : ''; setActive(r, !!f); });
 }
+/* 에이전트별 진행(lapF·freshAt) 하루 유지 — 새로고침해도 공정 수·피로가 이어진다(사용자 11-16). 서버는 줄어드는 값을 받지 않는다. */
+let savedAgents = {};
+const sentLap = {};
+function restoreOne(r) { const v = savedAgents[r.id]; if (v && v.lapF > r.lapF) { r.lapF = v.lapF; r.freshAt = Math.max(r.freshAt || 0, v.freshAt || 0); } r.lastLap = lapInt(r); }
+function restoreAgents(ag, reset) {
+  savedAgents = ag && typeof ag === 'object' ? ag : {};
+  runners.forEach(r => { if (reset) { r.lapF = 0; r.freshAt = 0; } restoreOne(r); sentLap[r.id] = r.lapF; });
+}
 function applyFeed(j) {
   if (j.coach && typeof j.coach.task === 'string') coachTask = j.coach.task;
   const fs2 = j.stats;
   if (fs2 && Number.isFinite(fs2.since)) {
     const fl = Number.isFinite(fs2.laps) && fs2.laps >= 0 ? Math.floor(fs2.laps) : 0;
-    if (stat.since !== fs2.since) { stat.since = fs2.since; stat.laps = fl; stat.dirty = false; } // 첫 로드 또는 새 세션: feed 값으로 리셋
+    if (stat.since !== fs2.since) { const newDay = stat.since !== null; stat.since = fs2.since; stat.laps = fl; stat.dirty = false; restoreAgents(fs2.agents, newDay); } // 첫 로드는 저장된 진행을 되살리고, 날짜가 바뀌었으면 0부터(하루 유지, 11-16)
     else if (fl > stat.laps) stat.laps = fl; // 다른 탭이 더 앞서 있으면 따라간다(줄어들지 않음)
   }
   const ag = j.agents || {}, now = Date.now();
@@ -1168,11 +1177,14 @@ async function checkVersion() {
 }
 
 setInterval(async () => { // 누적 바퀴수 저장: 변화가 있을 때만, 최대 3초에 한 번
-  if (!stat.dirty || !live || stat.since === null) return;
+  if (!live || stat.since === null) return;
+  const ag = {}; let moved = false;
+  runners.forEach(r => { ag[r.id] = { lapF: Math.round(r.lapF * 1000) / 1000, freshAt: r.freshAt || 0 }; if (Math.abs(r.lapF - (sentLap[r.id] || 0)) >= 0.02) moved = true; });
+  if (!stat.dirty && !moved) return;
   const lp = stat.laps, sn = stat.since;
   try {
-    const res = await fetch('/api/state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stats: { laps: lp, since: sn } }) });
-    if (res.ok && stat.laps === lp && stat.since === sn) stat.dirty = false;
+    const res = await fetch('/api/state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stats: { laps: lp, since: sn, agents: ag } }) });
+    if (res.ok) { for (const k in ag) sentLap[k] = ag[k].lapF; if (stat.laps === lp && stat.since === sn) stat.dirty = false; }
   } catch (e) { /* 서버가 없으면 다음 주기에 재시도 */ }
 }, 3000);
 

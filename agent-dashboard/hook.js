@@ -47,8 +47,8 @@ process.stdin.on('end', () => {
       update(s => { s.coach.task = Array.from(text).slice(0, 40).join(''); s.coach.at = Date.now(); }); // at: 마지막 사용자 프롬프트 시각(closing.js가 사용 중 판단에 씀)
     } else if (mode === 'idle') {
       update(s => { s.coach.task = ''; });
-    } else if (mode === 'session') { // 새 Claude 세션(startup·clear)만 누적 리셋 — resume·compact에서도 SessionStart가 오므로 제외
-      if (p.source === 'startup' || p.source === 'clear') update(s => { s.stats = { laps: 0, since: Date.now() }; });
+    } else if (mode === 'session') { // 누적은 하루 유지(사용자 11-16) — 새 세션에서는 날짜만 확인(바뀌었으면 statefile.normalize가 0부터)
+      if (p.source === 'startup' || p.source === 'clear') update(() => {});
     }
   } catch (_) {}
 });

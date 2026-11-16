@@ -43,7 +43,7 @@ http.createServer((req, res) => {
           if ('stats' in patch) { // stats는 같은 세션(since 일치)일 때만 받고, 값은 줄이지 않는다(여러 탭·지연 쓰기 대비)
             const st = patch.stats, cs = cur.stats;
             const ok = st && typeof st === 'object' && cs && Number.isFinite(st.laps) && st.laps >= 0 && st.laps <= Number.MAX_SAFE_INTEGER && st.since === cs.since;
-            if (ok) patch.stats = { laps: Math.max(cs.laps || 0, Math.floor(st.laps)), since: cs.since }; else delete patch.stats;
+            if (ok) { patch.stats = { laps: Math.max(cs.laps || 0, Math.floor(st.laps)), since: cs.since }; const ag = store.mergeAgents(cs.agents, st.agents); if (Object.keys(ag).length) patch.stats.agents = ag; } else delete patch.stats; // agents: 에이전트별 진행(하루 유지, 11-16)
           }
           merge(cur, patch);
         });
