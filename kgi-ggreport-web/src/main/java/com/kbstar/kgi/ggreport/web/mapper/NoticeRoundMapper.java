@@ -43,6 +43,9 @@ public interface NoticeRoundMapper {
     /** 열린 회차마다 최신 판정 + 기관의 지금 LAST_BID. */
     List<NoticeRoundView> selectOpenCurrent();
 
+    /** 입찰 없음(NO_BID)으로 닫힌 회차가 그 기관의 마지막 회차인 기관마다 그 회차의 최신 판정 + 기관의 지금 LAST_BID. 기준값 비교(advanced)는 서비스가 한다. */
+    List<NoticeRoundView> selectClosedNoBidCurrent();
+
     List<NoticeRound> selectRounds(@Param("institutionId") String institutionId, RowBounds rb);
 
     List<NoticeRoundLog> selectLogs(@Param("institutionId") String institutionId, RowBounds rb);

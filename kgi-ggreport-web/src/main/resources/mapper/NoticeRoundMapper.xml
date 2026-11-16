@@ -76,6 +76,21 @@
      ORDER BY r.INSTITUTION_ID, r.ROUND_SEQ DESC
   </select>
 
+  <!-- 040: 입찰 없음(NO_BID)으로 닫힌 회차가 그 기관의 가장 큰 회차(= 열린 회차 없음)일 때만. 기관 자료가 그 뒤로 넘어갔는지는 서비스가 CLOSED_LAST_BID(없으면 ANCHOR)와 CUR_LAST_BID 로 판정한다. -->
+  <select id="selectClosedNoBidCurrent" resultType="NoticeRoundView" flushCache="true">
+    SELECT r.INSTITUTION_ID, r.ROUND_SEQ, r.ANCHOR_LAST_BID, r.CLOSED_LAST_BID, r.CLOSE_REASON_CD, i.LAST_BID AS CUR_LAST_BID,
+           l.REV_NO, l.STATUS_CD, l.NEXT_CHECK_DATE, l.HANDLER_NAME, l.EMP_VERIFIED, l.HANDLED_AT
+      FROM NOTICE_ROUND r
+      JOIN NOTICE_ROUND_LOG l ON l.INSTITUTION_ID = r.INSTITUTION_ID AND l.ROUND_SEQ = r.ROUND_SEQ
+      LEFT JOIN INSTITUTIONS i ON i.INSTITUTION_ID = r.INSTITUTION_ID
+     WHERE r.CLOSED_AT IS NOT NULL AND r.CLOSE_REASON_CD = 'NO_BID'
+       AND NOT EXISTS (SELECT 1 FROM NOTICE_ROUND m
+                        WHERE m.INSTITUTION_ID = r.INSTITUTION_ID AND m.ROUND_SEQ > r.ROUND_SEQ)
+       AND NOT EXISTS (SELECT 1 FROM NOTICE_ROUND_LOG n
+                        WHERE n.INSTITUTION_ID = l.INSTITUTION_ID AND n.ROUND_SEQ = l.ROUND_SEQ AND n.REV_NO > l.REV_NO)
+     ORDER BY r.INSTITUTION_ID
+  </select>
+
   <select id="selectRounds" resultType="NoticeRound" flushCache="true">
     SELECT <include refid="roundCols"/> FROM NOTICE_ROUND WHERE INSTITUTION_ID = #{institutionId} ORDER BY ROUND_SEQ DESC
   </select>

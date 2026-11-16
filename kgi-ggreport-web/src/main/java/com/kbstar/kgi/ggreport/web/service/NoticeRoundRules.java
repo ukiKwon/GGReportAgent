@@ -25,7 +25,8 @@ final class NoticeRoundRules {
     static final String IN_PROGRESS = "IN_PROGRESS";
     static final String CLOSED = "CLOSED";
     static final String DELAYED = "DELAYED";
-    static final Set<String> STATUSES = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(IN_PROGRESS, CLOSED, DELAYED)));
+    static final String NO_BID = "NO_BID";   // 입찰 없음(연장·지정) — 저장하면 서버가 그 회차를 바로 닫는다(040)
+    static final Set<String> STATUSES = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(IN_PROGRESS, CLOSED, DELAYED, NO_BID)));
     static final int OPINION_MAX = 500;
     static final int NEXT_CHECK_MAX_DAYS = 366;   // 팀 결정(열린 질문 3) — 끝없는 대기로 미처리에서 영영 빠지는 것을 막는다
     static final int AUTO_DAYS_MAX = 36600;
@@ -67,7 +68,12 @@ final class NoticeRoundRules {
         Integer autoDays;
     }
 
-    /** 기관 자료가 다음 회차로 넘어갔나 — 둘 다 있고 지금 값이 기준보다 뒤일 때만. NULL·같음·앞당김은 false(닫지 않음). */
+    /** 저장하면 지금 열린 일이 끝나는 판정인가 — 진행 중 제안 확인 창(ACTIVE_PREP_CONFIRM_REQUIRED) 대상이고 다음 확인일을 두지 않는다. */
+    static boolean ends(String status) {
+        return CLOSED.equals(status) || NO_BID.equals(status);
+    }
+
+    /** 기관 자료가 다음 회차로 넘어갔나— 둘 다 있고 지금 값이 기준보다 뒤일 때만. NULL·같음·앞당김은 false(닫지 않음). */
     static boolean advanced(String anchor, String current) {
         LocalDate a = looseDate(anchor);
         LocalDate c = looseDate(current);
@@ -127,7 +133,11 @@ final class NoticeRoundRules {
             throw bad("opinion", "지연·재공고 대기로 적을 때는 의견이 필요합니다. 왜 늦어지는지 적으세요.");
         }
 
-        String nc = CLOSED.equals(st) ? null : trim(in.getNextCheckDate());   // 공고 종료는 다음 확인일을 두지 않는다(화면도 숨김)
+        if (p.opinion == null && NO_BID.equals(st)) {
+            throw bad("opinion", "입찰 없음(연장·지정)으로 적을 때는 의견이 필요합니다. 어떻게 알게 됐는지 적으세요.");
+        }
+
+        String nc = ends(st) ? null : trim(in.getNextCheckDate());   // 공고 종료·입찰 없음은 다음 확인일을 두지 않는다(화면도 숨김)
         if (nc != null) {
             LocalDate d = date(nc);
             if (d == null || !d.isAfter(today)) {

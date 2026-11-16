@@ -102,12 +102,12 @@ public class NoticeRoundSchemaTest {
     }
 
     @Test
-    public void 공통_코드_네_그룹이_13행이다() {
-        assertEquals(13, (int) jdbc.queryForObject("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP IN"
+    public void 공통_코드_네_그룹이_14행이다() {
+        assertEquals(14, (int) jdbc.queryForObject("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP IN"
                 + " ('NOTICE_ROUND_SRC','NOTICE_ROUND_CLOSE','NOTICE_DUE_BASIS','NOTICE_AUTO_KIND')", Integer.class));
         assertEquals(3, (int) jdbc.queryForObject(
                 "SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP = 'NOTICE_ROUND_SRC'", Integer.class));
-        assertEquals(2, (int) jdbc.queryForObject(
+        assertEquals(3, (int) jdbc.queryForObject(
                 "SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP = 'NOTICE_ROUND_CLOSE'", Integer.class));
         assertEquals(3, (int) jdbc.queryForObject(
                 "SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP = 'NOTICE_DUE_BASIS'", Integer.class));

@@ -174,6 +174,23 @@ public class NoticeRoundRulesTest {
     }
 
     @Test
+    public void 입찰_없음은_의견이_필요하고_다음_확인일을_버린다() {
+        String m = assertBad(in(null, 0, "NO_BID", "   ", null), "opinion");
+        assertTrue(m.startsWith("입찰 없음(연장·지정)으로 적을 때는 의견이 필요합니다."));
+        NoticeRoundRules.Parsed p = NoticeRoundRules.parse(in(null, 0, "NO_BID", "약정 1년 연장 통보", tomorrow()), TODAY);
+        assertEquals("NO_BID", p.status);
+        assertNull(p.nextCheck);
+    }
+
+    @Test
+    public void ends는_종료와_입찰_없음만_참이다() {
+        assertTrue(NoticeRoundRules.ends("CLOSED"));
+        assertTrue(NoticeRoundRules.ends("NO_BID"));
+        assertFalse(NoticeRoundRules.ends("IN_PROGRESS"));
+        assertFalse(NoticeRoundRules.ends("DELAYED"));
+    }
+
+    @Test
     public void 의견은_500자까지이고_코드포인트로_센다() {
         opinionBad(repeat("가", 501));
         String emoji = repeat(EMOJI, 500);   // 코드 포인트 500(UTF-16 1000)

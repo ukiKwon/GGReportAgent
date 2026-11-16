@@ -27,10 +27,10 @@ public class CommonCodeSchemaTest {
     private JdbcTemplate jdbc;
 
     @Test
-    public void 공고_상태_3종이_시드돼_있다() {
+    public void 공고_상태_4종이_시드돼_있다() {
         List<String> codes = jdbc.queryForList(
                 "SELECT CODE FROM COMMON_CODE WHERE CODE_GROUP = 'NOTICE_STATUS' ORDER BY SORT_NO", String.class);
-        assertEquals(Arrays.asList("IN_PROGRESS", "CLOSED", "DELAYED"), codes);
+        assertEquals(Arrays.asList("IN_PROGRESS", "CLOSED", "DELAYED", "NO_BID"), codes);
     }
 
     @Test
@@ -47,10 +47,10 @@ public class CommonCodeSchemaTest {
     public void 협약_구분은_시드하지_않았다() {
         // 기획 미확정 — 값을 지어내 넣지 않는다.
         assertEquals(0, count("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP = 'CONTRACT_KIND'"));
-        // 019 ASSIGN_ACTION·020 BOARD_STATUS·BOARD_RESULT·024·025 PREP_* 는 다른 기능의 코드표라 제외(남는 것 = NOTICE_STATUS 3행).
+        // 019 ASSIGN_ACTION·020 BOARD_STATUS·BOARD_RESULT·024·025 PREP_* 는 다른 기능의 코드표라 제외(남는 것 = NOTICE_STATUS 4행).
         // 026 HEAD_*·PHOTO_LICENSE 8그룹(기관장 정보)도 같은 이유로 제외. 030 INST_OP_STATUS(기관 운영 상태)도 제외.
         // 034 PLAN_* 7그룹(기관 사업계획)도 같은 이유로 제외. 037 NOTICE_ROUND_*·NOTICE_DUE_BASIS·NOTICE_AUTO_KIND 4그룹(공고 상태 기록)도 제외.
-        assertEquals(3, count("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP NOT IN ('ASSIGN_ACTION', 'BOARD_STATUS', 'BOARD_RESULT', 'PREP_STATE', 'PREP_KIND', 'PREP_JUDGE', 'PREP_EVENT', 'PREP_PII',"
+        assertEquals(4, count("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP NOT IN ('ASSIGN_ACTION', 'BOARD_STATUS', 'BOARD_RESULT', 'PREP_STATE', 'PREP_KIND', 'PREP_JUDGE', 'PREP_EVENT', 'PREP_PII',"
                 + " 'HEAD_STATUS', 'HEAD_ORIGIN', 'HEAD_FIELD', 'HEAD_ITEM_STATE', 'HEAD_SRC', 'HEAD_PHOTO_STATE', 'PHOTO_LICENSE', 'HEAD_EVENT', 'INST_OP_STATUS',"
                 + " 'PLAN_SRC_KIND', 'PLAN_CHECK', 'PLAN_BUDGET_STATE', 'PLAN_BUDGET_UNIT', 'PLAN_PROGRESS', 'PLAN_ORIGIN', 'PLAN_ACTION',"
                 + " 'NOTICE_ROUND_SRC', 'NOTICE_ROUND_CLOSE', 'NOTICE_DUE_BASIS', 'NOTICE_AUTO_KIND')"));

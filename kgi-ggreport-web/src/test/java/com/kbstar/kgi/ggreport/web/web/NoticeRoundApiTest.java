@@ -166,6 +166,29 @@ public class NoticeRoundApiTest {
         saveOk(SALES, body(null, 0, "DELAYED", "게시판 공고 없음", tomorrow()));
     }
 
+    private static int instItems(JsonNode current, String inst) {
+        int n = 0;
+        for (JsonNode it : current.path("items")) {
+            if (inst.equals(it.path("institution_id").asText())) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    private static JsonNode instItem(JsonNode current, String inst) {
+        for (JsonNode it : current.path("items")) {
+            if (inst.equals(it.path("institution_id").asText())) {
+                return it;
+            }
+        }
+        return null;
+    }
+
+    private static String noBid() throws Exception {
+        return body(null, 0, "NO_BID", "기관이 약정 1년 연장 통보", null);
+    }
+
     // ── 열람·권한 ────────────────────────────────────────────────────────
 
     @Test
@@ -438,6 +461,145 @@ public class NoticeRoundApiTest {
         assertFalse(json(r).path("round_opened").asBoolean());
         assertEquals("2026-10-20", jdbc.queryForObject("SELECT ANCHOR_LAST_BID FROM NOTICE_ROUND WHERE INSTITUTION_ID = ?", String.class, INST));
         assertEquals(1, roundRows());
+    }
+
+    // ── 입찰 없음(040) ───────────────────────────────────────────────────
+
+    @Test
+    public void 입찰_없음_저장은_201이고_회차를_바로_닫는다() throws Exception {
+        MvcResult r = saveOk(SALES, noBid());
+        assertEquals(1, json(r).path("round_seq").asInt());
+        assertTrue(json(r).path("round_opened").asBoolean());
+        assertTrue(json(r).path("round_closed").asBoolean());
+        assertEquals("NO_BID", json(r).path("status_cd").asText());
+        Map<String, Object> row = jdbc.queryForMap("SELECT * FROM NOTICE_ROUND WHERE INSTITUTION_ID = ? AND ROUND_SEQ = 1", INST);
+        assertEquals("NO_BID", row.get("CLOSE_REASON_CD"));
+        assertEquals("3918264", row.get("CLOSED_BY"));
+        assertEquals("2022-10-18", row.get("CLOSED_LAST_BID"));
+        assertTrue(row.get("CLOSED_AT") != null);
+        assertEquals(0, count("SELECT COUNT(*) FROM NOTICE_ROUND WHERE INSTITUTION_ID = ? AND CLOSED_AT IS NULL", INST));
+        assertEquals(1, logRows());
+    }
+
+    @Test
+    public void 일반_저장은_round_closed가_false다() throws Exception {
+        MvcResult r = saveOk(SALES, body(null, 0, "DELAYED", "게시판 공고 없음", tomorrow()));
+        assertFalse(json(r).path("round_closed").asBoolean());
+    }
+
+    @Test
+    public void 입찰_없음은_의견이_없으면_400_아무것도_쓰지_않는다() throws Exception {
+        MvcResult r = save(SALES, "save", INST, body(null, 0, "NO_BID", null, null));
+        assertEquals(400, r.getResponse().getStatus());
+        assertEquals(0, logRows());
+        assertEquals(0, roundRows());
+    }
+
+    @Test
+    public void 입찰_없음도_진행_중_제안이_있으면_확인을_요구한다() throws Exception {
+        activePrep("IN_PROGRESS");
+        MvcResult r = save(SALES, "save", INST, noBid());
+        assertEquals(409, r.getResponse().getStatus());
+        assertEquals("ACTIVE_PREP_CONFIRM_REQUIRED", json(r).path("detail").path("code").asText());
+        assertEquals(0, roundRows());
+        assertEquals(0, logRows());
+        MvcResult ok = save(SALES, "save_confirmed", INST, noBid());
+        assertEquals(201, ok.getResponse().getStatus());
+        assertEquals(1, count("SELECT ACTIVE_PREP FROM NOTICE_ROUND_LOG WHERE INSTITUTION_ID = ?", INST));
+        assertEquals(0, count("SELECT COUNT(*) FROM NOTICE_ROUND WHERE INSTITUTION_ID = ? AND CLOSED_AT IS NULL", INST));
+    }
+
+    @Test
+    public void 입찰_없음_뒤_저장은_새_회차이고_옛_회차_번호는_409() throws Exception {
+        saveOk(SALES, noBid());
+        MvcResult old = save(SALES, "save", INST, body(1, 1, "IN_PROGRESS", null, null));
+        assertEquals(409, old.getResponse().getStatus());
+        assertEquals("ROUND_CHANGED", json(old).path("detail").path("code").asText());
+        MvcResult ok = saveOk(SALES, body(null, 0, "IN_PROGRESS", null, null));
+        assertEquals(2, json(ok).path("round_seq").asInt());
+        assertTrue(json(ok).path("round_opened").asBoolean());
+        assertFalse(json(ok).path("round_closed").asBoolean());
+    }
+
+    @Test
+    public void 입찰_없음_뒤_current는_그_기관을_round_closed_true로_내보낸다() throws Exception {
+        saveOk(SALES, noBid());
+        JsonNode cur = current(SALES);
+        assertEquals(1, instItems(cur, INST));
+        JsonNode it = instItem(cur, INST);
+        assertEquals("NO_BID", it.path("status_cd").asText());
+        assertTrue(it.path("round_closed").asBoolean());
+        assertEquals("NO_BID", it.path("close_reason_cd").asText());
+        assertEquals(1, it.path("round_seq").asInt());
+        assertEquals(1, it.path("rev_no").asInt());
+        assertEquals("김영업", it.path("handler_name").asText());
+        assertTrue(it.path("next_check_date").isNull());
+    }
+
+    @Test
+    public void 열린_회차_항목은_round_closed_false_close_reason_null이다() throws Exception {
+        firstSave();
+        JsonNode it = instItem(current(SALES), INST);
+        assertFalse(it.path("round_closed").asBoolean());
+        assertTrue(it.path("close_reason_cd").isNull());
+    }
+
+    @Test
+    public void 입찰_없음_뒤_기관_자료가_넘어가면_current에서_빠진다() throws Exception {
+        saveOk(SALES, noBid());
+        setLastBid("2022-10-18");      // 같음 — 안 넘어감
+        assertTrue(hasInst(current(SALES), INST));
+        setLastBid("2020-01-01");      // 앞당김 — 안 넘어감
+        assertTrue(hasInst(current(SALES), INST));
+        setLastBid("2026-10-20");      // 넘어감
+        assertFalse(hasInst(current(SALES), INST));
+    }
+
+    @Test
+    public void 입찰_없음_뒤_새_회차를_열면_current는_새_회차_한_건만_낸다() throws Exception {
+        saveOk(SALES, noBid());
+        saveOk(SALES, body(null, 0, "IN_PROGRESS", null, null));
+        JsonNode cur = current(SALES);
+        assertEquals(1, instItems(cur, INST));
+        JsonNode it = instItem(cur, INST);
+        assertEquals(2, it.path("round_seq").asInt());
+        assertEquals("IN_PROGRESS", it.path("status_cd").asText());
+        assertFalse(it.path("round_closed").asBoolean());
+    }
+
+    @Test
+    public void 자료가_넘어가서_닫힌_회차는_current에_나오지_않는다() throws Exception {
+        firstSave();
+        jdbc.update("UPDATE NOTICE_ROUND SET CLOSED_AT = '2026-11-16T00:00:00+09:00', CLOSE_REASON_CD = 'SOURCE_ADVANCED',"
+                + " CLOSED_BY = '3918264', CLOSED_LAST_BID = '2022-10-18' WHERE INSTITUTION_ID = ? AND ROUND_SEQ = 1", INST);
+        assertFalse(hasInst(current(SALES), INST));
+    }
+
+    @Test
+    public void 기준이_둘_다_비면_입찰_없음은_새_회차가_열릴_때까지_처리됨으로_남는다() throws Exception {
+        setLastBid(null);
+        saveOk(SALES, noBid());
+        assertNull(jdbc.queryForObject("SELECT CLOSED_LAST_BID FROM NOTICE_ROUND WHERE INSTITUTION_ID = ? AND ROUND_SEQ = 1", String.class, INST));
+        setLastBid("2026-10-20");
+        assertTrue(hasInst(current(SALES), INST));   // 비교할 기준이 없어 넘어감을 알 수 없다(알려진 한계)
+    }
+
+    @Test
+    public void 입찰_없음_회차의_history는_닫힘_NO_BID() throws Exception {
+        saveOk(SALES, noBid());
+        JsonNode h = json(getAs(IT, "/institutions/" + INST + "/notice-rounds"));
+        JsonNode r0 = h.path("rounds").get(0);
+        assertFalse(r0.path("open").asBoolean());
+        assertFalse(r0.path("stale").asBoolean());
+        assertEquals("NO_BID", r0.path("close_reason_cd").asText());
+        assertEquals("NO_BID", r0.path("logs").get(0).path("status_cd").asText());
+    }
+
+    @Test
+    public void 입찰_없음도_열람만_하는_사용자나_디자이너는_저장_403() throws Exception {
+        assertEquals(403, save(IT, "save", INST, noBid()).getResponse().getStatus());
+        assertEquals(403, save(DESIGNER, "save", INST, noBid()).getResponse().getStatus());
+        assertEquals(0, roundRows());
     }
 
     // ── 이력 조회 ────────────────────────────────────────────────────────

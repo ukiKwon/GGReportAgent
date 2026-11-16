@@ -37,7 +37,8 @@ import java.util.Set;
  *   <li>회차 키 = 기관 + 회차 순번. 회차 행은 첫 판정 저장 때 생긴다. 기관당 열린 회차 1개 — 기관 행 FOR UPDATE 로 직렬화.</li>
  *   <li>회차 닫힘: 저장 때 서버 DB 의 INSTITUTIONS.LAST_BID 가 ANCHOR_LAST_BID 보다 뒤면 닫고 새 회차에 적는다(화면 값으로 닫지 않는다).</li>
  *   <li>낙관적 잠금: 화면이 본 (round_seq, base_rev_no) 가 지금과 다르면 409(STALE·ROUND_CHANGED).</li>
- *   <li>'공고 종료' + 진행 중 제안 → 버튼이 save_confirmed 가 아니면 409 ACTIVE_PREP_CONFIRM_REQUIRED(막지 않고 확인만 요구).</li>
+ *   <li>'공고 종료'·'입찰 없음' + 진행 중 제안 → 버튼이 save_confirmed 가 아니면 409 ACTIVE_PREP_CONFIRM_REQUIRED(막지 않고 확인만 요구).</li>
+ *   <li>'입찰 없음(NO_BID, 040)은 이력 INSERT 뒤 같은 트랜잭션에서 그 회차를 닫는다(CLOSE_REASON NO_BID). current() 는 그 회차가 기관의 마지막 회차이고 기관 자료가 넘어가지 않았으면 round_closed=true 로 함께 내보낸다.</li>
  *   <li>저장 자격 = 기관 레코드 수정 권한 AND 영업팀·영업팀장·영업부장({@link #canJudge}) — 컨트롤러 거부와 current() 의 can_edit 가 같은 함수를 쓴다(security 11-16 중-1·중-4).</li>
  * </ul>
  * ⚠️ 처리자는 Actor(X-Emp-No 자기신고일 수 있음)로만 채운다. 경과·미처리·자동 표시는 화면이 계산하고 서버는 스냅샷만 남긴다(planner 11-16 Q-07 ②).
@@ -46,6 +47,7 @@ import java.util.Set;
 public class NoticeRoundService {
 
     static final String CLOSE_SOURCE_ADVANCED = "SOURCE_ADVANCED";
+    static final String CLOSE_NO_BID = "NO_BID";
     static final String SRC_INST_DATA = "INST_DATA";
     static final int HISTORY_ROUNDS = 20;
     static final int HISTORY_LOGS = 200;
@@ -88,22 +90,39 @@ public class NoticeRoundService {
             if (NoticeRoundRules.advanced(v.getAnchorLastBid(), v.getCurLastBid())) {
                 continue;
             }
-            Map<String, Object> m = new LinkedHashMap<String, Object>();
-            m.put("institution_id", v.getInstitutionId());
-            m.put("round_seq", v.getRoundSeq());
-            m.put("rev_no", v.getRevNo());
-            m.put("status_cd", v.getStatusCd());
-            m.put("next_check_date", v.getNextCheckDate());
-            m.put("handler_name", v.getHandlerName());
-            m.put("emp_verified", v.getEmpVerified() == 1);
-            m.put("handled_at", v.getHandledAt());
-            items.add(m);
+            items.add(currentItem(v, false));
+        }
+        // 040: 입찰 없음으로 닫힌 회차 — 열린 회차가 있는 기관은 위에서 이미 seen 이라 건너뛴다. 기준 = 닫을 때 읽은 LAST_BID(없으면 회차를 열 때 값)
+        for (NoticeRoundView v : mapper.selectClosedNoBidCurrent()) {
+            if (!seen.add(v.getInstitutionId())) {
+                continue;
+            }
+            String base = v.getClosedLastBid() != null ? v.getClosedLastBid() : v.getAnchorLastBid();
+            if (NoticeRoundRules.advanced(base, v.getCurLastBid())) {
+                continue;   // 그 뒤로 기관 자료가 다음 회차로 넘어감 — 화면은 '기록 없음'으로 센다
+            }
+            items.add(currentItem(v, true));
         }
         Map<String, Object> out = new LinkedHashMap<String, Object>();
         out.put("items", items);
         out.put("can_edit", canJudge(empNo));
         out.put("today", Times.todayKst());
         return out;
+    }
+
+    private static Map<String, Object> currentItem(NoticeRoundView v, boolean closed) {
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        m.put("institution_id", v.getInstitutionId());
+        m.put("round_seq", v.getRoundSeq());
+        m.put("rev_no", v.getRevNo());
+        m.put("status_cd", v.getStatusCd());
+        m.put("next_check_date", v.getNextCheckDate());
+        m.put("handler_name", v.getHandlerName());
+        m.put("emp_verified", v.getEmpVerified() == 1);
+        m.put("handled_at", v.getHandledAt());
+        m.put("round_closed", closed);
+        m.put("close_reason_cd", closed ? v.getCloseReasonCd() : null);
+        return m;
     }
 
     @Transactional(readOnly = true)
@@ -188,10 +207,12 @@ public class NoticeRoundService {
         }
         List<String> active = preps.selectActiveStatesByInstitution(inst);
         String activeState = active.isEmpty() ? null : active.get(0);
-        if (NoticeRoundRules.CLOSED.equals(p.status) && activeState != null && !NoticeUiIds.SAVE_CONFIRMED.equals(ui.getButton())) {
+        if (NoticeRoundRules.ends(p.status) && activeState != null && !NoticeUiIds.SAVE_CONFIRMED.equals(ui.getButton())) {
             Map<String, Object> d = new LinkedHashMap<String, Object>();
             d.put("code", "ACTIVE_PREP_CONFIRM_REQUIRED");
-            d.put("message", "진행 중인 제안이 있습니다. 공고 종료로 기록하려면 확인한 뒤 다시 저장하세요.");
+            d.put("message", "진행 중인 제안이 있습니다. "
+                    + (NoticeRoundRules.NO_BID.equals(p.status) ? "입찰 없음으로" : "공고 종료로")
+                    + " 기록하려면 확인한 뒤 다시 저장하세요.");
             d.put("prep_state_cd", activeState);
             throw ApiException.withDetail(409, d);
         }
@@ -201,6 +222,7 @@ public class NoticeRoundService {
         }
         int seq;
         boolean opened = false;
+        boolean roundClosed = false;
         try {
             if (curSeq == null) {
                 seq = mapper.selectMaxRoundSeq(inst) + 1;
@@ -234,6 +256,10 @@ public class NoticeRoundService {
             row.setUiValid(ui.isValid() ? 1 : 0);
             row.setHandledAt(now);
             mapper.insertLog(row);
+            if (NoticeRoundRules.NO_BID.equals(p.status)) {   // 같은 트랜잭션·같은 기관 잠금 안 — 이력 INSERT 뒤 그 회차를 닫는다
+                mapper.closeRound(inst, seq, now, CLOSE_NO_BID, actor.getEmpNo(), ref.getLastBid());
+                roundClosed = true;
+            }
         } catch (DuplicateKeyException e) {   // 잠금이 있어 정상 경로에선 오지 않는다 — PK 가 마지막 방어선
             throw conflict("STALE", "다른 사람이 먼저 기록했습니다. 최신 기록을 확인하고 다시 저장하세요.", null);
         }
@@ -243,6 +269,7 @@ public class NoticeRoundService {
         out.put("round_seq", seq);
         out.put("rev_no", curRev + 1);
         out.put("round_opened", opened);
+        out.put("round_closed", roundClosed);
         out.put("closed_round_seq", closedSeq);
         out.put("status_cd", p.status);
         out.put("next_check_date", p.nextCheck);
