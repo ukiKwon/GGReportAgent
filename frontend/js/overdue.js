@@ -18,7 +18,7 @@
     open: false,
     opened: null,         // 펼쳐 둔 묶음(data-group) 집합 — 다시 그려도 유지. null이면 기본값
     wired: false,
-    pop: null,            // 팝업이 열려 있는 동안 {who, date, dash, returnTo} — dash: 현황판 위에서 열렸는지
+    pop: null,            // 팝업이 열려 있는 동안 {who, date, dest, returnTo} — dest: 'notice'(입찰 공고 현황) | 'map'(지도 경과 패널)
   };
 
   // 같은 파일이 브라우저(전역)와 node(테스트) 양쪽에서 돌도록 render는 늦게 찾는다.
@@ -102,8 +102,8 @@
   ov.HINT_POP = '관심 지역이 없어 최근에 지난 순으로 골랐습니다. 전국 지역별 화면에서 지역 카드의 별을 누르면 그 지역 건이 먼저 나옵니다. 관심 지역은 PC마다 따로 저장됩니다.';
 
   // 팝업에 채울 값 전부(순수). 상위 5건: 관심 지역 먼저, 최근에 지난 순, 확인 중은 뒤.
-  // onDash: 현황판 위에서 열리면 안내 줄의 목적지도 현황판 경과 묶음으로(design-reviewer 11-16).
-  ov.popupParts = function (summary, watched, dateStr, onDash) {
+  // dest: 'notice'면 안내 줄의 목적지가 입찰 공고 현황의 [공고 예정일 경과] 탭, 아니면 지도 경과 패널(design-reviewer 11-16 6-B).
+  ov.popupParts = function (summary, watched, dateStr, dest) {
     const items = (summary && summary.items) || [];
     const w = watched || [];
     const top = logic.pickTopOverdue(items, w, 5);
@@ -119,7 +119,7 @@
       cap: '먼저 볼 ' + top.length + '건 (관심 지역 먼저, 최근에 지난 순)',
       listHtml: top.map(function (it) { return ov.itemHtml(it, false); }).join(''),
       more: items.length > 5 ? '외 ' + (items.length - 5) + '건은 '
-        + (onDash ? '현황판의 [공고 예정일 경과]에서' : '경과 패널에서') + ' 볼 수 있습니다.' : '',
+        + (dest === 'notice' ? '입찰 공고 현황의 [공고 예정일 경과]에서' : '경과 패널에서') + ' 볼 수 있습니다.' : '',
       hint: w.length ? '' : ov.HINT_POP,
     };
   };
@@ -272,15 +272,26 @@
 
   function onMap() { const v = $('tab-map'); return !!(v && v.classList.contains('active')); }
   function goMap() { const b = $('tab-btn-map'); if (b && !onMap()) b.click(); }
-  // 로그인 경과 팝업의 마지막 버튼 — 현황판 위에서 뜨면 현황판의 경과 묶음으로, 지도 위에서 뜨면 지금처럼 경과 패널로(design-reviewer 11-16 P1-2).
+  // 로그인 경과 팝업의 마지막 버튼 — 입찰 공고 현황 메뉴가 있으면 그 경과 탭으로, 없으면 지금처럼 지도 경과 패널로(사용자 11-16, design 6-B).
   ov.POP_ALL_MAP = '경과 패널에서 전체 보기';
-  ov.POP_ALL_DASH = '현황판에서 경과 건 보기';
-  ov.popAllLabel = function (onDash) { return onDash ? ov.POP_ALL_DASH : ov.POP_ALL_MAP; };
-  // 현황판이 지금 보이는지: 탭 활성 + 마운트 + #dash-root가 숨지 않음(같은 #tab-soon 자리의 사전준비·이사회 화면이면 false — qa 11-16 P3-1).
-  function onDash() {
-    const v = $('tab-soon'), d = root.dashboard, el = $('dash-root');
-    return !!(v && v.classList.contains('active') && el && el.style.display !== 'none'
-      && d && d.isMounted && d.isMounted());
+  ov.POP_ALL_NOTICE = '입찰 공고 현황에서 보기';
+  ov.popAllLabel = function (dest) { return dest === 'notice' ? ov.POP_ALL_NOTICE : ov.POP_ALL_MAP; };
+  // 목적지 판정(열 때와 누를 때 두 번): 입찰 공고 현황 항목이 메뉴에 있고 본체가 있으면 'notice'.
+  // 영업 계열 밖에는 그 메뉴가 안 보이므로 자연히 'map'으로 떨어진다.
+  function popDest() {
+    const A = root.app, N = root.nav, D = root.dashboard;
+    return !!(A && A.findNavItem && N && N.NOTICE_ID && A.findNavItem(N.NOTICE_ID) && D && D.mount) ? 'notice' : 'map';
+  }
+  // 입찰 공고 현황이 지금 보이는지: 탭 활성 + 마운트 + #notice-root가 숨지 않음.
+  function onNotice() {
+    const v = $('tab-soon'), d = root.dashboard, el = $('notice-root');
+    return !!(v && v.classList.contains('active') && el && el.style.display !== 'none' && d && d.isMounted && d.isMounted());
+  }
+  function goNotice() {
+    const N = root.nav;
+    if (!onNotice() && !(root.app && root.app.openNavItem && root.app.openNavItem(N.NOTICE_ID))) return false;   // 이미 열려 있으면 다시 마운트하지 않는다
+    if (root.dashboard.showPast) root.dashboard.showPast();
+    return true;
   }
 
   // 팝업 '전체 보기'와 토글(전국 지역별 화면에서)이 쓴다: 지도 화면으로 옮긴 뒤 패널을 연다.
@@ -313,8 +324,8 @@
 
   ov.showPopup = function (who, dateStr) {
     const pop = $('ov-pop'); if (!pop) return false;
-    const dash = onDash();
-    const p = ov.popupParts(ov.state.summary, watched(), dateStr, dash);
+    const dest = popDest();
+    const p = ov.popupParts(ov.state.summary, watched(), dateStr, dest);
     const set = function (id, html) { const e = $(id); if (e) e.innerHTML = html; };
     set('ov-pop-n', esc(p.nText));
     set('ov-pop-sum', esc(p.sum));
@@ -323,9 +334,9 @@
     set('ov-pop-list', p.listHtml);
     const more = $('ov-pop-more'); if (more) { more.textContent = p.more; more.hidden = !p.more; }
     const hint = $('ov-pop-hint'); if (hint) { hint.textContent = p.hint; hint.hidden = !p.hint; }
-    const allBtn = $('ov-pop-all'); if (allBtn) allBtn.textContent = ov.popAllLabel(dash);
+    const allBtn = $('ov-pop-all'); if (allBtn) allBtn.textContent = ov.popAllLabel(dest);
     const ae = document.activeElement;
-    ov.state.pop = { who: who, date: dateStr, dash: dash, returnTo: ae && ae !== document.body ? ae : null };
+    ov.state.pop = { who: who, date: dateStr, dest: dest, returnTo: ae && ae !== document.body ? ae : null };
     pop.style.display = 'block';
     const t = $('ov-pop-title'); if (t) t.focus();
     return true;
@@ -339,8 +350,9 @@
     pop.style.display = 'none';
     ov.state.pop = null;
     if (restore === false) return;
-    // 열기 직전 포커스가 사라졌으면(로그인 폼) 사이드바 '전국 지도' 항목으로 간다.
-    const back = visible(st.returnTo) ? st.returnTo : document.querySelector('#side-nav .nav-item[data-nav="map"]');
+    // 열기 직전 포커스가 사라졌으면(로그인 폼·body) 사이드바의 지금 화면 항목, 그것도 없으면 '전국 지도' 항목으로 간다.
+    const back = visible(st.returnTo) ? st.returnTo
+      : (document.querySelector('#side-nav .nav-item[aria-current="page"]') || document.querySelector('#side-nav .nav-item[data-nav="map"]'));
     if (back && back.focus) back.focus();
   };
 
@@ -398,10 +410,14 @@
     });
     if (all) all.addEventListener('click', function () {
       const st = ov.state.pop;
-      // 열 때 판정에 더해 누르는 순간에도 현황판이 보이는지 다시 본다(열린 뒤 지도로 옮겨진 경우 — qa 11-16 P3-2).
-      const toDash = !!(st && st.dash && onDash() && root.dashboard.showPast);
+      // 열 때 판정에 더해 누르는 순간에도 목적지를 다시 본다(메뉴 권한이 바뀐 경우 — qa 11-16 P3-2).
+      const toNotice = popDest() === 'notice';
       ov.closePopup(false);
-      if (toDash) root.dashboard.showPast(); else ov.openPanel(true);   // 현황판 위면 지도로 끌지 않는다
+      if (!toNotice) { ov.openPanel(true); return; }
+      if (!goNotice()) {   // 탭이 가득 차 화면이 안 옮겨지면(안내는 app이 띄움) 포커스만 지금 화면 항목으로 돌린다
+        const back = document.querySelector('#side-nav .nav-item[aria-current="page"]');
+        if (back && back.focus) back.focus();
+      }
     });
 
     // Esc·배경 클릭·Tab은 이 팝업이 직접 처리한다 — app.wireModalDismiss의 전역 Esc는

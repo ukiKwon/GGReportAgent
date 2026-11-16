@@ -237,6 +237,7 @@
     lastRecorded = null;
     if (root.headcard && root.headcard.onProfileChange) root.headcard.onProfileChange();   // 앞 사용자가 읽은 기관장 카드·사진·모달을 버린다
     if (root.dashboard && root.dashboard.closeDetail) root.dashboard.closeDetail(false);   // 앞 사용자가 연 지도 상세 팝업(기관장 카드 포함)을 닫는다
+    if (root.kbboard && root.kbboard.onProfileChange) root.kbboard.onProfileChange();      // 앞 사용자의 준비 중 제안·단계 집계를 버린다
     if (root.notify && root.notify.onProfileChange) root.notify.onProfileChange();
     if (root.approvals && root.approvals.onProfileChange) root.approvals.onProfileChange();
     if (root.myinfo && root.myinfo.onProfileChange) root.myinfo.onProfileChange();
@@ -362,7 +363,8 @@
       repaint: function () {
         if (root.render.state.currentRegion) root.render.drawRegion(root.render.state.currentRegion);
         root.render.drawTicker();
-        if (root.dashboard && root.dashboard.refresh) root.dashboard.refresh();   // 현황판이 열려 있으면 다시 그린다
+        if (root.dashboard && root.dashboard.refresh) root.dashboard.refresh();   // 입찰 공고 현황이 열려 있으면 다시 그린다
+        if (root.kbboard && root.kbboard.refresh) root.kbboard.refresh();         // 입찰 현황판도 같다
       },
     }));
   };
@@ -529,7 +531,9 @@
     const isPrep = !!(root.prep && itemId === root.prep.SOON_ID);
     const isDash = !!(root.nav && itemId === root.nav.DASH_ID);
     const isPlans = !!(root.plans && itemId === root.plans.SOON_ID);   // 기관 사업계획(서버 map 키 읽기 전용 화면)
-    const dashReady = isDash && !!(root.dashboard && root.dashboard.mount);   // 본체가 아직 없으면 안내만 보인다
+    const dashReady = isDash && !!(root.kbboard && root.kbboard.mount);   // 본체(국민은행 상태, kbboard.js)가 아직 없으면 안내만 보인다
+    const isNotice = !!(root.nav && itemId === root.nav.NOTICE_ID);        // 입찰 공고 현황 = 전국 공고 목록(dashboard.js, #notice-root)
+    const noticeReady = isNotice && !!(root.dashboard && root.dashboard.mount);
     if (isDash && !dashReady) {
       document.getElementById('soon-note').textContent = '입찰 현황판은 준비 중입니다.';
     }
@@ -539,6 +543,9 @@
     document.getElementById('pp-root').style.display = isPrep ? '' : 'none';
     const dashEl = document.getElementById('dash-root');
     if (dashEl) dashEl.style.display = dashReady ? '' : 'none';
+    const noticeEl = document.getElementById('notice-root');
+    if (noticeEl) noticeEl.style.display = noticeReady ? '' : 'none';
+    if (noticeReady) document.getElementById('soon-plain').style.display = 'none';   // (soon-plain 숨김 한 줄에 noticeReady를 섞지 않는다 — isPlans 줄 보존)
     const plansEl = document.getElementById('plans-root');
     if (plansEl) plansEl.style.display = isPlans ? '' : 'none';
     navActiveId = itemId;
@@ -546,7 +553,8 @@
     if (isBoard) root.board.mount();
     if (isTeam) root.tm.mount();
     if (isPrep) root.prep.mount();
-    if (dashReady) root.dashboard.mount(dashEl);
+    if (dashReady) root.kbboard.mount(dashEl);
+    if (noticeReady && noticeEl) root.dashboard.mount(noticeEl);
     if (isPlans && plansEl) root.plans.mount(plansEl);
   };
 
@@ -563,10 +571,11 @@
     if (!pendingHome || !root.nav) return;
     if (!root.store.loadSession()) return;   // 로그인 화면 뒤에서는 아직 기다린다
     pendingHome = false;
-    if (!(root.dashboard && root.dashboard.mount)) { flushOverdue(); return; }
+    if (!(root.kbboard && root.kbboard.mount)) { flushOverdue(); return; }
     const id = root.nav.homeItemId(navBuilt, navActiveId, navTabs, navContext());
     const item = id ? findNavItem(id) : null;
-    if (item) { overduePending = null; navHoming = true; try { openNavItem(item); } finally { navHoming = false; } } else flushOverdue();
+    if (item) { navHoming = true; try { openNavItem(item); } finally { navHoming = false; } }
+    flushOverdue();   // 현황판이 열린 '뒤에' 경과 팝업을 띄운다(사용자 11-16, design P1-2) — 열기 전에 띄우면 팝업 뒤에서 화면이 바뀌어 포커스가 엇갈린다
   }
 
   // 화면이 바뀔 때마다(어느 경로든) 불린다: 활성 항목 갱신 → 탭 보관 → 그 카테고리만 열기.
@@ -630,6 +639,7 @@
     const found = findNavItem(id);
     return found ? openNavItem(found) : false;
   };
+  app.findNavItem = findNavItem;   // overdue.js 팝업이 '입찰 공고 현황 메뉴가 보이는가'를 판정한다(영업 계열 밖은 지도로 떨어짐)
 
   function closeNavTab(id) {
     const r = root.nav.closeTab(navTabs, id, navActiveId);
@@ -859,11 +869,11 @@
     app.paintUserArea();
     // 공고 예정일 경과 요약 팝업 — 영업 계열에게만, '오늘 더 이상 보지 않기'를 안 눌렀을 때만(overdue.js).
     // 둘러보기(guest)는 소속이 없어 영업 계열이 아니므로 뜨지 않는다.
-    // 첫 화면이 입찰 현황판(영업 계열 + 본체 있음)이면 같은 '경과' 정보를 팝업으로 또 보이지 않는다(사용자 결정 11-11).
-    // 메뉴 권한이 오기 전이라 확정할 수 없으므로, 현황판이 열릴 것으로 보면 미뤄 두고 applyHome이 실제 결과로 정한다
+    // 첫 화면이 입찰 현황판(영업 계열 + 본체 있음)이어도 경과 팝업을 띄운다 — 경과 목록이 입찰 공고 현황으로 옮겨 갔다(사용자 11-16).
+    // 다만 현황판이 열리기 전에 띄우면 화면이 팝업 뒤에서 바뀌므로, 메뉴 권한이 오기 전에는 미뤄 두고 applyHome이 현황판을 연 뒤에 띄운다
     // (applyHome이 onProfileChanged 안에서 바로 불릴 수 있어 그 전에 정해 둔다).
     const args = { ctx: navContext(), id: session.emp || session.id || '' };
-    const deferOverdue = root.nav.expectsDashHome(args.ctx, !!(root.dashboard && root.dashboard.mount));
+    const deferOverdue = root.nav.expectsDashHome(args.ctx, !!(root.kbboard && root.kbboard.mount));
     overduePending = deferOverdue ? args : null;
     app.onProfileChanged();
     if (!deferOverdue && root.overdue && root.overdue.onLogin) root.overdue.onLogin(args.ctx, args.id);

@@ -14,7 +14,7 @@ import java.util.Set;
 public final class HeadUiIds {
 
     public static final Set<String> SCREENS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
-            "bid_board", "head_card", "head_queue", "head_unmatched", "head_photo_changes", "prep_detail", "map_popover")));
+            "bid_board", "bid_notice", "head_card", "head_queue", "head_unmatched", "head_photo_changes", "prep_detail", "map_popover")));
     public static final Set<String> BUTTONS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             "open_card", "refresh", "head_add", "head_confirm", "head_reject", "item_add", "item_confirm", "item_reject",
             "item_withdraw", "item_void", "photo_upload", "photo_view", "photo_void", "photo_restore", "open_queue",

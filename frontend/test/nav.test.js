@@ -69,17 +69,17 @@ test('준비중 항목은 영업 계열(영업팀·팀장·부장·디자이너�
   });
 });
 
-test('둘러보기(역할 없음): 입찰 현황판(서버 map 키 전원)·지도·지역별만, 그 밖의 준비중 없음', function () {
+test('둘러보기(역할 없음): 입찰 현황판·입찰 공고 현황(서버 map 키 전원)·지도·지역별만, 그 밖의 준비중 없음', function () {
   const built = nav.build(GUEST, { role: '' });
   assert.deepStrictEqual(ids(built), ['scan']);
-  assert.deepStrictEqual(items(built, 'scan').map(function (i) { return i.id; }), ['soon:현황판', 'map', 'regions']);
+  assert.deepStrictEqual(items(built, 'scan').map(function (i) { return i.id; }), ['soon:현황판', 'map', 'regions', 'soon:입찰 공고 현황']);
 });
 
 test('비영업 팀: 구현 화면 + 예외(이사회 부의·pending 키) 외 준비중은 없다', function () {
   const v = Object.assign({}, ALL_ON, { approvals: false, admin: false });
   const built = nav.build(v, { role: '예산팀' });
   assert.deepStrictEqual(ids(built), ['scan', 'plan', 'manage', 'tools']);
-  const EXCEPT = ['soon:이사회 자료', 'soon:현황판'];
+  const EXCEPT = ['soon:이사회 자료', 'soon:현황판', 'soon:입찰 공고 현황'];
   built.forEach(function (c) {
     c.items.filter(function (i) { return EXCEPT.indexOf(i.id) < 0 && !i.pending; })
       .forEach(function (i) { assert.strictEqual(i.soon, false, i.id); });
@@ -275,10 +275,11 @@ test('이사회 자료 작성: 영업 계열이 아니어도 tasks 조회 권한
   // 영업팀은 기존대로(tasks 여부와 무관하게 보임)
   assert.ok(hasBoard(ALL_ON, { role: '영업팀' }));
   assert.ok(hasBoard(noTasks, { role: '영업팀' }));
-  // 다른 준비중 항목은 영업 계열이 아니면 tasks가 있어도 안 보인다(예외: 이사회 부의, pending 키 항목)
+  // 다른 준비중 항목은 영업 계열이 아니면 tasks가 있어도 안 보인다(예외: 이사회 부의, pending 키 항목,
+  // 서버 map 키로 보이는 입찰 현황판·입찰 공고 현황 — 11-16 공고 현황도 타팀 공유)
   const others = nav.build(ALL_ON, { role: '전산팀' }).reduce(function (n, c) {
     return n + c.items.filter(function (i) {
-      return i.soon && !i.pending && i.id !== 'soon:이사회 자료' && i.id !== nav.DASH_ID;
+      return i.soon && !i.pending && i.id !== 'soon:이사회 자료' && i.id !== nav.DASH_ID && i.id !== nav.NOTICE_ID;
     }).length;
   }, 0);
   assert.strictEqual(others, 0);
@@ -291,14 +292,17 @@ test('준비중 라벨은 정의 전체에서 유일하다(라벨 기반 id의 �
   assert.strictEqual(labels.length, 18);   // scan 4(입찰 현황판 포함)·plan 5·manage 4·relate 2·tools 3
 });
 
-test('입찰 공고 현황: id는 soon:입찰 공고 현황 고정(NOTICE_ID), 배지 준비중', function () {
+test('입찰 공고 현황: id는 soon:입찰 공고 현황 고정(NOTICE_ID), 배지 없음(실제 화면 — 11-16)', function () {
   assert.strictEqual(nav.NOTICE_ID, 'soon:입찰 공고 현황');
   const it = nav.CATEGORIES.filter(function (c) { return c.id === 'scan'; })[0].items
     .filter(function (i) { return i.id === nav.NOTICE_ID; })[0];
   assert.ok(it, 'NOTICE_ID 항목이 scan에 있다');
   assert.strictEqual(it.label, '입찰 공고 현황');
   assert.strictEqual(it.sub, '입찰 공고');
-  assert.strictEqual(nav.badgeOf(it), '준비중');
+  assert.strictEqual(it.withKey, 'map');   // 영업 계열 제한 없이 서버 map 키가 켜진 사람 전원(현황판과 같음)
+  assert.ok(nav.build(ALL_ON, { role: '예산팀' }).some(function (c) { return c.items.some(function (i) { return i.id === nav.NOTICE_ID; }); }));
+  assert.ok(!nav.build(Object.assign({}, ALL_ON, { map: false }), { role: '영업팀' }).some(function (c) { return c.items.some(function (i) { return i.id === nav.NOTICE_ID; }); }));
+  assert.strictEqual(nav.badgeOf(it), '');
 });
 
 test('badgeOf: 이사회 자료는 배지 없음, 준비중 항목은 "준비중"(F4)', function () {

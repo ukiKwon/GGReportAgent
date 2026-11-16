@@ -20,7 +20,7 @@ public final class InstUiIds {
     public static final String BUTTON_IMPORT = "import_upsert";
 
     public static final Set<String> SCREENS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
-            "institution_edit", "map_popover", "bid_board")));
+            "institution_edit", "map_popover", "bid_board", "bid_notice")));
     public static final Set<String> BUTTONS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             "save_basic", "save_schedule", "save_open_status", "open_edit")));
 

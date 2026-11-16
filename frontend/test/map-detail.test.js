@@ -141,7 +141,7 @@ test('headcard 화면 이름: ensure 4번째 인자 → 조회 요청의 X-Scree
   assert.ok(h.indexOf('hc.ensure(rec.institutionId, env.repaint, env.emp, env.screen)') > 0);
   assert.ok(h.indexOf('undefined, mine.screen || undefined)') > 0);
   const d = read('js/dashboard.js');
-  assert.ok(d.indexOf("screen: 'map_popover'") > 0);
+  assert.ok(d.indexOf("(opts && opts.screen) || 'map_popover'") > 0 && d.indexOf('screen: m.screen') > 0);   // 기본 map_popover, 현황판은 bid_board를 넘긴다(11-16)
   const java = fs.readFileSync(path.join(ROOT, '..', 'kgi-ggreport-web', 'src', 'main', 'java', 'com', 'kbstar', 'kgi', 'ggreport', 'web', 'support', 'HeadUiIds.java'), 'utf8');
   assert.ok(java.indexOf('"map_popover"') > 0 && java.indexOf('"open_card"') > 0);
 });
@@ -194,8 +194,8 @@ test('postConfirm(대비 경로): 화면·버튼 머리글을 싣는다 — 현�
 
 test('dashboard.js: 두 [확정]은 직접 fetch하지 않고 postConfirm으로 화면 id를 넘긴다', function () {
   const src = read('js/dashboard.js');
-  assert.ok(src.indexOf("dash.postConfirm(id, 'bid_board')") >= 0);
-  assert.ok(src.indexOf("dash.postConfirm(id, 'map_popover')") >= 0);
+  assert.ok(src.indexOf("dash.postConfirm(id, 'bid_notice')") >= 0);   // 입찰 공고 현황의 감사 화면 이름(11-16, 서버 허용 목록에 반영됨)
+  assert.ok(src.indexOf("dash.postConfirm(id, m.screen)") >= 0);
   const rest = src.replace(/dash\.postConfirm = function[\s\S]*?\r?\n  };\r?\n/, '');
   assert.ok(rest.length < src.length, 'postConfirm 본문을 걸러냈다');
   assert.strictEqual((rest.match(/fetch\('\/preps', \{ method: 'POST'/g) || []).length, 0);

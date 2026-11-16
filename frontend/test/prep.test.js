@@ -84,7 +84,7 @@ test('app.js: showSoon이 사전준비·현황판 분기를 처리하고, 첫 �
   assert.ok(APP_SRC.indexOf('root.prep.mount()') > 0);
   assert.ok(APP_SRC.indexOf("document.getElementById('pp-root').style.display") > 0);
   assert.ok(APP_SRC.indexOf('itemId === root.nav.DASH_ID') > 0);
-  assert.ok(APP_SRC.indexOf('root.dashboard.mount(dashEl)') > 0);
+  assert.ok(APP_SRC.indexOf('root.kbboard.mount(dashEl)') > 0);   // 입찰 현황판 본체는 kbboard(국민은행 상태), 공고 목록은 입찰 공고 현황(dashboard)으로 분리(11-16)
   assert.ok(APP_SRC.indexOf('입찰 현황판은 준비 중입니다.') > 0);
   assert.ok(APP_SRC.indexOf('root.prep.onProfileChange()') > 0);
   assert.ok(/app\.openNavItem = function \(id\)/.test(APP_SRC));
@@ -92,12 +92,12 @@ test('app.js: showSoon이 사전준비·현황판 분기를 처리하고, 첫 �
   assert.ok(/app\.enterApp = function \(session, profile\) \{\s*pendingHome = true;/.test(APP_SRC));
   assert.ok(APP_SRC.indexOf('root.nav.homeItemId(navBuilt, navActiveId, navTabs, navContext())') > 0);
   assert.ok(/applyHome\(\);\s*\};/.test(APP_SRC));
-  // ② 첫 화면이 현황판이면(영업 계열 + 본체 있음) 경과 요약 팝업을 부르지 않는다
-  // 현황판이 열릴 것으로 보면 팝업을 미루고(overduePending), 실제로 안 열리면 applyHome이 그때 띄운다(flushOverdue)
-  assert.ok(/root\.nav\.expectsDashHome\(args\.ctx, !!\(root\.dashboard && root\.dashboard\.mount\)\)/.test(APP_SRC));
+  // ② 첫 화면이 현황판이면(영업 계열 + 본체 있음) 경과 요약 팝업을 현황판이 열린 '뒤'에 띄운다
+  // 현황판이 열릴 것으로 보면 팝업을 미루고(overduePending), applyHome이 화면을 연 다음 띄운다(flushOverdue, 11-16)
+  assert.ok(/root\.nav\.expectsDashHome\(args\.ctx, !!\(root\.kbboard && root\.kbboard\.mount\)\)/.test(APP_SRC));
   assert.ok(/if \(!deferOverdue && root\.overdue && root\.overdue\.onLogin\)/.test(APP_SRC));
   // 홈 자동 열림은 navHoming 표시를 켜고 연다(사이드바 저장값을 덮어쓰지 않게 — nav.navigatedOpen auto)
-  assert.ok(/if \(item\) \{ overduePending = null; navHoming = true; try \{ openNavItem\(item\); \} finally \{ navHoming = false; \} \} else flushOverdue\(\);/.test(APP_SRC));
+  assert.ok(/if \(item\) \{ navHoming = true; try \{ openNavItem\(item\); \} finally \{ navHoming = false; \} \}\s*flushOverdue\(\);/.test(APP_SRC));
   assert.ok(/overduePending = deferOverdue \? args : null;\s*app\.onProfileChanged\(\);/.test(APP_SRC));
   // 공용 모달 닫기에서 #pp-modal은 제외(prep.js가 requestClose로 처리)
   assert.ok(/ov\.id !== 'tm-modal' && ov\.id !== 'pp-modal'/.test(APP_SRC));
@@ -354,7 +354,7 @@ test('소스: 첨부·지도 확정은 PrepUiIds 허용값을 보낸다', functi
     assert.ok(SRC.indexOf("'" + id + "'") > 0, id);
   });
   // 지도 상세 팝업의 [확정]은 dashboard.js가 공용 postConfirm에 화면 이름 map_popover를 실어 보낸다
-  assert.ok(fs.readFileSync(path.join(__dirname, '..', 'js', 'dashboard.js'), 'utf8').indexOf("dash.postConfirm(id, 'map_popover')") > 0);
+  assert.ok(fs.readFileSync(path.join(__dirname, '..', 'js', 'dashboard.js'), 'utf8').indexOf("dash.postConfirm(id, m.screen)") > 0);   // 화면 이름은 팝업을 연 쪽이 정한다(기본 map_popover, 현황판 bid_board — 11-16)
   assert.ok(SRC.indexOf('NAME_FIX') < 0);
 });
 

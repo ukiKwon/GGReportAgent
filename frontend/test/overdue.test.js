@@ -356,7 +356,7 @@ test('popupParts: 총 건수, 시·도별 건수, 상위 5건, 외 N건, 관심 
   assert.ok(p.sidoHtml.includes('<b>7</b>') && p.sidoHtml.includes('<b>1</b>'));
   assert.strictEqual((p.listHtml.match(/<li class="ov-item"/g) || []).length, 5);
   assert.strictEqual(p.more, '외 3건은 경과 패널에서 볼 수 있습니다.');
-  assert.strictEqual(ov.popupParts(s, [], '2026-11-09', true).more, '외 3건은 현황판의 [공고 예정일 경과]에서 볼 수 있습니다.');
+  assert.strictEqual(ov.popupParts(s, [], '2026-11-09', 'notice').more, '외 3건은 입찰 공고 현황의 [공고 예정일 경과]에서 볼 수 있습니다.');
   assert.ok(p.hint.includes('관심 지역이 없어'));
   const w = ov.popupParts(s, ['41'], '2026-11-09');
   assert.strictEqual(w.hint, '');
@@ -407,17 +407,19 @@ test('경과 도장·확인 중 아이콘은 render.ICONS에 있다(문자 아�
   assert.ok(render.ICONS.check.startsWith('<svg'));
 });
 
-test('팝업 전체 보기 버튼: 현황판 위면 "현황판에서 경과 건 보기", 지도 위면 기존 문구, "처리" 없음(design-reviewer 11-16 P1-2)', function () {
-  assert.strictEqual(ov.popAllLabel(true), '현황판에서 경과 건 보기');
-  assert.strictEqual(ov.popAllLabel(false), '경과 패널에서 전체 보기');
-  assert.ok(ov.popAllLabel(true).indexOf('처리') < 0 && ov.popAllLabel(false).indexOf('처리') < 0);
+test('팝업 전체 보기 버튼: 입찰 공고 현황 메뉴가 있으면 "입찰 공고 현황에서 보기", 없으면 기존 문구, "처리" 없음(design 11-16 6-B)', function () {
+  assert.strictEqual(ov.popAllLabel('notice'), '입찰 공고 현황에서 보기');
+  assert.strictEqual(ov.popAllLabel('map'), '경과 패널에서 전체 보기');
+  assert.strictEqual(ov.popAllLabel(), ov.POP_ALL_MAP);
+  assert.strictEqual(ov.POP_ALL_DASH, undefined);
+  assert.ok(ov.popAllLabel('notice').indexOf('처리') < 0 && ov.popAllLabel('map').indexOf('처리') < 0);
 });
 
-test('팝업 전체 보기 클릭 분기: 현황판이면 dashboard.showPast, 아니면 openPanel(지도 이동)', function () {
+test('팝업 전체 보기 클릭 분기: 공고 현황 메뉴가 있으면 dashboard.showPast(goNotice), 없으면 openPanel(지도 이동)', function () {
   const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'overdue.js'), 'utf8');
   const dsrc = fs.readFileSync(path.join(__dirname, '..', 'js', 'dashboard.js'), 'utf8');
-  assert.ok(/st\.dash && onDash\(\) && root\.dashboard\.showPast/.test(src));
-  assert.ok(/if \(toDash\) root\.dashboard\.showPast\(\); else ov\.openPanel\(true\)/.test(src));
-  assert.ok(src.indexOf('dash: dash') > 0);
-  assert.ok(/dash\.isMounted = /.test(dsrc) && /dash\.showPast = /.test(dsrc));
+  assert.ok(/function popDest\(\)/.test(src) && /function goNotice\(\)/.test(src));
+  assert.ok(/if \(!toNotice\) \{ ov\.openPanel\(true\)/.test(src));
+  assert.ok(src.indexOf('dest: dest') > 0);
+  assert.ok(/dash\.isMounted = /.test(dsrc) && /dash\.showPast = /.test(dsrc) && /dash\.selectKey = /.test(dsrc));
 });

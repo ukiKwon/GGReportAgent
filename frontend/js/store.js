@@ -148,6 +148,18 @@
     try { write('tbd.dashWindow', key); return true; } catch (e) { return false; }
   };
 
+  // 입찰 현황판(국민은행이 맡은 기관 목록) 기간 버튼 — 입찰 공고 현황(tbd.dashWindow)과 따로 저장한다(서로 끌려가지 않게, 2026-11-16).
+  store.loadHbWindow = function () {
+    try {
+      const v = read('tbd.hbWindow', null);
+      return store.DASH_WINDOWS.indexOf(v) >= 0 ? v : '6';
+    } catch (e) { return '6'; }
+  };
+  store.saveHbWindow = function (key) {
+    if (store.DASH_WINDOWS.indexOf(key) < 0) return false;
+    try { write('tbd.hbWindow', key); return true; } catch (e) { return false; }
+  };
+
   // 사이드바 마지막 열림 분류(하나만 열리는 아코디언). 키 = tbd.navOpen.<사번|guest>, 값 = 분류 id 하나.
   // 사번이 아닌 값은 guest로, 분류 id 모양이 아닌 값은 없는 것으로 본다(허용 목록 검증은 nav.validOpen이 이어서 한다).
   function navOpenKey(who) { return 'tbd.navOpen.' + (/^[0-9]{7}$/.test(who || '') ? who : 'guest'); }

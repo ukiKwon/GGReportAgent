@@ -1,7 +1,7 @@
 // 국민은행이 현 금고(1·2금고 합산)인 지자체 — 행안부 「2026년 지방자치단체 금고지정 현황」(2026.1.1. 기준,
 // 지방재정365 통합자료실 xlsx)에서 금고은행이 '국민은행'인 회계를 모두 뽑았다(NEXT 77·14, 2026-11-11 9f).
 // slot: 일반회계를 맡으면 1(1금고·주금고), 일반회계 밖 회계만 맡으면 2(2금고·부금고 — 특별회계·기금 일부).
-// 현 약정 기준이다. 2026 회차 결과로 2027년부터 바뀌는 곳은 next에 적었다(기사·공고 원문, 화면은 아직 쓰지 않음).
+// 현 약정 기준이다. 2026 회차 결과로 2027년부터 바뀌는 곳은 next에 적었다(기사·공고 원문, 입찰 현황판 행의 '회차 소식' 줄 — kbboard.js).
 // key = logic.instKey(region|name). 이전 판(11-11 오전, 기사 문장 6곳)은 모두 이 표로 재확인됐다.
 // 72 약정 기록(DB)이 생기면 이 파일을 대체한다.
 (function (root) {
@@ -35,12 +35,28 @@
       quote: SRC + ': 기타특별·공기업특별 국민은행(일반회계는 농협), 약정 2026-01-01~2029-12-31' },
     { key: '41|하남시청', name: '하남시청', slot: 2, src_date: '2026-01-01',
       quote: SRC + ': 기타특별(6)·공기업특별(2)·기금(13) 국민은행(일반회계는 농협), 약정 2023-01-01~2026-12-31' },
-    { key: '43|청주시청', name: '청주시청', slot: 2, src_date: '2026-01-01',
+    { key: '43|청주시청', name: '청주시청', slot: 2, src_date: '2026-01-01', leaves: '2027',   // leaves: 화면에 '2027년부터 다른 은행' — 아래 next 문장이 근거
       quote: SRC + ': 기금2 국민은행, 약정 2023-01-01~2026-12-31', next: '2027~2030은 1금고 농협·2금고 신한(기사 2026-09-30) — 국민은행 빠짐' },
     { key: '47|의성군청', name: '의성군청', slot: 2, src_date: '2026-01-01',
       quote: SRC + ': 기금 국민은행, 약정 2025-01-01~2028-12-31' },
     { key: '47|울진군청', name: '울진군청', slot: 2, src_date: '2026-01-01',
       quote: SRC + ': 기타특별·공기업특별·기금 국민은행, 약정 2026-01-01~2028-12-31' }
+  ];
+  // 2027년부터 국민은행이 맡기로 선정된 기관 — 지금 은행은 아니라 현재 목록(KB_VERIFIED)과 겹치지 않게 따로 둔다(사용자 11-16, 입찰 현황판 '2027년부터 국민은행' 묶음).
+  // 값은 각 기관 sources(institutions.js·institutions_nonmuni.js)에 적힌 것만. term은 원문에 약정 기간이 있을 때만(강북·영등포는 비움).
+  root.KB_NEXT = [
+    { key: '11|중랑구청', name: '중랑구청', from: '2027', term: '2027~2030', src_date: '2026-11-04',
+      url: 'https://www.ngetnews.com/news/articleView.html?idxno=555569', quote: '국민은행 선정(우리은행에서 이동), 약정 2027~2030' },
+    { key: '11|강북구청', name: '강북구청', from: '2027', src_date: '2026-11-04',
+      url: 'https://www.ngetnews.com/news/articleView.html?idxno=555569', quote: '국민은행 신규(지정 결과 공고 제2026-1493호, 2026-10-13)' },
+    { key: '11|영등포구청', name: '영등포구청', from: '2027', src_date: '2026-11-04',
+      url: 'https://www.ngetnews.com/news/articleView.html?idxno=555569', quote: '국민은행 선정(우리은행에서 이동, 지정 결과 공고 제2026-2038호, 2026-10-29)' },
+    { key: '11|송파구청', name: '송파구청', from: '2027', term: '2027~2030', src_date: '2026-10-06',
+      url: 'https://www.hankyung.com/article/2026100662561', quote: '국민은행 선정(우리은행에서 이동), 약정 2027~2030' },
+    { key: '11|강동구청', name: '강동구청', from: '2027', term: '2027~2030', src_date: '2026-11-04',
+      url: 'https://www.ngetnews.com/news/articleView.html?idxno=555569', quote: '국민은행 선정(우리은행에서 이동), 약정 2027~2030' },
+    { key: '45|전북대학교병원', name: '전북대학교병원', from: '2027', term: '2027~2031', src_date: '2026-09-16',
+      url: 'https://www.jjan.kr/article/20260928500503', quote: '우선협상대상자 국민은행(2026-09-16), 약정 2027~2031(5년) — 본계약 미확인' }
   ];
   if (typeof module !== 'undefined' && module.exports) module.exports = root.KB_VERIFIED;
 })(typeof window !== 'undefined' ? window : globalThis);

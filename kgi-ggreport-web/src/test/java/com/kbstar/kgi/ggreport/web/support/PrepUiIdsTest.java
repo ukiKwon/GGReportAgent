@@ -26,6 +26,14 @@ public class PrepUiIdsTest {
     }
 
     @Test
+    public void 입찰_공고_현황의_제안_확정은_bid_notice_confirm으로_UNKNOWN_없이_받아들여진다() {
+        BoardUiIds.Ui ui = of("bid_notice", "confirm");
+        assertEquals("bid_notice", ui.getScreen());
+        assertEquals("confirm", ui.getButton());
+        assertTrue(ui.isValid());
+    }
+
+    @Test
     public void 앞뒤_공백은_잘라_받아들인다() {
         BoardUiIds.Ui ui = of(" bid_board ", " confirm ");
         assertEquals("bid_board", ui.getScreen());

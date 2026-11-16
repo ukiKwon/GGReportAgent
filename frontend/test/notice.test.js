@@ -420,7 +420,7 @@ test('현황판 마크업·CSS: 띠 첫 자식, 높이 고정, 순서, 안내문
   assert.ok(/\.db-list, \.db-pane \{ height:clamp\(440px, calc\(100vh - 140px\), 820px\)/.test(css));
   assert.ok(/\.db-blank \{[^}]*align-items:flex-start[^}]*padding:48px 24px 24px/.test(css));
   const m1599 = css.slice(css.indexOf('@media (max-width:1599px)'), css.indexOf('@media (max-width:880px)'));
-  assert.ok(/\.db-list, \.db-pane \{ grid-row:1; \}/.test(m1599) && /\.db-rail \{ grid-column:1 \/ -1; grid-row:2;/.test(m1599));
+  assert.ok(/\.db-list, \.db-pane \{ grid-row:1; \}/.test(m1599) && !/\.db-rail \{ grid-column/.test(m1599));   // 기둥은 현황판(.hb-cards)으로 옮겼다(11-16)
   assert.ok(/\.db-nb-body \.nm \{[^}]*-webkit-line-clamp:2/.test(css));          // 긴 기관명은 2줄 말줄임
   assert.ok(/\.db-chip\.open \{[^}]*var\(--red\)/.test(css) && !/\.db-chip\.wait \{[^}]*var\(--red\)/.test(css));   // 빨강은 마감 전에만
   assert.deepStrictEqual(css.replace(/\/\*[\s\S]*?\*\//g, '').match(/#[0-9a-fA-F]{3,8}\b/g), null);

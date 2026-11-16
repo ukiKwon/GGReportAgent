@@ -128,7 +128,7 @@ test('시간표 aria-label: 0이 아닌 달 전부·확정/추정 합계, 기관
   const html = dash.timelineHtml(m, T, '6');
   assert.strictEqual(html.indexOf('<script>'), -1);
   assert.ok(html.indexOf('id="db-tile-ov"') >= 0 && html.indexOf('id="db-tile-later"') >= 0 && html.indexOf('id="db-tomap"') >= 0);
-  assert.ok(html.indexOf('월별 입찰 예정') >= 0 && html.indexOf('경과 <b>0</b>곳') >= 0 && html.indexOf('기준일 <b>2026-11-11</b>') >= 0);
+  assert.ok(html.indexOf('월별 입찰 예정') >= 0 && html.indexOf('경과 <b>0</b>곳') >= 0 && html.indexOf('기준일') < 0 && html.indexOf('조사한 기관 <b>') >= 0);   // 기준일은 화면 머리(#db-asof) 한 곳만(design 11-16 C1)
   assert.ok(html.indexOf('role="img"') >= 0 && html.indexOf('aria-hidden="true"') >= 0);
 });
 
@@ -510,10 +510,11 @@ test('dashboard.js 소스: 포커스 복귀·미선택 상세 이름·mount 때 
   const src = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8');
   assert.ok(/case 'db-widen':[^\n]*#db-per input:checked/.test(src));               // 선택된 기간 라디오로
   assert.ok(/case 'db-tile-later':[^\n]*\$\('db-tile-later'\)/.test(src));          // 다시 그린 칸으로
-  assert.ok(/case 'db-retry':[^\n]*rl\.focus\(\)/.test(src) && src.indexOf('id="db-rail" tabindex="-1"') >= 0);
+  assert.ok(/case 'db-tile-ov':/.test(src) && /function setTab/.test(src));              // 경과 칸·탭(입찰 공고 현황 2탭 — 11-16). 진행 단계 카드(db-rail)는 현황판(kbboard)으로 옮겼다
+  assert.ok(src.indexOf('role="tablist"') >= 0 && src.indexOf('role="tabpanel"') >= 0 && src.indexOf('db-rail') < 0);
   assert.ok(/case 'db-clear':[^\n]*\$\('db-q'\)/.test(src));
   assert.ok(src.indexOf("setAttribute('aria-label', '기관 상세')") >= 0);
-  assert.ok(src.indexOf('dash.visibleKeys(M, st.win') >= 0 && /case 'db-past':[^\n]*pruneSelection\(\)/.test(src));
+  assert.ok(src.indexOf('dash.visibleKeys(M, st.win') >= 0 && /function setTab[\s\S]*?pruneSelection\(\)/.test(src));
 });
 
 // ── 스타일 규칙 ────────────────────────────────────────────────────
@@ -528,7 +529,7 @@ test('CSS 블록: 11px 미만 글자·새 hex 없음, 시작/끝 주석', functi
   });
   assert.deepStrictEqual(css.replace(/\/\*[\s\S]*?\*\//g, '').match(/#[0-9a-fA-F]{3,8}\b/g), null);
   assert.ok(/\.db-scroll \{[^}]*overflow-x:hidden/.test(css));                       // 행 hover 이동이 가로 스크롤바를 만들지 않게(P2-2)
-  assert.ok(/\.db-work \{[^}]*grid-template-columns:400px minmax\(0, 1fr\) 380px/.test(css));   // 격자 §6-A
+  assert.ok(/\.db-work \{[^}]*grid-template-columns:400px minmax\(0, 1fr\);/.test(css));   // 격자 §6-A(기둥은 현황판으로 — 11-16)
   assert.ok(/\.db-pane-body \{[^}]*max-width:820px/.test(css));
   assert.ok(/\.db-row \.nm \{ font-size:14px/.test(css) && /\.db-row \.meta \{[^}]*font-size:12px/.test(css));   // §6-B 글자 한 단 위로
   assert.ok(/@media \(prefers-reduced-motion:reduce\)/.test(css));

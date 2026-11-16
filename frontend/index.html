@@ -1491,7 +1491,7 @@
     .ch-row { max-width:100%; }
   }
   /* 입찰 현황판 시작 — #tab-soon 안 #dash-root > #db-root. 규격: design-reviewer 2026-11-11_1627_a41bdf71 §6-A·B·C. 새 hex 없음(토큰만), 채운 버튼 없음, 11px은 축·창 라벨·배지만 */
-  #dash-root { width:100%; flex:1 0 auto; display:flex; flex-direction:column; align-self:stretch; }
+  #dash-root, #notice-root { width:100%; flex:1 0 auto; display:flex; flex-direction:column; align-self:stretch; }
   #db-root { flex:1 0 auto; display:flex; flex-direction:column; gap:20px; }
   .pnl { background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r-lg, 14px); box-shadow:var(--shadow); min-width:0; }
   .db-h { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
@@ -1540,8 +1540,8 @@
   .db-leg .lg-up svg { margin:0; }
   .db-leg .lg-n { margin-left:auto; }
   .db-leg b { font-family:var(--mono); font-weight:400; color:var(--fg); }
-  /* 작업 줄: 목록 | 상세 | 기둥 */
-  .db-work { flex:1 1 0; min-height:440px; display:grid; grid-template-columns:400px minmax(0, 1fr) 380px; gap:20px; }
+  /* 작업 줄: 목록 | 상세 (오른쪽 기둥은 입찰 현황판 .hb-cards로 옮김, 2026-11-16) */
+  .db-work { flex:1 1 0; min-height:440px; display:grid; grid-template-columns:400px minmax(0, 1fr); gap:20px; }
   /* 목록·상세는 높이를 고정하고 안(#db-scroll·.db-pane-body)에서 스크롤한다 — 841px 화면에서 701px(2026-11-12 규격 C-2) */
   .db-list, .db-pane { height:clamp(440px, calc(100vh - 140px), 820px); display:flex; flex-direction:column; min-height:0; min-width:0; background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r-lg, 14px); box-shadow:var(--shadow); }
   .db-pane { overflow:hidden; }
@@ -1552,6 +1552,13 @@
   .db-per span { display:block; padding:6px 14px; border-radius:9px; font-size:13px; color:var(--muted); }
   .db-per input:checked + span { background:color-mix(in srgb, var(--accent-color) 16%, transparent); color:var(--fg); font-weight:700; }
   .db-per input:focus-visible + span { outline:2px solid var(--accent-color); outline-offset:1px; }
+  .db-per[hidden] { display:none; }
+  /* 입찰 공고 현황 목록 탭: 기간 버튼(.db-per)과 같은 모양 */
+  .db-tabs { display:inline-flex; flex-wrap:wrap; margin:0; padding:3px; gap:2px; background:var(--bg); border:1px solid var(--line); border-radius:12px; min-width:0; }
+  .db-tab { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border:0; border-radius:9px; background:transparent; font-size:13px; color:var(--muted); white-space:nowrap; }
+  .db-tab:hover { background:color-mix(in srgb, var(--fg) 5%, transparent); transform:none; box-shadow:none; }
+  .db-tab[aria-selected=true] { background:color-mix(in srgb, var(--accent-color) 16%, transparent); color:var(--fg); font-weight:700; }
+  .db-tab b { font-family:var(--mono); font-weight:400; color:var(--fg); }
   .db-filters { display:grid; grid-template-columns:minmax(0, 1fr) 128px; gap:8px; }
   .db-filters input, .db-filters select { font-size:13px; padding:7px 10px; min-width:0; }
   /* 종류 select가 함께 보이면 검색칸은 윗줄 전체, 지역·종류는 아랫줄에 반씩 — 400px 목록(안쪽 338px)에서 칸 밖으로 넘치지 않게(qa 11-12 M4) */
@@ -1690,12 +1697,10 @@
   .db-ntrk .lb.low { top:60px; }
   .db-ntrk.r3 { height:78px; }
   .db-dl a { color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent-color); text-underline-offset:3px; }
-  /* 1280~1599px: 순서는 띠 → 월별 → 목록|상세 → 와플·단계 — 기둥(.db-rail)이 목록·상세 아래 한 줄(두 칸)로 내려간다 */
+  /* 1280~1599px: 목록 폭 380px */
   @media (max-width:1599px) {
-    .db-work { flex:1 0 auto; min-height:0; grid-template-columns:380px minmax(0, 1fr); grid-template-rows:auto auto; }
+    .db-work { flex:1 0 auto; min-height:0; grid-template-columns:380px minmax(0, 1fr); }
     .db-list, .db-pane { grid-row:1; }
-    .db-rail { grid-column:1 / -1; grid-row:2; flex-direction:row; }
-    .db-rail > * { flex:1 1 0; }
     .db-axis .yf { display:none; }
     .db-axis .ys { display:inline; }
   }
@@ -1711,6 +1716,44 @@
   }
   @media (prefers-reduced-motion:reduce) { .db-row { transition:none; } .db-row:hover { transform:none; } }
   /* 입찰 현황판 끝 */
+
+  /* 국민은행 상태 현황판(kbboard.js) 시작 — #dash-root > #hb-root. 규격: design-reviewer 2026-11-16_1241_a6db51fa 6-D. 새 hex 없음(토큰만). .db-top은 입찰 공고 현황 머리도 쓴다 */
+  #hb-root { flex:1 0 auto; display:flex; flex-direction:column; gap:20px; }
+  .hb-top, .db-top { display:flex; align-items:baseline; gap:12px; }
+  .hb-top h2, .db-top h2 { margin:0; font-size:15px; font-weight:700; letter-spacing:-.01em; }
+  .hb-top .sub, .db-top .sub { font-size:12px; color:var(--muted); }
+  .hb-top .meta, .db-top .meta { margin-left:auto; font-size:12px; color:var(--muted); }
+  .hb-top .meta b, .db-top .meta b { font-family:var(--mono); font-weight:400; color:var(--fg); }
+  .hb-alert { display:flex; align-items:center; gap:12px; flex-wrap:wrap; min-height:52px; padding:12px 20px; font-size:13px; }
+  .hb-alert.hot { border-color:color-mix(in srgb, var(--red) 55%, var(--line-strong)); background:color-mix(in srgb, var(--red) 8%, var(--panel)); }
+  .hb-alert b { font-family:var(--mono); }
+  .hb-alert .chips { display:flex; gap:8px; flex-wrap:wrap; }
+  .hb-alert .chips button { font-size:12px; padding:4px 10px; min-height:28px; }
+  .hb-alert .db-next { margin-left:auto; }
+  .hb-grid { display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(0, 1fr); gap:20px; }
+  .hb-list { height:clamp(360px, calc(100vh - 250px), 640px); display:flex; flex-direction:column; min-height:0; }
+  .hb-list:focus:not(:focus-visible) { outline:none; }
+  .hb-list ul { list-style:none; margin:0; padding:0; }
+  .hb-list .db-h button { margin-left:auto; font-size:12px; }
+  .hb-row { display:grid; grid-template-columns:1fr auto; gap:4px 10px; width:100%; padding:12px 20px; text-align:left; white-space:normal; cursor:pointer;
+            background:transparent; border:0; border-top:1px solid var(--line); border-radius:0; color:var(--fg); }
+  .hb-row:hover { background:color-mix(in srgb, var(--accent-color) 6%, transparent); transform:none; box-shadow:none; }
+  .hb-row[aria-disabled=true], .hb-row[aria-disabled=true] .nm { color:var(--muted); cursor:default; }
+  .hb-row .nm { font-size:14px; font-weight:700; display:flex; gap:8px; align-items:center; flex-wrap:wrap; min-width:0; }
+  .hb-row .meta, .hb-row .news { grid-column:1 / -1; font-size:12px; color:var(--muted); }
+  .hb-row .meta { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .hb-row .meta .d { font-family:var(--mono); }
+  .hb-row .news { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .hb-row .dg-day, .hb-row .ov-stamp, .hb-row .db-chip { align-self:start; font-size:12px; font-family:var(--mono); padding:1px 7px; }
+  .hb-slot { font-size:11px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:6px; padding:0 6px; }
+  .hb-slot.hb-leaves { color:var(--fg); border-color:color-mix(in srgb, var(--red) 55%, var(--line-strong)); }   /* 2027년부터 다른 은행 — 지금은 맡고 있지만 곧 빠지는 곳 */
+  .hb-cards { grid-column:1 / -1; display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .db-soon-tag { margin-left:8px; font-size:11px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:6px; padding:0 5px;
+                 background:repeating-linear-gradient(45deg, color-mix(in srgb, var(--muted) 12%, transparent) 0 2px, transparent 2px 4px); vertical-align:middle; }
+  @media (min-width:1600px) { .hb-grid { grid-template-columns:minmax(0, 1.3fr) minmax(0, 1fr) 380px; } .hb-cards { grid-column:3; grid-row:1; grid-template-columns:1fr; align-content:start; } }
+  @media (max-width:880px) { .hb-grid, .hb-cards { grid-template-columns:1fr; } .hb-list { height:auto; max-height:50vh; } }
+  @media (prefers-reduced-motion:reduce) { .hb-row { transition:none; } }
+  /* 국민은행 상태 현황판 끝 */
 
   /* 기관장 카드 시작 — 입찰 현황판 상세 칸의 '기관장' 절 + 편집 모달. 시안 docs/design/2026-11-11_기관장카드_시안.html. 새 hex 없음(토큰만), 최소 11px.
      큰 숫자(.hc-big b) 하나만 굵게 키운다. 점수·등급·별점 없음, 테두리 색으로 사람을 가르지 않는다. */
@@ -2201,6 +2244,7 @@ review, the verdict, and DESIGN.md
     <div id="pp-modal" class="modal-overlay" style="display:none;"></div>
   </div>
   <div id="dash-root" style="display:none;"></div>
+  <div id="notice-root" style="display:none;"></div>
   <div id="plans-root" style="display:none;"></div>
 </section>
 </main>
@@ -2318,6 +2362,7 @@ review, the verdict, and DESIGN.md
 <script src="js/headcard.js"></script>
 <script src="js/dashboard.js"></script>
 <script src="js/plans.js"></script>
+<script src="js/kbboard.js"></script>
 <script src="js/deputy.js"></script>
 <script src="js/admin.js"></script>
 <script src="js/myinfo.js"></script>
