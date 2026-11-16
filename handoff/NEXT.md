@@ -458,5 +458,6 @@
 
 ### 87. uploader 파일 검색 본문 제공(저장형) 설계 — 확장 고려 (사용자 11-16 Q2 ⓒ, NEXT 86 후속) [담당: planner → backend-dev → security]
 - **현재**: 86에서 검색은 목록만(cb39a09). 사용자: 확장성을 위해 본문 제공까지 고려. security 요구: 업로드 분석 때 검사 통과본으로 1회 생성(조회 때 재추출 금지)·본문/응답 크기 상한·페이징(NEXT 17·21)·서버 권한 검사(문의 6-2·4ⓒ 회신 전 열지 않음)·DELETED 연동 삭제·경로/예외 미노출·화면 textContent·보존 기간(개인정보). 하: 기본 암호(VelvetSweatshop) xls는 지금 분석됨(정책 확인), commons-compress 1.26+는 NEXT 40.
-- **다음 한 걸음**: planner — 저장 위치(DB 열/파일)·생성 시점·API 모양(키 추가 호환) 선택지, 6-2 회신 의존 부분 분리.
-- **자세히**: security 11-16 NEXT 86 ①③ 확인 보고, planner 11-16 NEXT 86 보고(안 D).
+- **planner 11-16 S0**: 분석 때 1회 생성·조회 때 재추출 금지, 저장 1단계 파일(DDL 0 — 본문 단어 검색이 필요하면 별도 테이블+Oracle Text), search 무변경 + 단건 본문 창구(문의 03-4ⓒ 뒤 공개). 발견: /api/proposals·rfps/{id}가 분석 산출물을 이미 무인증 제공(RFP 상세 삭제 검사 누락 의심 → security 판정 중).
+- **다음 한 걸음**: 사용자 Q1(본문 쓰임새)·Q2(보존 기간) → S1(생성·저장만, 창구 비공개) backend-dev → security. S2 공개는 문의 03-4ⓒ·ⓑ, S3 검색은 문의 03-2·NEXT 25 뒤.
+- **자세히**: planner 11-16 NEXT 87 보고, security 11-16 NEXT 86 ①③ 확인 보고, NEXT 17·21·25.
