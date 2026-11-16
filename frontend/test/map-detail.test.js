@@ -340,7 +340,7 @@ test('render.js: 카드 click은 지도 표시만(상세 안 열림), dblclick�
   assert.ok(dbl.length > 0 && /^[^\n]*render\.openRecord\(r, card/.test(dbl));
   assert.ok(r.indexOf("card.addEventListener('focus', function () { render.showOnMap(r); });") > 0);
   assert.ok(/\.heart'\)\.addEventListener\('dblclick', function \(e\) \{ e\.stopPropagation\(\); \}\)/.test(r));
-  assert.ok(/else render\._blinkSubRegion\(rec\);/.test(r));
+  assert.ok(/else if \(!render\._blinkSubRegion\(rec\)\) render\._noteNoLocation\(rec\);/.test(r));
 });
 
 test('render.faceCodesForSubRegion: subRegion 면만, 없거나 지도에 없으면 []', function () {
@@ -350,4 +350,14 @@ test('render.faceCodesForSubRegion: subRegion 면만, 없거나 지도에 없으
   assert.deepStrictEqual(render.faceCodesForSubRegion({}, fc), []);
   assert.deepStrictEqual(render.faceCodesForSubRegion({ subRegion: '99999' }, fc), []);
   assert.deepStrictEqual(render.faceCodesForSubRegion({ subRegion: '11220' }, null), []);
+});
+
+
+test('render.js: 전국 지도 시도 면 반짝, 시도 지도 위치 미확인 안내, 해제·중복 판정에 path.region 포함(사용자 11-16)', function () {
+  const r = read('js/render.js'), h = read('index.html');
+  assert.ok(/else if \(!render\.state\.currentRegion\) render\._blinkRegionFace\(rec\);/.test(r));
+  assert.ok(r.indexOf("selectAll('path.subregion.selected, path.region.selected')") > 0);
+  assert.ok(r.indexOf("'지도 위치(소재 시·군·구) 미확인'") > 0);
+  assert.ok(/\.subregion\.selected, \.region\.selected \{/.test(h));
+  assert.ok(/\.rank-noloc \{[^}]*font-size:11px[^}]*var\(--muted\)/.test(h));
 });

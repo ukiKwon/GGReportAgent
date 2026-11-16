@@ -846,9 +846,9 @@
     0%,100% { stroke-opacity:1; stroke-width:4; }
     50%     { stroke-opacity:.30; stroke-width:2; }
   }
-  .subregion.selected { stroke:var(--accent-color);
+  .subregion.selected, .region.selected { stroke:var(--accent-color);
                         animation: muni-blink var(--ripple-duration) ease-in-out infinite; }
-  @media (prefers-reduced-motion: reduce) { .subregion.selected { animation:none; stroke-width:3; } }
+  @media (prefers-reduced-motion: reduce) { .subregion.selected, .region.selected { animation:none; stroke-width:3; } }
   .marker.hi > * { stroke:#fff; stroke-width:2.5; }
 
   /* 범례 — 판 하단 도킹 띠(지도 그림 영역 밖). 떠 있는 글래스 상자가 남동쪽 면(서초·강남 등)을 덮던 문제(11-16) */
@@ -883,6 +883,7 @@
                   box-shadow:inset 2px 0 0 var(--accent-color); }
   .rank-card b { font-size:13px; }
   .rank-card small { color:var(--muted); font-family:var(--mono); font-size:11px; }
+  .rank-noloc { margin-top:4px; font-size:11px; color:var(--muted); }
   .heart { cursor:pointer; float:right; color:var(--red); }
   .miss { color:var(--red); font-weight:bold; }
   #rank-panel > div:last-child { padding:10px 14px; }

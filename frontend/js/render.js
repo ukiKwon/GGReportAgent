@@ -919,7 +919,8 @@
     document.querySelectorAll('.rank-card.hi').forEach(function (c) { c.classList.remove('hi'); });
     const svg = d3.select('#map-svg');
     svg.selectAll('g.ripple-layer').remove();
-    svg.selectAll('path.subregion.selected').classed('selected', false);
+    svg.selectAll('path.subregion.selected, path.region.selected').classed('selected', false);
+    document.querySelectorAll('.rank-card .rank-noloc').forEach(function (n) { n.remove(); });
   };
 
   render.selectInstitution = function (rec) {
@@ -927,8 +928,9 @@
     render._selectedName = rec ? rec.name : null;
     if (!rec) return;
     if (rec.type === '지자체') render._blinkMunicipality(rec);
+    else if (!render.state.currentRegion) render._blinkRegionFace(rec);   // 전국 지도: 시도 면 반짝(사용자 11-16)
     else if (typeof rec.lng === 'number' && typeof rec.lat === 'number') render._drawRipple(rec.name);
-    else render._blinkSubRegion(rec);              // 좌표 없는 법원·교육청 등은 소재 시군구 면을 반짝(사용자 11-16)
+    else if (!render._blinkSubRegion(rec)) render._noteNoLocation(rec);   // 소재 시군구 면을 못 찾으면 카드에 안내
     render.highlightCard(rec.name, true);
   };
 
@@ -938,17 +940,38 @@
     return fc.features.filter(function (f) { return f.properties && f.properties.code === rec.subRegion; })
       .map(function (f) { return f.properties.code; });
   };
-  render._blinkSubRegion = function (rec) {
+  render._blinkSubRegion = function (rec) {   // 반짝였으면 true, 이 지도에 면이 없으면 false
     const fc = (render.REGION_GEO[render.state.currentRegion] || function () { return null; })();
     const codes = render.faceCodesForSubRegion(rec, fc);
-    if (!codes.length) return;
+    if (!codes.length) return false;
     d3.select('#map-svg').selectAll('path.subregion')
       .filter(function () { return codes.indexOf(this.getAttribute('data-code')) >= 0; })
       .classed('selected', true).raise();
+    return true;
+  };
+  // 전국 지도: 비지자체 기관의 시도 면(path.region, data-code = 시도 코드)을 반짝. 면이 없으면 false.
+  render._blinkRegionFace = function (rec) {
+    if (!rec || !rec.region) return false;
+    const sel = d3.select('#map-svg').selectAll('path.region')
+      .filter(function () { return this.getAttribute('data-code') === rec.region; });
+    if (sel.empty()) return false;
+    sel.classed('selected', true).raise();
+    return true;
+  };
+  // 시도 지도인데 소재 시·군·구 면을 못 찾았다 — 눌린 카드 안에 이유를 적는다. 선택이 풀리면(clearSelection) 같이 사라진다.
+  render._noteNoLocation = function (rec) {
+    const panel = document.getElementById('rank-panel'); if (!panel) return;
+    panel.querySelectorAll('.rank-card').forEach(function (c) {
+      if (c.dataset.name !== rec.name || c.querySelector('.rank-noloc')) return;
+      const n = document.createElement('div');
+      n.className = 'rank-noloc'; n.setAttribute('role', 'status');
+      n.textContent = '지도 위치(소재 시·군·구) 미확인';
+      c.appendChild(n);
+    });
   };
   // 카드를 누르거나 포커스가 올 때: 같은 기관이 이미 표시 중이면 다시 그리지 않는다(반짝임이 처음부터 다시 시작되는 깜박임 방지).
   render.showOnMap = function (rec) {
-    if (render._selectedName === rec.name && document.querySelector('#map-svg path.subregion.selected, #map-svg g.ripple-layer')) return;
+    if (render._selectedName === rec.name && document.querySelector('#map-svg path.subregion.selected, #map-svg path.region.selected, #map-svg g.ripple-layer, .rank-card .rank-noloc')) return;
     render.selectInstitution(rec);
   };
 
