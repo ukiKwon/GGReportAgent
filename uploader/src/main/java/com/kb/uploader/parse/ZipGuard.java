@@ -1,15 +1,20 @@
 package com.kb.uploader.parse;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.SequenceInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashSet;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
@@ -18,11 +23,15 @@ import javax.xml.stream.XMLStreamReader;
 
 /**
  * 출처: kgi-ggreport-web {@code docfill/ZipGuard}(2026-11-16 NEXT 39 이식). uploader 는 web 을 import 하지 않으므로
- * 복사본이다. web 쪽 규칙(한도·코드)을 바꾸면 이쪽도 같이 본다. 달라진 점: InputStream·Path 입력, 용도별 한도 메서드.
+ * 복사본이다. web 쪽 규칙(한도·코드)을 바꾸면 이쪽도 같이 본다. 달라진 점: InputStream·Path 입력, 용도별 한도 메서드,
+ * 중앙 목차 대조, XML 스트리밍 계수(NEXT 39 2단계).
  *
  * OOXML(zip)을 POI 로 열기 전에 실제로 풀어 보며 검사한다. 헤더의 크기 필드는 믿지 않고 읽은 바이트를 센다.
  * 중복 entry 이름(대소문자·앞 '/' 무시)은 거부한다 — CVE-2025-31672 완화(POI 5.2.3 은 중복을 막지 않는다).
- * POI 의 OPCPackage.open(InputStream) 도 로컬 헤더를 순서대로 읽으므로 같은 entry 집합을 본다.
+ * 스트림 검사는 로컬 헤더만 본다. 파일(Path) 입력은 열기 쪽(ZipFile·POI·HWPXReader)이 읽는 중앙 목차도 따로 읽어
+ * entry 이름 집합·개수·실제 해제 크기가 스트림 결과와 다르면 BROKEN 으로 거부한다(가짜 서명 뒤 숨김 방어).
+ * byte[] 입력은 InputStream 으로 여는 호출부(InstitutionService)용이라 스트림 검사만 한다.
+ * XML 파트는 메모리에 모으지 않고 크기를 세는 스트림을 StAX 에 바로 넘긴다.
  */
 public final class ZipGuard {
 
@@ -54,14 +63,71 @@ public final class ZipGuard {
         }
     }
 
-    /** 파일을 스트림으로 읽으며 검사한다(통째로 메모리에 올리지 않는다). */
+    /** 파일을 스트림으로 읽으며 검사하고(통째로 메모리에 올리지 않는다), 중앙 목차와 대조한다. */
     public static Result check(Path file, long maxEntry, long maxTotal, int maxCells, int maxRows,
                                int maxCellChars, int maxXmlElements) throws Rejected {
+        Result r;
         try (InputStream in = Files.newInputStream(file)) {
-            return scan(in, maxEntry, maxTotal, maxCells, maxRows, maxCellChars, maxXmlElements);
+            r = scan(in, maxEntry, maxTotal, maxCells, maxRows, maxCellChars, maxXmlElements);
         } catch (IOException e) {
             throw new Rejected("BROKEN");
         }
+        verifyDirectory(file, r, maxEntry, maxTotal);
+        return r;
+    }
+
+    /**
+     * 열기 쪽이 읽는 중앙 목차를 java.util.zip.ZipFile 로 읽어 스트림 검사 결과와 대조한다.
+     * 이름 집합·개수가 다르거나 entry 별 실제 해제 크기가 다르면 BROKEN. 목차의 크기 필드는 쓰지 않고 실제로 읽어 센다.
+     */
+    private static void verifyDirectory(Path file, Result stream, long maxEntry, long maxTotal) throws Rejected {
+        Set<String> seen = new HashSet<>();
+        long total = 0;
+        byte[] buf = new byte[8192];
+        try (ZipFile zf = new ZipFile(file.toFile())) {
+            Enumeration<? extends ZipEntry> en = zf.entries();
+            while (en.hasMoreElements()) {
+                ZipEntry e = en.nextElement();
+                if (seen.size() >= MAX_ENTRIES) {
+                    throw new Rejected("TOO_LARGE_UNPACKED");
+                }
+                String name = normalize(e.getName());
+                if (!seen.add(name)) {
+                    throw new Rejected("DUPLICATE_ENTRY");
+                }
+                Long expected = stream.sizes.get(name);
+                if (expected == null) {
+                    throw new Rejected("BROKEN");           // 목차에만 있는 entry = 가짜 서명 뒤 숨김
+                }
+                long size = 0;
+                int n;
+                try (InputStream is = zf.getInputStream(e)) {
+                    while ((n = is.read(buf)) > 0) {
+                        size += n;
+                        total += n;
+                        if (size > maxEntry || total > maxTotal) {
+                            throw new Rejected("TOO_LARGE_UNPACKED");
+                        }
+                    }
+                }
+                if (size != expected.longValue()) {
+                    throw new Rejected("BROKEN");
+                }
+            }
+        } catch (IOException | IllegalArgumentException ex) {   // ZipException 포함
+            throw new Rejected("BROKEN");
+        }
+        if (seen.size() != stream.sizes.size()) {
+            throw new Rejected("BROKEN");                       // 스트림에만 있는 entry
+        }
+    }
+
+    private static String normalize(String raw) {
+        String name = raw.replace('\\', '/').toLowerCase(Locale.ROOT);
+        while (name.startsWith("/")) {
+            name = name.substring(1);
+        }
+        return name;
     }
 
     private ZipGuard() {
@@ -69,12 +135,12 @@ public final class ZipGuard {
 
     public static final class Result {
         public final Set<String> names;      // 소문자로 정규화
-        public final byte[] contentTypes;    // [Content_Types].xml, 없으면 null
         public final long unpacked;
+        final Map<String, Long> sizes;       // 이름 → 스트림으로 실제 센 해제 크기
 
-        Result(Set<String> names, byte[] contentTypes, long unpacked) {
-            this.names = names;
-            this.contentTypes = contentTypes;
+        Result(Map<String, Long> sizes, long unpacked) {
+            this.sizes = sizes;
+            this.names = Collections.unmodifiableSet(sizes.keySet());
             this.unpacked = unpacked;
         }
     }
@@ -117,76 +183,97 @@ public final class ZipGuard {
 
     private static Result scan(InputStream src, long maxEntry, long maxTotal, int maxCells, int maxRows,
                                int maxCellChars, int maxXmlElements) throws Rejected {
-        Set<String> names = new LinkedHashSet<>();
-        byte[] ct = null;
-        long total = 0;
+        Map<String, Long> sizes = new LinkedHashMap<>();
         long[] counts = new long[3];   // [0]=칸, [1]=행, [2]=시작 요소 총수
+        long[] total = new long[1];
         byte[] buf = new byte[8192];
         try (ZipInputStream in = new ZipInputStream(src)) {
             ZipEntry e;
             while ((e = in.getNextEntry()) != null) {
-                String name = e.getName().replace('\\', '/').toLowerCase(Locale.ROOT);
-                while (name.startsWith("/")) {
-                    name = name.substring(1);
-                }
-                if (!names.add(name)) {
+                String name = normalize(e.getName());
+                if (sizes.containsKey(name)) {
                     throw new Rejected("DUPLICATE_ENTRY");
                 }
-                if (names.size() > MAX_ENTRIES) {
+                if (sizes.size() >= MAX_ENTRIES) {
                     throw new Rejected("TOO_LARGE_UNPACKED");
                 }
-                boolean isCt = "[content_types].xml".equals(name);
-                ByteArrayOutputStream kept = null;
-                boolean scan = false;
-                long size = 0;
-                int n;
+                Meter m = new Meter(in, maxEntry, maxTotal, total);
                 int filled = 0;
-                while ((n = in.read(buf, filled, buf.length - filled)) > 0) {
-                    size += n;
-                    total += n;
-                    if (size > maxEntry || total > maxTotal) {
-                        throw new Rejected("TOO_LARGE_UNPACKED");
-                    }
-                    if (kept == null) {
-                        filled += n;
-                        if (filled < SNIFF && filled < buf.length) {
-                            continue;                            // 앞부분이 모일 때까지
-                        }
-                        scan = looksXml(buf, filled);
-                        kept = scan || isCt ? new ByteArrayOutputStream() : NONE;
-                        if (kept != NONE) {
-                            kept.write(buf, 0, filled);
-                        }
-                        filled = 0;
-                    } else if (kept != NONE) {
-                        kept.write(buf, 0, n);
-                    }
+                int r;
+                while (filled < SNIFF && (r = m.read(buf, filled, SNIFF - filled)) > 0) {
+                    filled += r;                                  // 앞부분만 먼저 읽어 XML 인지 본다
                 }
-                if (kept == null && filled > 0) {                // 아주 짧은 entry
-                    scan = looksXml(buf, filled);
-                    if (scan || isCt) {
-                        kept = new ByteArrayOutputStream();
-                        kept.write(buf, 0, filled);
-                    }
+                if (looksXml(buf, filled)) {
+                    InputStream xml = new SequenceInputStream(new ByteArrayInputStream(buf, 0, filled), m);
+                    countXml(xml, m, counts, maxCells, maxRows, maxCellChars, maxXmlElements);
                 }
-                if (scan) {
-                    countXml(kept.toByteArray(), counts, maxCells, maxRows, maxCellChars, maxXmlElements);
+                while (m.read(buf, 0, buf.length) > 0) {
+                    // StAX 가 끝까지 안 읽은 나머지·비 XML entry 를 읽어 센다
                 }
-                if (isCt && kept != null && kept != NONE) {
-                    ct = kept.toByteArray();
-                }
+                sizes.put(name, m.size);
             }
+        } catch (Over ex) {
+            throw new Rejected("TOO_LARGE_UNPACKED");
         } catch (IOException | IllegalArgumentException ex) {   // 깨진 zip·잘못된 이름 인코딩
             throw new Rejected("BROKEN");
         }
-        if (names.isEmpty()) {
+        if (sizes.isEmpty()) {
             throw new Rejected("BROKEN");
         }
-        return new Result(names, ct, total);
+        return new Result(sizes, total[0]);
     }
 
     private static final int SNIFF = 64;
-    private static final ByteArrayOutputStream NONE = new ByteArrayOutputStream();   // 보관하지 않음 표시(쓰지 않는다)
+
+    /** 한도 초과 신호(Meter 가 던진다). */
+    private static final class Over extends IOException {
+        Over() {
+            super("over");
+        }
+    }
+
+    /** entry 하나를 읽으며 entry·전체 해제 바이트를 센다. close 는 아무것도 안 한다(ZipInputStream 을 닫지 않는다). */
+    private static final class Meter extends InputStream {
+        private final InputStream in;
+        private final long maxEntry;
+        private final long maxTotal;
+        private final long[] total;
+        long size;
+        boolean over;
+
+        Meter(InputStream in, long maxEntry, long maxTotal, long[] total) {
+            this.in = in;
+            this.maxEntry = maxEntry;
+            this.maxTotal = maxTotal;
+            this.total = total;
+        }
+
+        @Override
+        public int read() throws IOException {
+            byte[] one = new byte[1];
+            int n = read(one, 0, 1);
+            return n < 0 ? -1 : (one[0] & 0xFF);
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            int n = in.read(b, off, len);
+            if (n > 0) {
+                size += n;
+                total[0] += n;
+                if (size > maxEntry || total[0] > maxTotal) {
+                    over = true;
+                    throw new Over();
+                }
+            }
+            return n;
+        }
+
+        @Override
+        public void close() {
+            // 닫지 않는다
+        }
+    }
 
     /** 앞부분(UTF-8/UTF-16 BOM·공백·UTF-16 의 0 바이트 건너뜀)의 첫 글자가 '&lt;' 이면 XML 로 본다. */
     static boolean looksXml(byte[] b, int len) {
@@ -207,15 +294,15 @@ public final class ZipGuard {
         return false;
     }
 
-    /** 한 xml 을 훑어 누적 칸·행·요소 수와 문자열 하나의 글자 수를 한도와 비교한다. DOCTYPE·파싱 실패는 BROKEN. */
-    private static void countXml(byte[] xml, long[] counts, int maxCells, int maxRows, int maxCellChars,
-                                 int maxXmlElements) throws Rejected {
+    /** 한 xml 을 스트림으로 훑어 누적 칸·행·요소 수와 문자열 하나의 글자 수를 한도와 비교한다. DOCTYPE·파싱 실패는 BROKEN. */
+    private static void countXml(InputStream xml, Meter meter, long[] counts, int maxCells, int maxRows,
+                                 int maxCellChars, int maxXmlElements) throws Rejected {
         XMLInputFactory f = XMLInputFactory.newInstance();
         f.setProperty(XMLInputFactory.SUPPORT_DTD, false);
         f.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
         XMLStreamReader r = null;
         try {
-            r = f.createXMLStreamReader(new ByteArrayInputStream(xml));
+            r = f.createXMLStreamReader(xml);
             boolean inStr = false;
             boolean inPhonetic = false;
             long len = 0;
@@ -244,9 +331,20 @@ public final class ZipGuard {
                     } else if ("rPh".equals(n)) {
                         inPhonetic = true;
                     } else if ("t".equals(n) && inStr && !inPhonetic) {
-                        len += r.getElementText().length();     // END_ELEMENT(t)까지 소비
-                        if (len > maxCellChars) {
-                            throw new Rejected("CELL_TOO_LONG");
+                        // getElementText() 는 문자열 전체를 만들므로 쓰지 않고, 글자 수만 청크별로 센다.
+                        while (r.hasNext()) {
+                            int tev = r.next();
+                            if (tev == XMLStreamConstants.CHARACTERS || tev == XMLStreamConstants.CDATA
+                                    || tev == XMLStreamConstants.SPACE) {
+                                len += r.getTextLength();
+                                if (len > maxCellChars) {
+                                    throw new Rejected("CELL_TOO_LONG");
+                                }
+                            } else if (tev == XMLStreamConstants.END_ELEMENT) {
+                                break;
+                            } else if (tev == XMLStreamConstants.START_ELEMENT || tev == XMLStreamConstants.DTD) {
+                                throw new Rejected("BROKEN");
+                            }
                         }
                     }
                 } else if (ev == XMLStreamConstants.END_ELEMENT) {
@@ -259,6 +357,9 @@ public final class ZipGuard {
                 }
             }
         } catch (XMLStreamException | RuntimeException ex) {
+            if (meter.over) {                       // Meter 의 한도 초과가 파서 예외로 감싸졌을 수 있다
+                throw new Rejected("TOO_LARGE_UNPACKED");
+            }
             throw new Rejected("BROKEN");
         } finally {
             if (r != null) {

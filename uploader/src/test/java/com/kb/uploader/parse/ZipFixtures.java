@@ -70,4 +70,63 @@ public final class ZipFixtures {
         }
         return b;
     }
+
+    /**
+     * 두 번째 로컬 헤더 앞에 가짜 서명 4바이트(PK\1\2)를 끼운다. ZipInputStream 은 거기서 끝나 첫 entry 만 보고,
+     * ZipFile 은 목차(오프셋·목차 시작 위치를 +4 로 고쳐 둠)로 둘 다 연다. 입력은 entry 가 2개 이상인 zip.
+     */
+    public static byte[] hideAfterFirst(byte[] zip) {
+        int p = -1;
+        for (int i = 4; i + 4 <= zip.length; i++) {
+            if (zip[i] == 'P' && zip[i + 1] == 'K' && zip[i + 2] == 3 && zip[i + 3] == 4) {
+                p = i;
+                break;
+            }
+        }
+        int eocd = -1;
+        for (int i = zip.length - 22; i >= 0; i--) {
+            if (zip[i] == 'P' && zip[i + 1] == 'K' && zip[i + 2] == 5 && zip[i + 3] == 6) {
+                eocd = i;
+                break;
+            }
+        }
+        if (p < 0 || eocd < 0) {
+            throw new IllegalArgumentException("zip 구조를 못 찾음");
+        }
+        byte[] out = new byte[zip.length + 4];
+        System.arraycopy(zip, 0, out, 0, p);
+        out[p] = 'P';
+        out[p + 1] = 'K';
+        out[p + 2] = 1;
+        out[p + 3] = 2;
+        System.arraycopy(zip, p, out, p + 4, zip.length - p);
+        int e = eocd + 4;
+        int cen = le32(out, e + 16);
+        put32(out, e + 16, cen + 4);
+        int count = le16(out, e + 10);
+        int pos = cen + 4;
+        for (int k = 0; k < count; k++) {
+            int off = le32(out, pos + 42);
+            if (off >= p) {
+                put32(out, pos + 42, off + 4);
+            }
+            pos += 46 + le16(out, pos + 28) + le16(out, pos + 30) + le16(out, pos + 32);
+        }
+        return out;
+    }
+
+    private static int le16(byte[] b, int i) {
+        return (b[i] & 0xFF) | ((b[i + 1] & 0xFF) << 8);
+    }
+
+    private static int le32(byte[] b, int i) {
+        return le16(b, i) | (le16(b, i + 2) << 16);
+    }
+
+    private static void put32(byte[] b, int i, int v) {
+        b[i] = (byte) v;
+        b[i + 1] = (byte) (v >>> 8);
+        b[i + 2] = (byte) (v >>> 16);
+        b[i + 3] = (byte) (v >>> 24);
+    }
 }

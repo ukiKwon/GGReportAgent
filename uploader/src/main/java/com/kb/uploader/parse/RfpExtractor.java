@@ -112,6 +112,11 @@ public class RfpExtractor {
 
     // ── HWPX ───────────────────────────────────────────────────────────
     ExtractedDocument extractHwpx(Path file) throws Exception {
+        try {
+            ZipGuard.checkUploadFile(file);          // 중복 entry·목차 불일치·해제 크기·DOCTYPE (NEXT 39)
+        } catch (ZipGuard.Rejected e) {
+            throw new java.io.IOException("ZIP 거부: " + e.code);   // 코드만 — 경로·내용 없음
+        }
         HWPXFile hwpx = HWPXReader.fromFile(file.toFile());
         TextMarks marks = new TextMarks()
             .paraSeparatorAnd("\n")
