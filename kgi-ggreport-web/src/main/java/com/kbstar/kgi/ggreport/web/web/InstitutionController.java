@@ -224,7 +224,8 @@ public class InstitutionController {
      */
     @PostMapping("/{institutionId}/corpus/validate")
     public CorpusValidateResponse corpusValidate(@PathVariable String institutionId,
-                                                 @RequestBody CorpusPathIn body) {
+                                                 @RequestBody CorpusPathIn body, HttpServletRequest req) {
+        adminGuard.require(req);   // 서버 폴더 존재·구조를 알려 주는 운영 도구 — 등록과 같이 관리자 전용(security 하-6)
         return new CorpusValidateResponse(corpus.validate(institutionId, body.getPath()));
     }
 
@@ -241,8 +242,8 @@ public class InstitutionController {
     public CorpusRegisterResponse corpusRegister(@PathVariable String institutionId,
                                                  @RequestBody CorpusPathIn body, HttpServletRequest req) {
         // 관리자 전용(서버 경로를 다루는 운영 작업, 밀린 건 활성화가 따라온다 — security 11-16 S7). 401/403 은 AdminGuard 가 DENIED 로 남긴다.
-        adminGuard.require(req);
-        return corpus.register(institutionId, body.getPath());
+        Actor actor = adminGuard.require(req);
+        return corpus.register(institutionId, body.getPath(), actor, InstUiIds.corpusRegister());
     }
 
     /**

@@ -131,15 +131,18 @@ public class BidCaseController {
             throw guard.denied(req, new ApiException(410,
                     "참여 결정 3단 결재는 더 이상 쓰지 않습니다. 제안 확정·개설 신청 흐름을 이용하세요."));
         }
-        String need = decisionRole(body.getTier());
-        if (need == null) {
-            guard.requireUser(req, "approvals");   // 신원만 보고 범위 밖 tier 는 서비스가 400
-        } else {
-            guard.requireRole(req, "approvals", need, "이 단계의 참여 결재 권한이 없습니다.");
-        }
-        ParticipationDecisionOut out = commands.submitDecision(bidCaseId, body);
+        final String key = caseKey(bidCaseId);
+        final String action = DECISION_PREFIX + body.getTier();
+        final Actor actor = Actor.of(req);
+        final BoardUiIds.Ui ui = PrepUiIds.of(req);
+        final String need = decisionRole(body.getTier());
+        // 실패(403·400·409…)도 BID_PREP_ACT 에 남긴다(security 하-4) — 401 은 ACCESS_LOG 에만
+        front(() -> need == null
+                ? guard.requireUser(req, "approvals")   // 신원만 보고 범위 밖 tier 는 서비스가 400
+                : guard.requireRole(req, "approvals", need, "이 단계의 참여 결재 권한이 없습니다."), key, action, actor, ui);
+        ParticipationDecisionOut out = audited(req, key, action, actor, ui, () -> commands.submitDecision(bidCaseId, body));
         // 저장되는 by·role 은 표시용(본문 값, 골든 11~13). 누가 했는지의 정본은 BID_PREP_ACT(서버가 정한 사번·검증 여부·화면·버튼, security S6).
-        recordOk(caseKey(bidCaseId), DECISION_PREFIX + body.getTier(), true, Actor.of(req), PrepUiIds.of(req));
+        recordOk(key, action, true, actor, ui);
         return out;
     }
 
@@ -202,12 +205,16 @@ public class BidCaseController {
                                          @RequestHeader(name = "X-User-Id", required = false) String userId,
                                          HttpServletRequest req) {
         // 최종 확정은 영업부장만(2026-11-10). 저장 표시명은 기존 X-User-Id(골든 24 유지).
-        SysUser approver = guard.requireRole(req, "approvals", Teams.FINAL_APPROVER,
-                "최종 확정은 영업부장만 할 수 있습니다.");
+        final String key = caseKey(bidCaseId);
+        final String action = body.isApproved() ? FINALIZE_APPROVE : FINALIZE_REJECT;
+        final Actor actor = Actor.of(req);
+        final BoardUiIds.Ui ui = PrepUiIds.of(req);
+        SysUser approver = front(() -> guard.requireRole(req, "approvals", Teams.FINAL_APPROVER,
+                "최종 확정은 영업부장만 할 수 있습니다."), key, action, actor, ui);
         String by = userId == null || userId.trim().isEmpty() ? approver.getName() : userId;
-        BidCaseDetail out = commands.finalizeBidCase(bidCaseId, body, by);
+        BidCaseDetail out = audited(req, key, action, actor, ui, () -> commands.finalizeBidCase(bidCaseId, body, by));
         // finalized_by 는 표시용(X-User-Id 우선, 골든 24). 증적 정본은 BID_PREP_ACT(security S6).
-        recordOk(caseKey(bidCaseId), body.isApproved() ? FINALIZE_APPROVE : FINALIZE_REJECT, true, Actor.of(req), PrepUiIds.of(req));
+        recordOk(key, action, true, actor, ui);
         return out;
     }
 

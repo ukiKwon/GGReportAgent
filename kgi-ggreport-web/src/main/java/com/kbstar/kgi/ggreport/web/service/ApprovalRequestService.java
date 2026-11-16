@@ -439,7 +439,7 @@ public class ApprovalRequestService {
                 }
             }
         } else {
-            String note = applyApproved(r, me, actor);
+            String note = applyApproved(r, me, actor, prepUi);
             requireOne(requests.updateRequest(id, "APPROVED", cur.getStepNo(), note, now));   // 0행이면 후처리째 롤백
             notifyResult(r, requester, me, "승인되어 반영되었습니다");
         }
@@ -732,7 +732,7 @@ public class ApprovalRequestService {
     }
 
     /** 최종 승인 후처리. 권한 신청이면 신청한 사용자의 권한을 반영하고 변경 이력에 요청 번호를 남긴다. */
-    private String applyApproved(ApprovalRequest r, SysUser decider, Actor actor) {
+    private String applyApproved(ApprovalRequest r, SysUser decider, Actor actor, BoardUiIds.Ui prepUi) {
         if (ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType())) {
             return assignments.applyChange(r, decider, actor);
         }
@@ -759,14 +759,10 @@ public class ApprovalRequestService {
             p.setApprove(c.path("approve").asBoolean());
             changes.add(p);
         }
-        int saved = permissions.save(r.getRequesterEmpNo(), changes, Actor.claimed(decider.getEmpNo()));
-        PermChange log = new PermChange();
-        log.setChangedAt(Times.nowIso());
-        log.setActorEmpNo(decider.getEmpNo());
-        log.setTargetEmpNo(r.getRequesterEmpNo());
-        log.setItem("approval:REQUEST");
-        log.setAfterValue("#" + r.getReqId());
-        changeLog.insert(log);
+        // 증적: 실제 결재자(actor — 검증 여부 포함)·화면·버튼을 그대로 넘긴다(security 하-2). 결재자≠상신자는 eligibility 가 보장(SelfChange 에 걸리지 않음).
+        int saved = permissions.save(r.getRequesterEmpNo(), changes, actor, prepUi);
+        changeLog.insert(PermChangeRows.of(actor, prepUi, r.getRequesterEmpNo(), "approval:REQUEST",
+                null, "#" + r.getReqId(), Times.nowIso()));
         return "권한 반영: " + saved + "개 메뉴";
     }
 

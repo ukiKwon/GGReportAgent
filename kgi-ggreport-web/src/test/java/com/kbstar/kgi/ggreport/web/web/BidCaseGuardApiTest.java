@@ -94,4 +94,30 @@ public class BidCaseGuardApiTest {
                 .andReturn().getResponse().getStatus();
         assertEquals("역할 통과 후 상태 검사", true, s != 401 && s != 403);
     }
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    private int acts(String bid, String action, String outcome) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD=? AND OUTCOME=?",
+                Integer.class, bid, action, outcome);
+    }
+
+    @Test
+    public void 참여결정_실패도_증적에_남는다() throws Exception {   // security 하-4
+        String id = newCase();
+        assertEquals(403, decide(id, 1, "5047192"));
+        assertEquals(1, acts(id, "DECISION_T1", "DENIED"));
+        assertEquals(401, decide(id, 1, null));
+        assertEquals(1, acts(id, "DECISION_T1", "DENIED"));   // 401 은 늘지 않는다(ACCESS_LOG 에만)
+        assertEquals(0, acts(id, "DECISION_T1", "OK"));
+    }
+
+    @Test
+    public void 최종확정_권한_실패도_증적에_남는다() throws Exception {   // security 하-4
+        String id = newCase();
+        mockMvc.perform(post("/bidcases/" + id + "/finalize").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"approved\":true}").header("X-Emp-No", "3918264")).andReturn();
+        assertEquals(1, acts(id, "FINALIZE_APPROVE", "DENIED"));
+    }
 }

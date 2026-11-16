@@ -45,6 +45,11 @@ public final class InstUiIds {
         return new BoardUiIds.Ui(SCREEN_INBOX_APPLY, BUTTON_IMPORT, true);
     }
 
+    /** 코퍼스 등록(POST /institutions/{id}/corpus) 이력용 고정 화면·버튼 — 호출 경로가 하나뿐이라 헤더를 받지 않는다(security 하-7). */
+    public static BoardUiIds.Ui corpusRegister() {
+        return new BoardUiIds.Ui("corpus_register", "corpus_link", true);
+    }
+
     private static String clean(String v) {
         return v == null ? null : v.trim();
     }

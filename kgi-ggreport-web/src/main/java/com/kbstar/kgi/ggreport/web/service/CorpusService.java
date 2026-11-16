@@ -1,11 +1,14 @@
 package com.kbstar.kgi.ggreport.web.service;
 
 import com.kbstar.kgi.ggreport.web.config.AppProperties;
+import com.kbstar.kgi.ggreport.web.domain.Institution;
 import com.kbstar.kgi.ggreport.web.dto.CorpusRegisterResponse;
 import com.kbstar.kgi.ggreport.web.dto.ValidationReport;
 import com.kbstar.kgi.ggreport.web.mapper.BidCaseMapper;
 import com.kbstar.kgi.ggreport.web.mapper.InstitutionMapper;
+import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.CorpusValidator;
+import com.kbstar.kgi.ggreport.web.web.Actor;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,9 +33,12 @@ public class CorpusService {
     private final BidCaseMapper bidCases;
     private final BidCaseCommandService bidCaseCommands;
     private final AppProperties properties;
+    private final InstitutionEditLogger editLog;
 
     public CorpusService(InstitutionMapper institutions, BidCaseMapper bidCases,
-                         BidCaseCommandService bidCaseCommands, AppProperties properties) {
+                         BidCaseCommandService bidCaseCommands, AppProperties properties,
+                         InstitutionEditLogger editLog) {
+        this.editLog = editLog;
         this.institutions = institutions;
         this.bidCases = bidCases;
         this.bidCaseCommands = bidCaseCommands;
@@ -58,7 +64,13 @@ public class CorpusService {
      */
     @Transactional
     public CorpusRegisterResponse register(String institutionId, String rawPath) {
-        requireInstitution(institutionId);
+        return register(institutionId, rawPath, null, BoardUiIds.unknown());
+    }
+
+    /** actor·ui: 등록 증적(INST_EDIT_LOG — 기관 값 GIGANLIST_DIR 이 바뀌므로 기관 편집 이력, security 하-7). */
+    @Transactional
+    public CorpusRegisterResponse register(String institutionId, String rawPath, Actor actor, BoardUiIds.Ui ui) {
+        Institution cur = requireInstitution(institutionId);
 
         Path resolved = safePath(rawPath);
         ValidationReport report = CorpusValidator.validate(resolved);
@@ -72,6 +84,10 @@ public class CorpusService {
 
         String relative = relativeToRepo(resolved);
         institutions.updateGiganlistDir(institutionId, relative);
+        if (actor != null) {   // 같은 트랜잭션 — 누가(자기신고 사번·검증 여부)·어느 화면·버튼, 값은 상대경로뿐(60자 절단)
+            editLog.log(institutionId, java.util.Collections.singletonList(new InstitutionEditRules.Change(
+                    "GIGANLIST_DIR", cut60(cur.getGiganlistDir()), cut60(relative), null, null)), actor, ui);
+        }
 
         List<String> activated = new ArrayList<>();
         for (String bidCaseId : bidCases.selectPendingActivation(institutionId)) {
@@ -83,10 +99,16 @@ public class CorpusService {
         return new CorpusRegisterResponse(relative, activated, report.getWarnings());
     }
 
-    private void requireInstitution(String institutionId) {
-        if (institutions.selectById(institutionId) == null) {
+    private Institution requireInstitution(String institutionId) {
+        Institution i = institutions.selectById(institutionId);
+        if (i == null) {
             throw ApiException.notFound("institution not found");
         }
+        return i;
+    }
+
+    private static String cut60(String v) {
+        return v == null ? null : (v.length() > 60 ? v.substring(0, 60) : v);
     }
 
     /**
@@ -115,6 +137,14 @@ public class CorpusService {
         }
         if (!java.nio.file.Files.isDirectory(resolved)) {
             throw ApiException.badRequest("디렉터리가 아닙니다");
+        }
+        // 심볼릭 링크·정션으로 저장소 밖을 가리키는 경우 차단 — 실제 경로 기준으로 다시 울타리 검사(security 하-6).
+        try {
+            if (!resolved.toRealPath().startsWith(root.toRealPath())) {
+                throw ApiException.badRequest("리포지토리 밖 경로는 허용되지 않습니다");
+            }
+        } catch (java.io.IOException e) {
+            throw ApiException.badRequest("디렉터리가 아닙니다");   // 내부 사유는 응답에 싣지 않는다
         }
         return resolved;
     }

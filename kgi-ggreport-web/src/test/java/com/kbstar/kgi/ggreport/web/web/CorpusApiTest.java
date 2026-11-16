@@ -144,6 +144,7 @@ public class CorpusApiTest {
     public void 없는_기관이면_404다() throws Exception {
         MockHttpServletResponse res = mockMvc.perform(
                         post("/institutions/new-deadbeef/corpus/validate")
+                                .header("X-Emp-No", "8203417")   // 검사도 관리자 전용(security 하-6)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"path\":\"corpus\"}"))
                 .andReturn().getResponse();
@@ -235,5 +236,31 @@ public class CorpusApiTest {
         MockHttpServletResponse sales = mockMvc.perform(post("/institutions/" + institutionId + "/corpus").header("X-Emp-No", "3918264")
                 .contentType(MediaType.APPLICATION_JSON).content("{\"path\":\"" + OK_DIR + "\"}")).andReturn().getResponse();
         assertEquals(403, sales.getStatus());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    @Test
+    public void 코퍼스_검사도_관리자만_한다() throws Exception {   // security 하-6
+        MockHttpServletResponse noEmp = mockMvc.perform(post("/institutions/" + institutionId + "/corpus/validate")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"path\":\"" + OK_DIR + "\"}")).andReturn().getResponse();
+        assertEquals(401, noEmp.getStatus());
+        MockHttpServletResponse sales = mockMvc.perform(post("/institutions/" + institutionId + "/corpus/validate").header("X-Emp-No", "3918264")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"path\":\"" + OK_DIR + "\"}")).andReturn().getResponse();
+        assertEquals(403, sales.getStatus());
+    }
+
+    @Test
+    public void 코퍼스_등록은_기관_편집_이력에_남고_거절되면_없다() throws Exception {   // security 하-7
+        assertEquals(422, call("", BROKEN_DIR).getStatus());
+        assertEquals(Integer.valueOf(0), jdbc.queryForObject(
+                "SELECT COUNT(*) FROM INST_EDIT_LOG WHERE INSTITUTION_ID=? AND FIELD_CD='GIGANLIST_DIR'", Integer.class, institutionId));
+        assertEquals(200, call("", OK_DIR).getStatus());
+        java.util.Map<String, Object> row = jdbc.queryForMap(
+                "SELECT ACTOR_EMP_NO, SCREEN_ID, BUTTON_ID FROM INST_EDIT_LOG WHERE INSTITUTION_ID=? AND FIELD_CD='GIGANLIST_DIR'", institutionId);
+        assertEquals("8203417", row.get("ACTOR_EMP_NO"));
+        assertEquals("corpus_register", row.get("SCREEN_ID"));
+        assertEquals("corpus_link", row.get("BUTTON_ID"));
     }
 }

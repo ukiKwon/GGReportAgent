@@ -677,4 +677,21 @@ public class ApprovalLineApiTest {
         }
         assertTrue(found);
     }
+
+    @Test
+    public void 결재_반영_이력에_실제_결재자_사번이_남는다() throws Exception {   // security 하-2
+        long id = submit(MEMBER, KNOWLEDGE_WRITE, 200).get("req_id").asLong();
+        decide(LEAD, id, "APPROVE", "확인", 200);
+        boolean req = false, perm = false;
+        for (JsonNode it : call(ADMIN, get("/sysadmin/perm-changes?emp=" + MEMBER), null, 200).get("items")) {
+            if ("approval:REQUEST".equals(it.path("item").asText()) && ("#" + id).equals(it.path("after_value").asText())
+                    && LEAD.equals(it.path("actor_emp_no").asText())) {
+                req = true;
+            }
+            if (it.path("item").asText().startsWith("perm:knowledge:") && LEAD.equals(it.path("actor_emp_no").asText())) {
+                perm = true;
+            }
+        }
+        assertTrue(req && perm);
+    }
 }
