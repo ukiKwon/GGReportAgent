@@ -1,7 +1,78 @@
 // 변환기 순수 함수 단위 시험 — node --test kgi-ggreport-web/tools/db/convert-plan-txt.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HEADERS, csvCell, defuse, dobongBudget, dobongTokBudget, gwangjinBudget, gwangjinChildBudget, nowonBudget, parseChapter, parseChecks, parseYears, stripMarker, buildRows } from './convert-plan-txt.mjs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { HEADERS, csvCell, defuse, dobongBudget, dobongTokBudget, gwangjinBudget, gwangjinChildBudget, nowonBudget, parseChapter, parseChecks, parseYears, stripMarker, buildRows,
+  buildDistrict, parseDongjakFile, jungBudget, labeledBudget, multiYearPeriod } from './convert-plan-txt.mjs';
+
+// ── 11-16 공식 계획서 3구(동대문·동작·중구)와 노원 전체 기간 소요예산 ──
+test('노원: 콜론 붙은 여러 해 기간 + 소요예산은 총사업비 규칙, 연·한 해·콜론 없는 표기는 금액', () => {
+  const a = nowonBudget('12. 탄소중립체험관 조성\n- 내용: 공간개선 / 기간: 2025.3~2026.5 / 소요예산: 1,641백만원');
+  assert.equal(a.state, 'UNVERIFIED');
+  assert.equal(a.amount, '');
+  assert.equal(a.note, '예산 구분: 총사업비(전체 기간 사업비) / 예산 원문: 소요예산 1,641백만원');
+  const b = nowonBudget('6. 도로\n- 사업기간: 2021.10~2027.12 / 소요예산: 53,436백만원(보상비44,222, 공사비및이전비등9,214)');
+  assert.equal(b.state, 'UNVERIFIED');
+  assert.equal(nowonBudget('- 지정기관: 재단 / 지정기간: 2024.4.1~2027.12.31\n- 소요예산: 연 224백만원').amount, '224');
+  assert.equal(nowonBudget('기간: 2025.1~2026.12 / 소요예산: 연 100백만원').amount, '100');
+  assert.equal(nowonBudget('사업기간: 2026.4~11 / 소요예산: 11백만원').amount, '11');
+  assert.equal(nowonBudget('기간: 2026.1~2026.12 / 소요예산: 5백만원').amount, '5');
+  assert.equal(nowonBudget('기간 2023.6~2027.1 / 소요예산 4,000백만원').amount, '4,000');   // 콜론 없는 표기는 이번 범위 밖
+  assert.equal(multiYearPeriod('지정기간: 2024.4~2027.12'), false);
+});
+
+test('예산 줄 함수: labeledBudget·jungBudget', () => {
+  assert.equal(labeledBudget('120백만원').amount, '120');
+  assert.equal(labeledBudget('연 224백만원').note, '예산 원문: 연 224백만원');
+  assert.equal(labeledBudget('5억원 내외').state, 'UNVERIFIED');
+  assert.equal(labeledBudget('-').state, 'NOT_IN_SOURCE');
+  assert.equal(jungBudget('계 960 (2022:160, 2023:800)', '백만원').note, '');
+  assert.equal(jungBudget('계 960 (2022:160, 2023:800)', '백만원').amount, '960');
+  assert.equal(jungBudget('계 약 540 (2022:80)', '백만원').state, 'UNVERIFIED');
+  assert.equal(jungBudget('표 미확인(기부채납 방식)', '백만원').state, 'UNVERIFIED');
+  assert.equal(jungBudget('해당없음(서울시 소관)', '백만원').state, 'NOT_IN_SOURCE');
+});
+
+test('동작: 한 파일의 분야별로 번호가 새로 시작한다', () => {
+  const txt = [
+    '분야별 주요사업 - 복지 / 도시',
+    '=================================================',
+    '[힘이되는 복지] 모든 구민의 삶의 품격을 높이겠습니다 (20~21쪽)',
+    '=================================================',
+    '2026년 중점사업(2개):',
+    '1. 보훈대상자 예우 강화 - 보훈예우수당 증액 / 위문금 신설',
+    '2. 통합보훈회관 조성 - 위치: 상도동',
+    '=================================================',
+    '[고품격 도시] 도시 인프라를 완성하겠습니다 (22~23쪽)',
+    '=================================================',
+    '2026년 중점사업(1개, 대형 개발사업 프로젝트군):',
+    '1. 동작구형 개발 선도사업 (2개소 추진)',
+    '   - 남성역 북측',
+    '[요약]',
+  ].join('\n');
+  const chs = parseDongjakFile(txt, 7);
+  assert.equal(chs.length, 2);
+  assert.equal(chs[0].fieldNo, '7');
+  assert.equal(chs[0].declared, 2);
+  assert.equal(chs[1].fieldName, '고품격 도시');
+  const rows = buildRows(chs[0], 'dongjak', 't', []);
+  assert.equal(rows[0].name, '보훈대상자 예우 강화');
+  assert.equal(rows[0].content, '보훈예우수당 증액\n위문금 신설');
+  assert.equal(rows[1].budget.state, 'NOT_IN_SOURCE');
+});
+
+test('실제 원문: 동대문·동작·중구 행 수가 인덱스와 일치하고 오류가 없다', () => {
+  const spec = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'corpus', 'institutions');
+  for (const [id, n, docs] of [['dongdaemun', 122, 5], ['dongjak', 95, 13], ['jung', 125, 5]]) {
+    const r = buildDistrict(spec, id);
+    assert.deepEqual(r.errors, [], id);
+    assert.equal(r.rows.length, n, id);
+    assert.equal(r.docCount, docs, id);
+    assert.equal(r.idxTotal, n, id);
+    assert.equal(r.mismatch, false, id);
+  }
+});
 
 test('머리행은 서버 계약 25열', () => {
   assert.equal(HEADERS.length, 25);

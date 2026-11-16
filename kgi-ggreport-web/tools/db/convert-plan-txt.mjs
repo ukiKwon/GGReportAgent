@@ -30,6 +30,15 @@ export const DISTRICTS = {
   dobong: { id: 'dobong', kind: '4개년계획', budget: 'dobong', checks: 'columns' },
   nowon: { id: 'nowon', kind: '주요업무계획', budget: 'nowon', checks: 'numbered' },
   gwangjin: { id: 'gwangjin', kind: '주요업무계획', budget: 'gwangjin', checks: 'columns' },
+  dongdaemun: { id: 'dongdaemun', kind: '주요업무계획', budget: 'dongdaemun', checks: 'columns', title: '동대문구 2023년 주요업무계획' },
+  dongjak: { id: 'dongjak', kind: '주요업무계획', budget: 'dongjak', checks: 'columns' },
+  jung: { id: 'jung', kind: '4개년계획', budget: 'jung', checks: 'inline' },
+};
+
+/** 장 파일 이름 규칙. 기본은 '사업목록_예산.txt'. 동대문·동작은 파일 이름이 다르다(02~06만; 07·08 은 확인결과·민원). 언론 정리 19구는 넣지 않는다(사용자 11-16). */
+const CHAPTER_RE = {
+  dongdaemun: /^0[2-6]_.*_사업목록\.txt$/,
+  dongjak: /^0[2-6]_(?:세대별사업_.*|.*분야_사업목록)\.txt$/,
 };
 
 const LIM = { cell: 1000, content: 1000, note: 500, name: 300, field: 100, title: 200, years: 300 };
@@ -138,12 +147,21 @@ export function gwangjinChildBudget(texts) {
   return blankBudget('NOT_IN_SOURCE');
 }
 
+/** '기간: 2025.3~2026.5' / '사업기간: 2021.10~2027.12' 처럼 콜론이 붙고 시작·끝 연도가 다른 기간이 있나('지정기간'은 제외, 콜론 없는 '기간 2023.6~…' 표기는 대상 아님). */
+export function multiYearPeriod(text) {
+  for (const m of String(text).matchAll(/(?:^|[\s/(])(?:사업)?기간:\s*(\d{4})[^~\n/]*~\s*(\d{4})/g)) if (Number(m[2]) > Number(m[1])) return true;
+  return false;
+}
+
 /** 노원: 사업 카드 전문에서 예산을 찾는다. 소요예산 > 총사업비(확인안됨) > 예산 미기재 > 그 밖의 금액 문구 순. */
 export function nowonBudget(text) {
   const spent = [...text.matchAll(/(소요예산|소요비용)\s*:?\s*/g)].map((m) => ({ kw: m[1], ...tryAmount(text.slice(m.index + m[0].length)) }));
   if (spent.length) {
     if (spent.length === 1 && spent[0].ok) {
       const s = spent[0];
+      if (!s.sum && !/^연/.test(s.seg) && multiYearPeriod(text)) {   // 여러 해 기간의 소요예산 = 총사업비 규칙(연 단위 칸에 섞지 않는다, 2026-11-16)
+        return blankBudget('UNVERIFIED', { note: `예산 구분: 총사업비(전체 기간 사업비) / 예산 원문: ${s.kw} ${s.seg}` });
+      }
       return blankBudget('AMOUNT', { amount: s.amount, unit: s.unit, note: s.sum ? `예산 원문: ${s.kw} ${s.seg}` : '' });
     }
     return blankBudget('UNVERIFIED', { note: '예산 원문: ' + spent.map((s) => `${s.kw} ${s.seg}`).join(' ; ') });
@@ -161,6 +179,36 @@ export function nowonBudget(text) {
 }
 
 /** 광진: '예산:' 줄만 본다('미표기…' = 원문에 없음, 그 밖의 금액 문구는 예산이 아니라 발행·융자 규모라 확인안됨). */
+/** 동대문·동작: 사업 카드의 '예산:'·'[예산]' 줄(사업별로 적힌 경우에만 존재). 깨끗한 단일 금액만 금액, 그 밖은 확인안됨 + 원문. */
+export const BUDGET_LINE_RE = /^(?:\[예산\]\s*:?|예산\s*:)\s*/;
+export function labeledBudget(raw) {
+  const r = String(raw ?? '').trim();
+  if (!r || /^(?:-|미표기)/.test(r)) return blankBudget('NOT_IN_SOURCE');
+  const t = tryAmount(r);
+  const m = AMT_RE.exec(r);
+  if (t.ok && !t.sum && m && m[0] === r) return blankBudget('AMOUNT', { amount: t.amount, unit: t.unit, note: /^연/.test(r) ? '예산 원문: ' + r : '' });
+  return blankBudget('UNVERIFIED', { note: '예산 원문: ' + r });
+}
+
+/** 중구: '계 830 (2022:…)' = 2022~2026 누계(단위는 장 머리). 연차 괄호가 깨끗하면 연차예산 칸, 남는 문구가 있으면 원문을 비고에. */
+export function jungBudget(raw, unit) {
+  const r = String(raw).trim();
+  const m = /^계\s+(\d[\d,]*(?:\.\d+)?)\s*(.*)$/.exec(r);
+  if (m) {
+    if (!unit || !(parseFloat(m[1].replace(/,/g, '')) > 0)) return blankBudget('UNVERIFIED', { note: '예산 원문: ' + r });
+    let rest = m[2].trim();
+    let years = '';
+    for (const g of rest.matchAll(/\(([^()]*)\)/g)) {
+      if (!/^\d{4}:/.test(g[1])) continue;
+      const y = parseYears(g[1]);
+      if (y.ok && y.years) { years = y.years; rest = rest.replace(g[0], '').trim(); break; }
+    }
+    return blankBudget('AMOUNT', { amount: m[1], unit, years, note: rest ? '예산 원문: ' + r : '' });
+  }
+  if (/^계\s/.test(r) || /미확인|추정/.test(r)) return blankBudget('UNVERIFIED', { note: '예산 원문: ' + r });
+  return blankBudget('NOT_IN_SOURCE', { note: '예산 원문: ' + r });
+}
+
 export function gwangjinBudget(raw) {
   if (raw == null) return blankBudget('NOT_IN_SOURCE');
   const r = String(raw).trim();
@@ -188,6 +236,14 @@ export function parseChapter(text, seq, kind) {
     fieldNo = hm[1];
     fieldName = hm[2].trim();
     if (hm[3]) declared = Number(hm[3]);
+  }
+  if (kind === 'dongdaemun') {   // '1. 쾌적한 동대문 (19개 세부사업, 출처: …p.13~22)'
+    const dh = /^(\d+)\.\s+(.+?)\s*[(（](\d+)개\s*세부사업/.exec(head);
+    if (dh) { fieldNo = dh[1]; fieldName = dh[2].trim(); declared = Number(dh[3]); }
+  } else if (kind === 'jung') {   // '# 도시분야 (14개 역점과제, 31개 세부사업, …)'
+    fieldName = head.replace(/^#\s*/, '').replace(/\s*[(（].*$/, '').trim();
+    const jd = /(\d+)개\s*세부사업/.exec(head);
+    if (jd) declared = Number(jd[1]);
   }
   const dm = /확인된\s*(?:대표)?사업\s*개수:\s*(\d+)개/.exec(text);
   if (dm) declared = Number(dm[1]);
@@ -225,6 +281,13 @@ export function parseChapter(text, seq, kind) {
     if (/^\[[^\]]*(총계|비고)[^\]]*\]/.test(line)) break;
     if (line.trim() === '') continue;
     let mm;
+    if (kind === 'dongdaemun') {
+      if ((mm = /^(\d+)\.\s+(.+?)\s*[(（]\d+개\s*사업[^)）]*[)）]\s*$/.exec(line))) { subtopic = mm[2].trim(); cur = null; child = null; continue; }
+      if ((mm = /^(\d+-\d+)\.\s+(\S.*)$/.exec(line))) { cur = newItem(mm[1], mm[2], subtopic); items.push(cur); child = null; continue; }
+    } else if (kind === 'jung') {
+      if ((mm = /^과제(\d+)\.\s*(\S.*)$/.exec(line))) { subtopic = `과제${mm[1]}. ${mm[2].trim()}`; cur = null; child = null; continue; }
+      if ((mm = /^ (\d+)\.\s+(\S.*)$/.exec(line))) { cur = newItem(mm[1], mm[2], subtopic); items.push(cur); child = null; continue; }
+    }
     if ((mm = /^\[(.+)\]$/.exec(line))) { subtopic = mm[1].replace(/^소주제:\s*/, '').trim(); cur = null; child = null; continue; }
     if ((mm = /^■\s*(.+)$/.exec(line))) { subtopic = mm[1].trim(); cur = null; child = null; continue; }
     if ((mm = /^(\d+)\.\s+(.+)$/.exec(line))) { cur = newItem(mm[1], mm[2], subtopic); items.push(cur); child = null; continue; }
@@ -255,6 +318,42 @@ export function parseChapter(text, seq, kind) {
     else tgt.lines[tgt.lines.length - 1] += ' ' + t;
   }
   return { fieldNo, fieldName, pageRange, declared, headerTotal, unit, items, warns };
+}
+
+/** 동작: 파일 하나에 분야 여러 개('[힘이되는 복지] … (20~21쪽)'). 분야마다 '2026년 중점사업(N개):' 아래 '1.'부터 번호를 새로 시작한다. 입력은 readTxt 로 BOM·줄끝을 정리한 글. */
+export function parseDongjakFile(text, seqStart) {
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  const chapters = [];
+  let ch = null;
+  let cur = null;
+  let on = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].replace(/\s+$/, '');
+    let mm;
+    if ((mm = /^\[([^\]]+)\]\s*(.*?)\s*\((\d+)(?:~(\d+))?쪽\)$/.exec(line))) {
+      ch = { fieldNo: String(seqStart + chapters.length), fieldName: mm[1].trim(), pageRange: mm[4] ? `${mm[3]}~${mm[4]}` : mm[3], declared: null, headerTotal: null, unit: '', items: [], warns: [] };
+      chapters.push(ch);
+      cur = null;
+      on = false;
+      continue;
+    }
+    if (!ch) continue;
+    if (/^\[요약\]/.test(line)) break;
+    if (/^=+$/.test(line)) continue;
+    if (!on) {
+      const dm = /^2026년\s*중점사업\((\d+)개/.exec(line);
+      if (dm) { on = true; ch.declared = Number(dm[1]); }
+      continue;
+    }
+    if (line.trim() === '') continue;
+    if ((mm = /^(\d+)\.\s+(\S.*)$/.exec(line))) { cur = newItem(mm[1], mm[2], ''); ch.items.push(cur); continue; }
+    const t = line.trim();
+    if (!cur) { ch.warns.push(`줄 ${i + 1}: 사업 앞의 줄을 건너뜀`); continue; }
+    if ((mm = /^[-*]\s+(.*)$/.exec(t))) { cur.lines.push(mm[1].trim()); continue; }
+    if (cur.lines.length === 0) cur.head += ' ' + t;
+    else cur.lines[cur.lines.length - 1] += ' ' + t;
+  }
+  return chapters;
 }
 
 /** 원시 사업 -> 행 후보 { no, parentNo, name, content, budget }. 상위 뒤에 하위가 이어진다. */
@@ -292,6 +391,20 @@ export function buildRows(chapter, budgetKind, tag, errs) {
       const segs = rest.split(/\s\/\s/).map((s) => s.trim()).filter(Boolean);
       content = [...topicLine(it), ...segs, ...it.lines];
       budget = nowonBudget([it.head, ...it.lines].join('\n'));
+    } else if (budgetKind === 'dongdaemun' || budgetKind === 'dongjak') {
+      const k = it.head.indexOf(' - ');
+      const rest = k >= 0 ? it.head.slice(k + 3) : '';
+      name = (k >= 0 ? it.head.slice(0, k) : it.head).trim();
+      const segs = rest.split(/\s\/\s/).map((s) => s.trim()).filter(Boolean);
+      const bi = it.lines.findIndex((l) => BUDGET_LINE_RE.test(l));
+      content = [...topicLine(it), ...segs, ...it.lines.filter((_, i) => i !== bi)];
+      budget = bi >= 0 ? labeledBudget(it.lines[bi].replace(BUDGET_LINE_RE, '')) : blankBudget('NOT_IN_SOURCE');
+    } else if (budgetKind === 'jung') {
+      const cm = /\(((?:공약|신규|계속)[^()]*)\)\s*$/.exec(it.head);
+      name = (cm ? it.head.slice(0, cm.index) : it.head).trim();
+      const bi = it.lines.findIndex((l) => /^예산\s*:/.test(l));
+      content = [...topicLine(it), ...(cm ? [`사업구분: ${cm[1].trim()}`] : []), ...it.lines.filter((_, i) => i !== bi)];
+      budget = bi >= 0 ? jungBudget(it.lines[bi].replace(/^예산\s*:\s*/, ''), chapter.unit) : blankBudget('NOT_IN_SOURCE');
     } else {
       const bi = it.lines.findIndex((l) => /^예산\s*:/.test(l));
       const braw = bi >= 0 ? it.lines[bi].replace(/^예산\s*:\s*/, '') : null;
@@ -345,6 +458,11 @@ export function parseChecks(text, format) {
       const m = /^(\S.*?)\s{2,}(\S+)\s{2,}\S/.exec(line);
       if (m) put(m[1], m[2]);
     }
+  } else if (format === 'inline') {   // 중구 07: '22. 사업명 확인됨 - 근거' (판정이 같은 줄)
+    for (const line of lines) {
+      const m = /^\d+\.\s+(.+?)\s+(확인됨|부분확인|확인안됨)\s+-\s/.exec(line);
+      if (m) put(m[1], m[2]);
+    }
   } else {
     let pending = null;
     for (const line of lines) {
@@ -371,9 +489,9 @@ export function buildDistrict(specRoot, id, opts = {}) {
   const dir =path.join(specRoot, id, 'spec');
   const files = readdirSync(dir).sort();
   const pick = (re) => files.find((f) => re.test(f));
-  const chapterFiles = files.filter((f) => /^\d{2}_.*사업목록_예산\.txt$/.test(f));
+  const chapterFiles = files.filter((f) => (CHAPTER_RE[cfg.budget] || /^\d{2}_.*사업목록_예산\.txt$/).test(f));
   const overview = pick(/^\d{2}_.*개요\.txt$/);
-  const indexFile = pick(/인덱스/);
+  const indexFile = pick(/인덱스/) || pick(/^00_/);
   const checkFile = pick(/홈페이지검색확인결과/);
   const errors = [];
   const changes = [];
@@ -383,8 +501,10 @@ export function buildDistrict(specRoot, id, opts = {}) {
   }
 
   const ovText = readTxt(path.join(dir, overview));
-  const baseTitle = ovText.split('\n')[0].replace(/\s*개요\s*$/, '').trim();
-  const pm = /[(（](\d{4})\s*-\s*(\d{4})[)）]/.exec(baseTitle) || /(\d{4})년/.exec(baseTitle);
+  const firstLine = ovText.split('\n')[0].replace(/^#\s*/, '').replace(/\s*개요\s*$/, '').trim();
+  const baseTitle = cfg.title || firstLine;
+  const pm = /[(（](\d{4})\s*-\s*(\d{4})[)）]/.exec(firstLine) || /(\d{4})년/.exec(firstLine)
+    || /(\d{4})년\s*(?:판\s*)?주요업무계획/.exec(ovText.split('\n').slice(1, 8).join('\n'));
   const from = pm ? Number(pm[1]) : NaN;
   const to = pm ? Number(pm[2] || pm[1]) : NaN;
   if (!pm) errors.push(`${id}: 개요 첫 줄에서 대상 기간을 찾지 못함`);
@@ -400,6 +520,7 @@ export function buildDistrict(specRoot, id, opts = {}) {
 
   // 인덱스 '전체 사업 개수 검증'
   const idxPer = new Map();
+  const idxNamed = new Map();   // 중구: '도시(31) + 복지건강(29) …' (장 번호 없이 분야 이름)
   let idxTotal = null;
   if (indexFile) {
     const idx = readTxt(path.join(dir, indexFile));
@@ -407,10 +528,19 @@ export function buildDistrict(specRoot, id, opts = {}) {
     if (at >= 0) {
       const seg = idx.slice(at, at + 400).split('\n').slice(0, 4).join('\n');
       for (const m of seg.matchAll(/(\d+)장\((\d+)\)/g)) idxPer.set(m[1], Number(m[2]));
+      if (cfg.budget === 'jung') for (const m of seg.matchAll(/([\p{L}]+)\((\d+)\)/gu)) idxNamed.set(m[1], Number(m[2]));
       const tm = /=\s*([\d,]+)개/.exec(seg);
       if (tm) idxTotal = Number(tm[1].replace(/,/g, ''));
+    } else if (cfg.budget === 'dongjak') {   // '세대별 6개 챕터 중점사업: … = 39개' + '분야별 7개 챕터 중점사업: … = 56개'
+      const sums = [...idx.matchAll(/챕터 중점사업:[^\n]*=\s*(\d+)개/g)].map((m) => Number(m[1]));
+      if (sums.length) idxTotal = sums.reduce((a, b) => a + b, 0);
     }
   }
+  const idxFor = (ch, f) => {
+    if (cfg.budget === 'dongdaemun') return idxPer.get(String(Number(f.slice(0, 2))));   // 인덱스는 파일번호(02~06) 기준 '2장(19)'
+    if (cfg.budget === 'jung') { for (const [k, v] of idxNamed) if (ch.fieldName.startsWith(k)) return v; return undefined; }
+    return idxPer.get(ch.fieldNo);
+  };
 
   const docs = [];
   const status = { 확인됨: 0, 부분확인: 0, 확인안됨: 0, 미조사: 0 };
@@ -419,11 +549,16 @@ export function buildDistrict(specRoot, id, opts = {}) {
   let rowTotal = 0;
   let yearWarn = 0;
   let chapterMismatch = false;
-  chapterFiles.forEach((f, i) => {
-    const ch = parseChapter(readTxt(path.join(dir, f)), i + 1, cfg.budget);
+  const parsed = [];
+  for (const f of chapterFiles) {
+    const txt = readTxt(path.join(dir, f));
+    if (cfg.budget === 'dongjak') parseDongjakFile(txt, parsed.length + 1).forEach((c) => parsed.push({ f, ch: c }));
+    else parsed.push({ f, ch: parseChapter(txt, parsed.length + 1, cfg.budget) });
+  }
+  parsed.forEach(({ f, ch }) => {
     ch.warns.forEach((w) => rep.push(`  경고 ${f} ${w}`));
-    const tag = `${id} ${f.slice(0, 2)}`;
-    const title = cfg.budget === 'gwangjin' ? `${baseTitle} ${ch.fieldName}` : `${baseTitle} ${ch.fieldNo}장 ${ch.fieldName}`;
+    const tag = cfg.budget === 'dongjak' ? `${id} ${f.slice(0, 2)} ${ch.fieldName}` : `${id} ${f.slice(0, 2)}`;
+    const title = ['gwangjin', 'dongjak', 'jung'].includes(cfg.budget) ? `${baseTitle} ${ch.fieldName}` : `${baseTitle} ${ch.fieldNo}장 ${ch.fieldName}`;
     const cands = buildRows(ch, cfg.budget, tag, errors);
     const doc = { title, fieldNo: ch.fieldNo, fieldName: ch.fieldName, pageRange: ch.pageRange, rows: [] };
     const seen = new Set();
@@ -474,7 +609,7 @@ export function buildDistrict(specRoot, id, opts = {}) {
     }
     topTotal += top;
     rowTotal += doc.rows.length;
-    const idxN = idxPer.get(ch.fieldNo);
+    const idxN = idxFor(ch, f);
     if ((idxN != null && top !== idxN) || (ch.declared != null && top !== ch.declared)) chapterMismatch = true;
     const verdict = (a, b) => (b == null ? '비교값 없음' : a === b ? '일치' : '불일치');
     rep.push(`  ${ch.fieldNo}장 ${ch.fieldName}: 상위 사업 ${top}건 / 장 머리 ${ch.declared ?? '-'} (${verdict(top, ch.declared)}) / 인덱스 ${idxN ?? '-'} (${verdict(top, idxN)}) / 하위 ${doc.rows.length - top}건 / 쪽 ${ch.pageRange || '-'}`);
@@ -514,8 +649,8 @@ export function toCsv(rows) {
 // ---------- CLI ----------
 
 const USAGE = `사용법: node convert-plan-txt.mjs [옵션]
-  (옵션 없음)          dobong·nowon·gwangjin 모두 변환해 src/main/resources/plan-seed/ 에 쓴다
-  --district <id>      dobong | nowon | gwangjin | all(기본)
+  (옵션 없음)          dobong·nowon·gwangjin·dongdaemun·dongjak·jung 모두 변환해 src/main/resources/plan-seed/ 에 쓴다
+  --district <id>      dobong | nowon | gwangjin | dongdaemun | dongjak | jung | all(기본)
   --check              쓰지 않고 요약·검산만 출력
   --strict             건수 검산이 불일치이면 종료 코드 1 (오류는 항상 1)
   --checked-on <날짜>  확인일(YYYY-MM-DD) 지정(기본: 07/08 의 '조사일 기준')
