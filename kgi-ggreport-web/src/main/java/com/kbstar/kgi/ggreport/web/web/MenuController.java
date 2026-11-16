@@ -4,6 +4,7 @@ import com.kbstar.kgi.ggreport.web.dto.MenuChangesIn;
 import com.kbstar.kgi.ggreport.web.dto.MenusResponse;
 import com.kbstar.kgi.ggreport.web.dto.RoleMenusResponse;
 import com.kbstar.kgi.ggreport.web.service.MenuService;
+import com.kbstar.kgi.ggreport.web.support.AdminUiIds;
 import com.kbstar.kgi.ggreport.web.support.Menus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -65,7 +66,7 @@ public class MenuController {
      */
     @PutMapping
     public Map<String, Integer> put(@RequestBody MenuChangesIn body, HttpServletRequest req) {
-        adminGuard.require(req);
-        return Collections.singletonMap("saved", menus.save(body.getChanges()));
+        Actor actor = adminGuard.require(req);   // 역할 격자 변경 이력: 누가·어느 화면·어느 버튼(2026-11-16)
+        return Collections.singletonMap("saved", menus.save(body.getChanges(), actor, AdminUiIds.of(req)));
     }
 }

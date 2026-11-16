@@ -9,6 +9,7 @@ import com.kbstar.kgi.ggreport.web.mapper.PermChangeLogMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.mapper.UserMenuPermMapper;
 import com.kbstar.kgi.ggreport.web.support.MenuPerms;
+import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.Menus;
 import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.support.Times;
@@ -184,6 +185,13 @@ public class PermissionService {
 
     @Transactional
     public int save(String empNo, List<SysAdminIn.Perm> changes, Actor actor) {
+        return save(empNo, changes, actor, BoardUiIds.unknown());
+    }
+
+    /** ui: 어느 화면·어느 버튼(AdminUiIds). 본인 권한은 다른 관리자가 바꾼다(사용자 11-16 ⓑ) — 결재 반영은 결재자≠상신자라 걸리지 않는다. */
+    @Transactional
+    public int save(String empNo, List<SysAdminIn.Perm> changes, Actor actor, BoardUiIds.Ui ui) {
+        SelfChange.refuse(actor, empNo, "본인 권한은 다른 관리자가 바꿉니다.");
         SysUser u = require(empNo);
         Map<String, UserMenuPerm> mine = byMenu(perms.selectByEmpNo(empNo));
         Map<String, Row> now = new HashMap<>();
@@ -244,10 +252,10 @@ public class PermissionService {
             if (perms.update(p) == 0) {
                 perms.insert(p);
             }
-            log(actor, empNo, p.getMenuKey(), "CAN_VIEW", b.isView(), p.isCanView(), stamp);
-            log(actor, empNo, p.getMenuKey(), "CAN_WRITE", b.isWrite(), p.isCanWrite(), stamp);
-            log(actor, empNo, p.getMenuKey(), "CAN_EDIT", b.isEdit(), p.isCanEdit(), stamp);
-            log(actor, empNo, p.getMenuKey(), "CAN_APPROVE", b.isApprove(), p.isCanApprove(), stamp);
+            log(actor, ui, empNo, p.getMenuKey(), "CAN_VIEW", b.isView(), p.isCanView(), stamp);
+            log(actor, ui, empNo, p.getMenuKey(), "CAN_WRITE", b.isWrite(), p.isCanWrite(), stamp);
+            log(actor, ui, empNo, p.getMenuKey(), "CAN_EDIT", b.isEdit(), p.isCanEdit(), stamp);
+            log(actor, ui, empNo, p.getMenuKey(), "CAN_APPROVE", b.isApprove(), p.isCanApprove(), stamp);
             saved++;
         }
         return saved;
@@ -334,17 +342,12 @@ public class PermissionService {
         return u;
     }
 
-    private void log(Actor actor, String target, String menu, String field, boolean before, boolean after, String stamp) {
+    private void log(Actor actor, BoardUiIds.Ui ui, String target, String menu, String field,
+                     boolean before, boolean after, String stamp) {
         if (before == after) {
             return;
         }
-        PermChange c = new PermChange();
-        c.setChangedAt(stamp);
-        c.setActorEmpNo(actor == null ? null : actor.getEmpNo());
-        c.setTargetEmpNo(target);
-        c.setItem("perm:" + menu + ":" + field);
-        c.setBeforeValue(before ? "1" : "0");
-        c.setAfterValue(after ? "1" : "0");
-        changeLog.insert(c);
+        changeLog.insert(PermChangeRows.of(actor, ui, target, "perm:" + menu + ":" + field,
+                before ? "1" : "0", after ? "1" : "0", stamp));
     }
 }

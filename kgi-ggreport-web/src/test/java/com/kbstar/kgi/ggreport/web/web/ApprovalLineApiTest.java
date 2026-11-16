@@ -656,4 +656,25 @@ public class ApprovalLineApiTest {
         assertEquals(2, r.get("steps").size());
         assertEquals("ADMIN", r.get("steps").get(1).get("kind").asText());
     }
+
+    @Test
+    public void 관리자는_남의_대결자로_본인을_지정할_수_없다() throws Exception {   // security 11-16 S3
+        deputy(ADMIN, LEAD, ADMIN, 6, 8, 400);
+        deputy(ADMIN, LEAD, HEAD, 6, 8, 200);
+    }
+
+    @Test
+    public void 관리자가_남의_권한_신청을_취소하면_취소자가_이력에_남는다() throws Exception {   // security 11-16 S9
+        long id = submit(MEMBER, KNOWLEDGE_WRITE, 200).get("req_id").asLong();
+        call(ADMIN, post("/approval-requests/" + id + "/cancel"), null, 200);
+        JsonNode items = call(ADMIN, get("/sysadmin/perm-changes?emp=" + MEMBER), null, 200).get("items");
+        boolean found = false;
+        for (JsonNode it : items) {
+            if ("approval:CANCEL".equals(it.path("item").asText()) && ADMIN.equals(it.path("actor_emp_no").asText())
+                    && ("#" + id).equals(it.path("after_value").asText())) {
+                found = true;
+            }
+        }
+        assertTrue(found);
+    }
 }

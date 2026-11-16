@@ -9,6 +9,7 @@ import com.kbstar.kgi.ggreport.web.service.AccessLogService;
 import com.kbstar.kgi.ggreport.web.service.ApproverService;
 import com.kbstar.kgi.ggreport.web.service.PermissionService;
 import com.kbstar.kgi.ggreport.web.service.UserAdminService;
+import com.kbstar.kgi.ggreport.web.support.AdminUiIds;
 import com.kbstar.kgi.ggreport.web.support.MenuPerms;
 import com.kbstar.kgi.ggreport.web.support.Menus;
 import com.kbstar.kgi.ggreport.web.support.Ranks;
@@ -82,26 +83,26 @@ public class SysAdminController {
 
     @PostMapping("/users")
     public SysUser create(@RequestBody SysAdminIn.UserForm in, HttpServletRequest req) {
-        return userAdmin.create(in, guard.require(req));
+        return userAdmin.create(in, guard.require(req), AdminUiIds.of(req));
     }
 
     @PutMapping("/users/{empNo}")
     public SysUser update(@PathVariable("empNo") String empNo, @RequestBody SysAdminIn.UserForm in,
                           HttpServletRequest req) {
-        return userAdmin.update(empNo, in, guard.require(req));
+        return userAdmin.update(empNo, in, guard.require(req), AdminUiIds.of(req));
     }
 
     @PutMapping("/users/{empNo}/status")
     public SysUser status(@PathVariable("empNo") String empNo, @RequestBody SysAdminIn.Status in,
                           HttpServletRequest req) {
-        return userAdmin.setStatus(empNo, in.getStatus(), guard.require(req));
+        return userAdmin.setStatus(empNo, in.getStatus(), guard.require(req), AdminUiIds.of(req));
     }
 
     /** 상위 결재자 지정(MANUAL)·자동으로 되돌리기(AUTO). */
     @PutMapping("/users/{empNo}/approver")
     public SysUserView approver(@PathVariable("empNo") String empNo, @RequestBody SysAdminIn.Approver in,
                                 HttpServletRequest req) {
-        return approvers.assign(empNo, in.getApproverEmpNo(), in.getMode(), guard.require(req));
+        return approvers.assign(empNo, in.getApproverEmpNo(), in.getMode(), guard.require(req), AdminUiIds.of(req));
     }
 
     @GetMapping("/perms/{empNo}")
@@ -113,7 +114,7 @@ public class SysAdminController {
     @PutMapping("/perms/{empNo}")
     public Map<String, Object> savePerms(@PathVariable("empNo") String empNo,
                                          @RequestBody SysAdminIn.PermChanges in, HttpServletRequest req) {
-        int saved = permissions.save(empNo, in.getChanges(), guard.require(req));
+        int saved = permissions.save(empNo, in.getChanges(), guard.require(req), AdminUiIds.of(req));
         return java.util.Collections.<String, Object>singletonMap("saved", saved);
     }
 

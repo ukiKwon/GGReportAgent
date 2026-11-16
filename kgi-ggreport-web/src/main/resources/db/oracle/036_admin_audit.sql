@@ -1,0 +1,17 @@
+-- -----------------------------------------------------------------------------
+-- kgi-ggreport-web — Oracle 정본 (036) : 관리자 행위 증적 — PERM_CHANGE_LOG 에 화면·버튼·검증 여부·역할 대상 (2026-11-16)
+--   칸 뜻은 db/mysql/036 과 같다. 11g 호환: ADD … DEFAULT … NOT NULL 과 MODIFY NULL 만 쓴다. 적용은 DBA.
+-- ⚠️ 외래키·CHECK 없음. ⚠️ 멱등하지 않다 — 008 이후 한 번만.
+-- 되돌리기: DELETE FROM PERM_CHANGE_LOG WHERE TARGET_EMP_NO IS NULL; DROP INDEX IDX_PERM_CHG_ROLE;
+--   ALTER TABLE PERM_CHANGE_LOG DROP (SCREEN_ID, BUTTON_ID, UI_VALID, EMP_VERIFIED, TARGET_ROLE);
+--   ALTER TABLE PERM_CHANGE_LOG MODIFY (TARGET_EMP_NO NOT NULL);
+-- -----------------------------------------------------------------------------
+ALTER TABLE PERM_CHANGE_LOG ADD (
+    SCREEN_ID    VARCHAR2(30 CHAR) DEFAULT 'UNKNOWN' NOT NULL,
+    BUTTON_ID    VARCHAR2(30 CHAR) DEFAULT 'UNKNOWN' NOT NULL,
+    UI_VALID     NUMBER(1)         DEFAULT 0 NOT NULL,
+    EMP_VERIFIED NUMBER(1)         DEFAULT 0 NOT NULL,
+    TARGET_ROLE  VARCHAR2(50 CHAR)
+);
+ALTER TABLE PERM_CHANGE_LOG MODIFY (TARGET_EMP_NO NULL);
+CREATE INDEX IDX_PERM_CHG_ROLE ON PERM_CHANGE_LOG (TARGET_ROLE, CHANGED_AT);

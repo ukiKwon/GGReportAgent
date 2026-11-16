@@ -215,8 +215,9 @@ public class SysAdminApiTest {
         leaveOnlyMaster();
         asAdmin(json(put("/sysadmin/perms/" + SALES_MEMBER),
                 "{\"changes\":[{\"menu\":\"admin\",\"view\":true}]}")).andExpect(jsonPath("$.saved").value(1));
-        asAdmin(json(put("/sysadmin/perms/" + ADMIN),
-                "{\"changes\":[{\"menu\":\"admin\",\"view\":false}]}")).andExpect(status().isOk());
+        // 본인 권한은 다른 관리자가 바꾼다(사용자 11-16 ⓑ) — 방금 관리자가 된 김영업이 마스터의 권한관리를 끈다
+        mockMvc.perform(json(put("/sysadmin/perms/" + ADMIN), "{\"changes\":[{\"menu\":\"admin\",\"view\":false}]}")
+                .header(Actor.HEADER, SALES_MEMBER)).andExpect(status().isOk());
     }
 
     // ── 로그인·접근 이력 ──────────────────────────────────────────────
@@ -281,5 +282,61 @@ public class SysAdminApiTest {
         asAdmin(get("/sysadmin/access-log").param("from", "2999-01-01"))
                 .andExpect(jsonPath("$.total").value(0));
         asAdmin(get("/sysadmin/access-log").param("from", "not-a-date")).andExpect(status().isOk());
+    }
+
+    // ── 2026-11-16 사용자 결정 ⓑ: 관리자 본인의 정보·상태·결재자·권한은 다른 관리자가 바꾼다 + 화면·버튼 증적 ──
+
+    @Test
+    public void 본인_정보_상태_결재자_권한_변경은_400이고_다른_관리자는_된다() throws Exception {
+        asAdmin(json(put("/sysadmin/users/" + ADMIN), "{\"name\":\"마스터\",\"role\":\"전산팀\",\"position_title\":\"과장\"}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("다른 관리자")));
+        asAdmin(json(put("/sysadmin/users/" + ADMIN + "/status"), "{\"status\":\"ACTIVE\"}")).andExpect(status().isBadRequest());
+        asAdmin(json(put("/sysadmin/users/" + ADMIN + "/approver"), "{\"mode\":\"AUTO\"}")).andExpect(status().isBadRequest());
+        asAdmin(json(put("/sysadmin/perms/" + ADMIN), "{\"changes\":[{\"menu\":\"chat\",\"view\":false}]}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(json(put("/sysadmin/perms/" + ADMIN), "{\"changes\":[{\"menu\":\"chat\",\"view\":false}]}")
+                .header(Actor.HEADER, "6513840")).andExpect(status().isOk());   // 전산팀(역할 기본 관리자)이 바꾸면 된다
+    }
+
+    @Test
+    public void 권한_변경_이력에_화면_버튼_검증_여부가_남는다() throws Exception {
+        mockMvc.perform(json(put("/sysadmin/perms/" + SALES_MEMBER), "{\"changes\":[{\"menu\":\"knowledge\",\"view\":false}]}")
+                .header(Actor.HEADER, ADMIN).header("X-Screen-Id", "admin_perms").header("X-Button-Id", "perm_save"))
+                .andExpect(status().isOk());
+        asAdmin(get("/sysadmin/perm-changes").param("emp", SALES_MEMBER))
+                .andExpect(jsonPath("$.items[0].screen_id").value("admin_perms"))
+                .andExpect(jsonPath("$.items[0].button_id").value("perm_save"))
+                .andExpect(jsonPath("$.items[0].ui_valid").value(true))
+                .andExpect(jsonPath("$.items[0].emp_verified").value(false))
+                .andExpect(jsonPath("$.items[0].actor_emp_no").value(ADMIN));
+        mockMvc.perform(json(put("/sysadmin/perms/" + SALES_MEMBER), "{\"changes\":[{\"menu\":\"knowledge\",\"view\":true}]}")
+                .header(Actor.HEADER, ADMIN).header("X-Screen-Id", "<script>")).andExpect(status().isOk());
+        asAdmin(get("/sysadmin/perm-changes").param("emp", SALES_MEMBER))
+                .andExpect(jsonPath("$.items[0].screen_id").value("UNKNOWN"))
+                .andExpect(jsonPath("$.items[0].ui_valid").value(false));
+    }
+
+    @Test
+    public void 역할_메뉴_변경은_칸마다_이력이_남는다() throws Exception {
+        mockMvc.perform(json(put("/menus"), "{\"changes\":[{\"role\":\"예산팀\",\"menu\":\"knowledge\",\"enabled\":false}]}")
+                .header(Actor.HEADER, ADMIN).header("X-Screen-Id", "admin_menus").header("X-Button-Id", "menu_save"))
+                .andExpect(status().isOk());
+        asAdmin(get("/sysadmin/perm-changes"))
+                .andExpect(jsonPath("$.items[0].item").value("role_menu:knowledge"))
+                .andExpect(jsonPath("$.items[0].target_role").value("예산팀"))
+                .andExpect(jsonPath("$.items[0].actor_emp_no").value(ADMIN))
+                .andExpect(jsonPath("$.items[0].before_value").value("1"))
+                .andExpect(jsonPath("$.items[0].after_value").value("0"))
+                .andExpect(jsonPath("$.items[0].screen_id").value("admin_menus"));
+    }
+
+    @Test
+    public void 사용자_등록_이력에_이름_직위_등급이_남는다() throws Exception {
+        asAdmin(json(post("/sysadmin/users"), "{\"emp_no\":\"1111111\",\"name\":\"가상직원\",\"role\":\"영업팀\",\"position_title\":\"계장\"}"))
+                .andExpect(status().isOk());
+        String text = asAdmin(get("/sysadmin/perm-changes").param("emp", "1111111")).andReturn().getResponse()
+                .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        org.junit.Assert.assertTrue(text, text.contains("user:CREATE") && text.contains("user:NAME") && text.contains("가상직원")
+                && text.contains("user:POSITION_TITLE") && text.contains("user:APPROVAL_GRADE"));
     }
 }

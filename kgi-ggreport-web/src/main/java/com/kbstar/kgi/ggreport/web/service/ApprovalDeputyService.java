@@ -105,6 +105,10 @@ public class ApprovalDeputyService {
         if (deputy.getEmpNo().equals(principal.getEmpNo())) {
             throw new ApiException(400, "자기 자신을 대결자로 지정할 수 없습니다.");
         }
+        // 관리자 대리 지정으로 남의 결재를 자기에게 가져오지 않는다(security 11-16 S3)
+        if (!principal.getEmpNo().equals(me.getEmpNo()) && deputy.getEmpNo().equals(me.getEmpNo())) {
+            throw new ApiException(400, "다른 결재자의 대결자로 본인을 지정할 수 없습니다. 결재자 본인이 지정하거나 다른 관리자가 지정하세요.");
+        }
         LocalDate start = date(in.getStartDate(), "시작일");
         LocalDate end = date(in.getEndDate(), "종료일");
         LocalDate today = LocalDate.parse(Times.todayKst());

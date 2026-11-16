@@ -1,14 +1,19 @@
 package com.kbstar.kgi.ggreport.web.service;
 
+import com.kbstar.kgi.ggreport.web.domain.PermChange;
 import com.kbstar.kgi.ggreport.web.domain.RoleMenu;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.domain.UserMenuPerm;
 import com.kbstar.kgi.ggreport.web.dto.MenuChangesIn;
+import com.kbstar.kgi.ggreport.web.mapper.PermChangeLogMapper;
 import com.kbstar.kgi.ggreport.web.mapper.RoleMenuMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.mapper.UserMenuPermMapper;
+import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.Menus;
 import com.kbstar.kgi.ggreport.web.support.Teams;
+import com.kbstar.kgi.ggreport.web.support.Times;
+import com.kbstar.kgi.ggreport.web.web.Actor;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,11 +37,14 @@ public class MenuService {
     private final RoleMenuMapper mapper;
     private final SysUserMapper users;
     private final UserMenuPermMapper perms;
+    private final PermChangeLogMapper changeLog;
 
-    public MenuService(RoleMenuMapper mapper, SysUserMapper users, UserMenuPermMapper perms) {
+    public MenuService(RoleMenuMapper mapper, SysUserMapper users, UserMenuPermMapper perms,
+                       PermChangeLogMapper changeLog) {
         this.mapper = mapper;
         this.users = users;
         this.perms = perms;
+        this.changeLog = changeLog;
     }
 
     /** {@code {역할: {메뉴: 켜짐}}} — 저장된 것만. 없으면 빈 맵. */
@@ -75,6 +83,15 @@ public class MenuService {
      */
     @Transactional
     public int save(List<MenuChangesIn.MenuChange> changes) {
+        return save(changes, null, BoardUiIds.unknown());
+    }
+
+    /**
+     * 값이 실제로 바뀐 칸마다 PERM_CHANGE_LOG 에 'role_menu:<메뉴>' 1행(TARGET_ROLE=역할, TARGET_EMP_NO=NULL)을 같은 트랜잭션에 남긴다
+     * (누가·어느 화면·어느 버튼, 2026-11-16 관리자 증적). 반환값(요청 칸 수)은 그대로 — 골든·화면 계약.
+     */
+    @Transactional
+    public int save(List<MenuChangesIn.MenuChange> changes, Actor actor, BoardUiIds.Ui ui) {
         for (MenuChangesIn.MenuChange change : changes) {
             if (!Menus.MENU_KEYS.contains(change.getMenu())) {
                 throw ApiException.badRequest("모르는 메뉴입니다: " + change.getMenu());
@@ -100,8 +117,21 @@ public class MenuService {
                             + "먼저 다른 역할이나 사용자에게 권한관리를 켜 주세요.");
         }
 
+        Map<String, Map<String, Boolean>> current = Menus.allRoles(overrides());   // 저장 전 실제 값(이력의 '이전')
+        String stamp = Times.nowIso();
         for (MenuChangesIn.MenuChange change : changes) {
+            Map<String, Boolean> row = current.get(change.getRole());
+            boolean before = row != null && Boolean.TRUE.equals(row.get(change.getMenu()));
             upsert(change);
+            if (before != change.isEnabled()) {
+                PermChange c = PermChangeRows.of(actor, ui, null, "role_menu:" + change.getMenu(),
+                        before ? "1" : "0", change.isEnabled() ? "1" : "0", stamp);
+                c.setTargetRole(change.getRole());
+                changeLog.insert(c);
+            }
+            if (row != null) {
+                row.put(change.getMenu(), change.isEnabled());   // 같은 칸이 한 요청에 두 번 와도 이력이 어긋나지 않게
+            }
         }
         return changes.size();
     }

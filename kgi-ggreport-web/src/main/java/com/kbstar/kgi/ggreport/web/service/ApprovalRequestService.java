@@ -477,6 +477,10 @@ public class ApprovalRequestService {
         skipRest(requests.selectSteps(id), null, now);
         requireOne(requests.updateRequest(id, "CANCELLED", r.getCurrentStep(),
                 r.getRequesterEmpNo().equals(me.getEmpNo()) ? "상신자가 취소" : "관리자가 취소", now));
+        if (!own) {   // 관리자 취소는 취소자 사번·검증 여부·화면·버튼을 남긴다(RESULT_NOTE 에는 사번이 없다, security S9)
+            changeLog.insert(PermChangeRows.of(actor, prepUi, r.getRequesterEmpNo(), "approval:CANCEL",
+                    "PENDING", "#" + r.getReqId(), now));
+        }
         if (ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType())) {
             assignments.releasePending(r);          // 그 요청이 잡고 있던 선점만 푼다(다른 요청의 선점은 그대로)
         }

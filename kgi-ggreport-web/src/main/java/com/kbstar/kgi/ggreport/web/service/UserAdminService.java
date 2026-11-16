@@ -1,10 +1,10 @@
 package com.kbstar.kgi.ggreport.web.service;
 
-import com.kbstar.kgi.ggreport.web.domain.PermChange;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.dto.SysAdminIn;
 import com.kbstar.kgi.ggreport.web.mapper.PermChangeLogMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
+import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.MenuPerms;
 import com.kbstar.kgi.ggreport.web.support.Menus;
 import com.kbstar.kgi.ggreport.web.support.Ranks;
@@ -48,6 +48,12 @@ public class UserAdminService {
 
     @Transactional
     public SysUser create(SysAdminIn.UserForm in, Actor actor) {
+        return create(in, actor, BoardUiIds.unknown());
+    }
+
+    /** ui: 어느 화면·어느 버튼(AdminUiIds) — 이력 행에 같이 남긴다(2026-11-16 관리자 증적). */
+    @Transactional
+    public SysUser create(SysAdminIn.UserForm in, Actor actor, BoardUiIds.Ui ui) {
         String empNo = in.getEmpNo() == null ? null : in.getEmpNo().trim();
         if (!MenuPerms.isEmpNo(empNo)) {
             throw new ApiException(400, "사번은 숫자 7자리여야 합니다.");
@@ -71,14 +77,23 @@ public class UserAdminService {
         } catch (DuplicateKeyException e) {
             throw new ApiException(409, "이미 등록된 사번입니다.");
         }
-        log(actor, empNo, "user:CREATE", null, u.getRole(), now);
-        approvers.recomputeAuto(actor);   // 새 사용자의 결재자(자동)와, 새 팀장·부장이 생겨 바뀌는 사람들
+        log(actor, ui, empNo, "user:CREATE", null, u.getRole(), now);
+        diff(actor, ui, empNo, "user:NAME", null, u.getName(), now);                    // 등록 때 이름·직위·등급도 남긴다(security S10)
+        diff(actor, ui, empNo, "user:POSITION_TITLE", null, u.getPositionTitle(), now);
+        diff(actor, ui, empNo, "user:APPROVAL_GRADE", null, u.getApprovalGrade(), now);
+        approvers.recomputeAuto(actor, ui);   // 새 사용자의 결재자(자동)와, 새 팀장·부장이 생겨 바뀌는 사람들
         return users.selectByEmpNo(empNo);
     }
 
     @Transactional
     public SysUser update(String empNo, SysAdminIn.UserForm in, Actor actor) {
+        return update(empNo, in, actor, BoardUiIds.unknown());
+    }
+
+    @Transactional
+    public SysUser update(String empNo, SysAdminIn.UserForm in, Actor actor, BoardUiIds.Ui ui) {
         SysUser before = require(empNo);
+        SelfChange.refuse(actor, empNo, "본인 정보는 다른 관리자가 바꿉니다.");   // 이름·역할·직위·결재 등급 전부(사용자 11-16 ⓑ)
         validate(in);
         String role = in.getRole();
         if (!role.equals(before.getRole()) && "ACTIVE".equals(before.getStatus())
@@ -90,17 +105,23 @@ public class UserAdminService {
         String now = Times.nowIso();
         String grade = gradeOf(in);
         users.updateProfile(empNo, in.getName().trim(), role, blankToNull(in.getPositionTitle()), grade, now);
-        diff(actor, empNo, "user:NAME", before.getName(), in.getName().trim(), now);
-        diff(actor, empNo, "user:ROLE", before.getRole(), role, now);
-        diff(actor, empNo, "user:POSITION_TITLE", before.getPositionTitle(), blankToNull(in.getPositionTitle()), now);
-        diff(actor, empNo, "user:APPROVAL_GRADE", before.getApprovalGrade(), grade, now);
-        approvers.recomputeAuto(actor);
+        diff(actor, ui, empNo, "user:NAME", before.getName(), in.getName().trim(), now);
+        diff(actor, ui, empNo, "user:ROLE", before.getRole(), role, now);
+        diff(actor, ui, empNo, "user:POSITION_TITLE", before.getPositionTitle(), blankToNull(in.getPositionTitle()), now);
+        diff(actor, ui, empNo, "user:APPROVAL_GRADE", before.getApprovalGrade(), grade, now);
+        approvers.recomputeAuto(actor, ui);
         return users.selectByEmpNo(empNo);
     }
 
     @Transactional
     public SysUser setStatus(String empNo, String status, Actor actor) {
+        return setStatus(empNo, status, actor, BoardUiIds.unknown());
+    }
+
+    @Transactional
+    public SysUser setStatus(String empNo, String status, Actor actor, BoardUiIds.Ui ui) {
         SysUser before = require(empNo);
+        SelfChange.refuse(actor, empNo, "본인 계정 상태는 다른 관리자가 바꿉니다.");   // 자기 잠금 해제·자기 퇴직 포함
         if (!MenuPerms.STATUSES.contains(status)) {
             throw new ApiException(400, "알 수 없는 상태입니다.");
         }
@@ -110,8 +131,8 @@ public class UserAdminService {
         }
         String now = Times.nowIso();
         users.updateStatus(empNo, status, "ACTIVE".equals(status), now);
-        diff(actor, empNo, "user:STATUS", before.getStatus(), status, now);
-        approvers.recomputeAuto(actor);   // 결재자가 잠기거나 퇴직하면 자동 모드 사용자의 결재자가 다시 정해진다
+        diff(actor, ui, empNo, "user:STATUS", before.getStatus(), status, now);
+        approvers.recomputeAuto(actor, ui);   // 결재자가 잠기거나 퇴직하면 자동 모드 사용자의 결재자가 다시 정해진다
         return users.selectByEmpNo(empNo);
     }
 
@@ -150,21 +171,14 @@ public class UserAdminService {
         return s == null || s.trim().isEmpty() ? null : s.trim();
     }
 
-    private void diff(Actor actor, String target, String item, String before, String after, String now) {
+    private void diff(Actor actor, BoardUiIds.Ui ui, String target, String item, String before, String after, String now) {
         if ((before == null ? "" : before).equals(after == null ? "" : after)) {
             return;
         }
-        log(actor, target, item, before, after, now);
+        log(actor, ui, target, item, before, after, now);
     }
 
-    private void log(Actor actor, String target, String item, String before, String after, String now) {
-        PermChange c = new PermChange();
-        c.setChangedAt(now);
-        c.setActorEmpNo(actor == null ? null : actor.getEmpNo());
-        c.setTargetEmpNo(target);
-        c.setItem(item);
-        c.setBeforeValue(before);
-        c.setAfterValue(after);
-        changeLog.insert(c);
+    private void log(Actor actor, BoardUiIds.Ui ui, String target, String item, String before, String after, String now) {
+        changeLog.insert(PermChangeRows.of(actor, ui, target, item, before, after, now));
     }
 }

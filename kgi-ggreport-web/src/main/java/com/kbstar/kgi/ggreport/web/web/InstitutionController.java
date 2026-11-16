@@ -74,6 +74,7 @@ public class InstitutionController {
     private final OrchestratorService orchestrator;
     private final MenuGuard guard;
     private final BidCaseQueryService bidCases;
+    private final AdminGuard adminGuard;
 
     public InstitutionController(InstitutionService institutions,
                                  InstitutionCommandService institutionCommands,
@@ -82,8 +83,10 @@ public class InstitutionController {
                                  WorkflowStatusService workflow,
                                  OrchestratorService orchestrator,
                                  MenuGuard guard,
-                                 BidCaseQueryService bidCases) {
+                                 BidCaseQueryService bidCases,
+                                 AdminGuard adminGuard) {
         this.guard = guard;
+        this.adminGuard = adminGuard;
         this.bidCases = bidCases;
         this.institutions = institutions;
         this.institutionCommands = institutionCommands;
@@ -236,7 +239,9 @@ public class InstitutionController {
      */
     @PostMapping("/{institutionId}/corpus")
     public CorpusRegisterResponse corpusRegister(@PathVariable String institutionId,
-                                                 @RequestBody CorpusPathIn body) {
+                                                 @RequestBody CorpusPathIn body, HttpServletRequest req) {
+        // 관리자 전용(서버 경로를 다루는 운영 작업, 밀린 건 활성화가 따라온다 — security 11-16 S7). 401/403 은 AdminGuard 가 DENIED 로 남긴다.
+        adminGuard.require(req);
         return corpus.register(institutionId, body.getPath());
     }
 

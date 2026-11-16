@@ -1,11 +1,11 @@
 package com.kbstar.kgi.ggreport.web.service;
 
-import com.kbstar.kgi.ggreport.web.domain.PermChange;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.dto.SysUserView;
 import com.kbstar.kgi.ggreport.web.mapper.PermChangeLogMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.support.ApproverRules;
+import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.MenuPerms;
 import com.kbstar.kgi.ggreport.web.support.Ranks;
 import com.kbstar.kgi.ggreport.web.support.Times;
@@ -58,9 +58,15 @@ public class ApproverService {
      */
     @Transactional
     public void recomputeAuto(Actor actor) {
+        recomputeAuto(actor, BoardUiIds.unknown());
+    }
+
+    /** ui: 이 재계산을 일으킨 관리 화면·버튼(사용자 등록·수정·상태). 자동 변경 행에도 같은 값을 남긴다. */
+    @Transactional
+    public void recomputeAuto(Actor actor, BoardUiIds.Ui ui) {
         String now = Times.nowIso();
         List<SysUser> all = users.selectAll();
-        if (releaseRankMismatch(actor, all, now)) {
+        if (releaseRankMismatch(actor, ui, all, now)) {
             all = users.selectAll();   // 해제 반영본으로 자동 단계를 돌린다
         }
         for (SysUser u : all) {
@@ -71,13 +77,13 @@ public class ApproverService {
             String target = r.getState() == ApproverRules.State.OK ? r.getEmpNo() : null;
             if (!same(u.getApproverEmpNo(), target)) {
                 users.updateApprover(u.getEmpNo(), target, 0, now);
-                log(actor, u.getEmpNo(), "user:APPROVER", u.getApproverEmpNo(), target, now);
+                log(actor, ui, u.getEmpNo(), "user:APPROVER", u.getApproverEmpNo(), target, now);
             }
         }
     }
 
     /** 수동 지정 중 결재자가 상신자보다 엄격히 높지 않게 된 쌍을 AUTO 로 푼다(결재자 값은 자동 단계가 정한다). */
-    private boolean releaseRankMismatch(Actor actor, List<SysUser> all, String now) {
+    private boolean releaseRankMismatch(Actor actor, BoardUiIds.Ui ui, List<SysUser> all, String now) {
         Map<String, SysUser> byEmp = index(all);
         boolean any = false;
         for (SysUser u : all) {
@@ -89,8 +95,8 @@ public class ApproverService {
                 continue;
             }
             users.updateApprover(u.getEmpNo(), u.getApproverEmpNo(), 0, now);
-            log(actor, u.getEmpNo(), "user:APPROVER_RELEASED", u.getApproverEmpNo(), "RANK", now);
-            log(actor, u.getEmpNo(), "user:APPROVER_MODE", MANUAL, AUTO, now);
+            log(actor, ui, u.getEmpNo(), "user:APPROVER_RELEASED", u.getApproverEmpNo(), "RANK", now);
+            log(actor, ui, u.getEmpNo(), "user:APPROVER_MODE", MANUAL, AUTO, now);
             any = true;
         }
         return any;
@@ -98,6 +104,12 @@ public class ApproverService {
 
     @Transactional
     public SysUserView assign(String empNo, String approverEmpNo, String mode, Actor actor) {
+        return assign(empNo, approverEmpNo, mode, actor, BoardUiIds.unknown());
+    }
+
+    @Transactional
+    public SysUserView assign(String empNo, String approverEmpNo, String mode, Actor actor, BoardUiIds.Ui ui) {
+        SelfChange.refuse(actor, empNo, "본인 결재자는 다른 관리자가 정합니다.");   // 자기 결재선을 고르지 않는다(사용자 11-16 ⓑ)
         SysUser before = MenuPerms.isEmpNo(empNo) ? users.selectByEmpNo(empNo) : null;
         if (before == null) {
             throw new ApiException(404, "user not found");
@@ -115,12 +127,16 @@ public class ApproverService {
             manual = 0;
         } else {
             target = approverEmpNo == null ? null : approverEmpNo.trim();
+            // 관리자가 자기 자신을 남의 상위 결재자로 '지정'하지 않는다(자동 규칙이 고른 결과는 막지 않는다, security S2)
+            if (actor != null && actor.isKnown() && actor.getEmpNo().equals(target)) {
+                throw new ApiException(400, "관리자 본인을 다른 사용자의 결재자로 지정할 수 없습니다. 다른 관리자가 지정하세요.");
+            }
             validateManual(before, target, all);
             manual = 1;
         }
         users.updateApprover(empNo, target, manual, now);
-        diff(actor, empNo, "user:APPROVER", before.getApproverEmpNo(), target, now);
-        diff(actor, empNo, "user:APPROVER_MODE", before.getApproverManual() == 1 ? MANUAL : AUTO,
+        diff(actor, ui, empNo, "user:APPROVER", before.getApproverEmpNo(), target, now);
+        diff(actor, ui, empNo, "user:APPROVER_MODE", before.getApproverManual() == 1 ? MANUAL : AUTO,
                 manual == 1 ? MANUAL : AUTO, now);
         List<SysUser> fresh = users.selectAll();
         return view(users.selectByEmpNo(empNo), fresh, index(fresh));
@@ -231,20 +247,13 @@ public class ApproverService {
         return (a == null ? "" : a).equals(b == null ? "" : b);
     }
 
-    private void diff(Actor actor, String target, String item, String before, String after, String now) {
+    private void diff(Actor actor, BoardUiIds.Ui ui, String target, String item, String before, String after, String now) {
         if (!same(before, after)) {
-            log(actor, target, item, before, after, now);
+            log(actor, ui, target, item, before, after, now);
         }
     }
 
-    private void log(Actor actor, String target, String item, String before, String after, String now) {
-        PermChange c = new PermChange();
-        c.setChangedAt(now);
-        c.setActorEmpNo(actor == null ? null : actor.getEmpNo());
-        c.setTargetEmpNo(target);
-        c.setItem(item);
-        c.setBeforeValue(before);
-        c.setAfterValue(after);
-        changeLog.insert(c);
+    private void log(Actor actor, BoardUiIds.Ui ui, String target, String item, String before, String after, String now) {
+        changeLog.insert(PermChangeRows.of(actor, ui, target, item, before, after, now));
     }
 }

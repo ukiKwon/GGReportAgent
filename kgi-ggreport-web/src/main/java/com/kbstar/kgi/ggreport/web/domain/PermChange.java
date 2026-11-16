@@ -10,6 +10,11 @@ public class PermChange {
     private String item;
     private String beforeValue;
     private String afterValue;
+    private String targetRole;                 // 역할×메뉴 격자 변경 행(이때 targetEmpNo 는 null) — 036
+    private String screenId = "UNKNOWN";       // 어느 화면(AdminUiIds 허용 목록, 밖이면 UNKNOWN)
+    private String buttonId = "UNKNOWN";       // 어느 버튼
+    private boolean uiValid;
+    private boolean empVerified;               // 앞단 인증 주체면 true, X-Emp-No 자기신고면 false
 
     public Long getChgId() { return chgId; }
     public void setChgId(Long chgId) { this.chgId = chgId; }
@@ -31,4 +36,19 @@ public class PermChange {
 
     public String getAfterValue() { return afterValue; }
     public void setAfterValue(String afterValue) { this.afterValue = afterValue; }
+
+    public String getTargetRole() { return targetRole; }
+    public void setTargetRole(String targetRole) { this.targetRole = targetRole; }
+
+    public String getScreenId() { return screenId; }
+    public void setScreenId(String screenId) { this.screenId = screenId; }
+
+    public String getButtonId() { return buttonId; }
+    public void setButtonId(String buttonId) { this.buttonId = buttonId; }
+
+    public boolean isUiValid() { return uiValid; }
+    public void setUiValid(boolean uiValid) { this.uiValid = uiValid; }
+
+    public boolean isEmpVerified() { return empVerified; }
+    public void setEmpVerified(boolean empVerified) { this.empVerified = empVerified; }
 }

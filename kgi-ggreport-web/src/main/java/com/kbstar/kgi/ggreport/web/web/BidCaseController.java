@@ -56,6 +56,9 @@ public class BidCaseController {
     static final String CASE_CREATE = "CASE_CREATE";
     static final String CASE_LIST = "CASE_LIST";
     static final String CASE_VIEW = "CASE_VIEW";
+    static final String DECISION_PREFIX = "DECISION_T";     // 참여 결정 단계 증적(security S6) — DECISION_T1~3
+    static final String FINALIZE_APPROVE = "FINALIZE_APPROVE";
+    static final String FINALIZE_REJECT = "FINALIZE_REJECT";
     /** 건이 없거나 정해지지 않은 줄의 건 칸·상태 칸 값(PrepController 와 같은 표기). */
     private static final String NO_CASE = "NONE";
 
@@ -134,7 +137,10 @@ public class BidCaseController {
         } else {
             guard.requireRole(req, "approvals", need, "이 단계의 참여 결재 권한이 없습니다.");
         }
-        return commands.submitDecision(bidCaseId, body);
+        ParticipationDecisionOut out = commands.submitDecision(bidCaseId, body);
+        // 저장되는 by·role 은 표시용(본문 값, 골든 11~13). 누가 했는지의 정본은 BID_PREP_ACT(서버가 정한 사번·검증 여부·화면·버튼, security S6).
+        recordOk(caseKey(bidCaseId), DECISION_PREFIX + body.getTier(), true, Actor.of(req), PrepUiIds.of(req));
+        return out;
     }
 
     /**
@@ -199,7 +205,10 @@ public class BidCaseController {
         SysUser approver = guard.requireRole(req, "approvals", Teams.FINAL_APPROVER,
                 "최종 확정은 영업부장만 할 수 있습니다.");
         String by = userId == null || userId.trim().isEmpty() ? approver.getName() : userId;
-        return commands.finalizeBidCase(bidCaseId, body, by);
+        BidCaseDetail out = commands.finalizeBidCase(bidCaseId, body, by);
+        // finalized_by 는 표시용(X-User-Id 우선, 골든 24). 증적 정본은 BID_PREP_ACT(security S6).
+        recordOk(caseKey(bidCaseId), body.isApproved() ? FINALIZE_APPROVE : FINALIZE_REJECT, true, Actor.of(req), PrepUiIds.of(req));
+        return out;
     }
 
     // ── 가드·감사 틀 ─────────────────────────────────────────────

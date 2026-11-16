@@ -99,6 +99,7 @@ public class CorpusApiTest {
     private MockHttpServletResponse call(String suffix, String path) throws Exception {
         MockHttpServletResponse res = mockMvc.perform(
                         post("/institutions/" + institutionId + "/corpus" + suffix)
+                                .header("X-Emp-No", "8203417")   // 등록은 관리자 전용(security 11-16 S7) — 검사는 머리글을 보지 않는다
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"path\":\"" + path + "\"}"))
                 .andReturn().getResponse();
@@ -224,5 +225,15 @@ public class CorpusApiTest {
         assertTrue("검사만 했는데 경로가 붙으면 안 된다",
                 json.readTree(after.getContentAsString()).path("giganlist_dir").isNull()
                         || json.readTree(after.getContentAsString()).path("giganlist_dir").isMissingNode());
+    }
+
+    @Test
+    public void 코퍼스_등록은_관리자만_한다() throws Exception {   // security 11-16 S7
+        MockHttpServletResponse noEmp = mockMvc.perform(post("/institutions/" + institutionId + "/corpus")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"path\":\"" + OK_DIR + "\"}")).andReturn().getResponse();
+        assertEquals(401, noEmp.getStatus());
+        MockHttpServletResponse sales = mockMvc.perform(post("/institutions/" + institutionId + "/corpus").header("X-Emp-No", "3918264")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"path\":\"" + OK_DIR + "\"}")).andReturn().getResponse();
+        assertEquals(403, sales.getStatus());
     }
 }
