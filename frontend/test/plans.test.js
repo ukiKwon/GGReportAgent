@@ -462,3 +462,18 @@ test('사업표: 고정 배치·폭 상한, 예산 열 고정 폭, 원문 표기
   assert.match(why, /white-space:normal/);
   assert.match(why, /overflow-wrap:anywhere/);
 });
+
+// 11-16 사용자: 예산 칸에 원문 표기가 보이는 행은 사업명 아래 비고에서 같은 '예산 원문: …' 조각을 뺀다.
+test('noteWithoutSrcBudget: 예산 칸에 보인 조각만 빼고 나머지 비고는 남긴다', () => {
+  assert.strictEqual(plans.noteWithoutSrcBudget('예산 원문: 268+32 / 기타'), '기타');
+  assert.strictEqual(plans.noteWithoutSrcBudget('앞말\n예산 원문: 12+3\n뒷말'), '앞말\n뒷말');
+  assert.strictEqual(plans.noteWithoutSrcBudget('예산 원문: 12+3'), '');
+  assert.strictEqual(plans.noteWithoutSrcBudget('다른 비고'), '다른 비고');
+});
+test('itemRowHtml: 원문 표기 행은 비고에 예산 원문을 다시 보이지 않고, 금액 행은 비고 그대로', () => {
+  const u = plans.itemRowHtml({ item_no: '4', name: '인지건강', budget: { state_cd: 'UNVERIFIED' }, note: '예산 원문: 268+32 / 기타' }, 'MIL_KRW');
+  assert.strictEqual(u.split('268+32').length - 1, 2);   // 예산 칸 보이는 글 1 + 낭독용 1, 비고에는 없음
+  assert.ok(u.indexOf('<span class="pl-content">기타</span>') >= 0);
+  const a = plans.itemRowHtml({ item_no: '5-1', name: '공공일자리', budget: { state_cd: 'AMOUNT', amount: 23570, unit_cd: 'MIL_KRW' }, note: '예산 원문: 계 23,570 (연도별)' }, 'MIL_KRW');
+  assert.ok(a.indexOf('예산 원문: 계 23,570 (연도별)') >= 0);
+});

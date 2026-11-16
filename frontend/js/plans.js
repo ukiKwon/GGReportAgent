@@ -72,6 +72,7 @@
     return {
       html: '<span class="db-why"' + (cut ? ' title="' + esc(full) + '"' : '') + '>' + esc(shown) + ' (원문 표기)</span>',
       sr: '원문 표기 ' + full,
+      src: true,
     };
   }
   plans.budgetCell = function (it, headUnit) {
@@ -157,7 +158,18 @@
     return items.filter(function (it) { return keep[it.item_id]; });
   };
   // 보충 B·D: 폐기 = 실선 외곽 칩 + 글자 --muted(취소선·opacity 없음). 홈페이지 확인 상태(check_cd)는 화면에 쓰지 않는다(사용자 결정 2026-11-16).
+  // 예산 칸이 원문 표기를 보이면 비고에서 그 '예산 원문: …' 조각을 빼 같은 글을 두 번 보이지 않는다(사용자 11-16). 조각 뒤 ' / 나머지'는 남긴다.
+  plans.noteWithoutSrcBudget = function (note) {
+    const n = str(note), frag = plans.srcBudgetText(n);
+    if (!frag) return n;
+    const m = /예산 원문:[ \t]*/.exec(n);
+    let rest = n.slice(m.index + m[0].length);
+    rest = rest.slice(rest.indexOf(frag) + frag.length).replace(/^[ \t]*\/[ \t]*/, '');
+    return (n.slice(0, m.index) + rest).split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean).join('\n');
+  };
   plans.itemRowHtml = function (it, headUnit) {
+    const bud = plans.budgetCell(it, headUnit);
+    const note = bud.src ? plans.noteWithoutSrcBudget(it.note) : str(it.note);
     const dropped = it.progress_cd === 'DROPPED';
     const tags = [];
     if (dropped) tags.push(badge('pp-cancel', '폐기'));
@@ -167,7 +179,7 @@
     const nm = '<td class="pl-nm"><span class="pl-name">' + esc(it.name) + '</span>' + (tags.length ? ' ' + tags.join(' ') : '') +
       (str(it.content).trim() ? '<span class="pl-content">' + esc(it.content) + '</span>' : '') +
       (prog.length ? '<span class="db-why pl-prog">' + prog.join(' · ') + '</span>' : '') +
-      (str(it.note).trim() ? '<span class="pl-content">' + esc(it.note) + '</span>' : '') + '</td>';
+      (note.trim() ? '<span class="pl-content">' + esc(note) + '</span>' : '') + '</td>';
     return '<tr class="pl-row' + (it.parent_no != null ? ' pl-child' : '') + (dropped ? ' pl-dim' : '') + '">' +
       '<td class="pl-no">' + mono(it.item_no) + '</td>' + nm + budgetTd(it, headUnit) + '</tr>';
   };
