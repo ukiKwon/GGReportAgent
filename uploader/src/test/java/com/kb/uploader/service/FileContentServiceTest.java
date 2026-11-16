@@ -127,4 +127,12 @@ public class FileContentServiceTest {
         Files.write(f.toPath(), "not a zip".getBytes(StandardCharsets.UTF_8));
         assertNull(sut.extractText(f.getAbsolutePath()));
     }
+
+    @Test
+    public void hwpx_중복_entry는_null() throws Exception {
+        byte[] ok = Files.readAllBytes(makeHwpx("<hs:sec xmlns:hs=\"x\" xmlns:hp=\"y\"><hp:t>본문</hp:t></hs:sec>").toPath());
+        File f = tempFolder.newFile("dup.hwpx");
+        Files.write(f.toPath(), com.kb.uploader.parse.ZipFixtures.duplicateEntry(ok, "Contents/section0.xml"));
+        assertNull(sut.extractText(f.getAbsolutePath()));
+    }
 }

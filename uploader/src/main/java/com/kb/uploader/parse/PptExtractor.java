@@ -23,6 +23,13 @@ import java.util.List;
 public class PptExtractor {
 
     public List<SlideContent> extract(Path file) throws IOException {
+        if (ZipGuard.isZip(file)) {          // pptx 만 검사, ppt(OLE)는 건너뜀 (NEXT 39)
+            try {
+                ZipGuard.checkUploadFile(file);
+            } catch (ZipGuard.Rejected e) {
+                throw new IOException("ZIP 거부: " + e.code);
+            }
+        }
         try (InputStream in = Files.newInputStream(file);
              SlideShow<?, ?> show = SlideShowFactory.create(in)) {
             List<SlideContent> result = new ArrayList<>();

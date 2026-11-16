@@ -164,4 +164,23 @@ public class InstitutionServiceTest {
         verify(institutionMapper).deleteAll();
         verify(institutionMapper, times(1)).insert(any(Institution.class));
     }
+
+    @Test(expected = java.io.IOException.class)
+    public void importFromXlsx_중복_entry_zip은_거부되고_deleteAll도_안_한다() throws Exception {
+        when(institutionMapper.findAll()).thenReturn(Arrays.asList(new Institution("KAIST", "대학교")));
+        byte[] dup = com.kb.uploader.parse.ZipFixtures.duplicateEntry(sut.exportToXlsx(), "xl/workbook.xml");
+        reset(institutionMapper);
+        try {
+            sut.importFromXlsx(dup);
+        } finally {
+            verify(institutionMapper, never()).deleteAll();
+        }
+    }
+
+    @Test(expected = java.io.IOException.class)
+    public void importFromXlsx_과대_해제_크기_zip은_거부() throws Exception {
+        when(institutionMapper.findAll()).thenReturn(Arrays.asList(new Institution("KAIST", "대학교")));
+        byte[] big = com.kb.uploader.parse.ZipFixtures.addEntry(sut.exportToXlsx(), "xl/big.bin", new byte[21 * 1024 * 1024]);
+        sut.importFromXlsx(big);    // entry 20MB 초과
+    }
 }

@@ -7,6 +7,7 @@ import com.kb.uploader.domain.Institution;
 import com.kb.uploader.domain.UploadedFile;
 import com.kb.uploader.mapper.InstitutionMapper;
 import com.kb.uploader.mapper.UploadedFileMapper;
+import com.kb.uploader.parse.ZipGuard;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
@@ -95,6 +96,11 @@ public class InstitutionService {
 
     @Transactional
     public void importFromXlsx(byte[] xlsx) throws IOException {
+        try {
+            ZipGuard.checkSmallXlsx(xlsx);          // POI 로 열기 전, deleteAll 전 (NEXT 39)
+        } catch (ZipGuard.Rejected e) {
+            throw new IOException("XLSX 거부: " + e.code);   // 코드만. 경로·내용 없음
+        }
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(xlsx))) {
             Sheet sheet = wb.getSheetAt(0);
             institutionMapper.deleteAll();

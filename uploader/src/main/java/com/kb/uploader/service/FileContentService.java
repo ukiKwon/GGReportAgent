@@ -10,6 +10,7 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.kb.uploader.parse.ZipGuard;
 import org.springframework.stereotype.Service;
 import org.xml.sax.Attributes;
 import org.xml.sax.helpers.DefaultHandler;
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Enumeration;
 import java.util.zip.ZipEntry;
@@ -87,6 +89,7 @@ public class FileContentService {
     private String extractExcelText(String storedPath) throws IOException {
         StringBuilder sb = new StringBuilder();
         DataFormatter formatter = new DataFormatter();
+        guardZip(Paths.get(storedPath));
         try (Workbook wb = WorkbookFactory.create(Paths.get(storedPath).toFile())) {
             for (int si = 0; si < wb.getNumberOfSheets(); si++) {
                 Sheet sheet = wb.getSheetAt(si);
@@ -135,6 +138,12 @@ public class FileContentService {
     private String extractHwpxText(String storedPath) {
         StringBuilder sb = new StringBuilder();
         boolean rejected = false;
+        try {
+            ZipGuard.checkUploadFile(Paths.get(storedPath));   // 중복 entry·해제 크기·DOCTYPE (NEXT 39)
+        } catch (ZipGuard.Rejected e) {
+            log.warn("HWPX 거부: {}", e.code);                   // 경로는 싣지 않는다
+            return null;
+        }
         try (ZipFile zip = new ZipFile(storedPath)) {
             SAXParserFactory factory = newSecureSaxFactory();
 
@@ -186,5 +195,15 @@ public class FileContentService {
         }
         if (rejected) return null;
         return sb.toString().trim();
+    }
+
+    /** zip(PK) 일 때만 검사한다. xls(OLE)는 건너뜀. 거부는 IOException → extractText 의 catch 가 null 로 바꾼다. */
+    private static void guardZip(Path file) throws IOException {
+        if (!ZipGuard.isZip(file)) return;
+        try {
+            ZipGuard.checkUploadFile(file);
+        } catch (ZipGuard.Rejected e) {
+            throw new IOException("ZIP 거부: " + e.code);
+        }
     }
 }
