@@ -1209,8 +1209,14 @@
     "광주광역시 대변인",
     "대통령직속 일자리위원회 대외협력관"
    ],
-   "photo": null,
-   "photo_note": "사진 주소가 열리지 않음(11-16) — 브라우저로 다시 찾을 것"
+   "photo": {
+    "url": "https://www.seogu.gwangju.kr/html/a5/img/20260724153749317.jpg",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "광주 서구 구청장실 프로필 인물 사진(공공저작물 자유이용 제24조의2 — 로컬 작업용, 브라우저로 확인)",
+    "page": "https://www.seogu.gwangju.kr/menu.es?mid=a50102000000",
+    "checked_on": "2026-11-16"
+   }
   },
   {
    "institution_id": "lg-48-3bfa107769",
@@ -2208,8 +2214,14 @@
     "청와대 국민권익비서관",
     "울산 북구청장(2018~2022)"
    ],
-   "photo": null,
-   "photo_note": "사진 주소가 열리지 않음(11-16) — 브라우저로 다시 찾을 것"
+   "photo": {
+    "url": "https://www.bukgu.ulsan.kr/images/mayor/contents/profile_pic.png",
+    "license": "LOCAL_ONLY",
+    "src_kind": "HOMEPAGE",
+    "src_title": "울산 북구 열린구청장실 인물 사진(공공저작물 자유이용 제24조의2 — 로컬 작업용, 브라우저로 확인)",
+    "page": "https://www.bukgu.ulsan.kr/mayor/lay2/S387T388C556/contents.do",
+    "checked_on": "2026-11-16"
+   }
   },
   {
    "institution_id": "lg-47-4533eba038",
