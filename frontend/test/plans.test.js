@@ -119,16 +119,41 @@ test('budgetCell 계산값: 서버 AMOUNT 계산값이면 값+계산값 표시�
   assert.ok(u.html.indexOf('예산 미기재') >= 0 && u.html.indexOf('원문에 없음') < 0 && u.html.indexOf('계산값') < 0);
 });
 
-test('budgetCell 나머지 상태: 확인안됨은 점선 칩, 예산 미기재·해당없음은 칩 없는 글자, 금액이 비어도 0을 만들지 않는다', function () {
+test('budgetCell 확인안됨: 칩 없이 비고의 예산 원문 글자(원문 표기), 40자 넘으면 자르고 title에 전체, 원문 조각이 없으면 예산 미기재', function () {
+  const mk = function (note) { return plans.budgetCell(item({ budget: { state_cd: 'UNVERIFIED', amount: null, unit_cd: null }, note: note }), 'MIL_KRW'); };
+  const a = mk('예산 원문: 268+32 / 기타');
+  assert.strictEqual(a.html, '<span class="db-why">268+32 (원문 표기)</span>');
+  assert.strictEqual(a.sr, '원문 표기 268+32');
+  assert.ok(a.html.indexOf('pop-unk') < 0 && a.html.indexOf('확인안됨') < 0);
+  assert.strictEqual(mk('앞말\n예산 원문: 12+3\n뒷말').sr, '원문 표기 12+3');   // 줄바꿈 앞까지
+  const long = '별도 합계 649,112백만원(10~12번과 중복 가능, 합산 금지) — 장 투자계획표 안에 따로 적힌 합계';
+  const l = mk('예산 원문: ' + long);
+  assert.ok(l.html.indexOf(esc40(long) + '…') >= 0 && l.html.indexOf('title="' + long + '"') >= 0);
+  assert.strictEqual(l.sr, '원문 표기 ' + long);
+  const exact = '가'.repeat(40);
+  assert.ok(mk('예산 원문: ' + exact).html.indexOf('title=') < 0 && mk('예산 원문: ' + exact).html.indexOf('…') < 0);   // 40자는 그대로
+  [null, '', '다른 비고', '예산 원문:'].forEach(function (n) {
+    const r = mk(n);
+    assert.strictEqual(r.html, '<span class="db-why">예산 미기재</span>');
+    assert.strictEqual(r.sr, '예산 미기재');
+  });
+  assert.ok(mk('예산 원문: <b>1</b>').html.indexOf('<b>') < 0);   // 이스케이프
+  // 계산값이 확인안됨이면 상위 자신의 상태: 비고가 없으면 예산 미기재
+  const bad = { is_calculated: true, state_cd: 'UNVERIFIED', amount: null, unit_cd: null, child_count: 2 };
+  assert.strictEqual(plans.budgetCell(item({ budget: { state_cd: 'UNVERIFIED', amount: null, unit_cd: null }, calculated: bad }), 'MIL_KRW').sr, '예산 미기재');
+});
+function esc40(s) { return logic.esc(s.slice(0, 40)); }
+
+test('budgetCell 나머지 상태: 예산 미기재·해당없음은 칩 없는 글자, 금액이 비어도 0을 만들지 않는다', function () {
   const mk = function (s) { return plans.budgetCell(item({ budget: { state_cd: s, amount: null, unit_cd: null } }), 'MIL_KRW'); };
-  assert.ok(/<span class="pop-unk">확인안됨<\/span>/.test(mk('UNVERIFIED').html));
+  assert.ok(mk('UNVERIFIED').html.indexOf('pop-unk') < 0);
   const nis = mk('NOT_IN_SOURCE');
   assert.ok(/<span class="db-why">예산 미기재<\/span>/.test(nis.html) && nis.html.indexOf('pop-unk') < 0 && nis.html.indexOf('원문에 없음') < 0);
   assert.strictEqual(nis.sr, '예산 미기재');
   const na = mk('NOT_APPLICABLE');
   assert.ok(na.html.indexOf('해당없음') >= 0 && na.html.indexOf('pop-unk') < 0);
-  assert.ok(/<span class="pop-unk">확인안됨<\/span>/.test(plans.budgetCell(item({ budget: { state_cd: 'AMOUNT', amount: null, unit_cd: 'MIL_KRW' } }), 'MIL_KRW').html));
-  assert.ok(/<span class="pop-unk">확인안됨<\/span>/.test(plans.budgetCell(item({ budget: { state_cd: 'AMOUNT', amount: '5', unit_cd: null } }), '').html));
+  assert.strictEqual(plans.budgetCell(item({ budget: { state_cd: 'AMOUNT', amount: null, unit_cd: 'MIL_KRW' } }), 'MIL_KRW').sr, '예산 미기재');   // 금액이 깨졌고 원문 조각도 없다
+  assert.strictEqual(plans.budgetCell(item({ budget: { state_cd: 'AMOUNT', amount: '5', unit_cd: null } }), '').sr, '예산 미기재');
   ['UNVERIFIED', 'NOT_IN_SOURCE', 'NOT_APPLICABLE'].forEach(function (s) { assert.ok(!/>0</.test(mk(s).html), s); });
 });
 
@@ -176,15 +201,13 @@ test('쪽수는 화면에 없다: 쪽 칸·미확인 칩·원문 N쪽 이름·�
 });
 
 // ── 사업 행(보충 B·D) ───────────────────────────────────────────────
-test('itemRowHtml: 폐기는 실선 외곽 칩 + muted 행, 확인안됨은 점선 칩이고 muted가 아니다, 확인됨은 칩 없음, 하위사업은 들여쓰기 표시', function () {
+test('itemRowHtml: 폐기는 실선 외곽 칩 + muted 행, 홈페이지 확인 상태(check_cd)는 어떤 값이어도 화면에 없다, 하위사업은 들여쓰기 표시', function () {
   const d = plans.itemRowHtml(item({ progress_cd: 'DROPPED' }), 'MIL_KRW');
   assert.ok(d.indexOf('class="pl-row pl-dim"') >= 0 && d.indexOf('wf-badge pp-cancel">폐기</span>') >= 0);
-  const u = plans.itemRowHtml(item({ check_cd: 'UNCONFIRMED' }), 'MIL_KRW');
-  assert.ok(u.indexOf('pl-dim') < 0 && u.indexOf('pop-unk">확인안됨</span>') >= 0 && u.indexOf('pp-cancel') < 0);
-  assert.ok(plans.itemRowHtml(item({ check_cd: 'PARTIAL' }), '').indexOf('부분확인') >= 0);
-  ['NOT_CHECKED', 'WHATEVER'].forEach(function (cd) {   // 미조사·모르는 값은 칩 없음
+  ['UNCONFIRMED', 'PARTIAL', 'NOT_CHECKED', 'CONFIRMED', 'WHATEVER'].forEach(function (cd) {
     const r = plans.itemRowHtml(item({ check_cd: cd }), '');
-    assert.ok(r.indexOf('미조사') < 0 && r.indexOf('pop-unk') < 0 && r.indexOf('wf-badge') < 0);
+    assert.ok(r.indexOf('확인안됨') < 0 && r.indexOf('부분확인') < 0 && r.indexOf('미조사') < 0 && r.indexOf('확인됨') < 0, cd);
+    assert.ok(r.indexOf('pop-unk') < 0 && r.indexOf('wf-badge') < 0 && r.indexOf('pl-dim') < 0, cd);
   });
   const c = plans.itemRowHtml(item(), 'MIL_KRW');
   assert.ok(c.indexOf('확인됨') < 0 && c.indexOf('opacity') < 0 && c.indexOf('line-through') < 0);
@@ -224,22 +247,16 @@ test('itemsTableHtml: 머리 단위는 단위가 하나일 때만, 분야 머리
 });
 
 // ── 문서 카드 ───────────────────────────────────────────────────────
-test('docHtml: 종류 칩·확인 상태 3칸(미조사 없음)·안내 줄(확인안됨·기간 지남·오래됨)과 비고 이스케이프', function () {
+test('docHtml: 종류 칩·안내 줄(기간 지남·오래됨)과 비고 이스케이프, 확인 상태 줄·확인안됨 안내는 없다(check_counts가 와도)', function () {
   const h = plans.docHtml(doc(), '');
   assert.ok(h.indexOf('wf-badge pp-neutral">공약이행</span>') >= 0);
-  assert.ok(h.indexOf('확인됨 <span class="v">18</span> · 부분확인 <span class="v">3</span> · 확인안됨 <span class="v">2</span></dd>') >= 0);
-  assert.ok(h.indexOf('미조사') < 0);
-  // 셋 다 0이면 '확인 상태' 줄 전체를 감춘다(미조사만 있어도 마찬가지)
-  const z = plans.docHtml(doc({ check_counts: { confirmed: 0, partial: 0, unconfirmed: 0, not_checked: 4 } }), '');
-  assert.ok(z.indexOf('확인 상태') < 0 && z.indexOf('미조사') < 0);
-  assert.strictEqual(plans.checkCountsHtml(null), '');
-  assert.ok(h.indexOf('원문에서 아직 대조하지 못한 사업입니다. 폐기된 사업이 아닙니다.') >= 0);
+  assert.ok(h.indexOf('확인 상태') < 0 && h.indexOf('부분확인') < 0 && h.indexOf('미조사') < 0 && h.indexOf('원문에서 아직 대조하지 못한') < 0);
+  assert.strictEqual(plans.checkCountsHtml, undefined);
   assert.ok(h.indexOf('원문 쪽수로 대조하세요.') < 0);          // URL 있음
   assert.ok(h.indexOf('기간 지남') < 0 && h.indexOf('12개월') < 0);
   const n = plans.docHtml(doc({ src_url: null, url_missing: true, check_counts: { confirmed: 5, partial: 0, unconfirmed: 0, not_checked: 0 },
     period_ended: true, period_to: 2022, stale: true, checked_on: '2024-03-02', note: '<i>메모</i>\n둘째 줄' }), '');
   assert.ok(n.indexOf('원문 쪽수로 대조하세요.') < 0 && n.indexOf('원문 문서') >= 0 && n.indexOf('출처 URL 없음') < 0);
-  assert.ok(n.indexOf('폐기된 사업이 아닙니다') < 0);            // 확인안됨 0건이면 안내 없음
   assert.ok(n.indexOf('wf-badge pp-cancel">기간 지남</span>') >= 0 && n.indexOf('2022년에 끝난 계획입니다. 누리집에 새 계획이 있는지 확인하세요.') >= 0);
   assert.ok(n.indexOf('확인 <span class="v">2024-03-02</span> 뒤로 12개월 넘게 다시 확인하지 않았습니다.') >= 0);
   assert.ok(n.indexOf('<i>') < 0 && n.indexOf('&lt;i&gt;') >= 0 && n.indexOf('class="pl-note"') >= 0);

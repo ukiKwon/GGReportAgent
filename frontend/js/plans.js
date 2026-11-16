@@ -21,7 +21,6 @@
 
   // COMMON_CODE 글자(서버 034 INSERT 와 같은 값). 서버가 이름을 주는 곳(src_kind_name)은 그것을 쓴다.
   const UNIT = { MIL_KRW: '백만원', HUNDRED_MIL_KRW: '억원', THOUSAND_KRW: '천원' };
-  const CHECK = { CONFIRMED: '확인됨', PARTIAL: '부분확인', UNCONFIRMED: '확인안됨', NOT_CHECKED: '미조사' };
   const ORIGIN = { IMPORT: '수집 파일 반입', SEED_TXT: '서울 25구 원문에서 옮김' };
   const PROGRESS = { NORMAL: '정상', DONE: '완료', DROPPED: '폐기' };
   plans.unitName = function (cd) { return UNIT[cd] || ''; };
@@ -58,6 +57,23 @@
   // 보충 C: 금액 / 금액·계산값 / 확인안됨 / 예산 미기재 / 해당없음. 원문의 '-'·빈칸을 0으로 바꾸지 않는다.
   // headUnit = 문서 안 금액 단위가 하나일 때 그 코드(열 머리 '예산(백만원)'에 쓰고 칸에서는 단위를 뺀다).
   // 계산값(item.calculated)은 서버가 낸 것(AMOUNT)일 때만 쓴다. 계산값이 확인안됨이면 상위사업 자신의 상태를 그대로 보인다.
+  // 확인안됨(UNVERIFIED)은 칩 없이 비고(note)의 '예산 원문: …' 조각을 글자로 보인다(사용자 결정 2026-11-16). 조각은 ' / ' 또는 줄바꿈 앞까지.
+  // 조각이 없으면 '예산 미기재'. 40자를 넘으면 40자 + '…'로 자르고 전체는 title 에 둔다.
+  const SRC_LIMIT = 40;
+  plans.srcBudgetText = function (note) {
+    const m = /예산 원문:[ \t]*([^\r\n]*)/.exec(str(note));
+    return m ? m[1].split(' / ')[0].trim() : '';
+  };
+  function unverifiedCell(it) {
+    const full = plans.srcBudgetText(it.note);
+    if (!full) return { html: '<span class="db-why">예산 미기재</span>', sr: '예산 미기재' };
+    const cut = full.length > SRC_LIMIT;
+    const shown = cut ? full.slice(0, SRC_LIMIT) + '…' : full;
+    return {
+      html: '<span class="db-why"' + (cut ? ' title="' + esc(full) + '"' : '') + '>' + esc(shown) + ' (원문 표기)</span>',
+      sr: '원문 표기 ' + full,
+    };
+  }
   plans.budgetCell = function (it, headUnit) {
     const b = it.budget || {}, c = it.calculated;
     let state = b.state_cd, amount = b.amount, unit = b.unit_cd, calc = false;
@@ -66,7 +82,7 @@
     }
     if (state === 'AMOUNT') {
       const n = plans.fmtAmount(amount), u = UNIT[unit];
-      if (n === null || !u) return { html: unk('확인안됨'), sr: '확인안됨' };
+      if (n === null || !u) return unverifiedCell(it);
       const showU = !(headUnit && unit === headUnit);
       return {
         html: mono(n) + (showU ? ' <span class="u">' + esc(u) + '</span>' : '') + (calc ? '<span class="db-why">계산값</span>' : ''),
@@ -75,7 +91,7 @@
     }
     if (state === 'NOT_IN_SOURCE') return { html: '<span class="db-why">예산 미기재</span>', sr: '예산 미기재' };   // 사실이라 점선 칩을 쓰지 않는다
     if (state === 'NOT_APPLICABLE') return { html: '<span class="db-why">해당없음</span>', sr: '해당없음' };   // 사실이라 점선 칩을 쓰지 않는다
-    return { html: unk('확인안됨'), sr: '확인안됨' };
+    return unverifiedCell(it);
   };
   function budgetTd(it, headUnit) {
     const c = plans.budgetCell(it, headUnit);
@@ -140,13 +156,11 @@
     });
     return items.filter(function (it) { return keep[it.item_id]; });
   };
-  // 보충 B·D: 폐기 = 실선 외곽 칩 + 글자 --muted(취소선·opacity 없음). 확인됨이 아니면 점선 칩(확인안됨 행은 muted로 낮추지 않는다).
+  // 보충 B·D: 폐기 = 실선 외곽 칩 + 글자 --muted(취소선·opacity 없음). 홈페이지 확인 상태(check_cd)는 화면에 쓰지 않는다(사용자 결정 2026-11-16).
   plans.itemRowHtml = function (it, headUnit) {
     const dropped = it.progress_cd === 'DROPPED';
     const tags = [];
     if (dropped) tags.push(badge('pp-cancel', '폐기'));
-    // 부분확인·확인안됨만 칩을 단다. 미조사(NOT_CHECKED)·모르는 값은 칩 없음(사용자 결정 2026-11-16).
-    if (it.check_cd === 'PARTIAL' || it.check_cd === 'UNCONFIRMED') tags.push(unk(CHECK[it.check_cd]));
     const prog = [];
     if (it.progress_cd && it.progress_cd !== 'DROPPED' && PROGRESS[it.progress_cd]) prog.push(esc(PROGRESS[it.progress_cd]));
     if (it.exec_rate != null && str(it.exec_rate) !== '') prog.push('이행률 ' + mono(str(it.exec_rate) + '%'));
@@ -175,28 +189,16 @@
   };
 
   // ── 순수: 문서 카드·상세 ───────────────────────────────────────────
-  plans.checkCountsHtml = function (cc) {
-    const c = cc || {};
-    const cols = [['확인됨', 'confirmed'], ['부분확인', 'partial'], ['확인안됨', 'unconfirmed']];
-    if (!cols.some(function (p) { return Number(c[p[1]]) > 0; })) return '';   // 셋 다 0이면 줄 전체를 감춘다(미조사는 세지 않는다)
-    return cols.map(function (p) {
-      return esc(p[0]) + ' ' + mono(Number(c[p[1]]) || 0);
-    }).join(' · ');
-  };
   plans.docHtml = function (d, kw) {
     const items = Array.isArray(d.items) ? d.items : [];
-    const cc = d.check_counts || {};
     const hid = 'pl-d' + esc(d.doc_id);
-    const checks = plans.checkCountsHtml(cc);
     const notes = [];
     if (d.period_ended) notes.push('<p class="db-why">' + esc(d.period_to) + '년에 끝난 계획입니다. 누리집에 새 계획이 있는지 확인하세요.</p>');
     if (d.stale) notes.push('<p class="pl-warn">확인 ' + mono(ymd(d.checked_on)) + ' 뒤로 12개월 넘게 다시 확인하지 않았습니다.</p>');
-    if (Number(cc.unconfirmed) > 0) notes.push('<p class="db-why">\'확인안됨\'은 원문에서 아직 대조하지 못한 사업입니다. 폐기된 사업이 아닙니다.</p>');
     return '<section class="pl-doc" aria-labelledby="' + hid + '"><div class="pl-doc-h"><h3 id="' + hid + '">' + esc(d.title) + '</h3>' +
       badge('pp-neutral', str(d.src_kind_name || d.src_kind_cd) || '기타') + (d.period_ended ? ' ' + badge('pp-cancel', '기간 지남') : '') + '</div>' +
       '<dl class="db-dl"><dt>출처</dt><dd>' + plans.srcLineHtml(d) + '</dd>' +
       '<dt>대상 기간</dt><dd>' + mono(plans.periodText(d)) + '</dd>' +
-      (checks ? '<dt>확인 상태</dt><dd>' + checks + '</dd>' : '') +
       (str(d.note).trim() ? '<dt>비고</dt><dd class="pl-note">' + esc(d.note) + '</dd>' : '') + '</dl>' +
       notes.join('') + plans.itemsTableHtml(items, d.budget_unit_cd, kw, d.title) + '</section>';
   };
