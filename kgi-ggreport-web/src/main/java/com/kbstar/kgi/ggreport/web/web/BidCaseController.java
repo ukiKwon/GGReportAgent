@@ -104,7 +104,7 @@ public class BidCaseController {
         front(() -> adminGuard.require(req), NO_CASE, CASE_CREATE, actor, ui);
         BidCase out = audited(req, NO_CASE, CASE_CREATE, actor, ui, () -> commands.create(body.getInstitutionId()));
         String bid = caseKey(out.getBidCaseId());
-        audit.record(bid, CASE_CREATE, "OK", NO_CASE, null, actor, ui);   // 생성은 이미 커밋됨 — 기록 실패면 500(건은 남음, PrepController.confirm 과 같음)
+        recordOk(bid, CASE_CREATE, false, actor, ui);   // 생성은 이미 커밋됨 — 기록 실패면 500(건은 남음, PrepController.confirm 과 같음)
         req.setAttribute(AccessLogInterceptor.DETAIL, "bidcase case=" + bid + " code=" + CASE_CREATE);
         return out;
     }
@@ -159,7 +159,7 @@ public class BidCaseController {
         });
         for (BidCase b : out) {   // 응답 전 — 기록이 실패하면 500, 목록 안 나감
             String bid = caseKey(b.getBidCaseId());
-            audit.record(bid, CASE_LIST, "OK", prep.stateOf(bid), null, actor, ui);
+            recordOk(bid, CASE_LIST, true, actor, ui);
         }
         req.setAttribute(AccessLogInterceptor.DETAIL, "bidcase code=" + CASE_LIST + " n=" + out.size());
         return out;
@@ -179,7 +179,7 @@ public class BidCaseController {
         String key = caseKey(bidCaseId);
         front(() -> guard.require(req, "workflow"), key, CASE_VIEW, actor, ui);
         BidCaseDetail out = audited(req, key, CASE_VIEW, actor, ui, () -> bidCases.detail(bidCaseId));
-        audit.record(key, CASE_VIEW, "OK", prep.stateOf(key), null, actor, ui);   // 응답 전(fail-closed)
+        recordOk(key, CASE_VIEW, true, actor, ui);   // 응답 전(fail-closed)
         req.setAttribute(AccessLogInterceptor.DETAIL, "bidcase case=" + key + " code=" + CASE_VIEW);
         return out;
     }
@@ -231,6 +231,17 @@ public class BidCaseController {
             throw e;
         } catch (RuntimeException e) {   // DB 오류 등 — ERROR 로 남기고 그대로(전역 처리기가 500)
             auditFailure(key, action, "ERROR", actor, ui);
+            throw e;
+        }
+    }
+
+    /** 성공 줄. 기록이 실패하면 ERROR 한 줄(action·건 번호·예외 종류만)을 남기고 다시 던져 500(fail-closed). 상태 조회 실패도 같은 줄로 잡힌다. */
+    private void recordOk(String key, String action, boolean readState, Actor actor, BoardUiIds.Ui ui) {
+        try {
+            audit.record(key, action, "OK", readState ? prep.stateOf(key) : NO_CASE, null, actor, ui);
+        } catch (RuntimeException e) {
+            LOG.error("입찰 건 성공 감사를 남기지 못했다(응답 500): action={} case={} cause={}",
+                    action, caseKey(key), e.getClass().getSimpleName());
             throw e;
         }
     }

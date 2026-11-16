@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
  * 예외: 개설·기획승인 결재(BID_OPEN·PREP_APPROVAL)의 회수·승인·반려 성공 줄은 ApprovalRequestService 가 결재와 <b>같은 트랜잭션</b>에서 쓴다
  * (결재가 되돌아가면 감사 줄도 함께 되돌아간다). 그 실패 시도는 ApprovalLineController 가 따로 커밋해 남긴다.
  * 성공한 읽기는 응답 전에 기록한다(실패하면 500, 데이터 안 나감). 본문·값·사유·파일명은 기록하지 않는다.
+ * 성공 줄 기록이 실패하면 호출한 쪽(컨트롤러·결재 서비스)이 ERROR 한 줄(action·건 번호·예외 종류만)을 남기고 예외를 다시 던진다(500, NEXT 70).
+ * 컨트롤러 쓰기(확정·과제·업로드)는 저장 뒤 500이 날 수 있어 그 ERROR 줄로 맞춰 본다.
  * ⚠️ 사번·화면·버튼은 모두 클라이언트 자기신고다.
  */
 @Service

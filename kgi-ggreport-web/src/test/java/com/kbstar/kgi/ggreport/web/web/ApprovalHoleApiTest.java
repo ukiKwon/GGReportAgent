@@ -33,6 +33,20 @@ public class ApprovalHoleApiTest {
     @Autowired
     private TaskMapper tasks;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    @Test
+    public void 팀원의_작업_승인은_403이고_접근이력에_DENIED_1행() throws Exception {   // NEXT 64① (qa 11-16)
+        String id = realTask("task-hole1006", "영업", "dave", Teams.SUBMITTED_STATUS);
+        String sql = "SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND EMP_NO=? AND REQ_PATH=? AND STATUS_CODE=403";
+        String path = "/tasks/" + id + "/approve";
+        int before = jdbc.queryForObject(sql, Integer.class, "3918264", path);   // ACCESS_LOG 는 REQUIRES_NEW 라 롤백되지 않는다 — 증분으로 본다
+        assertEquals(403, approve(id, "3918264"));
+        assertEquals(before + 1, jdbc.queryForObject(sql, Integer.class, "3918264", path).intValue());
+        assertEquals(Teams.SUBMITTED_STATUS, tasks.selectById(id).getStatus());
+    }
+
     private String task(String id, String team, String assignee, String status) {
         tasks.insert(id, "bc-hole-" + id, team);
         if (assignee != null) {

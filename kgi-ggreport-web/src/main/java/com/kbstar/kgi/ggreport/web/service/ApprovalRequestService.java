@@ -25,6 +25,8 @@ import com.kbstar.kgi.ggreport.web.support.Ranks;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import com.kbstar.kgi.ggreport.web.web.Actor;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,6 +52,7 @@ import java.util.Map;
 public class ApprovalRequestService {
 
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final Logger LOG = LoggerFactory.getLogger(ApprovalRequestService.class);
 
     private final ApprovalRequestMapper requests;
     private final SysUserMapper users;
@@ -749,8 +752,16 @@ public class ApprovalRequestService {
         if (bid == null || bid.isEmpty()) {
             return;
         }
-        prepAudit.record(bid, PrepAudit.approvalAction(r.getReqType(), verb), "OK", before, null, actor,
-                ui == null ? BoardUiIds.unknown() : ui);
+        String action = PrepAudit.approvalAction(r.getReqType(), verb);
+        try {
+            prepAudit.record(bid, action, "OK", before, null, actor, ui == null ? BoardUiIds.unknown() : ui);
+        } catch (RuntimeException e) {
+            // 결재와 같은 트랜잭션이라 예외가 올라가면 결재도 되돌아간다(의도) — 로그만 더한다(사번·메시지·스택 없음).
+            String key = bid.matches("[A-Za-z0-9._-]{1,64}") ? bid : "NONE";
+            LOG.error("사전준비 성공 감사를 남기지 못했다(응답 500, 결재 롤백): action={} case={} cause={}",
+                    action, key, e.getClass().getSimpleName());
+            throw e;
+        }
     }
 
     /** 감사용 — 사전준비 결재 요청이 가리키는 건과 지금 상태. */

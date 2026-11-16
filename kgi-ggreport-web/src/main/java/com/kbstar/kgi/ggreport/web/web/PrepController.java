@@ -104,7 +104,12 @@ public class PrepController {
             throw e;
         }
         String bid = String.valueOf(out.get("bid_case_id"));
-        audit.record(bid, "CONFIRM", "OK", NO_CASE, null, actor, ui);
+        try {
+            audit.record(bid, "CONFIRM", "OK", NO_CASE, null, actor, ui);
+        } catch (RuntimeException e) {
+            logSuccessAuditFailure("CONFIRM", bid, e);
+            throw e;
+        }
         req.setAttribute(AccessLogInterceptor.DETAIL, "prep case=" + bid + " state=CONFIRMED code=CONFIRM");
         return out;
     }
@@ -307,9 +312,20 @@ public class PrepController {
             Object v = ((Map<?, ?>) out).get("attach_id");
             aid = v instanceof Long ? (Long) v : null;
         }
-        audit.record(bid, action, "OK", before, taskCd, aid, actor, ui);
+        try {
+            audit.record(bid, action, "OK", before, taskCd, aid, actor, ui);
+        } catch (RuntimeException e) {
+            logSuccessAuditFailure(action, bid, e);
+            throw e;
+        }
         req.setAttribute(AccessLogInterceptor.DETAIL, "prep case=" + bid + " state=" + before + " code=" + action);
         return out;
+    }
+
+    /** 성공 줄(OK) 감사 실패 시 ERROR 한 줄 — 호출자는 이어서 예외를 다시 던져 500(fail-closed). 건 칸은 caseKey 규칙, 예외는 클래스 이름만(사번·메시지·스택 없음). */
+    private static void logSuccessAuditFailure(String action, String bid, RuntimeException e) {
+        LOG.error("사전준비 성공 감사를 남기지 못했다(응답 500): action={} case={} cause={}",
+                action, caseKey(bid), e.getClass().getSimpleName());
     }
 
     /**

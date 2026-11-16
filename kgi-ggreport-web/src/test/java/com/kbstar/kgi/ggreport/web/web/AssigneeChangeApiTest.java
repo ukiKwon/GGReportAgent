@@ -770,4 +770,42 @@ public class AssigneeChangeApiTest {
         assertEquals(201, r2.getResponse().getStatus());
         assertEquals("담당자 변경 — " + bc2, json(r2).path("title").asText());
     }
+
+    // ── Q-2026-11-10-01 답 ⓐ: 이어받을 담당자가 모두 비활성이면 막는다(이사회 자료 유무와 무관, qa 11-16 P2) ──
+
+    @Test
+    public void 자료가_없어도_남는_담당자가_모두_비활성이면_승인은_409_NO_HANDOVER_TARGET() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER, MEMBER2);
+        long id = submitOk(LEAD, bc, a(), a(MEMBER));   // 이사회 자료는 만들지 않는다
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", MEMBER2);
+        flushCache();
+        MvcResult r = decide(HEAD, id, "APPROVE", null);
+        assertEquals(409, r.getResponse().getStatus());
+        assertEquals("NO_HANDOVER_TARGET", json(r).path("detail").path("code").asText());
+        assertEquals("승인째 되돌아가 담당자는 그대로", 2, active(bc));
+    }
+
+    @Test
+    public void 남는_담당자_중_한_명이라도_활성이면_승인은_200() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER, MEMBER2, M3);
+        long id = submitOk(LEAD, bc, a(), a(MEMBER));
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", MEMBER2);   // M3 는 활성
+        flushCache();
+        assertEquals(200, decide(HEAD, id, "APPROVE", null).getResponse().getStatus());
+        assertEquals(2, active(bc));
+    }
+
+    @Test
+    public void 신청_시점에도_남는_담당자가_모두_비활성이면_409_NO_HANDOVER_TARGET() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER, MEMBER2);
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", MEMBER2);
+        flushCache();
+        MvcResult r = change(LEAD, bc, a(), a(MEMBER), "인력 조정");
+        assertEquals(409, r.getResponse().getStatus());
+        assertEquals("NO_HANDOVER_TARGET", json(r).path("detail").path("code").asText());
+        assertEquals(201, change(LEAD, bc, a(M3), a(MEMBER), "인력 조정").getResponse().getStatus());   // 활성 담당자를 추가하면 신청된다
+    }
 }

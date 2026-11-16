@@ -532,9 +532,9 @@ public class BoardMaterialApiTest {
         String bc = newCase();
         assign(bc, MEMBER, MEMBER2);
         create(MEMBER, bc, 2026);
-        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", MEMBER2);   // 남은 담당자가 사용 중이 아니다
-        flushCache();
         long req = requestChange(LEAD, bc, new String[]{}, new String[]{MEMBER});
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", MEMBER2);   // 신청 뒤 남은 담당자가 사용 중이 아니게 됐다(신청 시점 판정을 피함)
+        flushCache();
         MvcResult r = decide(HEAD, req);
         assertEquals(text(r), 409, r.getResponse().getStatus());
         assertEquals("NO_HANDOVER_TARGET", json(r).path("detail").path("code").asText());

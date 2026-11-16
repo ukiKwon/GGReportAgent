@@ -327,6 +327,10 @@ public class BidAssignmentService {
             }
         }
         checkResultSize(active.size() - remove.size() + add.size());
+        if (add.isEmpty() && !hasUsableRemaining(active, remove)) {
+            throw coded(409, "NO_HANDOVER_TARGET",
+                    "남는 담당자가 모두 비활성입니다. 활성 담당자를 추가해 신청하세요.");
+        }
         Long stale = null;
         if (head.getPendingReqId() != null) {
             ApprovalRequest pr = requests.selectById(head.getPendingReqId());
@@ -419,6 +423,10 @@ public class BidAssignmentService {
                     "영업팀장이 관련된 담당자 변경은 영업부장만 승인할 수 있습니다. 반려하거나 취소하고 다시 신청하세요.");
         }
         checkResultSize(active.size() - remove.size() + add.size());
+        if (add.isEmpty() && !hasUsableRemaining(active, remove)) {   // 자료 유무와 무관 — Q-2026-11-10-01 답 ⓐ: 이어받을 담당자가 모두 비활성이면 승인을 막는다
+            throw coded(409, "NO_HANDOVER_TARGET",
+                    "남는 담당자가 모두 비활성이라 승인할 수 없습니다. 반려한 뒤 신청자가 활성 담당자를 추가해 다시 신청하세요.");
+        }
         int verified = actor != null && actor.isVerified() ? 1 : 0;
         for (String e : remove) {
             if (mapper.updateRelease(bid, e, d, now) != 1) {
@@ -591,6 +599,21 @@ public class BidAssignmentService {
         }
         out.addAll(seen);
         return out;
+    }
+
+    /** 현재 활성 담당자에서 해제 대상을 뺀 사람 중 USERS ACTIVE ∧ 영업팀원·영업팀장이 한 명이라도 있으면 true(Q-2026-11-10-01). */
+    private boolean hasUsableRemaining(Set<String> active, List<String> remove) {
+        for (String e : active) {
+            if (remove.contains(e)) {
+                continue;
+            }
+            SysUser u = users.selectByEmpNo(e);
+            if (u != null && "ACTIVE".equals(u.getStatus())
+                    && (MEMBER_ROLE.equals(roleOf(u)) || LEAD_ROLE.equals(roleOf(u)))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void checkResultSize(int result) {

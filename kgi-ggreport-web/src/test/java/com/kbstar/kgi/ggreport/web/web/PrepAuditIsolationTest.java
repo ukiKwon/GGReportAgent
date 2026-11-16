@@ -50,7 +50,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>범위의 한계 — 성공 줄(OK) 기록은 격리 대상이 아니다. 성공 줄은 응답 전에(결재는 같은 트랜잭션에서) 쓰며
  * 실패하면 예외가 올라가 500 이 된다(PrepAudit 클래스 주석의 의도). 그 사실도 아래 시험으로 고정한다.
- * 로그 수준은 실제 코드대로 WARN 이다.
+ * 로그 수준은 실패 줄 WARN, 성공 줄 ERROR(NEXT 70, planner 11-16)다.
  */
 public class PrepAuditIsolationTest {
 
@@ -162,6 +162,20 @@ public class PrepAuditIsolationTest {
         assertTrue(msg, msg.contains(keyAction + " "));
         assertTrue(msg, msg.contains("outcome=" + outcome));
         assertTrue(msg, msg.contains("cause=" + cause));
+        assertFalse("예외 메시지가 로그에 새면 안 된다", msg.contains(SECRET));
+        assertNull("스택트레이스를 싣지 않는다", ev.getThrowableProxy());
+    }
+
+    /** 성공 줄 감사 실패 ERROR 한 줄: action·건 번호·예외 종류만, 사번·예외 메시지·스택 없음(NEXT 70). */
+    private void assertOneError(String action) {
+        assertEquals("성공 감사 실패 로그는 한 줄", 1, logs.list.size());
+        ILoggingEvent ev = logs.list.get(0);
+        assertEquals(Level.ERROR, ev.getLevel());
+        String msg = ev.getFormattedMessage();
+        assertTrue(msg, msg.startsWith("사전준비 성공 감사를 남기지 못했다"));
+        assertTrue(msg, msg.contains("action=" + action + " "));
+        assertTrue(msg, msg.contains("case=" + BID));
+        assertTrue(msg, msg.contains("cause=IllegalStateException"));
         assertFalse("예외 메시지가 로그에 새면 안 된다", msg.contains(SECRET));
         assertNull("스택트레이스를 싣지 않는다", ev.getThrowableProxy());
     }
@@ -318,7 +332,8 @@ public class PrepAuditIsolationTest {
         } catch (IllegalStateException e) {
             assertSame(auditFailure, e);
         }
-        assertEquals("성공 줄 실패는 실패-감사 격리 경로(WARN)를 타지 않는다", 0, logs.list.size());
+        // 성공 줄 실패는 실패-감사 격리 경로(WARN)를 타지 않고 ERROR 한 줄만 남긴다(NEXT 70, planner 11-16)
+        assertOneError("CONFIRM");
     }
 
     @Test
@@ -331,7 +346,7 @@ public class PrepAuditIsolationTest {
         } catch (IllegalStateException e) {
             assertSame(auditFailure, e);
         }
-        assertEquals(0, logs.list.size());
+        assertOneError("VIEW");
     }
 
     // ── qa 11-15 추가: 비어 있던 실패 경로 ──────────────────────
