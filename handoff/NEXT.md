@@ -461,5 +461,6 @@
 - **현재**: 86에서 검색은 목록만(cb39a09). 사용자: 확장성을 위해 본문 제공까지 고려. security 요구: 업로드 분석 때 검사 통과본으로 1회 생성(조회 때 재추출 금지)·본문/응답 크기 상한·페이징(NEXT 17·21)·서버 권한 검사(문의 6-2·4ⓒ 회신 전 열지 않음)·DELETED 연동 삭제·경로/예외 미노출·화면 textContent·보존 기간(개인정보). 하: 기본 암호(VelvetSweatshop) xls는 지금 분석됨(정책 확인), commons-compress 1.26+는 NEXT 40.
 - **planner 11-16 S0**: 분석 때 1회 생성·조회 때 재추출 금지, 저장 1단계 파일(DDL 0 — 본문 단어 검색이 필요하면 별도 테이블+Oracle Text), search 무변경 + 단건 본문 창구(문의 03-4ⓒ 뒤 공개). 발견: /api/proposals·rfps/{id}·download가 반려·삭제 건도 제공 → 0dc4c73로 차단(404 한 문구·경로 미노출). **선행 조건**: uploader 조회 API는 무인증·id 순차 조회 가능 — 본문 창구(S2)는 문의 03-4ⓒ 인증 방식 또는 임시 완화(호출 IP 허용·공유 토큰) 결정 뒤에만 연다.
 - **사용자 답 11-16**: 쓰임새 = kgi-ggreport-web·다른 시스템이 요청할 때(기존 API 활용 기대), 보관 = 필요할 때까지 계속(자동 삭제 기한 없음). 확인: 제안서 /api/proposals/{id}=슬라이드 본문 전체, RFP /api/rfps/{id}=요약만(원문 아님), 원본은 /download. kgi-ggreport-web 호출부는 아직 0건.
-- **다음 한 걸음**: 사용자 11-16 ⓑ — RFP 원문 전체 필요("원문보기 때 볼 수 있어야"). S1 = 분석 때 원문 텍스트 파일 저장 + 원문 보기 창구, backend-dev 패치안 작성 중 → 메인 적용·mvn → security. kgi 연동은 문의 03-4ⓒ 인증 뒤.
+- **S1 완료(ff18847)**: 분석 때 RFP 원문 .full.txt 저장 + GET /api/rfps/{id}/fulltext(원문 없는 옛 건은 code=fulltext_missing → 재분석). security: 차단 없음.
+- **다음 한 걸음**: ⓐ 사용자 확인 — 올라오는 공고문에 은행 내부 메모·주석이 섞일 수 있는지(섞이면 무인증 노출 '상' → 인증 먼저) ⓑ 화면 '원문 보기'는 textContent로만·fulltext_missing 안내(프런트, kgi 연동 때) ⓒ uploader /api/** 무인증 부채는 문의 03-4ⓒ.
 - **자세히**: planner 11-16 NEXT 87 보고, security 11-16 NEXT 86 ①③ 확인 보고, NEXT 17·21·25.
