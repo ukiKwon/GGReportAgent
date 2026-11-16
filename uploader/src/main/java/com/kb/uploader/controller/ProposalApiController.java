@@ -33,6 +33,8 @@ import java.util.Optional;
 public class ProposalApiController {
 
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ProposalApiController.class);
+    private static final String NOT_FOUND_MSG = "찾을 수 없습니다.";
 
     private final UploadedFileMapper fileMapper;
     private final ObjectMapper mapper;
@@ -71,20 +73,35 @@ public class ProposalApiController {
 
     /** 제안서 한 건의 파싱 JSON 전체 (slides 포함). */
     @GetMapping("/{id}")
-    public ResponseEntity<?> detail(@PathVariable Long id) throws IOException {
-        Optional<UploadedFile> found = fileMapper.findById(id);
+    public ResponseEntity<?> detail(@PathVariable Long id) {
+        // 반려(03)·삭제(04) 건은 없는 것으로 본다(목록과 같은 기준). 404 문구는 원인과 무관하게 하나 — 원인은 로그에만(security 11-16)
+        Optional<UploadedFile> found = fileMapper.findActiveById(id);
         if (!found.isPresent() || !DocumentType.BID_PROPOSAL.equals(found.get().getDocType())) {
-            return error(HttpStatus.NOT_FOUND, "입찰제안서를 찾을 수 없습니다 (id=" + id + ")");
+            log.info("제안서 조회 404(없음/비활성/종류 불일치): id={}", id);
+            return error(HttpStatus.NOT_FOUND, NOT_FOUND_MSG);
         }
         UploadedFile f = found.get();
-        if (!f.isParsed()) {
-            return error(HttpStatus.NOT_FOUND, "파싱에 성공하지 않은 제안서입니다 (id=" + id + ")");
+        if (!f.isParsed() || f.getOutputPath() == null) {
+            log.info("제안서 조회 404(파싱 미성공): id={}", id);
+            return error(HttpStatus.NOT_FOUND, NOT_FOUND_MSG);
         }
-        Path json = Paths.get(f.getOutputPath());
-        if (!Files.exists(json)) {
-            return error(HttpStatus.NOT_FOUND, "파싱 JSON 파일이 없습니다: " + json.getFileName());
+        Path json;
+        JsonNode parsed;
+        try {
+            json = Paths.get(f.getOutputPath());
+            if (!Files.exists(json)) {
+                log.warn("제안서 산출물 파일 없음: id={}", id);
+                return error(HttpStatus.NOT_FOUND, NOT_FOUND_MSG);
+            }
+            parsed = mapper.readTree(json.toFile());
+        } catch (IOException | RuntimeException e) {
+            log.warn("제안서 산출물 읽기 실패: id={}", id, e);
+            return error(HttpStatus.INTERNAL_SERVER_ERROR, "산출물 읽기 실패");
         }
-        JsonNode parsed = mapper.readTree(json.toFile());
+        if (parsed == null || !parsed.isObject()) {
+            log.warn("제안서 산출물이 JSON 객체가 아님: id={}", id);
+            return error(HttpStatus.INTERNAL_SERVER_ERROR, "산출물 읽기 실패");
+        }
         ObjectNode body = mapper.createObjectNode();
         body.put("id", f.getId());
         body.put("institutionName", f.getInstitutionName());
@@ -92,6 +109,12 @@ public class ProposalApiController {
         body.put("year", f.getDocDate());
         body.put("jsonFileName", json.getFileName().toString());
         body.setAll((ObjectNode) parsed);
+        // 산출물 JSON 의 같은 키가 DB 메타 값을 덮지 않게 다시 넣는다(키 순서는 그대로, security 11-16 하)
+        body.put("id", f.getId());
+        body.put("institutionName", f.getInstitutionName());
+        body.put("institutionCategory", f.getCategoryLabel());
+        body.put("year", f.getDocDate());
+        body.put("jsonFileName", json.getFileName().toString());
         return ResponseEntity.ok(body);
     }
 

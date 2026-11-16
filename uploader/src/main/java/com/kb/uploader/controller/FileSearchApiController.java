@@ -55,16 +55,19 @@ public class FileSearchApiController {
 
     @GetMapping("/{id}/download")
     public ResponseEntity<?> download(@PathVariable Long id) {
-        UploadedFile file = fileMapper.findById(id).orElse(null);
-        if (file == null || "DELETED".equals(file.getStatus())) {
+        // 반려(03)·삭제(04) 건은 없는 것으로 본다(목록과 같은 기준, security 11-16). 404 문구는 하나.
+        UploadedFile file = fileMapper.findActiveById(id).orElse(null);
+        if (file == null || file.getStoredPath() == null) {
+            org.slf4j.LoggerFactory.getLogger(FileSearchApiController.class).info("다운로드 404(없음/비활성): id={}", id);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Collections.singletonMap("error", "파일을 찾을 수 없습니다."));
+                    .body(Collections.singletonMap("error", "찾을 수 없습니다."));
         }
 
         Path path = Paths.get(file.getStoredPath());
         if (!Files.exists(path)) {
+            org.slf4j.LoggerFactory.getLogger(FileSearchApiController.class).warn("다운로드 원본 파일 없음: id={}", id);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Collections.singletonMap("error", "파일이 서버에 존재하지 않습니다."));
+                    .body(Collections.singletonMap("error", "찾을 수 없습니다."));
         }
 
         byte[] bytes;

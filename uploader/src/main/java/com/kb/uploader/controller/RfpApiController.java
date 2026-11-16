@@ -38,6 +38,8 @@ import java.util.Optional;
 public class RfpApiController {
 
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(RfpApiController.class);
+    private static final String NOT_FOUND_MSG = "찾을 수 없습니다.";
     private static final MediaType MARKDOWN = new MediaType("text", "markdown", StandardCharsets.UTF_8);
 
     private final UploadedFileMapper fileMapper;
@@ -80,21 +82,30 @@ public class RfpApiController {
     @GetMapping("/{id}")
     public ResponseEntity<?> detail(@PathVariable Long id,
                                     @RequestParam(required = false) String format,
-                                    @RequestHeader(name = HttpHeaders.ACCEPT, required = false) String accept)
-            throws IOException {
-        Optional<UploadedFile> found = fileMapper.findById(id);
+                                    @RequestHeader(name = HttpHeaders.ACCEPT, required = false) String accept) {
+        // 반려(03)·삭제(04) 건은 없는 것으로 본다(목록과 같은 기준). 404 문구는 원인과 무관하게 하나 — 원인은 로그에만(security 11-16)
+        Optional<UploadedFile> found = fileMapper.findActiveById(id);
         if (!found.isPresent() || !DocumentType.RFP.equals(found.get().getDocType())) {
-            return error(HttpStatus.NOT_FOUND, "입찰공고문(RFP)을 찾을 수 없습니다 (id=" + id + ")");
+            log.info("RFP 조회 404(없음/비활성/종류 불일치): id={}", id);
+            return error(HttpStatus.NOT_FOUND, NOT_FOUND_MSG);
         }
         UploadedFile f = found.get();
-        if (!f.isParsed()) {
-            return error(HttpStatus.NOT_FOUND, "파싱에 성공하지 않은 공고문입니다 (id=" + id + ")");
+        if (!f.isParsed() || f.getOutputPath() == null) {
+            log.info("RFP 조회 404(파싱 미성공): id={}", id);
+            return error(HttpStatus.NOT_FOUND, NOT_FOUND_MSG);
         }
-        Path md = Paths.get(f.getOutputPath());
-        if (!Files.exists(md)) {
-            return error(HttpStatus.NOT_FOUND, "요약 MD 파일이 없습니다: " + md.getFileName());
+        String markdown;
+        try {
+            Path md = Paths.get(f.getOutputPath());
+            if (!Files.exists(md)) {
+                log.warn("RFP 산출물 파일 없음: id={}", id);
+                return error(HttpStatus.NOT_FOUND, NOT_FOUND_MSG);
+            }
+            markdown = new String(Files.readAllBytes(md), StandardCharsets.UTF_8);
+        } catch (IOException | RuntimeException e) {
+            log.warn("RFP 산출물 읽기 실패: id={}", id, e);
+            return error(HttpStatus.INTERNAL_SERVER_ERROR, "산출물 읽기 실패");
         }
-        String markdown = new String(Files.readAllBytes(md), StandardCharsets.UTF_8);
 
         if (wantsRawMarkdown(format, accept)) {
             return ResponseEntity.ok().contentType(MARKDOWN).body(markdown);

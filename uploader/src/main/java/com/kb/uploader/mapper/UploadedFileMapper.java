@@ -25,6 +25,9 @@ public interface UploadedFileMapper {
 
     Optional<UploadedFile> findById(@Param("id") Long id);
 
+    /** 반려(03)·삭제(04) 제외. 외부 조회 API(rfps·proposals 상세, files download) 전용. */
+    Optional<UploadedFile> findActiveById(@Param("id") Long id);
+
     List<UploadedFile> findByStatus(@Param("status") String status);
 
     List<UploadedFile> findClassifiedByUnknownInstitution();
