@@ -355,10 +355,53 @@ public class InboxService {
                 }
                 destination = batchesRoot.resolve(batchId + "_" + copy);
             }
-            Files.move(batchDir, destination);   // REPLACE_EXISTING 없음 — 경합 시 실패가 덮어쓰기보다 낫다
+            moveBatchDir(batchDir, destination);   // REPLACE_EXISTING 없음 — 경합 시 실패가 덮어쓰기보다 낫다
             return repoRelative(destination);
         } catch (IOException exc) {
+            log.error("배치 보관 실패 batch_id={} {}", batchId, exc.getClass().getSimpleName());   // 경로·메시지는 싣지 않는다
             throw new ApiException(500, "배치를 보관하지 못했습니다.");
+        }
+    }
+
+    /**
+     * 폴더 이동. Windows 는 백신·인덱서·삭제 대기 핸들이 안에 있으면 rename 이 잠깐 거부되므로 짧게 다시 시도하고(최대 약 1.5초),
+     * 그래도 안 되면 복사 뒤 원본 삭제로 넘어간다. 이미 DB 저장·원본 삭제가 끝난 뒤라 여기서 500 을 내면 되돌릴 수 없다.
+     * 복사 폴백은 원본 폴더를 못 지워도 보관본을 우선한다(남은 폴더는 로그만 남기고 사람이 정리).
+     */
+    private static void moveBatchDir(Path src, Path dst) throws IOException {
+        IOException last = null;
+        for (int attempt = 0; attempt < 6; attempt++) {
+            try {
+                Files.move(src, dst);
+                return;
+            } catch (java.nio.file.FileAlreadyExistsException e) {
+                throw e;                                   // 경합 — 덮어쓰지 않는다
+            } catch (IOException e) {
+                last = e;
+                try {
+                    Thread.sleep(100L * (attempt + 1));
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+        // 폴백: 새 폴더에 일반 파일만 복사(링크는 따라가지 않는다 — 외부 확인 배치는 scrub 후 manifest.json 뿐)
+        try {
+            Files.createDirectory(dst);
+            try (java.nio.file.DirectoryStream<Path> ds = Files.newDirectoryStream(src)) {
+                for (Path p : ds) {
+                    if (Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)) {
+                        Files.copy(p, dst.resolve(p.getFileName().toString()));
+                    }
+                }
+            }
+        } catch (IOException e) {
+            ExtCheckImporter.deleteTree(dst);              // 반쪽 보관본을 남기지 않는다
+            throw last != null ? last : e;
+        }
+        if (!ExtCheckImporter.deleteTree(src)) {
+            log.warn("배치 보관은 복사로 끝냈지만 inbox 의 원래 폴더를 지우지 못했습니다(수동 정리 필요).");
         }
     }
 

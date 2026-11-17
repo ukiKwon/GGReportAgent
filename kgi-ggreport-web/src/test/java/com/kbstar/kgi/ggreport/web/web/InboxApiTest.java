@@ -3,6 +3,7 @@ package com.kbstar.kgi.ggreport.web.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.AppTest;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -49,9 +50,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 public class InboxApiTest {
 
     private static final String BATCH_ID = "2026-08-31_1200_test";
-    private static final Path INBOX = Paths.get("target/inbox-test/inbox");
-    private static final Path RFP = Paths.get("target/inbox-test/rfp");
-    private static final Path BATCHES = Paths.get("target/inbox-test/batches");
+    private Path INBOX, RFP, BATCHES;              // 시험마다 고유 폴더(InboxTestRoots)
+    private InboxTestRoots roots;
 
     @Autowired
     private MockMvc mockMvc;
@@ -59,35 +59,23 @@ public class InboxApiTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private com.kbstar.kgi.ggreport.web.config.AppProperties props;
+
     private final ObjectMapper json = new ObjectMapper();
 
     @Before
-    public void 뿌리를_비운다() throws IOException {
-        for (Path p : new Path[]{INBOX, RFP, BATCHES}) {
-            if (Files.exists(p)) {
-                deleteTree(p);
-            }
-            createWithRetry(p);
-        }
+    public void 뿌리를_만든다() throws IOException {
+        roots = InboxTestRoots.open(props);
+        INBOX = roots.inbox;
+        RFP = roots.rfp;
+        BATCHES = roots.batches;
     }
 
-    /** Windows 는 방금 지운 폴더가 '삭제 대기'로 남아 곧바로 만들면 AccessDenied 가 날 수 있다 — 잠깐 기다려 다시 만든다. */
-    private static void createWithRetry(Path p) throws IOException {
-        for (int attempt = 1; ; attempt++) {
-            try {
-                Files.createDirectories(p);
-                return;
-            } catch (java.nio.file.AccessDeniedException exc) {
-                if (attempt >= 10) {
-                    throw exc;
-                }
-                try {
-                    Thread.sleep(100L * attempt);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw exc;
-                }
-            }
+    @After
+    public void 뿌리를_치운다() {
+        if (roots != null) {
+            roots.close();
         }
     }
 
@@ -325,9 +313,10 @@ public class InboxApiTest {
         Files.write(dir.resolve("files/N-3_공고문.pdf"), "pdf".getBytes(StandardCharsets.UTF_8));
         Files.write(dir.resolve("files/N-3_붙임.pdf"), "pdf".getBytes(StandardCharsets.UTF_8));
 
-        JsonNode body = json.readTree(call(BATCH_ID, "/import").getContentAsString());
+        String raw = call(BATCH_ID, "/import").getContentAsString();
+        JsonNode body = json.readTree(raw);
 
-        assertEquals("공고당 한 건만 DB 에 남는다", 1, body.path("rfp_files").size());
+        assertEquals("공고당 한 건만 DB 에 남는다 — 응답: " + raw, 1, body.path("rfp_files").size());
         assertTrue(body.path("rfp_files").get(0).path("rfp_path").asText().contains("N-3_공고문.pdf"));
         assertTrue("두 번째 첨부도 파일은 옮겨져야 한다",
                 Files.isRegularFile(RFP.resolve("N-3_붙임.pdf")));

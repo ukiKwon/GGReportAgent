@@ -35,18 +35,30 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 public class InboxTxRollbackTest {
 
     private static final String BATCH_ID = "2026-09-01_0900_tx";
-    private static final Path INBOX = Paths.get("target/inbox-test/inbox");
+    private Path INBOX;                            // 시험마다 고유 폴더(InboxTestRoots)
+    private InboxTestRoots roots;
     private static final String MEMBER = "3918264";   // 영업팀
     private static final String CSV_HEADER = "기관명,기관구분,지역코드,입찰주기,지난입찰일,입찰예상일";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private com.kbstar.kgi.ggreport.web.config.AppProperties props;
 
     @Before
-    public void 앞정리() throws IOException { clean(); }
+    public void 앞정리() throws IOException {
+        roots = InboxTestRoots.open(props);
+        INBOX = roots.inbox;
+        clean();
+    }
 
     @After
-    public void 뒤정리() throws IOException { clean(); }
+    public void 뒤정리() throws IOException {
+        try {
+            clean();
+        } finally {
+            roots.close();
+        }
+    }
 
     private void clean() throws IOException {
         jdbc.update("DELETE FROM TASKS WHERE BID_CASE_ID IN (SELECT BID_CASE_ID FROM BID_CASES WHERE NOTICE_ID IN ('N-R1','N-R2'))");

@@ -111,3 +111,6 @@ collector/business_plan/
 # 반입 샘플(corpus/inbox/2026-11-16_lofin365 등)은 계속 커밋할 수 있게 inbox 전체가 아니라 외부 확인 배치(batch_id에 extcheck)만 막는다.
 corpus/inbox/*extcheck*/
 corpus/ext_check/
+# 서버를 kgi-ggreport-web/ 에서 띄우면 상대경로가 그 아래에 생긴다 — 어느 깊이든 막는다(security 11-17 PUSH-GATE).
+**/inbox/*extcheck*/
+**/ext_check/

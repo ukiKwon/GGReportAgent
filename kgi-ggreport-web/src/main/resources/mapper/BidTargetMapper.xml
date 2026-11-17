@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- INST_BID_TARGET — 043. 양쪽 방언 같은 문장(ANSI), 페이징은 RowBounds. 쓰기는 기관 행 잠금이 먼저(039 와 같은 잠금).
+     INSERT 만 — UPDATE·DELETE 문장은 일부러 없다. INST_BANK_CONTRACT 는 읽기만. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.BidTargetMapper">
+
+  <resultMap id="inst" type="BankContractInst">
+    <id property="institutionId" column="INSTITUTION_ID"/>
+    <result property="type" column="TYPE"/>
+  </resultMap>
+
+  <resultMap id="row" type="BidTarget">
+    <id property="institutionId" column="INSTITUTION_ID"/>
+    <id property="targetNo" column="TARGET_NO"/>
+    <id property="revNo" column="REV_NO"/>
+    <result property="actionCd" column="ACTION_CD"/>
+    <result property="targetYear" column="TARGET_YEAR"/>
+    <result property="tagCd" column="TAG_CD"/>
+    <result property="memo" column="MEMO"/>
+    <result property="ownerEmpNo" column="OWNER_EMP_NO"/>
+    <result property="ownerName" column="OWNER_NAME"/>
+    <result property="cancelReasonCd" column="CANCEL_REASON_CD"/>
+    <result property="cancelReasonEtc" column="CANCEL_REASON_ETC"/>
+    <result property="editorEmpNo" column="EDITOR_EMP_NO"/>
+    <result property="editorName" column="EDITOR_NAME"/>
+    <result property="empVerified" column="EMP_VERIFIED"/>
+    <result property="screenId" column="SCREEN_ID"/>
+    <result property="buttonId" column="BUTTON_ID"/>
+    <result property="uiValid" column="UI_VALID"/>
+    <result property="savedAt" column="SAVED_AT"/>
+    <result property="institutionName" column="INSTITUTION_NAME"/>
+    <result property="regionCode" column="REGION_CODE"/>
+    <result property="tagName" column="TAG_NAME"/>
+    <result property="cancelReasonName" column="CANCEL_REASON_NAME"/>
+    <result property="firstEditorEmpNo" column="FIRST_EDITOR_EMP_NO"/>
+    <result property="firstEditorName" column="FIRST_EDITOR_NAME"/>
+    <result property="firstSavedAt" column="FIRST_SAVED_AT"/>
+  </resultMap>
+
+  <resultMap id="line" type="BankContract">
+    <id property="institutionId" column="INSTITUTION_ID"/>
+    <id property="contractNo" column="CONTRACT_NO"/>
+    <id property="revNo" column="REV_NO"/>
+    <result property="rankCd" column="RANK_CD"/>
+    <result property="bankCd" column="BANK_CD"/>
+    <result property="bankNameEtc" column="BANK_NAME_ETC"/>
+    <result property="termFrom" column="TERM_FROM"/>
+    <result property="termTo" column="TERM_TO"/>
+    <result property="bankName" column="BANK_NAME"/>
+  </resultMap>
+
+  <resultMap id="code" type="BankContractCode">
+    <id property="code" column="CODE"/>
+    <result property="codeName" column="CODE_NAME"/>
+  </resultMap>
+
+  <select id="lockInstitution" resultMap="inst" flushCache="true">
+    SELECT INSTITUTION_ID, TYPE FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId} FOR UPDATE
+  </select>
+  <select id="selectInstitution" resultMap="inst" flushCache="true">
+    SELECT INSTITUTION_ID, TYPE FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId}
+  </select>
+
+  <sql id="cols">b.INSTITUTION_ID, b.TARGET_NO, b.REV_NO, b.ACTION_CD, b.TARGET_YEAR, b.TAG_CD, b.MEMO, b.OWNER_EMP_NO, b.OWNER_NAME,
+    b.CANCEL_REASON_CD, b.CANCEL_REASON_ETC, b.EDITOR_EMP_NO, b.EDITOR_NAME, b.EMP_VERIFIED, b.SCREEN_ID, b.BUTTON_ID, b.UI_VALID, b.SAVED_AT,
+    i.NAME_KO AS INSTITUTION_NAME, i.REGION_CODE, c.CODE_NAME AS TAG_NAME, d.CODE_NAME AS CANCEL_REASON_NAME,
+    f.EDITOR_EMP_NO AS FIRST_EDITOR_EMP_NO, f.EDITOR_NAME AS FIRST_EDITOR_NAME, f.SAVED_AT AS FIRST_SAVED_AT</sql>
+  <sql id="from">FROM INST_BID_TARGET b
+    LEFT JOIN INSTITUTIONS i ON i.INSTITUTION_ID = b.INSTITUTION_ID
+    LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'TARGET_TAG' AND c.CODE = b.TAG_CD
+    LEFT JOIN COMMON_CODE d ON d.CODE_GROUP = 'TARGET_CANCEL_REASON' AND d.CODE = b.CANCEL_REASON_CD
+    LEFT JOIN INST_BID_TARGET f ON f.INSTITUTION_ID = b.INSTITUTION_ID AND f.TARGET_NO = b.TARGET_NO AND f.REV_NO = 1</sql>
+  <sql id="latest">NOT EXISTS (SELECT 1 FROM INST_BID_TARGET n
+      WHERE n.INSTITUTION_ID = b.INSTITUTION_ID AND n.TARGET_NO = b.TARGET_NO AND n.REV_NO &gt; b.REV_NO)</sql>
+
+  <select id="selectActiveByInst" resultMap="row" flushCache="true">
+    SELECT <include refid="cols"/> <include refid="from"/>
+     WHERE b.INSTITUTION_ID = #{institutionId} AND b.ACTION_CD = 'SAVE' AND <include refid="latest"/>
+  </select>
+  <select id="selectLatestTarget" resultMap="row" flushCache="true">
+    SELECT <include refid="cols"/> <include refid="from"/>
+     WHERE b.INSTITUTION_ID = #{institutionId} AND b.TARGET_NO = #{targetNo} AND <include refid="latest"/>
+  </select>
+  <select id="selectMaxTargetNo" resultType="int" flushCache="true">
+    SELECT COALESCE(MAX(TARGET_NO), 0) FROM INST_BID_TARGET WHERE INSTITUTION_ID = #{institutionId}
+  </select>
+  <select id="selectActiveByYear" resultMap="row" flushCache="true">
+    SELECT <include refid="cols"/> <include refid="from"/>
+     WHERE b.TARGET_YEAR = #{year} AND b.ACTION_CD = 'SAVE' AND <include refid="latest"/>
+     ORDER BY i.NAME_KO, b.INSTITUTION_ID, b.TARGET_NO
+  </select>
+  <select id="selectHistory" resultMap="row" flushCache="true">
+    SELECT <include refid="cols"/> <include refid="from"/>
+     WHERE b.INSTITUTION_ID = #{institutionId} ORDER BY b.SAVED_AT DESC, b.TARGET_NO DESC, b.REV_NO DESC
+  </select>
+
+  <insert id="insertRow" parameterType="BidTarget">
+    INSERT INTO INST_BID_TARGET (INSTITUTION_ID, TARGET_NO, REV_NO, ACTION_CD, TARGET_YEAR, TAG_CD, MEMO, OWNER_EMP_NO, OWNER_NAME,
+        CANCEL_REASON_CD, CANCEL_REASON_ETC, EDITOR_EMP_NO, EDITOR_NAME, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, SAVED_AT)
+    VALUES (#{institutionId}, #{targetNo}, #{revNo}, #{actionCd}, #{targetYear}, #{tagCd}, #{memo,jdbcType=VARCHAR},
+        #{ownerEmpNo,jdbcType=VARCHAR}, #{ownerName,jdbcType=VARCHAR}, #{cancelReasonCd,jdbcType=VARCHAR}, #{cancelReasonEtc,jdbcType=VARCHAR},
+        #{editorEmpNo}, #{editorName}, #{empVerified}, #{screenId}, #{buttonId}, #{uiValid}, #{savedAt})
+  </insert>
+
+  <sql id="lineCols">k.INSTITUTION_ID, k.CONTRACT_NO, k.REV_NO, k.RANK_CD, k.BANK_CD, k.BANK_NAME_ETC, k.TERM_FROM, k.TERM_TO, c.CODE_NAME AS BANK_NAME</sql>
+  <sql id="lineFrom">FROM INST_BANK_CONTRACT k LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'BANK' AND c.CODE = k.BANK_CD
+     WHERE k.ACTION_CD = 'SAVE' AND NOT EXISTS (SELECT 1 FROM INST_BANK_CONTRACT n
+       WHERE n.INSTITUTION_ID = k.INSTITUTION_ID AND n.CONTRACT_NO = k.CONTRACT_NO AND n.REV_NO &gt; k.REV_NO)</sql>
+
+  <select id="selectContractsForYear" resultMap="line" flushCache="true">
+    SELECT <include refid="lineCols"/> <include refid="lineFrom"/>
+       AND k.INSTITUTION_ID IN (SELECT t.INSTITUTION_ID FROM INST_BID_TARGET t
+             WHERE t.TARGET_YEAR = #{year} AND t.ACTION_CD = 'SAVE' AND NOT EXISTS (SELECT 1 FROM INST_BID_TARGET m
+               WHERE m.INSTITUTION_ID = t.INSTITUTION_ID AND m.TARGET_NO = t.TARGET_NO AND m.REV_NO &gt; t.REV_NO))
+     ORDER BY k.INSTITUTION_ID, k.CONTRACT_NO
+  </select>
+  <select id="selectContractsOf" resultMap="line" flushCache="true">
+    SELECT <include refid="lineCols"/> <include refid="lineFrom"/> AND k.INSTITUTION_ID = #{institutionId}
+     ORDER BY k.CONTRACT_NO
+  </select>
+  <select id="selectContractsAll" resultMap="line" flushCache="true">
+    SELECT <include refid="lineCols"/> <include refid="lineFrom"/>
+     ORDER BY k.INSTITUTION_ID, k.CONTRACT_NO
+  </select>
+
+  <select id="selectCodes" resultMap="code" flushCache="true">
+    SELECT CODE, CODE_NAME FROM COMMON_CODE WHERE CODE_GROUP = #{group} AND ENABLED = 1 ORDER BY SORT_NO, CODE
+  </select>
+  <select id="countEnabledCode" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP = #{group} AND CODE = #{code} AND ENABLED = 1
+  </select>
+</mapper>
