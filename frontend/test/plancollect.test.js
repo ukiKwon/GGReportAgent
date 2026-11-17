@@ -301,3 +301,60 @@ test('index.html: plancollect.js 는 plans.js 뒤·admin.js 앞, CSS 블록(새 
   assert.ok(!/background:\s*var\(--accent-color\)\s*[;}]/.test(css), '채운 주버튼 금지');
   ['.wf-badge.cr-st.gap', '.wf-badge.cr-st.ok', '.wf-badge.cr-st.none', '.pl-req {', '.cr-table', '.cr-ck label', '.cr-ask'].forEach(function (s) { assert.ok(css.indexOf(s) >= 0, s); });
 });
+
+// ── 서버 검토 반영: last_closed · detail.code · 403 · TOO_SOON ─────────
+const CLOSED = { institution_id: 'jongno', status_cd: 'FAILED', closed_at: '2026-11-10T01:00:00+09:00', close_reason: '공고 페이지 없음' };
+test('reqLineHtml: 최근 실패·제외 — 칩 + 날짜 · 사유 + [수집 요청], 사유는 이스케이프, 열린 요청이 있으면 무시', function () {
+  const f = plans.reqLineHtml(null, { can: true, closed: CLOSED });
+  assert.ok(f.indexOf('data-st="FAILED">실패</span>') >= 0 && f.indexOf('<span class="v">2026-11-10</span> · 사유: 공고 페이지 없음') >= 0);
+  assert.ok(f.indexOf('id="pl-req-go">수집 요청</button>') >= 0 && f.indexOf('개발부서가 수집하고') < 0 && f.indexOf('새 계획이 나왔으면') < 0);
+  const ex = plans.reqLineHtml(null, { can: true, closed: Object.assign({}, CLOSED, { status_cd: 'EXCLUDED', close_reason: '<b>x</b>' }) });
+  assert.ok(ex.indexOf('data-st="EXCLUDED">제외됨</span>') >= 0 && ex.indexOf('사유: &lt;b&gt;x&lt;/b&gt;') >= 0 && ex.indexOf('<b>x') < 0);
+  const nr = plans.reqLineHtml(null, { can: true, closed: Object.assign({}, CLOSED, { close_reason: null }) });
+  assert.ok(nr.indexOf('사유') < 0 && nr.indexOf('2026-11-10') >= 0);
+  const des = plans.reqLineHtml(null, { can: false, closed: Object.assign({}, CLOSED, { close_reason: null }) });
+  assert.strictEqual(des, '');   // 디자이너: 열린 요청이 없으면 줄 없음(규격 6-2)
+  const withOpen = plans.reqLineHtml(req(), { can: true, closed: CLOSED });
+  assert.ok(withOpen.indexOf('data-st="REQUESTED"') >= 0 && withOpen.indexOf('data-st="FAILED"') < 0);
+  assert.ok(plans.reqLineHtml(null, { can: true, closed: { status_cd: 'APPLIED', closed_at: CLOSED.closed_at } }).indexOf('data-st="APPLIED"') < 0);   // 실패·제외만
+  assert.strictEqual(plans.reqLineHtml(null, { can: false, closed: null }), '');
+});
+test('closedMap·detailHtml: last_closed 는 기관별로 나르고 상세 줄에 나온다, 요청 결과는 옛 닫힘을 지운다', function () {
+  plans.resetStatus();
+  try {
+    plans.applyCollect({ can_request: true, items: [], last_closed: [CLOSED, { institution_id: 'x', status_cd: 'APPLIED' }, null] });
+    assert.deepStrictEqual(Object.keys(plans.closedMap({ last_closed: [CLOSED, { institution_id: 'x', status_cd: 'CANCELED' }] })), ['jongno']);
+    assert.deepStrictEqual(plans.closedMap({}), {});
+    const h = plans.detailHtml(docOk(), { name: '종로구', req: { item: null, closed: CLOSED, can: true, busy: '' } });
+    assert.ok(h.indexOf('data-st="FAILED"') >= 0 && h.indexOf('사유: 공고 페이지 없음') >= 0 && idx(h, 'class="pl-req"') < idx(h, 'class="db-why pl-imp"'));
+  } finally { plans.resetStatus(); }
+});
+test('reqErrorText: detail.code 를 먼저 보고, 코드가 없으면 상태 문구, 서버 message 는 쓰지 않는다', function () {
+  assert.ok(plans.reqErrorText('cancel', 409, 'ALREADY_RUNNING').indexOf('이미 시작되어 취소할 수 없습니다') >= 0);
+  assert.ok(plans.reqErrorText('go', 409, 'CONCURRENT').indexOf('동시에 처리되었습니다') >= 0);
+  assert.ok(plans.reqErrorText('cancel', 404, 'NO_REQUEST').indexOf('취소할 요청이 없습니다') >= 0);
+  assert.ok(plans.reqErrorText('go', 404, 'NOT_FOUND').indexOf('기관을 찾지 못했습니다') >= 0);
+  assert.ok(plans.reqErrorText('go', 409, 'STATE_CHANGED').indexOf('다른 사람이 방금') >= 0);   // 모르는 코드 → 상태 문구
+  assert.ok(plans.reqErrorText('go', 409).indexOf('다른 사람이 방금') >= 0 && plans.reqErrorText('go', 500, 'X').indexOf('(500)') >= 0);
+});
+test('errorText·resultText: REASON_* 코드·TOO_SOON, 코드 없는 400 은 기존 문구', function () {
+  assert.strictEqual(pc.errorText(400, 'REASON_REQUIRED'), '사유를 적으세요.');
+  assert.ok(pc.errorText(400, 'REASON_TOO_LONG').indexOf('100자 이내') >= 0);
+  assert.ok(pc.errorText(400, 'REASON_FORMAT').indexOf('쓸 수 없는 글자') >= 0);
+  assert.ok(pc.errorText(400, 'REASON_PII').indexOf('개인정보(전화번호·주민번호·이메일 등)') >= 0);
+  assert.ok(pc.errorText(400, 'BAD_KEYS').indexOf('(400)') >= 0 && pc.errorText(400, '').indexOf('개인정보') >= 0);
+  assert.strictEqual(pc.resultText('TOO_SOON'), '같은 기관을 10분 안에 다시 실행할 수 없습니다. 잠시 뒤 다시 누르세요.');
+  assert.ok(pc.runFlash(2, [{ result_cd: 'SENT' }, { result_cd: 'TOO_SOON' }]).indexOf('1곳은 보내지 못했습니다 — 같은 기관을 10분 안에') >= 0);
+});
+test('재무부서 403: 수집 요청 현황은 forbidden 으로 굳히고 다시 묻지 않는다(소스 구조)', function () {
+  assert.ok(/CS\.state === 'forbidden'\) return Promise\.resolve\(CS\)/.test(PLANS_SRC));
+  assert.ok(/r\.status === 'denied' && r\.code === 403\) CS = Object\.assign\(freshCollect\(\), \{ state: 'forbidden'/.test(PLANS_SRC));
+  assert.ok(/plans\.reqErrorText\(kind, r\.status, r\.code\)/.test(PLANS_SRC));
+  plans.resetStatus();
+  plans.setCollectState('forbidden', 403);
+  assert.strictEqual(plans.collectState(), 'forbidden');
+  assert.strictEqual(plans.detailHtml(docOk(), { name: '종로구' }).indexOf('pl-req'), -1);   // req 없음 → 줄 없음
+  assert.strictEqual(plans.sectionInner('nobody', 'db-name').indexOf('cr-st'), -1);
+  plans.resetStatus();
+  assert.strictEqual(plans.collectState(), 'idle');
+});

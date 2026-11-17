@@ -244,7 +244,11 @@
     const go = can ? '<button type="button" id="pl-req-go"' + dis + '>' + (busy === 'go' ? '요청 중…' : '수집 요청') + '</button>' : '';
     const cancel = '<button type="button" id="pl-req-cancel"' + dis + '>' + (busy === 'cancel' ? '취소하는 중…' : '내 요청 취소') + '</button>';
     let inner;
-    if (!item) {
+    const cl = !item && o.closed && (o.closed.status_cd === 'FAILED' || o.closed.status_cd === 'EXCLUDED') ? o.closed : null;
+    if (cl && can) {   // 디자이너(can=false)는 규격 6-2대로 열린 요청이 없으면 줄 없음. 열린 요청이 없고 최근 30일 안에 실패·제외로 닫힘: 칩 + 날짜 · 사유(요청 가능한 사람만, 서버가 디자이너에겐 사유를 안 준다) + [수집 요청]
+      const day = plans.kstYmd(cl.closed_at), why = can ? str(cl.close_reason).trim() : '';
+      inner = plans.reqBadgeHtml(cl.status_cd) + '<span class="db-why">' + (day ? mono(day) : '') + (why ? (day ? ' · ' : '') + '사유: ' + esc(why) : '') + '</span>' + go;
+    } else if (!item) {
       if (!can) return '';
       inner = go + '<span class="db-why">' + (o.hasData ? '새 계획이 나왔으면 다시 요청하세요.' : '개발부서가 수집하고, 자료가 들어오면 쪽지로 알려 드립니다.') + '</span>';
     } else {
@@ -257,9 +261,13 @@
     return '<div class="pl-req" role="group" aria-label="수집 요청">' + inner + '</div>';
   };
   // 요청·취소 오류 → 문구(서버 원문은 쓰지 않는다). kind = 'go' | 'cancel'
-  plans.reqErrorText = function (kind, status) {
-    const s = Number(status) || 0;
+  plans.reqErrorText = function (kind, status, code) {
+    const s = Number(status) || 0, c = str(code);
     if (s === 0) return '요청을 보내지 못했습니다(연결 실패). 잠시 뒤 다시 누르세요.';
+    if (c === 'ALREADY_RUNNING') return '수집이 이미 시작되어 취소할 수 없습니다. 상태를 다시 불러왔습니다.';
+    if (c === 'CONCURRENT') return '같은 기관 요청이 동시에 처리되었습니다. 다시 눌러 주세요.';
+    if (c === 'NO_REQUEST') return '취소할 요청이 없습니다. 상태를 다시 불러왔습니다.';
+    if (c === 'NOT_FOUND') return '서버에서 이 기관을 찾지 못했습니다.';
     if (s === 401) return '로그인이 필요합니다. 사번으로 다시 로그인해 주세요.';
     if (s === 403) return '수집 요청은 영업부서·개발부서만 할 수 있습니다(403). 로그인 사번과 권한을 확인하세요.';
     if (s === 404) return kind === 'cancel' ? '취소할 요청이 없습니다. 상태를 다시 불러왔습니다.' : '서버에서 이 기관을 찾지 못했습니다.';
@@ -294,7 +302,7 @@
     const data = v.data || {};
     const docs = Array.isArray(data.docs) ? data.docs : [];
     // 수집 요청 줄(규격 6-2): head 바로 뒤·반입일 앞 한 곳. 자료가 있든 없든 같은 자리. 서버 현황을 못 받았으면(o.req 없음) 그리지 않는다.
-    const reqLine = o.req ? plans.reqLineHtml(o.req.item, { can: o.req.can, hasData: docs.length > 0, busy: o.req.busy }) : '';
+    const reqLine = o.req ? plans.reqLineHtml(o.req.item, { can: o.req.can, hasData: docs.length > 0, busy: o.req.busy, closed: o.req.closed }) : '';
     if (!docs.length) {
       return head(unk('자료 없음')) + reqLine + '<div class="db-sec"><h3>사업계획</h3><p class="db-empty">' +
         (o.req && o.req.can ? '이 기관의 사업계획은 아직 수집되지 않았습니다.' : '이 기관의 사업계획은 아직 수집되지 않았습니다. 영업부서가 수집을 요청하면 개발부서가 모아 올립니다.') + '</p></div>';
@@ -417,7 +425,7 @@
 
   // ── 사업계획 수집 요청 현황 캐시(GET /plan-collect/status: 열린 요청만 + can_request) ──
   // 기존 현황(ST)과 같은 수명·같은 시점에 받는다(ensureStatus 가 함께 부른다). 실패해도 사업계획 화면은 그대로 쓴다(요청 줄·칩만 없음).
-  function freshCollect() { return { state: 'idle', can: false, map: {}, code: 0, at: 0 }; }
+  function freshCollect() { return { state: 'idle', can: false, map: {}, closed: {}, code: 0, at: 0 }; }
   let CS = freshCollect();
   let collectSeq = 0, collectPending = null, collectInflight = false;
   plans.collectMap = function (data) {
@@ -425,10 +433,18 @@
     ((data && data.items) || []).forEach(function (r) { if (r && r.institution_id) m[r.institution_id] = r; });
     return m;
   };
+  // last_closed: 열린 요청이 없는 기관의 최근 실패·제외(30일 안). 기관 ID → { status_cd, closed_at, close_reason }
+  plans.closedMap = function (data) {
+    const m = {};
+    ((data && data.last_closed) || []).forEach(function (r) {
+      if (r && r.institution_id && (r.status_cd === 'FAILED' || r.status_cd === 'EXCLUDED')) m[r.institution_id] = r;
+    });
+    return m;
+  };
   // 시험·재시도용: 서버 응답(JSON)을 직접 넣는다.
   plans.applyCollect = function (data) {
     collectSeq += 1; collectInflight = false;
-    CS = { state: 'ok', can: !!(data && data.can_request), map: plans.collectMap(data), code: 0, at: Date.now() };
+    CS = { state: 'ok', can: !!(data && data.can_request), map: plans.collectMap(data), closed: plans.closedMap(data), code: 0, at: Date.now() };
   };
   plans.setCollectState = function (state, code) { collectSeq += 1; collectInflight = false; CS = Object.assign(freshCollect(), { state: state, code: code || 0 }); };
   plans.resetCollect = function () { collectSeq += 1; collectPending = null; collectInflight = false; CS = freshCollect(); };
@@ -437,6 +453,7 @@
   function reqSummaryHtml(req) { return plans.reqBadgeHtml(req.status_cd) + ' <span class="db-why">' + mono(Number(req.requester_count) || 0) + '명 요청</span>'; }
   function ensureCollect(force) {
     if (!serverOk()) { CS = Object.assign(freshCollect(), { state: 'offline' }); return Promise.resolve(CS); }
+    if (CS.state === 'forbidden') return Promise.resolve(CS);   // 재무부서(403): 다시 묻지 않는다. 계정이 바뀌면 resetCollect 가 비운다
     if (!force) {
       if (collectInflight && collectPending) return collectPending;
       if (CS.state === 'ok' && Date.now() - CS.at < STATUS_FRESH_MS) return Promise.resolve(CS);
@@ -447,7 +464,8 @@
     const p = fetchJson('/plan-collect/status').then(function (r) {
       if (my !== collectSeq) return CS;
       collectInflight = false;
-      if (r.status === 'ok') CS = { state: 'ok', can: !!(r.data && r.data.can_request), map: plans.collectMap(r.data), code: 0, at: Date.now() };
+      if (r.status === 'ok') CS = { state: 'ok', can: !!(r.data && r.data.can_request), map: plans.collectMap(r.data), closed: plans.closedMap(r.data), code: 0, at: Date.now() };
+      else if (r.status === 'denied' && r.code === 403) CS = Object.assign(freshCollect(), { state: 'forbidden', code: 403 });   // 조용히: 요청 줄·칩 없음, 오류 문구 없음
       else CS = Object.assign(freshCollect(), { state: r.status, code: r.code || 0 });
       refreshSlots();
       onCollect();
@@ -783,7 +801,7 @@
   // ── 수집 요청(기관 사업계획 상세의 .pl-req 줄) ──
   function collectReq(id) {
     if (CS.state !== 'ok') return null;
-    return { item: CS.map[id] || null, can: CS.can, busy: S && S.reqBusy && S.reqBusy.id === id ? S.reqBusy.kind : '' };
+    return { item: CS.map[id] || null, closed: CS.closed[id] || null, can: CS.can, busy: S && S.reqBusy && S.reqBusy.id === id ? S.reqBusy.kind : '' };
   }
   function onCollect() {   // 수집 요청 현황이 도착·갱신됐을 때: 칩과 요청 줄을 다시 그린다(검색 칸에 입력 중이면 상세는 건드리지 않는다)
     if (!host || !M || !S) return;
@@ -794,11 +812,14 @@
   function postEmpty(url) {
     if (typeof fetch !== 'function') return Promise.resolve({ ok: false, status: 0 });
     return fetch(url, { method: 'POST' }).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, data: j }; });
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        return { ok: r.ok, status: r.status, data: j, code: r.ok ? '' : (j && j.detail && typeof j.detail === 'object' ? str(j.detail.code) : '') };
+      });
     }).catch(function () { return { ok: false, status: 0 }; });
   }
   function applyCollectResult(id, res) {   // 응답으로 캐시를 바로 맞춘다(다시 받지 않는다). 닫힌 상태(취소됨)는 캐시에 두지 않는다
     const st = str(res.status_cd);
+    delete CS.closed[id];   // 방금 낸 요청·취소 결과가 더 새롭다. 옛 '실패/제외됨' 줄을 남기지 않는다
     if (st === 'REQUESTED' || st === 'RUNNING') {
       CS.map[id] = { institution_id: id, status_cd: st, requester_count: Number(res.requester_count) || 0, requested_by_me: !!res.requested_by_me,
         first_requested_at: res.first_requested_at || null, run_at: res.run_at || null };
@@ -819,7 +840,7 @@
         setFlash(plans.reqFlash(kind, r.data || {}));
         next = kind === 'go' ? 'pl-req-cancel' : 'pl-req-go';
       } else {
-        setFlash(plans.reqErrorText(kind, r.status));
+        setFlash(plans.reqErrorText(kind, r.status, r.code));
         if (r.status === 404 || r.status === 409) ensureCollect(true);
         next = kind === 'go' ? 'pl-req-go' : 'pl-req-cancel';
       }
