@@ -33,7 +33,7 @@ test('sectionHtml: 직접 입력 줄 — 칩·약정·출처·확인일·입력�
   const h = bc.sectionHtml(V([L()]), LEG);
   assert.ok(h.includes('id="db-bank"') && h.includes('<dt>1금고</dt>') && h.includes('신한은행') && h.includes('wf-badge pp-neutral">직접 입력'));
   assert.ok(h.includes('약정 <span class="v">2023-01-01 ~ 2026-12-31</span>') && h.includes('gangnam.go.kr') && h.includes('확인일 <span class="v">2026-11-10</span>'));
-  assert.ok(h.includes('입력 이영업 · <span class="v">2026-11-16</span>') && !h.includes('LEGACY'));
+  assert.ok(h.includes('입력 이영업 · <span class="v">11-16</span>') && !h.includes('LEGACY'));
   assert.ok(h.includes('id="bk-edit">금고 약정 고치기'));
 });
 
@@ -122,7 +122,9 @@ test('입력자 표기: 처음 입력자 기준, 최신 수정자가 다르면 �
   assert.ok(diff.includes('입력 김처음 · <span class="v">11-10</span> · 마지막 고침 이&lt;b&gt;고침 (<span class="v">11-16</span>)'));
   assert.ok(!diff.includes('이<b>'));
   const old = bc.sectionHtml(V([L()]), LEG);
-  assert.ok(old.includes('입력 이영업 · <span class="v">2026-11-16</span>') && !old.includes('마지막 고침'));
+  assert.ok(old.includes('입력 이영업 · <span class="v">11-16</span>') && !old.includes('마지막 고침'));
+  const ov = bc.overlapHtml([L(Object.assign({}, F, { editor_name: '이<b>고침' }))], LEG.ranks || []);
+  assert.ok(ov.includes('입력 김처음 · <span class="v">11-10</span> · 마지막 고침 이&lt;b&gt;고침') && !ov.includes('이<b>') && !ov.includes('(입력 '));
   assert.ok(bc.sectionHtml(V([L(Object.assign({}, F, { emp_verified: false }))]), LEG).includes('</span> · 로그인 연동 전'));
 });
 

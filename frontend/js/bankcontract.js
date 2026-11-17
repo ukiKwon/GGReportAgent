@@ -159,13 +159,14 @@
   function whoHtml(l) {
     const tail = l.emp_verified === true ? '' : ' · 로그인 연동 전';
     // 서버가 처음 입력자(first_editor_name·first_saved_at)를 주면 그 사람 기준, 최신 수정자가 다르면 덧붙인다. 없으면(옛 응답) 지금 수정자.
+    // 한계: 같은 사람 판정은 이름 비교다(서버가 사번을 안 내보내므로) — 동명이인이면 '마지막 고침'이 빠질 수 있다.
+    const md = function (s) { return String(s || '').slice(5, 10); };
     if (l.first_editor_name) {
-      const md = function (s) { return String(s || '').slice(5, 10); };
       const last = l.editor_name && l.editor_name !== l.first_editor_name
         ? ' · 마지막 고침 ' + E(l.editor_name) + ' (' + mono(md(l.saved_at)) + ')' : '';
       return '<span class="bk-who">입력 ' + E(l.first_editor_name) + ' · ' + mono(md(l.first_saved_at || l.saved_at)) + last + tail + '</span>';
     }
-    return '<span class="bk-who">입력 ' + E(l.editor_name) + ' · ' + mono(day(l.saved_at)) + tail + '</span>';
+    return '<span class="bk-who">입력 ' + E(l.editor_name) + ' · ' + mono(md(l.saved_at)) + tail + '</span>';
   }
   function srcHtml(l) {
     const k = l.src_kind;
@@ -399,7 +400,7 @@
   bc.overlapHtml = function (list, ranks) {
     return '<p id="ie-bk-ov-t">겹치는 금고 순위에 기간이 겹치는 약정이 있습니다.</p><ul class="bk-hist-list">' + (list || []).map(function (l) {
       const per = l.term_from ? l.term_from + ' ~ ' + l.term_to : '끝 ' + l.term_to;
-      return '<li>' + E(rankName(l, ranks)) + ' ' + E(l.bank_name) + ' · ' + mono(per) + ' (입력 ' + E(l.editor_name) + ')</li>';
+      return '<li>' + E(rankName(l, ranks)) + ' ' + E(l.bank_name) + ' · ' + mono(per) + ' ' + whoHtml(l) + '</li>';
     }).join('') + '</ul><div class="ie-row"><button type="button" id="ie-bk-ov-yes">겹침을 알고 저장</button><button type="button" id="ie-bk-ov-no">돌아가서 고치기</button></div>';
   };
   function listRow(l, ranks) {
