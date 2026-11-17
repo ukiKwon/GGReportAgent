@@ -321,6 +321,52 @@ public class BankContractApiTest {
         assertEquals(201, status(send(HEAD, PATH + "/4/cancel", CANCEL, cb)));                            // 영업부장 OK
     }
 
+    private static Map<Integer, JsonNode> byNo(JsonNode lines) {
+        Map<Integer, JsonNode> m = new LinkedHashMap<Integer, JsonNode>();
+        for (JsonNode l : lines) m.put(l.path("contract_no").asInt(), l);
+        return m;
+    }
+
+    @Test public void 줄마다_남이_고쳤는지와_지울_수_있는지를_서버가_계산한다() throws Exception {
+        final String B = "7742059";   // 영업팀 다른 팀원 장하윤
+        assertEquals(201, status(save(SALES, body())));                                                          // 줄1 A 입력
+        assertEquals(201, status(save(SALES, with("term_from", "2060", "term_to", "2062"))));                    // 줄2 A 입력
+        assertEquals(201, status(save(SALES, with("contract_no", 2, "base_rev_no", 1, "term_from", "2060", "term_to", "2062", "note", "비고만 고침"))));   // 줄2 A 본인이 고침
+        assertEquals(201, status(save(B, with("contract_no", 1, "base_rev_no", 1, "bank_cd", "B02"))));         // 줄1 B가 고침
+        Map<Integer, JsonNode> a = byNo(json(getAs(SALES, PATH)).path("lines"));
+        assertTrue(a.get(1).path("edited_by_other").asBoolean());                // A 입력 → B 고침
+        assertFalse(a.get(2).path("edited_by_other").asBoolean());               // 같은 사람이 고침
+        assertTrue(a.get(1).path("can_cancel").asBoolean());                     // 입력자 본인
+        assertTrue(a.get(2).path("can_cancel").asBoolean());
+        Map<Integer, JsonNode> b = byNo(json(getAs(B, PATH)).path("lines"));
+        assertFalse(b.get(1).path("can_cancel").asBoolean());                    // 최신 수정자여도 처음 입력자가 아니면 false
+        assertFalse(b.get(2).path("can_cancel").asBoolean());                    // 다른 팀원
+        for (String boss : new String[]{LEAD, HEAD}) {
+            for (JsonNode l : json(getAs(boss, PATH)).path("lines")) assertTrue(boss, l.path("can_cancel").asBoolean());
+        }
+        for (JsonNode l : json(getAs(IT, PATH)).path("lines")) assertFalse(l.path("can_cancel").asBoolean());   // 열람만(can_edit=false)
+        // 응답 계산값 = 실제 결과
+        assertEquals(403, status(send(B, PATH + "/1/cancel", CANCEL, with("base_rev_no", 2, "cancel_reason_cd", "WRONG"))));
+        assertEquals(201, status(send(SALES, PATH + "/2/cancel", CANCEL, with("base_rev_no", 2, "cancel_reason_cd", "WRONG"))));
+        assertFalse(byNo(json(getAs(SALES, PATH)).path("lines")).containsKey(2));   // 취소된 줄은 목록에 없다
+        String raw = json(getAs(B, PATH)).toString();
+        assertFalse(raw.contains("3918264")); assertFalse(raw.contains("7742059"));   // 사번은 계속 응답에 없다
+        assertFalse(a.get(1).has("first_editor_emp_no")); assertFalse(a.get(1).has("editor_emp_no"));
+    }
+
+    @Test public void 동명이인이_고쳐도_사번으로_가려_남이_고친_것으로_본다() throws Exception {
+        final String B = "7742059";
+        jdbc.update("UPDATE USERS SET NAME = ? WHERE EMP_NO = ?", "김영업", B);   // 첫 문장(MyBatis 캐시 전). 시험 트랜잭션 롤백으로 되돌아감
+        assertEquals(201, status(save(SALES, body())));
+        assertEquals(201, status(save(B, with("contract_no", 1, "base_rev_no", 1, "bank_cd", "B02"))));
+        JsonNode l = json(getAs(SALES, PATH)).path("lines").get(0);
+        assertEquals("김영업", l.path("first_editor_name").asText());
+        assertEquals("김영업", l.path("editor_name").asText());                  // 이름은 같다
+        assertTrue(l.path("edited_by_other").asBoolean());                       // 사번이 달라 true
+        assertFalse(json(getAs(B, PATH)).path("lines").get(0).path("can_cancel").asBoolean());   // 이름이 같아도 B는 못 지움
+        assertEquals(403, status(send(B, PATH + "/1/cancel", CANCEL, with("base_rev_no", 2, "cancel_reason_cd", "WRONG"))));
+    }
+
     @Test public void 권한_403_401과_DENIED_이력() throws Exception {
         assertEquals(403, status(save(IT, body())));
         assertEquals(403, status(save(DESIGNER, body())));

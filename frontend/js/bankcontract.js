@@ -26,6 +26,7 @@
     termNone: '존재하지 않는 날짜입니다.',
     termOrder: '약정 시작이 끝보다 늦습니다.',
     future: '확인일은 오늘보다 뒤일 수 없습니다.',
+    noCancel: '입력한 본인·영업팀장·영업부장만 지울 수 있습니다.',   // 서버 cancel 403 문구와 같은 뜻(줄마다 can_cancel)
   };
   const RANK_NAME = { FIRST: '1금고', SECOND: '2금고', SINGLE: '단수 금고', JOINT: '공동 지정', NONE: '금고 은행' };
   bc.SRC_FIELDS = { LINK: ['url'], DOC_NO: ['no'], PRESS: ['url', 'no'], STAFF: ['dept'] };
@@ -158,12 +159,13 @@
 
   function whoHtml(l) {
     const tail = l.emp_verified === true ? '' : ' · 로그인 연동 전';
-    // 서버가 처음 입력자(first_editor_name·first_saved_at)를 주면 그 사람 기준, 최신 수정자가 다르면 덧붙인다. 없으면(옛 응답) 지금 수정자.
-    // 한계: 같은 사람 판정은 이름 비교다(서버가 사번을 안 내보내므로) — 동명이인이면 '마지막 고침'이 빠질 수 있다.
+    // 서버가 처음 입력자(first_editor_name·first_saved_at)를 주면 그 사람 기준, 남이 고쳤으면 덧붙인다. 없으면(옛 응답) 지금 수정자.
+    // 남이 고쳤는지는 서버 edited_by_other(사번 비교, 동명이인도 가림)를 쓴다. 그 값이 없는 응답(이력·겹침 409 목록·옛 서버)만 이름 비교로 폴백.
     const md = function (s) { return String(s || '').slice(5, 10); };
     if (l.first_editor_name) {
-      const last = l.editor_name && l.editor_name !== l.first_editor_name
-        ? ' · 마지막 고침 ' + E(l.editor_name) + ' (' + mono(md(l.saved_at)) + ')' : '';
+      const other = typeof l.edited_by_other === 'boolean' ? l.edited_by_other : !!(l.editor_name && l.editor_name !== l.first_editor_name);
+      const last = other
+        ?' · 마지막 고침 ' + E(l.editor_name) + ' (' + mono(md(l.saved_at)) + ')' : '';
       return '<span class="bk-who">입력 ' + E(l.first_editor_name) + ' · ' + mono(md(l.first_saved_at || l.saved_at)) + last + tail + '</span>';
     }
     return '<span class="bk-who">입력 ' + E(l.editor_name) + ' · ' + mono(md(l.saved_at)) + tail + '</span>';
@@ -409,8 +411,12 @@
     return '<div class="ie-bk-row"><div class="ie-bk-main"><span class="bk-ln">' + E(rankName(l, ranks)) + ' ' + E(l.bank_name) +
       (l.term_state === 'PAST' ? ' <span class="wf-badge pp-cancel">만료</span>' : '') + ' · ' + mono(per) + '</span>' + whoHtml(l) + '</div>' +
       '<div class="sp"><button type="button" data-bk-edit="' + n + '" aria-label="' + E('고치기 — ' + rankName(l, ranks) + ' ' + (l.bank_name || '')) + '">고치기</button>' +
-      '<button type="button" data-bk-del="' + n + '" aria-label="' + E('지우기 — ' + rankName(l, ranks) + ' ' + (l.bank_name || '')) + '">지우기</button></div></div>';
+      // can_cancel=false면 버튼 대신 안내 글(누를 수 없는 버튼을 두지 않음). 값이 없으면(옛 서버) 버튼을 두고 서버 403 문구에 맡긴다.
+      (l.can_cancel === false ? '<span class="db-why">' + E(bc.MSG.noCancel) + '</span>'
+        : '<button type="button" data-bk-del="' + n + '" aria-label="' + E('지우기 — ' + rankName(l, ranks) + ' ' + (l.bank_name || '')) + '">지우기</button>') +
+      '</div></div>';
   }
+  bc.listRow = listRow;   // 시험용
   function delBox(l, d, D) {
     const reasons = ((d.codes || {}).cancel_reasons || []).map(function (c) {
       return '<option value="' + E(c.code) + '"' + (c.code === D.why ? ' selected' : '') + '>' + E(c.name) + '</option>';
@@ -468,6 +474,7 @@
       else if (!v.data.can_edit) h = '<p class="ie-note">' + bc.MSG.noEdit + '</p>';
       else {
         const d = v.data, lines = Array.isArray(d.lines) ? d.lines : [], ranks = (d.codes || {}).ranks;
+        if (C.del && lines.some(function (l) { return Number(l.contract_no) === C.del.no && l.can_cancel === false; })) C.del = null;
         h = lines.length ? lines.map(function (l) { return listRow(l, ranks) + (C.del && C.del.no === Number(l.contract_no) ? delBox(l, d, C.del) : ''); }).join('')
           : '<p class="ie-note">입력한 약정이 없습니다.</p>';
         if (!C.form) h += '<div class="ie-row"><button type="button" id="ie-bk-add">약정 추가</button></div>';

@@ -25,6 +25,7 @@ import java.util.*;
  * 저장 자격 = 기관 레코드 수정 권한 AND 영업팀·영업팀장·영업부장. NoticeRoundService.canJudge 와 같은 두 줄을 복제했다(공고 정책과 갈라질 수 있어
  * 의존하지 않음) — 어긋나지 않는지는 BankContractApiTest 의 일치 시험이 본다. 나중에 PermissionService 한 메서드로 올릴 것.
  * 줄 권한(S6, 사용자 답 11-17): 고치기 = 영업팀 누구나, 취소 = 입력한 본인 또는 영업팀장·영업부장({@link HeadRules#isLead}).
+ * 조회 응답의 줄마다 can_cancel(같은 {@link #cancelRule})·edited_by_other(사번 비교)를 서버가 계산한다 — 사번 자체는 응답에 싣지 않는다.
  * ⚠️ 수정자는 Actor(X-Emp-No 자기신고일 수 있음)로만 채운다 — 본문의 수정자 값은 받지 않는다. 응답 emp_verified 가 그 표시(표지는 화면).
  * contractExpiry·OURS_SCOPE 는 건드리지 않는다.
  */
@@ -54,13 +55,32 @@ public class BankContractService {
         return u != null && HeadRules.isSales(u.getRole());
     }
 
-    /** 줄 권한은 이 메서드 하나. 고치기는 canEdit 를 통과한 영업팀 누구나, 취소는 입력한 본인(EDITOR_EMP_NO 일치) 또는 영업팀장·부장. */
+    /** 줄 권한은 이 메서드 하나. 고치기는 canEdit 를 통과한 영업팀 누구나, 취소는 {@link #cancelRule}. */
     private boolean canChangeLine(BankContract cur, Actor actor, boolean cancel) {
         if (!cancel) return true;
         // 입력자 본인 = 줄을 처음 만든 사람(REV_NO=1). 남이 고쳐 최신 수정자가 바뀌어도 원 입력자 기준(security S6-a)
         String first = mapper.selectFirstEditor(cur.getInstitutionId(), cur.getContractNo());
-        if (first != null && first.equals(actor.getEmpNo())) return true;
-        SysUser u = users.selectByEmpNo(actor.getEmpNo());
+        return cancelRule(cur.getActionCd(), first, actor.getEmpNo(), isLead(actor.getEmpNo()));
+    }
+
+    /**
+     * 줄 취소 규칙 하나 — cancel() 의 403({@link #canChangeLine})과 current() 의 can_cancel 이 같이 쓴다.
+     * 이미 취소된 줄은 false, 그 밖엔 처음 입력자(REV_NO=1 사번) 본인 또는 영업팀장·부장. ⚠️ 사번은 자기신고일 수 있다(사칭 방지 아님).
+     */
+    static boolean cancelRule(String actionCd, String firstEmpNo, String empNo, boolean lead) {
+        if (empNo == null || ACTION_CANCEL.equals(actionCd)) return false;
+        return empNo.equals(firstEmpNo) || lead;
+    }
+
+    /** 최신 rev 수정자 사번 ≠ 처음 입력자 사번. 이름이 아니라 사번으로 가린다(동명이인). 서버 안에서만 비교하고 사번은 내보내지 않는다. */
+    static boolean editedByOther(BankContract c) {
+        String f = c.getFirstEditorEmpNo(), e = c.getEditorEmpNo();
+        return f != null && e != null && !f.equals(e);
+    }
+
+    private boolean isLead(String empNo) {
+        if (empNo == null) return false;
+        SysUser u = users.selectByEmpNo(empNo);
         return u != null && HeadRules.isLead(u.getRole());
     }
 
@@ -72,17 +92,22 @@ public class BankContractService {
         LocalDate today = LocalDate.parse(Times.todayKst());
         List<BankContract> rows = new ArrayList<BankContract>(mapper.selectLatestValid(inst));
         Collections.sort(rows, LINE_ORDER);
+        boolean edit = canEdit(empNo);              // 취소 API 도 컨트롤러 requireEditor(canEdit)를 먼저 지난다 — 응답값과 실제 403 을 맞춘다
+        boolean lead = edit && isLead(empNo);       // 한 번만 조회(줄마다 N 회 조회하지 않음)
         List<Map<String, Object>> lines = new ArrayList<Map<String, Object>>();
         for (BankContract c : rows) {
             Map<String, Object> v = view(c, today, false);
             v.put("overlap_with", overlapWith(c, rows));   // 지금 유효한 같은 순위 줄 중 기간이 겹치는 줄 번호(화면 겹침 표시용)
+            v.put("edited_by_other", editedByOther(c));    // 화면 '· 마지막 고침 B' 근거(이름 비교 대신)
+            // 처음 입력자 사번은 조인값(FIRST_EDITOR_EMP_NO) — cancel() 의 selectFirstEditor 와 같은 REV_NO=1 행
+            v.put("can_cancel", edit && cancelRule(c.getActionCd(), c.getFirstEditorEmpNo(), empNo, lead));
             lines.add(v);
         }
         Map<String, Object> out = new LinkedHashMap<String, Object>();
         out.put("institution_id", inst);
         out.put("lines", lines);
         out.put("history_count", mapper.countRows(inst));
-        out.put("can_edit", canEdit(empNo));
+        out.put("can_edit", edit);
         out.put("today", today.toString());
         out.put("codes", codes(ref.getType()));
         return out;

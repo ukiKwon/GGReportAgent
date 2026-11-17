@@ -128,6 +128,23 @@ test('입력자 표기: 처음 입력자 기준, 최신 수정자가 다르면 �
   assert.ok(bc.sectionHtml(V([L(Object.assign({}, F, { emp_verified: false }))]), LEG).includes('</span> · 로그인 연동 전'));
 });
 
+test('입력자 표기: 서버 edited_by_other가 있으면 그 값(동명이인·개명), 없으면 이름 비교 폴백', () => {
+  const F = { first_editor_name: '김처음', first_saved_at: '2026-11-10T09:00:00', editor_name: '김처음', saved_at: '2026-11-16T10:00:00' };
+  const twin = bc.sectionHtml(V([L(Object.assign({}, F, { edited_by_other: true }))]), LEG);
+  assert.ok(twin.includes('입력 김처음 · <span class="v">11-10</span> · 마지막 고침 김처음 (<span class="v">11-16</span>)'));
+  const self = bc.sectionHtml(V([L(Object.assign({}, F, { editor_name: '김바뀐이름', edited_by_other: false }))]), LEG);
+  assert.ok(!self.includes('마지막 고침'));
+  const fb = bc.sectionHtml(V([L(Object.assign({}, F, { editor_name: '이고침' }))]), LEG);   // 값 없음 → 이름 비교
+  assert.ok(fb.includes('마지막 고침 이고침'));
+});
+
+test('변경 창 목록: can_cancel=false면 [지우기] 대신 안내, true·값 없음(옛 서버)이면 버튼', () => {
+  const no = bc.listRow(L({ can_cancel: false }), CODES.ranks);
+  assert.ok(!no.includes('data-bk-del') && no.includes('data-bk-edit="1"') && no.includes(bc.MSG.noCancel));
+  assert.ok(bc.listRow(L({ can_cancel: true }), CODES.ranks).includes('data-bk-del="1"'));
+  assert.ok(bc.listRow(L(), CODES.ranks).includes('data-bk-del="1"'));
+});
+
 test('sectionHtml: emp_verified=false면 로그인 연동 전 표지, true면 없음', () => {
   assert.ok(bc.sectionHtml(V([L({ emp_verified: false })]), LEG).includes(' · 로그인 연동 전'));
   assert.ok(!bc.sectionHtml(V([L({ emp_verified: true })]), LEG).includes('로그인 연동 전'));
