@@ -176,7 +176,7 @@
     let s;
     if (k === 'STAFF') s = '담당자 확인' + (inner ? ' · ' + inner : '');
     else s = (k === 'PRESS' ? '언론 보도 · ' : '') + (inner || '<span class="pop-unk">출처 미기록</span>');
-    return '출처 ' + s + (l.checked_date ? ' · 확인일 ' + mono(l.checked_date) : '') + (l.checked_dept ? ' · 확인 부서 ' + E(l.checked_dept) : '');
+    return '출처 ' + s + (l.checked_date ? ' · 수정일 ' + mono(l.checked_date) : '') + (l.checked_dept ? ' · 확인 부서 ' + E(l.checked_dept) : '');
   }
   // 줄 하나 = dt + dd. o = { ranks, same }
   function rowHtml(l, o) {
@@ -344,7 +344,7 @@
   bc.SRC_NOTE = {
     '': '출처 종류를 고르면 적을 칸이 보입니다.',
     PRESS: '링크와 번호 중 하나는 적어야 합니다.',
-    STAFF: '확인한 기관 부서가 있으면 비고에 적어 주세요.',   // 팀 결정 11-17: 기관 부서 칸은 없앰(사용자), 필요하면 비고
+    STAFF: '확인한 기관 부서가 있으면 비고에 적어 주세요. 담당자 이름·전화번호는 적지 않습니다.',   // 팀 결정 11-17: 기관 부서 칸은 없앰(사용자), 필요하면 비고
   };
 
   // ── 변경 창: 마크업 ──────────────────────────────────────────────────
@@ -382,7 +382,7 @@
     h += '<p class="ie-note" id="ie-bk-srcnote">' + E(bc.SRC_NOTE[f.kind] || (f.kind ? '' : bc.SRC_NOTE[''])) + '</p>';
     h += inp('ie-bk-url', '링크', f.url, 'placeholder="https://" maxlength="500" aria-describedby="ie-bk-srcnote"', sf.indexOf('url') < 0) +
       inp('ie-bk-no', '문서·공고 번호', f.no, 'placeholder="예: 제2023-154호" maxlength="50" aria-describedby="ie-bk-srcnote"', sf.indexOf('no') < 0);
-    h += '<p class="ie-note" id="ie-bk-auto">확인일은 저장한 날, 확인 부서는 내 부서로 저장할 때 자동으로 기록됩니다.</p>';
+    h += '<p class="ie-note" id="ie-bk-auto">저장하면 수정일은 저장한 날로, 확인 부서는 내 부서로 자동 기록됩니다.</p>';
     h += inp('ie-bk-note', '비고', f.note, 'maxlength="100" placeholder="예: 2금고는 별도 공고"', false, 'ie-wide');
     h += '<p class="ie-note" id="ie-bank-need"></p>';
     h += '<div class="hc-confirmbox ie-cbox" id="ie-bk-ovbox" role="group" aria-labelledby="ie-bk-ov-t" hidden></div>';
@@ -399,10 +399,12 @@
     const n = Number(l.contract_no);
     const per = l.term_from ? l.term_from + ' ~ ' + l.term_to : '끝 ' + l.term_to;
     return '<div class="ie-bk-row"><div class="ie-bk-main"><span class="bk-ln">' + E(rankName(l, ranks)) + ' ' + E(l.bank_name) +
-      (l.term_state === 'PAST' ? ' <span class="wf-badge pp-cancel">만료</span>' : '') + ' · ' + mono(per) + '</span>' + whoHtml(l) + '</div>' +
+      (l.term_state === 'PAST' ? ' <span class="wf-badge pp-cancel">만료</span>' : '') + ' · ' + mono(per) + '</span>' + whoHtml(l) +
+      // can_cancel=false 안내는 입력자 줄 아래(버튼 칸이 아님). 값이 없으면(옛 서버) 안내 없이 버튼을 두고 서버 403 문구에 맡긴다.
+      (l.can_cancel === false ? '<span class="bk-who">' + E(bc.MSG.noCancel) + '</span>' : '') + '</div>' +
       '<div class="sp"><button type="button" data-bk-edit="' + n + '" aria-label="' + E('고치기 — ' + rankName(l, ranks) + ' ' + (l.bank_name || '')) + '">고치기</button>' +
-      // can_cancel=false면 버튼 대신 안내 글(누를 수 없는 버튼을 두지 않음). 값이 없으면(옛 서버) 버튼을 두고 서버 403 문구에 맡긴다.
-      (l.can_cancel === false ? '<span class="db-why">' + E(bc.MSG.noCancel) + '</span>'
+      // can_cancel=false면 [지우기] 버튼을 두지 않는다(누를 수 없는 버튼 금지).
+      (l.can_cancel === false ? ''
         : '<button type="button" data-bk-del="' + n + '" aria-label="' + E('지우기 — ' + rankName(l, ranks) + ' ' + (l.bank_name || '')) + '">지우기</button>') +
       '</div></div>';
   }

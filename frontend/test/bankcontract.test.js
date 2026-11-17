@@ -32,7 +32,7 @@ test('plan: CURRENT 직접 > 수집값 > PAST 직접(만료) > 미확인', () =>
 test('sectionHtml: 직접 입력 줄 — 칩·약정·출처·확인일·입력자, 기존 갈래는 대체', () => {
   const h = bc.sectionHtml(V([L()]), LEG);
   assert.ok(h.includes('id="db-bank"') && h.includes('<dt>1금고</dt>') && h.includes('신한은행') && h.includes('wf-badge pp-neutral">직접 입력'));
-  assert.ok(h.includes('약정 <span class="v">2023-01-01 ~ 2026-12-31</span>') && h.includes('gangnam.go.kr') && h.includes('확인일 <span class="v">2026-11-10</span>'));
+  assert.ok(h.includes('약정 <span class="v">2023-01-01 ~ 2026-12-31</span>') && h.includes('gangnam.go.kr') && h.includes('수정일 <span class="v">2026-11-10</span>'));
   assert.ok(h.includes('입력 이영업 · <span class="v">11-16</span>') && !h.includes('LEGACY'));
   assert.ok(h.includes('id="bk-edit">금고 약정 고치기'));
 });
@@ -141,6 +141,9 @@ test('입력자 표기: 서버 edited_by_other가 있으면 그 값(동명이인
 test('변경 창 목록: can_cancel=false면 [지우기] 대신 안내, true·값 없음(옛 서버)이면 버튼', () => {
   const no = bc.listRow(L({ can_cancel: false }), CODES.ranks);
   assert.ok(!no.includes('data-bk-del') && no.includes('data-bk-edit="1"') && no.includes(bc.MSG.noCancel));
+  // 안내는 버튼 칸(.sp)이 아니라 입력자 줄 아래(.ie-bk-main 안)
+  const spAt = no.indexOf('<div class="sp">');
+  assert.ok(no.indexOf('<span class="bk-who">' + bc.MSG.noCancel) > -1 && no.indexOf(bc.MSG.noCancel) < spAt);
   assert.ok(bc.listRow(L({ can_cancel: true }), CODES.ranks).includes('data-bk-del="1"'));
   assert.ok(bc.listRow(L(), CODES.ranks).includes('data-bk-del="1"'));
 });
@@ -195,12 +198,12 @@ test('check: 담당자 확인은 적을 칸 없이 통과, 본문에 확인일·
 test('formHtml: 확인일·확인 부서 입력 칸은 없고 자동 기록 안내만 있다', () => {
   const h = bc.formHtml(CODES, bc.BLANK, {});
   assert.ok(!h.includes('id="ie-bk-date"') && !h.includes('id="ie-bk-dept"'));
-  assert.ok(h.includes('id="ie-bk-auto"') && h.includes('확인 부서는 내 부서로'));
+  assert.ok(h.includes('id="ie-bk-auto"') && h.includes('저장하면 수정일은 저장한 날로, 확인 부서는 내 부서로 자동 기록됩니다.'));
 });
 
 test('sectionHtml: 확인일과 확인 부서를 함께 보이고, 담당자 확인 줄은 부서가 null이어도 깨지지 않는다', () => {
   const h = bc.sectionHtml(V([L({ checked_dept: '영업부서' })]), LEG);
-  assert.ok(h.includes('확인일 <span class="v">2026-11-10</span>') && h.includes('확인 부서 영업부서'));
+  assert.ok(h.includes('수정일 <span class="v">2026-11-10</span>') && h.includes('확인 부서 영업부서'));
   const s = bc.sectionHtml(V([L({ src_kind: 'STAFF', checked_dept: null })]), LEG);
   assert.ok(s.includes('담당자 확인') && !s.includes('null'));
 });
