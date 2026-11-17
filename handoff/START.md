@@ -25,7 +25,7 @@
 
 ## 세션 분담
 - 8080·target/·bankcontract(서버·화면)·inbox/ext-check = 9f, kbboard·dashboard·index.html·BidTarget(043·044) = c0, plans.js·사업계획 수집(045) = d9, agent-dashboard = 4c.
-- DB 번호: 042=9f, 043·044=c0, 045=d9, 9f 다음 046.
+- DB 번호: 042=9f, 043·044=c0(044=관심 기관 KIND_CD), 045=d9, 046=c0 예약(설명회 기록), 9f 다음 047.
 - 커밋은 경로 지정, NEXT는 항목 단위 Edit, questions.json은 최신본을 읽고 항목 단위로. mvn은 target/ 공유 — 돌리기 전 다른 세션에 알림.
 
 ## 사용자 목표·방향 (불변)
