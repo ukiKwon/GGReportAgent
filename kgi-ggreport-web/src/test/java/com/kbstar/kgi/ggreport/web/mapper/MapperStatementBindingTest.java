@@ -52,8 +52,9 @@ public class MapperStatementBindingTest {
      * + 기관 편집 이력 1개(InstitutionEditLogMapper — NEXT 72, 030, 2026-11-15).
      * + 기관 사업계획 1개(InstitutionPlanMapper — 034, 2026-11-16).
      * + 공고 상태 기록 1개(NoticeRoundMapper — 037, 2026-11-16).
+     * + 금고 약정 기록 1개(BankContractMapper — 039, NEXT 89, 2026-11-17).
      */
-    private static final int EXPECTED_MAPPER_COUNT = 24;
+    private static final int EXPECTED_MAPPER_COUNT = 25;
 
     @Autowired
     private SqlSessionFactory sqlSessionFactory;

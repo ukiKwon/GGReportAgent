@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- INST_BANK_CONTRACT — 039. 양쪽 방언 같은 문장(ANSI), 페이징은 RowBounds. 쓰기는 기관 행 잠금이 먼저(빈 결과 FOR UPDATE 교착 회피 — 약정 표엔 걸지 않음).
+     resultMap 명시(InstitutionMapper.xml 8행 이유). 조회는 flushCache. INSERT 만 — UPDATE·DELETE 문장은 일부러 없다. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.BankContractMapper">
+
+  <resultMap id="inst" type="BankContractInst">
+    <id property="institutionId" column="INSTITUTION_ID"/>
+    <result property="type" column="TYPE"/>
+  </resultMap>
+
+  <resultMap id="row" type="BankContract">
+    <id property="institutionId" column="INSTITUTION_ID"/>
+    <id property="contractNo" column="CONTRACT_NO"/>
+    <id property="revNo" column="REV_NO"/>
+    <result property="actionCd" column="ACTION_CD"/>
+    <result property="originCd" column="ORIGIN_CD"/>
+    <result property="rankCd" column="RANK_CD"/>
+    <result property="bankCd" column="BANK_CD"/>
+    <result property="bankNameEtc" column="BANK_NAME_ETC"/>
+    <result property="termFrom" column="TERM_FROM"/>
+    <result property="termTo" column="TERM_TO"/>
+    <result property="srcKind" column="SRC_KIND"/>
+    <result property="srcUrl" column="SRC_URL"/>
+    <result property="srcNo" column="SRC_NO"/>
+    <result property="checkedDate" column="CHECKED_DATE"/>
+    <result property="checkedDept" column="CHECKED_DEPT"/>
+    <result property="note" column="NOTE"/>
+    <result property="overlapConfirmed" column="OVERLAP_CONFIRMED"/>
+    <result property="cancelReasonCd" column="CANCEL_REASON_CD"/>
+    <result property="cancelReasonEtc" column="CANCEL_REASON_ETC"/>
+    <result property="editorEmpNo" column="EDITOR_EMP_NO"/>
+    <result property="editorName" column="EDITOR_NAME"/>
+    <result property="empVerified" column="EMP_VERIFIED"/>
+    <result property="screenId" column="SCREEN_ID"/>
+    <result property="buttonId" column="BUTTON_ID"/>
+    <result property="uiValid" column="UI_VALID"/>
+    <result property="savedAt" column="SAVED_AT"/>
+    <result property="bankName" column="BANK_NAME"/>
+    <result property="accountCd" column="ACCOUNT_CD"/>
+    <result property="accountEtc" column="ACCOUNT_ETC"/>
+    <result property="accountName" column="ACCOUNT_NAME"/>
+    <result property="cancelReasonName" column="CANCEL_REASON_NAME"/>
+  </resultMap>
+
+  <resultMap id="code" type="BankContractCode">
+    <id property="code" column="CODE"/>
+    <result property="codeName" column="CODE_NAME"/>
+  </resultMap>
+
+  <select id="lockInstitution" resultMap="inst" flushCache="true">
+    SELECT INSTITUTION_ID, TYPE FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId} FOR UPDATE
+  </select>
+  <select id="selectInstitution" resultMap="inst" flushCache="true">
+    SELECT INSTITUTION_ID, TYPE FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId}
+  </select>
+
+  <sql id="cols">b.INSTITUTION_ID, b.CONTRACT_NO, b.REV_NO, b.ACTION_CD, b.ORIGIN_CD, b.RANK_CD, b.BANK_CD, b.BANK_NAME_ETC,
+    b.TERM_FROM, b.TERM_TO, b.SRC_KIND, b.SRC_URL, b.SRC_NO, b.CHECKED_DATE, b.CHECKED_DEPT, b.NOTE,
+    b.ACCOUNT_CD, b.ACCOUNT_ETC, b.OVERLAP_CONFIRMED, b.CANCEL_REASON_CD, b.CANCEL_REASON_ETC,
+    b.EDITOR_EMP_NO, b.EDITOR_NAME, b.EMP_VERIFIED, b.SCREEN_ID, b.BUTTON_ID, b.UI_VALID, b.SAVED_AT,
+    c.CODE_NAME AS BANK_NAME, d.CODE_NAME AS CANCEL_REASON_NAME, e.CODE_NAME AS ACCOUNT_NAME</sql>
+  <sql id="from">FROM INST_BANK_CONTRACT b
+    LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'BANK' AND c.CODE = b.BANK_CD
+    LEFT JOIN COMMON_CODE d ON d.CODE_GROUP = 'BANK_CANCEL_REASON' AND d.CODE = b.CANCEL_REASON_CD
+    LEFT JOIN COMMON_CODE e ON e.CODE_GROUP = 'BANK_ACCOUNT' AND e.CODE = b.ACCOUNT_CD</sql>
+  <sql id="latest">NOT EXISTS (SELECT 1 FROM INST_BANK_CONTRACT n
+      WHERE n.INSTITUTION_ID = b.INSTITUTION_ID AND n.CONTRACT_NO = b.CONTRACT_NO AND n.REV_NO &gt; b.REV_NO)</sql>
+
+  <select id="selectLatestValid" resultMap="row" flushCache="true">
+    SELECT <include refid="cols"/> <include refid="from"/>
+     WHERE b.INSTITUTION_ID = #{institutionId} AND b.ACTION_CD = 'SAVE' AND <include refid="latest"/>
+  </select>
+
+  <select id="selectLatestLine" resultMap="row" flushCache="true">
+    SELECT <include refid="cols"/> <include refid="from"/>
+     WHERE b.INSTITUTION_ID = #{institutionId} AND b.CONTRACT_NO = #{contractNo} AND <include refid="latest"/>
+  </select>
+
+  <select id="selectFirstEditor" resultType="string" flushCache="true">
+    SELECT EDITOR_EMP_NO FROM INST_BANK_CONTRACT WHERE INSTITUTION_ID = #{institutionId} AND CONTRACT_NO = #{contractNo} AND REV_NO = 1
+  </select>
+
+  <select id="selectMaxContractNo" resultType="int" flushCache="true">
+    SELECT COALESCE(MAX(CONTRACT_NO), 0) FROM INST_BANK_CONTRACT WHERE INSTITUTION_ID = #{institutionId}
+  </select>
+
+  <select id="countRows" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM INST_BANK_CONTRACT WHERE INSTITUTION_ID = #{institutionId}
+  </select>
+
+  <select id="selectHistory" resultMap="row" flushCache="true">
+    SELECT <include refid="cols"/> <include refid="from"/>
+     WHERE b.INSTITUTION_ID = #{institutionId} ORDER BY b.SAVED_AT DESC, b.CONTRACT_NO DESC, b.REV_NO DESC
+  </select>
+
+  <insert id="insertRow" parameterType="BankContract">
+    INSERT INTO INST_BANK_CONTRACT (INSTITUTION_ID, CONTRACT_NO, REV_NO, ACTION_CD, ORIGIN_CD, RANK_CD, BANK_CD, BANK_NAME_ETC,
+        TERM_FROM, TERM_TO, SRC_KIND, SRC_URL, SRC_NO, CHECKED_DATE, CHECKED_DEPT, NOTE,
+        ACCOUNT_CD, ACCOUNT_ETC, OVERLAP_CONFIRMED, CANCEL_REASON_CD, CANCEL_REASON_ETC,
+        EDITOR_EMP_NO, EDITOR_NAME, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, SAVED_AT)
+    VALUES (#{institutionId}, #{contractNo}, #{revNo}, #{actionCd}, #{originCd}, #{rankCd}, #{bankCd}, #{bankNameEtc,jdbcType=VARCHAR},
+        #{termFrom,jdbcType=VARCHAR}, #{termTo}, #{srcKind}, #{srcUrl,jdbcType=VARCHAR}, #{srcNo,jdbcType=VARCHAR},
+        #{checkedDate}, #{checkedDept,jdbcType=VARCHAR}, #{note,jdbcType=VARCHAR},
+        #{accountCd,jdbcType=VARCHAR}, #{accountEtc,jdbcType=VARCHAR}, #{overlapConfirmed}, #{cancelReasonCd,jdbcType=VARCHAR}, #{cancelReasonEtc,jdbcType=VARCHAR},
+        #{editorEmpNo}, #{editorName}, #{empVerified}, #{screenId}, #{buttonId}, #{uiValid}, #{savedAt})
+  </insert>
+
+  <select id="selectCodes" resultMap="code" flushCache="true">
+    SELECT CODE, CODE_NAME FROM COMMON_CODE WHERE CODE_GROUP = #{group} AND ENABLED = 1 ORDER BY SORT_NO, CODE
+  </select>
+
+  <select id="countEnabledCode" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP = #{group} AND CODE = #{code} AND ENABLED = 1
+  </select>
+</mapper>

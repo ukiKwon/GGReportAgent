@@ -50,6 +50,20 @@ public final class InstUiIds {
         return new BoardUiIds.Ui("corpus_register", "corpus_link", true);
     }
 
+    /** 금고 약정 기록(039) — 화면은 기관 정보 변경 창 하나, 버튼은 엔드포인트마다 하나만 유효.
+     *  PUT /institutions 의 {@link #BUTTONS} 와 섞지 않는다(그 경로가 save_bank_contract 로 기록되지 않게). ⚠️ 자기신고 머리글. */
+    public static final String SCREEN_INSTITUTION_EDIT = "institution_edit";
+    public static final String BTN_SAVE_BANK_CONTRACT = "save_bank_contract";
+    public static final String BTN_CANCEL_BANK_CONTRACT = "cancel_bank_contract";
+
+    public static BoardUiIds.Ui bankContract(HttpServletRequest req, String expectedButton) {
+        String s = clean(req.getHeader(BoardUiIds.H_SCREEN));
+        String b = clean(req.getHeader(BoardUiIds.H_BUTTON));
+        boolean sv = SCREEN_INSTITUTION_EDIT.equals(s);
+        boolean bv = expectedButton.equals(b);
+        return new BoardUiIds.Ui(sv ? s : BoardUiIds.UNKNOWN, bv ? b : BoardUiIds.UNKNOWN, sv && bv);
+    }
+
     private static String clean(String v) {
         return v == null ? null : v.trim();
     }
