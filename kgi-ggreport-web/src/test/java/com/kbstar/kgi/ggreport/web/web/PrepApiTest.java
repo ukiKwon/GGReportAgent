@@ -594,9 +594,9 @@ public class PrepApiTest {
     // ── 목록·이력 ────────────────────────────────────────────────────
 
     @Test
-    public void 목록은_기관명_상태_진척_담당자_이름만_보여주고_영업팀만_본다() throws Exception {
+    public void 목록은_기관명_상태_진척_담당자_이름만_보여주고_영업팀과_디자이너가_본다() throws Exception {
         assertEquals(401, getAs("/preps", null).getResponse().getStatus());
-        assertEquals(403, getAs("/preps", DESIGNER).getResponse().getStatus());
+        assertEquals(200, getAs("/preps", DESIGNER).getResponse().getStatus());   // 입찰 현황판 보기(사용자 결정 2026-11-17)
         assertEquals(403, getAs("/preps", ADMIN).getResponse().getStatus());
         String bid = opened(INST);
         for (String emp : new String[]{MEMBER, HEAD}) {   // 담당이 아니어도 목록은 본다
@@ -617,6 +617,21 @@ public class PrepApiTest {
             assertFalse(item.has("assignees"));
             assertFalse(item.has("confirmed_by"));
         }
+    }
+
+    @Test
+    public void 디자이너는_목록만_보고_담당이_아닌_건의_상세는_404_쓰기는_403() throws Exception {
+        String bid = opened(INST);
+        JsonNode item = listItem(json(getAs("/preps", DESIGNER)), bid);
+        assertNotNull(item);
+        assertEquals("IN_PROGRESS", item.path("state_cd").asText());
+        assertFalse(item.path("can_view").asBoolean());
+        assertFalse(item.has("tasks"));
+        assertFalse(item.has("confirmed_by"));
+        assertEquals(404, getAs("/bidcases/" + bid + "/prep", DESIGNER).getResponse().getStatus());   // 담당이 아니면 상세 404(담당자면 열람은 그대로 — 단 디자이너는 담당 지정이 막혀 있다)
+        assertEquals(404, getAs("/bidcases/" + bid + "/prep/history", DESIGNER).getResponse().getStatus());
+        assertEquals(403, postJson("/preps", DESIGNER, "{\"institution_id\":\"" + INST + "\"}").getResponse().getStatus());
+        assertEquals(0, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND EMP_NO=? AND REQ_PATH='/preps' AND HTTP_METHOD='GET'", DESIGNER));   // 목록 GET 은 거부 기록이 없다
     }
 
     @Test

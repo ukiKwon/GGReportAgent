@@ -16,6 +16,7 @@ import com.kbstar.kgi.ggreport.web.mapper.BidAssignmentMapper;
 import com.kbstar.kgi.ggreport.web.mapper.BidCaseMapper;
 import com.kbstar.kgi.ggreport.web.mapper.PrepMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
+import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import com.kbstar.kgi.ggreport.web.web.Actor;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
@@ -118,10 +119,15 @@ public class PrepService {
 
     // ── 목록·상세·이력 ────────────────────────────────────────────────────
 
-    /** 목록(1) — 영업팀·영업팀장·영업부장. 기관명·상태·진척 n/m·담당자 이름만(과제별 내용·체크한 사람·사유는 주지 않는다). */
+    /**
+     * 목록(1) — 영업팀·영업팀장·영업부장·디자이너(목록 보기만, 사용자 결정 2026-11-17 — 입찰 현황판 진행 단계).
+     * 기관명·상태·진척 n/m·담당자 이름만(과제별 내용·체크한 사람·사유는 주지 않는다).
+     * 팀 결정(2026-11-17): canSee 의 '담당자면 열람'은 그대로 둔다 — 디자이너가 그 건의 담당자로 지정됐다면 상세를 보는 것이 '제안서 작업 확인' 원칙과 맞다.
+     * 담당이 아닌 디자이너는 can_view=false·상세 404 다.
+     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> list(SysUser me) {
-        if (!isSales(me) && !isHead(me)) {
+        if (!isSales(me) && !isHead(me) && !isDesigner(me)) {
             throw new ApiException(403, "이 기능을 쓸 권한이 없습니다.");
         }
         List<Map<String, Object>> out = new ArrayList<>();
@@ -1165,6 +1171,11 @@ public class PrepService {
     /** 영업팀·영업팀장. */
     private static boolean isSales(SysUser u) {
         return BidAssignmentService.MEMBER_ROLE.equals(roleOf(u)) || isLead(u);
+    }
+
+    /** 디자이너 — 목록 보기만(쓰기·담당이 아닌 건의 상세는 다른 규칙이 그대로 막는다). 디자이너 팀장 역할은 따로 없고 영업팀장이 받는다(Teams.leadOf). */
+    private static boolean isDesigner(SysUser u) {
+        return Teams.DESIGNER_TEAM.equals(roleOf(u));
     }
 
     private static void requireSales(SysUser me) {

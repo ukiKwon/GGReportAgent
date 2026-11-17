@@ -30,6 +30,8 @@ public class WorkflowOverviewApiTest {
 
     private static final String MEMBER = "3918264";
     private static final String HEAD = "2674805";
+    private static final String DESIGNER = "7130526";
+    private static final String ADMIN = "8203417";
     private static final ObjectMapper JSON = new ObjectMapper();
 
     @Autowired
@@ -76,9 +78,73 @@ public class WorkflowOverviewApiTest {
     @Test
     public void 로그인이_없으면_401_권한이_없거나_미등록이면_403() throws Exception {
         overview(null, 401);
-        overview("7130526", 403);       // 디자이너는 역할 기본에서 workflow 조회가 꺼져 있다(영업부장은 2026-11-10 켬)
+        overview(DESIGNER, 200);        // 디자이너는 workflow 메뉴가 꺼져 있지만 입찰 현황판 보기 예외로 200(2026-11-17, 담당자 칸은 비움)
         overview(HEAD, 200);
         overview("9999999", 403);       // 등록되지 않은 사번
+    }
+
+    @Test
+    public void 디자이너는_진행_단계를_보되_담당자_칸은_비어_있고_이력에_역할_예외가_남는다() throws Exception {
+        bid("b1", "dobong", "검토중");
+        task("t1", "b1", "팀A", "김영업");
+        run("r1", "dobong", "PENDING_APPROVAL", "기획승인", "2026-10-30T01:00:00+00:00");
+        // 접근 이력은 요청마다 따로 쓰여 다른 시험의 줄이 남을 수 있다 — 전후 차이로 센다
+        int apiBefore = roleExceptionRows(), deniedBefore = deniedRows();
+        JsonNode r = overview(DESIGNER, 200);
+        assertEquals(25, r.get("items").size());
+        JsonNode d = item(r, "dobong");
+        assertEquals("PENDING_APPROVAL", d.get("state").asText());
+        assertEquals(1, d.get("bid_count").asInt());
+        assertTrue(d.has("assignees"));                 // 키는 유지(계약), 값만 비움
+        assertEquals(0, d.get("assignees").size());
+        assertEquals(1, item(overview(MEMBER, 200), "dobong").get("assignees").size());   // 메뉴 권한자는 그대로
+        assertEquals(apiBefore + 1, roleExceptionRows());
+        assertEquals(deniedBefore, deniedRows());
+    }
+
+    private int roleExceptionRows() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='API' AND EMP_NO=? AND REQ_PATH='/workflow/overview'"
+                + " AND DETAIL='role exception: 디자이너'", Integer.class, DESIGNER).intValue();
+    }
+
+    private int deniedRows() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND EMP_NO=?"
+                + " AND REQ_PATH='/workflow/overview' AND STATUS_CODE=403", Integer.class, DESIGNER).intValue();
+    }
+
+    @Test
+    public void 잠긴_디자이너는_403_거부_기록_1건() throws Exception {
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", DESIGNER);
+        int before = deniedRows();
+        overview(DESIGNER, 403);
+        assertEquals(before + 1, deniedRows());
+    }
+
+    @Test
+    public void 디자이너가_아닌_역할은_메뉴가_꺼져_있으면_403() throws Exception {
+        jdbc.update("UPDATE USERS SET ROLE='기타' WHERE EMP_NO=?", DESIGNER);   // 역할 기본 메뉴에 workflow 없음(FALLBACK)
+        int before = deniedRows();
+        overview(DESIGNER, 403);
+        assertEquals(before + 1, deniedRows());
+    }
+
+    @Test
+    public void 역할_앞뒤_공백은_무시하고_디자이너면_통과() throws Exception {
+        jdbc.update("UPDATE USERS SET ROLE=? WHERE EMP_NO=?", " 디자이너 ", DESIGNER);   // trim 뒤 정확 일치
+        overview(DESIGNER, 200);
+    }
+
+    @Test
+    public void 디자이너의_팀장_역할은_예외가_아니다_메뉴를_끄면_403() throws Exception {
+        // leadOf(디자이너)=영업팀장 — 메뉴로 보는 역할이라 예외에 넣지 않는다(전산이 끄면 막혀야 함)
+        jdbc.update("UPDATE USERS SET ROLE=? WHERE EMP_NO=?", "디자이너팀장", DESIGNER);
+        overview(DESIGNER, 403);
+    }
+
+    @Test
+    public void 관리자_계정도_역할이_바뀌어_메뉴가_없으면_역할_예외는_받지_못한다() throws Exception {
+        jdbc.update("UPDATE USERS SET ROLE='기타' WHERE EMP_NO=?", ADMIN);
+        overview(ADMIN, 403);
     }
 
     @Test
