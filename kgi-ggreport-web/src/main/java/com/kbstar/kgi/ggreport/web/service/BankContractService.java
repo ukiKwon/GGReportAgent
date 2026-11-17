@@ -246,7 +246,7 @@ public class BankContractService {
         if ("NONE".equals(p.rank)) return out;   // 순위 없음은 검사 안 함(1·2금고는 같은 순위, 공동은 같은 은행만)
         for (BankContract c : mapper.selectLatestValid(inst)) {
             if (excludeLine != null && c.getContractNo() == excludeLine) continue;
-            if (p.rank.equals(c.getRankCd())
+            if (BankContractRules.rankClash(p.rank, c.getRankCd())
                     && BankContractRules.overlapScope(p.rank, p.bank, p.bankEtc, c.getBankCd(), c.getBankNameEtc())
                     && BankContractRules.overlaps(c.getTermFrom(), c.getTermTo(), p.termFrom, p.termTo)) out.add(c);
         }
@@ -258,7 +258,7 @@ public class BankContractService {
         List<Integer> out = new ArrayList<Integer>();
         if ("NONE".equals(c.getRankCd())) return out;
         for (BankContract o : all) {
-            if (o.getContractNo() != c.getContractNo() && c.getRankCd().equals(o.getRankCd())
+            if (o.getContractNo() != c.getContractNo() && BankContractRules.rankClash(c.getRankCd(), o.getRankCd())
                     && BankContractRules.overlapScope(c.getRankCd(), c.getBankCd(), c.getBankNameEtc(), o.getBankCd(), o.getBankNameEtc())
                     && BankContractRules.overlaps(c.getTermFrom(), c.getTermTo(), o.getTermFrom(), o.getTermTo())) {
                 out.add(o.getContractNo());
@@ -282,7 +282,7 @@ public class BankContractService {
         }
         Map<String, Object> d = new LinkedHashMap<String, Object>();
         d.put("code", "DUP_RANK");
-        d.put("message", "같은 순위에 기간이 겹치는 약정이 있습니다. 확인한 뒤 겹침을 알고 저장하려면 확인 표시를 하고 다시 저장하세요.");
+        d.put("message", "겹치는 금고 순위에 기간이 겹치는 약정이 있습니다. 확인한 뒤 겹침을 알고 저장하려면 확인 표시를 하고 다시 저장하세요.");
         d.put("overlaps", list);
         return ApiException.withDetail(409, d);
     }
@@ -335,7 +335,7 @@ public class BankContractService {
         return out;
     }
 
-    /** 1금고→2금고→순위 없음→공동, 같은 순위면 끝 날짜 늦은 것, 그다음 줄 번호 큰 것. */
+    /** 1금고→2금고→단수 금고→순위 없음→공동, 같은 순위면 끝 날짜 늦은 것, 그다음 줄 번호 큰 것. */
     private static final Comparator<BankContract> LINE_ORDER = new Comparator<BankContract>() {
         @Override
         public int compare(BankContract a, BankContract b) {

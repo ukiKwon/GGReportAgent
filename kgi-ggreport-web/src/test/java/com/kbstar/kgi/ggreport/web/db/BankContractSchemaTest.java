@@ -35,7 +35,9 @@ public class BankContractSchemaTest {
         assertEquals(16, count("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP='BANK'"));
         assertEquals(14, count("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP='BANK' AND ENABLED=1"));
         assertEquals(2, count("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP='BANK' AND ENABLED=0 AND CODE IN ('X01','X02')"));
-        assertEquals(4, count("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP='BANK_RANK'"));
+        assertEquals(5, count("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP='BANK_RANK'"));
+        assertEquals("단수 금고", jdbc.queryForObject("SELECT CODE_NAME FROM COMMON_CODE WHERE CODE_GROUP='BANK_RANK' AND CODE='SINGLE'", String.class));
+        assertEquals(5, count("SELECT SORT_NO FROM COMMON_CODE WHERE CODE_GROUP='BANK_RANK' AND CODE='SINGLE'"));
         assertEquals(4, count("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP='BANK_CONTRACT_SRC'"));
         assertEquals(4, count("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP='BANK_CANCEL_REASON'"));
         assertEquals(5, count("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP='BANK_ACCOUNT'"));

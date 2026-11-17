@@ -23,10 +23,10 @@ final class BankContractRules {
     static final String G_BANK = "BANK", G_RANK = "BANK_RANK", G_SRC = "BANK_CONTRACT_SRC", G_CANCEL = "BANK_CANCEL_REASON";
     static final String G_ACCOUNT = "BANK_ACCOUNT", ACCOUNT_ETC = "ETC";
     static final String BANK_ETC = "ETC", CANCEL_ETC = "ETC";
-    static final String RANK_FIRST = "FIRST", RANK_SECOND = "SECOND";
+    static final String RANK_FIRST = "FIRST", RANK_SECOND = "SECOND", RANK_SINGLE = "SINGLE";
     static final String SRC_LINK = "LINK", SRC_DOC_NO = "DOC_NO", SRC_STAFF = "STAFF";
     static final String TYPE_LOCAL_GOV = "지자체";
-    static final List<String> RANK_ORDER = Arrays.asList("FIRST", "SECOND", "NONE", "JOINT");
+    static final List<String> RANK_ORDER = Arrays.asList("FIRST", "SECOND", "SINGLE", "NONE", "JOINT");
     private static final Pattern CODE = Pattern.compile("[A-Z0-9_]{1,30}");
     private static final Pattern TERM = Pattern.compile("\\d{4}(-\\d{2}(-\\d{2})?)?");
 
@@ -48,7 +48,7 @@ final class BankContractRules {
 
     // ---- 순위·기간 ----
 
-    /** 지자체·교육청 = FIRST/SECOND 만, 그 밖(법원·공공기관 등) = NONE/JOINT 만. TYPE 이 비어 있으면(옛 시드) 막지 않는다. */
+    /** 지자체·교육청 = FIRST/SECOND/SINGLE 만, 그 밖(법원·공공기관 등) = NONE/JOINT 만. TYPE 이 비어 있으면(옛 시드) 막지 않는다. */
     static boolean rankAllowed(String rank, String instType) {
         String t = instType == null ? "" : instType.trim();
         if (t.isEmpty()) return true;
@@ -61,9 +61,19 @@ final class BankContractRules {
         return TYPE_LOCAL_GOV.equals(t) || "교육청".equals(t);
     }
 
-    /** 1금고·2금고인가. */
+    /** 지자체·교육청 순위(1금고·2금고·단수 금고)인가. 겹침 검사 대상이고 법원·공공기관에는 허용되지 않는다. */
     static boolean rankChecked(String rank) {
-        return RANK_FIRST.equals(rank) || RANK_SECOND.equals(rank);
+        return RANK_FIRST.equals(rank) || RANK_SECOND.equals(rank) || RANK_SINGLE.equals(rank);
+    }
+
+    /**
+     * 두 순위가 겹침 비교 대상인가. 같은 순위끼리는 항상, 단수 금고는 한 은행이 전부 맡으므로 1·2금고·단수 금고 어느 쪽과도
+     * (1금고 vs 2금고는 비교 안 함). 공동 지정의 같은 은행 조건은 overlapScope 가 따로 본다.
+     */
+    static boolean rankClash(String a, String b) {
+        if (a == null || b == null) return false;
+        if (a.equals(b)) return true;
+        return (RANK_SINGLE.equals(a) && rankChecked(b)) || (RANK_SINGLE.equals(b) && rankChecked(a));
     }
 
     /** S2 겹침 대상 — 1·2금고는 같은 순위끼리, 공동 지정은 '같은 은행'이 기간이 겹칠 때만, 순위 없음은 검사 안 함. */

@@ -109,6 +109,25 @@ public class BankContractRulesTest {
         assertFalse(BankContractRules.overlapScope("JOINT", "ETC", "SC제일은행", "ETC", "케이뱅크"));
         assertFalse(BankContractRules.overlapScope("NONE", "B04", null, "B04", null));
     }
+    @Test public void 단수_금고는_지자체_교육청만() {
+        assertTrue(BankContractRules.rankAllowed("SINGLE", "지자체"));
+        assertTrue(BankContractRules.rankAllowed("SINGLE", "교육청"));
+        assertFalse(BankContractRules.rankAllowed("SINGLE", "법원"));
+        assertFalse(BankContractRules.rankAllowed("SINGLE", "공공기관"));
+        assertTrue(BankContractRules.rankAllowed("SINGLE", null));    // TYPE 비어 있으면 막지 않음
+        assertTrue(BankContractRules.rankChecked("SINGLE"));
+        assertTrue(BankContractRules.overlapScope("SINGLE", "B04", null, "B02", null));
+    }
+    @Test public void 순위_충돌_단수는_1_2금고와도_1금고와_2금고는_서로_아님() {
+        assertTrue(BankContractRules.rankClash("SINGLE", "FIRST"));
+        assertTrue(BankContractRules.rankClash("SECOND", "SINGLE"));
+        assertTrue(BankContractRules.rankClash("SINGLE", "SINGLE"));
+        assertTrue(BankContractRules.rankClash("FIRST", "FIRST"));
+        assertFalse(BankContractRules.rankClash("FIRST", "SECOND"));
+        assertFalse(BankContractRules.rankClash("SINGLE", "JOINT"));
+        assertFalse(BankContractRules.rankClash("SINGLE", "NONE"));
+        assertFalse(BankContractRules.rankClash(null, "SINGLE"));
+    }
 
     // ---- S2 겹침 ----
     @Test public void 겹침_판정() {

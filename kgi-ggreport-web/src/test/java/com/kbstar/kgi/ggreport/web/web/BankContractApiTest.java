@@ -139,6 +139,51 @@ public class BankContractApiTest {
         assertTrue(any);
     }
 
+    @Test public void 단수_금고는_지자체_교육청만_저장() throws Exception {
+        assertEquals(201, status(save(SALES, with("rank_cd", "SINGLE"))));                                  // 지자체
+        setType("교육청");
+        assertEquals(201, status(save(SALES, with("rank_cd", "SINGLE", "term_from", "2030", "term_to", "2032"))));
+        setType("공공기관");
+        assertEquals(400, status(save(SALES, with("rank_cd", "SINGLE", "term_from", "2040", "term_to", "2042"))));
+        setType("법원");
+        assertEquals(400, status(save(SALES, with("rank_cd", "SINGLE", "term_from", "2040", "term_to", "2042"))));
+        assertEquals(2, rowsWithRank("SINGLE"));
+    }
+
+    @Test public void 단수_금고는_1_2금고와_기간이_겹치면_409_확인하면_저장() throws Exception {
+        assertEquals(201, status(save(SALES, body())));                                                         // 줄1 1금고 2023~2026-12-31
+        assertEquals(201, status(save(SALES, with("rank_cd", "SINGLE", "term_from", "2026", "term_to", "2029"))));   // 줄2 맞닿음 → 통과
+        MvcResult dup = save(SALES, with("rank_cd", "SINGLE", "term_from", "2025", "term_to", "2027"));
+        assertEquals(409, status(dup));
+        JsonNode d = json(dup).path("detail");
+        assertEquals("DUP_RANK", d.path("code").asText());
+        assertEquals(2, d.path("overlaps").size());
+        assertEquals("FIRST", d.path("overlaps").get(0).path("rank_cd").asText());
+        assertEquals("SINGLE", d.path("overlaps").get(1).path("rank_cd").asText());
+        assertEquals(2, rows());
+        MvcResult ok = save(SALES, with("rank_cd", "SINGLE", "term_from", "2025", "term_to", "2027", "confirm_overlap", true));
+        assertEquals(201, status(ok));
+        assertTrue(json(ok).path("line").path("overlap_confirmed").asBoolean());
+        for (JsonNode l : json(getAs(SALES, PATH)).path("lines")) {   // 대칭: 1금고 줄에도 겹치는 단수 금고 줄(3)이 보인다(줄2는 맞닿음)
+            if (l.path("contract_no").asInt() == 1) assertEquals(1, l.path("overlap_with").size());
+        }
+    }
+
+    @Test public void 단수_금고가_있는_기간에_1_2금고_저장은_409() throws Exception {
+        assertEquals(201, status(save(SALES, with("rank_cd", "SINGLE"))));                                      // 단수 2023~2026-12-31
+        MvcResult f = save(SALES, with("rank_cd", "FIRST", "term_from", "2025", "term_to", "2027"));
+        assertEquals(409, status(f));
+        assertEquals("SINGLE", json(f).path("detail").path("overlaps").get(0).path("rank_cd").asText());
+        assertEquals(409, status(save(SALES, with("rank_cd", "SECOND", "term_from", "2025", "term_to", "2027"))));
+        assertEquals(201, status(save(SALES, with("rank_cd", "SECOND", "term_from", "2026", "term_to", "2029"))));  // 맞닿음 통과
+        assertEquals(1, rowsWithRank("SINGLE"));
+    }
+
+    @Test public void 고쳐서_단수로_바꿀_때_자기_줄은_겹침에서_빠진다() throws Exception {
+        assertEquals(201, status(save(SALES, body())));                                                         // 1금고 줄1
+        assertEquals(201, status(save(SALES, with("contract_no", 1, "base_rev_no", 1, "rank_cd", "SINGLE"))));   // 자기 줄 → 409 아님
+    }
+
     @Test public void S2_자기_줄과_취소한_줄은_겹침에서_제외() throws Exception {
         assertEquals(201, status(save(SALES, body())));                                                   // 1금고 줄1
         assertEquals(201, status(save(SALES, with("contract_no", 1, "base_rev_no", 1, "term_to", "2027"))));   // 자기 줄과는 겹침 아님
@@ -293,7 +338,9 @@ public class BankContractApiTest {
         for (JsonNode c : it.path("codes").path("banks")) { if ("B13".equals(c.path("code").asText())) b13 = true; if ("X01".equals(c.path("code").asText())) x01 = true; }
         assertTrue(b13); assertFalse(x01);
         assertEquals(4, it.path("codes").path("cancel_reasons").size());
-        assertEquals(2, it.path("codes").path("ranks").size());                                               // 지자체: FIRST·SECOND
+        assertEquals(3, it.path("codes").path("ranks").size());                                               // 지자체: FIRST·SECOND·SINGLE
+        assertEquals("SINGLE", it.path("codes").path("ranks").get(2).path("code").asText());
+        assertEquals("단수 금고", it.path("codes").path("ranks").get(2).path("name").asText());
         assertEquals(5, it.path("codes").path("accounts").size());
         assertEquals(400, status(save(SALES, with("rank_cd", "JOINT"))));
         setType("법원");
