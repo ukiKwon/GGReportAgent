@@ -38,12 +38,24 @@ const SITE = (() => {
   const PER_PLANET = 120; // 우주(120층)에 닿으면 건물이 로켓으로 떠나고 다음 행성 1층부터(사용자 11-16 ③안)
   const pinfo = () => planetOf(stat.laps + bonus, LAPS_PER_FLOOR, PER_PLANET);
   const floors = () => pinfo().floor, planet = () => pinfo().planet;
-  const PLANETS = [ // [이름, 하늘 위, 하늘 아래, 흙, 흙 점, 우주에서 본 행성]
-    ['지구', '#8ecae6', '#cfe8f3', '#b08a5a', '#9c774a', '#1565c0'], ['화성', '#e8a87c', '#f6d5b8', '#b5532f', '#8e3b1f', '#c1440e'],
-    ['얼음 행성', '#b3d9f2', '#eaf6fd', '#a7c7d9', '#7fa6bd', '#8fd3f4'], ['보라 행성', '#9c88c9', '#d9cff0', '#7e6b8f', '#5e4d70', '#7e57c2'],
-    ['사막 행성', '#f2c57c', '#fbe7c2', '#d9a960', '#b8874a', '#e0a050'], ['초록 행성', '#8fd3b0', '#d9f2e4', '#5f8f5a', '#46703f', '#43a047']];
-  const planetName = p => p < PLANETS.length ? PLANETS[p][0] : '행성 ' + (p + 1);
-  const palOf = p => PLANETS[p % PLANETS.length];
+  // 팔레트: [이름표(쓰지 않음), 하늘 위, 하늘 아래, 흙, 흙 점, 우주에서 본 행성]
+  const PAL = [
+    ['지구', '#8ecae6', '#cfe8f3', '#b08a5a', '#9c774a', '#1565c0'], ['빨강', '#e8a87c', '#f6d5b8', '#b5532f', '#8e3b1f', '#c1440e'],
+    ['파랑', '#b3d9f2', '#eaf6fd', '#a7c7d9', '#7fa6bd', '#8fd3f4'], ['보라', '#9c88c9', '#d9cff0', '#7e6b8f', '#5e4d70', '#7e57c2'],
+    ['노랑', '#f2c57c', '#fbe7c2', '#d9a960', '#b8874a', '#e0a050'], ['흰초록', '#8fd3b0', '#d9f2e4', '#5f8f5a', '#46703f', '#43a047'],
+    ['분홍', '#f4a6c0', '#fde2ec', '#b07a8a', '#8f5c6c', '#ec407a']];
+  // 지구 다음부터는 '꽃 이름(4글자 이하) + 행성'(사용자 11-17). [꽃, 꽃 색에 맞춘 팔레트 번호]
+  const FLOWERS = [['민들레', 4], ['장미', 1], ['수국', 2], ['라벤더', 3], ['벚꽃', 6], ['해바라기', 4], ['은방울꽃', 5],
+    ['동백', 1], ['물망초', 2], ['제비꽃', 3], ['진달래', 6], ['개나리', 4], ['안개꽃', 5], ['튤립', 1], ['도라지', 3],
+    ['코스모스', 6], ['수선화', 4], ['나팔꽃', 2], ['매화', 5], ['무궁화', 6]];
+  const flowerOf = p => FLOWERS[(p - 1) % FLOWERS.length];
+  // 꽃 목록을 한 바퀴 다 돌면 '민들레 행성 2'처럼 차수를 붙인다(하루 7,200공정 넘어야 나옴)
+  const planetName = p => {
+    if (p <= 0) return '지구';
+    const round = Math.floor((p - 1) / FLOWERS.length);
+    return flowerOf(p)[0] + ' 행성' + (round ? ' ' + (round + 1) : '');
+  };
+  const palOf = p => PAL[p <= 0 ? 0 : flowerOf(p)[1]];
   const LAUNCH_SEC = 6.5;
   let launch = null, planetSeen = -1, planetSince = null;
   function pal() { // 지금 그릴 땅·하늘 색(발사 끝무렵 1초 동안 새 행성 색으로 바뀜)
