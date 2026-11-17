@@ -80,6 +80,18 @@ test('겹침 확인 저장 본문은 confirm_overlap:true, 목록 버튼 aria-la
   assert.ok(bc.sectionHtml(Object.assign(V([L()], { history_count: 2 })), LEG).includes('<summary id="bk-hist-sum">'));
 });
 
+test('수집 기록과 같음은 은행·순위 둘 다 같을 때만, 저장 실패 포커스 대상, 이미 지워진 약정 안내', () => {
+  const kb = L({ bank_name: 'KB국민은행', rank_cd: 'FIRST' });
+  const diff = bc.sectionHtml(V([kb]), Object.assign({ collected: true, hasKb: true, col: { name: 'KB국민은행', slot: '2' } }, LEG));
+  assert.ok(diff.includes('수집 기록과 다름') && !diff.includes('수집 기록과 같음'));
+  const same = bc.sectionHtml(V([kb]), Object.assign({ collected: true, hasKb: true, col: { name: 'KB국민은행', slot: '1' } }, LEG));
+  assert.ok(same.includes('수집 기록과 같음') && !same.includes('수집 기록과 다름'));
+  assert.strictEqual(bc.failFocus(false), 'ie-bk-save');
+  assert.strictEqual(bc.failFocus(true), 'ie-bank-err');
+  const o = bc.outcome({ status: 409, body: { detail: { code: 'ALREADY_CANCELLED', message: 'x' } } }, 'cancel');
+  assert.deepStrictEqual([o.kind, o.msg], ['stale', '이미 지워진 약정입니다. 목록을 새로 불러왔습니다.']);
+});
+
 test('sectionHtml: 겹침 줄은 약정 줄 바로 아래, 2027년부터 줄 앞에 순위', () => {
   const h = bc.sectionHtml(V([L({ overlap_with: [2] })]), LEG);
   assert.ok(h.indexOf('같은 순위 약정과 기간이 겹칩니다') > h.indexOf('약정 <span class="v">') && h.indexOf('같은 순위 약정과 기간이 겹칩니다') < h.indexOf('출처 '));

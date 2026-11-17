@@ -18,6 +18,7 @@
     reloaded: '최신 기록을 불러왔습니다. 확인한 뒤 다시 저장하세요.',
     reloadedCancel: '최신 기록을 불러왔습니다. 확인한 뒤 다시 지우세요.',
     noEdit: '금고 약정은 영업팀이 입력합니다.',
+    alreadyCancelled: '이미 지워진 약정입니다. 목록을 새로 불러왔습니다.',
     empty: '지금 약정은 기록이 없습니다. 새 약정을 입력하면 여기에 보입니다.',
     kbNote: '직접 입력한 약정은 입찰 현황판 \'국민은행이 맡은 기관\' 수에 넣지 않습니다.',
     term: '약정 기간은 YYYY, YYYY-MM 또는 YYYY-MM-DD 형식이어야 합니다.',
@@ -114,6 +115,7 @@
     if (s === 201) return { kind: 'saved' };
     if (s === 200) return { kind: 'nochange', msg: bc.MSG.noChange };
     if (s === 409 && p.code === 'DUP_RANK') return { kind: 'overlap', msg: p.message, overlaps: d && Array.isArray(d.overlaps) ? d.overlaps : [] };
+    if (s === 409 && p.code === 'ALREADY_CANCELLED') return { kind: 'stale', code: p.code, msg: bc.MSG.alreadyCancelled };
     if (s === 409) return { kind: 'stale', code: p.code, msg: (p.message ? p.message + ' ' : '') + (op === 'cancel' ? bc.MSG.reloadedCancel : bc.MSG.reloaded) };
     if (s === 400 || s === 422) return { kind: 'field', code: p.code, msg: p.message || ie.errText(s, d) };
     return { kind: 'error', msg: ie.errText(s, d) };
@@ -210,10 +212,12 @@
     const key = col ? bc.bankKey(col.name) : '';
     let dl, note = '';
     if (p.mode === 'direct') {
-      const same = !!key && p.g.cur.some(function (l) { return bc.bankKey(l.bank_name) === key; });
+      const slotRank = col && /^\s*([12])/.test(String(col.slot || '')) ? (RegExp.$1 === '1' ? 'FIRST' : 'SECOND') : '';   // 수집 슬롯을 모르면 은행만 비교
+      const sameOf = function (l) { return !!key && bc.bankKey(l.bank_name) === key && (!slotRank || l.rank_cd === slotRank); };   // 은행·순위 둘 다 같을 때만 '같음'
+      const same = p.g.cur.some(sameOf);
       const rows = p.rows.map(function (l) {
         const cur = l.term_state !== 'FUTURE' && l.term_state !== 'PAST';
-        return rowHtml(l, { ranks: ranks, same: same && cur && bc.bankKey(l.bank_name) === key });
+        return rowHtml(l, { ranks: ranks, same: cur && sameOf(l) });
       });
       if (p.g.cur.length && col && !same) {
         rows.push('<dt>수집 기록</dt><dd><span class="bk-ln"><span class="wf-badge pp-cancel">수집</span> ' + E(col.name) + (col.slot ? ' · ' + E(col.slot) + '금고' : '') +
@@ -312,6 +316,8 @@
     if (l) meta.rev = Number(l.rev_no);
     return meta;
   };
+  // 저장 실패(stale·field·error) 뒤 포커스 대상 id: 저장 버튼이 눌릴 수 있으면 그것, 아니면 오류 문구 요소.
+  bc.failFocus = function (saveDisabled) { return saveDisabled ? 'ie-bank-err' : 'ie-bk-save'; };
   bc.sameForm = function (a, b) {
     return Object.keys(bc.BLANK).every(function (k) { return t(a[k]) === t(b[k]); });
   };
@@ -503,6 +509,8 @@
           return;
         }
         setText('ie-bank-err', o.msg);   // stale·field·error — 폼 값과 base_rev_no는 그대로 둔다(최신 기록은 위 목록에 다시 보임)
+        const fe = q('#' + bc.failFocus(!!(q('#ie-bk-save') || {}).disabled));   // 포커스가 BODY로 가지 않게
+        if (fe) { if (fe.id === 'ie-bank-err') fe.setAttribute('tabindex', '-1'); if (fe.focus) fe.focus(); }
       });
     }
     function doDelete() {
