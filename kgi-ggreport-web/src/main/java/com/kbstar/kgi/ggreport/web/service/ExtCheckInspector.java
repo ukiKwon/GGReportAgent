@@ -115,7 +115,11 @@ final class ExtCheckInspector {
      * [확신 낮음] 9·10·13·14 — 기억 기반이라 규격 PDF로 확인해야 한다. 틀려도 "더 많이 거부"하는 쪽이라 안전 방향이다.
      * 11·12·15·16·17 은 본문 유출과 무관해 거부하지 않는다.
      */
-    private static final int[] HWP_BITS_ENCRYPTED = {1, 2, 4, 8, 10, 13};
+    /** 허용 목록(11 CCL·12 모바일 최적화·15 KOGL·16 비디오·17 차례 + 0 압축) — 이 밖의 비트가 켜지면 아래 분류로 거부하고, 분류에 없는 예약 비트는 UNSUPPORTED_ENTRY(header). */
+    private static final int HWP_PROPS_ALLOWED = (1 << 0) | (1 << 11) | (1 << 12) | (1 << 15) | (1 << 16) | (1 << 17);
+    /** hwplib 보조 추출 동시 실행 제한(1건). 시험에서 미리 잡아 건너뛰기 경로를 본다. */
+    static final java.util.concurrent.Semaphore HWPLIB_GATE = new java.util.concurrent.Semaphore(1);
+    private static final int[] HWP_BITS_ENCRYPTED ={1, 2, 4, 8, 10, 13};
     private static final int[] HWP_BITS_SCRIPT = {3};
     private static final int[] HWP_BITS_HISTORY = {5, 6, 7, 9, 14};
     /** 한컴 기본 빈 틀, 실물 공고 HWP 164건 확인 2026-11-17 — Scripts/ 아래 스트림 이름 → 허용 원본 바이트(압축 상태 그대로) sha256. 그 밖은 SCRIPT. */
@@ -617,7 +621,7 @@ final class ExtCheckInspector {
                     continue;                                          // 검사 대상 아님, 보관 유지
                 }
                 if (low.startsWith("bindata/")) {
-                    if (!IMAGE_EXT.contains(ext)) {
+                    if (!IMAGE_EXT.contains(ext) || !imageSignatureMatches(ext, d.head, d.headLen)) {
                         throw new Reject("EMBEDDED", "entry", 1);
                     }
                     images++;
@@ -724,12 +728,14 @@ final class ExtCheckInspector {
     private static final class Drained {
         byte[] data;
         boolean nested;
+        byte[] head;     // 앞 64바이트(keep 여부와 무관) — 그림 서명 대조용
+        int headLen;
     }
 
     private static Drained drain(InputStream in, boolean keep, long[] total, long ratioCap, long deadline) throws IOException {
         ByteArrayOutputStream bo = keep ? new ByteArrayOutputStream() : null;
         byte[] buf = new byte[16384];
-        byte[] head = new byte[4];
+        byte[] head = new byte[64];
         int hl = 0;
         long n = 0;
         int r;
@@ -739,8 +745,8 @@ final class ExtCheckInspector {
             if (n > ZIP_ENTRY_MAX || total[0] > ZIP_TOTAL_MAX || total[0] > ratioCap) {
                 throw new Reject("ZIP_LIMIT", "entry", 1);
             }
-            if (hl < 4) {
-                int c = Math.min(4 - hl, r);
+            if (hl < head.length) {
+                int c = Math.min(head.length - hl, r);
                 System.arraycopy(buf, 0, head, hl, c);
                 hl += c;
             }
@@ -754,7 +760,52 @@ final class ExtCheckInspector {
         d.nested = (hl >= 4 && head[0] == 0x50 && head[1] == 0x4B && head[2] == 0x03 && head[3] == 0x04)
                 || (hl >= 4 && (head[0] & 0xFF) == 0xD0 && (head[1] & 0xFF) == 0xCF && head[2] == 0x11 && (head[3] & 0xFF) == 0xE0)
                 || (hl >= 2 && head[0] == 0x4D && head[1] == 0x5A);
+        d.head = head;
+        d.headLen = hl;
         return d;
+    }
+
+    private static final String[] IMAGE_SIG_KINDS = {"png", "jpg", "gif", "bmp", "wmf", "emf", "tif"};
+
+    /**
+     * 앞 바이트가 알려진 그림 서명(png·jpg·gif·bmp·wmf·emf·tif) 중 하나인지 — 선언 확장자와는 맞추지 않는다
+     * (한컴이 .bmp 에 PNG, .jpg 에 PNG, .png 에 JPEG 를 저장하는 실물이 있다). 확장자는 호출 쪽에서 IMAGE_EXT 소속만 본다.
+     */
+    private static boolean imageSignatureMatches(String ext, byte[] h, int len) {
+        for (String k : IMAGE_SIG_KINDS) {
+            if (signatureOf(k, h, len)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean signatureOf(String ext, byte[] h, int len) {
+        switch (ext) {
+            case "png":
+                return len >= 4 && (h[0] & 0xFF) == 0x89 && h[1] == 0x50 && h[2] == 0x4E && h[3] == 0x47;
+            case "jpg":
+            case "jpeg":
+                return len >= 3 && (h[0] & 0xFF) == 0xFF && (h[1] & 0xFF) == 0xD8 && (h[2] & 0xFF) == 0xFF;
+            case "gif":
+                return len >= 3 && h[0] == 0x47 && h[1] == 0x49 && h[2] == 0x46;
+            case "bmp":
+                return len >= 2 && h[0] == 0x42 && h[1] == 0x4D;
+            case "wmf":
+                if (len >= 4 && (h[0] & 0xFF) == 0xD7 && (h[1] & 0xFF) == 0xCD && (h[2] & 0xFF) == 0xC6 && (h[3] & 0xFF) == 0x9A) {
+                    return true;                                   // placeable
+                }
+                return len >= 4 && (h[0] == 1 || h[0] == 2) && h[1] == 0 && h[2] == 9 && h[3] == 0;   // 표준 헤더: 종류 1·2 + 헤더 크기 9
+            case "emf":
+                return len >= 44 && h[0] == 1 && h[1] == 0 && h[2] == 0 && h[3] == 0
+                        && h[40] == 0x20 && h[41] == 0x45 && h[42] == 0x4D && h[43] == 0x46;   // 40바이트 뒤 ' EMF'
+            case "tif":
+            case "tiff":
+                return len >= 4 && ((h[0] == 0x49 && h[1] == 0x49 && h[2] == 0x2A && h[3] == 0)
+                        || (h[0] == 0x4D && h[1] == 0x4D && h[2] == 0 && h[3] == 0x2A));
+            default:
+                return false;
+        }
     }
 
     private static String sha256Hex(byte[] data) {
@@ -825,6 +876,9 @@ final class ExtCheckInspector {
             if (anyBit(props, HWP_BITS_HISTORY)) {
                 throw new Reject("HISTORY", "file", 1);
             }
+            if ((props & ~HWP_PROPS_ALLOWED) != 0) {
+                throw new Reject("UNSUPPORTED_ENTRY", "header", 1);   // 허용 목록 밖 예약 비트
+            }
             boolean compressed = (props & 1) != 0;
 
             // 2) 스트림 순회 — 이름 허용 목록, 크기를 세며 읽기
@@ -868,7 +922,7 @@ final class ExtCheckInspector {
                                 data = raw;
                                 addTotal(total, raw.length, ratioCap);
                             }
-                            if (looksNested(data)) {
+                            if (looksNested(data) || !imageSignatureMatches(ext, data, data.length)) {
                                 throw new Reject("EMBEDDED", "entry", 1);
                             }
                             images++;
@@ -937,12 +991,19 @@ final class ExtCheckInspector {
             return hits.list();                          // 이미 제외 — hwplib 는 부르지 않는다
         }
         // 3) 통과한 파일만 hwplib 로 한 번 더(구조 확인 + 컨트롤 안 글자). 못 읽으면 PARSE_FAILED.
+        // hwplib 는 중단할 수 없고(타임아웃이 나도 작업 스레드는 계속 돈다) 내장된 옛 POI 판독기를 쓴다 — 동시에 1건만 돌린다.
+        // 다른 hwplib 작업이 아직 돌거나 묶여 있으면(tryAcquire 실패) 이 단계를 건너뛰고 직접 스캔 결과(hits)만 쓴다. 건너뛴 사실은 Outcome 에 싣지 않는다.
+        if (!HWPLIB_GATE.tryAcquire()) {
+            return hits.list();
+        }
         String text;
         try {
             HWPFile hwp = HWPReader.fromFile(file.toAbsolutePath().toString());
             text = TextExtractor.extract(hwp, TextExtractMethod.InsertControlTextBetweenParagraphText);
         } catch (Exception | StackOverflowError e) {
             throw new Reject("PARSE_FAILED", "file", 1);
+        } finally {
+            HWPLIB_GATE.release();
         }
         checkTime(deadline);
         if (text != null) {

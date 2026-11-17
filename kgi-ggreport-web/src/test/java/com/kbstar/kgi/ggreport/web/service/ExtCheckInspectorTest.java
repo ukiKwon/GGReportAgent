@@ -302,6 +302,58 @@ public class ExtCheckInspectorTest {
         }
     }
 
+    @Test public void 합성_HWP_속성_허용_목록_예약_비트는_거부() throws Exception {
+        String body = "call " + PHONE + " " + LONG_BODY;                       // hit 이 있어 hwplib 전에 반환
+        assertOnly(run(hwpBase(1 | (1 << 18), LONG_BODY), "hwp"), "UNSUPPORTED_ENTRY");
+        assertOnly(run(hwpBase(1 | (1 << 31), LONG_BODY), "hwp"), "UNSUPPORTED_ENTRY");
+        for (int bit : new int[]{11, 12, 15, 16, 17}) {
+            assertTrue("bit " + bit, has(run(hwpBase(1 | (1 << bit), body), "hwp"), "PII_MOBILE", "body"));
+        }
+    }
+
+    @Test public void hwplib_자리가_차_있으면_건너뛰고_직접_스캔_결과만_돌려준다() throws Exception {
+        byte[] clean = hwpBase(1, LONG_BODY);                                   // 합성 문서는 hwplib 가 못 읽는다
+        assertOnly(run(clean, "hwp"), "PARSE_FAILED");
+        assertTrue(ExtCheckInspector.HWPLIB_GATE.tryAcquire());
+        try {
+            assertTrue(run(clean, "hwp").hits.isEmpty());                       // 건너뜀 — 거부도 오류도 아님
+        } finally {
+            ExtCheckInspector.HWPLIB_GATE.release();
+        }
+        assertOnly(run(clean, "hwp"), "PARSE_FAILED");                          // release 되어 다시 hwplib 를 부른다
+    }
+
+    @Test public void 그림_서명이_확장자와_맞아야_한다() throws Exception {
+        byte[] jpg = new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0};
+        byte[] png = new byte[]{(byte) 0x89, 'P', 'N', 'G', 13, 10};
+        // HWP
+        // 한컴은 확장자와 다른 형식으로 저장하기도 한다 — 알려진 그림 서명이면 통과
+        assertOnly(run(new Hwp(1).base("short").add("BinData", "BIN0001.png", jpg).bytes(), "hwp"), "IMAGE_ONLY");
+        assertOnly(run(new Hwp(1).base("short").add("BinData", "BIN0001.png", new byte[]{1, 2, 3, 4, 5}).bytes(), "hwp"), "EMBEDDED");
+        assertOnly(run(new Hwp(1).base("short").stream("BinData", "BIN0001.png", jpg).bytes(), "hwp"), "IMAGE_ONLY");   // 압축 그림
+        assertOnly(run(new Hwp(1).base("short").stream("BinData", "BIN0001.png", new byte[]{1, 2, 3, 4, 5}).bytes(), "hwp"), "EMBEDDED");
+        assertOnly(run(new Hwp(1).base("short").add("BinData", "BIN0001.jpg", png).bytes(), "hwp"), "IMAGE_ONLY");
+        assertOnly(run(new Hwp(1).base("short").add("BinData", "BIN0001.bmp", png).bytes(), "hwp"), "IMAGE_ONLY");
+        assertOnly(run(new Hwp(1).base("short").add("BinData", "BIN0001.png", png).bytes(), "hwp"), "IMAGE_ONLY");
+        assertOnly(run(new Hwp(1).base("short").add("BinData", "BIN0002.jpg", jpg).bytes(), "hwp"), "IMAGE_ONLY");
+        assertOnly(run(new Hwp(1).base("short").add("BinData", "BIN0003.wmf", new byte[]{1, 0, 9, 0, 0}).bytes(), "hwp"), "IMAGE_ONLY");
+        assertOnly(run(new Hwp(1).base("short").add("BinData", "BIN0004.tif", new byte[]{'I', 'I', 0x2A, 0}).bytes(), "hwp"), "IMAGE_ONLY");
+        byte[] emf = new byte[48];
+        emf[0] = 1;
+        emf[40] = ' ';
+        emf[41] = 'E';
+        emf[42] = 'M';
+        emf[43] = 'F';
+        assertOnly(run(new Hwp(1).base("short").add("BinData", "BIN0005.emf", emf).bytes(), "hwp"), "IMAGE_ONLY");
+        assertOnly(run(new Hwp(1).base("short").add("BinData", "BIN0005.emf", new byte[48]).bytes(), "hwp"), "EMBEDDED");
+        // HWPX
+        assertTrue(run(hwpx(LONG_BODY).addBytes("BinData/a.png", jpg).bytes(), "hwpx").hits.isEmpty());
+        assertTrue(run(hwpx(LONG_BODY).addBytes("BinData/a.bmp", png).bytes(), "hwpx").hits.isEmpty());
+        assertOnly(run(hwpx(LONG_BODY).addBytes("BinData/a.png", new byte[]{9, 9, 9, 9}).bytes(), "hwpx"), "EMBEDDED");
+        assertTrue(run(hwpx(LONG_BODY).addBytes("BinData/a.png", png).bytes(), "hwpx").hits.isEmpty());
+        assertTrue(run(hwpx(LONG_BODY).addBytes("BinData/a.jpg", jpg).bytes(), "hwpx").hits.isEmpty());
+    }
+
     @Test public void 합성_HWP_크기_상한과_손상() throws Exception {
         byte[] big = new byte[60 * 1024 * 1024];
         assertOnly(run(new Hwp(1).stream(null, "DocInfo", rec(0x10, new byte[]{0})).stream("BodyText", "Section0", big).bytes(), "hwp"), "ZIP_LIMIT");
