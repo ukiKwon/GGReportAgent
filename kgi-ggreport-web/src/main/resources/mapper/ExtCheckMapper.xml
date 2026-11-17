@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- EXT_CHECK·EXT_CHECK_FILE·EXT_CHECK_EXCL — 042. 양쪽 방언 같은 문장(ANSI), 페이징은 RowBounds. resultMap 명시(InstitutionMapper.xml 이유). 조회는 flushCache.
+     INSERT 만 — UPDATE·DELETE 문장은 일부러 없다. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.ExtCheckMapper">
+
+  <resultMap id="check" type="ExtCheck">
+    <id property="checkKey" column="CHECK_KEY"/>
+    <result property="institutionId" column="INSTITUTION_ID"/>
+    <result property="batchId" column="BATCH_ID"/>
+    <result property="checkId" column="CHECK_ID"/>
+    <result property="checkedAt" column="CHECKED_AT"/>
+    <result property="sourceKind" column="SOURCE_KIND"/>
+    <result property="sourceSlug" column="SOURCE_SLUG"/>
+    <result property="statusCd" column="STATUS_CD"/>
+    <result property="errorCd" column="ERROR_CD"/>
+    <result property="matchConf" column="MATCH_CONF"/>
+    <result property="matchBasis" column="MATCH_BASIS"/>
+    <result property="title" column="TITLE"/>
+    <result property="itemNo" column="ITEM_NO"/>
+    <result property="publisher" column="PUBLISHER"/>
+    <result property="postedAt" column="POSTED_AT"/>
+    <result property="deadlineAt" column="DEADLINE_AT"/>
+    <result property="srcUrl" column="SRC_URL"/>
+    <result property="importedAt" column="IMPORTED_AT"/>
+  </resultMap>
+
+  <resultMap id="file" type="ExtCheckFile">
+    <id property="checkKey" column="CHECK_KEY"/>
+    <id property="fileSeq" column="FILE_SEQ"/>
+    <result property="formatCd" column="FORMAT_CD"/>
+    <result property="storedName" column="STORED_NAME"/>
+    <result property="sha256" column="SHA256"/>
+    <result property="fileSize" column="FILE_SIZE"/>
+  </resultMap>
+
+  <sql id="checkCols">CHECK_KEY, INSTITUTION_ID, BATCH_ID, CHECK_ID, CHECKED_AT, SOURCE_KIND, SOURCE_SLUG, STATUS_CD, ERROR_CD,
+    MATCH_CONF, MATCH_BASIS, TITLE, ITEM_NO, PUBLISHER, POSTED_AT, DEADLINE_AT, SRC_URL, IMPORTED_AT</sql>
+
+  <insert id="insertCheck" parameterType="ExtCheck">
+    INSERT INTO EXT_CHECK (<include refid="checkCols"/>)
+    VALUES (#{checkKey}, #{institutionId}, #{batchId}, #{checkId}, #{checkedAt}, #{sourceKind}, #{sourceSlug}, #{statusCd},
+            #{errorCd,jdbcType=VARCHAR}, #{matchConf,jdbcType=VARCHAR}, #{matchBasis,jdbcType=VARCHAR}, #{title,jdbcType=VARCHAR},
+            #{itemNo,jdbcType=VARCHAR}, #{publisher,jdbcType=VARCHAR}, #{postedAt,jdbcType=VARCHAR}, #{deadlineAt,jdbcType=VARCHAR},
+            #{srcUrl,jdbcType=VARCHAR}, #{importedAt})
+  </insert>
+
+  <insert id="insertFile" parameterType="ExtCheckFile">
+    INSERT INTO EXT_CHECK_FILE (CHECK_KEY, FILE_SEQ, FORMAT_CD, STORED_NAME, SHA256, FILE_SIZE)
+    VALUES (#{checkKey}, #{fileSeq}, #{formatCd}, #{storedName}, #{sha256}, #{fileSize})
+  </insert>
+
+  <insert id="insertExcl" parameterType="ExtCheckExcl">
+    INSERT INTO EXT_CHECK_EXCL (BATCH_ID, CHECK_ID, FILE_SEQ, REASON_CD, LOCATOR_CD, HIT_CNT, EXCLUDED_AT)
+    VALUES (#{batchId}, #{checkId}, #{fileSeq}, #{reasonCd}, #{locatorCd}, #{hitCnt}, #{excludedAt})
+  </insert>
+
+  <select id="countByBatch" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM EXT_CHECK WHERE BATCH_ID = #{batchId}
+  </select>
+
+  <select id="countExclByBatch" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM EXT_CHECK_EXCL WHERE BATCH_ID = #{batchId}
+  </select>
+
+  <select id="selectLatestResolved" resultMap="check" flushCache="true">
+    SELECT <include refid="checkCols"/> FROM EXT_CHECK
+     WHERE INSTITUTION_ID = #{institutionId} AND SOURCE_KIND = #{sourceKind} AND STATUS_CD IN ('found', 'not_found')
+     ORDER BY CHECKED_AT DESC, IMPORTED_AT DESC, CHECK_KEY
+  </select>
+
+  <select id="selectLastErrorAt" resultType="string" flushCache="true">
+    SELECT MAX(CHECKED_AT) FROM EXT_CHECK
+     WHERE INSTITUTION_ID = #{institutionId} AND SOURCE_KIND = #{sourceKind} AND STATUS_CD = 'error'
+  </select>
+
+  <select id="selectHistory" resultMap="check" flushCache="true">
+    SELECT <include refid="checkCols"/> FROM EXT_CHECK
+     WHERE INSTITUTION_ID = #{institutionId}
+     ORDER BY CHECKED_AT DESC, IMPORTED_AT DESC, CHECK_KEY
+  </select>
+
+  <select id="selectFilesByKeys" resultMap="file" flushCache="true">
+    SELECT CHECK_KEY, FILE_SEQ, FORMAT_CD, STORED_NAME, SHA256, FILE_SIZE FROM EXT_CHECK_FILE
+     WHERE CHECK_KEY IN <foreach collection="keys" item="k" open="(" separator="," close=")">#{k}</foreach>
+     ORDER BY CHECK_KEY, FILE_SEQ
+  </select>
+
+  <select id="selectFile" resultMap="file" flushCache="true">
+    SELECT CHECK_KEY, FILE_SEQ, FORMAT_CD, STORED_NAME, SHA256, FILE_SIZE FROM EXT_CHECK_FILE
+     WHERE CHECK_KEY = #{checkKey} AND FILE_SEQ = #{fileSeq}
+  </select>
+</mapper>

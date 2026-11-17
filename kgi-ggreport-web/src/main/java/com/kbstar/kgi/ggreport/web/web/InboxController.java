@@ -34,7 +34,7 @@ public class InboxController {
     static final String DENIED_MESSAGE = "수집 결과를 반입할 권한이 없습니다.";
 
     /** 영업팀 전원 — BidAssignmentService.requireSalesTeam·nav.js TEAM_ROLES 와 같은 집합. */
-    private static final Set<String> SALES_TEAM_ROLES = Collections.unmodifiableSet(
+    static final Set<String> SALES_TEAM_ROLES = Collections.unmodifiableSet(
             new HashSet<>(Arrays.asList("영업팀", "영업팀장", "영업부장")));
 
     private final InboxService inbox;

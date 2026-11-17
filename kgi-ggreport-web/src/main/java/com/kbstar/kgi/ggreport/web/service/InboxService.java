@@ -13,6 +13,7 @@ import com.kbstar.kgi.ggreport.web.support.InstitutionCsv;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
@@ -57,13 +58,15 @@ public class InboxService {
     private final InboxDbApplier dbApplier;
     private final AppProperties properties;
     private final ExtCheckImporter extChecks;
+    private final ExtCheckStore extStore;
 
     public InboxService(InstitutionMapper institutions, InboxDbApplier dbApplier,
-                        AppProperties properties, ExtCheckImporter extChecks) {
+                        AppProperties properties, ExtCheckImporter extChecks, ExtCheckStore extStore) {
         this.institutions = institutions;
         this.dbApplier = dbApplier;
         this.properties = properties;
         this.extChecks = extChecks;
+        this.extStore = extStore;
     }
 
     /**
@@ -170,7 +173,7 @@ public class InboxService {
     }
 
     /**
-     * 외부 확인 배치(NEXT 90 2단계) — 검사·제외·보관만, DB 는 쓰지 않는다. records 와 섞인 배치는 거부한다(반쪽 반영 방지, 아무것도 지우지 않음).
+     * 외부 확인 배치(NEXT 90 2단계) — 검사·제외·보관 + 통과분·제외 이력은 ExtCheckStore 로 저장(042). records 와 섞인 배치는 거부한다(반쪽 반영 방지, 아무것도 지우지 않음).
      * 구조가 안전하지 않으면(링크·junction) 422 로 끝내고 <b>아무것도 지우지 않는다</b>. 그 밖에는 결과(422·500 포함)와 상관없이
      * 원본(files/·CSV 등)을 지우고, manifest 를 값 없는 보관본으로 다시 써서 배치를 보관 폴더로 옮긴다.
      * <b>원본을 다 지우지 못했으면 보관 폴더로 옮기지 않고 inbox 에 남긴다</b>(하-10). 모든 실패 응답의 detail 에 {@code originals_deleted} 가 들어간다.
@@ -181,11 +184,22 @@ public class InboxService {
             throw withOriginalsDeleted(ApiException.withDetail(422, Collections.singletonMap("errors",
                     Collections.singletonList("MIXED_BATCH_NOT_SUPPORTED: 외부 확인(checks)과 records 를 한 배치에 섞을 수 없습니다"))), false);
         }
+        if (batchId.length() > ExtCheckStore.MAX_BATCH_ID_LEN) {
+            throw withOriginalsDeleted(ApiException.withDetail(422, Collections.singletonMap("errors",
+                    Collections.singletonList("BATCH_ID_TOO_LONG: batch_id 가 너무 깁니다"))), false);
+        }
+        if (extStore.batchExists(batchId)) {        // 같은 batch_id 재반입은 한 번만 — 아무것도 지우거나 옮기지 않는다
+            throw withOriginalsDeleted(ApiException.withDetail(422, Collections.singletonMap("errors",
+                    Collections.singletonList("BATCH_ALREADY_IMPORTED: 이미 반입한 배치입니다"))), false);
+        }
         ExtCheckImporter.Result r;
         try {
             r = extChecks.process(batchDir, batchId, manifest);
         } catch (ApiException e) {
             throw withOriginalsDeleted(e, false);               // 구조 거부(LINK_NOT_ALLOWED) — 아무것도 지우지 않았다
+        }
+        if (r.failure == null) {
+            persist(r, batchId, manifest);                       // 실패하면 r.failure 가 채워지고 보관 폴더는 되돌려진다
         }
         boolean originalsDeleted = ExtCheckImporter.scrub(batchDir);
         boolean manifestRewritten = true;
@@ -221,8 +235,39 @@ public class InboxService {
         }
         Map<String, Object> out = new LinkedHashMap<String, Object>(r.response);
         out.put("originals_deleted", originalsDeleted);
+        out.put("saved_count", r.saves.size());
         out.put("archived_to", archivedTo);                     // 옮기지 않았으면 null
         return out;
+    }
+
+    /**
+     * 통과 check·첨부·제외 이력을 DB 에 저장한다(한 트랜잭션). 파일을 먼저 보관하고 DB 를 나중에 쓰므로 실패하면 보관 폴더를 지운다.
+     * 동시에 같은 batch_id 가 들어와 UQ 가 걸리면(DuplicateKeyException) 422, 그 밖은 500(고정 문구) — 값·SQL 은 응답·로그에 싣지 않는다.
+     * 비정상 종료로 DB 만 못 쓰고 폴더가 남아도 키를 알 수 없고 DB 에 참조가 없어 열람되지 않는다.
+     */
+    private void persist(ExtCheckImporter.Result r, String batchId, JsonNode manifest) {
+        if (r.saves.isEmpty() && r.excls.isEmpty()) {
+            return;
+        }
+        String code;
+        ApiException failure;
+        try {
+            extStore.save(r.saves, r.excls);
+            return;
+        } catch (DuplicateKeyException e) {
+            code = "BATCH_ALREADY_IMPORTED";
+            failure = ApiException.withDetail(422, Collections.singletonMap("errors",
+                    Collections.singletonList(code + ": 이미 반입한 배치입니다")));
+        } catch (RuntimeException e) {
+            log.error("외부 확인 저장 실패 batch_id={} {}", batchId, e.getClass().getSimpleName());
+            code = "PERSIST_FAILED";
+            failure = new ApiException(500, "외부 확인 결과를 저장하지 못했습니다.");
+        }
+        for (Path d : r.storedDirs) {
+            ExtCheckImporter.deleteTree(d);
+        }
+        r.archiveManifest = extChecks.failedArchive(manifest, code);
+        r.failure = failure;
     }
 
     /** 실패 응답의 detail 에 originals_deleted 를 더한다. 기존 detail 객체의 키는 그대로 두고, 문자열 사유(500 등)는 고정 문구 객체로 바꾼다. */

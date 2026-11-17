@@ -5,8 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.kbstar.kgi.ggreport.web.config.AppProperties;
+import com.kbstar.kgi.ggreport.web.domain.ExtCheck;
+import com.kbstar.kgi.ggreport.web.domain.ExtCheckExcl;
+import com.kbstar.kgi.ggreport.web.domain.ExtCheckFile;
 import com.kbstar.kgi.ggreport.web.mapper.InstitutionMapper;
 import com.kbstar.kgi.ggreport.web.support.Pii;
+import com.kbstar.kgi.ggreport.web.support.Times;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.stereotype.Service;
 
@@ -30,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 외부 확인(checks[]) 반입 2단계 — 검사·제외·보관까지. <b>DB 는 쓰지 않는다</b>(041 저장은 3단계).
+ * 외부 확인(checks[]) 반입 2~3단계 — 검사·제외·보관 + 저장할 행(042) 만들기. <b>DB 쓰기는 호출자(InboxService → ExtCheckStore)</b> 가 한다.
  *
  * <p>공통 순서(설계 v3 §4): ① batchDir·files/ 실제 경로 확인(링크·junction 거부) ② 선언 파일을 NOFOLLOW 로 열어 서버 임시 폴더로 복사하며
  * 바이트·sha256 확인 — 이후 검사·저장은 모두 사본에서 ③ check 단위 판정(manifest 글자 + 첨부) ④ 통과 check 의 첨부만
@@ -46,6 +50,8 @@ public class ExtCheckImporter {
 
     private static final long MAX_FILE_BYTES = 20L * 1024 * 1024;
     private static final int MAX_ROWS_PER_CHECK = 20;
+    /** EXT_CHECK_EXCL 에 남기는 check 당 사유 행 상한 */
+    private static final int MAX_EXCL_ROWS_STORED = 100;
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -60,6 +66,9 @@ public class ExtCheckImporter {
     /** 처리 결과. failure 가 있으면 호출자는 정리(원본 삭제·manifest 재작성·보관) 뒤 그것을 던진다. */
     static final class Result {
         final Map<String, Object> response = new LinkedHashMap<String, Object>();
+        final List<ExtCheck> saves = new ArrayList<ExtCheck>();           // 저장할 통과 check(+첨부 행)
+        final List<ExtCheckExcl> excls = new ArrayList<ExtCheckExcl>();   // 제외 이력(사유·위치·건수)
+        final List<Path> storedDirs = new ArrayList<Path>();              // 저장 실패 때 되돌릴 보관 폴더
         byte[] archiveManifest;
         ApiException failure;
     }
@@ -82,11 +91,15 @@ public class ExtCheckImporter {
         final Path file;
         final String ext;
         final int seq;
+        final String sha;
+        final long size;
 
-        Staged(Path file, String ext, int seq) {
+        Staged(Path file, String ext, int seq, String sha, long size) {
             this.file = file;
             this.ext = ext;
             this.seq = seq;
+            this.sha = sha;
+            this.size = size;
         }
     }
 
@@ -116,6 +129,9 @@ public class ExtCheckImporter {
         List<Map<String, Object>> passed = new ArrayList<Map<String, Object>>();
         List<Map<String, Object>> excluded = new ArrayList<Map<String, Object>>();
         List<Path> storedDirs = new ArrayList<Path>();
+        List<ExtCheck> saves = new ArrayList<ExtCheck>();
+        List<ExtCheckExcl> excls = new ArrayList<ExtCheckExcl>();
+        String now = Times.nowIso();
         ArrayNode archived = JSON.createArrayNode();
         Path tmp = null;
         ApiException failure = null;
@@ -123,7 +139,7 @@ public class ExtCheckImporter {
         try {
             tmp = Files.createTempDirectory("extchk-");
             for (int i = 0; i < checks.size(); i++) {
-                evalCheck(checks.get(i), i, batchDir, filesReal, tmp, passed, excluded, storedDirs, archived);
+                evalCheck(checks.get(i), i, batchDir, filesReal, tmp, passed, excluded, storedDirs, archived, batchId, now, saves, excls);
             }
         } catch (BatchReject r) {
             failure = r.toApi();
@@ -152,9 +168,15 @@ public class ExtCheckImporter {
             }
             passed.clear();
             archived.removeAll();
+            saves.clear();
+            excls.clear();
+            storedDirs.clear();          // 위 반복에서 이미 지웠다
         }
         Result res = new Result();
         res.failure = failure;
+        res.saves.addAll(saves);
+        res.excls.addAll(excls);
+        res.storedDirs.addAll(storedDirs);
         res.archiveManifest = archiveManifest(manifest, archived, failureCode);
         res.response.put("batch_id", batchId);
         res.response.put("kind", "external_checks");
@@ -176,7 +198,8 @@ public class ExtCheckImporter {
 
     private void evalCheck(JsonNode check, int index, Path batchDir, Path filesReal, Path tmp,
                            List<Map<String, Object>> passed, List<Map<String, Object>> excluded,
-                           List<Path> storedDirs, ArrayNode archived) throws IOException {
+                           List<Path> storedDirs, ArrayNode archived,
+                           String batchId, String now, List<ExtCheck> saves, List<ExtCheckExcl> excls) throws IOException {
         String checkId = check.path("check_id").asText();     // 형식 검사 통과값 [A-Za-z0-9_-]{1,40}
         List<Row> rows = new ArrayList<Row>();
 
@@ -205,7 +228,7 @@ public class ExtCheckImporter {
                 Path copy = copyToTemp(att, filesReal, tmp, index + "_" + seq, where);
                 ExtCheckInspector.Outcome o = ExtCheckInspector.inspect(copy, ExtCheckInspector.extOf(att.path("path").asText()));
                 if (o.hits.isEmpty()) {
-                    staged.add(new Staged(copy, o.ext, seq));
+                    staged.add(new Staged(copy, o.ext, seq, att.path("sha256").asText(), att.path("size").asLong()));
                 } else {
                     for (ExtCheckInspector.Hit h : o.hits) {
                         addRow(rows, h.reason, h.locator, seq, h.count);
@@ -222,6 +245,9 @@ public class ExtCheckImporter {
             ArrayNode reasons = ex.putArray("reasons");
             for (Row r : rows) {
                 reasons.add(r.reason + "@" + r.locator);
+                if (shown < MAX_EXCL_ROWS_STORED) {
+                    excls.add(new ExtCheckExcl(batchId, checkId, r.seq, clip(r.reason, 30), clip(r.locator, 20), r.count, now));
+                }
                 if (shown++ < MAX_ROWS_PER_CHECK) {
                     Map<String, Object> m = new LinkedHashMap<String, Object>();
                     m.put("check_id", checkId);
@@ -237,6 +263,7 @@ public class ExtCheckImporter {
 
         String key = randomKey();
         List<Map<String, Object>> files = new ArrayList<Map<String, Object>>();
+        List<ExtCheckFile> fileRows = new ArrayList<ExtCheckFile>();
         if (!staged.isEmpty()) {
             Path dir = Paths.get(properties.getExtCheckRoot()).resolve(key);
             Files.createDirectories(dir);
@@ -249,6 +276,7 @@ public class ExtCheckImporter {
                 f.put("stored_name", key + "/" + stored);
                 f.put("ext", s.ext);
                 files.add(f);
+                fileRows.add(new ExtCheckFile(key, s.seq, s.ext, key + "/" + stored, s.sha, s.size));
             }
         }
         Map<String, Object> p = new LinkedHashMap<String, Object>();
@@ -258,6 +286,63 @@ public class ExtCheckImporter {
         p.put("files", files);
         passed.add(p);
         archived.add(sanitized(check, key, files));
+        saves.add(toRow(check, key, institutionId, batchId, checkId, now, fileRows));
+    }
+
+    /** 저장 행 — 검사를 통과한 글자만. url 은 ? # 아래를 자른 값. */
+    private static ExtCheck toRow(JsonNode c, String key, String institutionId, String batchId, String checkId,
+                                  String now, List<ExtCheckFile> files) {
+        ExtCheck e = new ExtCheck();
+        e.setCheckKey(key);
+        e.setInstitutionId(institutionId);
+        e.setBatchId(batchId);
+        e.setCheckId(checkId);
+        e.setCheckedAt(text(c.path("checked_at")));
+        String kind = text(c.path("source_kind"));
+        e.setSourceKind(kind);
+        e.setSourceSlug(text(c.path("source_slug")));
+        e.setStatusCd(text(c.path("status")));
+        e.setErrorCd(text(c.path("error_code")));
+        JsonNode m = c.path("match");
+        e.setMatchConf(text(m.path("confidence")));
+        if (m.path("basis").isArray()) {
+            StringBuilder sb = new StringBuilder();
+            for (JsonNode b : m.path("basis")) {
+                if (b.isTextual()) {
+                    sb.append(sb.length() == 0 ? "" : ",").append(b.asText());
+                }
+            }
+            e.setMatchBasis(sb.length() == 0 ? null : sb.toString());
+        }
+        boolean press = "press".equals(kind);
+        JsonNode body = press ? c.path("press") : c.path("notice");
+        e.setTitle(text(body.path("title")));
+        if (press) {
+            e.setPublisher(text(body.path("publisher")));
+            e.setPostedAt(text(body.path("published_at")));
+        } else {
+            e.setItemNo(text(body.path("number")));
+            e.setPostedAt(text(body.path("posted_at")));
+            e.setDeadlineAt(text(body.path("deadline_at")));
+        }
+        String url = text(body.path("url"));
+        e.setSrcUrl(url == null ? null : cutUrl(url));
+        e.setImportedAt(now);
+        e.setFiles(files);
+        return e;
+    }
+
+    private static String text(JsonNode n) {
+        return n != null && n.isTextual() ? n.asText() : null;
+    }
+
+    private static String clip(String s, int max) {
+        return s == null || s.length() <= max ? s : s.substring(0, max);
+    }
+
+    /** 저장 실패 때 보관 manifest 를 다시 만든다 — 통과 check 없이 사유 코드만. */
+    byte[] failedArchive(JsonNode manifest, String code) {
+        return archiveManifest(manifest, JSON.createArrayNode(), code);
     }
 
     // ── 사본 만들기 ───────────────────────────────────────────────────

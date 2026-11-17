@@ -77,6 +77,7 @@ export const SCHEMA_PROBES = {
   '038': "SELECT IF(COUNT(*)>=1,1,0) FROM INSTITUTIONS WHERE INSTITUTION_ID='org-9740520' AND REGION_CODE='47';",   // 데이터 정정 — 대표 1행
   '039': "SELECT IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND UPPER(TABLE_NAME)='INST_BANK_CONTRACT' AND UPPER(COLUMN_NAME)='ACCOUNT_ETC')=1 AND (SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP='BANK_ACCOUNT')=5,1,0);",   // 마지막 추가 칸 + 코드표 5줄(반만 적용된 경우도 잡음)
   '041': "SELECT IF(COUNT(*)=1,1,0) FROM COMMON_CODE WHERE CODE_GROUP='BANK_RANK' AND CODE='SINGLE';",   // 코드표 1줄(데이터 증거)
+  '042': "SELECT IF(COUNT(*)=3,1,0) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND UPPER(TABLE_NAME) IN ('EXT_CHECK','EXT_CHECK_FILE','EXT_CHECK_EXCL');",   // 표 3개(반만 적용된 경우도 잡음)
 };
 
 /** versions → { targets(파일), skipped(이미 기록), errors }. 파일 없음·검사 없음은 errors. */

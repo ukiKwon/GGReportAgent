@@ -348,4 +348,235 @@ public class InboxExtCheckApiTest {
             deleteTree(outside);
         }
     }
+
+    // ═══ 3단계: 저장·열람 (042) ═══
+    private static final String LEAD = "5047192";       // 영업팀장
+    private static final String HEAD = "2674805";       // 영업부장
+    private static final String DESIGNER = "7130526";
+    private static final String ADMIN = "8203417";      // 전산팀
+    private static final String UNKNOWN = "9999999";
+
+    private MockHttpServletResponse getAs(String url, String emp) throws Exception {
+        org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder b =
+                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url);
+        if (emp != null) {
+            b = b.header("X-Emp-No", emp);
+        }
+        MockHttpServletResponse res = mockMvc.perform(b).andReturn().getResponse();
+        res.setCharacterEncoding("UTF-8");
+        return res;
+    }
+
+    private byte[] importOnePdf() throws Exception {
+        Map<String, byte[]> files = new LinkedHashMap<String, byte[]>();
+        ObjectNode c = check("c-0001", INST, "금고 공고");
+        byte[] pdf = ExtCheckFixtures.pdf(ExtCheckFixtures.PLAIN);
+        attach(c, files, "c-0001_1.pdf", pdf, null);
+        makeBatch(root(c), files);
+        MockHttpServletResponse res = importAs(MEMBER);
+        assertEquals(res.getContentAsString(), 200, res.getStatus());
+        return pdf;
+    }
+
+    private int count(String sql) {
+        return jdbc.queryForObject(sql, Integer.class);
+    }
+
+    @Test
+    public void 통과분은_DB에_저장되고_제외는_사유_위치_건수만_남는다() throws Exception {
+        Map<String, byte[]> files = new LinkedHashMap<String, byte[]>();
+        ObjectNode ok = check("c-0001", INST, "금고 공고");
+        byte[] pdf = ExtCheckFixtures.pdf(ExtCheckFixtures.PLAIN);
+        attach(ok, files, "c-0001_1.pdf", pdf, null);
+        ObjectNode bad = check("c-0002", INST, "다른 공고");
+        attach(bad, files, "c-0002_1.pdf", ExtCheckFixtures.pdf("Contact " + ExtCheckFixtures.PHONE + " now"), null);
+        makeBatch(root(ok, bad), files);
+
+        MockHttpServletResponse res = importAs(MEMBER);
+        assertEquals(res.getContentAsString(), 200, res.getStatus());
+        JsonNode body = json.readTree(res.getContentAsString());
+        assertEquals(1, body.path("saved_count").asInt());
+        String key = body.path("passed").get(0).path("check_key").asText();
+
+        Map<String, Object> row = jdbc.queryForMap("SELECT * FROM EXT_CHECK");
+        assertEquals(key, row.get("CHECK_KEY"));
+        assertTrue(key.matches("[0-9a-f]{32}"));
+        assertEquals(BATCH_ID, row.get("BATCH_ID"));
+        assertEquals("c-0001", row.get("CHECK_ID"));
+        assertEquals("found", row.get("STATUS_CD"));
+        assertEquals("금고 공고", row.get("TITLE"));
+        assertEquals("2026-12-02", row.get("DEADLINE_AT"));
+        assertEquals("domain_match", row.get("MATCH_BASIS"));
+        Map<String, Object> f = jdbc.queryForMap("SELECT * FROM EXT_CHECK_FILE");
+        assertEquals(key, f.get("CHECK_KEY"));
+        assertEquals(1, ((Number) f.get("FILE_SEQ")).intValue());
+        assertEquals("pdf", f.get("FORMAT_CD"));
+        assertEquals(key + "/c-0001_1.pdf", f.get("STORED_NAME"));
+        assertEquals(sha(pdf), f.get("SHA256"));
+        assertEquals(pdf.length, ((Number) f.get("FILE_SIZE")).longValue());
+
+        assertEquals(1, count("SELECT COUNT(*) FROM EXT_CHECK_EXCL WHERE CHECK_ID = 'c-0002' AND FILE_SEQ = 1 AND REASON_CD = 'PII_MOBILE'"));
+        String excl = jdbc.queryForList("SELECT * FROM EXT_CHECK_EXCL").toString();
+        assertFalse(excl, excl.contains(ExtCheckFixtures.PHONE) || excl.contains("5678") || excl.contains("c-0002_1.pdf"));
+        assertEquals(1, count("SELECT COUNT(*) FROM EXT_CHECK"));
+    }
+
+    @Test
+    public void 기관표에_없는_check는_저장되지_않고_제외_이력만_남는다() throws Exception {
+        Map<String, byte[]> files = new LinkedHashMap<String, byte[]>();
+        ObjectNode c = check("c-0001", "표에없는구청", "금고 공고");
+        attach(c, files, "c-0001_1.pdf", ExtCheckFixtures.pdf(ExtCheckFixtures.PLAIN), null);
+        makeBatch(root(c), files);
+        assertEquals(200, importAs(MEMBER).getStatus());
+        assertEquals(0, count("SELECT COUNT(*) FROM EXT_CHECK"));
+        assertEquals(1, count("SELECT COUNT(*) FROM EXT_CHECK_EXCL WHERE REASON_CD = 'INSTITUTION_NOT_FOUND' AND FILE_SEQ = 0"));
+    }
+
+    @Test
+    public void 같은_batch_id_재반입은_422이고_한_번만_저장되며_원본은_그대로다() throws Exception {
+        importOnePdf();
+        Map<String, byte[]> files = new LinkedHashMap<String, byte[]>();
+        ObjectNode c = check("c-0001", INST, "금고 공고");
+        attach(c, files, "c-0001_1.pdf", ExtCheckFixtures.pdf(ExtCheckFixtures.PLAIN), null);
+        Path dir = makeBatch(root(c), files);
+
+        MockHttpServletResponse res = importAs(MEMBER);
+        assertEquals(res.getContentAsString(), 422, res.getStatus());
+        assertTrue(res.getContentAsString().contains("BATCH_ALREADY_IMPORTED"));
+        assertFalse(json.readTree(res.getContentAsString()).path("detail").path("originals_deleted").asBoolean(true));
+        assertTrue(Files.isRegularFile(dir.resolve("files/c-0001_1.pdf")));
+        assertEquals(1, count("SELECT COUNT(*) FROM EXT_CHECK"));
+        assertEquals(1, extDirs());
+    }
+
+    @Test
+    public void 열람_목록은_최신_notice_1건과_이력을_주고_저장_이름과_해시는_내지_않는다() throws Exception {
+        byte[] pdf = importOnePdf();
+        String inst = jdbc.queryForObject("SELECT INSTITUTION_ID FROM EXT_CHECK", String.class);
+        MockHttpServletResponse res = getAs("/ext-checks?institution_id=" + inst, MEMBER);
+        assertEquals(res.getContentAsString(), 200, res.getStatus());
+        JsonNode b = json.readTree(res.getContentAsString());
+        assertEquals(inst, b.path("institution_id").asText());
+        assertEquals("금고 공고", b.path("notice").path("title").asText());
+        assertEquals("found", b.path("notice").path("status").asText());
+        assertEquals("high", b.path("notice").path("match").path("confidence").asText());
+        assertTrue(b.path("last_error_at").isNull());
+        assertEquals(1, b.path("history").size());
+        assertEquals(1, b.path("notice").path("files").get(0).path("seq").asInt());
+        assertEquals((long) pdf.length, b.path("notice").path("files").get(0).path("size").asLong());
+        String text = res.getContentAsString();
+        assertFalse(text, text.contains("stored_name"));
+        assertFalse(text, text.contains(sha(pdf)));
+        assertFalse(text, text.contains("c-0001_1.pdf"));
+    }
+
+    @Test
+    public void error는_이전_found를_덮지_않고_최근_실패_시각이_따로_나온다() throws Exception {
+        importOnePdf();
+        String inst = jdbc.queryForObject("SELECT INSTITUTION_ID FROM EXT_CHECK", String.class);
+        jdbc.update("INSERT INTO EXT_CHECK (CHECK_KEY, INSTITUTION_ID, BATCH_ID, CHECK_ID, CHECKED_AT, SOURCE_KIND, SOURCE_SLUG, STATUS_CD, ERROR_CD, IMPORTED_AT)"
+                + " VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ?, '2026-11-18_0700_extcheck', 'c-0009', '2026-11-18T07:00:00+09:00', 'notice', 'eminwon', 'error', 'timeout', '2026-11-18T07:01:00+09:00')", inst);
+        JsonNode b = json.readTree(getAs("/ext-checks?institution_id=" + inst, LEAD).getContentAsString());
+        assertEquals("found", b.path("notice").path("status").asText());
+        assertEquals("금고 공고", b.path("notice").path("title").asText());
+        assertEquals("2026-11-18T07:00:00+09:00", b.path("last_error_at").asText());
+        assertEquals(2, b.path("history").size());
+        assertEquals("error", b.path("history").get(0).path("status").asText());   // 최신순
+    }
+
+    @Test
+    public void 목록의_기관_번호가_없거나_모르면_400_404이고_받은_값을_되돌리지_않는다() throws Exception {
+        assertEquals(400, getAs("/ext-checks", MEMBER).getStatus());
+        assertEquals(400, getAs("/ext-checks?institution_id=", MEMBER).getStatus());
+        MockHttpServletResponse r = getAs("/ext-checks?institution_id=zzz-secret-id", MEMBER);
+        assertEquals(404, r.getStatus());
+        assertFalse(r.getContentAsString().contains("zzz-secret-id"));
+    }
+
+    @Test
+    public void 다운로드는_본문과_보안_헤더를_준다() throws Exception {
+        byte[] pdf = importOnePdf();
+        String key = jdbc.queryForObject("SELECT CHECK_KEY FROM EXT_CHECK", String.class);
+        for (String emp : new String[]{MEMBER, LEAD, HEAD}) {
+            MockHttpServletResponse res = getAs("/ext-checks/" + key + "/files/1", emp);
+            assertEquals(emp, 200, res.getStatus());
+            assertTrue(java.util.Arrays.equals(pdf, res.getContentAsByteArray()));
+            // getAs 가 setCharacterEncoding 을 불러 MockHttpServletResponse 가 charset 을 붙인다 — 시험 도구의 흔적이지 운영 응답이 아니다.
+            assertTrue(res.getContentType(), res.getContentType().startsWith("application/octet-stream"));
+            assertEquals("attachment; filename=\"c-0001_1.pdf\"", res.getHeader("Content-Disposition"));
+            assertEquals("nosniff", res.getHeader("X-Content-Type-Options"));
+            assertEquals("no-store", res.getHeader("Cache-Control"));
+            assertEquals("no-cache", res.getHeader("Pragma"));
+            assertEquals("sandbox; default-src 'none'", res.getHeader("Content-Security-Policy"));
+            assertEquals("noopen", res.getHeader("X-Download-Options"));
+        }
+    }
+
+    @Test
+    public void 키_형식이_틀리거나_없거나_번호가_이상하면_모두_404다() throws Exception {
+        importOnePdf();
+        String key = jdbc.queryForObject("SELECT CHECK_KEY FROM EXT_CHECK", String.class);
+        String[] urls = {
+            "/ext-checks/" + key.toUpperCase() + "/files/1",
+            "/ext-checks/" + key.substring(1) + "/files/1",
+            "/ext-checks/" + key + "0/files/1",
+            "/ext-checks/" + "z" + key.substring(1) + "/files/1",
+            "/ext-checks/" + key + "/files/x",
+            "/ext-checks/" + key + "/files/1.pdf",
+            "/ext-checks/" + key + "/files/2",
+            "/ext-checks/" + key + "/files/-1",
+            "/ext-checks/" + "00000000000000000000000000000000" + "/files/1",
+        };
+        for (String u : urls) {
+            MockHttpServletResponse r = getAs(u, MEMBER);
+            assertEquals(u, 404, r.getStatus());
+            assertFalse(u, r.getContentAsString().contains("ext_check") || r.getContentAsString().contains(key));
+        }
+    }
+
+    @Test
+    public void 저장된_이름이_루트_밖이나_형식_밖을_가리켜도_404다() throws Exception {
+        String k1 = "b0000000000000000000000000000000";
+        String k2 = "c0000000000000000000000000000000";
+        for (String[] kv : new String[][]{{k1, "../../../pom.xml"}, {k2, "dddddddddddddddddddddddddddddddd/c-0001_1.pdf"}}) {
+            jdbc.update("INSERT INTO EXT_CHECK_FILE (CHECK_KEY, FILE_SEQ, FORMAT_CD, STORED_NAME, SHA256, FILE_SIZE) VALUES (?, 1, 'pdf', ?, ?, 1)",
+                    kv[0], kv[1], "0000000000000000000000000000000000000000000000000000000000000000");
+            assertEquals(kv[1], 404, getAs("/ext-checks/" + kv[0] + "/files/1", MEMBER).getStatus());
+        }
+    }
+
+    @Test
+    public void 영업팀_밖은_403이고_사번_없음은_401이며_접근_이력에_DENIED가_남는다() throws Exception {
+        importOnePdf();
+        String key = jdbc.queryForObject("SELECT CHECK_KEY FROM EXT_CHECK", String.class);
+        String inst = jdbc.queryForObject("SELECT INSTITUTION_ID FROM EXT_CHECK", String.class);
+        String listUrl = "/ext-checks?institution_id=" + inst;
+        String fileUrl = "/ext-checks/" + key + "/files/1";
+        int deniedBefore = count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE = 'DENIED' AND REQ_PATH LIKE '/ext-checks%'");
+        assertEquals(401, getAs(listUrl, null).getStatus());
+        assertEquals(401, getAs(fileUrl, null).getStatus());
+        for (String emp : new String[]{DESIGNER, ADMIN, UNKNOWN}) {
+            MockHttpServletResponse l = getAs(listUrl, emp);
+            MockHttpServletResponse d = getAs(fileUrl, emp);
+            assertEquals(emp, 403, l.getStatus());
+            assertEquals(emp, 403, d.getStatus());
+            assertFalse(d.getContentAsString().contains("%PDF"));
+        }
+        assertEquals(2 + 6, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE = 'DENIED' AND REQ_PATH LIKE '/ext-checks%'") - deniedBefore);
+    }
+
+    @Test
+    public void 열람_성공은_접근_이력에_경로와_요약만_남고_질의_값은_없다() throws Exception {
+        importOnePdf();
+        String key = jdbc.queryForObject("SELECT CHECK_KEY FROM EXT_CHECK", String.class);
+        String inst = jdbc.queryForObject("SELECT INSTITUTION_ID FROM EXT_CHECK", String.class);
+        // 접근 이력은 시험 트랜잭션 밖에 남을 수 있어(앞선 시험의 같은 경로 행) 이 시험이 만든 증가분만 센다.
+        int listBefore = count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE = 'API' AND REQ_PATH = '/ext-checks' AND STATUS_CODE = 200 AND DETAIL LIKE 'ext_check list%'");
+        int queryBefore = count("SELECT COUNT(*) FROM ACCESS_LOG WHERE REQ_PATH LIKE '%institution_id%' OR DETAIL LIKE '%" + inst + "%'");
+        assertEquals(200, getAs("/ext-checks?institution_id=" + inst, MEMBER).getStatus());
+        assertEquals(200, getAs("/ext-checks/" + key + "/files/1", MEMBER).getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE = 'API' AND REQ_PATH = '/ext-checks/" + key + "/files/1' AND STATUS_CODE = 200 AND EMP_NO = '" + MEMBER + "'"));
+        assertEquals(1, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE = 'API' AND REQ_PATH = '/ext-checks' AND STATUS_CODE = 200 AND DETAIL LIKE 'ext_check list%'") - listBefore);
+        assertEquals(0, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE REQ_PATH LIKE '%institution_id%' OR DETAIL LIKE '%" + inst + "%'") - queryBefore);
+    }
 }
