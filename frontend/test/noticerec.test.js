@@ -8,6 +8,7 @@ const logic = require('../js/logic.js');
 const nr = require('../js/noticerec.js');
 const dash = require('../js/dashboard.js');
 const ov = require('../js/overdue.js');
+const store = require('../js/store.js');
 
 const ROOT = path.join(__dirname, '..');
 const snapOf = (items, today) => ({ byId: items.reduce((m, x) => { m[x.institution_id] = x; return m; }, {}), today: today || '2026-11-16' });
@@ -63,7 +64,11 @@ test('validate: 판정·의견·다음 확인일 규칙', () => {
   assert.ok(nr.validate({ status: 'DELAYED', next: nr.ymdPlus(T, 367), opinion: '가' }, T).next.includes('1년 안'));
   assert.deepStrictEqual(nr.validate({ status: 'DELAYED', next: nr.ymdPlus(T, 5), opinion: '가' }, T), {});
   assert.ok(nr.validate({ status: 'CLOSED', next: '', opinion: ' ' }, T).opinion.includes('공고 종료'));
-  assert.ok(nr.validate({ status: 'NO_BID', next: '', opinion: '' }, T).opinion.includes('왜 입찰이 없는지 적으세요.'));
+  // 서버 NoticeRoundRules의 문구와 한 글자도 다르지 않다(서버가 정본)
+  assert.strictEqual(nr.validate({ status: 'NO_BID', opinion: '' }).opinion, '입찰 없음(연장·지정)으로 적을 때는 의견이 필요합니다. 왜 입찰이 없는지 적으세요.');
+  assert.strictEqual(nr.validate({ status: 'NO_BID', next: '', opinion: '' }, T).opinion, '입찰 없음(연장·지정)으로 적을 때는 의견이 필요합니다. 왜 입찰이 없는지 적으세요.');
+  assert.strictEqual(nr.validate({ status: 'CLOSED', opinion: '' }).opinion, '공고 종료로 적을 때는 의견이 필요합니다. 무엇을 보고 끝났다고 판단했는지 적으세요.');
+  assert.strictEqual(nr.validate({ status: 'DELAYED', next: nr.ymdPlus(T, 5), opinion: '' }, T).opinion, '지연·재공고 대기로 적을 때는 의견이 필요합니다. 왜 늦어지는지 적으세요.');
   assert.ok(nr.validate({ status: 'DELAYED', next: nr.ymdPlus(T, 5), opinion: '' }, T).opinion);
   assert.deepStrictEqual(nr.validate({ status: 'IN_PROGRESS', next: '', opinion: '' }, T), {});
   assert.strictEqual(nr.validate({ status: 'IN_PROGRESS', next: '', opinion: 'x'.repeat(501) }, T).opinion, '의견은 500자까지 적을 수 있습니다(지금 501자).');
@@ -149,7 +154,7 @@ test('sectionHtml: current에 NO_BID·round_closed가 있으면 안내 한 줄�
   const item = { institution_id: 'a', status_cd: 'NO_BID', round_closed: true };
   const h = nr.sectionHtml(it, { state: 'ok', canEdit: true, today: '2026-11-16', cur: nr.currentOf(NBHIST(4)), rv: { view: 'done', item: item } });
   assert.ok(h.includes('입찰 없음(연장·지정)') && h.includes('이번 회차는 닫혔습니다') && !h.includes('미처리로 셉니다'));
-  assert.ok(h.includes('id="db-rec-closed"') && h.includes('이번 회차는 &#39;입찰 없음&#39;으로 닫혔습니다') || h.includes("이번 회차는 '입찰 없음'으로 닫혔습니다. 기관 정보에서 다음 입찰 예정일이 바뀌면 새 회차를 적을 수 있습니다."));
+  assert.ok(h.includes('id="db-rec-closed"') && (h.includes('이번 회차는 &#39;입찰 없음&#39;으로 닫혔습니다') || h.includes("이번 회차는 '입찰 없음'으로 닫혔습니다. 기관 정보에서 다음 입찰 예정일이 바뀌면 새 회차를 적을 수 있습니다.")));
   assert.ok(!h.includes('id="db-rec-save"') && !h.includes('name="rec-state"'));
 });
 
@@ -315,6 +320,109 @@ test('ov.listHtml·itemHtml: ctx.snap이 있으면 보기별로 나누고 전체
   assert.strictEqual((none.match(/class="ov-item"/g) || []).length, 3);
   const pop = ov.popupParts(summary, [], '2026-11-16', 'map', { snap: snap });
   assert.ok(pop.listHtml.includes('data-state="done"'));
+});
+
+// ── nr.save 헤더(가짜 fetch) ──────────────────────────────────────────
+test('save: confirmed true면 X-Button-Id save_confirmed, false면 save, 화면 id는 bid_notice, 본문·경로·POST', async () => {
+  const calls = [];
+  nr.env = { store: { isServerMode: () => true, loadSession: () => ({ emp: '6000001' }) },
+    fetch: (url, opt) => { calls.push({ url, opt }); return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ handler_name: '김영업' }) }); } };
+  const body = { round_seq: null, base_rev_no: 0, status_cd: 'CLOSED', opinion: '끝', next_check_date: null };
+  const r1 = await nr.save('a/b', body, true);
+  const r2 = await nr.save('a/b', body, false);
+  const r3 = await nr.save('a/b', body);
+  nr.env = {};
+  assert.strictEqual(calls.length, 3);
+  assert.strictEqual(calls[0].url, '/institutions/a%2Fb/notice-rounds/judgments');
+  assert.strictEqual(calls[0].opt.method, 'POST');
+  assert.strictEqual(calls[0].opt.headers['X-Button-Id'], 'save_confirmed');
+  assert.strictEqual(calls[1].opt.headers['X-Button-Id'], 'save');
+  assert.strictEqual(calls[2].opt.headers['X-Button-Id'], 'save');
+  calls.forEach(c => { assert.strictEqual(c.opt.headers['X-Screen-Id'], 'bid_notice'); assert.strictEqual(c.opt.headers['Content-Type'], 'application/json'); assert.deepStrictEqual(JSON.parse(c.opt.body), body); });
+  assert.deepStrictEqual([r1.status, r1.body.handler_name], [201, '김영업']);
+  assert.strictEqual(r2.status, 201); assert.strictEqual(r3.status, 201);
+});
+
+// ── overdue: 배지·팝업 보류(가짜 fetch·가짜 세션) ──────────────────────
+test('ov.waiting·ov.count: 서버 연결 중 첫 목록을 받는 동안은 대기, 값은 parts.pending 길이', async () => {
+  const keepParts = ov.state.parts, keepSum = ov.state.summary, keepT = nr.TIMEOUT_MS;
+  nr.TIMEOUT_MS = 20;
+  nr.env = {};
+  assert.strictEqual(ov.waiting(), false);                          // 서버 미연결(offline)은 기다리지 않는다
+  nr.env = { store: { isServerMode: () => true, loadSession: () => ({ emp: '6000002' }) }, fetch: () => new Promise(() => {}) };
+  assert.strictEqual(ov.waiting(), true);                           // idle
+  const p = nr.load();
+  assert.strictEqual(nr.state(), 'loading');
+  assert.strictEqual(ov.waiting(), true);
+  ov.state.parts = { pending: [{}, {}, {}], delayed: [{}], done: [] };
+  ov.state.summary = { items: [{}, {}, {}, {}, {}] };
+  assert.strictEqual(ov.count(), 3);                                // 경과 전체(5)가 아니라 미처리(3)
+  // loading 중에는 사이드바 배지가 없고, 받은 뒤에는 미처리 3건 배지가 붙는다
+  const btn = { dataset: { nav: 'map' }, title: '', html: '', querySelector: sel => sel === '.nav-label' ? { textContent: '전국 지도' } : null, querySelectorAll: () => [], insertAdjacentHTML(pos, h) { this.html += h; } };
+  global.document = { querySelectorAll: () => [btn] };
+  try {
+    ov.paintNavBadge();
+    assert.strictEqual(btn.html, '');
+    await p;
+    assert.strictEqual(nr.state(), 'error'); assert.strictEqual(ov.waiting(), false);
+    ov.paintNavBadge();
+    assert.ok(btn.html.includes('nav-count') && btn.html.includes('>3<') && btn.title.includes('미처리 3건'));
+  } finally { delete global.document; }
+  ov.state.parts = null;
+  assert.strictEqual(ov.count(), 5);                                // refresh 전에는 경과 전체
+  ov.state.summary = null;
+  assert.strictEqual(ov.count(), 0);
+  ov.state.parts = keepParts; ov.state.summary = keepSum; nr.TIMEOUT_MS = keepT; nr.env = {};
+});
+
+function onLoginHarness(emp, items, session) {
+  const keep = { refresh: ov.refresh, count: ov.count, showPopup: ov.showPopup, load: store.loadSession };
+  const h = { fetches: 0, popups: 0, session: session || { mode: 'account', id: 'u', emp } };
+  nr.env = { store: { isServerMode: () => true, loadSession: () => ({ emp }) },
+    fetch: () => { h.fetches += 1; return okRes({ today: '2026-11-17', can_edit: true, items: items || [] }); } };
+  store.loadSession = () => h.session;
+  ov.refresh = () => {};
+  ov.count = () => h.count;
+  ov.showPopup = () => { h.popups += 1; return true; };
+  h.count = 0;
+  h.restore = () => { Object.assign(ov, { refresh: keep.refresh, count: keep.count, showPopup: keep.showPopup }); store.loadSession = keep.load; nr.env = {}; };
+  return h;
+}
+
+test('onLogin: 기록을 한 번 받은 뒤에 판정하고, 미처리 0이면 팝업이 없고 1 이상이면 뜬다', async () => {
+  const h = onLoginHarness('6000003');
+  try {
+    assert.strictEqual(ov.onLogin({ master: true }, 'u'), false);   // 받는 동안은 팝업 보류
+    assert.strictEqual(h.popups, 0);
+    await new Promise(r => setTimeout(r, 10));
+    assert.strictEqual(h.fetches, 1);                                // 요청은 한 번
+    assert.strictEqual(h.popups, 0);                                 // 미처리 0
+    h.count = 2;
+    ov.onLogin({ master: true }, 'u-no-skip-' + Date.now());
+    await new Promise(r => setTimeout(r, 10));
+    assert.strictEqual(h.popups, 1);
+    assert.strictEqual(h.fetches, 2);
+  } finally { h.restore(); }
+});
+
+test('onLogin: 기다리는 동안 로그아웃하거나 다른 사번이 로그인하면 팝업을 판정하지 않는다', async () => {
+  const h = onLoginHarness('6000004');
+  try {
+    h.count = 3;
+    ov.onLogin({ master: true }, 'u-out-' + Date.now());
+    h.session = null;                                                // 대기 중 로그아웃
+    await new Promise(r => setTimeout(r, 10));
+    assert.strictEqual(h.popups, 0);
+    h.session = { mode: 'account', id: 'u', emp: '6000004' };
+    ov.onLogin({ master: true }, 'u-swap-' + Date.now());
+    h.session = { mode: 'account', id: 'v', emp: '6000005' };        // 대기 중 다른 사번 로그인
+    await new Promise(r => setTimeout(r, 10));
+    assert.strictEqual(h.popups, 0);
+    h.session = { mode: 'account', id: 'u', emp: '6000004' };        // 같은 사번이면 뜬다
+    ov.onLogin({ master: true }, 'u-same-' + Date.now());
+    await new Promise(r => setTimeout(r, 10));
+    assert.strictEqual(h.popups, 1);
+  } finally { h.restore(); }
 });
 
 // ── 소스 단언 ─────────────────────────────────────────────────────────

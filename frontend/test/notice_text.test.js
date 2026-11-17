@@ -59,7 +59,7 @@ test('NOTICE_WORDS: 할 일 문구는 logic 상수 한 곳, 화면 파일에는 
   // 칩 건수(띠·지도 툴팁)·상세 접수 칸·aria가 같은 말을 쓴다
   const it = items[2];
   assert.ok(logic.noticeBrief({ confirmed: true, contractEnd: '2026-11-01' }, new Date('2026-11-12T00:00:00')).detail.includes(W.unknownChip));
-  assert.ok(it.phase === 'unknown');
+  assert.strictEqual(it.phase, 'unknown');
 });
 
 test('noticeBrief: 배지·둘째 줄이 noticeText와 같은 정본에서 나온다', () => {

@@ -389,9 +389,14 @@
       if (!ov.shouldShow(ctx, who, dateStr, ov.count())) return false;
       return ov.showPopup(who, dateStr);
     };
+    // 시작 때 사번(읽지 못하면 null). 받는 동안 로그아웃했거나 다른 사람이 로그인했으면 판정하지 않는다.
+    const empNow = function () { try { const s = store.loadSession && store.loadSession(); return s ? String(s.emp || '') : false; } catch (e) { return null; } };
+    const startEmp = empNow();
     const later = function () {
-      try { if (store.loadSession && !store.loadSession()) return false; } catch (e) { /* 세션을 못 읽으면 그대로 진행 */ }   // 받는 동안 로그아웃했으면 띄우지 않는다
-      return decide();
+      const now = empNow();
+      if (now === false) return false;                                        // 세션 없음(로그아웃)
+      if (now !== null && startEmp !== null && now !== startEmp) return false; // 다른 사번으로 바뀜
+      return decide();                                                        // 세션을 못 읽으면(null) 그대로 진행
     };
     const nrm = NR();
     if (!nrm || !nrm.canLoad || !nrm.canLoad()) return decide();   // 서버 미연결: 모든 경과 건이 미처리

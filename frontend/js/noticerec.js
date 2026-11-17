@@ -144,7 +144,7 @@
   nr.needs = function (status) { const d = logic.recStatus(status); return { next: d ? d.next : 'opt', opinion: d ? d.opinion : 'opt' }; };
   nr.FIELD_ORDER = ['status', 'next', 'opinion'];
   const OP_REQ = { CLOSED: '공고 종료로 적을 때는 의견이 필요합니다. 무엇을 보고 끝났다고 판단했는지 적으세요.',
-    NO_BID: '입찰 없음으로 적을 때는 의견이 필요합니다. 왜 입찰이 없는지 적으세요.',
+    NO_BID: '입찰 없음(연장·지정)으로 적을 때는 의견이 필요합니다. 왜 입찰이 없는지 적으세요.',
     DELAYED: '지연·재공고 대기로 적을 때는 의견이 필요합니다. 왜 늦어지는지 적으세요.' };
   // → { status?, next?, opinion? } 필드별 첫 오류. 서버 검사(NoticeRoundRules)와 같은 기준 — 서버 문구가 정본이고 이건 미리 알려 주는 것.
   nr.validate = function (d, todayStr) {
