@@ -427,15 +427,15 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
   const a = html.indexOf('/* 국민은행 상태 현황판(kbboard.js) 시작'), b = html.indexOf('/* 국민은행 상태 현황판 끝 */');
   assert.ok(a > 0 && b > a);
   const css = html.slice(a, b).replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.deepStrictEqual((css.match(/#[0-9a-fA-F]{3,8}\b/g) || []).filter(function (h) { return h !== '#fff' && h !== '#626d81'; }), []);   // 새 hex 없음 — DESIGN 허용값 #fff(color-mix 흰색)와 입력칸의 기존 리터럴 #626d81(구분 칩 테두리 3:1)만 예외
+  assert.deepStrictEqual(css.match(/#[0-9a-fA-F]{3,8}\b/g) || [], []);   // hex 없음 — 11-17 밝은 테마 대응: 글자 색 섞기는 본문색(var(--fg)) 쪽으로, 칩 테두리는 var(--line-strong)(#fff·#626d81 예외 삭제)
   assert.ok(!/,\s*white\)/.test(css));                                                                               // 'white' 글자 대신 #fff(design P3-1)
   (css.match(/font(?:-size)?:\s*(?:\d+\s+)?(\d+)px/g) || []).forEach(function (s) { assert.ok(Number(/(\d+)px/.exec(s)[1]) >= 11, s); });
   // 11-17 c51 목표 기관 중심(design acfdd5da 6-B): 요약 띠 3칸 + 1.5fr 한 칸, 표 높이 clamp(280px, 100vh − 330px, 960px), 고정 열 폭 표, 머리 sticky, 3열 규칙은 없다
   assert.ok(/\.hb-band \{[^}]*grid-template-columns:repeat\(3, minmax\(0,1fr\)\) minmax\(0,1\.5fr\)/.test(css));
-  assert.ok(/\.hb-tp \{[^}]*height:clamp\(280px, calc\(100vh - 330px\), 960px\)/.test(css));
+  assert.ok(/\.hb-tp \{[^}]*height:clamp\(280px, calc\(100vh - 296px\), 960px\)/.test(css));   // 협약 구획(54px)을 빼고 제안 진행 줄(36px)을 띠 안에 넣은 만큼(c54)
   assert.ok(/\.hb-tt \{[^}]*table-layout:fixed/.test(css) && /\.hb-tt thead th \{[^}]*position:sticky/.test(css));
   assert.ok(/\.hb-tt tr\.late > \* \{[^}]*var\(--red\) 8%/.test(css));                                         // 지연 행 = 빨강 8% 바탕(글자 칩 '지연'이 함께)
-  assert.ok(/\.hb-tag \{[^}]*min-height:24px[^}]*border:1px solid #626d81/.test(css));                          // 칩 높이 24px·테두리 3:1
+  assert.ok(/\.hb-tag \{[^}]*min-height:24px[^}]*border:1px solid var\(--line-strong\)/.test(css));              // 칩 높이 24px·테두리(밝은 테마: 토큰)
   assert.ok(/\.hb-lane \.w\.est \{[^}]*repeating-linear-gradient/.test(css) && /\.hb-lane \.now \{[^}]*dashed var\(--muted\)/.test(css));   // 추정 = 빗금, 오늘 = 점선(틸 아님)
   assert.ok(/\.hb-lane \.w \{[^}]*min-width:6px/.test(css));
   assert.ok(!/\.hb-cols\b|\.hb-col\b|\.hb-nlink|\.hb-li\b|\.hb-act\b|\.hb-none\b|#hb-preps|#hb-notice/.test(css));   // 옛 3열·2번 구획 규칙은 지웠다
@@ -444,12 +444,14 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
   assert.ok(/@media \(max-width:880px\) \{[^@]*\.hb-band \{ grid-template-columns:1fr 1fr; \}[^@]*\.hb-tp \{ height:auto; \}[^@]*\.hb-tt \{ min-width:764px; \}/.test(css));   // 764 = 기관 150 + 나머지 고정 열 614
   assert.ok(/\.hb-menu \{[^}]*border-radius:12px/.test(css) && /\.hb-menu button\[aria-checked=false\] \.ck \{ visibility:hidden; \}/.test(css));
   // 줄: 종료 D-n(크게 16px mono), 빨강·주황은 글자색만(채운 배경 없음), 종료일 미상은 muted, 행 이름 13px
-  assert.ok(/\.hb-end b \{ font:700 16px\/1\.2 var\(--mono\)/.test(css) && /\.hb-end\.urgent b \{ color:color-mix\(in srgb, var\(--red\) 72%, #fff\)/.test(css) && /\.hb-end\.soon b \{ color:color-mix\(in srgb, var\(--orange\) 72%, #fff\)/.test(css));
+  assert.ok(/\.hb-end b \{ font:700 16px\/1\.2 var\(--mono\)/.test(css) && /\.hb-end\.urgent b \{ color:color-mix\(in srgb, var\(--red\) 72%, var\(--fg\)\)/.test(css) && /\.hb-end\.soon b \{ color:color-mix\(in srgb, var\(--orange\) 72%, var\(--fg\)\)/.test(css));
+  assert.ok(css.indexOf('72%, #fff') < 0 && css.indexOf('#626d81') < 0);                                     // 흰색 쪽 섞기·고정 색 없음(세션 44 요청)
   assert.ok(/\.hb-end\.unk \{[^}]*color:var\(--muted\)/.test(css) && /\.hb-row \.nm \{ font-size:13px;/.test(css));
   assert.ok(/\.hb-row \{[^}]*grid-template-columns:minmax\(0, 1fr\) auto/.test(css));
   assert.ok(/\.hb-stg \.hb-confirm \{[^}]*min-height:28px/.test(css));
   assert.ok(/\.hb-foot details\[open\] \{ flex-basis:100%;/.test(css));
-  assert.ok(/\.hb-row\[aria-disabled=true\][^{]*\{[^}]*color:var\(--muted\)/.test(css) && !/opacity/.test(css));   // opacity 대신 muted(DESIGN)
+  // 흐리게 보이기는 opacity 대신 muted(DESIGN) — 전역 disabled 흐림을 되돌리는 opacity:1 만 허용
+  assert.ok(/\.hb-row\[aria-disabled=true\][^{]*\{[^}]*color:var\(--muted\)/.test(css) && !/opacity:\s*(0|\.)/.test(css));   // opacity 대신 muted(DESIGN)
   assert.ok(/\.hb-slot\.hb-leaves \{[^}]*var\(--red\)/.test(css) && /\.hb-slot\.hb-stay \{ color:var\(--fg\); \}/.test(css));
   assert.ok(!/\.hb-slot\.hb-stay \{[^}]*accent-color/.test(css));                                           // 틸은 선택·포커스 전용(design P2-1)
   // design P2-4·P3-3: 1번 각주 CSS 5줄, 3번 foot hidden, 1279px 이하는 3번 구획 머리만 min-height 0
@@ -464,9 +466,10 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
   // 마크업 순서(design 6-C): 제목 줄 → 오류 배너 → 요약 띠 → 목표 표 → 접힌 협약 구획. 3열·2번 구획·3번 구획은 없다
   const k0 = src('js/kbboard.js');
   const at2 = function (s) { return k0.indexOf(s); };
-  assert.ok(at2('id="hb-err"') < at2('class="hb-band"') && at2('class="hb-band"') < at2('class="hb-tp" id="hb-goals"') && at2('id="hb-goals"') < at2('<details id="hb-ours"'));
+  assert.ok(at2('id="hb-err"') < at2('class="hb-band"') && at2('class="hb-band"') < at2('class="hb-tp" id="hb-goals"') && at2('id="hb-ours" role="dialog"') > 0);   // 협약 구획은 표 아래 details가 아니라 팝업(c54)
+  assert.ok(k0.indexOf('<details id="hb-ours"') < 0 && k0.indexOf('<div class="hb-tb" id="hb-tb"></div><div class="hb-ts" id="hb-ts" role="tabpanel"></div>') > 0 && k0.indexOf('id="hb-ours-btn" aria-haspopup="dialog"') > 0);
   assert.ok(k0.indexOf('id="hb-cards"') < 0 && k0.indexOf('id="hb-alert"') < 0 && k0.indexOf('hb-grid') < 0 && k0.indexOf('class="hb-cols"') < 0 && k0.indexOf('id="hb-notice"') < 0 && k0.indexOf('id="hb-preps"') < 0);
-  assert.ok(k0.indexOf('<span class="ot" id="hb-ot">협약 중인 기관</span>') > 0 && k0.indexOf('<summary><h3') < 0 && k0.indexOf('<h2>입찰 현황판</h2>') > 0 && k0.indexOf('<select id="hb-year" aria-label="목표 연도">') > 0);
+  assert.ok(k0.indexOf('<h3 id="hb-ot">협약 중인 기관</h3><span id="hb-osm"></span>') > 0 && k0.indexOf('aria-labelledby="hb-ot" aria-describedby="hb-osm"') > 0 && k0.indexOf('<summary><span class="ot"') < 0 && k0.indexOf('<summary><h3') < 0 && k0.indexOf('<h2>입찰 현황판</h2>') > 0 && k0.indexOf('<select id="hb-year" aria-label="목표 연도">') > 0);
   assert.ok(k0.indexOf('<div class="hb-foot" id="hb-ofoot">') > 0 && k0.indexOf('db-foot') < 0);
   assert.ok(k0.indexOf('<button type="button" id="hb-add" hidden>목표 기관 추가</button>') > 0);
   // 옛 이름 '국민은행이 맡은 기관'은 화면 글에서 사라졌다(주석 제외)
@@ -475,8 +478,8 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
 
 test('배선: 감사 화면 이름(bid_board·bid_notice·map_popover)·현황판 팝업 fallback·kbboard 문구에 우리 없음', function () {
   const k = src('js/kbboard.js'), d = src('js/dashboard.js');
-  assert.ok(k.indexOf("screen: 'bid_board', fallback: '#' + colId") > 0 && k.indexOf("colId = colEl && colEl.id ? colEl.id : 'hb-ours'") > 0);   // 열마다 fallback(1열 #hb-ours·2열 #hb-notice·3열 #hb-preps)
-  assert.ok(/refocus: function \(\) \{ return kbb\.findOpener\(\$\(colId\), key, act\); \}/.test(k) && /m\.refocus\(\)/.test(d) && d.indexOf("refocus: (opts && opts.refocus) || null") > 0);
+  assert.ok(k.indexOf("screen: 'bid_board', fallback: fromPop ? '#hb-ours-btn' : '#' + colId") > 0 && k.indexOf("colId = colEl && colEl.id ? colEl.id : 'hb-ours'") > 0);   // 목표 표는 #hb-goals, 협약 중인 기관 팝업의 줄은 팝업을 닫고 [협약 중인 기관] 버튼으로 돌아온다(c54)
+  assert.ok(/refocus: function \(\) \{ return fromPop \? null : kbb\.findOpener\(\$\(colId\), key, act\); \}/.test(k) && /m\.refocus\(\)/.test(d) && d.indexOf("refocus: (opts && opts.refocus) || null") > 0);
   assert.ok(/function actOf\(rec\) \{\s*if \(kbb\.inProgress\(rec, st\.preps, st\.overview\)\) return 'open';/.test(k));   // 신규 유치 줄: 진행 기록이 있으면 배지(qa P3-4)
   assert.ok(k.indexOf('같은 기관은 한 번만 셉니다') < 0);                                                  // 3번 foot 중복 문구 삭제(design P2-3)
   assert.ok(k.indexOf('제안 진행 단계 구획의 [다시 시도]') < 0 && k.indexOf('오른쪽 제안 진행 단계') < 0);                      // 없어진 구획을 가리키는 문구는 없다(qa 11-17 P3-9)

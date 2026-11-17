@@ -415,7 +415,7 @@ test('goalTableHtml: 표 구조(caption·colgroup·머리 7열·월 머리), 상
   const cands = [{ id: 'I1', key: '11|가', name: '가', region: '11', endDate: '2026-12-31' }, { id: 'I2', key: '11|나', name: '나', region: '11', endDate: '' }];
   const em = kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', cands: cands }));
   assert.ok(em.indexOf('<h3 class="hb-eh">2026 목표 기관이 아직 없습니다</h3>') > 0);
-  assert.ok(em.indexOf('국민은행 협약이 1년 안에 끝나고 다음 은행이 정해지지 않은 기관 <b>2</b>곳입니다. 재유치 도전으로 넣을 수 있습니다.') > 0);
+  assert.ok(em.indexOf('<ul class="hb-cand2"><li><h4>협약 종료 1년 안 <b>2</b>곳</h4><ul class="hb-cand">') > 0 && em.indexOf('입찰 공고가 났거나 날 예정인 기관부터 보여 줍니다.') > 0);   // 묶음 2×2(6-8), 묶음 하나뿐이면 협약 종료 1년 안
   assert.ok(em.indexOf('<button type="button" class="hb-tag add" data-act="cand" data-inst="I1" data-key="11|가" aria-label="가 목표에 넣기">목표에 넣기</button>') > 0);
   assert.ok(em.indexOf('협약 종료 2026-12-31') > 0 && em.indexOf('그 밖의 기관은 위 [목표 기관 추가]에서 찾습니다.') > 0);
   assert.ok(kbb.goalTableHtml(Object.assign({}, base, { st: 'ok' })).indexOf('협약이 1년 안에 끝나는 기관이 없습니다. [목표 기관 추가]에서 기관을 찾아 넣으세요.') > 0);
@@ -519,7 +519,7 @@ test('saveTarget·cancelTarget: 주소·POST·머리글(X-Screen-Id bid_board, X
 });
 
 test('버튼 이름은 서버 허용값(TargetUiIds)과 같다', function () {
-  assert.deepStrictEqual(kbb.BTN, { add: 'add_bid_target', tag: 'change_target_tag', cancel: 'cancel_bid_target' });
+  assert.deepStrictEqual(kbb.BTN, { add: 'add_bid_target', tag: 'change_target_tag', cancel: 'cancel_bid_target', addWatch: 'add_watch_target', edit: 'edit_bid_target', nextYear: 'goal_next_year', moveGoal: 'move_to_goal', moveWatch: 'move_to_watch' });
   assert.strictEqual(kbb.SCREEN, 'bid_board');
   const f = path.join(ROOT, '..', 'kgi-ggreport-web', 'src', 'main', 'java', 'com', 'kbstar', 'kgi', 'ggreport', 'web', 'support', 'TargetUiIds.java');
   if (!fs.existsSync(f)) return;
@@ -587,17 +587,17 @@ test('DOM 코드 구조: 서버 글은 textContent·esc로, 쓰기는 영업부�
   // 대화창 접근성: Esc·Tab 순환, 닫으면 연 버튼(없으면 [목표 기관 추가])
   assert.ok(k.indexOf("ev.key !== 'Tab'") > 0 && k.indexOf("const a = $('hb-add'); o = a && !a.hidden ? a : null;") > 0);
   // 추가 뒤 새 줄 이름·뺀 뒤 다음 줄 이름으로 포커스
-  assert.ok(k.indexOf('gs.focusNext = { inst: m.inst.id };') > 0 && k.indexOf("gs.focusNext = { inst: nx ? nx.id : '' };") > 0);
+  assert.ok(k.indexOf('gs.focusNext = { inst: m.inst.id, reveal: true };') > 0 && k.indexOf("gs.focusNext = { inst: nx ? nx.id : '' };") > 0);
   // 이름 버튼 → dash.openDetail(screen bid_board), 닫으면 같은 data-key로
   assert.ok(k.indexOf("btn.classList.contains('hb-nm') || btn.classList.contains('hb-row')") > 0);
   // 연도 선택·서버 없음·1279px: 서버 없으면 협약 구획을 펼친 채로
-  assert.ok(k.indexOf("gs.st = (!U.serverMode() || !U.hasEmp()) ? 'offline' : 'loading';") > 0 && k.indexOf('ob.open = true') > 0);
+  assert.ok(k.indexOf("gs.st = (!U.serverMode() || !U.hasEmp()) ? 'offline' : 'loading';") > 0 && k.indexOf('ob.open = true') < 0 && k.indexOf("case 'hb-ours-btn': openPop(); break;") > 0);   // 협약 구획은 팝업 — 서버가 없어도 버튼이 내장 자료로 연다
   // 서버 요청은 /bid-targets?year=·/bank-contracts/summary(처음 한 번)
   assert.ok(k.indexOf("fetchJson('/bid-targets?year=' + encodeURIComponent(goalYear()))") > 0 && k.indexOf("fetchJson('/bank-contracts/summary')") > 0);
   // 서버 응답 순서가 어긋나도 옛 응답은 버린다
   assert.ok(/if \(my !== gs\.seq \|\| !host\) return;/.test(k));
   // 목표 밖 묶음·후보는 제안 진행 자료가 있을 때만
-  assert.ok(k.indexOf('if (ctx.prepOk) out = kbb.sortGoals(kbb.outRows(') > 0);
+  assert.ok(k.indexOf('if (ctx.prepOk) out = kbb.outRows(') > 0);
   // qa 11-17 P3-5: 메뉴에서 Tab은 칩으로 포커스를 되돌린 뒤 넘어간다(body로 떨어지지 않게)
   assert.ok(/ev\.key === 'Tab'\) closeMenu\(true\)/.test(k) && k.indexOf("ev.key === 'Tab') closeMenu(false)") < 0);
   // P3-7: [다시 시도] 뒤 포커스 — 눌렀던 버튼 id를 기억했다가 받기가 끝나면 같은 버튼 또는 표 영역으로
@@ -606,12 +606,12 @@ test('DOM 코드 구조: 서버 글은 textContent·esc로, 쓰기는 영업부�
   // P3-8: 저장 중에는 Esc·[취소]를 막고 버튼 글을 '저장 중…'으로, 포커스는 대화창 상자에 두었다가 실패하면 되돌린다
   assert.ok(/if \(mm && mm\.busy\) \{ ev\.preventDefault\(\); return; \}/.test(k));
   assert.ok(/if \(b\.id === 'hb-a-cancel'\) \{ if \(!m\.busy\) closeDlg\(\); \}/.test(k) && /if \(b\.id === 'hb-c-cancel'\) \{ if \(!m\.busy\) closeDlg\(\); \}/.test(k));
-  assert.ok(k.indexOf("go.textContent = m.busy ? '저장 중…' : '목표에 넣기'") > 0 && k.indexOf("go.textContent = m.busy ? '저장 중…' : '목표에서 빼기'") > 0);
+  assert.ok(k.indexOf("go.textContent = m.busy ? '저장 중…' : (watch ? '관심 기관에 넣기' : '목표에 넣기')") > 0 && k.indexOf("'관심에서 빼기' : '목표에서 빼기')") > 0);
   assert.ok(k.indexOf("cb.disabled = !!m.busy") > 0 && k.indexOf('holdDlgFocus(d,') > 0 && k.indexOf('releaseDlgFocus(d);') > 0);
   // P2-1: 제안 진행 자료가 둘 다 403이면 기억해 두고 다시 부르지 않는다, 계정이 바뀌면 푼다
   assert.ok(/if \(prepDenied403\) \{[\s\S]*?return Promise\.resolve\(\);/.test(k) && /p\.code === 403 && o\.code === 403\) prepDenied403 = true;/.test(k) && /prepDenied403 = false;/.test(k));
   // summary 안에 h3를 두지 않는다(P3-11)
-  assert.ok(k.indexOf('<summary><h3') < 0 && k.indexOf('<summary><span class="ot" id="hb-ot">') > 0);
+  assert.ok(k.indexOf('<summary><h3') < 0 && k.indexOf('<h3 id="hb-ot">') > 0);   // 팝업 머리의 제목은 h3(details·summary 없음)
 });
 
 test('index.html: 요약 띠·표·구분 칩·메뉴·레인 CSS가 규격(6-B)대로 — 새 변수 0개, 칩 24px, 행 40px, 월 눈금 12등분', function () {
@@ -622,9 +622,9 @@ test('index.html: 요약 띠·표·구분 칩·메뉴·레인 CSS가 규격(6-B)
   assert.ok(/\.hb-lane \{[^}]*repeating-linear-gradient\(to right, transparent 0 calc\(100%\/12 - 1px\), var\(--line\) calc\(100%\/12 - 1px\) calc\(100%\/12\)\)/.test(css));
   assert.ok(/\.hb-lane \.cur \{[^}]*width:calc\(100%\/12\)/.test(css));
   assert.ok(/\.hb-tt \.hb-nm:focus-visible \{ outline:2px solid var\(--accent-color\)/.test(css));                   // 키보드 포커스 링(틸)
-  assert.ok(/\.hb-late \{[^}]*var\(--red\) 72%, #fff[^}]*var\(--red\) 18%/.test(css));                                  // 지연 칩 = 빨강 글자·테두리·18% 바탕
-  assert.ok(/\.hb-k \.v\.hot \{[^}]*var\(--red\) 72%, #fff/.test(css) && /\.hb-dd\.hot \{[^}]*var\(--red\) 72%, #fff/.test(css));
-  assert.ok(/#hb-ours > summary \{[^}]*min-height:40px/.test(css) && /#hb-ours\[open\] \.db-scroll \{ max-height:60vh; \}/.test(css));
+  assert.ok(/\.hb-late \{[^}]*var\(--red\) 72%, var\(--fg\)[^}]*var\(--red\) 18%/.test(css));                          // 지연 칩 = 빨강 글자(본문색 쪽 섞기)·테두리·18% 바탕
+  assert.ok(/\.hb-k \.v\.hot \{[^}]*var\(--red\) 72%, var\(--fg\)/.test(css) && /\.hb-dd\.hot \{[^}]*var\(--red\) 72%, var\(--fg\)/.test(css));
+  assert.ok(/#hb-ours \{[^}]*width:min\(720px, 92vw\)/.test(css) && /#hb-ours \.hb-ob \{[^}]*max-height:76vh/.test(css));   // 협약 중인 기관 팝업(6-10)
   assert.ok(/\.hb-top \.ro \{[^}]*color:var\(--muted\)/.test(css) && /\.hb-top \.ro\[hidden\], \.hb-top #hb-add\[hidden\] \{ display:none; \}/.test(css));   // hidden 속성이 display 규칙에 지지 않게
   assert.ok(/\.hb-tag\.ro \{[^}]*cursor:default/.test(css) && /\.hb-tag\.add \{[^}]*border-style:dashed/.test(css));
   assert.ok(/\.hb-dlg \.hb-rd input \{ width:auto;/.test(css) && /\.hb-res li\[aria-disabled=true\] \{ color:var\(--muted\); cursor:default; \}/.test(css));
@@ -635,7 +635,7 @@ test('index.html: 요약 띠·표·구분 칩·메뉴·레인 CSS가 규격(6-B)
   assert.ok(/\.hb-lane \.unk\.before \{ left:calc\(100%\/12 \+ 6px\); \}/.test(css));
   assert.ok(/\.hb-cand \{[^}]*max-width:560px/.test(css));
   assert.ok(/\.hb-dlg #hb-a-q, \.hb-dlg #hb-a-memo, \.hb-dlg #hb-c-etc \{ display:block; width:100%; margin-top:4px; box-sizing:border-box; \}/.test(css));
-  assert.ok(/#hb-ours > summary \.ot \{/.test(css) && !/#hb-ours > summary h3/.test(css));
+  assert.ok(!/#hb-ours > summary/.test(css) && !/#hb-ours\[open\]/.test(css));                                         // 접힌 구획 규칙은 지웠다
   // :root 변수 이름은 동결 — 이 블록이 새 --변수를 정의하지 않는다
   assert.deepStrictEqual((css.match(/(^|[\s;{])--[\w-]+\s*:/g) || []), []);
   // 새 글자 크기는 11px 이상
