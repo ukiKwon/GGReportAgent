@@ -817,5 +817,7 @@ const SITE = (() => {
     drawAltitude();
   }
 
-  return { txt, render, update, place, drawTool, addBonus: n => { bonus += n; }, floors, planet, hold, pathPos: routePos, pathLen: () => 2 * ONE, rolePos, roleLen, startT, startPt, entry, inExit, speedK: SPEED_K };
+  return { txt, render, update, place, drawTool, addBonus: n => { bonus += n; },
+    // 시험 도구 🚀 발사: 다음 행성 1층이 되도록 보너스를 채운다 → update가 행성 번호가 오른 것을 보고 발사 연출(발사 중이면 무시)
+    launchNow: () => { if (!launch) bonus += (planet() + 1) * PER_PLANET * LAPS_PER_FLOOR - (stat.laps + bonus); }, floors, planet, hold, pathPos: routePos, pathLen: () => 2 * ONE, rolePos, roleLen, startT, startPt, entry, inExit, speedK: SPEED_K };
 })();

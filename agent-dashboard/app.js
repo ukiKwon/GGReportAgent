@@ -1089,7 +1089,9 @@ setInterval(refreshChips, 1000);
     cv.setAttribute('aria-label', T.aria);
     const b = document.createElement('button'); b.type = 'button'; b.textContent = '누적 +100공정(시험)';
     b.onclick = () => SITE.addBonus(100); // 화면 연출만 — state.json 누적 값은 바꾸지 않는다
-    document.getElementById('reset').after(b);
+    const r = document.createElement('button'); r.type = 'button'; r.textContent = '🚀 우주선 발사(시험)';
+    r.onclick = () => SITE.launchNow(); // 다음 행성 1층부터 — 이것도 화면 연출만
+    document.getElementById('reset').after(b, r);
   }
 })();
 document.getElementById('speed').onchange = e => { speedMul = +e.target.value; };
