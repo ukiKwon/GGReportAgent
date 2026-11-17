@@ -2,6 +2,11 @@
 
 마지막 갱신: 2026-11-17(화) 16:10 (9f, c0·d9는 마무리 때 자기 항목을 덧붙임) — 오늘 요약: `handoff/2026-11-17_summary.md`
 
+## 사용자 새 요건 — 우선순위 높음 (11-17 저녁, PM이 아래 순서에 앞세워 배분)
+- **NEXT 99 이사회 회의 내용 전수**: 부장 의견 "이사회에서 오가는 좋은 내용이 전수되면 좋겠다" → 사용자 구상: 네이버 클로바(노트) 외부 공유로 받은 STT 결과를 업로드. planner(범위·권한·반입 경로·보안 정책 질문)부터.
+- **NEXT 100 '제안서 확정' → 사전준비 프로세스 전환 구체 구현**: planner(NEXT 70과 이어 단계별 흐름·빈 곳 정리)부터, c0 입찰 현황판 [제안 확정]과 조율.
+- 사용자 11-17 저녁: 다른 세션에서 디자인 작업 진행 — 9f는 잠시 대기.
+
 ## 다음 세션 먼저 할 일 (PM 11-17 오후 순서 — handoff/agents/pm/ 11-17 최신, 묻지 않고 실행)
 0. **환경**: MySQL `C:\dev\mysql-start.cmd`, `ListAgents`, 8080 담당 9f. JDK `C:\Users\superuser\AppData\Local\Programs\Eclipse Adoptium\jdk8u504-b01`, Maven `C:\Users\superuser\tools\apache-maven-3.9.16\bin`. 8080은 `java -jar target/kgi-ggreport-web.war`(kgi-ggreport-web에서). 로컬 DB는 043까지 최신(손 적용 시 `--default-character-set=utf8mb4` 필수, 되도록 apply-mysql 도구).
 1. **9f**: 89 사용자 업무 테스트 결과 반영(금고 약정 저장·고치기·지우기, '입력 A · 마지막 고침 B'·확인 부서 '영업부서') ∥ 94① 기관별 약정 종료일 목록 API는 c0가 요약 API로 진행 중이면 확인만.
