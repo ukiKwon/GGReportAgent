@@ -61,6 +61,12 @@ public class WorkflowOverviewService {
 
     @Transactional(readOnly = true)
     public WorkflowOverviewResponse overview(Actor actor) {
+        return overview(actor, true);
+    }
+
+    /** withAssignees=false 면 담당자 칸을 빈 목록으로 준다(디자이너 보기 경로 — 사번이 섞일 수 있는 칸). mine 은 본인 일치만이라 그대로 계산한다. */
+    @Transactional(readOnly = true)
+    public WorkflowOverviewResponse overview(Actor actor, boolean withAssignees) {
         Map<String, OverviewRun> runs = new HashMap<String, OverviewRun>();
         for (OverviewRun r : overview.selectLatestRuns()) {
             runs.put(r.getInstitutionId(), r);               // RUN_ID 오름차순 → 동률이면 뒤가 이긴다
@@ -112,7 +118,7 @@ public class WorkflowOverviewService {
                     ? run.getPendingGate() : null);
             it.setDone(SUBMITTED.equals(latestBid.get(id)));
             it.setBidCount(counts.containsKey(id) ? counts.get(id).intValue() : 0);
-            it.setAssignees(who);
+            it.setAssignees(withAssignees ? who : Collections.<String>emptyList());
             it.setUpdatedAt(run == null ? null : run.getUpdatedAt());
             items.add(it);
 
