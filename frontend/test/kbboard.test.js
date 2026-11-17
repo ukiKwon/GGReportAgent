@@ -79,13 +79,13 @@ test('각주(design 11-17 6-A): 출처 한 줄 + [세는 기준] 펼침, 본문�
     '행안부 금고지정 현황(2026.1.1. 기준)<span class="sr-only">, 새 탭</span></a> <span class="db-why">(인터넷 PC에서 열림)</span></span>';
   assert.strictEqual(on, '지자체는 1·2금고, 법원은 공탁금 보관은행, 공공기관은 주거래은행 칸으로 셉니다. ' +
     '협약 예정(2027년부터)은 지정 결과 공고·기사로 확인한 곳입니다. 은행 칸이 빈 법원·공공기관 <b>7</b>곳은 세지 않았습니다. ' +
-    '협약 종료일: 지자체는 행안부 금고지정 현황의 약정 끝날, 법원·공공기관은 기관 자료의 약정 만료일이며 없으면 \'종료일 미상\'입니다.');
+    '협약 종료일: 지자체는 직접 입력한 금고 약정이 있으면 그 값, 없으면 행안부 금고지정 현황의 약정 끝날, 법원·공공기관은 기관 자료의 약정 만료일이며 없으면 \'종료일 미상\'입니다.');
   assert.ok(on.indexOf('우리') < 0 && on.indexOf('hb-src') < 0);                  // 출처 줄은 본문 밖
-  assert.ok(on.indexOf('직접 입력') < 0);                                          // 현황판은 직접 입력 약정을 아직 받지 않는다(qa P1-1·design P2-2)
+  assert.ok(on.indexOf('직접 입력한 금고 약정이 있으면 그 값') >= 0);                // 현황판이 /bank-contracts/summary로 직접 입력 약정을 받아 오므로 절을 되살렸다(11-17, design P2-2)
   const box = kbb.footBoxHtml(undefined, 7);
   assert.strictEqual(box, SRC + '<details><summary>세는 기준</summary><p>' + on + '</p></details>');
   const off = kbb.footHtml({ muni: true, next: false, court: false, public: false }, 7);
-  assert.strictEqual(off, '지자체는 1·2금고만 셉니다. 법원·공공기관은 아직 세지 않습니다. 협약 종료일: 지자체는 행안부 금고지정 현황의 약정 끝날입니다.');
+  assert.strictEqual(off, '지자체는 1·2금고만 셉니다. 법원·공공기관은 아직 세지 않습니다. 협약 종료일: 지자체는 직접 입력한 금고 약정이 있으면 그 값, 없으면 행안부 금고지정 현황의 약정 끝날입니다.');
   // 지자체를 세지 않으면 지자체 문장과 출처 줄이 둘 다 없다
   const nm = kbb.footHtml({ muni: false, next: false, court: true, public: true }, 7);
   assert.ok(nm.indexOf('금고지정') < 0 && nm.indexOf('지자체') < 0 && nm.indexOf('협약 종료일: 법원·공공기관은 기관 자료의 약정 만료일이며 없으면 \'종료일 미상\'입니다.') >= 0 && nm.indexOf('직접 입력') < 0);
@@ -318,54 +318,10 @@ test('metaHtml(rowHtml 둘째 줄): 공고 진행 중 · 마감 D-n / 예정일 
   assert.ok(html('미상').indexOf('다음 입찰 공고 예정일 미상') >= 0);
 });
 
-// ── 입찰 공고가 뜬 대상(2번 구획) ────────────────────────────────────
-function noticeFix() {
-  // 가·나·다 = 공고 진행 중. 가 = 협약 중인 기관, 나 = 제안 확정한 다른 은행 기관(신규 유치), 다 = 협약도 제안도 아님, 라 = 협약 예정(2027년부터) + 제안 확정
-  const mk = function (x, i, extra) { return rec(x, -(10 + i), Object.assign({ confirmed: true, receiveTo: plus(3 + i), institutionId: 'I' + x }, extra || {})); };
-  const list = [mk('가', 0), mk('나', 1), mk('다', 2), mk('라', 3, { receiveTo: null })];
-  const notice = dash.model(list, TODAY).notice;
-  return { list: list, notice: notice };
-}
-test('noticeModel: 협약 중인 기관의 공고 + 제안 확정·준비 중 기관의 공고(신규 유치), 그 밖은 링크로 / 협약 예정 기관도 제안 중이면 신규 유치', function () {
-  const f = noticeFix();
-  assert.strictEqual(f.notice.length, 4);
-  const nm = kbb.noticeModel(f.notice, { '11|가': true }, { In: true, 'I나': true, 'I라': true }, 'ok');
-  assert.deepStrictEqual(nm.keep.map(function (i) { return i.name; }), ['가']);
-  assert.deepStrictEqual(nm.win.map(function (i) { return i.name; }), ['나', '라']);               // 가는 협약 쪽에만(한 번), 다는 어디에도 없다
-  assert.strictEqual(nm.total, 3); assert.strictEqual(nm.n, 4); assert.strictEqual(nm.winState, 'ok');
-  assert.strictEqual(nm.recvN, 2);                                                                  // 가·나는 마감일을 알고 접수 중, 라는 마감일 미확인
-  assert.strictEqual(kbb.noticeFigHtml(nm), '<span><b>3</b>곳</span><span>접수 마감 전 <b>2</b>곳</span>');
-  assert.strictEqual(kbb.noticeBrkHtml(nm), '협약 중인 기관 <b>1</b> · 신규 유치 <b>2</b>');
-  assert.strictEqual(kbb.noticeLinkHtml(nm), '<span>전국 공고 진행 중 <b>4</b>곳</span><button type="button" id="hb-to-notice">입찰 공고 현황에서 보기</button>');
-  // 서버 없음·권한 밖·받는 중·오류: 신규 유치는 알 수 없다(협약 쪽은 내장 자료로 계속)
-  const off = kbb.noticeModel(f.notice, { '11|가': true }, { 'I나': true }, 'offline');
-  assert.deepStrictEqual([off.keep.length, off.win.length, off.winState], [1, 0, 'offline']);
-  assert.strictEqual(kbb.noticeBrkHtml(off), '협약 중인 기관 <b>1</b> · 신규 유치 <b>-</b>');
-  assert.strictEqual(kbb.noticeModel([], {}, {}, 'ok').total, 0);
-  assert.strictEqual(kbb.noticeModel(null, null, null).n, 0);
-});
-
-test('noticeBodyHtml: 두 묶음 제목(\'수성\' 없음)·빈 상태 문구·서버 없음 문구·ul aria-labelledby', function () {
-  const f = noticeFix();
-  const row = function (it) { return '<li>' + it.name + '</li>'; };
-  const two = kbb.noticeBodyHtml(kbb.noticeModel(f.notice, { '11|가': true }, { 'I나': true }, 'ok'), row);
-  assert.ok(two.indexOf('<div class="db-grp" id="hb-g-keep">협약 중인 기관 <b>1</b>곳</div><ul aria-labelledby="hb-g-keep"><li>가</li></ul>') >= 0);
-  assert.ok(two.indexOf('<div class="db-grp" id="hb-g-win">신규 유치 · 제안 확정·준비 중 <b>1</b>곳</div><ul aria-labelledby="hb-g-win"><li>나</li></ul>') >= 0);
-  assert.ok(two.indexOf('수성') < 0);
-  // 둘 다 비면 한 문장(오늘 데이터의 상태)
-  const none = kbb.noticeBodyHtml(kbb.noticeModel(f.notice, {}, {}, 'ok'), row);
-  assert.strictEqual(none, '<p class="db-state">지금 공고가 난 협약 중인 기관이나 제안 중인 기관이 없습니다. 그 밖의 공고는 위 [입찰 공고 현황에서 보기]에서 봅니다.</p>');
-  // 한쪽만 비면 그 묶음 제목은 0곳 + 한 줄
-  const keepOnly = kbb.noticeBodyHtml(kbb.noticeModel(f.notice, { '11|가': true }, {}, 'ok'), row);
-  assert.ok(keepOnly.indexOf('신규 유치 · 제안 확정·준비 중 <b>0</b>곳</div><p class="hb-none">공고가 난 제안 진행 기관이 없습니다.</p>') >= 0);
-  const winOnly = kbb.noticeBodyHtml(kbb.noticeModel(f.notice, {}, { 'I나': true }, 'ok'), row);
-  assert.ok(winOnly.indexOf('협약 중인 기관 <b>0</b>곳</div><p class="hb-none">공고가 난 협약 중인 기관이 없습니다.</p>') >= 0 && winOnly.indexOf('<li>나</li>') >= 0);
-  // 서버 없음·권한 밖: 신규 유치 자리에 안내, 협약 쪽은 그대로
-  const off = kbb.noticeBodyHtml(kbb.noticeModel(f.notice, { '11|가': true }, {}, 'offline'), row);
-  assert.ok(off.indexOf('<li>가</li>') >= 0 && off.indexOf('서버에 연결하면 제안 중인 기관의 공고도 보입니다.') >= 0 && off.indexOf('hb-g-win">신규 유치 · 제안 확정·준비 중</div>') >= 0);
-  assert.ok(kbb.noticeBodyHtml(kbb.noticeModel(f.notice, {}, {}, 'denied'), row).indexOf('영업팀·영업팀장·영업부장에게 보입니다.') >= 0);
-  assert.ok(kbb.noticeBodyHtml(kbb.noticeModel(f.notice, {}, {}, 'loading'), row).indexOf('불러오는 중입니다') >= 0);
-  [two, none, off].forEach(function (h) { assert.ok(h.indexOf('우리') < 0); });
+// ── 표 바닥 링크(옛 2번 구획의 noticeModel·noticeBodyHtml·noticeRowHtml은 11-17 qa P3-9로 지웠다 — 죽은 코드가 문구를 붙들고 있었다) ──
+test('noticeLinkHtml: 표 바닥 [입찰 공고 현황에서 보기] 링크(전국 공고 진행 중 n곳)', function () {
+  assert.strictEqual(kbb.noticeLinkHtml({ n: 4 }), '<span>전국 공고 진행 중 <b>4</b>곳</span><button type="button" id="hb-to-notice">입찰 공고 현황에서 보기</button>');
+  ['noticeModel', 'noticeFigHtml', 'noticeBrkHtml', 'noticeBodyHtml', 'noticeRowHtml', 'prepRowHtml', 'prepBodyHtml', 'NOTICE_MSG'].forEach(function (n) { assert.strictEqual(kbb[n], undefined, n); });   // 죽은 코드가 되살아나지 않게
 });
 
 test('actHtml(동작 칸): open·confirm·wait·공고 끝남·접수 기간 지남·입찰 없음·공고 지연, unavailable·none은 비움', function () {
@@ -381,19 +337,6 @@ test('actHtml(동작 칸): open·confirm·wait·공고 끝남·접수 기간 지
   ['unavailable', 'none', 'later', '', undefined].forEach(function (a) { assert.strictEqual(kbb.actHtml(a, o), '', String(a)); });
   const evil = kbb.actHtml('confirm', { name: '<img src=x onerror=1>', key: '"><b>' });
   assert.ok(evil.indexOf('<img') < 0 && evil.indexOf('"><b>') < 0);
-});
-
-test('noticeRowHtml: li.hb-li 안에 [행 버튼 | 동작 칸]을 형제로(버튼 안에 버튼 없음), 칩·[제안 확정]은 동작 칸', function () {
-  const f = noticeFix();
-  const it = f.notice[0];
-  const h = kbb.noticeRowHtml(it, { verified: [{ key: '11|가', name: '가', slot: 2 }], act: 'confirm' });
-  assert.ok(h.indexOf('<li class="hb-li"><button type="button" class="hb-row" data-key="11|가" aria-haspopup="dialog">') === 0);
-  const btn = h.slice(h.indexOf('<button'), h.indexOf('</button>') + 9);
-  assert.strictEqual((btn.match(/<button/g) || []).length, 1);                                   // 행 버튼 안에 버튼 없음
-  assert.ok(btn.indexOf('hb-slot">2금고(일부 회계)</span>') >= 0 && btn.indexOf('hb-confirm') < 0 && btn.indexOf('db-chip') < 0);
-  assert.ok(h.indexOf('<div class="hb-act"><span class="db-chip open">마감 D-') >= 0 && h.indexOf('data-act="confirm"') > h.indexOf('hb-act'));
-  const wait = kbb.noticeRowHtml(it, { act: 'wait' });
-  assert.ok(wait.indexOf('확인 중…') >= 0 && wait.indexOf('hb-confirm') < 0);
 });
 
 // ── 준비 중인 제안: 합계 = 단계 카드 합계(P2-1) ──────────────────────
@@ -425,29 +368,8 @@ test('prepRows 정렬: 입찰 가까운 순, 같으면 단계 순, 날짜 없음
   assert.ok(rows[0].bidText.indexOf('입찰 예정일 4일 지남') === 0 && rows[2].bidText === '입찰 예정 D-200');
   const noDate = kbb.prepRows(PREPS, OVERVIEW, [], TODAY);
   assert.strictEqual(noDate[noDate.length - 1].sort, Infinity);
-  const h = kbb.prepRowHtml(rows[1]);                                      // C는 can_view=false
-  assert.ok(h.indexOf('aria-disabled="true"') >= 0 && h.indexOf('열람 권한이 없는 건입니다') >= 0 && h.indexOf('열람 권한이 없습니다"') >= 0);
-  const ok = kbb.prepRowHtml(rows[2]);
-  assert.ok(/aria-label="가, [^"]*, 사전준비 화면 열기"/.test(ok) && ok.indexOf('2/4') >= 0 && ok.indexOf('aria-disabled') < 0);
-});
-
-test('prepRowHtml: 담당자 서버 원문은 이스케이프, aria-label 끝에 입찰 문구(있을 때만)', function () {
-  const base = { id: 'B1', institutionId: 'A', name: '가', badge: { text: '사전준비', cls: 'pp-neutral' }, canView: true, done: 2, total: 4, bidText: '' };
-  const h = kbb.prepRowHtml(Object.assign({}, base, { assigneeText: '담당 <b>x</b><img src=x onerror=1>' }));
-  assert.ok(h.indexOf('<b>x</b>') < 0 && h.indexOf('<img') < 0 && h.indexOf('담당 &lt;b&gt;x&lt;/b&gt;') >= 0);
-  assert.ok(h.indexOf('<span class="d">2/4</span>') >= 0);                                              // 진행 칸·숫자 마크업은 그대로
-  assert.ok(h.indexOf('aria-label="가, 사전준비, 사전준비 화면 열기"') >= 0);
-  const b = kbb.prepRowHtml(Object.assign({}, base, { assigneeText: '', bidText: '입찰 예정 D-20' }));
-  assert.ok(b.indexOf('aria-label="가, 사전준비, 입찰 예정 D-20, 사전준비 화면 열기"') >= 0);
-});
-
-test('prepBodyHtml: 상태별 문구(401·403·오류·파일 모드·비었을 때)', function () {
-  assert.ok(kbb.prepBodyHtml({ state: 'offline' }, []).indexOf('서버에 연결하면 보입니다.') >= 0);
-  assert.ok(kbb.prepBodyHtml({ state: 'denied', code: 403 }, []).indexOf('영업팀·영업팀장·영업부장에게 보입니다.') >= 0);
-  assert.ok(kbb.prepBodyHtml({ state: 'denied', code: 401 }, []).indexOf('로그인이 필요합니다. 다시 로그인하세요.') >= 0);
-  assert.ok(kbb.prepBodyHtml({ state: 'error' }, []).indexOf('id="hb-retry"') >= 0);
-  const empty = kbb.prepBodyHtml({ state: 'ok' }, []);
-  assert.ok(empty.indexOf('아직 제안 확정한 기관이 없습니다.') >= 0 && empty.indexOf('id="hb-open-notice">입찰 공고 현황 열기') >= 0);
+  assert.strictEqual(rows[1].canView, false);                              // C는 can_view=false — 행 마크업(prepRowHtml)은 옛 3번 구획과 함께 지웠다
+  assert.strictEqual(rows[2].canView, true);
 });
 
 // ── 상세 공용(공고 상태 기록 절·기간 버튼 이름) ──────────────────────
@@ -505,21 +427,27 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
   const a = html.indexOf('/* 국민은행 상태 현황판(kbboard.js) 시작'), b = html.indexOf('/* 국민은행 상태 현황판 끝 */');
   assert.ok(a > 0 && b > a);
   const css = html.slice(a, b).replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.deepStrictEqual((css.match(/#[0-9a-fA-F]{3,8}\b/g) || []).filter(function (h) { return h !== '#fff'; }), []);   // 새 hex 없음 — DESIGN 허용값 #fff만 예외(color-mix 흰색)
+  assert.deepStrictEqual((css.match(/#[0-9a-fA-F]{3,8}\b/g) || []).filter(function (h) { return h !== '#fff' && h !== '#626d81'; }), []);   // 새 hex 없음 — DESIGN 허용값 #fff(color-mix 흰색)와 입력칸의 기존 리터럴 #626d81(구분 칩 테두리 3:1)만 예외
   assert.ok(!/,\s*white\)/.test(css));                                                                               // 'white' 글자 대신 #fff(design P3-1)
   (css.match(/font(?:-size)?:\s*(?:\d+\s+)?(\d+)px/g) || []).forEach(function (s) { assert.ok(Number(/(\d+)px/.exec(s)[1]) >= 11, s); });
-  // 11-17 세 주제 3열(design 6-B): 열 폭 1.15fr 1fr 1fr·간격 16, 열 높이 clamp(440px, 100vh − 168px, 960px), 머리 min-height 212px
-  assert.ok(/\.hb-cols \{[^}]*grid-template-columns:minmax\(0, 1\.15fr\) minmax\(0, 1fr\) minmax\(0, 1fr\)[^}]*gap:16px/.test(css));
-  assert.ok(/\.hb-col \{[^}]*height:clamp\(440px, calc\(100vh - 168px\), 960px\)/.test(css));
-  assert.ok(/\.hb-sum \{[^}]*min-height:212px/.test(css));
-  assert.ok(!/\.hb-list\b|\.hb-grid\b|\.hb-cards\b|\.kb-card\b|\.hb-alert\b|\.hb-chip\b/.test(css));          // 옛 두 열·요약 띠·알림 줄 규칙은 지웠다
-  assert.ok(/@media \(max-width:1279px\) \{[^@]*\.hb-cols \{ grid-template-columns:minmax\(0, 1fr\) minmax\(0, 1fr\); \}[^@]*#hb-preps \{ grid-column:1 \/ -1;/.test(css));
-  assert.ok(/@media \(max-width:880px\) \{[^@]*\.hb-cols \{ grid-template-columns:1fr; \}/.test(css));
+  // 11-17 c51 목표 기관 중심(design acfdd5da 6-B): 요약 띠 3칸 + 1.5fr 한 칸, 표 높이 clamp(280px, 100vh − 330px, 960px), 고정 열 폭 표, 머리 sticky, 3열 규칙은 없다
+  assert.ok(/\.hb-band \{[^}]*grid-template-columns:repeat\(3, minmax\(0,1fr\)\) minmax\(0,1\.5fr\)/.test(css));
+  assert.ok(/\.hb-tp \{[^}]*height:clamp\(280px, calc\(100vh - 330px\), 960px\)/.test(css));
+  assert.ok(/\.hb-tt \{[^}]*table-layout:fixed/.test(css) && /\.hb-tt thead th \{[^}]*position:sticky/.test(css));
+  assert.ok(/\.hb-tt tr\.late > \* \{[^}]*var\(--red\) 8%/.test(css));                                         // 지연 행 = 빨강 8% 바탕(글자 칩 '지연'이 함께)
+  assert.ok(/\.hb-tag \{[^}]*min-height:24px[^}]*border:1px solid #626d81/.test(css));                          // 칩 높이 24px·테두리 3:1
+  assert.ok(/\.hb-lane \.w\.est \{[^}]*repeating-linear-gradient/.test(css) && /\.hb-lane \.now \{[^}]*dashed var\(--muted\)/.test(css));   // 추정 = 빗금, 오늘 = 점선(틸 아님)
+  assert.ok(/\.hb-lane \.w \{[^}]*min-width:6px/.test(css));
+  assert.ok(!/\.hb-cols\b|\.hb-col\b|\.hb-nlink|\.hb-li\b|\.hb-act\b|\.hb-none\b|#hb-preps|#hb-notice/.test(css));   // 옛 3열·2번 구획 규칙은 지웠다
+  assert.ok(!/\.hb-list\b|\.hb-grid\b|\.hb-cards\b|\.kb-card\b|\.hb-alert\b|\.hb-chip\b/.test(css));
+  assert.ok(/@media \(max-width:1279px\) \{ \.hb-tt \.ln, \.hb-tf \.lg \{ display:none; \} \.hb-tt col\.c-nm \{ width:auto; \} \}/.test(css));   // 1279 이하: 일정 열·범례 숨김, 기관 열이 남는 폭을 받는다(design 11-17 P2-1)
+  assert.ok(/@media \(max-width:880px\) \{[^@]*\.hb-band \{ grid-template-columns:1fr 1fr; \}[^@]*\.hb-tp \{ height:auto; \}[^@]*\.hb-tt \{ min-width:764px; \}/.test(css));   // 764 = 기관 150 + 나머지 고정 열 614
+  assert.ok(/\.hb-menu \{[^}]*border-radius:12px/.test(css) && /\.hb-menu button\[aria-checked=false\] \.ck \{ visibility:hidden; \}/.test(css));
   // 줄: 종료 D-n(크게 16px mono), 빨강·주황은 글자색만(채운 배경 없음), 종료일 미상은 muted, 행 이름 13px
   assert.ok(/\.hb-end b \{ font:700 16px\/1\.2 var\(--mono\)/.test(css) && /\.hb-end\.urgent b \{ color:color-mix\(in srgb, var\(--red\) 72%, #fff\)/.test(css) && /\.hb-end\.soon b \{ color:color-mix\(in srgb, var\(--orange\) 72%, #fff\)/.test(css));
   assert.ok(/\.hb-end\.unk \{[^}]*color:var\(--muted\)/.test(css) && /\.hb-row \.nm \{ font-size:13px;/.test(css));
   assert.ok(/\.hb-row \{[^}]*grid-template-columns:minmax\(0, 1fr\) auto/.test(css));
-  assert.ok(/\.hb-li \{[^}]*grid-template-columns:minmax\(0, 1fr\) auto/.test(css) && /\.hb-act \.hb-confirm \{[^}]*min-height:28px/.test(css));
+  assert.ok(/\.hb-stg \.hb-confirm \{[^}]*min-height:28px/.test(css));
   assert.ok(/\.hb-foot details\[open\] \{ flex-basis:100%;/.test(css));
   assert.ok(/\.hb-row\[aria-disabled=true\][^{]*\{[^}]*color:var\(--muted\)/.test(css) && !/opacity/.test(css));   // opacity 대신 muted(DESIGN)
   assert.ok(/\.hb-slot\.hb-leaves \{[^}]*var\(--red\)/.test(css) && /\.hb-slot\.hb-stay \{ color:var\(--fg\); \}/.test(css));
@@ -528,20 +456,19 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
   assert.ok(/#hb-ofoot \{ display:block; word-break:keep-all; padding:8px 16px; line-height:1\.5; \}/.test(css) && /#hb-ofoot \.hb-src \{ display:inline; \}/.test(css) &&
     /#hb-ofoot \.db-why \{ white-space:nowrap; \}/.test(css) && /#hb-ofoot details \{ display:inline-block; margin-left:8px; \}/.test(css) && /#hb-ofoot details\[open\] \{ display:block; margin:6px 0 0; \}/.test(css));
   assert.ok(/\.hb-foot\[hidden\] \{ display:none; \}/.test(css));
-  assert.ok(/#hb-preps \.hb-sum \{ min-height:0; \}/.test(css) && !/\n\s*\.hb-sum \{ min-height:0; \}/.test(css));
   assert.ok(html.indexOf('.hb-cards') < 0);                                                                  // 낡은 주석의 .hb-cards 언급 정리
-  assert.ok(/\.hb-col:focus:not\(:focus-visible\) \{ outline:none; \}/.test(css) && !/\.hb-col:focus \{/.test(css));   // 키보드 포커스 링은 살린다(design P3-a)
-  // 채운 버튼 금지 — 와플 범례 색 견본(.lg i.k)은 버튼이 아니라 칸 색을 알려 주는 표지라 뺀다
-  assert.ok(!/background:var\(--(accent-color|red|fg)\)\s*;/.test(css.replace(/\.hb-waf \.lg i\.k \{[^}]*\}/, '')));
-  // 마크업 순서: 머리 → 오류 배너 → 세 구획(협약 중인 기관 → 입찰 공고가 뜬 대상 → 제안 진행 단계). 요약 띠·알림 줄·기간 버튼은 없다
+  assert.ok(/#hb-ours:focus:not\(:focus-visible\) \{ outline:none; \}/.test(css) && !/#hb-ours:focus \{/.test(css));   // 키보드 포커스 링은 살린다(design P3-a)
+  // 채운 버튼 금지 — 와플 범례 색 견본(.lg i.k)·국민은행 막대 채움(.bar.k)·진행 막대 채움(.hb-pg i)·마감 눈금(::after)은 버튼이 아니라 값을 알려 주는 표지라 뺀다
+  assert.ok(!/background:var\(--(accent-color|red|fg)\)\s*;/.test(css.replace(/\.hb-waf \.lg i\.k \{[^}]*\}/, '').replace(/\.hb-bk \.bar\.k \{[^}]*\}/, '')
+    .replace(/\.hb-pg i \{[^}]*\}/, '').replace(/\.hb-lane \.w:not\(\.est\)::after \{[^}]*\}/, '')));
+  // 마크업 순서(design 6-C): 제목 줄 → 오류 배너 → 요약 띠 → 목표 표 → 접힌 협약 구획. 3열·2번 구획·3번 구획은 없다
   const k0 = src('js/kbboard.js');
   const at2 = function (s) { return k0.indexOf(s); };
-  assert.ok(at2('id="hb-err"') < at2('class="hb-cols"') && at2('id="hb-ours"') < at2('id="hb-notice"') && at2('id="hb-notice"') < at2('id="hb-preps"'));
-  assert.ok(k0.indexOf('id="hb-cards"') < 0 && k0.indexOf('id="hb-alert"') < 0 && k0.indexOf('<fieldset') < 0 && k0.indexOf('hb-grid') < 0);
-  assert.ok(k0.indexOf('<h2 id="hb-ot">협약 중인 기관</h2>') > 0 && k0.indexOf('<h2 id="hb-nt">입찰 공고가 뜬 대상</h2>') > 0 && k0.indexOf('<h2 id="db-t2">제안 진행 단계</h2>') > 0);
-  assert.ok(k0.indexOf('<span class="sub">협약 중인 기관 · 입찰 공고 · 제안 진행</span>') > 0);
-  assert.ok(/section class="pnl hb-col" id="hb-ours"[^>]*aria-labelledby="hb-ot"/.test(k0) && /section class="pnl hb-col" id="hb-notice"[^>]*aria-labelledby="hb-nt"/.test(k0));
+  assert.ok(at2('id="hb-err"') < at2('class="hb-band"') && at2('class="hb-band"') < at2('class="hb-tp" id="hb-goals"') && at2('id="hb-goals"') < at2('<details id="hb-ours"'));
+  assert.ok(k0.indexOf('id="hb-cards"') < 0 && k0.indexOf('id="hb-alert"') < 0 && k0.indexOf('hb-grid') < 0 && k0.indexOf('class="hb-cols"') < 0 && k0.indexOf('id="hb-notice"') < 0 && k0.indexOf('id="hb-preps"') < 0);
+  assert.ok(k0.indexOf('<span class="ot" id="hb-ot">협약 중인 기관</span>') > 0 && k0.indexOf('<summary><h3') < 0 && k0.indexOf('<h2>입찰 현황판</h2>') > 0 && k0.indexOf('<select id="hb-year" aria-label="목표 연도">') > 0);
   assert.ok(k0.indexOf('<div class="hb-foot" id="hb-ofoot">') > 0 && k0.indexOf('db-foot') < 0);
+  assert.ok(k0.indexOf('<button type="button" id="hb-add" hidden>목표 기관 추가</button>') > 0);
   // 옛 이름 '국민은행이 맡은 기관'은 화면 글에서 사라졌다(주석 제외)
   assert.ok(k0.replace(/\/\/[^\n]*/g, '').indexOf('국민은행이 맡은 기관') < 0);
 });
@@ -551,8 +478,9 @@ test('배선: 감사 화면 이름(bid_board·bid_notice·map_popover)·현황�
   assert.ok(k.indexOf("screen: 'bid_board', fallback: '#' + colId") > 0 && k.indexOf("colId = colEl && colEl.id ? colEl.id : 'hb-ours'") > 0);   // 열마다 fallback(1열 #hb-ours·2열 #hb-notice·3열 #hb-preps)
   assert.ok(/refocus: function \(\) \{ return kbb\.findOpener\(\$\(colId\), key, act\); \}/.test(k) && /m\.refocus\(\)/.test(d) && d.indexOf("refocus: (opts && opts.refocus) || null") > 0);
   assert.ok(/function actOf\(rec\) \{\s*if \(kbb\.inProgress\(rec, st\.preps, st\.overview\)\) return 'open';/.test(k));   // 신규 유치 줄: 진행 기록이 있으면 배지(qa P3-4)
-  assert.ok(k.indexOf('같은 기관은 한 번만 셉니다') < 0 && k.indexOf('id="hb-pfoot" hidden') > 0 && /\$\('hb-pfoot'\)[\s\S]*?pf\.hidden = ps\.state !== 'ok'/.test(k));   // 3번 foot 중복 문구 삭제(design P2-3)
-  assert.ok(k.indexOf('제안 진행 단계 구획의 [다시 시도]를 누르세요.') > 0 && k.indexOf('오른쪽 제안 진행 단계') < 0);
+  assert.ok(k.indexOf('같은 기관은 한 번만 셉니다') < 0);                                                  // 3번 foot 중복 문구 삭제(design P2-3)
+  assert.ok(k.indexOf('제안 진행 단계 구획의 [다시 시도]') < 0 && k.indexOf('오른쪽 제안 진행 단계') < 0);                      // 없어진 구획을 가리키는 문구는 없다(qa 11-17 P3-9)
+  assert.ok(/hb-pretry/.test(k) && k.indexOf('hb-retry') < 0 && k.indexOf('db-retry') < 0 && k.indexOf('hb-open-notice') < 0 && k.indexOf('hb-to-prep') < 0 && k.indexOf('hb-prep') < 0 && k.indexOf('goPrep') < 0);
   assert.ok(/fa\.id !== 'dm-name' && fa\.id !== 'dm-box'\) m\.focus = ''/.test(d));                          // 이미 포커스를 옮긴 사용자를 [제안 확정]으로 끌고 가지 않는다(qa P3-6)
   assert.ok(d.indexOf("dash.postConfirm(id, 'bid_notice')") > 0 && d.indexOf("dash.postConfirm(id, m.screen)") > 0);
   assert.ok(d.indexOf("screen: (opts && opts.screen) || 'map_popover'") > 0);
@@ -565,9 +493,8 @@ test('배선: 감사 화면 이름(bid_board·bid_notice·map_popover)·현황�
   assert.ok(/function openNotice\(key\)[\s\S]*?flash\('입찰 공고 현황을 열 수 없습니다\./.test(k) && k.indexOf("openNotice('')") > 0 && k.indexOf('goNotice(btn') < 0);
   // 11-17: 포커스 복귀는 세 목록(협약 중인 기관·입찰 공고가 뜬 대상·제안 진행) 모두, [제안 확정] 버튼은 data-act로 같은 버튼에 돌아온다
   assert.ok(/function restoreFocus\(sc, keepKey\)[\s\S]*?data-act[\s\S]*?\.focus\(\)/.test(k));
-  ['hb-oscroll', 'hb-nscroll', 'hb-pscroll'].forEach(function (id) {
-    assert.ok(new RegExp("\\$\\('" + id + "'\\)[\\s\\S]*?keepFocus\\([\\s\\S]*?restoreFocus\\(").test(k), id);
-  });
+  assert.ok(/\$\('hb-oscroll'\)[\s\S]*?keepFocus\([\s\S]*?restoreFocus\(/.test(k));                          // 협약 중인 기관 목록
+  assert.ok(/function renderGoals\(\)[\s\S]*?\$\('hb-goals'\)[\s\S]*?keepFocus\(sc\)[\s\S]*?restoreFocus\(sc, keepKey\);\s*applyFocusNext\(\);/.test(k));   // 목표 표: 다시 그린 뒤 같은 버튼으로(그다음 pendingFocus)
   assert.ok(k.indexOf('aria-live') < 0);                                                                  // #hb-g1의 aria-live 제거(design P2-2)
   // [제안 확정] 버튼은 상세 팝업을 열어 팝업의 [제안 확정]으로 포커스를 옮긴다(목록에서 바로 저장하지 않는다)
   assert.ok(/classList\.contains\('hb-confirm'\)\) \{ openOurs\(btn, 'confirm'\)/.test(k) && k.indexOf("focus: focus || ''") > 0);

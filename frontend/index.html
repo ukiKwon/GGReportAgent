@@ -1546,7 +1546,7 @@
   .db-leg .lg-up svg { margin:0; }
   .db-leg .lg-n { margin-left:auto; }
   .db-leg b { font-family:var(--mono); font-weight:400; color:var(--fg); }
-  /* 작업 줄: 목록 | 상세 (입찰 현황판은 세 열 .hb-cols로 재구성, 2026-11-17) */
+  /* 작업 줄: 목록 | 상세 (입찰 현황판은 요약 띠 + 목표 표 .hb-tp로 재구성, 2026-11-17) */
   .db-work { flex:1 1 0; min-height:440px; display:grid; grid-template-columns:400px minmax(0, 1fr); gap:20px; }
   /* 목록·상세는 높이를 고정하고 안(#db-scroll·.db-pane-body)에서 스크롤한다 — 841px 화면에서 701px(2026-11-12 규격 C-2) */
   .db-list, .db-pane { height:clamp(440px, calc(100vh - 140px), 820px); display:flex; flex-direction:column; min-height:0; min-width:0; background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r-lg, 14px); box-shadow:var(--shadow); }
@@ -1723,24 +1723,146 @@
   @media (prefers-reduced-motion:reduce) { .db-row { transition:none; } .db-row:hover { transform:none; } }
   /* 입찰 현황판 끝 */
 
-  /* 국민은행 상태 현황판(kbboard.js) 시작 — #dash-root > #hb-root. 규격: design-reviewer 2026-11-16_1241_a6db51fa 6-D. 새 hex 없음(토큰만). .db-top은 입찰 공고 현황 머리도 쓴다 */
-  #hb-root { flex:1 0 auto; display:flex; flex-direction:column; gap:20px; }
+  /* 국민은행 상태 현황판(kbboard.js) 시작 — #dash-root > #hb-root. 규격: design-reviewer 2026-11-17_1513_acfdd5da 6-B(올해 목표 기관 표). 새 hex 없음(토큰만, #626d81은 입력칸의 기존 리터럴), 새 변수 없음. .db-top은 입찰 공고 현황 머리도 쓴다 */
+  #hb-root { flex:1 0 auto; display:flex; flex-direction:column; gap:12px; }
   /* 각주 출처 줄 — 행안부 금고지정 현황 바로가기(design-reviewer 11-17 a5b9b6a1 6-1). 기본 파랑은 패널 위 1.78:1이라 --fg 글자 + 틸 밑줄 */
   .hb-src { display:block; margin-top:6px; }
   .bk-src .hb-src { margin-top:0; }
   .hb-src a { color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent-color); text-underline-offset:3px; }
-  .hb-top, .db-top { display:flex; align-items:baseline; gap:12px; }
+  .db-top { display:flex; align-items:baseline; gap:12px; }
+  .hb-top { display:flex; align-items:center; gap:10px; min-height:28px; }
   .hb-top h2, .db-top h2 { margin:0; font-size:15px; font-weight:700; letter-spacing:-.01em; }
-  .hb-top .sub, .db-top .sub { font-size:12px; color:var(--muted); }
+  .hb-top select { font-size:12px; padding:4px 8px; }
+  .hb-top .ro { font-size:12px; color:var(--muted); }
+  .hb-top .ro[hidden], .hb-top #hb-add[hidden] { display:none; }
+  .db-top .sub { font-size:12px; color:var(--muted); }
   .hb-top .meta, .db-top .meta { margin-left:auto; font-size:12px; color:var(--muted); }
   .hb-top .meta b, .db-top .meta b { font-family:var(--mono); font-weight:400; color:var(--fg); }
-  /* 11-17 세 주제 3열(협약 중인 기관 | 입찰 공고가 뜬 대상 | 제안 진행 단계) — 각 열 머리(.hb-sum)가 요약 카드. design-reviewer 11-17 ab488e4e 6-A·6-B */
-  .hb-cols { display:grid; grid-template-columns:minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr); gap:16px; }
-  .hb-col { height:clamp(440px, calc(100vh - 168px), 960px); display:flex; flex-direction:column; min-height:0; min-width:0; }
-  .hb-col:focus:not(:focus-visible) { outline:none; }
-  .hb-col ul { list-style:none; margin:0; padding:0; }
-  .hb-sum { flex:none; min-height:212px; box-sizing:border-box; padding:14px 16px 12px; border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:6px; }
-  .hb-sum .db-h { gap:8px; }
+  #hb-add { font-size:12px; padding:4px 12px; }
+  /* 11-17 c51 목표 기관 중심 — 요약 띠(.hb-band) + 목표 표(.hb-tp, 12개월 일정이 마지막 열) + 접힌 협약 구획(#hb-ours). design-reviewer 11-17 acfdd5da 6-B */
+  .hb-band { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)) minmax(0,1.5fr); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r-lg,14px); }
+  .hb-k { min-width:0; min-height:84px; padding:12px 16px; border-left:1px solid var(--line); display:flex; flex-direction:column; gap:4px; }
+  .hb-k:first-child { border-left:0; }
+  .hb-k .l { font-size:12px; color:var(--muted); }
+  .hb-k .v { font:700 16px var(--mono); color:var(--fg); }
+  .hb-k .v span { margin-left:2px; font:400 12px "Malgun Gothic","Segoe UI",sans-serif; color:var(--muted); }
+  .hb-k .v.hot { color:color-mix(in srgb, var(--red) 72%, #fff); }
+  .hb-k .s { font-size:11px; line-height:1.45; color:var(--muted); }
+  .hb-k .s b { font:400 11px var(--mono); color:var(--fg); }
+  .hb-bk { margin:2px 0 0; display:grid; grid-template-columns:auto minmax(0,1fr) 20px; gap:4px 8px; align-items:center; font-size:11px; color:var(--muted); }
+  .hb-bk.two { grid-template-columns:auto minmax(0,1fr) 20px auto minmax(0,1fr) 20px; column-gap:8px; }   /* 은행 막대 4줄 이상이면 2단 — 띠가 커져 아래 구획이 화면 밖으로 밀리지 않게 */
+  .hb-bk dt, .hb-bk dd { margin:0; min-width:0; }
+  .hb-bk dd.tr { display:block; }
+  .hb-bk .bar { display:block; height:8px; border-radius:2px; background:color-mix(in srgb, var(--fg) 22%, var(--panel)); border:1px solid color-mix(in srgb, var(--fg) 55%, var(--panel)); box-sizing:border-box; }
+  .hb-bk .bar.k { background:var(--fg); border-color:var(--fg); }   /* 국민은행만 잉크 채움(와플 .k와 같은 말) — 새 색 없음 */
+  .hb-bk b { display:block; font:400 11px var(--mono); color:var(--fg); text-align:right; }
+  .hb-tp { display:flex; flex-direction:column; min-height:0; height:clamp(280px, calc(100vh - 330px), 960px); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r-lg,14px); overflow:hidden; }
+  .hb-ts { flex:1; min-height:0; overflow:auto; }
+  .hb-tt { width:100%; table-layout:fixed; border-collapse:separate; border-spacing:0; }
+  .hb-tt col.c-nm { width:150px; } .hb-tt col.c-tag { width:166px; } .hb-tt col.c-due { width:120px; }   /* 열 폭(design 11-17 6-A): 구분 166('예전 KB')·마감까지 120('D+140 추정 지남')·현 금고 은행 124가 잘리지 않게, 일정 열은 나머지 */
+  .hb-tt col.c-bank { width:124px; } .hb-tt col.c-stg { width:148px; } .hb-tt col.c-brf { width:56px; }
+  .hb-tt thead th { position:sticky; top:0; z-index:1; height:40px; padding:0 10px 7px; vertical-align:bottom; text-align:left; font-size:11px; font-weight:400; color:var(--muted);
+    background:color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter:blur(8px); border-bottom:1px solid var(--line-strong); }
+  .hb-tt td, .hb-tt tbody th { height:40px; padding:0 10px; vertical-align:middle; text-align:left; font-size:12px; font-weight:400; border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hb-tt td.mut, .hb-tt .mut { color:var(--muted); }
+  .hb-tt .hb-nm { all:unset; cursor:pointer; border-radius:4px; font-size:13px; font-weight:700; color:var(--fg); }
+  .hb-tt span.hb-nm { cursor:default; }
+  .hb-tt .hb-nm .rg { margin-right:6px; font-size:11px; font-weight:400; color:var(--muted); }
+  .hb-tt .hb-nm:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
+  .hb-tt tbody tr:hover > * { background:color-mix(in srgb, var(--accent-color) 6%, var(--panel)); }
+  .hb-tt tr.late > * { background:color-mix(in srgb, var(--red) 8%, var(--panel)); }       /* 상태 행 8% (18% Tint Rule) */
+  .hb-tt tr.emp td { height:auto; padding:20px 16px; white-space:normal; overflow:visible; }
+  .hb-tt tr.emp:hover > * { background:transparent; }
+  .hb-tt .hb-eh { margin:0 0 6px; font-size:14px; font-weight:700; color:var(--fg); }
+  .hb-tt tr.emp p { margin:6px 0 0; font-size:12px; color:var(--muted); }
+  .hb-tt tr.emp p b { font-family:var(--mono); font-weight:400; color:var(--fg); }
+  .hb-tt tr.emp .db-state { padding:0; }
+  .hb-cand { list-style:none; margin:10px 0 4px; padding:0; display:flex; flex-direction:column; gap:6px; max-width:560px; }   /* 버튼이 이름·종료일 가까이 서게 */
+  .hb-cand li { display:flex; align-items:center; gap:10px; }
+  .hb-cand .hb-tag { margin-left:auto; }
+  .hb-tag { display:inline-flex; align-items:center; gap:4px; min-height:24px; padding:2px 6px 2px 8px; font-size:11px; color:var(--fg); background:transparent; border:1px solid #626d81; border-radius:6px; }
+  .hb-tag svg { width:8px; height:8px; fill:none; stroke:var(--muted); stroke-width:1.4; }
+  .hb-tag.add { border-style:dashed; padding:2px 8px; }
+  .hb-tag.ro { border-color:var(--line-strong); cursor:default; padding:2px 8px; }   /* 보기 전용: span, ▾ 없음 */
+  .hb-dd { font:700 16px var(--mono); color:var(--fg); }
+  .hb-dd.hot { color:color-mix(in srgb, var(--red) 72%, #fff); }
+  .hb-dd.est { font-weight:400; color:var(--muted); }
+  .hb-dd.tx { font-family:inherit; font-size:12px; }
+  .hb-q { margin-left:4px; font-size:11px; color:var(--muted); }
+  .hb-bank .r { margin-left:3px; font-size:11px; color:var(--muted); }
+  .hb-stg { display:flex; align-items:center; gap:6px; min-width:0; }
+  .hb-stg .lb { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .hb-stg .hb-confirm { font-size:12px; padding:3px 10px; min-height:28px; }
+  .hb-stg .why { font-size:11px; color:var(--muted); white-space:nowrap; }
+  .hb-pg { flex:none; display:inline-block; width:30px; height:4px; border-radius:2px; background:var(--line-strong); overflow:hidden; }
+  .hb-pg i { display:block; height:100%; background:var(--fg); }
+  .hb-stg .n { flex:none; font:400 11px var(--mono); color:var(--muted); }
+  .hb-late { flex:none; padding:0 6px; border-radius:6px; font-size:11px; color:color-mix(in srgb, var(--red) 72%, #fff); border:1px solid var(--red); background:color-mix(in srgb, var(--red) 18%, transparent); }
+  .hb-tt td.ln { position:relative; padding:0; }
+  .hb-lane { position:absolute; inset:0; background:repeating-linear-gradient(to right, transparent 0 calc(100%/12 - 1px), var(--line) calc(100%/12 - 1px) calc(100%/12)); }
+  .hb-lane .cur { position:absolute; top:0; bottom:0; left:0; width:calc(100%/12); background:color-mix(in srgb, var(--fg) 4%, transparent); }
+  .hb-lane .now { position:absolute; top:0; bottom:0; border-left:1px dashed var(--muted); }   /* 오늘 — 틸 아님(One Teal Rule) */
+  .hb-lane .w { position:absolute; top:15px; height:10px; min-width:6px; border-radius:3px; background:color-mix(in srgb, var(--fg) 22%, var(--panel)); border:1px solid color-mix(in srgb, var(--fg) 55%, var(--panel)); box-sizing:border-box; }
+  .hb-lane .w.hot { background:color-mix(in srgb, var(--red) 18%, var(--panel)); border-color:var(--red); }
+  .hb-lane .w.est { background:repeating-linear-gradient(45deg, var(--line-strong) 0 1px, transparent 1px 4px); border:1px dashed var(--muted); }   /* 빗금 = 추정(DESIGN Shapes) */
+  .hb-lane .w:not(.est)::after { content:""; position:absolute; right:-1px; top:-4px; bottom:-4px; width:2px; border-radius:1px; background:var(--fg); }   /* 접수 마감 눈금 */
+  .hb-lane .w.hot::after { background:color-mix(in srgb, var(--red) 72%, #fff); }
+  .hb-lane .w.pl::after, .hb-lane .w.op::after { content:none; }   /* 공고 예정일(pl)·공고 중 마감 미상(op)은 접수 마감일이 아니라 눈금을 그리지 않는다 */
+  .hb-lane .w.op { border-right-style:dashed; }                   /* 마감을 모르는 막대는 오른쪽 끝을 점선으로 연다 */
+  .hb-lane .off, .hb-lane .unk { position:absolute; top:12px; font-size:11px; color:var(--muted); white-space:nowrap; }
+  .hb-lane .off { right:6px; font-family:var(--mono); }
+  .hb-lane .unk { left:calc(100%/12 + 6px); }
+  .hb-lane .unk.before { left:calc(100%/12 + 6px); }   /* 오늘 점선(첫 달 안)과 '← 추정일 지남'이 겹치지 않게 첫 달 칸 밖에서 시작 */
+  .hb-tt .mh { display:grid; grid-template-columns:repeat(12, 1fr); font:400 11px var(--mono); }
+  .hb-tt .mh span:first-child { color:var(--fg); }
+  .hb-tt .yr { display:block; margin-bottom:2px; font:400 11px var(--mono); }
+  .hb-tt tr.grp th { height:32px; padding-top:6px; font-size:12px; color:var(--muted); background:var(--panel); }
+  .hb-tt tr.grp b { font:400 12px var(--mono); color:var(--fg); }
+  .hb-tf { flex:none; display:flex; align-items:center; gap:12px; padding:6px 16px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
+  .hb-tf b { font:400 12px var(--mono); color:var(--fg); }
+  .hb-tf .sw { display:inline-block; width:14px; height:8px; margin-right:4px; border-radius:2px; vertical-align:middle; box-sizing:border-box; }
+  .hb-tf .sw.n { background:color-mix(in srgb, var(--fg) 22%, var(--panel)); border:1px solid color-mix(in srgb, var(--fg) 55%, var(--panel)); }
+  .hb-tf .sw.e { background:repeating-linear-gradient(45deg, var(--line-strong) 0 1px, transparent 1px 4px); border:1px dashed var(--muted); }
+  .hb-tf .sw.t { width:0; height:10px; border-radius:0; border-left:1px dashed var(--muted); }
+  .hb-tf button { margin-left:auto; font-size:12px; padding:3px 10px; }
+  .hb-menu { position:fixed; z-index:60; min-width:200px; padding:6px; display:flex; flex-direction:column; gap:2px; border:1px solid var(--line-strong); border-radius:12px; box-shadow:var(--shadow);
+    background:color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter:blur(12px); }
+  .hb-menu .mh { padding:4px 8px 6px; font-size:11px; color:var(--muted); }
+  .hb-menu button { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; padding:6px 8px; font-size:12px; text-align:left; color:var(--fg); background:transparent; border:0; border-radius:8px; transform:none; box-shadow:none; }
+  .hb-menu button:hover, .hb-menu button:focus-visible { background:color-mix(in srgb, var(--accent-color) 10%, transparent); transform:none; box-shadow:none; }
+  .hb-menu button:focus-visible { outline:2px solid var(--accent-color); outline-offset:-2px; }
+  .hb-menu .ck { width:10px; height:10px; fill:none; stroke:var(--fg); stroke-width:1.6; }
+  .hb-menu button[aria-checked=false] .ck { visibility:hidden; }
+  .hb-menu .ms { height:1px; margin:4px 0; background:var(--line); }
+  .hb-dlg .hb-opts { display:flex; flex-wrap:wrap; gap:6px 16px; }
+  .hb-dlg .hb-opts.v { flex-direction:column; }
+  .hb-dlg .hb-rd { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--fg); }
+  .hb-dlg .hb-rd input { width:auto; margin:0; }
+  .hb-dlg .hb-etc { margin-top:8px; }
+  .hb-dlg .tm-why { margin:0 auto 0 0; align-self:center; }
+  .hb-dlg #hb-a-q, .hb-dlg #hb-a-memo, .hb-dlg #hb-c-etc { display:block; width:100%; margin-top:4px; box-sizing:border-box; }   /* 이름표는 위 한 줄(.tm-reason-row), 칸은 대화창 폭 전체 — 제안팀 구성 창 #tm-reason과 같게 */
+  .hb-dlg:focus { outline:none; }   /* 저장 중에 포커스를 잠시 두는 상자(tabindex -1)라 링을 그리지 않는다 */
+  .hb-tp:focus { outline:none; }    /* [다시 시도] 뒤 포커스를 돌려받는 표 영역(tabindex -1) */
+  .hb-res { list-style:none; margin:4px 0 0; padding:0; max-height:208px; overflow:auto; border:1px solid var(--line-strong); border-radius:8px; }
+  .hb-res:empty { display:none; }
+  .hb-res li { padding:6px 10px; font-size:12px; cursor:pointer; border-bottom:1px solid var(--line); }
+  .hb-res li:last-child { border-bottom:0; }
+  .hb-res li[aria-selected=true] { background:color-mix(in srgb, var(--accent-color) 10%, transparent); }
+  .hb-res li[aria-disabled=true] { color:var(--muted); cursor:default; }
+  .hb-res .nm { display:block; font-weight:700; color:var(--fg); }
+  .hb-res li[aria-disabled=true] .nm { color:var(--muted); }
+  .hb-res .sub { display:block; font-size:11px; color:var(--muted); }
+  /* 접힌 협약 구획 — 펼치면 예전 1열(머리·와플·목록·각주) 그대로 */
+  #hb-ours { background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r-lg,14px); }
+  #hb-ours:focus:not(:focus-visible) { outline:none; }
+  #hb-ours > summary { min-height:40px; display:flex; align-items:center; gap:6px; padding:0 16px; list-style:none; cursor:pointer; border-radius:var(--r-lg,14px); font-size:12px; color:var(--muted); }
+  #hb-ours > summary::-webkit-details-marker { display:none; }
+  #hb-ours > summary .ot { margin:0 6px 0 0; font-size:14px; font-weight:700; color:var(--fg); }   /* summary 안에 제목(h3)을 두지 않는다(스크린리더 평탄화) — 같은 모양의 span */
+  #hb-ours > summary b { font:400 12px var(--mono); color:var(--fg); }
+  #hb-ours > summary .op { margin-left:auto; }
+  #hb-ours[open] .db-scroll { max-height:60vh; }
+  #hb-ours ul { list-style:none; margin:0; padding:0; }
+  #hb-ours .hb-sum { padding:14px 16px 12px; border-top:1px solid var(--line); border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:6px; }
   .hb-fig { margin:0; display:flex; align-items:baseline; gap:4px 14px; flex-wrap:wrap; font-size:13px; color:var(--muted); }
   .hb-fig b { margin-right:2px; font:700 16px var(--mono); color:var(--fg); }
   .hb-brk { margin:0; font-size:12px; line-height:1.5; color:var(--muted); }
@@ -1748,21 +1870,14 @@
   .hb-waf { margin-top:auto; display:grid; grid-template-columns:auto minmax(0, 1fr); gap:4px 12px; align-items:end; }
   .hb-waf .cap { grid-column:1 / -1; font-size:11px; color:var(--muted); }
   .hb-waf .db-state { grid-column:1 / -1; padding:0; }
-  .hb-col .waf { grid-template-columns:repeat(27, 6px); gap:2px; }
-  .hb-col .waf i { width:6px; height:6px; box-sizing:border-box; border-radius:1px; }
+  #hb-ours .waf { grid-template-columns:repeat(27, 6px); gap:2px; }
+  #hb-ours .waf i { width:6px; height:6px; box-sizing:border-box; border-radius:1px; }
   .hb-waf .lg { margin:0; display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); }
   .hb-waf .lg i { display:inline-block; width:8px; height:8px; margin-right:6px; border-radius:2px; border:1px solid color-mix(in srgb, var(--muted) 60%, var(--panel)); }
   .hb-waf .lg i.k { background:var(--fg); border-color:var(--fg); }
   .hb-waf .lg b { font-family:var(--mono); font-weight:400; color:var(--fg); }
-  .hb-nlink { margin-top:auto; display:flex; align-items:center; gap:6px 8px; flex-wrap:wrap; padding:8px 10px; border:1px solid var(--line); border-radius:var(--r-sm, 8px); font-size:12px; color:var(--muted); }
-  .hb-nlink b { font-family:var(--mono); font-weight:400; color:var(--fg); }
-  .hb-nlink button { margin-left:auto; font-size:12px; padding:4px 10px; }
-  .hb-sum .stg { gap:6px; margin-top:6px; }
-  .hb-sum .stg + .note { margin:6px 0 0; font-size:12px; color:var(--muted); }
-  .hb-sum .note { margin:6px 0 0; font-size:12px; color:var(--muted); line-height:1.5; }
-  .hb-col .db-grp { padding:10px 16px 6px; }
-  .hb-col .hb-row { padding:10px 16px; }
-  .hb-none { margin:0; padding:0 16px 10px; font-size:12px; color:var(--muted); }
+  #hb-ours .db-grp { padding:10px 16px 6px; }
+  #hb-ours .hb-row { padding:10px 16px; }
   .hb-foot { flex:none; display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; padding:8px 20px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
   .hb-foot .hb-src { display:inline; margin:0; }
   .hb-foot details { margin-left:auto; }
@@ -1777,12 +1892,6 @@
   #hb-ofoot .db-why { white-space:nowrap; }
   #hb-ofoot details { display:inline-block; margin-left:8px; }
   #hb-ofoot details[open] { display:block; margin:6px 0 0; }
-  /* 2번 구획 줄: [행 버튼 | 동작 칸]은 형제(버튼 안에 버튼을 넣지 않는다) */
-  .hb-li { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:start; border-top:1px solid var(--line); }
-  .hb-li .hb-row { border-top:0; padding-right:8px; grid-template-columns:minmax(0, 1fr); }
-  .hb-act { display:flex; flex-direction:column; align-items:flex-end; gap:6px; padding:10px 16px 10px 0; }
-  .hb-act .hb-confirm { font-size:12px; padding:3px 10px; min-height:28px; }
-  .hb-act .why { font-size:11px; color:var(--muted); white-space:nowrap; }
   .hb-row { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:4px 10px; width:100%; padding:12px 20px; text-align:left; white-space:normal; cursor:pointer;
             background:transparent; border:0; border-top:1px solid var(--line); border-radius:0; color:var(--fg); }
   .hb-row:hover { background:color-mix(in srgb, var(--accent-color) 6%, transparent); transform:none; box-shadow:none; }
@@ -1806,15 +1915,9 @@
   .hb-slot.hb-stay { color:var(--fg); }   /* 다음도 국민은행 — '다음은 다른 은행'과 짝. 테두리는 기본(틸은 선택·포커스 전용, One Teal Rule) */
   .db-soon-tag { margin-left:8px; font-size:11px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:6px; padding:0 5px;
                  background:repeating-linear-gradient(45deg, color-mix(in srgb, var(--muted) 12%, transparent) 0 2px, transparent 2px 4px); vertical-align:middle; }
-  @media (max-width:1279px) {
-    .hb-cols { grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); }
-    #hb-preps { grid-column:1 / -1; height:auto; max-height:60vh; }
-    #hb-preps .hb-sum { min-height:0; }
-  }
-  @media (max-width:880px) {
-    .hb-cols { grid-template-columns:1fr; }
-    .hb-col, #hb-preps { height:auto; max-height:70vh; }
-  }
+  /* 1279px 이하: 12개월 일정 열·범례를 숨긴다(날짜는 '마감까지' 열이 맡는다). 880px 이하: 요약 띠 2×2, 표는 안에서 가로 스크롤 */
+  @media (max-width:1279px) { .hb-tt .ln, .hb-tf .lg { display:none; } .hb-tt col.c-nm { width:auto; } }   /* 일정 열을 숨기면 남는 폭을 기관 열이 받는다(표가 끝까지 찬다) */
+  @media (max-width:880px) { .hb-band { grid-template-columns:1fr 1fr; } .hb-k:nth-child(3) { border-left:0; } .hb-tp { height:auto; } .hb-tt { min-width:764px; } }
   @media (prefers-reduced-motion:reduce) { .hb-row { transition:none; } }
   /* 국민은행 상태 현황판 끝 */
 
