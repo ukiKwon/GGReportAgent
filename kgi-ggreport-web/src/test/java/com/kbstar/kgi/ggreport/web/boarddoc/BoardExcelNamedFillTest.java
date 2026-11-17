@@ -419,4 +419,60 @@ public class BoardExcelNamedFillTest {
             assertTrue(b.scanPii().isEmpty());
         }
     }
+
+    // ── C-4 IRR 판단기준 문장(투자가부결정기준 행) ──
+
+    private static Map<String, Object> runRule(String irrText) throws Exception {
+        try (XlsxBook b = BoardSourceFixture.open(BoardSourceFixture.judgeRuleBook(irrText))) {
+            return BoardExcelFill.fill(b, BoardNamedMapFixture.map(), BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false));
+        }
+    }
+
+    @Test
+    public void 판단기준_문장은_투자가부결정기준_행의_퍼센트_숫자로_만든다() throws Exception {
+        Map<String, Object> out = runRule("3.30%보다 높을 경우");
+        Map<String, Object> c = cell(out, "C-4", "r3_c2");
+        assertEquals("IRR이 3.30%(고정자산 기회비용률)를 상회하는 경우 투자 결정", c.get("value"));
+        assertEquals("filled", c.get("status"));
+        assertNull(c.get("reason"));
+        assertEquals("3.30%", list(c.get("parts")).get(0).get("display"));         // 업로드 원문이 아니라 뽑은 토큰만
+        assertEquals("D4", list(c.get("parts")).get(0).get("cell"));
+        assertEquals("ok", table(out, "C-4").get("label_state"));
+        assertEquals("3.4", cell(out, "C-4", "r1_c1").get("value"));              // 다른 C-4 칸은 그대로
+        assertEquals("5.8", cell(out, "C-4", "r3_c1").get("value"));
+    }
+
+    @Test
+    public void 판단기준_숫자_표기_변형() throws Exception {
+        String[][] cases = {{"3.3%", "3.3%"}, {"3.30 %", "3.30%"}, {"3.30％", "3.30%"}};
+        for (String[] k : cases) {
+            Map<String, Object> c = cell(runRule(k[0]), "C-4", "r3_c2");
+            assertEquals(k[0], BoardDocSpec.irrRuleSentence(k[1]), c.get("value"));
+            assertEquals(k[0], "filled", c.get("status"));
+        }
+    }
+
+    @Test
+    public void 판단기준을_못_읽으면_한_코드로_실패하고_표_전체는_의심하지_않는다() throws Exception {
+        String[] bad = {null, "", "해당 없음", "3%에서 5% 사이"};                   // 행 없음·빈칸·% 0개·% 2개
+        for (String s : bad) {
+            Map<String, Object> out = runRule(s);
+            Map<String, Object> c = cell(out, "C-4", "r3_c2");
+            assertEquals(String.valueOf(s), "failed", c.get("status"));
+            assertEquals(String.valueOf(s), "IRR_RULE_UNREADABLE", c.get("reason"));
+            assertEquals("", c.get("value"));
+            assertTrue(list(c.get("parts")).isEmpty());
+            assertEquals("ok", table(out, "C-4").get("label_state"));
+            assertEquals(false, table(out, "C-4").get("needs_review"));
+            assertEquals("3.4", cell(out, "C-4", "r1_c1").get("value"));
+            assertEquals("filled", cell(out, "C-4", "r3_c1").get("status"));
+        }
+    }
+
+    @Test
+    public void onlyPct는_퍼센트_숫자가_정확히_하나일_때만() {
+        assertEquals("3.30%", BoardExcelNamedFill.onlyPct("3.30%보다 높을 경우"));
+        assertNull(BoardExcelNamedFill.onlyPct("연 3.3%, 4%"));
+        assertNull(BoardExcelNamedFill.onlyPct(""));
+    }
 }

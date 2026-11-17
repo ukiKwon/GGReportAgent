@@ -22,7 +22,8 @@ public final class BoardDocSpec {
 
     public static final String DEFAULT_ID = "default_doc";
     public static final String DEFAULT_NAME = "이사회 자료 수익성 분석(기본 양식)";
-    private static final double DISCOUNT = 1.0330;   // 고정자산 기회비용률 3.30%
+    /** 샘플 표(C-2·C-3)의 예시 숫자를 계산하는 데만 쓰는 가상 할인율. 실제 값이 아니며 판단기준·각주에는 쓰지 않는다(실제 값은 올린 수익성분석표에서 읽는다). */
+    private static final double EXAMPLE_DISCOUNT = 1.0330;
     private static final double TAX = 0.22;
 
     private BoardDocSpec() {
@@ -291,6 +292,21 @@ public final class BoardDocSpec {
 
     /** 카탈로그(표 목록·구조·셀 키)가 바뀌면 올린다. 버전 행의 CATALOG_VER 와 달라지면 응답이 낡았다고 알린다. */
     public static final int CATALOG_VER = 2;
+    /** C-4 IRR 판단기준 칸 — 직접 입력 칸이지만 엑셀(투자가부결정기준 행)에서 문장을 채울 수 있다. */
+    public static final String IRR_RULE_REF = "C-4";
+    public static final String IRR_RULE_KEY = "r3_c2";
+    public static final String IRR_RULE_DEFAULT = "IRR이 고정자산 기회비용률(수익성분석표 기준)을 상회하는 경우 투자 결정";
+    private static final String IRR_RULE_HEAD = "IRR이 ";
+    private static final String IRR_RULE_TAIL = "(고정자산 기회비용률)를 상회하는 경우 투자 결정";
+
+    /** pct = "3.30%" 처럼 서버가 읽은 숫자+% 토큰. 문장 틀은 서버 상수다. */
+    public static String irrRuleSentence(String pct) {
+        return IRR_RULE_HEAD + pct + IRR_RULE_TAIL;
+    }
+
+    public static boolean isTextFillKey(String ref, String key) {
+        return IRR_RULE_REF.equals(ref) && IRR_RULE_KEY.equals(key);
+    }
     /** CATALOG_VER 2 에서 새로 생긴 열 id(C-3 사업초기). 얼린 v1 구조와 비교할 때 이 열을 뺀다. */
     public static final String C3_INIT_COL = "c6";
     /** CATALOG_VER 2 에서 새로 생긴 표(맨 뒤에 덧붙는다). */
@@ -415,6 +431,19 @@ public final class BoardDocSpec {
         for (List<Cell> row : t.getRows()) {
             for (Cell c : row) {
                 if (c.isMapped()) {
+                    out.add(c.getKey());
+                }
+            }
+        }
+        return out;
+    }
+
+    /** 엑셀이 채울 수 있는 칸 키 = 연결 칸 + 판단기준 문장 칸(입력 칸으로 남아 있을 때). */
+    public static Set<String> fillKeys(Table t) {
+        Set<String> out = mappedKeys(t);
+        for (List<Cell> row : t.getRows()) {
+            for (Cell c : row) {
+                if (c.isInput() && !c.isMapped() && isTextFillKey(t.getId(), c.getKey())) {
                     out.add(c.getKey());
                 }
             }
@@ -988,7 +1017,9 @@ public final class BoardDocSpec {
                     Cell c = t.getRows().get(r).get(i);
                     String text = c.getText();
                     if (c.isMapped() || c.isInput()) {
-                        text = display(c, cells.get(c.getKey()), c.isParen() ? cells.get(c.getSubKey()) : null);
+                        String given = cells.get(c.getKey());
+                        text = given == null && isTextFillKey(t.getId(), c.getKey()) ? c.getText()   // 값이 없으면 기본(또는 옛 저장) 문구 유지
+                                : display(c, given, c.isParen() ? cells.get(c.getSubKey()) : null);
                     }
                     dst.add(c.withText(text));
                 }
@@ -1113,7 +1144,7 @@ public final class BoardDocSpec {
             m[4][t] = m[2][t] - donate[t];
             m[5][t] = Math.round(Math.max(m[4][t], 0) * TAX);
             m[6][t] = m[4][t] - m[5][t];
-            m[7][t] = Math.round(m[6][t] / Math.pow(DISCOUNT, t));
+            m[7][t] = Math.round(m[6][t] / Math.pow(EXAMPLE_DISCOUNT, t));
         }
         String[] labels2 = {"총수익(A)", "총비용(B)", "예상영업이익(C)=(A-B)", "출연금 및 예비비(D)",
                 "순이익(법인세차감전)(E)=(C-D)", "법인세(F)", "순이익(법인세차감후)(E-F)", "순이익(현재가치(NPV)기준)"};
@@ -1132,7 +1163,7 @@ public final class BoardDocSpec {
         long[][] n = new long[5][5];
         long[] unrecovered = {1600, 1200, 800, 300, 0};
         for (int t = 0; t <= 4; t++) {
-            double d = Math.pow(DISCOUNT, t);
+            double d = Math.pow(EXAMPLE_DISCOUNT, t);
             n[0][t] = Math.round(revenue[t] / d);
             n[1][t] = Math.round(cost[t] / d);
             n[2][t] = n[0][t] - n[1][t];
@@ -1150,14 +1181,15 @@ public final class BoardDocSpec {
                 sequentialIds("r", 6), Arrays.asList("c0", C3_INIT_COL, "c1", "c2", "c3", "c4", "c5"),
                 FIRST_NEW_ID, FIRST_NEW_ID, c3);
 
-        // page4 표 C-4: 투자적정성 분석 (판단기준은 고정 문구)
+        // page4 표 C-4: 투자적정성 분석 (IRR 판단기준 칸은 엑셀에서 숫자를 읽어 채운다 — 기본 문구에는 숫자가 없다)
         Table t4 = new Table("C-4", "C-4", "Ⅳ. 투자적정성 분석", 3, rows(
                 row(head("구분"), head("산출값"), head("투자가부 결정 판단기준")),
                 row(lab("회수기간법(Payback Period)"), f.vc("3.2년").withUnit("년"),lab("목표기간 보다 회수기간 짧을 시 투자 결정")),
                 row(lab("순현재가치(NPV)"), f.vc("2,345").withDec(2), lab("순 현재가치가 \"0\"보다 클 때 투자 결정")),
-                row(lab("내부수익률법(IRR)"), f.vc("5.8%").withUnit("%"),lab("IRR이 고정자산 기회비용을 상회하는 경우 투자 결정"))),
+                row(lab("내부수익률법(IRR)"), f.vc("5.8%").withUnit("%"),
+                        Cell.make(IRR_RULE_DEFAULT, 1, 1, false, false, "left", true))),
                 "※투입비용은 사업기간 내 연차별 비용을 현재가치로 환산한 값을 적용하고, 수익은 매년 발생하는 명목금액 기준으로 산출",
-                "※ 현재가치할인율 3.30% (고정자산 기회비용률)");
+                "※ 현재가치할인율: 올린 수익성분석표의 투자가부결정기준을 따릅니다");
 
         return new Doc(DEFAULT_ID, DEFAULT_NAME, a, b, t2, t3, t4, c5(f));
     }

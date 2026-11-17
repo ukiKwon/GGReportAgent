@@ -22,7 +22,10 @@ final class BoardNamedMapFixture {
             + "'it':{'path':['인건비','본부부서 인건비'],'count':2}}},"
             + "'judge':{'sheet':['수익성분석'],'title':'3. 투자 및 출연금 적정성 검토','header_has':['회수기간법*','내부수익률법*'],"
             + "'cols':{'payback':'회수기간법*','npv':'순현재가치(NPV)','irr':'내부수익률법*'},"
-            + "'unit':'백만원','unit_assumed':true,'rows':{'value':{'below':1}}}},"
+            + "'unit':'백만원','unit_assumed':true,'rows':{'value':{'below':1}}},"
+            + "'judge_rule':{'sheet':['수익성분석'],'title':'3. 투자 및 출연금 적정성 검토','header_has':['회수기간법*','내부수익률법*'],"
+            + "'cols':{'payback':'회수기간법*','npv':'순현재가치(NPV)','irr':'내부수익률법*'},"
+            + "'unit':'백만원','unit_assumed':false,'rows':{'rule':{'path':['투자가부결정기준']}}}},"
             + "'tables':["
             + "{'ref':'A','lines':["
             + "{'row':1,'cells':[{'op':'eok','parts':['detail.rev'],'col':'tot'}]},"
@@ -42,7 +45,8 @@ final class BoardNamedMapFixture {
             + "{'ref':'C-4','lines':["
             + "{'row':1,'cells':[{'op':'plain','parts':['judge.value'],'col':'payback'}]},"
             + "{'row':2,'cells':[{'op':'eok','parts':['judge.value'],'col':'npv'}]},"
-            + "{'row':3,'cells':[{'op':'plain','parts':['judge.value'],'col':'irr'}]}]}]}";
+            + "{'row':3,'cells':[{'op':'plain','parts':['judge.value'],'col':'irr'},"
+            + "{'op':'irr_rule','parts':['judge_rule.rule'],'col':'irr'}]}]}]}";
 
     private BoardNamedMapFixture() {
     }

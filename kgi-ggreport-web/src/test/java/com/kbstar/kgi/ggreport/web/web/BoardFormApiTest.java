@@ -644,8 +644,9 @@ public class BoardFormApiTest {
                     assertEquals(c.get("row_id").asText() + "_" + c.get("col_id").asText(), key);
                     assertTrue("중복 " + key, seen.add(key));
                     assertTrue(c.get("editable").asBoolean());                                   // 잠김 폐지: 모든 칸 true
-                    assertEquals(key, "A".equals(t.get("id").asText()) && "r1_c0".equals(key),   // 기관명만 직접 입력 칸
-                            c.get("input").asBoolean());
+                    boolean expectInput = ("A".equals(t.get("id").asText()) && "r1_c0".equals(key))     // 기관명
+                            || ("C-4".equals(t.get("id").asText()) && "r3_c2".equals(key));            // IRR 판단기준 문장
+                    assertEquals(key, expectInput, c.get("input").asBoolean());                       // 직접 입력 칸은 이 둘뿐
                 }
             }
         }

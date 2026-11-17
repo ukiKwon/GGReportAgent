@@ -66,7 +66,7 @@ public class BoardExcelMapTest {
             if (!BoardDocSpec.C5_REF.equals(cat.getId())) {          // 옛 형식 시험 지도에는 C-5 가 없다
                 assertEquals(cat.getId(), mapped, legacy.table(cat.getId()).getCells().keySet());
             }
-            assertEquals(cat.getId(), mapped, cur.table(cat.getId()).getSpecs().keySet());
+            assertEquals(cat.getId(), BoardDocSpec.fillKeys(cat), cur.table(cat.getId()).getSpecs().keySet());
             for (String k : mapped) {
                 assertTrue(k, BoardDocSpec.isValidCellKey(k));
             }

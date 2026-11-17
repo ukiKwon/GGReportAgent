@@ -137,6 +137,35 @@ public final class BoardSourceFixture {
     }
 
     /**
+     * 실제 모양의 판단표만 있는 시트: r0 제목, r1 머리글(구분|회수기간법(Payback Period)|순 현재가치(NPV)|내부수익률법(IRR)|출연금 적정성 검토),
+     * r2 "값", r3 "투자가부결정기준"(irrText==null 이면 행 없음, "" 이면 IRR 칸 빈칸). 가상 값.
+     */
+    public static byte[] judgeRuleBook(String irrText) throws IOException {
+        try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet s = wb.createSheet(SHEET);
+            text(s, 0, 0, "3. 투자 및 출연금 적정성 검토");
+            String[] h = {"구분", "회수기간법(Payback Period)", "순 현재가치(NPV)", "내부수익률법(IRR)", "출연금 적정성 검토"};
+            for (int c = 0; c < h.length; c++) {
+                text(s, 1, c, h[c]);
+            }
+            text(s, 2, 0, "값");
+            text(s, 2, 1, "3.4년");
+            num(s, 2, 2, 12.5);
+            text(s, 2, 3, "5.80%");
+            if (irrText != null) {
+                text(s, 3, 0, "투자가부결정기준");
+                text(s, 3, 1, "목표기간 보다 회수기간이 짧은 경우");
+                text(s, 3, 2, "순현재가치가 \"0\"보다 클 경우");
+                if (!irrText.isEmpty()) {
+                    text(s, 3, 3, irrText);
+                }
+            }
+            wb.write(out);
+            return out.toByteArray();
+        }
+    }
+
+    /**
      * 작은 시트 "S": r0 "2.세부 산출표", r1 머리글(A 구분, C 사업초기, D 계), r2..4 = B 열 라벨 가/나/다, A 열은 빈 칸(bigMerge 면
      * A3:A1048576 "수익" 병합으로 상속). 값 칸은 C,D = 행번호*100 + 열번호.
      */

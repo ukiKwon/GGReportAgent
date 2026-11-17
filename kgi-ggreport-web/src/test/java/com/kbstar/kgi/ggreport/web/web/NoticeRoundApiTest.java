@@ -510,11 +510,24 @@ public class NoticeRoundApiTest {
     }
 
     @Test
-    public void 입찰_없음_뒤_저장은_새_회차이고_옛_회차_번호는_409() throws Exception {
+    public void 입찰_없음_뒤_다음_입찰_예정일이_그대로면_새_회차도_옛_회차_번호도_409_NO_BID_CLOSED() throws Exception {
         saveOk(SALES, noBid());
         MvcResult old = save(SALES, "save", INST, body(1, 1, "IN_PROGRESS", null, null));
         assertEquals(409, old.getResponse().getStatus());
-        assertEquals("ROUND_CHANGED", json(old).path("detail").path("code").asText());
+        assertEquals("NO_BID_CLOSED", json(old).path("detail").path("code").asText());
+        MvcResult fresh = save(SALES, "save", INST, body(null, 0, "IN_PROGRESS", null, null));
+        assertEquals(409, fresh.getResponse().getStatus());
+        assertEquals("NO_BID_CLOSED", json(fresh).path("detail").path("code").asText());
+        assertEquals("이번 회차는 '입찰 없음'으로 닫혔습니다. 기관 정보에서 다음 입찰 예정일이 바뀌면 새 회차를 적을 수 있습니다.",
+                json(fresh).path("detail").path("message").asText());
+        assertEquals(1, roundRows());       // 아무것도 쓰지 않았다
+        assertEquals(1, logRows());
+    }
+
+    @Test
+    public void 입찰_없음_뒤_다음_입찰_예정일이_넘어가면_새_회차_저장은_201() throws Exception {
+        saveOk(SALES, noBid());
+        setLastBid("2026-10-20");
         MvcResult ok = saveOk(SALES, body(null, 0, "IN_PROGRESS", null, null));
         assertEquals(2, json(ok).path("round_seq").asInt());
         assertTrue(json(ok).path("round_opened").asBoolean());
@@ -558,6 +571,7 @@ public class NoticeRoundApiTest {
     @Test
     public void 입찰_없음_뒤_새_회차를_열면_current는_새_회차_한_건만_낸다() throws Exception {
         saveOk(SALES, noBid());
+        setLastBid("2026-10-20");
         saveOk(SALES, body(null, 0, "IN_PROGRESS", null, null));
         JsonNode cur = current(SALES);
         assertEquals(1, instItems(cur, INST));
@@ -582,6 +596,9 @@ public class NoticeRoundApiTest {
         assertNull(jdbc.queryForObject("SELECT CLOSED_LAST_BID FROM NOTICE_ROUND WHERE INSTITUTION_ID = ? AND ROUND_SEQ = 1", String.class, INST));
         setLastBid("2026-10-20");
         assertTrue(hasInst(current(SALES), INST));   // 비교할 기준이 없어 넘어감을 알 수 없다(알려진 한계)
+        MvcResult r = save(SALES, "save", INST, body(null, 0, "IN_PROGRESS", null, null));   // 저장도 같은 계약 — 계속 막힌다
+        assertEquals(409, r.getResponse().getStatus());
+        assertEquals("NO_BID_CLOSED", json(r).path("detail").path("code").asText());
     }
 
     @Test

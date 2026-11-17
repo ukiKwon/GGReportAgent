@@ -39,7 +39,8 @@ public class BoardExcelNamedMapTest {
         assertEquals(2, m.getMappingVer());
         assertTrue(m.table("C-4").isNamed());
         assertNull(m.table("C-4").getRange());
-        assertEquals(3, m.table("C-4").getSpecs().size());
+        assertEquals(4, m.table("C-4").getSpecs().size());                       // 연결 칸 3 + 판단기준 문장 칸(irr_rule) 1
+        assertEquals("irr_rule", m.table("C-4").getSpecs().get("r3_c2").op);
         assertEquals(1, m.table("A").getSums().size());
         assertEquals("r4_c2", m.table("A").getSums().get(0).getTotal());        // 지도 파일의 옛 key 가 새 key 로 번역된다
         assertEquals(java.util.Arrays.asList("r1_c2", "r2_c2", "r3_c2"), m.table("A").getSums().get(0).getOf());
@@ -94,6 +95,21 @@ public class BoardExcelNamedMapTest {
     }
 
     @Test
+    public void irr_rule은_판단기준_칸에만_그_칸에는_irr_rule만() {
+        ObjectNode r = root();
+        cellSpec(r, "C-4", 3, 1).put("op", "plain");                            // 판단기준 칸에 다른 op
+        expectInvalid(r);
+
+        r = root();
+        cellSpec(r, "C-4", 1, 0).put("op", "irr_rule");                         // 다른 칸에 irr_rule
+        expectInvalid(r);
+
+        r = root();
+        ((ArrayNode) cellSpec(r, "C-4", 3, 1).get("parts")).add("judge_rule.rule");   // 부품 2개
+        expectInvalid(r);
+    }
+
+    @Test
     public void 없는_구역_행_열_id_참조는_기동_실패() {
         ObjectNode r = root();
         ((ArrayNode) cellSpec(r, "C-4", 2, 0).get("parts")).removeAll().add("nope.value");
@@ -141,7 +157,7 @@ public class BoardExcelNamedMapTest {
     @Test
     public void 구역_9개는_기동_실패() {
         ObjectNode r = root();
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < 6; i++) {                                           // 3 + 6 = 9
             ((ObjectNode) r.get("areas")).set("extra" + i, area(r, "judge").deepCopy());
         }
         expectInvalid(r);
@@ -150,7 +166,7 @@ public class BoardExcelNamedMapTest {
     @Test
     public void 구역_8개는_통과하고_잘못된_id는_기동_실패() {
         ObjectNode ok = root();
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 5; i++) {                                           // 시험 지도에 이미 3개(detail·judge·judge_rule)
             ((ObjectNode) ok.get("areas")).set("extra" + i, area(ok, "judge").deepCopy());
         }
         new BoardExcelMap(ok);                                                  // 정확히 8개
@@ -230,7 +246,7 @@ public class BoardExcelNamedMapTest {
     }
 
     @Test
-    public void 실제_지도_v2는_표_6개_249칸을_읽는다() {
+    public void 실제_지도_v2는_표_6개_250칸을_읽는다() {
         BoardExcelMap m = new BoardExcelMap();
         assertEquals(2, m.getMappingVer());
         assertEquals(6, m.tables().size());
@@ -239,7 +255,7 @@ public class BoardExcelNamedMapTest {
             assertTrue(t.isNamed());
             n += t.getSpecs().size();
         }
-        assertEquals(249, n);                                                   // 94 + C-3 사업초기 5 + C-5 150
+        assertEquals(250, n);                                                   // 94 + C-3 사업초기 5 + C-5 150 + C-4 판단기준 문장 칸 1
         assertEquals(30, m.table("C-3").getSpecs().size());
         assertEquals("tot", m.table("C-3").getSpecs().get("r5_c5").main.get(0).col);
         assertEquals("init", m.table("C-3").getSpecs().get("r5_c6").main.get(0).col);   // 새 열 c6

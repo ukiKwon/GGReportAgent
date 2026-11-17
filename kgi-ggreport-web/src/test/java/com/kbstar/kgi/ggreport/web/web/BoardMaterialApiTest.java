@@ -838,6 +838,15 @@ public class BoardMaterialApiTest {
     }
 
     @Test
+    public void IRR_판단기준_문장_칸_r3_c2는_문장을_저장하고_숫자_검증을_받지_않는다() throws Exception {
+        long id = assignedMaterial();
+        String sentence = "IRR이 3.30%(고정자산 기회비용률)를 상회하는 경우 투자 결정";
+        save(id, MEMBER, bodyOf(0, "C-4", "r3_c2", sentence), 201);                  // 숫자 칸이면 NUM_MSG 400
+        String s = stored(id, 1);
+        assertTrue(s, s.contains("\"r3_c2\":\"" + sentence + "\""));
+    }
+
+    @Test
     public void 기관명_r1_c0은_직접_입력_칸_텍스트는_저장되고_개인정보는_422() throws Exception {
         long id = assignedMaterial();
         save(id, MEMBER, bodyOf(0, "A", "r1_c0", "노원구"), 201);

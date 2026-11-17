@@ -213,11 +213,21 @@ public class BoardProfitSampleTest {
             out = BoardExcelFill.fill(b, new BoardExcelMap(), BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false));
         }
 
-        // 요약: 94 + C-3 사업초기 열 5 + C-5 150 (기관명은 직접 입력 칸이라 연결 칸이 아니다)
+        // 요약: 94 + C-3 사업초기 열 5 + C-5 150 + C-4 판단기준 문장 칸 1 (기관명은 직접 입력 칸이라 연결 칸이 아니다)
+        // 판단기준 칸(C-4 r3_c2)은 샘플 xlsx 에 '투자가부결정기준' 행(% 숫자 1개)이 있으면 filled, 없으면 failed(IRR_RULE_UNREADABLE) —
+        // 어느 쪽이든 total 250, 나머지 249칸은 filled.
         Map<String, Object> sm = map(out.get("summary"));
-        assertEquals(249, sm.get("total"));
-        assertEquals(249, sm.get("filled"));
-        assertEquals(0, sm.get("failed"));
+        Map<String, Object> irr = cell(out, "C-4", "r3_c2");
+        boolean irrFilled = "filled".equals(irr.get("status"));
+        if (irrFilled) {
+            assertTrue(String.valueOf(irr.get("value")).matches("IRR이 [0-9.]+%\\(고정자산 기회비용률\\)를 상회하는 경우 투자 결정"));
+        } else {
+            assertEquals("failed", irr.get("status"));
+            assertEquals("IRR_RULE_UNREADABLE", irr.get("reason"));
+        }
+        assertEquals(250, sm.get("total"));
+        assertEquals(irrFilled ? 250 : 249, sm.get("filled"));
+        assertEquals(irrFilled ? 0 : 1, sm.get("failed"));
         assertEquals(0, sm.get("manual"));
         assertEquals(0, sm.get("review"));
         assertEquals(0, sm.get("warnings"));

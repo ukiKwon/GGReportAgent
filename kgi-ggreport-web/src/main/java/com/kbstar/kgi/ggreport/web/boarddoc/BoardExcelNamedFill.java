@@ -22,6 +22,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 이름·구역 형식 표 채우기. 구역은 요청당 한 번만 찾는다(Ctx 메모, 구역 ≤ 8). 부품이 비었거나 오류면 칸은 failed —
@@ -151,7 +153,7 @@ final class BoardExcelNamedFill {
      * sums.of 에 포함하고 SUM_HAS_MANUAL_PARTS 경고 + review 로 둔다(서버는 그 칸의 값을 모른다).
      */
     static Result table(Ctx c, TableMap t, BoardDocSpec.Table dt) {
-        Set<String> present = BoardDocSpec.mappedKeys(dt);
+        Set<String> present = BoardDocSpec.fillKeys(dt);
         Acc acc = new Acc();
         Map<String, Eval> evals = new LinkedHashMap<>();
         int unlinked = 0;
@@ -207,10 +209,36 @@ final class BoardExcelNamedFill {
         return r;
     }
 
+    static final String IRR_RULE_UNREADABLE = "IRR_RULE_UNREADABLE";
+    private static final Pattern PCT = Pattern.compile("(?<![0-9.,])([0-9]{1,3}(?:\\.[0-9]{1,4})?)\\s?%");
+
+    /** "3.30%보다 높을 경우" → "3.30%". % 숫자가 정확히 1개일 때만, 아니면 null. 전각 ％는 반각으로 본다. */
+    static String onlyPct(String shown) {
+        Matcher m = PCT.matcher(shown.replace('％', '%'));
+        if (!m.find()) { return null; }
+        String num = m.group(1);
+        return m.find() ? null : num + "%";
+    }
+
     private static Eval eval(Ctx c, CellSpec sp, Acc acc) {
         Eval e = new Eval(sp.key);
         if ("manual".equals(sp.op)) { e.status = "manual"; e.reason = "MANUAL_INPUT"; return e; }
         if ("derive_sum".equals(sp.op)) { return e; }
+        if ("irr_rule".equals(sp.op)) {
+            collect(c, sp.main.get(0), "main", e, new ArrayList<BigDecimal>(), acc, false);   // 숫자로 보지 않고 표시 글자를 읽는다
+            String pct = e.reason == null ? onlyPct(String.valueOf(e.parts.get(0).get("display"))) : null;
+            if (pct == null) {          // 행 없음·빈칸·% 0개·2개 이상 → 한 코드. 표 전체 머리글 의심으로 번지지 않게 lookup=false
+                e.parts.clear();
+                e.lookup = false;
+                e.reason = IRR_RULE_UNREADABLE;
+                e.value = "";
+            } else {
+                e.parts.get(0).put("display", pct);              // 업로드 원문 대신 추출한 토큰만 싣는다
+                e.value = BoardDocSpec.irrRuleSentence(pct);
+            }
+            e.status = e.reason != null ? "failed" : e.review ? "review" : "filled";
+            return e;
+        }
         boolean numeric = !"plain".equals(sp.op);
         List<BigDecimal> mainN = new ArrayList<>();
         List<BigDecimal> subN = new ArrayList<>();

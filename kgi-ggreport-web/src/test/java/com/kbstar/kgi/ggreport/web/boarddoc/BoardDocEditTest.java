@@ -247,6 +247,16 @@ public class BoardDocEditTest {
                         ((com.fasterxml.jackson.databind.node.ObjectNode) row.get("cells").get(0)).put("i", false);
                     }
                 }
+            } else if ("C-4".equals(ref)) {
+                for (com.fasterxml.jackson.databind.JsonNode row : t.get("rows")) {      // 그때는 IRR 판단기준(r3_c2)이 일반 문구 칸(i:false)이었다
+                    if ("r3".equals(row.get("id").asText())) {
+                        for (com.fasterxml.jackson.databind.JsonNode cn : row.get("cells")) {
+                            if ("c2".equals(cn.get("c").asText())) {
+                                ((com.fasterxml.jackson.databind.node.ObjectNode) cn).put("i", false);
+                            }
+                        }
+                    }
+                }
             } else if ("C-3".equals(ref)) {
                 com.fasterxml.jackson.databind.node.ArrayNode cols = (com.fasterxml.jackson.databind.node.ArrayNode) t.get("cols");
                 for (int j = cols.size() - 1; j >= 0; j--) {

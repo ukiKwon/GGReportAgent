@@ -134,7 +134,7 @@ final class NoticeRoundRules {
         }
 
         if (p.opinion == null && NO_BID.equals(st)) {
-            throw bad("opinion", "입찰 없음(연장·지정)으로 적을 때는 의견이 필요합니다. 어떻게 알게 됐는지 적으세요.");
+            throw bad("opinion", "입찰 없음(연장·지정)으로 적을 때는 의견이 필요합니다. 왜 입찰이 없는지 적으세요.");
         }
 
         String nc = ends(st) ? null : trim(in.getNextCheckDate());   // 공고 종료·입찰 없음은 다음 확인일을 두지 않는다(화면도 숨김)

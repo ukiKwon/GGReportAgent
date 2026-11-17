@@ -446,6 +446,69 @@ public class BoardDocSpecTest {
         assertEquals(Collections.singletonList("r1_c5_p"), Collections.singletonList(paren.getSubKey()));
     }
 
+    // ── C-4 IRR 판단기준(r3_c2): 직접 입력 + 엑셀 채우기 후보, 숫자는 올린 수익성분석표에서만 ──
+
+    @Test
+    public void C4_판단기준_r3_c2는_입력_칸이고_기본_문구와_각주에_숫자가_없다() {
+        BoardDocSpec.Doc d = BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false);
+        BoardDocSpec.Table c4 = table(d, "C-4");
+        BoardDocSpec.Cell c = c4.getRows().get(3).get(2);
+        assertEquals("r3_c2", c.getKey());
+        assertTrue(c.isInput());
+        assertFalse(c.isMapped());
+        assertFalse(c.getText().matches(".*[0-9].*"));
+        assertEquals(BoardDocSpec.IRR_RULE_DEFAULT, c.getText());
+        assertEquals(2, c4.getNotes().size());
+        assertFalse(c4.getNotes().get(1).matches(".*[0-9].*"));                       // 각주는 숫자 없는 고정 문장
+        assertEquals("※ 현재가치할인율: 올린 수익성분석표의 투자가부결정기준을 따릅니다", c4.getNotes().get(1));
+        java.util.Set<String> expect = new java.util.LinkedHashSet<>(BoardDocSpec.mappedKeys(c4));
+        expect.add("r3_c2");
+        assertEquals(expect, BoardDocSpec.fillKeys(c4));
+        assertFalse(BoardDocSpec.mappedKeys(c4).contains("r3_c2"));                  // 숫자 검증 대상(연결 칸)이 아니다
+        assertEquals("IRR이 3.30%(고정자산 기회비용률)를 상회하는 경우 투자 결정", BoardDocSpec.irrRuleSentence("3.30%"));
+    }
+
+    @Test
+    public void C4_판단기준_칸_withValues_값이_없으면_기본_문구_있으면_그_문장() {
+        BoardDocSpec.Doc d = BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false);
+        assertEquals(BoardDocSpec.IRR_RULE_DEFAULT,
+                table(BoardDocSpec.withValues(d, new LinkedHashMap<String, Map<String, String>>()), "C-4").getRows().get(3).get(2).getText());
+        String s = BoardDocSpec.irrRuleSentence("3.30%");
+        Map<String, Map<String, String>> v = new LinkedHashMap<>();
+        v.put("C-4", one("r3_c2", s));
+        assertEquals(s, table(BoardDocSpec.withValues(d, v), "C-4").getRows().get(3).get(2).getText());   // 문자 값은 숫자 검증 없이 받는다
+    }
+
+    @Test
+    public void 옛_저장_양식의_C4_r3_c2_일반_칸은_읽을_때_입력_칸으로_올라오고_옛_문구가_남는다() throws Exception {
+        BoardDocSpec.Doc d = BoardDocSpec.find(BoardDocSpec.DEFAULT_ID, false);
+        com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.node.ObjectNode root =
+                (com.fasterxml.jackson.databind.node.ObjectNode) om.readTree(BoardFormJson.toJson(d));
+        for (com.fasterxml.jackson.databind.JsonNode t : root.get("tables")) {
+            if (!"C-4".equals(t.get("ref").asText())) {
+                continue;
+            }
+            for (com.fasterxml.jackson.databind.JsonNode row : t.get("rows")) {
+                if (!"r3".equals(row.get("id").asText())) {
+                    continue;
+                }
+                for (com.fasterxml.jackson.databind.JsonNode cn : row.get("cells")) {
+                    if ("c2".equals(cn.get("c").asText())) {
+                        ((com.fasterxml.jackson.databind.node.ObjectNode) cn).put("i", false);
+                        ((com.fasterxml.jackson.databind.node.ObjectNode) cn).put("t", "옛 문구");
+                    }
+                }
+            }
+        }
+        BoardDocSpec.Doc back = BoardDocSpec.build(d.getId(), d.getName(),
+                BoardFormJson.parse(om.writeValueAsString(root)), false);
+        BoardDocSpec.Cell c = table(back, "C-4").getRows().get(3).get(2);
+        assertTrue(c.isInput());
+        assertFalse(c.isMapped());
+        assertEquals("옛 문구", c.getText());
+    }
+
     @Test
     public void 값_칸_주소표는_편집_가능_키_집합에_들어_있다() {
         BoardDocSpec.Doc d = BoardDocSpec.find("default_doc", true);

@@ -188,6 +188,16 @@ public class NoticeRoundService {
             closedSeq = open.getRoundSeq();
             open = null;
         }
+        if (open == null) {   // 입찰 없음으로 닫힌 회차 뒤에는 기관 자료(다음 입찰 예정일)가 넘어갈 때까지 새 회차를 열지 않는다(사용자 11-17). 아직 아무것도 쓰지 않았다.
+            List<NoticeRound> lastRound = mapper.selectRounds(inst, new RowBounds(0, 1));
+            NoticeRound last = lastRound.isEmpty() ? null : lastRound.get(0);
+            if (last != null && last.getClosedAt() != null && CLOSE_NO_BID.equals(last.getCloseReasonCd())) {
+                String base = last.getClosedLastBid() != null ? last.getClosedLastBid() : last.getAnchorLastBid();
+                if (!NoticeRoundRules.advanced(base, ref.getLastBid())) {
+                    throw conflict("NO_BID_CLOSED", "이번 회차는 '입찰 없음'으로 닫혔습니다. 기관 정보에서 다음 입찰 예정일이 바뀌면 새 회차를 적을 수 있습니다.", null);
+                }
+            }
+        }
         Integer curSeq = open == null ? null : open.getRoundSeq();
         NoticeRoundLog cur = curSeq == null ? null : mapper.selectLatestLog(inst, curSeq);
         int curRev = cur == null ? 0 : cur.getRevNo();

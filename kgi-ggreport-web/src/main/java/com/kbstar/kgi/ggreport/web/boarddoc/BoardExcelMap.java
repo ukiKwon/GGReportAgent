@@ -444,7 +444,7 @@ public class BoardExcelMap {
                 }
             }
         }
-        if (!BoardDocSpec.mappedKeys(cat).equals(specs.keySet())) {
+        if (!BoardDocSpec.fillKeys(cat).equals(specs.keySet())) {
             bad("cells " + ref);
         }
         List<Sum> sums = new ArrayList<>();
@@ -507,6 +507,15 @@ public class BoardExcelMap {
                     bad("spec " + ref);
                 }
                 break;
+            case "irr_rule":            // 판단기준 문장 칸 전용: 부품 1개, 숫자 환산 없음
+                if (n.has("sub") || n.has("of")) {
+                    bad("spec " + ref);
+                }
+                main = parts(n.path("parts"), col, false);
+                if (main.size() != 1) {
+                    bad("spec " + ref);
+                }
+                break;
             case "eok":
                 if (n.has("sub") || n.has("of")) {
                     bad("spec " + ref);
@@ -522,6 +531,9 @@ public class BoardExcelMap {
                 break;
             default:
                 bad("op " + ref);
+        }
+        if ("irr_rule".equals(op) != BoardDocSpec.isTextFillKey(ref, key)) {
+            bad("spec " + ref);     // irr_rule 은 그 칸에만, 그 칸에는 irr_rule 만
         }
         return new CellSpec(key, op, main, sub, of);
     }
@@ -543,9 +555,10 @@ public class BoardExcelMap {
 
     private static List<Integer> mappedIdx(BoardDocSpec.Table t, int r) {
         List<Integer> out = new ArrayList<>();
+        Set<String> fill = BoardDocSpec.fillKeys(t);
         if (r >= 0 && r < t.getRows().size()) {
             for (int i = 0; i < t.getRows().get(r).size(); i++) {
-                if (t.getRows().get(r).get(i).isMapped()) {
+                if (fill.contains(t.getRows().get(r).get(i).getKey())) {
                     out.add(i);
                 }
             }

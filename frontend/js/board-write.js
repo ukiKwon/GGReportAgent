@@ -378,7 +378,8 @@
                        raw: s.raw == null ? null : str(s.raw), rounded: s.rounded === true ? true : (s.rounded === false ? false : null) } : null,
             warns: warns, serverSum: serverSum,
             label: pos ? str(labeler({ title: ft.title, rows: rows, columns: t.columns, cells: {} }, pos.r, pos.ci)) : '',
-            asked: false, why: '', memo: '', whyAsked: false
+            asked: false, why: '', memo: '', whyAsked: false,
+            dflt: (bw.isTextFill(ref, key) && fcell && typeof fcell === 'object') ? str(fcell.text) : ''   // 값이 비었을 때 서버가 쓰는 기본 문구(화면 표시용, 저장값 아님)
           };
           if (fmt) Object.assign(t.cells[key], { fmt: fmt, sub: nsub, origSub: nsub });   // 숫자 칸만 — 옛 칸 모양은 그대로
           t.order.push(key);
@@ -456,9 +457,13 @@
     PART_EMPTY: '엑셀의 해당 칸이 비어 있어 값을 채우지 않았습니다. 빈 칸은 0으로 계산하지 않습니다. 0이면 엑셀에 0을 넣어 다시 올리거나 여기서 직접 입력하세요.',
     PART_FAILED: '합계에 들어가는 칸 중 값을 못 채운 칸이 있어 합계를 계산하지 않았습니다. 그 칸을 채우거나 합계를 직접 입력하세요.',
     NOT_NUMERIC: '엑셀 칸의 값을 숫자로 읽지 못했습니다. 엑셀에서 숫자로 고쳐 다시 올리거나 직접 입력하세요.',
+    IRR_RULE_UNREADABLE: '수익성분석표에서 투자가부결정기준(IRR)을 찾지 못했습니다 — 직접 입력하세요',
     NOT_FOUND: '엑셀에서 이 칸의 행·열을 찾지 못했습니다. 시트 구조가 양식과 같은지 확인한 뒤 다시 올리거나 직접 입력하세요.',
     GENERAL: '엑셀에서 값을 읽지 못했습니다. 직접 입력해 주세요.'
   };
+  // 서버가 엑셀(투자가부결정기준)에서 문장을 채울 수 있는 '직접 입력' 칸. 서버 BoardDocSpec.isTextFillKey 와 같은 칸이다(숫자 칸 아님).
+  const TEXT_FILL = { 'C-4': { r3_c2: true } };
+  bw.isTextFill = function (ref, key) { return has(TEXT_FILL, str(ref)) && has(TEXT_FILL[str(ref)], str(key)); };
   // 사유 코드 → 문구. ROW_/AREA_/HEADER_/COL_ 계열은 한 문구, 모르는 코드는 일반 문구.
   bw.reasonText = function (code) {
     const k = str(code);
@@ -704,7 +709,7 @@
   bw.cellAria = function (t, c) {
     const i = bw.cellInfo(t, c), pr = bw.parenOf(c);
     const parts = [(c.label || t.title).replace(/ · /g, ', '),
-      i.unreadable ? missText(c) : (pr ? pr.main + ', 괄호 안 ' + pr.sub : (c.value === '' ? (c.manual ? '직접 입력' : '비어 있음') : bw.cellText(c)))];
+      i.unreadable ? missText(c) : (pr ? pr.main + ', 괄호 안 ' + pr.sub : (c.value === '' ? (c.manual ? (c.dflt ? '기본 문구 ' + c.dflt : '직접 입력') : '비어 있음') : bw.cellText(c)))];
     if (i.edited) parts.push('원본과 다름' + (i.hasOrig ? ', 원본 ' + bw.origText(c) : ''));
     if (i.sumBad) parts.push('합계 차이 ' + i.sum.diff);
     if (c.warns.some(function (w) { return w !== 'LABEL_MISMATCH'; })) parts.push('주의');
@@ -1040,6 +1045,7 @@
     let inner;
     if (i.unreadable) inner = '<span class="bd-w-miss' + (c.reason === 'PART_EMPTY' ? ' bd-w-empty' : '') + '">' + missText(c) + '</span>';
     else if (pr) inner = esc(pr.main) + ' <span class="bd-w-paren">(' + esc(pr.sub) + ')</span>';
+    else if (c.manual && c.value === '' && c.dflt) inner = '<span class="bd-w-dflt">' + esc(c.dflt) + '</span>';
     else if (c.manual && c.value === '') inner = '<span class="bd-w-miss bd-w-empty">직접 입력</span>';
     else inner = esc(bw.cellText(c));
     let extra = '';
@@ -1423,7 +1429,7 @@
   // 복사 값 = 화면 현재 값. 상태 표시(틴트·체크·삼각형·보조 줄·사유·원래 값)는 넣지 않는다.
   function oneLine(s) { return str(s).replace(/[\t\r\n]+/g, ' ').trim(); }
   function cellTextOf(t) {
-    return function (o) { const k = str(o.key); return ((o.mapped === true || o.input === true) && has(t.cells, k)) ? bw.cellText(t.cells[k]) : str(o.text); };
+    return function (o) { const k = str(o.key); return ((o.mapped === true || o.input === true) && has(t.cells, k)) ? (bw.cellText(t.cells[k]) || str(t.cells[k].dflt)) : str(o.text); };
   }
   function tsvRows(rows, textOf) {
     const g = [];
@@ -1669,10 +1675,14 @@
       if (!t.mapped || !saved) return;
       t.order.forEach(function (k) {
         const c = t.cells[k];
-        if (!c || !c.manual) return;
+        if (!c) return;
+        // 서버가 문장을 못 읽은(failed) 채움 칸에 저장본의 직접 쓴 문구가 있으면 그 문구를 살린다(엑셀이 filled 로 채웠으면 엑셀 값이 이긴다).
+        const rescue = !c.manual && c.status === 'failed' && bw.isTextFill(t.ref, k) && has(saved, k) && str(saved[k]).trim() !== '';
+        if (!c.manual && !rescue) return;
         const sk = c.fmt && c.fmt.paren ? c.fmt.subKey : null;
         if (has(saved, k) || (sk && has(saved, sk))) {
           const patch = { value: has(saved, k) ? str(saved[k]) : '', orig: has(saved, k) ? str(saved[k]) : '' };
+          if (rescue) { patch.status = 'manual'; patch.manual = true; patch.reason = ''; }   // 직접 쓴 칸으로 본다: 읽지 못함 집계에서 빠진다
           if (c.fmt) { const sv = sk && has(saved, sk) ? str(saved[sk]) : ''; patch.sub = sv; patch.origSub = sv; }   // 괄호 칸은 둘째 값도 이어받는다
           out = bw.patchCell(out, t.ref, k, patch);
         }
