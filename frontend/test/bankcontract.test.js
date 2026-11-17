@@ -108,9 +108,22 @@ test('수집 기록과 같음은 은행·순위 둘 다 같을 때만, 저장 �
 
 test('sectionHtml: 겹침 줄은 약정 줄 바로 아래, 2027년부터 줄 앞에 순위', () => {
   const h = bc.sectionHtml(V([L({ overlap_with: [2] })]), LEG);
-  assert.ok(h.indexOf('같은 순위 약정과 기간이 겹칩니다') > h.indexOf('약정 <span class="v">') && h.indexOf('같은 순위 약정과 기간이 겹칩니다') < h.indexOf('출처 '));
+  assert.ok(h.indexOf('겹치는 금고 순위 약정과 기간이 겹칩니다') > h.indexOf('약정 <span class="v">') && h.indexOf('겹치는 금고 순위 약정과 기간이 겹칩니다') < h.indexOf('출처 '));
+  assert.ok(bc.overlapHtml([L()], LEG.ranks || []).includes('겹치는 금고 순위에 기간이 겹치는 약정이 있습니다.'));
   const f = bc.sectionHtml(V([L(), L({ contract_no: 2, term_state: 'FUTURE', term_from: '2027-01-01', term_to: '2030-12-31', rank_cd: 'SECOND' })]), LEG);
   assert.ok(f.includes('2금고 · 신한은행'));
+});
+
+test('입력자 표기: 처음 입력자 기준, 최신 수정자가 다르면 마지막 고침 덧붙임, first 없으면 수정자', () => {
+  const F = { first_editor_name: '김처음', first_saved_at: '2026-11-10T09:00:00', editor_name: '김처음', saved_at: '2026-11-16T10:00:00' };
+  const same = bc.sectionHtml(V([L(F)]), LEG);
+  assert.ok(same.includes('입력 김처음 · <span class="v">11-10</span>') && !same.includes('마지막 고침'));
+  const diff = bc.sectionHtml(V([L(Object.assign({}, F, { editor_name: '이<b>고침' }))]), LEG);
+  assert.ok(diff.includes('입력 김처음 · <span class="v">11-10</span> · 마지막 고침 이&lt;b&gt;고침 (<span class="v">11-16</span>)'));
+  assert.ok(!diff.includes('이<b>'));
+  const old = bc.sectionHtml(V([L()]), LEG);
+  assert.ok(old.includes('입력 이영업 · <span class="v">2026-11-16</span>') && !old.includes('마지막 고침'));
+  assert.ok(bc.sectionHtml(V([L(Object.assign({}, F, { emp_verified: false }))]), LEG).includes('</span> · 로그인 연동 전'));
 });
 
 test('sectionHtml: emp_verified=false면 로그인 연동 전 표지, true면 없음', () => {

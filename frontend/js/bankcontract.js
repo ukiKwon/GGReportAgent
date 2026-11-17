@@ -157,8 +157,15 @@
   bc.rankName = rankName;
 
   function whoHtml(l) {
-    return '<span class="bk-who">입력 ' + E(l.editor_name) + ' · ' + mono(day(l.saved_at)) +
-      (l.emp_verified === true ? '' : ' · 로그인 연동 전') + '</span>';
+    const tail = l.emp_verified === true ? '' : ' · 로그인 연동 전';
+    // 서버가 처음 입력자(first_editor_name·first_saved_at)를 주면 그 사람 기준, 최신 수정자가 다르면 덧붙인다. 없으면(옛 응답) 지금 수정자.
+    if (l.first_editor_name) {
+      const md = function (s) { return String(s || '').slice(5, 10); };
+      const last = l.editor_name && l.editor_name !== l.first_editor_name
+        ? ' · 마지막 고침 ' + E(l.editor_name) + ' (' + mono(md(l.saved_at)) + ')' : '';
+      return '<span class="bk-who">입력 ' + E(l.first_editor_name) + ' · ' + mono(md(l.first_saved_at || l.saved_at)) + last + tail + '</span>';
+    }
+    return '<span class="bk-who">입력 ' + E(l.editor_name) + ' · ' + mono(day(l.saved_at)) + tail + '</span>';
   }
   function srcHtml(l) {
     const k = l.src_kind;
@@ -177,7 +184,7 @@
     if (s === 'UNKNOWN') term = '약정 기간 <span class="pop-unk">미확인</span>';
     else if (l.term_from) term = '약정 ' + mono(l.term_from + ' ~ ' + l.term_to);
     else term = '약정 끝 ' + mono(l.term_to);
-    const ov = Array.isArray(l.overlap_with) && l.overlap_with.length ? '<span class="bk-ln db-chk">같은 순위 약정과 기간이 겹칩니다</span>' : '';
+    const ov = Array.isArray(l.overlap_with) && l.overlap_with.length ? '<span class="bk-ln db-chk">겹치는 금고 순위 약정과 기간이 겹칩니다</span>' : '';
     return '<dt>' + dt + '</dt><dd>' +
       '<span class="bk-ln">' + (s === 'FUTURE' ? E(rankName(l, o.ranks)) + ' · ' : '') + E(l.bank_name) + (s === 'PAST' ? ' <span class="wf-badge pp-cancel">만료</span>' : '') +
       ' <span class="wf-badge pp-neutral">직접 입력</span>' + (o.same ? ' <span class="db-why">· 수집 기록과 같음</span>' : '') + '</span>' +
@@ -390,7 +397,7 @@
     return h + '</div></div>';
   };
   bc.overlapHtml = function (list, ranks) {
-    return '<p id="ie-bk-ov-t">같은 순위에 기간이 겹치는 약정이 있습니다.</p><ul class="bk-hist-list">' + (list || []).map(function (l) {
+    return '<p id="ie-bk-ov-t">겹치는 금고 순위에 기간이 겹치는 약정이 있습니다.</p><ul class="bk-hist-list">' + (list || []).map(function (l) {
       const per = l.term_from ? l.term_from + ' ~ ' + l.term_to : '끝 ' + l.term_to;
       return '<li>' + E(rankName(l, ranks)) + ' ' + E(l.bank_name) + ' · ' + mono(per) + ' (입력 ' + E(l.editor_name) + ')</li>';
     }).join('') + '</ul><div class="ie-row"><button type="button" id="ie-bk-ov-yes">겹침을 알고 저장</button><button type="button" id="ie-bk-ov-no">돌아가서 고치기</button></div>';
