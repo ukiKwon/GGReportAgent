@@ -242,7 +242,7 @@
 
 ### 94. 행안부 금고지정 현황 · 입찰 현황판 세 주제 — **바로가기(77b18b2)·행안부 값 연결(d1cb99b)·현황판 3열 재구성(349e6fa) 완료, 남은 하 5건** [담당: backend-dev → frontend-dev / data-auditor]
 - **현재**: 사용자 11-17 결정 반영 — [제안 확정]은 공고 난 뒤에만, 순위 = 일반회계 1금고·나머지 2금고·한 은행이 다 맡으면 단수 금고(frontend/data/lofin-2026.js, tools/lofin/build-lofin.js), 현황판 = 협약 중인 기관(협약 종료일 순·종료 D-n·다음 입찰 공고 예정일) | 입찰 공고가 뜬 대상(협약 중인 기관 + 신규 유치) | 제안 진행 단계. 직접 입력 금고 약정 종료일은 현황판에 아직 안 씀(기관별 응답만 있음), 법원·공공기관 종료일은 기관 자료 contractExpiry 사용 중.
-- **다음 한 걸음**: ① backend-dev 기관별 약정 종료일 목록 API 설계 → kbboard endOpts().direct·각주 절 복원 ② data-auditor 비지자체 contractExpiry 출처 확인 ③ 2열에 공고 줄이 생기는 날 [제안 확정]→Esc 포커스 복귀 실화면 확인 ④ 서버 POST /preps도 공고 조건으로 막을지(qa P3-4) ⑤ 9f: bankcontract.js:23 kbNote 이름 '협약 중인 기관'.
+- **다음 한 걸음**: ① backend-dev 기관별 약정 종료일 목록 API 설계 → kbboard endOpts().direct·각주 절 복원 ② data-auditor 비지자체 contractExpiry 출처 확인 ③ 2열에 공고 줄이 생기는 날 [제안 확정]→Esc 포커스 복귀 실화면 확인 ④ 서버 POST /preps도 공고 조건으로 막을지(qa P3-4). (⑤ kbNote 이름은 9f a7dcacd로 해소)
 - **자세히**: planner `2026-11-17_1252_a3bad39d`(세 주제)·11-17 제안확정·금고 기본값, design-reviewer 11-17 `ab488e4e`·`a99290ec`, data-auditor 11-17(행안부 변환 규칙), design_history ㊺·㊻·㊼·㊿.
 
 ### 51. 이사회 작성 모드 선택 스포트라이트 후속 — **구현 완료(8c577bb·36415f5), 확인·판단 3건 남음** [담당: qa-verifier ∥ design-reviewer → frontend-dev / 사용자 답]
