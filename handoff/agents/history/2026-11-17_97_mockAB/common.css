@@ -1,0 +1,7 @@
+button:hover,.btn-like:hover{transform:none;box-shadow:none}
+button,.btn-like{background:#fff}
+.nav-cat,.nav-item,.nav-count,.nav-soon-tag,.stab-x,#ov-collapse,.soon-badge,#region-tip,#bd-tip,.bd-card,.lg-chip{border-radius:2px}
+.stab{border-radius:2px 2px 0 0}
+.login-card,#login-view .lg-primary,#login-view .lg-ghost,#login-view .login-card input,#login-view .login-card select{border-radius:2px}
+#ticker,#legend{font-family:inherit}
+.filter-title,#legend .lg-title{letter-spacing:0}

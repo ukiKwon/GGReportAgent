@@ -1,0 +1,22 @@
+:root{--bg:#e9ecf0;--panel2:#f6f7f9;--line:#c3c9d1}
+header{background:#052561;color:#fff;border-bottom:0;padding:10px 20px}
+header h1,header h1 svg,#user-label{color:#fff}
+header button{background:transparent;color:#fff;border-color:rgba(255,255,255,.6)}
+header button:hover{background:rgba(255,255,255,.14);border-color:#fff}
+header :focus-visible{outline-color:#fff}
+#side-nav{background:#f6f7f9;border-right-color:#c3c9d1}
+.nav-cat{color:#052561}
+.nav-item.active{background:#fff;box-shadow:inset 3px 0 0 var(--accent-color);font-weight:700}
+#tab-bar{background:#f6f7f9}
+.stab.active{background:#fff;border-color:#c3c9d1}
+#topbar,#ticker-strip{background:#fff}
+#map-stage,#ov-panel,#rank-panel{border-color:#aeb5bf}
+#map-stage{background:#fafbfc}
+.ov-head,.rank-head{background:#eef1f5;backdrop-filter:none}
+#legend{background:#f6f7f9}
+#ov-title{font-size:15px}
+#login-view{background:#e9ecf0}
+.lg-top{background:#052561;color:#fff}
+.lg-brand svg{color:#fff}
+.lg-note{color:#dfe6f3}
+.login-card{background:#fff;backdrop-filter:none;border-color:#aeb5bf;border-top:3px solid #052561}

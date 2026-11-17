@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>NEXT 97 시안 A/B 비교</title>
+<style>
+  body { margin:0; padding:24px; font:14px/1.6 "Malgun Gothic",sans-serif; background:#f4f5f7; color:#1e2124; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .lead { color:#464c53; margin:0 0 20px; max-width:1100px; }
+  h2 { font-size:16px; margin:28px 0 8px; border-bottom:1px solid #d1d5db; padding-bottom:4px; }
+  .row { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px; }
+  figure { margin:0; background:#fff; border:1px solid #d1d5db; padding:8px; }
+  figcaption { font-weight:700; margin-bottom:6px; }
+  figcaption small { font-weight:400; color:#464c53; }
+  img { width:100%; display:block; border:1px solid #e6e8ea; }
+  ul { margin:6px 0; }
+  code { font-family:Consolas,monospace; background:#e6e8ea; padding:0 4px; }
+</style>
+</head>
+<body>
+<h1>화면 개편 시안 A/B 비교 (NEXT 97, 2026-11-17)</h1>
+<p class="lead">사용자 피드백 "전체적으로 허접해 보인다, 흰 바탕이 많아서?"에 대한 디자이너 시안 2개입니다(진단: handoff/agents/design-reviewer/2026-11-17_1829_a22a0bb4.md). 캡처는 헤드리스 Chrome 1440×900, 서버 없이 파일로 연 로그인 화면과 '로그인 없이 둘러보기' 지도 화면입니다. 시안은 실제 파일이 아닌 사본에 CSS(<code>common.css</code> + 시안 CSS)를 덧입혀 찍었습니다. <b>사용자가 A/B 중 하나를 고르면</b> 그 CSS를 2단계(모서리·글자 정리)와 함께 실제 화면에 적용합니다.</p>
+
+<h2>원인 (디자이너 진단 요약)</h2>
+<ul>
+  <li>면 위계가 거꾸로: 머리 영역과 작업 영역이 같은 회색(#f4f5f7), 왼쪽 메뉴·탭 줄이 오히려 흰색 — 회색과 흰색 대비 1.09:1로 구분이 거의 안 됨.</li>
+  <li>1단계 이전의 둥근 모양 잔재(로그인 카드 14px·알약 버튼·탭 8px·검정 알약 배지), 어두운 테마용 hover 그림자.</li>
+  <li>고정폭 글꼴(임박 TOP5 줄·범례)이 타자기 문서처럼 보임, 같은 모양 버튼 5개, 평평한 글자 위계, 지도 주변 빈 면.</li>
+</ul>
+
+<h2>지도 화면 — 시안 A · 시안 B</h2>
+<div class="row">
+  <figure><figcaption>시안 A — 네이비 머리 띠 <small>(은행·정부 업무 시스템 느낌, 작업영역 회색 #e9ecf0 위 흰 패널)</small></figcaption><img src="mockA_2_main.jpg" alt="시안 A 지도 화면"></figure>
+  <figure><figcaption>시안 B — 회색 단계 강화 <small>(무채색, 머리 아래 2px 검정 선, 작업영역 #e6e8ea)</small></figcaption><img src="mockB_2_main.jpg" alt="시안 B 지도 화면"></figure>
+</div>
+
+<h2>로그인 화면 — 시안 A · 시안 B</h2>
+<div class="row">
+  <figure><figcaption>시안 A</figcaption><img src="mockA_1_login.jpg" alt="시안 A 로그인"></figure>
+  <figure><figcaption>시안 B</figcaption><img src="mockB_1_login.jpg" alt="시안 B 로그인"></figure>
+</div>
+
+<h2>참고: 1단계 전(어두운 테마) · 1단계 후(현재, 커밋 773d11b)</h2>
+<div class="row">
+  <figure><figcaption>전 — 지도</figcaption><img src="before_2_main.jpg" alt="전 지도"></figure>
+  <figure><figcaption>후(현재) — 지도</figcaption><img src="after_2_main.jpg" alt="후 지도"></figure>
+  <figure><figcaption>전 — 로그인</figcaption><img src="before_1_login.jpg" alt="전 로그인"></figure>
+  <figure><figcaption>후(현재) — 로그인</figcaption><img src="after_1_login.jpg" alt="후 로그인"></figure>
+</div>
+
+<h2>파일</h2>
+<ul>
+  <li><code>common.css</code> — 어느 시안이든 적용: 반경 2px 일괄, hover 그림자·떠오름 제거, 글꼴 inherit, 자간 0.</li>
+  <li><code>mockA_navy.css</code> / <code>mockB_gray.css</code> — 시안별 덮어쓰기. frontend/index.html <code>&lt;/head&gt;</code> 앞에 <code>&lt;style&gt;</code>로 넣으면 같은 화면이 나옵니다.</li>
+  <li>시안 A를 고르면 DESIGN.md의 '채도 독점' 원칙에 머리 띠 예외가 필요합니다(디자이너 이관 메모).</li>
+</ul>
+</body>
+</html>
