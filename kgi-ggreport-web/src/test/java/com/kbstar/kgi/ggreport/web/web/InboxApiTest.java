@@ -313,32 +313,7 @@ public class InboxApiTest {
         assertEquals("CONTRACT_END_CONFIRMED", rows.get(1).get("FIELD_CD"));
     }
 
-    /** NEXT 90 1단계 — checks 반입은 2단계 전까지 422, 배치·DB·보관 폴더는 그대로. */
-    @Test
-    public void checks가_있는_배치는_반입_422이고_아무것도_바뀌지_않는다() throws Exception {
-        String sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        String check = "{\"check_id\":\"c-0001\",\"institution\":{\"name_ko\":\"가구청\",\"region_code\":\"11\"},\"status\":\"found\","
-                + "\"checked_at\":\"2026-11-17T07:02:11+09:00\",\"source_kind\":\"notice\",\"source_slug\":\"eminwon\","
-                + "\"match\":{\"confidence\":\"high\",\"basis\":[\"domain_match\"]},"
-                + "\"notice\":{\"title\":\"금고 공고\",\"deadline_at\":\"2026-12-02\"},"
-                + "\"attachments\":[{\"path\":\"files/c-0001_1.pdf\",\"sha256\":\"" + sha + "\",\"size\":1}]}";
-        String m = manifest(BATCH_ID, "");
-        m = m.replace("\"schema_version\":1,", "\"schema_version\":1,\"schema_minor\":1,");
-        m = m.substring(0, m.length() - 1) + ",\"checks\":[" + check + "]}";
-        Path dir = makeBatch(BATCH_ID, m, CSV_HEADER + "\n");
-        Files.write(dir.resolve("files/c-0001_1.pdf"), new byte[]{'x'});
-
-        int before = jdbc.queryForObject("SELECT COUNT(*) FROM BID_CASES", Integer.class);
-        assertTrue(json.readTree(call(BATCH_ID, "/validate").getContentAsString()).path("ok").asBoolean());
-
-        MockHttpServletResponse res = call(BATCH_ID, "/import");
-        assertEquals(res.getContentAsString(), 422, res.getStatus());
-        assertTrue(res.getContentAsString().contains("CHECKS_NOT_YET_SUPPORTED"));
-        assertTrue(Files.isDirectory(dir));
-        assertTrue(Files.isRegularFile(dir.resolve("files/c-0001_1.pdf")));
-        assertFalse(Files.exists(BATCHES.resolve(BATCH_ID)));
-        assertEquals(before, jdbc.queryForObject("SELECT COUNT(*) FROM BID_CASES", Integer.class).intValue());
-    }
+    // NEXT 90 2단계: checks 반입 시험은 InboxExtCheckApiTest 로 옮겼다.
 
     // ── 첨부 ──────────────────────────────────────────────────────────
 

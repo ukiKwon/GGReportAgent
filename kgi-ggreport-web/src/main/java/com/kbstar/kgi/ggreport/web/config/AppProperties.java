@@ -66,6 +66,12 @@ public class AppProperties {
      */
     private String batchesRoot = "data/batches";
 
+    /** 외부 확인(NEXT 90) 통과 첨부의 보관 폴더. 서버가 만든 CHECK_KEY(32 hex) 하위에 서버가 만든 이름으로만 쓴다. 원본 이름은 쓰지 않는다. DB 와 함께 백업 대상. */
+    private String extCheckRoot = "corpus/ext_check";
+
+    public String getExtCheckRoot() { return extCheckRoot; }
+    public void setExtCheckRoot(String extCheckRoot) { this.extCheckRoot = extCheckRoot; }
+
     public String getInboxRoot() { return inboxRoot; }
     public void setInboxRoot(String inboxRoot) { this.inboxRoot = inboxRoot; }
 

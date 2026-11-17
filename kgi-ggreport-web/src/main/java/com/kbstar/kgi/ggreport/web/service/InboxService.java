@@ -25,7 +25,9 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 /**
@@ -51,12 +53,14 @@ public class InboxService {
     private final InstitutionMapper institutions;
     private final InboxDbApplier dbApplier;
     private final AppProperties properties;
+    private final ExtCheckImporter extChecks;
 
     public InboxService(InstitutionMapper institutions, InboxDbApplier dbApplier,
-                        AppProperties properties) {
+                        AppProperties properties, ExtCheckImporter extChecks) {
         this.institutions = institutions;
         this.dbApplier = dbApplier;
         this.properties = properties;
+        this.extChecks = extChecks;
     }
 
     /**
@@ -105,9 +109,9 @@ public class InboxService {
             return errors;
         }
         try (Stream<Path> walk = Files.walk(batchDir)) {   // 기본값: 링크를 따라가지 않는다
-            walk.filter(Files::isSymbolicLink).limit(MAX_ERRORS_SHOWN).forEach(p ->
-                    errors.add("심볼릭 링크는 허용되지 않습니다: "
-                            + batchDir.relativize(p).toString().replace('\\', '/')));
+            if (walk.anyMatch(Files::isSymbolicLink)) {
+                errors.add("심볼릭 링크는 허용되지 않습니다");   // 이름·위치는 싣지 않는다
+            }
         } catch (IOException | UncheckedIOException exc) {
             errors.add("배치 폴더를 읽을 수 없습니다");
             return errors;
@@ -135,7 +139,7 @@ public class InboxService {
      * <b>되돌릴 수도 재시도할 수도 없다.</b> 이 순서면 파일 단계가 실패해도 배치가
      * inbox 에 남아 사람이 고친 뒤 다시 부를 수 있고, DB 단계는 upsert 라 재실행이 안전하다.
      */
-    public InboxImportResponse importBatch(String batchId) {
+    public Object importBatch(String batchId) {
         Path batchDir = resolveBatchDir(batchId);
 
         List<String> errors = validationErrors(batchDir);
@@ -144,11 +148,9 @@ public class InboxService {
         }
 
         JsonNode manifest = readManifest(batchDir);
-        // NEXT 90 2단계 구현 전까지 checks 는 조용히 버리지 않고 거부한다 — DB·파일 변경 전, 값은 싣지 않는다.
         JsonNode checks = manifest.path("checks");
         if (!checks.isMissingNode() && !checks.isNull()) {
-            throw ApiException.withDetail(422, Collections.singletonMap("errors",
-                    Collections.singletonList("CHECKS_NOT_YET_SUPPORTED: 외부 확인(checks) 반입은 아직 지원하지 않습니다")));
+            return importExternalChecks(batchDir, batchId, manifest);
         }
         String sourceSlug = manifest.path("source").path("slug").asText();
         JsonNode records = manifest.path("records");
@@ -162,6 +164,46 @@ public class InboxService {
         String archivedTo = archiveBatch(batchDir, batchId);
 
         return new InboxImportResponse(batchId, db.institutionIds, db.bidCases, rfpFiles, archivedTo);
+    }
+
+    /**
+     * 외부 확인 배치(NEXT 90 2단계) — 검사·제외·보관만, DB 는 쓰지 않는다. records 와 섞인 배치는 거부한다(반쪽 반영 방지, 아무것도 지우지 않음).
+     * 구조가 안전하지 않으면(링크·junction) 422 로 끝내고 <b>아무것도 지우지 않는다</b>. 그 밖에는 결과(422·500 포함)와 상관없이
+     * 원본(files/·CSV 등)을 지우고, manifest 를 값 없는 보관본으로 다시 써서 배치를 보관 폴더로 옮긴다.
+     */
+    private Map<String, Object> importExternalChecks(Path batchDir, String batchId, JsonNode manifest) {
+        JsonNode records = manifest.path("records");
+        if (records.isArray() && records.size() > 0) {
+            throw ApiException.withDetail(422, Collections.singletonMap("errors",
+                    Collections.singletonList("MIXED_BATCH_NOT_SUPPORTED: 외부 확인(checks)과 records 를 한 배치에 섞을 수 없습니다")));
+        }
+        ExtCheckImporter.Result r = extChecks.process(batchDir, batchId, manifest);
+        boolean originalsDeleted = ExtCheckImporter.scrub(batchDir);
+        boolean manifestRewritten = true;
+        try {
+            Path m = batchDir.resolve("manifest.json");
+            Path t = batchDir.resolve("manifest.json.new");
+            Files.write(t, r.archiveManifest);
+            Files.move(t, m, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException exc) {
+            manifestRewritten = false;
+            try {   // 원문 글자가 보관되지 않게 — 못 다시 쓰면 지운다
+                Files.deleteIfExists(batchDir.resolve("manifest.json"));
+            } catch (IOException ignore) {
+                originalsDeleted = false;
+            }
+        }
+        String archivedTo = archiveBatch(batchDir, batchId);
+        if (r.failure != null) {
+            throw r.failure;
+        }
+        if (!manifestRewritten) {
+            throw new ApiException(500, "보관 manifest 를 다시 쓰지 못했습니다.");
+        }
+        Map<String, Object> out = new LinkedHashMap<String, Object>(r.response);
+        out.put("originals_deleted", originalsDeleted);
+        out.put("archived_to", archivedTo);
+        return out;
     }
 
     /** CSV 를 읽어 파싱한다(트랜잭션 밖). 형식 오류는 422. */

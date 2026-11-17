@@ -106,3 +106,8 @@ handoff/questions.json.*.tmp
 
 # 기관 사업계획 원문 PDF(기관 공개자료, 용량 큼) — 이 PC에만 둔다(사용자 결정 2026-11-16). 시드에는 문서명·쪽수만 적는다.
 collector/business_plan/
+
+# 외부 확인 반입(NEXT 90, 2026-11-17) — 원본 첨부·서버 보관 사본은 개인정보가 섞일 수 있어 커밋 금지.
+# 반입 샘플(corpus/inbox/2026-11-16_lofin365 등)은 계속 커밋할 수 있게 inbox 전체가 아니라 외부 확인 배치(batch_id에 extcheck)만 막는다.
+corpus/inbox/*extcheck*/
+corpus/ext_check/

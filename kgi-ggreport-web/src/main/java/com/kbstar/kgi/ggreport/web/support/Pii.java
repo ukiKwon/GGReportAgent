@@ -36,6 +36,9 @@ public final class Pii {
             + "\\u2606\\u2605\\u3147\\u110B\\u2217\\u00D7]";
     /** 구분자 0~3자. 소유 한정자라 되돌아가지 않는다(상-2). */
     private static final String SP = "[\\s\\-./]{0,3}+";
+    /** 외부 확인용 숫자 사이 구분자 접힘(하-1) — 공백·탭·'-' 에 '/'·'_'·','·'~' 까지, 2자 이상 이어질 때 '-' 하나로. 양옆은 숫자·가림표여야 한다. */
+    private static final Pattern SEP_RUN_EXT = Pattern.compile(
+            "(?<=" + MK + ")[ \\t/_,~\\-]{2,}(?=" + MK + ")");
     /** 국가번호(+82·0082·82, 뒤에 (0)·0 선택) 또는 국내 0. +82-02 도 잡는다(상-3). */
     private static final String CC = "(?:(?:\\+|00)?82" + SP + "(?:\\(0\\))?+" + SP + "0?+|\\(?0)";
     /** 휴대폰 — 부분 가림·전부 가림도 '있음'으로 본다. */
@@ -83,10 +86,16 @@ public final class Pii {
      * 숫자 패턴은 앞뒤가 숫자이면 일치로 보지 않는다(긴 숫자열 속 오탐 방지).
      */
     public static List<Finding> scan(String text) {
+        return scanImpl(text, null);
+    }
+
+    /** @param deadlineNanos null 이면 마감 없음(기존 동작 그대로). 있으면 정규식이 마감을 넘길 때 ScanTimeoutException(하-3). */
+    private static List<Finding> scanImpl(String original, Long deadlineNanos) {
         List<Finding> found = new ArrayList<Finding>();
-        if (text == null || text.isEmpty()) {
+        if (original == null || original.isEmpty()) {
             return found;
         }
+        CharSequence text = deadlineNanos == null ? original : new Budget(original, deadlineNanos.longValue());
 
         // 주민·외국인등록번호 스팬 — 아래 휴대폰·카드 검사에서 겹침을 판정한다.
         Set<int[]> spans = new LinkedHashSet<int[]>();
@@ -186,7 +195,7 @@ public final class Pii {
             return out;
         }
         checkDeadline(deadlineNanos);
-        String f = collapseSpace(fold(text, true));            // 공백 연속은 하나로(상-2)
+        String f = collapseSpace(fold(text, true, SEP_RUN_EXT));   // 구분자가 '/'·'_'·','·'~' 로 길어져도 접는다(하-1)
         Matcher m = MOBILE_ANY.matcher(new Budget(f, deadlineNanos));
         while (m.find()) {
             out.add(new Finding("휴대폰", REDACTED));
@@ -198,7 +207,7 @@ public final class Pii {
             }
         }
         checkDeadline(deadlineNanos);
-        for (Finding x : scanLoose(text)) {                    // 주민·외국인·카드(기존 규칙). 휴대폰·이메일은 위에서 따로
+        for (Finding x : scanImpl(fold(text, true), Long.valueOf(deadlineNanos))) {   // 주민·외국인·카드. scanLoose 와 같은 접힘, 마감 아래(하-3)
             String k = x.getKind();
             if (!"휴대폰".equals(k) && !EMAIL_KIND.equals(k)) {
                 out.add(new Finding(k, REDACTED));
@@ -217,6 +226,61 @@ public final class Pii {
         if (System.nanoTime() - deadlineNanos > 0) {
             throw new ScanTimeoutException();
         }
+    }
+
+    /**
+     * scanExternal + 한 글자씩 띄운 구간("0 1 0 1 2 3 …", 8쌍 이상)의 공백을 지워 한 번 더 본다(security 하-2).
+     * 전체 공백 제거는 오탐이 커서 쓰지 않는다. PDF·HWPX 본문처럼 글자 사이가 벌어진 추출물용이다.
+     */
+    public static List<Finding> scanExternalDeep(String text, long deadlineNanos) {
+        List<Finding> out = scanExternal(text, deadlineNanos);
+        String spaced = spacedRuns(text, deadlineNanos);
+        if (spaced != null) {
+            out.addAll(scanExternal(spaced, deadlineNanos));
+        }
+        return out;
+    }
+
+    private static String spacedRuns(String text, long deadlineNanos) {
+        if (text == null) {
+            return null;
+        }
+        StringBuilder out = null;
+        int n = text.length();
+        int i = 0;
+        while (i < n) {
+            if ((i & 0x3FF) == 0) {
+                checkDeadline(deadlineNanos);
+            }
+            if (!isSpaceLike(text.charAt(i)) && i + 1 < n && text.charAt(i + 1) == ' ') {
+                StringBuilder run = new StringBuilder();
+                int j = i;
+                int pairs = 0;
+                while (j + 1 < n && !isSpaceLike(text.charAt(j)) && text.charAt(j + 1) == ' ') {
+                    run.append(text.charAt(j));
+                    j += 2;
+                    pairs++;
+                }
+                if (j < n && !isSpaceLike(text.charAt(j))) {
+                    run.append(text.charAt(j));
+                    j++;
+                }
+                if (pairs >= 8) {
+                    if (out == null) {
+                        out = new StringBuilder();
+                    }
+                    out.append(run).append('\n');
+                }
+                i = Math.max(j, i + 1);
+            } else {
+                i++;
+            }
+        }
+        return out == null ? null : out.toString();
+    }
+
+    private static boolean isSpaceLike(char c) {
+        return Character.isWhitespace(c) || c == ' ' || c == '　';
     }
 
     private static boolean hasDigit(String s) {
@@ -268,6 +332,10 @@ public final class Pii {
     }
 
     private static String fold(String text, boolean dotAsDash) {
+        return fold(text, dotAsDash, SEP_RUN);
+    }
+
+    private static String fold(String text, boolean dotAsDash, Pattern sepRun) {
         String s = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFKC);
         StringBuilder b = new StringBuilder(s.length());
         for (int i = 0; i < s.length(); ) {
@@ -288,7 +356,7 @@ public final class Pii {
         }
         // ⑤ 숫자 사이 구분자 연속("900101 - 1234567", "010 - 1234 - 5678")을 '-' 하나로 접는다(security 하-1, 11-10).
         // 줄바꿈은 접지 않는다(다른 줄의 숫자를 한 값으로 잇는 오탐 방지). 이메일 변형은 건드리지 않는다.
-        return dotAsDash ? SEP_RUN.matcher(b).replaceAll("-") : b.toString();
+        return dotAsDash ? sepRun.matcher(b).replaceAll("-") : b.toString();
     }
 
     private static final Pattern SEP_RUN = Pattern.compile("(?<=\\d)[ \\t-]{2,}(?=\\d)");

@@ -1,7 +1,6 @@
 package com.kbstar.kgi.ggreport.web.web;
 
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
-import com.kbstar.kgi.ggreport.web.dto.InboxImportResponse;
 import com.kbstar.kgi.ggreport.web.dto.InboxValidateResponse;
 import com.kbstar.kgi.ggreport.web.service.InboxService;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -63,7 +62,7 @@ public class InboxController {
      * <p>규격 위반이면 <b>422</b>({@code {"detail": {"errors": [...]}}}).
      */
     @PostMapping("/{batchId}/import")
-    public InboxImportResponse importBatch(@PathVariable String batchId, HttpServletRequest req) {
+    public Object importBatch(@PathVariable String batchId, HttpServletRequest req) {
         requireSalesTeam(req);
         return inbox.importBatch(batchId);
     }

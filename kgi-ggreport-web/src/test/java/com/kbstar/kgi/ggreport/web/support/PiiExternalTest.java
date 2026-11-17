@@ -144,4 +144,25 @@ public class PiiExternalTest {
     @Test public void 마감_안이면_정상_종료한다() {
         assertEquals(1, Pii.scanExternal("010-1234-5678", System.nanoTime() + 5000000000L).size());
     }
+
+    @Test public void 하1_구분자가_길어도_걸린다() {
+        hit("010 / / 1234 - 5678", M);
+        hit("010 _ 1234 _ 5678", M);
+        hit("010,,1234,,5678", M);
+        hit("010~~1234~~5678", M);
+        hit("02 / / 1234 / / 5678", L);
+        ok("02 / / **** / / ****");
+    }
+
+    @Test public void 하2_한글자씩_띄운_번호는_deep_검사에서만_걸린다() {
+        String t = "연락처 0 1 0 1 2 3 4 5 6 7 8 입니다";
+        assertEquals(0, Pii.scanExternal(t).size());
+        assertTrue(Pii.scanExternalDeep(t, System.nanoTime() + 5000000000L).size() > 0);
+        assertEquals(0, Pii.scanExternalDeep("a b c d", System.nanoTime() + 5000000000L).size());
+    }
+
+    @Test(expected = Pii.ScanTimeoutException.class)
+    public void 하3_deep도_마감이_지났으면_멈춘다() {
+        Pii.scanExternalDeep("010-1234-5678", System.nanoTime() - 1);
+    }
 }
