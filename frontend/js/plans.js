@@ -393,6 +393,8 @@
   // ── 현황판·지도 상세의 '사업계획' 절(dashboard.plansHook) ─────────────────
   // 서버에 현황이 있는 기관만 '사업계획 N건 보기'를 둔다. 권한·연결 문제는 절을 숨긴다(기관장 카드 같은 안내 줄을 늘리지 않는다).
   plans.sectionInner = function (id, nameId) {
+    // 메뉴에 '기관 사업계획'이 안 보이는 사용자(예산팀 등)는 요약 절도 보지 않는다(11-17). paneSection·refreshSlots 가 모두 여기를 거치므로 한 곳에서 막는다.
+    if (!plans.menuVisible()) return '';
     const h3 = '<h3>사업계획</h3>';
     if (!id) return h3 + '<dl class="db-dl"><dt>자료</dt><dd>' + unk('자료 없음') + '</dd></dl><p class="db-empty">서버에 등록된 기관만 사업계획을 조회합니다.</p>';
     if (ST.state === 'idle' || ST.state === 'loading') return h3 + '<p class="db-empty" aria-busy="true">사업계획 현황을 불러오는 중입니다…</p>';
@@ -400,10 +402,9 @@
     const st = ST.map[id];
     if (!st) return h3 + '<dl class="db-dl"><dt>자료</dt><dd>' + unk('자료 없음') + '</dd></dl><p class="db-empty">아직 수집한 사업계획이 없습니다. 입찰이 가까운 기관부터 모읍니다.</p>';
     const n = Number(st.item_count) || 0;
-    // 메뉴에 '기관 사업계획'이 안 보이는 사용자는 화면을 열 수 없으니 버튼을 두지 않고 요약만 보인다.
-    const open = plans.menuVisible() ?
-      '<p class="pl-open"><button type="button" class="link-btn" data-pl-open="' + esc(id) + '" aria-describedby="' + esc(nameId || 'db-name') + '">사업계획 ' + mono(n) + '건 보기</button>' +
-      ' <span class="pl-msg db-why" role="status"></span></p>' : '';
+    // 이 절이 보이는 사용자는 메뉴도 열 수 있다(위에서 menuVisible 로 걸렀다).
+    const open = '<p class="pl-open"><button type="button" class="link-btn" data-pl-open="' + esc(id) + '" aria-describedby="' + esc(nameId || 'db-name') + '">사업계획 ' + mono(n) + '건 보기</button>' +
+      ' <span class="pl-msg db-why" role="status"></span></p>';
     return h3 + '<dl class="db-dl"><dt>자료</dt><dd>' + plans.statusBadgesHtml(st) + '</dd>' +
       (ymd(st.oldest_checked_on) ? '<dt>확인일</dt><dd>' + mono(ymd(st.oldest_checked_on)) + ' <span class="db-why">가장 오래된 문서 기준</span></dd>' : '') + '</dl>' + open;
   };
@@ -432,6 +433,8 @@
     let id = rec && rec.institutionId ? String(rec.institutionId) : '';
     if (id && !ID_RE.test(id)) id = '';
     const nameId = (c && c.nameId) || 'db-name';
+    // 메뉴를 못 여는 사용자에게는 절도, 현황 요청도 없다(요청하면 서버가 403 을 낼 사람이다).
+    if (!plans.menuVisible()) return '';
     // 의도한 부작용: 현황이 없거나 낡았으면 이 절을 그리는 김에 현황을 받아 둔다(받으면 refreshSlots 가 절을 다시 그린다).
     // ensureStatus(false)는 요청이 나가 있는 동안 멱등이라 다시 그려져도 요청은 한 번이다. node(document 없음)에서는 요청하지 않는다.
     if (typeof document !== 'undefined') {
@@ -452,7 +455,7 @@
   let S = null, host = null, ac = null, M = null;
   function freshState(who) {
     return { who: who || '', win: D().DEFAULT_WINDOW, stat: 'all', q: '', region: '', kw: '', selRow: null, pin: null, cache: {},
-      pendingId: '', focusTitle: false, err: '', dlBusy: false };
+      pendingId: '', revealKey: '', focusTitle: false, err: '', dlBusy: false };
   }
   function $(id) { return host ? host.querySelector('#' + id) : null; }
   function todayDate() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
@@ -569,6 +572,8 @@
   function onStatus() {
     if (!host || !M || !S) return;
     renderBanner(); renderList(); renderFoot();
+    // 현황(배지)이 들어오면 위쪽 행 높이가 바뀌어 선택 행이 밀린다 — 다른 화면에서 골라 들어온 직후면 한 번 더 맞춘다.
+    if (S.revealKey) { revealRow(S.revealKey); S.revealKey = ''; }
   }
   function setFlash(msg) { const f = $('pl-flash'); if (f) f.textContent = msg || ''; }
 
@@ -595,13 +600,18 @@
     const row = visibleRows().rows.filter(function (r) { return r.key === key; })[0];
     if (!row) return;
     const hadPin = !!S.pin;
-    S.selRow = row; S.kw = ''; S.focusTitle = false;
+    S.selRow = row; S.kw = ''; S.focusTitle = false; S.revealKey = '';
     if (S.pin && S.pin.key !== key) S.pin = null;
     loadDetail(row.id);
     if (hadPin && !S.pin) renderList(); else markSelected();
     renderPane();
     const lb = focusLb ? $('pl-lb') : null;
     if (lb) lb.focus();
+    revealRow(key);
+  }
+  // 키가 같은 행이 목록 스크롤 영역(#pl-scroll) 안에 보이게 한다. select 와 mount(다른 화면에서 기관을 골라 들어왔을 때)가 함께 쓴다.
+  function revealRow(key) {
+    if (!host || !key) return;
     Array.prototype.forEach.call(host.querySelectorAll('[role=option]'), function (o) {
       if (o.getAttribute('data-key') === key && o.scrollIntoView) o.scrollIntoView({ block: 'nearest' });
     });
@@ -714,12 +724,13 @@
   }
   function onInput(e) {
     const id = e.target && e.target.id;
-    if (id === 'pl-q') { S.q = e.target.value; S.pin = null; renderList(); renderFoot(); }
+    if (id === 'pl-q') { S.q = e.target.value; S.pin = null; S.revealKey = ''; renderList(); renderFoot(); }
     else if (id === 'pl-kw') { S.kw = e.target.value; renderDocs(); }
   }
   function onChange(e) {
     const t = e.target;
     if (!t) return;
+    if (t.id === 'pl-region' || t.name === 'pl-win' || t.name === 'pl-stat') S.revealKey = '';   // 사용자가 목록 조건을 바꾸면 늦은 스크롤 예약을 버린다
     if (t.id === 'pl-region') { S.region = t.value; S.pin = null; renderList(); renderFoot(); }
     else if (t.name === 'pl-win') { S.win = D().windowKey(t.value); S.pin = null; renderList(); renderFoot(); }
     else if (t.name === 'pl-stat') { S.stat = STATS.some(function (p) { return p[0] === t.value; }) ? t.value : 'all'; S.pin = null; renderList(); renderFoot(); }
@@ -744,9 +755,11 @@
     host.addEventListener('change', onChange, opt);
     M = D().model(dataList(), todayDate());
     fillControls();
+    const hadPending = !!S.pendingId;   // 현황판·지도에서 기관을 골라 들어왔는가
     applyPending();
     if (S.selRow) loadDetail(S.selRow.id);
     renderBanner(); renderList(); renderFoot(); renderPane();
+    if (hadPending && S.selRow) { revealRow(S.selRow.key); S.revealKey = S.selRow.key; }   // '전체' 창처럼 목록이 길 때 선택 행이 스크롤 밖에 남지 않게(현황 도착 뒤 onStatus 가 한 번 더)
     ensureStatus(true);
   };
   plans.unmount = function () {
@@ -764,6 +777,13 @@
     plans.unmount();
     if (was && was.style.display !== 'none') plans.mount(was);
     refreshSlots();
+  };
+  // 사이드바를 다시 그린 뒤(app.paintNav) 부른다. 계정이 바뀌면 onProfileChange 가 새 메뉴 도착 전 사이드바로 판정하므로,
+  // 메뉴가 바뀐 다음 상세의 '사업계획' 절을 다시 판정한다(숨길 사람은 비우고, 보일 사람은 현황을 받아 채운다).
+  plans.onNavPainted = function () {
+    if (typeof document === 'undefined' || !document.querySelector('.pl-slot[data-pl-id]')) return;
+    refreshSlots();
+    if (plans.menuVisible() && ST.state === 'idle') ensureStatus(false);
   };
 
   // 문서 단위 클릭: '사업계획 N건 보기'(현황판·지도 상세). 지도 팝업이 열려 있으면 화면이 열린 뒤 닫는다.

@@ -386,17 +386,19 @@ test('sectionInner/paneSection: 현황 상태별 표시 — 불러오는 중, �
   plans.resetStatus();
 });
 
-test('절의 버튼: 메뉴에서 기관 사업계획 화면을 열 수 없는 사용자에게는 버튼 없이 요약만 보인다', function () {
+test('절 숨김: 메뉴에서 기관 사업계획 화면을 열 수 없는 사용자(예산팀 등)에게는 요약 절 자체가 없다 (11-17)', function () {
   plans.resetStatus();
   plans.applyStatus({ items: [{ institution_id: 'jongno', item_count: 12, stale: true, oldest_checked_on: '2025-01-05' }] });
   const r = { name: '종로구', institutionId: 'jongno' };
   try {
     plans.menuCheck = function () { return false; };
-    const no = plans.paneSection(r, {});
-    assert.ok(no.indexOf('data-pl-open') < 0 && no.indexOf('pl-open') < 0 && no.indexOf('pl-msg') < 0);
-    assert.ok(no.indexOf('<span class="v">12</span>건') >= 0 && no.indexOf('오래됨') >= 0 && no.indexOf('2025-01-05') >= 0);   // 요약은 그대로
+    assert.strictEqual(plans.paneSection(r, {}), '');                                  // 현황이 있어도 숨김
+    assert.strictEqual(plans.paneSection({ name: '번들구' }, {}), '');                  // id 없는 기관도 숨김
+    assert.strictEqual(plans.sectionInner('jongno', 'db-name'), '');                   // refreshSlots 경로(슬롯 갱신)도 다시 그리지 않는다
+    assert.strictEqual(plans.sectionInner('', 'db-name'), '');
     plans.menuCheck = function () { return true; };
-    assert.ok(plans.paneSection(r, {}).indexOf('data-pl-open="jongno"') >= 0);
+    const yes = plans.paneSection(r, {});
+    assert.ok(yes.indexOf('<h3>사업계획</h3>') >= 0 && yes.indexOf('data-pl-open="jongno"') >= 0 && yes.indexOf('<span class="v">12</span>건') >= 0);
     plans.menuCheck = null;
     assert.strictEqual(plans.menuVisible(), true);   // node(사이드바 없음)에서는 열 수 있다고 본다
   } finally {
@@ -426,6 +428,28 @@ test('소스: listbox aria-activedescendant 동기화, 고정 live 영역, 오�
   assert.ok(SRC.indexOf("f.textContent = OFFLINE_MSG") > 0 && SRC.indexOf('role="alert"') > 0);
   assert.ok(SRC.indexOf('시드') < 0);
   assert.ok(/statusInflight/.test(SRC) && SRC.indexOf('의도한 부작용') > 0);
+});
+
+test('소스: paneSection 은 메뉴를 못 여는 사용자에게 현황 요청 전에 빈 문자열을 돌려준다 (11-17)', function () {
+  assert.ok(/plans\.paneSection = function[\s\S]*?if \(!plans\.menuVisible\(\)\) return '';[\s\S]*?ensureStatus\(false\)/.test(SRC), 'menuVisible 판정이 ensureStatus 보다 앞');
+  assert.ok(/plans\.sectionInner = function \(id, nameId\) \{\s*\n[^\n]*\n\s*if \(!plans\.menuVisible\(\)\) return '';/.test(SRC), 'refreshSlots 경로도 sectionInner 에서 막는다');
+});
+
+test('onNavPainted: 사이드바를 다시 그린 뒤 절 노출을 다시 판정한다(node 에서는 아무 일 없음), app.paintNav 가 부른다 (11-17 qa P2)', function () {
+  assert.strictEqual(typeof plans.onNavPainted, 'function');
+  assert.doesNotThrow(function () { plans.onNavPainted(); });
+  const APP = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', 'app.js'), 'utf8');
+  assert.ok(/app\.paintNav = function[\s\S]*?drawTabs\(\);\s*\n\s*if \(root\.plans && root\.plans\.onNavPainted\) root\.plans\.onNavPainted\(\);/.test(APP));
+  assert.ok(/revealKey: ''/.test(SRC), 'freshState 기본값');
+  assert.ok(/t\.name === 'pl-stat'\) S\.revealKey = '';/.test(SRC) && /S\.pin = null; S\.revealKey = '';/.test(SRC), '목록 조건을 바꾸면 늦은 스크롤 예약을 버린다');
+});
+
+test('소스: 현황판·지도에서 기관을 골라 들어오면(pendingId) 목록을 그린 뒤 선택 행을 스크롤 영역 안으로 맞춘다 (11-17)', function () {
+  assert.ok(/function revealRow\(key\)[\s\S]*?scrollIntoView\(\{ block: 'nearest' \}\)/.test(SRC));
+  assert.ok(/function select\(key, focusLb\)[\s\S]*?revealRow\(key\);/.test(SRC), 'select 가 헬퍼를 재사용');
+  assert.ok(/const hadPending = !!S\.pendingId;[^\n]*\n\s*applyPending\(\);[\s\S]*?renderList\(\);[\s\S]*?if \(hadPending && S\.selRow\) \{ revealRow\(S\.selRow\.key\); S\.revealKey = S\.selRow\.key; \}/.test(SRC), 'mount: applyPending 전에 기억 → renderList 뒤에 스크롤');
+  assert.ok(/function onStatus\(\)[\s\S]*?renderList\(\);[\s\S]*?if \(S\.revealKey\) \{ revealRow\(S\.revealKey\); S\.revealKey = ''; \}/.test(SRC), '현황 도착 뒤 한 번 더 맞춘다');
+  assert.ok(/S\.selRow = row;[^\n]*S\.revealKey = '';/.test(SRC), '사용자가 고르면 예약을 지운다');
 });
 
 test('paneHtml: 훅이 있으면 기관장 절 뒤·tail 앞에 사업계획 절, 훅이 없으면 지금과 같다', function () {

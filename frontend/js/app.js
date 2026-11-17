@@ -782,6 +782,7 @@
     if (cur) navTabs = root.nav.openTab(navTabs, cur, navActiveId).tabs;   // 지금 보는 화면은 처음부터 탭으로
     app.drawNav();
     drawTabs();
+    if (root.plans && root.plans.onNavPainted) root.plans.onNavPainted();   // 메뉴가 바뀐 뒤 상세의 '사업계획' 절 노출을 다시 판정(계정 전환)
   };
 
   app.wireNav = function () {

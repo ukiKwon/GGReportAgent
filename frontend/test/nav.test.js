@@ -447,6 +447,24 @@ test('기관 사업계획: map 키 AND 영업팀·전산팀 소속(디자이너�
   assert.ok(!has(noMap, { role: '전산팀', master: true }));
 });
 
+test('nav.teamIn 경계: 공백 낀 소속은 보이고, 다른 팀·직급만 있는 역할·ctx 없음은 숨긴다 (11-17)', function () {
+  const T = ['영업', '전산'];
+  assert.strictEqual(nav.teamIn(T, { role: ' 전산팀 ' }), true);      // trim 후 전산
+  assert.strictEqual(nav.teamIn(T, { role: '디자이너' }), true);      // 디자이너는 영업팀 소속
+  assert.strictEqual(nav.teamIn(T, { role: '재무팀' }), false);       // 목록에 없는 팀
+  assert.strictEqual(nav.teamIn(T, { role: '본부장' }), false);       // 접미사 규칙에 안 걸리는 직급
+  assert.strictEqual(nav.teamIn(T, { role: '' }), false);
+  assert.strictEqual(nav.teamIn(T, undefined), false);                 // ctx 없음
+  assert.strictEqual(nav.teamIn(T, { role: '예산팀', master: true }), true);   // 마스터는 통과
+  function hasPlans(v, ctx) {
+    return nav.build(v, ctx).some(function (c) { return c.items.some(function (i) { return i.id === nav.PLANS_ID; }); });
+  }
+  assert.ok(hasPlans(ALL_ON, { role: ' 전산팀 ' }));
+  assert.ok(!hasPlans(ALL_ON, { role: '재무팀' }));
+  assert.ok(!hasPlans(ALL_ON, { role: '본부장' }));
+  assert.ok(!hasPlans(ALL_ON));                                        // ctx 없음(nav.build(ALL_ON))
+});
+
 test('기관 사업계획: 전산팀은 기관 분류에 현황판·지도·지역별·사업계획·공고 현황이 보이고 다른 준비중은 없다', function () {
   const built = nav.build(ALL_ON, { role: '전산팀' });
   assert.deepStrictEqual(items(built, 'scan').map(function (i) { return i.label; }),
