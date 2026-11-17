@@ -1,0 +1,291 @@
+package com.kbstar.kgi.ggreport.web.web;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kbstar.kgi.ggreport.web.AppTest;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.UUID;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+
+/**
+ * 사업계획 수집 요청(045) — 요청·덧붙임·취소·권한·처리 목록·내려받기·수집 중 표시·반입 자동 반영·제외·실패·감사·쪽지.
+ * ADMIN 8203417(전산팀·마스터), SALES 3918264 김영업, SALES2 7742059 장하윤, DESIGNER 7130526, BUDGET 1857403. 기관 jongno. agent 설정 없음(꺼짐).
+ */
+@RunWith(SpringRunner.class)
+@AppTest
+@Transactional
+public class PlanCollectApiTest {
+
+    private static final String ADMIN = "8203417";
+    private static final String SALES = "3918264";
+    private static final String SALES2 = "7742059";
+    private static final String DESIGNER = "7130526";
+    private static final String BUDGET = "1857403";
+    private static final String INST = "jongno";
+    private static final String HDR = "기관ID,문서명,원천종류,대상기간시작,대상기간끝,출처URL,확인일,수집자,분야번호,분야명,사업번호,상위사업번호,"
+            + "사업명,내용,예산상태,예산금액,예산단위,연차예산,원문쪽,확인상태,진행상태,이행률";
+
+    @Autowired private MockMvc mockMvc;
+    @Autowired private JdbcTemplate jdbc;
+    private final ObjectMapper json = new ObjectMapper();
+
+    private MockHttpServletResponse call(MockHttpServletRequestBuilder b, String emp) throws Exception {
+        if (emp != null) b.header("X-Emp-No", emp);
+        MockHttpServletResponse res = mockMvc.perform(b).andReturn().getResponse();
+        res.setCharacterEncoding("UTF-8");
+        return res;
+    }
+    private MockHttpServletResponse ask(String emp) throws Exception { return call(post("/institutions/" + INST + "/plan-collect"), emp); }
+    private MockHttpServletResponse cancel(String emp) throws Exception { return call(post("/institutions/" + INST + "/plan-collect/cancel"), emp); }
+    private MockHttpServletResponse admin(String path, String body, String emp) throws Exception {
+        return call(post(path).contentType(MediaType.APPLICATION_JSON).content(body), emp);
+    }
+    private static String keys(String k) { return "{\"req_keys\":[\"" + k + "\"]}"; }
+    private static String keysReason(String k, String r) { return "{\"req_keys\":[\"" + k + "\"],\"reason\":\"" + r + "\"}"; }
+    private String key() { return jdbc.queryForObject("SELECT REQ_KEY FROM PLAN_COLLECT_REQ WHERE OPEN_INST_ID=?", String.class, INST); }
+    private String state(String k) { return jdbc.queryForObject("SELECT STATUS_CD FROM PLAN_COLLECT_REQ WHERE REQ_KEY=?", String.class, k); }
+    private int count(String sql, Object... a) { return jdbc.queryForObject(sql, Integer.class, a); }
+    private JsonNode body(MockHttpServletResponse r) throws Exception { return json.readTree(r.getContentAsString()); }
+    private static String first(JsonNode b) { return b.path("results").get(0).path("result_cd").asText(); }
+
+    private static JsonNode find(JsonNode items, String inst) {
+        for (JsonNode n : items) if (inst.equals(n.path("institution_id").asText())) return n;
+        return null;
+    }
+
+    private void importPlan() throws Exception {
+        LocalDate d = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
+        String row = String.join(",", INST, "종로 시험 계획(가상)", "4개년계획", "2023", "2030", "https://www.Example.kr/plan.pdf", d.toString(),
+                "plan-collector/1.0", "1", "시험 분야", "1", "", "시험 사업", "", "원문에 없음", "", "", "", "", "", "", "");
+        String name = INST + "_" + d.format(DateTimeFormatter.ofPattern("yyyyMMdd")) + "_plan.csv";
+        MockHttpServletResponse r = call(multipart("/institutions/" + INST + "/plans/import")
+                .file(new MockMultipartFile("file", name, "text/csv", (HDR + "\n" + row + "\n").getBytes(StandardCharsets.UTF_8))), ADMIN);
+        assertEquals(r.getContentAsString(), 201, r.getStatus());
+    }
+
+    @Test
+    public void 첫_요청은_201이고_두번째_사람은_덧붙고_개발부서_쪽지는_한번만() throws Exception {
+        MockHttpServletResponse a = ask(SALES);
+        assertEquals(a.getContentAsString(), 201, a.getStatus());
+        assertEquals("REQUESTED", body(a).path("status_cd").asText());
+        assertEquals(1, body(a).path("requester_count").asInt());
+        assertTrue(body(a).path("requested_by_me").asBoolean());
+        MockHttpServletResponse b = ask(SALES2);
+        assertEquals(200, b.getStatus());
+        assertEquals("JOINED", body(b).path("outcome").asText());
+        assertEquals(2, body(b).path("requester_count").asInt());
+        assertEquals(1, count("SELECT COUNT(*) FROM PLAN_COLLECT_REQ WHERE INSTITUTION_ID=?", INST));
+        assertEquals(2, count("SELECT COUNT(*) FROM PLAN_COLLECT_REQUESTER WHERE INSTITUTION_ID=? AND CANCELED_AT IS NULL", INST));
+        assertEquals(2, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='수집요청' AND RECIPIENT IN ('전산팀','전산팀장')"));
+        String note = jdbc.queryForObject("SELECT CONTENT FROM NOTIFICATIONS WHERE KIND='수집요청' AND RECIPIENT='전산팀'", String.class);
+        assertFalse("쪽지에 요청자 사번이 없다", note.contains(SALES));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_REQUEST' AND OUTCOME='OK' AND ACTOR_EMP_NO=?"
+                + " AND SCREEN_ID='plan_collect' AND BUTTON_ID='plan_collect_request' AND UI_VALID=1", SALES));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_REQUEST' AND OUTCOME='JOINED' AND ACTOR_EMP_NO=?", SALES2));
+    }
+
+    @Test
+    public void 같은_사람이_또_누르면_200_DUPLICATE이고_줄이_늘지_않는다() throws Exception {
+        ask(SALES);
+        MockHttpServletResponse again = ask(SALES);
+        assertEquals(200, again.getStatus());
+        assertEquals("DUPLICATE", body(again).path("outcome").asText());
+        assertEquals(1, count("SELECT COUNT(*) FROM PLAN_COLLECT_REQUESTER WHERE INSTITUTION_ID=?", INST));
+    }
+
+    @Test
+    public void 디자이너_재무부서는_403이고_DENIED가_남고_사번없으면_401() throws Exception {
+        assertEquals(403, ask(DESIGNER).getStatus());
+        assertEquals(403, ask(BUDGET).getStatus());
+        assertEquals(401, ask(null).getStatus());
+        assertEquals(0, count("SELECT COUNT(*) FROM PLAN_COLLECT_REQ"));
+        assertEquals(2, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_REQUEST' AND OUTCOME='DENIED' AND ACTOR_EMP_NO IN (?,?)",
+                DESIGNER, BUDGET));
+        assertEquals(404, call(post("/institutions/no-such-inst/plan-collect"), SALES).getStatus());
+    }
+
+    @Test
+    public void 화면_상태는_요청자_수와_내_요청만_주고_사번_이름은_없다() throws Exception {
+        ask(SALES);
+        MockHttpServletResponse r = call(get("/plan-collect/status"), SALES2);
+        assertEquals(200, r.getStatus());
+        JsonNode s = body(r);
+        assertTrue(s.path("can_request").asBoolean());
+        JsonNode it = find(s.path("items"), INST);
+        assertEquals(1, it.path("requester_count").asInt());
+        assertFalse(it.path("requested_by_me").asBoolean());
+        assertFalse(r.getContentAsString().contains(SALES) || r.getContentAsString().contains("김영업"));
+        assertFalse(body(call(get("/plan-collect/status"), DESIGNER)).path("can_request").asBoolean());
+    }
+
+    @Test
+    public void 마지막_요청자가_취소하면_닫히고_다시_요청하면_새_요청이다() throws Exception {
+        ask(SALES);
+        ask(SALES2);
+        String k = key();
+        MockHttpServletResponse c1 = cancel(SALES);
+        assertEquals(200, c1.getStatus());
+        assertEquals("REQUESTED", body(c1).path("status_cd").asText());
+        assertEquals(1, body(c1).path("requester_count").asInt());
+        assertEquals("이미 취소한 사람", 404, cancel(SALES).getStatus());
+        MockHttpServletResponse c2 = cancel(SALES2);
+        assertEquals("CANCELED", body(c2).path("status_cd").asText());
+        assertEquals("CANCELED", state(k));
+        assertEquals(0, count("SELECT COUNT(*) FROM PLAN_COLLECT_REQ WHERE OPEN_INST_ID IS NOT NULL"));
+        assertEquals(201, ask(SALES).getStatus());
+        assertEquals(2, count("SELECT COUNT(*) FROM PLAN_COLLECT_REQ WHERE INSTITUTION_ID=?", INST));
+    }
+
+    @Test
+    public void 수집_중_표시_뒤에는_취소가_409이고_다시_표시하면_NOT_REQUESTED() throws Exception {
+        ask(SALES);
+        String k = key();
+        MockHttpServletResponse m = admin("/plan-collect/mark-running", keys(k), ADMIN);
+        assertEquals(m.getContentAsString(), 200, m.getStatus());
+        assertEquals("OK", first(body(m)));
+        assertEquals("RUNNING", state(k));
+        assertEquals(409, cancel(SALES).getStatus());
+        assertEquals("NOT_REQUESTED", first(body(admin("/plan-collect/mark-running", keys(k), ADMIN))));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_RUN' AND OUTCOME='MANUAL'"
+                + " AND SCREEN_ID='plan_collect_admin' AND BUTTON_ID='plan_collect_mark'"));
+        assertEquals("수집 중에도 요청자는 덧붙는다", 200, ask(SALES2).getStatus());
+    }
+
+    @Test
+    public void 처리_목록은_묶음_요청자_이전_도메인_마지막_반입일을_주고_관리자만() throws Exception {
+        importPlan();
+        ask(SALES);
+        ask(SALES2);
+        MockHttpServletResponse r = call(get("/plan-collect/requests"), ADMIN);
+        assertEquals(r.getContentAsString(), 200, r.getStatus());
+        JsonNode b = body(r);
+        assertEquals("OFF", b.path("agent_state").asText());
+        assertFalse(b.path("agent_enabled").asBoolean());
+        JsonNode it = find(b.path("items"), INST);
+        assertEquals(2, it.path("requester_count").asInt());
+        assertTrue(it.path("requester_names").toString().contains("김영업"));
+        assertTrue(it.path("requester_names").toString().contains("장하윤"));
+        assertEquals("example.kr", it.path("prev_domains").get(0).asText());
+        assertFalse(it.path("last_import_at").isNull());
+        assertFalse("사번은 싣지 않는다", r.getContentAsString().contains(SALES));
+        assertEquals(403, call(get("/plan-collect/requests"), SALES).getStatus());
+        assertEquals(1, body(call(get("/plan-collect/admin/status"), ADMIN)).path("requested_count").asInt());
+        assertEquals(400, call(get("/plan-collect/requests?scope=x"), ADMIN).getStatus());
+    }
+
+    @Test
+    public void 설정이_없으면_실행은_503_BLOCKED_NO_URL이고_상태는_그대로() throws Exception {
+        ask(SALES);
+        String k = key();
+        MockHttpServletResponse r = admin("/plan-collect/run", keys(k), ADMIN);
+        assertEquals(503, r.getStatus());
+        assertEquals("BLOCKED_NO_URL", body(r).path("detail").path("code").asText());
+        assertEquals("REQUESTED", state(k));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_RUN' AND OUTCOME='BLOCKED_NO_URL'"));
+        assertEquals(403, admin("/plan-collect/run", keys(k), SALES).getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_RUN' AND OUTCOME='DENIED' AND ACTOR_EMP_NO=?", SALES));
+    }
+
+    @Test
+    public void 내려받기는_사번없는_CSV이고_상태를_바꾸지_않는다() throws Exception {
+        importPlan();
+        ask(SALES);
+        ask(SALES2);
+        String k = key();
+        MockHttpServletResponse r = admin("/plan-collect/export.csv", keys(k), ADMIN);
+        assertEquals(200, r.getStatus());
+        assertTrue(r.getHeader("Content-Disposition").startsWith("attachment"));
+        byte[] raw = r.getContentAsByteArray();
+        assertEquals((byte) 0xEF, raw[0]);
+        String text = new String(raw, StandardCharsets.UTF_8);
+        assertTrue(text, text.contains("\"jongno\"") && text.contains("\"example.kr\"") && text.contains("\"2\"")
+                && text.contains("jongno_YYYYMMDD_plan.csv"));
+        assertFalse(text.contains(SALES) || text.contains("김영업"));
+        assertEquals("REQUESTED", state(k));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_EXPORT' AND OUTCOME='OK' AND ITEM_COUNT=1"));
+        assertEquals(403, admin("/plan-collect/export.csv", keys(k), SALES).getStatus());
+    }
+
+    @Test
+    public void 수집_반입이_들어오면_반영됨이_되고_요청자_전원에게_쪽지() throws Exception {
+        ask(SALES);
+        ask(SALES2);
+        String k = key();
+        admin("/plan-collect/mark-running", keys(k), ADMIN);
+        importPlan();
+        assertEquals("APPLIED", state(k));
+        assertEquals(1, count("SELECT COUNT(*) FROM PLAN_COLLECT_REQ WHERE REQ_KEY=? AND OPEN_INST_ID IS NULL AND APPLIED_IMPORT_ID IS NOT NULL", k));
+        assertEquals(1, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='수집결과' AND RECIPIENT=?", SALES));
+        assertEquals(1, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='수집결과' AND RECIPIENT=?", SALES2));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_APPLY' AND OUTCOME='OK' AND ITEM_COUNT=2"));
+    }
+
+    @Test
+    public void 요청됨_상태에서도_수집_반입이면_반영되고_시드는_반영하지_않는다() throws Exception {
+        ask(SALES);
+        String k = key();
+        assertEquals(201, call(post("/institutions/" + INST + "/plans/seed"), ADMIN).getStatus());
+        assertEquals("시드는 세지 않는다", "REQUESTED", state(k));
+        // 시드 판이 있는 기관에도 수집 반입은 들어간다(034 판 되돌림 가드는 반대 방향만 막는다)
+        importPlan();
+        assertEquals("APPLIED", state(k));
+    }
+
+    @Test
+    public void 제외는_사유_필수_개인정보_거부_그리고_요청자에게_쪽지() throws Exception {
+        ask(SALES);
+        String k = key();
+        assertEquals(400, admin("/plan-collect/exclude", keysReason(k, " "), ADMIN).getStatus());
+        assertEquals(400, admin("/plan-collect/exclude", keysReason(k, "담당 010-1234-5678 확인"), ADMIN).getStatus());
+        assertEquals("요청됨에는 실패 표시 불가", "NOT_RUNNING", first(body(admin("/plan-collect/fail", keysReason(k, "응답 없음"), ADMIN))));
+        MockHttpServletResponse ok = admin("/plan-collect/exclude", keysReason(k, "이미 최신 자료 있음"), ADMIN);
+        assertEquals("OK", first(body(ok)));
+        assertEquals("EXCLUDED", state(k));
+        assertEquals("이미 최신 자료 있음", jdbc.queryForObject("SELECT CLOSE_REASON FROM PLAN_COLLECT_REQ WHERE REQ_KEY=?", String.class, k));
+        assertEquals(1, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='수집결과' AND RECIPIENT=?", SALES));
+        assertEquals("NOT_OPEN", first(body(admin("/plan-collect/exclude", keysReason(k, "다시"), ADMIN))));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_EXCLUDE' AND OUTCOME='INVALID'") >= 1 ? 1 : 0);
+    }
+
+    @Test
+    public void 수집_중이면_실패_표시로_닫고_쪽지() throws Exception {
+        ask(SALES);
+        String k = key();
+        admin("/plan-collect/mark-running", keys(k), ADMIN);
+        assertEquals("OK", first(body(admin("/plan-collect/fail", keysReason(k, "2주째 반입 없음"), ADMIN))));
+        assertEquals("FAILED", state(k));
+        assertEquals(1, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='수집결과' AND RECIPIENT=?", SALES));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_FAIL' AND OUTCOME='OK' AND BUTTON_ID='plan_collect_fail'"));
+    }
+
+    @Test
+    public void 잘못된_키와_JSON이_아닌_본문은_막는다() throws Exception {
+        assertEquals(400, admin("/plan-collect/mark-running", "{\"req_keys\":[\"../x\"]}", ADMIN).getStatus());
+        assertEquals(400, admin("/plan-collect/mark-running", "{\"req_keys\":[]}", ADMIN).getStatus());
+        StringBuilder many = new StringBuilder("{\"req_keys\":[");
+        for (int i = 0; i < 51; i++) many.append(i > 0 ? "," : "").append('"').append(UUID.randomUUID()).append('"');
+        assertEquals(400, admin("/plan-collect/mark-running", many.append("]}").toString(), ADMIN).getStatus());
+        assertEquals(415, call(post("/plan-collect/mark-running").contentType(MediaType.TEXT_PLAIN).content("x"), ADMIN).getStatus());
+    }
+}

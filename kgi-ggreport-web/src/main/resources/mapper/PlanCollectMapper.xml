@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- PLAN_COLLECT_* — 045. 두 방언(Oracle 11g·MySQL)에서 같은 문장 — LIMIT·FETCH FIRST 없음(닫힌 목록 상한은 RowBounds).
+     상태 전이는 전부 조건부 UPDATE(WHERE STATUS_CD …). 모든 SELECT 는 flushCache. Map 열은 대문자 별칭. 표 별칭에 AS 를 쓰지 않는다(Oracle). -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.PlanCollectMapper">
+
+  <sql id="reqCols">R.INSTITUTION_ID, R.REQ_SEQ, R.REQ_KEY, R.STATUS_CD, R.OPEN_INST_ID, R.PREV_DOMAINS, R.REQUESTED_BY, R.REQUESTED_AT,
+    R.REQ_VERIFIED, R.RUN_MODE, R.RUN_BY, R.RUN_AT, R.RUN_VERIFIED, R.RUN_DOMAINS, R.RUN_RESULT_CD, R.JOB_ID, R.APPLIED_IMPORT_ID,
+    R.CLOSED_AT, R.CLOSED_BY, R.CLOSE_REASON</sql>
+  <!-- 목록용: 기관명 · 마지막 수집 반입 시각(IMPORT 만, SEED 제외) · 실행자 이름 -->
+  <sql id="listSelect">
+    SELECT <include refid="reqCols"/>, I.NAME_KO AS NAME_KO, L.LAST_IMPORT_AT AS LAST_IMPORT_AT, U.NAME AS RUN_BY_NAME
+      FROM PLAN_COLLECT_REQ R
+      LEFT JOIN INSTITUTIONS I ON I.INSTITUTION_ID = R.INSTITUTION_ID
+      LEFT JOIN (SELECT INSTITUTION_ID, MAX(IMPORTED_AT) AS LAST_IMPORT_AT FROM INST_PLAN_IMPORT
+                  WHERE ORIGIN_CD = 'IMPORT' GROUP BY INSTITUTION_ID) L ON L.INSTITUTION_ID = R.INSTITUTION_ID
+      LEFT JOIN USERS U ON U.EMP_NO = R.RUN_BY
+  </sql>
+
+  <select id="selectIdsIgnoreCase" resultType="string" flushCache="true">
+    SELECT INSTITUTION_ID FROM INSTITUTIONS WHERE UPPER(INSTITUTION_ID) = UPPER(#{institutionId})
+  </select>
+  <select id="lockInstitution" resultType="string" flushCache="true">
+    SELECT INSTITUTION_ID FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId} FOR UPDATE
+  </select>
+  <select id="selectInstitutionName" resultType="string" flushCache="true">
+    SELECT NAME_KO FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId}
+  </select>
+  <!-- 그 기관 최신 판(종류 무관)의 문서 출처 URL — 도메인만 뽑아 쓴다(서버는 이 URL 을 열지 않는다) -->
+  <select id="selectLatestSrcUrls" resultType="string" flushCache="true">
+    SELECT D.SRC_URL FROM INST_PLAN_DOC D
+     WHERE D.IMPORT_ID = (SELECT MAX(P.IMPORT_ID) FROM INST_PLAN_IMPORT P WHERE P.INSTITUTION_ID = #{institutionId})
+       AND D.SRC_URL IS NOT NULL
+     ORDER BY D.DOC_SEQ
+  </select>
+
+  <select id="selectOpenByInst" resultType="PlanCollectReq" flushCache="true">
+    SELECT <include refid="reqCols"/> FROM PLAN_COLLECT_REQ R WHERE R.OPEN_INST_ID = #{institutionId}
+  </select>
+  <select id="selectByKey" resultType="PlanCollectReq" flushCache="true">
+    SELECT <include refid="reqCols"/> FROM PLAN_COLLECT_REQ R WHERE R.REQ_KEY = #{reqKey}
+  </select>
+  <select id="selectByKeys" resultType="PlanCollectReq" flushCache="true">
+    <include refid="listSelect"/>
+     WHERE R.REQ_KEY IN <foreach collection="keys" item="k" open="(" separator="," close=")">#{k}</foreach>
+     ORDER BY R.REQUESTED_AT
+  </select>
+  <select id="selectOpenList" resultType="PlanCollectReq" flushCache="true">
+    <include refid="listSelect"/>
+     WHERE R.OPEN_INST_ID IS NOT NULL
+     ORDER BY R.REQUESTED_AT
+  </select>
+  <select id="selectClosedList" resultType="PlanCollectReq" flushCache="true">
+    <include refid="listSelect"/>
+     WHERE R.OPEN_INST_ID IS NULL
+     ORDER BY R.CLOSED_AT DESC
+  </select>
+  <select id="countOpenByStatus" resultType="map" flushCache="true">
+    SELECT STATUS_CD AS STATUS_CD, COUNT(*) AS CNT FROM PLAN_COLLECT_REQ WHERE OPEN_INST_ID IS NOT NULL GROUP BY STATUS_CD
+  </select>
+  <select id="nextSeq" resultType="int" flushCache="true">
+    SELECT COALESCE(MAX(REQ_SEQ), 0) + 1 FROM PLAN_COLLECT_REQ WHERE INSTITUTION_ID = #{institutionId}
+  </select>
+  <insert id="insertReq">
+    INSERT INTO PLAN_COLLECT_REQ (INSTITUTION_ID, REQ_SEQ, REQ_KEY, STATUS_CD, OPEN_INST_ID, PREV_DOMAINS,
+                                  REQUESTED_BY, REQUESTED_AT, REQ_VERIFIED, RUN_VERIFIED)
+    VALUES (#{institutionId}, #{reqSeq}, #{reqKey}, #{statusCd}, #{openInstId}, #{prevDomains,jdbcType=VARCHAR},
+            #{requestedBy}, #{requestedAt}, #{reqVerified}, 0)
+  </insert>
+
+  <select id="selectRequester" resultType="map" flushCache="true">
+    SELECT EMP_NO AS EMP_NO, CANCELED_AT AS CANCELED_AT FROM PLAN_COLLECT_REQUESTER
+     WHERE INSTITUTION_ID = #{institutionId} AND REQ_SEQ = #{reqSeq} AND EMP_NO = #{empNo}
+  </select>
+  <insert id="insertRequester">
+    INSERT INTO PLAN_COLLECT_REQUESTER (INSTITUTION_ID, REQ_SEQ, EMP_NO, REQUESTED_AT, EMP_VERIFIED)
+    VALUES (#{institutionId}, #{reqSeq}, #{empNo}, #{at}, #{verified})
+  </insert>
+  <update id="reviveRequester">
+    UPDATE PLAN_COLLECT_REQUESTER SET CANCELED_AT = NULL, REQUESTED_AT = #{at}, EMP_VERIFIED = #{verified}
+     WHERE INSTITUTION_ID = #{institutionId} AND REQ_SEQ = #{reqSeq} AND EMP_NO = #{empNo} AND CANCELED_AT IS NOT NULL
+  </update>
+  <update id="cancelRequester">
+    UPDATE PLAN_COLLECT_REQUESTER SET CANCELED_AT = #{at}
+     WHERE INSTITUTION_ID = #{institutionId} AND REQ_SEQ = #{reqSeq} AND EMP_NO = #{empNo} AND CANCELED_AT IS NULL
+  </update>
+  <select id="countActiveRequesters" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM PLAN_COLLECT_REQUESTER
+     WHERE INSTITUTION_ID = #{institutionId} AND REQ_SEQ = #{reqSeq} AND CANCELED_AT IS NULL
+  </select>
+  <select id="selectActiveRequesterEmpNos" resultType="string" flushCache="true">
+    SELECT EMP_NO FROM PLAN_COLLECT_REQUESTER
+     WHERE INSTITUTION_ID = #{institutionId} AND REQ_SEQ = #{reqSeq} AND CANCELED_AT IS NULL
+     ORDER BY REQUESTED_AT
+  </select>
+  <select id="selectRequestersOfKeys" resultType="map" flushCache="true">
+    SELECT R.REQ_KEY AS REQ_KEY, Q.EMP_NO AS EMP_NO, U.NAME AS NAME, Q.REQUESTED_AT AS REQUESTED_AT
+      FROM PLAN_COLLECT_REQUESTER Q
+      JOIN PLAN_COLLECT_REQ R ON R.INSTITUTION_ID = Q.INSTITUTION_ID AND R.REQ_SEQ = Q.REQ_SEQ
+      LEFT JOIN USERS U ON U.EMP_NO = Q.EMP_NO
+     WHERE Q.CANCELED_AT IS NULL
+       AND R.REQ_KEY IN <foreach collection="keys" item="k" open="(" separator="," close=")">#{k}</foreach>
+     ORDER BY Q.REQUESTED_AT
+  </select>
+  <select id="selectOpenRequesters" resultType="map" flushCache="true">
+    SELECT R.INSTITUTION_ID AS INSTITUTION_ID, Q.EMP_NO AS EMP_NO
+      FROM PLAN_COLLECT_REQUESTER Q
+      JOIN PLAN_COLLECT_REQ R ON R.INSTITUTION_ID = Q.INSTITUTION_ID AND R.REQ_SEQ = Q.REQ_SEQ
+     WHERE Q.CANCELED_AT IS NULL AND R.OPEN_INST_ID IS NOT NULL
+  </select>
+
+  <update id="markRunning">
+    UPDATE PLAN_COLLECT_REQ
+       SET STATUS_CD = 'RUNNING', RUN_MODE = #{mode}, RUN_BY = #{empNo}, RUN_AT = #{at}, RUN_VERIFIED = #{verified},
+           RUN_DOMAINS = #{domains,jdbcType=VARCHAR}, RUN_RESULT_CD = NULL, JOB_ID = NULL
+     WHERE REQ_KEY = #{reqKey} AND STATUS_CD = 'REQUESTED'
+  </update>
+  <update id="recordSent">
+    UPDATE PLAN_COLLECT_REQ SET JOB_ID = #{jobId}, RUN_RESULT_CD = 'SENT'
+     WHERE REQ_KEY = #{reqKey} AND STATUS_CD = 'RUNNING' AND RUN_MODE = 'AGENT' AND JOB_ID IS NULL
+  </update>
+  <update id="revertRunning">
+    UPDATE PLAN_COLLECT_REQ SET STATUS_CD = 'REQUESTED', RUN_RESULT_CD = #{code}
+     WHERE REQ_KEY = #{reqKey} AND STATUS_CD = 'RUNNING' AND RUN_MODE = 'AGENT' AND JOB_ID IS NULL
+  </update>
+  <update id="closeReq">
+    UPDATE PLAN_COLLECT_REQ
+       SET STATUS_CD = #{to}, OPEN_INST_ID = NULL, CLOSED_AT = #{at}, CLOSED_BY = #{empNo,jdbcType=VARCHAR},
+           CLOSE_REASON = #{reason,jdbcType=VARCHAR}
+     WHERE REQ_KEY = #{reqKey}
+       AND STATUS_CD IN <foreach collection="fromStates" item="s" open="(" separator="," close=")">#{s}</foreach>
+  </update>
+  <!-- 수집 반입(IMPORT) 성공 직후, 반입과 같은 트랜잭션. 요청됨·수집 중 모두 반영됨으로 닫는다. -->
+  <update id="applyOpen">
+    UPDATE PLAN_COLLECT_REQ
+       SET STATUS_CD = 'APPLIED', OPEN_INST_ID = NULL, CLOSED_AT = #{at}, CLOSED_BY = #{empNo,jdbcType=VARCHAR},
+           APPLIED_IMPORT_ID = #{importId}
+     WHERE OPEN_INST_ID = #{institutionId} AND STATUS_CD IN ('REQUESTED', 'RUNNING')
+  </update>
+</mapper>

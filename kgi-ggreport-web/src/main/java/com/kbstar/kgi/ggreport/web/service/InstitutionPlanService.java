@@ -71,14 +71,16 @@ public class InstitutionPlanService {
 
     private final InstitutionPlanMapper mapper;
     private final PlanAudit audit;
+    private final PlanCollectService collect;
     private final TransactionTemplate tx;
     private final ResourcePatternResolver resources = new PathMatchingResourcePatternResolver();
     private final String seedLocation;
 
-    public InstitutionPlanService(InstitutionPlanMapper mapper, PlanAudit audit, PlatformTransactionManager txm,
+    public InstitutionPlanService(InstitutionPlanMapper mapper, PlanAudit audit, PlanCollectService collect, PlatformTransactionManager txm,
                                   @Value("${ggreport.plan-seed.location:classpath*:plan-seed/}") String seedLocation) {
         this.mapper = mapper;
         this.audit = audit;
+        this.collect = collect;
         this.tx = new TransactionTemplate(txm);
         this.seedLocation = seedLocation.endsWith("/") ? seedLocation : seedLocation + "/";
     }
@@ -189,6 +191,10 @@ public class InstitutionPlanService {
             // 성공 감사는 같은 트랜잭션 — 감사 없이 판이 생기지 않는다(기록 실패면 전체 롤백·500)
             mapper.insertAct(instId, imp.getImportId(), action, "OK", r.rows, sha, actor.getEmpNo(),
                     actor.isVerified() ? 1 : 0, ui.getScreen(), ui.getButton(), 1, Times.nowIso());
+            if (ORIGIN_IMPORT.equals(origin)) {
+                // 045: 그 기관의 열린 수집 요청 → 반영됨 + 요청자 쪽지. 같은 트랜잭션 — 판과 요청 상태가 갈라지지 않는다. SEED 는 세지 않는다.
+                collect.onImported(instId, imp.getImportId(), actor);
+            }
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("import_id", imp.getImportId());
             out.put("institution_id", instId);

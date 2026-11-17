@@ -63,6 +63,9 @@ public class BoardWriteLimitFilter implements Filter {
     /** POST /institution-plans/missing.csv — 기관 id 최대 1,000개 JSON. 64KB. */
     static final long PLAN_LIST_MAX = 64L * 1024;
     private static final Pattern PLAN_MISSING = Pattern.compile("(?:^|/)institution-plans/+missing\\.csv/*$", Pattern.CASE_INSENSITIVE);
+    /** POST /plan-collect/{run|mark-running|exclude|fail|export.csv} — 요청 키 최대 50개 + 사유 100자 JSON. 16KB. */
+    private static final Pattern PLAN_COLLECT = Pattern.compile(
+            "(?:^|/)plan-collect/+(?:run|mark-running|exclude|fail|export\\.csv)/*$", Pattern.CASE_INSENSITIVE);
     /** 그 밖의 기관장 쓰기(JSON) — 16KB. */
     private static final Pattern HEAD_SMALL = Pattern.compile(
             "(?:^|/)(?:institutions/+[^/]+/+heads?(?:/+[^/]+)*|institution-heads(?:/+[^/]+)+)/*$", Pattern.CASE_INSENSITIVE);
@@ -111,6 +114,7 @@ public class BoardWriteLimitFilter implements Filter {
                 : photo ? HeadPhotoService.MAX_FILE_BYTES + SLACK
                 : plan ? CsvLimits.MAX_FILE_BYTES + SLACK
                 : post && PLAN_MISSING.matcher(path).find() ? PLAN_LIST_MAX
+                : post && PLAN_COLLECT.matcher(path).find() ? COPY_MAX
                 : post && HEAD_SMALL.matcher(path).find() ? COPY_MAX
                 : post && DRAFT.matcher(path).find() ? DRAFT_MAX
                 : post && COPY.matcher(path).find() ? COPY_MAX
