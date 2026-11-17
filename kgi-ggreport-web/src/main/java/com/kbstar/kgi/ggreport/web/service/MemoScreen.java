@@ -5,7 +5,7 @@ import com.kbstar.kgi.ggreport.web.support.Pii;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import java.util.*;
 
-/** 자유 글 칸 검사(043 메모·취소 사유, 044 메모). 개인정보 → 422 PII_BLOCKED, 정당·전화번호 → 422 {forbiddenCode}.
+/** 자유 글 칸 검사(043 메모·취소 사유, 설명회 기록(046 예약) 메모). 개인정보 → 422 PII_BLOCKED, 정당·전화번호 → 422 {forbiddenCode}.
  *  응답에는 종류·개수만(입력값 없음). BankContractRules.Screen 과 같은 기준 — 나중에 하나로 합칠 것. */
 final class MemoScreen {
     private final String forbiddenCode, forbiddenMsg;

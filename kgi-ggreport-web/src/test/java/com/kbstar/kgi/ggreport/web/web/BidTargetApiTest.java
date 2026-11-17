@@ -302,4 +302,268 @@ public class BidTargetApiTest {
             assertFalse(raw, raw.contains(LEAD));
         }
     }
+
+    // ---- 044 관심 기관·옮기기·입찰 종료 409 ----
+
+    private static final String ADD_WATCH = "add_watch_target", TO_GOAL = "move_to_goal", TO_WATCH = "move_to_watch";
+
+    private static Map<String, Object> watchBody(Object... kv) {
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        m.put("kind_cd", "WATCH"); m.put("tag_cd", "NEW");
+        for (int i = 0; i < kv.length; i += 2) m.put((String) kv[i], kv[i + 1]);
+        return m;
+    }
+    private static Map<String, Object> moveBody(Integer base, String to, Integer year) {
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        if (base != null) m.put("base_rev_no", base);
+        if (to != null) m.put("to_kind_cd", to);
+        if (year != null) m.put("target_year", year);
+        return m;
+    }
+    private static String code(MvcResult r) throws Exception { return json(r).path("detail").path("code").asText(); }
+
+    /** 기관 jongno 의 공고 회차 1(열림) + 최신 판정. anchor = ANCHOR_LAST_BID(없으면 null). */
+    private void round(String status, String handledAt, String anchor) {
+        jdbc.update("INSERT INTO NOTICE_ROUND (INSTITUTION_ID, ROUND_SEQ, SOURCE_CD, ANCHOR_LAST_BID, OPENED_AT, OPENED_BY)"
+                + " VALUES ('jongno', 1, 'INST_DATA', ?, '2026-01-01T00:00:00+09:00', '3918264')", anchor);
+        jdbc.update("INSERT INTO NOTICE_ROUND_LOG (INSTITUTION_ID, ROUND_SEQ, REV_NO, STATUS_CD, HANDLER_EMP_NO, HANDLER_NAME, SCREEN_ID, BUTTON_ID, HANDLED_AT)"
+                + " VALUES ('jongno', 1, 1, ?, '3918264', '김영업', 'bid_notice', 'save', ?)", status, handledAt);
+    }
+    private static String thisYearAt() { return Times.todayKst() + "T09:00:00+09:00"; }
+    private void closedRound() { round("CLOSED", thisYearAt(), null); }
+    private void activePrep(String state) {
+        jdbc.update("INSERT INTO BID_PREP (BID_CASE_ID, INSTITUTION_ID, STATE_CD, CONFIRMED_BY, CONFIRMED_AT, UPDATED_BY, UPDATED_AT)"
+                + " VALUES ('bt-test-case', 'jongno', ?, '3918264', '2026-11-16T00:00:00+09:00', '3918264', '2026-11-16T00:00:00+09:00')", state);
+    }
+
+    @Test public void 관심_넣기는_연도_없이_201_목록_watch_items() throws Exception {
+        MvcResult r = send(SALES, PATH, ADD_WATCH, watchBody());
+        assertEquals(201, status(r));
+        assertEquals("WATCH", json(r).path("item").path("kind_cd").asText());
+        assertTrue(json(r).path("item").path("target_year").isNull());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM INST_BID_TARGET WHERE KIND_CD='WATCH' AND TARGET_YEAR IS NULL AND UI_VALID=1", Integer.class).intValue());
+        JsonNode l = json(getAs(SALES, "/bid-targets"));
+        assertEquals(0, l.path("items").size());
+        assertEquals(1, l.path("watch_items").size());
+        assertEquals("WATCH", l.path("watch_items").get(0).path("kind_cd").asText());
+    }
+
+    @Test public void 관심에_연도를_보내면_400() throws Exception {
+        assertEquals(400, status(send(SALES, PATH, ADD_WATCH, watchBody("target_year", y()))));
+        assertEquals(0, rows());
+    }
+
+    @Test public void 관심이_있으면_목표_넣기_409_ALREADY_WATCH() throws Exception {
+        assertEquals(201, status(send(SALES, PATH, ADD_WATCH, watchBody())));
+        MvcResult r = send(SALES, PATH, ADD, body());
+        assertEquals(409, status(r));
+        assertEquals("ALREADY_WATCH", code(r));
+        assertEquals("WATCH", json(r).path("detail").path("latest").path("kind_cd").asText());
+        assertEquals(1, json(r).path("detail").path("latest").path("target_no").asInt());
+        assertEquals(1, rows());
+    }
+
+    @Test public void 목표가_있으면_관심_넣기_409_ALREADY_GOAL() throws Exception {
+        final int Y = y();
+        assertEquals(201, status(send(SALES, PATH, ADD, body("target_year", Y + 1))));
+        MvcResult r = send(SALES, PATH, ADD_WATCH, watchBody());
+        assertEquals(409, status(r));
+        assertEquals("ALREADY_GOAL", code(r));
+        assertEquals(Y + 1, json(r).path("detail").path("latest").path("target_year").asInt());
+        assertEquals(1, rows());
+    }
+
+    @Test public void 관심_두번째_409_ALREADY_WATCH() throws Exception {
+        assertEquals(201, status(send(SALES, PATH, ADD_WATCH, watchBody())));
+        MvcResult r = send(SALES, PATH, ADD_WATCH, watchBody());
+        assertEquals(409, status(r));
+        assertEquals("ALREADY_WATCH", code(r));
+        assertEquals(1, rows());
+    }
+
+    @Test public void 지난해_목표만_있으면_관심_넣기_201() throws Exception {
+        jdbc.update("INSERT INTO INST_BID_TARGET (INSTITUTION_ID, TARGET_NO, REV_NO, ACTION_CD, KIND_CD, TARGET_YEAR, TAG_CD, EDITOR_EMP_NO, EDITOR_NAME,"
+                + " EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, SAVED_AT) VALUES ('jongno', 1, 1, 'SAVE', 'GOAL', ?, 'NEW', '3918264', '김영업',"
+                + " 0, 'bid_board', 'add_bid_target', 1, '2026-01-01T00:00:00+09:00')", y() - 1);
+        assertEquals(201, status(send(SALES, PATH, ADD_WATCH, watchBody())));
+        assertEquals(2, rows());
+    }
+
+    @Test public void 관심을_목표로_옮기기는_같은_번호_한_행_MOVE() throws Exception {
+        final int Y = y();
+        assertEquals(201, status(send(SALES, PATH, ADD_WATCH, watchBody())));
+        MvcResult r = send(SALES, PATH + "/1/move", TO_GOAL, moveBody(1, "GOAL", Y + 1));
+        assertEquals(201, status(r));
+        assertEquals(2, json(r).path("rev_no").asInt());
+        assertEquals("MOVE", json(r).path("action_cd").asText());
+        assertEquals(2, rows());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM INST_BID_TARGET WHERE TARGET_NO=1 AND REV_NO=2 AND ACTION_CD='MOVE' AND KIND_CD='GOAL'"
+                + " AND TARGET_YEAR=? AND BUTTON_ID='move_to_goal' AND UI_VALID=1", Integer.class, Y + 1).intValue());
+        JsonNode l = json(getAs(SALES, "/bid-targets?year=" + (Y + 1)));
+        assertEquals(1, l.path("items").size());
+        assertEquals(0, l.path("watch_items").size());
+        assertEquals("김영업", l.path("items").get(0).path("first_editor_name").asText());
+    }
+
+    @Test public void 목표를_관심으로_옮기면_연도_NULL() throws Exception {
+        assertEquals(201, status(send(SALES, PATH, ADD, body())));
+        MvcResult r = send(SALES, PATH + "/1/move", TO_WATCH, moveBody(1, "WATCH", null));
+        assertEquals(201, status(r));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM INST_BID_TARGET WHERE REV_NO=2 AND TARGET_YEAR IS NULL AND KIND_CD='WATCH'"
+                + " AND ACTION_CD='MOVE' AND BUTTON_ID='move_to_watch'", Integer.class).intValue());
+        assertEquals("bid-target move no=1 rev=2 to=watch other=0", lastDetail());
+        JsonNode l = json(getAs(SALES, "/bid-targets"));
+        assertEquals(0, l.path("items").size());
+        assertEquals(1, l.path("watch_items").size());
+    }
+
+    @Test public void 다른_해_목표가_남으면_관심으로_옮기기_409_ALREADY_GOAL() throws Exception {
+        final int Y = y();
+        assertEquals(201, status(send(SALES, PATH, ADD, body())));
+        assertEquals(201, status(send(SALES, PATH, ADD, body("target_year", Y + 1))));
+        MvcResult r = send(SALES, PATH + "/1/move", TO_WATCH, moveBody(1, "WATCH", null));
+        assertEquals(409, status(r));
+        assertEquals("ALREADY_GOAL", code(r));
+        assertEquals(2, json(r).path("detail").path("latest").path("target_no").asInt());
+        assertEquals(2, rows());
+    }
+
+    @Test public void 옮기기_입력_검사() throws Exception {
+        final int Y = y();
+        final String M = PATH + "/1/move";
+        assertEquals(201, status(send(SALES, PATH, ADD_WATCH, watchBody())));
+        assertEquals(400, status(send(SALES, M, TO_GOAL, moveBody(1, "GOAL", null))));
+        assertEquals(400, status(send(SALES, M, TO_GOAL, moveBody(1, "GOAL", Y + 3))));
+        assertEquals(400, status(send(SALES, M, TO_GOAL, moveBody(1, "GOAL", Y - 1))));
+        assertEquals(400, status(send(SALES, M, TO_WATCH, moveBody(1, "WATCH", null))));   // 같은 구분
+        assertEquals(400, status(send(SALES, M, TO_GOAL, moveBody(1, "X", Y))));
+        assertEquals(400, status(send(SALES, M, TO_GOAL, moveBody(1, null, Y))));
+        assertEquals(400, status(send(SALES, M, TO_GOAL, moveBody(null, "GOAL", Y))));
+        MvcResult stale = send(SALES, M, TO_GOAL, moveBody(5, "GOAL", Y));
+        assertEquals(409, status(stale)); assertEquals("STALE", code(stale));
+        assertEquals(404, status(send(SALES, PATH + "/99/move", TO_GOAL, moveBody(1, "GOAL", Y))));
+        assertEquals(1, rows());
+        // 뺀 기록
+        assertEquals(201, status(send(SALES, PATH + "/1/cancel", CANCEL, cancelBody(1, "WRONG"))));
+        MvcResult cancelled = send(SALES, M, TO_GOAL, moveBody(2, "GOAL", Y));
+        assertEquals(409, status(cancelled)); assertEquals("ALREADY_CANCELLED", code(cancelled));
+        // 목표를 관심으로 옮길 때 연도를 보내면 400
+        assertEquals(201, status(send(SALES, PATH, ADD, body())));
+        assertEquals(400, status(send(SALES, PATH + "/2/move", TO_WATCH, moveBody(1, "WATCH", Y))));
+        assertEquals(3, rows());
+    }
+
+    @Test public void 옮기기_권한() throws Exception {
+        assertEquals(201, status(send(SALES, PATH, ADD_WATCH, watchBody())));
+        assertEquals(401, status(send(null, PATH + "/1/move", TO_GOAL, moveBody(1, "GOAL", y() + 1))));
+        assertEquals(403, status(send(DESIGNER, PATH + "/1/move", TO_GOAL, moveBody(1, "GOAL", y() + 1))));
+        assertEquals(1, rows());
+    }
+
+    @Test public void 공고_종료_판정이_올해면_올해_목표_409_INST_BID_CLOSED() throws Exception {
+        final int Y = y();
+        closedRound();
+        MvcResult r = send(SALES, PATH, ADD, body());
+        assertEquals(409, status(r));
+        assertEquals("INST_BID_CLOSED", code(r));
+        JsonNode d = json(r).path("detail");
+        assertEquals("NOTICE_CLOSED", d.path("basis").path("basis_cd").asText());
+        assertEquals(Times.todayKst(), d.path("basis").path("basis_date").asText());
+        assertEquals(2, d.path("next_years").size());
+        assertEquals(Y + 1, d.path("next_years").get(0).asInt());
+        assertEquals(Y + 2, d.path("next_years").get(1).asInt());
+        assertEquals(0, rows());
+        assertEquals(201, status(send(SALES, PATH, ADD, body("target_year", Y + 1))));
+    }
+
+    @Test public void 입찰_없음으로_닫힌_회차도_409_NOTICE_NO_BID() throws Exception {
+        round("NO_BID", thisYearAt(), null);
+        jdbc.update("UPDATE NOTICE_ROUND SET CLOSED_AT='2026-11-17T00:00:00+09:00', CLOSE_REASON_CD='NO_BID', CLOSED_BY='3918264'"
+                + " WHERE INSTITUTION_ID='jongno' AND ROUND_SEQ=1");
+        MvcResult r = send(SALES, PATH, ADD, body());
+        assertEquals(409, status(r));
+        assertEquals("INST_BID_CLOSED", code(r));
+        assertEquals("NOTICE_NO_BID", json(r).path("detail").path("basis").path("basis_cd").asText());
+        assertEquals(0, rows());
+    }
+
+    @Test public void 기관_자료가_넘어갔으면_막지_않는다() throws Exception {
+        round("CLOSED", thisYearAt(), "1999-01-01");
+        jdbc.update("UPDATE INSTITUTIONS SET LAST_BID='2099-01-01' WHERE INSTITUTION_ID='jongno'");
+        assertEquals(201, status(send(SALES, PATH, ADD, body())));
+    }
+
+    @Test public void 지난해_판정은_막지_않는다() throws Exception {
+        round("CLOSED", (y() - 1) + "-12-01T09:00:00+09:00", null);
+        assertEquals(201, status(send(SALES, PATH, ADD, body())));
+    }
+
+    @Test public void 진행_중_제안이_있으면_201_warning() throws Exception {
+        closedRound();
+        activePrep("IN_PROGRESS");
+        MvcResult r = send(SALES, PATH, ADD, body());
+        assertEquals(201, status(r));
+        assertEquals("INST_BID_CLOSED", json(r).path("warning").path("code").asText());
+        assertEquals("IN_PROGRESS", json(r).path("warning").path("prep_state_cd").asText());
+        assertTrue(lastDetail().endsWith(" warn=INST_BID_CLOSED"));
+        assertEquals(1, rows());
+    }
+
+    @Test public void 시작_전_약정이_있으면_409_CONTRACT_DECIDED() throws Exception {
+        final int Y = y();
+        line(1, "B05", (Y + 1) + "-01-01", (Y + 4) + "-12-31");
+        MvcResult r = send(SALES, PATH, ADD, body());
+        assertEquals(409, status(r));
+        assertEquals("CONTRACT_DECIDED", json(r).path("detail").path("basis").path("basis_cd").asText());
+        assertEquals((Y + 1) + "-01-01", json(r).path("detail").path("basis").path("basis_date").asText());
+        assertEquals(0, rows());
+    }
+
+    @Test public void 관심을_올해_목표로_옮길_때도_INST_BID_CLOSED() throws Exception {
+        final int Y = y();
+        closedRound();
+        assertEquals(201, status(send(SALES, PATH, ADD_WATCH, watchBody())));   // 관심 넣기는 막지 않는다
+        MvcResult r = send(SALES, PATH + "/1/move", TO_GOAL, moveBody(1, "GOAL", Y));
+        assertEquals(409, status(r));
+        assertEquals("INST_BID_CLOSED", code(r));
+        assertEquals(1, rows());
+        assertEquals(201, status(send(SALES, PATH + "/1/move", TO_GOAL, moveBody(1, "GOAL", Y + 1))));
+    }
+
+    @Test public void 목표_연도를_올해로_고치면_검사_그대로_두는_고치기는_통과() throws Exception {
+        final int Y = y();
+        assertEquals(201, status(send(SALES, PATH, ADD, body())));   // 근거 없을 때 올해 목표
+        closedRound();
+        assertEquals(201, status(send(SALES, PATH, EDIT, body("target_no", 1, "base_rev_no", 1, "memo", "메모만"))));   // 연도 그대로
+        assertEquals(201, status(send(SALES, PATH + "/1/cancel", CANCEL, cancelBody(2, "WRONG"))));
+        assertEquals(201, status(send(SALES, PATH, ADD, body("target_year", Y + 1))));   // 번호 2
+        MvcResult r = send(SALES, PATH, EDIT, body("target_no", 2, "base_rev_no", 1, "target_year", Y));
+        assertEquals(409, status(r));
+        assertEquals("INST_BID_CLOSED", code(r));
+    }
+
+    @Test public void 목록_next_term_to와_bid_closed() throws Exception {
+        final int Y = y();
+        line(1, "B05", (Y - 2) + "-01-01", Y + "-12-31");
+        assertEquals(201, status(send(SALES, PATH, ADD, body())));
+        JsonNode it = json(getAs(SALES, "/bid-targets")).path("items").get(0);
+        assertEquals("GOAL", it.path("kind_cd").asText());
+        assertEquals(Y + "-12-31", it.path("next_term_to").asText());
+        assertTrue(it.path("bid_closed").isNull());
+        closedRound();
+        it = json(getAs(SALES, "/bid-targets")).path("items").get(0);
+        assertEquals("NOTICE_CLOSED", it.path("bid_closed").path("basis_cd").asText());
+    }
+
+    @Test public void 고치기에서_kind_cd를_바꾸면_400() throws Exception {
+        assertEquals(201, status(send(SALES, PATH, ADD, body())));
+        assertEquals(400, status(send(SALES, PATH, EDIT, body("target_no", 1, "base_rev_no", 1, "kind_cd", "WATCH"))));
+        assertEquals(1, rows());
+    }
+
+    @Test public void 옮기기_접근_이력에_연도_메모_사번이_없다() throws Exception {
+        assertEquals(201, status(send(SALES, PATH, ADD_WATCH, watchBody("memo", "비밀스런메모"))));
+        assertEquals(201, status(send(SALES, PATH + "/1/move", TO_GOAL, moveBody(1, "GOAL", y() + 1))));
+        assertEquals("bid-target move no=1 rev=2 to=goal other=0", lastDetail());
+    }
 }

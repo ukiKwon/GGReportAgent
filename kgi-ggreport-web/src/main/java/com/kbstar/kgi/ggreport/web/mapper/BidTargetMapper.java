@@ -4,6 +4,7 @@ import com.kbstar.kgi.ggreport.web.domain.BankContract;
 import com.kbstar.kgi.ggreport.web.domain.BankContractCode;
 import com.kbstar.kgi.ggreport.web.domain.BankContractInst;
 import com.kbstar.kgi.ggreport.web.domain.BidTarget;
+import com.kbstar.kgi.ggreport.web.domain.NoticeRoundView;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.session.RowBounds;
@@ -26,4 +27,12 @@ public interface BidTargetMapper {
     List<BankContract> selectContractsAll(RowBounds rb);
     List<BankContractCode> selectCodes(@Param("group") String group);
     int countEnabledCode(@Param("group") String group, @Param("code") String code);
+    /** 044 — 살아 있는 관심 기록(기관명 순). */
+    List<BidTarget> selectActiveWatch();
+    /** 044 — 살아 있는 관심 기관들의 039 최신 유효 줄. */
+    List<BankContract> selectContractsForWatch();
+    /** 044 — 그 기관의 마지막 공고 회차 + 최신 판정 + 지금 LAST_BID(정상이면 0~1행). 입찰 종료 판정용, 읽기만. */
+    List<NoticeRoundView> selectNoticeLast(@Param("institutionId") String institutionId);
+    /** 044 — 그 해 살아 있는 목표 기관마다 위와 같은 한 줄. */
+    List<NoticeRoundView> selectNoticeLastForYear(@Param("year") int year);
 }

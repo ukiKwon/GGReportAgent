@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- INST_BID_TARGET — 043. 양쪽 방언 같은 문장(ANSI), 페이징은 RowBounds. 쓰기는 기관 행 잠금이 먼저(039 와 같은 잠금).
-     INSERT 만 — UPDATE·DELETE 문장은 일부러 없다. INST_BANK_CONTRACT 는 읽기만. -->
+     INSERT 만 — UPDATE·DELETE 문장은 일부러 없다. INST_BANK_CONTRACT 는 읽기만.
+     044 — 살아 있음 = 최대 REV 의 ACTION_CD &lt;&gt; 'CANCEL'(SAVE·MOVE). NOTICE_ROUND·NOTICE_ROUND_LOG 는 읽기만. -->
 <mapper namespace="com.kbstar.kgi.ggreport.web.mapper.BidTargetMapper">
 
   <resultMap id="inst" type="BankContractInst">
@@ -14,6 +15,7 @@
     <id property="targetNo" column="TARGET_NO"/>
     <id property="revNo" column="REV_NO"/>
     <result property="actionCd" column="ACTION_CD"/>
+    <result property="kindCd" column="KIND_CD"/>
     <result property="targetYear" column="TARGET_YEAR"/>
     <result property="tagCd" column="TAG_CD"/>
     <result property="memo" column="MEMO"/>
@@ -61,7 +63,7 @@
     SELECT INSTITUTION_ID, TYPE FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId}
   </select>
 
-  <sql id="cols">b.INSTITUTION_ID, b.TARGET_NO, b.REV_NO, b.ACTION_CD, b.TARGET_YEAR, b.TAG_CD, b.MEMO, b.OWNER_EMP_NO, b.OWNER_NAME,
+  <sql id="cols">b.INSTITUTION_ID, b.TARGET_NO, b.REV_NO, b.ACTION_CD, b.KIND_CD, b.TARGET_YEAR, b.TAG_CD, b.MEMO, b.OWNER_EMP_NO, b.OWNER_NAME,
     b.CANCEL_REASON_CD, b.CANCEL_REASON_ETC, b.EDITOR_EMP_NO, b.EDITOR_NAME, b.EMP_VERIFIED, b.SCREEN_ID, b.BUTTON_ID, b.UI_VALID, b.SAVED_AT,
     i.NAME_KO AS INSTITUTION_NAME, i.REGION_CODE, c.CODE_NAME AS TAG_NAME, d.CODE_NAME AS CANCEL_REASON_NAME,
     f.EDITOR_EMP_NO AS FIRST_EDITOR_EMP_NO, f.EDITOR_NAME AS FIRST_EDITOR_NAME, f.SAVED_AT AS FIRST_SAVED_AT</sql>
@@ -75,7 +77,7 @@
 
   <select id="selectActiveByInst" resultMap="row" flushCache="true">
     SELECT <include refid="cols"/> <include refid="from"/>
-     WHERE b.INSTITUTION_ID = #{institutionId} AND b.ACTION_CD = 'SAVE' AND <include refid="latest"/>
+     WHERE b.INSTITUTION_ID = #{institutionId} AND b.ACTION_CD &lt;&gt; 'CANCEL' AND <include refid="latest"/>
   </select>
   <select id="selectLatestTarget" resultMap="row" flushCache="true">
     SELECT <include refid="cols"/> <include refid="from"/>
@@ -86,7 +88,7 @@
   </select>
   <select id="selectActiveByYear" resultMap="row" flushCache="true">
     SELECT <include refid="cols"/> <include refid="from"/>
-     WHERE b.TARGET_YEAR = #{year} AND b.ACTION_CD = 'SAVE' AND <include refid="latest"/>
+     WHERE b.KIND_CD = 'GOAL' AND b.TARGET_YEAR = #{year} AND b.ACTION_CD &lt;&gt; 'CANCEL' AND <include refid="latest"/>
      ORDER BY i.NAME_KO, b.INSTITUTION_ID, b.TARGET_NO
   </select>
   <select id="selectHistory" resultMap="row" flushCache="true">
@@ -95,9 +97,9 @@
   </select>
 
   <insert id="insertRow" parameterType="BidTarget">
-    INSERT INTO INST_BID_TARGET (INSTITUTION_ID, TARGET_NO, REV_NO, ACTION_CD, TARGET_YEAR, TAG_CD, MEMO, OWNER_EMP_NO, OWNER_NAME,
+    INSERT INTO INST_BID_TARGET (INSTITUTION_ID, TARGET_NO, REV_NO, ACTION_CD, KIND_CD, TARGET_YEAR, TAG_CD, MEMO, OWNER_EMP_NO, OWNER_NAME,
         CANCEL_REASON_CD, CANCEL_REASON_ETC, EDITOR_EMP_NO, EDITOR_NAME, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, SAVED_AT)
-    VALUES (#{institutionId}, #{targetNo}, #{revNo}, #{actionCd}, #{targetYear}, #{tagCd}, #{memo,jdbcType=VARCHAR},
+    VALUES (#{institutionId}, #{targetNo}, #{revNo}, #{actionCd}, #{kindCd}, #{targetYear,jdbcType=INTEGER}, #{tagCd}, #{memo,jdbcType=VARCHAR},
         #{ownerEmpNo,jdbcType=VARCHAR}, #{ownerName,jdbcType=VARCHAR}, #{cancelReasonCd,jdbcType=VARCHAR}, #{cancelReasonEtc,jdbcType=VARCHAR},
         #{editorEmpNo}, #{editorName}, #{empVerified}, #{screenId}, #{buttonId}, #{uiValid}, #{savedAt})
   </insert>
@@ -110,7 +112,7 @@
   <select id="selectContractsForYear" resultMap="line" flushCache="true">
     SELECT <include refid="lineCols"/> <include refid="lineFrom"/>
        AND k.INSTITUTION_ID IN (SELECT t.INSTITUTION_ID FROM INST_BID_TARGET t
-             WHERE t.TARGET_YEAR = #{year} AND t.ACTION_CD = 'SAVE' AND NOT EXISTS (SELECT 1 FROM INST_BID_TARGET m
+             WHERE t.KIND_CD = 'GOAL' AND t.TARGET_YEAR = #{year} AND t.ACTION_CD &lt;&gt; 'CANCEL' AND NOT EXISTS (SELECT 1 FROM INST_BID_TARGET m
                WHERE m.INSTITUTION_ID = t.INSTITUTION_ID AND m.TARGET_NO = t.TARGET_NO AND m.REV_NO &gt; t.REV_NO))
      ORDER BY k.INSTITUTION_ID, k.CONTRACT_NO
   </select>
@@ -121,6 +123,39 @@
   <select id="selectContractsAll" resultMap="line" flushCache="true">
     SELECT <include refid="lineCols"/> <include refid="lineFrom"/>
      ORDER BY k.INSTITUTION_ID, k.CONTRACT_NO
+  </select>
+
+  <select id="selectActiveWatch" resultMap="row" flushCache="true">
+    SELECT <include refid="cols"/> <include refid="from"/>
+     WHERE b.KIND_CD = 'WATCH' AND b.ACTION_CD &lt;&gt; 'CANCEL' AND <include refid="latest"/>
+     ORDER BY i.NAME_KO, b.INSTITUTION_ID, b.TARGET_NO
+  </select>
+  <select id="selectContractsForWatch" resultMap="line" flushCache="true">
+    SELECT <include refid="lineCols"/> <include refid="lineFrom"/>
+       AND k.INSTITUTION_ID IN (SELECT t.INSTITUTION_ID FROM INST_BID_TARGET t
+             WHERE t.KIND_CD = 'WATCH' AND t.ACTION_CD &lt;&gt; 'CANCEL' AND NOT EXISTS (SELECT 1 FROM INST_BID_TARGET m
+               WHERE m.INSTITUTION_ID = t.INSTITUTION_ID AND m.TARGET_NO = t.TARGET_NO AND m.REV_NO &gt; t.REV_NO))
+     ORDER BY k.INSTITUTION_ID, k.CONTRACT_NO
+  </select>
+
+  <!-- 마지막 회차(순번 최대) + 그 회차 최신 판정. 판정 없는 회차는 없다(회차는 첫 판정과 함께 생김) — 내부 조인. 11g 외부조인+부질의 제약(ORA-01799) 때문에 NOT EXISTS 는 WHERE 에. -->
+  <sql id="noticeLast">SELECT r.INSTITUTION_ID, r.ROUND_SEQ, r.ANCHOR_LAST_BID, r.CLOSED_LAST_BID, r.CLOSE_REASON_CD, i.LAST_BID AS CUR_LAST_BID,
+           l.REV_NO, l.STATUS_CD, l.HANDLED_AT
+      FROM NOTICE_ROUND r
+      JOIN NOTICE_ROUND_LOG l ON l.INSTITUTION_ID = r.INSTITUTION_ID AND l.ROUND_SEQ = r.ROUND_SEQ
+      LEFT JOIN INSTITUTIONS i ON i.INSTITUTION_ID = r.INSTITUTION_ID
+     WHERE NOT EXISTS (SELECT 1 FROM NOTICE_ROUND m WHERE m.INSTITUTION_ID = r.INSTITUTION_ID AND m.ROUND_SEQ &gt; r.ROUND_SEQ)
+       AND NOT EXISTS (SELECT 1 FROM NOTICE_ROUND_LOG n
+                        WHERE n.INSTITUTION_ID = l.INSTITUTION_ID AND n.ROUND_SEQ = l.ROUND_SEQ AND n.REV_NO &gt; l.REV_NO)</sql>
+  <select id="selectNoticeLast" resultType="NoticeRoundView" flushCache="true">
+    <include refid="noticeLast"/> AND r.INSTITUTION_ID = #{institutionId}
+  </select>
+  <select id="selectNoticeLastForYear" resultType="NoticeRoundView" flushCache="true">
+    <include refid="noticeLast"/>
+       AND r.INSTITUTION_ID IN (SELECT t.INSTITUTION_ID FROM INST_BID_TARGET t
+             WHERE t.KIND_CD = 'GOAL' AND t.TARGET_YEAR = #{year} AND t.ACTION_CD &lt;&gt; 'CANCEL' AND NOT EXISTS (SELECT 1 FROM INST_BID_TARGET q
+               WHERE q.INSTITUTION_ID = t.INSTITUTION_ID AND q.TARGET_NO = t.TARGET_NO AND q.REV_NO &gt; t.REV_NO))
+     ORDER BY r.INSTITUTION_ID
   </select>
 
   <select id="selectCodes" resultMap="code" flushCache="true">

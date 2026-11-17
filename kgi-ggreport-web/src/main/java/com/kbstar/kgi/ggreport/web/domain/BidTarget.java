@@ -5,7 +5,9 @@ public class BidTarget {
     private String institutionId, institutionName, regionCode, actionCd, tagCd, tagName, memo, ownerEmpNo, ownerName;
     private String cancelReasonCd, cancelReasonEtc, cancelReasonName, editorEmpNo, editorName, screenId, buttonId, savedAt;
     private String firstEditorEmpNo, firstEditorName, firstSavedAt;
-    private int targetNo, revNo, targetYear, empVerified, uiValid;
+    private int targetNo, revNo, empVerified, uiValid;
+    private Integer targetYear;   // 044 — 관심(WATCH)은 NULL
+    private String kindCd;        // 044 — GOAL | WATCH
 
     public String getInstitutionId() { return institutionId; } public void setInstitutionId(String v) { institutionId = v; }
     public String getInstitutionName() { return institutionName; } public void setInstitutionName(String v) { institutionName = v; }
@@ -13,7 +15,8 @@ public class BidTarget {
     public int getTargetNo() { return targetNo; } public void setTargetNo(int v) { targetNo = v; }
     public int getRevNo() { return revNo; } public void setRevNo(int v) { revNo = v; }
     public String getActionCd() { return actionCd; } public void setActionCd(String v) { actionCd = v; }
-    public int getTargetYear() { return targetYear; } public void setTargetYear(int v) { targetYear = v; }
+    public Integer getTargetYear() { return targetYear; } public void setTargetYear(Integer v) { targetYear = v; }
+    public String getKindCd() { return kindCd; } public void setKindCd(String v) { kindCd = v; }
     public String getTagCd() { return tagCd; } public void setTagCd(String v) { tagCd = v; }
     public String getTagName() { return tagName; } public void setTagName(String v) { tagName = v; }
     public String getMemo() { return memo; } public void setMemo(String v) { memo = v; }
