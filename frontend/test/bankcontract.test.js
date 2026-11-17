@@ -67,8 +67,8 @@ test('sectionHtml: 수집 기록과 같음/다름(색만으로 전달하지 않�
 
 test('sectionHtml: 직접 입력이 국민은행이고 수집값이 없으면 현황판 미포함 안내, 수집값(c.kb)이 있으면 생략', () => {
   const kb = L({ bank_name: 'KB국민은행' });
-  assert.ok(bc.sectionHtml(V([kb]), Object.assign({ collected: false, hasKb: false }, LEG)).includes('국민은행이 맡은 기관'));
-  assert.ok(!bc.sectionHtml(V([kb]), Object.assign({ collected: true, hasKb: true, col: { name: 'KB국민은행' } }, LEG)).includes('국민은행이 맡은 기관'));
+  assert.ok(bc.sectionHtml(V([kb]), Object.assign({ collected: false, hasKb: false }, LEG)).includes('협약 중인 기관'));
+  assert.ok(!bc.sectionHtml(V([kb]), Object.assign({ collected: true, hasKb: true, col: { name: 'KB국민은행' } }, LEG)).includes('협약 중인 기관'));
 });
 
 test('sectionHtml: 약정 문자열은 모두 escape하고 안전하지 않은 링크는 글자로만', () => {

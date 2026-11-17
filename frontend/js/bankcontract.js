@@ -2,7 +2,7 @@
   'use strict';
   // 금고 약정(NEXT 89, 039) — 기관 상세 '현재 금고 은행' 4번째 갈래 + 기관 정보 변경 창 '금고 약정' 묶음.
   // 규격: design-reviewer 2026-11-16_1752_a65ba7b1.md 6-1~6-2. 서버: BankContractController·Service·Rules.
-  // 약정 응답은 rec.bank·OURS_SCOPE(현황판 '국민은행이 맡은 기관')에 섞지 않는다 — 이 파일은 상세·변경 창 표시만 한다.
+  // 약정 응답은 rec.bank·OURS_SCOPE(현황판 '협약 중인 기관')에 섞지 않는다 — 이 파일은 상세·변경 창 표시만 한다.
   const hasReq = typeof require === 'function' && typeof module !== 'undefined' && module.exports;
   const logic = hasReq ? require('./logic.js') : root.logic;
   const errtext = hasReq ? require('./errtext.js') : root.errtext;
@@ -20,7 +20,7 @@
     noEdit: '금고 약정은 영업팀이 입력합니다.',
     alreadyCancelled: '이미 지워진 약정입니다. 목록을 새로 불러왔습니다.',
     empty: '지금 약정은 기록이 없습니다. 새 약정을 입력하면 여기에 보입니다.',
-    kbNote: '직접 입력한 약정은 입찰 현황판 \'국민은행이 맡은 기관\' 수에 넣지 않습니다.',
+    kbNote: '직접 입력한 약정은 입찰 현황판 \'협약 중인 기관\' 수에 넣지 않습니다.',
     term: '약정 기간은 YYYY, YYYY-MM 또는 YYYY-MM-DD 형식이어야 합니다.',
     termRange: '약정 기간 범위(1990~2100)를 벗어났습니다.',
     termNone: '존재하지 않는 날짜입니다.',
