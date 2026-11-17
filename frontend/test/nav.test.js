@@ -276,10 +276,10 @@ test('이사회 자료 작성: 영업 계열이 아니어도 tasks 조회 권한
   assert.ok(hasBoard(ALL_ON, { role: '영업팀' }));
   assert.ok(hasBoard(noTasks, { role: '영업팀' }));
   // 다른 준비중 항목은 영업 계열이 아니면 tasks가 있어도 안 보인다(예외: 이사회 부의, pending 키 항목,
-  // 서버 map 키로 보이는 입찰 현황판·입찰 공고 현황 — 11-16 공고 현황도 타팀 공유)
+  // 서버 map 키로 보이는 입찰 현황판·입찰 공고 현황 — 11-16 공고 현황도 타팀 공유, map 키 AND 영업·전산팀인 기관 사업계획 — 11-17)
   const others = nav.build(ALL_ON, { role: '전산팀' }).reduce(function (n, c) {
     return n + c.items.filter(function (i) {
-      return i.soon && !i.pending && i.id !== 'soon:이사회 자료' && i.id !== nav.DASH_ID && i.id !== nav.NOTICE_ID;
+      return i.soon && !i.pending && i.id !== 'soon:이사회 자료' && i.id !== nav.DASH_ID && i.id !== nav.NOTICE_ID && i.id !== nav.PLANS_ID;
     }).length;
   }, 0);
   assert.strictEqual(others, 0);
@@ -423,4 +423,33 @@ test('재무(예산)팀: 영업 추진 준비에는 이사회 자료 작성 하�
 test('사이드바 라벨은 말줄임 대신 어절 단위 줄바꿈(index.html CSS)', function () {
   const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
   assert.ok(/\.nav-item \.nav-label \{[^}]*white-space:normal[^}]*word-break:keep-all/.test(html));
+});
+
+test('기관 사업계획: map 키 AND 영업팀·전산팀 소속(디자이너·마스터 포함)에게만, 예산팀 제외 (11-17)', function () {
+  function has(v, ctx) {
+    return nav.build(v, ctx).some(function (c) {
+      return c.items.some(function (i) { return i.id === nav.PLANS_ID; });
+    });
+  }
+  ['영업팀', '영업팀장', '영업부장', '디자이너', '전산팀', '전산팀장'].forEach(function (role) {
+    assert.ok(has(ALL_ON, { role: role }), role);
+  });
+  assert.ok(has(ALL_ON, { role: '전산팀', master: true }));
+  assert.ok(has(ALL_ON, { role: '예산팀', master: true }));   // 마스터는 팀 무관
+  ['예산팀', '예산팀장', ''].forEach(function (role) {
+    assert.ok(!has(ALL_ON, { role: role }), role);
+  });
+  // map 키가 꺼지면 팀이 맞아도 숨긴다(서버가 403을 내는 사람에게 메뉴를 보이지 않는다)
+  const noMap = Object.assign({}, ALL_ON, { map: false });
+  ['영업팀', '디자이너', '전산팀', '전산팀장'].forEach(function (role) {
+    assert.ok(!has(noMap, { role: role }), role);
+  });
+  assert.ok(!has(noMap, { role: '전산팀', master: true }));
+});
+
+test('기관 사업계획: 전산팀은 기관 분류에 현황판·지도·지역별·사업계획·공고 현황이 보이고 다른 준비중은 없다', function () {
+  const built = nav.build(ALL_ON, { role: '전산팀' });
+  assert.deepStrictEqual(items(built, 'scan').map(function (i) { return i.label; }),
+    ['입찰 현황판', '전국 지도', '전국 지역별', '기관 사업계획', '입찰 공고 현황']);
+  assert.strictEqual(nav.PLANS_ID, 'soon:기관 사업계획');
 });

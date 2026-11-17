@@ -12,6 +12,7 @@
   //     키가 있는데 준비중인 항목(pending: AI 대화·지식 검색)은 서버 키(v[key])가 켠 사람에게 보인다.
   //     onlyRoles가 있는 항목(제안팀 구성·배정·제안서 사전준비)은 그 역할(영업팀·영업팀장·영업부장)에게만 보인다 — 디자이너·마스터 제외.
   //     withKey가 있는 항목(입찰 현황판·입찰 공고 현황)은 그 서버 키(map)가 켜진 사람 전원에게 보이고, front면 같은 중분류의 맨 앞에 놓인다.
+  //     withKey와 onlyTeams를 함께 쓴 항목(기관 사업계획, 11-17 결정)은 서버 키(map)가 켜져 있고 그 팀 소속(영업팀·전산팀 전원, 디자이너는 영업팀 소속, 마스터 포함)인 사람에게만 보인다 — 예산팀 제외.
   //  3. **한 화면은 한 항목에만 둔다.** 같은 탭을 두 곳에 걸면 어느 쪽이 "지금 위치"인지
   //     하이라이트가 모호해진다.
   //  4. **대분류 순서는 정의 순서(업무 1→5) 고정, 시스템 관리(last)는 맨 끝.** 중분류 안에서는 구현 → 준비중 순.
@@ -32,13 +33,14 @@
   // tag: 사이드바 배지·안내 화면에 쓰는 글. 기본 '준비중', 구현 계획이 잡힌 것만 '구현 예정'. 빈 글자('')는 배지 없음(이미 열리는 화면).
   // withTasks: true면 영업 계열이 아니어도 작업함 조회 권한(visible.tasks)이 있으면 보인다(이사회 부의).
   // id: 라벨을 고쳐도 열어 둔 탭·화면 연결이 끊기지 않게 고정할 때만 준다(이사회 부의 = board.SOON_ID). 없으면 'soon:'+라벨.
-  function soon(sub, label, tag, note, withTasks, id, onlyRoles, withKey, front) {
+  function soon(sub, label, tag, note, withTasks, id, onlyRoles, withKey, front, onlyTeams) {
     const o = { sub: sub, label: label, soon: true, tag: tag === '' ? '' : (tag || '준비중'), note: note || '' };
     if (withTasks) o.visibleWithTasks = true;
     if (id) o.id = id;
     if (onlyRoles) o.onlyRoles = onlyRoles;   // 지정하면 그 역할에게만 보인다(영업 계열 일반 규칙을 대신한다)
     if (withKey) o.withKey = withKey;         // 지정하면 서버 메뉴 키(v[withKey])가 켜진 사람 전원에게 보인다(역할 제한 없음)
     if (front) o.front = true;                // 지정하면 같은 중분류 안에서 구현 항목보다 앞에 놓는다
+    if (onlyTeams) o.onlyTeams = onlyTeams;   // withKey와 함께 쓰면 키 AND 팀(팀 이름 = roles.teamOf 결과, 마스터는 통과)
     return o;
   }
   // 사이드바에 붙일 배지 글(순수). 준비중 항목만, tag가 ''이면 배지 없음.
@@ -56,13 +58,16 @@
   const DASH_ID = 'soon:현황판';
   // 입찰 공고 현황 — 고정 id. 라벨이 바뀌어도 id(경과 팝업·화면 연결의 기준)가 따라 바뀌지 않게 한다(11-16 이름 논의 뒤).
   const NOTICE_ID = 'soon:입찰 공고 현황';
+  // 기관 사업계획 — plans.SOON_ID와 같아야 한다. 노출 = 서버 map 키 AND 영업팀·전산팀 소속(예산팀 제외, 11-17 결정).
+  const PLANS_ID = 'soon:기관 사업계획';
+  const PLANS_TEAMS = [roles.DESIGNER_HOME, '전산팀'].map(function (a) { return roles.teamOf(a); });
 
   // subs: 중분류 순서. 항목마다 sub로 소속을 가리킨다(시스템 관리는 중분류 없음).
   nav.CATEGORIES = [
     { id: 'scan', title: '기관·입찰 현황', subs: ['기관', '입찰 공고'], items: [
       soon('기관', '입찰 현황판', '', '', false, DASH_ID, undefined, 'map', true),
       live('기관', '전국 지도', 'map'), live('기관', '전국 지역별', 'regions'),
-      soon('기관', '기관 사업계획', '', '', false, 'soon:기관 사업계획'),   // 실제 화면(plans.js) — 배지 없음, id는 자동 id와 같게 고정
+      soon('기관', '기관 사업계획', '', '', false, PLANS_ID, undefined, 'map', false, PLANS_TEAMS),   // 실제 화면(plans.js) — 배지 없음, 노출 = map 키 AND 영업팀·전산팀(디자이너·마스터 포함)
       soon('입찰 공고', '입찰 공고 현황', '', '', false, NOTICE_ID, undefined, 'map'), soon('입찰 공고', '공고 자동 수집')] },   // 실제 화면(dashboard.js, #notice-root) — 배지 없음, 노출은 입찰 현황판과 같이 서버 map 키 전원(11-09 타팀 공유)
     { id: 'plan', title: '영업 추진 준비', subs: ['준비 과제', '이사회'], items: [
       soon('준비 과제', '제안서 사전준비 프로세스', '', '', false, PREP_ID, TEAM_ROLES),
@@ -94,6 +99,8 @@
   nav.PREP_ID = PREP_ID;
   nav.DASH_ID = DASH_ID;
   nav.NOTICE_ID = NOTICE_ID;
+  nav.PLANS_ID = PLANS_ID;
+  nav.PLANS_TEAMS = PLANS_TEAMS;
   // 로그인 뒤 첫 화면이 입찰 현황판인 역할 — 영업팀·영업팀장·영업부장만(사용자 결정 11-11). 디자이너·마스터·타 팀은 지금처럼 지도.
   nav.isHomeRole = function (ctx) { return nav.roleIn(TEAM_ROLES, ctx); };
   // 로그인 뒤 첫 화면: 입찰 현황판이 보이는 영업 계열이고 아직 지도만 보고 있으면 현황판 id, 아니면 null(지금 화면 유지).
@@ -114,6 +121,14 @@
     const c = ctx || {};
     if (c.master) return false;
     return list.indexOf((c.role || '').trim()) >= 0;
+  };
+  // 팀 이름 목록(roles.teamOf 결과)에 드는가. 디자이너는 영업팀 소속으로 본다. 마스터는 통과.
+  nav.teamIn = function (teams, ctx) {
+    const c = ctx || {};
+    if (c.master) return true;
+    const role = (c.role || '').trim();
+    if (!role) return false;
+    return teams.indexOf(roles.teamOf(role === roles.DESIGNER ? roles.DESIGNER_HOME : role)) >= 0;
   };
   nav.isSales = function (ctx) {
     const c = ctx || {};
@@ -148,7 +163,7 @@
           } else {
             bySub[sub].live.push({ label: it.label, key: it.key, view: it.view || null, sub: sub, soon: false, id: id });
           }
-        } else if (it.withKey ? v[it.withKey] === true
+        } else if (it.withKey ? (v[it.withKey] === true && (!it.onlyTeams || nav.teamIn(it.onlyTeams, ctx)))
                    : it.onlyRoles ? nav.roleIn(it.onlyRoles, ctx) : (sales || (it.visibleWithTasks && v.tasks === true))) {
           const built = { label: it.label, key: null, sub: sub, id: it.id || 'soon:' + it.label,
                           soon: true, tag: it.tag, note: it.note };
