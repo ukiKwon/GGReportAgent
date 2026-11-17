@@ -638,10 +638,57 @@ const SITE = (() => {
     c.beginPath(); c.moveTo(x + w, y); c.lineTo(x + w + w * 0.18, y + fh * 1.2); c.lineTo(x + w, y - fh * 2); c.closePath(); c.fill();
     if (flame > 0) for (let k = 0; k < 3; k++) { const fx = x + w * (0.25 + k * 0.25), L = flame * (0.7 + 0.3 * Math.sin(simTime * 40 + k * 2)); c.fillStyle = 'rgba(255,152,0,.9)'; c.beginPath(); c.moveTo(fx - w * 0.09, y); c.lineTo(fx + w * 0.09, y); c.lineTo(fx, y + L); c.closePath(); c.fill(); c.fillStyle = 'rgba(255,241,118,.95)'; c.beginPath(); c.moveTo(fx - w * 0.045, y); c.lineTo(fx + w * 0.045, y); c.lineTo(fx, y + L * 0.55); c.closePath(); c.fill(); }
   }
+  // 꽃 그림: [꽃잎 색, 가운데·줄기 색, 꽃잎 수, 모양] — 발사하는 건물 벽면에 '가는 행성의 꽃'을 붙인다(사용자 11-17)
+  const LOOK = {
+    민들레: ['#fdd835', '#f9a825', 22, 'long'], 장미: ['#e53935', '#8e1b1b', 0, 'rose'], 수국: ['#64b5f6', '#9575cd', 0, 'dots'],
+    라벤더: ['#9575cd', '#689f38', 0, 'spike'], 벚꽃: ['#f8bbd0', '#ec407a', 5, 'round'], 해바라기: ['#fbc02d', '#6d4c41', 16, 'long'],
+    은방울꽃: ['#ffffff', '#689f38', 0, 'bells'], 동백: ['#d32f2f', '#fdd835', 6, 'round'], 물망초: ['#64b5f6', '#fff176', 5, 'round'],
+    제비꽃: ['#7e57c2', '#fff59d', 5, 'round'], 진달래: ['#ec407a', '#ad1457', 5, 'round'], 개나리: ['#fdd835', '#f57f17', 4, 'long'],
+    안개꽃: ['#ffffff', '#c5e1a5', 0, 'dots'], 튤립: ['#e53935', '#689f38', 0, 'tulip'], 도라지: ['#7e57c2', '#ede7f6', 5, 'long'],
+    코스모스: ['#f48fb1', '#fdd835', 8, 'long'], 수선화: ['#fff176', '#fb8c00', 6, 'long'], 나팔꽃: ['#5c6bc0', '#ffffff', 5, 'round'],
+    매화: ['#fce4ec', '#f06292', 5, 'round'], 무궁화: ['#f48fb1', '#c2185b', 5, 'round'] };
+  function drawFlower(cx, cy, R, name) {
+    const L = LOOK[name]; if (!L) return;
+    const [pc, cc, n, kind] = L, dot = (x, y, r, col) => { disc(x, y, r, col); c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = 1; c.stroke(); }, stem = (x0, y0, x1, y1) => { c.strokeStyle = '#689f38'; c.lineWidth = 2; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke(); };
+    c.save();
+    if (kind === 'round' || kind === 'long') {
+      for (let i = 0; i < n; i++) {
+        const a = i / n * Math.PI * 2 - Math.PI / 2; c.fillStyle = pc; c.strokeStyle = 'rgba(0,0,0,.18)'; c.lineWidth = 1; c.beginPath();
+        if (kind === 'round') c.arc(cx + Math.cos(a) * R * 0.48, cy + Math.sin(a) * R * 0.48, R * 0.42, 0, Math.PI * 2);
+        else c.ellipse(cx + Math.cos(a) * R * 0.55, cy + Math.sin(a) * R * 0.55, R * 0.45, R * (n > 10 ? 0.12 : 0.2), a, 0, Math.PI * 2);
+        c.fill(); c.stroke();
+      }
+      disc(cx, cy, R * (n > 10 ? 0.36 : 0.26), cc);
+    } else if (kind === 'dots') { // 수국·안개꽃: 작은 꽃송이 뭉치
+      for (let i = 0; i < 13; i++) { const a = i * 2.4, d = R * 0.75 * Math.sqrt(i / 13); dot(cx + Math.cos(a) * d, cy + Math.sin(a) * d, R * 0.2, i % 3 ? pc : cc); }
+    } else if (kind === 'rose') {
+      disc(cx, cy, R * 0.72, pc); c.strokeStyle = cc; c.lineWidth = 2;
+      for (let i = 0; i < 3; i++) { c.beginPath(); c.arc(cx, cy, R * (0.55 - i * 0.17), i * 1.3, i * 1.3 + Math.PI * 1.4); c.stroke(); }
+    } else if (kind === 'tulip') {
+      stem(cx, cy + R * 0.9, cx, cy);
+      c.fillStyle = pc; c.beginPath(); c.moveTo(cx - R * 0.5, cy - R * 0.55); c.lineTo(cx - R * 0.25, cy - R * 0.2); c.lineTo(cx, cy - R * 0.62); c.lineTo(cx + R * 0.25, cy - R * 0.2);
+      c.lineTo(cx + R * 0.5, cy - R * 0.55); c.quadraticCurveTo(cx + R * 0.55, cy + R * 0.3, cx, cy + R * 0.3); c.quadraticCurveTo(cx - R * 0.55, cy + R * 0.3, cx - R * 0.5, cy - R * 0.55); c.fill();
+    } else if (kind === 'spike') { // 라벤더: 줄기 따라 작은 꽃
+      stem(cx, cy + R * 0.85, cx, cy - R * 0.4);
+      for (let i = 0; i < 7; i++) { const y = cy + R * 0.25 - i * R * 0.14; disc(cx - R * 0.09, y, R * 0.12, pc); disc(cx + R * 0.09, y - R * 0.06, R * 0.12, pc); }
+    } else if (kind === 'bells') { // 은방울꽃: 휜 줄기에 매달린 방울
+      c.strokeStyle = cc; c.lineWidth = 2; c.beginPath(); c.moveTo(cx - R * 0.6, cy + R * 0.8); c.quadraticCurveTo(cx - R * 0.5, cy - R * 0.7, cx + R * 0.6, cy - R * 0.45); c.stroke();
+      for (let i = 0; i < 4; i++) { const x = cx - R * 0.25 + i * R * 0.25, y = cy - R * 0.35 + i * R * 0.08; stem(x, y - R * 0.15, x, y); dot(x, y + R * 0.08, R * 0.15, pc); }
+    }
+    c.restore();
+  }
+  function flowerBadge(cx, cy, R, p) { // 흰 원판 + 꽃 + 이름 띠
+    if (p <= 0) return;
+    const name = flowerOf(p)[0];
+    disc(cx, cy, R + 2, '#37474f'); disc(cx, cy, R, '#fffdf5'); drawFlower(cx, cy, R * 0.8, name);
+    c.font = 'bold 11px sans-serif'; const tw = c.measureText(name).width + 10;
+    c.fillStyle = '#37474f'; c.fillRect(cx - tw / 2, cy + R + 3, tw, 15); c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(name, cx, cy + R + 11);
+  }
   const launchDy = () => { const t = launch.t; return t < 1.5 ? Math.sin(t * 60) * 2 : -ease(Math.min(1, (t - 1.5) / 3.5)) * 760; };
   function drawLaunch() { // 0~1.5초 점화·흔들림, 1.5~5초 위로 날아감
     const t = launch.t, n = BLD.maxMain - 1, dy = launchDy();
     rocketTower(BLD.x, BLD.baseY + dy, BLD.w, n, BLD.floorH, t < 0.4 ? t * 60 : 26 + Math.min(40, (t - 0.4) * 30));
+    flowerBadge(BLD.x + BLD.w / 2, BLD.baseY + dy - BLD.floorH * 9.5, 30, launch.to); // 가는 행성의 꽃 표지
   }
   function drawSmoke() { for (const q of smoke) { c.globalAlpha = Math.max(0, Math.min(0.55, q.life / 1.6 * 0.55)); disc(q.x, q.y, q.r, '#eceff1'); } c.globalAlpha = 1; }
   function drawAltLaunch() { // 고도 창: 별 사이로 솟는 작은 로켓
