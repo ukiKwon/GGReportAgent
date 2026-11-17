@@ -6,6 +6,8 @@
   const isNode = typeof require === 'function' && typeof module !== 'undefined';
   const logic = isNode ? require('./logic.js') : root.logic;
   const ie = isNode ? require('./instedit.js') : root.instedit;   // 확정 날짜 옆 출처·개원 예정 줄·개원 확인 필요 목록(NEXT 72)
+  const bcMod = isNode ? require('./bankcontract.js') : null;     // 금고 약정(NEXT 89). 브라우저는 root.bankcontract(index.html에서 instedit.js 뒤, dashboard.js 앞)
+  function BC() { return bcMod || root.bankcontract || null; }
   const nrMod = isNode ? require('./noticerec.js') : null;           // 공고 상태 기록(2단계). 브라우저는 root.noticerec(index.html에서 dashboard.js 앞)
   function NR() { return nrMod || root.noticerec || null; }
   const dash = {};
@@ -729,7 +731,16 @@
     return '<li>' + esc(t) + '</li>';
   }
 
-  // 상세. c = {act:'confirm'|'open'|'unavailable'|'none', confirm:bool, busy:bool, kb:검증 항목|null, role:string}
+  // 기존 수집 갈래(c.kb·c.next)의 요약 — 약정 응답과 나란히 보일 때만 쓴다(비교는 bankcontract.bankKey).
+  function bankCol(c) {
+    if (c.kb) return { name: 'KB국민은행', slot: c.kb.slot ? String(c.kb.slot) : '', date: c.kb.src_date || '',
+      extra: c.kb.leaves ? [[String(c.kb.leaves) + '년부터', '다른 은행' + (c.kb.next ? ' ' + c.kb.next : '')]] : [] };
+    if (c.next) return { name: c.next.now ? String(c.next.now) : '', slot: '', date: c.next.src_date || '',
+      extra: [[String(c.next.from || '2027') + '년부터', '국민은행' + (c.next.term ? '(약정 ' + c.next.term + ')' : '')]] };
+    return null;
+  }
+
+  // 상세. c = {act:'confirm'|'open'|'unavailable'|'none', confirm:bool, busy:bool, kb:검증 항목|null, role:string, bank:약정 응답(bankcontract.view)|null}
   dash.paneHtml = function (it, c) {
     c = c || {};
     const rec = it.rec, srcs = Array.isArray(rec.sources) ? rec.sources : [];
@@ -750,27 +761,34 @@
       '<dt>약정 주기</dt><dd>' + (rec.term ? mono(rec.term) + '년' : chip()) + '</dd>' +
       (ie.opLineHtml(rec) ? '<dt>운영 상태</dt><dd>' + ie.opLineHtml(rec) + '</dd>' : '') + '</dl>' +
       (srcs.length ? '<details class="db-src"><summary>출처 ' + srcs.length + '건 보기</summary><ol>' + srcs.map(srcItem).join('') + '</ol></details>' : '') + '</div>';
-    let bank;
+    let bankDl, bankNote;
+    const bankOk = !!(c.bank && c.bank.st === 'ok' && c.bank.data);   // 약정 응답이 왔을 때만 문구를 바꾼다(없으면 기존 문구 그대로)
     if (c.kb) {
       const slot = c.kb.slot ? ' · ' + esc(c.kb.slot) + '금고' : '';
-      bank = '<div class="db-sec"><h3>현재 금고 은행</h3><dl class="db-dl"><dt>금고 은행</dt><dd>KB국민은행' + slot + '</dd>' +
+      bankDl = '<dl class="db-dl"><dt>금고 은행</dt><dd>KB국민은행' + slot + '</dd>' +
         '<dt>근거</dt><dd>' + esc(c.kb.quote || '') + (c.kb.src_date ? ' <span class="db-why">출처 기준일 ' + esc(c.kb.src_date) + '</span>' : '') + '</dd>' +
         (c.kb.leaves ? '<dt>' + esc(c.kb.leaves) + '년부터</dt><dd>다른 은행' + (c.kb.next ? ' <span class="db-why">' + esc(c.kb.next) + '</span>' : '') + '</dd>' : '') +
-        '<dt>약정 기간</dt><dd>' + chip() + '</dd></dl>' +
-        '<p class="db-empty">출처 문장으로 확인한 현 금고만 보입니다. 약정 기록을 모으면 약정 기간이 함께 보입니다.</p></div>';
+        '<dt>약정 기간</dt><dd>' + chip() + '</dd></dl>';
+      bankNote = bankOk && c.bank.data.can_edit ? '<p class="db-empty">출처 문장으로 확인한 현 금고만 보입니다. 약정 기간은 금고 약정을 입력하면 함께 보입니다.</p>'
+        : '<p class="db-empty">출처 문장으로 확인한 현 금고만 보입니다. 약정 기록을 모으면 약정 기간이 함께 보입니다.</p>';
     } else if (c.next) {
       // 2027년부터 국민은행으로 바뀌는 기관(KB_NEXT). now = 지금 금고 은행(없으면 미확인). 출처 링크는 <dd> 안 — 버튼 밖.
       const nx = c.next, nu = logic.safeHttpUrl(nx.url);
-      bank = '<div class="db-sec"><h3>현재 금고 은행</h3><dl class="db-dl"><dt>금고 은행</dt><dd>' +
+      bankDl = '<dl class="db-dl"><dt>금고 은행</dt><dd>' +
         (nx.now ? '현재 금고 ' + esc(nx.now) : '현재 은행 ' + chip()) +
         ' · ' + esc(nx.from || '2027') + '년부터 국민은행' + (nx.term ? '(약정 ' + esc(nx.term) + ')' : '') + '</dd>' +
         '<dt>근거</dt><dd>' + esc(nx.quote || '') + (nx.src_date ? ' <span class="db-why">출처 기준일 ' + esc(nx.src_date) + '</span>' : '') +
-        (nu ? ' <a href="' + esc(nu) + '" target="_blank" rel="noopener noreferrer">출처 보기</a>' : '') + '</dd></dl>' +
-        '<p class="db-empty">' + (nx.now ? '지금 금고 은행은 출처 문장으로 확인했습니다. ' : '') + esc(nx.from || '2027') + '년 약정은 선정 결과 기준이며 본계약 여부는 출처에서 다시 확인하세요.</p></div>';
+        (nu ? ' <a href="' + esc(nu) + '" target="_blank" rel="noopener noreferrer">출처 보기</a>' : '') + '</dd></dl>';
+      bankNote = '<p class="db-empty">' + (nx.now ? '지금 금고 은행은 출처 문장으로 확인했습니다. ' : '') + esc(nx.from || '2027') + '년 약정은 선정 결과 기준이며 본계약 여부는 출처에서 다시 확인하세요.</p>';
     } else {
-      bank = '<div class="db-sec"><h3>현재 금고 은행</h3><dl class="db-dl"><dt>금고 은행</dt><dd>' + chip() + '</dd><dt>약정 기간</dt><dd>' + chip() + '</dd></dl>' +
-        '<p class="db-empty">약정 기록을 모으면 금고 은행과 약정 기간이 출처와 함께 여기에 보입니다.</p></div>';
+      bankDl = '<dl class="db-dl"><dt>금고 은행</dt><dd>' + chip() + '</dd><dt>약정 기간</dt><dd>' + chip() + '</dd></dl>';
+      bankNote = !bankOk ? '<p class="db-empty">약정 기록을 모으면 금고 은행과 약정 기간이 출처와 함께 여기에 보입니다.</p>'
+        : c.bank.data.can_edit ? '<p class="db-empty">금고 약정을 입력하면 출처와 함께 여기에 보입니다.</p>' : '';   // 권한 없음 문구는 절 아래 foot이 보인다
     }
+    const bcm = BC();
+    const bank = c.bank && bcm
+      ? bcm.sectionHtml(c.bank, { legacyDl: bankDl, legacyNote: bankNote, collected: !!(c.kb || c.next), hasKb: !!c.kb, col: bankCol(c) })
+      : '<div class="db-sec"><h3>현재 금고 은행</h3>' + bankDl + bankNote + '</div>';
     // c.headHtml: headcard.js가 만든 '기관장' 절(서버 기관장 API 카드). 없으면(모듈 미로드·순수 테스트) 예전 자리표시를 둔다.
     const chief = typeof c.headHtml === 'string' ? c.headHtml : '<div class="db-sec"><h3>기관장</h3><dl class="db-dl"><dt>기관장</dt><dd>' + chip() + '</dd></dl>' +
       '<p class="db-empty">기관장 프로필은 수집 예정입니다. 입찰이 1년 안에 있는 기관부터 모읍니다.</p></div>';
@@ -972,7 +990,7 @@
     recSync(it);
     el.innerHTML = dash.paneHtml(it, { act: act, confirm: st.confirm && act === 'confirm', busy: st.busy,
       kb: dash.kbEntry(it.rec, root.KB_VERIFIED), next: dash.kbEntry(it.rec, root.KB_NEXT), role: ctx.role, today: todayDate(), headHtml: headSection(it),
-      recordHtml: ie.isOpenCheck(it.rec) ? '' : recViewHtml(it) });
+      recordHtml: ie.isOpenCheck(it.rec) ? '' : recViewHtml(it), bank: bankView(it.rec) });
     if (st.confirm && act === 'confirm') { const b = $('db-do'); if (b) b.focus(); }
     else if (keep) { const t = $(keep.id); if (t && t.focus) { t.focus(); try { if (keep.s != null) t.setSelectionRange(keep.s, keep.e); } catch (e) { /* 날짜 칸 등 */ } } }
   }
@@ -1109,6 +1127,26 @@
     else { const a = $('db-rec-alert'); if (a && a.focus) a.focus(); }
     if (o.reload) recLoadHist(true);              // 먼저 저장된 최신 기록을 위에 보인다(입력은 그대로)
   }
+  // ── 금고 약정(NEXT 89): 상세 '현재 금고 은행' 절 ─────────────────────────────────
+  // 약정 응답은 표시용일 뿐 rec.bank·현황판 '국민은행이 맡은 기관' 계산에 섞지 않는다. 서버 모드·로그인·등록 기관일 때만 받는다(아니면 null → 기존 세 갈래).
+  function bankView(rec) { const b = BC(); return b && rec && rec.institutionId ? b.view(String(rec.institutionId)) : null; }
+  let offBank = null;
+  function bankWatch() { const b = BC(); if (!offBank && b && b.onChange) offBank = b.onChange(bankRepaint); }
+  function bankUnwatch() { if (offBank && !host && !dm.cur) { offBank(); offBank = null; } }
+  function bankRepaint() {   // 약정 응답이 바뀌면 상세를 다시 그리되 스크롤·포커스는 지킨다
+    if (dm.cur) { dmRender(); return; }
+    if (!host || !M || !st.sel) return;
+    const b0 = host.querySelector('.db-pane-body'), top = b0 ? b0.scrollTop : 0;
+    const a = document.activeElement, keep = a && a.id && host.contains(a) && /^bk-/.test(a.id) ? a.id : '';
+    renderPane();
+    const b1 = host.querySelector('.db-pane-body'); if (b1) b1.scrollTop = top;
+    if (keep) { const t = $(keep); if (t && t.focus) t.focus(); }
+  }
+  function bankToggle(e, id) {   // [수정 이력 n건 보기]를 펼칠 때만 이력을 받는다
+    const tg = e.target, b = BC();
+    if (b && id && tg && tg.classList && tg.classList.contains('bk-hist')) b.setHistOpen(id, !!tg.open);
+  }
+
   function setOvView(v) {
     st.ovView = (v === 'delayed' || v === 'done') ? v : 'pending';
     if (!M) return;
@@ -1375,6 +1413,8 @@
       case 'db-rec-cf-no': st.rec.cf = null; repaintRec(); { const b = $('db-rec-save'); if (b && b.focus) b.focus(); } break;
       case 'db-rec-revert': { const it = selItem(); if (it) { delete st.drafts[recId(it)]; st.rec.errs = {}; st.rec.err = ''; repaintRec(); const b = $('db-rec-save'); if (b && b.focus) b.focus(); } break; }
       case 'db-rec-retry': recLoadHist(false); break;
+      case 'bk-edit': { const it = selItem(); if (it && root.app && root.app.openEdit) root.app.openEdit(it.rec, { from: 'bid_notice', focus: 'bank' }); break; }
+      case 'bk-retry': { const it = selItem(), b = BC(); if (it && b) b.load(recId(it)); break; }
       case 'db-clear': st.q = ''; st.region = ''; st.type = ''; fillFilters(); renderList(); { const q = $('db-q'); if (q) q.focus(); } break;
       case 'db-cf': st.confirm = true; renderPane(); break;
       case 'db-cancel': st.confirm = false; renderPane(); { const b = $('db-cf'); if (b) b.focus(); } break;
@@ -1446,7 +1486,7 @@
     pane.innerHTML = dash.paneHtml(m.it, {
       act: act, confirm: m.confirm && act === 'confirm', busy: m.busy, kb: dash.kbEntry(m.rec, root.KB_VERIFIED), next: dash.kbEntry(m.rec, root.KB_NEXT), role: ctx.role, today: todayDate(),
       headHtml: root.headcard ? root.headcard.paneSection(m.rec, dmHeadEnv(m)) : undefined,
-      recordHtml: ie.isOpenCheck(m.rec) ? '' : dash.recordBriefHtml(m.it, dmRecState()),
+      recordHtml: ie.isOpenCheck(m.rec) ? '' : dash.recordBriefHtml(m.it, dmRecState()), bank: bankView(m.rec),
       nameId: 'dm-name',
       mapHtml: '<button type="button" id="dm-edit">편집</button><button type="button" id="dm-close">닫기</button>',
       tailHtml: raw ? '<div class="db-sec"><details class="pop-raw"><summary>원본 정보</summary>' + raw + '</details></div>' : '',
@@ -1515,6 +1555,8 @@
         break;
       }
       case 'dm-edit': { const r = m.rec; dash.closeDetail(false); if (root.app && root.app.openEdit) root.app.openEdit(r, { from: m.screen, opener: m.opener }); break; }   // 편집 창이 팝업 뒤에 깔리지 않게 먼저 닫는다
+      case 'bk-edit': { const r = m.rec; dash.closeDetail(false); if (root.app && root.app.openEdit) root.app.openEdit(r, { from: m.screen, opener: m.opener, focus: 'bank' }); break; }
+      case 'bk-retry': { const b = BC(); if (b) b.load(String(m.rec.institutionId || '')); break; }
       case 'db-cf': m.confirm = true; dmRender(); break;
       case 'db-cancel': m.confirm = false; dmRender(); { const b = m.el.querySelector('#db-cf'); if (b) b.focus(); } break;
       case 'db-do': dmDoConfirm(m); break;
@@ -1564,6 +1606,8 @@
     ov.addEventListener('mousedown', function (e) { m.down = e.target; });
     ov.addEventListener('click', dmClick);
     ov.addEventListener('keydown', dmKey);
+    ov.addEventListener('toggle', function (e) { bankToggle(e, String(m.rec.institutionId || '')); }, true);
+    bankWatch();
     dmLoadPreps(m);   // 상태를 받는 동안 'wait'로 그리고, 도착하면 다시 그린다
     const nrm = NR();
     if (nrm && nrm.onChange) { m.offNr = nrm.onChange(function () { if (dm.cur === m) dmRender(); }); if (nrm.ensure) nrm.ensure(); }
@@ -1578,6 +1622,7 @@
     if (!m) return;
     dm.cur = null;
     if (m.offNr) m.offNr();
+    bankUnwatch();
     if (root.headcard) root.headcard.reset();   // 열린 기관장 편집 창·사진 Blob 주소·대기 중 조회를 정리한다
     if (m.el && m.el.parentNode) m.el.parentNode.removeChild(m.el);
     if (m.changed && root.kbboard && root.kbboard.reload) root.kbboard.reload();   // 팝업에서 [제안 확정]을 했으면 현황판 집계를 다시 받는다
@@ -1628,7 +1673,11 @@
       if (e.target.id === 'db-q') { st.q = e.target.value; renderList(); }
       else if (e.target.id === 'db-rec-next' || e.target.id === 'db-rec-op') recInput(e.target);
     }, opt);
-    host.addEventListener('toggle', function (e) { if (e.target && e.target.classList && e.target.classList.contains('db-rec-hist')) st.rec.histOpen = !!e.target.open; }, Object.assign({ capture: true }, opt || {}));
+    host.addEventListener('toggle', function (e) {
+      if (e.target && e.target.classList && e.target.classList.contains('db-rec-hist')) st.rec.histOpen = !!e.target.open;
+      bankToggle(e, recId(selItem()));
+    }, Object.assign({ capture: true }, opt || {}));
+    bankWatch();
     host.addEventListener('change', function (e) {
       if (e.target.id === 'db-region') { st.region = e.target.value; renderList(); }
       else if (e.target.id === 'db-type') { st.type = e.target.value; renderList(); }
@@ -1660,6 +1709,7 @@
     ac = null;
     if (host) host.innerHTML = '';
     host = null; M = null;
+    bankUnwatch();
   };
 
   if (isNode) module.exports = dash;

@@ -1880,6 +1880,29 @@
   .ie-cbox { align-self:stretch; }
   .ie-cbox .ie-row { justify-content:flex-start; }
   @media (max-width:560px) { .ie-grid, .ie-src { grid-template-columns:1fr; } }
+  /* 금고 약정(NEXT 89) — 상세 '현재 금고 은행' 줄·변경 창 '금고 약정' 묶음. 규격: design-reviewer 2026-11-16_1752_a65ba7b1.md 6-4. 칩은 기존 .wf-badge.pp-neutral·.pp-cancel 재사용 */
+  .bk-ln { display:block; line-height:1.6; }
+  .bk-ln .v, .bk-who .v, .bk-hist-list .v { font-family:var(--mono); }
+  .bk-who { display:block; font-size:11px; color:var(--muted); margin-top:2px; }
+  .bk-foot { display:flex; align-items:center; gap:8px; margin-top:12px; }
+  .bk-foot > button, .bk-foot > .db-why { margin-left:auto; }
+  .bk-foot > button, .bk-state button { font-size:12px; padding:5px 12px; }
+  .bk-state { margin:8px 0 0; }
+  .bk-hist-list { margin:6px 0 0; padding-left:18px; font-size:12px; color:var(--muted); line-height:1.6; word-break:break-all; }
+  .ie-bk-row { display:flex; align-items:flex-start; gap:8px; padding:8px 0; border-top:1px solid var(--line); }
+  .ie-bk-main { flex:1 1 auto; min-width:0; font-size:13px; color:var(--fg); word-break:keep-all; }
+  .ie-bk-row .sp { margin-left:auto; display:flex; gap:6px; flex:0 0 auto; }
+  .ie-bk-row button, .ie-bk-delbox button, #ie-bk-list .ie-row button { font-size:12px; padding:5px 12px; }
+  .ie-bk-formbox { grid-column:1 / -1; }
+  .ie-bk-formbox[hidden], .ie-bk-formbox [hidden], .ie-bk-delbox [hidden], #ie-bank .ie-lab[hidden] { display:none; }
+  .ie-bk-formbox .bk-form-t { margin:0 0 8px; font-size:13px; color:var(--fg); }
+  .ie-lab select { width:100%; font-size:13px; padding:6px 10px; min-width:0; }
+  .ie-lab select[aria-invalid="true"] { border-color:var(--red); }
+  #ie-bank:focus { outline:2px solid var(--accent-color); outline-offset:2px; }
+  #ie-bank #ie-bk-from-l { grid-column:1; }
+  #db-bank .db-chk { white-space:nowrap; }
+  #ie-bank .ie-radio.wrap { flex-wrap:wrap; row-gap:4px; }
+  #ie-bank .ie-radio.wrap legend { float:none; width:100%; margin:0 0 2px; }
   /* 기관 편집 창 끝 */
 
   /* 기관 사업계획 시작 — #tab-soon 안 #plans-root. 규격: design-reviewer 2026-11-16_1007_a15c69be.md 보충 A~G. 목록·상세는 입찰 현황판의 .db-list/.db-pane/.db-row/.db-per를 그대로 쓴다.
@@ -2411,6 +2434,7 @@ review, the verdict, and DESIGN.md
 <script src="js/nav.js"></script>
 <script src="js/errtext.js"></script>
 <script src="js/instedit.js"></script>
+<script src="js/bankcontract.js"></script>
 <script src="js/approvals.js"></script>
 <script src="js/board-write.js"></script>
 <script src="js/board-material.js"></script>

@@ -380,7 +380,7 @@
 
   ie.isOpen = function () { return !!cur; };
 
-  // rec 편집창을 연다. opts = { opener, focus:'status', bootstrap:()=>Promise, repaint:()=>void }
+  // rec 편집창을 연다. opts = { opener, focus:'status'|'bank', bootstrap:()=>Promise, repaint:()=>void }
   ie.open = function (rec, opts) {
     opts = opts || {};
     if (typeof document === 'undefined' || !rec) return;
@@ -409,8 +409,10 @@
     }
     if (showSched) html += ie.schedHtml(S.init, { local: local });
     if (registered) html += ie.statusHtml(rec, S.init);
+    if (registered && root.bankcontract) html += root.bankcontract.groupHtml();   // 금고 약정(NEXT 89): 운영 상태 다음, 기본 정보 앞
     html += ie.basicHtml(rec, { server: server });
     wrap.innerHTML = html;
+    S.bankCtl = registered && root.bankcontract ? root.bankcontract.attach({ wrap: wrap, rec: rec }) : null;
     const regionName = (root.render && root.render.REGION_NAME && root.render.REGION_NAME[rec.region]) || '';
     const subEl = document.getElementById('ie-sub');
     if (subEl) subEl.innerHTML = ie.subHtml(rec, regionName);
@@ -515,6 +517,7 @@
       const out = [];
       if (q('#ie-sched') && ie.scheduleCheck(S.init.sched, readSched(), { local: !S.registered }).changed) out.push('입찰 예정일');
       if (q('#ie-status') && ie.statusCheck(S.init.status, readStatus()).changed) out.push('운영 상태');
+      if (S.bankCtl && S.bankCtl.dirty()) out.push('금고 약정');
       if (q('#ie-basic') && ie.basicChanged(S.base, readBasic()).length) out.push('기본 정보');
       return out;
     }
@@ -671,6 +674,7 @@
       modal.removeEventListener('mousedown', onDown);
       modal.removeEventListener('click', onBackdrop);
       wrap.oninput = wrap.onchange = wrap.onclick = null;
+      if (S.bankCtl) { S.bankCtl.teardown(); S.bankCtl = null; }
       removeConfirm();
       modal.style.display = 'none';
       wrap.innerHTML = '';
@@ -688,6 +692,7 @@
     };
 
     function onEdit(e) {
+      if (S.bankCtl && e.target.closest && e.target.closest('#ie-bank')) { S.bankCtl.input(e); return; }
       const g = e.target.closest ? (e.target.closest('#ie-sched') ? 'sched' : e.target.closest('#ie-status') ? 'status' : e.target.closest('#ie-basic') ? 'basic' : '') : '';
       if (!g) return;
       clearMsg(g);
@@ -696,6 +701,7 @@
     wrap.oninput = onEdit;
     wrap.onchange = onEdit;
     wrap.onclick = function (e) {
+      if (S.bankCtl && S.bankCtl.click(e)) return;
       const id = e.target && e.target.id;
       if (id === 'ie-save-sched') saveSched();
       else if (id === 'ie-save-status') saveStatus();
@@ -714,6 +720,7 @@
     }
     if (!target) target = q('#ie-ce') || q('#ie-basic input[data-f]:not([disabled])');
     if (target && target.focus) target.focus(); else if (box) box.focus();
+    if (opts.focus === 'bank' && S.bankCtl) S.bankCtl.focus();
   };
 
   if (hasReq) module.exports = ie; else root.instedit = ie;
