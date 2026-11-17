@@ -1725,6 +1725,10 @@
 
   /* 국민은행 상태 현황판(kbboard.js) 시작 — #dash-root > #hb-root. 규격: design-reviewer 2026-11-16_1241_a6db51fa 6-D. 새 hex 없음(토큰만). .db-top은 입찰 공고 현황 머리도 쓴다 */
   #hb-root { flex:1 0 auto; display:flex; flex-direction:column; gap:20px; }
+  /* 각주 출처 줄 — 행안부 금고지정 현황 바로가기(design-reviewer 11-17 a5b9b6a1 6-1). 기본 파랑은 패널 위 1.78:1이라 --fg 글자 + 틸 밑줄 */
+  .hb-src { display:block; margin-top:6px; }
+  .bk-src .hb-src { margin-top:0; }
+  .hb-src a { color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent-color); text-underline-offset:3px; }
   .hb-top, .db-top { display:flex; align-items:baseline; gap:12px; }
   .hb-top h2, .db-top h2 { margin:0; font-size:15px; font-weight:700; letter-spacing:-.01em; }
   .hb-top .sub, .db-top .sub { font-size:12px; color:var(--muted); }

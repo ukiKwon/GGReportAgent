@@ -29,6 +29,7 @@
   }
   // 'offline'(서버 미연결) | 'idle'(아직 안 받음) | 'loading' | 'ok' | 'error' | 'denied'
   nr.state = function () { sync(); return nr.canLoad() ? S.status : 'offline'; };
+  nr.listCode = function () { sync(); return S.code; };   // 목록 요청이 실패한 HTTP 코드(401·403·0). 성공이면 0
   nr.snap = function () { sync(); return nr.canLoad() && S.status === 'ok' ? { byId: S.byId, today: S.today } : null; };
   nr.canEdit = function () { sync(); return nr.canLoad() && S.status === 'ok' && S.canEdit; };   // 저장 버튼은 이것만 본다(역할 문자열 판정 금지)
   nr.today = function (localToday) { sync(); return (S.status === 'ok' && S.today) || localToday || ''; };
@@ -274,7 +275,11 @@
       : '<span class="db-why">아직 기록이 없습니다.' + (it && it.overdue ? ' 이 회차는 미처리로 셉니다.' : '') + '</span>';
     let h = open + '<dl class="db-dl"><dt>공고 자료</dt><dd>' + esc(a.text) + '</dd><dt>담당자 기록</dt><dd>' + rec + '</dd>' +
       (L ? '<dt>마지막 기록</dt><dd>' + esc(L.handler_name || '') + ' · ' + mono(at(L.handled_at)) + '</dd>' : '') + '</dl>';
-    if (!v.canEdit) h += '<p class="db-empty">공고 상태는 영업팀이 기록합니다. 다른 팀은 기록을 볼 수 있습니다.</p>';
+    if (!v.canEdit && (v.listState === 'error' || v.listState === 'denied')) {   // 목록 요청이 실패한 것을 '영업팀이 기록합니다'로 오해하지 않게(qa N-3, 문구 P2-3)
+      h += '<p class="db-empty">' + (v.listState === 'error' ? '공고 상태 목록을 불러오지 못해 기록 칸을 열지 않았습니다. 화면을 새로 고치세요.'
+        : (v.listCode === 401 ? '로그인이 필요합니다. 다시 로그인하면 기록 칸이 열립니다.' : '기록 권한을 확인하지 못했습니다. 로그인 사번과 권한을 확인하세요.')) + '</p>';
+    }
+    else if (!v.canEdit) h += '<p class="db-empty">공고 상태는 영업팀이 기록합니다. 다른 팀은 기록을 볼 수 있습니다.</p>';
     else if (closedUi) h += '<p class="db-rec-who" id="db-rec-closed">' + esc(nr.CLOSED_LINE) + '</p>';
     else h += formHtml(it, v, cur);
     return h + historyHtml(v.hist, v.histOpen) + '</div>';

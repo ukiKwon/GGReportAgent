@@ -246,7 +246,8 @@
       const btn = data.can_edit ? '<button type="button" id="bk-edit">' + (lines.length ? '금고 약정 고치기' : '금고 약정 입력') + '</button>' : '<span class="db-why">' + bc.MSG.noEdit + '</span>';
       foot = '<div class="bk-foot">' + hist + btn + '</div>';
     }
-    return '<div class="db-sec" id="db-bank"><h3>현재 금고 은행</h3>' + dl + note + state + foot + '</div>';
+    const src = o.srcHtml ? '<p class="db-empty bk-src">' + o.srcHtml + '</p>' : '';   // 선택 — 상세 바로가기 줄(note·state 뒤, foot 앞). 없으면 출력 그대로
+    return '<div class="db-sec" id="db-bank"><h3>현재 금고 은행</h3>' + dl + note + state + src + foot + '</div>';
   };
 
   // ── 변경 창: 형식 검사·본문 ───────────────────────────────────────────

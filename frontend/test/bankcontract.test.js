@@ -37,6 +37,20 @@ test('sectionHtml: 직접 입력 줄 — 칩·약정·출처·확인일·입력�
   assert.ok(h.includes('id="bk-edit">금고 약정 고치기'));
 });
 
+test('sectionHtml: srcHtml 선택 인자 — 없으면 출력 그대로, 있으면 note·state 뒤 foot 앞 1회', () => {
+  const base = bc.sectionHtml(V([L()]), LEG);
+  assert.strictEqual(bc.sectionHtml(V([L()]), Object.assign({ srcHtml: '' }, LEG)), base);
+  assert.ok(base.indexOf('bk-src') < 0);
+  [V([L()]), V([]), { st: 'error', code: 500 }, { st: 'loading' }].forEach(v => {
+    const h = bc.sectionHtml(v, Object.assign({ srcHtml: '<span class="hb-src">S</span>' }, LEG));
+    assert.strictEqual((h.match(/bk-src/g) || []).length, 1);
+    const i = h.indexOf('<p class="db-empty bk-src"><span class="hb-src">S</span></p>');
+    assert.ok(i > h.indexOf('</dl>'));
+    if (h.indexOf('class="bk-foot"') >= 0) assert.ok(i < h.indexOf('class="bk-foot"'));
+    assert.ok(h.endsWith('</div>'));
+  });
+});
+
 test('sectionHtml: 약정 시작이 없으면 약정 끝만, FUTURE는 n년부터, UNKNOWN은 미확인', () => {
   assert.ok(bc.sectionHtml(V([L({ term_from: null })]), LEG).includes('약정 끝 <span class="v">2026-12-31</span>'));
   assert.ok(bc.sectionHtml(V([L(), L({ contract_no: 2, term_state: 'FUTURE', term_from: '2027-01-01', term_to: '2030-12-31' })]), LEG).includes('<dt>2027년부터</dt>'));

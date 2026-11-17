@@ -145,6 +145,14 @@ test('sectionHtml: 연결 상태별, 읽기 전용, 입력 칸, NO_BID·DELAYED 
   assert.ok(er.includes('aria-invalid="true"') && er.includes('의견을 적으세요.'));
   const cf = nr.sectionHtml(it, { state: 'ok', canEdit: true, today: '2026-11-16', draft: { status: 'CLOSED', next: '', opinion: 'a' }, cf: { stage: '사전준비' } });
   assert.ok(cf.includes('id="db-rec-cf-yes"') && cf.includes('진행 중인 제안(사전준비 단계)이 있습니다.'));
+  // N-3: 목록(current) 요청이 실패·거부면 '영업팀이 기록합니다'가 아니라 불러오지 못했다고 말한다
+  [['error', 0, '공고 상태 목록을 불러오지 못해 기록 칸을 열지 않았습니다. 화면을 새로 고치세요.'],
+    ['denied', 401, '로그인이 필요합니다. 다시 로그인하면 기록 칸이 열립니다.'],
+    ['denied', 403, '기록 권한을 확인하지 못했습니다. 로그인 사번과 권한을 확인하세요.']].forEach(function (c) {
+    const f = nr.sectionHtml(it, { state: 'ok', canEdit: false, listState: c[0], listCode: c[1], rv: { view: 'pending' } });
+    assert.ok(f.includes(c[2]) && !f.includes('영업팀이 기록합니다') && !f.includes('id="db-rec-save"'), c[0] + c[1]);
+  });
+  assert.ok(nr.sectionHtml(it, { state: 'ok', canEdit: false, listState: 'ok', rv: { view: 'pending' } }).includes('공고 상태는 영업팀이 기록합니다.'));
 });
 
 const NBHIST = (seq, extra) => ({ rounds: [Object.assign({ round_seq: seq, open: false, close_reason_cd: 'NO_BID', logs: [{ rev_no: 1, status_cd: 'NO_BID', handler_name: '김영업', handled_at: '2026-11-16T09:00' }] }, extra || {})] });

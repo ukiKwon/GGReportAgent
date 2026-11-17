@@ -582,17 +582,20 @@
     return k === 'all' ? '전체: 앞으로 입찰 <b>' + n + '</b>곳(날짜를 아는 곳)' : dash.WINDOW_LABELS[k] + ' 안 <b>' + n + '</b>곳 · 가까운 순';
   };
 
-  // D3 국민은행 금고 약정 — 와플: 칸 하나가 기관 하나. 확인 칸을 앞에, 미확인은 빈 칸.
+  // D3 국민은행 금고 약정 — 와플: 칸 하나가 기관 하나. 국민은행 칸을 앞에, 다른 은행은 빈 칸. (design-reviewer 11-17 6-2)
   dash.waffleHtml = function (kb) {
     let cells = '';
     for (let i = 0; i < kb.total; i += 1) cells += '<i' + (i < kb.confirmed ? ' class="k"' : '') + '></i>';
-    return '<div class="waf" role="img" aria-label="조사한 기관 ' + kb.total + '곳 중 국민은행 금고 약정을 확인한 곳 ' + kb.confirmed + '곳">' + cells + '</div>';
+    return '<div class="waf" role="img" aria-label="지자체 ' + kb.total + '곳 중 국민은행이 금고를 맡은 곳 ' + kb.confirmed + '곳, 2026년 1월 1일 기준">' + cells + '</div>';
   };
-  dash.kbCardHtml = function (kb) {
-    return '<section class="db-card" aria-labelledby="db-t1"><h2 id="db-t1">국민은행 금고 약정</h2>' +
-      '<p class="fig">지자체 확인 <b>' + kb.confirmed + '</b>곳 / 조사 <b>' + kb.total + '</b>곳</p>' + dash.waffleHtml(kb) +
-      '<p class="lg"><span><i class="k"></i>확인</span><span><i></i>미확인</span></p>' +
-      '<p class="note">약정 기록을 모으기 전이라 출처로 확인한 곳만 셉니다. 미확인은 \'아님\'이 아니라 \'아직 모름\'입니다.</p></section>';
+  // o.empty = 국민은행 금고 자료(KB_VERIFIED)가 비었다 → 0곳 와플로 '모두 다른 은행'이라 말하지 않고 안내 한 줄만 둔다.
+  dash.kbCardHtml = function (kb, o) {
+    const head = '<section class="db-card" aria-labelledby="db-t1"><h2 id="db-t1">국민은행 금고 약정</h2>';
+    if (o && o.empty) return head + '<p class="fig">국민은행 금고 자료를 불러오지 못했습니다. 화면을 새로 고치세요.</p></section>';
+    return head +
+      '<p class="fig">지자체 <b>' + kb.total + '</b>곳 중 국민은행 <b>' + kb.confirmed + '</b>곳</p>' + dash.waffleHtml(kb) +
+      '<p class="lg"><span><i class="k"></i>국민은행</span><span><i></i>다른 은행</span></p>' +
+      '<p class="note">행안부 금고지정 현황(2026.1.1. 기준)에서 회계 하나라도 국민은행이 맡은 지자체입니다. 2027년부터 바뀌는 곳은 목록의 \'2027년부터\' 묶음에 있습니다.</p></section>';
   };
 
   // D2 제안 진행 단계. p = {state:'offline'|'loading'|'ok'|'denied'|'error', stages:stageCounts 결과, code:401|403|0}
@@ -701,6 +704,16 @@
     if (view === 'done') return '공고 진행 중·공고 종료·입찰 없음으로 적은 회차입니다.';
     return '예정일이 지났는데 아직 기록이 없거나 다음 확인일이 지난 회차입니다. ' + (o.canEdit ? '기관을 골라 오른쪽 \'공고 상태 기록\'에 적으세요.' : '영업팀이 기록합니다.');
   };
+  // 저장 뒤 선택한 기관이 지금 보기(ovView)의 행에서 빠졌을 때 저장 안내 끝에 붙이는 한 문장(design-reviewer 11-17 6-3, P3-8).
+  // view = 그 기관이 지금 든 보기('pending'|'delayed'|'done'), inList = 경과 목록에 아직 있는가. 빠지지 않았으면 ''.
+  dash.moveNote = function (view, ovView, inList) {
+    if (!inList) return '이 기관은 경과 목록에서 빠졌습니다.';
+    if (view === ovView) return '';
+    const d = dash.OV_VIEWS.filter(function (x) { return x[0] === view; })[0];
+    return d ? '이 기관은 [' + d[1] + '] 보기로 옮겼습니다.' : '';
+  };
+  // 안내 문장을 붙일지 판단(qa F1): 공고 상태 목록이 'ok'일 때만 쓴다. 목록 요청이 실패했으면 '목록에서 빠졌습니다'가 거짓이 된다.
+  dash.moveNoteIf = function (listState, note) { return listState === 'ok' ? (note || '') : ''; };
   dash.ovEmpty = function (view) {
     return view === 'delayed' ? '지연·재공고 대기로 적은 회차가 없습니다.' : view === 'done' ? '공고 진행 중·공고 종료·입찰 없음으로 적은 회차가 없습니다.' : '예정일이 지난 회차를 모두 기록했습니다.';
   };
@@ -786,9 +799,14 @@
         : c.bank.data.can_edit ? '<p class="db-empty">금고 약정을 입력하면 출처와 함께 여기에 보입니다.</p>' : '';   // 권한 없음 문구는 절 아래 foot이 보인다
     }
     const bcm = BC();
+    // 지자체 기관에만: '현재 금고 은행' 절에 행안부 금고지정 현황 바로가기 한 줄(kbboard.srcHtml 재사용 — 머리말만 '직접 확인: ').
+    // 서버 모드는 bc.sectionHtml이 note·state 뒤, foot 앞에 끼운다(정규식 끼워 넣기 없음). legacy 경로는 절 끝에 붙인다.
+    // c.muniSrcHtml이 문자열이면 그것을 쓴다(순수 시험·kbboard 미로드). 비지자체 기관에는 이 표가 근거가 아니라 넣지 않는다.
+    let muniSrc = '';
+    if (dash.kindOfRec(rec) === '지자체') muniSrc = typeof c.muniSrcHtml === 'string' ? c.muniSrcHtml : (root.kbboard && root.kbboard.srcHtml ? root.kbboard.srcHtml('직접 확인: ') : '');
     const bank = c.bank && bcm
-      ? bcm.sectionHtml(c.bank, { legacyDl: bankDl, legacyNote: bankNote, collected: !!(c.kb || c.next), hasKb: !!c.kb, col: bankCol(c) })
-      : '<div class="db-sec"><h3>현재 금고 은행</h3>' + bankDl + bankNote + '</div>';
+      ? bcm.sectionHtml(c.bank, { legacyDl: bankDl, legacyNote: bankNote, collected: !!(c.kb || c.next), hasKb: !!c.kb, col: bankCol(c), srcHtml: muniSrc })
+      : '<div class="db-sec"><h3>현재 금고 은행</h3>' + bankDl + bankNote + (muniSrc ? '<p class="db-empty bk-src">' + muniSrc + '</p>' : '') + '</div>';
     // c.headHtml: headcard.js가 만든 '기관장' 절(서버 기관장 API 카드). 없으면(모듈 미로드·순수 테스트) 예전 자리표시를 둔다.
     const chief = typeof c.headHtml === 'string' ? c.headHtml : '<div class="db-sec"><h3>기관장</h3><dl class="db-dl"><dt>기관장</dt><dd>' + chip() + '</dd></dl>' +
       '<p class="db-empty">기관장 프로필은 수집 예정입니다. 입찰이 1년 안에 있는 기관부터 모읍니다.</p></div>';
@@ -988,6 +1006,7 @@
     const a0 = document.activeElement;   // 기록 칸에서 입력 중이면 다시 그린 뒤 같은 칸·커서로 돌린다
     const keep = a0 && a0.id && el.contains && el.contains(a0) && /^db-rec-/.test(a0.id) ? { id: a0.id, s: a0.selectionStart, e: a0.selectionEnd } : null;
     recSync(it);
+    st.comp = false; st.compLater = false;   // 상세를 통째로 다시 그리면 조합도 끊긴다 — 미룬 다시 그리기 표시를 남기지 않는다
     el.innerHTML = dash.paneHtml(it, { act: act, confirm: st.confirm && act === 'confirm', busy: st.busy,
       kb: dash.kbEntry(it.rec, root.KB_VERIFIED), next: dash.kbEntry(it.rec, root.KB_NEXT), role: ctx.role, today: todayDate(), headHtml: headSection(it),
       recordHtml: ie.isOpenCheck(it.rec) ? '' : recViewHtml(it), bank: bankView(it.rec) });
@@ -1036,13 +1055,14 @@
     const n = NR(), r = st.rec, id = recId(it);
     if (!n) return '';
     if (!id || !recOn()) return dash.recordSecHtml(it, { state: 'offline' });
-    return dash.recordSecHtml(it, { state: r.histSt === 'idle' ? 'loading' : r.histSt, code: r.histCode, hist: r.hist, cur: recCur(), canEdit: n.canEdit(),
+    return dash.recordSecHtml(it, { state: r.histSt === 'idle' ? 'loading' : r.histSt, code: r.histCode, listState: n.state ? n.state() : '', listCode: n.listCode ? n.listCode() : 0, hist: r.hist, cur: recCur(), canEdit: n.canEdit(),
       draft: st.drafts[id] || null, errs: r.errs, err: r.err, busy: r.busy, cf: r.cf ? { stage: stageLabel(r.cf.state) } : null,
       who: profileName(), today: recToday(), rv: dash.recView(it), histOpen: r.histOpen });
   }
   function repaintRec() {   // 기록 절만 바꾼다(스크롤·다른 절은 그대로)
     const it = selItem(), sec = $('db-rec');
     if (!it || !sec) return;
+    st.comp = false; st.compLater = false;   // renderPane과 같게 — 다시 그리면 한글 조합도 끊긴다(qa F4)
     const a = document.activeElement, keep = a && a.id && sec.contains(a) ? a.id : '';
     const s0 = keep && a.selectionStart != null ? a.selectionStart : null, e0 = keep && a.selectionEnd != null ? a.selectionEnd : null;
     sec.outerHTML = recViewHtml(it);
@@ -1054,10 +1074,15 @@
   // 기록 목록이 바뀌었을 때(current 도착·403 재확인 뒤) 고른 기관의 기록 절도 다시 그린다. 초안은 st.drafts에 있어 입력은 그대로다.
   function onRecChange() {
     if (!host || !M) return;
-    recGuard();
+    const changed = recGuard();
     renderList();
-    if (selItem() && $('db-rec')) repaintRec();
+    const it = selItem();
+    // 사번이 바뀌어 이력이 비워졌으면 고른 기관의 이력을 다시 받는다(안 받으면 '불러오는 중'에서 멈춘다 — qa N-1)
+    if (changed && it) recSync(it);
+    if (st.comp && !changed) { st.compLater = true; return; }   // 한글 조합 중이면 다시 그리기를 조합이 끝난 뒤로 미룬다(qa N-5)
+    if (it && $('db-rec')) repaintRec();
   }
+  function recCompEnd() { st.comp = false; if (st.compLater) { st.compLater = false; if (host && M && selItem() && $('db-rec')) repaintRec(); } }
   function recFocusField(k) {
     const t = host && host.querySelector(k === 'status' ? '#db-rec input[name="rec-state"]' : (k === 'next' ? '#db-rec-next' : '#db-rec-op'));
     if (t && t.focus) t.focus();
@@ -1108,7 +1133,14 @@
     if (o.kind === 'saved' || o.kind === 'nochange') {
       delete st.drafts[id];
       flash(o.msg, false);
-      n.load();                                   // 배지·목록·팝업이 onChange로 다시 그려진다. 저장 응답 round_closed(NO_BID로 회차가 닫힘)여도 같은 경로로 목록을 다시 받는다
+      const key = st.sel, tabAt = st.tab;
+      // 배지·목록·팝업이 onChange로 다시 그려진다. 저장 응답 round_closed(NO_BID로 회차가 닫힘)여도 같은 경로로 목록을 다시 받는다
+      Promise.resolve(n.load()).then(function () {   // P3-8: 목록을 다시 받은 뒤 그 기관이 지금 보기에서 빠졌으면 저장 안내 끝에 한 문장
+        if (!host || !M || !same || st.sel !== key || st.tab !== 'ov' || tabAt !== 'ov' || st.flash !== o.msg) return;
+        const it = selItem(), note0 = it ? dash.moveNote(it.overdue ? dash.recView(it).view : '', st.ovView, !!it.overdue) : dash.moveNote('', st.ovView, false);
+        const note = dash.moveNoteIf(n.state ? n.state() : '', note0);   // F1: 목록을 못 받았으면(error·denied 등) 옮김 판정을 믿을 수 없어 붙이지 않는다
+        if (note) flash(o.msg + ' ' + note, false);
+      });
       if (!same) return;
       r.err = ''; r.errs = {}; r.cf = null;
       // round_closed면 이력의 닫힌 회차(close_reason_cd NO_BID)를 다시 받아 읽기용으로 보이게 하고, 새 회차 저장은 round_seq null·base_rev_no 0으로 간다
@@ -1673,6 +1705,8 @@
       if (e.target.id === 'db-q') { st.q = e.target.value; renderList(); }
       else if (e.target.id === 'db-rec-next' || e.target.id === 'db-rec-op') recInput(e.target);
     }, opt);
+    host.addEventListener('compositionstart', function (e) { if (e.target && (e.target.id === 'db-rec-op' || e.target.id === 'db-rec-next')) st.comp = true; }, opt);
+    host.addEventListener('compositionend', function (e) { if (e.target && (e.target.id === 'db-rec-op' || e.target.id === 'db-rec-next')) recCompEnd(); }, opt);
     host.addEventListener('toggle', function (e) {
       if (e.target && e.target.classList && e.target.classList.contains('db-rec-hist')) st.rec.histOpen = !!e.target.open;
       bankToggle(e, recId(selItem()));
@@ -1686,7 +1720,7 @@
       else if (e.target.name === 'db-per') setWindow(e.target.value, true);
     }, opt);
     st.confirm = false; st.busy = false; st.err = ''; st.flash = ''; st.tab = 'up';
-    st.ovView = 'pending'; st.drafts = {}; st.rec = recFresh('');   // 이 화면을 떠나면 초안을 버린다
+    st.ovView = 'pending'; st.drafts = {}; st.rec = recFresh(''); st.comp = false; st.compLater = false;   // 이 화면을 떠나면 초안을 버린다
     const nrm = NR();
     if (nrm && nrm.onChange) offNr = nrm.onChange(onRecChange);   // 목록·고른 기관의 기록 절을 다시 그린다(포커스·커서·초안은 지킨다)
     st.empSeen = nrm && nrm.emp ? nrm.emp() : '';

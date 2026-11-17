@@ -72,13 +72,31 @@ test('ours·slotText·leavesText·summary: 칩 글자는 1금고·2금고(일부
 
 test('각주(design C2): 모두 켬 문장 그대로, 법원·공공기관을 끄면 그 부분을 빼고 끝에 아직 세지 않는다는 말', function () {
   const on = kbb.footHtml(undefined, 7);
-  assert.strictEqual(on, '지자체는 행안부 금고지정 현황(2026.1.1. 기준)의 1·2금고, 법원은 공탁금 보관은행, 공공기관은 주거래은행 칸으로 셉니다. ' +
-    '2027년부터는 지정 결과 공고·기사로 확인한 곳입니다. 은행 칸이 빈 법원·공공기관 <b>7</b>곳은 세지 않았습니다.');
+  const SRC = '<span class="hb-src">지자체 출처: <a href="https://www.lofin365.go.kr/portal/LF8310000.do?curPage=1&amp;ntcaClsDvCd=FSL409" target="_blank" rel="noopener noreferrer">' +
+    '행안부 금고지정 현황(2026.1.1. 기준)<span class="sr-only">, 새 탭</span></a> <span class="db-why">(인터넷 PC에서 열림)</span></span>';
+  assert.strictEqual(on, '지자체는 1·2금고, 법원은 공탁금 보관은행, 공공기관은 주거래은행 칸으로 셉니다. ' +
+    '2027년부터는 지정 결과 공고·기사로 확인한 곳입니다. 은행 칸이 빈 법원·공공기관 <b>7</b>곳은 세지 않았습니다.' + SRC);
   assert.ok(on.indexOf('우리') < 0);
   const off = kbb.footHtml({ muni: true, next: false, court: false, public: false }, 7);
-  assert.strictEqual(off, '지자체는 행안부 금고지정 현황(2026.1.1. 기준)의 1·2금고만 셉니다. 법원·공공기관은 아직 세지 않습니다.');
+  assert.strictEqual(off, '지자체는 1·2금고만 셉니다. 법원·공공기관은 아직 세지 않습니다.' + SRC);
+  // 지자체를 세지 않으면 지자체 문장과 출처 줄이 둘 다 없다
+  const nm = kbb.footHtml({ muni: false, next: false, court: true, public: true }, 7);
+  assert.ok(nm.indexOf('금고지정') < 0 && nm.indexOf('hb-src') < 0 && nm.indexOf('지자체') < 0);
+  // 주소가 비면 링크와 안내 없이 글자만
+  const keep = kbb.LOFIN_FSL409_URL; kbb.LOFIN_FSL409_URL = '';
+  const bare = kbb.footHtml({ muni: true, next: false, court: false, public: false }, 0);
+  kbb.LOFIN_FSL409_URL = keep;
+  assert.ok(bare.endsWith('<span class="hb-src">지자체 출처: 행안부 금고지정 현황(2026.1.1. 기준)</span>') && bare.indexOf('<a ') < 0 && bare.indexOf('인터넷 PC') < 0);
   assert.strictEqual(kbb.bankUnknownN([{ name: 'a', region: '11', type: '법원' }, { name: 'b', region: '11', type: '공공기관', bank: '농협은행' },
     { name: 'c', region: '11', type: '지자체' }]), 1);
+});
+
+test('srcHtml 머리말 인자(P2-2): 기본 \'지자체 출처: \', 상세는 \'직접 확인: \', 링크·안내는 그대로', function () {
+  const def = kbb.srcHtml();
+  assert.ok(def.indexOf('<span class="hb-src">지자체 출처: <a ') === 0);
+  const det = kbb.srcHtml('직접 확인: ');
+  assert.strictEqual(det, def.replace('지자체 출처: ', '직접 확인: '));
+  assert.strictEqual(kbb.srcHtml('<b>x</b>').indexOf('<b>'), -1);   // 머리말도 이스케이프
 });
 
 test('KB_NEXT 자료: 6곳·2027년부터·출처 있음·현재 목록(KB_VERIFIED)과 겹치지 않음, 청주 leaves 2027', function () {

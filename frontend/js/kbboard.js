@@ -57,13 +57,25 @@
       return (k === '법원' || k === '공공기관') && !String(r.bank || '').trim();
     }).length;
   };
+  // 지자체 출처 링크(지방재정365 금고지정 현황 목록 — 해마다 최신판이 위에 올라온다). 인터넷 PC에서만 열린다. 규격: design-reviewer 11-17 6-1.
+  kbb.LOFIN_FSL409_URL = 'https://www.lofin365.go.kr/portal/LF8310000.do?curPage=1&ntcaClsDvCd=FSL409';
+  kbb.SRC_NAME = '행안부 금고지정 현황(2026.1.1. 기준)';
+  kbb.srcHtml = function (label) {
+    const u = logic.safeHttpUrl(kbb.LOFIN_FSL409_URL);
+    return '<span class="hb-src">' + esc(label == null ? '지자체 출처: ' : label) + (u
+      ? '<a href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">' + esc(kbb.SRC_NAME) + '<span class="sr-only">, 새 탭</span></a> <span class="db-why">(인터넷 PC에서 열림)</span>'
+      : esc(kbb.SRC_NAME)) + '</span>';
+  };
   kbb.footHtml = function (scope, k) {
     const s = scope || dash.OURS_SCOPE;
-    const base = '지자체는 행안부 금고지정 현황(2026.1.1. 기준)의 1·2금고';
+    const base = '지자체는 1·2금고';
     const more = [s.court ? '법원은 공탁금 보관은행' : '', s.public ? '공공기관은 주거래은행' : ''].filter(Boolean);
-    let h = more.length ? base + ', ' + more.join(', ') + ' 칸으로 셉니다.' : base + '만 셉니다.';
+    let h;
+    if (s.muni === false) h = more.length ? more.join(', ') + ' 칸으로 셉니다.' : '';   // 지자체를 세지 않으면 지자체 문장·출처 줄이 없다
+    else h = more.length ? base + ', ' + more.join(', ') + ' 칸으로 셉니다.' : base + '만 셉니다.';
     if (s.next) h += ' 2027년부터는 지정 결과 공고·기사로 확인한 곳입니다.';
     h += more.length ? ' 은행 칸이 빈 법원·공공기관 <b>' + Number(k || 0) + '</b>곳은 세지 않았습니다.' : ' 법원·공공기관은 아직 세지 않습니다.';
+    if (s.muni !== false) h += kbb.srcHtml();
     return h;
   };
   // '회차 소식' 줄 — kb-verified의 next 문장을 그대로 쓴다('확정' 같은 말을 덧붙이지 않는다). 2027년부터 자료(from 있음)는 quote가 그 문장이다.
@@ -315,7 +327,7 @@
 
   function renderCards() {
     const el = $('hb-cards');
-    if (el) el.innerHTML = dash.kbCardHtml(dash.kbCount(LIST, KB())) + dash.stageCardHtml(progressState());
+    if (el) el.innerHTML = dash.kbCardHtml(dash.kbCount(LIST, KB()), { empty: !(Array.isArray(KB()) && KB().length) }) + dash.stageCardHtml(progressState());
   }
 
   function renderAll() {

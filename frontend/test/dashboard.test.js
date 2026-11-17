@@ -218,14 +218,20 @@ test('termBar: lastBid 없으면 null, 비율 0~100, 추정이면 점선, 경과
 });
 
 // ── 국민은행 와플(D3) ──────────────────────────────────────────────
-test('와플: 칸 수 = 조사한 기관 수, 채운 칸 = 확인 수', function () {
+test('P3-3 와플: 칸 수 = 조사한 기관 수, 채운 칸 = 국민은행 수', function () {
   const h = dash.waffleHtml({ confirmed: 6, unconfirmed: 237, total: 243 });
   assert.strictEqual((h.match(/<i[ >]/g) || []).length, 243);
   assert.strictEqual((h.match(/<i class="k">/g) || []).length, 6);
-  assert.ok(h.indexOf('role="img"') >= 0 && h.indexOf('243곳 중') >= 0 && h.indexOf('확인한 곳 6곳') >= 0);
+  assert.ok(h.indexOf('role="img"') >= 0 && h.indexOf('지자체 243곳 중 국민은행이 금고를 맡은 곳 6곳') >= 0 && h.indexOf('2026년 1월 1일 기준') >= 0);
   const card = dash.kbCardHtml({ confirmed: 6, unconfirmed: 237, total: 243 });
-  assert.ok(card.indexOf('국민은행 금고 약정') >= 0 && card.indexOf('확인 <b>6</b>곳 / 조사 <b>243</b>곳') >= 0);
-  assert.ok(card.indexOf('미확인은 \'아님\'이 아니라 \'아직 모름\'입니다.') >= 0);
+  assert.ok(card.indexOf('국민은행 금고 약정') >= 0 && card.indexOf('지자체 <b>243</b>곳 중 국민은행 <b>6</b>곳') >= 0);
+  assert.ok(card.indexOf('다른 은행') >= 0 && card.indexOf('<span><i class="k"></i>국민은행</span>') >= 0 && card.indexOf('2026.1.1. 기준') >= 0);
+  assert.ok(card.indexOf('아직 모름') < 0 && card.indexOf('미확인') < 0);
+  // 숫자는 계산값 — 박지 않았다
+  assert.ok(dash.kbCardHtml({ confirmed: 16, unconfirmed: 227, total: 243 }).indexOf('국민은행 <b>16</b>곳') >= 0);
+  // 자료가 비면 와플 대신 안내 한 줄
+  const emp = dash.kbCardHtml({ confirmed: 0, unconfirmed: 243, total: 243 }, { empty: true });
+  assert.ok(emp.indexOf('국민은행 금고 자료를 불러오지 못했습니다. 화면을 새로 고치세요.') >= 0 && emp.indexOf('class="waf"') < 0 && emp.indexOf('다른 은행') < 0);
 });
 
 test('기간 버튼 마크업: 네이티브 라디오 4개·선택 1개·숨은 legend', function () {
@@ -420,6 +426,60 @@ test('josaEul: 받침 유무', function () {
   assert.strictEqual(dash.josaEul('노원구청'), '을');
   assert.strictEqual(dash.josaEul('서울특별시'), '를');
   assert.strictEqual(dash.josaEul(''), '를');
+});
+
+// ── 지자체 상세 '행안부 금고지정 현황' 바로가기 · 저장 뒤 보기 이동 안내 ───────────────────
+test('paneHtml: 지자체 상세 \'현재 금고 은행\' 절 맨 아래에 출처 바로가기 한 줄, 비지자체에는 없다', function () {
+  const SRC = '<span class="hb-src">지자체 출처: <a href="https://x.test/a">행안부 금고지정 현황(2026.1.1. 기준)</a></span>';
+  const muni = dash.model([rec('부산광역시', '26', 40, { lastBid: '2024-09-24', term: 4 })], TODAY).upcoming[0];
+  const h = dash.paneHtml(muni, { act: 'none', muniSrcHtml: SRC });
+  assert.strictEqual((h.match(/지자체 출처:/g) || []).length, 1);
+  assert.ok(/<h3>현재 금고 은행<\/h3>[\s\S]*bk-src[\s\S]*지자체 출처:[\s\S]*<\/p><\/div>/.test(h));
+  assert.ok(h.indexOf('지자체 출처:') < h.indexOf('<h3>기관장</h3>'));   // 은행 절 안, 기관장 절 앞
+  const court = dash.model([rec('서울중앙지방법원', '11', 40, { type: '법원', lastBid: '2024-09-24', term: 4 })], TODAY).upcoming[0];
+  assert.ok(dash.paneHtml(court, { act: 'none', muniSrcHtml: SRC }).indexOf('지자체 출처:') < 0);
+  assert.ok(dash.paneHtml(muni, { act: 'none' }).indexOf('지자체 출처:') < 0);   // kbboard가 없으면(순수 시험) 줄을 만들지 않는다
+});
+
+test('T1 paneHtml: 서버 모드(c.bank ok)에서 출처 줄은 #db-bank 절 안, .bk-foot 앞에 1회, 직접 입력은 정규식 없이 조립', function () {
+  const SRC = '<span class="hb-src">직접 확인: <a href="https://x.test/a">행안부 금고지정 현황(2026.1.1. 기준)</a></span>';
+  const muni = dash.model([rec('부산광역시', '26', 40, { lastBid: '2024-09-24', term: 4 })], TODAY).upcoming[0];
+  const bank = { st: 'ok', code: 0, histOpen: false, histSt: 'idle', hist: null, data: { lines: [], history_count: 0, can_edit: true, today: '2026-11-17', codes: { banks: [], ranks: [], src_kinds: [], cancel_reasons: [], accounts: [] } } };
+  const h = dash.paneHtml(muni, { act: 'none', muniSrcHtml: SRC, bank: bank });
+  assert.strictEqual((h.match(/bk-src/g) || []).length, 1);
+  const i0 = h.indexOf('id="db-bank"'), i1 = h.indexOf('bk-src'), i2 = h.indexOf('class="bk-foot"'), i3 = h.indexOf('<h3>기관장</h3>');
+  assert.ok(i0 >= 0 && i0 < i1 && i1 < i2 && i2 < i3);
+  const sec = h.slice(i0, i3);
+  assert.ok(sec.indexOf('직접 확인:') >= 0 && sec.lastIndexOf('</div>') > sec.indexOf('bk-foot'));
+  // 비지자체에는 없다
+  const court = dash.model([rec('서울중앙지방법원', '11', 40, { type: '법원', lastBid: '2024-09-24', term: 4 })], TODAY).upcoming[0];
+  assert.ok(dash.paneHtml(court, { act: 'none', muniSrcHtml: SRC, bank: bank }).indexOf('bk-src') < 0);
+});
+
+test('moveNote: 보기 이름은 OV_VIEWS 글자, 같은 보기면 빈 문자열, 목록에서 빠졌으면 따로', function () {
+  assert.strictEqual(dash.moveNote('done', 'pending', true), '이 기관은 [처리됨] 보기로 옮겼습니다.');
+  assert.strictEqual(dash.moveNote('delayed', 'pending', true), '이 기관은 [지연·재공고 대기] 보기로 옮겼습니다.');
+  assert.strictEqual(dash.moveNote('pending', 'done', true), '이 기관은 [미처리] 보기로 옮겼습니다.');
+  assert.strictEqual(dash.moveNote('pending', 'pending', true), '');
+  assert.strictEqual(dash.moveNote('', 'pending', false), '이 기관은 경과 목록에서 빠졌습니다.');
+  dash.OV_VIEWS.forEach(function (d) { assert.ok(dash.moveNote(d[0], d[0] === 'pending' ? 'done' : 'pending', true).indexOf('[' + d[1] + ']') >= 0); });
+});
+
+test('T2 moveNoteIf: 공고 상태 목록이 ok일 때만 안내를 붙인다', function () {
+  const note = dash.moveNote('done', 'pending', true);
+  assert.strictEqual(dash.moveNoteIf('ok', note), note);
+  ['error', 'denied', 'loading', 'idle', 'offline', '', undefined].forEach(function (s) { assert.strictEqual(dash.moveNoteIf(s, note), ''); });
+  assert.strictEqual(dash.moveNoteIf('ok', ''), '');
+  const src = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8');
+  assert.ok(/dash\.moveNoteIf\(n\.state \? n\.state\(\) : '', note0\)/.test(src));
+  assert.ok(/function repaintRec\(\) \{(?:[^\n]*\n){1,4}\s*st\.comp = false; st\.compLater = false;/.test(src));   // F4
+});
+
+test('소스: 저장 뒤 안내(P3-8)·사번 바뀐 뒤 이력 재요청(N-1)·한글 조합 중 미루기(N-5) 연결', function () {
+  const src = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8');
+  assert.ok(/Promise\.resolve\(n\.load\(\)\)\.then\([\s\S]{0,400}dash\.moveNote\(/.test(src));
+  assert.ok(/const changed = recGuard\(\);[\s\S]{0,300}if \(changed && it\) recSync\(it\);/.test(src));      // N-1: DOM 없이는 mount를 못 돌려 연결만 확인한다
+  assert.ok(/compositionstart/.test(src) && /compositionend/.test(src) && /st\.comp && !changed/.test(src));
 });
 
 // ── 상세·이스케이프 ────────────────────────────────────────────────
