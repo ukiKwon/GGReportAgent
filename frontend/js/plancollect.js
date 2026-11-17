@@ -23,7 +23,7 @@
   pc.isOpen = function (st) { return st === 'REQUESTED' || st === 'RUNNING'; };
 
   const CLOSED_LABEL = { APPLIED: '반영', FAILED: '실패', EXCLUDED: '제외', CANCELED: '취소' };
-  const MODE_LABEL = { MANUAL: '수동 표시', AGENT: '수집 서버로 보냄' };
+  const MODE_LABEL = { MANUAL: '목록으로 표시', AGENT: '수집 서버로 보냄' };
   const RUN_RESULT = { AGENT_UNREACHABLE: '연결 안 됨 또는 응답 없음', AGENT_REJECTED: '수집 서버가 요청을 받지 않음', BAD_RESPONSE: '수집 서버 응답을 읽지 못함' };
   // 처리 결과 코드(서버 results[].result_cd) → 문구
   const RESULT = {
@@ -41,24 +41,33 @@
     BLOCKED_BAD_CONFIG: '수집 서버 연결 설정이 올바르지 않습니다',
   };
   pc.resultText = function (code) { const c = str(code); return own(RESULT, c) ? RESULT[c] : '처리하지 못했습니다'; };
+  // 결과 문구를 쉼표로 이어 붙이는 자리(표시·실행 결과)용 명사구 — 마침표 없음. 한 건 처리(제외·실패)는 문장형 resultText 를 쓴다.
+  const RESULT_SHORT = {
+    NOT_FOUND: '요청을 찾지 못함', NOT_REQUESTED: '이미 다른 사람이 처리함', NOT_OPEN: '이미 끝난 요청', NOT_RUNNING: '수집 중 상태가 아님',
+    CONFLICT: '다른 사람이 방금 처리함', TOO_SOON: '10분 안에 다시 실행할 수 없음',
+    AGENT_UNREACHABLE: '수집 서버 연결 안 됨 또는 응답 없음', AGENT_REJECTED: '수집 서버가 받지 않음', BAD_RESPONSE: '수집 서버 응답을 읽지 못함',
+    BLOCKED_NO_URL: '수집 서버 주소 설정 없음', BLOCKED_BAD_CONFIG: '수집 서버 설정 오류',
+  };
+  pc.resultShort = function (code) { const c = str(code); return own(RESULT_SHORT, c) ? RESULT_SHORT[c] : '처리하지 못함'; };
   pc.okCount = function (results) { return arr(results).filter(function (r) { return r && (r.result_cd === 'OK' || r.result_cd === 'SENT'); }).length; };
   pc.failReasons = function (results) {   // 성공이 아닌 결과 → 문구(중복 제거, 처음 나온 순)
     const out = [];
     arr(results).forEach(function (r) {
       const c = r && r.result_cd;
       if (c === 'OK' || c === 'SENT') return;
-      const t = pc.resultText(c);
+      const t = pc.resultShort(c);
       if (out.indexOf(t) < 0) out.push(t);
     });
     return out;
   };
 
   // HTTP 오류 → 문구. code = 서버 detail.code(있을 때만: BUSY·BLOCKED_NO_URL·BLOCKED_BAD_CONFIG). 서버 message 는 쓰지 않는다.
-  pc.errorText = function (status, code) {
+  pc.errorText = function (status, code, ctx) {   // ctx 'keys' = 선택한 요청만 보내는 동작(내려받기·수집 중 표시·실행) — 사유 칸이 없다
     const s = Number(status) || 0, c = str(code);
     if (s === 0) return '요청을 보내지 못했습니다(연결 실패). 잠시 뒤 다시 누르세요.';
     if (s === 401) return '로그인이 필요합니다. 사번으로 다시 로그인해 주세요.';
     if (s === 403) return '이 화면은 시스템 관리 권한이 있는 개발부서만 씁니다(403). 로그인 사번과 권한을 확인하세요.';
+    if (s === 400 && ctx === 'keys') return '선택한 요청을 확인하세요(400).';
     if (s === 400 && c === 'REASON_REQUIRED') return '사유를 적으세요.';
     if (s === 400 && c === 'REASON_TOO_LONG') return '사유는 ' + pc.REASON_MAX + '자 이내로 적으세요.';
     if (s === 400 && c === 'REASON_FORMAT') return '사유에 쓸 수 없는 글자가 있습니다. 지우고 다시 누르세요.';
@@ -121,10 +130,12 @@
   pc.btnState = function (st) {
     const s = pc.selection(st.items, st.sel), busy = str(st.busy);
     const out = {
-      csv: { html: busy === 'csv' ? '내려받는 중…' : '선택한 ' + mono(s.all.length) + '곳 목록 내려받기(CSV)', disabled: !s.all.length || !!busy },
-      mark: { html: busy === 'mark' ? '표시하는 중…' : '선택한 ' + mono(s.req.length) + '곳 수집 중으로 표시', disabled: !s.req.length || !!busy },
+      csv: { html: busy === 'csv' ? '내려받는 중…' : '선택한 ' + mono(s.all.length) + '곳 목록 내려받기(CSV)', disabled: !s.all.length || s.all.length > pc.MAX_KEYS || !!busy },
+      mark: { html: busy === 'mark' ? '표시하는 중…' : '선택한 ' + mono(s.req.length) + '곳 수집 중으로 표시', disabled: !s.req.length || s.req.length > pc.MAX_KEYS || !!busy },
     };
-    if (st.agent) out.run = { html: busy === 'run' ? '실행 중…' : '선택한 ' + mono(s.req.length) + '곳 수집 실행', disabled: !s.req.length || !!busy };
+    if (st.agent) out.run = { html: busy === 'run' ? '실행 중…' : '선택한 ' + mono(s.req.length) + '곳 수집 실행', disabled: !s.req.length || s.req.length > pc.MAX_RUN || !!busy };
+    out.hint = s.all.length > pc.MAX_KEYS ? pc.limitText(pc.MAX_KEYS)
+      : (st.agent && s.req.length > pc.MAX_RUN ? '수집 실행은 한 번에 ' + pc.MAX_RUN + '곳까지 보낼 수 있습니다. 선택을 줄이세요.' : '');
     return out;
   };
   pc.countHtml = function (items, view) {
@@ -145,9 +156,10 @@
     function btn(k, extra) {
       return '<button type="button" id="cr-' + k + '"' + extra + (b[k].disabled ? ' disabled' : '') + '>' + b[k].html + '</button>';
     }
-    return '<div class="ad-toolbar"><fieldset class="db-per" id="cr-view">' + pc.viewHtml(st.view) + '</fieldset>' +
+    return '<div class="ad-toolbar cr-toolbar"><fieldset class="db-per" id="cr-view">' + pc.viewHtml(st.view) + '</fieldset>' +
       btn('csv', ' class="pp-next-btn" data-cr="csv"') + btn('mark', ' data-cr="mark"') +
       (b.run ? btn('run', ' data-cr="run-ask"') : '') +   // 설정이 있을 때만 DOM 에 그린다(숨김·안내 없음, 규격 P2-2)
+      '<span class="ad-note" id="cr-limit"' + (b.hint ? '' : ' hidden') + '>' + esc(b.hint || '') + '</span>' +
       '<span class="ad-count" id="cr-count">' + pc.countHtml(st.items, st.view) + '</span></div>';
   };
   pc.runAskHtml = function (n) {
@@ -282,8 +294,18 @@
       const el = H.body.querySelector('#cr-' + k);
       if (el && b[k]) { el.innerHTML = b[k].html; el.disabled = b[k].disabled; }
     });
+    const lim = H.body.querySelector('#cr-limit');
+    if (lim) { lim.textContent = b.hint || ''; lim.hidden = !b.hint; }
     const all = H.body.querySelector('#cr-all');
     if (all) { const rk = pc.requestedKeys(S.items); all.checked = rk.length > 0 && rk.every(function (k) { return S.sel.indexOf(k) >= 0; }); }
+  }
+  function closeRunAsk() {   // 선택이 바뀌었거나 다른 동작을 시작해 확인 상자의 개수가 낡았을 때 닫는다. 포커스가 상자 안에 있었으면 [수집 실행]으로
+    if (!S || !S.runAsk) return;
+    S.runAsk = false;
+    const box = H && H.body.querySelector('#cr-run-ask');
+    const inside = !!(box && document.activeElement && box.contains(document.activeElement));
+    if (box) box.remove();
+    if (inside) focusSel('#cr-run');
   }
   function load(after) {
     if (!S) return Promise.resolve();
@@ -328,11 +350,16 @@
     paint();
     focusSel('#cr-reason');
   }
+  function focusAskBtn(a) {   // 선택자에 req_key 를 이어 붙이지 않고 data-key 를 값으로 비교한다
+    const bs = H.body.querySelectorAll('button[data-cr="ask-' + a.kind + '"]');
+    for (let i = 0; i < bs.length; i += 1) { if (bs[i].getAttribute('data-key') === a.key) { bs[i].focus(); return true; } }
+    return false;
+  }
   function closeAsk() {
     const a = S.ask;
     S.ask = null;
     paint();
-    if (a && !focusSel('button[data-cr="ask-' + a.kind + '"][data-key="' + a.key + '"]')) focusSel('#cr-table');   // 연 버튼으로 포커스를 돌려준다
+    if (a && !focusAskBtn(a)) focusSel('#cr-table');   // 연 버튼으로 포커스를 돌려준다
   }
   function doClose() {
     const a = S && S.ask;
@@ -366,11 +393,11 @@
     if (!s.req.length || S.busy) return;
     if (s.req.length > pc.MAX_KEYS) { say(pc.limitText(pc.MAX_KEYS), true); return; }
     const st = S;
-    st.busy = 'mark'; syncSel(); say('');
+    closeRunAsk(); st.busy = 'mark'; syncSel(); say('');
     call('POST', '/plan-collect/mark-running', { req_keys: s.req }).then(function (r) {
       if (st !== S) return;
       st.busy = '';
-      if (!r.ok) { say(pc.errorText(r.status, r.code), true); syncSel(); if (r.status === 409) load(); return; }
+      if (!r.ok) { say(pc.errorText(r.status, r.code, 'keys'), true); syncSel(); if (r.status === 409) load(); return; }
       say(pc.markFlash(s.req.length, r.data && r.data.results));
       st.sel = [];
       load(function () { focusSel('#cr-table'); });
@@ -393,7 +420,7 @@
     if (!s.all.length || S.busy) return;
     if (s.all.length > pc.MAX_KEYS) { say(pc.limitText(pc.MAX_KEYS), true); return; }
     const st = S;
-    st.busy = 'csv'; syncSel(); say('');
+    closeRunAsk(); st.busy = 'csv'; syncSel(); say('');
     fetch('/plan-collect/export.csv', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ req_keys: s.all }) })
       .then(function (r) {
         if (!r.ok) { const e = new Error('http'); e.status = r.status; throw e; }
@@ -403,7 +430,7 @@
         download(x.blob, x.name);
         say(pc.csvFlash(s.all.length, s.req.length));   // 상태는 자동으로 바꾸지 않는다 — 파일이 실제로 넘어갔는지 시스템은 모른다. 선택은 그대로 둔다
       })
-      .catch(function (e) { say(pc.errorText(e && e.status ? e.status : 0, ''), true); })
+      .catch(function (e) { say(pc.errorText(e && e.status ? e.status : 0, '', 'keys'), true); })
       .then(function () { if (st !== S) return; st.busy = ''; syncSel(); });
   }
   function doRun() {
@@ -415,7 +442,7 @@
     call('POST', '/plan-collect/run', { req_keys: s.req }).then(function (r) {
       if (st !== S) return;
       st.busy = '';
-      if (!r.ok) { say(pc.errorText(r.status, r.code), true); load(); return; }
+      if (!r.ok) { say(pc.errorText(r.status, r.code, 'keys'), true); load(); return; }
       say(pc.runFlash(s.req.length, r.data && r.data.results));
       st.sel = [];
       load(function () { focusSel('#cr-table'); });
@@ -427,6 +454,7 @@
     const b = e.target && e.target.closest ? e.target.closest('button[data-cr]') : null;
     if (!b || !S || b.disabled) return;
     const act = b.getAttribute('data-cr'), key = b.getAttribute('data-key');
+    if (S.busy && (act === 'ask-exclude' || act === 'ask-fail' || act === 'run-ask')) return;   // 처리 중에는 새 확인 줄·상자를 열지 않는다
     switch (act) {
       case 'ask-exclude': openAsk('exclude', key); break;
       case 'ask-fail': openAsk('fail', key); break;
@@ -452,16 +480,17 @@
       const rk = pc.requestedKeys(S.items);
       S.sel = t.checked ? S.sel.concat(rk.filter(function (k) { return S.sel.indexOf(k) < 0; })) : S.sel.filter(function (k) { return rk.indexOf(k) < 0; });
       Array.prototype.forEach.call(H.body.querySelectorAll('input[name="cr-sel"]'), function (box) { if (rk.indexOf(box.value) >= 0) box.checked = t.checked; });
-      syncSel();
+      closeRunAsk(); syncSel();
     } else if (t.name === 'cr-sel') {
       const i = S.sel.indexOf(t.value);
       if (t.checked && i < 0) S.sel.push(t.value);
       if (!t.checked && i >= 0) S.sel.splice(i, 1);
-      syncSel();
+      closeRunAsk(); syncSel();
     }
   }
   function onKey(e) {
     if (!S) return;
+    if (e.key === 'Escape' && S.busy) return;   // 처리 중 응답이 오면 st.ask 를 지우므로 그사이 확인 줄을 닫고 새로 열지 못하게
     if (e.key === 'Escape' && S.ask) { e.preventDefault(); closeAsk(); }
     else if (e.key === 'Escape' && S.runAsk) { e.preventDefault(); S.runAsk = false; paint(); focusSel('#cr-run'); }
     else if (e.key === 'Enter' && e.target && e.target.id === 'cr-reason') { e.preventDefault(); doClose(); }

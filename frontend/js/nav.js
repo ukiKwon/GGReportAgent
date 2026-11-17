@@ -22,7 +22,7 @@
 
   const nav = {};
 
-  // view: 한 화면(key) 안의 하위 보기. 시스템 관리 4항목이 같은 'admin' 탭을 쓴다(항목 id = key:view).
+  // view: 한 화면(key) 안의 하위 보기. 시스템 관리 5항목이 같은 'admin' 탭을 쓴다(항목 id = key:view).
   // sub: 중분류 이름(소제목). pending: 서버 키는 있지만 화면은 아직 준비중 안내만 연다(AI 대화·지식 검색).
   function live(sub, label, key, view, pending) {
     const o = { sub: sub, label: label, key: key };

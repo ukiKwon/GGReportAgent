@@ -169,7 +169,7 @@ test('rowHtml 요청됨: 선택 칸(이름 있는 체크)·칩·요청자·경�
 test('rowHtml 수집 중·닫힌 행: 수집 중은 [실패로 표시]·내보낸 뒤 경과, 닫힌 행은 체크·버튼 없이 닫힌 날짜·사유', function () {
   const run = pc.rowHtml(adm({ status_cd: 'RUNNING', run_at: '2026-11-20T09:00:00+09:00', run_by_name: '최개발', run_mode: 'MANUAL' }), { today: '2026-11-22' });
   assert.ok(run.indexOf('name="cr-sel"') >= 0 && run.indexOf('data-cr="ask-fail"') >= 0 && run.indexOf('ask-exclude') < 0);
-  assert.ok(run.indexOf('내보낸 뒤 <span class="v">2</span>일') >= 0 && run.indexOf('최개발 · 수동 표시') >= 0);
+  assert.ok(run.indexOf('내보낸 뒤 <span class="v">2</span>일') >= 0 && run.indexOf('최개발 · 목록으로 표시') >= 0);
   const failed = pc.rowHtml(adm({ status_cd: 'FAILED', closed_at: '2026-11-20T09:00:00+09:00', close_reason: '연결 안 됨' }), { today: '2026-11-22' });
   assert.ok(failed.indexOf('name="cr-sel"') < 0 && failed.indexOf('<button') < 0);
   assert.ok(failed.indexOf('실패 <span class="v">2026-11-20</span>') >= 0 && failed.indexOf('사유: 연결 안 됨') >= 0);
@@ -245,8 +245,8 @@ test('문구 표: errorText 상태·코드, resultText, 결과 문구(표시·�
   assert.ok(pc.reasonCheck(new Array(102).join('가')).indexOf('100자') >= 0);
   assert.strictEqual(pc.reasonCheck('수집 불가'), '');
   assert.strictEqual(pc.markFlash(2, [{ result_cd: 'OK' }, { result_cd: 'OK' }]), '2곳을 \'수집 중\'으로 표시했습니다. 자료가 들어오면 자동으로 \'반영됨\'이 되고 요청자에게 쪽지가 갑니다.');
-  assert.ok(pc.markFlash(2, [{ result_cd: 'OK' }, { result_cd: 'NOT_REQUESTED' }]).indexOf('1곳은 건너뛰었습니다 — 이미 다른 사람이 처리해') >= 0);
-  assert.ok(pc.runFlash(3, [{ result_cd: 'SENT' }, { result_cd: 'AGENT_UNREACHABLE' }, { result_cd: 'AGENT_UNREACHABLE' }]).indexOf('3곳 중 1곳을 보냈습니다(수집 중). 2곳은 보내지 못했습니다 — 수집 서버에 연결하지 못했습니다') >= 0);
+  assert.ok(pc.markFlash(2, [{ result_cd: 'OK' }, { result_cd: 'NOT_REQUESTED' }]).indexOf('1곳은 건너뛰었습니다 — 이미 다른 사람이 처리함. 목록을 다시 불러왔습니다.') >= 0);
+  assert.ok(pc.runFlash(3, [{ result_cd: 'SENT' }, { result_cd: 'AGENT_UNREACHABLE' }, { result_cd: 'AGENT_UNREACHABLE' }]).indexOf('3곳 중 1곳을 보냈습니다(수집 중). 2곳은 보내지 못했습니다 — 수집 서버 연결 안 됨 또는 응답 없음. 목록을 다시 불러왔습니다.') >= 0);
   assert.ok(pc.closeFlash('exclude', '도봉구청', 3).indexOf('요청을 제외했습니다. 요청자 3명에게 쪽지로 알렸습니다.') >= 0);
   assert.ok(pc.closeFlash('fail', '도봉구청', 3).indexOf('수집을 실패로 표시했습니다.') >= 0);
   assert.ok(pc.csvFlash(2, 1).indexOf('2곳 목록을 내려받았습니다. 수집 PC로 옮긴 뒤 [선택한 1곳 수집 중으로 표시]를 누르세요.') >= 0);
@@ -344,7 +344,7 @@ test('errorText·resultText: REASON_* 코드·TOO_SOON, 코드 없는 400 은 �
   assert.ok(pc.errorText(400, 'REASON_PII').indexOf('개인정보(전화번호·주민번호·이메일 등)') >= 0);
   assert.ok(pc.errorText(400, 'BAD_KEYS').indexOf('(400)') >= 0 && pc.errorText(400, '').indexOf('개인정보') >= 0);
   assert.strictEqual(pc.resultText('TOO_SOON'), '같은 기관을 10분 안에 다시 실행할 수 없습니다. 잠시 뒤 다시 누르세요.');
-  assert.ok(pc.runFlash(2, [{ result_cd: 'SENT' }, { result_cd: 'TOO_SOON' }]).indexOf('1곳은 보내지 못했습니다 — 같은 기관을 10분 안에') >= 0);
+  assert.ok(pc.runFlash(2, [{ result_cd: 'SENT' }, { result_cd: 'TOO_SOON' }]).indexOf('1곳은 보내지 못했습니다 — 10분 안에 다시 실행할 수 없음. 목록을 다시 불러왔습니다.') >= 0);
 });
 test('재무부서 403: 수집 요청 현황은 forbidden 으로 굳히고 다시 묻지 않는다(소스 구조)', function () {
   assert.ok(/CS\.state === 'forbidden'\) return Promise\.resolve\(CS\)/.test(PLANS_SRC));
@@ -357,4 +357,65 @@ test('재무부서 403: 수집 요청 현황은 forbidden 으로 굳히고 다�
   assert.strictEqual(plans.sectionInner('nobody', 'db-name').indexOf('cr-st'), -1);
   plans.resetStatus();
   assert.strictEqual(plans.collectState(), 'idle');
+});
+
+// ── 11-17 qa·design 반영 ───────────────────────────────────────────
+test('결과 문구 표 둘: resultText 는 문장형 그대로, resultShort 는 명사구(마침표 없음), 이어 붙인 문구에 마침표가 겹치지 않는다', function () {
+  ['NOT_FOUND', 'NOT_REQUESTED', 'NOT_OPEN', 'NOT_RUNNING', 'CONFLICT', 'TOO_SOON', 'AGENT_UNREACHABLE', 'AGENT_REJECTED', 'BAD_RESPONSE', 'BLOCKED_NO_URL', 'BLOCKED_BAD_CONFIG'].forEach(function (c) {
+    const t = pc.resultShort(c);
+    assert.ok(t && !/[.。]$/.test(t) && t.indexOf('..') < 0, c);
+  });
+  assert.strictEqual(pc.resultShort('zzz'), '처리하지 못함');
+  assert.strictEqual(pc.resultShort('toString'), '처리하지 못함');
+  assert.strictEqual(pc.resultText('TOO_SOON'), '같은 기관을 10분 안에 다시 실행할 수 없습니다. 잠시 뒤 다시 누르세요.');
+  const f = pc.runFlash(2, [{ result_cd: 'SENT' }, { result_cd: 'TOO_SOON' }]);
+  assert.ok(f.indexOf('..') < 0 && f.indexOf('할 수 없음. 목록을 다시 불러왔습니다.') >= 0);
+  const m = pc.markFlash(2, [{ result_cd: 'NOT_REQUESTED' }, { result_cd: 'CONFLICT' }]);
+  assert.ok(m.indexOf('2곳은 건너뛰었습니다 — 이미 다른 사람이 처리함, 다른 사람이 방금 처리함. 목록을') >= 0 && m.indexOf('..') < 0);
+});
+test('errorText 맥락 keys: 400 은 사유 안내 없이 선택 확인 문구, 다른 상태·맥락 없음은 그대로', function () {
+  assert.strictEqual(pc.errorText(400, 'BAD_KEYS', 'keys'), '선택한 요청을 확인하세요(400).');
+  assert.ok(pc.errorText(400, '', 'keys').indexOf('사유') < 0 && pc.errorText(400, '', 'keys').indexOf('개인정보') < 0);
+  assert.ok(pc.errorText(400, '').indexOf('개인정보') >= 0 && pc.errorText(400, 'REASON_PII').indexOf('개인정보(전화번호') >= 0);
+  assert.ok(pc.errorText(500, '', 'keys').indexOf('(500)') >= 0 && pc.errorText(409, 'BUSY', 'keys').indexOf('다른 실행이 진행 중') >= 0);
+});
+test('btnState·toolbarHtml 상한: 50곳 넘으면 내려받기·표시·실행 잠금, 10곳 넘으면 실행만 잠금, 안내 한 줄(없으면 hidden)', function () {
+  const many = [];
+  for (let i = 0; i < 51; i += 1) many.push(adm({ req_key: 'k' + i }));
+  const keys = many.map(function (x) { return x.req_key; });
+  const b51 = pc.btnState({ items: many, sel: keys, agent: true, busy: '' });
+  assert.ok(b51.csv.disabled && b51.mark.disabled && b51.run.disabled && b51.hint.indexOf('50곳') >= 0);
+  const b11 = pc.btnState({ items: many, sel: keys.slice(0, 11), agent: true, busy: '' });
+  assert.ok(!b11.csv.disabled && !b11.mark.disabled && b11.run.disabled && b11.hint.indexOf('10곳') >= 0);
+  const b10 = pc.btnState({ items: many, sel: keys.slice(0, 10), agent: true, busy: '' });
+  assert.ok(!b10.run.disabled && b10.hint === '');
+  assert.strictEqual(pc.btnState({ items: many, sel: keys.slice(0, 11), agent: false, busy: '' }).hint, '');   // 설정이 없으면 실행 안내도 없다
+  const none = pc.toolbarHtml({ view: 'open', items: [adm()], sel: [], agent: false, busy: '' });
+  assert.ok(none.indexOf('class="ad-toolbar cr-toolbar"') >= 0 && none.indexOf('id="cr-limit" hidden>') >= 0);
+  const over = pc.toolbarHtml({ view: 'open', items: many, sel: keys, agent: true, busy: '' });
+  assert.ok(over.indexOf('id="cr-limit">') >= 0 && over.indexOf('한 번에 50곳까지 처리할 수 있습니다') >= 0);
+});
+test('자료 없음 본문: 요청 현황이 아직 없으면(req null) 짧은 문구, 디자이너(req.can=false)만 긴 문구', function () {
+  const empty = { status: 'ok', data: { institution_id: 'x', name_ko: 'X', import: null, docs: [] } };
+  const pre = plans.detailHtml(empty, { req: null });
+  assert.ok(pre.indexOf('이 기관의 사업계획은 아직 수집되지 않았습니다.</p>') >= 0 && pre.indexOf('모아 올립니다') < 0);
+  assert.ok(plans.detailHtml(empty, { req: { item: null, can: false, busy: '' } }).indexOf('모아 올립니다') >= 0);
+});
+test('수집 중 행 보조 줄: 목록으로 표시 / 수집 서버로 보냄', function () {
+  const man = pc.rowHtml(adm({ status_cd: 'RUNNING', run_by_name: '최개발', run_mode: 'MANUAL' }), {});
+  const agt = pc.rowHtml(adm({ status_cd: 'RUNNING', run_by_name: '최개발', run_mode: 'AGENT' }), {});
+  assert.ok(man.indexOf('최개발 · 목록으로 표시') >= 0 && man.indexOf('수동 표시') < 0 && agt.indexOf('최개발 · 수집 서버로 보냄') >= 0);
+});
+test('소스 구조(DOM 시험 대체): 처리 중 Esc·행 버튼 무시, closeAsk 선택자 이어 붙이기 없음, 확인 상자 닫기, 툴바 CSS 한정, 상세·목록 포커스 보존, 주석', function () {
+  assert.ok(/e\.key === 'Escape' && S\.busy\) return/.test(PC_SRC));
+  assert.ok(/S\.busy && \(act === 'ask-exclude' \|\| act === 'ask-fail'/.test(PC_SRC));
+  assert.ok(PC_SRC.indexOf('[data-key="\' + a.key') < 0 && /function focusAskBtn\(a\)[\s\S]*?getAttribute\('data-key'\) === a\.key/.test(PC_SRC));
+  assert.ok(/function closeRunAsk\(\)[\s\S]*?S\.runAsk = false[\s\S]*?box\.remove\(\)/.test(PC_SRC));
+  assert.ok(/closeRunAsk\(\); syncSel\(\);[\s\S]*?closeRunAsk\(\); syncSel\(\);/.test(PC_SRC), '체크·전체 체크가 상자를 닫는다');
+  assert.ok(/closeRunAsk\(\); st\.busy = 'mark'/.test(PC_SRC) && /closeRunAsk\(\); st\.busy = 'csv'/.test(PC_SRC));
+  assert.ok(PC_SRC.indexOf("pc.errorText(r.status, r.code, 'keys')") > 0 && PC_SRC.indexOf("pc.errorText(e && e.status ? e.status : 0, '', 'keys')") > 0);
+  assert.ok(HTML.indexOf('.cr-toolbar > button { min-height:26px; }') > 0 && HTML.indexOf('.ad-toolbar > button') < 0);
+  assert.ok(/function renderList\(\)[\s\S]*?keepFocus[\s\S]*?scrollTop = keepTop[\s\S]*?preventScroll/.test(PLANS_SRC));
+  assert.ok(/function onCollect\(\)[\s\S]*?revealRow\(S\.selRow\.key\)[\s\S]*?\$\('pl-name'\)[\s\S]*?preventScroll/.test(PLANS_SRC));
+  assert.ok(rd('nav.js').indexOf('시스템 관리 5항목') > 0 && rd('nav.js').indexOf('시스템 관리 4항목') < 0);
 });

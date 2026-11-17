@@ -305,7 +305,7 @@
     const reqLine = o.req ? plans.reqLineHtml(o.req.item, { can: o.req.can, hasData: docs.length > 0, busy: o.req.busy, closed: o.req.closed }) : '';
     if (!docs.length) {
       return head(unk('자료 없음')) + reqLine + '<div class="db-sec"><h3>사업계획</h3><p class="db-empty">' +
-        (o.req && o.req.can ? '이 기관의 사업계획은 아직 수집되지 않았습니다.' : '이 기관의 사업계획은 아직 수집되지 않았습니다. 영업부서가 수집을 요청하면 개발부서가 모아 올립니다.') + '</p></div>';
+        (o.req && !o.req.can ? '이 기관의 사업계획은 아직 수집되지 않았습니다. 영업부서가 수집을 요청하면 개발부서가 모아 올립니다.' : '이 기관의 사업계획은 아직 수집되지 않았습니다.') + '</p></div>';
     }
     const n = docs.reduce(function (s, d) { return s + (Array.isArray(d.items) ? d.items.length : 0); }, 0);
     const imp = data.import || {};
@@ -631,9 +631,11 @@
     } else {
       h += '<p class="db-state">' + (S.win === 'all' ? '앞으로 입찰 예정인 기관이 없습니다.' : esc(D().WINDOW_LABELS[S.win]) + ' 안에 입찰 예정인 기관이 없습니다. 기간을 넓혀 보세요.') + '</p>';
     }
+    const ae = document.activeElement, keepFocus = !!(ae && ae.id === 'pl-lb'), keepTop = sc ? sc.scrollTop : 0;   // 목록을 다시 그려도 키보드 위치·스크롤을 지킨다
     el.innerHTML = h;
-    if (sc) sc.setAttribute('aria-busy', ST.state === 'loading' ? 'true' : 'false');
+    if (sc) { sc.setAttribute('aria-busy', ST.state === 'loading' ? 'true' : 'false'); sc.scrollTop = keepTop; }
     syncActive();
+    if (keepFocus) { const lb = $('pl-lb'); if (lb && lb.focus) lb.focus({ preventScroll: true }); }
   }
   // listbox 의 포커스는 ul 에 머무므로 선택된 option 을 aria-activedescendant 로 알린다(현황판 dashboard.js 와 같은 방식).
   // option id 는 그릴 때마다 다시 매겨지므로 그린 뒤·선택을 바꾼 뒤에 다시 계산한다. 선택이 없으면 속성을 뺀다.
@@ -805,9 +807,15 @@
   }
   function onCollect() {   // 수집 요청 현황이 도착·갱신됐을 때: 칩과 요청 줄을 다시 그린다(검색 칸에 입력 중이면 상세는 건드리지 않는다)
     if (!host || !M || !S) return;
+    const a = document.activeElement, aid = a && a.id ? a.id : '';
+    const pane = $('pl-pane'), inPane = !!(a && pane && pane.contains(a));
     renderList();
-    const a = document.activeElement;
     if (S.selRow && !(a && a.id === 'pl-kw')) renderPane();
+    if (S.selRow) revealRow(S.selRow.key);   // 칩이 붙어 줄 높이가 바뀌어도 선택 행이 화면 안에 남게
+    if (inPane && !document.body.contains(a)) {   // 다시 그리느라 포커스를 둔 요소가 사라졌으면 같은 id → 없으면 제목으로
+      const nx = (aid && $(aid)) || $('pl-name');
+      if (nx && nx.focus) nx.focus({ preventScroll: true });
+    }
   }
   function postEmpty(url) {
     if (typeof fetch !== 'function') return Promise.resolve({ ok: false, status: 0 });
