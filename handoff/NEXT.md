@@ -496,5 +496,5 @@
 
 ### 97. 화면 개편 — 밝은 업무 포털(사용자 4원칙 + KRDS 참고, 사용자 11-17) [담당: design-reviewer → frontend-dev / planner(첫 화면)]
 - **현재**: 진단(4원칙 중 ①④ 위반, ②③ 부분 — 원인은 DESIGN.md의 어두운 테마·틸·반경 8~14px 계약)과 KRDS 통합 규격 초안 완료. 공통 변수 새 값·상태 색 예외·컴포넌트 규격·3단계 적용안. 코드 변경 없음.
-- **다음 한 걸음**: c0의 index.html·kbboard.js 커밋 뒤 ① 변수 값 교체(frontend-dev 패치안 → 적용 → design_history 전/후). ③ 첫 화면은 planner(역할별 1종/2종) + 사용자 질문(오른쪽 패널 내용) 뒤.
+- **다음 한 걸음**: c0의 index.html·kbboard.js 커밋 뒤 ① 변수 값 교체(frontend-dev 패치안 → 적용 → design_history 전/후). ③ 로그인 이후 첫 화면: 오른쪽 패널 = 일정 + 결재·확인 대기 둘 다(사용자 11-17), 역할별 1종/2종은 planner. 로그인 화면은 내용 유지(색·모양만).
 - **자세히**: `handoff/agents/history/2026-11-17_KRDS_화면개편_규격초안.md`, 세션 44(브랜치 kgi-report-web-dev).
