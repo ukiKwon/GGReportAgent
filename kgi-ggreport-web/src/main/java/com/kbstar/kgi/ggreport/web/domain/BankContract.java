@@ -11,6 +11,7 @@ public class BankContract {
     private String editorEmpNo; private String editorName; private int empVerified;
     private String screenId; private String buttonId; private int uiValid; private String savedAt;
     private String bankName; private String cancelReasonName; private String accountName;   // 조회 전용
+    private String firstEditorEmpNo; private String firstEditorName; private String firstSavedAt;   // 조회 전용 — 줄의 REV_NO=1 행(처음 입력자). 사번은 서버 안에서만 쓴다
 
     public String getInstitutionId() { return institutionId; } public void setInstitutionId(String v) { institutionId = v; }
     public int getContractNo() { return contractNo; } public void setContractNo(int v) { contractNo = v; }
@@ -43,4 +44,7 @@ public class BankContract {
     public String getBankName() { return bankName; } public void setBankName(String v) { bankName = v; }
     public String getCancelReasonName() { return cancelReasonName; } public void setCancelReasonName(String v) { cancelReasonName = v; }
     public String getAccountName() { return accountName; } public void setAccountName(String v) { accountName = v; }
+    public String getFirstEditorEmpNo() { return firstEditorEmpNo; } public void setFirstEditorEmpNo(String v) { firstEditorEmpNo = v; }
+    public String getFirstEditorName() { return firstEditorName; } public void setFirstEditorName(String v) { firstEditorName = v; }
+    public String getFirstSavedAt() { return firstSavedAt; } public void setFirstSavedAt(String v) { firstSavedAt = v; }
 }

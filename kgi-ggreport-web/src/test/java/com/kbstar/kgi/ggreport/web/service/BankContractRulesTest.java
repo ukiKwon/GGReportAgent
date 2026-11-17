@@ -1,5 +1,6 @@
 package com.kbstar.kgi.ggreport.web.service;
 
+import com.kbstar.kgi.ggreport.web.domain.BankContract;
 import com.kbstar.kgi.ggreport.web.dto.BankContractCancelIn;
 import com.kbstar.kgi.ggreport.web.dto.BankContractIn;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
@@ -60,6 +61,22 @@ public class BankContractRulesTest {
 
     private static BankContractIn etc(String name) { BankContractIn in = base(); in.setBankCd("ETC"); in.setBankNameEtc(name); return in; }
     private static BankContractIn dept(String d) { BankContractIn in = base(); in.setSrcKind("STAFF"); in.setCheckedDept(d); return in; }
+
+    @Test public void 겹침_확인_이어받기_조건() {
+        BankContract prev = new BankContract();
+        prev.setRankCd("FIRST"); prev.setBankCd("B04"); prev.setTermFrom("2023"); prev.setTermTo("2026-12-31"); prev.setOverlapConfirmed(1);
+        BankContractRules.Parsed p = ok(base());
+        assertTrue(BankContractRules.carriesOverlap(prev, p));
+        BankContractIn d = base(); d.setTermTo("2027");
+        assertFalse(BankContractRules.carriesOverlap(prev, ok(d)));            // 기간 변경
+        d = base(); d.setBankCd("B02");
+        assertFalse(BankContractRules.carriesOverlap(prev, ok(d)));            // 은행 변경
+        d = base(); d.setRankCd("SECOND");
+        assertFalse(BankContractRules.carriesOverlap(prev, ok(d)));            // 순위 변경
+        prev.setOverlapConfirmed(0);
+        assertFalse(BankContractRules.carriesOverlap(prev, p));                // 직전이 확인 안 함
+        assertFalse(BankContractRules.carriesOverlap(null, p));
+    }
 
     // ---- 기간·순위 ----
     @Test public void 기간_끝_계산과_범위() {

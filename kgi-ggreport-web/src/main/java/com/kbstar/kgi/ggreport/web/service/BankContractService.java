@@ -116,6 +116,7 @@ public class BankContractService {
         int contractNo;
         int rev;
         Integer excludeLine = null;   // 겹침 검사에서 뺄 자기 줄
+        BankContract prev = null;     // 고치기일 때의 직전 rev(겹침 확인 이어받기·처음 입력자 복사용)
         if (in.getContractNo() == null) {
             contractNo = mapper.selectMaxContractNo(inst) + 1;
             rev = 1;
@@ -141,12 +142,15 @@ public class BankContractService {
             contractNo = cur.getContractNo();
             rev = cur.getRevNo() + 1;
             excludeLine = cur.getContractNo();
+            prev = cur;
         }
         // S2 — 같은 순위에서 기간이 겹치는 유효 줄. 확인(confirm_overlap)하면 저장하고 줄에 겹침 표시를 남긴다.
         List<BankContract> over = findOverlaps(inst, p, excludeLine);
         boolean overlapConfirmed = false;
         if (!over.isEmpty()) {
-            if (!Boolean.TRUE.equals(in.getConfirmOverlap())) throw dupRank(over);
+            // 직접 확인했거나, 직전 rev 가 확인했고 순위·은행·기간이 그대로면 이어받는다(비고만 고쳐도 다시 묻지 않음).
+            // 새 rev 의 OVERLAP_CONFIRMED=1 이 이력에 남는다. 하나라도 바뀌어 여전히 겹치면 409 DUP_RANK.
+            if (!Boolean.TRUE.equals(in.getConfirmOverlap()) && !BankContractRules.carriesOverlap(prev, p)) throw dupRank(over);
             overlapConfirmed = true;
         }
         BankContract row = new BankContract();
@@ -169,6 +173,11 @@ public class BankContractService {
         row.setAccountCd(p.account);
         row.setAccountEtc(p.accountEtc);
         row.setOverlapConfirmed(overlapConfirmed ? 1 : 0);
+        if (prev != null) {   // 응답용: 처음 입력자는 줄이 이어지는 동안 그대로
+            row.setFirstEditorEmpNo(prev.getFirstEditorEmpNo());
+            row.setFirstEditorName(prev.getFirstEditorName());
+            row.setFirstSavedAt(prev.getFirstSavedAt());
+        }
         return insert(row, actor, ui, today);
     }
 
@@ -207,6 +216,11 @@ public class BankContractService {
         row.setButtonId(ui.getButton());
         row.setUiValid(ui.isValid() ? 1 : 0);
         row.setSavedAt(Times.nowIso());
+        if (row.getRevNo() == 1) {   // 새 줄은 자기 자신이 처음 입력자(고치기·취소는 직전 행에서 복사돼 온다)
+            row.setFirstEditorEmpNo(row.getEditorEmpNo());
+            row.setFirstEditorName(row.getEditorName());
+            row.setFirstSavedAt(row.getSavedAt());
+        }
         try {
             mapper.insertRow(row);
         } catch (DuplicateKeyException e) {   // 잠금이 있어 정상 경로에선 오지 않는다 — PK 가 마지막 방어선
@@ -374,6 +388,8 @@ public class BankContractService {
         m.put("editor_name", c.getEditorName());
         m.put("emp_verified", c.getEmpVerified() == 1);
         m.put("saved_at", c.getSavedAt());
+        m.put("first_editor_name", c.getFirstEditorName());   // 줄을 처음 만든 사람(REV_NO=1 행 조인). 사번은 내보내지 않는다
+        m.put("first_saved_at", c.getFirstSavedAt());
         return m;
     }
 

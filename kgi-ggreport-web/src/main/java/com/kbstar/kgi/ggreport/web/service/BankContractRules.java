@@ -221,6 +221,14 @@ final class BankContractRules {
                 && Objects.equals(c.getNote(), p.note);
     }
 
+    /** 겹침 확인 이어받기(NEXT 89②): 직전 rev 가 겹침을 확인했고(OVERLAP_CONFIRMED=1) 순위·은행·기간이 그대로면 true. 하나라도 바뀌면 false. 취소 행은 save() 가 앞에서 막는다. */
+    static boolean carriesOverlap(BankContract prev, Parsed p) {
+        return prev != null && prev.getOverlapConfirmed() == 1
+                && Objects.equals(prev.getRankCd(), p.rank) && Objects.equals(prev.getBankCd(), p.bank)
+                && Objects.equals(prev.getBankNameEtc(), p.bankEtc)
+                && Objects.equals(prev.getTermFrom(), p.termFrom) && Objects.equals(prev.getTermTo(), p.termTo);
+    }
+
     private static String code(String raw, String group, CodeCheck codes, String msg) {
         String v = raw == null ? null : raw.trim();
         if (v == null || !CODE.matcher(v).matches() || !codes.enabled(group, v)) throw bad(msg);

@@ -216,6 +216,48 @@ public class BankContractApiTest {
         assertEquals(201, status(send(HEAD, PATH + "/3/cancel", CANCEL, with("base_rev_no", 1, "cancel_reason_cd", "WRONG")))); // 부장 OK
     }
 
+    @Test public void 응답에_처음_입력자가_실리고_남이_고쳐도_그대로() throws Exception {
+        final String B = "7742059";
+        MvcResult a = save(SALES, body());
+        assertEquals(201, status(a));
+        assertEquals("김영업", json(a).path("line").path("first_editor_name").asText());
+        MvcResult e = save(B, with("contract_no", 1, "base_rev_no", 1, "bank_cd", "B02"));
+        assertEquals(201, status(e));
+        JsonNode line = json(e).path("line");
+        assertEquals("김영업", line.path("first_editor_name").asText());          // 최신 수정자가 B 여도 처음 입력자는 A
+        assertFalse(line.path("editor_name").asText().equals(line.path("first_editor_name").asText()));
+        assertTrue(line.path("first_saved_at").asText().length() > 0);
+        JsonNode cur = json(getAs(SALES, PATH)).path("lines").get(0);
+        assertEquals("김영업", cur.path("first_editor_name").asText());
+        for (JsonNode it : json(getAs(SALES, PATH + "/history")).path("items")) {
+            assertEquals("김영업", it.path("first_editor_name").asText());
+            assertFalse(it.has("first_editor_emp_no"));                              // 사번은 내보내지 않는다
+        }
+        assertFalse(json(getAs(SALES, PATH)).toString().contains("3918264"));
+    }
+
+    @Test public void 겹침_확인은_비고만_고치면_이어받고_기간이나_은행이_바뀌면_다시_409() throws Exception {
+        assertEquals(201, status(save(SALES, body())));                                                          // 줄1 1금고 2023~2026-12-31
+        assertEquals(201, status(save(SALES, with("term_from", "2025", "term_to", "2027", "confirm_overlap", true))));   // 줄2, 겹침 확인
+        MvcResult n = save(SALES, with("contract_no", 2, "base_rev_no", 1, "term_from", "2025", "term_to", "2027", "note", "비고만 고침"));
+        assertEquals(201, status(n));                                                                            // 다시 묻지 않음
+        assertTrue(json(n).path("line").path("overlap_confirmed").asBoolean());
+        assertEquals(1, jdbc.queryForObject("SELECT OVERLAP_CONFIRMED FROM INST_BANK_CONTRACT WHERE CONTRACT_NO=2 AND REV_NO=2", Integer.class).intValue());
+        MvcResult term = save(SALES, with("contract_no", 2, "base_rev_no", 2, "term_from", "2025", "term_to", "2028", "note", "비고만 고침"));
+        assertEquals(409, status(term));                                                                         // 기간 바뀌고 여전히 겹침
+        assertEquals("DUP_RANK", json(term).path("detail").path("code").asText());
+        MvcResult bank = save(SALES, with("contract_no", 2, "base_rev_no", 2, "term_from", "2025", "term_to", "2027", "bank_cd", "B02"));
+        assertEquals(409, status(bank));                                                                         // 은행 바뀜(1금고는 은행 무관 겹침)
+        assertEquals(3, rows());                                                                                 // 줄1 + 줄2 rev1·rev2
+    }
+
+    @Test public void 겹침_확인_없이_저장된_줄을_고칠_때는_이어받을_것이_없다() throws Exception {
+        assertEquals(201, status(save(SALES, body())));                                                          // 줄1
+        assertEquals(201, status(save(SALES, with("term_from", "2060", "term_to", "2062"))));                    // 줄2, 겹침 아님
+        MvcResult e = save(SALES, with("contract_no", 2, "base_rev_no", 1, "term_from", "2025", "term_to", "2027"));   // 이제 겹침인데 확인 없음
+        assertEquals(409, status(e));
+    }
+
     @Test public void S6_고치기는_영업팀_누구나_취소는_본인_또는_팀장_부장() throws Exception {
         final String SALES2 = "7742059";   // 영업팀 다른 팀원(시드에 없으면 시험의 사번만 맞춘다)
         assertEquals(201, status(save(SALES, body())));                                                   // 김영업이 입력한 줄1
