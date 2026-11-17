@@ -4,15 +4,18 @@
   //   ① 전국 지도 화면의 접는 경과 패널(보기 전용)  ② 로그인 직후 요약 팝업(영업 계열만)
   //   ③ 사이드바 '전국 지도' 옆 미처리 건수 배지
   // 판정·묶음·정렬 규칙은 logic.js(overdueSummary 등)가 갖고, 이 파일은 그 결과를 HTML과 DOM에 옮긴다.
-  // 상태 기록(지연·처리됨)은 2단계라 지금은 모든 경과 건이 '미처리'다.
+  // 2단계(공고 상태 기록): 미처리·지연·처리됨 판정은 logic.recordView(noticerec.snap) 한 곳. 서버 미연결이면 모든 경과 건이 미처리다.
   const logic = (typeof require === 'function' && typeof module !== 'undefined') ? require('./logic.js') : root.logic;
   const store = (typeof require === 'function' && typeof module !== 'undefined') ? require('./store.js') : root.store;
   const nav = (typeof require === 'function' && typeof module !== 'undefined') ? require('./nav.js') : root.nav;
   const esc = logic.esc;
+  const nrMod = (typeof require === 'function' && typeof module !== 'undefined') ? require('./noticerec.js') : null;
+  function NR() { return nrMod || root.noticerec || null; }
 
   const ov = {};
   ov.state = {
     summary: null,        // logic.overdueSummary 결과(마지막 refresh)
+    parts: null,          // logic.splitOverdue(summary.items, snap) — { pending, delayed, done }
     view: 'pending',      // 'pending' | 'delayed' | 'done' | 'all'
     mode: null,           // 'dock' | 'drawer' | 'stack'
     open: false,
@@ -34,9 +37,10 @@
   ov.TITLE_CHECK = '이 날짜가 공고일인지 약정 만료일인지 원문을 확인하고 있습니다';
 
   // 확정 공고가 공고 후 120일을 넘긴 건(noticeExpired)은 '예정일 경과'가 아니라 '공고 후 n일'이다 — 공고는 났고 결과만 모른다.
-  ov.NOTICE_EXPIRED_NOTE = function (it) { return '공고 후 ' + it.days + '일 · 결과 미확인 — 결과 공고를 확인하세요'; };
-  ov.stampHtml = function (it) {
-    return '<span class="ov-stamp">' + icon('overdue') + '<span aria-hidden="true">D+' + it.days + '</span>' +
+  ov.NOTICE_EXPIRED_NOTE = function (it) { return logic.NOTICE_WORDS.expiredNote(it.days); };
+  ov.stampHtml = function (it, rv) {
+    const v = rv ? rv.view : 'pending';
+    return '<span class="ov-stamp' + (v === 'delayed' ? ' is-line' : v === 'done' ? ' is-plain' : '') + '">' + icon('overdue') + '<span aria-hidden="true">D+' + it.days + '</span>' +
       '<span class="sr-only">' + (it.noticeExpired ? '공고 후 ' + it.days + '일 지남' : '예정일 ' + it.days + '일 지남') + '</span></span>';
   };
 
@@ -57,44 +61,45 @@
 
   // slot: 패널 행은 상태 칸(1단계에서는 비어 있음)이 있고, 팝업 행은 없다.
   // view가 'all'이면 상태 칸에 '미처리'를 적는다(규격 6-1: 전체 탭에서만).
-  ov.itemHtml = function (it, slot, view) {
-    return '<li class="ov-item" data-state="pending" data-id="' + esc(logic.instKey(it.rec)) + '">' +
-      ov.stampHtml(it) + '<span class="ov-name" title="' + esc(it.name) + '">' + esc(it.name) + '</span>' +
-      (slot ? (view === 'all' ? '<span class="ov-status">미처리</span>' : '<span></span>') : '') +
+  ov.STATUS_TEXT = { pending: '미처리', delayed: '지연·재공고 대기', done: '처리됨' };
+  ov.itemHtml = function (it, slot, view, rv) {
+    const v = rv ? rv.view : 'pending', bt = logic.recordBriefText(rv);
+    return '<li class="ov-item" data-state="' + v + '" data-id="' + esc(logic.instKey(it.rec)) + '">' +
+      ov.stampHtml(it, rv) + '<span class="ov-name" title="' + esc(it.name) + '">' + esc(it.name) + '</span>' +
+      (slot ? (view === 'all' ? '<span class="ov-status">' + esc(ov.STATUS_TEXT[v]) + '</span>' : '<span></span>') : '') +
       '<span class="ov-meta"><span class="ov-where">' + esc(nameOf(it.region)) + '</span>' +
-      '<span class="ov-date">' + esc(it.date) + '</span>' + ov.confHtml(it) +
+      '<span class="ov-date">' + esc(it.date) + '</span>' + ov.confHtml(it) + (bt ? '<span class="ov-note">' + esc(bt) + '</span>' : '') +
       (it.noticeExpired ? '<span class="ov-note">' + esc(ov.NOTICE_EXPIRED_NOTE(it)) + '</span>' : '') + '</span></li>';
   };
 
-  function groupHtml(code, title, items, open, isWatch, view) {
+  function groupHtml(code, title, items, open, isWatch, view, c) {
     const star = isWatch ? icon('starFill').replace('<svg class="gph"', '<svg class="gph ov-star" aria-hidden="true"') : '';
     return '<details class="ov-grp" data-group="' + esc(code) + '"' + (open ? ' open' : '') + '><summary>' + star +
       esc(title) + '<span class="ov-grp-n">' + items.length + '</span></summary><ul class="ov-items">' +
-      items.map(function (it) { return ov.itemHtml(it, true, view); }).join('') + '</ul></details>';
+      items.map(function (it) { return ov.itemHtml(it, true, view, logic.recordView(it.rec, c && c.snap, c && c.today)); }).join('') + '</ul></details>';
   }
 
   ov.HINT_WATCH = '관심 지역이 없어 모든 시·도를 접어 두었습니다. 전국 지역별 화면에서 지역 카드의 별을 누르면 그 지역이 맨 위에 펼쳐집니다.';
 
-  // ctx = { watched: [지역코드], opened: Set|null }. 1단계에는 지연·처리됨 기록이 없다.
+  // ctx = { watched: [지역코드], opened: Set|null, snap, today }. snap이 없으면 모든 경과 건이 미처리다.
   ov.listHtml = function (summary, view, ctx) {
     const c = ctx || {};
     if (!summary) return '<p class="ov-empty">기관 목록을 불러오는 중입니다.</p>';
-    if (view === 'delayed' || view === 'done') {
+    const sp = logic.splitOverdue(summary.items, c.snap, c.today);
+    const items = view === 'all' ? summary.items : (sp[view] || sp.pending);
+    if (!items.length) {
       const msg = view === 'delayed' ? '지연·재공고 대기로 기록된 건이 없습니다.'
-        : '공고 진행 중이나 공고 종료로 기록된 건이 없습니다.';
-      return '<div class="ov-empty"><p>' + msg + '</p><p>상태 기록 기능은 준비중입니다.</p></div>';
-    }
-    if (!summary.items.length) {
-      return '<div class="ov-empty"><p>' + (view === 'all' ? '공고 예정일이 지난 건이 없습니다.'
-        : '공고 예정일이 지난 미처리 건이 없습니다.') + '</p></div>';
+        : view === 'done' ? '공고 진행 중·공고 종료·입찰 없음으로 기록된 건이 없습니다.'
+        : view === 'all' ? '공고 예정일이 지난 건이 없습니다.' : '공고 예정일이 지난 미처리 건이 없습니다.';
+      return '<div class="ov-empty"><p>' + msg + '</p></div>';
     }
     const watched = c.watched || [];
-    const g = logic.groupOverdue(summary.items, watched, nameOf);
+    const g = logic.groupOverdue(items, watched, nameOf);
     let html = '';
     if (!watched.length) html += '<p class="ov-hint" id="ov-hint-watch">' + ov.HINT_WATCH + '</p>';
-    if (g.watch.length) html += groupHtml('watch', '관심 지역', g.watch, c.opened ? c.opened.has('watch') : true, true, view);
+    if (g.watch.length) html += groupHtml('watch', '관심 지역', g.watch, c.opened ? c.opened.has('watch') : true, true, view, c);
     g.bySido.forEach(function (s) {
-      html += groupHtml(s.code, s.name, s.items, c.opened ? c.opened.has(s.code) : false, false, view);
+      html += groupHtml(s.code, s.name, s.items, c.opened ? c.opened.has(s.code) : false, false, view, c);
     });
     return html;
   };
@@ -103,7 +108,7 @@
 
   // 팝업에 채울 값 전부(순수). 상위 5건: 관심 지역 먼저, 최근에 지난 순, 확인 중은 뒤.
   // dest: 'notice'면 안내 줄의 목적지가 입찰 공고 현황의 [공고 예정일 경과] 탭, 아니면 지도 경과 패널(design-reviewer 11-16 6-B).
-  ov.popupParts = function (summary, watched, dateStr, dest) {
+  ov.popupParts = function (summary, watched, dateStr, dest, rc) {
     const items = (summary && summary.items) || [];
     const w = watched || [];
     const top = logic.pickTopOverdue(items, w, 5);
@@ -117,7 +122,7 @@
         return '<li>' + esc(s.name) + '<b>' + s.n + '</b></li>';
       }).join(''),
       cap: '먼저 볼 ' + top.length + '건 (관심 지역 먼저, 최근에 지난 순)',
-      listHtml: top.map(function (it) { return ov.itemHtml(it, false); }).join(''),
+      listHtml: top.map(function (it) { return ov.itemHtml(it, false, undefined, rc ? logic.recordView(it.rec, rc.snap, rc.today) : undefined); }).join(''),
       more: items.length > 5 ? '외 ' + (items.length - 5) + '건은 '
         + (dest === 'notice' ? '입찰 공고 현황의 [공고 예정일 경과]에서' : '경과 패널에서') + ' 볼 수 있습니다.' : '',
       hint: w.length ? '' : ov.HINT_POP,
@@ -153,18 +158,29 @@
   ov.current = function () {
     const r = R();
     if (!r || !r.allInstitutions) return null;
-    const list = r.allInstitutions().filter(function (x) { return r.state.activeRegions.has(x.region); });
-    return logic.overdueSummary(list, r.state.today);
+    // 미처리 수는 한 곳: 입찰 공고 현황 경과 탭(dashboard dataList 전체·실시간 오늘)과 같은 대상·같은 기준일로 센다(사용자 팀 결정 11-17).
+    return logic.overdueSummary(r.allInstitutions(), ov.today());
   };
-  ov.count = function () { return ov.state.summary ? ov.state.summary.items.length : 0; };
-  function todayStr() { const r = R(); return logic.localDateStr(r ? r.state.today : new Date()); }
+  ov.today = function () { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
+  function todayStr() { return logic.localDateStr(ov.today()); }
+  ov.snap = function () { const n = NR(); return n && n.snap ? n.snap() : null; };
+  // 첫 기록 목록을 받는 동안(서버 연결됨·아직 안 받음)에는 배지를 그리지 않는다 — 전부 미처리로 부풀려 보였다 줄지 않게.
+  ov.waiting = function () { const n = NR(), s = n && n.state ? n.state() : 'offline'; return s === 'idle' || s === 'loading'; };
+  // 미처리 = 경과 && (기록 없음 || 지연인데 다음 확인일 ≤ 오늘). parts가 아직 없으면(refresh 전) 경과 전체로 센다.
+  ov.count = function () {
+    if (ov.state.parts) return ov.state.parts.pending.length;
+    return ov.state.summary ? ov.state.summary.items.length : 0;
+  };
+  ov.pendingSummary = function () {
+    return ov.state.parts && ov.state.summary ? Object.assign({}, ov.state.summary, { items: ov.state.parts.pending }) : ov.state.summary;
+  };
   function watched() { try { return store.loadWatch() || []; } catch (e) { return []; } }
 
   // ── DOM 그리기 ──────────────────────────────────────────────────────────────
   function paintToggle() {
     const tg = $('ov-toggle'); if (!tg) return;
     const n = ov.count();
-    tg.innerHTML = icon('overdue') + '공고 예정일 경과' + (n > 0 ? '<span class="ov-stamp">미처리 ' + n + '</span>' : '');
+    tg.innerHTML = icon('overdue') + '공고 예정일 경과' + (n > 0 && !ov.waiting() ? '<span class="ov-stamp">미처리 ' + n + '</span>' : '');
   }
 
   function paintPanel() {
@@ -172,10 +188,11 @@
     const s = ov.state.summary;
     const n = ov.count();
     const cnt = $('ov-count');
-    if (cnt) { cnt.textContent = n > 0 ? '미처리 ' + n : ''; cnt.hidden = !(n > 0); }
+    if (cnt) { cnt.textContent = n > 0 && !ov.waiting() ? '미처리 ' + n : ''; cnt.hidden = !(n > 0 && !ov.waiting()); }
     const sub = $('ov-sub');
     if (sub) sub.innerHTML = '기준일 <b>' + esc(todayStr()) + '</b>, 최근에 지난 순';
-    const nums = { pending: n, delayed: 0, done: 0, all: n };
+    const pt = ov.state.parts || { pending: [], delayed: [], done: [] };
+    const nums = { pending: pt.pending.length, delayed: pt.delayed.length, done: pt.done.length, all: s ? s.items.length : 0 };
     Array.prototype.forEach.call(document.querySelectorAll('#ov-tabs .ov-tab'), function (t) {
       const sp = t.querySelector('.ov-tab-n'); if (sp) sp.textContent = String(nums[t.dataset.view]);
     });
@@ -185,7 +202,7 @@
       ov.state.opened = new Set(Array.prototype.map.call(list.querySelectorAll('details.ov-grp[open]'),
         function (d) { return d.dataset.group; }));
     }
-    list.innerHTML = ov.listHtml(s, ov.state.view, { watched: watched(), opened: ov.state.opened });
+    list.innerHTML = ov.listHtml(s, ov.state.view, { watched: watched(), opened: ov.state.opened, snap: ov.snap(), today: todayStr() });
     const unk = $('ov-unknown');
     if (unk) {
       const u = s ? s.unknown : 0;
@@ -197,10 +214,16 @@
   // 사이드바 '전국 지도' 항목 옆 배지. 0이면 렌더하지 않는다. 숫자는 aria-hidden, 문장은 .sr-only.
   ov.paintNavBadge = function () {
     if (typeof document === 'undefined') return;
-    const btn = document.querySelector('#side-nav .nav-item[data-nav="map"]'); if (!btn) return;
-    Array.prototype.forEach.call(btn.querySelectorAll('.nav-count, .ov-nav-sr'), function (x) { x.remove(); });
+    const items = Array.prototype.slice.call(document.querySelectorAll('#side-nav .nav-item'));
+    const byId = function (id) { return items.filter(function (b) { return b.dataset && b.dataset.nav === id; })[0] || null; };
+    const nid = root.nav && root.nav.NOTICE_ID;
+    const btn = (nid && byId(nid)) || byId('map'); if (!btn) return;   // 배지는 '입찰 공고 현황' 옆(규격 P2-1), 그 항목이 없으면 예전처럼 '전국 지도'
+    items.forEach(function (b) {   // 예전 자리('전국 지도')나 옮기기 전 배지를 모두 지운다
+      Array.prototype.forEach.call(b.querySelectorAll('.nav-count, .ov-nav-sr'), function (x) { x.remove(); });
+      const lb = b.querySelector('.nav-label'); if (lb) b.title = lb.textContent;
+    });
     const label = btn.querySelector('.nav-label');
-    const n = ov.count();
+    const n = ov.waiting() ? 0 : ov.count();
     if (n > 0) {
       const text = '공고 예정일 경과 미처리 ' + n + '건';
       btn.insertAdjacentHTML('beforeend', '<span class="nav-count" aria-hidden="true">' + n +
@@ -214,6 +237,8 @@
   // 데이터가 바뀔 때마다(render.drawTicker가 부른다) 판정을 다시 하고 세 곳을 함께 칠한다.
   ov.refresh = function () {
     ov.state.summary = ov.current();
+    ov.state.parts = logic.splitOverdue(ov.state.summary ? ov.state.summary.items : [], ov.snap(), todayStr());
+    const nrm = NR(); if (nrm && nrm.ensure) nrm.ensure();   // 처음 한 번 기록 목록을 받는다(실패하면 자동 재시도 없음)
     if (typeof document === 'undefined') return ov.state.summary;
     paintToggle();
     paintPanel();
@@ -325,7 +350,7 @@
   ov.showPopup = function (who, dateStr) {
     const pop = $('ov-pop'); if (!pop) return false;
     const dest = popDest();
-    const p = ov.popupParts(ov.state.summary, watched(), dateStr, dest);
+    const p = ov.popupParts(ov.pendingSummary(), watched(), dateStr, dest, { snap: ov.snap(), today: todayStr() });
     const set = function (id, html) { const e = $(id); if (e) e.innerHTML = html; };
     set('ov-pop-n', esc(p.nText));
     set('ov-pop-sum', esc(p.sum));
@@ -358,10 +383,22 @@
 
   // 로그인 직후(app.enterApp)에 부른다. ctx는 app의 navContext(소속·마스터).
   ov.onLogin = function (ctx, who) {
-    ov.refresh();
     const dateStr = logic.localDateStr(new Date());   // '오늘'은 실제 현재 날짜(자정을 넘기면 다시 뜬다)
-    if (!ov.shouldShow(ctx, who, dateStr, ov.count())) return false;
-    return ov.showPopup(who, dateStr);
+    const decide = function () {
+      ov.refresh();
+      if (!ov.shouldShow(ctx, who, dateStr, ov.count())) return false;
+      return ov.showPopup(who, dateStr);
+    };
+    const later = function () {
+      try { if (store.loadSession && !store.loadSession()) return false; } catch (e) { /* 세션을 못 읽으면 그대로 진행 */ }   // 받는 동안 로그아웃했으면 띄우지 않는다
+      return decide();
+    };
+    const nrm = NR();
+    if (!nrm || !nrm.canLoad || !nrm.canLoad()) return decide();   // 서버 미연결: 모든 경과 건이 미처리
+    const p = nrm.load();                                           // 요청은 한 번만(load가 loading으로 바꾸므로 refresh 안의 ensure는 다시 받지 않는다)
+    ov.refresh();
+    p.then(later, later);                                           // 기록을 받은 뒤 미처리 수로 팝업을 정한다(그동안 팝업은 보류, 응답이 없어도 제한 시간 뒤 진행)
+    return false;
   };
 
   // ── 이벤트 연결 ─────────────────────────────────────────────────────────────
@@ -450,6 +487,7 @@
       }, 150);
     });
 
+    { const nrm = NR(); if (nrm && nrm.onChange) nrm.onChange(function () { ov.refresh(); }); }   // 기록이 바뀌면 배지·패널을 함께 다시 칠한다
     setView(ov.state.view, false);
     ov.syncLayout();
     ov.state.drawnW = root.innerWidth;

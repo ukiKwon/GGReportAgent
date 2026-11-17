@@ -234,8 +234,9 @@ test('prepBodyHtml: 상태별 문구(401·403·오류·파일 모드·비었을 
 test('paneHtml: recordHtml은 plans 절 뒤·tail 앞에만 들어가고, periodHtml은 이름·범례를 바꾼다', function () {
   const it = dash.itemForRec(rec('가', 30), TODAY);
   const withRec = dash.paneHtml(it, { act: 'none', today: TODAY, plansHtml: '<i id="P"></i>', recordHtml: dash.recordSecHtml(), tailHtml: '<i id="T"></i>' });
-  assert.ok(withRec.indexOf('id="P"') < withRec.indexOf('공고 상태 기록') && withRec.indexOf('공고 상태 기록') < withRec.indexOf('id="T"'));
-  assert.ok(withRec.indexOf('준비중') > 0 && withRec.indexOf('수정은 영업팀, 열람은 전 팀입니다.') > 0);
+  // 기록 칸은 기관 정보 바로 뒤(규격 P1-2)라 plans 절 앞, plans 절은 tail 앞
+  assert.ok(withRec.indexOf('<h3>기관 정보</h3>') < withRec.indexOf('공고 상태 기록') && withRec.indexOf('공고 상태 기록') < withRec.indexOf('id="P"') && withRec.indexOf('id="P"') < withRec.indexOf('id="T"'));
+  assert.ok(withRec.indexOf('서버에 연결하면 공고 상태 기록을 보고 적을 수 있습니다.') > 0 && withRec.indexOf('준비중') < 0);
   assert.ok(dash.paneHtml(it, { act: 'none', today: TODAY }).indexOf('공고 상태 기록') < 0);
   const p = dash.periodHtml('3', 'hb-per', '국민은행이 맡은 기관 입찰 기간');
   assert.ok(p.indexOf('name="hb-per"') >= 0 && p.indexOf('국민은행이 맡은 기관 입찰 기간') >= 0 && p.indexOf('value="3" checked') >= 0);

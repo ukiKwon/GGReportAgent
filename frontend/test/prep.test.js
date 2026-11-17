@@ -646,7 +646,7 @@ test('순위표: 공고 진행 중 기관은 공고 줄로 표시한다(NEXT 78,
     sources: [], updatedAt: '2026-11-13' };
   assert.strictEqual(render.rankLineText(mapo, today), '지자체 · 공고 2026-10-29 · 접수 11.16~11.19');
   const noEnd = Object.assign({}, mapo, { receiveFrom: undefined, receiveTo: undefined });
-  assert.ok(render.rankLineText(noEnd, today).indexOf('마감일 미확인') > 0);
+  assert.ok(render.rankLineText(noEnd, today).indexOf('접수 기간 원문 확인') > 0);
   assert.ok(logic.noticeBrief({ name: 'x', confirmed: false, contractEnd: '2026-10-29' }, today) === null);
 });
 

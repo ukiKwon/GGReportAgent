@@ -334,9 +334,9 @@ test('listHtml: 지연·처리됨은 0건과 준비중 안내, 빈 경과는 빈
   const s = logic.overdueSummary([rec('a', '11', '2026-10-01')], TODAY);
   const delayed = ov.listHtml(s, 'delayed', {});
   assert.ok(delayed.includes('지연·재공고 대기로 기록된 건이 없습니다.'));
-  assert.ok(delayed.includes('상태 기록 기능은 준비중입니다.'));
+  assert.ok(!delayed.includes('준비중'));
   const done = ov.listHtml(s, 'done', {});
-  assert.ok(done.includes('공고 진행 중이나 공고 종료로 기록된 건이 없습니다.'));
+  assert.ok(done.includes('공고 진행 중·공고 종료·입찰 없음으로 기록된 건이 없습니다.'));
   const empty = logic.overdueSummary([rec('a', '11', '2027-10-01')], TODAY);
   assert.ok(ov.listHtml(empty, 'pending', {}).includes('공고 예정일이 지난 미처리 건이 없습니다.'));
   assert.ok(ov.listHtml(empty, 'all', {}).includes('공고 예정일이 지난 건이 없습니다.'));

@@ -104,14 +104,14 @@
   function dText(n) { return n === 0 ? 'D-day' : 'D-' + n; }
   function statusChip(it) {
     if (it.notice) return dash.noticeChipHtml(it);
-    if (it.overdue) return '<span class="ov-stamp">D+' + it.days + '</span>';
+    if (it.overdue) { const v = dash.recView(it).view; return '<span class="ov-stamp' + (v === 'delayed' ? ' is-line' : v === 'done' ? ' is-plain' : '') + '">D+' + it.days + '</span>'; }
     if (it.unknown) return '<span class="dg-day unknown">날짜 미상</span>';
     return '<span class="dg-day ' + esc(it.band) + '">' + dText(it.days) + '</span>';
   }
   function metaHtml(it) {
     const base = esc(dash.regionName(it.region)) + ' · ' + esc(dash.kindOfRec(it.rec)) + ' · ';
-    if (it.notice) return base + dash.noticeNote(it);
-    if (it.overdue) return base + esc(dash.overdueNote(it));
+    if (it.notice) { const nt = dash.recTagHtml(dash.recView(it)); return base + dash.noticeNote(it) + (nt ? ' · ' + nt : ''); }
+    if (it.overdue) { const rt = dash.recTagHtml(dash.recView(it)); return base + (rt || esc(dash.overdueNote(it))); }   // 기록이 있으면 overdueNote 자리를 '기록: …'이 대신한다(규격 6-D)
     if (it.unknown) return base + '입찰 예정일 미상';
     return base + '<span class="d">' + esc(it.date) + '</span> ' + esc(it.label);
   }
@@ -121,7 +121,7 @@
     o = o || {};
     const slot = kbb.slotText(it.rec, o.verified, o.nextList), leaves = kbb.leavesText(it.rec, o.verified);
     const news = kbb.newsLine(dash.kbEntry(it.rec, o.verified) || dash.kbEntry(it.rec, o.nextList));
-    return '<li><button type="button" class="hb-row" data-key="' + esc(it.key) + '" aria-haspopup="dialog">' +
+    return '<li><button type="button" class="hb-row" data-key="' + esc(it.key) + (it.overdue && dash.recView(it).view === 'done' ? '" data-rec="done' : '') + '" aria-haspopup="dialog">' +
       '<span class="nm">' + esc(it.name) + (slot ? '<span class="hb-slot">' + esc(slot) + '</span>' : '') +
       (leaves ? '<span class="hb-slot hb-leaves">' + esc(leaves) + '</span>' : '') + '</span>' + statusChip(it) +
       '<span class="meta">' + metaHtml(it) + (o.prepActive ? ' <span class="wf-badge pp-neutral">사전준비 중</span>' : '') + '</span>' +
@@ -217,7 +217,7 @@
 
   // ── DOM ───────────────────────────────────────────────────────────
   const st = { win: dash.DEFAULT_WINDOW, preps: null, overview: null, prepSt: 'offline', ovSt: 'offline', prepCode: 0, ovCode: 0, err: '' };
-  let host = null, ac = null, LIST = [], ALL = null, OURS = [], G = null, seq = 0;
+  let host = null, ac = null, LIST = [], ALL = null, OURS = [], G = null, seq = 0, offNr = null;
   const U = dash.util;
   function $(id) { return host ? host.querySelector('#' + id) : null; }
   function KB() { return root.KB_VERIFIED; }
@@ -438,6 +438,9 @@
     if (per) per.innerHTML = dash.periodHtml(st.win, 'hb-per', '국민은행이 맡은 기관 입찰 기간');
     refreshData();
     loadProgress();
+    const nrm = root.noticerec;   // 현황판이 기록 변화에 맞춰 다시 그려지게 구독한다
+    if (nrm && nrm.onChange) offNr = nrm.onChange(function () { if (host && ALL) renderOurs(); });
+    if (nrm && nrm.ensure) nrm.ensure();
   };
   kbb.refresh = function () { if (host && ALL) refreshData(); };       // 기관 편집 저장 뒤 서버 목록이 바뀌면
   kbb.reload = function () { if (host) loadProgress(); };              // 상세 팝업에서 [제안 확정] 뒤
@@ -448,6 +451,7 @@
   };
   kbb.unmount = function () {
     seq += 1;
+    if (offNr) { offNr(); offNr = null; }
     if (ac) ac.abort();
     ac = null;
     if (host) host.innerHTML = '';

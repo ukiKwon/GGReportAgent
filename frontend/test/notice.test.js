@@ -212,11 +212,11 @@ test('tipHtml 첫 블록: 공고 진행 중 n곳 — 마감 전 a · 결과 확�
   const info = logic.regionMix(TIP_LIST, TODAY);
   const h = render.tipHtml('서울', info, TODAY);
   assert.ok(h.includes('공고 진행 중 4곳'), h);
-  assert.ok(h.includes('마감 전 2 · 마감일 미확인 1 · 결과 확인 1'), h);
+  assert.ok(h.includes('마감 전 2 · 접수 기간 원문 확인 1 · 결과 확인 1'), h);
   assert.ok(h.includes('송파문화재단 <span class="rt-d">마감 D-4</span>'), h);
   assert.ok(h.includes('마포구청 <span class="rt-d">접수 ' + md(4) + '~' + md(7) + '</span>'), h);
   assert.ok(h.indexOf('송파문화재단') < h.indexOf('마포구청'), '마감 가까운 순');
-  assert.ok(h.includes('성북구청 <span class="rt-m">공고 ' + md(-20) + ' · 공고 후 20일 · 마감일 미확인</span></div>'), h);
+  assert.ok(h.includes('성북구청 <span class="rt-m">공고 ' + md(-20) + ' · 공고 후 20일 · 접수 기간 원문 확인</span></div>'), h);
   assert.ok(h.includes('정읍시청 <span class="rt-m">공고 후 50일</span>'), h);
   assert.ok(h.indexOf('공고 진행 중 4곳') < h.indexOf('가장 임박'), '첫 블록이 먼저');
   assert.ok(h.includes('가장 임박 하동군청'), h);
@@ -301,7 +301,7 @@ test('행 칩 세 갈래: 마감 D-n(빨강 테두리) / 공고 후 n일(무채�
   assert.ok(r1.includes('<span class="db-chip open">마감 D-4</span>') && r1.includes('접수 <span class="d">' + md(2) + '~' + md(4) + '</span> · 접수 시작 D-2'), r1);
   assert.ok(r1.includes('data-phase="receiving"'));
   const r2 = dash.rowHtml(by('미확인'), { id: 'b' });
-  assert.ok(r2.includes('<span class="db-chip wait">공고 후 <span class="v">20</span>일</span>') && r2.includes('마감일 미확인 · 접수 기간은 공고 원문에서 확인하세요'), r2);
+  assert.ok(r2.includes('<span class="db-chip wait">공고 후 <span class="v">20</span>일</span>') && r2.includes('접수 기간은 공고 원문에서 확인하세요') && !r2.includes('마감일 미확인'), r2);
   const r3 = dash.rowHtml(by('지남'), { id: 'c' });
   assert.ok(r3.includes('공고 후 <span class="v">50</span>일') && r3.includes('마감 지남(<span class="d">' + plus(-5).slice(5) + '</span>)'), r3);
   assert.ok(dash.rowHtml(m.overdue[0], { id: 'd' }).includes('ov-stamp">D+200'));
@@ -326,7 +326,7 @@ test('띠: 마감 전 카드 + 마감일 미확인 카드(무채색), 0곳이면
   assert.strictEqual((h5.match(/class="db-nb-card/g) || []).length, 5);
   assert.ok(!h5.includes('db-nb-more') && !h5.includes('db-nb-row one'));
   assert.ok(/class="db-nb-card wait"[^>]*>.*?<small>공고 후<\/small><b>30일<\/b>/.test(h5), h5);
-  assert.ok(h5.includes('접수 마감 전 <b>4</b>곳 · 마감일 미확인 <b>1</b>곳') && !h5.includes('db-nb-wait'));
+  assert.ok(h5.includes('접수 마감 전 <b>4</b>곳 · 접수 기간 원문 확인 <b>1</b>곳') && !h5.includes('db-nb-wait'));
   assert.ok(h5.indexOf('data-key="11|a"') < h5.indexOf('data-key="11|d"') && h5.indexOf('data-key="11|d"') < h5.indexOf('data-key="11|미확인"'));
   // 7곳: 4장 + '+3곳 더'
   const seven = dash.model([1, 2, 3, 4, 5, 6, 7].map(n => nrec('기관' + n, 5, { receiveTo: plus(n) })), TODAY);
@@ -387,7 +387,7 @@ test('상세 \'공고 진행\' 절: 맨 위, 공고 막대(접수 칸 없으면 
   // 접수 칸이 없으면 접수 창 생략, 마감일 미확인 표시, 공고 번호·링크가 없으면 줄이 없다/안내
   const bare = dash.model([nrec('성북구청', 30)], TODAY).notice[0];
   const hb = dash.paneHtml(bare, { act: 'none', today: TODAY });
-  assert.ok(!hb.includes('class="win') && hb.includes('마감일 미확인') && !hb.includes('<dt>공고 번호</dt>') && hb.includes('공고 링크가 아직 없습니다'));
+  assert.ok(!hb.includes('class="win') && hb.includes('접수 기간 원문 확인') && !hb.includes('<dt>공고 번호</dt>') && hb.includes('공고 링크가 아직 없습니다'));
   assert.ok(hb.includes('공고 후 120일'));                       // 약정 만료가 없으면 막대 끝은 공고 후 120일
   // 일반(예정) 행의 출처 링크도 noreferrer
   const up = dash.model([{ name: '가', region: '11', type: '지자체', contractEnd: plus(30), confirmed: false, sources: ['https://example.invalid/a'] }], TODAY).upcoming[0];
@@ -436,10 +436,10 @@ test('M1: 120일 넘긴 확정 공고는 \'공고 후 n일 · 결과 미확인\'
   assert.strictEqual(by('추정').noticeExpired, false);
   const m = dash.model([nrec('확정121', 121), nrec('관악구청', 121), { name: '추정', region: '11', type: '지자체', contractEnd: plus(-121), confirmed: false }], TODAY);
   const row = n => dash.rowHtml(m.overdue.filter(o => o.name === n)[0], { id: 'x' });
-  const note = '공고 후 121일 · 결과 미확인 — 결과 공고를 확인하세요';
+  const note = '공고 후 121일 · 결과 공고를 확인하세요';
   assert.ok(row('확정121').includes(note) && !row('확정121').includes('공고 진행 중'), row('확정121'));
   assert.ok(row('관악구청').includes(note) && row('관악구청').includes('날짜 의미 확인 중'), row('관악구청'));   // 꼬리표 유지
-  assert.ok(row('추정').includes('공고가 났는지 확인이 필요합니다') && !row('추정').includes('결과 미확인'));
+  assert.ok(row('추정').includes('공고가 났는지 확인이 필요합니다') && !row('추정').includes('결과 공고를 확인하세요'));
   // 경과 패널·팝업
   const it = s.items.filter(i => i.name === '확정121')[0];
   assert.ok(ov.itemHtml(it, true, 'all').includes(note));
@@ -467,18 +467,18 @@ test('M3: 마감일 미확인은 공고 후 30일까지만 +2·띠 카드, 31일
   // 띠: u31은 카드에서 빠지고 '결과 확인' 쪽
   const m = dash.model([nrec('송파', 8, { receiveTo: plus(4) }), u30, u31], TODAY);
   const h = dash.noticeBandHtml(m, '');
-  assert.ok(h.includes('접수 마감 전 <b>1</b>곳 · 마감일 미확인 <b>1</b>곳 · 결과 확인 <b>1</b>곳'), h);
+  assert.ok(h.includes('접수 마감 전 <b>1</b>곳 · 접수 기간 원문 확인 <b>1</b>곳 · 결과 확인 <b>1</b>곳'), h);
   assert.strictEqual((h.match(/class="db-nb-card/g) || []).length, 2);
   assert.ok(!h.includes('data-key="11|u31"') && h.includes('data-key="11|u30"') && h.includes('id="db-nb-wait"'));
   // 문구: 30일 이내는 원문 확인, 31일부터는 결과 확인. 목록 행은 data-check로 '결과 확인 보기' 대상을 표시한다
   const by = n => m.notice.filter(x => x.name === n)[0];
-  assert.ok(dash.rowHtml(by('u30'), { id: 'a' }).includes('마감일 미확인 · 접수 기간은 공고 원문에서 확인하세요'));
+  assert.ok(dash.rowHtml(by('u30'), { id: 'a' }).includes('접수 기간은 공고 원문에서 확인하세요'));
   const r31 = dash.rowHtml(by('u31'), { id: 'b' });
-  assert.ok(r31.includes('마감일 미확인 · 결과가 났는지 확인하세요') && r31.includes('data-check="1"'), r31);
+  assert.ok(r31.includes('결과 공고를 확인하세요') && r31.includes('data-check="1"'), r31);
   assert.ok(!dash.rowHtml(by('u30'), { id: 'a' }).includes('data-check'));
   // 툴팁: 미확인(30일 이내)과 결과 확인을 나눠 센다. 지도 '공고 n'은 진행 중 전체 수 그대로
   const tip = render.tipHtml('서울', logic.regionMix([nrec('r', 5, { receiveTo: plus(3) }), u30, u31], TODAY), TODAY);
-  assert.ok(tip.includes('마감 전 1 · 마감일 미확인 1 · 결과 확인 1'), tip);
+  assert.ok(tip.includes('마감 전 1 · 접수 기간 원문 확인 1 · 결과 확인 1'), tip);
   assert.strictEqual(render.noticeSubText(logic.regionMix([u30, u31], TODAY)), '공고 2');
 });
 

@@ -288,6 +288,13 @@
   // 현황판 칩·둘째 줄 문구의 정본(2026-11-15 통합 — dashboard.noticeChipHtml·noticeNote가 이것을 HTML로 감싼다).
   // n = noticeState 결과 또는 현황판 모델 항목(phase·since·receiveFrom·receiveTo·deadlineDays·late·startDays).
   // chip = {kind:'open'|'wait', lead, value, tail, text}, note = [[글, 날짜인가]...], noteText = 이어 붙인 글.
+  // 마감일을 모르는 공고의 안내 문구는 할 일을 말하는 이 상수 한 곳에서만 쓴다(2026-11-16 planner a84966ac 후보 A). 칩·건수·note·aria·경과 문구가 모두 가져다 쓴다.
+  logic.NOTICE_WORDS = {
+    unknownNote: '접수 기간은 공고 원문에서 확인하세요',   // 마감일 기록 없음, 공고 후 30일 이내
+    unknownChip: '접수 기간 원문 확인',                  // 같은 상황의 칩·건수 이름
+    resultNote: '결과 공고를 확인하세요',                // 30일 초과·120일 초과
+    expiredNote: function (days) { return '공고 후 ' + days + '일 · ' + logic.NOTICE_WORDS.resultNote; }
+  };
   logic.noticeText = function (n) {
     const md = function (s, sep) { const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(String(s || '')); return m ? m[1] + sep + m[2] : ''; };
     const dd = function (k) { return k === 0 ? 'D-day' : 'D-' + k; };
@@ -302,7 +309,7 @@
       chip = { kind: 'wait', lead: '공고 후 ', value: String(n.since), tail: '일' };
       // 마감일 미확인: 공고 후 30일 이내(NOTICE_UNKNOWN_OPEN_DAYS)면 접수 중일 수 있어 원문 확인을, 31일부터는 결과 확인을 안내한다.
       if (n.phase === 'awaiting') note = [['마감 지남(', false], [md(n.receiveTo, '-'), true], [') · 결과가 났는지 확인하세요', false]];
-      else note = [[n.late ? '마감일 미확인 · 결과가 났는지 확인하세요' : '마감일 미확인 · 접수 기간은 공고 원문에서 확인하세요', false]];
+      else note = [[n.late ? logic.NOTICE_WORDS.resultNote : logic.NOTICE_WORDS.unknownNote, false]];
     }
     chip.text = chip.lead + chip.value + chip.tail;
     return { chip: chip, note: note, noteText: note.map(function (s) { return s[0]; }).join('') };
@@ -320,7 +327,7 @@
     let span;
     if (ns.receiveFrom && ns.receiveTo) span = '접수 ' + md(ns.receiveFrom) + '~' + md(ns.receiveTo);
     else if (ns.receiveTo) span = '마감 ' + md(ns.receiveTo);
-    else span = '마감일 미확인';
+    else span = logic.NOTICE_WORDS.unknownChip;
     const detail = rec.contractEnd + ' · ' + span;
     return { badge: badge, cls: cls, detail: detail, line: '공고 ' + detail, phase: ns.phase, state: ns,
       chip: t.chip, note: t.note, noteText: t.noteText };
@@ -367,6 +374,53 @@
     });
     return { watch: watch, bySido: bySido };
   };
+
+  // ── 공고 상태 기록(NEXT 30 2단계, 2026-11-16) — 상태 목록과 '미처리' 판정은 이 한 곳이다 ───────────────
+  // 서버(/notice-rounds/current)는 회차별 최신 판정만 주고 경과·미처리 계산은 화면이 한다. snap = { byId:{[institution_id]:항목}, today:'YYYY-MM-DD' } | null.
+  // snap이 null(서버 미연결·불러오는 중·실패)이면 모든 경과 건을 미처리로 센다.
+  // 상태를 더하려면 이 표 한 줄만 고친다(라디오·검증·이력·보기 분류가 모두 이 표를 읽는다). next/opinion: 'req'(필수)|'opt'(선택)|'hide'(칸 없음).
+  logic.REC_STATUSES = [
+    { code: 'IN_PROGRESS', label: '공고 진행 중', view: 'done', next: 'opt', opinion: 'opt', help: '공고가 났고 접수나 심사가 진행 중입니다.' },
+    { code: 'CLOSED', label: '공고 종료', view: 'done', next: 'hide', opinion: 'req', help: '이번 회차 공고 절차가 끝났습니다. 입찰 예정일은 그대로 둡니다. 낙찰·유찰은 \'입찰 결과 등록\'에서 적습니다.' },
+    { code: 'NO_BID', label: '입찰 없음(연장·지정)', view: 'done', next: 'hide', opinion: 'req', help: '입찰 없이 약정을 연장하거나 다시 지정했습니다. 저장하면 이번 회차를 닫습니다.' },
+    { code: 'DELAYED', label: '지연·재공고 대기', view: 'delayed', next: 'req', opinion: 'req', help: '예정일이 지났는데 공고가 아직 없거나, 유찰 뒤 재공고를 기다립니다.' }];
+  logic.recStatus = function (code) { return logic.REC_STATUSES.filter(function (s) { return s.code === code; })[0] || null; };
+  logic.REC_STATUS_LABEL = {};
+  logic.REC_STATUSES.forEach(function (s) { logic.REC_STATUS_LABEL[s.code] = s.label; });
+  // → { view:'pending'|'delayed'|'done', item, checkPassed }. rec.institutionId로 기록을 찾는다(없으면 기록 없음).
+  // NO_BID로 닫힌 마지막 회차도 서버가 items에 round_closed:true로 내리므로(기관 자료가 넘어가기 전까지) 그대로 '처리됨'이 된다.
+  logic.recordView = function (rec, snap, todayStr) {
+    const id = (rec && (rec.institutionId || rec.institution_id)) || '';
+    const item = snap && snap.byId && id && Object.prototype.hasOwnProperty.call(snap.byId, id) ? snap.byId[id] : null;
+    if (!item) return { view: 'pending', item: null, checkPassed: false };
+    const def = logic.recStatus(item.status_cd);
+    if (!def) return { view: 'pending', item: item, checkPassed: false };   // 모르는 코드는 기록으로 치지 않는다
+    if (def.view === 'delayed') {
+      const today = (snap && snap.today) || todayStr || '', nc = item.next_check_date || '';
+      const passed = !nc || !today || nc <= today;                        // 확인일을 모르면 미처리로 센다(놓치지 않는 쪽)
+      return { view: passed ? 'pending' : 'delayed', item: item, checkPassed: passed };
+    }
+    return { view: 'done', item: item, checkPassed: false };
+  };
+  logic.isUnhandled = function (rec, snap, todayStr) { return logic.recordView(rec, snap, todayStr).view === 'pending'; };
+  // 경과 항목({rec,...}[])을 세 보기로 가른다(순서 유지). 배지·팝업·지도 패널·경과 탭이 같이 쓴다.
+  logic.splitOverdue = function (items, snap, todayStr) {
+    const out = { pending: [], delayed: [], done: [] };
+    (items || []).forEach(function (it) { out[logic.recordView(it.rec, snap, todayStr).view].push(it); });
+    return out;
+  };
+  // 행 앞머리 글: [[글, 날짜인가]...] | null. 다음 확인일 전이면 '다음 확인 11-30', 지났으면 '다음 확인일 지남(11-14)'.
+  logic.recordBrief = function (rv) {
+    if (!rv || !rv.item) return null;
+    const def = logic.recStatus(rv.item.status_cd);
+    if (!def) return null;
+    const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(String(rv.item.next_check_date || '')), d = m ? m[1] + '-' + m[2] : '';
+    const head = '기록: ' + def.label;
+    if (def.view !== 'delayed') return [[head, false]];
+    if (rv.checkPassed) return d ? [[head + ' · 다음 확인일 지남(', false], [d, true], [')', false]] : [[head + ' · 다음 확인일 지남', false]];
+    return d ? [[head + ' · 다음 확인 ', false], [d, true]] : [[head, false]];
+  };
+  logic.recordBriefText = function (rv) { const p = logic.recordBrief(rv); return p ? p.map(function (s) { return s[0]; }).join('') : ''; };
 
   // 팝업의 시·도별 건수(관심 지역 구분 없이 전체). 건수 많은 순, 같으면 코드 순.
   logic.countBySido = function (items, nameOf) {

@@ -553,6 +553,7 @@
   .bd-w-miss { font-size:11px; color:var(--red); }
   .bd-w-miss.bd-w-empty, .bd-w-paren { color:var(--muted); }
   .bd-w-miss.bd-w-empty { white-space:nowrap; }   /* 좁은 새 열(예: 5년차)에서 '직접 입력'이 두 줄로 꺾이지 않게 */
+  .bd-w-dflt { color:var(--muted); }   /* 값이 비었을 때 보여 주는 기본 문구(저장값 아님) */
   .bd-w-calc { flex-basis:100%; font-size:12px; color:var(--muted); }
   #bd-tip .mono { overflow-wrap:anywhere; }
   .bd-unit { float:right; margin-left:12px; font-size:12px; font-weight:400; color:var(--muted); }
@@ -1929,6 +1930,55 @@
     #plans-root .db-pane { height:auto; min-height:320px; }
   }
   /* 기관 사업계획 끝 */
+
+  /* 공고 상태 기록(noticerec.js) 시작 — 규격 design-reviewer 11-16 abc6228b 6-E. 새 hex 없음(토큰만), 최소 11px, 채운 주버튼 없음. */
+  .ov-stamp.is-line { background:transparent; color:var(--fg); border-color:var(--muted); font-weight:400; }
+  .ov-stamp.is-plain { background:transparent; border-color:transparent; color:var(--muted); font-weight:400; padding:0 2px; }
+  .db-row[data-rec=done] .nm, .hb-row[data-rec=done] .nm { font-weight:400; color:var(--muted); }
+  .db-rec-tag { color:var(--fg); }
+  .db-row[data-rec=done] .db-rec-tag { color:var(--muted); }
+  .ov-note { color:var(--muted); }
+  .db-rec h3 { display:flex; align-items:baseline; gap:10px; }
+  .db-rec h3 small { margin-left:auto; font-size:12px; font-weight:400; color:var(--muted); }
+  .db-rec [hidden] { display:none; }
+  .db-rec-form { display:grid; grid-template-columns:110px minmax(0, 1fr); gap:10px 12px; margin-top:14px; padding-top:14px; border-top:1px dashed var(--line); align-items:start; }
+  .db-rec-form > .full { grid-column:1 / -1; }
+  .db-rec-form .l { font-size:12px; color:var(--muted); padding-top:6px; }
+  .db-rec-form .req { font-size:11px; color:var(--muted); margin-left:4px; }
+  .db-rec-seg { display:inline-flex; flex-wrap:wrap; gap:2px; padding:3px; background:var(--bg); border:1px solid var(--line); border-radius:12px; }
+  .db-rec-seg label { position:relative; display:inline-flex; align-items:center; min-height:32px; padding:0 12px; border-radius:9px; font-size:13px; color:var(--muted); cursor:pointer; }
+  .db-rec-seg input { position:absolute; inset:0; margin:0; opacity:0; cursor:pointer; }
+  .db-rec-seg label:has(input:checked) { background:color-mix(in srgb, var(--accent-color) 16%, transparent); color:var(--fg); font-weight:700; }
+  .db-rec-seg label:has(input:focus-visible) { outline:2px solid var(--accent-color); outline-offset:2px; }
+  .db-rec-seg input:focus-visible + span { outline:2px solid var(--accent-color); outline-offset:4px; border-radius:6px; }
+  .db-rec-form > .l.full { padding-top:0; }
+  .db-rec-form > .full > .db-rec-seg { flex-wrap:nowrap; }
+  @media (max-width:880px) { .db-rec-form > .full > .db-rec-seg { flex-wrap:wrap; } }
+  .db-nb-card.wait .db-nb-body .rc { white-space:normal; text-overflow:clip; word-break:keep-all; line-height:1.35; }
+  .db-rec-seg[aria-invalid=true] { border-color:var(--red); }
+  .db-rec-help { font-size:12px; color:var(--muted); margin:6px 0 0; line-height:1.5; word-break:keep-all; }
+  .db-rec-help:empty { display:none; }
+  .db-rec-form input[type=date] { width:160px; }
+  .db-rec-form textarea { width:100%; box-sizing:border-box; min-height:64px; resize:vertical; font-size:13px; }
+  .db-rec-form [aria-invalid=true] { border-color:var(--red); }
+  .db-rec-err { font-size:12px; color:var(--red); margin:4px 0 0; display:flex; gap:4px; align-items:center; }
+  .db-rec-err:empty { display:none; }
+  .db-rec-who { font-size:12px; color:var(--muted); margin:0; }
+  .db-rec-alert { margin:0; padding:8px 12px; font-size:13px; line-height:1.5; border-left:2px solid var(--red); background:color-mix(in srgb, var(--red) 8%, transparent); }
+  .db-rec-btns { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .db-rec-dirty { font-size:12px; color:var(--muted); margin-left:auto; }
+  .db-rec-hist summary { font-size:12px; color:var(--muted); cursor:pointer; margin-top:12px; }
+  .db-rec-hist ol { list-style:none; margin:8px 0 0; padding:0; }
+  .db-rec-hist li { padding:8px 0; border-top:1px solid var(--line); font-size:12px; color:var(--muted); line-height:1.6; }
+  .db-rec-hist li .t { font-family:var(--mono); color:var(--fg); }
+  .db-rec-hist li .to { color:var(--fg); font-weight:700; }
+  .db-rec-op { white-space:pre-line; overflow-wrap:anywhere; }
+  .db-rec-prev { font-size:11px; color:var(--muted); border:1px solid var(--line-strong); border-radius:6px; padding:0 6px; margin-left:6px; }
+  .db-rec-brief, .db-rec-go { margin:8px 0 0; }
+  #db-ovview span { font-size:12px; padding:6px 10px; }
+  #db-ovview b { font-family:var(--mono); font-weight:400; color:var(--fg); }
+  @media (max-width:880px) { .db-rec-form { grid-template-columns:1fr; } }
+  /* 공고 상태 기록 끝 */
 </style>
 </head>
 <body>
@@ -2369,6 +2419,7 @@ review, the verdict, and DESIGN.md
 <script src="js/prep.js"></script>
 <script src="data/kb-verified.js"></script>
 <script src="js/headcard.js"></script>
+<script src="js/noticerec.js"></script>
 <script src="js/dashboard.js"></script>
 <script src="js/plans.js"></script>
 <script src="js/kbboard.js"></script>
