@@ -223,7 +223,7 @@
     if (p.state === 'loading') return '<p class="db-state" aria-busy="true">불러오는 중입니다…</p>';
     if (p.state === 'denied') return '<p class="db-state">' + (p.code === 401 ? '로그인이 필요합니다. 다시 로그인하세요.' : '준비 중인 제안은 영업팀·영업팀장·영업부장에게 보입니다.') + '</p>';
     if (p.state === 'error') return '<p class="db-state">준비 중인 제안을 불러오지 못했습니다. <button type="button" id="hb-retry">다시 시도</button></p>';
-    if (!rows.length) return '<p class="db-state">아직 제안 확정한 기관이 없습니다. 입찰 공고 현황에서 기관을 고르고 [제안 확정]을 누르면 여기에 나옵니다.<br><button type="button" id="hb-open-notice">입찰 공고 현황 열기</button></p>';
+    if (!rows.length) return '<p class="db-state">아직 제안 확정한 기관이 없습니다. 입찰 공고 현황에서 공고가 난 기관을 고르고 [제안 확정]을 누르면 여기에 나옵니다.<br><button type="button" id="hb-open-notice">입찰 공고 현황 열기</button></p>';
     return '<ul>' + rows.map(kbb.prepRowHtml).join('') + '</ul>';
   };
 
@@ -427,13 +427,13 @@
     '<section id="hb-root" aria-label="입찰 현황판">' +
     '<div class="hb-top"><h2>입찰 현황판</h2><span class="sub">국민은행이 맡은 기관과 제안 진행</span><span class="meta">기준일 <b id="hb-asof"></b></span></div>' +
     '<div id="hb-flash" class="db-flash" role="status"></div><div id="hb-err" class="db-state db-banner" role="alert" style="display:none"></div>' +
+    '<div class="hb-cards" id="hb-cards"></div>' +
     '<section class="pnl hb-alert" id="hb-alert" aria-label="공고가 난 국민은행이 맡은 기관"></section>' +
     '<div class="hb-grid">' +
     '<section class="pnl hb-list" id="hb-ours" tabindex="-1" aria-labelledby="hb-ot" aria-busy="true"><div class="db-list-head"><div class="db-h"><h2 id="hb-ot">국민은행이 맡은 기관</h2><span class="sum" id="hb-osum"></span></div>' +
     '<fieldset class="db-per" id="hb-per"></fieldset></div><div class="db-scroll" id="hb-oscroll"><p class="db-state" aria-busy="true">불러오는 중입니다…</p></div><div class="db-foot" id="hb-ofoot"></div></section>' +
     '<section class="pnl hb-list" id="hb-preps" aria-labelledby="hb-pt" aria-busy="true"><div class="db-list-head"><div class="db-h"><h2 id="hb-pt">준비 중인 제안</h2><span class="sum" id="hb-psum"></span>' +
-    '<button type="button" id="hb-to-prep" hidden>사전준비 화면 열기</button></div></div><div class="db-scroll" id="hb-pscroll"><p class="db-state" aria-busy="true">불러오는 중입니다…</p></div></section>' +
-    '<div class="hb-cards" id="hb-cards"></div></div></section>';
+    '<button type="button" id="hb-to-prep" hidden>사전준비 화면 열기</button></div></div><div class="db-scroll" id="hb-pscroll"><p class="db-state" aria-busy="true">불러오는 중입니다…</p></div></section></div></section>';
 
   kbb.mount = function (el) {
     if (!el) return;

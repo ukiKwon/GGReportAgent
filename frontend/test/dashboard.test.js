@@ -227,6 +227,8 @@ test('P3-3 와플: 칸 수 = 조사한 기관 수, 채운 칸 = 국민은행 수
   assert.ok(card.indexOf('국민은행 금고 약정') >= 0 && card.indexOf('지자체 <b>243</b>곳 중 국민은행 <b>6</b>곳') >= 0);
   assert.ok(card.indexOf('다른 은행') >= 0 && card.indexOf('<span><i class="k"></i>국민은행</span>') >= 0 && card.indexOf('2026.1.1. 기준') >= 0);
   assert.ok(card.indexOf('아직 모름') < 0 && card.indexOf('미확인') < 0);
+  // 가로 배치(11-17): 머리 줄에 숫자, 아래는 [와플 | 범례·안내]
+  assert.ok(/class="db-card kb-card"/.test(card) && /<div class="db-h"><h2 id="db-t1">[^<]*<\/h2><p class="fig">[\s\S]*<\/p><\/div><div class="kb-body"><div class="waf"/.test(card) && card.indexOf('<div class="kb-side"><p class="lg">') > 0);
   // 숫자는 계산값 — 박지 않았다
   assert.ok(dash.kbCardHtml({ confirmed: 16, unconfirmed: 227, total: 243 }).indexOf('국민은행 <b>16</b>곳') >= 0);
   // 자료가 비면 와플 대신 안내 한 줄
@@ -407,6 +409,68 @@ test('actionKind 행렬: 역할 × 활성 건 × 서버 모드 × prep 유무', 
   assert.strictEqual(dash.actionKind(r, srv('영업팀'), [], { popoverAction: function () { throw new Error('x'); } }), 'unavailable');
 });
 
+// ── [제안 확정] 노출 규칙(사용자 11-17 '공고 난 뒤에만') ─────────────────
+test('proposeGate: 공고 없음·진행 중 마감 전·마감 지남·마감일 모름(30일 안·밖)', function () {
+  const g = function (days, extra, snap) { return dash.proposeGate(rec('가', '11', days, Object.assign({ institutionId: 'I1' }, extra || {})), { today: TODAY, snap: snap || null }); };
+  assert.strictEqual(g(40), 'later');                                                                  // 공고 예정(미래): 아직 공고 아님
+  assert.strictEqual(g(null), 'later');                                                                // 날짜 없음
+  assert.strictEqual(g(-3, { confirmed: false }), 'later');                                            // 추정 날짜는 공고가 아니다
+  assert.strictEqual(g(-3, { receiveTo: plus(5) }), 'confirm');                                        // 마감 전
+  assert.strictEqual(g(-3, { receiveTo: plus(0) }), 'confirm');                                        // 마감 당일
+  assert.strictEqual(g(-9, { receiveTo: plus(-1) }), 'past');                                          // 마감 지남 — 공고는 났다(later와 다른 문구)
+  assert.strictEqual(g(-30), 'confirm');                                                               // 마감일 모름 30일째
+  assert.strictEqual(g(-31), 'past');                                                                  // 마감일 모름 31일째
+  assert.strictEqual(g(-130, { receiveTo: plus(-100) }), 'later');                                     // 120일 지나면 진행 중 아님
+});
+
+test('proposeGate: 담당자 기록이 먼저 — 진행 중은 포함, 종료·입찰 없음·지연은 제외', function () {
+  const snap = function (cd) { return { today: plus(0), byId: { I1: { institution_id: 'I1', status_cd: cd, next_check_date: plus(10) } } }; };
+  const r = function (days, extra) { return rec('가', '11', days, Object.assign({ institutionId: 'I1' }, extra || {})); };
+  const gate = function (x, cd) { return dash.proposeGate(x, { today: TODAY, snap: snap(cd) }); };
+  assert.strictEqual(gate(r(40), 'IN_PROGRESS'), 'later');                                             // 날짜상 공고가 없으면 진행 중 기록도 무시 → 날짜 규칙
+  assert.strictEqual(gate(r(-130, { receiveTo: plus(-100) }), 'IN_PROGRESS'), 'later');                // 공고 후 120일 넘김: 낡은 기록
+  assert.strictEqual(gate(r(-9, { receiveTo: plus(-1) }), 'IN_PROGRESS'), 'confirm');                  // 마감이 지났어도 담당자가 진행 중으로 기록했으면 포함
+  assert.strictEqual(gate(r(-31), 'IN_PROGRESS'), 'confirm');                                          // 마감일 모름 30일 초과도 포함
+  assert.strictEqual(gate(r(-3, { receiveTo: plus(5) }), 'CLOSED'), 'closed');                         // 날짜로는 진행 중이어도 기록 우선
+  assert.strictEqual(gate(r(-3, { receiveTo: plus(5) }), 'NO_BID'), 'nobid');
+  assert.strictEqual(gate(r(-3, { receiveTo: plus(5) }), 'DELAYED'), 'delayed');
+  assert.strictEqual(gate(r(-3, { receiveTo: plus(5) }), 'WHATEVER'), 'confirm');                      // 모르는 코드는 기록으로 치지 않는다 → 날짜 규칙
+  assert.strictEqual(dash.proposeGate(r(-3, { receiveTo: plus(5) }), { today: TODAY, snap: { today: plus(0), byId: { I2: { status_cd: 'CLOSED' } } } }), 'confirm');   // 다른 기관 기록
+});
+
+test('proposeGate: 지연·재공고 대기는 다음 확인일이 지나면(recordView가 미처리로 되돌리는 기준) 기록 없음 — 날짜 규칙으로 판정', function () {
+  const r = function (days, extra) { return rec('가', '11', days, Object.assign({ institutionId: 'I1' }, extra || {})); };
+  const snap = function (cd, next) { return { today: plus(0), byId: { I1: { institution_id: 'I1', status_cd: cd, next_check_date: next } } }; };
+  const gate = function (x, s) { return dash.proposeGate(x, { today: TODAY, snap: s }); };
+  assert.strictEqual(gate(r(-3, { receiveTo: plus(5) }), snap('DELAYED', plus(1))), 'delayed');          // 확인일 전: 기록 우선
+  assert.strictEqual(gate(r(-3, { receiveTo: plus(5) }), snap('DELAYED', plus(0))), 'confirm');          // 확인일 당일부터 미처리 → 날짜 규칙(마감 전)
+  assert.strictEqual(gate(r(-3, { receiveTo: plus(5) }), snap('DELAYED', plus(-4))), 'confirm');         // 확인일 지남
+  assert.strictEqual(gate(r(-3, { receiveTo: plus(5) }), snap('DELAYED', '')), 'confirm');               // 확인일을 모르면 미처리
+  assert.strictEqual(gate(r(40), snap('DELAYED', plus(-1))), 'later');                                   // 날짜로는 공고 전 → later
+  assert.strictEqual(gate(r(-9, { receiveTo: plus(-1) }), snap('DELAYED', plus(-1))), 'past');           // 마감 지남 → past
+  assert.strictEqual(gate(r(-3, { receiveTo: plus(5) }), snap('CLOSED', plus(-9))), 'closed');           // 다른 코드는 그대로
+});
+
+test('actionKind(5번째 인자): 기록 받는 중은 wait, 사전준비가 있으면 규칙과 무관하게 open, 안내 문구', function () {
+  const r = rec('가', '11', 40, { institutionId: 'I1' });
+  const srv = { serverMode: true, role: '영업팀' };
+  const o = { today: TODAY, snap: null };
+  assert.strictEqual(dash.actionKind(r, srv, [], stubPrep, o), 'later');
+  assert.strictEqual(dash.actionKind(r, srv, [], stubPrep, { today: TODAY, snap: null, wait: true }), 'wait');
+  assert.strictEqual(dash.actionKind(r, srv, [{ institution_id: 'I1', state_cd: 'CONFIRMED' }], stubPrep, o), 'open');
+  assert.strictEqual(dash.actionKind(r, { serverMode: true, role: '영업부장' }, [], stubPrep, o), 'none');   // 권한 없음은 그대로
+  assert.strictEqual(dash.actionKind(rec('나', '11', -3, { institutionId: 'I1', receiveTo: plus(5) }), srv, [], stubPrep, o), 'confirm');
+  const it = dash.model([r], TODAY).upcoming[0];
+  const why = function (k) { return dash.actHtml(it, { act: k }); };
+  assert.ok(why('later').indexOf('입찰 공고가 나면 [제안 확정]을 쓸 수 있습니다.') >= 0 && why('later').indexOf('id="db-cf"') < 0 && why('later').indexOf('id="db-map"') >= 0);
+  assert.ok(why('closed').indexOf('이번 회차 공고가 끝났습니다.') >= 0);
+  assert.ok(why('past').indexOf("접수 기간이 지난 것으로 봅니다. 아직 접수 중이면 공고 상태를 '공고 진행 중'으로 기록하세요.") >= 0 && why('past').indexOf('공고가 나면') < 0 && why('past').indexOf('id="db-cf"') < 0);
+  assert.ok(why('nobid').indexOf("이번 회차는 '입찰 없음'으로 닫혔습니다.") >= 0);
+  assert.ok(why('delayed').indexOf('공고가 늦어지거나 재공고를 기다리는 중입니다.') >= 0);
+  assert.ok(why('wait').indexOf('[제안 확정]을 쓸 수 있는지 확인하는 중입니다.') >= 0);
+  assert.ok(dash.blankHtml().indexOf('왼쪽 목록에서 기관을 고르세요. 기관 정보가 여기에 보이고, 공고가 난 기관이면 [제안 확정] 버튼도 보입니다.') >= 0);
+});
+
 test('actHtml: 서버 없음은 버튼 없이 안내, 권한 밖은 한 줄 안내, 확인 줄은 조사 함수', function () {
   const it = dash.model([rec('부산광역시', '26', 40)], TODAY).upcoming[0];
   const un = dash.actHtml(it, { act: 'unavailable' });
@@ -480,6 +544,14 @@ test('소스: 저장 뒤 안내(P3-8)·사번 바뀐 뒤 이력 재요청(N-1)·
   assert.ok(/Promise\.resolve\(n\.load\(\)\)\.then\([\s\S]{0,400}dash\.moveNote\(/.test(src));
   assert.ok(/const changed = recGuard\(\);[\s\S]{0,300}if \(changed && it\) recSync\(it\);/.test(src));      // N-1: DOM 없이는 mount를 못 돌려 연결만 확인한다
   assert.ok(/compositionstart/.test(src) && /compositionend/.test(src) && /st\.comp && !changed/.test(src));
+});
+
+test('소스: renderPane 스크롤·포커스 보존, 판정이 confirm을 벗어나면 확인 상자 해제, 조합이 끝나면 act 재판정(qa P2-3·P3-1·P3-3)', function () {
+  const src = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8');
+  assert.ok(/st\.act = act;\s*if \(act !== 'confirm'\) st\.confirm = false;/.test(src));                                     // P3-3
+  assert.ok(/st\.paneSel === st\.sel \? body0\.scrollTop : 0/.test(src) && /b1\.scrollTop = scrollTop0/.test(src));            // P2-3: 같은 기관일 때만 스크롤을 지킨다
+  assert.ok(!/\/\^db-rec-\/\.test\(a0\.id\)/.test(src));                                                                       // 포커스 보존이 db-rec-에만 묶이지 않는다(#db-map·bk-* 등 id 있는 요소)
+  assert.ok(/function recCompEnd\(\) \{[\s\S]{0,500}st\.act !== paneAct\(it, actCtx\(\)[\s\S]{0,60}renderPane\(\)/.test(src));   // P3-1
 });
 
 // ── 상세·이스케이프 ────────────────────────────────────────────────

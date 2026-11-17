@@ -1741,7 +1741,7 @@
   .hb-alert .chips button { font-size:12px; padding:4px 10px; min-height:28px; }
   .hb-alert .db-next { margin-left:auto; }
   .hb-grid { display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(0, 1fr); gap:20px; }
-  .hb-list { height:clamp(360px, calc(100vh - 250px), 640px); display:flex; flex-direction:column; min-height:0; }
+  .hb-list { height:clamp(300px, calc(100vh - 480px), 640px); display:flex; flex-direction:column; min-height:0; }
   .hb-list:focus:not(:focus-visible) { outline:none; }
   .hb-list ul { list-style:none; margin:0; padding:0; }
   .hb-list .db-h button { margin-left:auto; font-size:12px; }
@@ -1757,10 +1757,18 @@
   .hb-row .dg-day, .hb-row .ov-stamp, .hb-row .db-chip { align-self:start; font-size:12px; font-family:var(--mono); padding:1px 7px; }
   .hb-slot { font-size:11px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:6px; padding:0 6px; }
   .hb-slot.hb-leaves { color:var(--fg); border-color:color-mix(in srgb, var(--red) 55%, var(--line-strong)); }   /* 2027년부터 다른 은행 — 지금은 맡고 있지만 곧 빠지는 곳 */
-  .hb-cards { grid-column:1 / -1; display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  /* 11-17 맨 위 요약 띠 — 아래 두 목록과 같은 열 비율(와플 ↔ 맡은 기관, 단계 ↔ 준비 중인 제안). design-reviewer 11-17 a8b5055c 6-C */
+  .hb-cards { display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(0, 1fr); gap:20px; align-items:stretch; }
+  .kb-card .db-h .fig { margin:0 0 0 auto; }
+  .kb-card .kb-body { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:16px; align-items:start; margin-top:12px; }
+  .kb-card .kb-side .lg { margin:0; }
+  .kb-card .kb-side .note { margin:8px 0 0; }
+  .hb-cards .stg { gap:6px; margin-top:10px; }
+  .hb-cards .stg + .note { margin-top:8px; }
   .db-soon-tag { margin-left:8px; font-size:11px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:6px; padding:0 5px;
                  background:repeating-linear-gradient(45deg, color-mix(in srgb, var(--muted) 12%, transparent) 0 2px, transparent 2px 4px); vertical-align:middle; }
-  @media (min-width:1600px) { .hb-grid { grid-template-columns:minmax(0, 1.3fr) minmax(0, 1fr) 380px; } .hb-cards { grid-column:3; grid-row:1; grid-template-columns:1fr; align-content:start; } }
+  @media (min-width:1600px) { .hb-grid, .hb-cards { grid-template-columns:minmax(0, 1.3fr) minmax(0, 1fr); } }
+  @media (max-width:1279px) { .kb-card .kb-body { grid-template-columns:1fr; gap:10px; } .kb-card .db-h .fig { margin-left:0; } }
   @media (max-width:880px) { .hb-grid, .hb-cards { grid-template-columns:1fr; } .hb-list { height:auto; max-height:50vh; } }
   @media (prefers-reduced-motion:reduce) { .hb-row { transition:none; } }
   /* 국민은행 상태 현황판 끝 */
@@ -2446,6 +2454,7 @@ review, the verdict, and DESIGN.md
 <script src="js/team.js"></script>
 <script src="js/prep.js"></script>
 <script src="data/kb-verified.js"></script>
+<script src="data/lofin-2026.js"></script>
 <script src="js/headcard.js"></script>
 <script src="js/noticerec.js"></script>
 <script src="js/dashboard.js"></script>

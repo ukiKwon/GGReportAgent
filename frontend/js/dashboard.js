@@ -338,15 +338,53 @@
     return { serverMode: serverMode() && hasEmp(), role: role(), session: ses, account: acc,
       master: !!(acc && root.login && ses.id === root.login.MASTER_ID) };
   }
-  dash.actionKind = function (rec, ctx, actives, prepApi) {
+  // [제안 확정] 노출 규칙(사용자 11-17 결정 '공고 난 뒤에만') — 한 곳. o = { today: Date, snap: 공고 상태 기록 snap|null }.
+  // 담당자 기록이 있으면 기록이 먼저다: 공고 진행 중 → 보임 / 공고 종료·입찰 없음·지연·재공고 대기 → 안 보임.
+  // 기록이 없으면 날짜로 본다: 공고(noticeState)가 진행 중이면서 접수 마감 전, 마감일을 모르면 공고 후 30일 이내만 보인다.
+  // → 'confirm' | 'closed' | 'nobid' | 'delayed' | 'past'(접수 마감이 지났거나 마감일 모름·공고 후 30일 초과) | 'later'(공고가 아직 없다)
+  dash.proposeGate = function (rec, o) {
+    const today = (o && o.today) || todayDate();
+    const snap = (o && o.snap) || null;
+    // 다음 확인일이 지난 '지연·재공고 대기'는 logic.recordView가 미처리(pending)로 되돌린다 — 같은 기준으로 기록 없음으로 보고 날짜 규칙으로 간다.
+    const rv = snap ? logic.recordView(rec, snap, logic.localDateStr(today)) : null;
+    const item = rv && rv.view !== 'pending' ? rv.item : null;
+    const cd = item ? item.status_cd : '';
+    const ns = logic.noticeState(rec, today);
+    // '공고 진행 중' 기록도 날짜상 공고가 없으면(공고 후 120일 넘김 등) 낡은 기록으로 보고 무시한다 — 날짜 규칙으로 간다.
+    if (cd === 'IN_PROGRESS' && ns) return 'confirm';
+    if (cd === 'CLOSED') return 'closed';
+    if (cd === 'NO_BID') return 'nobid';
+    if (cd === 'DELAYED') return 'delayed';
+    if (ns && (ns.phase === 'receiving' || (ns.phase === 'unknown' && !ns.late))) return 'confirm';
+    if (ns && ns.check) return 'past';
+    return 'later';
+  };
+  // 버튼이 없을 때 db-why 한 줄(actHtml이 쓴다)
+  dash.CONFIRM_WHY = {
+    later: '입찰 공고가 나면 [제안 확정]을 쓸 수 있습니다.',
+    closed: '이번 회차 공고가 끝났습니다.',
+    past: "접수 기간이 지난 것으로 봅니다. 아직 접수 중이면 공고 상태를 '공고 진행 중'으로 기록하세요.",
+    nobid: "이번 회차는 '입찰 없음'으로 닫혔습니다.",
+    delayed: '공고가 늦어지거나 재공고를 기다리는 중입니다.' };
+  // o를 넘기면(화면 호출) 노출 규칙을 건다. 안 넘기면(순수 시험) 역할·진행 중 사전준비만 본다.
+  // o.wait = 공고 상태 기록을 받는 중 → 'wait'(받기 전에 보였다 사라지지 않게).
+  dash.actionKind = function (rec, ctx, actives, prepApi, o) {
     if (!prepApi || typeof prepApi.popoverAction !== 'function' || !ctx || !ctx.serverMode) return 'unavailable';
     let r;
     try { r = prepApi.popoverAction(rec, ctx, actives || []); } catch (e) { return 'unavailable'; }
     const k = typeof r === 'string' ? r : (r && (r.kind || r.action || r.type)) || '';
     if (/open|열기/i.test(k)) return 'open';
-    if (/confirm|확정/i.test(k)) return 'confirm';
+    if (/confirm|확정/i.test(k)) {
+      if (!o) return 'confirm';
+      return o.wait ? 'wait' : dash.proposeGate(rec, o);
+    }
     return 'none';
   };
+  // 화면(상세 칸·지도 팝업)이 actionKind에 넘기는 값
+  function gateOpts() {
+    const n = NR();
+    return { today: todayDate(), snap: curSnap(), wait: !!(n && n.state && n.state() === 'loading') };
+  }
 
   // ── 순수: HTML 조각(사용자·서버 값은 전부 esc) ─────────────────────
   function mono(s) { return '<span class="v">' + esc(s) + '</span>'; }
@@ -590,12 +628,15 @@
   };
   // o.empty = 국민은행 금고 자료(KB_VERIFIED)가 비었다 → 0곳 와플로 '모두 다른 은행'이라 말하지 않고 안내 한 줄만 둔다.
   dash.kbCardHtml = function (kb, o) {
-    const head = '<section class="db-card" aria-labelledby="db-t1"><h2 id="db-t1">국민은행 금고 약정</h2>';
-    if (o && o.empty) return head + '<p class="fig">국민은행 금고 자료를 불러오지 못했습니다. 화면을 새로 고치세요.</p></section>';
+    // 11-17: 현황판 맨 위 띠로 올라가며 가로 배치 — 머리 줄 오른쪽에 숫자, 아래는 [와플 | 범례·안내](문구 불변, design 11-17)
+    const head = '<section class="db-card kb-card" aria-labelledby="db-t1"><div class="db-h"><h2 id="db-t1">국민은행 금고 약정</h2>';
+    if (o && o.empty) return head + '</div><p class="fig">국민은행 금고 자료를 불러오지 못했습니다. 화면을 새로 고치세요.</p></section>';
     return head +
-      '<p class="fig">지자체 <b>' + kb.total + '</b>곳 중 국민은행 <b>' + kb.confirmed + '</b>곳</p>' + dash.waffleHtml(kb) +
+      '<p class="fig">지자체 <b>' + kb.total + '</b>곳 중 국민은행 <b>' + kb.confirmed + '</b>곳</p></div>' +
+      '<div class="kb-body">' + dash.waffleHtml(kb) + '<div class="kb-side">' +
       '<p class="lg"><span><i class="k"></i>국민은행</span><span><i></i>다른 은행</span></p>' +
-      '<p class="note">행안부 금고지정 현황(2026.1.1. 기준)에서 회계 하나라도 국민은행이 맡은 지자체입니다. 2027년부터 바뀌는 곳은 목록의 \'2027년부터\' 묶음에 있습니다.</p></section>';
+      '<p class="note">행안부 금고지정 현황(2026.1.1. 기준)에서 회계 하나라도 국민은행이 맡은 지자체입니다. 2027년부터 바뀌는 곳은 목록의 \'2027년부터\' 묶음에 있습니다.</p>' +
+      '</div></div></section>';
   };
 
   // D2 제안 진행 단계. p = {state:'offline'|'loading'|'ok'|'denied'|'error', stages:stageCounts 결과, code:401|403|0}
@@ -728,7 +769,7 @@
   };
 
   dash.blankHtml = function () {
-    return '<div class="db-blank">왼쪽 목록에서 기관을 고르세요. 기관 정보와 [제안 확정] 버튼이 여기에 보입니다.</div>';
+    return '<div class="db-blank">왼쪽 목록에서 기관을 고르세요. 기관 정보가 여기에 보이고, 공고가 난 기관이면 [제안 확정] 버튼도 보입니다.</div>';
   };
 
   function lastProcNote(rec) {
@@ -743,6 +784,55 @@
     if (u) return '<li><a href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">' + esc(t) + '</a></li>';
     return '<li>' + esc(t) + '</li>';
   }
+
+  // ── 행안부 금고지정 현황(root.LOFIN_2026, 생성물 frontend/data/lofin-2026.js) — 지자체의 '현재 금고 은행' 수집 줄 ──
+  // 우선순위: 직접 입력(현재) > KB_VERIFIED·KB_NEXT 수집 > 행안부 값 > 만료된 직접 입력. 약정 기록 표에는 넣지 않고 화면 '수집' 줄로만 보인다.
+  // 직접 입력이 있으면 행안부 값은 bankcontract.sectionHtml의 비교 대상(같음/다름)이 된다.
+  const LOFIN_RANK = { SINGLE: '단수 금고', RANK1: '1금고', RANK2: '2금고' };
+  const LOFIN_CMP = { SINGLE: 'SINGLE', RANK1: 'FIRST', RANK2: 'SECOND' };   // DB 041 BANK_RANK 코드
+  const LOFIN_ORD = { SINGLE: 0, RANK1: 1, RANK2: 2 };
+  // → [{ bank, rankLabel, cmp, accts[], start, end, unit, approx, expired }] (단위 묶음 순서 → 1금고 먼저). 지자체가 아니거나 자료가 없으면 [].
+  dash.lofinLines = function (rec, lofin, today) {
+    if (!rec || !lofin || !lofin.rows || dash.kindOfRec(rec) !== '지자체') return [];
+    const k = logic.instKey(rec);
+    const list = Object.prototype.hasOwnProperty.call(lofin.rows, k) ? lofin.rows[k] : null;
+    if (!Array.isArray(list)) return [];
+    const ts = logic.localDateStr(today || todayDate()), units = [];
+    const lines = list.filter(function (x) { return x && x.bank; }).map(function (x, i) {
+      const u = x.unit || '';
+      if (units.indexOf(u) < 0) units.push(u);
+      return { bank: String(x.bank), rank: x.rank, rankLabel: LOFIN_RANK[x.rank] || '', cmp: LOFIN_CMP[x.rank] || '',
+        accts: Array.isArray(x.accts) ? x.accts.map(String) : [], start: x.start || '', end: x.end || '', unit: u, approx: !!x.approx,
+        expired: !!x.end && String(x.end) < ts, ui: units.indexOf(u), i: i };
+    });
+    lines.sort(function (a, b) { return (a.ui - b.ui) || ((LOFIN_ORD[a.rank] || 0) - (LOFIN_ORD[b.rank] || 0)) || (a.i - b.i); });
+    return lines;
+  };
+  function lofinAsof(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
+    return m ? m[1] + '.' + Number(m[2]) + '.' + Number(m[3]) + '.' : '';
+  }
+  // dt·dd 묶음. o.diff = 직접 입력과 다를 때(dt '수집 기록' + '수집 기록과 다름' 표지).
+  dash.lofinRowsHtml = function (lines, lofin, o) {
+    o = o || {};
+    const asof = lofinAsof(lofin && lofin.asof);
+    return (lines || []).map(function (l) {
+      const period = l.start && l.end ? mono(l.start + ' ~ ' + l.end) : l.end ? '끝 ' + mono(l.end) : l.start ? '시작 ' + mono(l.start) : '';
+      const tail = (period ? '<span class="bk-ln db-why">약정 ' + period + '</span>' : '') +
+        (l.accts.length ? '<span class="bk-ln db-why">맡는 회계 ' + l.accts.map(esc).join(' · ') + '</span>' : '');
+      const expired = l.expired ? ' <span class="wf-badge pp-cancel">만료</span>' : '';
+      if (o.diff) {   // 직접 입력 줄 사이에 끼므로 줄마다 출처 꼬리를 둔다
+        const who = (l.unit && !l.approx ? esc(l.unit) + ': ' : '') + esc(l.bank) + (l.rankLabel ? ' · ' + esc(l.rankLabel) : '');
+        const why = '· 행안부 금고지정 현황' + (asof ? ' ' + esc(asof) + ' 기준' : '') + (l.approx && l.unit ? ' (개편 전 ' + esc(l.unit) + ' 기준)' : '');
+        return '<dt>수집 기록</dt><dd><span class="bk-ln">' + who + expired + ' <span class="wf-badge pp-cancel">수집</span> <span class="db-why">' + why + '</span>' +
+          ' <span class="db-chk">수집 기록과 다름</span></span>' + tail + '</dd>';
+      }
+      // legacy 갈래: dt = 순위 이름(㊹ 직접 입력 줄과 같은 짜임), 출처는 아래 '직접 확인:' 링크 한 곳이 맡는다
+      const dt = (l.unit && !l.approx ? esc(l.unit) + ' ' : '') + esc(l.rankLabel || '금고 은행');
+      const apx = l.approx && l.unit ? ' <span class="db-why">(' + esc(l.unit) + ' 값, 행정구역 개편 전)</span>' : '';
+      return '<dt>' + dt + '</dt><dd><span class="bk-ln">' + esc(l.bank) + expired + ' <span class="wf-badge pp-cancel">수집</span>' + apx + '</span>' + tail + '</dd>';
+    }).join('');
+  };
 
   // 기존 수집 갈래(c.kb·c.next)의 요약 — 약정 응답과 나란히 보일 때만 쓴다(비교는 bankcontract.bankKey).
   function bankCol(c) {
@@ -776,6 +866,10 @@
       (srcs.length ? '<details class="db-src"><summary>출처 ' + srcs.length + '건 보기</summary><ol>' + srcs.map(srcItem).join('') + '</ol></details>' : '') + '</div>';
     let bankDl, bankNote;
     const bankOk = !!(c.bank && c.bank.st === 'ok' && c.bank.data);   // 약정 응답이 왔을 때만 문구를 바꾼다(없으면 기존 문구 그대로)
+    // 행안부 값은 KB 수집(c.kb·c.next)이 없을 때만 쓴다. c.lofin(순수 시험)이 있으면 그것, 없으면 전역 자료.
+    const lofinData = c.lofin !== undefined ? c.lofin : root.LOFIN_2026;
+    const lofinAll = c.kb || c.next ? [] : dash.lofinLines(rec, lofinData, c.today);
+    const lofinLive = lofinAll.filter(function (l) { return !l.expired; });
     if (c.kb) {
       const slot = c.kb.slot ? ' · ' + esc(c.kb.slot) + '금고' : '';
       bankDl = '<dl class="db-dl"><dt>금고 은행</dt><dd>KB국민은행' + slot + '</dd>' +
@@ -793,6 +887,14 @@
         '<dt>근거</dt><dd>' + esc(nx.quote || '') + (nx.src_date ? ' <span class="db-why">출처 기준일 ' + esc(nx.src_date) + '</span>' : '') +
         (nu ? ' <a href="' + esc(nu) + '" target="_blank" rel="noopener noreferrer">출처 보기</a>' : '') + '</dd></dl>';
       bankNote = '<p class="db-empty">' + (nx.now ? '지금 금고 은행은 출처 문장으로 확인했습니다. ' : '') + esc(nx.from || '2027') + '년 약정은 선정 결과 기준이며 본계약 여부는 출처에서 다시 확인하세요.</p>';
+    } else if (lofinAll.length) {
+      // 행안부 금고지정 현황 값 — 직접 입력·KB 수집이 없는 지자체의 '미확인' 자리. 약정 기간은 줄 안에 같이 있다.
+      bankDl = '<dl class="db-dl">' + dash.lofinRowsHtml(lofinAll, lofinData) + '</dl>';
+      const canEd = bankOk && c.bank.data.can_edit;
+      bankNote = !lofinLive.length   // 줄이 모두 만료 — 2027-01-01부터 80곳이 여기에 걸린다
+        ? '<p class="db-empty">행안부 현황의 약정 기간이 지났습니다. ' + (canEd ? '지금 약정을 확인해 직접 입력하세요.' : '지금 약정은 기록이 없습니다.') + '</p>'
+        : canEd ? '<p class="db-empty">행안부 현황으로 채운 값입니다. 약정을 직접 입력하면 그 값이 먼저 보입니다.</p>'
+        : '<p class="db-empty">행안부 현황으로 채운 값입니다.</p>';
     } else {
       bankDl = '<dl class="db-dl"><dt>금고 은행</dt><dd>' + chip() + '</dd><dt>약정 기간</dt><dd>' + chip() + '</dd></dl>';
       bankNote = !bankOk ? '<p class="db-empty">약정 기록을 모으면 금고 은행과 약정 기간이 출처와 함께 여기에 보입니다.</p>'
@@ -805,7 +907,8 @@
     let muniSrc = '';
     if (dash.kindOfRec(rec) === '지자체') muniSrc = typeof c.muniSrcHtml === 'string' ? c.muniSrcHtml : (root.kbboard && root.kbboard.srcHtml ? root.kbboard.srcHtml('직접 확인: ') : '');
     const bank = c.bank && bcm
-      ? bcm.sectionHtml(c.bank, { legacyDl: bankDl, legacyNote: bankNote, collected: !!(c.kb || c.next), hasKb: !!c.kb, col: bankCol(c), srcHtml: muniSrc })
+      ? bcm.sectionHtml(c.bank, { legacyDl: bankDl, legacyNote: bankNote, collected: !!(c.kb || c.next || lofinAll.length), hasKb: !!c.kb, col: bankCol(c), srcHtml: muniSrc,
+        lofin: lofinLive.map(function (l) { return { bank: l.bank, rank: l.cmp, html: dash.lofinRowsHtml([l], lofinData, { diff: true }) }; }) })
       : '<div class="db-sec"><h3>현재 금고 은행</h3>' + bankDl + bankNote + (muniSrc ? '<p class="db-empty bk-src">' + muniSrc + '</p>' : '') + '</div>';
     // c.headHtml: headcard.js가 만든 '기관장' 절(서버 기관장 API 카드). 없으면(모듈 미로드·순수 테스트) 예전 자리표시를 둔다.
     const chief = typeof c.headHtml === 'string' ? c.headHtml : '<div class="db-sec"><h3>기관장</h3><dl class="db-dl"><dt>기관장</dt><dd>' + chip() + '</dd></dl>' +
@@ -820,7 +923,8 @@
     const map = c.mapHtml !== undefined ? c.mapHtml : '<button type="button" id="db-map">전국 지도에서 보기</button>';
     // 개원 확인 필요 기관은 입찰 대상이 아니라 [제안 확정]을 두지 않는다 — 운영 상태를 확인해 바꾸는 창으로 보낸다(NEXT 72, 기획 결정).
     if (c.act === 'opencheck') return '<div class="db-act-row"><span class="db-why">개원했는지 확인하고 출처와 함께 운영 상태를 바꾸세요.</span><button type="button" id="db-edit">기관 정보 변경</button></div>';
-    if (c.act === 'wait') return '<div class="db-act-row"><span class="db-why">사전준비 진행 상태를 확인하는 중입니다.</span>' + map + '</div>';
+    if (c.act === 'wait') return '<div class="db-act-row"><span class="db-why">[제안 확정]을 쓸 수 있는지 확인하는 중입니다.</span>' + map + '</div>';
+    if (dash.CONFIRM_WHY[c.act]) return '<div class="db-act-row"><span class="db-why">' + dash.CONFIRM_WHY[c.act] + '</span>' + map + '</div>';
     if (c.act === 'unavailable') return '<div class="db-act-row"><span class="db-why">서버에 연결되면 [제안 확정]을 쓸 수 있습니다.</span>' + map + '</div>';
     if (c.act === 'open') return '<div class="db-act-row"><button type="button" class="db-next" id="db-open">사전준비 열기</button>' + map + '<span class="db-why">이미 제안 확정되어 사전준비가 진행 중입니다.</span></div>';
     if (c.act === 'confirm') {
@@ -994,6 +1098,9 @@
     return root.headcard ? root.headcard.paneSection(it.rec, headEnv(it)) : undefined;
   }
 
+  function paneAct(it, ctx, actives) {
+    return ie.isOpenCheck(it.rec) ? 'opencheck' : dash.actionKind(it.rec, ctx, actives, root.prep, gateOpts());
+  }
   function renderPane() {
     const el = $('db-pane');
     if (!el) return;
@@ -1002,9 +1109,15 @@
     el.removeAttribute('aria-label'); el.setAttribute('aria-labelledby', 'db-name');
     const actives = dash.activePreps(st.preps);
     const ctx = actCtx();
-    const act = ie.isOpenCheck(it.rec) ? 'opencheck' : dash.actionKind(it.rec, ctx, actives, root.prep);
-    const a0 = document.activeElement;   // 기록 칸에서 입력 중이면 다시 그린 뒤 같은 칸·커서로 돌린다
-    const keep = a0 && a0.id && el.contains && el.contains(a0) && /^db-rec-/.test(a0.id) ? { id: a0.id, s: a0.selectionStart, e: a0.selectionEnd } : null;
+    const act = paneAct(it, ctx, actives);
+    st.act = act;
+    if (act !== 'confirm') st.confirm = false;   // 판정이 잠깐 바뀌면 열어 둔 확인 상자도 닫는다 — 남겨 두면 나중에 저절로 다시 뜬다
+    // 같은 기관을 다시 그릴 때는 본문 스크롤을 지킨다(기록 도착으로 act가 바뀌어도 맨 위로 튀지 않게). 다른 기관이면 맨 위.
+    const body0 = el.querySelector ? el.querySelector('.db-pane-body') : null;
+    const scrollTop0 = body0 && st.paneSel === st.sel ? body0.scrollTop : 0;
+    st.paneSel = st.sel;
+    const a0 = document.activeElement;   // 상세 안에서 포커스가 있던 칸(id 있는 요소)은 다시 그린 뒤 같은 칸·커서로 돌린다
+    const keep = a0 && a0.id && el.contains && el.contains(a0) ? { id: a0.id, s: a0.selectionStart, e: a0.selectionEnd } : null;
     recSync(it);
     st.comp = false; st.compLater = false;   // 상세를 통째로 다시 그리면 조합도 끊긴다 — 미룬 다시 그리기 표시를 남기지 않는다
     el.innerHTML = dash.paneHtml(it, { act: act, confirm: st.confirm && act === 'confirm', busy: st.busy,
@@ -1012,6 +1125,7 @@
       recordHtml: ie.isOpenCheck(it.rec) ? '' : recViewHtml(it), bank: bankView(it.rec) });
     if (st.confirm && act === 'confirm') { const b = $('db-do'); if (b) b.focus(); }
     else if (keep) { const t = $(keep.id); if (t && t.focus) { t.focus(); try { if (keep.s != null) t.setSelectionRange(keep.s, keep.e); } catch (e) { /* 날짜 칸 등 */ } } }
+    if (scrollTop0) { const b1 = el.querySelector('.db-pane-body'); if (b1) b1.scrollTop = scrollTop0; }   // 포커스가 끌어간 스크롤을 원래 자리로
   }
 
   // ── 공고 상태 기록(2단계) 상세 칸: 이력 받기·초안·저장 ─────────────────────────────
@@ -1080,9 +1194,20 @@
     // 사번이 바뀌어 이력이 비워졌으면 고른 기관의 이력을 다시 받는다(안 받으면 '불러오는 중'에서 멈춘다 — qa N-1)
     if (changed && it) recSync(it);
     if (st.comp && !changed) { st.compLater = true; return; }   // 한글 조합 중이면 다시 그리기를 조합이 끝난 뒤로 미룬다(qa N-5)
+    // 기록이 도착하면 [제안 확정] 노출도 달라진다(11-17) — 버튼 줄이 바뀌면 상세를 통째로 다시 그린다(입력 칸 포커스·커서는 renderPane이 지킨다)
+    if (it && $('db-pane') && st.act !== undefined && st.act !== paneAct(it, actCtx(), dash.activePreps(st.preps))) { renderPane(); return; }
     if (it && $('db-rec')) repaintRec();
   }
-  function recCompEnd() { st.comp = false; if (st.compLater) { st.compLater = false; if (host && M && selItem() && $('db-rec')) repaintRec(); } }
+  function recCompEnd() {
+    st.comp = false;
+    if (!st.compLater) return;
+    st.compLater = false;
+    const it = host && M ? selItem() : null;
+    if (!it) return;
+    // 조합 중에 도착한 기록이 버튼 줄을 바꿨다면 조합이 끝난 지금 다시 판정한다(안 하면 옛 문구가 다음 다시 그리기까지 남는다)
+    if ($('db-pane') && st.act !== undefined && st.act !== paneAct(it, actCtx(), dash.activePreps(st.preps))) { renderPane(); return; }
+    if ($('db-rec')) repaintRec();
+  }
   function recFocusField(k) {
     const t = host && host.querySelector(k === 'status' ? '#db-rec input[name="rec-state"]' : (k === 'next' ? '#db-rec-next' : '#db-rec-op'));
     if (t && t.focus) t.focus();
@@ -1512,7 +1637,7 @@
     const keepId = inPane ? (a.id || '') : '';
     const keepHc = inPane && a.getAttribute ? (a.getAttribute('data-hc') || '') : '';
     const ctx = actCtx();
-    let act = dash.actionKind(m.rec, ctx, dash.activePreps(m.preps), root.prep);
+    let act = dash.actionKind(m.rec, ctx, dash.activePreps(m.preps), root.prep, gateOpts());
     if (m.prepSt === 'loading' && act !== 'unavailable') act = 'wait';   // 진행 중인지 모르는 동안 [제안 확정]을 보였다 바꾸지 않는다
     const raw = root.render && root.render.popRawHtml ? root.render.popRawHtml(m.rec) : '';
     pane.innerHTML = dash.paneHtml(m.it, {

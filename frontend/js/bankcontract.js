@@ -27,7 +27,7 @@
     termOrder: '약정 시작이 끝보다 늦습니다.',
     future: '확인일은 오늘보다 뒤일 수 없습니다.',
   };
-  const RANK_NAME = { FIRST: '1금고', SECOND: '2금고', JOINT: '공동 지정', NONE: '금고 은행' };
+  const RANK_NAME = { FIRST: '1금고', SECOND: '2금고', SINGLE: '단수 금고', JOINT: '공동 지정', NONE: '금고 은행' };
   bc.SRC_FIELDS = { LINK: ['url'], DOC_NO: ['no'], PRESS: ['url', 'no'], STAFF: ['dept'] };
   bc.BLANK = { bank: '', etc: '', rank: '', ac: '', acetc: '', from: '', to: '', kind: '', url: '', no: '', dept: '', date: '', note: '' };
 
@@ -142,9 +142,12 @@
     return { mode: 'legacy', rows: [], g: g, noCur: false };
   };
   // 수집 은행 이름과 직접 입력 은행 이름 비교용 열쇠(정규화 규칙은 개발 이관: 'KB국민은행'↔'국민은행').
+  //  행안부 현황 표기도 같은 열쇠로 모은다: 아이엠뱅크·iM뱅크(구 대구은행)·대구은행 → iM뱅크, IBK기업은행 → 기업은행, BNK부산·경남은행 → 부산·경남은행.
   bc.bankKey = function (s) {
-    return String(s == null ? '' : s).normalize('NFKC').toLowerCase().replace(/[^a-z0-9ㄱ-ㆎ가-힣]/g, '')
-      .replace(/^kb(?=국민)/, '').replace(/^nh(?=농협)/, '').replace(/^kb$/, '국민').replace(/은행$/, '');
+    const k = String(s == null ? '' : s).normalize('NFKC').toLowerCase().replace(/\([^)]*\)/g, '').replace(/[^a-z0-9ㄱ-ㆎ가-힣]/g, '')
+      .replace(/^kb(?=국민)/, '').replace(/^nh(?=농협)/, '').replace(/^ibk(?=기업)/, '').replace(/^bnk(?=부산|경남)/, '')
+      .replace(/^kb$/, '국민').replace(/은행$/, '');
+    return /^(아이엠뱅크|im뱅크|대구)$/.test(k) ? 'im뱅크' : k;
   };
   function rankName(l, ranks) {
     if (l.rank_cd === 'NONE') return RANK_NAME.NONE;
@@ -201,6 +204,7 @@
 
   // 절 전체. view = bc.view() 결과(서버 모드), o = { legacyDl, legacyNote, collected, hasKb, col }
   //  col = { name, slot, date, extra:[[dt, dd]] } — 기존 수집 갈래(c.kb·c.next)의 요약(병기용)
+  function rk(r) { return r === 'SINGLE' ? 'FIRST' : r; }   // 순위 비교용 — 단수 금고는 1금고와 같게 본다
   bc.sectionHtml = function (view, o) {
     o = o || {};
     const ok = !!(view && view.st === 'ok' && view.data);
@@ -212,8 +216,16 @@
     const key = col ? bc.bankKey(col.name) : '';
     let dl, note = '';
     if (p.mode === 'direct') {
-      const slotRank = col && /^\s*([12])/.test(String(col.slot || '')) ? (RegExp.$1 === '1' ? 'FIRST' : 'SECOND') : '';   // 수집 슬롯을 모르면 은행만 비교
-      const sameOf = function (l) { return !!key && bc.bankKey(l.bank_name) === key && (!slotRank || l.rank_cd === slotRank); };   // 은행·순위 둘 다 같을 때만 '같음'
+      const slotRank = col && /^\s*([12])/.test(String(col.slot || '')) ? (RegExp.$1 === '1' ? 'FIRST' : 'SECOND')
+        : col && /^\s*(SINGLE|단수)/i.test(String(col.slot || '')) ? 'SINGLE' : '';   // 수집 슬롯을 모르면 은행만 비교
+      // 행안부 현황(o.lofin = [{bank, rank:'SINGLE'|'FIRST'|'SECOND'}], 아직 끝나지 않은 줄만)은 KB 수집 갈래(col)가 없을 때만 비교 대상이다.
+      // 항목마다 html = 그 줄 하나의 dt·dd 묶음('수집 기록과 다름' 표지 포함) — 직접 입력 어느 줄과도 같지 않은 줄만 보인다(줄 단위 비교).
+      const lf = !col && Array.isArray(o.lofin) ? o.lofin.map(function (x) { return { k: bc.bankKey(x.bank), r: rk(x.rank), html: x.html || '' }; }) : [];
+      const sameOf = function (l) {   // 은행·순위 둘 다 같을 때만 '같음'. 단수 금고(SINGLE)와 1금고(FIRST)는 같은 순위(둘 다 일반회계 은행)
+        if (!!key && bc.bankKey(l.bank_name) === key && (!slotRank || rk(l.rank_cd) === rk(slotRank))) return true;
+        const k = bc.bankKey(l.bank_name);
+        return !!k && lf.some(function (x) { return x.k === k && x.r === rk(l.rank_cd); });
+      };
       const same = p.g.cur.some(sameOf);
       const rows = p.rows.map(function (l) {
         const cur = l.term_state !== 'FUTURE' && l.term_state !== 'PAST';
@@ -222,6 +234,12 @@
       if (p.g.cur.length && col && !same) {
         rows.push('<dt>수집 기록</dt><dd><span class="bk-ln"><span class="wf-badge pp-cancel">수집</span> ' + E(col.name) + (col.slot ? ' · ' + E(col.slot) + '금고' : '') +
           (col.date ? ' <span class="db-why">출처 기준일 ' + mono(col.date) + '</span>' : '') + ' <span class="db-chk">수집 기록과 다름</span></span></dd>');
+      }
+      if (p.g.cur.length && lf.length) {
+        lf.forEach(function (x) {
+          const matched = !!x.k && p.g.cur.some(function (l) { return bc.bankKey(l.bank_name) === x.k && rk(l.rank_cd) === x.r; });
+          if (!matched && x.html) rows.push(x.html);
+        });
       }
       if (p.g.cur.length && o.col && Array.isArray(o.col.extra)) {
         o.col.extra.forEach(function (x) { rows.push('<dt>' + E(x[0]) + '</dt><dd>' + E(x[1]) + ' <span class="wf-badge pp-cancel">수집</span></dd>'); });

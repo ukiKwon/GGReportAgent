@@ -298,7 +298,13 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
   const css = html.slice(a, b).replace(/\/\*[\s\S]*?\*\//g, '');
   assert.deepStrictEqual(css.match(/#[0-9a-fA-F]{3,8}\b/g), null);
   (css.match(/font(?:-size)?:\s*(?:\d+\s+)?(\d+)px/g) || []).forEach(function (s) { assert.ok(Number(/(\d+)px/.exec(s)[1]) >= 11, s); });
-  assert.ok(/\.hb-list \{[^}]*clamp\(360px, calc\(100vh - 250px\), 640px\)/.test(css));
+  assert.ok(/\.hb-list \{[^}]*clamp\(300px, calc\(100vh - 480px\), 640px\)/.test(css));
+  // 11-17 요약 띠(와플·단계)는 맨 위: 머리·오류 배너 다음, 알림 줄·두 목록 앞. 목록과 같은 열 비율, 셋째 칸 규칙은 없다
+  const k0 = src('js/kbboard.js');
+  assert.ok(k0.indexOf('id="hb-err"') < k0.indexOf('id="hb-cards"') && k0.indexOf('id="hb-cards"') < k0.indexOf('id="hb-alert"') && k0.indexOf('id="hb-alert"') < k0.indexOf('class="hb-grid"'));
+  assert.ok(/\.hb-cards \{[^}]*grid-template-columns:minmax\(0, 1\.35fr\) minmax\(0, 1fr\)/.test(css) && !/\.hb-cards \{[^}]*grid-column/.test(css) && !/\.hb-cards[^{]*\{[^}]*380px/.test(css));
+  assert.ok(/@media \(max-width:1279px\) \{ \.kb-card \.kb-body \{ grid-template-columns:1fr;/.test(css));
+  assert.ok(/@media \(max-width:1279px\) \{[^@]*\.kb-card \.db-h \.fig \{ margin-left:0; \}/.test(css));   // 좁은 폭에서 머리 줄 숫자가 둘째 줄 오른쪽 끝에 홀로 붙지 않게
   assert.ok(/\.hb-row\[aria-disabled=true\][^{]*\{[^}]*color:var\(--muted\)/.test(css) && !/opacity/.test(css));   // opacity 대신 muted(DESIGN)
   assert.ok(/\.hb-slot\.hb-leaves \{[^}]*var\(--red\)/.test(css));
   assert.ok(/\.hb-list:focus:not\(:focus-visible\) \{ outline:none; \}/.test(css) && !/\.hb-list:focus \{/.test(css));   // 키보드 포커스 링은 살린다(design P3-a)
