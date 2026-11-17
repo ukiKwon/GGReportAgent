@@ -245,10 +245,11 @@
 - **다음 한 걸음**: ① backend-dev 기관별 약정 종료일 목록 API 설계 → kbboard endOpts().direct·각주 절 복원 ② data-auditor 비지자체 contractExpiry 출처 확인 ③ 2열에 공고 줄이 생기는 날 [제안 확정]→Esc 포커스 복귀 실화면 확인 ④ 서버 POST /preps도 공고 조건으로 막을지(qa P3-4). (⑤ kbNote 이름은 9f a7dcacd로 해소)
 - **자세히**: planner `2026-11-17_1252_a3bad39d`(세 주제)·11-17 제안확정·금고 기본값, design-reviewer 11-17 `ab488e4e`·`a99290ec`, data-auditor 11-17(행안부 변환 규칙), design_history ㊺·㊻·㊼·㊿.
 
-### 98. 입찰 현황판 '올해 목표 기관'·관심 기관 — **043 목표 기관(c7c886b)·화면(cd58096)·디자이너 열람(2e7b366) 완료, 044 관심 기관·입찰 종료 막기·필터/정렬·제안 진행 복원·협약 중인 기관 팝업 진행 중(c0)** [담당: backend-dev → frontend-dev → qa-verifier]
+### 98. 입찰 현황판 '올해 목표 기관'·관심 기관 — **043(c7c886b)·화면(cd58096)·디자이너 열람(2e7b366)·044 관심 기관 서버(a56e1fb)·후속 화면(00763ef, design_history 55) 커밋 완료, 남은 하: 8080 재기동 뒤 실화면 실측·사용자 실사용 확인** [담당: qa-verifier → design-reviewer]
 - **현재**: 사용자 11-17 — 현황판 맨 위 '올해 목표 기관'(영업부서 누구나, 결재 없음, 태그 재유치/신규유치 자동), 관심 기관(다음 회차를 노리는 기관 모두, 연도 없음, 목표와 겹침 금지 알림), 제안 진행 단계 막대 복원(요약 띠 둘째 줄), 승인 계획 `C:\Users\superuser\.claude\plans\tender-drifting-bengio.md`. 044 = INST_BID_TARGET.KIND_CD(GOAL/WATCH) ALTER — 로컬 MySQL 적용 필요(사용자). DB 번호: 046 = c0 예약(입찰 설명회 경쟁사 기록, 2단계), 047~ = 9f. **수용 위험**: 자기신고 사번 + '영업부서 누구나 빼기·옮기기'(043 S2·044 T1 — 남이 넣은 목표를 빼거나 관심으로 옮기면 접근 이력 other=1로 사후 추적), 디자이너의 현황판 제안 진행 열람은 권한관리로 끌 수 없음(2e7b366).
 - **11-17 저녁 상태(9f 기록)**: 044 서버 a56e1fb 커밋·로컬 DB 044 적용 완료. frontend/js/kbboard.js 미커밋은 c0(새 세션 fa)가 이어서 작업 중 — 관심 기관 탭·제안 진행 줄·필터/정렬·입찰 종료·협약 중인 기관 팝업·밝은 테마 대응, design_history 55장 예정. 다른 세션은 커밋하지 않음. 로컬 044 적용 확인(SHOW COLUMNS KIND_CD·TARGET_YEAR NULL·IDX_IBT_KIND).
-- **다음 한 걸음**: 044 서버 적용·mvn → 사용자 로컬 044 적용 → 화면(design 11-17 '후속 규격' 6-1~6-12) → qa·design 실측 → design_history 54. 그 뒤 설명회 기록(046), 행안부 과거 연도 파일 반입(사용자 Q — 파일 대기), 전국 입찰 성적표('협약·관계 관리' 메뉴, 보류).
+- **11-17 밤(c0 세션 fa)**: 후속 화면 00763ef 커밋(화면 시험 1422, qa 재검증 조건부 → N-1·N-2 반영). frontend/ 미커밋 없음 — 세션 44(화면 개편 97)에 넘김 알림은 세션이 바뀌어 못 보냄, 이 줄이 알림.
+- **다음 한 걸음**: ① 9f 8080 재기동(a56e1fb·00763ef 포함) ② qa·design Playwright 실측(1280×800·720 표 줄 수 7/9·도구 줄 한 줄, 검색칸 한글 입력 중 activeElement=hb-q 유지, [관심] 탭 클릭 뒤 hb-tab-watch, 검색 상태에서 목표 추가 뒤 검색칸 비움, 협약 팝업, 밝은 바탕 대비) ③ 사용자 실사용 확인 요청(목표 넣기·관심 넣기·옮기기·입찰 종료 막기). 그 뒤 설명회 기록(046), 행안부 과거 연도 파일 반입(사용자 Q — 파일 대기), 전국 입찰 성적표('협약·관계 관리' 메뉴, 보류), /bank-contracts/summary에 시작 전 약정 줄(검색 단계 CONTRACT_DECIDED 미리 주의, 프런트 이관).
 - **자세히**: planner 11-17 `ac1639f6`·`a0a39612`·`a370a238`, design-reviewer 11-17 `acfdd5da`·`ac8dbd59`·`a3ab5c5a`, backend-dev 11-17 `toolu_012nY9…`(043)·`a265a2ad`(044), security 11-17 `ade80b19`·`a5cebbeb`.
 
 ### 51. 이사회 작성 모드 선택 스포트라이트 후속 — **구현 완료(8c577bb·36415f5), 확인·판단 3건 남음** [담당: qa-verifier ∥ design-reviewer → frontend-dev / 사용자 답]
