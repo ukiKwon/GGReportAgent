@@ -228,7 +228,7 @@ CSV의 모든 열은 manifest에서 기계적으로 나온다. 사람이 손대�
 
 ### ④-3 첨부 전처리 규칙 (망 밖에서 반입 전에 끝낸다, 사용자 11-17)
 
-> **구현 상태(2026-11-17, NEXT 90 2단계)**: 망 안 서버는 `checks` 배치를 반입 호출 때 **검사·제외만 하고 DB에는 쓰지 않는다**(저장은 3단계). check 단위로 제외하고(`excluded[]`: 사유 코드·위치 코드·건수·check_id만), 통과한 첨부는 서버가 만든 이름으로 `corpus/ext_check/`에 보관한다. 처리 뒤(422 포함) 원본 파일은 삭제하고 보관 manifest는 값 없이 다시 쓴다. **`records`와 `checks`를 한 배치에 섞으면 422(`MIXED_BATCH_NOT_SUPPORTED`)**, **HWP(.hwp)는 이번 단계에서 `UNSUPPORTED_FORMAT`으로 제외**한다(HWPX·PDF만, HWP는 다음 묶음). 연도 형식(`2024.` `2024-` 등) 바로 뒤에 붙은 번호는 서버 검사가 날짜로 보고 놓치는 의도된 한계가 있으니 전처리에서 반드시 지운다. 전처리 구분자는 `-`·공백·`.`·`/`·`_`·`,`·`~`를 서버가 접어 보지만, 번호 사이를 다른 글자로 띄우면 못 본다. 이미지 속 글자는 서버가 읽지 못한다(아래 7번).
+> **구현 상태(2026-11-17, NEXT 90 2단계)**: 망 안 서버는 `checks` 배치를 반입 호출 때 **검사·제외만 하고 DB에는 쓰지 않는다**(저장은 3단계). check 단위로 제외하고(`excluded[]`: 사유 코드·위치 코드·건수·check_id만), 통과한 첨부는 서버가 만든 이름으로 `corpus/ext_check/`에 보관한다. 처리 뒤(422 포함) 원본 파일은 삭제하고 보관 manifest는 값 없이 다시 쓴다. **`records`와 `checks`를 한 배치에 섞으면 422(`MIXED_BATCH_NOT_SUPPORTED`)**, **HWP(.hwp, 5.0)도 검사한다(HWP 묶음, 2026-11-17)** — OLE 구조를 먼저 열어 속성(암호·배포용·DRM·인증서=`ENCRYPTED`, 스크립트 저장=`SCRIPT`, XML 템플릿·문서 이력·전자서명=`HISTORY`)과 스트림 이름·크기(스트림당 50 MiB·합계 100 MiB 초과=`ZIP_LIMIT`)를 보고, 통과한 파일만 본문·요약정보(작성자 등)·미리보기·연결 문서 정보를 읽어 번호를 검사한다(서버에 HWP 읽기 도구 hwplib 1.1.9, 사용자 승인). HWP 3.x 등 옛 형식은 `PARSE_FAILED`. 연도 형식(`2024.` `2024-` 등) 바로 뒤에 붙은 번호는 서버 검사가 날짜로 보고 놓치는 의도된 한계가 있으니 전처리에서 반드시 지운다. 전처리 구분자는 `-`·공백·`.`·`/`·`_`·`,`·`~`를 서버가 접어 보지만, 번호 사이를 다른 글자로 띄우면 못 본다. 이미지 속 글자는 서버가 읽지 못한다(아래 7번).
 
 서버는 안전망으로 다시 검사하고, 걸린 check는 **그 check만 제외**하며 파일은 즉시 삭제한다. 제외 사유에는 종류·위치·건수만 남고 값은 남지 않는다.
 
@@ -239,6 +239,7 @@ CSV의 모든 열은 manifest에서 기계적으로 나온다. 사람이 손대�
 5. **덮개 사각형만 씌우지 않는다.** 아래 글자가 남는다. 글자 층에서 지운 파일로 새로 쓴다.
 6. **증분 저장·문서 이력 없이 새 파일로 저장한다.** PDF는 "다른 이름으로 새로 저장"(증분 저장 금지 — 이전 판의 객체가 파일에 남는다), HWP는 "문서 이력 저장" 해제 후 새 파일로 저장한다. 서버는 PDF의 `/Prev`·`startxref` 2개 이상, HWP 이력·XML 템플릿·전자서명 비트가 있으면 `INCREMENTAL`/`HISTORY`로 제외한다.
 6-1. **HWPX 안의 항목**은 `mimetype`, `*.xml`, `META-INF/*.rdf`, `Contents/*.hpf`, `Preview/*.txt`·그림, `BinData/` 그림만 둔다. 그 밖의 항목은 `UNSUPPORTED_ENTRY`, `Scripts/`는 `SCRIPT`로 제외한다. 단 한컴이 새 문서에 자동으로 넣는 빈 틀 `Scripts/headerScripts.js`·`Scripts/sourceScripts.js`는 내용이 기본값과 바이트 단위로 같을 때만 허용한다(실물 공고 HWPX 23건 중 6건, 2026-11-17 확인). 전처리에서 지워도 된다.
+6-2. **HWP 안의 항목**은 `FileHeader`·`DocInfo`·`BodyText/Section*`·`BinData/` 그림(jpg·png·bmp·gif·wmf·emf)·`PrvText`·`PrvImage`·`HwpSummaryInformation`·`DocOptions/_LinkDoc`만 둔다. `BinData/*.ole` 등 그림이 아닌 내장물은 `EMBEDDED`, `DocHistory`·`XMLTemplate`는 `HISTORY`, 그 밖은 `UNSUPPORTED_ENTRY`. `Scripts/DefaultJScript`·`Scripts/JScriptVersion`은 한컴이 새 문서에 넣는 기본 빈 틀(실물 공고 HWP 179건 중 164건, 6종 해시)과 바이트가 같을 때만 허용한다. 실물 공고 HWP·HWPX 289건 회귀 확인(2026-11-17): 구조 때문에 제외된 것은 내장 개체 2건뿐, 나머지 제외는 모두 가리지 않은 연락처(전처리 필요).
 7. **이미지 속 글자는 서버가 읽지 못한다.** 이미지 위주 문서(이미지가 있고 추출 글자가 거의 없음)는 서버가 `IMAGE_ONLY`로 제외한다. 첨부하지 말고 `notice.url`만 보낸다.
 8. 첨부마다 `reported_tool`, `reported_version`, `reported_phones_removed`, `reported_landlines_masked`, `reported_emails_masked`, `reported_scope[]`(`body`·`meta`·`annot`·`form`·`bookmark`·`filename`)를 쓸 수 있다. 개수만 쓰고 값은 쓰지 않는다. **자기신고다.** 서버는 믿지 않고 판정에 쓰지 않으며 이력에도 남기지 않는다.
 9. 서버가 첨부 처리 때문에 제외한 check는 다음 배치에 새 파일로 다시 낸다(같은 `batch_id`를 고쳐 쓰지 않는다, §④ 불변 원칙).
