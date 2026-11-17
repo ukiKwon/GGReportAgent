@@ -25,12 +25,11 @@
     termRange: '약정 기간 범위(1990~2100)를 벗어났습니다.',
     termNone: '존재하지 않는 날짜입니다.',
     termOrder: '약정 시작이 끝보다 늦습니다.',
-    future: '확인일은 오늘보다 뒤일 수 없습니다.',
     noCancel: '입력한 본인·영업팀장·영업부장만 지울 수 있습니다.',   // 서버 cancel 403 문구와 같은 뜻(줄마다 can_cancel)
   };
   const RANK_NAME = { FIRST: '1금고', SECOND: '2금고', SINGLE: '단수 금고', JOINT: '공동 지정', NONE: '금고 은행' };
-  bc.SRC_FIELDS = { LINK: ['url'], DOC_NO: ['no'], PRESS: ['url', 'no'], STAFF: ['dept'] };
-  bc.BLANK = { bank: '', etc: '', rank: '', ac: '', acetc: '', from: '', to: '', kind: '', url: '', no: '', dept: '', date: '', note: '' };
+  bc.SRC_FIELDS = { LINK: ['url'], DOC_NO: ['no'], PRESS: ['url', 'no'], STAFF: [] };
+  bc.BLANK = { bank: '', etc: '', rank: '', ac: '', acetc: '', from: '', to: '', kind: '', url: '', no: '', note: '' };
 
   function t(s) { return String(s == null ? '' : s).trim(); }
   function E(s) { return esc(s == null ? '' : s); }
@@ -175,9 +174,9 @@
     const label = k === 'PRESS' ? '기사 번호' : k === 'LINK' ? '문서 번호' : '문서·공고 번호';
     const inner = ie.srcInner(l.src_url, l.src_no, label);
     let s;
-    if (k === 'STAFF') s = '담당자 확인 · ' + E(l.checked_dept) + (inner ? ' · ' + inner : '');
+    if (k === 'STAFF') s = '담당자 확인' + (inner ? ' · ' + inner : '');
     else s = (k === 'PRESS' ? '언론 보도 · ' : '') + (inner || '<span class="pop-unk">출처 미기록</span>');
-    return '출처 ' + s + (l.checked_date ? ' · 확인일 ' + mono(l.checked_date) : '');
+    return '출처 ' + s + (l.checked_date ? ' · 확인일 ' + mono(l.checked_date) : '') + (l.checked_dept ? ' · 확인 부서 ' + E(l.checked_dept) : '');
   }
   // 줄 하나 = dt + dd. o = { ranks, same }
   function rowHtml(l, o) {
@@ -309,8 +308,6 @@
     else if (v.kind === 'LINK' && !v.url) need.push('링크');
     else if (v.kind === 'DOC_NO' && !v.no) need.push('문서·공고 번호');
     else if (v.kind === 'PRESS' && !v.url && !v.no) need.push('기사 링크 또는 기사 번호');
-    else if (v.kind === 'STAFF' && !v.dept) need.push('확인한 기관 부서');
-    if (!v.date) need.push('확인일');
     const sf = bc.SRC_FIELDS[v.kind] || [];
     let fromOk = true, toOk = true;
     if (v.from) { const m = bc.termMsg(v.from); if (m) { errors.push({ msg: m, ids: ['ie-bk-from'] }); fromOk = false; } }
@@ -318,17 +315,11 @@
     if (v.from && v.to && fromOk && toOk && startOf(v.from) > endOf(v.to)) errors.push({ msg: bc.MSG.termOrder, ids: ['ie-bk-from', 'ie-bk-to'] });
     if (sf.indexOf('url') >= 0 && v.url) { const m = ie.urlMsg(v.url); if (m) errors.push({ msg: m, ids: ['ie-bk-url'] }); }
     if (sf.indexOf('no') >= 0 && v.no) { const m = ie.noMsg(v.no); if (m) errors.push({ msg: m, ids: ['ie-bk-no'] }); }
-    if (v.date) {
-      const m = ie.dateMsg(v.date);
-      if (m) errors.push({ msg: m, ids: ['ie-bk-date'] });
-      else if (o.today && v.date > o.today) errors.push({ msg: bc.MSG.future, ids: ['ie-bk-date'] });
-    }
     // 보내는 규칙: 숨긴 칸은 보내지 않는다(서버가 '기타' 외 직접 입력·종류 밖 값을 거절한다). 비운 칸은 null.
-    const body = { rank_cd: v.rank, bank_cd: v.bank, term_to: v.to, src_kind: v.kind, checked_date: v.date, term_from: v.from || null, note: v.note || null };
+    const body = { rank_cd: v.rank, bank_cd: v.bank, term_to: v.to, src_kind: v.kind, term_from: v.from || null, note: v.note || null };
     if (v.bank === 'ETC') body.bank_name_etc = v.etc;
     if (sf.indexOf('url') >= 0 && v.url) body.src_url = v.url;
     if (sf.indexOf('no') >= 0 && v.no) body.src_no = v.no;
-    if (sf.indexOf('dept') >= 0 && v.dept) body.checked_dept = v.dept;
     if (v.ac) { body.account_cd = v.ac; if (v.ac === 'ETC') body.account_etc = v.acetc; } else body.account_cd = null;
     if (o.contractNo) { body.contract_no = o.contractNo; body.base_rev_no = o.baseRev; }
     if (o.confirmOverlap) body.confirm_overlap = true;
@@ -337,7 +328,7 @@
   bc.formFromLine = function (l) {
     return { bank: l.bank_cd || '', etc: l.bank_cd === 'ETC' ? (l.bank_name_etc || '') : '', rank: l.rank_cd || '',
       ac: l.account_cd || '', acetc: l.account_cd === 'ETC' ? (l.account_etc || '') : '', from: l.term_from || '', to: l.term_to || '',
-      kind: l.src_kind || '', url: l.src_url || '', no: l.src_no || '', dept: l.checked_dept || '', date: l.checked_date || '', note: l.note || '' };
+      kind: l.src_kind || '', url: l.src_url || '', no: l.src_no || '', note: l.note || '' };
   };
   // STALE 뒤 새로 받은 목록에서 그 줄의 최신 rev로 맞춘다(안 맞추면 재저장이 계속 409).
   bc.syncRev = function (meta, lines) {
@@ -353,7 +344,7 @@
   bc.SRC_NOTE = {
     '': '출처 종류를 고르면 적을 칸이 보입니다.',
     PRESS: '링크와 번호 중 하나는 적어야 합니다.',
-    STAFF: '담당자 확인은 기관 부서명만 적습니다. 담당자 이름·전화번호는 적지 않습니다.',
+    STAFF: '확인한 기관 부서가 있으면 비고에 적어 주세요.',   // 팀 결정 11-17: 기관 부서 칸은 없앰(사용자), 필요하면 비고
   };
 
   // ── 변경 창: 마크업 ──────────────────────────────────────────────────
@@ -390,9 +381,8 @@
     h += radio('ie-bk-kind', '출처 종류 (필수)', kinds, f.kind);
     h += '<p class="ie-note" id="ie-bk-srcnote">' + E(bc.SRC_NOTE[f.kind] || (f.kind ? '' : bc.SRC_NOTE[''])) + '</p>';
     h += inp('ie-bk-url', '링크', f.url, 'placeholder="https://" maxlength="500" aria-describedby="ie-bk-srcnote"', sf.indexOf('url') < 0) +
-      inp('ie-bk-no', '문서·공고 번호', f.no, 'placeholder="예: 제2023-154호" maxlength="50" aria-describedby="ie-bk-srcnote"', sf.indexOf('no') < 0) +
-      inp('ie-bk-dept', '확인한 기관 부서', f.dept, 'placeholder="예: 재무과 자금팀" maxlength="50" aria-describedby="ie-bk-srcnote"', sf.indexOf('dept') < 0);
-    h += inp('ie-bk-date', '확인일 (필수)', f.date, 'aria-required="true" inputmode="numeric" placeholder="YYYY-MM-DD" maxlength="10"') + '<span></span>';
+      inp('ie-bk-no', '문서·공고 번호', f.no, 'placeholder="예: 제2023-154호" maxlength="50" aria-describedby="ie-bk-srcnote"', sf.indexOf('no') < 0);
+    h += '<p class="ie-note" id="ie-bk-auto">확인일은 저장한 날, 확인 부서는 내 부서로 저장할 때 자동으로 기록됩니다.</p>';
     h += inp('ie-bk-note', '비고', f.note, 'maxlength="100" placeholder="예: 2금고는 별도 공고"', false, 'ie-wide');
     h += '<p class="ie-note" id="ie-bank-need"></p>';
     h += '<div class="hc-confirmbox ie-cbox" id="ie-bk-ovbox" role="group" aria-labelledby="ie-bk-ov-t" hidden></div>';
@@ -440,7 +430,7 @@
     function read() {
       return { bank: val('ie-bk-bank'), etc: val('ie-bk-etc'), rank: radioVal('ie-bk-rank'), ac: val('ie-bk-ac'), acetc: val('ie-bk-acetc'),
         from: val('ie-bk-from'), to: val('ie-bk-to'), kind: radioVal('ie-bk-kind'), url: val('ie-bk-url'), no: val('ie-bk-no'),
-        dept: val('ie-bk-dept'), date: val('ie-bk-date'), note: val('ie-bk-note') };
+        note: val('ie-bk-note') };
     }
     function clearMsg() {
       setText('ie-bank-err', ''); setText('ie-bank-ok', '');
@@ -493,10 +483,9 @@
       const set = function (i, on) { const e = q('#' + i + '-l'); if (e) e.hidden = !on; };
       set('ie-bk-etc', f.bank === 'ETC'); set('ie-bk-acetc', f.ac === 'ETC');
       const sf = bc.SRC_FIELDS[f.kind] || [];
-      set('ie-bk-url', sf.indexOf('url') >= 0); set('ie-bk-no', sf.indexOf('no') >= 0); set('ie-bk-dept', sf.indexOf('dept') >= 0);
+      set('ie-bk-url', sf.indexOf('url') >= 0); set('ie-bk-no', sf.indexOf('no') >= 0);
       setText('ie-bk-url-t', f.kind === 'PRESS' ? '기사 링크' : '링크 (필수)');
       setText('ie-bk-no-t', f.kind === 'PRESS' ? '기사 번호' : '문서·공고 번호 (필수)');
-      setText('ie-bk-dept-t', '확인한 기관 부서 (필수)');
       setText('ie-bk-srcnote', bc.SRC_NOTE[f.kind] != null ? bc.SRC_NOTE[f.kind] : '');
       const c = bc.check(f, { today: d.today });
       setText('ie-bank-need', c.need.length ? '저장하려면: ' + c.need.join(', ') : '');

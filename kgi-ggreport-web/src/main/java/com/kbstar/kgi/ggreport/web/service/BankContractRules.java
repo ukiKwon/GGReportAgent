@@ -37,7 +37,7 @@ final class BankContractRules {
     }
 
     static final class Parsed {
-        String rank, bank, bankEtc, termFrom, termTo, srcKind, srcUrl, srcNo, checkedDate, checkedDept, note, account, accountEtc;
+        String rank, bank, bankEtc, termFrom, termTo, srcKind, srcUrl, srcNo, note, account, accountEtc;
     }
 
     static final class CancelParsed {
@@ -160,14 +160,9 @@ final class BankContractRules {
         p.srcKind = code(in.getSrcKind(), G_SRC, codes, "허용되지 않는 출처 종류입니다.");
         p.srcUrl = InstitutionEditRules.url(in.getSrcUrl());
         p.srcNo = InstitutionEditRules.notice(in.getSrcNo());
-        String cd = in.getCheckedDate() == null ? null : in.getCheckedDate().trim();
-        if (cd == null || cd.isEmpty()) throw bad("확인일(YYYY-MM-DD)이 필요합니다.");
-        p.checkedDate = InstitutionEditRules.date(cd);
-        if (LocalDate.parse(p.checkedDate).isAfter(today)) throw bad("확인일은 오늘보다 뒤일 수 없습니다.");
-        p.checkedDept = text(in.getCheckedDept(), 50, "확인한 부서명은 50자 이내여야 합니다.");
-        if (SRC_STAFF.equals(p.srcKind)) {
-            if (p.checkedDept == null) throw bad("담당자 확인은 확인한 기관 부서명이 필요합니다.");
-        } else if (p.srcUrl == null && p.srcNo == null) {
+        // 확인일·확인 부서는 받지 않는다 — 서비스가 저장 때 오늘 날짜·입력자 소속으로 채운다(사용자 11-17).
+        // 본문에 checked_date·checked_dept 가 와도 읽지 않는다(위조 방지, 수정자 칸과 같은 원칙).
+        if (!SRC_STAFF.equals(p.srcKind) && p.srcUrl == null && p.srcNo == null) {
             throw bad("출처 링크 또는 문서·공고 번호가 필요합니다.");
         }
         if (SRC_LINK.equals(p.srcKind) && p.srcUrl == null) throw bad("공고·문서 링크를 고르면 링크가 필요합니다.");
@@ -193,10 +188,9 @@ final class BankContractRules {
 
         Screen s = new Screen();
         s.free(p.bankEtc);                // 개인정보·정당·전화번호
-        s.free(p.checkedDept);
         s.free(p.note);
         s.free(p.accountEtc);
-        s.name(p.checkedDept);            // S4 사람 이름+직함. [확장 자리] note 도 보려면 s.name(p.note) 한 줄 추가(오탐이 늘어난다)
+        // S4(사람 이름+직함)는 이제 취소 사유(parseCancel)에만 쓴다. [확장 자리] note 도 보려면 s.name(p.note) 한 줄 추가(오탐이 늘어난다)
         s.ident(p.srcNo);                 // S5 번호 칸 — 개인정보·전화번호만(정당 낱말은 안 봄)
         s.ident(queryOf(p.srcUrl));       // S5 링크는 쿼리 부분만 같은 검사(경로·호스트는 안 봄)
         s.throwIfAny();
@@ -226,7 +220,6 @@ final class BankContractRules {
                 && Objects.equals(c.getBankNameEtc(), p.bankEtc) && Objects.equals(c.getTermFrom(), p.termFrom)
                 && Objects.equals(c.getTermTo(), p.termTo) && Objects.equals(c.getSrcKind(), p.srcKind)
                 && Objects.equals(c.getSrcUrl(), p.srcUrl) && Objects.equals(c.getSrcNo(), p.srcNo)
-                && Objects.equals(c.getCheckedDate(), p.checkedDate) && Objects.equals(c.getCheckedDept(), p.checkedDept)
                 && Objects.equals(c.getAccountCd(), p.account) && Objects.equals(c.getAccountEtc(), p.accountEtc)
                 && Objects.equals(c.getNote(), p.note);
     }

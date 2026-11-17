@@ -49,7 +49,7 @@ public class BankContractApiTest {
     private static Map<String, Object> body() {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         m.put("rank_cd", "FIRST"); m.put("bank_cd", "B04"); m.put("term_from", "2023"); m.put("term_to", "2026-12-31");
-        m.put("src_kind", "DOC_NO"); m.put("src_no", "제2023-154호"); m.put("checked_date", Times.todayKst());
+        m.put("src_kind", "DOC_NO"); m.put("src_no", "제2023-154호");
         return m;
     }
     private static Map<String, Object> with(Object... kv) { Map<String, Object> m = body(); for (int i = 0; i < kv.length; i += 2) m.put((String) kv[i], kv[i + 1]); return m; }
@@ -239,13 +239,36 @@ public class BankContractApiTest {
         assertEquals(400, status(save(SALES, with("bank_cd", "ETC", "bank_name_etc", "국민은행"))));
         assertEquals(201, status(save(SALES, with("bank_cd", "ETC", "bank_name_etc", "SC제일은행", "rank_cd", "SECOND"))));
         assertEquals(400, status(save(SALES, with("bank_cd", "X01"))));                                      // ENABLED=0
-        MvcResult nm = save(SALES, with("src_kind", "STAFF", "checked_dept", "재정과 홍길동 주무관"));
-        assertEquals(422, status(nm));
-        assertEquals("NAME", json(nm).path("detail").path("kinds").get(0).path("kind").asText());
-        assertEquals(201, status(save(SALES, with("src_kind", "STAFF", "checked_dept", "재정과장실", "rank_cd", "SECOND", "term_from", "2010", "term_to", "2012"))));
+        assertEquals(201, status(save(SALES, with("src_kind", "STAFF", "rank_cd", "SECOND", "term_from", "2010", "term_to", "2012"))));   // 확인 부서 칸 없이도 저장
         assertEquals(400, status(save(SALES, with("note", "비‮고"))));
         assertEquals(422, status(save(SALES, with("src_no", "010 1234 5678"))));
         assertEquals(201, status(save(SALES, with("src_no", "제2023-154호", "rank_cd", "SECOND", "term_from", "2015", "term_to", "2016"))));
+    }
+
+    @Test public void 확인일과_확인_부서는_서버가_채우고_본문_값은_무시한다() throws Exception {
+        String today = Times.todayKst();
+        MvcResult r = save(SALES, with("checked_date", "1999-01-01", "checked_dept", "재정과 홍길동 주무관"));
+        assertEquals(201, status(r));
+        assertEquals(today, json(r).path("line").path("checked_date").asText());
+        assertEquals("영업부서", json(r).path("line").path("checked_dept").asText());
+        assertEquals("영업부서", jdbc.queryForObject("SELECT CHECKED_DEPT FROM INST_BANK_CONTRACT WHERE CONTRACT_NO=1 AND REV_NO=1", String.class));
+        assertEquals(201, status(save(SALES, with("checked_date", "2099-12-31", "rank_cd", "SECOND", "term_from", "2010", "term_to", "2012"))));
+        MvcResult l = save(LEAD, with("rank_cd", "SECOND", "term_from", "2015", "term_to", "2016"));
+        assertEquals(201, status(l)); assertEquals("영업부서", json(l).path("line").path("checked_dept").asText());
+        MvcResult h = save(HEAD, with("rank_cd", "SECOND", "term_from", "2017", "term_to", "2018"));
+        assertEquals(201, status(h)); assertEquals("영업부서", json(h).path("line").path("checked_dept").asText());
+        assertEquals(201, status(save(SALES, with("src_kind", "STAFF", "rank_cd", "SECOND", "term_from", "2019", "term_to", "2020"))));
+        // 고치기 — 본문 확인일이 와도 오늘 날짜
+        MvcResult e = save(SALES, with("contract_no", 1, "base_rev_no", 1, "bank_cd", "B02", "checked_date", "1999-01-01"));
+        assertEquals(201, status(e)); assertEquals(today, json(e).path("line").path("checked_date").asText());
+        // 같은 내용을 다른 checked_* 로 다시 보내면 NO_CHANGE
+        assertEquals(200, status(save(SALES, with("contract_no", 1, "base_rev_no", 2, "bank_cd", "B02", "checked_date", "1999-01-01", "checked_dept", "다른 부서"))));
+        // 취소 줄은 직전 값 그대로
+        Map<String, Object> cb = new LinkedHashMap<String, Object>(); cb.put("base_rev_no", 2); cb.put("cancel_reason_cd", "DUP");
+        MvcResult c = send(SALES, PATH + "/1/cancel", CANCEL, cb);
+        assertEquals(201, status(c));
+        assertEquals(today, json(c).path("line").path("checked_date").asText());
+        assertEquals("영업부서", json(c).path("line").path("checked_dept").asText());
     }
 
     @Test public void S6_a_취소는_줄을_처음_만든_사람만_최신_수정자는_안_됨() throws Exception {

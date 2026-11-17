@@ -9,6 +9,7 @@ import com.kbstar.kgi.ggreport.web.dto.BankContractIn;
 import com.kbstar.kgi.ggreport.web.mapper.BankContractMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
+import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import com.kbstar.kgi.ggreport.web.web.Actor;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
@@ -27,6 +28,7 @@ import java.util.*;
  * 줄 권한(S6, 사용자 답 11-17): 고치기 = 영업팀 누구나, 취소 = 입력한 본인 또는 영업팀장·영업부장({@link HeadRules#isLead}).
  * 조회 응답의 줄마다 can_cancel(같은 {@link #cancelRule})·edited_by_other(사번 비교)를 서버가 계산한다 — 사번 자체는 응답에 싣지 않는다.
  * ⚠️ 수정자는 Actor(X-Emp-No 자기신고일 수 있음)로만 채운다 — 본문의 수정자 값은 받지 않는다. 응답 emp_verified 가 그 표시(표지는 화면).
+ * 확인일=저장한 날, 확인 부서=입력자 소속 부서 이름(영업부서 등, 서버가 채움, 본문 값 무시, 사용자 11-17). 039의 칸 주석은 체크섬 때문에 옛 설명 그대로.
  * contractExpiry·OURS_SCOPE 는 건드리지 않는다.
  */
 @Service
@@ -192,8 +194,6 @@ public class BankContractService {
         row.setSrcKind(p.srcKind);
         row.setSrcUrl(p.srcUrl);
         row.setSrcNo(p.srcNo);
-        row.setCheckedDate(p.checkedDate);
-        row.setCheckedDept(p.checkedDept);
         row.setNote(p.note);
         row.setAccountCd(p.account);
         row.setAccountEtc(p.accountEtc);
@@ -234,6 +234,10 @@ public class BankContractService {
         if (me == null || !HeadRules.isSales(me.getRole())) {   // 컨트롤러 canEdit 가 막는다(방어)
             throw new ApiException(403, "이 기능을 쓸 권한이 없습니다.");
         }
+        if (ACTION_SAVE.equals(row.getActionCd())) {   // 취소 줄은 직전 rev 값을 그대로 복사해 온다
+            row.setCheckedDate(today.toString());       // 확인일 = 저장한 날(Times 기준 서버 날짜, 사용자 11-17)
+            row.setCheckedDept(deptOf(me.getRole()));   // 확인 부서 = 입력자 소속(영업팀·영업팀장·영업부장 → '영업부서')
+        }
         row.setEditorEmpNo(actor.getEmpNo());
         row.setEditorName(me.getName());
         row.setEmpVerified(actor.isVerified() ? 1 : 0);
@@ -262,6 +266,24 @@ public class BankContractService {
         out.put("action_cd", row.getActionCd());
         out.put("line", view(row, today, true));
         return out;
+    }
+
+    /** 팀 키(Teams.teamOf) → 확인 부서 이름(사용자 11-17). 전체 이름 변경은 별도 작업이라 이 표만 쓴다. */
+    private static final Map<String, String> DEPT_NAMES;
+    static {
+        Map<String, String> m = new HashMap<String, String>();
+        m.put("영업", "영업부서");
+        m.put("전산", "개발부서");
+        m.put("예산", "재무부서");
+        m.put("사업", "사업부서");
+        DEPT_NAMES = Collections.unmodifiableMap(m);
+    }
+
+    /** 입력자 소속 표시명. 팀 키 변환은 Teams 한 곳만 쓴다. 영업 계열만 저장 가능하므로 실제 값은 '영업부서'. 모르는 팀이면 팀 키+'팀'. */
+    static String deptOf(String role) {
+        String team = Teams.teamOf(role);
+        String name = DEPT_NAMES.get(team);
+        return name != null ? name : team + Teams.TEAM_SUFFIX;
     }
 
     // ---- S2 겹침 ----

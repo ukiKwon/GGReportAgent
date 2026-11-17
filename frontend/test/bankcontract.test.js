@@ -82,14 +82,14 @@ test('syncRev: STALE 뒤 새 목록의 최신 rev로 맞추면 재저장 본문 
   const meta = { no: 7, rev: 1, title: 't' };
   bc.syncRev(meta, [L({ contract_no: 3, rev_no: 9 }), L({ contract_no: 7, rev_no: 4 })]);
   assert.strictEqual(meta.rev, 4);
-  const c = bc.check(Object.assign({}, bc.BLANK, { bank: 'B02', rank: 'FIRST', to: '2026-12-31', kind: 'LINK', url: 'https://a.go.kr/x', date: '2026-11-10' }), { today: '2026-11-17', contractNo: meta.no, baseRev: meta.rev });
+  const c = bc.check(Object.assign({}, bc.BLANK, { bank: 'B02', rank: 'FIRST', to: '2026-12-31', kind: 'LINK', url: 'https://a.go.kr/x' }), { today: '2026-11-17', contractNo: meta.no, baseRev: meta.rev });
   assert.strictEqual(c.body.base_rev_no, 4);
   bc.syncRev(meta, []);   // 줄이 사라졌으면 그대로
   assert.strictEqual(meta.rev, 4);
 });
 
 test('겹침 확인 저장 본문은 confirm_overlap:true, 목록 버튼 aria-label과 이력 summary id', () => {
-  const c = bc.check(Object.assign({}, bc.BLANK, { bank: 'B02', rank: 'FIRST', to: '2026-12-31', kind: 'LINK', url: 'https://a.go.kr/x', date: '2026-11-10' }), { today: '2026-11-17', confirmOverlap: true });
+  const c = bc.check(Object.assign({}, bc.BLANK, { bank: 'B02', rank: 'FIRST', to: '2026-12-31', kind: 'LINK', url: 'https://a.go.kr/x' }), { today: '2026-11-17', confirmOverlap: true });
   assert.strictEqual(c.body.confirm_overlap, true);
   assert.ok(bc.sectionHtml(Object.assign(V([L()], { history_count: 2 })), LEG).includes('<summary id="bk-hist-sum">'));
 });
@@ -177,21 +177,39 @@ test('paneHtml: c.bank가 없으면 기존 금고 절 그대로, 있으면 id=db
 });
 
 test('check: 빠진 필수 칸 이름·종류별 본문(숨긴 칸은 보내지 않음)', () => {
-  const c0 = bc.check(Object.assign({}, bc.BLANK, { bank: 'B02', rank: 'FIRST', kind: 'LINK', url: 'https://a.go.kr/x', date: '2026-11-10' }), { today: '2026-11-17' });
+  const c0 = bc.check(Object.assign({}, bc.BLANK, { bank: 'B02', rank: 'FIRST', kind: 'LINK', url: 'https://a.go.kr/x' }), { today: '2026-11-17' });
   assert.deepStrictEqual(c0.need, ['약정 끝']);
-  const c = bc.check(Object.assign({}, bc.BLANK, { bank: 'B02', rank: 'FIRST', to: '2026-12-31', kind: 'LINK', url: 'https://a.go.kr/x', no: '숨김값', dept: '숨김부서', etc: '숨김', date: '2026-11-10' }), { today: '2026-11-17' });
+  const c = bc.check(Object.assign({}, bc.BLANK, { bank: 'B02', rank: 'FIRST', to: '2026-12-31', kind: 'LINK', url: 'https://a.go.kr/x', no: '숨김값', etc: '숨김' }), { today: '2026-11-17' });
   assert.ok(c.ok);
-  assert.deepStrictEqual(c.body, { rank_cd: 'FIRST', bank_cd: 'B02', term_to: '2026-12-31', src_kind: 'LINK', checked_date: '2026-11-10', term_from: null, note: null, src_url: 'https://a.go.kr/x', account_cd: null });
-  const s = bc.check(Object.assign({}, bc.BLANK, { bank: 'ETC', etc: '새은행', rank: 'JOINT', to: '2027', kind: 'STAFF', dept: '재무과 자금팀', date: '2026-11-10', ac: 'ETC', acetc: '특별회계' }), { today: '2026-11-17', contractNo: 4, baseRev: 2, confirmOverlap: true });
-  assert.deepStrictEqual([s.body.bank_name_etc, s.body.checked_dept, s.body.src_url, s.body.contract_no, s.body.base_rev_no, s.body.confirm_overlap, s.body.account_etc], ['새은행', '재무과 자금팀', undefined, 4, 2, true, '특별회계']);
+  assert.deepStrictEqual(c.body, { rank_cd: 'FIRST', bank_cd: 'B02', term_to: '2026-12-31', src_kind: 'LINK', term_from: null, note: null, src_url: 'https://a.go.kr/x', account_cd: null });
+  const s = bc.check(Object.assign({}, bc.BLANK, { bank: 'ETC', etc: '새은행', rank: 'JOINT', to: '2027', kind: 'STAFF', ac: 'ETC', acetc: '특별회계' }), { today: '2026-11-17', contractNo: 4, baseRev: 2, confirmOverlap: true });
+  assert.deepStrictEqual([s.body.bank_name_etc, s.body.checked_dept, s.body.src_url, s.body.contract_no, s.body.base_rev_no, s.body.confirm_overlap, s.body.account_etc], ['새은행', undefined, undefined, 4, 2, true, '특별회계']);
 });
 
-test('check: 형식·순서·미래 확인일 오류', () => {
-  const f = o => bc.check(Object.assign({}, bc.BLANK, { bank: 'B02', rank: 'FIRST', kind: 'DOC_NO', no: '제2023-154호', date: '2026-11-10', to: '2026-12-31' }, o), { today: '2026-11-17' });
+test('check: 담당자 확인은 적을 칸 없이 통과, 본문에 확인일·확인 부서를 싣지 않는다', () => {
+  const s = bc.check(Object.assign({}, bc.BLANK, { bank: 'B02', rank: 'FIRST', to: '2026-12-31', kind: 'STAFF' }), {});
+  assert.ok(s.ok && !s.need.length);
+  assert.ok(!('checked_date' in s.body) && !('checked_dept' in s.body));
+});
+
+test('formHtml: 확인일·확인 부서 입력 칸은 없고 자동 기록 안내만 있다', () => {
+  const h = bc.formHtml(CODES, bc.BLANK, {});
+  assert.ok(!h.includes('id="ie-bk-date"') && !h.includes('id="ie-bk-dept"'));
+  assert.ok(h.includes('id="ie-bk-auto"') && h.includes('확인 부서는 내 부서로'));
+});
+
+test('sectionHtml: 확인일과 확인 부서를 함께 보이고, 담당자 확인 줄은 부서가 null이어도 깨지지 않는다', () => {
+  const h = bc.sectionHtml(V([L({ checked_dept: '영업부서' })]), LEG);
+  assert.ok(h.includes('확인일 <span class="v">2026-11-10</span>') && h.includes('확인 부서 영업부서'));
+  const s = bc.sectionHtml(V([L({ src_kind: 'STAFF', checked_dept: null })]), LEG);
+  assert.ok(s.includes('담당자 확인') && !s.includes('null'));
+});
+
+test('check: 형식·순서 오류', () => {
+  const f = o => bc.check(Object.assign({}, bc.BLANK, { bank: 'B02', rank: 'FIRST', kind: 'DOC_NO', no: '제2023-154호', to: '2026-12-31' }, o), { today: '2026-11-17' });
   assert.strictEqual(f({ to: '2026-13' }).errors[0].msg, bc.MSG.termNone);
   assert.strictEqual(f({ to: '1980' }).errors[0].msg, bc.MSG.termRange);
   assert.strictEqual(f({ from: '2027-01', to: '2026-12' }).errors[0].msg, bc.MSG.termOrder);
-  assert.strictEqual(f({ date: '2026-11-18' }).errors[0].msg, bc.MSG.future);
   assert.ok(f({ from: '2026-12', to: '2026-12-31' }).ok);
 });
 
@@ -199,7 +217,7 @@ test('formHtml: 순위 목록은 서버가 준 것만, 1금고가 없으면 안�
   const a = bc.formHtml(Object.assign({}, CODES, { ranks: [{ code: 'JOINT', name: '공동 지정' }] }), bc.BLANK, {});
   assert.ok(a.includes('1금고·2금고는 지자체·교육청만 고를 수 있습니다.') && !a.includes('id="ie-bk-ac"'));
   const b = bc.formHtml(Object.assign({}, CODES, { accounts: [{ code: 'GEN', name: '일반회계' }] }), bc.BLANK, {});
-  assert.ok(b.includes('id="ie-bk-ac"') && b.includes('maxlength="30"') && b.includes('maxlength="100"') && b.includes('YYYY-MM-DD'));
+  assert.ok(b.includes('id="ie-bk-ac"') && b.includes('maxlength="30"') && b.includes('maxlength="100"') && !b.includes('id="ie-bk-date"'))   // 확인일 칸은 없앰(사용자 11-17, 서버가 저장한 날로 채움);
   assert.ok(!bc.formHtml(CODES, Object.assign({}, bc.BLANK, { kind: 'LINK' }), {}).includes('id="ie-bk-url-l" hidden'));
 });
 

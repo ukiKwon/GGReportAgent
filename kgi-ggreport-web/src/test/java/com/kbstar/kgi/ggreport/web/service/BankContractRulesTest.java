@@ -38,7 +38,7 @@ public class BankContractRulesTest {
     private static BankContractIn base() {
         BankContractIn in = new BankContractIn();
         in.setRankCd("FIRST"); in.setBankCd("B04"); in.setTermFrom("2023"); in.setTermTo("2026-12-31");
-        in.setSrcKind("DOC_NO"); in.setSrcNo("제2023-154호"); in.setCheckedDate("2026-11-16");
+        in.setSrcKind("DOC_NO"); in.setSrcNo("제2023-154호");
         return in;
     }
 
@@ -60,7 +60,22 @@ public class BankContractRulesTest {
     }
 
     private static BankContractIn etc(String name) { BankContractIn in = base(); in.setBankCd("ETC"); in.setBankNameEtc(name); return in; }
-    private static BankContractIn dept(String d) { BankContractIn in = base(); in.setSrcKind("STAFF"); in.setCheckedDept(d); return in; }
+
+    @Test public void 본문의_확인일_부서는_읽지_않는다() {
+        BankContractIn in = base(); in.setCheckedDate("2099-01-01"); in.setCheckedDept("홍길동 주무관");
+        assertNotNull(ok(in));   // 예외 없이 통과(서비스가 저장 때 오늘·소속으로 채운다)
+    }
+    @Test public void STAFF는_출처_칸_없이_통과_그_밖은_링크나_번호_필요() {
+        BankContractIn s = base(); s.setSrcKind("STAFF"); s.setSrcNo(null); s.setSrcUrl(null);
+        assertEquals("STAFF", ok(s).srcKind);
+        BankContractIn d = base(); d.setSrcKind("DOC_NO"); d.setSrcNo(null); bad(d);
+    }
+    @Test public void 확인일_부서는_같음_판정에서_빠진다() {
+        BankContract prev = new BankContract();
+        prev.setRankCd("FIRST"); prev.setBankCd("B04"); prev.setTermFrom("2023"); prev.setTermTo("2026-12-31");
+        prev.setSrcKind("DOC_NO"); prev.setSrcNo("제2023-154호"); prev.setCheckedDate("1999-01-01"); prev.setCheckedDept("재정과");
+        assertTrue(BankContractRules.same(prev, ok(base())));
+    }
 
     @Test public void 겹침_확인_이어받기_조건() {
         BankContract prev = new BankContract();
@@ -176,22 +191,22 @@ public class BankContractRulesTest {
     @Test public void 목록에_없는_코드_X01은_400() { BankContractIn in = base(); in.setBankCd("X01"); bad(in); }
 
     // ---- S4 이름+직함 ----
-    @Test public void 사람_이름과_직함은_422_NAME() {
+    @Test public void 사람_이름과_직함은_이름_판정() {
         for (String s : new String[]{"홍길동 주무관", "김철수 과장님", "이영희 팀장", "박민수주사", "최영수 씨", "정수진 담당자", "홍길동님", "재정과 홍길동 주무관", "홍길동 주무관은"})
-            assertEquals(s, "NAME", blocked(dept(s), "PII_BLOCKED"));
+            assertTrue(s, BankContractRules.hasPersonName(s));
     }
     @Test public void 부서명과_일반_표현은_통과() {
         for (String s : new String[]{"재정과장실", "재정과 담당자", "세무과 팀장", "기획예산과", "재정과 과장", "복지센터 담당자", "고객님", "총무과장 확인",
-                "예산담당 주무관", "정책기획과 팀장", "담당자 확인"}) assertEquals(s, s, ok(dept(s)).checkedDept);
+                "예산담당 주무관", "정책기획과 팀장", "담당자 확인"}) assertFalse(s, BankContractRules.hasPersonName(s));
     }
 
     @Test public void 앞에_한글이_붙거나_괄호_직함도_422_NAME() {
         for (String s : new String[]{"재정과홍길동주무관", "재정과 홍길동주무관", "홍길동(주무관)", "재정과 홍길동 (주무관)", "재정과홍길동 과장님"})
-            assertEquals(s, "NAME", blocked(dept(s), "PII_BLOCKED"));
+            assertTrue(s, BankContractRules.hasPersonName(s));
     }
     @Test public void 부서명만_있으면_통과() {
         for (String s : new String[]{"재정과 세입팀", "재정과세입팀", "재정과세입팀장", "세입팀(팀장)", "재정과 세입팀 팀장", "기획예산과 담당자"})
-            assertEquals(s, s, ok(dept(s)).checkedDept);
+            assertFalse(s, BankContractRules.hasPersonName(s));
     }
     @Test public void 취소_사유_기타의_이름_직함은_422() {
         try { BankContractRules.parseCancel(cancel("ETC", "홍길동 주무관 요청"), CODES); fail(); }
@@ -228,7 +243,7 @@ public class BankContractRulesTest {
     @Test public void 개인정보와_정당은_422() {
         BankContractIn a = base(); a.setNote("010-1234-5678"); assertEquals("휴대폰", blocked(a, "PII_BLOCKED"));
         BankContractIn b = base(); b.setNote("국민의힘 시당 소개"); assertEquals("PARTY", blocked(b, "CONTRACT_FORBIDDEN"));
-        BankContractIn c = dept("재정과 02-2148-1234"); assertEquals("PHONE", blocked(c, "CONTRACT_FORBIDDEN"));
+        BankContractIn c = base(); c.setNote("재정과 02-2148-1234"); assertEquals("PHONE", blocked(c, "CONTRACT_FORBIDDEN"));
     }
 
     // ---- S10 취소 사유 ----
