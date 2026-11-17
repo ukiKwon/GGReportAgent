@@ -240,10 +240,10 @@
 - **추가(2026-11-06 security)**: `handoff/2026-07-30_summary.md:128`에 마스킹 전 실제 휴대폰 번호가 원문으로 적혀 있다(이미 원격 이력에 있음). 파일에서 마스킹할지, 이력까지 지울지(force-push 필요, 되돌리기 어려움)는 사용자 결정. closing.js는 모델 실행 뒤 커밋 직전에 브랜치를 한 번 더 확인하는 한 줄이 후속.
 - **자세히**: 전체본 '### 48.' 절, `2026-11-05_summary.md` `## Session 18:04`.
 
-### 94. 지방재정365 금고지정 현황 바로가기 — **(c) 원본 보관·S3 절차 완료, (b) 현황판 각주 링크 진행 중, (a) 지자체 상세 바로가기 대기** [담당: frontend-dev → design-reviewer]
-- **현재**: 사용자 11-16 "입찰 현황을 볼 때 저 사이트를 들여다볼 수 있게"(Q-2026-11-16-82). 원본 `corpus/inbox/2026-11-16_lofin365/`(collector/contract/ 사본과 해시 같음 — 사본 삭제는 사용자 확인 필요), 대조 정정 2ee6c98. (b) kbboard 각주 출처 줄 FSL409 링크(design-reviewer 11-17 a5b9b6a1 6-1, CSS `.hb-src`는 9f 89 화면 커밋 뒤 index.html), 와플 '국민은행/다른 은행' 문구(6-2)와 P3-8 저장 뒤 안내(6-3)는 dashboard.js 차례.
-- **다음 한 걸음**: 9f 89 화면 커밋 → index.html `.hb-src` CSS → (a) 상세 '현재 금고 은행' 아래 바로가기 + 와플 6-2 + P3-8 + qa D-1~D-6 DOM 시험 한 묶음(c0) → design_history 장.
-- **자세히**: planner `2026-11-16_1724_a28c330f`, design-reviewer 11-17(현황판 각주·와플), qa 11-17 재검증(N-1~N-5).
+### 94. 행안부 금고지정 현황 · 입찰 현황판 세 주제 — **바로가기(77b18b2)·행안부 값 연결(d1cb99b)·현황판 3열 재구성(349e6fa) 완료, 남은 하 5건** [담당: backend-dev → frontend-dev / data-auditor]
+- **현재**: 사용자 11-17 결정 반영 — [제안 확정]은 공고 난 뒤에만, 순위 = 일반회계 1금고·나머지 2금고·한 은행이 다 맡으면 단수 금고(frontend/data/lofin-2026.js, tools/lofin/build-lofin.js), 현황판 = 협약 중인 기관(협약 종료일 순·종료 D-n·다음 입찰 공고 예정일) | 입찰 공고가 뜬 대상(협약 중인 기관 + 신규 유치) | 제안 진행 단계. 직접 입력 금고 약정 종료일은 현황판에 아직 안 씀(기관별 응답만 있음), 법원·공공기관 종료일은 기관 자료 contractExpiry 사용 중.
+- **다음 한 걸음**: ① backend-dev 기관별 약정 종료일 목록 API 설계 → kbboard endOpts().direct·각주 절 복원 ② data-auditor 비지자체 contractExpiry 출처 확인 ③ 2열에 공고 줄이 생기는 날 [제안 확정]→Esc 포커스 복귀 실화면 확인 ④ 서버 POST /preps도 공고 조건으로 막을지(qa P3-4) ⑤ 9f: bankcontract.js:23 kbNote 이름 '협약 중인 기관'.
+- **자세히**: planner `2026-11-17_1252_a3bad39d`(세 주제)·11-17 제안확정·금고 기본값, design-reviewer 11-17 `ab488e4e`·`a99290ec`, data-auditor 11-17(행안부 변환 규칙), design_history ㊺·㊻·㊼·㊿.
 
 ### 51. 이사회 작성 모드 선택 스포트라이트 후속 — **구현 완료(8c577bb·36415f5), 확인·판단 3건 남음** [담당: qa-verifier ∥ design-reviewer → frontend-dev / 사용자 답]
 - **현재**: 층 구분·그림자, 클릭 가림 보정, 편집 줄 저장/끝내기, 선택 스포트라이트(비집중 글자 가라앉힘·틸 테두리·짝 칩·십자 머리·대조 첫 줄·표 A/B 행 이름 라벨), Esc 해제 문구·resize 보정이 들어갔다(화면 611 통과, 출처 `2026-11-06_summary.md`).
