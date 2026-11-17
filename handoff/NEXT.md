@@ -484,7 +484,12 @@
 - **다음 한 걸음**: backend-dev(11-17 진행) 처음 입력자 응답 필드·겹침 이어받기 → 메인 적용·mvn → frontend-dev 표기(bankcontract.js, c0 77b18b2 뒤 9f 전용) → qa. 사용자 업무 테스트 요청(11-17 지시).
 - **자세히**: qa 2026-11-17_1051_a828d83a, planner 11-17 최신, 11-16 저녁 backend-dev 개정·델타·security 1718·design 1752, 출처 2026-11-16_summary.md Session 18:40·2026-11-17 summary (9f).
 
-### 90. 외부 확인(미리 돌려두기) — 1단계 c33eae7(checks 형식 계약 py·java, Pii.scanExternal, 2단계 전까지 checks 배치 422). 2단계 반입 재검사 진행 [담당: backend-dev → security → (3단계) 사용자 041 적용 → design-reviewer → frontend-dev]
-- **현재**: 사용자 11-16 — 미리 돌려두기·전체 기관·파일 반입·보도는 못 찾은 기관만·매일. 사용자 11-17 — 외부 전처리 후 반입, 휴대폰 삭제·유선 국번 뒤 전부 가림, HWP도 받음(hwplib 1.1.9 Apache-2.0·의존성 없음·Java 7 대상, 로컬 Maven 저장소에 받음). 서버 안전망은 check 단위 제외·파일 삭제(팀). planner 11-17: 열람은 영업팀 계열만(전산팀은 3단계 때 확인), IMAGE_ONLY 30/100자는 표본 조정 상수, error는 이전 found를 덮지 않음.
-- **다음 한 걸음**: 2단계(backend-dev 11-17 진행) 사본 처리·realPath·원본 삭제·PDF/HWPX 재검사·security 하-1~4 → security → 커밋 → HWP 묶음(POIFS 사전 풀기, hwplib pom 추가) → 3단계 041 DDL 쌍·저장·열람 API → 4단계 현황판 '외부 확인 MM-DD HH:mm'.
-- **자세히**: 설계 v3 handoff/agents/backend-dev/2026-11-17_0936_aa18fe08.md §4, security 2026-11-17_NEXT90_반입설계_보안검토.md·0921·1053, collector/SCHEMA.md ④-2·④-3, 출처 2026-11-17 summary (9f).
+### 90. 외부 확인(미리 돌려두기) — 반입 재검사·저장·열람까지 끝(1단계 c33eae7, 2단계 2e0a847·2f9c2b0, HWP e0e4444·6a352d4, 3단계 aac9cd9 DB 042 사용자 적용, 보관 이동 770d3cb). 다음 4단계 현황판 줄 [담당: backend-dev → security → 사용자 042 적용 → design-reviewer → frontend-dev]
+- **현재**: checks 배치는 slug·batch_id에 extcheck 필수, 서버 사본에서 PDF·HWPX·HWP 재검사 후 check 단위 제외·통과 첨부만 corpus/ext_check 보관(DB 미저장). hwplib 1.1.9(동시 1건). 실물 공고 HWP·HWPX 289건 회귀(-Dextcheck.realDir, 건수만): 구조 제외 2건(.ole), 나머지 제외는 미가림 연락처. 한컴 기본 Scripts 빈 틀(HWPX 2종·HWP 6종)만 해시 허용, BinData는 알려진 그림 서명이면 통과(확장자 불일치 흔함). planner 11-17: 열람은 영업팀 계열, IMAGE_ONLY 30/100자, error는 found를 덮지 않음.
+- **다음 한 걸음**: 90 하 먼저(같은 batch_id 동시 반입 직렬화 — security 11-17 중, 이력 조회 LIMIT, 다운로드 동시 수, 반입 응답 stored_name 빼기) → 4단계 현황판 '외부 확인 MM-DD HH:mm'(c0 kbboard·dashboard와 조율). 남은 하: records 쪽 오류 문구 값 에코(Java·Python 쌍), PDF 고아 객체·pdfbox 중단 불가, _LinkDoc·작성자 메타 전처리 규칙, 운영 JVM OOM 종료 옵션, InboxApiTest 첨부 이동 시험 순서 의존 flaky.
+- **자세히**: 설계 v3 handoff/agents/backend-dev/2026-11-17_0936_aa18fe08.md, security 11-17(0921·1053·1251·HWP 검토), collector/SCHEMA.md ④-2·④-3·6-1·6-2, 출처 2026-11-17_summary.md Session (9f).
+
+### 95. 팀 이름 → 부서 이름 전체 변경 — 영업팀=영업부서, 전산팀=개발부서, 예산팀=재무부서, 사업팀=사업부서 (사용자 11-17) [담당: planner → pm(세션 조율) → backend-dev·frontend-dev]
+- **현재**: 사용자 11-17 "지금 '영업팀'이라고 하는 것들은 모두 '영업부서', 전산팀=개발부서, 예산팀=재무부서, 사업팀=사업부서처럼 부서 이름이 될 것". 반영은 금고 약정 확인 부서 자동 값('영업부서', 18d50d8)뿐. c0·d9에 새 문구는 부서 이름으로 쓰라고 공유.
+- **다음 한 걸음**: planner — 바꿀 범위(Teams.java TEAM_SUFFIX·화면 표기·메뉴 노출 문구·역할 표시명·DB 코드표 표시명·골든 /menus 영향)와 팀장·부장 등 역할 이름이 어떻게 되는지 질문 문안 → pm 세션 조율(여러 세션 화면 파일).
+- **자세히**: 메모리 project_team-names-become-departments, 출처 2026-11-17_summary.md Session (9f).

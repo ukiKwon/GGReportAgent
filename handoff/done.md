@@ -722,3 +722,9 @@
 
 ### 49. 자동 마무리 예약 작업 — **해소 11-16 (c0, 사용자 등록 결정)**
 - Windows 예약 작업 `GGReportClosing1800` 등록(Q-2026-11-16-80 ⓐ), 11-16 첫 실행 커밋 124b17f·푸시 ok(agent-dashboard/closing.log). 11-17 `schtasks` 조회로 '다음 실행 18:00·준비' 확인.
+
+### 96. InboxApiTest 첨부 이동 시험 순서 의존 실패(flaky) — 시험마다 고유 임시 폴더로 격리 [담당: backend-dev-write]
+- **현재**: 11-17 전체 mvn에서 한 번 실패(rfp_files 0), 단독·재실행 통과. 원인 추정: 반입 시험 3종이 고정 폴더 target/inbox-test 공유 + 다른 세션 동시 mvn 또는 Windows 일시 잠금. 패치안 있음(InboxTestRoots, 운영 코드 무변경).
+- **다음 한 걸음**: NEXT 90 3단계 커밋 뒤 패치안 적용(InboxApiTest·InboxExtCheckApiTest·InboxTxRollbackTest) → mvn 반복 실행.
+- **자세히**: handoff/agents/backend-dev/ 11-17 'InboxApiTest 순서 의존' 보고, 출처 2026-11-17_summary.md Session (9f).
+- **해소(11-17 9f)**: 770d3cb — 시험마다 고유 임시 폴더(InboxTestRoots) + 운영 결함(보관 폴더 이동 Windows 일시 잠금 → 원본 삭제 뒤 500) 재시도·복사 폴백. 정순서·역순 각 3회 통과. 출처 2026-11-17_summary.md Session 16:10 (9f).
