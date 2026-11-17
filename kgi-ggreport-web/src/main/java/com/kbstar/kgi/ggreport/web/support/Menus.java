@@ -55,6 +55,7 @@ public final class Menus {
     private static List<String> screens() {
         List<String> out = new ArrayList<>(MENU_KEYS);
         out.addAll(Arrays.asList(ADMIN_MENU + ":users", ADMIN_MENU + ":perms", ADMIN_MENU + ":menus", ADMIN_MENU + ":audit",
+                ADMIN_MENU + ":collect",   // 사업계획 수집 요청 처리 화면(045)
                 "tasks:board", "tasks:board_review", "tasks:prep", "tasks:team"));
         return Collections.unmodifiableList(out);
     }

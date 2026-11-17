@@ -94,12 +94,13 @@
   // ⚠️ 화면은 본인 행의 버튼을 숨기기만 한다 — 실제 차단은 서버 SelfChange·MenuService(사번은 자기신고).
   admin.isSelf = function (u, emp) { return !!emp && !!u && String(u.emp_no) === String(emp); };
 
-  admin.VIEWS = { users: '사용자 관리', perms: '권한 관리', menus: '메뉴 관리', audit: '접근 이력' };
+  admin.VIEWS = { users: '사용자 관리', perms: '권한 관리', menus: '메뉴 관리', audit: '접근 이력', collect: '사업계획 수집 요청' };
   admin.VIEW_HINTS = {
     users: '사번(숫자 7자리)으로 사용자를 등록·수정합니다. 삭제하지 않고 퇴직 처리해 이력을 남깁니다.',
     perms: '메뉴 권한을 주면 조회가 기본입니다. 결재는 결재 기능이 확인된 메뉴에서만 줄 수 있습니다.',
     menus: '역할별로 어떤 화면을 볼 수 있는지 정합니다 — 화면 노출만 정합니다(보안 경계가 아닙니다).',
-    audit: '로그인·화면 열람·API 호출 기록입니다. 사번이 "자기신고"인 행은 위조될 수 있습니다.'
+    audit: '로그인·화면 열람·API 호출 기록입니다. 사번이 "자기신고"인 행은 위조될 수 있습니다.',
+    collect: "영업부서가 요청한 기관을 기관 단위로 묶어 보여 줍니다. 목록을 내려받아 수집하고, 보낸 기관은 '수집 중'으로 표시하세요."
   };
   admin.EVENT_LABELS = {
     LOGIN_OK: '로그인 성공', LOGIN_FAIL: '로그인 실패', LOGOUT: '로그아웃',
@@ -852,15 +853,21 @@
     say('');
     editing = null;
     confirmRetire = null;
+    if (view !== 'collect' && root.plancollect && root.plancollect.unmount) root.plancollect.unmount();   // 다른 보기로 가면 수집 요청 화면의 이벤트·늦은 응답을 걷는다
     if (view === 'users') { el('ad-body').innerHTML = ''; loadUsers(); }
     else if (view === 'perms') { el('ad-body').innerHTML = ''; loadPermsScreen(); }
     else if (view === 'menus') paintMenus();
+    else if (view === 'collect') {
+      el('ad-body').innerHTML = '';
+      if (root.plancollect) root.plancollect.mount({ head: el('ad-head'), body: el('ad-body'), say: say });
+      else say('수집 요청 화면을 불러오지 못했습니다.', true);
+    }
     else { el('ad-body').innerHTML = ''; loadAudit(); }
   }
 
   admin.mount = function () { paint(); };
 
-  admin.unmount = function () { /* 폴링이 없어 정리할 것이 없다 */ };
+  admin.unmount = function () { if (root.plancollect && root.plancollect.unmount) root.plancollect.unmount(); };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = admin;
   else root.admin = admin;

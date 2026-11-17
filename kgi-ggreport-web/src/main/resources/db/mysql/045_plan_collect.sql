@@ -3,6 +3,7 @@
 -- ⚠️ 정본이 아니다. 정본은 db/oracle/045_plan_collect.sql (규칙·참조·DB 권한은 정본 헤더).
 -- 외래키·CHECK 없음. ⚠️ 멱등하지 않다 — 034 뒤 한 번만. 적용한 뒤에는 이 파일을 고치지 않는다(체크섬).
 -- 이미 041(또는 042~044)까지 적용한 DB: 이 파일만 한 번 더 돌리면 된다(앞 번호와 표가 겹치지 않는다). 도중에 실패했으면 아래 되돌리기로 지우고 다시.
+-- ⚠️ 배포 순서: DB 045 먼저, 서버 나중. 서버는 수집 반입(IMPORT) 트랜잭션 안에서 이 표를 읽는다 — 045 없이 서버를 먼저 올리면 모든 수집 반입이 500(판도 남지 않음).
 -- 되돌리기(데이터 소멸): DROP TABLE PLAN_COLLECT_REQUESTER; DROP TABLE PLAN_COLLECT_REQ;
 --   DELETE FROM COMMON_CODE WHERE CODE_GROUP='PLAN_ACTION' AND CODE IN ('COLLECT_REQUEST','COLLECT_CANCEL','COLLECT_EXPORT','COLLECT_RUN','COLLECT_EXCLUDE','COLLECT_FAIL','COLLECT_APPLY');
 -- -----------------------------------------------------------------------------

@@ -31,6 +31,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import com.kbstar.kgi.ggreport.web.support.Times;
+import java.time.Duration;
+import java.time.Instant;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 /**
  * ③ 시험용 agent 실행 흐름 — 같은 스프링 컨텍스트에서 PlanAgentClient.configure(패키지 전용)로 로컬 가짜 수신기에 켰다가 @After 에 끈다
@@ -126,9 +130,38 @@ public class PlanCollectRunApiTest {
         assertNull(jdbc.queryForObject("SELECT JOB_ID FROM PLAN_COLLECT_REQ WHERE REQ_KEY=?", String.class, k));
         assertEquals(1, hits.get());
         assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_RUN' AND OUTCOME='AGENT_REJECTED'"));
+        // P3-2: 되돌린 행엔 실행 흔적이 없다(결과 코드만) — 화면 run_at 도 null
+        assertEquals(1, count("SELECT COUNT(*) FROM PLAN_COLLECT_REQ WHERE REQ_KEY=? AND RUN_MODE IS NULL AND RUN_BY IS NULL AND RUN_AT IS NULL"
+                + " AND RUN_DOMAINS IS NULL AND RUN_VERIFIED=0", k));
+        MockHttpServletResponse sr = mockMvc.perform(get("/plan-collect/status").header("X-Emp-No", SALES)).andReturn().getResponse();
+        sr.setCharacterEncoding("UTF-8");
+        JsonNode it = null;
+        for (JsonNode n : json.readTree(sr.getContentAsString()).path("items")) if (INST.equals(n.path("institution_id").asText())) it = n;
+        assertEquals("REQUESTED", it.path("status_cd").asText());
+        assertTrue(it.path("run_at").isNull());
+        // 같은 기관 10분 안 재실행은 TOO_SOON — 호출하지 않는다
         status = 202;
+        assertEquals("TOO_SOON", json.readTree(run("{\"req_keys\":[\"" + k + "\"]}").getContentAsString())
+                .path("results").get(0).path("result_cd").asText());
+        assertEquals(1, hits.get());
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_RUN' AND OUTCOME='TOO_SOON'"));
+        // 직전 시도를 11분 전으로 돌리면 다시 실행된다
+        jdbc.update("UPDATE INST_PLAN_ACT SET LOGGED_AT=? WHERE INSTITUTION_ID=? AND ACTION_CD='COLLECT_RUN' AND OUTCOME='STARTED'",
+                Times.iso(Instant.now().minus(Duration.ofMinutes(11))), INST);
         assertEquals("SENT", json.readTree(run("{\"req_keys\":[\"" + k + "\"]}").getContentAsString())
                 .path("results").get(0).path("result_cd").asText());
+        assertEquals(2, hits.get());
+    }
+
+    @Test
+    public void 수동_수집_중_표시는_실행_간격_제한이_없다() throws Exception {
+        status = 500;
+        String k = requestKey();
+        run("{\"req_keys\":[\"" + k + "\"]}");   // 거절 → 요청됨, STARTED 감사는 방금
+        MockHttpServletResponse m = mockMvc.perform(post("/plan-collect/mark-running").header("X-Emp-No", ADMIN)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"req_keys\":[\"" + k + "\"]}")).andReturn().getResponse();
+        assertEquals(200, m.getStatus());
+        assertEquals("OK", json.readTree(m.getContentAsString()).path("results").get(0).path("result_cd").asText());
     }
 
     @Test

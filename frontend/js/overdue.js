@@ -219,6 +219,7 @@
     const nid = root.nav && root.nav.NOTICE_ID;
     const btn = (nid && byId(nid)) || byId('map'); if (!btn) return;   // 배지는 '입찰 공고 현황' 옆(규격 P2-1), 그 항목이 없으면 예전처럼 '전국 지도'
     items.forEach(function (b) {   // 예전 자리('전국 지도')나 옮기기 전 배지를 모두 지운다
+      if (root.nav && b.dataset && b.dataset.nav === root.nav.COLLECT_ID) return;   // 수집 요청 대기 배지(plancollect.js)는 따로 칠한다 — 지우지 않는다
       Array.prototype.forEach.call(b.querySelectorAll('.nav-count, .ov-nav-sr'), function (x) { x.remove(); });
       const lb = b.querySelector('.nav-label'); if (lb) b.title = lb.textContent;
     });

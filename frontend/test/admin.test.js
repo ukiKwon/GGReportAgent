@@ -155,8 +155,8 @@ test('auditCsv: 머리글 + 행, IP는 마스킹, 신원은 검증됨/자기신�
   assert.ok(lines[1].indexOf('10.1.2.*') > 0 && lines[1].indexOf('10.1.2.3') < 0);
 });
 
-test('VIEWS: 4개 보기와 안내 문구가 짝을 이룬다', function () {
-  assert.deepStrictEqual(Object.keys(admin.VIEWS), ['users', 'perms', 'menus', 'audit']);
+test('VIEWS: 5개 보기와 안내 문구가 짝을 이룬다', function () {
+  assert.deepStrictEqual(Object.keys(admin.VIEWS), ['users', 'perms', 'menus', 'audit', 'collect']);
   Object.keys(admin.VIEWS).forEach(function (k) { assert.ok(admin.VIEW_HINTS[k], k); });
   assert.strictEqual(admin.currentView(), 'users');
 });

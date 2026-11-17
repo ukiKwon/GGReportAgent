@@ -90,7 +90,8 @@
       soon('검색·AI', '사내 업무 키워드 조회')] },
     { id: 'sys', title: '시스템 관리', last: true, items: [
       live('', '사용자 관리', 'admin', 'users'), live('', '권한 관리', 'admin', 'perms'),
-      live('', '메뉴 관리', 'admin', 'menus'), live('', '접근 이력', 'admin', 'audit')] }
+      live('', '메뉴 관리', 'admin', 'menus'), live('', '접근 이력', 'admin', 'audit'),
+      live('', '사업계획 수집 요청', 'admin', 'collect')] }   // 개발부서 처리 화면(plancollect.js) — 대기 배지는 plancollect.paintNavBadge
   ];
 
   nav.badgeOf = badgeOf;
@@ -101,6 +102,7 @@
   nav.NOTICE_ID = NOTICE_ID;
   nav.PLANS_ID = PLANS_ID;
   nav.PLANS_TEAMS = PLANS_TEAMS;
+  nav.COLLECT_ID = 'admin:collect';   // plancollect.NAV_ID 와 같다 — overdue.paintNavBadge 가 이 항목의 배지를 지우지 않게 알아본다
   // 로그인 뒤 첫 화면이 입찰 현황판인 역할 — 영업팀·영업팀장·영업부장만(사용자 결정 11-11). 디자이너·마스터·타 팀은 지금처럼 지도.
   nav.isHomeRole = function (ctx) { return nav.roleIn(TEAM_ROLES, ctx); };
   // 로그인 뒤 첫 화면: 입찰 현황판이 보이는 영업 계열이고 아직 지도만 보고 있으면 현황판 id, 아니면 null(지금 화면 유지).

@@ -2011,6 +2011,28 @@
   }
   /* 기관 사업계획 끝 */
 
+  /* 사업계획 수집 요청 시작 — 규격 design-reviewer 2026-11-17_1509_af34bf60.md 6-1·6-2·6-4. 새 색 없음(토큰만, 흰색 섞기는 DESIGN Two-Tier 규칙), 채운 주버튼 없음 */
+  .wf-badge.cr-st.gap  { color:color-mix(in srgb, var(--orange) 72%, #ffffff); }
+  .wf-badge.cr-st.ok   { color:color-mix(in srgb, var(--blue)   72%, #ffffff); }
+  .wf-badge.cr-st.none { color:color-mix(in srgb, var(--red)    72%, #ffffff); }
+  .pl-req { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin:10px 0 0; }
+  .pl-req .db-why { word-break:keep-all; }
+  .pl-req .db-why .v { font-family:var(--mono); }
+  .pl-req button { min-height:26px; }
+  .cr-table td { vertical-align:top; }
+  .cr-table td.cr-inst { white-space:normal; word-break:keep-all; min-width:11em; }
+  .cr-nm { font-weight:600; }
+  .cr-sub { display:block; margin-top:2px; font-size:11px; color:var(--muted); }
+  .cr-who .cr-sub { white-space:normal; word-break:keep-all; max-width:14em; }
+  .cr-table .v { font-family:var(--mono); }
+  .cr-dom .v { display:inline-block; max-width:18ch; overflow:hidden; text-overflow:ellipsis; vertical-align:bottom; }
+  td.cr-ck, th.cr-ck { width:36px; padding:0 !important; }
+  .cr-ck label { display:block; padding:6px; min-width:24px; min-height:24px; box-sizing:border-box; }
+  .cr-table .ad-ops button { min-height:26px; }
+  .cr-table tr.cr-ask td { background:var(--panel2); white-space:normal; }
+  .ad-toolbar > button { min-height:26px; }
+  /* 사업계획 수집 요청 끝 */
+
   /* 공고 상태 기록(noticerec.js) 시작 — 규격 design-reviewer 11-16 abc6228b 6-E. 새 hex 없음(토큰만), 최소 11px, 채운 주버튼 없음. */
   .ov-stamp.is-line { background:transparent; color:var(--fg); border-color:var(--muted); font-weight:400; }
   .ov-stamp.is-plain { background:transparent; border-color:transparent; color:var(--muted); font-weight:400; padding:0 2px; }
@@ -2506,6 +2528,7 @@ review, the verdict, and DESIGN.md
 <script src="js/plans.js"></script>
 <script src="js/kbboard.js"></script>
 <script src="js/deputy.js"></script>
+<script src="js/plancollect.js"></script>
 <script src="js/admin.js"></script>
 <script src="js/myinfo.js"></script>
 <script src="js/export.js"></script>

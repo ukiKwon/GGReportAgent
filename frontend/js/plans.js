@@ -226,7 +226,57 @@
     if (st.stale) h += ' ' + badge('gap', '오래됨');
     return h;
   };
-  // view = { status:'loading'|'noid'|'offline'|'denied'|'notfound'|'error'|'ok', data, code }, o = { name, sub, kw }
+  // ── 순수: 사업계획 수집 요청(서버 PlanCollectController). 규격 design-reviewer 2026-11-17_1509_af34bf60.md 6-1·6-2 ──
+  // 상태 코드는 서버 PlanCollectService 의 값. 칩은 늘 글자로 쓰고 색만으로 전하지 않는다(data-st 는 시험·보조용). 모르는 코드는 원문을 그대로(esc) 보인다.
+  const REQ_STATES = {
+    REQUESTED: ['요청됨', 'gap'], RUNNING: ['수집 중(반입 대기)', 'pp-neutral'], APPLIED: ['반영됨', 'ok'],
+    FAILED: ['실패', 'none'], CANCELED: ['취소됨', 'pp-cancel'], EXCLUDED: ['제외됨', 'pp-cancel'],
+  };
+  plans.reqBadgeHtml = function (state) {
+    const k = str(state), d = Object.prototype.hasOwnProperty.call(REQ_STATES, k) ? REQ_STATES[k] : null;
+    return '<span class="wf-badge cr-st ' + (d ? d[1] : 'pp-cancel') + '" data-st="' + esc(k) + '">' + esc(d ? d[0] : k) + '</span>';
+  };
+  // item = GET /plan-collect/status 의 열린 요청 한 건(없으면 null), o = { can(서버 can_request), hasData, busy:''|'go'|'cancel' }
+  // 규격 6-2: 열린 요청이 없고 요청도 못 하는 사용자(디자이너·재무부서)는 줄 자체를 그리지 않는다. 디자이너는 칩과 사람 수만(버튼 없음).
+  plans.reqLineHtml = function (item, o) {
+    o = o || {};
+    const can = !!o.can, busy = str(o.busy), dis = busy ? ' disabled' : '';
+    const go = can ? '<button type="button" id="pl-req-go"' + dis + '>' + (busy === 'go' ? '요청 중…' : '수집 요청') + '</button>' : '';
+    const cancel = '<button type="button" id="pl-req-cancel"' + dis + '>' + (busy === 'cancel' ? '취소하는 중…' : '내 요청 취소') + '</button>';
+    let inner;
+    if (!item) {
+      if (!can) return '';
+      inner = go + '<span class="db-why">' + (o.hasData ? '새 계획이 나왔으면 다시 요청하세요.' : '개발부서가 수집하고, 자료가 들어오면 쪽지로 알려 드립니다.') + '</span>';
+    } else {
+      const st = str(item.status_cd), n = Number(item.requester_count) || 0, mine = !!item.requested_by_me;
+      const day = st === 'RUNNING' ? plans.kstYmd(item.run_at) : plans.kstYmd(item.first_requested_at);
+      const when = day ? (st === 'RUNNING' ? ' · 내보냄 ' : ' · 첫 요청 ') + mono(day) : '';
+      inner = plans.reqBadgeHtml(st) + '<span class="db-why">' + (mine ? '나 포함 ' + mono(n) + '명' : mono(n) + '명 요청') + when + '</span>' +
+        (mine ? (st === 'REQUESTED' ? cancel : '') : go);   // 수집 중이면 취소 없음, 내가 이미 포함이면 [수집 요청] 없음
+    }
+    return '<div class="pl-req" role="group" aria-label="수집 요청">' + inner + '</div>';
+  };
+  // 요청·취소 오류 → 문구(서버 원문은 쓰지 않는다). kind = 'go' | 'cancel'
+  plans.reqErrorText = function (kind, status) {
+    const s = Number(status) || 0;
+    if (s === 0) return '요청을 보내지 못했습니다(연결 실패). 잠시 뒤 다시 누르세요.';
+    if (s === 401) return '로그인이 필요합니다. 사번으로 다시 로그인해 주세요.';
+    if (s === 403) return '수집 요청은 영업부서·개발부서만 할 수 있습니다(403). 로그인 사번과 권한을 확인하세요.';
+    if (s === 404) return kind === 'cancel' ? '취소할 요청이 없습니다. 상태를 다시 불러왔습니다.' : '서버에서 이 기관을 찾지 못했습니다.';
+    if (s === 409) return '다른 사람이 방금 이 요청을 처리했습니다. 상태를 다시 불러왔습니다.';
+    return '요청을 처리하지 못했습니다(' + s + '). 잠시 뒤 다시 누르세요.';
+  };
+  // 성공 응답(POST …/plan-collect, …/cancel) → 결과 문구(규격 6-2). 응답: { status_cd, requester_count, created, outcome }
+  plans.reqFlash = function (kind, res) {
+    const n = Number(res && res.requester_count) || 0;
+    if (kind === 'cancel') {
+      return res && res.status_cd === 'CANCELED' ? '내 요청을 취소했습니다. 이 기관의 요청은 \'취소됨\'이 됐습니다.' : '내 요청을 취소했습니다. 다른 요청자 ' + n + '명의 요청은 그대로입니다.';
+    }
+    if (res && res.created) return '수집을 요청했습니다. 개발부서가 처리하면 쪽지로 알려 드립니다.';
+    if (res && res.outcome === 'DUPLICATE') return '이미 요청한 기관입니다(나 포함 ' + n + '명). 결과는 쪽지로 알려 드립니다.';
+    return '이미 요청된 기관이라 요청자로 함께 올렸습니다(나 포함 ' + n + '명). 결과는 쪽지로 알려 드립니다.';
+  };
+  // view = { status:'loading'|'noid'|'offline'|'denied'|'notfound'|'error'|'ok', data, code }, o = { name, sub, kw, req:{ item, can, busy }|null }
   plans.detailHtml = function (view, o) {
     o = o || {};
     const v = view || { status: 'loading' };
@@ -243,8 +293,11 @@
     if (v.status !== 'ok') return head('') + '<p class="db-state">사업계획을 불러오지 못했습니다(' + esc(v.code || '연결 실패') + '). <button type="button" id="pl-retry-detail">다시 불러오기</button></p>';
     const data = v.data || {};
     const docs = Array.isArray(data.docs) ? data.docs : [];
+    // 수집 요청 줄(규격 6-2): head 바로 뒤·반입일 앞 한 곳. 자료가 있든 없든 같은 자리. 서버 현황을 못 받았으면(o.req 없음) 그리지 않는다.
+    const reqLine = o.req ? plans.reqLineHtml(o.req.item, { can: o.req.can, hasData: docs.length > 0, busy: o.req.busy }) : '';
     if (!docs.length) {
-      return head(unk('자료 없음')) + '<div class="db-sec"><h3>사업계획</h3><p class="db-empty">이 기관의 사업계획은 아직 수집되지 않았습니다. 폐쇄망 밖에서 수집한 파일을 시스템 관리자가 올리면 이 자리에 보입니다.</p></div>';
+      return head(unk('자료 없음')) + reqLine + '<div class="db-sec"><h3>사업계획</h3><p class="db-empty">' +
+        (o.req && o.req.can ? '이 기관의 사업계획은 아직 수집되지 않았습니다.' : '이 기관의 사업계획은 아직 수집되지 않았습니다. 영업부서가 수집을 요청하면 개발부서가 모아 올립니다.') + '</p></div>';
     }
     const n = docs.reduce(function (s, d) { return s + (Array.isArray(d.items) ? d.items.length : 0); }, 0);
     const imp = data.import || {};
@@ -253,7 +306,7 @@
       'placeholder="사업명·내용에서 찾기 (예: 청년, 소상공인, 디지털)" value="' + esc(o.kw || '') + '"></div>';
     return head(plans.statusBadgesHtml({
       item_count: n, period_ended: docs.every(function (d) { return d.period_ended; }), stale: docs.some(function (d) { return d.stale; }),
-    })) + impLine + kw + '<div id="pl-docs">' + plans.docsHtml(data, o.kw) + '</div>';
+    })) + reqLine + impLine + kw + '<div id="pl-docs">' + plans.docsHtml(data, o.kw) + '</div>';
   };
 
   // ── 순수: 목록 ─────────────────────────────────────────────────────
@@ -340,9 +393,11 @@
     }
     if (o.pinned) meta += ' · 직접 연 기관';   // 목록 밖에서 직접 연 기관(현황판·지도에서 열었거나 결과 확인 기관)
     const badges = o.loaded ? plans.statusBadgesHtml(r.st) : '';
+    // 열린 요청(요청됨·수집 중)만 칩 하나. 사람 수·버튼은 붙이지 않는다(option 안에는 버튼을 둘 수 없다, 규격 P1-1).
+    const reqSt = o.req && (o.req.status_cd === 'REQUESTED' || o.req.status_cd === 'RUNNING') ? o.req.status_cd : '';
     const mark = (o.pinned ? ' data-pin="1"' : '') + (it.notice && d.isNoticeCheck(it) ? ' data-check="1"' : '');
     return '<li role="option" id="' + esc(o.id || '') + '" class="db-row" data-key="' + esc(r.key) + '" aria-selected="' + (o.selected ? 'true' : 'false') + '"' + mark + '>' +
-      '<span class="nm">' + esc(it.name) + '</span>' + tag + '<span class="meta">' + meta + (badges ? ' ' + badges : '') + '</span></li>';
+      '<span class="nm">' + esc(it.name) + '</span>' + tag + '<span class="meta">' + meta + (badges ? ' ' + badges : '') + (reqSt ? ' ' + plans.reqBadgeHtml(reqSt) : '') + '</span></li>';
   };
 
   // ── 서버 현황 캐시(이 화면과 현황판·지도 상세의 '사업계획' 절이 같이 쓴다) ──
@@ -357,8 +412,50 @@
     ST = { state: 'ok', map: plans.statusMap(data), today: str(data && data.today), code: 0, at: Date.now() };
   };
   plans.setStatusState = function (state, code) { statusSeq += 1; statusInflight = false; ST = Object.assign(freshStatus(), { state: state, code: code || 0 }); };
-  plans.resetStatus = function () { statusSeq += 1; statusPending = null; statusInflight = false; ST = freshStatus(); };
+  plans.resetStatus = function () { statusSeq += 1; statusPending = null; statusInflight = false; ST = freshStatus(); plans.resetCollect(); };
   plans.statusState = function () { return ST.state; };
+
+  // ── 사업계획 수집 요청 현황 캐시(GET /plan-collect/status: 열린 요청만 + can_request) ──
+  // 기존 현황(ST)과 같은 수명·같은 시점에 받는다(ensureStatus 가 함께 부른다). 실패해도 사업계획 화면은 그대로 쓴다(요청 줄·칩만 없음).
+  function freshCollect() { return { state: 'idle', can: false, map: {}, code: 0, at: 0 }; }
+  let CS = freshCollect();
+  let collectSeq = 0, collectPending = null, collectInflight = false;
+  plans.collectMap = function (data) {
+    const m = {};
+    ((data && data.items) || []).forEach(function (r) { if (r && r.institution_id) m[r.institution_id] = r; });
+    return m;
+  };
+  // 시험·재시도용: 서버 응답(JSON)을 직접 넣는다.
+  plans.applyCollect = function (data) {
+    collectSeq += 1; collectInflight = false;
+    CS = { state: 'ok', can: !!(data && data.can_request), map: plans.collectMap(data), code: 0, at: Date.now() };
+  };
+  plans.setCollectState = function (state, code) { collectSeq += 1; collectInflight = false; CS = Object.assign(freshCollect(), { state: state, code: code || 0 }); };
+  plans.resetCollect = function () { collectSeq += 1; collectPending = null; collectInflight = false; CS = freshCollect(); };
+  plans.collectState = function () { return CS.state; };
+  function collectOf(id) { return CS.state === 'ok' ? { req: CS.map[id] || null, can: CS.can } : null; }
+  function reqSummaryHtml(req) { return plans.reqBadgeHtml(req.status_cd) + ' <span class="db-why">' + mono(Number(req.requester_count) || 0) + '명 요청</span>'; }
+  function ensureCollect(force) {
+    if (!serverOk()) { CS = Object.assign(freshCollect(), { state: 'offline' }); return Promise.resolve(CS); }
+    if (!force) {
+      if (collectInflight && collectPending) return collectPending;
+      if (CS.state === 'ok' && Date.now() - CS.at < STATUS_FRESH_MS) return Promise.resolve(CS);
+    }
+    const my = ++collectSeq;
+    collectInflight = true;
+    if (CS.state !== 'ok') CS = Object.assign(freshCollect(), { state: 'loading' });
+    const p = fetchJson('/plan-collect/status').then(function (r) {
+      if (my !== collectSeq) return CS;
+      collectInflight = false;
+      if (r.status === 'ok') CS = { state: 'ok', can: !!(r.data && r.data.can_request), map: plans.collectMap(r.data), code: 0, at: Date.now() };
+      else CS = Object.assign(freshCollect(), { state: r.status, code: r.code || 0 });
+      refreshSlots();
+      onCollect();
+      return CS;
+    });
+    collectPending = p;
+    return p;
+  }
 
   function fetchJson(url) {
     if (typeof fetch !== 'function') return Promise.resolve({ status: 'offline', code: 0 });
@@ -368,6 +465,7 @@
     }).catch(function () { return { status: 'error', code: 0 }; });
   }
   function ensureStatus(force) {
+    ensureCollect(force);   // 수집 요청 현황은 기존 현황과 같은 때에 함께 받는다(별도 캐시·별도 실패 처리)
     if (!serverOk()) { ST = Object.assign(freshStatus(), { state: 'offline' }); return Promise.resolve(ST); }
     if (!force) {
       // 요청이 나가 있는 동안에는 몇 번을 불러도 새 요청을 만들지 않는다(옛 값이 낡아 ok 인 채로 다시 그려져도 한 번만 받는다).
@@ -400,12 +498,18 @@
     if (ST.state === 'idle' || ST.state === 'loading') return h3 + '<p class="db-empty" aria-busy="true">사업계획 현황을 불러오는 중입니다…</p>';
     if (ST.state !== 'ok') return '';
     const st = ST.map[id];
-    if (!st) return h3 + '<dl class="db-dl"><dt>자료</dt><dd>' + unk('자료 없음') + '</dd></dl><p class="db-empty">아직 수집한 사업계획이 없습니다. 입찰이 가까운 기관부터 모읍니다.</p>';
+    const rq = collectOf(id);   // 수집 요청 현황을 받은 뒤에만(서버 can_request·열린 요청). 표시만 하고 쓰기 버튼은 두지 않는다(규격 6-3)
+    if (!st) {
+      const lead = rq && rq.req ? '기관 사업계획에서 보기' : (rq && rq.can ? '기관 사업계획에서 수집 요청' : '');
+      return h3 + '<dl class="db-dl"><dt>자료</dt><dd>' + unk('자료 없음') + (rq && rq.req ? ' ' + reqSummaryHtml(rq.req) : '') + '</dd></dl>' +
+        (lead ? '<p class="pl-open"><button type="button" class="link-btn" data-pl-open="' + esc(id) + '" aria-describedby="' + esc(nameId || 'db-name') + '">' + lead + '</button>' +
+          ' <span class="pl-msg db-why" role="status"></span></p>' : '');
+    }
     const n = Number(st.item_count) || 0;
     // 이 절이 보이는 사용자는 메뉴도 열 수 있다(위에서 menuVisible 로 걸렀다).
     const open = '<p class="pl-open"><button type="button" class="link-btn" data-pl-open="' + esc(id) + '" aria-describedby="' + esc(nameId || 'db-name') + '">사업계획 ' + mono(n) + '건 보기</button>' +
       ' <span class="pl-msg db-why" role="status"></span></p>';
-    return h3 + '<dl class="db-dl"><dt>자료</dt><dd>' + plans.statusBadgesHtml(st) + '</dd>' +
+    return h3 + '<dl class="db-dl"><dt>자료</dt><dd>' + plans.statusBadgesHtml(st) + (rq && rq.req ? ' ' + reqSummaryHtml(rq.req) : '') + '</dd>' +
       (ymd(st.oldest_checked_on) ? '<dt>확인일</dt><dd>' + mono(ymd(st.oldest_checked_on)) + ' <span class="db-why">가장 오래된 문서 기준</span></dd>' : '') + '</dl>' + open;
   };
   // 기관 사업계획 화면을 이 사용자가 열 수 있는가 = 사이드바에 그 항목이 그려져 있는가(nav.build 가 이미 역할·서버 메뉴 키로 걸러 그린다).
@@ -455,7 +559,7 @@
   let S = null, host = null, ac = null, M = null;
   function freshState(who) {
     return { who: who || '', win: D().DEFAULT_WINDOW, stat: 'all', q: '', region: '', kw: '', selRow: null, pin: null, cache: {},
-      pendingId: '', revealKey: '', focusTitle: false, err: '', dlBusy: false };
+      pendingId: '', revealKey: '', focusTitle: false, err: '', dlBusy: false, reqBusy: null };
   }
   function $(id) { return host ? host.querySelector('#' + id) : null; }
   function todayDate() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
@@ -499,7 +603,8 @@
     let h = '';
     if (vr.rows.length) {
       h += '<ul role="listbox" id="pl-lb" tabindex="0" aria-labelledby="pl-g">' + vr.rows.map(function (r, i) {
-        return plans.rowHtml(r, { id: 'pl-o-' + i, selected: !!(S.selRow && S.selRow.key === r.key), loaded: ok, pinned: !!r.pinned });
+        return plans.rowHtml(r, { id: 'pl-o-' + i, selected: !!(S.selRow && S.selRow.key === r.key), loaded: ok, pinned: !!r.pinned,
+          req: CS.state === 'ok' ? (CS.map[r.id] || null) : null });
       }).join('') + '</ul>';
     } else if (ok && S.stat !== 'all' && vr.base.length) {
       h += '<p class="db-state">' + (S.stat === 'none' ? '자료 없는 기관이 없습니다.' : '사업계획 자료가 있는 기관이 아직 없습니다. 위에서 [모두]를 고르세요.') + '</p>';
@@ -562,7 +667,7 @@
     const rec = row.it.rec || {};
     const view = !ID_RE.test(row.id) ? { status: 'noid' } : (S.cache[row.id] || { status: 'loading' });
     const sub = [D().kindOfRec(rec), D().regionName(rec.region)].filter(Boolean).join(' · ');
-    el.innerHTML = '<div class="db-pane-body">' + plans.detailHtml(view, { name: row.it.name, sub: sub, kw: S.kw }) + '</div>';
+    el.innerHTML = '<div class="db-pane-body">' + plans.detailHtml(view, { name: row.it.name, sub: sub, kw: S.kw, req: collectReq(row.id) }) + '</div>';
     if (S.focusTitle && view.status !== 'loading') { S.focusTitle = false; const h = $('pl-name'); if (h && h.focus) h.focus(); }
   }
   function renderDocs() {
@@ -665,7 +770,7 @@
         a.href = url; a.download = x.name; a.rel = 'noopener';
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-        setFlash('자료 없는 기관 ' + ids.length + '곳의 목록을 내려받았습니다. 엑셀에서 열어 수집 담당에게 전달하세요.');
+        setFlash('자료 없는 기관 ' + ids.length + '곳의 목록을 내려받았습니다. 엑셀에서 열어 확인하세요. 수집이 필요하면 기관을 골라 [수집 요청]을 누르세요.');
       })
       .catch(function (e) {
         const s = e && e.status;
@@ -673,6 +778,61 @@
           : s ? '목록을 만들지 못했습니다(' + s + '). 목록을 다시 불러온 뒤 시도하세요.' : '서버에 연결하지 못했습니다. 서버가 켜져 있는지 확인하세요.';
       })
       .then(function () { if (!S) return; S.dlBusy = false; renderBanner(); renderFoot(); });
+  }
+
+  // ── 수집 요청(기관 사업계획 상세의 .pl-req 줄) ──
+  function collectReq(id) {
+    if (CS.state !== 'ok') return null;
+    return { item: CS.map[id] || null, can: CS.can, busy: S && S.reqBusy && S.reqBusy.id === id ? S.reqBusy.kind : '' };
+  }
+  function onCollect() {   // 수집 요청 현황이 도착·갱신됐을 때: 칩과 요청 줄을 다시 그린다(검색 칸에 입력 중이면 상세는 건드리지 않는다)
+    if (!host || !M || !S) return;
+    renderList();
+    const a = document.activeElement;
+    if (S.selRow && !(a && a.id === 'pl-kw')) renderPane();
+  }
+  function postEmpty(url) {
+    if (typeof fetch !== 'function') return Promise.resolve({ ok: false, status: 0 });
+    return fetch(url, { method: 'POST' }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, data: j }; });
+    }).catch(function () { return { ok: false, status: 0 }; });
+  }
+  function applyCollectResult(id, res) {   // 응답으로 캐시를 바로 맞춘다(다시 받지 않는다). 닫힌 상태(취소됨)는 캐시에 두지 않는다
+    const st = str(res.status_cd);
+    if (st === 'REQUESTED' || st === 'RUNNING') {
+      CS.map[id] = { institution_id: id, status_cd: st, requester_count: Number(res.requester_count) || 0, requested_by_me: !!res.requested_by_me,
+        first_requested_at: res.first_requested_at || null, run_at: res.run_at || null };
+    } else delete CS.map[id];
+  }
+  function requestCollect(kind) {
+    const row = S && S.selRow;
+    if (!host || !row || !ID_RE.test(row.id) || S.reqBusy || CS.state !== 'ok') return;
+    const state = S, id = row.id;
+    state.reqBusy = { id: id, kind: kind };
+    setFlash(''); renderPane();
+    postEmpty('/institutions/' + encodeURIComponent(id) + '/plan-collect' + (kind === 'cancel' ? '/cancel' : '')).then(function (r) {
+      if (state !== S) return;   // 그 사이 계정이 바뀌었으면 버린다
+      state.reqBusy = null;
+      let next;
+      if (r.ok) {
+        applyCollectResult(id, r.data || {});
+        setFlash(plans.reqFlash(kind, r.data || {}));
+        next = kind === 'go' ? 'pl-req-cancel' : 'pl-req-go';
+      } else {
+        setFlash(plans.reqErrorText(kind, r.status));
+        if (r.status === 404 || r.status === 409) ensureCollect(true);
+        next = kind === 'go' ? 'pl-req-go' : 'pl-req-cancel';
+      }
+      if (!host) return;
+      renderList();
+      if (state.selRow && state.selRow.id === id) {
+        renderPane();
+        const b = $(next) || $('pl-req-go') || $('pl-req-cancel') || $('pl-name');   // 눌렀던 버튼이 바뀌어도 포커스를 잃지 않는다
+        if (b && b.focus) b.focus();
+      }
+      refreshSlots();
+      if (r.ok && root.plancollect && root.plancollect.refreshBadge) root.plancollect.refreshBadge(true);   // 개발부서가 직접 요청했으면 메뉴 배지도
+    });
   }
 
   function fillControls() {
@@ -703,6 +863,8 @@
         break;
       case 'pl-retry': ensureStatus(true).then(function () { const l = $('pl-lb'); if (l) l.focus(); }); onStatus(); break;
       case 'pl-retry-detail': if (S.selRow) { delete S.cache[S.selRow.id]; loadDetail(S.selRow.id); renderPane(); } break;
+      case 'pl-req-go': requestCollect('go'); break;
+      case 'pl-req-cancel': requestCollect('cancel'); break;
       case 'pl-clear': S.q = ''; S.region = ''; fillControls(); renderList(); renderFoot(); break;
       default: break;
     }
@@ -745,7 +907,7 @@
     host = target;
     const who = whoNow();
     if (!S || S.who !== who) S = freshState(who);
-    S.cache = {}; S.err = '';
+    S.cache = {}; S.err = ''; S.reqBusy = null;
     ac = typeof AbortController === 'function' ? new AbortController() : null;
     const opt = ac ? { signal: ac.signal } : undefined;
     host.innerHTML = SKELETON;

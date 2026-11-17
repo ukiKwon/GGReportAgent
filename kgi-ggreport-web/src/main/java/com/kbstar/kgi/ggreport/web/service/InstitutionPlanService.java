@@ -192,8 +192,9 @@ public class InstitutionPlanService {
             mapper.insertAct(instId, imp.getImportId(), action, "OK", r.rows, sha, actor.getEmpNo(),
                     actor.isVerified() ? 1 : 0, ui.getScreen(), ui.getButton(), 1, Times.nowIso());
             if (ORIGIN_IMPORT.equals(origin)) {
-                // 045: 그 기관의 열린 수집 요청 → 반영됨 + 요청자 쪽지. 같은 트랜잭션 — 판과 요청 상태가 갈라지지 않는다. SEED 는 세지 않는다.
-                collect.onImported(instId, imp.getImportId(), actor);
+                // 045: 그 기관의 열린 수집 요청 → 반영됨 + COLLECT_APPLY 감사(같은 트랜잭션 — 판과 요청 상태가 갈라지지 않는다). SEED 는 세지 않는다.
+                // 요청자 쪽지만 저장점으로 떼어 실패해도 반입을 막지 않는다(qa P2-1). 045 표가 없으면 500 — 배포 순서 'DB 045 먼저'(README §8).
+                collect.onImported(instId, imp.getImportId(), actor, ui);
             }
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("import_id", imp.getImportId());

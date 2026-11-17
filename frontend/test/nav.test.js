@@ -27,14 +27,14 @@ test('같은 화면을 두 항목에 걸지 않는다(화면 = key + view)', fun
   assert.strictEqual(new Set(ids).size, ids.length);
 });
 
-test('시스템 관리: 사용자·권한·메뉴·접근 이력 4항목이 admin 키 하나를 나눠 쓴다', function () {
+test('시스템 관리: 사용자·권한·메뉴·접근 이력·사업계획 수집 요청 5항목이 admin 키 하나를 나눠 쓴다', function () {
   const built = nav.build(ALL_ON, { role: '전산팀', master: true });
   const sys = built.filter(function (c) { return c.id === 'sys'; })[0];
   assert.strictEqual(sys.title, '시스템 관리');
   assert.deepStrictEqual(sys.items.map(function (i) { return i.id; }),
-    ['admin:users', 'admin:perms', 'admin:menus', 'admin:audit']);
+    ['admin:users', 'admin:perms', 'admin:menus', 'admin:audit', 'admin:collect']);
   assert.deepStrictEqual(sys.items.map(function (i) { return i.label; }),
-    ['사용자 관리', '권한 관리', '메뉴 관리', '접근 이력']);
+    ['사용자 관리', '권한 관리', '메뉴 관리', '접근 이력', '사업계획 수집 요청']);
   sys.items.forEach(function (i) { assert.strictEqual(i.key, 'admin'); assert.strictEqual(i.soon, false); });
   assert.strictEqual(nav.categoryOf(built, 'admin:audit'), 'sys');
 });
@@ -227,8 +227,8 @@ test('3단 구조: 대분류 6개 이름·소속(정의 순서 = 업무 순서 1
   assert.strictEqual(keys['tasks:'], 'manage');
   assert.strictEqual(keys['chat:'], 'tools');
   assert.strictEqual(nav.CATEGORIES.filter(function (c) { return c.id === 'sys'; })[0].subs, undefined);
-  // 구현 11개(키 8개, admin은 보기 4개)
-  assert.strictEqual(Object.keys(keys).length, 11);
+  // 구현 12개(키 8개, admin은 보기 5개 — 사업계획 수집 요청 11-17)
+  assert.strictEqual(Object.keys(keys).length, 12);
 });
 
 test('영업 계열 표시 순서: 정의 순서 고정, 시스템 관리 맨 아래, 중분류 안에서 구현이 위', function () {

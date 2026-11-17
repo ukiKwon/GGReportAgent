@@ -18,6 +18,9 @@ public interface PlanCollectMapper {
 
     PlanCollectReq selectOpenByInst(@Param("institutionId") String institutionId);
     PlanCollectReq selectByKey(@Param("reqKey") String reqKey);
+    PlanCollectReq selectBySeq(@Param("institutionId") String institutionId, @Param("reqSeq") int reqSeq);
+    List<PlanCollectReq> selectRecentClosed(@Param("since") String since);
+    String selectLastRunStartedAt(@Param("institutionId") String institutionId);
     List<PlanCollectReq> selectByKeys(@Param("keys") List<String> keys);
     List<PlanCollectReq> selectOpenList();
     List<PlanCollectReq> selectClosedList(RowBounds bounds);

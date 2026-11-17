@@ -3,7 +3,8 @@
 -- 흐름: 영업부서·개발부서가 기관 사업계획 화면에서 [수집 요청] → 기관 단위로 묶임(열린 요청 1건 + 요청자 덧붙임) → 개발부서 처리 화면에서
 --   목록 내려받기·'수집 중' 표시(수동) 또는 시험용 agent 호출 → 그 기관에 수집 반입(IMPORT) 판이 생기면 서버가 '반영됨'으로 닫는다(SEED 는 세지 않는다).
 -- 상태 STATUS_CD: REQUESTED(요청됨) → RUNNING(수집 중·반입 대기) → APPLIED(반영됨) | FAILED(실패) | CANCELED(취소됨) | EXCLUDED(제외됨).
---   닫힌 행은 다시 열지 않는다(새 요청 = 새 REQ_SEQ). agent 호출 자체가 실패하면 RUNNING → REQUESTED 로 되돌리고 RUN_RESULT_CD 에 남긴다.
+--   닫힌 행은 다시 열지 않는다(새 요청 = 새 REQ_SEQ). agent 호출 자체가 실패하면 RUNNING → REQUESTED 로 되돌리고 RUN_MODE·RUN_BY·RUN_AT·RUN_DOMAINS 는 비우며
+--   (RUN_VERIFIED=0) RUN_RESULT_CD 에만 남긴다. 같은 기관 실행 간격(10분)은 034 INST_PLAN_ACT 의 COLLECT_RUN/STARTED 시각으로 판단한다.
 -- 기관당 열린 요청 1건: OPEN_INST_ID = 열린 동안 INSTITUTION_ID, 닫히면 NULL. 단일 칸 UNIQUE(UQ_PCR_OPEN)는 NULL 을 여럿 허용하므로
 --   '열린 것만 유일'이 된다(함수 기반 인덱스 없이 11g·MySQL·H2 공통). 서비스가 INSTITUTIONS 행 FOR UPDATE 로 먼저 직렬화하고, 이 제약은 마지막 방어선(409).
 -- REQ_SEQ = 기관 안 1,2,3…(잠금 아래 MAX+1). REQ_KEY = 서버가 만든 UUID — 화면·내보내기·agent 에 쓰는 식별자. DB 번호는 밖에 내보내지 않는다.
@@ -17,6 +18,7 @@
 --   PLAN_COLLECT_REQUESTER: REQUESTED_AT, EMP_VERIFIED, CANCELED_AT
 -- 11g 호환: IDENTITY·행 수 제한 구문·CHECK·외래키 없음(UNIQUE 제약은 11g 에서 쓸 수 있다).
 -- ⚠️ 멱등하지 않다. 016·034 뒤 한 번만. 적용한 뒤에는 이 파일을 고치지 않는다(체크섬).
+-- ⚠️ 배포 순서: DB 045 먼저(DBA), 서버 나중. 서버는 수집 반입(IMPORT) 트랜잭션 안에서 이 표를 읽는다 — 045 없이 서버를 먼저 올리면 모든 수집 반입이 500.
 -- 되돌리기(데이터 소멸, 운영 금지): DROP TABLE PLAN_COLLECT_REQUESTER; DROP TABLE PLAN_COLLECT_REQ;
 --   DELETE FROM COMMON_CODE WHERE CODE_GROUP='PLAN_ACTION' AND CODE IN ('COLLECT_REQUEST','COLLECT_CANCEL','COLLECT_EXPORT','COLLECT_RUN','COLLECT_EXCLUDE','COLLECT_FAIL','COLLECT_APPLY');
 --------------------------------------------------------------------------------
@@ -36,7 +38,7 @@ CREATE TABLE PLAN_COLLECT_REQ (                      -- 기관 단위 요청 1�
     RUN_AT            VARCHAR2(40 CHAR),
     RUN_VERIFIED      NUMBER(1)          DEFAULT 0 NOT NULL,
     RUN_DOMAINS       VARCHAR2(300 CHAR),            -- 실행 시점 도메인
-    RUN_RESULT_CD     VARCHAR2(20 CHAR),             -- SENT/AGENT_UNREACHABLE/AGENT_REJECTED/BAD_RESPONSE(서버 고정 코드)
+    RUN_RESULT_CD     VARCHAR2(20 CHAR),             -- SENT/AGENT_UNREACHABLE/AGENT_REJECTED/BAD_RESPONSE/BLOCKED_BAD_CONFIG(서버 고정 코드)
     JOB_ID            VARCHAR2(64 CHAR),             -- agent 접수 번호([A-Za-z0-9-]{1,64}만)
     APPLIED_IMPORT_ID NUMBER,                        -- 반영된 판
     CLOSED_AT         VARCHAR2(40 CHAR),

@@ -27,6 +27,10 @@ import static org.junit.Assert.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import com.kbstar.kgi.ggreport.web.support.Times;
+import java.time.Duration;
+import java.time.Instant;
+import static org.junit.Assert.assertNull;
 
 /**
  * 사업계획 수집 요청(045) — 요청·덧붙임·취소·권한·처리 목록·내려받기·수집 중 표시·반입 자동 반영·제외·실패·감사·쪽지.
@@ -265,7 +269,7 @@ public class PlanCollectApiTest {
         assertEquals("이미 최신 자료 있음", jdbc.queryForObject("SELECT CLOSE_REASON FROM PLAN_COLLECT_REQ WHERE REQ_KEY=?", String.class, k));
         assertEquals(1, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='수집결과' AND RECIPIENT=?", SALES));
         assertEquals("NOT_OPEN", first(body(admin("/plan-collect/exclude", keysReason(k, "다시"), ADMIN))));
-        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_EXCLUDE' AND OUTCOME='INVALID'") >= 1 ? 1 : 0);
+        assertTrue("사유 400 두 번은 INVALID 로 남는다", count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_EXCLUDE' AND OUTCOME='INVALID'") >= 2);
     }
 
     @Test
@@ -281,11 +285,115 @@ public class PlanCollectApiTest {
 
     @Test
     public void 잘못된_키와_JSON이_아닌_본문은_막는다() throws Exception {
-        assertEquals(400, admin("/plan-collect/mark-running", "{\"req_keys\":[\"../x\"]}", ADMIN).getStatus());
+        MockHttpServletResponse bad = admin("/plan-collect/mark-running", "{\"req_keys\":[\"../x\"]}", ADMIN);
+        assertEquals(400, bad.getStatus());
+        assertEquals("BAD_KEYS", body(bad).path("detail").path("code").asText());
         assertEquals(400, admin("/plan-collect/mark-running", "{\"req_keys\":[]}", ADMIN).getStatus());
         StringBuilder many = new StringBuilder("{\"req_keys\":[");
         for (int i = 0; i < 51; i++) many.append(i > 0 ? "," : "").append('"').append(UUID.randomUUID()).append('"');
         assertEquals(400, admin("/plan-collect/mark-running", many.append("]}").toString(), ADMIN).getStatus());
         assertEquals(415, call(post("/plan-collect/mark-running").contentType(MediaType.TEXT_PLAIN).content("x"), ADMIN).getStatus());
+    }
+    @Test
+    public void 재무부서는_요청_현황도_403이고_접근_이력에_DENIED_디자이너는_200() throws Exception {
+        assertEquals(403, call(get("/plan-collect/status"), BUDGET).getStatus());
+        assertTrue(count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND EMP_NO=? AND REQ_PATH='/plan-collect/status' AND STATUS_CODE=403",
+                BUDGET) >= 1);
+        MockHttpServletResponse d = call(get("/plan-collect/status"), DESIGNER);
+        assertEquals(200, d.getStatus());
+        assertFalse(body(d).path("can_request").asBoolean());
+    }
+
+    @Test
+    public void 요청자가_아닌_영업의_취소는_404_디자이너는_403과_DENIED() throws Exception {
+        ask(SALES);
+        MockHttpServletResponse r = cancel(SALES2);
+        assertEquals(404, r.getStatus());
+        assertEquals("NO_REQUEST", body(r).path("detail").path("code").asText());
+        assertEquals(403, cancel(DESIGNER).getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_CANCEL' AND OUTCOME='DENIED' AND ACTOR_EMP_NO=?", DESIGNER));
+        assertEquals("REQUESTED", state(key()));
+    }
+
+    @Test
+    public void 대문자_기관_ID로_요청해도_201이고_정식_소문자로_저장된다() throws Exception {
+        MockHttpServletResponse r = call(post("/institutions/JONGNO/plan-collect"), SALES);
+        assertEquals(r.getContentAsString(), 201, r.getStatus());
+        assertEquals(INST, body(r).path("institution_id").asText());
+        assertEquals(1, count("SELECT COUNT(*) FROM PLAN_COLLECT_REQ WHERE INSTITUTION_ID=? AND OPEN_INST_ID=?", INST, INST));
+    }
+
+    @Test
+    public void 내려받기_칸이_수식으로_시작하면_작은따옴표를_붙인다() throws Exception {
+        jdbc.update("UPDATE INSTITUTIONS SET NAME_KO=? WHERE INSTITUTION_ID=?", "=cmd", INST);   // 시험 트랜잭션이 되돌린다
+        ask(SALES);
+        String text = new String(admin("/plan-collect/export.csv", keys(key()), ADMIN).getContentAsByteArray(), StandardCharsets.UTF_8);
+        assertTrue(text, text.contains("\"'=cmd\""));
+    }
+
+    @Test
+    public void 닫힌_키만_내보내면_머리줄만이고_감사_건수는_0() throws Exception {
+        ask(SALES);
+        String k = key();
+        admin("/plan-collect/exclude", keysReason(k, "이미 최신 자료 있음"), ADMIN);
+        MockHttpServletResponse r = admin("/plan-collect/export.csv", keys(k), ADMIN);
+        assertEquals(200, r.getStatus());
+        String text = new String(r.getContentAsByteArray(), StandardCharsets.UTF_8);
+        assertEquals(text, 1, text.split("\r\n").length);
+        assertTrue(text.contains("기관ID"));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_EXPORT' AND OUTCOME='OK' AND ITEM_COUNT=0"));
+    }
+
+    @Test
+    public void 사유에_유선번호나_방향_바꿈_문자가_있으면_400과_고정_코드() throws Exception {
+        ask(SALES);
+        String k = key();
+        MockHttpServletResponse a = admin("/plan-collect/exclude", keysReason(k, "담당 02-123-4567 확인"), ADMIN);
+        assertEquals(400, a.getStatus());
+        assertEquals("REASON_PII", body(a).path("detail").path("code").asText());
+        MockHttpServletResponse b = admin("/plan-collect/exclude", keysReason(k, "자료\u202E없음"), ADMIN);
+        assertEquals(400, b.getStatus());
+        assertEquals("REASON_FORMAT", body(b).path("detail").path("code").asText());
+        assertEquals("REASON_REQUIRED", body(admin("/plan-collect/exclude", keysReason(k, " "), ADMIN)).path("detail").path("code").asText());
+        assertEquals("REQUESTED", state(k));
+    }
+
+    @Test
+    public void 취소_직후_다시_요청하면_개발부서_쪽지를_생략하고_10분이_지나면_보낸다() throws Exception {
+        String notes = "SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='수집요청' AND RECIPIENT IN ('전산팀','전산팀장')";
+        int base = count(notes);
+        ask(SALES);
+        assertEquals(base + 2, count(notes));
+        cancel(SALES);
+        assertEquals(201, ask(SALES).getStatus());
+        assertEquals("10분 안 취소 뒤 재요청 — 쪽지 생략", base + 2, count(notes));
+        cancel(SALES);
+        jdbc.update("UPDATE PLAN_COLLECT_REQ SET CLOSED_AT=? WHERE INSTITUTION_ID=? AND STATUS_CD='CANCELED'",
+                Times.iso(Instant.now().minus(Duration.ofMinutes(11))), INST);
+        assertEquals(201, ask(SALES).getStatus());
+        assertEquals(base + 4, count(notes));
+    }
+
+    @Test
+    public void 실패_제외로_닫힌_최근_요청은_last_closed로_보이고_디자이너에게는_사유가_없다() throws Exception {
+        ask(SALES);
+        admin("/plan-collect/exclude", keysReason(key(), "이미 최신 자료 있음"), ADMIN);
+        MockHttpServletResponse r = call(get("/plan-collect/status"), SALES2);
+        JsonNode lc = find(body(r).path("last_closed"), INST);
+        assertEquals("EXCLUDED", lc.path("status_cd").asText());
+        assertEquals("이미 최신 자료 있음", lc.path("close_reason").asText());
+        assertFalse(lc.path("closed_at").isNull());
+        assertFalse("사번 없음", r.getContentAsString().contains(SALES));
+        assertTrue(find(body(call(get("/plan-collect/status"), DESIGNER)).path("last_closed"), INST).path("close_reason").isNull());
+        ask(SALES);
+        assertNull("다시 열리면 last_closed 에서 빠진다", find(body(call(get("/plan-collect/status"), SALES2)).path("last_closed"), INST));
+    }
+
+    @Test
+    public void 폼_전송은_415() throws Exception {
+        assertEquals(415, call(post("/plan-collect/exclude").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .content("reason=x"), ADMIN).getStatus());
+        assertEquals(415, call(post("/plan-collect/export.csv").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .content("req_keys=x"), ADMIN).getStatus());
     }
 }

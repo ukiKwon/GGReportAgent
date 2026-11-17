@@ -40,6 +40,20 @@
   <select id="selectByKey" resultType="PlanCollectReq" flushCache="true">
     SELECT <include refid="reqCols"/> FROM PLAN_COLLECT_REQ R WHERE R.REQ_KEY = #{reqKey}
   </select>
+  <select id="selectBySeq" resultType="PlanCollectReq" flushCache="true">
+    SELECT <include refid="reqCols"/> FROM PLAN_COLLECT_REQ R WHERE R.INSTITUTION_ID = #{institutionId} AND R.REQ_SEQ = #{reqSeq}
+  </select>
+  <!-- 기관 사업계획 화면 last_closed — 기간 안에 닫힌 요청. 기관별 최신 1건·실패/제외 거름은 서비스가 한다. CLOSED_AT 은 Times.nowIso 고정 폭이라 문자열 비교 = 시각 비교 -->
+  <select id="selectRecentClosed" resultType="PlanCollectReq" flushCache="true">
+    SELECT R.INSTITUTION_ID, R.REQ_SEQ, R.STATUS_CD, R.CLOSED_AT, R.CLOSE_REASON FROM PLAN_COLLECT_REQ R
+     WHERE R.OPEN_INST_ID IS NULL AND R.CLOSED_AT &gt;= #{since}
+     ORDER BY R.INSTITUTION_ID, R.REQ_SEQ DESC
+  </select>
+  <!-- 그 기관의 마지막 agent 실행 시작 시각(034 감사 표 COLLECT_RUN/STARTED). 되돌림 때 행의 RUN_AT 은 지우므로 실행 간격(10분)은 이것으로 판단. IDX_IPA_INST 를 탄다 -->
+  <select id="selectLastRunStartedAt" resultType="string" flushCache="true">
+    SELECT MAX(LOGGED_AT) FROM INST_PLAN_ACT
+     WHERE INSTITUTION_ID = #{institutionId} AND ACTION_CD = 'COLLECT_RUN' AND OUTCOME = 'STARTED'
+  </select>
   <select id="selectByKeys" resultType="PlanCollectReq" flushCache="true">
     <include refid="listSelect"/>
      WHERE R.REQ_KEY IN <foreach collection="keys" item="k" open="(" separator="," close=")">#{k}</foreach>
@@ -119,8 +133,12 @@
     UPDATE PLAN_COLLECT_REQ SET JOB_ID = #{jobId}, RUN_RESULT_CD = 'SENT'
      WHERE REQ_KEY = #{reqKey} AND STATUS_CD = 'RUNNING' AND RUN_MODE = 'AGENT' AND JOB_ID IS NULL
   </update>
+  <!-- agent 호출 실패 → 요청됨. 실행 흔적(RUN_MODE·RUN_BY·RUN_AT·RUN_DOMAINS)은 지우고 RUN_VERIFIED=0, RUN_RESULT_CD 만 '직전 실행 실패' 표시로 남긴다(qa P3-2).
+       WHERE 의 RUN_MODE='AGENT' 는 바꾸기 전 값으로 판정된다. -->
   <update id="revertRunning">
-    UPDATE PLAN_COLLECT_REQ SET STATUS_CD = 'REQUESTED', RUN_RESULT_CD = #{code}
+    UPDATE PLAN_COLLECT_REQ
+       SET STATUS_CD = 'REQUESTED', RUN_RESULT_CD = #{code}, RUN_MODE = NULL, RUN_BY = NULL, RUN_AT = NULL, RUN_VERIFIED = 0,
+           RUN_DOMAINS = NULL
      WHERE REQ_KEY = #{reqKey} AND STATUS_CD = 'RUNNING' AND RUN_MODE = 'AGENT' AND JOB_ID IS NULL
   </update>
   <update id="closeReq">
@@ -130,7 +148,7 @@
      WHERE REQ_KEY = #{reqKey}
        AND STATUS_CD IN <foreach collection="fromStates" item="s" open="(" separator="," close=")">#{s}</foreach>
   </update>
-  <!-- 수집 반입(IMPORT) 성공 직후, 반입과 같은 트랜잭션. 요청됨·수집 중 모두 반영됨으로 닫는다. -->
+  <!-- 수집 반입(IMPORT) 성공 직후, 반입과 같은 트랜잭션. 요청됨·수집 중 모두 반영됨으로 닫는다 — 요청보다 먼저 수집된 파일이어도 닫는 것은 의도(사용자 Q4, 팀 결정 11-17). -->
   <update id="applyOpen">
     UPDATE PLAN_COLLECT_REQ
        SET STATUS_CD = 'APPLIED', OPEN_INST_ID = NULL, CLOSED_AT = #{at}, CLOSED_BY = #{empNo,jdbcType=VARCHAR},

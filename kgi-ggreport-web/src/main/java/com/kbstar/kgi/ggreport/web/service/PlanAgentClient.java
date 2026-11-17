@@ -196,7 +196,8 @@ public class PlanAgentClient implements DisposableBean {
             body.put("prev_domains", prevDomains == null ? Collections.<String>emptyList() : prevDomains);
             payload = json.writeValueAsBytes(body);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("plan-agent payload");
+            LOG.warn("plan-agent payload not built result={}", BAD_CONFIG);   // 값 없음. 던지면 ① 에서 RUNNING 이 된 행이 ③ 없이 남는다 — 결과 코드로 돌려 ③ 이 요청됨으로 되돌리게
+            return new Result(BAD_CONFIG, null);
         }
         HttpPost post = new HttpPost(t.endpoint);
         post.setHeader(HttpHeaders.AUTHORIZATION, "Bearer " + t.token);

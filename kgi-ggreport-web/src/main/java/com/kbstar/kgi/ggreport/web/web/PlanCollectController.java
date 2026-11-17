@@ -63,10 +63,16 @@ public class PlanCollectController {
         return out;
     }
 
-    /** 기관 사업계획 화면 표시용(열린 요청만). map 조회 권한이면 누구나 — 요청 가능 여부는 can_request 로 알려 준다. */
+    /**
+     * 기관 사업계획 화면 표시용(열린 요청 + 최근 실패·제외 last_closed). map 조회 권한 + 영업부서·개발부서·디자이너(팀 결정 11-17, qa P3-3).
+     * 재무부서(예산팀)는 403 + 접근 이력 DENIED(GET 이라 감사 표에는 남기지 않는다). 디자이너는 can_request=false 이고 사유를 받지 않는다.
+     */
     @GetMapping("/plan-collect/status")
     public Map<String, Object> status(HttpServletRequest req) {
         SysUser u = guard.requireUser(req, InstitutionPlanController.VIEW_MENU);
+        if (!PlanCollectService.canSeeStatus(u.getRole())) {
+            throw guard.denied(req, new ApiException(403, "수집 요청 현황은 영업부서·개발부서만 볼 수 있습니다."));
+        }
         return collect.status(u.getEmpNo(), PlanCollectService.canRequest(u.getRole()));
     }
 

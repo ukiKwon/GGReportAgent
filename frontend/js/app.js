@@ -731,6 +731,7 @@
     });
     // 항목 구성이 바뀌어 DOM을 새로 만들면 '전국 지도' 옆 미처리 배지도 사라지므로 다시 단다.
     if (root.overdue && root.overdue.paintNavBadge) root.overdue.paintNavBadge();
+    if (root.plancollect && root.plancollect.onNavDrawn) root.plancollect.onNavDrawn();   // 사업계획 수집 요청 대기 배지(시스템 관리 항목 옆)
     app.paintCatBadges();
   };
 
@@ -751,7 +752,11 @@
         if (num.hidden !== !showN) num.hidden = !showN;
       }
       if (sr) {
-        const t = n > 0 ? ', 공고 예정일 경과 미처리 ' + n + '건' : '';
+        // 항목 배지마다 짝지은 낭독 문장(.nav-count 바로 뒤 .sr-only)을 모아 쓴다 — 경과 배지(overdue)와 수집 요청 대기(plancollect)가 한 분류에 있어도 문장이 맞는다.
+        const t = n > 0 ? Array.prototype.map.call(items.querySelectorAll('.nav-count'), function (c) {
+          const s = c.nextElementSibling;
+          return s && s.classList.contains('sr-only') ? s.textContent : '';
+        }).join('') : '';
         if (sr.textContent !== t) sr.textContent = t;
         if (sr.hidden !== !showN) sr.hidden = !showN;
       }
