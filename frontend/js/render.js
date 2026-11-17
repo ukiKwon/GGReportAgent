@@ -30,8 +30,8 @@
   // b2 파랑 · b3 진파랑 · gray 날짜 미상. 값은 design-reviewer 1616 규격 §6(바탕 대비 4.0~9.6:1).
   render.DEFAULT_THEME = {
     r3:'#e8606b', r2:'#f0a6a9', p:'#cf9ad8', b2:'#7397d8', b3:'#4f72b8', gray:'#7c8699',
-    // 파스텔 위에서 가장 잘 튀는 채도 높은 틸 — 물결·구 외곽선·크롬 강조가 공유.
-    accent:'#57b8ad',
+    // 밝은 업무 포털(KRDS primary-60) — 물결·구 외곽선·크롬 강조가 공유. 옛 기본 틸(#57b8ad)은 migrateTheme이 버린다.
+    accent:'#0b50d0',
     rippleDuration: 2.2,   // 초. 이전 1.4s에서 한 템포 늦춤
   };
 
@@ -66,9 +66,12 @@
   // 가져오지 않는다(가져오면 새 5단이 옛 파스텔로 덮여 노랑이 파랑 자리에 들어간다).
   render.LEGACY_DEFAULTS = { red:'#f0a6a9', orange:'#f3c795', yellow:'#e9e3a8', blue:'#a9c5ea', gray:'#7c8699' };
   render.URGENCY_COLORS = Object.assign({}, render.LEGACY_DEFAULTS);
+  render.LEGACY_ACCENT = '#57b8ad';   // 2026-11-17 이전 기본 포인트색. 테마 창이 저장할 때 같이 저장돼 남아 있다
   render.migrateTheme = function (saved) {
     const src = saved || {};
     const out = Object.assign({}, src);
+    // 옛 기본 포인트색 그대로면 사용자가 고른 색이 아니다 — 버려서 새 기본값(DEFAULT_THEME.accent)을 쓴다
+    if (typeof out.accent === 'string' && out.accent.toLowerCase() === render.LEGACY_ACCENT) delete out.accent;
     Object.keys(render.LEGACY_DEFAULTS).forEach(function (k) {
       const to = render.BAND_TO_MIX[k];
       if (k === to) return;                       // gray는 키 이름이 같아 그대로 이어진다
@@ -134,11 +137,11 @@
     if (typeof document === 'undefined') return;
     const el = document.getElementById('legend'); if (!el) return;
     // 라벨 글자도 해당 등락색으로 — 범례 스스로 색 의미론을 말한다(마감 리뷰 반영).
-    // 딥톤 면색 그대로는 작은 글자가 어두워서, 글자용으로만 흰색을 30% 섞어 밝힌다.
+    // 밝은 바탕에서는 파스텔 면색 그대로가 작은 글자에 옅어서, 글자용으로만 본문색(--fg)을 50% 섞어 어둡게 한다.
     const rows = render.LEGEND_ITEMS.map(function (it) {
       const c = render._safeColor(render.MAP_COLORS[it[0]], render.DEFAULT_THEME[it[0]]);
       const warn = it[0] === 'gray' ? ' ' + render.ICONS.warn : '';
-      return '<span class="lg-item" style="color:color-mix(in srgb, ' + c + ' 70%, #ffffff)">' +
+      return '<span class="lg-item" style="color:color-mix(in srgb, ' + c + ' 50%, var(--fg))">' +
         '<i class="lg-sw" style="background:' + c + '"></i>' + logic.esc(it[1]) + warn + '</span>';
     });
     rows.push('<span class="lg-item"><i class="lg-sw lg-hatch" style="background:' +
@@ -271,7 +274,7 @@
         const m = mix[d.properties.code];
         return m ? render.mixAriaLabel(d.properties.name, m) : d.properties.name + ', 준비중';
       })
-      .attr('stroke', '#07090e').attr('stroke-width', 1)
+      .attr('stroke', '#6d7882').attr('stroke-width', 1)
       // 커서·클릭은 activeRegions가 아니라 hasSubGeo로 판단한다(위 주석 참조).
       .style('cursor', function (d){ return render.hasSubGeo(d.properties.code) ? 'pointer' : 'default'; })
       .style('opacity', 1)
@@ -575,7 +578,7 @@
       .attr('role', function (d) { return subMix[d.properties.code].total ? 'button' : null; })
       .attr('aria-label', function (d) { return render.mixAriaLabel(d.properties.name, subMix[d.properties.code]); })
       .attr('fill-opacity', render.muniDimOpacity())
-      .attr('stroke', '#07090e').attr('stroke-width', 1)
+      .attr('stroke', '#6d7882').attr('stroke-width', 1)
       // 지자체는 좌표가 없어 마커가 그려지지 않으므로(_blinkMunicipality 주석 참조)
       // **이 면이 유일한 클릭 대상**인데 여태 핸들러가 없었다 — 눌러도 아무 일이
       // 없었고, 카드→지도 방향만 동작했다.
@@ -608,11 +611,11 @@
       .attr('pointer-events', 'none');   // 클릭은 아래 폴리곤이 받아야 한다
     gw.selectAll('*').remove();
     gw.append('path').attr('d', 'M0,-4.5 L4.5,3.5 L-4.5,3.5 Z')
-      .attr('fill', 'none').attr('stroke', '#ffcf5e')
+      .attr('fill', 'none').attr('stroke', '#1e2124')
       .attr('stroke-width', 1.3).attr('stroke-linejoin', 'round');
     gw.append('line').attr('x1', 0).attr('y1', -2).attr('x2', 0).attr('y2', 0.6)
-      .attr('stroke', '#ffcf5e').attr('stroke-width', 1.3);
-    gw.append('circle').attr('cx', 0).attr('cy', 2.1).attr('r', 0.7).attr('fill', '#ffcf5e');
+      .attr('stroke', '#1e2124').attr('stroke-width', 1.3);
+    gw.append('circle').attr('cx', 0).attr('cy', 2.1).attr('r', 0.7).attr('fill', '#1e2124');
     render._regionProjection = proj; render._regionPath = path; render._regionG = g;
     if (render.drawMarkers) render.drawMarkers(code); // Task 9
     render.drawRankingPanel(code);
@@ -635,7 +638,7 @@
       const msg = n === 0 ? (name + '지역을 불러오는 중입니다…') : '준비중…';
       let banner = document.getElementById('geo-retry-banner');
       if (!banner) { banner = document.createElement('div'); banner.id = 'geo-retry-banner';
-        banner.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#e2e7ee;'; stage.appendChild(banner); }
+        banner.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--fg);'; stage.appendChild(banner); }
       banner.textContent = msg;
       if (n < 2) { setTimeout(function(){ attempt(n + 1); }, 600); }
       else {
@@ -750,7 +753,7 @@
       const band = logic.urgencyOf(r, render.state.today);
       const c = render._safeColor(render.URGENCY_COLORS[band], render.LEGACY_DEFAULTS[band]);
       const mark = band === 'red' ? render.ICONS.up + ' ' : '';
-      return '<span style="color:color-mix(in srgb, ' + c + ' 72%, #ffffff)">' + mark +
+      return '<span style="color:color-mix(in srgb, ' + c + ' 50%, var(--fg))">' + mark +
         logic.esc(r.name) + ' ' + logic.esc(logic.formatDDay(r, render.state.today)) + '</span>';
     }).join('<span class="tk-sep">·</span>') +
       '<span class="tk-sync" title="기준일 시점의 값입니다">기준 ' + logic.localDateStr(render.state.today) + '</span>';

@@ -291,6 +291,16 @@ test('migrateTheme: 옛 저장 테마를 끝점으로 이어받고 옛 기본값
   assert.deepStrictEqual(render.migrateTheme(null), {});
 });
 
+test('migrateTheme: 옛 기본 포인트색(#57b8ad, 대소문자 무시)은 버려 새 기본값을 쓰고, 사용자가 고른 색은 유지', () => {
+  assert.strictEqual(render.DEFAULT_THEME.accent, '#0b50d0');
+  assert.strictEqual(render.migrateTheme({ accent:'#57b8ad' }).accent, undefined);
+  assert.strictEqual(render.migrateTheme({ accent:'#57B8AD' }).accent, undefined);
+  assert.strictEqual(render.migrateTheme({ accent:'#123456', rippleDuration:3 }).accent, '#123456');
+  assert.strictEqual(render.migrateTheme({ accent:'#123456', rippleDuration:3 }).rippleDuration, 3);
+  assert.strictEqual(Object.assign({}, render.DEFAULT_THEME, render.migrateTheme({ accent:'#57b8ad' })).accent, '#0b50d0');
+  assert.strictEqual(Object.assign({}, render.DEFAULT_THEME, render.migrateTheme({ accent:'#123456' })).accent, '#123456');
+});
+
 test('범례: 5단 + 날짜 미상, 용어는 6개월 안/1~2년/2년 넘음/날짜 미상으로 통일', () => {
   assert.deepStrictEqual(render.LEGEND_ITEMS.map(function (i) { return i[0]; }), ['r3','r2','p','b2','b3','gray']);
   const text = render.LEGEND_ITEMS.map(function (i) { return i[1]; }).join('|');
@@ -315,4 +325,15 @@ test('mixAriaLabel: 이름, 색 이름, 6개월 안 곳수, 기관 수', () => {
   const info = logic.regionMix(recs(D.W6, 1).concat(recs(D.OVER, 9)), TODAY);
   assert.strictEqual(render.mixAriaLabel('서울', info), '서울, ' + render.MIX_NAME.b3 + ', 6개월 안 1곳, 기관 10곳');
   assert.strictEqual(render.mixAriaLabel('빈곳', logic.regionMix([], TODAY)), '빈곳, 기관 없음, 기관 0곳');
+});
+
+test('밝은 바탕 회귀(NEXT 97): 지도 안내 문구·범례·티커 글자는 흰색을 섞지 않고, 파랑·빨강 위 글자는 흰색', () => {
+  const fsx = require('fs'), path = require('path');
+  const js = fsx.readFileSync(path.join(__dirname, '../js/render.js'), 'utf8');
+  const html = fsx.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
+  assert.ok(js.includes('translate(-50%,-50%);color:var(--fg);'), '지도 불러오기 안내 문구는 본문색');
+  assert.ok(!/color-mix\(in srgb, ' \+ c \+ ' \d+%, #ffffff\)/.test(js), '범례·티커 글자에 흰색 섞기 없음');
+  assert.strictEqual(js.split("50%, var(--fg))").length - 1, 2, '범례·티커 둘 다 본문색 섞기');
+  assert.ok(!html.includes('#0d1116'), '파랑·빨강 바탕 위 어두운 글자 없음');
+  assert.ok(html.includes('button.primary { background:var(--accent-color); color:#fff;'));
 });

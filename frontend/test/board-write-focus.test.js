@@ -236,17 +236,23 @@ test('CSS 전환: 200ms, prefers-reduced-motion 이면 없음', function () {
 test('CSS: 알림 줄 숨김(is-sr)은 margin 규칙에 지지 않는다', function () {
   assert.ok(/\.bd-w-status \.bd-w-live\.is-sr \{ position:absolute;/.test(html));
 });
-test('CSS 가시성 토큰: :root 5개가 새 값, hover 리터럴, 입력 테두리 3:1(새 변수 없음)', function () {
+test('CSS 가시성 토큰(밝은 업무 포털, KRDS 참고): :root 값, hover 리터럴, 입력 테두리 3:1(새 변수 없음)', function () {
   const root = /:root \{([^}]*)\}/.exec(html)[1];
   const tok = function (n) { return new RegExp('--' + n + ':\\s*(#[0-9a-fA-F]{6})').exec(root)[1].toLowerCase(); };
-  assert.strictEqual(tok('panel'), '#181e29');
-  assert.strictEqual(tok('panel2'), '#202835');
-  assert.strictEqual(tok('line'), '#2d3644');
-  assert.strictEqual(tok('line-strong'), '#424e62');
-  assert.strictEqual(tok('muted'), '#98a1af');
-  assert.ok(/button:hover \{ background:#283141; border-color:#4a566b;/.test(html));
+  assert.strictEqual(tok('bg'), '#f4f5f7');
+  assert.strictEqual(tok('panel'), '#ffffff');
+  assert.strictEqual(tok('panel2'), '#f4f5f7');
+  assert.strictEqual(tok('line'), '#d1d5db');
+  assert.strictEqual(tok('line-strong'), '#8a949e');
+  assert.strictEqual(tok('fg'), '#1e2124');
+  assert.strictEqual(tok('muted'), '#464c53');
+  assert.strictEqual(tok('accent-color'), '#0b50d0');
+  assert.ok(/--shadow:none/.test(root) && /--r-lg:2px; --r:2px; --r-sm:2px/.test(root));
+  assert.ok(/color-scheme:light/.test(root) && !/color-scheme:dark/.test(html));
+  assert.ok(!/body::after \{ content:""/.test(html), '그레인 오버레이 삭제');
+  assert.ok(/button:hover \{ background:#e6e8ea; border-color:#4a566b;/.test(html));
   assert.ok(!/--line-input/.test(html), '입력 테두리용 새 변수를 만들지 않는다');
-  assert.ok(/input:not\(\[type\]\), select, textarea \{[^}]*border:1px solid #626d81/.test(html));
+  assert.ok(/input:not\(\[type\]\), select, textarea \{[^}]*border:1px solid var\(--line-strong\)/.test(html));
 });
 test('CSS 가시성: 연결 칸 틸 18%+왼쪽 막대, 비활성 초안 버튼은 중립 테두리, 비활성 버튼 .55, 퇴직 버튼 빨강', function () {
   assert.ok(/\.bd-mapped \{[^}]*accent-color\) 18%[^}]*box-shadow:inset 2px 0 0 var\(--accent-color\)/.test(html));

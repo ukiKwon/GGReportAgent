@@ -501,8 +501,8 @@
 - **자세히**: 메모리 project_team-names-become-departments, 출처 2026-11-17_summary.md Session (9f).
 
 ### 97. 화면 개편 — 밝은 업무 포털(사용자 4원칙 + KRDS 참고, 사용자 11-17) [담당: design-reviewer → frontend-dev / planner(첫 화면)]
-- **현재**: 진단(4원칙 중 ①④ 위반, ②③ 부분 — 원인은 DESIGN.md의 어두운 테마·틸·반경 8~14px 계약)과 KRDS 통합 규격 초안 완료. 공통 변수 새 값·상태 색 예외·컴포넌트 규격·3단계 적용안. 코드 변경 없음.
-- **다음 한 걸음**: c0의 index.html·kbboard.js 커밋 뒤 ① 변수 값 교체(frontend-dev 패치안 → 적용 → design_history 전/후). ③ 로그인 이후 첫 화면: 오른쪽 패널 = 일정 + 결재·확인 대기 둘 다(사용자 11-17), 역할별 1종/2종은 planner. 로그인 화면은 내용 유지(색·모양만).
+- **현재**: ① 1단계 완료(공통 변수 값 교체·그레인 삭제·다크 직접 값 약 30곳·지도 경계/선택선, 화면 테스트 1404 pass, design_history 54). **알려진 문제**: 지도 위 강조 파랑(index.html 선택 구 외곽선·키보드 포커스·물결)이 파랑 면 위 1.44~2.35:1로 묻힘 — 디자인 결정 대기(qa a5e50bae P1). `.stab.active`가 바탕 구분 없이 테두리만. 서버 켠 뒤 Playwright 실측(지역 화면·기관 선택·포커스) 미실시.
+- **다음 한 걸음**: design-reviewer — 지도 위 강조색 결정 → ② 2단계(직접 적은 반경·9~11px·그림자·옛 틸/청색 알파·지도 마커·`.ie-err`/inst_edit.test.js:428·DESIGN.md·PRODUCT.md·.impeccable 갱신, 현황판 .hb-*는 c0와 조율). ③ 로그인 이후 첫 화면: 오른쪽 패널 = 일정 + 결재·확인 대기 둘 다(사용자 11-17), 역할별 1종/2종은 planner. 로그인 화면은 내용 유지(색·모양만).
 - **자세히**: `handoff/agents/history/2026-11-17_KRDS_화면개편_규격초안.md`, 세션 44(브랜치 kgi-report-web-dev).
 
 ### 99. [우선순위 높음] 이사회 회의 내용 전수 — 회의 녹음을 글로 받아(STT) 올리고 남김 (사용자·부장 의견 11-17) [담당: planner → security → backend-dev → design-reviewer → frontend-dev]
