@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.kbstar.kgi.ggreport.web.AppTest;
 import com.kbstar.kgi.ggreport.web.service.ExtCheckFixtures;
+import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
@@ -43,23 +44,30 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 public class InboxExtCheckApiTest {
 
     private static final String BATCH_ID = "2026-11-17_0700_extcheck";
-    private static final Path INBOX = Paths.get("target/inbox-test/inbox");
-    private static final Path BATCHES = Paths.get("target/inbox-test/batches");
-    private static final Path EXT = Paths.get("target/inbox-test/ext_check");
+    private Path INBOX, BATCHES, EXT;              // 시험마다 고유 폴더(InboxTestRoots)
+    private InboxTestRoots roots;
     private static final String MEMBER = "3918264";     // 영업팀
     private static final String INST = "확인구청";
     private static final String CSV_HEADER = "기관명,기관구분,지역코드,입찰주기,지난입찰일,입찰예상일";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private com.kbstar.kgi.ggreport.web.config.AppProperties props;
     private final ObjectMapper json = new ObjectMapper();
+
+    @After
+    public void 치운다() {
+        if (roots != null) {
+            roots.close();
+        }
+    }
 
     @Before
     public void 비운다() throws Exception {
-        for (Path p : new Path[]{INBOX, BATCHES, EXT}) {
-            deleteTree(p);
-            Files.createDirectories(p);
-        }
+        roots = InboxTestRoots.open(props);
+        INBOX = roots.inbox;
+        BATCHES = roots.batches;
+        EXT = roots.ext;
         String created = mockMvc.perform(post("/institutions").header("X-Emp-No", MEMBER)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"name_ko\":\"" + INST + "\"}"))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
