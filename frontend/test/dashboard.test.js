@@ -194,6 +194,27 @@ test('stageCardHtml: dl 구조·막대 aria-hidden·승인 대기만 주황 g·�
   assert.ok(dash.stageCardHtml({ state: 'error' }).indexOf('id="db-retry"') >= 0);
 });
 
+test('stageParts: 카드 껍데기 없이 body·total만(현황판 3열 머리가 쓴다) — stageCardHtml은 같은 조각을 감싸기만 한다', function () {
+  const r = dash.stageCounts([{ institution_id: 'A', state_cd: 'OPEN_PENDING' }, { institution_id: 'B', state_cd: 'CONFIRMED' }], []);
+  const parts = dash.stageParts({ state: 'ok', stages: r });
+  assert.ok(parts.body.indexOf('<dl class="stg">') === 0 && parts.body.indexOf('같은 기관은 한 번만 셉니다.') > 0 && parts.body.indexOf('db-card') < 0);
+  assert.strictEqual(parts.total, '<span class="tot">합계 <b>2</b>건</span>');
+  assert.strictEqual(dash.stageCardHtml({ state: 'ok', stages: r }),
+    '<section class="db-card" aria-labelledby="db-t2"><div class="db-h"><h2 id="db-t2">제안 진행 단계</h2>' + parts.total + '</div>' + parts.body + '</section>');
+  ['offline', 'loading', 'denied', 'error'].forEach(function (s) { assert.strictEqual(dash.stageParts({ state: s }).total, '', s); });
+  assert.ok(dash.stageParts({ state: 'offline' }).body.indexOf('서버에 연결하면 보입니다.') >= 0);
+  assert.ok(dash.stageParts({ state: 'error' }).body.indexOf('id="db-retry"') >= 0);
+  assert.ok(dash.stageParts().body.indexOf('서버에 연결하면 보입니다.') >= 0);                // 인자 없으면 offline
+  assert.ok(dash.stageParts({ state: 'ok', stages: dash.stageCounts(null, [{ id: 'C', state: 'RUNNING', done: false }]) }).body.indexOf('단계별 건수는 영업팀·영업팀장·영업부장에게 보입니다.') >= 0);
+});
+
+test('dash.util: 현황판이 쓰는 actCtx·gateOpts를 내보낸다(상세 팝업과 같은 [제안 확정] 판정)', function () {
+  assert.strictEqual(typeof dash.util.actCtx, 'function');
+  assert.strictEqual(typeof dash.util.gateOpts, 'function');
+  assert.strictEqual(typeof dash.util.actCtx().serverMode, 'boolean');
+  assert.ok(dash.util.gateOpts().today instanceof Date);
+});
+
 // ── 약정 주기 막대(D4) ─────────────────────────────────────────────
 test('termBar: lastBid 없으면 null, 비율 0~100, 추정이면 점선, 경과는 꽉 참', function () {
   const T = new Date(2026, 10, 11);
@@ -222,9 +243,10 @@ test('P3-3 와플: 칸 수 = 조사한 기관 수, 채운 칸 = 국민은행 수
   const h = dash.waffleHtml({ confirmed: 6, unconfirmed: 237, total: 243 });
   assert.strictEqual((h.match(/<i[ >]/g) || []).length, 243);
   assert.strictEqual((h.match(/<i class="k">/g) || []).length, 6);
-  assert.ok(h.indexOf('role="img"') >= 0 && h.indexOf('지자체 243곳 중 국민은행이 금고를 맡은 곳 6곳') >= 0 && h.indexOf('2026년 1월 1일 기준') >= 0);
+  assert.ok(h.indexOf('role="img"') >= 0 && h.indexOf('지자체 243곳 중 국민은행이 금고 협약 중인 곳 6곳') >= 0 && h.indexOf('2026년 1월 1일 기준') >= 0);   // 11-17: 이름표는 '협약'
   const card = dash.kbCardHtml({ confirmed: 6, unconfirmed: 237, total: 243 });
-  assert.ok(card.indexOf('국민은행 금고 약정') >= 0 && card.indexOf('지자체 <b>243</b>곳 중 국민은행 <b>6</b>곳') >= 0);
+  assert.ok(card.indexOf('국민은행 금고 협약') >= 0 && card.indexOf('국민은행 금고 약정') < 0 && card.indexOf('지자체 <b>243</b>곳 중 국민은행 <b>6</b>곳') >= 0);
+  assert.ok(card.indexOf("목록의 '협약 예정(2027년부터)' 묶음에 있습니다.") >= 0);
   assert.ok(card.indexOf('다른 은행') >= 0 && card.indexOf('<span><i class="k"></i>국민은행</span>') >= 0 && card.indexOf('2026.1.1. 기준') >= 0);
   assert.ok(card.indexOf('아직 모름') < 0 && card.indexOf('미확인') < 0);
   // 가로 배치(11-17): 머리 줄에 숫자, 아래는 [와플 | 범례·안내]

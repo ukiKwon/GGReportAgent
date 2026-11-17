@@ -607,7 +607,7 @@
   };
 
   // 기간 버튼 — 네이티브 라디오 4개(←→ 이동은 브라우저 기본). 선택 값은 key.
-  // name·legend는 현황판(kbboard)이 'hb-per'·'금고 기관 입찰 기간'으로 바꿔 쓴다. 생략하면 입찰 공고 현황 그대로.
+  // name·legend로 이름·범례를 바꿀 수 있다(현황판은 11-17 기간 버튼을 없앴다). 생략하면 입찰 공고 현황 그대로.
   dash.periodHtml = function (key, name, legend) {
     const k = dash.windowKey(key), nm = name || 'db-per';
     return '<legend class="sr-only">' + esc(legend || '입찰 예정일 기간') + '</legend>' + dash.WINDOW_KEYS.map(function (w) {
@@ -624,23 +624,24 @@
   dash.waffleHtml = function (kb) {
     let cells = '';
     for (let i = 0; i < kb.total; i += 1) cells += '<i' + (i < kb.confirmed ? ' class="k"' : '') + '></i>';
-    return '<div class="waf" role="img" aria-label="지자체 ' + kb.total + '곳 중 국민은행이 금고를 맡은 곳 ' + kb.confirmed + '곳, 2026년 1월 1일 기준">' + cells + '</div>';
+    return '<div class="waf" role="img" aria-label="지자체 ' + kb.total + '곳 중 국민은행이 금고 협약 중인 곳 ' + kb.confirmed + '곳, 2026년 1월 1일 기준">' + cells + '</div>';
   };
   // o.empty = 국민은행 금고 자료(KB_VERIFIED)가 비었다 → 0곳 와플로 '모두 다른 은행'이라 말하지 않고 안내 한 줄만 둔다.
   dash.kbCardHtml = function (kb, o) {
     // 11-17: 현황판 맨 위 띠로 올라가며 가로 배치 — 머리 줄 오른쪽에 숫자, 아래는 [와플 | 범례·안내](문구 불변, design 11-17)
-    const head = '<section class="db-card kb-card" aria-labelledby="db-t1"><div class="db-h"><h2 id="db-t1">국민은행 금고 약정</h2>';
+    const head = '<section class="db-card kb-card" aria-labelledby="db-t1"><div class="db-h"><h2 id="db-t1">국민은행 금고 협약</h2>';
     if (o && o.empty) return head + '</div><p class="fig">국민은행 금고 자료를 불러오지 못했습니다. 화면을 새로 고치세요.</p></section>';
     return head +
       '<p class="fig">지자체 <b>' + kb.total + '</b>곳 중 국민은행 <b>' + kb.confirmed + '</b>곳</p></div>' +
       '<div class="kb-body">' + dash.waffleHtml(kb) + '<div class="kb-side">' +
       '<p class="lg"><span><i class="k"></i>국민은행</span><span><i></i>다른 은행</span></p>' +
-      '<p class="note">행안부 금고지정 현황(2026.1.1. 기준)에서 회계 하나라도 국민은행이 맡은 지자체입니다. 2027년부터 바뀌는 곳은 목록의 \'2027년부터\' 묶음에 있습니다.</p>' +
+      '<p class="note">행안부 금고지정 현황(2026.1.1. 기준)에서 회계 하나라도 국민은행이 맡은 지자체입니다. 2027년부터 바뀌는 곳은 목록의 \'협약 예정(2027년부터)\' 묶음에 있습니다.</p>' +
       '</div></div></section>';
   };
 
   // D2 제안 진행 단계. p = {state:'offline'|'loading'|'ok'|'denied'|'error', stages:stageCounts 결과, code:401|403|0}
-  dash.stageCardHtml = function (p) {
+  // stageParts = 카드 껍데기 없이 { body(상태 문구 또는 dl+각주), total(합계 칸 마크업, 없으면 '') } — 현황판 3열의 구획 머리가 쓴다(design 11-17 6-B).
+  dash.stageParts = function (p) {
     p = p || { state: 'offline' };
     const s = p.stages;
     let body, total = '';
@@ -658,7 +659,11 @@
         return '<div class="stg-row"><dt>' + esc(x.label) + '</dt><dd><span class="bw" aria-hidden="true">' + w + '</span><b>' + x.n + '</b></dd></div>';
       }).join('') + '</dl><p class="note">' + (s.onlyWriting ? '단계별 건수는 영업팀·영업팀장·영업부장에게 보입니다.' : '같은 기관은 한 번만 셉니다.') + '</p>';
     }
-    return '<section class="db-card" aria-labelledby="db-t2"><div class="db-h"><h2 id="db-t2">제안 진행 단계</h2>' + total + '</div>' + body + '</section>';
+    return { body: body, total: total };
+  };
+  dash.stageCardHtml = function (p) {
+    const r = dash.stageParts(p);
+    return '<section class="db-card" aria-labelledby="db-t2"><div class="db-h"><h2 id="db-t2">제안 진행 단계</h2>' + r.total + '</div>' + r.body + '</section>';
   };
 
   // 오른쪽 기둥(1280~1599px에서는 위로 올라가 두 칸)
@@ -1657,6 +1662,15 @@
       if (t && t.focus) t.focus();
     }
     if (m.confirm && act === 'confirm') { const b = pane.querySelector('#db-do'); if (b) b.focus(); }
+    // 현황판 줄의 [제안 확정]으로 열었으면(opts.focus === 'confirm') 팝업의 [제안 확정]이 그려지는 순간 한 번만 포커스를 옮긴다. 받는 중(wait)에는 기다린다.
+    // 사용자가 팝업 안에서 이미 다른 요소로 포커스를 옮겼으면(초기 포커스 대상 #dm-name·#dm-box가 아니면) 끌고 가지 않고 포기한다(qa 11-17 P3-6).
+    const fa = document.activeElement;
+    if (m.focus === 'confirm' && fa && m.el && m.el.contains(fa) && fa.id !== 'dm-name' && fa.id !== 'dm-box') m.focus = '';
+    if (m.focus === 'confirm' && !m.confirm) {
+      const cf = pane.querySelector('#db-cf');
+      if (cf) { cf.focus(); m.focus = ''; }
+      else if (act !== 'wait') m.focus = '';   // 판정이 끝났는데 버튼이 없으면(이미 진행 중 등) 포기
+    }
   }
 
   function dmLoadPreps(m) {
@@ -1745,11 +1759,13 @@
 
   // opts.opener = 누른 카드·마커(닫으면 포커스가 돌아간다). opts.screen = 감사 기록 화면 이름(기본 'map_popover', 현황판은 'bid_board').
   // opts.fallback = opener가 사라졌을 때 포커스를 돌릴 선택자(현황판 '#hb-ours', 지도는 비움). 열었으면 true.
+  // opts.refocus = opener가 사라졌을 때 닫은 뒤 포커스를 받을 새 요소를 돌려주는 함수(현황판: 같은 열의 같은 data-key 버튼). 없거나 null이면 fallback.
+  // opts.focus = 'confirm'이면 팝업이 그려진 뒤 [제안 확정] 버튼으로 포커스를 옮긴다(현황판 2번 구획 줄의 [제안 확정]).
   dash.openDetail = function (rec, opts) {
     if (typeof document === 'undefined' || !rec) return false;
     if (dm.cur) dash.closeDetail(false);
     const m = { rec: rec, it: dash.itemForRec(rec, todayDate()), opener: (opts && opts.opener) || document.activeElement,
-      screen: (opts && opts.screen) || 'map_popover', fallback: (opts && opts.fallback) || '', changed: false,
+      screen: (opts && opts.screen) || 'map_popover', fallback: (opts && opts.fallback) || '', refocus: (opts && opts.refocus) || null, focus: (opts && opts.focus) || '', changed: false,
       preps: null, prepSt: 'offline', confirm: false, busy: false, down: null, el: null };
     const ov = document.createElement('div');
     ov.className = 'modal-overlay dm-ov';
@@ -1786,9 +1802,11 @@
     if (refocus && typeof document !== 'undefined') {
       let o = m.opener;
       if (!(o && o.focus && document.body.contains(o))) {
-        // 눌렀던 카드가 다시 그려져 사라졌으면 선택 강조된 카드로, 없으면 지도 영역으로(render.js Esc 처리와 같은 규칙)
-        o = (m.fallback && document.querySelector(m.fallback)) || document.querySelector('.rank-card.hi') || document.getElementById('map-stage');
-        if (o && !o.hasAttribute('tabindex')) o.setAttribute('tabindex', '-1');
+        // 눌렀던 카드가 다시 그려져 사라졌으면 같은 자리의 새 요소(opts.refocus), 그것도 없으면 선택 강조된 카드로, 없으면 지도 영역으로(render.js Esc 처리와 같은 규칙)
+        let again = null;
+        if (typeof m.refocus === 'function') { try { again = m.refocus(); } catch (e) { again = null; } }
+        o = (again && again.focus && document.body.contains(again) ? again : null) || (m.fallback && document.querySelector(m.fallback)) || document.querySelector('.rank-card.hi') || document.getElementById('map-stage');
+        if (o && o !== again && !o.hasAttribute('tabindex')) o.setAttribute('tabindex', '-1');   // 다시 찾은 버튼은 그대로(이미 포커스 가능)
       }
       if (o && o.focus) o.focus();
     }
@@ -1815,7 +1833,8 @@
     return true;
   };
   // kbboard.js가 같은 맥락(데이터·오늘·서버 모드)을 쓰게 한다 — 복사하지 않는다.
-  dash.util = { dataList: dataList, todayDate: todayDate, serverMode: serverMode, hasEmp: hasEmp };
+  // actCtx·gateOpts = 현황판 2번 구획 줄의 [제안 확정] 판정(actionKind)이 상세 팝업과 같은 맥락을 쓰게 한다.
+  dash.util = { dataList: dataList, todayDate: todayDate, serverMode: serverMode, hasEmp: hasEmp, actCtx: actCtx, gateOpts: gateOpts };
 
   dash.mount = function (el) {
     if (!el) return;

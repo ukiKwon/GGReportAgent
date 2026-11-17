@@ -1546,7 +1546,7 @@
   .db-leg .lg-up svg { margin:0; }
   .db-leg .lg-n { margin-left:auto; }
   .db-leg b { font-family:var(--mono); font-weight:400; color:var(--fg); }
-  /* 작업 줄: 목록 | 상세 (오른쪽 기둥은 입찰 현황판 .hb-cards로 옮김, 2026-11-16) */
+  /* 작업 줄: 목록 | 상세 (입찰 현황판은 세 열 .hb-cols로 재구성, 2026-11-17) */
   .db-work { flex:1 1 0; min-height:440px; display:grid; grid-template-columns:400px minmax(0, 1fr); gap:20px; }
   /* 목록·상세는 높이를 고정하고 안(#db-scroll·.db-pane-body)에서 스크롤한다 — 841px 화면에서 701px(2026-11-12 규격 C-2) */
   .db-list, .db-pane { height:clamp(440px, calc(100vh - 140px), 820px); display:flex; flex-direction:column; min-height:0; min-width:0; background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r-lg, 14px); box-shadow:var(--shadow); }
@@ -1734,22 +1734,68 @@
   .hb-top .sub, .db-top .sub { font-size:12px; color:var(--muted); }
   .hb-top .meta, .db-top .meta { margin-left:auto; font-size:12px; color:var(--muted); }
   .hb-top .meta b, .db-top .meta b { font-family:var(--mono); font-weight:400; color:var(--fg); }
-  .hb-alert { display:flex; align-items:center; gap:12px; flex-wrap:wrap; min-height:52px; padding:12px 20px; font-size:13px; }
-  .hb-alert.hot { border-color:color-mix(in srgb, var(--red) 55%, var(--line-strong)); background:color-mix(in srgb, var(--red) 8%, var(--panel)); }
-  .hb-alert b { font-family:var(--mono); }
-  .hb-alert .chips { display:flex; gap:8px; flex-wrap:wrap; }
-  .hb-alert .chips button { font-size:12px; padding:4px 10px; min-height:28px; }
-  .hb-alert .db-next { margin-left:auto; }
-  .hb-grid { display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(0, 1fr); gap:20px; }
-  .hb-list { height:clamp(300px, calc(100vh - 480px), 640px); display:flex; flex-direction:column; min-height:0; }
-  .hb-list:focus:not(:focus-visible) { outline:none; }
-  .hb-list ul { list-style:none; margin:0; padding:0; }
-  .hb-list .db-h button { margin-left:auto; font-size:12px; }
-  .hb-row { display:grid; grid-template-columns:1fr auto; gap:4px 10px; width:100%; padding:12px 20px; text-align:left; white-space:normal; cursor:pointer;
+  /* 11-17 세 주제 3열(협약 중인 기관 | 입찰 공고가 뜬 대상 | 제안 진행 단계) — 각 열 머리(.hb-sum)가 요약 카드. design-reviewer 11-17 ab488e4e 6-A·6-B */
+  .hb-cols { display:grid; grid-template-columns:minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr); gap:16px; }
+  .hb-col { height:clamp(440px, calc(100vh - 168px), 960px); display:flex; flex-direction:column; min-height:0; min-width:0; }
+  .hb-col:focus:not(:focus-visible) { outline:none; }
+  .hb-col ul { list-style:none; margin:0; padding:0; }
+  .hb-sum { flex:none; min-height:212px; box-sizing:border-box; padding:14px 16px 12px; border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:6px; }
+  .hb-sum .db-h { gap:8px; }
+  .hb-fig { margin:0; display:flex; align-items:baseline; gap:4px 14px; flex-wrap:wrap; font-size:13px; color:var(--muted); }
+  .hb-fig b { margin-right:2px; font:700 16px var(--mono); color:var(--fg); }
+  .hb-brk { margin:0; font-size:12px; line-height:1.5; color:var(--muted); }
+  .hb-brk b { font-family:var(--mono); font-weight:400; color:var(--fg); }
+  .hb-waf { margin-top:auto; display:grid; grid-template-columns:auto minmax(0, 1fr); gap:4px 12px; align-items:end; }
+  .hb-waf .cap { grid-column:1 / -1; font-size:11px; color:var(--muted); }
+  .hb-waf .db-state { grid-column:1 / -1; padding:0; }
+  .hb-col .waf { grid-template-columns:repeat(27, 6px); gap:2px; }
+  .hb-col .waf i { width:6px; height:6px; box-sizing:border-box; border-radius:1px; }
+  .hb-waf .lg { margin:0; display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); }
+  .hb-waf .lg i { display:inline-block; width:8px; height:8px; margin-right:6px; border-radius:2px; border:1px solid color-mix(in srgb, var(--muted) 60%, var(--panel)); }
+  .hb-waf .lg i.k { background:var(--fg); border-color:var(--fg); }
+  .hb-waf .lg b { font-family:var(--mono); font-weight:400; color:var(--fg); }
+  .hb-nlink { margin-top:auto; display:flex; align-items:center; gap:6px 8px; flex-wrap:wrap; padding:8px 10px; border:1px solid var(--line); border-radius:var(--r-sm, 8px); font-size:12px; color:var(--muted); }
+  .hb-nlink b { font-family:var(--mono); font-weight:400; color:var(--fg); }
+  .hb-nlink button { margin-left:auto; font-size:12px; padding:4px 10px; }
+  .hb-sum .stg { gap:6px; margin-top:6px; }
+  .hb-sum .stg + .note { margin:6px 0 0; font-size:12px; color:var(--muted); }
+  .hb-sum .note { margin:6px 0 0; font-size:12px; color:var(--muted); line-height:1.5; }
+  .hb-col .db-grp { padding:10px 16px 6px; }
+  .hb-col .hb-row { padding:10px 16px; }
+  .hb-none { margin:0; padding:0 16px 10px; font-size:12px; color:var(--muted); }
+  .hb-foot { flex:none; display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; padding:8px 20px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
+  .hb-foot .hb-src { display:inline; margin:0; }
+  .hb-foot details { margin-left:auto; }
+  .hb-foot summary { cursor:pointer; }
+  .hb-foot details[open] { flex-basis:100%; margin-left:0; line-height:1.5; word-break:keep-all; }
+  .hb-foot b { font-family:var(--mono); font-weight:400; color:var(--fg); }
+  .hb-foot button { margin-left:auto; font-size:12px; padding:3px 10px; }
+  .hb-foot[hidden] { display:none; }
+  /* 1번 구획 각주: 출처 + [세는 기준]이 두 줄 안에 들고 '(인터넷 PC에서 열림)'이 단어 중간에서 끊기지 않게(design 11-17 P2-4) */
+  #hb-ofoot { display:block; word-break:keep-all; padding:8px 16px; line-height:1.5; }
+  #hb-ofoot .hb-src { display:inline; }
+  #hb-ofoot .db-why { white-space:nowrap; }
+  #hb-ofoot details { display:inline-block; margin-left:8px; }
+  #hb-ofoot details[open] { display:block; margin:6px 0 0; }
+  /* 2번 구획 줄: [행 버튼 | 동작 칸]은 형제(버튼 안에 버튼을 넣지 않는다) */
+  .hb-li { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:start; border-top:1px solid var(--line); }
+  .hb-li .hb-row { border-top:0; padding-right:8px; grid-template-columns:minmax(0, 1fr); }
+  .hb-act { display:flex; flex-direction:column; align-items:flex-end; gap:6px; padding:10px 16px 10px 0; }
+  .hb-act .hb-confirm { font-size:12px; padding:3px 10px; min-height:28px; }
+  .hb-act .why { font-size:11px; color:var(--muted); white-space:nowrap; }
+  .hb-row { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:4px 10px; width:100%; padding:12px 20px; text-align:left; white-space:normal; cursor:pointer;
             background:transparent; border:0; border-top:1px solid var(--line); border-radius:0; color:var(--fg); }
   .hb-row:hover { background:color-mix(in srgb, var(--accent-color) 6%, transparent); transform:none; box-shadow:none; }
   .hb-row[aria-disabled=true], .hb-row[aria-disabled=true] .nm { color:var(--muted); cursor:default; }
-  .hb-row .nm { font-size:14px; font-weight:700; display:flex; gap:8px; align-items:center; flex-wrap:wrap; min-width:0; }
+  .hb-row .nm { font-size:13px; font-weight:700; display:flex; gap:8px; align-items:center; flex-wrap:wrap; min-width:0; }
+  /* 줄 오른쪽 위: 종료 D-n(크게). 183일 이하 빨강·365일 이하 주황·그 뒤 색 없음, 종료일 지남은 D+n 도장(기존 .ov-stamp), 숫자가 같은 뜻을 함께 전한다 */
+  .hb-end { grid-column:2; grid-row:1; align-self:start; display:inline-flex; align-items:baseline; gap:6px; white-space:nowrap; }
+  .hb-end .l { font-size:11px; color:var(--muted); }
+  .hb-end b { font:700 16px/1.2 var(--mono); color:var(--fg); }
+  .hb-end.urgent b { color:color-mix(in srgb, var(--red) 72%, #fff); }
+  .hb-end.soon b { color:color-mix(in srgb, var(--orange) 72%, #fff); }
+  .hb-end.unk { font-size:12px; color:var(--muted); }
+  .hb-end .ov-stamp { font-size:12px; }
   .hb-row .meta, .hb-row .news { grid-column:1 / -1; font-size:12px; color:var(--muted); }
   .hb-row .meta { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
   .hb-row .meta .d { font-family:var(--mono); }
@@ -1757,19 +1803,18 @@
   .hb-row .dg-day, .hb-row .ov-stamp, .hb-row .db-chip { align-self:start; font-size:12px; font-family:var(--mono); padding:1px 7px; }
   .hb-slot { font-size:11px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:6px; padding:0 6px; }
   .hb-slot.hb-leaves { color:var(--fg); border-color:color-mix(in srgb, var(--red) 55%, var(--line-strong)); }   /* 2027년부터 다른 은행 — 지금은 맡고 있지만 곧 빠지는 곳 */
-  /* 11-17 맨 위 요약 띠 — 아래 두 목록과 같은 열 비율(와플 ↔ 맡은 기관, 단계 ↔ 준비 중인 제안). design-reviewer 11-17 a8b5055c 6-C */
-  .hb-cards { display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(0, 1fr); gap:20px; align-items:stretch; }
-  .kb-card .db-h .fig { margin:0 0 0 auto; }
-  .kb-card .kb-body { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:16px; align-items:start; margin-top:12px; }
-  .kb-card .kb-side .lg { margin:0; }
-  .kb-card .kb-side .note { margin:8px 0 0; }
-  .hb-cards .stg { gap:6px; margin-top:10px; }
-  .hb-cards .stg + .note { margin-top:8px; }
+  .hb-slot.hb-stay { color:var(--fg); }   /* 다음도 국민은행 — '다음은 다른 은행'과 짝. 테두리는 기본(틸은 선택·포커스 전용, One Teal Rule) */
   .db-soon-tag { margin-left:8px; font-size:11px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:6px; padding:0 5px;
                  background:repeating-linear-gradient(45deg, color-mix(in srgb, var(--muted) 12%, transparent) 0 2px, transparent 2px 4px); vertical-align:middle; }
-  @media (min-width:1600px) { .hb-grid, .hb-cards { grid-template-columns:minmax(0, 1.3fr) minmax(0, 1fr); } }
-  @media (max-width:1279px) { .kb-card .kb-body { grid-template-columns:1fr; gap:10px; } .kb-card .db-h .fig { margin-left:0; } }
-  @media (max-width:880px) { .hb-grid, .hb-cards { grid-template-columns:1fr; } .hb-list { height:auto; max-height:50vh; } }
+  @media (max-width:1279px) {
+    .hb-cols { grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); }
+    #hb-preps { grid-column:1 / -1; height:auto; max-height:60vh; }
+    #hb-preps .hb-sum { min-height:0; }
+  }
+  @media (max-width:880px) {
+    .hb-cols { grid-template-columns:1fr; }
+    .hb-col, #hb-preps { height:auto; max-height:70vh; }
+  }
   @media (prefers-reduced-motion:reduce) { .hb-row { transition:none; } }
   /* 국민은행 상태 현황판 끝 */
 
