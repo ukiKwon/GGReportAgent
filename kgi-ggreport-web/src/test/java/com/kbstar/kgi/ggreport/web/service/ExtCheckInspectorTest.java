@@ -136,6 +136,63 @@ public class ExtCheckInspectorTest {
         assertOnly(run(wrong, "hwpx"), "FORMAT_MISMATCH");
     }
 
+    @Test public void 하6_Form_안_이미지와_인라인_이미지도_IMAGE_ONLY() throws Exception {
+        assertOnly(run(pdfFormImage(), "pdf"), "IMAGE_ONLY");
+        assertOnly(run(pdfInlineImage(), "pdf"), "IMAGE_ONLY");
+    }
+
+    @Test public void 하6_링크_주석의_URI도_검사한다() throws Exception {
+        assertTrue(has(run(pdfLinkUri("mailto:hong@x.kr"), "pdf"), "PII_EMAIL", "annot"));
+        assertTrue(has(run(pdfLinkUri("tel:010-1234-5678"), "pdf"), "PII_MOBILE", "annot"));
+        assertTrue(run(pdfLinkUri("https://example.org/notice"), "pdf").hits.isEmpty());
+    }
+
+    @Test public void 하7_허용_밖_HWPX_항목은_UNSUPPORTED_ENTRY() throws Exception {
+        assertOnly(run(hwpx(LONG_BODY).add("Contents/x.json", "{}").bytes(), "hwpx"), "UNSUPPORTED_ENTRY");
+        assertOnly(run(hwpx(LONG_BODY).add("Contents/x.csv", "a,b").bytes(), "hwpx"), "UNSUPPORTED_ENTRY");
+        assertOnly(run(hwpx(LONG_BODY).add("noext", "a").bytes(), "hwpx"), "UNSUPPORTED_ENTRY");
+        assertOnly(run(hwpx(LONG_BODY).addBytes("Contents/a.png", new byte[]{(byte) 0x89, 'P'}).bytes(), "hwpx"), "UNSUPPORTED_ENTRY");
+        assertTrue(run(hwpx(LONG_BODY).addBytes("Preview/PrvImage.png", new byte[]{(byte) 0x89, 'P'}).bytes(), "hwpx").hits.isEmpty());
+        assertTrue(run(hwpx(LONG_BODY).addBytes("BinData/image1.bmp", new byte[]{'B', 'M', 0}).bytes(), "hwpx").hits.isEmpty());
+    }
+
+    @Test public void Scripts_예외는_이름과_바이트가_모두_같아야_한다() throws Exception {
+        // 한컴 기본 빈 틀과 이름이 같아도 내용이 다르면(1바이트라도) SCRIPT, 이름이 다르면 SCRIPT
+        assertOnly(run(hwpx(LONG_BODY).addBytes("Scripts/headerScripts.js", new byte[]{'a', 0}).bytes(), "hwpx"), "SCRIPT");
+        assertOnly(run(hwpx(LONG_BODY).addBytes("Scripts/sourceScripts.js", new byte[]{'a', 0}).bytes(), "hwpx"), "SCRIPT");
+        assertOnly(run(hwpx(LONG_BODY).addBytes("Scripts/other.js", new byte[]{'a', 0}).bytes(), "hwpx"), "SCRIPT");
+        assertOnly(run(hwpx(LONG_BODY).addBytes("scripts/headerScripts.js", new byte[]{'a', 0}).bytes(), "hwpx"), "SCRIPT");
+    }
+
+    /** 실물 공고 HWPX에서 꺼낸 한컴 기본 빈 틀(src/test/resources/extcheck, 2026-11-17)은 이름·바이트가 같으면 통과, 1바이트 바꾸면 SCRIPT. */
+    @Test public void 한컴_기본_빈_틀_Scripts는_통과한다() throws Exception {
+        byte[] head = stub("hancom_headerScripts.js"), src = stub("hancom_sourceScripts.js");
+        assertTrue(run(hwpx(LONG_BODY).addBytes("Scripts/headerScripts.js", head).addBytes("Scripts/sourceScripts.js", src).bytes(), "hwpx").hits.isEmpty());
+        byte[] changed = head.clone();
+        changed[0] ^= 1;
+        assertOnly(run(hwpx(LONG_BODY).addBytes("Scripts/headerScripts.js", changed).bytes(), "hwpx"), "SCRIPT");
+        assertOnly(run(hwpx(LONG_BODY).addBytes("Scripts/sourceScripts.js", head).bytes(), "hwpx"), "SCRIPT");   // 이름과 내용이 엇갈림
+    }
+
+    private static byte[] stub(String name) throws java.io.IOException {
+        try (java.io.InputStream in = ExtCheckInspectorTest.class.getResourceAsStream("/extcheck/" + name)) {
+            assertTrue(name, in != null);
+            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[1024];
+            for (int n; (n = in.read(buf)) > 0; ) bo.write(buf, 0, n);
+            return bo.toByteArray();
+        }
+    }
+
+    @Test public void 실물_공고_HWPX는_구조_거부_없이_통과한다() throws Exception {
+        Path real = java.nio.file.Paths.get("../collector/tests/fixtures/eminwon/sunchang_32708.hwpx");
+        org.junit.Assume.assumeTrue(Files.isRegularFile(real));
+        ExtCheckInspector.Outcome o = run(Files.readAllBytes(real), "hwpx");
+        for (ExtCheckInspector.Hit h : o.hits) {   // 본문 안의 번호 같은 내용 hit 은 있을 수 있다 — 구조 사유만 막는다
+            assertTrue(h.toString(), h.reason.startsWith("PII_") || "IMAGE_ONLY".equals(h.reason));
+        }
+    }
+
     @Test public void 이미지만_있는_HWPX는_IMAGE_ONLY() throws Exception {
         byte[] z = hwpx("short").addBytes("BinData/a.png", new byte[]{(byte) 0x89, 'P', 'N', 'G'}).bytes();
         assertOnly(run(z, "hwpx"), "IMAGE_ONLY");

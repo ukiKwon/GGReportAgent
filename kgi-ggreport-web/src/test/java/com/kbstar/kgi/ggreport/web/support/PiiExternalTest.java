@@ -161,6 +161,38 @@ public class PiiExternalTest {
         assertEquals(0, Pii.scanExternalDeep("a b c d", System.nanoTime() + 5000000000L).size());
     }
 
+    @Test public void 하1p_한글자_구분자도_접는다() {
+        hit("010_1234_5678", M);
+        hit("010,1234,5678", M);
+        hit("010~1234~5678", M);
+        hit("02_1234_5678", L);
+        hit("900101/1234567", R);
+        hit("900101 / 1234567", R);
+        hit("900101_1234567", R);
+        hit("900101,1234567", R);
+        hit("4111_1111_1111_1111", "카드번호");
+        hit("4111,1111,1111,1111", "카드번호");
+        assertTrue(Pii.scanLoose("900101/1234567").isEmpty());   // scanLoose 는 바뀌지 않았다
+    }
+
+    @Test public void 하1p_오탐_방지() {
+        ok("금액 1,234,567원");
+        ok("합계 12,345,678원");
+        ok("접수 2026/12/02 마감");
+        ok("접수 2026_12_02");
+        ok("1,2,3,4,5");
+        ok("a_b_c");
+    }
+
+    @Test(timeout = 20000)
+    public void 하1p_한글자_구분자_적대적_입력도_선형이다() {
+        long t0 = System.nanoTime();
+        Pii.scanExternal(rep("1,", 100000));
+        Pii.scanExternal(rep("0_", 100000));
+        Pii.scanExternal(rep(",", 200000));
+        assertTrue((System.nanoTime() - t0) / 1000000L < 5000);
+    }
+
     @Test(expected = Pii.ScanTimeoutException.class)
     public void 하3_deep도_마감이_지났으면_멈춘다() {
         Pii.scanExternalDeep("010-1234-5678", System.nanoTime() - 1);

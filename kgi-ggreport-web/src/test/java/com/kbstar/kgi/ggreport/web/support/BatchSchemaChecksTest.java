@@ -29,14 +29,17 @@ public class BatchSchemaChecksTest {
     @Rule public TemporaryFolder tmp = new TemporaryFolder();
 
     private List<String> run(String checksJson, String minorJson, String recordsJson, boolean withFile) throws IOException {
-        Path dir = tmp.newFolder(ID).toPath();
+        return runAs(ID, "extcheck-daily", checksJson, minorJson, recordsJson, withFile);
+    }
+    private List<String> runAs(String id, String slug, String checksJson, String minorJson, String recordsJson, boolean withFile) throws IOException {
+        Path dir = tmp.newFolder(id).toPath();
         Files.createDirectories(dir.resolve("files"));
         Files.write(dir.resolve("institutions.csv"), "h\n".getBytes(StandardCharsets.UTF_8));
         if (withFile) {
             Files.write(dir.resolve("files").resolve("c-0001_1.pdf"), new byte[]{'x'});
         }
-        String m = "{'schema_version':1," + minorJson + "'batch_id':'" + ID + "','collected_at':'2026-11-17T07:00:05+09:00',"
-                + "'source':{'slug':'extcheck-daily'},'records':" + recordsJson
+        String m = "{'schema_version':1," + minorJson + "'batch_id':'" + id + "','collected_at':'2026-11-17T07:00:05+09:00',"
+                + "'source':{'slug':'" + slug + "'},'records':" + recordsJson
                 + (checksJson == null ? "" : ",'checks':" + checksJson) + "}";
         Files.write(dir.resolve("manifest.json"), m.replace('\'', '"').getBytes(StandardCharsets.UTF_8));
         return BatchSchema.validate(dir);
@@ -104,6 +107,33 @@ public class BatchSchemaChecksTest {
         String all = String.join("|", run(null, "", rec, false));
         assertTrue(all.contains("상위 경로 참조"));
         assertFalse(all.contains("zzq") || all.contains("passwd"));
+    }
+
+    @Test public void checks_배치는_slug가_extcheck로_시작해야_하고_값은_싣지_않는다() throws Exception {
+        for (String slug : new String[]{"lofin365", "xextcheck", "Extcheck"}) {
+            List<String> e = runAs(ID, slug, "[" + CHECK + "]", "'schema_minor':1,", "[]", true);
+            String all = String.join("|", e);
+            assertTrue(slug, all.contains("source.slug"));
+            assertFalse(slug, all.contains(slug));
+            tmpReset();
+        }
+    }
+
+    @Test public void checks_배치는_batch_id에_extcheck가_있어야_한다() throws Exception {
+        String id = "2026-11-17_0700_lofin365";
+        String all = String.join("|", runAs(id, "extcheck-daily", "[" + CHECK + "]", "'schema_minor':1,", "[]", true));
+        assertTrue(all.contains("batch_id"));
+        assertFalse(all.contains("lofin365"));
+    }
+
+    @Test public void checks_없는_배치는_slug와_batch_id를_가리지_않는다() throws Exception {
+        assertTrue(runAs("2026-11-17_0700_lofin365", "lofin365", null, "", "[]", false).isEmpty());
+    }
+
+    @Test public void 읽을_수_없는_manifest는_고정_문구뿐이다() throws Exception {
+        Path dir = tmp.newFolder(ID).toPath();
+        Files.write(dir.resolve("manifest.json"), "{\"zzq\": ".getBytes(StandardCharsets.UTF_8));
+        assertEquals(java.util.Collections.singletonList("manifest.json을 읽을 수 없습니다"), BatchSchema.validate(dir));
     }
 
     private void tmpReset() { tmp.delete(); try { tmp.create(); } catch (IOException e) { throw new IllegalStateException(e); } }

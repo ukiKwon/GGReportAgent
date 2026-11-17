@@ -1,9 +1,15 @@
 package com.kbstar.kgi.ggreport.web.service;
 
+import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.common.PDStream;
+import org.apache.pdfbox.pdmodel.interactive.action.PDActionURI;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceStream;
 import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
 import org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
@@ -18,6 +24,7 @@ import org.apache.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlin
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -99,6 +106,51 @@ public final class ExtCheckFixtures {
             try (PDPageContentStream cs = new PDPageContentStream(d, page, PDPageContentStream.AppendMode.APPEND, true)) {
                 cs.drawImage(img, 10, 10);
             }
+        });
+    }
+
+    /** 이미지가 Form XObject 안에만 있는 쪽(하-6). */
+    public static byte[] pdfFormImage() throws IOException {
+        return build(1, null, d -> {
+            PDImageXObject img = LosslessFactory.createFromImage(d, new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB));
+            PDAppearanceStream form = new PDAppearanceStream(d);
+            form.setBBox(new PDRectangle(0, 0, 100, 100));
+            form.setResources(new PDResources());
+            try (PDPageContentStream fcs = new PDPageContentStream(d, form)) {
+                fcs.drawImage(img, 0, 0);
+            }
+            try (PDPageContentStream cs = new PDPageContentStream(d, d.getPage(0), PDPageContentStream.AppendMode.APPEND, true)) {
+                cs.drawForm(form);
+            }
+        });
+    }
+
+    /** 내용 스트림에 BI…ID…EI 인라인 이미지만 둔 쪽. */
+    public static byte[] pdfInlineImage() throws IOException {
+        return build(1, null, d -> {
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            bo.write("q 10 0 0 10 20 20 cm\nBI /W 1 /H 1 /BPC 8 /CS /G ID ".getBytes(StandardCharsets.US_ASCII));
+            bo.write(0x80);
+            bo.write("\nEI Q\n".getBytes(StandardCharsets.US_ASCII));
+            PDStream s = new PDStream(d);
+            try (OutputStream os = s.createOutputStream(COSName.FLATE_DECODE)) {
+                os.write(bo.toByteArray());
+            }
+            d.getPage(0).setContents(s);
+        });
+    }
+
+    /** 본문은 평범하고 링크 주석의 URI 에만 값이 있는 쪽. */
+    public static byte[] pdfLinkUri(String uri) throws IOException {
+        return build(1, PLAIN, d -> {
+            PDAnnotationLink l = new PDAnnotationLink();
+            l.setRectangle(new PDRectangle(10, 10, 20, 20));
+            PDActionURI a = new PDActionURI();
+            a.setURI(uri);
+            l.setAction(a);
+            List<PDAnnotation> list = new ArrayList<PDAnnotation>();
+            list.add(l);
+            d.getPage(0).setAnnotations(list);
         });
     }
 

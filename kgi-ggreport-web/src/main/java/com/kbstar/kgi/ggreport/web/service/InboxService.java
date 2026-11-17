@@ -11,6 +11,8 @@ import com.kbstar.kgi.ggreport.web.mapper.InstitutionMapper;
 import com.kbstar.kgi.ggreport.web.support.BatchSchema;
 import com.kbstar.kgi.ggreport.web.support.InstitutionCsv;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
@@ -43,6 +45,7 @@ import java.util.stream.Stream;
 @Service
 public class InboxService {
 
+    private static final Logger log = LoggerFactory.getLogger(InboxService.class);
     private static final ObjectMapper JSON = new ObjectMapper();
     /** 읽기 상한(S5) — 264곳 CSV·수백 건 manifest 는 이보다 훨씬 작다. */
     public static final long MAX_MANIFEST_BYTES = 8L * 1024 * 1024;
@@ -170,14 +173,20 @@ public class InboxService {
      * 외부 확인 배치(NEXT 90 2단계) — 검사·제외·보관만, DB 는 쓰지 않는다. records 와 섞인 배치는 거부한다(반쪽 반영 방지, 아무것도 지우지 않음).
      * 구조가 안전하지 않으면(링크·junction) 422 로 끝내고 <b>아무것도 지우지 않는다</b>. 그 밖에는 결과(422·500 포함)와 상관없이
      * 원본(files/·CSV 등)을 지우고, manifest 를 값 없는 보관본으로 다시 써서 배치를 보관 폴더로 옮긴다.
+     * <b>원본을 다 지우지 못했으면 보관 폴더로 옮기지 않고 inbox 에 남긴다</b>(하-10). 모든 실패 응답의 detail 에 {@code originals_deleted} 가 들어간다.
      */
     private Map<String, Object> importExternalChecks(Path batchDir, String batchId, JsonNode manifest) {
         JsonNode records = manifest.path("records");
         if (records.isArray() && records.size() > 0) {
-            throw ApiException.withDetail(422, Collections.singletonMap("errors",
-                    Collections.singletonList("MIXED_BATCH_NOT_SUPPORTED: 외부 확인(checks)과 records 를 한 배치에 섞을 수 없습니다")));
+            throw withOriginalsDeleted(ApiException.withDetail(422, Collections.singletonMap("errors",
+                    Collections.singletonList("MIXED_BATCH_NOT_SUPPORTED: 외부 확인(checks)과 records 를 한 배치에 섞을 수 없습니다"))), false);
         }
-        ExtCheckImporter.Result r = extChecks.process(batchDir, batchId, manifest);
+        ExtCheckImporter.Result r;
+        try {
+            r = extChecks.process(batchDir, batchId, manifest);
+        } catch (ApiException e) {
+            throw withOriginalsDeleted(e, false);               // 구조 거부(LINK_NOT_ALLOWED) — 아무것도 지우지 않았다
+        }
         boolean originalsDeleted = ExtCheckImporter.scrub(batchDir);
         boolean manifestRewritten = true;
         try {
@@ -193,17 +202,43 @@ public class InboxService {
                 originalsDeleted = false;
             }
         }
-        String archivedTo = archiveBatch(batchDir, batchId);
+        String archivedTo = null;
+        if (originalsDeleted) {
+            try {
+                archivedTo = archiveBatch(batchDir, batchId);
+            } catch (ApiException e) {
+                throw withOriginalsDeleted(e, true);            // 원본은 지웠고 보관 이동만 실패
+            }
+        } else {
+            // 원본이 남은 채로 batches 로 옮기면 원문이 보관본에 섞인다. inbox 에 두고 사람이 정리한다(batch_id 는 형식 검사를 통과한 값).
+            log.error("외부 확인 원본을 모두 지우지 못해 배치를 inbox 에 남깁니다. batch_id={}", batchId);
+        }
         if (r.failure != null) {
-            throw r.failure;
+            throw withOriginalsDeleted(r.failure, originalsDeleted);
         }
         if (!manifestRewritten) {
-            throw new ApiException(500, "보관 manifest 를 다시 쓰지 못했습니다.");
+            throw withOriginalsDeleted(new ApiException(500, "보관 manifest 를 다시 쓰지 못했습니다."), originalsDeleted);
         }
         Map<String, Object> out = new LinkedHashMap<String, Object>(r.response);
         out.put("originals_deleted", originalsDeleted);
-        out.put("archived_to", archivedTo);
+        out.put("archived_to", archivedTo);                     // 옮기지 않았으면 null
         return out;
+    }
+
+    /** 실패 응답의 detail 에 originals_deleted 를 더한다. 기존 detail 객체의 키는 그대로 두고, 문자열 사유(500 등)는 고정 문구 객체로 바꾼다. */
+    private static ApiException withOriginalsDeleted(ApiException e, boolean deleted) {
+        Map<String, Object> d = new LinkedHashMap<String, Object>();
+        Object o = e.getDetailObject();
+        if (o instanceof Map) {
+            for (Map.Entry<?, ?> en : ((Map<?, ?>) o).entrySet()) {
+                d.put(String.valueOf(en.getKey()), en.getValue());
+            }
+        } else {
+            d.put("code", "EXTERNAL_CHECK_FAILED");
+            d.put("message", e.getMessage() != null ? e.getMessage() : "외부 확인 배치를 처리하지 못했습니다.");   // 서비스가 만든 고정 한글 문구
+        }
+        d.put("originals_deleted", deleted);
+        return ApiException.withDetail(e.getStatus(), d);
     }
 
     /** CSV 를 읽어 파싱한다(트랜잭션 밖). 형식 오류는 422. */

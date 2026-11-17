@@ -176,6 +176,7 @@ public class InboxExtCheckApiTest {
         JsonNode body = json.readTree(res.getContentAsString());
         assertEquals(1, body.path("passed").size());
         assertEquals(0, body.path("excluded").size());
+        assertTrue(body.path("originals_deleted").asBoolean());
         String stored = body.path("passed").get(0).path("files").get(0).path("stored_name").asText();
         assertTrue(stored.endsWith("/c-0001_1.pdf"));
         assertTrue(java.util.Arrays.equals(pdf, Files.readAllBytes(EXT.resolve(stored))));
@@ -234,6 +235,7 @@ public class InboxExtCheckApiTest {
         MockHttpServletResponse res = importAs(MEMBER);
         assertEquals(res.getContentAsString(), 422, res.getStatus());
         assertTrue(res.getContentAsString().contains("SHA256_MISMATCH"));
+        assertTrue(json.readTree(res.getContentAsString()).path("detail").path("originals_deleted").asBoolean());
         assertFalse(res.getContentAsString().contains("c-0001_1.pdf"));
         assertFalse(Files.exists(dir));
         Path arch = BATCHES.resolve(BATCH_ID);
@@ -261,6 +263,7 @@ public class InboxExtCheckApiTest {
         MockHttpServletResponse res = importAs(MEMBER);
         assertEquals(res.getContentAsString(), 422, res.getStatus());
         assertTrue(res.getContentAsString().contains("MIXED_BATCH_NOT_SUPPORTED"));
+        assertFalse(json.readTree(res.getContentAsString()).path("detail").path("originals_deleted").asBoolean(true));
         assertTrue(Files.isRegularFile(dir.resolve("files/c-0001_1.pdf")));
         assertFalse(Files.exists(BATCHES.resolve(BATCH_ID)));
         assertEquals(0, extDirs());
@@ -293,6 +296,27 @@ public class InboxExtCheckApiTest {
         assertTrue(Files.isRegularFile(dir.resolve("files/c-0001_1.pdf")));
     }
 
+    /** Windows 에서만: 열려 있는 파일은 지워지지 않는다. 옛 IO 의 FileInputStream 은 삭제 공유 없이 열린다(NIO newInputStream 은 막지 못한다). */
+    @Test
+    public void 원본을_다_못_지우면_보관으로_옮기지_않고_originals_deleted는_false다() throws Exception {
+        Assume.assumeTrue(System.getProperty("os.name").toLowerCase().contains("win"));
+        Map<String, byte[]> files = new LinkedHashMap<String, byte[]>();
+        ObjectNode c = check("c-0001", INST, "금고 공고");
+        attach(c, files, "c-0001_1.pdf", ExtCheckFixtures.pdf(ExtCheckFixtures.PLAIN), null);
+        Path dir = makeBatch(root(c), files);
+        Path extra = dir.resolve("extra.bin");
+        Files.write(extra, new byte[]{1});
+        try (java.io.FileInputStream hold = new java.io.FileInputStream(extra.toFile())) {
+            MockHttpServletResponse res = importAs(MEMBER);
+            assertEquals(res.getContentAsString(), 200, res.getStatus());
+            JsonNode body = json.readTree(res.getContentAsString());
+            assertFalse(body.path("originals_deleted").asBoolean());
+            assertTrue(body.path("archived_to").isNull());
+            assertTrue(Files.isDirectory(dir));
+            assertFalse(Files.exists(BATCHES.resolve(BATCH_ID)));
+        }
+    }
+
     /** Windows 에서만: files/ 가 junction 이면 거부하고, junction 이 가리키는 폴더 밖 파일을 건드리지 않는다. */
     @Test
     public void files가_junction이면_422이고_대상_폴더는_그대로다() throws Exception {
@@ -316,6 +340,7 @@ public class InboxExtCheckApiTest {
             MockHttpServletResponse res = importAs(MEMBER);
             assertEquals(res.getContentAsString(), 422, res.getStatus());
             assertTrue(res.getContentAsString().contains("LINK_NOT_ALLOWED"));
+            assertFalse(json.readTree(res.getContentAsString()).path("detail").path("originals_deleted").asBoolean(true));
             assertTrue("대상 폴더 밖 파일은 그대로여야 한다", Files.isRegularFile(outside.resolve("c-0001_1.pdf")));
             assertTrue(Files.isDirectory(dir));
         } finally {

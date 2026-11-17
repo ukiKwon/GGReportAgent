@@ -19,14 +19,14 @@ def _check(**over):
     return {k: v for k, v in c.items() if v is not None}
 
 
-def _batch(tmp_path, checks, minor=1, files=("c-0001_1.pdf",), records=None):
-    d = tmp_path / BATCH_ID
+def _batch(tmp_path, checks, minor=1, files=("c-0001_1.pdf",), records=None, slug="extcheck-daily", batch_id=BATCH_ID):
+    d = tmp_path / batch_id
     (d / "files").mkdir(parents=True)
     (d / "institutions.csv").write_text("h\n", encoding="utf-8")
     for name in files:
         (d / "files" / name).write_bytes(b"x")
-    m = {"schema_version": 1, "batch_id": BATCH_ID, "collected_at": "2026-11-17T07:00:05+09:00",
-         "source": {"slug": "extcheck-daily"}, "records": records or []}
+    m = {"schema_version": 1, "batch_id": batch_id, "collected_at": "2026-11-17T07:00:05+09:00",
+         "source": {"slug": slug}, "records": records or []}
     if minor is not None:
         m["schema_minor"] = minor
     if checks is not None:
@@ -97,3 +97,27 @@ def test_records_attachment_message_has_no_received_value(tmp_path):
     errors = validate_batch(_batch(tmp_path, None, minor=None, records=[rec]))
     assert any("상위 경로 참조" in e for e in errors)
     assert not any("zzq" in e or "passwd" in e for e in errors)
+
+
+@pytest.mark.parametrize("slug", ["lofin365", "xextcheck", "Extcheck", 123])
+def test_checks_batch_needs_extcheck_slug(tmp_path, slug):
+    errors = validate_batch(_batch(tmp_path, [_check()], slug=slug))
+    assert any("source.slug" in e for e in errors)
+    assert not any(str(slug) in e for e in errors)
+
+
+def test_checks_batch_id_must_contain_extcheck(tmp_path):
+    errors = validate_batch(_batch(tmp_path, [_check()], batch_id="2026-11-17_0700_lofin365"))
+    assert any("batch_id" in e for e in errors) and not any("lofin365" in e for e in errors)
+
+
+def test_batch_without_checks_keeps_any_slug(tmp_path):
+    d = _batch(tmp_path, None, minor=None, files=(), slug="lofin365", batch_id="2026-11-17_0700_lofin365")
+    assert validate_batch(d) == []
+
+
+def test_unreadable_manifest_message_is_fixed(tmp_path):
+    d = tmp_path / BATCH_ID
+    d.mkdir()
+    (d / "manifest.json").write_text('{"zzq": ', encoding="utf-8")
+    assert validate_batch(d) == ["manifest.json을 읽을 수 없습니다"]

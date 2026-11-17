@@ -186,7 +186,7 @@ CSV의 모든 열은 manifest에서 기계적으로 나온다. 사람이 손대�
 - 공고를 찾아도, 찾지 못해도, 조회에 실패해도 **기관당 1건씩** 낸다(없으면 "확인 안 함"과 "못 찾음"을 구분할 수 없다).
 - `checks`를 쓰면 **`schema_minor: 1`이 필수**다. 없거나 서버가 모르는 값이면 서버는 배치 전체를 `UNSUPPORTED_MINOR`로
   거부한다(조용히 버리지 않는다). `checks`가 없는 배치의 `schema_minor`는 무시한다.
-- 외부 확인 전용 배치는 `source.slug`를 `extcheck`로 시작하고(예 `extcheck-daily` — 배치 폴더 이름에 들어가 망 안 저장소의 커밋 금지 규칙이 이 이름으로 잡는다), `records: []`와 `checks`를 쓰고, `institutions.csv`는 머리글만 있는 파일을 둔다(v1 검증기가 파일 존재를 본다).
+- 외부 확인 전용 배치는 `source.slug`를 `extcheck`로 시작하고 `batch_id`(=폴더 이름)에도 `extcheck`를 넣는다(예 `2026-11-17_0700_extcheck-daily` — 망 안 저장소의 커밋 금지 규칙이 폴더 이름으로 잡는다). **어기면 배치 전체 422**(Java·Python 같은 규칙, 2026-11-17). `records: []`와 `checks`를 쓰고, `institutions.csv`는 머리글만 있는 파일을 둔다(v1 검증기가 파일 존재를 본다).
 - 모르는 필드는 무시한다(§⑨). 아래 값 규칙을 어기면 서버는 **배치 전체를 422**로 거부하며, 문구에는 **받은 값이 실리지 않고**
   위치(`checks[3].attachments[0].path`)와 필드 이름만 실린다.
 
@@ -238,6 +238,7 @@ CSV의 모든 열은 manifest에서 기계적으로 나온다. 사람이 손대�
 4. 처리 위치: 본문, 문서 속성(작성자·제목·XMP·요약정보), 주석, 양식 필드 값, 책갈피, 미리보기 텍스트(HWP·HWPX), 파일명.
 5. **덮개 사각형만 씌우지 않는다.** 아래 글자가 남는다. 글자 층에서 지운 파일로 새로 쓴다.
 6. **증분 저장·문서 이력 없이 새 파일로 저장한다.** PDF는 "다른 이름으로 새로 저장"(증분 저장 금지 — 이전 판의 객체가 파일에 남는다), HWP는 "문서 이력 저장" 해제 후 새 파일로 저장한다. 서버는 PDF의 `/Prev`·`startxref` 2개 이상, HWP 이력·XML 템플릿·전자서명 비트가 있으면 `INCREMENTAL`/`HISTORY`로 제외한다.
+6-1. **HWPX 안의 항목**은 `mimetype`, `*.xml`, `META-INF/*.rdf`, `Contents/*.hpf`, `Preview/*.txt`·그림, `BinData/` 그림만 둔다. 그 밖의 항목은 `UNSUPPORTED_ENTRY`, `Scripts/`는 `SCRIPT`로 제외한다. 단 한컴이 새 문서에 자동으로 넣는 빈 틀 `Scripts/headerScripts.js`·`Scripts/sourceScripts.js`는 내용이 기본값과 바이트 단위로 같을 때만 허용한다(실물 공고 HWPX 23건 중 6건, 2026-11-17 확인). 전처리에서 지워도 된다.
 7. **이미지 속 글자는 서버가 읽지 못한다.** 이미지 위주 문서(이미지가 있고 추출 글자가 거의 없음)는 서버가 `IMAGE_ONLY`로 제외한다. 첨부하지 말고 `notice.url`만 보낸다.
 8. 첨부마다 `reported_tool`, `reported_version`, `reported_phones_removed`, `reported_landlines_masked`, `reported_emails_masked`, `reported_scope[]`(`body`·`meta`·`annot`·`form`·`bookmark`·`filename`)를 쓸 수 있다. 개수만 쓰고 값은 쓰지 않는다. **자기신고다.** 서버는 믿지 않고 판정에 쓰지 않으며 이력에도 남기지 않는다.
 9. 서버가 첨부 처리 때문에 제외한 check는 다음 배치에 새 파일로 다시 낸다(같은 `batch_id`를 고쳐 쓰지 않는다, §④ 불변 원칙).

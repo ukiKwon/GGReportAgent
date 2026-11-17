@@ -36,9 +36,10 @@ public final class Pii {
             + "\\u2606\\u2605\\u3147\\u110B\\u2217\\u00D7]";
     /** 구분자 0~3자. 소유 한정자라 되돌아가지 않는다(상-2). */
     private static final String SP = "[\\s\\-./]{0,3}+";
-    /** 외부 확인용 숫자 사이 구분자 접힘(하-1) — 공백·탭·'-' 에 '/'·'_'·','·'~' 까지, 2자 이상 이어질 때 '-' 하나로. 양옆은 숫자·가림표여야 한다. */
+    /** 외부 확인용 숫자 사이 구분자 접힘(하-1, 하-1') — 공백·탭·'-' 에 '/'·'_'·','·'~' 까지, 한 글자만 있어도 '-' 하나로. 양옆은 숫자·가림표여야 한다.
+     *  소유 한정자(++)라 되돌아가지 않는다. 알려진 오탐: "1,010,123,4567" 같은 금액이 휴대폰 모양으로 접힐 수 있다(그 check 만 제외, 값 손실 없음). */
     private static final Pattern SEP_RUN_EXT = Pattern.compile(
-            "(?<=" + MK + ")[ \\t/_,~\\-]{2,}(?=" + MK + ")");
+            "(?<=" + MK + ")[ \\t/_,~\\-]++(?=" + MK + ")");
     /** 국가번호(+82·0082·82, 뒤에 (0)·0 선택) 또는 국내 0. +82-02 도 잡는다(상-3). */
     private static final String CC = "(?:(?:\\+|00)?82" + SP + "(?:\\(0\\))?+" + SP + "0?+|\\(?0)";
     /** 휴대폰 — 부분 가림·전부 가림도 '있음'으로 본다. */
@@ -207,7 +208,7 @@ public final class Pii {
             }
         }
         checkDeadline(deadlineNanos);
-        for (Finding x : scanImpl(fold(text, true), Long.valueOf(deadlineNanos))) {   // 주민·외국인·카드. scanLoose 와 같은 접힘, 마감 아래(하-3)
+        for (Finding x : scanImpl(fold(text, true, SEP_RUN_EXT), Long.valueOf(deadlineNanos))) {   // 주민·외국인·카드. 구분자 접힘은 위와 같다(하-1'), 마감 아래(하-3)
             String k = x.getKind();
             if (!"휴대폰".equals(k) && !EMAIL_KIND.equals(k)) {
                 out.add(new Finding(k, REDACTED));

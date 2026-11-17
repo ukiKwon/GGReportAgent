@@ -71,7 +71,7 @@ public final class BatchSchema {
             byte[] raw = Files.readAllBytes(manifestPath);
             manifest = JSON.readTree(new String(raw, StandardCharsets.UTF_8));
         } catch (Exception exc) {
-            errors.add("manifest.json을 읽을 수 없습니다: " + exc.getMessage());
+            errors.add("manifest.json을 읽을 수 없습니다");   // 예외 문구에는 manifest 조각이 들어갈 수 있어 싣지 않는다(security 하-4)
             return errors;
         }
 
@@ -90,7 +90,8 @@ public final class BatchSchema {
         }
 
         // checks 가 있는데 minor 를 모르면 조용히 버리지 않고 배치를 거부한다(security 1차 (e)).
-        if (!absent(manifest.path("checks"))) {
+        final boolean hasChecks = !absent(manifest.path("checks"));
+        if (hasChecks) {
             JsonNode minor = manifest.path("schema_minor");
             if (!(minor.isInt() && minor.asInt() >= 1 && minor.asInt() <= SCHEMA_MINOR_MAX)) {
                 errors.add("UNSUPPORTED_MINOR: schema_minor가 없거나 지원 범위(1~" + SCHEMA_MINOR_MAX + ")를 벗어났습니다");
@@ -105,12 +106,18 @@ public final class BatchSchema {
         } else if (!batchId.equals(batchDir.getFileName().toString())) {
             errors.add("batch_id(" + batchId + ")와 폴더명(" + batchDir.getFileName() + ")이 다릅니다");
         }
+        if (hasChecks && batchId != null && BATCH_ID_RE.matcher(batchId).matches() && !batchId.contains(EXTCHECK_PREFIX)) {
+            errors.add("batch_id: checks 배치는 'extcheck'를 포함해야 합니다");     // 받은 값은 싣지 않는다
+        }
 
         if (isBlank(manifest.path("collected_at"))) {
             errors.add("collected_at이 없습니다");
         }
-        if (isBlank(manifest.path("source").path("slug"))) {
+        JsonNode slugNode = manifest.path("source").path("slug");
+        if (isBlank(slugNode)) {
             errors.add("source.slug이 없습니다");
+        } else if (hasChecks && !(slugNode.isTextual() && slugNode.asText().startsWith(EXTCHECK_PREFIX))) {
+            errors.add("source.slug: checks 배치는 'extcheck'로 시작해야 합니다");
         }
         if (!Files.isRegularFile(batchDir.resolve("institutions.csv"))) {
             errors.add("institutions.csv가 없습니다");
@@ -234,6 +241,8 @@ public final class BatchSchema {
     private static final String[] REPORTED_SCOPES = {"body", "meta", "annot", "form", "bookmark", "filename"};
     public static final Pattern CHECK_ID_RE = Pattern.compile("[A-Za-z0-9_-]{1,40}");
     private static final Pattern SOURCE_SLUG_RE = Pattern.compile("[a-z0-9-]{1,30}");
+    /** checks 배치의 source.slug 접두·batch_id 포함 규칙 — .gitignore 의 corpus/inbox/(extcheck 포함 폴더) 규칙과 짝. contract/batch_schema.py 의 EXTCHECK_PREFIX 와 같은 값. */
+    private static final String EXTCHECK_PREFIX = "extcheck";
     private static final Pattern CODE_RE = Pattern.compile("[a-z_]{1,30}");
     private static final Pattern REGION_RE = Pattern.compile("[0-9]{2,5}");
     private static final Pattern DATE_STRICT_RE = Pattern.compile("[0-9]{4}-[0-9]{2}-[0-9]{2}");

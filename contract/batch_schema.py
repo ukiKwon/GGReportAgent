@@ -21,6 +21,7 @@ from pathlib import Path
 
 SUPPORTED_SCHEMA_VERSIONS = (1,)
 SCHEMA_MINOR_MAX = 1   # checks[] 가 생긴 minor (SCHEMA.md ④-2)
+EXTCHECK_PREFIX = "extcheck"   # BatchSchema.java 와 같은 값 — checks 배치의 slug 접두·batch_id 포함 규칙(.gitignore 와 짝)
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 BATCH_ID_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{4}_[a-z0-9-]+$")
 CONFIDENCE_VALUES = ("확정", "예상")
@@ -40,8 +41,8 @@ def validate_batch(batch_dir: Path | str) -> list[str]:
         return ["manifest.json이 없습니다"]
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        return [f"manifest.json을 읽을 수 없습니다: {exc}"]
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return ["manifest.json을 읽을 수 없습니다"]     # 예외 문구에는 manifest 조각이 들어갈 수 있다(security 하-4)
 
     version = manifest.get("schema_version")
     if version not in SUPPORTED_SCHEMA_VERSIONS:
@@ -49,7 +50,8 @@ def validate_batch(batch_dir: Path | str) -> list[str]:
         return [f"지원하지 않는 schema_version입니다: {version!r}"]
 
     # checks 가 있는데 minor 를 모르면 조용히 버리지 않고 배치를 거부한다(security 1차 (e)).
-    if manifest.get("checks") is not None:
+    has_checks = manifest.get("checks") is not None
+    if has_checks:
         minor = manifest.get("schema_minor")
         if isinstance(minor, bool) or not isinstance(minor, int) or not 1 <= minor <= SCHEMA_MINOR_MAX:
             return [f"UNSUPPORTED_MINOR: schema_minor가 없거나 지원 범위(1~{SCHEMA_MINOR_MAX})를 벗어났습니다"]
@@ -63,9 +65,15 @@ def validate_batch(batch_dir: Path | str) -> list[str]:
     if not manifest.get("collected_at"):
         errors.append("collected_at이 없습니다")
 
+    if has_checks and isinstance(batch_id, str) and BATCH_ID_RE.match(batch_id) and EXTCHECK_PREFIX not in batch_id:
+        errors.append("batch_id: checks 배치는 'extcheck'를 포함해야 합니다")
+
     source = manifest.get("source") or {}
-    if not source.get("slug"):
+    slug = source.get("slug")
+    if not slug:
         errors.append("source.slug이 없습니다")
+    elif has_checks and not (isinstance(slug, str) and slug.startswith(EXTCHECK_PREFIX)):
+        errors.append("source.slug: checks 배치는 'extcheck'로 시작해야 합니다")
 
     if not (batch_dir / "institutions.csv").is_file():
         errors.append("institutions.csv가 없습니다")

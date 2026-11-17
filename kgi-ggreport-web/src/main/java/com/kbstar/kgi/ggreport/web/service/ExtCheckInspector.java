@@ -1,6 +1,11 @@
 package com.kbstar.kgi.ggreport.web.service;
 
 import com.kbstar.kgi.ggreport.web.support.Pii;
+import org.apache.pdfbox.contentstream.PDContentStream;
+import org.apache.pdfbox.contentstream.operator.Operator;
+import org.apache.pdfbox.pdfparser.PDFStreamParser;
+import org.apache.pdfbox.pdmodel.PDResources;
+import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import org.apache.pdfbox.cos.COSArray;
 import org.apache.pdfbox.cos.COSBase;
 import org.apache.pdfbox.cos.COSDictionary;
@@ -34,6 +39,8 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -79,6 +86,14 @@ final class ExtCheckInspector {
     static final int MAX_HITS = 20;
     private static final int MAX_GRAPH_NODES = 500000;
     private static final int MAX_OUTLINE_ITEMS = 10000;
+    private static final int MAX_FORM_DEPTH = 8;
+    private static final int MAX_CONTENT_TOKENS = 5000000;
+
+    /** 한컴 기본 빈 틀(UTF-16LE, 실물 공고 6건 확인 2026-11-17) — Scripts/ 아래라도 이름과 원본 바이트 sha256 이 모두 같으면 허용한다(그 밖의 Scripts/ 는 SCRIPT). */
+    private static final String HWPX_HEADER_SCRIPTS = "Scripts/headerScripts.js";
+    private static final String HWPX_HEADER_SCRIPTS_SHA256 = "f23abe459e32a899af2081e05752afe193fb00489405be94799b3658b7d5688f";
+    private static final String HWPX_SOURCE_SCRIPTS = "Scripts/sourceScripts.js";
+    private static final String HWPX_SOURCE_SCRIPTS_SHA256 = "b183762f7dbf29e929380375746fa20260925f89cbfa284a29cf7ab611b8f77a";
 
     private static final Set<String> XML_EXT = set("xml", "hpf", "rdf");
     private static final Set<String> IMAGE_EXT = set("png", "jpg", "jpeg", "gif", "bmp", "tif", "tiff", "wmf", "emf");
@@ -324,25 +339,19 @@ final class ExtCheckInspector {
             }
             // 주석 · 양식 · 책갈피 · 이미지 수
             int images = 0;
+            Set<COSBase> seenForms = Collections.newSetFromMap(new IdentityHashMap<COSBase, Boolean>());
             for (int p = 0; p < pages; p++) {
                 checkTime(deadline);
                 PDPage page = doc.getPage(p);
                 for (PDAnnotation a : page.getAnnotations()) {
                     COSDictionary ad = a.getCOSObject();
                     scanText(hits, join(ad, "Contents", "T", "Subj", "RC"), "annot", deadline);
-                }
-                if (page.getResources() != null) {
-                    COSBase xo = page.getResources().getCOSObject().getDictionaryObject(COSName.XOBJECT);
-                    if (xo instanceof COSDictionary) {
-                        COSDictionary xd = (COSDictionary) xo;
-                        for (COSName k : new ArrayList<COSName>(xd.keySet())) {
-                            COSBase v = xd.getDictionaryObject(k);
-                            if (v instanceof COSStream && COSName.IMAGE.equals(((COSStream) v).getCOSName(COSName.SUBTYPE))) {
-                                images++;
-                            }
-                        }
+                    COSBase act = ad.getDictionaryObject(COSName.A);          // 링크 동작의 URI(mailto:·tel: 포함) — 하-6
+                    if (act instanceof COSDictionary) {
+                        scanText(hits, str(((COSDictionary) act).getDictionaryObject(COSName.URI)), "annot", deadline);
                     }
                 }
+                images += countImages(page.getResources(), page, seenForms, 0, deadline);
             }
             PDAcroForm form = doc.getDocumentCatalog().getAcroForm();
             if (form != null) {
@@ -365,6 +374,55 @@ final class ExtCheckInspector {
         } finally {
             doc.close();
         }
+    }
+
+    /** 이미지 수 — 직접 XObject 이미지, Form XObject 안의 이미지(깊이 8·같은 폼은 한 번), 내용 스트림의 인라인 이미지(BI). 하-6 */
+    private static int countImages(PDResources res, PDContentStream cs, Set<COSBase> seenForms, int depth, long deadline)
+            throws IOException {
+        int n = countInline(cs, deadline);
+        if (res == null || depth >= MAX_FORM_DEPTH) {
+            return n;
+        }
+        COSBase xo = res.getCOSObject().getDictionaryObject(COSName.XOBJECT);
+        if (!(xo instanceof COSDictionary)) {
+            return n;
+        }
+        COSDictionary xd = (COSDictionary) xo;
+        for (COSName k : new ArrayList<COSName>(xd.keySet())) {
+            checkTime(deadline);
+            COSBase v = xd.getDictionaryObject(k);
+            if (!(v instanceof COSStream)) {
+                continue;
+            }
+            COSStream s = (COSStream) v;
+            COSName sub = s.getCOSName(COSName.SUBTYPE);
+            if (COSName.IMAGE.equals(sub)) {
+                n++;
+            } else if (COSName.FORM.equals(sub) && seenForms.add(s)) {
+                PDFormXObject form = new PDFormXObject(s);
+                n += countImages(form.getResources(), form, seenForms, depth + 1, deadline);
+            }
+        }
+        return n;
+    }
+
+    private static int countInline(PDContentStream cs, long deadline) throws IOException {
+        int n = 0;
+        int tokens = 0;
+        PDFStreamParser parser = new PDFStreamParser(cs);
+        Object t;
+        while ((t = parser.parseNextToken()) != null) {
+            if ((++tokens & 0xFFF) == 0) {
+                checkTime(deadline);
+                if (tokens > MAX_CONTENT_TOKENS) {
+                    throw new Reject("PARSE_FAILED", "content", 1);
+                }
+            }
+            if (t instanceof Operator && "BI".equals(((Operator) t).getName())) {
+                n++;
+            }
+        }
+        return n;
     }
 
     private static void outlineText(Iterable<PDOutlineItem> items, StringBuilder sb, int[] budget, int depth) {
@@ -480,8 +538,15 @@ final class ExtCheckInspector {
                     continue;
                 }
                 String low = name.toLowerCase(Locale.ROOT);
+                String scriptSha = null;
                 if (low.startsWith("scripts/")) {
-                    throw new Reject("SCRIPT", "entry", 1);
+                    if (HWPX_HEADER_SCRIPTS.equals(name)) {
+                        scriptSha = HWPX_HEADER_SCRIPTS_SHA256;
+                    } else if (HWPX_SOURCE_SCRIPTS.equals(name)) {
+                        scriptSha = HWPX_SOURCE_SCRIPTS_SHA256;
+                    } else {
+                        throw new Reject("SCRIPT", "entry", 1);
+                    }
                 }
                 String ext = extOf(low);
                 boolean isText = XML_EXT.contains(ext) || "txt".equals(ext);
@@ -489,13 +554,19 @@ final class ExtCheckInspector {
                 boolean isManifest = "meta-inf/manifest.xml".equals(low);
                 Drained d;
                 try (InputStream in = zf.getInputStream(e)) {
-                    d = drain(in, isText || isMime, total, ratioCap, deadline);
+                    d = drain(in, isText || isMime || scriptSha != null, total, ratioCap, deadline);
                 } catch (ZipException ze) {
                     String m = ze.getMessage();
                     throw new Reject(m != null && m.toLowerCase(Locale.ROOT).contains("encrypt") ? "ENCRYPTED" : "PARSE_FAILED", "entry", 1);
                 }
                 if (d.nested) {
                     throw new Reject("EMBEDDED", "entry", 1);          // 중첩 zip·OLE·실행 파일
+                }
+                if (scriptSha != null) {
+                    if (!scriptSha.equals(sha256Hex(d.data))) {
+                        throw new Reject("SCRIPT", "entry", 1);        // 한컴 기본 빈 틀과 바이트가 다르면 스크립트로 본다
+                    }
+                    continue;                                          // 검사 대상 아님, 보관 유지
                 }
                 if (low.startsWith("bindata/")) {
                     if (!IMAGE_EXT.contains(ext)) {
@@ -516,6 +587,10 @@ final class ExtCheckInspector {
                 }
                 if (isText) {
                     scanEntry(low, ext, d.data, hits, chars, body, deadline);
+                } else if (low.startsWith("preview/") && IMAGE_EXT.contains(ext)) {
+                    // 미리보기 그림(Preview/PrvImage.png)은 허용한다. 이미지 수에는 넣지 않는다.
+                } else {
+                    throw new Reject("UNSUPPORTED_ENTRY", "entry", 1);   // 허용 목록(xml·hpf·rdf·txt·mimetype·BinData 이미지·Preview 그림) 밖
                 }
             }
             if (!mimeOk) {
@@ -632,6 +707,19 @@ final class ExtCheckInspector {
                 || (hl >= 4 && (head[0] & 0xFF) == 0xD0 && (head[1] & 0xFF) == 0xCF && head[2] == 0x11 && (head[3] & 0xFF) == 0xE0)
                 || (hl >= 2 && head[0] == 0x4D && head[1] == 0x5A);
         return d;
+    }
+
+    private static String sha256Hex(byte[] data) {
+        try {
+            byte[] h = MessageDigest.getInstance("SHA-256").digest(data);
+            StringBuilder sb = new StringBuilder();
+            for (byte b : h) {
+                sb.append(String.format("%02x", b & 0xFF));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
     private static boolean safeEntryName(String n) {
