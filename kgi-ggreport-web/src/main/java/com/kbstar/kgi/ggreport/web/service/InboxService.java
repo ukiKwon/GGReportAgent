@@ -144,6 +144,12 @@ public class InboxService {
         }
 
         JsonNode manifest = readManifest(batchDir);
+        // NEXT 90 2단계 구현 전까지 checks 는 조용히 버리지 않고 거부한다 — DB·파일 변경 전, 값은 싣지 않는다.
+        JsonNode checks = manifest.path("checks");
+        if (!checks.isMissingNode() && !checks.isNull()) {
+            throw ApiException.withDetail(422, Collections.singletonMap("errors",
+                    Collections.singletonList("CHECKS_NOT_YET_SUPPORTED: 외부 확인(checks) 반입은 아직 지원하지 않습니다")));
+        }
         String sourceSlug = manifest.path("source").path("slug").asText();
         JsonNode records = manifest.path("records");
         List<InstitutionImportRow> rows = readInstitutionRows(batchDir);

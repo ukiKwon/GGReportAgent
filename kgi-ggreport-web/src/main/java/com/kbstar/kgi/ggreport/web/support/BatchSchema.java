@@ -5,11 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -29,6 +31,8 @@ import java.util.regex.Pattern;
 public final class BatchSchema {
 
     private static final int[] SUPPORTED_SCHEMA_VERSIONS = {1};
+    /** checks[] 가 생긴 minor (SCHEMA.md ④-2). contract/batch_schema.py 와 같은 값. */
+    private static final int SCHEMA_MINOR_MAX = 1;
     private static final Pattern DATE_RE = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$");
 
     /**
@@ -85,6 +89,15 @@ public final class BatchSchema {
             return errors;
         }
 
+        // checks 가 있는데 minor 를 모르면 조용히 버리지 않고 배치를 거부한다(security 1차 (e)).
+        if (!absent(manifest.path("checks"))) {
+            JsonNode minor = manifest.path("schema_minor");
+            if (!(minor.isInt() && minor.asInt() >= 1 && minor.asInt() <= SCHEMA_MINOR_MAX)) {
+                errors.add("UNSUPPORTED_MINOR: schema_minor가 없거나 지원 범위(1~" + SCHEMA_MINOR_MAX + ")를 벗어났습니다");
+                return errors;
+            }
+        }
+
         JsonNode batchIdNode = manifest.path("batch_id");
         String batchId = batchIdNode.isTextual() ? batchIdNode.asText() : null;
         if (batchId == null || !BATCH_ID_RE.matcher(batchId).matches()) {
@@ -113,6 +126,7 @@ public final class BatchSchema {
         for (int i = 0; i < records.size(); i++) {
             errors.addAll(validateRecord(records.get(i), i, batchDir, seen));
         }
+        errors.addAll(validateChecks(manifest, batchDir));
         return errors;
     }
 
@@ -179,19 +193,19 @@ public final class BatchSchema {
         }
         String value = attachment.asText();
         if (value.startsWith("/") || WINDOWS_DRIVE.matcher(value).find()) {
-            out.add(where + ".attachments: 절대경로는 허용되지 않습니다 (" + value + ")");
+            out.add(where + ".attachments: 절대경로는 허용되지 않습니다");
             return out;
         }
         if (hasParentRef(value)) {
-            out.add(where + ".attachments: 상위 경로 참조는 허용되지 않습니다 (" + value + ")");
+            out.add(where + ".attachments: 상위 경로 참조는 허용되지 않습니다");
             return out;
         }
         if (!value.startsWith("files/")) {
-            out.add(where + ".attachments: files/ 아래여야 합니다 (" + value + ")");
+            out.add(where + ".attachments: files/ 아래여야 합니다");
             return out;
         }
         if (!Files.isRegularFile(batchDir.resolve(value))) {
-            out.add(where + ".attachments: 파일이 없습니다 (" + value + ")");
+            out.add(where + ".attachments: 파일이 없습니다");
         }
         return out;
     }
@@ -204,6 +218,279 @@ public final class BatchSchema {
             }
         }
         return false;
+    }
+
+    // ── checks[] — SCHEMA.md ④-2 (v1.1). 형식만 본다. 개인정보·파일 내용 검사는 서버의 별도 단계다. ──
+    // ⚠️ contract/batch_schema.py 의 _validate_checks 와 한 쌍이다. 오류 문구에는 받은 값을 싣지 않는다.
+    private static final int MAX_CHECKS = 2000;
+    private static final int MAX_CHECK_ATTACHMENTS = 5;
+    private static final long MAX_FILE_BYTES = 20L * 1024 * 1024;
+    private static final long MAX_BATCH_BYTES = 200L * 1024 * 1024;
+    private static final int MAX_REPORTED_COUNT = 100000;
+    private static final int MAX_CHECK_PATH_LEN = 86;
+    private static final String[] CHECK_STATUSES = {"found", "not_found", "error"};
+    private static final String[] CHECK_KINDS = {"notice", "press"};
+    private static final String[] CONFIDENCE_LEVELS = {"high", "mid", "low"};
+    private static final String[] REPORTED_SCOPES = {"body", "meta", "annot", "form", "bookmark", "filename"};
+    public static final Pattern CHECK_ID_RE = Pattern.compile("[A-Za-z0-9_-]{1,40}");
+    private static final Pattern SOURCE_SLUG_RE = Pattern.compile("[a-z0-9-]{1,30}");
+    private static final Pattern CODE_RE = Pattern.compile("[a-z_]{1,30}");
+    private static final Pattern REGION_RE = Pattern.compile("[0-9]{2,5}");
+    private static final Pattern DATE_STRICT_RE = Pattern.compile("[0-9]{4}-[0-9]{2}-[0-9]{2}");
+    private static final Pattern DATETIME_RE = Pattern.compile(
+            "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?[+-][0-9]{2}:[0-9]{2}");
+    private static final Pattern URL_RE = Pattern.compile("https?://[\\x21-\\x7E]{1,490}");
+    private static final Pattern SHA256_RE = Pattern.compile("[0-9a-f]{64}");
+    private static final Pattern CHECK_PATH_RE = Pattern.compile("files/(?!\\.)[A-Za-z0-9._-]+\\.(?:pdf|hwp|hwpx)");
+    private static final Pattern RESERVED_NAME_RE = Pattern.compile("(?i)con|prn|aux|nul|com[1-9]|lpt[1-9]");
+    private static final Pattern TOOL_RE = Pattern.compile("[A-Za-z0-9._ -]{1,40}");
+
+    private static boolean absent(JsonNode n) { return n.isMissingNode() || n.isNull(); }
+    private static boolean fullMatch(Pattern p, JsonNode n) { return n.isTextual() && p.matcher(n.asText()).matches(); }
+    private static boolean optMatch(Pattern p, JsonNode n) { return absent(n) || fullMatch(p, n); }
+    private static boolean inSet(JsonNode n, String[] allowed) {
+        return n.isTextual() && Arrays.asList(allowed).contains(n.asText());
+    }
+    private static boolean intInRange(JsonNode n, long lo, long hi) {
+        return n.isIntegralNumber() && n.canConvertToLong() && n.asLong() >= lo && n.asLong() <= hi;
+    }
+    private static boolean optText(JsonNode n, int max) { return absent(n) || textOk(n, max); }
+
+    /** 비어 있지 않은 문자열, 코드 포인트 길이 상한, 제어·서식·줄/문단 구분·짝 없는 서로게이트 문자 없음. */
+    private static boolean textOk(JsonNode n, int max) {
+        if (!n.isTextual()) {
+            return false;
+        }
+        String s = n.asText();
+        if (s.trim().isEmpty() || s.codePointCount(0, s.length()) > max) {
+            return false;
+        }
+        for (int i = 0; i < s.length(); ) {
+            int cp = s.codePointAt(i);
+            i += Character.charCount(cp);
+            int t = Character.getType(cp);
+            if (t == Character.CONTROL || t == Character.FORMAT || t == Character.LINE_SEPARATOR
+                    || t == Character.PARAGRAPH_SEPARATOR || t == Character.SURROGATE) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static List<String> validateChecks(JsonNode manifest, Path batchDir) {
+        List<String> errors = new ArrayList<>();
+        JsonNode checks = manifest.path("checks");
+        if (absent(checks)) {
+            return errors;
+        }
+        if (!checks.isArray()) {
+            errors.add("checks가 배열이 아닙니다");
+            return errors;
+        }
+        if (checks.size() > MAX_CHECKS) {
+            errors.add("checks 건수가 상한(" + MAX_CHECKS + ")을 넘습니다");
+            return errors;
+        }
+        Set<String> ids = new LinkedHashSet<>();
+        Set<String> paths = new LinkedHashSet<>();
+        long[] total = {0L};
+        for (int i = 0; i < checks.size(); i++) {
+            errors.addAll(validateCheck(checks.get(i), i, batchDir, ids, paths, total));
+        }
+        if (total[0] > MAX_BATCH_BYTES) {
+            errors.add("checks 첨부 합계가 상한(200 MiB)을 넘습니다");
+        }
+        return errors;
+    }
+
+    private static List<String> validateCheck(JsonNode check, int index, Path batchDir,
+                                              Set<String> ids, Set<String> paths, long[] total) {
+        String where = "checks[" + index + "]";
+        List<String> errors = new ArrayList<>();
+        if (!check.isObject()) {
+            errors.add(where + ": 객체가 아닙니다");
+            return errors;
+        }
+        JsonNode id = check.path("check_id");
+        if (!fullMatch(CHECK_ID_RE, id)) {
+            errors.add(where + ".check_id: 형식이 잘못됐습니다");
+        } else if (!ids.add(id.asText().toLowerCase(Locale.ROOT))) {   // Windows 는 대소문자를 구분하지 않는다
+            errors.add(where + ".check_id: 중복입니다");
+        }
+
+        JsonNode inst = check.path("institution");
+        if (!inst.isObject()) {
+            errors.add(where + ".institution: 객체가 아닙니다");
+        } else {
+            if (!textOk(inst.path("name_ko"), 100)) {
+                errors.add(where + ".institution.name_ko: 형식이 잘못됐습니다");
+            }
+            if (!optText(inst.path("type"), 30)) {
+                errors.add(where + ".institution.type: 형식이 잘못됐습니다");
+            }
+            for (String key : new String[]{"region_code", "sub_region_code"}) {
+                if (!optMatch(REGION_RE, inst.path(key))) {
+                    errors.add(where + ".institution." + key + ": 형식이 잘못됐습니다");
+                }
+            }
+        }
+
+        JsonNode statusNode = check.path("status");
+        if (!inSet(statusNode, CHECK_STATUSES)) {
+            errors.add(where + ".status: 허용값이 아닙니다");
+        }
+        String status = statusNode.isTextual() ? statusNode.asText() : "";
+        if (!fullMatch(DATETIME_RE, check.path("checked_at"))) {
+            errors.add(where + ".checked_at: 형식이 잘못됐습니다");
+        }
+        JsonNode kindNode = check.path("source_kind");
+        if (!inSet(kindNode, CHECK_KINDS)) {
+            errors.add(where + ".source_kind: 허용값이 아닙니다");
+        }
+        String kind = kindNode.isTextual() ? kindNode.asText() : "";
+        if (!fullMatch(SOURCE_SLUG_RE, check.path("source_slug"))) {
+            errors.add(where + ".source_slug: 형식이 잘못됐습니다");
+        }
+
+        JsonNode code = check.path("error_code");
+        boolean codeOk = "error".equals(status) ? fullMatch(CODE_RE, code) : optMatch(CODE_RE, code);
+        if (!codeOk) {
+            errors.add(where + ".error_code: 형식이 잘못됐습니다");
+        }
+        if ("found".equals(status)) {
+            errors.addAll(validateFound(check, where, kind));
+        }
+
+        JsonNode attachments = check.path("attachments");
+        if (!absent(attachments)) {
+            if (!attachments.isArray() || attachments.size() > MAX_CHECK_ATTACHMENTS) {
+                errors.add(where + ".attachments: 배열이 아니거나 건수 상한(" + MAX_CHECK_ATTACHMENTS + ")을 넘습니다");
+            } else {
+                for (int j = 0; j < attachments.size(); j++) {
+                    errors.addAll(validateCheckAttachment(attachments.get(j),
+                            where + ".attachments[" + j + "]", batchDir, paths, total));
+                }
+            }
+        }
+        return errors;
+    }
+
+    private static List<String> validateFound(JsonNode check, String where, String kind) {
+        List<String> out = new ArrayList<>();
+        JsonNode match = check.path("match");
+        if (!match.isObject()) {
+            out.add(where + ".match: 객체가 아닙니다");
+        } else {
+            if (!inSet(match.path("confidence"), CONFIDENCE_LEVELS)) {
+                out.add(where + ".match.confidence: 허용값이 아닙니다");
+            }
+            JsonNode basis = match.path("basis");
+            boolean ok = basis.isArray() && basis.size() >= 1 && basis.size() <= 6;
+            if (ok) {
+                for (JsonNode b : basis) {
+                    ok = ok && fullMatch(CODE_RE, b);
+                }
+            }
+            if (!ok) {
+                out.add(where + ".match.basis: 형식이 잘못됐습니다");
+            }
+        }
+        if ("notice".equals(kind)) {
+            JsonNode n = check.path("notice");
+            if (!n.isObject()) {
+                out.add(where + ".notice: 객체가 아닙니다");
+            } else {
+                if (!textOk(n.path("title"), 300)) {
+                    out.add(where + ".notice.title: 형식이 잘못됐습니다");
+                }
+                if (!optText(n.path("number"), 60)) {
+                    out.add(where + ".notice.number: 형식이 잘못됐습니다");
+                }
+                for (String key : new String[]{"posted_at", "deadline_at"}) {
+                    if (!optMatch(DATE_STRICT_RE, n.path(key))) {
+                        out.add(where + ".notice." + key + ": YYYY-MM-DD가 아닙니다");
+                    }
+                }
+                if (!optMatch(URL_RE, n.path("url"))) {
+                    out.add(where + ".notice.url: 형식이 잘못됐습니다");
+                }
+            }
+        } else if ("press".equals(kind)) {
+            JsonNode p = check.path("press");
+            if (!p.isObject()) {
+                out.add(where + ".press: 객체가 아닙니다");
+            } else {
+                if (!textOk(p.path("title"), 200)) {
+                    out.add(where + ".press.title: 형식이 잘못됐습니다");
+                }
+                if (!optText(p.path("publisher"), 60)) {
+                    out.add(where + ".press.publisher: 형식이 잘못됐습니다");
+                }
+                if (!optMatch(DATE_STRICT_RE, p.path("published_at"))) {
+                    out.add(where + ".press.published_at: YYYY-MM-DD가 아닙니다");
+                }
+                if (!optMatch(URL_RE, p.path("url"))) {
+                    out.add(where + ".press.url: 형식이 잘못됐습니다");
+                }
+            }
+        }
+        return out;
+    }
+
+    private static List<String> validateCheckAttachment(JsonNode att, String w, Path batchDir,
+                                                        Set<String> paths, long[] total) {
+        List<String> out = new ArrayList<>();
+        if (!att.isObject()) {
+            out.add(w + ": 객체가 아닙니다");
+            return out;
+        }
+        JsonNode pathNode = att.path("path");
+        boolean pathOk = false;
+        if (pathNode.isTextual()) {
+            String p = pathNode.asText();
+            pathOk = p.length() <= MAX_CHECK_PATH_LEN && CHECK_PATH_RE.matcher(p).matches()
+                    && !RESERVED_NAME_RE.matcher(p.substring(6).split("\\.", 2)[0]).matches();
+        }
+        if (!pathOk) {
+            out.add(w + ".path: 허용되지 않는 경로 형식입니다");           // 받은 값은 싣지 않는다
+        } else if (!paths.add(pathNode.asText().toLowerCase(Locale.ROOT))) {
+            out.add(w + ".path: 중복입니다");
+        } else if (!Files.isRegularFile(batchDir.resolve(pathNode.asText()), LinkOption.NOFOLLOW_LINKS)) {
+            out.add(w + ".path: 파일이 없습니다");
+        }
+        if (!fullMatch(SHA256_RE, att.path("sha256"))) {
+            out.add(w + ".sha256: 형식이 잘못됐습니다");
+        }
+        JsonNode size = att.path("size");
+        if (intInRange(size, 1, MAX_FILE_BYTES)) {
+            total[0] += size.asLong();
+        } else {
+            out.add(w + ".size: 1바이트~20 MiB 정수여야 합니다");
+        }
+        for (String key : new String[]{"reported_tool", "reported_version"}) {
+            if (!optMatch(TOOL_RE, att.path(key))) {
+                out.add(w + "." + key + ": 형식이 잘못됐습니다");
+            }
+        }
+        for (String key : new String[]{"reported_phones_removed", "reported_landlines_masked", "reported_emails_masked"}) {
+            JsonNode v = att.path(key);
+            if (!absent(v) && !intInRange(v, 0, MAX_REPORTED_COUNT)) {
+                out.add(w + "." + key + ": 0 이상 정수여야 합니다");
+            }
+        }
+        JsonNode scope = att.path("reported_scope");
+        if (!absent(scope)) {
+            boolean ok = scope.isArray() && scope.size() <= REPORTED_SCOPES.length;
+            if (ok) {
+                for (JsonNode s : scope) {
+                    ok = ok && inSet(s, REPORTED_SCOPES);
+                }
+            }
+            if (!ok) {
+                out.add(w + ".reported_scope: 허용값이 아닙니다");
+            }
+        }
+        return out;
     }
 
     /** 없음 · null · 빈 문자열을 모두 "없다"로 본다 — 원본 {@code not record.get(name)}. */

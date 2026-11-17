@@ -179,6 +179,69 @@ CSV의 모든 열은 manifest에서 기계적으로 나온다. 사람이 손대�
 - 같은 공고를 다시 수집하는 것은 정상이며(일정 갱신 등), **나중 배치가 이긴다**.
 - 배치는 **불변**이다 — 이미 내보낸 배치 폴더를 수정하지 말고 새 배치를 만든다.
 
+### ④-2 `checks[]` — 외부 확인 결과 (v1.1, 선택 칸, `schema_version`은 1 유지, NEXT 90·2026-11-17)
+
+- 기관 1곳을 1회 확인한 결과다. **`records`와 섞지 않는다.** `checks`는 `bid_cases`(일정·지도 색)를
+  바꾸지 않는다 — 망 안은 이 배열을 '외부 확인' 표에만 저장한다.
+- 공고를 찾아도, 찾지 못해도, 조회에 실패해도 **기관당 1건씩** 낸다(없으면 "확인 안 함"과 "못 찾음"을 구분할 수 없다).
+- `checks`를 쓰면 **`schema_minor: 1`이 필수**다. 없거나 서버가 모르는 값이면 서버는 배치 전체를 `UNSUPPORTED_MINOR`로
+  거부한다(조용히 버리지 않는다). `checks`가 없는 배치의 `schema_minor`는 무시한다.
+- 외부 확인 전용 배치는 `records: []`와 `checks`를 쓰고, `institutions.csv`는 머리글만 있는 파일을 둔다(v1 검증기가 파일 존재를 본다).
+- 모르는 필드는 무시한다(§⑨). 아래 값 규칙을 어기면 서버는 **배치 전체를 422**로 거부하며, 문구에는 **받은 값이 실리지 않고**
+  위치(`checks[3].attachments[0].path`)와 필드 이름만 실린다.
+
+| 필드 | 필수 | 규칙 |
+|---|---|---|
+| `check_id` | ✅ | 배치 안 유일(대소문자 무시). `[A-Za-z0-9_-]{1,40}` |
+| `institution.name_ko` | ✅ | 100자 이내, 제어·서식 문자 금지. `type` 30자, `region_code`·`sub_region_code`는 숫자 2~5자(모르면 생략) |
+| `status` | ✅ | `found` \| `not_found` \| `error` |
+| `checked_at` | ✅ | ISO 8601, 오프셋 포함(`+09:00`) |
+| `source_kind` | ✅ | `notice` \| `press`(보도, 참고용) |
+| `source_slug` | ✅ | `[a-z0-9-]{1,30}` |
+| `error_code` | status=error | `[a-z_]{1,30}`(`timeout`·`blocked`·`parse_failed`·`quota`). 원문 오류 문구·URL·스택 금지 |
+| `match.confidence`·`match.basis[]` | found | `high`\|`mid`\|`low`, 근거 코드 1~6개(`[a-z_]{1,30}`) |
+| `notice.title`(300자)·`number`(60자)·`posted_at`·`deadline_at`·`url` | found + notice | 제목 필수. 날짜 `YYYY-MM-DD`. url은 `http(s)://` + 인쇄 가능 ASCII 500자 이내. 폐쇄망에서는 열리지 않는다 |
+| `press.title`(200자)·`publisher`·`published_at`·`url` | found + press | **본문 필드 없음** |
+| `attachments[]` | | check당 5개 이하. `{path, sha256, size, reported_*}` |
+| `attachments[].path` | ✅ | `files/` + `[A-Za-z0-9._-]` **ASCII만**, 이름 80자 이내, 확장자 소문자 `pdf`·`hwp`·`hwpx`. 한글·`:`·공백·`\`·`..`·`.`로 시작·`CON`/`NUL` 등 예약어 금지(§⑤의 "한글 허용"은 checks 첨부에는 적용하지 않는다) |
+| `attachments[].sha256` | ✅ | 소문자 hex 64자 |
+| `attachments[].size` | ✅ | 1바이트~20 MiB. 배치 합계 200 MiB |
+| `attachments[].reported_*` | | 아래 ④-3 8번 |
+
+예시
+
+```json
+{"schema_version":1,"schema_minor":1,"batch_id":"2026-11-17_0700_extcheck-daily",
+ "collected_at":"2026-11-17T07:00:05+09:00","source":{"slug":"extcheck-daily","name_ko":"외부 확인(일일)"},
+ "records":[],
+ "checks":[
+  {"check_id":"c-0001","institution":{"name_ko":"○○구청","region_code":"11"},"status":"found",
+   "checked_at":"2026-11-17T07:02:11+09:00","source_kind":"notice","source_slug":"eminwon",
+   "match":{"confidence":"high","basis":["domain_match","org_code_match"]},
+   "notice":{"number":"2026-123","title":"금고 지정 제안서 접수 공고","deadline_at":"2026-12-02"},
+   "attachments":[{"path":"files/c-0001_1.pdf","sha256":"<64자 hex>","size":412345,
+                   "reported_tool":"redact","reported_version":"1","reported_phones_removed":2,
+                   "reported_landlines_masked":1,"reported_emails_masked":1,"reported_scope":["body","meta"]}]},
+  {"check_id":"c-0002","institution":{"name_ko":"△△군청"},"status":"not_found",
+   "checked_at":"2026-11-17T07:02:40+09:00","source_kind":"notice","source_slug":"eminwon"}]}
+```
+
+### ④-3 첨부 전처리 규칙 (망 밖에서 반입 전에 끝낸다, 사용자 11-17)
+
+> **구현 상태(2026-11-17, NEXT 90 1단계)**: 지금 망 안 서버는 `checks`가 든 배치를 형식 검사 뒤 **`CHECKS_NOT_YET_SUPPORTED`(422)로 거부**한다. 아래 '서버가 다시 검사·제외·삭제'는 2단계(첨부 재검사·저장) 구현 뒤의 동작이며, 그 전까지는 망 밖 전처리만이 보호 수단이다. 연도 형식(`2024.` `2024-` 등) 바로 뒤에 붙은 번호는 서버 검사가 날짜로 보고 놓치는 의도된 한계가 있으니 전처리에서 반드시 지운다.
+
+서버는(2단계 이후) 안전망으로 다시 검사하고, 걸린 check는 **그 check만 제외**하며 파일은 즉시 삭제한다. 제외 사유에는 종류·위치·건수만 남고 값은 남지 않는다.
+
+1. **휴대폰**(010·011·016~019, `+82`·`0082`·괄호·사선·점 구분 포함)은 **삭제**한다. `***`로 바꾸지 않는다 — 서버는 가려진 휴대폰 모양도 "있음"으로 본다.
+2. **유선**(02·031~064·070·050x)은 국번 뒤를 전부 가린다: `02-****-****`. 대표번호 15xx·16xx·18xx는 그대로 둔다.
+3. **이메일**은 `첫글자***@도메인`. 로컬 부분이 `첫글자 + *`가 아니면(`ho***@`, `ab***z@`, `***@`) 서버가 거부한다.
+4. 처리 위치: 본문, 문서 속성(작성자·제목·XMP·요약정보), 주석, 양식 필드 값, 책갈피, 미리보기 텍스트(HWP·HWPX), 파일명.
+5. **덮개 사각형만 씌우지 않는다.** 아래 글자가 남는다. 글자 층에서 지운 파일로 새로 쓴다.
+6. **증분 저장·문서 이력 없이 새 파일로 저장한다.** PDF는 "다른 이름으로 새로 저장"(증분 저장 금지 — 이전 판의 객체가 파일에 남는다), HWP는 "문서 이력 저장" 해제 후 새 파일로 저장한다. 서버는 PDF의 `/Prev`·`startxref` 2개 이상, HWP 이력·XML 템플릿·전자서명 비트가 있으면 `INCREMENTAL`/`HISTORY`로 제외한다.
+7. **이미지 속 글자는 서버가 읽지 못한다.** 이미지 위주 문서(이미지가 있고 추출 글자가 거의 없음)는 서버가 `IMAGE_ONLY`로 제외한다. 첨부하지 말고 `notice.url`만 보낸다.
+8. 첨부마다 `reported_tool`, `reported_version`, `reported_phones_removed`, `reported_landlines_masked`, `reported_emails_masked`, `reported_scope[]`(`body`·`meta`·`annot`·`form`·`bookmark`·`filename`)를 쓸 수 있다. 개수만 쓰고 값은 쓰지 않는다. **자기신고다.** 서버는 믿지 않고 판정에 쓰지 않으며 이력에도 남기지 않는다.
+9. 서버가 첨부 처리 때문에 제외한 check는 다음 배치에 새 파일로 다시 낸다(같은 `batch_id`를 고쳐 쓰지 않는다, §④ 불변 원칙).
+
 ## ⑤ 첨부 파일(`files/`) 규칙
 
 - 배치 폴더 밖을 가리키는 경로(`..`, 절대경로, 심볼릭 링크) **금지**.
@@ -229,6 +292,8 @@ CSV의 모든 열은 manifest에서 기계적으로 나온다. 사람이 손대�
 - 선택 필드 추가는 버전을 올리지 않는다 — 망 안은 **모르는 필드를 무시**해야 한다.
 - 망 안은 자신이 지원하는 최대 버전보다 높은 배치를 만나면 **거부**하고 사람에게
   알린다(조용히 부분 처리하지 않는다).
+- `schema_minor`는 **선택 칸 추가**에서 올린다. 망 안은 자신이 아는 최대 minor보다 높은 값, 또는 minor 없이
+  `checks`가 있으면 배치 전체를 `UNSUPPORTED_MINOR`로 거부한다(§④-2).
 
 ## ⑩ 결정 로그
 

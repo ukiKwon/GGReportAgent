@@ -30,6 +30,31 @@ public final class Pii {
     private static final Pattern CARD =
             Pattern.compile("(?<!\\d)(\\d{4})([- ])(\\d{4})\\2(\\d{4})\\2(\\d{4})(?!\\d)");
 
+    // ── 외부 확인 반입(scanExternal)용 — 서버 안전망. 기존 scan/scanLoose 는 바뀌지 않는다 ──
+    /** 가림표 후보(NFKC 뒤). 숫자 * x X # o O ○●□■◯△▲☆★ ㅇ(U+3147, NFKC 뒤 U+110B) ∗(U+2217) ×. */
+    private static final String MK = "[\\d*xX#oO\\u25CB\\u25CF\\u25A1\\u25A0\\u25EF\\u25B3\\u25B2"
+            + "\\u2606\\u2605\\u3147\\u110B\\u2217\\u00D7]";
+    /** 구분자 0~3자. 소유 한정자라 되돌아가지 않는다(상-2). */
+    private static final String SP = "[\\s\\-./]{0,3}+";
+    /** 국가번호(+82·0082·82, 뒤에 (0)·0 선택) 또는 국내 0. +82-02 도 잡는다(상-3). */
+    private static final String CC = "(?:(?:\\+|00)?82" + SP + "(?:\\(0\\))?+" + SP + "0?+|\\(?0)";
+    /** 휴대폰 — 부분 가림·전부 가림도 '있음'으로 본다. */
+    private static final Pattern MOBILE_ANY = Pattern.compile(
+            "(?<!\\d)" + CC + "1[016789]\\)?" + SP + MK + "{3,4}" + SP + MK + "{4}(?!\\d)");
+    /** 유선 — 02·031~033·041~044·051~055·061~064·070·050x. 대표번호 15xx·16xx·18xx 는 0 으로 시작하지 않아 걸리지 않는다. */
+    private static final Pattern LANDLINE = Pattern.compile(
+            "(?<!\\d)(?<!(?:19|20)\\d\\d[-./])" + CC
+            + "(?:2|3[1-3]|4[1-4]|5[1-5]|6[1-4]|70|50\\d)\\)?" + SP
+            + "(" + MK + "{3,4})" + SP + "(" + MK + "{4})(?!\\d)");
+    private static final String LOCAL_CH = "[A-Za-z0-9._%+*\\-\\u25CB\\u25CF\\u25A1\\u25A0\\u25EF\\u2217#]";
+    /** 이메일 — 가림표가 든 로컬 부분까지 통째로 잡고, 허용 모양인지는 아래에서 따로 본다(중-2). */
+    private static final Pattern EMAIL_ANY = Pattern.compile(
+            "(?<!" + LOCAL_CH + ")(" + LOCAL_CH + "++)@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})");
+    /** 허용되는 가린 이메일 로컬 부분: 첫 글자 하나 + '*' 한 개 이상. */
+    private static final Pattern EMAIL_MASKED_OK = Pattern.compile("[A-Za-z0-9]\\*+");
+    private static final String REDACTED = "[가림]";
+    private static final long DEFAULT_BUDGET_NANOS = 10_000_000_000L;
+
     private Pii() {
     }
 
@@ -137,6 +162,109 @@ public final class Pii {
     /** 기관장 정보(026)의 유선전화 검사용 — scanLoose 가 보는 접힘({@code '.'} 구분자 포함)을 그대로 돌려준다. 기존 동작은 바뀌지 않는다. */
     public static String foldLoose(String t) {
         return t == null ? "" : fold(t, true);
+    }
+
+    /** scanExternal 이 마감 시각을 넘기면 던진다. 호출자는 그 check 를 TIMEOUT 으로 제외한다. */
+    public static final class ScanTimeoutException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        ScanTimeoutException() { super("scan deadline exceeded"); }
+    }
+
+    /**
+     * 외부 확인 반입용 안전망 검사(기본 10초). 종류·건수만 알려 주고 value 는 항상 "[가림]" 이다.
+     * 휴대폰은 가렸든 아니든 있으면 건수에 든다. 유선은 국번 뒤 두 묶음이 모두 가림표일 때만 통과한다.
+     * 이메일은 로컬 부분이 {@code 첫글자+*...} 일 때만 통과한다.
+     */
+    public static List<Finding> scanExternal(String text) {
+        return scanExternal(text, System.nanoTime() + DEFAULT_BUDGET_NANOS);
+    }
+
+    /** @param deadlineNanos {@link System#nanoTime()} 기준 절대 마감 시각. 넘기면 {@link ScanTimeoutException}. */
+    public static List<Finding> scanExternal(String text, long deadlineNanos) {
+        List<Finding> out = new ArrayList<Finding>();
+        if (text == null || text.isEmpty()) {
+            return out;
+        }
+        checkDeadline(deadlineNanos);
+        String f = collapseSpace(fold(text, true));            // 공백 연속은 하나로(상-2)
+        Matcher m = MOBILE_ANY.matcher(new Budget(f, deadlineNanos));
+        while (m.find()) {
+            out.add(new Finding("휴대폰", REDACTED));
+        }
+        Matcher l = LANDLINE.matcher(new Budget(f, deadlineNanos));
+        while (l.find()) {
+            if (hasDigit(l.group(1)) || hasDigit(l.group(2))) {
+                out.add(new Finding("유선전화", REDACTED));
+            }
+        }
+        checkDeadline(deadlineNanos);
+        for (Finding x : scanLoose(text)) {                    // 주민·외국인·카드(기존 규칙). 휴대폰·이메일은 위에서 따로
+            String k = x.getKind();
+            if (!"휴대폰".equals(k) && !EMAIL_KIND.equals(k)) {
+                out.add(new Finding(k, REDACTED));
+            }
+        }
+        Matcher e = EMAIL_ANY.matcher(new Budget(fold(text, false), deadlineNanos));   // '.' 을 살린 접힘
+        while (e.find()) {
+            if (!EMAIL_MASKED_OK.matcher(e.group(1)).matches()) {
+                out.add(new Finding(EMAIL_KIND, REDACTED));
+            }
+        }
+        return out;
+    }
+
+    private static void checkDeadline(long deadlineNanos) {
+        if (System.nanoTime() - deadlineNanos > 0) {
+            throw new ScanTimeoutException();
+        }
+    }
+
+    private static boolean hasDigit(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (Character.isDigit(s.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 공백류(스페이스·탭·줄바꿈·VT·FF·CR) 연속을 스페이스 하나로. 정규식을 쓰지 않는다. */
+    private static String collapseSpace(String s) {
+        StringBuilder b = new StringBuilder(s.length());
+        boolean inWs = false;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            boolean ws = c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == (char) 0x0B;
+            if (ws) {
+                if (!inWs) {
+                    b.append(' ');
+                }
+                inWs = true;
+            } else {
+                b.append(c);
+                inWs = false;
+            }
+        }
+        return b.toString();
+    }
+
+    /** charAt 마다(1024번에 한 번 시각 확인) 마감을 보는 감싸개 — 정규식은 인터럽트에 반응하지 않기 때문이다(상-2). */
+    private static final class Budget implements CharSequence {
+        private final CharSequence s;
+        private final long deadline;
+        private int n;
+
+        Budget(CharSequence s, long deadline) { this.s = s; this.deadline = deadline; }
+
+        @Override public char charAt(int i) {
+            if ((n++ & 0x3FF) == 0 && System.nanoTime() - deadline > 0) {
+                throw new ScanTimeoutException();
+            }
+            return s.charAt(i);
+        }
+        @Override public int length() { return s.length(); }
+        @Override public CharSequence subSequence(int a, int b) { return s.subSequence(a, b); }
+        @Override public String toString() { return s.toString(); }
     }
 
     private static String fold(String text, boolean dotAsDash) {
