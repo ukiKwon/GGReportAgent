@@ -338,10 +338,39 @@
     return { serverMode: serverMode() && hasEmp(), role: role(), session: ses, account: acc,
       master: !!(acc && root.login && ses.id === root.login.MASTER_ID) };
   }
+  // ── 올해 목표 기관 집합(사용자 11-19 Q2: 올해 목표 기관은 공고 전에도 [제안 확정]) ──
+  // kbboard가 받은 GET /bid-targets 응답을 setGoals로 넘기거나, 없으면 loadGoals가 직접 받는다. 올해(오늘 연도) 응답만 담는다.
+  const goalSt = { year: 0, ids: null, st: 'idle', seq: 0 };
+  dash.setGoals = function (data, today) {   // data = { year, items:[{institution_id}] }. 담았으면 true
+    const y = (today || todayDate()).getFullYear();
+    if (!data || Number(data.year) !== y || !Array.isArray(data.items)) return false;
+    const ids = {};
+    data.items.forEach(function (t) { const id = String(instId(t)); if (id) ids[id] = true; });   // watch_items는 읽지 않는다 — 관심 기관은 규칙 밖
+    goalSt.year = y; goalSt.ids = ids; goalSt.st = 'ok';
+    return true;
+  };
+  dash.clearGoals = function () { goalSt.seq += 1; goalSt.year = 0; goalSt.ids = null; goalSt.st = 'idle'; };
+  dash.loadGoals = function () {
+    if (!serverMode() || !hasEmp()) { dash.clearGoals(); return Promise.resolve(); }
+    const y = todayDate().getFullYear(), my = ++goalSt.seq;
+    if (!goalSt.ids) goalSt.st = 'loading';
+    return fetchJson('/bid-targets?year=' + encodeURIComponent(y)).then(function (r) {
+      if (my !== goalSt.seq) return;
+      if (r.status === 'ok' && dash.setGoals(r.data)) return;
+      goalSt.ids = null; goalSt.year = 0; goalSt.st = r.status === 'ok' ? 'error' : r.status;   // 못 받으면 지금 규칙 그대로(공고 뒤에만)
+    });
+  };
+  // 순수: 올해 목표 기관인가. goals = { year, ids }.
+  dash.isGoalRec = function (rec, goals, today) {
+    const t = today || todayDate();
+    return !!(goals && goals.ids && Number(goals.year) === t.getFullYear() && goals.ids[String(instId(rec))]);
+  };
   // [제안 확정] 노출 규칙(사용자 11-17 결정 '공고 난 뒤에만') — 한 곳. o = { today: Date, snap: 공고 상태 기록 snap|null }.
   // 담당자 기록이 있으면 기록이 먼저다: 공고 진행 중 → 보임 / 공고 종료·입찰 없음·지연·재공고 대기 → 안 보임.
   // 기록이 없으면 날짜로 본다: 공고(noticeState)가 진행 중이면서 접수 마감 전, 마감일을 모르면 공고 후 30일 이내만 보인다.
   // → 'confirm' | 'closed' | 'nobid' | 'delayed' | 'past'(접수 마감이 지났거나 마감일 모름·공고 후 30일 초과) | 'later'(공고가 아직 없다)
+  // 예외(사용자 11-19): o.goals = { year, ids }에 든 올해 목표 기관은 공고가 아직 없어도('later') 'confirm'. 관심·다른 해 목표·목표 아님은 그대로.
+  // 입찰 없음·종료·지연·접수 기간 지남은 목표 기관이어도 막는다.
   dash.proposeGate = function (rec, o) {
     const today = (o && o.today) || todayDate();
     const snap = (o && o.snap) || null;
@@ -357,9 +386,14 @@
     if (cd === 'DELAYED') return 'delayed';
     if (ns && (ns.phase === 'receiving' || (ns.phase === 'unknown' && !ns.late))) return 'confirm';
     if (ns && ns.check) return 'past';
-    return 'later';
+    return dash.isGoalRec(rec, o && o.goals, today) ? 'confirm' : 'later';
+  };
+  // 순수: 이 'confirm'이 '공고 전 목표 기관 예외' 때문인가(안내 한 줄을 붙일지 정한다).
+  dash.proposeEarly = function (rec, o) {
+    return dash.proposeGate(rec, o) === 'confirm' && dash.proposeGate(rec, Object.assign({}, o, { goals: null })) === 'later';
   };
   // 버튼이 없을 때 db-why 한 줄(actHtml이 쓴다)
+  dash.EARLY_WHY = '올해 목표 기관이라 공고 전에도 영업부서가 제안 확정할 수 있습니다.';
   dash.CONFIRM_WHY = {
     later: '입찰 공고가 나면 [제안 확정]을 쓸 수 있습니다.',
     closed: '이번 회차 공고가 끝났습니다.',
@@ -383,7 +417,9 @@
   // 화면(상세 칸·지도 팝업)이 actionKind에 넘기는 값
   function gateOpts() {
     const n = NR();
-    return { today: todayDate(), snap: curSnap(), wait: !!(n && n.state && n.state() === 'loading') };
+    // goals를 아직 못 받았고 받는 중이면 wait — 공고 전 목표 기관의 [제안 확정]이 늦게 나타나 깜빡이는 것을 줄인다(못 받으면 지금 규칙)
+    return { today: todayDate(), snap: curSnap(), wait: !!(n && n.state && n.state() === 'loading') || (goalSt.st === 'loading' && !goalSt.ids),
+      goals: { year: goalSt.year, ids: goalSt.ids } };
   }
 
   // ── 순수: HTML 조각(사용자·서버 값은 전부 esc) ─────────────────────
@@ -938,7 +974,8 @@
           ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 제안서 사전준비 프로세스]에 이 기관의 준비 건이 생깁니다. 개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</span>' +
           '<div class="db-act-row"><button type="button" class="db-next" id="db-do"' + (c.busy ? ' disabled' : '') + '>확정하기</button><button type="button" id="db-cancel">취소</button></div></div>';
       }
-      return '<div class="db-act-row"><button type="button" class="db-next" id="db-cf">제안 확정</button>' + map + '</div>';
+      return '<div class="db-act-row"><button type="button" class="db-next" id="db-cf">제안 확정</button>' + map +
+        (c.early ? '<span class="db-why">' + esc(dash.EARLY_WHY) + '</span>' : '') + '</div>';
     }
     const noperm = ['영업팀', '영업팀장'].indexOf(c.role || '') < 0 ? '<span class="db-why">제안 확정은 영업팀·영업팀장이 합니다.</span>' : '';
     return '<div class="db-act-row">' + map + noperm + '</div>';
@@ -1125,7 +1162,7 @@
     const keep = a0 && a0.id && el.contains && el.contains(a0) ? { id: a0.id, s: a0.selectionStart, e: a0.selectionEnd } : null;
     recSync(it);
     st.comp = false; st.compLater = false;   // 상세를 통째로 다시 그리면 조합도 끊긴다 — 미룬 다시 그리기 표시를 남기지 않는다
-    el.innerHTML = dash.paneHtml(it, { act: act, confirm: st.confirm && act === 'confirm', busy: st.busy,
+    el.innerHTML = dash.paneHtml(it, { act: act, early: act === 'confirm' && dash.proposeEarly(it.rec, gateOpts()), confirm: st.confirm && act === 'confirm', busy: st.busy,
       kb: dash.kbEntry(it.rec, root.KB_VERIFIED), next: dash.kbEntry(it.rec, root.KB_NEXT), role: ctx.role, today: todayDate(), headHtml: headSection(it),
       recordHtml: ie.isOpenCheck(it.rec) ? '' : recViewHtml(it), bank: bankView(it.rec) });
     if (st.confirm && act === 'confirm') { const b = $('db-do'); if (b) b.focus(); }
@@ -1646,7 +1683,7 @@
     if (m.prepSt === 'loading' && act !== 'unavailable') act = 'wait';   // 진행 중인지 모르는 동안 [제안 확정]을 보였다 바꾸지 않는다
     const raw = root.render && root.render.popRawHtml ? root.render.popRawHtml(m.rec) : '';
     pane.innerHTML = dash.paneHtml(m.it, {
-      act: act, confirm: m.confirm && act === 'confirm', busy: m.busy, kb: dash.kbEntry(m.rec, root.KB_VERIFIED), next: dash.kbEntry(m.rec, root.KB_NEXT), role: ctx.role, today: todayDate(),
+      act: act, early: act === 'confirm' && dash.proposeEarly(m.rec, gateOpts()), confirm: m.confirm && act === 'confirm', busy: m.busy, kb: dash.kbEntry(m.rec, root.KB_VERIFIED), next: dash.kbEntry(m.rec, root.KB_NEXT), role: ctx.role, today: todayDate(),
       headHtml: root.headcard ? root.headcard.paneSection(m.rec, dmHeadEnv(m)) : undefined,
       recordHtml: ie.isOpenCheck(m.rec) ? '' : dash.recordBriefHtml(m.it, dmRecState()), bank: bankView(m.rec),
       nameId: 'dm-name',
@@ -1782,6 +1819,7 @@
     ov.addEventListener('toggle', function (e) { bankToggle(e, String(m.rec.institutionId || '')); }, true);
     bankWatch();
     dmLoadPreps(m);   // 상태를 받는 동안 'wait'로 그리고, 도착하면 다시 그린다
+    dash.loadGoals().then(function () { if (dm.cur === m) dmRender(); });   // 올해 목표 기관 여부 — 공고 전 [제안 확정] 판정
     const nrm = NR();
     if (nrm && nrm.onChange) { m.offNr = nrm.onChange(function () { if (dm.cur === m) dmRender(); }); if (nrm.ensure) nrm.ensure(); }
     dmRender();
@@ -1874,6 +1912,10 @@
     if (per) per.innerHTML = dash.periodHtml(st.win);
     refreshData();       // 고른 기관이 없으면 자동 선택한다(마감 전 가장 가까운 곳 → 기간 창 첫 행, 포커스 이동 없음). 선택은 세션 안에서만 기억한다.
     loadProgress();
+    dash.loadGoals().then(function () {   // 올해 목표 기관을 받으면 공고 전 [제안 확정] 노출이 달라질 수 있다 — 버튼 줄이 바뀔 때만 다시 그린다(조합 중이면 건너뜀)
+      const it = host && M ? selItem() : null;
+      if (it && $('db-pane') && !st.comp && st.act !== undefined && st.act !== paneAct(it, actCtx(), dash.activePreps(st.preps))) renderPane();
+    });
   };
 
   // 기관 편집 저장 뒤 서버 목록이 바뀌면 현황판(열려 있을 때만)을 다시 그린다.

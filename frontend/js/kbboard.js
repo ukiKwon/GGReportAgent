@@ -1573,6 +1573,7 @@
       }
       gs.st = t.status; gs.code = t.code || 0; gs.data = t.status === 'ok' && t.data ? t.data : null;
       if (t.status === 'ok' && !gs.data) gs.st = 'error';
+      if (gs.data && dash.setGoals) dash.setGoals(gs.data);   // 올해 목표 기관 집합 공유(사용자 11-19 Q2) — 올해가 아닌 연도 응답은 setGoals가 무시한다
       renderGoals(); renderOurs();   // 협약 종료일이 직접 입력 값으로 바뀌었을 수 있어 1번 목록도 다시 그린다
     });
   }

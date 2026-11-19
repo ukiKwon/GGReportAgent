@@ -507,3 +507,8 @@ test('배선: 감사 화면 이름(bid_board·bid_notice·map_popover)·현황�
   assert.ok(d.indexOf('UNKNOWN으로 남는다') < 0);                                                                // 낡은 이관 주석 정리
   assert.ok(app.indexOf("document.getElementById('plans-root')") > 0 && app.indexOf('root.plans.mount(plansEl)') > 0);   // plans 줄 보존
 });
+
+test('kbboard.loadGoals가 받은 목표 응답을 dash.setGoals로 공유한다(11-19 Q2)', function () {
+  const k = src('js/kbboard.js');
+  assert.ok(k.indexOf('if (gs.data && dash.setGoals) dash.setGoals(gs.data);') > 0);
+});

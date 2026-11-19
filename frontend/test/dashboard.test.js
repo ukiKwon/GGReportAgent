@@ -473,6 +473,54 @@ test('proposeGate: 지연·재공고 대기는 다음 확인일이 지나면(rec
   assert.strictEqual(gate(r(-3, { receiveTo: plus(5) }), snap('CLOSED', plus(-9))), 'closed');           // 다른 코드는 그대로
 });
 
+test('proposeGate(11-19): 올해 목표 기관은 공고 전에도 confirm — 관심·다른 해·목표 아님·입찰 없음은 그대로', function () {
+  const Y = TODAY.getFullYear();
+  const r = function (days, extra) { return rec('가', '11', days, Object.assign({ institutionId: 'I1' }, extra || {})); };
+  const goals = function (year, ids) { const m = {}; (ids || ['I1']).forEach(function (i) { m[i] = true; }); return { year: year, ids: m }; };
+  const gate = function (x, g, snap) { return dash.proposeGate(x, { today: TODAY, snap: snap || null, goals: g }); };
+  assert.strictEqual(gate(r(40), goals(Y)), 'confirm');                     // 올해 목표 + 공고 전
+  assert.strictEqual(gate(r(null), goals(Y)), 'confirm');                   // 날짜 없음도 공고 전
+  assert.strictEqual(gate(r(40), null), 'later');                           // 관심(목표 집합에 없음)·목표 못 받음
+  assert.strictEqual(gate(r(40), goals(Y, ['I9'])), 'later');               // 다른 기관만 목표
+  assert.strictEqual(gate(r(40), goals(Y + 1)), 'later');                   // 2027 목표(다른 연도 응답)
+  const nb = { today: plus(0), byId: { I1: { institution_id: 'I1', status_cd: 'NO_BID', next_check_date: plus(10) } } };
+  assert.strictEqual(gate(r(40), goals(Y), nb), 'nobid');                   // 목표 + 입찰 없음 → 막음
+  assert.strictEqual(gate(r(-3, { receiveTo: plus(5) }), goals(Y)), 'confirm');   // 공고 중은 원래대로
+  assert.strictEqual(gate(r(-9, { receiveTo: plus(-1) }), goals(Y)), 'past');     // 접수 지남은 목표여도 막음
+  const cl = { today: plus(0), byId: { I1: { institution_id: 'I1', status_cd: 'CLOSED', next_check_date: plus(10) } } };
+  assert.strictEqual(gate(r(40), goals(Y), cl), 'closed');
+});
+
+test('dash.setGoals·isGoalRec·proposeEarly: 올해 응답만 담고, 안내는 예외로 열렸을 때만', function () {
+  const Y = TODAY.getFullYear();
+  dash.clearGoals();
+  assert.strictEqual(dash.setGoals({ year: Y + 1, items: [{ institution_id: 'I1' }] }, TODAY), false);   // 다른 연도는 안 담는다
+  assert.strictEqual(dash.setGoals({ year: Y, items: null }, TODAY), false);
+  assert.strictEqual(dash.setGoals({ year: Y, items: [{ institution_id: 'I1' }], watch_items: [{ institution_id: 'W1' }] }, TODAY), true);
+  const goals = dash.util.gateOpts().goals;   // setGoals가 TODAY의 연도(Y)로 담았으므로 실제 오늘 연도와 무관하게 isGoalRec(…, TODAY)와 맞는다
+  assert.strictEqual(dash.isGoalRec({ institutionId: 'I1' }, goals, TODAY), true);
+  assert.strictEqual(dash.isGoalRec({ institutionId: 'W1' }, goals, TODAY), false);   // 관심은 목표가 아니다
+  assert.strictEqual(dash.isGoalRec({ institutionId: 'I1' }, { year: Y - 1, ids: { I1: true } }, TODAY), false);   // 해가 바뀌면 낡은 집합
+  const o = { today: TODAY, snap: null, goals: goals };
+  assert.strictEqual(dash.proposeEarly(rec('가', '11', 40, { institutionId: 'I1' }), o), true);
+  assert.strictEqual(dash.proposeEarly(rec('가', '11', -3, { institutionId: 'I1', receiveTo: plus(5) }), o), false);   // 공고 중이면 안내 없음
+  dash.clearGoals();
+});
+
+test('actionKind(11-19): 목표+공고 전 confirm, 목표+진행 중은 open, 영업부장은 none, 안내 문구', function () {
+  const Y = TODAY.getFullYear();
+  const r = rec('가', '11', 40, { institutionId: 'I1' });
+  const srv = { serverMode: true, role: '영업팀' };
+  const o = { today: TODAY, snap: null, goals: { year: Y, ids: { I1: true } } };
+  assert.strictEqual(dash.actionKind(r, srv, [], stubPrep, o), 'confirm');
+  assert.strictEqual(dash.actionKind(r, srv, [{ institution_id: 'I1', state_cd: 'CONFIRMED' }], stubPrep, o), 'open');
+  assert.strictEqual(dash.actionKind(r, { serverMode: true, role: '영업부장' }, [], stubPrep, o), 'none');
+  const it = dash.model([r], TODAY).upcoming[0];
+  const early = dash.actHtml(it, { act: 'confirm', early: true });
+  assert.ok(early.indexOf('id="db-cf"') >= 0 && early.indexOf('올해 목표 기관이라 공고 전에도 영업부서가 제안 확정할 수 있습니다.') >= 0);
+  assert.ok(dash.actHtml(it, { act: 'confirm' }).indexOf('공고 전에도') < 0);   // 일반 confirm에는 안내 없음
+});
+
 test('actionKind(5번째 인자): 기록 받는 중은 wait, 사전준비가 있으면 규칙과 무관하게 open, 안내 문구', function () {
   const r = rec('가', '11', 40, { institutionId: 'I1' });
   const srv = { serverMode: true, role: '영업팀' };
