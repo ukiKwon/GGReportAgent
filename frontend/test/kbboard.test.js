@@ -491,7 +491,7 @@ test('배선: 감사 화면 이름(bid_board·bid_notice·map_popover)·현황�
   assert.ok(k.indexOf('국민은행 금고 기관') < 0);                                                        // 문구는 '협약 중인 기관'(11-17 사용자 결정)
   const app = src('js/app.js');
   assert.ok(app.indexOf('root.kbboard.mount(dashEl)') > 0 && app.indexOf('root.dashboard.mount(noticeEl)') > 0 && app.indexOf('app.findNavItem = findNavItem') > 0);
-  assert.ok(/flushOverdue\(\);\s*\/\/ 현황판이 열린 '뒤에'/.test(app));
+  assert.ok(/flushOverdue\(\);\s*\/\/ 첫 화면이 열린 '뒤에'/.test(app));   // 11-19 97 3단계: 영업 계열 첫 화면이 포털로 바뀜(0f)
   // qa 11-16 후속: 못 열면 안내, 팝업 닫은 뒤·selectKey 뒤 포커스 복원, selectKey는 걸러지면 조건을 지운다
   assert.ok(/function openNotice\(key\)[\s\S]*?flash\('입찰 공고 현황을 열 수 없습니다\./.test(k) && k.indexOf("openNotice('')") > 0 && k.indexOf('goNotice(btn') < 0);
   // 11-17: 포커스 복귀는 세 목록(협약 중인 기관·입찰 공고가 뜬 대상·제안 진행) 모두, [제안 확정] 버튼은 data-act로 같은 버튼에 돌아온다

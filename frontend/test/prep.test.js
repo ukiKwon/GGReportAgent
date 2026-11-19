@@ -58,24 +58,24 @@ test('nav 노출(입찰 현황판): 고정 id soon:현황판, 서버 map 키가 
   assert.strictEqual(nav.screenName(nav.DASH_ID, 'soon:이사회 자료'), null);
 });
 
-test('nav.homeItemId(첫 화면): 영업 계열 + 지도만 본 상태 + 현황판이 보일 때만 현황판, 그 밖은 null(지금처럼 지도)', function () {
+test('nav.homeItemId(첫 화면): 영업 계열·디자이너 + 지도만 본 상태 + 첫 화면 항목이 보일 때만 HOME_ID, 그 밖은 null(지금처럼 지도)', function () {
   function home(role, o) {
     const x = o || {};
     const built = nav.build(x.visible || ALL_ON, { role: role, master: !!x.master });
     return nav.homeItemId(built, x.active === undefined ? 'map' : x.active, x.tabs || [{ id: 'map', label: '전국 지도' }], { role: role, master: !!x.master });
   }
-  ['영업팀', '영업팀장', '영업부장'].forEach(function (r) { assert.strictEqual(home(r), nav.DASH_ID, r); });
-  assert.strictEqual(home('영업팀', { active: null, tabs: [] }), nav.DASH_ID);
-  // 디자이너·마스터·타 팀은 지금처럼 지도
-  ['디자이너', '전산팀', '전산팀장', '예산팀', '예산팀장', ''].forEach(function (r) { assert.strictEqual(home(r), null, r); });
+  ['영업팀', '영업팀장', '영업부장', '디자이너'].forEach(function (r) { assert.strictEqual(home(r), nav.HOME_ID, r); });
+  assert.strictEqual(home('영업팀', { active: null, tabs: [] }), nav.HOME_ID);
+  // 마스터·타 팀은 지금처럼 지도
+  ['전산팀', '전산팀장', '예산팀', '예산팀장', ''].forEach(function (r) { assert.strictEqual(home(r), null, r); });
   assert.strictEqual(home('영업팀', { master: true }), null);
   // 이미 다른 화면을 열었거나 탭을 연 뒤라면 건드리지 않는다
   assert.strictEqual(home('영업팀', { active: 'workflow' }), null);
   assert.strictEqual(home('영업팀', { tabs: [{ id: 'map' }, { id: 'approvals' }] }), null);
-  // 현황판이 안 보이는 구성(map 키 꺼짐)이면 null
+  // 첫 화면 항목이 안 보이는 구성(map 키 꺼짐)이면 null
   assert.strictEqual(home('영업팀', { visible: Object.assign({}, ALL_ON, { map: false }), active: null, tabs: [] }), null);
   assert.strictEqual(nav.isHomeRole({ role: '영업부장' }), true);
-  assert.strictEqual(nav.isHomeRole({ role: '디자이너' }), false);
+  assert.strictEqual(nav.isHomeRole({ role: '디자이너' }), true);
   assert.strictEqual(nav.isHomeRole({ role: '영업팀', master: true }), false);
 });
 
@@ -94,7 +94,7 @@ test('app.js: showSoon이 사전준비·현황판 분기를 처리하고, 첫 �
   assert.ok(/applyHome\(\);\s*\};/.test(APP_SRC));
   // ② 첫 화면이 현황판이면(영업 계열 + 본체 있음) 경과 요약 팝업을 현황판이 열린 '뒤'에 띄운다
   // 현황판이 열릴 것으로 보면 팝업을 미루고(overduePending), applyHome이 화면을 연 다음 띄운다(flushOverdue, 11-16)
-  assert.ok(/root\.nav\.expectsDashHome\(args\.ctx, !!\(root\.kbboard && root\.kbboard\.mount\)\)/.test(APP_SRC));
+  assert.ok(/root\.nav\.expectsHome\(args\.ctx, !!\(root\.portal && root\.portal\.mount\)\)/.test(APP_SRC));
   assert.ok(/if \(!deferOverdue && root\.overdue && root\.overdue\.onLogin\)/.test(APP_SRC));
   // 홈 자동 열림은 navHoming 표시를 켜고 연다(사이드바 저장값을 덮어쓰지 않게 — nav.navigatedOpen auto)
   assert.ok(/if \(item\) \{ navHoming = true; try \{ openNavItem\(item\); \} finally \{ navHoming = false; \} \}\s*flushOverdue\(\);/.test(APP_SRC));
@@ -340,11 +340,11 @@ test('QA·디자인 후속: 중단 건 무효 처리 불가, T3 파일만, 확�
   // 확정 확인 줄: [취소] 다음 [확정하기](첫 포커스는 확정하기 유지 — 소스에서 go에 focus)
   const pc = prep.popConfirmHtml('노원구청');
   assert.ok(pc.indexOf('data-pp-pop="cancel"') < pc.indexOf('data-pp-pop="go"'));
-  // 첫 화면 판정(순수): 본체가 있고 영업 계열일 때만 현황판을 기대, 실제 결정은 homeItemId
-  assert.strictEqual(nav.expectsDashHome({ role: '영업팀' }, true), true);
-  assert.strictEqual(nav.expectsDashHome({ role: '영업팀' }, false), false);
-  assert.strictEqual(nav.expectsDashHome({ role: '디자이너' }, true), false);
-  assert.strictEqual(nav.expectsDashHome({ role: '영업팀', master: true }, true), false);
+  // 첫 화면 판정(순수): 본체가 있고 영업 계열·디자이너일 때만 포털을 기대, 실제 결정은 homeItemId
+  assert.strictEqual(nav.expectsHome({ role: '영업팀' }, true), true);
+  assert.strictEqual(nav.expectsHome({ role: '영업팀' }, false), false);
+  assert.strictEqual(nav.expectsHome({ role: '디자이너' }, true), true);
+  assert.strictEqual(nav.expectsHome({ role: '영업팀', master: true }, true), false);
   const noMap = nav.build(Object.assign({}, ALL_ON, { map: false }), { role: '영업팀' });
   assert.strictEqual(nav.homeItemId(noMap, 'map', [], { role: '영업팀' }), null);   // map 키가 없으면 열리지 않음 → 경과 팝업을 그때 띄운다
 });

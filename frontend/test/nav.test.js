@@ -47,7 +47,7 @@ test('admin 권한이 꺼지면 시스템 관리 전체가 사라진다', functi
 test('영업팀장: 5개 업무 대분류(시스템은 권한관리 꺼짐이면 빠짐) — 업무 순서 1→5 고정', function () {
   const v = Object.assign({}, ALL_ON, { admin: false });
   const built = nav.build(v, { role: '영업팀장' });
-  assert.deepStrictEqual(ids(built), ['scan', 'plan', 'manage', 'relate', 'tools']);
+  assert.deepStrictEqual(ids(built), ['home', 'scan', 'plan', 'manage', 'relate', 'tools']);
 });
 
 test('서버가 끈 화면은 하위 항목에서도 사라진다', function () {
@@ -86,14 +86,14 @@ test('비영업 팀: 구현 화면 + 예외(이사회 부의·pending 키) 외 �
   });
 });
 
-test('준비중 id: 명시 id 외에는 soon:라벨, 전부 서로 다르고 18개', function () {
+test('준비중 id: 명시 id 외에는 soon:라벨, 전부 서로 다르고 19개(첫 화면 포함)', function () {
   const built = nav.build(ALL_ON, { role: '영업팀장' });
   const all = [];
   built.forEach(function (c) { c.items.forEach(function (i) { all.push(i.id); }); });
   assert.strictEqual(new Set(all).size, all.length);
   assert.strictEqual(items(built, 'relate')[0].id, 'soon:입찰 결과 등록');
   const soonIds = all.filter(function (id) { return id.indexOf('soon:') === 0; });
-  assert.strictEqual(soonIds.length, 18);
+  assert.strictEqual(soonIds.length, 19);
   // 이사회 부의: 라벨은 바뀌어도 id는 고정(board.SOON_ID)
   const board = items(built, 'plan').filter(function (i) { return i.id === 'soon:이사회 자료'; })[0];
   assert.ok(board && board.label === '이사회 자료 작성');
@@ -205,9 +205,9 @@ test('categoryOf / showsMapControls', function () {
 });
 
 // ── 메뉴 재편(NEXT 32): 구조·정렬 ─────────────────────────────────────────
-test('3단 구조: 대분류 6개 이름·소속(정의 순서 = 업무 순서 1→5, 시스템 관리 마지막)', function () {
+test('3단 구조: 대분류 7개 이름·소속(첫 화면 단독 + 정의 순서 = 업무 순서 1→5, 시스템 관리 마지막)', function () {
   assert.deepStrictEqual(nav.CATEGORIES.map(function (c) { return c.id + ':' + c.title; }),
-    ['scan:기관·입찰 현황', 'plan:영업 추진 준비', 'manage:제안서 작성·관리',
+    ['home:첫 화면', 'scan:기관·입찰 현황', 'plan:영업 추진 준비', 'manage:제안서 작성·관리',
      'relate:협약·관계 관리', 'tools:공통 도구', 'sys:시스템 관리']);
   const by = {};
   nav.CATEGORIES.forEach(function (c) { by[c.id] = c.items.map(function (i) { return (i.sub || '') + '>' + i.label; }); });
@@ -233,7 +233,7 @@ test('3단 구조: 대분류 6개 이름·소속(정의 순서 = 업무 순서 1
 
 test('영업 계열 표시 순서: 정의 순서 고정, 시스템 관리 맨 아래, 중분류 안에서 구현이 위', function () {
   const built = nav.build(ALL_ON, { role: '영업팀' });
-  assert.deepStrictEqual(ids(built), ['scan', 'plan', 'manage', 'relate', 'tools', 'sys']);
+  assert.deepStrictEqual(ids(built), ['home', 'scan', 'plan', 'manage', 'relate', 'tools', 'sys']);
   built.forEach(function (c) {
     const bySub = {};
     c.items.forEach(function (i) { (bySub[i.sub] = bySub[i.sub] || []).push(i); });
@@ -289,7 +289,7 @@ test('준비중 라벨은 정의 전체에서 유일하다(라벨 기반 id의 �
   const labels = [];
   nav.CATEGORIES.forEach(function (c) { c.items.forEach(function (i) { if (!i.key) labels.push(i.label); }); });
   assert.strictEqual(new Set(labels).size, labels.length);
-  assert.strictEqual(labels.length, 18);   // scan 4(입찰 현황판 포함)·plan 5·manage 4·relate 2·tools 3
+  assert.strictEqual(labels.length, 19);   // home 1·scan 4(입찰 현황판 포함)·plan 5·manage 4·relate 2·tools 3
 });
 
 test('입찰 공고 현황: id는 soon:입찰 공고 현황 고정(NOTICE_ID), 배지 없음(실제 화면 — 11-16)', function () {

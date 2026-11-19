@@ -12,6 +12,7 @@
   //     키가 있는데 준비중인 항목(pending: AI 대화·지식 검색)은 서버 키(v[key])가 켠 사람에게 보인다.
   //     onlyRoles가 있는 항목(제안팀 구성·배정·제안서 사전준비)은 그 역할(영업팀·영업팀장·영업부장)에게만 보인다 — 디자이너·마스터 제외.
   //     withKey가 있는 항목(입찰 현황판·입찰 공고 현황)은 그 서버 키(map)가 켜진 사람 전원에게 보이고, front면 같은 중분류의 맨 앞에 놓인다.
+  //     withKey와 onlyRoles를 함께 쓴 항목(첫 화면, 11-19 결정)은 서버 키(map)가 켜져 있고 그 역할(마스터 제외)인 사람에게만 보인다.
   //     withKey와 onlyTeams를 함께 쓴 항목(기관 사업계획, 11-17 결정)은 서버 키(map)가 켜져 있고 그 팀 소속(영업팀·전산팀 전원, 디자이너는 영업팀 소속, 마스터 포함)인 사람에게만 보인다 — 예산팀 제외.
   //  3. **한 화면은 한 항목에만 둔다.** 같은 탭을 두 곳에 걸면 어느 쪽이 "지금 위치"인지
   //     하이라이트가 모호해진다.
@@ -61,9 +62,15 @@
   // 기관 사업계획 — plans.SOON_ID와 같아야 한다. 노출 = 서버 map 키 AND 영업팀·전산팀 소속(예산팀 제외, 11-17 결정).
   const PLANS_ID = 'soon:기관 사업계획';
   const PLANS_TEAMS = [roles.DESIGNER_HOME, '전산팀'].map(function (a) { return roles.teamOf(a); });
+  // 첫 화면(포털, portal.js) — 메뉴 맨 위 단독 항목. 노출 = 서버 map 키 AND 영업 계열 + 디자이너(마스터 제외). 사용자 확정 11-19.
+  const HOME_ID = 'soon:첫 화면';
+  const HOME_CAT = 'home';
+  const HOME_ROLES = TEAM_ROLES.concat([roles.DESIGNER]);
 
   // subs: 중분류 순서. 항목마다 sub로 소속을 가리킨다(시스템 관리는 중분류 없음).
   nav.CATEGORIES = [
+    { id: HOME_CAT, title: '첫 화면', single: true, items: [   // 소제목·펼침 없이 항목 하나만 그린다(app.drawNav)
+      soon('', '첫 화면', '', '', false, HOME_ID, HOME_ROLES, 'map', true)] },
     { id: 'scan', title: '기관·입찰 현황', subs: ['기관', '입찰 공고'], items: [
       soon('기관', '입찰 현황판', '', '', false, DASH_ID, undefined, 'map', true),
       live('기관', '전국 지도', 'map'), live('기관', '전국 지역별', 'regions'),
@@ -99,24 +106,31 @@
   nav.TEAM_ROLES = TEAM_ROLES;
   nav.PREP_ID = PREP_ID;
   nav.DASH_ID = DASH_ID;
+  nav.HOME_ID = HOME_ID;
+  nav.HOME_CAT = HOME_CAT;
   nav.NOTICE_ID = NOTICE_ID;
   nav.PLANS_ID = PLANS_ID;
   nav.PLANS_TEAMS = PLANS_TEAMS;
   nav.COLLECT_ID = 'admin:collect';   // plancollect.NAV_ID 와 같다 — overdue.paintNavBadge 가 이 항목의 배지를 지우지 않게 알아본다
-  // 로그인 뒤 첫 화면이 입찰 현황판인 역할 — 영업팀·영업팀장·영업부장만(사용자 결정 11-11). 디자이너·마스터·타 팀은 지금처럼 지도.
-  nav.isHomeRole = function (ctx) { return nav.roleIn(TEAM_ROLES, ctx); };
-  // 로그인 뒤 첫 화면: 입찰 현황판이 보이는 영업 계열이고 아직 지도만 보고 있으면 현황판 id, 아니면 null(지금 화면 유지).
+  // 로그인 뒤 첫 화면(포털)을 보는 역할 — 영업팀·영업팀장·영업부장 + 디자이너(사용자 결정 11-19, 11-11 결정에서 디자이너 추가). 마스터·타 팀은 지금처럼 지도.
+  nav.isHomeRole = function (ctx) { return nav.roleIn(HOME_ROLES, ctx); };
+  // 로그인 뒤 첫 화면: 첫 화면 항목이 보이는 대상 역할이고 아직 지도만 보고 있으면 HOME_ID, 아니면 null(지금 화면 유지).
   // 이미 다른 화면을 열었거나 탭을 연 뒤라면 건드리지 않는다.
-  // 로그인 순간(메뉴 권한이 오기 전) 첫 화면이 현황판일 것으로 보는가 — 본체가 있고 영업 계열일 때만.
-  // 경과 요약 팝업은 이때 잠시 미루고, 실제로 현황판이 열리지 않으면(homeItemId가 null) 그때 띄운다.
-  nav.expectsDashHome = function (ctx, dashReady) { return !!dashReady && nav.isHomeRole(ctx); };
+  // 로그인 순간(메뉴 권한이 오기 전) 첫 화면이 포털일 것으로 보는가 — 본체(portal.mount)가 있고 대상 역할일 때만.
+  // 경과 요약 팝업은 이때 잠시 미루고, 실제로 포털이 열리지 않으면(homeItemId가 null) 그때 띄운다.
+  nav.expectsHome = function (ctx, portalReady) { return !!portalReady && nav.isHomeRole(ctx); };
   nav.homeItemId = function (built, activeId, tabs, ctx) {
     if (!nav.isHomeRole(ctx)) return null;
-    if (nav.categoryOf(built, DASH_ID) === null) return null;
+    if (nav.categoryOf(built, HOME_ID) === null) return null;
     if (activeId && activeId !== 'map') return null;
     const open = tabs || [];
     for (let i = 0; i < open.length; i += 1) { if (open[i].id !== 'map') return null; }
-    return DASH_ID;
+    return HOME_ID;
+  };
+  // 아코디언 분류 id — 단독 항목(첫 화면)은 펼칠 분류가 없어 null. 화면 이동이 다른 분류의 열림을 닫지 않게 한다.
+  nav.accordionOf = function (built, itemId) {
+    const c = nav.categoryOf(built, itemId);
+    return c === HOME_CAT ? null : c;
   };
   // 역할 목록에 드는가. 마스터는 영업팀 소속이 아니라 서버가 열람을 막으므로 항상 false.
   nav.roleIn = function (list, ctx) {
@@ -165,7 +179,7 @@
           } else {
             bySub[sub].live.push({ label: it.label, key: it.key, view: it.view || null, sub: sub, soon: false, id: id });
           }
-        } else if (it.withKey ? (v[it.withKey] === true && (!it.onlyTeams || nav.teamIn(it.onlyTeams, ctx)))
+        } else if (it.withKey ? (v[it.withKey] === true && (!it.onlyTeams || nav.teamIn(it.onlyTeams, ctx)) && (!it.onlyRoles || nav.roleIn(it.onlyRoles, ctx)))
                    : it.onlyRoles ? nav.roleIn(it.onlyRoles, ctx) : (sales || (it.visibleWithTasks && v.tasks === true))) {
           const built = { label: it.label, key: null, sub: sub, id: it.id || 'soon:' + it.label,
                           soon: true, tag: it.tag, note: it.note };
@@ -185,6 +199,7 @@
       if (!items.length) return;
       const built = { id: cat.id, title: cat.title, items: items,
                       showSubs: !!cat.subs && shownSubs >= 2 && eachTwo };
+      if (cat.single) built.single = true;
       (cat.last ? tail : out).push(built);
     });
     return out.concat(tail);

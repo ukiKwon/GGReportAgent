@@ -1981,6 +1981,114 @@
   @media (prefers-reduced-motion:reduce) { .hb-row { transition:none; } }
   /* 국민은행 상태 현황판 끝 */
 
+  /* 첫 화면(포털) 시작 — #tab-soon 안 #pt-root. 규격: design-reviewer 11-19 97 3단계(handoff/agents/history/2026-11-19_97-3_첫화면_포털_규격.md). 새 변수·새 hex 없음(#eef1f5는 DESIGN 패널 머리 리터럴) */
+  #pt-root { width:100%; flex:1 0 auto; display:flex; flex-direction:column; gap:12px; align-self:stretch; }
+  .pt-top { display:flex; align-items:center; gap:10px; min-height:28px; }
+  .pt-top h2 { margin:0; font-size:15px; font-weight:700; letter-spacing:-.01em; }
+  .pt-top .meta { margin-left:auto; font-size:12px; color:var(--muted); }
+  .pt-top .meta b { font:400 12px var(--mono); color:var(--fg); }
+
+  .pt-band { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); }
+  .pt-k { all:unset; box-sizing:border-box; min-width:0; height:72px; padding:9px 16px; display:grid; grid-template-rows:16px 22px 16px; cursor:pointer;
+    border-left:1px solid var(--line); }
+  .pt-k:first-of-type { border-left:0; }
+  .pt-k:hover { background:var(--panel2); }
+  .pt-k:focus-visible { outline:2px solid var(--accent-color); outline-offset:-2px; }
+  .pt-k[aria-pressed=true] { background:color-mix(in srgb, var(--accent-color) 4%, var(--panel)); box-shadow:inset 0 -3px 0 var(--accent-color); }
+  .pt-k[aria-pressed=true] .l { color:var(--fg); font-weight:700; }
+  .pt-k .l, .pt-k .s { font-size:12px; line-height:16px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pt-k .v { font:700 16px/22px var(--mono); color:var(--fg); }
+  .pt-k .v span { margin-left:2px; font:400 12px "Malgun Gothic","Segoe UI",sans-serif; color:var(--muted); }
+  .pt-k .v.hot { color:color-mix(in srgb, var(--red) 72%, var(--fg)); }
+  .pt-k .s b { font:400 12px var(--mono); color:var(--fg); }
+
+  .pt-body { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:12px; height:clamp(360px, calc(100vh - 284px), 900px); }
+  .pt-side { display:flex; flex-direction:column; gap:12px; min-height:0; }
+  .pt-pane { display:flex; flex-direction:column; min-height:0; background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); overflow:hidden; }
+  .pt-side .pt-pane.cal { flex:1 1 55%; } .pt-side .pt-pane.wait { flex:1 1 45%; }
+  .pt-ph { flex:none; height:40px; display:flex; align-items:center; gap:8px; padding:0 14px; background:#eef1f5; border-bottom:1px solid var(--line); }
+  .pt-ph h3 { margin:0; font-size:14px; font-weight:700; letter-spacing:-.01em; }
+  .pt-ph .n { font:400 12px var(--mono); color:var(--fg); }
+  .pt-ph .r { margin-left:auto; font-size:12px; color:var(--muted); }
+  .pt-sc { flex:1; min-height:0; overflow:auto; }
+  .pt-filter { flex:none; height:32px; display:flex; align-items:center; gap:8px; padding:0 14px; font-size:12px; color:var(--muted); background:var(--panel2); border-bottom:1px solid var(--line); }
+  .pt-filter[hidden] { display:none; }
+  .pt-filter b { color:var(--fg); }
+  .pt-filter button { margin-left:auto; font-size:12px; padding:2px 10px; }
+
+  .pt-tt { width:100%; table-layout:fixed; border-collapse:separate; border-spacing:0; }
+  .pt-tt col.c-stg { width:112px; } .pt-tt col.c-dt { width:92px; } .pt-tt col.c-dd { width:76px; } .pt-tt col.c-bank { width:112px; }
+  .pt-tt thead th { position:sticky; top:0; z-index:1; height:40px; padding:0 10px; text-align:left; font-size:12px; font-weight:700; color:var(--muted); background:var(--panel); border-bottom:1px solid var(--line-strong); white-space:nowrap; }
+  .pt-tt td, .pt-tt tbody th { height:40px; padding:0 10px; font-size:12px; font-weight:400; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pt-tt tbody tr:hover > * { background:color-mix(in srgb, var(--accent-color) 6%, var(--panel)); }
+  .pt-tt .pt-nm { all:unset; cursor:pointer; max-width:100%; overflow:hidden; text-overflow:ellipsis; font-size:13px; font-weight:700; color:var(--fg); border-radius:var(--r); }
+  .pt-tt .pt-nm .rg { margin-right:6px; font-size:12px; font-weight:400; color:var(--muted); }
+  .pt-tt .pt-nm:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
+  .pt-tt .dt { font-family:var(--mono); }
+  .pt-tt .dt.est, .pt-tt .mut { color:var(--muted); }
+  .pt-dd { font:700 12px var(--mono); color:var(--fg); }
+  .pt-dd.hot { color:color-mix(in srgb, var(--red) 72%, var(--fg)); }
+  .pt-dd.hot .gph { width:9px; height:9px; vertical-align:-1px; }
+  .pt-bank.k { color:var(--fg); font-weight:700; }
+  .pt-tt tr.emp td { height:auto; padding:20px 16px; white-space:normal; }
+  .pt-tt tr.emp:hover > * { background:transparent; }
+
+  /* 단계·일정 종류 칩 — 색 없이 모양으로 */
+  .pt-chip { display:inline-flex; align-items:center; min-height:20px; padding:0 6px; font-size:12px; line-height:18px; color:var(--fg); border:1px solid var(--line-strong); border-radius:var(--r); white-space:nowrap; }
+  .pt-chip.on { border-color:var(--fg); font-weight:700; }
+  .pt-chip.est { color:var(--muted); border-style:dashed; border-color:var(--muted);
+    background:repeating-linear-gradient(45deg, color-mix(in srgb, var(--muted) 14%, transparent) 0 2px, transparent 2px 4px); }
+  .pt-chip.end { border-color:transparent; color:var(--muted); padding:0 2px; }
+
+  .pt-tf { flex:none; height:32px; display:flex; align-items:center; gap:12px; padding:0 14px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
+  .pt-tf button { margin-left:auto; font-size:12px; padding:3px 10px; }
+
+  .pt-day { position:sticky; top:0; z-index:1; height:28px; display:flex; align-items:center; padding:0 14px; font-size:12px; font-weight:700; color:var(--fg); background:var(--panel2); border-bottom:1px solid var(--line); }
+  .pt-day b { margin-left:6px; font:400 12px var(--mono); color:var(--muted); }
+  .pt-row { all:unset; box-sizing:border-box; width:100%; height:36px; display:flex; align-items:center; gap:8px; padding:0 14px; cursor:pointer; border-bottom:1px solid var(--line); font-size:13px; color:var(--fg); }
+  .pt-row:hover { background:color-mix(in srgb, var(--accent-color) 6%, var(--panel)); }
+  .pt-row:focus-visible { outline:2px solid var(--accent-color); outline-offset:-2px; }
+  .pt-row .t { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pt-row .m { flex:none; font:400 12px var(--mono); color:var(--muted); }
+  .pt-row > .ov-stamp { flex:none; min-width:52px; justify-content:center; box-sizing:border-box; }
+  .pt-grp > summary { list-style:none; height:32px; display:flex; align-items:center; gap:6px; padding:0 14px; cursor:pointer; font-size:12px; font-weight:700; background:var(--panel2); border-bottom:1px solid var(--line); }
+  .pt-grp > summary::-webkit-details-marker { display:none; }
+  .pt-grp > summary:focus-visible { outline:2px solid var(--accent-color); outline-offset:-2px; }
+  .pt-grp > summary .n { margin-left:auto; font:400 12px var(--mono); color:var(--muted); }
+  .pt-none { margin:0; padding:8px 14px; font-size:12px; color:var(--muted); border-bottom:1px solid var(--line); }
+  #pt-root .db-state[role=alert] { margin:8px 0 0; }
+
+  @media (max-width:880px) {
+    .pt-band { grid-template-columns:1fr 1fr; } .pt-k:nth-of-type(3) { border-left:0; } .pt-k:nth-of-type(n+3) { border-top:1px solid var(--line); }
+    .pt-body { grid-template-columns:1fr; height:auto; } .pt-list .pt-sc { max-height:60vh; } .pt-side .pt-pane { flex:none; }
+  }
+
+  .nav-home { margin:0 0 4px; padding:0 0 6px; border-bottom:1px solid var(--line); }
+  .nav-home .nav-item { font-size:14px; font-weight:700; padding:9px 10px; color:var(--fg); }
+  .pt-k .v.mut { color:var(--muted); }
+  /* 기관 유형 탭 — 현황판 .db-tab 문법(모서리 var(--r), 12px, 건수 mono). 규격이 포인트를 '눌린 칸 막대'에만 허용하므로 활성 = 흰 바탕 + 아래 2px 포인트 막대(16% 틴트는 쓰지 않는다) */
+  .pt-tabs { flex:none; display:flex; align-items:flex-end; gap:2px; height:36px; padding:0 8px; background:var(--panel2); border-bottom:1px solid var(--line); overflow-x:auto; }
+  .pt-tab { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; border:0; border-radius:var(--r); background:transparent; font-size:12px; color:var(--muted); white-space:nowrap; }
+  .pt-tab:hover { background:color-mix(in srgb, var(--fg) 5%, transparent); }
+  .pt-tab[aria-selected=true] { background:var(--panel); color:var(--fg); font-weight:700; box-shadow:inset 0 -2px 0 var(--accent-color); }
+  .pt-tab:focus-visible { outline-offset:-2px; }
+  .pt-tab b { font:400 12px var(--mono); color:var(--fg); }
+  /* 다음 금고 은행 태그 — 규격 .pt-chip 문법(1px, 새 색 없음, 모양으로 구분). 재유치 확정 = 굵은 --fg 테두리 + 6% 바탕, 차기 확정 = 굵은 테두리 + 왼쪽 4px, 신규 확정 = --line-strong 테두리, 입찰 끝남 = 테두리 없는 muted(.pt-chip.end와 같은 방식) */
+  /* 태그 강약 = 재유치 > 신규 > 차기 > 끝남(design 11-19 대조 6-③: 사용자 '재유치 확정을 눈에 잘 보이게'. 반전 칩은 경과 도장과 겹쳐 안 씀, 왼쪽 막대는 선택 문법이라 안 씀) */
+  .pt-chip.tag { flex:none; margin-left:0; }
+  .pt-chip.tag.kept { border-color:var(--fg); font-weight:700; background:color-mix(in srgb, var(--fg) 10%, var(--panel)); }
+  .pt-chip.tag.won { border-color:var(--fg); font-weight:700; }
+  .pt-chip.tag.next { border-color:var(--line-strong); font-weight:400; }
+  .pt-chip.tag.ended { border-color:transparent; color:var(--muted); padding:0 2px; }
+  .pt-chip.tag .gph { width:9px; height:9px; margin-right:3px; flex:none; }
+  /* 표 이름 칸: 이름이 길어도 태그가 잘리지 않게(이름만 말줄임), 누르는 높이 24px */
+  .pt-tt .pt-cell { display:flex; align-items:center; gap:6px; min-width:0; }
+  .pt-tt .pt-cell .pt-nm { display:block; flex:0 1 auto; min-width:0; min-height:24px; line-height:24px; white-space:nowrap; }
+  /* 빈 알림 줄이 띠와 본문 사이를 벌리지 않게 — #pt-flash는 role=status라 숨기지 않고 높이만 0, 간격 하나를 되돌림 */
+  #pt-err:empty { display:none; }
+  #pt-flash:empty { padding:0; border:0; margin-top:-12px; }
+  /* 첫 화면(포털) 끝 */
+
   /* 기관장 카드 시작 — 입찰 현황판 상세 칸의 '기관장' 절 + 편집 모달. 시안 docs/design/2026-11-11_기관장카드_시안.html. 새 hex 없음(토큰만), 최소 11px.
      큰 숫자(.hc-big b) 하나만 굵게 키운다. 점수·등급·별점 없음, 테두리 색으로 사람을 가르지 않는다. */
   .hc-sec h3 { margin:0 0 12px; }
@@ -2570,6 +2678,7 @@ review, the verdict, and DESIGN.md
   <div id="dash-root" style="display:none;"></div>
   <div id="notice-root" style="display:none;"></div>
   <div id="plans-root" style="display:none;"></div>
+  <div id="pt-root" style="display:none;"></div>
 </section>
 </main>
 </div>
@@ -2690,6 +2799,7 @@ review, the verdict, and DESIGN.md
 <script src="js/dashboard.js"></script>
 <script src="js/plans.js"></script>
 <script src="js/kbboard.js"></script>
+<script src="js/portal.js"></script>
 <script src="js/deputy.js"></script>
 <script src="js/plancollect.js"></script>
 <script src="js/admin.js"></script>

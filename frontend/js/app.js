@@ -67,6 +67,7 @@
       if (el) el.style.display = mapControls ? '' : 'none';
     });
     if (app.syncNavActive) app.syncNavActive(tab);
+    if (tab !== 'soon' && root.portal && root.portal.unmount) root.portal.unmount();   // 첫 화면을 떠나면 구독·요청을 거둔다(soon 안 다른 화면은 showSoon이 처리)
     if (tab === 'regions') { root.render.drawRegionGrid(); root.render.drawPinBar(); }
     else if (tab === 'map') { root.render.applyWatchStyles(); }
     // 탭을 벗어나면 폴링·스트림을 멈춘다(백그라운드에서 계속 돌지 않게).
@@ -238,6 +239,7 @@
     if (root.headcard && root.headcard.onProfileChange) root.headcard.onProfileChange();   // 앞 사용자가 읽은 기관장 카드·사진·모달을 버린다
     if (root.dashboard && root.dashboard.closeDetail) root.dashboard.closeDetail(false);   // 앞 사용자가 연 지도 상세 팝업(기관장 카드 포함)을 닫는다
     if (root.kbboard && root.kbboard.onProfileChange) root.kbboard.onProfileChange();      // 앞 사용자의 준비 중 제안·단계 집계를 버린다
+    if (root.portal && root.portal.onProfileChange) root.portal.onProfileChange();         // 첫 화면의 결재·약정·배정 응답도 앞 사용자의 것을 버린다
     if (root.notify && root.notify.onProfileChange) root.notify.onProfileChange();
     if (root.approvals && root.approvals.onProfileChange) root.approvals.onProfileChange();
     if (root.myinfo && root.myinfo.onProfileChange) root.myinfo.onProfileChange();
@@ -365,6 +367,7 @@
         root.render.drawTicker();
         if (root.dashboard && root.dashboard.refresh) root.dashboard.refresh();   // 입찰 공고 현황이 열려 있으면 다시 그린다
         if (root.kbboard && root.kbboard.refresh) root.kbboard.refresh();         // 입찰 현황판도 같다
+        if (root.portal && root.portal.refresh) root.portal.refresh();            // 첫 화면의 숫자·표도 같다
       },
     }));
   };
@@ -534,8 +537,13 @@
     const dashReady = isDash && !!(root.kbboard && root.kbboard.mount);   // 본체(국민은행 상태, kbboard.js)가 아직 없으면 안내만 보인다
     const isNotice = !!(root.nav && itemId === root.nav.NOTICE_ID);        // 입찰 공고 현황 = 전국 공고 목록(dashboard.js, #notice-root)
     const noticeReady = isNotice && !!(root.dashboard && root.dashboard.mount);
+    const isHome = !!(root.nav && itemId === root.nav.HOME_ID);             // 첫 화면 = 로그인 뒤 포털(portal.js, #pt-root)
+    const homeReady = isHome && !!(root.portal && root.portal.mount);
     if (isDash && !dashReady) {
       document.getElementById('soon-note').textContent = '입찰 현황판은 준비 중입니다.';
+    }
+    if (isHome && !homeReady) {
+      document.getElementById('soon-note').textContent = '첫 화면은 준비 중입니다.';
     }
     document.getElementById('soon-plain').style.display = (isBoard || isTeam || isPrep || dashReady || isPlans) ? 'none' : '';
     document.getElementById('bd-root').style.display = isBoard ? '' : 'none';
@@ -546,8 +554,11 @@
     const noticeEl = document.getElementById('notice-root');
     if (noticeEl) noticeEl.style.display = noticeReady ? '' : 'none';
     if (noticeReady) document.getElementById('soon-plain').style.display = 'none';   // (soon-plain 숨김 한 줄에 noticeReady를 섞지 않는다 — isPlans 줄 보존)
+    if (homeReady) document.getElementById('soon-plain').style.display = 'none';     // 첫 화면도 같다
     const plansEl = document.getElementById('plans-root');
     if (plansEl) plansEl.style.display = isPlans ? '' : 'none';
+    const homeEl = document.getElementById('pt-root');
+    if (homeEl) homeEl.style.display = homeReady ? '' : 'none';
     navActiveId = itemId;
     app.onTabChange('soon');
     if (isBoard) root.board.mount();
@@ -556,12 +567,14 @@
     if (dashReady) root.kbboard.mount(dashEl);
     if (noticeReady && noticeEl) root.dashboard.mount(noticeEl);
     if (isPlans && plansEl) root.plans.mount(plansEl);
+    if (homeReady && homeEl) root.portal.mount(homeEl);
+    else if (root.portal && root.portal.unmount) root.portal.unmount();   // 첫 화면이 아닌 준비중 화면으로 옮기면 해제
   };
 
-  // 로그인(또는 세션이 있는 채로 다시 연 첫 그림) 뒤 첫 화면 — 입찰 현황판이 보이는 사람이고 아직 지도만 보고 있으면 현황판.
-  // 본체(root.dashboard.mount)가 없으면 지금처럼 지도에 둔다. 메뉴 권한이 도착해 항목이 생긴 첫 시점에 한 번만 적용한다.
+  // 로그인(또는 세션이 있는 채로 다시 연 첫 그림) 뒤 첫 화면 — 포털이 보이는 대상 역할(영업 계열·디자이너)이고 아직 지도만 보고 있으면 첫 화면(포털).
+  // 본체(root.portal.mount)가 없으면 지금처럼 지도에 둔다. 메뉴 권한이 도착해 항목이 생긴 첫 시점에 한 번만 적용한다.
   let pendingHome = false;
-  let overduePending = null;   // 현황판이 열릴 것으로 보고 미뤄 둔 경과 요약 팝업 인자 — 현황판이 안 열리면 그때 띄운다
+  let overduePending = null;   // 첫 화면이 열릴 것으로 보고 미뤄 둔 경과 요약 팝업 인자 — 첫 화면이 안 열리면 그때 띄운다
   function flushOverdue() {
     const a = overduePending;
     overduePending = null;
@@ -571,11 +584,11 @@
     if (!pendingHome || !root.nav) return;
     if (!root.store.loadSession()) return;   // 로그인 화면 뒤에서는 아직 기다린다
     pendingHome = false;
-    if (!(root.kbboard && root.kbboard.mount)) { flushOverdue(); return; }
+    if (!(root.portal && root.portal.mount)) { flushOverdue(); return; }
     const id = root.nav.homeItemId(navBuilt, navActiveId, navTabs, navContext());
     const item = id ? findNavItem(id) : null;
     if (item) { navHoming = true; try { openNavItem(item); } finally { navHoming = false; } }
-    flushOverdue();   // 현황판이 열린 '뒤에' 경과 팝업을 띄운다(사용자 11-16, design P1-2) — 열기 전에 띄우면 팝업 뒤에서 화면이 바뀌어 포커스가 엇갈린다
+    flushOverdue();   // 첫 화면이 열린 '뒤에' 경과 팝업을 띄운다(사용자 11-16, design P1-2) — 열기 전에 띄우면 팝업 뒤에서 화면이 바뀌어 포커스가 엇갈린다
   }
 
   // 화면이 바뀔 때마다(어느 경로든) 불린다: 활성 항목 갱신 → 탭 보관 → 그 카테고리만 열기.
@@ -584,7 +597,7 @@
     const item = navActiveId ? findNavItem(navActiveId) : null;
     if (item) {
       navTabs = root.nav.openTab(navTabs, item, navActiveId).tabs;   // 가득 찼으면 보관만 건너뛴다
-      const cat = root.nav.categoryOf(navBuilt, navActiveId);
+      const cat = root.nav.accordionOf(navBuilt, navActiveId);      // 단독 항목(첫 화면)은 null — 다른 분류의 열림을 닫지 않는다
       navOpen = root.nav.navigatedOpen(navOpen, cat, navHoming);   // 저장은 하지 않는다(사용자가 직접 펼치거나 접을 때만)
       openCat = navOpen.open;
     }
@@ -683,6 +696,7 @@
             (badge ? '<span class="nav-soon-tag" aria-hidden="true">' + esc(badge) + '</span>' +
                      '<span class="sr-only">' + esc(badge) + '</span>' : '') + '</button>';
         }
+        if (cat.single) return '<div class="nav-home">' + cat.items.map(itemHtml).join('') + '</div>';   // 첫 화면: 분류 제목·펼침 없이 항목만
         let items = '';
         if (cat.showSubs) {
           // 중분류 = 누를 수 없는 소제목. 같은 sub가 이어지는 구간을 한 묶음(role=group)으로 그린다.
@@ -710,7 +724,7 @@
       }).join('');
       navDomSig = sig;
     }
-    const activeCat = root.nav.categoryOf(navBuilt, navActiveId);
+    const activeCat = root.nav.accordionOf(navBuilt, navActiveId);
     el.querySelectorAll('.nav-cat').forEach(function (b) {
       b.classList.toggle('open', b.dataset.cat === openCat);
       b.classList.toggle('has-active', b.dataset.cat === activeCat);
@@ -781,7 +795,7 @@
       navOpenWho = who;
       navOpen = root.nav.newOpenState(root.store.loadNavOpen ? root.store.loadNavOpen(who) : null);
     }
-    navOpen = root.nav.settleOpen(navOpen, navBuilt, navActiveId ? root.nav.categoryOf(navBuilt, navActiveId) : null);
+    navOpen = root.nav.settleOpen(navOpen, navBuilt, navActiveId ? root.nav.accordionOf(navBuilt, navActiveId) : null);
     openCat = navOpen.open;
     const cur = navActiveId ? findNavItem(navActiveId) : null;
     if (cur) navTabs = root.nav.openTab(navTabs, cur, navActiveId).tabs;   // 지금 보는 화면은 처음부터 탭으로
@@ -862,7 +876,7 @@
   };
 
   app.enterApp = function (session, profile) {
-    pendingHome = true;   // 메뉴 권한이 도착하면 입찰 현황판이 첫 화면(applyHome)
+    pendingHome = true;   // 메뉴 권한이 도착하면 첫 화면(포털)이 열린다(applyHome)
     root.store.saveSession(session);
     root.store.saveProfile(profile);
     if (app.showProfileRole) {
@@ -875,11 +889,11 @@
     app.paintUserArea();
     // 공고 예정일 경과 요약 팝업 — 영업 계열에게만, '오늘 더 이상 보지 않기'를 안 눌렀을 때만(overdue.js).
     // 둘러보기(guest)는 소속이 없어 영업 계열이 아니므로 뜨지 않는다.
-    // 첫 화면이 입찰 현황판(영업 계열 + 본체 있음)이어도 경과 팝업을 띄운다 — 경과 목록이 입찰 공고 현황으로 옮겨 갔다(사용자 11-16).
-    // 다만 현황판이 열리기 전에 띄우면 화면이 팝업 뒤에서 바뀌므로, 메뉴 권한이 오기 전에는 미뤄 두고 applyHome이 현황판을 연 뒤에 띄운다
+    // 첫 화면(포털: 영업 계열·디자이너 + 본체 있음)이어도 경과 팝업을 띄운다 — 경과 목록이 입찰 공고 현황으로 옮겨 갔다(사용자 11-16).
+    // 다만 첫 화면이 열리기 전에 띄우면 화면이 팝업 뒤에서 바뀌므로, 메뉴 권한이 오기 전에는 미뤄 두고 applyHome이 첫 화면을 연 뒤에 띄운다
     // (applyHome이 onProfileChanged 안에서 바로 불릴 수 있어 그 전에 정해 둔다).
     const args = { ctx: navContext(), id: session.emp || session.id || '' };
-    const deferOverdue = root.nav.expectsDashHome(args.ctx, !!(root.kbboard && root.kbboard.mount));
+    const deferOverdue = root.nav.expectsHome(args.ctx, !!(root.portal && root.portal.mount));
     overduePending = deferOverdue ? args : null;
     app.onProfileChanged();
     if (!deferOverdue && root.overdue && root.overdue.onLogin) root.overdue.onLogin(args.ctx, args.id);
