@@ -407,9 +407,9 @@ test('절 숨김: 메뉴에서 기관 사업계획 화면을 열 수 없는 사�
   }
 });
 
-test('footHtml: 목록에 담을 수 있는 수 + CSV 버튼, 머리 숫자와 다를 때만 차이 줄, 숫자는 mono', function () {
-  const same = plans.footHtml(30, 30, false);
-  assert.ok(same.indexOf('목록에 담을 수 있는 기관 <span class="v">30</span>곳 · <button type="button" class="db-link" id="pl-dl">목록 내려받기(CSV)</button>') >= 0);
+test('footHtml: 목록에 담을 기관 수 + 자료 없는 기관 CSV 버튼, 2줄은 요청 가능 여부로 갈림, 머리 숫자와 다를 때만 차이 줄, 숫자는 mono', function () {
+  const same = plans.footHtml(30, 30, false, true);
+  assert.ok(same.indexOf('목록에 담을 기관 <span class="v">30</span>곳 · <button type="button" class="db-link" id="pl-dl">자료 없는 기관 내려받기(CSV)</button><br>확인용입니다. 수집은 [수집 요청]으로 개발부서에 맡깁니다.') >= 0);
   assert.ok(same.indexOf('서버에 등록되지 않은') < 0);
   const diff = plans.footHtml(28, 30, false);
   assert.ok(diff.indexOf('서버에 등록되지 않은 <span class="v">2</span>곳은 목록에 넣을 수 없습니다.') >= 0);
@@ -417,6 +417,22 @@ test('footHtml: 목록에 담을 수 있는 수 + CSV 버튼, 머리 숫자와 �
   assert.strictEqual(plans.footHtml(0, 0, false), '');
   const only = plans.footHtml(0, 3, false);   // 담을 수 있는 곳이 없어도 이유는 알린다
   assert.ok(only.indexOf('pl-dl') < 0 && only.indexOf('<span class="v">3</span>곳은 목록에 넣을 수 없습니다.') >= 0);
+});
+
+test('소스 규칙: 바닥·내려받기 안내는 요청 가능 여부(CS.can)로 갈리고, 수집 현황이 오면 바닥을 다시 그린다', function () {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'plans.js'), 'utf8');
+  assert.ok(src.indexOf('S.dlBusy, CS.can);') >= 0, 'renderFoot 이 CS.can 을 넘긴다');
+  const oc = src.slice(src.indexOf('function onCollect()'), src.indexOf('function postEmpty('));
+  assert.ok(oc.indexOf('renderFoot();') >= 0 && oc.indexOf("aid === 'pl-dl'") >= 0, 'onCollect 가 바닥을 다시 그리고 CSV 버튼 포커스를 되돌린다');
+  assert.ok(src.indexOf("(CS.can ? ' 수집이 필요하면 기관을 골라 [수집 요청]을 누르세요.' : '')") >= 0, '내려받기 안내의 [수집 요청] 문장은 요청 가능할 때만');
+});
+
+test('footHtml: 요청 불가 사용자는 2줄이 확인용입니다.만(수집 요청 안내 없음)', function () {
+  const h = plans.footHtml(30, 30, false, false);
+  assert.ok(h.indexOf('<br>확인용입니다.') >= 0);
+  assert.ok(h.indexOf('수집 요청') < 0 && h.indexOf('개발부서') < 0);
+  assert.ok(plans.footHtml(30, 30, false).indexOf('수집 요청') < 0);   // can 생략 = 불가
+  assert.ok(plans.footHtml(28, 30, false, false).indexOf('서버에 등록되지 않은 <span class="v">2</span>곳') >= 0);   // 셋째 줄 유지
 });
 
 test('소스: listbox aria-activedescendant 동기화, 고정 live 영역, 오프라인 안내는 pl-flash, 시드 용어 없음', function () {

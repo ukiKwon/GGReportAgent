@@ -270,6 +270,18 @@ test('배지: 문장은 수집 요청 대기 기관 n곳, DOM 이 없으면 아�
   assert.doesNotThrow(function () { pc.paintNavBadge(); pc.setBadge(2); pc.onNavDrawn(); });
   return pc.refreshBadge(true);   // node 에서는 서버 호출 없이 끝난다
 });
+test('배지: 창으로 돌아오면(focus) refreshBadge(false) 1회, 리스너는 한 번만 단다, 배지에 aria-live 없음', function () {
+  const calls = [], handlers = [];
+  const win = { addEventListener: function (t, f) { handlers.push([t, f]); } };
+  assert.strictEqual(pc.bindBadgeFocus(win), true);
+  assert.strictEqual(pc.bindBadgeFocus(win), false);   // 중복 등록 방지
+  assert.deepStrictEqual(handlers.map(function (h) { return h[0]; }), ['focus']);
+  const orig = pc.refreshBadge;
+  pc.refreshBadge = function (force) { calls.push(force); return Promise.resolve(); };
+  try { handlers[0][1](); } finally { pc.refreshBadge = orig; }
+  assert.deepStrictEqual(calls, [false]);   // 60초 제한이 걸리는 force=false 로만
+  assert.ok(PC_SRC.indexOf('aria-live') < 0);
+});
 
 // ── 소스·연결 규칙 ───────────────────────────────────────────────────
 test('소스 규칙: confirm() 없음, 외부 주소 없음, 새 hex 없음, 서버 원문(message·detail)을 화면에 넣지 않음', function () {

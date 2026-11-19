@@ -350,12 +350,13 @@
     return out.slice(0, plans.MISSING_MAX);
   };
   // 목록 바닥: n = 목록(CSV)에 담을 수 있는 기관 수(missingIds), m = 목록 머리의 '자료 없음' 수. 다를 때만 차이를 밝힌다.
-  plans.footHtml = function (n, m, busy) {
+  // can = 수집 요청을 할 수 있는 사용자(요청 줄의 can 과 같은 값, CS.can). 불가면 2줄은 '확인용입니다.'만(없는 버튼을 가리키지 않게, design 11-19).
+  plans.footHtml = function (n, m, busy, can) {
     n = Number(n) || 0; m = Number(m) || 0;
     let h = '';
     if (n) {
-      h = '목록에 담을 수 있는 기관 ' + mono(n) + '곳 · <button type="button" class="db-link" id="pl-dl"' + (busy ? ' disabled' : '') + '>목록 내려받기(CSV)</button><br>' +
-        '폐쇄망 밖에서 사업계획을 모을 때 쓰는 할 일 목록입니다.';
+      h = '목록에 담을 기관 ' + mono(n) + '곳 · <button type="button" class="db-link" id="pl-dl"' + (busy ? ' disabled' : '') + '>자료 없는 기관 내려받기(CSV)</button><br>' +
+        (can ? '확인용입니다. 수집은 [수집 요청]으로 개발부서에 맡깁니다.' : '확인용입니다.');
     }
     if (m > n) h += (h ? '<br>' : '') + '서버에 등록되지 않은 ' + mono(m - n) + '곳은 목록에 넣을 수 없습니다.';
     return h;
@@ -654,7 +655,7 @@
     let h = plans.checkNoteHtml(n, plans.noticeMenuVisible());
     if (ready()) {
       const base = visibleRows().base;
-      const csv = plans.footHtml(plans.missingIds(base).length, base.filter(function (r) { return !r.st; }).length, S.dlBusy);
+      const csv = plans.footHtml(plans.missingIds(base).length, base.filter(function (r) { return !r.st; }).length, S.dlBusy, CS.can);
       if (csv) h += '<p class="pl-fn">' + csv + '</p>';
     }
     el.innerHTML = h;
@@ -790,7 +791,7 @@
         a.href = url; a.download = x.name; a.rel = 'noopener';
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-        setFlash('자료 없는 기관 ' + ids.length + '곳의 목록을 내려받았습니다. 엑셀에서 열어 확인하세요. 수집이 필요하면 기관을 골라 [수집 요청]을 누르세요.');
+        setFlash('자료 없는 기관 ' + ids.length + '곳의 목록을 내려받았습니다. 엑셀에서 열어 확인하세요.' + (CS.can ? ' 수집이 필요하면 기관을 골라 [수집 요청]을 누르세요.' : ''));   // 요청할 수 없는 사람에게는 없는 버튼을 가리키지 않는다(qa 11-19)
       })
       .catch(function (e) {
         const s = e && e.status;
@@ -810,6 +811,8 @@
     const a = document.activeElement, aid = a && a.id ? a.id : '';
     const pane = $('pl-pane'), inPane = !!(a && pane && pane.contains(a));
     renderList();
+    renderFoot();   // 요청 가능 여부(CS.can)가 늦게 와도 바닥 2줄 문구가 맞게
+    if (aid === 'pl-dl' && !document.body.contains(a)) { const b = $('pl-dl'); if (b && b.focus) b.focus({ preventScroll: true }); }
     if (S.selRow && !(a && a.id === 'pl-kw')) renderPane();
     if (S.selRow) revealRow(S.selRow.key);   // 칩이 붙어 줄 높이가 바뀌어도 선택 행이 화면 안에 남게
     if (inPane && !document.body.contains(a)) {   // 다시 그리느라 포커스를 둔 요소가 사라졌으면 같은 id → 없으면 제목으로

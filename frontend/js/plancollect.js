@@ -548,11 +548,22 @@
       else if (r.status === 401 || r.status === 403) { badgeStop = true; pc.setBadge(0); }
     });
   };
+  // 창으로 돌아올 때(focus) 한 번 더 확인한다. refreshBadge 가 메뉴 없음(로그아웃 포함)·서버 미연결·403 중단·60초 제한을 이미 지킨다.
+  // onNavDrawn 이 메뉴를 그릴 때마다 불리므로 플래그로 한 번만 단다. 배지에는 실시간 읽기 속성을 넣지 않는다(바뀔 때마다 읽히는 소음 방지).
+  let focusBound = false;
+  pc.bindBadgeFocus = function (target) {
+    const w = target || (typeof window !== 'undefined' ? window : null);
+    if (focusBound || !w || typeof w.addEventListener !== 'function') return false;
+    w.addEventListener('focus', function () { pc.refreshBadge(false); });
+    focusBound = true;
+    return true;
+  };
   pc.onNavDrawn = function () {   // app.drawNav 끝에서
     if (!navBtn()) return;
     resetBadgeIfWhoChanged();
     pc.paintNavBadge();
     pc.refreshBadge(false);
+    pc.bindBadgeFocus();
   };
 
   if (isNode) module.exports = pc;

@@ -251,10 +251,13 @@ public class PlanCollectService {
             items.add(mineJson(r, counts.getOrDefault(inst, 0), mine.containsKey(inst)));
         }
         // 열린 요청이 없는 기관의 '마지막으로 닫힌 요청'이 실패·제외이고 30일 안이면 — 상세 줄 '실패/제외됨 · 사유 · 다시 요청' 표시용.
-        // 사번·이름 없음. 사유는 요청할 수 있는 사람(영업·개발부서)에게만 — 디자이너는 상태 칩만(팀 결정 11-17).
+        // 사번·이름 없음. 요청할 수 없는 사람(디자이너 등)에게는 last_closed 자체를 비운다 — 화면은 can 일 때만 그린다(security 11-17).
         List<Map<String, Object>> lastClosed = new ArrayList<>();
         Set<String> seen = new HashSet<>();
-        for (PlanCollectReq r : mapper.selectRecentClosed(Times.iso(Instant.now().minus(LAST_CLOSED_WINDOW)))) {
+        List<PlanCollectReq> recent = canRequest
+                ? mapper.selectRecentClosed(Times.iso(Instant.now().minus(LAST_CLOSED_WINDOW)))
+                : Collections.<PlanCollectReq>emptyList();
+        for (PlanCollectReq r : recent) {
             String inst = r.getInstitutionId();
             if (!seen.add(inst) || open.contains(inst)) continue;   // 기관별 최신 1건(REQ_SEQ 내림차순)만
             if (!FAILED.equals(r.getStatusCd()) && !EXCLUDED.equals(r.getStatusCd())) continue;

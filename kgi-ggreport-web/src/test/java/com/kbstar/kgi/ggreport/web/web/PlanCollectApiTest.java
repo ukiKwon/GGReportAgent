@@ -375,7 +375,7 @@ public class PlanCollectApiTest {
     }
 
     @Test
-    public void 실패_제외로_닫힌_최근_요청은_last_closed로_보이고_디자이너에게는_사유가_없다() throws Exception {
+    public void 실패_제외로_닫힌_최근_요청은_last_closed로_보이고_디자이너에게는_항목이_없다() throws Exception {
         ask(SALES);
         admin("/plan-collect/exclude", keysReason(key(), "이미 최신 자료 있음"), ADMIN);
         MockHttpServletResponse r = call(get("/plan-collect/status"), SALES2);
@@ -384,7 +384,8 @@ public class PlanCollectApiTest {
         assertEquals("이미 최신 자료 있음", lc.path("close_reason").asText());
         assertFalse(lc.path("closed_at").isNull());
         assertFalse("사번 없음", r.getContentAsString().contains(SALES));
-        assertTrue(find(body(call(get("/plan-collect/status"), DESIGNER)).path("last_closed"), INST).path("close_reason").isNull());
+        JsonNode des = body(call(get("/plan-collect/status"), DESIGNER)).path("last_closed");
+        assertTrue("디자이너는 last_closed 가 빈 배열", des.isArray() && des.size() == 0);
         ask(SALES);
         assertNull("다시 열리면 last_closed 에서 빠진다", find(body(call(get("/plan-collect/status"), SALES2)).path("last_closed"), INST));
     }
