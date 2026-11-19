@@ -9,7 +9,7 @@
 3. **100 S2(049)** 적용 → 사용자 049 로컬 적용 요청 → mvn → security → 커밋. PrepUiIds·PrepService는 fa 소유 — 필요한 diff는 fa에 요청.
 3-2. **05(NEXT 56 사업계획 수집 요청)**: 사용자 재확인(목록 3행 칩·[수집 요청] 위치·디자이너·현황판 칩·1280폭) → 작은 정리(CSV Enter 포커스·401 배지·삼항식·CLOSED_AT 인덱스) → 망 밖 agent 본체 설계(main과 파일 담당 나눔). 자세히 handoff/sessions/2026-11-19_1700_05.md.
 4. 0f 커밋 뒤: **⑥ 디자인 검토 화면 + 기관장 [Word 내려받기] 버튼**(design 규격 11-19 오후 → frontend → qa → design 대조 → design_history 장).
-4-1. 0d 서버 몫(11-19 저녁): 디자이너 기본 메뉴 scan·manage·tools, 재무팀 plan만(Menus.java 기본값·골든 /menus), 시험 계정 최디자이너→박디자이너(새 마이그레이션 052 UPDATE + 서버 시험 문자열 + 사용자 로컬 적용).
+4-1. 0d 서버 몫(11-19 저녁 정정): 시험 계정 최디자이너→박디자이너만 — 새 마이그레이션 052(USERS UPDATE, MySQL·Oracle 쌍) + 서버 시험 문자열 3개 + 사용자 로컬 적용. 디자이너·재무 메뉴 제한은 프런트 nav.limitToRole(0d)로 처리, Menus.java 기본값은 바꾸지 않음(재무는 tasks·map 키 유지).
 5. 월: 95 부서 이름(fa·0f·05 커밋 뒤), 90 4단계, 100 S3(050, fa와 PrepService 협의)·S4, 97 lines_next·home_portal 감사(backend).
 
 ## 다시 알릴 것 (질문은 선택식, 답 받을 때까지 멈춤)
