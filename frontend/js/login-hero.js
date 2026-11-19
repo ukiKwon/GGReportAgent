@@ -242,7 +242,7 @@
     };
   }
   function placeholder(svg, w, hh, text) {
-    svg.appendChild(svgEl('rect', { 'class': 'lg-ph', x: 6, y: 6, width: w - 12, height: hh - 12, rx: 8 }));
+    svg.appendChild(svgEl('rect', { 'class': 'lg-ph', x: 6, y: 6, width: w - 12, height: hh - 12, rx: 2 }));
     if (text) svg.appendChild(svgEl('text', { 'class': 'lg-ph-t', x: w / 2, y: hh / 2 + 4 }, text)).textContent = text;
   }
   // 서울 25개 구 지도. cls(code) → 구별 클래스, label(feature) → 글자(없으면 null)

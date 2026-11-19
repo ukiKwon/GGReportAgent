@@ -353,11 +353,11 @@ test('render.faceCodesForSubRegion: subRegion 면만, 없거나 지도에 없으
 });
 
 
-test('render.js: 전국 지도 시도 면 반짝, 시도 지도 위치 미확인 안내, 해제·중복 판정에 path.region 포함(사용자 11-16)', function () {
+test('render.js: 전국 지도 시도 면 반짝(덮개 층 링), 시도 지도 위치 미확인 안내, 해제·중복 판정에 path.region 포함(사용자 11-16, 11-19 덮개 층)', function () {
   const r = read('js/render.js'), h = read('index.html');
   assert.ok(/else if \(!render\.state\.currentRegion\) render\._blinkRegionFace\(rec\);/.test(r));
   assert.ok(r.indexOf("selectAll('path.subregion.selected, path.region.selected')") > 0);
   assert.ok(r.indexOf("'지도 위치(소재 시·군·구) 미확인'") > 0);
-  assert.ok(/\.subregion\.selected, \.region\.selected \{/.test(h));
-  assert.ok(/\.rank-noloc \{[^}]*font-size:11px[^}]*var\(--muted\)/.test(h));
+  assert.ok(/\.ring-sel\.over \{[^}]*animation:muni-blink/.test(h));   // 선택 깜빡임은 덮개 층 경로에서
+  assert.ok(/\.rank-noloc \{[^}]*font-size:12px[^}]*var\(--muted\)/.test(h));
 });

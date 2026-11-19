@@ -599,11 +599,11 @@ test('rejHtml: 권한 신청 버튼은 403에만 있다', function () {
   assert.ok(!bw.rejHtml(bw.rejectFrom({ status: 0, net: true }, ctx)).includes('data-w="perm"'));
 });
 
-test('index.html: 티커 점·깜박임 제거, 읽는 글자 11px, 제목 단계(P3)', function () {
+test('index.html: 티커 점·깜박임 제거, 읽는 글자 12px, 제목 단계(P3)', function () {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   assert.ok(!html.includes('tkPulse') && !html.includes('tk-live'));
   assert.ok(/\.login-card h1 \{/.test(html) && !/\.login-card h2/.test(html));
   assert.ok(/\.modal-box h2, \.modal-box h3 \{/.test(html));
-  assert.ok(/\.filter-title \{ font-size:11px/.test(html));
-  assert.ok(/\.wf-step \.wf-gate \{[^}]*font-size:11px/.test(html) && /\.wf-step \.wf-cnt \{[^}]*font-size:11px/.test(html));
+  assert.ok(/\.filter-title \{ font-size:12px/.test(html));
+  assert.ok(/\.wf-step \.wf-gate \{[^}]*font-size:12px/.test(html) && /\.wf-step \.wf-cnt \{[^}]*font-size:12px/.test(html));
 });

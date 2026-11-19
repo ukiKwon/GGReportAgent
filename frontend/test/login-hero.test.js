@@ -159,10 +159,10 @@ test('index.html: 로그인 id 7개가 #login-view 안에 있고, 접근성 구�
   assert.ok(block.indexOf('class="lg-ctl"') < block.indexOf('id="lg-slides"'));
   assert.ok(/\.lg-slides \{ grid-row:1; \}/.test(html) && /\.lg-ctl \{ grid-row:2;[^}]*opacity:\.55/.test(html));
   assert.ok(/\.lg-hero:hover \.lg-ctl, \.lg-hero:focus-within \.lg-ctl \{ opacity:1; \}/.test(html));
-  // 호버·눌림에서 테두리색 유지·이동 없음, 꺼진 점 #626d81
-  assert.ok(/\.lg-ghost:hover \{[^}]*border-color:#626d81/.test(html) && /\.lg-cbtn:hover \{[^}]*border-color:#626d81/.test(html));
+  // 호버·눌림에서 테두리색 유지·이동 없음, 꺼진 점은 --line-strong(11-19: #626d81 리터럴 제거)
+  assert.ok(/\.lg-ghost:hover \{[^}]*border-color:var\(--line-strong\)/.test(html) && /\.lg-cbtn:hover \{[^}]*border-color:var\(--line-strong\)/.test(html));
   assert.ok(/\.lg-ghost:active, #login-view \.lg-cbtn:active, #login-view \.lg-dot:active \{ transform:none/.test(html));
-  assert.ok(/\.lg-dot::before \{[^}]*background:#626d81/.test(html));
+  assert.ok(/\.lg-dot::before \{[^}]*background:var\(--line-strong\)/.test(html));
   assert.ok(/animation-delay:var\(--lg-delay/.test(html), '재생 재개 때 진행 막대를 남은 시간에 맞춘다');
   ['lg-play', 'lg-prev', 'lg-next', 'lg-dots', 'lg-slides', 'lg-n', 'lg-total', 'lg-topic'].forEach(function (id) {
     assert.ok(block.indexOf('id="' + id + '"') > 0, id);

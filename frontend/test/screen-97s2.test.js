@@ -1,0 +1,99 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+const ROOT = path.join(__dirname, '..');
+const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const renderSrc = fs.readFileSync(path.join(ROOT, 'js', 'render.js'), 'utf8');
+
+// <style> 안에서 주석을 걷고, fa 담당 kbboard(.hb-*) 묶음은 뺀다.
+// fa가 그 묶음을 끝내면 아래 cut 두 줄을 지워 전체를 검사한다.
+function css() {
+  const s = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+  const a = s.indexOf('국민은행 상태 현황판(kbboard.js) 시작'), b = s.indexOf('국민은행 상태 현황판 끝');
+  assert.ok(a > 0 && b > a);
+  const cs = s.lastIndexOf('/*', a), ce = s.indexOf('*/', b) + 2;
+  return (s.slice(0, cs) + s.slice(ce)).replace(/\/\*[\s\S]*?\*\//g, '');
+}
+function rules() {
+  const out = [], re = /([^{}]+)\{([^{}]*)\}/g; let m; const c = css();
+  while ((m = re.exec(c))) out.push({ sel: m[1].trim(), body: m[2] });
+  return out;
+}
+
+test('모서리: 3px 이상 직접 값 없음, 원(50%)은 점 2곳만', function () {
+  const vals = (css().match(/border-radius\s*:\s*[^;}]+/g) || []);
+  const bad = vals.filter(function (v) { return /(^|[^\d.-])([3-9]|\d{2,})(\.\d+)?px/.test(v.replace(/var\([^)]*\)/g, '')); });
+  assert.deepStrictEqual(bad, []);
+  assert.strictEqual(vals.filter(function (v) { return /50%/.test(v); }).length, 2);   // .lg-tl li::before, .nt-dot
+});
+
+test('글자: 12px 미만은 SVG 지도 라벨·숫자 칩 예외만', function () {
+  const keep = /(^|[\s,>+~])\.label(?![\w-])|\.lg-gu-label|\.nav-count|#notify-badge|\.ov-stamp/;
+  const bad = rules().filter(function (r) {
+    return /font-size\s*:\s*(9|10|11)px|font\s*:[^;}]*?(?<![\d.])(9|10|11)px/.test(r.body) && !keep.test(r.sel);
+  }).map(function (r) { return r.sel; });
+  assert.deepStrictEqual(bad, []);
+});
+
+test('그림자·떠오름·유리 없음: backdrop-filter·블러 그림자·hover/active 이동 없음', function () {
+  const c = css();
+  assert.ok(!/backdrop-filter/.test(c));
+  assert.ok(!/rgba\(\s*8\s*,\s*12\s*,\s*24/.test(c));
+  (c.match(/box-shadow\s*:\s*[^;}]+/g) || []).forEach(function (decl) {
+    decl.replace(/^box-shadow\s*:\s*/, '').split(/,(?![^()]*\))/).forEach(function (part) {
+      const nums = part.replace(/\([^)]*\)/g, '').trim().split(/\s+/).filter(function (t) { return /^-?[\d.]+(px)?$/.test(t); });
+      assert.ok(nums.length < 3 || parseFloat(nums[2]) === 0, '블러 있는 그림자: ' + decl);
+    });
+  });
+  const moving = rules().filter(function (r) {
+    return /:(hover|active)/.test(r.sel) && /transform\s*:\s*(translate|scale)/.test(r.body);
+  }).map(function (r) { return r.sel; });
+  assert.deepStrictEqual(moving, []);
+});
+
+test('색 잔재: #626d81·옛 다크 muted 빗금·금색 glow·.08em 자간 없음', function () {
+  const c = css();
+  assert.ok(!/#626d81/i.test(c));
+  assert.ok(!/152\s*,\s*161\s*,\s*175/.test(c));
+  assert.ok(!/#d8c47a|216\s*,\s*196\s*,\s*122/i.test(c));
+  assert.ok(!/letter-spacing\s*:\s*\.08em/.test(c));
+});
+
+test('머리 띠·메뉴·탭: 네이비 3곳만, 로그아웃·로고 흰색, 탭 닫기 24px', function () {
+  const c = css();
+  assert.strictEqual((c.match(/#052561/gi) || []).length, 3);   // header, .lg-top, .login-card 윗선
+  assert.ok(/(^|\n)\s*body > header \{[^}]*background:#052561[^}]*color:#fff/.test(c));
+  assert.ok(/body > header \.link-btn \{ color:#fff; \}/.test(c) && /body > header \.link-btn:hover \{ color:#dfe6f3; \}/.test(c));
+  // 맨 타입 선택자 header는 JS 팝업 <header class="bd-src-head">(board-write.js)에도 걸린다 — 앱 머리 띠는 body > header로만(qa 11-19 P1)
+  const bare = rules().filter(function (r) {
+    return r.sel.split(',').some(function (x) { return /^header(\s|$|:)/.test(x.trim()); });
+  }).map(function (r) { return r.sel; });
+  assert.deepStrictEqual(bare, []);
+  assert.ok(/<body[^>]*>[\s\S]*?\n<header>/.test(html) && /'<header class="bd-src-head">/.test(fs.readFileSync(path.join(ROOT, 'js', 'board-write.js'), 'utf8')));
+  assert.ok(/\.stab-x \{[^}]*width:24px; height:24px;/.test(c));
+  assert.ok(/\.nav-item\.active \{[^}]*inset 3px 0 0 var\(--accent-color\)[^}]*font-weight:700/.test(c));
+  const logo = /<header>\s*<h1>[\s\S]*?<\/h1>/.exec(html)[0];
+  assert.ok(logo.indexOf('#0b50d0') < 0 && logo.indexOf('currentColor') > 0);
+});
+
+test('지도 강조: 덮개 층 g.sel-ring-layer, raise() 없음, 잉크·흰 두 겹', function () {
+  assert.ok(!/\.raise\(\)/.test(renderSrc));
+  ['sel-ring-layer', '_ringSelect', '_ringFocus', '_ringBlur'].forEach(function (k) { assert.ok(renderSrc.indexOf(k) > 0, k); });
+  assert.ok(/clearSelection[\s\S]*?g\.sel-ring-layer path\.ring-sel[\s\S]*?\.remove\(\)/.test(renderSrc));
+  assert.ok(/\.on\('focus'[\s\S]*?render\._ringFocus\(this\)[\s\S]*?\.on\('blur'[\s\S]*?render\._ringBlur\(\)/.test(renderSrc));
+  const c = css();
+  assert.ok(/\.ring-sel\.under \{[^}]*stroke:#fff; stroke-width:5;/.test(c));
+  assert.ok(/\.ring-sel\.over \{[^}]*stroke:var\(--fg\); stroke-width:2\.5;/.test(c));
+  assert.ok(/\.ring-focus\.under \{[^}]*stroke:var\(--fg\); stroke-width:6;/.test(c));
+  assert.ok(/\.ring-focus\.over \{[^}]*stroke:#fff; stroke-width:2\.5;/.test(c));
+  assert.ok(/@keyframes muni-blink \{[^}]*stroke-width:2\.5;[^}]*\}[^}]*stroke-width:3\.5;/.test(c) && !/stroke-opacity:\.30/.test(c));
+  assert.ok(/\.region:focus-visible, \.subregion:focus-visible \{ outline:none; \}/.test(c));
+  assert.ok(/\.region\.watched \{ stroke:var\(--fg\); stroke-width:1\.5; stroke-dasharray:4 2; \}/.test(c));
+  assert.ok(/g\.ripple-layer \{ filter:drop-shadow\(0 0 1px #fff\); \}/.test(c));
+});
+
+test('테마 창 문구: 포인트 색은 물결·화면 강조만 칠한다', function () {
+  assert.ok(html.indexOf('물결·화면 강조색') > 0 && html.indexOf('선택 강조색') < 0);
+});

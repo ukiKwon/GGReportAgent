@@ -114,6 +114,7 @@
   <a href="#c53">53 사업계획 수집 요청 — 기관 사업계획에 [수집 요청], 시스템 관리에 개발부서 처리 화면과 대기 배지</a>
   <a href="#c54">54 밝은 업무 포털로 바탕 전환 — 화면 개편 1단계(공통 색 변수, KRDS 참고)</a>
   <a href="#c55">55 입찰 현황판 — 관심 기관 탭 · 제안 진행 5단계 줄 · 표 거르기·정렬 · 입찰 종료 막기 · 협약 중인 기관 팝업, 밝은 바탕에 맞춘 빨강·주황 글자</a>
+  <a href="#c57">57 화면 개편 2단계 — 남색 머리 띠(시안 A), 모서리 2px·글자 12px, 그림자·흐림 제거, 지도 선택 외곽선 검정·흰 두 겹</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -1222,6 +1223,24 @@
   <p style="font-size:12px"><b>밝은 바탕 글자</b>: 빨강·주황을 흰색 대신 본문색과 섞음 — 마감 임박 수 3.66 → <b>8.33:1</b>, 지연 칩 2.74 → <b>6.22:1</b>, 협약 종료 임박 3.26 → <b>7.90:1</b>, 주의 상자 제목 7.06:1. 구분 칩·단계 버튼 테두리는 강한 선 변수(3.08:1, 누를 수 없는 단계는 옅은 선).</p>
   <p style="margin:6px 0 0"><span style="display:inline-block;padding:0 6px;font:700 13px Consolas,monospace;color:color-mix(in srgb,#bd2c0f 72%,#1e2124);background:#fff;border:1px solid #d1d5db">D-12</span> <span style="display:inline-block;padding:0 6px;font-size:11px;color:color-mix(in srgb,#bd2c0f 72%,#1e2124);border:1px solid #bd2c0f;background:color-mix(in srgb,#bd2c0f 18%,#fff)">지연</span> <span style="display:inline-block;padding:0 6px;font-size:12px;font-weight:700;color:color-mix(in srgb,#8a5c00 72%,#1e2124);border:1px solid #8a5c00;background:color-mix(in srgb,#8a5c00 8%,#fff)">올해 입찰이 끝난 기관입니다</span></p>
   <p class="legend-note">새 색 0개, 새 변수 0개(남은 흰색 섞기·#626d81 리터럴 0곳). 글자 11/12/13/14px, 숫자 16px mono. 선택(눌린 단계·켜진 필터·탭 밑줄)만 포인트 파랑, 입찰 종료 주의 상자만 주황 8% 바탕, 입찰 종료 줄은 닫힌 항목이라 색 없이 회색 글자. 흐리게는 opacity 대신 회색(정렬 아이콘 포함). 정렬 머리 aria-sort, 탭 role=tab(←/→), 단계 버튼 aria-pressed(0곳은 누를 수 없음), 건수는 같은 role=status 노드를 유지해 거르기를 바꿀 때마다 '5곳 중 3곳 보임'으로 읽힘, 팝업은 뒤 화면을 잠그고 Esc로 닫으면 [협약 중인 기관]으로 포커스가 돌아옴. 부서 이름은 '영업부서'. 수치: '전' 배치는 8080 옛 빌드 실측, '후'와 모든 대비는 CSS·hex 계산값 — 8080이 꺼져 있어 Playwright 실측은 서버를 켠 뒤(표 줄 수·도구 줄 한 줄 유지·팝업 렌더).</p>
+</div></div></div>
+</div>
+</section>
+<section class="ch" id="c57">
+<h2>57 화면 개편 2단계 — 남색 머리 띠(시안 A), 모서리 2px·글자 12px 정리, 그림자·떠오름·흐림 제거, 지도 선택 외곽선 검정·흰 두 겹 (2026-11-19, 사용자 11-19 시안 A 선택, design 11-19 ade0b40d·a84d7f1a, frontend-dev a8ef4ce5, qa a3236044, NEXT 97)</h2>
+<div class="why">왜: 54에서 색만 밝게 바꾸자 머리와 본문이 같은 옅은 회색이 되어, 어디가 메뉴이고 어디가 일하는 곳인지 흐렸습니다. 어두운 시절의 모양(알약 버튼 25px 모서리, 9~11px 글자, 버튼이 떠오르는 그림자, 반투명 흐림)도 그대로 남아 반쯤 바뀐 화면으로 보였습니다. 사용자가 11-19에 시안 A를 골라, 머리 띠와 로그인 상단만 남색으로 칠해 경계를 세우고 나머지는 KRDS 규칙(모서리 2px, 최소 12px, 그림자 없음)으로 정리했습니다. 또 지도에서 고른 구의 파란 외곽선이 파란 면 위에서 1.44:1로 보이지 않던 것을, 색 대신 검정·흰색 두 겹 선으로 바꿔 어떤 면 색 위에서도 3.4:1 이상 보이게 했습니다.</div>
+<div class="ba">
+<div class="col before"><header>전 (54 이후)</header><div class="body"><div class="mock">
+  <p class="hint12">머리 띠: 바탕과 같은 회색 #f4f5f7 + 1px 선, 로고 파랑 · 활성 메뉴: 파랑 16% 틴트 · 탭 닫기: 18×18 원 · 로그인: 버튼 알약(반경 25px, 높이 50), 카드 반경 14px + 반투명 흐림 · 버튼 hover: 1px 떠오름 + 그림자 · 범례: 11px 모노 · 지도: 선택은 포인트 파랑(면 위 1.44~2.35:1), 이웃 면이 반쪽을 가림, 관심 구는 금색 빛번짐 · 입력·버튼 테두리: 회색 바탕 위 2.60:1</p>
+  <p><img src="../../handoff/agents/history/2026-11-17_97_mockAB/after_2_main.jpg" alt="54 이후 지도 화면" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-17_97_mockAB/after_1_login.jpg" alt="54 이후 로그인 화면" style="width:100%"></p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <p style="font-size:12px">머리 띠: 남색 #052561 + 흰 글자 14.5:1(로그아웃 1.67→14.5, 로고 2.13→14.5) · 바탕: 작업 #e9ecf0, 메뉴 #f6f7f9 · 활성 메뉴: 흰 바탕 + 왼쪽 3px 파랑 막대 + 굵게(hover는 #e9ecf0) · 탭 닫기: 24×24 · 모서리: 전부 2px(원은 점 2곳만) · 글자: 최소 12px(지도 라벨·숫자 칩만 예외) · 그림자·떠오름·흐림: 0 · 테두리 #6d7882(회색 바탕 위 3.80:1) · 지도: 선택은 흰 5px 위 검정 2.5px, 키보드 포커스는 그 반대, 관심 구는 검정 1.5px 점선, 이웃 면이 가리지 않음 · 테마 창: '선택 강조색' → '물결·화면 강조색' · 로그인 버튼: 2px, 입력칸과 같은 48px</p>
+  <p><img src="../../handoff/agents/history/2026-11-17_97_mockAB/stage2_2_main.jpg" alt="2단계 후 지도 화면" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-17_97_mockAB/stage2_1_login.jpg" alt="2단계 후 로그인 화면" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-17_97_mockAB/stage2_4_ring.jpg" alt="2단계 후 서울 지도에서 동대문구 선택 — 검정·흰 두 겹 외곽선" style="width:100%"></p>
+  <p class="legend-note">반경 직접 값 112곳 → var(--r), 9~11px 글자 80곳 → 12px(입찰 현황판 .hb-* 구간은 fa 세션 담당이라 제외). 앱 머리 띠 규칙은 body &gt; header로 한정 — 수익성 분석표 팝업의 &lt;header&gt;로 새던 것을 qa가 잡음. 캡처는 헤드리스 Chrome 1440×900 file://(서버 꺼짐), 기준일이 11-17 대 11-19라 D-n이 2일 다름. <b>남은 것</b>: 8080 실측(로그인 상태 머리 띠 오른쪽, Tab 포커스 링, 860px, 12px로 커진 공고 현황 축 글자), 포커스·선택 링이 겹칠 때 위아래 순서, .impeccable 설정 갱신.</p>
 </div></div></div>
 </div>
 </section>

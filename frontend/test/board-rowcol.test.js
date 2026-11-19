@@ -634,7 +634,7 @@ test('index.html: 새 CSS는 기존 변수만 쓰고, 잠김 배지 규칙은 �
   const block = html.slice(s, e);
   const vars = (block.match(/var\(--[a-z0-9-]+\)/g) || []).concat(block.match(/var\(--[a-z0-9-]+/g) || []);
   vars.forEach(function (v) {
-    assert.ok(/var\(--(panel2?|line|line-strong|muted|fg|red|accent-color)\)?$/.test(v), '새 CSS 변수 금지: ' + v);
+    assert.ok(/var\(--(panel2?|line|line-strong|muted|fg|red|accent-color|r)\)?$/.test(v), '새 CSS 변수 금지: ' + v);   // --r: 11-19 97 2단계 반경 일괄(기존 변수)
   });
   assert.ok(block.includes('.bd-edit-guide') && block.includes('.bd-handle') && block.includes('.bd-rcmenu') && block.includes('.bd-swatch'));
 });

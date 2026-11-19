@@ -30,7 +30,7 @@
   // b2 파랑 · b3 진파랑 · gray 날짜 미상. 값은 design-reviewer 1616 규격 §6(바탕 대비 4.0~9.6:1).
   render.DEFAULT_THEME = {
     r3:'#e8606b', r2:'#f0a6a9', p:'#cf9ad8', b2:'#7397d8', b3:'#4f72b8', gray:'#7c8699',
-    // 밝은 업무 포털(KRDS primary-60) — 물결·구 외곽선·크롬 강조가 공유. 옛 기본 틸(#57b8ad)은 migrateTheme이 버린다.
+    // 밝은 업무 포털(KRDS primary-60) — 물결·크롬 강조가 공유(지도 구 외곽선은 더 이상 이 색을 따르지 않는다: 잉크+흰 두 겹). 옛 기본 틸(#57b8ad)은 migrateTheme이 버린다.
     accent:'#0b50d0',
     rippleDuration: 2.2,   // 초. 이전 1.4s에서 한 템포 늦춤
   };
@@ -298,6 +298,9 @@
       .attr('class', 'region-hatch').attr('d', path)
       .attr('fill', 'url(#hatch)').style('pointer-events', 'none').style('opacity', 0.35);
 
+    // 선택·포커스 덮개 층 — 면 층과 라벨 층 사이(라벨이 링 위에 놓인다). 링은 render._ringSelect/_ringFocus가 채운다.
+    g.append('g').attr('class', 'sel-ring-layer').attr('pointer-events', 'none');
+
     // 라벨: 지역명 한 줄 + (비활성일 때) 작은 '준비중' 둘째 줄 / (공고 진행 중 기관이 있을 때) '공고 n' 둘째 줄.
     // 색은 CSS(.label)가 균일하게 정한다 — 지역마다 색을 달리하면 난잡해진다.
     const labels = g.selectAll('text.label').data(fc.features).join('text')
@@ -536,8 +539,9 @@
       .on('focus', function (ev, d) {
         const r = this.getBoundingClientRect();
         render.showRegionTip(htmlFn(d), r.left + r.width / 2, r.top + r.height / 2);
+        render._ringFocus(this);
       })
-      .on('blur', function () { render.hideRegionTip(); })
+      .on('blur', function () { render.hideRegionTip(); render._ringBlur(); })
       .on('keydown', function (ev, d) { render.regionKey(ev, d, enterFn); });
   };
 
@@ -589,6 +593,8 @@
     render.bindRegionTip(subPaths.filter(function (d) { return subMix[d.properties.code].total > 0; }),
       function (d) { return render.tipHtml(d.properties.name, subMix[d.properties.code], render.state.today); },
       function (ev, d) { render.onSubregionClick(d, ev); });
+    // 선택·포커스 덮개 층 — 면 위, ▲n·글리프·마커 아래.
+    g.append('g').attr('class', 'sel-ring-layer').attr('pointer-events', 'none');
     // ▲n — 6개월 안 기관이 있는 면에만. 시군구에는 이름 라벨이 없어 ▲n만 면 가운데에 둔다.
     g.selectAll('text.label.sub-urgent')
       .data(fc.features.filter(function (d) { return logic.urgentMark(subMix[d.properties.code]) !== ''; }))
@@ -923,7 +929,39 @@
     const svg = d3.select('#map-svg');
     svg.selectAll('g.ripple-layer').remove();
     svg.selectAll('path.subregion.selected, path.region.selected').classed('selected', false);
+    svg.selectAll('g.sel-ring-layer path.ring-sel').remove();
     document.querySelectorAll('.rank-card .rank-noloc').forEach(function (n) { n.remove(); });
+  };
+
+  // ── 지도 강조 덮개 층(규격 design-reviewer 2026-11-19_1011 6-B) ──
+  // 선택·포커스는 원래 면을 raise()하지 않고, g.sel-ring-layer에 같은 d의 fill:none 경로 두 겹(under=아래·굵게, over=위·가늘게)을 그린다.
+  // 여러 면(수원 4구)은 under를 전부 그린 뒤 over를 그려야 이웃 면의 over를 under가 덮지 않는다.
+  render._ringLayer = function () {
+    if (typeof d3 === 'undefined') return null;
+    const l = d3.select('#map-svg').select('g.sel-ring-layer');
+    return l.empty() ? null : l;
+  };
+  render._ringPaths = function (layer, kind, paths) {
+    ['under', 'over'].forEach(function (pass) {
+      paths.forEach(function (d) { layer.append('path').attr('class', 'ring ring-' + kind + ' ' + pass).attr('d', d); });
+    });
+  };
+  render._ringSelect = function (sel) {                    // sel = 선택된 면의 d3 선택
+    const layer = render._ringLayer(); if (!layer || !sel || sel.empty()) return;
+    const ds = []; sel.each(function () { const d = this.getAttribute('d'); if (d) ds.push(d); });
+    render._ringPaths(layer, 'sel', ds);
+  };
+  render._ringFocus = function (el) {                      // 키보드 포커스일 때만(마우스 클릭 포커스는 :focus-visible이 아니다)
+    render._ringBlur();
+    let vis = true;
+    try { vis = !!(el && el.matches && el.matches(':focus-visible')); } catch (e) { vis = true; }
+    const layer = render._ringLayer(); const d = el && el.getAttribute && el.getAttribute('d');
+    if (!vis || !layer || !d) return;
+    render._ringPaths(layer, 'focus', [d]);
+  };
+  render._ringBlur = function () {
+    if (typeof d3 === 'undefined') return;
+    d3.select('#map-svg').selectAll('g.sel-ring-layer path.ring-focus').remove();
   };
 
   render.selectInstitution = function (rec) {
@@ -947,9 +985,10 @@
     const fc = (render.REGION_GEO[render.state.currentRegion] || function () { return null; })();
     const codes = render.faceCodesForSubRegion(rec, fc);
     if (!codes.length) return false;
-    d3.select('#map-svg').selectAll('path.subregion')
+    const sel = d3.select('#map-svg').selectAll('path.subregion')
       .filter(function () { return codes.indexOf(this.getAttribute('data-code')) >= 0; })
-      .classed('selected', true).raise();
+      .classed('selected', true);
+    render._ringSelect(sel);
     return true;
   };
   // 전국 지도: 비지자체 기관의 시도 면(path.region, data-code = 시도 코드)을 반짝. 면이 없으면 false.
@@ -958,7 +997,8 @@
     const sel = d3.select('#map-svg').selectAll('path.region')
       .filter(function () { return this.getAttribute('data-code') === rec.region; });
     if (sel.empty()) return false;
-    sel.classed('selected', true).raise();
+    sel.classed('selected', true);
+    render._ringSelect(sel);
     return true;
   };
   // 시도 지도인데 소재 시·군·구 면을 못 찾았다 — 눌린 카드 안에 이유를 적는다. 선택이 풀리면(clearSelection) 같이 사라진다.
@@ -992,8 +1032,9 @@
     const sel = d3.select('#map-svg')
       .selectAll('path.subregion')
       .filter(function () { return codes.indexOf(this.getAttribute('data-code')) >= 0; });
-    // raise() 없이는 인접 폴리곤이 나중에 그려지며 외곽선을 덮어 반쪽만 보인다.
-    sel.classed('selected', true).raise();
+    // 외곽선은 raise()하지 않고 덮개 층에 그려 이웃 면이 반쪽을 덮지 않는다.
+    sel.classed('selected', true);
+    render._ringSelect(sel);
   };
 
   render._drawRipple = function (name) {

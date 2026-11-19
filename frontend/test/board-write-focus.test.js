@@ -226,7 +226,7 @@ test('CSS: 원본 표 바닥 #0d1117 제거(--panel), 머리 th 는 --panel2, �
 });
 test('CSS 칩: 카드 왼쪽 .bd-map 과 팝업 머리 .bd-w-srcjump 가 같은 모양, 선택 카드 칩은 틸, 높이 26px', function () {
   const r = rule('.bd-w-head .bd-map, .bd-w-srcjump');
-  ['font-family:var(--mono)', 'font-size:12px', 'border:1px solid var(--line-strong)', 'border-radius:8px', 'min-height:26px'].forEach(function (s) { assert.ok(r.includes(s), s); });
+  ['font-family:var(--mono)', 'font-size:12px', 'border:1px solid var(--line-strong)', 'border-radius:var(--r)', 'min-height:26px'].forEach(function (s) { assert.ok(r.includes(s), s); });
   assert.ok(/\.bd-w-srcjump\[aria-current="true"\], \.bd-w-card\.has-sel \.bd-w-head \.bd-map \{ color:var\(--fg\); border-color:var\(--accent-color\)/.test(html));
 });
 test('CSS 전환: 200ms, prefers-reduced-motion 이면 없음', function () {
@@ -236,21 +236,21 @@ test('CSS 전환: 200ms, prefers-reduced-motion 이면 없음', function () {
 test('CSS: 알림 줄 숨김(is-sr)은 margin 규칙에 지지 않는다', function () {
   assert.ok(/\.bd-w-status \.bd-w-live\.is-sr \{ position:absolute;/.test(html));
 });
-test('CSS 가시성 토큰(밝은 업무 포털, KRDS 참고): :root 값, hover 리터럴, 입력 테두리 3:1(새 변수 없음)', function () {
+test('CSS 가시성 토큰(밝은 업무 포털, KRDS 참고): :root 값, hover 값, 입력 테두리 3:1(새 변수 없음)', function () {
   const root = /:root \{([^}]*)\}/.exec(html)[1];
   const tok = function (n) { return new RegExp('--' + n + ':\\s*(#[0-9a-fA-F]{6})').exec(root)[1].toLowerCase(); };
-  assert.strictEqual(tok('bg'), '#f4f5f7');
+  assert.strictEqual(tok('bg'), '#e9ecf0');
   assert.strictEqual(tok('panel'), '#ffffff');
-  assert.strictEqual(tok('panel2'), '#f4f5f7');
-  assert.strictEqual(tok('line'), '#d1d5db');
-  assert.strictEqual(tok('line-strong'), '#8a949e');
+  assert.strictEqual(tok('panel2'), '#f6f7f9');
+  assert.strictEqual(tok('line'), '#c3c9d1');
+  assert.strictEqual(tok('line-strong'), '#6d7882');
   assert.strictEqual(tok('fg'), '#1e2124');
   assert.strictEqual(tok('muted'), '#464c53');
   assert.strictEqual(tok('accent-color'), '#0b50d0');
   assert.ok(/--shadow:none/.test(root) && /--r-lg:2px; --r:2px; --r-sm:2px/.test(root));
   assert.ok(/color-scheme:light/.test(root) && !/color-scheme:dark/.test(html));
   assert.ok(!/body::after \{ content:""/.test(html), '그레인 오버레이 삭제');
-  assert.ok(/button:hover \{ background:#e6e8ea; border-color:#4a566b;/.test(html));
+  assert.ok(/button:hover \{ background:var\(--panel2\); border-color:var\(--muted\); \}/.test(html));
   assert.ok(!/--line-input/.test(html), '입력 테두리용 새 변수를 만들지 않는다');
   assert.ok(/input:not\(\[type\]\), select, textarea \{[^}]*border:1px solid var\(--line-strong\)/.test(html));
 });

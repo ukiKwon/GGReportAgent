@@ -1,23 +1,25 @@
 ---
 name: 금고은행 입찰 현황 히트맵
-description: Premium dark chrome with a pastel urgency map — tinted-charcoal panels, grain and glass carry the frame; saturation belongs to the data.
+description: 밝은 업무 포털 — 흰 패널·옅은 회색 바탕·1px 선·2px 모서리·그림자 없음. 남색 띠 3곳이 크롬의 유일한 색이고, 채도는 지도(임박도)와 상태가 가진다.
 colors:
-  charcoal-base: "#0f1218"
-  panel: "#181e29"
-  panel-raised: "#202835"
-  input-well: "#0d1117"
-  hairline: "#2d3644"
-  hairline-strong: "#424e62"
-  ink: "#e2e7ee"
-  ink-muted: "#98a1af"
-  teal-accent: "#57b8ad"
-  on-accent-dark: "#0d1116"
-  watch-gold: "#d8c47a"
-  ember-red: "#e07856"
-  clay-orange: "#d9a05b"
-  reed-yellow: "#c9bd8f"
-  slate-blue: "#7c93c4"
-  storm-gray: "#5a6273"
+  navy-band: "#052561"
+  on-navy-note: "#dfe6f3"
+  bg: "#e9ecf0"
+  panel: "#ffffff"
+  panel-raised: "#f6f7f9"
+  panel-head: "#eef1f5"
+  map-stage: "#fafbfc"
+  panel-edge: "#aeb5bf"
+  hairline: "#c3c9d1"
+  hairline-strong: "#6d7882"
+  ink: "#1e2124"
+  ink-muted: "#464c53"
+  accent: "#0b50d0"
+  red: "#bd2c0f"
+  orange: "#8a5c00"
+  yellow: "#6b6000"
+  blue: "#0a65ab"
+  gray: "#5c6670"
   map-mix-deep-red: "#e8606b"
   map-mix-red: "#f0a6a9"
   map-mix-purple: "#cf9ad8"
@@ -26,536 +28,111 @@ colors:
   map-mix-gray: "#7c8699"
   map-inactive: "#c3cad9"
 typography:
-  title:
-    fontFamily: "\"Malgun Gothic\", \"Segoe UI\", sans-serif"
-    fontSize: "16px"
-    fontWeight: 700
-    letterSpacing: "-0.01em"
-  section-title:
-    fontFamily: "\"Malgun Gothic\", \"Segoe UI\", sans-serif"
-    fontSize: "15px"
-    fontWeight: 700
-    letterSpacing: "-0.01em"
-  heading:
-    fontSize: "14px"
-    fontWeight: 700
-    letterSpacing: "-0.01em"
-  body:
-    fontFamily: "\"Malgun Gothic\", \"Segoe UI\", sans-serif"
-    fontSize: "13px"
-    fontWeight: 400
-  control:
-    fontSize: "12px"
-    fontWeight: 400
-  caption:
-    fontSize: "11px"
-    fontWeight: 400
-  micro-label:
-    fontSize: "11px"
-    letterSpacing: "0.08em"
-  data-mono:
-    fontFamily: "Consolas, \"Cascadia Mono\", \"Malgun Gothic\", monospace"
-    fontSize: "12px"
-    fontFeature: "tabular-nums"
+  title: { fontFamily: "\"Malgun Gothic\", \"Segoe UI\", sans-serif", fontSize: "16px", fontWeight: 700, letterSpacing: "-0.01em" }
+  section-title: { fontSize: "15px", fontWeight: 700, letterSpacing: "-0.01em" }
+  heading: { fontSize: "14px", fontWeight: 700, letterSpacing: "-0.01em" }
+  body: { fontSize: "13px", fontWeight: 400 }
+  control: { fontSize: "12px", fontWeight: 400 }
+  caption: { fontSize: "12px", fontWeight: 400 }
+  data-mono: { fontFamily: "Consolas, \"Cascadia Mono\", \"Malgun Gothic\", monospace", fontSize: "12px", fontFeature: "tabular-nums" }
 rounded:
-  sm: "8px"
-  md: "10px"
-  lg: "14px"
-spacing:
-  xs: "6px"
-  sm: "8px"
-  md: "10px"
-  lg: "12px"
-  xl: "14px"
-  2xl: "16px"
-  strip: "20px"
+  r: "2px"
+spacing: { xs: "6px", sm: "8px", md: "10px", lg: "12px", xl: "14px", 2xl: "16px", strip: "20px" }
 components:
-  button-default:
-    backgroundColor: "{colors.panel-raised}"
-    textColor: "{colors.ink}"
-    typography: "{typography.control}"
-    rounded: "{rounded.md}"
-    padding: "6px 14px"
-  button-default-hover:
-    backgroundColor: "#283141"
-  input-field:
-    backgroundColor: "{colors.input-well}"
-    textColor: "{colors.ink}"
-    typography: "{typography.control}"
-    rounded: "{rounded.sm}"
-    padding: "5px 10px"
-  tab-item:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink-muted}"
-    typography: "{typography.control}"
-    rounded: "9px"
-    padding: "6px 16px"
-  tab-item-active:
-    backgroundColor: "color-mix(in srgb, #57b8ad 16%, transparent)"
-    textColor: "{colors.ink}"
-  badge-status:
-    typography: "{typography.caption}"
-    rounded: "{rounded.sm}"
-    padding: "1px 7px"
-  pin-watch:
-    textColor: "{colors.teal-accent}"
-    typography: "{typography.control}"
-    rounded: "{rounded.md}"
-    padding: "5px 12px"
-  card-region:
-    backgroundColor: "{colors.panel}"
-    rounded: "12px"
-    padding: "13px 14px"
-  card-panel:
-    backgroundColor: "{colors.panel}"
-    rounded: "{rounded.lg}"
+  button-default: { backgroundColor: "{colors.panel}", textColor: "{colors.ink}", typography: "{typography.control}", rounded: "{rounded.r}", padding: "6px 14px" }
+  button-default-hover: { backgroundColor: "{colors.panel-raised}" }
+  input-field: { backgroundColor: "{colors.panel}", textColor: "{colors.ink}", rounded: "{rounded.r}", padding: "5px 10px" }
+  nav-item-active: { backgroundColor: "{colors.panel}", textColor: "{colors.ink}" }
+  tab-item-active: { backgroundColor: "{colors.panel}", rounded: "2px 2px 0 0" }
+  card-panel: { backgroundColor: "{colors.panel}", rounded: "{rounded.r}" }
 ---
 
 # Design System: 금고은행 입찰 현황 히트맵
 
-> **Scope.** Like `PRODUCT.md`, this document covers **`frontend/` only** (the
-> treasury-bank bid heatmap app). The rest of the repository (corpus/, plan/,
-> corpus/reports/ deliverables) is a separate artifact family and is not
-> governed by this system.
->
-> Recorded 2026-08-14 from the shipped build (`frontend/index.html` inline
-> `<style>` + `frontend/js/render.js`), after the finish review (disposition:
-> ship). This world replaces the former "HTS 터미널" system (shipped
-> 2026-08-13): the user compared 8 variants across two comparison rounds and
-> locked variant 7.1 on 2026-08-14; the reviewer shipped after a five-fix batch
-> (map-stage width cap, ≤880px label shrink, SVG ticker triangle, label
-> sub-line tone, 16px title).
+> **범위.** `frontend/` 전용(PRODUCT.md와 같다). 저장소의 나머지 산출물은 이 체계의 대상이 아니다.
+> 2026-11-19 교체: 다크 크롬 + 파스텔 지도(2026-08-14)를 폐기하고 **밝은 업무 포털**(KRDS 참고)로 확정했다. 사용자가 시안 A(남색 머리 띠)를 골랐다(11-19).
 
-## Overview
+## 개요 — 밝은 업무 포털, 지도가 주인공
 
-**Creative North Star: "프리미엄 다크 크롬 + 파스텔 지도" (Premium Dark Chrome, Pastel Map)**
+작업 영역은 옅은 회색 바탕(`--bg` #e9ecf0) 위의 **흰 패널**과 1px 선이다. 모서리는 한 가지(2px), 그림자와 유리(블러)와 떠오름은 없다. 채도는 두 곳만 가진다: 지도(임박도 5단 섞기)와 상태 색. 상호작용 색은 파랑 하나(`--accent-color` #0b50d0)이고, 지도 위 선택·포커스는 색이 아니라 검정+흰색 두 겹 선이다.
 
-The chrome is a quiet, premium dark instrument case: tinted charcoal (#0f1218)
-rather than black, hairline-bordered panels, a faint SVG-noise grain over
-everything, soft 8–14px corners, glassy overlays, and shadows tinted toward the
-room's own blue-charcoal. On that near-achromatic stage, the national map is
-the only saturated object — a pastel five-band urgency palette (inherited from
-the 1.0 report's palette, user-themable) that reads instantly because nothing
-around it competes. The thesis, from the direction contract: a dashboard whose
-chrome is louder than its data is rejected; saturation is reserved for the
-data (urgency).
+**남색 예외(#052561) 3곳 — 이 셋만, 작업 영역 안에는 쓰지 않는다:** ① 머리 띠(`header`) ② 로그인 상단 띠(`.lg-top`) ③ 로그인 카드 윗선 3px. 머리 띠 위의 글자·단추·로고·포커스 링은 흰색이다(포인트 파랑은 남색에 묻힌다).
 
-One color speaks for interaction everywhere: teal (#57b8ad) — active-tab tint,
-focus rings, selection ripples and municipality blink, watch pins, search
-marks, caret, ::selection. It is the most saturated hue on screen precisely
-because it appears in small doses. The story shape follows: a staff member
-passes through colorless chrome straight to the colored map, clicks an
-imminent region, and picks an institution from the ranking panel into the
-workflow.
+## 색
 
-This remains an Operate-mode working tool as well as a demo. Density is kept —
-a tight 11–16px type ramp, tabular Consolas for every figure — but the finish
-is soft: 200ms lift-on-hover controls, one staggered entrance, real
-backdrop-blur glass. Hard product constraints carry into the visuals: closed
-network (no CDN, no webfonts — system faces only), vanilla JS, and DOM
-ids/classes coupled to the node test suite (244 tests).
+- **중립(이름 동결):** `--bg` #e9ecf0 / `--panel` #fff / `--panel2` #f6f7f9 / `--line` #c3c9d1(행 구분) / `--line-strong` #6d7882(부품 테두리, 흰·회색 바탕에서 3.8~4.5:1) / `--fg` #1e2124 / `--muted` #464c53(바탕 #e9ecf0 위 7.3:1).
+- **리터럴 3개(변수 없음):** 패널 외곽 `#aeb5bf`(지도 판·경과 패널·순위 패널·로그인 카드), 패널 머리 `#eef1f5`(`.rank-head`·`.ov-head`), 지도 판 바탕 `#fafbfc`. 남색 위 보조 글자 `#dfe6f3`.
+- **상태 5색(크롬):** `--red` #bd2c0f / `--orange` #8a5c00 / `--yellow` #6b6000 / `--blue` #0a65ab / `--gray` #5c6670. 칩은 색 글자 + 1px 같은 색 테두리 + 18% 틴트(채운 면 없음).
+- **지도 섞기 6색 + 준비중:** 6개월 안 위주 #e8606b, 1년 안 #f0a6a9, 섞임 #cf9ad8, 1~2년 #7397d8, 2년 넘음 #4f72b8, 날짜 미상 #7c8699, 준비중 #c3cad9(빗금). `render.DEFAULT_THEME`가 정본이고 테마 창에서 바꿀 수 있다. 점수·바닥 규칙·▲n 규칙은 기존과 같다(6개월 안·경과 +2, 6~12개월 +1, 1~2년 −1, 2년 넘음 −2, 평균 → 5단, 1년 안 기관이 있으면 보라 아래로 내려가지 않음, 라벨에 ▲n).
+- **포인트색:** `--accent-color`는 활성 메뉴 막대, 포커스 링(작업 영역), 선택 행, 주버튼, 물결 링에 쓴다. 테마 창 '물결·화면 강조색'이 바꾼다. 지도 면의 선택·포커스 외곽선에는 쓰지 않는다.
 
-**Key Characteristics:**
-- Tinted-charcoal chrome in three tonal steps + hairlines + grain overlay (0.045 opacity)
-- Saturation monopoly: the pastel urgency map is the only saturated element; teal (#57b8ad) is the single interaction voice
-- Two-tier urgency color: pastel tier for map fills (runtime-themable via `render.applyTheme()`), muted deep tier for chrome badges
-- Real glass (blur + 1px white-alpha edge + inner highlight) and tinted shadows (`rgba(8,12,24,…)`), never pure black
-- Soft geometry: 8/10/14px radius scale, pill segmented tabs; Malgun Gothic UI + Consolas tabular numerals
+### 이름 규칙
+- **채도 독점:** 크롬은 무채색 + 남색 3곳. 크롬의 상태 색은 글자·1px 테두리·18% 이하 틴트로만, 채운 포화 면은 없다.
+- **변수 이름 동결:** `:root`의 `--bg --panel --panel2 --line --line-strong --fg --muted --red --orange --yellow --blue --gray --accent-color --ripple-duration --mono --shadow --r --r-lg --r-sm`은 값만 바꾼다(JS 생성 마크업이 이름으로 참조). `--shadow:none`은 그림자 끄기 스위치로 남는다.
+- **경과 도장:** 예정일이 지나 처리 안 된 항목은 중립 잉크 칩(`--fg` 바탕, 11px 모노 700, 시계 글리프 + D+n)이다. 색조가 없어서 임박(`--red` 윤곽 + 삼각 + D-n)과 색·모양·글자로 다르다.
 
-## Colors
+## 글자
 
-A near-achromatic charcoal chrome carrying two tiers of the same five-band
-urgency semantics: soft pastels on the map, muted deep tones in the chrome.
+한글 시스템 서체만(폐쇄망, 웹폰트 없음): Malgun Gothic / Segoe UI. 숫자·날짜·D-day는 Consolas(`--mono`)로 열을 맞춘다. 단계: 제목 16/700, 절 제목 15/700, 소제목 14/700, 본문 13, 컨트롤·캡션 12. 자간은 제목류 −0.01em뿐, 확장 자간(+0.08em)은 쓰지 않는다. 계층은 굵기·색·간격으로 만든다.
 
-### Primary
-- **Teal Accent** (`--accent-color`, #57b8ad): the only interaction color —
-  chosen as the hue that pops best over the pastels. Active-tab 16% tint,
-  focus outlines, ripple rings and municipality blink, selected-row bar and
-  13% tint, watch pins, `<mark>` highlights, caret, form `accent-color`,
-  ::selection background, ready-state borders, the h1 logo glyph. Overwritten
-  at runtime by `render.applyTheme()` from user-saved themes — always
-  reference the variable, never the hex.
-- **On-Accent Dark** (#0d1116): text placed on teal (::selection, `<mark>`).
+**최소 12px.** 예외는 둘뿐이다: ① SVG 지도 라벨(`.label .sub` 10px, `.label .tri` 11px, 880px 이하 10px — 라벨 충돌 방지 결정) ② 숫자 칩(`.nav-count`, `#notify-badge`, `.ov-stamp` 11px/700 모노). 로그인 표면만 큰 글자 예외(슬라이드 문구 40px·D-day 64px·카드 제목 26px)를 가지며 로그인 미니 지도 라벨 `.lg-gu-label`은 11px이다.
 
-### Secondary — urgency scale, chrome tier
-The five `:root` status variables, deliberately desaturated so badges and tags
-whisper on the dark chrome. Reused for non-map status (workflow badges, notice
-kinds, D-day tags):
-- **Ember Red** (`--red`, #e07856): ≤6 months to bid — imminent. Also
-  integrity-miss text, risk badges, the notify badge, error borders.
-- **Clay Orange** (`--orange`, #d9a05b): ≤1 year; approval/gate states.
-- **Reed Yellow** (`--yellow`, #c9bd8f): ≤2 years.
-- **Slate Blue** (`--blue`, #7c93c4): 2 years+ — distant; done/sent/normal.
-- **Storm Gray** (`--gray`, #5a6273): date unknown.
+## 배치
 
-### Tertiary — map mix tier (`render.DEFAULT_THEME`, 2026-11-11 NEXT 78)
-Region faces blend every institution in the region (지자체·공공기관·대학·법원·병원,
-filtered by the visible kinds) on a red↔blue axis: **Map Deep Red** (#e8606b,
-6개월 안 위주), **Map Red** (#f0a6a9, 1년 안 위주), **Map Purple** (#cf9ad8,
-섞임), **Map Blue** (#7397d8, 1~2년 위주), **Map Deep Blue** (#4f72b8, 2년 넘음
-위주), **Map Gray** (#7c8699, 날짜 미상), plus **Map Inactive** (#c3cad9) for
-"준비중" regions (hatched overlay). Score per institution: 6개월 안·경과 +2,
-6~12개월 +1, 1~2년 −1, 2년 넘음 −2, 미상 excluded; mean → 5 bands
-(≥1.5 / ≥0.5 / between / >−1.5 / ≤−1.5). **Floor Rule**: if any institution is
-within 1 year the region never falls below purple. **▲n Rule**: the label
-carries ▲n = 6개월 안 count (△ when all are 추정) — urgency is never carried by
-color alone. Purple exists only for regions; a single institution (marker,
-card) uses the four non-purple bands. Superseded 2026-11-11: the old pastel
-red/orange/yellow/blue set (#f0a6a9/#f3c795/#e9e3a8/#a9c5ea). All bands and
-the accent are user-themable; `render.DEFAULT_THEME` is the design's default,
-and `render._safeColor()` hex-whitelists any stored value before it is
-interpolated into markup.
+전체 화면 고정 flex 열: 머리 띠(남색) → 컨트롤 띠 → 티커 띠 → 활성 화면. 왼쪽 업무 메뉴(248px, `--panel2` 바탕, 활성 항목은 흰 바탕 + 안쪽 3px 포인트 막대 + 700), 위쪽 화면 탭(연 화면 최대 10개; 활성 탭은 흰 바탕 + 위 2px 포인트 막대, 닫기 24×24). 지도 화면은 지도 판(flex 2)과 순위 패널(flex 1)로 나뉜다. 880px 이하에서 구조가 접힌다(숨기지 않는다).
 
-### Neutral
-- **Charcoal Base** (`--bg`, #0f1218): page background — charcoal tinted
-  toward blue, never pure black.
-- **Panel** (`--panel`, #181e29) / **Panel Raised** (`--panel2`, #202835):
-  the two flat surface steps for panels, cards, buttons, tab housing.
-  (2026-11-09 visibility pass: values raised from #151a22/#1a2029 so surfaces
-  separate — panel/bg 1.07 → 1.12, panel2/panel 1.07 → 1.13. Names frozen.)
-- **Input Well** (#0d1117): recessed fill for text inputs and selects. Input and
-  select borders use the literal #626d81 (3:1 on the well); no new variable.
-- **Hairline** (`--line`, #2d3644) / **Hairline Strong** (`--line-strong`,
-  #424e62): row separators vs. component/panel borders; also the scrollbar
-  thumb. (Raised 2026-11-09 from #232a35/#2e3745.)
-- **Ink** (`--fg`, #e2e7ee) / **Ink Muted** (`--muted`, #98a1af): text
-  hierarchy; muted also serves as the default icon stroke. De-emphasis (disabled,
-  empty, read, preparing) uses `--muted` color, not `opacity` (opacity drops
-  muted text under 4.5:1); disabled buttons are .55 at most.
-- **Minimum text size**: 11px (the 10px Micro Label tier is retired except SVG
-  map labels); sentence-style hints are 12px; counters/badges stay 11px mono.
-- **Filled primary exception**: besides `#ch-send`, the user-register button in
-  system admin (`button.primary`) is the single filled primary action there.
-- **Watch Gold** (#d8c47a): watched-region outline (with its
-  `rgba(216,196,122,.7)` glow) and the region-card star — the one
-  non-teal, non-urgency signal color.
+## 높이감·모양
 
-### Named Rules
-**The Saturation Monopoly Rule.** Chrome stays tinted-achromatic. Full
-saturation exists in exactly two places: the pastel map (data) and the teal
-accent (interaction). Status color in chrome appears only as muted-tier text,
-1px borders, and ≤18% tints — never as a solid saturated fill.
+- **그림자·유리·떠오름 없음.** `box-shadow`는 막대·윤곽용(`inset … 0`, `0 0 0 1px`)만 쓰고 블러가 있으면 안 된다. `backdrop-filter`와 hover 이동(`translate`·`scale`)은 쓰지 않는다. 모달 막은 `rgba(19,20,22,.5)` 단색. 움직임은 색 전이 200ms, 화면 첫 진입 한 번(`fadeUp`), 지도의 물결·깜빡임뿐이다(감소 설정이면 모두 끈다).
+- **모서리는 `var(--r)` 2px 하나.** `--r-lg`, `--r-sm`도 2px(이름 호환). 직접 px 값을 쓰지 않는다. 원(50%)은 점 두 곳(타임라인 점, 알림 점)만 예외.
+- 빗금(45도, 4px 주기)은 '준비중/추정' 질감이다. 마커 모양 규칙(지자체=면, ■ 교육청, ▲ 공공기관, ⬟ 대학, ◆ 법원, ● 병원)은 그대로다.
 
-**The One Teal Rule.** Teal is reserved for selection, focus, and interaction.
-It never encodes urgency; urgency hues never encode selection.
+## 컴포넌트
 
-**The Two-Tier Urgency Rule.** Large fills (map faces, map markers, and the
-institution-head card border/header band at 1px / 10% / 20% rules) use the map
-mix tier; small chrome (badges, tags, ticker, legend swatches outside the map)
-uses the muted deep tier.
-Small text set in a band color over dark ground is lightened with
-`color-mix(in srgb, <band> 70–72%, #ffffff)` — the legend and ticker both do
-this; copy the pattern rather than brightening the token.
+- **단추:** 흰 바탕, 1px `--line-strong`, 2px, 12px. hover는 `--panel2` + 테두리 `--muted`(이동·그림자 없음). 비활성은 .55 이하. 머리 띠 안에서는 투명 바탕 + 반투명 흰 테두리 + 흰 글자(hover 흰 14% 바탕).
+- **채운 주버튼 예외 3곳:** 대화 보내기, 시스템 관리 사용자 등록(`button.primary`), 로그인 제출(`.lg-primary`, 높이 48px — 입력칸과 같음, 좁은 화면 44px, 2px 모서리). 그 밖에 채운 주버튼은 없다.
+- **입력:** 흰 바탕, 1px `--line-strong`, 2px, 12px, 포인트 캐럿·`accent-color`. 포커스는 전역 2px 포인트 링.
+- **탭·세그먼트:** 각진 2px. 활성은 포인트 16% 틴트 또는 흰 바탕 + 포인트 막대.
+- **칩·배지:** 12px(숫자 칩만 11px), 1px 테두리, 2px 모서리, 18% 틴트.
+- **카드·패널:** 흰 `--panel`, 1px 선(`--line-strong`/`--line`, 지도류 `#aeb5bf`), 2px, 그림자 없음.
+- **로그인 표면:** 앱 크롬이 아니라 문 앞 표면. 남색 상단 띠 + 흰 카드(윗선 3px 남색). 슬라이드 규칙(6초 반복, 이전·다음·점·재생 줄, hover·포커스·탭 숨김·960px 이하 정지, reduced-motion이면 정지)과 `login-slides.js` 출처 규칙은 기존과 같다.
+- **아이콘:** 인라인 SVG 획 글리프(12×12 눈금, 1.2~1.4, `currentColor`). 이모지·문자 아이콘 없음(예외: 마커의 `!`, 티커 `·`, 이동 단추 `←`).
 
-**The 18% Tint Rule.** Status chips are colored text + 1px same-color border +
-`color-mix(in srgb, <band> 18%, transparent)` background. Status *rows* use
-the same mix at 8–12%; teal selections use 13–16%. Status is never a solid
-colored fill.
+## 지도 판 (대표 화면, 두 겹 규칙)
 
-**The Overdue Stamp Rule.** (2026-11-09; the sidebar pending-count chip .nav-count uses the same ink chip) A *pending overdue* item (예정일 경과·
-미처리) is the one sanctioned solid fill in chrome: a neutral ink chip —
-`--fg` background, `#0d1116` text, 11px mono 700, 1px `--fg` border, r6, clock
-glyph + `D+n`. It is an intended exception to the 18% Tint Rule because it adds
-no hue (chroma stays reserved for map data) and must read differently from
-*imminent* (`--red` outline + rising triangle + `D-n`) on color, shape and text.
-Delayed items drop to an outlined chip, in-progress/closed items to plain muted
-text — never via `opacity` (muted on panel falls to 3:1 at .62). Spec and mock:
-`docs/design/2026-11-09_경과패널_시안.html`.
+지도 판 바탕 `#fafbfc`, 구 경계 `#6d7882` 1px, 라벨은 짙은 잉크 + 밝은 후광. 면 색은 섞기 6색이다.
 
-**The Variable-Name Freeze Rule.** The `:root` custom-property names (`--bg`,
-`--panel`, `--panel2`, `--line`, `--line-strong`, `--fg`, `--muted`, `--red`,
-`--orange`, `--yellow`, `--blue`, `--gray`, `--accent-color`,
-`--ripple-duration`, `--mono`) are load-bearing: JS-generated inline markup
-references them by name and `render.applyTheme()` writes `--accent-color` and
-`--ripple-duration` at runtime. Change values to restyle; never rename.
+**선택·포커스·관심은 면 색 위에서 어디서든 3:1 이상이어야 한다. 그래서 색이 아니라 무채색 두 겹이다** (잉크 `--fg`는 모든 면 색에서 3.4:1 이상, 흰색은 잉크와 이웃 면을 갈라 준다).
 
-## Typography
+| 상태 | 모양 | 그리는 법 |
+|---|---|---|
+| 선택(`.ring-sel`) | 흰 5px 아래 + **잉크 2.5px** 위, 굵기만 2.5↔3.5로 깜빡임 | 면과 라벨 사이의 `g.sel-ring-layer`에 같은 `d`의 fill:none 경로, `vector-effect:non-scaling-stroke` |
+| 키보드 포커스(`.ring-focus`) | **잉크 6px** 아래 + 흰 2.5px 위(선택의 반대) | 같은 덮개 층, 포커스·블러 때 교체, `:focus-visible`일 때만 |
+| 관심 구 | 잉크 1.5px 점선 4 2 | `.region.watched` CSS |
+| 마커 선택 | 흰 2.5px 테두리 + 잉크 1px 후광 | `.marker.hi` CSS |
+| 물결 | `--accent-color` 3px 링 + 흰 후광(보조 신호) | `g.ripple-layer` |
 
-**Title/Body Font:** Malgun Gothic (with Segoe UI, sans-serif) — system Korean UI face
-**Data/Mono Font:** Consolas (with Cascadia Mono, Malgun Gothic fallback), via `--mono`
+- 면을 `raise()`로 올리지 않는다(이웃 면·라벨을 덮고 Tab 순서가 바뀐다). 선택 상태는 면의 `selected` 클래스로 남고 링은 덮개 층이 그린다.
+- 세종·제주처럼 경계 데이터가 없는 지역은 Tab으로 가지 않는다(눌러도 동작이 없다). 이름은 `aria-label`로 남는다.
+- 범례는 판 아래 도킹 띠(`--panel2`, 12px). 색 견본은 12px, 반경 2px.
 
-**Character:** Quiet utilitarian type with a slight premium tightening: all
-headings carry -0.01em letter-spacing, micro-captions open up to +0.08em, and
-`font-variant-numeric: tabular-nums` on `body` makes every numeral tabular
-even outside `--mono`. No display face exists and none is wanted (closed
-network — system faces only).
+## 순위 패널·티커
 
-### Hierarchy
-- **Title** (700, 16px, -0.01em): the h1 app title only, paired with its
-  14px teal SVG logo glyph.
-- **Section Title** (700, 15px, -0.01em): in-page section headings
-  (`.wf-cards-title`, `.dg-bucket h4`).
-- **Heading** (700 default, 14px, -0.01em): modal `h3` headings.
-- **Body** (400, 13px): default UI text, card names, chat, table cells,
-  document view (1.6 line-height there).
-- **Control** (400, 12px): buttons, inputs, tabs, filter labels, ticker
-  (mono), breadcrumb region (mono), card metadata.
-- **Caption** (400, 11px): badges, hints, timestamps, who-lines — `--mono`
-  whenever the content is a count, date, or code.
-- **Micro Label** (400, 11px, +0.08em, muted): strip titles ("기관 분류선택",
-  legend title "입찰 임박도").
+순위 패널: 흰 패널, 머리 `#eef1f5`(sticky, 블러 없음), 행은 `--line` 구분선, hover는 `--panel2` 색만(이동 없음), 선택은 안쪽 2px 포인트 막대 + 13% 틴트. 티커: 한 줄, 12px 모노 muted, 임박 항목만 밴드 색을 `--fg` 쪽으로 섞고(`color-mix`) 상승 삼각을 붙인다.
 
-### Named Rules
-**The Tabular Ledger Rule.** Anything that is a figure — D-day, dates, counts,
-numbered badges, the ticker — is set in `--mono` (Consolas) so columns of data
-align like a ledger.
+## 지킬 것·하지 말 것
 
-**The Tight Operate Ramp Rule.** The type ramp is deliberately compressed to
-11–16px (SVG map labels alone stay 10px; Operate-mode density; the 16px title is its ceiling, added at finish
-review for demo presence). This is a committed decision, not an oversight: the
-`flat-type-hierarchy` detector finding is suppressed as a sanctioned exception
-in `.impeccable/config.json`. Do not introduce larger display sizes in app
-chrome to "fix" hierarchy; use weight, color, and spacing.
+**지킬 것**
+- 생성 마크업은 `var(--…)`로 참조한다. 포인트색·지도색은 런타임에 바뀐다.
+- localStorage에서 온 색은 `render._safeColor()`를 거친다.
+- 모든 숫자·날짜·D-day는 `--mono`.
+- 새 아이콘은 인라인 SVG 획 글리프로.
+- 구조·id·클래스·토큰을 건드리기 전에 `node --test "frontend/test/*.test.js"`를 돌린다.
 
-## Layout
-
-A locked full-viewport flex column (`body` overflow hidden) stacking: header
-(title + right-aligned segmented tab pill, 12px 20px 10px padding, bottom
-hairline) → control strip (`#topbar`, 10px 20px, bottom hairline) → TOP5
-ticker band (6px 20px) → the active tab view, which flex-fills the remainder
-at 14px 20px padding. Horizontal strip padding is a constant 20px; component
-gaps run 6–16px; panel interiors sit at 9–14px; inter-panel gap is 14px.
-Grids are `auto-fill, minmax(170–200px, 1fr)` card grids with 8–10px gaps.
-
-The map tab centers a `#drill-wrap` split: map stage (flex 2) and ranking
-panel (flex 1). In national view (ranking hidden) the stage width is capped to
-`calc((100vh - 150px) * 1.3)` with `min-width: min(100%, 700px)` via a
-`:has()` selector — a progressive enhancement (finish-review fix: the radial
-stage absorbs side width inside the frame instead of leaving dead page
-background); non-supporting browsers just get a wider stage.
-
-**Motion (entrance):** one staggered `fadeUp` on load — header → topbar →
-ticker → map stage at 0/60/120/180ms delays, 0.5s
-`cubic-bezier(.22,.9,.3,1)`, fully disabled under
-`prefers-reduced-motion: reduce`. All control state changes transition at
-200ms. **The One Entrance Rule.** The page animates in once, lightly; nothing
-re-animates on tab switches or data refresh.
-
-**Responsive (≤880px):** the frame unlocks (`body` scrolls), the tab pill
-takes its own full-width scrollable row, the control strip stacks vertically,
-the ranking panel drops below the map (map min 52vh, ranking max 40vh) inside
-a scrolling `#tab-map`, the designer list stacks above its pane, and map
-labels shrink (13px→10px, halo 3px→2px) with the "준비중" sub-line hidden to
-prevent collisions (finish-review fix). Structure folds; nothing is hidden.
-
-## Elevation & Depth
-
-A hybrid: tonal layering (charcoal-base → panel → panel-raised, separated by
-hairlines) does the structural work, and **tinted ambient shadows** add the
-premium float — every shadow is `rgba(8,12,24,…)`, the room's own
-blue-charcoal, never neutral black. Framed surfaces (map stage, ranking
-panel, modals, popover) rest under the shared `--shadow`; controls and cards
-lift on hover (translateY(-1/-2px) + a lighter tinted shadow) and settle on
-press (`scale(.98)`, shadow removed). Glass is real: the legend, popover,
-sticky ranking header, and breadcrumb buttons use `backdrop-filter: blur`
-over a translucent panel tone, with a 1px `rgba(255,255,255,.08)` edge and an
-inset white top highlight on the legend. Two atmosphere layers complete the
-depth: the fixed grain overlay (inline-SVG fractal noise at 0.045 opacity,
-breaking flat sterility offline) and the map stage's radial gradient
-(#171d28 → #101520 → #0d1119 from upper-left) with a radial cloud overlay
-during drill-in.
-
-### Shadow Vocabulary
-- **Ambient panel** (`--shadow: 0 12px 32px rgba(8,12,24,.55)`): resting
-  shadow for map stage, ranking panel, modal boxes, popover.
-- **Button lift** (`0 6px 16px rgba(8,12,24,.4)` + translateY(-1px)): button
-  hover; removed on :active.
-- **Card lift** (`0 8px 20px rgba(8,12,24,.4)` + translateY(-2px)): region
-  card hover, with border warming toward teal.
-- **Glass legend** (`inset 0 1px 0 rgba(255,255,255,.06), 0 8px 24px
-  rgba(8,12,24,.45)`): inner highlight + soft drop on the map legend.
-- **Selection bar** (`inset 2px 0 0 var(--accent-color)`): left accent bar on
-  the highlighted ranking row.
-- **State ring** (`0 0 0 1px` accent/orange): current/gate workflow steps —
-  an outline, not elevation.
-- **Watch glow** (`filter: drop-shadow(0 0 6px rgba(216,196,122,.7))`): SVG
-  glow on watched-region outlines; a signal, not elevation.
-
-### Named Rules
-**The Tinted Shadow Rule.** Every shadow in the system is cast in
-`rgba(8,12,24,…)`. Never introduce a neutral `rgba(0,0,0,…)` drop shadow.
-
-**The Real Glass Rule.** Glass surfaces are built from all three parts —
-translucent panel tone + `backdrop-filter: blur(8–10px)` + 1px white-alpha
-edge (plus inner highlight where floating). A translucent fill alone is not
-glass.
-
-## Shapes
-
-Soft premium geometry on a three-step radius scale: **8px** (`--r-sm`:
-inputs, workflow/task cards, badges), **10px** (`--r`: buttons, chat
-surfaces, knowledge cards, pins), **14px** (`--r-lg`: framed panels — map
-stage, ranking panel, modal boxes). Glass overlays and region cards sit at
-12px; the segmented tab control is a pill-in-pill (12px housing, 9px inner
-buttons, 3px inset); small inline chips and `<mark>`s run 3–8px. Every
-surface is bounded by a 1px hairline (`--line-strong` for component edges,
-`--line` for internal separators). Diagonal 45° hatching (4px period, SVG
-pattern) is the "준비중 / guessed date" texture. Map marker silhouettes keep
-the fixed shape-per-kind code (six kinds, judged by `logic.kindOf`) —
-municipality = filled polygon face, ■ education office, ▲ public agency,
-⬟ university, ◆ court, ● hospital; a type with no known kind draws as a
-horizontal bar (◆ is the court only). Mirrored 1:1 by the `.fsw` stroke
-glyphs in the control strip (all six on by default, 2026-11-15).
-
-## Components
-
-### Buttons
-- **Shape:** softly rounded (10px), 1px `--line-strong` border.
-- **Default:** panel-raised (#202835) fill, ink text, 12px, 6px 14px padding.
-- **Hover:** background #283141, border #4a566b, translateY(-1px) + button
-  lift shadow, 200ms. **Active:** settles (`translateY(0) scale(.98)`, shadow
-  off). **Disabled:** 45–55% opacity, no motion.
-- **Focus:** 2px teal outline, 2px offset (global `:focus-visible`).
-- **Primary (단일 예외, 2026-08-14):** `#ch-send`(대화 보내기)만 틸 원색 채움 +
-  on-accent 잉크(#0d1116)/700 — 탭의 유일 주행동이라 사용자 확정으로 승격.
-  hover는 82% 흰색 믹스로 밝힘, disabled 50%. 다른 곳에 채운 주버튼을 늘리지
-  말 것(One Teal Rule — 상호작용 보이스는 소량이라 튄다).
-- **채운 주버튼 예외 3곳(2026-11-09 확정):** `#ch-send`, 시스템 관리 `button.primary`(사용자 등록), 로그인 제출(`.login-actions .lg-primary`, 알약형 — Login Surface 참고). 각 화면의 유일한 주행동이라 예외로 인정. 그 외에는 filled "primary"가 없다 — hierarchy comes from placement.
-  `.btn-like` wraps file inputs in the same skin.
-
-### Inputs / Fields
-- **Style:** recessed well (#0d1117), 1px #626d81 border (3:1 on the well), 8px radius,
-  5px 10px padding, 12px text; teal caret and `accent-color`.
-- **Focus:** the same global teal outline as buttons.
-- **UA-drawn controls:** `:root` declares `color-scheme: dark`, so the controls
-  the browser paints itself (checkboxes, scrollbars, date pickers) follow the
-  dark chrome. `accent-color` alone is not enough — it only colors the *checked*
-  state, leaving unchecked boxes white against the charcoal ground (measured
-  2026-08-18 on the 권한관리 permission grid). Styled controls (`<select>`,
-  text fields) are unaffected; this rule only reaches what CSS never touched.
-  ⚠️ The light-skinned comparison files (`index_4.0/5.0/6.0`) must **not** get
-  this declaration — light is their intent.
-
-### Navigation (segmented tabs)
-- A pill segment control in the header: panel housing (12px radius, 1px
-  hairline, 3px padding) holding transparent 9px-radius buttons in muted
-  text; hover brightens text only (no lift); active fills with a 16% teal
-  tint and ink text. Server-only tabs are hidden, not disabled.
-
-### Sidebar (left work menu, 3 tiers — 2026-11-09)
-- Tiers: category (`.nav-cat`, 14px/700, one open at a time) · sub-group
-  (`.nav-sub`, a non-clickable 11px/700 `--muted` subheading; `--fg` when it holds
-  the active item) · item (`.nav-item`, 14px).
-- Categories are fixed in business order 1→5 (기관·입찰 현황, 영업 추진 준비,
-  제안서 작성·관리, 협약·관계 관리, 공통 도구 — 2026-11-10 재편, NEXT 69), 시스템 관리 last.
-  Sub-group headings show only when ≥2 visible sub-groups each have ≥2 visible items;
-  otherwise the whole category is flat.
-- No extra indent for sub-groups (248px sidebar leaves ~144px for a label);
-  hierarchy is size, weight and color only. A label longer than the column wraps
-  at word (어절) boundaries to at most 2 lines (`word-break:keep-all`) instead of an
-  ellipsis; the badge aligns to the first line.
-- "준비중" items are never dimmed by opacity: `--muted` text (≥4.5:1) plus an 11px
-  hatched badge. At ≤900px (200px sidebar) items are 13px and the badge becomes a
-  10×10 hatched chip with an sr-only label.
-- Accessibility: `.nav-cat` carries `aria-expanded`/`aria-controls`, the active item
-  `aria-current="page"`, sub-groups `role="group"` + `aria-labelledby`; keyboard is
-  Tab (disclosure pattern). Server menu keys (8), `/menus` and golden 04·05 stay
-  frozen — only labels and grouping live in `nav.js`.
-
-### Chips / Badges
-- **Status badge** (`.wf-badge`, `.nt-kind`, `.dg-day`, `.dg-tag`): 11px, 1px
-  6–7px padding, 6–8px radius, per The 18% Tint Rule; D-day and count badges
-  in `--mono`.
-- **Watch pin** (`.pin`): teal text + 55%-teal border over a 13% teal tint,
-  10px radius; draggable (cursor:grab), hover lifts 1px.
-
-### Cards / Containers
-- **Corner:** 8px (dense work cards) or 12–14px (framed panels/region cards).
-- **Background:** `--panel`; **Border:** 1px `--line` or `--line-strong`.
-- **Padding:** 8–14px. **Shadow:** none at rest for small cards; framed
-  panels carry `--shadow`.
-- **Hover:** border warms toward teal (55% mix on region cards) with card
-  lift; **Selected:** teal ring/outline or 13% teal tint.
-
-### Login Surface (표면 예외, 2026-11-11 — 시안 B-3)
-로그인 화면(`#login-view`)은 앱 크롬이 아니라 **문 앞 표면**이다. 앱의 Tight Operate Ramp(11–16px)를
-따르지 않는 유일한 곳이며, 예외는 아래 목록에 적힌 것만이다. 로그인 뒤 화면에 이 값들을 가져가지 않는다.
-- **큰 글자(이 셋만):** 슬라이드 문구 `.lg-say` 300 / **40px**(폭 ≤1279px 36px, 높이 ≤820px 32px), Malgun Gothic Semilight ·
-  D-day `.lg-big` 700 / **64px**(높이 ≤820px 52px) `--mono` · 카드 제목 `.login-card h1` 700 / **26px**. 공고 조각 제목
-  `.lg-notice h3`만 17px Batang(공고문 인쇄체 흉내, 시스템 글꼴). 나머지 글자는 11–16px 램프 그대로.
-- **알약 주버튼:** `.login-actions .lg-primary` — 높이 50px, 반경 25px, 틸 채움 + #0d1116/700. 채운 주버튼 예외 3곳 중 하나.
-  보조 `.lg-ghost`는 반경 8px 고스트(1px #626d81, hover에도 유지). 알약 반경은 이 버튼에만 쓴다.
-- **슬라이드 규칙:** 내용은 `frontend/data/login-slides.js`(실측 사실 + 출처 줄, 근거 없는 수치 금지)에만 둔다. 6초 자동 넘김,
-  **계속 반복**(사용자 결정 11-11), 320ms 페이드+16px 이동. 조작 줄(재생/멈춤 글자 버튼·이전·점·다음)은 DOM에서 슬라이드 앞,
-  **화면에서는 슬라이드 아래에 작고 흐리게**(히어로 hover·focus 때 또렷, 사용자 결정 11-11). 자동 재생 중 `aria-live="off"`,
-  멈추면 `polite`. hover·포커스·탭 숨김·폭 ≤960px에서 정지, reduced-motion이면 처음부터 정지. 접수 일정은 마감 뒤 자동으로
-  빠지고, 슬라이드가 0장이면 카드만 가운데 둔다.
-- **색:** 앱 `:root` 변수만 쓰고 화면 전용 값은 `--lg-*`로만 둔다(이름 동결 규칙 적용). 채도는 서울 지도(`--lg-hot`·`--lg-far`
-  = 지도 섞기 팔레트 복제 — 지도 팔레트가 바뀌면 같이 고친다)와 접수 칩(`--red` 18% 틴트)만. 틸은 포커스·주버튼·현재 점에만.
-- **덮개:** `position:fixed` 덮개이므로 보이는 동안 뒤의 헤더와 `#shell`은 `inert`.
-
-### Modals & Popover
-- `modal-box`: panel fill, 1px `--line-strong` border, 14px radius,
-  `--shadow`, 18px padding, 6–8vh top margin, internal scroll region — over a
-  blurred scrim (`rgba(8,11,17,.6)` + blur(4px)). Popover: fixed, 280px max,
-  glass (rgba(24,30,41,.92) + blur(10px) + white-alpha edge), 12px radius.
-
-### Icon Glyphs (signature)
-`render.ICONS` (heart, star, warning triangle, rising triangle, **overdue clock,
-dotted-circle check** — the last two added 2026-11-09 for the overdue panel) and the
-`.fsw` filter glyphs: inline SVG on a 12×12 viewBox, 1.2–1.4 stroke width,
-`currentColor` (or `--muted` for filters), 9–12px rendered. **No emoji and no
-character-glyph icons in chrome** — the ticker's rising mark is the drawn
-`ICONS.up` triangle (finish-review fix), not the ▲ character. Sanctioned
-character exceptions: the `!` integrity glyph on markers, `·` ticker
-separators, and `←` in the breadcrumb back button.
-
-### Map Board (signature)
-The centerpiece and the only saturated field. Polygon faces filled by the
-pastel tier over the radial-gradient stage; labels are dark ink (#141922,
-13px/700) with a light halo (#eef2f8, 3px stroke, `paint-order:stroke`) and a
-10px/600 sub-line (#333b4c) for "준비중"; collisions resolved by vertical
-push; markers stroked in near-bg dark (#0f1420). Selection language: three
-teal ripple rings phase-offset by thirds of `--ripple-duration` (default
-2.2s) for markers; teal outline blink (`muni-blink`, same variable) for
-municipality faces — one theme modal tunes both color and period. Drill zoom:
-750ms fly-in with a 700ms radial cloud fade. Legend: bottom-right glass
-instrument panel (blur(10px), white-alpha edge, inner highlight,
-`pointer-events:none`), 11px `--mono`, live-theme swatches (12px, 4px radius)
-with band-colored labels lightened 70% toward white.
-
-### Ranking Panel (signature)
-The drill-in institution ladder: 14px-radius framed panel under `--shadow`;
-sticky glass header (82% panel color-mix + blur(8px)); rows separated by
-`--line` hairlines, 9px 14px padding; hover slides 3px right on #1a2130;
-selection is the inset 2px teal bar + 13% teal tint (`.hi`). Rows carry heart
-toggles (ICONS, `--red`), name in 13px bold, type/date in 11px mono muted.
-
-### Ticker Band (signature)
-A quiet one-line quote strip under the controls: 12px `--mono` muted, `임박
-TOP5` micro-caption (+0.08em), entries colored per urgency band lightened 72%
-toward white via `color-mix`, the drawn `ICONS.up` triangle prefixed to
-red-band items only, `·` separators in `--line-strong`, ellipsis overflow.
-
-## Do's and Don'ts
-
-### Do:
-- **Do** reference tokens as `var(--…)` in generated markup — `--accent-color`
-  and `--ripple-duration` change at runtime, and the five map bands come from
-  `render.URGENCY_COLORS` (theme-merged, identity-stable), not from constants.
-- **Do** pass any color that originated in localStorage through
-  `render._safeColor()` before interpolating it into HTML/inline styles.
-- **Do** keep every shadow tinted `rgba(8,12,24,…)`, hover lifts at
-  translateY(-1/-2px), and state transitions at 200ms.
-- **Do** set every figure, date, and D-day in `--mono`; signal status with
-  colored text + 1px border + 8–18% `color-mix` tints.
-- **Do** draw new icons as inline SVG stroke glyphs (1.2–1.4 stroke,
-  `currentColor`, 12×12 grid) matching `render.ICONS`.
-- **Do** run `node --test frontend/test/*.test.js` before touching DOM ids,
-  classes, or token names — 244 node tests are coupled to them.
-
-### Don't:
-- **Don't** rename any `:root` custom property (Variable-Name Freeze Rule) or
-  hardcode #57b8ad where `var(--accent-color)` belongs.
-- **Don't** let chrome compete with the map: no saturated chrome fills, no
-  decorative gradients outside the map stage, no second accent hue
-  (Saturation Monopoly Rule).
-- **Don't** add external resources of any kind (fonts, CDNs, icon packages) —
-  closed-network constraint; system faces only.
-- **Don't** cast neutral-black shadows, use hard offset shadows, or drop
-  surface radii below the 8px floor — the soft tinted finish is the world.
-- **Don't** exceed the 11–16px type ramp in app chrome; hierarchy comes from
-  weight, color, and the mono/sans split (Tight Operate Ramp Rule). (로그인 표면은 Login Surface 예외 목록만 허용)
-- ~~Don't canonize the two carried off-token literals in `render.js`~~ —
-  **해소(2026-08-14)**: 클러스터 배지·geo-retry 배너를 현행 토큰
-  (#202835 / #e2e7ee)으로 재도색 완료. 이월 결함 없음.
+**하지 말 것**
+- `:root` 변수 이름을 바꾸지 않는다. 남색 3곳 밖에 남색을 쓰지 않는다.
+- 12px 미만 글자를 만들지 않는다(예외 두 가지 제외).
+- 그림자, 블러(`backdrop-filter`), hover 이동, 반경 3px 이상 직접 값, 알약 모양을 만들지 않는다.
+- 지도 선택·포커스 외곽선에 포인트 파랑을 쓰지 않는다. `raise()`를 쓰지 않는다.
+- 외부 리소스(웹폰트·CDN)를 쓰지 않는다. 폐쇄망.
+- 색만으로 임박도를 전하지 않는다(▲n, D-n 글자 병행).
