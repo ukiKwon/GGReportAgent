@@ -57,8 +57,9 @@ public class MapperStatementBindingTest {
      * + 올해 목표 기관 1개(BidTargetMapper — 043, 입찰 현황판 재설계 1단계, 2026-11-17).
      * + 입찰 없음 알림 [계속 작성] 기록 1개(PrepNobidAckMapper — 048, NEXT 98-1, 2026-11-19).
      * + 디자인 검토 1개(DesignReviewMapper — 051, NEXT 100 ⑥, 2026-11-19).
+     * + 이사회 회의록 1개(BoardMinutesMapper — 047, NEXT 99, 2026-11-19).
      */
-    private static final int EXPECTED_MAPPER_COUNT = 30;
+    private static final int EXPECTED_MAPPER_COUNT = 31;
 
     @Autowired
     private SqlSessionFactory sqlSessionFactory;

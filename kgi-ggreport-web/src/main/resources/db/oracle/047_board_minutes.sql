@@ -7,6 +7,8 @@
 -- ⚠️ _LOG·_ACT 는 추가 전용 — 앱 계정에 UPDATE/DELETE 미부여 권장(NEXT 27 원칙). _UTTER·_SEG·_ITEM·_SCOPE·_REV 는 삭제 때 지운다(본문 소거).
 -- ⚠️ ACT.SCREEN_ID·BUTTON_ID·ACTOR_EMP_NO 는 자기신고 값이다(EMP_VERIFIED=1 일 때만 앞단 인증 주체).
 -- ⚠️ 멱등하지 않다. 020 적용 뒤 한 번만.
+-- Oracle 12c 이상 전제(IDENTITY) — 부모 020·024·026·034 와 같다. 037 이후 '11g 호환' 표기는 새 독립 표의 권장이며 020 하위인 이 파일은 예외다.
+-- DBA 권한 메모: _SCOPE 는 SELECT·INSERT·DELETE·UPDATE(GRANT_UNTIL,GRANTED_BY,GRANTED_AT), _UTTER·_ITEM 은 UPDATE(BODY,EDITED_YN,DONE_*) 포함, _LOG·_ACT 는 SELECT·INSERT 만.
 -- 되돌리기(데이터 소멸, 운영 금지): DROP TABLE BOARD_MINUTES_ACT; DROP TABLE BOARD_MINUTES_LOG; DROP TABLE BOARD_MINUTES_REV;
 --   DROP TABLE BOARD_MINUTES_SCOPE; DROP TABLE BOARD_MINUTES_ITEM; DROP TABLE BOARD_MINUTES_SEG; DROP TABLE BOARD_MINUTES_UTTER; DROP TABLE BOARD_MINUTES;
 --------------------------------------------------------------------------------

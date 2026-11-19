@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- BOARD_MINUTES / _UTTER / _SEG / _ITEM / _SCOPE / _REV / _LOG / _ACT — 047. 양쪽 방언에서 같은 문장이다(databaseId 분기 없음).
+     ⚠️ BODY·OLD_TEXT·NEW_TEXT 는 CLOB — 정렬·DISTINCT·WHERE 대상에 넣지 않는다. LIKE 는 ESCAPE '!' (서비스가 ! % _ 를 이스케이프).
+     ⚠️ FOR UPDATE 문장(lockMaterial·lockHead)은 JOIN·집계·DISTINCT 와 함께 쓰지 않는다(Oracle 제약). -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.BoardMinutesMapper">
+
+  <sql id="ncols">n.MINUTES_ID, n.MATERIAL_ID, n.BID_CASE_ID, n.INSTITUTION_ID, n.BOARD_YEAR, n.MEETING_DATE, n.TITLE,
+         n.ENC_TRANSCRIPT, n.ENC_TIMELINE, n.ENC_SUMMARY, n.UTTER_CNT, n.SPEAKER_CNT, n.DURATION_SEC, n.NOISE_CNT, n.SEG_CNT,
+         n.MASK_PII_CNT, n.MASK_NAME_CNT, n.MASK_TITLE_CNT, n.MASK_TERM_CNT, n.MASK_LINE_CNT, n.MASK_LABEL_CNT, n.RELEASE_CNT,
+         n.RULE_VER, n.CONTENT_DIGEST, n.REV_NO, n.DELETED_YN, n.DELETED_BY, n.DELETED_AT,
+         n.CREATED_BY, n.CREATED_AT, n.UPDATED_BY, n.UPDATED_AT</sql>
+
+  <sql id="nnames">i.NAME_KO AS INSTITUTION_NAME, cu.NAME AS CREATED_BY_NAME</sql>
+
+  <sql id="njoins">
+      LEFT JOIN INSTITUTIONS i ON i.INSTITUTION_ID = n.INSTITUTION_ID
+      LEFT JOIN USERS cu ON cu.EMP_NO = n.CREATED_BY
+  </sql>
+
+  <select id="selectAllUserNames" resultType="string">
+    SELECT NAME FROM USERS
+  </select>
+
+  <select id="lockMaterial" resultType="long" flushCache="true">
+    SELECT MATERIAL_ID FROM BOARD_MATERIAL WHERE MATERIAL_ID = #{mid} FOR UPDATE
+  </select>
+
+  <insert id="insertHead" useGeneratedKeys="true" keyProperty="minutesId" keyColumn="MINUTES_ID">
+    INSERT INTO BOARD_MINUTES (MATERIAL_ID, BID_CASE_ID, INSTITUTION_ID, BOARD_YEAR, MEETING_DATE, TITLE,
+                               ENC_TRANSCRIPT, ENC_TIMELINE, ENC_SUMMARY, UTTER_CNT, SPEAKER_CNT, DURATION_SEC, NOISE_CNT, SEG_CNT,
+                               MASK_PII_CNT, MASK_NAME_CNT, MASK_TITLE_CNT, MASK_TERM_CNT, MASK_LINE_CNT, MASK_LABEL_CNT, RELEASE_CNT,
+                               RULE_VER, CONTENT_DIGEST, REV_NO, DELETED_YN,
+                               CREATED_BY, CREATED_AT, UPDATED_BY, UPDATED_AT)
+    VALUES (#{materialId}, #{bidCaseId}, #{institutionId}, #{boardYear}, #{meetingDate}, #{title},
+            #{encTranscript}, #{encTimeline,jdbcType=VARCHAR}, #{encSummary,jdbcType=VARCHAR},
+            #{utterCnt}, #{speakerCnt}, #{durationSec}, #{noiseCnt}, #{segCnt},
+            #{maskPiiCnt}, #{maskNameCnt}, #{maskTitleCnt}, #{maskTermCnt}, #{maskLineCnt}, #{maskLabelCnt}, #{releaseCnt},
+            #{ruleVer}, #{contentDigest}, 0, 0,
+            #{createdBy}, #{createdAt}, #{updatedBy}, #{updatedAt})
+  </insert>
+
+  <select id="selectHead" resultType="BoardMinutes" flushCache="true">
+    SELECT <include refid="ncols"/>, <include refid="nnames"/>
+      FROM BOARD_MINUTES n <include refid="njoins"/>
+     WHERE n.MINUTES_ID = #{id}
+  </select>
+
+  <!-- 쓰기 판정용 현재 읽기(FOR UPDATE — 최신 커밋 값). JOIN·집계 없이. -->
+  <select id="lockHead" resultType="BoardMinutes" flushCache="true">
+    SELECT MINUTES_ID, MATERIAL_ID, BID_CASE_ID, REV_NO, DELETED_YN FROM BOARD_MINUTES WHERE MINUTES_ID = #{id} FOR UPDATE
+  </select>
+
+  <select id="countActiveByMaterial" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM BOARD_MINUTES WHERE MATERIAL_ID = #{mid} AND DELETED_YN = 0
+  </select>
+
+  <select id="selectIdsByDigest" resultType="long" flushCache="true">
+    SELECT MINUTES_ID FROM BOARD_MINUTES WHERE MATERIAL_ID = #{mid} AND CONTENT_DIGEST = #{digest} AND DELETED_YN = 0
+     ORDER BY MINUTES_ID
+  </select>
+
+  <select id="selectByMaterial" resultType="BoardMinutes" flushCache="true">
+    SELECT <include refid="ncols"/>, <include refid="nnames"/>
+      FROM BOARD_MINUTES n <include refid="njoins"/>
+     WHERE n.MATERIAL_ID = #{mid} AND n.DELETED_YN = 0
+     ORDER BY n.MEETING_DATE DESC, n.MINUTES_ID DESC
+  </select>
+
+  <select id="selectList" resultType="BoardMinutes" flushCache="true">
+    SELECT <include refid="ncols"/>, <include refid="nnames"/>
+      FROM BOARD_MINUTES n <include refid="njoins"/>
+    <where>
+      n.DELETED_YN = 0
+      <if test="!viewAll">
+        AND ( (n.CREATED_BY = #{empNo} AND n.CREATED_AT &gt;= #{uploaderSince})
+           OR EXISTS (SELECT 1 FROM BOARD_MINUTES_SCOPE s WHERE s.MINUTES_ID = n.MINUTES_ID AND s.GRANT_TYPE = 'EMP'
+                         AND s.GRANT_VALUE = #{empNo} AND s.GRANT_UNTIL &gt;= #{today}) )
+      </if>
+      <if test="q != null">
+        AND (n.TITLE LIKE CONCAT(CONCAT('%', #{q}), '%') ESCAPE '!' OR i.NAME_KO LIKE CONCAT(CONCAT('%', #{q}), '%') ESCAPE '!')
+      </if>
+      <if test="year != null">
+        AND n.BOARD_YEAR = #{year}
+      </if>
+      <if test="meetingFrom != null">
+        AND n.MEETING_DATE &gt;= #{meetingFrom}
+      </if>
+      <if test="meetingTo != null">
+        AND n.MEETING_DATE &lt;= #{meetingTo}
+      </if>
+    </where>
+     ORDER BY n.MEETING_DATE DESC, n.MINUTES_ID DESC
+  </select>
+
+  <update id="bumpRev">
+    UPDATE BOARD_MINUTES SET REV_NO = #{next}, UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE MINUTES_ID = #{id} AND REV_NO = #{base} AND DELETED_YN = 0
+  </update>
+
+  <update id="updateMeta">
+    UPDATE BOARD_MINUTES
+    <set>
+      <if test="title != null">TITLE = #{title},</if>
+      <if test="meetingDate != null">MEETING_DATE = #{meetingDate},</if>
+    </set>
+     WHERE MINUTES_ID = #{id} AND DELETED_YN = 0
+  </update>
+
+  <update id="markDeleted">
+    UPDATE BOARD_MINUTES SET DELETED_YN = 1, TITLE = '(삭제됨)', DELETED_BY = #{by}, DELETED_AT = #{now},
+           UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE MINUTES_ID = #{id} AND DELETED_YN = 0
+  </update>
+
+  <insert id="insertUtter">
+    INSERT INTO BOARD_MINUTES_UTTER (MINUTES_ID, SEQ_NO, SPEAKER_NO, START_SEC, NOISE_YN, EDITED_YN, BODY)
+    VALUES (#{minutesId}, #{seqNo}, #{speakerNo}, #{startSec}, #{noiseYn}, 0, #{body,jdbcType=CLOB})
+  </insert>
+
+  <insert id="insertSeg">
+    INSERT INTO BOARD_MINUTES_SEG (MINUTES_ID, SEG_NO, START_SEC, END_SEC, KEYWORDS)
+    VALUES (#{minutesId}, #{segNo}, #{startSec}, #{endSec}, #{keywords,jdbcType=VARCHAR})
+  </insert>
+
+  <insert id="insertItem">
+    INSERT INTO BOARD_MINUTES_ITEM (MINUTES_ID, ITEM_NO, KIND_CD, SEG_NO, SECTION_NO, SECTION_TITLE, SORT_NO, BODY,
+                                    EDITED_YN, DONE_YN)
+    VALUES (#{minutesId}, #{itemNo}, #{kindCd}, #{segNo,jdbcType=NUMERIC}, #{sectionNo,jdbcType=NUMERIC},
+            #{sectionTitle,jdbcType=VARCHAR}, #{sortNo}, #{body}, 0, 0)
+  </insert>
+
+  <select id="selectUtters" resultType="BoardMinutesUtter" flushCache="true">
+    SELECT MINUTES_ID, SEQ_NO, SPEAKER_NO, START_SEC, NOISE_YN, EDITED_YN, BODY
+      FROM BOARD_MINUTES_UTTER WHERE MINUTES_ID = #{id} ORDER BY SEQ_NO
+  </select>
+
+  <select id="selectUtterIndex" resultType="BoardMinutesUtter" flushCache="true">
+    SELECT MINUTES_ID, SEQ_NO, SPEAKER_NO, START_SEC, NOISE_YN, EDITED_YN
+      FROM BOARD_MINUTES_UTTER WHERE MINUTES_ID = #{id} ORDER BY SEQ_NO
+  </select>
+
+  <select id="selectSegs" resultType="BoardMinutesSeg" flushCache="true">
+    SELECT MINUTES_ID, SEG_NO, START_SEC, END_SEC, KEYWORDS
+      FROM BOARD_MINUTES_SEG WHERE MINUTES_ID = #{id} ORDER BY START_SEC, SEG_NO
+  </select>
+
+  <select id="selectItems" resultType="BoardMinutesItem" flushCache="true">
+    SELECT t.MINUTES_ID, t.ITEM_NO, t.KIND_CD, t.SEG_NO, t.SECTION_NO, t.SECTION_TITLE, t.SORT_NO, t.BODY,
+           t.EDITED_YN, t.DONE_YN, t.DONE_BY, u.NAME AS DONE_BY_NAME, t.DONE_AT
+      FROM BOARD_MINUTES_ITEM t LEFT JOIN USERS u ON u.EMP_NO = t.DONE_BY
+     WHERE t.MINUTES_ID = #{id}
+     ORDER BY t.ITEM_NO
+  </select>
+
+  <select id="selectUtterBody" resultType="string" flushCache="true">
+    SELECT BODY FROM BOARD_MINUTES_UTTER WHERE MINUTES_ID = #{id} AND SEQ_NO = #{seq}
+  </select>
+
+  <update id="updateUtterBody">
+    UPDATE BOARD_MINUTES_UTTER SET BODY = #{body,jdbcType=CLOB}, EDITED_YN = 1
+     WHERE MINUTES_ID = #{id} AND SEQ_NO = #{seq}
+  </update>
+
+  <select id="selectItem" resultType="BoardMinutesItem" flushCache="true">
+    SELECT t.MINUTES_ID, t.ITEM_NO, t.KIND_CD, t.SEG_NO, t.SECTION_NO, t.SECTION_TITLE, t.SORT_NO, t.BODY,
+           t.EDITED_YN, t.DONE_YN, t.DONE_BY, t.DONE_AT
+      FROM BOARD_MINUTES_ITEM t
+     WHERE t.MINUTES_ID = #{id} AND t.ITEM_NO = #{no}
+  </select>
+
+  <update id="updateItemBody">
+    UPDATE BOARD_MINUTES_ITEM SET BODY = #{body}, EDITED_YN = 1
+     WHERE MINUTES_ID = #{id} AND ITEM_NO = #{no}
+  </update>
+
+  <update id="updateItemDone">
+    UPDATE BOARD_MINUTES_ITEM SET DONE_YN = #{done}, DONE_BY = #{by}, DONE_AT = #{now}
+     WHERE MINUTES_ID = #{id} AND ITEM_NO = #{no} AND KIND_CD = 'TODO'
+  </update>
+
+  <select id="countGrant" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM BOARD_MINUTES_SCOPE
+     WHERE MINUTES_ID = #{id} AND GRANT_TYPE = 'EMP' AND GRANT_VALUE = #{empNo} AND GRANT_UNTIL &gt;= #{today}
+  </select>
+
+  <select id="selectScope" resultType="BoardMinutesScope" flushCache="true">
+    SELECT s.MINUTES_ID, s.GRANT_TYPE, s.GRANT_VALUE, s.GRANT_UNTIL, s.GRANTED_BY, s.GRANTED_AT,
+           u.NAME AS NAME, u.STATUS AS STATUS
+      FROM BOARD_MINUTES_SCOPE s LEFT JOIN USERS u ON u.EMP_NO = s.GRANT_VALUE
+     WHERE s.MINUTES_ID = #{id}
+     ORDER BY s.GRANT_VALUE
+  </select>
+
+  <insert id="insertScope">
+    INSERT INTO BOARD_MINUTES_SCOPE (MINUTES_ID, GRANT_TYPE, GRANT_VALUE, GRANT_UNTIL, GRANTED_BY, GRANTED_AT)
+    VALUES (#{minutesId}, #{grantType}, #{grantValue}, #{grantUntil}, #{grantedBy}, #{grantedAt})
+  </insert>
+
+  <update id="updateScopeUntil">
+    UPDATE BOARD_MINUTES_SCOPE SET GRANT_UNTIL = #{grantUntil}, GRANTED_BY = #{grantedBy}, GRANTED_AT = #{grantedAt}
+     WHERE MINUTES_ID = #{minutesId} AND GRANT_TYPE = #{grantType} AND GRANT_VALUE = #{grantValue}
+  </update>
+
+  <delete id="deleteScope">
+    DELETE FROM BOARD_MINUTES_SCOPE WHERE MINUTES_ID = #{id} AND GRANT_TYPE = 'EMP' AND GRANT_VALUE = #{empNo}
+  </delete>
+
+  <insert id="insertRev">
+    INSERT INTO BOARD_MINUTES_REV (MINUTES_ID, REV_NO, TARGET_KIND, TARGET_NO, FIELD_CD, OLD_TEXT, NEW_TEXT, EDITED_BY, EDITED_AT)
+    VALUES (#{minutesId}, #{revNo}, #{targetKind}, #{targetNo,jdbcType=NUMERIC}, #{fieldCd},
+            #{oldText,jdbcType=CLOB}, #{newText,jdbcType=CLOB}, #{editedBy}, #{editedAt})
+  </insert>
+
+  <select id="selectRevs" resultType="BoardMinutesRev" flushCache="true">
+    SELECT r.MINUTES_ID, r.REV_NO, r.TARGET_KIND, r.TARGET_NO, r.FIELD_CD, r.OLD_TEXT, r.NEW_TEXT,
+           r.EDITED_BY, u.NAME AS EDITED_BY_NAME, r.EDITED_AT
+      FROM BOARD_MINUTES_REV r LEFT JOIN USERS u ON u.EMP_NO = r.EDITED_BY
+     WHERE r.MINUTES_ID = #{id}
+     ORDER BY r.REV_NO DESC
+  </select>
+
+  <insert id="insertLog">
+    INSERT INTO BOARD_MINUTES_LOG (MINUTES_ID, MATERIAL_ID, EVENT_CD, REV_NO, TARGET_KIND, TARGET_NO,
+                                   SCOPE_BEFORE, SCOPE_AFTER, ACTOR_EMP_NO, EMP_VERIFIED, LOGGED_AT)
+    VALUES (#{minutesId}, #{materialId}, #{eventCd}, #{revNo,jdbcType=NUMERIC}, #{targetKind,jdbcType=VARCHAR},
+            #{targetNo,jdbcType=NUMERIC}, #{scopeBefore,jdbcType=VARCHAR}, #{scopeAfter,jdbcType=VARCHAR},
+            #{actorEmpNo}, #{empVerified}, #{loggedAt})
+  </insert>
+
+  <select id="selectLogs" resultType="BoardMinutesLog" flushCache="true">
+    SELECT l.LOG_ID, l.MINUTES_ID, l.MATERIAL_ID, l.EVENT_CD, l.REV_NO, l.TARGET_KIND, l.TARGET_NO,
+           l.SCOPE_BEFORE, l.SCOPE_AFTER, l.ACTOR_EMP_NO, u.NAME AS ACTOR_NAME, l.EMP_VERIFIED, l.LOGGED_AT
+      FROM BOARD_MINUTES_LOG l LEFT JOIN USERS u ON u.EMP_NO = l.ACTOR_EMP_NO
+     WHERE l.MINUTES_ID = #{id}
+     ORDER BY l.LOG_ID DESC
+  </select>
+
+  <insert id="insertAct">
+    INSERT INTO BOARD_MINUTES_ACT (MINUTES_ID, MATERIAL_ID, ACTION_CD, OUTCOME, VIA_CD, ACTOR_EMP_NO, EMP_VERIFIED,
+                                   SCREEN_ID, BUTTON_ID, UI_VALID, LOGGED_AT)
+    VALUES (#{minutesId,jdbcType=NUMERIC}, #{materialId,jdbcType=NUMERIC}, #{actionCd}, #{outcome}, #{viaCd},
+            #{actorEmpNo,jdbcType=VARCHAR}, #{empVerified}, #{screenId}, #{buttonId}, #{uiValid}, #{loggedAt})
+  </insert>
+
+  <select id="selectActs" resultType="BoardMinutesAct" flushCache="true">
+    SELECT a.ACT_ID, a.MINUTES_ID, a.MATERIAL_ID, a.ACTION_CD, a.OUTCOME, a.VIA_CD, a.ACTOR_EMP_NO,
+           u.NAME AS ACTOR_NAME, a.EMP_VERIFIED, a.SCREEN_ID, a.BUTTON_ID, a.UI_VALID, a.LOGGED_AT
+      FROM BOARD_MINUTES_ACT a LEFT JOIN USERS u ON u.EMP_NO = a.ACTOR_EMP_NO
+     WHERE a.MINUTES_ID = #{id}
+     ORDER BY a.ACT_ID DESC
+  </select>
+
+  <delete id="deleteUtters">
+    DELETE FROM BOARD_MINUTES_UTTER WHERE MINUTES_ID = #{id}
+  </delete>
+
+  <delete id="deleteSegs">
+    DELETE FROM BOARD_MINUTES_SEG WHERE MINUTES_ID = #{id}
+  </delete>
+
+  <delete id="deleteItems">
+    DELETE FROM BOARD_MINUTES_ITEM WHERE MINUTES_ID = #{id}
+  </delete>
+
+  <delete id="deleteScopes">
+    DELETE FROM BOARD_MINUTES_SCOPE WHERE MINUTES_ID = #{id}
+  </delete>
+
+  <delete id="deleteRevs">
+    DELETE FROM BOARD_MINUTES_REV WHERE MINUTES_ID = #{id}
+  </delete>
+
+</mapper>

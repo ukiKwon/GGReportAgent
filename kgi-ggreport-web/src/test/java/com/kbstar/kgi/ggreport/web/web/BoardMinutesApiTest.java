@@ -1,0 +1,704 @@
+package com.kbstar.kgi.ggreport.web.web;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kbstar.kgi.ggreport.web.AppTest;
+import com.kbstar.kgi.ggreport.web.config.MinutesSettings;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+
+/**
+ * 이사회 회의록(047) 4~5단계 — 권한(020 비상속)·업로드(미리보기·확정)·수정·할 일·공개범위·삭제·이력·감사·관문.
+ * ⚠️ X-Emp-No·X-Screen-Id·X-Button-Id 는 자기신고다 — 여기서 고정하는 것은 업무 규칙·기록 형식이지 사칭 방지가 아니다.
+ * 시험 데이터는 모두 가상이다(시드 가상 인물 이름만 쓴다). 컨텍스트를 쪼개지 않으려고 설정 스위치는 런타임에 바꿨다가 finally 에서 되돌린다.
+ */
+@RunWith(SpringRunner.class)
+@AppTest
+@Transactional
+public class BoardMinutesApiTest {
+
+    private static final Charset UTF8 = StandardCharsets.UTF_8;
+    private static final String LEAD = "5047192";      // 영업팀장(담당 배정자 역할로 배정 신청)
+    private static final String LEAD2 = "5640327";     // 비담당 영업팀장
+    private static final String MEMBER = "3918264";    // 영업팀(담당)
+    private static final String MEMBER2 = "3361829";   // 영업팀(같은 건 담당, 등록자 아님)
+    private static final String HEAD = "2674805";      // 영업부장(DEPT_HEAD)
+    private static final String EXEC = "1473958";      // 영업부장(EXECUTIVE)
+    private static final String DESIGNER = "7130526";
+    private static final String IT_LEAD = "6295038";   // 전산팀장
+    private static final String ADMIN = "8203417";
+    private static final String SEED_NAME = "김영업";    // 시드 사용자 이름 — 가려져야 한다
+    private static final String SEED_NAME2 = "박영업";
+
+    private static final String TL = "00:00 ~ 00:30\n안건, 설명\n- 안건을 설명했다\n\n00:30 ~ 01:00\n논의, 결정\n- 다음 안건을 논의했다";
+    private static final String SUM = "주요 주제\n- " + SEED_NAME + "님 안건 논의\n\n다음 할 일\n- 자료 정리\n- 일정 확인";
+
+    @Autowired private MockMvc mockMvc;
+    @Autowired private JdbcTemplate jdbc;
+    @Autowired private MinutesSettings settings;
+    private final ObjectMapper om = new ObjectMapper();
+
+    // ── 도우미 ───────────────────────────────────────────────────────
+
+    private String newCase() throws Exception {
+        String res = mockMvc.perform(post("/bidcases").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"institution_id\":\"nowon\"}").header("X-User-Id", "dave"))
+                .andReturn().getResponse().getContentAsString(UTF8);
+        return om.readTree(res).path("bid_case_id").asText();
+    }
+
+    /** MyBatis 쓰기 한 번으로 1차 캐시를 비운다(JdbcTemplate 으로 행을 바꾼 뒤 호출). */
+    private void flushCache() throws Exception {
+        newCase();
+    }
+
+    private static MockHttpServletRequestBuilder as(MockHttpServletRequestBuilder b, String emp) {
+        return emp == null ? b : b.header("X-Emp-No", emp);
+    }
+
+    private static MockHttpServletRequestBuilder ui(MockHttpServletRequestBuilder b, String button) {
+        return button == null ? b : b.header("X-Screen-Id", "board_minutes").header("X-Button-Id", button);
+    }
+
+    private String text(MvcResult r) throws Exception {
+        return r.getResponse().getContentAsString(UTF8);
+    }
+
+    private JsonNode json(MvcResult r) throws Exception {
+        return om.readTree(text(r));
+    }
+
+    private int status(MvcResult r) {
+        return r.getResponse().getStatus();
+    }
+
+    private int count(String sql, Object... args) {
+        return jdbc.queryForObject(sql, Integer.class, args);
+    }
+
+    private static String kst(int plusDays) {
+        return LocalDate.now(ZoneId.of("Asia/Seoul")).plusDays(plusDays).toString();
+    }
+
+    private String js(Object... kv) throws Exception {
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        for (int i = 0; i < kv.length; i += 2) {
+            m.put((String) kv[i], kv[i + 1]);
+        }
+        return om.writeValueAsString(m);
+    }
+
+    /** 입찰 건 + MEMBER 담당 + 이사회 자료. {입찰 건, 자료 번호}. */
+    private String[] fixture(String... assignees) throws Exception {
+        String bc = newCase();
+        String[] as = assignees.length == 0 ? new String[]{MEMBER} : assignees;
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < as.length; i++) {
+            sb.append(i == 0 ? "" : ",").append('"').append(as[i]).append('"');
+        }
+        sb.append("]");
+        MvcResult a = mockMvc.perform(as(post("/bidcases/" + bc + "/assignments").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"emp_nos\":" + sb + "}"), LEAD)).andReturn();
+        assertEquals(text(a), 201, status(a));
+        MvcResult c = mockMvc.perform(as(post("/board-materials").contentType(MediaType.APPLICATION_JSON)
+                .header("X-Screen-Id", "board_write").header("X-Button-Id", "create")
+                .content("{\"bid_case_id\":\"" + bc + "\",\"year\":2026}"), MEMBER)).andReturn();
+        assertEquals(text(c), 201, status(c));
+        return new String[]{bc, String.valueOf(json(c).path("material_id").asLong())};
+    }
+
+    private static String tx(String tag) {
+        return "참석자 1 / 00:05\n안녕하세요 " + SEED_NAME + "님 회의를 시작합니다 " + tag
+                + "\n\n참석자 2 / 00:20\n네 알겠습니다 안건을 보겠습니다\n\n참석자 1 / 00:40\n다음 안건으로 넘어가겠습니다";
+    }
+
+    private String opts(String title, String digest, String... release) throws Exception {
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        m.put("meeting_date", "2026-01-15");
+        if (title != null) {
+            m.put("title", title);
+        }
+        if (digest != null) {
+            m.put("preview_digest", digest);
+        }
+        if (release.length > 0) {
+            m.put("release", Arrays.asList(release));
+        }
+        return om.writeValueAsString(m);
+    }
+
+    private MvcResult multi(String path, String emp, String button, String tName, byte[] t, byte[] tl, byte[] sm,
+                            String options, String... extraParts) throws Exception {
+        MockMultipartHttpServletRequestBuilder b = multipart(path);
+        if (t != null) {
+            b.file(new MockMultipartFile("transcript", tName, "text/plain", t));
+        }
+        if (tl != null) {
+            b.file(new MockMultipartFile("timeline", "tl.txt", "text/plain", tl));
+        }
+        if (sm != null) {
+            b.file(new MockMultipartFile("summary", "sm.txt", "text/plain", sm));
+        }
+        if (options != null) {
+            b.file(new MockMultipartFile("options", "blob", "application/json", options.getBytes(UTF8)));
+        }
+        for (String e : extraParts) {
+            b.file(new MockMultipartFile(e, "x.txt", "text/plain", "x".getBytes(UTF8)));
+        }
+        b.header("X-Screen-Id", "board_minutes_upload").header("X-Button-Id", button);
+        return mockMvc.perform(as(b, emp)).andReturn();
+    }
+
+    private MvcResult preview(String mid, String emp, String transcript, String options) throws Exception {
+        return multi("/board-materials/" + mid + "/minutes/preview", emp, "minutes_preview", "t.txt",
+                transcript.getBytes(UTF8), TL.getBytes(UTF8), SUM.getBytes(UTF8), options);
+    }
+
+    private MvcResult upload(String mid, String emp, String transcript, String options) throws Exception {
+        return multi("/board-materials/" + mid + "/minutes", emp, "minutes_upload", "t.txt",
+                transcript.getBytes(UTF8), TL.getBytes(UTF8), SUM.getBytes(UTF8), options);
+    }
+
+    /** 미리보기 → 확정. 새 회의록 번호. */
+    private long uploadOk(String mid, String emp, String tag, String... release) throws Exception {
+        MvcResult pv = preview(mid, emp, tx(tag), opts(null, null, release));
+        assertEquals(text(pv), 200, status(pv));
+        String digest = json(pv).path("preview_digest").asText();
+        MvcResult r = upload(mid, emp, tx(tag), opts("가상 회의록 " + tag, digest, release));
+        assertEquals(text(r), 201, status(r));
+        return json(r).path("minutes_id").asLong();
+    }
+
+    private MvcResult read(String path, String emp, String button) throws Exception {
+        return mockMvc.perform(as(ui(get(path), button), emp)).andReturn();
+    }
+
+    private MvcResult view(long id, String emp) throws Exception {
+        return read("/board-minutes/" + id, emp, "minutes_open");
+    }
+
+    private MvcResult sendPut(String path, String emp, String body) throws Exception {
+        return mockMvc.perform(as(ui(put(path).contentType(MediaType.APPLICATION_JSON).content(body), "minutes_edit"), emp)).andReturn();
+    }
+
+    private MvcResult sendPost(String path, String emp, String body) throws Exception {
+        return mockMvc.perform(as(ui(post(path).contentType(MediaType.APPLICATION_JSON).content(body), "minutes_scope_add"), emp)).andReturn();
+    }
+
+    private MvcResult scopeAdd(long id, String emp, String target, String until) throws Exception {
+        return sendPost("/board-minutes/" + id + "/scope/add", emp, js("emp_no", target, "grant_until", until));
+    }
+
+    private MvcResult scopeRemove(long id, String emp, String target) throws Exception {
+        return sendPost("/board-minutes/" + id + "/scope/remove", emp, js("emp_no", target));
+    }
+
+    private MvcResult editUtter(long id, String emp, int seq, String body, int rev) throws Exception {
+        return sendPut("/board-minutes/" + id + "/utterances/" + seq, emp, js("text", body, "rev_no", rev));
+    }
+
+    // ── 권한 ─────────────────────────────────────────────────────────
+
+    @Test
+    public void 등록자는_올리고_영업팀장은_020_권한_없이도_회의록을_본다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "a");
+        MvcResult v = view(id, LEAD2);
+        assertEquals(text(v), 200, status(v));
+        assertEquals("DEFAULT", json(v).path("viewer").path("via").asText());
+        assertFalse(json(v).path("viewer").path("can_view_material").asBoolean());   // 020 값은 화면이 그리지 않는다
+        int m = status(mockMvc.perform(as(get("/board-materials/" + fx[1]), LEAD2)).andReturn());
+        assertTrue("020 규칙 그대로 거부: " + m, m == 403 || m == 404);
+        assertEquals(200, status(view(id, EXEC)));
+        assertEquals("HEAD", json(view(id, EXEC)).path("viewer").path("via").asText());
+        assertEquals(200, status(view(id, HEAD)));
+    }
+
+    @Test
+    public void 등록자는_올린_뒤_담당이_해제되거나_기간이_0이면_볼_수_없다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "b");
+        assertEquals(200, status(view(id, MEMBER)));
+        Object days = ReflectionTestUtils.getField(settings, "uploaderDays");
+        try {
+            ReflectionTestUtils.setField(settings, "uploaderDays", 0);
+            assertEquals(404, status(view(id, MEMBER)));
+        } finally {
+            ReflectionTestUtils.setField(settings, "uploaderDays", days);
+        }
+        assertEquals(200, status(view(id, MEMBER)));
+        jdbc.update("UPDATE BID_ASSIGNMENT SET ACTIVE_YN=0 WHERE BID_CASE_ID=? AND EMP_NO=?", fx[0], MEMBER);
+        flushCache();
+        assertEquals(404, status(view(id, MEMBER)));
+    }
+
+    @Test
+    public void 같은_건_담당자라도_등록자가_아니면_404다() throws Exception {
+        String[] fx = fixture(MEMBER, MEMBER2);
+        long id = uploadOk(fx[1], MEMBER, "c");
+        assertEquals(404, status(view(id, MEMBER2)));
+    }
+
+    @Test
+    public void 공개범위로_연_사람은_보기만_하고_거두거나_기간이_지나면_404다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "d");
+        assertEquals(404, status(view(id, DESIGNER)));
+        MvcResult add = scopeAdd(id, HEAD, DESIGNER, kst(1));
+        assertEquals(text(add), 200, status(add));
+        assertTrue(json(add).path("changed").asBoolean());
+        assertEquals(200, status(view(id, DESIGNER)));
+        assertEquals(403, status(editUtter(id, DESIGNER, 1, "가상 본문", 0)));   // 볼 수는 있으나 수정은 못 한다
+        assertEquals(200, status(scopeRemove(id, HEAD, DESIGNER)));
+        assertEquals(404, status(view(id, DESIGNER)));
+        assertEquals(200, status(scopeAdd(id, HEAD, DESIGNER, kst(1))));
+        jdbc.update("UPDATE BOARD_MINUTES_SCOPE SET GRANT_UNTIL=? WHERE MINUTES_ID=?", kst(-1), id);
+        flushCache();
+        assertEquals(404, status(view(id, DESIGNER)));
+    }
+
+    @Test
+    public void 전산팀장은_결재_등급만으로는_열리지_않는다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "e");
+        assertEquals(404, status(view(id, IT_LEAD)));
+    }
+
+    @Test
+    public void 관리자는_상세는_404이고_감사_열람만_된다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "f");
+        assertEquals(404, status(view(id, ADMIN)));
+        MvcResult acts = read("/board-minutes/" + id + "/acts", ADMIN, "minutes_acts");
+        assertEquals(text(acts), 200, status(acts));
+        assertEquals(403, status(read("/board-minutes/" + id + "/acts", LEAD2, "minutes_acts")));   // 볼 수 있어도 감사 열람은 부장급·관리자만
+    }
+
+    @Test
+    public void 자료_탭_목록은_없거나_권한이_없어도_같은_빈_응답이다() throws Exception {
+        String[] fx = fixture();
+        String[] none = fixture();
+        long id = uploadOk(fx[1], MEMBER, "g");
+        MvcResult noPerm = read("/board-materials/" + fx[1] + "/minutes", DESIGNER, "minutes_tab");
+        MvcResult noMat = read("/board-materials/99999999/minutes", DESIGNER, "minutes_tab");
+        assertEquals(200, status(noPerm));
+        assertEquals(text(noPerm), text(noMat));
+        assertEquals(0, json(noPerm).path("items").size());
+        assertFalse(json(noPerm).path("can_upload").asBoolean());
+        MvcResult zero = read("/board-materials/" + none[1] + "/minutes", MEMBER, "minutes_tab");   // 권한은 있으나 0건
+        assertEquals(0, json(zero).path("items").size());
+        assertTrue(json(zero).path("can_upload").asBoolean());
+        MvcResult mine = read("/board-materials/" + fx[1] + "/minutes", LEAD2, "minutes_tab");
+        assertEquals(id, json(mine).path("items").get(0).path("minutes_id").asLong());
+        assertFalse(json(mine).path("items").get(0).has("_via"));
+        assertFalse(json(mine).path("can_upload").asBoolean());
+    }
+
+    // ── 업로드 ───────────────────────────────────────────────────────
+
+    @Test
+    public void 비담당_영업팀장의_업로드는_403이고_거부가_남는다() throws Exception {
+        String[] fx = fixture();
+        MvcResult r = upload(fx[1], LEAD2, tx("h"), opts("제목", "0000000000000000000000000000000000000000000000000000000000000000"));
+        assertEquals(403, status(r));
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES WHERE MATERIAL_ID=?", Long.parseLong(fx[1])));
+        assertTrue(count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND REQ_PATH=?",
+                "/board-materials/" + fx[1] + "/minutes") >= 1);
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MINUTES_ACT WHERE MATERIAL_ID=? AND ACTION_CD='UPLOAD' AND OUTCOME='DENIED'",
+                Long.parseLong(fx[1])));
+    }
+
+    @Test
+    public void 미리보기는_저장하지_않고_이름_후보를_보여_주고_확정은_이름을_남기지_않는다() throws Exception {
+        String[] fx = fixture();
+        long mid = Long.parseLong(fx[1]);
+        MvcResult pv = preview(fx[1], MEMBER, tx("i"), opts(null, null));
+        assertEquals(text(pv), 200, status(pv));
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES WHERE MATERIAL_ID=?", mid));
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MINUTES_ACT WHERE MATERIAL_ID=? AND ACTION_CD='PREVIEW' AND OUTCOME='OK'", mid));
+        boolean found = false;
+        for (JsonNode n : json(pv).path("name_candidates")) {
+            found |= SEED_NAME.equals(n.path("term").asText());
+        }
+        assertTrue(found);
+        assertFalse(text(pv).contains(SEED_NAME + "님"));   // 미리보기 글도 이미 가려져 있다
+        long id = uploadOk(fx[1], MEMBER, "i");
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES_UTTER WHERE MINUTES_ID=? AND BODY LIKE ?", id, "%" + SEED_NAME + "%"));
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES_ITEM WHERE MINUTES_ID=? AND BODY LIKE ?", id, "%" + SEED_NAME + "%"));
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES WHERE MINUTES_ID=? AND TITLE LIKE ?", id, "%" + SEED_NAME + "%"));
+        assertTrue(count("SELECT COUNT(*) FROM BOARD_MINUTES_UTTER WHERE MINUTES_ID=? AND BODY LIKE ?", id, "%[이름]%") >= 1);
+    }
+
+    @Test
+    public void 확인값이_다르면_409_PREVIEW_CHANGED_같은_파일_다시는_ALREADY_UPLOADED_열한_번째는_MINUTES_CAP() throws Exception {
+        String[] fx = fixture();
+        String digestA = json(preview(fx[1], MEMBER, tx("j1"), opts(null, null))).path("preview_digest").asText();
+        MvcResult changed = upload(fx[1], MEMBER, tx("j2"), opts("제목", digestA));
+        assertEquals(text(changed), 409, status(changed));
+        assertEquals("PREVIEW_CHANGED", json(changed).path("detail").path("code").asText());
+        long first = uploadOk(fx[1], MEMBER, "j1");
+        MvcResult dup = upload(fx[1], MEMBER, tx("j1"), opts("제목", digestA));
+        assertEquals(409, status(dup));
+        assertEquals("ALREADY_UPLOADED", json(dup).path("detail").path("code").asText());
+        assertEquals(first, json(dup).path("detail").path("minutes_id").asLong());   // 볼 수 있는 사람에게만 번호를 준다
+        for (int i = 2; i <= 10; i++) {
+            uploadOk(fx[1], MEMBER, "j" + (i + 10));
+        }
+        MvcResult cap = upload(fx[1], MEMBER, tx("j99"),
+                opts("제목", json(preview(fx[1], MEMBER, tx("j99"), opts(null, null))).path("preview_digest").asText()));
+        assertEquals(text(cap), 409, status(cap));
+        assertEquals("MINUTES_CAP", json(cap).path("detail").path("code").asText());
+    }
+
+    @Test
+    public void 입력이_규칙에_맞지_않으면_422다() throws Exception {
+        String[] fx = fixture();
+        String zero = "0000000000000000000000000000000000000000000000000000000000000000";
+        MvcResult hwp = multi("/board-materials/" + fx[1] + "/minutes", MEMBER, "minutes_upload", "t.hwp",
+                tx("k").getBytes(UTF8), null, null, opts("제목", zero));
+        assertEquals(text(hwp), 422, status(hwp));
+        assertEquals("NOT_TXT", json(hwp).path("detail").path("code").asText());
+        MvcResult empty = multi("/board-materials/" + fx[1] + "/minutes", MEMBER, "minutes_upload", "t.txt",
+                new byte[0], null, null, opts("제목", zero));
+        assertEquals(422, status(empty));
+        assertEquals("EMPTY_FILE", json(empty).path("detail").path("code").asText());
+        Map<String, Object> future = new LinkedHashMap<String, Object>();
+        future.put("meeting_date", kst(2));
+        future.put("title", "제목");
+        future.put("preview_digest", zero);
+        MvcResult fut = upload(fx[1], MEMBER, tx("k"), om.writeValueAsString(future));
+        assertEquals(422, status(fut));
+        MvcResult noTitle = upload(fx[1], MEMBER, tx("k"), opts(null, zero));
+        assertEquals(422, status(noTitle));
+        assertEquals("TITLE_REQUIRED", json(noTitle).path("detail").path("code").asText());
+        MvcResult noTx = multi("/board-materials/" + fx[1] + "/minutes", MEMBER, "minutes_upload", "t.txt",
+                null, null, null, opts("제목", zero));
+        assertEquals(422, status(noTx));
+        assertEquals("TRANSCRIPT_REQUIRED", json(noTx).path("detail").path("code").asText());
+    }
+
+    @Test
+    public void 모르는_파트와_깨진_옵션은_400이고_원문을_돌려주지_않는다() throws Exception {
+        String[] fx = fixture();
+        MvcResult evil = multi("/board-materials/" + fx[1] + "/minutes/preview", MEMBER, "minutes_preview", "t.txt",
+                tx("l").getBytes(UTF8), null, null, opts(null, null), "evil");
+        assertEquals(text(evil), 400, status(evil));
+        assertEquals("TOO_MANY_PARTS", json(evil).path("detail").path("code").asText());
+        MvcResult broken = multi("/board-materials/" + fx[1] + "/minutes/preview", MEMBER, "minutes_preview", "t.txt",
+                tx("l").getBytes(UTF8), null, null, "ZQRAW{{not json");
+        assertEquals(400, status(broken));
+        assertEquals("OPTIONS_INVALID", json(broken).path("detail").path("code").asText());
+        assertFalse(text(broken).contains("ZQRAW"));
+    }
+
+    @Test
+    public void 파일_하나가_상한을_넘으면_413_FILE_TOO_LARGE() throws Exception {
+        String[] fx = fixture();
+        byte[] big = new byte[2 * 1024 * 1024 + 1];
+        Arrays.fill(big, (byte) 'a');
+        MvcResult r = multi("/board-materials/" + fx[1] + "/minutes/preview", MEMBER, "minutes_preview", "t.txt",
+                big, null, null, opts(null, null));
+        assertEquals(413, status(r));
+        assertEquals("FILE_TOO_LARGE", json(r).path("detail").path("code").asText());
+    }
+
+    // ── 수정 ─────────────────────────────────────────────────────────
+
+    @Test
+    public void 낡은_rev_no는_409_REV_CHANGED와_현재_버전을_준다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "m");
+        MvcResult r = editUtter(id, HEAD, 1, "가상 수정 본문", 5);
+        assertEquals(text(r), 409, status(r));
+        assertEquals("REV_CHANGED", json(r).path("detail").path("code").asText());
+        assertEquals(0, json(r).path("detail").path("current_rev").asInt());
+        MvcResult ok = editUtter(id, HEAD, 1, "가상 수정 본문", 0);
+        assertEquals(text(ok), 200, status(ok));
+        assertTrue(json(ok).path("changed").asBoolean());
+        assertEquals(1, json(ok).path("rev_no").asInt());
+        assertFalse(json(editUtter(id, HEAD, 1, "가상 수정 본문", 1)).path("changed").asBoolean());   // 같은 글은 버전을 올리지 않는다
+    }
+
+    @Test
+    public void 이름이_든_수정은_422_MASK_REQUIRED이고_이름을_되돌려_주지_않는다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "n");
+        MvcResult r = editUtter(id, HEAD, 1, "내용에 " + SEED_NAME2 + " 이름이 들어 있다", 0);
+        assertEquals(text(r), 422, status(r));
+        assertEquals("MASK_REQUIRED", json(r).path("detail").path("code").asText());
+        assertTrue(json(r).path("detail").path("kinds").has("name"));
+        assertFalse(text(r).contains(SEED_NAME2));
+    }
+
+    @Test
+    public void 보이지_않는_문자를_섞어도_저장된_글에는_남지_않는다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "o");
+        String zwsp = new String(Character.toChars(0x200B));
+        MvcResult r = editUtter(id, HEAD, 1, "수정" + zwsp + "된 본문", 0);
+        assertEquals(text(r), 200, status(r));
+        String body = jdbc.queryForObject("SELECT BODY FROM BOARD_MINUTES_UTTER WHERE MINUTES_ID=? AND SEQ_NO=1", String.class, id);
+        assertFalse(body.contains(zwsp));
+        assertTrue(body.contains("수정"));
+    }
+
+    @Test
+    public void 등록_때_해제한_이름은_수정_이력의_이전_글에서_다시_가려진다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "p", SEED_NAME);
+        String before = jdbc.queryForObject("SELECT BODY FROM BOARD_MINUTES_UTTER WHERE MINUTES_ID=? AND SEQ_NO=1", String.class, id);
+        assertTrue(before.contains(SEED_NAME));   // 해제했으니 남아 있다
+        assertEquals(200, status(editUtter(id, HEAD, 1, "가상 수정 본문", 0)));
+        String old = jdbc.queryForObject("SELECT OLD_TEXT FROM BOARD_MINUTES_REV WHERE MINUTES_ID=? AND REV_NO=1", String.class, id);
+        assertFalse(old.contains(SEED_NAME));
+        assertTrue(old.contains("[이름]"));
+    }
+
+    @Test
+    public void 할_일은_체크하고_멱등이며_주제_항목은_NOT_TODO다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "q");
+        JsonNode d = json(view(id, HEAD));
+        int todoNo = d.path("summary").path("todos").get(0).path("item_no").asInt();
+        int topicNo = d.path("summary").path("topics").get(0).path("item_no").asInt();
+        MvcResult on = sendPost("/board-minutes/" + id + "/items/" + todoNo + "/done", HEAD, "{\"done\":true}");
+        assertEquals(text(on), 200, status(on));
+        assertTrue(json(on).path("changed").asBoolean());
+        assertEquals(HEAD, jdbc.queryForObject("SELECT DONE_BY FROM BOARD_MINUTES_ITEM WHERE MINUTES_ID=? AND ITEM_NO=?", String.class, id, todoNo));
+        assertFalse(json(sendPost("/board-minutes/" + id + "/items/" + todoNo + "/done", HEAD, "{\"done\":true}")).path("changed").asBoolean());
+        assertEquals(0, jdbc.queryForObject("SELECT REV_NO FROM BOARD_MINUTES WHERE MINUTES_ID=?", Integer.class, id).intValue());   // 버전은 그대로
+        MvcResult nt = sendPost("/board-minutes/" + id + "/items/" + topicNo + "/done", HEAD, "{\"done\":true}");
+        assertEquals(400, status(nt));
+        assertEquals("NOT_TODO", json(nt).path("detail").path("code").asText());
+    }
+
+    @Test
+    public void 제목_수정은_이력에_TITLE로_남는다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "r");
+        MvcResult r = sendPut("/board-minutes/" + id + "/meta", HEAD, js("field", "title", "value", "새 가상 제목", "rev_no", 0));
+        assertEquals(text(r), 200, status(r));
+        assertEquals("TITLE", jdbc.queryForObject("SELECT FIELD_CD FROM BOARD_MINUTES_REV WHERE MINUTES_ID=? AND REV_NO=1", String.class, id));
+        assertEquals("새 가상 제목", json(view(id, HEAD)).path("title").asText());
+        MvcResult d = sendPut("/board-minutes/" + id + "/meta", HEAD, js("field", "meeting_date", "value", "2026-02-01", "rev_no", 1));
+        assertEquals(text(d), 200, status(d));
+        assertEquals("MEETING_DATE", jdbc.queryForObject("SELECT FIELD_CD FROM BOARD_MINUTES_REV WHERE MINUTES_ID=? AND REV_NO=2", String.class, id));
+    }
+
+    // ── 이력·공개범위·삭제 ───────────────────────────────────────────
+
+    @Test
+    public void 이력은_부장급과_등록자만_본다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "s");
+        assertEquals(200, status(editUtter(id, HEAD, 1, "가상 수정 본문", 0)));
+        assertEquals(200, status(scopeAdd(id, HEAD, DESIGNER, kst(1))));
+        MvcResult head = read("/board-minutes/" + id + "/history", HEAD, "minutes_history");
+        assertEquals(text(head), 200, status(head));
+        assertTrue(json(head).path("revs").size() >= 1);
+        assertEquals(200, status(read("/board-minutes/" + id + "/history", MEMBER, "minutes_history")));
+        assertEquals(403, status(read("/board-minutes/" + id + "/history", LEAD2, "minutes_history")));
+        assertEquals(403, status(read("/board-minutes/" + id + "/history", DESIGNER, "minutes_history")));
+        assertEquals(404, status(read("/board-minutes/" + id + "/history", IT_LEAD, "minutes_history")));
+    }
+
+    @Test
+    public void 공개범위는_부장급만_바꾸고_이력에는_사번만_남는다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "t");
+        assertEquals(403, status(scopeAdd(id, LEAD2, DESIGNER, kst(1))));
+        assertEquals(200, status(scopeAdd(id, HEAD, DESIGNER, kst(1))));
+        Map<String, Object> log = jdbc.queryForMap("SELECT SCOPE_BEFORE, SCOPE_AFTER FROM BOARD_MINUTES_LOG WHERE MINUTES_ID=? AND EVENT_CD='SCOPE_ADD'", id);
+        String before = (String) log.get("SCOPE_BEFORE");
+        assertTrue(before == null || before.isEmpty());
+        assertEquals(DESIGNER, log.get("SCOPE_AFTER"));
+        assertFalse(json(scopeAdd(id, HEAD, DESIGNER, kst(1))).path("changed").asBoolean());
+        MvcResult ext = scopeAdd(id, HEAD, DESIGNER, kst(5));
+        assertTrue(json(ext).path("changed").asBoolean());
+        assertEquals("SCOPE_EXTEND", json(ext).path("event").asText());
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MINUTES_LOG WHERE MINUTES_ID=? AND EVENT_CD='SCOPE_EXTEND'", id));
+        JsonNode list = json(read("/board-minutes/" + id + "/scope", HEAD, "minutes_scope_open"));
+        assertEquals(1, list.size());
+        assertEquals(DESIGNER, list.get(0).path("emp_no").asText());
+    }
+
+    @Test
+    public void 공개_대상이_올바르지_않으면_400_상한은_422_기본_열람자는_변경_없음이다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "u");
+        MvcResult none = scopeAdd(id, HEAD, "0000000", kst(1));
+        assertEquals(400, status(none));
+        assertEquals("SCOPE_TARGET_INVALID", json(none).path("detail").path("code").asText());
+        assertFalse(text(none).contains("0000000"));
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO='6086214'");
+        flushCache();
+        assertEquals(400, status(scopeAdd(id, HEAD, "6086214", kst(1))));
+        MvcResult far = scopeAdd(id, HEAD, DESIGNER, kst(366));
+        assertEquals(400, status(far));
+        assertEquals("GRANT_UNTIL_INVALID", json(far).path("detail").path("code").asText());
+        MvcResult def = scopeAdd(id, HEAD, LEAD2, kst(1));
+        assertEquals(200, status(def));
+        assertFalse(json(def).path("changed").asBoolean());
+        assertEquals("ALREADY_DEFAULT", json(def).path("reason").asText());
+        for (int i = 0; i < 30; i++) {
+            jdbc.update("INSERT INTO BOARD_MINUTES_SCOPE (MINUTES_ID, GRANT_TYPE, GRANT_VALUE, GRANT_UNTIL, GRANTED_BY, GRANTED_AT) VALUES (?,?,?,?,?,?)",
+                    id, "EMP", String.format("90000%02d", i), kst(1), HEAD, "2026-11-19T00:00:00.000000+00:00");
+        }
+        MvcResult cap = scopeAdd(id, HEAD, DESIGNER, kst(1));
+        assertEquals(text(cap), 422, status(cap));
+        assertEquals("SCOPE_CAP", json(cap).path("detail").path("code").asText());
+    }
+
+    @Test
+    public void 삭제는_부장급만_하고_본문이_사라지며_감사_열람은_남는다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "v");
+        assertEquals(200, status(scopeAdd(id, HEAD, DESIGNER, kst(1))));
+        assertEquals(200, status(editUtter(id, HEAD, 1, "가상 수정 본문", 0)));
+        assertEquals(403, status(sendPost("/board-minutes/" + id + "/delete", LEAD2, "{\"rev_no\":1}")));
+        MvcResult del = sendPost("/board-minutes/" + id + "/delete", HEAD, "{\"rev_no\":1}");
+        assertEquals(text(del), 200, status(del));
+        for (String t : new String[]{"BOARD_MINUTES_UTTER", "BOARD_MINUTES_ITEM", "BOARD_MINUTES_SEG", "BOARD_MINUTES_SCOPE", "BOARD_MINUTES_REV"}) {
+            assertEquals(t, 0, count("SELECT COUNT(*) FROM " + t + " WHERE MINUTES_ID=?", id));
+        }
+        assertEquals(404, status(view(id, HEAD)));
+        assertEquals(404, status(view(id, LEAD2)));
+        assertEquals(200, status(read("/board-minutes/" + id + "/acts", HEAD, "minutes_acts")));
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MINUTES_LOG WHERE MINUTES_ID=? AND EVENT_CD='DELETE'", id));
+    }
+
+    // ── 감사·관문 ────────────────────────────────────────────────────
+
+    @Test
+    public void 모든_호출이_누가_어느_화면_버튼_어떤_경로로_남는다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "w");
+        assertEquals(200, status(view(id, LEAD2)));
+        assertEquals(200, status(read("/board-minutes/" + id + "/transcript", LEAD2, "minutes_transcript")));
+        assertEquals(404, status(view(id, DESIGNER)));
+        assertEquals(403, status(read("/board-minutes/" + id + "/history", LEAD2, "minutes_history")));
+        assertEquals(200, status(read("/board-minutes?year=2026", HEAD, "minutes_list")));
+        List<Map<String, Object>> acts = jdbc.queryForList(
+                "SELECT ACTION_CD, OUTCOME, VIA_CD, ACTOR_EMP_NO, SCREEN_ID, BUTTON_ID, UI_VALID FROM BOARD_MINUTES_ACT "
+                        + "WHERE MINUTES_ID=? AND ACTOR_EMP_NO IN (?,?,?) ORDER BY ACT_ID", id, LEAD2, DESIGNER, HEAD);
+        assertEquals(5, acts.size());
+        assertEquals("VIEW_SUMMARY", acts.get(0).get("ACTION_CD"));
+        assertEquals("OK", acts.get(0).get("OUTCOME"));
+        assertEquals("DEFAULT", acts.get(0).get("VIA_CD"));
+        assertEquals("board_minutes", acts.get(0).get("SCREEN_ID"));
+        assertEquals("minutes_open", acts.get(0).get("BUTTON_ID"));
+        assertEquals("VIEW_TRANSCRIPT", acts.get(1).get("ACTION_CD"));
+        assertEquals("HIDDEN", acts.get(2).get("OUTCOME"));
+        assertEquals("DENIED", acts.get(3).get("OUTCOME"));
+        assertEquals("LIST", acts.get(4).get("ACTION_CD"));
+        assertEquals("HEAD", acts.get(4).get("VIA_CD"));
+    }
+
+    @Test
+    public void 접근_이력에는_본문과_가림_단어가_없다() throws Exception {
+        String[] fx = fixture();
+        MvcResult pv = multi("/board-materials/" + fx[1] + "/minutes/preview", MEMBER, "minutes_preview", "t.txt",
+                (tx("x") + " ZQ가림토큰").getBytes(UTF8), TL.getBytes(UTF8), SUM.getBytes(UTF8),
+                "{\"meeting_date\":\"2026-01-15\",\"title\":\"제목 ZQ가림토큰\",\"terms\":[\"ZQ가림토큰\"]}");
+        assertEquals(text(pv), 200, status(pv));
+        assertFalse(text(pv).contains("ZQ가림토큰"));
+        assertEquals(0, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE DETAIL LIKE ?", "%가림토큰%"));
+        assertEquals(0, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE REQ_PATH LIKE ?", "%가림토큰%"));
+    }
+
+    @Test
+    public void 기능이_꺼져_있으면_모든_회의록_경로가_404이고_기록이_없다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "y");
+        int before = count("SELECT COUNT(*) FROM BOARD_MINUTES_ACT");
+        Object enabled = ReflectionTestUtils.getField(settings, "enabled");
+        try {
+            ReflectionTestUtils.setField(settings, "enabled", false);
+            assertEquals(404, status(view(id, HEAD)));
+            assertEquals(404, status(read("/board-minutes", HEAD, "minutes_list")));
+            assertEquals(404, status(read("/board-materials/" + fx[1] + "/minutes", MEMBER, "minutes_tab")));
+            assertEquals(404, status(preview(fx[1], MEMBER, tx("y2"), opts(null, null))));
+            assertEquals(404, status(editUtter(id, HEAD, 1, "가상 수정 본문", 0)));
+        } finally {
+            ReflectionTestUtils.setField(settings, "enabled", enabled);
+        }
+        assertEquals(before, count("SELECT COUNT(*) FROM BOARD_MINUTES_ACT"));
+    }
+
+    @Test
+    public void 앞단_인증을_요구하면_자기신고_사번은_403_VERIFIED_REQUIRED다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "z");
+        Object verified = ReflectionTestUtils.getField(settings, "requireVerified");
+        try {
+            ReflectionTestUtils.setField(settings, "requireVerified", true);
+            MvcResult r = view(id, HEAD);
+            assertEquals(text(r), 403, status(r));
+            assertEquals("VERIFIED_REQUIRED", json(r).path("detail").path("code").asText());
+            MvcResult ok = mockMvc.perform(ui(get("/board-minutes/" + id), "minutes_open")
+                    .with(req -> {
+                        req.setRemoteUser(HEAD);
+                        return req;
+                    })).andReturn();
+            assertEquals(text(ok), 200, status(ok));
+        } finally {
+            ReflectionTestUtils.setField(settings, "requireVerified", verified);
+        }
+    }
+
+    @Test
+    public void 사번이_없으면_401_원문과_쓰기에_화면_식별자가_없으면_400이다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "aa");
+        assertEquals(401, status(view(id, null)));
+        MvcResult noUi = mockMvc.perform(as(get("/board-minutes/" + id + "/transcript"), HEAD)).andReturn();
+        assertEquals(400, status(noUi));
+        assertEquals("UI_ID_REQUIRED", json(noUi).path("detail").path("code").asText());
+        MvcResult noUiPut = mockMvc.perform(as(put("/board-minutes/" + id + "/utterances/1").contentType(MediaType.APPLICATION_JSON)
+                .content(js("text", "가상 수정 본문", "rev_no", 0)), HEAD)).andReturn();
+        assertEquals(400, status(noUiPut));
+        assertEquals("UI_ID_REQUIRED", json(noUiPut).path("detail").path("code").asText());
+        assertEquals(200, status(mockMvc.perform(as(get("/board-minutes/" + id), HEAD)).andReturn()));   // 상세 읽기는 식별자가 없어도 된다
+    }
+
+    @Test
+    public void 모든_응답에_no_store가_붙는다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "bb");
+        assertEquals("no-store", view(id, HEAD).getResponse().getHeader("Cache-Control"));            // 200
+        assertEquals("no-store", view(id, DESIGNER).getResponse().getHeader("Cache-Control"));        // 404
+        assertEquals("no-store", read("/board-minutes/" + id + "/history", LEAD2, "minutes_history").getResponse().getHeader("Cache-Control"));   // 403
+        assertEquals("no-store", view(id, null).getResponse().getHeader("Cache-Control"));            // 401
+        assertNotNull(read("/board-minutes", HEAD, "minutes_list").getResponse().getHeader("Cache-Control"));
+        assertEquals("no-store", read("/board-materials/" + fx[1] + "/minutes", MEMBER, "minutes_tab").getResponse().getHeader("Cache-Control"));
+    }
+}
