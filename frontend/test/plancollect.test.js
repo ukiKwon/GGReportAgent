@@ -57,18 +57,18 @@ test('reqLineHtml: 요청 없음 → 요청 가능 여부·자료 유무별 안�
 
 test('reqLineHtml: 요청됨(나 포함/나 없음)·수집 중·디자이너 — 칩·사람 수·날짜·버튼', function () {
   const mine = plans.reqLineHtml(req(), { can: true });
-  assert.ok(mine.indexOf('data-st="REQUESTED">요청됨</span>') >= 0 && mine.indexOf('나 포함 <span class="v">3</span>명') >= 0);
+  assert.ok(mine.indexOf('wf-badge') < 0 && mine.indexOf('나 포함 <span class="v">3</span>명') >= 0);   // 칩은 첫 줄(stateChipsHtml)에만
   assert.ok(mine.indexOf('첫 요청 <span class="v">2026-11-17</span>') >= 0);
   assert.ok(mine.indexOf('id="pl-req-cancel">내 요청 취소') >= 0 && mine.indexOf('pl-req-go') < 0);
   const other = plans.reqLineHtml(req({ requested_by_me: false, requester_count: 2 }), { can: true });
   assert.ok(other.indexOf('<span class="v">2</span>명 요청') >= 0 && other.indexOf('id="pl-req-go"') >= 0 && other.indexOf('pl-req-cancel') < 0);
   const run = plans.reqLineHtml(req({ status_cd: 'RUNNING', run_at: '2026-11-18T10:00:00+09:00' }), { can: true });
-  assert.ok(run.indexOf('수집 중(반입 대기)') >= 0 && run.indexOf('내보냄 <span class="v">2026-11-18</span>') >= 0);
+  assert.ok(run.indexOf('wf-badge') < 0 && run.indexOf('내보냄 <span class="v">2026-11-18</span> · 반입 대기') >= 0);
   assert.ok(run.indexOf('<button') < 0, '수집 중 + 나 포함: 취소도 요청도 없다');
   const runOther = plans.reqLineHtml(req({ status_cd: 'RUNNING', requested_by_me: false, run_at: '2026-11-18T10:00:00+09:00' }), { can: true });
   assert.ok(runOther.indexOf('id="pl-req-go"') >= 0);
   const designer = plans.reqLineHtml(req({ requested_by_me: false }), { can: false });
-  assert.ok(designer.indexOf('data-st="REQUESTED"') >= 0 && designer.indexOf('<button') < 0);
+  assert.ok(designer.indexOf('<span class="v">3</span>명 요청') >= 0 && designer.indexOf('wf-badge') < 0 && designer.indexOf('<button') < 0);
 });
 
 test('reqLineHtml: 처리 중 버튼은 disabled + 진행 글자', function () {
@@ -84,7 +84,7 @@ function docOk() {
 test('detailHtml: 요청 줄은 head 바로 뒤·반입일 앞, 요청 현황이 없으면 그리지 않고, 오류·미등록 상태에서도 그리지 않는다', function () {
   const o = { name: '종로구', sub: '지자체 · 서울', req: { item: null, can: true, busy: '' } };
   const h = plans.detailHtml(docOk(), o);
-  assert.ok(idx(h, 'id="pl-name"') < idx(h, 'class="pl-req"') && idx(h, 'class="pl-req"') < idx(h, 'class="db-why pl-imp"'));
+  assert.ok(idx(h, 'id="pl-name"') < idx(h, 'class="db-sec pl-sum"') && idx(h, 'class="pl-st"') < idx(h, 'class="db-why pl-imp"') && idx(h, 'class="db-why pl-imp"') < idx(h, 'class="pl-req"'));   // 요청 줄은 절의 마지막
   assert.ok(idx(h, 'class="db-sub"') < idx(h, 'class="pl-req"'));
   assert.ok(plans.detailHtml(docOk(), { name: '종로구' }).indexOf('pl-req') < 0);
   ['loading', 'noid', 'offline', 'denied', 'notfound', 'error'].forEach(function (s) {
@@ -105,11 +105,12 @@ test('rowHtml: 열린 요청(요청됨·수집 중)만 칩 하나, 닫힌 상태
   const TODAY = new Date(2026, 10, 16);
   const m = dash.model([{ name: '가구', region: '11', type: '지자체', contractEnd: logic.localDateStr(new Date(2026, 10, 26)), confirmed: false, institutionId: 'ga' }], TODAY);
   const r = plans.listRows(m, '6', {}, null)[0];
-  const a = plans.rowHtml(r, { loaded: false, req: req({ institution_id: 'ga' }) });
-  assert.ok(a.indexOf('data-st="REQUESTED">요청됨</span>') >= 0 && a.indexOf('<button') < 0);
-  assert.ok(plans.rowHtml(r, { req: req({ status_cd: 'RUNNING' }) }).indexOf('data-st="RUNNING"') >= 0);
-  assert.ok(plans.rowHtml(r, { req: req({ status_cd: 'APPLIED' }) }).indexOf('cr-st') < 0);
-  assert.ok(plans.rowHtml(r, { req: null }).indexOf('cr-st') < 0);
+  const a = plans.rowHtml(r, { loaded: true, req: req({ institution_id: 'ga' }) });
+  assert.ok(a.indexOf('data-st="REQUESTED">사업계획 요청됨</span>') >= 0 && a.indexOf('pop-unk') < 0 && a.indexOf('<button') < 0);   // 자료 없음 + 요청됨 = 칩 하나
+  assert.ok(plans.rowHtml(r, { loaded: false, req: req({ institution_id: 'ga' }) }).indexOf('cr-st') < 0);   // 자료 현황을 못 받았으면 3행 칩 없음
+  assert.ok(plans.rowHtml(r, { loaded: true, req: req({ status_cd: 'RUNNING' }) }).indexOf('data-st="RUNNING">사업계획 수집 중</span>') >= 0);
+  assert.ok(plans.rowHtml(r, { loaded: true, req: req({ status_cd: 'APPLIED' }) }).indexOf('cr-st') < 0);
+  assert.ok(plans.rowHtml(r, { loaded: true, req: null }).indexOf('cr-st') < 0);
   assert.ok(plans.rowHtml(r, {}).indexOf('cr-st') < 0);
 });
 
@@ -123,7 +124,7 @@ test('sectionInner: 자료 없음 + 열린 요청/요청 가능/디자이너, �
     assert.ok(has.indexOf('data-st="REQUESTED"') >= 0 && has.indexOf('<span class="v">3</span>명 요청') >= 0);
     assert.ok(has.indexOf('사업계획 <span class="v">12</span>건 보기') >= 0);
     const queued = plans.sectionInner('seongbuk', 'db-name');
-    assert.ok(queued.indexOf('pop-unk">자료 없음') >= 0 && queued.indexOf('data-st="REQUESTED"') >= 0);
+    assert.ok(queued.indexOf('data-st="REQUESTED">사업계획 요청됨</span>') >= 0 && queued.indexOf('pop-unk') < 0);   // 자료 없음 + 요청됨 = 칩 하나
     assert.ok(queued.indexOf('data-pl-open="seongbuk"') >= 0 && queued.indexOf('기관 사업계획에서 보기') >= 0);
     assert.ok(queued.indexOf('입찰이 가까운 기관부터') < 0 && queued.indexOf('db-empty') < 0);
     const none = plans.sectionInner('nobody', 'db-name');
@@ -137,6 +138,28 @@ test('sectionInner: 자료 없음 + 열린 요청/요청 가능/디자이너, �
     assert.ok(plans.sectionInner('seongbuk', 'db-name').indexOf('cr-st') < 0);
   } finally { plans.resetStatus(); }
   assert.strictEqual(plans.collectState(), 'idle', 'resetStatus 가 수집 요청 현황도 비운다(계정 전환)');
+});
+
+test('appliedMap·new 칩: recent_applied 는 기관별로 나르고, 키가 없거나 배열이 아닌 옛 응답은 빈 값, 요청 현황이 없으면 new 도 없다', function () {
+  assert.deepStrictEqual(plans.appliedMap({}), {});
+  assert.deepStrictEqual(plans.appliedMap(null), {});
+  assert.deepStrictEqual(plans.appliedMap({ recent_applied: 'x' }), {});
+  assert.deepStrictEqual(plans.appliedMap({ recent_applied: { institution_id: 'a' } }), {});   // 배열이 아니면 무시
+  const APPLIED = { institution_id: 'jongno', closed_at: '2026-11-19T01:00:00+09:00' };
+  assert.deepStrictEqual(Object.keys(plans.appliedMap({ recent_applied: [APPLIED, null, {}, { closed_at: 'x' }] })), ['jongno']);
+  plans.resetStatus();
+  try {
+    plans.applyStatus({ items: [{ institution_id: 'jongno', item_count: 12, stale: true }] });
+    plans.applyCollect({ can_request: true, items: [] });   // recent_applied 키 없음(옛 서버)
+    const old = plans.sectionInner('jongno', 'db-name');
+    assert.ok(old.indexOf('data-st="NEW"') < 0 && old.indexOf('오래됨') >= 0);
+    plans.applyCollect({ can_request: true, items: [], recent_applied: [APPLIED] });
+    const neu = plans.sectionInner('jongno', 'db-name');
+    assert.ok(neu.indexOf('wf-badge cr-st ok" data-st="NEW"') >= 0 && neu.indexOf('2026-11-19에 들어온 자료입니다(7일간 표시).') >= 0 && neu.indexOf('오래됨') < 0);
+    assert.strictEqual(plans.sectionInner('constructor', 'db-name').indexOf('data-st="NEW"'), -1);   // 객체 기본 속성 이름은 기관이 아니다
+    plans.setCollectState('forbidden', 403);
+    assert.strictEqual(plans.sectionInner('jongno', 'db-name').indexOf('data-st="NEW"'), -1);   // 요청 현황이 없으면 new 도 없다
+  } finally { plans.resetStatus(); }
 });
 
 test('reqErrorText·reqFlash: 서버 원문 없이 상태·코드 표로만', function () {
@@ -318,16 +341,16 @@ test('index.html: plancollect.js 는 plans.js 뒤·admin.js 앞, CSS 블록(새 
 const CLOSED = { institution_id: 'jongno', status_cd: 'FAILED', closed_at: '2026-11-10T01:00:00+09:00', close_reason: '공고 페이지 없음' };
 test('reqLineHtml: 최근 실패·제외 — 칩 + 날짜 · 사유 + [수집 요청], 사유는 이스케이프, 열린 요청이 있으면 무시', function () {
   const f = plans.reqLineHtml(null, { can: true, closed: CLOSED });
-  assert.ok(f.indexOf('data-st="FAILED">실패</span>') >= 0 && f.indexOf('<span class="v">2026-11-10</span> · 사유: 공고 페이지 없음') >= 0);
+  assert.ok(f.indexOf('wf-badge') < 0 && f.indexOf('<span class="v">2026-11-10</span> · 사유: 공고 페이지 없음') >= 0);   // 칩은 첫 줄(수집 실패)로 옮겼다
   assert.ok(f.indexOf('id="pl-req-go">수집 요청</button>') >= 0 && f.indexOf('개발부서가 수집하고') < 0 && f.indexOf('새 계획이 나왔으면') < 0);
   const ex = plans.reqLineHtml(null, { can: true, closed: Object.assign({}, CLOSED, { status_cd: 'EXCLUDED', close_reason: '<b>x</b>' }) });
-  assert.ok(ex.indexOf('data-st="EXCLUDED">제외됨</span>') >= 0 && ex.indexOf('사유: &lt;b&gt;x&lt;/b&gt;') >= 0 && ex.indexOf('<b>x') < 0);
+  assert.ok(ex.indexOf('wf-badge') < 0 && ex.indexOf('사유: &lt;b&gt;x&lt;/b&gt;') >= 0 && ex.indexOf('<b>x') < 0);
   const nr = plans.reqLineHtml(null, { can: true, closed: Object.assign({}, CLOSED, { close_reason: null }) });
   assert.ok(nr.indexOf('사유') < 0 && nr.indexOf('2026-11-10') >= 0);
   const des = plans.reqLineHtml(null, { can: false, closed: Object.assign({}, CLOSED, { close_reason: null }) });
   assert.strictEqual(des, '');   // 디자이너: 열린 요청이 없으면 줄 없음(규격 6-2)
   const withOpen = plans.reqLineHtml(req(), { can: true, closed: CLOSED });
-  assert.ok(withOpen.indexOf('data-st="REQUESTED"') >= 0 && withOpen.indexOf('data-st="FAILED"') < 0);
+  assert.ok(withOpen.indexOf('나 포함 <span class="v">3</span>명') >= 0 && withOpen.indexOf('사유') < 0);   // 열린 요청이 있으면 닫힘 사유는 숨는다
   assert.ok(plans.reqLineHtml(null, { can: true, closed: { status_cd: 'APPLIED', closed_at: CLOSED.closed_at } }).indexOf('data-st="APPLIED"') < 0);   // 실패·제외만
   assert.strictEqual(plans.reqLineHtml(null, { can: false, closed: null }), '');
 });
@@ -338,7 +361,7 @@ test('closedMap·detailHtml: last_closed 는 기관별로 나르고 상세 줄�
     assert.deepStrictEqual(Object.keys(plans.closedMap({ last_closed: [CLOSED, { institution_id: 'x', status_cd: 'CANCELED' }] })), ['jongno']);
     assert.deepStrictEqual(plans.closedMap({}), {});
     const h = plans.detailHtml(docOk(), { name: '종로구', req: { item: null, closed: CLOSED, can: true, busy: '' } });
-    assert.ok(h.indexOf('data-st="FAILED"') >= 0 && h.indexOf('사유: 공고 페이지 없음') >= 0 && idx(h, 'class="pl-req"') < idx(h, 'class="db-why pl-imp"'));
+    assert.ok(h.indexOf('data-st="FAILED">수집 실패</span>') >= 0 && h.indexOf('사유: 공고 페이지 없음') >= 0 && idx(h, 'class="db-why pl-imp"') < idx(h, 'class="pl-req"'));
   } finally { plans.resetStatus(); }
 });
 test('reqErrorText: detail.code 를 먼저 보고, 코드가 없으면 상태 문구, 서버 message 는 쓰지 않는다', function () {

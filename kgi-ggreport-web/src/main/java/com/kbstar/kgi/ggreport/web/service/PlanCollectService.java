@@ -89,6 +89,8 @@ public class PlanCollectService {
     static final Duration RENOTIFY_GAP = Duration.ofMinutes(10);
     /** 화면 last_closed — 최근 30일 안에 실패·제외로 닫힌 요청만(수집·반입 주기가 월 단위, 사유 노출 기간 제한). */
     static final Duration LAST_CLOSED_WINDOW = Duration.ofDays(30);
+    /** 화면 recent_applied(목록 'new') — 최근 7일 안에 수집 반입으로 닫힌(APPLIED) 기관. 사번·이름·사유 없음(NEXT 56, 사용자 11-19). */
+    static final Duration RECENT_APPLIED_WINDOW = Duration.ofDays(7);
     static final String TOO_SOON = "TOO_SOON";
     static final String RESULT_UNRECORDED = "RESULT_UNRECORDED";
     private static final Pattern KEY = Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
@@ -254,11 +256,12 @@ public class PlanCollectService {
         // 사번·이름 없음. 요청할 수 없는 사람(디자이너 등)에게는 last_closed 자체를 비운다 — 화면은 can 일 때만 그린다(security 11-17).
         List<Map<String, Object>> lastClosed = new ArrayList<>();
         Set<String> seen = new HashSet<>();
-        List<PlanCollectReq> recent = canRequest
-                ? mapper.selectRecentClosed(Times.iso(Instant.now().minus(LAST_CLOSED_WINDOW)))
-                : Collections.<PlanCollectReq>emptyList();
+        // 한 번만 읽는다 — 요청 자격자는 30일(last_closed), 그 밖은 7일(recent_applied 만)
+        List<PlanCollectReq> recent = mapper.selectRecentClosed(
+                Times.iso(Instant.now().minus(canRequest ? LAST_CLOSED_WINDOW : RECENT_APPLIED_WINDOW)));
         for (PlanCollectReq r : recent) {
             String inst = r.getInstitutionId();
+            if (!canRequest) break;   // 디자이너에게는 last_closed 를 비운다(security 11-17)
             if (!seen.add(inst) || open.contains(inst)) continue;   // 기관별 최신 1건(REQ_SEQ 내림차순)만
             if (!FAILED.equals(r.getStatusCd()) && !EXCLUDED.equals(r.getStatusCd())) continue;
             Map<String, Object> m = new LinkedHashMap<>();
@@ -268,10 +271,23 @@ public class PlanCollectService {
             m.put("close_reason", canRequest ? r.getCloseReason() : null);
             lastClosed.add(m);
         }
+        // 최근 7일 안에 수집 반입으로 닫힌(APPLIED) 기관 — 기관별 최신 1건. 사번·이름·사유 없음이라 status 를 볼 수 있는 모두에게 준다.
+        // 이후 FAILED·EXCLUDED 로 닫혔거나 다시 열린 요청이 있어도 '새 자료가 들어온' 사실은 유효하므로 거르지 않는다.
+        List<Map<String, Object>> recentApplied = new ArrayList<>();
+        Set<String> appliedSeen = new HashSet<>();
+        for (PlanCollectReq r : recent) {
+            if (!APPLIED.equals(r.getStatusCd()) || !within(r.getClosedAt(), RECENT_APPLIED_WINDOW)) continue;
+            if (!appliedSeen.add(r.getInstitutionId())) continue;   // REQ_SEQ 내림차순 — 첫 APPLIED 가 최신
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("institution_id", r.getInstitutionId());
+            m.put("closed_at", r.getClosedAt());
+            recentApplied.add(m);
+        }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("can_request", canRequest);
         out.put("items", items);
         out.put("last_closed", lastClosed);
+        out.put("recent_applied", recentApplied);
         return out;
     }
 

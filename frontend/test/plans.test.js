@@ -68,6 +68,18 @@ test('index.html: #plans-root 한 개, script 순서(dashboard.js 뒤·app.js �
   assert.ok(/@media \(max-width:880px\)[\s\S]*\.pl-work \{ grid-template-columns:1fr/.test(css));
 });
 
+test('index.html·plans.js: 3행 .pl-st·행 패딩 10px·사업계획 절 h3 간격·문서 제목 h4 CSS, mount 가 받는 중 자리표시를 다시 그린다', function () {
+  const a = HTML.indexOf('/* 기관 사업계획 시작'), b = HTML.indexOf('/* 기관 사업계획 끝 */');
+  const css = HTML.slice(a, b);
+  assert.ok(css.indexOf('#plans-root .db-row { padding:10px 20px; }') >= 0);
+  assert.ok(/\.pl-st \{[^}]*display:flex[^}]*min-height:20px/.test(css));
+  assert.ok(css.indexOf('#plans-root .db-row .pl-st { grid-column:1 / -1; }') >= 0);
+  assert.ok(css.indexOf('.pl-sum h3 { margin:0 0 8px; }') >= 0 && css.indexOf('.pl-imp { margin:8px 0 0; }') >= 0);
+  assert.ok(css.indexOf('.pl-doc-h h4 {') >= 0 && css.indexOf('.pl-doc-h h3') < 0);
+  assert.ok(/ensureStatus\(true\);\s*\n\s*if \(ST\.state === 'loading'\) renderList\(\);/.test(SRC));
+  assert.ok(SRC.indexOf('statusBadgesHtml') < 0, '상태 칩은 stateChipsHtml 한 곳');
+});
+
 test('소스 규칙: confirm() 없음, 외부 주소 없음, 새 hex 없음, 서버 오류 문구를 innerHTML로 넣지 않음', function () {
   assert.ok(!/\bconfirm\(/.test(SRC));
   assert.ok(!/https?:\/\//.test(SRC));
@@ -280,7 +292,7 @@ test('detailHtml: 상태별 안내, 자료 없음 빈 상태, 정상 상세(이�
   const seed = plans.detailHtml(view([doc()], { import: { imported_at: '2026-11-16T01:02:03+00:00', origin_cd: 'SEED_TXT' } }), o);
   assert.ok(seed.indexOf('서울 25구 원문에서 옮김') >= 0 && seed.indexOf('시드') < 0);
   assert.ok(ok.indexOf('사업계획 <span class="v">2</span>건') >= 0 && ok.indexOf('오래됨') >= 0);   // 문서 중 하나라도 오래되면 오래됨
-  assert.ok(ok.indexOf('wf-badge pp-cancel">기간 지남</span> <span class="wf-badge gap">') < 0);   // 모든 문서가 끝나야 머리 배지에 기간 지남
+  assert.ok(ok.indexOf('wf-badge pp-cancel">기간 지남</span> <span class="wf-badge cr-st gap">') < 0);   // 모든 문서가 끝나야 머리 배지에 기간 지남
 });
 
 // ── 목록 ────────────────────────────────────────────────────────────
@@ -325,14 +337,60 @@ test('filterByStatus·missingIds: 자료 있음/없음, 형식 밖·id 없음·�
   assert.strictEqual(ids.indexOf('bad id!'), -1);
 });
 
-test('statusBadgesHtml: 자료 없음 하나 / 사업계획 N건 → 기간 지남 → 오래됨 순서(최대 3개)', function () {
-  assert.strictEqual(plans.statusBadgesHtml(null), '<span class="pop-unk">자료 없음</span>');
-  const one = plans.statusBadgesHtml({ item_count: 2, period_ended: false, stale: false });
-  assert.ok(one.indexOf('pp-neutral">사업계획 <span class="v">2</span>건</span>') >= 0 && one.indexOf('기간 지남') < 0 && one.indexOf('오래됨') < 0);   // 숫자는 mono(.v)
-  const all = plans.statusBadgesHtml({ item_count: 2, period_ended: true, stale: true });
+test('stateChipsHtml: 상황표 — 자료 없음/요청됨/수집 중/수집 실패·제외, 자료 있음 + new·기간 지남·오래됨·다시 요청, 칩은 최대 4개', function () {
+  const chips = function (h) { return (h.match(/class="wf-badge/g) || []).length; };
+  const R = function (c) { return { status_cd: c }; };
+  const UNK = '<span class="pop-unk">자료 없음</span>';
+  assert.strictEqual(plans.stateChipsHtml(null), UNK);
+  assert.strictEqual(plans.stateChipsHtml(null, R('REQUESTED')), '<span class="wf-badge cr-st gap" data-st="REQUESTED">사업계획 요청됨</span>');
+  assert.strictEqual(plans.stateChipsHtml(null, R('RUNNING')), '<span class="wf-badge cr-st pp-neutral" data-st="RUNNING">사업계획 수집 중</span>');
+  assert.strictEqual(plans.stateChipsHtml(null, R('APPLIED')), UNK);   // 닫힌 상태는 열린 요청이 아니다
+  assert.strictEqual(plans.stateChipsHtml(null, null, R('FAILED')), UNK + ' <span class="wf-badge cr-st none" data-st="FAILED">수집 실패</span>');
+  assert.strictEqual(plans.stateChipsHtml(null, null, R('EXCLUDED')), UNK + ' <span class="wf-badge pp-cancel" data-st="EXCLUDED">수집 제외</span>');
+  assert.strictEqual(plans.stateChipsHtml(null, null, R('CANCELED')), UNK);   // 실패·제외만
+  assert.strictEqual(plans.stateChipsHtml(null, R('REQUESTED'), R('FAILED')).indexOf('FAILED'), -1);   // 열린 요청이 있으면 닫힌 상태는 숨는다
+  const one = plans.stateChipsHtml({ item_count: 2, period_ended: false, stale: false });
+  assert.strictEqual(one, '<span class="wf-badge pp-neutral">사업계획 <span class="v">2</span>건</span>');   // 숫자는 mono(.v)
+  const all = plans.stateChipsHtml({ item_count: 2, period_ended: true, stale: true });
   assert.ok(idx(all, '사업계획 ') < idx(all, '기간 지남') && idx(all, '기간 지남') < idx(all, '오래됨'));
-  assert.ok(all.indexOf('wf-badge pp-cancel">기간 지남') >= 0 && all.indexOf('wf-badge gap">오래됨') >= 0);
-  assert.strictEqual((all.match(/class="wf-badge/g) || []).length, 3);
+  assert.ok(all.indexOf('wf-badge pp-cancel">기간 지남') >= 0 && all.indexOf('wf-badge cr-st gap">오래됨') >= 0);   // 오래됨도 cr-st(P2-2, 대비 6.15:1)
+  assert.strictEqual(chips(all), 3);
+  const AP = { institution_id: 'a', closed_at: '2026-11-19T01:00:00+09:00' };
+  const nw = plans.stateChipsHtml({ item_count: 2, stale: true }, null, null, AP);
+  assert.ok(nw.indexOf('<span class="wf-badge cr-st ok" data-st="NEW" title="수집 요청으로 2026-11-19에 들어온 자료입니다(7일간 표시).">') >= 0);
+  assert.ok(nw.indexOf('<span aria-hidden="true">new</span><span class="sr-only">새로 들어온 자료</span>') >= 0);
+  assert.ok(idx(nw, '사업계획 ') < idx(nw, 'data-st="NEW"') && nw.indexOf('오래됨') < 0);   // new 가 있으면 오래됨은 뺀다
+  assert.ok(plans.stateChipsHtml({ item_count: 2 }, null, null, true).indexOf('title="수집 요청으로 들어온 자료입니다(7일간 표시)."') >= 0);
+  assert.strictEqual(plans.stateChipsHtml(null, null, null, AP), UNK);   // 자료가 없으면 new 도 없다
+  const re = plans.stateChipsHtml({ item_count: 2, stale: true }, R('REQUESTED'));
+  assert.ok(re.indexOf('data-st="REQUESTED">요청됨</span>') >= 0 && re.indexOf('오래됨') < 0 && re.indexOf('사업계획 요청됨') < 0);   // 다시 요청 중이면 짧은 글자, 오래됨 뺌
+  assert.ok(plans.stateChipsHtml({ item_count: 2 }, R('RUNNING')).indexOf('wf-badge cr-st pp-neutral" data-st="RUNNING">수집 중</span>') >= 0);
+  assert.ok(plans.stateChipsHtml({ item_count: 2 }, null, R('FAILED')).indexOf('data-st="FAILED">수집 실패</span>') >= 0);   // 요청 줄이 칩을 뺐으므로 첫 줄이 알린다
+  assert.strictEqual(chips(plans.stateChipsHtml({ item_count: 2, period_ended: true, stale: true }, null, R('FAILED'))), 4);
+  assert.strictEqual(chips(plans.stateChipsHtml({ item_count: 2, period_ended: true, stale: true }, R('REQUESTED'), null, AP)), 4);
+});
+
+// ── 상세: '사업계획' 절 ──
+test("detailHtml: '사업계획' 절은 자료 유무와 관계없이 있고(첫 줄 칩 → 설명·반입일 → 요청 줄), 제목 옆 칩은 없고, 문서 제목은 h4", function () {
+  const REQ = { institution_id: 'jongno', status_cd: 'REQUESTED', requester_count: 2, requested_by_me: false, first_requested_at: '2026-11-17T01:00:00+09:00' };
+  const can = { item: null, can: true, busy: '' };
+  const h = plans.detailHtml(view([doc()]), { name: '종로구', sub: '지자체 · 서울', req: can });
+  assert.ok(h.indexOf('<h2 id="pl-name" tabindex="-1">종로구</h2></div><p class="db-sub">지자체 · 서울</p>') >= 0);   // 제목 옆 칩 없음
+  assert.ok(h.indexOf('<section class="db-sec pl-sum" aria-labelledby="pl-sum-h"><h3 id="pl-sum-h">사업계획</h3><p class="pl-st">') >= 0);
+  assert.ok(idx(h, 'class="db-sub"') < idx(h, 'class="db-sec pl-sum"') && idx(h, 'class="pl-st"') < idx(h, 'pl-imp') &&
+    idx(h, 'pl-imp') < idx(h, 'class="pl-req"') && idx(h, 'class="pl-req"') < idx(h, 'class="pl-kwrow"'));   // 칩 → 반입일 → 요청 줄(절의 마지막) → 찾기
+  assert.strictEqual((h.match(/<h3/g) || []).length, 1);
+  assert.ok(h.indexOf('<h4 id="pl-d7">') >= 0 && h.indexOf('<h3 id="pl-d') < 0);   // 문서 제목은 한 단계 내림
+  const e = plans.detailHtml(view([], { import: null }), { name: '종로구', req: can });
+  assert.ok(e.indexOf('<p class="pl-st"><span class="pop-unk">자료 없음</span></p>') >= 0);
+  assert.ok(idx(e, 'class="pl-st"') < idx(e, 'class="db-empty"') && idx(e, 'class="db-empty"') < idx(e, 'class="pl-req"') && idx(e, 'class="pl-req"') < idx(e, '</section>'));
+  assert.ok(plans.detailHtml(view([], { import: null }), { name: '종로구' }).indexOf('class="db-sec pl-sum"') >= 0);   // 요청 현황이 없어도 절은 있다
+  const q = plans.detailHtml(view([doc({ stale: true })]), { name: '종로구', req: { item: REQ, can: true, busy: '', applied: null } });
+  assert.ok(idx(q, 'data-st="REQUESTED">요청됨</span>') >= 0 && idx(q, 'data-st="REQUESTED"') < idx(q, 'class="pl-req"') && q.indexOf('오래됨') < 0);
+  assert.strictEqual(q.slice(q.indexOf('class="pl-req"'), q.indexOf('class="pl-kwrow"')).indexOf('wf-badge'), -1);   // 요청 줄에는 칩이 없다(첫 줄에 있다)
+  const des = plans.detailHtml(view([doc()]), { name: '종로구', req: { item: null, can: false, busy: '', applied: { closed_at: '2026-11-19T01:00:00+09:00' } } });
+  assert.ok(des.indexOf('data-st="NEW"') >= 0 && des.indexOf('pl-req') < 0);   // 디자이너: 칩만, 요청 줄 없음
+  assert.ok(plans.detailHtml({ status: 'noid' }, { name: '번들구' }).indexOf('<h3 id="pl-sum-h">사업계획</h3><p class="pl-st"><span class="pop-unk">자료 없음</span></p><p class="db-empty">') >= 0);
 });
 
 test('rowHtml: 날짜·상태 배지(현황을 받은 뒤에만), 공고 진행 중 칩, 이스케이프', function () {
@@ -349,6 +407,33 @@ test('rowHtml: 날짜·상태 배지(현황을 받은 뒤에만), 공고 진행 
   const evil = dash.model([rec('<img onerror=1>', '11', 10, { institutionId: 'x1' })], TODAY);
   const eh = plans.rowHtml(plans.listRows(evil, '6', {}, null)[0], {});
   assert.ok(eh.indexOf('<img') < 0 && eh.indexOf('&lt;img') >= 0);
+});
+
+test('stateChipsHtml: new 가 있으면 그 뒤 재요청의 실패·제외 칩은 내지 않는다, renderList 는 수집 현황을 받는 동안 빈 자리·실패 칩은 요청 가능한 사람만', function () {
+  const AP = { closed_at: '2026-11-19T01:00:00+09:00' };
+  const h = plans.stateChipsHtml({ item_count: 2 }, null, { status_cd: 'EXCLUDED' }, AP);
+  assert.ok(h.indexOf('data-st="NEW"') >= 0 && h.indexOf('EXCLUDED') < 0);
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'plans.js'), 'utf8');
+  assert.ok(src.indexOf("const csWait = ok && CS.state === 'loading';") >= 0 && src.indexOf("loaded: ok && !csWait, pending: ST.state === 'loading' || csWait") >= 0);
+  assert.ok(src.indexOf('closed: cc.can ? (cc.closed || null) : null') >= 0);
+});
+
+test('rowHtml 3행: 2행(.meta)은 지역·날짜만, 상태 칩은 3행 .pl-st 한 곳, 받는 중은 빈 자리(aria-hidden), 연결 없음은 3행 없음, option 안에 버튼 없음', function () {
+  const m = sampleModel();
+  const rows = plans.listRows(m, '6', {}, plans.statusMap({ items: [{ institution_id: 'ga', item_count: 2, stale: true }] }));
+  const ga = plans.rowHtml(rows[1], { loaded: true, req: { status_cd: 'REQUESTED' } });
+  const parts = ga.split('<span class="pl-st">');
+  assert.strictEqual(parts.length, 2);
+  assert.ok(parts[0].indexOf('<span class="meta">') > 0 && parts[0].indexOf('wf-badge') < 0 && parts[0].indexOf('pop-unk') < 0);   // 2행에는 칩이 없다
+  assert.ok(parts[1].indexOf('사업계획 <span class="v">2</span>건') >= 0 && parts[1].indexOf('data-st="REQUESTED">요청됨</span>') >= 0 && parts[1].endsWith('</span></li>'));
+  assert.ok(ga.indexOf('<button') < 0);
+  const none = plans.rowHtml(rows[2], { loaded: true, closed: { status_cd: 'FAILED' } });   // 자료 없음 + 최근 실패(요청 가능한 사람만 받음)
+  assert.ok(none.indexOf('<span class="pop-unk">자료 없음</span> <span class="wf-badge cr-st none" data-st="FAILED">수집 실패</span></span></li>') >= 0);
+  assert.ok(plans.rowHtml(rows[1], { loaded: true, isNew: { closed_at: '2026-11-19T01:00:00+09:00' } }).indexOf('data-st="NEW"') >= 0);
+  const wait = plans.rowHtml(rows[1], { loaded: false, pending: true });
+  assert.ok(wait.endsWith('<span class="pl-st" aria-hidden="true"></span></li>') && wait.indexOf('사업계획') < 0);
+  const off = plans.rowHtml(rows[1], { loaded: false });
+  assert.ok(off.indexOf('pl-st') < 0 && off.endsWith('</span></li>'));
 });
 
 test('winHtml·statHtml: 기본 6개월, 상태 3종, 라디오 이름이 현황판(db-per)과 겹치지 않는다', function () {
@@ -560,7 +645,7 @@ test('checkNoteHtml: 0곳은 빈 문자열, 숫자는 mono, 30은 logic 상수, 
   assert.strictEqual(plans.checkNoteHtml(0, true), '');
   assert.strictEqual(plans.checkNoteHtml(undefined, true), '');
   const on = plans.checkNoteHtml(3, true);
-  assert.ok(on.indexOf('>결과 확인할 기관 <span class="v">3</span>곳은 목록에서 뺐습니다') > 0);
+  assert.ok(on.indexOf('>결과 확인할 <span class="v">3</span>곳은 뺐습니다') > 0);   // 338px 안에 한 줄(design 11-19 P2-1)
   assert.ok(on.indexOf('title="마감이 지났거나, 마감일 기록 없이 공고 후 ' + logic.NOTICE_UNKNOWN_OPEN_DAYS + '일이 지난 곳입니다."') > 0);   // 설명은 title — 바닥은 한 줄
   assert.strictEqual(plans.checkNoteHtml(3, true).split('</p>').length, 2);
   assert.ok(on.indexOf('id="pl-to-notice">입찰 공고 현황에서 보기</button>') > 0);

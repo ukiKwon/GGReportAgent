@@ -391,6 +391,53 @@ public class PlanCollectApiTest {
     }
 
     @Test
+    public void 수집_반입으로_닫힌_기관은_recent_applied에_보이고_사번없이_디자이너에게도_보인다() throws Exception {
+        ask(SALES);
+        importPlan();
+        MockHttpServletResponse r = call(get("/plan-collect/status"), SALES2);
+        assertEquals(200, r.getStatus());
+        JsonNode ra = find(body(r).path("recent_applied"), INST);
+        assertTrue("반입 직후 recent_applied 에 있다", ra != null);
+        assertFalse(ra.path("closed_at").isNull());
+        assertEquals("키는 institution_id·closed_at 뿐", 2, ra.size());
+        assertFalse("사번 없음", r.getContentAsString().contains(SALES));
+        JsonNode des = body(call(get("/plan-collect/status"), DESIGNER));
+        assertTrue("디자이너도 recent_applied 를 본다", find(des.path("recent_applied"), INST) != null);
+        assertTrue("디자이너 last_closed 는 빈 배열", des.path("last_closed").isArray() && des.path("last_closed").size() == 0);
+        assertEquals("재무부서는 status 자체가 403", 403, call(get("/plan-collect/status"), BUDGET).getStatus());
+    }
+
+    @Test
+    public void recent_applied는_7일_경계로_빠진다() throws Exception {
+        ask(SALES);
+        importPlan();
+        jdbc.update("UPDATE PLAN_COLLECT_REQ SET CLOSED_AT=? WHERE INSTITUTION_ID=? AND STATUS_CD='APPLIED'",
+                Times.iso(Instant.now().minus(Duration.ofDays(7)).plus(Duration.ofMinutes(1))), INST);
+        assertTrue("7일에서 1분 모자람 — 아직 있다",
+                find(body(call(get("/plan-collect/status"), SALES2)).path("recent_applied"), INST) != null);
+        jdbc.update("UPDATE PLAN_COLLECT_REQ SET CLOSED_AT=? WHERE INSTITUTION_ID=? AND STATUS_CD='APPLIED'",
+                Times.iso(Instant.now().minus(Duration.ofDays(8))), INST);
+        assertNull("8일 전 — 빠진다", find(body(call(get("/plan-collect/status"), SALES2)).path("recent_applied"), INST));
+        assertNull("디자이너도 같다", find(body(call(get("/plan-collect/status"), DESIGNER)).path("recent_applied"), INST));
+    }
+
+    @Test
+    public void 반입_뒤_다시_열린_요청이_있어도_recent_applied는_유지되고_실패_제외는_APPLIED를_가리지_않는다() throws Exception {
+        ask(SALES);
+        importPlan();
+        ask(SALES);
+        assertTrue("열린 요청이 있어도 7일 안 반입이면 보인다",
+                find(body(call(get("/plan-collect/status"), SALES2)).path("recent_applied"), INST) != null);
+        admin("/plan-collect/exclude", keysReason(key(), "이미 최신 자료 있음"), ADMIN);
+        JsonNode s = body(call(get("/plan-collect/status"), SALES2));
+        assertEquals("EXCLUDED", find(s.path("last_closed"), INST).path("status_cd").asText());
+        assertTrue("그래도 APPLIED 는 유지", find(s.path("recent_applied"), INST) != null);
+        int n = 0;
+        for (JsonNode x : s.path("recent_applied")) if (INST.equals(x.path("institution_id").asText())) n++;
+        assertEquals("기관별 1건", 1, n);
+    }
+
+    @Test
     public void 폼_전송은_415() throws Exception {
         assertEquals(415, call(post("/plan-collect/exclude").contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .content("reason=x"), ADMIN).getStatus());
