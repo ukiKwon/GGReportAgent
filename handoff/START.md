@@ -5,19 +5,20 @@
 ## 내일 11-20(금) 순서 (PM 11-19 16:2x, 묻지 않고 실행)
 0. **환경**: MySQL `C:\dev\mysql-start.cmd`, 8080(main 담당, `java -jar target/kgi-ggreport-web.war` — kgi-ggreport-web에서), `ListAgents`. 0f에 로그인 시안 B 커밋·`frontend/seduU9ayA` 정체 확인. JDK `C:\Users\superuser\AppData\Local\Programs\Eclipse Adoptium\jdk8u504-b01`, Maven `C:\Users\superuser\tools\apache-maven-3.9.16\bin`. 로컬 DB는 047·048·051까지 적용(손 적용 시 `--default-character-set=utf8mb4`).
 1. **W47**: req-review 캡처(8080 필요 — mvn보다 먼저) → `docs/요구사항 파악/index_2026-11-20.html`, `docs/pm_history/index.html` W47·에이전트별 정리·이번 주 질문(문안: `handoff/agents/pm/2026-11-19_1612_adfb8b4e.md` 7·8절) → 커밋.
-2. **99 4~5단계** 적용(설계 backend Opus 11-19 오후, `handoff/agents/backend-dev/`) → mvn → security → 커밋.
+2. **99 화면**(4~5단계 서버는 11-19 8f7451f로 끝): design-reviewer → frontend-dev → qa. 로컬 config/application.properties에 ggreport.minutes.enabled=true·require-verified=false 2줄(사용자).
 3. **100 S2(049)** 적용 → 사용자 049 로컬 적용 요청 → mvn → security → 커밋. PrepUiIds·PrepService는 fa 소유 — 필요한 diff는 fa에 요청.
 4. 0f 커밋 뒤: **⑥ 디자인 검토 화면 + 기관장 [Word 내려받기] 버튼**(design 규격 11-19 오후 → frontend → qa → design 대조 → design_history 장).
+4-1. 0d 서버 몫(11-19 저녁): 디자이너 기본 메뉴 scan·manage·tools, 재무팀 plan만(Menus.java 기본값·골든 /menus), 시험 계정 최디자이너→박디자이너(새 마이그레이션 052 UPDATE + 서버 시험 문자열 + 사용자 로컬 적용).
 5. 월: 95 부서 이름(fa·0f·05 커밋 뒤), 90 4단계, 100 S3(050, fa와 PrepService 협의)·S4, 97 lines_next·home_portal 감사(backend).
 
 ## 다시 알릴 것 (질문은 선택식, 답 받을 때까지 멈춤)
 - ⓐ 입찰 현황판 재유치/신규유치 태그 기준 확인(Q-17-49·58, 권장 '지금대로') — 98 실사용 요청과 함께.
-- 본문 요청: 89 금고 약정 업무 테스트, 56 수집 요청 실사용, 98 목표·관심 기관 실사용, 97 2·3단계 화면 확인(로그인·남색 머리 띠·Tab 테두리·지도 선택 테두리, 영업팀 시작화면 숫자 칸·유형 탭·태그·일정/결재 대기, 전산팀은 보기 전용), (버튼 붙은 뒤) 기관장 Word를 현업 Word로 열어 보기.
+- 본문 요청: 89 금고 약정 업무 테스트, 56 수집 요청 실사용, 98 목표·관심 기관 실사용, 97 화면 확인 순서 1~6(11-19 0f: ①로그인 시안 B ②김영업 시작화면 고정 탭·숫자 칸·1년/30일 두 칸·유형 탭·신규 확정 태그 ③제목 클릭 복귀·지도 파랑 3겹·지난 금고 선정일·F5 ④현황판 연 채 로그아웃→권전산 탭 2개·팝업 닫기만·도구줄 기관 추가/CSV 없음·수집 요청 됨 ⑤최디자이너 보기 전용 ⑥정예산 지도 시작), (버튼 붙은 뒤) 기관장 Word를 현업 Word로 열어 보기.
 - Q-16-19 옛 PC 주간 수집은 11-23(월) 09:00 실행 뒤.
 
 ## 미해결 이슈 상기 (세션 첫 답변에서 3~5줄)
 해소하면 이 목록과 NEXT 항목에서 지우고 done.md로. 정본 세부는 괄호 안 NEXT 번호.
-- **[운영 배포 순서]** DB 먼저(026·030~048·051) 서버 나중. Oracle 11g FETCH FIRST·IDENTITY 대체본(NEXT 9). hwplib 1.1.9 오프라인 반입. 외부 확인 동시 반입 잠금은 JVM 단위 — 운영 WAS 여러 대면 재검토. 회의록·디자인 검토는 운영 기본 꺼짐(설정 키).
+- **[운영 배포 순서]** DB 먼저(026·030~048·051) 서버 나중. Oracle 11g FETCH FIRST·IDENTITY 대체본(NEXT 9). hwplib 1.1.9 오프라인 반입. 외부 확인 동시 반입 잠금은 JVM 단위 — 운영 WAS 여러 대면 재검토. 회의록·디자인 검토는 운영 기본 꺼짐(설정 키). 회의록은 운영 켜기 전 multipart 임시 파일 처리 필수(security 11-19).
 - **[할인율 가짜 값]** 코드·문서 3.30% 임시 가림, 이사회 수익성 화면 숫자도 가짜(NEXT 37·66).
 - **[보안 수용]** X-Emp-No 자기신고(SSO 전, NEXT 35), 세 팀 /tasks 쓰기 무인증(R1, NEXT 35 하위), 클로바 텍스트는 사내 메일·지정 계정 수칙, 원격 저장소 공개 여부.
 - **[다른 PC 이전]** 옛 PC 로컬 DB 시험 행·주간 수집 예약 작업, git 이력 재작성(11-12) — 새로 clone.
