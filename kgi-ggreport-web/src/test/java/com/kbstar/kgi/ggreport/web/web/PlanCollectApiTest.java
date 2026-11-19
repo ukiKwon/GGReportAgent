@@ -408,17 +408,21 @@ public class PlanCollectApiTest {
     }
 
     @Test
-    public void recent_applied는_7일_경계로_빠진다() throws Exception {
+    public void recent_applied는_KST_날짜_기준_7일_경계로_빠진다() throws Exception {
         ask(SALES);
         importPlan();
+        // cutoff = (오늘 KST − 6일)의 KST 00:00 — 반입한 날을 포함해 7일
+        Instant cutoff = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(6).atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
         jdbc.update("UPDATE PLAN_COLLECT_REQ SET CLOSED_AT=? WHERE INSTITUTION_ID=? AND STATUS_CD='APPLIED'",
-                Times.iso(Instant.now().minus(Duration.ofDays(7)).plus(Duration.ofMinutes(1))), INST);
-        assertTrue("7일에서 1분 모자람 — 아직 있다",
+                Times.iso(cutoff.plus(Duration.ofMinutes(1))), INST);
+        assertTrue("cutoff + 1분 — 있다(영업부서)",
                 find(body(call(get("/plan-collect/status"), SALES2)).path("recent_applied"), INST) != null);
+        assertTrue("cutoff + 1분 — 있다(디자이너)",
+                find(body(call(get("/plan-collect/status"), DESIGNER)).path("recent_applied"), INST) != null);
         jdbc.update("UPDATE PLAN_COLLECT_REQ SET CLOSED_AT=? WHERE INSTITUTION_ID=? AND STATUS_CD='APPLIED'",
-                Times.iso(Instant.now().minus(Duration.ofDays(8))), INST);
-        assertNull("8일 전 — 빠진다", find(body(call(get("/plan-collect/status"), SALES2)).path("recent_applied"), INST));
-        assertNull("디자이너도 같다", find(body(call(get("/plan-collect/status"), DESIGNER)).path("recent_applied"), INST));
+                Times.iso(cutoff.minus(Duration.ofMinutes(1))), INST);
+        assertNull("cutoff − 1분 — 빠진다(영업부서)", find(body(call(get("/plan-collect/status"), SALES2)).path("recent_applied"), INST));
+        assertNull("cutoff − 1분 — 빠진다(디자이너)", find(body(call(get("/plan-collect/status"), DESIGNER)).path("recent_applied"), INST));
     }
 
     @Test

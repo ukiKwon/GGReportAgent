@@ -89,8 +89,8 @@ public class PlanCollectService {
     static final Duration RENOTIFY_GAP = Duration.ofMinutes(10);
     /** 화면 last_closed — 최근 30일 안에 실패·제외로 닫힌 요청만(수집·반입 주기가 월 단위, 사유 노출 기간 제한). */
     static final Duration LAST_CLOSED_WINDOW = Duration.ofDays(30);
-    /** 화면 recent_applied(목록 'new') — 최근 7일 안에 수집 반입으로 닫힌(APPLIED) 기관. 사번·이름·사유 없음(NEXT 56, 사용자 11-19). */
-    static final Duration RECENT_APPLIED_WINDOW = Duration.ofDays(7);
+    /** 화면 recent_applied(목록 'new') — 반입한 날(KST)을 포함해 7일. 사번·이름·사유 없음(NEXT 56, 사용자 11-19 날짜 기준). */
+    static final int RECENT_APPLIED_DAYS = 7;
     static final String TOO_SOON = "TOO_SOON";
     static final String RESULT_UNRECORDED = "RESULT_UNRECORDED";
     private static final Pattern KEY = Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
@@ -257,8 +257,10 @@ public class PlanCollectService {
         List<Map<String, Object>> lastClosed = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         // 한 번만 읽는다 — 요청 자격자는 30일(last_closed), 그 밖은 7일(recent_applied 만)
+        Instant now = Instant.now();
+        Instant cutoff = appliedCutoff(now);
         List<PlanCollectReq> recent = mapper.selectRecentClosed(
-                Times.iso(Instant.now().minus(canRequest ? LAST_CLOSED_WINDOW : RECENT_APPLIED_WINDOW)));
+                Times.iso(canRequest ? now.minus(LAST_CLOSED_WINDOW) : cutoff));
         for (PlanCollectReq r : recent) {
             String inst = r.getInstitutionId();
             if (!canRequest) break;   // 디자이너에게는 last_closed 를 비운다(security 11-17)
@@ -276,7 +278,7 @@ public class PlanCollectService {
         List<Map<String, Object>> recentApplied = new ArrayList<>();
         Set<String> appliedSeen = new HashSet<>();
         for (PlanCollectReq r : recent) {
-            if (!APPLIED.equals(r.getStatusCd()) || !within(r.getClosedAt(), RECENT_APPLIED_WINDOW)) continue;
+            if (!APPLIED.equals(r.getStatusCd()) || !notBefore(r.getClosedAt(), cutoff)) continue;
             if (!appliedSeen.add(r.getInstitutionId())) continue;   // REQ_SEQ 내림차순 — 첫 APPLIED 가 최신
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("institution_id", r.getInstitutionId());
@@ -634,6 +636,21 @@ public class PlanCollectService {
         if (iso == null) return false;
         try {
             return !OffsetDateTime.parse(iso).toInstant().isBefore(Instant.now().minus(gap));
+        } catch (DateTimeParseException e) {
+            return false;
+        }
+    }
+
+    /** recent_applied 기준 시각 — 오늘(KST) 날짜 − 6일의 KST 00:00. 반입한 날을 포함해 7일(NEXT 56, 사용자 11-19). */
+    static Instant appliedCutoff(Instant now) {
+        return now.atZone(SEOUL).toLocalDate().minusDays(RECENT_APPLIED_DAYS - 1).atStartOfDay(SEOUL).toInstant();
+    }
+
+    /** iso 시각이 cutoff 이후(같으면 포함)면 true. 비었거나 읽지 못하면 false. */
+    static boolean notBefore(String iso, Instant cutoff) {
+        if (iso == null) return false;
+        try {
+            return !OffsetDateTime.parse(iso).toInstant().isBefore(cutoff);
         } catch (DateTimeParseException e) {
             return false;
         }
