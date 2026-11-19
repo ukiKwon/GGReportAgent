@@ -3,6 +3,7 @@ package com.kbstar.kgi.ggreport.web.web;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.service.AccessLogService;
+import com.kbstar.kgi.ggreport.web.service.HeadRules;
 import com.kbstar.kgi.ggreport.web.service.PermissionService;
 import org.springframework.stereotype.Component;
 
@@ -55,6 +56,21 @@ public class MenuGuard {
         if (!permissions.canEditInstitution(actor.getEmpNo())) {
             deny(req, actor, 403, "no edit permission: "
                     + String.join("|", PermissionService.INSTITUTION_EDIT_MENUS));
+            throw new ApiException(403, "이 기능을 쓸 권한이 없습니다.");
+        }
+        return actor;
+    }
+
+    /**
+     * 기관 레코드 편집(PUT /institutions/{id}·POST /institutions/import) — 수정 권한 AND 영업 계열.
+     * 사용자 11-19: 전산팀·전산팀장은 시스템 전체 보기 전용 — 사용자별 예외(USER_MENU_PERMS map/regions can_edit)로도
+     * 기관 편집이 열리지 않게 공고 상태·금고 약정·목표 기관과 같은 이중 검사({@link HeadRules#isSales})를 건다.
+     */
+    public Actor requireInstitutionEditSales(HttpServletRequest req) {
+        Actor actor = requireInstitutionEdit(req);
+        SysUser u = users.selectByEmpNo(actor.getEmpNo());
+        if (u == null || !HeadRules.isSales(u.getRole())) {
+            deny(req, actor, 403, "institution edit: sales roles only");
             throw new ApiException(403, "이 기능을 쓸 권한이 없습니다.");
         }
         return actor;

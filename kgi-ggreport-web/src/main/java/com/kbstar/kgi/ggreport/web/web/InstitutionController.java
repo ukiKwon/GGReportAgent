@@ -111,7 +111,7 @@ public class InstitutionController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Institution create(@RequestBody InstitutionImportRow body, HttpServletRequest req) {
-        guard.requireInstitutionEdit(req);
+        guard.requireInstitutionEditSales(req);
         return institutionCommands.create(body);
     }
 
@@ -125,7 +125,7 @@ public class InstitutionController {
     @PutMapping("/{institutionId}")
     public Institution update(@PathVariable String institutionId,
                               @RequestBody InstitutionUpdateIn body, HttpServletRequest req) {
-        Actor actor = guard.requireInstitutionEdit(req);
+        Actor actor = guard.requireInstitutionEditSales(req);
         return institutionCommands.update(institutionId, body, actor, InstUiIds.of(req));
     }
 
@@ -138,7 +138,7 @@ public class InstitutionController {
      */
     @PostMapping("/import")
     public ImportResponse importCsv(@RequestParam("file") MultipartFile file, HttpServletRequest req) throws IOException {
-        Actor actor = guard.requireInstitutionEdit(req);
+        Actor actor = guard.requireInstitutionEditSales(req);
         List<String> ids;
         try {
             ids = institutionCommands.importCsv(file.getBytes(), actor);

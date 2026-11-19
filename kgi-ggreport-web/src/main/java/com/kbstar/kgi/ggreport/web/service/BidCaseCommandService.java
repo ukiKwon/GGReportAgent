@@ -206,7 +206,13 @@ public class BidCaseCommandService {
         if (bidCase == null) {
             throw ApiException.notFound("bid case not found");
         }
-        List<TaskSummary> summaries = tasks.selectSummaries(bidCaseId);
+        // 디자이너 작업 자리(TEAM='디자이너', NEXT 100 ⑥)가 열려 있어도 확정 판단은 세 팀(AUTHORING_TEAMS)만 본다.
+        List<TaskSummary> summaries = new ArrayList<TaskSummary>();
+        for (TaskSummary s : tasks.selectSummaries(bidCaseId)) {
+            if (Teams.AUTHORING_TEAMS.contains(s.getTeam())) {
+                summaries.add(s);
+            }
+        }
         if (summaries.size() != TEAM_COUNT || !allApproved(summaries)) {
             throw new ApiException(409, "not all tasks are 2차완료");
         }

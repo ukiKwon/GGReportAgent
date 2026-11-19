@@ -5,6 +5,7 @@ import com.kbstar.kgi.ggreport.web.dto.TaskContext;
 import com.kbstar.kgi.ggreport.web.dto.TaskFileEntry;
 import com.kbstar.kgi.ggreport.web.mapper.TaskMapper;
 import com.kbstar.kgi.ggreport.web.support.TaskFiles;
+import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.stereotype.Service;
 
@@ -41,6 +42,7 @@ public class TaskFileService {
     public TaskFileEntry save(String taskId, String actor, String filename, byte[] data) {
         TaskContext ctx = requireContext(taskId);
         requireOwner(ctx, actor);
+        requireEditable(ctx);
         tasks.claimAssigneeIfUnset(taskId, actor);
         try {
             return TaskFiles.save(properties.getOutputRoot(), ctx.getInstitutionName(),
@@ -88,6 +90,7 @@ public class TaskFileService {
     public void remove(String taskId, String actor, String name) {
         TaskContext ctx = requireContext(taskId);
         requireOwner(ctx, actor);
+        requireEditable(ctx);
         boolean removed;
         try {
             removed = TaskFiles.remove(properties.getOutputRoot(), ctx.getInstitutionName(),
@@ -106,6 +109,17 @@ public class TaskFileService {
             throw ApiException.notFound("task not found");
         }
         return ctx;
+    }
+
+    /**
+     * 디자이너 작업은 대기·작성중일 때만 파일을 바꿀 수 있다(051) — 의견을 받는 중(1차완료)이거나 부장께 올라간·확정된 뒤에는 검토 대상물이 바뀌면 안 된다.
+     * 409 {@code TASK_LOCKED}. 세 팀 작업에는 영향이 없다. ⚠️ 검사 뒤 디스크에 쓰는 순서라 완료 요청과 동시에 오면 한 건이 새어 들 수 있다(security L3, 권장 과제).
+     */
+    private static void requireEditable(TaskContext ctx) {
+        if (Teams.DESIGNER_TEAM.equals(ctx.getTeam()) && !Teams.isWorking(ctx.getStatus())) {
+            throw DesignReviewService.coded(409, "TASK_LOCKED",
+                    "의견을 받는 중이거나 확정된 작업은 파일을 바꿀 수 없습니다. 먼저 [다시 수정]을 눌러 주세요.");
+        }
     }
 
     /** 미배정이면 선점, 남의 것이면 403. {@code TaskCommandService} 와 같은 관행이다. */

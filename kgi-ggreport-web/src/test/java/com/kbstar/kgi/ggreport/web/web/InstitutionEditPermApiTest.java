@@ -89,11 +89,11 @@ public class InstitutionEditPermApiTest {
     }
 
     @Test
-    public void 영업_계열_네_역할은_기본으로_기관을_추가할_수_있다() throws Exception {
+    public void 영업_계열_세_역할은_기본으로_기관을_추가하고_디자이너는_막힌다() throws Exception {   // 11-19 사용자: 쓰기는 영업만(디자이너 기본값 보기)
         assertEquals(201, create(SALES, "영업팀원기관"));
         assertEquals(201, create("5047192", "영업팀장기관"));
         assertEquals(201, create("2674805", "영업부장기관"));      // regions 조회는 꺼져 있어도 map 으로 편집
-        assertEquals(201, create("7130526", "디자이너기관"));
+        assertEquals(403, create("7130526", "디자이너기관"));
     }
 
     @Test
@@ -144,9 +144,9 @@ public class InstitutionEditPermApiTest {
     }
 
     @Test
-    public void 비영업도_사용자_예외로_켜면_허용된다() throws Exception {
+    public void 비영업은_사용자_예외로_켜도_기관_편집이_막힌다() throws Exception {   // 11-19 사용자: 전산·예산 등 보기 전용
         userPerm(BUDGET, "regions", 1, 1);
-        assertEquals(201, create(BUDGET, "예외허용기관"));
+        assertEquals(403, create(BUDGET, "예외허용기관"));
     }
 
     @Test
@@ -185,7 +185,7 @@ public class InstitutionEditPermApiTest {
             int code = ((Number) r.get("STATUS_CODE")).intValue();
             if (code == 403 && IT.equals(r.get("EMP_NO"))) {
                 saw403 = true;
-                assertEquals("no edit permission: map|regions", detail);
+                assertTrue(detail, "no edit permission: map|regions".equals(detail) || "institution edit: sales roles only".equals(detail));
             }
             if (code == 401 && r.get("EMP_NO") == null) {
                 saw401 = true;

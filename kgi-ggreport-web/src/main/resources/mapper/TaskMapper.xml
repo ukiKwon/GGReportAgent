@@ -274,6 +274,11 @@
     UPDATE TASKS SET STATUS = #{status} WHERE TASK_ID = #{taskId}
   </update>
 
+  <!-- 조건부 갱신(051): 상태가 fromStatus 일 때만. 0행이면 서비스가 409 STATE_CHANGED. -->
+  <update id="updateStatusIf">
+    UPDATE TASKS SET STATUS = #{toStatus} WHERE TASK_ID = #{taskId} AND STATUS = #{fromStatus}
+  </update>
+
   <update id="updateStatusAndProgress">
     UPDATE TASKS SET STATUS = #{status}, PROGRESS_PCT = #{progressPct} WHERE TASK_ID = #{taskId}
   </update>

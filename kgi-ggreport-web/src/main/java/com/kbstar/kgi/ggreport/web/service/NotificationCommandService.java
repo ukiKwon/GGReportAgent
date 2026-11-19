@@ -20,6 +20,24 @@ public class NotificationCommandService {
     /** 사람이 만들 수 있는 유일한 종류. 나머지는 그래프만 만든다. */
     static final String NOTE_KIND = "쪽지";
 
+    /**
+     * 시스템 쪽지의 보낸 사람 예약값(NEXT 100 ⑥, security M3). 디자인 검토 흐름(DesignReviewService)이 보내는 쪽지의 sender 는 항상 이 값이고,
+     * 사람이 보내는 공개 경로({@link #send})는 이 이름을 400 으로 거절한다 — 아무나 시스템 쪽지를 위조하지 못하게.
+     */
+    public static final String SYSTEM_SENDER = "시스템";
+
+    /** 보낸 사람이 비었을 때 저장하는 값 — 시스템 쪽지(예약 이름)와 구분되는 비예약 표시(security N1). */
+    public static final String UNKNOWN_SENDER = "보낸 사람 미상";
+
+    /** NFKC 로 모양을 맞춘 뒤 공백·서식·제어 문자를 지운 값이 예약 이름이면 true — 전각 공백·분해형 한글 같은 위조를 같이 막는다(security N2). */
+    static boolean isReservedSender(String sender) {
+        if (sender == null) {
+            return false;
+        }
+        String folded = java.text.Normalizer.normalize(sender, java.text.Normalizer.Form.NFKC);
+        return SYSTEM_SENDER.equals(folded.replaceAll("[\\p{Z}\\p{Cf}\\p{Cc}\\s]+", ""));
+    }
+
     private final NotificationMapper notifications;
 
     public NotificationCommandService(NotificationMapper notifications) {
@@ -37,8 +55,14 @@ public class NotificationCommandService {
         if (body.getRecipient() == null || body.getRecipient().trim().isEmpty()) {
             throw ApiException.badRequest("recipient가 비어 있습니다");
         }
+        if (isReservedSender(body.getSender())) {
+            throw ApiException.badRequest("sender에 쓸 수 없는 이름입니다");
+        }
+        String sender = body.getSender() == null || java.text.Normalizer.normalize(body.getSender(), java.text.Normalizer.Form.NFKC)
+                .replaceAll("[\\p{Z}\\p{Cf}\\p{Cc}\\s]+", "").isEmpty()
+                ? UNKNOWN_SENDER : body.getSender();
         return create(body.getRecipient(), NOTE_KIND, body.getContent(),
-                body.getInstitutionId(), body.getTaskId(), null, null, body.getSender());
+                body.getInstitutionId(), body.getTaskId(), null, null, sender);
     }
 
     /**

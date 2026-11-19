@@ -8,7 +8,9 @@ import com.kbstar.kgi.ggreport.web.dto.TaskContext;
 import com.kbstar.kgi.ggreport.web.mapper.NotificationMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.mapper.TaskMapper;
+import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.Teams;
+import com.kbstar.kgi.ggreport.web.web.Actor;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,10 +35,13 @@ public class TaskCommandService {
     private final NotificationMapper notificationMapper;
     private final NotificationCommandService notifications;
     private final SysUserMapper users;
+    private final DesignReviewService design;
 
     public TaskCommandService(TaskMapper tasks, NotificationMapper notificationMapper,
-                              NotificationCommandService notifications, SysUserMapper users) {
+                              NotificationCommandService notifications, SysUserMapper users,
+                              DesignReviewService design) {
         this.users = users;
+        this.design = design;
         this.tasks = tasks;
         this.notificationMapper = notificationMapper;
         this.notifications = notifications;
@@ -56,6 +61,10 @@ public class TaskCommandService {
         String actor = actor(body.getBy(), userId);
         TaskContext ctx = requireContext(taskId);
         requireOwner(ctx.getAssignee(), actor, "only the assignee can modify this task");
+        // 디자이너 작업은 의견을 받는 중이거나 확정된 뒤에는 본문을 못 고친다(security L5). 담당 본인 확인은 컨트롤러(DesignGate)가 이미 했다.
+        if (Teams.DESIGNER_TEAM.equals(ctx.getTeam()) && !Teams.isWorking(ctx.getStatus())) {
+            throw DesignReviewService.coded(409, "TASK_LOCKED", "의견을 받는 중이거나 확정된 작업은 수정할 수 없습니다. 먼저 [다시 수정]을 눌러 주세요.");
+        }
 
         tasks.claimAssigneeIfUnset(taskId, actor);
         tasks.updateDraftContent(taskId, body.getContent());
@@ -77,6 +86,10 @@ public class TaskCommandService {
     public Task submit(String taskId, String by, String userId) {
         String actor = actor(by, userId);
         Task task = requireTask(taskId);
+        if (Teams.DESIGNER_TEAM.equals(task.getTeam())) {
+            // 디자이너 작업의 제출은 디자인 검토 흐름(DesignReviewService.complete — 회차 열기, 사람별 쪽지)이 한다. TaskController 가 위임하므로 여기까지 오지 않는다.
+            throw DesignReviewService.coded(409, "USE_DESIGN_FLOW", "디자이너 작업은 [디자인 작업 완료]로 제출합니다.");
+        }
         if (!actor.equals(task.getAssignee())) {
             throw new ApiException(403, "only the assignee can submit");
         }
@@ -94,15 +107,6 @@ public class TaskCommandService {
                             + " 작업물 제출 — 결재를 부탁드립니다.",
                     ctx.getInstitutionId(), taskId, null, ctx.getStage(), null);
         }
-        if (Teams.DESIGNER_TEAM.equals(ctx.getTeam())) {
-            List<String> recipients = notificationMapper.selectDistinctRecipients();
-            for (String team : Teams.AUTHORING_TEAMS) {
-                notifications.create(Teams.inboxName(team, recipients), "쪽지",
-                        ctx.getInstitutionName() + " 디자이너 작업물이 제출됐습니다"
-                                + " — 작업함에서 확인하세요.",
-                        ctx.getInstitutionId(), taskId, null, ctx.getStage(), null);
-            }
-        }
         return tasks.selectById(taskId);
     }
 
@@ -117,10 +121,26 @@ public class TaskCommandService {
      */
     @Transactional
     public Task approve(String taskId, TaskApprovalIn body, String userId, SysUser approver) {
+        return approve(taskId, body, userId, approver, Actor.claimed(approver.getEmpNo()), BoardUiIds.unknown());
+    }
+
+    /**
+     * 결재 + 디자이너 작업이면 디자인 검토 훅(회차 닫기·DSN_* 감사·사번 쪽지)까지(051). {@code empActor}·{@code ui} 는 감사용 자기신고 값이다.
+     *
+     * <p><b>트랜잭션의 첫 문장이 TASKS 행 잠금이다</b>(security M1) — 같은 작업의 의견·다시 수정·완료와 직렬화된다. 상태 전이는 조건부 갱신이라
+     * 그 사이 상태가 바뀌었으면 409 {@code STATE_CHANGED}. 디자이너 작업의 쪽지는 sender '시스템', 디자이너 앞은 사번으로 보낸다(M3·M4).
+     */
+    @Transactional
+    public Task approve(String taskId, TaskApprovalIn body, String userId, SysUser approver,
+                        Actor empActor, BoardUiIds.Ui ui) {
+        if (design.lockTask(taskId) == null) {
+            throw ApiException.notFound("task not found");
+        }
         String actor = (body.getBy() == null || body.getBy().trim().isEmpty())
                 && (userId == null || userId.trim().isEmpty())
                 ? approver.getName() : actor(body.getBy(), userId);   // 저장되는 표시명(골든 17·20·23 호환)
         Task task = requireTask(taskId);
+        boolean designer = Teams.DESIGNER_TEAM.equals(task.getTeam());
 
         boolean finalStage = isFinalStage(task);
         // 담당자가 그 작업의 팀장 본인이면 1차 결재는 영업부장이 한다(사용자 확정 2026-11-10).
@@ -143,17 +163,33 @@ public class TaskCommandService {
             throw new ApiException(409, "task not submitted yet");
         }
 
+        // 디자이너 최종 단계 돌려보내기는 사유가 필수다(새 규칙, 400 REASON_REQUIRED · 500자 · 개인정보 의심 422). 상태를 바꾸기 전에 검사한다.
+        // 영업팀장 1차 반려(디자이너 작업)도 같은 검사를 하되 빈 사유는 허용한다(security N3).
+        String designReason;
+        if (designer && !body.isApproved()) {
+            designReason = finalStage ? design.requireReturnReason(body.getComment())
+                    : design.optionalReturnReason(body.getComment());
+        } else {
+            designReason = trimOrNull(body.getComment());
+        }
+
         if (finalStage) {
             tasks.claimFinalApproverIfUnset(taskId, actor);
         } else {
             tasks.claimApproverIfUnset(taskId, actor);
         }
-        tasks.updateStatus(taskId, approvedStatus(body.isApproved(), finalStage));
+        if (tasks.updateStatusIf(taskId, task.getStatus(), approvedStatus(body.isApproved(), finalStage)) == 0) {
+            throw DesignReviewService.stateChanged();   // 그 사이 다른 요청이 상태를 바꿨다(조건부 갱신)
+        }
 
         TaskContext ctx = requireContext(taskId);
+        if (designer) {
+            // 회차 닫기·감사·반려 사유 쪽지(디자이너 앞 사번, sender '시스템')는 디자인 검토 서비스가 한다.
+            design.onApprove(task, ctx, finalStage, body.isApproved(), designReason, approver, empActor, ui);
+        }
         // 담당이 없는(미배정) 작업은 보낼 상대가 없으므로 조용히 넘어간다 —
         // 반려 자체는 유효하다.
-        if (!body.isApproved() && task.getAssignee() != null) {
+        if (!designer && !body.isApproved() && task.getAssignee() != null) {
             String reason = body.getComment() == null || body.getComment().trim().isEmpty()
                     ? "(사유 없음)" : body.getComment().trim();
             notifications.create(task.getAssignee(), "쪽지",
@@ -163,10 +199,10 @@ public class TaskCommandService {
         }
         // 영업팀장이 디자이너 최종본을 승인하면 **그 승인이 곧 상신**이다(사용자 확정).
         // 별도의 상신 버튼을 두면 승인해 놓고 안 올리는 상태가 생긴다.
-        if (body.isApproved() && !finalStage && Teams.DESIGNER_TEAM.equals(task.getTeam())) {
+        if (body.isApproved() && !finalStage && designer) {
             notifications.create(Teams.FINAL_APPROVER, "결재요청",
                     ctx.getInstitutionName() + " 디자이너 최종본 상신 — 최종 결재를 부탁드립니다.",
-                    ctx.getInstitutionId(), taskId, null, ctx.getStage(), actor);
+                    ctx.getInstitutionId(), taskId, null, ctx.getStage(), NotificationCommandService.SYSTEM_SENDER);
         }
         return tasks.selectById(taskId);
     }
@@ -265,6 +301,10 @@ public class TaskCommandService {
         if (assignee != null && !assignee.equals(actor)) {
             throw new ApiException(403, detail);
         }
+    }
+
+    private static String trimOrNull(String s) {
+        return s == null || s.trim().isEmpty() ? null : s.trim();
     }
 
     private Task requireTask(String taskId) {

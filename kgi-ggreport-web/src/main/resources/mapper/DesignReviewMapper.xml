@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- DESIGN_ROUND / DESIGN_ROUND_RECIP / DESIGN_COMMENT / DESIGN_ACK — 051. ANSI 문장(양쪽 방언 공통, databaseId 분기 없음).
+     ⚠️ 읽기는 모두 flushCache — 같은 트랜잭션 안에서 TASKS 잠금 뒤에 다시 읽어도 앞선 결과 캐시를 타지 않게(MySQL 은 잠금 뒤 첫 일반 읽기가 스냅숏 시점이다).
+     ⚠️ FOR UPDATE 문장(lockTask)은 집계·DISTINCT 와 함께 쓰지 않는다(Oracle 제약). 없는 키의 FOR UPDATE 는 쓰지 않는다(갭 잠금 교착 회피) — TASKS 행은 늘 있다. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.DesignReviewMapper">
+
+  <select id="lockTask" resultType="string" flushCache="true">
+    SELECT STATUS FROM TASKS WHERE TASK_ID = #{taskId} FOR UPDATE
+  </select>
+
+  <select id="selectMaxRound" resultType="int" flushCache="true">
+    SELECT COALESCE(MAX(ROUND_NO), 0) FROM DESIGN_ROUND WHERE TASK_ID = #{taskId}
+  </select>
+
+  <select id="selectRound" resultType="DesignRound" flushCache="true">
+    SELECT TASK_ID, ROUND_NO, BID_CASE_ID, OPENED_BY, OPENED_AT, RECIP_COUNT, CLOSED_AT, CLOSE_CD, CLOSED_BY
+      FROM DESIGN_ROUND
+     WHERE TASK_ID = #{taskId} AND ROUND_NO = #{roundNo}
+  </select>
+
+  <insert id="insertRound">
+    INSERT INTO DESIGN_ROUND (TASK_ID, ROUND_NO, BID_CASE_ID, OPENED_BY, OPENED_VERIFIED, OPENED_AT, RECIP_COUNT)
+    VALUES (#{taskId}, #{roundNo}, #{bidCaseId}, #{openedBy}, #{verified}, #{openedAt}, #{recipCount})
+  </insert>
+
+  <update id="closeRound">
+    UPDATE DESIGN_ROUND
+       SET CLOSED_AT = #{closedAt}, CLOSE_CD = #{closeCd}, CLOSED_BY = #{closedBy}
+     WHERE TASK_ID = #{taskId} AND ROUND_NO = #{roundNo} AND CLOSED_AT IS NULL
+  </update>
+
+  <insert id="insertRecipient">
+    INSERT INTO DESIGN_ROUND_RECIP (TASK_ID, ROUND_NO, EMP_NO, REASON_CD, NOTIFICATION_ID)
+    VALUES (#{taskId}, #{roundNo}, #{empNo}, #{reasonCd}, #{notificationId})
+  </insert>
+
+  <select id="countRecipient" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM DESIGN_ROUND_RECIP
+     WHERE TASK_ID = #{taskId} AND ROUND_NO = #{roundNo} AND EMP_NO = #{empNo}
+  </select>
+
+  <select id="countRecipientAny" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM DESIGN_ROUND_RECIP WHERE TASK_ID = #{taskId} AND EMP_NO = #{empNo}
+  </select>
+
+  <select id="countComments" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM DESIGN_COMMENT
+     WHERE TASK_ID = #{taskId} AND ROUND_NO = #{roundNo} AND EMP_NO = #{empNo}
+  </select>
+
+  <insert id="insertComment">
+    INSERT INTO DESIGN_COMMENT (TASK_ID, ROUND_NO, EMP_NO, SEQ_NO, BODY, EMP_VERIFIED, CREATED_AT)
+    VALUES (#{taskId}, #{roundNo}, #{empNo}, #{seqNo}, #{body}, #{verified}, #{createdAt})
+  </insert>
+
+  <select id="countAck" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM DESIGN_ACK
+     WHERE TASK_ID = #{taskId} AND ROUND_NO = #{roundNo} AND EMP_NO = #{empNo}
+  </select>
+
+  <insert id="insertAck">
+    INSERT INTO DESIGN_ACK (TASK_ID, ROUND_NO, EMP_NO, EMP_VERIFIED, ACKED_AT)
+    VALUES (#{taskId}, #{roundNo}, #{empNo}, #{verified}, #{ackedAt})
+  </insert>
+
+  <select id="selectRounds" resultType="DesignRound" flushCache="true">
+    SELECT R.TASK_ID, R.ROUND_NO, R.BID_CASE_ID, R.OPENED_BY, U.NAME AS OPENED_BY_NAME, R.OPENED_AT, R.RECIP_COUNT,
+           R.CLOSED_AT, R.CLOSE_CD, R.CLOSED_BY
+      FROM DESIGN_ROUND R
+      LEFT JOIN USERS U ON U.EMP_NO = R.OPENED_BY
+     WHERE R.TASK_ID = #{taskId}
+     ORDER BY R.ROUND_NO
+  </select>
+
+  <select id="selectRecipients" resultType="DesignRecipient" flushCache="true">
+    SELECT P.ROUND_NO, P.EMP_NO, U.NAME, P.REASON_CD, A.ACKED_AT,
+           (SELECT COUNT(*) FROM DESIGN_COMMENT C
+             WHERE C.TASK_ID = P.TASK_ID AND C.ROUND_NO = P.ROUND_NO AND C.EMP_NO = P.EMP_NO) AS COMMENT_COUNT
+      FROM DESIGN_ROUND_RECIP P
+      LEFT JOIN USERS U ON U.EMP_NO = P.EMP_NO
+      LEFT JOIN DESIGN_ACK A ON A.TASK_ID = P.TASK_ID AND A.ROUND_NO = P.ROUND_NO AND A.EMP_NO = P.EMP_NO
+     WHERE P.TASK_ID = #{taskId}
+     ORDER BY P.ROUND_NO, U.NAME, P.EMP_NO
+  </select>
+
+  <select id="selectComments" resultType="DesignComment" flushCache="true">
+    SELECT C.ROUND_NO, C.EMP_NO, U.NAME, C.SEQ_NO, C.BODY, C.CREATED_AT
+      FROM DESIGN_COMMENT C
+      LEFT JOIN USERS U ON U.EMP_NO = C.EMP_NO
+     WHERE C.TASK_ID = #{taskId}
+     ORDER BY C.ROUND_NO, C.CREATED_AT, C.EMP_NO, C.SEQ_NO
+  </select>
+
+  <select id="selectReady" resultType="DesignReadyCase" flushCache="true">
+    SELECT B.BID_CASE_ID, B.INSTITUTION_ID, I.NAME_KO AS INSTITUTION_NAME
+      FROM BID_CASES B
+      JOIN INSTITUTIONS I ON I.INSTITUTION_ID = B.INSTITUTION_ID
+     WHERE (SELECT COUNT(*) FROM TASKS T
+             WHERE T.BID_CASE_ID = B.BID_CASE_ID AND T.STATUS = #{approvedStatus}
+               AND T.TEAM IN
+    <foreach collection="teams" item="t" open="(" separator="," close=")">#{t}</foreach>
+           ) = #{teamCount}
+       AND NOT EXISTS (SELECT 1 FROM TASKS D WHERE D.BID_CASE_ID = B.BID_CASE_ID AND D.TEAM = #{designerTeam})
+     ORDER BY I.NAME_KO, B.BID_CASE_ID
+  </select>
+</mapper>

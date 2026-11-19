@@ -135,6 +135,14 @@ public interface TaskMapper {
      */
     int updateStatus(@Param("taskId") String taskId, @Param("status") String status);
 
+    /**
+     * 조건부 상태 변경 — 상태가 {@code fromStatus} 일 때만 {@code toStatus} 로 바꾼다(051, 디자인 검토 흐름).
+     * 0행이면 그 사이 다른 사람이 상태를 바꾼 것이다(호출부가 409 STATE_CHANGED). 행 잠금이 두 요청을 직렬화한다.
+     * 기존 {@link #updateStatus} 는 시험 도우미가 쓰므로 남긴다.
+     */
+    int updateStatusIf(@Param("taskId") String taskId, @Param("fromStatus") String fromStatus,
+                       @Param("toStatus") String toStatus);
+
     /** 출처: {@code orchestrator_recorder.py} — 자동 실행이 진행률까지 함께 쓴다. */
     int updateStatusAndProgress(@Param("taskId") String taskId,
                                 @Param("status") String status,

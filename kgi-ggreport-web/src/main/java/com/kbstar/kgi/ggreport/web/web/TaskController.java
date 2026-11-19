@@ -9,7 +9,9 @@ import com.kbstar.kgi.ggreport.web.domain.TaskDetail;
 import com.kbstar.kgi.ggreport.web.dto.HandoffResponse;
 import com.kbstar.kgi.ggreport.web.dto.TaskFileEntry;
 import com.kbstar.kgi.ggreport.web.dto.TaskListRow;
+import com.kbstar.kgi.ggreport.web.service.DesignReviewService;
 import com.kbstar.kgi.ggreport.web.service.HandoffService;
+import com.kbstar.kgi.ggreport.web.support.DesignUiIds;
 import com.kbstar.kgi.ggreport.web.service.TaskCommandService;
 import com.kbstar.kgi.ggreport.web.service.TaskFileService;
 import com.kbstar.kgi.ggreport.web.service.TaskQueryService;
@@ -61,9 +63,14 @@ public class TaskController {
     private final TaskFileService files;
     private final HandoffService handoffs;
     private final MenuGuard guard;
+    private final DesignGate gate;
+    private final DesignReviewService design;
 
     public TaskController(TaskQueryService tasks, TaskCommandService commands,
-                          TaskFileService files, HandoffService handoffs, MenuGuard guard) {
+                          TaskFileService files, HandoffService handoffs, MenuGuard guard,
+                          DesignGate gate, DesignReviewService design) {
+        this.gate = gate;
+        this.design = design;
         this.guard = guard;
         this.tasks = tasks;
         this.commands = commands;
@@ -113,8 +120,12 @@ public class TaskController {
     public TaskFileEntry upload(@PathVariable String taskId,
                                 @RequestParam("file") MultipartFile file,
                                 @RequestParam(name = "by", required = false) String by,
-                                @RequestHeader("X-User-Id") String userId) throws IOException {
-        return files.save(taskId, actor(by, userId), file.getOriginalFilename(), file.getBytes());
+                                @RequestHeader("X-User-Id") String userId,
+                                HttpServletRequest req) throws IOException {
+        // 디자이너 작업은 등록된 활성 디자이너 + 담당 본인만(security M2) — 서버가 정한 문자열이 by 를 대신한다. 세 팀 작업은 그대로.
+        String forced = gate.designerWriteActor(req, taskId);
+        return files.save(taskId, forced != null ? forced : actor(by, userId),
+                file.getOriginalFilename(), file.getBytes());
     }
 
     @GetMapping("/{taskId}/files")
@@ -153,8 +164,10 @@ public class TaskController {
     public void deleteFile(@PathVariable String taskId,
                            @PathVariable String name,
                            @RequestParam(name = "by", required = false) String by,
-                           @RequestHeader("X-User-Id") String userId) {
-        files.remove(taskId, actor(by, userId), name);
+                           @RequestHeader("X-User-Id") String userId,
+                           HttpServletRequest req) {
+        String forced = gate.designerWriteActor(req, taskId);   // 디자이너 작업만 신원 검사(M2)
+        files.remove(taskId, forced != null ? forced : actor(by, userId), name);
     }
 
     /**
@@ -171,7 +184,12 @@ public class TaskController {
     @PatchMapping("/{taskId}/draft")
     public Task draft(@PathVariable String taskId,
                       @RequestBody TaskDraftIn body,
-                      @RequestHeader("X-User-Id") String userId) {
+                      @RequestHeader("X-User-Id") String userId,
+                      HttpServletRequest req) {
+        String forced = gate.designerWriteActor(req, taskId);   // 디자이너 작업만 신원 검사(M2)
+        if (forced != null) {
+            body.setBy(forced);
+        }
         return commands.patchDraft(taskId, body, userId);
     }
 
@@ -182,7 +200,16 @@ public class TaskController {
     @PostMapping("/{taskId}/submit")
     public Task submit(@PathVariable String taskId,
                        @RequestBody(required = false) TaskActorIn body,
-                       @RequestHeader("X-User-Id") String userId) {
+                       @RequestHeader("X-User-Id") String userId,
+                       HttpServletRequest req) {
+        if (design.isDesignerTask(taskId)) {
+            // 디자이너 제출은 디자인 검토 흐름의 [디자인 작업 완료]로 위임한다(회차 열기·사람별 쪽지·DSN_COMPLETE 감사). 예전 화면도 이 경로로 들어온다.
+            // X-Emp-No 가 필수가 된다(401). 응답은 예전과 같은 Task 모양이다.
+            final String id = taskId;
+            gate.run(req, DesignReviewService.A_COMPLETE, DesignGate.key(taskId), null,
+                    (me, actor, ui) -> design.complete(me, actor, ui, id));
+            return design.taskOf(taskId);
+        }
         return commands.submit(taskId, body == null ? null : body.getBy(), userId);
     }
 
@@ -195,8 +222,9 @@ public class TaskController {
         // 401/403 은 MenuGuard 가(접근 이력 DENIED). 역할·본인 검사는 서비스가 결재 단계를 보고 한다.
         SysUser approver = guard.requireUser(req, "approvals");
         try {
-            return commands.approve(taskId, body, userId, approver);
+            return commands.approve(taskId, body, userId, approver, Actor.of(req), DesignUiIds.of(req));
         } catch (ApiException e) {
+            gate.auditApproveFailure(req, taskId, body.isApproved(), e);   // 디자이너 작업이면 DSN_* 실패 감사(세 팀 작업은 S6-c)
             if (e.getStatus() == 403) {
                 throw guard.denied(req, e);   // 역할·본인결재 403 도 DENIED 로 남긴다
             }
