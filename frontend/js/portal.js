@@ -42,7 +42,7 @@
       kbNone: '1년 안에 끝나는 국민은행 협약 없음', kbFirst: function (d) { return '가장 빠른 종료 ' + d; },
       otherNone: '1년 안에 끝나는 다른 은행 협약 없음', otherTop: function (b, n) { return b + ' ' + n + '곳 가장 많음'; },
       noBank: '등록된 금고 약정 없음', deniedInst: '기관 정보 열람 권한 없음', deniedAppr: '결재함 권한 없음', deniedAssign: '배정 목록 권한 없음',
-      apprDecide: '처리할 결재', apprMine: '올려서 대기 중', apprDecideNone: '처리할 결재 없음', apprMineNone: '대기 중인 상신 없음',
+      apprDecide: '처리할 결재', apprMine: '결재 대기 중', apprDecideNone: '처리할 결재 없음', apprMineNone: '결재 대기 중인 건 없음',
       partial: ' · 일부는 받지 못함' },
     errSrc: { bank: '금고 약정을', approvals: '결재 목록을', assign: '배정 목록을', notice: '공고 경과 판정 기록을' },
     errMsg: function (s) { return s + ' 불러오지 못했습니다. 서버 연결을 확인한 뒤 다시 불러오세요.'; },
@@ -55,7 +55,7 @@
     listFoot: '국민은행 목표 기관은 입찰 현황판에서 관리합니다.', listFootBtn: '입찰 현황판 열기',
     schedEmpty: function (d) { return d + '일 안에 공고나 접수 마감 일정이 없습니다.'; }, schedFootBtn: '입찰 공고 현황 열기',
     waitAllEmpty: '기다리는 결재나 확인할 일이 없습니다.', none: '없음',
-    grp: { appr: '처리할 결재', mine: '올려서 대기 중', judge: '공고 경과 판정', assign: '나에게 배정된 일' },
+    grp: { appr: '처리할 결재', mine: '내가 올린 결재', judge: '공고 경과 판정', assign: '나에게 배정된 일' },
     noApprovals: '결재함을 열 수 없습니다. 왼쪽 메뉴의 [결재함]에서 여세요.',
     noNotice: '입찰 공고 현황을 열 수 없습니다. 왼쪽 메뉴의 [입찰 공고 현황]에서 여세요.',
     noDash: '입찰 현황판을 열 수 없습니다. 왼쪽 메뉴에서 여세요.', noTasks: '작업함을 열 수 없습니다. 왼쪽 메뉴의 [작업함]에서 여세요.',
@@ -270,6 +270,35 @@
       return ((a.tag ? 1 : 0) - (b.tag ? 1 : 0)) || (a[k] < b[k] ? -1 : (a[k] > b[k] ? 1 : 0)) || ((a.est ? 1 : 0) - (b.est ? 1 : 0)) || nameCmp(a, b);
     });
   };
+  // 열 머리 정렬(11-19 저녁, 사용자 요청). 기본(S.sort 없음) = 위 임박순(태그 줄은 뒤). 사용자가 정렬하면 태그 줄도 순수 정렬로 섞는다.
+  // 두 상태 토글(오름 ↔ 내림), 기본으로 돌아가는 길은 [임박순으로] 단추. 값이 없는 줄(마감일 미확인·남은 날 —·은행 미등록)은 방향과 무관하게 맨 아래.
+  // 같은 값이면 날짜 → 확정 먼저 → 이름(방향은 주 열에만). ROW_MAX로 자르기 전에 부른다(호출 쪽 paintAll).
+  P.SORT_KEYS = ['stage', 'date', 'days', 'bank'];
+  P.SORT_LABEL = { stage: '단계', date: '날짜', days: '남은 날', bank: '현 금고 은행' };
+  const STAGE_RANK = { notice: 0, plan: 1, est: 2, kb: 3, other: 3 };   // 공고 중 → 공고 예정 → 추정 → 협약 종료(국민은행·다른 은행은 칩 글자가 같아 같은 순위)
+  function sortVal(r, key) {
+    if (key === 'stage') return Object.prototype.hasOwnProperty.call(STAGE_RANK, r.kind) ? STAGE_RANK[r.kind] : null;
+    if (key === 'date') return r.date ? r.sortDate : null;
+    if (key === 'days') return typeof r.days === 'number' ? r.days : null;
+    if (key === 'bank') return r.bank ? r.bank : null;
+    return null;
+  }
+  P.sortBy = function (rows, sort) {
+    if (!sort || P.SORT_KEYS.indexOf(sort.key) < 0) return rows;
+    const k = sort.key, sign = sort.dir === 'desc' ? -1 : 1;
+    return rows.slice().sort(function (a, b) {
+      const x = sortVal(a, k), y = sortVal(b, k);
+      if ((x === null) !== (y === null)) return x === null ? 1 : -1;
+      if (x !== null && x !== y) return (x < y ? -1 : 1) * sign;
+      return (a.sortDate < b.sortDate ? -1 : (a.sortDate > b.sortDate ? 1 : 0)) || ((a.est ? 1 : 0) - (b.est ? 1 : 0)) || nameCmp(a, b);
+    });
+  };
+  P.nextSort = function (cur, key) {
+    return cur && cur.key === key ? { key: key, dir: cur.dir === 'asc' ? 'desc' : 'asc' } : { key: key, dir: 'asc' };
+  };
+  P.sortText = function (sort) {
+    return sort && P.SORT_LABEL[sort.key] ? P.SORT_LABEL[sort.key] + ' ' + (sort.dir === 'desc' ? '내림차순' : '오름차순') : '임박순';
+  };
   // 오른쪽 일정 패널: 앞으로 SCHEDULE_DAYS일 안의 접수 마감·공고 예정(추정은 표지). 실제 날짜 순(추정도 자기 날짜), 태그 붙은 줄은 뒤.
   P.scheduleRows = function (rows) {
     return P.sortRows(rows.filter(function (r) {
@@ -294,6 +323,7 @@
   };
   // 규격 접근성 문구: 거르기를 켜면 '{이름} N곳으로 걸렀습니다', 풀면 '거르기를 풀었습니다. N곳', 유형 탭은 '{유형} N곳을 보여 줍니다.'
   P.liveText = function (f, n, month, total) {
+    if (f.kind === 'sort') return f.sort ? P.sortText(f.sort) + '으로 정렬했습니다. ' + n + '곳' : '임박순으로 돌아갔습니다. ' + n + '곳';
     if (f.kind === 'org') return (f.org === 'all' ? '전체 유형' : f.org) + ' ' + n + '곳을 보여 줍니다.';
     return f.mode === 'all' ? '거르기를 풀었습니다. ' + total + '곳' : P.MODE_LABEL(f.mode, month) + ' ' + n + '곳으로 걸렀습니다';
   };
@@ -389,13 +419,23 @@
     return '<tr class="pt-r"><th scope="row"><span class="pt-cell"><button type="button" class="pt-nm" data-pt-open="' + esc(r.key) + '"><span class="rg">' + esc(dash.regionName(r.region)) + '</span>' + esc(r.name) + '</button>' + tagChip(r) + '</span></th>' +
       '<td>' + chip(r.kind) + '</td><td class="dt' + (r.est ? ' est' : '') + '">' + date + '</td><td>' + when + '</td>' + bank + '</tr>';
   };
-  // o = { caption, mode, org, month, total }
+  // 열 머리: 정렬하는 열(단계·날짜·남은 날·현 금고 은행)은 <th> 안 버튼(.hb-sort 모양, 현황판 kbboard thHtml과 같은 마크업), 정렬된 열에만 aria-sort. 기관 열은 글자만.
+  const SORT_ICON = {
+    asc: '<svg viewBox="0 0 8 8" aria-hidden="true"><path d="M1.5 5L4 2.5 6.5 5"/></svg>',
+    desc: '<svg viewBox="0 0 8 8" aria-hidden="true"><path d="M1.5 3L4 5.5 6.5 3"/></svg>',
+    none: '<svg viewBox="0 0 8 8" aria-hidden="true"><path d="M1.5 3L4 1 6.5 3M1.5 5L4 7 6.5 5"/></svg>' };
+  function sortTh(key, sort) {
+    const on = !!sort && sort.key === key, dir = sort && sort.dir === 'desc' ? 'desc' : 'asc';
+    return '<th scope="col"' + (on ? ' aria-sort="' + (dir === 'desc' ? 'descending' : 'ascending') + '"' : '') + '><button type="button" class="hb-sort" data-pt-sort="' + key + '">' +
+      esc(P.SORT_LABEL[key]) + SORT_ICON[on ? dir : 'none'] + '</button></th>';
+  }
+  // o = { caption, mode, org, month, total, sort:{key,dir} }
   P.tableHtml = function (rows, o) {
     o = o || {};
     const shown = rows.slice(0, P.CFG.ROW_MAX), T = P.T;
     let h = '<table class="pt-tt"><caption class="sr-only">' + esc(o.caption || '') + '</caption>' +
       '<colgroup><col class="c-nm"><col class="c-stg"><col class="c-dt"><col class="c-dd"><col class="c-bank"></colgroup>' +
-      '<thead><tr><th scope="col">기관</th><th scope="col">단계</th><th scope="col">날짜</th><th scope="col">남은 날</th><th scope="col">현 금고 은행</th></tr></thead><tbody>';
+      '<thead><tr><th scope="col">기관</th>' + P.SORT_KEYS.map(function (k) { return sortTh(k, o.sort); }).join('') + '</tr></thead><tbody>';
     if (shown.length) h += shown.map(P.rowHtml).join('');
     else {
       const filtered = o.mode && o.mode !== 'all';
@@ -471,7 +511,8 @@
       '<section class="pt-band" id="pt-band" aria-labelledby="pt-band-h"></section>' +
       '<div id="pt-err"></div><p id="pt-live" class="sr-only" aria-live="polite"></p><p id="pt-flash" class="pt-none" role="status"></p>' +
       '<div class="pt-body"><section class="pt-pane pt-list" id="pt-list" aria-labelledby="pt-list-h">' +
-      '<div class="pt-ph"><span class="pt-span" aria-hidden="true">1년</span><h3 id="pt-list-h">기관별 입찰 일정</h3><span class="n" id="pt-ln"></span><span class="r">기관마다 가장 가까운 일 하나, 1년 안, 임박순</span></div>' +
+      '<div class="pt-ph"><span class="pt-span" aria-hidden="true">1년</span><h3 id="pt-list-h">기관별 입찰 일정</h3><span class="n" id="pt-ln"></span><span class="r" id="pt-lr">기관마다 가장 가까운 일 하나, 1년 안, ' + P.sortText(null) + '</span>' +
+      '<button type="button" class="pt-reset" id="pt-sort-reset" data-pt-sortreset="1" hidden>임박순으로</button></div>' +
       '<div class="pt-tabs" id="pt-tabs" role="tablist" aria-label="기관 유형"></div><div class="pt-filter" id="pt-filter" hidden></div>' +
       '<div class="pt-sc" id="pt-sc" role="tabpanel" tabindex="0"></div><div class="pt-tf" id="pt-ltf"></div></section>' +
       '<div class="pt-side"><section class="pt-pane cal" aria-labelledby="pt-cal-h"><div class="pt-ph"><span class="pt-span" aria-hidden="true">' + P.CFG.SCHEDULE_DAYS + '일</span><h3 id="pt-cal-h">날짜별 일정</h3><span class="n" id="pt-cn"></span><span class="r">앞으로 ' + P.CFG.SCHEDULE_DAYS + '일, 접수 마감·공고 예정</span></div>' +
@@ -495,7 +536,7 @@
 
   // ── DOM(app.js가 #pt-root를 넘겨 부른다) ─────────────────────────────
   let host = null, ac = null, offNr = null;
-  const S = { seq: 0, src: {}, mode: 'all', org: 'all', v: null, recs: {}, errSig: '' };
+  const S = { seq: 0, src: {}, mode: 'all', org: 'all', sort: null, v: null, recs: {}, errSig: '' };   // sort: null = 기본 임박순
   function $(id) { return host ? host.querySelector('#' + id) : null; }
   function role() { try { return (root.store.loadProfile().team || '').trim(); } catch (e) { return ''; } }
   function serverOn() { try { return !!(dash.util.serverMode() && dash.util.hasEmp()); } catch (e) { return false; } }
@@ -521,7 +562,7 @@
     const el = $(id);
     if (!el) return;
     const a = document.activeElement, own = !!(a && a.getAttribute && el.contains(a));
-    const attr = own ? ['data-pt-k', 'data-pt-t', 'data-pt-go', 'data-pt-unfilter', 'data-pt-open'].filter(function (k) { return a.getAttribute(k) !== null; })[0] || '' : '';
+    const attr = own ? ['data-pt-k', 'data-pt-t', 'data-pt-sort', 'data-pt-go', 'data-pt-unfilter', 'data-pt-open'].filter(function (k) { return a.getAttribute(k) !== null; })[0] || '' : '';
     const val = attr ? a.getAttribute(attr) : '', top = el.scrollTop;
     el.innerHTML = html;
     el.scrollTop = top;
@@ -542,7 +583,7 @@
     if (!host || !S.v) return;
     const v = S.v, month = v.today.getMonth() + 1, N = root.nav;
     if (S.org !== 'all' && v.types.indexOf(S.org) < 0) S.org = 'all';
-    const f = { mode: S.mode, org: S.org }, counts = P.counts(v.rows, f), shown = P.filterRows(v.rows, f);
+    const f = { mode: S.mode, org: S.org }, counts = P.counts(v.rows, f), shown = P.sortBy(P.filterRows(v.rows, f), S.sort);   // 정렬은 ROW_MAX로 자르기(tableHtml) 전에
     const asof = $('pt-asof'); if (asof) asof.textContent = P.asofText(new Date());
     const bankSt = (S.src.bank && S.src.bank.status) || 'offline';
     keep('pt-band', P.bandHtml(P.bandModel({ today: v.today, model: v.model, buckets: v.buckets, bankSt: bankSt, appr: v.appr, mode: S.mode })));
@@ -553,7 +594,9 @@
     if (fl) { fl.hidden = S.mode === 'all'; if (S.mode !== 'all') keep('pt-filter', P.filterHtml(S.mode, shown.length, month)); else fl.innerHTML = ''; }
     const ln = $('pt-ln'); if (ln) ln.textContent = shown.length + '곳';
     const sc = $('pt-sc'); if (sc) sc.setAttribute('aria-labelledby', 'pt-tab-' + P.tabIndex(v.types, S.org));
-    keep('pt-sc', P.tableHtml(shown, { caption: '기관별 입찰 일정, 임박순, ' + v.rows.length + '곳 중 ' + shown.length + '곳 보임', mode: S.mode, org: S.org, month: month, total: v.rows.length }));
+    const lr = $('pt-lr'); if (lr) lr.textContent = '기관마다 가장 가까운 일 하나, 1년 안, ' + P.sortText(S.sort);
+    const rb = $('pt-sort-reset'); if (rb) rb.hidden = !S.sort;
+    keep('pt-sc', P.tableHtml(shown, { caption: '기관별 입찰 일정, ' + P.sortText(S.sort) + ', ' + v.rows.length + '곳 중 ' + shown.length + '곳 보임', mode: S.mode, org: S.org, month: month, total: v.rows.length, sort: S.sort }));
     const linkBtn = function (go, label, id) { return canOpen(id) ? '<button type="button" class="link-btn" data-pt-go="' + go + '">' + esc(label) + '</button>' : ''; };
     const sched = P.scheduleRows(v.rows);
     const cn = $('pt-cn'); if (cn) cn.textContent = sched.length + '건';
@@ -577,6 +620,19 @@
     flash('');
     paintAll(); announce(org !== undefined && mode === undefined ? { kind: 'org' } : null);
     const b = $('pt-sc'); if (b) b.scrollTop = 0;
+  }
+
+  // 열 머리 누름 = 두 상태 토글(오름 ↔ 내림). 다시 그린 뒤 같은 머리 단추로 포커스를 되돌린다(keep). [임박순으로]는 기본 순서로, 포커스는 직전에 정렬하던 열 머리로.
+  function setSort(key, reset) {
+    const was = S.sort;
+    S.sort = reset ? null : P.nextSort(S.sort, key);
+    flash('');
+    paintAll(); announce({ kind: 'sort', sort: S.sort });
+    const b = $('pt-sc'); if (b) b.scrollTop = 0;
+    if (reset && was) {
+      const back = b && b.querySelector('[data-pt-sort="' + was.key + '"]');
+      if (back && back.focus) back.focus();
+    }
   }
 
   function startLoad() {
@@ -621,6 +677,10 @@
     if (!t || !t.closest) return;
     const open = t.closest('[data-pt-open]');
     if (open && host.contains(open)) { openRec(open); return; }
+    const so = t.closest('[data-pt-sort]');
+    if (so && host.contains(so)) { setSort(so.getAttribute('data-pt-sort')); return; }
+    const sr = t.closest('[data-pt-sortreset]');
+    if (sr && host.contains(sr)) { setSort('', true); return; }
     const k = t.closest('[data-pt-k]');
     if (k && host.contains(k)) {
       const id = k.getAttribute('data-pt-k');
@@ -668,7 +728,7 @@
   P.mount = function (el) {
     if (!el) return;
     if (host) P.unmount();
-    host = el; S.seq += 1; S.mode = 'all'; S.org = 'all'; S.errSig = '';
+    host = el; S.seq += 1; S.mode = 'all'; S.org = 'all'; S.sort = null; S.errSig = '';
     ac = typeof AbortController === 'function' ? new AbortController() : null;
     const opt = ac ? { signal: ac.signal } : undefined;
     host.innerHTML = P.skeletonHtml();
@@ -697,7 +757,7 @@
     S.seq += 1; startLoad(); recompute(); paintAll();
   };
   P.onProfileChange = function () {
-    S.seq += 1; S.src = {}; S.mode = 'all'; S.org = 'all'; S.errSig = '';
+    S.seq += 1; S.src = {}; S.mode = 'all'; S.org = 'all'; S.sort = null; S.errSig = '';
     if (host) { startLoad(); recompute(); paintAll(); }
   };
 

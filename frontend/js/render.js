@@ -934,7 +934,7 @@
   };
 
   // ── 지도 강조 덮개 층(규격 design-reviewer 2026-11-19_1011 6-B) ──
-  // 선택·포커스는 원래 면을 raise()하지 않고, g.sel-ring-layer에 같은 d의 fill:none 경로를 그린다. 선택은 edge(잉크 8)·under(흰 6)·over(포인트 파랑 3) 세 겹, 포커스는 under(잉크 6)·over(흰 2.5) 두 겹(사용자 11-19 '검정 말고', design 1428_aab03363 4절 안 1).
+  // 선택·포커스는 원래 면을 raise()하지 않고, g.sel-ring-layer에 같은 d의 fill:none 경로를 그린다. 선택은 under(흰 7)·over(포인트 파랑 3) 두 겹, 포커스는 under(잉크 6)·over(흰 2.5) 두 겹(사용자 11-19 '검정 말고', design 1428_aab03363 4절 안 1, 11-19 저녁 4-3에서 검정 바깥선 edge 삭제).
   // 여러 면(수원 4구)은 under를 전부 그린 뒤 over를 그려야 이웃 면의 over를 under가 덮지 않는다.
   render._ringLayer = function () {
     if (typeof d3 === 'undefined') return null;
@@ -949,7 +949,7 @@
   render._ringSelect = function (sel) {                    // sel = 선택된 면의 d3 선택
     const layer = render._ringLayer(); if (!layer || !sel || sel.empty()) return;
     const ds = []; sel.each(function () { const d = this.getAttribute('d'); if (d) ds.push(d); });
-    render._ringPaths(layer, 'sel', ds, ['edge', 'under', 'over']);   // 잉크 8 → 흰 6 → 포인트 파랑 3 (면 색 위 3:1)
+    render._ringPaths(layer, 'sel', ds, ['under', 'over']);   // 흰 7 → 포인트 파랑 3
   };
   render._ringFocus = function (el) {                      // 키보드 포커스일 때만(마우스 클릭 포커스는 :focus-visible이 아니다)
     render._ringBlur();

@@ -156,7 +156,9 @@ test('bandModel: 규격 문구·상태(0곳은 확인했고 없음, —는 확�
   assert.ok(s[3].title.indexOf('데려올 기회') === 0);
   assert.strictEqual(s[2].sub, '처리할 결재');
   assert.strictEqual(s[2].pressed, null);
-  assert.strictEqual(mk({ appr: { mode: 'mine', n: 0, status: 'ok' } })[2].sub, '대기 중인 상신 없음');
+  // 11-19 저녁 사용자 지정 + design 4-5: 내가 올린 쪽(mine)은 '결재 대기 중' / '결재 대기 중인 건 없음', 결재자 쪽(decide)은 '처리할 결재' 그대로
+  assert.strictEqual(mk({ appr: { mode: 'mine', n: 0, status: 'ok' } })[2].sub, '결재 대기 중인 건 없음');
+  assert.strictEqual(mk({ appr: { mode: 'mine', n: 2, status: 'ok' } })[2].sub, '결재 대기 중');
   assert.strictEqual(mk({ appr: { mode: 'decide', n: 0, status: 'ok' } })[2].sub, '처리할 결재 없음');
   assert.strictEqual(mk({ appr: { status: 'denied' } })[2].sub, '결재함 권한 없음');
   assert.strictEqual(mk({ appr: { status: 'error' } })[2].sub, '불러오지 못함');
@@ -195,6 +197,42 @@ test('표 정렬: 날짜 하나(추정은 그 달 1일), 같은 날이면 확정
   assert.strictEqual(rows[1].sortDate, '2026-12-01');
   assert.strictEqual(rows[1].est, true);
   assert.strictEqual(rows[2].tag, 'next');
+});
+
+test('열 머리 정렬(11-19 저녁): 네 열 오름·내림, 값 없는 줄은 방향과 무관하게 맨 아래, 같은 값은 날짜→확정→이름, 태그 줄도 섞는다, 기본(null)은 그대로', function () {
+  const a = row({ key: 'a', name: '가', kind: 'est', est: true, date: '2026-12-10', sortDate: '2026-12-01', days: 21, bank: '신한은행', tag: 'next' });
+  const b = row({ key: 'b', name: '나', kind: 'notice', date: '2026-11-25', sortDate: '2026-11-25', days: 6, bank: '국민은행' });
+  const c = row({ key: 'c', name: '다', kind: 'kb', date: '2027-03-01', sortDate: '2027-03-01', days: 102, bank: '국민은행' });
+  const d = row({ key: 'd', name: '라', kind: 'notice', date: '', sortDate: '9999-12-31', days: null, bank: '' });   // 마감일 미확인·남은 날 —·은행 미등록
+  const e = row({ key: 'e', name: '마', kind: 'plan', date: '2026-12-01', sortDate: '2026-12-01', days: 12, bank: '우리은행' });
+  const all = [a, b, c, d, e], ks = function (r) { return r.map(function (x) { return x.key; }).join(''); };
+  assert.strictEqual(portal.sortBy(all, null), all);
+  assert.strictEqual(ks(portal.sortBy(all, { key: 'stage', dir: 'asc' })), 'bdeac');                 // 공고 중(나·라) → 공고 예정(마) → 추정(가) → 협약 종료(다), 같은 순위는 날짜(값 없음 9999) 뒤
+  assert.strictEqual(ks(portal.sortBy(all, { key: 'stage', dir: 'desc' })), 'caebd');                // 같은 순위(나·라)는 내림에서도 날짜 오름
+  assert.strictEqual(ks(portal.sortBy(all, { key: 'date', dir: 'asc' })), 'beacd');                  // 추정(가)은 그 달 1일 → 마와 같은 날이면 확정(마) 먼저, 값 없음(라)은 맨 아래
+  assert.strictEqual(ks(portal.sortBy(all, { key: 'date', dir: 'desc' })), 'ceabd');                 // 내림에서도 라는 맨 아래, 같은 날 순서(마→가)는 방향과 무관
+  assert.strictEqual(ks(portal.sortBy(all, { key: 'days', dir: 'asc' })), 'beacd');
+  assert.strictEqual(ks(portal.sortBy(all, { key: 'days', dir: 'desc' })), 'caebd');
+  assert.strictEqual(ks(portal.sortBy(all, { key: 'bank', dir: 'asc' })), 'bcaed');                  // 국민은행(나·다) → 신한 → 우리, 미등록(라)은 맨 아래
+  assert.strictEqual(ks(portal.sortBy(all, { key: 'bank', dir: 'desc' })), 'eabcd');                 // 내림차순에서도 미등록은 맨 아래
+  assert.strictEqual(portal.sortBy(all, { key: 'days', dir: 'asc' })[2].key, 'a');                   // 태그(가=next) 줄도 맨 뒤로 가지 않고 순수 정렬 순서에 섞인다
+  assert.deepStrictEqual(all.map(function (x) { return x.key; }), ['a', 'b', 'c', 'd', 'e']);        // 원본은 바꾸지 않는다
+  assert.strictEqual(portal.sortBy(all, { key: 'x', dir: 'asc' }), all);                             // 모르는 열은 그대로
+});
+test('nextSort 두 상태 토글·sortText·liveText(kind sort)', function () {
+  assert.deepStrictEqual(portal.nextSort(null, 'date'), { key: 'date', dir: 'asc' });
+  assert.deepStrictEqual(portal.nextSort({ key: 'date', dir: 'asc' }, 'date'), { key: 'date', dir: 'desc' });
+  assert.deepStrictEqual(portal.nextSort({ key: 'date', dir: 'desc' }, 'date'), { key: 'date', dir: 'asc' });   // 세 번째 누름은 다시 오름(기본으로 돌아가는 길은 [임박순으로])
+  assert.deepStrictEqual(portal.nextSort({ key: 'date', dir: 'desc' }, 'bank'), { key: 'bank', dir: 'asc' });
+  assert.strictEqual(portal.sortText(null), '임박순');
+  assert.strictEqual(portal.sortText({ key: 'days', dir: 'desc' }), '남은 날 내림차순');
+  assert.strictEqual(portal.liveText({ kind: 'sort', sort: { key: 'bank', dir: 'asc' } }, 7, 11, 9), '현 금고 은행 오름차순으로 정렬했습니다. 7곳');
+  assert.strictEqual(portal.liveText({ kind: 'sort', sort: null }, 7, 11, 9), '임박순으로 돌아갔습니다. 7곳');
+  const sk = portal.skeletonHtml();
+  assert.ok(sk.indexOf('id="pt-lr"') > 0 && sk.indexOf('id="pt-sort-reset"') > 0 && sk.indexOf('data-pt-sortreset="1" hidden>임박순으로</button>') > 0 && sk.indexOf('id="pt-live"') > 0);
+  const s = src('js/portal.js');
+  assert.ok(/P\.sortBy\(P\.filterRows\(v\.rows, f\), S\.sort\)/.test(s));                           // 정렬은 ROW_MAX로 자르기(tableHtml) 전에
+  assert.ok(/S\.sort = null; S\.errSig = ''/.test(s) && s.indexOf("'data-pt-sort'") > 0);           // 초기화·포커스 복원
 });
 
 test('표 한 기관 한 줄: 공고 중 > 공고 예정 > 협약 종료, 마감 지남·결과 확인은 제외, 마감일 미확인은 맨 뒤쪽', function () {
@@ -263,7 +301,13 @@ test('HTML: 이름·은행은 이스케이프, 단계 칩 모양, 날짜 표기(
   const e2 = portal.tableHtml([], { caption: 'c', mode: 'all', org: 'all', total: 0 });
   assert.ok(e2.indexOf('1년 안에 다가오는 입찰이 없습니다.') > 0 && e2.indexOf('[전국 지도]에서 봅니다') > 0);
   assert.ok(portal.tableHtml([], { mode: 'all', org: '법원', total: 5 }).indexOf('이 유형에는 해당하는 기관이 없습니다.') > 0);
-  assert.ok(e1.indexOf('<caption class="sr-only">c</caption>') > 0 && e1.indexOf('<th scope="col">현 금고 은행</th>') > 0);
+  assert.ok(e1.indexOf('<caption class="sr-only">c</caption>') > 0 && e1.indexOf('<th scope="col">기관</th>') > 0);
+  // 열 머리 정렬(11-19 저녁): 네 열은 .hb-sort 버튼, 정렬된 열에만 aria-sort, 기관 열은 글자만
+  assert.strictEqual((e1.match(/class="hb-sort" data-pt-sort="/g) || []).length, 4);
+  assert.ok(e1.indexOf('aria-sort') < 0 && e1.indexOf('data-pt-sort="bank">현 금고 은행<svg') > 0);
+  const sd = portal.tableHtml([], { caption: 'c', mode: 'all', org: 'all', total: 0, sort: { key: 'days', dir: 'desc' } });
+  assert.ok(sd.indexOf('<th scope="col" aria-sort="descending"><button type="button" class="hb-sort" data-pt-sort="days">남은 날') > 0 && (sd.match(/aria-sort/g) || []).length === 1);
+  assert.ok(portal.tableHtml([], { sort: { key: 'date', dir: 'asc' } }).indexOf('aria-sort="ascending"') > 0);
   const many = []; for (let i = 0; i < 205; i += 1) many.push(row({ key: 'x' + i }));
   assert.strictEqual((portal.tableHtml(many).match(/class="pt-r"/g) || []).length, 200);
 });
@@ -288,7 +332,7 @@ test('일정·대기 패널: 날짜 머리(오늘·요일)·칩, 묶음 3개는 
   const kept = portal.rowHtml(row({ tag: 'kept', nextBank: '국민은행' })), nxt = portal.rowHtml(row({ tag: 'next', nextBank: '농협은행' }));
   assert.ok(kept.indexOf('<span class="pt-cell"><button') > 0 && kept.indexOf('M1.5 5.3l2.4') > 0 && kept.indexOf('<span class="sr-only">, 다음 금고 은행 국민은행</span>') > 0);
   assert.ok(nxt.indexOf('M1.5 5.3l2.4') < 0 && nxt.indexOf('다음 금고 은행 농협은행') > 0);
-  assert.ok(portal.waitHtml({ appr: { mode: 'mine', n: 2, status: 'ok', items: [] }, judge: ok0, assign: ok0 }).indexOf('올려서 대기 중') > 0);
+  assert.ok(portal.waitHtml({ appr: { mode: 'mine', n: 2, status: 'ok', items: [] }, judge: ok0, assign: ok0 }).indexOf('내가 올린 결재') > 0);
   assert.strictEqual(portal.waitTotal({ appr: { n: 2, status: 'ok' }, judge: { status: 'ok', items: [1, 2, 3] }, assign: { status: 'error', items: [] } }), 5);
   const e = portal.errHtml(['bank', 'approvals']);
   assert.ok(e.indexOf('금고 약정을 불러오지 못했습니다. 서버 연결을 확인한 뒤 다시 불러오세요.') > 0 && e.indexOf('data-pt-retry="approvals"') > 0 && e.indexOf('다시 불러오기') > 0);
@@ -343,11 +387,45 @@ test('nav.homeItemId·expectsHome·isHomeRole: 대상 역할에 디자이너, �
   assert.strictEqual(home('디자이너'), nav.HOME_ID);
   assert.strictEqual(home('영업부장', { active: 'workflow' }), null);
   assert.strictEqual(home('전산팀'), nav.HOME_ID);   // 전산팀은 시작화면을 본다(보기 전용, 11-19)
-  assert.strictEqual(home('예산팀'), null);
+  assert.strictEqual(home('예산팀'), nav.BOARD_ID);   // 재무의 시작화면 = 이사회 자료 작성(11-19)
+  assert.strictEqual(home('예산팀장'), nav.BOARD_ID);
   assert.strictEqual(nav.expectsHome({ role: '디자이너' }, true), true);
   assert.strictEqual(nav.expectsHome({ role: '디자이너' }, false), false);
   assert.strictEqual(nav.expectsHome({ role: '영업팀', master: true }, true), false);
-  assert.strictEqual(nav.expectsHome({ role: '예산팀' }, true), false);
+  assert.strictEqual(nav.expectsHome({ role: '예산팀' }, true), true);          // 재무도 시작화면이 열리므로 overdue 팝업을 미룬다
+  assert.strictEqual(nav.expectsHome({ role: '예산팀장' }, false), true);       // 이사회 자료는 포털 본체가 필요 없다
+  assert.strictEqual(nav.expectsHome({ role: '예산팀', master: true }, true), false);
+});
+test('nav.homeIdFor·limitToRole·pinId(역할별 시작화면·기본 메뉴, 사용자 11-19)', function () {
+  assert.strictEqual(nav.homeIdFor({ role: '영업팀' }), nav.HOME_ID);
+  assert.strictEqual(nav.homeIdFor({ role: '전산팀장' }), nav.HOME_ID);
+  assert.strictEqual(nav.homeIdFor({ role: '디자이너' }), nav.HOME_ID);
+  assert.strictEqual(nav.homeIdFor({ role: '예산팀' }), 'soon:이사회 자료');
+  assert.strictEqual(nav.homeIdFor({ role: '예산팀장' }), nav.BOARD_ID);
+  assert.strictEqual(nav.homeIdFor({ role: '영업팀', master: true }), null);
+  assert.strictEqual(nav.homeIdFor({ role: '' }), null);
+  const ids = function (role) { return nav.limitToRole(nav.build(ALL_ON, { role: role }), { role: role }).map(function (c) { return c.id; }); };
+  assert.deepStrictEqual(ids('디자이너'), ['home', 'scan', 'manage', 'tools', 'sys']);
+  assert.deepStrictEqual(ids('예산팀'), ['plan', 'sys']);
+  assert.deepStrictEqual(ids('예산팀장'), ['plan', 'manage', 'sys']);
+  assert.deepStrictEqual(ids('영업팀'), nav.build(ALL_ON, { role: '영업팀' }).map(function (c) { return c.id; }));   // 영업·전산은 지금대로
+  assert.deepStrictEqual(ids('전산팀'), nav.build(ALL_ON, { role: '전산팀' }).map(function (c) { return c.id; }));
+  const m = nav.build(ALL_ON, { role: '디자이너', master: true });
+  assert.strictEqual(nav.limitToRole(m, { role: '디자이너', master: true }), m);   // 마스터는 제한 없음
+  // 재무는 시스템 관리도 서버 admin 키가 켠 경우에만 남는다
+  assert.ok(!nav.limitToRole(nav.build(Object.assign({}, ALL_ON, { admin: false }), { role: '예산팀' }), { role: '예산팀' }).some(function (c) { return c.id === 'sys'; }));
+  // 맨 앞 고정 탭(pinId): 생략 = 시작화면(기존 동작), 재무 = 이사회 자료, null = 없음
+  const board = { id: nav.BOARD_ID, label: '이사회 자료 작성' }, other = { id: 'workflow', label: '제안서 진행 현황' };
+  let r = nav.openTab([other], board, 'workflow', undefined, nav.BOARD_ID);
+  assert.deepStrictEqual(r.tabs.map(function (t) { return t.id; }), [nav.BOARD_ID, 'workflow']);
+  assert.deepStrictEqual(nav.closeTab(r.tabs, nav.BOARD_ID, nav.BOARD_ID, nav.BOARD_ID).tabs.map(function (t) { return t.id; }), [nav.BOARD_ID, 'workflow']);   // 닫을 수 없다
+  assert.deepStrictEqual(nav.closeTab(r.tabs, nav.BOARD_ID, nav.BOARD_ID).tabs.map(function (t) { return t.id; }), ['workflow']);                              // 인자 생략 = 시작화면만 고정
+  r = nav.openTab([other], board, 'workflow', undefined, null);
+  assert.deepStrictEqual(r.tabs.map(function (t) { return t.id; }), ['workflow', nav.BOARD_ID]);   // 마스터: 고정 없음, 뒤에 붙는다
+  // 고정 탭은 개수 제한에 세지 않는다
+  const nine = []; for (let i = 0; i < 10; i += 1) nine.push({ id: 'x' + i, label: 'x' + i });
+  assert.strictEqual(nav.openTab(nine, board, 'x0', 10, nav.BOARD_ID).full, false);
+  assert.strictEqual(nav.openTab(nine, board, 'x0', 10, null).full, true);
 });
 
 // ── 소스 규칙 ───────────────────────────────────────────────────────────
@@ -366,8 +444,13 @@ test('index.html: #pt-root 한 개, portal.js는 kbboard.js 뒤·app.js 앞, 새
 test('CSS(시작화면): 규격 9절 치수(띠 72·값 16/700·머리 40·행 40/36·칩), 새 hex는 #eef1f5와 국민은행 CI 대체값뿐, 12px 미만·opacity·블러 그림자·hover 이동 없음, 태그·탭 문법', function () {
   const c = cssBlock();
   // 허용 hex: #eef1f5(DESIGN 패널 머리 리터럴), #ffbc00(KB Yellow Positive)·#545045(KB Dark Gray)는 국민은행 CI(kbfg.com/kor/about/corporate/ci.htm, 사용자 11-19)이고
-  // var(--bk-kb*, 대체값)의 대체값으로만 쓴다. #1e2124는 기존 --fg 잉크 값(노랑 위 글자 대비 9.59). 그 밖의 새 hex는 금지.
-  assert.deepStrictEqual((c.match(/#[0-9a-fA-F]{3,8}\b/g) || []).filter(function (x, i, a) { return a.indexOf(x) === i; }).sort(), ['#1e2124', '#545045', '#eef1f5', '#ffbc00']);
+  // var(--bk-kb*, 대체값)의 대체값으로만 쓴다. #1e2124는 기존 --fg 잉크 값(노랑 위 글자 대비 9.59).
+  // #1d6f3a = :root --green 값(11-19 저녁 design 4-2 '신규 확정' 초록, 흰 바탕 글자 대비 약 6.2:1)이고 var(--green, #1d6f3a)의 대체값으로만 쓴다. 그 밖의 새 hex는 금지.
+  assert.deepStrictEqual((c.match(/#[0-9a-fA-F]{3,8}\b/g) || []).filter(function (x, i, a) { return a.indexOf(x) === i; }).sort(), ['#1d6f3a', '#1e2124', '#545045', '#eef1f5', '#ffbc00']);
+  assert.ok(/--green:#1d6f3a;/.test(src('index.html')));
+  assert.ok(/\.pt-chip\.tag\.won \{[^}]*color:var\(--green, #1d6f3a\);[^}]*border-color:var\(--green, #1d6f3a\);[^}]*12%[^}]*font-weight:700/.test(c));
+  assert.ok(/\.pt-chip\.tag\.next \{[^}]*color:var\(--fg\); border-color:color-mix\(in srgb, var\(--red\) 55%, var\(--line-strong\)\); font-weight:400/.test(c));
+  assert.ok(/forced-colors:active/.test(c));
   assert.ok(/\.pt-chip\.tag\.kept \{[^}]*background:var\(--bk-kb, #ffbc00\);[^}]*color:var\(--bk-kb-ink, #1e2124\);[^}]*border-color:var\(--bk-kb-edge, #545045\);[^}]*font-weight:700/.test(c));
   assert.ok(!/font-size\s*:\s*(9|10|11)px/.test(c) && !/font\s*:[^;}]*?(?<![\d.])(9|10|11)px/.test(c));
   assert.ok(!/opacity|backdrop-filter|transform\s*:\s*(translate|scale)/.test(c));
@@ -397,7 +480,7 @@ test('app.js 연결: showSoon 시작화면 분기(soon-plain 숨김은 별도 �
   assert.ok(/isBoard \|\| isTeam \|\| isPrep \|\| dashReady \|\| isPlans/.test(a) && !/dashReady \|\| isPlans \|\| homeReady/.test(a));   // plans.test.js:51 줄 보존
   assert.ok(/tab !== 'soon' && root\.portal && root\.portal\.unmount/.test(a));
   assert.ok(a.indexOf('root.portal.onProfileChange()') > 0 && a.indexOf('root.portal.refresh()') > 0);
-  assert.ok(/if \(!\(root\.portal && root\.portal\.mount\)\) \{ flushOverdue\(\); return; \}/.test(a));
+  assert.ok(/if \(homeId\(\) !== root\.nav\.BOARD_ID && !\(root\.portal && root\.portal\.mount\)\) \{ flushOverdue\(\); return; \}/.test(a));   // 재무(이사회 자료)는 포털 본체 가드 제외
   assert.ok(a.indexOf('root.nav.accordionOf(navBuilt, navActiveId)') > 0 && /return !c\.headOnly;/.test(a) && a.indexOf('nav-home') < 0);
 });
 
@@ -410,6 +493,14 @@ test('시작화면(11-19): 로그아웃·로그인 초기화, 복원 pending 보
   assert.ok(/view\.classList\.add\('hidden'\); pendingHome = true;/.test(a));                                    // 새로고침 복원
   assert.ok(/function applyHome\(settled\)/.test(a) && /settled === false\) \{ flushOverdue\(\); return; \}/.test(a));
   assert.ok(/app\.goHome = function/.test(a) && /getElementById\('app-home'\)/.test(a) && a.indexOf("'click', app.goHome") > 0);
+  // 제목 클릭(11-19): 이미 시작화면이어도 조기 return 없이 다시 연다(거르기·정렬·스크롤을 처음으로). 시작화면 id는 계정별(homeId), 고정 탭도 같은 id(pinId)
+  const gh = a.slice(a.indexOf('app.goHome = function'), a.indexOf('function closeNavTab'));
+  assert.ok(gh.indexOf('navActiveId') < 0 && gh.split('return;').length === 2);   // return은 '시작화면을 열고 끝' 한 곳뿐
+  assert.ok(/const hid = homeId\(\);/.test(gh) && /findNavItem\(hid\)/.test(gh) && /openNavItem\(item\)/.test(gh));
+  assert.ok(/function homeId\(\) \{ return root\.nav \? root\.nav\.homeIdFor\(navContext\(\)\) : null; \}/.test(a) && /function pinId\(\) \{ return homeId\(\); \}/.test(a));
+  assert.ok(a.indexOf('root.nav.openTab(navTabs, item, navActiveId, undefined, pinId())') > 0 && a.indexOf('root.nav.closeTab(navTabs, id, navActiveId, pinId())') > 0);
+  assert.ok(a.indexOf('root.nav.limitToRole(root.nav.build(visible, navContext()), navContext())') > 0);
+  assert.ok(a.indexOf('homeId() && navActiveId === homeId()') > 0 && a.indexOf('root.nav.HOME_ID) hb') < 0);
   assert.ok(/pin \? ' pin' : ''|class="stab pin/.test(a) && a.indexOf('시작화면 (닫을 수 없음)') > 0 && a.indexOf('고정 탭') > 0);
   assert.ok(/root\.dashboard\.onProfileChange\(\)/.test(a));
   // 기관 목록이 시작화면보다 늦게 오면 출처를 다시 불러온다(11-19 실측: 빠른 로그인에 '로그인과 서버 연결이 필요합니다'로 굳음)
@@ -421,7 +512,7 @@ test('시작화면(11-19): 로그아웃·로그인 초기화, 복원 pending 보
   assert.ok(sk.indexOf('<h3 id="pt-list-h">기관별 입찰 일정</h3>') > 0 && sk.indexOf('기관마다 가장 가까운 일 하나, 1년 안, 임박순') > 0);
   assert.ok(sk.indexOf('<h3 id="pt-cal-h">날짜별 일정</h3>') > 0 && sk.indexOf('앞으로 30일, 접수 마감·공고 예정') > 0 && sk.indexOf('id="pt-cn"') > 0);
   assert.ok(sk.indexOf('<span class="pt-span" aria-hidden="true">1년</span>') > 0 && sk.indexOf('<span class="pt-span" aria-hidden="true">30일</span>') > 0);
-  assert.ok(sk.indexOf('<h2 id="pt-title">시작화면</h2>') > 0 && p.indexOf("caption: '기관별 입찰 일정, 임박순, '") > 0);
+  assert.ok(sk.indexOf('<h2 id="pt-title">시작화면</h2>') > 0 && p.indexOf("caption: '기관별 입찰 일정, ' + P.sortText(S.sort) + ', '") > 0);
   assert.ok(/getElementById\('pt-cn'\)|\$\('pt-cn'\)/.test(p));
 });
 

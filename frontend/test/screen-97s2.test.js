@@ -85,7 +85,7 @@ test('머리 띠 제목 단추·고정 탭 CSS(11-19, design-reviewer 1428_aab03
   const c = css();
   assert.ok(/<h1><button type="button" id="app-home" class="brand-btn" aria-label="[^"]*시작화면으로 가기"[^>]*><svg/.test(html));
   assert.ok(/body > header \.brand-btn \{[^}]*cursor:pointer/.test(c) && /body > header \.brand-btn:hover \{ background:rgba\(255,255,255,\.14\); \}/.test(c));
-  assert.ok(/body > header \.brand-btn:focus-visible \{ outline:2px solid #fff;/.test(c) && /\.brand-btn\[aria-current="page"\] \{ cursor:default; \}/.test(c));
+  assert.ok(/body > header \.brand-btn:focus-visible \{ outline:2px solid #fff;/.test(c) && !/\.brand-btn\[aria-current="page"\] \{ cursor:default; \}/.test(c));   // 11-19 사용자: 시작화면에서도 눌리게(처음 상태로 다시 연다) — 손가락·hover 유지
   assert.ok(/\.stab\.pin \{[^}]*padding:7px 12px/.test(c) && /\.stab\.pin \+ \.stab \{ margin-left:5px; \}/.test(c));
   assert.ok(html.indexOf('class="nav-home"') < 0 && !/\.nav-home\b/.test(c));
   // 날짜 머리 = 장부 모양(grid, 오른쪽 D-n), 일정 줄은 24px 들여 쓴다, 기간 칩
@@ -93,15 +93,15 @@ test('머리 띠 제목 단추·고정 탭 CSS(11-19, design-reviewer 1428_aab03
   assert.ok(/\.pt-span \{[^}]*font:700 12px var\(--mono\)/.test(c));
 });
 
-test('지도 강조: 덮개 층 g.sel-ring-layer, raise() 없음, 선택 세 겹(잉크·흰·파랑, 사용자 11-19)·포커스 두 겹', function () {
+test('지도 강조: 덮개 층 g.sel-ring-layer, raise() 없음, 선택 두 겹(흰 7·파랑 3, 검정 바깥선 삭제 11-19 저녁)·포커스 두 겹', function () {
   assert.ok(!/\.raise\(\)/.test(renderSrc));
   ['sel-ring-layer', '_ringSelect', '_ringFocus', '_ringBlur'].forEach(function (k) { assert.ok(renderSrc.indexOf(k) > 0, k); });
   assert.ok(/clearSelection[\s\S]*?g\.sel-ring-layer path\.ring-sel[\s\S]*?\.remove\(\)/.test(renderSrc));
   assert.ok(/\.on\('focus'[\s\S]*?render\._ringFocus\(this\)[\s\S]*?\.on\('blur'[\s\S]*?render\._ringBlur\(\)/.test(renderSrc));
   const c = css();
-  assert.ok(/\.ring-sel\.edge \{[^}]*stroke:var\(--fg\); stroke-width:8;/.test(c) && /\.ring-sel\.under \{[^}]*stroke:#fff; stroke-width:6;/.test(c));
+  assert.ok(!/\.ring-sel\.edge/.test(c) && /\.ring-sel\.under \{[^}]*stroke:#fff; stroke-width:7;/.test(c));
   assert.ok(/\.ring-sel\.over \{[^}]*stroke:var\(--accent-color\); stroke-width:3;/.test(c));
-  assert.ok(renderSrc.indexOf("render._ringPaths(layer, 'sel', ds, ['edge', 'under', 'over'])") > 0 && renderSrc.indexOf("layer.insert('path', kind === 'sel' ? 'path.ring-focus' : null)") > 0);   // 포커스가 항상 맨 위
+  assert.ok(renderSrc.indexOf("render._ringPaths(layer, 'sel', ds, ['under', 'over'])") > 0 && renderSrc.indexOf("'edge'") < 0 && renderSrc.indexOf("layer.insert('path', kind === 'sel' ? 'path.ring-focus' : null)") > 0);   // 포커스가 항상 맨 위
   assert.ok(/\.ring-focus\.under \{[^}]*stroke:var\(--fg\); stroke-width:6;/.test(c));
   assert.ok(/\.ring-focus\.over \{[^}]*stroke:#fff; stroke-width:2\.5;/.test(c));
   assert.ok(/@keyframes muni-blink \{[^}]*stroke-width:3;[^}]*\}[^}]*stroke-width:4;/.test(c) && !/stroke-opacity:\.30/.test(c));

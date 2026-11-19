@@ -30,7 +30,7 @@
     acct('sales.member', '3918264', '김영업', '영업팀', roles.MEMBER),
     acct('sales.lead', '5047192', '이영업', '영업팀', roles.LEAD),
     acct('sales.head', '2674805', '박영업', '영업팀', roles.HEAD),
-    acct('designer', '7130526', '최디자이너', '영업팀', roles.DESIGNER),
+    acct('designer', '7130526', '박디자이너', '영업팀', roles.DESIGNER),
     acct('it.member', '4482971', '권전산', '전산팀', roles.MEMBER),
     acct('it.lead', '6295038', '오전산', '전산팀', roles.LEAD),
     acct('budget.member', '1857403', '정예산', '예산팀', roles.MEMBER),

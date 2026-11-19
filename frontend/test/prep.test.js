@@ -68,8 +68,9 @@ test('nav.homeItemId(시작화면): 영업 계열·디자이너·전산팀 + 지
   assert.strictEqual(home('영업팀', { active: null, tabs: [] }), nav.HOME_ID);
   // 전산팀·전산팀장은 시작화면을 본다(보기 전용, 사용자 11-19)
   ['전산팀', '전산팀장'].forEach(function (r) { assert.strictEqual(home(r), nav.HOME_ID, r); });
-  // 마스터·재무는 지금처럼 지도
-  ['예산팀', '예산팀장', ''].forEach(function (r) { assert.strictEqual(home(r), null, r); });
+  // 재무는 이사회 자료 작성이 시작화면(사용자 11-19), 역할 없음은 지금처럼 지도
+  ['예산팀', '예산팀장'].forEach(function (r) { assert.strictEqual(home(r), nav.BOARD_ID, r); });
+  assert.strictEqual(home(''), null);
   assert.strictEqual(home('영업팀', { master: true }), null);
   // 이미 다른 화면을 열었거나 탭을 연 뒤라면 건드리지 않는다
   assert.strictEqual(home('영업팀', { active: 'workflow' }), null);

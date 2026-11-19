@@ -18,6 +18,7 @@
           --accent-color:#0b50d0; --ripple-duration:2.2s;
           /* 은행 CI 예외(사용자 11-19), 출처 kbfg.com/kor/about/corporate/ci.htm — KB Yellow Positive / 잉크 / KB Dark Gray. 대비는 kbboard-1119.test.js가 지킨다 */
           --bk-kb:#FFBC00; --bk-kb-ink:#1e2124; --bk-kb-edge:#545045;
+          --green:#1d6f3a;   /* 11-19 저녁 design 4-2 — 신규 확정 태그(.pt-chip.tag.won) 전용, 흰 바탕 위 글자 대비 약 6.2:1(12% 틴트 위 약 5.3:1, 둘 다 4.5 이상 — 메인이 실측 확인) */
           --mono:Consolas,"Cascadia Mono","Malgun Gothic",monospace;
           --shadow:none;
           --r-lg:2px; --r:2px; --r-sm:2px;
@@ -64,13 +65,11 @@
   body > header .link-btn:hover { color:#ece6da; }
   body > header :focus-visible { outline-color:#fff; }
   /* 머리 띠 제목 = 시작화면으로 가는 단추(design-reviewer 11-19 1428_aab03363 5절). 밑줄 없음(링크 문법은 '로그아웃' 같은 동작용), hover = 흰 14%(머리 띠 단추와 같음), 포커스 = 흰 2px 링.
-     시작화면에 있을 때(aria-current=page)는 눌러도 갈 곳이 없으니 손가락 모양·hover를 끈다 */
+     시작화면에 있을 때도 누르면 시작화면을 처음 상태(거르기·정렬·스크롤)로 다시 연다 — 반응이 없으면 고장처럼 보인다(사용자 11-19). 그래서 손가락 모양·hover를 그대로 둔다 */
   body > header .brand-btn { all:unset; box-sizing:border-box; display:inline-flex; align-items:center; gap:9px; min-height:32px; padding:4px 8px; margin:-4px -8px;
                              border-radius:var(--r); cursor:pointer; font-size:16px; font-weight:700; letter-spacing:-.01em; color:#fff; transition:background .2s; }
   body > header .brand-btn:hover { background:rgba(255,255,255,.14); }
   body > header .brand-btn:focus-visible { outline:2px solid #fff; outline-offset:2px; }
-  body > header .brand-btn[aria-current="page"] { cursor:default; }
-  body > header .brand-btn[aria-current="page"]:hover { background:transparent; }
   @media (prefers-reduced-motion: reduce) { body > header .brand-btn { transition:none; } }
   .tabs { display:none; /* 좌측 사이드바가 대신한다. 버튼은 전환 로직이 쓰므로 DOM에 둔다 */ gap:2px; margin-left:auto; background:var(--panel);
           border:1px solid var(--line); border-radius:var(--r); padding:3px; }
@@ -858,11 +857,10 @@
                  animation: ripple var(--ripple-duration) ease-out infinite; pointer-events:none; }
   /* 선택·포커스 강조 = 면 층과 라벨 층 사이의 덮개 층(g.sel-ring-layer)에 같은 d의 fill:none 경로(선택 세 겹·포커스 두 겹).
      원래 면은 raise()하지 않는다(이웃 면·Tab 순서 보존). 잉크 바깥선이 어떤 면 색 위에서도 3:1 이상을 지키고, 선택은 그 안에 흰 띠 + 포인트 파랑 심(design 11-19 1428 4절 안 1).
-     선택 = 잉크 8(바깥선) + 흰 6 + 포인트 파랑 3(깜빡임 3↔4, 사용자 11-19 "검정 말고"). 포커스 = 잉크 6px 아래 + 흰 2.5px 위(선택의 반대). */
+     선택 = 흰 7 + 포인트 파랑 3(깜빡임 3↔4, 사용자 11-19 "검정 말고", 11-19 저녁 design 4-3: 검정 바깥선 삭제). 포커스 = 잉크 6px 아래 + 흰 2.5px 위(선택의 반대). */
   g.sel-ring-layer { pointer-events:none; }
   g.sel-ring-layer path { fill:none; stroke-linejoin:round; vector-effect:non-scaling-stroke; pointer-events:none; }
-  .ring-sel.edge { stroke:var(--fg); stroke-width:8; }
-  .ring-sel.under { stroke:#fff; stroke-width:6; }
+  .ring-sel.under { stroke:#fff; stroke-width:7; }
   .ring-sel.over { stroke:var(--accent-color); stroke-width:3; animation:muni-blink var(--ripple-duration) ease-in-out infinite; }
   .ring-focus.under { stroke:var(--fg); stroke-width:6; }
   .ring-focus.over { stroke:#fff; stroke-width:2.5; }
@@ -1406,6 +1404,20 @@
   .dm-box .db-head h2:focus, .dm-box .db-head h2:focus-visible { outline:none; }
   .dm-box .db-flash { padding:10px 24px 0; }
   .dm-box .db-state[role=alert] { margin:10px 24px 0; }
+  /* 11-19 저녁 design 4-4: 버튼을 머리 오른쪽으로. 머리 줄(.dm-bar 52px) = 제목 + [주버튼][편집][×], 그 아래 .dm-note(알림·이유·확정 확인 상자, 스크롤 안 됨), 본문만 스크롤. 현황판 안쪽 칸(.db-act)은 그대로 */
+  .dm-bar { flex:none; height:52px; display:flex; align-items:center; gap:12px; padding:0 12px 0 24px; background:var(--panel2); border-bottom:1px solid var(--line-strong); }
+  .dm-bar .db-head { flex:1 1 auto; min-width:0; }
+  .dm-bar .db-head h2 { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dm-btns { flex:none; display:flex; align-items:center; gap:8px; }
+  .dm-btns .db-next { padding:6px 14px; }
+  .dm-btns .dm-x { display:inline-flex; align-items:center; justify-content:center; width:32px; min-width:32px; height:32px; padding:0; }   /* 높이를 [편집]과 같게 — 높이를 안 주면 padding:0이라 14px로 납작해졌다(11-19 실측) */
+  .dm-x svg { width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:1.6; }
+  .dm-note { flex:none; }
+  .dm-box .db-flash:empty, #dm-act-note:empty { display:none; }
+  .dm-box .db-flash { padding:8px 24px; border-bottom:1px solid var(--line); }
+  .dm-note .dm-why { margin:0; padding:8px 24px; border-bottom:1px solid var(--line); }
+  .dm-note .dm-confirm { margin:12px 24px; }
+  .dm-box .db-sub { margin-top:0; }
   /* 지도 상세 팝업 끝 */
   #theme-modal label { display:flex; align-items:center; gap:8px; margin:8px 0; }
   #theme-modal input[type=color] { width:44px; height:26px; padding:0;
@@ -2048,7 +2060,7 @@
     .hb-tt tbody tr.hb-just > *, .hb-tt tbody tr.hb-just .hb-lane .off, .hb-tt tbody tr.hb-just .hb-lane .unk, .hb-tb [role=tab].hb-just { animation:none; background:color-mix(in srgb, var(--accent-color) 10%, var(--panel)); } }
   /* 국민은행 상태 현황판 끝 */
 
-  /* 시작화면(포털) 시작 — #tab-soon 안 #pt-root. 규격: design-reviewer 11-19 97 3단계(handoff/agents/history/2026-11-19_97-3_첫화면_포털_규격.md) + 11-19 피드백(1428_aab03363 5절). 새 변수 없음(#eef1f5는 DESIGN 패널 머리 리터럴, #ffbc00·#545045·#1e2124는 --bk-kb* 변수의 대체값 — 국민은행 CI) */
+  /* 시작화면(포털) 시작 — #tab-soon 안 #pt-root. 규격: design-reviewer 11-19 97 3단계(handoff/agents/history/2026-11-19_97-3_첫화면_포털_규격.md) + 11-19 피드백(1428_aab03363 5절) + 11-19 저녁(표 열 정렬·태그 색). 새 변수는 --green 한 개(:root, 신규 확정 태그 전용). #eef1f5는 DESIGN 패널 머리 리터럴, #ffbc00·#545045·#1e2124는 --bk-kb* 변수의 대체값(국민은행 CI), #1d6f3a는 --green의 대체값 */
   #pt-root { width:100%; flex:1 0 auto; display:flex; flex-direction:column; gap:12px; align-self:stretch; }
   .pt-top { display:flex; align-items:center; gap:10px; min-height:28px; }
   .pt-top h2 { margin:0; font-size:15px; font-weight:700; letter-spacing:-.01em; }
@@ -2086,20 +2098,27 @@
   .pt-filter button { margin-left:auto; font-size:12px; padding:2px 10px; }
 
   .pt-tt { width:100%; table-layout:fixed; border-collapse:separate; border-spacing:0; }
-  .pt-tt col.c-stg { width:112px; } .pt-tt col.c-dt { width:92px; } .pt-tt col.c-dd { width:76px; } .pt-tt col.c-bank { width:112px; }
+  /* 짧은 네 열은 비율 폭 + 가운데 정렬(11-19 저녁 design 4-1 안 A). table-layout:fixed 표에서 col의 max()가 안 먹어 % 폭만 쓴다 */
+  .pt-tt col.c-stg { width:16%; } .pt-tt col.c-dt { width:14%; } .pt-tt col.c-dd { width:11%; } .pt-tt col.c-bank { width:17%; }   /* 1280px 화면(표 약 640px)에서 '협약 종료'·'추정 공고' 칩이 잘리지 않게 단계 16%(11-19 실측) */
+  .pt-tt thead th:not(:first-child), .pt-tt tbody td { text-align:center; }
   .pt-tt thead th { position:sticky; top:0; z-index:1; height:40px; padding:0 10px; text-align:left; font-size:12px; font-weight:700; color:var(--muted); background:var(--panel); border-bottom:1px solid var(--line-strong); white-space:nowrap; }
   .pt-tt td, .pt-tt tbody th { height:40px; padding:0 10px; font-size:12px; font-weight:400; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .pt-tt tbody tr:hover > * { background:color-mix(in srgb, var(--accent-color) 6%, var(--panel)); }
   .pt-tt .pt-nm { all:unset; cursor:pointer; max-width:100%; overflow:hidden; text-overflow:ellipsis; font-size:13px; font-weight:700; color:var(--fg); border-radius:var(--r); }
   .pt-tt .pt-nm .rg { margin-right:6px; font-size:12px; font-weight:400; color:var(--muted); }
   .pt-tt .pt-nm:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
+  .pt-tt thead th .hb-sort { justify-content:center; }
+  .pt-tt th[aria-sort] .hb-sort { color:var(--fg); font-weight:700; }   /* 정렬된 열 강조 — .hb-tt 전용 규칙의 포털판(.hb-* 구간은 건드리지 않는다) */
+  .pt-tt th[aria-sort] .hb-sort svg { stroke:currentColor; }
+  .pt-reset { flex:none; margin-left:8px; font-size:12px; padding:2px 10px; }
+  .pt-reset[hidden] { display:none; }
   .pt-tt .dt { font-family:var(--mono); }
   .pt-tt .dt.est, .pt-tt .mut { color:var(--muted); }
   .pt-dd { font:700 12px var(--mono); color:var(--fg); }
   .pt-dd.hot { color:color-mix(in srgb, var(--red) 72%, var(--fg)); }
   .pt-dd.hot .gph { width:9px; height:9px; vertical-align:-1px; }
   .pt-bank.k { color:var(--fg); font-weight:700; }
-  .pt-tt tr.emp td { height:auto; padding:20px 16px; white-space:normal; }
+  .pt-tt tr.emp td { height:auto; padding:20px 16px; white-space:normal; text-align:left; }
   .pt-tt tr.emp:hover > * { background:transparent; }
 
   /* 단계·일정 종류 칩 — 색 없이 모양으로 */
@@ -2142,13 +2161,15 @@
   .pt-tab[aria-selected=true] { background:var(--panel); color:var(--fg); font-weight:700; box-shadow:inset 0 -2px 0 var(--accent-color); }
   .pt-tab:focus-visible { outline-offset:-2px; }
   .pt-tab b { font:400 12px var(--mono); color:var(--fg); }
-  /* 다음 금고 은행 태그 — 규격 .pt-chip 문법(1px, 새 색 없음, 모양으로 구분). 재유치 확정 = 굵은 --fg 테두리 + 6% 바탕, 차기 확정 = 굵은 테두리 + 왼쪽 4px, 신규 확정 = --line-strong 테두리, 입찰 끝남 = 테두리 없는 muted(.pt-chip.end와 같은 방식) */
-  /* 태그 강약 = 재유치 > 신규 > 차기 > 끝남(design 11-19 대조 6-③: 사용자 '재유치 확정을 눈에 잘 보이게'. 반전 칩은 경과 도장과 겹쳐 안 씀, 왼쪽 막대는 선택 문법이라 안 씀) */
+  /* 다음 금고 은행 태그 — .pt-chip 문법(1px 테두리, 모양+색으로 구분). 재유치 확정 = KB 옐로 채움, 신규 확정 = 초록 글자·테두리 + 12% 틴트 + ✓(굵게), 차기 확정 = 기본 글자 + 빨강 55% 섞은 테두리(굵지 않게), 입찰 끝남 = 테두리 없는 muted(.pt-chip.end와 같은 방식) */
+  /* 태그 강약 = 재유치 > 신규 > 차기 > 끝남(design 11-19 대조 6-③·11-19 저녁 4-2: 사용자 '신규 확정을 초록으로, 차기 확정은 빨강 기운으로'. 반전 칩은 경과 도장과 겹쳐 안 씀, 왼쪽 막대는 선택 문법이라 안 씀). 초록은 :root --green 한 개(새 변수 1개, 글자 대비 4.5 이상) */
   .pt-chip.tag { flex:none; margin-left:0; }
+  .pt-tt .pt-cell .pt-chip.tag { margin-left:auto; }   /* 표에서는 태그를 기관 칸 오른쪽 끝으로(이름은 왼쪽) */
   /* 재유치 확정 = KB 옐로 채움 칩(국민은행이 다음에도 금고인 곳 전용). 색은 fa 세션의 :root 변수(--bk-kb*)를 따르고 대체값은 국민은행 CI(kbfg.com/kor/about/corporate/ci.htm, 사용자 11-19) */
   .pt-chip.tag.kept { background:var(--bk-kb, #ffbc00); color:var(--bk-kb-ink, #1e2124); border-color:var(--bk-kb-edge, #545045); font-weight:700; }
-  .pt-chip.tag.won { border-color:var(--fg); font-weight:700; }
-  .pt-chip.tag.next { border-color:var(--line-strong); font-weight:400; }
+  .pt-chip.tag.won { color:var(--green, #1d6f3a); border-color:var(--green, #1d6f3a); background:color-mix(in srgb, var(--green, #1d6f3a) 12%, var(--panel)); font-weight:700; }
+  .pt-chip.tag.next { color:var(--fg); border-color:color-mix(in srgb, var(--red) 55%, var(--line-strong)); font-weight:400; }
+  @media (forced-colors:active) { .pt-chip.tag.won { color:CanvasText; border-color:Highlight; } .pt-chip.tag.next { border-color:CanvasText; } .pt-chip.tag.kept { border-color:CanvasText; } }
   .pt-chip.tag.ended { border-color:transparent; color:var(--muted); padding:0 2px; }
   .pt-chip.tag .gph { width:9px; height:9px; margin-right:3px; flex:none; }
   /* 표 이름 칸: 이름이 길어도 태그가 잘리지 않게(이름만 말줄임), 누르는 높이 24px */

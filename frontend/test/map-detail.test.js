@@ -43,6 +43,28 @@ test('paneHtml 옵션: 기본은 현황판 그대로(id=db-name), nameId·tailHt
   assert.ok(dash.actHtml(it, { act: 'unavailable', mapHtml: 'X' }).indexOf('서버에 연결되면 [제안 확정]을 쓸 수 있습니다.') >= 0);
 });
 
+test('popupHtml(11-19 저녁 4-4): 머리 줄 [주버튼][편집][×] 순서, 본문엔 .db-act 없음, 확인 상자는 note·그동안 [제안 확정] 비활성, 현황판 paneHtml은 그대로', function () {
+  const it = dash.itemForRec(rec('가람시청', '11', 40), TODAY);
+  const o = { act: 'confirm', role: '영업팀', today: TODAY, nameId: 'dm-name' };
+  const a = dash.popupHtml(it, o);
+  assert.ok(a.bar.indexOf('<div class="dm-bar">') === 0 && a.bar.indexOf('id="dm-name"') > 0);
+  assert.ok(a.bar.indexOf('id="db-cf"') < a.bar.indexOf('id="dm-edit"') && a.bar.indexOf('id="dm-edit"') < a.bar.indexOf('id="dm-close"'));   // 주버튼 → 편집 → ×
+  assert.ok(/id="dm-close" class="dm-x" aria-label="닫기"/.test(a.bar) && a.bar.indexOf('id="db-cf" disabled') < 0);
+  assert.ok(a.body.indexOf('db-act') < 0 && a.body.indexOf('id="dm-name"') < 0 && a.body.indexOf('<p class="db-sub">') > 0 && a.note === '');
+  const c = dash.popupHtml(it, Object.assign({}, o, { confirm: true }));
+  assert.ok(c.bar.indexOf('id="db-cf" disabled') > 0 && c.note.indexOf('id="dm-confirm"') > 0 && c.note.indexOf('id="db-do"') > 0 && c.note.indexOf('id="db-cancel"') > 0);
+  assert.ok(c.note.indexOf('id="db-cf"') < 0);   // 확인 상자 안에는 [제안 확정]이 없다(머리 줄에만)
+  const early = dash.popupHtml(it, Object.assign({}, o, { confirm: true, early: true }));
+  assert.ok(early.note.indexOf('db-confirm dm-confirm early') > 0 && early.note.indexOf('계속 진행') > 0);
+  const op = dash.popupHtml(it, { act: 'open', today: TODAY });
+  assert.ok(op.bar.indexOf('id="db-open"') < op.bar.indexOf('id="dm-edit"') && op.note.indexOf('이미 제안 확정되어 사전준비가 진행 중입니다.') > 0);
+  const ro = dash.popupHtml(it, { act: 'none', role: '디자이너', readOnly: true, today: TODAY });
+  assert.ok(ro.bar.indexOf('dm-edit') < 0 && ro.bar.indexOf('db-next') < 0 && ro.bar.indexOf('id="dm-close"') > 0);
+  assert.ok(dash.paneHtml(it, { act: 'confirm', today: TODAY }).indexOf('<div class="db-act"><div class="db-act-row"><button type="button" class="db-next" id="db-cf">제안 확정</button>') > 0);   // 현황판 안쪽 칸은 그대로
+  const s = read('js/dashboard.js');
+  assert.ok(/bar\.innerHTML = parts\.bar; nt\.innerHTML = parts\.note; pane\.innerHTML = parts\.body;/.test(s) && s.indexOf("m.el.querySelector('#db-do')") > 0);
+});
+
 test('핵심 절 동등성: 모달 상세 = 현황판 상세(제목 id만 다름)', function () {
   const it = dash.itemForRec(rec('가람시청', '11', 40, { lastBid: '2024-09-24', term: 4 }), TODAY);
   const a = dash.paneHtml(it, { act: 'confirm', today: TODAY });
@@ -86,7 +108,8 @@ test('openDetail: 오버레이를 body에 붙이고(dm-ov·dm-box role=dialog) �
     const ov = body.items[0];
     assert.ok(ov.className.indexOf('modal-overlay') >= 0 && ov.className.indexOf('dm-ov') >= 0);
     assert.ok(ov.innerHTML.indexOf('role="dialog" aria-modal="true" aria-labelledby="dm-name"') > 0);
-    assert.ok(ov.querySelector('#dm-pane').innerHTML.indexOf('가람시청') > 0);
+    assert.ok(ov.querySelector('#dm-bar').innerHTML.indexOf('가람시청') > 0 && ov.querySelector('#dm-pane').innerHTML.indexOf('db-pane-body') > 0);   // 제목은 머리 줄(11-19 저녁 4-4), 본문만 #dm-pane
+    assert.ok(ov.innerHTML.indexOf('id="dm-bar"') < ov.innerHTML.indexOf('id="dm-flash"') && ov.innerHTML.indexOf('id="dm-flash"') < ov.innerHTML.indexOf('id="dm-pane"'));   // 알림 줄은 머리 줄 아래
     assert.strictEqual(dash.isDetailOpen(), true);
   });
 });

@@ -892,14 +892,15 @@
   }
 
   // 상세. c = {act:'confirm'|'open'|'unavailable'|'none', confirm:bool, busy:bool, kb:검증 항목|null, role:string, bank:약정 응답(bankcontract.view)|null}
-  dash.paneHtml = function (it, c) {
+  // 본문 조각: { head: 제목 줄(.db-head), sub: 종류·지역 줄(.db-sub), rest: 그 아래 절들 }. 현황판 오른쪽 칸(paneHtml)은 이어 붙이고, 지도 상세 팝업(popupHtml)은 head를 머리 줄(.dm-bar)로 올린다.
+  dash.paneParts = function (it, c) {
     c = c || {};
     const rec = it.rec, srcs = Array.isArray(rec.sources) ? rec.sources : [];
     const oc = ie.isOpenCheck(rec);   // 개원 예정일이 지난 개원 예정 기관 — 입찰 대상이 아니라 날짜 줄·D-day 대신 '개원 확인 필요'
     const head = '<div class="db-head"><h2 id="' + esc(c.nameId || 'db-name') + '" tabindex="-1">' + esc(it.name) + '</h2>' +
       (oc ? '<span class="db-chk">개원 확인 필요</span>' : it.unknown ?'<span class="dg-day unknown">날짜 미상</span>' : it.notice ? dash.noticeChipHtml(it) : it.overdue ? '<span class="ov-stamp">D+' + it.days + '</span>' : '<span class="dg-day ' + esc(it.band) + '">' + dayText(it.days) + '</span>') +
-      (c.act === 'open' ? '<span class="wf-badge pp-neutral">사전준비 중</span>' : '') + '</div>' +
-      '<p class="db-sub">' + esc(dash.kindOfRec(rec)) + ' · ' + esc(dash.regionName(rec.region)) + '</p>';
+      (c.act === 'open' ? '<span class="wf-badge pp-neutral">사전준비 중</span>' : '') + '</div>';
+    const sub = '<p class="db-sub">' + esc(dash.kindOfRec(rec)) + ' · ' + esc(dash.regionName(rec.region)) + '</p>';
     const why = it.confidence === '확정' ? '— 공고로 확인한 날입니다'
       : it.basis === 'expiry' ? '— 약정 만료일의 6개월 전으로 추정한 날입니다(약정 만료 기준 추정)'
       : it.basis === 'notice' ? '— 공고된 날짜이나 의미 확인 중입니다'
@@ -964,7 +965,24 @@
     // 사업계획 절(plans.js가 dash.plansHook으로 등록): 기관장 절 뒤, tail 앞. plans.js가 없으면(순수 테스트) 두지 않는다.
     const plansSec = typeof c.plansHtml === 'string' ? c.plansHtml : (typeof dash.plansHook === 'function' ? dash.plansHook(rec, c) : '');
     // c.recordHtml: '공고 상태 기록' 절 — 기관 정보 바로 뒤(규격 P1-2). 입찰 공고 현황은 입력 칸 포함, 지도·현황판 팝업은 읽기 요약 한 줄. 개원 확인 필요 기관에는 넘기지 않는다.
-    return '<div class="db-pane-body">' + head + info + (typeof c.recordHtml === 'string' ? c.recordHtml : '') + bank + chief + plansSec + (typeof c.tailHtml === 'string' ? c.tailHtml : '') + '</div><div class="db-act">' + dash.actHtml(it, c) + '</div>';
+    return { head: head, sub: sub, rest: info + (typeof c.recordHtml === 'string' ? c.recordHtml : '') + bank + chief + plansSec + (typeof c.tailHtml === 'string' ? c.tailHtml : '') };
+  };
+  dash.paneHtml = function (it, c) {
+    c = c || {};
+    const p = dash.paneParts(it, c);
+    return '<div class="db-pane-body">' + p.head + p.sub + p.rest + '</div><div class="db-act">' + dash.actHtml(it, c) + '</div>';
+  };
+  // 지도 상세 팝업(11-19 저녁 design 4-4): 버튼을 아래 .db-act 줄이 아니라 머리 오른쪽으로 올린다. 머리 줄(.dm-bar 52px) = 제목 + [주버튼][편집][×],
+  // 그 아래 .dm-note = 이유 글·확정 확인 상자(고정 영역, 스크롤되지 않음), 본문(.db-pane-body)만 스크롤. 현황판·입찰 공고 현황의 안쪽 칸(paneHtml)은 그대로.
+  // c.readOnly(보기 전용) = ×만 남는다. 반환 { bar, note, body }.
+  dash.popupHtml = function (it, c) {
+    c = c || {};
+    const p = dash.paneParts(it, c), a = dash.actParts(it, c);
+    const edit = c.readOnly ? '' : '<button type="button" id="dm-edit">편집</button>';
+    const bar = '<div class="dm-bar">' + p.head + '<div class="dm-btns">' + a.main + edit +
+      '<button type="button" id="dm-close" class="dm-x" aria-label="닫기"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 2l8 8M10 2l-8 8"/></svg></button></div></div>';
+    const note = a.confirm || (a.why ? '<p class="db-why dm-why">' + a.why + '</p>' : '');
+    return { bar: bar, note: note, body: '<div class="db-pane-body">' + p.sub + p.rest + '</div>' };
   };
 
   dash.actHtml = function (it, c) {
@@ -988,6 +1006,30 @@
     }
     const noperm = ['영업팀', '영업팀장'].indexOf(c.role || '') < 0 ? '<span class="db-why">제안 확정은 영업팀·영업팀장이 합니다.</span>' : '';
     return '<div class="db-act-row">' + map + noperm + '</div>';
+  };
+
+  // 팝업 머리 줄용: actHtml과 같은 판정을 { main: 주버튼 마크업, why: 이유 글(마크업), confirm: 확정 확인 상자 마크업 }으로 나눈다.
+  // 확인 상자가 펼쳐진 동안에는 [제안 확정]을 비활성으로 둔다(상자의 [확정하기]·[취소]만 누를 수 있다). 주버튼이 없으면 main은 빈 글.
+  dash.actParts = function (it, c) {
+    c = c || {};
+    const none = { main: '', why: '', confirm: '' };
+    if (c.act === 'opencheck') return { main: '', why: '개원했는지 확인하고 출처와 함께 운영 상태를 바꾸세요.', confirm: '' };
+    if (c.act === 'wait') return { main: '', why: '[제안 확정]을 쓸 수 있는지 확인하는 중입니다.', confirm: '' };
+    if (dash.CONFIRM_WHY[c.act]) return { main: '', why: dash.CONFIRM_WHY[c.act], confirm: '' };
+    if (c.act === 'unavailable') return { main: '', why: '서버에 연결되면 [제안 확정]을 쓸 수 있습니다.', confirm: '' };
+    if (c.act === 'open') return { main: '<button type="button" class="db-next" id="db-open">사전준비 열기</button>', why: '이미 제안 확정되어 사전준비가 진행 중입니다.', confirm: '' };
+    if (c.act === 'confirm') {
+      if (c.confirm) {
+        const early = !!c.early;
+        return { main: '<button type="button" class="db-next" id="db-cf" disabled>제안 확정</button>', why: '', confirm:
+          '<div class="db-confirm dm-confirm' + (early ? ' early' : '') + '" id="dm-confirm" role="group" aria-labelledby="db-cf-t"><span id="db-cf-t">' +
+          (early ? '<b class="db-cf-warn">' + esc(dash.EARLY_ASK) + '</b>' : '') + esc(it.name) + dash.josaEul(it.name) +
+          ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 제안서 사전준비 프로세스]에 이 기관의 준비 건이 생깁니다. 개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</span>' +
+          '<div class="db-act-row"><button type="button" class="db-next" id="db-do"' + (c.busy ? ' disabled' : '') + '>' + (early ? '계속 진행' : '확정하기') + '</button><button type="button" id="db-cancel">취소</button></div></div>' };
+      }
+      return { main: '<button type="button" class="db-next" id="db-cf">제안 확정</button>', why: c.early ? esc(dash.EARLY_WHY) : '', confirm: '' };
+    }
+    return ['영업팀', '영업팀장'].indexOf(c.role || '') < 0 ? { main: '', why: '제안 확정은 영업팀·영업팀장이 합니다.', confirm: '' } : none;
   };
 
   // ── DOM ───────────────────────────────────────────────────────────
@@ -1677,16 +1719,17 @@
     return { state: n && n.state ? n.state() : 'offline', snap: n && n.snap ? n.snap() : null, canEdit: !readOnly && !!(n && n.canEdit && n.canEdit()),
       canGo: !!(A && A.findNavItem && N && N.NOTICE_ID && A.findNavItem(N.NOTICE_ID) && root.dashboard && root.dashboard.mount) };
   }
-  // 상세를 다시 그린다. 위 상자(#dm-box)·알림 줄은 그대로 두고 #dm-pane만 바꾸며, 스크롤·포커스를 이어 준다.
+  // 상세를 다시 그린다. 위 상자(#dm-box)·알림 줄(#dm-flash·#dm-err)은 그대로 두고 머리 줄(#dm-bar)·이유/확인 상자(#dm-act-note)·본문(#dm-pane)만 바꾸며, 스크롤·포커스를 이어 준다.
+  // 11-19 저녁 design 4-4: 버튼은 머리 줄 오른쪽(주버튼 → [편집] → ×), 확정 확인 상자는 머리 아래 고정 영역(스크롤 안 됨).
   function dmRender() {
     const m = dm.cur;
     if (!m) return;
-    const pane = m.el.querySelector('#dm-pane');
-    if (!pane) return;
+    const pane = m.el.querySelector('#dm-pane'), bar = m.el.querySelector('#dm-bar'), nt = m.el.querySelector('#dm-act-note');
+    if (!pane || !bar || !nt) return;
     const body0 = pane.querySelector('.db-pane-body');
     const top = body0 ? body0.scrollTop : 0;
     const a = document.activeElement;
-    const inPane = !!(a && pane.contains && pane.contains(a));
+    const inPane = !!(a && [pane, bar, nt].some(function (x) { return x.contains && x.contains(a); }));
     const keepId = inPane ? (a.id || '') : '';
     const keepHc = inPane && a.getAttribute ? (a.getAttribute('data-hc') || '') : '';
     const ctx = actCtx();
@@ -1694,29 +1737,30 @@
     if (m.prepSt === 'loading' && act !== 'unavailable') act = 'wait';   // 진행 중인지 모르는 동안 [제안 확정]을 보였다 바꾸지 않는다
     if (m.readOnly) act = 'none';   // 보기 전용: [제안 확정]·[사전준비 열기] 없음(전산팀은 prep.canView 밖이라 이미 none이지만 규칙으로 한 번 더 막는다)
     const raw =root.render && root.render.popRawHtml ? root.render.popRawHtml(m.rec) : '';
-    pane.innerHTML = dash.paneHtml(m.it, {
+    const parts = dash.popupHtml(m.it, {
       act: act, early: act === 'confirm' && dash.proposeEarly(m.rec, gateOpts()), confirm: m.confirm && act === 'confirm', busy: m.busy, kb: dash.kbEntry(m.rec, root.KB_VERIFIED), next: dash.kbEntry(m.rec, root.KB_NEXT), role: ctx.role, today: todayDate(),
       headHtml: root.headcard ? root.headcard.paneSection(m.rec, dmHeadEnv(m)) : undefined,
       recordHtml: ie.isOpenCheck(m.rec) ? '' : dash.recordBriefHtml(m.it, dmRecState(m.readOnly)), bank: m.readOnly ? dash.lockBank(bankView(m.rec)) : bankView(m.rec),
-      nameId: 'dm-name',
-      mapHtml: m.readOnly ? dash.VIEW_ONLY_MAP_HTML : '<button type="button" id="dm-edit">편집</button><button type="button" id="dm-close">닫기</button>',
+      nameId: 'dm-name', readOnly: m.readOnly,   // 보기 전용: 머리 줄에는 ×만(주버튼은 act 'none'이라 없고 [편집]은 readOnly로 뺀다)
       tailHtml: raw ? '<div class="db-sec"><details class="pop-raw"><summary>원본 정보</summary>' + raw + '</details></div>' : '',
     });
+    bar.innerHTML = parts.bar; nt.innerHTML = parts.note; pane.innerHTML = parts.body;
     const nb = pane.querySelector('.db-pane-body');
     if (nb) nb.scrollTop = top;
     if (inPane) {   // 다시 그린 요소로 포커스를 돌린다(없으면 제목으로)
-      let t = keepId ? pane.querySelector('#' + keepId) : null;
+      let t = keepId ? m.el.querySelector('#' + keepId) : null;
       if (!t && keepHc) t = pane.querySelector('[data-hc="' + keepHc + '"]');
-      if (!t) t = pane.querySelector('#dm-name');
+      if (!t) t = m.el.querySelector('#dm-name');
       if (t && t.focus) t.focus();
     }
-    if (m.confirm && act === 'confirm') { const b = pane.querySelector('#db-do'); if (b) b.focus(); }
+    // 확정 확인 상자가 펼쳐지면 [제안 확정]은 비활성이라 포커스를 상자의 [확정하기]로 옮긴다(닫으면 [제안 확정]으로 돌아간다, dmClick db-cancel·dmKey Esc)
+    if (m.confirm && act === 'confirm') { const b = m.el.querySelector('#db-do'); if (b) b.focus(); }
     // 현황판 줄의 [제안 확정]으로 열었으면(opts.focus === 'confirm') 팝업의 [제안 확정]이 그려지는 순간 한 번만 포커스를 옮긴다. 받는 중(wait)에는 기다린다.
     // 사용자가 팝업 안에서 이미 다른 요소로 포커스를 옮겼으면(초기 포커스 대상 #dm-name·#dm-box가 아니면) 끌고 가지 않고 포기한다(qa 11-17 P3-6).
     const fa = document.activeElement;
     if (m.focus === 'confirm' && fa && m.el && m.el.contains(fa) && fa.id !== 'dm-name' && fa.id !== 'dm-box') m.focus = '';
     if (m.focus === 'confirm' && !m.confirm) {
-      const cf = pane.querySelector('#db-cf');
+      const cf = m.el.querySelector('#db-cf');
       if (cf) { cf.focus(); m.focus = ''; }
       else if (act !== 'wait') m.focus = '';   // 판정이 끝났는데 버튼이 없으면(이미 진행 중 등) 포기
     }
@@ -1821,7 +1865,8 @@
     ov.className = 'modal-overlay dm-ov';
     ov.id = 'dm-ov';
     ov.innerHTML = '<div class="modal-box dm-box" id="dm-box" role="dialog" aria-modal="true" aria-labelledby="dm-name" tabindex="-1">' +
-      '<div id="dm-flash" class="db-flash" role="status"></div><div id="dm-err" class="db-state" role="alert" hidden></div>' +
+      '<div id="dm-bar"></div>' +
+      '<div class="dm-note"><div id="dm-flash" class="db-flash" role="status"></div><div id="dm-err" class="db-state" role="alert" hidden></div><div id="dm-act-note"></div></div>' +
       '<div id="dm-pane" class="dm-pane"></div></div>';
     m.el = ov;
     dm.cur = m;
@@ -1846,7 +1891,6 @@
     if (!view || !view.data) return view;
     return Object.assign({}, view, { data: Object.assign({}, view.data, { can_edit: false }) });
   };
-  dash.VIEW_ONLY_MAP_HTML = '<button type="button" id="dm-close">닫기</button>';   // [편집] 없이 [닫기]만
   // 보기 전용 판정 — nav.isViewOnly(ctx) 한 곳(app.isViewOnly가 감싼다, 전산팀·전산팀장·디자이너 11-19). 어느 화면에서 열든 역할로 정한다. root.app이 없으면(순수 시험) false.
   dash.isViewOnly = function () { try { return !!(root.app && root.app.isViewOnly && root.app.isViewOnly()); } catch (e) { return false; } };
 

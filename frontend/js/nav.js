@@ -71,6 +71,15 @@
   const VIEW_ONLY_ROLES = ['전산팀', '전산팀장', roles.DESIGNER];   // 디자이너도 기관 추가·편집은 서버 403(main 11-19 requireInstitutionEditSales, 디자이너 기본값 '보기')
   // 시작화면 대상 역할 — 역할을 바꾸려면 이 두 줄(HOME_ROLES·VIEW_ONLY_ROLES)만 고친다. 재무(예산팀)·마스터는 지도로 시작한다.
   const HOME_ROLES = TEAM_ROLES.concat([roles.DESIGNER], VIEW_ONLY_ROLES);
+  // 재무(예산팀·예산팀장)의 시작화면은 포털이 아니라 '이사회 자료 작성'(BOARD_ID, 사용자 11-19). 값은 서버 계약대로 '예산팀'·'예산팀장'(화면 표기만 재무팀).
+  const FINANCE_ROLES = ['예산팀', '예산팀장'];
+  // 역할별로 사이드바에 보일 대분류(사용자 11-19). 서버 메뉴 키가 못 만드는 '기본 메뉴'를 프런트가 한 겹 더 좁힌다(nav.limitToRole).
+  // 목록에 없는 역할(영업 계열·전산팀·마스터·역할 없음)은 제한이 없다. 시스템 관리(sys)는 서버 admin 키가 정하므로 항상 통과한다.
+  // 재무팀장은 결재함·작업함(제안서 작성·관리, manage) 때문에 manage가 더해진다(사용자 11-19 '권장안대로').
+  const ROLE_CATS = {};
+  ROLE_CATS[roles.DESIGNER] = ['home', 'scan', 'manage', 'tools'];
+  ROLE_CATS['예산팀'] = ['plan'];
+  ROLE_CATS['예산팀장'] = ['plan', 'manage'];
 
   // subs: 중분류 순서. 항목마다 sub로 소속을 가리킨다(시스템 관리는 중분류 없음).
   nav.CATEGORIES = [
@@ -112,6 +121,9 @@
   nav.PREP_ID = PREP_ID;
   nav.DASH_ID = DASH_ID;
   nav.HOME_ID = HOME_ID;
+  nav.BOARD_ID = BOARD_ID;
+  nav.FINANCE_ROLES = FINANCE_ROLES;
+  nav.ROLE_CATS = ROLE_CATS;
   nav.HOME_CAT = HOME_CAT;
   nav.NOTICE_ID = NOTICE_ID;
   nav.PLANS_ID = PLANS_ID;
@@ -126,15 +138,34 @@
   // 이미 다른 화면을 열었거나 탭을 연 뒤라면 건드리지 않는다.
   // 로그인 순간(메뉴 권한이 오기 전) 시작화면이 포털일 것으로 보는가 — 본체(portal.mount)가 있고 대상 역할일 때만.
   // 경과 요약 팝업은 이때 잠시 미루고, 실제로 포털이 열리지 않으면(homeItemId가 null) 그때 띄운다.
-  nav.expectsHome = function (ctx, portalReady) { return !!portalReady && nav.isHomeRole(ctx); };
+  // 계정의 시작화면 항목 id(맨 앞 고정 탭이자 제목 클릭 목적지): 대상 역할 = HOME_ID(포털), 재무 = BOARD_ID(이사회 자료 작성), 마스터·그 밖 = null(없음, 제목은 지도로).
+  nav.homeIdFor = function (ctx) {
+    if (nav.roleIn(HOME_ROLES, ctx)) return HOME_ID;
+    if (nav.roleIn(FINANCE_ROLES, ctx)) return BOARD_ID;
+    return null;
+  };
+  // 재무는 포털 본체가 필요 없다(이사회 자료 화면이 따로 있다) — 포털 본체 여부는 HOME_ID일 때만 따진다.
+  nav.expectsHome = function (ctx, portalReady) {
+    const hid = nav.homeIdFor(ctx);
+    if (hid === BOARD_ID) return true;
+    return !!portalReady && hid === HOME_ID;
+  };
   nav.homeItemId = function (built, activeId, tabs, ctx) {
-    if (!nav.isHomeRole(ctx)) return null;
-    if (nav.categoryOf(built, HOME_ID) === null) return null;
-    if (activeId === HOME_ID) return null;   // 이미 시작화면
+    const hid = nav.homeIdFor(ctx);
+    if (!hid) return null;
+    if (nav.categoryOf(built, hid) === null) return null;
+    if (activeId === hid) return null;   // 이미 시작화면
     if (activeId && activeId !== 'map') return null;
     const open = tabs || [];
-    for (let i = 0; i < open.length; i += 1) { if (open[i].id !== 'map' && open[i].id !== HOME_ID) return null; }
-    return HOME_ID;
+    for (let i = 0; i < open.length; i += 1) { if (open[i].id !== 'map' && open[i].id !== hid) return null; }
+    return hid;
+  };
+  // nav.build 결과에서 그 역할에게 허용된 대분류만 남긴다(ROLE_CATS). build 자체는 바꾸지 않는다 — 호출자(app.paintNav)가 감싼다.
+  nav.limitToRole = function (built, ctx) {
+    const c = ctx || {};
+    const list = c.master ? null : ROLE_CATS[(c.role || '').trim()];
+    if (!list) return built;
+    return (built || []).filter(function (cat) { return cat.id === 'sys' || list.indexOf(cat.id) >= 0; });
   };
   // 아코디언 분류 id — 단독 항목(시작화면)은 펼칠 분류가 없어 null. 화면 이동이 다른 분류의 열림을 닫지 않게 한다.
   nav.accordionOf = function (built, itemId) {
@@ -271,22 +302,25 @@
   nav.MAX_TABS = 10;
 
   // 이미 열려 있으면 활성만 옮기고, 새 탭인데 가득 찼으면 full:true(탭·활성 불변).
-  nav.openTab = function (tabs, item, activeId, max) {
+  // pinId: 맨 앞 고정 탭의 id. 생략(undefined)하면 HOME_ID, null이면 고정 탭 없음(마스터), 재무는 BOARD_ID.
+  nav.openTab = function (tabs, item, activeId, max, pinId) {
     const limit = max || nav.MAX_TABS;
+    const pin = pinId === undefined ? HOME_ID : pinId;
     const list = tabs || [];
     const exists = list.some(function (t) { return t.id === item.id; });
     if (exists) return { tabs: list.slice(), activeId: item.id, full: false };
     const tab = { id: item.id, label: item.label };
-    if (item.id === HOME_ID) return { tabs: [tab].concat(list), activeId: item.id, full: false };   // 시작화면: 맨 앞 고정, 개수 제한에 세지 않는다
-    const used = list.filter(function (t) { return t.id !== HOME_ID; }).length;
+    if (pin && item.id === pin) return { tabs: [tab].concat(list), activeId: item.id, full: false };   // 시작화면: 맨 앞 고정, 개수 제한에 세지 않는다
+    const used = list.filter(function (t) { return t.id !== pin; }).length;
     if (used >= limit) return { tabs: list.slice(), activeId: activeId || null, full: true };
     return { tabs: list.concat([tab]), activeId: item.id, full: false };
   };
 
   // 닫은 뒤 활성: 닫은 게 활성이 아니면 그대로, 활성이면 오른쪽 이웃 → 왼쪽 이웃 → null.
-  nav.closeTab = function (tabs, id, activeId) {
+  nav.closeTab = function (tabs, id, activeId, pinId) {
     const list = tabs || [];
-    if (id === HOME_ID) return { tabs: list.slice(), activeId: activeId || null };   // 시작화면 탭은 닫을 수 없다
+    const pin = pinId === undefined ? HOME_ID : pinId;
+    if (pin && id === pin) return { tabs: list.slice(), activeId: activeId || null };   // 시작화면 탭은 닫을 수 없다
     const i = list.findIndex(function (t) { return t.id === id; });
     if (i < 0) return { tabs: list.slice(), activeId: activeId || null };
     const rest = list.slice(0, i).concat(list.slice(i + 1));

@@ -595,7 +595,8 @@
     if (!root.store.loadSession()) return;   // 로그인 화면 뒤에서는 아직 기다린다
     if (settled === false) { flushOverdue(); return; }   // 권한 응답 실패: 시작화면은 다음 성공 응답까지 기다리고, 경과 팝업만 먼저 띄운다(영원히 미뤄지지 않게)
     pendingHome = false;
-    if (!(root.portal && root.portal.mount)) { flushOverdue(); return; }
+    // 재무의 시작화면(이사회 자료 작성)은 포털 본체가 필요 없다 — 포털 본체 가드는 포털이 시작화면인 계정에만 건다.
+    if (homeId() !== root.nav.BOARD_ID && !(root.portal && root.portal.mount)) { flushOverdue(); return; }
     const id = root.nav.homeItemId(navBuilt, navActiveId, navTabs, navContext());
     const item = id ? findNavItem(id) : null;
     if (item) { navHoming = true; try { openNavItem(item); } finally { navHoming = false; } }
@@ -622,7 +623,7 @@
     if (tab !== 'soon') navActiveId = activeNavId();
     const item = navActiveId ? findNavItem(navActiveId) : null;
     if (item) {
-      navTabs = root.nav.openTab(navTabs, item, navActiveId).tabs;   // 가득 찼으면 보관만 건너뛴다
+      navTabs = root.nav.openTab(navTabs, item, navActiveId, undefined, pinId()).tabs;   // 가득 찼으면 보관만 건너뛴다
       const cat = root.nav.accordionOf(navBuilt, navActiveId);      // 단독 항목(시작화면)은 null — 다른 분류의 열림을 닫지 않는다
       navOpen = root.nav.navigatedOpen(navOpen, cat, navHoming);   // 저장은 하지 않는다(사용자가 직접 펼치거나 접을 때만)
       openCat = navOpen.open;
@@ -665,7 +666,7 @@
 
   // 사이드바 항목·탭 모두 이 경로로 연다. 새 탭이 필요한데 가득 찼으면 화면을 옮기지 않는다.
   function openNavItem(item) {
-    const r = root.nav.openTab(navTabs, item, navActiveId);
+    const r = root.nav.openTab(navTabs, item, navActiveId, undefined, pinId());
     if (r.full) {
       showTabNotice('화면은 최대 ' + root.nav.MAX_TABS + '개까지 열어 둘 수 있습니다. 탭을 닫고 다시 열어 주세요.');
       return false;
@@ -680,18 +681,23 @@
   };
   app.findNavItem = findNavItem;   // overdue.js 팝업이 '입찰 공고 현황 메뉴가 보이는가'를 판정한다(영업 계열 밖은 지도로 떨어짐)
 
-  // 머리 띠 제목 '기관영업지원 시스템' = 시작화면으로. 대상 역할이면 시작화면(탭 맨 앞), 아니면 전국 지도(그 계정의 시작 화면).
-  // 눌러도 반응이 없으면 고장처럼 읽혀서 지도로 보낸다(메인 결정, 사용자 11-19).
+  // 계정의 시작화면 id(nav.homeIdFor): 대상 역할 = 포털, 재무 = 이사회 자료 작성, 마스터·그 밖 = null. 맨 앞 고정 탭(pinId)도 같은 id다.
+  function homeId() { return root.nav ? root.nav.homeIdFor(navContext()) : null; }
+  function pinId() { return homeId(); }
+
+  // 머리 띠 제목 '기관영업지원 시스템' = 시작화면으로. 시작화면이 있는 계정이면 그 화면(탭 맨 앞), 없으면(마스터) 전국 지도.
+  // 이미 시작화면이어도 반응 없이 넘기지 않고 다시 연다 — 눌러도 반응이 없으면 고장처럼 읽혀서, 거르기·정렬·스크롤을 처음으로 되돌리는 '새로 고침'으로 쓴다(사용자 11-19).
+  // 이사회 자료 작성 화면은 board.mount가 편집 중 상태를 지우지 않고 목록만 다시 받으므로 다시 열어도 해가 없다.
   app.goHome = function () {
-    const item = root.nav ? findNavItem(root.nav.HOME_ID) : null;
-    if (item && navActiveId === root.nav.HOME_ID) return;   // 이미 시작화면 — 다시 그리면 거르기·스크롤이 풀린다(qa P3-1)
+    const hid = homeId();
+    const item = hid ? findNavItem(hid) : null;
     if (item) { openNavItem(item); return; }
     const mapBtn = document.getElementById('tab-btn-map');
     if (mapBtn && !mapBtn.classList.contains('active')) mapBtn.click();
   };
 
   function closeNavTab(id) {
-    const r = root.nav.closeTab(navTabs, id, navActiveId);
+    const r = root.nav.closeTab(navTabs, id, navActiveId, pinId());
     navTabs = r.tabs;
     if (id !== navActiveId) { drawTabs(); return; }
     const next = r.activeId ? findNavItem(r.activeId) : null;
@@ -709,8 +715,9 @@
     bar.style.display = navTabs.length ? '' : 'none';
     // 시작화면 탭(pin): 맨 앞 고정(nav.openTab), 닫기(×) 없음. 라벨 앞에 집 글리프(design-reviewer 11-19 1428_aab03363 5절)
     const homeIco = '<svg class="stab-ico" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M1.5 6.2 6 2.2l4.5 4M3 5.2V10h6V5.2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
+    const pid = pinId();
     list.innerHTML = navTabs.map(function (t) {
-      const pin = t.id === root.nav.HOME_ID;
+      const pin = !!pid && t.id === pid;
       if (pin) {
         return '<div class="stab pin' + (t.id === navActiveId ? ' active' : '') + '" role="tab" data-tab-id="' + esc(t.id) +
           '" title="시작화면 (닫을 수 없음)">' + homeIco + '<span class="stab-label">' + esc(t.label) + '</span><span class="sr-only">, 고정 탭</span></div>';
@@ -788,7 +795,7 @@
     });
     // 머리 띠 제목 단추: 시작화면을 보고 있으면 현재 위치 표시(aria-current)
     const hb = document.getElementById('app-home');
-    if (hb) { if (navActiveId === root.nav.HOME_ID) hb.setAttribute('aria-current', 'page'); else hb.removeAttribute('aria-current'); }
+    if (hb) { if (homeId() && navActiveId === homeId()) hb.setAttribute('aria-current', 'page'); else hb.removeAttribute('aria-current'); }
     // 항목 구성이 바뀌어 DOM을 새로 만들면 '전국 지도' 옆 미처리 배지도 사라지므로 다시 단다.
     if (root.overdue && root.overdue.paintNavBadge) root.overdue.paintNavBadge();
     if (root.plancollect && root.plancollect.onNavDrawn) root.plancollect.onNavDrawn();   // 사업계획 수집 요청 대기 배지(시스템 관리 항목 옆)
@@ -826,7 +833,7 @@
 
   app.paintNav = function (visible) {
     if (!root.nav || !document.getElementById('side-nav')) return;
-    navBuilt = root.nav.build(visible, navContext());
+    navBuilt = root.nav.limitToRole(root.nav.build(visible, navContext()), navContext());   // 역할별 기본 대분류(디자이너·재무)로 한 번 더 좁힌다
     if (!navActiveId) navActiveId = activeNavId();
     navTabs = root.nav.pruneTabs(navTabs, navBuilt);
     // 준비중 화면을 보고 있었는데 그 항목이 더는 안 보이면(로그아웃 등) 지도로 돌려보낸다.
@@ -844,7 +851,7 @@
     navOpen = root.nav.settleOpen(navOpen, navBuilt, navActiveId ? root.nav.accordionOf(navBuilt, navActiveId) : null);
     openCat = navOpen.open;
     const cur = navActiveId ? findNavItem(navActiveId) : null;
-    if (cur) navTabs = root.nav.openTab(navTabs, cur, navActiveId).tabs;   // 지금 보는 화면은 처음부터 탭으로
+    if (cur) navTabs = root.nav.openTab(navTabs, cur, navActiveId, undefined, pinId()).tabs;   // 지금 보는 화면은 처음부터 탭으로
     app.drawNav();
     drawTabs();
     if (root.plans && root.plans.onNavPainted) root.plans.onNavPainted();   // 메뉴가 바뀐 뒤 상세의 '사업계획' 절 노출을 다시 판정(계정 전환)

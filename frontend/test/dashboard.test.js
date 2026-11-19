@@ -813,7 +813,9 @@ test('상세 보기 전용(11-19): lockBank는 can_edit을 끄고 원본을 바�
   const l = dash.lockBank(v);
   assert.strictEqual(l.data.can_edit, false); assert.strictEqual(v.data.can_edit, true);
   assert.strictEqual(dash.lockBank(null), null);
-  assert.ok(dash.VIEW_ONLY_MAP_HTML.indexOf('dm-edit') < 0 && dash.VIEW_ONLY_MAP_HTML.indexOf('dm-close') > 0);
+  // 11-19 저녁 design 4-4: 팝업 머리 줄. 보기 전용은 ×(#dm-close)만 — [편집]·주버튼 없음
+  const ro = dash.popupHtml(dash.itemForRec({ name: '가람시청', region: '11', type: '지자체', confirmed: true }, new Date(2026, 10, 19)), { act: 'none', role: '디자이너', readOnly: true, nameId: 'dm-name', today: new Date(2026, 10, 19) });
+  assert.ok(ro.bar.indexOf('id="dm-edit"') < 0 && ro.bar.indexOf('db-next') < 0 && ro.bar.indexOf('id="dm-close"') > 0 && ro.bar.indexOf('aria-label="닫기"') > 0);
   const s = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8');
   assert.ok(/readOnly: dash\.isViewOnly\(\)/.test(s) && /dash\.isViewOnly = function/.test(s) && /if \(dash\.isViewOnly\(\)\) return 'none';/.test(s) && /canEdit: n\.canEdit\(\) && !dash\.isViewOnly\(\)/.test(s) &&/if \(m\.readOnly\) act = 'none';/.test(s));
   assert.ok(/m\.readOnly && \['dm-edit', 'bk-edit', 'db-cf', 'db-do', 'db-open'\]/.test(s));

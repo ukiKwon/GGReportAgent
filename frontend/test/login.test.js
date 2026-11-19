@@ -37,6 +37,8 @@ test('authenticate: 비밀번호는 보지 않는다(프로토타입)', function
 
 test('디자이너는 영업팀 소속의 디자이너 역할', function () {
   assert.strictEqual(login.byId('designer').role, '디자이너');
+  assert.strictEqual(login.byId('designer').name, '박디자이너');   // 11-19 저녁 P2
+  assert.ok(!/최디자이너/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'js', 'login.js'), 'utf8')));
 });
 
 test('groups: 소속 순서대로 묶고 마스터는 마지막 "관리자" 묶음', function () {
