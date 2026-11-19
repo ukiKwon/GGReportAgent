@@ -1225,6 +1225,19 @@
   .pp-next { margin:4px 0 12px; font-size:12px; color:var(--muted); word-break:keep-all; }
   .pp-banner { margin:8px 0; padding:8px 12px; font-size:12px; color:var(--muted); border-radius:var(--r);
                box-shadow:inset 2px 0 0 var(--line-strong); background:var(--panel2); word-break:keep-all; }
+  /* 입찰 없음 알림(NEXT 98-1, design 11-19 6-3~6-5) — 새 hex 없음, .hb-warn 과 같은 처리(주황 테두리 + 8% 틴트) */
+  .pp-mono { font-family:var(--mono); }
+  .pp-banner.is-nobid { display:flex; flex-wrap:wrap; align-items:center; gap:6px; border:1px solid var(--orange); box-shadow:none;
+                        background:color-mix(in srgb, var(--orange) 8%, transparent); color:var(--fg); }
+  .pp-banner.is-nobid .pp-glyph { color:color-mix(in srgb, var(--orange) 72%, var(--fg)); }
+  .pp-cwarn { flex:1 0 100%; display:flex; gap:6px; align-items:center; font-size:12px; font-weight:700; word-break:keep-all;
+              color:color-mix(in srgb, var(--orange) 72%, var(--fg)); }
+  .pp-cwarn .pp-glyph { color:currentColor; }
+  .modal-box.pp-nb-box:focus { outline:none; }
+  .pp-nb-box p { margin:0 0 8px; font-size:13px; word-break:keep-all; }
+  .pp-nb-ask { font-weight:700; }
+  .pp-nb-box .tm-note li { margin:2px 0; }
+  @media (max-width:880px) { .pp-nb-acts { flex-wrap:wrap; } }
   .pp-sec-head { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin:14px 0 6px; font-size:14px; font-weight:700; color:var(--fg); }
   .pp-sec-head small { font-size:12px; font-weight:400; color:var(--muted); }
   .pp-pips { display:inline-flex; gap:3px; vertical-align:middle; }

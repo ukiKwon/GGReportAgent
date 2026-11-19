@@ -99,6 +99,31 @@
     okClearConfirmed: function (f) { return '\'' + f + '\'의 확정본 지정을 해제했습니다.'; },
     okVoid: function (f) { return '\'' + f + '\'을 무효 처리했습니다.'; },
     warnTail: ' 필요 없는 정보면 지운 파일을 다시 올리고 이 파일은 무효 처리하세요.',
+    // 입찰 없음 알림(NEXT 98-1, design 11-19 6장). 날짜·기록자는 서버 값만, 새 부서 이름은 '영업부서'
+    nbFact: '이 기관의 이번 회차 입찰 공고 상태는 \'입찰 없음(연장·지정)\'입니다',
+    nbBanner: '이 기관은 이번 회차 입찰 공고가 \'입찰 없음(연장·지정)\'으로 기록되어 있습니다',
+    nbWarn: '주의: ',
+    nbTitle: function (name) { return '입찰 없음으로 기록된 기관' + (name ? ' — ' + name : ''); },   // 기관명이 비면 ' — 기관명' 부분을 뺀다
+    nbAskWriting: '제안서를 계속 작성하시겠습니까?',
+    nbAskPrep: '이 기관의 제안 준비를 계속하시겠습니까?',
+    nbBtnNotice: '공고 상태 보기',
+    nbBtnTidy: '제안 진행 정리하기…',
+    nbBtnContinue: '계속 작성',
+    nbLineNotice: '공고 상태 보기: 입찰 공고 현황에서 이 기관의 기록을 엽니다. 닫힌 회차라 읽기만 됩니다.',
+    nbLineNoNotice: '공고 기록이 틀렸다면 입찰 공고 현황 기록 담당에게 알려 주세요.',
+    nbLineUnconfirm: '제안 진행 정리하기: 입찰 없음이 맞으면 제안 확정을 취소합니다. 사유를 적는 창이 열립니다.',
+    nbLineCancel: '제안 진행 정리하기: 입찰 없음이 맞으면 이 건을 중단(미참여)합니다. 사유를 적는 창이 열리고, 중단하면 되돌릴 수 없습니다.',
+    nbLineOpenPending: '개설 신청이 승인을 기다리는 중이라 지금은 정리할 수 없습니다. 신청을 회수하거나 반려된 뒤 정리하세요.',
+    nbLinePlanPending: '사전준비 승인 요청 중에는 중단할 수 없습니다. 요청이 회수되거나 반려된 뒤 정리하세요.',
+    nbWho: function (stateCd) { return stateCd === 'CONFIRMED' || stateCd === 'OPEN_PENDING' ? '확정한 사람이나 영업부서 팀장' : '영업부서 팀장'; },
+    nbLineNoAuth: function (who) {
+      return '이 건의 확정 취소·중단은 ' + who + prep.josa(who, '이', '가') + ' 합니다. 입찰 없음이 맞으면 ' + who + '에게 알려 주세요.';
+    },
+    nbLineContinue: '계속 작성: 다음 회차를 준비하는 중이면 누르세요. 누른 기록이 남고, 공고 기록이 바뀌기 전까지 다시 묻지 않습니다.',
+    nbNoticeFail: '입찰 공고 현황을 열 수 없습니다. 왼쪽 메뉴의 [입찰 공고 현황]에서 여세요.',
+    nbAckFail: '기록을 남기지 못했습니다. 다시 누르세요.',
+    nbChanged: '공고 기록이 바뀌었습니다. 최신 내용으로 다시 확인합니다.',
+    nbGone: '이 건은 지금 \'입찰 없음\' 알림 대상이 아닙니다. 최신 상태를 불러왔습니다.',
   };
   prep.T = T;
 
@@ -427,6 +452,7 @@
     todo: '<circle cx="6" cy="6" r="5"/>',
     lock: '<rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/>',
     na: '<path d="M2.5 6h7"/>',
+    warn: '<path d="M6 1.4l5 9H1z"/><path d="M6 4.8v2.6"/><path d="M6 9.1v.1"/>',
   };
   function glyphHtml(g) {
     if (!has(GLYPH_BODY, g)) return '<span class="pp-glyph" aria-hidden="true"></span>';
@@ -434,9 +460,83 @@
       'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + GLYPH_BODY[g] + '</svg>';
   }
 
-  function confirmHtml(text, cancelAct, okAct, okLabel, cancelLabel, task, label) {
+  // ── 입찰 없음 알림(NEXT 98-1, design 11-19 6장) — 서버 view.nobid_notice(PrepNobidService.view)를 읽는 순수 함수 ──
+  // applicable=true일 때만 대상. mode 'popup'(팝업) | 'fact_only'(사실 줄만) | 'none'. 날짜·기록자는 서버가 map 권한자에게만 주고, 없으면 괄호를 통째로 뺀다.
+  prep.nobidOf = function (view) {
+    const n = view && view.nobid_notice;
+    return n && typeof n === 'object' && n.applicable === true ? n : null;
+  };
+  prep.nobidPopup = function (view) {
+    const n = prep.nobidOf(view);
+    return !!n && n.mode === 'popup' && n.can_ack === true;
+  };
+  prep.nobidDate = function (n) {
+    const s = n && n.handled_at != null ? String(n.handled_at).trim() : '';
+    return s && !isNaN(Date.parse(s)) ? tm.kst(s).slice(0, 10) : '';
+  };
+  function nobidTail(n, who) {   // → { date, name } | null
+    const d = prep.nobidDate(n);
+    return d ? { date: d, name: who ? str(n.handler_name).trim() : '' } : null;
+  }
+  prep.nobidTailText = function (n, who) {
+    const t = nobidTail(n, who);
+    return t ? '(' + t.date + ' 수정됨' + (t.name ? ', 기록자 ' + t.name : '') + ')' : '';
+  };
+  function nobidTailHtml(n, who) {
+    const t = nobidTail(n, who);
+    return t ? '(<span class="pp-mono">' + esc(t.date) + '</span> 수정됨' + (t.name ? ', 기록자 ' + esc(t.name) : '') + ')' : '';
+  }
+  prep.nobidWarnText = function (view) {   // 확인 줄·개설 신청 창의 주의 한 줄(대상이 아니면 '')
+    const n = prep.nobidOf(view);
+    return n ? T.nbWarn + T.nbFact + prep.nobidTailText(n, false) + '.' : '';
+  };
+  function nobidWarnBlock(text) {
+    return text ? '<div class="pp-cwarn">' + glyphHtml('warn') + esc(text) + '</div>' : '';
+  }
+  prep.nobidAsk = function (stateCd) { return stateCd === 'WRITING' ? T.nbAskWriting : T.nbAskPrep; };
+  // 정리 버튼 모델: kind가 있으면 버튼을 그리고(기존 모달 종류), 없으면 line 문장만 보인다.
+  prep.nobidTidy = function (view) {
+    const v = view || {};
+    const n = prep.nobidOf(v) || {};
+    switch (n.tidy_action) {
+      case 'UNCONFIRM': return { kind: 'unconfirm', line: T.nbLineUnconfirm };
+      case 'CANCEL': return { kind: 'abort', line: T.nbLineCancel };
+      case 'OPEN_PENDING': return { kind: '', line: T.nbLineOpenPending };
+      case 'PLAN_PENDING': return { kind: '', line: T.nbLinePlanPending };
+      default: return { kind: '', line: T.nbLineNoAuth(T.nbWho(v.state_cd)) };
+    }
+  };
+  // 팝업 상자(#pp-modal 안). opts.canNotice=false면 [공고 상태 보기]를 빼고 그 줄을 문장으로. 버튼은 쓸 수 있는 것만 그린다(비활성으로 남기지 않는다).
+  prep.nobidPopupHtml = function (view, opts) {
+    const v = view || {};
+    const n = prep.nobidOf(v) || {};
+    const o = opts || {};
+    const tidy = prep.nobidTidy(v);
+    const lines = [o.canNotice ? T.nbLineNotice : T.nbLineNoNotice, tidy.line, T.nbLineContinue];
+    const bt = function (id, act, label) { return '<button type="button" id="' + id + '" data-act="' + act + '">' + esc(label) + '</button>'; };
+    return '<div class="modal-box tm-modal-box pp-nb-box" id="pp-nb" role="alertdialog" aria-modal="true" aria-labelledby="pp-nb-t" ' +
+      'aria-describedby="pp-nb-fact pp-nb-ask" tabindex="-1">' +
+      '<h3 id="pp-nb-t">' + esc(T.nbTitle(str(v.institution_name).trim() || str(o.name).trim())) + '</h3>' +
+      '<div class="modal-scroll tm-m-body">' +
+      '<p id="pp-nb-fact">' + esc(T.nbFact) + nobidTailHtml(n, true) + '.</p>' +
+      '<p id="pp-nb-ask" class="pp-nb-ask">' + esc(prep.nobidAsk(v.state_cd)) + '</p>' +
+      '<ul class="tm-note">' + lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' +
+      '<div id="pp-nb-err" class="ap-err" role="alert"></div></div>' +
+      '<div class="tm-m-actions pp-nb-acts">' +
+      (o.canNotice ? bt('pp-nb-notice', 'nobid-notice', T.nbBtnNotice) : '') +
+      (tidy.kind ? bt('pp-nb-tidy', 'nobid-tidy', T.nbBtnTidy) : '') +
+      bt('pp-nb-continue', 'nobid-continue', T.nbBtnContinue) + '</div></div>';
+  };
+  // 상세 머리 아래 상시 사실 줄(design 6-4) — 팝업과 별개로 늘 남는다.
+  prep.nobidBannerHtml = function (n, canNotice) {
+    return '<div class="pp-banner is-nobid" role="note">' + glyphHtml('warn') + '<span>' + esc(T.nbBanner) + nobidTailHtml(n, false) + '.</span>' +
+      (canNotice ? '<button type="button" class="link-btn" data-act="nobid-notice">' + esc(T.nbBtnNotice) + '</button>' : '') + '</div>';
+  };
+
+  // warn: 알림 대상이면 확인 줄 맨 앞에 두는 '주의:' 한 줄(문장 앞 블록, 그룹 이름과 함께 읽힌다).
+  function confirmHtml(text, cancelAct, okAct, okLabel, cancelLabel, task, label, warn) {
     const d = task ? ' data-task="' + esc(task) + '"' : '';
-    return '<div class="pp-confirm" role="group"' + (label ? ' aria-label="' + esc(label) + '"' : '') + '><span>' + esc(text) + '</span>' +
+    return '<div class="pp-confirm" role="group"' + (label ? ' aria-label="' + esc(label) + '"' : '') + '>' + nobidWarnBlock(warn) + '<span>' + esc(text) + '</span>' +
       '<button type="button" data-act="' + cancelAct + '" data-first="1"' + d + '>' + esc(cancelLabel) + '</button>' +
       '<button type="button" data-act="' + okAct + '" class="pp-next-btn"' + d + '>' + esc(okLabel) + '</button></div>';
   }
@@ -566,6 +666,7 @@
     const v = view || {};
     const vw = v.viewer || {};
     const c = (ctx && ctx.confirm) || null;
+    const warn = prep.nobidWarnText(v);   // 입찰 없음 알림 대상이면 확인 줄 맨 앞 주의 한 줄
     switch (v.state_cd) {
       case 'CONFIRMED': {
         // 반려·회수로 끝난 지난 신청이 권한자에게 보이면 그 지명자·의견을 참고용으로 그린다(요약 줄은 caseHtml이 그린다).
@@ -593,7 +694,7 @@
         return '<div class="pp-end">' + (vw.can_request_plan_approval
           ? '<div class="pp-end-row">' + btn('plan-ask', '사전준비 승인 요청', { cls: 'pp-next-btn' }) + '</div>'
           : disabledNext('plan-ask', '사전준비 승인 요청', planWhy, 'pp-why-plan')) +
-          (c && c.kind === 'plan' ? confirmHtml(T.planConfirm, 'plan-no', 'plan-ok', '요청 올리기', '취소', '', '사전준비 승인 요청 확인') : '') +
+          (c && c.kind === 'plan' ? confirmHtml(T.planConfirm, 'plan-no', 'plan-ok', '요청 올리기', '취소', '', '사전준비 승인 요청 확인', warn) : '') +
           disabledNext('start-ask', '제안서 작성하기', T.startNoYet, 'pp-why-start') + '</div>';
       }
       case 'APPROVAL_PENDING':
@@ -603,7 +704,7 @@
         return '<div class="pp-end">' + (vw.can_start_writing
           ? '<div class="pp-end-row">' + btn('start-ask', '제안서 작성하기', { cls: 'pp-next-btn' }) + '</div>'
           : disabledNext('start-ask', '제안서 작성하기', vw.is_assignee ? T.startNoYet : T.startOnlyAssignee, 'pp-why-start')) +
-          (c && c.kind === 'start' ? confirmHtml(T.startConfirm, 'start-no', 'start-ok', '작성 시작', '취소', '', '제안서 작성 시작 확인') : '') + '</div>';
+          (c && c.kind === 'start' ? confirmHtml(T.startConfirm, 'start-no', 'start-ok', '작성 시작', '취소', '', '제안서 작성 시작 확인', warn) : '') + '</div>';
       case 'WRITING':
         return '<div class="pp-end"><div class="pp-end-row"><span>' + esc(T.writing) + '</span>' +
           btn('to-workflow', T.toWorkflow, { cls: 'link-btn' }) + '</div></div>';
@@ -631,6 +732,8 @@
       '<span class="pp-badges">' + badgeHtml(badge) + (bt ? badgeHtml(bt) : '') + '</span></div>' +
       '<div class="tm-meta">' + meta.join(' · ') + '</div></div>' + prep.headActionHtml(v, m.role) + '</div>';
     h += prep.stepsHtml(prep.stepModel(v, m.history));
+    const nb = prep.nobidOf(v);
+    if (nb) h += prep.nobidBannerHtml(nb, !!m.canNotice);   // 입찰 없음 사실 줄 — 단계 막대 뒤, 다음 한 걸음 앞
     const next = prep.nextLine(v);
     if (next) h += '<p class="pp-next">' + esc(next) + '</p>';
     const past = prep.pastOpenLine(v);
@@ -706,7 +809,7 @@
           '<div class="tm-picks" id="pp-open-picks">' + prep.openPicksHtml(m, i.meEmp) + '</div>' +
           '<p class="tm-note" id="pp-max-note"' + (n >= prep.MAX ? '' : ' hidden') + '>' + esc(tm.T.maxNote) + '</p>';
       }
-      return '<p class="tm-note">담당자로 일할 사람을 1~10명 지명합니다. 승인되면 지명한 사람이 담당자가 되고 준비 과제가 열립니다. 신청자나 지명자에 영업팀장이 있으면 영업부장이 승인합니다.</p>' +
+      return nobidWarnBlock(i.nobidWarn) + '<p class="tm-note">담당자로 일할 사람을 1~10명 지명합니다. 승인되면 지명한 사람이 담당자가 되고 준비 과제가 열립니다. 신청자나 지명자에 영업팀장이 있으면 영업부장이 승인합니다.</p>' +
         '<fieldset class="tm-fs"><legend>담당자 지명</legend>' + inner + '</fieldset>' +
         reasonBlock(m, '의견 (선택)', '의견에는 주민등록번호·카드번호 같은 개인정보를 적지 마세요.');
     }
@@ -820,7 +923,8 @@
   function freshState() {
     return { who: '', tab: 'active', query: '', selected: '', rows: [], listState: 'loading', detail: null,
              modal: null, confirm: null, showVoid: false, uploading: false, busy: false,
-             seq: 0, listSeq: 0, flash: '', refocus: '', focusTitle: false, withdrawing: false };
+             seq: 0, listSeq: 0, flash: '', refocus: '', focusTitle: false, withdrawing: false,
+             nb: null, nbSeen: '' };   // nb: 열린 입찰 없음 팝업 { id, round, rev, sending } · nbSeen: 이미 띄운 건|회차|판정 번호
   }
   let S = freshState();
   let wired = false;
@@ -970,7 +1074,8 @@
       return;
     }
     box.innerHTML = prep.caseHtml({ view: d.view, history: d.history, attach: d.attach, role: myRole(), meEmp: myEmp(),
-      confirm: S.confirm, uploading: S.uploading, showVoid: S.showVoid, withdrawing: S.withdrawing });
+      confirm: S.confirm, uploading: S.uploading, showVoid: S.showVoid, withdrawing: S.withdrawing,
+      canNotice: nbCanNotice(prep.nobidOf(d.view)) });
     afterPaint();
   }
   // 다시 그린 뒤 포커스: 확인 줄이 열렸으면 안전한 쪽(취소) 버튼, 아니면 요청된 자리.
@@ -988,7 +1093,9 @@
     }
   }
 
-  function loadDetail(id) {
+  // o.popup: 건을 연 경우에만 true(목록 선택·화면 열림·다시 시도). 쓰기 뒤 재조회는 옵션 없음 = 입찰 없음 팝업을 또 띄우지 않는다.
+  function loadDetail(id, o) {
+    const popup = !!(o && o.popup);
     const token = ++S.seq;
     S.detail = { loading: true };
     paintCase();
@@ -1007,6 +1114,7 @@
       if (token !== S.seq) return;
       S.detail = d;
       paintCase();
+      if (popup) maybeNobid();
     }).catch(function (e) {
       if (token !== S.seq) return;
       S.detail = { err: { status: e && e.status, detail: e && e.detail } };
@@ -1023,7 +1131,8 @@
     S.showVoid = false;
     clearNotices();
     markSelected();
-    loadDetail(id);
+    S.nbSeen = '';
+    loadDetail(id, { popup: true });
   }
 
   function refresh() {
@@ -1035,7 +1144,7 @@
     S.listState = S.rows.length ? 'ok' : 'loading';
     paintList();
     loadList();
-    if (S.selected) loadDetail(S.selected); else paintCase();
+    if (S.selected) loadDetail(S.selected, { popup: true }); else paintCase();
   }
 
   // ── 쓰기 공통 ──
@@ -1211,7 +1320,7 @@
     const row = rowOf(S.selected);
     const m = S.modal || {};
     return { name: str(v.institution_name) || (row ? row.name : ''), assignees: (v.assignees || []).length,
-             writing: v.state_cd === 'WRITING', fileName: m.fileName || '', meEmp: myEmp() };
+             writing: v.state_cd === 'WRITING', fileName: m.fileName || '', meEmp: myEmp(), nobidWarn: prep.nobidWarnText(v) };
   }
   function openModal(kind, extra) {
     const opener = document.activeElement;
@@ -1327,6 +1436,127 @@
     }
   }
 
+  // ── 입찰 없음 알림 팝업(NEXT 98-1, design 11-19 6장) ──
+  // 열림: 건을 연 뒤 상세가 도착했을 때 한 번. 닫힘: Esc·바깥 클릭(기록 없이 상세에 머묾), [공고 상태 보기]·[제안 진행 정리하기…](기록 없음), [계속 작성](기록).
+  let nbInert = [];
+  function nbRelease() {
+    const K = root.kbboard;
+    if (K && K.inertRelease) K.inertRelease(nbInert);   // 이 팝업이 건 것만 푼다
+    nbInert = [];
+  }
+  function nbCanNotice(n) {
+    const A = root.app, N = root.nav;
+    return !!(n && n.can_view_notice === true && A && A.findNavItem && N && N.NOTICE_ID && A.findNavItem(N.NOTICE_ID));
+  }
+  function nbErr(text) { const e = el('pp-nb-err'); if (e) e.textContent = text || ''; }
+  function maybeNobid() {
+    const v = S.detail && S.detail.view;
+    if (!v || !prep.nobidPopup(v) || S.modal || S.nb) return;
+    const pr = el('pp-root'), ts = document.getElementById('tab-soon');
+    if (!pr || pr.style.display === 'none' || (ts && !ts.classList.contains('active'))) return;   // 숨은 화면에서 열면 배경 inert가 앱을 잠근다
+    const key = [S.selected, v.nobid_notice.round_seq, v.nobid_notice.rev_no].join('|');
+    if (S.nbSeen === key) return;
+    S.nbSeen = key;
+    openNobid();
+  }
+  function openNobid() {
+    const v = S.detail && S.detail.view;
+    const n = prep.nobidOf(v);
+    if (!n) return;
+    const md = el('pp-modal');
+    S.nb = { id: S.selected, round: n.round_seq, rev: n.rev_no, sending: false };
+    const row = rowOf(S.selected);
+    md.innerHTML = prep.nobidPopupHtml(v, { canNotice: nbCanNotice(n), name: row ? row.name : '' });   // 상세에 기관명이 없으면 목록 행 이름
+    md.style.display = '';
+    nbWatchHidden();
+    const K = root.kbboard;
+    nbInert = K && K.inertBehind ? K.inertBehind(md, document.body) : [];
+    const box = el('pp-nb');
+    if (box) box.focus();   // 처음 포커스는 상자 자체 — 목록 Enter 한 번 더로 [계속 작성]이 눌리는 사고 방지(design 5-2)
+  }
+  // 팝업이 열린 뒤 사전준비 화면이 숨겨지면(#pp-root display:none · #tab-soon이 active를 잃음) 팝업과 inert를 즉시 거둔다(qa 11-19 P2-1).
+  // nbSeen은 그대로라 돌아와도 다시 띄우지 않는다(사실 줄은 남는다). MutationObserver가 없는 환경이면 건너뛴다.
+  let nbObs = null;
+  function nbScreenHidden() {
+    const pr = el('pp-root'), ts = document.getElementById('tab-soon');
+    return !pr || pr.style.display === 'none' || !!(ts && !ts.classList.contains('active'));
+  }
+  function nbWatchHidden() {
+    nbUnwatch();
+    if (typeof MutationObserver === 'undefined') return;
+    const pr = el('pp-root'), ts = document.getElementById('tab-soon');
+    const check = function () { if (S.nb && nbScreenHidden()) closeNobid(false); };
+    nbObs = new MutationObserver(check);
+    if (pr) nbObs.observe(pr, { attributes: true, attributeFilter: ['style'] });
+    if (ts) nbObs.observe(ts, { attributes: true, attributeFilter: ['class'] });
+  }
+  function nbUnwatch() { if (nbObs) { nbObs.disconnect(); nbObs = null; } }
+  function closeNobid(refocus) {
+    if (!S.nb) return;
+    nbUnwatch();
+    const md = el('pp-modal');
+    md.style.display = 'none';
+    md.innerHTML = '';
+    S.nb = null;
+    nbRelease();
+    if (refocus) { const t = el('pp-case-title'); if (t && t.focus) t.focus(); }
+  }
+  // 현황판 kbboard.goNotice와 같은 경로: 입찰 공고 현황을 열고 그 기관을 고른다. 못 열면 false.
+  function gotoNotice() {
+    const A = root.app, N = root.nav, D = root.dashboard;
+    if (!A || !A.openNavItem || !N || !N.NOTICE_ID || !A.openNavItem(N.NOTICE_ID)) return false;
+    closeNobid(false);   // 화면이 바뀐다 — 팝업과 inert를 먼저 걷는다(기록 없음)
+    const v = (S.detail && S.detail.view) || {};
+    const id = String((v.nobid_notice && v.nobid_notice.institution_id) || v.institution_id || '');
+    const list = D && D.util && D.util.dataList ? D.util.dataList() : [];
+    const rec = id ? list.filter(function (r) { return String(r.institutionId || '') === id; })[0] : null;
+    if (rec && D.selectKey) D.selectKey(logic.instKey(rec));
+    else { const q = document.getElementById('db-q'); if (q && q.focus) q.focus(); }   // 기관을 못 찾아도 포커스가 body에 떨어지지 않게 — 공고 현황의 검색 칸으로
+    return true;
+  }
+  function onNobidNotice() {
+    if (S.nb && S.nb.sending) return;
+    if (gotoNotice()) return;
+    if (S.nb) nbErr(T.nbNoticeFail); else setPerr(T.nbNoticeFail);   // 못 열면 팝업을 닫지 않고 그 자리에 안내
+  }
+  function onNobidTidy() {
+    const v = S.detail && S.detail.view;
+    if (!v || !S.nb || S.nb.sending) return;
+    const kind = prep.nobidTidy(v).kind;
+    if (!kind) return;
+    closeNobid(false);
+    openModal(kind, { opener: el('pp-case-title') });   // 이 단계에서는 기록 없음 — 기존 모달이 자기 기록을 남긴다
+  }
+  function onNobidContinue() {
+    const nb = S.nb;
+    if (!nb || nb.sending) return;
+    nb.sending = true;
+    const btn0 = el('pp-nb-continue');
+    if (btn0) btn0.setAttribute('aria-disabled', 'true');
+    nbErr('');
+    const id = nb.id;
+    req('POST', base(id) + '/nobid-ack', { round_seq: nb.round, rev_no: nb.rev }, ui('prep_detail', 'nobid_continue')).then(function () {
+      if (S.nb !== nb) return;
+      closeNobid(true);   // 화면 표시 없음(Q2) — 201·200 모두 성공
+    }).catch(function (e) {
+      if (S.nb !== nb) return;
+      nb.sending = false;
+      if (btn0) btn0.removeAttribute('aria-disabled');
+      const code = errtext.parse(e && e.detail).code;
+      if (e && e.status === 409 && (code === 'NOTICE_CHANGED' || code === 'NOT_APPLICABLE')) {
+        closeNobid(false);
+        S.nbSeen = '';
+        setFlash(code === 'NOTICE_CHANGED' ? T.nbChanged : T.nbGone);
+        S.focusTitle = true;   // 다시 그린 뒤 제목으로(afterPaint) — 로딩 그림 중에는 제목이 곧 사라지므로 완료 뒤에 받는다
+        loadDetail(id, { popup: true });   // 바뀐 공고 기록이면 새 판정으로 다시 묻는다
+        return;
+      }
+      // 감사 기록 없이 진행되지 않게 닫지 않는다. 401·404 등은 기존 오류 문구를 재사용, 403은 권한 없음, 그 밖은 '다시 누르세요'.
+      const st = e && e.status;
+      nbErr(st === 401 || st === 404 ? prep.errorInfo(st, e && e.detail, curTasks(), 'nobid').text : st === 403 ? T.noWrite : T.nbAckFail);
+    });
+  }
+
   // ── 이벤트(#pp-root에 한 번만 위임) ──
   function onClick(e) {
     const t = e.target && e.target.closest ? e.target.closest('button, a') : null;
@@ -1363,11 +1593,14 @@
       case 'void-open': openModal('void', { attachId: t.getAttribute('data-attach'), fileName: attachName(t.getAttribute('data-attach')) }); return;
       case 'toggle-void': S.showVoid = !S.showVoid; S.refocus = '[data-act="toggle-void"]'; paintCase(); return;
       case 'to-workflow': if (root.app && root.app.openNavItem) root.app.openNavItem('workflow'); return;
+      case 'nobid-notice': onNobidNotice(); return;
+      case 'nobid-tidy': onNobidTidy(); return;
+      case 'nobid-continue': onNobidContinue(); return;
       default: break;
     }
     switch (t.id) {
       case 'pp-retry-list': S.listState = 'loading'; paintList(); loadList(); break;
-      case 'pp-retry-detail': if (S.selected) loadDetail(S.selected); break;
+      case 'pp-retry-detail': if (S.selected) loadDetail(S.selected, { popup: true }); break;
       case 'pp-m-cancel': requestClose(); break;
       case 'pp-m-go': onModalGo(); break;
       case 'pp-m-keep': keepWriting(); break;
@@ -1399,13 +1632,15 @@
     updateModalUi();
   }
   function onModalKey(e) {
-    if (!S.modal || e.key !== 'Tab') return;      // Esc는 wire()의 document 핸들러가 처리
+    if ((!S.modal && !S.nb) || e.key !== 'Tab') return;      // Esc는 wire()의 document 핸들러가 처리
     const list = Array.prototype.filter.call(el('pp-modal').querySelectorAll('button, input, textarea, a[href]'), function (n) {
       return !n.disabled && n.getClientRects().length > 0;
     });
     if (!list.length) return;
     const first = list[0], last = list[list.length - 1];
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    const box = S.nb ? el('pp-nb') : null;
+    if (box && document.activeElement === box) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }   // 처음 포커스(상자) → 첫 Tab은 첫 버튼
+    else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
   function wire() {
@@ -1428,11 +1663,15 @@
     let downOnBg = false;
     md.addEventListener('mousedown', function (e) { downOnBg = (e.target === md); });
     md.addEventListener('click', function (e) {
-      if (e.target === md && downOnBg) requestClose();
+      if (e.target === md && downOnBg) {
+        if (S.nb) { if (!S.nb.sending) closeNobid(true); } else requestClose();
+      }
       downOnBg = false;
     });
     document.addEventListener('keydown', function (e) {
-      if (e.key !== 'Escape' || !S.modal) return;
+      if (e.key !== 'Escape') return;
+      if (S.nb) { e.preventDefault(); if (!S.nb.sending) closeNobid(true); return; }   // 팝업만 닫고 상세에 머문다(기록 없음)
+      if (!S.modal) return;
       e.preventDefault();
       requestClose();
     });
@@ -1446,6 +1685,7 @@
     const who = whoNow();
     if (who !== S.who) { S = freshState(); S.who = who; clearQueryBox(); }
     const md = el('pp-modal'); md.style.display = 'none'; md.innerHTML = ''; S.modal = null;
+    S.nb = null; nbRelease();
     S.confirm = null;
     clearNotices();
     refresh();
@@ -1462,6 +1702,7 @@
     S.who = who;
     clearQueryBox();
     const md = el('pp-modal'); md.style.display = 'none'; md.innerHTML = '';
+    nbRelease();
     clearNotices();
     if (el('pp-root').style.display !== 'none') refresh();
   };
@@ -1473,6 +1714,7 @@
     const who = whoNow();
     if (S.who !== who) { S = freshState(); S.who = who; }
     S.selected = String(bid);
+    S.nbSeen = '';
     S.flash = flash || '';
     S.focusTitle = true;
     S.tab = 'active';
