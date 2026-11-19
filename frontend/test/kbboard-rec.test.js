@@ -97,7 +97,72 @@ test('추천: 다음 회차 준비 — 올해 결과가 다른 은행으로 정�
   assert.strictEqual(r4.n, 0); assert.deepStrictEqual(r4.excl, { goal: 0, watch: 0, closed: 0, other: 0 });
 });
 
-test('추천: 한 기관은 한 번만 — 공고 중·예정에 함께 있어도 하나, ① 기관은 ②에 다시 나오지 않는다', function () {
+test('추천(qa 11-19 P1-1): 서버 실제 모양 — 지금 국민은행 줄만 있어도 종료 + KB_VERIFIED leaves면 다음 회차 준비(2027 목표, 되찾기 칩)', function () {
+  const L = rec('IL', '청주시');
+  const sum = { kb_now: 'KB', last_kb_year: 2026, lines_now: [{ rank_cd: 'SINGLE', bank_name: '국민은행', term_from: '2023-01-01', term_to: '2026-12-31' }] };
+  const m = { notice: [nIt(L, null, { phase: 'awaiting' })], upcoming: [] };
+  const r = kbb.recommend(m, base({ list: [L], sumById: { IL: sum }, closed: { IL: { cd: 'NOTICE_CLOSED', date: '2026-09-30' } }, verified: [{ key: L.region + '|' + L.name, leaves: 2027 }] }));
+  assert.strictEqual(r.stages[0].next.length, 1); assert.strictEqual(r.excl.closed, 0);
+  const x = r.stages[0].next[0];
+  assert.deepStrictEqual([x.kind, x.year, x.chip, x.cls, x.bank, x.start], ['GOAL', 2027, '되찾기', 'next', '다른 은행', '']);
+  assert.strictEqual(x.why, '올해 결과가 정해짐(다른 은행으로 정해짐) · 다음 회차를 미리 준비');
+  assert.strictEqual(kbb.recNote(x), '다음 회차 준비 추천 — 올해 입찰 결과가 정해졌습니다(다른 은행).');
+  // leaves 근거가 없으면(재유치 성공 가능) 종료로만 센다
+  const r2 = kbb.recommend(m, base({ list: [L], sumById: { IL: sum }, closed: { IL: { cd: 'NOTICE_CLOSED', date: '2026-09-30' } } }));
+  assert.strictEqual(r2.stages[0].next.length, 0); assert.strictEqual(r2.excl.closed, 1);
+  // sum.lines_next(시작 전 줄)만으로도 같다 — 은행·시작일이 why에 들어간다
+  const sumN = Object.assign({}, sum, { lines_next: [{ bank_name: '우리은행', term_from: '2027-01-01' }] });
+  const r3 = kbb.recommend(m, base({ list: [L], sumById: { IL: sumN }, closed: { IL: { cd: 'NOTICE_CLOSED', date: '2026-09-30' } } }));
+  const y = r3.stages[0].next[0];
+  assert.deepStrictEqual([y.kind, y.year, y.chip, y.bank, y.start], ['GOAL', 2027, '되찾기', '우리은행', '2027-01-01']);
+  assert.strictEqual(y.why, '올해 결과가 정해짐(금고 약정 2027-01-01 시작, 우리은행) · 다음 회차를 미리 준비');
+  // 다음 약정이 국민은행이면(재유치 성공) leaves가 있어도 줄이 이긴다 — 제외
+  const sumK = Object.assign({}, sum, { lines_next: [{ bank_name: '국민은행', term_from: '2027-01-01' }] });
+  const r4 = kbb.recommend(m, base({ list: [L], sumById: { IL: sumK }, closed: { IL: { cd: 'NOTICE_CLOSED', date: '2026-09-30' } }, verified: [{ key: L.region + '|' + L.name, leaves: 2027 }] }));
+  assert.strictEqual(r4.stages[0].next.length, 0); assert.strictEqual(r4.excl.closed, 1);
+  // closedBasis도 lines_next를 시작 전 약정 근거로 본다
+  assert.deepStrictEqual(kbb.closedBasis('IL', null, TODAY, sumN), { cd: 'CONTRACT_DECIDED', date: '2027-01-01' });
+  assert.strictEqual(kbb.closedBasis('IL', null, TODAY, sum), null);
+});
+
+test('추천(qa 11-19 P2-1): 미래 국민 줄이 만든 last_kb_year(오늘 연도 이후)는 되찾기가 아니고 noFormer에도 영향이 없다', function () {
+  const M = rec('IM', '미래시');
+  const sum = { kb_now: 'OTHER', last_kb_year: 2030, lines_now: [{ rank_cd: 'SINGLE', bank_name: '우리은행', term_from: '2024-01-01', term_to: '2026-12-31' }, { rank_cd: 'SINGLE', bank_name: '국민은행', term_from: '2027-01-01', term_to: '2030-12-31' }] };
+  const r = kbb.recommend({ notice: [nIt(M, 6)], upcoming: [] }, base({ list: [M], sumById: { IM: sum } }));
+  const x = r.byId.IM;
+  assert.ok(!x || (x.chip !== '되찾기' && x.cls !== 'next' && x.cls !== 'regain'));
+  assert.strictEqual(r.stages[0].items.filter(function (i) { return i.cls === 'regain'; }).length, 0);
+});
+
+test('추천(qa 11-19 P2-2·P2-3): 이미 목표는 줄의 추천 연도와 같은 해일 때만 뺀다 — 올해 목표라도 종료+타 은행이면 다음 회차(내년) 줄로 보인다', function () {
+  const L = rec('IL', '청주시');
+  const sum = { kb_now: 'OTHER', last_kb_year: 2022, lines_now: [{ rank_cd: 'SINGLE', bank_name: '우리은행', term_from: '2027-01-01' }] };
+  const m = { notice: [nIt(L, null, { phase: 'awaiting' })], upcoming: [] };
+  const o = { list: [L], sumById: { IL: sum }, closed: { IL: { cd: 'CONTRACT_DECIDED', date: '2027-01-01' } } };
+  const r = kbb.recommend(m, base(Object.assign({ taken: { IL: { kind: 'GOAL', year: 2026 } } }, o)));
+  assert.strictEqual(r.stages[0].next.length, 1); assert.strictEqual(r.excl.goal, 0); assert.strictEqual(r.byId.IL.year, 2027);
+  const r2 = kbb.recommend(m, base(Object.assign({ taken: { IL: { kind: 'GOAL', year: 2027 } } }, o)));   // 내년 목표는 이미 있다 → 제외
+  assert.strictEqual(r2.stages[0].next.length, 0); assert.strictEqual(r2.excl.goal, 1);
+  const r3 = kbb.recommend(m, base(Object.assign({ taken: { IL: { kind: 'WATCH', year: 0 } } }, o)));   // 관심은 연도와 상관없이 제외
+  assert.strictEqual(r3.stages[0].next.length, 0); assert.strictEqual(r3.excl.watch, 1);
+  // 공고 중 줄(2026 추천): 2027 목표는 있어도 제외하지 않고, 2026 목표면 제외
+  const n = { notice: [nIt(A, 12)], upcoming: [] };
+  const a1 = kbb.recommend(n, base({ list: [A], sumById: { IA: sKB }, taken: { IA: { kind: 'GOAL', year: 2027 } } }));
+  assert.strictEqual(a1.n, 1); assert.strictEqual(a1.excl.goal, 0); assert.strictEqual(a1.byId.IA.year, 2026);
+  const a2 = kbb.recommend(n, base({ list: [A], sumById: { IA: sKB }, taken: { IA: { kind: 'GOAL', year: 2026 } } }));
+  assert.strictEqual(a2.n, 0); assert.strictEqual(a2.excl.goal, 1);
+});
+
+test('추천(qa 11-19 P3-1·P3-2): 줄 고른 뒤 포커스 순서와 저장 뒤 추천 다시 계산(코드 확인)', function () {
+  const js = src('js/kbboard.js');
+  const open = js.slice(js.indexOf('function openAdd(pre)'), js.indexOf('function submitAdd('));
+  const pick = open.slice(open.indexOf('const pickRec'), open.indexOf('ov.addEventListener(\'input\''));
+  assert.ok(pick.indexOf("dq('hb-a-year')") > 0 && pick.indexOf("dq('hb-a-go')") > pick.indexOf("dq('hb-a-year')") && pick.indexOf('hb-a-tag') > pick.indexOf("dq('hb-a-go')") && pick.indexOf("dq('hb-a-q')") > pick.indexOf('hb-a-tag'));
+  const sub = js.slice(js.indexOf('function submitAdd('), js.indexOf('function showRow('));
+  assert.strictEqual((sub.match(/m\.rec\.data = null/g) || []).length, 2);
+});
+
+test('추천: 한 기관은 한 번만— 공고 중·예정에 함께 있어도 하나, ① 기관은 ②에 다시 나오지 않는다', function () {
   const m = { notice: [nIt(A, 12), nIt(B, 3)], upcoming: [uIt(A, 90), uIt(C, 50)] };
   const r = kbb.recommend(m, base({ list: [A, B, C], sumById: { IA: sKB, IB: sOth('SINGLE', 2022), IC: sOth('SINGLE', 0) } }));
   const all = [];

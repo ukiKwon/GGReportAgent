@@ -552,13 +552,21 @@
   };
   // 검색 단계 미리 주의(서버 409와 같은 규칙, backend-dev a265a2ad 3-11): /notice-rounds/current(noticerec.snap) 항목이 올해 판정이고 CLOSED·NO_BID(또는 round_closed)이면 공고 종료·입찰 없음,
   // 039 요약에 시작 전 약정(term_from이 오늘 뒤)이 있으면 약정 확정. 없으면 null. snap = { byId }.
+  // 시작 전 약정 줄: sum.lines_next(서버가 곧 추가할 시작 전 줄 배열, 없으면 무시) + 기존 sum.lines_now의 미래 시작 줄(호환). 시작일 빠른 순(날짜 없는 줄은 뒤).
+  kbb.nextLines = function (sum, today) {
+    const t = isoOf(today), out = [];
+    if (sum && Array.isArray(sum.lines_next)) sum.lines_next.forEach(function (l) { const f = l && kbb.normDate(l.term_from); if (l && (!f || f > t)) out.push(l); });
+    if (sum && Array.isArray(sum.lines_now)) sum.lines_now.forEach(function (l) { const f = l && kbb.normDate(l.term_from); if (f && f > t) out.push(l); });
+    const key = function (l) { return kbb.normDate(l.term_from) || '9999-99-99'; };
+    return out.sort(function (a, b) { return key(a) < key(b) ? -1 : (key(a) > key(b) ? 1 : 0); });
+  };
   kbb.closedBasis = function (id, snap, today, sum) {
     const t = isoOf(today), ty = t.slice(0, 4), it = snap && snap.byId ? snap.byId[id] : null;
     if (it && String(it.handled_at || '').slice(0, 4) === ty && (it.status_cd === 'CLOSED' || it.status_cd === 'NO_BID' || it.round_closed === true)) {
       const s = String(it.handled_at).slice(0, 10);
       return { cd: it.status_cd === 'NO_BID' || it.close_reason_cd === 'NO_BID' ? 'NOTICE_NO_BID' : 'NOTICE_CLOSED', date: isDay(s) ? s : '' };
     }
-    const fut = sum && Array.isArray(sum.lines_now) ? sum.lines_now.filter(function (l) { const f = l && kbb.normDate(l.term_from); return f && f > t; })[0] : null;
+    const fut = kbb.nextLines(sum, today).filter(function (l) { return kbb.normDate(l.term_from); })[0];
     return fut ? { cd: 'CONTRACT_DECIDED', date: kbb.normDate(fut.term_from) } : null;
   };
   // 화면만 아는 근거(서버가 막지 않는다 — 주의만): 행안부 금고지정에 이미 시작 전 약정이 따로 있거나, 기관 자료의 다음 입찰 예정이 올해 뒤로 넘어간 경우. → { year, src } | null
@@ -1128,7 +1136,14 @@
     const tagO = { lofin: o.lofin, verified: o.verified, today: o.today, direct: o.direct };
     const byName = function (a, b) { return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0); };
     const cmp = function (a, b) { return (a.tier - b.tier) || (a.no - b.no) || byName(a, b); };
-    const formerOf = function (sum) { return sum && sum.kb_now !== 'KB' && Number(sum.last_kb_year) > 0 ? Number(sum.last_kb_year) : 0; };
+    const formerOf = function (sum) { return sum && sum.kb_now !== 'KB' && Number(sum.last_kb_year) > 0 && Number(sum.last_kb_year) < y0 ? Number(sum.last_kb_year) : 0; };   // 미래 국민 약정 줄이 만든 last_kb_year(오늘 연도 이후)는 '예전'이 아니다
+    // 다음 약정이 국민은행이 아닌 근거(P1-1): ⓐ시작 전 줄 중 첫 줄의 은행 ⓑKB_VERIFIED의 leaves. 국민은행이 이어 맡거나 근거가 없으면 null.
+    const nextOther = function (sum, rec0) {
+      const nl = kbb.nextLines(sum, o.today);
+      if (nl.length) return /국민/.test(nl[0].bank_name || '') ? null : { bank: String(nl[0].bank_name || '') || '다른 은행', start: kbb.normDate(nl[0].term_from) || '' };
+      const e = dash.kbEntry(rec0, o.verified);
+      return e && e.leaves ? { bank: '다른 은행', start: '' } : null;
+    };
     // 기준: 국민은행이 금고인 기관의 (종류·금고 성격) 조합
     const refs = {};
     let kbN = 0;
@@ -1164,20 +1179,28 @@
     const pickYear = function (pref) { return years.indexOf(pref) >= 0 ? { kind: 'GOAL', year: pref } : (o.noWatch ? null : { kind: 'WATCH', year: 0 }); };
     pool.forEach(function (p) {
       const it = p.it, id = p.id, rec0 = it.rec, sum = sumById[id] || null, tk = taken[id];
-      if (tk) { if (tk.kind === 'WATCH') ex.watch += 1; else ex.goal += 1; return; }
+      if (tk && tk.kind === 'WATCH') { ex.watch += 1; return; }
+      // 이미 목표: 줄의 추천 연도와 같은 해 목표일 때만 뺀다(P2-3). 연도를 모르는 항목은 모두 뺀다.
+      const dropGoal = function (sel) {
+        if (!tk) return false;
+        if (sel && sel.kind === 'GOAL' && Number(tk.year) > 0 && Number(tk.year) !== sel.year) return false;
+        ex.goal += 1; return true;
+      };
       const base = { id: id, key: it.key, name: it.name, region: it.region, tier: p.tier, no: p.no };
-      if (closed[id]) {   // 올해 입찰 종료 — 되찾기 대상이고 결과가 국민은행이 아닌 곳만 '다음 회차 준비'(기본 내년), 나머지는 제외
-        const last = formerOf(sum), fut = sum && Array.isArray(sum.lines_now) ? sum.lines_now.filter(function (l) { const f = l && kbb.normDate(l.term_from); return f && f > t; })[0] : null;
-        if (last && fut && !/국민/.test(fut.bank_name || '')) {
+      if (closed[id]) {   // 올해 입찰 종료 — 국민은행과 관련된 기관 중 다음 약정이 국민은행이 아닌 곳만 '다음 회차 준비'(기본 내년), 나머지는 제외
+        const e = dash.kbEntry(rec0, o.verified), nb = nextOther(sum, rec0);
+        const rel = (sum && (sum.kb_now === 'KB' || Number(sum.last_kb_year) > 0)) || !!(e && e.leaves);
+        if (nb && rel) {
           const sel = pickYear(y0 + 1);
+          if (dropGoal(sel)) return;
           if (!sel) { ex.other += 1; return; }
-          const bank = String(fut.bank_name || '') || '다른 은행', start = kbb.normDate(fut.term_from);
-          nx.push(Object.assign(base, sel, { chip: '되찾기', cls: 'next', lastKb: last, bank: bank, start: start,
-            why: '올해 결과가 정해짐(금고 약정 ' + start + ' 시작, ' + bank + ') · 다음 회차를 미리 준비' }));
-        } else ex.closed += 1;
+          nx.push(Object.assign(base, sel, { chip: '되찾기', cls: 'next', lastKb: formerOf(sum), bank: nb.bank, start: nb.start,
+            why: '올해 결과가 정해짐(' + (nb.start ? '금고 약정 ' + nb.start + ' 시작, ' + nb.bank : (nb.bank === '다른 은행' ? '다른 은행으로 정해짐' : nb.bank + ' 선정')) + ') · 다음 회차를 미리 준비' }));
+        } else if (!dropGoal(null)) ex.closed += 1;
         return;
       }
       const def = kbb.defaultTag(rec0, sum, tagO), last = formerOf(sum), kind = dash.kindOfRec(rec0), sh = vaultShape(rec0, sum, tagO);
+      if (dropGoal(pickYear(p.year))) return;
       let st = '', extra = {};
       if (def.tag === 'RETAIN') {
         const b = kbb.bankInfo(sum, rec0, tagO);
@@ -1212,7 +1235,7 @@
     if (!it) return '';
     if (it.cls === 'retain') return '재유치 추천 — 지금 국민은행 금고입니다.';
     if (it.cls === 'regain') return '되찾기 추천 — 예전(' + it.lastKb + '년까지) 국민은행 금고였고 지금은 ' + it.bank + '입니다.';
-    if (it.cls === 'next') return '다음 회차 준비 추천 — 올해 입찰 결과가 정해졌습니다(' + it.bank + ', 금고 약정 ' + it.start + ' 시작).';
+    if (it.cls === 'next') return '다음 회차 준비 추천 — 올해 입찰 결과가 정해졌습니다(' + it.bank + (it.start ? ', 금고 약정 ' + it.start + ' 시작' : '') + ').';
     return '';
   };
   // 패널 안쪽 마크업. v = { more: { KB:true, … } }(단계별 '나머지 보기'를 눌렀는가). 이유 안 날짜·D-n·연도는 고정폭 span.d.
@@ -2087,7 +2110,10 @@
       m.rec.open = false;
       setDlgErr('hb-a-err', '');
       paintAdd();
-      const nx = dq('hb-a-year'); if (nx && m.kind !== 'WATCH') nx.focus(); else { const g = dq('hb-a-go'); if (g && !g.disabled) g.focus(); }
+      // 포커스(P3-1): 연도 칸 → 활성 [목표에 넣기] → 구분 칸 → 기관 칸 순으로 첫 존재·활성 요소
+      const yr = dq('hb-a-year'), g = dq('hb-a-go'), tg = d.el.querySelector('input[name="hb-a-tag"]'), qq = dq('hb-a-q');
+      const f = [m.kind !== 'WATCH' ? yr : null, g && !g.disabled ? g : null, tg && !tg.disabled ? tg : null, qq].filter(function (x) { return x && !x.disabled; })[0];
+      if (f) f.focus();
     };
     ov.addEventListener('input', function (ev) {
       const t = ev.target;
@@ -2161,6 +2187,7 @@
       m.busy = false;
       const o = kbb.outcome(x, 'add', { year: eff.year });
       if (o.kind === 'saved' || o.kind === 'nochange') {
+        m.rec.data = null;   // 저장 뒤에는 추천을 다시 계산한다(P3-2)
         closeDlg('none');
         gs.focusNext = { inst: m.inst.id, reveal: true };   // 새 줄이 거르기에 가려지면 거르기를 풀고 그 줄로(applyFocusNext)
         gs.just = { inst: m.inst.id };
@@ -2174,7 +2201,7 @@
         m.warn = { mode: 'block', basis: o.basis, years: o.nextYears.length ? o.nextYears : selYears().filter(function (y) { return y > y0; }) };
         m.closedBlock = true;
       }
-      if (o.kind === 'already') { m.dup = { which: o.which, year: o.year, id: m.inst.id }; m.inst = null; m.warn = null; m.closedBlock = false; m.pickText = o.msg; setDlgErr('hb-a-err', ''); paintAdd(); loadGoals(); return; }
+      if (o.kind === 'already') { m.rec.data = null; m.dup = { which: o.which, year: o.year, id: m.inst.id }; m.inst = null; m.warn = null; m.closedBlock = false; m.pickText = o.msg; setDlgErr('hb-a-err', ''); paintAdd(); loadGoals(); return; }
       setDlgErr('hb-a-err', o.msg);
       paintAdd();
       releaseDlgFocus(d);
