@@ -16,6 +16,8 @@
           --line-strong:#6d7882; --fg:#1e2124; --muted:#464c53;
           --red:#bd2c0f; --orange:#8a5c00; --yellow:#6b6000; --blue:#0a65ab; --gray:#5c6670;
           --accent-color:#0b50d0; --ripple-duration:2.2s;
+          /* 은행 CI 예외(사용자 11-19), 출처 kbfg.com/kor/about/corporate/ci.htm — KB Yellow Positive / 잉크 / KB Dark Gray. 대비는 kbboard-1119.test.js가 지킨다 */
+          --bk-kb:#FFBC00; --bk-kb-ink:#1e2124; --bk-kb-edge:#545045;
           --mono:Consolas,"Cascadia Mono","Malgun Gothic",monospace;
           --shadow:none;
           --r-lg:2px; --r:2px; --r-sm:2px;
@@ -1655,6 +1657,8 @@
   .db-act .db-why { margin-left:auto; }
   .db-confirm { border:1px dashed var(--line-strong); border-radius:var(--r-sm); padding:12px 14px; font-size:13px; line-height:1.5; word-break:keep-all; }
   .db-confirm .db-act-row { margin-top:8px; }
+  .db-confirm .db-cf-warn { display:block; font-weight:700; color:var(--fg); margin-bottom:4px; }   /* 공고 확인 전 확정(11-19 4-3): 굵은 경고 한 줄 */
+  .db-confirm.early { border-style:solid; border-color:var(--orange); background:color-mix(in srgb, var(--orange) 8%, var(--panel)); }
   .db-blank { flex:1 1 auto; display:flex; align-items:flex-start; justify-content:center; padding:48px 24px 24px; text-align:center; color:var(--muted); font-size:13px; word-break:keep-all; line-height:1.5; }
   .db-state { padding:18px 20px; font-size:13px; color:var(--muted); word-break:keep-all; line-height:1.5; margin:0; }
   .db-state button { margin-top:8px; }
@@ -1947,7 +1951,10 @@
   .hb-row .dg-day, .hb-row .ov-stamp, .hb-row .db-chip { align-self:start; font-size:12px; font-family:var(--mono); padding:1px 7px; }
   .hb-slot { font-size:12px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:var(--r); padding:0 6px; }
   .hb-slot.hb-leaves { color:var(--fg); border-color:color-mix(in srgb, var(--red) 55%, var(--line-strong)); }   /* 2027년부터 다른 은행 — 지금은 맡고 있지만 곧 빠지는 곳 */
-  .hb-slot.hb-stay { color:var(--fg); }   /* 다음도 국민은행 — '다음은 다른 은행'과 짝. 테두리는 기본(틸은 선택·포커스 전용, One Teal Rule) */
+  .hb-slot.hb-bank { display:inline-flex; align-items:center; gap:4px; font-weight:700; }   /* 은행 CI 채운 칩(사용자 11-19 예외, 이 칩에만) — 지역 변수 없이 :root --bk-*를 직접 참조 */
+  .hb-slot.hb-bank[data-bank="kb"] { color:var(--bk-kb-ink); background:var(--bk-kb); border-color:var(--bk-kb-edge); }
+  .hb-slot.hb-bank svg { width:12px; height:12px; flex:none; }
+  @media (forced-colors:active) { .hb-slot.hb-bank { border-color:CanvasText; } }
   .db-soon-tag { margin-left:8px; font-size:12px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:var(--r); padding:0 5px;
                  background:repeating-linear-gradient(45deg, color-mix(in srgb, var(--muted) 12%, transparent) 0 2px, transparent 2px 4px); vertical-align:middle; }
   /* 11-17 c54 — 제안 진행 줄·도구 줄·정렬·입찰 종료·관심 탭·주의 상자·협약 중인 기관 버튼. 새 hex·새 변수 없음(design-reviewer a3ab5c5a 6-12) */
@@ -2005,6 +2012,16 @@
   @media (max-width:880px) { .hb-band { grid-template-columns:1fr 1fr; } .hb-k:nth-child(3) { border-left:0; } .hb-tp { height:auto; } .hb-tt { min-width:764px; } }
   @media (max-width:880px) { .hb-stgs { grid-template-columns:88px repeat(5, minmax(150px,1fr)); overflow-x:auto; } }
   @media (prefers-reduced-motion:reduce) { .hb-row { transition:none; } }
+  /* 11-19 4-4 결과 알림 띠(.hb-note: 요약 띠 아래·표 위) + 옮긴 줄·탭 강조(.hb-just). 새 hex·새 변수 없음, 상태색 --blue/--accent-color만 */
+  .hb-note { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 12px; font-size:13px; color:var(--fg); border:1px solid color-mix(in srgb, var(--blue) 55%, var(--line)); border-radius:var(--r); background:color-mix(in srgb, var(--blue) 8%, var(--panel)); animation:hbNoteIn 1.2s ease-out 1; }
+  .hb-note[hidden] { display:none; }
+  .hb-note .hb-note-ck { width:12px; height:12px; flex:none; color:var(--blue); }
+  .hb-note .db-flash { flex:1 1 auto; min-width:0; }
+  @keyframes hbNoteIn { from { background:color-mix(in srgb, var(--blue) 18%, var(--panel)); } }
+  .hb-tt tbody tr.hb-just > *, .hb-tt tbody tr.hb-just .hb-lane .off, .hb-tt tbody tr.hb-just .hb-lane .unk, .hb-tb [role=tab].hb-just { animation:hbJust 2.8s ease-out 1; }
+  @keyframes hbJust { 0%, 55% { background:color-mix(in srgb, var(--accent-color) 14%, var(--panel)); } }   /* to(100%)를 쓰지 않아 끝은 그 칸의 원래 바탕(지연 행 빨강 8%·hover)으로 돌아간다 */
+  @media (prefers-reduced-motion:reduce) { .hb-note { animation:none; }
+    .hb-tt tbody tr.hb-just > *, .hb-tt tbody tr.hb-just .hb-lane .off, .hb-tt tbody tr.hb-just .hb-lane .unk, .hb-tb [role=tab].hb-just { animation:none; background:color-mix(in srgb, var(--accent-color) 10%, var(--panel)); } }
   /* 국민은행 상태 현황판 끝 */
 
   /* 시작화면(포털) 시작 — #tab-soon 안 #pt-root. 규격: design-reviewer 11-19 97 3단계(handoff/agents/history/2026-11-19_97-3_첫화면_포털_규격.md) + 11-19 피드백(1428_aab03363 5절). 새 변수 없음(#eef1f5는 DESIGN 패널 머리 리터럴, #ffbc00·#545045·#1e2124는 --bk-kb* 변수의 대체값 — 국민은행 CI) */
@@ -2274,10 +2291,10 @@
   .pl-pers + .db-filters { margin-top:12px; }
   .pl-kwrow { margin:12px 0 4px; }
   .pl-kwrow input { width:100%; box-sizing:border-box; font-size:13px; padding:7px 10px; }
-  .pl-imp { margin:4px 0 0; }
+  .pl-imp { margin:8px 0 0; }
   .pl-doc { border-top:1px solid var(--line); padding:16px 0; margin-top:12px; }
   .pl-doc-h { display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin:0 0 12px; }
-  .pl-doc-h h3 { margin:0; font-size:14px; font-weight:700; }
+  .pl-doc-h h4 { margin:0; font-size:14px; font-weight:700; }
   .pl-doc > .db-why { margin:8px 0 0; line-height:1.5; word-break:keep-all; }
   .pl-warn { margin:8px 0 0; padding:6px 10px; font-size:12px; line-height:1.5; word-break:keep-all; border-left:2px solid var(--orange); }
   .pl-note, .pl-content { white-space:pre-line; overflow-wrap:anywhere; }
@@ -2303,6 +2320,11 @@
   #pl-foot .pl-fn { margin:0; }
   #pl-foot .pl-fn + .pl-fn { margin-top:8px; padding-top:8px; border-top:1px solid var(--line); }
   #plans-root .db-row[data-pin="1"] + .db-row { border-top:1px dashed var(--line-strong); }   /* 직접 연 기관과 정규 목록의 경계(사용자 11-16) */
+  /* 상태 칩 한 줄(규격 design 2026-11-19 6-1~6-3): 목록 3행·상세 '사업계획' 절 첫 줄. 새 색·새 변수 없음. 행 위아래 14→10px는 3행 추가분 보상 */
+  #plans-root .db-row { padding:10px 20px; }
+  .pl-st { display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px; min-height:20px; margin:0; font-size:12px; }
+  #plans-root .db-row .pl-st { grid-column:1 / -1; }
+  .pl-sum h3 { margin:0 0 8px; }
   .pl-open .v { font-family:var(--mono); }   /* 현황판·지도 상세(#plans-root 밖)에서도 버튼 안 숫자를 mono로 */
   @media (max-width:880px) {
     .pl-work { grid-template-columns:1fr; }

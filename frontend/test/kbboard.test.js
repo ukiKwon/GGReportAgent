@@ -239,17 +239,17 @@ test('rowHtml(11-17 최종형): 이름 칩 → 종료 D-n(크게) → 둘째 줄
   // 둘째 줄: 지역 · 다음 입찰 공고(예정일 = effectiveBid, 추정). 옛 'D-30' 입찰 칩(dg-day)은 없다
   assert.ok(/<span class="meta">[^<]*· 다음 입찰 공고 <span class="d">\d{4}-\d{2}-\d{2}<\/span> 추정/.test(h) && h.indexOf('dg-day') < 0);
   assert.ok(h.indexOf('회차 소식: 2026 회차 국민은행 수성(기사 2026-11-04)') >= 0 && h.indexOf('확정</span>') < 0);
-  assert.ok(h.indexOf('<span class="hb-slot hb-stay">다음도 국민은행</span>') >= 0);            // 회차 소식이 수성 → 칩
+  assert.ok(h.indexOf('class="hb-slot hb-bank" data-bank="kb"><svg') >= 0 && h.indexOf('국민은행 확정<span class="sr-only"> (다음 협약)</span></span>') >= 0 && h.indexOf('hb-stay') < 0);   // 회차 소식이 수성 → CI 칩(11-19)
   assert.ok(h.indexOf('hb-leaves') < 0);
   assert.ok(h.indexOf('<span class="hb-end') < h.indexOf('<span class="meta">'));              // 줄 순서: 이름 → 종료 → 메타
   kbb.SHOW_NEWS = false;
   try { assert.ok(kbb.rowHtml(it, { verified: V2 }).indexOf('회차 소식') < 0); } finally { kbb.SHOW_NEWS = true; }
-  // 청주: 현재 금고 칩 옆에 '다음은 다른 은행'(읽기용 '(2027년부터)') — '다음도 국민은행' 칩은 안 붙는다
+  // 청주: 현재 금고 칩 옆에 '다음은 다른 은행'(읽기용 '(2027년부터)') — '국민은행 확정' 칩은 안 붙는다
   const VL = [{ key: '43|청주시청', name: '청주시청', slot: 2, leaves: '2027', next: '2027~2030은 1금고 농협·2금고 신한 — 국민은행 빠짐' }];
   const cj = grp([rec('청주시청', 40, { region: '43' })], VL).unk[0];
   const hc = kbb.rowHtml(cj, { verified: VL });
   assert.ok(hc.indexOf('<span class="hb-slot">2금고(일부 회계)</span><span class="hb-slot hb-leaves">다음은 다른 은행<span class="sr-only">(2027년부터)</span></span>') >= 0);
-  assert.ok(hc.indexOf('회차 소식: 2027~2030은 1금고 농협') >= 0 && hc.indexOf('hb-stay') < 0);
+  assert.ok(hc.indexOf('회차 소식: 2027~2030은 1금고 농협') >= 0 && hc.indexOf('hb-bank') < 0);
   // 협약 예정(2027년부터) 줄: 칩 '2027년부터', 종료 D-n 없음, 둘째 줄 '지역 · 종류', 소식 줄은 자료의 quote
   const nit = grp([rec('새곳', 30)], [], NX).next[0];
   const hn = kbb.rowHtml(nit, { verified: [], nextList: NX });
@@ -258,12 +258,12 @@ test('rowHtml(11-17 최종형): 이름 칩 → 종료 D-n(크게) → 둘째 줄
   assert.ok(hn.indexOf('회차 소식: 국민은행 선정(타행에서 이동), 약정 2027~2030') >= 0);
 });
 
-test('staysText: 회차 소식에 수성·재선정·유지가 있고 다른 은행으로 가지 않는 곳만 \'다음도 국민은행\'', function () {
+test('staysText: 회차 소식에 수성·재선정·유지가 있고 다른 은행으로 가지 않는 곳만 \'국민은행 확정\'', function () {
   const mk = function (extra) { return [Object.assign({ key: '11|가', name: '가', slot: 1 }, extra)]; };
   const r = rec('가', 5);
-  assert.strictEqual(kbb.staysText(r, mk({ next: '2026 회차 국민은행 수성(기사 2026-11-04)' })), '다음도 국민은행');
-  assert.strictEqual(kbb.staysText(r, mk({ next: 'KB국민 재선정 · 약정 2027-01-01~2030-12-31(2026-10-21 체결)' })), '다음도 국민은행');
-  assert.strictEqual(kbb.staysText(r, mk({ next: '부금고 국민은행 유지 · 약정 2027-01-01~2030-12-31' })), '다음도 국민은행');
+  assert.strictEqual(kbb.staysText(r, mk({ next: '2026 회차 국민은행 수성(기사 2026-11-04)' })), '국민은행 확정');
+  assert.strictEqual(kbb.staysText(r, mk({ next: 'KB국민 재선정 · 약정 2027-01-01~2030-12-31(2026-10-21 체결)' })), '국민은행 확정');
+  assert.strictEqual(kbb.staysText(r, mk({ next: '부금고 국민은행 유지 · 약정 2027-01-01~2030-12-31' })), '국민은행 확정');
   assert.strictEqual(kbb.staysText(r, mk({ next: '2026 회차 결과 공고 2026-11-05(선정 은행 미확인)' })), '');
   assert.strictEqual(kbb.staysText(r, mk({})), '');
   assert.strictEqual(kbb.staysText(r, mk({ leaves: '2027', next: '국민은행 수성 아님' })), '');          // 떠나는 곳은 짝 칩만
@@ -272,7 +272,7 @@ test('staysText: 회차 소식에 수성·재선정·유지가 있고 다른 은
   assert.strictEqual(kbb.staysText(r, mk({ next: '일반회계 부산은행 유지' })), '');
   assert.strictEqual(kbb.staysText(r, mk({ next: '국민은행 수성 실패' })), '');
   assert.strictEqual(kbb.staysText(r, mk({ next: 'KB 재선정 여부 미정' })), '');
-  assert.strictEqual(kbb.staysText(r, mk({ next: 'KB 재선정(2026-10-21 체결)' })), '다음도 국민은행');
+  assert.strictEqual(kbb.staysText(r, mk({ next: 'KB 재선정(2026-10-21 체결)' })), '국민은행 확정');
 });
 
 test('inProgress·findOpener(qa 11-17): 진행 목록 전체로 판정, 닫은 뒤 같은 열의 같은 data-key(+data-act) 요소', function () {
@@ -452,8 +452,8 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
   assert.ok(/\.hb-foot details\[open\] \{ flex-basis:100%;/.test(css));
   // 흐리게 보이기는 opacity 대신 muted(DESIGN) — 전역 disabled 흐림을 되돌리는 opacity:1 만 허용
   assert.ok(/\.hb-row\[aria-disabled=true\][^{]*\{[^}]*color:var\(--muted\)/.test(css) && !/opacity:\s*(0|\.)/.test(css));   // opacity 대신 muted(DESIGN)
-  assert.ok(/\.hb-slot\.hb-leaves \{[^}]*var\(--red\)/.test(css) && /\.hb-slot\.hb-stay \{ color:var\(--fg\); \}/.test(css));
-  assert.ok(!/\.hb-slot\.hb-stay \{[^}]*accent-color/.test(css));                                           // 틸은 선택·포커스 전용(design P2-1)
+  assert.ok(/\.hb-slot\.hb-leaves \{[^}]*var\(--red\)/.test(css) && /\.hb-slot\.hb-bank\[data-bank="kb"\] \{ color:var\(--bk-kb-ink\); background:var\(--bk-kb\); border-color:var\(--bk-kb-edge\); \}/.test(css));
+  assert.ok(css.indexOf('hb-stay') < 0 && !/\.hb-slot\.hb-bank[^{]*\{[^}]*accent-color/.test(css));         // 틸은 선택·포커스 전용(design P2-1), 옛 hb-stay 규칙은 없다
   // design P2-4·P3-3: 1번 각주 CSS 5줄, 3번 foot hidden, 1279px 이하는 3번 구획 머리만 min-height 0
   assert.ok(/#hb-ofoot \{ display:block; word-break:keep-all; padding:8px 16px; line-height:1\.5; \}/.test(css) && /#hb-ofoot \.hb-src \{ display:inline; \}/.test(css) &&
     /#hb-ofoot \.db-why \{ white-space:nowrap; \}/.test(css) && /#hb-ofoot details \{ display:inline-block; margin-left:8px; \}/.test(css) && /#hb-ofoot details\[open\] \{ display:block; margin:6px 0 0; \}/.test(css));
@@ -463,10 +463,10 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
   // 채운 버튼 금지 — 와플 범례 색 견본(.lg i.k)·국민은행 막대 채움(.bar.k)·진행 막대 채움(.hb-pg i)·마감 눈금(::after)은 버튼이 아니라 값을 알려 주는 표지라 뺀다
   assert.ok(!/background:var\(--(accent-color|red|fg)\)\s*;/.test(css.replace(/\.hb-waf \.lg i\.k \{[^}]*\}/, '').replace(/\.hb-bk \.bar\.k \{[^}]*\}/, '')
     .replace(/\.hb-pg i \{[^}]*\}/, '').replace(/\.hb-lane \.w:not\(\.est\)::after \{[^}]*\}/, '')));
-  // 마크업 순서(design 6-C): 제목 줄 → 오류 배너 → 요약 띠 → 목표 표 → 접힌 협약 구획. 3열·2번 구획·3번 구획은 없다
+  // 마크업 순서(design 6-C): 제목 줄 → 요약 띠 → 알림·오류 → 목표 표 → 접힌 협약 구획. 3열·2번 구획·3번 구획은 없다
   const k0 = src('js/kbboard.js');
   const at2 = function (s) { return k0.indexOf(s); };
-  assert.ok(at2('id="hb-err"') < at2('class="hb-band"') && at2('class="hb-band"') < at2('class="hb-tp" id="hb-goals"') && at2('id="hb-ours" role="dialog"') > 0);   // 협약 구획은 표 아래 details가 아니라 팝업(c54)
+  assert.ok(at2('class="hb-band"') < at2('id="hb-flash"') && at2('id="hb-flash"') < at2('id="hb-err"') && at2('id="hb-err"') < at2('class="hb-tp" id="hb-goals"') && at2('id="hb-ours" role="dialog"') > 0);   // 띠 → 결과 알림 → 오류 → 표(11-19 4-4). 협약 구획은 팝업(c54)
   assert.ok(k0.indexOf('<details id="hb-ours"') < 0 && k0.indexOf('<div class="hb-tb" id="hb-tb"></div><div class="hb-ts" id="hb-ts" role="tabpanel"></div>') > 0 && k0.indexOf('id="hb-ours-btn" aria-haspopup="dialog"') > 0);
   assert.ok(k0.indexOf('id="hb-cards"') < 0 && k0.indexOf('id="hb-alert"') < 0 && k0.indexOf('hb-grid') < 0 && k0.indexOf('class="hb-cols"') < 0 && k0.indexOf('id="hb-notice"') < 0 && k0.indexOf('id="hb-preps"') < 0);
   assert.ok(k0.indexOf('<h3 id="hb-ot">협약 중인 기관</h3><span id="hb-osm"></span>') > 0 && k0.indexOf('aria-labelledby="hb-ot" aria-describedby="hb-osm"') > 0 && k0.indexOf('<summary><span class="ot"') < 0 && k0.indexOf('<summary><h3') < 0 && k0.indexOf('<h2>입찰 현황판</h2>') > 0 && k0.indexOf('<select id="hb-year" aria-label="목표 연도">') > 0);

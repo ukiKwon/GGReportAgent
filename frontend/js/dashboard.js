@@ -394,6 +394,7 @@
   };
   // 버튼이 없을 때 db-why 한 줄(actHtml이 쓴다)
   dash.EARLY_WHY = '올해 목표 기관이라 공고 전에도 영업부서가 제안 확정할 수 있습니다.';
+  dash.EARLY_ASK = '아직 공고 확인 전입니다. 계속 진행하시겠습니까?';   // 확정 확인 상자 안 굵은 경고(11-19 4-3). 버튼은 '계속 진행'
   dash.CONFIRM_WHY = {
     later: '입찰 공고가 나면 [제안 확정]을 쓸 수 있습니다.',
     closed: '이번 회차 공고가 끝났습니다.',
@@ -970,9 +971,11 @@
     if (c.act === 'open') return '<div class="db-act-row"><button type="button" class="db-next" id="db-open">사전준비 열기</button>' + map + '<span class="db-why">이미 제안 확정되어 사전준비가 진행 중입니다.</span></div>';
     if (c.act === 'confirm') {
       if (c.confirm) {
-        return '<div class="db-confirm" role="group" aria-labelledby="db-cf-t"><span id="db-cf-t">' + esc(it.name) + dash.josaEul(it.name) +
+        const early = !!c.early;   // 공고 전 올해 목표 기관: 한 상자 안에서 경고만 더한다(상자를 두 번 띄우지 않는다)
+        return '<div class="db-confirm' + (early ? ' early' : '') + '" role="group" aria-labelledby="db-cf-t"><span id="db-cf-t">' +
+          (early ? '<b class="db-cf-warn">' + esc(dash.EARLY_ASK) + '</b>' : '') + esc(it.name) + dash.josaEul(it.name) +
           ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 제안서 사전준비 프로세스]에 이 기관의 준비 건이 생깁니다. 개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</span>' +
-          '<div class="db-act-row"><button type="button" class="db-next" id="db-do"' + (c.busy ? ' disabled' : '') + '>확정하기</button><button type="button" id="db-cancel">취소</button></div></div>';
+          '<div class="db-act-row"><button type="button" class="db-next" id="db-do"' + (c.busy ? ' disabled' : '') + '>' + (early ? '계속 진행' : '확정하기') + '</button><button type="button" id="db-cancel">취소</button></div></div>';
       }
       return '<div class="db-act-row"><button type="button" class="db-next" id="db-cf">제안 확정</button>' + map +
         (c.early ? '<span class="db-why">' + esc(dash.EARLY_WHY) + '</span>' : '') + '</div>';

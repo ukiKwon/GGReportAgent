@@ -291,12 +291,12 @@ test('bandHtml 제안 진행 자료 문구: 권한 없음(403)·로그인(401)·
   assert.ok(zero.indexOf('없음') < 0);
 });
 
-test('emptyCandidates: 협약 1년 안 종료 중 \'다음도 국민은행\'·이미 목표인 곳을 뺀다(협약 예정은 soon에 들지 않음)', function () {
+test('emptyCandidates: 협약 1년 안 종료 중 \'국민은행 확정\'·이미 목표인 곳을 뺀다(협약 예정은 soon에 들지 않음)', function () {
   const V = [{ key: '11|나', name: '나', slot: 1, next: '2026 회차 국민은행 수성(기사 2026-11-04)' }, { key: '11|가', name: '가', slot: 1 }, { key: '11|라', name: '라', slot: 1 }];
   const it = function (id, name) { return { key: '11|' + name, name: name, region: '11', endDate: '2026-12-31', rec: rec(id, name) }; };
   const g = { soon: [it('I1', '가'), it('I2', '나'), it('I3', '다'), it('I4', '라'), { key: 'x', name: '아이디없음', rec: { name: '아이디없음' } }], next: [it('I9', '예정')] };
   const c = kbb.emptyCandidates(g, { I3: true }, V);
-  assert.deepStrictEqual(c.map(function (x) { return x.name; }), ['가', '라']);                                  // 나 = 다음도 국민은행, 다 = 이미 목표, 아이디 없는 곳 = 넣을 수 없음
+  assert.deepStrictEqual(c.map(function (x) { return x.name; }), ['가', '라']);                                  // 나 = 국민은행 확정, 다 = 이미 목표, 아이디 없는 곳 = 넣을 수 없음
   assert.strictEqual(c[0].endDate, '2026-12-31');
   assert.deepStrictEqual(kbb.emptyCandidates(null, {}, V), []);
 });
@@ -572,8 +572,8 @@ test('알림 문구(#hb-flash): 넣었습니다 / 바꿨습니다 / 뺐습니다
 // ── 소스 구조(보안·접근성·배선) ──────────────────────────────────────────
 test('DOM 코드 구조: 서버 글은 textContent·esc로, 쓰기는 영업부서 버튼만 / 메뉴·대화창 접근성 / 포커스 되돌림', function () {
   const k = src('js/kbboard.js');
-  assert.ok(/function flash\(msg\) \{ const f = \$\('hb-flash'\); if \(f\) f\.textContent = msg \|\| ''; \}/.test(k));          // 알림은 textContent
-  assert.ok(/function say\(msg, isErr\)[\s\S]*?renderBanner\(\);[\s\S]*?flash\(isErr \? '' : msg\)/.test(k));
+  assert.ok(/function flash\(msg, act\) \{\s*const f = \$\('hb-flash'\); if \(f\) f\.textContent = msg \|\| '';/.test(k));          // 알림 문장은 textContent(버튼은 고정 마크업 kbb.seeWatchHtml)
+  assert.ok(/function say\(msg, isErr, act\)[\s\S]*?renderBanner\(\);[\s\S]*?flash\(isErr \? '' : msg, act\)/.test(k));
   assert.ok(k.indexOf("el.innerHTML = t && st.err ? esc(st.err) : t;") > 0);                                                       // 오류 줄은 esc
   assert.ok(k.indexOf("pk.textContent = m.pickText") > 0 && k.indexOf("nt.textContent = m.note") > 0 && k.indexOf("why.textContent = s.why") > 0);
   assert.ok(k.indexOf('confirm(') < 0 && k.indexOf('alert(') < 0);                                                                 // confirm() 금지(인라인 확인·안내만)

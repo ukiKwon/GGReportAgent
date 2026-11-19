@@ -555,6 +555,24 @@ test('actHtml: 서버 없음은 버튼 없이 안내, 권한 밖은 한 줄 안�
   assert.ok(cf.indexOf('id="db-do"') >= 0 && cf.indexOf('id="db-cancel"') >= 0);
 });
 
+test('actHtml(11-19 4-3): 공고 전(early) 확정 확인은 한 상자 안 경고 + [계속 진행], 일반 확인은 그대로', function () {
+  const it = dash.model([rec('부산광역시', '26', 40)], TODAY).upcoming[0];
+  const e = dash.actHtml(it, { act: 'confirm', confirm: true, early: true });
+  assert.ok(e.indexOf('class="db-confirm early" role="group" aria-labelledby="db-cf-t"') >= 0);
+  assert.ok(e.indexOf('<span id="db-cf-t"><b class="db-cf-warn">아직 공고 확인 전입니다. 계속 진행하시겠습니까?</b>부산광역시를 제안 대상으로 확정합니다.') >= 0);
+  assert.ok(e.indexOf('id="db-do">계속 진행</button><button type="button" id="db-cancel">취소</button>') >= 0 && e.indexOf('확정하기') < 0);
+  assert.ok(dash.actHtml(it, { act: 'confirm', confirm: true, early: true, busy: true }).indexOf('id="db-do" disabled>계속 진행') >= 0);
+  const n = dash.actHtml(it, { act: 'confirm', confirm: true });
+  assert.ok(n.indexOf('class="db-confirm" role="group"') >= 0 && n.indexOf('db-cf-warn') < 0 && n.indexOf('early') < 0 && n.indexOf('id="db-do">확정하기</button>') >= 0);
+  assert.ok(dash.actHtml(it, { act: 'later', confirm: true, early: true }).indexOf('db-confirm') < 0);          // 관심·다른 해 목표는 act가 later라 상자가 안 열린다
+  const closed = dash.actHtml(it, { act: 'confirm', early: true });                                              // 상자 전: 기존 안내 한 줄 + [제안 확정]
+  assert.ok(closed.indexOf('id="db-cf"') >= 0 && closed.indexOf(dash.EARLY_WHY) >= 0 && closed.indexOf('db-cf-warn') < 0);
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert.ok(html.indexOf('.db-confirm .db-cf-warn { display:block; font-weight:700;') > 0 && /\.db-confirm\.early \{ border-style:solid; border-color:var\(--orange\); background:color-mix\(in srgb, var\(--orange\) 8%, var\(--panel\)\); \}/.test(html));
+  const k = fs.readFileSync(path.join(ROOT, 'js', 'dashboard.js'), 'utf8');
+  assert.ok(k.indexOf("case 'db-do': doConfirm(); break;") > 0 && k.indexOf("case 'db-do': dmDoConfirm(m); break;") > 0);   // 버튼 id가 같아 클릭·Esc 처리는 그대로
+});
+
 test('josaEul: 받침 유무', function () {
   assert.strictEqual(dash.josaEul('부산광역시'), '를');
   assert.strictEqual(dash.josaEul('노원구청'), '을');

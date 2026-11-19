@@ -124,7 +124,7 @@ test('D. 팝업 inert: overlay→body 조상 경로의 형제마다 걸고(이�
   assert.ok(k.indexOf("$('hb-root'); if (rt) rt.setAttribute('inert'") < 0 && k.indexOf("rt.removeAttribute('inert')") < 0);
 });
 
-test('F. 팝업 canAdd: 목표·관심 칩, 권한 없음, 다음 협약, 2년 밖, 다음도 국민은행, 올해 입찰 종료이면 숨긴다', function () {
+test('F. 팝업 canAdd: 목표·관심 칩, 권한 없음, 다음 협약, 2년 밖, 국민은행 확정, 올해 입찰 종료이면 숨긴다', function () {
   const r = rec('I1', '가'), it = { key: '11|가', name: '가', region: '11', endDate: '2026-12-31', rec: r };
   const o = { mark: '', can: true, isNext: false, verified: [], closedIds: {}, years: [2026, 2027, 2028] };
   assert.strictEqual(kbb.popCanAdd(it, o), true);
@@ -133,7 +133,7 @@ test('F. 팝업 canAdd: 목표·관심 칩, 권한 없음, 다음 협약, 2년 �
   assert.strictEqual(kbb.popCanAdd(it, Object.assign({}, o, { isNext: true })), false);
   assert.strictEqual(kbb.popCanAdd(Object.assign({}, it, { endDate: '2031-01-01' }), o), false);
   const stay = [{ key: '11|가', name: '가', slot: 1, next: '2026 회차 국민은행 수성(기사 2026-11-04)' }];
-  assert.strictEqual(kbb.staysText(r, stay), '다음도 국민은행');
+  assert.strictEqual(kbb.staysText(r, stay), '국민은행 확정');
   assert.strictEqual(kbb.popCanAdd(it, Object.assign({}, o, { verified: stay })), false);   // 광진형: 칩이 이유를 말한다
   assert.strictEqual(kbb.popCanAdd(it, Object.assign({}, o, { closedIds: { I1: true } })), false);   // 올해 입찰 종료
   assert.strictEqual(kbb.popCanAdd(it, Object.assign({}, o, { closedIds: { I9: true } })), true);
@@ -155,4 +155,83 @@ test('E. CSS: 일정 칸 글자 뒤 바탕은 줄 바탕 변수(hover·late 대�
   assert.ok(/\.hb-lane \.off \{ right:2px; max-width:calc\(100% - 4px\);/.test(css));
   assert.ok(!/opacity:\s*(0|\.)/.test(css) && (css.match(/#[0-9a-fA-F]{3,8}\b/g) || []).length === 0);
   assert.ok(/\.db-soon-tag \{[^}]*font-size:12px;[^}]*border-radius:var\(--r\)/.test(css));   // DESIGN.md 최소 12px·반경 var(--r)(0f qa 이관 11-19)
+});
+
+test('G. 4-1·4-2 국민은행 확정 칩: CI 변수 대비 자동 시험, popCanWatch, [관심에 넣기]는 확정 줄에만 · 목표 버튼과 겹치지 않는다', function () {
+  const html = src('index.html');
+  const root = /:root \{([^}]*)\}/.exec(html)[1];
+  const lum = function (h) { const c = [1, 3, 5].map(function (i) { const v = parseInt(h.substr(i, 2), 16) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const cr = function (a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const tok = function (n) { const m = new RegExp('--' + n + ':\\s*(#[0-9a-fA-F]{6})').exec(root); assert.ok(m, n); return m[1]; };
+  const banks = []; root.replace(/--bk-([a-z]+):\s*#[0-9a-fA-F]{6}/g, function (_, b) { banks.push(b); return ''; });
+  assert.deepStrictEqual(banks, ['kb']);
+  banks.forEach(function (b) {
+    assert.ok(cr(tok('bk-' + b + '-ink'), tok('bk-' + b)) >= 4.5, b + ' 글자 대 바탕');
+    assert.ok(cr(tok('bk-' + b + '-edge'), '#ffffff') >= 3, b + ' 테두리 대 흰 바탕');
+  });
+  assert.strictEqual(tok('bk-kb').toLowerCase(), '#ffbc00'); assert.strictEqual(tok('bk-kb-edge').toLowerCase(), '#545045');   // 출처 kbfg.com CI 값
+  // popCanWatch
+  const stay = [{ key: '11|가', name: '가', slot: 1, next: '2026 회차 국민은행 수성(기사 2026-11-04)' }];
+  const r = rec('I1', '가'), it = { key: '11|가', name: '가', region: '11', endDate: '2026-12-31', rec: r };
+  const o = { mark: '', can: true, verified: stay, noWatch: false };
+  assert.strictEqual(kbb.popCanWatch(it, o), true);
+  assert.strictEqual(kbb.popCanWatch(it, Object.assign({}, o, { mark: '관심' })), false);
+  assert.strictEqual(kbb.popCanWatch(it, Object.assign({}, o, { mark: '2026 목표' })), false);
+  assert.strictEqual(kbb.popCanWatch(it, Object.assign({}, o, { can: false })), false);       // 읽기 전용
+  assert.strictEqual(kbb.popCanWatch(it, Object.assign({}, o, { verified: [] })), false);     // 확정 줄이 아님
+  assert.strictEqual(kbb.popCanWatch(it, Object.assign({}, o, { noWatch: true })), false);    // 옛 서버
+  assert.strictEqual(kbb.popCanWatch(Object.assign({}, it, { rec: rec('', '가') }), o), false);
+  assert.strictEqual(kbb.popCanAdd(it, Object.assign({}, o, { years: [2026, 2027, 2028], closedIds: {} })), false);   // 목표에 넣기는 계속 숨김
+  // rowHtml: 확정 줄에는 owatch만, oadd 없음. aria-label에 기관명
+  const sit = Object.assign({ endDays: 40, days: 40, date: '2027-02-01', label: '', confidence: '추정', overdue: false }, it);
+  const w = kbb.rowHtml(sit, { verified: stay, nextList: [], canWatch: true });
+  assert.ok(w.indexOf('<li class="hb-rl">') === 0 && w.indexOf('data-act="owatch" data-inst="I1" data-key="11|가" aria-label="가 관심에 넣기">관심에 넣기</button></li>') > 0 && w.indexOf('data-act="oadd"') < 0);
+  assert.ok(kbb.rowHtml(sit, { verified: stay, nextList: [] }).indexOf('owatch') < 0);                      // canWatch 없음(읽기 전용·관심 칩)
+  assert.ok(kbb.rowHtml(sit, { verified: stay, nextList: [], canAdd: true, canWatch: true }).indexOf('owatch') < 0);   // 둘 다면 목표 쪽(실제로는 겹치지 않는다)
+  const k = src('js/kbboard.js');
+  assert.ok(/else if \(act === 'owatch'\) \{ closePop\(false\); openAdd\(\{ id: inst, kind: 'WATCH', opener: \$\('hb-ours-btn'\) \}\); \}/.test(k));
+  assert.ok(k.indexOf('canWatch: kbb.popCanWatch(it, {') > 0 && k.indexOf('noWatch: noWatchNow()') > 0);
+  // CSS: CI 칩은 이 칩에만, 현황판 블록에 지역 변수·hex 없음(기존 시험이 이미 지킴)
+  const a = html.indexOf('/* 국민은행 상태 현황판(kbboard.js) 시작'), b = html.indexOf('/* 국민은행 상태 현황판 끝 */');
+  const css = html.slice(a, b).replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(/\.hb-slot\.hb-bank \{[^}]*font-weight:700/.test(css) && /\.hb-slot\.hb-bank svg \{ width:12px; height:12px;/.test(css) && /@media \(forced-colors:active\) \{ \.hb-slot\.hb-bank \{ border-color:CanvasText; \} \}/.test(css));
+  assert.ok(css.indexOf('var(--bk-kb)') === css.lastIndexOf('var(--bk-kb)'));                              // 배경에 쓰는 곳은 한 군데
+});
+
+test('H. 4-4 결과 알림: 띠 아래 순서·상태 영역 밖 버튼·옮긴 뒤 포커스·줄/탭 강조·동작 줄이기', function () {
+  const k = src('js/kbboard.js'), html = src('index.html');
+  assert.ok(k.indexOf('<div class="hb-note" id="hb-note" hidden>') > 0 && k.indexOf('<div id="hb-flash" class="db-flash" role="status"></div><span id="hb-flash-act"></span></div>') > 0);   // 버튼은 status 바깥 형제
+  assert.ok(k.indexOf('class="hb-band" id="hb-band"') < k.indexOf('id="hb-note"') && k.indexOf('id="hb-note"') < k.indexOf('id="hb-err"') && k.indexOf('id="hb-err"') < k.indexOf('id="hb-goals"'));
+  assert.strictEqual(kbb.seeWatchHtml(), '<button type="button" class="hb-tag" id="hb-see-watch" data-see="watch">관심 탭에서 보기</button>');
+  assert.ok(/function flash\(msg, act\) \{[\s\S]*?\$\('hb-flash-act'\)[\s\S]*?msg && act === 'watch' \? kbb\.seeWatchHtml\(\) : ''[\s\S]*?n\.hidden = !msg;/.test(k));
+  assert.ok(/gs\.focusNext = \{ inst: r\.id, reveal: true \};\s*if \(toWatch && !noWatchNow\(\)\) \{ gs\.focusNext = \{ note: true \}; gs\.just = \{ tab: 'watch' \}; gs\.seeInst = r\.id; \}/.test(k));   // 목표→관심: 탭은 그대로
+  assert.ok(/say\(kbb\.flashMoved\(r\.name, toWatch \? 'WATCH' : 'GOAL', m\.year\)[^\n]*, false, toWatch && !noWatchNow\(\) \? 'watch' : ''\)/.test(k));
+  assert.ok(/if \(f\.note\) \{[^}]*\$\('hb-see-watch'\)[^}]*\$\('hb-add'\)[\s\S]*?return;\s*\}/.test(k));                                  // 포커스: [관심 탭에서 보기], 없으면 [목표 기관 추가]
+  assert.ok(/gs\.just = \{ inst: m\.inst\.id \};/.test(k) && /gs\.just = id \? \{ inst: id \} : null;/.test(k) && /else gs\.just = \{ inst: r\.id \};/.test(k));
+  assert.ok(/restoreFocus\(sc, keepKey\);\s*applyFocusNext\(\);\s*applyJust\(\);/.test(k));
+  assert.ok(/function applyJust\(\) \{[\s\S]*?gs\.st === 'loading'\) return;[\s\S]*?classList\.add\('hb-just'\);[\s\S]*?setTimeout\(function \(\) \{ el\.classList\.remove\('hb-just'\); \}, 4000\)/.test(k));
+  assert.ok(/else if \(btn\.id === 'hb-see-watch'\) seeWatch\(\);/.test(k) && /function seeWatch\(\) \{[\s\S]*?showRow\('watch', gs\.seeInst \|\| '', 0\);/.test(k));
+  assert.ok(k.indexOf('confirm(') < 0 && /textContent = msg \|\| ''/.test(k));                                                          // 서버 글은 textContent
+  const a = html.indexOf('/* 국민은행 상태 현황판(kbboard.js) 시작'), b = html.indexOf('/* 국민은행 상태 현황판 끝 */');
+  const css = html.slice(a, b).replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(/\.hb-note \{[^}]*border:1px solid color-mix\(in srgb, var\(--blue\) 55%, var\(--line\)\)[^}]*background:color-mix\(in srgb, var\(--blue\) 8%, var\(--panel\)\)/.test(css) && /\.hb-note\[hidden\] \{ display:none; \}/.test(css));
+  assert.ok(/@keyframes hbJust \{ 0%, 55% \{ background:color-mix\(in srgb, var\(--accent-color\) 14%, var\(--panel\)\); \} \}/.test(css));   // 100% 없음 = 끝은 원래 바탕
+  assert.ok(/@media \(prefers-reduced-motion:reduce\) \{ \.hb-note \{ animation:none; \}[\s\S]*?\.hb-just[^{]*\{ animation:none; background:color-mix\(in srgb, var\(--accent-color\) 10%, var\(--panel\)\); \} \}/.test(css));
+  assert.ok(!/border-left:\s*3px/.test(css.slice(css.indexOf('.hb-note {'))));                                                          // 왼쪽 굵은 띠 금지(design)
+});
+
+test('I. 국민은행 확정 판정(사용자 11-19): 같은 구절에 국민+수성·재선정·유지, 추측·조건 말이 있으면 칩 없음, 일정 예정은 확정', function () {
+  assert.strictEqual(kbb.staysSure('2026 회차 국민은행 수성(기사 2026-11-04) · 지정 공고 2026-11-03'), true);
+  assert.strictEqual(kbb.staysSure('KB국민 재선정 · 약정 2027-01-01~2030-12-31(2026-10-21 체결)'), true);
+  assert.strictEqual(kbb.staysSure('부금고 국민은행 유지 · 약정 2027-01-01~2030-12-31(지정 공고 제2026-936호, 2026-10-30)'), true);
+  assert.strictEqual(kbb.staysSure('재선정 · 약정 2027-01-01~2030-12-31(체결 예정)'), false);                   // 국민이 같은 구절에 없다
+  assert.strictEqual(kbb.staysSure('국민은행 재선정 · 약정 2027-01-01~2030-12-31(체결 예정)'), true);         // 일정 예정은 확정
+  assert.strictEqual(kbb.staysSure('국민은행 유지할지 기대된다'), false);
+  assert.strictEqual(kbb.staysSure('국민은행 수성 전망'), false);
+  assert.strictEqual(kbb.staysSure('국민은행 유지 예정'), false);
+  assert.strictEqual(kbb.staysSure('국민은행 수성 여부 주목'), false);
+  assert.strictEqual(kbb.staysSure('동작구까지 지키면 국민은행 수성'), false);
+  assert.strictEqual(kbb.staysSure('국민은행 수성 실패'), false);
+  assert.strictEqual(kbb.staysSure('2027~2030은 1금고 농협·2금고 신한(기사 2026-09-30) — 국민은행 빠짐'), false);
+  assert.strictEqual(kbb.staysSure(''), false);
 });
