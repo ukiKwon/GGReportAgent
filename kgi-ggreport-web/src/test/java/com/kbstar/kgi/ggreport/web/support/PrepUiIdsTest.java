@@ -66,4 +66,12 @@ public class PrepUiIdsTest {
         assertEquals(BoardUiIds.UNKNOWN, ui.getButton());
         assertFalse(ui.isValid());
     }
+
+    @Test
+    public void 입찰_없음_알림의_계속_작성은_prep_detail_nobid_continue로_받아들여진다() {
+        BoardUiIds.Ui ui = of("prep_detail", "nobid_continue");
+        assertEquals("prep_detail", ui.getScreen());
+        assertEquals("nobid_continue", ui.getButton());
+        assertTrue(ui.isValid());
+    }
 }

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- PREP_NOBID_ACK(048) — 입찰 없음 알림 [계속 작성] 기록. ANSI 문장(양쪽 방언 공통). 조회는 flushCache — 같은 트랜잭션의 앞선 결과 캐시를 타지 않게. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.PrepNobidAckMapper">
+
+  <insert id="insertAck">
+    INSERT INTO PREP_NOBID_ACK (EMP_NO, INSTITUTION_ID, ROUND_SEQ, NOTICE_HANDLED_AT, NOTICE_REV_NO, BID_CASE_ID, PREP_STATE_CD,
+                                EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, ACKED_AT)
+    VALUES (#{empNo}, #{institutionId}, #{roundSeq}, #{handledAt}, #{revNo}, #{bidCaseId}, #{stateCd},
+            #{verified}, #{screenId}, #{buttonId}, #{uiValid}, #{now})
+  </insert>
+
+  <select id="selectAckedAt" resultType="string" flushCache="true">
+    SELECT ACKED_AT FROM PREP_NOBID_ACK
+     WHERE EMP_NO = #{empNo} AND INSTITUTION_ID = #{institutionId} AND ROUND_SEQ = #{roundSeq} AND NOTICE_HANDLED_AT = #{handledAt}
+  </select>
+</mapper>

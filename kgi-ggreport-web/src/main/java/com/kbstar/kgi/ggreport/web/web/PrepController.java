@@ -6,11 +6,13 @@ import com.kbstar.kgi.ggreport.web.dto.PrepIn;
 import com.kbstar.kgi.ggreport.web.service.ApprovalRequestService;
 import com.kbstar.kgi.ggreport.web.service.PrepAttachService;
 import com.kbstar.kgi.ggreport.web.service.PrepAudit;
+import com.kbstar.kgi.ggreport.web.service.PrepNobidService;
 import com.kbstar.kgi.ggreport.web.service.PrepService;
 import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.PrepUiIds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -29,10 +31,12 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 /**
  * 제안서 사전준비(NEXT 70). 호출자 확인은 {@link MenuGuard#requireActiveUser}(401/403 DENIED, 메뉴 무관 — 영업부장은 tasks 메뉴가 꺼져 있다).
@@ -42,6 +46,7 @@ import java.util.function.Supplier;
  * 상세·이력의 비담당은 404(없는 건과 같은 응답)다. ⚠️ X-Emp-No 자기신고 위의 업무 규칙이다 — 사칭 방지가 아니다.
  *
  * <p>개설·기획승인의 회수·승인·반려는 기존 {@code /approval-requests/{id}/cancel·decide} 를 쓴다(후크가 사전준비 상태를 맞춘다).
+ * <p>입찰 없음 알림(048): 상세 응답에 {@code nobid_notice} 를 더하고(읽기 실패면 null — 상세는 그대로), [계속 작성]은 {@code POST …/prep/nobid-ack}.
  */
 @RestController
 public class PrepController {
@@ -49,20 +54,24 @@ public class PrepController {
     private static final Logger LOG = LoggerFactory.getLogger(PrepController.class);
     /** 건이 없을 때의 감사 칸 값 — STATE_CD 의 '건 없음'(PrepAudit·PrepService.stateOf)과 같은 표기. */
     private static final String NO_CASE = "NONE";
+    /** 실패 DETAIL 의 코드 — 대문자·밑줄만(NoticeRoundController.failDetail 과 같은 틀). */
+    private static final Pattern CODE = Pattern.compile("[A-Z_]{1,40}");
 
     private final PrepService prep;
     private final PrepAttachService attach;
     private final ApprovalRequestService approvals;
     private final PrepAudit audit;
     private final MenuGuard guard;
+    private final PrepNobidService nobid;
 
     public PrepController(PrepService prep, PrepAttachService attach, ApprovalRequestService approvals,
-                          PrepAudit audit, MenuGuard guard) {
+                          PrepAudit audit, MenuGuard guard, PrepNobidService nobid) {
         this.prep = prep;
         this.attach = attach;
         this.approvals = approvals;
         this.audit = audit;
         this.guard = guard;
+        this.nobid = nobid;
     }
 
     /** 목록(1) — 기관명·상태·진척 n/m·담당자 이름만. */
@@ -139,10 +148,14 @@ public class PrepController {
         return run(req, bidCaseId, "OPEN_REQUEST", null, me -> approvals.submitBidOpen(bidCaseId, body, actor));
     }
 
-    /** 상세(6) — PrepView. 비담당은 404. */
+    /** 상세(6) — PrepView + nobid_notice(입찰 없음 알림, 048). 비담당은 404. 접근 이력 DETAIL 끝에 nobid=Y|N|-(읽기 실패) 만 붙인다. */
     @GetMapping("/bidcases/{bidCaseId}/prep")
     public Map<String, Object> detail(@PathVariable String bidCaseId, HttpServletRequest req) {
-        return run(req, bidCaseId, "VIEW", null, me -> prep.detail(me, bidCaseId));
+        Map<String, Object> out = run(req, bidCaseId, "VIEW", null, me -> withNobid(me, bidCaseId, prep.detail(me, bidCaseId)));
+        Object n = out.get("nobid_notice");
+        String flag = n instanceof Map ? (Boolean.TRUE.equals(((Map<?, ?>) n).get("applicable")) ? "Y" : "N") : "-";
+        req.setAttribute(AccessLogInterceptor.DETAIL, req.getAttribute(AccessLogInterceptor.DETAIL) + " nobid=" + flag);
+        return out;
     }
 
     /** 과제 체크(7). */
@@ -180,6 +193,29 @@ public class PrepController {
     @GetMapping("/bidcases/{bidCaseId}/prep/history")
     public List<Map<String, Object>> history(@PathVariable String bidCaseId, HttpServletRequest req) {
         return run(req, bidCaseId, "HISTORY", null, me -> prep.history(me, bidCaseId));
+    }
+
+    /**
+     * 입찰 없음 알림 [계속 작성](048) — 업무 상태는 바꾸지 않고 PREP_NOBID_ACK 한 줄. 새로 남기면 201, 이미 있으면 200 saved=false.
+     * BID_PREP_ACT 에는 run() 이 NOBID_ACK 로 성공·실패를 남긴다. 접근 이력 DETAIL: 성공 {@code nobid-notice ack inst=<기관>},
+     * 실패 {@code nobid-notice ack <상태> <CODE>}(코드만 — 공고 시각·이름·본문 없음, security 11-19 하-4).
+     */
+    @PostMapping("/bidcases/{bidCaseId}/prep/nobid-ack")
+    public ResponseEntity<Map<String, Object>> nobidAck(@PathVariable String bidCaseId,
+                                                        @RequestBody(required = false) PrepIn.NobidAck body,
+                                                        HttpServletRequest req) {
+        Actor actor = Actor.of(req);
+        BoardUiIds.Ui ui = PrepUiIds.of(req);
+        Map<String, Object> out;
+        try {
+            out = run(req, bidCaseId, "NOBID_ACK", null, me -> nobid.ack(me, actor, bidCaseId, body, ui));
+        } catch (ApiException e) {
+            req.setAttribute(AccessLogInterceptor.DETAIL, nobidFailDetail(e));   // 403 은 DENIED 줄이 따로 남고 API 줄은 생략된다
+            throw e;
+        }
+        req.setAttribute(AccessLogInterceptor.DETAIL, "nobid-notice ack inst=" + out.get("institution_id"));
+        boolean saved = Boolean.TRUE.equals(out.get("saved"));
+        return ResponseEntity.status(saved ? HttpStatus.CREATED : HttpStatus.OK).body(out);
     }
 
     // ── T3 확정본·첨부 원본(NEXT 71, 025) ────────────────────────────────
@@ -255,6 +291,35 @@ public class PrepController {
     }
 
     // ── 내부 ────────────────────────────────────────────────────────────
+
+    /**
+     * 상세에 입찰 없음 알림을 붙인다 — 별도 빈·트랜잭션이라 DB 오류(표 미적용 등)면 null 로 두고 상세는 그대로 낸다(근거 없는 단정 금지, design 11-19).
+     * 서비스가 돌려준 맵은 고치지 않고 복사한다.
+     */
+    private Map<String, Object> withNobid(SysUser me, String bid, Map<String, Object> detail) {
+        Map<String, Object> n = null;
+        try {
+            n = nobid.view(me, bid);
+        } catch (DataAccessException e) {
+            LOG.warn("입찰 없음 알림을 읽지 못했다(상세는 그대로): case={} cause={}", caseKey(bid), e.getClass().getSimpleName());
+        }
+        Map<String, Object> out = new LinkedHashMap<String, Object>(detail);
+        out.put("nobid_notice", n);
+        return out;
+    }
+
+    /** "nobid-notice ack <상태> <code>" — code 는 대문자·밑줄만. 없으면 상태만. */
+    private static String nobidFailDetail(ApiException e) {
+        String code = null;
+        Object d = e.getDetailObject();
+        if (d instanceof Map) {
+            Object c = ((Map<?, ?>) d).get("code");
+            if (c instanceof String && CODE.matcher((String) c).matches()) {
+                code = (String) c;
+            }
+        }
+        return "nobid-notice ack " + e.getStatus() + (code == null ? "" : " " + code);
+    }
 
     /** 감사 칸(BID_PREP_ACT.TASK_CD, 20자)에 넣을 과제 코드 — 형식 밖(길이·문자)이면 null. 경로 변수 원문을 그대로 저장하지 않는다(security F5). */
     private static String auditTask(String taskCd) {

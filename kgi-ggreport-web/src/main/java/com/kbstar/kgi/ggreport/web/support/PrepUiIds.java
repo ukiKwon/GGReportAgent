@@ -12,6 +12,7 @@ import java.util.Set;
  * 결재함(approvals.js)이 개설·기획승인 결재를 회수·승인·반려할 때 보내는 approvals_mine/cancel_request·approvals_inbox/approve|reject 도 여기서 거른다.
  * [제안 확정]은 입찰 공고 현황(dashboard.js doConfirm, 11-16 분리)이 bid_notice/confirm, 입찰 현황판(kbboard.js 상세 팝업)이 bid_board/confirm,
  * 지도 팝업이 map_popover/confirm 으로 보낸다 — HeadUiIds·InstUiIds 와 같은 이름.
+ * 입찰 없음 알림의 [계속 작성](048)은 prep_detail/nobid_continue 다(design 11-19).
  * 화면을 새로 만들면 여기 목록과 프런트 상수를 같이 더한다.
  */
 public final class PrepUiIds {
@@ -21,7 +22,7 @@ public final class PrepUiIds {
     public static final Set<String> BUTTONS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             "open", "refresh", "confirm", "unconfirm", "open_request", "withdraw", "check", "uncheck",
             "plan_request", "start_writing", "history_open", "cancel_prep", "approve", "reject", "cancel_request",
-            "attach_upload", "attach_download", "attach_void", "t3_set", "t3_clear", "open_prep")));
+            "attach_upload", "attach_download", "attach_void", "t3_set", "t3_clear", "open_prep", "nobid_continue")));
 
     private PrepUiIds() {
     }

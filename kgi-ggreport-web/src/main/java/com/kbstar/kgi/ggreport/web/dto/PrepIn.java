@@ -55,4 +55,16 @@ public class PrepIn {
         public String getComment() { return comment; }
         public void setComment(String v) { this.comment = v; }
     }
+
+    /** {@code POST /bidcases/{id}/prep/nobid-ack} — 입찰 없음 알림 [계속 작성]. 화면이 본 회차·판정 번호(최신 확인용)만 받는다. 저장 값은 서버가 다시 읽는다. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class NobidAck {
+        private Integer roundSeq;
+        private Integer revNo;
+
+        public Integer getRoundSeq() { return roundSeq; }
+        public void setRoundSeq(Integer v) { this.roundSeq = v; }
+        public Integer getRevNo() { return revNo; }
+        public void setRevNo(Integer v) { this.revNo = v; }
+    }
 }

@@ -701,6 +701,12 @@ public class PrepService {
         return p == null ? "NONE" : p.getStateCd();
     }
 
+    /** 상세와 같은 열람 규칙으로 건을 돌려준다(없거나 못 보면 404) — 입찰 없음 알림(PrepNobidService)이 같은 규칙을 쓰려고 연다. */
+    @Transactional(readOnly = true)
+    public BidPrep requireVisible(SysUser me, String bidCaseId) {
+        return visible(me, bidCaseId);
+    }
+
     // ── 내부: 열람·판정 ──────────────────────────────────────────────────
 
     private BidPrep require(String bidCaseId) {
@@ -1010,14 +1016,12 @@ public class PrepService {
         viewer.put("is_assignee", assignee);
         viewer.put("is_head", head);
         viewer.put("can_confirm", false);   // 이미 확정된 건이다
-        viewer.put("can_unconfirm", CONFIRMED.equals(p.getStateCd()) && isSales(me)
-                && (me.getEmpNo().equals(p.getConfirmedBy()) || isLead(me)));
+        viewer.put("can_unconfirm", canUnconfirm(me, p));   // 입찰 없음 알림(PrepNobidService)과 같은 함수(security 11-19 중-1)
         viewer.put("can_request_open", CONFIRMED.equals(p.getStateCd()) && isSales(me));
         viewer.put("can_withdraw_open", openRequester);
         viewer.put("can_request_plan_approval", assignee && IN_PROGRESS.equals(p.getStateCd()) && ev.ready);
         viewer.put("can_start_writing", assignee && WRITABLE.equals(p.getStateCd()) && ev.ready);
-        viewer.put("can_cancel", isLead(me) && (IN_PROGRESS.equals(p.getStateCd()) || WRITABLE.equals(p.getStateCd())
-                || WRITING.equals(p.getStateCd())));
+        viewer.put("can_cancel", canCancel(me, p));
         viewer.put("can_upload", assignee && taskState);   // 첨부 올리기(71) — 활성 담당자, 과제 행이 있는 상태
         m.put("viewer", viewer);
         return m;
@@ -1182,6 +1186,40 @@ public class PrepService {
         if (!isSales(me)) {
             throw new ApiException(403, "이 기능을 쓸 권한이 없습니다.");
         }
+    }
+
+    // ── 판정 함수(같은 패키지 재사용: PrepNobidService) ──────────────────────
+    // 주의: 여기의 isSales = 영업팀·영업팀장, isLead = 영업팀장만이다. HeadRules.isSales/isLead(부장 포함)와 뜻이 다르다 — 섞지 않는다(security 11-19 중-1).
+
+    /** 확정 취소 권한(상태 무관) — 영업팀·영업팀장 중 확정한 사람, 또는 영업팀장. 영업부장·디자이너는 없다. */
+    static boolean hasUnconfirmAuthority(SysUser me, BidPrep p) {
+        return isSales(me) && (me.getEmpNo().equals(p.getConfirmedBy()) || isLead(me));
+    }
+
+    /** viewer.can_unconfirm — CONFIRMED 에서 확정 취소 권한이 있을 때. unconfirm() 의 서버 판정과 같은 식. */
+    static boolean canUnconfirm(SysUser me, BidPrep p) {
+        return CONFIRMED.equals(p.getStateCd()) && hasUnconfirmAuthority(me, p);
+    }
+
+    /** 중단 권한(상태 무관) — 영업팀장만. */
+    static boolean hasCancelAuthority(SysUser me) {
+        return isLead(me);
+    }
+
+    /** viewer.can_cancel — 개설 뒤(IN_PROGRESS·WRITABLE·WRITING) 영업팀장. abort() 의 서버 판정과 같은 식. */
+    static boolean canCancel(SysUser me, BidPrep p) {
+        String st = p.getStateCd();
+        return hasCancelAuthority(me) && (IN_PROGRESS.equals(st) || WRITABLE.equals(st) || WRITING.equals(st));
+    }
+
+    /** 영업팀·영업팀장·영업부장(디자이너 제외). */
+    static boolean isSalesOrHead(SysUser me) {
+        return isSales(me) || isHead(me);
+    }
+
+    /** 영업팀장·영업부장. */
+    static boolean isLeadOrHead(SysUser me) {
+        return isLead(me) || isHead(me);
     }
 
     /** 이력 사유 칸(200자) 맞춤 — 결재 의견은 500자까지 받으므로 잘라 쓴다. 비면 null. */
