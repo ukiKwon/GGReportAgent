@@ -204,10 +204,17 @@
   };
   // 사용자 11-19: '유지' 기사도 확정으로 보되 문맥이 진짜 확정일 때만. '·'로 나눈 같은 구절에 국민(KB)과 수성·재선정·유지가 함께 있고,
   // 그 구절에 추측·조건 말(할지·기대·전망…)이 없을 때. '예정'은 수성·재선정·유지 바로 뒤에 붙을 때만 막는다('약정 체결 예정'·'시작 예정'은 확정 일정). data-auditor 11-19 검수.
-  const STAY_HEDGE = /실패|미정|미확인|할지|될지|여부|기대|전망|예상|관측|가능성|유력|가닥|점쳐|검토|추진|주목|우선협상|지키면|하면|보인다/;
+  // qa 11-19 재작성: 괄호(출처) 제거 → ' · '·쉼표·—·/·;로 구절 나눔('1·2금고'는 안 나눔) → 은행 낱말(KBS·KB증권·국민일보·국민연금 제외)·확정 말·부정어·추측 말·예정 검사.
+  const STAY_SPLIT = /\s·\s|[,，—/;；]/;
+  const STAY_BANK = /KB국민|국민은행|(^|[^A-Za-z])KB(?![A-Za-z])|(^|[^가-힣])국민(?![가-힣]*(일보|연금|카드|의힘))/;
+  const STAY_NEG = /실패|미정|미확인|불발|무산|탈락|빠짐|못(\s|해|했)|않/;
+  const STAY_HEDGE = /할지|될지|여부|기대|전망|관측|가능성|유력|가닥|점쳐|주목|우선협상|지키면|한다면|된다면|보인다|예상된다|예상돼|검토 중|추진 중/;
   kbb.staysSure = function (text) {
-    return String(text || '').split('·').some(function (p) {
-      return /국민|KB/.test(p) && /수성|재선정|유지/.test(p) && !STAY_HEDGE.test(p) && !/(수성|재선정|유지)\S{0,6}\s*예정/.test(p);
+    const t = String(text || '').replace(/\([^)]*\)/g, '');
+    return t.split(STAY_SPLIT).some(function (p) {
+      const bank = STAY_BANK.test(p.replace(/KB(증권|손해|생명|캐피탈|카드)/g, ''));
+      return bank && /수성|재선정|유지/.test(p) && !STAY_NEG.test(p) && !STAY_HEDGE.test(p)
+        && !/(발표|심의|결정|선정|결과)[^·,]{0,10}예정/.test(p) && !/(수성|재선정|유지)\S{0,6}\s*예정/.test(p);
     });
   };
   // 4-2: '국민은행 확정' 줄에도 [관심에 넣기](목표에 넣기는 popCanAdd가 계속 숨긴다). 관심에는 연도가 없어 moveYear·올해 입찰 종료는 걸지 않는다. noWatch = 옛 서버(관심 응답 없음)는 openAdd가 목표 창으로 열리므로 숨긴다.
@@ -1624,9 +1631,10 @@
 
   // act === 'watch'이면 알림 옆에 [관심 탭에서 보기]. 문장은 textContent, 버튼은 고정 마크업. 알림 띠(#hb-note)는 문장이 있을 때만 보인다(숨겼다 켜는 것은 예전 .db-flash:empty와 같은 패턴).
   function flash(msg, act) {
+    const n = $('hb-note'); if (n) n.hidden = !msg;   // 띠를 먼저 보이게 한 뒤 글을 넣는다(role=status가 보이는 상태에서 바뀐 글을 읽도록, qa 11-19 P3-3)
     const f = $('hb-flash'); if (f) f.textContent = msg || '';
     const a = $('hb-flash-act'); if (a) a.innerHTML = msg && act === 'watch' ? kbb.seeWatchHtml() : '';
-    const n = $('hb-note'); if (n) { n.hidden = !msg; if (msg && n.scrollIntoView) n.scrollIntoView({ block: 'nearest' }); }
+    if (n && msg && n.scrollIntoView) n.scrollIntoView({ block: 'nearest' });
   }
 
   function goNotice(key) {
@@ -2254,16 +2262,16 @@
     }
   }
 
-  // 위→아래(design 11-19 4-4): 제목 줄 → 요약 띠 → 결과 알림(#hb-note) → 오류(#hb-err) → 목표 표(#hb-goals). 협약 구획은 팝업. 표·띠 안쪽은 renderGoals가 채운다.
+  // 위→아래(design 11-19 4-4): 제목 줄 → 오류(#hb-err) → 요약 띠 → 결과 알림(#hb-note) → 목표 표(#hb-goals). 협약 구획은 팝업. 표·띠 안쪽은 renderGoals가 채운다.
   const WAIT = '<p class="db-state" aria-busy="true">불러오는 중입니다…</p>';
   const SKELETON =
     '<section id="hb-root" aria-label="입찰 현황판">' +
     '<div class="hb-top"><h2>입찰 현황판</h2><select id="hb-year" aria-label="목표 연도"></select>' +
     '<span class="ro" id="hb-ro" hidden>' + esc(kbb.GOAL_MSG.roTop) + '</span>' +
     '<span class="meta">기준일 <b id="hb-asof"></b></span><button type="button" id="hb-ours-btn" aria-haspopup="dialog" aria-disabled="true">협약 중인 기관</button><button type="button" id="hb-add" hidden>목표 기관 추가</button></div>' +
+    '<div id="hb-err" class="db-state db-banner" role="alert" style="display:none"></div>' +
     '<div class="hb-band" id="hb-band" role="group" aria-label="목표 요약" aria-busy="true"></div>' +
     '<div class="hb-note" id="hb-note" hidden><svg class="hb-note-ck" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 6.4 4.8 9 10 3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><div id="hb-flash" class="db-flash" role="status"></div><span id="hb-flash-act"></span></div>' +
-    '<div id="hb-err" class="db-state db-banner" role="alert" style="display:none"></div>' +
     '<div class="hb-tp" id="hb-goals" tabindex="-1" aria-busy="true"><div class="hb-tb" id="hb-tb"></div><div class="hb-ts" id="hb-ts" role="tabpanel"></div><div class="hb-tf" id="hb-tf"></div></div>' +
     '</section>';
 
@@ -2306,6 +2314,8 @@
     seq += 1; gs.seq += 1;
     st.preps = st.overview = null; st.prepSt = st.ovSt = 'offline';
     gs.st = 'offline'; gs.data = null; gs.sumSt = 'idle'; gs.sum = {}; gs.direct = {}; gs.rows = []; gs.wrows = []; gs.focusNext = null; gs.retryFocus = '';
+    gs.just = null; gs.seeInst = '';   // 앞 계정의 강조·[관심 탭에서 보기] 대상을 버린다(qa 11-19 P3-2)
+    if (dash.clearGoals) dash.clearGoals();
     prepDenied403 = false;   // 다른 계정은 제안 진행을 볼 수 있을 수 있다 — 403 기억을 푼다
     closeMenu(false); closeDlg('none'); closePop(false);
     if (host && ALL) { renderAll(); loadProgress(); loadGoals(); if (root.noticerec && root.noticerec.ensure) root.noticerec.ensure(); }   // 공고 현황 기록도 새 계정으로 다시(mount와 같은 방식, qa 11-19 P3-3)
@@ -2319,6 +2329,7 @@
     ac = null;
     if (host) host.innerHTML = '';
     host = null; ALL = null; G = null; gs.rows = []; gs.wrows = []; gs.data = null; gs.st = 'offline'; gs.retryFocus = '';
+    gs.just = null; gs.focusNext = null; gs.seeInst = '';   // qa 11-19 P3-2
   };
 
   if (isNode) module.exports = kbb;

@@ -201,9 +201,12 @@ test('G. 4-1·4-2 국민은행 확정 칩: CI 변수 대비 자동 시험, popCa
 test('H. 4-4 결과 알림: 띠 아래 순서·상태 영역 밖 버튼·옮긴 뒤 포커스·줄/탭 강조·동작 줄이기', function () {
   const k = src('js/kbboard.js'), html = src('index.html');
   assert.ok(k.indexOf('<div class="hb-note" id="hb-note" hidden>') > 0 && k.indexOf('<div id="hb-flash" class="db-flash" role="status"></div><span id="hb-flash-act"></span></div>') > 0);   // 버튼은 status 바깥 형제
-  assert.ok(k.indexOf('class="hb-band" id="hb-band"') < k.indexOf('id="hb-note"') && k.indexOf('id="hb-note"') < k.indexOf('id="hb-err"') && k.indexOf('id="hb-err"') < k.indexOf('id="hb-goals"'));
+  assert.ok(k.indexOf('<div class="hb-top">') < k.indexOf('id="hb-err"') && k.indexOf('id="hb-err"') < k.indexOf('class="hb-band" id="hb-band"') && k.indexOf('class="hb-band" id="hb-band"') < k.indexOf('id="hb-note"') && k.indexOf('id="hb-note"') < k.indexOf('id="hb-goals"'));   // 제목 → 오류 → 띠 → 알림 → 표(qa P3-4)
+  assert.ok(/function flash\(msg, act\) \{\s*const n = \$\('hb-note'\); if \(n\) n\.hidden = !msg;[\s\S]*?textContent = msg \|\| ''/.test(k));   // hidden 먼저, 글은 그 뒤(P3-3)
+  assert.ok(/kbb\.unmount = function \(\) \{[\s\S]*?gs\.just = null; gs\.focusNext = null; gs\.seeInst = '';/.test(k));   // P3-2
+  assert.ok(/kbb\.onProfileChange = function \(\) \{[\s\S]*?gs\.just = null; gs\.seeInst = '';[\s\S]*?dash\.clearGoals\(\)/.test(k) && /kbb\.onProfileChange = function \(\) \{[\s\S]*?gs\.focusNext = null;/.test(k));
   assert.strictEqual(kbb.seeWatchHtml(), '<button type="button" class="hb-tag" id="hb-see-watch" data-see="watch">관심 탭에서 보기</button>');
-  assert.ok(/function flash\(msg, act\) \{[\s\S]*?\$\('hb-flash-act'\)[\s\S]*?msg && act === 'watch' \? kbb\.seeWatchHtml\(\) : ''[\s\S]*?n\.hidden = !msg;/.test(k));
+  assert.ok(/function flash\(msg, act\) \{[\s\S]*?\$\('hb-flash-act'\)[\s\S]*?msg && act === 'watch' \? kbb\.seeWatchHtml\(\) : ''/.test(k));
   assert.ok(/gs\.focusNext = \{ inst: r\.id, reveal: true \};\s*if \(toWatch && !noWatchNow\(\)\) \{ gs\.focusNext = \{ note: true \}; gs\.just = \{ tab: 'watch' \}; gs\.seeInst = r\.id; \}/.test(k));   // 목표→관심: 탭은 그대로
   assert.ok(/say\(kbb\.flashMoved\(r\.name, toWatch \? 'WATCH' : 'GOAL', m\.year\)[^\n]*, false, toWatch && !noWatchNow\(\) \? 'watch' : ''\)/.test(k));
   assert.ok(/if \(f\.note\) \{[^}]*\$\('hb-see-watch'\)[^}]*\$\('hb-add'\)[\s\S]*?return;\s*\}/.test(k));                                  // 포커스: [관심 탭에서 보기], 없으면 [목표 기관 추가]
@@ -234,4 +237,22 @@ test('I. 국민은행 확정 판정(사용자 11-19): 같은 구절에 국민+�
   assert.strictEqual(kbb.staysSure('국민은행 수성 실패'), false);
   assert.strictEqual(kbb.staysSure('2027~2030은 1금고 농협·2금고 신한(기사 2026-09-30) — 국민은행 빠짐'), false);
   assert.strictEqual(kbb.staysSure(''), false);
+  // qa 11-19 재작성: 괄호 출처·다른 낱말 오탐·부정어·예정·공백 없는 가운뎃점
+  assert.strictEqual(kbb.staysSure('농협 수성(국민일보 2026-11-04)'), false);
+  assert.strictEqual(kbb.staysSure('KBS 보도 신한 유지'), false);
+  assert.strictEqual(kbb.staysSure('KB증권 유지'), false);
+  assert.strictEqual(kbb.staysSure('국민은행 수성 불발'), false);
+  assert.strictEqual(kbb.staysSure('국민은행 재선정 탈락'), false);
+  assert.strictEqual(kbb.staysSure('국민은행 수성 무산'), false);
+  assert.strictEqual(kbb.staysSure('국민은행 재선정 결과 발표 예정'), false);
+  assert.strictEqual(kbb.staysSure('국민은행 1·2금고 모두 수성'), true);
+  assert.strictEqual(kbb.staysSure('국민은행 재선정, 약정 체결하면서'), true);
+  assert.strictEqual(kbb.staysSure('예상대로 국민은행 수성'), true);
+  assert.strictEqual(kbb.staysSure('1금고 신한 유지, 국민은행 빠짐'), false);
+  // 실제 자료: kb-verified.js의 next 중 확정으로 읽혀야 하는 5건
+  const KV = require('../data/kb-verified.js');
+  const list = (KV && (KV.KB_VERIFIED || KV.verified || KV)) || [];
+  const arr = Array.isArray(list) ? list : (Array.isArray(list.list) ? list.list : []);
+  const nexts = arr.map(function (e) { return e && e.next; }).filter(Boolean);
+  assert.strictEqual(nexts.filter(function (t) { return kbb.staysSure(t); }).length, 5);
 });

@@ -466,7 +466,7 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
   // 마크업 순서(design 6-C): 제목 줄 → 요약 띠 → 알림·오류 → 목표 표 → 접힌 협약 구획. 3열·2번 구획·3번 구획은 없다
   const k0 = src('js/kbboard.js');
   const at2 = function (s) { return k0.indexOf(s); };
-  assert.ok(at2('class="hb-band"') < at2('id="hb-flash"') && at2('id="hb-flash"') < at2('id="hb-err"') && at2('id="hb-err"') < at2('class="hb-tp" id="hb-goals"') && at2('id="hb-ours" role="dialog"') > 0);   // 띠 → 결과 알림 → 오류 → 표(11-19 4-4). 협약 구획은 팝업(c54)
+  assert.ok(at2('id="hb-err"') < at2('class="hb-band"') && at2('class="hb-band"') < at2('id="hb-flash"') && at2('id="hb-flash"') < at2('class="hb-tp" id="hb-goals"') && at2('id="hb-ours" role="dialog"') > 0);   // 제목 → 오류 → 띠 → 결과 알림 → 표(11-19 4-4, qa P3-4). 협약 구획은 팝업(c54)
   assert.ok(k0.indexOf('<details id="hb-ours"') < 0 && k0.indexOf('<div class="hb-tb" id="hb-tb"></div><div class="hb-ts" id="hb-ts" role="tabpanel"></div>') > 0 && k0.indexOf('id="hb-ours-btn" aria-haspopup="dialog"') > 0);
   assert.ok(k0.indexOf('id="hb-cards"') < 0 && k0.indexOf('id="hb-alert"') < 0 && k0.indexOf('hb-grid') < 0 && k0.indexOf('class="hb-cols"') < 0 && k0.indexOf('id="hb-notice"') < 0 && k0.indexOf('id="hb-preps"') < 0);
   assert.ok(k0.indexOf('<h3 id="hb-ot">협약 중인 기관</h3><span id="hb-osm"></span>') > 0 && k0.indexOf('aria-labelledby="hb-ot" aria-describedby="hb-osm"') > 0 && k0.indexOf('<summary><span class="ot"') < 0 && k0.indexOf('<summary><h3') < 0 && k0.indexOf('<h2>입찰 현황판</h2>') > 0 && k0.indexOf('<select id="hb-year" aria-label="목표 연도">') > 0);
