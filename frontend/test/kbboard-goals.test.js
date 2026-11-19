@@ -389,14 +389,14 @@ test('goalTableHtml: 표 구조(caption·colgroup·머리 7열·월 머리), 상
   const rows = kbb.sortGoals(kbb.goalRows([tgt('IA', 'RETAIN'), tgt('IB', 'NEW')], ctx));
   const out = kbb.outRows([{ institutionId: 'IF', name: '바' }], {}, ctx);
   const ok = kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, out: out }));
-  assert.ok(ok.indexOf('<table class="hb-tt"><caption class="sr-only">2026 목표 기관 2곳, 마감 가까운 순</caption><colgroup>') === 0);
+  assert.ok(ok.indexOf('<table class="hb-tt"><caption class="sr-only">2026 목표 기관 2곳과 그 밖의 제안서 준비 중인 기관 1곳, 마감 가까운 순</caption><colgroup>') === 0);
   assert.ok(ok.indexOf('<col class="c-nm"><col class="c-tag"><col class="c-due"><col class="c-bank"><col class="c-stg"><col class="c-brf"><col class="ln">') > 0);   // 열 폭은 CSS 클래스(인라인 px 없음)
   assert.ok(ok.indexOf('<col style') < 0);
   assert.ok(ok.indexOf('hb-pretry') < 0);                                                                       // 제안 진행 자료가 정상이면 오류 안내 없음
   ['기관', '구분', '마감까지', '현 금고 은행', '준비 단계', '설명회'].forEach(function (c) { assert.ok(ok.indexOf('<th scope="col">' + c + '</th>') > 0, c); });
   assert.ok(ok.indexOf('<span class="yr">2026.11 ~ 2027.10</span><span class="mh" aria-hidden="true"><span>11</span><span>12</span><span>1</span>') > 0);
   assert.strictEqual((ok.match(/<span>\d+<\/span>/g) || []).length, 12);
-  assert.ok(ok.indexOf('<tr class="grp"><th scope="rowgroup" colspan="7">목표 밖에서 제안을 준비 중인 기관 <b>1</b>곳</th></tr>') > 0);
+  assert.ok(ok.indexOf('<tr class="grp"><th scope="rowgroup" colspan="7">그 밖의 제안서 준비 중인 기관 <b>1</b>곳</th></tr>') > 0);
   assert.ok(ok.indexOf('data-act="add"') > ok.indexOf('rowgroup'));                                            // 목표에 넣기는 묶음 안
   assert.ok(ok.indexOf('hb-nm') < ok.indexOf('rowgroup'));
   const M = kbb.GOAL_MSG;
@@ -409,7 +409,7 @@ test('goalTableHtml: 표 구조(caption·colgroup·머리 7열·월 머리), 상
   assert.ok(tb('error', 0).indexOf('서버에 연결되지 않음') > 0);
   // 제안 진행 자료 오류(qa 11-17 P2-1): 목표 밖 묶음 자리에 오류 안내 + [다시 시도](#hb-pretry). 목표 밖 기관이 있으면 안내 없이 묶음, 권한 없음(403)은 표에 안내를 두지 않는다(띠가 이유를 말한다)
   const pe = kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, prep: 'error', prepCode: 500 }));
-  assert.ok(pe.indexOf('<tr class="grp"><th scope="rowgroup" colspan="7">목표 밖에서 제안을 준비 중인 기관</th></tr><tr class="emp"><td colspan="7"><p class="db-state">제안 진행 자료를 불러오지 못했습니다(오류 500).') > 0);
+  assert.ok(pe.indexOf('<tr class="grp"><th scope="rowgroup" colspan="7">그 밖의 제안서 준비 중인 기관</th></tr><tr class="emp"><td colspan="7"><p class="db-state">제안 진행 자료를 불러오지 못했습니다(오류 500).') > 0);
   assert.ok(pe.indexOf('<button type="button" id="hb-pretry">다시 시도</button>') > 0 && pe.indexOf('id="hb-gretry"') < 0);
   assert.ok(kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, prep: 'error', prepCode: 0 })).indexOf('제안 진행 자료를 불러오지 못했습니다(서버에 연결되지 않음).') > 0);
   assert.ok(kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, out: out, prep: 'error' })).indexOf('hb-pretry') < 0);
@@ -637,12 +637,12 @@ test('index.html: 요약 띠·표·구분 칩·메뉴·레인 CSS가 규격(6-B)
   assert.ok(/\.hb-tt col\.c-nm \{ width:150px; \} \.hb-tt col\.c-tag \{ width:166px; \} \.hb-tt col\.c-due \{ width:120px; \}/.test(css) && /\.hb-tt col\.c-bank \{ width:124px; \} \.hb-tt col\.c-stg \{ width:148px; \} \.hb-tt col\.c-brf \{ width:56px; \}/.test(css));
   assert.ok(/\.hb-bk\.two \{ grid-template-columns:auto minmax\(0,1fr\) 20px auto minmax\(0,1fr\) 20px; column-gap:8px; \}/.test(css));
   assert.ok(/\.hb-lane \.w\.pl::after, \.hb-lane \.w\.op::after \{ content:none; \}/.test(css) && /\.hb-lane \.w\.op \{ border-right-style:dashed; \}/.test(css));
-  assert.ok(/\.hb-lane \.unk\.before \{ left:calc\(100%\/12 \+ 6px\); \}/.test(css));
+  assert.ok(/\.hb-lane \.unk, \.hb-lane \.unk\.before \{ left:calc\(100%\/12 \+ 2px\); max-width:calc\(100% - 100%\/12 - 4px\); \}/.test(css));
   assert.ok(/\.hb-cand \{[^}]*max-width:560px/.test(css));
   assert.ok(/\.hb-dlg #hb-a-q, \.hb-dlg #hb-a-memo, \.hb-dlg #hb-c-etc \{ display:block; width:100%; margin-top:4px; box-sizing:border-box; \}/.test(css));
   assert.ok(!/#hb-ours > summary/.test(css) && !/#hb-ours\[open\]/.test(css));                                         // 접힌 구획 규칙은 지웠다
   // :root 변수 이름은 동결 — 이 블록이 새 --변수를 정의하지 않는다
-  assert.deepStrictEqual((css.match(/(^|[\s;{])--[\w-]+\s*:/g) || []), []);
+  assert.deepStrictEqual((css.match(/(^|[\s;{])--[\w-]+\s*:/g) || []).map(function (s) { return s.trim().replace(/:$/, '').replace(/^[;{]/, ''); }), ['--rowbg', '--rowbg', '--rowbg']);   // :root 변수는 안 늘고 표 칸 지역 변수 --rowbg만(11-19 E)
   // 새 글자 크기는 11px 이상
   (css.match(/font(?:-size)?:\s*(?:\d+\s+)?(\d+)px/g) || []).forEach(function (s) { assert.ok(Number(/(\d+)px/.exec(s)[1]) >= 11, s); });
   // 스크립트 순서: errtext.js가 kbboard.js보다 앞(오류 문구 해석)

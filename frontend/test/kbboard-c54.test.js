@@ -157,7 +157,7 @@ test('관심 기관 줄: 다음 협약 종료 출처 순서(약정 → 행안부
   const t = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', win: kbb.laneWindow(TODAY, 2026), rows: [w], out: [], canEdit: true, sort: { key: 'next', dir: 'asc' }, total: 1 });
   assert.ok(t.indexOf('<col class="c-wnm"><col class="c-tag"><col class="c-next"><col class="c-bank"><col class="c-memo"><col class="c-act">') > 0);
   assert.ok(t.indexOf('<th scope="col" aria-sort="ascending"><button type="button" class="hb-sort" data-sort="next">다음 협약 종료') > 0 && (t.match(/aria-sort=/g) || []).length === 1);
-  assert.ok(t.indexOf('<caption class="sr-only">관심 기관 1곳 중 1곳, 다음 협약 종료 오름차순</caption>') > 0);
+  assert.ok(t.indexOf('<caption class="sr-only">관심 기관 1곳 중 1곳 보임, 다음 협약 종료 오름차순</caption>') > 0);
   const em = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', win: kbb.laneWindow(TODAY, 2026), rows: [], out: [], canEdit: true, total: 0 });
   assert.ok(em.indexOf('관심 기관이 없습니다') > 0 && em.indexOf('id="hb-watch-add2"') > 0);
   assert.ok(kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', win: kbb.laneWindow(TODAY, 2026), rows: [], out: [], canEdit: false, total: 0 }).indexOf('<button') < 0);
@@ -169,7 +169,7 @@ test('표 머리·도구 줄·거른 결과 0: 정렬 머리는 aria-sort 하나
   const t = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', win: kbb.laneWindow(TODAY, 2026), rows: rows, out: [], canEdit: true, sort: { key: 'due', dir: 'asc' }, total: 5 });
   assert.ok(t.indexOf('<th scope="col" aria-sort="ascending"><button type="button" class="hb-sort" data-sort="due">마감까지<svg') > 0 && (t.match(/aria-sort=/g) || []).length === 1);
   assert.ok(t.indexOf('<th scope="col">설명회</th>') > 0 && t.indexOf('data-sort="nm"') > 0 && t.indexOf('data-sort="stage"') > 0);
-  assert.ok(t.indexOf('<caption class="sr-only">2026 목표 기관 5곳 중 2곳, 마감까지 오름차순</caption>') > 0);
+  assert.ok(t.indexOf('<caption class="sr-only">2026 목표 기관 5곳 중 2곳 보임, 마감까지 오름차순</caption>') > 0);
   const none = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', win: kbb.laneWindow(TODAY, 2026), rows: [], out: [], canEdit: true, sort: { key: 'due', dir: 'asc' }, total: 5, filtered: true });
   assert.ok(none.indexOf('조건에 맞는 기관이 없습니다. <button type="button" id="hb-fclear2">필터 지우기</button>') > 0 && none.indexOf('아직 없습니다') < 0);
   const tb = kbb.toolbarHtml({ tab: 'goal', nGoal: 3, nWatch: 2, f: { q: '동<작', tag: 'NEW', status: 'late', kind: '', stage: 2 }, stageName: '사전준비', shown: 3, total: 5, canEdit: true });
@@ -298,7 +298,7 @@ test('소스 구조: 새 버튼 id·역할, 보안(서버 글 textContent·esc, 
   const j = path.join(ROOT, '..', 'kgi-ggreport-web', 'src', 'main', 'java', 'com', 'kbstar', 'kgi', 'ggreport', 'web', 'support', 'TargetUiIds.java');
   if (fs.existsSync(j)) { const t = fs.readFileSync(j, 'utf8'); Object.keys(kbb.BTN).forEach(function (n) { assert.ok(t.indexOf('"' + kbb.BTN[n] + '"') > 0, kbb.BTN[n]); }); }
   // 팝업: 뒤는 inert, 닫을 때(closePop) 정확히 inert를 풀고, 화면을 떠나거나 계정이 바뀌어도 closePop을 거친다(qa 4절 4)
-  assert.ok(/function closePop\(refocus\) \{[\s\S]*?const rt = \$\('hb-root'\); if \(rt\) rt\.removeAttribute\('inert'\);[\s\S]*?\n  \}/.test(k) && k.indexOf("rt.setAttribute('inert', '')") > 0 && k.indexOf("ev.key === 'Escape'") > 0);
+  assert.ok(/function closePop\(refocus\) \{[\s\S]*?kbb\.inertRelease\(popInert\); popInert = \[\];[\s\S]*?\n  \}/.test(k) && k.indexOf('popInert = kbb.inertBehind(ov, document.body);') > 0 && k.indexOf("ev.key === 'Escape'") > 0);
   assert.ok(/kbb\.unmount = function \(\) \{[\s\S]*?closePop\(false\);/.test(k) && /kbb\.onProfileChange = function \(\) \{[\s\S]*?closePop\(false\);/.test(k));
   assert.ok(/ev\.key === 'Escape'\) \{ ev\.preventDefault\(\); ev\.stopPropagation\(\); closePop\(true\)/.test(k) && k.indexOf('if (ev.target === ov) closePop(true)') > 0 && k.indexOf("case 'hb-ours-close': closePop(true); break;") > 0);
   assert.ok(k.indexOf('<h3 id="hb-ot">협약 중인 기관</h3><span id="hb-osm"></span>') > 0 && k.indexOf('aria-describedby="hb-osm"') > 0);   // 건수 줄은 제목 밖(design P3-2)
@@ -324,7 +324,7 @@ test('소스 구조: 새 버튼 id·역할, 보안(서버 글 textContent·esc, 
   assert.ok(/\.hb-tt col\.c-next \{ width:170px; \}/.test(css) && /\.hb-tt col\.c-wnm \{ width:200px; \}/.test(css) && /@media \(max-width:880px\) \{ \.hb-stgs \{[^}]*overflow-x:auto/.test(css));
   assert.ok(/\.hb-tp \{[^}]*calc\(100vh - 296px\)/.test(css) && css.indexOf('#hb-ours > summary') < 0);
   assert.deepStrictEqual(css.match(/#[0-9a-fA-F]{3,8}\b/g) || [], []);                                                                     // hex 없음
-  assert.deepStrictEqual((css.match(/(^|[\s;{])--[\w-]+\s*:/g) || []), []);                                                                // 새 변수 없음
+  assert.deepStrictEqual((css.match(/(^|[\s;{])--[\w-]+\s*:/g) || []).map(function (s) { return s.trim().replace(/:$/, '').replace(/^[;{]/, ''); }), ['--rowbg', '--rowbg', '--rowbg']);   // :root 변수는 안 늘고 표 칸 지역 변수 --rowbg만(11-19 E)                                                                // 새 :root 변수 없음(표 칸 지역 변수 --rowbg만)
   assert.ok(css.indexOf('72%, #fff') < 0 && css.slice(css.indexOf('.hb-warn {')).indexOf('box-shadow') < 0);   // 새 그림자 없음
   // 단계 버튼 테두리는 --line-strong, 꺼진 버튼은 --line(design P2-2)
   assert.ok(/\.hb-sb \{[^}]*border:1px solid var\(--line-strong\)/.test(css) && /\.hb-sb:disabled \{[^}]*border-color:var\(--line\)/.test(css));

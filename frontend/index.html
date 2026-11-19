@@ -1726,7 +1726,7 @@
   @media (prefers-reduced-motion:reduce) { .db-row { transition:none; } .db-row:hover { transform:none; } }
   /* 입찰 현황판 끝 */
 
-  /* 국민은행 상태 현황판(kbboard.js) 시작 — #dash-root > #hb-root. 규격: design-reviewer 2026-11-17_1513_acfdd5da 6-B(올해 목표 기관 표). 새 hex 없음(토큰만, #626d81은 입력칸의 기존 리터럴), 새 변수 없음. .db-top은 입찰 공고 현황 머리도 쓴다 */
+  /* 국민은행 상태 현황판(kbboard.js) 시작 — #dash-root > #hb-root. 규격: design-reviewer 2026-11-17_1513_acfdd5da 6-B(올해 목표 기관 표). 새 hex 없음(토큰만, #626d81은 입력칸의 기존 리터럴), 새 :root 변수 없음(표 칸 지역 변수 --rowbg만). .db-top은 입찰 공고 현황 머리도 쓴다 */
   #hb-root { flex:1 0 auto; display:flex; flex-direction:column; gap:12px; }
   /* 각주 출처 줄 — 행안부 금고지정 현황 바로가기(design-reviewer 11-17 a5b9b6a1 6-1). 기본 파랑은 패널 위 1.78:1이라 --fg 글자 + 틸 밑줄 */
   .hb-src { display:block; margin-top:6px; }
@@ -1775,6 +1775,9 @@
   .hb-tt .hb-nm:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
   .hb-tt tbody tr:hover > * { background:color-mix(in srgb, var(--accent-color) 6%, var(--panel)); }
   .hb-tt tr.late > * { background:color-mix(in srgb, var(--red) 8%, var(--panel)); }       /* 상태 행 8% (18% Tint Rule) */
+  .hb-tt tbody td.ln { --rowbg:var(--panel); }
+  .hb-tt tbody tr:hover > td.ln { --rowbg:color-mix(in srgb, var(--accent-color) 6%, var(--panel)); }
+  .hb-tt tr.late > td.ln { --rowbg:color-mix(in srgb, var(--red) 8%, var(--panel)); }
   .hb-tt tr.emp td { height:auto; padding:20px 16px; white-space:normal; overflow:visible; }
   .hb-tt tr.emp:hover > * { background:transparent; }
   .hb-tt .hb-eh { margin:0 0 6px; font-size:14px; font-weight:700; color:var(--fg); }
@@ -1814,9 +1817,9 @@
   .hb-lane .w.pl::after, .hb-lane .w.op::after { content:none; }   /* 공고 예정일(pl)·공고 중 마감 미상(op)은 접수 마감일이 아니라 눈금을 그리지 않는다 */
   .hb-lane .w.op { border-right-style:dashed; }                   /* 마감을 모르는 막대는 오른쪽 끝을 점선으로 연다 */
   .hb-lane .off, .hb-lane .unk { position:absolute; top:12px; font-size:12px; line-height:16px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }   /* 칸 밖으로 넘치면 말줄임 — 그림은 aria-hidden, 같은 뜻의 sr-only 문장이 있다 */
-  .hb-lane .off { right:6px; max-width:calc(100% - 12px); font-family:var(--mono); }
-  .hb-lane .unk { left:calc(100%/12 + 6px); max-width:calc(100% - 100%/12 - 12px); }
-  .hb-lane .unk.before { left:calc(100%/12 + 6px); }   /* 오늘 점선(첫 달 안)과 '← 추정일 지남'이 겹치지 않게 첫 달 칸 밖에서 시작 */
+  .hb-lane .off, .hb-lane .unk { background:var(--rowbg, var(--panel)); padding:0 4px; box-sizing:border-box; }   /* 글자 뒤를 줄 바탕으로 덮어 월 세로선이 글자를 가로지르지 않게(design 11-19 E) */
+  .hb-lane .off { right:2px; max-width:calc(100% - 4px); font-family:var(--mono); }
+  .hb-lane .unk, .hb-lane .unk.before { left:calc(100%/12 + 2px); max-width:calc(100% - 100%/12 - 4px); }   /* 오늘 점선(첫 달 안)과 '← 추정일 지남'이 겹치지 않게 첫 달 칸 밖에서 시작 */
   .hb-tt .mh { display:grid; grid-template-columns:repeat(12, 1fr); font:400 12px var(--mono); }
   .hb-tt .mh span:first-child { color:var(--fg); }
   .hb-tt .yr { display:block; margin-bottom:2px; font:400 12px var(--mono); }
@@ -1919,7 +1922,7 @@
   .hb-slot { font-size:12px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:var(--r); padding:0 6px; }
   .hb-slot.hb-leaves { color:var(--fg); border-color:color-mix(in srgb, var(--red) 55%, var(--line-strong)); }   /* 2027년부터 다른 은행 — 지금은 맡고 있지만 곧 빠지는 곳 */
   .hb-slot.hb-stay { color:var(--fg); }   /* 다음도 국민은행 — '다음은 다른 은행'과 짝. 테두리는 기본(틸은 선택·포커스 전용, One Teal Rule) */
-  .db-soon-tag { margin-left:8px; font-size:11px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:6px; padding:0 5px;
+  .db-soon-tag { margin-left:8px; font-size:12px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:var(--r); padding:0 5px;
                  background:repeating-linear-gradient(45deg, color-mix(in srgb, var(--muted) 12%, transparent) 0 2px, transparent 2px 4px); vertical-align:middle; }
   /* 11-17 c54 — 제안 진행 줄·도구 줄·정렬·입찰 종료·관심 탭·주의 상자·협약 중인 기관 버튼. 새 hex·새 변수 없음(design-reviewer a3ab5c5a 6-12) */
   #hb-ours-btn { font-size:12px; padding:4px 12px; }

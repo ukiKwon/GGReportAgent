@@ -2,7 +2,7 @@
   'use strict';
   // 입찰 현황판(2026-11-16 역할 재정의, 사용자 확정; 11-17 '올해 목표 기관' 중심으로 재설계) — 국민은행 상태 화면.
   // 구성(위→아래): 제목 줄(연도 선택·[목표 기관 추가]) → 요약 띠(목표 n곳·접수 마감 30일 안·준비 지연·목표 기관의 현 금고 은행) → 목표 표(한 줄 = 한 기관: 구분·마감까지·현 금고 은행·준비 단계·설명회·12개월 일정,
-  //   아래에 '목표 밖에서 제안을 준비 중인 기관' 묶음) → '협약 중인 기관' 팝업(제목 줄의 #hb-ours-btn으로 열린다, 상자 #hb-ours, 협약 종료일 순·와플 머리).
+  //   아래에 '그 밖의 제안서 준비 중인 기관' 묶음) → '협약 중인 기관' 팝업(제목 줄의 #hb-ours-btn으로 열린다, 상자 #hb-ours, 협약 종료일 순·와플 머리).
   // 규격: handoff/agents/design-reviewer/2026-11-17_1513_acfdd5da.md 6-A~6-E(6-F 설명회 입력은 2단계 — 설명회 열은 '—'). 접두어 hb-. 화면 글에 1인칭 '우리'를 쓰지 않는다(낙찰 은행 '우리은행'과 헷갈림). 회차 소식 줄의 출처 문장 속 은행 이름은 그대로 둔다.
   // 서버: GET /bid-targets?year=·POST /institutions/{id}/bid-targets(·/{no}/cancel·/{no}/move)·GET /bank-contracts/summary. 쓰기 머리글 X-Screen-Id 'bid_board'·X-Button-Id(add_bid_target·add_watch_target·edit_bid_target·change_target_tag·goal_next_year·cancel_bid_target·move_to_goal·move_to_watch), X-Emp-No는 app.js의 fetch 덮개가 붙인다.
   // 11-17 후속(design-reviewer a3ab5c5a 6-1~6-12): 제안 진행 5단계 줄(요약 띠 안)·표 도구 줄(탭 목표/관심·검색·구분·상태·종류)·열 머리 정렬·입찰 종료 줄·관심 기관 표·빈 후보 4묶음·협약 중인 기관 팝업(#hb-ours-btn)·옮기기 확인 창.
@@ -202,6 +202,11 @@
     const t = String(e && e.next || '');
     return e && !e.leaves && /국민|KB/.test(t) && /수성|재선정|유지/.test(t) && !/실패|미정|미확인/.test(t) ? '다음도 국민은행' : '';
   };
+  kbb.popCanAdd = function (it, o) {
+    o = o || {};
+    const id = String(it && it.rec && it.rec.institutionId || '');
+    return !o.mark && !!o.can && !o.isNext && !kbb.staysText(it && it.rec, o.verified) && !(o.closedIds && o.closedIds[id]) && !!kbb.moveYear(it && it.endDate, o.years);
+  };
   // 협약 중인 기관 행 — <ul> 안의 <button>. 누르면 상세 팝업이 열린다(선택형 listbox가 아니다).
   // o = { verified, nextList, prepActive }
   kbb.rowHtml = function (it, o) {
@@ -210,7 +215,7 @@
     const isNext = dash.oursKind(it.rec, o.verified, o.nextList) === 'next';
     const news = kbb.newsLine(dash.kbEntry(it.rec, o.verified) || dash.kbEntry(it.rec, o.nextList));
     const over = it.endDays !== undefined && it.endDays !== null && it.endDays < 0;
-    // 팝업 줄(규격 6-10): o.mark = '2026 목표'·'관심' 칩(이미 걸린 줄), o.canAdd = [목표에 넣기](종료가 선택 가능 연도 안이고 아직 목표·관심이 아닌 줄, 영업부서만). 둘 다 없으면 예전 모양.
+    // 팝업 줄(규격 6-10): o.mark = '2026 목표'·'관심' 칩(이미 걸린 줄), o.canAdd = [목표에 넣기](종료가 선택 가능 연도 안이고 아직 목표·관심이 아니며 다음도 국민은행·올해 입찰 종료가 아닌 줄, 영업부서만 — kbb.popCanAdd). 둘 다 없으면 예전 모양.
     const rid = String(it.rec && it.rec.institutionId || '');
     const add = o.canAdd && rid ? '<button type="button" class="hb-tag add" data-act="oadd" data-inst="' + esc(rid) + '" data-key="' + esc(it.key) + '" aria-label="' + esc(it.name) + ' 목표에 넣기">목표에 넣기</button>' : '';
     return '<li' + (add ? ' class="hb-rl"' : '') + '><button type="button" class="hb-row" data-key="' + esc(it.key) + (it.overdue && dash.recView(it).view === 'done' ? '" data-rec="done' : '') + '" aria-haspopup="dialog">' +
@@ -615,7 +620,7 @@
   };
 
   // 목표(또는 목표 밖 제안 준비) 한 줄의 모델. t = /bid-targets 항목 모양 { institution_id, institution_name, region_code, target_no, rev_no, target_year, tag_cd, tag_name, memo, … }.
-  // ctx = { byInst:{id→rec}, sumById, today:Date, verified, lofin, entries:{id→prepEntry}, prepOk, delayDays, actOf(rec)→act }
+  // ctx = { byInst:{id→rec}, sumById, today:Date, verified, lofin, entries:{id→prepEntry}, prepOk, delayDays, actOf(rec)→act, snap(noticerec.snap — 목표 밖 줄의 올해 입찰 종료 근거), year(보고 있는 목표 연도 — 올해가 아니면 목표 밖 줄의 closed는 null, 없으면 거르지 않음) }
   kbb.goalRow = function (t, ctx, out) {
     const id = String(t.institution_id || t.institutionId || '');
     const rec = (ctx.byInst && ctx.byInst[id]) || null;
@@ -633,7 +638,7 @@
       prevYear: lastKb > 0 && lastKb < ty ? lastKb : 0,   // 올해 이후(미래 약정 포함)는 '예전 KB' 칩이 붙지 않는다. NaN도 0
       stage: stage, stageLabel: stage >= 0 ? ((dash.STAGES[stage] || {}).label || '') : '',
       act: stage >= 0 ? 'open' : (rec && ctx.actOf ? ctx.actOf(rec) : ''), late: null, hold: null,
-      kind: t.kind_cd === 'WATCH' ? 'WATCH' : 'GOAL', closed: out ? null : kbb.closedOf(t.bid_closed), next: null, nextDate: '', movable: 0, note: null };
+      kind: t.kind_cd === 'WATCH' ? 'WATCH' : 'GOAL', closed: out ? (!(Number(ctx.year) > 0) || Number(ctx.year) === ty ? kbb.closedBasis(id, ctx.snap, ctx.today, sum) : null) : kbb.closedOf(t.bid_closed), next: null, nextDate: '', movable: 0, note: null };
     if (r.kind === 'WATCH') {   // 관심 기관: 연도 없음. 다음 협약 종료(출처 순서는 nextEnd)와 [목표로 옮기기] 조건
       r.targetYear = null;
       r.next = kbb.nextEnd(rec, t.next_term_to, { lofin: ctx.lofin, today: ctx.today });
@@ -739,20 +744,23 @@
     }
     return k1 + k2 + k3 + k4 + '</div>';
   };
-  // 요약 띠 둘째 줄 '제안 진행'(규격 6-3). counts = kbb.stageCounts(표 줄 모델), o = { ok(제안 진행 자료를 받았는가), active(눌린 단계 0~4, 없으면 -1), why(받지 못한 이유 글) }.
+  // 요약 띠 둘째 줄 '제안 진행'(규격 6-3). counts = kbb.stageCounts(표 줄 모델), o = { ok(제안 진행 자료를 받았는가), active(눌린 단계 0~4, 없으면 -1), why(받지 못한 이유 글), nOut(목표 밖 줄 수), outCounts(그 줄들의 단계별 수) }.
   // 0곳 단계는 disabled, 받지 못했으면 다섯 칸 모두 disabled·수 자리 '—'. 막대 폭 --p는 0~1 숫자만(마크업에서 숫자로 만든다).
   kbb.stagesHtml = function (counts, o) {
     o = o || {};
     const c = counts || [0, 0, 0, 0, 0], max = Math.max.apply(null, c.concat([0]));
+    const nOut = o.ok ? Math.max(0, Number(o.nOut) || 0) : 0, oc = o.outCounts || [];   // 목표 밖 줄 수(자료를 못 받았으면 0 — 오류 문장만 둔다)
     const btns = dash.STAGES.map(function (s, i) {
-      const n = Number(c[i]) || 0, on = o.ok && o.active === i, nm = esc(s.label);
+      const n = Number(c[i]) || 0, on = o.ok && o.active === i, nm = esc(s.label), no = nOut > 0 ? Number(oc[i]) || 0 : 0;
       const head = '<span class="no">' + (i + 1) + '</span><span class="nm">' + nm + '</span>';
       if (!o.ok) return '<button type="button" class="hb-sb" data-stage="' + i + '" disabled>' + head + '<span class="ct">—</span></button>';
       const p = max > 0 ? Math.round(n / max * 100) / 100 : 0;
       return '<button type="button" class="hb-sb" data-stage="' + i + '" aria-pressed="' + (on ? 'true' : 'false') + '"' + (n === 0 ? ' disabled' : '') + ' style="--p:' + p + '"' +
-        ' aria-label="' + nm + ' ' + n + '곳 — ' + (on ? '거르기 끄기' : '표를 이 단계로 거르기') + '">' + head + '<span class="ct">' + n + '</span></button>';
+        ' aria-label="' + nm + ' ' + n + '곳' + (no > 0 ? '(그 밖의 준비 기관 ' + no + '곳)' : '') + ' — ' + (on ? '거르기 끄기' : '표를 이 단계로 거르기') + '">' + head + '<span class="ct">' + n + '</span></button>';
     }).join('');
-    return '<div class="hb-stgs" role="group" aria-label="제안 진행 단계"><span class="l">제안 진행</span>' + btns + (o.ok || !o.why ? '' : '<span class="why">' + esc(o.why) + '</span>') + '</div>';
+    const inc = nOut > 0 ? '그 밖의 제안서 준비 중인 기관 ' + nOut + '곳 포함' : '';
+    return '<div class="hb-stgs" role="group" aria-label="제안 진행 단계' + (inc ? ', ' + inc : '') + '"><span class="l">제안 진행</span>' + btns +
+      (inc ? '<span class="why">' + inc + '</span>' : (o.ok || !o.why ? '' : '<span class="why">' + esc(o.why) + '</span>')) + '</div>';
   };
 
   // 표 행(규격 6-C). r = goalRow 결과, o = { win, canEdit }
@@ -794,8 +802,12 @@
       due = '<b class="hb-dd tx end">입찰 종료</b><span class="sr-only">' + esc(why) + '</span>'; dueAttr = ' title="' + esc(why) + '"';
     } else if (r.note) { const tt = kbb.screenRowTitle(r.note); dueAttr = ' title="' + esc(tt) + '"'; due += '<span class="sr-only">' + esc(tt) + '</span>'; }
     return '<tr' + (r.late ? ' class="late"' : '') + '><th scope="row">' + nm + '</th>' + tagCellHtml(r, o) + '<td' + dueAttr + '>' + due + '</td>' + kbb.bankCellHtml(r.bank) + stageCellHtml(r) +
-      '<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">설명회 기록 없음</span></td><td class="ln">' + (r.closed ? closedActsHtml(r, o) : kbb.laneCellHtml(r.due, o.win)) + '</td></tr>';
+      '<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">설명회 기록 없음</span></td><td class="ln">' + (r.closed ? (r.out ? closedOutLaneHtml() : closedActsHtml(r, o)) : kbb.laneCellHtml(r.due, o.win)) + '</td></tr>';
   };
+  // 목표 밖 준비 줄이 올해 입찰 종료이면 12개월 칸: 옮길 목표가 없으니 버튼 없이 사실만(그림 + 같은 뜻의 sr-only 문장, design 11-19 A).
+  function closedOutLaneHtml() {
+    return '<div class="hb-lane" aria-hidden="true"><span class="unk">올해 입찰 끝남</span></div><span class="sr-only">올해 입찰이 끝난 기관</span>';
+  }
   // 입찰 종료 줄의 12개월 칸: 그림 대신 동작 버튼 둘(aria-hidden 그림 밖). 1279px 이하에서 이 칸이 숨으면 같은 동작을 구분 메뉴가 준다. 보기 전용은 버튼 없음.
   function closedActsHtml(r, o) {
     if (!o.canEdit) return '<span class="sr-only">올해 입찰이 끝난 기관</span>';
@@ -874,9 +886,9 @@
     c = c || [];
     return c.length ? [{ key: 'end', label: '협약 종료 1년 안', items: c.map(function (x) { return { id: x.id, key: x.key, rec: x.rec, name: x.name, region: x.region, when: x.endDate ? '협약 종료 ' + x.endDate : '' }; }) }] : [];
   };
-  // 제안 진행 자료(/preps·/workflow/overview)를 못 받았을 때 목표 밖 묶음 자리에 놓는 안내 + [다시 시도](qa 11-17 P2-1). code 0 = 서버에 연결되지 않음.
+  // 제안 진행 자료(/preps·/workflow/overview)를 못 받았을 때 '그 밖의 제안서 준비 중인 기관' 묶음 자리에 놓는 안내 + [다시 시도](qa 11-17 P2-1). code 0 = 서버에 연결되지 않음.
   kbb.prepErrHtml = function (code) {
-    return '제안 진행 자료를 불러오지 못했습니다(' + (code ? '오류 ' + Number(code) : '서버에 연결되지 않음') + '). 준비 지연과 목표 밖에서 준비 중인 기관은 받은 뒤에 보입니다. <button type="button" id="hb-pretry">다시 시도</button>';
+    return '제안 진행 자료를 불러오지 못했습니다(' + (code ? '오류 ' + Number(code) : '서버에 연결되지 않음') + '). 준비 지연과 그 밖의 제안서 준비 중인 기관은 받은 뒤에 보입니다. <button type="button" id="hb-pretry">다시 시도</button>';
   };
   // 표 전체(머리 + 몸통). v = { st:'loading'|'offline'|'denied'|'error'|'ok', code, year, win, rows, out, canEdit, cands, prep('error'이면 제안 진행 자료 오류 안내), prepCode }
   // 열 폭은 CSS 클래스(.c-nm 기관 150 · .c-tag 구분 166 · .c-due 마감까지 120 · .c-bank 현 금고 은행 124 · .c-stg 준비 단계 148 · .c-brf 설명회 56, 레인은 나머지) — 1279px 이하에서 기관 열이 남는 폭을 받는다.
@@ -917,18 +929,21 @@
         // 거른 결과가 0이면(전체는 있음) 빈 상태 안내 대신 '조건에 맞는 기관이 없습니다.' + [필터 지우기]. 목표가 하나도 없을 때만 빈 후보.
         body = v.rows.length ? '<tbody>' + v.rows.map(function (r) { return kbb.goalRowHtml(r, o); }).join('') + '</tbody>' : (v.filtered && none ? msg(kbb.filteredNoneHtml()) : (v.filtered ? '' : msg(kbb.emptyHtml(v))));
         if (outN) {
-          body += '<tbody><tr class="grp"><th scope="rowgroup" colspan="' + ncol + '">목표 밖에서 제안을 준비 중인 기관 <b>' + outN + '</b>곳</th></tr>' + v.out.map(function (r) { return kbb.goalRowHtml(r, o); }).join('') + '</tbody>';
+          body += '<tbody><tr class="grp"><th scope="rowgroup" colspan="' + ncol + '">그 밖의 제안서 준비 중인 기관 <b>' + outN + '</b>곳</th></tr>' + v.out.map(function (r) { return kbb.goalRowHtml(r, o); }).join('') + '</tbody>';
         } else if (v.prep === 'error') {
-          body += '<tbody><tr class="grp"><th scope="rowgroup" colspan="' + ncol + '">목표 밖에서 제안을 준비 중인 기관</th></tr><tr class="emp"><td colspan="' + ncol + '"><p class="db-state">' + kbb.prepErrHtml(v.prepCode) + '</p></td></tr></tbody>';
+          body += '<tbody><tr class="grp"><th scope="rowgroup" colspan="' + ncol + '">그 밖의 제안서 준비 중인 기관</th></tr><tr class="emp"><td colspan="' + ncol + '"><p class="db-state">' + kbb.prepErrHtml(v.prepCode) + '</p></td></tr></tbody>';
         }
       }
     }
     let cap = esc(v.year) + ' 목표 기관';
     if (v.st === 'ok') {
-      if (!v.sort) cap += ' ' + v.rows.length + '곳, 마감 가까운 순';
+      // 목표 수와 그 밖의 준비 수를 나눠 말한다(design 11-19 B). nGoal·nOut은 거르기 전 값, 없으면 넘겨받은 줄 수.
+      const nGoal = typeof v.nGoal === 'number' ? v.nGoal : v.rows.length, nOut = watch ? 0 : (typeof v.nOut === 'number' ? v.nOut : (v.out ? v.out.length : 0));
+      const kinds = nOut > 0 ? nGoal + '곳과 그 밖의 제안서 준비 중인 기관 ' + nOut + '곳' : '';
+      if (!v.sort) cap += ' ' + (kinds || v.rows.length + '곳') + ', 마감 가까운 순';
       else {
         const shown = v.rows.length + (v.out ? v.out.length : 0), total = typeof v.total === 'number' ? v.total : shown;
-        cap = (watch ? '관심 기관 ' : esc(v.year) + ' 목표 기관 ') + total + '곳 중 ' + shown + '곳, ' + kbb.SORT_LABEL[v.sort.key] + ' ' + (v.sort.dir === 'desc' ? '내림차순' : '오름차순');
+        cap = (watch ? '관심 기관 ' : esc(v.year) + ' 목표 기관 ') + (kinds ? kinds + ', ' : '') + total + '곳 중 ' + shown + '곳 보임, ' + kbb.SORT_LABEL[v.sort.key] + ' ' + (v.sort.dir === 'desc' ? '내림차순' : '오름차순');
       }
     }
     return '<table class="hb-tt"><caption class="sr-only">' + cap + '</caption>' + cols + head + body + '</table>';
@@ -987,7 +1002,7 @@
       '<input type="search" id="hb-q" placeholder="기관명·지역" aria-label="기관명이나 지역으로 찾기" maxlength="40" autocomplete="off"' + (q ? ' class="on"' : '') + ' value="' + esc(q) + '">' +
       sel('hb-f-tag', '구분 거르기', [['', '구분 전체'], ['RETAIN', kbb.TAG.RETAIN], ['NEW', kbb.TAG.NEW]], f.tag) +
       sel('hb-f-status', '상태 거르기', kbb.STATUS[watch ? 'watch' : 'goal'], f.status) +
-      (watch ? '' : sel('hb-f-kind', '종류 거르기', [['', '종류 전체'], ['goal', '목표만'], ['out', '목표 밖 준비만']], f.kind)) +
+      (watch ? '' : sel('hb-f-kind', '종류 거르기', [['', '종류 전체'], ['goal', '목표만'], ['out', '그 밖의 준비 기관만']], f.kind)) +
       (!watch && typeof f.stage === 'number' && f.stage >= 0 ? '<button type="button" class="hb-tag" id="hb-sclr" aria-label="단계 거르기 끄기: ' + esc(v.stageName || '') + '">단계: ' + esc(v.stageName || '') + ' ×</button>' : '') +
       '<span class="cnt" id="hb-cnt" role="status">' + kbb.cntHtml(v.shown, v.total) + '</span>' +
       (watch && v.canEdit && !v.noWatch ? '<button type="button" id="hb-watch-add" data-act="addwatch">관심 기관 추가</button>' : '') +
@@ -1194,7 +1209,7 @@
   // tab = 'goal'|'watch', f = 화면 거르기(저장하지 않는다), sort = 탭마다 { key, dir }, wrows = 관심 줄(보이는 것), tbSig = 도구 줄을 다시 그려야 하는지 가르는 서명
   const gs = { year: 0, st: 'offline', code: 0, data: null, seq: 0, sumSt: 'idle', sum: {}, direct: {}, rows: [], wrows: [], busy: false, focusNext: null, retryFocus: '', optSig: '',
     tab: 'goal', f: { q: '', tag: '', status: '', kind: '', stage: -1 }, sort: { goal: { key: 'due', dir: 'asc' }, watch: { key: 'next', dir: 'asc' } }, tbSig: '' };
-  let host = null, ac = null, LIST = [], ALL = null, OURS = [], G = null, BYID = {}, seq = 0, offNr = null, menu = null, dlg = null, pop = null, qTimer = null;
+  let host = null, ac = null, LIST = [], ALL = null, OURS = [], G = null, BYID = {}, seq = 0, offNr = null, menu = null, dlg = null, pop = null, popInert = [], qTimer = null;
   let prepDenied403 = false;   // /preps·/workflow/overview가 둘 다 403으로 확정된 계정 — 화면을 열 때마다 다시 부르지 않는다(계정이 바뀌면 onProfileChange가 푼다, design 11-17 7절)
   const U = dash.util;
   function $(id) { return host ? host.querySelector('#' + id) : null; }
@@ -1286,19 +1301,20 @@
     if (!sc) return;
     const keepKey = keepFocus(sc);
     const act = activeIdSet();
-    // 이미 걸린 줄은 칩, 종료가 선택 가능 연도 안이고 아직 목표·관심이 아닌 줄만 [목표에 넣기](영업부서만)
+    // 이미 걸린 줄은 칩, 종료가 선택 가능 연도 안이고 아직 목표·관심이 아니며 다음도 국민은행·올해 입찰 종료가 아닌 줄만 [목표에 넣기](영업부서만)
     const goalIds = {}, watchIds = {};
     if (gs.st === 'ok' && gs.data) {
       (gs.data.items || []).forEach(function (t) { goalIds[String(t.institution_id)] = true; });
       (gs.data.watch_items || []).forEach(function (t) { watchIds[String(t.institution_id)] = true; });
     }
-    const yrs = selYears(), can = canEditNow();
+    const vy = gs.data && Number(gs.data.year) > 0 ? Number(gs.data.year) : 0;   // 종료 숨김은 보고 있는 목표 연도가 올해일 때만(서버 bid_closed와 같은 규칙, qa 11-19 P3-2)
+    const yrs = selYears(), can = canEditNow(), closedNow = !vy || vy === U.todayDate().getFullYear() ? closedIdsNow() : {};
     const ul = function (items, lab) {
       return '<ul aria-labelledby="' + lab + '">' + items.map(function (it) {
         const id = String(it.rec.institutionId || ''), isNext = dash.oursKind(it.rec, KB(), NX()) === 'next';
         const mark = goalIds[id] ? (gs.data.year + ' 목표') : (watchIds[id] ? '관심' : '');
         return kbb.rowHtml(it, { verified: KB(), nextList: NX(), prepActive: !!(it.rec.institutionId && act[id]), mark: mark,
-          canAdd: !mark && can && !isNext && !!kbb.moveYear(it.endDate, yrs) });
+          canAdd: kbb.popCanAdd(it, { mark: mark, can: can, isNext: isNext, verified: KB(), closedIds: kbb.inProgress(it.rec, st.preps, st.overview) ? null : closedNow, years: yrs }) });   // 제안 진행 중이면 숨기지 않는다(추가 창 computeWarn 'progress'와 같게)
       }).join('') + '</ul>';
     };
     let h = '';
@@ -1373,7 +1389,8 @@
     const ps = panelState(), entries = {};
     if (ps.state === 'ok') kbb.prepEntries(st.preps, st.overview).forEach(function (e) { entries[e.id] = e; });
     return { byInst: BYID, sumById: gs.sum, today: U.todayDate(), verified: KB(), lofin: root.LOFIN_2026, entries: entries, prepOk: ps.state === 'ok',
-      delayDays: gs.data && Number(gs.data.delay_days) > 0 ? Number(gs.data.delay_days) : kbb.DELAY_DEFAULT, actOf: actOf, years: selYears() };
+      snap: root.noticerec && root.noticerec.snap ? root.noticerec.snap() : null,
+      delayDays: gs.data && Number(gs.data.delay_days) > 0 ? Number(gs.data.delay_days) : kbb.DELAY_DEFAULT, actOf: actOf, years: selYears(), year: gs.data && Number(gs.data.year) > 0 ? Number(gs.data.year) : 0 };
   }
   // 옛 서버(관심 기관 기능 044 없음): 목록을 받았는데 watch_items가 배열이 아니다 — 관심 탭·[관심 기관으로…]·관심 추가를 숨긴다(qa 11-17 P3-2)
   function noWatchNow() { return gs.st === 'ok' && !!gs.data && !Array.isArray(gs.data.watch_items); }
@@ -1477,12 +1494,12 @@
     ts.setAttribute('role', 'tabpanel');
     if (ok) ts.setAttribute('aria-labelledby', 'hb-tab-' + gs.tab); else ts.removeAttribute('aria-labelledby');   // 도구 줄(탭)이 있을 때만 — 없는 id를 가리키지 않는다(qa 11-17 P3-4)
     ts.innerHTML = kbb.goalTableHtml({ st: gs.st, code: gs.code, year: goalYear(), win: win, tab: gs.tab, rows: dRows, out: dOut, canEdit: canEdit, groups: groups, prep: ps.state, prepCode: prepCode,
-      sort: sorted, total: total, filtered: total > 0 && kbb.filterOn(fx), noWatch: noWatch });
+      sort: sorted, total: total, filtered: total > 0 && kbb.filterOn(fx), noWatch: noWatch, nGoal: rows.length, nOut: out.length });
     paintToolbar({ tab: gs.tab, nGoal: rows.length, nWatch: wrows.length, f: f, stageName: f.stage >= 0 ? (dash.STAGES[f.stage] || {}).label : '', shown: dRows.length + dOut.length, total: total, canEdit: canEdit, loaded: ok, noWatch: noWatch });
     const band = $('hb-band');
     if (band) {
       band.innerHTML = kbb.bandHtml(kbb.bandModel(rows, { prepOk: ctx.prepOk, delayDays: ctx.delayDays }), { year: goalYear(), loaded: ok, prep: ps.state, prepCode: prepCode }) +
-        kbb.stagesHtml(counts, { ok: ok && ctx.prepOk, active: f.stage, why: ok ? kbb.prepWhy(ps.state, prepCode) : '' });
+        kbb.stagesHtml(counts, { ok: ok && ctx.prepOk, active: f.stage, why: ok ? kbb.prepWhy(ps.state, prepCode) : '', nOut: out.length, outCounts: kbb.stageCounts(out) });
       band.setAttribute('aria-busy', gs.st === 'loading' ? 'true' : 'false');
       band.setAttribute('aria-label', goalYear() + ' 목표 요약');
     }
@@ -1729,7 +1746,10 @@
   // 올해 입찰 종료로 알려진 기관(서버 근거: 공고 현황 판정·시작 전 약정) — 검색 결과 표시용
   function closedIdsNow() {
     const snap = root.noticerec && root.noticerec.snap ? root.noticerec.snap() : null, set = {};
-    if (snap && snap.byId) Object.keys(snap.byId).forEach(function (id) { if (kbb.closedBasis(id, snap, U.todayDate(), gs.sum[id])) set[id] = true; });
+    const ids = {};
+    if (snap && snap.byId) Object.keys(snap.byId).forEach(function (id) { ids[id] = true; });
+    Object.keys(gs.sum || {}).forEach(function (id) { ids[id] = true; });   // 시작 전 약정(CONTRACT_DECIDED)은 snap 없이 039 요약만으로도 종료
+    Object.keys(ids).forEach(function (id) { if (kbb.closedBasis(id, snap, U.todayDate(), gs.sum[id])) set[id] = true; });
     return set;
   }
   // 고른 기관의 주의 상자(규격 6-9): 올해 목표로 넣으려 할 때만. 서버 근거(막음, 제안 진행 중이면 막지 않음) → 화면만 아는 근거(주의만).
@@ -2030,14 +2050,35 @@
     });
   }
 
+  // 모달 뒤 가리기(design 11-19 D): node(overlay)에서 stop(body)까지 조상 경로를 올라가며 경로에 있지 않은 형제마다 inert를 건다 — body 아래 통째로 걸면 팝업까지 잠긴다.
+  // 이미 inert인 요소(다른 화면이 건 것)는 건너뛰고, 건 것만 돌려준다. 풀 때는 그 목록만 푼다.
+  // 다른 모달 덮개(class에 modal-overlay, role="dialog", aria-modal="true" — 뒤늦게 뜬 경과 요약 팝업 등)도 건너뛴다(qa 11-19 P2-1).
+  function isModalEl(s) {
+    const cn = s && (typeof s.className === 'string' ? s.className : (s.classList && s.classList.contains && s.classList.contains('modal-overlay') ? 'modal-overlay' : ''));
+    const ga = function (k) { return s && s.getAttribute ? s.getAttribute(k) : null; };
+    return /(^|\s)modal-overlay(\s|$)/.test(cn || '') || ga('role') === 'dialog' || ga('aria-modal') === 'true';
+  }
+  kbb.inertBehind = function (node, stop) {
+    const done = [];
+    while (node && node !== stop && node.parentNode) {
+      const par = node.parentNode;
+      Array.prototype.slice.call(par.children || []).forEach(function (s) {
+        if (s === node || (s.hasAttribute && s.hasAttribute('inert')) || isModalEl(s)) return;
+        s.setAttribute('inert', ''); done.push(s);
+      });
+      node = par;
+    }
+    return done;
+  };
+  kbb.inertRelease = function (list) { (list || []).forEach(function (s) { if (s && s.removeAttribute) s.removeAttribute('inert'); }); };
   // ── 협약 중인 기관 팝업(규격 6-10) ──────────────────────────────────────
-  // 예전 접힌 구획(details)의 내용(큰 숫자·와플·종료일 순 목록·각주)을 그대로 모달에 옮겼다. 열린 동안 뒤 #hb-root는 inert, Esc·[닫기]로 닫고 여는 버튼으로 포커스가 돌아온다.
+  // 예전 접힌 구획(details)의 내용(큰 숫자·와플·종료일 순 목록·각주)을 그대로 모달에 옮겼다. 열린 동안 팝업 밖(왼쪽 메뉴·상단 머리·탭 줄·#hb-root)은 inert, Esc·[닫기]로 닫고 여는 버튼으로 포커스가 돌아온다.
   function closePop(refocus) {
     if (!pop) return;
     const p = pop;
     pop = null;
     if (p.parentNode) p.parentNode.removeChild(p);
-    const rt = $('hb-root'); if (rt) rt.removeAttribute('inert');
+    kbb.inertRelease(popInert); popInert = [];   // 이 팝업이 건 것만 푼다(로그인 화면 등 다른 곳이 건 inert는 그대로)
     if (refocus) { const b = $('hb-ours-btn'); if (b && b.focus) b.focus(); }
   }
   function openPop() {
@@ -2052,7 +2093,7 @@
       '<div class="db-scroll" id="hb-oscroll">' + WAIT + '</div><div class="hb-foot" id="hb-ofoot"></div></div></div>';
     host.appendChild(ov);
     pop = ov;
-    const rt = $('hb-root'); if (rt) rt.setAttribute('inert', '');
+    popInert = kbb.inertBehind(ov, document.body);   // #hb-root도 overlay의 형제라 이 경로에 든다
     ov.addEventListener('keydown', function (ev) {
       if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); closePop(true); return; }
       if (ev.key !== 'Tab') return;
@@ -2210,7 +2251,7 @@
     gs.st = 'offline'; gs.data = null; gs.sumSt = 'idle'; gs.sum = {}; gs.direct = {}; gs.rows = []; gs.wrows = []; gs.focusNext = null; gs.retryFocus = '';
     prepDenied403 = false;   // 다른 계정은 제안 진행을 볼 수 있을 수 있다 — 403 기억을 푼다
     closeMenu(false); closeDlg('none'); closePop(false);
-    if (host && ALL) { renderAll(); loadProgress(); loadGoals(); }
+    if (host && ALL) { renderAll(); loadProgress(); loadGoals(); if (root.noticerec && root.noticerec.ensure) root.noticerec.ensure(); }   // 공고 현황 기록도 새 계정으로 다시(mount와 같은 방식, qa 11-19 P3-3)
   };
   kbb.unmount = function () {
     seq += 1; gs.seq += 1;
