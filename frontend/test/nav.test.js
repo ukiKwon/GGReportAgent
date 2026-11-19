@@ -496,7 +496,7 @@ test('시작화면: headOnly 표시, 역할 목록은 한 곳(HOME_ROLES ⊇ VIE
     assert.strictEqual(nav.build(ALL_ON, { role: r })[0].id, 'home', r);
   });
   nav.VIEW_ONLY_ROLES.forEach(function (r) { assert.ok(nav.isHomeRole({ role: r }), r); });
-  ['영업팀', '영업팀장', '영업부장', '디자이너', '예산팀', '예산팀장', ''].forEach(function (r) { assert.strictEqual(nav.isViewOnly({ role: r }), false, r || '(없음)'); });
+  ['영업팀', '영업팀장', '영업부장', '예산팀', '예산팀장', ''].forEach(function (r) { assert.strictEqual(nav.isViewOnly({ role: r }), false, r || '(없음)'); });
   assert.strictEqual(nav.isViewOnly({ role: '전산팀', master: true }), false);
   const built = nav.build(ALL_ON, { role: '예산팀' });
   assert.deepStrictEqual(nav.pruneTabs([{ id: nav.HOME_ID }, { id: 'map' }], built).map(function (t) { return t.id; }), ['map']);   // 대상이 아닌 계정으로 바뀌면 시작화면 탭이 걷힌다

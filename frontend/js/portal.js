@@ -500,8 +500,6 @@
   function role() { try { return (root.store.loadProfile().team || '').trim(); } catch (e) { return ''; } }
   function serverOn() { try { return !!(dash.util.serverMode() && dash.util.hasEmp()); } catch (e) { return false; } }
   function canOpen(id) { const A = root.app; return !!(A && A.findNavItem && id && A.findNavItem(id)); }
-  // 보기 전용 역할(nav.isViewOnly — 전산팀·전산팀장)이면 상세 팝업의 저장 버튼을 모두 숨긴다. 판정은 nav 한 곳, 여기서는 읽기만 한다.
-  function viewOnly() { try { const N = root.nav, A = root.app; return !!(N && N.isViewOnly && A && A.navContext && N.isViewOnly(A.navContext())); } catch (e) { return false; } }
 
   function recompute() {
     const U = dash.util, today = U.todayDate(), list = U.dataList();
@@ -601,7 +599,7 @@
     const again = function () {
       return Array.prototype.filter.call(host ? host.querySelectorAll('[data-pt-open]') : [], function (x) { return x.getAttribute('data-pt-open') === key; })[0] || null;
     };
-    dash.openDetail(rec, { opener: btn, screen: P.SCREEN, fallback: '#pt-root', refocus: again, readOnly: viewOnly() });
+    dash.openDetail(rec, { opener: btn, screen: P.SCREEN, fallback: '#pt-root', refocus: again });   // 보기 전용은 openDetail이 역할로 정한다(dash.isViewOnly)
   }
   function openMenu(id, msg, before) {
     const A = root.app;

@@ -1325,6 +1325,23 @@
 </div>
 </section>
 
+<section class="ch" id="c62">
+<h2>62 국민은행 CI 시안 B(진회색 띠 + 옐로 선)·지도 선택 파랑 세 겹·보기 전용 역할 확대(전산팀·디자이너) (2026-11-19, 사용자 선택 "시안 B가 눈에 잘 들어오네"·"권장안대로", design 1428_aab03363 3·4절, frontend-dev a92a0460, NEXT 97)</h2>
+<div class="why">왜: 사용자가 "로그인 화면 색을 국민은행 CI 색깔 자료로 바꿔 시안을 보자" → CI 공식값(kbfg.com: KB Yellow #FFBC00·KB Dark Gray #545045)으로 두 시안을 만들어 B를 골랐습니다. 지도 선택은 "검은색 이외의 방법은 없었어?" → 앱의 '선택' 색인 포인트 파랑. 전산팀 보기 전용은 시작화면 팝업에만 걸려 지도·현황판에서 연 팝업에는 [편집]이 보였고, 서버가 디자이너의 기관 편집도 403으로 막게 되어(main 55b77b3) 화면을 맞췄습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+  <p class="hint12">머리 띠·로그인 상단 띠 남색 #052561, 로그인 카드 윗선 남색, 로그인 주버튼 포인트 파랑. 지도 선택 = 흰 5px 위 검정 2.5px. 전산팀이 지도·현황판에서 연 기관 팝업에 [편집]·[금고 약정 입력](서버 권한대로), 지도 도구줄 [기관 추가]·[CSV 템플릿]·[CSV 업로드] 보임 — 디자이너도 같음.</p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <p style="font-size:12px">머리 띠·로그인 상단 띠·로그인 주버튼 = KB Dark Gray #545045(흰 글자 8.04:1), 로그인 띠 아랫선·카드 윗선·슬라이드 진행 막대 = KB Yellow(글자 없는 선만), 띠 위 보조 글자 #ece6da. 지도 선택 = 잉크 8 바깥선 + 흰 6 + 포인트 파랑 3(깜빡임 3↔4), 키보드 포커스 링은 항상 맨 위. 보기 전용 역할 = 전산팀·전산팀장·디자이너(nav.isViewOnly 한 곳): 어느 화면에서 연 기관 팝업이든 [닫기]와 이동 링크만, 입찰 공고 현황 본 화면의 [기관 정보 변경]·기록 저장 없음, 지도 도구줄은 [기관 정보 내보내기]·[지도 색상]만. 사업계획 수집 요청·시스템 관리는 전산팀 업무라 그대로.</p>
+  <p class="legend-note">CI 출처 https://www.kbfg.com/kor/about/corporate/ci.htm (Color System). 노랑 위 흰 글자 금지(1.69:1). 실측 1280×860(8080, 11-19 16:1x): 청주지방법원 선택 시 충북에 edge·under·over 3겹, 전산팀 지도 팝업 버튼 = 입찰 공고 현황에서 보기·기관 사업계획에서 수집 요청·닫기. <b>남은 것</b>: 테마 창에서 포인트색을 밝게 바꾸면 흰 띠와 파랑 심 대비가 떨어질 수 있음(바깥 잉크선이 경계 유지), 보기 전용 안내 칩은 아직 없음.</p>
+  <p><img src="../../handoff/agents/history/2026-11-17_97_mockAB/stage5_3_login_B.jpg" alt="후 — 로그인 시안 B: 진회색 상단 띠와 아래 노란 선, 카드 윗선 노랑, 진회색 로그인 버튼" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-17_97_mockAB/stage5_1_ring_header.jpg" alt="후 — 진회색 머리 띠, 전국 지도에서 충북 선택: 잉크 바깥선·흰 띠·파랑 심" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-17_97_mockAB/stage5_2_it_map_popup.jpg" alt="후 — 전산팀이 지도에서 연 청주지방법원 팝업: 편집 없이 닫기" style="width:100%"></p>
+</div></div></div>
+</div>
+</section>
+
 <p class="foot">추가 규칙: 이 파일은 화면(마크업·CSS·문구·메뉴)이 바뀌는 커밋마다 새 장(section.ch)을 아래에 이어 붙이고, design-reviewer가 커밋 전 확인합니다(CLAUDE.md 5절). 근거 보고서: handoff/agents/design-reviewer/.</p>
 </div>
 </body>

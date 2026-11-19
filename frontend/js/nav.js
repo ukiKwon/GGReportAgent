@@ -67,8 +67,8 @@
   // id 값 'soon:첫 화면' → 'soon:시작화면': 이 id는 메모리 탭 목록에만 있다(localStorage·서버·접근 이력에 저장 안 함) → 마이그레이션 없음.
   const HOME_ID = 'soon:시작화면';
   const HOME_CAT = 'home';
-  // 시작화면을 보되 고치지는 못하는 역할(사용자 11-19: 전산팀·전산팀장). 시작화면에서 여는 상세 팝업의 쓰기 버튼을 모두 숨긴다(nav.isViewOnly).
-  const VIEW_ONLY_ROLES = ['전산팀', '전산팀장'];
+  // 시스템 전체를 보되 고치지는 못하는 역할(사용자 11-19: 전산팀·전산팀장 + 디자이너). 지도·현황판·입찰 공고 현황·시작화면의 쓰기 버튼과 도구줄 [기관 추가]·[CSV]를 숨긴다(nav.isViewOnly). 예외: 사업계획 수집 요청·시스템 관리 화면(전산팀 업무).
+  const VIEW_ONLY_ROLES = ['전산팀', '전산팀장', roles.DESIGNER];   // 디자이너도 기관 추가·편집은 서버 403(main 11-19 requireInstitutionEditSales, 디자이너 기본값 '보기')
   // 시작화면 대상 역할 — 역할을 바꾸려면 이 두 줄(HOME_ROLES·VIEW_ONLY_ROLES)만 고친다. 재무(예산팀)·마스터는 지도로 시작한다.
   const HOME_ROLES = TEAM_ROLES.concat([roles.DESIGNER], VIEW_ONLY_ROLES);
 
@@ -119,7 +119,7 @@
   nav.COLLECT_ID = 'admin:collect';   // plancollect.NAV_ID 와 같다 — overdue.paintNavBadge 가 이 항목의 배지를 지우지 않게 알아본다
   // 로그인 뒤 시작화면(포털)을 보는 역할 — 영업팀·영업팀장·영업부장 + 디자이너 + 전산팀·전산팀장(보기 전용, 사용자 결정 11-19). 마스터·재무는 지도.
   nav.isHomeRole = function (ctx) { return nav.roleIn(HOME_ROLES, ctx); };
-  // 보기 전용 판정은 이 함수 하나다. portal.js가 상세 팝업을 열 때 읽고, dashboard.js 상세는 그 값(readOnly)만 따른다.
+  // 보기 전용 판정은 이 함수 하나다. 화면은 app.isViewOnly()·dashboard.isViewOnly()로만 읽는다(역할 문자열을 따로 비교하지 않는다).
   nav.VIEW_ONLY_ROLES = VIEW_ONLY_ROLES;
   nav.isViewOnly = function (ctx) { return nav.roleIn(VIEW_ONLY_ROLES, ctx); };
   // 로그인 뒤 시작화면: 시작화면 항목이 보이는 대상 역할이고 아직 지도만 보고 있으면 HOME_ID, 아니면 null(지금 화면 유지).

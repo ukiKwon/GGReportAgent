@@ -61,11 +61,14 @@ test('색 잔재: #626d81·옛 다크 muted 빗금·금색 glow·.08em 자간 �
   assert.ok(!/letter-spacing\s*:\s*\.08em/.test(c));
 });
 
-test('머리 띠·메뉴·탭: 네이비 3곳만, 로그아웃·로고 흰색, 탭 닫기 24px', function () {
+test('머리 띠·메뉴·탭: 국민은행 CI 시안 B(진회색 띠 + 옐로 선), 로그아웃·로고 흰색, 탭 닫기 24px', function () {
   const c = css();
-  assert.strictEqual((c.match(/#052561/gi) || []).length, 3);   // header, .lg-top, .login-card 윗선
-  assert.ok(/(^|\n)\s*body > header \{[^}]*background:#052561[^}]*color:#fff/.test(c));
-  assert.ok(/body > header \.link-btn \{ color:#fff; \}/.test(c) && /body > header \.link-btn:hover \{ color:#dfe6f3; \}/.test(c));
+  assert.strictEqual((c.match(/#052561/gi) || []).length, 0);   // 남색은 시안 B(사용자 11-19)로 모두 KB Dark Gray로 바뀌었다
+  assert.ok(/(^|\n)\s*body > header \{[^}]*background:#545045[^}]*color:#fff/.test(c));
+  assert.ok(/\.lg-top \{[^}]*background:#545045; color:#fff; box-shadow:inset 0 -3px 0 var\(--bk-kb, #ffbc00\);/.test(c));
+  assert.ok(/\.login-card \{[^}]*border-top:3px solid var\(--bk-kb, #ffbc00\);/.test(c));
+  assert.ok(/#login-view \.lg-primary \{[^}]*background:#545045; color:#fff;/.test(c));
+  assert.ok(/body > header \.link-btn \{ color:#fff; \}/.test(c) && /body > header \.link-btn:hover \{ color:#ece6da; \}/.test(c));
   // 맨 타입 선택자 header는 JS 팝업 <header class="bd-src-head">(board-write.js)에도 걸린다 — 앱 머리 띠는 body > header로만(qa 11-19 P1)
   const bare = rules().filter(function (r) {
     return r.sel.split(',').some(function (x) { return /^header(\s|$|:)/.test(x.trim()); });
@@ -90,17 +93,18 @@ test('머리 띠 제목 단추·고정 탭 CSS(11-19, design-reviewer 1428_aab03
   assert.ok(/\.pt-span \{[^}]*font:700 12px var\(--mono\)/.test(c));
 });
 
-test('지도 강조: 덮개 층 g.sel-ring-layer, raise() 없음, 잉크·흰 두 겹', function () {
+test('지도 강조: 덮개 층 g.sel-ring-layer, raise() 없음, 선택 세 겹(잉크·흰·파랑, 사용자 11-19)·포커스 두 겹', function () {
   assert.ok(!/\.raise\(\)/.test(renderSrc));
   ['sel-ring-layer', '_ringSelect', '_ringFocus', '_ringBlur'].forEach(function (k) { assert.ok(renderSrc.indexOf(k) > 0, k); });
   assert.ok(/clearSelection[\s\S]*?g\.sel-ring-layer path\.ring-sel[\s\S]*?\.remove\(\)/.test(renderSrc));
   assert.ok(/\.on\('focus'[\s\S]*?render\._ringFocus\(this\)[\s\S]*?\.on\('blur'[\s\S]*?render\._ringBlur\(\)/.test(renderSrc));
   const c = css();
-  assert.ok(/\.ring-sel\.under \{[^}]*stroke:#fff; stroke-width:5;/.test(c));
-  assert.ok(/\.ring-sel\.over \{[^}]*stroke:var\(--fg\); stroke-width:2\.5;/.test(c));
+  assert.ok(/\.ring-sel\.edge \{[^}]*stroke:var\(--fg\); stroke-width:8;/.test(c) && /\.ring-sel\.under \{[^}]*stroke:#fff; stroke-width:6;/.test(c));
+  assert.ok(/\.ring-sel\.over \{[^}]*stroke:var\(--accent-color\); stroke-width:3;/.test(c));
+  assert.ok(renderSrc.indexOf("render._ringPaths(layer, 'sel', ds, ['edge', 'under', 'over'])") > 0 && renderSrc.indexOf("layer.insert('path', kind === 'sel' ? 'path.ring-focus' : null)") > 0);   // 포커스가 항상 맨 위
   assert.ok(/\.ring-focus\.under \{[^}]*stroke:var\(--fg\); stroke-width:6;/.test(c));
   assert.ok(/\.ring-focus\.over \{[^}]*stroke:#fff; stroke-width:2\.5;/.test(c));
-  assert.ok(/@keyframes muni-blink \{[^}]*stroke-width:2\.5;[^}]*\}[^}]*stroke-width:3\.5;/.test(c) && !/stroke-opacity:\.30/.test(c));
+  assert.ok(/@keyframes muni-blink \{[^}]*stroke-width:3;[^}]*\}[^}]*stroke-width:4;/.test(c) && !/stroke-opacity:\.30/.test(c));
   assert.ok(/\.region:focus-visible, \.subregion:focus-visible \{ outline:none; \}/.test(c));
   assert.ok(/\.region\.watched \{ stroke:var\(--fg\); stroke-width:1\.5; stroke-dasharray:4 2; \}/.test(c));
   assert.ok(/g\.ripple-layer \{ filter:drop-shadow\(0 0 1px #fff\); \}/.test(c));

@@ -365,6 +365,7 @@
   // 기관 편집 창(NEXT 72) — 입찰 예정일(추정/공고로 확정+출처)·운영 상태·기본 정보를 묶음별로 저장한다. 본체는 instedit.js.
   // opts = { opener, focus:'status', from:'map_popover'|'bid_board' }. from은 서버로 가는 요청이 없어 쓰지 않는다(PUT은 institution_edit).
   app.openEdit = function (rec, opts) {
+    if (app.isViewOnly()) return;   // 보기 전용 역할은 단추가 없어도 한 번 더 막는다
     root.instedit.open(rec, Object.assign({}, opts, {
       bootstrap: function () { return app.bootstrapServer(); },
       repaint: function () {
@@ -383,6 +384,7 @@
   };
 
   app.openAdd = function () {
+    if (app.isViewOnly()) return;
     const wrap = document.getElementById('add-fields');
     const L = root.logic.FIELD_LABELS;
     const fields = ['name','type','region','subRegion','term','lastBid','contractEnd','lng','lat','sources'];
@@ -448,6 +450,7 @@
     document.getElementById('btn-add').addEventListener('click', app.openAdd);
     document.getElementById('btn-tmpl').addEventListener('click', function () { root.exporter.downloadCsvTemplate(); });
     document.getElementById('file-csv').addEventListener('change', function (e) {
+      if (app.isViewOnly()) { e.target.value = ''; return; }   // 보기 전용: 단추가 없어도 한 번 더 막는다
       const file = e.target.files[0]; if (!file) return;
       if (root.store.isServerMode()) {
         // 서버 모드: 기존 12열 CSV 그대로 multipart로 올려 서버 반입(SCHEMA §⑦의 상위집합 계약).
@@ -498,6 +501,8 @@
     };
   }
   app.navContext = navContext;
+  // 보기 전용 역할(전산팀·전산팀장·디자이너) 판정은 nav.isViewOnly(ctx) 한 곳 — 화면은 이 함수만 부른다.
+  app.isViewOnly = function () { return !!(root.nav && root.nav.isViewOnly && root.nav.isViewOnly(navContext())); };
 
   function navWho() {
     const s = root.store.loadSession();
@@ -891,6 +896,7 @@
     const session = root.store.loadSession();
     const chip = byId('profile-chip');
     document.body.classList.toggle('is-guest', !(session && session.mode === 'account'));
+    document.body.classList.toggle('is-viewonly', app.isViewOnly());   // 보기 전용 역할(전산팀·디자이너) — 도구줄 [기관 추가]·[CSV]를 그리지 않는다(index.html CSS)
     if (chip) chip.textContent = root.login.chipText(session, root.store.loadProfile());
     // 로그인 상태의 헤더 우측: "{소속} {이름}" 글자 · 로그아웃(밑줄) · ⚙ 설정 — 칩(로그인)은 둘러보기에서만 보인다.
     const label = byId('user-label');

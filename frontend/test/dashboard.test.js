@@ -507,6 +507,19 @@ test('dash.setGoals·isGoalRec·proposeEarly: 올해 응답만 담고, 안내는
   dash.clearGoals();
 });
 
+test('목표 집합(qa 11-19 P3-1): setGoals가 seq를 올려 앞선 loadGoals 응답을 무효화, 제안 확정 역할이 아니면 요청 없이 비움, 계정 전환 때 비움', function () {
+  const d = fs.readFileSync(path.join(__dirname, '..', 'js', 'dashboard.js'), 'utf8');
+  assert.ok(/dash\.setGoals = function[\s\S]*?goalSt\.seq \+= 1;[\s\S]*?goalSt\.ids = ids;/.test(d));   // 앞서 보낸 요청의 응답(my !== goalSt.seq)이 버려진다
+  assert.ok(/function canConfirmRole\(\) \{[\s\S]*?P\.CONFIRM_ROLES\.indexOf\(r\) >= 0/.test(d));        // actionKind(prep.popoverAction)와 같은 역할 집합
+  assert.ok(/dash\.loadGoals = function \(\) \{\s*if \(!serverMode\(\) \|\| !hasEmp\(\) \|\| !canConfirmRole\(\)\) \{ dash\.clearGoals\(\)/.test(d));
+  assert.ok(/dash\.onProfileChange = function \(\) \{[\s\S]*?stWho = w;\s*dash\.clearGoals\(\);/.test(d));
+  const Y = TODAY.getFullYear();
+  assert.strictEqual(dash.setGoals({ year: Y, items: [{ institution_id: 'I1' }] }, TODAY), true);
+  return dash.loadGoals().then(function () {   // 서버·역할 없음(노드) = 요청 없이 비운다
+    assert.strictEqual(dash.util.gateOpts().goals.ids, null);
+  });
+});
+
 test('actionKind(11-19): 목표+공고 전 confirm, 목표+진행 중은 open, 영업부장은 none, 안내 문구', function () {
   const Y = TODAY.getFullYear();
   const r = rec('가', '11', 40, { institutionId: 'I1' });
@@ -802,7 +815,7 @@ test('상세 보기 전용(11-19): lockBank는 can_edit을 끄고 원본을 바�
   assert.strictEqual(dash.lockBank(null), null);
   assert.ok(dash.VIEW_ONLY_MAP_HTML.indexOf('dm-edit') < 0 && dash.VIEW_ONLY_MAP_HTML.indexOf('dm-close') > 0);
   const s = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8');
-  assert.ok(/readOnly: !!\(opts && opts\.readOnly\)/.test(s) && /if \(m\.readOnly\) act = 'none';/.test(s));
+  assert.ok(/readOnly: dash\.isViewOnly\(\)/.test(s) && /dash\.isViewOnly = function/.test(s) && /if \(dash\.isViewOnly\(\)\) return 'none';/.test(s) && /canEdit: n\.canEdit\(\) && !dash\.isViewOnly\(\)/.test(s) &&/if \(m\.readOnly\) act = 'none';/.test(s));
   assert.ok(/m\.readOnly && \['dm-edit', 'bk-edit', 'db-cf', 'db-do', 'db-open'\]/.test(s));
   assert.ok(/dash\.onProfileChange = function/.test(s) && s.indexOf('최근 절차일') < 0 && s.indexOf('지난 금고 선정일') > 0);
 });

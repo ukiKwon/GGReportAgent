@@ -346,12 +346,18 @@
     if (!data || Number(data.year) !== y || !Array.isArray(data.items)) return false;
     const ids = {};
     data.items.forEach(function (t) { const id = String(instId(t)); if (id) ids[id] = true; });   // watch_items는 읽지 않는다 — 관심 기관은 규칙 밖
+    goalSt.seq += 1;   // 앞서 보낸 loadGoals 응답이 늦게 와서 이 집합을 덮지 못하게(qa 11-19 P3-1)
     goalSt.year = y; goalSt.ids = ids; goalSt.st = 'ok';
     return true;
   };
+  // 제안 확정 가능 역할(actionKind→prep.popoverAction과 같은 집합) — 아니면 목표 집합을 받지 않는다
+  function canConfirmRole() {
+    const P = root.prep, r = role();
+    return !!(P && Array.isArray(P.CONFIRM_ROLES) && P.CONFIRM_ROLES.indexOf(r) >= 0);
+  }
   dash.clearGoals = function () { goalSt.seq += 1; goalSt.year = 0; goalSt.ids = null; goalSt.st = 'idle'; };
   dash.loadGoals = function () {
-    if (!serverMode() || !hasEmp()) { dash.clearGoals(); return Promise.resolve(); }
+    if (!serverMode() || !hasEmp() || !canConfirmRole()) { dash.clearGoals(); return Promise.resolve(); }
     const y = todayDate().getFullYear(), my = ++goalSt.seq;
     if (!goalSt.ids) goalSt.st = 'loading';
     return fetchJson('/bid-targets?year=' + encodeURIComponent(y)).then(function (r) {
@@ -1144,6 +1150,7 @@
   }
 
   function paneAct(it, ctx, actives) {
+    if (dash.isViewOnly()) return 'none';   // 보기 전용: 개원 확인의 [기관 정보 변경]도 [제안 확정]도 없다(recCompEnd가 같은 값으로 비교하므로 여기서 정한다)
     return ie.isOpenCheck(it.rec) ? 'opencheck' : dash.actionKind(it.rec, ctx, actives, root.prep, gateOpts());
   }
   function renderPane() {
@@ -1167,7 +1174,7 @@
     st.comp = false; st.compLater = false;   // 상세를 통째로 다시 그리면 조합도 끊긴다 — 미룬 다시 그리기 표시를 남기지 않는다
     el.innerHTML = dash.paneHtml(it, { act: act, early: act === 'confirm' && dash.proposeEarly(it.rec, gateOpts()), confirm: st.confirm && act === 'confirm', busy: st.busy,
       kb: dash.kbEntry(it.rec, root.KB_VERIFIED), next: dash.kbEntry(it.rec, root.KB_NEXT), role: ctx.role, today: todayDate(), headHtml: headSection(it),
-      recordHtml: ie.isOpenCheck(it.rec) ? '' : recViewHtml(it), bank: bankView(it.rec) });
+      recordHtml: ie.isOpenCheck(it.rec) ? '' : recViewHtml(it), bank: dash.isViewOnly() ? dash.lockBank(bankView(it.rec)) : bankView(it.rec) });
     if (st.confirm && act === 'confirm') { const b = $('db-do'); if (b) b.focus(); }
     else if (keep) { const t = $(keep.id); if (t && t.focus) { t.focus(); try { if (keep.s != null) t.setSelectionRange(keep.s, keep.e); } catch (e) { /* 날짜 칸 등 */ } } }
     if (scrollTop0) { const b1 = el.querySelector('.db-pane-body'); if (b1) b1.scrollTop = scrollTop0; }   // 포커스가 끌어간 스크롤을 원래 자리로
@@ -1214,7 +1221,7 @@
     const n = NR(), r = st.rec, id = recId(it);
     if (!n) return '';
     if (!id || !recOn()) return dash.recordSecHtml(it, { state: 'offline' });
-    return dash.recordSecHtml(it, { state: r.histSt === 'idle' ? 'loading' : r.histSt, code: r.histCode, listState: n.state ? n.state() : '', listCode: n.listCode ? n.listCode() : 0, hist: r.hist, cur: recCur(), canEdit: n.canEdit(),
+    return dash.recordSecHtml(it, { state: r.histSt === 'idle' ? 'loading' : r.histSt, code: r.histCode, listState: n.state ? n.state() : '', listCode: n.listCode ? n.listCode() : 0, hist: r.hist, cur: recCur(), canEdit: n.canEdit() && !dash.isViewOnly(),
       draft: st.drafts[id] || null, errs: r.errs, err: r.err, busy: r.busy, cf: r.cf ? { stage: stageLabel(r.cf.state) } : null,
       who: profileName(), today: recToday(), rv: dash.recView(it), histOpen: r.histOpen });
   }
@@ -1289,7 +1296,7 @@
   function recSave(confirmed) {
     const it = selItem(), r = st.rec, n = NR();
     if (!it || !n || r.busy || r.histSt !== 'ok') return;
-    if (!n.canEdit()) { flash('저장할 수 있는 권한이 없습니다. 공고 상태 기록은 영업팀이 저장합니다.', true); return; }
+    if (dash.isViewOnly() || !n.canEdit()) { flash('저장할 수 있는 권한이 없습니다. 공고 상태 기록은 영업팀이 저장합니다.', true); return; }
     const id = recId(it), cur = recCur(), d = recDraft(it), errs = n.validate(d, recToday());
     const first = n.FIELD_ORDER.filter(function (k) { return errs[k]; })[0];
     if (first) { r.errs = errs; r.err = ''; r.cf = null; repaintRec(); recFocusField(first); return; }
@@ -1600,6 +1607,7 @@
     }
     const btn = t.closest('button');
     if (!btn) return;
+    if (dash.isViewOnly() && ['db-edit', 'bk-edit', 'db-cf', 'db-do'].indexOf(btn.id) >= 0) return;   // 보기 전용: 버튼이 없어도 함수가 한 번 더 막는다
     switch (btn.id) {
       case 'db-nb-wait': { const o = host.querySelector('.db-row[data-check="1"]'); const lb = o && o.closest('[role=listbox]'); if (o && o.scrollIntoView) o.scrollIntoView({ block: 'nearest' }); if (lb) lb.focus(); break; }
       case 'db-nb-more': { const lb = $('db-nlb'); if (lb) { if (lb.scrollIntoView) lb.scrollIntoView({ block: 'nearest' }); lb.focus(); } break; }
@@ -1807,7 +1815,7 @@
     if (typeof document === 'undefined' || !rec) return false;
     if (dm.cur) dash.closeDetail(false);
     const m = { rec: rec, it: dash.itemForRec(rec, todayDate()), opener: (opts && opts.opener) || document.activeElement,
-      screen: (opts && opts.screen) || 'map_popover', fallback: (opts && opts.fallback) || '', refocus: (opts && opts.refocus) || null, focus: (opts && opts.focus) || '', changed: false, readOnly: !!(opts && opts.readOnly),
+      screen: (opts && opts.screen) || 'map_popover', fallback: (opts && opts.fallback) || '', refocus: (opts && opts.refocus) || null, focus: (opts && opts.focus) || '', changed: false, readOnly: dash.isViewOnly(),
       preps: null, prepSt: 'offline', confirm: false, busy: false, down: null, el: null };
     const ov = document.createElement('div');
     ov.className = 'modal-overlay dm-ov';
@@ -1839,6 +1847,8 @@
     return Object.assign({}, view, { data: Object.assign({}, view.data, { can_edit: false }) });
   };
   dash.VIEW_ONLY_MAP_HTML = '<button type="button" id="dm-close">닫기</button>';   // [편집] 없이 [닫기]만
+  // 보기 전용 판정 — nav.isViewOnly(ctx) 한 곳(app.isViewOnly가 감싼다, 전산팀·전산팀장·디자이너 11-19). 어느 화면에서 열든 역할로 정한다. root.app이 없으면(순수 시험) false.
+  dash.isViewOnly = function () { try { return !!(root.app && root.app.isViewOnly && root.app.isViewOnly()); } catch (e) { return false; } };
 
   dash.closeDetail = function (refocus) {
     const m = dm.cur;
@@ -1950,6 +1960,7 @@
     const w = empNo();
     if (w === stWho) return;
     stWho = w;
+    dash.clearGoals();   // 앞 계정의 올해 목표 집합과 늦은 응답을 버린다(qa 11-19 P3-1)
     st.sel = ''; st.q = ''; st.region = ''; st.type = ''; st.confirm = false; st.drafts = {}; st.rec = recFresh('');
     if (host && M) refreshData();   // refreshData가 필터 칸도 다시 채운다
   };

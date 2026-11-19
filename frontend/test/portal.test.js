@@ -414,7 +414,7 @@ test('시작화면(11-19): 로그아웃·로그인 초기화, 복원 pending 보
   assert.ok(/root\.dashboard\.onProfileChange\(\)/.test(a));
   // 기관 목록이 시작화면보다 늦게 오면 출처를 다시 불러온다(11-19 실측: 빠른 로그인에 '로그인과 서버 연결이 필요합니다'로 굳음)
   assert.ok(/applyServerModeUI\(\);[\s\S]{0,300}root\.portal\.onDataReady\(\)/.test(a) && /P\.onDataReady = function \(\) \{\s*if \(!host\) return;\s*S\.seq \+= 1; startLoad\(\);/.test(p));
-  assert.ok(/readOnly: viewOnly\(\)/.test(p) && /N\.isViewOnly\(A\.navContext\(\)\)/.test(p));
+  assert.ok(p.indexOf('readOnly: viewOnly()') < 0 && p.indexOf('function viewOnly(') < 0 && p.indexOf("refocus: again });") > 0);   // 보기 전용은 dash.openDetail이 역할로 정한다(전산팀·디자이너 어디서 열든)
   assert.ok(p.indexOf('시작화면') > 0 && p.indexOf('첫 화면') < 0);
   // 패널 제목·부제·개수·기간 칩(design-reviewer 11-19 1428_aab03363 5절)
   const sk = portal.skeletonHtml();
