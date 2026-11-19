@@ -213,6 +213,58 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
     }
 
     @Test
+    public void 후보_기관장이_있어도_그_이름은_문서에_없고_확정_기관장만_나온다() throws Exception {
+        long cur = addHeadOk(INST, L1, "홍길동", "구청장");
+        MvcResult c = postJson(headsPath(INST), L1, headJson("후보기관장Q", "후보직위Q"));
+        assertEquals(text(c), 202, c.getResponse().getStatus());   // 현 기관장이 있으니 후보 머리
+        assertEquals(cur, currentHeadId(INST).longValue());
+
+        MvcResult r = docx(path(INST), T1, true);
+        assertEquals(text(r), 200, r.getResponse().getStatus());
+        String xml = documentXml(bytes(r));
+        assertTrue("확정 이름", xml.contains("홍길동"));
+        assertFalse("후보 기관장 이름 없음", xml.contains("후보기관장Q"));
+        assertFalse("후보 기관장 직위 없음", xml.contains("후보직위Q"));
+    }
+
+    @Test
+    public void 이름과_직위만_있고_학력_경력_날짜가_없어도_문서가_깨지지_않고_빈_칸은_안내_문구다() throws Exception {
+        addHeadOk(INST, L1, "홍길동", "구청장");   // 확정 칸은 NAME·POSITION 뿐
+
+        MvcResult r = docx(path(INST), T1, true);
+        assertEquals(text(r), 200, r.getResponse().getStatus());
+        byte[] b = bytes(r);
+        String xml = documentXml(b);
+        assertTrue(xml.contains("성명: 홍길동"));
+        assertTrue(xml.contains("직위: 구청장"));
+        assertFalse("값 없는 줄은 생략", xml.contains("첫 취임일"));
+        assertFalse("값 없는 줄은 생략", xml.contains("현 임기"));
+        assertFalse("null 글자 없음", xml.contains(">null<") || xml.contains("null ~") || xml.contains("~ null"));
+        assertTrue("학력·경력 빈 칸 안내 문구", xml.contains("확정된 값이 없습니다."));
+        try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(b))) {   // 열리는 문서
+            assertFalse(d.getTables().isEmpty());
+        }
+    }
+
+    @Test
+    public void 확정_학력_경력과_후보_학력_경력이_섞여_있으면_확정_것만_나온다() throws Exception {
+        long head = addHeadOk(INST, L1, "홍길동", "구청장");
+        addItemOk(INST, L1, itemText(head, "EDU", "확정학력행정학석사"), 201);
+        addItemOk(INST, L1, itemText(head, "CAREER", "확정경력행정국장"), 201);
+        insertCandidateItem(head, INST, "EDU", "후보학력Z", T2);
+        insertCandidateItem(head, INST, "CAREER", "후보경력Z", T2);
+
+        MvcResult r = docx(path(INST), T1, true);
+        assertEquals(text(r), 200, r.getResponse().getStatus());
+        String xml = documentXml(bytes(r));
+        assertTrue(xml.contains("확정학력행정학석사"));
+        assertTrue(xml.contains("확정경력행정국장"));
+        assertFalse("후보 학력 없음", xml.contains("후보학력Z"));
+        assertFalse("후보 경력 없음", xml.contains("후보경력Z"));
+        assertFalse("사번 없음", xml.contains(T2));
+    }
+
+    @Test
     public void 스위치를_끄면_404_FEATURE_OFF이고_감사_표는_그대로다() throws Exception {
         int actBefore = count("SELECT COUNT(*) FROM INST_HEAD_ACT");
         settings.setEnabled(false);
