@@ -333,7 +333,7 @@
 
   <select id="countViewsSince" resultType="int" flushCache="true">
     SELECT COUNT(*) FROM INST_HEAD_ACT
-     WHERE ACTOR_EMP_NO = #{actorEmpNo} AND ACTION_CD IN ('VIEW', 'PHOTO_VIEW', 'UNMATCHED_VIEW') AND OUTCOME = 'OK'
+     WHERE ACTOR_EMP_NO = #{actorEmpNo} AND ACTION_CD IN ('VIEW', 'PHOTO_VIEW', 'UNMATCHED_VIEW', 'HEAD_DOCX') AND OUTCOME = 'OK'
        AND LOGGED_AT &gt;= #{since}
   </select>
 

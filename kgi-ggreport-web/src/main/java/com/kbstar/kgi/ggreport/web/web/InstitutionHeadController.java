@@ -2,14 +2,18 @@ package com.kbstar.kgi.ggreport.web.web;
 
 import com.kbstar.kgi.ggreport.web.config.AccessLogInterceptor;
 import com.kbstar.kgi.ggreport.web.config.InstHeadSettings;
+import com.kbstar.kgi.ggreport.web.docout.DocxKit;
+import com.kbstar.kgi.ggreport.web.docout.HeadDocBuilder;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.dto.HeadIn;
+import com.kbstar.kgi.ggreport.web.mapper.InstitutionPlanMapper;
 import com.kbstar.kgi.ggreport.web.service.HeadAudit;
 import com.kbstar.kgi.ggreport.web.service.HeadPhotoService;
 import com.kbstar.kgi.ggreport.web.service.HeadRules;
 import com.kbstar.kgi.ggreport.web.service.InstitutionHeadService;
 import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.HeadUiIds;
+import com.kbstar.kgi.ggreport.web.support.Times;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -23,6 +27,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,14 +51,16 @@ public class InstitutionHeadController {
     private final HeadAudit audit;
     private final InstitutionHeadService heads;
     private final HeadPhotoService photos;
+    private final InstitutionPlanMapper plans;
 
     public InstitutionHeadController(InstHeadSettings settings, MenuGuard guard, HeadAudit audit,
-                                     InstitutionHeadService heads, HeadPhotoService photos) {
+                                     InstitutionHeadService heads, HeadPhotoService photos, InstitutionPlanMapper plans) {
         this.settings = settings;
         this.guard = guard;
         this.audit = audit;
         this.heads = heads;
         this.photos = photos;
+        this.plans = plans;
     }
 
     private interface Call<T> {
@@ -95,6 +103,87 @@ public class InstitutionHeadController {
             }
         });
         return noStore(out, HttpStatus.OK);
+    }
+
+    // ── 문서 내려받기(NEXT 100 S1) ───────────────────────────────────────
+
+    private static final MediaType DOCX = MediaType.parseMediaType(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+
+    /** 서비스 결과가 감사 표의 HEAD_ID 를 직접 알려 줄 때(Map 이 아닌 결과) — {@link #run} 이 읽는다. */
+    private interface HeadScoped {
+        Long headId();
+    }
+
+    private static final class DocOut implements HeadScoped {
+        final byte[] bytes;
+        final String instName;
+        final Long headId;
+
+        DocOut(byte[] bytes, String instName, Long headId) {
+            this.bytes = bytes;
+            this.instName = instName;
+            this.headId = headId;
+        }
+
+        @Override
+        public Long headId() {
+            return headId;
+        }
+    }
+
+    /**
+     * A15 — 현 기관장 정보 .docx(확정 값만, 사진·후보·사번 없음). 화면·버튼 식별자(허용 목록)가 없으면 400 UI_ID_REQUIRED(INVALID),
+     * 현 기관장이 없거나 빈 기관장이거나 문서에 담을 확정 칸이 하나도 없으면(사진만 있는 경우 포함) 409 HEAD_EMPTY(BLOCKED),
+     * 선택 질의 {@code ref_no}(1~20, 기본 1)가 형식 밖이면 400.
+     * 감사 행위 코드 HEAD_DOCX 는 응답 전에 기록하고 HEAD_ID 열에 그 현 기관장 번호를 채운다(실패하면 500, 파일 안 나감). 접근 이력에는 기관·코드만(이름·파일명 없음).
+     */
+    @GetMapping("/institutions/{institutionId}/head/docx")
+    public ResponseEntity<byte[]> docx(@PathVariable final String institutionId,
+                                       @RequestParam(name = "ref_no", required = false) final String refNo,
+                                       HttpServletRequest req) {
+        final BoardUiIds.Ui ui = HeadUiIds.of(req);
+        DocOut out = run(req, institutionId, null, null, "HEAD_DOCX", true, new Call<DocOut>() {
+            @Override
+            public DocOut apply(SysUser me, Actor actor) {
+                if (!ui.isValid()) {
+                    throw coded(400, "UI_ID_REQUIRED", "화면·버튼 식별자가 필요합니다.");
+                }
+                int ref = 1;
+                if (refNo != null && !refNo.isEmpty()) {
+                    if (!refNo.matches("[0-9]{1,2}") || Integer.parseInt(refNo) < 1 || Integer.parseInt(refNo) > 20) {
+                        throw coded(400, "BAD_VALUE", "참고자료 번호는 1~20으로 지정하세요.");
+                    }
+                    ref = Integer.parseInt(refNo);
+                }
+                Map<String, Object> d = heads.detail(me, actor, institutionId);
+                if (d.get("head") == null || Boolean.TRUE.equals(d.get("head_empty")) || !HeadDocBuilder.hasContent(d)) {
+                    throw coded(409, "HEAD_EMPTY", "확정된 현 기관장 정보가 없습니다.");
+                }
+                String name = plans.selectInstitutionName(institutionId);
+                byte[] bytes = DocxKit.render(HeadDocBuilder.build(d, name, ref, Times.todayKst()), DocxKit.Footer.pageNumberOnly());
+                return new DocOut(bytes, name, HeadDocBuilder.headIdOf(d));
+            }
+        });
+        String safe = (out.instName == null ? "" : out.instName).replaceAll("[^0-9A-Za-z가-힣]", "_");
+        if (safe.length() > 40) {
+            safe = safe.substring(0, 40);
+        }
+        String file = "기관장정보_" + safe + "_" + Times.todayKst().replace("-", "") + ".docx";
+        String encoded;
+        try {
+            encoded = URLEncoder.encode(file, "UTF-8").replace("+", "%20");
+        } catch (UnsupportedEncodingException never) {
+            throw new IllegalStateException(never);
+        }
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(DOCX);
+        h.setContentLength(out.bytes.length);
+        h.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"head_info.docx\"; filename*=UTF-8''" + encoded);
+        h.set(HttpHeaders.CACHE_CONTROL, "no-store");
+        h.set(HttpHeaders.PRAGMA, "no-cache");
+        h.set("X-Content-Type-Options", "nosniff");
+        return new ResponseEntity<>(out.bytes, h, HttpStatus.OK);
     }
 
     // ── 등록(A4)·칸 입력(A5) ─────────────────────────────────────────────
@@ -427,6 +516,9 @@ public class InstitutionHeadController {
                         target = ((Number) t).longValue();
                     }
                 }
+            }
+            if (head == null && out instanceof HeadScoped) {
+                head = ((HeadScoped) out).headId();
             }
             audit.record(inst, head, action, "OK", target, actor, ui);
         }

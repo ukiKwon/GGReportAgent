@@ -18,7 +18,8 @@ import java.time.ZoneId;
  * 컨트롤러에는 트랜잭션이 없으므로 컨트롤러가 부른 기록은 서비스 실패와 무관하게 따로 커밋된다. 성공한 읽기는 응답 전에 기록한다(실패하면 500, 데이터 안 나감).
  * 본문·값·사유·이름·파일명은 기록하지 않는다. instId 가 null 이거나 형식 밖이면 'NONE'. ⚠️ 사번·화면·버튼은 모두 클라이언트 자기신고다.
  *
- * <p>하루 열람 경고(M8): 사번별 VIEW 계열(VIEW·PHOTO_VIEW·UNMATCHED_VIEW) 성공이 기준(기본 50)을 넘는 순간 앱 로그 WARN 한 번(값 없음) — 막지는 않는다.
+ * <p>하루 열람 경고(M8): 사번별 열람 계열(VIEW·PHOTO_VIEW·UNMATCHED_VIEW·HEAD_DOCX 내려받기) 성공이 기준(기본 50)을 넘는 순간 앱 로그 WARN 한 번(값 없음) — 막지는 않는다.
+ * 합산 질의(InstitutionHeadMapper.countViewsSince)도 같은 네 코드를 센다. HEAD_DOCX 의 HEAD_ID 는 문서에 담은 현 기관장 번호다(컨트롤러가 채운다).
  */
 @Service
 public class HeadAudit {
@@ -60,7 +61,7 @@ public class HeadAudit {
     }
 
     private static boolean isView(String action) {
-        return "VIEW".equals(action) || "PHOTO_VIEW".equals(action) || "UNMATCHED_VIEW".equals(action);
+        return "VIEW".equals(action) || "PHOTO_VIEW".equals(action) || "UNMATCHED_VIEW".equals(action) || "HEAD_DOCX".equals(action);
     }
 
     /** HTTP 상태 → 결과 코드. PrepAudit 규칙에 503 → BUSY 를 더한다. */
