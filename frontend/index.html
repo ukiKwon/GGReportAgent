@@ -2011,6 +2011,26 @@
   .hb-warn .go { font-size:12px; color:var(--muted); }
   .hb-warn.soft { border-color:var(--line-strong); background:transparent; }
   .hb-warn.soft .t { color:var(--fg); }
+  /* 추천받기(design 11-19 6절) — [목표 기관 추가] 창의 펼침 패널 #hb-a-rec. 새 색·새 변수 없음(--line·--line-strong·--panel·--fg·--muted·--mono·--r) */
+  .hb-rec { margin-top:8px; border:1px solid var(--line); border-radius:var(--r); padding:8px 10px; background:var(--panel); }
+  .hb-rec > .tm-note:first-child { margin-top:0; }
+  .hb-rec h4 { margin:10px 0 2px; padding-top:8px; border-top:1px solid var(--line); font-size:13px; font-weight:700; color:var(--fg); }
+  .hb-rec h4:first-of-type { margin-top:6px; padding-top:0; border-top:0; }
+  .hb-rec h4 .no { margin-right:6px; font:400 12px var(--mono); color:var(--muted); }
+  .hb-rec h4 b { font:400 12px var(--mono); color:var(--fg); }
+  .hb-rec h5 { margin:6px 0 0; font-size:12px; font-weight:700; color:var(--muted); }
+  .hb-rec h5 b { font:400 12px var(--mono); color:var(--fg); }
+  .hb-rec ul { list-style:none; margin:0; padding:0; }
+  .hb-rec li { display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:10px; row-gap:2px; padding:6px 0; border-top:1px solid var(--line); }
+  .hb-rec li:first-child { border-top:0; }
+  .hb-rec .nm { min-width:0; font-size:13px; font-weight:700; color:var(--fg); }
+  .hb-rec .rg { margin-right:4px; font-size:12px; font-weight:400; color:var(--muted); }
+  .hb-rec .hb-rk { display:inline-block; margin-left:6px; padding:0 6px; line-height:18px; font-size:12px; font-weight:400; color:var(--fg); border:1px solid var(--line-strong); border-radius:var(--r); }
+  .hb-rec .why { grid-column:1; font-size:12px; color:var(--muted); word-break:keep-all; }
+  .hb-rec .why .d { font-family:var(--mono); color:var(--fg); }
+  .hb-rec li > .hb-tag { grid-column:2; grid-row:1 / span 2; align-self:center; }
+  .hb-rec .more { margin-top:4px; }
+  @media (max-width:880px) { .hb-rec li { grid-template-columns:1fr; } .hb-rec li > .hb-tag { grid-column:1; grid-row:3; justify-self:end; } }
   /* 1279px 이하: 12개월 일정 열·범례를 숨긴다(날짜는 '마감까지' 열이 맡는다). 880px 이하: 요약 띠 2×2, 표는 안에서 가로 스크롤 */
   @media (max-width:1279px) { .hb-tt .ln, .hb-tf .lg { display:none; } .hb-tt col.c-nm { width:auto; } }   /* 일정 열을 숨기면 남는 폭을 기관 열이 받는다(표가 끝까지 찬다) */
   @media (max-width:880px) { .hb-band { grid-template-columns:1fr 1fr; } .hb-k:nth-child(3) { border-left:0; } .hb-tp { height:auto; } .hb-tt { min-width:764px; } }

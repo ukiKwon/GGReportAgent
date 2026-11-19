@@ -1091,6 +1091,164 @@
     return '<div class="hb-warn' + (w.mode === 'screen' ? ' soft' : '') + '" role="group" aria-labelledby="hb-w-t"><div class="t" id="hb-w-t">' + (w.icon || '') + esc(title) + '</div><p>' + esc(body) + '</p>' + acts +
       '<p class="go">정보가 틀리면 \'입찰 공고 현황\'에서 고쳐 주세요. <button type="button" class="hb-tag" id="hb-w-notice">입찰 공고 현황 열기</button></p></div>';
   };
+  // ── 순수: [목표 기관 추가] '추천받기' 1단계(design-reviewer 11-19 4~6절, 메인 확정). 서버 요청 없이 화면 자료만으로 계산한다. ──
+  // 풀 = 공고 중(awaiting은 입찰 종료 근거가 있을 때만) + 확정 공고 예정(추정 제외). ① 국민은행이 금고인(재유치)·금고였던(되찾기) 기관 + '다음 회차 준비' → ② 같은 종류·금고 구성 → ③ 접수 마감 D-n.
+  // 한 기관은 처음 맞는 단계에 한 번만. 제외: 이미 목표·관심·올해 입찰 종료. 점수 없음, 새 판정 없음(defaultTag·bankInfo·dText 재사용).
+  kbb.REC_MAX = 5;
+  kbb.REC_STAGES = [{ key: 'KB', no: 1, label: '국민은행이 금고인·금고였던 기관' }, { key: 'SIM', no: 2, label: '비슷한 기관' }, { key: 'DUE', no: 3, label: '접수 마감이 가까운 기관' }];
+  kbb.REC_MSG = {
+    head: '공고 중이거나 1년 안에 공고가 확정된 기관 중 ',
+    next: '다음 회차 준비 — 올해 결과가 정해진 곳',
+    simSub: '국민은행이 금고인 기관과 종류·금고 구성이 같은 곳',
+    emptyKbSkip: '예전 국민은행 금고 기록이 아직 반입되지 않아 이 단계를 건너뜁니다.',
+    emptyKbNone: '국민은행이 금고인·금고였던 기관 중 공고 중이거나 공고가 확정된 곳이 없습니다.',
+    kbFormerMissing: '예전 국민은행 금고 기록이 아직 반입되지 않아 \'되찾기\' 기관은 빠졌습니다.',
+    emptySim: '종류·금고 구성이 같은 기관 중 공고 중이거나 공고가 확정된 곳이 없습니다.',
+    emptyDue: '접수 마감이 정해진 공고가 없습니다.',
+    allEmpty: '추천할 기관이 없습니다. 위 칸에 기관 이름을 2자 이상 적어 찾으세요.',
+    noClosedData: '입찰 공고 현황을 받지 못해 올해 입찰이 끝난 기관을 가리지 못했습니다. 고른 뒤 주의 상자를 확인하세요.',
+    source: '추천 근거: 입찰 공고 현황 · 금고 약정 · 행안부 금고지정 현황' };
+  const VAULT_TEXT = { SINGLE: '단수 금고', MULTI: '1·2금고' };
+  // 금고 성격만 본다(단수 / 1·2금고). 현재 줄(039 요약 → 없으면 만료 안 된 행안부 줄)에서 못 정하면 ''(비교 불가).
+  function vaultShape(rec, sum, o) {
+    const t = isoOf(o.today);
+    let ranks;
+    if (sum && Array.isArray(sum.lines_now) && sum.lines_now.length) {
+      ranks = sum.lines_now.filter(function (l) { const f = l && kbb.normDate(l.term_from); return l && (!f || f <= t); }).map(function (l) { return l.rank_cd; });
+    } else ranks = dash.lofinLines(rec, o.lofin, o.today).filter(function (l) { return !l.expired; }).map(function (l) { return l.cmp; });
+    if (ranks.indexOf('FIRST') >= 0 || ranks.indexOf('SECOND') >= 0) return 'MULTI';
+    return ranks.indexOf('SINGLE') >= 0 ? 'SINGLE' : '';
+  }
+  // m = dash.model 결과({ notice, upcoming }), o = { taken:{id:{kind}|true}, closed:{id: closedBasis}, closedUnknown, sumById, lofin, verified, direct, today, list, years:[고를 수 있는 연도], noWatch }
+  // → { n, allEmpty, excl:{goal,watch,closed,other}, closedUnknown, byId, stages:[{ key, no, label, items, next, n, empty:'MSG키'|'', formerMissing }] }
+  kbb.recommend = function (m, o) {
+    o = o || {};
+    const sumById = o.sumById || {}, taken = o.taken || {}, closed = o.closed || {}, years = (o.years || []).map(Number);
+    const t = isoOf(o.today), y0 = Number(t.slice(0, 4));
+    const tagO = { lofin: o.lofin, verified: o.verified, today: o.today, direct: o.direct };
+    const byName = function (a, b) { return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0); };
+    const cmp = function (a, b) { return (a.tier - b.tier) || (a.no - b.no) || byName(a, b); };
+    const formerOf = function (sum) { return sum && sum.kb_now !== 'KB' && Number(sum.last_kb_year) > 0 ? Number(sum.last_kb_year) : 0; };
+    // 기준: 국민은행이 금고인 기관의 (종류·금고 성격) 조합
+    const refs = {};
+    let kbN = 0;
+    logic.dedupeByInstitution(o.list || []).forEach(function (r) {
+      if (!r.institutionId) return;
+      const sum = sumById[String(r.institutionId)] || null;
+      if (kbb.defaultTag(r, sum, tagO).tag !== 'RETAIN') return;
+      kbN += 1;
+      const k = dash.kindOfRec(r), sh = vaultShape(r, sum, tagO);
+      if (k && sh) refs[k + '|' + sh] = true;
+    });
+    const noFormer = !Object.keys(sumById).some(function (id) { return formerOf(sumById[id]) > 0; });
+    // 풀(기관마다 한 번)
+    const pool = [], seen = {};
+    const add = function (it, p) {
+      const id = String(it.rec && it.rec.institutionId || '');
+      if (!id || seen[id]) return;
+      if (p.needClosed && !closed[id]) return;
+      seen[id] = true;
+      pool.push(Object.assign({ it: it, id: id }, p));
+    };
+    ((m && m.notice) || []).forEach(function (it) {
+      const dl = it.phase === 'receiving' && typeof it.deadlineDays === 'number' ? it.deadlineDays : null, to = String(it.receiveTo || '').slice(0, 10);
+      add(it, { needClosed: it.phase === 'awaiting', tier: dl !== null ? 0 : 1, no: dl !== null ? dl : 0, dl: dl, year: y0,
+        when: dl !== null ? '접수 마감 ' + dText(dl) : '공고 중', dueLong: dl !== null ? '접수 마감 ' + dText(dl) + (isDay(to) ? ' (' + to + ')' : '') : '' });
+    });
+    ((m && m.upcoming) || []).forEach(function (it) {
+      if (it.confidence !== '확정') return;
+      add(it, { needClosed: false, tier: 2, no: typeof it.days === 'number' ? it.days : 1e9, dl: null, year: Number(String(it.date).slice(0, 4)) || y0, when: '공고 예정 ' + String(it.date).slice(0, 10), dueLong: '' });
+    });
+    const ex = { goal: 0, watch: 0, closed: 0, other: 0 };
+    const kb = [], nx = [], sim = [], due = [], byId = {};
+    const pickYear = function (pref) { return years.indexOf(pref) >= 0 ? { kind: 'GOAL', year: pref } : (o.noWatch ? null : { kind: 'WATCH', year: 0 }); };
+    pool.forEach(function (p) {
+      const it = p.it, id = p.id, rec0 = it.rec, sum = sumById[id] || null, tk = taken[id];
+      if (tk) { if (tk.kind === 'WATCH') ex.watch += 1; else ex.goal += 1; return; }
+      const base = { id: id, key: it.key, name: it.name, region: it.region, tier: p.tier, no: p.no };
+      if (closed[id]) {   // 올해 입찰 종료 — 되찾기 대상이고 결과가 국민은행이 아닌 곳만 '다음 회차 준비'(기본 내년), 나머지는 제외
+        const last = formerOf(sum), fut = sum && Array.isArray(sum.lines_now) ? sum.lines_now.filter(function (l) { const f = l && kbb.normDate(l.term_from); return f && f > t; })[0] : null;
+        if (last && fut && !/국민/.test(fut.bank_name || '')) {
+          const sel = pickYear(y0 + 1);
+          if (!sel) { ex.other += 1; return; }
+          const bank = String(fut.bank_name || '') || '다른 은행', start = kbb.normDate(fut.term_from);
+          nx.push(Object.assign(base, sel, { chip: '되찾기', cls: 'next', lastKb: last, bank: bank, start: start,
+            why: '올해 결과가 정해짐(금고 약정 ' + start + ' 시작, ' + bank + ') · 다음 회차를 미리 준비' }));
+        } else ex.closed += 1;
+        return;
+      }
+      const def = kbb.defaultTag(rec0, sum, tagO), last = formerOf(sum), kind = dash.kindOfRec(rec0), sh = vaultShape(rec0, sum, tagO);
+      let st = '', extra = {};
+      if (def.tag === 'RETAIN') {
+        const b = kbb.bankInfo(sum, rec0, tagO);
+        st = 'KB'; extra = { chip: '재유치', cls: 'retain', why: '지금 국민은행' + (b.kb && b.rank ? ' ' + (b.rank === '단수' ? '단수 금고' : b.rank) : '') + ' · ' + p.when };
+      } else if (last) {
+        const bank = def.bank || '다른 은행';
+        st = 'KB'; extra = { chip: '되찾기', cls: 'regain', lastKb: last, bank: bank, why: last + '년까지 국민은행 금고, 지금 ' + bank + ' · ' + p.when };
+      } else if (kind && sh && refs[kind + '|' + sh]) {
+        st = 'SIM'; extra = { chip: '', cls: 'sim', why: kind + ' · ' + VAULT_TEXT[sh] + ' — 국민은행이 금고인 ' + kind + (jongOf(kind) > 0 ? '과' : '와') + ' 같은 구성 · ' + p.when };
+      } else if (p.dl !== null) {
+        st = 'DUE'; extra = { chip: '', cls: 'due', why: p.dueLong };
+      } else return;
+      const sel = pickYear(p.year);
+      if (!sel) { ex.other += 1; return; }
+      (st === 'KB' ? kb : (st === 'SIM' ? sim : due)).push(Object.assign(base, sel, extra));
+    });
+    kb.sort(cmp); nx.sort(byName); sim.sort(cmp); due.sort(cmp);
+    const stageOf = function (s, items, next) {
+      const n = items.length + next.length;
+      let empty = '';
+      if (!n) empty = s.key === 'KB' ? (noFormer && kbN === 0 ? 'emptyKbSkip' : 'emptyKbNone') : (s.key === 'SIM' ? 'emptySim' : 'emptyDue');
+      return { key: s.key, no: s.no, label: s.label, items: items, next: next, n: n, empty: empty, formerMissing: s.key === 'KB' && noFormer && empty !== 'emptyKbSkip' };
+    };
+    const S = kbb.REC_STAGES, stages = [stageOf(S[0], kb, nx), stageOf(S[1], sim, []), stageOf(S[2], due, [])];
+    stages.forEach(function (s) { s.items.concat(s.next).forEach(function (x) { byId[x.id] = x; }); });
+    const n = stages[0].n + stages[1].n + stages[2].n;
+    return { n: n, allEmpty: n === 0, excl: ex, closedUnknown: !!o.closedUnknown, byId: byId, stages: stages };
+  };
+  kbb.recBtnText = function (it) { return it.kind === 'WATCH' ? '관심으로 고르기' : it.year + ' 목표로 고르기'; };
+  // 고른 뒤 #hb-a-note에 이을 근거 문장(규격 P1-2). 재유치·되찾기·다음 회차만 — 칩은 추천 이유이고 저장되는 구분이 아니다.
+  kbb.recNote = function (it) {
+    if (!it) return '';
+    if (it.cls === 'retain') return '재유치 추천 — 지금 국민은행 금고입니다.';
+    if (it.cls === 'regain') return '되찾기 추천 — 예전(' + it.lastKb + '년까지) 국민은행 금고였고 지금은 ' + it.bank + '입니다.';
+    if (it.cls === 'next') return '다음 회차 준비 추천 — 올해 입찰 결과가 정해졌습니다(' + it.bank + ', 금고 약정 ' + it.start + ' 시작).';
+    return '';
+  };
+  // 패널 안쪽 마크업. v = { more: { KB:true, … } }(단계별 '나머지 보기'를 눌렀는가). 이유 안 날짜·D-n·연도는 고정폭 span.d.
+  kbb.recHtml = function (r, v) {
+    v = v || {};
+    const M = kbb.REC_MSG, more = v.more || {}, X = kbb.REC_MAX, x = r.excl || {};
+    const dm = function (s) { return esc(s).replace(/\d{4}-\d{2}-\d{2}|D-day|D-\d+|\d{4}(?=년)/g, '<span class="d">$&</span>'); };
+    let i = 0;
+    const row = function (it, sk) {
+      const rg = dash.regionName(it.region), bt = kbb.recBtnText(it), wid = 'hb-r' + (i++) + 'w';
+      return '<li><span class="nm"><span class="rg">' + esc(rg) + '</span>' + esc(it.name) + (it.chip ? '<span class="hb-rk">' + esc(it.chip) + '</span>' : '') + '</span>' +
+        '<span class="why" id="' + wid + '">' + (it.chip ? '<span class="sr-only">' + esc(it.chip) + '. </span>' : '') + dm(it.why) + '</span>' +
+        '<button type="button" class="hb-tag" data-rec="' + esc(it.id) + '" data-stage="' + sk + '" aria-label="' + esc(rg + ' ' + it.name + ' ' + bt) + '" aria-describedby="' + wid + '">' + esc(bt) + '</button></li>';
+    };
+    const ul = function (items, sk) { return items.length ? '<ul>' + items.map(function (it) { return row(it, sk); }).join('') + '</ul>' : ''; };
+    let h = '<p id="hb-a-rech" class="tm-note" role="status">' + (r.allEmpty ? esc(M.allEmpty) : esc(M.head) + '<b>' + r.n + '</b>곳을 추천합니다.') + '</p>';
+    const parts = [];
+    if (x.goal) parts.push('목표 ' + x.goal + '곳');
+    if (x.watch) parts.push('관심 ' + x.watch + '곳');
+    if (x.closed) parts.push('올해 입찰이 끝난 ' + x.closed + '곳');
+    if (parts.length) h += '<p class="tm-note">이미 ' + esc(parts.join(' · ')) + '은 뺐습니다.</p>';
+    if (x.other) h += '<p class="tm-note">관심으로만 고를 수 있는 ' + x.other + '곳은 이 화면에서 관심 기능을 쓸 수 없어 뺐습니다.</p>';
+    if (r.closedUnknown) h += '<p class="tm-note">' + esc(M.noClosedData) + '</p>';
+    if (!r.allEmpty) r.stages.forEach(function (s) {
+      const open = !!more[s.key], mv = open ? s.items : s.items.slice(0, X), nv = open ? s.next : s.next.slice(0, X);
+      const rest = (s.items.length - mv.length) + (s.next.length - nv.length);
+      h += '<h4><span class="no">' + s.no + '</span>' + esc(s.label) + ' <b>' + s.n + '</b>곳</h4>';
+      if (s.key === 'SIM' && s.n) h += '<p class="tm-note">' + esc(M.simSub) + '</p>';
+      h += ul(mv, s.key);
+      if (nv.length) h += '<h5>' + esc(M.next) + ' <b>' + s.next.length + '</b>곳</h5>' + ul(nv, s.key);
+      if (rest > 0) h += '<button type="button" class="hb-tag more" data-more="' + s.key + '" aria-label="' + esc(s.label) + ' 나머지 ' + rest + '곳 보기">나머지 ' + rest + '곳 보기</button>';
+      if (s.empty) h += '<p class="tm-note">' + esc(M[s.empty]) + '</p>';
+      if (s.formerMissing) h += '<p class="tm-note">' + esc(M.kbFormerMissing) + '</p>';
+    });
+    return h + '<p class="tm-note">' + esc(M.source) + '</p>';
+  };
   kbb.addState = function (m) {
     const watch = m.kind === 'WATCH';
     if (!m.inst) return { canGo: false, why: '기관을 고르세요.' };
@@ -1121,9 +1279,10 @@
     const kinds = o.noWatch ? '' : '<fieldset class="tm-fs"><legend>넣을 곳 (필수)</legend><div class="hb-opts"><label class="hb-rd"><input type="radio" name="hb-a-kind" value="GOAL"' + (watch ? '' : ' checked') + '> 목표</label>' +
       '<label class="hb-rd"><input type="radio" name="hb-a-kind" value="WATCH"' + (watch ? ' checked' : '') + '> 관심 기관(연도 없음)</label></div></fieldset>';
     return '<div class="modal-box tm-modal-box hb-dlg" role="dialog" aria-modal="true" aria-labelledby="hb-d-t"><h3 id="hb-d-t">' + (watch ? '관심 기관 추가' : '목표 기관 추가') + '</h3><div class="modal-scroll tm-m-body">' + kinds +
-      '<div class="tm-reason-row"><label for="hb-a-q">기관 (필수)</label></div>' +
+      '<div class="tm-reason-row"><label for="hb-a-q">기관 (필수)</label>' + (o.rec ? '<button type="button" class="hb-tag" id="hb-a-recbtn" aria-expanded="false" aria-controls="hb-a-rec">추천받기</button>' : '') + '</div>' +
       '<input type="text" id="hb-a-q" role="combobox" aria-expanded="false" aria-controls="hb-a-list" aria-autocomplete="list" aria-describedby="hb-a-pick" autocomplete="off" maxlength="40" placeholder="기관 이름을 2자 이상 적으세요" value="' + esc(m.q || '') + '">' +
       '<ul id="hb-a-list" class="hb-res" role="listbox" aria-label="기관 검색 결과"></ul><p id="hb-a-pick" class="tm-note" role="status">' + esc(m.pickText || '') + '</p>' +
+      (o.rec ? '<div id="hb-a-rec" class="hb-rec" role="group" aria-labelledby="hb-a-rech" hidden></div>' : '') +
       '<div id="hb-a-box"></div>' +
       '<div id="hb-a-yrow"' + (watch ? ' hidden' : '') + '><div class="tm-reason-row"><label for="hb-a-year">목표 연도 (필수)</label></div><select id="hb-a-year">' + yrs + '</select></div>' +
       '<fieldset class="tm-fs"><legend>구분 (필수)</legend><div class="hb-opts">' + tags + '</div><p id="hb-a-note" class="tm-note">' + esc(m.note || '') + '</p></fieldset>' +
@@ -1802,13 +1961,24 @@
     return set;
   }
   // 올해 입찰 종료로 알려진 기관(서버 근거: 공고 현황 판정·시작 전 약정) — 검색 결과 표시용
-  function closedIdsNow() {
-    const snap = root.noticerec && root.noticerec.snap ? root.noticerec.snap() : null, set = {};
+  function closedMapNow() {   // { 기관 id: closedBasis 결과 } — 추천받기가 '결과가 국민은행인가'를 가리는 데도 쓴다
+    const snap = root.noticerec && root.noticerec.snap ? root.noticerec.snap() : null, map = {};
     const ids = {};
     if (snap && snap.byId) Object.keys(snap.byId).forEach(function (id) { ids[id] = true; });
     Object.keys(gs.sum || {}).forEach(function (id) { ids[id] = true; });   // 시작 전 약정(CONTRACT_DECIDED)은 snap 없이 039 요약만으로도 종료
-    Object.keys(ids).forEach(function (id) { if (kbb.closedBasis(id, snap, U.todayDate(), gs.sum[id])) set[id] = true; });
+    Object.keys(ids).forEach(function (id) { const b = kbb.closedBasis(id, snap, U.todayDate(), gs.sum[id]); if (b) map[id] = b; });
+    return map;
+  }
+  function closedIdsNow() {
+    const map = closedMapNow(), set = {};
+    Object.keys(map).forEach(function (id) { set[id] = true; });
     return set;
+  }
+  // 추천받기 입력(화면에 이미 있는 자료만). years = 이 창의 목표 연도 칸에 있는 연도.
+  function recInput(years) {
+    const snap = root.noticerec && root.noticerec.snap ? root.noticerec.snap() : null;
+    return { taken: takenFor(0, 'WATCH'), closed: closedMapNow(), closedUnknown: !snap, sumById: gs.sum, lofin: root.LOFIN_2026, verified: KB(), direct: gs.direct,
+      today: U.todayDate(), list: LIST, years: years, noWatch: noWatchNow() };
   }
   // 고른 기관의 주의 상자(규격 6-9): 올해 목표로 넣으려 할 때만. 서버 근거(막음, 제안 진행 중이면 막지 않음) → 화면만 아는 근거(주의만).
   function computeWarn(m) {
@@ -1858,6 +2028,15 @@
     if (q) { q.setAttribute('aria-expanded', m.results.length ? 'true' : 'false'); if (m.active >= 0) q.setAttribute('aria-activedescendant', 'hb-a-o' + m.active); else q.removeAttribute('aria-activedescendant'); }
     if (list) list.innerHTML = kbb.resultsHtml(m.results, m.active, m.year);
     const pk = dq('hb-a-pick'); if (pk) pk.textContent = m.pickText || '';
+    const ys = dq('hb-a-year'); if (ys && !watch && m.year && ys.value !== String(m.year)) ys.value = String(m.year);   // 추천 줄이 연도를 바꿔도 칸이 따라간다
+    const rp = dq('hb-a-rec'), rb = dq('hb-a-recbtn');
+    if (rp && rb && m.rec) {   // 추천받기 패널: 같은 마크업이면 다시 쓰지 않는다(포커스 유지). 접힐 때는 비운다
+      const on = !!m.rec.open && !!m.rec.data;
+      rb.setAttribute('aria-expanded', on ? 'true' : 'false');
+      rp.hidden = !on;
+      const rh = on ? kbb.recHtml(m.rec.data, m.rec) : '';
+      if (d.recHtml !== rh) { d.recHtml = rh; rp.innerHTML = rh; }
+    }
     const nt = dq('hb-a-note'); if (nt) nt.textContent = m.note || '';
     Array.prototype.forEach.call(d.el.querySelectorAll('input[name="hb-a-tag"]'), function (i) { i.checked = i.value === m.tag; });
     const cnt = dq('hb-a-cnt'); if (cnt) cnt.textContent = String(m.memo || '').length + '/' + kbb.MEMO_MAX;
@@ -1883,9 +2062,9 @@
     closeMenu(false);
     const years = yearList();
     const m = { q: '', inst: null, year: years.indexOf(goalYear()) >= 0 ? goalYear() : years[0], tag: '', tagTouched: false, memo: '', results: [], active: -1, busy: false, note: '', pickText: '',
-      kind: pre && pre.kind === 'WATCH' && !noWatchNow() ? 'WATCH' : 'GOAL', warn: null, closedBlock: false, dup: null, boxYear: 0 };
+      kind: pre && pre.kind === 'WATCH' && !noWatchNow() ? 'WATCH' : 'GOAL', warn: null, closedBlock: false, dup: null, boxYear: 0, rec: { open: false, data: null, more: {} } };
     if (pre && pre.id && BYID[pre.id]) { pickInst(m, BYID[pre.id], pre.tag || ''); computeWarn(m); }
-    const d = showDlg(kbb.addDialogHtml(m, { years: years, tags: tagList(), noWatch: noWatchNow() }), 'add', (pre && pre.opener) || document.activeElement);
+    const d = showDlg(kbb.addDialogHtml(m, { years: years, tags: tagList(), noWatch: noWatchNow(), rec: true }), 'add', (pre && pre.opener) || document.activeElement);
     d.m = m;
     paintAdd();
     const ov = d.el;
@@ -1895,6 +2074,20 @@
       if (x.taken) { m.inst = null; m.warn = null; m.closedBlock = false; m.dup = { which: x.takenKind, year: x.takenYear, id: x.id }; m.pickText = kbb.dupText(x.takenKind, x.takenYear) + ' ' + kbb.dupHint(x.takenKind); paintAdd(); return; }
       pickInst(m, x.rec, ''); computeWarn(m); paintAdd();
       const nx = dq('hb-a-year'); if (nx && !m.dup && m.kind !== 'WATCH') nx.focus(); else { const g = dq('hb-a-go'); if (g && !g.disabled) g.focus(); }
+    };
+    // 추천 줄 [2026 목표로 고르기]/[관심으로 고르기] — 아래 칸(넣을 곳·연도·기관·구분)만 채운다. 저장은 창 아래 [목표에 넣기] 하나(규격 P1-1). 저장 중에는 무시.
+    const pickRec = function (id) {
+      const it = m.rec && m.rec.data && m.rec.data.byId[id], rc = BYID[id];
+      if (m.busy || !it || !rc) return;
+      m.kind = it.kind === 'WATCH' ? 'WATCH' : 'GOAL';
+      if (m.kind === 'GOAL') m.year = it.year;
+      pickInst(m, rc, '');
+      const rn = kbb.recNote(it); if (rn) m.note = (m.note ? m.note + ' ' : '') + rn;   // 추천 이유 칩은 구분이 아니다 — 근거 줄에 잇는다(규격 P1-2)
+      computeWarn(m);
+      m.rec.open = false;
+      setDlgErr('hb-a-err', '');
+      paintAdd();
+      const nx = dq('hb-a-year'); if (nx && m.kind !== 'WATCH') nx.focus(); else { const g = dq('hb-a-go'); if (g && !g.disabled) g.focus(); }
     };
     ov.addEventListener('input', function (ev) {
       const t = ev.target;
@@ -1936,6 +2129,15 @@
       else if (b.id === 'hb-w-watch') submitAdd(d, { kind: 'WATCH' });
       else if (b.id === 'hb-w-next') { const sy = dq('hb-w-year'); submitAdd(d, { kind: 'GOAL', year: Number(sy && sy.value) || 0 }); }
       else if (b.id === 'hb-w-notice') { const key = m.inst ? m.inst.key : ''; closeDlg('none'); openNotice(key); }
+      else if (b.id === 'hb-a-recbtn') { if (!m.rec.data) m.rec.data = kbb.recommend(ALL, recInput(years)); m.rec.open = !m.rec.open; paintAdd(); }   // 포커스는 버튼에 그대로(펼침 표준)
+      else if (b.hasAttribute('data-rec')) pickRec(b.getAttribute('data-rec'));
+      else if (b.hasAttribute('data-more')) {   // 단계의 나머지를 편다 — 포커스는 새로 드러난 첫 줄 버튼으로
+        const sk = b.getAttribute('data-more'), sel = '#hb-a-rec button[data-rec][data-stage="' + sk + '"]';
+        const prev = Array.prototype.map.call(d.el.querySelectorAll(sel), function (x) { return x.getAttribute('data-rec'); });
+        m.rec.more[sk] = true; paintAdd();
+        const f = Array.prototype.filter.call(d.el.querySelectorAll(sel), function (x) { return prev.indexOf(x.getAttribute('data-rec')) < 0; })[0];
+        if (f) f.focus();
+      }
       else if (b.id === 'hb-a-see') { const id = m.dup ? m.dup.id : '', which = m.dup ? m.dup.which : 'GOAL', yr = m.dup ? Number(m.dup.year) || 0 : 0; closeDlg('none'); showRow(which === 'WATCH' ? 'watch' : 'goal', id, yr); }
     });
     const q0 = dq(m.inst ? 'hb-a-go' : 'hb-a-q');
