@@ -66,12 +66,29 @@ final class BankYears {
         m.put("kb_now", nowState(lines, today));
         m.put("last_kb_year", lastKbYear(lines));
         List<Map<String, Object>> now = new ArrayList<Map<String, Object>>();
+        List<BankContract> next = new ArrayList<BankContract>();
         for (BankContract c : safe(lines)) {
-            if ("CURRENT".equals(BankContractRules.termState(c.getTermFrom(), c.getTermTo(), today))) now.add(line(c, true));
+            String st = BankContractRules.termState(c.getTermFrom(), c.getTermTo(), today);
+            if ("CURRENT".equals(st)) now.add(line(c, true));
+            else if ("FUTURE".equals(st)) next.add(c);
         }
         m.put("lines_now", now);
+        m.put("lines_next", nextLines(next));
         m.put("record_count", safe(lines).size());
         return m;
+    }
+
+    /** 시작 전(FUTURE) 줄 — 시작일 오름차순(같으면 약정 번호 순). term_from 은 YYYY·YYYY-MM·YYYY-MM-DD 이고 앞부분이 같으면 짧은 쪽이 앞이라 문자열 비교로 충분. */
+    private static List<Map<String, Object>> nextLines(List<BankContract> next) {
+        Collections.sort(next, new Comparator<BankContract>() {
+            public int compare(BankContract a, BankContract b) {
+                int r = a.getTermFrom().compareTo(b.getTermFrom());   // FUTURE 는 from != null 이 보장됨(termState)
+                return r != 0 ? r : Integer.compare(a.getContractNo(), b.getContractNo());
+            }
+        });
+        List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
+        for (BankContract c : next) out.add(line(c, true));
+        return out;
     }
 
     static List<Map<String, Object>> table(List<BankContract> lines, int from, int to) {

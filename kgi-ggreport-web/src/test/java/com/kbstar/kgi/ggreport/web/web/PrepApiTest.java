@@ -1097,6 +1097,22 @@ public class PrepApiTest {
     }
 
     @Test
+    public void 양식_확정_취소_사유는_취소한_사람_양식_확정자_팀장_부장만_보고_다른_팀원은_못_본다() throws Exception {   // NEXT 100 S2 · 049 의 FORM_UNCONFIRM 공개 범위(행은 직접 넣는다)
+        String bid = confirm(MEMBER, INST);   // 확정됨 — 영업팀 전원이 이력을 본다
+        String at = "2026-11-19T10:00:00+09:00";
+        jdbc.update("INSERT INTO BID_PREP_LOG (BID_CASE_ID, EVENT_CD, FROM_STATE, TO_STATE, TASK_CD, ACTOR_EMP_NO, EMP_VERIFIED, LOGGED_AT) VALUES (?, 'FORM_CONFIRM', 'IN_PROGRESS', 'IN_PROGRESS', 'T1', ?, 0, ?)", bid, MEMBER, at);
+        jdbc.update("INSERT INTO BID_PREP_LOG (BID_CASE_ID, EVENT_CD, FROM_STATE, TO_STATE, TASK_CD, REASON, ACTOR_EMP_NO, EMP_VERIFIED, LOGGED_AT) VALUES (?, 'FORM_UNCONFIRM', 'IN_PROGRESS', 'IN_PROGRESS', 'T1', '가상 양식 취소 사유', ?, 0, ?)", bid, LEAD, at);
+        flushCache();
+        for (String emp : new String[]{MEMBER, LEAD, LEAD2, HEAD}) {   // 양식 확정자·취소자(팀장)·팀장·부장
+            assertEquals(emp, "가상 양식 취소 사유", eventRow(bid, emp, "FORM_UNCONFIRM").path("reason").asText());
+        }
+        JsonNode other = eventRow(bid, MEMBER2, "FORM_UNCONFIRM");   // 무관한 영업팀원
+        assertNotNull(other);
+        assertTrue(other.path("reason").isNull());
+        assertFalse(body(getAs("/bidcases/" + bid + "/prep/history", MEMBER2)).contains("가상 양식 취소 사유"));
+    }
+
+    @Test
     public void 중단_사유는_영업팀장_영업부장과_옛_담당자가_본다() throws Exception {
         String bid = opened(INST);
         assertEquals(200, postJson("/bidcases/" + bid + "/prep/cancel", LEAD, "{\"reason\":\"가상 중단 사유\"}").getResponse().getStatus());

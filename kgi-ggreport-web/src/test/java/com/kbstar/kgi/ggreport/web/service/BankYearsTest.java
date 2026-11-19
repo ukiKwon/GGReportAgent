@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import static org.junit.Assert.*;
 
 /** 연도별 국민은행 유치 상태 계산(039 줄 기반, 순수 로직). */
@@ -39,5 +40,37 @@ public class BankYearsTest {
         assertEquals(BankYears.OTHER, BankYears.nowState(l, LocalDate.of(2025, 5, 1)));
         assertEquals(BankYears.KB, BankYears.nowState(l, LocalDate.of(2021, 5, 1)));
         assertEquals(BankYears.NO_RECORD, BankYears.nowState(l, LocalDate.of(2030, 1, 1)));
+    }
+
+    @Test public void summary_lines_next_는_시작_전_줄만_그리고_lines_now_는_불변() {
+        LocalDate t = LocalDate.of(2025, 5, 1);
+        List<BankContract> l = Arrays.asList(c("B02", "2019", "2022-12-31"),   // PAST
+                c("B04", "2023", "2026-12-31"),                                // CURRENT
+                c("B02", "2027", "2030-12-31"));                               // FUTURE
+        Map<String, Object> s = BankYears.summary(l, t);
+        assertEquals(1, ((List<?>) s.get("lines_now")).size());
+        List<?> nx = (List<?>) s.get("lines_next");
+        assertEquals(1, nx.size());
+        assertEquals("2027", ((Map<?, ?>) nx.get(0)).get("term_from"));
+        assertEquals("OTHER", s.get("kb_now"));
+        assertEquals(Integer.valueOf(2030), s.get("last_kb_year"));
+    }
+
+    @Test public void summary_lines_next_없으면_빈_배열() {
+        Map<String, Object> s = BankYears.summary(Arrays.asList(c("B04", "2023", "2026-12-31")), LocalDate.of(2025, 5, 1));
+        assertTrue(((List<?>) s.get("lines_next")).isEmpty());
+        assertTrue(((List<?>) BankYears.summary(null, LocalDate.of(2025, 5, 1)).get("lines_next")).isEmpty());
+    }
+
+    @Test public void summary_lines_next_시작일_오름차순_끝난줄_제외() {
+        BankContract a = c("B04", "2029", "2031"); a.setContractNo(1);
+        BankContract b = c("B02", "2027-03", "2030"); b.setContractNo(2);
+        BankContract d = c("B04", "2027", "2028"); d.setContractNo(3);
+        BankContract past = c("B02", "2010", "2012"); past.setContractNo(4);
+        List<?> nx = (List<?>) BankYears.summary(Arrays.asList(a, b, d, past), LocalDate.of(2025, 5, 1)).get("lines_next");
+        assertEquals(3, nx.size());
+        assertEquals("2027", ((Map<?, ?>) nx.get(0)).get("term_from"));
+        assertEquals("2027-03", ((Map<?, ?>) nx.get(1)).get("term_from"));
+        assertEquals("2029", ((Map<?, ?>) nx.get(2)).get("term_from"));
     }
 }
