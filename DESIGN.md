@@ -4,7 +4,7 @@ description: 밝은 업무 포털 — 흰 패널·옅은 회색 바탕·1px 선�
 colors:
   kb-dark-gray-band: "#545045"   # 국민은행 CI KB Dark Gray(PANTONE 411C), 시안 B 11-19
   on-band-note: "#ece6da"
-  kb-yellow: "#FFBC00"   # 국민은행 CI KB Yellow(PANTONE 130C) — 글자 없는 선·국민은행 유지 칩만
+  kb-yellow: "#FFBC00"   # 국민은행 CI KB Yellow(PANTONE 130C) — 글자 없는 선·국민은행 확정(재유치 확정) 칩만
   bg: "#e9ecf0"
   panel: "#ffffff"
   panel-raised: "#f6f7f9"
@@ -57,7 +57,7 @@ components:
 
 작업 영역은 옅은 회색 바탕(`--bg` #e9ecf0) 위의 **흰 패널**과 1px 선이다. 모서리는 한 가지(2px), 그림자와 유리(블러)와 떠오름은 없다. 채도는 두 곳만 가진다: 지도(임박도 5단 섞기)와 상태 색. 상호작용 색은 파랑 하나(`--accent-color` #0b50d0)이고, 지도 위 선택·포커스는 색이 아니라 검정+흰색 두 겹 선이다.
 
-**국민은행 CI 색(사용자 11-19 시안 B, 출처 kbfg.com/kor/about/corporate/ci.htm) — 작업 영역 안에는 쓰지 않는다:** KB Dark Gray `#545045` = ① 머리 띠(`body > header`) ② 로그인 상단 띠(`.lg-top`) ③ 로그인 주버튼(`.lg-primary`, 흰 글자 8.04:1). KB Yellow `#FFBC00`(`--bk-kb`) = 글자 없는 선만(로그인 띠 아랫선 3px·카드 윗선 3px·슬라이드 진행 막대)과 국민은행 유지 칩. 노랑 위에 흰 글자는 쓰지 않는다(1.69:1). 머리 띠 위의 글자·단추·로고·포커스 링은 흰색이다(포인트 파랑은 진회색에 묻힌다).
+**국민은행 CI 색(사용자 11-19 시안 B, 출처 kbfg.com/kor/about/corporate/ci.htm) — 작업 영역 안에는 쓰지 않는다:** KB Dark Gray `#545045` = ① 머리 띠(`body > header`) ② 로그인 상단 띠(`.lg-top`) ③ 로그인 주버튼(`.lg-primary`, 흰 글자 8.04:1). KB Yellow `#FFBC00`(`--bk-kb`) = 글자 없는 선만(로그인 띠 아랫선 3px·카드 윗선 3px·슬라이드 진행 막대)과 국민은행 확정 칩(현황판 `.hb-slot.hb-bank`·시작화면 `.pt-chip.tag.kept`). 노랑 위에 흰 글자는 쓰지 않는다(1.69:1). 머리 띠 위의 글자·단추·로고·포커스 링은 흰색이다(포인트 파랑은 진회색에 묻힌다).
 
 ## 색
 
@@ -68,7 +68,7 @@ components:
 - **포인트색:** `--accent-color`는 활성 메뉴 막대, 포커스 링(작업 영역), 선택 행, 주버튼, 물결 링에 쓴다. 테마 창 '물결·화면 강조색'이 바꾼다. 지도 면의 선택·포커스 외곽선에는 쓰지 않는다.
 
 ### 이름 규칙
-- **채도 독점:** 크롬은 무채색 + KB Dark Gray 띠·로그인 주버튼 + KB Yellow 선(위 "국민은행 CI 색" 절). 크롬의 상태 색은 글자·1px 테두리·18% 이하 틴트로만, 채운 포화 면은 없다. **예외(사용자 11-19)**: 국민은행 CI 옐로 `--bk-kb` #FFBC00(kbfg.com CI, PANTONE 130C) — "다음에도 국민은행이 금고"를 뜻하는 칩(시작화면 `.pt-chip.tag.kept` 재유치 확정, 입찰 현황판 `.hb-slot.hb-stay`)에만 채움으로 쓴다. 글자 잉크 9.59:1, 테두리 KB Dark Gray #545045(흰 바탕 8.04:1).
+- **채도 독점:** 크롬은 무채색 + KB Dark Gray 띠·로그인 주버튼 + KB Yellow 선(위 "국민은행 CI 색" 절). 크롬의 상태 색은 글자·1px 테두리·18% 이하 틴트로만, 채운 포화 면은 없다. **예외(사용자 11-19)**: 국민은행 CI 옐로 `--bk-kb` #FFBC00(kbfg.com CI, PANTONE 130C) — "다음에도 국민은행이 금고"를 뜻하는 칩(시작화면 `.pt-chip.tag.kept` 재유치 확정, 입찰 현황판 `.hb-slot.hb-bank[data-bank="kb"]` 국민은행 확정)에만 채움으로 쓴다. 글자 잉크 9.59:1, 테두리 KB Dark Gray #545045(흰 바탕 8.04:1).
 - **변수 이름 동결:** `:root`의 `--bg --panel --panel2 --line --line-strong --fg --muted --red --orange --yellow --blue --gray --accent-color --ripple-duration --mono --shadow --r --r-lg --r-sm`은 값만 바꾼다(JS 생성 마크업이 이름으로 참조). `--shadow:none`은 그림자 끄기 스위치로 남는다.
 - **경과 도장:** 예정일이 지나 처리 안 된 항목은 중립 잉크 칩(`--fg` 바탕, 11px 모노 700, 시계 글리프 + D+n)이다. 색조가 없어서 임박(`--red` 윤곽 + 삼각 + D-n)과 색·모양·글자로 다르다.
 
