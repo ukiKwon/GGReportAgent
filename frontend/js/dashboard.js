@@ -1754,7 +1754,8 @@
       if (t && t.focus) t.focus();
     }
     // 확정 확인 상자가 펼쳐지면 [제안 확정]은 비활성이라 포커스를 상자의 [확정하기]로 옮긴다(닫으면 [제안 확정]으로 돌아간다, dmClick db-cancel·dmKey Esc)
-    if (m.confirm && act === 'confirm') { const b = m.el.querySelector('#db-do'); if (b) b.focus(); }
+    // [확정하기]로 포커스를 옮기는 것은 상자가 막 펼쳐질 때 한 번뿐 — 약정·기록 응답으로 다시 그릴 때마다 옮기면 [취소]에 있던 포커스가 끌려가 Enter 한 번에 확정이 나간다(qa 11-19 P2-1)
+    if (m.confirm && m.confirmFocus && act === 'confirm') { m.confirmFocus = false; const b = m.el.querySelector('#db-do'); if (b) b.focus(); }
     // 현황판 줄의 [제안 확정]으로 열었으면(opts.focus === 'confirm') 팝업의 [제안 확정]이 그려지는 순간 한 번만 포커스를 옮긴다. 받는 중(wait)에는 기다린다.
     // 사용자가 팝업 안에서 이미 다른 요소로 포커스를 옮겼으면(초기 포커스 대상 #dm-name·#dm-box가 아니면) 끌고 가지 않고 포기한다(qa 11-17 P3-6).
     const fa = document.activeElement;
@@ -1822,7 +1823,7 @@
       case 'dm-edit': { const r = m.rec; dash.closeDetail(false); if (root.app && root.app.openEdit) root.app.openEdit(r, { from: m.screen, opener: m.opener }); break; }   // 편집 창이 팝업 뒤에 깔리지 않게 먼저 닫는다
       case 'bk-edit': { const r = m.rec; dash.closeDetail(false); if (root.app && root.app.openEdit) root.app.openEdit(r, { from: m.screen, opener: m.opener, focus: 'bank' }); break; }
       case 'bk-retry': { const b = BC(); if (b) b.load(String(m.rec.institutionId || '')); break; }
-      case 'db-cf': m.confirm = true; dmRender(); break;
+      case 'db-cf': m.confirm = true; m.confirmFocus = true; dmRender(); break;
       case 'db-cancel': m.confirm = false; dmRender(); { const b = m.el.querySelector('#db-cf'); if (b) b.focus(); } break;
       case 'db-do': dmDoConfirm(m); break;
       case 'db-open': { const p = dmActives(m); if (p && goPrep(p)) dash.closeDetail(false); else dmFlash('사전준비 화면을 열지 못했습니다. 메뉴의 [제안서 사전준비 프로세스]에서 여세요.', true); break; }

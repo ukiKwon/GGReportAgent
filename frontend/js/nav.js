@@ -69,7 +69,7 @@
   const HOME_CAT = 'home';
   // 시스템 전체를 보되 고치지는 못하는 역할(사용자 11-19: 전산팀·전산팀장 + 디자이너). 지도·현황판·입찰 공고 현황·시작화면의 쓰기 버튼과 도구줄 [기관 추가]·[CSV]를 숨긴다(nav.isViewOnly). 예외: 사업계획 수집 요청·시스템 관리 화면(전산팀 업무).
   const VIEW_ONLY_ROLES = ['전산팀', '전산팀장', roles.DESIGNER];   // 디자이너도 기관 추가·편집은 서버 403(main 11-19 requireInstitutionEditSales, 디자이너 기본값 '보기')
-  // 시작화면 대상 역할 — 역할을 바꾸려면 이 두 줄(HOME_ROLES·VIEW_ONLY_ROLES)만 고친다. 재무(예산팀)·마스터는 지도로 시작한다.
+  // 시작화면 대상 역할 — 역할을 바꾸려면 이 두 줄(HOME_ROLES·VIEW_ONLY_ROLES)만 고친다. 재무(예산팀)는 '이사회 자료 작성'(homeIdFor), 마스터는 지도로 시작한다.
   const HOME_ROLES = TEAM_ROLES.concat([roles.DESIGNER], VIEW_ONLY_ROLES);
   // 재무(예산팀·예산팀장)의 시작화면은 포털이 아니라 '이사회 자료 작성'(BOARD_ID, 사용자 11-19). 값은 서버 계약대로 '예산팀'·'예산팀장'(화면 표기만 재무팀).
   const FINANCE_ROLES = ['예산팀', '예산팀장'];
