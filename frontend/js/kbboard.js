@@ -228,11 +228,42 @@
     return !o.mark && !!o.can && !o.isNext && !kbb.staysText(it && it.rec, o.verified) && !(o.closedIds && o.closedIds[id]) && !!kbb.moveYear(it && it.endDate, o.years);
   };
   const BANK_CHK = '<svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 6.4 4.8 9 10 3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';   // 고정 마크업(데이터 아님), 칩 글자색 따라감
+  // 다음 약정 칩 판정 한 곳(design 11-19 6-4, 사용자 답: 선정 공고·협약이 확인된 것만 '재약정/신규약정', 기사만이면 '(기사)').
+  // sum = 039 요약(lines_next·lines_now). 줄의 src_kind가 'PRESS'면 기사, 없거나 다른 값이면 확인으로 본다(서버가 src_kind를 주기 전까지는 확인 쪽으로 기운다 — 이관 메모 1).
+  // 반환 { cls, text, chk, src, sr } | null. 은행 이름만 쓴다(순위·기간 안 붙임), 시작일은 sr-only로만.
+  kbb.nextChip = function (rec, verified, nextList, sum, today) {
+    if (!rec) return null;
+    const nowKb = dash.oursKind(rec, verified, nextList) !== 'next';   // KB_NEXT(2027년부터 국민은행)는 지금은 다른 은행이 맡는다
+    const lines = kbb.nextLines(sum, today);
+    const isKb = function (l) { return /국민|kb/i.test(String(l.bank_name || '')); };
+    const pick = function (arr) { return arr.filter(isKb)[0] || arr[0] || null; };   // 1·2금고가 다르면 국민은행 줄을 먼저(portal.decided와 같은 규칙)
+    const startSr = function (l) { return l && l.term_from ? ' (' + String(l.term_from) + '부터)' : ''; };
+    const name = function (l) { return String(l.bank_name || '').trim() || '다른 은행'; };
+    let l = pick(lines.filter(function (x) { return String(x.src_kind || '') !== 'PRESS'; }));
+    if (l) {   // 확인(선정 공고·협약)
+      if (isKb(l)) return nowKb ? { cls: 'hb-bank', text: '국민은행 재약정', chk: true, sr: ' (다음 약정, 선정 공고·협약으로 확인)' }
+        : { cls: 'hb-new', text: '국민은행 신규약정', chk: true, sr: ' (다음 약정, 선정 공고·협약으로 확인)' };
+      return { cls: 'hb-leaves', text: name(l) + ' 약정 예정', sr: startSr(l) };
+    }
+    l = pick(lines.filter(function (x) { return String(x.src_kind || '') === 'PRESS'; }));
+    if (l) return isKb(l) ? { cls: 'hb-news', text: nowKb ? '국민은행 재약정 예정' : '국민은행 신규약정 예정', src: true } : { cls: 'hb-leaves', text: name(l) + ' 약정 예정', src: true, sr: startSr(l) };
+    // 시작 전 줄이 없을 때: 수집 자료(기사). 판정 순서 = 재약정 예정 → 신규약정 예정 → 다른 은행 약정 예정
+    const e = dash.kbEntry(rec, verified);
+    if (kbb.staysText(rec, verified)) return { cls: 'hb-news', text: '국민은행 재약정 예정', src: true };
+    if (!nowKb) return { cls: 'hb-news', text: '국민은행 신규약정 예정', src: true };
+    if (e && e.leaves) return { cls: 'hb-leaves', text: '다른 은행 약정 예정', src: true, sr: ' (' + e.leaves + '년부터)' };
+    return null;
+  };
+  kbb.nextChipHtml = function (c) {
+    if (!c) return '';
+    return '<span class="hb-slot ' + c.cls + '"' + (c.cls === 'hb-bank' ? ' data-bank="kb"' : '') + '>' + (c.chk ? BANK_CHK : '') + esc(c.text) +
+      (c.src ? '<span class="src">(기사)</span>' : '') + (c.sr ? '<span class="sr-only">' + esc(c.sr) + '</span>' : '') + '</span>';
+  };
   // 협약 중인 기관 행 — <ul> 안의 <button>. 누르면 상세 팝업이 열린다(선택형 listbox가 아니다).
-  // o = { verified, nextList, prepActive }
+  // o = { verified, nextList, sum, today, prepActive }
   kbb.rowHtml = function (it, o) {
     o = o || {};
-    const slot = kbb.slotText(it.rec, o.verified, o.nextList), leaves = kbb.leavesText(it.rec, o.verified), stays = kbb.staysText(it.rec, o.verified);
+    const slot = kbb.slotText(it.rec, o.verified, o.nextList), chip = kbb.nextChip(it.rec, o.verified, o.nextList, o.sum, o.today);
     const isNext = dash.oursKind(it.rec, o.verified, o.nextList) === 'next';
     const news = kbb.newsLine(dash.kbEntry(it.rec, o.verified) || dash.kbEntry(it.rec, o.nextList));
     const over = it.endDays !== undefined && it.endDays !== null && it.endDays < 0;
@@ -242,8 +273,7 @@
       : (o.canWatch && rid ? '<button type="button" class="hb-tag add" data-act="owatch" data-inst="' + esc(rid) + '" data-key="' + esc(it.key) + '" aria-label="' + esc(it.name) + ' 관심에 넣기">관심에 넣기</button>' : '');   // 둘 중 하나만(국민은행 확정 줄은 관심만)
     return '<li' + (add ? ' class="hb-rl"' : '') + '><button type="button" class="hb-row" data-key="' + esc(it.key) + (it.overdue && dash.recView(it).view === 'done' ? '" data-rec="done' : '') + '" aria-haspopup="dialog">' +
       '<span class="nm">' + esc(it.name) + (slot ? '<span class="hb-slot">' + esc(slot) + '</span>' : '') + (o.mark ? '<span class="hb-slot hb-mark">' + esc(o.mark) + '</span>' : '') +
-      (leaves ? '<span class="hb-slot hb-leaves">다음은 다른 은행<span class="sr-only">(' + esc(leaves.replace(' 다른 은행', '')) + ')</span></span>' : '') +
-      (stays ? '<span class="hb-slot hb-bank" data-bank="kb">' + BANK_CHK + esc(stays) + '<span class="sr-only"> (다음 협약)</span></span>' : '') + '</span>' +
+      kbb.nextChipHtml(chip) + '</span>' +
       (isNext ? '' : kbb.endHtml(it)) +
       '<span class="meta">' + metaHtml(it, isNext) + (over ? ' · 새 협약 기간 확인 필요' : '') + (o.prepActive ? ' <span class="wf-badge pp-neutral">사전준비 중</span>' : '') + '</span>' +
       (news ? '<span class="news" title="' + esc(news) + '">' + esc(news) + '</span>' : '') + '</button>' + add + '</li>';
@@ -1519,7 +1549,7 @@
       return '<ul aria-labelledby="' + lab + '">' + items.map(function (it) {
         const id = String(it.rec.institutionId || ''), isNext = dash.oursKind(it.rec, KB(), NX()) === 'next';
         const mark = goalIds[id] ? (gs.data.year + ' 목표') : (watchIds[id] ? '관심' : '');
-        return kbb.rowHtml(it, { verified: KB(), nextList: NX(), prepActive: !!(it.rec.institutionId && act[id]), mark: mark,
+        return kbb.rowHtml(it, { verified: KB(), nextList: NX(), sum: (gs.sum || {})[id] || null, today: U.todayDate(), prepActive: !!(it.rec.institutionId && act[id]), mark: mark,
           canAdd: kbb.popCanAdd(it, { mark: mark, can: can, isNext: isNext, verified: KB(), closedIds: kbb.inProgress(it.rec, st.preps, st.overview) ? null : closedNow, years: yrs }),   // 제안 진행 중이면 숨기지 않는다(추가 창 computeWarn 'progress'와 같게)
           canWatch: kbb.popCanWatch(it, { mark: mark, can: can, verified: KB(), noWatch: noWatchNow() }) });
       }).join('') + '</ul>';
@@ -1843,8 +1873,21 @@
     // 협약 중인 기관 팝업의 줄을 누르면 팝업을 닫고(모달을 겹쳐 쌓지 않는다) 상세를 연다 — 상세를 닫으면 [협약 중인 기관] 버튼으로 돌아온다(규격 6-10).
     const colEl = btn.closest ? btn.closest('#hb-ours, #hb-goals') : null, colId = colEl && colEl.id ? colEl.id : 'hb-ours', act = btn.getAttribute('data-act') || '';
     const fromPop = colId === 'hb-ours';
-    if (fromPop) closePop(false);
-    dash.openDetail(it.rec, { opener: fromPop ? ($('hb-ours-btn') || btn) : btn, screen: 'bid_board', fallback: fromPop ? '#hb-ours-btn' : '#' + colId, focus: focus || '',
+    // 한 단계 뒤로(design 11-19 6-1): 협약 목록에서 연 상세의 [이전]·×·Esc는 목록을 다시 열고 보던 스크롤과 눌렀던 줄을 되살린다.
+    // 막(바깥) 클릭은 전체 닫기라 opener([협약 중인 기관] 버튼)로 돌아간다. 목록 안의 [목표에 넣기]·[관심에 넣기](oadd·owatch)는 다음 묶음.
+    let back = null;
+    if (fromPop) {
+      const sc = $('hb-oscroll'), top = sc ? sc.scrollTop : 0;
+      back = { label: '협약 중인 기관 목록', go: function () {
+        openPop();
+        const sc2 = $('hb-oscroll'); if (sc2) sc2.scrollTop = top;
+        const rows = pop ? Array.prototype.slice.call(pop.querySelectorAll('.hb-row')) : [];
+        const row = rows.filter(function (x) { return x.getAttribute('data-key') === key; })[0];
+        const tg = row || $('hb-ours-close'); if (tg && tg.focus) tg.focus();
+      } };
+      closePop(false);
+    }
+    dash.openDetail(it.rec, { opener: fromPop ? ($('hb-ours-btn') || btn) : btn, screen: 'bid_board', fallback: fromPop ? '#hb-ours-btn' : '#' + colId, focus: focus || '', back: back,
       refocus: function () { return fromPop ? null : kbb.findOpener($(colId), key, act); } });
   }
 

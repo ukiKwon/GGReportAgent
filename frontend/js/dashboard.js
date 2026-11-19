@@ -907,7 +907,7 @@
       : '— 지난 금고 선정일에 약정 주기를 더한 날입니다';
     const lp = lastProcNote(rec);
     // 진행 중 공고는 맨 위 '공고 진행' 절이 공고일·접수·약정 만료를 맡는다 — 예정일 막대·'입찰 예정일' 줄은 두지 않는다.
-    const info = (it.notice ? dash.noticeSecHtml(it, c.today) : oc ? '' : dash.termBarHtml(it, c.today)) +'<div class="db-sec"><h3>기관 정보</h3><dl class="db-dl">' +
+    const info = (it.notice ? dash.noticeSecHtml(it, c.today) : oc ? '' : dash.termBarHtml(it, c.today)) +'<div class="db-sec">' + (c.infoEditHtml ? '<div class="db-sec-h"><h3>기관 정보</h3>' + c.infoEditHtml + '</div>' : '<h3>기관 정보</h3>') + '<dl class="db-dl">' +
       (it.notice || oc ? '' : it.unknown ? '<dt>입찰 예정일</dt><dd>' + chip() + '</dd>' : '<dt>입찰 예정일</dt><dd>' + mono(it.date) + ' ' + esc(it.label) + chkHtml(it) + ' <span class="db-why">' + why + '</span>' + ie.confirmSrcHtml(rec) + '</dd>') +
       '<dt>지난 금고 선정일</dt><dd>' + (rec.lastBid ? mono(rec.lastBid) + (lp ? ' <span class="db-why">' + esc(lp) + '</span>' : '') : chip()) + '</dd>' +
       '<dt>약정 주기</dt><dd>' + (rec.term ? mono(rec.term) + '년' : chip()) + '</dd>' +
@@ -972,23 +972,29 @@
     const p = dash.paneParts(it, c);
     return '<div class="db-pane-body">' + p.head + p.sub + p.rest + '</div><div class="db-act">' + dash.actHtml(it, c) + '</div>';
   };
-  // 지도 상세 팝업(11-19 저녁 design 4-4): 버튼을 아래 .db-act 줄이 아니라 머리 오른쪽으로 올린다. 머리 줄(.dm-bar 52px) = 제목 + [주버튼][편집][×],
-  // 그 아래 .dm-note = 이유 글·확정 확인 상자(고정 영역, 스크롤되지 않음), 본문(.db-pane-body)만 스크롤. 현황판·입찰 공고 현황의 안쪽 칸(paneHtml)은 그대로.
-  // c.readOnly(보기 전용) = ×만 남는다. 반환 { bar, note, body }.
+  // 지도 상세 팝업: 머리 줄(.dm-bar 52px) = [‹ 이전](스택일 때만) · 제목 · 주 동작 ┃ ×. [편집]은 머리에서 뺐고 '기관 정보' 절 오른쪽 [기관 정보 수정]으로 옮겼다(design 11-19 저녁 6-3).
+  // c.readOnly(보기 전용) = [이전]·×만. c.back = { aria, close }(스택), c.editing = 금고 약정 편집 단계(주 동작 숨김). 반환 { bar, note, body }.
   dash.popupHtml = function (it, c) {
     c = c || {};
-    const p = dash.paneParts(it, c), a = dash.actParts(it, c);
-    const edit = c.readOnly ? '' : '<button type="button" id="dm-edit">편집</button>';
-    const bar = '<div class="dm-bar">' + p.head + '<div class="dm-btns">' + a.main + edit +
-      '<button type="button" id="dm-close" class="dm-x" aria-label="닫기"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 2l8 8M10 2l-8 8"/></svg></button></div></div>';
+    const p = dash.paneParts(it, Object.assign({}, c, { infoEditHtml: c.readOnly ? '' : '<button type="button" id="dm-info-edit" class="db-sec-act">기관 정보 수정</button>' }));
+    const a = dash.actParts(it, c);
+    const main = c.editing ? '' : a.main;   // 약정 입력 중에는 [제안 확정] 등이 나가지 않게 숨긴다(한 번에 한 일)
+    const back = c.back ? '<button type="button" id="dm-back" class="dm-back" aria-label="' + esc(c.back.aria) + '"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M8 2 4 6l4 4"/></svg>이전</button>' : '';
+    const bar = '<div class="dm-bar' + (c.back ? ' has-back' : '') + '">' + back + p.head + '<div class="dm-btns">' + main + (main ? '<span class="dm-sep" aria-hidden="true"></span>' : '') +
+      '<button type="button" id="dm-close" class="dm-x" aria-label="' + esc(c.back ? c.back.close : '닫기') + '"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 2l8 8M10 2l-8 8"/></svg></button></div></div>';
     const note = a.confirm || (a.why ? '<p class="db-why dm-why">' + a.why + '</p>' : '');
     return { bar: bar, note: note, body: '<div class="db-pane-body">' + p.sub + p.rest + '</div>' };
+  };
+  // 약정 편집 중 뒤로 갈 때의 확인 상자(design 6-1). closing = 바깥 클릭으로 전체를 닫으려는 경우.
+  dash.leaveBoxHtml = function (closing) {
+    return '<div class="db-confirm dm-confirm" id="dm-leave" role="group" aria-labelledby="dm-leave-t"><span id="dm-leave-t">저장하지 않은 약정이 있습니다.</span>' +
+      '<div class="db-act-row"><button type="button" id="dm-leave-drop">' + (closing ? '버리고 닫기' : '버리고 돌아가기') + '</button><button type="button" id="dm-leave-keep">계속 입력</button></div></div>';
   };
 
   dash.actHtml = function (it, c) {
     const map = c.mapHtml !== undefined ? c.mapHtml : '<button type="button" id="db-map">전국 지도에서 보기</button>';
     // 개원 확인 필요 기관은 입찰 대상이 아니라 [제안 확정]을 두지 않는다 — 운영 상태를 확인해 바꾸는 창으로 보낸다(NEXT 72, 기획 결정).
-    if (c.act === 'opencheck') return '<div class="db-act-row"><span class="db-why">개원했는지 확인하고 출처와 함께 운영 상태를 바꾸세요.</span><button type="button" id="db-edit">기관 정보 변경</button></div>';
+    if (c.act === 'opencheck') return '<div class="db-act-row"><span class="db-why">개원했는지 확인하고 출처와 함께 운영 상태를 바꾸세요.</span><button type="button" id="db-edit">기관 정보 수정</button></div>';
     if (c.act === 'wait') return '<div class="db-act-row"><span class="db-why">[제안 확정]을 쓸 수 있는지 확인하는 중입니다.</span>' + map + '</div>';
     if (dash.CONFIRM_WHY[c.act]) return '<div class="db-act-row"><span class="db-why">' + dash.CONFIRM_WHY[c.act] + '</span>' + map + '</div>';
     if (c.act === 'unavailable') return '<div class="db-act-row"><span class="db-why">서버에 연결되면 [제안 확정]을 쓸 수 있습니다.</span>' + map + '</div>';
@@ -998,7 +1004,7 @@
         const early = !!c.early;   // 공고 전 올해 목표 기관: 한 상자 안에서 경고만 더한다(상자를 두 번 띄우지 않는다)
         return '<div class="db-confirm' + (early ? ' early' : '') + '" role="group" aria-labelledby="db-cf-t"><span id="db-cf-t">' +
           (early ? '<b class="db-cf-warn">' + esc(dash.EARLY_ASK) + '</b>' : '') + esc(it.name) + dash.josaEul(it.name) +
-          ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 제안서 사전준비 프로세스]에 이 기관의 준비 건이 생깁니다. 개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</span>' +
+          ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 대시보드]에 이 기관의 준비 건이 생깁니다. 개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</span>' +
           '<div class="db-act-row"><button type="button" class="db-next" id="db-do"' + (c.busy ? ' disabled' : '') + '>' + (early ? '계속 진행' : '확정하기') + '</button><button type="button" id="db-cancel">취소</button></div></div>';
       }
       return '<div class="db-act-row"><button type="button" class="db-next" id="db-cf">제안 확정</button>' + map +
@@ -1024,7 +1030,7 @@
         return { main: '<button type="button" class="db-next" id="db-cf" disabled>제안 확정</button>', why: '', confirm:
           '<div class="db-confirm dm-confirm' + (early ? ' early' : '') + '" id="dm-confirm" role="group" aria-labelledby="db-cf-t"><span id="db-cf-t">' +
           (early ? '<b class="db-cf-warn">' + esc(dash.EARLY_ASK) + '</b>' : '') + esc(it.name) + dash.josaEul(it.name) +
-          ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 제안서 사전준비 프로세스]에 이 기관의 준비 건이 생깁니다. 개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</span>' +
+          ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 대시보드]에 이 기관의 준비 건이 생깁니다. 개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</span>' +
           '<div class="db-act-row"><button type="button" class="db-next" id="db-do"' + (c.busy ? ' disabled' : '') + '>' + (early ? '계속 진행' : '확정하기') + '</button><button type="button" id="db-cancel">취소</button></div></div>' };
       }
       return { main: '<button type="button" class="db-next" id="db-cf">제안 확정</button>', why: c.early ? esc(dash.EARLY_WHY) : '', confirm: '' };
@@ -1671,7 +1677,7 @@
       case 'db-cf': st.confirm = true; renderPane(); break;
       case 'db-cancel': st.confirm = false; renderPane(); { const b = $('db-cf'); if (b) b.focus(); } break;
       case 'db-do': doConfirm(); break;
-      case 'db-open': { const it = findItem(st.sel); const p = it && activeFor(it.rec); if (!goPrep(p)) flash('사전준비 화면을 열지 못했습니다. 메뉴의 [제안서 사전준비 프로세스]에서 여세요.', true); break; }
+      case 'db-open': { const it = findItem(st.sel); const p = it && activeFor(it.rec); if (!goPrep(p)) flash('사전준비 화면을 열지 못했습니다. 메뉴의 [영업 추진 준비 › 대시보드]에서 여세요.', true); break; }
       // 눌린 버튼은 다시 그려져 사라진다 — 포커스를 같은 뜻의 새 요소로 돌려 키보드 사용자가 맥락을 잃지 않게 한다.
       case 'db-widen': { setWindow(btn.getAttribute('data-win'), true); const r = host.querySelector('#db-per input:checked'); if (r) r.focus(); break; }
       case 'db-tile-later': { setWindow(btn.getAttribute('data-win'), true); const t = $('db-tile-later'); if (t) t.focus(); break; }
@@ -1732,6 +1738,10 @@
     const inPane = !!(a && [pane, bar, nt].some(function (x) { return x.contains && x.contains(a); }));
     const keepId = inPane ? (a.id || '') : '';
     const keepHc = inPane && a.getAttribute ? (a.getAttribute('data-hc') || '') : '';
+    // 금고 약정 편집 단계: 입력 묶음(#dm-bk-host)은 노드째 떼어 두었다가 다시 꽂는다 — 응답(preps·약정)이 올 때마다 갈아 끼우면 입력값·포커스가 사라진다(design 6-2 필수 조건)
+    const bk = m.bankEdit && m.bankEdit.host ? m.bankEdit.host : null;
+    const keepEl = bk && a && bk.contains && bk.contains(a) ? a : null;
+    if (bk && bk.parentNode) bk.parentNode.removeChild(bk);
     const ctx = actCtx();
     let act = dash.actionKind(m.rec, ctx, dash.activePreps(m.preps), root.prep, gateOpts());
     if (m.prepSt === 'loading' && act !== 'unavailable') act = 'wait';   // 진행 중인지 모르는 동안 [제안 확정]을 보였다 바꾸지 않는다
@@ -1741,13 +1751,20 @@
       act: act, early: act === 'confirm' && dash.proposeEarly(m.rec, gateOpts()), confirm: m.confirm && act === 'confirm', busy: m.busy, kb: dash.kbEntry(m.rec, root.KB_VERIFIED), next: dash.kbEntry(m.rec, root.KB_NEXT), role: ctx.role, today: todayDate(),
       headHtml: root.headcard ? root.headcard.paneSection(m.rec, dmHeadEnv(m)) : undefined,
       recordHtml: ie.isOpenCheck(m.rec) ? '' : dash.recordBriefHtml(m.it, dmRecState(m.readOnly)), bank: m.readOnly ? dash.lockBank(bankView(m.rec)) : bankView(m.rec),
-      nameId: 'dm-name', readOnly: m.readOnly,   // 보기 전용: 머리 줄에는 ×만(주버튼은 act 'none'이라 없고 [편집]은 readOnly로 뺀다)
+      nameId: 'dm-name', readOnly: m.readOnly, back: dmBackInfo(m), editing: !!m.bankEdit,   // 보기 전용: 머리 줄에는 ×만(주버튼은 act 'none'이라 없다). back = 스택 단계(약정 편집 → 읽기 → 목록)
       tailHtml: raw ? '<div class="db-sec"><details class="pop-raw"><summary>원본 정보</summary>' + raw + '</details></div>' : '',
     });
     bar.innerHTML = parts.bar; nt.innerHTML = parts.note; pane.innerHTML = parts.body;
+    if (m.leaveAsk) nt.innerHTML = dash.leaveBoxHtml(m.leaveAsk === 'close');   // 이탈 확인 상자가 확정 확인 상자 자리를 쓴다
+    if (bk) {   // 읽기 부분(dl·근거·비교)은 새로 그리고, 입력 묶음만 원래 노드를 [금고 약정 고치기] 자리(.bk-foot)에 되꽂는다
+      const sec = pane.querySelector('#db-bank'), foot = sec ? sec.querySelector('.bk-foot') : null;
+      if (foot) foot.parentNode.replaceChild(bk, foot); else (sec || pane).appendChild(bk);
+      if (sec) sec.classList.add('is-editing');
+    }
     const nb = pane.querySelector('.db-pane-body');
     if (nb) nb.scrollTop = top;
-    if (inPane) {   // 다시 그린 요소로 포커스를 돌린다(없으면 제목으로)
+    if (keepEl && keepEl.focus && document.body.contains(keepEl)) keepEl.focus();   // 입력 칸 포커스는 같은 노드로(id 없는 라디오·[고치기]도 지킨다)
+    else if (inPane) {   // 다시 그린 요소로 포커스를 돌린다(없으면 제목으로)
       let t = keepId ? m.el.querySelector('#' + keepId) : null;
       if (!t && keepHc) t = pane.querySelector('[data-hc="' + keepHc + '"]');
       if (!t) t = m.el.querySelector('#dm-name');
@@ -1765,6 +1782,7 @@
       if (cf) { cf.focus(); m.focus = ''; }
       else if (act !== 'wait') m.focus = '';   // 판정이 끝났는데 버튼이 없으면(이미 진행 중 등) 포기
     }
+    if (m.leaveAsk && m.leaveFocus) { m.leaveFocus = false; const k = m.el.querySelector('#dm-leave-keep'); if (k && k.focus) k.focus(); }   // 이탈 확인 상자가 막 뜰 때 한 번만 [계속 입력]으로
   }
 
   function dmLoadPreps(m) {
@@ -1789,7 +1807,7 @@
         if (x.r.ok) {
           m.changed = true;   // 닫을 때 현황판(kbboard)의 준비 중 제안·단계 집계를 다시 받게 한다
           if (goPrep(x.body)) { dash.closeDetail(false); return; }   // 사전준비 화면으로 간다(지도 팝업은 닫는다)
-          dmFlash(m.it.name + dash.josaEul(m.it.name) + ' 제안 확정했습니다. 메뉴의 [제안서 사전준비 프로세스]에서 여세요.', false);
+          dmFlash(m.it.name + dash.josaEul(m.it.name) + ' 제안 확정했습니다. 메뉴의 [영업 추진 준비 › 대시보드]에서 여세요.', false);
           return dmLoadPreps(m).then(function () { dmRender(); });
         }
         const f = dash.confirmFail(x);
@@ -1800,18 +1818,74 @@
       .catch(function () { if (dm.cur !== m) return; m.busy = false; dmFlash('서버에 연결하지 못했습니다. 서버가 켜져 있는지 확인하세요.', true); dmRender(); });
   }
 
+  // ── 한 단계 뒤로(design 11-19 6-1): [이전]·×·Esc는 같은 길 — 약정 편집 → 기관 상세 → (협약 목록) → 닫기 ──
+  function roOf(s) { s = String(s || ''); const c = s.charCodeAt(s.length - 1) - 0xAC00; return c >= 0 && c % 28 !== 0 && c % 28 !== 8 ? '으로' : '로'; }
+  function dmBackInfo(m) {
+    if (m.bankEdit) return { aria: '이전: 기관 상세', close: '닫기 — 기관 상세로 돌아갑니다' };
+    const l = m.back && m.back.label;
+    return l ? { aria: '이전: ' + l, close: '닫기 — ' + l + roOf(l) + ' 돌아갑니다' } : null;
+  }
+  function dmBack(m) {
+    if (m.bankEdit) {
+      if (m.bankEdit.ctl && m.bankEdit.ctl.dirty()) { m.leaveAsk = 'back'; m.leaveFocus = true; dmRender(); return; }
+      dmBankLeave(m); return;
+    }
+    if (m.back && typeof m.back.go === 'function') { const go = m.back.go; dash.closeDetail(false); go(); return; }   // 목록으로(스크롤·줄 포커스는 go가 되살린다)
+    dash.closeDetail(true);
+  }
+  function dmCloseAll(m) {   // 바깥(막) 클릭: 단계와 상관없이 전체 닫기, 작성 중이면 확인 상자
+    if (m.bankEdit && m.bankEdit.ctl && m.bankEdit.ctl.dirty()) { m.leaveAsk = 'close'; m.leaveFocus = true; dmRender(); return; }
+    dash.closeDetail(true);
+  }
+  // 금고 약정 편집(design 6-2): '현재 금고 은행' 절 안에서 바로 고친다. 상세를 닫지 않고 편집 창을 열지도 않는다 — 근거 문장·행안부 값을 보면서 입력한다.
+  function dmBankEnter(m) {
+    const b = BC();
+    if (m.bankEdit || m.readOnly || !b || !b.attach || !b.groupHtml) return;
+    const host = document.createElement('div');
+    host.id = 'dm-bk-host'; host.className = 'bk-edit-host';
+    host.innerHTML = b.groupHtml() + '<div class="bk-done"><button type="button" id="bk-done">입력 마치기</button></div>';
+    m.confirm = false; m.confirmFocus = false;   // 확정 확인 상자가 열려 있었으면 접는다
+    m.bankEdit = { host: host, ctl: null };
+    dmRender();   // 입력 묶음을 절에 꽂는다(dmRender가 노드를 보존)
+    m.bankEdit.ctl = b.attach({ wrap: host, rec: m.rec });   // attach는 wrap 안에서만 요소를 찾는다
+    const sec = m.el.querySelector('#db-bank');
+    if (sec && sec.scrollIntoView) sec.scrollIntoView({ block: 'start' });
+    if (m.bankEdit.ctl && m.bankEdit.ctl.focus) m.bankEdit.ctl.focus();
+  }
+  function dmBankLeave(m) {   // 읽기 단계로. 포커스는 [금고 약정 고치기](#bk-edit)
+    const b = m.bankEdit;
+    if (!b) return;
+    m.bankEdit = null; m.leaveAsk = false; m.leaveFocus = false;
+    if (b.ctl) b.ctl.teardown();
+    if (b.host.parentNode) b.host.parentNode.removeChild(b.host);
+    dmRender();
+    const t = m.el.querySelector('#bk-edit') || m.el.querySelector('#dm-name'); if (t && t.focus) t.focus();
+  }
+  // 기관 정보 수정 창이 닫힌 뒤(instedit teardown → onClose): 상세는 열린 채 inert만 풀고, 저장했을 수 있으니 항목을 다시 만들어 그린다.
+  function dmEditClosed(m) {
+    if (dm.cur !== m) return;
+    m.el.removeAttribute('inert');
+    m.it = dash.itemForRec(m.rec, todayDate());
+    dmRender();
+    const b = m.el.querySelector('#dm-info-edit'); if (b && b.focus) b.focus();   // 다시 그려 opener 노드가 바뀌므로 id로 찾는다
+  }
+
   function dmClick(e) {
     const m = dm.cur, t = e.target;
     if (!m || !t) return;
-    if (t === m.el) { if (m.down === m.el) dash.closeDetail(true); return; }   // 바깥(배경) 클릭 — 글을 드래그하다 배경에서 놓은 경우는 닫지 않는다
+    if (t === m.el) { if (m.down === m.el) dmCloseAll(m); return; }   // 바깥(배경) 클릭 — 글을 드래그하다 배경에서 놓은 경우는 닫지 않는다. 단계와 상관없이 전체 닫기(작성 중이면 확인 상자)
     if (!t.closest) return;
+    if (m.bankEdit && m.bankEdit.ctl && t.closest('#ie-bank') && m.bankEdit.ctl.click(e)) return;   // 약정 입력 칸의 단추는 bankcontract가 처리(true면 더 보지 않는다)
     const hcb = t.closest('[data-hc]');
     if (hcb && root.headcard) { root.headcard.onPaneClick(hcb.getAttribute('data-hc'), function () { return dmHeadEnv(m); }); return; }
     const btn = t.closest('button');
     if (!btn) return;
     if (m.readOnly && ['dm-edit', 'bk-edit', 'db-cf', 'db-do', 'db-open'].indexOf(btn.id) >= 0) return;   // 보기 전용: 버튼이 없어도 함수가 한 번 더 막는다
+    if (m.readOnly && btn.id === 'dm-info-edit') return;
     switch (btn.id) {
-      case 'dm-close': dash.closeDetail(true); break;
+      case 'dm-close': case 'dm-back': case 'bk-done': dmBack(m); break;
+      case 'dm-leave-drop': if (m.leaveAsk === 'close') dash.closeDetail(true); else dmBankLeave(m); break;
+      case 'dm-leave-keep': { m.leaveAsk = false; dmRender(); const f = m.el.querySelector('#ie-bk-bank'); if (f && f.focus) f.focus(); break; }
       case 'dm-rec-go': {
         const key = m.it.key;
         const opened = !!(root.app && root.app.openNavItem && root.nav && root.app.openNavItem(root.nav.NOTICE_ID));
@@ -1820,13 +1894,21 @@
         if (dash.selectKey) dash.selectKey(key);
         break;
       }
-      case 'dm-edit': { const r = m.rec; dash.closeDetail(false); if (root.app && root.app.openEdit) root.app.openEdit(r, { from: m.screen, opener: m.opener }); break; }   // 편집 창이 팝업 뒤에 깔리지 않게 먼저 닫는다
-      case 'bk-edit': { const r = m.rec; dash.closeDetail(false); if (root.app && root.app.openEdit) root.app.openEdit(r, { from: m.screen, opener: m.opener, focus: 'bank' }); break; }
+      // [기관 정보 수정]: 상세는 닫지 않는다. 상세를 inert로 두고 그 위 한 층(#edit-modal z-index 31)에 편집 창을 연다. 금고 약정 묶음은 뺀다(상세 안에서 고친다, opts.noBank).
+      case 'dm-info-edit': {
+        const A = root.app;
+        if (!A || !A.openEdit || m.el.hasAttribute('inert')) break;
+        m.el.setAttribute('inert', '');
+        A.openEdit(m.rec, { from: m.screen, opener: btn, noBank: true, onClose: function () { dmEditClosed(m); } });
+        if (!(root.instedit && root.instedit.isOpen && root.instedit.isOpen())) m.el.removeAttribute('inert');   // 창이 안 열렸으면(보기 전용·옛 instedit) onClose가 오지 않는다 — inert를 남기지 않는다
+        break;
+      }
+      case 'bk-edit': dmBankEnter(m); break;   // 상세 안 '현재 금고 은행' 절에서 바로 편집(편집 창을 열지 않는다)
       case 'bk-retry': { const b = BC(); if (b) b.load(String(m.rec.institutionId || '')); break; }
       case 'db-cf': m.confirm = true; m.confirmFocus = true; dmRender(); break;
       case 'db-cancel': m.confirm = false; dmRender(); { const b = m.el.querySelector('#db-cf'); if (b) b.focus(); } break;
       case 'db-do': dmDoConfirm(m); break;
-      case 'db-open': { const p = dmActives(m); if (p && goPrep(p)) dash.closeDetail(false); else dmFlash('사전준비 화면을 열지 못했습니다. 메뉴의 [제안서 사전준비 프로세스]에서 여세요.', true); break; }
+      case 'db-open': { const p = dmActives(m); if (p && goPrep(p)) dash.closeDetail(false); else dmFlash('사전준비 화면을 열지 못했습니다. 메뉴의 [영업 추진 준비 › 대시보드]에서 여세요.', true); break; }
       default: break;
     }
   }
@@ -1838,7 +1920,8 @@
       e.preventDefault(); e.stopPropagation();
       if (m.busy) return;
       if (m.confirm) { m.confirm = false; dmRender(); const b = m.el.querySelector('#db-cf'); if (b) b.focus(); return; }
-      dash.closeDetail(true);
+      if (m.leaveAsk) { m.leaveAsk = false; dmRender(); const f = m.el.querySelector('#ie-bk-bank'); if (f && f.focus) f.focus(); return; }   // 이탈 확인 상자만 닫는다
+      dmBack(m);   // 약정 편집 → 기관 상세 → (협약 목록) → 닫기. 한 번에 한 단계
       return;
     }
     if (e.key !== 'Tab') return;
@@ -1856,11 +1939,12 @@
   // opts.fallback = opener가 사라졌을 때 포커스를 돌릴 선택자(현황판 '#hb-ours', 지도는 비움). 열었으면 true.
   // opts.refocus = opener가 사라졌을 때 닫은 뒤 포커스를 받을 새 요소를 돌려주는 함수(현황판: 같은 열의 같은 data-key 버튼). 없거나 null이면 fallback.
   // opts.focus = 'confirm'이면 팝업이 그려진 뒤 [제안 확정] 버튼으로 포커스를 옮긴다(현황판 2번 구획 줄의 [제안 확정]).
+  // opts.back = { label, go } — 같은 팝업 안 한 단계 뒤(협약 중인 기관 목록 → 상세). [이전]·×·Esc가 상세를 닫고 go()를 부른다. 없으면 지금처럼 닫는다.
   dash.openDetail = function (rec, opts) {
     if (typeof document === 'undefined' || !rec) return false;
     if (dm.cur) dash.closeDetail(false);
     const m = { rec: rec, it: dash.itemForRec(rec, todayDate()), opener: (opts && opts.opener) || document.activeElement,
-      screen: (opts && opts.screen) || 'map_popover', fallback: (opts && opts.fallback) || '', refocus: (opts && opts.refocus) || null, focus: (opts && opts.focus) || '', changed: false, readOnly: dash.isViewOnly(),
+      screen: (opts && opts.screen) || 'map_popover', fallback: (opts && opts.fallback) || '', refocus: (opts && opts.refocus) || null, back: opts && opts.back && typeof opts.back.go === 'function' ? opts.back : null, focus: (opts && opts.focus) || '', changed: false, readOnly: dash.isViewOnly(), bankEdit: null, leaveAsk: false, leaveFocus: false,
       preps: null, prepSt: 'offline', confirm: false, busy: false, down: null, el: null };
     const ov = document.createElement('div');
     ov.className = 'modal-overlay dm-ov';
@@ -1875,6 +1959,11 @@
     ov.addEventListener('mousedown', function (e) { m.down = e.target; });
     ov.addEventListener('click', dmClick);
     ov.addEventListener('keydown', dmKey);
+    const bkIn = function (e) {   // 약정 입력 칸의 입력·선택 변화를 bankcontract에 넘긴다(instedit의 wrap.oninput·onchange와 같은 길)
+      const tg = e.target;
+      if (dm.cur === m && m.bankEdit && m.bankEdit.ctl && tg && tg.closest && tg.closest('#ie-bank')) m.bankEdit.ctl.input(e);
+    };
+    ov.addEventListener('input', bkIn); ov.addEventListener('change', bkIn);
     ov.addEventListener('toggle', function (e) { bankToggle(e, String(m.rec.institutionId || '')); }, true);
     bankWatch();
     dmLoadPreps(m);   // 상태를 받는 동안 'wait'로 그리고, 도착하면 다시 그린다
@@ -1899,6 +1988,8 @@
     const m = dm.cur;
     if (!m) return;
     dm.cur = null;
+    if (m.bankEdit && m.bankEdit.ctl) { try { m.bankEdit.ctl.teardown(); } catch (e) { /* 닫기를 막지 않는다 */ } }   // 약정 편집 중에 닫혀도 bankcontract 구독을 푼다
+    m.bankEdit = null;
     if (m.offNr) m.offNr();
     bankUnwatch();
     if (root.headcard) root.headcard.reset();   // 열린 기관장 편집 창·사진 Blob 주소·대기 중 조회를 정리한다

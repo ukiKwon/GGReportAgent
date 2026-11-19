@@ -63,10 +63,10 @@ test('nobidTidy: 서버 tidy_action → 모달 종류. 막힌 3가지는 버튼 
   assert.strictEqual(prep.nobidTidy(view('WRITING', notice({ tidy_action: 'CANCEL' }))).kind, 'abort');
   const op = prep.nobidTidy(view('OPEN_PENDING', notice({ tidy_action: 'OPEN_PENDING' })));
   assert.strictEqual(op.kind, '');
-  assert.ok(op.line.indexOf('개설 신청이 승인을 기다리는 중이라 지금은 정리할 수 없습니다.') === 0);
+  assert.ok(op.line.indexOf('개설 신청이 승인을 기다리는 중이라 지금은 제안 확정을 취소할 수 없습니다.') === 0);
   const pl = prep.nobidTidy(view('APPROVAL_PENDING', notice({ tidy_action: 'PLAN_PENDING' })));
   assert.strictEqual(pl.kind, '');
-  assert.ok(pl.line.indexOf('사전준비 승인 요청 중에는 중단할 수 없습니다.') === 0);
+  assert.ok(pl.line.indexOf('사전준비 승인 요청 중에는 제안을 중단할 수 없습니다.') === 0);
   const no = prep.nobidTidy(view('IN_PROGRESS', notice({ tidy_action: 'NONE' })));
   assert.strictEqual(no.kind, '');
   assert.strictEqual(no.line, '이 건의 확정 취소·중단은 영업부서 팀장이 합니다. 입찰 없음이 맞으면 영업부서 팀장에게 알려 주세요.');
@@ -80,13 +80,13 @@ test('nobidPopupHtml: 알림 대화상자 규격(role·aria·tabindex), 버튼 �
   const a = h.indexOf('id="pp-nb-notice"'), b = h.indexOf('id="pp-nb-tidy"'), c = h.indexOf('id="pp-nb-continue"');
   assert.ok(a > 0 && b > a && c > b);
   assert.ok(h.indexOf('data-act="nobid-notice"') > 0 && h.indexOf('data-act="nobid-tidy"') > 0 && h.indexOf('data-act="nobid-continue"') > 0);
-  assert.ok(h.indexOf('>제안 진행 정리하기…</button>') > 0);
+  assert.ok(h.indexOf('>제안 확정 취소…</button>') > 0 && h.indexOf('정리') < 0);
   assert.ok(h.indexOf('pp-danger') < 0 && h.indexOf('pp-next-btn') < 0 && !/disabled/.test(h));
   const t = plain(h);
   assert.ok(t.indexOf('입찰 없음으로 기록된 기관 — 노원구청') >= 0);
   assert.ok(t.indexOf('이 기관의 이번 회차 입찰 공고 상태는 \'입찰 없음(연장·지정)\'입니다(2026-12-01 수정됨, 기록자 홍길동).') >= 0);
   assert.ok(h.indexOf('<span class="pp-mono">2026-12-01</span>') > 0);
-  assert.ok(t.indexOf('제안 진행 정리하기: 입찰 없음이 맞으면 제안 확정을 취소합니다. 사유를 적는 창이 열립니다.') >= 0);
+  assert.ok(t.indexOf('제안 확정 취소: 입찰 없음이 맞으면 제안 확정을 취소합니다. 사유를 적는 창이 열립니다.') >= 0);
   assert.ok(t.indexOf('계속 작성: 다음 회차를 준비하는 중이면 누르세요. 누른 기록이 남고, 공고 기록이 바뀌기 전까지 다시 묻지 않습니다.') >= 0);
   assert.ok(plain(prep.nobidPopupHtml(view('IN_PROGRESS'), { canNotice: true })).indexOf('중단하면 되돌릴 수 없습니다.') > 0);
 });

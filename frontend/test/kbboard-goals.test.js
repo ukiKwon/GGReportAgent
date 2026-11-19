@@ -629,7 +629,7 @@ test('index.html: 요약 띠·표·구분 칩·메뉴·레인 CSS가 규격(6-B)
   assert.ok(/\.hb-tt \.hb-nm:focus-visible \{ outline:2px solid var\(--accent-color\)/.test(css));                   // 키보드 포커스 링(틸)
   assert.ok(/\.hb-late \{[^}]*var\(--red\) 72%, var\(--fg\)[^}]*var\(--red\) 18%/.test(css));                          // 지연 칩 = 빨강 글자(본문색 쪽 섞기)·테두리·18% 바탕
   assert.ok(/\.hb-k \.v\.hot \{[^}]*var\(--red\) 72%, var\(--fg\)/.test(css) && /\.hb-dd\.hot \{[^}]*var\(--red\) 72%, var\(--fg\)/.test(css));
-  assert.ok(/#hb-ours \{[^}]*width:min\(720px, 92vw\)/.test(css) && /#hb-ours \.hb-ob \{[^}]*max-height:76vh/.test(css));   // 협약 중인 기관 팝업(6-10)
+  assert.ok(/#hb-ours \{[^}]*width:min\(720px, calc\(100vw - 32px\)\)/.test(css) && /#hb-ours \.hb-ob \{[^}]*max-height:76vh/.test(css));   // 협약 중인 기관 팝업(6-10)
   assert.ok(/\.hb-top \.ro \{[^}]*color:var\(--muted\)/.test(css) && /\.hb-top \.ro\[hidden\], \.hb-top #hb-add\[hidden\] \{ display:none; \}/.test(css));   // hidden 속성이 display 규칙에 지지 않게
   assert.ok(/\.hb-tag\.ro \{[^}]*cursor:default/.test(css) && /\.hb-tag\.add \{[^}]*border-style:dashed/.test(css));
   assert.ok(/\.hb-dlg \.hb-rd input \{ width:auto;/.test(css) && /\.hb-res li\[aria-disabled=true\] \{ color:var\(--muted\); cursor:default; \}/.test(css));

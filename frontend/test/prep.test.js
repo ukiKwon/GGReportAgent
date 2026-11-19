@@ -440,7 +440,7 @@ test('입찰 현황판(dashboard.js)이 기대하는 root.prep 계약: popoverAc
 test('popConfirmHtml: 확인 줄 문구와 조사, 기관명 이스케이프', function () {
   const h = prep.popConfirmHtml('노원구청');
   assert.ok(h.indexOf('노원구청을 제안 대상으로 확정합니다.') > 0);
-  assert.ok(h.indexOf('[영업 추진 준비 › 제안서 사전준비 프로세스]') > 0);
+  assert.ok(h.indexOf('[영업 추진 준비 › 대시보드]') > 0);
   assert.ok(h.indexOf('data-pp-pop="go"') > 0 && h.indexOf('data-pp-pop="cancel"') > 0);
   assert.ok(prep.popConfirmHtml('한국도로공사').indexOf('한국도로공사를 제안') > 0);
   assert.strictEqual(prep.popConfirmHtml('<script>x</script>').indexOf('<script>'), -1);

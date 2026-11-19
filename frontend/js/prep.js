@@ -107,14 +107,15 @@
     nbAskWriting: '제안서를 계속 작성하시겠습니까?',
     nbAskPrep: '이 기관의 제안 준비를 계속하시겠습니까?',
     nbBtnNotice: '공고 상태 보기',
-    nbBtnTidy: '제안 진행 정리하기…',
+    nbBtnUnconfirm: '제안 확정 취소…',   // tidy_action UNCONFIRM(확정 단계) — 이름은 서버 tidy_action을 따른다(design 6-6)
+    nbBtnAbort: '제안 중단…',            // tidy_action CANCEL(개설 뒤)
     nbBtnContinue: '계속 작성',
     nbLineNotice: '공고 상태 보기: 입찰 공고 현황에서 이 기관의 기록을 엽니다. 닫힌 회차라 읽기만 됩니다.',
     nbLineNoNotice: '공고 기록이 틀렸다면 입찰 공고 현황 기록 담당에게 알려 주세요.',
-    nbLineUnconfirm: '제안 진행 정리하기: 입찰 없음이 맞으면 제안 확정을 취소합니다. 사유를 적는 창이 열립니다.',
-    nbLineCancel: '제안 진행 정리하기: 입찰 없음이 맞으면 이 건을 중단(미참여)합니다. 사유를 적는 창이 열리고, 중단하면 되돌릴 수 없습니다.',
-    nbLineOpenPending: '개설 신청이 승인을 기다리는 중이라 지금은 정리할 수 없습니다. 신청을 회수하거나 반려된 뒤 정리하세요.',
-    nbLinePlanPending: '사전준비 승인 요청 중에는 중단할 수 없습니다. 요청이 회수되거나 반려된 뒤 정리하세요.',
+    nbLineUnconfirm: '제안 확정 취소: 입찰 없음이 맞으면 제안 확정을 취소합니다. 사유를 적는 창이 열립니다.',
+    nbLineCancel: '제안 중단: 입찰 없음이 맞으면 이 건을 중단(미참여)합니다. 사유를 적는 창이 열리고, 중단하면 되돌릴 수 없습니다.',
+    nbLineOpenPending: '개설 신청이 승인을 기다리는 중이라 지금은 제안 확정을 취소할 수 없습니다. 신청을 회수하거나 반려된 뒤 취소하세요.',
+    nbLinePlanPending: '사전준비 승인 요청 중에는 제안을 중단할 수 없습니다. 요청이 회수되거나 반려된 뒤 중단하세요.',
     nbWho: function (stateCd) { return stateCd === 'CONFIRMED' || stateCd === 'OPEN_PENDING' ? '확정한 사람이나 영업부서 팀장' : '영업부서 팀장'; },
     nbLineNoAuth: function (who) {
       return '이 건의 확정 취소·중단은 ' + who + prep.josa(who, '이', '가') + ' 합니다. 입찰 없음이 맞으면 ' + who + '에게 알려 주세요.';
@@ -291,7 +292,7 @@
   // 확인 줄(팝오버·현황판 공용). 첫 포커스는 [확정하기]가 아니라 호출 쪽이 정한다.
   prep.popConfirmHtml = function (name) {
     return '<div class="pop-confirm" role="group" aria-label="제안 확정 확인">' +
-      '<div>' + esc(name) + esc(prep.josa(name, '을', '를')) + ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 제안서 사전준비 프로세스]에 이 기관의 준비 건이 생깁니다. ' +
+      '<div>' + esc(name) + esc(prep.josa(name, '을', '를')) + ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 대시보드]에 이 기관의 준비 건이 생깁니다. ' +
       '개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</div>' +
       '<div class="tm-actions"><button type="button" data-pp-pop="cancel">취소</button>' +
       '<button type="button" class="pp-next-btn" data-pp-pop="go">확정하기</button></div>' +
@@ -499,8 +500,8 @@
     const v = view || {};
     const n = prep.nobidOf(v) || {};
     switch (n.tidy_action) {
-      case 'UNCONFIRM': return { kind: 'unconfirm', line: T.nbLineUnconfirm };
-      case 'CANCEL': return { kind: 'abort', line: T.nbLineCancel };
+      case 'UNCONFIRM': return { kind: 'unconfirm', btn: T.nbBtnUnconfirm, line: T.nbLineUnconfirm };
+      case 'CANCEL': return { kind: 'abort', btn: T.nbBtnAbort, line: T.nbLineCancel };
       case 'OPEN_PENDING': return { kind: '', line: T.nbLineOpenPending };
       case 'PLAN_PENDING': return { kind: '', line: T.nbLinePlanPending };
       default: return { kind: '', line: T.nbLineNoAuth(T.nbWho(v.state_cd)) };
@@ -524,7 +525,7 @@
       '<div id="pp-nb-err" class="ap-err" role="alert"></div></div>' +
       '<div class="tm-m-actions pp-nb-acts">' +
       (o.canNotice ? bt('pp-nb-notice', 'nobid-notice', T.nbBtnNotice) : '') +
-      (tidy.kind ? bt('pp-nb-tidy', 'nobid-tidy', T.nbBtnTidy) : '') +
+      (tidy.kind ? bt('pp-nb-tidy', 'nobid-tidy', tidy.btn) : '') +
       bt('pp-nb-continue', 'nobid-continue', T.nbBtnContinue) + '</div></div>';
   };
   // 상세 머리 아래 상시 사실 줄(design 6-4) — 팝업과 별개로 늘 남는다.
@@ -1054,7 +1055,7 @@
     const d = S.detail;
     if (!S.selected || !d) {
       box.setAttribute('aria-busy', 'false');
-      box.innerHTML = '<h2 id="pp-case-title" class="sr-only" tabindex="-1">제안서 사전준비 프로세스</h2><p class="wf-empty">' + esc(T.pick) + '</p>';
+      box.innerHTML = '<h2 id="pp-case-title" class="sr-only" tabindex="-1">대시보드</h2><p class="wf-empty">' + esc(T.pick) + '</p>';
       return;
     }
     if (d.loading) {
@@ -1437,7 +1438,7 @@
   }
 
   // ── 입찰 없음 알림 팝업(NEXT 98-1, design 11-19 6장) ──
-  // 열림: 건을 연 뒤 상세가 도착했을 때 한 번. 닫힘: Esc·바깥 클릭(기록 없이 상세에 머묾), [공고 상태 보기]·[제안 진행 정리하기…](기록 없음), [계속 작성](기록).
+  // 열림: 건을 연 뒤 상세가 도착했을 때 한 번. 닫힘: Esc·바깥 클릭(기록 없이 상세에 머묾), [공고 상태 보기]·[제안 확정 취소…]/[제안 중단…](기록 없음), [계속 작성](기록).
   let nbInert = [];
   function nbRelease() {
     const K = root.kbboard;

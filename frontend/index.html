@@ -1408,9 +1408,14 @@
   .dm-bar { flex:none; height:52px; display:flex; align-items:center; gap:12px; padding:0 12px 0 24px; background:var(--panel2); border-bottom:1px solid var(--line-strong); }
   .dm-bar .db-head { flex:1 1 auto; min-width:0; }
   .dm-bar .db-head h2 { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .dm-btns { flex:none; display:flex; align-items:center; gap:8px; }
-  .dm-btns .db-next { padding:6px 14px; }
-  .dm-btns .dm-x { display:inline-flex; align-items:center; justify-content:center; width:32px; min-width:32px; height:32px; padding:0; }   /* 높이를 [편집]과 같게 — 높이를 안 주면 padding:0이라 14px로 납작해졌다(11-19 실측) */
+  .dm-bar.has-back { padding-left:12px; }
+  .dm-back { flex:none; display:inline-flex; align-items:center; gap:4px; height:32px; padding:0 10px 0 8px; font-size:12px; }
+  .dm-back svg { width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:1.6; }
+  .dm-btns { flex:none; display:flex; align-items:center; gap:0; }
+  .dm-btns .db-next { height:32px; padding:0 14px; font-weight:700; }
+  .dm-btns .dm-sep { width:1px; height:20px; margin:0 12px; background:var(--line-strong); }   /* 주 동작 | 창 닫기 — 주 동작이 있을 때만 */
+  .dm-btns .dm-x { display:inline-flex; align-items:center; justify-content:center; width:32px; min-width:32px; height:32px; padding:0; border-color:transparent; background:transparent; }   /* 창 제어는 동작 단추와 모양을 달리한다(design 6-3). 높이 32px 통일(11-19 실측 이력) */
+  .dm-btns .dm-x:hover { background:var(--panel); border-color:var(--line-strong); }
   .dm-x svg { width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:1.6; }
   .dm-note { flex:none; }
   .dm-box .db-flash:empty, #dm-act-note:empty { display:none; }
@@ -1418,6 +1423,14 @@
   .dm-note .dm-why { margin:0; padding:8px 24px; border-bottom:1px solid var(--line); }
   .dm-note .dm-confirm { margin:12px 24px; }
   .dm-box .db-sub { margin-top:0; }
+  /* 기관 정보 절 머리: 제목 + [기관 정보 수정], 약정 편집 단계 */
+  .db-sec .db-sec-h { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+  .db-sec .db-sec-h h3 { flex:1 1 auto; min-width:0; margin:0; }   /* '.db-sec h3'(뒤쪽 규칙)의 margin을 이기려고 .db-sec를 붙였다 */
+  .db-sec-act { flex:none; height:28px; padding:0 10px; font-size:12px; }
+  .dm-box #db-bank.is-editing { box-shadow:inset 3px 0 0 var(--accent-color); margin-left:-12px; padding-left:12px; }   /* 안쪽 막대. 글자가 막대 밑으로 들어가지 않게 12px 안으로(규격에 더한 값, 켜도 글자 위치는 그대로) */
+  .dm-box #db-bank .ie-fs { margin-top:12px; }
+  .dm-box #db-bank .bk-done { display:flex; justify-content:flex-end; margin-top:12px; }
+  #edit-modal { z-index:31; }   /* 기관 정보 수정 창은 상세(.modal-overlay 30) 위 한 층 */
   /* 지도 상세 팝업 끝 */
   #theme-modal label { display:flex; align-items:center; gap:8px; margin:8px 0; }
   #theme-modal input[type=color] { width:44px; height:26px; padding:0;
@@ -1906,7 +1919,7 @@
   .hb-res li[aria-disabled=true] .nm { color:var(--muted); }
   .hb-res .sub { display:block; font-size:12px; color:var(--muted); }
   /* 협약 중인 기관 팝업(11-17 c54, 규격 6-10) — 예전 접힌 구획의 내용(머리·와플·목록·각주)을 그대로 모달 상자에 옮김. 상자 폭·여백만 새로 */
-  #hb-ours { width:min(720px, 92vw); max-height:84vh; padding:0; overflow:hidden; }
+  #hb-ours { width:min(720px, calc(100vw - 32px)); margin:32px auto; max-height:calc(100vh - 64px); padding:0; overflow:hidden; }   /* .dm-box와 같은 자리 — 목록↔상세가 바뀔 때 튀지 않게(design 6-1) */
   #hb-ours:focus:not(:focus-visible) { outline:none; }
   #hb-ours .hb-oh { flex:none; display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line); }
   #hb-ours .hb-oh h3 { margin:0; padding:0; border:0; font-size:14px; }
@@ -1970,7 +1983,12 @@
   .hb-slot.hb-bank { display:inline-flex; align-items:center; gap:4px; font-weight:700; }   /* 은행 CI 채운 칩(사용자 11-19 예외, 이 칩에만) — 지역 변수 없이 :root --bk-*를 직접 참조 */
   .hb-slot.hb-bank[data-bank="kb"] { color:var(--bk-kb-ink); background:var(--bk-kb); border-color:var(--bk-kb-edge); }
   .hb-slot.hb-bank svg { width:12px; height:12px; flex:none; }
+  .hb-slot.hb-new { display:inline-flex; align-items:center; gap:4px; font-weight:700; color:var(--green); border-color:var(--green); background:color-mix(in srgb, var(--green) 12%, var(--panel)); }   /* 국민은행 신규약정(선정 공고·협약 확인) — --green 예외(사용자 11-19), 글자 6.2:1·틴트 위 5.2:1 */
+  .hb-slot.hb-new svg { width:12px; height:12px; flex:none; }
+  .hb-slot.hb-news { color:var(--fg); }   /* 기사 근거: 기본 hb-slot 테두리, 채움·체크 없음 */
+  .hb-slot .src { margin-left:2px; font-weight:400; color:var(--muted); }
   @media (forced-colors:active) { .hb-slot.hb-bank { border-color:CanvasText; } }
+  @media (forced-colors:active) { .hb-slot.hb-new { color:CanvasText; border-color:Highlight; } }
   .db-soon-tag { margin-left:8px; font-size:12px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:var(--r); padding:0 5px;
                  background:repeating-linear-gradient(45deg, color-mix(in srgb, var(--muted) 12%, transparent) 0 2px, transparent 2px 4px); vertical-align:middle; }
   /* 11-17 c54 — 제안 진행 줄·도구 줄·정렬·입찰 종료·관심 탭·주의 상자·협약 중인 기관 버튼. 새 hex·새 변수 없음(design-reviewer a3ab5c5a 6-12) */
@@ -2021,8 +2039,6 @@
   .hb-warn .t svg { width:12px; height:12px; }
   .hb-warn .acts { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
   .hb-warn .go { font-size:12px; color:var(--muted); }
-  .hb-warn.soft { border-color:var(--line-strong); background:transparent; }
-  .hb-warn.soft .t { color:var(--fg); }
   /* 추천받기(design 11-19 6절) — [목표 기관 추가] 창의 펼침 패널 #hb-a-rec. 새 색·새 변수 없음(--line·--line-strong·--panel·--fg·--muted·--mono·--r) */
   .hb-rec { margin-top:8px; border:1px solid var(--line); border-radius:var(--r); padding:8px 10px; background:var(--panel); }
   .hb-rec > .tm-note:first-child { margin-top:0; }
@@ -2755,7 +2771,7 @@ review, the verdict, and DESIGN.md
     <div id="tm-modal" class="modal-overlay" style="display:none;"></div>
   </div>
   <div id="pp-root" style="display:none;">
-    <div class="tm-head"><b>제안서 사전준비 프로세스</b> <span class="dg-hint">— 기관을 고르면 진행 단계와 준비 과제가 보입니다</span></div>
+    <div class="tm-head"><b>대시보드</b> <span class="dg-hint">— 기관을 고르면 진행 단계와 준비 과제가 보입니다</span></div>
     <div id="pp-gate" role="status"></div>
     <div id="pp-wrap">
       <div id="pp-list">

@@ -239,7 +239,7 @@ test('rowHtml(11-17 최종형): 이름 칩 → 종료 D-n(크게) → 둘째 줄
   // 둘째 줄: 지역 · 다음 입찰 공고(예정일 = effectiveBid, 추정). 옛 'D-30' 입찰 칩(dg-day)은 없다
   assert.ok(/<span class="meta">[^<]*· 다음 입찰 공고 <span class="d">\d{4}-\d{2}-\d{2}<\/span> 추정/.test(h) && h.indexOf('dg-day') < 0);
   assert.ok(h.indexOf('회차 소식: 2026 회차 국민은행 수성(기사 2026-11-04)') >= 0 && h.indexOf('확정</span>') < 0);
-  assert.ok(h.indexOf('class="hb-slot hb-bank" data-bank="kb"><svg') >= 0 && h.indexOf('국민은행 확정<span class="sr-only"> (다음 협약)</span></span>') >= 0 && h.indexOf('hb-stay') < 0);   // 회차 소식이 수성 → CI 칩(11-19)
+  assert.ok(h.indexOf('<span class="hb-slot hb-news">국민은행 재약정 예정<span class="src">(기사)</span></span>') >= 0 && h.indexOf('hb-bank') < 0 && h.indexOf('hb-new') < 0 && h.indexOf('hb-stay') < 0);   // 회차 소식이 수성 → CI 칩(11-19)
   assert.ok(h.indexOf('hb-leaves') < 0);
   assert.ok(h.indexOf('<span class="hb-end') < h.indexOf('<span class="meta">'));              // 줄 순서: 이름 → 종료 → 메타
   kbb.SHOW_NEWS = false;
@@ -248,7 +248,7 @@ test('rowHtml(11-17 최종형): 이름 칩 → 종료 D-n(크게) → 둘째 줄
   const VL = [{ key: '43|청주시청', name: '청주시청', slot: 2, leaves: '2027', next: '2027~2030은 1금고 농협·2금고 신한 — 국민은행 빠짐' }];
   const cj = grp([rec('청주시청', 40, { region: '43' })], VL).unk[0];
   const hc = kbb.rowHtml(cj, { verified: VL });
-  assert.ok(hc.indexOf('<span class="hb-slot">2금고(일부 회계)</span><span class="hb-slot hb-leaves">다음은 다른 은행<span class="sr-only">(2027년부터)</span></span>') >= 0);
+  assert.ok(hc.indexOf('<span class="hb-slot">2금고(일부 회계)</span><span class="hb-slot hb-leaves">다른 은행 약정 예정<span class="src">(기사)</span><span class="sr-only"> (2027년부터)</span></span>') >= 0);
   assert.ok(hc.indexOf('회차 소식: 2027~2030은 1금고 농협') >= 0 && hc.indexOf('hb-bank') < 0);
   // 협약 예정(2027년부터) 줄: 칩 '2027년부터', 종료 D-n 없음, 둘째 줄 '지역 · 종류', 소식 줄은 자료의 quote
   const nit = grp([rec('새곳', 30)], [], NX).next[0];

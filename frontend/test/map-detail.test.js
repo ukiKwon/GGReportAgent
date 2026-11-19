@@ -43,12 +43,12 @@ test('paneHtml 옵션: 기본은 현황판 그대로(id=db-name), nameId·tailHt
   assert.ok(dash.actHtml(it, { act: 'unavailable', mapHtml: 'X' }).indexOf('서버에 연결되면 [제안 확정]을 쓸 수 있습니다.') >= 0);
 });
 
-test('popupHtml(11-19 저녁 4-4): 머리 줄 [주버튼][편집][×] 순서, 본문엔 .db-act 없음, 확인 상자는 note·그동안 [제안 확정] 비활성, 현황판 paneHtml은 그대로', function () {
+test('popupHtml(11-19 저녁 4-4): 머리 줄 [주버튼] ┃ [×] 순서, 본문엔 .db-act 없음, 확인 상자는 note·그동안 [제안 확정] 비활성, 현황판 paneHtml은 그대로', function () {
   const it = dash.itemForRec(rec('가람시청', '11', 40), TODAY);
   const o = { act: 'confirm', role: '영업팀', today: TODAY, nameId: 'dm-name' };
   const a = dash.popupHtml(it, o);
   assert.ok(a.bar.indexOf('<div class="dm-bar">') === 0 && a.bar.indexOf('id="dm-name"') > 0);
-  assert.ok(a.bar.indexOf('id="db-cf"') < a.bar.indexOf('id="dm-edit"') && a.bar.indexOf('id="dm-edit"') < a.bar.indexOf('id="dm-close"'));   // 주버튼 → 편집 → ×
+  assert.ok(a.bar.indexOf('id="dm-edit"') < 0 && a.bar.indexOf('id="db-cf"') < a.bar.indexOf('class="dm-sep"') && a.bar.indexOf('class="dm-sep"') < a.bar.indexOf('id="dm-close"'));   // 주 동작 → 구분선 → ×(편집은 기관 정보 절로 옮김, 11-19)
   assert.ok(/id="dm-close" class="dm-x" aria-label="닫기"/.test(a.bar) && a.bar.indexOf('id="db-cf" disabled') < 0);
   assert.ok(a.body.indexOf('db-act') < 0 && a.body.indexOf('id="dm-name"') < 0 && a.body.indexOf('<p class="db-sub">') > 0 && a.note === '');
   const c = dash.popupHtml(it, Object.assign({}, o, { confirm: true }));
@@ -57,7 +57,7 @@ test('popupHtml(11-19 저녁 4-4): 머리 줄 [주버튼][편집][×] 순서, �
   const early = dash.popupHtml(it, Object.assign({}, o, { confirm: true, early: true }));
   assert.ok(early.note.indexOf('db-confirm dm-confirm early') > 0 && early.note.indexOf('계속 진행') > 0);
   const op = dash.popupHtml(it, { act: 'open', today: TODAY });
-  assert.ok(op.bar.indexOf('id="db-open"') < op.bar.indexOf('id="dm-edit"') && op.note.indexOf('이미 제안 확정되어 사전준비가 진행 중입니다.') > 0);
+  assert.ok(op.bar.indexOf('id="db-open"') < op.bar.indexOf('id="dm-close"') && op.note.indexOf('이미 제안 확정되어 사전준비가 진행 중입니다.') > 0);
   const ro = dash.popupHtml(it, { act: 'none', role: '디자이너', readOnly: true, today: TODAY });
   assert.ok(ro.bar.indexOf('dm-edit') < 0 && ro.bar.indexOf('db-next') < 0 && ro.bar.indexOf('id="dm-close"') > 0);
   assert.ok(dash.paneHtml(it, { act: 'confirm', today: TODAY }).indexOf('<div class="db-act"><div class="db-act-row"><button type="button" class="db-next" id="db-cf">제안 확정</button>') > 0);   // 현황판 안쪽 칸은 그대로
