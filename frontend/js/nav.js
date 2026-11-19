@@ -91,7 +91,7 @@
       soon('기관', '기관 사업계획', '', '', false, PLANS_ID, undefined, 'map', false, PLANS_TEAMS),   // 실제 화면(plans.js) — 배지 없음, 노출 = map 키 AND 영업팀·전산팀(디자이너·마스터 포함)
       soon('입찰 공고', '입찰 공고 현황', '', '', false, NOTICE_ID, undefined, 'map'), soon('입찰 공고', '공고 자동 수집')] },   // 실제 화면(dashboard.js, #notice-root) — 배지 없음, 노출은 입찰 현황판과 같이 서버 map 키 전원(11-09 타팀 공유)
     { id: 'plan', title: '영업 추진 준비', subs: ['준비 과제', '이사회'], items: [
-      soon('준비 과제', '제안서 사전준비 프로세스', '', '', false, PREP_ID, TEAM_ROLES),
+      soon('준비 과제', '대시보드', '', '', false, PREP_ID, TEAM_ROLES),   // 메뉴 이름만 '대시보드'(사용자 11-19 저녁), id는 고정
       soon('준비 과제', '기관 정보 요약서'),
       soon('준비 과제', '제안서 제출 붙임서류'),
       soon('이사회', '이사회 자료 작성', '',

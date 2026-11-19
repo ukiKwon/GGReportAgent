@@ -28,7 +28,7 @@ test('nav 노출(사전준비): 영업팀·영업팀장·영업부장 예, 디�
     const it = find(ALL_ON, { role: role }, nav.PREP_ID);
     assert.ok(it, role);
     assert.strictEqual(nav.badgeOf(it), '');
-    assert.strictEqual(it.label, '제안서 사전준비 프로세스');
+    assert.strictEqual(it.label, '대시보드');   // 메뉴 이름 11-19 저녁
   });
   assert.strictEqual(find(ALL_ON, { role: '디자이너' }, nav.PREP_ID), null);
   assert.strictEqual(find(ALL_ON, { role: '영업팀', master: true }, nav.PREP_ID), null);

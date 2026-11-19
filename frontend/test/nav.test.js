@@ -213,7 +213,7 @@ test('3단 구조: 대분류 7개 이름·소속(시작화면 단독 + 정의 �
   nav.CATEGORIES.forEach(function (c) { by[c.id] = c.items.map(function (i) { return (i.sub || '') + '>' + i.label; }); });
   assert.deepStrictEqual(by.scan, ['기관>입찰 현황판', '기관>전국 지도', '기관>전국 지역별', '기관>기관 사업계획',
     '입찰 공고>입찰 공고 현황', '입찰 공고>공고 자동 수집']);
-  assert.deepStrictEqual(by.plan, ['준비 과제>제안서 사전준비 프로세스', '준비 과제>기관 정보 요약서', '준비 과제>제안서 제출 붙임서류',
+  assert.deepStrictEqual(by.plan, ['준비 과제>대시보드', '준비 과제>기관 정보 요약서', '준비 과제>제안서 제출 붙임서류',
     '이사회>이사회 자료 작성', '이사회>이사회 발표 대본']);
   assert.deepStrictEqual(by.manage, ['진행·결재>제안서 진행 현황', '진행·결재>결재함', '작성>작업함', '작성>제안팀 구성·배정',
     '작성>공동 작성·버전 관리', '검토·제출>내부 검토 의견', '검토·제출>최종 확인·제출']);
@@ -366,12 +366,12 @@ test('재편으로 지운 7개 라벨은 정의 어디에도 없다', function (
   assert.ok(!nav.CATEGORIES.some(function (c) { return c.id === 'write'; }));
 });
 
-test('PREP_ID: soon:사전준비로 고정, 영업 추진 준비(plan)의 제안서 사전준비 프로세스에 붙는다', function () {
+test('PREP_ID: soon:사전준비로 고정, 영업 추진 준비(plan)의 대시보드(옛 제안서 사전준비 프로세스)에 붙는다', function () {
   assert.strictEqual(nav.PREP_ID, 'soon:사전준비');
   const built = nav.build(ALL_ON, { role: '영업팀' });
   const it = items(built, 'plan').filter(function (i) { return i.id === nav.PREP_ID; })[0];
   assert.ok(it);
-  assert.strictEqual(it.label, '제안서 사전준비 프로세스');
+  assert.strictEqual(it.label, '대시보드');
   assert.strictEqual(it.sub, '준비 과제');
   assert.strictEqual(nav.categoryOf(built, nav.PREP_ID), 'plan');
 });
