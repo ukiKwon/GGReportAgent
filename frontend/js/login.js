@@ -29,6 +29,7 @@
   login.ACCOUNTS = [
     acct('sales.member', '3918264', '김영업', '영업팀', roles.MEMBER),
     acct('sales.lead', '5047192', '이영업', '영업팀', roles.LEAD),
+    acct('sales.lead2', '5640327', '안재원', '영업팀', roles.LEAD),   // 두 번째 영업팀장 — 개설 신청 '승인할 팀장' 칸 시험용(009 시드에 이미 있음, 11-19 저녁 fa)
     acct('sales.head', '2674805', '박영업', '영업팀', roles.HEAD),
     acct('designer', '7130526', '박디자이너', '영업팀', roles.DESIGNER),
     acct('it.member', '4482971', '권전산', '전산팀', roles.MEMBER),
