@@ -7,6 +7,7 @@
 1. **W47**: req-review 캡처(8080 필요 — mvn보다 먼저) → `docs/요구사항 파악/index_2026-11-20.html`, `docs/pm_history/index.html` W47·에이전트별 정리·이번 주 질문(문안: `handoff/agents/pm/2026-11-19_1612_adfb8b4e.md` 7·8절) → 커밋.
 2. **99 화면**(4~5단계 서버는 11-19 8f7451f로 끝): design-reviewer → frontend-dev → qa. 로컬 config/application.properties에 ggreport.minutes.enabled=true·require-verified=false 2줄(사용자).
 3. **100 S2(049)** 적용 → 사용자 049 로컬 적용 요청 → mvn → security → 커밋. PrepUiIds·PrepService는 fa 소유 — 필요한 diff는 fa에 요청.
+3-2. **05(NEXT 56 사업계획 수집 요청)**: 사용자 재확인(목록 3행 칩·[수집 요청] 위치·디자이너·현황판 칩·1280폭) → 작은 정리(CSV Enter 포커스·401 배지·삼항식·CLOSED_AT 인덱스) → 망 밖 agent 본체 설계(main과 파일 담당 나눔). 자세히 handoff/sessions/2026-11-19_1700_05.md.
 4. 0f 커밋 뒤: **⑥ 디자인 검토 화면 + 기관장 [Word 내려받기] 버튼**(design 규격 11-19 오후 → frontend → qa → design 대조 → design_history 장).
 4-1. 0d 서버 몫(11-19 저녁): 디자이너 기본 메뉴 scan·manage·tools, 재무팀 plan만(Menus.java 기본값·골든 /menus), 시험 계정 최디자이너→박디자이너(새 마이그레이션 052 UPDATE + 서버 시험 문자열 + 사용자 로컬 적용).
 5. 월: 95 부서 이름(fa·0f·05 커밋 뒤), 90 4단계, 100 S3(050, fa와 PrepService 협의)·S4, 97 lines_next·home_portal 감사(backend).
