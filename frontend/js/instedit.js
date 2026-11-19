@@ -409,10 +409,13 @@
     }
     if (showSched) html += ie.schedHtml(S.init, { local: local });
     if (registered) html += ie.statusHtml(rec, S.init);
-    if (registered && root.bankcontract) html += root.bankcontract.groupHtml();   // 금고 약정(NEXT 89): 운영 상태 다음, 기본 정보 앞
+    // opts.noBank: 기관 상세 팝업에서 연 편집 창 — 금고 약정은 상세 팝업 안에서 바로 고치므로 여기에는 넣지 않는다(fa 11-19 저녁)
+    const withBank = registered && !!root.bankcontract && !opts.noBank;
+    if (withBank) html += root.bankcontract.groupHtml();   // 금고 약정(NEXT 89): 운영 상태 다음, 기본 정보 앞
     html += ie.basicHtml(rec, { server: server });
     wrap.innerHTML = html;
-    S.bankCtl = registered && root.bankcontract ? root.bankcontract.attach({ wrap: wrap, rec: rec }) : null;
+    S.bankCtl = withBank ? root.bankcontract.attach({ wrap: wrap, rec: rec }) : null;
+    S.onClose = typeof opts.onClose === 'function' ? opts.onClose : null;   // 어떤 경로로 닫히든(닫기·Esc·저장 뒤·다시 열기) teardown 끝에 한 번
     const regionName = (root.render && root.render.REGION_NAME && root.render.REGION_NAME[rec.region]) || '';
     const subEl = document.getElementById('ie-sub');
     if (subEl) subEl.innerHTML = ie.subHtml(rec, regionName);
@@ -677,8 +680,10 @@
       if (S.bankCtl) { S.bankCtl.teardown(); S.bankCtl = null; }
       removeConfirm();
       modal.style.display = 'none';
-      wrap.innerHTML = '';
+      wrap.innerHTML = '';   // #ie-bank 등 id가 다음 창과 겹치지 않게 비운다
       if (cur === S) cur = null;
+      const done = S.onClose; S.onClose = null;   // 한 번만
+      if (done) { try { done(); } catch (err) { /* 호출 쪽 오류가 닫기를 막지 않는다 */ } }
     };
     document.addEventListener('keydown', onKey, true);
     modal.addEventListener('mousedown', onDown);

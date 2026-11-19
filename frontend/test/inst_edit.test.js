@@ -432,3 +432,11 @@ test('store: LOCAL_ONLY_FIELDS에서 확정 여부가 빠졌다(서버 칸)', fu
   const store = require('../js/store.js');
   assert.deepStrictEqual(store.LOCAL_ONLY_FIELDS, ['subRegion', 'contractExpiry', 'lng', 'lat', 'sources', 'updatedAt']);
 });
+
+test('ie.open opts(11-19 저녁 fa): noBank면 금고 약정 묶음을 넣지 않고, onClose는 teardown 끝에 한 번만, teardown은 칸을 비운다', function () {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', 'instedit.js'), 'utf8');
+  assert.ok(/const withBank = registered && !!root\.bankcontract && !opts\.noBank;/.test(src));
+  assert.ok(/if \(withBank\) html \+= root\.bankcontract\.groupHtml\(\);/.test(src) && /S\.bankCtl = withBank \?/.test(src));
+  assert.ok(/S\.onClose = typeof opts\.onClose === 'function' \? opts\.onClose : null;/.test(src));
+  assert.ok(/wrap\.innerHTML = '';[\s\S]{0,120}if \(cur === S\) cur = null;\s*const done = S\.onClose; S\.onClose = null;/.test(src));
+});
