@@ -622,13 +622,15 @@
     const it = rec ? dash.itemForRec(rec, ctx.today) : null;
     const sum = t.bank && typeof t.bank === 'object' ? t.bank : ((ctx.sumById && ctx.sumById[id]) || null);
     const due = kbb.dueOf(it), e = ctx.entries && ctx.entries[id], stage = e ? e.stage : -1, key = rec ? logic.instKey(rec) : '';
+    const ty = ctx.today instanceof Date ? ctx.today.getFullYear() : new Date().getFullYear();   // '예전' = 올해보다 앞선 해
+    const lastKb = sum && sum.kb_now !== 'KB' && sum.last_kb_year ? Number(sum.last_kb_year) : 0;
     const r = { id: id, key: key, fkey: key || ('id:' + id), rec: rec, it: it, out: !!out, name: (rec && rec.name) || String(t.institution_name || ''),
       regionName: dash.regionName((rec && rec.region) || t.region_code || ''),
       targetNo: t.target_no, revNo: t.rev_no, targetYear: t.target_year, tagCd: t.tag_cd || '', tagName: t.tag_name || kbb.TAG[t.tag_cd] || '',
       memo: String(t.memo || ''), ownerEmpNo: t.owner_emp_no || '', editorName: String(t.editor_name || ''), firstEditor: String(t.first_editor_name || ''),
       savedAt: String(t.saved_at || ''), empVerified: t.emp_verified === true, canCancel: !!t.can_cancel,
       due: due, bank: kbb.bankInfo(sum, rec, { lofin: ctx.lofin, today: ctx.today }),
-      prevYear: sum && sum.kb_now !== 'KB' && sum.last_kb_year ? Number(sum.last_kb_year) : 0,
+      prevYear: lastKb > 0 && lastKb < ty ? lastKb : 0,   // 올해 이후(미래 약정 포함)는 '예전 KB' 칩이 붙지 않는다. NaN도 0
       stage: stage, stageLabel: stage >= 0 ? ((dash.STAGES[stage] || {}).label || '') : '',
       act: stage >= 0 ? 'open' : (rec && ctx.actOf ? ctx.actOf(rec) : ''), late: null, hold: null,
       kind: t.kind_cd === 'WATCH' ? 'WATCH' : 'GOAL', closed: out ? null : kbb.closedOf(t.bid_closed), next: null, nextDate: '', movable: 0, note: null };

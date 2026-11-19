@@ -1735,34 +1735,35 @@
   .hb-top .meta b, .db-top .meta b { font-family:var(--mono); font-weight:400; color:var(--fg); }
   #hb-add { font-size:12px; padding:4px 12px; }
   /* 11-17 c51 목표 기관 중심 — 요약 띠(.hb-band) + 목표 표(.hb-tp, 12개월 일정이 마지막 열) + 접힌 협약 구획(#hb-ours). design-reviewer 11-17 acfdd5da 6-B */
-  .hb-band { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)) minmax(0,1.5fr); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r-lg,14px); }
+  .hb-band { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)) minmax(0,1.5fr); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); }
   .hb-k { min-width:0; min-height:84px; padding:12px 16px; border-left:1px solid var(--line); display:flex; flex-direction:column; gap:4px; }
   .hb-k:first-child { border-left:0; }
   .hb-k .l { font-size:12px; color:var(--muted); }
   .hb-k .v { font:700 16px var(--mono); color:var(--fg); }
   .hb-k .v span { margin-left:2px; font:400 12px "Malgun Gothic","Segoe UI",sans-serif; color:var(--muted); }
   .hb-k .v.hot { color:color-mix(in srgb, var(--red) 72%, var(--fg)); }   /* 본문색 쪽으로 섞는다 — 밝은 테마에서도 대비가 난다(세션 44 요청) */
-  .hb-k .s { font-size:11px; line-height:1.45; color:var(--muted); }
-  .hb-k .s b { font:400 11px var(--mono); color:var(--fg); }
-  .hb-bk { margin:2px 0 0; display:grid; grid-template-columns:auto minmax(0,1fr) 20px; gap:4px 8px; align-items:center; font-size:11px; color:var(--muted); }
+  .hb-k .s { font-size:12px; line-height:1.45; color:var(--muted); }
+  .hb-k .s b { font:400 12px var(--mono); color:var(--fg); }
+  .hb-bk { margin:2px 0 0; display:grid; grid-template-columns:auto minmax(0,1fr) 20px; gap:4px 8px; align-items:center; font-size:12px; color:var(--muted); }
   .hb-bk.two { grid-template-columns:auto minmax(0,1fr) 20px auto minmax(0,1fr) 20px; column-gap:8px; }   /* 은행 막대 4줄 이상이면 2단 — 띠가 커져 아래 구획이 화면 밖으로 밀리지 않게 */
   .hb-bk dt, .hb-bk dd { margin:0; min-width:0; }
   .hb-bk dd.tr { display:block; }
   .hb-bk .bar { display:block; height:8px; border-radius:2px; background:color-mix(in srgb, var(--fg) 22%, var(--panel)); border:1px solid color-mix(in srgb, var(--fg) 55%, var(--panel)); box-sizing:border-box; }
   .hb-bk .bar.k { background:var(--fg); border-color:var(--fg); }   /* 국민은행만 잉크 채움(와플 .k와 같은 말) — 새 색 없음 */
-  .hb-bk b { display:block; font:400 11px var(--mono); color:var(--fg); text-align:right; }
-  .hb-tp { display:flex; flex-direction:column; min-height:0; height:clamp(280px, calc(100vh - 296px), 960px); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r-lg,14px); overflow:hidden; }
+  .hb-bk b { display:block; font:400 12px var(--mono); color:var(--fg); text-align:right; }
+  .hb-tp { display:flex; flex-direction:column; min-height:0; height:clamp(280px, calc(100vh - 296px), 960px); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); overflow:hidden; }
   .hb-ts { flex:1; min-height:0; overflow:auto; }
   .hb-tt { width:100%; table-layout:fixed; border-collapse:separate; border-spacing:0; }
   .hb-tt col.c-nm { width:150px; } .hb-tt col.c-tag { width:166px; } .hb-tt col.c-due { width:120px; }   /* 열 폭(design 11-17 6-A): 구분 166('예전 KB')·마감까지 120('D+140 추정 지남')·현 금고 은행 124가 잘리지 않게, 일정 열은 나머지 */
   .hb-tt col.c-bank { width:124px; } .hb-tt col.c-stg { width:148px; } .hb-tt col.c-brf { width:56px; }
-  .hb-tt thead th { position:sticky; top:0; z-index:1; height:40px; padding:0 10px 7px; vertical-align:bottom; text-align:left; font-size:11px; font-weight:400; color:var(--muted);
-    background:color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter:blur(8px); border-bottom:1px solid var(--line-strong); }
+  .hb-tt thead th { position:sticky; top:0; z-index:1; height:40px; padding:0 10px 7px; vertical-align:bottom; text-align:left; font-size:12px; font-weight:700; white-space:nowrap; color:var(--muted);
+    background:var(--panel); border-bottom:1px solid var(--line-strong); }
+  .hb-tt thead th:nth-child(6) { padding-left:6px; padding-right:4px; }   /* 설명회(56px) 굵은 12px가 들어가게 */
   .hb-tt td, .hb-tt tbody th { height:40px; padding:0 10px; vertical-align:middle; text-align:left; font-size:12px; font-weight:400; border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .hb-tt td.mut, .hb-tt .mut { color:var(--muted); }
-  .hb-tt .hb-nm { all:unset; cursor:pointer; border-radius:4px; font-size:13px; font-weight:700; color:var(--fg); }
+  .hb-tt .hb-nm { all:unset; cursor:pointer; border-radius:var(--r); font-size:13px; font-weight:700; color:var(--fg); }
   .hb-tt span.hb-nm { cursor:default; }
-  .hb-tt .hb-nm .rg { margin-right:6px; font-size:11px; font-weight:400; color:var(--muted); }
+  .hb-tt .hb-nm .rg { margin-right:6px; font-size:12px; font-weight:400; color:var(--muted); }
   .hb-tt .hb-nm:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
   .hb-tt tbody tr:hover > * { background:color-mix(in srgb, var(--accent-color) 6%, var(--panel)); }
   .hb-tt tr.late > * { background:color-mix(in srgb, var(--red) 8%, var(--panel)); }       /* 상태 행 8% (18% Tint Rule) */
@@ -1775,7 +1776,7 @@
   .hb-cand { list-style:none; margin:10px 0 4px; padding:0; display:flex; flex-direction:column; gap:6px; max-width:560px; }   /* 버튼이 이름·종료일 가까이 서게 */
   .hb-cand li { display:flex; align-items:center; gap:10px; }
   .hb-cand .hb-tag { margin-left:auto; }
-  .hb-tag { display:inline-flex; align-items:center; gap:4px; min-height:24px; padding:2px 6px 2px 8px; font-size:11px; color:var(--fg); background:transparent; border:1px solid var(--line-strong); border-radius:6px; }
+  .hb-tag { display:inline-flex; align-items:center; gap:4px; min-height:24px; padding:2px 6px 2px 8px; font-size:12px; color:var(--fg); background:transparent; border:1px solid var(--line-strong); border-radius:var(--r); }
   .hb-tag svg { width:8px; height:8px; fill:none; stroke:var(--muted); stroke-width:1.4; }
   .hb-tag.add { border-style:dashed; padding:2px 8px; }
   .hb-tag.ro { border-color:var(--line-strong); cursor:default; padding:2px 8px; }   /* 보기 전용: span, ▾ 없음 */
@@ -1783,34 +1784,34 @@
   .hb-dd.hot { color:color-mix(in srgb, var(--red) 72%, var(--fg)); }
   .hb-dd.est { font-weight:400; color:var(--muted); }
   .hb-dd.tx { font-family:inherit; font-size:12px; }
-  .hb-q { margin-left:4px; font-size:11px; color:var(--muted); }
-  .hb-bank .r { margin-left:3px; font-size:11px; color:var(--muted); }
+  .hb-q { margin-left:4px; font-size:12px; color:var(--muted); }
+  .hb-bank .r { margin-left:3px; font-size:12px; color:var(--muted); }
   .hb-stg { display:flex; align-items:center; gap:6px; min-width:0; }
   .hb-stg .lb { min-width:0; overflow:hidden; text-overflow:ellipsis; }
   .hb-stg .hb-confirm { font-size:12px; padding:3px 10px; min-height:28px; }
-  .hb-stg .why { font-size:11px; color:var(--muted); white-space:nowrap; }
+  .hb-stg .why { font-size:12px; color:var(--muted); white-space:nowrap; }
   .hb-pg { flex:none; display:inline-block; width:30px; height:4px; border-radius:2px; background:var(--line-strong); overflow:hidden; }
   .hb-pg i { display:block; height:100%; background:var(--fg); }
-  .hb-stg .n { flex:none; font:400 11px var(--mono); color:var(--muted); }
-  .hb-late { flex:none; padding:0 6px; border-radius:6px; font-size:11px; color:color-mix(in srgb, var(--red) 72%, var(--fg)); border:1px solid var(--red); background:color-mix(in srgb, var(--red) 18%, transparent); }
+  .hb-stg .n { flex:none; font:400 12px var(--mono); color:var(--muted); }
+  .hb-late { flex:none; padding:0 6px; border-radius:var(--r); font-size:12px; color:color-mix(in srgb, var(--red) 72%, var(--fg)); border:1px solid var(--red); background:color-mix(in srgb, var(--red) 18%, transparent); }
   .hb-tt td.ln { position:relative; padding:0; }
   .hb-lane { position:absolute; inset:0; background:repeating-linear-gradient(to right, transparent 0 calc(100%/12 - 1px), var(--line) calc(100%/12 - 1px) calc(100%/12)); }
   .hb-lane .cur { position:absolute; top:0; bottom:0; left:0; width:calc(100%/12); background:color-mix(in srgb, var(--fg) 4%, transparent); }
   .hb-lane .now { position:absolute; top:0; bottom:0; border-left:1px dashed var(--muted); }   /* 오늘 — 틸 아님(One Teal Rule) */
-  .hb-lane .w { position:absolute; top:15px; height:10px; min-width:6px; border-radius:3px; background:color-mix(in srgb, var(--fg) 22%, var(--panel)); border:1px solid color-mix(in srgb, var(--fg) 55%, var(--panel)); box-sizing:border-box; }
+  .hb-lane .w { position:absolute; top:15px; height:10px; min-width:6px; border-radius:var(--r); background:color-mix(in srgb, var(--fg) 22%, var(--panel)); border:1px solid color-mix(in srgb, var(--fg) 55%, var(--panel)); box-sizing:border-box; }
   .hb-lane .w.hot { background:color-mix(in srgb, var(--red) 18%, var(--panel)); border-color:var(--red); }
   .hb-lane .w.est { background:repeating-linear-gradient(45deg, var(--line-strong) 0 1px, transparent 1px 4px); border:1px dashed var(--muted); }   /* 빗금 = 추정(DESIGN Shapes) */
   .hb-lane .w:not(.est)::after { content:""; position:absolute; right:-1px; top:-4px; bottom:-4px; width:2px; border-radius:1px; background:var(--fg); }   /* 접수 마감 눈금 */
   .hb-lane .w.hot::after { background:color-mix(in srgb, var(--red) 72%, var(--fg)); }
   .hb-lane .w.pl::after, .hb-lane .w.op::after { content:none; }   /* 공고 예정일(pl)·공고 중 마감 미상(op)은 접수 마감일이 아니라 눈금을 그리지 않는다 */
   .hb-lane .w.op { border-right-style:dashed; }                   /* 마감을 모르는 막대는 오른쪽 끝을 점선으로 연다 */
-  .hb-lane .off, .hb-lane .unk { position:absolute; top:12px; font-size:11px; color:var(--muted); white-space:nowrap; }
-  .hb-lane .off { right:6px; font-family:var(--mono); }
-  .hb-lane .unk { left:calc(100%/12 + 6px); }
+  .hb-lane .off, .hb-lane .unk { position:absolute; top:12px; font-size:12px; line-height:16px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }   /* 칸 밖으로 넘치면 말줄임 — 그림은 aria-hidden, 같은 뜻의 sr-only 문장이 있다 */
+  .hb-lane .off { right:6px; max-width:calc(100% - 12px); font-family:var(--mono); }
+  .hb-lane .unk { left:calc(100%/12 + 6px); max-width:calc(100% - 100%/12 - 12px); }
   .hb-lane .unk.before { left:calc(100%/12 + 6px); }   /* 오늘 점선(첫 달 안)과 '← 추정일 지남'이 겹치지 않게 첫 달 칸 밖에서 시작 */
-  .hb-tt .mh { display:grid; grid-template-columns:repeat(12, 1fr); font:400 11px var(--mono); }
+  .hb-tt .mh { display:grid; grid-template-columns:repeat(12, 1fr); font:400 12px var(--mono); }
   .hb-tt .mh span:first-child { color:var(--fg); }
-  .hb-tt .yr { display:block; margin-bottom:2px; font:400 11px var(--mono); }
+  .hb-tt .yr { display:block; margin-bottom:2px; font:400 12px var(--mono); }
   .hb-tt tr.grp th { height:32px; padding-top:6px; font-size:12px; color:var(--muted); background:var(--panel); }
   .hb-tt tr.grp b { font:400 12px var(--mono); color:var(--fg); }
   .hb-tf { flex:none; display:flex; align-items:center; gap:12px; padding:6px 16px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
@@ -1820,10 +1821,10 @@
   .hb-tf .sw.e { background:repeating-linear-gradient(45deg, var(--line-strong) 0 1px, transparent 1px 4px); border:1px dashed var(--muted); }
   .hb-tf .sw.t { width:0; height:10px; border-radius:0; border-left:1px dashed var(--muted); }
   .hb-tf button { margin-left:auto; font-size:12px; padding:3px 10px; }
-  .hb-menu { position:fixed; z-index:60; min-width:200px; padding:6px; display:flex; flex-direction:column; gap:2px; border:1px solid var(--line-strong); border-radius:12px; box-shadow:var(--shadow);
-    background:color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter:blur(12px); }
-  .hb-menu .mh { padding:4px 8px 6px; font-size:11px; color:var(--muted); }
-  .hb-menu button { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; padding:6px 8px; font-size:12px; text-align:left; color:var(--fg); background:transparent; border:0; border-radius:8px; transform:none; box-shadow:none; }
+  .hb-menu { position:fixed; z-index:60; min-width:200px; padding:6px; display:flex; flex-direction:column; gap:2px; border:1px solid var(--line-strong); border-radius:var(--r); box-shadow:var(--shadow);
+    background:var(--panel); }
+  .hb-menu .mh { padding:4px 8px 6px; font-size:12px; color:var(--muted); }
+  .hb-menu button { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; padding:6px 8px; font-size:12px; text-align:left; color:var(--fg); background:transparent; border:0; border-radius:var(--r); transform:none; box-shadow:none; }
   .hb-menu button:hover, .hb-menu button:focus-visible { background:color-mix(in srgb, var(--accent-color) 10%, transparent); transform:none; box-shadow:none; }
   .hb-menu button:focus-visible { outline:2px solid var(--accent-color); outline-offset:-2px; }
   .hb-menu .ck { width:10px; height:10px; fill:none; stroke:var(--fg); stroke-width:1.6; }
@@ -1838,7 +1839,7 @@
   .hb-dlg #hb-a-q, .hb-dlg #hb-a-memo, .hb-dlg #hb-c-etc { display:block; width:100%; margin-top:4px; box-sizing:border-box; }   /* 이름표는 위 한 줄(.tm-reason-row), 칸은 대화창 폭 전체 — 제안팀 구성 창 #tm-reason과 같게 */
   .hb-dlg:focus { outline:none; }   /* 저장 중에 포커스를 잠시 두는 상자(tabindex -1)라 링을 그리지 않는다 */
   .hb-tp:focus { outline:none; }    /* [다시 시도] 뒤 포커스를 돌려받는 표 영역(tabindex -1) */
-  .hb-res { list-style:none; margin:4px 0 0; padding:0; max-height:208px; overflow:auto; border:1px solid var(--line-strong); border-radius:8px; }
+  .hb-res { list-style:none; margin:4px 0 0; padding:0; max-height:208px; overflow:auto; border:1px solid var(--line-strong); border-radius:var(--r); }
   .hb-res:empty { display:none; }
   .hb-res li { padding:6px 10px; font-size:12px; cursor:pointer; border-bottom:1px solid var(--line); }
   .hb-res li:last-child { border-bottom:0; }
@@ -1846,7 +1847,7 @@
   .hb-res li[aria-disabled=true] { color:var(--muted); cursor:default; }
   .hb-res .nm { display:block; font-weight:700; color:var(--fg); }
   .hb-res li[aria-disabled=true] .nm { color:var(--muted); }
-  .hb-res .sub { display:block; font-size:11px; color:var(--muted); }
+  .hb-res .sub { display:block; font-size:12px; color:var(--muted); }
   /* 협약 중인 기관 팝업(11-17 c54, 규격 6-10) — 예전 접힌 구획의 내용(머리·와플·목록·각주)을 그대로 모달 상자에 옮김. 상자 폭·여백만 새로 */
   #hb-ours { width:min(720px, 92vw); max-height:84vh; padding:0; overflow:hidden; }
   #hb-ours:focus:not(:focus-visible) { outline:none; }
@@ -1865,7 +1866,7 @@
   .hb-brk { margin:0; font-size:12px; line-height:1.5; color:var(--muted); }
   .hb-brk b { font-family:var(--mono); font-weight:400; color:var(--fg); }
   .hb-waf { margin-top:auto; display:grid; grid-template-columns:auto minmax(0, 1fr); gap:4px 12px; align-items:end; }
-  .hb-waf .cap { grid-column:1 / -1; font-size:11px; color:var(--muted); }
+  .hb-waf .cap { grid-column:1 / -1; font-size:12px; color:var(--muted); }
   .hb-waf .db-state { grid-column:1 / -1; padding:0; }
   #hb-ours .waf { grid-template-columns:repeat(27, 6px); gap:2px; }
   #hb-ours .waf i { width:6px; height:6px; box-sizing:border-box; border-radius:1px; }
@@ -1896,7 +1897,7 @@
   .hb-row .nm { font-size:13px; font-weight:700; display:flex; gap:8px; align-items:center; flex-wrap:wrap; min-width:0; }
   /* 줄 오른쪽 위: 종료 D-n(크게). 183일 이하 빨강·365일 이하 주황·그 뒤 색 없음, 종료일 지남은 D+n 도장(기존 .ov-stamp), 숫자가 같은 뜻을 함께 전한다 */
   .hb-end { grid-column:2; grid-row:1; align-self:start; display:inline-flex; align-items:baseline; gap:6px; white-space:nowrap; }
-  .hb-end .l { font-size:11px; color:var(--muted); }
+  .hb-end .l { font-size:12px; color:var(--muted); }
   .hb-end b { font:700 16px/1.2 var(--mono); color:var(--fg); }
   .hb-end.urgent b { color:color-mix(in srgb, var(--red) 72%, var(--fg)); }
   .hb-end.soon b { color:color-mix(in srgb, var(--orange) 72%, var(--fg)); }
@@ -1907,7 +1908,7 @@
   .hb-row .meta .d { font-family:var(--mono); }
   .hb-row .news { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .hb-row .dg-day, .hb-row .ov-stamp, .hb-row .db-chip { align-self:start; font-size:12px; font-family:var(--mono); padding:1px 7px; }
-  .hb-slot { font-size:11px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:6px; padding:0 6px; }
+  .hb-slot { font-size:12px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:var(--r); padding:0 6px; }
   .hb-slot.hb-leaves { color:var(--fg); border-color:color-mix(in srgb, var(--red) 55%, var(--line-strong)); }   /* 2027년부터 다른 은행 — 지금은 맡고 있지만 곧 빠지는 곳 */
   .hb-slot.hb-stay { color:var(--fg); }   /* 다음도 국민은행 — '다음은 다른 은행'과 짝. 테두리는 기본(틸은 선택·포커스 전용, One Teal Rule) */
   .db-soon-tag { margin-left:8px; font-size:11px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:6px; padding:0 5px;
@@ -1918,9 +1919,9 @@
   .hb-band { grid-template-rows:auto auto; }
   .hb-stgs { grid-column:1 / -1; display:grid; grid-template-columns:88px repeat(5, minmax(0,1fr)); gap:6px; align-items:center; min-height:36px; padding:0 16px; border-top:1px solid var(--line); }
   .hb-stgs .l { font-size:12px; color:var(--muted); }
-  .hb-stgs .why { grid-column:2 / -1; font-size:11px; color:var(--muted); }
-  .hb-sb { position:relative; display:flex; align-items:baseline; gap:6px; min-width:0; height:28px; padding:0 8px; font-size:12px; color:var(--fg); background:transparent; border:1px solid var(--line-strong); border-radius:8px; }
-  .hb-sb .no { font:400 11px var(--mono); color:var(--muted); }
+  .hb-stgs .why { grid-column:2 / -1; font-size:12px; color:var(--muted); }
+  .hb-sb { position:relative; display:flex; align-items:baseline; gap:6px; min-width:0; height:28px; padding:0 8px; font-size:12px; color:var(--fg); background:transparent; border:1px solid var(--line-strong); border-radius:var(--r); }
+  .hb-sb .no { font:400 12px var(--mono); color:var(--muted); }
   .hb-sb .nm { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .hb-sb .ct { margin-left:auto; font:700 16px var(--mono); }
   .hb-sb::after { content:""; position:absolute; left:8px; bottom:3px; height:3px; width:calc((100% - 16px) * var(--p, 0)); border-radius:2px; background:color-mix(in srgb, var(--fg) 55%, var(--panel)); }
@@ -1940,8 +1941,8 @@
   .hb-tb .cnt b { font:400 12px var(--mono); color:var(--fg); }
   .hb-tb > button { font-size:12px; padding:3px 10px; }
   .hb-tb > button[hidden] { display:none; }
-  .hb-tb .hb-tag { font-size:11px; }
-  .hb-sort { all:unset; display:inline-flex; align-items:center; gap:4px; min-height:24px; cursor:pointer; border-radius:4px; }
+  .hb-tb .hb-tag { font-size:12px; }
+  .hb-sort { all:unset; display:inline-flex; align-items:center; gap:4px; min-height:24px; cursor:pointer; border-radius:var(--r); }
   .hb-sort svg { width:8px; height:8px; fill:none; stroke:var(--muted); stroke-width:1.4; }   /* 흐리게는 opacity 대신 muted(DESIGN) */
   .hb-tt th[aria-sort] .hb-sort { color:var(--fg); font-weight:700; }
   .hb-tt th[aria-sort] .hb-sort svg { stroke:currentColor; }
@@ -1954,12 +1955,12 @@
   .hb-cand2 h4 { margin:0 0 4px; font-size:12px; font-weight:400; color:var(--muted); }
   .hb-cand2 h4 b { font:400 12px var(--mono); color:var(--fg); }
   .hb-cand2 .hb-cand { max-width:none; margin:0; }
-  .hb-warn { margin-top:8px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; border:1px solid var(--orange); border-radius:8px; background:color-mix(in srgb, var(--orange) 8%, transparent); font-size:12px; color:var(--fg); }
+  .hb-warn { margin-top:8px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; border:1px solid var(--orange); border-radius:var(--r); background:color-mix(in srgb, var(--orange) 8%, transparent); font-size:12px; color:var(--fg); }
   .hb-warn p { margin:0; }
   .hb-warn .t { display:flex; align-items:center; gap:6px; font-weight:700; color:color-mix(in srgb, var(--orange) 72%, var(--fg)); }
   .hb-warn .t svg { width:12px; height:12px; }
   .hb-warn .acts { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
-  .hb-warn .go { font-size:11px; color:var(--muted); }
+  .hb-warn .go { font-size:12px; color:var(--muted); }
   .hb-warn.soft { border-color:var(--line-strong); background:transparent; }
   .hb-warn.soft .t { color:var(--fg); }
   /* 1279px 이하: 12개월 일정 열·범례를 숨긴다(날짜는 '마감까지' 열이 맡는다). 880px 이하: 요약 띠 2×2, 표는 안에서 가로 스크롤 */

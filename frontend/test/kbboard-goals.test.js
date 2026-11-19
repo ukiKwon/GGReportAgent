@@ -334,6 +334,11 @@ test('goalRowHtml: 추정·미상·예전 국민은행 표시·목표 밖 줄', 
   assert.ok(rowHtml(kbb.goalRow(tgt('IA', 'RETAIN'), ctx)).indexOf('hb-prev') < 0);                           // 재유치 도전은 표시 없음
   assert.ok(rowHtml(kbb.goalRow(tgt('IB', 'NEW', { bank: { kb_now: 'OTHER', lines_now: [] } }), ctx)).indexOf('hb-prev') < 0);   // 국민은행이었던 기록이 없으면 표시 없음
   assert.ok(rowHtml(kbb.goalRow(tgt('IB', 'NEW', { bank: { kb_now: 'KB', last_kb_year: 2026, lines_now: [] } }), ctx)).indexOf('hb-prev') < 0);   // 지금 국민은행이면 표시 없음
+  const yr = TODAY.getFullYear();
+  const prevOf = function (y) { return rowHtml(kbb.goalRow(tgt('IB', 'NEW', { bank: { kb_now: 'OTHER', last_kb_year: y, lines_now: [] } }), ctx)); };
+  assert.ok(prevOf(yr + 1).indexOf('hb-prev') < 0);   // 미래에 시작하는 국민은행 약정은 '예전'이 아니다(qa 11-19 P3)
+  assert.ok(prevOf(yr).indexOf('hb-prev') < 0);       // 올해는 '예전' 아님(올해보다 앞선 해만)
+  assert.ok(prevOf(yr - 1).indexOf('hb-prev') > 0);   // 지난해는 칩이 붙는다
   const unk = rowHtml(kbb.goalRow(tgt('IE', 'NEW'), ctx));
   assert.ok(unk.indexOf('<b class="hb-dd est tx">미상</b>') > 0 && unk.indexOf('<span class="unk">입찰 예정일 자료 없음</span>') > 0 && unk.indexOf('class="w') < 0);
   // 목표 밖(제안을 준비 중인 기관): 구분 칸에 [목표에 넣기], 보기 전용은 '목표 아님'

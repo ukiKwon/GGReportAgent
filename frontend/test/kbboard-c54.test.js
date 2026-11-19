@@ -314,7 +314,7 @@ test('소스 구조: 새 버튼 id·역할, 보안(서버 글 textContent·esc, 
   const html = src('index.html');
   const a = html.indexOf('/* 국민은행 상태 현황판(kbboard.js) 시작'), b = html.indexOf('/* 국민은행 상태 현황판 끝 */');
   const css = html.slice(a, b).replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.ok(/\.hb-stgs \{[^}]*grid-template-columns:88px repeat\(5, minmax\(0,1fr\)\)[^}]*border-top:1px solid var\(--line\)/.test(css) && /\.hb-sb \{[^}]*height:28px[^}]*border-radius:8px/.test(css));
+  assert.ok(/\.hb-stgs \{[^}]*grid-template-columns:88px repeat\(5, minmax\(0,1fr\)\)[^}]*border-top:1px solid var\(--line\)/.test(css) && /\.hb-sb \{[^}]*height:28px[^}]*border-radius:var\(--r\)/.test(css));
   assert.ok(/\.hb-sb::after \{[^}]*calc\(\(100% - 16px\) \* var\(--p, 0\)\)/.test(css) && /\.hb-sb\[aria-pressed=true\] \{[^}]*var\(--accent-color\) 13%/.test(css) && /\.hb-sb:disabled \{[^}]*color:var\(--muted\)/.test(css));
   assert.ok(/\.hb-tb \{[^}]*flex:none[^}]*padding:8px 12px[^}]*border-bottom:1px solid var\(--line\)/.test(css) && /\.hb-tb \.cnt \{ margin-left:auto;/.test(css));
   assert.ok(/\.hb-tb select\.on, \.hb-tb input\.on \{ border-color:color-mix\(in srgb, var\(--accent-color\) 55%, var\(--line-strong\)\); \}/.test(css));
