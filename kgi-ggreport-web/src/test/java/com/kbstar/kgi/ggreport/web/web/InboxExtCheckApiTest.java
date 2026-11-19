@@ -16,6 +16,8 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.util.AopTestUtils;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,6 +53,8 @@ public class InboxExtCheckApiTest {
     private static final String CSV_HEADER = "기관명,기관구분,지역코드,입찰주기,지난입찰일,입찰예상일";
 
     @Autowired private MockMvc mockMvc;
+    @Autowired private com.kbstar.kgi.ggreport.web.service.InboxService inbox;
+    @Autowired private com.kbstar.kgi.ggreport.web.service.ExtCheckQueryService extQuery;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private com.kbstar.kgi.ggreport.web.config.AppProperties props;
     private final ObjectMapper json = new ObjectMapper();
@@ -185,8 +189,8 @@ public class InboxExtCheckApiTest {
         assertEquals(1, body.path("passed").size());
         assertEquals(0, body.path("excluded").size());
         assertTrue(body.path("originals_deleted").asBoolean());
-        String stored = body.path("passed").get(0).path("files").get(0).path("stored_name").asText();
-        assertTrue(stored.endsWith("/c-0001_1.pdf"));
+        assertFalse("보관 이름은 응답에 싣지 않는다", res.getContentAsString().contains("stored_name"));
+        String stored = body.path("passed").get(0).path("check_key").asText() + "/c-0001_1.pdf";
         assertTrue(java.util.Arrays.equals(pdf, Files.readAllBytes(EXT.resolve(stored))));
         assertFalse(res.getContentAsString().contains(sha(pdf)));
         assertFalse(res.getContentAsString().contains("files/"));
@@ -226,9 +230,10 @@ public class InboxExtCheckApiTest {
         }
         assertTrue(res.getContentAsString(), fileHit && titleHit);
         assertEquals(1, extDirs());
-        assertFalse(res.getContentAsString().contains("5678"));
+        assertFalse(res.getContentAsString().contains("1234-5678") || res.getContentAsString().contains("12345678"));   // 무작위 키에 "5678"이 섞일 수 있어 번호 조각으로
         String archived = new String(Files.readAllBytes(BATCHES.resolve(BATCH_ID).resolve("manifest.json")), StandardCharsets.UTF_8);
-        assertFalse(archived, archived.contains("5678"));
+        // 키는 무작위 16진수라 "5678" 단독은 우연히 섞일 수 있다(11-19 flaky) — 번호 조각으로 본다
+        assertFalse(archived, archived.contains("1234-5678") || archived.contains("12345678"));
         assertTrue(archived.contains("\"excluded\":true"));
     }
 
@@ -425,7 +430,7 @@ public class InboxExtCheckApiTest {
 
         assertEquals(1, count("SELECT COUNT(*) FROM EXT_CHECK_EXCL WHERE CHECK_ID = 'c-0002' AND FILE_SEQ = 1 AND REASON_CD = 'PII_MOBILE'"));
         String excl = jdbc.queryForList("SELECT * FROM EXT_CHECK_EXCL").toString();
-        assertFalse(excl, excl.contains(ExtCheckFixtures.PHONE) || excl.contains("5678") || excl.contains("c-0002_1.pdf"));
+        assertFalse(excl, excl.contains(ExtCheckFixtures.PHONE) || excl.contains("12345678") || excl.contains("c-0002_1.pdf"));
         assertEquals(1, count("SELECT COUNT(*) FROM EXT_CHECK"));
     }
 
@@ -586,5 +591,68 @@ public class InboxExtCheckApiTest {
         assertEquals(1, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE = 'API' AND REQ_PATH = '/ext-checks/" + key + "/files/1' AND STATUS_CODE = 200 AND EMP_NO = '" + MEMBER + "'"));
         assertEquals(1, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE = 'API' AND REQ_PATH = '/ext-checks' AND STATUS_CODE = 200 AND DETAIL LIKE 'ext_check list%'") - listBefore);
         assertEquals(0, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE REQ_PATH LIKE '%institution_id%' OR DETAIL LIKE '%" + inst + "%'") - queryBefore);
+    }
+
+    // ── 서버 하 묶음(11-19, NEXT 90 하) ─────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void 같은_batch_id를_처리하는_중이면_409이고_아무것도_지우지_않으며_끝나면_풀린다() throws Exception {
+        Map<String, byte[]> files = new LinkedHashMap<String, byte[]>();
+        ObjectNode c = check("c-0001", INST, "금고 공고");
+        attach(c, files, "c-0001_1.pdf", ExtCheckFixtures.pdf(ExtCheckFixtures.PLAIN), null);
+        Path dir = makeBatch(root(c), files);
+        Map<String, Boolean> inFlight = (Map<String, Boolean>) ReflectionTestUtils.getField((Object) AopTestUtils.getUltimateTargetObject(inbox), "inFlight");
+        inFlight.put(BATCH_ID, Boolean.TRUE);                 // 다른 요청이 처리 중인 상황
+        try {
+            MockHttpServletResponse res = importAs(MEMBER);
+            assertEquals(res.getContentAsString(), 409, res.getStatus());
+            assertFalse(res.getContentAsString().contains(BATCH_ID) || res.getContentAsString().contains("files/"));
+            assertTrue(Files.isRegularFile(dir.resolve("files/c-0001_1.pdf")));      // 아무것도 지우지 않았다
+            assertEquals(0, (int) jdbc.queryForObject("SELECT COUNT(*) FROM EXT_CHECK", Integer.class));
+            assertEquals(0, extDirs());
+        } finally {
+            inFlight.remove(BATCH_ID);
+        }
+        assertEquals(200, importAs(MEMBER).getStatus());       // 풀리면 정상 처리
+        assertTrue("성공 뒤 잠금이 남지 않는다", inFlight.isEmpty());
+        assertEquals(404, importAs(MEMBER).getStatus());       // 보관으로 옮겨진 뒤 같은 id 는 404
+        assertTrue("실패(404) 뒤에도 잠금이 남지 않는다", inFlight.isEmpty());
+    }
+
+    @Test
+    public void 다운로드_슬롯이_없으면_429이고_본문과_키를_싣지_않는다() throws Exception {
+        importOnePdf();
+        String key = jdbc.queryForObject("SELECT CHECK_KEY FROM EXT_CHECK", String.class);
+        java.util.concurrent.Semaphore slots = (java.util.concurrent.Semaphore)
+                ReflectionTestUtils.getField((Object) AopTestUtils.getUltimateTargetObject(extQuery), "downloadSlots");
+        int n = com.kbstar.kgi.ggreport.web.service.ExtCheckQueryService.MAX_CONCURRENT_DOWNLOADS;
+        assertTrue(slots.tryAcquire(n));
+        try {
+            MockHttpServletResponse res = getAs("/ext-checks/" + key + "/files/1", MEMBER);
+            assertEquals(429, res.getStatus());
+            assertFalse(res.getContentAsString().contains("%PDF") || res.getContentAsString().contains(key));
+        } finally {
+            slots.release(n);
+        }
+        assertEquals(200, getAs("/ext-checks/" + key + "/files/1", MEMBER).getStatus());
+        assertEquals(n, slots.availablePermits());
+    }
+
+    @Test
+    public void 이력은_기관당_최근_20건만_주고_최신순이다() throws Exception {
+        importOnePdf();
+        String inst = jdbc.queryForObject("SELECT INSTITUTION_ID FROM EXT_CHECK", String.class);
+        for (int i = 0; i < 25; i++) {
+            jdbc.update("INSERT INTO EXT_CHECK (CHECK_KEY, INSTITUTION_ID, BATCH_ID, CHECK_ID, CHECKED_AT, SOURCE_KIND, SOURCE_SLUG, STATUS_CD, ERROR_CD, IMPORTED_AT)"
+                    + " VALUES (?, ?, '2026-11-18_0700_extcheck', ?, ?, 'notice', 'eminwon', 'error', 'timeout', '2026-11-18T08:00:00+09:00')",
+                    String.format("%032x", i + 1), inst, "L" + i, String.format("2026-11-18T07:%02d:00+09:00", i));
+        }
+        JsonNode b = json.readTree(getAs("/ext-checks?institution_id=" + java.net.URLEncoder.encode(inst, "UTF-8"), MEMBER).getContentAsString());
+        assertEquals(20, b.path("history").size());
+        assertEquals("2026-11-18T07:24:00+09:00", b.path("history").get(0).path("checked_at").asText());
+        assertEquals("2026-11-18T07:05:00+09:00", b.path("history").get(19).path("checked_at").asText());   // 꼬리까지 정확히 잘림
+        assertEquals(20, b.path("history_limit").asInt());
+        assertEquals("error 가 많아도 최신 found 는 그대로", "found", b.path("notice").path("status").asText());
     }
 }

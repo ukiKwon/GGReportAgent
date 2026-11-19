@@ -6,7 +6,6 @@ import com.kbstar.kgi.ggreport.web.domain.ExtCheckFile;
 import com.kbstar.kgi.ggreport.web.mapper.ExtCheckMapper;
 import com.kbstar.kgi.ggreport.web.mapper.InstitutionMapper;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
-import org.apache.ibatis.session.RowBounds;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +21,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
 import java.util.regex.Pattern;
 
 /**
@@ -38,6 +38,14 @@ public class ExtCheckQueryService {
     private static final Pattern SEQ_RE = Pattern.compile("[0-9]{1,3}");
     /** STORED_NAME = '<키>/<check_id>_<순번>.<확장자>' — 서버가 만든 형식만 읽는다. */
     private static final Pattern STORED_RE = Pattern.compile("[0-9a-f]{32}/[A-Za-z0-9_-]{1,40}_[0-9]{1,3}\\.(?:pdf|hwp|hwpx)");
+
+    /** 한 JVM 에서 동시에 읽는 다운로드 수(최악 4 × 20MiB). 초과는 429 — 자원 보호이지 사칭 방어가 아니다. */
+    public static final int MAX_CONCURRENT_DOWNLOADS = 4;
+    static final String BUSY = "다운로드 요청이 많습니다. 잠시 후 다시 시도해 주세요.";
+    private final Semaphore downloadSlots = new Semaphore(MAX_CONCURRENT_DOWNLOADS);
+
+    /** 시험용 — 슬롯을 비워 429 를 재현한다. */
+    Semaphore downloadSlots() { return downloadSlots; }
 
     private final ExtCheckMapper mapper;
     private final InstitutionMapper institutions;
@@ -69,9 +77,9 @@ public class ExtCheckQueryService {
         if (institutions.selectById(institutionId) == null) {
             throw ApiException.notFound("기관을 찾을 수 없습니다.");
         }
-        List<ExtCheck> latest = mapper.selectLatestResolved(institutionId, "notice", new RowBounds(0, 1));
+        List<ExtCheck> latest = mapper.selectLatestResolved(institutionId, "notice", 1);
         String lastError = mapper.selectLastErrorAt(institutionId, "notice");
-        List<ExtCheck> history = mapper.selectHistory(institutionId, new RowBounds(0, HISTORY_LIMIT));
+        List<ExtCheck> history = mapper.selectHistory(institutionId, HISTORY_LIMIT);
 
         List<String> keys = new ArrayList<String>();
         for (ExtCheck c : history) {
@@ -151,6 +159,17 @@ public class ExtCheckQueryService {
         if (checkKey == null || !KEY_RE.matcher(checkKey).matches() || seq == null || !SEQ_RE.matcher(seq).matches()) {
             throw ApiException.notFound(NOT_FOUND);
         }
+        if (!downloadSlots.tryAcquire()) {               // 기다리지 않는다 — 대기 중 DB 연결을 붙잡지 않게
+            throw new ApiException(429, BUSY);
+        }
+        try {
+            return read(checkKey, seq);
+        } finally {
+            downloadSlots.release();
+        }
+    }
+
+    private Download read(String checkKey, String seq) {
         ExtCheckFile f = mapper.selectFile(checkKey, Integer.parseInt(seq));
         if (f == null || f.getStoredName() == null || !STORED_RE.matcher(f.getStoredName()).matches()
                 || !f.getStoredName().startsWith(checkKey + "/")) {

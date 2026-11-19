@@ -96,7 +96,7 @@ public class InstitutionCommandService {
      */
     @Transactional
     public Institution update(String institutionId, InstitutionUpdateIn upd, Actor actor, BoardUiIds.Ui ui) {
-        Institution existing = mapper.selectById(institutionId);
+        Institution existing = mapper.selectByIdForUpdate(institutionId);   // 동시 저장 줄 세우기 — 이력 OLD_VAL 정합(security 11-15 L3)
         if (existing == null) {
             throw ApiException.notFound("institution not found");
         }
@@ -143,7 +143,7 @@ public class InstitutionCommandService {
     private String upsert(InstitutionImportRow row, Actor actor) {
         String existingId = mapper.selectIdByName(row.getNameKo());
         if (existingId != null) {
-            Institution before = mapper.selectById(existingId);   // 바뀌기 전 값 — 같은 트랜잭션
+            Institution before = mapper.selectByIdForUpdate(existingId);   // 바뀌기 전 값 — 같은 트랜잭션, 같은 행 잠금(updateFromImport 가 어차피 잠그는 행)
             mapper.updateFromImport(existingId, row, InstitutionEditRules.importDateChanged(before, row));
             if (before != null) {
                 editLogger.log(existingId, InstitutionEditRules.diffImport(before, row), actor, InstUiIds.csvImport());

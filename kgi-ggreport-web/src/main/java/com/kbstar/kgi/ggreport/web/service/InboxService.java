@@ -30,7 +30,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Stream;
 
 /**
@@ -53,6 +56,10 @@ public class InboxService {
     public static final long MAX_CSV_BYTES = 4L * 1024 * 1024;
     private static final int MAX_ERRORS_SHOWN = 20;
     private static final int MAX_ARCHIVE_COPIES = 999;
+
+    static final String BATCH_BUSY = "같은 배치를 처리하는 중입니다. 잠시 후 다시 시도해 주세요.";
+    /** 처리 중인 batch_id(소문자). 한 JVM 안에서만 직렬화한다 — DB UNIQUE·재반입 검사는 그대로 마지막 방어선. */
+    private final ConcurrentMap<String, Boolean> inFlight = new ConcurrentHashMap<String, Boolean>();
 
     private final InstitutionMapper institutions;
     private final InboxDbApplier dbApplier;
@@ -146,8 +153,19 @@ public class InboxService {
      * inbox 에 남아 사람이 고친 뒤 다시 부를 수 있고, DB 단계는 upsert 라 재실행이 안전하다.
      */
     public Object importBatch(String batchId) {
-        Path batchDir = resolveBatchDir(batchId);
+        resolveBatchDir(batchId);                                   // 형식 400 → 실재 404 가 잠금보다 먼저
+        String lockKey = batchId.toLowerCase(Locale.ROOT);          // Windows 폴더명은 대소문자를 가리지 않는다
+        if (inFlight.putIfAbsent(lockKey, Boolean.TRUE) != null) {
+            throw new ApiException(409, BATCH_BUSY);
+        }
+        try {
+            return importLocked(resolveBatchDir(batchId), batchId); // 잠근 뒤 다시 확인 — 먼저 끝난 요청이 옮겼으면 404
+        } finally {
+            inFlight.remove(lockKey);                               // 예외·422·500 어느 쪽이든 푼다
+        }
+    }
 
+    private Object importLocked(Path batchDir, String batchId) {
         List<String> errors = validationErrors(batchDir);
         if (!errors.isEmpty()) {
             throw ApiException.withDetail(422, Collections.singletonMap("errors", errors));

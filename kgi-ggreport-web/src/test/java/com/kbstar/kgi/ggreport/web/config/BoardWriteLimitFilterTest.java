@@ -187,4 +187,17 @@ public class BoardWriteLimitFilterTest {
         assertEquals(200, filter("POST", "/institutions/x/head/items", 1024, true).getStatus());
         assertTrue("16KB 안의 JSON 은 통과한다", lastPassed);
     }
+
+    @Test
+    public void 접근_이력_413_경로는_컨텍스트와_경로_매개변수를_뗀_값이다() throws Exception {
+        AccessLogService log = org.mockito.Mockito.mock(AccessLogService.class);
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/ggreport/institutions/x/head/photos;jsessionid=1");
+        req.setContextPath("/ggreport");
+        req.setContent(new byte[6 * 1024 * 1024 + 2]);
+        new BoardWriteLimitFilter(log, 5).doFilter(req, new MockHttpServletResponse(), new MockFilterChain());
+        org.mockito.Mockito.verify(log).record(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("API"),
+                org.mockito.ArgumentMatchers.eq("POST"), org.mockito.ArgumentMatchers.eq("/institutions/x/head/photos"),
+                org.mockito.ArgumentMatchers.eq(413), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
 }

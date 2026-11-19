@@ -273,8 +273,7 @@ public class ExtCheckImporter {
                 Files.copy(s.file, dir.resolve(stored));
                 Map<String, Object> f = new LinkedHashMap<String, Object>();
                 f.put("seq", s.seq);
-                f.put("stored_name", key + "/" + stored);
-                f.put("ext", s.ext);
+                f.put("ext", s.ext);              // 보관 이름은 응답에 싣지 않는다 — 열람은 check_key + seq (/ext-checks/{key}/files/{seq})
                 files.add(f);
                 fileRows.add(new ExtCheckFile(key, s.seq, s.ext, key + "/" + stored, s.sha, s.size));
             }
@@ -285,7 +284,7 @@ public class ExtCheckImporter {
         p.put("check_key", key);
         p.put("files", files);
         passed.add(p);
-        archived.add(sanitized(check, key, files));
+        archived.add(sanitized(check, key, fileRows));
         saves.add(toRow(check, key, institutionId, batchId, checkId, now, fileRows));
     }
 
@@ -468,7 +467,7 @@ public class ExtCheckImporter {
 
     // ── 보관 manifest(화이트리스트 복사 — 모르는 필드는 버린다) ─────────
 
-    private static ObjectNode sanitized(JsonNode check, String key, List<Map<String, Object>> files) {
+    private static ObjectNode sanitized(JsonNode check, String key, List<ExtCheckFile> files) {
         ObjectNode o = JSON.createObjectNode();
         o.put("check_id", check.path("check_id").asText());
         o.put("check_key", key);
@@ -511,10 +510,10 @@ public class ExtCheckImporter {
             }
         }
         ArrayNode st = o.putArray("stored");
-        for (Map<String, Object> f : files) {
+        for (ExtCheckFile f : files) {
             ObjectNode s = st.addObject();
-            s.put("seq", ((Integer) f.get("seq")).intValue());
-            s.put("name", String.valueOf(f.get("stored_name")));
+            s.put("seq", f.getFileSeq());
+            s.put("name", f.getStoredName());      // 보관 manifest 는 batches/ 안의 파일이라 API 응답이 아니다 — 기존 내용 그대로
         }
         return o;                                  // attachments·reported_*·sha256·size 는 담지 않는다(자기신고, 원본은 삭제)
     }

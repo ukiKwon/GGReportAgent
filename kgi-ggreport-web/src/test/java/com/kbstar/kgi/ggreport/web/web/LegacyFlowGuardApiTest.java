@@ -94,7 +94,8 @@ public class LegacyFlowGuardApiTest {
         if (dirs != null) {
             for (java.io.File d : dirs) {
                 String n = d.getName();
-                if ("test".equals(n) || "target".equals(n)) {
+                // %programdata% 류: 회사 PC 감시 프로그램이 환경변수를 못 풀고 만드는 로그 폴더(.gitignore, 11-19) — 정적 폴더가 아니다
+                if ("test".equals(n) || "target".equals(n) || n.startsWith("%")) {
                     continue;
                 }
                 assertTrue("frontend/" + n + " 가 정적 폴더 목록에 없다", StaticCacheFilter.isStaticPath("/" + n + "/x.js"));

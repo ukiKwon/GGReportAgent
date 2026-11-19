@@ -114,3 +114,7 @@ corpus/ext_check/
 # 서버를 kgi-ggreport-web/ 에서 띄우면 상대경로가 그 아래에 생긴다 — 어느 깊이든 막는다(security 11-17 PUSH-GATE).
 **/inbox/*extcheck*/
 **/ext_check/
+
+# 회사 PC 감시 프로그램(Geni Insights)이 환경변수를 못 풀고 만드는 로그 폴더 — 사용자 11-19 삭제·무시
+%programdata%/
+**/%programdata%/

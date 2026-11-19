@@ -1,6 +1,11 @@
 package com.kbstar.kgi.ggreport.web.web;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataRetrievalFailureException;
 import org.springframework.http.ResponseEntity;
 
@@ -9,6 +14,7 @@ import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /** 조치 D — 운영(일반화)과 개발(원문) 두 모드. */
@@ -114,5 +120,44 @@ public class ApiExceptionHandlerTest {
         ResponseEntity<Map<String, Object>> r = new ApiExceptionHandler(true)
                 .handleUnexpected(new IllegalStateException("boom"));
         assertTrue(String.valueOf(detail(r)).contains("boom"));
+    }
+
+    @Test
+    public void 처리되지_않은_예외_로그는_한_줄이고_메시지와_스택이_없다() {
+        Logger lg = (Logger) LoggerFactory.getLogger(ApiExceptionHandler.class);
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        Level old = lg.getLevel();
+        lg.setLevel(Level.DEBUG);
+        lg.addAppender(logs);
+        try {
+            ResponseEntity<Map<String, Object>> r = new ApiExceptionHandler(false).handleUnexpected(
+                    new DataRetrievalFailureException("ORA-00942: table SECRET_T", new IllegalStateException("jdbc:oracle:thin:@//10.0.0.1")));
+            String ref = r.getHeaders().getFirst("X-Error-Ref");
+            assertEquals(8, ref.length());
+            ILoggingEvent error = null, debug = null;
+            for (ILoggingEvent e : logs.list) {
+                if (e.getLevel() == Level.ERROR) error = e;
+                if (e.getLevel() == Level.DEBUG) debug = e;
+            }
+            String line = error.getFormattedMessage();
+            assertTrue(line, line.contains("ref=" + ref));
+            assertFalse(line, line.contains("\n"));
+            assertFalse(line, line.contains("ORA-00942") || line.contains("SECRET_T") || line.contains("10.0.0.1"));
+            assertTrue(line, line.contains(" at com.kbstar.") && line.contains("root=java.lang.IllegalStateException"));
+            assertNull("ERROR 줄에는 스택이 없다", error.getThrowableProxy());
+            assertTrue("스택은 DEBUG 줄에만", debug.getThrowableProxy() != null && debug.getFormattedMessage().contains(ref));
+        } finally {
+            lg.detachAppender(logs);
+            lg.setLevel(old);
+            logs.stop();
+        }
+    }
+
+    @Test
+    public void oneLine은_원인이_없으면_root를_붙이지_않는다() {
+        String s = ApiExceptionHandler.oneLine(new IllegalArgumentException("secret"));
+        assertTrue(s.startsWith("java.lang.IllegalArgumentException"));
+        assertFalse(s.contains("secret") || s.contains("root="));
     }
 }

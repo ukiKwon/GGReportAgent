@@ -23,6 +23,8 @@ public interface InstitutionMapper {
 
     /** {@code get_institution}. 없으면 null. */
     Institution selectById(@Param("institutionId") String institutionId);
+    /** 저장 직전에 바뀌기 전 값을 읽는다(FOR UPDATE — 같은 기관의 동시 저장이 줄을 서서 이력 OLD_VAL 이 어긋나지 않게). 같은 트랜잭션 안에서만 쓴다. */
+    Institution selectByIdForUpdate(@Param("institutionId") String institutionId);
 
     /** {@code find_id_by_name} — 반입·기관추가의 중복 판정 키다. */
     String selectIdByName(@Param("nameKo") String nameKo);

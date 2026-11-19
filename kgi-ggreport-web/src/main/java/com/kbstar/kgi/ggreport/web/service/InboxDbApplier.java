@@ -88,7 +88,7 @@ public class InboxDbApplier {
     private String upsertInstitution(InstitutionImportRow row) {
         String existingId = institutions.selectIdByName(row.getNameKo());
         if (existingId != null) {
-            com.kbstar.kgi.ggreport.web.domain.Institution before = institutions.selectById(existingId);   // 바뀌기 전 값(같은 트랜잭션)
+            com.kbstar.kgi.ggreport.web.domain.Institution before = institutions.selectByIdForUpdate(existingId);   // 바뀌기 전 값(같은 트랜잭션, 행 잠금 — 동시 저장 OLD_VAL 정합, security 11-19)
             institutions.updateFromImport(existingId, row, InstitutionEditRules.importDateChanged(before, row));
             if (before != null) {   // 보안 검토 B3 — 반입이 바꾼 칸도 이력에 남긴다(사번 없는 배치라 actor=null)
                 editLogger.log(existingId, InstitutionEditRules.diffImport(before, row), null, InstUiIds.inboxApply());

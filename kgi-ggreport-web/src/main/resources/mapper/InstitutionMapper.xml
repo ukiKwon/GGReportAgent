@@ -59,6 +59,14 @@
      WHERE INSTITUTION_ID = #{institutionId}
   </select>
 
+  <!-- 양쪽 방언 같은 문장. 조인·집계 없이 한 행 FOR UPDATE(Oracle 제약). flushCache — 같은 트랜잭션의 앞선 결과를 재사용하지 않는다(security 11-15 L3). -->
+  <select id="selectByIdForUpdate" resultMap="institution" flushCache="true">
+    SELECT <include refid="columns"/>
+      FROM INSTITUTIONS
+     WHERE INSTITUTION_ID = #{institutionId}
+       FOR UPDATE
+  </select>
+
   <select id="selectIdByName" resultType="string">
     SELECT INSTITUTION_ID
       FROM INSTITUTIONS

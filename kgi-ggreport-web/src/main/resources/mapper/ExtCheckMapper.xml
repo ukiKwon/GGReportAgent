@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!-- EXT_CHECK·EXT_CHECK_FILE·EXT_CHECK_EXCL — 042. 양쪽 방언 같은 문장(ANSI), 페이징은 RowBounds. resultMap 명시(InstitutionMapper.xml 이유). 조회는 flushCache.
+<!-- EXT_CHECK·EXT_CHECK_FILE·EXT_CHECK_EXCL — 042. 양쪽 방언 같은 문장(ANSI), 단 조회 두 곳(selectLatestResolved·selectHistory)은 databaseId 쌍(MySQL LIMIT·Oracle 11g ROWNUM 래핑). resultMap 명시(InstitutionMapper.xml 이유). 조회는 flushCache.
      INSERT 만 — UPDATE·DELETE 문장은 일부러 없다. -->
 <mapper namespace="com.kbstar.kgi.ggreport.web.mapper.ExtCheckMapper">
 
@@ -63,10 +63,27 @@
     SELECT COUNT(*) FROM EXT_CHECK_EXCL WHERE BATCH_ID = #{batchId}
   </select>
 
-  <select id="selectLatestResolved" resultMap="check" flushCache="true">
+  <!-- ⚠️ selectLatestResolved·selectHistory 는 databaseId 한 쌍이다 — 한쪽만 고치지 말 것(MapperStatementBindingTest·ExtCheckLimitSqlTest).
+       Oracle 은 11g 라 FETCH FIRST 를 쓰지 않는다: 정렬을 안쪽에서 끝내고 ROWNUM 은 바깥에서 건다. -->
+  <sql id="latestResolvedBody">
     SELECT <include refid="checkCols"/> FROM EXT_CHECK
      WHERE INSTITUTION_ID = #{institutionId} AND SOURCE_KIND = #{sourceKind} AND STATUS_CD IN ('found', 'not_found')
      ORDER BY CHECKED_AT DESC, IMPORTED_AT DESC, CHECK_KEY
+  </sql>
+  <sql id="historyBody">
+    SELECT <include refid="checkCols"/> FROM EXT_CHECK
+     WHERE INSTITUTION_ID = #{institutionId}
+     ORDER BY CHECKED_AT DESC, IMPORTED_AT DESC, CHECK_KEY
+  </sql>
+
+  <select id="selectLatestResolved" databaseId="mysql" resultMap="check" flushCache="true">
+    <include refid="latestResolvedBody"/>
+     LIMIT #{limit}
+  </select>
+  <select id="selectLatestResolved" databaseId="oracle" resultMap="check" flushCache="true">
+    SELECT * FROM (
+    <include refid="latestResolvedBody"/>
+    ) WHERE ROWNUM &lt;= #{limit}
   </select>
 
   <select id="selectLastErrorAt" resultType="string" flushCache="true">
@@ -74,10 +91,14 @@
      WHERE INSTITUTION_ID = #{institutionId} AND SOURCE_KIND = #{sourceKind} AND STATUS_CD = 'error'
   </select>
 
-  <select id="selectHistory" resultMap="check" flushCache="true">
-    SELECT <include refid="checkCols"/> FROM EXT_CHECK
-     WHERE INSTITUTION_ID = #{institutionId}
-     ORDER BY CHECKED_AT DESC, IMPORTED_AT DESC, CHECK_KEY
+  <select id="selectHistory" databaseId="mysql" resultMap="check" flushCache="true">
+    <include refid="historyBody"/>
+     LIMIT #{limit}
+  </select>
+  <select id="selectHistory" databaseId="oracle" resultMap="check" flushCache="true">
+    SELECT * FROM (
+    <include refid="historyBody"/>
+    ) WHERE ROWNUM &lt;= #{limit}
   </select>
 
   <select id="selectFilesByKeys" resultMap="file" flushCache="true">
