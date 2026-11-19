@@ -17,7 +17,11 @@
         root.store.setServerData(root.serverdata.applyBidCases(merged, res[1]));
       });
     }).catch(function () { /* 폴백 — 아무것도 하지 않음 */ })
-      .then(function () { if (app.applyServerModeUI) app.applyServerModeUI(); });
+      .then(function () {
+        if (app.applyServerModeUI) app.applyServerModeUI();
+        // 시작화면이 기관 목록보다 먼저 열렸으면(빠른 로그인·새로고침 복원) 서버 모드가 아니라고 보고 '로그인과 서버 연결이 필요합니다'로 굳는다 — 목록이 온 뒤 다시 불러온다(11-19 실측)
+        if (root.portal && root.portal.onDataReady) root.portal.onDataReady();
+      });
   };
 
   app.enterRegion = function (code) {
@@ -67,7 +71,7 @@
       if (el) el.style.display = mapControls ? '' : 'none';
     });
     if (app.syncNavActive) app.syncNavActive(tab);
-    if (tab !== 'soon' && root.portal && root.portal.unmount) root.portal.unmount();   // 첫 화면을 떠나면 구독·요청을 거둔다(soon 안 다른 화면은 showSoon이 처리)
+    if (tab !== 'soon' && root.portal && root.portal.unmount) root.portal.unmount();   // 시작화면을 떠나면 구독·요청을 거둔다(soon 안 다른 화면은 showSoon이 처리)
     if (tab === 'regions') { root.render.drawRegionGrid(); root.render.drawPinBar(); }
     else if (tab === 'map') { root.render.applyWatchStyles(); }
     // 탭을 벗어나면 폴링·스트림을 멈춘다(백그라운드에서 계속 돌지 않게).
@@ -139,7 +143,7 @@
       const btn = document.querySelector('.tab-btn[data-tab="' + back + '"]');
       if (btn) btn.click();
     }
-    applyHome();
+    applyHome(!(serverMode && menus === null));   // 서버 모드에서 권한 응답을 못 받았으면(menus=null) 시작화면 판정을 미룬다 — 항목이 아직 없어 못 여는 것이라 pending을 소모하지 않는다
   };
 
   // 모달 탈출구 — 배경 클릭 / Esc. 버튼이 화면 밖으로 밀리는 등 어떤 이유로든
@@ -232,14 +236,15 @@
     app.loadAccountSwitcher();
   };
 
-  let lastRecorded = null;   // 접근 이력 연속 기록 방지용 — 계정이 바뀌거나 로그아웃하면 비워 새 계정의 첫 화면도 기록한다
+  let lastRecorded = null;   // 접근 이력 연속 기록 방지용 — 계정이 바뀌거나 로그아웃하면 비워 새 계정의 시작화면도 기록한다
   // 프로필이 바뀌면 그 값을 쓰는 화면들을 따라 갱신한다.
   app.onProfileChanged = function () {
     lastRecorded = null;
     if (root.headcard && root.headcard.onProfileChange) root.headcard.onProfileChange();   // 앞 사용자가 읽은 기관장 카드·사진·모달을 버린다
     if (root.dashboard && root.dashboard.closeDetail) root.dashboard.closeDetail(false);   // 앞 사용자가 연 지도 상세 팝업(기관장 카드 포함)을 닫는다
     if (root.kbboard && root.kbboard.onProfileChange) root.kbboard.onProfileChange();      // 앞 사용자의 준비 중 제안·단계 집계를 버린다
-    if (root.portal && root.portal.onProfileChange) root.portal.onProfileChange();         // 첫 화면의 결재·약정·배정 응답도 앞 사용자의 것을 버린다
+    if (root.portal && root.portal.onProfileChange) root.portal.onProfileChange();         // 시작화면의 결재·약정·배정 응답도 앞 사용자의 것을 버린다
+    if (root.dashboard && root.dashboard.onProfileChange) root.dashboard.onProfileChange();   // 입찰 공고 현황의 고른 기관·검색·거르기도 앞 사용자의 것을 버린다
     if (root.notify && root.notify.onProfileChange) root.notify.onProfileChange();
     if (root.approvals && root.approvals.onProfileChange) root.approvals.onProfileChange();
     if (root.myinfo && root.myinfo.onProfileChange) root.myinfo.onProfileChange();
@@ -367,7 +372,7 @@
         root.render.drawTicker();
         if (root.dashboard && root.dashboard.refresh) root.dashboard.refresh();   // 입찰 공고 현황이 열려 있으면 다시 그린다
         if (root.kbboard && root.kbboard.refresh) root.kbboard.refresh();         // 입찰 현황판도 같다
-        if (root.portal && root.portal.refresh) root.portal.refresh();            // 첫 화면의 숫자·표도 같다
+        if (root.portal && root.portal.refresh) root.portal.refresh();            // 시작화면의 숫자·표도 같다
       },
     }));
   };
@@ -537,13 +542,13 @@
     const dashReady = isDash && !!(root.kbboard && root.kbboard.mount);   // 본체(국민은행 상태, kbboard.js)가 아직 없으면 안내만 보인다
     const isNotice = !!(root.nav && itemId === root.nav.NOTICE_ID);        // 입찰 공고 현황 = 전국 공고 목록(dashboard.js, #notice-root)
     const noticeReady = isNotice && !!(root.dashboard && root.dashboard.mount);
-    const isHome = !!(root.nav && itemId === root.nav.HOME_ID);             // 첫 화면 = 로그인 뒤 포털(portal.js, #pt-root)
+    const isHome = !!(root.nav && itemId === root.nav.HOME_ID);             // 시작화면 = 로그인 뒤 포털(portal.js, #pt-root)
     const homeReady = isHome && !!(root.portal && root.portal.mount);
     if (isDash && !dashReady) {
       document.getElementById('soon-note').textContent = '입찰 현황판은 준비 중입니다.';
     }
     if (isHome && !homeReady) {
-      document.getElementById('soon-note').textContent = '첫 화면은 준비 중입니다.';
+      document.getElementById('soon-note').textContent = '시작화면은 준비 중입니다.';
     }
     document.getElementById('soon-plain').style.display = (isBoard || isTeam || isPrep || dashReady || isPlans) ? 'none' : '';
     document.getElementById('bd-root').style.display = isBoard ? '' : 'none';
@@ -554,7 +559,7 @@
     const noticeEl = document.getElementById('notice-root');
     if (noticeEl) noticeEl.style.display = noticeReady ? '' : 'none';
     if (noticeReady) document.getElementById('soon-plain').style.display = 'none';   // (soon-plain 숨김 한 줄에 noticeReady를 섞지 않는다 — isPlans 줄 보존)
-    if (homeReady) document.getElementById('soon-plain').style.display = 'none';     // 첫 화면도 같다
+    if (homeReady) document.getElementById('soon-plain').style.display = 'none';     // 시작화면도 같다
     const plansEl = document.getElementById('plans-root');
     if (plansEl) plansEl.style.display = isPlans ? '' : 'none';
     const homeEl = document.getElementById('pt-root');
@@ -568,28 +573,44 @@
     if (noticeReady && noticeEl) root.dashboard.mount(noticeEl);
     if (isPlans && plansEl) root.plans.mount(plansEl);
     if (homeReady && homeEl) root.portal.mount(homeEl);
-    else if (root.portal && root.portal.unmount) root.portal.unmount();   // 첫 화면이 아닌 준비중 화면으로 옮기면 해제
+    else if (root.portal && root.portal.unmount) root.portal.unmount();   // 시작화면이 아닌 준비중 화면으로 옮기면 해제
   };
 
-  // 로그인(또는 세션이 있는 채로 다시 연 첫 그림) 뒤 첫 화면 — 포털이 보이는 대상 역할(영업 계열·디자이너)이고 아직 지도만 보고 있으면 첫 화면(포털).
+  // 로그인(또는 세션이 있는 채로 다시 연 첫 그림) 뒤 시작화면 — 포털이 보이는 대상 역할(영업 계열·디자이너·전산팀)이고 아직 지도만 보고 있으면 시작화면(포털).
   // 본체(root.portal.mount)가 없으면 지금처럼 지도에 둔다. 메뉴 권한이 도착해 항목이 생긴 첫 시점에 한 번만 적용한다.
   let pendingHome = false;
-  let overduePending = null;   // 첫 화면이 열릴 것으로 보고 미뤄 둔 경과 요약 팝업 인자 — 첫 화면이 안 열리면 그때 띄운다
+  let overduePending = null;   // 시작화면이 열릴 것으로 보고 미뤄 둔 경과 요약 팝업 인자 — 시작화면이 안 열리면 그때 띄운다
   function flushOverdue() {
     const a = overduePending;
     overduePending = null;
     if (a && root.overdue && root.overdue.onLogin) root.overdue.onLogin(a.ctx, a.id);
   }
-  function applyHome() {
+  function applyHome(settled) {
     if (!pendingHome || !root.nav) return;
     if (!root.store.loadSession()) return;   // 로그인 화면 뒤에서는 아직 기다린다
+    if (settled === false) { flushOverdue(); return; }   // 권한 응답 실패: 시작화면은 다음 성공 응답까지 기다리고, 경과 팝업만 먼저 띄운다(영원히 미뤄지지 않게)
     pendingHome = false;
     if (!(root.portal && root.portal.mount)) { flushOverdue(); return; }
     const id = root.nav.homeItemId(navBuilt, navActiveId, navTabs, navContext());
     const item = id ? findNavItem(id) : null;
     if (item) { navHoming = true; try { openNavItem(item); } finally { navHoming = false; } }
-    flushOverdue();   // 첫 화면이 열린 '뒤에' 경과 팝업을 띄운다(사용자 11-16, design P1-2) — 열기 전에 띄우면 팝업 뒤에서 화면이 바뀌어 포커스가 엇갈린다
+    flushOverdue();   // 시작화면이 열린 '뒤에' 경과 팝업을 띄운다(사용자 11-16, design P1-2) — 열기 전에 띄우면 팝업 뒤에서 화면이 바뀌어 포커스가 엇갈린다
   }
+
+  // 로그아웃·로그인 때 화면을 처음(지도 한 장)으로 되돌린다(사용자 11-19: 앞 계정의 탭·화면이 다음 계정에 이어지던 버그).
+  // 내 정보 저장·계정 전환기(onProfileChanged)에는 걸지 않는다 — 같은 사람이 설정을 고칠 때 열어 둔 탭을 닫으면 안 된다.
+  app.resetScreens = function () {
+    if (root.overdue && root.overdue.closePopup) root.overdue.closePopup(false);
+    if (root.dashboard && root.dashboard.closeDetail) root.dashboard.closeDetail(false);
+    document.querySelectorAll('.modal-overlay').forEach(function (ov) { ov.style.display = 'none'; });
+    overduePending = null; navHoming = false;
+    ['portal', 'kbboard', 'dashboard', 'plans'].forEach(function (k) { const m = root[k]; if (m && m.unmount) m.unmount(); });
+    if (root.render && root.render.clearSelection) root.render.clearSelection();   // 앞 계정이 지도에서 고른 기관 링·순위 카드 강조도 지운다(qa P3-3)
+    if (root.render && root.render.state && root.render.state.currentRegion && app.backToNational) app.backToNational();
+    navTabs = []; navActiveId = null;
+    const mapBtn = document.getElementById('tab-btn-map');
+    if (mapBtn) mapBtn.click();   // 지도 탭으로 — onTabChange → syncNavActive가 탭을 [지도] 하나로 다시 채운다
+  };
 
   // 화면이 바뀔 때마다(어느 경로든) 불린다: 활성 항목 갱신 → 탭 보관 → 그 카테고리만 열기.
   app.syncNavActive = function (tab) {
@@ -597,7 +618,7 @@
     const item = navActiveId ? findNavItem(navActiveId) : null;
     if (item) {
       navTabs = root.nav.openTab(navTabs, item, navActiveId).tabs;   // 가득 찼으면 보관만 건너뛴다
-      const cat = root.nav.accordionOf(navBuilt, navActiveId);      // 단독 항목(첫 화면)은 null — 다른 분류의 열림을 닫지 않는다
+      const cat = root.nav.accordionOf(navBuilt, navActiveId);      // 단독 항목(시작화면)은 null — 다른 분류의 열림을 닫지 않는다
       navOpen = root.nav.navigatedOpen(navOpen, cat, navHoming);   // 저장은 하지 않는다(사용자가 직접 펼치거나 접을 때만)
       openCat = navOpen.open;
     }
@@ -654,6 +675,16 @@
   };
   app.findNavItem = findNavItem;   // overdue.js 팝업이 '입찰 공고 현황 메뉴가 보이는가'를 판정한다(영업 계열 밖은 지도로 떨어짐)
 
+  // 머리 띠 제목 '기관영업지원 시스템' = 시작화면으로. 대상 역할이면 시작화면(탭 맨 앞), 아니면 전국 지도(그 계정의 시작 화면).
+  // 눌러도 반응이 없으면 고장처럼 읽혀서 지도로 보낸다(메인 결정, 사용자 11-19).
+  app.goHome = function () {
+    const item = root.nav ? findNavItem(root.nav.HOME_ID) : null;
+    if (item && navActiveId === root.nav.HOME_ID) return;   // 이미 시작화면 — 다시 그리면 거르기·스크롤이 풀린다(qa P3-1)
+    if (item) { openNavItem(item); return; }
+    const mapBtn = document.getElementById('tab-btn-map');
+    if (mapBtn && !mapBtn.classList.contains('active')) mapBtn.click();
+  };
+
   function closeNavTab(id) {
     const r = root.nav.closeTab(navTabs, id, navActiveId);
     navTabs = r.tabs;
@@ -671,7 +702,14 @@
     if (!bar || !list) return;
     const esc = root.logic.esc;
     bar.style.display = navTabs.length ? '' : 'none';
+    // 시작화면 탭(pin): 맨 앞 고정(nav.openTab), 닫기(×) 없음. 라벨 앞에 집 글리프(design-reviewer 11-19 1428_aab03363 5절)
+    const homeIco = '<svg class="stab-ico" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M1.5 6.2 6 2.2l4.5 4M3 5.2V10h6V5.2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
     list.innerHTML = navTabs.map(function (t) {
+      const pin = t.id === root.nav.HOME_ID;
+      if (pin) {
+        return '<div class="stab pin' + (t.id === navActiveId ? ' active' : '') + '" role="tab" data-tab-id="' + esc(t.id) +
+          '" title="시작화면 (닫을 수 없음)">' + homeIco + '<span class="stab-label">' + esc(t.label) + '</span><span class="sr-only">, 고정 탭</span></div>';
+      }
       return '<div class="stab' + (t.id === navActiveId ? ' active' : '') + '" role="tab" data-tab-id="' + esc(t.id) +
         '" title="' + esc(t.label) + '"><span class="stab-label">' + esc(t.label) +
         '</span><span class="stab-x" role="button" aria-label="' + esc(t.label) + ' 탭 닫기">×</span></div>';
@@ -683,12 +721,13 @@
   app.drawNav = function () {
     const el = document.getElementById('side-nav');
     if (!el) return;
-    const sig = navBuilt.map(function (c) {
+    const shown = navBuilt.filter(function (c) { return !c.headOnly; });   // 시작화면은 메뉴에 그리지 않는다(머리 띠 제목·고정 탭으로 연다)
+    const sig = shown.map(function (c) {
       return c.id + (c.showSubs ? '+' : ':') + c.items.map(function (i) { return i.id + '@' + (i.sub || ''); }).join(',');
     }).join('|');
     if (sig !== navDomSig) {
       const esc = root.logic.esc;
-      el.innerHTML = navBuilt.map(function (cat) {
+      el.innerHTML = shown.map(function (cat) {
         function itemHtml(it) {
           const badge = root.nav.badgeOf(it);   // 배지가 없으면 흐림(.soon)도 없다 — 이미 열리는 화면이다
           return '<button class="nav-item' + (badge ? ' soon' : '') + '" data-nav="' + esc(it.id) +
@@ -696,7 +735,6 @@
             (badge ? '<span class="nav-soon-tag" aria-hidden="true">' + esc(badge) + '</span>' +
                      '<span class="sr-only">' + esc(badge) + '</span>' : '') + '</button>';
         }
-        if (cat.single) return '<div class="nav-home">' + cat.items.map(itemHtml).join('') + '</div>';   // 첫 화면: 분류 제목·펼침 없이 항목만
         let items = '';
         if (cat.showSubs) {
           // 중분류 = 누를 수 없는 소제목. 같은 sub가 이어지는 구간을 한 묶음(role=group)으로 그린다.
@@ -743,6 +781,9 @@
       const sub = g.querySelector('.nav-sub');
       if (sub) sub.classList.toggle('has-active', !!g.querySelector('.nav-item.active'));
     });
+    // 머리 띠 제목 단추: 시작화면을 보고 있으면 현재 위치 표시(aria-current)
+    const hb = document.getElementById('app-home');
+    if (hb) { if (navActiveId === root.nav.HOME_ID) hb.setAttribute('aria-current', 'page'); else hb.removeAttribute('aria-current'); }
     // 항목 구성이 바뀌어 DOM을 새로 만들면 '전국 지도' 옆 미처리 배지도 사라지므로 다시 단다.
     if (root.overdue && root.overdue.paintNavBadge) root.overdue.paintNavBadge();
     if (root.plancollect && root.plancollect.onNavDrawn) root.plancollect.onNavDrawn();   // 사업계획 수집 요청 대기 배지(시스템 관리 항목 옆)
@@ -822,6 +863,8 @@
       const found = findNavItem(item.dataset.nav);
       if (found) openNavItem(found);
     });
+    const hb = document.getElementById('app-home');
+    if (hb) hb.addEventListener('click', app.goHome);   // 머리 띠 제목 = 시작화면으로
     const list = document.getElementById('tab-list');
     if (list) list.addEventListener('click', function (e) {
       const tab = e.target.closest('.stab');
@@ -876,7 +919,8 @@
   };
 
   app.enterApp = function (session, profile) {
-    pendingHome = true;   // 메뉴 권한이 도착하면 첫 화면(포털)이 열린다(applyHome)
+    pendingHome = true;   // 메뉴 권한이 도착하면 시작화면(포털)이 열린다(applyHome)
+    app.resetScreens();   // 앞 계정·둘러보기의 탭·팝업·거르기를 버리고 지도 한 장에서 시작. 세션을 저장하기 전에 불러야 지도 열람이 새 계정 접근 이력에 남지 않는다
     root.store.saveSession(session);
     root.store.saveProfile(profile);
     if (app.showProfileRole) {
@@ -889,8 +933,8 @@
     app.paintUserArea();
     // 공고 예정일 경과 요약 팝업 — 영업 계열에게만, '오늘 더 이상 보지 않기'를 안 눌렀을 때만(overdue.js).
     // 둘러보기(guest)는 소속이 없어 영업 계열이 아니므로 뜨지 않는다.
-    // 첫 화면(포털: 영업 계열·디자이너 + 본체 있음)이어도 경과 팝업을 띄운다 — 경과 목록이 입찰 공고 현황으로 옮겨 갔다(사용자 11-16).
-    // 다만 첫 화면이 열리기 전에 띄우면 화면이 팝업 뒤에서 바뀌므로, 메뉴 권한이 오기 전에는 미뤄 두고 applyHome이 첫 화면을 연 뒤에 띄운다
+    // 시작화면(포털: 영업 계열·디자이너·전산팀 + 본체 있음)이어도 경과 팝업을 띄운다 — 경과 목록이 입찰 공고 현황으로 옮겨 갔다(사용자 11-16).
+    // 다만 시작화면이 열리기 전에 띄우면 화면이 팝업 뒤에서 바뀌므로, 메뉴 권한이 오기 전에는 미뤄 두고 applyHome이 시작화면을 연 뒤에 띄운다
     // (applyHome이 onProfileChanged 안에서 바로 불릴 수 있어 그 전에 정해 둔다).
     const args = { ctx: navContext(), id: session.emp || session.id || '' };
     const deferOverdue = root.nav.expectsHome(args.ctx, !!(root.portal && root.portal.mount));
@@ -907,6 +951,7 @@
     if (root.headcard && root.headcard.onProfileChange) root.headcard.onProfileChange();   // 세션을 지우기 전에 기관장 카드 상태를 비운다
     root.store.clearSession();
     root.store.saveProfile({ name: '', team: '' });
+    app.resetScreens();   // 세션을 지운 뒤라 지도 열람이 접근 이력에 남지 않는다
     if (app.showProfileRole) { byId('me-name').value = ''; app.showProfileRole(''); }
     app.paintUserArea();
     app.onProfileChanged();

@@ -350,7 +350,7 @@ test('현황판 상세(개원 확인 필요): 머리에 표시, 운영 상태 �
   assert.strictEqual(h.indexOf('<dt>입찰 예정일</dt>'), -1);
 });
 
-test('개원 확인 필요 기관의 상세에는 약정 주기 막대가 없다(최근 절차일·주기가 있어도)', function () {
+test('개원 확인 필요 기관의 상세에는 약정 주기 막대가 없다(지난 금고 선정일·주기가 있어도)', function () {
   const rec = { name: '가법원', type: '법원', region: '11', opStatus: '개원 예정', openDate: '2026-01', openCheckNeeded: true, institutionId: 'x',
     lastBid: '2022-12-01', term: 4, contractEnd: '2026-12-01', _inst: { confirmed: false } };
   assert.strictEqual(dash.paneHtml(dash.itemForRec(rec, TODAY), { act: 'opencheck', today: TODAY }).indexOf('db-term'), -1);

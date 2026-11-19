@@ -78,6 +78,18 @@ test('머리 띠·메뉴·탭: 네이비 3곳만, 로그아웃·로고 흰색, �
   assert.ok(logo.indexOf('#0b50d0') < 0 && logo.indexOf('currentColor') > 0);
 });
 
+test('머리 띠 제목 단추·고정 탭 CSS(11-19, design-reviewer 1428_aab03363 5절)', function () {
+  const c = css();
+  assert.ok(/<h1><button type="button" id="app-home" class="brand-btn" aria-label="[^"]*시작화면으로 가기"[^>]*><svg/.test(html));
+  assert.ok(/body > header \.brand-btn \{[^}]*cursor:pointer/.test(c) && /body > header \.brand-btn:hover \{ background:rgba\(255,255,255,\.14\); \}/.test(c));
+  assert.ok(/body > header \.brand-btn:focus-visible \{ outline:2px solid #fff;/.test(c) && /\.brand-btn\[aria-current="page"\] \{ cursor:default; \}/.test(c));
+  assert.ok(/\.stab\.pin \{[^}]*padding:7px 12px/.test(c) && /\.stab\.pin \+ \.stab \{ margin-left:5px; \}/.test(c));
+  assert.ok(html.indexOf('class="nav-home"') < 0 && !/\.nav-home\b/.test(c));
+  // 날짜 머리 = 장부 모양(grid, 오른쪽 D-n), 일정 줄은 24px 들여 쓴다, 기간 칩
+  assert.ok(/\.pt-day \{[^}]*display:grid; grid-template-columns:1fr auto;/.test(c) && /#pt-sched \.pt-row \{ padding-left:24px; \}/.test(c));
+  assert.ok(/\.pt-span \{[^}]*font:700 12px var\(--mono\)/.test(c));
+});
+
 test('지도 강조: 덮개 층 g.sel-ring-layer, raise() 없음, 잉크·흰 두 겹', function () {
   assert.ok(!/\.raise\(\)/.test(renderSrc));
   ['sel-ring-layer', '_ringSelect', '_ringFocus', '_ringBlur'].forEach(function (k) { assert.ok(renderSrc.indexOf(k) > 0, k); });

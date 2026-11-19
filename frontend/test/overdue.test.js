@@ -311,7 +311,7 @@ test('confHtml: 확인 중은 확정·추정 표식을 대신하고, 추정 근�
   assert.ok(chk.includes('is-check') && chk.includes('날짜 의미 확인 중'));
   assert.ok(!chk.includes('확정') && !chk.includes('>추정<'));
   const est = ov.confHtml(byName['추정건']);
-  assert.ok(est.includes('지난 입찰일 2022-10-20 + 4년으로 계산한 날짜'));
+  assert.ok(est.includes('지난 금고 선정일 2022-10-20 + 4년으로 계산한 날짜'));
 });
 
 test('listHtml: 관심 지역이 없으면 안내 한 줄과 접힌 시·도 묶음, 있으면 관심 묶음이 펼쳐진다', function () {

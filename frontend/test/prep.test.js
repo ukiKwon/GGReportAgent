@@ -58,7 +58,7 @@ test('nav 노출(입찰 현황판): 고정 id soon:현황판, 서버 map 키가 
   assert.strictEqual(nav.screenName(nav.DASH_ID, 'soon:이사회 자료'), null);
 });
 
-test('nav.homeItemId(첫 화면): 영업 계열·디자이너 + 지도만 본 상태 + 첫 화면 항목이 보일 때만 HOME_ID, 그 밖은 null(지금처럼 지도)', function () {
+test('nav.homeItemId(시작화면): 영업 계열·디자이너·전산팀 + 지도만 본 상태 + 시작화면 항목이 보일 때만 HOME_ID, 그 밖은 null(지금처럼 지도)', function () {
   function home(role, o) {
     const x = o || {};
     const built = nav.build(x.visible || ALL_ON, { role: role, master: !!x.master });
@@ -66,20 +66,22 @@ test('nav.homeItemId(첫 화면): 영업 계열·디자이너 + 지도만 본 �
   }
   ['영업팀', '영업팀장', '영업부장', '디자이너'].forEach(function (r) { assert.strictEqual(home(r), nav.HOME_ID, r); });
   assert.strictEqual(home('영업팀', { active: null, tabs: [] }), nav.HOME_ID);
-  // 마스터·타 팀은 지금처럼 지도
-  ['전산팀', '전산팀장', '예산팀', '예산팀장', ''].forEach(function (r) { assert.strictEqual(home(r), null, r); });
+  // 전산팀·전산팀장은 시작화면을 본다(보기 전용, 사용자 11-19)
+  ['전산팀', '전산팀장'].forEach(function (r) { assert.strictEqual(home(r), nav.HOME_ID, r); });
+  // 마스터·재무는 지금처럼 지도
+  ['예산팀', '예산팀장', ''].forEach(function (r) { assert.strictEqual(home(r), null, r); });
   assert.strictEqual(home('영업팀', { master: true }), null);
   // 이미 다른 화면을 열었거나 탭을 연 뒤라면 건드리지 않는다
   assert.strictEqual(home('영업팀', { active: 'workflow' }), null);
   assert.strictEqual(home('영업팀', { tabs: [{ id: 'map' }, { id: 'approvals' }] }), null);
-  // 첫 화면 항목이 안 보이는 구성(map 키 꺼짐)이면 null
+  // 시작화면 항목이 안 보이는 구성(map 키 꺼짐)이면 null
   assert.strictEqual(home('영업팀', { visible: Object.assign({}, ALL_ON, { map: false }), active: null, tabs: [] }), null);
   assert.strictEqual(nav.isHomeRole({ role: '영업부장' }), true);
   assert.strictEqual(nav.isHomeRole({ role: '디자이너' }), true);
   assert.strictEqual(nav.isHomeRole({ role: '영업팀', master: true }), false);
 });
 
-test('app.js: showSoon이 사전준비·현황판 분기를 처리하고, 첫 화면 기본값·경과 팝업 억제·계정 변경 처리가 있다', function () {
+test('app.js: showSoon이 사전준비·현황판 분기를 처리하고, 시작화면 기본값·경과 팝업 억제·계정 변경 처리가 있다', function () {
   assert.ok(APP_SRC.indexOf('itemId === root.prep.SOON_ID') > 0);
   assert.ok(APP_SRC.indexOf('root.prep.mount()') > 0);
   assert.ok(APP_SRC.indexOf("document.getElementById('pp-root').style.display") > 0);
@@ -88,11 +90,11 @@ test('app.js: showSoon이 사전준비·현황판 분기를 처리하고, 첫 �
   assert.ok(APP_SRC.indexOf('입찰 현황판은 준비 중입니다.') > 0);
   assert.ok(APP_SRC.indexOf('root.prep.onProfileChange()') > 0);
   assert.ok(/app\.openNavItem = function \(id\)/.test(APP_SRC));
-  // ① 첫 화면: enterApp·세션이 있는 채로 연 첫 그림에서 켜고, paintTabs 끝에서 한 번 적용한다
+  // ① 시작화면: enterApp·세션이 있는 채로 연 첫 그림에서 켜고, paintTabs 끝에서 한 번 적용한다
   assert.ok(/app\.enterApp = function \(session, profile\) \{\s*pendingHome = true;/.test(APP_SRC));
   assert.ok(APP_SRC.indexOf('root.nav.homeItemId(navBuilt, navActiveId, navTabs, navContext())') > 0);
-  assert.ok(/applyHome\(\);\s*\};/.test(APP_SRC));
-  // ② 첫 화면이 현황판이면(영업 계열 + 본체 있음) 경과 요약 팝업을 현황판이 열린 '뒤'에 띄운다
+  assert.ok(/applyHome\(!\(serverMode && menus === null\)\);[^\n]*\n\s*\};/.test(APP_SRC));   // 권한 응답 실패면 시작화면 판정을 미룬다(pending 보존)
+  // ② 시작화면이 현황판이면(영업 계열 + 본체 있음) 경과 요약 팝업을 현황판이 열린 '뒤'에 띄운다
   // 현황판이 열릴 것으로 보면 팝업을 미루고(overduePending), applyHome이 화면을 연 다음 띄운다(flushOverdue, 11-16)
   assert.ok(/root\.nav\.expectsHome\(args\.ctx, !!\(root\.portal && root\.portal\.mount\)\)/.test(APP_SRC));
   assert.ok(/if \(!deferOverdue && root\.overdue && root\.overdue\.onLogin\)/.test(APP_SRC));
@@ -340,7 +342,7 @@ test('QA·디자인 후속: 중단 건 무효 처리 불가, T3 파일만, 확�
   // 확정 확인 줄: [취소] 다음 [확정하기](첫 포커스는 확정하기 유지 — 소스에서 go에 focus)
   const pc = prep.popConfirmHtml('노원구청');
   assert.ok(pc.indexOf('data-pp-pop="cancel"') < pc.indexOf('data-pp-pop="go"'));
-  // 첫 화면 판정(순수): 본체가 있고 영업 계열·디자이너일 때만 포털을 기대, 실제 결정은 homeItemId
+  // 시작화면 판정(순수): 본체가 있고 영업 계열·디자이너·전산팀일 때만 포털을 기대, 실제 결정은 homeItemId
   assert.strictEqual(nav.expectsHome({ role: '영업팀' }, true), true);
   assert.strictEqual(nav.expectsHome({ role: '영업팀' }, false), false);
   assert.strictEqual(nav.expectsHome({ role: '디자이너' }, true), true);

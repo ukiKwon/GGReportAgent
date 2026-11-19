@@ -86,7 +86,7 @@ test('비영업 팀: 구현 화면 + 예외(이사회 부의·pending 키) 외 �
   });
 });
 
-test('준비중 id: 명시 id 외에는 soon:라벨, 전부 서로 다르고 19개(첫 화면 포함)', function () {
+test('준비중 id: 명시 id 외에는 soon:라벨, 전부 서로 다르고 19개(시작화면 포함)', function () {
   const built = nav.build(ALL_ON, { role: '영업팀장' });
   const all = [];
   built.forEach(function (c) { c.items.forEach(function (i) { all.push(i.id); }); });
@@ -205,9 +205,9 @@ test('categoryOf / showsMapControls', function () {
 });
 
 // ── 메뉴 재편(NEXT 32): 구조·정렬 ─────────────────────────────────────────
-test('3단 구조: 대분류 7개 이름·소속(첫 화면 단독 + 정의 순서 = 업무 순서 1→5, 시스템 관리 마지막)', function () {
+test('3단 구조: 대분류 7개 이름·소속(시작화면 단독 + 정의 순서 = 업무 순서 1→5, 시스템 관리 마지막)', function () {
   assert.deepStrictEqual(nav.CATEGORIES.map(function (c) { return c.id + ':' + c.title; }),
-    ['home:첫 화면', 'scan:기관·입찰 현황', 'plan:영업 추진 준비', 'manage:제안서 작성·관리',
+    ['home:시작화면', 'scan:기관·입찰 현황', 'plan:영업 추진 준비', 'manage:제안서 작성·관리',
      'relate:협약·관계 관리', 'tools:공통 도구', 'sys:시스템 관리']);
   const by = {};
   nav.CATEGORIES.forEach(function (c) { by[c.id] = c.items.map(function (i) { return (i.sub || '') + '>' + i.label; }); });
@@ -255,7 +255,7 @@ test('서버가 켠 키가 달라도 대분류 순서는 바뀌지 않는다', f
 
 test('비영업 역할: 준비중이 숨겨지고 시스템 관리가 맨 아래', function () {
   assert.deepStrictEqual(ids(nav.build(ALL_ON, { role: '예산팀' })), ['scan', 'plan', 'manage', 'tools', 'sys']);
-  assert.deepStrictEqual(ids(nav.build(ALL_ON, { role: '전산팀' })), ['scan', 'plan', 'manage', 'tools', 'sys']);
+  assert.deepStrictEqual(ids(nav.build(ALL_ON, { role: '전산팀' })), ['home', 'scan', 'plan', 'manage', 'tools', 'sys']);   // 전산팀은 시작화면을 본다(보기 전용, 11-19)
 });
 
 test('이사회 자료 작성: 영업 계열이 아니어도 tasks 조회 권한이 있으면 보이고, tasks가 꺼지면 영업팀 외에는 안 보인다', function () {
@@ -279,7 +279,7 @@ test('이사회 자료 작성: 영업 계열이 아니어도 tasks 조회 권한
   // 서버 map 키로 보이는 입찰 현황판·입찰 공고 현황 — 11-16 공고 현황도 타팀 공유, map 키 AND 영업·전산팀인 기관 사업계획 — 11-17)
   const others = nav.build(ALL_ON, { role: '전산팀' }).reduce(function (n, c) {
     return n + c.items.filter(function (i) {
-      return i.soon && !i.pending && i.id !== 'soon:이사회 자료' && i.id !== nav.DASH_ID && i.id !== nav.NOTICE_ID && i.id !== nav.PLANS_ID;
+      return i.soon && !i.pending && i.id !== 'soon:이사회 자료' && i.id !== nav.DASH_ID && i.id !== nav.NOTICE_ID && i.id !== nav.PLANS_ID && i.id !== nav.HOME_ID;
     }).length;
   }, 0);
   assert.strictEqual(others, 0);
@@ -470,4 +470,35 @@ test('기관 사업계획: 전산팀은 기관 분류에 현황판·지도·지�
   assert.deepStrictEqual(items(built, 'scan').map(function (i) { return i.label; }),
     ['입찰 현황판', '전국 지도', '전국 지역별', '기관 사업계획', '입찰 공고 현황']);
   assert.strictEqual(nav.PLANS_ID, 'soon:기관 사업계획');
+});
+
+test('시작화면 고정 탭: 맨 앞에 붙고 개수 제한(10)에 세지 않으며 닫을 수 없다', function () {
+  const home = { id: nav.HOME_ID, label: '시작화면' };
+  let r = nav.openTab([{ id: 'map', label: '전국 지도' }], home, 'map');
+  assert.deepStrictEqual(r.tabs.map(function (t) { return t.id; }), [nav.HOME_ID, 'map']);
+  assert.strictEqual(r.activeId, nav.HOME_ID);
+  let tabs = [];
+  for (let i = 0; i < 10; i += 1) tabs = nav.openTab(tabs, { id: 't' + i, label: 'T' + i }, null).tabs;
+  assert.strictEqual(nav.openTab(tabs, { id: 'x', label: 'X' }, 't0').full, true);   // 일반 탭은 10개까지
+  r = nav.openTab(tabs, home, 't0');                                                  // 가득 차도 시작화면은 열린다
+  assert.strictEqual(r.full, false); assert.strictEqual(r.tabs[0].id, nav.HOME_ID); assert.strictEqual(r.tabs.length, 11);
+  assert.strictEqual(nav.openTab(r.tabs, { id: 'x', label: 'X' }, nav.HOME_ID).full, true);   // 시작화면이 있어도 일반 탭 한도는 10
+  assert.strictEqual(nav.openTab(r.tabs, home, 't3').activeId, nav.HOME_ID);          // 이미 있으면 활성만 옮김
+  assert.strictEqual(nav.closeTab(r.tabs, nav.HOME_ID, nav.HOME_ID).tabs.length, 11);  // 닫기 거부
+  assert.strictEqual(nav.closeTab(r.tabs, nav.HOME_ID, 't0').activeId, 't0');
+});
+
+test('시작화면: headOnly 표시, 역할 목록은 한 곳(HOME_ROLES ⊇ VIEW_ONLY_ROLES), 보기 전용은 전산팀·전산팀장뿐', function () {
+  assert.strictEqual(nav.build(ALL_ON, { role: '영업팀' })[0].headOnly, true);
+  ['전산팀', '전산팀장'].forEach(function (r) {
+    assert.strictEqual(nav.isViewOnly({ role: r }), true, r);
+    assert.strictEqual(nav.isHomeRole({ role: r }), true, r);
+    assert.strictEqual(nav.build(ALL_ON, { role: r })[0].id, 'home', r);
+  });
+  nav.VIEW_ONLY_ROLES.forEach(function (r) { assert.ok(nav.isHomeRole({ role: r }), r); });
+  ['영업팀', '영업팀장', '영업부장', '디자이너', '예산팀', '예산팀장', ''].forEach(function (r) { assert.strictEqual(nav.isViewOnly({ role: r }), false, r || '(없음)'); });
+  assert.strictEqual(nav.isViewOnly({ role: '전산팀', master: true }), false);
+  const built = nav.build(ALL_ON, { role: '예산팀' });
+  assert.deepStrictEqual(nav.pruneTabs([{ id: nav.HOME_ID }, { id: 'map' }], built).map(function (t) { return t.id; }), ['map']);   // 대상이 아닌 계정으로 바뀌면 시작화면 탭이 걷힌다
+  assert.strictEqual(nav.homeItemId(nav.build(ALL_ON, { role: '영업팀' }), nav.HOME_ID, [{ id: nav.HOME_ID }, { id: 'map' }], { role: '영업팀' }), null);   // 이미 시작화면
 });

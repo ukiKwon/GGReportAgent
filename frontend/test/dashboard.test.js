@@ -225,7 +225,7 @@ test('termBar: lastBid 없으면 null, 비율 0~100, 추정이면 점선, 경과
   assert.ok(t.pct > 95 && t.pct < 100 && t.est === true && t.over === false);
   const conf = dash.termBar(mk({ lastBid: '2022-11-11', confirmed: true }), T);
   assert.strictEqual(conf.est, false);
-  const future = dash.termBar(mk({ lastBid: '2030-01-01' }), T);                // 최근 절차일이 미래 → 0으로 자른다
+  const future = dash.termBar(mk({ lastBid: '2030-01-01' }), T);                // 지난 금고 선정일이 미래 → 0으로 자른다
   assert.strictEqual(future.pct, 0);
   const over = dash.model([rec('경과', '11', -5, { lastBid: '2022-01-01', confirmed: false })], T).overdue[0];   // 확정이면 −5일은 '진행 중'
   const o = dash.termBar(over, T);
@@ -635,7 +635,7 @@ test('paneHtml: 금고 순번(slot)은 있을 때만 표시, 값이 없으면 �
   assert.ok(plain.indexOf('pop-unk') >= 0 && plain.indexOf('약정 기록을 모으면') >= 0);
   assert.ok(plain.indexOf('기관장 프로필은 수집 예정입니다.') >= 0);
   const bare = dash.paneHtml(dash.model([{ name: '빈구청', region: '11', type: '지자체', contractEnd: plus(9), confirmed: true }], TODAY).upcoming[0], { act: 'none' });
-  assert.ok(bare.indexOf('pop-unk') >= 0);                                     // 최근 절차일·약정 주기 없음 → 칩(빈칸·'-' 금지)
+  assert.ok(bare.indexOf('pop-unk') >= 0);                                     // 지난 금고 선정일·약정 주기 없음 → 칩(빈칸·'-' 금지)
 });
 
 test('paneHtml: KB_NEXT 항목은 현재 은행과 2027년부터 국민은행을 함께 보이고, now가 없으면 미확인', function () {
@@ -715,12 +715,12 @@ test('약정 만료 기준 추정은 목록 행·메타·상세 어디서나 같
   const notice = by('공고구청');
   assert.strictEqual(notice.basis, 'notice');
   const pane = dash.paneHtml(notice, { act: 'none' });
-  assert.ok(pane.indexOf('공고된 날짜이나 의미 확인 중입니다') >= 0 && pane.indexOf('최근 절차일에 약정 주기를 더한') < 0);
+  assert.ok(pane.indexOf('공고된 날짜이나 의미 확인 중입니다') >= 0 && pane.indexOf('지난 금고 선정일에 약정 주기를 더한') < 0);
   assert.ok(dash.paneHtml(by('확정구청'), { act: 'none' }).indexOf('공고로 확인한 날입니다') >= 0);
   const cyc = by('주기구청');
-  if (cyc) assert.ok(dash.paneHtml(cyc, { act: 'none' }).indexOf('최근 절차일에 약정 주기를 더한') >= 0);
+  if (cyc) assert.ok(dash.paneHtml(cyc, { act: 'none' }).indexOf('지난 금고 선정일에 약정 주기를 더한') >= 0);
   const leg = dash.timelineHtml(m, T, '6');
-  assert.ok(leg.indexOf('추정(최근 절차일+약정 주기 / 약정 만료 6개월 전 / 공고 날짜 의미 확인 중)') >= 0);
+  assert.ok(leg.indexOf('추정(지난 금고 선정일+약정 주기 / 약정 만료 6개월 전 / 공고 날짜 의미 확인 중)') >= 0);
   assert.ok(m.expiryN === 0 || leg.indexOf('1년 안 약정 만료 기준 <b class="v">' + m.expiryN + '</b>곳') >= 0);
 });
 
@@ -775,4 +775,16 @@ test('CSS 블록: 11px 미만 글자·새 hex 없음, 시작/끝 주석', functi
 test('진행 단계 범례: 사전준비 쪽 승인은 \'사전준비 승인 대기\'(진행 현황 기획승인과 이름을 나눔, 11-13)', function () {
   const labels = dash.STAGES.map(function (s) { return s.label; });
   assert.ok(labels.indexOf('사전준비 승인 대기') >= 0 && labels.join('').indexOf('기획승인') < 0);
+});
+
+test('상세 보기 전용(11-19): lockBank는 can_edit을 끄고 원본을 바꾸지 않는다, 소스는 편집·확정 단추를 감춘다', function () {
+  const v = { st: 'ok', data: { can_edit: true, lines: [] } };
+  const l = dash.lockBank(v);
+  assert.strictEqual(l.data.can_edit, false); assert.strictEqual(v.data.can_edit, true);
+  assert.strictEqual(dash.lockBank(null), null);
+  assert.ok(dash.VIEW_ONLY_MAP_HTML.indexOf('dm-edit') < 0 && dash.VIEW_ONLY_MAP_HTML.indexOf('dm-close') > 0);
+  const s = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8');
+  assert.ok(/readOnly: !!\(opts && opts\.readOnly\)/.test(s) && /if \(m\.readOnly\) act = 'none';/.test(s));
+  assert.ok(/m\.readOnly && \['dm-edit', 'bk-edit', 'db-cf', 'db-do', 'db-open'\]/.test(s));
+  assert.ok(/dash\.onProfileChange = function/.test(s) && s.indexOf('최근 절차일') < 0 && s.indexOf('지난 금고 선정일') > 0);
 });

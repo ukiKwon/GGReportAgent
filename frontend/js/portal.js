@@ -1,8 +1,8 @@
 (function (root) {
   'use strict';
-  // 로그인 뒤 첫 화면(포털) — NEXT 97 3단계, 사용자 확정 11-19. 규격: handoff/agents/history/2026-11-19_97-3_첫화면_포털_규격.md.
+  // 로그인 뒤 시작화면(포털) — NEXT 97 3단계, 사용자 확정 11-19. 규격: handoff/agents/history/2026-11-19_97-3_첫화면_포털_규격.md.
   // 구성(위→아래): 제목 줄 → 띠 4칸(이번 달 접수 마감·국민은행 금고 협약 종료 1년 안·내 결재·다른 은행 금고 협약 종료 1년 안, 누르면 표를 거름)
-  //   → 왼쪽 '다가오는 입찰' 표(기관 유형 탭) + 오른쪽 340px 패널 둘(다가오는 일정 30일 / 결재·확인 대기).
+  //   → 왼쪽 '기관별 입찰 일정' 표(기관 유형 탭) + 오른쪽 340px 패널 둘(날짜별 일정 30일 / 결재·확인 대기).
   // 새 판정은 만들지 않는다: 마감·예정은 dash.model, 협약 종료일은 kbboard.contractEnd(039 직접 입력 > 행안부 lofin > 기관 자료 contractExpiry),
   //   경과는 logic.splitOverdue, 상세는 dash.openDetail. kbboard.js는 읽기만 한다(normDate·contractEnd·closedBasis).
   // 규칙을 바꿀 곳: 숫자·기간 = P.CFG, 국민은행/다른 은행 가름 = P.groupOf, 다음 금고 은행 태그 = P.decided, 문구 = P.T·P.STAGE·P.TAG_TEXT.
@@ -59,7 +59,7 @@
     noApprovals: '결재함을 열 수 없습니다. 왼쪽 메뉴의 [결재함]에서 여세요.',
     noNotice: '입찰 공고 현황을 열 수 없습니다. 왼쪽 메뉴의 [입찰 공고 현황]에서 여세요.',
     noDash: '입찰 현황판을 열 수 없습니다. 왼쪽 메뉴에서 여세요.', noTasks: '작업함을 열 수 없습니다. 왼쪽 메뉴의 [작업함]에서 여세요.',
-    noRec: '기관 정보를 찾지 못했습니다. 첫 화면을 다시 열어 주세요.'
+    noRec: '기관 정보를 찾지 못했습니다. 시작화면을 다시 열어 주세요.'
   };
   P.URLS = { bank: '/bank-contracts/summary', perms: '/approval-requests/my-perms', inbox: '/approval-requests?box=inbox',
     mine: '/approval-requests?box=mine', assign: '/me/assignments', appr: '/approvals' };
@@ -421,15 +421,16 @@
     return '거르기: <b>' + esc(P.MODE_LABEL(mode, month)) + ' ' + n + '곳</b><button type="button" data-pt-unfilter="1">' + esc(P.T.unfilter) + '</button>';
   };
   const WD = ['일', '월', '화', '수', '목', '금', '토'];
-  function dayHead(date, today) {
+  // 날짜 머리 = 장부 모양(왼쪽 날짜, 오른쪽 끝 D-n). days = 그 날짜까지 남은 날(오늘 0).
+  function dayHead(date, today, days) {
     const d = new Date(date + 'T00:00:00'), md = date.slice(5) + ' (' + WD[d.getDay()] + ')';
-    return '<div class="pt-day">' + (date === logic.localDateStr(today) ? '오늘 ' : '') + esc(md) + '</div>';
+    return '<div class="pt-day"><span>' + (date === logic.localDateStr(today) ? '오늘 ' : '') + esc(md) + '</span><span class="dd">' + esc(dText(days)) + '</span></div>';
   }
   P.schedHtml = function (rows, today) {
     if (!rows.length) return '<p class="pt-none">' + esc(P.T.schedEmpty(P.CFG.SCHEDULE_DAYS)) + '</p>';
     let last = '', h = '';
     rows.forEach(function (r) {
-      if (r.date !== last) { h += dayHead(r.date, today); last = r.date; }
+      if (r.date !== last) { h += dayHead(r.date, today, r.days); last = r.date; }
       h += '<button type="button" class="pt-row" data-pt-open="' + esc(r.key) + '">' + (r.kind === 'notice' ? '<span class="pt-chip on">접수 마감</span>' : chip(r.kind)) + '<span class="t">' + esc(r.name) + '</span>' + tagChip(r) + '</button>';
     });
     return h;
@@ -466,14 +467,14 @@
     return logic.localDateStr(d) + ' (' + WD[d.getDay()] + ') ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
   };
   P.skeletonHtml = function () {
-    return '<div class="pt-top"><h2 id="pt-title">첫 화면</h2><span class="meta">기준 <b id="pt-asof"></b></span></div>' +
+    return '<div class="pt-top"><h2 id="pt-title">시작화면</h2><span class="meta">기준 <b id="pt-asof"></b></span></div>' +
       '<section class="pt-band" id="pt-band" aria-labelledby="pt-band-h"></section>' +
       '<div id="pt-err"></div><p id="pt-live" class="sr-only" aria-live="polite"></p><p id="pt-flash" class="pt-none" role="status"></p>' +
       '<div class="pt-body"><section class="pt-pane pt-list" id="pt-list" aria-labelledby="pt-list-h">' +
-      '<div class="pt-ph"><h3 id="pt-list-h">다가오는 입찰</h3><span class="n" id="pt-ln"></span><span class="r">임박순, 1년 안</span></div>' +
+      '<div class="pt-ph"><span class="pt-span" aria-hidden="true">1년</span><h3 id="pt-list-h">기관별 입찰 일정</h3><span class="n" id="pt-ln"></span><span class="r">기관마다 가장 가까운 일 하나, 1년 안, 임박순</span></div>' +
       '<div class="pt-tabs" id="pt-tabs" role="tablist" aria-label="기관 유형"></div><div class="pt-filter" id="pt-filter" hidden></div>' +
       '<div class="pt-sc" id="pt-sc" role="tabpanel" tabindex="0"></div><div class="pt-tf" id="pt-ltf"></div></section>' +
-      '<div class="pt-side"><section class="pt-pane cal" aria-labelledby="pt-cal-h"><div class="pt-ph"><h3 id="pt-cal-h">다가오는 일정</h3><span class="r">' + P.CFG.SCHEDULE_DAYS + '일 안</span></div>' +
+      '<div class="pt-side"><section class="pt-pane cal" aria-labelledby="pt-cal-h"><div class="pt-ph"><span class="pt-span" aria-hidden="true">' + P.CFG.SCHEDULE_DAYS + '일</span><h3 id="pt-cal-h">날짜별 일정</h3><span class="n" id="pt-cn"></span><span class="r">앞으로 ' + P.CFG.SCHEDULE_DAYS + '일, 접수 마감·공고 예정</span></div>' +
       '<div class="pt-sc" id="pt-sched" tabindex="0"></div><div class="pt-tf" id="pt-ctf"></div></section>' +
       '<section class="pt-pane wait" aria-labelledby="pt-wait-h"><div class="pt-ph"><h3 id="pt-wait-h">결재·확인 대기</h3><span class="n" id="pt-wn"></span></div>' +
       '<div class="pt-sc" id="pt-wait" tabindex="0"></div></section></div></div>';
@@ -499,6 +500,8 @@
   function role() { try { return (root.store.loadProfile().team || '').trim(); } catch (e) { return ''; } }
   function serverOn() { try { return !!(dash.util.serverMode() && dash.util.hasEmp()); } catch (e) { return false; } }
   function canOpen(id) { const A = root.app; return !!(A && A.findNavItem && id && A.findNavItem(id)); }
+  // 보기 전용 역할(nav.isViewOnly — 전산팀·전산팀장)이면 상세 팝업의 저장 버튼을 모두 숨긴다. 판정은 nav 한 곳, 여기서는 읽기만 한다.
+  function viewOnly() { try { const N = root.nav, A = root.app; return !!(N && N.isViewOnly && A && A.navContext && N.isViewOnly(A.navContext())); } catch (e) { return false; } }
 
   function recompute() {
     const U = dash.util, today = U.todayDate(), list = U.dataList();
@@ -552,9 +555,11 @@
     if (fl) { fl.hidden = S.mode === 'all'; if (S.mode !== 'all') keep('pt-filter', P.filterHtml(S.mode, shown.length, month)); else fl.innerHTML = ''; }
     const ln = $('pt-ln'); if (ln) ln.textContent = shown.length + '곳';
     const sc = $('pt-sc'); if (sc) sc.setAttribute('aria-labelledby', 'pt-tab-' + P.tabIndex(v.types, S.org));
-    keep('pt-sc', P.tableHtml(shown, { caption: '다가오는 입찰 기관, 임박순, ' + v.rows.length + '곳 중 ' + shown.length + '곳 보임', mode: S.mode, org: S.org, month: month, total: v.rows.length }));
+    keep('pt-sc', P.tableHtml(shown, { caption: '기관별 입찰 일정, 임박순, ' + v.rows.length + '곳 중 ' + shown.length + '곳 보임', mode: S.mode, org: S.org, month: month, total: v.rows.length }));
     const linkBtn = function (go, label, id) { return canOpen(id) ? '<button type="button" class="link-btn" data-pt-go="' + go + '">' + esc(label) + '</button>' : ''; };
-    keep('pt-sched', P.schedHtml(P.scheduleRows(v.rows), v.today));
+    const sched = P.scheduleRows(v.rows);
+    const cn = $('pt-cn'); if (cn) cn.textContent = sched.length + '건';
+    keep('pt-sched', P.schedHtml(sched, v.today));
     const ltf = $('pt-ltf'); if (ltf) ltf.innerHTML = '<span>' + esc(P.T.listFoot) + '</span>' + linkBtn('dash', P.T.listFootBtn, N && N.DASH_ID);
     const ctf = $('pt-ctf'); if (ctf) ctf.innerHTML = linkBtn('notice-open', P.T.schedFootBtn, N && N.NOTICE_ID);
     const wm = { appr: v.appr, judge: v.judge, assign: v.assign };
@@ -596,7 +601,7 @@
     const again = function () {
       return Array.prototype.filter.call(host ? host.querySelectorAll('[data-pt-open]') : [], function (x) { return x.getAttribute('data-pt-open') === key; })[0] || null;
     };
-    dash.openDetail(rec, { opener: btn, screen: P.SCREEN, fallback: '#pt-root', refocus: again });
+    dash.openDetail(rec, { opener: btn, screen: P.SCREEN, fallback: '#pt-root', refocus: again, readOnly: viewOnly() });
   }
   function openMenu(id, msg, before) {
     const A = root.app;
@@ -688,6 +693,11 @@
   // 기관 편집 저장 뒤 목록이 바뀌면(열려 있을 때만) 다시 센다.
   P.refresh = function () { if (host) { recompute(); paintAll(); } };
   // 계정이 바뀌면 앞 사용자의 결재·배정·약정 응답을 버리고 다시 받는다.
+  // 기관 목록(서버 모드)이 열린 뒤에 도착했을 때(app.loadServerData) — 거르기는 두고 출처만 다시 불러온다. 열려 있지 않으면 할 일 없음.
+  P.onDataReady = function () {
+    if (!host) return;
+    S.seq += 1; startLoad(); recompute(); paintAll();
+  };
   P.onProfileChange = function () {
     S.seq += 1; S.src = {}; S.mode = 'all'; S.org = 'all'; S.errSig = '';
     if (host) { startLoad(); recompute(); paintAll(); }

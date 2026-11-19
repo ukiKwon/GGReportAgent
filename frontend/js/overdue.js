@@ -52,7 +52,7 @@
     if (it.kind === 'est') {
       const rec = it.rec || {};
       const t = (!rec.contractEnd && rec.lastBid && rec.term)
-        ? '지난 입찰일 ' + rec.lastBid + ' + ' + rec.term + '년으로 계산한 날짜'
+        ? '지난 금고 선정일 ' + rec.lastBid + ' + ' + rec.term + '년으로 계산한 날짜'
         : '공고 원문으로 확정되지 않은 예상일입니다';
       return '<span class="ov-conf is-est" title="' + esc(t) + '">추정</span>';
     }

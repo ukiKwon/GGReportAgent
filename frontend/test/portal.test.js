@@ -1,5 +1,5 @@
 'use strict';
-// 첫 화면(포털) 3단계 — NEXT 97. 순수 계산(띠·묶음·표·거르기·결재 합산)·확정 규칙·nav 연결·소스 규칙.
+// 시작화면(포털, 구 '첫 화면') 3단계 — NEXT 97. 순수 계산(띠·묶음·표·거르기·결재 합산)·확정 규칙·nav 연결·소스 규칙.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -269,7 +269,8 @@ test('HTML: 이름·은행은 이스케이프, 단계 칩 모양, 날짜 표기(
 });
 test('일정·대기 패널: 날짜 머리(오늘·요일)·칩, 묶음 3개는 비어도 0·없음, 출처별 상태 문구, 실패 alert', function () {
   const sch = portal.schedHtml([row({ key: 'a', name: '가', kind: 'notice', date: p(0), days: 0 }), row({ key: 'b', name: '나', kind: 'est', est: true, date: p(2), days: 2 })], TODAY);
-  assert.ok(sch.indexOf('<div class="pt-day">오늘 11-19 (목)</div>') === 0 && sch.indexOf('<div class="pt-day">11-21 (토)</div>') > 0);
+  // 날짜 머리 = 장부 모양: 왼쪽 날짜, 오른쪽 D-n(오늘은 D-day)
+  assert.ok(sch.indexOf('<div class="pt-day"><span>오늘 11-19 (목)</span><span class="dd">D-day</span></div>') === 0 && sch.indexOf('<div class="pt-day"><span>11-21 (토)</span><span class="dd">D-2</span></div>') > 0);
   assert.ok(sch.indexOf('<span class="pt-chip on">접수 마감</span>') > 0 && sch.indexOf('pt-chip est') > 0);
   assert.ok(portal.schedHtml([], TODAY).indexOf('30일 안에 공고나 접수 마감 일정이 없습니다.') > 0);
   const ok0 = { status: 'ok', items: [] };
@@ -307,18 +308,18 @@ test('공고 경과 판정 대기 = 경과 미처리 + 협약 종료일 지난 �
 
 // ── nav 연결 ────────────────────────────────────────────────────────────
 function items(built, id) { return built.filter(function (c) { return c.id === id; })[0].items; }
-test('nav 첫 화면: 메뉴 맨 위 단독 항목, 영업 계열+디자이너만(서버 map 키 AND), 마스터·타 팀·둘러보기는 숨김', function () {
-  ['영업팀', '영업팀장', '영업부장', '디자이너'].forEach(function (role) {
+test('nav 시작화면: 첫 분류 단독 항목(headOnly — 사이드바에는 안 그림), 영업 계열+디자이너+전산팀(보기 전용)만(서버 map 키 AND), 마스터·재무·둘러보기는 숨김', function () {
+  ['영업팀', '영업팀장', '영업부장', '디자이너', '전산팀', '전산팀장'].forEach(function (role) {
     const built = nav.build(ALL_ON, { role: role });
     assert.strictEqual(built[0].id, 'home', role);
-    assert.strictEqual(built[0].single, true);
-    assert.deepStrictEqual(built[0].items.map(function (i) { return i.id + ':' + i.label; }), ['soon:첫 화면:첫 화면']);
+    assert.strictEqual(built[0].headOnly, true);
+    assert.deepStrictEqual(built[0].items.map(function (i) { return i.id + ':' + i.label; }), ['soon:시작화면:시작화면']);
     assert.strictEqual(nav.badgeOf(built[0].items[0]), '');
     assert.strictEqual(built[0].showSubs, false);
-    assert.ok(!built[1].single);
+    assert.ok(!built[1].headOnly);
   });
-  assert.strictEqual(nav.HOME_ID, 'soon:첫 화면');
-  ['전산팀', '전산팀장', '예산팀', '예산팀장', ''].forEach(function (role) {
+  assert.strictEqual(nav.HOME_ID, 'soon:시작화면');
+  ['예산팀', '예산팀장', ''].forEach(function (role) {
     assert.ok(!nav.build(ALL_ON, { role: role }).some(function (c) { return c.id === 'home'; }), role || '(역할 없음)');
   });
   assert.ok(!nav.build(ALL_ON, { role: '영업팀', master: true }).some(function (c) { return c.id === 'home'; }));
@@ -326,7 +327,7 @@ test('nav 첫 화면: 메뉴 맨 위 단독 항목, 영업 계열+디자이너�
   assert.ok(nav.build(ALL_ON, { role: '영업팀' }).some(function (c) { return c.id === 'scan' && items([c], 'scan')[0].id === nav.DASH_ID; }));   // 입찰 현황판은 메뉴에 그대로
   assert.strictEqual(nav.screenName(nav.HOME_ID, 'soon:이사회 자료'), null);                    // 접근 이력 기록 안 함(soon: 항목)
 });
-test('nav.accordionOf: 단독 항목은 null, 그 밖은 categoryOf와 같다 — 첫 화면이 다른 분류의 열림을 닫지 않는다', function () {
+test('nav.accordionOf: 단독 항목은 null, 그 밖은 categoryOf와 같다 — 시작화면이 다른 분류의 열림을 닫지 않는다', function () {
   const built = nav.build(ALL_ON, { role: '영업팀' });
   assert.strictEqual(nav.categoryOf(built, nav.HOME_ID), 'home');
   assert.strictEqual(nav.accordionOf(built, nav.HOME_ID), null);
@@ -341,7 +342,8 @@ test('nav.homeItemId·expectsHome·isHomeRole: 대상 역할에 디자이너, �
   };
   assert.strictEqual(home('디자이너'), nav.HOME_ID);
   assert.strictEqual(home('영업부장', { active: 'workflow' }), null);
-  assert.strictEqual(home('전산팀'), null);
+  assert.strictEqual(home('전산팀'), nav.HOME_ID);   // 전산팀은 시작화면을 본다(보기 전용, 11-19)
+  assert.strictEqual(home('예산팀'), null);
   assert.strictEqual(nav.expectsHome({ role: '디자이너' }, true), true);
   assert.strictEqual(nav.expectsHome({ role: '디자이너' }, false), false);
   assert.strictEqual(nav.expectsHome({ role: '영업팀', master: true }, true), false);
@@ -351,7 +353,7 @@ test('nav.homeItemId·expectsHome·isHomeRole: 대상 역할에 디자이너, �
 // ── 소스 규칙 ───────────────────────────────────────────────────────────
 function cssBlock() {
   const h = src('index.html');
-  const a = h.indexOf('첫 화면(포털) 시작'), b = h.indexOf('첫 화면(포털) 끝');
+  const a = h.indexOf('시작화면(포털) 시작'), b = h.indexOf('시작화면(포털) 끝');
   assert.ok(a > 0 && b > a);
   return h.slice(a, b).replace(/\/\*[\s\S]*?\*\//g, '');
 }
@@ -359,11 +361,14 @@ test('index.html: #pt-root 한 개, portal.js는 kbboard.js 뒤·app.js 앞, 새
   const h = src('index.html');
   assert.strictEqual((h.match(/id="pt-root"/g) || []).length, 1);
   assert.ok(h.indexOf('js/kbboard.js') < h.indexOf('js/portal.js') && h.indexOf('js/portal.js') < h.indexOf('js/app.js'));
-  assert.ok(h.indexOf('국민은행 상태 현황판 끝') < h.indexOf('첫 화면(포털) 시작') && h.indexOf('첫 화면(포털) 끝') < h.indexOf('기관장 카드 시작'));
+  assert.ok(h.indexOf('국민은행 상태 현황판 끝') < h.indexOf('시작화면(포털) 시작') && h.indexOf('시작화면(포털) 끝') < h.indexOf('기관장 카드 시작'));
 });
-test('CSS(첫 화면): 규격 9절 치수(띠 72·값 16/700·머리 40·행 40/36·칩), 새 hex는 #eef1f5뿐, 12px 미만·opacity·블러 그림자·hover 이동 없음, 태그·탭 문법', function () {
+test('CSS(시작화면): 규격 9절 치수(띠 72·값 16/700·머리 40·행 40/36·칩), 새 hex는 #eef1f5와 국민은행 CI 대체값뿐, 12px 미만·opacity·블러 그림자·hover 이동 없음, 태그·탭 문법', function () {
   const c = cssBlock();
-  assert.deepStrictEqual((c.match(/#[0-9a-fA-F]{3,8}\b/g) || []).filter(function (x, i, a) { return a.indexOf(x) === i; }), ['#eef1f5']);
+  // 허용 hex: #eef1f5(DESIGN 패널 머리 리터럴), #ffbc00(KB Yellow Positive)·#545045(KB Dark Gray)는 국민은행 CI(kbfg.com/kor/about/corporate/ci.htm, 사용자 11-19)이고
+  // var(--bk-kb*, 대체값)의 대체값으로만 쓴다. #1e2124는 기존 --fg 잉크 값(노랑 위 글자 대비 9.59). 그 밖의 새 hex는 금지.
+  assert.deepStrictEqual((c.match(/#[0-9a-fA-F]{3,8}\b/g) || []).filter(function (x, i, a) { return a.indexOf(x) === i; }).sort(), ['#1e2124', '#545045', '#eef1f5', '#ffbc00']);
+  assert.ok(/\.pt-chip\.tag\.kept \{[^}]*background:var\(--bk-kb, #ffbc00\);[^}]*color:var\(--bk-kb-ink, #1e2124\);[^}]*border-color:var\(--bk-kb-edge, #545045\);[^}]*font-weight:700/.test(c));
   assert.ok(!/font-size\s*:\s*(9|10|11)px/.test(c) && !/font\s*:[^;}]*?(?<![\d.])(9|10|11)px/.test(c));
   assert.ok(!/opacity|backdrop-filter|transform\s*:\s*(translate|scale)/.test(c));
   assert.ok(!/border-radius\s*:\s*(?!0|var\(--r)/.test(c));
@@ -384,7 +389,7 @@ test('portal.js 소스: confirm()·외부 주소·1인칭 없음, 서버 글자�
   const used = (s.match(/\bK\.[A-Za-z]+/g) || []).filter(function (x, i, a) { return a.indexOf(x) === i; }).sort();
   assert.deepStrictEqual(used, ['K.closedBasis', 'K.contractEnd', 'K.normDate']);
 });
-test('app.js 연결: showSoon 첫 화면 분기(soon-plain 숨김은 별도 줄)·onTabChange 해제·프로필·편집 저장·단독 항목', function () {
+test('app.js 연결: showSoon 시작화면 분기(soon-plain 숨김은 별도 줄)·onTabChange 해제·프로필·편집 저장·단독 항목', function () {
   const a = src('js/app.js');
   assert.ok(/const isHome = !!\(root\.nav && itemId === root\.nav\.HOME_ID\)/.test(a));
   assert.ok(a.indexOf('root.portal.mount(homeEl)') > 0 && a.indexOf("document.getElementById('pt-root')") > 0);
@@ -393,7 +398,31 @@ test('app.js 연결: showSoon 첫 화면 분기(soon-plain 숨김은 별도 줄)
   assert.ok(/tab !== 'soon' && root\.portal && root\.portal\.unmount/.test(a));
   assert.ok(a.indexOf('root.portal.onProfileChange()') > 0 && a.indexOf('root.portal.refresh()') > 0);
   assert.ok(/if \(!\(root\.portal && root\.portal\.mount\)\) \{ flushOverdue\(\); return; \}/.test(a));
-  assert.ok(a.indexOf('root.nav.accordionOf(navBuilt, navActiveId)') > 0 && /if \(cat\.single\) return '<div class="nav-home">'/.test(a));
+  assert.ok(a.indexOf('root.nav.accordionOf(navBuilt, navActiveId)') > 0 && /return !c\.headOnly;/.test(a) && a.indexOf('nav-home') < 0);
+});
+
+test('시작화면(11-19): 로그아웃·로그인 초기화, 복원 pending 보존, 제목 단추, 고정 탭, 메뉴에서 제거, 보기 전용 전달, 패널 제목', function () {
+  const a = src('js/app.js'), p = src('js/portal.js');
+  assert.ok(/app\.resetScreens = function \(\) \{[\s\S]*?navTabs = \[\]; navActiveId = null;[\s\S]*?tab-btn-map[\s\S]*?\.click\(\);/.test(a));
+  assert.ok(/enterApp = function \(session, profile\) \{\s*pendingHome = true;[^\n]*\n\s*app\.resetScreens\(\);/.test(a));
+  assert.ok(/root\.store\.saveProfile\(\{ name: '', team: '' \}\);\s*app\.resetScreens\(\);/.test(a));
+  assert.ok(a.indexOf('resetScreens', a.indexOf('app.onProfileChanged = function')) > a.indexOf('app.applyMenuPermissions();', a.indexOf('app.onProfileChanged = function')));   // onProfileChanged 본문에는 없다 — 내 정보 저장·계정 전환기에는 걸지 않는다
+  assert.ok(/view\.classList\.add\('hidden'\); pendingHome = true;/.test(a));                                    // 새로고침 복원
+  assert.ok(/function applyHome\(settled\)/.test(a) && /settled === false\) \{ flushOverdue\(\); return; \}/.test(a));
+  assert.ok(/app\.goHome = function/.test(a) && /getElementById\('app-home'\)/.test(a) && a.indexOf("'click', app.goHome") > 0);
+  assert.ok(/pin \? ' pin' : ''|class="stab pin/.test(a) && a.indexOf('시작화면 (닫을 수 없음)') > 0 && a.indexOf('고정 탭') > 0);
+  assert.ok(/root\.dashboard\.onProfileChange\(\)/.test(a));
+  // 기관 목록이 시작화면보다 늦게 오면 출처를 다시 불러온다(11-19 실측: 빠른 로그인에 '로그인과 서버 연결이 필요합니다'로 굳음)
+  assert.ok(/applyServerModeUI\(\);[\s\S]{0,300}root\.portal\.onDataReady\(\)/.test(a) && /P\.onDataReady = function \(\) \{\s*if \(!host\) return;\s*S\.seq \+= 1; startLoad\(\);/.test(p));
+  assert.ok(/readOnly: viewOnly\(\)/.test(p) && /N\.isViewOnly\(A\.navContext\(\)\)/.test(p));
+  assert.ok(p.indexOf('시작화면') > 0 && p.indexOf('첫 화면') < 0);
+  // 패널 제목·부제·개수·기간 칩(design-reviewer 11-19 1428_aab03363 5절)
+  const sk = portal.skeletonHtml();
+  assert.ok(sk.indexOf('<h3 id="pt-list-h">기관별 입찰 일정</h3>') > 0 && sk.indexOf('기관마다 가장 가까운 일 하나, 1년 안, 임박순') > 0);
+  assert.ok(sk.indexOf('<h3 id="pt-cal-h">날짜별 일정</h3>') > 0 && sk.indexOf('앞으로 30일, 접수 마감·공고 예정') > 0 && sk.indexOf('id="pt-cn"') > 0);
+  assert.ok(sk.indexOf('<span class="pt-span" aria-hidden="true">1년</span>') > 0 && sk.indexOf('<span class="pt-span" aria-hidden="true">30일</span>') > 0);
+  assert.ok(sk.indexOf('<h2 id="pt-title">시작화면</h2>') > 0 && p.indexOf("caption: '기관별 입찰 일정, 임박순, '") > 0);
+  assert.ok(/getElementById\('pt-cn'\)|\$\('pt-cn'\)/.test(p));
 });
 
 test('qa 11-19 후속: —·… 칸은 눌러도 거르지 않음, 다시 그려도 표·일정 줄 포커스 유지, 배정 줄은 건 번호로 구분, 039 시작 전 줄은 lines_next', function () {

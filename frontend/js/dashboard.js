@@ -636,7 +636,7 @@
     const unk = '<button type="button" class="db-tile unk" id="db-tomap"><span class="n">' + m.unknownN + '곳</span><span class="t">날짜 미상</span></button>';
     const exp = m.expiryN ? ' · 1년 안 약정 만료 기준 <b class="v">' + m.expiryN + '</b>곳' : '';
     const leg = '<div class="db-leg"><span><i class="seg s f"></i>공고로 확정</span>' +
-      '<span><i class="seg s"></i>추정(최근 절차일+약정 주기 / 약정 만료 6개월 전 / 공고 날짜 의미 확인 중)' + exp + '</span>' +
+      '<span><i class="seg s"></i>추정(지난 금고 선정일+약정 주기 / 약정 만료 6개월 전 / 공고 날짜 의미 확인 중)' + exp + '</span>' +
       '<span class="lg-up">' + toolIcon('up') + ' 6개월 안</span>' +
       '<span class="lg-n">입찰일 공고로 확정 <b class="v">' + m.confirmedN + '</b>곳 · 날짜 의미 확인 중 <b class="v">' + m.underReviewN + '</b>곳</span></div>';
     return head + '<div class="db-tl-body">' + tiles + '<div class="db-chart-wrap">' + chart + '</div>' + later + unk + '</div>' + leg;
@@ -716,7 +716,7 @@
   dash.termBar = function (it, today) {
     const rec = it && it.rec;
     if (!rec || !rec.lastBid || !today) return null;
-    const sinceLast = -logic.daysUntil(rec.lastBid, today);          // 최근 절차일부터 오늘까지 지난 일수
+    const sinceLast = -logic.daysUntil(rec.lastBid, today);          // 지난 금고 선정일부터 오늘까지 지난 일수
     const toBid = logic.daysUntil(it.date, today);                   // 오늘부터 입찰 예정일까지(경과면 음수)
     if (sinceLast === -Infinity || toBid === Infinity) return null;
     const total = sinceLast + toBid;
@@ -728,10 +728,10 @@
     if (!t) return '';
     const kind = t.est ? (t.basis === 'expiry' ? '추정·약정 만료 기준' : '추정') : '확정';
     const nowTxt = t.over ? 'D+' + (-t.days) : dayText(t.days);
-    const label = '최근 절차일 ' + t.lastBid + ', 오늘 ' + nowTxt + ', 입찰 예정 ' + t.date + ' ' + kind;
+    const label = '지난 금고 선정일 ' + t.lastBid + ', 오늘 ' + nowTxt + ', 입찰 예정 ' + t.date + ' ' + kind;
     return '<div class="db-sec"><h3>약정 주기</h3><div class="db-term' + (t.over ? ' over' : '') + '" role="img" aria-label="' + esc(label) + '">' +
       '<div class="trk"><div class="el ' + esc(it.band) + '" style="width:' + t.pct.toFixed(1) + '%"></div><div class="end' + (t.est ? ' est' : '') + ' ' + esc(it.band) + '"></div></div>' +
-      '<div class="lab"><span>최근 절차일 <b>' + esc(t.lastBid) + '</b></span><span>오늘 <b>' + esc(nowTxt) + '</b></span><span>입찰 예정 <b>' + esc(t.date) + '</b> ' + esc(kind) + '</span></div>' +
+      '<div class="lab"><span>지난 금고 선정일 <b>' + esc(t.lastBid) + '</b></span><span>오늘 <b>' + esc(nowTxt) + '</b></span><span>입찰 예정 <b>' + esc(t.date) + '</b> ' + esc(kind) + '</span></div>' +
       '</div></div>';
   };
 
@@ -896,12 +896,12 @@
     const why = it.confidence === '확정' ? '— 공고로 확인한 날입니다'
       : it.basis === 'expiry' ? '— 약정 만료일의 6개월 전으로 추정한 날입니다(약정 만료 기준 추정)'
       : it.basis === 'notice' ? '— 공고된 날짜이나 의미 확인 중입니다'
-      : '— 최근 절차일에 약정 주기를 더한 날입니다';
+      : '— 지난 금고 선정일에 약정 주기를 더한 날입니다';
     const lp = lastProcNote(rec);
     // 진행 중 공고는 맨 위 '공고 진행' 절이 공고일·접수·약정 만료를 맡는다 — 예정일 막대·'입찰 예정일' 줄은 두지 않는다.
     const info = (it.notice ? dash.noticeSecHtml(it, c.today) : oc ? '' : dash.termBarHtml(it, c.today)) +'<div class="db-sec"><h3>기관 정보</h3><dl class="db-dl">' +
       (it.notice || oc ? '' : it.unknown ? '<dt>입찰 예정일</dt><dd>' + chip() + '</dd>' : '<dt>입찰 예정일</dt><dd>' + mono(it.date) + ' ' + esc(it.label) + chkHtml(it) + ' <span class="db-why">' + why + '</span>' + ie.confirmSrcHtml(rec) + '</dd>') +
-      '<dt>최근 절차일</dt><dd>' + (rec.lastBid ? mono(rec.lastBid) + (lp ? ' <span class="db-why">' + esc(lp) + '</span>' : '') : chip()) + '</dd>' +
+      '<dt>지난 금고 선정일</dt><dd>' + (rec.lastBid ? mono(rec.lastBid) + (lp ? ' <span class="db-why">' + esc(lp) + '</span>' : '') : chip()) + '</dd>' +
       '<dt>약정 주기</dt><dd>' + (rec.term ? mono(rec.term) + '년' : chip()) + '</dd>' +
       (ie.opLineHtml(rec) ? '<dt>운영 상태</dt><dd>' + ie.opLineHtml(rec) + '</dd>' : '') + '</dl>' +
       (srcs.length ? '<details class="db-src"><summary>출처 ' + srcs.length + '건 보기</summary><ol>' + srcs.map(srcItem).join('') + '</ol></details>' : '') + '</div>';
@@ -1661,9 +1661,9 @@
     return id ? dash.activePreps(m.preps).filter(function (p) { return instId(p) === id; })[0] || null : null;
   }
 
-  function dmRecState() {
+  function dmRecState(readOnly) {
     const n = NR(), A = root.app, N = root.nav;
-    return { state: n && n.state ? n.state() : 'offline', snap: n && n.snap ? n.snap() : null, canEdit: !!(n && n.canEdit && n.canEdit()),
+    return { state: n && n.state ? n.state() : 'offline', snap: n && n.snap ? n.snap() : null, canEdit: !readOnly && !!(n && n.canEdit && n.canEdit()),
       canGo: !!(A && A.findNavItem && N && N.NOTICE_ID && A.findNavItem(N.NOTICE_ID) && root.dashboard && root.dashboard.mount) };
   }
   // 상세를 다시 그린다. 위 상자(#dm-box)·알림 줄은 그대로 두고 #dm-pane만 바꾸며, 스크롤·포커스를 이어 준다.
@@ -1681,13 +1681,14 @@
     const ctx = actCtx();
     let act = dash.actionKind(m.rec, ctx, dash.activePreps(m.preps), root.prep, gateOpts());
     if (m.prepSt === 'loading' && act !== 'unavailable') act = 'wait';   // 진행 중인지 모르는 동안 [제안 확정]을 보였다 바꾸지 않는다
-    const raw = root.render && root.render.popRawHtml ? root.render.popRawHtml(m.rec) : '';
+    if (m.readOnly) act = 'none';   // 보기 전용: [제안 확정]·[사전준비 열기] 없음(전산팀은 prep.canView 밖이라 이미 none이지만 규칙으로 한 번 더 막는다)
+    const raw =root.render && root.render.popRawHtml ? root.render.popRawHtml(m.rec) : '';
     pane.innerHTML = dash.paneHtml(m.it, {
       act: act, early: act === 'confirm' && dash.proposeEarly(m.rec, gateOpts()), confirm: m.confirm && act === 'confirm', busy: m.busy, kb: dash.kbEntry(m.rec, root.KB_VERIFIED), next: dash.kbEntry(m.rec, root.KB_NEXT), role: ctx.role, today: todayDate(),
       headHtml: root.headcard ? root.headcard.paneSection(m.rec, dmHeadEnv(m)) : undefined,
-      recordHtml: ie.isOpenCheck(m.rec) ? '' : dash.recordBriefHtml(m.it, dmRecState()), bank: bankView(m.rec),
+      recordHtml: ie.isOpenCheck(m.rec) ? '' : dash.recordBriefHtml(m.it, dmRecState(m.readOnly)), bank: m.readOnly ? dash.lockBank(bankView(m.rec)) : bankView(m.rec),
       nameId: 'dm-name',
-      mapHtml: '<button type="button" id="dm-edit">편집</button><button type="button" id="dm-close">닫기</button>',
+      mapHtml: m.readOnly ? dash.VIEW_ONLY_MAP_HTML : '<button type="button" id="dm-edit">편집</button><button type="button" id="dm-close">닫기</button>',
       tailHtml: raw ? '<div class="db-sec"><details class="pop-raw"><summary>원본 정보</summary>' + raw + '</details></div>' : '',
     });
     const nb = pane.querySelector('.db-pane-body');
@@ -1752,6 +1753,7 @@
     if (hcb && root.headcard) { root.headcard.onPaneClick(hcb.getAttribute('data-hc'), function () { return dmHeadEnv(m); }); return; }
     const btn = t.closest('button');
     if (!btn) return;
+    if (m.readOnly && ['dm-edit', 'bk-edit', 'db-cf', 'db-do', 'db-open'].indexOf(btn.id) >= 0) return;   // 보기 전용: 버튼이 없어도 함수가 한 번 더 막는다
     switch (btn.id) {
       case 'dm-close': dash.closeDetail(true); break;
       case 'dm-rec-go': {
@@ -1802,7 +1804,7 @@
     if (typeof document === 'undefined' || !rec) return false;
     if (dm.cur) dash.closeDetail(false);
     const m = { rec: rec, it: dash.itemForRec(rec, todayDate()), opener: (opts && opts.opener) || document.activeElement,
-      screen: (opts && opts.screen) || 'map_popover', fallback: (opts && opts.fallback) || '', refocus: (opts && opts.refocus) || null, focus: (opts && opts.focus) || '', changed: false,
+      screen: (opts && opts.screen) || 'map_popover', fallback: (opts && opts.fallback) || '', refocus: (opts && opts.refocus) || null, focus: (opts && opts.focus) || '', changed: false, readOnly: !!(opts && opts.readOnly),
       preps: null, prepSt: 'offline', confirm: false, busy: false, down: null, el: null };
     const ov = document.createElement('div');
     ov.className = 'modal-overlay dm-ov';
@@ -1827,6 +1829,13 @@
     if (t && t.focus) t.focus();
     return true;
   };
+
+  // 보기 전용(시작화면에서 전산팀이 연 상세): 금고 약정 변경 단추가 서버 can_edit과 상관없이 나오지 않게 한다. 순수.
+  dash.lockBank = function (view) {
+    if (!view || !view.data) return view;
+    return Object.assign({}, view, { data: Object.assign({}, view.data, { can_edit: false }) });
+  };
+  dash.VIEW_ONLY_MAP_HTML = '<button type="button" id="dm-close">닫기</button>';   // [편집] 없이 [닫기]만
 
   dash.closeDetail = function (refocus) {
     const m = dm.cur;
@@ -1930,6 +1939,16 @@
     if (host) host.innerHTML = '';
     host = null; M = null;
     bankUnwatch();
+  };
+
+  let stWho = null;
+  // 계정이 바뀌면 앞 사용자가 고른 기관·검색어·지역·종류·기록 초안을 버린다(app.onProfileChanged). 같은 사람이면 그대로 둔다(내 정보 저장에 선택이 풀리지 않게).
+  dash.onProfileChange = function () {
+    const w = empNo();
+    if (w === stWho) return;
+    stWho = w;
+    st.sel = ''; st.q = ''; st.region = ''; st.type = ''; st.confirm = false; st.drafts = {}; st.rec = recFresh('');
+    if (host && M) refreshData();   // refreshData가 필터 칸도 다시 채운다
   };
 
   if (isNode) module.exports = dash;

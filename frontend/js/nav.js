@@ -12,7 +12,7 @@
   //     키가 있는데 준비중인 항목(pending: AI 대화·지식 검색)은 서버 키(v[key])가 켠 사람에게 보인다.
   //     onlyRoles가 있는 항목(제안팀 구성·배정·제안서 사전준비)은 그 역할(영업팀·영업팀장·영업부장)에게만 보인다 — 디자이너·마스터 제외.
   //     withKey가 있는 항목(입찰 현황판·입찰 공고 현황)은 그 서버 키(map)가 켜진 사람 전원에게 보이고, front면 같은 중분류의 맨 앞에 놓인다.
-  //     withKey와 onlyRoles를 함께 쓴 항목(첫 화면, 11-19 결정)은 서버 키(map)가 켜져 있고 그 역할(마스터 제외)인 사람에게만 보인다.
+  //     withKey와 onlyRoles를 함께 쓴 항목(시작화면, 11-19 결정)은 서버 키(map)가 켜져 있고 그 역할(마스터 제외)인 사람에게만 보인다.
   //     withKey와 onlyTeams를 함께 쓴 항목(기관 사업계획, 11-17 결정)은 서버 키(map)가 켜져 있고 그 팀 소속(영업팀·전산팀 전원, 디자이너는 영업팀 소속, 마스터 포함)인 사람에게만 보인다 — 예산팀 제외.
   //  3. **한 화면은 한 항목에만 둔다.** 같은 탭을 두 곳에 걸면 어느 쪽이 "지금 위치"인지
   //     하이라이트가 모호해진다.
@@ -62,15 +62,20 @@
   // 기관 사업계획 — plans.SOON_ID와 같아야 한다. 노출 = 서버 map 키 AND 영업팀·전산팀 소속(예산팀 제외, 11-17 결정).
   const PLANS_ID = 'soon:기관 사업계획';
   const PLANS_TEAMS = [roles.DESIGNER_HOME, '전산팀'].map(function (a) { return roles.teamOf(a); });
-  // 첫 화면(포털, portal.js) — 메뉴 맨 위 단독 항목. 노출 = 서버 map 키 AND 영업 계열 + 디자이너(마스터 제외). 사용자 확정 11-19.
-  const HOME_ID = 'soon:첫 화면';
+  // 시작화면(포털, portal.js) — 사이드바 메뉴에는 그리지 않는다(headOnly). 머리 띠 제목 '기관영업지원 시스템'과 탭 맨 앞 고정 탭으로만 연다.
+  // 노출 = 서버 map 키 AND HOME_ROLES(마스터 제외). 사용자 확정 11-19(이름 '첫 화면' → '시작화면', 메뉴에서 제거).
+  // id 값 'soon:첫 화면' → 'soon:시작화면': 이 id는 메모리 탭 목록에만 있다(localStorage·서버·접근 이력에 저장 안 함) → 마이그레이션 없음.
+  const HOME_ID = 'soon:시작화면';
   const HOME_CAT = 'home';
-  const HOME_ROLES = TEAM_ROLES.concat([roles.DESIGNER]);
+  // 시작화면을 보되 고치지는 못하는 역할(사용자 11-19: 전산팀·전산팀장). 시작화면에서 여는 상세 팝업의 쓰기 버튼을 모두 숨긴다(nav.isViewOnly).
+  const VIEW_ONLY_ROLES = ['전산팀', '전산팀장'];
+  // 시작화면 대상 역할 — 역할을 바꾸려면 이 두 줄(HOME_ROLES·VIEW_ONLY_ROLES)만 고친다. 재무(예산팀)·마스터는 지도로 시작한다.
+  const HOME_ROLES = TEAM_ROLES.concat([roles.DESIGNER], VIEW_ONLY_ROLES);
 
   // subs: 중분류 순서. 항목마다 sub로 소속을 가리킨다(시스템 관리는 중분류 없음).
   nav.CATEGORIES = [
-    { id: HOME_CAT, title: '첫 화면', single: true, items: [   // 소제목·펼침 없이 항목 하나만 그린다(app.drawNav)
-      soon('', '첫 화면', '', '', false, HOME_ID, HOME_ROLES, 'map', true)] },
+    { id: HOME_CAT, title: '시작화면', headOnly: true, items: [   // headOnly = 사이드바에 그리지 않는다(app.drawNav가 거른다). 권한·탭·pruneTabs 판정은 이 항목으로 한다
+      soon('', '시작화면', '', '', false, HOME_ID, HOME_ROLES, 'map', true)] },
     { id: 'scan', title: '기관·입찰 현황', subs: ['기관', '입찰 공고'], items: [
       soon('기관', '입찰 현황판', '', '', false, DASH_ID, undefined, 'map', true),
       live('기관', '전국 지도', 'map'), live('기관', '전국 지역별', 'regions'),
@@ -112,22 +117,26 @@
   nav.PLANS_ID = PLANS_ID;
   nav.PLANS_TEAMS = PLANS_TEAMS;
   nav.COLLECT_ID = 'admin:collect';   // plancollect.NAV_ID 와 같다 — overdue.paintNavBadge 가 이 항목의 배지를 지우지 않게 알아본다
-  // 로그인 뒤 첫 화면(포털)을 보는 역할 — 영업팀·영업팀장·영업부장 + 디자이너(사용자 결정 11-19, 11-11 결정에서 디자이너 추가). 마스터·타 팀은 지금처럼 지도.
+  // 로그인 뒤 시작화면(포털)을 보는 역할 — 영업팀·영업팀장·영업부장 + 디자이너 + 전산팀·전산팀장(보기 전용, 사용자 결정 11-19). 마스터·재무는 지도.
   nav.isHomeRole = function (ctx) { return nav.roleIn(HOME_ROLES, ctx); };
-  // 로그인 뒤 첫 화면: 첫 화면 항목이 보이는 대상 역할이고 아직 지도만 보고 있으면 HOME_ID, 아니면 null(지금 화면 유지).
+  // 보기 전용 판정은 이 함수 하나다. portal.js가 상세 팝업을 열 때 읽고, dashboard.js 상세는 그 값(readOnly)만 따른다.
+  nav.VIEW_ONLY_ROLES = VIEW_ONLY_ROLES;
+  nav.isViewOnly = function (ctx) { return nav.roleIn(VIEW_ONLY_ROLES, ctx); };
+  // 로그인 뒤 시작화면: 시작화면 항목이 보이는 대상 역할이고 아직 지도만 보고 있으면 HOME_ID, 아니면 null(지금 화면 유지).
   // 이미 다른 화면을 열었거나 탭을 연 뒤라면 건드리지 않는다.
-  // 로그인 순간(메뉴 권한이 오기 전) 첫 화면이 포털일 것으로 보는가 — 본체(portal.mount)가 있고 대상 역할일 때만.
+  // 로그인 순간(메뉴 권한이 오기 전) 시작화면이 포털일 것으로 보는가 — 본체(portal.mount)가 있고 대상 역할일 때만.
   // 경과 요약 팝업은 이때 잠시 미루고, 실제로 포털이 열리지 않으면(homeItemId가 null) 그때 띄운다.
   nav.expectsHome = function (ctx, portalReady) { return !!portalReady && nav.isHomeRole(ctx); };
   nav.homeItemId = function (built, activeId, tabs, ctx) {
     if (!nav.isHomeRole(ctx)) return null;
     if (nav.categoryOf(built, HOME_ID) === null) return null;
+    if (activeId === HOME_ID) return null;   // 이미 시작화면
     if (activeId && activeId !== 'map') return null;
     const open = tabs || [];
-    for (let i = 0; i < open.length; i += 1) { if (open[i].id !== 'map') return null; }
+    for (let i = 0; i < open.length; i += 1) { if (open[i].id !== 'map' && open[i].id !== HOME_ID) return null; }
     return HOME_ID;
   };
-  // 아코디언 분류 id — 단독 항목(첫 화면)은 펼칠 분류가 없어 null. 화면 이동이 다른 분류의 열림을 닫지 않게 한다.
+  // 아코디언 분류 id — 단독 항목(시작화면)은 펼칠 분류가 없어 null. 화면 이동이 다른 분류의 열림을 닫지 않게 한다.
   nav.accordionOf = function (built, itemId) {
     const c = nav.categoryOf(built, itemId);
     return c === HOME_CAT ? null : c;
@@ -199,7 +208,7 @@
       if (!items.length) return;
       const built = { id: cat.id, title: cat.title, items: items,
                       showSubs: !!cat.subs && shownSubs >= 2 && eachTwo };
-      if (cat.single) built.single = true;
+      if (cat.headOnly) built.headOnly = true;
       (cat.last ? tail : out).push(built);
     });
     return out.concat(tail);
@@ -267,13 +276,17 @@
     const list = tabs || [];
     const exists = list.some(function (t) { return t.id === item.id; });
     if (exists) return { tabs: list.slice(), activeId: item.id, full: false };
-    if (list.length >= limit) return { tabs: list.slice(), activeId: activeId || null, full: true };
-    return { tabs: list.concat([{ id: item.id, label: item.label }]), activeId: item.id, full: false };
+    const tab = { id: item.id, label: item.label };
+    if (item.id === HOME_ID) return { tabs: [tab].concat(list), activeId: item.id, full: false };   // 시작화면: 맨 앞 고정, 개수 제한에 세지 않는다
+    const used = list.filter(function (t) { return t.id !== HOME_ID; }).length;
+    if (used >= limit) return { tabs: list.slice(), activeId: activeId || null, full: true };
+    return { tabs: list.concat([tab]), activeId: item.id, full: false };
   };
 
   // 닫은 뒤 활성: 닫은 게 활성이 아니면 그대로, 활성이면 오른쪽 이웃 → 왼쪽 이웃 → null.
   nav.closeTab = function (tabs, id, activeId) {
     const list = tabs || [];
+    if (id === HOME_ID) return { tabs: list.slice(), activeId: activeId || null };   // 시작화면 탭은 닫을 수 없다
     const i = list.findIndex(function (t) { return t.id === id; });
     if (i < 0) return { tabs: list.slice(), activeId: activeId || null };
     const rest = list.slice(0, i).concat(list.slice(i + 1));

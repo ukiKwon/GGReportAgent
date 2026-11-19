@@ -22,7 +22,7 @@
   logic.SERVER_UNSAVABLE_FIELDS = ['name'];
 
   logic.FIELD_LABELS = { name:'기관명', type:'기관구분', region:'지역코드', subRegion:'구시군코드',
-    term:'입찰주기', lastBid:'지난 입찰일', contractEnd:'입찰예상일', confirmed:'확정여부',
+    term:'입찰주기', lastBid:'지난 금고 선정일', contractEnd:'입찰예상일', confirmed:'확정여부',
     contractExpiry:'약정 만료일', lng:'경도', lat:'위도', sources:'출처', updatedAt:'수정일' };
 
   // 지자체 기관명 → 행정구역 폴리곤명 정규화. '마포구청'→'마포구', '서울시청(예시)'→'서울시'.
