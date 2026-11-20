@@ -735,13 +735,13 @@ test('rowHtml(2줄): 이름+실선 .pl-tag(연도 앞), .meta 안에 지역·종
   const by = function (id) { return rows.filter(function (r) { return r.id === id; })[0]; };
   const na = plans.rowHtml(by('na'), { id: 'pl-o-1', selected: true, loaded: true });
   assert.ok(na.indexOf('aria-selected="true"') >= 0 && na.indexOf('role="option"') >= 0 && na.indexOf('<span class="nm">나구</span>') >= 0);
-  assert.ok(na.indexOf('<span class="pl-tag" data-kind="GOAL" title="목표 연도 2026·2027(가장 이른 해를 표시)"><span class="v">2026</span> 목표</span>') >= 0);
+  assert.ok(na.indexOf('<span class="pl-tag" data-kind="GOAL" title="목표 연도 2026·2027(가장 이른 해를 표시)">2026 목표</span>') >= 0);
   assert.ok(na.indexOf('<span class="meta"><span class="pl-reg">26') >= 0 && na.split('<span class="pl-st">').length === 2);
   assert.ok(na.indexOf('사업계획 <span class="v">2</span>건') >= 0 && na.indexOf('오래됨') >= 0);
   assert.ok(na.indexOf('<button') < 0 && na.endsWith('</span></span></li>'));
   assert.ok(na.indexOf('data-pin') < 0 && na.indexOf('직접 연 기관') < 0);
   const ga = plans.rowHtml(by('ga'), { loaded: true });
-  assert.ok(ga.indexOf('<span class="v">2027</span> 목표</span>') >= 0 && ga.indexOf('title=') < 0 && ga.indexOf('pop-unk">자료 없음') >= 0);
+  assert.ok(ga.indexOf('>2027 목표</span>') >= 0 && ga.indexOf('title=') < 0 && ga.indexOf('pop-unk">자료 없음') >= 0);
   const da = plans.rowHtml(by('da'), { loaded: true });
   assert.ok(da.indexOf('<span class="pl-tag" data-kind="WATCH">나의 관심</span>') >= 0 && da.indexOf('pop-unk pl-') < 0 && da.indexOf('data-kind="GOAL"') < 0);   // 관심 칩은 점선이 아니다
   assert.ok(plans.rowHtml(rows.filter(function (r) { return r.name === '라구'; })[0], { loaded: true }).indexOf('pl-tag') < 0);

@@ -573,7 +573,7 @@
     if (kind === 'GOAL') {
       const ys = (Array.isArray(years) ? years : []).filter(Number).sort(function (a, b) { return a - b; });
       const title = ys.length > 1 ? ' title="' + esc('목표 연도 ' + ys.join('·') + '(가장 이른 해를 표시)') + '"' : '';
-      return '<span class="pl-tag" data-kind="GOAL"' + title + '>' + (ys.length ? mono(ys[0]) + ' ' : '') + '목표</span>';
+      return '<span class="pl-tag" data-kind="GOAL"' + title + '>' + (ys.length ? esc(String(ys[0])) + ' ' : '') + '목표</span>';   // 칩은 이름표 — 숫자도 일반 글꼴(나의 관심 칩과 같은 글씨, 사용자 11-20)
     }
     return kind === 'WATCH' ? '<span class="pl-tag" data-kind="WATCH">나의 관심</span>' : '';
   };
