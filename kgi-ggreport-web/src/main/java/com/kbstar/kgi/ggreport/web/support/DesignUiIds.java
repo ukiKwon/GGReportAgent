@@ -17,7 +17,8 @@ public final class DesignUiIds {
             "design_work", "design_review", "approvals_inbox", "notify_inbox")));
     public static final Set<String> BUTTONS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             "design_open", "design_complete", "design_revise", "design_comment", "design_ack", "design_view",
-            "forward", "finalize", "return", "approve", "reject", "submit")));
+            "forward", "finalize", "return", "approve", "reject", "submit",
+            "doc_check_submit_anyway")));   // 점검 확인창의 [미확인 n건 무시하고 제출] — DSN_COMPLETE 감사가 UNKNOWN 이 되지 않게(NEXT 106)
 
     private DesignUiIds() {
     }

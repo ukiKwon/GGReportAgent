@@ -81,6 +81,11 @@ public class BoardWriteLimitFilter implements Filter {
     private static final Pattern TARGET_WRITE = Pattern.compile(
             "(?:^|/)(?:bid-targets/+(?:changes|carry)|institutions/+[^/]+/+bid-(?:targets(?:/+[^/]+/+(?:cancel|move))?|terms))/*$", Pattern.CASE_INSENSITIVE);
 
+    /** POST /tasks/{id}/files/{name}/doc-check(/ack) — 재검사(본문 없음)·의도적 언급 표시(최대 200줄 JSON). 32KB(NEXT 106, security S14). 이름에 %2F 가 풀려도 걸리게 .+ */
+    static final long DOC_ACK_MAX = 32L * 1024;
+    private static final Pattern DOC_CHECK = Pattern.compile(
+            "(?:^|/)tasks/+[^/]+/+files/+.+/+doc-check(?:/+ack)?/*$", Pattern.CASE_INSENSITIVE);
+
     private final AccessLogService accessLog;
     private final int maxMb;
 
@@ -133,6 +138,7 @@ public class BoardWriteLimitFilter implements Filter {
                 : post && MAT_SMALL.matcher(path).find() ? COPY_MAX
                 : post && FORM_SMALL.matcher(path).find() ? COPY_MAX
                 : post && TARGET_WRITE.matcher(path).find() ? TARGET_MAX
+                : post && DOC_CHECK.matcher(path).find() ? DOC_ACK_MAX
                 : put && FORM_DRAFT.matcher(path).find() ? FORM_DRAFT_MAX
                 : put && SAVE.matcher(path).find() ? SAVE_MAX : -1;
         long len = req.getContentLengthLong();

@@ -60,8 +60,9 @@ public class MapperStatementBindingTest {
      * + 이사회 회의록 1개(BoardMinutesMapper — 047, NEXT 99, 2026-11-19).
      * + 사전준비 양식 1개(PrepFormMapper — 049, NEXT 100 S2, 2026-11-20).
      * + 목표 기관 성과 1개(TargetResultMapper — DB 변경 없음, NEXT 104, 05 세션 2026-11-20).
+     * + 작업함 파일 점검 1개(DocCheckMapper — 057, NEXT 106, 2026-11-20).
      */
-    private static final int EXPECTED_MAPPER_COUNT = 33;
+    private static final int EXPECTED_MAPPER_COUNT = 34;
 
     @Autowired
     private SqlSessionFactory sqlSessionFactory;

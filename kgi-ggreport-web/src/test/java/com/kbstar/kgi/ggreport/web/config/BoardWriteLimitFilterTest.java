@@ -214,6 +214,26 @@ public class BoardWriteLimitFilterTest {
         assertEquals("GET 은 통과", 200, filter("GET", "/bidcases/B1/prep/forms/INST_SUMMARY/draft-docx", 1, true).getStatus());
     }
 
+    // ── 작업함 파일 점검(057, NEXT 106) ─────────────────────────────────
+
+    @Test
+    public void 작업함_점검_표시와_재검사는_32KB_한도고_파일_올리기는_이_규칙이_아니다() throws Exception {
+        assertEquals(32 * 1024L, BoardWriteLimitFilter.DOC_ACK_MAX);
+        for (String uri : new String[]{"/tasks/t1/files/a.pptx/doc-check/ack", "/tasks//t1//files//a.pptx//doc-check//ack/",
+                "/tasks/t1/files/a.pptx/doc-check", "/TASKS/t1/files/a.pptx/doc-check/ack;x=1"}) {
+            MockHttpServletResponse res = filter("POST", uri, 40000, true);
+            assertEquals(uri, 413, res.getStatus());
+            String body = res.getContentAsString();
+            assertTrue(body, body.contains("BODY_TOO_LARGE") && body.contains("\"max_kb\":32"));
+            assertFalse(lastPassed);
+            assertEquals(uri, 411, filter("POST", uri, 0, false).getStatus());
+            assertEquals(uri, 200, filter("POST", uri, 1024, true).getStatus());
+            assertTrue(lastPassed);
+        }
+        assertEquals("파일 올리기(/tasks/{id}/files)는 이 규칙에 걸리지 않는다", 200, filter("POST", "/tasks/t1/files", 40000, true).getStatus());
+        assertTrue(lastPassed);
+    }
+
     @Test
     public void 접근_이력_413_경로는_컨텍스트와_경로_매개변수를_뗀_값이다() throws Exception {
         AccessLogService log = org.mockito.Mockito.mock(AccessLogService.class);

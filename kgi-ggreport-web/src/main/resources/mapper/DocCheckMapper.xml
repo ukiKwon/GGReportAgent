@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- DOC_CHECK / DOC_CHECK_HIT / DOC_CHECK_LOG — 057(NEXT 106). ANSI 문장(양쪽 방언 공통, databaseId 분기 없음). 값은 모두 #{} (${} 금지).
+     ⚠️ 읽기는 flushCache — TASKS 잠금 뒤 다시 읽어도 앞선 캐시를 타지 않게. FOR UPDATE(lockTask)는 조인·집계 없이(Oracle 제약). -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.DocCheckMapper">
+
+  <select id="selectInstitutionRows" resultType="InstNameRow">
+    SELECT INSTITUTION_ID, NAME_KO, REGION_CODE FROM INSTITUTIONS
+  </select>
+
+  <select id="lockTask" resultType="string" flushCache="true">
+    SELECT STATUS FROM TASKS WHERE TASK_ID = #{taskId} FOR UPDATE
+  </select>
+
+  <delete id="deleteCheck">
+    DELETE FROM DOC_CHECK WHERE TASK_ID = #{taskId} AND NAME_KEY = #{nameKey}
+  </delete>
+
+  <delete id="deleteHits">
+    DELETE FROM DOC_CHECK_HIT WHERE TASK_ID = #{taskId} AND NAME_KEY = #{nameKey}
+  </delete>
+
+  <insert id="insertCheck">
+    INSERT INTO DOC_CHECK (TASK_ID, NAME_KEY, FILE_SHA256, FILE_SIZE, FILE_MTIME_MS, INSTITUTION_ID, STATE_CD, REASON_CD,
+                           HAS_IMAGES, HAS_EMBEDDED, ORDER_APPROX, HIT_ROWS, CHECKER_VER, CHECKED_AT)
+    VALUES (#{taskId}, #{nameKey}, #{fileSha256}, #{fileSize}, #{fileMtimeMs}, #{institutionId}, #{stateCd}, #{reasonCd,jdbcType=VARCHAR},
+            #{hasImages}, #{hasEmbedded}, #{orderApprox}, #{hitRows}, #{checkerVer}, #{checkedAt})
+  </insert>
+
+  <insert id="insertHit">
+    INSERT INTO DOC_CHECK_HIT (TASK_ID, NAME_KEY, FOUND_INST_ID, LOC_KIND, LOC_NO, HIT_COUNT)
+    VALUES (#{taskId}, #{nameKey}, #{foundInstId}, #{locKind}, #{locNo}, #{hitCount})
+  </insert>
+
+  <select id="selectChecks" resultType="DocCheckRow" flushCache="true">
+    SELECT TASK_ID, NAME_KEY, FILE_SHA256, FILE_SIZE, FILE_MTIME_MS, INSTITUTION_ID, STATE_CD, REASON_CD,
+           HAS_IMAGES, HAS_EMBEDDED, ORDER_APPROX, HIT_ROWS, CHECKER_VER, CHECKED_AT
+      FROM DOC_CHECK WHERE TASK_ID = #{taskId}
+  </select>
+
+  <select id="selectHits" resultType="DocCheckHitRow" flushCache="true">
+    SELECT TASK_ID, NAME_KEY, FOUND_INST_ID, LOC_KIND, LOC_NO, HIT_COUNT
+      FROM DOC_CHECK_HIT WHERE TASK_ID = #{taskId}
+    <if test="nameKey != null"> AND NAME_KEY = #{nameKey}</if>
+  </select>
+
+  <select id="selectMaxSeq" resultType="int" flushCache="true">
+    SELECT COALESCE(MAX(SEQ_NO), 0) FROM DOC_CHECK_LOG WHERE TASK_ID = #{taskId}
+  </select>
+
+  <insert id="insertLog">
+    INSERT INTO DOC_CHECK_LOG (TASK_ID, SEQ_NO, EVENT_CD, NAME_KEY, FILE_SHA256, FOUND_INST_ID, LOC_KIND, LOC_NO,
+                               OPEN_COUNT, NOT_CHECKED_COUNT, PARTIAL_COUNT, EMP_NO, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, ACTED_AT)
+    VALUES (#{taskId}, #{seqNo}, #{eventCd}, #{nameKey,jdbcType=VARCHAR}, #{fileSha256,jdbcType=VARCHAR}, #{foundInstId,jdbcType=VARCHAR},
+            #{locKind,jdbcType=VARCHAR}, #{locNo,jdbcType=INTEGER}, #{openCount,jdbcType=INTEGER},
+            #{notCheckedCount,jdbcType=INTEGER}, #{partialCount,jdbcType=INTEGER}, #{empNo,jdbcType=VARCHAR},
+            #{empVerified}, #{screenId}, #{buttonId}, #{uiValid}, #{actedAt})
+  </insert>
+
+  <select id="selectAckLog" resultType="DocCheckLogRow" flushCache="true">
+    SELECT L.SEQ_NO, L.EVENT_CD, L.FILE_SHA256, L.FOUND_INST_ID, L.LOC_KIND, L.LOC_NO, L.EMP_NO, U.NAME AS EMP_NAME, L.ACTED_AT
+      FROM DOC_CHECK_LOG L
+      LEFT JOIN USERS U ON U.EMP_NO = L.EMP_NO
+     WHERE L.TASK_ID = #{taskId} AND L.EVENT_CD IN ('ACK', 'UNACK')
+     ORDER BY L.SEQ_NO
+  </select>
+</mapper>

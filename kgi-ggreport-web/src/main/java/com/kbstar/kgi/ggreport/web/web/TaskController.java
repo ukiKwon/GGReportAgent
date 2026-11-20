@@ -10,11 +10,15 @@ import com.kbstar.kgi.ggreport.web.dto.HandoffResponse;
 import com.kbstar.kgi.ggreport.web.dto.TaskFileEntry;
 import com.kbstar.kgi.ggreport.web.dto.TaskListRow;
 import com.kbstar.kgi.ggreport.web.service.DesignReviewService;
+import com.kbstar.kgi.ggreport.web.service.DocCheckService;
 import com.kbstar.kgi.ggreport.web.service.HandoffService;
 import com.kbstar.kgi.ggreport.web.support.DesignUiIds;
+import com.kbstar.kgi.ggreport.web.support.DocCheckUiIds;
 import com.kbstar.kgi.ggreport.web.service.TaskCommandService;
 import com.kbstar.kgi.ggreport.web.service.TaskFileService;
 import com.kbstar.kgi.ggreport.web.service.TaskQueryService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -58,6 +62,8 @@ import java.util.List;
 @RequestMapping("/tasks")
 public class TaskController {
 
+    private static final Logger LOG = LoggerFactory.getLogger(TaskController.class);
+
     private final TaskQueryService tasks;
     private final TaskCommandService commands;
     private final TaskFileService files;
@@ -65,10 +71,12 @@ public class TaskController {
     private final MenuGuard guard;
     private final DesignGate gate;
     private final DesignReviewService design;
+    private final DocCheckService docChecks;
 
     public TaskController(TaskQueryService tasks, TaskCommandService commands,
                           TaskFileService files, HandoffService handoffs, MenuGuard guard,
-                          DesignGate gate, DesignReviewService design) {
+                          DesignGate gate, DesignReviewService design, DocCheckService docChecks) {
+        this.docChecks = docChecks;
         this.gate = gate;
         this.design = design;
         this.guard = guard;
@@ -208,9 +216,22 @@ public class TaskController {
             final String id = taskId;
             gate.run(req, DesignReviewService.A_COMPLETE, DesignGate.key(taskId), null,
                     (me, actor, ui) -> design.complete(me, actor, ui, id));
-            return design.taskOf(taskId);
+            Task done = design.taskOf(taskId);
+            auditOpenFindings(taskId, req);
+            return done;
         }
-        return commands.submit(taskId, body == null ? null : body.getBy(), userId);
+        Task done = commands.submit(taskId, body == null ? null : body.getBy(), userId);
+        auditOpenFindings(taskId, req);
+        return done;
+    }
+
+    /** 제출이 성공한 뒤에만 — 점검에서 미확인·점검 못 함이 남았으면 DOC_CHECK_LOG 에 SUBMIT_OPEN(NEXT 106). 실패해도 제출 응답은 그대로. */
+    private void auditOpenFindings(String taskId, HttpServletRequest req) {
+        try {
+            docChecks.recordSubmit(taskId, Actor.of(req), DocCheckUiIds.of(req));
+        } catch (RuntimeException e) {
+            LOG.warn("doc-check submit audit failed task={} type={}", DesignGate.key(taskId), e.getClass().getSimpleName());
+        }
     }
 
     /** 결재 — 골든 {@code 17}. {@code approved=false} 면 반려 사유가 담당자에게 간다. */

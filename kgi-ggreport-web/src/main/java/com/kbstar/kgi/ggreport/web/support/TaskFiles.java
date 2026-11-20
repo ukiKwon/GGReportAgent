@@ -109,6 +109,15 @@ public final class TaskFiles {
         return raw;
     }
 
+    /** 크기만 먼저 본다 — 점검(메모리 추출)을 저장 전에 하므로 큰 파일은 그 전에 걸러야 한다(NEXT 106). */
+    public static void requireSize(byte[] data) {
+        if (data.length > MAX_BYTES) {
+            throw new FileRejected(String.format(Locale.ROOT,
+                    "파일이 너무 큽니다(%.1fMB) — %dMB까지 올릴 수 있습니다",
+                    data.length / 1024.0 / 1024.0, MAX_BYTES / 1024 / 1024));
+        }
+    }
+
     /**
      * 저장하고 그 결과를 돌려준다. 같은 이름이면 덮어쓰되 {@code replaced} 로 알린다.
      *
@@ -117,11 +126,7 @@ public final class TaskFiles {
      */
     public static TaskFileEntry save(String outputRoot, String institutionName, String taskId,
                                      String filename, byte[] data) throws IOException {
-        if (data.length > MAX_BYTES) {
-            throw new FileRejected(String.format(Locale.ROOT,
-                    "파일이 너무 큽니다(%.1fMB) — %dMB까지 올릴 수 있습니다",
-                    data.length / 1024.0 / 1024.0, MAX_BYTES / 1024 / 1024));
-        }
+        requireSize(data);
         String name = safeName(filename);
         File dir = taskDir(outputRoot, institutionName, taskId);
         if (!dir.isDirectory() && !dir.mkdirs()) {

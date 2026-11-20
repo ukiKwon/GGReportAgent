@@ -42,7 +42,7 @@ public class TaskFileServiceGuardTest {
         AppProperties properties = new AppProperties();
         properties.setOutputRoot("data/report_new");
 
-        service = new TaskFileService(tasks, properties);
+        service = new TaskFileService(tasks, properties, mock(DocCheckService.class), false);
     }
 
     @Test
