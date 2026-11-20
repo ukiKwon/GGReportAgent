@@ -13,14 +13,19 @@ import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.apache.ibatis.session.RowBounds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLNonTransientConnectionException;
+import java.sql.SQLRecoverableException;
+import java.sql.SQLTransientConnectionException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -81,6 +86,8 @@ public class PlanCollectService {
     static final List<String> IT_INBOXES = Collections.unmodifiableList(Arrays.asList(IT_TEAM + Teams.TEAM_SUFFIX, Teams.leadOf(IT_TEAM)));
     static final int MAX_KEYS = 50;
     static final int MAX_RUN_KEYS = 10;
+    static final int MAX_BATCH = 50;     // 일괄 요청 기관 수 상한(팀 결정 11-20, MAX_KEYS 선례)
+    static final int NOTE_NAMES = 3;     // 일괄 쪽지 한 통에 이름을 적는 기관 수
     static final int REASON_MAX = 100;
     static final int CLOSED_MAX = 200;
     /** 같은 기관 agent 실행 간격(security 하·qa P3-5, 팀 결정 11-17). 수동 '수집 중 표시'에는 걸지 않는다. */
@@ -137,7 +144,7 @@ public class PlanCollectService {
         try {
             final String id = canonicalId(rawId);
             inst = id;
-            return tx.execute(st -> doRequest(id, actor, ui));
+            return tx.execute(st -> doRequest(id, actor, ui, true).out);
         } catch (DuplicateKeyException e) {
             failed(inst, ACTION_REQUEST, "BLOCKED", actor, ui);
             throw err(409, "CONCURRENT", "같은 기관 요청이 동시에 처리되었습니다. 다시 눌러 주세요.");
@@ -150,7 +157,15 @@ public class PlanCollectService {
         }
     }
 
-    private Map<String, Object> doRequest(String id, Actor actor, BoardUiIds.Ui ui) {
+    /** doRequest 결과 — out 은 단건 응답 본문 그대로, freshNote 는 '새 요청이라 개발부서에 쪽지를 보낼 대상인가'(created && !quiet). 응답 키가 아니다. */
+    private static final class Requested {
+        final Map<String, Object> out;
+        final boolean freshNote;
+        final String label;   // freshNote 일 때만 — 트랜잭션 안에서 미리 구한다(커밋 뒤 조회 실패로 이중 집계되지 않게, qa P3-1)
+        Requested(Map<String, Object> out, boolean freshNote, String label) { this.out = out; this.freshNote = freshNote; this.label = label; }
+    }
+
+    private Requested doRequest(String id, Actor actor, BoardUiIds.Ui ui, boolean notify) {
         if (mapper.lockInstitution(id) == null) throw notFound();
         String now = Times.nowIso();
         int v = actor.isVerified() ? 1 : 0;
@@ -188,8 +203,10 @@ public class PlanCollectService {
             }
         }
         audit.record(id, null, ACTION_REQUEST, outcome, null, null, actor, ui);   // 같은 트랜잭션 — 감사 없이 요청이 생기지 않는다
-        if (created && !quiet) {   // 덧붙임에는 보내지 않는다(같은 기관 알림이 쌓이지 않게). 직전 요청이 10분 안에 취소됐으면 그때 쪽지로 갈음(결정 6)
-            String text = "[사업계획 수집 요청] " + label(id) + " — 사업계획 수집 요청이 새로 들어왔습니다. 개발부서 처리 화면에서 확인해 주세요.";
+        boolean freshNote = created && !quiet;
+        String label = freshNote ? label(id) : null;
+        if (notify && freshNote) {   // 덧붙임에는 보내지 않는다(같은 기관 알림이 쌓이지 않게). 직전 요청이 10분 안에 취소됐으면 그때 쪽지로 갈음(결정 6). 일괄(notify=false)은 루프 뒤 한 통
+            String text = "[사업계획 수집 요청] " + label + " — 사업계획 수집 요청이 새로 들어왔습니다. 개발부서 처리 화면에서 확인해 주세요.";
             for (String inbox : IT_INBOXES) {
                 notes.create(inbox, KIND_REQUEST, text, null);   // institution_id 를 싣지 않는다 — 입찰 흐름 타임라인(selectTimeline)에 섞이지 않게
             }
@@ -197,7 +214,128 @@ public class PlanCollectService {
         Map<String, Object> out = mineJson(open, mapper.countActiveRequesters(id, open.getReqSeq()), true);
         out.put("created", created);
         out.put("outcome", outcome);
+        return new Requested(out, freshNote, label);
+    }
+
+    /**
+     * 목표·관심 기관 일괄 요청(NEXT 103). 기관마다 독립 트랜잭션(잠금을 오래 쥐지 않고, 한 곳 실패가 나머지를 지우지 않게)이고 감사는 기관당 1행(doRequest 안, 같은 트랜잭션).
+     * canonicalId 정규화 뒤 Set 으로 중복 제거 — 대소문자만 다른 id 는 한 기관으로 한 번만 처리한다(감사 1행).
+     * 새 요청이 생긴 기관은 루프 뒤 개발부서 두 수신처에 쪽지 한 통씩(기관당 쪽지 아님). 쪽지 실패는 이미 커밋된 요청을 되돌리지 않는다.
+     * DB 연결·트랜잭션 계열 장애({@link #isOutage})는 루프를 멈추고 그대로 던진다(500, 이미 커밋된 건은 유지) — 나머지 기관을 계속 두드리지 않는다.
+     * 멈출 때도 그때까지 커밋된 새 요청의 쪽지는 한 통으로 시도한다(실패는 삼킨다, 개발부서가 요청을 못 보는 일이 없게 — qa P2-2).
+     * 결과 코드 requested·joined·already·not_found·error(고정 코드만, 내부 정보 없음).
+     */
+    public Map<String, Object> requestBatch(List<String> raw, Actor actor) {
+        BoardUiIds.Ui ui = PlanUiIds.collectRequestBatch();
+        List<String> ids;
+        try {
+            ids = batchIds(raw);
+        } catch (ApiException e) {
+            failed(null, ACTION_REQUEST, "INVALID", actor, ui);
+            throw e;
+        }
+        List<Map<String, Object>> rs = new ArrayList<>();
+        List<String> fresh = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        int req = 0, joined = 0, already = 0, nf = 0, err = 0;
+        for (String rawId : ids) {
+            String inst = rawId;
+            Map<String, Object> r = new LinkedHashMap<>();
+            try {
+                final String id = canonicalId(rawId);
+                inst = id;
+                if (!seen.add(id)) continue;   // 정규화 뒤 중복 — 처리·감사·결과 모두 1건
+                r.put("institution_id", id);
+                Requested d = tx.execute(st -> doRequest(id, actor, ui, false));
+                // 커밋 뒤에는 메모리 작업만 — 여기서 예외가 나 같은 기관이 error 로 다시 셈해지는 일이 없다(qa P3-1)
+                String oc = String.valueOf(d.out.get("outcome"));
+                if (d.freshNote) fresh.add(d.label);
+                if ("OK".equals(oc)) { r.put("result_cd", "requested"); req++; }
+                else if ("JOINED".equals(oc)) { r.put("result_cd", "joined"); joined++; }
+                else { r.put("result_cd", "already"); already++; }
+                r.put("status_cd", d.out.get("status_cd"));
+                r.put("requester_count", d.out.get("requester_count"));
+            } catch (ApiException e) {
+                r.put("institution_id", inst);
+                if (e.getStatus() == 404) { r.put("result_cd", "not_found"); nf++; }
+                else { r.put("result_cd", "error"); r.put("code", "FAILED"); err++; }
+                failed(inst, ACTION_REQUEST, HeadAudit.outcomeOf(e.getStatus()), actor, ui);
+            } catch (DuplicateKeyException e) {
+                r.put("institution_id", inst);
+                r.put("result_cd", "error"); r.put("code", "CONCURRENT"); err++;
+                failed(inst, ACTION_REQUEST, "BLOCKED", actor, ui);
+            } catch (RuntimeException e) {
+                if (isOutage(e)) {
+                    failed(inst, ACTION_REQUEST, "ERROR", actor, ui);   // 감사 실패는 failed 가 삼킨다
+                    notifyBatch(fresh);   // 이미 커밋된 새 요청의 쪽지 — 실패는 notifyBatch 안에서 삼킨다(DB 가 죽었으면 어차피 안 나간다)
+                    throw e;   // 루프 중단, 500 — 앞서 커밋된 요청은 유지
+                }
+                r.put("institution_id", inst);
+                r.put("result_cd", "error"); r.put("code", "SERVER_ERROR"); err++;
+                failed(inst, ACTION_REQUEST, "ERROR", actor, ui);
+            }
+            rs.add(r);
+        }
+        boolean sent = notifyBatch(fresh);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("requested_count", req);
+        out.put("joined_count", joined);
+        out.put("already_count", already);
+        out.put("not_found_count", nf);
+        out.put("error_count", err);
+        out.put("note_sent", sent);
+        out.put("results", rs);
         return out;
+    }
+
+    /**
+     * DB 연결·트랜잭션 장애인가 — 예외 자신과 원인 체인(최대 8단계)에 DataAccessResourceFailureException(CannotGetJdbcConnectionException 포함)·TransactionException·
+     * SQLTransientConnectionException·SQLNonTransientConnectionException·SQLRecoverableException(MySQL 통신 장애) 중 하나가 있으면 true.
+     * MyBatisSystemException·UncategorizedSQLException 은 그 자체로는 장애가 아니고 원인이 위 종류일 때만 장애다(SQL 문법·제약 오류와 구분).
+     */
+    static boolean isOutage(Throwable e) {
+        Throwable t = e;
+        for (int i = 0; t != null && i < 8; i++, t = t.getCause()) {
+            if (t instanceof DataAccessResourceFailureException || t instanceof TransactionException
+                    || t instanceof SQLTransientConnectionException || t instanceof SQLNonTransientConnectionException
+                    || t instanceof SQLRecoverableException) {
+                return true;
+            }
+            if (t.getCause() == t) break;
+        }
+        return false;
+    }
+
+    /** 일괄 쪽지 — 새 요청이 있을 때만, IT_INBOXES 두 곳에 한 통씩. 자체 트랜잭션이라 실패해도 앞서 커밋된 요청은 남는다(로그는 고정 코드·건수·예외 종류만). */
+    private boolean notifyBatch(List<String> fresh) {
+        if (fresh.isEmpty()) return false;
+        StringBuilder who = new StringBuilder();
+        for (int i = 0; i < fresh.size() && i < NOTE_NAMES; i++) {
+            if (i > 0) who.append(", ");
+            who.append(fresh.get(i));
+        }
+        final String text = "[사업계획 수집 요청] " + who + (fresh.size() > NOTE_NAMES ? " 외 " + (fresh.size() - NOTE_NAMES) + "곳" : "")
+                + " — 사업계획 수집 요청이 새로 " + fresh.size() + "곳 들어왔습니다. 개발부서 처리 화면에서 확인해 주세요.";
+        try {
+            tx.execute(st -> {
+                for (String inbox : IT_INBOXES) notes.create(inbox, KIND_REQUEST, text, null);
+                return null;
+            });
+            return true;
+        } catch (RuntimeException e) {
+            LOG.warn("plan-collect batch note not created code=NOTE_FAILED n={} err={}", fresh.size(), e.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    static List<String> batchIds(List<String> raw) {
+        if (raw == null || raw.isEmpty() || raw.size() > MAX_BATCH) throw err(400, "BAD_IDS", "기관은 1~" + MAX_BATCH + "곳이어야 합니다.");
+        LinkedHashSet<String> out = new LinkedHashSet<>();
+        for (String s : raw) {
+            if (s == null || !PlanCsv.validId(s)) throw err(400, "BAD_IDS", "기관 ID 형식이 올바르지 않습니다.");
+            out.add(s);
+        }
+        return new ArrayList<>(out);
     }
 
     public Map<String, Object> cancel(String rawId, Actor actor) {

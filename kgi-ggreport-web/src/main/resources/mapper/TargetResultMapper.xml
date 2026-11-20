@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 협약 성과(NEXT 104) — 읽기 전용. 양쪽 방언 같은 문장(ANSI): FETCH FIRST·LIMIT 없음, 페이징은 RowBounds.
+     11g(ORA-01799): 외부조인 ON 안에 부질의 없음, EXISTS/NOT EXISTS 는 WHERE 에만. resultMap 명시(InstitutionMapper.xml 8행 이유). -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.TargetResultMapper">
+
+  <resultMap id="target" type="BidTarget">
+    <id property="institutionId" column="INSTITUTION_ID"/>
+    <id property="targetNo" column="TARGET_NO"/>
+    <id property="revNo" column="REV_NO"/>
+    <result property="actionCd" column="ACTION_CD"/>
+    <result property="kindCd" column="KIND_CD"/>
+    <result property="targetYear" column="TARGET_YEAR"/>
+    <result property="tagCd" column="TAG_CD"/>
+    <result property="ownerName" column="OWNER_NAME"/>
+    <result property="cancelReasonCd" column="CANCEL_REASON_CD"/>
+    <result property="cancelReasonEtc" column="CANCEL_REASON_ETC"/>
+    <result property="savedAt" column="SAVED_AT"/>
+    <result property="institutionName" column="INSTITUTION_NAME"/>
+    <result property="regionCode" column="REGION_CODE"/>
+    <result property="tagName" column="TAG_NAME"/>
+    <result property="cancelReasonName" column="CANCEL_REASON_NAME"/>
+  </resultMap>
+
+  <resultMap id="line" type="BankContract">
+    <id property="institutionId" column="INSTITUTION_ID"/>
+    <id property="contractNo" column="CONTRACT_NO"/>
+    <id property="revNo" column="REV_NO"/>
+    <result property="rankCd" column="RANK_CD"/>
+    <result property="bankCd" column="BANK_CD"/>
+    <result property="bankNameEtc" column="BANK_NAME_ETC"/>
+    <result property="termFrom" column="TERM_FROM"/>
+    <result property="termTo" column="TERM_TO"/>
+    <result property="srcKind" column="SRC_KIND"/>
+    <result property="checkedDate" column="CHECKED_DATE"/>
+    <result property="bankName" column="BANK_NAME"/>
+  </resultMap>
+
+  <resultMap id="code" type="BankContractCode">
+    <id property="code" column="CODE"/>
+    <result property="codeName" column="CODE_NAME"/>
+  </resultMap>
+
+  <sql id="goalInst">SELECT h.INSTITUTION_ID FROM INST_BID_TARGET h WHERE h.KIND_CD = 'GOAL' AND h.TARGET_YEAR = #{year}</sql>
+
+  <select id="selectGoalRows" resultMap="target" flushCache="true">
+    SELECT b.INSTITUTION_ID, b.TARGET_NO, b.REV_NO, b.ACTION_CD, b.KIND_CD, b.TARGET_YEAR, b.TAG_CD, b.OWNER_NAME,
+           b.CANCEL_REASON_CD, b.CANCEL_REASON_ETC, b.SAVED_AT,
+           i.NAME_KO AS INSTITUTION_NAME, i.REGION_CODE, c.CODE_NAME AS TAG_NAME, d.CODE_NAME AS CANCEL_REASON_NAME
+      FROM INST_BID_TARGET b
+      LEFT JOIN INSTITUTIONS i ON i.INSTITUTION_ID = b.INSTITUTION_ID
+      LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'TARGET_TAG' AND c.CODE = b.TAG_CD
+      LEFT JOIN COMMON_CODE d ON d.CODE_GROUP = 'TARGET_CANCEL_REASON' AND d.CODE = b.CANCEL_REASON_CD
+     WHERE NOT EXISTS (SELECT 1 FROM INST_BID_TARGET n
+             WHERE n.INSTITUTION_ID = b.INSTITUTION_ID AND n.TARGET_NO = b.TARGET_NO AND n.REV_NO &gt; b.REV_NO)
+       AND EXISTS (SELECT 1 FROM INST_BID_TARGET h
+             WHERE h.INSTITUTION_ID = b.INSTITUTION_ID AND h.TARGET_NO = b.TARGET_NO AND h.KIND_CD = 'GOAL' AND h.TARGET_YEAR = #{year})
+     ORDER BY i.NAME_KO, b.INSTITUTION_ID, b.TARGET_NO
+  </select>
+
+  <select id="selectLinesForYear" resultMap="line" flushCache="true">
+    SELECT k.INSTITUTION_ID, k.CONTRACT_NO, k.REV_NO, k.RANK_CD, k.BANK_CD, k.BANK_NAME_ETC, k.TERM_FROM, k.TERM_TO,
+           k.SRC_KIND, k.CHECKED_DATE, c.CODE_NAME AS BANK_NAME
+      FROM INST_BANK_CONTRACT k
+      LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'BANK' AND c.CODE = k.BANK_CD
+     WHERE k.ACTION_CD = 'SAVE'
+       AND NOT EXISTS (SELECT 1 FROM INST_BANK_CONTRACT n
+             WHERE n.INSTITUTION_ID = k.INSTITUTION_ID AND n.CONTRACT_NO = k.CONTRACT_NO AND n.REV_NO &gt; k.REV_NO)
+       AND k.INSTITUTION_ID IN (<include refid="goalInst"/>)
+     ORDER BY k.INSTITUTION_ID, k.CONTRACT_NO
+  </select>
+
+  <select id="selectPrepsForYear" resultType="BidPrep" flushCache="true">
+    SELECT p.BID_CASE_ID, p.INSTITUTION_ID, p.STATE_CD, p.CONFIRMED_AT, p.UPDATED_AT, c.CODE_NAME AS STATE_NAME
+      FROM BID_PREP p
+      LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'PREP_STATE' AND c.CODE = p.STATE_CD
+     WHERE p.CONFIRMED_AT &gt;= #{fromAt} AND p.CONFIRMED_AT &lt; #{toAt}
+       AND p.INSTITUTION_ID IN (<include refid="goalInst"/>)
+     ORDER BY p.INSTITUTION_ID, p.UPDATED_AT DESC
+  </select>
+
+  <select id="selectCodes" resultMap="code" flushCache="true">
+    SELECT CODE, CODE_NAME FROM COMMON_CODE WHERE CODE_GROUP = #{group} AND ENABLED = 1 ORDER BY SORT_NO, CODE
+  </select>
+</mapper>

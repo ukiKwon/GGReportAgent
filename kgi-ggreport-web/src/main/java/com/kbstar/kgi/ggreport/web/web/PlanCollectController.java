@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 사업계획 수집 요청(045). 요청·취소 = map 조회 권한 + 영업부서·개발부서(디자이너·재무부서 제외, 403 + DENIED 감사).
+ * 사업계획 수집 요청(045). 요청·취소 = map 조회 권한 + 영업부서·개발부서(디자이너·재무부서 제외, 403 + DENIED 감사). 일괄 요청(/plan-collect/batch)도 같은 권한.
  * 처리 화면(목록·내보내기·수집 중 표시·실행·제외·실패) = {@link AdminGuard}(전산팀원·팀장·마스터). requireInstitutionEdit 는 쓰지 않는다(영업 계열 통과).
  * 쓰기 POST 의 본문은 JSON 만(@RequestBody — 다른 Content-Type 은 415, 다른 사이트 폼 전송 방어).
  * ⚠️ 사번은 X-Emp-No 자기신고다. 앞단 인증 전에는 이 권한 검사도 보안 경계가 아니다.
@@ -74,6 +74,16 @@ public class PlanCollectController {
             throw guard.denied(req, new ApiException(403, "수집 요청 현황은 영업부서·개발부서만 볼 수 있습니다."));
         }
         return collect.status(u.getEmpNo(), PlanCollectService.canRequest(u.getRole()));
+    }
+
+    /** 목표·관심 기관 일괄 요청 — 단건과 같은 권한(map + 영업·개발부서)·감사(기관당 1행). 기관 1~50곳, 기관별 결과. 본문은 JSON 만. */
+    @PostMapping("/plan-collect/batch")
+    public Map<String, Object> requestBatch(@RequestBody(required = false) BatchIn body, HttpServletRequest req) {
+        Actor actor = requireRequester(req, null, PlanCollectService.ACTION_REQUEST, PlanUiIds.collectRequestBatch());
+        Map<String, Object> out = collect.requestBatch(body == null ? null : body.getInstitutionIds(), actor);
+        req.setAttribute(AccessLogInterceptor.DETAIL, "plan-collect batch n=" + ((List<?>) out.get("results")).size()
+                + " requested=" + out.get("requested_count") + " joined=" + out.get("joined_count") + " already=" + out.get("already_count"));
+        return out;   // 기관 id·사번·본문은 접근 이력에 싣지 않는다
     }
 
     // ── 처리 화면(개발부서 = admin 키) ──
@@ -167,6 +177,14 @@ public class PlanCollectController {
         } catch (RuntimeException ignored) {
             // 감사 실패가 원래 응답을 덮지 않게
         }
+    }
+
+    public static class BatchIn {
+        @JsonProperty("institution_ids")
+        private List<String> institutionIds;
+
+        public List<String> getInstitutionIds() { return institutionIds; }
+        public void setInstitutionIds(List<String> v) { this.institutionIds = v; }
     }
 
     public static class KeysIn {

@@ -27,9 +27,11 @@ public final class PlanUiIds {
     public static final String BUTTON_COLLECT_RUN = "plan_collect_run";
     public static final String BUTTON_COLLECT_EXCLUDE = "plan_collect_exclude";
     public static final String BUTTON_COLLECT_FAIL = "plan_collect_fail";
+    public static final String BUTTON_COLLECT_REQUEST_BATCH = "plan_collect_request_batch";
 
     public static BoardUiIds.Ui collectRequest() { return new BoardUiIds.Ui(SCREEN_COLLECT, BUTTON_COLLECT_REQUEST, true); }
     public static BoardUiIds.Ui collectCancel() { return new BoardUiIds.Ui(SCREEN_COLLECT, BUTTON_COLLECT_CANCEL, true); }
+    public static BoardUiIds.Ui collectRequestBatch() { return new BoardUiIds.Ui(SCREEN_COLLECT, BUTTON_COLLECT_REQUEST_BATCH, true); }
     public static BoardUiIds.Ui collectExport() { return new BoardUiIds.Ui(SCREEN_COLLECT_ADMIN, BUTTON_COLLECT_EXPORT, true); }
     public static BoardUiIds.Ui collectMark() { return new BoardUiIds.Ui(SCREEN_COLLECT_ADMIN, BUTTON_COLLECT_MARK, true); }
     public static BoardUiIds.Ui collectRun() { return new BoardUiIds.Ui(SCREEN_COLLECT_ADMIN, BUTTON_COLLECT_RUN, true); }
