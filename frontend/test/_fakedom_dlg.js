@@ -185,6 +185,20 @@ exports.register = function (test, assert, freshDlg) {
     assert.strictEqual(D.depth(), 0); assert.strictEqual(closed, 1);
   });
 
+  test('확인 상자가 떠 있는 동안 저장 응답이 와도 단추는 잠긴 채, 접으면 응답 상태로(setDisabled, qa 2단계 P2-1)', function () {
+    const D = freshDlg(); const doc = makeDoc(); const a = makeDialog(doc, 'a', true);
+    D.open(a.ov, { isDirty: function () { return true; } });
+    D.setDisabled(a.save, true);              // 저장 중
+    D.requestClose(a.ov);                     // Esc → 확인 상자
+    D.setDisabled(a.save, false);             // 응답 도착
+    assert.strictEqual(a.save.disabled, true);
+    D.invalid(a.field, '기관명을 적으세요.', { focus: true });   // 409 칸 경고 — [계속 작성]에서 커서를 뺏지 않는다
+    assert.strictEqual(doc.activeElement.textContent, '계속 작성');
+    key(doc, 'Escape');                       // 상자 접기
+    assert.strictEqual(a.save.disabled, false);
+    assert.strictEqual(a.cancel.disabled, false);
+  });
+
   test('isDirty·onClose가 예외를 던져도 닫히고 inert가 풀린다', function () {
     const D = freshDlg(); const doc = makeDoc();
     const shell = doc.El('main'); doc.body.appendChild(shell);

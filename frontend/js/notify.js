@@ -133,6 +133,16 @@
 
   function el(id) { return document.getElementById(id); }
   function overlay() { return el('notify-modal'); }
+  // 공통 팝업 틀 2단계(11-20): alert 대신 창 안 오류 줄·상태 줄, 빠진 칸은 dlg.invalid
+  function setErr(msg) { const e = el('nt-err'); if (e) e.textContent = msg || ''; }       // 서버·연결·권한 등 창 전체 오류
+  function setStatus(msg) { const e = el('nt-status'); if (e) e.textContent = msg || ''; }  // '보냈습니다' 같은 결과 한 줄
+  function isDraft() { return !!((el('nt-text').value || '').trim()); }                      // 보내지 않은 글이 있나
+  function resetDraft() {   // 닫을 때(dlg onClose) — 닫으면 쓰던 글은 사라진다(닫기 전 확인을 거침)
+    ['nt-to', 'nt-text'].forEach(function (id) { if (root.dlg) root.dlg.clearInvalid(el(id)); });
+    el('nt-to').value = ''; el('nt-text').value = '';
+    composeLink = {};   // [문의]에서 딸려온 맥락이 다음 쪽지에 엉뚱하게 붙지 않게
+    setErr(''); setStatus('');
+  }
 
   function me() {
     return { name: root.store.loadProfile().name || '', emp: (root.store.loadSession() || {}).emp || '' };
@@ -153,7 +163,7 @@
     }).then(function (rows) {
       list = rows;
       paintBadge();
-      if (overlay() && overlay().style.display === 'block') paintList();
+      if (overlay() && root.dlg && root.dlg.isOpen(overlay())) paintList();   // dlg는 display를 ''로 두므로 'block' 비교는 쓸 수 없다
     }).catch(function () { /* 배지는 부가 정보 — 실패해도 화면을 막지 않는다 */ });
   }
 
@@ -165,11 +175,12 @@
   }
 
   function markRead(id) {
+    setErr('');
     return fetch('/notifications/' + encodeURIComponent(id) + '/read', { method: 'POST' })
       .then(function (r) {
-        if (!r.ok) { alert('읽음 처리 실패 (' + r.status + ')'); return false; }
+        if (!r.ok) { setErr('읽음 처리에 실패했습니다 (' + r.status + '). 잠시 뒤 다시 눌러 주세요.'); return false; }
         return true;
-      }).catch(function () { alert('서버 연결 실패 — 처리되지 않았습니다.'); return false; });
+      }).catch(function () { setErr('서버에 연결하지 못했습니다. 읽음 처리되지 않았습니다.'); return false; });
   }
 
   function findRow(id) {
@@ -177,12 +188,15 @@
   }
 
   // 결재 쪽지 → 결재함. 메뉴 권한이 없어 결재함 탭이 숨겨져 있으면 열지 않는다(권한 우회 방지).
+  // 이동할 수 없는 이유(없으면 ''). 읽음 처리보다 먼저 본다 — 못 가는데 읽음으로 바뀌면 안 된다.
+  function blocker(dest) {
+    const btn = document.getElementById('tab-btn-' + dest.tab);
+    if (!btn || btn.hidden || getComputedStyle(btn).display === 'none') return '이 화면을 열 권한이 없습니다. (' + dest.label + ')';
+    if (isDraft()) return '쓰던 쪽지가 있습니다. 보내거나 지운 뒤 이동하세요.';
+    return '';
+  }
   function go(dest) {
     const btn = document.getElementById('tab-btn-' + dest.tab);
-    if (!btn || btn.style.display === 'none') {
-      alert('이 화면을 열 권한이 없습니다. (' + dest.label + ')');
-      return;
-    }
     close();
     if (dest.tab === 'approvals' && root.approvals && root.approvals.openTab) root.approvals.openTab(dest.sub);
     btn.click();
@@ -211,10 +225,18 @@
         e.stopPropagation();
         const row = findRow(btn.dataset.id);
         if (!row) return;
+        const why = blocker(row.dest);
+        if (why) { setErr(why); return; }
+        setErr('');
         // 이동하는 것 자체가 "확인했다"는 뜻이다 — 개인 쪽지는 읽음 처리 후 이동한다.
         const scope = notify.scopeOf(list.filter(function (n) { return n.notification_id === row.id; })[0], me());
         const done = (!row.read && notify.autoReadsOnClick(scope)) ? markRead(row.id) : Promise.resolve(true);
-        done.then(function () { go(row.dest); fetchList(); });
+        done.then(function (ok) {
+          if (ok === false) return;                      // 읽음 처리 실패 — 창을 두고 빨간 줄로 알린다(qa 11-20 P3-1)
+          const late = blocker(row.dest);                // 기다리는 사이 글을 썼으면 확인 없이 지우지 않는다(P3-2)
+          if (late) { setErr(late); return; }
+          go(row.dest); fetchList();
+        });
       };
     });
     // 안 읽은 개인 쪽지는 쪽지를 누르는 것만으로 읽음이 된다.
@@ -225,11 +247,18 @@
 
   function open() {
     const profile = root.store.loadProfile();
-    if (!profile.name && !profile.team) {
-      alert('상단에서 이름·소속을 먼저 입력하세요 — 쪽지는 소속과 이름 앞으로 옵니다.');
+    const noProfile = !profile.name && !profile.team;
+    setErr(''); setStatus('');
+    el('nt-compose').hidden = noProfile;
+    // 서버 모드가 아니어도([문의]로 바로 열림) [닫기]·[보내기]가 동작하게 열 때마다 잇는다(qa 11-20 P3-6)
+    el('nt-close').onclick = function () { root.dlg.requestClose(overlay()); };
+    el('nt-send').onclick = send;
+    root.dlg.open(overlay(), { isDirty: isDraft, dirtyText: '닫으면 쓰던 쪽지가 사라집니다.', onClose: resetDraft });
+    if (noProfile) {   // 창은 열어 안내만 보인다(작성 줄 숨김) — alert 대신
+      el('nt-me').textContent = ''; el('nt-tabs').innerHTML = '';
+      el('nt-list').innerHTML = '<p class="wf-empty">상단에서 이름·소속을 먼저 입력하세요 — 쪽지는 소속과 이름 앞으로 옵니다.</p>';
       return;
     }
-    overlay().style.display = 'block';
     el('nt-me').textContent = root.store.myRecipients().map(function (r) {
       return root.roles ? root.roles.roleLabel(r) : r;
     }).join(' · ');
@@ -239,7 +268,7 @@
     });
   }
 
-  function close() { overlay().style.display = 'none'; }
+  function close() { root.dlg.close(overlay()); }   // 이동·강제 닫기(확인 없음). 사용자의 [닫기]·Esc는 requestClose
 
   // 다른 화면에서 '문의'로 넘어올 때 딸려오는 맥락(어느 기관·어느 작업 이야기인지).
   // 쪽지에 함께 실어야 받는 쪽이 무슨 건인지 안다.
@@ -256,9 +285,14 @@
   };
 
   function send() {
-    const to = (el('nt-to').value || '').trim();
-    const content = (el('nt-text').value || '').trim();
-    if (!to || !content) { alert('수신자와 내용을 모두 입력하세요.'); return; }
+    const toEl = el('nt-to'), textEl = el('nt-text'), btn = el('nt-send');
+    const to = (toEl.value || '').trim();
+    const content = (textEl.value || '').trim();
+    setErr(''); setStatus('');
+    if (!to) root.dlg.invalid(toEl, '받는 사람을 적으세요.', { focus: true });
+    if (!content) root.dlg.invalid(textEl, '내용을 적으세요.', { focus: !!to });
+    if (!to || !content) return;
+    root.dlg.setDisabled(btn, true);   // 두 번 눌러 같은 쪽지가 두 번 가지 않게
     fetch('/notifications', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       // 한글 이름은 헤더에 못 실으므로 body의 sender로 보낸다.
@@ -266,12 +300,14 @@
         recipient: to, content: content, sender: root.store.loadProfile().name || null,
       }, composeLink)),
     }).then(function (r) {
-      if (!r.ok) { alert('발송 실패 (' + r.status + ')'); return; }
-      el('nt-text').value = '';
+      if (!r.ok) { setErr('쪽지를 보내지 못했습니다 (' + r.status + '). 잠시 뒤 다시 보내 보세요.'); return; }
+      textEl.value = '';
       composeLink = {};        // 다음 쪽지에 엉뚱한 건이 딸려가지 않게 비운다
-      alert(to + ' 앞으로 쪽지를 보냈습니다.');
+      setStatus(to + ' 앞으로 쪽지를 보냈습니다.');
+      textEl.focus();
       return fetchList().then(paintList);
-    }).catch(function () { alert('서버 연결 실패 — 보내지 않았습니다.'); });
+    }).catch(function () { setErr('서버에 연결하지 못했습니다. 쪽지를 보내지 않았습니다.'); })
+      .then(function () { root.dlg.setDisabled(btn, false); });
   }
 
   notify.onProfileChange = function () { fetchList(); };
@@ -280,8 +316,9 @@
     const btn = el('btn-notify');
     if (!btn) return;
     btn.onclick = open;
-    el('nt-close').onclick = close;
+    el('nt-close').onclick = function () { root.dlg.requestClose(overlay()); };
     el('nt-send').onclick = send;
+    el('nt-text').addEventListener('input', function () { setStatus(''); });   // 다음 글을 쓰기 시작하면 '보냈습니다'는 지운다
     fetchList();
     if (pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(fetchList, POLL_MS);

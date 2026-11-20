@@ -2721,6 +2721,20 @@
   .dlg-req { margin-left:2px; color:var(--red); font-weight:700; }
   .dlg input[aria-invalid="true"], .dlg select[aria-invalid="true"], .dlg textarea[aria-invalid="true"] { border-color:var(--red); box-shadow:inset 0 0 0 1px var(--red); }
   .dlg-ferr { margin:4px 0 0; font-size:12px; line-height:1.5; color:var(--red); }
+  /* 2단계 이행 창 보조 규칙(11-20) — 새 변수·새 색 없음 */
+  .more-find { padding:8px 24px; border-bottom:1px solid var(--line); }
+  .more-find input { width:100%; }
+  #more-modal .more-table th, #more-modal .more-table td:not(:first-child) { white-space:nowrap; }   /* 날짜·주기가 두 줄로 꺾이지 않게(기관명만 줄바꿈) */
+  #notify-modal .dlg-body { min-height:160px; }
+  .dlg > .ap-tabs { flex:none; padding:0 24px; }
+  .dlg-foot.nt-compose { display:block; }
+  .dlg-foot.nt-compose[hidden] { display:none; }
+  .nt-compose-row { display:flex; gap:8px; align-items:flex-start; flex-wrap:wrap; }
+  .nt-compose-row .dlg-f { margin:0; }
+  .nt-f-to { flex:0 1 160px; }
+  .nt-f-text { flex:1 1 200px; }
+  .nt-f-to input, .nt-f-text input { width:100%; }
+  .nt-compose-row > button { margin-top:22px; }
   /* 공통 팝업 틀 끝 */
 </style>
 </head>
@@ -2878,23 +2892,6 @@ review, the verdict, and DESIGN.md
       <p id="ov-unknown" hidden></p>
     </aside>
     <div id="rank-panel" style="display:none;"></div>
-  </div>
-  <div id="more-modal" class="modal-overlay" style="display:none;">
-    <div class="modal-box" style="max-width:720px;">
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
-        <h2 style="margin:0;padding:0;border:none;flex:0 0 auto;">전체 입찰건</h2>
-        <input id="more-search" placeholder="기관명·지역·유형 검색" style="flex:1;padding:6px 10px;">
-        <button id="more-close">닫기</button>
-      </div>
-      <div style="overflow:auto;">
-        <table class="more-table">
-          <thead><tr>
-            <th>기관명</th><th>기관구분</th><th>지역</th><th>입찰예상일</th><th>입찰주기</th><th>수정일</th>
-          </tr></thead>
-          <tbody id="more-tbody"></tbody>
-        </table>
-      </div>
-    </div>
   </div>
 </section>
 
@@ -3054,22 +3051,55 @@ review, the verdict, and DESIGN.md
 </main>
 </div>
 
-<div id="notify-modal" class="modal-overlay" style="display:none;">
-  <div class="modal-box" style="max-width:560px;">
-    <h3>쪽지함 <span id="nt-me" style="font-size:12px;color:var(--muted);font-weight:normal;"></span></h3>
-    <div id="nt-tabs" class="ap-tabs" role="tablist"></div>
-    <div id="nt-list" style="flex:1 1 auto;overflow:auto;min-height:0;"></div>
-    <div id="nt-form" style="border-top:1px solid var(--line);padding-top:10px;margin-top:10px;display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;">
-      <input id="nt-to" list="nt-recipients" placeholder="수신자(팀 또는 이름)" size="14">
-      <datalist id="nt-recipients">
-        <option>영업팀</option><option>전산팀</option><option value="예산팀" label="재무팀"></option>
-        <option>영업팀장</option><option>전산팀장</option><option value="예산팀장" label="재무팀장"></option>
-        <option>디자이너</option><option>영업부장</option>
-      </datalist>
-      <input id="nt-text" placeholder="보낼 내용" style="flex:1 1 200px;">
-      <button id="nt-send">보내기</button>
-      <button id="nt-close">닫기</button>
+<!-- 전체 입찰건 — 공통 팝업 틀 .dlg 2단계(보는 창, 동작 없음 → [닫기] 오른쪽 아래). 덮개는 body 직계여야 뒤 화면이 inert 된다 -->
+<div id="more-modal" class="modal-overlay" style="display:none;">
+  <div class="dlg dlg--wide" role="dialog" aria-modal="true" aria-labelledby="more-title">
+    <header class="dlg-bar"><h2 class="dlg-t" id="more-title" tabindex="-1">전체 입찰건</h2></header>
+    <div class="dlg-note more-find"><input id="more-search" placeholder="기관명·지역·유형 검색" aria-label="기관명·지역·유형 검색"></div>
+    <div class="dlg-body">
+      <table class="more-table">
+        <thead><tr>
+          <th>기관명</th><th>기관구분</th><th>지역</th><th>입찰예상일</th><th>입찰주기</th><th>수정일</th>
+        </tr></thead>
+        <tbody id="more-tbody"></tbody>
+      </table>
     </div>
+    <footer class="dlg-foot"><button type="button" id="more-close" title="닫기 (Esc)">닫기</button></footer>
+  </div>
+</div>
+
+<!-- 쪽지함 — 공통 팝업 틀 .dlg 2단계(보는+쓰는 혼합: [닫기]는 제목 줄, 작성 줄은 아래에 고정) -->
+<div id="notify-modal" class="modal-overlay" style="display:none;">
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="nt-title">
+    <header class="dlg-bar">
+      <h2 class="dlg-t" id="nt-title" tabindex="-1">쪽지함</h2>
+      <span class="dlg-meta" id="nt-me"></span>
+      <div class="dlg-acts"><button type="button" id="nt-close" title="닫기 (Esc)">닫기</button></div>
+    </header>
+    <div class="dlg-note">
+      <p class="dlg-err" id="nt-err" role="alert"></p>
+      <p class="dlg-hint" id="nt-status" role="status"></p>
+    </div>
+    <div id="nt-tabs" class="ap-tabs" role="tablist"></div>
+    <div class="dlg-body" id="nt-list"></div>
+    <footer class="dlg-foot nt-compose" id="nt-compose">
+      <div class="nt-compose-row">
+        <div class="dlg-f nt-f-to">
+          <label for="nt-to">받는 사람<span class="dlg-req" aria-hidden="true">*</span></label>
+          <input id="nt-to" list="nt-recipients" placeholder="팀 또는 이름" size="14" required aria-required="true">
+        </div>
+        <datalist id="nt-recipients">
+          <option>영업팀</option><option>전산팀</option><option value="예산팀" label="재무팀"></option>
+          <option>영업팀장</option><option>전산팀장</option><option value="예산팀장" label="재무팀장"></option>
+          <option>디자이너</option><option>영업부장</option>
+        </datalist>
+        <div class="dlg-f nt-f-text">
+          <label for="nt-text">내용<span class="dlg-req" aria-hidden="true">*</span></label>
+          <input id="nt-text" placeholder="보낼 내용" required aria-required="true">
+        </div>
+        <button type="button" id="nt-send" class="dlg-go">보내기</button>
+      </div>
+    </footer>
   </div>
 </div>
 
@@ -3094,33 +3124,45 @@ review, the verdict, and DESIGN.md
   </div>
 </div>
 
+<!-- 지도 색상 — 공통 팝업 틀 .dlg 2단계(쓰는 창: 제목 줄 [기본 색으로 되돌리기] | [취소][저장]. 되돌리기는 칸만 채우고 [저장]으로 반영) -->
 <div id="theme-modal" class="modal-overlay" style="display:none;">
-  <div class="modal-box modal-scroll" style="max-width:360px;margin:8vh auto;">
-    <h3>지도 색상 설정</h3>
-    <p style="color:var(--muted);font-size:12px;margin-top:0;">지역을 섞은 5단 면 색과, 기관 위치 물결·화면 강조의 색, 강조 주기(물결·선택한 구 깜빡임 속도)를 조절합니다. 지도에서 고른 구의 외곽선은 검정·흰색 두 겹으로 고정입니다.</p>
-    <label>6개월 안 위주 <input type="color" data-t="r3"></label>
-    <label>1년 안 위주 <input type="color" data-t="r2"></label>
-    <label>섞임 (급한 곳·여유 있는 곳 반반) <input type="color" data-t="p"></label>
-    <label>1~2년 위주 <input type="color" data-t="b2"></label>
-    <label>2년 넘음 위주 <input type="color" data-t="b3"></label>
-    <label>날짜 미상 <input type="color" data-t="gray"></label>
-    <label>물결·화면 강조색 <input type="color" data-t="accent"></label>
-    <label>강조 주기 <input type="range" data-t="rippleDuration" min="1" max="4" step="0.2" style="flex:1;">
-      <span id="theme-dur-val" style="width:42px;text-align:right;font-family:var(--mono);"></span></label>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
-      <button id="theme-reset">기본값으로 초기화</button>
-      <button id="theme-cancel">취소</button><button id="theme-save">저장</button>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="theme-title">
+    <header class="dlg-bar">
+      <h2 class="dlg-t" id="theme-title" tabindex="-1">지도 색상 설정</h2>
+      <div class="dlg-acts">
+        <button type="button" id="theme-reset" title="기본 색을 칸에 채웁니다. [저장]을 눌러야 지도에 반영됩니다">기본 색으로 되돌리기</button>
+        <span class="dlg-sep" aria-hidden="true"></span>
+        <button type="button" id="theme-cancel" title="닫기 (Esc)">취소</button>
+        <button type="button" id="theme-save" class="dlg-go">저장</button>
+      </div>
+    </header>
+    <div class="dlg-note"><p class="dlg-hint">지역을 섞은 5단 면 색과, 기관 위치 물결·화면 강조의 색, 강조 주기(물결·선택한 구 깜빡임 속도)를 조절합니다. 지도에서 고른 구의 외곽선은 흰색·파랑 두 겹으로 고정입니다.</p></div>
+    <div class="dlg-body">
+      <label>6개월 안 위주 <input type="color" data-t="r3"></label>
+      <label>1년 안 위주 <input type="color" data-t="r2"></label>
+      <label>섞임 (급한 곳·여유 있는 곳 반반) <input type="color" data-t="p"></label>
+      <label>1~2년 위주 <input type="color" data-t="b2"></label>
+      <label>2년 넘음 위주 <input type="color" data-t="b3"></label>
+      <label>날짜 미상 <input type="color" data-t="gray"></label>
+      <label>물결·화면 강조색 <input type="color" data-t="accent"></label>
+      <label>강조 주기 <input type="range" data-t="rippleDuration" min="1" max="4" step="0.2" style="flex:1;">
+        <span id="theme-dur-val" style="width:42px;text-align:right;font-family:var(--mono);"></span></label>
     </div>
   </div>
 </div>
 
+<!-- 기관 추가 — 공통 팝업 틀 .dlg 2단계(쓰는 창: 제목 줄 [취소][저장], 필수 칸 *, 빠진 칸은 칸 경고) -->
 <div id="add-modal" class="modal-overlay" style="display:none;">
-  <div class="modal-box modal-scroll" style="max-width:420px;">
-    <h3>기관 추가</h3>
-    <div id="add-fields"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
-      <button id="add-cancel">취소</button><button id="add-save">저장</button>
-    </div>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="add-title">
+    <header class="dlg-bar">
+      <h2 class="dlg-t" id="add-title" tabindex="-1">기관 추가</h2>
+      <div class="dlg-acts">
+        <button type="button" id="add-cancel" title="닫기 (Esc)">취소</button>
+        <button type="button" id="add-save" class="dlg-go">저장</button>
+      </div>
+    </header>
+    <div class="dlg-note"><p class="dlg-err" id="add-err" role="alert"></p></div>
+    <div class="dlg-body" id="add-fields"></div>
   </div>
 </div>
 

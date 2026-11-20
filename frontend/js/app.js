@@ -352,16 +352,27 @@
       else root.render.drawNational();
     }
 
-    btn.addEventListener('click', function () { fill(root.render.currentTheme()); modal.style.display = 'block'; });
-    modal.querySelector('#theme-cancel').onclick = function () { modal.style.display = 'none'; };
+    let base = '';   // 열 때(또는 초기화한 뒤)의 값 — 닫을 때 저장 안 한 변경이 있는지 비교한다(공통 팝업 틀 2단계)
+    btn.addEventListener('click', function () {
+      fill(root.render.currentTheme());
+      base = JSON.stringify(collect());
+      root.dlg.open(modal, {
+        isDirty: function () { return JSON.stringify(collect()) !== base; },
+        dirtyText: '닫으면 바꾼 색이 저장되지 않습니다.',
+      });
+    });
+    modal.querySelector('#theme-cancel').onclick = function () { root.dlg.requestClose(modal); };
     modal.querySelector('[data-t=rippleDuration]').addEventListener('input', function (e) {
       durVal.textContent = Number(e.target.value).toFixed(1) + 's';
     });
     modal.querySelector('#theme-save').onclick = function () {
-      root.store.saveTheme(collect()); modal.style.display = 'none'; repaint();
+      const t = collect(), d = root.render.DEFAULT_THEME || {};
+      const isDefault = Object.keys(d).every(function (k) { return String(t[k]).toLowerCase() === String(d[k]).toLowerCase(); });
+      if (isDefault) root.store.resetTheme(); else root.store.saveTheme(t);   // 전부 기본값이면 저장값을 지워 나중 기본값을 따라가게(design 11-20)
+      root.dlg.close(modal); repaint();
     };
     modal.querySelector('#theme-reset').onclick = function () {
-      root.store.resetTheme(); fill(root.render.currentTheme()); repaint();
+      fill(Object.assign({}, root.render.DEFAULT_THEME));   // 칸만 기본 색으로 채운다 — 반영은 [저장], [취소]·Esc면 그대로(닫기 전 확인, design 11-20)
     };
   };
 
@@ -391,18 +402,35 @@
     const wrap = document.getElementById('add-fields');
     const L = root.logic.FIELD_LABELS;
     const fields = ['name','type','region','subRegion','term','lastBid','contractEnd','lng','lat','sources'];
+    const req = root.logic.REQUIRED_FIELDS;
     wrap.innerHTML = fields.map(function (f) {
-      return '<label style="display:block;margin:6px 0;">' + L[f] +
-        '<input data-f="' + f + '" style="width:100%;"></label>';
+      const must = req.indexOf(f) >= 0;   // L[f]는 고정 라벨이라 esc 불필요
+      return '<div class="dlg-f"><label for="add-f-' + f + '">' + L[f] +
+        (must ? '<span class="dlg-req" aria-hidden="true">*</span>' : '') + '</label>' +
+        '<input id="add-f-' + f + '" data-f="' + f + '" style="width:100%;"' +
+        (must ? ' required aria-required="true"' : '') + '></div>';
     }).join('') + (root.store.isServerMode()
       // 서버 모드: 확정 여부는 서버 칸이고 출처와 함께만 정한다(030) — 만든 뒤 [편집]의 '입찰 예정일'에서 고른다.
       ? '<p style="color:var(--muted);font-size:12px;">입찰 예정일은 추정으로 등록됩니다. 공고로 확정하려면 만든 뒤 [편집]에서 공고 링크나 번호와 함께 고르세요.</p>'
       : '<label style="display:flex;gap:6px;align-items:center;margin:6px 0;">' +
         '<input type="checkbox" data-f="confirmed"> ' + L.confirmed + '(공고로 확인됨)</label>' +
         '<p style="color:var(--muted);font-size:12px;">확정여부를 체크하지 않으면 "추정"으로 표시됩니다.</p>');
-    const modal = document.getElementById('add-modal'); modal.style.display = 'block';
-    document.getElementById('add-cancel').onclick = function () { modal.style.display = 'none'; };
-    document.getElementById('add-save').onclick = function () {
+    const modal = document.getElementById('add-modal');
+    const err = document.getElementById('add-err'), save = document.getElementById('add-save');
+    function setErr(msg) { err.textContent = msg || ''; }   // 창 전체 오류(서버·연결)만. 칸 문제는 dlg.invalid
+    function fieldOf(f) { return wrap.querySelector('input[data-f="' + f + '"]'); }
+    setErr(''); root.dlg.setDisabled(save, false);
+    root.dlg.open(modal, {
+      isDirty: function () {   // 칸에 입력이 있으면
+        return Array.prototype.some.call(wrap.querySelectorAll('input[data-f]'), function (inp) {
+          return inp.type === 'checkbox' ? inp.checked : inp.value.trim() !== '';
+        });
+      },
+      dirtyText: '닫으면 입력한 기관 정보가 사라집니다.',
+      focus: fieldOf('name'),
+    });
+    document.getElementById('add-cancel').onclick = function () { root.dlg.requestClose(modal); };
+    save.onclick = function () {
       const rec = {};
       wrap.querySelectorAll('input[data-f]').forEach(function (inp) {
         const f = inp.dataset.f;
@@ -410,39 +438,47 @@
         else if (f === 'sources') rec.sources = inp.value ? inp.value.split(',').map(function (s){ return s.trim(); }).filter(Boolean) : [];
         else if (f === 'term') rec.term = inp.value ? Number(inp.value) : undefined;
         else if (f === 'lng' || f === 'lat') rec[f] = inp.value ? Number(inp.value) : undefined;
-        else if (inp.value) rec[f] = inp.value;
+        else if (inp.value.trim()) rec[f] = inp.value.trim();   // 공백만 넣은 칸은 빈 칸(qa 11-20 P3-5)
       });
       const v = root.logic.validateRecord(rec);
-      if (!v.valid) { alert('필수 누락: ' + v.missing.map(function(k){return root.logic.FIELD_LABELS[k];}).join(', ')); return; }
+      setErr('');
+      if (!v.valid) {   // 빠진 칸마다 경고, 첫 칸에 커서(저장 단추는 막지 않는다)
+        v.missing.forEach(function (k, i) {
+          root.dlg.invalid(fieldOf(k), root.dlg.withObj(root.logic.FIELD_LABELS[k]) + ' 적으세요.', { focus: i === 0 });
+        });
+        return;
+      }
       rec.updatedAt = new Date().toISOString().slice(0,10);
 
       // 서버 모드: 서버가 authoritative store다. 서버 필드는 POST로 만들고, 서버에
       // 대응 컬럼이 없는 좌표·출처 등은 여느 편집과 같이 localStorage overlay에 남긴다
       // (그게 없으면 새 기관이 지도에 찍힐 좌표를 갖지 못한다).
       if (root.store.isServerMode()) {
+        root.dlg.setDisabled(save, true);   // 두 번 눌러 중복 등록(409)되지 않게
         fetch('/institutions', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(root.serverdata.toServerRow(rec)),
         }).then(function (r) {
-          if (r.status === 409) { alert('이미 등록된 기관명입니다 — 기존 기관을 편집하세요.'); return; }
-          if (!r.ok) { alert('기관 추가 실패 (' + r.status + ')'); return; }
+          if (r.status === 409) { root.dlg.invalid(fieldOf('name'), '이미 등록된 기관명입니다. 기존 기관을 편집하세요.', { focus: true }); return; }
+          if (!r.ok) { setErr('기관을 추가하지 못했습니다 (' + r.status + '). 잠시 뒤 다시 저장하세요.'); return; }
           const local = {};
           root.store.LOCAL_ONLY_FIELDS.forEach(function (f) {
             if (rec[f] !== undefined) local[f] = rec[f];
           });
           root.store.setEdit(rec.name, local);
-          modal.style.display = 'none';
+          root.dlg.close(modal);
           return app.bootstrapServer().then(function () {
             root.render.drawTicker();
             if (root.render.state.currentRegion) root.render.drawRegion(root.render.state.currentRegion);
             else root.render.drawNational();
           });
-        }).catch(function () { alert('서버 연결 실패 — 추가되지 않았습니다.'); });
+        }).catch(function () { setErr('서버에 연결하지 못했습니다. 기관은 추가되지 않았습니다.'); })
+          .then(function () { root.dlg.setDisabled(save, false); });   // 닫기 확인 상자가 떠 있으면 상자를 접을 때 풀린다
         return;
       }
 
       const data = root.render.baseInstitutions().slice(); data.push(rec);
-      root.store.saveData(data); modal.style.display = 'none';
+      root.store.saveData(data); root.dlg.close(modal);
       root.render.drawTicker();
       if (root.render.state.currentRegion) root.render.drawRegion(root.render.state.currentRegion);
       else root.render.drawNational();

@@ -1554,6 +1554,28 @@
 </div>
 </section>
 
+<section class="ch" id="c73">
+<h2>73 공통 팝업 틀(.dlg) 2단계 — 지도 색상·전체 입찰건·기관 추가·쪽지함 (2026-11-20, 사용자 "계속 작업 이어서", frontend-dev 2단계 지시서, 시안 4판 규칙)</h2>
+<div class="why">왜: 네 창이 저마다 폭(360·720·420·560), 단추 자리(아래 오른쪽·제목 옆), 닫는 방법(창마다 따로 붙인 Esc·바깥 클릭)이 달랐고, 기관 추가·쪽지함은 빠진 칸을 브라우저 경고창(alert)으로만 알렸습니다. 입력하던 기관 정보·쪽지·바꾼 색이 Esc 한 번에 확인 없이 사라졌습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+  <p class="hint12">지도 색상: 폭 360, 아래 [기본값으로 초기화][취소][저장]. 전체 입찰건: 폭 720, 제목 옆 검색칸·[닫기], 날짜가 두 줄로 꺾임, 덮개가 지도 섹션 안. 기관 추가: 폭 420, 아래 [취소][저장], 저장하면 alert('필수 누락: …')·409도 alert. 쪽지함: 아래 줄에 수신자·내용·[보내기][닫기], 빈 칸·실패·보냈음 모두 alert, 이름·소속이 없으면 창 대신 alert.</p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <p style="font-size:12px"><b>지도 색상</b>(쓰는 창, 560): 제목 줄 [기본 색으로 되돌리기] | [취소][저장] — 되돌리기는 칸만 채우고 [저장]으로 반영, [취소]면 그대로(design 대조 11-20). 색을 바꾸고 닫으면 '닫으면 바꾼 색이 저장되지 않습니다'.</p>
+  <p style="font-size:12px"><b>전체 입찰건</b>(보는 창, 표가 잘려 --wide 720): 검색칸은 머리 아래 고정·열면 커서, 표만 스크롤, 기관명 외 칸 한 줄, [닫기] 오른쪽 아래. 덮개를 body 직계로 옮김.</p>
+  <p style="font-size:12px"><b>기관 추가</b>(쓰는 창, 560): 제목 줄 [취소][저장], 필수 칸 *, [저장]을 누르면 빠진 칸마다 빨간 테두리 + '기관구분을 적으세요.'처럼 칸 아래 한 줄 + 첫 칸에 커서(위쪽 안내 줄 없음), 이름 중복(409)은 기관명 칸 아래, 서버·연결 실패만 위쪽 빨간 줄, 저장 중 두 번 누름 막음(닫기 확인이 떠 있는 동안 응답이 와도 단추는 잠긴 채).</p>
+  <p style="font-size:12px"><b>쪽지함</b>(보는+쓰는, 560): 제목 줄 이름·[닫기], 탭 고정·목록만 스크롤, 아래 작성 줄(받는 사람* · 내용* · [보내기]), 빈 칸은 칸 경고, 보냈음은 회색 한 줄, 실패는 빨간 줄, 이름·소속이 없으면 창 안 안내. 쓰던 쪽지가 있으면 닫기 전 확인·[이동] 막음, 닫으면 쓰던 글·[문의] 맥락을 비움.</p>
+  <p class="legend-note">실측(헤드리스 1280×860, 둘러보기): 지도 색상 560×413(제목·단추 줄 넘침 없음), 전체 입찰건 표 가로 스크롤 없음(718/718), 기관 추가 빈 [저장] → 경고 2칸·커서 기관구분, Esc → 확인 상자·커서 [계속 작성]. 화면 테스트 1658/1658. <b>제외</b>: 경과 알림(#ov-pop) — 로그인 직후 전원에게 뜨고 제목 줄 폭·[오늘 안 보기] 자리 디자인 결정이 먼저. 쪽지함 작성 줄을 아래에 두는 것은 design 판정으로 예외 허용(DESIGN 팝업 줄). 읽음 처리 실패면 이동하지 않고 빨간 줄. <b>남은 것</b>: 서버 모드 쪽지 보내기·409 실사용.</p>
+  <p><img src="../../handoff/agents/history/2026-11-20_dlg_sian/s2_theme.jpg" alt="후 — 지도 색상 560, 제목 줄 초기화 | 취소 저장" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-20_dlg_sian/s2_more.jpg" alt="후 — 전체 입찰건 720, 검색칸 고정, 날짜 한 줄, 닫기 오른쪽 아래" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-20_dlg_sian/s2_add_invalid.jpg" alt="후 — 기관 추가 빈 칸 경고 두 곳" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-20_dlg_sian/s2_add_confirm.jpg" alt="후 — 기관 추가 Esc 뒤 닫기 전 확인" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-20_dlg_sian/s2_notify.jpg" alt="후 — 쪽지함 제목 줄 닫기, 아래 작성 줄" style="width:100%"></p>
+</div></div></div>
+</div>
+</section>
+
 <p class="foot">추가 규칙: 이 파일은 화면(마크업·CSS·문구·메뉴)이 바뀌는 커밋마다 새 장(section.ch)을 아래에 이어 붙이고, design-reviewer가 커밋 전 확인합니다(CLAUDE.md 5절). 근거 보고서: handoff/agents/design-reviewer/.</p>
 </div>
 </body>

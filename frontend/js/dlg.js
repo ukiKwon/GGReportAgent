@@ -32,6 +32,13 @@
     return t.length ? t.join(' ') : null;
   };
 
+  // 목적격 조사: 받침이 있으면 '을', 없으면 '를' — 칸 경고 문장 틀 '{칸 이름}을/를 적으세요.'(design 11-20)
+  dlg.withObj = function (w) {
+    const s = String(w == null ? '' : w);
+    const c = s.charCodeAt(s.length - 1) - 0xAC00;
+    return s + (c >= 0 && c < 11172 && c % 28 ? '을' : '를');
+  };
+
   // ── DOM ───────────────────────────────────────────────────────────
   const stack = [];   // { overlay, opts, opener, inerted: [] }
 
@@ -107,6 +114,17 @@
     while (stack.length) dlg.close(stack[stack.length - 1].overlay);
   };
 
+  // 저장·보내기 중 단추 잠금/풀기는 이것으로 — 확인 상자가 열려 있으면 상자를 접을 때 적용된다.
+  dlg.setDisabled = function (btn, v) {
+    if (!btn) return;
+    if (btn.dataset && btn.dataset.dlgWas !== undefined) btn.dataset.dlgWas = v ? '1' : '0';
+    else btn.disabled = !!v;
+  };
+  function confirmingFor(node) {
+    for (let x = node; x; x = x.parentNode) { const e = entryOf(x); if (e) return !!e.cf; }
+    return false;
+  }
+
   dlg.isOpen = function (overlay) { return !!entryOf(overlay); };
   dlg.depth = function () { return stack.length; };
 
@@ -131,10 +149,10 @@
     row.appendChild(drop); row.appendChild(keep); cf.appendChild(p); cf.appendChild(row);
     note.insertBefore(cf, note.firstChild);
     e.cfReturn = doc.activeElement;   // [계속 작성] 뒤 돌아갈 자리(qa P3-3)
-    // 확인 상자가 열린 동안 머리·발 단추는 막는다(규격 7-7).
-    e.locked = Array.prototype.filter.call(box.querySelectorAll('.dlg-acts button, .dlg-foot button'), function (b) {
-      if (b.disabled) return false; b.disabled = true; return true;
-    });
+    // 확인 상자가 열린 동안 머리·발 단추는 막는다(규격 7-7). 원래 상태는 data-dlg-was에 두고, 그동안 저장·보내기 응답이
+    // 단추를 풀려 하면 dlg.setDisabled가 그 기록만 바꾼다 — 상자를 접을 때 그 상태로 돌아간다(qa 11-20 2단계 P2-1).
+    e.locked = Array.prototype.slice.call(box.querySelectorAll('.dlg-acts button, .dlg-foot button'));
+    e.locked.forEach(function (b) { b.dataset.dlgWas = b.disabled ? '1' : '0'; b.disabled = true; });
     e.cf = cf;
     keep.focus();
   }
@@ -142,7 +160,7 @@
   function hideConfirm(e, refocus) {
     if (!e.cf) return;
     e.cf.remove(); e.cf = null;
-    (e.locked || []).forEach(function (b) { b.disabled = false; });
+    (e.locked || []).forEach(function (b) { b.disabled = b.dataset.dlgWas === '1'; delete b.dataset.dlgWas; });
     e.locked = null;
     const back = e.cfReturn; e.cfReturn = null;
     if (refocus) {
@@ -206,7 +224,7 @@
       const clear = function () { dlg.clearInvalid(field); };
       field.addEventListener('input', clear); field.addEventListener('change', clear);
     }
-    if (o.focus && field.focus) {
+    if (o.focus && field.focus && !confirmingFor(field)) {   // 닫기 확인 상자가 떠 있으면 [계속 작성]에서 커서를 뺏지 않는다
       field.focus();
       if (field.scrollIntoView) field.scrollIntoView({ block: 'nearest' });
     }

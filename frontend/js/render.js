@@ -1185,11 +1185,11 @@
   render.REGION_NAME_ALL = function (code) { return render.REGION_NAME[code] || code; };
   render.openMoreModal = function () {
     const modal = document.getElementById('more-modal'); if (!modal) return;
-    modal.style.display = 'block';
     const search = document.getElementById('more-search');
     search.value = ''; render.renderMoreTable('');
     search.oninput = function () { render.renderMoreTable(search.value); };
-    document.getElementById('more-close').onclick = function () { modal.style.display = 'none'; };
+    document.getElementById('more-close').onclick = function () { root.dlg.requestClose(modal); };
+    root.dlg.open(modal, { focus: search });   // 공통 팝업 틀 2단계 — 보는 창이지만 찾는 일이 먼저라 검색칸에 커서
   };
   render.renderMoreTable = function (query) {
     const tb = document.getElementById('more-tbody'); if (!tb) return;
