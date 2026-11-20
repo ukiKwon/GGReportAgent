@@ -148,6 +148,7 @@
 
   // 모달 탈출구 — 배경 클릭 / Esc. 버튼이 화면 밖으로 밀리는 등 어떤 이유로든
   // 닫기 버튼에 닿지 못해도 화면이 잠기지 않게 한다(사용자 보고: 편집 팝업이 안 닫힘).
+  function dlgOwns(ov) { return !!(root.dlg && root.dlg.isOpen(ov)); }
   app.wireModalDismiss = function () {
     // #tm-modal·#pp-modal은 제외 — 작성 중 닫기 확인(requestClose)을 team.js·prep.js가 직접 처리한다.
     const overlays = Array.prototype.filter.call(document.querySelectorAll('.modal-overlay'), function (ov) {
@@ -156,12 +157,13 @@
     overlays.forEach(function (ov) {
       ov.addEventListener('click', function (e) {
         // 안쪽(내용 상자)을 눌렀을 때는 닫지 않는다 — 배경 자체를 눌렀을 때만.
-        if (e.target === ov) ov.style.display = 'none';
+        // 공통 팝업 틀(dlg.js)로 열린 창은 dlg가 닫는다(저장 안 한 내용 확인·커서 복귀, qa 11-20 P2-1·P2-2).
+        if (e.target === ov && !dlgOwns(ov)) ov.style.display = 'none';
       });
     });
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
-      overlays.forEach(function (ov) { ov.style.display = 'none'; });
+      overlays.forEach(function (ov) { if (!dlgOwns(ov)) ov.style.display = 'none'; });
     });
   };
 
@@ -614,6 +616,7 @@
   app.resetScreens = function () {
     if (root.overdue && root.overdue.closePopup) root.overdue.closePopup(false);
     if (root.dashboard && root.dashboard.closeDetail) root.dashboard.closeDetail(false);
+    if (root.dlg && root.dlg.closeAll) root.dlg.closeAll();   // 공통 팝업 틀 창은 스택·inert까지 정리하며 닫는다(qa 11-20 P2-2)
     document.querySelectorAll('.modal-overlay').forEach(function (ov) { ov.style.display = 'none'; });
     overduePending = null; navHoming = false;
     ['portal', 'kbboard', 'dashboard', 'plans', 'results'].forEach(function (k) { const m = root[k]; if (m && m.unmount) m.unmount(); });

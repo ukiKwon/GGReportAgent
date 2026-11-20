@@ -13,7 +13,8 @@
   dlg.Z_BASE = 30;
   dlg.DIRTY_TEXT = '닫으면 입력한 내용이 사라집니다.';
 
-  // 열린 순서(0부터) → z-index. 시스템 알림(39)보다 아래에 머문다.
+  // 열린 순서(0부터) → z-index. 지금 고정 층(.modal-overlay 30·#edit-modal 31)과 같은 대역이라 상한 38은 임시 —
+  // 옛 팝업을 모두 옮긴 뒤 층 체계를 정리한다(qa 11-20 P3-1). 사용 계약: dlg 덮개는 body 직계, dlg 창 안에서 옛 팝업을 띄우지 않는다.
   dlg.zFor = function (depth) {
     const d = Math.max(0, Math.floor(Number(depth) || 0));
     return Math.min(dlg.Z_BASE + d, 38);
@@ -101,6 +102,11 @@
     if (dirty) showConfirm(e); else dlg.close(overlay);
   };
 
+  // 확인 없이 전부 닫는다(로그아웃·화면 초기화용, 위에서부터). app.resetScreens가 부른다(qa 11-20 P2-2).
+  dlg.closeAll = function () {
+    while (stack.length) dlg.close(stack[stack.length - 1].overlay);
+  };
+
   dlg.isOpen = function (overlay) { return !!entryOf(overlay); };
   dlg.depth = function () { return stack.length; };
 
@@ -124,6 +130,7 @@
     keep.addEventListener('click', function () { hideConfirm(e, true); });
     row.appendChild(drop); row.appendChild(keep); cf.appendChild(p); cf.appendChild(row);
     note.insertBefore(cf, note.firstChild);
+    e.cfReturn = doc.activeElement;   // [계속 작성] 뒤 돌아갈 자리(qa P3-3)
     // 확인 상자가 열린 동안 머리·발 단추는 막는다(규격 7-7).
     e.locked = Array.prototype.filter.call(box.querySelectorAll('.dlg-acts button, .dlg-foot button'), function (b) {
       if (b.disabled) return false; b.disabled = true; return true;
@@ -137,9 +144,11 @@
     e.cf.remove(); e.cf = null;
     (e.locked || []).forEach(function (b) { b.disabled = false; });
     e.locked = null;
+    const back = e.cfReturn; e.cfReturn = null;
     if (refocus) {
       const box = boxOf(e.overlay);
-      const t = box.querySelector('.dlg-body ' + FOCUSABLE.split(',')[2].trim()) || focusables(box)[0];
+      const t = (back && box.contains(back) && !back.disabled) ? back
+        : (box.querySelector('.dlg-body input, .dlg-body select, .dlg-body textarea') || focusables(box)[0]);
       if (t && t.focus) t.focus();
     }
   }
@@ -150,6 +159,7 @@
     doc.addEventListener('keydown', function (ev) {
       const e = top();
       if (!e) return;
+      if (ev.isComposing) return;   // 한글 조합 중 Esc는 조합 취소일 뿐(qa P3-4)
       if (ev.key === 'Escape') {
         ev.preventDefault(); ev.stopPropagation();
         if (e.cf) hideConfirm(e, true); else dlg.requestClose(e.overlay);
@@ -164,9 +174,13 @@
         else if (!ev.shiftKey && (a === last || !boxOf(e.overlay).contains(a))) { ev.preventDefault(); first.focus(); }
       }
     }, true);
+    // 바깥(덮개) 클릭 — 누른 곳과 뗀 곳이 모두 덮개일 때만. 본문 글을 끌어 선택하다 덮개에서 놓으면 닫지 않는다(qa P2-1).
+    let downOn = null;
+    doc.addEventListener('mousedown', function (ev) { downOn = ev.target; }, true);
     doc.addEventListener('click', function (ev) {
       const e = top();
-      if (e && ev.target === e.overlay) dlg.requestClose(e.overlay);   // 바깥(덮개) 클릭
+      const down = downOn; downOn = null;
+      if (e && ev.target === e.overlay && down === e.overlay) dlg.requestClose(e.overlay);
     });
   }
 
@@ -176,7 +190,9 @@
     if (!field) return;
     const o = opts || {};
     const doc = field.ownerDocument;
-    const id = (field.id || ('dlg-f' + Math.random().toString(36).slice(2, 8))) + '-ferr';
+    // id 없는 칸도 처음 만든 경고 줄 id를 기억해 다시 쓴다 — 두 번 불러도 줄은 하나(qa P2-4).
+    if (!field.dataset.dlgErr) field.dataset.dlgErr = (field.id || ('dlg-f' + Math.random().toString(36).slice(2, 8))) + '-ferr';
+    const id = field.dataset.dlgErr;
     let p = doc.getElementById(id);
     if (!p) {
       p = doc.createElement('p'); p.className = 'dlg-ferr'; p.id = id;
@@ -199,8 +215,7 @@
   dlg.clearInvalid = function (field) {
     if (!field || field.getAttribute('aria-invalid') !== 'true') return;
     const doc = field.ownerDocument;
-    const id = (field.id || '') + '-ferr';
-    const p = field.id ? doc.getElementById(id) : (field.nextElementSibling && field.nextElementSibling.classList.contains('dlg-ferr') ? field.nextElementSibling : null);
+    const p = field.dataset.dlgErr ? doc.getElementById(field.dataset.dlgErr) : null;
     field.removeAttribute('aria-invalid');
     if (p) {
       const left = dlg.removeDescribedBy(field.getAttribute('aria-describedby'), p.id);

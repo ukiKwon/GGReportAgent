@@ -125,7 +125,7 @@
         esc(badge.text) + '</span>' : '') +
       (modeText ? ' <span class="kn-mode-text">' + esc(modeText) + '</span>' : '') +
       '</p>' + rows.map(function (r, i) {
-      return '<div class="kn-hit" data-index="' + i + '" title="클릭하면 원문을 엽니다">' +
+      return '<div class="kn-hit" data-index="' + i + '" tabindex="0" role="button" title="클릭하면 원문을 엽니다">' +
         '<div class="kn-head"><span class="kn-open">원문 열기 ↗</span><b>' + esc(r.filename) + '</b>' +
         ' · ' + esc(r.doctype) + (r.institutionId ? ' · ' + esc(r.institutionId) : '') +
         ' · ' + esc(r.path) + ' #' + r.chunkNo + '</div>' +
@@ -138,6 +138,7 @@
 
   let lastChunks = [];      // 결과 행 클릭 시 원문+청크를 되짚기 위해 보관
   let lastQuery = '';
+  let docSeq = 0;
 
   function openDocument(index) {
     const hit = lastChunks[index];
@@ -148,6 +149,7 @@
     el('doc-meta').textContent = hit.path + ' #' + hit.chunk_no + ' — 불러오는 중…';
     el('doc-body').innerHTML = '';
     if (root.dlg) root.dlg.open(modal); else modal.style.display = '';
+    const seq = ++docSeq;   // A를 닫고 바로 B를 열면 A의 늦은 응답이 B를 덮지 않게(qa 11-20 P3-5)
 
     fetch('/documents?path=' + encodeURIComponent(hit.path)).then(function (r) {
       return r.json().then(function (body) {
@@ -156,6 +158,7 @@
         return body;
       });
     }).then(function (doc) {
+      if (seq !== docSeq) return;
       el('doc-meta').textContent = doc.path + ' · ' + doc.chars.toLocaleString() + '자' +
         (doc.truncated ? ' (앞부분만 표시)' : '');
       el('doc-body').innerHTML = '<pre>' +
@@ -163,6 +166,7 @@
       const anchor = el('kn-anchor');
       if (anchor && anchor.scrollIntoView) anchor.scrollIntoView({ block: 'center' });
     }).catch(function (e) {
+      if (seq !== docSeq) return;
       el('doc-meta').textContent = hit.path;
       el('doc-body').innerHTML = '<p class="wf-empty">' + esc(e.message) + '</p>';
     });
@@ -220,6 +224,10 @@
       knowledge.renderResults(out, chunks, q, result.meta);
       Array.prototype.forEach.call(out.querySelectorAll('.kn-hit'), function (node) {
         node.onclick = function () { openDocument(Number(node.dataset.index)); };
+        // 키보드로도 연다 — 닫으면 커서가 이 행으로 돌아온다(dlg 포커스 복귀, qa 11-20 P2-3)
+        node.onkeydown = function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDocument(Number(node.dataset.index)); }
+        };
       });
     }).catch(function (e) {
       out.innerHTML = '<p class="wf-empty">' + esc(e.message) + '</p>';

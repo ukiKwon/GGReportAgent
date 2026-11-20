@@ -404,8 +404,9 @@ test('P2-1: 공용 wireModalDismiss는 #tm-modal을 제외하고, team.js가 Esc
   assert.ok(/ov\.id !== 'tm-modal'/.test(dismiss));
   assert.strictEqual((dismiss.match(/querySelectorAll\('\.modal-overlay'\)/g) || []).length, 1);
   assert.ok(/Array\.prototype\.filter\.call\(document\.querySelectorAll\('\.modal-overlay'\)/.test(dismiss));
-  assert.ok(/if \(e\.target === ov\) ov\.style\.display = 'none'/.test(dismiss));
-  assert.ok(/overlays\.forEach\(function \(ov\) \{ ov\.style\.display = 'none'; \}\)/.test(dismiss));
+  // 공통 팝업 틀(dlg)로 열린 창은 건너뛴다(0d 11-20, qa P2-1·P2-2)
+  assert.ok(/if \(e\.target === ov && !dlgOwns\(ov\)\) ov\.style\.display = 'none'/.test(dismiss));
+  assert.ok(/overlays\.forEach\(function \(ov\) \{ if \(!dlgOwns\(ov\)\) ov\.style\.display = 'none'; \}\)/.test(dismiss));
 
   const wireSrc = between(TEAM_SRC, 'function wire()', 'tm.mount = function');
   assert.ok(/e\.target === md && downOnBg\) requestClose\(\)/.test(wireSrc));

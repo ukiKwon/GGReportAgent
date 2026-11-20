@@ -36,8 +36,10 @@ test('확인 상자 기본 문장은 시안 4판 그대로', function () {
 
 test('index.html: dlg.js는 다른 화면 스크립트보다 먼저 읽힌다', function () {
   const d = HTML.indexOf('<script src="js/dlg.js"></script>');
-  const k = HTML.indexOf('<script src="js/knowledge.js"></script>');
-  assert.ok(d > 0 && k > d);
+  ['knowledge', 'plans', 'app'].forEach(function (m) {
+    const k = HTML.indexOf('<script src="js/' + m + '.js"></script>');
+    assert.ok(d > 0 && k > d, m);
+  });
 });
 
 test('index.html: .dlg 기본 폭 560, 예외는 --wide 720·--full 뿐', function () {
@@ -50,7 +52,9 @@ test('index.html: .dlg 기본 폭 560, 예외는 --wide 720·--full 뿐', functi
 
 test('원문 보기(#doc-modal): .dlg 틀 · 동작 없는 보는 창이라 [닫기]는 오른쪽 아래', function () {
   const s = HTML.indexOf('<div id="doc-modal"');
-  const block = HTML.slice(s, HTML.indexOf('</div>\n</div>', s));
+  const rest = HTML.slice(s);
+  const block = rest.slice(0, rest.search(/<\/div>\r?\n<\/div>/));   // CRLF 체크아웃에서도(qa 11-20)
+  assert.match(block, /id="doc-body" tabindex="0" role="region" aria-label="원문 본문"/);
   assert.match(block, /class="dlg" role="dialog" aria-modal="true" aria-labelledby="doc-title"/);
   assert.match(block, /<h2 class="dlg-t" id="doc-title" tabindex="-1">/);
   assert.match(block, /<footer class="dlg-foot"><button type="button" id="doc-close"[^>]*>닫기<\/button><\/footer>/);
@@ -61,4 +65,19 @@ test('knowledge.js: 원문 창은 dlg.open/requestClose로 열고 닫는다(Esc�
   assert.match(KN, /root\.dlg\.open\(modal\)/);
   assert.match(KN, /root\.dlg\.requestClose\(modal\)/);
   assert.match(KN, /el\('doc-title'\)\.title = /);
+  assert.match(KN, /class="kn-hit"[^>]*tabindex="0" role="button"/);   // 결과 행을 키보드로 연다(qa P2-3)
+  assert.match(KN, /if \(seq !== docSeq\) return;/);                   // 늦은 응답 버림(qa P3-5)
+});
+
+test('app.js: 옛 덮개 처리는 dlg 창을 건드리지 않고, 화면 초기화는 dlg.closeAll로 정리한다', function () {
+  const APP = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+  assert.match(APP, /if \(e\.target === ov && !dlgOwns\(ov\)\) ov\.style\.display = 'none';/);
+  assert.match(APP, /root\.dlg\.closeAll\(\);/);
+});
+
+// ── 동작 시험: 아주 작은 가짜 DOM(jsdom 없음) — qa 11-20 4절 ──
+const fakedom = require('./_fakedom_dlg.js');
+fakedom.register(test, assert, function () {
+  delete require.cache[require.resolve('../js/dlg.js')];
+  return require('../js/dlg.js');
 });
