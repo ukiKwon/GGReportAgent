@@ -454,3 +454,41 @@ test('소스 구조(DOM 시험 대체): 처리 중 Esc·행 버튼 무시, close
   assert.ok(/function onCollect\(\)[\s\S]*?revealRow\(S\.selRow\.key\)[\s\S]*?\$\('pl-name'\)[\s\S]*?preventScroll/.test(PLANS_SRC));
   assert.ok(rd('nav.js').indexOf('시스템 관리 5항목') > 0 && rd('nav.js').indexOf('시스템 관리 4항목') < 0);
 });
+
+test('배지: 401(세션 만료)은 중단하지 않고 다시 부르며, 403 만 중단하고, 사번이 바뀌면 403 중단이 풀린다', async function () {
+  const key = require.resolve('../js/plancollect.js');
+  const emp = { v: 'E1' };
+  const calls = [];
+  let code = 401;
+  const btn = { querySelector: function () { return null; }, querySelectorAll: function () { return []; }, insertAdjacentHTML: function () {} };
+  const save = { self: global.self, document: global.document, fetch: global.fetch };
+  global.self = { store: { isServerMode: function () { return true; }, loadSession: function () { return { emp: emp.v }; } } };
+  global.document = { querySelector: function () { return btn; } };
+  global.fetch = function (url) { calls.push(url); return Promise.resolve({ ok: false, status: code, json: function () { return Promise.resolve({}); } }); };
+  delete require.cache[key];
+  const p = require('../js/plancollect.js');
+  delete require.cache[key];
+  try {
+    await p.refreshBadge(true);
+    assert.strictEqual(calls.length, 1);
+    await p.refreshBadge(false);
+    assert.strictEqual(calls.length, 1, '401 뒤에도 60초 제한은 걸린다');
+    await p.refreshBadge(true);
+    assert.strictEqual(calls.length, 2, '401 로 중단하지 않는다 — 같은 사번 재로그인 뒤 force 가 다시 나간다');
+    code = 403;
+    await p.refreshBadge(true);
+    assert.strictEqual(calls.length, 3);
+    await p.refreshBadge(true);
+    assert.strictEqual(calls.length, 3, '403 은 이 계정으로 더 부르지 않는다');
+    emp.v = 'E2';
+    await p.refreshBadge(true);
+    assert.strictEqual(calls.length, 4, '사번이 바뀌면 다시 부른다');
+  } finally {
+    ['self', 'document', 'fetch'].forEach(function (k) { if (save[k] === undefined) delete global[k]; else global[k] = save[k]; });
+  }
+});
+
+test('소스: 401 은 badgeStop 을 켜지 않고 403 만 켠다', function () {
+  assert.ok(/r\.status === 403\) \{ badgeStop = true;/.test(PC_SRC));
+  assert.ok(!/r\.status === 401 \|\| r\.status === 403\) \{ badgeStop/.test(PC_SRC));
+});

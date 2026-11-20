@@ -270,7 +270,7 @@ public class PlanCollectService {
             m.put("institution_id", inst);
             m.put("status_cd", r.getStatusCd());
             m.put("closed_at", r.getClosedAt());
-            m.put("close_reason", canRequest ? r.getCloseReason() : null);
+            m.put("close_reason", r.getCloseReason());   // canRequest 는 위 break 로 이미 보장됨
             lastClosed.add(m);
         }
         // 최근 7일 안에 수집 반입으로 닫힌(APPLIED) 기관 — 기관별 최신 1건. 사번·이름·사유 없음이라 status 를 볼 수 있는 모두에게 준다.

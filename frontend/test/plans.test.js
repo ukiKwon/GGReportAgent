@@ -683,3 +683,40 @@ test('소스: pin 행 pinned, applyPending 결과 확인은 pin, 안내는 ready
   assert.ok(SRC.indexOf('if (!(root.app && root.app.openNavItem && root.nav && root.app.openNavItem(') < 0);   // 탭 가득 참은 app 이 안내 — 중복 flash 없음
   assert.strictEqual(nav.NOTICE_ID, 'soon:입찰 공고 현황');
 });
+
+test('수집 현황 키 객체: __proto__ 도 자기 키로 담고, constructor·toString 같은 ID 는 현황이 없으면 null', function () {
+  const d = { can_request: true, items: [{ institution_id: '__proto__', status_cd: 'REQUESTED' }],
+    last_closed: [{ institution_id: '__proto__', status_cd: 'FAILED' }], recent_applied: [{ institution_id: '__proto__' }] };
+  [plans.collectMap(d), plans.closedMap(d), plans.appliedMap(d)].forEach(function (m) {
+    assert.ok(Object.prototype.hasOwnProperty.call(m, '__proto__'));
+    assert.strictEqual(Object.getPrototypeOf(m), Object.prototype, '프로토타입이 바뀌지 않는다');
+  });
+  try {
+    plans.applyCollect({ can_request: true, items: [], last_closed: [], recent_applied: [] });
+    ['constructor', 'toString', 'hasOwnProperty', '__proto__', 'valueOf'].forEach(function (id) {
+      const c = plans.collectOf(id);
+      assert.deepStrictEqual([c.req, c.closed, c.applied], [null, null, null], id);
+    });
+    plans.applyCollect(d);
+    const c = plans.collectOf('__proto__');
+    assert.strictEqual(c.req.status_cd, 'REQUESTED');
+    assert.strictEqual(c.closed.status_cd, 'FAILED');
+    assert.ok(c.applied);
+    assert.strictEqual(plans.collectOf('constructor').req, null);
+  } finally { plans.resetCollect(); }
+});
+
+test('소스: 수집 현황 키 객체는 CS.map·CS.closed 를 직접 읽지 않고 ownGet·ownPut 을 거친다', function () {
+  assert.ok(!/CS\.(map|closed|applied)\[[^\]]+\]\s*\|\|/.test(SRC), '|| null 조회가 남아 있지 않다');
+  assert.ok(!/CS\.map\[id\]\s*=/.test(SRC));
+});
+
+test('소스: renderFoot 이 pl-dl 포커스를 되돌린다(onStatus·내려받기 끝 모두), 내려받는 중은 S.dlFocus 로 끝난 뒤 돌려준다', function () {
+  const foot = SRC.slice(SRC.indexOf('function renderFoot()'), SRC.indexOf('const OFFLINE_MSG'));
+  assert.ok(/a\.id === 'pl-dl'/.test(foot) && /S\.dlFocus/.test(foot) && /\$\('pl-dl'\)/.test(foot) && /b\.focus\(/.test(foot));
+  assert.ok(/!b\.disabled/.test(foot), 'disabled 단추에는 focus 를 시도하지 않는다');
+  const dm = SRC.slice(SRC.indexOf('function downloadMissing()'), SRC.indexOf('// ── 수집 요청(기관 사업계획 상세'));
+  assert.ok(/S\.dlFocus = !!\(fa && fa\.id === 'pl-dl'\)/.test(dm) && /renderFoot\(\); S\.dlFocus = false;/.test(dm));
+  const os = SRC.slice(SRC.indexOf('function onStatus()'), SRC.indexOf('function setFlash('));
+  assert.ok(os.indexOf('renderFoot();') >= 0, 'onStatus 는 renderFoot 만 부르면 복원된다');
+});

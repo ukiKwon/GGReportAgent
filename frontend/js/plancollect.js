@@ -536,7 +536,7 @@
     }
   };
   pc.setBadge = function (n) { badgeN = Math.max(0, Number(n) || 0); badgeAt = Date.now(); pc.paintNavBadge(); };
-  // 메뉴 항목이 보이는 사람(= 시스템 관리 권한)만 부른다. 1분에 한 번만(force 가 아니면). 403 이면 이 계정으로는 더 부르지 않는다(접근 이력에 거부가 쌓이지 않게).
+  // 메뉴 항목이 보이는 사람(= 시스템 관리 권한)만 부른다. 1분에 한 번만(force 가 아니면). 403 이면 이 계정으로는 더 부르지 않는다(접근 이력에 거부가 쌓이지 않게). 401(세션 만료)은 중단하지 않고 0 으로만 둔다.
   pc.refreshBadge = function (force) {
     if (typeof document === 'undefined' || !navBtn() || !serverOk()) return Promise.resolve();
     resetBadgeIfWhoChanged();
@@ -545,7 +545,8 @@
     badgeAt = Date.now();
     return call('GET', '/plan-collect/admin/status').then(function (r) {
       if (r.ok) pc.setBadge(r.data && r.data.requested_count);
-      else if (r.status === 401 || r.status === 403) { badgeStop = true; pc.setBadge(0); }
+      else if (r.status === 403) { badgeStop = true; pc.setBadge(0); }
+      else if (r.status === 401) pc.setBadge(0);   // 세션 만료: 중단하지 않는다(같은 사번 재로그인이면 resetBadgeIfWhoChanged 가 풀어 주지 못함). setBadge 가 badgeAt 을 갱신해 기존 60초 제한만 걸린다
     });
   };
   // 창으로 돌아올 때(focus) 한 번 더 확인한다. refreshBadge 가 메뉴 없음(로그아웃 포함)·서버 미연결·403 중단·60초 제한을 이미 지킨다.

@@ -450,18 +450,21 @@
   // ── 사업계획 수집 요청 현황 캐시(GET /plan-collect/status: 열린 요청만 + can_request) ──
   // 기존 현황(ST)과 같은 수명·같은 시점에 받는다(ensureStatus 가 함께 부른다). 실패해도 사업계획 화면은 그대로 쓴다(요청 줄·칩만 없음).
   function freshCollect() { return { state: 'idle', can: false, map: {}, closed: {}, applied: {}, code: 0, at: 0 }; }
+  // 기관 ID 키 객체는 자기 키만 읽고 쓴다('constructor'·'toString' 이 상속값을 돌려주거나 '__proto__' 가 프로토타입을 바꾸지 않게)
+  function ownGet(o, k) { return o && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : null; }
+  function ownPut(o, k, v) { Object.defineProperty(o, k, { value: v, enumerable: true, writable: true, configurable: true }); }
   let CS = freshCollect();
   let collectSeq = 0, collectPending = null, collectInflight = false;
   plans.collectMap = function (data) {
     const m = {};
-    ((data && data.items) || []).forEach(function (r) { if (r && r.institution_id) m[r.institution_id] = r; });
+    ((data && data.items) || []).forEach(function (r) { if (r && r.institution_id) ownPut(m, r.institution_id, r); });
     return m;
   };
   // last_closed: 열린 요청이 없는 기관의 최근 실패·제외(30일 안). 기관 ID → { status_cd, closed_at, close_reason }
   plans.closedMap = function (data) {
     const m = {};
     ((data && data.last_closed) || []).forEach(function (r) {
-      if (r && r.institution_id && (r.status_cd === 'FAILED' || r.status_cd === 'EXCLUDED')) m[r.institution_id] = r;
+      if (r && r.institution_id && (r.status_cd === 'FAILED' || r.status_cd === 'EXCLUDED')) ownPut(m, r.institution_id, r);
     });
     return m;
   };
@@ -469,7 +472,7 @@
   plans.appliedMap = function (data) {
     const m = {};
     const a = data && data.recent_applied;
-    (Array.isArray(a) ? a : []).forEach(function (r) { if (r && r.institution_id) m[r.institution_id] = r; });
+    (Array.isArray(a) ? a : []).forEach(function (r) { if (r && r.institution_id) ownPut(m, r.institution_id, r); });
     return m;
   };
   // 시험·재시도용: 서버 응답(JSON)을 직접 넣는다.
@@ -480,8 +483,9 @@
   plans.setCollectState = function (state, code) { collectSeq += 1; collectInflight = false; CS = Object.assign(freshCollect(), { state: state, code: code || 0 }); };
   plans.resetCollect = function () { collectSeq += 1; collectPending = null; collectInflight = false; CS = freshCollect(); };
   plans.collectState = function () { return CS.state; };
-  function appliedOf(id) { return CS.state === 'ok' && CS.applied && Object.prototype.hasOwnProperty.call(CS.applied, id) ? CS.applied[id] : null; }   // new 칩. 요청 현황이 없거나 옛 응답이면 늘 null
-  function collectOf(id) { return CS.state === 'ok' ? { req: CS.map[id] || null, closed: CS.closed[id] || null, applied: appliedOf(id), can: CS.can } : null; }
+  function appliedOf(id) { return CS.state === 'ok' ? ownGet(CS.applied, id) : null; }   // new 칩. 요청 현황이 없거나 옛 응답이면 늘 null
+  function collectOf(id) { return CS.state === 'ok' ? { req: ownGet(CS.map, id), closed: ownGet(CS.closed, id), applied: appliedOf(id), can: CS.can } : null; }
+  plans.collectOf = collectOf;   // 시험용
   function reqSummaryHtml(req) { return ' <span class="db-why">· ' + mono(Number(req.requester_count) || 0) + '명 요청</span>'; }   // 칩은 stateChipsHtml 이 그린다. 사람 수만(규격 6-4)
   function ensureCollect(force) {
     if (!serverOk()) { CS = Object.assign(freshCollect(), { state: 'offline' }); return Promise.resolve(CS); }
@@ -691,7 +695,14 @@
       const csv = plans.footHtml(plans.missingIds(base).length, base.filter(function (r) { return !r.st; }).length, S.dlBusy, CS.can);
       if (csv) h += '<p class="pl-fn">' + csv + '</p>';
     }
+    const a = document.activeElement;   // 바닥을 새로 그리면 눌렀던 pl-dl 이 사라져 포커스가 body 로 떨어진다 — 같은 id 로 돌려준다
+    const keep = !!(a && a.id === 'pl-dl') || !!(S.dlFocus && (!a || a === document.body));
     el.innerHTML = h;
+    if (keep) {
+      const b = $('pl-dl');
+      if (b && !b.disabled && b.focus) { b.focus({ preventScroll: true }); S.dlFocus = false; }   // 내려받는 중(disabled)이면 끝난 뒤 그릴 때 돌려준다
+      else if (!b) S.dlFocus = false;
+    }
   }
   const OFFLINE_MSG = '서버에 연결되면 사업계획 현황이 보입니다.';
   function renderBanner() {
@@ -812,6 +823,7 @@
     if (!host || !M || !ready() || S.dlBusy) return;
     const ids = plans.missingIds(visibleRows().base);
     if (!ids.length) return;
+    { const fa = document.activeElement; S.dlFocus = !!(fa && fa.id === 'pl-dl'); }   // 누른 단추에 포커스가 있었으면(키보드·마우스 모두) 끝난 뒤 돌려준다
     S.dlBusy = true; S.err = ''; renderBanner(); setFlash(''); renderFoot();
     fetch('/institution-plans/missing.csv', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ institution_ids: ids }) })
       .then(function (r) {
@@ -831,13 +843,13 @@
         S.err = s === 401 || s === 403 ? '목록을 내려받을 권한이 없습니다(' + s + '). 로그인 사번과 권한을 확인하세요.'
           : s ? '목록을 만들지 못했습니다(' + s + '). 목록을 다시 불러온 뒤 시도하세요.' : '서버에 연결하지 못했습니다. 서버가 켜져 있는지 확인하세요.';
       })
-      .then(function () { if (!S) return; S.dlBusy = false; renderBanner(); renderFoot(); });
+      .then(function () { if (!S) return; S.dlBusy = false; renderBanner(); renderFoot(); S.dlFocus = false; });
   }
 
   // ── 수집 요청(기관 사업계획 상세의 .pl-req 줄) ──
   function collectReq(id) {
     if (CS.state !== 'ok') return null;
-    return { item: CS.map[id] || null, closed: CS.closed[id] || null, applied: appliedOf(id), can: CS.can, busy: S && S.reqBusy && S.reqBusy.id === id ? S.reqBusy.kind : '' };
+    return { item: ownGet(CS.map, id), closed: ownGet(CS.closed, id), applied: appliedOf(id), can: CS.can, busy: S && S.reqBusy && S.reqBusy.id === id ? S.reqBusy.kind : '' };
   }
   function onCollect() {   // 수집 요청 현황이 도착·갱신됐을 때: 칩과 요청 줄을 다시 그린다(검색 칸에 입력 중이면 상세는 건드리지 않는다)
     if (!host || !M || !S) return;
@@ -865,8 +877,8 @@
     const st = str(res.status_cd);
     delete CS.closed[id];   // 방금 낸 요청·취소 결과가 더 새롭다. 옛 '실패/제외됨' 줄을 남기지 않는다
     if (st === 'REQUESTED' || st === 'RUNNING') {
-      CS.map[id] = { institution_id: id, status_cd: st, requester_count: Number(res.requester_count) || 0, requested_by_me: !!res.requested_by_me,
-        first_requested_at: res.first_requested_at || null, run_at: res.run_at || null };
+      ownPut(CS.map, id, { institution_id: id, status_cd: st, requester_count: Number(res.requester_count) || 0, requested_by_me: !!res.requested_by_me,
+        first_requested_at: res.first_requested_at || null, run_at: res.run_at || null });
     } else delete CS.map[id];
   }
   function requestCollect(kind) {
