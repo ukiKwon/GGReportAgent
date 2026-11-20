@@ -1190,7 +1190,7 @@
     return { days: it.overdue ? -it.days : it.days, date: it.date, label: it.label };
   }
   function headEnv(it) {
-    return { serverMode: serverMode(), hasEmp: hasEmp(), role: role(), emp: empNo(), today: todayDate(), bid: headBid(it), repaint: repaintHead };
+    return { serverMode: serverMode(), hasEmp: hasEmp(), role: role(), emp: empNo(), today: todayDate(), bid: headBid(it), repaint: repaintHead, instName: it && it.rec ? it.rec.name : '' };
   }
   function repaintHead() { if (host && M && st.sel) renderPane(); }
   function headSection(it) {
@@ -1713,7 +1713,7 @@
   }
   function dmRepaint() { if (dm.cur) dmRender(); }
   function dmHeadEnv(m) {
-    return { serverMode: serverMode(), hasEmp: hasEmp(), role: role(), emp: empNo(), today: todayDate(), bid: headBid(m.it), repaint: dmRepaint, screen: m.screen };
+    return { serverMode: serverMode(), hasEmp: hasEmp(), role: role(), emp: empNo(), today: todayDate(), bid: headBid(m.it), repaint: dmRepaint, screen: m.screen, instName: m.rec ? m.rec.name : '' };
   }
   function dmActives(m) {
     const id = m.rec && m.rec.institutionId;
