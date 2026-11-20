@@ -63,6 +63,13 @@
     const p = function (n) { return (n < 10 ? '0' : '') + n; };
     return p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes());
   };
+  // 목록 '최근 수정일' — 연도까지 YYYY-MM-DD HH:mm(KST, 사용자 11-20)
+  mat.kstFull = function (iso) {
+    const t = ts(iso);
+    if (!t) return '';
+    const d = new Date(t + 9 * 3600000);
+    return d.getUTCFullYear() + '-' + mat.kst(iso);
+  };
   mat.statusName = function (it) {
     const n = str(it && it.status_name).trim();
     return n || STATUS_NAME[str(it && it.status_cd)] || '';
@@ -410,8 +417,7 @@
   function savedCount(it) { return Number(it && it.current_snap) > 0 ? Number(it.current_snap) : 0; }
   mat.savedHtml = function (it) {
     if (!savedCount(it) || !it.last_saved_at) return '<span class="dg-hint">저장 전</span>';
-    const n = mat.saverName(it);
-    return (n ? esc(n) + ' ' : '') + '<span class="mono">' + esc(mat.kst(it.last_saved_at)) + '</span>';
+    return '<span class="mono">' + esc(mat.kstFull(it.last_saved_at)) + '</span>';   // 목록은 시각만(사용자 11-20) — 누가 저장했는지는 상세·버전 이력
   };
   mat.listTableHtml = function (items, me) {
     const rows = items.map(function (it) {
@@ -420,14 +426,15 @@
       return '<tr><td class="bd-l-name"><button type="button" class="bd-l-open" data-act="open" data-id="' + esc(it.material_id) +
         '" aria-label="' + esc(label) + '">' + esc(name) + '</button></td>' +
         '<td class="mono">' + esc(yr) + '</td><td>' + mat.headBadgeHtml(it) + mat.resultBadgeHtml(it) + '</td>' +
-        '<td class="bd-l-who">' + mat.assigneesHtml(it, me) + '</td><td>' + mat.savedHtml(it) + '</td>' +
         '<td class="mono">' + (savedCount(it) ? 'v' + savedCount(it) : '—') + '</td>' +
-        '<td class="mono">' + (mat.dateOf(it.meeting_date) ? esc(mat.dateOf(it.meeting_date)) : '—') + '</td></tr>';
+        '<td class="mono">' + (mat.dateOf(it.meeting_date) ? esc(mat.dateOf(it.meeting_date)) : '—') + '</td>' +
+        '<td class="bd-l-who">' + mat.assigneesHtml(it, me) + '</td><td>' + mat.savedHtml(it) + '</td></tr>';
     }).join('');
+    // 열 순서·이름은 사용자 11-20: 기관명 | 연도 | 상태 | 버전 | 이사회 개최일 | 담당자 | 최근 수정일(가운데 정렬은 CSS .bd-l-tbl)
     return '<table class="ad-table bd-l-tbl"><caption class="bd-sr">이사회 자료 ' + items.length + '건</caption><thead><tr>' +
       '<th scope="col">기관명</th><th scope="col" style="width:64px">연도</th><th scope="col" style="width:112px">상태</th>' +
-      '<th scope="col" style="width:220px">담당자</th><th scope="col" style="width:168px">마지막 저장</th>' +
-      '<th scope="col" style="width:56px">버전</th><th scope="col" style="width:96px">개최일</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      '<th scope="col" style="width:56px">버전</th><th scope="col" style="width:112px">이사회 개최일</th>' +
+      '<th scope="col" style="width:220px">담당자</th><th scope="col" style="width:144px">최근 수정일</th></tr></thead><tbody>' + rows + '</tbody></table>';
   };
   mat.countText = function (L) { return L && L.status === 'ready' ? L.items.length + '건' : ''; };
   // L: {status:'idle'|'loading'|'ready'|'error', items, truncated}

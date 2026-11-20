@@ -207,8 +207,9 @@
   .bd-l-count { margin-left:auto; font-family:var(--mono); font-size:12px; color:var(--muted); }
   .bd-l-state { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .bd-l-tbl td.bd-l-name { white-space:normal; }
+  .ad-table.bd-l-tbl th, .ad-table.bd-l-tbl td { text-align:center; }   /* 목록 전체 가운데 정렬(사용자 11-20) — 뒤쪽 공통 .ad-table 왼쪽 정렬을 이기도록 두 클래스 */
   .bd-l-open { background:none; border:0; padding:4px 0; min-height:28px; font:inherit; font-size:13px; font-weight:700;
-               color:var(--fg); text-align:left; cursor:pointer; }
+               color:var(--fg); text-align:center; cursor:pointer; }
   .bd-l-open:hover { background:none; text-decoration:underline; text-decoration-color:var(--accent-color); transform:none; box-shadow:none; }
   .bd-l-who { color:var(--muted); white-space:normal; word-break:keep-all; }
   .bd-l-who b { color:var(--fg); font-weight:400; }

@@ -54,7 +54,10 @@ test('listTableHtml: 기관명·담당자·값은 esc, 행 버튼 aria-label, �
   assert.ok(/aria-label="[^"]*&lt;img[^"]*2026년 이사회 자료 열기, 준비 중"/.test(h));
   assert.ok(h.includes('<caption class="bd-sr">이사회 자료 2건</caption>') && h.includes('scope="col"'));
   assert.ok(h.includes('<span class="dg-hint">저장 전</span>') && h.includes('<td class="mono">—</td>'));
-  assert.ok(h.includes('김영업 <span class="mono">11-07 10:12</span>') && h.includes('<td class="mono">v3</td>'));
+  assert.ok(h.includes('<span class="mono">2026-11-07 10:12</span>') && !h.includes('김영업 <span') && h.includes('<td class="mono">v3</td>'));
+  // 열 순서(사용자 11-20): 기관명 | 연도 | 상태 | 버전 | 이사회 개최일 | 담당자 | 최근 수정일
+  const heads = (h.match(/<th scope="col"[^>]*>[^<]+<\/th>/g) || []).map(function (s) { return s.replace(/<[^>]+>/g, ''); });
+  assert.deepStrictEqual(heads, ['기관명', '연도', '상태', '버전', '이사회 개최일', '담당자', '최근 수정일']);
 });
 
 test('sortItems: 최근 저장(없으면 생성) 순', function () {
