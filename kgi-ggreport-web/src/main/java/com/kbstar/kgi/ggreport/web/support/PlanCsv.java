@@ -56,7 +56,7 @@ public final class PlanCsv {
             H_FIELD_NO = "분야번호", H_FIELD = "분야명", H_NO = "사업번호", H_PARENT = "상위사업번호", H_NAME = "사업명",
             H_CONTENT = "내용", H_BSTATE = "예산상태", H_AMOUNT = "예산금액", H_UNIT = "예산단위", H_YEARS = "연차예산",
             H_PAGE = "원문쪽", H_CHECK = "확인상태", H_PROGRESS = "진행상태", H_RATE = "이행률", H_NOTE = "비고";
-    /** 반입 계약 — 바깥 수집 쪽과 함께 고친다(collector/SCHEMA.md 확장 시 동기화). */
+    /** 반입 계약 — 바깥 수집 쪽과 함께 고친다(collector/SCHEMA.md ⑪ '사업계획 CSV' 의 25열·상한·금지와 동기화 — 열·규칙을 바꾸면 ⑪ 도 같은 변경에서 고친다). */
     public static final List<String> HEADERS = Collections.unmodifiableList(Arrays.asList(H_INST, H_TITLE, H_KIND, H_FROM, H_TO,
             H_URL, H_CHECKED, H_COLLECTOR, H_DOC_PAGES, H_DOC_NOTE, H_FIELD_NO, H_FIELD, H_NO, H_PARENT, H_NAME, H_CONTENT,
             H_BSTATE, H_AMOUNT, H_UNIT, H_YEARS, H_PAGE, H_CHECK, H_PROGRESS, H_RATE, H_NOTE));
