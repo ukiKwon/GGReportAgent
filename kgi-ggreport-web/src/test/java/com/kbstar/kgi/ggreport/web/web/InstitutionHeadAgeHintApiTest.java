@@ -25,7 +25,7 @@ public class InstitutionHeadAgeHintApiTest extends HeadApiTestBase {
     }
 
     private static String withPeriod(String body) {
-        return body.replace("\"source\"", "\"from\":\"2020\",\"to\":\"2022\",\"source\"");
+        return body.replace("\"source\"", "\"to\":\"2022-06\",\"source\"");   // 시작 년-월은 itemText 가 넣는다
     }
 
     private void assertInvalidText(MvcResult r, String leaked) throws Exception {
@@ -48,6 +48,18 @@ public class InstitutionHeadAgeHintApiTest extends HeadApiTestBase {
             MvcResult r = postJson(items(), L1, withPeriod(itemText(head, "CAREER", v)));
             assertEquals(v + " " + text(r), 201, r.getResponse().getStatus());
         }
+    }
+
+    @Test
+    public void 경력_시작이_연도만이면_400이고_년월이면_201() throws Exception {   // 사용자 11-20 '년-월 정도는 있어야'
+        long head = addHeadOk(INST, L1, "홍길동", "구청장");
+        String yearOnly = itemText(head, "CAREER", "가람시 기획관").replace("2018-03", "2018");
+        MvcResult r = postJson(items(), L1, yearOnly);
+        assertEquals(text(r), 400, r.getResponse().getStatus());
+        assertEquals("INVALID_DATE", code(json(r)));
+        String none = itemText(head, "CAREER", "가람시 기획관").replace(",\"from\":\"2018-03\"", "");
+        assertEquals(400, postJson(items(), L1, none).getResponse().getStatus());
+        assertEquals(201, postJson(items(), L1, itemText(head, "CAREER", "가람시 기획관")).getResponse().getStatus());
     }
 
     @Test

@@ -45,6 +45,9 @@ public class InstitutionHeadInputApiTest extends HeadApiTestBase {
         b.put("head_id", head);
         b.put("field_cd", field);
         b.put("value", value);
+        if ("EDU".equals(field) || "CAREER".equals(field)) {
+            b.put("from", "2018-03");   // 학력·경력은 시작 년-월 필수(11-20)
+        }
         b.put("source", source);
         return postJson(headPath(INST) + "/items", T1, om.writeValueAsString(b));
     }

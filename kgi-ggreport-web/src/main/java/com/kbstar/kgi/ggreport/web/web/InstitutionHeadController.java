@@ -133,7 +133,7 @@ public class InstitutionHeadController {
     }
 
     /**
-     * A15 — 현 기관장 정보 .docx(확정 값만, 사진·후보·사번 없음). 화면·버튼 식별자(허용 목록)가 없으면 400 UI_ID_REQUIRED(INVALID),
+     * A15 — 현 기관장 정보 .docx(확정 값 + 사진(KOGL1·INST_PERMIT만) + 나이 만 n세, 후보·사번·생년월일 날짜 없음). 화면·버튼 식별자(허용 목록)가 없으면 400 UI_ID_REQUIRED(INVALID),
      * 현 기관장이 없거나 빈 기관장이거나 문서에 담을 확정 칸이 하나도 없으면(사진만 있는 경우 포함) 409 HEAD_EMPTY(BLOCKED),
      * 선택 질의 {@code ref_no}(1~20, 기본 1)가 형식 밖이면 400.
      * 감사 행위 코드 HEAD_DOCX 는 응답 전에 기록하고 HEAD_ID 열에 그 현 기관장 번호를 채운다(실패하면 500, 파일 안 나감). 접근 이력에는 기관·코드만(이름·파일명 없음).
@@ -161,7 +161,8 @@ public class InstitutionHeadController {
                     throw coded(409, "HEAD_EMPTY", "확정된 현 기관장 정보가 없습니다.");
                 }
                 String name = plans.selectInstitutionName(institutionId);
-                byte[] bytes = DocxKit.render(HeadDocBuilder.build(d, name, ref, Times.todayKst()), DocxKit.Footer.pageNumberOnly());
+                byte[] photo = HeadDocBuilder.photoWanted(d) ? photos.contentForDoc(me, institutionId, HeadDocBuilder.photoIdOf(d)) : null;   // 못 읽으면 null → 사진 없이(사용자 11-20)
+                byte[] bytes = DocxKit.render(HeadDocBuilder.build(d, name, ref, Times.todayKst(), photo), DocxKit.Footer.pageNumberOnly());
                 return new DocOut(bytes, name, HeadDocBuilder.headIdOf(d));
             }
         });

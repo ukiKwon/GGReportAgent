@@ -209,6 +209,23 @@ public class HeadPhotoService {
         return readVerified(p);
     }
 
+    /**
+     * 문서(Word)에 넣을 사진 본문 — {@link #content} 와 같은 검사(현 기관장·ACTIVE·키·루트·SHA256)를 거치고,
+     * 어느 단계에서든 실패하면 null(막지 않는다 — 호출부는 사진 없이 문서를 만든다). 실패 원인은 앱 로그에 종류만 남긴다(값 없음).
+     */
+    public byte[] contentForDoc(SysUser me, String instId, Long photoId) {
+        InstHeadPhoto p = photoId == null ? null : mapper.selectPhoto(photoId, instId);
+        if (p == null || !"ACTIVE".equals(p.getStateCd())) {   // 문서에는 지금 쓰는 사진만(교체 경쟁 때 보관 사진이 들어가지 않게, security 11-20 S5)
+            return null;
+        }
+        try {
+            return content(me, instId, photoId);
+        } catch (RuntimeException e) {
+            LOG.warn("head photo skipped in docx: {}", e.getClass().getSimpleName());
+            return null;
+        }
+    }
+
     private byte[] readVerified(InstHeadPhoto p) {
         Path path = pathOf(p.getStoreKey());
         if (path == null) {

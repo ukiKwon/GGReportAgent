@@ -1,23 +1,39 @@
 package com.kbstar.kgi.ggreport.web.docout;
 
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+import javax.imageio.stream.MemoryCacheImageInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 /**
  * 기관장 정보 상세({@code InstitutionHeadService.detail} 결과) → 문서 모델(NEXT 100 S1).
  * 제목 「참고자료 N. 「기관명」 기관장 정보」 아래 2열 겉 표 — 인적 사항·학력·경력·출처. 확정된 칸만 쓴다.
- * 사진·후보 값·사번(created_by)·이전 기관장은 넣지 않는다(detail 의 head 만 읽고, 사진·후보 키는 건드리지 않는다). URL 은 일반 글자(링크 아님).
+ * 출처는 화면 카드처럼 <b>같은 출처(종류·제목·주소·확인일 같음)를 한 번만</b> 싣고, 본문 값 옆에 위첨자 번호를 둔다(사용자 11-20).
+ * 번호 순서(카드와 같음): 임기 만료 → 나이 → 첫 취임일 → 현 임기 시작 → 학력 → 경력 → 사진 → 성명 → 직위 → 권한대행.
+ * 학력·경력은 카드처럼 최근 것부터, 기간을 앞에('YYYY-MM~YYYY-MM' · 'YYYY-MM~현재') 쓴다(사용자 11-20).
+ * 사진은 이용 조건이 KOGL1·INST_PERMIT 일 때만 인적 사항 칸 위에 3:4 상자(30×40mm)로 넣고 캡션에 이용 조건·출처 표식을 단다(사용자 11-20).
+ * 나이는 '만 n세'만 쓴다 — 생년월일 날짜는 어디에도 넣지 않는다(나이 출처의 제목·주소에 생년이 들어 있으면 그것도 뺀다, 사용자 11-20).
+ * 후보 값·사번(created_by)·이전 기관장은 넣지 않는다. URL 은 일반 글자(링크 아님).
  */
 public final class HeadDocBuilder {
 
     private static final Map<String, String> SRC_KIND = new HashMap<String, String>();
-    private static final Map<String, String> FIELD_LABEL = new HashMap<String, String>();
-    private static final List<String> FIELD_ORDER = Collections.unmodifiableList(Arrays.asList(
-            "NAME", "POSITION", "ACTING", "FIRST_TAKE_OFFICE", "TERM_START", "TERM_END"));
+    /** 문서에 사진을 넣어도 되는 이용 조건 — 업로드가 허용하는(ENABLED=1) 코드와 같다. 그 밖(KOGL2~4·PRESS_PERMIT·모르는 코드)은 넣지 않는다. */
+    private static final Map<String, String> PHOTO_LICENSE = new HashMap<String, String>();
+    private static final double PHOTO_W_MM = 30;
+    private static final double PHOTO_H_MM = 40;
 
     static {
         SRC_KIND.put("HOMEPAGE", "기관 누리집");
@@ -27,20 +43,16 @@ public final class HeadDocBuilder {
         SRC_KIND.put("GAZETTE", "관보·고시");
         SRC_KIND.put("PRESS", "언론 보도");
         SRC_KIND.put("OTHER", "기타 공개 자료");
-        FIELD_LABEL.put("NAME", "성명");
-        FIELD_LABEL.put("POSITION", "직위");
-        FIELD_LABEL.put("ACTING", "권한대행");
-        FIELD_LABEL.put("FIRST_TAKE_OFFICE", "첫 취임일");
-        FIELD_LABEL.put("TERM_START", "임기 시작");
-        FIELD_LABEL.put("TERM_END", "임기 끝");
+        PHOTO_LICENSE.put("KOGL1", "공공누리 제1유형(출처표시)");
+        PHOTO_LICENSE.put("INST_PERMIT", "기관 직접 허락");
     }
 
     private HeadDocBuilder() {
     }
 
     /**
-     * 문서에 담을 확정 칸이 하나라도 있는지 — 권한대행 밖 확정 값·학력·경력 중 하나. 사진만 있거나 권한대행 칸만 있으면 false
-     * (그런 머리는 빈 문서가 되므로 호출부가 409 HEAD_EMPTY 로 막는다). 생년월일은 문서에 넣지 않으므로 이 판정에서도 뺀다(사용자 11-19).
+     * 문서에 담을 확정 칸이 하나라도 있는지 — 권한대행 밖 확정 값·학력·경력 중 하나. 사진만 있거나 권한대행·생년월일 칸만 있으면 false
+     * (그런 머리는 빈 문서가 되므로 호출부가 409 HEAD_EMPTY 로 막는다). 생년월일은 날짜로는 문서에 넣지 않으므로(나이 줄만) 이 판정에서도 뺀다(사용자 11-19·11-20).
      */
     public static boolean hasContent(Map<String, Object> detail) {
         Map<String, Object> head = map(detail.get("head"));
@@ -58,25 +70,286 @@ public final class HeadDocBuilder {
         return id instanceof Number ? Long.valueOf(((Number) id).longValue()) : null;
     }
 
-    /** @param baseDate 기준일 yyyy-MM-dd(문서를 만든 날, 서울 기준) */
+    /** ACTIVE 사진이 있고 이용 조건이 문서에 넣어도 되는 코드일 때만 true — 호출부는 true 일 때만 사진 파일을 읽는다. */
+    public static boolean photoWanted(Map<String, Object> detail) {
+        Map<String, Object> photo = map(map(detail.get("head")).get("photo"));
+        return !photo.isEmpty() && PHOTO_LICENSE.containsKey(str(photo.get("license_cd"))) && photoIdOf(detail) != null;
+    }
+
+    public static Long photoIdOf(Map<String, Object> detail) {
+        Object id = map(map(detail.get("head")).get("photo")).get("photo_id");
+        return id instanceof Number ? Long.valueOf(((Number) id).longValue()) : null;
+    }
+
+    /**
+     * 만 나이. 형식 오류·미래 날짜·150세 초과면 null. 2월 29일생은 평년 2/28 에는 한 살이 오르지 않고 3/1 에 오른다.
+     * @param today 서울 오늘 yyyy-MM-dd
+     */
+    public static Integer ageOn(String birth, String today) {
+        try {
+            LocalDate b = LocalDate.parse(birth);
+            LocalDate t = LocalDate.parse(today);
+            if (b.isAfter(t)) {
+                return null;
+            }
+            long years = ChronoUnit.YEARS.between(b, t);
+            return years > 150 ? null : Integer.valueOf((int) years);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** 사진 없이 만든다(기존 호출·시험 호환). */
     public static DocModel build(Map<String, Object> detail, String instName, int refNo, String baseDate) {
+        return build(detail, instName, refNo, baseDate, null);
+    }
+
+    /**
+     * @param baseDate  기준일 yyyy-MM-dd(문서를 만든 날, 서울 기준) — 나이 계산도 이 날 기준
+     * @param photoJpeg 서버에 저장된 재인코딩 JPEG 본문. null 이거나 못 읽는 그림이면 사진 없이 만든다.
+     */
+    public static DocModel build(Map<String, Object> detail, String instName, int refNo, String baseDate, byte[] photoJpeg) {
         Map<String, Object> head = map(detail.get("head"));
         Map<String, Object> fields = map(head.get("fields"));
+        List<Map<String, Object>> edu = sortPeriod(listOf(head.get("education")));      // 카드(hc sortPeriod)와 같은 순서
+        List<Map<String, Object>> career = sortPeriod(listOf(head.get("career")));
+        boolean acting = Boolean.TRUE.equals(head.get("acting"));
+
+        String name = str(head.get("name"));
+        String pos = str(head.get("position"));
+        String first = str(head.get("first_take_office"));
+        String start = str(head.get("term_start"));
+        String end = str(head.get("term_end"));
+        String birth = str(head.get("birth_date"));
+        Integer age = name.isEmpty() && pos.isEmpty() ? null : ageOn(birth, nz(baseDate));   // 카드와 같다 — 이름·직위가 모두 없으면 나이도 뺀다(qa 11-20 P3-1)
+
+        // 번호는 처음 부른 순서로 — 화면(hc.noteSet)과 같다: 임기 만료 → 나이 → 날짜 → 학력 → 경력 → 사진 → 성명·직위·권한대행
+        Notes notes = new Notes();
+        int nEnd = end.isEmpty() ? 0 : notes.ref(srcOf(fields, "TERM_END"), false);
+        int nAge = age == null ? 0 : notes.ref(srcOf(fields, "BIRTH_DATE"), true);
+        int nFirst = first.isEmpty() ? 0 : notes.ref(srcOf(fields, "FIRST_TAKE_OFFICE"), false);
+        int nStart = start.isEmpty() ? 0 : notes.ref(srcOf(fields, "TERM_START"), false);
+        int[] nEdu = new int[edu.size()];
+        for (int i = 0; i < edu.size(); i++) {
+            nEdu[i] = notes.ref(map(edu.get(i).get("source")), false);
+        }
+        int[] nCareer = new int[career.size()];
+        for (int i = 0; i < career.size(); i++) {
+            nCareer[i] = notes.ref(map(career.get(i).get("source")), false);
+        }
+        Photo photo = planPhoto(head, photoJpeg);
+        int nPhoto = photo != null && photo.picture != null ? notes.ref(map(map(head.get("photo")).get("source")), false) : 0;
+        int nName = name.isEmpty() ? 0 : notes.ref(srcOf(fields, "NAME"), false);
+        int nPos = pos.isEmpty() ? 0 : notes.ref(srcOf(fields, "POSITION"), false);   // 직위 없이 권한대행만이면 권한대행 출처만(qa P3-2)
+        int nActing = acting ? notes.ref(srcOf(fields, "ACTING"), false) : 0;   // 권한대행이 '아니오'면 줄도 출처도 없다
 
         List<DocModel.Block> blocks = new ArrayList<DocModel.Block>();
         blocks.add(new DocModel.Heading("참고자료 " + refNo + ". 「" + nz(instName) + "」 기관장 정보", 14));
 
+        List<DocModel.Block> personal = new ArrayList<DocModel.Block>();
+        if (photo != null) {
+            if (photo.picture != null) {
+                personal.add(photo.picture);
+                List<DocModel.Run> cap = new ArrayList<DocModel.Run>();
+                cap.add(DocModel.Run.of("사진 이용 조건: " + photo.licenseName));
+                cap.add(DocModel.Run.sup(String.valueOf(nPhoto)));
+                personal.add(new DocModel.Para(cap, DocModel.Bullet.NONE, 0, 8, DocModel.Align.LEFT));
+            } else {
+                personal.add(DocModel.Para.plain(photo.notice));
+            }
+        }
+        List<DocModel.Block> lines = new ArrayList<DocModel.Block>();
+        if (!name.isEmpty()) {
+            lines.add(circle("성명: " + name, marks(nName)));
+        }
+        if (!pos.isEmpty() || acting) {
+            lines.add(circle("직위: " + pos + (acting ? "(권한대행)" : ""), marks(nPos, nActing)));
+        }
+        if (age != null) {
+            lines.add(circle("나이: 만 " + age + "세", marks(nAge)));
+        }
+        if (!first.isEmpty()) {
+            lines.add(circle("첫 취임일: " + first, marks(nFirst)));
+        }
+        if (!start.isEmpty() || !end.isEmpty()) {
+            List<DocModel.Run> runs = new ArrayList<DocModel.Run>();
+            boolean same = !start.isEmpty() && !end.isEmpty() && nStart == nEnd;   // 시작·끝이 같은 출처면 표식 하나만
+            runs.add(DocModel.Run.of("현 임기: " + start));
+            if (!start.isEmpty() && !same) {
+                runs.add(DocModel.Run.sup(marks(nStart)));
+            }
+            runs.add(DocModel.Run.of(" ~ " + end));
+            if (!end.isEmpty()) {
+                runs.add(DocModel.Run.sup(marks(nEnd)));
+            }
+            lines.add(DocModel.Para.of(DocModel.Bullet.CIRCLE_O, 0, runs.toArray(new DocModel.Run[0])));
+        }
+        if (lines.isEmpty()) {
+            lines.add(DocModel.Para.plain("확정된 값이 없습니다."));
+        }
+        personal.addAll(lines);
+
         List<List<DocModel.Cell>> rows = new ArrayList<List<DocModel.Cell>>();
-        rows.add(row("인적 사항", personal(head)));
-        rows.add(row("학력", dashList(listOf(head.get("education")))));
-        rows.add(row("경력", dashList(listOf(head.get("career")))));
-        rows.add(row("출처", sources(fields, Boolean.TRUE.equals(head.get("acting")), listOf(head.get("education")), listOf(head.get("career")))));
+        rows.add(row("인적 사항", personal));
+        rows.add(row("학력", dashList(edu, nEdu)));
+        rows.add(row("경력", dashList(career, nCareer)));
+        rows.add(row("출처", notes.render(birth)));
         blocks.add(new DocModel.Table(2, new double[]{18, 82}, rows, 0, false));
 
         blocks.add(new DocModel.Para(Collections.singletonList(DocModel.Run.of("확정된 값만 담았습니다. 기준일 " + nz(baseDate))),
                 DocModel.Bullet.NONE, 0, 9, DocModel.Align.LEFT));
         return new DocModel(blocks);
     }
+
+    // ── 사진 ────────────────────────────────────────────────────────────
+
+    private static final class Photo {
+        DocModel.Picture picture;   // null 이면 notice 를 쓴다
+        String licenseName;
+        String notice;
+    }
+
+    /** head.photo 가 없으면 null(안내도 없음). 있으면 그림 또는 안내 한 줄. 파일 읽기 실패·깨진 그림도 막지 않고 안내만 한다. */
+    private static Photo planPhoto(Map<String, Object> head, byte[] jpeg) {
+        Map<String, Object> p = map(head.get("photo"));
+        if (p.isEmpty()) {
+            return null;
+        }
+        Photo out = new Photo();
+        String lic = str(p.get("license_cd"));
+        if (!PHOTO_LICENSE.containsKey(lic)) {
+            out.notice = "사진은 이용 조건상 이 문서에 넣지 않았습니다.";   // 코드·이름은 싣지 않는다
+            return out;
+        }
+        int[] wh = jpegSize(jpeg);
+        if (wh == null) {
+            out.notice = "사진을 불러오지 못해 넣지 않았습니다.";
+            return out;
+        }
+        double scale = Math.min(PHOTO_W_MM / wh[0], PHOTO_H_MM / wh[1]);   // 3:4 상자 안에 비율을 지켜 맞춘다(찌그러뜨리지 않는다)
+        try {
+            out.picture = DocModel.Picture.jpeg(jpeg, wh[0] * scale, wh[1] * scale, "기관장 사진");
+        } catch (IllegalArgumentException e) {
+            out.notice = "사진을 불러오지 못해 넣지 않았습니다.";
+            return out;
+        }
+        out.licenseName = PHOTO_LICENSE.get(lic);
+        return out;
+    }
+
+    /** JPEG 머리말(FF D8 FF)과 가로·세로만 읽는다(본문 디코딩 없음). 실패하면 null. */
+    private static int[] jpegSize(byte[] b) {
+        if (b == null || b.length < 4 || (b[0] & 0xFF) != 0xFF || (b[1] & 0xFF) != 0xD8 || (b[2] & 0xFF) != 0xFF) {
+            return null;
+        }
+        try (ImageInputStream in = new MemoryCacheImageInputStream(new ByteArrayInputStream(b))) {   // 임시 파일을 쓰지 않는다(security S7)
+            Iterator<ImageReader> it = ImageIO.getImageReadersByFormatName("jpeg");
+            if (!it.hasNext()) {
+                return null;
+            }
+            ImageReader r = it.next();
+            try {
+                r.setInput(in, true, true);
+                int w = r.getWidth(0);
+                int h = r.getHeight(0);
+                return w > 0 && h > 0 && w <= 20000 && h <= 20000 ? new int[]{w, h} : null;
+            } finally {
+                r.dispose();
+            }
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    // ── 출처 번호 ───────────────────────────────────────────────────────
+
+    private static final class Entry {
+        final String key;
+        final Map<String, Object> src;
+        boolean sensitive;   // 나이 출처 — 제목·주소에 생년이 있으면 문서에서 뺀다
+
+        Entry(String key, Map<String, Object> src) {
+            this.key = key;
+            this.src = src;
+        }
+    }
+
+    /** 화면 hc.noteSet 과 같다: 번호는 처음 부른 순서, 같은 출처(종류·제목·주소·확인일, 공백 제거)는 같은 번호. */
+    private static final class Notes {
+        private final List<Entry> list = new ArrayList<Entry>();
+
+        int ref(Map<String, Object> src, boolean sensitive) {
+            if (sensitive) {   // 나이 출처는 합치지 않고 따로 — 제목·주소를 늘 빼므로 다른 칸 출처를 약하게 만들지 않는다(security 11-20 S1·S6)
+                Entry e = new Entry("age", src);
+                e.sensitive = true;
+                list.add(e);
+                return list.size();
+            }
+            String key = keyOf(src);
+            for (int i = 0; i < list.size(); i++) {
+                if (list.get(i).key.equals(key)) {
+                    if (sensitive) {
+                        list.get(i).sensitive = true;
+                    }
+                    return i + 1;
+                }
+            }
+            Entry e = new Entry(key, src);
+            e.sensitive = sensitive;
+            list.add(e);
+            return list.size();
+        }
+
+        List<DocModel.Block> render(String birth) {
+            List<DocModel.Block> out = new ArrayList<DocModel.Block>();
+            for (int i = 0; i < list.size(); i++) {
+                out.add(DocModel.Para.plain((i + 1) + ". " + describe(list.get(i), birth)));
+            }
+            if (out.isEmpty()) {
+                out.add(DocModel.Para.plain("출처 정보가 없습니다."));
+            }
+            return out;
+        }
+    }
+
+    private static String keyOf(Map<String, Object> s) {
+        String kind = str(s.get("kind")).trim();
+        String title = str(s.get("title")).trim();
+        String url = str(s.get("url")).trim();
+        String checked = str(s.get("checked_on")).trim();
+        if (kind.isEmpty() && title.isEmpty() && url.isEmpty() && checked.isEmpty()) {
+            return "";
+        }
+        return kind + "\u0001" + title + "\u0001" + url + "\u0001" + checked;
+    }
+
+    private static String describe(Entry e, String birth) {
+        if (e.key.isEmpty() || (e.sensitive && keyOf(e.src).isEmpty())) {
+            return "출처 정보 없음";
+        }
+        String kind = str(e.src.get("kind"));
+        StringBuilder b = new StringBuilder(SRC_KIND.containsKey(kind) ? SRC_KIND.get(kind) : kind);
+        String title = e.sensitive ? "" : str(e.src.get("title"));   // 나이 출처는 종류·확인일만(줄여 쓴 날짜 '70.03.15' 등으로 생년월일이 새지 않게)
+        if (!title.isEmpty()) {
+            b.append(" 「").append(title).append("」");
+        }
+        String checked = str(e.src.get("checked_on"));
+        if (!checked.isEmpty()) {
+            b.append(", 확인일 ").append(checked);
+        }
+        String url = e.sensitive ? "" : str(e.src.get("url"));
+        if (!url.isEmpty()) {
+            b.append(", ").append(url);   // 일반 글자 — 링크로 만들지 않는다
+        }
+        return b.toString();
+    }
+
+
+    private static Map<String, Object> srcOf(Map<String, Object> fields, String f) {
+        return map(map(fields.get(f)).get("source"));
+    }
+
+    // ── 문단 ────────────────────────────────────────────────────────────
 
     private static List<DocModel.Cell> row(String label, List<DocModel.Block> content) {
         List<DocModel.Cell> r = new ArrayList<DocModel.Cell>();
@@ -85,25 +358,30 @@ public final class HeadDocBuilder {
         return r;
     }
 
-    private static List<DocModel.Block> personal(Map<String, Object> head) {
+    /** 0 이하는 뺀 번호를 쉼표로 이어 쓴다(중복 제거, 오름차순). 없으면 "". */
+    private static String marks(int... ns) {
+        TreeSet<Integer> set = new TreeSet<Integer>();
+        for (int n : ns) {
+            if (n > 0) {
+                set.add(n);
+            }
+        }
+        StringBuilder b = new StringBuilder();
+        for (Integer n : set) {
+            b.append(b.length() == 0 ? "" : ",").append(n);
+        }
+        return b.toString();
+    }
+
+    private static DocModel.Para circle(String text, String marks) {
+        return marks.isEmpty() ? DocModel.Para.bullet(DocModel.Bullet.CIRCLE_O, text)
+                : DocModel.Para.of(DocModel.Bullet.CIRCLE_O, 0, DocModel.Run.of(text), DocModel.Run.sup(marks));
+    }
+
+    private static List<DocModel.Block> dashList(List<Map<String, Object>> items, int[] nums) {
         List<DocModel.Block> out = new ArrayList<DocModel.Block>();
-        String name = str(head.get("name"));
-        if (!name.isEmpty()) {
-            out.add(DocModel.Para.bullet(DocModel.Bullet.CIRCLE_O, "성명: " + name));
-        }
-        String pos = str(head.get("position"));
-        boolean acting = Boolean.TRUE.equals(head.get("acting"));
-        if (!pos.isEmpty() || acting) {
-            out.add(DocModel.Para.bullet(DocModel.Bullet.CIRCLE_O, "직위: " + pos + (acting ? "(권한대행)" : "")));
-        }
-        String first = str(head.get("first_take_office"));
-        if (!first.isEmpty()) {
-            out.add(DocModel.Para.bullet(DocModel.Bullet.CIRCLE_O, "첫 취임일: " + first));
-        }
-        String s = str(head.get("term_start"));
-        String e = str(head.get("term_end"));
-        if (!s.isEmpty() || !e.isEmpty()) {
-            out.add(DocModel.Para.bullet(DocModel.Bullet.CIRCLE_O, "현 임기: " + s + " ~ " + e));
+        for (int i = 0; i < items.size(); i++) {
+            out.add(DocModel.Para.of(DocModel.Bullet.DASH, 0, DocModel.Run.of(itemText(items.get(i))), DocModel.Run.sup(String.valueOf(nums[i]))));
         }
         if (out.isEmpty()) {
             out.add(DocModel.Para.plain("확정된 값이 없습니다."));
@@ -111,69 +389,33 @@ public final class HeadDocBuilder {
         return out;
     }
 
-    private static List<DocModel.Block> dashList(List<Map<String, Object>> items) {
-        List<DocModel.Block> out = new ArrayList<DocModel.Block>();
-        for (Map<String, Object> i : items) {
-            out.add(DocModel.Para.bullet(DocModel.Bullet.DASH, itemText(i)));
-        }
-        if (out.isEmpty()) {
-            out.add(DocModel.Para.plain("확정된 값이 없습니다."));
-        }
+    /** 최근 것이 위로 — 끝 연월이 없으면 현재 진행으로 보아 맨 위(시작도 없으면 맨 아래). 키·문자열 비교·안정 정렬 모두 headcard.js sortPeriod 와 같다. */
+    private static List<Map<String, Object>> sortPeriod(List<Map<String, Object>> in) {
+        List<Map<String, Object>> out = new ArrayList<Map<String, Object>>(in);
+        Collections.sort(out, new Comparator<Map<String, Object>>() {   // Collections.sort 는 안정 정렬
+            @Override
+            public int compare(Map<String, Object> a, Map<String, Object> b) {
+                return sortKey(b).compareTo(sortKey(a));   // 내림차순
+            }
+        });
         return out;
     }
 
+    private static String sortKey(Map<String, Object> it) {
+        String from = str(it.get("from")).trim();
+        String to = str(it.get("to")).trim();
+        return (!to.isEmpty() ? to : (!from.isEmpty() ? "9999-99" : "0000-00")) + "|" + from;
+    }
+
+    /** 기간을 앞에: 'YYYY-MM~YYYY-MM' · 시작만 있으면 'YYYY-MM~현재' · 끝만 있으면 '~YYYY-MM'(카드와 같음). 연도만 저장된 값은 그대로. 기간이 없으면 값만. */
     private static String itemText(Map<String, Object> i) {
         String v = str(i.get("value"));
-        String from = str(i.get("from"));
-        String to = str(i.get("to"));
-        if (!from.isEmpty() || !to.isEmpty()) {
-            return v + " (" + from + " ~ " + to + ")";
-        }
-        return v;
-    }
-
-    /** 권한대행이 '아니오'면 인적 사항에 그 줄이 없으므로 출처 절에도 그 줄을 쓰지 않는다(화면에 없는 값의 출처가 문서에만 남지 않게). */
-    private static List<DocModel.Block> sources(Map<String, Object> fields, boolean acting,
-                                                List<Map<String, Object>> edu, List<Map<String, Object>> career) {
-        List<DocModel.Block> out = new ArrayList<DocModel.Block>();
-        for (String f : FIELD_ORDER) {
-            if ("ACTING".equals(f) && !acting) {
-                continue;
-            }
-            Map<String, Object> field = map(fields.get(f));
-            if (!field.isEmpty()) {
-                addSource(out, FIELD_LABEL.get(f), map(field.get("source")));
-            }
-        }
-        for (Map<String, Object> i : edu) {
-            addSource(out, "학력", map(i.get("source")));
-        }
-        for (Map<String, Object> i : career) {
-            addSource(out, "경력", map(i.get("source")));
-        }
-        if (out.isEmpty()) {
-            out.add(DocModel.Para.plain("출처 정보가 없습니다."));
-        }
-        return out;
-    }
-
-    private static void addSource(List<DocModel.Block> out, String label, Map<String, Object> src) {
-        String kind = str(src.get("kind"));
-        String kindLabel = SRC_KIND.containsKey(kind) ? SRC_KIND.get(kind) : kind;
-        StringBuilder b = new StringBuilder(label).append(": ").append(kindLabel);
-        String title = str(src.get("title"));
-        if (!title.isEmpty()) {
-            b.append(" 「").append(title).append("」");
-        }
-        String checked = str(src.get("checked_on"));
-        if (!checked.isEmpty()) {
-            b.append(", 확인일 ").append(checked);
-        }
-        String url = str(src.get("url"));
-        if (!url.isEmpty()) {
-            b.append(", ").append(url);   // 일반 글자 — 링크로 만들지 않는다
-        }
-        out.add(DocModel.Para.bullet(DocModel.Bullet.DASH, b.toString()));
+        String from = str(i.get("from")).trim();
+        String to = str(i.get("to")).trim();
+        String period = !from.isEmpty() && !to.isEmpty() ? from + "~" + to
+                : !from.isEmpty() ? from + "~현재"
+                : !to.isEmpty() ? "~" + to : "";
+        return period.isEmpty() ? v : period + " " + v;
     }
 
     // ── 값 꺼내기 ───────────────────────────────────────────────────────

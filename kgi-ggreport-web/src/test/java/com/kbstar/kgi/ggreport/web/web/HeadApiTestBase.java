@@ -90,7 +90,8 @@ public abstract class HeadApiTestBase {
     }
 
     protected static String itemText(long headId, String field, String value) {
-        return "{\"head_id\":" + headId + ",\"field_cd\":\"" + field + "\",\"value\":\"" + value + "\",\"source\":" + source() + "}";
+        String period = "EDU".equals(field) || "CAREER".equals(field) ? ",\"from\":\"2018-03\"" : "";   // 학력·경력은 시작 년-월 필수(11-20)
+        return "{\"head_id\":" + headId + ",\"field_cd\":\"" + field + "\",\"value\":\"" + value + "\"" + period + ",\"source\":" + source() + "}";
     }
 
     protected static String itemDate(long headId, String field, String date) {

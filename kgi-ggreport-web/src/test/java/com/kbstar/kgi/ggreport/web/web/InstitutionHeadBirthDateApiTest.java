@@ -207,7 +207,7 @@ public class InstitutionHeadBirthDateApiTest extends HeadApiTestBase {
     }
 
     @Test
-    public void Word에는_생년월일도_그_출처_제목도_나오지_않는다() throws Exception {
+    public void Word에는_만_나이만_있고_생년월일_날짜와_라벨은_없다() throws Exception {   // 사용자 11-20 '카드+Word 만 n세만'
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
         String body = "{\"head_id\":" + head + ",\"field_cd\":\"BIRTH_DATE\",\"date\":\"" + BIRTH + "\",\"source\":"
                 + "{\"kind\":\"HOMEPAGE\",\"title\":\"출생자료출처ZQ\",\"checked_on\":\"" + Times.todayKst() + "\"}}";
@@ -216,10 +216,12 @@ public class InstitutionHeadBirthDateApiTest extends HeadApiTestBase {
         MvcResult r = docx(T1);
         assertEquals(text(r), 200, r.getResponse().getStatus());
         String xml = documentXml(r.getResponse().getContentAsByteArray());
+        long age = java.time.temporal.ChronoUnit.YEARS.between(LocalDate.parse(BIRTH), LocalDate.parse(Times.todayKst()));
         assertTrue(xml.contains("홍길동"));
+        assertTrue("나이 줄", xml.contains("나이: 만 " + age + "세"));
         assertFalse("날짜 없음", xml.contains(BIRTH));
-        assertFalse("출처 제목 없음", xml.contains("출생자료출처ZQ"));
         assertFalse("라벨 없음", xml.contains("생년월일"));
+        assertFalse("나이 출처는 종류·확인일만 — 제목은 문서에 없다(security 11-20 S1)", xml.contains("출생자료출처ZQ"));
     }
 
     @Test

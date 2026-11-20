@@ -355,12 +355,12 @@ public class InstitutionHeadService {
             i.setValText(HeadText.noAge(HeadText.requireLine("position", in.getValue(), 40, false)));
         } else if ("EDU".equals(f)) {
             i.setValText(HeadText.noAge(HeadText.requireLine("edu", in.getValue(), 60, false)));
-            i.setValFrom(HeadText.requirePeriod("from", in.getFrom()));
+            i.setValFrom(HeadText.requireStartMonth(in.getFrom()));   // 시작 년-월 필수(사용자 11-20). 이미 저장된 연도만 값은 그대로 둔다
             i.setValTo(HeadText.requirePeriod("to", in.getTo()));
             requireOrder(i);
         } else if ("CAREER".equals(f)) {
             i.setValText(HeadText.noAge(HeadText.requireLine("career", in.getValue(), 60, false)));
-            i.setValFrom(HeadText.requirePeriod("from", in.getFrom()));
+            i.setValFrom(HeadText.requireStartMonth(in.getFrom()));   // 시작 년-월 필수(사용자 11-20). 이미 저장된 연도만 값은 그대로 둔다
             i.setValTo(HeadText.requirePeriod("to", in.getTo()));
             requireOrder(i);
         } else if ("ACTING".equals(f)) {
@@ -569,14 +569,12 @@ public class InstitutionHeadService {
                 if (!"CONFIRMED".equals(i.getStateCd())) {
                     continue;
                 }
-                boolean birth = "BIRTH_DATE".equals(i.getFieldCd());   // 카드에 안 보이므로 꼬리 '출처를 단 항목 N건·최근 확인'에서도 뺀다(design 11-20 E — 목록 A1과 같은 기준)
-                if (!birth) {
-                    sourceCount++;
-                }
-                if (!"ACTING".equals(i.getFieldCd()) && !birth) {   // 카드에 안 보이는 칸은 빈 머리 판정에서 뺀다
+                boolean birth = "BIRTH_DATE".equals(i.getFieldCd());
+                sourceCount++;   // 카드에 '만 n세'와 그 각주가 보이므로 꼬리 '출처를 단 항목 N건·최근 확인'에도 센다(사용자 11-20 '카드+Word 만 n세')
+                if (!"ACTING".equals(i.getFieldCd()) && !birth) {   // 나이만으로는 기관장이 있다고 보지 않는다 — 빈 머리 판정에서는 계속 뺀다
                     shownCount++;
                 }
-                if (!birth && i.getCheckedOn() != null && (lastChecked == null || lastChecked.compareTo(i.getCheckedOn()) < 0)) {
+                if (i.getCheckedOn() != null && (lastChecked == null || lastChecked.compareTo(i.getCheckedOn()) < 0)) {
                     lastChecked = i.getCheckedOn();
                 }
                 boolean canVoid = HeadRules.canVoid(role, emp, i.getCreatedBy(), i.getDecidedBy());   // 화면의 [무효 처리] 버튼 판정 — 서버 voidItem 과 같은 규칙
@@ -602,7 +600,7 @@ public class InstitutionHeadService {
             h.put("first_take_office", fieldValue(fieldsOut, "FIRST_TAKE_OFFICE"));
             h.put("term_start", fieldValue(fieldsOut, "TERM_START"));
             h.put("term_end", fieldValue(fieldsOut, "TERM_END"));
-            h.put("birth_date", fieldValue(fieldsOut, "BIRTH_DATE"));   // 상세(A3)에서만 — 목록·대기열·Word 에는 없다
+            h.put("birth_date", fieldValue(fieldsOut, "BIRTH_DATE"));   // 상세(A3)에서만 — 목록·대기열에는 없다. 카드·Word 는 이 값으로 '만 n세'만 낸다(날짜 아님, 사용자 11-20)
             h.put("fields", fieldsOut);
             h.put("education", edu);
             h.put("career", career);
@@ -790,6 +788,9 @@ public class InstitutionHeadService {
         Src src = source(in.getSource());
         InstHeadItem x = newItem(in.getHeadId(), instId, field, "CANDIDATE", me, actor, src, Times.nowIso());
         String text = fillValue(x, in);
+        if ("BIRTH_DATE".equals(field)) {   // 생년월일 출처 제목·주소에 그 날짜를 적으면 카드·Word 각주로 날짜가 샌다(frontend-dev 11-20) — 같은 날짜 표기만 막는다
+            HeadText.noSameDate(x.getValDate(), src.title, src.url);
+        }
         if ("NAME".equals(field)) {
             HeadForbidden.rejectName(text);
             HeadForbidden.rejectAny(src.title);

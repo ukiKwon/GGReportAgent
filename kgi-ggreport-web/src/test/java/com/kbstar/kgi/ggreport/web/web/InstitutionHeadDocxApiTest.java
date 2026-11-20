@@ -21,7 +21,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 /**
  * NEXT 100 S1 — 기관장 정보 .docx 내려받기(GET /institutions/{id}/head/docx). 영업 역할 + 화면·버튼 식별자 → 200·attachment·no-store,
- * 응답 전 감사(HEAD_DOCX, 화면·버튼 포함). 확정 값만(후보·사번·사진 없음). 식별자 없음 400, 영업 밖 403, 사번 없음 401, 형식 밖 기관 404,
+ * 응답 전 감사(HEAD_DOCX, 화면·버튼 포함). 확정 값만(후보·사번 없음, 사진은 이용 조건 허용 코드만 그림으로). 식별자 없음 400, 영업 밖 403, 사번 없음 401, 형식 밖 기관 404,
  * 기관장 없음 409 HEAD_EMPTY, 스위치 끔 404, ref_no 형식 밖 400.
  */
 @RunWith(SpringRunner.class)
@@ -70,7 +70,7 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
         addItemOk(INST, L1, itemDate(head, "FIRST_TAKE_OFFICE", "2018-07-01"), 201);
         insertCandidateItem(head, INST, "POSITION", "후보직위Z", T2);   // 후보 값
-        photoOk(INST, L1, head);                                          // 사진은 문서에 넣지 않는다
+        photoOk(INST, L1, head);                                          // 사진(KOGL1)은 3:4 그림으로 넣는다(사용자 11-20)
         int before = act("HEAD_DOCX", "OK");
         // ACCESS_LOG 는 REQUIRES_NEW 라 시험 롤백에 안 지워진다 — 같은 JVM의 다른 시험이 같은 기관 docx 를 먼저 받으면 쌓이므로 전후 차이로 본다
         String docxLog = "inst-head inst=" + INST + " code=HEAD_DOCX";
@@ -103,7 +103,7 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
         assertFalse("사번 없음", xml.contains(L1) || xml.contains(T1) || xml.contains(T2));
         assertFalse("링크 없음", xml.contains("hyperlink"));
         try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(b))) {
-            assertTrue("사진 없음", d.getAllPictures().isEmpty());
+            assertEquals("KOGL1 사진은 그림 1개", 1, d.getAllPictures().size());
         }
     }
 
@@ -213,7 +213,8 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
         assertEquals(text(r), 200, r.getResponse().getStatus());
         String xml = documentXml(bytes(r));
         assertTrue(xml.contains("(권한대행)"));
-        assertTrue("출처 절의 권한대행 줄", xml.contains("권한대행: "));
+        assertFalse("출처 절에는 라벨 줄이 없다(번호 목록만)", xml.contains("권한대행: "));
+        assertEquals("권한대행 글자는 직위 줄 한 곳뿐", 1, xml.split("권한대행", -1).length - 1);
     }
 
     @Test

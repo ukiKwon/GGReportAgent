@@ -167,6 +167,33 @@ public class HeadTextTest {
     }
 
     @Test
+    public void 생년월일_출처에_같은_날짜만_막고_다른_날짜는_통과() {
+        for (String t : new String[]{"1970-05-17 자료", "1970.5.17", "1970/05/17", "1970년 5월 17일", "인사 19700517", "１９７０-０５-１７"}) {
+            try {
+                HeadText.noSameDate("1970-05-17", t);
+                fail(t);
+            } catch (ApiException e) {
+                assertEquals(400, e.getStatus());
+            }
+        }
+        HeadText.noSameDate("1970-05-17", "2026-07-01 취임식", "1970-05-18", "1970-05-170", null, "https://example.go.kr/a");
+        HeadText.noSameDate(null, "1970-05-17");   // 생년월일이 없으면 검사하지 않는다
+    }
+
+    @Test
+    public void 학력_경력_시작은_년월_필수() {
+        assertEquals("2018-07", HeadText.requireStartMonth("2018-07"));
+        for (String bad : new String[]{null, "", "2018", "2018-7", "2018-13", "1899-12", "18-07"}) {
+            try {
+                HeadText.requireStartMonth(bad);
+                fail(String.valueOf(bad));
+            } catch (ApiException e) {
+                assertEquals(400, e.getStatus());
+            }
+        }
+    }
+
+    @Test
     public void 나이_표기는_막고_비슷한_정상_문구는_통과한다() {
         String[] ok = {"구청장", "제8대 구청장", "저출생대응과장", "2022.07.01 취임", "2020년 생산성 향상", "2020년 생활체육회장", "2018년 생명과학연구소", "2019년 생태도시과장", null};
         for (String v : ok) {

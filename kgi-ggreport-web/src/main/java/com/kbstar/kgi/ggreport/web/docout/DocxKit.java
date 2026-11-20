@@ -1,7 +1,10 @@
 package com.kbstar.kgi.ggreport.web.docout;
 
 import org.apache.poi.wp.usermodel.HeaderFooterType;
+import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.apache.poi.xwpf.usermodel.Document;
 import org.apache.poi.xwpf.usermodel.ParagraphAlignment;
+import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFFooter;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
@@ -44,6 +47,7 @@ import org.openxmlformats.schemas.officeDocument.x2006.sharedTypes.STVerticalAli
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STVerticalJc;
 
 import javax.xml.namespace.QName;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -67,6 +71,8 @@ public final class DocxKit {
     private static final int CELL_MAR_LR = 100;
     private static final int CELL_MAR_TB = 40;
     private static final String W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    /** render 가 도는 동안만 현재 문서를 든다 — 그림(Picture)이 문서 부품에 등록돼야 해서. 스레드마다 따로, render 끝에 반드시 비운다. */
+    private static final ThreadLocal<XWPFDocument> CUR_DOC = new ThreadLocal<XWPFDocument>();
 
     /** 바닥글 — 가운데 쪽 번호(PAGE 필드) 하나와 고정 문구. null 이면 바닥글 없음. */
     public static final class Footer {
@@ -93,6 +99,7 @@ public final class DocxKit {
 
     public static byte[] render(DocModel doc, Footer footer) {
         try (XWPFDocument d = new XWPFDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            CUR_DOC.set(d);
             final CTBody body = d.getDocument().getBody();
             final CTSectPr sect = page(body);
             Sink bodySink = new Sink() {
@@ -109,6 +116,8 @@ public final class DocxKit {
             return out.toByteArray();
         } catch (IOException e) {
             throw new IllegalStateException("docx build failed");
+        } finally {
+            CUR_DOC.remove();
         }
     }
 
@@ -151,6 +160,8 @@ public final class DocxKit {
                 CTP p = insert(sink, "p", CTP.class);
                 CTR r = p.addNewR();
                 r.addNewBr().setType(STBrType.PAGE);
+            } else if (b instanceof DocModel.Picture) {
+                emitPicture(sink, (DocModel.Picture) b);
             } else if (b instanceof DocModel.Table) {
                 emitTable(sink, (DocModel.Table) b, widthTw);
             }
@@ -158,6 +169,28 @@ public final class DocxKit {
         }
         if (prev == null || prev instanceof DocModel.Table) {
             emitSpacer(sink);   // 마지막 요소는 문단
+        }
+    }
+
+    /** 그림 한 개를 담은 문단. 아래 문단(캡션)과 같은 쪽에 남게 keepNext. 오류는 내용 없이 같은 문구로만 던진다. */
+    private static void emitPicture(Sink sink, DocModel.Picture pic) {
+        XWPFDocument d = CUR_DOC.get();
+        if (d == null) {
+            throw new IllegalStateException("docx build failed");
+        }
+        CTP p = insert(sink, "p", CTP.class);
+        CTPPr pPr = p.addNewPPr();
+        pPr.addNewKeepNext();
+        CTSpacing sp = pPr.addNewSpacing();
+        sp.setBefore(BigInteger.ZERO);
+        sp.setAfter(BigInteger.valueOf(40));
+        try {
+            XWPFRun run = new XWPFParagraph(p, d).createRun();
+            run.addPicture(new ByteArrayInputStream(pic.getData()), Document.PICTURE_TYPE_JPEG, "photo.jpg",
+                    pic.getWidthEmu(), pic.getHeightEmu());
+            run.getCTR().getDrawingArray(0).getInlineArray(0).getDocPr().setDescr(clean(pic.getAlt()));   // 대체 글
+        } catch (InvalidFormatException | IOException e) {
+            throw new IllegalStateException("docx build failed");
         }
     }
 

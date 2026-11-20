@@ -81,7 +81,7 @@ public class InstitutionHeadBirthNoMoveApiTest extends HeadApiTestBase {
     }
 
     @Test
-    public void 카드_꼬리_출처_건수와_최근_확인에_생년월일은_세지_않는다() throws Exception {
+    public void 카드_꼬리_출처_건수에_생년월일을_센다_카드에_만_n세가_보이므로() throws Exception {   // 사용자 11-20
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
         JsonNode before = json(getAs(headPath(INST), T1)).path("head");
         String body = "{\"head_id\":" + head + ",\"field_cd\":\"BIRTH_DATE\",\"date\":\"" + BIRTH + "\",\"source\":"
@@ -93,8 +93,7 @@ public class InstitutionHeadBirthNoMoveApiTest extends HeadApiTestBase {
             assertEquals(text(a), 201, a.getResponse().getStatus());
         }
         JsonNode after = json(getAs(headPath(INST), T1)).path("head");
-        assertEquals(before.path("source_count").asInt(), after.path("source_count").asInt());
-        assertEquals(before.path("last_checked_on").asText(), after.path("last_checked_on").asText());
+        assertEquals(before.path("source_count").asInt() + 1, after.path("source_count").asInt());
         assertEquals(BIRTH, after.path("birth_date").asText());
     }
 }

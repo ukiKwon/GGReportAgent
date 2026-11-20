@@ -156,6 +156,53 @@ public final class DocModel {
     public static final class PageBreak implements Block {
     }
 
+    /**
+     * 그림 한 개(JPEG, 본문 속 인라인) — 문단·표 칸 어디에나 둘 수 있다. 크기는 mm, 파일 검사는 호출자 몫(형식·크기).
+     * 렌더러는 글자 문단처럼 한 줄을 차지하게 그린다(기관장 Word 사진, e4 11-20 — 추가만, 기존 블록 무변경).
+     */
+    public static final class Picture implements Block {
+        public static final int MAX_MM = 200;
+        public static final int MAX_BYTES = 5 * 1024 * 1024;
+
+        private final byte[] data;
+        private final int widthEmu;
+        private final int heightEmu;
+        private final String alt;
+
+        private Picture(byte[] data, double widthMm, double heightMm, String alt) {
+            if (data == null || data.length == 0 || data.length > MAX_BYTES) {
+                throw new IllegalArgumentException("picture bytes");
+            }
+            if (!(widthMm > 0) || !(heightMm > 0) || widthMm > MAX_MM || heightMm > MAX_MM) {
+                throw new IllegalArgumentException("picture size");
+            }
+            this.data = data.clone();
+            this.widthEmu = (int) Math.round(widthMm * 36000d);    // 1mm = 36000 EMU
+            this.heightEmu = (int) Math.round(heightMm * 36000d);
+            this.alt = alt == null ? "" : alt;
+        }
+
+        public static Picture jpeg(byte[] data, double widthMm, double heightMm, String alt) {
+            return new Picture(data, widthMm, heightMm, alt);
+        }
+
+        public byte[] getData() {
+            return data.clone();
+        }
+
+        public int getWidthEmu() {
+            return widthEmu;
+        }
+
+        public int getHeightEmu() {
+            return heightEmu;
+        }
+
+        public String getAlt() {
+            return alt;
+        }
+    }
+
     // ── 표 ──────────────────────────────────────────────────────────────
 
     public static final class Cell {

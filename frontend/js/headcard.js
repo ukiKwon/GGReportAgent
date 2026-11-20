@@ -178,7 +178,7 @@
   function period(it) {
     const f = trim(it.from), t = trim(it.to);
     if (f && t) return f + '~' + t;
-    if (f) return f + '~';
+    if (f) return f + '~현재';   // 끝이 없으면 지금 진행 중(Word 와 같은 표기, 사용자 11-20)
     if (t) return '~' + t;
     return '';
   }
@@ -206,6 +206,13 @@
     if (!t) return '';
     const y = t[0] - 18, d = new Date(y, t[1] - 1, t[2]);
     return logic.localDateStr(d.getMonth() === t[1] - 1 ? d : new Date(y, t[1] - 1 + 1, 0));
+  };
+  // 학력·경력 시작 년-월(YYYY-MM, 1900~2100, 월 01~12) — 서버 HeadText.requireStartMonth 와 같은 규칙
+  hc.startMonthOk = function (v) {
+    const m = /^(\d{4})-(\d{2})$/.exec(trim(v));
+    if (!m) return false;
+    const y = Number(m[1]), mo = Number(m[2]);
+    return y >= 1900 && y <= 2100 && mo >= 1 && mo <= 12;
   };
   // 제출 전 화면 검사 → 안내 글 | ''(통과). 입력값은 문구에 싣지 않는다.
   hc.birthCheck = function (value, today) {
@@ -313,9 +320,13 @@
     ctx = ctx || {};
     const d = view.data || {}, h = d.head || {};
     const big = hc.bigInfo(h, ctx.bid, ctx.today);
-    // 출처는 카드 전체에서 각주 하나로 모은다. 번호 순서: 띠(임기 만료) → 날짜 3칸 → 학력 → 경력 → 사진
+    // 출처는 카드 전체에서 각주 하나로 모은다. 번호 순서: 띠(임기 만료) → 나이(이름 줄) → 날짜 3칸 → 학력 → 경력 → 사진
     const N = hc.noteSet();
     const bandN = big && big.type === 'term' ? N.ref(big.src) : 0;
+    // 나이: 생년월일 날짜는 카드에 내지 않고 '만 n세'만 낸다(사용자 11-20 '카드+Word 만 n세만'). 값이 없거나 계산 못 하면, 이름·직위가 모두 없으면 뺀다.
+    const age = (h.name || h.position) ? hc.ageOn(h.birth_date, ctx.today) : null;
+    const ageN = age == null ? 0 : N.ref(h.fields && h.fields.BIRTH_DATE && h.fields.BIRTH_DATE.source ? h.fields.BIRTH_DATE.source : null);
+    const ageHtml = age == null ? '' : '<span class="hc-age">만 ' + age + '세' + fnref(ageN) + '</span>';
     const facts = hc.factsHtml(h, N);
     const edu = sortPeriod(h.education), career = sortPeriod(h.career);
     const eduN = edu.map(function (it) { return N.ref(it.source); });
@@ -344,7 +355,7 @@
     return '<article class="hc-card" aria-labelledby="hc-name">' +
       '<div class="hc-band">' + band + '</div>' +
       '<div class="hc-body">' + photoHtml(h, view, photoN) +
-      '<div class="hc-who"><div class="hc-who-hd"><h4 id="hc-name">' + nameHtml + '</h4><span class="hc-pos">' + pos + '</span>' + acting + '</div>' +
+      '<div class="hc-who"><div class="hc-who-hd"><h4 id="hc-name">' + nameHtml + '</h4><span class="hc-pos">' + pos + '</span>' + ageHtml + acting + '</div>' +
       facts + '</div></div>' +
       '<dl class="hc-items"><dt>학력</dt><dd>' + listHtml(edu, '학력 미확인', eduN) + '</dd><dt>경력</dt><dd>' + listHtml(career, '경력 미확인', careerN) + '</dd></dl>' +
       hc.notesHtml(N) +
@@ -377,7 +388,7 @@
         (bad ? ' aria-invalid="true" aria-describedby="hc-ref-ferr"' : '') + (dl.busy ? ' disabled' : '') + '></label>' +
         '<span class="hc-reftitle">문서 제목: <b data-hc-title>' + esc(hc.refTitle(hc.parseRef(dl.ref) || '?', dl.name)) + '</b></span>' +
         (bad ? '<p class="hc-err" id="hc-ref-ferr" role="alert">' + esc(dl.fieldErr) + '</p>' : '') +
-        '<p class="hc-refnote">확정된 값만 담깁니다(사진·확정 대기 후보 제외). 내려받기 기록이 남습니다.</p>' +
+        '<p class="hc-refnote">확정된 값과 사진(공공누리 제1유형·기관 직접 허락만), 나이(만 n세)가 담깁니다(확정 대기 후보·생년월일 날짜 제외). 내려받기 기록이 남습니다.</p>' +
         '<span class="hc-refbtns"><button type="button" class="db-next" data-hc="docx-go"' + (dl.busy ? ' disabled' : '') + '>' + (dl.busy ? '만드는 중…' : '내려받기') + '</button>' +
         '<button type="button" data-hc="docx-cancel"' + (dl.busy ? ' disabled' : '') + '>취소</button></span>';
     }
@@ -687,7 +698,7 @@
     return '<div class="hc-fld wide"><label class="hc-lab">생년월일<input type="date" name="date" id="hc-birth" required min="' + hc.BIRTH_MIN + '"' +
       (max ? ' max="' + esc(max) + '"' : '') + (val ? ' value="' + esc(val) + '"' : '') + (err ? ' aria-invalid="true"' : '') +
       ' aria-describedby="' + (err ? 'hc-birth-e hc-birth-h' : 'hc-birth-h') + '"></label>' +
-      '<p class="hc-fhint" id="hc-birth-h">' + hc.BIRTH_MIN + '부터 ' + (max ? esc(max) + '(만 18세)' : '만 18세가 되는 날') + '까지 고를 수 있습니다. 기관장 편집 화면에서만 보이며 카드·목록·엑셀·워드 파일에는 들어가지 않습니다. 열 때마다 열람 기록이 남습니다.</p>' +
+      '<p class="hc-fhint" id="hc-birth-h">' + hc.BIRTH_MIN + '부터 ' + (max ? esc(max) + '(만 18세)' : '만 18세가 되는 날') + '까지 고를 수 있습니다. 생년월일 날짜는 기관장 편집 화면에서만 보입니다. 카드와 워드 파일에는 \'만 n세\'만 나가고, 목록·엑셀에는 들어가지 않습니다. 열 때마다 열람 기록이 남습니다.</p>' +
       (err ? '<p class="hc-ferr" id="hc-birth-e" role="alert">' + esc(err) + '</p>' : '') + '</div>';
   }
   // 값을 고치면 칸 오류를 걷는다(문단 제거·aria-invalid 제거·describedby 원래대로). pre = 'hc-birth'
@@ -705,8 +716,8 @@
     if (f.kind === 'date') return '<label class="hc-lab">' + esc(f.label) + '<input type="date" name="date" required min="1900-01-01"></label>';
     if (f.kind === 'period') {
       return '<label class="hc-lab wide">' + esc(f.label) + ' 내용(' + f.max + '자 이내)<input type="text" name="value" maxlength="' + f.max + '" required autocomplete="off"></label>' +
-        '<label class="hc-lab">시작(YYYY 또는 YYYY-MM)<input type="text" name="from" maxlength="7" inputmode="numeric" autocomplete="off" placeholder="2018"></label>' +
-        '<label class="hc-lab">끝(비우면 현재)<input type="text" name="to" maxlength="7" inputmode="numeric" autocomplete="off" placeholder="2022-06"></label>';
+        '<label class="hc-lab">시작(YYYY-MM, 필수)<input type="text" name="from" maxlength="7" required inputmode="numeric" autocomplete="off" placeholder="2018-07"></label>' +
+        '<label class="hc-lab">끝(YYYY-MM, 비우면 현재)<input type="text" name="to" maxlength="7" inputmode="numeric" autocomplete="off" placeholder="2022-06"></label>';
     }
     return '<label class="hc-lab wide">' + esc(f.label) + '(' + f.max + '자 이내)<input type="text" name="value" maxlength="' + f.max + '" required autocomplete="off"' +
       (f.cd === 'NAME' ? ' placeholder="숫자는 쓸 수 없습니다"' : '') + '></label>';
@@ -1072,6 +1083,11 @@
     const v = formValues(form);
     const headId = V.data && V.data.head ? V.data.head.head_id : 0;
     if (kind === 'add-item') {
+      if ((v.field_cd === 'EDU' || v.field_cd === 'CAREER') && !hc.startMonthOk(v.from)) {   // 시작 년-월 필수(사용자 11-20) — 서버와 같은 검사
+        setMsg('시작은 YYYY-MM(예: 2018-07) 형식으로 입력하세요.', true);
+        focusStatus();
+        return;
+      }
       if (v.field_cd === 'BIRTH_DATE') {   // 제출 전 화면 검사 — 실패하면 요청 없이 칸 아래 오류
         const bad = hc.birthCheck(v.date, envNow().today);
         if (bad) { showBirthErr(bad, v.date); return; }

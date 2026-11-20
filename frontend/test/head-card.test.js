@@ -1043,7 +1043,7 @@ test('워드: 줄을 펼치면 번호 칸(1~20·숫자 자판)·제목 미리보
   const h = hc.cardHtml(view({}, { dl: { open: true, ref: '3', name: '<b>가람시</b>', busy: false, fieldErr: '', err: '', ok: '' } }), { today: TODAY });
   assert.ok(/<input type="number" min="1" max="20"[^>]*inputmode="numeric"[^>]*value="3"/.test(h));
   assert.ok(h.indexOf('참고자료 3. 「&lt;b&gt;가람시&lt;/b&gt;」 기관장 정보') >= 0 && h.indexOf('<b>가람시</b>') < 0);
-  assert.ok(h.indexOf('확정된 값만 담깁니다(사진·확정 대기 후보 제외). 내려받기 기록이 남습니다.') >= 0);
+  assert.ok(h.indexOf('확정된 값과 사진(공공누리 제1유형·기관 직접 허락만), 나이(만 n세)가 담깁니다(확정 대기 후보·생년월일 날짜 제외). 내려받기 기록이 남습니다.') >= 0);
   assert.ok(h.indexOf('data-hc="docx-go"') > 0 && h.indexOf('data-hc="docx-cancel"') > 0 && h.indexOf('aria-expanded="true"') > 0);
   assert.ok(hc.cardHtml(view({}, { dl: { open: true, ref: '3', name: '', busy: false, fieldErr: '', err: '', ok: '' } }), {}).indexOf('참고자료 3. 기관장 정보') >= 0);   // 이름 모르면 「」 없이
 });
@@ -1428,9 +1428,61 @@ test('[6-8] 후보·확정·후보 기관장 요약 행: 생년월일 라벨, (�
   assert.ok(noToday.indexOf('<span class="v">1965-03-02</span>') >= 0 && noToday.indexOf('(만 ') < 0);
 });
 
-test('[6-9] cardHtml: 생년월일 값·글자가 카드에 나오지 않는다(미노출 회귀 방지)', function () {
+test('[6-9] cardHtml: 생년월일 날짜·글자는 카드에 나오지 않고 \'만 n세\'만 나온다(사용자 11-20)', function () {
   const h = hc.cardHtml(view({ head: { birth_date: '1965-03-02', fields: { NAME: field(1, '서지운'), BIRTH_DATE: field(9, '1965-03-02') } } }), { today: TODAY });
-  assert.ok(h.indexOf('1965-03-02') < 0 && h.indexOf('생년월일') < 0 && h.indexOf('BIRTH_DATE') < 0 && h.indexOf('만 61세') < 0);
+  assert.ok(h.indexOf('1965-03-02') < 0 && h.indexOf('생년월일') < 0 && h.indexOf('BIRTH_DATE') < 0);
+  assert.ok(h.indexOf('<span class="hc-age">만 61세<sup class="hc-fnref" aria-hidden="true">') >= 0);
+});
+
+test('[6-13] 나이: birth_date가 없거나 계산 못 하거나 이름·직위가 모두 없으면 표시·각주가 없다', function () {
+  const base = hc.cardHtml(view(), { today: TODAY });
+  const cnt = function (s) { return (s.match(/class="hc-fn"/g) || []).length; };
+  assert.ok(base.indexOf('hc-age') < 0);
+  [null, '', '1990-02-30', '2030-01-01'].forEach(function (b) {
+    const h = hc.cardHtml(view({ head: { birth_date: b } }), { today: TODAY });
+    assert.ok(h.indexOf('hc-age') < 0, String(b));
+    assert.strictEqual(cnt(h), cnt(base), String(b));
+  });
+  assert.ok(hc.cardHtml(view({ head: { birth_date: '1965-03-02' } }), {}).indexOf('hc-age') < 0);
+  assert.ok(hc.cardHtml(view({ head: { birth_date: '1965-03-02', name: null, position: null } }), { today: TODAY }).indexOf('hc-age') < 0);
+});
+
+test('[6-14] 나이: 2/29생은 평년 2/28에 아직, 3/1에 한 살, 윤년 2/29에 당일', function () {
+  const age = function (t) { const m = hc.cardHtml(view({ head: { birth_date: '1996-02-29' } }), { today: t }).match(/hc-age">만 (\d+)세/); return m && m[1]; };
+  assert.strictEqual(age('2026-02-28'), '29');
+  assert.strictEqual(age('2026-03-01'), '30');
+  assert.strictEqual(age('2028-02-29'), '32');
+});
+
+test('[6-15] 나이 각주: 번호는 띠 → 나이 → 날짜 3칸 → 학력·경력 → 사진 순', function () {
+  const BSRC = { kind: 'OTHER', title: '프로필 자료', url: null, checked_on: '2026-11-05' };
+  const photoSrc = { kind: 'PRESS', title: '시정일보 사진', url: null, checked_on: '2026-11-04' };
+  const photo = { photo_id: 3, license_cd: 'KOGL1', source: photoSrc, uploaded_by: '1001' };
+  const fields = { NAME: field(1, '서지운'), FIRST_TAKE_OFFICE: field(3, '2022-07-01'), TERM_START: field(4, '2026-07-01'),
+    TERM_END: field(5, '2030-06-30', { kind: 'NEC', title: '당선인 정보', url: null, checked_on: '2026-11-02' }), BIRTH_DATE: field(9, '1965-03-02', BSRC) };
+  const h = hc.cardHtml(view({ head: { birth_date: '1965-03-02', fields: fields, photo: photo } }, { photo: { id: 3, url: 'blob:a', state: 'ok' } }), { today: TODAY });
+  const notes = h.slice(h.indexOf('<div class="hc-notes"'), h.indexOf('<div class="hc-foot">'));
+  const fn = function (n) { const a = notes.indexOf('id="hc-fn-' + n + '"'), b = notes.indexOf('id="hc-fn-' + (n + 1) + '"'); return notes.slice(a, b >= 0 ? b : undefined); };
+  assert.strictEqual((notes.match(/class="hc-fn"/g) || []).length, 4);
+  assert.ok(fn(1).indexOf('당선인 정보') >= 0 && fn(2).indexOf('프로필 자료') >= 0 && fn(3).indexOf('가람시 누리집') >= 0 && fn(4).indexOf('시정일보 사진') >= 0);
+  assert.ok(h.indexOf('<span class="hc-age">만 61세<sup class="hc-fnref" aria-hidden="true">2</sup><span class="sr-only">(출처 2)</span></span>') >= 0);
+  assert.ok(/임기 만료<\/dt><dd aria-describedby="hc-fn-1">/.test(h) && /첫 취임일<\/dt><dd aria-describedby="hc-fn-3">/.test(h));
+  assert.strictEqual(notes.indexOf('1965'), -1);
+});
+
+test('[6-16] 이름·직위 줄: 이름 → 직위 → 만 n세 → 권한대행 배지', function () {
+  const h = hc.cardHtml(view({ head: { acting: true, birth_date: '1965-03-02', fields: { NAME: field(1, '서지운'), BIRTH_DATE: field(9, '1965-03-02') } } }), { today: TODAY });
+  const hd = h.slice(h.indexOf('<div class="hc-who-hd">'), h.indexOf('<dl class="hc-facts">'));
+  const at = function (s) { return hd.indexOf(s); };
+  assert.ok(at('<h4 id="hc-name">') >= 0 && at('<h4 id="hc-name">') < at('class="hc-pos"') && at('class="hc-pos"') < at('class="hc-age"') && at('class="hc-age"') < at('class="hc-badge"'));
+});
+
+test('학력·경력 시작 년-월 필수(사용자 11-20): 입력 칸 안내와 화면 검사', function () {
+  const career = hc.valueRowHtml('CAREER', TODAY);
+  assert.ok(career.indexOf('시작(YYYY-MM, 필수)') >= 0 && /name="from"[^>]*required/.test(career) && career.indexOf('placeholder="2018-07"') >= 0);
+  assert.ok(career.indexOf('끝(YYYY-MM, 비우면 현재)') >= 0);
+  ['2018-07', ' 2018-07 ', '1900-01', '2100-12'].forEach(function (v) { assert.strictEqual(hc.startMonthOk(v), true, v); });
+  ['', null, '2018', '2018-7', '2018-13', '2018-00', '1899-12', '18-07', '2018-07-01'].forEach(function (v) { assert.strictEqual(hc.startMonthOk(v), false, String(v)); });
 });
 
 test('[6-10] 이월 안내: 빈 머리의 이전 칸에 맞춰 문구가 바뀌고 head:null이면 없고 값은 싣지 않는다', function () {

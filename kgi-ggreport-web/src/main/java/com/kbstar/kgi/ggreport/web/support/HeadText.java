@@ -22,6 +22,7 @@ public final class HeadText {
     private static final Pattern PERIOD = Pattern.compile("([0-9]{4})(?:-([0-9]{2}))?");
     private static final LocalDate MIN_CHECKED = LocalDate.of(2000, 1, 1);
     private static final LocalDate MIN_BIRTH = LocalDate.of(1920, 1, 1);
+    private static final Pattern START_MONTH = Pattern.compile("[0-9]{4}-[0-9]{2}");
     /** 나이·생년 표기 — NFKC 뒤 find. '출생'·일반 날짜는 넣지 않는다('저출생대응과', '2022.07.01 취임' 통과). security 11-20 ③ */
     private static final Pattern AGE_HINT = Pattern.compile("(?:19|20)\\d{2}\\s*년\\s*생(?![가-힣])|생년월일|만\\s*\\d{2}\\s*세");   // '생' 뒤에 한글이 이어지면(생산·생활·생명·생태) 낱말로 보고 통과(qa 11-20 P2-2)
 
@@ -106,6 +107,24 @@ public final class HeadText {
         return v;
     }
 
+    /**
+     * 생년월일 출처 제목·주소에 그 날짜(YYYY-MM-DD·YYYY.M.D·YYYY/M/D·YYYY년 M월 D일·YYYYMMDD)가 있으면 400 INVALID_TEXT.
+     * 다른 날짜는 막지 않는다(출처 제목에 '2026-07-01 취임식' 같은 정당한 날짜가 흔하다). 입력값은 싣지 않는다.
+     */
+    public static void noSameDate(String birth, String... texts) {
+        if (birth == null || !DATE.matcher(birth).matches()) {
+            return;
+        }
+        int y = Integer.parseInt(birth.substring(0, 4)), m = Integer.parseInt(birth.substring(5, 7)), d = Integer.parseInt(birth.substring(8, 10));
+        Pattern p = Pattern.compile(y + "\\s*(?:[-./]\\s*0?" + m + "\\s*[-./]\\s*0?" + d + "(?![0-9])|년\\s*0?" + m + "\\s*월\\s*0?" + d + "\\s*일)|"
+                + birth.replace("-", ""));
+        for (String t : texts) {
+            if (t != null && p.matcher(normalize(t)).find()) {
+                throw coded(400, "INVALID_TEXT", "출처 이름·주소에 생년월일을 적지 마세요(자료 이름만).");
+            }
+        }
+    }
+
     /** 생년월일 — 실재 날짜, 1920-01-01 이상, 서울 오늘-18년 이하. 밖이면 400 INVALID_DATE(오류 문구에 입력값을 싣지 않는다). */
     public static String requireBirthDate(String v) {
         return requireBirthDate(v, LocalDate.parse(Times.todayKst()));
@@ -137,6 +156,14 @@ public final class HeadText {
             throw coded(400, "INVALID_DATE", label(field) + "의 연·월이 올바르지 않습니다.");
         }
         return v;
+    }
+
+    /** 학력·경력 시작 — YYYY-MM 필수(1900~2100, 월 01~12). 연도만이면 400 INVALID_DATE(사용자 11-20: '년-월' 정도는 있어야). */
+    public static String requireStartMonth(String v) {
+        if (v == null || !START_MONTH.matcher(v).matches()) {
+            throw coded(400, "INVALID_DATE", "시작은 YYYY-MM(예: 2018-07) 형식으로 입력하세요.");
+        }
+        return requirePeriod("from", v);
     }
 
     /** 확인일 — 실재 날짜, 2000-01-01 이상, 서울 오늘 이하. */
