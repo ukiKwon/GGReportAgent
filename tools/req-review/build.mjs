@@ -17,7 +17,7 @@ const titles=[...blk[1].matchAll(/^\s*\['([^']+)'/gm)].map(x=>x[1]);
 const cats=new Set(idx['sales.head'].map(i=>i.cat));
 const bad=titles.filter(t=>!cats.has(t));
 if(bad.length){ console.error('STEPS 제목이 메뉴 대분류와 다릅니다:',bad.join(', '),'\n캡처된 대분류:',[...cats].join(', ')); process.exit(1); }
-const labels={'sales.member':'영업팀원','sales.lead':'영업팀장','sales.head':'영업부장','budget.member':'재무팀원','master':'관리자(전산)'};
+const labels={'sales.member':'영업팀원','sales.lead':'영업팀장','sales.head':'영업부장','designer':'디자이너','budget.member':'재무팀원','master':'관리자(전산)'};
 const imgs={},accounts={};
 const b64=f=>'data:image/jpeg;base64,'+fs.readFileSync(f).toString('base64');
 for(const a of Object.keys(labels)){
