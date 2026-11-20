@@ -19,7 +19,7 @@ import java.util.*;
  */
 @Service
 public class TargetResultService {
-    public static final String DENIED_MSG = "협약 성과 모아 보기는 영업부서와 전산 계열만 볼 수 있습니다.";
+    public static final String DENIED_MSG = "협약 성과 모아 보기는 영업부서와 개발부서만 볼 수 있습니다.";
     /** 응답의 주 담당 이름(개인별 성과표가 될 수 있음, security F4). 사용자 11-20: 성공·실패 표에 담당자 이름을 붙이지 않는다 — false 면 owner_name 은 null(키는 유지), true 로 바꾸면 이름을 낸다. */
     static final boolean SHOW_OWNER = false;
     static final int TARGET_MAX = 2000, LINE_MAX = 20000;
@@ -53,7 +53,7 @@ public class TargetResultService {
         boolean truncated = rows.size() > TARGET_MAX;
         if (truncated) rows = rows.subList(0, TARGET_MAX);
         List<BankContract> lineRows = mapper.selectLinesForYear(year, new RowBounds(0, LINE_MAX + 1));
-        if (lineRows.size() > LINE_MAX) throw new ApiException(409, "집계할 약정 기록이 너무 많습니다. 담당자에게 알려 주세요.");
+        if (lineRows.size() > LINE_MAX) throw new ApiException(409, "집계할 약정 기록이 너무 많습니다. 개발부서에 알려 주세요.");
         Map<String, List<BankContract>> lines = new HashMap<String, List<BankContract>>();
         for (BankContract c : lineRows) {
             List<BankContract> l = lines.get(c.getInstitutionId());

@@ -2528,6 +2528,89 @@
   .cr-toolbar > button { min-height:26px; }
   /* 사업계획 수집 요청 끝 */
 
+  /* 협약 성과 관리 시작 — #tab-soon 안 #results-root. 규격: design-reviewer 2026-11-20_1212_a501b274.md 6절. 새 hex·새 변수 없음(토큰만), 채운 주버튼 없음, 최소 12px. 요약 띠·표·정렬 단추는 현황판 .hb-k·.hb-tt·.hb-sort 문법 */
+  #results-root { width:100%; flex:1 0 auto; display:flex; flex-direction:column; gap:12px; align-self:stretch; }
+  #results-root .v { font-family:var(--mono); }
+  .rs-head { flex-wrap:wrap; }
+  .rs-yr { margin-left:auto; display:inline-flex; align-items:center; gap:8px; font-size:13px; }
+  .rs-yr[hidden] { display:none; }
+  .rs-yr select { min-height:32px; padding:0 8px; font-size:13px; color:var(--fg); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); }
+  .rs-yr select:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
+  .rs-rule { margin:0; line-height:1.5; word-break:keep-all; }
+  #results-root #rs-body { display:flex; flex-direction:column; gap:12px; }
+  #results-root #rs-body.rs-busy { opacity:.55; }
+  #results-root #rs-body > div:empty { display:none; }
+  .rs-btn { min-height:32px; padding:0 14px; font-size:13px; color:var(--fg); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); cursor:pointer; }
+  .rs-btn:focus-visible, .rs-link:focus-visible, .rs-tog:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
+  .rs-link { all:unset; cursor:pointer; font-size:12px; color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent-color); text-underline-offset:3px; border-radius:var(--r); }
+  .rs-band { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); }
+  .rs-band .hb-k .v.mut { color:var(--muted); }
+  .rs-bar-wrap { padding:8px 16px 8px; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); }
+  .rs-brace { position:relative; height:5px; margin-top:18px; border:1px solid var(--fg); border-bottom:0; box-sizing:border-box; }
+  .rs-brace span { position:absolute; left:50%; bottom:100%; transform:translateX(-50%); padding-bottom:2px; font-size:12px; color:var(--fg); white-space:nowrap; }
+  .rs-bar { display:flex; gap:2px; }
+  .rs-bar-wrap > .rs-bar:first-child { margin-top:18px; }
+  .rs-cell { display:flex; flex:none; flex-direction:column; gap:2px; min-width:0; }
+  .rs-cell .n { display:block; height:16px; font:400 12px/16px var(--mono); text-align:center; color:var(--fg); }
+  .rs-seg { display:block; height:12px; box-sizing:border-box; border:1px solid var(--line-strong); border-radius:var(--r); }
+  .rs-seg.kept { background:var(--bk-kb); border-color:var(--bk-kb-edge); }
+  .rs-seg.won { background:color-mix(in srgb, var(--green) 12%, var(--panel)); border-color:var(--green); }
+  .rs-seg.fail { background:color-mix(in srgb, var(--red) 8%, var(--panel)); border-color:var(--red); }
+  .rs-seg.wait { background:var(--panel2); border:1px solid var(--line-strong); }
+  .rs-seg.none { background:transparent; border:1px dashed var(--muted); }
+  .rs-legend { display:flex; flex-wrap:wrap; gap:4px 14px; margin:6px 0 0; padding:0; list-style:none; font-size:12px; color:var(--muted); }
+  .rs-legend .rs-seg { display:inline-block; width:14px; margin-right:4px; vertical-align:middle; }
+  .rs-chip { display:inline-flex; align-items:center; min-height:22px; padding:0 6px; font-size:12px; line-height:20px; color:var(--fg); border:1px solid var(--line-strong); border-radius:var(--r); white-space:nowrap; box-sizing:border-box; }
+  .rs-gph { width:9px; height:9px; margin-right:4px; flex:none; fill:none; stroke:currentColor; stroke-width:1.6; }
+  .rs-chip.kept { background:var(--bk-kb); color:var(--bk-kb-ink); border-color:var(--bk-kb-edge); font-weight:700; }
+  .rs-chip.won { color:var(--green); border-color:var(--green); background:color-mix(in srgb, var(--green) 12%, var(--panel)); font-weight:700; }
+  .rs-chip.fail { color:color-mix(in srgb, var(--red) 72%, var(--fg)); border-color:var(--red); background:color-mix(in srgb, var(--red) 8%, var(--panel)); }
+  .rs-chip.none { color:var(--muted); border:1px dashed var(--muted); }
+  .rs-basis { margin-left:6px; font-size:12px; color:var(--muted); }
+  .rs-filters { display:flex; flex-direction:column; }
+  .rs-frow { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; }
+  .rs-frow .db-per { margin:4px 0; }
+  .rs-fl { min-width:64px; font-size:12px; color:var(--muted); }
+  .rs-tp { background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); }
+  .rs-tt { width:100%; min-width:880px; table-layout:fixed; border-collapse:separate; border-spacing:0; }
+  .rs-tt caption { caption-side:top; padding:8px 10px; text-align:left; font-size:12px; color:var(--muted); border-bottom:1px solid var(--line); }
+  .rs-tt col.c-nm { width:210px; } .rs-tt col.c-tag { width:72px; } .rs-tt col.c-res { width:180px; } .rs-tt col.c-bank { width:auto; }
+  .rs-tt col.c-from { width:84px; } .rs-tt col.c-evd { width:150px; } .rs-tt col.c-prep { width:100px; }
+  .rs-rt { min-width:640px; }
+  .rs-rt col.c-kind { width:150px; } .rs-rt col.c-why { width:auto; } .rs-rt col.c-at { width:96px; }
+  .rs-tt th, .rs-tt td { height:40px; padding:0 10px; vertical-align:middle; text-align:left; font-size:12px; font-weight:400; border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rs-tt thead th { position:sticky; top:0; z-index:1; padding:0 10px 7px; vertical-align:bottom; font-weight:700; color:var(--muted); background:var(--panel2); border-bottom:1px solid var(--line-strong); }
+  .rs-tt .mut, .rs-tt td.mut { color:var(--muted); }
+  .rs-tt .hb-nm { all:unset; cursor:pointer; border-radius:var(--r); font-size:13px; font-weight:700; color:var(--fg); }
+  .rs-tt span.hb-nm { cursor:default; }
+  .rs-tt .hb-nm .rg { margin-right:6px; font-size:12px; font-weight:400; color:var(--muted); }
+  .rs-tt .hb-nm:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
+  .rs-tt tbody tr:hover > * { background:color-mix(in srgb, var(--accent-color) 6%, var(--panel)); }
+  .rs-tt th[aria-sort] .hb-sort { color:var(--fg); font-weight:700; }
+  .rs-tt th[aria-sort] .hb-sort svg { stroke:currentColor; }
+  .rs-bk { margin-right:10px; color:var(--fg); }
+  .rs-bk .rk { color:var(--muted); }
+  .rs-bk.kb { font-weight:700; }
+  .rs-tt tr.emp td { height:auto; padding:20px 16px; white-space:normal; overflow:visible; }
+  .rs-tt tr.emp:hover > * { background:transparent; }
+  .rs-tt tr.emp .db-state { padding:0; }
+  .rs-notes p { margin:4px 0 0; line-height:1.5; word-break:keep-all; }
+  .rs-rm { background:var(--panel); border:1px solid var(--line); border-radius:var(--r); }
+  .rs-rm-h { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; margin:0; padding:8px 12px; font-size:13px; font-weight:400; }
+  .rs-rm-h h3 { margin:0; font-size:13px; font-weight:400; }   /* 제목에는 단추만 — 설명 글은 h3 밖 */
+  .rs-tt td.c-bank-cell { white-space:normal; line-height:16px; }   /* 은행 둘이면 두 줄(행 40px 안) */
+  .rs-tog { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:6px; min-height:24px; font-size:13px; font-weight:700; color:var(--fg); border-radius:var(--r); }
+  .rs-tog svg { width:8px; height:8px; fill:none; stroke:currentColor; stroke-width:1.4; }
+  .rs-tog[aria-expanded="true"] svg { transform:rotate(90deg); }
+  .rs-rm-b { padding:0 12px 12px; }
+  .rs-rm-b[hidden] { display:none; }
+  .rs-rm-b > .db-why { margin:0 0 8px; }
+  .rs-rm0 { margin:0; }
+  @media (forced-colors:active) { .rs-chip, .rs-seg { border-color:CanvasText; } .rs-chip.won { border-color:Highlight; } }
+  @media (max-width:1169px) { .rs-tp { overflow-x:auto; } }
+  @media (max-width:880px) { .rs-band { grid-template-columns:1fr 1fr; } .rs-band .hb-k:nth-child(3) { border-left:0; } .rs-band .hb-k:nth-child(n+3) { border-top:1px solid var(--line); } }
+  /* 협약 성과 관리 끝 */
+
   /* 공고 상태 기록(noticerec.js) 시작 — 규격 design-reviewer 11-16 abc6228b 6-E. 새 hex 없음(토큰만), 최소 11px, 채운 주버튼 없음. */
   .ov-stamp.is-line { background:transparent; color:var(--fg); border-color:var(--muted); font-weight:400; }
   .ov-stamp.is-plain { background:transparent; border-color:transparent; color:var(--muted); font-weight:400; padding:0 2px; }
@@ -2940,6 +3023,7 @@ review, the verdict, and DESIGN.md
   <div id="dash-root" style="display:none;"></div>
   <div id="notice-root" style="display:none;"></div>
   <div id="plans-root" style="display:none;"></div>
+  <div id="results-root" style="display:none;"></div>
   <div id="pt-root" style="display:none;"></div>
 </section>
 </main>
@@ -3065,6 +3149,7 @@ review, the verdict, and DESIGN.md
 <script src="js/portal.js"></script>
 <script src="js/deputy.js"></script>
 <script src="js/plancollect.js"></script>
+<script src="js/results.js"></script>
 <script src="js/admin.js"></script>
 <script src="js/myinfo.js"></script>
 <script src="js/export.js"></script>

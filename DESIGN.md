@@ -68,7 +68,7 @@ components:
 - **포인트색:** `--accent-color`는 활성 메뉴 막대, 포커스 링(작업 영역), 선택 행, 주버튼, 물결 링에 쓴다. 테마 창 '물결·화면 강조색'이 바꾼다. 지도 선택 링의 안쪽 심(3px)에 쓴다 — 반드시 흰 띠(7px)와 함께(파랑/흰 6.83:1). 지도 포커스 외곽선에는 쓰지 않는다.
 
 ### 이름 규칙
-- **채도 독점:** 크롬은 무채색 + KB Dark Gray 띠·로그인 주버튼 + KB Yellow 선(위 "국민은행 CI 색" 절). 크롬의 상태 색은 글자·1px 테두리·18% 이하 틴트로만, 채운 포화 면은 없다. **예외(사용자 11-19)**: 국민은행 CI 옐로 `--bk-kb` #FFBC00(kbfg.com CI, PANTONE 130C) — "다음에도 국민은행이 금고"를 뜻하는 칩(시작화면 `.pt-chip.tag.kept` 재유치 확정, 입찰 현황판 `.hb-slot.hb-bank[data-bank="kb"]` 국민은행 확정)에만 채움으로 쓴다. 글자 잉크 9.59:1, 테두리 KB Dark Gray #545045(흰 바탕 8.04:1).
+- **채도 독점:** 크롬은 무채색 + KB Dark Gray 띠·로그인 주버튼 + KB Yellow 선(위 "국민은행 CI 색" 절). 크롬의 상태 색은 글자·1px 테두리·18% 이하 틴트로만, 채운 포화 면은 없다. **예외(사용자 11-19)**: 국민은행 CI 옐로 `--bk-kb` #FFBC00(kbfg.com CI, PANTONE 130C) — "다음에도 국민은행이 금고"를 뜻하는 칩(시작화면 `.pt-chip.tag.kept` 재유치 확정, 입찰 현황판 `.hb-slot.hb-bank[data-bank="kb"]` 국민은행 확정, 협약 성과 관리 `.rs-chip.kept`·`.rs-seg.kept` 재유치 성공 — 사용자 11-20 NEXT 104)에만 채움으로 쓴다. 글자 잉크 9.59:1, 테두리 KB Dark Gray #545045(흰 바탕 8.04:1).
 - **변수 이름 동결:** `:root`의 `--bg --panel --panel2 --line --line-strong --fg --muted --red --orange --yellow --blue --gray --accent-color --ripple-duration --mono --shadow --r --r-lg --r-sm`은 값만 바꾼다(JS 생성 마크업이 이름으로 참조). `--shadow:none`은 그림자 끄기 스위치로 남는다.
 - **경과 도장:** 예정일이 지나 처리 안 된 항목은 중립 잉크 칩(`--fg` 바탕, 11px 모노 700, 시계 글리프 + D+n)이다. 색조가 없어서 임박(`--red` 윤곽 + 삼각 + D-n)과 색·모양·글자로 다르다.
 

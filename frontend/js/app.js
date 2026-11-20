@@ -252,6 +252,7 @@
     if (root.tm && root.tm.onProfileChange) root.tm.onProfileChange();            // 제안팀 구성·배정도 같다
     if (root.prep && root.prep.onProfileChange) root.prep.onProfileChange();      // 제안서 사전준비·지도 팝오버 캐시도 같다
     if (root.plans && root.plans.onProfileChange) root.plans.onProfileChange();   // 기관 사업계획 현황·상세 캐시도 같다
+    if (root.results && root.results.onProfileChange) root.results.onProfileChange();   // 협약 성과 응답·거르기도 앞 사용자의 것을 버린다
     app.applyMenuPermissions();
     if (app.paintUserArea) app.paintUserArea();
     // 워크플로 탭이 이미 그려져 있으면 승인·반려 버튼의 권한 표시를 새 계정에 맞춘다.
@@ -544,6 +545,7 @@
     const isPrep = !!(root.prep && itemId === root.prep.SOON_ID);
     const isDash = !!(root.nav && itemId === root.nav.DASH_ID);
     const isPlans = !!(root.plans && itemId === root.plans.SOON_ID);   // 기관 사업계획(서버 map 키 읽기 전용 화면)
+    const isResults = !!(root.results && itemId === root.results.SOON_ID);   // 협약 성과 관리(서버 map 키 읽기 전용 화면, results.js)
     const dashReady = isDash && !!(root.kbboard && root.kbboard.mount);   // 본체(국민은행 상태, kbboard.js)가 아직 없으면 안내만 보인다
     const isNotice = !!(root.nav && itemId === root.nav.NOTICE_ID);        // 입찰 공고 현황 = 전국 공고 목록(dashboard.js, #notice-root)
     const noticeReady = isNotice && !!(root.dashboard && root.dashboard.mount);
@@ -567,6 +569,9 @@
     if (homeReady) document.getElementById('soon-plain').style.display = 'none';     // 시작화면도 같다
     const plansEl = document.getElementById('plans-root');
     if (plansEl) plansEl.style.display = isPlans ? '' : 'none';
+    const resultsEl = document.getElementById('results-root');
+    if (resultsEl) resultsEl.style.display = isResults ? '' : 'none';
+    if (isResults) document.getElementById('soon-plain').style.display = 'none';   // (soon-plain 숨김 줄에 섞지 않는다 — isPlans 줄 보존)
     const homeEl = document.getElementById('pt-root');
     if (homeEl) homeEl.style.display = homeReady ? '' : 'none';
     navActiveId = itemId;
@@ -577,6 +582,7 @@
     if (dashReady) root.kbboard.mount(dashEl);
     if (noticeReady && noticeEl) root.dashboard.mount(noticeEl);
     if (isPlans && plansEl) root.plans.mount(plansEl);
+    if (isResults && resultsEl) root.results.mount(resultsEl);
     if (homeReady && homeEl) root.portal.mount(homeEl);
     else if (root.portal && root.portal.unmount) root.portal.unmount();   // 시작화면이 아닌 준비중 화면으로 옮기면 해제
   };
@@ -610,7 +616,7 @@
     if (root.dashboard && root.dashboard.closeDetail) root.dashboard.closeDetail(false);
     document.querySelectorAll('.modal-overlay').forEach(function (ov) { ov.style.display = 'none'; });
     overduePending = null; navHoming = false;
-    ['portal', 'kbboard', 'dashboard', 'plans'].forEach(function (k) { const m = root[k]; if (m && m.unmount) m.unmount(); });
+    ['portal', 'kbboard', 'dashboard', 'plans', 'results'].forEach(function (k) { const m = root[k]; if (m && m.unmount) m.unmount(); });
     if (root.render && root.render.clearSelection) root.render.clearSelection();   // 앞 계정이 지도에서 고른 기관 링·순위 카드 강조도 지운다(qa P3-3)
     if (root.render && root.render.state && root.render.state.currentRegion && app.backToNational) app.backToNational();
     navTabs = []; navActiveId = null;
