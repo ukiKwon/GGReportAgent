@@ -1,0 +1,56 @@
+-- -----------------------------------------------------------------------------
+-- kgi-ggreport-web — MySQL 미러 (049) : 사전준비 양식 BID_PREP_FORM · BID_PREP_FORM_VER + BID_PREP_LOG/ACT.FORM_VER
+-- 정본이 아니다. 정본은 db/oracle/049_prep_form.sql (규칙, 참조, DB 권한은 정본 헤더).
+-- 외래키, 검사 제약 없음. 멱등하지 않다 — 이미 적용된 024 의 표에 ALTER 가 있다(두 번 돌리면 1060 Duplicate column).
+-- 이미 051 까지 적용한 로컬 DB: 이 파일만 한 번 돌린다(051 과 의존 없음). 처음 만드는 DB: 048 다음, 051 앞에 돌린다.
+-- 도중에 실패했으면(DDL 은 문장마다 자동 커밋): SHOW TABLES LIKE 'BID_PREP_FORM%'; SHOW COLUMNS FROM BID_PREP_LOG LIKE 'FORM_VER'; 로 된 곳까지 보고
+--   남은 문장만 돌리거나, 아래 되돌리기로 지우고 처음부터.
+-- 배포 순서: DB 먼저, 서버 나중.
+-- 되돌리기(데이터 소멸): DROP TABLE BID_PREP_FORM_VER; DROP TABLE BID_PREP_FORM;
+--   ALTER TABLE BID_PREP_LOG DROP COLUMN FORM_VER; ALTER TABLE BID_PREP_ACT DROP COLUMN FORM_VER;
+--   DELETE FROM COMMON_CODE WHERE CODE_GROUP = 'PREP_EVENT' AND CODE IN ('FORM_CONFIRM', 'FORM_UNCONFIRM');
+-- -----------------------------------------------------------------------------
+SET NAMES utf8mb4;
+
+CREATE TABLE BID_PREP_FORM (
+    BID_CASE_ID        VARCHAR(64)  NOT NULL,
+    FORM_CD            VARCHAR(20)  NOT NULL,
+    TASK_CD            VARCHAR(20)  NOT NULL,
+    CUR_VER            INT          NOT NULL DEFAULT 0,
+    CONFIRMED_VER      INT          NULL,
+    CONFIRMED_SHA256   VARCHAR(64)  NULL,
+    CONFIRMED_BY       VARCHAR(7)   NULL,
+    CONFIRMED_VERIFIED SMALLINT     NOT NULL DEFAULT 0,
+    CONFIRMED_AT       VARCHAR(40)  NULL,
+    CREATED_BY         VARCHAR(7)   NOT NULL,
+    CREATED_AT         VARCHAR(40)  NOT NULL,
+    UPDATED_BY         VARCHAR(7)   NOT NULL,
+    UPDATED_AT         VARCHAR(40)  NOT NULL,
+    PRIMARY KEY (BID_CASE_ID, FORM_CD)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE BID_PREP_FORM_VER (
+    BID_CASE_ID    VARCHAR(64)  NOT NULL,
+    FORM_CD        VARCHAR(20)  NOT NULL,
+    VER_NO         INT          NOT NULL,
+    KIND_CD        VARCHAR(20)  NOT NULL,
+    BASE_VER       INT          NOT NULL,
+    TPL_VER        SMALLINT     NOT NULL,
+    RENDER_VER     SMALLINT     NOT NULL,
+    CONTENT_JSON   LONGTEXT     NOT NULL,
+    CONTENT_SHA256 VARCHAR(64)  NOT NULL,
+    CONTENT_BYTES  INT          NOT NULL,
+    SAVED_BY       VARCHAR(7)   NOT NULL,
+    SAVED_VERIFIED SMALLINT     NOT NULL DEFAULT 0,
+    SAVED_AT       VARCHAR(40)  NOT NULL,
+    PRIMARY KEY (BID_CASE_ID, FORM_CD, VER_NO)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE BID_PREP_LOG ADD COLUMN FORM_VER INT NULL;
+ALTER TABLE BID_PREP_ACT ADD COLUMN FORM_VER INT NULL;
+
+-- [INSERT 블록 시작 — Oracle 049 와 글자 그대로 같다(PrepFormDdlPairTest)]
+INSERT INTO COMMON_CODE (CODE_GROUP, CODE, CODE_NAME, SORT_NO, ENABLED, UPDATED_AT) VALUES ('PREP_EVENT', 'FORM_CONFIRM', '기관 정보 요약 확정', 21, 1, '2026-11-19T00:00:00+09:00');
+INSERT INTO COMMON_CODE (CODE_GROUP, CODE, CODE_NAME, SORT_NO, ENABLED, UPDATED_AT) VALUES ('PREP_EVENT', 'FORM_UNCONFIRM', '기관 정보 요약 확정 취소', 22, 1, '2026-11-19T00:00:00+09:00');
+-- [INSERT 블록 끝 — 2행]
+COMMIT;

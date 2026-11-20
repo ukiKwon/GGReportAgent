@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
 /**
  * 작성 경로 전용 본문 크기 사전 차단 — multipart 해석(전역 50MB)·JSON 파싱 <b>전에</b> Content-Length 로 413.
  * 엑셀: 한도(5MB)+여유 1MB, 초안 JSON: 256KB, 양식 저장 PUT /board-forms/{id}: 512KB, 양식 복제 POST /board-forms/copy: 16KB.
+ * 사전준비 양식(049): 저장 PUT …/prep/forms/{form}/draft 128KB, 그 밖 양식 POST(prefill·confirm·unconfirm) 16KB.
  * 길이가 없으면(chunked) 411 LENGTH_REQUIRED. JSON 경로는 헤더만 믿지 않고 <b>실제로 읽은 바이트</b>도 센다({@link CountingRequest}).
  * 경로는 MVC 가 매칭하는 모양으로 정규화해서 본다({@link #normalize}) — 세그먼트마다 ';' 뒤(경로 매개변수)를 버리고
  * %XX 를 한 번 푼다. 끝 '/'·중간 빈 세그먼트·대소문자 차이·앞의 context path 는 모두 같은 경로로 친다
@@ -63,12 +64,18 @@ public class BoardWriteLimitFilter implements Filter {
     /** POST /institution-plans/missing.csv — 기관 id 최대 1,000개 JSON. 64KB. */
     static final long PLAN_LIST_MAX = 64L * 1024;
     private static final Pattern PLAN_MISSING = Pattern.compile("(?:^|/)institution-plans/+missing\\.csv/*$", Pattern.CASE_INSENSITIVE);
-    /** POST /plan-collect/{run|mark-running|exclude|fail|export.csv} — 요청 키 최대 50개 + 사유 100자 JSON. 16KB. */
+    /** POST /plan-collect/{run|mark-running|exclude|fail|export.csv|batch} — 요청 키·기관 id 최대 50개 + 사유 100자 JSON. 16KB. */
     private static final Pattern PLAN_COLLECT = Pattern.compile(
-            "(?:^|/)plan-collect/+(?:run|mark-running|exclude|fail|export\\.csv)/*$", Pattern.CASE_INSENSITIVE);
+            "(?:^|/)plan-collect/+(?:run|mark-running|exclude|fail|export\\.csv|batch)/*$", Pattern.CASE_INSENSITIVE);
     /** 그 밖의 기관장 쓰기(JSON) — 16KB. */
     private static final Pattern HEAD_SMALL = Pattern.compile(
             "(?:^|/)(?:institutions/+[^/]+/+heads?(?:/+[^/]+)*|institution-heads(?:/+[^/]+)+)/*$", Pattern.CASE_INSENSITIVE);
+    /** PUT /bidcases/{id}/prep/forms/{form}/draft — 기관 정보 요약 저장(049, NEXT 100 S2). 내용 상한 120KB + 요청 껍데기 8KB = 128KB. */
+    static final long FORM_DRAFT_MAX = 128L * 1024;
+    private static final Pattern FORM_DRAFT = Pattern.compile("(?:^|/)bidcases/+[^/]+/+prep/+forms/+[^/]+/+draft/*$", Pattern.CASE_INSENSITIVE);
+    /** POST /bidcases/{id}/prep/forms/{form}/(prefill|confirm|unconfirm) — 본문이 작다(판 번호·칸 키 목록·사유). 16KB. */
+    private static final Pattern FORM_SMALL = Pattern.compile(
+            "(?:^|/)bidcases/+[^/]+/+prep/+forms/+[^/]+/+(?:prefill|confirm|unconfirm)/*$", Pattern.CASE_INSENSITIVE);
 
     private final AccessLogService accessLog;
     private final int maxMb;
@@ -120,6 +127,8 @@ public class BoardWriteLimitFilter implements Filter {
                 : post && COPY.matcher(path).find() ? COPY_MAX
                 : post && SNAP.matcher(path).find() ? SNAP_MAX
                 : post && MAT_SMALL.matcher(path).find() ? COPY_MAX
+                : post && FORM_SMALL.matcher(path).find() ? COPY_MAX
+                : put && FORM_DRAFT.matcher(path).find() ? FORM_DRAFT_MAX
                 : put && SAVE.matcher(path).find() ? SAVE_MAX : -1;
         long len = req.getContentLengthLong();
         if (limit < 0 || (len >= 0 && len <= limit)) {

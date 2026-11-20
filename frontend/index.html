@@ -275,6 +275,65 @@
   .bd-m-decide textarea { min-height:34px; resize:vertical; }
   .bd-m-decide .bd-m-dhint { flex-basis:100%; margin:0; font-size:12px; color:var(--muted); }
   .bd-m-ap-msg { margin:0 0 8px; font-size:12px; color:var(--muted); }
+  /* ── 이사회 회의록(047): 020 상세의 '회의록' 탭(#bd-m-hist 재사용). 글은 모두 textContent(security R8) ── */
+  .mn { display:flex; flex-direction:column; gap:12px; }
+  .mn-mark { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; margin:0; padding:6px 12px; font-size:12px; color:var(--muted);
+             background:var(--panel2); border:1px solid var(--line); border-left:3px solid var(--fg); border-radius:var(--r); }
+  .mn-mark b { color:var(--fg); font-weight:700; }
+  .mn-head { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .mn-head h3 { margin:0; font-size:14px; font-weight:700; letter-spacing:-.01em; }
+  .mn-head .mn-tools { margin-left:auto; display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #mn-h:focus, #mn-title:focus, #mn-up-h:focus, #mn-pv-h:focus, #mn-err:focus { outline:none; }
+  .mn-meta { display:flex; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--muted); }
+  .mn .mono, .mn time { font-family:var(--mono); font-size:12px; }
+  .mn h4 { margin:0 0 6px; font-size:13px; font-weight:700; }
+  .mn-tbl td.mn-t-title { white-space:normal; }
+  .mn-open { background:none; border:0; padding:4px 0; min-height:28px; font:inherit; font-size:13px; font-weight:700; color:var(--fg); cursor:pointer; text-align:left; }
+  .mn-open:hover { text-decoration:underline; text-decoration-color:var(--accent-color); }
+  .mn-sum { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
+  .mn-card { min-width:0; padding:10px 12px; background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); }
+  .mn-card ul { margin:0; padding-left:18px; display:flex; flex-direction:column; gap:4px; font-size:13px; }
+  .mn-card ul.mn-todo { padding-left:0; list-style:none; }
+  .mn-todo label { display:flex; gap:8px; align-items:flex-start; min-height:28px; font-size:13px; cursor:pointer; }
+  .mn-todo input { margin-top:3px; accent-color:var(--accent-color); }
+  .mn-todo .is-done .mn-txt { color:var(--muted); text-decoration:line-through; text-decoration-color:var(--line-strong); }
+  .mn-todo .mn-who { display:block; margin-left:24px; font-size:12px; color:var(--muted); }
+  .mn-segs, .mn-tx { list-style:none; margin:0; padding:0; background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); }
+  .mn-seg { display:grid; grid-template-columns:112px minmax(0,1fr) auto; gap:12px; align-items:start; padding:8px 12px; border-top:1px solid var(--line); }
+  .mn-seg:first-child, .mn-u:first-child { border-top:0; }
+  .mn-seg ul { margin:0; padding-left:18px; font-size:13px; }
+  .mn-kw { display:flex; flex-wrap:wrap; gap:4px; margin:0 0 4px; }
+  .mn-kw span { font-size:12px; padding:0 6px; color:var(--muted); border:1px solid var(--line-strong); border-radius:var(--r); }
+  .mn-seghd { display:flex; gap:10px; align-items:center; padding:4px 12px; font-size:12px; font-weight:700; background:var(--panel2); border-top:1px solid var(--line-strong); }
+  .mn-seghd .link-btn { margin-left:auto; font-weight:400; }
+  .mn-u { display:grid; grid-template-columns:72px 52px minmax(0,1fr) auto; gap:10px; padding:6px 12px; border-top:1px solid var(--line); font-size:13px; }
+  .mn-u .mn-spk, .mn-u time { font-size:12px; color:var(--muted); }
+  .mn-u .mn-body { max-width:60em; white-space:pre-wrap; word-break:break-word; }
+  .mn-u.is-noise { color:var(--muted); }
+  .mn-u.is-target { background:var(--panel2); box-shadow:inset 3px 0 0 var(--accent-color); }
+  .mn-u:focus { outline:none; } .mn-u:focus-visible { outline:2px solid var(--accent-color); outline-offset:-2px; }
+  .mn-mask { font-family:var(--mono); font-size:12px; padding:0 3px; color:var(--muted); background:var(--panel2);
+             border:1px dashed var(--line-strong); border-radius:var(--r); white-space:nowrap; }
+  .mn-edit textarea { width:100%; box-sizing:border-box; min-height:60px; resize:vertical; }
+  .mn-edit .mn-edit-acts { display:flex; gap:8px; margin-top:6px; }
+  .mn-up .mn-slot { display:grid; grid-template-columns:120px minmax(0,1fr); gap:6px 12px; align-items:start; margin-top:10px; font-size:12px; }
+  .mn-up .mn-slot textarea { width:100%; box-sizing:border-box; min-height:96px; resize:vertical; font-family:var(--mono); font-size:12px; }
+  .mn-src { display:inline-flex; border:1px solid var(--line-strong); border-radius:var(--r); }
+  .mn-src label { padding:3px 10px; font-size:12px; cursor:pointer; }
+  .mn-src label:has(input:checked), .mn-src label.on { background:color-mix(in srgb, var(--accent-color) 16%, transparent); color:var(--fg); font-weight:600; }
+  .mn-src input { position:absolute; opacity:0; width:1px; height:1px; }
+  .mn-src label:has(input:focus-visible) { outline:2px solid var(--accent-color); outline-offset:-2px; }
+  .mn-rules { margin:0; padding:8px 12px 8px 30px; font-size:13px; background:var(--panel2); border:1px solid var(--line); border-left:3px solid var(--fg); border-radius:var(--r); }
+  .mn-rules li + li { margin-top:2px; }
+  .mn-ack { display:flex; gap:8px; align-items:center; min-height:28px; font-size:13px; }
+  .mn-pvbox { max-height:420px; overflow:auto; border:1px solid var(--line-strong); border-radius:var(--r); background:var(--panel); padding:10px 12px; }
+  .mn-pvbox:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
+  .mn-stale { margin:0; padding:6px 12px; font-size:12px; border-left:3px solid var(--orange); background:var(--panel2); border-radius:var(--r); }
+  .mn-print { display:none; }
+  @media screen and (max-width:880px) { .mn-sum {   /* 'screen and' — 다른 시험이 첫 '@media (max-width:880px)' 블록을 찾는다 */ grid-template-columns:minmax(0,1fr); } .mn-seg { grid-template-columns:minmax(0,1fr); gap:4px; }
+    .mn-u { grid-template-columns:auto auto minmax(0,1fr); } .mn-u .mn-uacts { grid-column:1 / -1; } .mn-up .mn-slot { grid-template-columns:minmax(0,1fr); } }
+  @media print { .mn button, .mn .mn-tools, .mn-up { display:none !important; } .mn-print { display:block; font-size:12px; color:var(--fg); }
+    .mn-mark { border-left-color:#000; } }
   .ap-card .ap-review-btn { border-color:var(--accent-color); }
   .bd-head { font-size:14px; font-weight:600; }
   .bd-head .dg-hint { font-weight:normal; }
@@ -2958,6 +3017,7 @@ review, the verdict, and DESIGN.md
 <script src="js/bankcontract.js"></script>
 <script src="js/approvals.js"></script>
 <script src="js/board-write.js"></script>
+<script src="js/board-minutes.js"></script>
 <script src="js/board-material.js"></script>
 <script src="js/board.js"></script>
 <script src="js/team.js"></script>

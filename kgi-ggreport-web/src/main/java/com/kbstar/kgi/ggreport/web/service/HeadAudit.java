@@ -20,6 +20,7 @@ import java.time.ZoneId;
  *
  * <p>하루 열람 경고(M8): 사번별 열람 계열(VIEW·PHOTO_VIEW·UNMATCHED_VIEW·HEAD_DOCX 내려받기) 성공이 기준(기본 50)을 넘는 순간 앱 로그 WARN 한 번(값 없음) — 막지는 않는다.
  * 합산 질의(InstitutionHeadMapper.countViewsSince)도 같은 네 코드를 센다. HEAD_DOCX 의 HEAD_ID 는 문서에 담은 현 기관장 번호다(컨트롤러가 채운다).
+ * 사전준비 양식(049) 미리 채움의 기관장 이름 열람은 BID_PREP_ACT(FORM_PREFILL·FORM_VIEW)에 남고 countViewsSince 에는 잡히지 않는다.
  */
 @Service
 public class HeadAudit {

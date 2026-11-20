@@ -670,20 +670,26 @@
       (formName ? '<span>양식 ' + esc(formName) + '</span>' : '') + subMeta + confirmMeta + '</div>' +
       mat.returnHtml(d) + str(x.rowHtml);
   };
-  const TABS = [['write', '작성'], ['ver', '버전 이력'], ['hist', '작업 이력']];
-  const PANEL = { write: 'bd-body', ver: 'bd-m-hist', hist: 'bd-m-hist' };
-  // isHead(영업부장): 고칠 수 없으므로 첫 탭 이름은 '내용'(담당자는 '작성')
-  mat.tabsHtml = function (active, verCount, isHead) {
-    return '<div class="ap-tabs bd-m-tabs" role="tablist" aria-label="이사회 자료 보기">' + TABS.map(function (t) {
+  // 네 번째 탭 '회의록'(047)은 권한 체계가 따로라 mn.show 일 때만 그린다. 패널은 이력 탭과 같은 #bd-m-hist 를 재사용한다.
+  const TABS = [['write', '작성'], ['ver', '버전 이력'], ['hist', '작업 이력'], ['minutes', '회의록']];
+  const PANEL = { write: 'bd-body', ver: 'bd-m-hist', hist: 'bd-m-hist', minutes: 'bd-m-hist' };
+  const BASE_TAB_IDS = ['write', 'ver', 'hist'];
+  mat.minutesTabLabel = function (count) { return '회의록' + (count > 0 ? ' ' + count : ''); };
+  // isHead(영업부장): 고칠 수 없으므로 첫 탭 이름은 '내용'(담당자는 '작성'). mn = {show, count}(선택): 회의록 탭을 보일지·건수
+  mat.tabsHtml = function (active, verCount, isHead, mn) {
+    return '<div class="ap-tabs bd-m-tabs" role="tablist" aria-label="이사회 자료 보기">' + TABS.filter(function (t) {
+      return t[0] !== 'minutes' || !!(mn && mn.show);
+    }).map(function (t) {
       const on = t[0] === active;
-      const label = (t[0] === 'write' && isHead ? '내용' : t[1]) + (t[0] === 'ver' && verCount > 0 ? ' ' + verCount : '');
+      const label = t[0] === 'minutes' ? mat.minutesTabLabel(mn && mn.count) : (t[0] === 'write' && isHead ? '내용' : t[1]) + (t[0] === 'ver' && verCount > 0 ? ' ' + verCount : '');
       return '<button type="button" role="tab" id="bd-tab-' + t[0] + '" data-tab="' + t[0] + '" aria-selected="' + (on ? 'true' : 'false') +
         '" aria-controls="' + PANEL[t[0]] + '" tabindex="' + (on ? '0' : '-1') + '">' + esc(label) + '</button>';
     }).join('') + '</div>';
   };
   // ←/→ 로 이동(끝에서 처음으로), Home/End. 다른 키는 null.
-  mat.tabKey = function (cur, key) {
-    const ids = TABS.map(function (t) { return t[0]; }), i = ids.indexOf(cur);
+  // ids(선택): 보이는 탭 목록. 없으면 기본 3개(회의록 탭이 보일 때만 호출하는 쪽이 4개를 넘긴다)
+  mat.tabKey = function (cur, key, tabIds) {
+    const ids = Array.isArray(tabIds) && tabIds.length ? tabIds : BASE_TAB_IDS, i = ids.indexOf(cur);
     if (i < 0) return null;
     if (key === 'ArrowRight') return ids[(i + 1) % ids.length];
     if (key === 'ArrowLeft') return ids[(i + ids.length - 1) % ids.length];
@@ -1083,23 +1089,40 @@
       if (!n || !M) return;
       const msg = keepMsg && $('bd-m-msg') ? $('bd-m-msg').textContent : '';
       n.innerHTML = mat.headHtml(M.data, { open: M.ui.open, busy: M.ui.busy, dirty: liveDirty(), rowHtml: rowHtml() }) +
-        mat.tabsHtml(M.tab, savedCount(M.data), !canWriteNow()) + '<p id="bd-m-msg" class="bd-m-msg" role="status" aria-live="polite"></p>';
+        mat.tabsHtml(M.tab, savedCount(M.data), !canWriteNow(), M.mn) + '<p id="bd-m-msg" class="bd-m-msg" role="status" aria-live="polite"></p>';
       setMsg(msg);
     }
     function enterMaterial(data, msg) {
       closeModal(false);
       M = { id: str(data.material_id), data: data, tab: 'write', wstarted: false, ui: { open: '', busy: '', err: null, res: null, rw: null, dirty: 0, unchecked: 0 },
-            ver: { status: 'idle', items: [], view: null, err: '' }, hist: { status: 'idle', items: [], err: '' } };
+            ver: { status: 'idle', items: [], view: null, err: '' }, hist: { status: 'idle', items: [], err: '' }, mn: null };
       showView('material'); drawMat(false); setMsg(msg);
       setTab('write', false);
       focusNode($('bd-m-title'));
+      probeMinutes(M);
     }
+    // 회의록 탭(047): 자료를 연 뒤 한 번 물어 보이는지 정한다(같은 자료를 여는 동안은 컨트롤러가 다시 부르지 않는다).
+    function probeMinutes(cur) {
+      if (!env.minutes) return;
+      const ep = env.epoch(), tok = openTok, v = cur.data && cur.data.viewer;
+      env.minutes.probe(cur.id, { isAssignee: !!(v && v.is_assignee === true) }).then(function (r) {
+        if (M !== cur || ep !== env.epoch() || tok !== openTok || !r || r.stale) return;
+        const was = !!(cur.mn && cur.mn.show);
+        cur.mn = { show: !!r.show, count: r.count | 0 };
+        if (!was && !r.show) return;   // 숨김 그대로면 다시 그릴 것이 없다
+        const bar = $('bd-mat'), keep = focusKeyIn(bar);
+        drawMat(true);
+        if (keep) refocus(bar, keep);
+      }, function () {});
+    }
+    function minutesTabIds() { return M && M.mn && M.mn.show ? ['write', 'ver', 'hist', 'minutes'] : undefined; }
     function openMaterial(id, fromPanel) {
       if (!mat.isId(id)) return;
       openerId = fromPanel ? '' : str(id);
       const t = ++openTok, ep = env.epoch();
       if (env.write) env.write.stop();
       np = null; if (fromPanel) drawTop();
+      if (env.minutes) env.minutes.stop();   // 고른 파일·미리보기 응답을 메모리에서 지운다
       M = null; showView('material');
       $('bd-mat').innerHTML = mat.loadingHtml; $('bd-body').innerHTML = ''; $('bd-m-hist').innerHTML = '';
       mat.loadMaterial(env.doFetch, id, mat.UI.LIST, mat.BTN.OPEN).then(function (r) {
@@ -1120,7 +1143,9 @@
       }
       showView('material');
       const hp = $('bd-m-hist'); if (hp) hp.setAttribute('aria-labelledby', 'bd-tab-' + tab);
-      if (tab === 'write') drawWrite(); else if (tab === 'ver') drawVer(); else drawHist();
+      if (tab === 'write') drawWrite(); else if (tab === 'ver') drawVer();
+      else if (tab === 'minutes') { if (env.minutes) env.minutes.show(hp); }
+      else drawHist();
     }
     // 작성 탭: 담당자(can_write)면 작성 컨트롤러, 아니면 읽기 전용 표
     function drawWrite() {
@@ -1212,6 +1237,7 @@
     function toList() {
       openTok++;
       if (env.write) env.write.stop();
+      if (env.minutes) env.minutes.stop();
       const id = M ? M.id : '';
       closeModal(false);
       M = null;
@@ -1458,7 +1484,7 @@
         if (t.closest('#bd-m-resrow')) { e.preventDefault(); closeRow('bd-m-resbtn'); return; }
       }
       if (!M || !t || !t.getAttribute || t.getAttribute('role') !== 'tab') return;
-      const nx = mat.tabKey(M.tab, e.key);
+      const nx = mat.tabKey(M.tab, e.key, minutesTabIds());
       if (nx) { e.preventDefault(); setTab(nx, true); }
     }
     function onHistClick(e) {
@@ -1504,6 +1530,13 @@
         }
         if (root.document && root.document.addEventListener) root.document.addEventListener('keydown', onDocKey);
         $('bd-m-hist').addEventListener('click', onHistClick);
+        // 회의록 컨트롤러가 건수를 바꿨을 때(저장·삭제 뒤) 탭 글자만 고친다
+        if (env.minutes) env.minutes.onCount = function (n) {
+          if (!M) return;
+          M.mn = { show: true, count: n | 0 };
+          const b = $('bd-tab-minutes');
+          if (b) b.textContent = mat.minutesTabLabel(n);
+        };
       }
     }
     function mount() {
@@ -1517,6 +1550,7 @@
       closeModal(false);
       mine = null; mineErr = false; np = null; M = null; view = 'none'; built = false; openerId = '';
       if (env.write) env.write.stop();
+      if (env.minutes) env.minutes.stop();
       ['bd-list', 'bd-mat', 'bd-m-hist'].forEach(function (k) { const n = $(k); if (n) n.innerHTML = ''; });
     }
 

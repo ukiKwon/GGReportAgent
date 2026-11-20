@@ -44,7 +44,8 @@ test('index.html: .dlg 기본 폭 560, 예외는 --wide 720·--full 뿐', functi
   assert.match(HTML, /\.dlg \{[^}]*width:min\(560px/);
   assert.match(HTML, /\.dlg--wide \{ width:min\(720px/);
   assert.match(HTML, /\.dlg--full \{/);
-  assert.doesNotMatch(HTML, /\.dlg--s \{|\.dlg--m \{|\.dlg--l \{/);
+  // 공통 규칙(줄 첫머리의 .dlg--*)만 본다 — 화면 범위 규칙(#plans-root .dlg--s 등)은 그 화면 이행 때 정리.
+  assert.doesNotMatch(HTML, /\n\s*\.dlg--(s|m|l) \{/);
 });
 
 test('원문 보기(#doc-modal): .dlg 틀 · 동작 없는 보는 창이라 [닫기]는 오른쪽 아래', function () {

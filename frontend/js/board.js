@@ -2356,13 +2356,19 @@
   }
   function matCtl() {
     if (mc || !bm || !bm.createController) return mc;
+    const meNow = function () {
+      const s = (root.store && root.store.loadSession && root.store.loadSession()) || {};
+      const p = (root.store && root.store.loadProfile && root.store.loadProfile()) || {};
+      return { emp: str(s.emp), name: str(p.name), role: str(p.team).trim() };
+    };
     mc = bm.createController({
       el: el, doFetch: doFetch, epoch: function () { return epoch; },
-      me: function () {
-        const s = (root.store && root.store.loadSession && root.store.loadSession()) || {};
-        const p = (root.store && root.store.loadProfile && root.store.loadProfile()) || {};
-        return { emp: str(s.emp), name: str(p.name), role: str(p.team).trim() };
-      },
+      me: meNow,
+      // 이사회 회의록(047) 탭 — 020 자료 상세 안의 네 번째 탭. 스크립트가 없으면(옛 index.html) 탭을 그리지 않는다.
+      minutes: (root.boardMinutes && root.boardMinutes.createController) ? root.boardMinutes.createController({
+        doFetch: doFetch, epoch: function () { return epoch; }, me: meNow,
+        msg: function (t) { const n = el('bd-m-msg'); if (n) n.textContent = t || ''; }
+      }) : null,
       records: function () { return (root.store && root.store.loadData && root.store.loadData()) || []; },
       regionNames: function () { return (root.render && root.render.REGION_NAME) || {}; },
       nowYear: function () { return new Date().getFullYear(); },

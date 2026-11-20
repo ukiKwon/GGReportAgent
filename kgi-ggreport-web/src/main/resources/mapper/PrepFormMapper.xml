@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- BID_PREP_FORM / BID_PREP_FORM_VER — 049. ANSI 문장(양쪽 방언 공통, databaseId 분기 없음) — 행 수 제한 구문·자동 번호 없음(Oracle 11g 호환).
+     ⚠️ resultMap 명시(자동 매핑에 기대지 않는다, InstitutionMapper.xml 8행 이유). 읽기는 모두 flushCache(BID_PREP 잠금 뒤 재조회가 낡은 값을 주지 않게).
+     ⚠️ CONTENT_JSON 은 CLOB — 정렬·DISTINCT·WHERE 대상에 넣지 않는다. 목록(selectVers)에는 싣지 않는다.
+     ⚠️ FOR UPDATE 문장(selectFormForUpdate)은 조인·집계와 함께 쓰지 않는다(Oracle 제약). -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.PrepFormMapper">
+
+  <resultMap id="form" type="PrepForm">
+    <id property="bidCaseId" column="BID_CASE_ID"/>
+    <id property="formCd" column="FORM_CD"/>
+    <result property="taskCd" column="TASK_CD"/>
+    <result property="curVer" column="CUR_VER"/>
+    <result property="confirmedVer" column="CONFIRMED_VER"/>
+    <result property="confirmedSha256" column="CONFIRMED_SHA256"/>
+    <result property="confirmedBy" column="CONFIRMED_BY"/>
+    <result property="confirmedVerified" column="CONFIRMED_VERIFIED"/>
+    <result property="confirmedAt" column="CONFIRMED_AT"/>
+    <result property="createdBy" column="CREATED_BY"/>
+    <result property="createdAt" column="CREATED_AT"/>
+    <result property="updatedBy" column="UPDATED_BY"/>
+    <result property="updatedAt" column="UPDATED_AT"/>
+    <result property="confirmedByName" column="CONFIRMED_BY_NAME"/>
+  </resultMap>
+
+  <resultMap id="ver" type="PrepFormVer">
+    <id property="bidCaseId" column="BID_CASE_ID"/>
+    <id property="formCd" column="FORM_CD"/>
+    <id property="verNo" column="VER_NO"/>
+    <result property="kindCd" column="KIND_CD"/>
+    <result property="baseVer" column="BASE_VER"/>
+    <result property="tplVer" column="TPL_VER"/>
+    <result property="renderVer" column="RENDER_VER"/>
+    <result property="contentJson" column="CONTENT_JSON"/>
+    <result property="contentSha256" column="CONTENT_SHA256"/>
+    <result property="contentBytes" column="CONTENT_BYTES"/>
+    <result property="savedBy" column="SAVED_BY"/>
+    <result property="savedVerified" column="SAVED_VERIFIED"/>
+    <result property="savedAt" column="SAVED_AT"/>
+    <result property="savedByName" column="SAVED_BY_NAME"/>
+  </resultMap>
+
+  <resultMap id="verRow" type="PrepFormVerRow">
+    <id property="verNo" column="VER_NO"/>
+    <result property="kindCd" column="KIND_CD"/>
+    <result property="baseVer" column="BASE_VER"/>
+    <result property="savedByName" column="SAVED_BY_NAME"/>
+    <result property="savedAt" column="SAVED_AT"/>
+    <result property="contentSha256" column="CONTENT_SHA256"/>
+  </resultMap>
+
+  <resultMap id="basic" type="InstBasic">
+    <id property="nameKo" column="NAME_KO"/>
+    <result property="type" column="TYPE"/>
+  </resultMap>
+
+  <resultMap id="planRef" type="PlanImportRef">
+    <id property="importId" column="IMPORT_ID"/>
+    <result property="fileDate" column="FILE_DATE"/>
+  </resultMap>
+
+  <resultMap id="seed" type="PlanSeedItem">
+    <result property="fieldName" column="FIELD_NAME"/>
+    <result property="itemName" column="ITEM_NAME"/>
+    <result property="content" column="CONTENT"/>
+    <result property="parentNo" column="PARENT_NO"/>
+  </resultMap>
+
+  <!-- ── 헤더 ── -->
+  <select id="selectForm" resultMap="form" flushCache="true">
+    SELECT f.BID_CASE_ID, f.FORM_CD, f.TASK_CD, f.CUR_VER, f.CONFIRMED_VER, f.CONFIRMED_SHA256, f.CONFIRMED_BY,
+           f.CONFIRMED_VERIFIED, f.CONFIRMED_AT, f.CREATED_BY, f.CREATED_AT, f.UPDATED_BY, f.UPDATED_AT,
+           u.NAME AS CONFIRMED_BY_NAME
+      FROM BID_PREP_FORM f
+      LEFT JOIN USERS u ON u.EMP_NO = f.CONFIRMED_BY
+     WHERE f.BID_CASE_ID = #{bidCaseId} AND f.FORM_CD = #{formCd}
+  </select>
+
+  <select id="selectFormForUpdate" resultMap="form" flushCache="true">
+    SELECT BID_CASE_ID, FORM_CD, TASK_CD, CUR_VER, CONFIRMED_VER, CONFIRMED_SHA256, CONFIRMED_BY,
+           CONFIRMED_VERIFIED, CONFIRMED_AT, CREATED_BY, CREATED_AT, UPDATED_BY, UPDATED_AT
+      FROM BID_PREP_FORM
+     WHERE BID_CASE_ID = #{bidCaseId} AND FORM_CD = #{formCd}
+       FOR UPDATE
+  </select>
+
+  <insert id="insertForm">
+    INSERT INTO BID_PREP_FORM (BID_CASE_ID, FORM_CD, TASK_CD, CUR_VER, CONFIRMED_VERIFIED, CREATED_BY, CREATED_AT, UPDATED_BY, UPDATED_AT)
+    VALUES (#{bidCaseId}, #{formCd}, #{taskCd}, 0, 0, #{by}, #{now}, #{by}, #{now})
+  </insert>
+
+  <update id="bumpCurVer">
+    UPDATE BID_PREP_FORM
+       SET CUR_VER = #{next}, UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND FORM_CD = #{formCd} AND CUR_VER = #{base} AND CONFIRMED_VER IS NULL
+  </update>
+
+  <update id="markConfirmed">
+    UPDATE BID_PREP_FORM
+       SET CONFIRMED_VER = #{ver}, CONFIRMED_SHA256 = #{sha}, CONFIRMED_BY = #{by}, CONFIRMED_VERIFIED = #{verified},
+           CONFIRMED_AT = #{now}, UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND FORM_CD = #{formCd} AND CUR_VER = #{ver} AND CONFIRMED_VER IS NULL
+  </update>
+
+  <update id="clearConfirmed">
+    UPDATE BID_PREP_FORM
+       SET CONFIRMED_VER = NULL, CONFIRMED_SHA256 = NULL, CONFIRMED_BY = NULL, CONFIRMED_VERIFIED = 0,
+           CONFIRMED_AT = NULL, UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND FORM_CD = #{formCd} AND CONFIRMED_VER = #{ver}
+  </update>
+
+  <!-- ── 판 ── -->
+  <select id="selectVer" resultMap="ver" flushCache="true">
+    SELECT v.BID_CASE_ID, v.FORM_CD, v.VER_NO, v.KIND_CD, v.BASE_VER, v.TPL_VER, v.RENDER_VER, v.CONTENT_JSON,
+           v.CONTENT_SHA256, v.CONTENT_BYTES, v.SAVED_BY, v.SAVED_VERIFIED, v.SAVED_AT, u.NAME AS SAVED_BY_NAME
+      FROM BID_PREP_FORM_VER v
+      LEFT JOIN USERS u ON u.EMP_NO = v.SAVED_BY
+     WHERE v.BID_CASE_ID = #{bidCaseId} AND v.FORM_CD = #{formCd} AND v.VER_NO = #{verNo}
+  </select>
+
+  <select id="selectVers" resultMap="verRow" flushCache="true">
+    SELECT v.VER_NO, v.KIND_CD, v.BASE_VER, u.NAME AS SAVED_BY_NAME, v.SAVED_AT, v.CONTENT_SHA256
+      FROM BID_PREP_FORM_VER v
+      LEFT JOIN USERS u ON u.EMP_NO = v.SAVED_BY
+     WHERE v.BID_CASE_ID = #{bidCaseId} AND v.FORM_CD = #{formCd}
+     ORDER BY v.VER_NO DESC
+  </select>
+
+  <select id="countVers" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM BID_PREP_FORM_VER WHERE BID_CASE_ID = #{bidCaseId} AND FORM_CD = #{formCd}
+  </select>
+
+  <insert id="insertVer">
+    INSERT INTO BID_PREP_FORM_VER (BID_CASE_ID, FORM_CD, VER_NO, KIND_CD, BASE_VER, TPL_VER, RENDER_VER, CONTENT_JSON,
+                                   CONTENT_SHA256, CONTENT_BYTES, SAVED_BY, SAVED_VERIFIED, SAVED_AT)
+    VALUES (#{bidCaseId}, #{formCd}, #{verNo}, #{kindCd}, #{baseVer}, #{tplVer}, #{renderVer}, #{contentJson,jdbcType=CLOB},
+            #{contentSha256}, #{contentBytes}, #{savedBy}, #{savedVerified}, #{savedAt})
+  </insert>
+
+  <!-- ── 이력·감사 ── -->
+  <insert id="insertFormLog">
+    INSERT INTO BID_PREP_LOG (BID_CASE_ID, EVENT_CD, FROM_STATE, TO_STATE, TASK_CD, REASON, ACTOR_EMP_NO, EMP_VERIFIED, LOGGED_AT, FORM_VER)
+    VALUES (#{bidCaseId}, #{eventCd}, #{fromState,jdbcType=VARCHAR}, #{toState,jdbcType=VARCHAR}, #{taskCd,jdbcType=VARCHAR},
+            #{reason,jdbcType=VARCHAR}, #{actorEmpNo,jdbcType=VARCHAR}, #{verified}, #{now}, #{formVer,jdbcType=NUMERIC})
+  </insert>
+
+  <insert id="insertFormAct">
+    INSERT INTO BID_PREP_ACT (BID_CASE_ID, ACTION_CD, OUTCOME, STATE_CD, TASK_CD, ACTOR_EMP_NO, EMP_VERIFIED,
+                              SCREEN_ID, BUTTON_ID, UI_VALID, LOGGED_AT, FORM_VER)
+    VALUES (#{bidCaseId}, #{actionCd}, #{outcome}, #{stateCd}, #{taskCd,jdbcType=VARCHAR}, #{actorEmpNo,jdbcType=VARCHAR},
+            #{verified}, #{screenId}, #{buttonId}, #{uiValid}, #{now}, #{formVer,jdbcType=NUMERIC})
+  </insert>
+
+  <!-- ── 권한 판정용 ── -->
+  <select id="countActiveAssignee" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID = #{bidCaseId} AND EMP_NO = #{empNo} AND ACTIVE_YN = 1
+  </select>
+
+  <select id="selectDesignerAssignee" resultType="string" flushCache="true">
+    SELECT ASSIGNEE FROM TASKS WHERE BID_CASE_ID = #{bidCaseId} AND TEAM = #{team}
+  </select>
+
+  <!-- ── 미리 채움(읽기 전용) ── -->
+  <select id="selectInstBasic" resultMap="basic" flushCache="true">
+    SELECT NAME_KO, TYPE FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId}
+  </select>
+
+  <select id="selectLatestPlanImport" resultMap="planRef" flushCache="true">
+    SELECT IMPORT_ID, FILE_DATE FROM INST_PLAN_IMPORT
+     WHERE INSTITUTION_ID = #{institutionId}
+       AND IMPORT_ID = (SELECT MAX(IMPORT_ID) FROM INST_PLAN_IMPORT WHERE INSTITUTION_ID = #{institutionId})
+  </select>
+
+  <select id="selectPlanItems" resultMap="seed" flushCache="true">
+    SELECT i.FIELD_NAME, i.ITEM_NAME, i.CONTENT, i.PARENT_NO
+      FROM INST_PLAN_ITEM i
+      JOIN INST_PLAN_DOC d ON d.DOC_ID = i.DOC_ID
+     WHERE i.IMPORT_ID = #{importId} AND i.PARENT_NO IS NULL
+     ORDER BY d.DOC_SEQ, i.ROW_NO
+  </select>
+</mapper>

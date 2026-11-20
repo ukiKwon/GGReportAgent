@@ -188,6 +188,32 @@ public class BoardWriteLimitFilterTest {
         assertTrue("16KB 안의 JSON 은 통과한다", lastPassed);
     }
 
+    // ── 사전준비 양식(049, NEXT 100 S2) ──────────────────────────────────
+
+    @Test
+    public void 양식_저장은_128KB_한도_그_밖_양식_POST는_16KB_한도다() throws Exception {
+        assertEquals(128 * 1024L, BoardWriteLimitFilter.FORM_DRAFT_MAX);
+        for (String uri : new String[]{"/bidcases/B1/prep/forms/INST_SUMMARY/draft", "/bidcases//B1//prep//forms//X//draft/",
+                "/bidcases/B1/prep/forms/X/draft;x=1", "/BIDCASES/B1/prep/forms/INST_SUMMARY/DRAFT"}) {
+            MockHttpServletResponse res = filter("PUT", uri, 128 * 1024 + 1, true);
+            assertEquals(uri, 413, res.getStatus());
+            String body = res.getContentAsString();
+            assertTrue(body, body.contains("BODY_TOO_LARGE") && body.contains("\"max_kb\":128"));
+            assertFalse(lastPassed);
+        }
+        assertEquals(200, filter("PUT", "/bidcases/B1/prep/forms/INST_SUMMARY/draft", 128 * 1024, true).getStatus());
+        assertTrue("한도 안의 저장은 통과한다", lastPassed);
+        for (String act : new String[]{"prefill", "confirm", "unconfirm"}) {
+            String uri = "/bidcases/B1/prep/forms/INST_SUMMARY/" + act;
+            MockHttpServletResponse res = filter("POST", uri, 16 * 1024 + 1, true);
+            assertEquals(uri, 413, res.getStatus());
+            assertTrue(res.getContentAsString().contains("\"max_kb\":16"));
+            assertEquals(411, filter("POST", uri, 0, false).getStatus());
+            assertEquals(200, filter("POST", uri, 1024, true).getStatus());
+        }
+        assertEquals("GET 은 통과", 200, filter("GET", "/bidcases/B1/prep/forms/INST_SUMMARY/draft-docx", 1, true).getStatus());
+    }
+
     @Test
     public void 접근_이력_413_경로는_컨텍스트와_경로_매개변수를_뗀_값이다() throws Exception {
         AccessLogService log = org.mockito.Mockito.mock(AccessLogService.class);
