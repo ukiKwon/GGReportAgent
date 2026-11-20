@@ -132,11 +132,12 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
 
     @Test
     public void 영업_밖은_403이고_DENIED가_접근_이력과_감사_표에_남는다() throws Exception {
+        int deniedBefore = count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND REQ_PATH=?", path(INST));   // ACCESS_LOG 는 롤백되지 않는다 — 전후 차이로
         addHeadOk(INST, L1, "홍길동", "구청장");
         MvcResult r = docx(path(INST), DESIGNER, true);
         assertEquals(text(r), 403, r.getResponse().getStatus());
         assertEquals(1, act("HEAD_DOCX", "DENIED"));
-        assertEquals(1, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND REQ_PATH=?", path(INST)));
+        assertEquals(deniedBefore + 1, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND REQ_PATH=?", path(INST)));
     }
 
     @Test

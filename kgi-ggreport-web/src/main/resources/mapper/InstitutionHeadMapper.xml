@@ -207,7 +207,13 @@
 
   <update id="moveCandidateItems">
     UPDATE INST_HEAD_ITEM SET HEAD_ID = #{toHeadId}, INSTITUTION_ID = #{institutionId}
-     WHERE HEAD_ID = #{fromHeadId} AND STATE_CD = 'CANDIDATE'
+     WHERE HEAD_ID = #{fromHeadId} AND STATE_CD = 'CANDIDATE' AND FIELD_CD &lt;&gt; 'BIRTH_DATE'
+  </update>
+
+  <!-- 합치기·빈 머리 정리 때 생년월일 후보는 옮기지 않고 기각한다(사람이 바뀔 수 있어 — planner 11-20 B1, security 발견 4). moveCandidateItems 앞에 부른다. -->
+  <update id="rejectBirthCandidatesOfHead">
+    UPDATE INST_HEAD_ITEM SET STATE_CD = 'REJECTED', DECIDED_BY = #{by}, DECIDED_AT = #{at}
+     WHERE HEAD_ID = #{headId} AND STATE_CD = 'CANDIDATE' AND FIELD_CD = 'BIRTH_DATE'
   </update>
 
   <!-- ── 사진 ── -->

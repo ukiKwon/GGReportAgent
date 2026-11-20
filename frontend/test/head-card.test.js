@@ -390,8 +390,11 @@ test('칸 후보 본문: 종류별 값 키(value·date·flag·from·to)와 출�
   assert.strictEqual(hc.buildItemBody(7, 'ACTING', { flag: '0', src_kind: 'NEC', src_title: 't', checked_on: '2026-11-12' }).flag, 0);
   const n = hc.buildItemBody(7, 'NAME', { value: '서지운', src_kind: 'NEC', src_title: 't', src_url: 'https://a.kr', checked_on: '2026-11-12' });
   assert.strictEqual(n.value, '서지운'); assert.strictEqual(n.source.url, 'https://a.kr'); assert.strictEqual(n.from, undefined);
-  assert.strictEqual(hc.FIELDS.length, 8);
-  assert.deepStrictEqual(hc.FIELDS.map(function (f) { return f.cd; }), ['NAME', 'POSITION', 'ACTING', 'FIRST_TAKE_OFFICE', 'TERM_START', 'TERM_END', 'EDU', 'CAREER']);
+  assert.strictEqual(hc.FIELDS.length, 9);
+  assert.deepStrictEqual(hc.FIELDS.map(function (f) { return f.cd; }), ['NAME', 'POSITION', 'ACTING', 'FIRST_TAKE_OFFICE', 'TERM_START', 'TERM_END', 'EDU', 'CAREER', 'BIRTH_DATE']);
+  assert.strictEqual(hc.fieldOf('BIRTH_DATE').kind, 'birth');
+  assert.deepStrictEqual(hc.buildItemBody(7, 'BIRTH_DATE', { date: ' 1965-03-02 ', src_kind: 'NEC', src_title: 't', checked_on: '2026-11-12' }),
+    { head_id: 7, field_cd: 'BIRTH_DATE', source: { kind: 'NEC', title: 't', checked_on: '2026-11-12' }, date: '1965-03-02' });   // value가 아니라 date
 });
 
 test('기관장 등록 본문: 선택 칸은 비면 보내지 않고, 권한대행은 불리언', function () {
@@ -727,7 +730,7 @@ function fakeDom() {
     }
     return stubs[name];
   }
-  const map = { '#hc-m-status': 'status', '#hc-m-lists': 'lists', '#hc-m-forms': 'forms', '.hc-modal': 'modal', '#hc-m-title': 'title', '#hc-reason': 'reason', '[data-m=do]': 'do', '#hf-name': 'hfname' };
+  const map = { '#hc-m-status': 'status', '#hc-m-lists': 'lists', '#hc-m-forms': 'forms', '.hc-modal': 'modal', '#hc-m-title': 'title', '#hc-reason': 'reason', '[data-m=do]': 'do', '#hf-name': 'hfname', '#hc-valrow': 'valrow', '#hc-birth': 'birth' };
   const modalEl = { handlers: {}, parentNode: null,
     addEventListener: function (t, f) { this.handlers[t] = f; },
     querySelector: function (sel) { return map[sel] ? el(map[sel]) : null; },
@@ -737,8 +740,8 @@ function fakeDom() {
     createElement: function () { return { firstChild: null, set innerHTML(h) { this.firstChild = modalEl; } }; } };
   return {
     el: el, modalEl: modalEl,
-    click: function (dataM, id) {
-      const b = { getAttribute: function (k) { return ({ 'data-m': dataM, 'data-id': id, 'data-self': '0' })[k] || null; } };
+    click: function (dataM, id, f) {
+      const b = { getAttribute: function (k) { return ({ 'data-m': dataM, 'data-id': id, 'data-self': '0', 'data-f': f })[k] || null; } };
       modalEl.handlers.click({ target: { closest: function () { return b; } } });
     },
     off: function () { delete global.document; },
@@ -1286,4 +1289,213 @@ test('사진 캡션: 불러오는 중·실패는 틀을 장식으로(낭독 한 
     assert.ok(ph.indexOf('role="img"') < 0 && ph.indexOf('공공누리') < 0 && ph.indexOf('class="hc-fnref"') >= 0);
   });
   assert.ok(ld.indexOf('사진 불러오는 중…<sup') >= 0 && er.indexOf('다시 시도하세요.<sup') >= 0);
+});
+
+// ── 기관장 생년월일(design 11-20 a3661836, frontend-dev a293c4f5) ──────────
+test('[6-1] ageOn: 생일 전날·당일·다음날, 2/29생 평년·윤년, 형식 오류는 null', function () {
+  assert.strictEqual(hc.ageOn('1965-11-13', '2026-11-12'), 60);
+  assert.strictEqual(hc.ageOn('1965-11-12', '2026-11-12'), 61);
+  assert.strictEqual(hc.ageOn('1965-11-11', '2026-11-12'), 61);
+  assert.strictEqual(hc.ageOn('1965-03-02', TODAY), 61);
+  assert.strictEqual(hc.ageOn('2000-02-29', '2025-02-28'), 24);
+  assert.strictEqual(hc.ageOn('2000-02-29', '2025-03-01'), 25);
+  assert.strictEqual(hc.ageOn('2000-02-29', '2024-02-29'), 24);
+  ['', null, undefined, '1965-3-2', '19650302', '1965-02-30', '1965-13-01', 'abc'].forEach(function (x) { assert.strictEqual(hc.ageOn(x, '2026-11-12'), null, String(x)); });
+  assert.strictEqual(hc.ageOn('1965-03-02', 'x'), null);
+  assert.strictEqual(hc.ageOn('2030-01-01', '2026-11-12'), null);
+  assert.strictEqual(hc.valueText({ field_cd: 'BIRTH_DATE', value: '1965-03-02' }, TODAY), '1965-03-02 (만 61세)');
+  assert.strictEqual(hc.valueText({ field_cd: 'BIRTH_DATE', value: '1965-03-02' }), '1965-03-02');
+  assert.strictEqual(hc.valueText({ field_cd: 'ACTING', value: true }), '예(권한대행)');
+});
+
+test('[6-2·6-3] birthMax·birthCheck: 서버 minusYears(18)과 같은 상한, 경계값', function () {
+  assert.strictEqual(hc.birthMax(new Date(2024, 1, 29)), '2006-02-28');
+  assert.strictEqual(hc.birthMax(TODAY), '2008-11-12');
+  assert.strictEqual(hc.birthMax('2026-11-12'), '2008-11-12');
+  assert.strictEqual(hc.birthMax(null), '');
+  assert.strictEqual(hc.birthCheck('2008-11-12', TODAY), '');
+  assert.ok(hc.birthCheck('2008-11-13', TODAY).indexOf('1920-01-01부터 2008-11-12까지의 날짜를 고르세요.') >= 0);
+  assert.ok(hc.birthCheck('1919-12-31', TODAY).indexOf('1920-01-01부터') >= 0);
+  assert.strictEqual(hc.birthCheck('1920-01-01', TODAY), '');
+  assert.strictEqual(hc.birthCheck('', TODAY), '생년월일을 고르세요.');
+  assert.strictEqual(hc.birthCheck('  ', TODAY), '생년월일을 고르세요.');
+  assert.strictEqual(hc.birthCheck('1990-02-30', TODAY), '날짜를 YYYY-MM-DD 형식으로 고르세요.');
+  assert.strictEqual(hc.birthCheck('90-01-01', TODAY), '날짜를 YYYY-MM-DD 형식으로 고르세요.');
+  assert.strictEqual(hc.birthCheck('1990-1-1', TODAY).indexOf('1990'), -1);
+});
+
+test('[6-4] 항목 종류가 생년월일일 때만 #hc-birth·#hc-birth-h가 생긴다(max=오늘-18년, aria 연결)', function () {
+  const b = hc.valueRowHtml('BIRTH_DATE', TODAY);
+  assert.ok(b.indexOf('id="hc-birth"') >= 0 && b.indexOf('id="hc-birth-h"') >= 0 && b.indexOf('type="date" name="date"') >= 0);
+  assert.ok(b.indexOf('min="1920-01-01" max="2008-11-12"') >= 0 && b.indexOf('aria-describedby="hc-birth-h"') >= 0);
+  assert.ok(b.indexOf('1920-01-01부터 2008-11-12(만 18세)까지 고를 수 있습니다.') >= 0 && b.indexOf('열람 기록이 남습니다') >= 0);
+  assert.ok(b.indexOf('aria-invalid') < 0 && b.indexOf('hc-birth-e') < 0);
+  ['NAME', 'ACTING', 'TERM_END', 'CAREER'].forEach(function (cd) { assert.ok(hc.valueRowHtml(cd, TODAY).indexOf('hc-birth') < 0, cd); });
+  const m = hc.modalHtml(view(), { field: 'BIRTH_DATE' }, { today: TODAY, emp: '2002' });
+  assert.ok(m.indexOf('id="hc-birth"') >= 0 && m.indexOf('<option value="BIRTH_DATE" selected>생년월일</option>') >= 0);
+  assert.strictEqual(hc.modalHtml(view(), {}, { today: TODAY, emp: '2002' }).indexOf('id="hc-birth"'), -1);
+});
+
+test('[6-5] 오류 상태: aria-invalid, describedby 합치기, 값 유지, clearFieldErr로 원복', function () {
+  const e = hc.valueRowHtml('BIRTH_DATE', TODAY, { value: '2010-01-01', err: '<x>범위' });
+  assert.ok(e.indexOf('aria-invalid="true"') >= 0 && e.indexOf('aria-describedby="hc-birth-e hc-birth-h"') >= 0);
+  assert.ok(e.indexOf('<p class="hc-ferr" id="hc-birth-e" role="alert">&lt;x&gt;범위</p>') >= 0 && e.indexOf('<x>') < 0);
+  assert.ok(e.indexOf('value="2010-01-01"') >= 0);
+  assert.ok(e.indexOf('class="hc-ferr"') > e.indexOf('class="hc-fhint"'));
+  const attrs = { 'aria-invalid': 'true', 'aria-describedby': 'hc-birth-e hc-birth-h' };
+  let removed = 0;
+  const errP = { parentNode: { removeChild: function () { removed += 1; } } };
+  const input = { getAttribute: function (k) { return attrs[k] === undefined ? null : attrs[k]; }, setAttribute: function (k, v) { attrs[k] = v; }, removeAttribute: function (k) { delete attrs[k]; },
+    closest: function () { return { querySelector: function (s) { return s === '#hc-birth-e' ? errP : null; } }; } };
+  hc.clearFieldErr(input, 'hc-birth');
+  assert.strictEqual(attrs['aria-invalid'], undefined);
+  assert.strictEqual(attrs['aria-describedby'], 'hc-birth-h');
+  assert.strictEqual(removed, 1);
+  hc.clearFieldErr(input, 'hc-birth');
+  assert.strictEqual(removed, 1);
+});
+
+test('[6-5·6-6] 흐름(가짜 DOM): 화면 검사 실패·서버 400 INVALID_DATE는 칸 아래, 상단 상태줄은 비움, 다른 날짜 칸은 상단', async function () {
+  let reply = null;
+  const calls = fakeFetch(function (url, init) {
+    if (init.method === 'POST') return reply;
+    return { status: 200, json: detail() };
+  });
+  const dom = fakeDom();
+  const posts = function () { return calls.filter(function (c) { return c.init.method === 'POST'; }); };
+  try {
+    await hc.ensure('11010', function () {}, '2002');
+    await settle();
+    hc.openModal(function () { return env({ emp: '2002' }); });
+    const submit = function (fcd, date) {
+      const els = [{ name: 'field_cd', value: fcd }, { name: 'date', value: date }, { name: 'src_kind', value: 'NEC' }, { name: 'src_title', value: '선관위' }, { name: 'src_url', value: '' }, { name: 'checked_on', value: '2026-11-12' }];
+      dom.modalEl.handlers.submit({ target: { getAttribute: function () { return 'add-item'; }, elements: els }, preventDefault: function () {} });
+    };
+    submit('BIRTH_DATE', '2008-11-13');
+    assert.strictEqual(posts().length, 0);
+    const row = dom.el('valrow').innerHTML;
+    assert.ok(row.indexOf('aria-invalid="true"') >= 0 && row.indexOf('aria-describedby="hc-birth-e hc-birth-h"') >= 0 && row.indexOf('2008-11-12까지의 날짜를 고르세요.') >= 0);
+    assert.strictEqual(dom.el('status').innerHTML, '');
+    assert.ok(dom.el('birth').focused >= 1);
+    submit('BIRTH_DATE', '');
+    assert.ok(dom.el('valrow').innerHTML.indexOf('생년월일을 고르세요.') >= 0 && posts().length === 0);
+    reply = { status: 400, json: { detail: { code: 'INVALID_DATE', message: '생년월일은 1920-01-01부터 만 18세 이상이 되는 날짜까지만 입력할 수 있습니다.' } } };
+    submit('BIRTH_DATE', '1990-01-01');
+    await settle();
+    assert.strictEqual(posts().length, 1);
+    const body = JSON.parse(posts()[0].init.body);
+    assert.deepStrictEqual([body.head_id, body.field_cd, body.date, body.value], [7, 'BIRTH_DATE', '1990-01-01', undefined]);
+    assert.strictEqual(posts()[0].init.headers['X-Button-Id'], 'item_add');
+    assert.ok(dom.el('valrow').innerHTML.indexOf('<p class="hc-ferr" id="hc-birth-e" role="alert">생년월일은 1920-01-01부터') >= 0);
+    assert.strictEqual(dom.el('status').innerHTML, '');
+    assert.strictEqual(hc.isModalOpen(), true);
+    assert.ok(!dom.el('modal').cls.has('hc-busy'));
+    reply = { status: 400, json: { detail: { code: 'INVALID_DATE', message: '날짜가 올바르지 않습니다.' } } };
+    submit('TERM_END', '2030-01-01');
+    await settle();
+    assert.ok(dom.el('status').innerHTML.indexOf('날짜가 올바르지 않습니다.') >= 0);
+  } finally { hc.closeModal(false); dom.off(); cleanup(); }
+});
+
+test('[6-7] 출처 이름 안내: id 접두어 it/ph/hf가 한 팝업에서 겹치지 않고 각 input이 자기 안내를 가리킨다', function () {
+  const h = hc.modalHtml(view(), {}, { today: TODAY, emp: '2002' });
+  ['it', 'ph', 'hf'].forEach(function (p) {
+    assert.strictEqual((h.match(new RegExp('id="' + p + '-st-h"', 'g')) || []).length, 1, p);
+    assert.strictEqual((h.match(new RegExp('name="src_title"[^>]*aria-describedby="' + p + '-st-h"', 'g')) || []).length, 1, p);
+  });
+  assert.strictEqual((h.match(/자료 이름만 적습니다\. 생년월일·나이\(예: 1965년생\)는 적지 마세요\./g) || []).length, 3);
+  assert.ok(hc.sourceFieldsHtml(TODAY, 'zz').indexOf('id="zz-st-h"') >= 0);
+  assert.ok(hc.sourceFieldsHtml(TODAY).indexOf('id="sf-st-h"') >= 0);
+  const none = hc.modalHtml(view({ head: null }, { status: 'none' }), {}, { today: TODAY, emp: '2002' });
+  assert.ok(none.indexOf('id="hf-st-h"') >= 0 && none.indexOf('id="it-st-h"') < 0);
+});
+
+test('[6-8] 후보·확정·후보 기관장 요약 행: 생년월일 라벨, (만 n세), aria-label, 코드명 0건', function () {
+  const bc = cand(30, { field_cd: 'BIRTH_DATE', value: '1965-03-02', conflict: true });
+  const ch = { head_id: 9, name: '김후보', position: '시장', created_by: '1', item_count: 1, can_confirm: true, can_reject: true,
+    items: [{ field_cd: 'BIRTH_DATE', value: '1990-01-01', source: SRC }] };
+  const v = view({ candidates: [bc], candidate_heads: [ch], head: { fields: { NAME: field(1, '서지운'), BIRTH_DATE: field(9, '1965-03-02') } } });
+  const ctx = { today: TODAY, emp: '2002' };
+  const lists = hc.modalListsHtml(v, {}, ctx);
+  assert.ok(lists.indexOf('<b>생년월일</b> <span class="v">1965-03-02</span> (만 61세)') >= 0);
+  assert.ok(lists.indexOf('aria-label="생년월일 후보 확정"') >= 0);
+  assert.ok(lists.indexOf('<b>생년월일</b> <span class="v">1990-01-01</span> (만 36세)') >= 0);
+  const full = hc.modalHtml(v, {}, ctx);
+  const visible = full.replace(/\s(value|name|data-f|id)="[^"]*"/g, '');
+  assert.ok(visible.indexOf('BIRTH_DATE') < 0);
+  assert.strictEqual((full.match(/(?:aria-[a-z]+|title)="[^"]*BIRTH_DATE[^"]*"/g) || []).length, 0);
+  const noToday = hc.modalListsHtml(v, {}, { emp: '2002' });
+  assert.ok(noToday.indexOf('<span class="v">1965-03-02</span>') >= 0 && noToday.indexOf('(만 ') < 0);
+});
+
+test('[6-9] cardHtml: 생년월일 값·글자가 카드에 나오지 않는다(미노출 회귀 방지)', function () {
+  const h = hc.cardHtml(view({ head: { birth_date: '1965-03-02', fields: { NAME: field(1, '서지운'), BIRTH_DATE: field(9, '1965-03-02') } } }), { today: TODAY });
+  assert.ok(h.indexOf('1965-03-02') < 0 && h.indexOf('생년월일') < 0 && h.indexOf('BIRTH_DATE') < 0 && h.indexOf('만 61세') < 0);
+});
+
+test('[6-10] 이월 안내: 빈 머리의 이전 칸에 맞춰 문구가 바뀌고 head:null이면 없고 값은 싣지 않는다', function () {
+  const ctx = { today: TODAY, emp: '2002' };
+  const mk = function (fields) { return hc.modalHtml(view({ head: Object.assign({}, EMPTY_HEAD, { fields: fields }) }, { status: 'none' }), {}, ctx); };
+  const both = mk({ BIRTH_DATE: field(9, '1965-03-02'), ACTING: field(6, 'false') });
+  assert.ok(both.indexOf('<p class="hc-hint" id="hc-s4-carry">이전 기록의 생년월일·권한대행 여부는 새 기관장으로 넘어오지 않습니다. 같은 분이면 권한대행 여부는 아래에서 다시 고르고, 생년월일은 추가한 뒤 [항목 후보 추가]에서 다시 입력하세요.</p>') >= 0);
+  assert.ok(both.indexOf('aria-describedby="hc-s4-hint hc-s4-carry"') >= 0);
+  const b = mk({ BIRTH_DATE: field(9, '1965-03-02') });
+  assert.ok(b.indexOf('이전 기록의 생년월일은 새 기관장으로 넘어오지 않습니다. 같은 분이면 추가한 뒤 [항목 후보 추가]에서 다시 입력하세요.') >= 0);
+  const a = mk({ ACTING: field(6, 'false') });
+  assert.ok(a.indexOf('이전 기록의 권한대행 여부는 새 기관장으로 넘어오지 않습니다. 같은 분이면 아래에서 다시 고르세요.') >= 0);
+  const none = mk({});
+  assert.ok(none.indexOf('hc-s4-carry') < 0 && none.indexOf('aria-describedby="hc-s4-hint"') >= 0);
+  const nul = hc.modalHtml(view({ head: null }, { status: 'none' }), {}, ctx);
+  assert.ok(nul.indexOf('hc-s4-carry') < 0);
+  [both, b, a].forEach(function (h) { assert.ok(h.indexOf('1965-03-02') < 0 && h.indexOf('만 61세') < 0); });
+  assert.strictEqual(hc.carryNotice(null), '');
+});
+
+test('[6-11] 무효 확인 문구: NAME·POSITION만 덮어쓰기 유도, 다른 칸은 기존 문구, 단추에 data-f', function () {
+  assert.ok(hc.voidItemText('NAME').indexOf("'이름'을 골라 고친 값을 넣으세요.") >= 0 && hc.voidItemText('NAME').indexOf('생년월일·권한대행 여부는 새로 추가하는 기관장에게 넘어오지 않습니다') >= 0);
+  assert.ok(hc.voidItemText('POSITION').indexOf("'직위'를 골라") >= 0);
+  assert.strictEqual(hc.voidItemText('CAREER'), '이 확정값을 무효 처리합니다. 카드에서 사라지고 기록만 남습니다.');
+  assert.strictEqual(hc.voidItemText(null), hc.voidItemText('TERM_END'));
+  const html = hc.modalListsHtml(view({ viewer_role: '영업팀장' }), {}, { today: TODAY, emp: '2002' });
+  assert.ok(/data-m="ask-void-item" data-id="1" data-f="NAME"/.test(html) || html.indexOf('ask-void-item') < 0);
+});
+
+test('[6-12] 값은 모두 esc: < 가 든 출처 제목·생년월일 값·서버 오류 문구', function () {
+  const evil = { kind: 'OTHER', title: '<img src=x onerror=y>', url: null, checked_on: '2026-11-03' };
+  const v = view({ candidates: [cand(31, { field_cd: 'BIRTH_DATE', value: '<b>1965', source: evil })] });
+  const lists = hc.modalListsHtml(v, {}, { today: TODAY, emp: '2002' });
+  assert.ok(lists.indexOf('<img src=x') < 0 && lists.indexOf('&lt;img src=x') >= 0);
+  assert.ok(lists.indexOf('<b>1965') < 0 && lists.indexOf('&lt;b&gt;1965') >= 0 && lists.indexOf('(만 ') < 0);
+  const e = hc.valueRowHtml('BIRTH_DATE', TODAY, { value: '"><script>', err: '<script>x</script>' });
+  assert.ok(e.indexOf('<script>') < 0 && e.indexOf('&lt;script&gt;x') >= 0);
+});
+
+test('CSS 블록: 생년월일 칸 클래스(.hc-fld·.hc-fhint·.hc-ferr, aria-invalid 그림자)는 기관장 카드 블록 안, 12px·토큰만', function () {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const a = html.indexOf('/* 기관장 카드 시작'), b = html.indexOf('/* 기관장 카드 끝 */');
+  const css = html.slice(a, b).replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(/\.hc-fld \{[^}]*display:flex[^}]*flex-direction:column/.test(css));
+  assert.ok(/\.hc-fhint \{[^}]*font-size:12px[^}]*color:var\(--muted\)[^}]*word-break:keep-all/.test(css));
+  assert.ok(/\.hc-ferr \{[^}]*font-size:12px[^}]*color:var\(--red\)[^}]*word-break:keep-all/.test(css));
+  assert.ok(/\.hc-lab input\[aria-invalid="true"\] \{[^}]*box-shadow:inset 0 0 0 1px var\(--red\)/.test(css));
+  assert.strictEqual(html.slice(0, a).indexOf('.hc-ferr'), -1);
+});
+
+test('생년월일 제출 중 서버 400 INVALID_DATE라도 문구가 확인한 날 것이면 칸 아래가 아니라 상단(qa 11-20 P2-1)', async function () {
+  const calls = fakeFetch(function (url, init) {
+    if (init.method === 'POST') return { status: 400, json: { detail: { code: 'INVALID_DATE', message: '확인일은 2000-01-01부터 오늘까지만 입력할 수 있습니다.' } } };
+    return { status: 200, json: detail() };
+  });
+  const dom = fakeDom();
+  try {
+    await hc.ensure('11010', function () {}, '2002');
+    await settle();
+    hc.openModal(function () { return env({ emp: '2002' }); });
+    const els = [{ name: 'field_cd', value: 'BIRTH_DATE' }, { name: 'date', value: '1990-01-01' }, { name: 'src_kind', value: 'NEC' }, { name: 'src_title', value: '선관위' }, { name: 'src_url', value: '' }, { name: 'checked_on', value: '2099-01-01' }];
+    dom.modalEl.handlers.submit({ target: { getAttribute: function () { return 'add-item'; }, elements: els }, preventDefault: function () {} });
+    await settle();
+    assert.strictEqual(calls.filter(function (c) { return c.init.method === 'POST'; }).length, 1);
+    assert.ok(dom.el('status').innerHTML.indexOf('확인일은') >= 0);
+    assert.ok(dom.el('valrow').innerHTML.indexOf('hc-birth-e') < 0 && dom.el('valrow').innerHTML.indexOf('aria-invalid') < 0);
+  } finally { hc.closeModal(false); dom.off(); cleanup(); }
 });

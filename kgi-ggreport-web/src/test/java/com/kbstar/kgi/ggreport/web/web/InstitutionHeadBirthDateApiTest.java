@@ -210,7 +210,7 @@ public class InstitutionHeadBirthDateApiTest extends HeadApiTestBase {
     public void Word에는_생년월일도_그_출처_제목도_나오지_않는다() throws Exception {
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
         String body = "{\"head_id\":" + head + ",\"field_cd\":\"BIRTH_DATE\",\"date\":\"" + BIRTH + "\",\"source\":"
-                + "{\"kind\":\"HOMEPAGE\",\"title\":\"생년월일출처ZQ\",\"checked_on\":\"" + Times.todayKst() + "\"}}";
+                + "{\"kind\":\"HOMEPAGE\",\"title\":\"출생자료출처ZQ\",\"checked_on\":\"" + Times.todayKst() + "\"}}";
         addItemOk(INST, L1, body, 201);
 
         MvcResult r = docx(T1);
@@ -218,7 +218,7 @@ public class InstitutionHeadBirthDateApiTest extends HeadApiTestBase {
         String xml = documentXml(r.getResponse().getContentAsByteArray());
         assertTrue(xml.contains("홍길동"));
         assertFalse("날짜 없음", xml.contains(BIRTH));
-        assertFalse("출처 제목 없음", xml.contains("생년월일출처ZQ"));
+        assertFalse("출처 제목 없음", xml.contains("출생자료출처ZQ"));
         assertFalse("라벨 없음", xml.contains("생년월일"));
     }
 
@@ -250,13 +250,14 @@ public class InstitutionHeadBirthDateApiTest extends HeadApiTestBase {
 
     @Test
     public void 접근_이력과_기관장_로그_감사_표에_생년월일_값이_없다() throws Exception {
+        String like = "%" + BIRTH + "%";
+        int logBefore = count("SELECT COUNT(*) FROM ACCESS_LOG WHERE DETAIL LIKE ? OR REQ_PATH LIKE ?", like, like);   // ACCESS_LOG 는 롤백되지 않는다 — 전후 차이로
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
         addItemOk(INST, L1, itemDate(head, "BIRTH_DATE", BIRTH), 201);
         assertEquals(200, getAs(headPath(INST), T1).getResponse().getStatus());   // 상세 열람(VIEW)
         assertEquals(200, getAs("/institution-heads", T1).getResponse().getStatus());
 
-        String like = "%" + BIRTH + "%";
-        assertEquals(0, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE DETAIL LIKE ? OR REQ_PATH LIKE ?", like, like));
+        assertEquals(logBefore, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE DETAIL LIKE ? OR REQ_PATH LIKE ?", like, like));
         assertEquals(0, count("SELECT COUNT(*) FROM INST_HEAD_LOG WHERE REASON LIKE ? OR BATCH_ID LIKE ? OR EVENT_CD LIKE ?", like, like, like));
         assertEquals(0, count("SELECT COUNT(*) FROM INST_HEAD_ACT WHERE ACTION_CD LIKE ? OR OUTCOME LIKE ?"
                 + " OR SCREEN_ID LIKE ? OR BUTTON_ID LIKE ?", like, like, like, like));

@@ -180,9 +180,13 @@ public class InstitutionHeadService {
         if (mapper.voidEmptyHead(emptyHeadId, me.getEmpNo(), now) != 1) {
             throw stateChanged();
         }
+        int birthRejected = mapper.rejectBirthCandidatesOfHead(emptyHeadId, me.getEmpNo(), now);   // 생년월일 후보는 새 머리로 옮기지 않는다(사람이 바뀔 수 있어 — planner 11-20 B1)
         int moved = mapper.moveCandidateItems(emptyHeadId, intoHeadId, instId);
         int selfFlag = self(me, emptied.getCreatedBy());
         log("HEAD_VOID", instId, intoHeadId, null, null, emptyHeadId, cause, me, actor, selfFlag);
+        if (birthRejected > 0) {
+            log("ITEM_REJECT", instId, emptyHeadId, null, null, null, "BIRTH_NOT_MOVED", me, actor, selfFlag);
+        }
         if (moved > 0) {
             log("HEAD_MERGE", instId, intoHeadId, null, null, emptyHeadId, cause, me, actor, selfFlag);
         }
@@ -313,7 +317,7 @@ public class InstitutionHeadService {
             throw coded(422, "SRC_KIND_NOT_ALLOWED", "허용되지 않는 출처 종류입니다.");
         }
         r.kind = kind;
-        r.title = HeadText.requireLine("src_title", s.getTitle(), 100, false);
+        r.title = HeadText.noAge(HeadText.requireLine("src_title", s.getTitle(), 100, false));
         r.url = HeadText.requireUrl(s.getUrl());
         r.published = HeadText.optionalDate("published", s.getPublished());
         r.checkedOn = HeadText.requireCheckedOn(s.getCheckedOn());
@@ -348,14 +352,14 @@ public class InstitutionHeadService {
         if ("NAME".equals(f)) {
             i.setValText(HeadText.requireLine("name", in.getValue(), 30, true));
         } else if ("POSITION".equals(f)) {
-            i.setValText(HeadText.requireLine("position", in.getValue(), 40, false));
+            i.setValText(HeadText.noAge(HeadText.requireLine("position", in.getValue(), 40, false)));
         } else if ("EDU".equals(f)) {
-            i.setValText(HeadText.requireLine("edu", in.getValue(), 60, false));
+            i.setValText(HeadText.noAge(HeadText.requireLine("edu", in.getValue(), 60, false)));
             i.setValFrom(HeadText.requirePeriod("from", in.getFrom()));
             i.setValTo(HeadText.requirePeriod("to", in.getTo()));
             requireOrder(i);
         } else if ("CAREER".equals(f)) {
-            i.setValText(HeadText.requireLine("career", in.getValue(), 60, false));
+            i.setValText(HeadText.noAge(HeadText.requireLine("career", in.getValue(), 60, false)));
             i.setValFrom(HeadText.requirePeriod("from", in.getFrom()));
             i.setValTo(HeadText.requirePeriod("to", in.getTo()));
             requireOrder(i);
@@ -565,11 +569,14 @@ public class InstitutionHeadService {
                 if (!"CONFIRMED".equals(i.getStateCd())) {
                     continue;
                 }
-                sourceCount++;
-                if (!"ACTING".equals(i.getFieldCd()) && !"BIRTH_DATE".equals(i.getFieldCd())) {   // 카드에 안 보이는 칸은 빈 머리 판정에서 뺀다
+                boolean birth = "BIRTH_DATE".equals(i.getFieldCd());   // 카드에 안 보이므로 꼬리 '출처를 단 항목 N건·최근 확인'에서도 뺀다(design 11-20 E — 목록 A1과 같은 기준)
+                if (!birth) {
+                    sourceCount++;
+                }
+                if (!"ACTING".equals(i.getFieldCd()) && !birth) {   // 카드에 안 보이는 칸은 빈 머리 판정에서 뺀다
                     shownCount++;
                 }
-                if (i.getCheckedOn() != null && (lastChecked == null || lastChecked.compareTo(i.getCheckedOn()) < 0)) {
+                if (!birth && i.getCheckedOn() != null && (lastChecked == null || lastChecked.compareTo(i.getCheckedOn()) < 0)) {
                     lastChecked = i.getCheckedOn();
                 }
                 boolean canVoid = HeadRules.canVoid(role, emp, i.getCreatedBy(), i.getDecidedBy());   // 화면의 [무효 처리] 버튼 판정 — 서버 voidItem 과 같은 규칙
@@ -698,7 +705,7 @@ public class InstitutionHeadService {
             throw coded(400, "BAD_VALUE", "내용을 입력하세요.");
         }
         String name = HeadText.requireLine("name", in.getName(), 30, true);
-        String position = HeadText.requireLine("position", in.getPosition(), 40, false);
+        String position = HeadText.noAge(HeadText.requireLine("position", in.getPosition(), 40, false));
         String first = HeadText.optionalDate("first_take_office", in.getFirstTakeOffice());
         String start = HeadText.optionalDate("term_start", in.getTermStart());
         String end = HeadText.optionalDate("term_end", in.getTermEnd());
@@ -875,6 +882,9 @@ public class InstitutionHeadService {
         if (!"CURRENT".equals(head.getStatusCd())) {
             throw stateChanged();
         }
+        if ("BIRTH_DATE".equals(item.getFieldCd())) {   // DB 직접 반입 후보도 확정 때 범위를 다시 본다(400, 쓰기 앞이라 상태 그대로, security 11-20 ①)
+            HeadText.requireBirthDate(item.getValDate());
+        }
         List<InstHeadItem> conf = mapper.selectItemsOfHeadField(head.getHeadId(), item.getFieldCd(), "CONFIRMED");
         List<InstHeadItem> open = mapper.selectItemsOfHeadField(head.getHeadId(), item.getFieldCd(), "CANDIDATE");
         boolean conflict = conflictOf(item, conf, open);
@@ -1026,6 +1036,9 @@ public class InstitutionHeadService {
         }
         Map<String, String> keys = new HashMap<>();
         for (InstHeadItem i : mapper.selectItemsOfHead(headId, "CANDIDATE")) {
+            if ("BIRTH_DATE".equals(i.getFieldCd())) {   // DB 직접 반입 후보도 확정 때 범위를 다시 본다(쓰기 앞이라 400이면 상태 그대로, security 11-20 ①)
+                HeadText.requireBirthDate(i.getValDate());
+            }
             if (!SINGLE.contains(i.getFieldCd())) {
                 continue;
             }
@@ -1195,9 +1208,18 @@ public class InstitutionHeadService {
         }
         Map<String, Object> out = new LinkedHashMap<>();
         if (merge) {
-            int moving = mapper.selectItemsOfHead(headId, "CANDIDATE").size();
+            int moving = 0;   // 생년월일 후보는 옮기지 않고 기각하므로 상한 계산에서 뺀다
+            for (InstHeadItem i : mapper.selectItemsOfHead(headId, "CANDIDATE")) {
+                if (!"BIRTH_DATE".equals(i.getFieldCd())) {
+                    moving++;
+                }
+            }
             if (mapper.countOpenItems(cur.getHeadId()) + moving > OPEN_ITEM_MAX) {   // 합쳐서 열린 칸 50 을 넘기지 않는다(security 하-3)
                 throw coded(409, "ITEM_LIMIT", "합치면 열린 칸이 너무 많아집니다. 기존 후보 칸을 먼저 처리하세요.");
+            }
+            int birthRejected = mapper.rejectBirthCandidatesOfHead(headId, me.getEmpNo(), now);   // planner 11-20 B1
+            if (birthRejected > 0) {
+                log("ITEM_REJECT", inst, headId, null, null, null, "BIRTH_NOT_MOVED", me, actor, self);
             }
             mapper.moveCandidateItems(headId, cur.getHeadId(), inst);
             if (mapper.assignHead(headId, inst, "MERGED", cur.getHeadId(), me.getEmpNo(), now) != 1) {

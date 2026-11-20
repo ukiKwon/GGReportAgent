@@ -153,4 +153,34 @@ public class HeadTextTest {
             assertEquals(400, e.getStatus());
         }
     }
+
+    @Test
+    public void 생년월일_상한은_윤년_오늘에서_18년_전날로_본다() {
+        LocalDate today = LocalDate.of(2044, 2, 29);   // 상한 2026-02-28
+        assertEquals("2026-02-28", HeadText.requireBirthDate("2026-02-28", today));
+        try {
+            HeadText.requireBirthDate("2026-03-01", today);
+            fail();
+        } catch (ApiException e) {
+            assertEquals(400, e.getStatus());
+        }
+    }
+
+    @Test
+    public void 나이_표기는_막고_비슷한_정상_문구는_통과한다() {
+        String[] ok = {"구청장", "제8대 구청장", "저출생대응과장", "2022.07.01 취임", "2020년 생산성 향상", "2020년 생활체육회장", "2018년 생명과학연구소", "2019년 생태도시과장", null};
+        for (String v : ok) {
+            assertEquals(v, HeadText.noAge(v));
+        }
+        String[] bad = {"1965년생 구청장", "１９６５년생", "만 61세", "생년월일 1965-03-02", "1965 년 생"};
+        for (String v : bad) {
+            try {
+                HeadText.noAge(v);
+                fail(v);
+            } catch (ApiException e) {
+                assertEquals(400, e.getStatus());
+                assertTrue(e.getMessage() == null || !e.getMessage().contains("1965"));
+            }
+        }
+    }
 }

@@ -2335,7 +2335,10 @@
   .hc-valrow { display:contents; }
   .hc-lab { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); min-width:0; }
   .hc-lab input, .hc-lab select { width:100%; font-size:13px; padding:7px 10px; min-width:0; }
-  .hc-lab input[aria-invalid="true"] { border-color:var(--red); }
+  .hc-lab input[aria-invalid="true"] { border-color:var(--red); box-shadow:inset 0 0 0 1px var(--red); }
+  .hc-fld { display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .hc-fhint { margin:0; font-size:12px; line-height:1.5; color:var(--muted); word-break:keep-all; }
+  .hc-ferr { margin:0; font-size:12px; line-height:1.5; color:var(--red); word-break:keep-all; }
   .hc-form .wide, .hc-confirmbox .hc-lab { grid-column:1 / -1; }
   .hc-actions { display:flex; gap:6px; flex-wrap:wrap; }
   .hc-m-foot { display:flex; justify-content:flex-end; padding-top:12px; border-top:1px solid var(--line); }

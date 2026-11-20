@@ -22,6 +22,8 @@ public final class HeadText {
     private static final Pattern PERIOD = Pattern.compile("([0-9]{4})(?:-([0-9]{2}))?");
     private static final LocalDate MIN_CHECKED = LocalDate.of(2000, 1, 1);
     private static final LocalDate MIN_BIRTH = LocalDate.of(1920, 1, 1);
+    /** 나이·생년 표기 — NFKC 뒤 find. '출생'·일반 날짜는 넣지 않는다('저출생대응과', '2022.07.01 취임' 통과). security 11-20 ③ */
+    private static final Pattern AGE_HINT = Pattern.compile("(?:19|20)\\d{2}\\s*년\\s*생(?![가-힣])|생년월일|만\\s*\\d{2}\\s*세");   // '생' 뒤에 한글이 이어지면(생산·생활·생명·생태) 낱말로 보고 통과(qa 11-20 P2-2)
 
     private HeadText() {
     }
@@ -96,11 +98,24 @@ public final class HeadText {
         return v == null || v.isEmpty() ? null : requireDate(field, v);
     }
 
+    /** 글자 칸(직위·학력·경력·출처 제목)에 나이·생년월일 표기가 있으면 400 INVALID_TEXT. 입력값은 싣지 않는다. 반환은 받은 값 그대로. */
+    public static String noAge(String v) {
+        if (v != null && AGE_HINT.matcher(normalize(v)).find()) {
+            throw coded(400, "INVALID_TEXT", "나이·생년월일은 이 칸에 적을 수 없습니다(생년월일 칸에만 입력).");
+        }
+        return v;
+    }
+
     /** 생년월일 — 실재 날짜, 1920-01-01 이상, 서울 오늘-18년 이하. 밖이면 400 INVALID_DATE(오류 문구에 입력값을 싣지 않는다). */
     public static String requireBirthDate(String v) {
+        return requireBirthDate(v, LocalDate.parse(Times.todayKst()));
+    }
+
+    /** 오늘 날짜를 받는 오버로드 — 윤년 경계 단위 시험용. */
+    static String requireBirthDate(String v, LocalDate today) {
         String d = requireDate("birth_date", v);
         LocalDate day = LocalDate.parse(d);
-        LocalDate max = LocalDate.parse(Times.todayKst()).minusYears(18);
+        LocalDate max = today.minusYears(18);
         if (day.isBefore(MIN_BIRTH) || day.isAfter(max)) {
             throw coded(400, "INVALID_DATE", "생년월일은 1920-01-01부터 만 18세 이상이 되는 날짜까지만 입력할 수 있습니다.");
         }
@@ -182,6 +197,9 @@ public final class HeadText {
         }
         if ("src_title".equals(field)) {
             return "출처 이름";
+        }
+        if ("birth_date".equals(field)) {   // 화면이 '생년월일…' 문구일 때만 생년월일 칸 아래에 오류를 붙인다
+            return "생년월일";
         }
         return "값";
     }

@@ -22,7 +22,7 @@
   hc.DEBOUNCE_MS = 400;   // 기관을 고른 뒤 이 시간 안에 다른 기관으로 옮기면 앞 기관은 읽지 않는다(열람 기록이 과하게 쌓이지 않게). 0이면 바로 읽는다(시험용)
   hc.SALES_ROLES = ['영업팀', '영업팀장', '영업부장'];
   hc.LEAD_ROLES = ['영업팀장', '영업부장'];
-  // HEAD_FIELD 8종(서버 026_inst_head.sql). kind: text|flag|date|period
+  // HEAD_FIELD 9종(서버 026_inst_head.sql + 055 BIRTH_DATE). kind: text|flag|date|period|birth
   hc.FIELDS = [
     { cd: 'NAME', label: '이름', kind: 'text', max: 30 },
     { cd: 'POSITION', label: '직위', kind: 'text', max: 40 },
@@ -32,6 +32,7 @@
     { cd: 'TERM_END', label: '임기 만료일', kind: 'date' },
     { cd: 'EDU', label: '학력', kind: 'period', max: 60 },
     { cd: 'CAREER', label: '경력', kind: 'period', max: 60 },
+    { cd: 'BIRTH_DATE', label: '생년월일', kind: 'birth' },   // 편집 팝업 안에서만 보인다(카드·목록·Word 제외, design 11-20)
   ];
   // HEAD_SRC 7종
   hc.SOURCES = [
@@ -181,11 +182,51 @@
     if (t) return '~' + t;
     return '';
   }
-  hc.valueText = function (it) {
+  // ── 생년월일(상세 팝업에서만) ──
+  hc.BIRTH_MIN = '1920-01-01';
+  // 실제 있는 날짜면 [y,m,d], 아니면 null(2월 30일·형식 오류)
+  function validYmd(s) {
+    const p = parseYmd(s);
+    if (!p) return null;
+    const d = new Date(p[0], p[1] - 1, p[2]);
+    return d.getFullYear() === p[0] && d.getMonth() === p[1] - 1 && d.getDate() === p[2] ? p : null;
+  }
+  function ymdOf(x) { return x instanceof Date ? todayStr(x) : str(x); }
+  // 만 나이(todayYmd = 서울 오늘, 'YYYY-MM-DD' 또는 Date). 형식 오류·미래 날짜면 null. 2월 29일생은 평년 2/28에는 생일 전, 3/1에 한 살.
+  hc.ageOn = function (ymd, todayYmd) {
+    const b = validYmd(ymd), t = validYmd(ymdOf(todayYmd));
+    if (!b || !t) return null;
+    let age = t[0] - b[0];
+    if (t[1] < b[1] || (t[1] === b[1] && t[2] < b[2])) age -= 1;
+    return age < 0 ? null : age;
+  };
+  // 서버 LocalDate.minusYears(18)과 같은 상한. 오늘이 2/29면 (Y-18)-02-28. today를 못 읽으면 ''.
+  hc.birthMax = function (today) {
+    const t = validYmd(ymdOf(today));
+    if (!t) return '';
+    const y = t[0] - 18, d = new Date(y, t[1] - 1, t[2]);
+    return logic.localDateStr(d.getMonth() === t[1] - 1 ? d : new Date(y, t[1] - 1 + 1, 0));
+  };
+  // 제출 전 화면 검사 → 안내 글 | ''(통과). 입력값은 문구에 싣지 않는다.
+  hc.birthCheck = function (value, today) {
+    const v = trim(value);
+    if (!v) return '생년월일을 고르세요.';
+    if (!validYmd(v)) return '날짜를 YYYY-MM-DD 형식으로 고르세요.';
+    const max = hc.birthMax(today);
+    if (v < hc.BIRTH_MIN || (max && v > max)) return hc.BIRTH_MIN + '부터 ' + (max || '만 18세가 되는 날') + '까지의 날짜를 고르세요.';
+    return '';
+  };
+  hc.valueText = function (it, today) {
     const f = it.field_cd, v = it.value;
     if (f === 'ACTING') return v === true ? '예(권한대행)' : '아니오';
     if (f === 'EDU' || f === 'CAREER') { const p = period(it); return str(v) + (p ? ' (' + p + ')' : ''); }
+    if (f === 'BIRTH_DATE') { const a = hc.ageOn(v, today); return str(v) + (a == null ? '' : ' (만 ' + a + '세)'); }
     return str(v);
+  };
+  // 행에 그리는 값 HTML. 생년월일은 날짜만 mono, '(만 n세)'는 일반 글자.
+  hc.valueHtml = function (it, today) {
+    if (it.field_cd === 'BIRTH_DATE') { const a = hc.ageOn(it.value, today); return mono(str(it.value)) + (a == null ? '' : ' (만 ' + a + '세)'); }
+    return mono(hc.valueText(it, today));
   };
   function sortPeriod(list) {   // 최근 것이 위로(끝 연월이 없으면 현재 진행으로 보아 맨 위)
     const key = function (it) { return (trim(it.to) || (trim(it.from) ? '9999-99' : '0000-00')) + '|' + trim(it.from); };
@@ -565,7 +606,7 @@
     const f = hc.fieldOf(fieldCd);
     const b = { head_id: Number(headId), field_cd: fieldCd, source: srcBody(v) };
     const kind = f ? f.kind : 'text';
-    if (kind === 'date') b.date = trim(v.date);
+    if (kind === 'date' || kind === 'birth') b.date = trim(v.date);
     else if (kind === 'flag') b.flag = Number(v.flag) === 1 ? 1 : 0;
     else {
       b.value = trim(v.value);
@@ -629,17 +670,37 @@
   function todayStr(today) {
     return today instanceof Date && !isNaN(today.getTime()) ? logic.localDateStr(today) : '';
   }
-  hc.sourceFieldsHtml = function (today) {
-    const t = todayStr(today);
+  // pre = id 접두어('it' 항목 추가·'ph' 사진·'hf' 기관장 양식) — 한 팝업에 최대 3번 그려져 id가 겹치지 않게 한다.
+  hc.sourceFieldsHtml = function (today, pre) {
+    const t = todayStr(today), p = pre || 'sf';
     return '<label class="hc-lab">출처 종류<select name="src_kind" required>' + opt('', '고르세요', true) +
       hc.SOURCES.map(function (s) { return opt(s.cd, s.label, false); }).join('') + '</select></label>' +
-      '<label class="hc-lab">출처 이름(100자 이내)<input type="text" name="src_title" maxlength="100" required autocomplete="off" placeholder="예: 가람시 누리집 시장 소개"></label>' +
+      '<div class="hc-fld"><label class="hc-lab">출처 이름(100자 이내)<input type="text" name="src_title" maxlength="100" required autocomplete="off" placeholder="예: 가람시 누리집 시장 소개" aria-describedby="' + p + '-st-h"></label>' +
+      '<p class="hc-fhint" id="' + p + '-st-h">자료 이름만 적습니다. 생년월일·나이(예: 1965년생)는 적지 마세요.</p></div>' +
       '<label class="hc-lab wide">출처 주소(선택, http 또는 https)<input type="text" name="src_url" maxlength="1000" autocomplete="off" placeholder="https://"></label>' +
       '<label class="hc-lab">확인한 날<input type="date" name="checked_on" required min="2000-01-01"' + (t ? ' max="' + esc(t) + '" value="' + esc(t) + '"' : '') + '></label>';
   };
   // 항목 종류에 따라 바뀌는 값 칸
-  hc.valueRowHtml = function (fieldCd) {
+  // 생년월일 칸. st = { value, err } — 오류가 있으면 칸 아래에 그리고 aria를 합친다(오류를 앞에).
+  function birthFieldHtml(today, st) {
+    const max = hc.birthMax(today), val = st && st.value ? trim(st.value) : '', err = st && st.err ? st.err : '';
+    return '<div class="hc-fld wide"><label class="hc-lab">생년월일<input type="date" name="date" id="hc-birth" required min="' + hc.BIRTH_MIN + '"' +
+      (max ? ' max="' + esc(max) + '"' : '') + (val ? ' value="' + esc(val) + '"' : '') + (err ? ' aria-invalid="true"' : '') +
+      ' aria-describedby="' + (err ? 'hc-birth-e hc-birth-h' : 'hc-birth-h') + '"></label>' +
+      '<p class="hc-fhint" id="hc-birth-h">' + hc.BIRTH_MIN + '부터 ' + (max ? esc(max) + '(만 18세)' : '만 18세가 되는 날') + '까지 고를 수 있습니다. 기관장 편집 화면에서만 보이며 카드·목록·엑셀·워드 파일에는 들어가지 않습니다. 열 때마다 열람 기록이 남습니다.</p>' +
+      (err ? '<p class="hc-ferr" id="hc-birth-e" role="alert">' + esc(err) + '</p>' : '') + '</div>';
+  }
+  // 값을 고치면 칸 오류를 걷는다(문단 제거·aria-invalid 제거·describedby 원래대로). pre = 'hc-birth'
+  hc.clearFieldErr = function (input, pre) {
+    if (!input || input.getAttribute('aria-invalid') !== 'true') return;
+    input.removeAttribute('aria-invalid');
+    input.setAttribute('aria-describedby', pre + '-h');
+    const box = input.closest ? input.closest('.hc-fld') : null, e = box && box.querySelector('#' + pre + '-e');
+    if (e && e.parentNode) e.parentNode.removeChild(e);
+  };
+  hc.valueRowHtml = function (fieldCd, today, st) {
     const f = hc.fieldOf(fieldCd) || hc.FIELDS[0];
+    if (f.kind === 'birth') return birthFieldHtml(today, st);
     if (f.kind === 'flag') return '<label class="hc-lab">권한대행 여부<select name="flag">' + opt('0', '아니오(정식 임명)', true) + opt('1', '예(권한대행)', false) + '</select></label>';
     if (f.kind === 'date') return '<label class="hc-lab">' + esc(f.label) + '<input type="date" name="date" required min="1900-01-01"></label>';
     if (f.kind === 'period') {
@@ -658,7 +719,7 @@
       '<label class="hc-lab">첫 취임일(선택)<input type="date" name="first_take_office" min="1900-01-01"></label>' +
       '<label class="hc-lab">현 임기 시작일(선택)<input type="date" name="term_start" min="1900-01-01"></label>' +
       '<label class="hc-lab">임기 만료일(선택)<input type="date" name="term_end" min="1900-01-01"></label>' +
-      hc.sourceFieldsHtml(today) +
+      hc.sourceFieldsHtml(today, 'hf') +
       '<div class="hc-actions wide"><button type="submit" class="db-next">' + esc(submitLabel) + '</button></div></form>';
   }
 
@@ -667,6 +728,14 @@
     const retry = M.msg.retry ? '<p class="hc-act"><button type="button" data-m="reload">다시 불러오기</button></p>' : '';
     return (M.msg.err ? '<p class="hc-err" role="alert">' + esc(M.msg.text) + '</p>' : '<p class="hc-ok">' + esc(M.msg.text) + '</p>') + retry;
   }
+  // 확정값 무효 확인 문구. 이름·직위는 오타를 덮어쓰기로 고치게 유도한다(무효 처리하면 기관장이 빌 수 있다, design 11-20 4-6).
+  hc.voidItemText = function (fcd) {
+    if (fcd === 'NAME' || fcd === 'POSITION') {
+      return '이 확정값을 무효 처리합니다. 오타를 고치려면 무효 처리하지 말고 아래 [항목 후보 추가]에서 \'' + hc.fieldLabel(fcd) + '\'' + (fcd === 'NAME' ? '을' : '를') +
+        ' 골라 고친 값을 넣으세요. 이름·직위를 모두 무효 처리하면 기관장이 비고, 생년월일·권한대행 여부는 새로 추가하는 기관장에게 넘어오지 않습니다.';
+    }
+    return '이 확정값을 무효 처리합니다. 카드에서 사라지고 기록만 남습니다.';
+  };
   // 위험 행위(기각·무효·교체 확정)는 확인 단계를 모달 안에서 한 번 더 거친다. 브라우저 확인창은 쓰지 않는다.
   function pendingHtml(p) {
     return '<div class="hc-confirmbox" role="group" aria-labelledby="hc-pb-t"><p id="hc-pb-t">' + esc(p.text) + '</p>' +
@@ -685,7 +754,7 @@
     const rejectBtn = '<button type="button" data-m="ask-reject-item" data-id="' + esc(c.item_id) + '" data-self="' + (self ? '1' : '0') + '" aria-label="' + esc(lab + (self ? ' 후보 회수' : ' 후보 기각')) + '"' +
       (c.can_reject ? '' : ' disabled aria-describedby="hc-wr-' + esc(c.item_id) + '"') + '>' + (self ? '회수' : '기각') + '</button>';
     const pend = isPending(M, 'reject-item', c.item_id) ? pendingHtml(M.pending) : '';
-    return '<li class="hc-row"><div class="hc-main"><b>' + esc(lab) + '</b> ' + mono(hc.valueText(c)) +
+    return '<li class="hc-row"><div class="hc-main"><b>' + esc(lab) + '</b> ' + hc.valueHtml(c, ctx.today) +
       (c.conflict ? ' <span class="hc-badge">확정값과 다름</span>' : '') +
       '<div>' + hc.srcHtml(c.source) + ' <span class="hc-by">입력 ' + esc(c.created_by) + '</span></div></div>' +
       '<div class="hc-btns">' + confirmBtn + rejectBtn + '</div>' +
@@ -704,7 +773,7 @@
     // 교체 확정의 근거가 보이도록 서버가 주는 항목(임기일·학력·경력 등)과 출처를 요약해 보여 준다(최대 6건, 나머지는 건수만).
     const its = Array.isArray(ch.items) ? ch.items : [];
     const sum = its.slice(0, 6).map(function (it) {
-      return '<div class="hc-src"><b>' + esc(hc.fieldLabel(it.field_cd)) + '</b> ' + mono(hc.valueText(it)) + ' ' + hc.srcHtml(it.source) + '</div>';
+      return '<div class="hc-src"><b>' + esc(hc.fieldLabel(it.field_cd)) + '</b> ' + hc.valueHtml(it, ctx.today) + ' ' + hc.srcHtml(it.source) + '</div>';
     }).join('') + (its.length > 6 ? '<div class="hc-src">외 ' + (its.length - 6) + '건</div>' : '');
     return '<li class="hc-row"><div class="hc-main"><b>' + esc(ch.name || '이름 미확인') + '</b> ' + esc(ch.position || '') +
       ' <span class="hc-badge">' + (cur ? '현 기관장 ' + esc(cur) + '과 충돌' : '후보') + '</span>' +
@@ -716,9 +785,9 @@
   function confirmedRow(it, d, M, ctx) {
     const lab = hc.fieldLabel(it.field_cd);
     const can = hc.canVoidOf(it, it.created_by, d.viewer_role, ctx.emp);
-    const btn = can ? '<div class="hc-btns"><button type="button" data-m="ask-void-item" data-id="' + esc(it.item_id) + '" aria-label="' + esc(lab + ' 확정값 무효 처리') + '">무효 처리</button></div>' : '';
+    const btn = can ? '<div class="hc-btns"><button type="button" data-m="ask-void-item" data-id="' + esc(it.item_id) + '" data-f="' + esc(it.field_cd) + '" aria-label="' + esc(lab + ' 확정값 무효 처리') + '">무효 처리</button></div>' : '';
     const pend = isPending(M, 'void-item', it.item_id) ? pendingHtml(M.pending) : '';
-    return '<li class="hc-row"><div class="hc-main"><b>' + esc(lab) + '</b> ' + mono(hc.valueText(it)) +
+    return '<li class="hc-row"><div class="hc-main"><b>' + esc(lab) + '</b> ' + hc.valueHtml(it, ctx.today) +
       '<div>' + hc.srcHtml(it.source) + ' <span class="hc-by">입력 ' + esc(it.created_by) + '</span></div></div>' + btn + pend + '</li>';
   }
   function confirmedItems(h) {
@@ -764,6 +833,15 @@
     return out;
   };
 
+  // 빈 머리에서 [기관장 추가]를 열 때, 이전 기록에 있던 카드 밖 칸(생년월일·권한대행)이 넘어오지 않는다는 안내(planner 11-20 A1). 이전 값은 싣지 않는다. 없으면 ''.
+  hc.carryNotice = function (h) {
+    const f = (h && h.fields) || {}, b = !!f.BIRTH_DATE, a = !!f.ACTING;
+    const lead = function (item) { return '이전 기록의 ' + item + ' 새 기관장으로 넘어오지 않습니다. 같은 분이면 '; };
+    if (b && a) return lead('생년월일·권한대행 여부는') + '권한대행 여부는 아래에서 다시 고르고, 생년월일은 추가한 뒤 [항목 후보 추가]에서 다시 입력하세요.';
+    if (b) return lead('생년월일은') + '추가한 뒤 [항목 후보 추가]에서 다시 입력하세요.';
+    if (a) return lead('권한대행 여부는') + '아래에서 다시 고르세요.';
+    return '';
+  };
   // 입력 부분(기관장 등록 또는 항목 후보 추가 + 사진 올리기). 저장에 성공했을 때만 다시 그린다(실패하면 적은 값이 남는다).
   hc.modalFormsHtml = function (view, M, ctx) {
     ctx = ctx || {};
@@ -772,8 +850,11 @@
     if (hc.isEmptyHead(d)) {
       // head:null이든 빈 머리든 서버는 바로 확정한다(빈 머리는 숨김 처리·열린 후보는 새 기관장으로 옮김). 동시에 먼저 등록한 사람이 있으면 후보로 들어간다.
       const hint = (h ? hc.TEXT.emptied + ' ' : '현 기관장이 없어 ') + '입력한 값이 바로 확정됩니다. 공개 자료로 확인한 사실만 출처와 함께 적으세요.';
+      const carry = hc.carryNotice(h);
       out += '<section class="hc-m-sec" aria-labelledby="hc-s4"><h4 id="hc-s4">기관장 추가</h4>' +
-        '<p class="hc-hint" id="hc-s4-hint">' + esc(hint) + '</p>' + headFormHtml('hf', ctx.today, '추가', 'hc-s4-hint') + '</section>';
+        '<p class="hc-hint" id="hc-s4-hint">' + esc(hint) + '</p>' +
+        (carry ? '<p class="hc-hint" id="hc-s4-carry">' + esc(carry) + '</p>' : '') +
+        headFormHtml('hf', ctx.today, '추가', carry ? 'hc-s4-hint hc-s4-carry' : 'hc-s4-hint') + '</section>';
       return out;
     }
     const fcd = (M && M.field) || 'NAME';
@@ -781,14 +862,14 @@
       '<p class="hc-hint">확정된 값과 다르면 후보로 들어가 확정 대기 목록에서 처리합니다. 학력·경력은 바로 확정됩니다. 정당 직책·범죄 경력은 저장되지 않습니다.</p>' +
       '<form class="hc-form" data-form="add-item" novalidate>' +
       '<label class="hc-lab">항목 종류<select name="field_cd" id="hc-field">' + hc.FIELDS.map(function (f) { return opt(f.cd, f.label, f.cd === fcd); }).join('') + '</select></label>' +
-      '<div class="hc-valrow" id="hc-valrow">' + hc.valueRowHtml(fcd) + '</div>' + hc.sourceFieldsHtml(ctx.today) +
+      '<div class="hc-valrow" id="hc-valrow">' + hc.valueRowHtml(fcd, ctx.today) + '</div>' + hc.sourceFieldsHtml(ctx.today, 'it') +
       '<div class="hc-actions wide"><button type="submit" class="db-next">후보 추가</button></div></form></section>';
     out += '<section class="hc-m-sec" aria-labelledby="hc-s5"><h4 id="hc-s5">사진 올리기</h4>' +
       '<p class="hc-hint">JPG 또는 PNG, 5MB 이하. 서버가 사진을 다시 만들어 저장하고 원래 파일 이름과 촬영 정보는 남기지 않습니다. 새로 올리면 지금 사진은 보관됩니다. 공공누리 제1유형이거나 기관이 직접 허락한 사진만 올립니다.</p>' +
       '<form class="hc-form" data-form="photo" novalidate>' +
       '<label class="hc-lab wide">사진 파일<input type="file" name="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" required></label>' +
       '<label class="hc-lab wide">이용 조건(필수)<select name="license_cd" required>' + opt('', '고르세요', true) + hc.LICENSES.map(function (l) { return opt(l.cd, l.label, false); }).join('') + '</select></label>' +
-      hc.sourceFieldsHtml(ctx.today) +
+      hc.sourceFieldsHtml(ctx.today, 'ph') +
       '<div class="hc-actions wide"><button type="submit" class="db-next">사진 올리기</button></div></form></section>';
     out += '<details class="hc-m-sec hc-newhead"><summary>다른 사람을 새 기관장 후보로 추가(교체)</summary>' +
       '<p class="hc-hint">현 기관장과 다른 사람을 넣으면 후보 기관장이 되고, 확정하면 지금 기관장이 이전 기관장으로 바뀝니다.</p>' + headFormHtml('hf', ctx.today, '후보 기관장 추가') + '</details>';
@@ -824,6 +905,25 @@
     const el = q('#hc-m-status');
     if (el) el.innerHTML = msgHtml(M);
   }
+  // 생년월일 칸 아래 오류(상단 상태줄에는 같은 글을 띄우지 않는다). 적은 값은 유지하고 포커스를 칸에 둔다.
+  function showBirthErr(text, value) {
+    const row = q('#hc-valrow');
+    if (!row) return;
+    row.innerHTML = hc.valueRowHtml('BIRTH_DATE', envNow().today, { value: value, err: text });
+    const i = q('#hc-birth');
+    if (i) i.focus();
+  }
+  // 서버 400 INVALID_DATE(생년월일 제출일 때만 act에 넘긴다) → 칸 아래. 처리했으면 true.
+  // 서버는 출처(확인한 날 등)를 값보다 먼저 검사한다 — 같은 INVALID_DATE라도 문구가 생년월일 것일 때만 칸에 붙인다(qa 11-20 P2-1).
+  function birthFail(e) {
+    if (e.status !== 400) return false;
+    const p = errtext.parse(e.detail);
+    if (p.code !== 'INVALID_DATE' || !/^생년월일/.test(trim(p.message))) return false;
+    const cur = q('#hc-birth');
+    setMsg('', false);
+    showBirthErr(p.message || hc.birthCheck('1900-01-01', envNow().today), cur ? cur.value : '');
+    return true;
+  }
   // 반환: 이번 다시 그리기로 기관장 상태가 바뀌어 입력 양식을 새로 그렸고 그 결과가 'none'이면 true(호출자가 양식 첫 칸으로 포커스를 옮긴다)
   function repaintModal(withForms) {
     if (!M) return false;
@@ -845,7 +945,7 @@
 
   // 쓰기 한 건: 요청 → 다시 읽기(카드·모달 갱신) → 안내. 진행 중에는 다른 클릭을 받지 않는다.
   // btn = 방금 수행한 쓰기의 버튼 ID — 뒤따르는 자동 재조회도 같은 버튼 ID로 감사 기록에 남는다(서버 허용 목록의 값만).
-  function act(fn, okText, withForms, btn) {
+  function act(fn, okText, withForms, btn, onFail) {   // onFail(e) → true면 호출자가 칸 아래 오류로 처리한 것(상단 안내를 띄우지 않는다)
     if (!M || M.busy) return;
     const reBtn = btn || hc.BTN.refresh;
     M.busy = true;
@@ -862,6 +962,7 @@
       });
     }).catch(function (e) {
       if (!M) return;
+      if (onFail && onFail(e)) return;
       setMsg(hc.errText(e.status, e.detail), true);
       if (e.status === 409 || e.status === 404) {   // 그 사이 바뀐 건 — 최신으로 다시 읽어 목록을 맞춘다
         M.pending = null;
@@ -950,7 +1051,7 @@
       case 'reload': reloadInModal(); break;
       case 'confirm-item': act(function () { return hc.request('POST', itemUrl(id, 'confirm'), undefined, hc.BTN.itemConfirm); }, '후보를 확정했습니다.', false, hc.BTN.itemConfirm); break;
       case 'ask-reject-item': askPending({ act: 'reject-item', id: id, self: self, reason: true, go: self ? '회수하기' : '기각하기', text: self ? '내가 낸 후보를 회수합니다. 사유를 적으세요.' : '이 후보를 기각합니다. 기각하면 되돌릴 수 없습니다.' }, b); break;
-      case 'ask-void-item': askPending({ act: 'void-item', id: id, reason: true, go: '무효 처리하기', text: '이 확정값을 무효 처리합니다. 카드에서 사라지고 기록만 남습니다.' }, b); break;
+      case 'ask-void-item': askPending({ act: 'void-item', id: id, reason: true, go: '무효 처리하기', text: hc.voidItemText(b.getAttribute('data-f')) }, b); break;
       case 'ask-reject-head': askPending({ act: 'reject-head', id: id, self: self, reason: true, go: self ? '회수하기' : '기각하기', text: self ? '내가 낸 후보 기관장을 회수합니다. 사유를 적으세요.' : '이 후보 기관장을 기각합니다. 기각하면 되돌릴 수 없습니다.' }, b); break;
       case 'ask-confirm-head': {
         const cur = V.data && V.data.head && V.data.head.name;
@@ -971,8 +1072,12 @@
     const v = formValues(form);
     const headId = V.data && V.data.head ? V.data.head.head_id : 0;
     if (kind === 'add-item') {
+      if (v.field_cd === 'BIRTH_DATE') {   // 제출 전 화면 검사 — 실패하면 요청 없이 칸 아래 오류
+        const bad = hc.birthCheck(v.date, envNow().today);
+        if (bad) { showBirthErr(bad, v.date); return; }
+      }
       act(function () { return hc.addItem(V.instId, headId, v.field_cd, v); },
-        function (r) { return r && r.state === 'CONFIRMED' ? '확정 항목으로 입력했습니다.' : '후보로 넣었습니다. 위 확정 대기 후보에서 확정하세요.' + (r && r.conflict ? ' 확정값과 다른 값이라 영업팀장·영업부장이 처리합니다.' : ''); }, true, hc.BTN.itemAdd);
+        function (r) { return r && r.state === 'CONFIRMED' ? '확정 항목으로 입력했습니다.' : '후보로 넣었습니다. 위 확정 대기 후보에서 확정하세요.' + (r && r.conflict ? ' 확정값과 다른 값이라 영업팀장·영업부장이 처리합니다.' : ''); }, true, hc.BTN.itemAdd, v.field_cd === 'BIRTH_DATE' ? birthFail : null);
     } else if (kind === 'add-head') {
       act(function () { return hc.addHead(V.instId, v); },
         function (r) { return r && r.state === 'CURRENT' ? '기관장을 추가했습니다.' : '후보 기관장으로 넣었습니다. 위 확정 대기 후보에서 처리하세요.'; }, true, hc.BTN.headAdd);
@@ -989,9 +1094,10 @@
     if (e.target && e.target.id === 'hc-field' && M) {
       M.field = e.target.value;
       const row = q('#hc-valrow');
-      if (row) row.innerHTML = hc.valueRowHtml(M.field);
+      if (row) row.innerHTML = hc.valueRowHtml(M.field, envNow().today);
     }
   }
+  function onMInput(e) { if (e.target && e.target.id === 'hc-birth') hc.clearFieldErr(e.target, 'hc-birth'); }
 
   function onMKey(e) {
     if (!M) return;
@@ -1022,6 +1128,7 @@
     M.el.addEventListener('click', onMClick);
     M.el.addEventListener('submit', onMSubmit);
     M.el.addEventListener('change', onMChange);
+    M.el.addEventListener('input', onMInput);
     M.el.addEventListener('keydown', onMKey);
     const first = opts && opts.focus === 'add-head' ? M.el.querySelector('#hf-name') : null;
     (first || M.el.querySelector('#hc-m-title')).focus();

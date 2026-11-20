@@ -119,7 +119,10 @@ public interface InstitutionHeadMapper {
     /** 매칭 지정 — 머리의 칸에 기관을 채운다. */
     int setItemsInstitution(@Param("headId") Long headId, @Param("institutionId") String institutionId);
 
-    /** 합치기 — 후보 칸을 현 기관장 머리로 옮긴다(CANDIDATE 만). 건수를 돌려준다. */
+    /** 합치기·빈 머리 정리 때 생년월일 후보는 옮기지 않고 기각한다(BIRTH_DATE 의 CANDIDATE 만). 건수를 돌려준다. */
+    int rejectBirthCandidatesOfHead(@Param("headId") Long headId, @Param("by") String by, @Param("at") String at);
+
+    /** 합치기 — 후보 칸을 현 기관장 머리로 옮긴다(CANDIDATE 만, 생년월일 후보는 빼고). 건수를 돌려준다. */
     int moveCandidateItems(@Param("fromHeadId") Long fromHeadId, @Param("toHeadId") Long toHeadId,
                            @Param("institutionId") String institutionId);
 

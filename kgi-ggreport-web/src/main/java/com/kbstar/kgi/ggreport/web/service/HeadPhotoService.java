@@ -117,7 +117,7 @@ public class HeadPhotoService {
         if (kind.isEmpty() || kind.length() > 20 || mapper.countEnabledCode("HEAD_SRC", kind) == 0) {
             throw coded(422, "SRC_KIND_NOT_ALLOWED", "허용되지 않는 출처 종류입니다.");
         }
-        String title = HeadText.requireLine("src_title", titleRaw, 100, false);
+        String title = HeadText.noAge(HeadText.requireLine("src_title", titleRaw, 100, false));   // 칸 출처 이름과 같은 나이 표기 차단(security 11-20 R1)
         HeadForbidden.rejectAny(title);
         String url = HeadText.requireUrl(urlRaw);
         String checkedOn = HeadText.requireCheckedOn(checkedOnRaw);
@@ -265,7 +265,7 @@ public class HeadPhotoService {
         InstitutionHeadService.writeLog(mapper, "PHOTO_VOID", instId, p.getHeadId(), null, null, photoId, null, null, null, reason,
                 me, actor, self);
         Long restored = null;
-        // 권한대행 밖 확정 칸이 하나도 없는 머리면 되살리지 않는다 — 이 무효로 머리가 비어 '현 기관장 없음'이 된다(11-13 가). 되살리면 이름 없는 사진만 남는다.
+        // 권한대행·생년월일 밖 확정 칸이 하나도 없는 머리면 되살리지 않는다 — 이 무효로 머리가 비어 '현 기관장 없음'이 된다(11-13 가). 되살리면 이름 없는 사진만 남는다.
         List<InstHeadPhoto> prevs = mapper.countShownItems(p.getHeadId()) > 0
                 ? mapper.selectReplacedPhotos(p.getHeadId()) : new ArrayList<InstHeadPhoto>();
         // 직전에 쓰던 사진 순(REPLACED 로 내려간 시각이 최근인 순)으로 보며, 파일이 남아 있는 첫 사진을 복원한다(없으면 다음 후보, 다 없으면 사진 없음).
