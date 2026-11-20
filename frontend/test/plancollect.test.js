@@ -102,9 +102,7 @@ test('detailHtml 자료 없음: 요청 가능하면 짧은 문구 + 요청 줄, 
 
 // ── 목록 줄 칩 ───────────────────────────────────────────────────────
 test('rowHtml: 열린 요청(요청됨·수집 중)만 칩 하나, 닫힌 상태·없음은 칩 없음, 버튼 없음', function () {
-  const TODAY = new Date(2026, 10, 16);
-  const m = dash.model([{ name: '가구', region: '11', type: '지자체', contractEnd: logic.localDateStr(new Date(2026, 10, 26)), confirmed: false, institutionId: 'ga' }], TODAY);
-  const r = plans.listRows(m, '6', {}, null)[0];
+  const r = plans.baseRows([{ name: '가구', region: '11', type: '지자체', institutionId: 'ga' }], null, null)[0];
   const a = plans.rowHtml(r, { loaded: true, req: req({ institution_id: 'ga' }) });
   assert.ok(a.indexOf('data-st="REQUESTED">사업계획 요청됨</span>') >= 0 && a.indexOf('pop-unk') < 0 && a.indexOf('<button') < 0);   // 자료 없음 + 요청됨 = 칩 하나
   assert.ok(plans.rowHtml(r, { loaded: false, req: req({ institution_id: 'ga' }) }).indexOf('cr-st') < 0);   // 자료 현황을 못 받았으면 3행 칩 없음

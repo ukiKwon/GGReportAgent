@@ -73,7 +73,7 @@ test('index.html·plans.js: 3행 .pl-st·행 패딩 10px·사업계획 절 h3 �
   const css = HTML.slice(a, b);
   assert.ok(css.indexOf('#plans-root .db-row { padding:10px 20px; }') >= 0);
   assert.ok(/\.pl-st \{[^}]*display:flex[^}]*min-height:20px/.test(css));
-  assert.ok(css.indexOf('#plans-root .db-row .pl-st { grid-column:1 / -1; }') >= 0);
+  assert.ok(css.indexOf('#plans-root .db-row .pl-st { grid-column') < 0 && css.indexOf('#plans-root .db-row .meta .pl-st { display:contents; }') >= 0, '2줄 행: 상태 칩은 meta 안(design 11-20 P3-5)');
   assert.ok(css.indexOf('.pl-sum h3 { margin:0 0 8px; }') >= 0 && css.indexOf('.pl-imp { margin:8px 0 0; }') >= 0);
   assert.ok(css.indexOf('.pl-doc-h h4 {') >= 0 && css.indexOf('.pl-doc-h h3') < 0);
   assert.ok(/ensureStatus\(true\);\s*\n\s*if \(ST\.state === 'loading'\) renderList\(\);/.test(SRC));
@@ -307,36 +307,6 @@ function sampleModel() {
   return dash.model(list, TODAY);
 }
 
-test('listRows: 공고 진행 중 먼저, 기간 창 안만(6개월), institutionId로 서버 현황을 붙이고 id 없는 행은 현황 없음', function () {
-  const m = sampleModel();
-  const map = plans.statusMap({ items: [{ institution_id: 'ga', item_count: 2 }, { institution_id: 'zz', item_count: 9 }] });
-  const rows = plans.listRows(m, '6', {}, map);
-  assert.deepStrictEqual(rows.map(function (r) { return r.it.name; }), ['공고구', '가구', '라구', '나구']);
-  assert.deepStrictEqual(rows.map(function (r) { return r.id; }), ['gong', 'ga', '', 'na']);
-  assert.strictEqual(rows[1].st.item_count, 2);
-  assert.strictEqual(rows[0].st, null);
-  assert.strictEqual(rows[2].st, null);
-  assert.deepStrictEqual(plans.listRows(m, '12', {}, map).map(function (r) { return r.it.name; }), ['공고구', '가구', '라구', '나구', '다구']);
-  assert.deepStrictEqual(plans.listRows(m, '6', { q: '가' }, map).map(function (r) { return r.it.name; }), ['가구']);
-  assert.ok(plans.listRows(m, '6', {}, null).every(function (r) { return r.st === null; }));   // 아직 모름
-});
-
-test('filterByStatus·missingIds: 자료 있음/없음, 형식 밖·id 없음·중복 제외, 화면 순서, 1,000개 상한', function () {
-  const m = sampleModel();
-  const rows = plans.listRows(m, '6', {}, plans.statusMap({ items: [{ institution_id: 'ga', item_count: 2 }] }));
-  assert.deepStrictEqual(plans.filterByStatus(rows, 'has').map(function (r) { return r.id; }), ['ga']);
-  assert.deepStrictEqual(plans.filterByStatus(rows, 'none').map(function (r) { return r.id; }), ['gong', '', 'na']);
-  assert.strictEqual(plans.filterByStatus(rows, 'all'), rows);
-  assert.deepStrictEqual(plans.missingIds(rows), ['gong', 'na']);
-  const many = [];
-  for (let i = 0; i < 1200; i += 1) many.push({ id: 'i' + i, st: null });
-  many.push({ id: 'bad id!', st: null }, { id: 'i0', st: null });
-  const ids = plans.missingIds(many);
-  assert.strictEqual(ids.length, 1000);
-  assert.strictEqual(ids[0], 'i0');
-  assert.strictEqual(ids.indexOf('bad id!'), -1);
-});
-
 test('stateChipsHtml: 상황표 — 자료 없음/요청됨/수집 중/수집 실패·제외, 자료 있음 + new·기간 지남·오래됨·다시 요청, 칩은 최대 4개', function () {
   const chips = function (h) { return (h.match(/class="wf-badge/g) || []).length; };
   const R = function (c) { return { status_cd: c }; };
@@ -393,22 +363,6 @@ test("detailHtml: '사업계획' 절은 자료 유무와 관계없이 있고(첫
   assert.ok(plans.detailHtml({ status: 'noid' }, { name: '번들구' }).indexOf('<h3 id="pl-sum-h">사업계획</h3><p class="pl-st"><span class="pop-unk">자료 없음</span></p><p class="db-empty">') >= 0);
 });
 
-test('rowHtml: 날짜·상태 배지(현황을 받은 뒤에만), 공고 진행 중 칩, 이스케이프', function () {
-  const m = sampleModel();
-  const map = plans.statusMap({ items: [{ institution_id: 'ga', item_count: 2, period_ended: true, stale: true }] });
-  const rows = plans.listRows(m, '6', {}, map);
-  const ga = plans.rowHtml(rows[1], { id: 'pl-o-1', selected: true, loaded: true });
-  assert.ok(ga.indexOf('aria-selected="true"') >= 0 && ga.indexOf('role="option"') >= 0 && ga.indexOf('D-10') >= 0 && ga.indexOf(rows[1].it.date) >= 0);
-  assert.ok(idx(ga, '사업계획 ') < idx(ga, '기간 지남') && idx(ga, '기간 지남') < idx(ga, '오래됨'));
-  assert.ok(plans.rowHtml(rows[2], { loaded: true }).indexOf('pop-unk">자료 없음') >= 0);
-  assert.ok(ga.indexOf('<span class="v">2</span>건') >= 0);
-  assert.ok(plans.rowHtml(rows[1], { loaded: false }).indexOf('사업계획') < 0);   // 아직 모르는 동안 '자료 없음'으로 보이지 않게
-  assert.ok(plans.rowHtml(rows[0], { loaded: true }).indexOf('db-chip') >= 0);    // 공고 진행 중 칩
-  const evil = dash.model([rec('<img onerror=1>', '11', 10, { institutionId: 'x1' })], TODAY);
-  const eh = plans.rowHtml(plans.listRows(evil, '6', {}, null)[0], {});
-  assert.ok(eh.indexOf('<img') < 0 && eh.indexOf('&lt;img') >= 0);
-});
-
 test('stateChipsHtml: new 가 있으면 그 뒤 재요청의 실패·제외 칩은 내지 않는다, renderList 는 수집 현황을 받는 동안 빈 자리·실패 칩은 요청 가능한 사람만', function () {
   const AP = { closed_at: '2026-11-19T01:00:00+09:00' };
   const h = plans.stateChipsHtml({ item_count: 2 }, null, { status_cd: 'EXCLUDED' }, AP);
@@ -416,36 +370,6 @@ test('stateChipsHtml: new 가 있으면 그 뒤 재요청의 실패·제외 칩�
   const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'plans.js'), 'utf8');
   assert.ok(src.indexOf("const csWait = ok && CS.state === 'loading';") >= 0 && src.indexOf("loaded: ok && !csWait, pending: ST.state === 'loading' || csWait") >= 0);
   assert.ok(src.indexOf('closed: cc.can ? (cc.closed || null) : null') >= 0);
-});
-
-test('rowHtml 3행: 2행(.meta)은 지역·날짜만, 상태 칩은 3행 .pl-st 한 곳, 받는 중은 빈 자리(aria-hidden), 연결 없음은 3행 없음, option 안에 버튼 없음', function () {
-  const m = sampleModel();
-  const rows = plans.listRows(m, '6', {}, plans.statusMap({ items: [{ institution_id: 'ga', item_count: 2, stale: true }] }));
-  const ga = plans.rowHtml(rows[1], { loaded: true, req: { status_cd: 'REQUESTED' } });
-  const parts = ga.split('<span class="pl-st">');
-  assert.strictEqual(parts.length, 2);
-  assert.ok(parts[0].indexOf('<span class="meta">') > 0 && parts[0].indexOf('wf-badge') < 0 && parts[0].indexOf('pop-unk') < 0);   // 2행에는 칩이 없다
-  assert.ok(parts[1].indexOf('사업계획 <span class="v">2</span>건') >= 0 && parts[1].indexOf('data-st="REQUESTED">요청됨</span>') >= 0 && parts[1].endsWith('</span></li>'));
-  assert.ok(ga.indexOf('<button') < 0);
-  const none = plans.rowHtml(rows[2], { loaded: true, closed: { status_cd: 'FAILED' } });   // 자료 없음 + 최근 실패(요청 가능한 사람만 받음)
-  assert.ok(none.indexOf('<span class="pop-unk">자료 없음</span> <span class="wf-badge cr-st none" data-st="FAILED">수집 실패</span></span></li>') >= 0);
-  assert.ok(plans.rowHtml(rows[1], { loaded: true, isNew: { closed_at: '2026-11-19T01:00:00+09:00' } }).indexOf('data-st="NEW"') >= 0);
-  const wait = plans.rowHtml(rows[1], { loaded: false, pending: true });
-  assert.ok(wait.endsWith('<span class="pl-st" aria-hidden="true"></span></li>') && wait.indexOf('사업계획') < 0);
-  const off = plans.rowHtml(rows[1], { loaded: false });
-  assert.ok(off.indexOf('pl-st') < 0 && off.endsWith('</span></li>'));
-});
-
-test('winHtml·statHtml: 기본 6개월, 상태 3종, 라디오 이름이 현황판(db-per)과 겹치지 않는다', function () {
-  const w = plans.winHtml('6');
-  assert.ok(w.indexOf('name="pl-win" value="6" checked') >= 0 && w.indexOf('name="db-per"') < 0);
-  assert.strictEqual((w.match(/type="radio"/g) || []).length, 4);
-  const s = plans.statHtml('all');
-  assert.ok(s.indexOf('name="pl-stat" value="all" checked><span>모두</span>') >= 0 && s.indexOf('자료 있음') >= 0 && s.indexOf('자료 없음') >= 0);
-  assert.ok(s.indexOf('전체') < 0 && plans.winHtml('6').indexOf('전체') >= 0);   // 두 묶음에 '전체'가 겹치지 않는다
-  assert.strictEqual((s.match(/type="radio"/g) || []).length, 3);
-  assert.ok(plans.groupLabelHtml('6', 4, 3).indexOf('자료 없음 <b>3</b>곳') >= 0);
-  assert.ok(plans.groupLabelHtml('all', 4, null).indexOf('자료 없음') < 0);
 });
 
 // ── 현황판·지도 상세의 '사업계획' 절(훅) ─────────────────────────────
@@ -492,21 +416,9 @@ test('절 숨김: 메뉴에서 기관 사업계획 화면을 열 수 없는 사�
   }
 });
 
-test('footHtml: 목록에 담을 기관 수 + 자료 없는 기관 CSV 버튼, 2줄은 요청 가능 여부로 갈림, 머리 숫자와 다를 때만 차이 줄, 숫자는 mono', function () {
-  const same = plans.footHtml(30, 30, false, true);
-  assert.ok(same.indexOf('목록에 담을 기관 <span class="v">30</span>곳 · <button type="button" class="db-link" id="pl-dl">자료 없는 기관 내려받기(CSV)</button><br>확인용입니다. 수집은 [수집 요청]으로 개발부서에 맡깁니다.') >= 0);
-  assert.ok(same.indexOf('서버에 등록되지 않은') < 0);
-  const diff = plans.footHtml(28, 30, false);
-  assert.ok(diff.indexOf('서버에 등록되지 않은 <span class="v">2</span>곳은 목록에 넣을 수 없습니다.') >= 0);
-  assert.ok(plans.footHtml(28, 30, true).indexOf('id="pl-dl" disabled') >= 0);
-  assert.strictEqual(plans.footHtml(0, 0, false), '');
-  const only = plans.footHtml(0, 3, false);   // 담을 수 있는 곳이 없어도 이유는 알린다
-  assert.ok(only.indexOf('pl-dl') < 0 && only.indexOf('<span class="v">3</span>곳은 목록에 넣을 수 없습니다.') >= 0);
-});
-
 test('소스 규칙: 바닥·내려받기 안내는 요청 가능 여부(CS.can)로 갈리고, 수집 현황이 오면 바닥을 다시 그린다', function () {
   const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'plans.js'), 'utf8');
-  assert.ok(src.indexOf('S.dlBusy, CS.can);') >= 0, 'renderFoot 이 CS.can 을 넘긴다');
+  assert.ok(src.indexOf('S.dlBusy, CS.can, bat);') >= 0, 'renderFoot 이 CS.can 과 일괄 요청 조각을 넘긴다');
   const oc = src.slice(src.indexOf('function onCollect()'), src.indexOf('function postEmpty('));
   assert.ok(oc.indexOf('renderFoot();') >= 0 && oc.indexOf("aid === 'pl-dl'") >= 0, 'onCollect 가 바닥을 다시 그리고 CSV 버튼 포커스를 되돌린다');
   assert.ok(src.indexOf("(CS.can ? ' 수집이 필요하면 기관을 골라 [수집 요청]을 누르세요.' : '')") >= 0, '내려받기 안내의 [수집 요청] 문장은 요청 가능할 때만');
@@ -625,65 +537,6 @@ test('dash.isNoticeCheck: 결과 확인 판정 정본을 내보낸다', function
   assert.strictEqual(dash.isNoticeCheck(byName(m.notice, '접수구')), false);
 });
 
-test('listRows: 결과 확인 기관은 어느 기간에서도 빼고, 접수 중·마감일 기록 없음 30일 이내는 남긴다', function () {
-  const m = checkModel();
-  ['3', '6', 'all'].forEach(function (w) {
-    const names = plans.listRows(m, w, {}, null).map(function (r) { return r.it.name; });
-    assert.ok(names.indexOf('마감구') < 0 && names.indexOf('미상31') < 0, w);
-    assert.ok(names.indexOf('접수구') >= 0 && names.indexOf('미상30') >= 0, w);
-  });
-  assert.strictEqual(dash.filterItems(m.notice, {}).filter(dash.isNoticeCheck).length, 2);
-  assert.strictEqual(dash.filterItems(m.notice, { q: '마감' }).filter(dash.isNoticeCheck).length, 1);   // 검색은 적용
-  assert.strictEqual(plans.checkNoteHtml(dash.filterItems(m.notice, { region: '99' }).filter(dash.isNoticeCheck).length, true), '');   // 지역으로 0곳이면 안내 없음
-  const listed = plans.listRows(m, 'all', {}, null).filter(function (r) { return r.it.notice; }).length;
-  assert.strictEqual(listed + dash.filterItems(m.notice, {}).filter(dash.isNoticeCheck).length, m.notice.length);   // 목록 + 안내 = 공고 전체(겹침·빠짐 없음)
-  const winKeys = dash.windowItems(m, 'all').map(function (x) { return x.name; });
-  assert.ok(winKeys.indexOf('마감구') < 0 && winKeys.indexOf('미상31') < 0);   // 기간 창으로 되돌아오지 않음
-});
-
-test('checkNoteHtml: 0곳은 빈 문자열, 숫자는 mono, 30은 logic 상수, 버튼은 메뉴가 보일 때만, 미확인 글자 없음', function () {
-  assert.strictEqual(plans.checkNoteHtml(0, true), '');
-  assert.strictEqual(plans.checkNoteHtml(undefined, true), '');
-  const on = plans.checkNoteHtml(3, true);
-  assert.ok(on.indexOf('>결과 확인할 <span class="v">3</span>곳은 뺐습니다') > 0);   // 338px 안에 한 줄(design 11-19 P2-1)
-  assert.ok(on.indexOf('title="마감이 지났거나, 마감일 기록 없이 공고 후 ' + logic.NOTICE_UNKNOWN_OPEN_DAYS + '일이 지난 곳입니다."') > 0);   // 설명은 title — 바닥은 한 줄
-  assert.strictEqual(plans.checkNoteHtml(3, true).split('</p>').length, 2);
-  assert.ok(on.indexOf('id="pl-to-notice">입찰 공고 현황에서 보기</button>') > 0);
-  assert.ok(on.indexOf('미확인') < 0);
-  const off = plans.checkNoteHtml(3, false);
-  assert.ok(off.indexOf('<button') < 0 && off.indexOf('<span class="v">3</span>곳') > 0);
-});
-
-test('noticeMenuVisible: 사이드바·app 이 없으면 보임, noticeMenuCheck 로 가린다', function () {
-  try {
-    assert.strictEqual(plans.noticeMenuVisible(), true);
-    plans.noticeMenuCheck = function () { return false; };
-    assert.strictEqual(plans.noticeMenuVisible(), false);
-  } finally { plans.noticeMenuCheck = null; }
-});
-
-test('rowHtml: 고정 행은 data-pin·직접 연 기관, 결과 확인이면 data-check, 일반 행에는 없다', function () {
-  const m = checkModel();
-  const aw = byName(m.notice, '마감구'), rc = byName(m.notice, '접수구'), ga = byName(m.upcoming, '가구');
-  const pc = plans.rowHtml({ key: aw.key, it: aw, id: 'aw', st: null }, { pinned: true });
-  assert.ok(pc.indexOf(' data-pin="1"') > 0 && pc.indexOf(' data-check="1"') > 0 && pc.indexOf(' · 직접 연 기관') > 0);
-  const pp = plans.rowHtml({ key: ga.key, it: ga, id: 'ga', st: null }, { pinned: true });
-  assert.ok(pp.indexOf(' data-pin="1"') > 0 && pp.indexOf('data-check') < 0);
-  const nr = plans.rowHtml({ key: rc.key, it: rc, id: 'rc', st: null }, {});
-  assert.ok(nr.indexOf('data-pin') < 0 && nr.indexOf('data-check') < 0 && nr.indexOf('직접 연 기관') < 0);
-});
-
-test('소스: pin 행 pinned, applyPending 결과 확인은 pin, 안내는 ready() 앞, 버튼은 nav.NOTICE_ID', function () {
-  assert.ok(SRC.indexOf('pinned: true }].concat(rows)') > 0);
-  assert.ok(SRC.indexOf('pinned: !!r.pinned') > 0);
-  assert.ok(SRC.indexOf('else if (it.notice && d.isNoticeCheck(it)) S.pin =') > 0);
-  const foot = SRC.slice(SRC.indexOf('function renderFoot()'), SRC.indexOf('const OFFLINE_MSG'));
-  assert.ok(foot.indexOf('plans.checkNoteHtml(') > 0 && foot.indexOf('plans.checkNoteHtml(') < foot.indexOf('if (ready())'));
-  assert.ok(SRC.indexOf("case 'pl-to-notice':") > 0 && SRC.indexOf('root.app.openNavItem(root.nav.NOTICE_ID)') > 0);
-  assert.ok(SRC.indexOf('if (!(root.app && root.app.openNavItem && root.nav && root.app.openNavItem(') < 0);   // 탭 가득 참은 app 이 안내 — 중복 flash 없음
-  assert.strictEqual(nav.NOTICE_ID, 'soon:입찰 공고 현황');
-});
-
 test('수집 현황 키 객체: __proto__ 도 자기 키로 담고, constructor·toString 같은 ID 는 현황이 없으면 null', function () {
   const d = { can_request: true, items: [{ institution_id: '__proto__', status_cd: 'REQUESTED' }],
     last_closed: [{ institution_id: '__proto__', status_cd: 'FAILED' }], recent_applied: [{ institution_id: '__proto__' }] };
@@ -719,4 +572,325 @@ test('소스: renderFoot 이 pl-dl 포커스를 되돌린다(onStatus·내려받
   assert.ok(/S\.dlFocus = !!\(fa && fa\.id === 'pl-dl'\)/.test(dm) && /renderFoot\(\); S\.dlFocus = false;/.test(dm));
   const os = SRC.slice(SRC.indexOf('function onStatus()'), SRC.indexOf('function setFlash('));
   assert.ok(os.indexOf('renderFoot();') >= 0, 'onStatus 는 renderFoot 만 부르면 복원된다');
+});
+
+// ── NEXT 103: 모든 기관 목록 · 목표·관심 정렬 · 바닥 일괄 수집 요청(규격 보정) ─────────────
+const INST = [
+  { name: '다구', region: '11', type: '지자체', institutionId: 'da' },
+  { name: '가구', region: '11', type: '지자체', institutionId: 'ga' },
+  { name: '나구', region: '26', type: '지자체', institutionId: 'na' },
+  { name: '라구', region: '26', type: '지자체' },
+  { name: '마구', region: '26', type: '지자체', institutionId: 'ma' },
+  { name: '가구', region: '11', type: '지자체', institutionId: 'ga' },   // 중복 — 한 곳으로
+];
+function tmap() {
+  return plans.mergeTargets([
+    { year: 2026, data: { items: [{ institution_id: 'na', target_year: 2026 }], watch_items: [{ institution_id: 'da' }] } },
+    { year: 2027, data: { items: [{ institution_id: 'na', target_year: 2027 }, { institution_id: 'ga', target_year: 2027 }], watch_items: [{ institution_id: 'da' }] } },
+  ]);
+}
+const SMAP = plans.statusMap({ items: [{ institution_id: 'na', item_count: 2, stale: true }, { institution_id: 'ma', item_count: 1, stale: true }, { institution_id: 'zz', item_count: 9 }] });
+function names(rows) { return rows.map(function (r) { return r.name; }); }
+
+test('mergeTargets·targetOf: 두 해 목표는 연도를 합치고, 관심은 두 응답을 기관 ID로 합치며, 목표이면서 관심이면 목표, 관심 기능 없는 서버는 hasWatch=false', function () {
+  const tm = tmap();
+  assert.strictEqual(tm.hasWatch, true);
+  assert.deepStrictEqual(plans.targetOf(tm, 'na'), { kind: 'GOAL', years: [2026, 2027] });
+  assert.deepStrictEqual(plans.targetOf(tm, 'ga'), { kind: 'GOAL', years: [2027] });
+  assert.deepStrictEqual(plans.targetOf(tm, 'da'), { kind: 'WATCH', years: [] });
+  assert.strictEqual(plans.targetOf(tm, 'zz'), null);
+  assert.strictEqual(plans.targetOf(null, 'na'), null);
+  const both = plans.mergeTargets([{ year: 2026, data: { items: [{ institution_id: 'x1' }], watch_items: [{ institution_id: 'x1' }] } }]);
+  assert.strictEqual(plans.targetOf(both, 'x1').kind, 'GOAL');
+  assert.deepStrictEqual(plans.targetOf(both, 'x1').years, [2026]);   // target_year 없으면 응답의 year
+  const old = plans.mergeTargets([{ year: 2026, data: { items: [{ institution_id: 'x1' }] } }, { year: 2027, data: null }]);
+  assert.strictEqual(old.hasWatch, false);
+  const evil = plans.mergeTargets([{ year: 2026, data: { items: [{ institution_id: '__proto__' }], watch_items: [] } }]);
+  assert.strictEqual(plans.targetOf(evil, '__proto__').kind, 'GOAL');
+  assert.strictEqual(plans.targetOf(evil, 'constructor'), null);
+});
+
+test('baseRows·orderRows·filterRows: 모든 기관(중복 한 곳), 기본은 자료 있는 곳 먼저 → 이름순, 켬은 올해 목표 → 다음 해 목표 → 관심 → 그 밖, 검색·지역 필터', function () {
+  const rows = plans.baseRows(INST, tmap(), SMAP);
+  assert.strictEqual(rows.length, 5);
+  assert.strictEqual(rows.filter(function (r) { return r.id === 'na'; })[0].st.item_count, 2);
+  assert.strictEqual(rows.filter(function (r) { return r.name === '라구'; })[0].st, null);
+  assert.ok(plans.baseRows(INST, null, null).every(function (r) { return r.st === null && r.kind === ''; }));   // 아직 모름
+  assert.deepStrictEqual(names(plans.orderRows(rows, false, 2026)), ['나구', '마구', '가구', '다구', '라구']);
+  assert.deepStrictEqual(names(plans.orderRows(rows, true, 2026)), ['나구', '가구', '다구', '마구', '라구']);   // 2026 목표, 2027 목표, 관심, 그 밖(자료 있는 곳 먼저)
+  assert.strictEqual(plans.goalRank({ kind: 'GOAL', years: [2027] }, 2026), 1);
+  assert.strictEqual(plans.goalRank({ kind: 'GOAL', years: [2026, 2027] }, 2026), 0);
+  assert.strictEqual(plans.goalRank({ kind: 'WATCH', years: [] }, 2026), 2);
+  assert.strictEqual(plans.goalRank({ kind: '', years: [] }, 2026), 3);
+  const ord = plans.orderRows(rows, false, 2026);
+  assert.deepStrictEqual(names(plans.filterRows(ord, { region: '26' })), ['나구', '마구', '라구']);
+  assert.deepStrictEqual(names(plans.filterRows(ord, { q: ' 다 ' })), ['다구']);
+  assert.strictEqual(plans.filterRows(ord, {}).length, 5);
+  assert.deepStrictEqual(plans.filterByStatus(ord, 'has').map(function (r) { return r.id; }), ['na', 'ma']);
+  assert.deepStrictEqual(plans.missingIds(ord), ['ga', 'da']);   // 화면 순서, id 없는 라구 제외
+});
+
+test('batchPlan: 켬은 목표·관심만, 끔은 보이는 목록 전체, 열린 요청·EXCLUDED·id 없음 제외(FAILED는 포함), 최신 자료 제외, 앞 50곳, 사유별 수·뺀 곳 수', function () {
+  const rows = plans.orderRows(plans.baseRows(INST, tmap(), SMAP), true, 2026);   // 나구(목표·오래됨) 가구 다구 마구(오래됨) 라구
+  const top = plans.batchPlan(rows, true, null, null);
+  assert.deepStrictEqual(top.ids, ['na', 'ga', 'da']);
+  assert.deepStrictEqual(top.counts, { none: 2, stale: 1, ended: 0 });
+  assert.strictEqual(top.total, 3);
+  const all = plans.batchPlan(rows, false, null, null);
+  assert.deepStrictEqual(all.ids, ['na', 'ga', 'da', 'ma']);
+  assert.deepStrictEqual(all.skipped, { open: 0, excl: 0, noid: 1 });   // 라구: 서버에 등록되지 않음
+  const open = plans.batchPlan(rows, false, function (id) { return id === 'ga' ? { status_cd: 'REQUESTED' } : null; }, null);
+  assert.strictEqual(open.ids.indexOf('ga'), -1);
+  assert.strictEqual(open.skipped.open, 1);
+  const excl = plans.batchPlan(rows, false, null, function (id) { return id === 'da' ? { status_cd: 'EXCLUDED' } : (id === 'ga' ? { status_cd: 'FAILED' } : null); });
+  assert.strictEqual(excl.ids.indexOf('da'), -1);
+  assert.ok(excl.ids.indexOf('ga') >= 0);
+  assert.strictEqual(excl.skipped.excl, 1);
+  const ended = plans.batchPlan([{ id: 'e1', name: 'e', st: { period_ended: true }, kind: '', years: [] }, { id: 'f1', name: 'f', st: { item_count: 3 }, kind: '', years: [] },
+    { id: 'bad id!', name: 'b', st: null, kind: '', years: [] }], false, null, null);
+  assert.deepStrictEqual(ended.ids, ['e1']);
+  assert.strictEqual(ended.counts.ended, 1);
+  const many = [];
+  for (let i = 0; i < 60; i += 1) many.push({ id: 'i' + i, name: 'n' + i, st: null, kind: 'GOAL', years: [2026] });
+  const big = plans.batchPlan(many, true, null, null);
+  assert.strictEqual(big.ids.length, 50);
+  assert.strictEqual(big.total, 60);
+  assert.strictEqual(big.ids[0], 'i0');
+});
+
+test('batHtml: 켬은 [목표·관심 n곳 수집 요청]+사유별 수, 끔은 [n곳 수집 요청], 50 초과는 [앞 50곳]+확인 필요 N곳 중 목록 순서로, 0곳은 #pl-bat-none', function () {
+  const rows = plans.baseRows(INST, tmap(), SMAP);
+  const p = plans.batchPlan(plans.orderRows(rows, true, 2026), true, null, null);
+  const on = plans.batHtml(p, { top: true, hasWatch: true });
+  assert.ok(on.indexOf('<button type="button" id="pl-bat">목표·관심 <span class="v">3</span>곳 수집 요청</button>') === 0);
+  assert.ok(on.indexOf('<span class="db-why">자료 없음 <span class="v">2</span> · 오래됨 <span class="v">1</span></span>') >= 0);
+  assert.ok(plans.batHtml(p, { top: true, hasWatch: false }).indexOf('>목표 <span class="v">3</span>곳 수집 요청') >= 0);
+  const off = plans.batHtml(plans.batchPlan(plans.orderRows(rows, false, 2026), false, null, null), { top: false });
+  assert.ok(off.indexOf('id="pl-bat"><span class="v">4</span>곳 수집 요청</button>') >= 0 && off.indexOf('db-why') < 0);
+  assert.ok(plans.batHtml(p, { top: true, busy: true }).indexOf('id="pl-bat" disabled') >= 0);
+  const many = [];
+  for (let i = 0; i < 60; i += 1) many.push({ id: 'i' + i, name: 'n' + i, st: null, kind: '', years: [] });
+  const big = plans.batHtml(plans.batchPlan(many, false, null, null), { top: false });
+  assert.ok(big.indexOf('>앞 <span class="v">50</span>곳 수집 요청</button>') >= 0 && big.indexOf('확인 필요 <span class="v">60</span>곳 중 목록 순서로') >= 0);
+  const none = plans.batHtml(plans.batchPlan([], false, null, null), {});
+  assert.strictEqual(none, '<span id="pl-bat-none" tabindex="-1">수집 요청할 기관이 없습니다.</span>');
+});
+
+test('footHtml: 요청 가능하면 둘째 줄이 일괄 요청 조각, 불가면 확인용입니다., CSV 대상 0곳이어도 일괄 줄은 단독, 차이 줄 유지', function () {
+  const bat = '<button type="button" id="pl-bat">3곳</button>';
+  const can = plans.footHtml(30, 30, false, true, bat);
+  assert.ok(can.indexOf('목록에 담을 기관 <span class="v">30</span>곳 · <button type="button" class="db-link" id="pl-dl">자료 없는 기관 내려받기(CSV)</button><br>' + bat) >= 0);
+  assert.ok(can.indexOf('확인용입니다.') < 0 && can.indexOf('서버에 등록되지 않은') < 0);
+  assert.ok(plans.footHtml(30, 30, false, false, bat).indexOf('<br>확인용입니다.') >= 0 && plans.footHtml(30, 30, false, false, bat).indexOf('pl-bat') < 0);
+  assert.ok(plans.footHtml(30, 30, false, true).indexOf('확인용입니다.') < 0);   // bat 없으면 둘째 줄 없음
+  assert.strictEqual(plans.footHtml(0, 0, false, true, bat), bat);
+  assert.strictEqual(plans.footHtml(0, 0, false, false, bat), '');
+  assert.ok(plans.footHtml(28, 30, true, true, bat).indexOf('id="pl-dl" disabled') >= 0);
+  assert.ok(plans.footHtml(28, 30, false, true, bat).indexOf('서버에 등록되지 않은 <span class="v">2</span>곳은 목록에 넣을 수 없습니다.') >= 0);
+});
+
+test('batchDialogHtml: alertdialog·aria-modal·제목(tabindex=-1) 연결, [기관|구분|이유] 표, 기관명 이스케이프, 뺀 곳 줄(0이면 생략), 50 초과 경고, 발 버튼', function () {
+  const rows = plans.baseRows([{ name: '<img onerror=1>', region: '11', type: '지자체', institutionId: 'e1' }, { name: '나구', region: '26', type: '지자체', institutionId: 'na' }],
+    plans.mergeTargets([{ year: 2026, data: { items: [{ institution_id: 'na' }] } }]), plans.statusMap({ items: [{ institution_id: 'na', item_count: 1, stale: true }] }));
+  const p = plans.batchPlan(rows, false, null, null);
+  const h = plans.batchDialogHtml(p);
+  assert.ok(h.indexOf('<div id="pl-dlg" class="modal-overlay" style="display:none"><div class="dlg" role="alertdialog" aria-modal="true" aria-labelledby="pl-dlg-t" aria-describedby="pl-dlg-p">') === 0);
+  assert.ok(h.indexOf('pl-dlg-back') < 0 && h.indexOf('tabindex="-1">사업계획 2곳') > 0);
+  assert.ok(h.indexOf('<h2 class="dlg-t" id="pl-dlg-t" tabindex="-1">사업계획 2곳 수집 요청</h2>') >= 0);
+  assert.ok(h.indexOf('<th scope="col">기관</th><th scope="col">구분</th><th scope="col">이유</th>') >= 0);
+  assert.ok(h.indexOf('<td><span class="v">2026</span> 목표</td>') >= 0 && h.indexOf('<td>그 밖의 기관</td>') >= 0);
+  assert.ok(h.indexOf('<img') < 0 && h.indexOf('&lt;img') >= 0);
+  assert.ok(h.indexOf('pop-unk">자료 없음') >= 0 && h.indexOf('cr-st gap">오래됨') >= 0);
+  assert.ok(h.indexOf('<button type="button" id="pl-dlg-cancel">취소</button><button type="button" id="pl-dlg-ok" class="dlg-go">2곳 요청</button>') >= 0, '[취소][n곳 요청] 순서');
+  assert.ok(h.indexOf('pl-dlg-skip') < 0 && h.indexOf('pl-warn') < 0 && h.indexOf('id="pl-dlg-err" role="alert"') >= 0);
+  assert.ok(h.indexOf('<p class="dlg-err" id="pl-dlg-err" role="alert"></p></div>') > h.indexOf('<div class="dlg-note">') && h.indexOf('<div class="dlg-note">') > h.indexOf('</header>') && h.indexOf('class="dlg-note"') < h.indexOf('class="dlg-body"'), '오류 줄은 머리 아래 .dlg-note');
+  assert.ok(h.indexOf('id="pl-dlg-p"') > 0 && h.indexOf('id="pl-dlg-d"') > 0);
+  const sk = plans.batchDialogHtml(Object.assign({}, p, { skipped: { open: 2, excl: 1, noid: 4 } }));
+  assert.ok(sk.indexOf('뺀 곳: 이미 요청 중 <span class="v">2</span>곳 · 수집 제외 <span class="v">1</span>곳 · 서버에 등록되지 않은 <span class="v">4</span>곳') >= 0);
+  assert.ok(plans.batchDialogHtml(Object.assign({}, p, { total: 60 })).indexOf('class="pl-warn"') >= 0);
+});
+
+test('batchResult·batchErrorText: 전부 신규 / 섞임 / 못 한 곳(3곳 이하 기관명·그 밖 사유별 수) / note_sent===false 만 알림 문구 / 전부 실패는 fail', function () {
+  const all = plans.batchResult({ requested_count: 12, joined_count: 0, already_count: 0, not_found_count: 0, error_count: 0, note_sent: true });
+  assert.deepStrictEqual(all, { fail: false, text: '12곳 수집을 요청했습니다. 개발부서가 처리하면 쪽지로 알려 드립니다.' });
+  const mix = plans.batchResult({ requested_count: 9, joined_count: 2, already_count: 1, not_found_count: 0, error_count: 0, note_sent: true });
+  assert.strictEqual(mix.text, '12곳 요청을 보냈습니다: 새 요청 9곳 · 다른 사람 요청에 함께 올림 2곳 · 이미 내가 요청한 곳 1곳.');
+  const part = plans.batchResult({ requested_count: 9, joined_count: 0, already_count: 1, not_found_count: 1, error_count: 1, note_sent: true,
+    results: [{ institution_id: 'a1', result_cd: 'not_found' }, { institution_id: 'b1', result_cd: 'error', code: 'CONCURRENT' }] }, function (id) { return id === 'a1' ? '가구' : '나구'; });
+  assert.ok(part.text.indexOf(' 못 한 곳 2곳(가구: 서버에서 찾지 못함 · 나구: 동시에 처리됨). 못 한 곳은 목록에 그대로 남으니 잠시 뒤 다시 누르세요.') > 0);
+  const many = plans.batchResult({ requested_count: 1, not_found_count: 2, error_count: 2, note_sent: true,
+    results: [{ result_cd: 'not_found' }, { result_cd: 'not_found' }, { result_cd: 'error', code: 'CONCURRENT' }, { result_cd: 'error', code: 'SERVER_ERROR' }] });
+  assert.ok(many.text.indexOf('못 한 곳 4곳(서버에서 찾지 못함 2 · 동시에 처리됨 1 · 처리 오류 1)') > 0);
+  assert.strictEqual(plans.batchResult({ requested_count: 1, note_sent: true }).text.indexOf('알림이 가지 않았습니다'), -1);
+  assert.strictEqual(plans.batchResult({ requested_count: 1 }).text.indexOf('알림이 가지 않았습니다'), -1);   // note_sent 가 false 일 때만
+  assert.ok(plans.batchResult({ requested_count: 1, note_sent: false }).text.indexOf('개발부서 알림이 가지 않았습니다(요청은 접수됨). 개발부서에 따로 알려 주세요.') > 0);
+  assert.strictEqual(plans.batchResult({ requested_count: 0, joined_count: 0, already_count: 0, not_found_count: 5, error_count: 7, note_sent: false }).fail, true);
+  assert.strictEqual(plans.batchResult({ not_found_count: 5, error_count: 7 }).text, '12곳 모두 요청하지 못했습니다. 잠시 뒤 다시 누르세요.');
+  assert.ok(plans.batchErrorText(400, 'BAD_IDS').indexOf('요청 목록이 올바르지 않아 보내지 못했습니다. 화면을 다시 연 뒤 다시 누르세요.') === 0);
+  assert.ok(plans.batchErrorText(403, '').indexOf('영업부서·개발부서만') >= 0 && plans.batchErrorText(0, '').indexOf('연결 실패') >= 0);
+});
+
+test('rowHtml(2줄): 이름+실선 .pl-tag(연도 앞), .meta 안에 지역·종류+.pl-st, 두 해 목표는 이른 연도+title, 관심은 점선 아님, pin, 받는 중 자리, 버튼 없음, 이스케이프', function () {
+  const rows = plans.baseRows(INST, tmap(), SMAP);
+  const by = function (id) { return rows.filter(function (r) { return r.id === id; })[0]; };
+  const na = plans.rowHtml(by('na'), { id: 'pl-o-1', selected: true, loaded: true });
+  assert.ok(na.indexOf('aria-selected="true"') >= 0 && na.indexOf('role="option"') >= 0 && na.indexOf('<span class="nm">나구</span>') >= 0);
+  assert.ok(na.indexOf('<span class="pl-tag" data-kind="GOAL" title="목표 연도 2026·2027(가장 이른 해를 표시)"><span class="v">2026</span> 목표</span>') >= 0);
+  assert.ok(na.indexOf('<span class="meta"><span class="pl-reg">26') >= 0 && na.split('<span class="pl-st">').length === 2);
+  assert.ok(na.indexOf('사업계획 <span class="v">2</span>건') >= 0 && na.indexOf('오래됨') >= 0);
+  assert.ok(na.indexOf('<button') < 0 && na.endsWith('</span></span></li>'));
+  assert.ok(na.indexOf('data-pin') < 0 && na.indexOf('직접 연 기관') < 0);
+  const ga = plans.rowHtml(by('ga'), { loaded: true });
+  assert.ok(ga.indexOf('<span class="v">2027</span> 목표</span>') >= 0 && ga.indexOf('title=') < 0 && ga.indexOf('pop-unk">자료 없음') >= 0);
+  const da = plans.rowHtml(by('da'), { loaded: true });
+  assert.ok(da.indexOf('<span class="pl-tag" data-kind="WATCH">관심</span>') >= 0 && da.indexOf('pop-unk pl-') < 0 && da.indexOf('data-kind="GOAL"') < 0);   // 관심 칩은 점선이 아니다
+  assert.ok(plans.rowHtml(rows.filter(function (r) { return r.name === '라구'; })[0], { loaded: true }).indexOf('pl-tag') < 0);
+  assert.ok(plans.rowHtml(by('na'), { loaded: false }).indexOf('사업계획') < 0);   // 아직 모르는 동안 '자료 없음'으로 보이지 않게
+  assert.ok(plans.rowHtml(by('na'), { loaded: false, pending: true }).indexOf('<span class="pl-wait" aria-hidden="true"></span>') >= 0);
+  const pin = plans.rowHtml(by('ga'), { loaded: true, pinned: true });
+  assert.ok(pin.indexOf(' data-pin="1"') > 0 && pin.indexOf(' · 직접 연 기관') > 0);
+  assert.ok(plans.rowHtml(by('ga'), { loaded: true, req: { status_cd: 'REQUESTED' } }).indexOf('data-st="REQUESTED">사업계획 요청됨</span>') >= 0);
+  const evil = plans.rowHtml(plans.baseRows([{ name: '<img onerror=1>', region: '11', type: '지자체', institutionId: 'x1' }], null, null)[0], {});
+  assert.ok(evil.indexOf('<img') < 0 && evil.indexOf('&lt;img') >= 0);
+});
+
+test('groupHeadHtml: 위 묶음 머리(목표 n · 관심 n), 0곳 안내 두 가지, 그 밖의 기관, 관심 없는 서버는 괄호 없음, li role=presentation', function () {
+  const top = plans.groupHeadHtml('top', { id: 'pl-gh-top', goal: 8, watch: 4, total: 12, marks: 12, hasWatch: true });
+  assert.ok(top.indexOf('<li role="presentation" class="pl-gh" id="pl-gh-top"><b>목표·관심</b> <span class="v">12</span>곳 (목표 <span class="v">8</span> · 관심 <span class="v">4</span>)</li>') === 0);
+  assert.ok(plans.groupHeadHtml('top', { id: 'x', goal: 8, watch: 0, total: 8, marks: 8, hasWatch: false }).indexOf('<b>목표</b> <span class="v">8</span>곳</li>') >= 0);
+  assert.ok(plans.groupHeadHtml('top', { id: 'x', total: 0, marks: 0, hasWatch: true }).indexOf('목표·관심 기관이 없습니다. 입찰 현황판에서 목표·관심 기관으로 넣을 수 있습니다.') >= 0);
+  assert.ok(plans.groupHeadHtml('top', { id: 'x', total: 0, marks: 5, hasWatch: true }).indexOf('조건에 맞는 목표·관심 기관이 없습니다.') >= 0);
+  assert.ok(plans.groupHeadHtml('rest', { id: 'pl-gh-rest', total: 300 }).indexOf('<b>그 밖의 기관</b> <span class="v">300</span>곳') >= 0);
+});
+
+test('groupLabelHtml·sortBtnHtml·statHtml: 요약줄 다섯 경우, 정렬 토글 글자 고정·aria-pressed·aria-disabled·체크 SVG, 상태 묶음 3종', function () {
+  const base = { ready: true, loading: false, stat: 'all', total: 312, shown: 312, has: 9, top: false, marks: 12, hasWatch: true };
+  assert.strictEqual(plans.groupLabelHtml(base), '기관 <b>312</b>곳 · 자료 있음 <b>9</b>곳 · 자료 있는 곳 먼저');
+  assert.strictEqual(plans.groupLabelHtml(Object.assign({}, base, { top: true })), '기관 <b>312</b>곳 · 목표·관심 <b>12</b>곳을 위로');
+  assert.ok(plans.groupLabelHtml(Object.assign({}, base, { top: true, hasWatch: false })).indexOf('목표 <b>12</b>곳을 위로') >= 0);
+  assert.strictEqual(plans.groupLabelHtml(Object.assign({}, base, { stat: 'none', shown: 303 })), '자료 없음 <b>303</b>곳 (전체 <b>312</b>곳)');
+  assert.strictEqual(plans.groupLabelHtml(Object.assign({}, base, { stat: 'has', shown: 9 })), '자료 있음 <b>9</b>곳 (전체 <b>312</b>곳)');
+  assert.strictEqual(plans.groupLabelHtml(Object.assign({}, base, { ready: false, loading: true })), '기관 <b>312</b>곳 · 사업계획 현황을 받는 중');
+  assert.strictEqual(plans.groupLabelHtml(Object.assign({}, base, { ready: false })), '기관 <b>312</b>곳');
+  const on = plans.sortBtnHtml({ on: true, ok: true, hasWatch: true });
+  assert.ok(on.indexOf('id="pl-sort" class="pl-sort" aria-pressed="true"') >= 0 && on.indexOf('<svg') > 0 && on.indexOf('<span>목표·관심 먼저</span>') >= 0 && on.indexOf('aria-disabled') < 0);
+  const off = plans.sortBtnHtml({ on: false, ok: true, hasWatch: true });
+  assert.ok(off.indexOf('aria-pressed="false"') >= 0 && off.indexOf('<span>목표·관심 먼저</span>') >= 0);   // 눌림과 무관하게 글자 고정
+  const dis = plans.sortBtnHtml({ on: true, ok: false, why: '받지 못함', hasWatch: false });
+  assert.ok(dis.indexOf('aria-pressed="false"') >= 0 && dis.indexOf('aria-disabled="true"') >= 0 && dis.indexOf('title="받지 못함"') >= 0 && dis.indexOf('<span>목표 먼저</span>') >= 0);
+  const s = plans.statHtml('all');
+  assert.strictEqual((s.match(/type="radio"/g) || []).length, 3);
+  assert.ok(s.indexOf('name="pl-stat" value="all" checked><span>모두</span>') >= 0);
+});
+
+test('docHtml: 오래됨 안내의 개월 수는 서버 stale_months, 못 받으면 12', function () {
+  const stale = doc({ stale: true, checked_on: '2024-03-02' });
+  assert.ok(plans.docHtml(stale, '', 6).indexOf('뒤로 6개월 넘게 다시 확인하지 않았습니다.') >= 0);
+  assert.ok(plans.docHtml(stale, '').indexOf('뒤로 12개월 넘게') >= 0);
+  assert.ok(plans.docHtml(stale, '', 0).indexOf('뒤로 12개월 넘게') >= 0);
+  assert.ok(plans.detailHtml(view([stale]), { name: '종로구', staleMonths: 18 }).indexOf('뒤로 18개월 넘게') >= 0);
+  assert.ok(SRC.indexOf('12개월') < 0, '개월 수 하드코딩 없음');
+  assert.ok(SRC.indexOf('stale_months') > 0);
+});
+
+test('소스(103): 입찰 임박 장치 제거, 소개 문구, 목표·관심 두 해 조회, 바닥 일괄 요청·pin·포커스 복귀, 확인 창 접근성(alertdialog·inert·Esc·Tab·제목 포커스), 검색 디바운스', function () {
+  ['입찰 임박', 'pl-win', 'windowItems', 'M.notice', 'isNoticeCheck', 'checkNoteHtml', 'noticeMenu', 'winHtml', 'D-day', 'pl-batch', 'pl-top'].forEach(function (s) {
+    assert.ok(SRC.indexOf(s) < 0, s + ' 는 plans.js 에 없어야 한다');
+  });
+  assert.ok(SRC.indexOf('pop-unk pl-') < 0 && SRC.indexOf('class="pl-tag"') > 0, '관심 칩은 실선 .pl-tag');
+  assert.ok(SRC.indexOf('목표로 하는 기관과 관심 있는 기관부터, 기관 홈페이지에서 공개된 사업계획을 봅니다') > 0);
+  assert.ok(SRC.indexOf("fetchJson('/bid-targets?year=' + y)") > 0 && SRC.indexOf("fetchJson('/bid-targets?year=' + (y + 1))") > 0);
+  assert.ok(SRC.indexOf("postJson('/plan-collect/batch', { institution_ids: d.plan.ids })") > 0);
+  assert.ok(/function renderFoot\(\)[\s\S]*?plans\.batHtml\(plans\.batchPlan\(vr\.rows, topOn\(\), reqOfId, closedOfId\)/.test(SRC), '일괄 요청은 바닥 renderFoot 에서');
+  assert.ok(SRC.indexOf("['pl-bat', 'pl-bat-none', 'pl-lb', 'pl-q']") > 0, '닫으면 #pl-bat → #pl-bat-none → 목록 → 검색칸 순으로 포커스');
+  assert.ok(SRC.indexOf('role="alertdialog" aria-modal="true"') > 0);
+  assert.ok(/root\.dlg\.open\(ov, \{ onClose:/.test(SRC) && SRC.indexOf('root.dlg.close(d.overlay)') > 0 && SRC.indexOf('root.dlg.requestClose(d.overlay)') > 0, '열기·닫기는 공통 dlg 로');
+  ['setAttribute(\'inert\'', 'removeAttribute(\'inert\')', 'function dlgKey', 'dlgKey(e)', 'pl-dlg-back', 'closeBatchDialog', "e.key === 'Escape'", "e.key !== 'Tab'"].forEach(function (s) {
+    assert.ok(SRC.indexOf(s) < 0, s + ' 는 plans.js 에 없어야 한다(자체 inert·키 처리 삭제)');
+  });
+  assert.ok(/document\.body\.appendChild\(ov\);[^\n]*\r?\n\s*root\.dlg\.open\(ov/.test(SRC), '덮개는 body 직계로 붙인 뒤 연다');
+  assert.ok(/plans\.unmount = function \(\) \{[\s\S]*?d\.detach = true[\s\S]*?root\.dlg\.close\(d\.overlay\)/.test(SRC), 'unmount 때 열린 창을 닫는다');
+  assert.ok(/function openBatchDialog\(\)[\s\S]*?S\.batchBusy/.test(SRC) && /function submitBatch\(\)[\s\S]*?state\.batchBusy = true/.test(SRC), '보내는 중엔 다시 열 수 없다');
+  assert.ok(/if \(d\.gone\) \{ S\.err = msg; setFlash\(''\); renderBanner\(\); \}/.test(SRC), '보내는 중 창을 닫아도 결과를 띠로 알린다');
+  assert.ok(SRC.indexOf('const msg = plans.batchErrorText(r.status, r.code, r.timeout)') > 0 && SRC.indexOf('err.textContent = d.err') > 0, '오류 문구는 고정 문구를 textContent 로');
+  assert.ok(SRC.indexOf('S.err = rr.text') > 0 && SRC.indexOf('setFlash(rr.text)') > 0, '전부 실패는 #pl-err, 그 밖은 #pl-flash');
+  assert.ok(SRC.indexOf('setTimeout(function () { qTimer = 0;') > 0 && SRC.indexOf('}, 120)') > 0, '검색 입력 디바운스');
+  assert.ok(SRC.indexOf('S.selRow = row; S.pin = row.key;') > 0 && SRC.indexOf('Object.assign({}, hit, { pinned: true })') > 0, 'pin 은 맨 위에 붙는다');
+  const rl = SRC.slice(SRC.indexOf('function renderList()'), SRC.indexOf('renderSort();', SRC.indexOf('function renderList()')));
+  assert.ok(rl.indexOf('role="listbox" id="pl-lb"') > 0 && rl.indexOf('<ul role="group" aria-labelledby="pl-gh-top">') > 0 && rl.indexOf('<ul role="group" aria-labelledby="pl-gh-rest">') > 0 && rl.indexOf("'<div role=\"listbox\" id=\"pl-lb\" tabindex=\"0\" aria-labelledby=\"pl-g\">' + inner") > 0, 'listbox 가 위·그 밖 묶음(group, 머리로 이름)을 감싼다');
+  assert.ok(rl.indexOf('<ul role="group" aria-labelledby="pl-g">') < 0 && rl.indexOf('<ul class="pl-flat" role="presentation">') > 0, '정렬을 끄면 이름 없는 group 을 만들지 않는다(P3-5)');
+  assert.ok(/ensureTargets\(true\);/.test(SRC) && /plans\.resetTargets\(\)/.test(SRC), '계정이 바뀌면 목표 캐시도 버린다');
+});
+
+test('index.html(103 보정): 정렬 토글·묶음 머리·실선 태그·바닥 일괄·확인 창 CSS, pin 규칙 유지, 확인 창 표 높이 240px, 점선 칩 없음', function () {
+  const a = HTML.indexOf('/* 기관 사업계획 시작'), b = HTML.indexOf('/* 기관 사업계획 끝 */');
+  const css = HTML.slice(a, b);
+  assert.ok(css.indexOf('.pl-sort[aria-pressed="true"]') >= 0 && css.indexOf('.pl-sort[aria-disabled="true"]') >= 0 && css.indexOf('.pl-sort:focus-visible') >= 0);
+  assert.ok(css.indexOf('color-mix(in srgb, var(--accent-color) 16%, var(--panel))') >= 0);
+  assert.ok(/\.pl-tag \{[^}]*border:1px solid var\(--line-strong\)/.test(css) && !/\.pl-tag \{[^}]*dashed/.test(css));
+  assert.ok(/\.pl-gh \{[^}]*position:sticky/.test(css) && css.indexOf('#plans-root .db-row .meta .pl-st { display:contents; }') >= 0);
+  assert.ok(css.indexOf('#plans-root .dlg') < 0 && css.indexOf('.pl-dlg-back') < 0, '확인 창 덮어쓰기 삭제 — 공통 .dlg·.modal-overlay 를 쓴다');
+  assert.ok(css.indexOf('#pl-dlg .v { font-family:var(--mono); }') >= 0 && css.indexOf('#plans-root .pl-flat {') >= 0 && css.indexOf('#pl-foot #pl-bat[aria-disabled="true"]') >= 0);
+  assert.ok(/\.pl-dlg-scroll \{[^}]*max-height:240px/.test(css));
+  assert.ok(css.indexOf('data-pin="1"') < 0 && css.indexOf('#plans-root .pl-pinned + ul > .db-row:first-child { border-top:1px dashed var(--line-strong); }') >= 0, '직접 연 기관 경계는 묶음(ul) 기준(design P2-2)');
+  assert.ok(css.indexOf('#plans-root [role=group] > .db-row { scroll-margin-top:30px; }') >= 0 && css.indexOf('#plans-root .pl-gh + .db-row { border-top:0; }') >= 0, 'sticky 머리가 행을 가리지 않게(P2-1)');
+  assert.ok(css.indexOf('#pl-foot #pl-bat-none:focus { outline:none; }') < 0 && css.indexOf('#pl-foot #pl-bat-none:focus-visible { outline:2px solid var(--accent-color)') >= 0, 'P3-3');
+  assert.ok(css.indexOf('pl-batch') < 0 && css.indexOf('.pl-top') < 0 && css.indexOf('.pl-chk') < 0);
+});
+
+test('batHtml(wait): 목표·관심 목록을 받는 중엔 aria-disabled + 이유 줄, busy 는 disabled, 0곳은 그대로', function () {
+  const rows = [{ id: 'i1', name: 'n1', st: null, kind: '', years: [] }];
+  const p = plans.batchPlan(rows, false, null, null);
+  const w = plans.batHtml(p, { top: false, wait: true });
+  assert.ok(w.indexOf('<button type="button" id="pl-bat" aria-disabled="true" aria-describedby="pl-bat-why"><span class="v">1</span>곳 수집 요청</button>') === 0);
+  assert.ok(w.indexOf('<span class="db-why" id="pl-bat-why">목표·관심 기관 목록을 받는 중입니다.</span>') > 0 && w.indexOf(' disabled') < 0);
+  assert.ok(plans.batHtml(p, { top: false, wait: false }).indexOf('aria-disabled') < 0);
+  assert.ok(plans.batHtml(p, { busy: true, wait: true }).indexOf('id="pl-bat" disabled aria-disabled="true"') >= 0);
+  assert.strictEqual(plans.batHtml(plans.batchPlan([], false, null, null), { wait: true }), '<span id="pl-bat-none" tabindex="-1">수집 요청할 기관이 없습니다.</span>');
+});
+
+test('batchErrorText(timeout): 시간 초과 문구는 상태 번호와 무관, 그 밖은 기존 문구', function () {
+  const t = '응답이 늦어 결과를 확인하지 못했습니다. 요청은 접수됐을 수 있으니 창을 닫고 바닥 숫자가 줄었는지 확인하세요.';
+  assert.strictEqual(plans.TIMEOUT_TEXT, t);
+  assert.strictEqual(plans.batchErrorText(0, '', true), t);
+  assert.strictEqual(plans.batchErrorText(500, 'X', true), t);
+  assert.ok(plans.batchErrorText(0, '', false).indexOf('연결 실패') >= 0);
+  assert.ok(plans.batchErrorText(400, 'BAD_IDS').indexOf('요청 목록이 올바르지 않아') === 0);
+});
+
+test('postJson: 시간 제한 안에 응답이 없으면 {timeout:true}, 본문 읽는 중 지연도 같음, 제때 오면 그대로', async function () {
+  const savedFetch = global.fetch, savedMs = plans.POST_TIMEOUT_MS;
+  try {
+    plans.POST_TIMEOUT_MS = 20;
+    global.fetch = function (u, o) { return new Promise(function (res, rej) { o.signal.addEventListener('abort', function () { rej(new Error('abort')); }); }); };
+    assert.deepStrictEqual(await plans.postJson('/x', {}), { ok: false, status: 0, timeout: true });
+    global.fetch = function (u, o) {
+      return Promise.resolve({ ok: true, status: 200, json: function () { return new Promise(function (res, rej) { o.signal.addEventListener('abort', function () { rej(new Error('abort')); }); }); } });
+    };
+    assert.deepStrictEqual(await plans.postJson('/x', {}), { ok: false, status: 0, timeout: true });
+    global.fetch = function () { return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ requested_count: 1 }); } }); };
+    const ok = await plans.postJson('/x', {});
+    assert.strictEqual(ok.ok, true); assert.strictEqual(ok.timeout, undefined); assert.deepStrictEqual(ok.data, { requested_count: 1 });
+    global.fetch = function () { return Promise.reject(new Error('net')); };
+    assert.deepStrictEqual(await plans.postJson('/x', {}), { ok: false, status: 0 });
+  } finally { global.fetch = savedFetch; plans.POST_TIMEOUT_MS = savedMs; }
+});
+
+test('소스(103 qa 반영): mount 는 applyPending 뒤에 칸을 채우고, 다시 받기는 정렬 토글로 포커스, 목록을 받는 중엔 일괄 버튼 무시', function () {
+  const m = SRC.slice(SRC.indexOf('plans.mount = function'), SRC.indexOf('plans.unmount = function'));
+  assert.ok(m.indexOf('applyPending();') > 0 && m.indexOf('applyPending();') < m.indexOf('fillControls();'), 'P3-2');
+  assert.strictEqual(m.split('fillControls();').length, 2, 'mount 에서 칸 채우기는 한 번');
+  assert.ok(/case 'pl-retry-tg':[^\n]*renderSort\(\);[^\n]*\$\('pl-sort'\)[^\n]*focus/.test(SRC), 'P3-3');
+  assert.ok(/case 'pl-bat':\s*\r?\n\s*if \(btn\.getAttribute\('aria-disabled'\) === 'true'\) break;/.test(SRC), 'P3-4 눌러도 무시');
+  assert.ok(/busy: !!\(S\.dlg \|\| S\.batchBusy\), wait: tgWait\(\)/.test(SRC) && /function tgWait\(\) \{ return TG\.state === 'idle' \|\| TG\.state === 'loading'; \}/.test(SRC));
+  assert.ok(/function openBatchDialog\(\)[\s\S]*?tgWait\(\)/.test(SRC), '받는 중엔 창도 열지 않는다');
+});
+
+test('design 11-20 커밋 전 대조: 보내는 중에도 [취소]로 닫고, 안내 줄은 보내는 중에만, pin 묶음 class, 요약줄·묶음 머리 같은 기준', function () {
+  const h = plans.batchDialogHtml(plans.batchPlan([{ id: 'i1', name: 'n1', st: null, kind: '', years: [] }], false, null, null));
+  assert.ok(h.indexOf('<p class="dlg-hint" id="pl-dlg-busy" hidden>창을 닫아도 요청은 계속 보내지고 결과는 화면 위 띠에 나옵니다.</p>') > 0 && h.indexOf('id="pl-dlg-busy"') < h.indexOf('id="pl-dlg-err"'));
+  assert.ok(SRC.indexOf("if (b.id === 'pl-dlg-cancel') root.dlg.requestClose(d.overlay);") > 0, '보내는 중에도 [취소]는 requestClose(Esc·바깥 클릭과 같은 동작)');
+  assert.ok(SRC.indexOf('cancel.disabled = d.busy') < 0 && SRC.indexOf('hint.hidden = !d.busy') > 0);
+  assert.ok(SRC.indexOf('<ul class="pl-pinned" role="group" aria-label="직접 연 기관">') > 0);
+  assert.ok(SRC.indexOf('marks: markRows.length') > 0 && SRC.indexOf('total: markRows.length') > 0, '요약줄·묶음 머리가 같은 수를 센다(P3-2)');
 });

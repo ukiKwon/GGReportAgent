@@ -2462,13 +2462,43 @@
   #pl-foot .db-link { padding:4px; min-height:24px; }
   #pl-foot .pl-fn { margin:0; }
   #pl-foot .pl-fn + .pl-fn { margin-top:8px; padding-top:8px; border-top:1px solid var(--line); }
-  #plans-root .db-row[data-pin="1"] + .db-row { border-top:1px dashed var(--line-strong); }   /* 직접 연 기관과 정규 목록의 경계(사용자 11-16) */
-  /* 상태 칩 한 줄(규격 design 2026-11-19 6-1~6-3): 목록 3행·상세 '사업계획' 절 첫 줄. 새 색·새 변수 없음. 행 위아래 14→10px는 3행 추가분 보상 */
+  #plans-root .pl-pinned + ul > .db-row:first-child { border-top:1px dashed var(--line-strong); }   /* 직접 연 기관과 정규 목록의 경계(사용자 11-16, design 11-20 P2-2) */
+  /* 상태 칩 한 줄(규격 design 2026-11-19 6-1~6-3): 목록 2행(지역 뒤)·상세 '사업계획' 절 첫 줄. 새 색·새 변수 없음 */
   #plans-root .db-row { padding:10px 20px; }
   .pl-st { display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px; min-height:20px; margin:0; font-size:12px; }
-  #plans-root .db-row .pl-st { grid-column:1 / -1; }
   .pl-sum h3 { margin:0 0 8px; }
   .pl-open .v { font-family:var(--mono); }   /* 현황판·지도 상세(#plans-root 밖)에서도 버튼 안 숫자를 mono로 */
+  /* NEXT 103(규격 보정): 머리줄 정렬 토글·묶음 머리·목표/관심 실선 칩·바닥 일괄 요청·확인 창(공통 .dlg·.modal-overlay 를 그대로 쓴다 — 덮개가 #plans-root 밖 body 직계라 .v 만 따로 지정). 새 hex·새 변수 없음 */
+  #plans-root .db-list-head .db-h { display:flex; align-items:center; gap:10px; }
+  .pl-sort { margin-left:auto; display:inline-flex; align-items:center; gap:6px; min-height:28px; padding:0 10px; font-size:13px; color:var(--muted); background:var(--bg); border:1px solid var(--line-strong); border-radius:var(--r); cursor:pointer; }   /* 안 눌림 경계 --line-strong(design P3-4) */
+  .pl-sort svg { display:none; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .pl-sort[aria-pressed="true"] { border-color:var(--accent-color); background:color-mix(in srgb, var(--accent-color) 16%, var(--panel)); color:var(--fg); font-weight:700; }
+  .pl-sort[aria-pressed="true"] svg { display:inline-block; }
+  .pl-sort[aria-disabled="true"] { cursor:default; background:var(--panel2); }
+  .pl-sort:focus-visible { outline:2px solid var(--accent-color); outline-offset:1px; }
+  .pl-tag { align-self:start; padding:0 6px; font-size:12px; line-height:18px; color:var(--muted); border:1px solid var(--line-strong); border-radius:var(--r); white-space:nowrap; }
+  .pl-gh { position:sticky; top:0; z-index:1; box-sizing:border-box; min-height:28px; padding:5px 20px; list-style:none; font-size:12px; color:var(--muted); background:var(--panel2); border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .pl-gh b { color:var(--fg); font-weight:700; }
+  #plans-root [role=group] { list-style:none; margin:0; padding:0; }
+  #plans-root .db-row .meta { min-height:20px; }
+  #plans-root .db-row .meta .pl-st { display:contents; }
+  .pl-reg { color:var(--muted); }
+  .pl-wait { display:inline-block; width:72px; height:20px; }
+  #pl-foot #pl-bat { min-height:28px; }
+  #pl-foot #pl-bat-none:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }   /* 창을 닫은 뒤 포커스 위치가 보이게(design P3-3) */
+  #plans-root [role=group] > .db-row { scroll-margin-top:30px; }   /* 키보드로 움직여도 묶음 머리(sticky)가 행을 가리지 않게(design P2-1) */
+  #plans-root .pl-gh + .db-row { border-top:0; }   /* 머리 밑선과 첫 행 윗선이 겹쳐 2px 이 되지 않게 */
+  #pl-dlg .v { font-family:var(--mono); }   /* 덮개가 #plans-root 밖(body)이라 #plans-root .v 가 닿지 않는다 */
+  #plans-root .pl-flat { list-style:none; margin:0; padding:0; }   /* 정렬을 끈 목록(묶음 없음) */
+  #pl-foot #pl-bat[aria-disabled="true"] { opacity:.55; cursor:not-allowed; }   /* 목표·관심 목록을 받는 중 */
+  .pl-dlg-p { margin:0; font-size:13px; line-height:1.5; word-break:keep-all; }
+  #pl-dlg-d > .db-why { margin:8px 0 0; line-height:1.5; }
+  .pl-dlg-scroll { max-height:240px; overflow:auto; margin:12px 0 0; border:1px solid var(--line); border-radius:var(--r); }
+  .pl-dlg-scroll:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
+  .pl-dlg-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+  .pl-dlg-tbl th { position:sticky; top:0; padding:6px 10px; font-size:12px; font-weight:400; color:var(--muted); text-align:left; background:var(--panel2); border-bottom:1px solid var(--line-strong); }
+  .pl-dlg-tbl td { padding:6px 10px; vertical-align:top; border-top:1px solid var(--line); overflow-wrap:anywhere; }
+  .pl-dlg-tbl tbody tr:first-child td { border-top:0; }
   @media (max-width:880px) {
     .pl-work { grid-template-columns:1fr; }
     #plans-root .db-list { height:auto; max-height:40vh; }

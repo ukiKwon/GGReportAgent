@@ -2,8 +2,8 @@
   'use strict';
   // 기관 사업계획 1단계(2026-11-16). 서버: InstitutionPlanController —
   //   GET /institution-plans/status, GET /institutions/{id}/plans, POST /institution-plans/missing.csv(감사 남는 내려받기).
-  // 규격: handoff/agents/design-reviewer/2026-11-16_1007_a15c69be.md (보충 A~G). 새 판정 로직 없이 logic.js·dashboard.js(model·windowItems·filterItems)를 조합한다.
-  // 입찰 임박 판정은 서버가 아니라 여기(dash.model)서 한다 — 서버 status 는 institution_id 로 붙이기만 한다.
+  // 규격: handoff/agents/design-reviewer/2026-11-16_1007_a15c69be.md (보충 A~G). 새 판정 로직 없이 logic.js·dashboard.js(regionName·regionOptions)를 조합한다.
+  // 목록 = 모든 기관(dataList). 목표·관심은 GET /bid-targets 올해·내년 두 번, 자료 현황은 서버 status 를 institution_id 로 붙인다. 입찰일 기준 판정은 쓰지 않는다(NEXT 103).
   // 순수 부분(fmtAmount·budgetCell·srcLineHtml·docHtml·detailHtml·listRows·rowHtml·paneSection 등)은 node 테스트 대상, DOM 부분(mount 이하)은 브라우저 전용.
   // 업로드(관리자)는 1단계에서 뺐다 — 서버 API(POST /institutions/{id}/plans/import)는 있지만 화면은 아직 없다.
   const isNode = typeof require === 'function' && typeof module !== 'undefined';
@@ -201,12 +201,13 @@
   };
 
   // ── 순수: 문서 카드·상세 ───────────────────────────────────────────
-  plans.docHtml = function (d, kw) {
+  plans.docHtml = function (d, kw, months) {
     const items = Array.isArray(d.items) ? d.items : [];
     const hid = 'pl-d' + esc(d.doc_id);
     const notes = [];
     if (d.period_ended) notes.push('<p class="db-why">' + esc(d.period_to) + '년에 끝난 계획입니다. 누리집에 새 계획이 있는지 확인하세요.</p>');
-    if (d.stale) notes.push('<p class="pl-warn">확인 ' + mono(ymd(d.checked_on)) + ' 뒤로 12개월 넘게 다시 확인하지 않았습니다.</p>');
+    const mo = Number(months) > 0 ? Math.floor(Number(months)) : 12;   // 서버 status 의 stale_months. 못 받았으면 서버 기본값과 같게
+     if (d.stale) notes.push('<p class="pl-warn">확인 ' + mono(ymd(d.checked_on)) + ' 뒤로 ' + mo + '개월 넘게 다시 확인하지 않았습니다.</p>');
     return '<section class="pl-doc" aria-labelledby="' + hid + '"><div class="pl-doc-h"><h4 id="' + hid + '">' + esc(d.title) + '</h4>' +
       badge('pp-neutral', str(d.src_kind_name || d.src_kind_cd) || '기타') + (d.period_ended ? ' ' + badge('pp-cancel', '기간 지남') : '') + '</div>' +
       '<dl class="db-dl"><dt>출처</dt><dd>' + plans.srcLineHtml(d) + '</dd>' +
@@ -214,9 +215,9 @@
       (str(d.note).trim() ? '<dt>비고</dt><dd class="pl-note">' + esc(d.note) + '</dd>' : '') + '</dl>' +
       notes.join('') + plans.itemsTableHtml(items, d.budget_unit_cd, kw, d.title) + '</section>';
   };
-  plans.docsHtml = function (data, kw) {
+  plans.docsHtml = function (data, kw, months) {
     const docs = Array.isArray(data && data.docs) ? data.docs : [];
-    return docs.map(function (d) { return plans.docHtml(d, kw); }).join('');
+    return docs.map(function (d) { return plans.docHtml(d, kw, months); }).join('');
   };
   // 상태 칩 한 곳(규격 design 2026-11-19 6-1). 목록 3행·상세 '사업계획' 절 첫 줄·현황판·지도 '자료' 칸이 함께 쓴다.
   // st = /institution-plans/status 한 건 또는 null, req = 열린 요청(REQUESTED·RUNNING) 또는 null, closed = 최근 실패·제외(last_closed, 요청 가능한 사람만 받는다) 또는 null,
@@ -336,7 +337,7 @@
     const chips = plans.stateChipsHtml({
       item_count: n, period_ended: docs.every(function (d) { return d.period_ended; }), stale: docs.some(function (d) { return d.stale; }),
     }, openReq, closedReq, rq && rq.applied);
-    return head() + sumSec(chips, impLine + reqLine) + kw + '<div id="pl-docs">' + plans.docsHtml(data, o.kw) + '</div>';
+    return head() + sumSec(chips, impLine + reqLine) + kw + '<div id="pl-docs">' + plans.docsHtml(data, o.kw, o.staleMonths) + '</div>';
   };
 
   // ── 순수: 목록 ─────────────────────────────────────────────────────
@@ -345,16 +346,173 @@
     ((data && data.items) || []).forEach(function (r) { if (r && r.institution_id) m[r.institution_id] = r; });
     return m;
   };
-  // 공고 진행 중(notice) 먼저, 그다음 기간 창(windowItems). 서버 현황은 institutionId 로만 붙인다. map 이 null 이면 st 는 모두 null(아직 모름).
-  // '결과 확인' 기관(마감 지남·마감일 미확인 30일 초과)은 입찰 임박이 아니므로 뺀다 — 바닥 안내(checkNoteHtml)가 수를 알리고, 직접 열면 pin 으로 보인다(사용자 11-16).
-  plans.listRows = function (M, key, f, map) {
-    const d = D();
-    const open = (M.notice || []).filter(function (it) { return !d.isNoticeCheck(it); });
-    const items = open.concat(d.windowItems(M, key));
-    return d.filterItems(items, f || {}).map(function (it) {
-      const id = it.rec && it.rec.institutionId ? String(it.rec.institutionId) : '';
-      return { key: it.key, it: it, id: id, st: id && map ? (map[id] || null) : null };
+  // ── 순수: 목록(모든 기관) ─────────────────────────────────────────────
+  // 목표·관심 = GET /bid-targets?year= 를 올해·내년 두 번 받은 성공 응답 [{ year, data }]. items = 그해 목표, watch_items = 관심(두 응답에 같은 관심이 오므로 기관 ID 로 합친다).
+  // watch_items 가 배열이 아닌 응답뿐이면 관심 기능이 없는 서버(hasWatch=false). 목표이면서 관심이면 목표로 본다. 기관 ID 키는 ownGet/ownPut 으로만 읽고 쓴다.
+  plans.mergeTargets = function (resps) {
+    const goal = {}, watch = {};
+    let hasWatch = false;
+    (Array.isArray(resps) ? resps : []).forEach(function (r) {
+      const d = r && r.data;
+      if (!d) return;
+      (Array.isArray(d.items) ? d.items : []).forEach(function (t) {
+        const id = str(t && t.institution_id);
+        if (!id) return;
+        const y = Number(t.target_year) || Number(r.year) || 0;
+        const cur = ownGet(goal, id) || { years: [] };
+        if (y && cur.years.indexOf(y) < 0) cur.years.push(y);
+        cur.years.sort(function (a, b) { return a - b; });
+        ownPut(goal, id, cur);
+      });
+      if (Array.isArray(d.watch_items)) {
+        hasWatch = true;
+        d.watch_items.forEach(function (t) { const id = str(t && t.institution_id); if (id) ownPut(watch, id, true); });
+      }
     });
+    return { goal: goal, watch: watch, hasWatch: hasWatch };
+  };
+  plans.targetOf = function (tm, id) {
+    if (!tm || !id) return null;
+    const g = ownGet(tm.goal, id);
+    if (g) return { kind: 'GOAL', years: g.years.slice() };
+    return ownGet(tm.watch, id) ? { kind: 'WATCH', years: [] } : null;
+  };
+  // 행 = { key, rec, name, region, id, st(서버 현황 또는 null), kind('GOAL'|'WATCH'|''), years[] }. map 이 null 이면 st 는 모두 null(아직 모름).
+  plans.baseRows = function (list, tm, map) {
+    return logic.dedupeByInstitution(Array.isArray(list) ? list : []).map(function (r) {
+      const id = r.institutionId ? String(r.institutionId) : '';
+      const t = plans.targetOf(tm, id);
+      return { key: logic.instKey(r), rec: r, name: r.name || '', region: r.region || '', id: id, st: id && map ? ownGet(map, id) : null,
+        kind: t ? t.kind : '', years: t ? t.years : [] };
+    });
+  };
+  const COLL = typeof Intl !== 'undefined' && Intl.Collator ? new Intl.Collator('ko') : null;
+  function cmpName(a, b) { return COLL ? COLL.compare(a, b) : (a < b ? -1 : (a > b ? 1 : 0)); }
+  // 정렬 켬의 위 묶음 안 구분: 올해(이하) 목표 0 → 그 뒤 해 목표 1 → 관심 2 → 그 밖 3. 두 해 목표는 이른 연도 기준.
+  plans.goalRank = function (r, year) { return r.kind === 'GOAL' ? ((r.years[0] || 0) <= year ? 0 : 1) : (r.kind === 'WATCH' ? 2 : 3); };
+  // 기본: 자료 있는 곳 먼저 → 이름순. top(정렬 켬)이면 구분 순위가 먼저, 같은 구분 안은 같은 기본 정렬.
+  plans.orderRows = function (rows, top, year) {
+    return rows.map(function (r, i) { return { r: r, i: i }; }).sort(function (a, b) {
+      if (top) { const ra = plans.goalRank(a.r, year), rb = plans.goalRank(b.r, year); if (ra !== rb) return ra - rb; }
+      const ha = a.r.st ? 0 : 1, hb = b.r.st ? 0 : 1;
+      if (ha !== hb) return ha - hb;
+      return cmpName(a.r.name, b.r.name) || a.i - b.i;
+    }).map(function (x) { return x.r; });
+  };
+  plans.filterRows = function (rows, f) {
+    const q = str(f && f.q).trim().toLowerCase(), region = str(f && f.region);
+    return rows.filter(function (r) { return (!q || r.name.toLowerCase().indexOf(q) >= 0) && (!region || r.region === region); });
+  };
+  // ── 순수: 일괄 수집 요청(POST /plan-collect/batch, 서버 MAX_BATCH 50) ──
+  plans.BATCH_MAX = 50;
+  plans.reasonOf = function (r) { return !r.st ? 'none' : (r.st.stale ? 'stale' : (r.st.period_ended ? 'ended' : '')); };
+  // 대상: ID_RE + 열린 요청 없음 + 최근 닫힘이 EXCLUDED 아님(FAILED 는 포함) + (자료 없음 | 오래됨 | 기간 지남).
+  // rows = 화면에 보이는 행(표시 순서), top = 정렬 켬(켬이면 목표·관심 행만), reqOf(id) = 열린 요청, closedOf(id) = 최근 닫힘.
+  // skipped = 데이터상 대상인데 빠진 곳 수(이미 요청 중 · 수집 제외 · 서버에 등록되지 않음).
+  plans.batchPlan = function (rows, top, reqOf, closedOf) {
+    const pool = top ? rows.filter(function (r) { return !!r.kind; }) : rows;
+    const seen = {}, all = [], counts = { none: 0, stale: 0, ended: 0 }, skipped = { open: 0, excl: 0, noid: 0 };
+    pool.forEach(function (r) {
+      if (!(!r.st || r.st.stale || r.st.period_ended)) return;
+      if (!ID_RE.test(r.id)) { skipped.noid += 1; return; }
+      if (ownGet(seen, r.id)) return;
+      ownPut(seen, r.id, true);
+      if (reqOf && reqOf(r.id)) { skipped.open += 1; return; }
+      const c = closedOf ? closedOf(r.id) : null;
+      if (c && c.status_cd === 'EXCLUDED') { skipped.excl += 1; return; }
+      all.push(r);
+      counts[plans.reasonOf(r)] += 1;
+    });
+    const sel = all.slice(0, plans.BATCH_MAX);
+    return { ids: sel.map(function (r) { return r.id; }), rows: sel, total: all.length, counts: counts, skipped: skipped };
+  };
+  // 바닥 둘째 줄의 일괄 요청(요청 가능한 사람만). 0곳이면 #pl-bat-none(포커스 복귀 자리).
+  plans.batHtml = function (p, o) {
+    o = o || {};
+    if (!p || !p.total) return '<span id="pl-bat-none" tabindex="-1">수집 요청할 기관이 없습니다.</span>';
+    const n = p.ids.length, over = p.total > n;
+    const lab = o.hasWatch === false ? '목표' : '목표·관심';
+    const btn = '<button type="button" id="pl-bat"' + (o.busy ? ' disabled' : '') + (o.wait ? ' aria-disabled="true" aria-describedby="pl-bat-why"' : '') + '>' + (o.top ? lab + ' ' : '') + (over ? '앞 ' : '') + mono(n) + '곳 수집 요청</button>';
+    if (o.wait) return btn + ' <span class="db-why" id="pl-bat-why">목표·관심 기관 목록을 받는 중입니다.</span>';   // 목록 순서가 아직 기본 정렬이라 누르면 엉뚱한 곳이 간다 — 눌러도 무시
+    let why = '';
+    if (o.top) {
+      const parts = [];
+      if (p.counts.none) parts.push('자료 없음 ' + mono(p.counts.none));
+      if (p.counts.stale) parts.push('오래됨 ' + mono(p.counts.stale));
+      if (p.counts.ended) parts.push('기간 지남 ' + mono(p.counts.ended));
+      why = parts.join(' · ');
+    } else if (over) why = '확인 필요 ' + mono(p.total) + '곳 중 목록 순서로';
+    return btn + (why ? ' <span class="db-why">' + why + '</span>' : '');
+  };
+  function reasonChip(r) {
+    const k = plans.reasonOf(r);
+    return k === 'none' ? unk('자료 없음') : (k === 'stale' ? badge('cr-st gap', '오래됨') : badge('pp-cancel', '기간 지남'));
+  }
+  function kindLabel(r) { return r.kind === 'GOAL' ? (r.years[0] ? mono(r.years[0]) + ' ' : '') + '목표' : (r.kind === 'WATCH' ? '관심' : '그 밖의 기관'); }
+  // 확인 창 마크업(공통 .dlg 시안의 클래스 이름·구조, alertdialog). 동적 글은 모두 esc/mono.
+  plans.batchDialogHtml = function (p) {
+    const n = p.ids.length, sk = p.skipped || {};
+    const warn = p.total > n ? '<p class="pl-warn">확인 필요 ' + mono(p.total) + '곳 중 목록 순서로 앞 ' + mono(n) + '곳만 요청합니다(한 번에 ' + mono(plans.BATCH_MAX) + '곳까지).</p>' : '';
+    const rows = p.rows.map(function (r) { return '<tr><td>' + esc(r.name) + '</td><td>' + kindLabel(r) + '</td><td>' + reasonChip(r) + '</td></tr>'; }).join('');
+    const skip = [];
+    if (sk.open) skip.push('이미 요청 중 ' + mono(sk.open) + '곳');
+    if (sk.excl) skip.push('수집 제외 ' + mono(sk.excl) + '곳');
+    if (sk.noid) skip.push('서버에 등록되지 않은 ' + mono(sk.noid) + '곳');
+    return '<div id="pl-dlg" class="modal-overlay" style="display:none"><div class="dlg" role="alertdialog" aria-modal="true" aria-labelledby="pl-dlg-t" aria-describedby="pl-dlg-p">' +
+      '<header class="dlg-bar"><h2 class="dlg-t" id="pl-dlg-t" tabindex="-1">사업계획 ' + esc(n) + '곳 수집 요청</h2></header>' +
+      '<div class="dlg-note"><p class="dlg-hint" id="pl-dlg-busy" hidden>창을 닫아도 요청은 계속 보내지고 결과는 화면 위 띠에 나옵니다.</p><p class="dlg-err" id="pl-dlg-err" role="alert"></p></div>' +
+      '<div class="dlg-body" id="pl-dlg-d"><p class="pl-dlg-p" id="pl-dlg-p">개발부서에 아래 기관의 사업계획 수집을 요청합니다. 자료가 들어오면 쪽지로 알려 드립니다.</p>' + warn +
+      '<div class="pl-dlg-scroll" tabindex="0" role="region" aria-label="요청할 기관"><table class="pl-dlg-tbl"><caption class="sr-only">요청할 기관</caption>' +
+      '<thead><tr><th scope="col">기관</th><th scope="col">구분</th><th scope="col">이유</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      (skip.length ? '<p class="db-why pl-dlg-skip">뺀 곳: ' + skip.join(' · ') + '</p>' : '') +
+      '</div>' +
+      '<footer class="dlg-foot"><button type="button" id="pl-dlg-cancel">취소</button><button type="button" id="pl-dlg-ok" class="dlg-go">' + esc(n) + '곳 요청</button></footer></div></div>';
+  };
+  // 200 응답 { requested_count, joined_count, already_count, not_found_count, error_count, note_sent, results[] } → { fail, text }.
+  // fail=true(접수된 곳 0)면 #pl-err 로, 아니면 #pl-flash 로. nameOf(id)는 3곳 이하일 때 기관명용(없으면 id).
+  plans.batchResult = function (res, nameOf) {
+    const g = function (k) { return Number(res && res[k]) || 0; };
+    const rq = g('requested_count'), jn = g('joined_count'), al = g('already_count'), nf = g('not_found_count'), er = g('error_count');
+    const ok = rq + jn + al, fail = nf + er;
+    if (!ok && fail) return { fail: true, text: fail + '곳 모두 요청하지 못했습니다. 잠시 뒤 다시 누르세요.' };
+    let text;
+    if (rq && !jn && !al && !fail) text = rq + '곳 수집을 요청했습니다. 개발부서가 처리하면 쪽지로 알려 드립니다.';
+    else if (ok) {
+      const parts = [];
+      if (rq) parts.push('새 요청 ' + rq + '곳');
+      if (jn) parts.push('다른 사람 요청에 함께 올림 ' + jn + '곳');
+      if (al) parts.push('이미 내가 요청한 곳 ' + al + '곳');
+      text = ok + '곳 요청을 보냈습니다: ' + parts.join(' · ') + '.';
+    } else text = '요청한 기관이 없습니다.';
+    if (fail) {
+      const bad = (Array.isArray(res && res.results) ? res.results : []).filter(function (r) { return r && (r.result_cd === 'not_found' || r.result_cd === 'error'); });
+      const why = function (r) { return r.result_cd === 'not_found' ? '서버에서 찾지 못함' : (r.code === 'CONCURRENT' ? '동시에 처리됨' : '처리 오류'); };
+      let det;
+      if (bad.length && bad.length <= 3) det = bad.map(function (r) { return (nameOf ? nameOf(str(r.institution_id)) : str(r.institution_id)) + ': ' + why(r); }).join(' · ');
+      else {
+        const cnt = {};
+        if (bad.length) bad.forEach(function (r) { cnt[why(r)] = (cnt[why(r)] || 0) + 1; });
+        else { if (nf) cnt['서버에서 찾지 못함'] = nf; if (er) cnt['처리 오류'] = er; }
+        det = Object.keys(cnt).map(function (k) { return k + ' ' + cnt[k]; }).join(' · ');
+      }
+      text += ' 못 한 곳 ' + fail + '곳(' + det + '). 못 한 곳은 목록에 그대로 남으니 잠시 뒤 다시 누르세요.';
+    }
+    if (rq > 0 && res && res.note_sent === false) text += ' 개발부서 알림이 가지 않았습니다(요청은 접수됨). 개발부서에 따로 알려 주세요.';
+    return { fail: false, text: text };
+  };
+  plans.TIMEOUT_TEXT = '응답이 늦어 결과를 확인하지 못했습니다. 요청은 접수됐을 수 있으니 창을 닫고 바닥 숫자가 줄었는지 확인하세요.';
+  plans.batchErrorText = function (status, code, timeout) {
+    if (timeout) return plans.TIMEOUT_TEXT;
+    if (Number(status) === 400) return '요청 목록이 올바르지 않아 보내지 못했습니다. 화면을 다시 연 뒤 다시 누르세요.';
+    return plans.reqErrorText('go', status, code);
+  };
+  // 정렬 토글(목록 머리줄 오른쪽). 글자는 눌림과 무관하게 고정, 눌림 표시는 체크 SVG(CSS 가 눌릴 때만 보임). o = { on, ok(목표·관심을 받았는가), why, hasWatch }
+  plans.topLabel = function (hasWatch) { return hasWatch === false ? '목표 먼저' : '목표·관심 먼저'; };
+  plans.sortBtnHtml = function (o) {
+    o = o || {};
+    return '<button type="button" id="pl-sort" class="pl-sort" aria-pressed="' + (o.on && o.ok ? 'true' : 'false') + '"' + (o.ok ? '' : ' aria-disabled="true"') +
+      (o.why ? ' title="' + esc(o.why) + '"' : '') + '><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2 6.5l2.5 2.5L10 3.5"></path></svg><span>' +
+      esc(plans.topLabel(o.hasWatch)) + '</span></button>';
   };
   plans.filterByStatus = function (rows, stat) {
     if (stat === 'has') return rows.filter(function (r) { return !!r.st; });
@@ -372,31 +530,17 @@
     return out.slice(0, plans.MISSING_MAX);
   };
   // 목록 바닥: n = 목록(CSV)에 담을 수 있는 기관 수(missingIds), m = 목록 머리의 '자료 없음' 수. 다를 때만 차이를 밝힌다.
-  // can = 수집 요청을 할 수 있는 사용자(요청 줄의 can 과 같은 값, CS.can). 불가면 2줄은 '확인용입니다.'만(없는 버튼을 가리키지 않게, design 11-19).
-  plans.footHtml = function (n, m, busy, can) {
+  // can = 수집 요청을 할 수 있는 사용자(CS.can). 가능하면 둘째 줄 = 일괄 요청 조각(bat, plans.batHtml), 불가면 '확인용입니다.'(없는 버튼을 가리키지 않게).
+  plans.footHtml = function (n, m, busy, can, bat) {
     n = Number(n) || 0; m = Number(m) || 0;
     let h = '';
     if (n) {
-      h = '목록에 담을 기관 ' + mono(n) + '곳 · <button type="button" class="db-link" id="pl-dl"' + (busy ? ' disabled' : '') + '>자료 없는 기관 내려받기(CSV)</button><br>' +
-        (can ? '확인용입니다. 수집은 [수집 요청]으로 개발부서에 맡깁니다.' : '확인용입니다.');
-    }
+      h = '목록에 담을 기관 ' + mono(n) + '곳 · <button type="button" class="db-link" id="pl-dl"' + (busy ? ' disabled' : '') + '>자료 없는 기관 내려받기(CSV)</button>';
+      if (!can) h += '<br>확인용입니다.';
+      else if (bat) h += '<br>' + bat;
+    } else if (can && bat) h = bat;
     if (m > n) h += (h ? '<br>' : '') + '서버에 등록되지 않은 ' + mono(m - n) + '곳은 목록에 넣을 수 없습니다.';
     return h;
-  };
-  // 목록에서 뺀 '결과 확인' 기관 안내. n = 지역·검색을 적용한 수, canOpen = 입찰 공고 현황 메뉴가 보이는가. 0곳이면 ''.
-  // 한 줄로 둔다(QA 11-16: 3~4줄이면 1280×720에서 목록 칸이 행 2개로 눌림). 이유 설명은 title(마우스 올림).
-  plans.checkNoteHtml = function (n, canOpen) {
-    n = Number(n) || 0;
-    if (!n) return '';
-    const why = '마감이 지났거나, 마감일 기록 없이 공고 후 ' + logic.NOTICE_UNKNOWN_OPEN_DAYS + '일이 지난 곳입니다.';
-    return '<p class="pl-fn" title="' + esc(why) + '">결과 확인할 ' + mono(n) + '곳은 뺐습니다' +
-      (canOpen ? ' · <button type="button" class="db-link" id="pl-to-notice">입찰 공고 현황에서 보기</button>' : '') + '</p>';
-  };
-  plans.winHtml = function (key) {
-    const d = D(), k = d.windowKey(key);
-    return '<legend class="sr-only">입찰 예정일 기간</legend>' + d.WINDOW_KEYS.map(function (w) {
-      return '<label><input type="radio" name="pl-win" value="' + w + '"' + (w === k ? ' checked' : '') + '><span>' + esc(d.WINDOW_LABELS[w]) + '</span></label>';
-    }).join('');
   };
   const STATS = [['all', '모두'], ['has', '자료 있음'], ['none', '자료 없음']];   // 기간 묶음의 '전체'와 겹치지 않게 '모두'
   plans.statHtml = function (stat) {
@@ -404,36 +548,49 @@
       return '<label><input type="radio" name="pl-stat" value="' + p[0] + '"' + (p[0] === stat ? ' checked' : '') + '><span>' + esc(p[1]) + '</span></label>';
     }).join('');
   };
-  plans.groupLabelHtml = function (key, total, missing) {
-    const d = D(), k = d.windowKey(key);
-    return esc(k === 'all' ? '전체(날짜를 아는 곳)' : d.WINDOW_LABELS[k] + ' 안') + ' <b>' + esc(total) + '</b>곳' +
-      (missing == null ? '' : ' · 자료 없음 <b>' + esc(missing) + '</b>곳') + ' · 가까운 순';
+  // 요약줄 #pl-g (규격 보정 7). o = { ready(서버 현황 받음), loading, stat('all'|'has'|'none'), total(기관 수), shown(상태 필터 뒤), has(자료 있음 수), top(정렬 켬), marks(위 묶음 수), hasWatch }
+  plans.groupLabelHtml = function (o) {
+    o = o || {};
+    const tot = '<b>' + esc(o.total) + '</b>';
+    if (o.ready && o.stat === 'none') return '자료 없음 <b>' + esc(o.shown) + '</b>곳 (전체 ' + tot + '곳)';
+    if (o.ready && o.stat === 'has') return '자료 있음 <b>' + esc(o.shown) + '</b>곳 (전체 ' + tot + '곳)';
+    if (!o.ready) return '기관 ' + tot + '곳' + (o.loading ? ' · 사업계획 현황을 받는 중' : '');
+    if (o.top) return '기관 ' + tot + '곳 · ' + (o.hasWatch === false ? '목표' : '목표·관심') + ' <b>' + esc(o.marks) + '</b>곳을 위로';
+    return '기관 ' + tot + '곳 · 자료 있음 <b>' + esc(o.has) + '</b>곳 · 자료 있는 곳 먼저';
   };
-  // r = listRows 한 행, o = { id, selected, loaded(현황을 받았는가) }
+  // 묶음 머리 .pl-gh (규격 보정 3). which = 'top'|'rest', o = { id, goal, watch, total, marks(필터 전 목표·관심 수), hasWatch }. li role=presentation, ul[role=group]이 id 로 이름을 받는다.
+  plans.groupHeadHtml = function (which, o) {
+    o = o || {};
+    const lab = o.hasWatch === false ? '목표' : '목표·관심';
+    let inner;
+    if (which === 'rest') inner = '<b>그 밖의 기관</b> ' + mono(o.total) + '곳';
+    else if (!o.total) inner = esc(o.marks ? '조건에 맞는 ' + lab + ' 기관이 없습니다.' : lab + ' 기관이 없습니다. 입찰 현황판에서 ' + lab + ' 기관으로 넣을 수 있습니다.');
+    else inner = '<b>' + lab + '</b> ' + mono(o.total) + '곳' + (o.hasWatch === false ? '' : ' (목표 ' + mono(o.goal) + ' · 관심 ' + mono(o.watch) + ')');
+    return '<li role="presentation" class="pl-gh" id="' + esc(o.id || '') + '">' + inner + '</li>';
+  };
+  // 목표/관심 칩(행 1줄 오른쪽). 점선은 '자료 없음' 전용이라 쓰지 않는다 — 실선 muted .pl-tag. 두 해 목표면 이른 연도만 칩에, 두 해는 title 에.
+  plans.kindChipHtml = function (kind, years) {
+    if (kind === 'GOAL') {
+      const ys = (Array.isArray(years) ? years : []).filter(Number).sort(function (a, b) { return a - b; });
+      const title = ys.length > 1 ? ' title="' + esc('목표 연도 ' + ys.join('·') + '(가장 이른 해를 표시)') + '"' : '';
+      return '<span class="pl-tag" data-kind="GOAL"' + title + '>' + (ys.length ? mono(ys[0]) + ' ' : '') + '목표</span>';
+    }
+    return kind === 'WATCH' ? '<span class="pl-tag" data-kind="WATCH">관심</span>' : '';
+  };
+  // 2줄 행. 1줄 = 이름 + 목표/관심 칩, 2줄 .meta = 지역·종류 + 상태 칩(.pl-st 는 display:contents). r = baseRows 한 행,
+  // o = { id, selected, loaded(현황을 받았는가), pending(받는 중 — 칩 자리 유지), pinned(직접 연 기관), req, closed, isNew }. option 안에는 버튼을 두지 않는다.
   plans.rowHtml = function (r, o) {
     o = o || {};
-    const it = r.it, d = D();
-    const region = esc(d.regionName(it.region));
-    let tag, meta;
-    if (it.notice) { tag = d.noticeChipHtml(it); meta = region + ' · ' + d.noticeNote(it); }
-    else if (it.overdue) { tag = '<span class="ov-stamp">D+' + esc(it.days) + '</span>'; meta = region + ' · 예정일 경과'; }
-    else if (it.unknown) { tag = '<span class="dg-day unknown">날짜 미상</span>'; meta = region + ' · 입찰 예정일 미상'; }
-    else {
-      tag = '<span class="dg-day ' + esc(it.band) + '">' + (it.days === 0 ? 'D-day' : 'D-' + esc(it.days)) + '</span>';
-      meta = region + ' · <span class="d">' + esc(it.date) + '</span> ' + esc(it.label);
-    }
-    if (o.pinned) meta += ' · 직접 연 기관';   // 목록 밖에서 직접 연 기관(현황판·지도에서 열었거나 결과 확인 기관)
-    // 3행: 상태 칩만(규격 6-2). 현황을 받았으면 칩, 받는 중이면 같은 높이의 빈 자리(도착할 때 행이 튀지 않게), 연결 없음·권한 없음은 3행 없음.
-    // 사람 수·버튼은 붙이지 않는다(option 안에는 버튼을 둘 수 없다, 규격 P1-1). o = { req(열린 요청), closed(최근 실패·제외), isNew(recent_applied 한 건), pending }
-    const third = o.loaded ? '<span class="pl-st">' + plans.stateChipsHtml(r.st, o.req, o.closed, o.isNew) + '</span>'
-      : (o.pending ? '<span class="pl-st" aria-hidden="true"></span>' : '');
-    const mark = (o.pinned ? ' data-pin="1"' : '') + (it.notice && d.isNoticeCheck(it) ? ' data-check="1"' : '');
-    return '<li role="option" id="' + esc(o.id || '') + '" class="db-row" data-key="' + esc(r.key) + '" aria-selected="' + (o.selected ? 'true' : 'false') + '"' + mark + '>' +
-      '<span class="nm">' + esc(it.name) + '</span>' + tag + '<span class="meta">' + meta + '</span>' + third + '</li>';
+    const d = D();
+    const where = [d.regionName(r.region), d.kindOfRec(r.rec)].filter(Boolean).join(' · ') + (o.pinned ? ' · 직접 연 기관' : '');
+    const chips = o.loaded ? plans.stateChipsHtml(r.st, o.req, o.closed, o.isNew) : (o.pending ? '<span class="pl-wait" aria-hidden="true"></span>' : '');
+    return '<li role="option" id="' + esc(o.id || '') + '" class="db-row" data-key="' + esc(r.key) + '" aria-selected="' + (o.selected ? 'true' : 'false') + '"' + (o.pinned ? ' data-pin="1"' : '') + '>' +
+      '<span class="nm">' + esc(r.name) + '</span>' + plans.kindChipHtml(r.kind, r.years) +
+      '<span class="meta"><span class="pl-reg">' + esc(where) + '</span>' + (chips ? '<span class="pl-st">' + chips + '</span>' : '') + '</span></li>';
   };
 
   // ── 서버 현황 캐시(이 화면과 현황판·지도 상세의 '사업계획' 절이 같이 쓴다) ──
-  function freshStatus() { return { state: 'idle', map: {}, today: '', code: 0, at: 0 }; }
+  function freshStatus() { return { state: 'idle', map: {}, today: '', code: 0, at: 0, staleMonths: 0 }; }
   let ST = freshStatus();
   let statusSeq = 0, statusPending = null, statusInflight = false;
   function serverOk() { try { return !!(root.store && root.store.isServerMode()) && !!((root.store.loadSession() || {}).emp); } catch (e) { return false; } }
@@ -441,10 +598,10 @@
   // 시험·재시도용: 서버 응답(JSON)을 직접 넣는다.
   plans.applyStatus = function (data) {
     statusSeq += 1; statusInflight = false;
-    ST = { state: 'ok', map: plans.statusMap(data), today: str(data && data.today), code: 0, at: Date.now() };
+    ST = { state: 'ok', map: plans.statusMap(data), today: str(data && data.today), code: 0, at: Date.now(), staleMonths: Number(data && data.stale_months) || 0 };
   };
   plans.setStatusState = function (state, code) { statusSeq += 1; statusInflight = false; ST = Object.assign(freshStatus(), { state: state, code: code || 0 }); };
-  plans.resetStatus = function () { statusSeq += 1; statusPending = null; statusInflight = false; ST = freshStatus(); plans.resetCollect(); };
+  plans.resetStatus = function () { statusSeq += 1; statusPending = null; statusInflight = false; ST = freshStatus(); plans.resetCollect(); plans.resetTargets(); };
   plans.statusState = function () { return ST.state; };
 
   // ── 사업계획 수집 요청 현황 캐시(GET /plan-collect/status: 열린 요청만 + can_request) ──
@@ -532,7 +689,7 @@
     const p = fetchJson('/institution-plans/status').then(function (r) {
       if (my !== statusSeq) return ST;
       statusInflight = false;
-      if (r.status === 'ok') ST = { state: 'ok', map: plans.statusMap(r.data), today: str(r.data && r.data.today), code: 0, at: Date.now() };
+      if (r.status === 'ok') ST = { state: 'ok', map: plans.statusMap(r.data), today: str(r.data && r.data.today), code: 0, at: Date.now(), staleMonths: Number(r.data && r.data.stale_months) || 0 };
       else ST = Object.assign(freshStatus(), { state: r.status, code: r.code || 0 });
       refreshSlots();
       onStatus();
@@ -567,7 +724,7 @@
       (ymd(st.oldest_checked_on) ? '<dt>확인일</dt><dd>' + mono(ymd(st.oldest_checked_on)) + ' <span class="db-why">가장 오래된 문서 기준</span></dd>' : '') + '</dl>' + open;
   };
   // 기관 사업계획 화면을 이 사용자가 열 수 있는가 = 사이드바에 그 항목이 그려져 있는가(nav.build 가 이미 역할·서버 메뉴 키로 걸러 그린다).
-  // 이 판정은 사이드바 DOM(data-nav)으로 본다(입찰 공고 현황 쪽 noticeMenuVisible 은 app.findNavItem 을 쓴다). 사이드바가 아직 없으면(시험·로그인 전) 열 수 있다고 본다.
+  // 이 판정은 사이드바 DOM(data-nav)으로 본다. 사이드바가 아직 없으면(시험·로그인 전) 열 수 있다고 본다.
   // plans.menuCheck 에 함수를 넣으면 그 결과를 쓴다(시험용).
   plans.menuCheck = null;
   plans.menuVisible = function () {
@@ -576,16 +733,6 @@
     const btns = document.querySelectorAll('#side-nav [data-nav]');
     if (!btns.length) return true;
     return Array.prototype.some.call(btns, function (b) { return b.getAttribute('data-nav') === plans.SOON_ID; });
-  };
-  // 입찰 공고 현황 메뉴가 이 사용자에게 보이는가(overdue.js 와 같은 방식: app.findNavItem). 사이드바·app 이 없으면(시험·로그인 전) 보인다고 본다.
-  // plans.noticeMenuCheck 에 함수를 넣으면 그 결과를 쓴다(시험용).
-  plans.noticeMenuCheck = null;
-  plans.noticeMenuVisible = function () {
-    if (typeof plans.noticeMenuCheck === 'function') return !!plans.noticeMenuCheck();
-    const A = root.app, N = root.nav;
-    if (!A || !A.findNavItem || !N || !N.NOTICE_ID) return true;
-    if (typeof document !== 'undefined' && !document.querySelectorAll('#side-nav [data-nav]').length) return true;
-    return !!A.findNavItem(N.NOTICE_ID);
   };
   plans.paneSection = function (rec, c) {
     let id = rec && rec.institutionId ? String(rec.institutionId) : '';
@@ -610,10 +757,10 @@
   }
 
   // ── DOM: 화면 ──────────────────────────────────────────────────────
-  let S = null, host = null, ac = null, M = null;
+  let S = null, host = null, ac = null, qTimer = 0, DLG = null;   // DLG = 열린 일괄 요청 창(계정이 바뀌어 S 가 null 이 돼도 unmount 가 닫을 수 있게 따로 쥔다)
   function freshState(who) {
-    return { who: who || '', win: D().DEFAULT_WINDOW, stat: 'all', q: '', region: '', kw: '', selRow: null, pin: null, cache: {},
-      pendingId: '', revealKey: '', focusTitle: false, err: '', dlBusy: false, reqBusy: null };
+    return { who: who || '', stat: 'all', q: '', region: '', kw: '', top: null, selRow: null, pin: null, cache: {},
+      pendingId: '', revealKey: '', focusTitle: false, err: '', dlBusy: false, reqBusy: null, dlg: null, batchBusy: false };
   }
   function $(id) { return host ? host.querySelector('#' + id) : null; }
   function todayDate() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
@@ -625,55 +772,139 @@
   }
   function ready() { return ST.state === 'ok'; }
 
+  // ── 목표·관심 캐시(GET /bid-targets 올해·내년) ──
+  function freshTargets() { return { state: 'idle', map: null, hasWatch: false, code: 0, at: 0 }; }
+  let TG = freshTargets(), tgSeq = 0, tgInflight = false, tgPending = null;
+  plans.resetTargets = function () { tgSeq += 1; tgInflight = false; tgPending = null; TG = freshTargets(); dirty(); };
+  plans.applyTargets = function (resps) {   // 시험·재시도용
+    tgSeq += 1; tgInflight = false;
+    const m = plans.mergeTargets(resps);
+    TG = { state: 'ok', map: m, hasWatch: m.hasWatch, code: 0, at: Date.now() };
+    dirty();
+  };
+  plans.targetState = function () { return TG.state; };
+  function watchOn() { return !(TG.state === 'ok' && !TG.hasWatch); }   // 관심 기능 없는 서버면 '목표'만
+  function tgWait() { return TG.state === 'idle' || TG.state === 'loading'; }   // 목표·관심 목록을 받는 중(P3-4)
+  function ensureTargets(force) {
+    if (!serverOk()) { TG = Object.assign(freshTargets(), { state: 'offline' }); dirty(); return Promise.resolve(TG); }
+    if (TG.state === 'denied') return Promise.resolve(TG);   // 권한 없음(401·403)은 조용히 — 정렬 토글만 aria-disabled
+    if (!force) {
+      if (tgInflight && tgPending) return tgPending;
+      if (TG.state === 'ok' && Date.now() - TG.at < STATUS_FRESH_MS) return Promise.resolve(TG);
+    }
+    const my = ++tgSeq, y = todayDate().getFullYear();
+    tgInflight = true;
+    if (TG.state !== 'ok') TG = Object.assign(freshTargets(), { state: 'loading' });
+    dirty();
+    const p = Promise.all([fetchJson('/bid-targets?year=' + y), fetchJson('/bid-targets?year=' + (y + 1))]).then(function (rs) {
+      if (my !== tgSeq) return TG;
+      tgInflight = false;
+      const bad = rs.filter(function (r) { return r.status !== 'ok'; })[0];
+      if (!bad) {
+        const m = plans.mergeTargets([{ year: y, data: rs[0].data }, { year: y + 1, data: rs[1].data }]);
+        TG = { state: 'ok', map: m, hasWatch: m.hasWatch, code: 0, at: Date.now() };
+      } else TG = Object.assign(freshTargets(), { state: bad.status, code: bad.code || 0 });
+      dirty();
+      if (host && S) { renderBanner(); renderList(); renderFoot(); }
+      return TG;
+    });
+    tgPending = p;
+    return p;
+  }
+  // ── 행 모델 캐시: 데이터·현황·목표가 바뀔 때만 다시 만든다(검색 입력마다 정렬하지 않게) ──
+  let RAW = null, ORD = null, ordTop = null;
+  function dirty() { RAW = null; ORD = null; }
+  function rawRows() {
+    if (!RAW) {
+      RAW = plans.baseRows(dataList(), TG.state === 'ok' ? TG.map : null, ready() ? ST.map : null);
+      RAW.marks = RAW.filter(function (r) { return !!r.kind; }).length;
+    }
+    return RAW;
+  }
+  function markCount() { return rawRows().marks; }
+  function topOn() { return TG.state === 'ok' && (S.top === null ? markCount() > 0 : !!S.top); }   // Q1: 처음엔 눌린 채(0곳이면 꺼짐). 사용자가 누른 값이 우선
+  function orderedRows() {
+    const t = topOn();
+    if (!ORD || ordTop !== t) { ORD = plans.orderRows(rawRows(), t, todayDate().getFullYear()); ordTop = t; }
+    return ORD;
+  }
+  function reqOfId(id) { return CS.state === 'ok' ? ownGet(CS.map, id) : null; }
+  function closedOfId(id) { return CS.state === 'ok' ? ownGet(CS.closed, id) : null; }
+  function nameOfId(id) { const r = rawRows().filter(function (x) { return x.id === id; })[0]; return r ? r.name : id; }
+
   const SKELETON =
-    '<div class="tm-head"><b>기관 사업계획</b> <span class="dg-hint">— 입찰이 가까운 기관부터, 기관 홈페이지에 공개된 사업계획을 봅니다</span></div>' +
+    '<div class="tm-head"><b>기관 사업계획</b> <span class="dg-hint">— 목표로 하는 기관과 관심 있는 기관부터, 기관 홈페이지에서 공개된 사업계획을 봅니다</span></div>' +
     '<div id="pl-flash" class="db-flash" role="status"></div>' +
     '<div id="pl-err" class="db-state db-banner" role="alert" style="display:none"></div>' +
     '<div class="pl-work">' +
-    '<section class="db-list" aria-labelledby="pl-lt"><div class="db-list-head"><div class="db-h"><h2 id="pl-lt">입찰 임박 기관</h2></div>' +
-    '<div class="pl-pers"><fieldset class="db-per" id="pl-win"></fieldset><fieldset class="db-per" id="pl-stat"></fieldset></div>' +
+    '<section class="db-list" aria-labelledby="pl-lt"><div class="db-list-head"><div class="db-h"><h2 id="pl-lt">기관 목록</h2><span id="pl-sorthost"></span></div>' +
+    '<div class="pl-pers"><fieldset class="db-per" id="pl-stat"></fieldset></div>' +
     '<div class="db-filters"><input id="pl-q" type="search" placeholder="기관명 검색" aria-label="기관명 검색" autocomplete="off">' +
     '<select id="pl-region" aria-label="지역"></select></div></div>' +
     '<div class="db-scroll" id="pl-scroll" aria-busy="true"><div class="db-grp" id="pl-g" aria-live="polite"></div><div id="pl-body"></div></div><div class="db-foot" id="pl-foot"></div></section>' +
     '<section class="db-pane" id="pl-pane" aria-label="기관 사업계획 상세"></section></div>';
 
   function visibleRows() {
-    const map = ready() ? ST.map : null;
-    const base = plans.listRows(M, S.win, { q: S.q, region: S.region }, map);
-    let rows = map ? plans.filterByStatus(base, S.stat) : base;
-    if (S.pin && !rows.some(function (r) { return r.key === S.pin.key; })) {
-      const id = S.pin.id;
-      rows = [{ key: S.pin.key, it: S.pin.it, id: id, st: id && map ? (map[id] || null) : null, pinned: true }].concat(rows);
+    const base = plans.filterRows(orderedRows(), { q: S.q, region: S.region });
+    let rows = ready() ? plans.filterByStatus(base, S.stat) : base;
+    const shown = rows.length;
+    if (S.pin) {   // 직접 연 기관은 필터에 걸러졌어도 맨 위에 붙인다
+      const hit = rows.filter(function (r) { return r.key === S.pin; })[0] || rawRows().filter(function (r) { return r.key === S.pin; })[0];
+      if (hit) rows = [Object.assign({}, hit, { pinned: true })].concat(rows.filter(function (r) { return r.key !== S.pin; }));
     }
-    return { rows: rows, base: base };
+    return { rows: rows, base: base, shown: shown };
+  }
+  function renderSort() {
+    const el = $('pl-sorthost');
+    if (!el) return;
+    const st = TG.state, ok = st === 'ok';
+    const why = ok ? '' : (st === 'idle' || st === 'loading' ? '목표·관심 기관을 불러오는 중입니다.' : '목표·관심 기관을 받지 못해 쓸 수 없습니다.');
+    const keep = !!(document.activeElement && document.activeElement.id === 'pl-sort');
+    el.innerHTML = plans.sortBtnHtml({ on: topOn(), ok: ok, why: why, hasWatch: watchOn() });
+    if (keep) { const b = $('pl-sort'); if (b && b.focus) b.focus({ preventScroll: true }); }
   }
   function renderList() {
     const el = $('pl-body'), grp = $('pl-g'), sc = $('pl-scroll');
-    if (!el || !grp || !M) return;
-    const ok = ready();
+    if (!el || !grp || !S) return;
+    const ok = ready(), top = topOn();
     const vr = visibleRows();
-    const missing = ok ? vr.base.filter(function (r) { return !r.st; }).length : null;
-    grp.innerHTML = plans.groupLabelHtml(S.win, vr.base.length, missing);   // aria-live 영역은 고정하고 안쪽만 바꾼다
+    const rest = vr.rows.filter(function (r) { return !r.pinned; });
+    const tops = top ? rest.filter(function (r) { return !!r.kind; }) : [];
+    const markRows = vr.rows.filter(function (r) { return !!r.kind; });   // 요약줄·묶음 머리가 같은 기준(직접 연 기관 포함, 상태 필터 뒤)으로 센다(design P3-2)
+    const markGoal = markRows.filter(function (r) { return r.kind === 'GOAL'; }).length;
+    grp.innerHTML = plans.groupLabelHtml({ ready: ok, loading: ST.state === 'loading', stat: S.stat, total: vr.base.length, shown: vr.shown,
+      has: vr.base.filter(function (r) { return !!r.st; }).length, top: top, marks: markRows.length, hasWatch: watchOn() });   // aria-live 영역은 고정하고 안쪽만 바꾼다
+    let n = 0;
+    const rowAt = function (r) {
+      const cc = collectOf(r.id) || {};   // 수집 요청 현황이 아직 없거나 재무부서(403)면 st 칩만
+      const csWait = ok && CS.state === 'loading';   // 수집 현황을 받는 중이면 '자료 없음'을 먼저 그렸다 바꾸지 않게 빈 자리(qa 11-19 P2-1)
+      return plans.rowHtml(r, { id: 'pl-o-' + (n++), selected: !!(S.selRow && S.selRow.key === r.key), loaded: ok && !csWait, pending: ST.state === 'loading' || csWait, pinned: !!r.pinned,
+        req: cc.req || null, closed: cc.can ? (cc.closed || null) : null, isNew: cc.applied || null });   // 실패·제외는 요청 가능한 사람만(상세와 같은 가드, qa P3-1)
+    };
     let h = '';
     if (vr.rows.length) {
-      h += '<ul role="listbox" id="pl-lb" tabindex="0" aria-labelledby="pl-g">' + vr.rows.map(function (r, i) {
-        const cc = collectOf(r.id) || {};   // 수집 요청 현황이 아직 없거나 재무부서(403)면 st 칩만
-        const csWait = ok && CS.state === 'loading';   // 수집 현황을 받는 중이면 '자료 없음'을 먼저 그렸다 바꾸지 않게 빈 자리(qa 11-19 P2-1)
-        return plans.rowHtml(r, { id: 'pl-o-' + i, selected: !!(S.selRow && S.selRow.key === r.key), loaded: ok && !csWait, pending: ST.state === 'loading' || csWait, pinned: !!r.pinned,
-          req: cc.req || null, closed: cc.can ? (cc.closed || null) : null, isNew: cc.applied || null });   // 실패·제외는 요청 가능한 사람만(상세와 같은 가드, qa P3-1)
-      }).join('') + '</ul>';
+      let inner = '';
+      const pin = vr.rows.filter(function (r) { return r.pinned; });
+      if (pin.length) inner += '<ul class="pl-pinned" role="group" aria-label="직접 연 기관">' + pin.map(rowAt).join('') + '</ul>';   // 다음 묶음 첫 행 위에 점선 경계(사용자 11-16)
+      if (top) {
+        inner += '<ul role="group" aria-labelledby="pl-gh-top">' + plans.groupHeadHtml('top', { id: 'pl-gh-top', goal: markGoal, watch: markRows.length - markGoal, total: markRows.length, marks: markCount(), hasWatch: watchOn() }) + tops.map(rowAt).join('') + '</ul>';
+        const others = rest.filter(function (r) { return !r.kind; });
+        if (others.length) inner += '<ul role="group" aria-labelledby="pl-gh-rest">' + plans.groupHeadHtml('rest', { id: 'pl-gh-rest', total: others.length }) + others.map(rowAt).join('') + '</ul>';
+      } else if (rest.length) inner += '<ul class="pl-flat" role="presentation">' + rest.map(rowAt).join('') + '</ul>';   // 정렬을 끄면 묶음이 없다 — listbox 자체가 #pl-g 로 이름 붙어 있다
+      h += '<div role="listbox" id="pl-lb" tabindex="0" aria-labelledby="pl-g">' + inner + '</div>';
     } else if (ok && S.stat !== 'all' && vr.base.length) {
       h += '<p class="db-state">' + (S.stat === 'none' ? '자료 없는 기관이 없습니다.' : '사업계획 자료가 있는 기관이 아직 없습니다. 위에서 [모두]를 고르세요.') + '</p>';
     } else if (S.q.trim() || S.region) {
       h += '<p class="db-state">조건에 맞는 기관이 없습니다. 검색어를 지우거나 지역을 \'전체 지역\'으로 바꾸세요.<br><button type="button" id="pl-clear">조건 지우기</button></p>';
     } else {
-      h += '<p class="db-state">' + (S.win === 'all' ? '앞으로 입찰 예정인 기관이 없습니다.' : esc(D().WINDOW_LABELS[S.win]) + ' 안에 입찰 예정인 기관이 없습니다. 기간을 넓혀 보세요.') + '</p>';
+      h += '<p class="db-state">표시할 기관이 없습니다.</p>';
     }
     const ae = document.activeElement, keepFocus = !!(ae && ae.id === 'pl-lb'), keepTop = sc ? sc.scrollTop : 0;   // 목록을 다시 그려도 키보드 위치·스크롤을 지킨다
     el.innerHTML = h;
     if (sc) { sc.setAttribute('aria-busy', ST.state === 'loading' ? 'true' : 'false'); sc.scrollTop = keepTop; }
     syncActive();
     if (keepFocus) { const lb = $('pl-lb'); if (lb && lb.focus) lb.focus({ preventScroll: true }); }
+    renderSort();
   }
   // listbox 의 포커스는 ul 에 머무므로 선택된 option 을 aria-activedescendant 로 알린다(현황판 dashboard.js 와 같은 방식).
   // option id 는 그릴 때마다 다시 매겨지므로 그린 뒤·선택을 바꾼 뒤에 다시 계산한다. 선택이 없으면 속성을 뺀다.
@@ -685,24 +916,27 @@
   }
   function renderFoot() {
     const el = $('pl-foot');
-    if (!el || !M) return;
-    // 결과 확인 안내는 서버 현황과 무관(로컬 데이터로 계산) — 연결이 없어도 보인다. CSV 문단만 현황을 받은 뒤에 그린다.
-    const d = D();
-    const n = d.filterItems(M.notice || [], { q: S.q, region: S.region }).filter(d.isNoticeCheck).length;
-    let h = plans.checkNoteHtml(n, plans.noticeMenuVisible());
+    if (!el || !S) return;
+    let h = '';
     if (ready()) {
-      const base = visibleRows().base;
-      const csv = plans.footHtml(plans.missingIds(base).length, base.filter(function (r) { return !r.st; }).length, S.dlBusy, CS.can);
+      const vr = visibleRows(), base = vr.base;
+      let bat = '';
+      if (CS.state === 'ok' && CS.can) {   // 요청 가능한 사람만. 재무부서(403)·현황 없음·디자이너는 줄 없음('확인용입니다.' 유지)
+        bat = plans.batHtml(plans.batchPlan(vr.rows, topOn(), reqOfId, closedOfId), { top: topOn(), hasWatch: watchOn(), busy: !!(S.dlg || S.batchBusy), wait: tgWait() });
+      }
+      const csv = plans.footHtml(plans.missingIds(base).length, base.filter(function (r) { return !r.st; }).length, S.dlBusy, CS.can, bat);
       if (csv) h += '<p class="pl-fn">' + csv + '</p>';
     }
     const a = document.activeElement;   // 바닥을 새로 그리면 눌렀던 pl-dl 이 사라져 포커스가 body 로 떨어진다 — 같은 id 로 돌려준다
     const keep = !!(a && a.id === 'pl-dl') || !!(S.dlFocus && (!a || a === document.body));
+    const keepBat = !!(a && (a.id === 'pl-bat' || a.id === 'pl-bat-none'));
     el.innerHTML = h;
     if (keep) {
       const b = $('pl-dl');
       if (b && !b.disabled && b.focus) { b.focus({ preventScroll: true }); S.dlFocus = false; }   // 내려받는 중(disabled)이면 끝난 뒤 그릴 때 돌려준다
       else if (!b) S.dlFocus = false;
     }
+    if (keepBat) { const b = $('pl-bat') || $('pl-bat-none'); if (b && !b.disabled && b.focus) b.focus({ preventScroll: true }); }
   }
   const OFFLINE_MSG = '서버에 연결되면 사업계획 현황이 보입니다.';
   function renderBanner() {
@@ -712,6 +946,7 @@
     if (S.err) h = esc(S.err);
     else if (ST.state === 'denied') h = '사업계획 현황을 볼 권한이 없습니다(' + esc(ST.code || 403) + '). 로그인 사번과 권한을 확인하세요.';
     else if (ST.state === 'error') h = '사업계획 현황을 불러오지 못했습니다(' + esc(ST.code || '연결 실패') + '). <button type="button" id="pl-retry">다시 불러오기</button>';
+    else if (TG.state === 'error') h = '목표·관심 기관 목록을 받지 못했습니다. <button type="button" id="pl-retry-tg">다시 받기</button>';
     // 연결 안 됨은 오류가 아니라 안내라서 빨간 경고 띠(#pl-err, role=alert)가 아니라 #pl-flash(role=status)로 보낸다.
     const f = $('pl-flash');
     if (ST.state === 'offline') { if (f) f.textContent = OFFLINE_MSG; }
@@ -729,18 +964,19 @@
       return;
     }
     el.removeAttribute('aria-label'); el.setAttribute('aria-labelledby', 'pl-name');
-    const rec = row.it.rec || {};
+    const rec = row.rec || {};
     const view = !ID_RE.test(row.id) ? { status: 'noid' } : (S.cache[row.id] || { status: 'loading' });
     const sub = [D().kindOfRec(rec), D().regionName(rec.region)].filter(Boolean).join(' · ');
-    el.innerHTML = '<div class="db-pane-body">' + plans.detailHtml(view, { name: row.it.name, sub: sub, kw: S.kw, req: collectReq(row.id) }) + '</div>';
+    el.innerHTML = '<div class="db-pane-body">' + plans.detailHtml(view, { name: row.name, sub: sub, kw: S.kw, req: collectReq(row.id), staleMonths: ST.staleMonths }) + '</div>';
     if (S.focusTitle && view.status !== 'loading') { S.focusTitle = false; const h = $('pl-name'); if (h && h.focus) h.focus(); }
   }
   function renderDocs() {
     const el = $('pl-docs'), v = S.selRow ? S.cache[S.selRow.id] : null;
-    if (el && v && v.status === 'ok') el.innerHTML = plans.docsHtml(v.data, S.kw);
+    if (el && v && v.status === 'ok') el.innerHTML = plans.docsHtml(v.data, S.kw, ST.staleMonths);
   }
   function onStatus() {
-    if (!host || !M || !S) return;
+    if (!host || !S) return;
+    dirty();   // 서버 현황이 바뀌었다 — 행 모델·정렬을 다시 만든다
     renderBanner(); renderList(); renderFoot();
     // 현황(배지)이 들어오면 위쪽 행 높이가 바뀌어 선택 행이 밀린다 — 다른 화면에서 골라 들어온 직후면 한 번 더 맞춘다.
     if (S.revealKey) { revealRow(S.revealKey); S.revealKey = ''; }
@@ -771,7 +1007,7 @@
     if (!row) return;
     const hadPin = !!S.pin;
     S.selRow = row; S.kw = ''; S.focusTitle = false; S.revealKey = '';
-    if (S.pin && S.pin.key !== key) S.pin = null;
+    if (S.pin && S.pin !== key) S.pin = null;
     loadDetail(row.id);
     if (hadPin && !S.pin) renderList(); else markSelected();
     renderPane();
@@ -801,26 +1037,15 @@
     const id = S.pendingId;
     S.pendingId = '';
     if (!id) return;
-    const rec = dataList().filter(function (r) { return String(r.institutionId || '') === id; })[0];
-    if (!rec) return;
-    const d = D(), key = logic.instKey(rec);
-    S.q = ''; S.region = ''; S.stat = 'all'; S.pin = null; S.kw = '';
-    let it = (M.notice || []).filter(function (x) { return x.key === key; })[0] || null;
-    if (!it) {
-      for (let i = 0; i < d.WINDOW_KEYS.length && !it; i += 1) {
-        const w = d.WINDOW_KEYS[i];
-        const hit = d.windowItems(M, w).filter(function (x) { return x.key === key; })[0];
-        if (hit) { it = hit; if (d.WINDOW_KEYS.indexOf(w) > d.WINDOW_KEYS.indexOf(S.win)) S.win = w; }
-      }
-    }
-    if (!it) { it = d.itemForRec(rec, todayDate()); S.pin = { key: key, it: it, id: id }; }
-    else if (it.notice && d.isNoticeCheck(it)) S.pin = { key: key, it: it, id: id };   // 결과 확인 기관은 목록에서 빠졌으므로 맨 위에 붙여 연다
-    S.selRow = { key: key, it: it, id: id, st: null };
+    const row = rawRows().filter(function (r) { return r.id === id; })[0];
+    if (!row) return;
+    S.q = ''; S.region = ''; S.stat = 'all'; S.kw = '';
+    S.selRow = row; S.pin = row.key;   // 직접 연 기관은 맨 위에 붙여 보인다(목록 어디에 있든)
     S.focusTitle = true;
   }
 
   function downloadMissing() {
-    if (!host || !M || !ready() || S.dlBusy) return;
+    if (!host || !ready() || S.dlBusy) return;
     const ids = plans.missingIds(visibleRows().base);
     if (!ids.length) return;
     { const fa = document.activeElement; S.dlFocus = !!(fa && fa.id === 'pl-dl'); }   // 누른 단추에 포커스가 있었으면(키보드·마우스 모두) 끝난 뒤 돌려준다
@@ -852,7 +1077,7 @@
     return { item: ownGet(CS.map, id), closed: ownGet(CS.closed, id), applied: appliedOf(id), can: CS.can, busy: S && S.reqBusy && S.reqBusy.id === id ? S.reqBusy.kind : '' };
   }
   function onCollect() {   // 수집 요청 현황이 도착·갱신됐을 때: 칩과 요청 줄을 다시 그린다(검색 칸에 입력 중이면 상세는 건드리지 않는다)
-    if (!host || !M || !S) return;
+    if (!host || !S) return;
     const a = document.activeElement, aid = a && a.id ? a.id : '';
     const pane = $('pl-pane'), inPane = !!(a && pane && pane.contains(a));
     renderList();
@@ -901,7 +1126,7 @@
         next = kind === 'go' ? 'pl-req-go' : 'pl-req-cancel';
       }
       if (!host) return;
-      renderList();
+      renderList(); renderFoot();   // 단건 요청도 바닥의 일괄 대상 수가 바뀐다
       if (state.selRow && state.selRow.id === id) {
         renderPane();
         const b = $(next) || $('pl-req-go') || $('pl-req-cancel') || $('pl-name');   // 눌렀던 버튼이 바뀌어도 포커스를 잃지 않는다
@@ -912,9 +1137,111 @@
     });
   }
 
+  // ── 일괄 수집 요청(바닥 [#pl-bat] → 확인 창 → POST /plan-collect/batch 한 번) ──
+  plans.POST_TIMEOUT_MS = 20000;   // 응답이 이보다 늦으면 기다리지 않는다(P2-3). 서버는 이미 처리했을 수 있다
+  function postJson(url, body) {
+    if (typeof fetch !== 'function') return Promise.resolve({ ok: false, status: 0 });
+    return new Promise(function (resolve) {   // 먼저 도착한 한 번만 이긴다
+      const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+      const timer = setTimeout(function () { if (ctl) ctl.abort(); resolve({ ok: false, status: 0, timeout: true }); }, plans.POST_TIMEOUT_MS);
+      const done = function (v) { clearTimeout(timer); resolve(v); };
+      const opt = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+      if (ctl) opt.signal = ctl.signal;
+      fetch(url, opt).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          done({ ok: r.ok, status: r.status, data: j, code: r.ok ? '' : (j && j.detail && typeof j.detail === 'object' ? str(j.detail.code) : '') });
+        });
+      }).catch(function () { done({ ok: false, status: 0 }); });
+    });
+  }
+  plans.postJson = postJson;   // 시험용
+  // ── 확인 창: 열기·닫기·Esc·바깥 클릭·포커스·뒤 화면 inert 는 공통 dlg(js/dlg.js)가 맡는다 ──
+  function dq(id) { return DLG && DLG.overlay ? DLG.overlay.querySelector('#' + id) : null; }
+  function focusAfterDlg() {   // 창이 닫힌 뒤 포커스: 바닥 버튼 → 없음 안내 → 목록 → 검색칸(막힌 버튼은 건너뛴다)
+    const ids = ['pl-bat', 'pl-bat-none', 'pl-lb', 'pl-q'];
+    for (let i = 0; i < ids.length; i += 1) {
+      const b = $(ids[i]);
+      if (b && !b.disabled && b.focus) { b.focus({ preventScroll: true }); return; }
+    }
+  }
+  function openBatchDialog() {
+    if (!host || !S || S.dlg || S.batchBusy || !root.dlg || !ready() || CS.state !== 'ok' || !CS.can || tgWait()) return;
+    const p = plans.batchPlan(visibleRows().rows, topOn(), reqOfId, closedOfId);
+    if (!p.ids.length) return;
+    const w = document.createElement('div');
+    w.innerHTML = plans.batchDialogHtml(p);
+    const ov = w.firstChild;
+    const d = { plan: p, busy: false, err: '', overlay: ov, gone: false, detach: false };
+    S.dlg = d; DLG = d;
+    ov.addEventListener('click', onDlgClick);
+    document.body.appendChild(ov);   // 덮개는 body 직계여야 dlg 가 나머지 화면 전체를 inert 로 막는다
+    root.dlg.open(ov, { onClose: function () { dlgClosed(d); } });   // 열면 제목에 포커스
+    renderFoot();   // 바닥 버튼은 창이 열린 동안 disabled
+  }
+  function dlgClosed(d) {   // dlg.close 가 부른다 — [취소]·Esc·바깥 클릭·성공·화면 닫힘 모두 여기로 온다
+    d.gone = true;
+    if (d.overlay.parentNode) d.overlay.parentNode.removeChild(d.overlay);
+    if (DLG === d) DLG = null;
+    if (S && S.dlg === d) S.dlg = null;
+    if (d.detach || !host || !S) return;   // 화면을 닫는 중이면 그리지 않는다
+    renderFoot();
+    focusAfterDlg();
+  }
+  function onDlgClick(e) {
+    const b = e.target && e.target.closest ? e.target.closest('button') : null;
+    const d = S && S.dlg;
+    if (!b || !d || d.gone) return;
+    if (b.id === 'pl-dlg-cancel') root.dlg.requestClose(d.overlay);   // 보내는 중에도 닫는다 — Esc·바깥 클릭과 같은 동작(DESIGN 팝업), 결과는 띠로(design P2-3)
+    else if (b.id === 'pl-dlg-ok') submitBatch();
+  }
+  function paintDlg() {
+    const d = DLG;
+    if (!d || d.gone) return;
+    const ok = dq('pl-dlg-ok'), cancel = dq('pl-dlg-cancel'), err = dq('pl-dlg-err'), box = d.overlay.querySelector('.dlg'), t = dq('pl-dlg-t');
+    if (ok) { ok.disabled = d.busy; ok.textContent = d.busy ? '요청 중…' : d.plan.ids.length + '곳 요청'; }
+    const hint = dq('pl-dlg-busy');
+    if (hint) hint.hidden = !d.busy;   // 보내는 중에만: 닫아도 요청은 계속된다는 안내
+    if (err) err.textContent = d.err;   // 서버 글이 아니라 batchErrorText 고정 문구 — textContent
+    if (box) box.setAttribute('aria-busy', d.busy ? 'true' : 'false');
+    if (d.busy) { if (t && t.focus) t.focus(); }
+    else if (d.err && cancel && cancel.focus) cancel.focus();
+  }
+  function applyBatchResults(res) {   // 응답으로 요청 현황 캐시를 바로 맞춘다(바닥 일괄 대상 수가 곧바로 줄어든다). 뒤에서 한 번 더 받아 맞춘다
+    (Array.isArray(res.results) ? res.results : []).forEach(function (r) {
+      const id = str(r && r.institution_id), c = str(r && r.result_cd);
+      if (!id || (c !== 'requested' && c !== 'joined' && c !== 'already')) return;
+      delete CS.closed[id];
+      ownPut(CS.map, id, { institution_id: id, status_cd: str(r.status_cd) || 'REQUESTED', requester_count: Number(r.requester_count) || 0, requested_by_me: true,
+        first_requested_at: null, run_at: null });
+    });
+  }
+  function submitBatch() {
+    const state = S, d = state && state.dlg;
+    if (!d || d.busy || d.gone) return;
+    d.busy = true; d.err = ''; state.batchBusy = true; paintDlg(); renderFoot();
+    postJson('/plan-collect/batch', { institution_ids: d.plan.ids }).then(function (r) {
+      state.batchBusy = false; d.busy = false;
+      if (state !== S || !host) return;   // 계정이 바뀌었거나 화면을 닫았다
+      if (!r.ok) {
+        const msg = plans.batchErrorText(r.status, r.code, r.timeout);
+        if (d.gone) { S.err = msg; setFlash(''); renderBanner(); }   // 보내는 중에 창을 닫았다 — 결과를 버리지 않고 띠로 알린다
+        else { d.err = msg; paintDlg(); }
+        renderFoot();
+        if (r.timeout) ensureCollect(true);   // 서버는 이미 처리했을 수 있다 — 요청 현황을 다시 받는다
+        return;
+      }
+      const res = r.data || {};
+      const rr = plans.batchResult(res, nameOfId);
+      if (CS.state === 'ok') applyBatchResults(res);
+      if (!d.gone && root.dlg) root.dlg.close(d.overlay);   // dlgClosed 가 덮개를 치우고 바닥을 다시 그려 포커스를 돌려준다
+      if (rr.fail) { S.err = rr.text; setFlash(''); } else { S.err = ''; setFlash(rr.text); }
+      renderBanner(); renderList(); renderFoot();
+      ensureCollect(true);
+      if (root.plancollect && root.plancollect.refreshBadge) root.plancollect.refreshBadge(true);
+    });
+  }
   function fillControls() {
-    const w = $('pl-win'), st = $('pl-stat'), rg = $('pl-region'), q = $('pl-q');
-    if (w) w.innerHTML = plans.winHtml(S.win);
+    const st = $('pl-stat'), rg = $('pl-region'), q = $('pl-q');
     if (st) st.innerHTML = plans.statHtml(S.stat);
     if (q) q.value = S.q;
     if (rg) {
@@ -933,12 +1260,18 @@
     if (!btn) return;
     switch (btn.id) {
       case 'pl-dl': downloadMissing(); break;
-      case 'pl-to-notice':
-        // 열기 실패(탭 가득 참 등)는 app.openNavItem 이 스스로 안내한다 — 여기서는 app 이 없을 때만 알린다(QA 11-16).
-        if (root.app && root.app.openNavItem && root.nav) root.app.openNavItem(root.nav.NOTICE_ID);
-        else setFlash('입찰 공고 현황을 열 수 없습니다. 왼쪽 메뉴의 [입찰 공고 현황]에서 여세요.');
-        break;
       case 'pl-retry': ensureStatus(true).then(function () { const l = $('pl-lb'); if (l) l.focus(); }); onStatus(); break;
+      case 'pl-retry-tg': ensureTargets(true); renderBanner(); renderSort(); { const sb = $('pl-sort'); if (sb && sb.focus) sb.focus({ preventScroll: true }); } break;   // 눌린 버튼이 사라지므로 포커스를 정렬 토글로(P3-3)
+      case 'pl-sort':
+        if (btn.getAttribute('aria-disabled') === 'true') break;   // 목표·관심을 못 받았으면 눌러도 아무 일 없음(title 이 이유)
+        S.top = !topOn(); S.pin = null; S.revealKey = '';
+        { const sc = $('pl-scroll'); if (sc) sc.scrollTop = 0; }
+        renderList(); renderFoot();
+        break;
+      case 'pl-bat':
+        if (btn.getAttribute('aria-disabled') === 'true') break;   // 목표·관심 목록을 받는 중엔 눌러도 무시(P3-4)
+        openBatchDialog();
+        break;
       case 'pl-retry-detail': if (S.selRow) { delete S.cache[S.selRow.id]; loadDetail(S.selRow.id); renderPane(); } break;
       case 'pl-req-go': requestCollect('go'); break;
       case 'pl-req-cancel': requestCollect('cancel'); break;
@@ -963,15 +1296,18 @@
   }
   function onInput(e) {
     const id = e.target && e.target.id;
-    if (id === 'pl-q') { S.q = e.target.value; S.pin = null; S.revealKey = ''; renderList(); renderFoot(); }
+    if (id === 'pl-q') {   // 수백 행을 한 번에 다시 그리므로 120ms 디바운스(행 모델·정렬은 캐시)
+      S.q = e.target.value; S.pin = null; S.revealKey = '';
+      clearTimeout(qTimer);
+      qTimer = setTimeout(function () { qTimer = 0; if (host && S) { renderList(); renderFoot(); } }, 120);
+    }
     else if (id === 'pl-kw') { S.kw = e.target.value; renderDocs(); }
   }
   function onChange(e) {
     const t = e.target;
     if (!t) return;
-    if (t.id === 'pl-region' || t.name === 'pl-win' || t.name === 'pl-stat') S.revealKey = '';   // 사용자가 목록 조건을 바꾸면 늦은 스크롤 예약을 버린다
+    if (t.id === 'pl-region' || t.name === 'pl-stat') S.revealKey = '';   // 사용자가 목록 조건을 바꾸면 늦은 스크롤 예약을 버린다
     if (t.id === 'pl-region') { S.region = t.value; S.pin = null; renderList(); renderFoot(); }
-    else if (t.name === 'pl-win') { S.win = D().windowKey(t.value); S.pin = null; renderList(); renderFoot(); }
     else if (t.name === 'pl-stat') { S.stat = STATS.some(function (p) { return p[0] === t.value; }) ? t.value : 'all'; S.pin = null; renderList(); renderFoot(); }
   }
 
@@ -984,7 +1320,7 @@
     host = target;
     const who = whoNow();
     if (!S || S.who !== who) S = freshState(who);
-    S.cache = {}; S.err = ''; S.reqBusy = null;
+    S.cache = {}; S.err = ''; S.reqBusy = null; S.dlg = null;
     ac = typeof AbortController === 'function' ? new AbortController() : null;
     const opt = ac ? { signal: ac.signal } : undefined;
     host.innerHTML = SKELETON;
@@ -992,10 +1328,11 @@
     host.addEventListener('keydown', onKey, opt);
     host.addEventListener('input', onInput, opt);
     host.addEventListener('change', onChange, opt);
-    M = D().model(dataList(), todayDate());
-    fillControls();
+    dirty();
+    ensureTargets(true);   // 목표·관심(올해·내년). 못 받아도 목록은 기본 정렬로 그린다
     const hadPending = !!S.pendingId;   // 현황판·지도에서 기관을 골라 들어왔는가
     applyPending();
+    fillControls();   // applyPending 이 검색어·지역을 비우므로 칸 값은 그 뒤에 채운다(안 그러면 칸에 옛 글이 남는다)
     if (S.selRow) loadDetail(S.selRow.id);
     renderBanner(); renderList(); renderFoot(); renderPane();
     if (hadPending && S.selRow) { revealRow(S.selRow.key); S.revealKey = S.selRow.key; }   // '전체' 창처럼 목록이 길 때 선택 행이 스크롤 밖에 남지 않게(현황 도착 뒤 onStatus 가 한 번 더)
@@ -1003,10 +1340,17 @@
     if (ST.state === 'loading') renderList();   // 현황을 받는 동안 3행 자리를 미리 잡는다(도착할 때 행이 커지며 스크롤이 튀지 않게)
   };
   plans.unmount = function () {
+    if (DLG) {   // 열린 확인 창은 화면과 함께 닫는다(뒤 화면 inert·포커스는 dlg 가 되돌린다)
+      const d = DLG;
+      d.detach = true; d.gone = true; DLG = null;
+      if (S && S.dlg === d) S.dlg = null;
+      if (root.dlg) root.dlg.close(d.overlay); else if (d.overlay.parentNode) d.overlay.parentNode.removeChild(d.overlay);
+    }
     if (ac) ac.abort();
     ac = null;
     if (host) host.innerHTML = '';
-    host = null; M = null;
+    host = null;
+    clearTimeout(qTimer); qTimer = 0;
   };
   // 계정이 바뀌면 이전 계정의 현황·상세 캐시와 선택을 버린다(app.onProfileChanged).
   plans.onProfileChange = function () {
