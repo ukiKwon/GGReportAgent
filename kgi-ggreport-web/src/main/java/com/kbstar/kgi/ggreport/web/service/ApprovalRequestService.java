@@ -12,6 +12,7 @@ import com.kbstar.kgi.ggreport.web.dto.BoardMaterialIn;
 import com.kbstar.kgi.ggreport.web.dto.MenuDefinition;
 import com.kbstar.kgi.ggreport.web.dto.PrepIn;
 import com.kbstar.kgi.ggreport.web.dto.SysAdminIn;
+import com.kbstar.kgi.ggreport.web.dto.TargetChangeIn;
 import com.kbstar.kgi.ggreport.web.mapper.ApprovalRequestMapper;
 import com.kbstar.kgi.ggreport.web.mapper.PermChangeLogMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
@@ -66,6 +67,7 @@ public class ApprovalRequestService {
     private final BoardMaterialService materials;
     private final PrepService prep;
     private final PrepAudit prepAudit;
+    private final TargetChangeService targetChanges;
 
     /** 쪽지 종류 — 결재자에게 가는 알림 / 상신자에게 가는 결과. 쪽지함이 둘 다 결재함으로 이어 준다. */
     public static final String KIND_ALERT = "결재알림";
@@ -77,7 +79,8 @@ public class ApprovalRequestService {
                                   PermissionService permissions, ApprovalDeputyService deputies,
                                   PermChangeLogMapper changeLog, NotificationCommandService notes,
                                   BidAssignmentService assignments, BoardMaterialService materials,
-                                  PrepService prep, PrepAudit prepAudit) {
+                                  PrepService prep, PrepAudit prepAudit, TargetChangeService targetChanges) {
+        this.targetChanges = targetChanges;
         this.prep = prep;
         this.prepAudit = prepAudit;
         this.requests = requests;
@@ -234,6 +237,40 @@ public class ApprovalRequestService {
         prep.claimPlan(plan, r.getReqId(), me, actor);
         notifyStep(r, s, me);
         return view(requests.selectById(r.getReqId()), me);
+    }
+
+    /**
+     * 목표 기관 변경(NEXT 105, TARGET_CHANGE) — 일괄 1~20. ⚠️ 첫 DB 문장 = 기관 행 잠금(S2 규칙) — callers.require 보다 먼저.
+     * 영업부장(또는 결재 스위치 끔)이면 결재 없이 바로 반영(mode=DIRECT), 아니면 결재 요청(mode=APPROVAL).
+     */
+    @Transactional
+    public Map<String, Object> submitTargetChange(TargetChangeIn in, Actor actor, BoardUiIds.Ui ui) {
+        targetChanges.lockAll(in);
+        SysUser me = callers.require(actor);
+        boolean direct = targetChanges.direct(me);
+        TargetChangeService.Plan plan = targetChanges.plan(in, !direct);
+        if (direct) {
+            return targetChanges.applyDirect(plan, actor, ui);
+        }
+        targetChanges.prepare(plan, me);
+        ApprovalRequest r = new ApprovalRequest();
+        r.setReqType(ApprovalTypes.TARGET_CHANGE);
+        r.setRequesterEmpNo(me.getEmpNo());
+        r.setTitle(plan.getTitle());
+        r.setPayload(plan.getPayload());
+        r.setStatus("PENDING");
+        r.setCurrentStep(1);
+        r.setCreatedAt(Times.nowIso());
+        requests.insert(r);
+        ApprovalStep s = step(1, "LINE", plan.getApprover().getEmpNo());
+        s.setReqId(r.getReqId());
+        requests.insertStep(s);
+        targetChanges.claim(plan, r.getReqId(), me, actor, ui, r.getCreatedAt());
+        notifyStep(r, s, me);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("mode", "APPROVAL");
+        out.put("request", view(requests.selectById(r.getReqId()), me));
+        return out;
     }
 
     /** 회수 — 담당자 누구나, 결재 전(PENDING)일 때만. 요청은 CANCELLED, 자료는 DRAFT. */
@@ -401,7 +438,7 @@ public class ApprovalRequestService {
         if (ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())) {   // 이사회 자료 제출 결재 의견: 제어문자 400·개인정보 422(security S2). 다른 유형은 기존 동작 유지
             String checked = BoardMaterialService.checkedText(comment, 500, "의견", !approve);
             comment = checked == null ? "" : checked;
-        } else if (ApprovalTypes.isPrep(r.getReqType())) {   // 사전준비 결재 의견도 같은 규칙(제어문자 400·개인정보 422)
+        } else if (ApprovalTypes.isPrep(r.getReqType()) || ApprovalTypes.TARGET_CHANGE.equals(r.getReqType())) {   // 사전준비·목표 변경 결재 의견도 같은 규칙(제어문자 400·개인정보 422)
             String checked = BoardMaterialService.checkedText(comment, 500, "의견", !approve);
             comment = checked == null ? "" : checked;
         }
@@ -409,6 +446,10 @@ public class ApprovalRequestService {
         ApprovalStep cur = current(steps, r);
         SysUser requester = users.selectByEmpNo(r.getRequesterEmpNo());
         String how = eligibility(me, requester, cur, r);
+        if (how == null && !approve && ApprovalTypes.TARGET_CHANGE.equals(r.getReqType())
+                && TargetChangeService.headOverride(me, requester)) {
+            how = "HEAD";   // 사용자 11-20 ③ — 결재선 밖 영업부장의 반려(승인은 결재선만)
+        }
         if (how == null) {
             throw new ApiException(403, "이 요청을 결재할 수 없습니다 — 결재자(또는 유효한 대결자)가 아니거나, "
                     + "직급이 맞지 않거나(결재자는 상신자보다 높아야 하고 대결자는 상신자보다 낮으면 안 됩니다), 본인의 요청입니다.");
@@ -443,6 +484,10 @@ public class ApprovalRequestService {
             requireOne(requests.updateRequest(id, "APPROVED", cur.getStepNo(), note, now));   // 0행이면 후처리째 롤백
             notifyResult(r, requester, me, "승인되어 반영되었습니다");
         }
+        if (ApprovalTypes.TARGET_CHANGE.equals(r.getReqType()) && (!approve || cur.getStepNo() >= steps.size())) {
+            targetChanges.recordAct(id, approve ? TargetChangeService.ACT_APPROVE : TargetChangeService.ACT_REJECT,
+                    "HEAD".equals(how) ? TargetChangeService.BASIS_HEAD : TargetChangeService.BASIS_LINE, me, actor, prepUi);
+        }
         auditPrep(r, prepBid, approve ? "APPROVE" : "REJECT", prepBefore, actor, prepUi);
         return view(requests.selectById(id), me);
     }
@@ -458,11 +503,13 @@ public class ApprovalRequestService {
         SysUser me = callers.require(actor);
         ApprovalRequest r = require(id);
         boolean own = r.getRequesterEmpNo().equals(me.getEmpNo());
-        if (!own && (ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType()) || ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())
-                || ApprovalTypes.isPrep(r.getReqType()))) {
-            throw new ApiException(403, "이 요청은 신청자 본인만 취소할 수 있습니다.");   // 관리자도 불가(영업팀 내부 정보, 2026-11-10 사용자 결정)
+        boolean target = ApprovalTypes.TARGET_CHANGE.equals(r.getReqType());
+        boolean headCancel = !own && target && TargetChangeService.headOverride(me, users.selectByEmpNo(r.getRequesterEmpNo()));   // 사용자 11-20 ③
+        if (!own && !headCancel && ApprovalTypes.isTeamInternal(r.getReqType())) {   // S7
+            throw new ApiException(403, target ? "이 요청은 신청자 본인이나 영업부장만 취소할 수 있습니다."
+                    : "이 요청은 신청자 본인만 취소할 수 있습니다.");   // 관리자도 불가(영업팀 내부 정보, 2026-11-10 사용자 결정)
         }
-        if (!own && !permissions.canAdmin(me.getEmpNo())) {
+        if (!own && !headCancel && !permissions.canAdmin(me.getEmpNo())) {
             throw new ApiException(403, "상신자 본인 또는 관리자만 취소할 수 있습니다.");
         }
         if (!"PENDING".equals(r.getStatus())) {
@@ -476,10 +523,14 @@ public class ApprovalRequestService {
         String now = Times.nowIso();
         skipRest(requests.selectSteps(id), null, now);
         requireOne(requests.updateRequest(id, "CANCELLED", r.getCurrentStep(),
-                r.getRequesterEmpNo().equals(me.getEmpNo()) ? "상신자가 취소" : "관리자가 취소", now));
-        if (!own) {   // 관리자 취소는 취소자 사번·검증 여부·화면·버튼을 남긴다(RESULT_NOTE 에는 사번이 없다, security S9)
+                own ? "상신자가 취소" : headCancel ? "영업부장이 취소" : "관리자가 취소", now));
+        if (!own && !headCancel) {   // 관리자 취소는 취소자 사번·검증 여부·화면·버튼을 남긴다(RESULT_NOTE 에는 사번이 없다, security S9)
             changeLog.insert(PermChangeRows.of(actor, prepUi, r.getRequesterEmpNo(), "approval:CANCEL",
                     "PENDING", "#" + r.getReqId(), now));
+        }
+        if (target) {
+            targetChanges.recordAct(id, TargetChangeService.ACT_CANCEL,
+                    own ? TargetChangeService.BASIS_REQUESTER : TargetChangeService.BASIS_HEAD, me, actor, prepUi);
         }
         if (ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType())) {
             assignments.releasePending(r);          // 그 요청이 잡고 있던 선점만 푼다(다른 요청의 선점은 그대로)
@@ -493,8 +544,8 @@ public class ApprovalRequestService {
         } else if (ApprovalTypes.PREP_APPROVAL.equals(r.getReqType())) {
             prep.afterPlanEnded(id, readPayloadBid(r), "PLAN_WITHDRAW", null, me, actor != null && actor.isVerified() ? 1 : 0);
         }
-        if (!r.getRequesterEmpNo().equals(me.getEmpNo())) {      // 남이 취소했을 때만 알린다
-            notifyResult(r, users.selectByEmpNo(r.getRequesterEmpNo()), me, "관리자가 취소했습니다");
+        if (!own) {      // 남이 취소했을 때만 알린다
+            notifyResult(r, users.selectByEmpNo(r.getRequesterEmpNo()), me, headCancel ? "영업부장이 취소했습니다" : "관리자가 취소했습니다");
         }
         auditPrep(r, prepBid, "WITHDRAW", prepBefore, actor, prepUi);
         return view(requests.selectById(id), me);
@@ -601,9 +652,10 @@ public class ApprovalRequestService {
             rows = requests.selectByRequester(me.getEmpNo());
         } else if ("inbox".equals(box)) {
             for (ApprovalRequest r : requests.selectPending()) {
-                if (eligibility(me, users.selectByEmpNo(r.getRequesterEmpNo()),
-                        current(requests.selectSteps(r.getReqId()), r), r) != null) {
-                    rows.add(r);
+                SysUser q = users.selectByEmpNo(r.getRequesterEmpNo());
+                if (eligibility(me, q, current(requests.selectSteps(r.getReqId()), r), r) != null
+                        || (ApprovalTypes.TARGET_CHANGE.equals(r.getReqType()) && TargetChangeService.headOverride(me, q))) {
+                    rows.add(r);   // 영업부장은 결재선 밖 목표 변경 요청도 받은 결재함에서 본다(반려·취소용)
                 }
             }
         } else if ("all".equals(box)) {
@@ -612,8 +664,7 @@ public class ApprovalRequestService {
             }
             rows = new ArrayList<>();
             for (ApprovalRequest x : requests.selectAll()) {
-                if (!ApprovalTypes.ASSIGNEE_CHANGE.equals(x.getReqType()) && !ApprovalTypes.BOARD_SUBMIT.equals(x.getReqType())
-                        && !ApprovalTypes.isPrep(x.getReqType())) {   // 영업팀 내부 정보 — 관리자 전체 목록에서 제외(mine·inbox 는 유지)
+                if (!ApprovalTypes.isTeamInternal(x.getReqType())) {   // 영업팀 내부 정보 — 관리자 전체 목록에서 제외(mine·inbox 는 유지, S7)
                     rows.add(x);
                 }
             }
@@ -744,6 +795,9 @@ public class ApprovalRequestService {
         }
         if (ApprovalTypes.PREP_APPROVAL.equals(r.getReqType())) {
             return prep.applyPlanApproval(r, decider, actor);
+        }
+        if (ApprovalTypes.TARGET_CHANGE.equals(r.getReqType())) {
+            return targetChanges.apply(r, decider, actor, prepUi);   // 반영 행 화면·버튼 = 결재 화면(PrepUiIds), 수정자 = 결재자
         }
         if (!ApprovalTypes.PERM_REQUEST.equals(r.getReqType())) {
             return null;
@@ -905,6 +959,8 @@ public class ApprovalRequestService {
             m.put("people", peopleOf(read(r.getPayload())));   // 카드가 사번 대신 이름·직위를 보이게(이 유형만)
         } else if (ApprovalTypes.BID_OPEN.equals(r.getReqType())) {
             m.put("nominees", prep.nomineesOf(r.getPayload()));   // 개설 신청 카드: 지명자 이름·직위(의견은 payload.comment)
+        } else if (ApprovalTypes.TARGET_CHANGE.equals(r.getReqType())) {
+            m.put("target_items", targetChanges.itemsOf(r.getReqId()));   // 기관·동작·이전→이후(사번 없음). 사유 = payload.reason
         }
         List<Map<String, Object>> sv = new ArrayList<>();
         for (ApprovalStep s : steps) {
@@ -927,10 +983,11 @@ public class ApprovalRequestService {
                 ? eligibility(me, requester, current(steps, r), r) : null;
         m.put("can_decide", how != null);
         m.put("acting_as_deputy", "DEPUTY".equals(how));
-        boolean teamInternal = ApprovalTypes.ASSIGNEE_CHANGE.equals(r.getReqType()) || ApprovalTypes.BOARD_SUBMIT.equals(r.getReqType())
-                || ApprovalTypes.isPrep(r.getReqType());
-        m.put("can_cancel", pending && (r.getRequesterEmpNo().equals(me.getEmpNo())
+        boolean teamInternal = ApprovalTypes.isTeamInternal(r.getReqType());   // S7
+        boolean head = pending && ApprovalTypes.TARGET_CHANGE.equals(r.getReqType()) && TargetChangeService.headOverride(me, requester);
+        m.put("can_cancel", pending && (r.getRequesterEmpNo().equals(me.getEmpNo()) || head
                 || (!teamInternal && permissions.canAdmin(me.getEmpNo()))));
+        m.put("can_head_reject", head && how == null);   // 결재선 밖 영업부장 — 반려만(승인 불가)
         return m;
     }
 }

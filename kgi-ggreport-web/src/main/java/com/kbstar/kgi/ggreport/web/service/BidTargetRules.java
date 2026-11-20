@@ -178,6 +178,17 @@ final class BidTargetRules {
         return out;
     }
 
+    /** RFP 협약 개시일 — 비우면 null(지움). YYYY-MM-DD 실제 날짜, 연도는 목표 연도 또는 다음 해(개시는 입찰한 해나 그다음 해). */
+    static String termStart(String raw, int targetYear) {
+        String v = raw == null ? "" : raw.trim();
+        if (v.isEmpty()) return null;
+        if (!v.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")) throw bad("협약 개시일은 YYYY-MM-DD 형식이어야 합니다.");
+        LocalDate d;
+        try { d = LocalDate.parse(v); } catch (RuntimeException e) { throw bad("협약 개시일이 올바른 날짜가 아닙니다."); }
+        if (d.getYear() < targetYear || d.getYear() > targetYear + 1) throw bad("협약 개시일은 목표 연도나 그다음 해 날짜여야 합니다.");
+        return v;
+    }
+
     private static String code(String raw, String group, BankContractRules.CodeCheck codes, String msg) {
         String v = raw == null ? null : raw.trim();
         if (v == null || !CODE.matcher(v).matches() || !codes.enabled(group, v)) throw bad(msg);

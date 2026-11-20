@@ -187,6 +187,10 @@ public class TargetResultApiTest {
         target(1, 1, "SAVE", "GOAL", Y, "NEW", null, null);
         target(1, 2, "CANCEL", "GOAL", Y, "NEW", "DUP", null);
         assertEquals(0, report(Y).path("summary").path("removed_n").asInt());
+        jdbc.update("DELETE FROM INST_BID_TARGET");
+        target(1, 1, "SAVE", "GOAL", Y, "NEW", null, null);
+        target(1, 2, "CANCEL", "GOAL", Y, "NEW", "CARRY_REVOKED", null);   // NEXT 105 이월 자동 취소
+        assertEquals(0, report(Y).path("summary").path("removed_n").asInt());
     }
 
     @Test public void 취소_뒤_같은_해에_다시_넣으면_뺀_곳에_안_센다() throws Exception {

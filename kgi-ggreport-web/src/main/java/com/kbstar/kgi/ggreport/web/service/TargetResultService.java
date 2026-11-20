@@ -144,7 +144,8 @@ public class TargetResultService {
     private static boolean isCorrection(BidTarget t, int year) {
         if (!BidTargetRules.KIND_GOAL.equals(BidTargetRules.kindOf(t)) || !BidTargetService.ACTION_CANCEL.equals(t.getActionCd())) return false;
         if (t.getTargetYear() == null || t.getTargetYear().intValue() != year) return false;
-        return "WRONG".equals(t.getCancelReasonCd()) || "DUP".equals(t.getCancelReasonCd());
+        return "WRONG".equals(t.getCancelReasonCd()) || "DUP".equals(t.getCancelReasonCd())
+                || BidTargetService.CANCEL_CARRY_REVOKED.equals(t.getCancelReasonCd());   // NEXT 105 — 이월 자동 취소도 정정
     }
 
     private Map<String, String> names(String group) {

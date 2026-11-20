@@ -36,6 +36,11 @@ public class BidTargetApiTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private com.kbstar.kgi.ggreport.web.config.BidTargetSettings settings;
+
+    /** NEXT 105 — 이 시험은 043·044 단건 쓰기(결재 없이 바로)를 본다. 결재 스위치를 끄고 시험 뒤 되돌린다(결재 규칙은 TargetChangeApiTest). */
+    @org.junit.Before public void 결재_스위치_끔() { settings.setApprovalRequired(false); }
+    @org.junit.After public void 결재_스위치_복구() { settings.setApprovalRequired(false); }   // 코드 기본값(false)으로
 
     /** 올해 — 서버가 요청 때 쓰는 Times.todayKst 와 같은 원천을 그때그때 읽는다(연말 경계에서 시험이 흔들리지 않게, QA P3-3). 시험마다 `final int Y = y();` */
     private static int y() { return Integer.parseInt(Times.todayKst().substring(0, 4)); }

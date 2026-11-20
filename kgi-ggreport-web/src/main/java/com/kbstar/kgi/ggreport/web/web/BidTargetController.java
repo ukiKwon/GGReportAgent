@@ -4,6 +4,9 @@ import com.kbstar.kgi.ggreport.web.config.AccessLogInterceptor;
 import com.kbstar.kgi.ggreport.web.dto.BidTargetCancelIn;
 import com.kbstar.kgi.ggreport.web.dto.BidTargetIn;
 import com.kbstar.kgi.ggreport.web.dto.BidTargetMoveIn;
+import com.kbstar.kgi.ggreport.web.dto.BidTermIn;
+import com.kbstar.kgi.ggreport.web.dto.TargetChangeIn;
+import com.kbstar.kgi.ggreport.web.service.ApprovalRequestService;
 import com.kbstar.kgi.ggreport.web.service.BidTargetService;
 import com.kbstar.kgi.ggreport.web.support.TargetUiIds;
 import org.springframework.http.HttpStatus;
@@ -30,10 +33,12 @@ public class BidTargetController {
     private static final Pattern CODE = Pattern.compile("[A-Z_]{1,40}");
 
     private final BidTargetService targets;
+    private final ApprovalRequestService approvals;
     private final MenuGuard guard;
 
-    public BidTargetController(BidTargetService targets, MenuGuard guard) {
+    public BidTargetController(BidTargetService targets, ApprovalRequestService approvals, MenuGuard guard) {
         this.targets = targets;
+        this.approvals = approvals;
         this.guard = guard;
     }
 
@@ -47,8 +52,8 @@ public class BidTargetController {
 
     @GetMapping("/institutions/{institutionId}/bid-targets/history")
     public Map<String, Object> history(@PathVariable String institutionId, HttpServletRequest req) {
-        guard.require(req, VIEW_MENU);
-        Map<String, Object> out = targets.history(institutionId);
+        Actor actor = guard.require(req, VIEW_MENU);
+        Map<String, Object> out = targets.history(institutionId, actor.getEmpNo());
         req.setAttribute(AccessLogInterceptor.DETAIL, "bid-target history n=" + ((List<?>) out.get("items")).size());
         return out;
     }
@@ -61,6 +66,7 @@ public class BidTargetController {
         try {
             out = targets.save(institutionId, body, actor, TargetUiIds.of(req, saveButtons(body)));
         } catch (ApiException e) {
+            deniedIfApproval(req, e);
             req.setAttribute(AccessLogInterceptor.DETAIL, failDetail("save", e));
             throw e;
         }
@@ -79,6 +85,7 @@ public class BidTargetController {
         try {
             out = targets.cancel(institutionId, targetNo, body, actor, TargetUiIds.of(req, TargetUiIds.CANCEL));
         } catch (ApiException e) {
+            deniedIfApproval(req, e);
             req.setAttribute(AccessLogInterceptor.DETAIL, failDetail("cancel", e));
             throw e;
         }
@@ -97,6 +104,7 @@ public class BidTargetController {
         try {
             out = targets.move(institutionId, targetNo, body, actor, TargetUiIds.of(req, toWatchButton ? TargetUiIds.TO_WATCH : TargetUiIds.TO_GOAL));
         } catch (ApiException e) {
+            deniedIfApproval(req, e);
             req.setAttribute(AccessLogInterceptor.DETAIL, failDetail("move", e));
             throw e;
         }
@@ -106,6 +114,72 @@ public class BidTargetController {
                 + " to=" + ("WATCH".equals(kind) ? "watch" : "goal") + " other=" + (Boolean.TRUE.equals(out.get("edited_by_other")) ? "1" : "0")
                 + (out.get("warning") != null ? " warn=INST_BID_CLOSED" : ""));
         return ResponseEntity.status(HttpStatus.CREATED).body(out);
+    }
+
+    /** NEXT 105 — 목표 기관 변경 일괄(1~20). 영업부장은 바로 반영, 그 밖 영업 계열은 결재 요청. DETAIL 엔 방식·건수·요청 번호만. */
+    @PostMapping("/bid-targets/changes")
+    public Map<String, Object> change(@RequestBody(required = false) TargetChangeIn body, HttpServletRequest req) {
+        Actor actor = requireEditor(req);
+        Map<String, Object> out;
+        try {
+            out = approvals.submitTargetChange(body, actor, TargetUiIds.of(req, TargetUiIds.CHANGE));
+        } catch (ApiException e) {
+            req.setAttribute(AccessLogInterceptor.DETAIL, failDetail("change", e) + itemNo(e));
+            throw e;
+        }
+        Object rq = out.get("request");
+        Object reqId = rq instanceof Map ? ((Map<?, ?>) rq).get("req_id") : null;
+        int n = body.getItems().size();   // 여기 오면 1~20 으로 검사됨
+        req.setAttribute(AccessLogInterceptor.DETAIL, "bid-target change mode=" + ("DIRECT".equals(out.get("mode")) ? "direct" : "approval")
+                + " n=" + n + (reqId == null ? "" : " req=" + reqId));
+        return out;
+    }
+
+    /** NEXT 105 — 자동 이월·자동 취소(결재 없음). 화면이 GET /bid-targets 의 carry_due > 0 일 때 한 번 부른다. */
+    @PostMapping("/bid-targets/carry")
+    public Map<String, Object> carry(HttpServletRequest req) {
+        Actor actor = requireEditor(req);
+        Map<String, Object> out;
+        try {
+            out = targets.carry(actor, TargetUiIds.of(req, TargetUiIds.CARRY));
+        } catch (ApiException e) {
+            req.setAttribute(AccessLogInterceptor.DETAIL, failDetail("carry", e));
+            throw e;
+        }
+        req.setAttribute(AccessLogInterceptor.DETAIL, "bid-target carry carried=" + out.get("carried")
+                + " revoked=" + out.get("revoked") + " skipped=" + out.get("skipped"));
+        return out;
+    }
+
+    /** NEXT 105 — RFP 협약 개시일 저장(결재 없음). DETAIL 에 날짜·연도 값 없음. */
+    @PostMapping("/institutions/{institutionId}/bid-terms")
+    public ResponseEntity<Map<String, Object>> saveTerm(@PathVariable String institutionId,
+                                                        @RequestBody(required = false) BidTermIn body, HttpServletRequest req) {
+        Actor actor = requireEditor(req);
+        Map<String, Object> out;
+        try {
+            out = targets.saveTerm(institutionId, body, actor, TargetUiIds.of(req, TargetUiIds.TERM));
+        } catch (ApiException e) {
+            req.setAttribute(AccessLogInterceptor.DETAIL, failDetail("term", e));
+            throw e;
+        }
+        boolean saved = Boolean.TRUE.equals(out.get("saved"));
+        req.setAttribute(AccessLogInterceptor.DETAIL, saved ? "bid-target term rev=" + out.get("rev_no") : "bid-target term no-change");
+        return ResponseEntity.status(saved ? HttpStatus.CREATED : HttpStatus.OK).body(out);
+    }
+
+    /** S9 — 역할 거절(APPROVAL_REQUIRED, 403)은 ACCESS_LOG DENIED 로도 남긴다(고정 문구, 본문 없음). */
+    private void deniedIfApproval(HttpServletRequest req, ApiException e) {
+        Object d = e.getDetailObject();
+        if (e.getStatus() == 403 && d instanceof Map && "APPROVAL_REQUIRED".equals(((Map<?, ?>) d).get("code"))) {
+            guard.denied(req, new ApiException(403, "bid-target approval required"));
+        }
+    }
+
+    private static String itemNo(ApiException e) {
+        Object d = e.getDetailObject();
+        Object n = d instanceof Map ? ((Map<?, ?>) d).get("item_no") : null;
+        return n instanceof Integer ? " item=" + n : "";
     }
 
     private static Set<String> saveButtons(BidTargetIn body) {

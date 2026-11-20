@@ -76,6 +76,10 @@ public class BoardWriteLimitFilter implements Filter {
     /** POST /bidcases/{id}/prep/forms/{form}/(prefill|confirm|unconfirm) — 본문이 작다(판 번호·칸 키 목록·사유). 16KB. */
     private static final Pattern FORM_SMALL = Pattern.compile(
             "(?:^|/)bidcases/+[^/]+/+prep/+forms/+[^/]+/+(?:prefill|confirm|unconfirm)/*$", Pattern.CASE_INSENSITIVE);
+    /** 목표·관심 쓰기(043·044)와 목표 변경 일괄(NEXT 105, 최대 20건)·이월·협약 개시일 — 32KB. */
+    static final long TARGET_MAX = 32L * 1024;
+    private static final Pattern TARGET_WRITE = Pattern.compile(
+            "(?:^|/)(?:bid-targets/+(?:changes|carry)|institutions/+[^/]+/+bid-(?:targets(?:/+[^/]+/+(?:cancel|move))?|terms))/*$", Pattern.CASE_INSENSITIVE);
 
     private final AccessLogService accessLog;
     private final int maxMb;
@@ -128,6 +132,7 @@ public class BoardWriteLimitFilter implements Filter {
                 : post && SNAP.matcher(path).find() ? SNAP_MAX
                 : post && MAT_SMALL.matcher(path).find() ? COPY_MAX
                 : post && FORM_SMALL.matcher(path).find() ? COPY_MAX
+                : post && TARGET_WRITE.matcher(path).find() ? TARGET_MAX
                 : put && FORM_DRAFT.matcher(path).find() ? FORM_DRAFT_MAX
                 : put && SAVE.matcher(path).find() ? SAVE_MAX : -1;
         long len = req.getContentLengthLong();

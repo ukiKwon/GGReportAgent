@@ -8,6 +8,10 @@ public class BidTarget {
     private int targetNo, revNo, empVerified, uiValid;
     private Integer targetYear;   // 044 — 관심(WATCH)은 NULL
     private String kindCd;        // 044 — GOAL | WATCH
+    private Long approvalReqId;                                   // 056 — 결재로 반영된 행(직접·이월은 null)
+    private Integer carryFromNo; private String carryBasisCd;     // 056 — 쓰기 전용(자동 이월 REV 1 에만)
+    private Integer firstCarryFromNo; private String firstCarryBasisCd, firstActionCd, firstKindCd;   // 056 조회 — REV 1(f) 값
+    private String requesterEmpNo, requestedByName, firstRequesterEmpNo, firstRequestedByName;      // 056 조회 — 결재 항목 요청자(사번은 내보내지 않음)
 
     public String getInstitutionId() { return institutionId; } public void setInstitutionId(String v) { institutionId = v; }
     public String getInstitutionName() { return institutionName; } public void setInstitutionName(String v) { institutionName = v; }
@@ -35,4 +39,15 @@ public class BidTarget {
     public String getFirstEditorEmpNo() { return firstEditorEmpNo; } public void setFirstEditorEmpNo(String v) { firstEditorEmpNo = v; }
     public String getFirstEditorName() { return firstEditorName; } public void setFirstEditorName(String v) { firstEditorName = v; }
     public String getFirstSavedAt() { return firstSavedAt; } public void setFirstSavedAt(String v) { firstSavedAt = v; }
+    public Long getApprovalReqId() { return approvalReqId; } public void setApprovalReqId(Long v) { approvalReqId = v; }
+    public Integer getCarryFromNo() { return carryFromNo; } public void setCarryFromNo(Integer v) { carryFromNo = v; }
+    public String getCarryBasisCd() { return carryBasisCd; } public void setCarryBasisCd(String v) { carryBasisCd = v; }
+    public Integer getFirstCarryFromNo() { return firstCarryFromNo; } public void setFirstCarryFromNo(Integer v) { firstCarryFromNo = v; }
+    public String getFirstCarryBasisCd() { return firstCarryBasisCd; } public void setFirstCarryBasisCd(String v) { firstCarryBasisCd = v; }
+    public String getFirstActionCd() { return firstActionCd; } public void setFirstActionCd(String v) { firstActionCd = v; }
+    public String getFirstKindCd() { return firstKindCd; } public void setFirstKindCd(String v) { firstKindCd = v; }
+    public String getRequesterEmpNo() { return requesterEmpNo; } public void setRequesterEmpNo(String v) { requesterEmpNo = v; }
+    public String getRequestedByName() { return requestedByName; } public void setRequestedByName(String v) { requestedByName = v; }
+    public String getFirstRequesterEmpNo() { return firstRequesterEmpNo; } public void setFirstRequesterEmpNo(String v) { firstRequesterEmpNo = v; }
+    public String getFirstRequestedByName() { return firstRequestedByName; } public void setFirstRequestedByName(String v) { firstRequestedByName = v; }
 }

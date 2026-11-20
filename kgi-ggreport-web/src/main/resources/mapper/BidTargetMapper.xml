@@ -37,6 +37,15 @@
     <result property="firstEditorEmpNo" column="FIRST_EDITOR_EMP_NO"/>
     <result property="firstEditorName" column="FIRST_EDITOR_NAME"/>
     <result property="firstSavedAt" column="FIRST_SAVED_AT"/>
+    <result property="approvalReqId" column="APPROVAL_REQ_ID"/>
+    <result property="firstCarryFromNo" column="FIRST_CARRY_FROM_NO"/>
+    <result property="firstCarryBasisCd" column="FIRST_CARRY_BASIS_CD"/>
+    <result property="firstActionCd" column="FIRST_ACTION_CD"/>
+    <result property="firstKindCd" column="FIRST_KIND_CD"/>
+    <result property="requesterEmpNo" column="REQUESTER_EMP_NO"/>
+    <result property="requestedByName" column="REQUESTED_BY_NAME"/>
+    <result property="firstRequesterEmpNo" column="FIRST_REQUESTER_EMP_NO"/>
+    <result property="firstRequestedByName" column="FIRST_REQUESTED_BY_NAME"/>
   </resultMap>
 
   <resultMap id="line" type="BankContract">
@@ -66,12 +75,18 @@
   <sql id="cols">b.INSTITUTION_ID, b.TARGET_NO, b.REV_NO, b.ACTION_CD, b.KIND_CD, b.TARGET_YEAR, b.TAG_CD, b.MEMO, b.OWNER_EMP_NO, b.OWNER_NAME,
     b.CANCEL_REASON_CD, b.CANCEL_REASON_ETC, b.EDITOR_EMP_NO, b.EDITOR_NAME, b.EMP_VERIFIED, b.SCREEN_ID, b.BUTTON_ID, b.UI_VALID, b.SAVED_AT,
     i.NAME_KO AS INSTITUTION_NAME, i.REGION_CODE, c.CODE_NAME AS TAG_NAME, d.CODE_NAME AS CANCEL_REASON_NAME,
-    f.EDITOR_EMP_NO AS FIRST_EDITOR_EMP_NO, f.EDITOR_NAME AS FIRST_EDITOR_NAME, f.SAVED_AT AS FIRST_SAVED_AT</sql>
+    f.EDITOR_EMP_NO AS FIRST_EDITOR_EMP_NO, f.EDITOR_NAME AS FIRST_EDITOR_NAME, f.SAVED_AT AS FIRST_SAVED_AT,
+    b.APPROVAL_REQ_ID, f.CARRY_FROM_NO AS FIRST_CARRY_FROM_NO, f.CARRY_BASIS_CD AS FIRST_CARRY_BASIS_CD,
+    f.ACTION_CD AS FIRST_ACTION_CD, f.KIND_CD AS FIRST_KIND_CD,
+    ri.REQUESTER_EMP_NO AS REQUESTER_EMP_NO, ri.REQUESTER_NAME AS REQUESTED_BY_NAME,
+    fr.REQUESTER_EMP_NO AS FIRST_REQUESTER_EMP_NO, fr.REQUESTER_NAME AS FIRST_REQUESTED_BY_NAME</sql>
   <sql id="from">FROM INST_BID_TARGET b
     LEFT JOIN INSTITUTIONS i ON i.INSTITUTION_ID = b.INSTITUTION_ID
     LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'TARGET_TAG' AND c.CODE = b.TAG_CD
     LEFT JOIN COMMON_CODE d ON d.CODE_GROUP = 'TARGET_CANCEL_REASON' AND d.CODE = b.CANCEL_REASON_CD
-    LEFT JOIN INST_BID_TARGET f ON f.INSTITUTION_ID = b.INSTITUTION_ID AND f.TARGET_NO = b.TARGET_NO AND f.REV_NO = 1</sql>
+    LEFT JOIN INST_BID_TARGET f ON f.INSTITUTION_ID = b.INSTITUTION_ID AND f.TARGET_NO = b.TARGET_NO AND f.REV_NO = 1
+    LEFT JOIN INST_BID_TARGET_REQ_ITEM ri ON ri.REQ_ID = b.APPROVAL_REQ_ID AND ri.INSTITUTION_ID = b.INSTITUTION_ID
+    LEFT JOIN INST_BID_TARGET_REQ_ITEM fr ON fr.REQ_ID = f.APPROVAL_REQ_ID AND fr.INSTITUTION_ID = f.INSTITUTION_ID</sql>
   <sql id="latest">NOT EXISTS (SELECT 1 FROM INST_BID_TARGET n
       WHERE n.INSTITUTION_ID = b.INSTITUTION_ID AND n.TARGET_NO = b.TARGET_NO AND n.REV_NO &gt; b.REV_NO)</sql>
 
@@ -98,10 +113,12 @@
 
   <insert id="insertRow" parameterType="BidTarget">
     INSERT INTO INST_BID_TARGET (INSTITUTION_ID, TARGET_NO, REV_NO, ACTION_CD, KIND_CD, TARGET_YEAR, TAG_CD, MEMO, OWNER_EMP_NO, OWNER_NAME,
-        CANCEL_REASON_CD, CANCEL_REASON_ETC, EDITOR_EMP_NO, EDITOR_NAME, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, SAVED_AT)
+        CANCEL_REASON_CD, CANCEL_REASON_ETC, EDITOR_EMP_NO, EDITOR_NAME, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, SAVED_AT,
+        APPROVAL_REQ_ID, CARRY_FROM_NO, CARRY_BASIS_CD)
     VALUES (#{institutionId}, #{targetNo}, #{revNo}, #{actionCd}, #{kindCd}, #{targetYear,jdbcType=INTEGER}, #{tagCd}, #{memo,jdbcType=VARCHAR},
         #{ownerEmpNo,jdbcType=VARCHAR}, #{ownerName,jdbcType=VARCHAR}, #{cancelReasonCd,jdbcType=VARCHAR}, #{cancelReasonEtc,jdbcType=VARCHAR},
-        #{editorEmpNo}, #{editorName}, #{empVerified}, #{screenId}, #{buttonId}, #{uiValid}, #{savedAt})
+        #{editorEmpNo}, #{editorName}, #{empVerified}, #{screenId}, #{buttonId}, #{uiValid}, #{savedAt},
+        #{approvalReqId,jdbcType=BIGINT}, #{carryFromNo,jdbcType=INTEGER}, #{carryBasisCd,jdbcType=VARCHAR})
   </insert>
 
   <sql id="lineCols">k.INSTITUTION_ID, k.CONTRACT_NO, k.REV_NO, k.RANK_CD, k.BANK_CD, k.BANK_NAME_ETC, k.TERM_FROM, k.TERM_TO, c.CODE_NAME AS BANK_NAME</sql>
@@ -164,4 +181,86 @@
   <select id="countEnabledCode" resultType="int" flushCache="true">
     SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP = #{group} AND CODE = #{code} AND ENABLED = 1
   </select>
+
+  <!-- ===== 056 목표 기관 변경 결재·자동 이월·RFP 협약 개시일 ===== -->
+  <select id="selectLatestByInst" resultMap="row" flushCache="true">
+    SELECT <include refid="cols"/> <include refid="from"/>
+     WHERE b.INSTITUTION_ID = #{institutionId} AND <include refid="latest"/>
+     ORDER BY b.TARGET_NO
+  </select>
+  <select id="selectInstitutionName" resultType="string" flushCache="true">
+    SELECT NAME_KO FROM INSTITUTIONS WHERE INSTITUTION_ID = #{institutionId}
+  </select>
+  <select id="countPendingByInst" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM x JOIN APPROVAL_REQUEST r ON r.REQ_ID = x.REQ_ID
+     WHERE x.INSTITUTION_ID = #{institutionId} AND r.STATUS = 'PENDING'
+  </select>
+
+  <sql id="carryInst">SELECT t.INSTITUTION_ID FROM INST_BID_TARGET t
+             WHERE t.KIND_CD = 'GOAL' AND t.TARGET_YEAR BETWEEN #{fromYear} AND #{toYear} AND t.ACTION_CD &lt;&gt; 'CANCEL' AND NOT EXISTS (SELECT 1 FROM INST_BID_TARGET m
+               WHERE m.INSTITUTION_ID = t.INSTITUTION_ID AND m.TARGET_NO = t.TARGET_NO AND m.REV_NO &gt; t.REV_NO)</sql>
+  <select id="selectLatestForCarry" resultMap="row" flushCache="true">
+    SELECT <include refid="cols"/> <include refid="from"/>
+     WHERE <include refid="latest"/> AND b.INSTITUTION_ID IN (<include refid="carryInst"/>)
+     ORDER BY b.INSTITUTION_ID, b.TARGET_NO
+  </select>
+  <select id="selectContractsForCarry" resultMap="line" flushCache="true">
+    SELECT <include refid="lineCols"/> <include refid="lineFrom"/> AND k.INSTITUTION_ID IN (<include refid="carryInst"/>)
+     ORDER BY k.INSTITUTION_ID, k.CONTRACT_NO
+  </select>
+
+  <sql id="termCols">s.INSTITUTION_ID, s.TARGET_YEAR, s.REV_NO, s.ACTION_CD, s.TERM_START, s.EDITOR_EMP_NO, s.EDITOR_NAME, s.EMP_VERIFIED,
+    s.SCREEN_ID, s.BUTTON_ID, s.UI_VALID, s.SAVED_AT</sql>
+  <sql id="termLatest">NOT EXISTS (SELECT 1 FROM INST_BID_TERM n
+      WHERE n.INSTITUTION_ID = s.INSTITUTION_ID AND n.TARGET_YEAR = s.TARGET_YEAR AND n.REV_NO &gt; s.REV_NO)</sql>
+  <select id="selectLatestTerm" resultType="BidTerm" flushCache="true">
+    SELECT <include refid="termCols"/> FROM INST_BID_TERM s
+     WHERE s.INSTITUTION_ID = #{institutionId} AND s.TARGET_YEAR = #{year} AND <include refid="termLatest"/>
+  </select>
+  <select id="selectTermsOf" resultType="BidTerm" flushCache="true">
+    SELECT <include refid="termCols"/> FROM INST_BID_TERM s WHERE s.INSTITUTION_ID = #{institutionId} AND <include refid="termLatest"/>
+  </select>
+  <select id="selectTermsForYear" resultType="BidTerm" flushCache="true">
+    SELECT <include refid="termCols"/> FROM INST_BID_TERM s WHERE s.TARGET_YEAR = #{year} AND <include refid="termLatest"/>
+  </select>
+  <select id="selectTermsForCarry" resultType="BidTerm" flushCache="true">
+    SELECT <include refid="termCols"/> FROM INST_BID_TERM s
+     WHERE <include refid="termLatest"/> AND s.INSTITUTION_ID IN (<include refid="carryInst"/>)
+  </select>
+  <insert id="insertTerm" parameterType="BidTerm">
+    INSERT INTO INST_BID_TERM (INSTITUTION_ID, TARGET_YEAR, REV_NO, ACTION_CD, TERM_START, EDITOR_EMP_NO, EDITOR_NAME, EMP_VERIFIED,
+        SCREEN_ID, BUTTON_ID, UI_VALID, SAVED_AT)
+    VALUES (#{institutionId}, #{targetYear}, #{revNo}, #{actionCd}, #{termStart,jdbcType=VARCHAR}, #{editorEmpNo}, #{editorName}, #{empVerified},
+        #{screenId}, #{buttonId}, #{uiValid}, #{savedAt})
+  </insert>
+
+  <sql id="itemCols">x.REQ_ID, x.INSTITUTION_ID, x.ITEM_NO, x.OP_CD, x.TARGET_NO, x.BASE_REV_NO, x.BASE_KIND_CD, x.BASE_YEAR, x.TO_YEAR, x.TAG_CD, x.MEMO,
+    x.OWNER_EMP_NO, x.OWNER_NAME, x.CANCEL_REASON_CD, x.CANCEL_REASON_ETC, x.WARN_CD, x.REQUESTER_EMP_NO, x.REQUESTER_NAME, x.CREATED_AT,
+    r.CREATED_AT AS REQ_CREATED_AT, i.NAME_KO AS INSTITUTION_NAME, c.CODE_NAME AS TAG_NAME, d.CODE_NAME AS CANCEL_REASON_NAME,
+    bt.TAG_CD AS BASE_TAG_CD, bc.CODE_NAME AS BASE_TAG_NAME, bt.MEMO AS BASE_MEMO, bt.OWNER_NAME AS BASE_OWNER_NAME</sql>
+  <sql id="itemFrom">FROM INST_BID_TARGET_REQ_ITEM x
+    JOIN APPROVAL_REQUEST r ON r.REQ_ID = x.REQ_ID
+    LEFT JOIN INSTITUTIONS i ON i.INSTITUTION_ID = x.INSTITUTION_ID
+    LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'TARGET_TAG' AND c.CODE = x.TAG_CD
+    LEFT JOIN COMMON_CODE d ON d.CODE_GROUP = 'TARGET_CANCEL_REASON' AND d.CODE = x.CANCEL_REASON_CD
+    LEFT JOIN INST_BID_TARGET bt ON bt.INSTITUTION_ID = x.INSTITUTION_ID AND bt.TARGET_NO = x.TARGET_NO AND bt.REV_NO = x.BASE_REV_NO
+    LEFT JOIN COMMON_CODE bc ON bc.CODE_GROUP = 'TARGET_TAG' AND bc.CODE = bt.TAG_CD</sql>
+  <select id="selectPendingItems" resultType="BidTargetReqItem" flushCache="true">
+    SELECT <include refid="itemCols"/> <include refid="itemFrom"/> WHERE r.STATUS = 'PENDING' ORDER BY x.INSTITUTION_ID, x.REQ_ID
+  </select>
+  <select id="selectReqItems" resultType="BidTargetReqItem" flushCache="true">
+    SELECT <include refid="itemCols"/> <include refid="itemFrom"/> WHERE x.REQ_ID = #{reqId} ORDER BY x.ITEM_NO
+  </select>
+  <insert id="insertReqItem" parameterType="BidTargetReqItem">
+    INSERT INTO INST_BID_TARGET_REQ_ITEM (REQ_ID, INSTITUTION_ID, ITEM_NO, OP_CD, TARGET_NO, BASE_REV_NO, BASE_KIND_CD, BASE_YEAR, TO_YEAR, TAG_CD, MEMO,
+        OWNER_EMP_NO, OWNER_NAME, CANCEL_REASON_CD, CANCEL_REASON_ETC, WARN_CD, REQUESTER_EMP_NO, REQUESTER_NAME, CREATED_AT)
+    VALUES (#{reqId}, #{institutionId}, #{itemNo}, #{opCd}, #{targetNo,jdbcType=INTEGER}, #{baseRevNo,jdbcType=INTEGER}, #{baseKindCd,jdbcType=VARCHAR},
+        #{baseYear,jdbcType=INTEGER}, #{toYear,jdbcType=INTEGER}, #{tagCd,jdbcType=VARCHAR}, #{memo,jdbcType=VARCHAR}, #{ownerEmpNo,jdbcType=VARCHAR},
+        #{ownerName,jdbcType=VARCHAR}, #{cancelReasonCd,jdbcType=VARCHAR}, #{cancelReasonEtc,jdbcType=VARCHAR}, #{warnCd,jdbcType=VARCHAR},
+        #{requesterEmpNo}, #{requesterName}, #{createdAt})
+  </insert>
+  <insert id="insertReqAct" parameterType="BidTargetReqAct">
+    INSERT INTO INST_BID_TARGET_REQ_ACT (REQ_ID, ACT_CD, ACTOR_BASIS, ACTOR_EMP_NO, ACTOR_NAME, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, ACTED_AT)
+    VALUES (#{reqId}, #{actCd}, #{actorBasis}, #{actorEmpNo}, #{actorName}, #{empVerified}, #{screenId}, #{buttonId}, #{uiValid}, #{actedAt})
+  </insert>
 </mapper>

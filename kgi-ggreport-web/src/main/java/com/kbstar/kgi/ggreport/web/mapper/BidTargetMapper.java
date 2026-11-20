@@ -4,6 +4,9 @@ import com.kbstar.kgi.ggreport.web.domain.BankContract;
 import com.kbstar.kgi.ggreport.web.domain.BankContractCode;
 import com.kbstar.kgi.ggreport.web.domain.BankContractInst;
 import com.kbstar.kgi.ggreport.web.domain.BidTarget;
+import com.kbstar.kgi.ggreport.web.domain.BidTerm;
+import com.kbstar.kgi.ggreport.web.domain.BidTargetReqAct;
+import com.kbstar.kgi.ggreport.web.domain.BidTargetReqItem;
 import com.kbstar.kgi.ggreport.web.domain.NoticeRoundView;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -35,4 +38,27 @@ public interface BidTargetMapper {
     List<NoticeRoundView> selectNoticeLast(@Param("institutionId") String institutionId);
     /** 044 — 그 해 살아 있는 목표 기관마다 위와 같은 한 줄. */
     List<NoticeRoundView> selectNoticeLastForYear(@Param("year") int year);
+
+    // ---- 056 목표 기관 변경 결재·자동 이월 ----
+    /** 뺀 기록 포함, 그 기관 모든 기록의 최신 행. */
+    List<BidTarget> selectLatestByInst(@Param("institutionId") String institutionId);
+    /** 목표 연도가 fromYear~toYear 인 살아 있는 목표가 있는 기관들의 모든 기록 최신 행(이월 후보). */
+    List<BidTarget> selectLatestForCarry(@Param("fromYear") int fromYear, @Param("toYear") int toYear);
+    /** 위와 같은 기관들의 039 최신 유효 줄. */
+    List<BankContract> selectContractsForCarry(@Param("fromYear") int fromYear, @Param("toYear") int toYear);
+    // INST_BID_TERM — RFP 협약 개시일(추가 전용)
+    BidTerm selectLatestTerm(@Param("institutionId") String institutionId, @Param("year") int year);
+    /** 그 기관 연도별 최신(지운 것 포함). */
+    List<BidTerm> selectTermsOf(@Param("institutionId") String institutionId);
+    /** 그 해 최신(목록용, 지운 것 포함). */
+    List<BidTerm> selectTermsForYear(@Param("year") int year);
+    List<BidTerm> selectTermsForCarry(@Param("fromYear") int fromYear, @Param("toYear") int toYear);
+    int insertTerm(BidTerm row);
+    String selectInstitutionName(@Param("institutionId") String institutionId);
+    /** 그 기관에 결재 중(PENDING) 항목 수. */
+    int countPendingByInst(@Param("institutionId") String institutionId);
+    List<BidTargetReqItem> selectPendingItems();
+    List<BidTargetReqItem> selectReqItems(@Param("reqId") Long reqId);
+    int insertReqItem(BidTargetReqItem item);
+    int insertReqAct(BidTargetReqAct act);
 }

@@ -25,15 +25,22 @@ public final class ApprovalTypes {
     public static final String BID_OPEN = "BID_OPEN";
     /** 사전준비 승인(NEXT 70) — 영업부장 고정. 진행 현황 5번 게이트(기획승인)와는 별개 승인이다(사용자 11-11 ①, 이름 구분 11-13). */
     public static final String PREP_APPROVAL = "PREP_APPROVAL";
+    /** 목표 기관 변경(NEXT 105) — 팀원 → 영업팀장, 영업팀장 → 영업부장. 영업부장은 결재선 밖이어도 반려·취소 가능(사용자 11-20 ③). */
+    public static final String TARGET_CHANGE = "TARGET_CHANGE";
 
     /** 대결 승인을 허용하지 않는 유형 — 결재자 본인만 승인한다(019 담당자 변경). 기존 유형 동작은 그대로다. */
     public static final Set<String> NO_PROXY =
             Collections.unmodifiableSet(new HashSet<String>(
-                    Arrays.asList(ASSIGNEE_CHANGE, BOARD_SUBMIT, BID_OPEN, PREP_APPROVAL)));
+                    Arrays.asList(ASSIGNEE_CHANGE, BOARD_SUBMIT, BID_OPEN, PREP_APPROVAL, TARGET_CHANGE)));
 
     /** 사전준비(NEXT 70)가 쓰는 유형 — 영업팀 내부 정보라 관리자 전체 목록·타인 취소에서 제외한다. */
     public static boolean isPrep(String key) {
         return BID_OPEN.equals(key) || PREP_APPROVAL.equals(key);
+    }
+
+    /** 영업팀 내부 정보 — 관리자 전체 목록·관리자 취소에서 제외(S7: 판정은 이 한 곳). */
+    public static boolean isTeamInternal(String key) {
+        return ASSIGNEE_CHANGE.equals(key) || BOARD_SUBMIT.equals(key) || isPrep(key) || TARGET_CHANGE.equals(key);
     }
 
     public static final class Type {
@@ -68,7 +75,9 @@ public final class ApprovalTypes {
             new Type(BID_OPEN, "사전준비 개설 신청", true,
                     "신청자 → 영업팀장 (신청자·지명자 중 영업팀장이 있으면 영업부장) · 대결 불가"),
             new Type(PREP_APPROVAL, "사전준비 승인", true,
-                    "담당자 → 영업부장 · 대결 불가")));
+                    "담당자 → 영업부장 · 대결 불가"),
+            new Type(TARGET_CHANGE, "목표 기관 변경", true,
+                    "영업팀원 → 영업팀장 (영업팀장이 올리면 영업부장) · 대결 불가 · 여러 기관 한 번에 · 영업부장은 결재 없이 바로 반영")));
 
     public static Type find(String key) {
         for (Type t : ALL) {
