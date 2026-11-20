@@ -59,12 +59,12 @@ test('서버가 끈 화면은 하위 항목에서도 사라진다', function () 
   assert.ok(items(built, 'manage').some(function (i) { return i.label === '작업함'; }));
 });
 
-test('준비중 항목은 영업 계열(영업팀·팀장·부장·디자이너·마스터)에게만 보인다', function () {
-  ['영업팀', '영업팀장', '영업부장', '디자이너'].forEach(function (role) {
+test('협약·관계 관리: 영업 계열·마스터 + 협약 성과 관리 때문에 전산팀도 보이고, 재무·역할 없음은 안 보인다(NEXT 104, 11-20)', function () {
+  ['영업팀', '영업팀장', '영업부장', '디자이너', '전산팀', '전산팀장'].forEach(function (role) {
     assert.ok(nav.build(ALL_ON, { role: role }).some(function (c) { return c.id === 'relate'; }), role);
   });
   assert.ok(nav.build(ALL_ON, { role: '전산팀', master: true }).some(function (c) { return c.id === 'relate'; }));
-  ['전산팀', '전산팀장', '예산팀', '예산팀장', ''].forEach(function (role) {
+  ['예산팀', '예산팀장', ''].forEach(function (role) {
     assert.ok(!nav.build(ALL_ON, { role: role }).some(function (c) { return c.id === 'relate'; }), role);
   });
 });
@@ -86,14 +86,14 @@ test('비영업 팀: 구현 화면 + 예외(이사회 부의·pending 키) 외 �
   });
 });
 
-test('준비중 id: 명시 id 외에는 soon:라벨, 전부 서로 다르고 19개(시작화면 포함)', function () {
+test('준비중 id: 명시 id 외에는 soon:라벨, 전부 서로 다르고 20개(시작화면·협약 성과 관리 포함)', function () {
   const built = nav.build(ALL_ON, { role: '영업팀장' });
   const all = [];
   built.forEach(function (c) { c.items.forEach(function (i) { all.push(i.id); }); });
   assert.strictEqual(new Set(all).size, all.length);
   assert.strictEqual(items(built, 'relate')[0].id, 'soon:입찰 결과 등록');
   const soonIds = all.filter(function (id) { return id.indexOf('soon:') === 0; });
-  assert.strictEqual(soonIds.length, 19);
+  assert.strictEqual(soonIds.length, 20);
   // 이사회 부의: 라벨은 바뀌어도 id는 고정(board.SOON_ID)
   const board = items(built, 'plan').filter(function (i) { return i.id === 'soon:이사회 자료'; })[0];
   assert.ok(board && board.label === '이사회 자료 작성');
@@ -217,7 +217,7 @@ test('3단 구조: 대분류 7개 이름·소속(시작화면 단독 + 정의 �
     '이사회>이사회 자료 작성', '이사회>이사회 발표 대본']);
   assert.deepStrictEqual(by.manage, ['진행·결재>제안서 진행 현황', '진행·결재>결재함', '작성>작업함', '작성>제안팀 구성·배정',
     '작성>공동 작성·버전 관리', '검토·제출>내부 검토 의견', '검토·제출>최종 확인·제출']);
-  assert.deepStrictEqual(by.relate, ['>입찰 결과 등록', '>협약 이력']);
+  assert.deepStrictEqual(by.relate, ['>입찰 결과 등록', '>협약 이력', '>협약 성과 관리']);
   assert.deepStrictEqual(by.tools, ['알림·소통>일정·마감 알림', '알림·소통>요청 이력·소통',
     '검색·AI>AI 대화', '검색·AI>지식 검색', '검색·AI>사내 업무 키워드 조회']);
   // 서버 키·view는 동결
@@ -255,7 +255,7 @@ test('서버가 켠 키가 달라도 대분류 순서는 바뀌지 않는다', f
 
 test('비영업 역할: 준비중이 숨겨지고 시스템 관리가 맨 아래', function () {
   assert.deepStrictEqual(ids(nav.build(ALL_ON, { role: '예산팀' })), ['scan', 'plan', 'manage', 'tools', 'sys']);
-  assert.deepStrictEqual(ids(nav.build(ALL_ON, { role: '전산팀' })), ['home', 'scan', 'plan', 'manage', 'tools', 'sys']);   // 전산팀은 시작화면을 본다(보기 전용, 11-19)
+  assert.deepStrictEqual(ids(nav.build(ALL_ON, { role: '전산팀' })), ['home', 'scan', 'plan', 'manage', 'relate', 'tools', 'sys']);   // 전산팀은 시작화면을 본다(보기 전용, 11-19)·협약 성과 관리(11-20)로 relate도
 });
 
 test('이사회 자료 작성: 영업 계열이 아니어도 tasks 조회 권한이 있으면 보이고, tasks가 꺼지면 영업팀 외에는 안 보인다', function () {
@@ -279,7 +279,7 @@ test('이사회 자료 작성: 영업 계열이 아니어도 tasks 조회 권한
   // 서버 map 키로 보이는 입찰 현황판·입찰 공고 현황 — 11-16 공고 현황도 타팀 공유, map 키 AND 영업·전산팀인 기관 사업계획 — 11-17)
   const others = nav.build(ALL_ON, { role: '전산팀' }).reduce(function (n, c) {
     return n + c.items.filter(function (i) {
-      return i.soon && !i.pending && i.id !== 'soon:이사회 자료' && i.id !== nav.DASH_ID && i.id !== nav.NOTICE_ID && i.id !== nav.PLANS_ID && i.id !== nav.HOME_ID;
+      return i.soon && !i.pending && i.id !== 'soon:이사회 자료' && i.id !== nav.DASH_ID && i.id !== nav.NOTICE_ID && i.id !== nav.PLANS_ID && i.id !== nav.HOME_ID && i.id !== nav.RESULTS_ID;
     }).length;
   }, 0);
   assert.strictEqual(others, 0);
@@ -289,7 +289,7 @@ test('준비중 라벨은 정의 전체에서 유일하다(라벨 기반 id의 �
   const labels = [];
   nav.CATEGORIES.forEach(function (c) { c.items.forEach(function (i) { if (!i.key) labels.push(i.label); }); });
   assert.strictEqual(new Set(labels).size, labels.length);
-  assert.strictEqual(labels.length, 19);   // home 1·scan 4(입찰 현황판 포함)·plan 5·manage 4·relate 2·tools 3
+  assert.strictEqual(labels.length, 20);   // home 1·scan 4(입찰 현황판 포함)·plan 5·manage 4·relate 3(협약 성과 관리 11-20)·tools 3
 });
 
 test('입찰 공고 현황: id는 soon:입찰 공고 현황 고정(NOTICE_ID), 배지 없음(실제 화면 — 11-16)', function () {
@@ -397,7 +397,7 @@ test('plan·manage의 중분류(subs) 정의와 협약·관계 관리의 평평�
   assert.deepStrictEqual(by.plan.subs, ['준비 과제', '이사회']);
   assert.deepStrictEqual(by.manage.subs, ['진행·결재', '작성', '검토·제출']);
   assert.strictEqual(by.relate.subs, undefined);
-  assert.deepStrictEqual(by.relate.items.map(function (i) { return i.label; }), ['입찰 결과 등록', '협약 이력']);
+  assert.deepStrictEqual(by.relate.items.map(function (i) { return i.label; }), ['입찰 결과 등록', '협약 이력', '협약 성과 관리']);
 });
 
 // qa 69 후속: 실서버 키 조합·경계값·줄바꿈 CSS 고정

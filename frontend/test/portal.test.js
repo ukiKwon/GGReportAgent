@@ -405,7 +405,7 @@ test('nav.homeIdFor·limitToRole·pinId(역할별 시작화면·기본 메뉴, �
   assert.strictEqual(nav.homeIdFor({ role: '영업팀', master: true }), null);
   assert.strictEqual(nav.homeIdFor({ role: '' }), null);
   const ids = function (role) { return nav.limitToRole(nav.build(ALL_ON, { role: role }), { role: role }).map(function (c) { return c.id; }); };
-  assert.deepStrictEqual(ids('디자이너'), ['home', 'scan', 'manage', 'tools', 'sys']);
+  assert.deepStrictEqual(ids('디자이너'), ['home', 'scan', 'manage', 'relate', 'tools', 'sys']);   // relate = 협약 성과 관리(NEXT 104, 11-20)
   assert.deepStrictEqual(ids('예산팀'), ['plan', 'sys']);
   assert.deepStrictEqual(ids('예산팀장'), ['plan', 'manage', 'sys']);
   assert.deepStrictEqual(ids('영업팀'), nav.build(ALL_ON, { role: '영업팀' }).map(function (c) { return c.id; }));   // 영업·전산은 지금대로

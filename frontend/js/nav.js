@@ -62,6 +62,8 @@
   // 기관 사업계획 — plans.SOON_ID와 같아야 한다. 노출 = 서버 map 키 AND 영업팀·전산팀 소속(예산팀 제외, 11-17 결정).
   const PLANS_ID = 'soon:기관 사업계획';
   const PLANS_TEAMS = [roles.DESIGNER_HOME, '전산팀'].map(function (a) { return roles.teamOf(a); });
+  // 협약 성과 관리(NEXT 104, results.js) — results.SOON_ID와 같아야 한다. 노출 = map 키 AND 영업팀·전산팀(서버 canView와 같음, 재무 제외).
+  const RESULTS_ID = 'soon:협약 성과 관리';
   // 시작화면(포털, portal.js) — 사이드바 메뉴에는 그리지 않는다(headOnly). 머리 띠 제목 '기관영업지원 시스템'과 탭 맨 앞 고정 탭으로만 연다.
   // 노출 = 서버 map 키 AND HOME_ROLES(마스터 제외). 사용자 확정 11-19(이름 '첫 화면' → '시작화면', 메뉴에서 제거).
   // id 값 'soon:첫 화면' → 'soon:시작화면': 이 id는 메모리 탭 목록에만 있다(localStorage·서버·접근 이력에 저장 안 함) → 마이그레이션 없음.
@@ -77,7 +79,7 @@
   // 목록에 없는 역할(영업 계열·전산팀·마스터·역할 없음)은 제한이 없다. 시스템 관리(sys)는 서버 admin 키가 정하므로 항상 통과한다.
   // 재무팀장은 결재함·작업함(제안서 작성·관리, manage) 때문에 manage가 더해진다(사용자 11-19 '권장안대로').
   const ROLE_CATS = {};
-  ROLE_CATS[roles.DESIGNER] = ['home', 'scan', 'manage', 'tools'];
+  ROLE_CATS[roles.DESIGNER] = ['home', 'scan', 'manage', 'relate', 'tools'];   // relate = 협약 성과 관리(05 규격 P1, 11-20) — 준비중 두 항목도 함께 보임(규격에서 수용). 순서는 표시 순서와 무관(limitToRole은 build 순서를 따른다)
   ROLE_CATS['예산팀'] = ['plan'];
   ROLE_CATS['예산팀장'] = ['plan', 'manage'];
 
@@ -104,7 +106,8 @@
       soon('작성', '공동 작성·버전 관리'),
       soon('검토·제출', '내부 검토 의견'), soon('검토·제출', '최종 확인·제출')] },
     { id: 'relate', title: '협약·관계 관리', items: [
-      soon('', '입찰 결과 등록'), soon('', '협약 이력')] },
+      soon('', '입찰 결과 등록'), soon('', '협약 이력'),
+      soon('', '협약 성과 관리', '', '', false, RESULTS_ID, undefined, 'map', false, PLANS_TEAMS)] },   // 실제 화면(results.js, 05)
     { id: 'tools', title: '공통 도구', subs: ['알림·소통', '검색·AI'], items: [
       soon('알림·소통', '일정·마감 알림'), soon('알림·소통', '요청 이력·소통'),
       live('검색·AI', 'AI 대화', 'chat', null, true), live('검색·AI', '지식 검색', 'knowledge', null, true),
@@ -128,6 +131,7 @@
   nav.NOTICE_ID = NOTICE_ID;
   nav.PLANS_ID = PLANS_ID;
   nav.PLANS_TEAMS = PLANS_TEAMS;
+  nav.RESULTS_ID = RESULTS_ID;
   nav.COLLECT_ID = 'admin:collect';   // plancollect.NAV_ID 와 같다 — overdue.paintNavBadge 가 이 항목의 배지를 지우지 않게 알아본다
   // 로그인 뒤 시작화면(포털)을 보는 역할 — 영업팀·영업팀장·영업부장 + 디자이너 + 전산팀·전산팀장(보기 전용, 사용자 결정 11-19). 마스터·재무는 지도.
   nav.isHomeRole = function (ctx) { return nav.roleIn(HOME_ROLES, ctx); };
