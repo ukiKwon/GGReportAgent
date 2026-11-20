@@ -8,7 +8,9 @@
   mn.UI = { TAB: 'board_write', VIEW: 'board_minutes', UPLOAD: 'board_minutes_upload', LIST: 'board_minutes_list' };
   mn.BTN = { TAB: 'minutes_tab', OPEN: 'minutes_open', TRANSCRIPT: 'minutes_transcript', PREVIEW: 'minutes_preview',
              UPLOAD: 'minutes_upload', EDIT: 'minutes_edit', META: 'minutes_meta', TODO: 'minutes_todo', HISTORY: 'minutes_history',
-             SCOPE_OPEN: 'minutes_scope_open', SCOPE_ADD: 'minutes_scope_add', SCOPE_REMOVE: 'minutes_scope_remove', DELETE: 'minutes_delete' };
+             SCOPE_OPEN: 'minutes_scope_open', SCOPE_ADD: 'minutes_scope_add', SCOPE_REMOVE: 'minutes_scope_remove', DELETE: 'minutes_delete', LABEL: 'minutes_label' };
+  // 발화자 이름표 저장 헤더: 이사회 자료 상세의 탭 안이면 board_write, 그 밖이면 board_minutes (사용자 11-20 결정)
+  mn.labelScreen = function (inTab) { return inTab ? mn.UI.TAB : mn.UI.VIEW; };
   mn.MAX_FILE = 2 * 1024 * 1024; mn.TITLE_MAX = 100; mn.TERMS_MAX = 100; mn.SCOPE_MAX = 30; mn.SCOPE_DAYS = 365; mn.SCOPE_DEFAULT_DAYS = 30;
   mn.SLOT = { transcript: '원문', timeline: '시간대별 요약', summary: '맞춤 요약', title: '제목', edit: '고친 글' };
   mn.headers = function (screen, button) { return { 'X-Screen-Id': screen, 'X-Button-Id': button }; };
@@ -61,7 +63,23 @@
     BAD: '보낸 내용을 서버가 읽지 못했습니다. 화면을 새로 고친 뒤 미리보기부터 다시 하세요.',
     MARK_B: '대외비·참고용',
     MARK: ' 음성을 자동으로 글로 바꾼 기록이라 잘못 알아들은 말이 있을 수 있습니다. 이름과 개인정보는 [이름]·[가림]으로 가렸습니다.',
-    EMPTY_LIST: '아직 올린 회의록이 없습니다. 이사회가 끝난 뒤 클로바 노트에서 내보낸 텍스트를 올리면 안건과 시간대별 발언으로 나눠 보여 줍니다.',
+    EMPTY_LIST: '아직 올린 회의록이 없습니다. 이사회가 끝난 뒤 받은 회의 정리본(클로바 노트에서 내보낸 텍스트)을 올리면 시간대별 발언으로 나눠 보여 주고, 발화자와 발언을 고쳐 남길 수 있습니다.',
+    INTRO: '이사회가 끝난 뒤 받은 회의 정리본으로 남기는 기록입니다. 이사회 자료 확정과 상관없이 언제든 올릴 수 있습니다.',
+    UP_INTRO: '이사회가 끝난 뒤 받은 회의 정리본을 올립니다. 미리보기에서 발화자 이름표와 발언을 고친 뒤 저장하세요.',
+    FIX_NONE: '발화자 이름표와 발언은 여기서 고칠 수 있습니다. 고친 내용은 저장할 때 함께 저장됩니다.',
+    LBL_LEGEND: '발화자 이름표',
+    LBL_HINT: '같은 번호의 발언이 한 번에 바뀝니다. 소속·역할·번호를 목록에서 고르세요. 고르지 않으면 \'참석자 번호\' 그대로입니다. \'측\'은 소속을 먼저 고른 뒤에만 고를 수 있습니다.',
+    LBL_NEED_ROLE: '역할을 고르세요',
+    LBL_NONE: '이름표 없음',
+    LBL_FORM: '이름표는 소속·역할·번호를 목록에서 골라 만드세요. 목록에 없는 조합은 쓸 수 없습니다.',
+    LBL_NAME: '이름표에는 직책이나 역할만 쓸 수 있습니다. 사람 이름이나 성이 붙은 호칭, 개인정보로 읽히는 말은 쓸 수 없습니다.',
+    LBL_UNKNOWN: '원문에 없는 참석자 번호입니다. 미리보기부터 다시 하세요.',
+    ED_HINT: '[이름]·[가림] 자리는 지우지 마세요. 사람 이름은 적지 말고 [이름]으로 적으세요.',
+    EDIT_SEQ: '고친 발언 중 원문에 없는 줄이 있습니다. 다시 미리보기 하세요.',
+    EDITS_BAD: '고친 내용을 읽지 못했습니다. 화면을 새로 고친 뒤 미리보기부터 다시 하세요.',
+    EDIT_LINE: '고친 발언의 한 줄이 너무 깁니다. 줄을 나눠 적으세요.',
+    FIX_ROW_FAIL: '고친 내용 중 서버가 받지 못한 곳이 있습니다. 표시된 곳을 고친 뒤 다시 미리보기 하세요.',
+    FIX_REVERTED: '고친 내용을 모두 되돌렸습니다. [다시 미리보기]를 눌러 확인하세요.',
     NO_SUMMARY: '맞춤 요약 파일을 함께 올리지 않았습니다.',
     NO_SEG: '시간대별 요약 파일을 함께 올리지 않아 구간이 없습니다. 원문은 아래에서 볼 수 있습니다.',
     NO_TODO: '다음 할 일 항목이 없습니다.',
@@ -88,8 +106,13 @@
   };
   mn.TEXT = T;
   const EVENT = { UPLOAD: '올림', EDIT: '고침', TODO_DONE: '할 일 완료', TODO_UNDONE: '완료 취소', SCOPE_ADD: '공개 추가', SCOPE_EXTEND: '공개 기한 변경',
-                  SCOPE_REMOVE: '공개 거둠', DELETE: '삭제' };
+                  SCOPE_REMOVE: '공개 거둠', DELETE: '삭제', SPEAKER_LABEL: '발화자 이름표 바꿈' };
   mn.EVENT = EVENT;
+  // 이력 사건: 발화자 이름표(SPEAKER/LABEL)는 '발화자 이름표 바꿈 (참석자 N)'. 그 밖은 null.
+  mn.histTitle = function (kind, no, event) {
+    if (kind !== 'SPEAKER' && event !== 'SPEAKER_LABEL') return null;
+    return EVENT.SPEAKER_LABEL + (Number(no) > 0 ? ' (참석자 ' + Number(no) + ')' : '');
+  };
   const TARGET = { UTTER: '발언', ITEM: '항목', META: '제목·회의일' };
   const LIMIT_CODES = { LIMIT_LINES: 1, LIMIT_LINE: 1, LIMIT_UTTERANCES: 1, LIMIT_SEGMENTS: 1, LIMIT_ITEMS: 1, LIMIT_ITEM_LEN: 1, LIMIT_SPEAKER: 1 };
 
@@ -114,6 +137,7 @@
       return R(up ? '이 이사회 자료의 회의록은 지금 담당자만 올릴 수 있습니다. 담당에서 빠졌는지 확인하세요.' : '이 회의록에서 할 수 없는 일입니다.');
     }
     if (status === 411) return R('보내지 못했습니다. 다시 시도하세요.');
+    if (code === 'LIMIT_LINE' && d.slot === 'edit') return R(T.EDIT_LINE, 'edit');
     if (LIMIT_CODES[code] === 1) return S((name || '파일') + '이 한 번에 올릴 수 있는 양을 넘습니다' + (ln ? '(' + ln + ' 부근)' : '') + '. 회의를 나눠 올리세요.');
     switch (code) {
       case 'UI_ID_REQUIRED': case 'TOO_MANY_PARTS': case 'OPTIONS_INVALID': case 'BAD_REQUEST': return R(T.BAD);
@@ -139,8 +163,20 @@
       case 'PREVIEW_CHANGED': return R('미리보기 뒤에 내용이 바뀌었습니다. [다시 미리보기]를 누르세요.', 'save');
       case 'ALREADY_UPLOADED': return R('같은 회의록이 이미 올라와 있습니다.');
       case 'MINUTES_CAP': return R('이 이사회 자료에는 회의록을 10건까지 올릴 수 있습니다. 필요 없는 회의록은 영업부장에게 삭제를 요청하세요.');
-      case 'REV_CHANGED': return R(ctx.action === 'edit' ? '다른 사람이 먼저 고쳤습니다. [새로 불러오기] 뒤 다시 고치세요.'
+      case 'REV_CHANGED': return R(ctx.action === 'edit' || ctx.action === 'label' ? '다른 사람이 먼저 고쳤습니다. [새로 불러오기] 뒤 다시 고치세요.'
         : '다른 사람이 먼저 고쳤습니다. 회의록을 다시 열어 확인한 뒤 시도하세요.', ctx.action === 'edit' ? 'edit' : 'box');
+      // 발화자 이름표·고친 발언(저장 전). kinds.form = 고르는 형식 밖, name·title·pii = 직원 이름·개인정보로 걸림. 받은 값은 문구에 싣지 않는다.
+      case 'LABEL_INVALID': {
+        const k = isObj(d.kinds) ? d.kinds : {};
+        return R(k.form > 0 && !(k.name > 0 || k.title > 0 || k.pii > 0) ? T.LBL_FORM : T.LBL_NAME, 'label');
+      }
+      case 'LABEL_SPEAKER_UNKNOWN': return R(T.LBL_UNKNOWN, 'label');
+      case 'EDIT_SEQ_UNKNOWN': return R(T.EDIT_SEQ, 'edit');
+      case 'EDITS_INVALID': return R(T.EDITS_BAD, 'edit');
+      case 'EDIT_MASK_REMOVED': {
+        const k = isObj(d.kinds) ? d.kinds : {};
+        return R(mn.maskLostText(Object.keys(k).reduce(function (n, x) { return n + (Number(k[x]) > 0 ? Number(k[x]) : 0); }, 0)), 'edit');
+      }
       case 'MASK_REQUIRED': {
         const k = isObj(d.kinds) ? d.kinds : {}, parts = [];
         if (k.name > 0) parts.push('이름 ' + k.name + '곳');
@@ -148,7 +184,7 @@
         if (k.pii > 0) parts.push('개인정보 ' + k.pii + '곳');
         return R((parts.length ? parts.join('·') : '이름·개인정보') + '이 들어 있어 저장하지 않았습니다. 그 부분을 지우거나 [이름]으로 바꿔 다시 저장하세요.', 'edit');
       }
-      case 'LIMIT_EDIT_LEN': return R((ctx.kind === 'item' ? '1~1,000자(항목)' : ctx.kind === 'utter' ? '1~20,000자(발언)' : ctx.kind === 'title' ? '1~100자(제목)'
+      case 'LIMIT_EDIT_LEN': return R(((ctx.kind || (d.slot === 'edit' ? 'utter' : '')) === 'item' ? '1~1,000자(항목)' : (ctx.kind || (d.slot === 'edit' ? 'utter' : '')) === 'utter' ? '1~20,000자(발언)' : ctx.kind === 'title' ? '1~100자(제목)'
         : '1~20,000자(발언) / 1~1,000자(항목)') + '로 적으세요.', 'edit');
       case 'NOT_TODO': return R('다음 할 일 항목이 아닙니다. 새로 불러오세요.');
       case 'SCOPE_TARGET_INVALID': return R('공개할 사람을 찾을 수 없습니다. 사번을 확인하세요(퇴사·정지된 사람은 추가할 수 없습니다).', 'scope');
@@ -195,6 +231,132 @@
   // 비동기 응답을 그려도 되는 때: 패널이 있고, 이미 그린 적이 있다면 그 뿌리가 아직 이 패널 안에 있을 때
   mn.canDraw = function (panel, rootNode) { return !!panel && (!rootNode || rootNode.parentNode === panel); };
 
+  // ── 발화자 이름표·고친 발언(저장 전 고치기) ──
+  // 이름표 판정 — 서버 SpeakerLabels.normalize 와 같은 규칙: [소속] 역할 [번호 1~9], '측'은 소속이 있어야 한다.
+  // rules = 서버 응답의 speaker_label_rules {affiliations, roles, side_role, max_ordinal, max_chars}. 빈칸은 이름표 없음(ok, value '').
+  // → {ok:true, value} | {ok:false, code:'FORM'}
+  mn.labelCheck = function (s, rules) {
+    const r = isObj(rules) ? rules : {};
+    let t = str(s);
+    try { t = t.normalize('NFKC'); } catch (e) { /* 오래된 브라우저: 그대로 */ }
+    t = t.replace(/\s+/g, ' ').trim();
+    if (!t) return { ok: true, value: '' };
+    const bad = { ok: false, code: 'FORM' };
+    const aff = Array.isArray(r.affiliations) ? r.affiliations : [], roles = Array.isArray(r.roles) ? r.roles : [];
+    const side = str(r.side_role), maxOrd = (r.max_ordinal | 0) > 0 ? r.max_ordinal | 0 : 9, maxChars = (r.max_chars | 0) > 0 ? r.max_chars | 0 : 20;
+    if (t.length > maxChars) return bad;
+    const p = t.split(' ');
+    let i = 0, hasAff = false;
+    if (p.length > 1 && aff.indexOf(p[0]) >= 0) { hasAff = true; i = 1; }
+    if (i >= p.length || roles.indexOf(p[i]) < 0 || (side && p[i] === side && !hasAff)) return bad;
+    i++;
+    if (i < p.length && /^[1-9]$/.test(p[i]) && Number(p[i]) <= maxOrd) i++;
+    if (i !== p.length) return bad;
+    return { ok: true, value: t };
+  };
+  // 고른 세 칸 → 이름표 글자. 역할이 없으면 ''(소속·번호만으로는 이름표가 되지 않는다).
+  mn.labelCompose = function (aff, role, ord) {
+    if (!role) return '';
+    return [aff, role, ord].filter(function (x) { return !!x; }).join(' ');
+  };
+  // 이름표 글자 → 세 칸 {aff, role, ord}. 규칙에 맞지 않으면 모두 ''.
+  mn.labelParse = function (label, rules) {
+    const c = mn.labelCheck(label, rules), out = { aff: '', role: '', ord: '' };
+    if (!c.ok || !c.value) return out;
+    const p = c.value.split(' ');
+    let i = 0;
+    if (p.length > 1 && (rules.affiliations || []).indexOf(p[0]) >= 0) { out.aff = p[0]; i = 1; }
+    out.role = p[i]; i++;
+    if (i < p.length) out.ord = p[i];
+    return out;
+  };
+  // 같은 이름표를 쓴 번호 묶음 → [{label, nos:[…]}] (둘 이상일 때만)
+  mn.dupLabels = function (labels) {
+    const by = {}, order = [];
+    Object.keys(labels || {}).forEach(function (no) {
+      const l = str(labels[no]);
+      if (!l) return;
+      if (!by[l]) { by[l] = []; order.push(l); }
+      by[l].push(Number(no));
+    });
+    return order.filter(function (l) { return by[l].length > 1; }).map(function (l) { return { label: l, nos: by[l].sort(function (a, b) { return a - b; }) }; });
+  };
+  mn.dupText = function (d) { return d.nos.map(function (n) { return '참석자 ' + n; }).join('·') + '가 같은 이름표(' + d.label + ')입니다. 한 사람이 둘로 나뉜 경우라면 그대로 두세요.'; };
+  // 발언의 화자 번호: 서버 speaker_no(정수), 없으면 '참석자 N' 글자에서. 모르면 0.
+  mn.spkNo = function (it) {
+    if (it && Number(it.speaker_no) > 0) return Number(it.speaker_no);
+    const m = /^참석자 (\d{1,3})$/.exec(str(it && it.speaker));
+    return m ? Number(m[1]) : 0;
+  };
+  // 화자 칸 표시: 이름표(굵게) + 아래 작은 '참석자 N'. 이름표가 없으면 '참석자 N'만.
+  mn.spkView = function (no, label, fallback) {
+    const base = no > 0 ? '참석자 ' + no : str(fallback) || '참석자';
+    return label ? { main: label, sub: base } : { main: base, sub: '' };
+  };
+  // 그 번호의 첫 발언 {seq, time} — 잡음이 아닌 것을 먼저, 없으면 잡음 포함 첫 발언
+  mn.firstOf = function (items, no) {
+    const list = (items || []).filter(function (it) { return mn.spkNo(it) === no; });
+    const it = list.filter(function (x) { return !x.noise; })[0] || list[0];
+    return it ? { seq: it.seq_no, time: str(it.time) } : null;
+  };
+  // 가림 토큰 보존(P1-1): 원래 글의 [이름]·[가림]·[가림: 개인정보 의심 줄]이 고친 글에서 줄었는지. 서버 EDIT_MASK_REMOVED 와 같은 종류별 판정.
+  const MASK_G = /\[이름\]|\[가림: 개인정보 의심 줄\]|\[가림\]/g;
+  mn.maskCount = function (s) { const c = {}; (str(s).match(MASK_G) || []).forEach(function (k) { c[k] = (c[k] || 0) + 1; }); return c; };
+  mn.lostMasks = function (orig, next) {
+    const a = mn.maskCount(orig), b = mn.maskCount(next);
+    return Object.keys(a).reduce(function (n, k) { return n + Math.max(0, a[k] - (b[k] || 0)); }, 0);
+  };
+  mn.maskLostText = function (n) { return '가린 자리' + (n > 0 ? ' ' + n + '곳이' : '가') + ' 빠졌습니다. 그 자리는 그대로 두고 나머지만 고치세요.'; };
+  // 저장 전 고친 내용 fix = {labels:{번호:라벨}, utt:{seq:{orig, text, shown}}}. orig = 원래(가린) 글, text = 보낼 글(저장 확인값 대상), shown = 화면에 보이는 글.
+  // 서버에 보낼 edits 파트 {speaker_labels, utter_edits}. 고친 것이 없으면 null(파트를 넣지 않는다).
+  mn.editsPayload = function (fix) {
+    if (!isObj(fix)) return null;
+    const labels = {}, utters = [];
+    Object.keys(fix.labels || {}).forEach(function (no) { if (fix.labels[no]) labels[no] = fix.labels[no]; });
+    Object.keys(fix.utt || {}).map(Number).sort(function (a, b) { return a - b; }).forEach(function (seq) {
+      const e = fix.utt[seq];
+      if (e && e.text !== e.orig) utters.push({ seq_no: seq, text: e.text });
+    });
+    if (!Object.keys(labels).length && !utters.length) return null;
+    return { speaker_labels: labels, utter_edits: utters };
+  };
+  mn.fixCount = function (fix) {
+    const p = mn.editsPayload(fix);
+    return { spk: p ? Object.keys(p.speaker_labels).length : 0, utt: p ? p.utter_edits.length : 0 };
+  };
+  mn.fixSummary = function (c) {
+    const parts = [];
+    if (c.spk > 0) parts.push('발화자 ' + c.spk + '명');
+    if (c.utt > 0) parts.push('발언 ' + c.utt + '건');
+    return parts.length ? '고친 내용: ' + parts.join(' · ') : '';
+  };
+  // 다시 미리보기 응답 pv 를 받은 뒤 고친 내용 정리. 이름표는 새 응답에 그 번호가 있으면 유지, 발언은 원문에 그 줄이 있으면 유지하고
+  // 화면 글(shown)을 응답 글(서버가 가린 결과)로 바꾼다. 원래와 같아진 발언은 비운다. → {fix, droppedUtt, droppedSpk}
+  mn.mergeFix = function (fix, pv) {
+    const out = { labels: {}, utt: {} };
+    let dSpk = 0, dUtt = 0;
+    const items = {}, nos = {};
+    ((pv && pv.transcript) || []).forEach(function (it) { items[it.seq_no] = it; });
+    ((pv && pv.speakers) || []).forEach(function (s) { nos[s.speaker_no] = true; });
+    Object.keys((fix && fix.labels) || {}).forEach(function (no) {
+      if (!fix.labels[no]) return;
+      if (nos[no]) out.labels[no] = fix.labels[no]; else dSpk++;
+    });
+    Object.keys((fix && fix.utt) || {}).forEach(function (seq) {
+      const e = fix.utt[seq], it = items[seq];
+      if (!e || e.text === e.orig) return;
+      if (!it) { dUtt++; return; }
+      out.utt[seq] = { orig: e.orig, text: e.text, shown: str(it.text) };
+    });
+    return { fix: out, droppedUtt: dUtt, droppedSpk: dSpk };
+  };
+  // 서버가 고친 내용 때문에 거절한 응답인지(이때는 지금 미리보기를 지우지 않고 그 자리에 오류를 단다)
+  mn.isEditFail = function (detail) {
+    const d = isObj(detail) ? detail : {};
+    return { LABEL_INVALID: 1, LABEL_SPEAKER_UNKNOWN: 1, EDIT_SEQ_UNKNOWN: 1, LIMIT_EDIT_LEN: 1, EDITS_INVALID: 1, EDIT_MASK_REMOVED: 1 }[d.code] === 1
+      || (d.code === 'LIMIT_LINE' && d.slot === 'edit');
+  };
+
   // ── 올리기 입력 검사(6-4 사전 검사) ──
   mn.parseTerms = function (text) {
     const seen = Object.create(null), list = [];
@@ -240,7 +402,7 @@
     return JSON.stringify({ d: u.date, t: u.title, f: SLOTS.map(function (k) {
       if (u.src[k] === 'paste') return ['p', u.paste[k] || ''];
       const f = u.files[k]; return f ? ['f', f.name, f.size, f.lastModified] : null;
-    }), x: u.terms, r: releaseList(u) });
+    }), x: u.terms, r: releaseList(u), e: mn.editsPayload(u.fix) });   // 고친 이름표·발언도 표식에 든다 — 고치면 stale, 다시 미리보기 뒤에야 저장
   };
   // multipart 본문. 파일명은 보내지 않는다(고정 이름 '<칸>.txt' — 서버가 확장자만 본다). options 는 JSON Blob.
   // digest 가 있으면 저장 요청이다: preview_digest·rules_ack(수칙 확인, 체크해야 저장이 켜진다)를 싣는다.
@@ -248,8 +410,13 @@
     const fd = new root.FormData();
     SLOTS.forEach(function (k) { const b = slotBlob(u, k); if (b) fd.append(k, b, k + '.txt'); });
     const o = { meeting_date: u.date, title: str(u.title).trim(), terms: terms, release: releaseList(u) };
-    if (digest) { o.preview_digest = digest; o.rules_ack = true; }
-    fd.append('options', new root.Blob([JSON.stringify(o)], { type: 'application/json' }), 'options.json');
+    const ed = mn.editsPayload(u.fix);   // 미리보기·저장 둘 다 싣는다. 비었으면 파트를 넣지 않는다.
+    if (ed) fd.append('edits', new root.Blob([JSON.stringify(ed)], { type: 'application/json' }), 'edits.json');
+    if (digest) {
+      o.preview_digest = digest; o.rules_ack = true;
+      if (ed && typeof u.editsDigest === 'string' && u.editsDigest) o.edits_digest = u.editsDigest;   // 다시 미리보기 응답의 edits_digest 를 그대로
+    }
+    fd.append('options',new root.Blob([JSON.stringify(o)], { type: 'application/json' }), 'options.json');
     return fd;
   };
   function formView(u) {
@@ -317,7 +484,8 @@
     }
     function newUp() {
       return { date: '', title: '', src: { transcript: 'file', timeline: 'file', summary: 'file' }, files: {}, paste: {}, terms: '',
-               pv: null, pvSig: '', release: {}, cands: {}, ack: false, busy: '', errs: {}, dupId: '' };
+               pv: null, pvSig: '', release: {}, cands: {}, ack: false, busy: '', errs: {}, dupId: '',
+               fix: { labels: {}, utt: {} }, editsDigest: null, noiseOpen: {}, rowErr: null, revertAsk: false, cancelAsk: false, editing: null, ctx: null };
     }
     function applyList(s, r) {
       const L = s.list;
@@ -373,7 +541,9 @@
       if (focusId) focusById(focusId);
     }
     function onKey(e) {
-      if (e.key !== 'Escape' || !S || !S.cur) return;
+      if (e.key !== 'Escape' || !S) return;
+      if (S.up && S.up.editing) { e.preventDefault(); closeEditor(S.up, true); return; }   // 미리보기에서 발언 고치는 중
+      if (!S.cur) return;
       const cur = S.cur;
       if (cur.editing) { e.preventDefault(); closeEditor(cur, true); }
       else if (cur.confirm) { e.preventDefault(); closeConfirm(cur); }
@@ -392,6 +562,7 @@
       let tools = null;
       if (L.status === 'ready' && L.canUpload) { tools = el('div', 'mn-tools'); tools.appendChild(btn('회의록 올리기', { id: 'mn-up-open', on: openUpload })); }
       r.appendChild(head('회의록', 'mn-h', tools));
+      const intro = el('p', 'wf-empty', T.INTRO); intro.id = 'mn-intro'; r.appendChild(intro);   // 이사회 뒤에 받은 정리본으로 남기는 기록(올리는 시점은 막지 않는다)
       if (S.notice) r.appendChild(errP(S.notice, 'mn-err'));   // 상세·올리기로 들어가면 지운다
       if (L.status === 'loading' || L.status === 'idle') r.appendChild(statusP('불러오는 중…'));
       else if (L.status === 'hidden') r.appendChild(el('p', 'wf-empty', T.HIDDEN));
@@ -435,7 +606,7 @@
     // ── 상세 ──
     function openDetail(id) {
       S.view = 'detail'; S.up = null; S.notice = '';
-      const cur = S.cur = { id: str(id), status: 'loading', data: null, err: '', editOn: false, editing: null, confirm: false, nodes: {},
+      const cur = S.cur = { id: str(id), status: 'loading', data: null, err: '', editOn: false, editing: null, confirm: false, nodes: {}, lbl: null,
                             tr: { status: 'idle', items: [], open: false, err: '' }, noise: {}, scopeOpen: false, scope: null, histOpen: false, hist: null };
       draw('mn-back');
       loadDetail(cur);
@@ -480,7 +651,7 @@
       const tools = el('div', 'mn-tools');
       if (v.can_scope) tools.appendChild(btn('공개범위', { id: 'mn-scope-btn', attrs: { 'aria-expanded': cur.scopeOpen ? 'true' : 'false', 'aria-controls': 'mn-scope' }, on: function () { toggleScope(cur); } }));
       if (v.can_edit) tools.appendChild(btn(cur.editOn ? '고치기 끄기' : '고치기 켜기', { id: 'mn-edit-toggle', attrs: { 'aria-pressed': cur.editOn ? 'true' : 'false' },
-        on: function () { closeEditor(cur, false); cur.editOn = !cur.editOn; draw('mn-edit-toggle'); } }));
+        on: function () { closeEditor(cur, false); cur.editOn = !cur.editOn; cur.lbl = null; draw('mn-edit-toggle'); } }));
       if (v.can_view_history) tools.appendChild(btn('변경 이력', { id: 'mn-hist-btn', attrs: { 'aria-expanded': cur.histOpen ? 'true' : 'false', 'aria-controls': 'mn-hist' }, on: function () { toggleHist(cur); } }));
       if (v.can_delete) tools.appendChild(btn('삭제', { id: 'mn-del-btn', on: function () { openConfirm(cur); } }));
       r.appendChild(head(str(d.title), 'mn-title', tools));
@@ -494,15 +665,20 @@
       r.appendChild(buildMark());
       if (v.via === 'UPLOADER') r.appendChild(el('p', 'mn-meta', T.UPLOADER));
       else if (v.via === 'GRANTEE') r.appendChild(el('p', 'mn-meta', T.GRANTEE));
-      cur.nodes = { err: errP('', 'mn-err'), scope: el('div'), hist: el('div'), del: el('div'), tr: el('div') };
+      cur.nodes = { err: errP('', 'mn-err'), scope: el('div'), hist: el('div'), del: el('div'), tr: el('div'), lbl: el('div') };
       r.appendChild(cur.nodes.err);
       r.appendChild(cur.nodes.del); r.appendChild(cur.nodes.scope); r.appendChild(cur.nodes.hist);
       const ctx = { mode: 'detail', cur: cur, canEdit: !!(v.can_edit && cur.editOn), canCheck: v.can_check_todo === true };
       buildContent(r, d, ctx);
       const trh = el('div', 'mn-head'); trh.appendChild(el('h4', '', '원문'));
+      if (v.can_edit && cur.editOn && isObj(d.speaker_label_rules)) {
+        trh.appendChild(btn('발화자 이름표 바꾸기', { id: 'mn-lbl-open', attrs: { 'aria-expanded': cur.lbl ? 'true' : 'false', 'aria-controls': 'mn-spk-fs' }, on: function () { toggleLbl(cur); } }));
+      }
       r.appendChild(trh);
+      r.appendChild(cur.nodes.lbl);
       r.appendChild(cur.nodes.tr);
       drawTr(cur, ctx);
+      drawLbl(cur);
       if (cur.confirm) drawConfirm(cur);
       if (cur.scopeOpen) drawScope(cur);
       if (cur.histOpen) drawHist(cur);
@@ -668,22 +844,46 @@
       return ul;
     }
     function utterLi(u, ctx) {
-      const li = el('li', 'mn-u' + (u.noise ? ' is-noise' : ''));
+      const fixMode = ctx.mode === 'preview' && !!ctx.fix;   // 미리보기: 저장 전 고치기(로컬 상태만 바꾼다)
+      const no = mn.spkNo(u), fe = fixMode ? ctx.fix.utt[u.seq_no] : null;
+      const label = fixMode ? (ctx.fix.labels[no] || '') : str(u.speaker_label);
+      const edited = fe ? fe.text !== fe.orig : !!u.edited;
+      const li = el('li', 'mn-u' + (u.noise ? ' is-noise' : '') + (edited ? ' is-edited' : ''));
       const id = mn.uttId(u.seq_no);
       if (id) { li.id = id; li.tabIndex = -1; }
-      li.appendChild(el('span', 'mn-spk', u.speaker));
+      li.setAttribute('data-spk', String(no));
+      li.appendChild(spkCell(no, label, u.speaker));
       li.appendChild(el('time', '', u.time));
-      const body = el('div', 'mn-body'); mn.textNodes(body, u.text); li.appendChild(body);
+      const body = el('div', 'mn-body'); mn.textNodes(body, fe ? fixText(fe) : u.text); li.appendChild(body);
       const acts = el('div', 'mn-uacts');
-      if (u.edited) acts.appendChild(badge('고침'));
-      if (ctx.canEdit) acts.appendChild(editBtn('utter', u.seq_no, '발언 ' + u.seq_no + ' 고치기', function () { openEditor(ctx.cur, 'utter', u, li, function () { return utterLi(u, ctx); }); }));
+      if (edited) acts.appendChild(badge('고침'));
+      if (fixMode) {
+        if (edited) acts.appendChild(btn('되돌리기', { cls: 'link-btn', id: 'mn-rv-' + u.seq_no, attrs: { 'aria-label': '발언 ' + u.seq_no + ' 되돌리기' }, on: function () { pvRevert(ctx, u, li); } }));
+        acts.appendChild(editBtn('utter', u.seq_no, '발언 ' + u.seq_no + ' 고치기', function () { pvEdit(ctx, u, li); }));
+      } else if (ctx.canEdit) acts.appendChild(editBtn('utter', u.seq_no, '발언 ' + u.seq_no + ' 고치기', function () { openEditor(ctx.cur, 'utter', u, li, function () { return utterLi(u, ctx); }); }));
       li.appendChild(acts);
+      const re = fixMode && ctx.u && ctx.u.rowErr && ctx.u.rowErr.utt[u.seq_no];
+      if (re) { const p = el('p', 'bd-m-ferr', re); p.style.gridColumn = '1 / -1'; p.setAttribute('role', 'alert'); li.appendChild(p); }
       return li;
+    }
+    function fixText(e) { return e.shown != null ? e.shown : e.text; }
+    function spkCell(no, label, fallback) {
+      const v = mn.spkView(no, label, fallback), s = el('span', 'mn-spk');
+      s.appendChild(el('b', '', v.main));
+      if (v.sub) s.appendChild(el('small', '', v.sub));
+      return s;
     }
     // 구간 → 원문 첫 발언으로. 원문을 아직 안 받았으면 받는다. 잡음 묶음에 있으면 펼친다.
     function goSeg(ctx, seg, rg) {
-      const cur = ctx.cur, seq = seg.first_seq;
-      if (!cur || seq == null || !mn.uttId(seq)) return;
+      if (ctx.mode === 'preview') {   // 미리보기는 상자 안에서 옮긴다(P2-1: cur 가 없어 아무 일도 안 하던 것)
+        if (seg.first_seq != null) pvJump(ctx.u, seg.first_seq, rg + ' 구간의 첫 발언으로 옮겼습니다.');
+        return;
+      }
+      if (!ctx.cur || seg.first_seq == null) return;
+      jumpUtter(ctx.cur, seg.first_seq, rg + ' 구간의 첫 발언으로 옮겼습니다.');
+    }
+    function jumpUtter(cur, seq, msg) {
+      if (seq == null || !mn.uttId(seq)) return;
       const move = function () {
         const it = cur.tr.items.filter(function (u) { return u.seq_no === seq; })[0];
         if (it && it.noise) { cur.noise[it.seg_no == null ? 'x' : String(it.seg_no)] = true; drawTr(cur); }
@@ -694,7 +894,7 @@
         n.className += ' is-target';
         if (n.scrollIntoView) n.scrollIntoView({ block: 'center' });
         n.focus();
-        say(rg + ' 구간의 첫 발언으로 옮겼습니다.');
+        say(msg);
       };
       cur.tr.open = true;
       if (cur.tr.status === 'ready') { drawTr(cur); move(); }
@@ -710,7 +910,8 @@
       replaceNode(e.li, e.rebuild());
       if (refocus) focusById('mn-ed-' + e.kind + '-' + e.no);
     }
-    function openEditor(cur, kind, model, li, rebuild) {
+    // local = {base, apply(text)→bool} 이면 미리보기 고치기: 서버를 부르지 않고 [반영]으로 로컬 상태만 바꾼다. base = 가림 토큰을 세는 원래 글.
+    function openEditor(cur, kind, model, li, rebuild, local) {
       closeEditor(cur, false);
       const no = kind === 'utter' ? model.seq_no : model.item_no, max = kind === 'utter' ? 20000 : 1000;
       // 같은 줄을 다시 그리는 동안 이전 줄 참조가 바뀌므로, 지금 DOM 의 줄을 id 로 다시 찾는다
@@ -721,16 +922,37 @@
       ta.setAttribute('aria-label', kind === 'utter' ? '발언 고치기' : '항목 고치기');
       const err = errP('', 'mn-ed-err'); err.className = 'bd-m-ferr';
       const acts = el('div', 'mn-edit-acts');
-      const save = btn('저장', { cls: 'bd-primary', id: 'mn-ed-save' }), cancel = btn('취소', { id: 'mn-ed-cancel', on: function () { closeEditor(cur, true); } });
+      const saveLabel = local ? '반영' : '저장';
+      const save = btn(saveLabel, { cls: 'bd-primary', id: 'mn-ed-save' }), cancel = btn('취소', { id: 'mn-ed-cancel', on: function () { closeEditor(cur, true); } });
       acts.appendChild(save); acts.appendChild(cancel);
-      box.appendChild(ta); box.appendChild(err); box.appendChild(acts);
+      box.appendChild(ta);
+      if (kind === 'utter') {   // 가린 자리를 지워 이름을 되살리지 못하게 막는다(화면 검사 + 서버 EDIT_MASK_REMOVED)
+        const hint = el('p', 'mn-edit-hint', T.ED_HINT); hint.id = 'mn-ed-hint';
+        box.appendChild(hint);
+        ta.setAttribute('aria-describedby', 'mn-ed-hint mn-ed-err');
+      }
+      box.appendChild(err); box.appendChild(acts);
       while (target.firstChild) target.removeChild(target.firstChild);
       target.appendChild(box);
       cur.editing = { li: target, kind: kind, no: no, rebuild: rebuild };
+      const base = local ? local.base : str(model.text);
+      let busy = false;
+      ta.addEventListener('input', function () {
+        if (kind !== 'utter' || busy) return;
+        const n = mn.lostMasks(base, ta.value);
+        err.textContent = n > 0 ? mn.maskLostText(n) : ''; err.hidden = !(n > 0);
+        save.disabled = n > 0;
+      });
       save.addEventListener('click', function () {
         const text = ta.value;
         if (!text.trim()) { err.textContent = mn.errorText(422, { code: 'LIMIT_EDIT_LEN' }, { kind: kind }).text; err.hidden = false; ta.focus(); return; }
+        if (kind === 'utter') {
+          const lost = mn.lostMasks(base, text);
+          if (lost > 0) { err.textContent = mn.maskLostText(lost); err.hidden = false; ta.focus(); return; }
+        }
+        if (local) { local.apply(text); closeEditor(cur, true); return; }
         const ok = guard();
+        busy = true;
         save.disabled = true; cancel.disabled = true; save.textContent = '저장하는 중…';
         call('PUT', '/board-minutes/' + cur.id + (kind === 'utter' ? '/utterances/' : '/items/') + no, mn.UI.VIEW, mn.BTN.EDIT, { text: text, rev_no: cur.data.rev_no }).then(function (r) {
           if (!ok() || S.cur !== cur) return;
@@ -741,7 +963,8 @@
             closeEditor(cur, true);
             return;
           }
-          save.disabled = false; cancel.disabled = false; save.textContent = '저장';
+          busy = false;
+          save.disabled = false; cancel.disabled = false; save.textContent = saveLabel;
           if (r.status === 404) { gone(); return; }
           const e = mn.errorText(r.status, r.detail, { action: 'edit', kind: kind });
           err.textContent = e.text; err.hidden = false;
@@ -753,6 +976,286 @@
         });
       });
       ta.focus();
+    }
+
+    // ── 발화자 이름표 표(미리보기·상세 공통) — 자유 입력 없이 소속·역할·번호를 골라 만든다 ──
+    function selectOf(id, aria, opts) {
+      const s = el('select'); s.id = id; s.setAttribute('aria-label', aria);
+      opts.forEach(function (o) { const op = el('option', '', o[1]); op.value = o[0]; if (o[2]) op.disabled = true; s.appendChild(op); });
+      return s;
+    }
+    // cfg = {rules, speakers:[{no,count}], get(no), changed(no), set(no,label), revert(no), first(no)→{seq,time}|null, jump(f,no), rowErrs, labelsNow()}
+    function buildSpkTable(cfg) {
+      const rules = cfg.rules, rows = {};
+      const fs = el('fieldset', 'tm-fs'); fs.id = 'mn-spk-fs';
+      fs.appendChild(el('legend', '', T.LBL_LEGEND));
+      fs.appendChild(el('p', 'mn-meta', T.LBL_HINT));
+      const t = el('table', 'ad-table mn-spk-tbl');
+      t.appendChild(el('caption', 'bd-sr', '발화자 이름표 ' + cfg.speakers.length + '명'));
+      const hr = el('tr');
+      ['원래 표기', '발언 수', '첫 발언', '이름표', '상태'].forEach(function (h) { const th = el('th', '', h); th.setAttribute('scope', 'col'); hr.appendChild(th); });
+      const thd = el('thead'); thd.appendChild(hr); t.appendChild(thd);
+      const tb = el('tbody');
+      const dup = el('p', 'wf-empty'); dup.id = 'mn-spk-dup';
+      function renderDup() {
+        const ds = mn.dupLabels(cfg.labelsNow());
+        dup.textContent = ds.map(mn.dupText).join(' '); dup.hidden = !ds.length;
+      }
+      cfg.speakers.forEach(function (sp) {
+        const no = sp.no, tr = el('tr'), r = rows[no] = {};
+        const th = el('th', '', '참석자 ' + no); th.setAttribute('scope', 'row'); tr.appendChild(th);
+        tr.appendChild(el('td', 'num', sp.count + '건'));
+        const tf = el('td'), f = cfg.first ? cfg.first(no) : null;
+        if (f) {
+          tf.appendChild(el('time', '', f.time)); tf.appendChild(root.document.createTextNode(' '));
+          tf.appendChild(btn('발언 보기', { cls: 'link-btn', attrs: { 'aria-label': '참석자 ' + no + ' 첫 발언 보기' }, on: function () { cfg.jump(f, no); } }));
+        }
+        tr.appendChild(tf);
+        const ts = el('td');
+        const aff = selectOf('mn-lb-aff-' + no, '참석자 ' + no + ' 소속', [['', '소속 없음']].concat(rules.affiliations.map(function (x) { return [x, x]; })));
+        const role = selectOf('mn-lb-role-' + no, '참석자 ' + no + ' 역할', [['', '역할 고르기']].concat(rules.roles.map(function (x) { return [x, x]; })));
+        const ordOpts = [['', '번호 없음']];
+        for (let k = 1; k <= (rules.max_ordinal | 0); k++) ordOpts.push([String(k), String(k)]);
+        const ord = selectOf('mn-lb-ord-' + no, '참석자 ' + no + ' 번호', ordOpts);
+        const pv = el('span', 'mn-meta mn-lb-pv'); pv.id = 'mn-lb-pv-' + no;
+        const sync = function () {   // '측'은 소속이 있을 때만. 역할이 없으면 번호도 없다.
+          const hasAff = !!aff.value;
+          for (let i = 0; i < role.options.length; i++) { const op = role.options[i]; if (op.value && op.value === rules.side_role) op.disabled = !hasAff; }
+          if (!hasAff && role.value === rules.side_role) role.value = '';
+          if (!role.value) ord.value = '';
+          ord.disabled = !role.value;
+        };
+        const showPv = function () {
+          const l = mn.labelCompose(aff.value, role.value, ord.value);
+          pv.textContent = l ? '→ ' + l : (aff.value || ord.value ? T.LBL_NEED_ROLE : T.LBL_NONE);
+        };
+        const setFrom = function (label) {
+          const p = mn.labelParse(label, rules);
+          aff.value = p.aff; role.value = p.role; ord.value = p.ord; sync(); showPv();
+        };
+        const st = el('td');
+        const er = el('p', 'bd-m-ferr', ''); er.id = 'mn-lb-err-' + no; er.setAttribute('role', 'alert'); er.tabIndex = -1;
+        const setErr = function (text) { er.textContent = text || ''; er.hidden = !text; };
+        const refreshRow = function () {
+          clear(st);
+          if (cfg.changed(no)) {
+            st.appendChild(badge('바꿈')); st.appendChild(root.document.createTextNode(' '));
+            st.appendChild(btn('되돌리기', { cls: 'link-btn', id: 'mn-lb-rv-' + no, attrs: { 'aria-label': '참석자 ' + no + ' 이름표 되돌리기' }, on: function () {
+              cfg.revert(no); setFrom(cfg.get(no)); setErr(''); refreshRow(); renderDup(); focusById('mn-lb-aff-' + no);
+            } }));
+          }
+        };
+        const commit = function () {
+          sync(); showPv(); setErr('');
+          const c = mn.labelCheck(mn.labelCompose(aff.value, role.value, ord.value), rules);
+          if (!c.ok) { setErr(T.LBL_FORM); return; }
+          cfg.set(no, c.value); refreshRow(); renderDup();
+        };
+        [aff, role, ord].forEach(function (s) { s.addEventListener('change', commit); ts.appendChild(s); ts.appendChild(root.document.createTextNode(' ')); });
+        ts.appendChild(pv);
+        tr.appendChild(ts); tr.appendChild(st);
+        tb.appendChild(tr);
+        const er2 = el('tr'), ec = el('td'); ec.colSpan = 5; ec.appendChild(er); er2.appendChild(ec); tb.appendChild(er2);
+        r.setErr = setErr;
+        setFrom(cfg.get(no)); refreshRow();
+        setErr(cfg.rowErrs && cfg.rowErrs[no]);
+      });
+      t.appendChild(tb); fs.appendChild(t); fs.appendChild(dup); renderDup();
+      return { node: fs, rows: rows };
+    }
+
+    // ── 미리보기 고치기(저장 전, 로컬 상태만) ──
+    function afterFix(u, msg) {
+      drawFix(u);
+      const sn = byId('mn-save-fix'); if (sn) { const t = fixSaveNote(u); sn.textContent = t; sn.hidden = !t; }
+      syncUp();
+      if (msg) say(msg);
+    }
+    function fixSaveNote(u) {
+      const c = mn.fixCount(u.fix);
+      return c.spk + c.utt > 0 ? '고친 내용(' + mn.fixSummary(c).replace('고친 내용: ', '') + ')이 함께 저장됩니다. 고친 발언에 직원 이름이 들어 있으면 저장할 때 가려집니다.' : '';
+    }
+    function drawFix(u, node) {
+      const p = node || byId('mn-fix'); if (!p) return;
+      clear(p); p.removeAttribute('role');
+      const c = mn.fixCount(u.fix), n = c.spk + c.utt;
+      if (!n) { u.revertAsk = false; p.textContent = T.FIX_NONE; return; }
+      if (u.revertAsk) {
+        p.setAttribute('role', 'group'); p.setAttribute('aria-label', '모두 되돌리기 확인');
+        p.appendChild(el('span', '', '고친 내용 ' + n + '건을 모두 되돌립니다.'));
+        p.appendChild(btn('모두 되돌리기', { cls: 'bd-primary', id: 'mn-fix-rv-ok', on: function () { revertAll(u); } }));
+        p.appendChild(btn('취소', { id: 'mn-fix-rv-no', on: function () { u.revertAsk = false; drawFix(u); focusById('mn-fix-rv'); } }));
+        return;
+      }
+      p.appendChild(el('span', '', mn.fixSummary(c)));
+      p.appendChild(btn('모두 되돌리기', { cls: 'link-btn', id: 'mn-fix-rv', on: function () { u.revertAsk = true; drawFix(u); focusById('mn-fix-rv-no'); } }));
+    }
+    function revertAll(u) {
+      u.revertAsk = false;
+      u.fix.labels = {};
+      Object.keys(u.fix.utt).forEach(function (k) { const e = u.fix.utt[k]; e.text = e.orig; e.shown = e.orig; });
+      replaceNode(byId('mn-spk-fs'), buildPvSpk(u));
+      redrawPvList(u);
+      afterFix(u, T.FIX_REVERTED);
+      focusById('mn-restale');
+    }
+    function pvItemOf(u, seq) { return (u.pv.transcript || []).filter(function (x) { return x.seq_no === seq; })[0]; }
+    function pvEdit(ctx, it, li) {
+      const u = ctx.u, fe = ctx.fix.utt[it.seq_no];
+      openEditor(u, 'utter', { seq_no: it.seq_no, text: fe ? fixText(fe) : it.text }, li, function () { return utterLi(it, ctx); },
+        { base: fe ? fe.orig : str(it.text), apply: function (text) { return pvApply(ctx, it, text); } });
+    }
+    function pvApply(ctx, it, text) {
+      const u = ctx.u, seq = it.seq_no;
+      let fe = u.fix.utt[seq];
+      if (text === (fe ? fixText(fe) : str(it.text))) return false;
+      if (!fe) fe = u.fix.utt[seq] = { orig: str(it.text), text: str(it.text), shown: str(it.text) };
+      fe.text = text; fe.shown = text;
+      afterFix(u, '발언을 고쳤습니다. 저장할 때 함께 저장됩니다.');
+      return true;
+    }
+    function pvRevert(ctx, it, li) {
+      const u = ctx.u, fe = u.fix.utt[it.seq_no];
+      if (!fe) return;
+      fe.text = fe.orig; fe.shown = fe.orig;
+      replaceNode(byId(li.id || '') || li, utterLi(it, ctx));
+      afterFix(u, '발언 ' + it.seq_no + '을 원래 글로 되돌렸습니다.');
+      focusById('mn-ed-utter-' + it.seq_no);
+    }
+    function redrawPvList(u) {
+      const w = byId('mn-pv-tr'); if (!w || !u.pv) return;
+      const box = w.parentNode, top = box.scrollTop;
+      u.editing = null; clear(w);
+      w.appendChild(buildTrList(u.pv.transcript || [], u.pv, u.ctx, u.noiseOpen, function () { redrawPvList(u); }));
+      box.scrollTop = top;
+    }
+    function updateSpkCells(u, no) {
+      const w = byId('mn-pv-tr'); if (!w || !w.querySelectorAll) return;
+      const lis = w.querySelectorAll('li[data-spk="' + Number(no) + '"]');
+      for (let i = 0; i < lis.length; i++) {
+        const old = lis[i].querySelector('.mn-spk');   // 고치는 중인 줄은 칸이 없다 — 닫을 때 새로 그린다
+        if (old) lis[i].replaceChild(spkCell(Number(no), u.fix.labels[no] || '', ''), old);
+      }
+    }
+    // 미리보기 상자 안에서 그 발언으로(상자만 스크롤한다). 잡음 묶음에 있으면 펼친다.
+    function pvJump(u, seq, msg) {
+      if (!u || !u.pv || !mn.uttId(seq)) return;
+      const it = pvItemOf(u, seq);
+      if (it && it.noise) { u.noiseOpen[it.seg_no == null ? 'x' : String(it.seg_no)] = true; redrawPvList(u); }
+      const n = byId(mn.uttId(seq)), box = u.ctx && u.ctx.box;
+      if (!n || !box) return;
+      const old = box.querySelectorAll('.is-target');
+      for (let i = 0; i < old.length; i++) old[i].className = old[i].className.replace(/\s*is-target/g, '');
+      n.className += ' is-target';
+      box.scrollTop += n.getBoundingClientRect().top - box.getBoundingClientRect().top - box.clientHeight / 2;
+      try { n.focus({ preventScroll: true }); } catch (e) { n.focus(); }
+      say(msg);
+    }
+    function buildPvSpk(u) {
+      const d = u.pv, rules = d.speaker_label_rules;
+      const speakers = (d.speakers || []).map(function (s) { return { no: s.speaker_no, count: s.utter_cnt | 0 }; });
+      if (!isObj(rules) || !speakers.length) return el('div');
+      const spk = buildSpkTable({
+        rules: rules, speakers: speakers, rowErrs: u.rowErr && u.rowErr.spk,
+        get: function (no) { return u.fix.labels[no] || ''; },
+        changed: function (no) { return !!u.fix.labels[no]; },
+        labelsNow: function () { return u.fix.labels; },
+        first: function (no) { return mn.firstOf(d.transcript, no); },
+        jump: function (f, no) { pvJump(u, f.seq, '참석자 ' + no + '의 첫 발언(' + f.time + ')으로 옮겼습니다.'); },
+        revert: function (no) { delete u.fix.labels[no]; updateSpkCells(u, no); afterFix(u, '참석자 ' + no + ' 이름표를 지웠습니다.'); },
+        set: function (no, label) {
+          if (label) u.fix.labels[no] = label; else delete u.fix.labels[no];
+          updateSpkCells(u, no);
+          const sp = speakers.filter(function (x) { return x.no === no; })[0];
+          afterFix(u, label ? '참석자 ' + no + '의 이름표를 ' + label + '(으)로 바꿨습니다. 발언 ' + (sp ? sp.count : 0) + '건.' : '참석자 ' + no + ' 이름표를 지웠습니다.');
+        }
+      });
+      return spk.node;
+    }
+
+    // ── 상세: 저장 뒤 발화자 이름표 바꾸기(can_edit) ──
+    function curLabel(cur, no) {
+      const sp = (cur.data.speakers || []).filter(function (s) { return s.speaker_no === no; })[0];
+      return sp ? str(sp.label) : '';
+    }
+    function toggleLbl(cur) {
+      const b = byId('mn-lbl-open');
+      if (cur.lbl) { cur.lbl = null; clear(cur.nodes.lbl); if (b) b.setAttribute('aria-expanded', 'false'); focusById('mn-lbl-open'); return; }
+      cur.lbl = { draft: {}, rowErrs: {}, err: '', rev: false, busy: false };
+      if (b) b.setAttribute('aria-expanded', 'true');
+      drawLbl(cur);
+      const first = (cur.data.speakers || [])[0];
+      if (first) focusById('mn-lb-aff-' + first.speaker_no);
+      if (cur.tr.status === 'idle') loadTranscript(cur, function () { if (cur.lbl && !cur.lbl.busy) drawLbl(cur); });   // 첫 발언 [발언 보기]에 원문이 필요하다
+    }
+    function drawLbl(cur) {
+      const box = cur.nodes.lbl, lb = cur.lbl;
+      if (!box) return;
+      clear(box);
+      const v = cur.data.viewer, rules = cur.data.speaker_label_rules;
+      if (!lb || !(v.can_edit && cur.editOn) || !isObj(rules)) return;
+      const speakers = (cur.data.speakers || []).map(function (s) { return { no: s.speaker_no, count: s.utter_cnt | 0 }; });
+      const tbl = buildSpkTable({
+        rules: rules, speakers: speakers, rowErrs: lb.rowErrs,
+        get: function (no) { return Object.prototype.hasOwnProperty.call(lb.draft, no) ? lb.draft[no] : curLabel(cur, no); },
+        changed: function (no) { return Object.prototype.hasOwnProperty.call(lb.draft, no); },
+        labelsNow: function () { const m = {}; speakers.forEach(function (s) { m[s.no] = Object.prototype.hasOwnProperty.call(lb.draft, s.no) ? lb.draft[s.no] : curLabel(cur, s.no); }); return m; },
+        first: function (no) { return cur.tr.status === 'ready' ? mn.firstOf(cur.tr.items, no) : null; },
+        jump: function (f, no) { jumpUtter(cur, f.seq, '참석자 ' + no + '의 첫 발언(' + f.time + ')으로 옮겼습니다.'); },
+        revert: function (no) { delete lb.draft[no]; delete lb.rowErrs[no]; },
+        set: function (no, label) { delete lb.rowErrs[no]; if (label === curLabel(cur, no)) delete lb.draft[no]; else lb.draft[no] = label; }
+      });
+      const fs = tbl.node;
+      const er = errP(lb.err, 'mn-lbl-err'); er.className = 'wf-empty bd-err'; fs.appendChild(er);
+      const acts = el('div', 'mn-edit-acts');
+      const sv = btn('이름표 저장', { cls: 'bd-primary', id: 'mn-lbl-save' }), cx = btn('취소', { id: 'mn-lbl-cancel', on: function () { toggleLbl(cur); } });
+      sv.addEventListener('click', function () { saveLabels(cur, sv, cx); });
+      acts.appendChild(sv); acts.appendChild(cx);
+      if (lb.rev) acts.appendChild(btn('새로 불러오기', { id: 'mn-lbl-reload', on: function () { cur.lbl = null; draw('mn-back'); loadDetail(cur); } }));
+      fs.appendChild(acts);
+      box.appendChild(fs);
+    }
+    // 번호별로 한 건씩 보낸다(일괄 API 없음). 실패하면 거기서 멈추고 그 칸에 오류를 단다.
+    function saveLabels(cur, sv, cx) {
+      const lb = cur.lbl;
+      if (!lb || lb.busy) return;
+      const list = (cur.data.speakers || []).filter(function (s) { return Object.prototype.hasOwnProperty.call(lb.draft, s.speaker_no) && lb.draft[s.speaker_no] !== str(s.label); });
+      if (!list.length) { say(T.NOCHANGE); return; }
+      lb.busy = true; lb.err = ''; lb.rowErrs = {}; lb.rev = false;
+      sv.disabled = true; cx.disabled = true; sv.textContent = '저장하는 중…';
+      const ok = guard();
+      let saved = 0;
+      (function next(i) {
+        if (i >= list.length) {
+          cur.lbl = null; clear(cur.nodes.lbl); drawTr(cur);
+          const b = byId('mn-lbl-open'); if (b) b.setAttribute('aria-expanded', 'false');
+          say('발화자 이름표를 저장했습니다(' + saved + '명).');
+          focusById('mn-lbl-open');
+          return;
+        }
+        const no = list[i].speaker_no, label = lb.draft[no];
+        call('PUT', '/board-minutes/' + cur.id + '/speakers/' + no, mn.labelScreen(true), mn.BTN.LABEL, { label: label, rev_no: cur.data.rev_no }).then(function (r) {
+          if (!ok() || S.cur !== cur) return;
+          if (r.ok && isObj(r.body)) {
+            if (typeof r.body.rev_no === 'number') cur.data.rev_no = r.body.rev_no;
+            const nl = r.body.label == null ? '' : str(r.body.label);
+            list[i].label = nl || null;
+            (cur.tr.items || []).forEach(function (it) { if (mn.spkNo(it) === no) it.speaker_label = nl || null; });
+            delete lb.draft[no];
+            if (r.body.changed !== false) saved++;
+            next(i + 1);
+            return;
+          }
+          lb.busy = false;
+          if (r.status === 404) { gone(); return; }
+          const e = mn.errorText(r.status, r.detail, { action: 'label' });
+          lb.err = e.text;
+          if (e.field === 'label') lb.rowErrs[no] = e.text;
+          lb.rev = isObj(r.detail) && r.detail.code === 'REV_CHANGED';
+          drawLbl(cur);
+          focusById('mn-lbl-err');
+        });
+      })(0);
     }
 
     // ── 삭제 ──
@@ -944,7 +1447,8 @@
         const ul = el('ul');
         h.logs.forEach(function (l) {
           const li = el('li'), tg = targetText(l.target_kind, l.target_no);
-          li.appendChild(el('span', '', (EVENT[l.event] || str(l.event)) + (tg ? ' (' + tg + ')' : '')));
+          const ht = mn.histTitle(l.target_kind, l.target_no, l.event);
+          li.appendChild(el('span', '', ht || (EVENT[l.event] || str(l.event)) + (tg ? ' (' + tg + ')' : '')));
           li.appendChild(root.document.createTextNode(' '));
           li.appendChild(el('span', '', str(l.actor_name)));
           li.appendChild(root.document.createTextNode(' '));
@@ -956,7 +1460,7 @@
           sec.appendChild(el('h4', '', '고친 내용'));
           h.revs.forEach(function (rv) {
             const d = el('div');
-            d.appendChild(el('p', 'mn-meta', targetText(rv.target_kind, rv.target_no) + ' ' + str(rv.edited_by_name) + ' ' + mn.kst(rv.edited_at)));
+            d.appendChild(el('p', 'mn-meta', (mn.histTitle(rv.target_kind, rv.target_no, '') || targetText(rv.target_kind, rv.target_no)) + ' ' +str(rv.edited_by_name) + ' ' + mn.kst(rv.edited_at)));
             [['고치기 전', rv.old_text], ['고친 뒤', rv.new_text]].forEach(function (x) {
               if (x[1] == null) return;
               const p = el('p'); p.appendChild(el('b', '', x[0] + ' ')); mn.textNodes(p, x[1]); d.appendChild(p);
@@ -974,7 +1478,13 @@
       S.view = 'upload'; S.up = newUp(); S.cur = null; S.notice = '';
       draw('mn-up-h');
     }
-    function cancelUpload() { if (S.up && S.up.busy === 'save') return; S.up = null; S.view = 'list'; draw('mn-up-open'); focusById('mn-up-open2'); }
+    // 고친 내용이 있으면 한 번 더 묻는다(확인 없이 사라지지 않게). force=true 면 바로 취소.
+    function cancelUpload(force) {
+      if (!S.up || S.up.busy === 'save') return;
+      const c = mn.fixCount(S.up.fix);
+      if (force !== true && c.spk + c.utt > 0) { S.up.cancelAsk = true; draw('mn-up-cancel-keep'); return; }
+      S.up = null; S.view = 'list'; draw('mn-up-open'); focusById('mn-up-open2');
+    }
     function ctrlId(u, k) {
       if (k === 'meeting_date') return 'mn-date';
       if (k === 'title') return 'mn-title-in';
@@ -1015,10 +1525,19 @@
     }
     function buildUpload(r, u) {
       const wrap = el('div', 'mn-up');
-      const tools = el('div', 'mn-tools'), cx = btn('취소', { id: 'mn-up-cancel', on: cancelUpload });
+      u.editing = null;   // 다시 그리면 열려 있던 편집 줄은 사라진다
+      const tools = el('div', 'mn-tools'), cx = btn('취소', { id: 'mn-up-cancel', on: function () { cancelUpload(); } });
       cx.disabled = u.busy === 'save';   // 저장 요청이 나가 있는 동안은 취소할 수 없다
       tools.appendChild(cx);
       wrap.appendChild(head('회의록 올리기', 'mn-up-h', tools));
+      const upIntro = el('p', 'wf-empty', T.UP_INTRO); upIntro.id = 'mn-up-intro'; wrap.appendChild(upIntro);
+      if (u.cancelAsk) {
+        const cf = mn.fixCount(u.fix), row = el('div', 'bd-confirm'); row.setAttribute('role', 'group'); row.setAttribute('aria-label', '올리기 취소 확인');
+        row.appendChild(el('span', '', '고친 내용 ' + (cf.spk + cf.utt) + '건이 사라집니다. 올리기를 취소할까요?'));
+        row.appendChild(btn('올리기 취소', { id: 'mn-up-cancel-ok', on: function () { cancelUpload(true); } }));
+        row.appendChild(btn('계속 고치기', { cls: 'bd-primary', id: 'mn-up-cancel-keep', on: function () { u.cancelAsk = false; draw('mn-up-cancel'); } }));
+        wrap.appendChild(row);
+      }
       wrap.appendChild(buildMark());
       const box = errP(u.errs.box || '', 'mn-err');
       wrap.appendChild(box);
@@ -1080,7 +1599,14 @@
     }
     function failUpload(u, r, action) {
       const e = mn.errorText(r.status, r.detail, { action: 'upload' });
-      u.errs = {}; u.dupId = '';
+      u.errs = {}; u.dupId = ''; u.rowErr = null;
+      if (e.field === 'edit' || e.field === 'label') {   // 고친 내용 때문에 거절: ② 위쪽에 알리고 그 번호·발언 줄에도 단다
+        const dd = isObj(r.detail) ? r.detail : {}, tno = Number(dd.target_no) > 0 ? Number(dd.target_no) : 0;
+        u.rowErr = { spk: {}, utt: {} };
+        if (tno && e.field === 'label') u.rowErr.spk[tno] = e.text;
+        else if (tno) u.rowErr.utt[tno] = e.text;
+        e.field = 'preview'; e.text = tno ? T.FIX_ROW_FAIL + ' ' + e.text : e.text;
+      }
       u.errs[e.field] = e.text;
       if (isObj(r.detail) && r.detail.code === 'ALREADY_UPLOADED' && /^\d{1,18}$/.test(str(r.detail.minutes_id))) u.dupId = str(r.detail.minutes_id);
       const fx = mn.failEffects(r.detail);
@@ -1113,9 +1639,17 @@
           (r.body.name_candidates || []).forEach(function (c) { if (c && c.term != null) next[str(c.term)] = c.hits; });
           Object.keys(old).forEach(function (t) { if (u.release[t] && !(t in next)) next[t] = old[t]; });   // 이미 가리지 않기로 고른 말은 응답에 없어도 풀 수 있게 남긴다
           u.cands = next;
+          u.editsDigest = typeof r.body.edits_digest === 'string' && r.body.edits_digest ? r.body.edits_digest : null;   // 저장 때 options.edits_digest 로 그대로
+          u.rowErr = null; u.noiseOpen = {};
+          const mg = mn.mergeFix(u.fix, r.body);   // 서버가 가린 결과를 화면 글로 — 보이는 글 = 저장될 글
+          u.fix = mg.fix;
           u.pvSig = mn.signature(u);
           if (live()) draw('mn-pv-h');
-        } else { u.pv = null; failUpload(u, r.ok ? { status: 400, detail: { code: 'BAD_REQUEST' } } : r, 'preview'); }
+          if (mg.droppedUtt + mg.droppedSpk > 0) say('원문이 바뀌어 고친 내용 ' + (mg.droppedUtt + mg.droppedSpk) + '건을 지웠습니다.');
+        } else {
+          if (!(mn.isEditFail(r.detail) && u.pv)) u.pv = null;   // 고친 내용 때문에 거절되면 지금 미리보기를 두고 그 자리에 오류를 단다
+          failUpload(u, r.ok ? { status: 400, detail: { code: 'BAD_REQUEST' } } : r, 'preview');
+        }
       });
     }
     function previewErr(u) {
@@ -1124,7 +1658,8 @@
     }
     function buildPreview(u) {
       const d = u.pv, sec = el('section', 'mn-pv');
-      const h = el('h4', '', '② 미리보기 확인'); h.id = 'mn-pv-h'; h.tabIndex = -1; sec.appendChild(h);
+      u.editing = null;
+      const h = el('h4', '', '② 미리보기 확인·고치기'); h.id = 'mn-pv-h'; h.tabIndex = -1; sec.appendChild(h);
       const stale = el('p', 'mn-stale'); stale.id = 'mn-stale'; stale.hidden = u.pvSig === mn.signature(u);
       stale.appendChild(root.document.createTextNode('내용이 바뀌었습니다. '));
       stale.appendChild(btn('다시 미리보기', { id: 'mn-restale', on: doPreview }));
@@ -1151,18 +1686,25 @@
         c.appendChild(ul); sec.appendChild(c);
       }
       sec.appendChild(previewErr(u));
+      const fixP = el('p', 'mn-fix'); fixP.id = 'mn-fix'; sec.appendChild(fixP);
+      sec.appendChild(buildPvSpk(u));
       const bx = el('div', 'mn-pvbox'); bx.setAttribute('role', 'region'); bx.setAttribute('aria-label', '미리보기 원문'); bx.tabIndex = 0;
-      const ctx = { mode: 'preview', cur: null, canEdit: false, canCheck: false };
+      // canEdit 는 요약 항목용(미리보기에서는 끈다). 발언 고치기는 fix 가 있을 때 utterLi 가 따로 켠다.
+      const ctx = u.ctx = { mode: 'preview', cur: null, canEdit: false, canCheck: false, fix: u.fix, u: u, box: bx };
       buildContent(bx, d, ctx);
       bx.appendChild(el('h4', '', '원문'));
-      bx.appendChild(buildTrList(d.transcript || [], d, ctx, {}, function () {}));
+      const tw = el('div'); tw.id = 'mn-pv-tr';
+      tw.appendChild(buildTrList(d.transcript || [], d, ctx, u.noiseOpen, function () { redrawPvList(u); }));
+      bx.appendChild(tw);
       sec.appendChild(bx);
+      drawFix(u, fixP);
       return sec;
     }
     function buildSave(u) {
       const sec = el('section', 'mn-save');
       sec.appendChild(el('h4', '', '③ 저장'));
-      const ul = el('ul', 'mn-rules'); ul.style.listStyle = 'none'; ul.style.paddingLeft = '12px';
+      const fnote = fixSaveNote(u), fp = el('p', 'wf-empty', fnote); fp.id = 'mn-save-fix'; fp.hidden = !fnote; sec.appendChild(fp);
+      const ul =el('ul', 'mn-rules'); ul.style.listStyle = 'none'; ul.style.paddingLeft = '12px';
       T.RULES.forEach(function (t) { ul.appendChild(el('li', '', t)); });
       sec.appendChild(ul);
       const lab = el('label', 'mn-ack'), cb = el('input'); cb.type = 'checkbox'; cb.id = 'mn-ack'; cb.checked = u.ack;

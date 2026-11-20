@@ -231,6 +231,150 @@ test('목록 404(hidden) 문구는 빈 목록 문구와 다르다', function () 
   assert.ok(SRC.indexOf("L.status === 'hidden'") > 0);
 });
 
+const RULES = { affiliations: ['기관', '은행', '외부'], side_role: '측', max_ordinal: 9, max_chars: 20,
+  roles: ['측', '기관장', '구청장', '영업부장', '부장', '사회자', '위원'] };
+
+test('labelCheck: 서버 SpeakerLabels.normalize 와 같은 판정(고르기만, 자유 글 없음)', function () {
+  assert.deepStrictEqual(mn.labelCheck('', RULES), { ok: true, value: '' });
+  assert.deepStrictEqual(mn.labelCheck('   ', RULES), { ok: true, value: '' });
+  assert.deepStrictEqual(mn.labelCheck('구청장', RULES), { ok: true, value: '구청장' });
+  assert.deepStrictEqual(mn.labelCheck('기관  구청장 2', RULES), { ok: true, value: '기관 구청장 2' }, '공백 정리');
+  assert.deepStrictEqual(mn.labelCheck('은행 측', RULES), { ok: true, value: '은행 측' });
+  assert.strictEqual(mn.labelCheck('측', RULES).ok, false, "'측'은 소속이 있어야 한다");
+  assert.strictEqual(mn.labelCheck('김철수', RULES).ok, false, '목록에 없는 말');
+  assert.strictEqual(mn.labelCheck('참석자 5', RULES).ok, false);
+  assert.strictEqual(mn.labelCheck('[이름]', RULES).ok, false);
+  assert.strictEqual(mn.labelCheck('구청장 0', RULES).ok, false, '번호는 1~9');
+  assert.strictEqual(mn.labelCheck('구청장 10', RULES).ok, false);
+  assert.strictEqual(mn.labelCheck('구청장 1 2', RULES).ok, false);
+  assert.strictEqual(mn.labelCheck('기관', RULES).ok, false, '소속만으로는 안 된다');
+  assert.strictEqual(mn.labelCheck('구청장', null).ok, false, '규칙이 없으면 받지 않는다');
+  assert.strictEqual(mn.labelCheck('기관 구청장 1', { affiliations: ['기관'], roles: ['구청장'], max_chars: 5 }).ok, false, '글자 수 상한');
+});
+
+test('labelCompose·labelParse·dupLabels·spkNo·spkView·firstOf', function () {
+  assert.strictEqual(mn.labelCompose('', '', '3'), '');
+  assert.strictEqual(mn.labelCompose('기관', '', ''), '');
+  assert.strictEqual(mn.labelCompose('은행', '측', ''), '은행 측');
+  assert.strictEqual(mn.labelCompose('', '부장', '2'), '부장 2');
+  assert.deepStrictEqual(mn.labelParse('기관 구청장 2', RULES), { aff: '기관', role: '구청장', ord: '2' });
+  assert.deepStrictEqual(mn.labelParse('사회자', RULES), { aff: '', role: '사회자', ord: '' });
+  assert.deepStrictEqual(mn.labelParse('엉터리', RULES), { aff: '', role: '', ord: '' });
+  assert.deepStrictEqual(mn.dupLabels({ 1: '구청장', 3: '은행 측', 6: '은행 측', 7: '' }), [{ label: '은행 측', nos: [3, 6] }]);
+  assert.strictEqual(mn.spkNo({ speaker_no: 4 }), 4);
+  assert.strictEqual(mn.spkNo({ speaker: '참석자 12' }), 12);
+  assert.strictEqual(mn.spkNo({ speaker: '홍길동' }), 0);
+  assert.deepStrictEqual(mn.spkView(3, '구청장'), { main: '구청장', sub: '참석자 3' });
+  assert.deepStrictEqual(mn.spkView(3, ''), { main: '참석자 3', sub: '' });
+  const items = [{ seq_no: 1, speaker_no: 2, time: '00:01', noise: true }, { seq_no: 2, speaker_no: 2, time: '00:09' }, { seq_no: 3, speaker_no: 5, time: '00:12' }];
+  assert.deepStrictEqual(mn.firstOf(items, 2), { seq: 2, time: '00:09' }, '잡음이 아닌 발언 먼저');
+  assert.strictEqual(mn.firstOf(items, 9), null);
+});
+
+test('lostMasks: 가림 토큰이 줄었는지(종류별)', function () {
+  assert.strictEqual(mn.lostMasks('[이름] 말', '김 말'), 1);
+  assert.strictEqual(mn.lostMasks('[이름] 말 [가림]', '[이름] 말 [가림] 더'), 0);
+  assert.strictEqual(mn.lostMasks('[이름] 말', '[이름] [이름] 말 [가림]'), 0, '늘어나는 것은 괜찮다');
+  assert.strictEqual(mn.lostMasks('[이름] [가림]', '[이름] [이름]'), 1, '종류가 다르면 대신할 수 없다');
+  assert.strictEqual(mn.lostMasks('[가림: 개인정보 의심 줄]', '[가림]'), 1);
+  assert.strictEqual(mn.lostMasks('가림 없음', ''), 0);
+  assert.ok(mn.maskLostText(2).indexOf('2곳') > 0);
+});
+
+test('고친 내용: editsPayload·fixCount·fixSummary', function () {
+  assert.strictEqual(mn.editsPayload(undefined), null);
+  assert.strictEqual(mn.editsPayload({ labels: {}, utt: {} }), null);
+  assert.strictEqual(mn.editsPayload({ labels: { 1: '' }, utt: { 5: { orig: 'a', text: 'a', shown: 'a' } } }), null, '빈 이름표·같은 글은 고친 것이 아니다');
+  const fix = { labels: { 3: '구청장', 1: '' }, utt: { 12: { orig: 'a', text: 'b', shown: 'b' }, 4: { orig: 'x', text: 'y', shown: 'y' }, 9: { orig: 'k', text: 'k', shown: 'k' } } };
+  assert.deepStrictEqual(mn.editsPayload(fix), { speaker_labels: { 3: '구청장' }, utter_edits: [{ seq_no: 4, text: 'y' }, { seq_no: 12, text: 'b' }] });
+  assert.deepStrictEqual(mn.fixCount(fix), { spk: 1, utt: 2 });
+  assert.strictEqual(mn.fixSummary({ spk: 1, utt: 2 }), '고친 내용: 발화자 1명 · 발언 2건');
+  assert.strictEqual(mn.fixSummary({ spk: 0, utt: 2 }), '고친 내용: 발언 2건');
+  assert.strictEqual(mn.fixSummary({ spk: 0, utt: 0 }), '');
+});
+
+test('mergeFix: 이름표는 번호가 있으면 유지, 발언은 줄이 있으면 유지하고 화면 글을 응답 글로', function () {
+  const fix = { labels: { 1: '구청장', 8: '부장' }, utt: { 2: { orig: 'a', text: 'b 홍길동', shown: 'b 홍길동' }, 3: { orig: 'c', text: 'c', shown: 'c' }, 99: { orig: 'z', text: 'zz', shown: 'zz' } } };
+  const pv = { speakers: [{ speaker_no: 1 }, { speaker_no: 2 }], transcript: [{ seq_no: 2, text: 'b [이름]' }, { seq_no: 3, text: 'c' }] };
+  const m = mn.mergeFix(fix, pv);
+  assert.deepStrictEqual(m.fix.labels, { 1: '구청장' });
+  assert.deepStrictEqual(m.fix.utt, { 2: { orig: 'a', text: 'b 홍길동', shown: 'b [이름]' } }, '보낼 글은 그대로, 보이는 글은 가린 결과');
+  assert.strictEqual(m.droppedSpk, 1);
+  assert.strictEqual(m.droppedUtt, 1);
+});
+
+test('isEditFail·errorText: 이름표·고친 발언 오류 문구', function () {
+  ['LABEL_INVALID', 'LABEL_SPEAKER_UNKNOWN', 'EDIT_SEQ_UNKNOWN', 'LIMIT_EDIT_LEN', 'EDITS_INVALID', 'EDIT_MASK_REMOVED'].forEach(function (c) {
+    assert.strictEqual(mn.isEditFail({ code: c }), true, c);
+    const e = mn.errorText(c === 'EDITS_INVALID' ? 400 : 422, { code: c, slot: 'edit', target_no: 3, kinds: { name: 1 } }, { action: 'upload' });
+    assert.ok(e.text && e.text.length > 8 && !new RegExp(c).test(e.text), c);
+  });
+  assert.strictEqual(mn.isEditFail({ code: 'LIMIT_LINE', slot: 'edit' }), true);
+  assert.strictEqual(mn.isEditFail({ code: 'LIMIT_LINE', slot: 'transcript' }), false);
+  assert.strictEqual(mn.isEditFail({ code: 'MASK_REQUIRED' }), false);
+  assert.strictEqual(mn.errorText(422, { code: 'LABEL_INVALID', kinds: { form: 1 } }).text, mn.TEXT.LBL_FORM);
+  assert.strictEqual(mn.errorText(422, { code: 'LABEL_INVALID', kinds: { name: 1 } }).text, mn.TEXT.LBL_NAME);
+  assert.strictEqual(mn.errorText(422, { code: 'LABEL_INVALID', kinds: { form: 1 } }).field, 'label');
+  assert.ok(mn.errorText(422, { code: 'EDIT_MASK_REMOVED', slot: 'edit', kinds: { name: 2, pii: 1 } }).text.indexOf('3곳') > 0);
+  assert.strictEqual(mn.errorText(422, { code: 'LIMIT_EDIT_LEN', slot: 'edit' }).text, '1~20,000자(발언)로 적으세요.');
+  assert.ok(mn.errorText(409, { code: 'REV_CHANGED' }, { action: 'label' }).text.indexOf('[새로 불러오기]') >= 0);
+});
+
+test('histTitle: 이력의 발화자 이름표 바꿈', function () {
+  assert.strictEqual(mn.histTitle('SPEAKER', 3, 'EDIT'), '발화자 이름표 바꿈 (참석자 3)');
+  assert.strictEqual(mn.histTitle('UTTER', 3, 'EDIT'), null);
+  assert.strictEqual(mn.histTitle('X', 0, 'SPEAKER_LABEL'), '발화자 이름표 바꿈');
+});
+
+test('labelScreen·BTN.LABEL: 탭 안이면 board_write, 밖이면 board_minutes · 버튼 minutes_label', function () {
+  assert.strictEqual(mn.labelScreen(true), 'board_write');
+  assert.strictEqual(mn.labelScreen(false), 'board_minutes');
+  assert.strictEqual(mn.BTN.LABEL, 'minutes_label');
+});
+
+test('signature: 고친 내용이 바뀌면 달라진다(stale) — 고친 것이 없던 때와는 같은 표식', function () {
+  const mk = function () { return { date: '2026-11-01', title: 't', src: { transcript: 'paste', timeline: 'file', summary: 'file' }, files: {}, paste: { transcript: '가' }, terms: '', release: {} }; };
+  const base = mn.signature(mk());
+  const a = mk(); a.fix = { labels: {}, utt: {} };
+  assert.strictEqual(mn.signature(a), base, '빈 고치기는 표식에 영향 없음');
+  const b = mk(); b.fix = { labels: { 1: '구청장' }, utt: {} };
+  assert.notStrictEqual(mn.signature(b), base);
+  const c = mk(); c.fix = { labels: { 1: '구청장' }, utt: { 2: { orig: 'a', text: 'b', shown: 'b' } } };
+  assert.notStrictEqual(mn.signature(c), mn.signature(b));
+  const d = mk(); d.fix = { labels: { 1: '구청장' }, utt: { 2: { orig: 'a', text: 'b', shown: '[이름]' } } };
+  assert.strictEqual(mn.signature(d), mn.signature(c), '화면 글(shown)은 표식에 넣지 않는다');
+});
+
+test('buildForm: edits 파트는 미리보기·저장 둘 다, 비었으면 파트 없음, edits_digest 는 저장 때만', async function () {
+  if (typeof FormData === 'undefined' || typeof Blob === 'undefined') return;
+  const u = { date: '2026-11-17', title: '제목', src: { transcript: 'paste', timeline: 'file', summary: 'file' }, files: {}, paste: { transcript: '참석자 1 00:00\n안녕' },
+              terms: '', release: {}, cands: {}, fix: { labels: {}, utt: {} }, editsDigest: null };
+  assert.strictEqual(mn.buildForm(u, [], '').get('edits'), null, '비었으면 파트 없음');
+  u.fix = { labels: { 1: '구청장' }, utt: { 4: { orig: 'a', text: 'b', shown: 'b' } } };
+  u.editsDigest = 'e'.repeat(64);
+  const pv = mn.buildForm(u, [], '');
+  assert.deepStrictEqual(JSON.parse(await pv.get('edits').text()), { speaker_labels: { 1: '구청장' }, utter_edits: [{ seq_no: 4, text: 'b' }] });
+  assert.strictEqual(pv.get('edits').type, 'application/json');
+  assert.strictEqual(JSON.parse(await pv.get('options').text()).edits_digest, undefined, '미리보기에는 edits_digest 없음');
+  const sv = mn.buildForm(u, [], 'a'.repeat(64));
+  assert.ok(sv.get('edits'));
+  assert.strictEqual(JSON.parse(await sv.get('options').text()).edits_digest, 'e'.repeat(64));
+  u.fix = { labels: {}, utt: {} };
+  assert.strictEqual(JSON.parse(await mn.buildForm(u, [], 'a'.repeat(64)).get('options').text()).edits_digest, undefined, '고친 것이 없으면 확인값도 없다');
+});
+
+test('소스 검사: 미리보기 고치기 경로는 서버를 부르지 않고, 쓰기 헤더·문구 위치', function () {
+  const cut = function (a, b) { const i = SRC.indexOf(a), j = SRC.indexOf(b, i); assert.ok(i > 0 && j > i, a); return SRC.slice(i, j); };
+  ['function pvEdit', 'function pvApply', 'function pvRevert', 'function revertAll', 'function afterFix'].forEach(function (f) {
+    const body = cut(f, '\n    function ');
+    assert.ok(body.indexOf('call(') < 0, f + ' 는 서버를 부르지 않는다');
+  });
+  assert.ok(cut('local.apply(text)', 'const ok = guard()').indexOf('call(') < 0, '[반영]은 로컬만');
+  assert.ok(SRC.indexOf('mn.labelScreen(true), mn.BTN.LABEL') > 0, '이름표 저장은 labelScreen·minutes_label');
+  assert.ok(cut('function goSeg', 'function jumpUtter').indexOf("ctx.mode === 'preview'") > 0, '미리보기 [원문 보기]는 pvJump');
+  assert.ok(SRC.indexOf('datalist') < 0, '자유 입력 추천 목록 없음');
+});
+
 test('정적 검사: HTML 문자열 주입·브라우저 저장소 없음, 화면·버튼 id 는 서버 허용 목록 안', function () {
   assert.ok(SRC.indexOf('innerHTML') < 0, 'innerHTML');
   assert.ok(SRC.indexOf('insertAdjacentHTML') < 0 && SRC.indexOf('outerHTML') < 0 && SRC.indexOf('document.write') < 0);
