@@ -15,8 +15,6 @@ final class TargetResultRules {
      * 시작이 'YYYY'뿐이면 월을 모른다 — 추정하지 않고 결과로 세지 않는다(true 로 바꾸면 1월 시작으로 본다).
      */
     static final boolean YEAR_ONLY_IS_JANUARY = false;
-    private static final List<String> RANK_ORDER = Arrays.asList("FIRST", "SECOND", "JOINT", "NONE");
-
     static final class Verdict {
         String resultCd, winKind, winKindBasis;
         List<BankContract> lines = Collections.<BankContract>emptyList();
@@ -25,12 +23,23 @@ final class TargetResultRules {
 
     private TargetResultRules() { }
 
+    /** 개시일 기록 없이(= 기록이 없을 때와 같은 결과). */
     static Verdict judge(List<BankContract> all, String tagCd, int year, int thisYear, Map<String, Object> bidClosed) {
+        return judge(all, tagCd, year, thisYear, bidClosed, null, null);
+    }
+
+    /**
+     * starts = 그 기관의 RFP 협약 개시일 기록(목표 연도 → YYYY-MM-DD, 없으면 null). 귀속은 ResultYearRules.yearOf.
+     * 약정 줄이 없을 때 '그 목표 연도의 기록된 개시일이 오늘 또는 그 이전'이면 입찰 결과가 났어야 하므로 ended(UNREGISTERED) —
+     * 105 의 판정일(today >= 개시일, CarryRules.decide due)과 같은 기준.
+     */
+    static Verdict judge(List<BankContract> all, String tagCd, int year, int thisYear, Map<String, Object> bidClosed,
+                         Map<Integer, String> starts, LocalDate today) {
         List<BankContract> src = all == null ? Collections.<BankContract>emptyList() : all;
         Verdict v = new Verdict();
-        v.lines = resultLines(src, year);
+        v.lines = ResultYearRules.linesOf(src, year, starts);
         if (v.lines.isEmpty()) {
-            boolean ended = year < thisYear || (year == thisYear && bidClosed != null);
+            boolean ended = year < thisYear || (year == thisYear && bidClosed != null) || startPassed(starts, year, today);
             v.resultCd = ended ? UNREGISTERED : PENDING;
             return v;
         }
@@ -56,24 +65,13 @@ final class TargetResultRules {
 
     /** 귀속 연도가 year 인 줄 중 순위마다 시작이 가장 이른 줄(같으면 번호 큰 쪽). 귀속을 모르면 제외. 순위 순서 정렬. */
     static List<BankContract> resultLines(List<BankContract> all, int year) {
-        Map<String, BankContract> byRank = new HashMap<String, BankContract>();
-        for (BankContract c : all) {
-            Integer ty = targetYearOf(c.getTermFrom());
-            if (ty == null || ty.intValue() != year) continue;
-            String k = c.getRankCd() == null ? "" : c.getRankCd();
-            BankContract cur = byRank.get(k);
-            if (cur == null) { byRank.put(k, c); continue; }
-            int r = c.getTermFrom().compareTo(cur.getTermFrom());
-            if (r < 0 || (r == 0 && c.getContractNo() > cur.getContractNo())) byRank.put(k, c);
-        }
-        List<BankContract> out = new ArrayList<BankContract>(byRank.values());
-        Collections.sort(out, new Comparator<BankContract>() {
-            public int compare(BankContract a, BankContract b) {
-                int x = RANK_ORDER.indexOf(a.getRankCd()), y = RANK_ORDER.indexOf(b.getRankCd());
-                return (x < 0 ? 99 : x) - (y < 0 ? 99 : y);
-            }
-        });
-        return out;
+        return ResultYearRules.linesOf(all, year, null);   // 개시일 기록 없음 = 추정(targetYearOf)과 같은 결과
+    }
+
+    private static boolean startPassed(Map<Integer, String> starts, int year, LocalDate today) {
+        if (starts == null || today == null) return false;
+        LocalDate s = startOf(starts.get(year));
+        return s != null && !today.isBefore(s);   // 당일 포함 = 105 CarryRules.decide 의 due 와 같은 기준
     }
 
     /** 이긴 줄과 같은 순위에서 먼저 시작한 줄 중 끝이 가장 늦은 줄이 국민은행이었나. 근거 없으면 null. */

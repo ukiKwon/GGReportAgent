@@ -3,6 +3,7 @@ package com.kbstar.kgi.ggreport.web.service;
 import com.kbstar.kgi.ggreport.web.domain.BankContract;
 import org.junit.Test;
 
+import java.time.LocalDate;
 import java.util.*;
 
 import static org.junit.Assert.*;
@@ -152,5 +153,35 @@ public class TargetResultRulesTest {
         TargetResultRules.Verdict v = TargetResultRules.judge(L(line(1, "JOINT", "B02", "2027-01", "2030-12")), "NEW", Y, Y, null);
         assertEquals(TargetResultRules.SUCCESS, v.resultCd);
         assertEquals("JOINT", v.kbLine.getRankCd());
+    }
+    // ── RFP 협약 개시일 기록(INST_BID_TERM)으로 귀속 — 105 ResultYearRules (사용자 11-20: 성과 귀속 = 입찰한 해) ──
+    private static Map<Integer, String> st(int y, String d) { Map<Integer, String> m = new HashMap<Integer, String>(); m.put(y, d); return m; }
+
+    @Test public void 개시일_기록이_있으면_3월_개시도_입찰한_해로_귀속() {
+        List<BankContract> l = L(line(1, "FIRST", "B02", "2027-03-01", "2030-12"));
+        LocalDate today = LocalDate.of(2026, 11, 20);
+        TargetResultRules.Verdict v = TargetResultRules.judge(l, "NEW", 2026, 2026, null, st(2026, "2027-03-01"), today);
+        assertEquals(TargetResultRules.SUCCESS, v.resultCd);
+        assertEquals(1, v.lines.size());
+        assertTrue(TargetResultRules.judge(l, "NEW", 2027, 2026, null, st(2026, "2027-03-01"), today).lines.isEmpty());
+    }
+    @Test public void 개시일_기록이_없으면_기존_규칙() {
+        List<BankContract> l = L(line(1, "FIRST", "B02", "2027-03-01", "2030-12"));
+        LocalDate today = LocalDate.of(2026, 11, 20);
+        assertTrue(TargetResultRules.judge(l, "NEW", 2026, 2026, null, null, today).lines.isEmpty());
+        assertTrue(TargetResultRules.judge(l, "NEW", 2026, 2026, null, new HashMap<Integer, String>(), today).lines.isEmpty());
+        assertEquals(TargetResultRules.judge(l, "NEW", 2027, 2026, null).resultCd,
+                TargetResultRules.judge(l, "NEW", 2027, 2026, null, null, today).resultCd);
+    }
+    @Test public void 기록된_개시일이_지났는데_약정이_없으면_미등록() {
+        assertEquals(TargetResultRules.UNREGISTERED, TargetResultRules.judge(L(), "NEW", Y, Y, null, st(Y, Y + "-03-01"), LocalDate.of(Y, 11, 20)).resultCd);
+        assertEquals(TargetResultRules.PENDING, TargetResultRules.judge(L(), "NEW", Y, Y, null, null, LocalDate.of(Y, 11, 20)).resultCd);
+    }
+    @Test public void 개시일이_아직이면_대기() {
+        assertEquals(TargetResultRules.PENDING, TargetResultRules.judge(L(), "NEW", Y, Y, null, st(Y, Y + "-12-31"), LocalDate.of(Y, 11, 20)).resultCd);
+    }
+    @Test public void 개시일_당일은_지난_것으로_본다() {
+        LocalDate today = LocalDate.of(Y, 11, 20);
+        assertEquals(TargetResultRules.UNREGISTERED, TargetResultRules.judge(L(), "NEW", Y, Y, null, st(Y, today.toString()), today).resultCd);
     }
 }

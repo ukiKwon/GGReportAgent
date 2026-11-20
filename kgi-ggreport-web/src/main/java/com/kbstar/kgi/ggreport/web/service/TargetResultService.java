@@ -72,6 +72,7 @@ public class TargetResultService {
         for (BidPrep p : mapper.selectPrepsForYear(year, confirmFrom, confirmTo)) {
             if (!preps.containsKey(p.getInstitutionId())) preps.put(p.getInstitutionId(), p);
         }
+        Map<String, Map<Integer, String>> starts = startsByInst(mapper.selectTermsForYear(year));   // RFP 협약 개시일 기록(없으면 기존 규칙)
         Map<String, String> rankNames = names("BANK_RANK"), srcNames = names("BANK_CONTRACT_SRC");
 
         Set<String> activeInst = new HashSet<String>();
@@ -91,7 +92,7 @@ public class TargetResultService {
             }
             List<BankContract> l = lines.get(inst);
             Map<String, Object> basis = year == thisYear ? BidTargetRules.bidClosedBasis(notices.get(inst), l, today) : null;
-            TargetResultRules.Verdict v = TargetResultRules.judge(l, t.getTagCd(), year, thisYear, basis);
+            TargetResultRules.Verdict v = TargetResultRules.judge(l, t.getTagCd(), year, thisYear, basis, starts.get(inst), today);
             n[0]++;
             if (TargetResultRules.SUCCESS.equals(v.resultCd)) {
                 n[1]++;
@@ -117,7 +118,7 @@ public class TargetResultService {
 
         Map<String, Object> rule = new LinkedHashMap<String, Object>();
         rule.put("judged_by", "금고 약정 기록(039)");
-        rule.put("start_window", "약정 시작 월 기준(1월 시작은 전년도 목표)");
+        rule.put("start_window", "RFP 협약 개시일 기록이 있으면 그 입찰 연도, 없으면 약정 시작 월 기준(1월 시작은 전년도 목표)");
         Map<String, Object> out = new LinkedHashMap<String, Object>();
         out.put("year", year); out.put("today", today.toString()); out.put("truncated", truncated);
         out.put("rule", rule);
@@ -146,6 +147,18 @@ public class TargetResultService {
         if (t.getTargetYear() == null || t.getTargetYear().intValue() != year) return false;
         return "WRONG".equals(t.getCancelReasonCd()) || "DUP".equals(t.getCancelReasonCd())
                 || BidTargetService.CANCEL_CARRY_REVOKED.equals(t.getCancelReasonCd());   // NEXT 105 — 이월 자동 취소도 정정
+    }
+
+    /** 기관 → (목표 연도 → RFP 협약 개시일). 최신 행이 SAVE 이고 값이 있는 것만(CANCEL=지움은 기록 없음). BidTargetService.startsByInst 와 같은 규칙. */
+    private static Map<String, Map<Integer, String>> startsByInst(List<BidTerm> rows) {
+        Map<String, Map<Integer, String>> m = new HashMap<String, Map<Integer, String>>();
+        for (BidTerm t : rows) {
+            if (!BidTargetService.ACTION_SAVE.equals(t.getActionCd()) || t.getTermStart() == null) continue;
+            Map<Integer, String> x = m.get(t.getInstitutionId());
+            if (x == null) { x = new HashMap<Integer, String>(); m.put(t.getInstitutionId(), x); }
+            x.put(t.getTargetYear(), t.getTermStart());
+        }
+        return m;
     }
 
     private Map<String, String> names(String group) {

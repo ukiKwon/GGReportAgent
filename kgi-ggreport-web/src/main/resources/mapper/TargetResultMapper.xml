@@ -41,6 +41,14 @@
     <result property="codeName" column="CODE_NAME"/>
   </resultMap>
 
+  <resultMap id="term" type="BidTerm">
+    <id property="institutionId" column="INSTITUTION_ID"/>
+    <id property="targetYear" column="TARGET_YEAR"/>
+    <id property="revNo" column="REV_NO"/>
+    <result property="actionCd" column="ACTION_CD"/>
+    <result property="termStart" column="TERM_START"/>
+  </resultMap>
+
   <sql id="goalInst">SELECT h.INSTITUTION_ID FROM INST_BID_TARGET h WHERE h.KIND_CD = 'GOAL' AND h.TARGET_YEAR = #{year}</sql>
 
   <select id="selectGoalRows" resultMap="target" flushCache="true">
@@ -77,6 +85,16 @@
      WHERE p.CONFIRMED_AT &gt;= #{fromAt} AND p.CONFIRMED_AT &lt; #{toAt}
        AND p.INSTITUTION_ID IN (<include refid="goalInst"/>)
      ORDER BY p.INSTITUTION_ID, p.UPDATED_AT DESC
+  </select>
+
+  <!-- 그 해 목표 기관들의 RFP 협약 개시일(INST_BID_TERM) — 모든 목표 연도의 최신 행(CANCEL 포함, 호출 쪽이 SAVE 만 씀). 귀속 판별용(ResultYearRules). -->
+  <select id="selectTermsForYear" resultMap="term" flushCache="true">
+    SELECT s.INSTITUTION_ID, s.TARGET_YEAR, s.REV_NO, s.ACTION_CD, s.TERM_START
+      FROM INST_BID_TERM s
+     WHERE NOT EXISTS (SELECT 1 FROM INST_BID_TERM n
+             WHERE n.INSTITUTION_ID = s.INSTITUTION_ID AND n.TARGET_YEAR = s.TARGET_YEAR AND n.REV_NO &gt; s.REV_NO)
+       AND s.INSTITUTION_ID IN (<include refid="goalInst"/>)
+     ORDER BY s.INSTITUTION_ID, s.TARGET_YEAR
   </select>
 
   <select id="selectCodes" resultMap="code" flushCache="true">
