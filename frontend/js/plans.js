@@ -448,7 +448,7 @@
     const k = plans.reasonOf(r);
     return k === 'none' ? unk('자료 없음') : (k === 'stale' ? badge('cr-st gap', '오래됨') : badge('pp-cancel', '기간 지남'));
   }
-  function kindLabel(r) { return r.kind === 'GOAL' ? (r.years[0] ? mono(r.years[0]) + ' ' : '') + '목표' : (r.kind === 'WATCH' ? '관심' : '그 밖의 기관'); }
+  function kindLabel(r) { return r.kind === 'GOAL' ? (r.years[0] ? mono(r.years[0]) + ' ' : '') + '목표' : (r.kind === 'WATCH' ? '나의 관심' : '그 밖의 기관'); }
   // 확인 창 마크업(공통 .dlg 시안의 클래스 이름·구조, alertdialog). 동적 글은 모두 esc/mono.
   plans.batchDialogHtml = function (p) {
     const n = p.ids.length, sk = p.skipped || {};
@@ -575,7 +575,7 @@
       const title = ys.length > 1 ? ' title="' + esc('목표 연도 ' + ys.join('·') + '(가장 이른 해를 표시)') + '"' : '';
       return '<span class="pl-tag" data-kind="GOAL"' + title + '>' + (ys.length ? mono(ys[0]) + ' ' : '') + '목표</span>';
     }
-    return kind === 'WATCH' ? '<span class="pl-tag" data-kind="WATCH">관심</span>' : '';
+    return kind === 'WATCH' ? '<span class="pl-tag" data-kind="WATCH">나의 관심</span>' : '';
   };
   // 2줄 행. 1줄 = 이름 + 목표/관심 칩, 2줄 .meta = 지역·종류 + 상태 칩(.pl-st 는 display:contents). r = baseRows 한 행,
   // o = { id, selected, loaded(현황을 받았는가), pending(받는 중 — 칩 자리 유지), pinned(직접 연 기관), req, closed, isNew }. option 안에는 버튼을 두지 않는다.

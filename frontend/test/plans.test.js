@@ -743,7 +743,7 @@ test('rowHtml(2줄): 이름+실선 .pl-tag(연도 앞), .meta 안에 지역·종
   const ga = plans.rowHtml(by('ga'), { loaded: true });
   assert.ok(ga.indexOf('<span class="v">2027</span> 목표</span>') >= 0 && ga.indexOf('title=') < 0 && ga.indexOf('pop-unk">자료 없음') >= 0);
   const da = plans.rowHtml(by('da'), { loaded: true });
-  assert.ok(da.indexOf('<span class="pl-tag" data-kind="WATCH">관심</span>') >= 0 && da.indexOf('pop-unk pl-') < 0 && da.indexOf('data-kind="GOAL"') < 0);   // 관심 칩은 점선이 아니다
+  assert.ok(da.indexOf('<span class="pl-tag" data-kind="WATCH">나의 관심</span>') >= 0 && da.indexOf('pop-unk pl-') < 0 && da.indexOf('data-kind="GOAL"') < 0);   // 관심 칩은 점선이 아니다
   assert.ok(plans.rowHtml(rows.filter(function (r) { return r.name === '라구'; })[0], { loaded: true }).indexOf('pl-tag') < 0);
   assert.ok(plans.rowHtml(by('na'), { loaded: false }).indexOf('사업계획') < 0);   // 아직 모르는 동안 '자료 없음'으로 보이지 않게
   assert.ok(plans.rowHtml(by('na'), { loaded: false, pending: true }).indexOf('<span class="pl-wait" aria-hidden="true"></span>') >= 0);
@@ -893,4 +893,10 @@ test('design 11-20 커밋 전 대조: 보내는 중에도 [취소]로 닫고, �
   assert.ok(SRC.indexOf('cancel.disabled = d.busy') < 0 && SRC.indexOf('hint.hidden = !d.busy') > 0);
   assert.ok(SRC.indexOf('<ul class="pl-pinned" role="group" aria-label="직접 연 기관">') > 0);
   assert.ok(SRC.indexOf('marks: markRows.length') > 0 && SRC.indexOf('total: markRows.length') > 0, '요약줄·묶음 머리가 같은 수를 센다(P3-2)');
+});
+
+test('목표·관심 칩: 같은 폭(min-width 72px·가운데), 관심 칩 글자는 나의 관심(사용자 11-20)', function () {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.ok(/.pl-tag {[^}]*min-width:72px[^}]*text-align:center/.test(css), '두 칩 같은 폭');
+  assert.ok(SRC.indexOf("data-kind=\"WATCH\">나의 관심</span>") > 0 && SRC.indexOf("r.kind === 'WATCH' ? '나의 관심'") > 0);
 });
