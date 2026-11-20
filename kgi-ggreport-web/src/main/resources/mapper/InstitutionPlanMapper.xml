@@ -35,6 +35,9 @@
   <select id="countImportsByOrigin" resultType="int" flushCache="true">
     SELECT COUNT(*) FROM INST_PLAN_IMPORT WHERE INSTITUTION_ID = #{institutionId} AND ORIGIN_CD = #{originCd}
   </select>
+  <select id="countImportBySha" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM INST_PLAN_IMPORT WHERE INSTITUTION_ID = #{institutionId} AND FILE_SHA256 = #{sha}
+  </select>
   <select id="selectLatestImports" resultType="InstPlanImport" flushCache="true">
     SELECT <include refid="importCols"/> FROM INST_PLAN_IMPORT
      WHERE IMPORT_ID IN (SELECT MAX(IMPORT_ID) FROM INST_PLAN_IMPORT GROUP BY INSTITUTION_ID)

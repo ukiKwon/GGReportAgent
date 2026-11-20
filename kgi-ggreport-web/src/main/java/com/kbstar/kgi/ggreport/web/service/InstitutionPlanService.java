@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -68,6 +69,16 @@ public class InstitutionPlanService {
     static final int MISSING_MAX_IDS = 1000;   // Oracle IN 목록 상한과 같다
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final Pattern BATCH = Pattern.compile("[A-Za-z0-9_-]{1,64}");
+    /** apply 의 409 문구 — 폴더 반입이 getMessage() 로 ALREADY·OLDER 를 가른다(문자열 ApiException 은 detailObject 가 null, security S1). */
+    public static final String MSG_SAME = "이미 반입된 파일과 같습니다. 새 판을 만들지 않았습니다.";
+    public static final String MSG_OLDER = "현재 판보다 이전 날짜의 파일입니다.";
+
+    /** 폴더 파일을 읽지 못한 사유 — 고정 코드만(경로·이름 없음). PlanInboxService 가 던지고 inspect·importFiles 가 상태로 바꾼다. */
+    public static final class FileProblem extends RuntimeException {
+        private final String code;
+        public FileProblem(String code) { super(code, null, false, false); this.code = code; }
+        public String getCode() { return code; }
+    }
 
     private final InstitutionPlanMapper mapper;
     private final PlanAudit audit;
@@ -111,6 +122,91 @@ public class InstitutionPlanService {
         }
     }
 
+    /** 서버 폴더 반입(PlanInboxService) — 이름·바이트는 호출자가 설정 폴더에서 읽은 값. 검사·감사·요청 자동 반영은 importUpload 와 같다(apply 재사용). */
+    public Map<String, Object> importFile(String fileName, byte[] raw, String batchRaw, Actor actor, BoardUiIds.Ui ui) {
+        BoardUiIds.Ui u = ui;
+        Matcher fm = PlanCsv.FILE_NAME.matcher(fileName == null ? "" : fileName);
+        String instId = fm.matches() ? fm.group(1) : null;
+        String sha = null;
+        try {
+            if (instId == null) throw ApiException.badRequest("파일 이름은 {기관ID}_{확인일YYYYMMDD}_plan.csv 형식이어야 합니다.");
+            instId = canonicalId(instId);
+            if (raw == null) throw ApiException.badRequest("파일을 읽을 수 없습니다.");
+            if (raw.length > CsvLimits.MAX_FILE_BYTES) throw tooLarge();
+            String fileDate = fileDate(instId, fileName);
+            String batch = batch(batchRaw);
+            sha = sha256(raw);
+            return apply(instId, raw, sha, fileDate, ORIGIN_IMPORT, batch, actor, u, ACTION_IMPORT);
+        } catch (ApiException e) {
+            failed(instId, ACTION_IMPORT, HeadAudit.outcomeOf(e.getStatus()), sha, actor, u);
+            throw e;
+        } catch (RuntimeException e) {
+            failed(instId, ACTION_IMPORT, "ERROR", sha, actor, u);
+            throw e;
+        }
+    }
+
+    /**
+     * 폴더 확인(읽기 전용, DB·파일 무변경). 이름으로 기관·날짜를 먼저 판정하고 내용이 필요할 때만 reader 로 읽는다(이전 날짜 파일은 읽지 않는다).
+     * codes 는 호출자가 확인 한 번에 한 번 구한 것(security S3). message 는 'row n: 고정 문구'뿐 — 칸 원문 없음.
+     */
+    public Map<String, Object> inspect(String fileName, Supplier<byte[]> reader, PlanCsv.Codes codes) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("file_name", fileName);
+        m.put("institution_id", null);
+        m.put("name_ko", null);
+        m.put("file_date", null);
+        Matcher fm = PlanCsv.FILE_NAME.matcher(fileName == null ? "" : fileName);
+        if (!fm.matches()) return withStatus(m, "BAD_NAME");
+        String inst = canonicalOrNull(fm.group(1));
+        if (inst == null) return withStatus(m, "NO_INSTITUTION");
+        m.put("institution_id", inst);
+        m.put("name_ko", mapper.selectInstitutionName(inst));
+        String fileDate;
+        try {
+            fileDate = fileDate(inst, fileName);
+        } catch (ApiException e) {
+            return withStatus(m, "BAD_DATE");
+        }
+        m.put("file_date", fileDate);
+        InstPlanImport last = mapper.selectLatestImport(inst);
+        if (last != null && last.getFileDate() != null && fileDate.compareTo(last.getFileDate()) < 0) return withStatus(m, "OLDER");
+        byte[] raw;
+        try {
+            raw = reader.get();
+        } catch (FileProblem e) {
+            return withStatus(m, e.getCode());
+        }
+        if (mapper.countImportBySha(inst, sha256(raw)) > 0) return withStatus(m, "IMPORTED");
+        try {
+            PlanCsv.Result r = PlanCsv.parse(raw, new PlanCsv.Options(inst, fileDate, false, today()), codes);
+            m.put("doc_count", r.docs.size());
+            m.put("item_count", r.rows);
+            m.put("warning_count", r.warnCount);
+            return withStatus(m, "READY");
+        } catch (InstitutionCsv.CsvFormatException e) {
+            m.put("message", e.getMessage());
+            return withStatus(m, "INVALID");
+        }
+    }
+
+    /** 폴더 확인 한 번에 코드표를 한 번만 읽게(security S3). */
+    public PlanCsv.Codes planCodes() { return codes().resolver; }
+
+    /** 정식 기관ID 또는 null(형식 밖·없음·모호) — 폴더 확인·반입 감사용(security S9). */
+    public String canonicalOrNull(String raw) {
+        try {
+            return canonicalId(raw);
+        } catch (ApiException e) {
+            return null;
+        }
+    }
+
+    private static Map<String, Object> withStatus(Map<String, Object> m, String code) {
+        m.put("status_cd", code);
+        return m;
+    }
+
     // ── 시드(관리자, 서버 고정 원천: 설정 ggreport.plan-seed.location — 요청으로 경로·파일을 받지 않는다) ──
     public Map<String, Object> importSeed(String instId, Actor actor) {
         BoardUiIds.Ui ui = PlanUiIds.seed();
@@ -144,14 +240,18 @@ public class InstitutionPlanService {
             if (mapper.lockInstitution(instId) == null) throw ApiException.notFound("institution not found");
             InstPlanImport last = mapper.selectLatestImport(instId);
             if (last != null && sha.equals(last.getFileSha256())) {
-                throw new ApiException(409, "이미 반입된 파일과 같습니다. 새 판을 만들지 않았습니다.");
+                throw new ApiException(409, MSG_SAME);
+            }
+            // 폴더 반입은 같은 파일을 여러 번 본다 — 최신 판이 아니어도 예전에 반입한 내용이면 같은 409(SCHEMA ⑪-5 멱등, 같은 날짜 예전 판으로 되돌림 방지)
+            if (ORIGIN_IMPORT.equals(origin) && mapper.countImportBySha(instId, sha) > 0) {
+                throw new ApiException(409, MSG_SAME);
             }
             // 판 되돌림 가드(팀 결정 2026-11-16): 수집 판이 있는 기관에 시드를 얹지 않고, 현재 판보다 이른 날짜 파일도 받지 않는다
             if (ORIGIN_SEED.equals(origin) && mapper.countImportsByOrigin(instId, ORIGIN_IMPORT) > 0) {
                 throw new ApiException(409, "수집된 판이 있어 시드를 적용할 수 없습니다.");
             }
             if (last != null && last.getFileDate() != null && fileDate.compareTo(last.getFileDate()) < 0) {
-                throw new ApiException(409, "현재 판보다 이전 날짜의 파일입니다.");
+                throw new ApiException(409, MSG_OLDER);
             }
             InstPlanImport imp = new InstPlanImport();
             imp.setInstitutionId(instId);
@@ -388,7 +488,10 @@ public class InstitutionPlanService {
     public static final class CsvOut {
         public final byte[] body;
         public final int rows;
-        CsvOut(byte[] body, int rows) { this.body = body; this.rows = rows; }
+        /** 반출 목록의 기관ID 집합 해시(export.csv 만, 그 밖은 null). */
+        public final String setSha256;
+        CsvOut(byte[] body, int rows) { this(body, rows, null); }
+        CsvOut(byte[] body, int rows, String setSha256) { this.body = body; this.rows = rows; this.setSha256 = setSha256; }
     }
 
     @Transactional(readOnly = true)

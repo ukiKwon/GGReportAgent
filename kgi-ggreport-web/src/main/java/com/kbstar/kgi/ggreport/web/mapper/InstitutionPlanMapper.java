@@ -19,6 +19,7 @@ public interface InstitutionPlanMapper {
     List<Map<String, Object>> selectPlanCodes();
     InstPlanImport selectLatestImport(@Param("institutionId") String institutionId);
     int countImportsByOrigin(@Param("institutionId") String institutionId, @Param("originCd") String originCd);
+    int countImportBySha(@Param("institutionId") String institutionId, @Param("sha") String sha);
     List<InstPlanImport> selectLatestImports();
     List<InstPlanDoc> selectLatestDocs();
     List<InstPlanDoc> selectDocsOfImport(@Param("importId") Long importId);

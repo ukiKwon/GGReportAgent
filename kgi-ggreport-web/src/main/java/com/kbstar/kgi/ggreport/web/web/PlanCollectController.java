@@ -6,6 +6,7 @@ import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.service.InstitutionPlanService;
 import com.kbstar.kgi.ggreport.web.service.PlanAudit;
 import com.kbstar.kgi.ggreport.web.service.PlanCollectService;
+import com.kbstar.kgi.ggreport.web.service.PlanInboxService;
 import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.PlanUiIds;
 import org.springframework.http.HttpHeaders;
@@ -23,11 +24,13 @@ import javax.servlet.http.HttpServletRequest;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
  * 사업계획 수집 요청(045). 요청·취소 = map 조회 권한 + 영업부서·개발부서(디자이너·재무부서 제외, 403 + DENIED 감사). 일괄 요청(/plan-collect/batch)도 같은 권한.
  * 처리 화면(목록·내보내기·수집 중 표시·실행·제외·실패) = {@link AdminGuard}(전산팀원·팀장·마스터). requireInstitutionEdit 는 쓰지 않는다(영업 계열 통과).
+ * 목록 반출(export.csv) = admin 키 + 전산팀장만(LEAD_ONLY, 사용자 11-20 A2). 서버 폴더 확인·반입(/plan-collect/inbox*) = admin 키.
  * 쓰기 POST 의 본문은 JSON 만(@RequestBody — 다른 Content-Type 은 415, 다른 사이트 폼 전송 방어).
  * ⚠️ 사번은 X-Emp-No 자기신고다. 앞단 인증 전에는 이 권한 검사도 보안 경계가 아니다.
  */
@@ -38,12 +41,14 @@ public class PlanCollectController {
     private final MenuGuard guard;
     private final AdminGuard admin;
     private final PlanAudit audit;
+    private final PlanInboxService inbox;
 
-    public PlanCollectController(PlanCollectService collect, MenuGuard guard, AdminGuard admin, PlanAudit audit) {
+    public PlanCollectController(PlanCollectService collect, MenuGuard guard, AdminGuard admin, PlanAudit audit, PlanInboxService inbox) {
         this.collect = collect;
         this.guard = guard;
         this.admin = admin;
         this.audit = audit;
+        this.inbox = inbox;
     }
 
     // ── 요청하는 쪽(기관 사업계획 화면) ──
@@ -90,7 +95,10 @@ public class PlanCollectController {
     @GetMapping("/plan-collect/requests")
     public Map<String, Object> list(@RequestParam(name = "scope", required = false) String scope, HttpServletRequest req) {
         admin.require(req);   // 조회 거부는 접근 이력 DENIED(감사 표는 쓰기 동작만)
+        SysUser me = guard.requireActiveUser(req);
         Map<String, Object> out = collect.adminList(scope);
+        out.put("can_export", PlanCollectService.canExport(me.getRole()));   // 버튼 상태용 — 서버 검사는 export 가 따로 한다
+        out.put("inbox_enabled", inbox.enabled());
         req.setAttribute(AccessLogInterceptor.DETAIL, "plan-collect list n=" + ((List<?>) out.get("items")).size());
         return out;
     }
@@ -103,7 +111,7 @@ public class PlanCollectController {
 
     @PostMapping("/plan-collect/export.csv")
     public ResponseEntity<byte[]> export(@RequestBody(required = false) KeysIn body, HttpServletRequest req) {
-        Actor actor = requireAdmin(req, PlanCollectService.ACTION_EXPORT, PlanUiIds.collectExport());
+        Actor actor = requireExporter(req);
         InstitutionPlanService.CsvOut out = collect.exportCsv(body == null ? null : body.getReqKeys(), actor);
         req.setAttribute(AccessLogInterceptor.DETAIL, "plan-collect export rows=" + out.rows);
         String day = LocalDate.now(ZoneId.of("Asia/Seoul")).toString().replace("-", "");
@@ -111,6 +119,7 @@ public class PlanCollectController {
                 .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"plan_collect_" + day + ".csv\"")
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .header("X-Plan-Export-Sha256", out.setSha256)   // 감사 FILE_SHA256 과 파일을 잇는 기관ID 집합 해시(원문 아님)
                 .body(out.body);
     }
 
@@ -136,6 +145,26 @@ public class PlanCollectController {
     public Map<String, Object> fail(@RequestBody(required = false) KeysIn body, HttpServletRequest req) {
         Actor actor = requireAdmin(req, PlanCollectService.ACTION_FAIL, PlanUiIds.collectFail());
         return detail(req, "fail", collect.close(body == null ? null : body.getReqKeys(), body == null ? null : body.getReason(), false, actor));
+    }
+
+    // ── 서버 폴더 반입(개발부서 = admin 키) ──
+    /** 폴더 확인(읽기 전용, 감사 표 없음). 거부는 접근 이력 DENIED. 파일 이름·기관ID 는 접근 이력에 싣지 않는다. 동시 1건(409 BUSY). */
+    @GetMapping("/plan-collect/inbox")
+    public Map<String, Object> inboxScan(HttpServletRequest req) {
+        admin.require(req);
+        Map<String, Object> out = inbox.scan();
+        req.setAttribute(AccessLogInterceptor.DETAIL, "plan-inbox scan n=" + ((List<?>) out.get("items")).size());
+        return out;
+    }
+
+    /** 고른 파일 반입. 본문 {"file_names":[...]} JSON 만(415). 1~50. 파일별 결과, 오류가 있어도 200. */
+    @PostMapping("/plan-collect/inbox/import")
+    public Map<String, Object> inboxImport(@RequestBody(required = false) InboxIn body, HttpServletRequest req) {
+        Actor actor = requireAdmin(req, InstitutionPlanService.ACTION_IMPORT, PlanUiIds.inboxImport());
+        Map<String, Object> out = inbox.importFiles(body == null ? null : body.getFileNames(), actor, PlanUiIds.inboxImport());
+        req.setAttribute(AccessLogInterceptor.DETAIL, "plan-inbox import ok=" + out.get("imported_count")
+                + " already=" + out.get("already_count") + " err=" + out.get("error_count"));
+        return out;
     }
 
     private static Map<String, Object> detail(HttpServletRequest req, String what, Map<String, Object> out) {
@@ -169,6 +198,21 @@ public class PlanCollectController {
         }
     }
 
+    /** 목록 반출 = admin 키 통과 후 전산팀장만(판정은 PlanCollectService.canExport 한 곳). 담당자 403 LEAD_ONLY + 접근 이력 DENIED(고정 사유, S7) + 감사 DENIED. */
+    private Actor requireExporter(HttpServletRequest req) {
+        Actor actor = requireAdmin(req, PlanCollectService.ACTION_EXPORT, PlanUiIds.collectExport());
+        SysUser u = guard.requireActiveUser(req);
+        if (!PlanCollectService.canExport(u.getRole())) {
+            guard.denied(req, new ApiException(403, "it lead only"));   // 접근 이력 사유는 고정 문자열(withDetail 은 message 가 null)
+            deniedAudit(req, null, PlanCollectService.ACTION_EXPORT, PlanUiIds.collectExport());
+            Map<String, Object> d = new LinkedHashMap<>();
+            d.put("code", "LEAD_ONLY");
+            d.put("message", "목록 반출은 개발부서 팀장만 할 수 있습니다.");
+            throw ApiException.withDetail(403, d);
+        }
+        return actor;
+    }
+
     private void deniedAudit(HttpServletRequest req, String inst, String action, BoardUiIds.Ui ui) {
         Actor a = Actor.of(req);
         if (!a.isKnown()) return;   // 사번 없는 401 은 감사 표를 늘리지 않는다(InstitutionPlanController 선례)
@@ -197,5 +241,13 @@ public class PlanCollectController {
         public void setReqKeys(List<String> v) { this.reqKeys = v; }
         public String getReason() { return reason; }
         public void setReason(String v) { this.reason = v; }
+    }
+
+    public static class InboxIn {
+        @JsonProperty("file_names")
+        private List<String> fileNames;
+
+        public List<String> getFileNames() { return fileNames; }
+        public void setFileNames(List<String> v) { this.fileNames = v; }
     }
 }

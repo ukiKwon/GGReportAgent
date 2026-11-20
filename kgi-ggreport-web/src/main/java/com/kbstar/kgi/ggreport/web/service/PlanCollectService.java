@@ -123,6 +123,14 @@ public class PlanCollectService {
         this.nested.setPropagationBehavior(TransactionDefinition.PROPAGATION_NESTED);
     }
 
+    /**
+     * 목록 반출(export.csv) 자격 — 전산팀장만(사용자 11-20 Q2 확정: 팀장이 직접 내려받는 것을 승인으로 본다, A2).
+     * ⚠️ 판정은 이 한 곳 — 나중에 '담당자 요청 → 팀장 결재(A1)'로 넓히면 여기와 컨트롤러 requireExporter 만 바꾼다.
+     */
+    public static boolean canExport(String role) {
+        return Teams.leadOf(IT_TEAM).equals(role == null ? "" : role.trim());
+    }
+
     /** 요청 자격 — 영업부서(영업팀·팀장·부장)·개발부서(전산팀·팀장, 마스터 포함). 디자이너·재무부서(예산팀) 제외(nav PLANS_TEAMS 와 같은 범위). */
     public static boolean canRequest(String role) {
         String r = role == null ? "" : role.trim();
@@ -519,16 +527,21 @@ public class PlanCollectService {
         StringBuilder sb = new StringBuilder("\uFEFF");
         line(sb, "기관ID", "기관명", "이전 출처 도메인", "요청자 수", "최초 요청일", "상태", "올릴 파일 이름");
         int n = 0;
+        List<String> sent = new ArrayList<>();
         for (PlanCollectReq r : mapper.selectByKeys(keys)) {
             if (!OPEN.contains(r.getStatusCd())) continue;   // 닫힌 요청은 내보내지 않는다
             String dom = r.getRunDomains() != null ? r.getRunDomains() : r.getPrevDomains();
             line(sb, r.getInstitutionId(), r.getNameKo(), dom == null ? "" : dom.replace(",", " "),
                     String.valueOf(counts.getOrDefault(r.getReqKey(), 0)), dayOf(r.getRequestedAt()),
                     REQUESTED.equals(r.getStatusCd()) ? "요청됨" : "수집 중(반입 대기)", r.getInstitutionId() + "_YYYYMMDD_plan.csv");
+            sent.add(r.getInstitutionId());
             n++;
         }
-        audit.record(null, null, ACTION_EXPORT, "OK", n, null, actor, ui);
-        return new InstitutionPlanService.CsvOut(sb.toString().getBytes(StandardCharsets.UTF_8), n);
+        // 어느 목록이 나갔나 — 내보낸 기관ID(정식 표기)를 정렬해 '\n' 으로 이은 SHA-256. 감사 FILE_SHA256 칸에 집합 해시로 남긴다(기관ID 원문은 싣지 않는다).
+        Collections.sort(sent);
+        String setSha = InstitutionPlanService.sha256(String.join("\n", sent).getBytes(StandardCharsets.UTF_8));
+        audit.record(null, null, ACTION_EXPORT, "OK", n, setSha, actor, ui);
+        return new InstitutionPlanService.CsvOut(sb.toString().getBytes(StandardCharsets.UTF_8), n, setSha);
     }
 
     /** ② 내보낸 건을 '수집 중(반입 대기)'으로(수동). 요청됨에서만. */

@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -27,6 +28,7 @@ import static org.junit.Assert.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import java.time.Duration;
 import java.time.Instant;
@@ -47,6 +49,7 @@ public class PlanCollectApiTest {
     private static final String DESIGNER = "7130526";
     private static final String BUDGET = "1857403";
     private static final String INST = "jongno";
+    private static final String IT_LEAD = "6295038";   // 오전산(전산팀장) — 목록 반출 자격(A2)
     private static final String HDR = "기관ID,문서명,원천종류,대상기간시작,대상기간끝,출처URL,확인일,수집자,분야번호,분야명,사업번호,상위사업번호,"
             + "사업명,내용,예산상태,예산금액,예산단위,연차예산,원문쪽,확인상태,진행상태,이행률";
 
@@ -72,6 +75,17 @@ public class PlanCollectApiTest {
     private int count(String sql, Object... a) { return jdbc.queryForObject(sql, Integer.class, a); }
     private JsonNode body(MockHttpServletResponse r) throws Exception { return json.readTree(r.getContentAsString()); }
     private static String first(JsonNode b) { return b.path("results").get(0).path("result_cd").asText(); }
+    /** 전산팀장에게 admin 키 — 시험 DB 에 033 이 없어도 되게(ApproverApiTest:282 방식). 있으면 무해. */
+    private void itLeadAdmin() throws Exception {
+        MockHttpServletResponse r = call(put("/sysadmin/perms/" + IT_LEAD).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"changes\":[{\"menu\":\"admin\",\"view\":true}]}"), ADMIN);
+        assertEquals(r.getContentAsString(), 200, r.getStatus());
+    }
+    private static String sha256(String s) throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8))) sb.append(String.format("%02x", b));
+        return sb.toString();
+    }
 
     private static JsonNode find(JsonNode items, String inst) {
         for (JsonNode n : items) if (inst.equals(n.path("institution_id").asText())) return n;
@@ -217,8 +231,10 @@ public class PlanCollectApiTest {
         ask(SALES);
         ask(SALES2);
         String k = key();
-        MockHttpServletResponse r = admin("/plan-collect/export.csv", keys(k), ADMIN);
-        assertEquals(200, r.getStatus());
+        itLeadAdmin();
+        MockHttpServletResponse r = admin("/plan-collect/export.csv", keys(k), IT_LEAD);
+        assertEquals(r.getContentAsString(), 200, r.getStatus());
+        assertEquals(sha256(INST), r.getHeader("X-Plan-Export-Sha256"));
         assertTrue(r.getHeader("Content-Disposition").startsWith("attachment"));
         byte[] raw = r.getContentAsByteArray();
         assertEquals((byte) 0xEF, raw[0]);
@@ -227,7 +243,8 @@ public class PlanCollectApiTest {
                 && text.contains("jongno_YYYYMMDD_plan.csv"));
         assertFalse(text.contains(SALES) || text.contains("김영업"));
         assertEquals("REQUESTED", state(k));
-        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_EXPORT' AND OUTCOME='OK' AND ITEM_COUNT=1"));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_EXPORT' AND OUTCOME='OK' AND ITEM_COUNT=1"
+                + " AND ACTOR_EMP_NO=? AND FILE_SHA256=?", IT_LEAD, sha256(INST)));
         assertEquals(403, admin("/plan-collect/export.csv", keys(k), SALES).getStatus());
     }
 
@@ -327,7 +344,8 @@ public class PlanCollectApiTest {
     public void 내려받기_칸이_수식으로_시작하면_작은따옴표를_붙인다() throws Exception {
         jdbc.update("UPDATE INSTITUTIONS SET NAME_KO=? WHERE INSTITUTION_ID=?", "=cmd", INST);   // 시험 트랜잭션이 되돌린다
         ask(SALES);
-        String text = new String(admin("/plan-collect/export.csv", keys(key()), ADMIN).getContentAsByteArray(), StandardCharsets.UTF_8);
+        itLeadAdmin();
+        String text = new String(admin("/plan-collect/export.csv", keys(key()), IT_LEAD).getContentAsByteArray(), StandardCharsets.UTF_8);
         assertTrue(text, text.contains("\"'=cmd\""));
     }
 
@@ -336,8 +354,10 @@ public class PlanCollectApiTest {
         ask(SALES);
         String k = key();
         admin("/plan-collect/exclude", keysReason(k, "이미 최신 자료 있음"), ADMIN);
-        MockHttpServletResponse r = admin("/plan-collect/export.csv", keys(k), ADMIN);
+        itLeadAdmin();
+        MockHttpServletResponse r = admin("/plan-collect/export.csv", keys(k), IT_LEAD);
         assertEquals(200, r.getStatus());
+        assertEquals(sha256(""), r.getHeader("X-Plan-Export-Sha256"));   // 빈 집합
         String text = new String(r.getContentAsByteArray(), StandardCharsets.UTF_8);
         assertEquals(text, 1, text.split("\r\n").length);
         assertTrue(text.contains("기관ID"));
@@ -447,5 +467,52 @@ public class PlanCollectApiTest {
                 .content("reason=x"), ADMIN).getStatus());
         assertEquals(415, call(post("/plan-collect/export.csv").contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .content("req_keys=x"), ADMIN).getStatus());
+    }
+
+    @Test
+    public void 전산팀원은_목록_반출_403_LEAD_ONLY이고_감사_DENIED() throws Exception {
+        ask(SALES);
+        MockHttpServletResponse r = admin("/plan-collect/export.csv", keys(key()), ADMIN);
+        assertEquals(403, r.getStatus());
+        assertEquals("LEAD_ONLY", body(r).path("detail").path("code").asText());
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_EXPORT' AND OUTCOME='DENIED' AND ACTOR_EMP_NO=?", ADMIN));
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='COLLECT_EXPORT' AND OUTCOME='OK'"));
+    }
+
+    @Test
+    public void 처리_목록은_반출_자격과_폴더_켜짐을_알린다() throws Exception {
+        JsonNode a = body(call(get("/plan-collect/requests"), ADMIN));
+        assertFalse(a.path("can_export").asBoolean());
+        assertFalse(a.path("inbox_enabled").asBoolean());
+        itLeadAdmin();
+        assertTrue(body(call(get("/plan-collect/requests"), IT_LEAD)).path("can_export").asBoolean());
+    }
+
+    @Test
+    public void 폴더_확인은_설정이_없으면_503이고_경로를_싣지_않는다() throws Exception {
+        MockHttpServletResponse r = call(get("/plan-collect/inbox"), ADMIN);
+        assertEquals(503, r.getStatus());
+        assertEquals("PLAN_INBOX_OFF", body(r).path("detail").path("code").asText());
+        MockHttpServletResponse p = admin("/plan-collect/inbox/import", "{\"file_names\":[\"jongno_20261118_plan.csv\"]}", ADMIN);
+        assertEquals(503, p.getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='IMPORT' AND OUTCOME='INBOX_OFF'"
+                + " AND SCREEN_ID='plan_collect_admin' AND BUTTON_ID='plan_inbox_import'"));
+    }
+
+    @Test
+    public void 폴더_확인_반입은_영업_디자이너_재무_403_사번없음_401() throws Exception {
+        for (String emp : new String[]{SALES, DESIGNER, BUDGET}) {
+            assertEquals(emp, 403, call(get("/plan-collect/inbox"), emp).getStatus());
+        }
+        assertEquals(401, call(get("/plan-collect/inbox"), null).getStatus());
+        assertEquals(403, admin("/plan-collect/inbox/import", "{\"file_names\":[\"jongno_20261118_plan.csv\"]}", SALES).getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='IMPORT' AND OUTCOME='DENIED' AND ACTOR_EMP_NO=?"
+                + " AND BUTTON_ID='plan_inbox_import'", SALES));
+    }
+
+    @Test
+    public void 폴더_반입_폼_전송은_415() throws Exception {
+        assertEquals(415, call(post("/plan-collect/inbox/import").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .content("file_names=x"), ADMIN).getStatus());
     }
 }

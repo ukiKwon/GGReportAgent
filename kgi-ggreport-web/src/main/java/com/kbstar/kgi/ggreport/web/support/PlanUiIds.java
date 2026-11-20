@@ -37,4 +37,8 @@ public final class PlanUiIds {
     public static BoardUiIds.Ui collectRun() { return new BoardUiIds.Ui(SCREEN_COLLECT_ADMIN, BUTTON_COLLECT_RUN, true); }
     public static BoardUiIds.Ui collectExclude() { return new BoardUiIds.Ui(SCREEN_COLLECT_ADMIN, BUTTON_COLLECT_EXCLUDE, true); }
     public static BoardUiIds.Ui collectFail() { return new BoardUiIds.Ui(SCREEN_COLLECT_ADMIN, BUTTON_COLLECT_FAIL, true); }
+
+    // 사업계획 서버 폴더 반입(NEXT 56) — 처리 화면
+    public static final String BUTTON_INBOX_IMPORT = "plan_inbox_import";
+    public static BoardUiIds.Ui inboxImport() { return new BoardUiIds.Ui(SCREEN_COLLECT_ADMIN, BUTTON_INBOX_IMPORT, true); }
 }
