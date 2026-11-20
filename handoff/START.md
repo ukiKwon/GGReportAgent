@@ -3,8 +3,8 @@
 마지막 갱신: 2026-11-20(금) 12:00 (main) — 오늘 요약: `handoff/2026-11-20_summary.md`
 
 ## 다음 순서 (main, 묻지 않고 실행)
-0. **환경**: MySQL `C:\dev\mysql-start.cmd`, 8080(main 담당, kgi-ggreport-web에서 `java -Xmx768m -jar target/kgi-ggreport-web.war`), `ListAgents`(재시작 뒤 이름이 바뀜 — 각 세션에 정체 확인). PC 메모리가 빠듯하다: mvn은 `MAVEN_OPTS=-Xmx384m`, `-DargLine="-Xmx768m"`. 로컬 DB는 047·048·051까지 확인, **049·055는 사용자 적용 요청 중**.
-1. **사용자 049·055 적용 확인** → 99 회의록 탭·100 S2 실사용 요청(절차는 NEXT 99·100).
+0. **환경**: MySQL `C:\dev\mysql-start.cmd`, 8080(main 담당, kgi-ggreport-web에서 `java -Xmx768m -jar target/kgi-ggreport-web.war`), `ListAgents`(재시작 뒤 이름이 바뀜 — 각 세션에 정체 확인). PC 메모리가 빠듯하다: mvn은 `MAVEN_OPTS=-Xmx384m`, `-DargLine="-Xmx768m"`. 로컬 DB는 047·048·051·055(사용자 11-20) 적용, **049는 사용자 적용 요청 중**.
+1. **사용자 049 적용 확인** → 99 회의록 탭·100 S2 실사용 요청(절차는 NEXT 99·100).
 2. **100 S2 화면**(양식 작성 — design-reviewer → frontend-dev → qa) ∥ **S3(050)** fa와 PrepService.judgeFact 협의.
 3. **99 실화면 qa**(Playwright 복구 뒤) + 서버 이관 5건(design ade114bb 7절).
 4. **⑥ 디자인 검토 화면**(051 서버 55b77b3 끝).
