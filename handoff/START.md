@@ -1,15 +1,14 @@
 # 다음 세션 시작점 (항상 최신 1개 — 덮어쓴다)
 
-마지막 갱신: 2026-11-20(금) 12:00 (main) — 오늘 요약: `handoff/2026-11-20_summary.md`
+마지막 갱신: 2026-11-20(금) 17:10 (main) — 오늘 요약: `handoff/2026-11-20_summary.md`
 
 ## 다음 순서 (main, 묻지 않고 실행)
-0. **환경**: MySQL `C:\dev\mysql-start.cmd`, 8080(main 담당, **커밋된 HEAD만** — `git worktree add --detach c:/github/_gg_build HEAD` 뒤 그 폴더 kgi-ggreport-web에서 `mvn -q -o package -DskipTests`, 실행은 main 폴더 kgi-ggreport-web에서 `java -Xmx768m -jar c:/github/_gg_build/kgi-ggreport-web/target/kgi-ggreport-web.war` — 작업 트리 빌드는 다른 세션 미커밋이 섞여 500, 11-20), `ListAgents`(재시작 뒤 이름이 바뀜 — 각 세션에 정체 확인). PC 메모리가 빠듯하다: mvn은 `MAVEN_OPTS=-Xmx384m`, `-DargLine="-Xmx768m"`. 로컬 DB는 047·048·049·051·055·058 적용(11-20 사용자). IDE(VSCode Java·IntelliJ) 자동 빌드가 target/classes를 지워 시험이 깨질 수 있음 — 재실행.
-1. **사용자 실사용 확인**: 99 회의록 탭·100 S2 실사용 요청(절차는 NEXT 99·100).
-2. **100 S2 화면**(양식 작성 — design-reviewer → frontend-dev → qa) ∥ **S3(050)** fa와 PrepService.judgeFact 협의.
-3. **99 실화면 qa**(Playwright 복구 뒤) + 서버 이관 5건(design ade114bb 7절).
-4. **⑥ 디자인 검토 화면**(051 서버 55b77b3 끝).
-5. 052 박디자이너(USERS UPDATE 쌍 + 시험 문자열 3), 95 부서 이름, 90 4단계, 97 lines_next·home_portal 감사.
-6. 금요일 마무리: summary·NEXT·START → 커밋 → PUSH-GATE(security·pm·cleaner, 화면은 design 대조·design_history 68장 있음) → 푸시.
+0. **환경**: MySQL `C:\dev\mysql-start.cmd`, `ListAgents`(재시작 뒤 이름이 바뀜 — 각 세션에 정체 확인). **8080은 커밋된 HEAD만**: `git -C c:/github/_gg_build checkout -q --detach <HEAD>` → 그 폴더 kgi-ggreport-web에서 `mvn -q -o package -DskipTests`(실행 중 8080이 war를 잡으므로 먼저 내림) → main 폴더 kgi-ggreport-web에서 `java -Xmx768m -jar c:/github/_gg_build/kgi-ggreport-web/target/kgi-ggreport-web.war`. mvn은 `MAVEN_OPTS=-Xmx384m`·`-DargLine="-Xmx768m"`, IDE 자동 빌드가 target/classes를 지우면 재실행. 로컬 DB 047·048·049·051·055·056·058 적용, **057은 fa 106 커밋 뒤 사용자 적용 필요(그 전엔 HEAD 재빌드 금지 — 작업함 업로드 500)**.
+1. **99 회의록 고치기 실사용 요청**(서버 6992ee5·화면 a8ea786): 김영업 노원구 2026 → 회의록 탭 → 올리기 → 미리보기 → 이름표 고르기·발언 고치기 → 다시 미리보기 → 저장 → 상세 [발화자 이름표 바꾸기]. qa(화면 a8ea786) 아직 — 실사용과 함께 qa-verifier로 독립 검토, design_history 장(규격 a2290465 6-9, select 방식 반영) 미작성.
+2. **100 S2 화면**(양식 작성 — design-reviewer → frontend-dev → qa) ∥ S3(050, fa와 PrepService.judgeFact).
+3. 99 서버 이관: 공개범위 후보 API·rules_ack 감사·열람 기한 필드·board_review id·detail speakers first_seq, 라벨 어휘 기획 확정.
+4. ⑥ 디자인 검토 화면, 052 박디자이너, 95 부서 이름, 90 4단계, 97 lines_next·home_portal 감사.
+5. W48 주간 보고(11-27 금).
 
 ## 다시 알릴 것 (질문은 선택식, 답 받을 때까지 멈춤)
 - ⓐ 입찰 현황판 재유치/신규유치 태그 기준 확인(Q-17-49·58, 권장 '지금대로') — 98 실사용 요청과 함께.
@@ -39,8 +38,8 @@
 - 05(a7): plans.js·PlanCollect*·103 사업계획 개편·104 협약 성과(TargetResult*, DB 053 예약).
 - e4(38): 기관장(InstitutionHead*·headcard·055).
 - 0d(6f): 공통 팝업 .dlg·nav·index.html 공통부.
-- DB 번호: 052 main, 053 05, 054·056·057 fa, 055 e4, 다음 058.
-- **커밋**: 인덱스는 공유 — add와 commit을 한 명령 안에서, `git diff --cached --name-only`가 내 파일뿐일 때만 커밋(11-20 17e81b1 섞임). 공유 파일은 cacheinfo로 내 hunk만.
+- DB 번호: 052 main(미사용 예약), 053 05, 054·056·057 fa, 055 e4, 058 main(회의록 이름표), 다음 059.
+- **커밋**: 인덱스는 공유 — main은 `GIT_INDEX_FILE=.git/index.main.tmp`(read-tree HEAD → cacheinfo/add → commit → 공유 인덱스는 `git reset -q HEAD -- 내경로`)로 공유 인덱스를 건드리지 않는다. 다른 세션은 `git commit -o -- 경로`(내 전용 파일) 또는 cacheinfo(공유 파일).
 
 ## 사용자 목표·방향 (불변)
 내부망에서 화면에 필요한 DB와 LLM 최소 기능. **LLM은 업무 서비스·DB가 다 만들어진 뒤.** DB는 MySQL(로컬)+Oracle(회사) 쌍, **회사 DB에는 외래키 없음**(코드표는 가능), 로컬 MySQL 적용은 `kgi-ggreport-web/tools/db/apply-mysql.mjs`. 메뉴·업무 흐름은 업무 대분류 5 + 시스템 관리. **사무실 PC 전용**(좁은 폭 미지원). **결재 끝난 건의 모든 행위는 누가·어느 화면·어느 버튼인지 기록**(잊지 말 것). 입찰 현황판은 지금 모양 그대로 현업과 무엇을 살릴지 정한다(11-13). 팀 이름은 부서 이름이 된다(영업부서·개발부서·재무부서·사업부서, 직책 이름은 그대로, 11-17·19). **이 시스템 때문에 일을 두 번 하지 않는다(11-19).**
