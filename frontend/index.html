@@ -2484,6 +2484,44 @@
   #db-ovview b { font-family:var(--mono); font-weight:400; color:var(--fg); }
   @media (max-width:880px) { .db-rec-form { grid-template-columns:1fr; } }
   /* 공고 상태 기록 끝 */
+  /* ── 공통 팝업 틀 .dlg (사용자 11-20 시안 4판, js/dlg.js) ──
+     기본 폭 560 하나 · 입력칸/표가 잘리는 창만 --wide 720 · 분석표만 --full.
+     머리 52px(제목 왼쪽, 동작·[닫기]·[취소][저장]은 오른쪽). 동작 없는 보는 창과 알림은 [닫기]를 오른쪽 아래(.dlg-foot).
+     안내 줄·확인 상자는 머리 아래(.dlg-note), 본문(.dlg-body)만 스크롤. 덮개는 .modal-overlay 그대로. */
+  .dlg { display:flex; flex-direction:column; width:min(560px, calc(100vw - 32px)); max-height:calc(100vh - 64px);
+         margin:32px auto 0; padding:0; overflow:hidden; background:var(--panel); border:1px solid var(--line-strong);
+         border-radius:var(--r); box-shadow:var(--shadow); }
+  .dlg--wide { width:min(720px, calc(100vw - 32px)); }
+  .dlg--full { width:min(1320px, calc(100vw - 64px)); height:calc(100vh - 64px); }
+  .dlg-bar { flex:none; min-height:52px; display:flex; align-items:center; gap:12px; padding:0 12px 0 24px;
+             background:var(--panel2); border-bottom:1px solid var(--line-strong); }
+  .dlg-t { flex:1 1 auto; min-width:0; margin:0; padding:0; border:0; font-size:16px; font-weight:700; letter-spacing:-.01em;
+           overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dlg-t:focus { outline:none; }
+  .dlg-meta { flex:none; font-size:12px; color:var(--muted); }
+  .dlg-acts { flex:none; display:flex; align-items:center; gap:8px; }
+  .dlg-acts > button { height:32px; padding:0 14px; }
+  .dlg-acts .dlg-why { margin-right:4px; font-size:12px; color:var(--muted); }
+  .dlg-sep { width:1px; height:20px; background:var(--line-strong); margin:0 4px; }
+  .dlg-note { flex:none; }
+  .dlg-hint, .dlg-err { margin:0; padding:8px 24px; font-size:12px; line-height:1.5; border-bottom:1px solid var(--line); word-break:keep-all; }
+  .dlg-hint { color:var(--muted); }
+  .dlg-err { color:var(--red); }
+  .dlg-hint:empty, .dlg-err:empty { display:none; }
+  .dlg-cf { margin:12px 24px; padding:12px 14px; border:1px dashed var(--line-strong); border-radius:var(--r); font-size:13px; line-height:1.5; word-break:keep-all; }
+  .dlg-cf p { margin:0; }
+  .dlg-cf-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .dlg-body { flex:1 1 auto; min-height:0; overflow:auto; overscroll-behavior:contain; padding:16px 24px; }
+  .dlg-foot { flex:none; display:flex; align-items:center; justify-content:flex-end; gap:8px; padding:12px 24px;
+              border-top:1px solid var(--line); background:var(--panel); }
+  .dlg-go { border-color:var(--accent-color); font-weight:700; }
+  .dlg-danger { color:var(--red); border-color:var(--red); background:var(--panel2); }
+  .dlg-f { margin:0 0 12px; }
+  .dlg-f label { display:block; margin:0 0 4px; font-size:12px; }
+  .dlg-req { margin-left:2px; color:var(--red); font-weight:700; }
+  .dlg input[aria-invalid="true"], .dlg select[aria-invalid="true"], .dlg textarea[aria-invalid="true"] { border-color:var(--red); box-shadow:inset 0 0 0 1px var(--red); }
+  .dlg-ferr { margin:4px 0 0; font-size:12px; line-height:1.5; color:var(--red); }
+  /* 공통 팝업 틀 끝 */
 </style>
 </head>
 <body>
@@ -2834,14 +2872,13 @@ review, the verdict, and DESIGN.md
   </div>
 </div>
 
+<!-- 원문 보기 — 공통 팝업 틀 .dlg 1단계(보는 창, 동작 없음 → [닫기] 오른쪽 아래) -->
 <div id="doc-modal" class="modal-overlay" style="display:none;">
-  <div class="modal-box" style="max-width:840px;margin:5vh auto;max-height:88vh;">
-    <h3 id="doc-title"></h3>
-    <div id="doc-meta" style="font-size:12px;color:var(--muted);margin-bottom:8px;"></div>
-    <div id="doc-body" style="flex:1 1 auto;overflow:auto;min-height:0;"></div>
-    <div style="border-top:1px solid var(--line);padding-top:10px;margin-top:10px;text-align:right;">
-      <button id="doc-close">닫기</button>
-    </div>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="doc-title">
+    <header class="dlg-bar"><h2 class="dlg-t" id="doc-title" tabindex="-1"></h2></header>
+    <div class="dlg-note"><p class="dlg-hint" id="doc-meta"></p></div>
+    <div class="dlg-body" id="doc-body"></div>
+    <footer class="dlg-foot"><button type="button" id="doc-close" title="닫기 (Esc)">닫기</button></footer>
   </div>
 </div>
 
@@ -2901,6 +2938,7 @@ review, the verdict, and DESIGN.md
 </div>
 
 <!-- 순수 로직 -->
+<script src="js/dlg.js"></script>
 <script src="js/logic.js"></script>
 <script src="js/store.js"></script>
 <script src="js/serverdata.js"></script>

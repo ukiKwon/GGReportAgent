@@ -144,9 +144,10 @@
     if (!hit) return;
     const modal = el('doc-modal');
     el('doc-title').textContent = hit.filename || '원문';
+    el('doc-title').title = hit.filename || '원문';   // 긴 이름은 말줄임 — 마우스를 올리면 전체(11-20 팀 기본값)
     el('doc-meta').textContent = hit.path + ' #' + hit.chunk_no + ' — 불러오는 중…';
     el('doc-body').innerHTML = '';
-    modal.style.display = '';
+    if (root.dlg) root.dlg.open(modal); else modal.style.display = '';
 
     fetch('/documents?path=' + encodeURIComponent(hit.path)).then(function (r) {
       return r.json().then(function (body) {
@@ -171,9 +172,13 @@
     const modal = el('doc-modal');
     if (!modal || modal.dataset.wired) return;
     modal.dataset.wired = '1';
+    // 공통 팝업 틀(dlg.js)이 [닫기]·Esc·바깥 클릭·포커스 복귀를 맡는다. 없으면(옛 화면) 예전 방식.
+    if (root.dlg) {
+      el('doc-close').onclick = function () { root.dlg.requestClose(modal); };
+      return;
+    }
     function close() { modal.style.display = 'none'; }
     el('doc-close').onclick = close;
-    // 기존 모달들과 같은 관행 — 배경 클릭·Esc로도 닫힌다.
     modal.onclick = function (e) { if (e.target === modal) close(); };
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && modal.style.display !== 'none') close();
