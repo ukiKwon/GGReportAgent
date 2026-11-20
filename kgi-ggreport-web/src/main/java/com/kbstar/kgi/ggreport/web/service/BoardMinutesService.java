@@ -1,5 +1,6 @@
 package com.kbstar.kgi.ggreport.web.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.config.MinutesSettings;
 import com.kbstar.kgi.ggreport.web.domain.BoardMaterial;
 import com.kbstar.kgi.ggreport.web.domain.BoardMinutes;
@@ -9,6 +10,7 @@ import com.kbstar.kgi.ggreport.web.domain.BoardMinutesLog;
 import com.kbstar.kgi.ggreport.web.domain.BoardMinutesRev;
 import com.kbstar.kgi.ggreport.web.domain.BoardMinutesScope;
 import com.kbstar.kgi.ggreport.web.domain.BoardMinutesSeg;
+import com.kbstar.kgi.ggreport.web.domain.BoardMinutesSpeaker;
 import com.kbstar.kgi.ggreport.web.domain.BoardMinutesUtter;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.dto.BoardMinutesIn;
@@ -16,10 +18,12 @@ import com.kbstar.kgi.ggreport.web.mapper.BoardMaterialMapper;
 import com.kbstar.kgi.ggreport.web.mapper.BoardMinutesMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.minutes.MinutesBudget;
+import com.kbstar.kgi.ggreport.web.minutes.MinutesException;
 import com.kbstar.kgi.ggreport.web.minutes.MinutesMasker;
 import com.kbstar.kgi.ggreport.web.minutes.MinutesParse;
 import com.kbstar.kgi.ggreport.web.minutes.MinutesText;
 import com.kbstar.kgi.ggreport.web.minutes.SegmentLinker;
+import com.kbstar.kgi.ggreport.web.minutes.SpeakerLabels;
 import com.kbstar.kgi.ggreport.web.minutes.SummaryParser;
 import com.kbstar.kgi.ggreport.web.minutes.TimelineParser;
 import com.kbstar.kgi.ggreport.web.minutes.TranscriptParser;
@@ -42,6 +46,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 /**
@@ -60,7 +65,8 @@ public class BoardMinutesService {
     static final int ACT_CAP = 500;
     static final int MINUTES_MAX = 10;
     static final int SCOPE_MAX = 30;
-    static final int UTTER_EDIT_MAX = 20000;
+    static final int UTTER_EDIT_MAX = MinutesParse.EDIT_MAX_CHARS;
+    static final int UTTER_EDITS_MAX = 2000;   // 저장 전 수정 발언 수 상한
     static final int ITEM_EDIT_MAX = 1000;
     static final int TITLE_MAX = 100;
     static final String MEETING_MIN = "2000-01-01";
@@ -72,9 +78,11 @@ public class BoardMinutesService {
     private final MinutesSettings settings;
     private final SysUserMapper users;
     private final TransactionTemplate tx;
+    private final ObjectMapper om;
 
     public BoardMinutesService(BoardMinutesMapper mapper, BoardMaterialMapper materials, BoardMinutesAccess access,
-                               MinutesSettings settings, SysUserMapper users, PlatformTransactionManager txm) {
+                               MinutesSettings settings, SysUserMapper users, PlatformTransactionManager txm, ObjectMapper om) {
+        this.om = om;
         this.mapper = mapper;
         this.materials = materials;
         this.access = access;
@@ -363,13 +371,112 @@ public class BoardMinutesService {
         out.put("out_of_segment_cnt", Integer.valueOf(link.outOfSegmentCnt()));
     }
 
-    private static List<Map<String, Object>> transcriptItems(List<BoardMinutesUtter> utters, SegmentLinker.Link link) {
+    /** 화자 목록 [{speaker_no, speaker, label, utter_cnt}] — 번호순. */
+    private static List<Map<String, Object>> speakers(List<BoardMinutesUtter> utters, Map<Integer, String> labels) {
+        Map<Integer, Integer> cnt = new TreeMap<Integer, Integer>();
+        for (BoardMinutesUtter u : utters) {
+            Integer k = Integer.valueOf(u.getSpeakerNo());
+            Integer c = cnt.get(k);
+            cnt.put(k, Integer.valueOf(c == null ? 1 : c.intValue() + 1));
+        }
+        List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
+        for (Map.Entry<Integer, Integer> e : cnt.entrySet()) {
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            m.put("speaker_no", e.getKey());
+            m.put("speaker", "참석자 " + e.getKey());
+            m.put("label", labels.get(e.getKey()));
+            m.put("utter_cnt", e.getValue());
+            out.add(m);
+        }
+        return out;
+    }
+
+    /** 라벨 고르기 규칙 — 화면은 이 목록으로 고르기만 한다(자유 입력 칸 없음). */
+    private static Map<String, Object> labelRules() {
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        m.put("affiliations", SpeakerLabels.AFFILIATIONS);
+        m.put("roles", SpeakerLabels.ROLES);
+        m.put("side_role", SpeakerLabels.SIDE);
+        m.put("max_ordinal", Integer.valueOf(SpeakerLabels.MAX_ORDINAL));
+        m.put("max_chars", Integer.valueOf(SpeakerLabels.MAX_CHARS));
+        return m;
+    }
+
+    private Map<Integer, String> labelsOf(long id) {
+        Map<Integer, String> m = new TreeMap<Integer, String>();
+        for (BoardMinutesSpeaker s : mapper.selectSpeakers(id)) {
+            m.put(Integer.valueOf(s.getSpeakerNo()), s.getLabel());
+        }
+        return m;
+    }
+
+    private static ApiException editsInvalid() {
+        return coded(400, "EDITS_INVALID", "고친 내용을 읽을 수 없습니다. 미리보기부터 다시 하세요.");
+    }
+
+    /** edits 파트 JSON 을 읽는다 — 업로드 자격 확인(requireUploader) 뒤에만 불린다. 깨졌으면 400 EDITS_INVALID(원문 비노출). */
+    private MinutesParse.Edits readEdits(String json) {
+        if (json == null || json.trim().isEmpty()) {
+            return MinutesParse.Edits.NONE;
+        }
+        BoardMinutesIn.EditsIn in;
+        try {
+            in = om.readValue(json, BoardMinutesIn.EditsIn.class);
+        } catch (IOException | RuntimeException e) {
+            throw editsInvalid();
+        }
+        return toEdits(in);
+    }
+
+    /** edits 파트의 모양만 거른다(번호·개수·원시 길이). 내용 검사·가림은 MinutesParse 가 한다. */
+    private static MinutesParse.Edits toEdits(BoardMinutesIn.EditsIn in) {
+        if (in == null) {
+            return MinutesParse.Edits.NONE;
+        }
+        Map<Integer, String> labels = new TreeMap<Integer, String>();
+        if (in.getSpeakerLabels() != null) {
+            if (in.getSpeakerLabels().size() > SpeakerLabels.MAX_ENTRIES) {
+                throw editsInvalid();
+            }
+            for (Map.Entry<String, String> e : in.getSpeakerLabels().entrySet()) {
+                Integer no = parseNo(e.getKey());
+                if (no == null || no.intValue() > TranscriptParser.MAX_SPEAKER_NO) {
+                    throw editsInvalid();
+                }
+                labels.put(no, e.getValue() == null ? "" : e.getValue());
+            }
+        }
+        Map<Integer, String> utters = new TreeMap<Integer, String>();
+        if (in.getUtterEdits() != null) {
+            if (in.getUtterEdits().size() > UTTER_EDITS_MAX) {
+                throw editsInvalid();
+            }
+            for (BoardMinutesIn.UtterEdit u : in.getUtterEdits()) {
+                if (u == null || u.getSeqNo() == null || u.getSeqNo().intValue() < 1
+                        || u.getSeqNo().intValue() > TranscriptParser.MAX_UTTERANCES) {
+                    throw editsInvalid();
+                }
+                if (u.getText() == null || u.getText().length() > UTTER_EDIT_MAX * 4) {
+                    throw new MinutesException(422, "LIMIT_EDIT_LEN", "edit", 0, u.getSeqNo().intValue(), null);
+                }
+                if (utters.put(u.getSeqNo(), u.getText()) != null) {
+                    throw editsInvalid();   // 같은 발언을 두 번
+                }
+            }
+        }
+        return new MinutesParse.Edits(labels, utters);
+    }
+
+    private static List<Map<String, Object>> transcriptItems(List<BoardMinutesUtter> utters, SegmentLinker.Link link,
+                                                             Map<Integer, String> labels) {
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         for (int i = 0; i < utters.size(); i++) {
             BoardMinutesUtter u = utters.get(i);
             Map<String, Object> m = new LinkedHashMap<String, Object>();
             m.put("seq_no", Integer.valueOf(u.getSeqNo()));
             m.put("speaker", "참석자 " + u.getSpeakerNo());
+            m.put("speaker_no", Integer.valueOf(u.getSpeakerNo()));
+            m.put("speaker_label", labels.get(Integer.valueOf(u.getSpeakerNo())));   // 없으면 null → 화면은 '참석자 N'
             m.put("start_sec", Integer.valueOf(u.getStartSec()));
             m.put("time", time(u.getStartSec()));
             m.put("seg_no", link.segNoOf(i));
@@ -450,6 +557,10 @@ public class BoardMinutesService {
         out.put("confidential", Boolean.TRUE);
         out.put("stats", stats(head, items.size()));
         out.put("masked", masked(head));
+        out.put("speakers", speakers(utters, labelsOf(id)));
+        if (d.edit) {
+            out.put("speaker_label_rules", labelRules());
+        }
         putSummary(out, utters, segs, items);
         out.put("created_by_name", head.getCreatedByName());
         out.put("created_at", head.getCreatedAt());
@@ -465,7 +576,7 @@ public class BoardMinutesService {
         Map<String, Object> out = new LinkedHashMap<String, Object>();
         out.put("minutes_id", head.getMinutesId());
         out.put("rev_no", Integer.valueOf(head.getRevNo()));
-        out.put("items", transcriptItems(utters, link(mapper.selectSegs(id), utters)));
+        out.put("items", transcriptItems(utters, link(mapper.selectSegs(id), utters), labelsOf(id)));
         return out;
     }
 
@@ -578,6 +689,7 @@ public class BoardMinutesService {
             r.setStartSec(u.startSec);
             r.setNoiseYn(u.noise ? 1 : 0);
             r.setBody(u.body);
+            r.setEditedYn(u.edited ? 1 : 0);
             b.utters.add(r);
         }
         int no = 0;
@@ -666,7 +778,22 @@ public class BoardMinutesService {
         if (confirm && (o.getPreviewDigest() == null || !HEX64.matcher(o.getPreviewDigest()).matches())) {
             throw optionsInvalid();
         }
+        if (o.getEditsDigest() != null && !HEX64.matcher(o.getEditsDigest()).matches()) {
+            throw optionsInvalid();
+        }
         return o;
+    }
+
+    /** options 파트 JSON 을 읽는다 — 업로드 자격 확인 뒤에만 불린다. 비었으면 null, 깨졌으면 400 OPTIONS_INVALID(원문 비노출). */
+    private BoardMinutesIn.MinutesOptions readOptions(String json) {
+        if (json == null || json.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return om.readValue(json, BoardMinutesIn.MinutesOptions.class);
+        } catch (IOException | RuntimeException e) {
+            throw optionsInvalid();
+        }
     }
 
     /** 크기·확장자를 먼저 보고(바이트 읽기 전) 통과하면 읽는다. 파일명은 확장자 검사에만 쓴다. */
@@ -700,8 +827,9 @@ public class BoardMinutesService {
 
     /** 업로드 자격(담당자)·옵션·파일을 확인하고 파싱한다. 아무것도 저장하지 않는다(미리보기와 등록이 함께 쓴다). */
     private MinutesParse parseUpload(MinutesUpload in, BoardMinutesIn.MinutesOptions o) {
+        MinutesParse.Edits edits = readEdits(in.getEditsJson());   // 업로드 자격 확인(requireUploader) 뒤에만 불린다
         return MinutesParse.parse(bytes(in.getTranscript()), bytes(in.getTimeline()), bytes(in.getSummary()),
-                o.getTitle(), masker(), o.getTerms(), o.getRelease());
+                o.getTitle(), masker(), o.getTerms(), o.getRelease(), edits, MinutesBudget.standard());
     }
 
     private void requireUploader(SysUser me, BoardMaterial m, MinutesUpload in) {
@@ -720,7 +848,7 @@ public class BoardMinutesService {
     public Map<String, Object> preview(SysUser me, Actor actor, String mid, MinutesUpload in) {
         BoardMaterial m = requireMaterial(mid);
         requireUploader(me, m, in);
-        BoardMinutesIn.MinutesOptions o = checkOptions(in.getOptions(), false);
+        BoardMinutesIn.MinutesOptions o = checkOptions(readOptions(in.getOptionsJson()), false);
         MinutesParse p = parseUpload(in, o);
         Built b = build(p);
         Map<String, Object> out = new LinkedHashMap<String, Object>();
@@ -733,7 +861,10 @@ public class BoardMinutesService {
         out.put("stats", stats(h, b.items.size()));
         out.put("masked", masked(h));
         putSummary(out, b.utters, b.segs, b.items);
-        out.put("transcript", transcriptItems(b.utters, link(b.segs, b.utters)));
+        out.put("transcript", transcriptItems(b.utters, link(b.segs, b.utters), p.labels));
+        out.put("speakers", speakers(b.utters, p.labels));
+        out.put("speaker_label_rules", labelRules());
+        out.put("edited_cnt", Integer.valueOf(p.editedCnt));
         List<Map<String, Object>> warnings = new ArrayList<Map<String, Object>>();
         for (Map.Entry<String, Integer> e : p.warnings.entrySet()) {
             Map<String, Object> w = new LinkedHashMap<String, Object>();
@@ -751,6 +882,7 @@ public class BoardMinutesService {
         }
         out.put("name_candidates", names);
         out.put("preview_digest", p.digest);
+        out.put("edits_digest", p.editsDigest);   // null = 고친 것 없음. 저장 때 options.edits_digest 로 그대로 돌려보낸다
         return out;
     }
 
@@ -791,12 +923,14 @@ public class BoardMinutesService {
     public Map<String, Object> upload(final SysUser me, final Actor actor, String mid, MinutesUpload in) {
         final BoardMaterial m = requireMaterial(mid);
         requireUploader(me, m, in);
-        BoardMinutesIn.MinutesOptions o = checkOptions(in.getOptions(), true);
+        BoardMinutesIn.MinutesOptions o = checkOptions(readOptions(in.getOptionsJson()), true);
         final MinutesParse p = parseUpload(in, o);   // 무거운 일은 트랜잭션 밖에서
         if (p.title == null || p.title.trim().isEmpty()) {
             throw coded(422, "TITLE_REQUIRED", "제목을 입력하세요.");
         }
-        if (!p.digest.equals(o.getPreviewDigest())) {
+        String wantEdits = o.getEditsDigest();
+        if (!p.digest.equals(o.getPreviewDigest())
+                || (p.editsDigest == null ? wantEdits != null : !p.editsDigest.equals(wantEdits))) {
             throw coded(409, "PREVIEW_CHANGED", "미리보기 뒤에 내용이 바뀌었습니다. 미리보기를 다시 확인해 주세요.");
         }
         final Built b = build(p);
@@ -836,6 +970,9 @@ public class BoardMinutesService {
                 it.setMinutesId(id);
                 mapper.insertItem(it);
             }
+            for (Map.Entry<Integer, String> e : p.labels.entrySet()) {
+                mapper.insertSpeaker(id.longValue(), e.getKey().intValue(), e.getValue());
+            }
             log(id.longValue(), materialId, "UPLOAD", Integer.valueOf(0), null, null, null, null, me, actor);
             Map<String, Object> out = new LinkedHashMap<String, Object>();
             out.put("minutes_id", id);
@@ -843,6 +980,8 @@ public class BoardMinutesService {
             out.put("rev_no", Integer.valueOf(0));
             out.put("stats", stats(head, b.items.size()));
             out.put("masked", masked(head));
+            out.put("edited_cnt", Integer.valueOf(p.editedCnt));
+            out.put("label_cnt", Integer.valueOf(p.labels.size()));
             return out;
         });
     }
@@ -936,6 +1075,11 @@ public class BoardMinutesService {
             if (old == null) {
                 throw notFound();
             }
+            // 가림 토큰 보존 — 저장된 가린 본문(old)보다 토큰이 줄면 거부(UTTER·ITEM 공통). 값은 싣지 않고 종류별 빠진 수만.
+            Map<String, Integer> removed = MinutesMasker.removedTokens(old, clean);
+            if (!removed.isEmpty()) {
+                throw new MinutesException(422, "EDIT_MASK_REMOVED", "edit", 0, no, removed);
+            }
             Map<String, Object> out = new LinkedHashMap<String, Object>();
             if (old.equals(clean)) {
                 out.put("changed", Boolean.FALSE);
@@ -954,6 +1098,61 @@ public class BoardMinutesService {
             // OLD_TEXT 도 현재 규칙으로 다시 가린 글만 남긴다(등록 때 해제한 이름이 이력에 되살아나지 않게)
             rev(id, next, kind, Integer.valueOf(no), "BODY", mk.newSession(null, null, budget).mask(old), clean, me, now);
             log(id, h.getMaterialId().longValue(), "EDIT", Integer.valueOf(next), kind, Integer.valueOf(no), null, null, me, actor);
+            out.put("changed", Boolean.TRUE);
+            out.put("rev_no", Integer.valueOf(next));
+            return out;
+        });
+    }
+
+    /** 발화자 역할 라벨 하나(저장 후) — 고정 어휘만, 빈 값이면 지운다. 버전을 올리고 이력(이전→이후)·LOG 를 남긴다. 권한은 고치기와 같다. */
+    public Map<String, Object> editSpeaker(final SysUser me, final Actor actor, BoardMinutes head, BoardMinutesAccess.Decision d,
+                                           String speakerNo, BoardMinutesIn.SpeakerIn in) {
+        requireView(head, d, d != null && d.edit);
+        Integer no = parseNo(speakerNo);
+        if (no == null || no.intValue() > TranscriptParser.MAX_SPEAKER_NO) {
+            throw notFound();
+        }
+        if (in == null) {
+            throw coded(400, "BAD_REQUEST", "요청 내용이 없습니다.");
+        }
+        final int revNo = requireRev(in.getRevNo());
+        final int sp = no.intValue();
+        final String label = SpeakerLabels.normalize(in.getLabel(), sp);   // 형식 밖 → 422 LABEL_INVALID{form}
+        if (label != null) {
+            SpeakerLabels.requireClean(masker(), label, sp, MinutesBudget.standard());   // 직원 명단·PII → 422{name|pii|title}
+        }
+        final long id = head.getMinutesId().longValue();
+        final String now = Times.nowIso();
+        return tx.execute(s -> {
+            BoardMinutes h = mapper.lockHead(id);
+            if (h == null || h.isDeleted()) {
+                throw notFound();
+            }
+            if (h.getRevNo() != revNo) {
+                throw revChanged(h.getRevNo());
+            }
+            if (mapper.countUtterBySpeaker(id, sp) == 0) {
+                throw notFound();
+            }
+            String old = mapper.selectSpeakerLabel(id, sp);
+            Map<String, Object> out = new LinkedHashMap<String, Object>();
+            out.put("speaker_no", Integer.valueOf(sp));
+            out.put("label", label);
+            if (old == null ? label == null : old.equals(label)) {
+                out.put("changed", Boolean.FALSE);
+                out.put("rev_no", Integer.valueOf(h.getRevNo()));
+                return out;
+            }
+            int next = h.getRevNo() + 1;
+            if (mapper.bumpRev(id, h.getRevNo(), next, me.getEmpNo(), now) != 1) {
+                throw revChanged(h.getRevNo());
+            }
+            mapper.deleteSpeaker(id, sp);
+            if (label != null) {
+                mapper.insertSpeaker(id, sp, label);
+            }
+            rev(id, next, "SPEAKER", Integer.valueOf(sp), "LABEL", old, label, me, now);
+            log(id, h.getMaterialId().longValue(), "EDIT", Integer.valueOf(next), "SPEAKER", Integer.valueOf(sp), null, null, me, actor);
             out.put("changed", Boolean.TRUE);
             out.put("rev_no", Integer.valueOf(next));
             return out;
@@ -1222,6 +1421,7 @@ public class BoardMinutesService {
             mapper.deleteItems(id);
             mapper.deleteScopes(id);
             mapper.deleteRevs(id);
+            mapper.deleteSpeakers(id);
             mapper.markDeleted(id, me.getEmpNo(), Times.nowIso());
             log(id, h.getMaterialId().longValue(), "DELETE", Integer.valueOf(h.getRevNo()), null, null, null, null, me, actor);
             Map<String, Object> out = new LinkedHashMap<String, Object>();

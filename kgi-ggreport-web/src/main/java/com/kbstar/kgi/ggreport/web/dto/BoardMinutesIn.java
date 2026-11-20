@@ -3,6 +3,7 @@ package com.kbstar.kgi.ggreport.web.dto;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 이사회 회의록(047) API 입력. 키는 snake_case(JacksonConfig 전역 설정). 모르는 키는 무시한다.
@@ -10,7 +11,7 @@ import java.util.List;
  */
 public class BoardMinutesIn {
 
-    /** 업로드·미리보기의 options 파트: {meeting_date, title, terms[], release[], preview_digest}. */
+    /** 업로드·미리보기의 options 파트: {meeting_date, title, terms[], release[], preview_digest, edits_digest}. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class MinutesOptions {
         private String meetingDate;
@@ -18,7 +19,10 @@ public class BoardMinutesIn {
         private List<String> terms;
         private List<String> release;
         private String previewDigest;
+        private String editsDigest;
 
+        public String getEditsDigest() { return editsDigest; }
+        public void setEditsDigest(String v) { this.editsDigest = v; }
         public String getMeetingDate() { return meetingDate; }
         public void setMeetingDate(String v) { this.meetingDate = v; }
         public String getTitle() { return title; }
@@ -29,6 +33,41 @@ public class BoardMinutesIn {
         public void setRelease(List<String> v) { this.release = v; }
         public String getPreviewDigest() { return previewDigest; }
         public void setPreviewDigest(String v) { this.previewDigest = v; }
+    }
+
+    /** 업로드·미리보기의 edits 파트(JSON, 512KB): {speaker_labels:{"번호":"라벨"}, utter_edits:[{seq_no, text}]} — 저장 전 수정분. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class EditsIn {
+        private Map<String, String> speakerLabels;
+        private List<UtterEdit> utterEdits;
+
+        public Map<String, String> getSpeakerLabels() { return speakerLabels; }
+        public void setSpeakerLabels(Map<String, String> v) { this.speakerLabels = v; }
+        public List<UtterEdit> getUtterEdits() { return utterEdits; }
+        public void setUtterEdits(List<UtterEdit> v) { this.utterEdits = v; }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class UtterEdit {
+        private Integer seqNo;
+        private String text;
+
+        public Integer getSeqNo() { return seqNo; }
+        public void setSeqNo(Integer v) { this.seqNo = v; }
+        public String getText() { return text; }
+        public void setText(String v) { this.text = v; }
+    }
+
+    /** PUT /board-minutes/{id}/speakers/{no} : {label(빈 값 = 지움), rev_no} */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class SpeakerIn {
+        private String label;
+        private Integer revNo;
+
+        public String getLabel() { return label; }
+        public void setLabel(String v) { this.label = v; }
+        public Integer getRevNo() { return revNo; }
+        public void setRevNo(Integer v) { this.revNo = v; }
     }
 
     /** PUT /board-minutes/{id}/utterances/{seq} · /items/{no} : {text, rev_no} */

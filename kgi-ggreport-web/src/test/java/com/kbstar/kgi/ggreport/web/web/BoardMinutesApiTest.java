@@ -437,15 +437,16 @@ public class BoardMinutesApiTest {
     public void 낡은_rev_no는_409_REV_CHANGED와_현재_버전을_준다() throws Exception {
         String[] fx = fixture();
         long id = uploadOk(fx[1], MEMBER, "m");
-        MvcResult r = editUtter(id, HEAD, 1, "가상 수정 본문", 5);
+        // 발언 2는 가린 자리가 없다(발언 1에는 [이름]이 있어 통째로 바꾸면 EDIT_MASK_REMOVED)
+        MvcResult r = editUtter(id, HEAD, 2, "가상 수정 본문", 5);
         assertEquals(text(r), 409, status(r));
         assertEquals("REV_CHANGED", json(r).path("detail").path("code").asText());
         assertEquals(0, json(r).path("detail").path("current_rev").asInt());
-        MvcResult ok = editUtter(id, HEAD, 1, "가상 수정 본문", 0);
+        MvcResult ok = editUtter(id, HEAD, 2, "가상 수정 본문", 0);
         assertEquals(text(ok), 200, status(ok));
         assertTrue(json(ok).path("changed").asBoolean());
         assertEquals(1, json(ok).path("rev_no").asInt());
-        assertFalse(json(editUtter(id, HEAD, 1, "가상 수정 본문", 1)).path("changed").asBoolean());   // 같은 글은 버전을 올리지 않는다
+        assertFalse(json(editUtter(id, HEAD, 2, "가상 수정 본문", 1)).path("changed").asBoolean());   // 같은 글은 버전을 올리지 않는다
     }
 
     @Test
@@ -464,9 +465,9 @@ public class BoardMinutesApiTest {
         String[] fx = fixture();
         long id = uploadOk(fx[1], MEMBER, "o");
         String zwsp = new String(Character.toChars(0x200B));
-        MvcResult r = editUtter(id, HEAD, 1, "수정" + zwsp + "된 본문", 0);
+        MvcResult r = editUtter(id, HEAD, 2, "수정" + zwsp + "된 본문", 0);
         assertEquals(text(r), 200, status(r));
-        String body = jdbc.queryForObject("SELECT BODY FROM BOARD_MINUTES_UTTER WHERE MINUTES_ID=? AND SEQ_NO=1", String.class, id);
+        String body = jdbc.queryForObject("SELECT BODY FROM BOARD_MINUTES_UTTER WHERE MINUTES_ID=? AND SEQ_NO=2", String.class, id);
         assertFalse(body.contains(zwsp));
         assertTrue(body.contains("수정"));
     }
@@ -520,7 +521,7 @@ public class BoardMinutesApiTest {
     public void 이력은_부장급과_등록자만_본다() throws Exception {
         String[] fx = fixture();
         long id = uploadOk(fx[1], MEMBER, "s");
-        assertEquals(200, status(editUtter(id, HEAD, 1, "가상 수정 본문", 0)));
+        assertEquals(200, status(editUtter(id, HEAD, 2, "가상 수정 본문", 0)));
         assertEquals(200, status(scopeAdd(id, HEAD, DESIGNER, kst(1))));
         MvcResult head = read("/board-minutes/" + id + "/history", HEAD, "minutes_history");
         assertEquals(text(head), 200, status(head));
@@ -583,7 +584,7 @@ public class BoardMinutesApiTest {
         String[] fx = fixture();
         long id = uploadOk(fx[1], MEMBER, "v");
         assertEquals(200, status(scopeAdd(id, HEAD, DESIGNER, kst(1))));
-        assertEquals(200, status(editUtter(id, HEAD, 1, "가상 수정 본문", 0)));
+        assertEquals(200, status(editUtter(id, HEAD, 2, "가상 수정 본문", 0)));
         assertEquals(403, status(sendPost("/board-minutes/" + id + "/delete", LEAD2, "{\"rev_no\":1}")));
         MvcResult del = sendPost("/board-minutes/" + id + "/delete", HEAD, "{\"rev_no\":1}");
         assertEquals(text(del), 200, status(del));
@@ -700,5 +701,254 @@ public class BoardMinutesApiTest {
         assertEquals("no-store", view(id, null).getResponse().getHeader("Cache-Control"));            // 401
         assertNotNull(read("/board-minutes", HEAD, "minutes_list").getResponse().getHeader("Cache-Control"));
         assertEquals("no-store", read("/board-materials/" + fx[1] + "/minutes", MEMBER, "minutes_tab").getResponse().getHeader("Cache-Control"));
+    }
+
+    // ── 저장 전후 발언 수정·발화자 역할 라벨(058) ─────────────────────
+
+    private static final String ZERO64 = "0000000000000000000000000000000000000000000000000000000000000000";
+    private static final String EDITS = "{\"speaker_labels\":{\"1\":\"은행 측\"},\"utter_edits\":[{\"seq_no\":2,\"text\":\"네 "
+            + SEED_NAME + " 님 010-1234-5678 확인\"}]}";
+
+    private MvcResult multiE(String path, String emp, String button, String transcript, String options, String edits) throws Exception {
+        MockMultipartHttpServletRequestBuilder b = multipart(path);
+        b.file(new MockMultipartFile("transcript", "t.txt", "text/plain", transcript.getBytes(UTF8)));
+        b.file(new MockMultipartFile("timeline", "tl.txt", "text/plain", TL.getBytes(UTF8)));
+        b.file(new MockMultipartFile("summary", "sm.txt", "text/plain", SUM.getBytes(UTF8)));
+        if (options != null) {
+            b.file(new MockMultipartFile("options", "blob", "application/json", options.getBytes(UTF8)));
+        }
+        if (edits != null) {
+            b.file(new MockMultipartFile("edits", "blob", "application/json", edits.getBytes(UTF8)));
+        }
+        b.header("X-Screen-Id", "board_minutes_upload").header("X-Button-Id", button);
+        return mockMvc.perform(as(b, emp)).andReturn();
+    }
+
+    private MvcResult previewE(String mid, String emp, String tag, String options, String edits) throws Exception {
+        return multiE("/board-materials/" + mid + "/minutes/preview", emp, "minutes_preview", tx(tag), options, edits);
+    }
+
+    private MvcResult uploadE(String mid, String emp, String tag, String options, String edits) throws Exception {
+        return multiE("/board-materials/" + mid + "/minutes", emp, "minutes_upload", tx(tag), options, edits);
+    }
+
+    private String optsE(String title, String digest, String editsDigest, String termsJson) throws Exception {
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        m.put("meeting_date", "2026-01-15");
+        if (title != null) {
+            m.put("title", title);
+        }
+        if (digest != null) {
+            m.put("preview_digest", digest);
+        }
+        if (editsDigest != null) {
+            m.put("edits_digest", editsDigest);
+        }
+        if (termsJson != null) {
+            m.put("terms", om.readTree(termsJson));
+        }
+        return om.writeValueAsString(m);
+    }
+
+    private MvcResult putLabel(long id, String emp, int no, String label, int rev) throws Exception {
+        return mockMvc.perform(as(ui(put("/board-minutes/" + id + "/speakers/" + no).contentType(MediaType.APPLICATION_JSON)
+                .content(js("label", label, "rev_no", rev)), "minutes_label"), emp)).andReturn();
+    }
+
+    @Test
+    public void 미리보기에_고친_발언과_라벨을_실으면_가린_결과와_edits_digest를_준다() throws Exception {
+        String[] fx = fixture();
+        MvcResult plain = preview(fx[1], MEMBER, tx("e1"), opts(null, null));
+        MvcResult pv = previewE(fx[1], MEMBER, "e1", opts(null, null), EDITS);
+        assertEquals(text(pv), 200, status(pv));
+        JsonNode t = json(pv).path("transcript");
+        assertTrue(t.get(1).path("text").asText().contains("[이름]"));
+        assertTrue(t.get(1).path("text").asText().contains("[가림]"));
+        assertFalse(text(pv).contains("5678"));
+        assertTrue(t.get(1).path("edited").asBoolean());
+        assertEquals("은행 측", t.get(0).path("speaker_label").asText());
+        assertEquals("참석자 1", t.get(0).path("speaker").asText());
+        assertEquals("은행 측", json(pv).path("speakers").get(0).path("label").asText());
+        assertTrue(json(pv).path("edits_digest").asText().matches("[0-9a-f]{64}"));
+        assertEquals(json(plain).path("preview_digest").asText(), json(pv).path("preview_digest").asText());
+        assertEquals(1, json(pv).path("edited_cnt").asInt());
+    }
+
+    @Test
+    public void 저장_때_edits_digest가_다르거나_빠지면_409_PREVIEW_CHANGED() throws Exception {
+        String[] fx = fixture();
+        JsonNode pv = json(previewE(fx[1], MEMBER, "e2", opts(null, null), EDITS));
+        String d = pv.path("preview_digest").asText();
+        String ed = pv.path("edits_digest").asText();
+        MvcResult missing = uploadE(fx[1], MEMBER, "e2", optsE("제목", d, null, null), EDITS);
+        assertEquals(text(missing), 409, status(missing));
+        assertEquals("PREVIEW_CHANGED", json(missing).path("detail").path("code").asText());
+        assertEquals(409, status(uploadE(fx[1], MEMBER, "e2", optsE("제목", d, ZERO64, null), EDITS)));
+        assertEquals(409, status(uploadE(fx[1], MEMBER, "e2", optsE("제목", d, ed, null), null)));   // 수정 없이 digest 만
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES WHERE MATERIAL_ID=?", Long.parseLong(fx[1])));
+    }
+
+    @Test
+    public void 고친_발언과_라벨은_가린_채_저장되고_수정_표시가_남는다() throws Exception {
+        String[] fx = fixture();
+        JsonNode pv = json(previewE(fx[1], MEMBER, "e3", opts(null, null), EDITS));
+        MvcResult r = uploadE(fx[1], MEMBER, "e3", optsE("가상 회의록 e3", pv.path("preview_digest").asText(),
+                pv.path("edits_digest").asText(), null), EDITS);
+        assertEquals(text(r), 201, status(r));
+        long id = json(r).path("minutes_id").asLong();
+        assertEquals(1, json(r).path("edited_cnt").asInt());
+        assertEquals(1, json(r).path("label_cnt").asInt());
+        JsonNode items = json(read("/board-minutes/" + id + "/transcript", HEAD, "minutes_transcript")).path("items");
+        assertTrue(items.get(1).path("edited").asBoolean());
+        assertEquals("은행 측", items.get(0).path("speaker_label").asText());
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MINUTES_SPEAKER WHERE MINUTES_ID=?", id));
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES_UTTER WHERE MINUTES_ID=? AND BODY LIKE ?", id, "%" + SEED_NAME + "%"));
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MINUTES_UTTER WHERE MINUTES_ID=? AND EDITED_YN=1", id));
+    }
+
+    @Test
+    public void 실명_라벨은_422_LABEL_INVALID이고_값을_돌려주지_않는다() throws Exception {
+        String[] fx = fixture();
+        MvcResult a = previewE(fx[1], MEMBER, "e4", opts(null, null), "{\"speaker_labels\":{\"1\":\"" + SEED_NAME + "\"}}");
+        assertEquals(text(a), 422, status(a));
+        assertEquals("LABEL_INVALID", json(a).path("detail").path("code").asText());
+        assertTrue(json(a).path("detail").path("kinds").has("form"));
+        assertFalse(text(a).contains(SEED_NAME));
+        MvcResult b = previewE(fx[1], MEMBER, "e4", opts(null, null), "{\"speaker_labels\":{\"1\":\"측\"}}");
+        assertEquals(422, status(b));
+        assertTrue(json(b).path("detail").path("kinds").has("form"));
+    }
+
+    @Test
+    public void 추가_가림_단어와_겹치는_라벨은_422() throws Exception {
+        String[] fx = fixture();
+        MvcResult r = previewE(fx[1], MEMBER, "e5", optsE(null, null, null, "[\"은행\"]"), "{\"speaker_labels\":{\"1\":\"은행 측\"}}");
+        assertEquals(text(r), 422, status(r));
+        assertTrue(json(r).path("detail").path("kinds").has("term"));
+    }
+
+    @Test
+    public void 없는_참석자_라벨과_없는_발언_수정은_422이고_번호를_싣는다() throws Exception {
+        String[] fx = fixture();
+        MvcResult a = previewE(fx[1], MEMBER, "e6", opts(null, null), "{\"speaker_labels\":{\"7\":\"기관 측\"}}");
+        assertEquals(422, status(a));
+        assertEquals("LABEL_SPEAKER_UNKNOWN", json(a).path("detail").path("code").asText());
+        assertEquals(7, json(a).path("detail").path("target_no").asInt());
+        MvcResult b = previewE(fx[1], MEMBER, "e6", opts(null, null), "{\"utter_edits\":[{\"seq_no\":99,\"text\":\"가상\"}]}");
+        assertEquals(422, status(b));
+        assertEquals("EDIT_SEQ_UNKNOWN", json(b).path("detail").path("code").asText());
+        assertEquals(99, json(b).path("detail").path("target_no").asInt());
+    }
+
+    @Test
+    public void 고친_내용_파트가_깨졌거나_너무_많으면_400_EDITS_INVALID_권한이_없으면_403이_먼저다() throws Exception {
+        String[] fx = fixture();
+        MvcResult broken = previewE(fx[1], MEMBER, "e7", opts(null, null), "ZQRAW{{not json");
+        assertEquals(400, status(broken));
+        assertEquals("EDITS_INVALID", json(broken).path("detail").path("code").asText());
+        assertFalse(text(broken).contains("ZQRAW"));
+        StringBuilder many = new StringBuilder("{\"utter_edits\":[");
+        for (int i = 0; i < 2001; i++) {
+            many.append(i == 0 ? "" : ",").append("{\"seq_no\":").append(i % 4 + 1).append(",\"text\":\"가\"}");
+        }
+        many.append("]}");
+        assertEquals(400, status(previewE(fx[1], MEMBER, "e7", opts(null, null), many.toString())));
+        MvcResult dup = previewE(fx[1], MEMBER, "e7", opts(null, null),
+                "{\"utter_edits\":[{\"seq_no\":2,\"text\":\"가\"},{\"seq_no\":2,\"text\":\"나\"}]}");
+        assertEquals(400, status(dup));
+        assertEquals(403, status(previewE(fx[1], LEAD2, "e7", opts(null, null), "ZQRAW{{not json")));   // 파싱은 자격 확인 뒤
+    }
+
+    @Test
+    public void 저장_전_가린_자리를_지우면_422_EDIT_MASK_REMOVED다() throws Exception {
+        String[] fx = fixture();
+        MvcResult r = previewE(fx[1], MEMBER, "e8", opts(null, null), "{\"utter_edits\":[{\"seq_no\":1,\"text\":\"안녕하세요 박외부 위원장님\"}]}");
+        assertEquals(text(r), 422, status(r));
+        assertEquals("EDIT_MASK_REMOVED", json(r).path("detail").path("code").asText());
+        assertEquals("edit", json(r).path("detail").path("slot").asText());
+        assertEquals(1, json(r).path("detail").path("target_no").asInt());
+        assertEquals(1, json(r).path("detail").path("kinds").path("name").asInt());
+        assertFalse(text(r).contains("박외부"));
+    }
+
+    @Test
+    public void 저장_후_가린_자리를_지우면_422_EDIT_MASK_REMOVED이고_남기면_통과한다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "e9");
+        MvcResult r = editUtter(id, HEAD, 1, "가상 수정 본문", 0);   // 발언 1에는 [이름] 한 자리가 있다
+        assertEquals(text(r), 422, status(r));
+        assertEquals("EDIT_MASK_REMOVED", json(r).path("detail").path("code").asText());
+        assertEquals(1, json(r).path("detail").path("target_no").asInt());
+        assertEquals(1, json(r).path("detail").path("kinds").path("name").asInt());
+        assertEquals(0, jdbc.queryForObject("SELECT REV_NO FROM BOARD_MINUTES WHERE MINUTES_ID=?", Integer.class, id).intValue());
+        assertEquals(200, status(editUtter(id, HEAD, 1, "안녕하세요 [이름]님 수정한 본문", 0)));
+    }
+
+    @Test
+    public void 저장_후_라벨_변경은_can_edit만_되고_이력에_이전_이후가_남는다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "e10");
+        MvcResult ok = putLabel(id, HEAD, 1, "구청장", 0);
+        assertEquals(text(ok), 200, status(ok));
+        assertTrue(json(ok).path("changed").asBoolean());
+        assertEquals(1, json(ok).path("rev_no").asInt());
+        JsonNode rev = json(read("/board-minutes/" + id + "/history", HEAD, "minutes_history")).path("revs").get(0);
+        assertEquals("SPEAKER", rev.path("target_kind").asText());
+        assertEquals("LABEL", rev.path("field").asText());
+        assertEquals("구청장", rev.path("new_text").asText());
+        JsonNode d = json(view(id, HEAD));
+        assertEquals("구청장", d.path("speakers").get(0).path("label").asText());
+        assertTrue(d.has("speaker_label_rules"));
+        assertFalse(json(putLabel(id, HEAD, 1, "구청장", 1)).path("changed").asBoolean());
+        assertEquals(200, status(scopeAdd(id, HEAD, DESIGNER, kst(1))));
+        assertEquals(403, status(putLabel(id, DESIGNER, 1, "기관 측", 2)));
+        assertTrue(count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND REQ_PATH=?", "/board-minutes/" + id + "/speakers/1") >= 1);
+        assertEquals(404, status(putLabel(id, IT_LEAD, 1, "기관 측", 2)));
+        assertTrue(count("SELECT COUNT(*) FROM BOARD_MINUTES_ACT WHERE MINUTES_ID=? AND ACTION_CD='EDIT_LABEL' AND BUTTON_ID='minutes_label' AND OUTCOME='OK'", id) >= 1);
+        assertEquals(409, status(putLabel(id, HEAD, 1, "기관 측", 0)));
+        assertEquals(404, status(putLabel(id, HEAD, 99, "기관 측", 1)));
+        MvcResult real = putLabel(id, HEAD, 1, SEED_NAME, 1);
+        assertEquals(422, status(real));
+        assertFalse(text(real).contains(SEED_NAME));
+        MvcResult noUi = mockMvc.perform(as(put("/board-minutes/" + id + "/speakers/1").contentType(MediaType.APPLICATION_JSON)
+                .content(js("label", "기관 측", "rev_no", 1)), HEAD)).andReturn();
+        assertEquals(400, status(noUi));
+        MvcResult clear = putLabel(id, HEAD, 1, "", 1);
+        assertEquals(text(clear), 200, status(clear));
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES_SPEAKER WHERE MINUTES_ID=?", id));
+        assertEquals(2, json(clear).path("rev_no").asInt());
+    }
+
+    @Test
+    public void 삭제하면_라벨도_지워진다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "e11");
+        assertEquals(200, status(putLabel(id, HEAD, 1, "기관 측", 0)));
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MINUTES_SPEAKER WHERE MINUTES_ID=?", id));
+        assertEquals(200, status(sendPost("/board-minutes/" + id + "/delete", HEAD, "{\"rev_no\":1}")));
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES_SPEAKER WHERE MINUTES_ID=?", id));
+    }
+
+    @Test
+    public void 접근_이력에_라벨과_고친_글이_없고_건수만_있다() throws Exception {
+        String[] fx = fixture();
+        JsonNode pv = json(previewE(fx[1], MEMBER, "e12", opts(null, null), EDITS));
+        MvcResult r = uploadE(fx[1], MEMBER, "e12", optsE("가상 회의록 e12", pv.path("preview_digest").asText(),
+                pv.path("edits_digest").asText(), null), EDITS);
+        assertEquals(text(r), 201, status(r));
+        assertEquals(0, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE DETAIL LIKE ?", "%은행 측%"));
+        assertEquals(0, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE DETAIL LIKE ?", "%확인%"));
+        assertEquals(1, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE DETAIL LIKE ?", "%edit=1 label=1%"));
+    }
+
+    @Test
+    public void 라벨_변경_본문이_16KB를_넘으면_413() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "e13");
+        StringBuilder big = new StringBuilder();
+        for (int i = 0; i < 17000; i++) {
+            big.append('a');
+        }
+        assertEquals(413, status(putLabel(id, HEAD, 1, big.toString(), 0)));
     }
 }

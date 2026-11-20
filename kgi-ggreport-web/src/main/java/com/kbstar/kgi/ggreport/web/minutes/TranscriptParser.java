@@ -36,13 +36,20 @@ public final class TranscriptParser {
         public final int startSec;
         public final boolean noise;
         public final String body;
+        /** 저장 전 미리보기에서 고친 발언인지(EDITED_YN). */
+        public final boolean edited;
 
         public Utterance(int seqNo, int speakerNo, int startSec, boolean noise, String body) {
+            this(seqNo, speakerNo, startSec, noise, body, false);
+        }
+
+        public Utterance(int seqNo, int speakerNo, int startSec, boolean noise, String body, boolean edited) {
             this.seqNo = seqNo;
             this.speakerNo = speakerNo;
             this.startSec = startSec;
             this.noise = noise;
             this.body = body;
+            this.edited = edited;
         }
     }
 

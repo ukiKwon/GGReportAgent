@@ -18,7 +18,7 @@ public final class MinutesUiIds {
     public static final Set<String> BUTTONS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             "minutes_tab", "minutes_list", "minutes_open", "minutes_transcript", "minutes_preview", "minutes_upload",
             "minutes_edit", "minutes_meta", "minutes_todo", "minutes_history", "minutes_scope_open", "minutes_scope_add",
-            "minutes_scope_remove", "minutes_delete", "minutes_acts")));
+            "minutes_scope_remove", "minutes_delete", "minutes_acts", "minutes_label")));
 
     private MinutesUiIds() {
     }

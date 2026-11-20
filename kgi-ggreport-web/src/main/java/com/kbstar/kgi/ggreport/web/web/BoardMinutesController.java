@@ -1,6 +1,5 @@
 package com.kbstar.kgi.ggreport.web.web;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.config.AccessLogInterceptor;
 import com.kbstar.kgi.ggreport.web.config.MinutesSettings;
 import com.kbstar.kgi.ggreport.web.domain.BoardMinutes;
@@ -51,24 +50,23 @@ import java.util.function.Supplier;
 public class BoardMinutesController {
 
     private static final Set<String> PARTS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
-            "transcript", "timeline", "summary", "options")));
+            "transcript", "timeline", "summary", "options", "edits")));
     private static final int OPTIONS_MAX_BYTES = 16 * 1024;
+    private static final int EDITS_MAX_BYTES = 512 * 1024;   // MinutesLimitFilter 업로드 여유 1MB 안
 
     private final MenuGuard guard;
     private final MinutesSettings settings;
     private final BoardMinutesService service;
     private final BoardMinutesAudit audit;
     private final BoardMinutesAccess access;
-    private final ObjectMapper om;
 
     public BoardMinutesController(MenuGuard guard, MinutesSettings settings, BoardMinutesService service,
-                                  BoardMinutesAudit audit, BoardMinutesAccess access, ObjectMapper om) {
+                                  BoardMinutesAudit audit, BoardMinutesAccess access) {
         this.guard = guard;
         this.settings = settings;
         this.service = service;
         this.audit = audit;
         this.access = access;
-        this.om = om;
     }
 
     /** 한 요청의 호출자·대상 회의록·판정. head·d 는 자료 기준 호출이면 null/NONE. */
@@ -162,7 +160,8 @@ public class BoardMinutesController {
         if (stats instanceof Map) {
             Map<?, ?> s = (Map<?, ?>) stats;
             req.setAttribute(AccessLogInterceptor.DETAIL, "board-minutes id=" + out.get("minutes_id") + " code=UPLOAD utter="
-                    + s.get("utter_cnt") + " seg=" + s.get("seg_cnt") + " item=" + s.get("item_cnt"));   // 건수뿐 — 본문·제목·파일명 없음
+                    + s.get("utter_cnt") + " seg=" + s.get("seg_cnt") + " item=" + s.get("item_cnt")
+                    + " edit=" + out.get("edited_cnt") + " label=" + out.get("label_cnt"));   // 건수뿐 — 본문·제목·파일명·라벨·고친 글 없음
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(out);
     }
@@ -174,6 +173,14 @@ public class BoardMinutesController {
                                          @RequestBody BoardMinutesIn.EditIn in, HttpServletRequest req) {
         return exec(req, forMinutes(id), detail(id, "EDIT_UTTER"), "EDIT_UTTER", true, BoardMinutesAccess.Via.NONE,
                 c -> service.editUtter(c.me, c.actor, c.head, c.d, seq, in));
+    }
+
+    /** 발화자 역할 라벨 하나(저장 후). 권한은 고치기와 같다(can_edit). */
+    @PutMapping("/board-minutes/{id}/speakers/{no}")
+    public Map<String, Object> editSpeaker(@PathVariable String id, @PathVariable String no,
+                                           @RequestBody BoardMinutesIn.SpeakerIn in, HttpServletRequest req) {
+        return exec(req, forMinutes(id), detail(id, "EDIT_LABEL"), "EDIT_LABEL", true, BoardMinutesAccess.Via.NONE,
+                c -> service.editSpeaker(c.me, c.actor, c.head, c.d, no, in));
     }
 
     @PutMapping("/board-minutes/{id}/items/{no}")
@@ -232,7 +239,8 @@ public class BoardMinutesController {
     // ── multipart ──
 
     /**
-     * 파트 구성 검사 — 허용 이름(transcript·timeline·summary·options)만, 파일 파트는 같은 이름 한 개씩 최대 4개(아니면 400 TOO_MANY_PARTS).
+     * 파트 구성 검사 — 허용 이름(transcript·timeline·summary·options·edits)만, 파일 파트는 같은 이름 한 개씩 최대 5개(아니면 400 TOO_MANY_PARTS).
+     * edits 는 512KB 까지.
      * options 는 JSON 파트(파일 Blob 또는 문자열 폼 값)이고 16KB 를 넘거나 JSON 이 깨졌으면 400 OPTIONS_INVALID — 원문은 되돌려 주지 않는다.
      * 파일은 {@link MultipartFile} 참조만 넘긴다(서비스가 업로드 자격을 확인한 뒤에 크기를 보고 바이트를 읽는다).
      */
@@ -244,42 +252,44 @@ public class BoardMinutesController {
         int total = 0;
         for (Map.Entry<String, List<MultipartFile>> e : mr.getMultiFileMap().entrySet()) {
             total += e.getValue().size();
-            if (!PARTS.contains(e.getKey()) || e.getValue().size() != 1 || total > 4) {
+            if (!PARTS.contains(e.getKey()) || e.getValue().size() != 1 || total > 5) {
                 throw coded(400, "TOO_MANY_PARTS", "허용되지 않는 파일 칸이 있습니다.");
             }
         }
         Map<String, MultipartFile> files = mr.getFileMap();
-        String json = null;
-        MultipartFile of = files.get("options");
+        // 문자열만 읽는다 — Jackson 파싱은 서비스가 업로드 자격 확인(requireUploader) 뒤에 한다(권한 없는 사람이 파싱 비용을 쓰지 못하게)
+        String json = jsonPart(mr, files, "options", OPTIONS_MAX_BYTES, BoardMinutesController::optionsInvalid);
+        String edits = jsonPart(mr, files, "edits", EDITS_MAX_BYTES, BoardMinutesController::editsInvalid);
+        return new MinutesUpload(files.get("transcript"), files.get("timeline"), files.get("summary"), json, edits);
+    }
+
+    /** JSON 파트(파일 Blob 또는 폼 문자열)의 문자열. 상한을 넘거나 읽지 못하면 err. */
+    private static String jsonPart(MultipartHttpServletRequest mr, Map<String, MultipartFile> files, String name, int max,
+                                   Supplier<ApiException> err) {
+        MultipartFile f = files.get(name);
         try {
-            if (of != null) {
-                if (of.getSize() > OPTIONS_MAX_BYTES) {
-                    throw optionsInvalid();
+            if (f != null) {
+                if (f.getSize() > max) {
+                    throw err.get();
                 }
-                json = new String(of.getBytes(), StandardCharsets.UTF_8);
-            } else {
-                String p = mr.getParameter("options");
-                if (p != null && p.getBytes(StandardCharsets.UTF_8).length > OPTIONS_MAX_BYTES) {
-                    throw optionsInvalid();
-                }
-                json = p;
+                return new String(f.getBytes(), StandardCharsets.UTF_8);
             }
+            String p = mr.getParameter(name);
+            if (p != null && p.getBytes(StandardCharsets.UTF_8).length > max) {
+                throw err.get();
+            }
+            return p;
         } catch (IOException e) {
-            throw optionsInvalid();
+            throw err.get();
         }
-        BoardMinutesIn.MinutesOptions options = null;
-        if (json != null && !json.trim().isEmpty()) {
-            try {
-                options = om.readValue(json, BoardMinutesIn.MinutesOptions.class);
-            } catch (IOException | RuntimeException e) {
-                throw optionsInvalid();   // 원문·파서 메시지를 되돌려 주지 않는다
-            }
-        }
-        return new MinutesUpload(files.get("transcript"), files.get("timeline"), files.get("summary"), options);
     }
 
     private static ApiException optionsInvalid() {
         return coded(400, "OPTIONS_INVALID", "업로드 옵션을 읽을 수 없습니다.");
+    }
+
+    private static ApiException editsInvalid() {
+        return coded(400, "EDITS_INVALID", "고친 내용을 읽을 수 없습니다. 미리보기부터 다시 하세요.");
     }
 
     private static ApiException coded(int status, String code, String message) {

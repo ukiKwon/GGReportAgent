@@ -42,7 +42,7 @@ public class MinutesLimitFilter implements Filter {
     private static final Pattern EDIT = Pattern.compile(
             "(?:^|/)board-minutes/+[^/]+/+(?:utterances|items)/+[^/]+/*$", Pattern.CASE_INSENSITIVE);
     private static final Pattern SMALL = Pattern.compile(
-            "(?:^|/)board-minutes/+[^/]+/+(?:meta|items/+[^/]+/+done|scope/+(?:add|remove)|delete)/*$", Pattern.CASE_INSENSITIVE);
+            "(?:^|/)board-minutes/+[^/]+/+(?:meta|speakers/+[^/]+|items/+[^/]+/+done|scope/+(?:add|remove)|delete)/*$", Pattern.CASE_INSENSITIVE);
 
     private final AccessLogService accessLog;
     private final MinutesSettings settings;

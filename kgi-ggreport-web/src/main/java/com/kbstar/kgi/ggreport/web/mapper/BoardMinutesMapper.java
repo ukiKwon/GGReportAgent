@@ -7,6 +7,7 @@ import com.kbstar.kgi.ggreport.web.domain.BoardMinutesLog;
 import com.kbstar.kgi.ggreport.web.domain.BoardMinutesRev;
 import com.kbstar.kgi.ggreport.web.domain.BoardMinutesScope;
 import com.kbstar.kgi.ggreport.web.domain.BoardMinutesSeg;
+import com.kbstar.kgi.ggreport.web.domain.BoardMinutesSpeaker;
 import com.kbstar.kgi.ggreport.web.domain.BoardMinutesUtter;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -130,4 +131,17 @@ public interface BoardMinutesMapper {
     int deleteScopes(@Param("id") long id);
 
     int deleteRevs(@Param("id") long id);
+
+    // 058 발화자 역할 라벨
+    List<BoardMinutesSpeaker> selectSpeakers(@Param("id") long id);
+
+    String selectSpeakerLabel(@Param("id") long id, @Param("no") int no);
+
+    int countUtterBySpeaker(@Param("id") long id, @Param("no") int no);
+
+    int insertSpeaker(@Param("id") long id, @Param("no") int no, @Param("label") String label);
+
+    int deleteSpeaker(@Param("id") long id, @Param("no") int no);
+
+    int deleteSpeakers(@Param("id") long id);
 }

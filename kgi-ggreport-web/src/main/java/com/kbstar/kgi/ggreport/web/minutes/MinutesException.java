@@ -16,17 +16,24 @@ public final class MinutesException extends RuntimeException {
     private final String slot;
     private final int line;
     private final Map<String, Integer> kinds;
+    /** 대상 번호(발언 seq_no·화자 번호). 해당 없으면 0. */
+    private final int targetNo;
 
     public MinutesException(int status, String code, String slot, int line) {
         this(status, code, slot, line, null);
     }
 
     public MinutesException(int status, String code, String slot, int line, Map<String, Integer> kinds) {
+        this(status, code, slot, line, 0, kinds);
+    }
+
+    public MinutesException(int status, String code, String slot, int line, int targetNo, Map<String, Integer> kinds) {
         super(code);
         this.status = status;
         this.code = code;
         this.slot = slot;
         this.line = line;
+        this.targetNo = targetNo;
         this.kinds = kinds == null ? Collections.<String, Integer>emptyMap() : new LinkedHashMap<String, Integer>(kinds);
     }
 
@@ -58,6 +65,10 @@ public final class MinutesException extends RuntimeException {
         return line;
     }
 
+    public int getTargetNo() {
+        return targetNo;
+    }
+
     /** MASK_REQUIRED 일 때 종류별 건수(pii·name·title). 값은 없다. */
     public Map<String, Integer> getKinds() {
         return Collections.unmodifiableMap(kinds);
@@ -73,6 +84,9 @@ public final class MinutesException extends RuntimeException {
         }
         if (line > 0) {
             m.put("line", Integer.valueOf(line));
+        }
+        if (targetNo > 0) {
+            m.put("target_no", Integer.valueOf(targetNo));
         }
         if (!kinds.isEmpty()) {
             m.put("kinds", new LinkedHashMap<String, Integer>(kinds));
@@ -109,6 +123,12 @@ public final class MinutesException extends RuntimeException {
             case "MASK_REQUIRED": return "개인정보 또는 이름이 들어 있어 저장할 수 없습니다. 가려서 다시 입력하세요.";
             case "TERMS_INVALID": return "추가로 가릴 단어가 올바르지 않습니다.";
             case "RELEASE_INVALID": return "해제할 수 없는 항목이 있습니다.";
+            case "LIMIT_SPEAKER": return "참석자 수가 너무 많습니다.";
+            case "LABEL_INVALID": return "발언자 이름표는 정해진 직책·역할 중에서만 고를 수 있습니다.";
+            case "LABEL_SPEAKER_UNKNOWN": return "원문에 없는 참석자 번호입니다.";
+            case "EDIT_SEQ_UNKNOWN": return "원문에 없는 발언 번호입니다.";
+            case "LIMIT_EDIT_LEN": return "고친 발언의 글자 수가 맞지 않습니다(1~20000자).";
+            case "EDIT_MASK_REMOVED": return "가린 자리를 지울 수 없습니다. 그 자리는 그대로 두고 나머지만 고치세요.";
             default: return "요청을 처리할 수 없습니다.";
         }
     }

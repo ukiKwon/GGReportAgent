@@ -6,9 +6,13 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * 원문·시간대별 요약·맞춤 요약을 읽어 가린 결과 한 묶음 — 설계 3-3·3-4·3-5.
@@ -42,8 +46,29 @@ public final class MinutesParse {
     /** 이름 사전에 걸린 이름 → 적중 수(해제된 것 포함). */
     public final Map<String, Integer> nameCandidates;
     public final String digest;
+    public static final int EDIT_MAX_CHARS = 20000;
+    /** 화자 번호 → 정규화한 역할 라벨(빈 라벨 제외). */
+    public final Map<Integer, String> labels;
+    /** 저장 전 수정분(라벨·발언)의 확인값. 수정이 없으면 null. */
+    public final String editsDigest;
+    public final int editedCnt;
+
+    /** 저장 전 수정분 — 받은 그대로(정규화 전). 서비스가 모양(번호·개수)만 걸러 넘긴다. */
+    public static final class Edits {
+        public static final Edits NONE = new Edits(null, null);
+        final Map<Integer, String> labels;
+        final Map<Integer, String> utters;
+
+        public Edits(Map<Integer, String> labels, Map<Integer, String> utters) {
+            this.labels = labels == null ? Collections.<Integer, String>emptyMap() : new TreeMap<Integer, String>(labels);
+            this.utters = utters == null ? Collections.<Integer, String>emptyMap() : new TreeMap<Integer, String>(utters);
+        }
+    }
 
     private MinutesParse(Builder b) {
+        this.labels = Collections.unmodifiableMap(b.labels);
+        this.editsDigest = b.editsDigest;
+        this.editedCnt = b.editedCnt;
         this.encTranscript = b.encTranscript;
         this.encTimeline = b.encTimeline;
         this.encSummary = b.encSummary;
@@ -89,6 +114,9 @@ public final class MinutesParse {
         Map<String, Integer> warnings = new LinkedHashMap<String, Integer>();
         Map<String, Integer> nameCandidates;
         String digest;
+        Map<Integer, String> labels = new TreeMap<Integer, String>();
+        String editsDigest;
+        int editedCnt;
     }
 
     public int utterCnt() {
@@ -108,10 +136,17 @@ public final class MinutesParse {
     public static MinutesParse parse(byte[] transcript, byte[] timeline, byte[] summary, String title,
                                      MinutesMasker masker, Collection<String> terms, Collection<String> release,
                                      MinutesBudget budget) {
+        return parse(transcript, timeline, summary, title, masker, terms, release, Edits.NONE, budget);
+    }
+
+    public static MinutesParse parse(byte[] transcript, byte[] timeline, byte[] summary, String title,
+                                     MinutesMasker masker, Collection<String> terms, Collection<String> release,
+                                     Edits edits, MinutesBudget budget) {
         Builder b = new Builder();
         MinutesText.Prepared pt = MinutesText.prepare(transcript, "transcript");
         b.encTranscript = pt.encoding;
         TranscriptParser.Result tr = TranscriptParser.parse(pt.lines, budget);
+        Map<Integer, String> editTexts = prepareEdits(tr, edits.utters, masker, terms, release, budget);   // 가리기 전에 바꿔 끼운다
 
         TimelineParser.Result tl = null;
         if (timeline != null) {
@@ -127,12 +162,15 @@ public final class MinutesParse {
         }
 
         MinutesMasker.Session s = masker.newSession(terms, release, budget);
+        b.labels = prepareLabels(tr, edits.labels, masker, s, budget);
         if (title != null) {
             String t = MinutesText.normalizeText(title, "title").replace('\n', ' ').trim();
             b.title = clip(s.mask(t), TITLE_MAX);
         }
         for (TranscriptParser.Utterance u : tr.utterances) {
-            b.utterances.add(new TranscriptParser.Utterance(u.seqNo, u.speakerNo, u.startSec, u.noise, s.mask(u.body)));
+            String e = editTexts.get(Integer.valueOf(u.seqNo));
+            b.utterances.add(new TranscriptParser.Utterance(u.seqNo, u.speakerNo, u.startSec, u.noise,
+                    s.mask(e == null ? u.body : e), e != null));
         }
         if (tl != null) {
             for (TimelineParser.Segment g : tl.segments) {
@@ -180,7 +218,9 @@ public final class MinutesParse {
         put(b.warnings, "SEG_OVERLAP", tl == null ? 0 : tl.overlapCount);
         put(b.warnings, "SEG_BEYOND_END", beyond);
         put(b.warnings, "LABEL_RENAMED", tr.labelCount);
-        b.digest = digest(tr, tl, sm);   // 가리기 전 정규화 내용 — 가림 단어·해제를 바꿔도 같은 값(중복 검사를 가림 단어로 피할 수 없다)
+        b.digest = digest(tr, tl, sm);   // 가리기 전 정규화 내용 — 가림 단어·해제를 바꿔도 같은 값(중복 검사를 가림 단어로 피할 수 없다). 수정분 제외
+        b.editedCnt = editTexts.size();
+        b.editsDigest = editsDigest(b.labels, editTexts);
         return new MinutesParse(b);
     }
 
@@ -226,8 +266,101 @@ public final class MinutesParse {
                 sb.append('\u0003');
             }
         }
+        return sha256Hex(sb.toString());
+    }
+
+    private static Map<Integer, String> prepareEdits(TranscriptParser.Result tr, Map<Integer, String> raw, MinutesMasker masker,
+                                                     Collection<String> terms, Collection<String> release, MinutesBudget budget) {
+        Map<Integer, String> out = new TreeMap<Integer, String>();
+        if (raw.isEmpty()) {
+            return out;
+        }
+        Map<Integer, String> orig = new HashMap<Integer, String>();
+        for (TranscriptParser.Utterance u : tr.utterances) {
+            orig.put(Integer.valueOf(u.seqNo), u.body);
+        }
+        MinutesMasker.Session base = masker.newSession(terms, release, budget);   // 기준 가림 — 본 세션의 건수·적중에 섞이지 않게 따로
+        for (Map.Entry<Integer, String> e : raw.entrySet()) {
+            int seq = e.getKey().intValue();
+            String o = orig.get(e.getKey());
+            if (o == null) {
+                throw new MinutesException(422, "EDIT_SEQ_UNKNOWN", "edit", 0, seq, null);
+            }
+            String t;
+            try {
+                t = MinutesText.normalizeText(e.getValue(), "edit").trim();
+            } catch (MinutesException x) {
+                throw new MinutesException(x.getStatus(), x.getCode(), "edit", x.getLine(), seq, null);
+            }
+            if (t.isEmpty() || t.length() > EDIT_MAX_CHARS) {
+                throw new MinutesException(422, "LIMIT_EDIT_LEN", "edit", 0, seq, null);
+            }
+            String[] ls = t.split("\n", -1);
+            for (int i = 0; i < ls.length; i++) {
+                if (ls[i].length() > MinutesText.MAX_LINE_CHARS) {
+                    throw new MinutesException(422, "LIMIT_LINE", "edit", i + 1, seq, null);
+                }
+            }
+            // 가림 토큰 보존 — 원래 가린 본문보다 토큰이 줄면 거부(지워서 원문을 되살리는 길을 막는다)
+            Map<String, Integer> removed = MinutesMasker.removedTokens(base.mask(o), t);
+            if (!removed.isEmpty()) {
+                throw new MinutesException(422, "EDIT_MASK_REMOVED", "edit", 0, seq, removed);
+            }
+            if (!t.equals(o)) {   // 원문과 같으면 고친 것으로 치지 않는다
+                out.put(e.getKey(), t);
+            }
+        }
+        return out;
+    }
+
+    private static Map<Integer, String> prepareLabels(TranscriptParser.Result tr, Map<Integer, String> raw, MinutesMasker masker,
+                                                      MinutesMasker.Session s, MinutesBudget budget) {
+        Map<Integer, String> out = new TreeMap<Integer, String>();
+        if (raw.isEmpty()) {
+            return out;
+        }
+        Set<Integer> speakers = new HashSet<Integer>();
+        for (TranscriptParser.Utterance u : tr.utterances) {
+            speakers.add(Integer.valueOf(u.speakerNo));
+        }
+        for (Map.Entry<Integer, String> e : raw.entrySet()) {
+            int no = e.getKey().intValue();
+            if (!speakers.contains(e.getKey())) {
+                throw new MinutesException(422, "LABEL_SPEAKER_UNKNOWN", "speaker_label", 0, no, null);
+            }
+            String l = SpeakerLabels.normalize(e.getValue(), no);
+            if (l == null) {
+                continue;
+            }
+            SpeakerLabels.requireClean(masker, l, no, budget);
+            if (s.hitsTerm(l)) {
+                throw SpeakerLabels.invalid(no, "term");
+            }
+            out.put(e.getKey(), l);
+        }
+        return out;
+    }
+
+    /** 수정분 확인값 — 가리기 전 정규화 라벨·수정글. 없으면 null. 화면이 본 결과와 저장 결과를 맞추는 용도(보안 검사는 저장 때 전부 다시 한다). */
+    private static String editsDigest(Map<Integer, String> labels, Map<Integer, String> edits) {
+        if (labels.isEmpty() && edits.isEmpty()) {
+            return null;
+        }
+        char sep = '\u0001';
+        StringBuilder sb = new StringBuilder("e1:").append(MinutesMasker.RULE_VER).append(sep);
+        for (Map.Entry<Integer, String> e : labels.entrySet()) {
+            sb.append(e.getKey()).append(sep).append(e.getValue()).append(sep);
+        }
+        sb.append('\u0002');
+        for (Map.Entry<Integer, String> e : edits.entrySet()) {
+            sb.append(e.getKey()).append(sep).append(e.getValue()).append(sep);
+        }
+        return sha256Hex(sb.toString());
+    }
+
+    private static String sha256Hex(String in) {
         try {
-            byte[] d = MessageDigest.getInstance("SHA-256").digest(sb.toString().getBytes(Charset.forName("UTF-8")));
+            byte[] d = MessageDigest.getInstance("SHA-256").digest(in.getBytes(Charset.forName("UTF-8")));
             StringBuilder hex = new StringBuilder(64);
             for (byte x : d) {
                 hex.append(String.format("%02x", Integer.valueOf(x & 0xFF)));

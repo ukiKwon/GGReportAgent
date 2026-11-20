@@ -116,7 +116,7 @@
 
   <insert id="insertUtter">
     INSERT INTO BOARD_MINUTES_UTTER (MINUTES_ID, SEQ_NO, SPEAKER_NO, START_SEC, NOISE_YN, EDITED_YN, BODY)
-    VALUES (#{minutesId}, #{seqNo}, #{speakerNo}, #{startSec}, #{noiseYn}, 0, #{body,jdbcType=CLOB})
+    VALUES (#{minutesId}, #{seqNo}, #{speakerNo}, #{startSec}, #{noiseYn}, #{editedYn}, #{body,jdbcType=CLOB})
   </insert>
 
   <insert id="insertSeg">
@@ -270,6 +270,26 @@
 
   <delete id="deleteRevs">
     DELETE FROM BOARD_MINUTES_REV WHERE MINUTES_ID = #{id}
+  </delete>
+
+  <!-- 058 발화자 역할 라벨(고정 어휘). 사번 칸 없음. -->
+  <select id="selectSpeakers" resultType="BoardMinutesSpeaker" flushCache="true">
+    SELECT MINUTES_ID, SPEAKER_NO, LABEL FROM BOARD_MINUTES_SPEAKER WHERE MINUTES_ID = #{id} ORDER BY SPEAKER_NO
+  </select>
+  <select id="selectSpeakerLabel" resultType="string" flushCache="true">
+    SELECT LABEL FROM BOARD_MINUTES_SPEAKER WHERE MINUTES_ID = #{id} AND SPEAKER_NO = #{no}
+  </select>
+  <select id="countUtterBySpeaker" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM BOARD_MINUTES_UTTER WHERE MINUTES_ID = #{id} AND SPEAKER_NO = #{no}
+  </select>
+  <insert id="insertSpeaker">
+    INSERT INTO BOARD_MINUTES_SPEAKER (MINUTES_ID, SPEAKER_NO, LABEL) VALUES (#{id}, #{no}, #{label})
+  </insert>
+  <delete id="deleteSpeaker">
+    DELETE FROM BOARD_MINUTES_SPEAKER WHERE MINUTES_ID = #{id} AND SPEAKER_NO = #{no}
+  </delete>
+  <delete id="deleteSpeakers">
+    DELETE FROM BOARD_MINUTES_SPEAKER WHERE MINUTES_ID = #{id}
   </delete>
 
 </mapper>

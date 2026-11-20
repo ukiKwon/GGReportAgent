@@ -147,6 +147,47 @@ public final class MinutesMasker {
         return normalized;
     }
 
+    /** 글 안의 가림 토큰 수 — 종류별({@code name}=[이름], {@code pii}=[가림], {@code line}=[가림: 개인정보 의심 줄]). 0건 종류는 넣지 않는다. */
+    public static Map<String, Integer> tokenCounts(String text) {
+        Map<String, Integer> m = new LinkedHashMap<String, Integer>();
+        putCount(m, "name", countOf(text, NAME_TOKEN));
+        putCount(m, "pii", countOf(text, PII_TOKEN));
+        putCount(m, "line", countOf(text, LINE_TOKEN));
+        return m;
+    }
+
+    /** 고친 글의 가림 토큰이 기준 글보다 적으면 종류별로 빠진 수, 아니면 빈 맵(EDIT_MASK_REMOVED 판정). 값은 돌려주지 않는다. */
+    public static Map<String, Integer> removedTokens(String baseMasked, String edited) {
+        Map<String, Integer> base = tokenCounts(baseMasked);
+        Map<String, Integer> now = tokenCounts(edited);
+        Map<String, Integer> out = new LinkedHashMap<String, Integer>();
+        for (Map.Entry<String, Integer> e : base.entrySet()) {
+            Integer c = now.get(e.getKey());
+            int lack = e.getValue().intValue() - (c == null ? 0 : c.intValue());
+            putCount(out, e.getKey(), lack);
+        }
+        return out;
+    }
+
+    private static void putCount(Map<String, Integer> m, String k, int n) {
+        if (n > 0) {
+            m.put(k, Integer.valueOf(n));
+        }
+    }
+
+    private static int countOf(String text, String tok) {
+        if (text == null) {
+            return 0;
+        }
+        int n = 0;
+        int i = text.indexOf(tok);
+        while (i >= 0) {
+            n++;
+            i = text.indexOf(tok, i + tok.length());
+        }
+        return n;
+    }
+
     /** 한 업로드의 가림 상태. 스레드 안전하지 않다 — 요청 하나에서만 쓴다. */
     public final class Session {
         private final MinutesBudget budget;
@@ -405,6 +446,17 @@ public final class MinutesMasker {
         /** 해제 요청으로 가리지 않고 둔 횟수(RELEASE_CNT). */
         public int releasedCount() {
             return released;
+        }
+
+        /** 이 글이 이번 업로드의 추가 가림 단어를 포함하는지(라벨 검사용, 대소문자 무시). 단어는 돌려주지 않는다. */
+        public boolean hitsTerm(String text) {
+            String l = text.toLowerCase(Locale.ROOT);
+            for (String t : terms) {
+                if (l.contains(t.toLowerCase(Locale.ROOT))) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
