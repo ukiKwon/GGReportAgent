@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -19,7 +20,8 @@ import java.util.TreeSet;
 
 /**
  * 기관장 정보 상세({@code InstitutionHeadService.detail} 결과) → 문서 모델(NEXT 100 S1).
- * 제목 「참고자료 N. 「기관명」 기관장 정보」 아래 2열 겉 표 — 인적 사항·학력·경력·출처. 확정된 칸만 쓴다.
+ * 사용자 참고 양식(11-20): 쪽 테두리, 가운데·굵게·밑줄 제목 「{기관명} {이름} {직위} Profile」, 왼쪽 사진·오른쪽 ■ 줄(테두리 없는 표),
+ * [ 학 력 ]·[ 경 력 ](기간 YYYY.MM), 맨 아래 작은 글씨 출처. 확정된 칸만 쓴다. 참고자료 번호(ref_no)는 형식만 검사하고 문서에는 쓰지 않는다.
  * 출처는 화면 카드처럼 <b>같은 출처(종류·제목·주소·확인일 같음)를 한 번만</b> 싣고, 본문 값 옆에 위첨자 번호를 둔다(사용자 11-20).
  * 번호 순서(카드와 같음): 임기 만료 → 나이 → 첫 취임일 → 현 임기 시작 → 학력 → 경력 → 사진 → 성명 → 직위 → 권한대행.
  * 학력·경력은 카드처럼 최근 것부터, 기간을 앞에('YYYY-MM~YYYY-MM' · 'YYYY-MM~현재') 쓴다(사용자 11-20).
@@ -144,61 +146,67 @@ public final class HeadDocBuilder {
         int nActing = acting ? notes.ref(srcOf(fields, "ACTING"), false) : 0;   // 권한대행이 '아니오'면 줄도 출처도 없다
 
         List<DocModel.Block> blocks = new ArrayList<DocModel.Block>();
-        blocks.add(new DocModel.Heading("참고자료 " + refNo + ". 「" + nz(instName) + "」 기관장 정보", 14));
+        blocks.add(titlePara(instName, name, pos));
 
-        List<DocModel.Block> personal = new ArrayList<DocModel.Block>();
-        if (photo != null) {
-            if (photo.picture != null) {
-                personal.add(photo.picture);
-                List<DocModel.Run> cap = new ArrayList<DocModel.Run>();
-                cap.add(DocModel.Run.of("사진 이용 조건: " + photo.licenseName));
-                cap.add(DocModel.Run.sup(String.valueOf(nPhoto)));
-                personal.add(new DocModel.Para(cap, DocModel.Bullet.NONE, 0, 8, DocModel.Align.LEFT));
-            } else {
-                personal.add(DocModel.Para.plain(photo.notice));
-            }
-        }
+        // 줄 모음(■): 성명 → 나이 → 직위+임기(줄바꿈으로 이어 붙임) → 첫 취임일
         List<DocModel.Block> lines = new ArrayList<DocModel.Block>();
         if (!name.isEmpty()) {
-            lines.add(circle("성명: " + name, marks(nName)));
-        }
-        if (!pos.isEmpty() || acting) {
-            lines.add(circle("직위: " + pos + (acting ? "(권한대행)" : ""), marks(nPos, nActing)));
+            lines.add(square("성 명 : " + name, marks(nName)));
         }
         if (age != null) {
-            lines.add(circle("나이: 만 " + age + "세", marks(nAge)));
+            lines.add(square("만 " + age + "세", marks(nAge)));
         }
-        if (!first.isEmpty()) {
-            lines.add(circle("첫 취임일: " + first, marks(nFirst)));
+        List<DocModel.Run> posRuns = new ArrayList<DocModel.Run>();
+        if (!pos.isEmpty() || acting) {
+            posRuns.add(DocModel.Run.of(pos + (acting ? "(권한대행)" : "")));
+            String pm = marks(nPos, nActing);
+            if (!pm.isEmpty()) {
+                posRuns.add(DocModel.Run.sup(pm));
+            }
         }
         if (!start.isEmpty() || !end.isEmpty()) {
-            List<DocModel.Run> runs = new ArrayList<DocModel.Run>();
-            boolean same = !start.isEmpty() && !end.isEmpty() && nStart == nEnd;   // 시작·끝이 같은 출처면 표식 하나만
-            runs.add(DocModel.Run.of("현 임기: " + start));
-            if (!start.isEmpty() && !same) {
-                runs.add(DocModel.Run.sup(marks(nStart)));
-            }
-            runs.add(DocModel.Run.of(" ~ " + end));
-            if (!end.isEmpty()) {
-                runs.add(DocModel.Run.sup(marks(nEnd)));
-            }
-            lines.add(DocModel.Para.of(DocModel.Bullet.CIRCLE_O, 0, runs.toArray(new DocModel.Run[0])));
+            posRuns.addAll(termRuns(start, end, nStart, nEnd, posRuns.isEmpty() ? "" : "\n"));   // 글머리 아래 줄에 임기 '(시작 ~ 끝)'
+        }
+        if (!posRuns.isEmpty()) {
+            lines.add(squareRuns(posRuns));
+        }
+        if (!first.isEmpty()) {
+            lines.add(square("첫 취임일 : " + ymd(first), marks(nFirst)));
         }
         if (lines.isEmpty()) {
             lines.add(DocModel.Para.plain("확정된 값이 없습니다."));
         }
-        personal.addAll(lines);
 
-        List<List<DocModel.Cell>> rows = new ArrayList<List<DocModel.Cell>>();
-        rows.add(row("인적 사항", personal));
-        rows.add(row("학력", dashList(edu, nEdu)));
-        rows.add(row("경력", dashList(career, nCareer)));
-        rows.add(row("출처", notes.render(birth)));
-        blocks.add(new DocModel.Table(2, new double[]{18, 82}, rows, 0, false));
+        if (photo != null) {   // 왼쪽 사진(또는 안내 한 줄) + 오른쪽 줄 — 테두리 없는 2칸 표(참고 양식)
+            List<DocModel.Block> left = new ArrayList<DocModel.Block>();
+            if (photo.picture != null) {
+                left.add(photo.picture);
+                List<DocModel.Run> cap = new ArrayList<DocModel.Run>();
+                cap.add(DocModel.Run.of("사진 이용 조건: " + photo.licenseName));
+                cap.add(DocModel.Run.sup(String.valueOf(nPhoto)));
+                left.add(new DocModel.Para(cap, DocModel.Bullet.NONE, 0, 8, DocModel.Align.LEFT));
+            } else {
+                left.add(DocModel.Para.plain(photo.notice));
+            }
+            List<List<DocModel.Cell>> row = new ArrayList<List<DocModel.Cell>>();
+            row.add(Arrays.asList(DocModel.Cell.of(left), DocModel.Cell.of(lines)));
+            blocks.add(new DocModel.Table(2, new double[]{38, 62}, row, 0, true).withoutBorders());
+        } else {
+            blocks.addAll(lines);
+        }
 
+        blocks.add(sectionPara("[ 학 력 ]"));
+        blocks.addAll(eduList(edu, nEdu));
+        blocks.add(sectionPara("[ 경 력 ]"));
+        blocks.addAll(careerBlocks(career, nCareer));
+
+        // 출처 — 문서 맨 아래, 작은 글씨(공공누리 출처표시·감사 근거라 뺄 수 없다)
+        blocks.add(new DocModel.Para(Collections.singletonList(DocModel.Run.bold("출처")), DocModel.Bullet.NONE, 0, 9,
+                DocModel.Align.LEFT).withSpacing(14, 2));
+        blocks.addAll(notes.render(birth));
         blocks.add(new DocModel.Para(Collections.singletonList(DocModel.Run.of("확정된 값만 담았습니다. 기준일 " + nz(baseDate))),
-                DocModel.Bullet.NONE, 0, 9, DocModel.Align.LEFT));
-        return new DocModel(blocks);
+                DocModel.Bullet.NONE, 0, 8, DocModel.Align.LEFT).withSpacing(6, 0));
+        return new DocModel(blocks).withPageBorder();
     }
 
     // ── 사진 ────────────────────────────────────────────────────────────
@@ -303,10 +311,10 @@ public final class HeadDocBuilder {
         List<DocModel.Block> render(String birth) {
             List<DocModel.Block> out = new ArrayList<DocModel.Block>();
             for (int i = 0; i < list.size(); i++) {
-                out.add(DocModel.Para.plain((i + 1) + ". " + describe(list.get(i), birth)));
+                out.add(small((i + 1) + ". " + describe(list.get(i), birth)));
             }
             if (out.isEmpty()) {
-                out.add(DocModel.Para.plain("출처 정보가 없습니다."));
+                out.add(small("출처 정보가 없습니다."));
             }
             return out;
         }
@@ -351,13 +359,6 @@ public final class HeadDocBuilder {
 
     // ── 문단 ────────────────────────────────────────────────────────────
 
-    private static List<DocModel.Cell> row(String label, List<DocModel.Block> content) {
-        List<DocModel.Cell> r = new ArrayList<DocModel.Cell>();
-        r.add(DocModel.Cell.header(label));
-        r.add(DocModel.Cell.of(content));
-        return r;
-    }
-
     /** 0 이하는 뺀 번호를 쉼표로 이어 쓴다(중복 제거, 오름차순). 없으면 "". */
     private static String marks(int... ns) {
         TreeSet<Integer> set = new TreeSet<Integer>();
@@ -373,20 +374,127 @@ public final class HeadDocBuilder {
         return b.toString();
     }
 
-    private static DocModel.Para circle(String text, String marks) {
-        return marks.isEmpty() ? DocModel.Para.bullet(DocModel.Bullet.CIRCLE_O, text)
-                : DocModel.Para.of(DocModel.Bullet.CIRCLE_O, 0, DocModel.Run.of(text), DocModel.Run.sup(marks));
+    private static DocModel.Para small(String text) {
+        return new DocModel.Para(Collections.singletonList(DocModel.Run.of(text)), DocModel.Bullet.NONE, 0, 8, DocModel.Align.LEFT);
     }
 
-    private static List<DocModel.Block> dashList(List<Map<String, Object>> items, int[] nums) {
+    /** '{기관명} {이름} {직위} Profile' — 가운데·굵게·밑줄(참고 양식, 사용자 11-20). 빈 값은 건너뛴다. */
+    private static DocModel.Para titlePara(String inst, String name, String pos) {
+        StringBuilder b = new StringBuilder();
+        for (String s : new String[]{nz(inst).trim(), name, pos}) {
+            if (!s.isEmpty()) {
+                b.append(b.length() == 0 ? "" : " ").append(s);
+            }
+        }
+        b.append(b.length() == 0 ? "" : " ").append("Profile");
+        return new DocModel.Para(Collections.singletonList(DocModel.Run.bold(b.toString()).withUnderline()),
+                DocModel.Bullet.NONE, 0, 18, DocModel.Align.CENTER).withSpacing(18, 18);
+    }
+
+    private static DocModel.Para sectionPara(String text) {
+        return new DocModel.Para(Collections.singletonList(DocModel.Run.bold(text)), DocModel.Bullet.NONE, 0, 12,
+                DocModel.Align.LEFT).withSpacing(12, 4);
+    }
+
+    private static DocModel.Para square(String text, String marks) {
+        List<DocModel.Run> runs = new ArrayList<DocModel.Run>();
+        runs.add(DocModel.Run.of(text));
+        if (!marks.isEmpty()) {
+            runs.add(DocModel.Run.sup(marks));
+        }
+        return squareRuns(runs);
+    }
+
+    private static DocModel.Para squareRuns(List<DocModel.Run> runs) {
+        return new DocModel.Para(runs, DocModel.Bullet.SQUARE, 0, DocModel.Para.DEFAULT_PT, DocModel.Align.LEFT).withSpacing(0, 8);
+    }
+
+    /** 임기 '(2023.12 ~ 2027.12)' — 시작·끝 칸 출처 표식은 위첨자, 같은 출처면 끝에만. lead 는 앞에 붙일 줄바꿈. */
+    private static List<DocModel.Run> termRuns(String start, String end, int nStart, int nEnd, String lead) {
+        List<DocModel.Run> r = new ArrayList<DocModel.Run>();
+        boolean same = !start.isEmpty() && !end.isEmpty() && nStart == nEnd;
+        if (!start.isEmpty()) {
+            r.add(DocModel.Run.of(lead + "(" + ym(start)));
+            if (!same) {
+                r.add(DocModel.Run.sup(marks(nStart)));
+            }
+            if (!end.isEmpty()) {
+                r.add(DocModel.Run.of(" ~ " + ym(end)));
+                r.add(DocModel.Run.sup(marks(nEnd)));
+            } else {
+                r.add(DocModel.Run.of(" ~"));
+            }
+        } else {
+            r.add(DocModel.Run.of(lead + "(~ " + ym(end)));
+            r.add(DocModel.Run.sup(marks(nEnd)));
+        }
+        r.add(DocModel.Run.of(")"));
+        return r;
+    }
+
+    /** 학력: ■ 내용 (YYYY.MM~YYYY.MM) — 최근 것부터(sortPeriod 가 이미 정렬). */
+    private static List<DocModel.Block> eduList(List<Map<String, Object>> items, int[] nums) {
         List<DocModel.Block> out = new ArrayList<DocModel.Block>();
         for (int i = 0; i < items.size(); i++) {
-            out.add(DocModel.Para.of(DocModel.Bullet.DASH, 0, DocModel.Run.of(itemText(items.get(i))), DocModel.Run.sup(String.valueOf(nums[i]))));
+            Map<String, Object> it = items.get(i);
+            String p = periodOf(it, false);
+            String text = str(it.get("value")) + (p.isEmpty() ? "" : " (" + p + ")");
+            out.add(DocModel.Para.of(DocModel.Bullet.SQUARE, 1, DocModel.Run.of(text), DocModel.Run.sup(String.valueOf(nums[i]))));
         }
         if (out.isEmpty()) {
             out.add(DocModel.Para.plain("확정된 값이 없습니다."));
         }
         return out;
+    }
+
+    /** 경력: 테두리 없는 2열 표(기간 | 내용)로 기간 열을 맞춘다. 기간이 없는 항목은 두 칸을 합쳐 값만. */
+    private static List<DocModel.Block> careerBlocks(List<Map<String, Object>> items, int[] nums) {
+        List<DocModel.Block> out = new ArrayList<DocModel.Block>();
+        if (items.isEmpty()) {
+            out.add(DocModel.Para.plain("확정된 값이 없습니다."));
+            return out;
+        }
+        List<List<DocModel.Cell>> rows = new ArrayList<List<DocModel.Cell>>();
+        for (int i = 0; i < items.size(); i++) {
+            Map<String, Object> it = items.get(i);
+            String p = periodOf(it, true);
+            DocModel.Run val = DocModel.Run.of(str(it.get("value")));
+            DocModel.Run sup = DocModel.Run.sup(String.valueOf(nums[i]));
+            if (p.isEmpty()) {
+                rows.add(Collections.singletonList(DocModel.Cell.of(Collections.<DocModel.Block>singletonList(
+                        DocModel.Para.of(DocModel.Bullet.SQUARE, 0, val, sup))).withSpan(2, 1)));
+            } else {
+                rows.add(Arrays.asList(
+                        DocModel.Cell.of(Collections.<DocModel.Block>singletonList(DocModel.Para.of(DocModel.Bullet.SQUARE, 0, DocModel.Run.of(p)))),
+                        DocModel.Cell.of(Collections.<DocModel.Block>singletonList(DocModel.Para.of(DocModel.Bullet.NONE, 0, val, sup)))));
+            }
+        }
+        out.add(new DocModel.Table(2, new double[]{34, 66}, rows, 0, true).withoutBorders());
+        return out;
+    }
+
+    /** 기간: spaced 면 'A ~ B'(경력), 아니면 'A~B'(학력). 시작만이면 '~현재', 끝만이면 '~B', 둘 다 없으면 "". 저장값 'YYYY-MM' 을 'YYYY.MM' 으로, 연도만 값은 그대로. */
+    private static String periodOf(Map<String, Object> i, boolean spaced) {
+        String from = ym(str(i.get("from")).trim());
+        String to = ym(str(i.get("to")).trim());
+        String tilde = spaced ? " ~ " : "~";
+        if (!from.isEmpty() && !to.isEmpty()) {
+            return from + tilde + to;
+        }
+        if (!from.isEmpty()) {
+            return from + tilde + "현재";
+        }
+        return to.isEmpty() ? "" : (spaced ? "~ " : "~") + to;
+    }
+
+    /** 'YYYY-MM' 또는 'YYYY-MM-DD' → 'YYYY.MM'. 그 밖(연도만 등)은 그대로. 표시할 때만 바꾼다. */
+    private static String ym(String s) {
+        return s.matches("\\d{4}-\\d{2}(-\\d{2})?") ? s.substring(0, 4) + "." + s.substring(5, 7) : s;
+    }
+
+    /** 'YYYY-MM-DD' → 'YYYY.MM.DD'(첫 취임일). 그 밖은 ym 과 같다. */
+    private static String ymd(String s) {
+        return s.matches("\\d{4}-\\d{2}-\\d{2}") ? s.replace('-', '.') : ym(s);
     }
 
     /** 최근 것이 위로 — 끝 연월이 없으면 현재 진행으로 보아 맨 위(시작도 없으면 맨 아래). 키·문자열 비교·안정 정렬 모두 headcard.js sortPeriod 와 같다. */
@@ -405,17 +513,6 @@ public final class HeadDocBuilder {
         String from = str(it.get("from")).trim();
         String to = str(it.get("to")).trim();
         return (!to.isEmpty() ? to : (!from.isEmpty() ? "9999-99" : "0000-00")) + "|" + from;
-    }
-
-    /** 기간을 앞에: 'YYYY-MM~YYYY-MM' · 시작만 있으면 'YYYY-MM~현재' · 끝만 있으면 '~YYYY-MM'(카드와 같음). 연도만 저장된 값은 그대로. 기간이 없으면 값만. */
-    private static String itemText(Map<String, Object> i) {
-        String v = str(i.get("value"));
-        String from = str(i.get("from")).trim();
-        String to = str(i.get("to")).trim();
-        String period = !from.isEmpty() && !to.isEmpty() ? from + "~" + to
-                : !from.isEmpty() ? from + "~현재"
-                : !to.isEmpty() ? "~" + to : "";
-        return period.isEmpty() ? v : period + " " + v;
     }
 
     // ── 값 꺼내기 ───────────────────────────────────────────────────────

@@ -95,10 +95,11 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
         byte[] b = bytes(r);
         String xml = documentXml(b);
         String instName = jdbc.queryForObject("SELECT NAME_KO FROM INSTITUTIONS WHERE INSTITUTION_ID=?", String.class, INST);
-        assertTrue(xml, xml.contains("참고자료 1."));
-        assertTrue(xml.contains("「" + instName + "」"));
+        assertTrue(xml, xml.contains(instName + " 홍길동 구청장 Profile"));   // 참고 양식 제목(사용자 11-20)
+        assertFalse("옛 제목 없음", xml.contains("참고자료"));
         assertTrue("확정 이름", xml.contains("홍길동"));
-        assertTrue(xml.contains("2018-07-01"));
+        assertTrue(xml.contains("첫 취임일 : 2018.07.01"));
+        assertFalse("저장 형식은 표시에 안 나온다", xml.contains("2018-07-01"));
         assertFalse("후보 값 없음", xml.contains("후보직위Z"));
         assertFalse("사번 없음", xml.contains(L1) || xml.contains(T1) || xml.contains(T2));
         assertFalse("링크 없음", xml.contains("hyperlink"));
@@ -108,11 +109,11 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
     }
 
     @Test
-    public void ref_no는_제목에_들어가고_형식_밖이면_400이다() throws Exception {
+    public void ref_no는_형식_검사만_하고_제목에는_나오지_않는다() throws Exception {
         addHeadOk(INST, L1, "홍길동", "구청장");
         MvcResult ok = docx(path(INST) + "?ref_no=3", T1, true);
         assertEquals(text(ok), 200, ok.getResponse().getStatus());
-        assertTrue(documentXml(bytes(ok)).contains("참고자료 3."));
+        assertFalse(documentXml(bytes(ok)).contains("참고자료"));
         for (String bad : new String[]{"abc", "0", "21", "-1", "100"}) {
             MvcResult r = docx(path(INST) + "?ref_no=" + bad, T1, true);
             assertEquals(bad, 400, r.getResponse().getStatus());
@@ -240,14 +241,14 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
         assertEquals(text(r), 200, r.getResponse().getStatus());
         byte[] b = bytes(r);
         String xml = documentXml(b);
-        assertTrue(xml.contains("성명: 홍길동"));
-        assertTrue(xml.contains("직위: 구청장"));
+        assertTrue(xml.contains("성 명 : 홍길동"));
+        assertTrue(xml.contains("■ 구청장"));
         assertFalse("값 없는 줄은 생략", xml.contains("첫 취임일"));
-        assertFalse("값 없는 줄은 생략", xml.contains("현 임기"));
+        assertFalse("임기 줄도 생략", xml.contains("(~") || xml.contains(" ~)"));
         assertFalse("null 글자 없음", xml.contains(">null<") || xml.contains("null ~") || xml.contains("~ null"));
         assertTrue("학력·경력 빈 칸 안내 문구", xml.contains("확정된 값이 없습니다."));
         try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(b))) {   // 열리는 문서
-            assertFalse(d.getTables().isEmpty());
+            assertFalse(d.getBodyElements().isEmpty());
         }
     }
 

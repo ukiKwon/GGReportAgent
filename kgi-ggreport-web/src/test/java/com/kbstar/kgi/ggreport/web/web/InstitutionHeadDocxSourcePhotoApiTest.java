@@ -165,7 +165,9 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         MvcResult r = docx();
         assertEquals(text(r), 200, r.getResponse().getStatus());
         String xml = documentXml(bytes(r));
-        assertTrue(xml.contains("나이: 만 " + age + "세"));
+        assertTrue(xml.contains("만 " + age + "세"));
+        assertFalse("옛 라벨 없음", xml.contains("나이:"));
+        assertFalse("YYYY년생 표기 없음", xml.contains("년생"));
         assertFalse(xml.contains(BIRTH));
         assertFalse(xml.contains("생년월일"));
         assertEquals("나이 출처도 같은 출처라 목록에 한 번", 1, occurrences(xml, "「시험 출처 문서」"));
@@ -186,9 +188,11 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         assertTrue("현재 진행이 맨 위", xml.indexOf("경력진행중B") < xml.indexOf("경력최근C"));
         assertTrue(xml.indexOf("경력최근C") < xml.indexOf("경력옛날A"));
         assertTrue(xml.indexOf("학력나중F") < xml.indexOf("학력먼저E"));
-        assertTrue("진행 중은 ~현재", xml.contains("2019-07~현재 경력진행중B"));
-        assertTrue("기간이 값 앞에", xml.contains("2010-03~2018-12 경력최근C"));
-        assertFalse("옛 형식 없음", xml.contains("(2010-03 ~"));
+        assertTrue("진행 중은 ~ 현재", xml.contains("2019.07 ~ 현재"));
+        assertTrue("기간 YYYY.MM", xml.contains("2010.03 ~ 2018.12"));
+        assertTrue("학력은 내용 뒤 괄호", xml.contains("학력먼저E (1990.03~1994.02)"));
+        assertTrue("기간이 값 앞(경력)", xml.indexOf("2010.03 ~ 2018.12") < xml.indexOf("경력최근C"));
+        assertFalse("저장 형식 없음", xml.contains("2019-07") || xml.contains("2010-03"));
     }
 
     @Test

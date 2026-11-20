@@ -16,7 +16,7 @@ public final class DocModel {
 
     public static final int MAX_TABLE_DEPTH = 2;
 
-    public enum Bullet { NONE, CIRCLE_O, DASH }
+    public enum Bullet { NONE, CIRCLE_O, DASH, SQUARE }
 
     public enum Shade { NONE, HEADER, HATCH }
 
@@ -27,9 +27,24 @@ public final class DocModel {
     }
 
     private final List<Block> blocks;
+    private final boolean pageBorder;
 
     public DocModel(List<Block> blocks) {
+        this(blocks, false);
+    }
+
+    private DocModel(List<Block> blocks, boolean pageBorder) {
         this.blocks = Collections.unmodifiableList(new ArrayList<Block>(blocks));
+        this.pageBorder = pageBorder;
+    }
+
+    /** 같은 내용에 쪽 전체 테두리(가는 선)를 켠 새 모델 — 기관장 프로필 양식용(추가만, e4 11-20). */
+    public DocModel withPageBorder() {
+        return new DocModel(blocks, true);
+    }
+
+    public boolean isPageBorder() {
+        return pageBorder;
     }
 
     public List<Block> getBlocks() {
@@ -42,11 +57,26 @@ public final class DocModel {
         private final String text;
         private final boolean bold;
         private final boolean superscript;
+        private final boolean underline;
 
         public Run(String text, boolean bold, boolean superscript) {
+            this(text, bold, superscript, false);
+        }
+
+        private Run(String text, boolean bold, boolean superscript, boolean underline) {
             this.text = text == null ? "" : text;
             this.bold = bold;
             this.superscript = superscript;
+            this.underline = underline;
+        }
+
+        /** 같은 글자에 밑줄을 더한 새 Run(추가만). */
+        public Run withUnderline() {
+            return new Run(text, bold, superscript, true);
+        }
+
+        public boolean isUnderline() {
+            return underline;
         }
 
         public static Run of(String text) {
@@ -105,8 +135,14 @@ public final class DocModel {
         private final int level;
         private final int size;
         private final Align align;
+        private final int spaceBeforePt;   // -1 = 기본(앞 0)
+        private final int spaceAfterPt;    // -1 = 기본(뒤 2pt)
 
         public Para(List<Run> runs, Bullet bullet, int level, int size, Align align) {
+            this(runs, bullet, level, size, align, -1, -1);
+        }
+
+        private Para(List<Run> runs, Bullet bullet, int level, int size, Align align, int spaceBeforePt, int spaceAfterPt) {
             if (level < 0 || level > 2) {
                 throw new IllegalArgumentException("level 0~2");
             }
@@ -118,6 +154,24 @@ public final class DocModel {
             this.level = level;
             this.size = size;
             this.align = align == null ? Align.LEFT : align;
+            this.spaceBeforePt = spaceBeforePt;
+            this.spaceAfterPt = spaceAfterPt;
+        }
+
+        /** 앞·뒤 간격(pt, 0~72)을 정한 새 문단(추가만). */
+        public Para withSpacing(int beforePt, int afterPt) {
+            if (beforePt < 0 || beforePt > 72 || afterPt < 0 || afterPt > 72) {
+                throw new IllegalArgumentException("para spacing");
+            }
+            return new Para(runs, bullet, level, size, align, beforePt, afterPt);
+        }
+
+        public int getSpaceBeforePt() {
+            return spaceBeforePt;
+        }
+
+        public int getSpaceAfterPt() {
+            return spaceAfterPt;
         }
 
         public static Para plain(String text) {
@@ -290,6 +344,7 @@ public final class DocModel {
         private final int headerRows;
         private final boolean rowsCantSplit;
         private final int depth;
+        private final boolean borderless;
 
         /**
          * @param colWidthsPct null 이거나 열 수와 같은 길이(양수). 합이 100 이 아니어도 비율로 쓴다.
@@ -297,6 +352,10 @@ public final class DocModel {
          * @param rowsCantSplit 행을 쪽 사이에서 자르지 않는다 — 겉 표(긴 칸)에는 false, 작은 표·평가표에는 true
          */
         public Table(int columns, double[] colWidthsPct, List<List<Cell>> rows, int headerRows, boolean rowsCantSplit) {
+            this(columns, colWidthsPct, rows, headerRows, rowsCantSplit, false);
+        }
+
+        private Table(int columns, double[] colWidthsPct, List<List<Cell>> rows, int headerRows, boolean rowsCantSplit, boolean borderless) {
             if (columns < 1 || columns > 20) {
                 throw new IllegalArgumentException("columns 1~20");
             }
@@ -333,7 +392,17 @@ public final class DocModel {
             this.rows = Collections.unmodifiableList(copy);
             this.headerRows = headerRows;
             this.rowsCantSplit = rowsCantSplit;
+            this.borderless = borderless;
             layout();   // 만들 때 격자를 검증한다
+        }
+
+        /** 같은 표를 테두리 없이 그리는 새 표(사진+정보 배치 등, 추가만). */
+        public Table withoutBorders() {
+            return new Table(columns, colWidthsPct, rows, headerRows, rowsCantSplit, true);
+        }
+
+        public boolean isBorderless() {
+            return borderless;
         }
 
         public int getColumns() {

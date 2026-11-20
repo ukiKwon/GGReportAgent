@@ -43,6 +43,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STShd;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblLayoutType;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblWidth;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STUnderline;
 import org.openxmlformats.schemas.officeDocument.x2006.sharedTypes.STVerticalAlignRun;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STVerticalJc;
 
@@ -101,7 +102,7 @@ public final class DocxKit {
         try (XWPFDocument d = new XWPFDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             CUR_DOC.set(d);
             final CTBody body = d.getDocument().getBody();
-            final CTSectPr sect = page(body);
+            final CTSectPr sect = page(body, doc.isPageBorder());
             Sink bodySink = new Sink() {
                 @Override
                 public XmlCursor open() {
@@ -121,7 +122,7 @@ public final class DocxKit {
         }
     }
 
-    private static CTSectPr page(CTBody body) {
+    private static CTSectPr page(CTBody body, boolean pageBorder) {
         CTSectPr s = body.isSetSectPr() ? body.getSectPr() : body.addNewSectPr();
         CTPageSz sz = s.isSetPgSz() ? s.getPgSz() : s.addNewPgSz();
         sz.setW(BigInteger.valueOf(PAGE_W));
@@ -134,7 +135,31 @@ public final class DocxKit {
         mar.setHeader(BigInteger.valueOf(709));
         mar.setFooter(BigInteger.valueOf(709));
         mar.setGutter(BigInteger.ZERO);
+        if (pageBorder) {
+            addPageBorder(s);
+        }
         return s;
+    }
+
+    /** 쪽 전체 가는 선(0.5pt) 테두리 — 글 영역에서 20pt 바깥. pgMar 바로 뒤(스키마 순서)에 끼운다. 타입 클래스 없이 커서로 쓴다(lite 스키마 의존 회피). */
+    private static void addPageBorder(CTSectPr s) {
+        XmlCursor c = s.getPgMar().newCursor();
+        try {
+            c.toEndToken();
+            c.toNextToken();   // pgMar 끝 다음
+            c.beginElement(new QName(W, "pgBorders"));
+            c.insertAttributeWithValue(new QName(W, "offsetFrom"), "text");
+            for (String side : new String[]{"top", "left", "bottom", "right"}) {
+                c.beginElement(new QName(W, side));
+                c.insertAttributeWithValue(new QName(W, "val"), "single");
+                c.insertAttributeWithValue(new QName(W, "sz"), "4");
+                c.insertAttributeWithValue(new QName(W, "space"), "20");
+                c.insertAttributeWithValue(new QName(W, "color"), "000000");
+                c.toNextToken();   // 이 변 요소의 끝 다음
+            }
+        } finally {
+            c.dispose();
+        }
     }
 
     // ── 블록 ────────────────────────────────────────────────────────────
@@ -207,8 +232,8 @@ public final class DocxKit {
         CTP p = insert(sink, "p", CTP.class);
         CTPPr pPr = p.addNewPPr();
         CTSpacing sp = pPr.addNewSpacing();
-        sp.setBefore(BigInteger.ZERO);
-        sp.setAfter(BigInteger.valueOf(40));
+        sp.setBefore(BigInteger.valueOf(para.getSpaceBeforePt() >= 0 ? para.getSpaceBeforePt() * 20L : 0L));
+        sp.setAfter(BigInteger.valueOf(para.getSpaceAfterPt() >= 0 ? para.getSpaceAfterPt() * 20L : 40L));
         DocModel.Align a = para.getAlign() != DocModel.Align.LEFT ? para.getAlign() : cellAlign;
         if (a == DocModel.Align.CENTER) {
             pPr.addNewJc().setVal(STJc.CENTER);
@@ -217,7 +242,8 @@ public final class DocxKit {
         }
         String prefix = "";
         if (para.getBullet() != DocModel.Bullet.NONE) {
-            prefix = para.getBullet() == DocModel.Bullet.CIRCLE_O ? "ㅇ " : "- ";
+            prefix = para.getBullet() == DocModel.Bullet.CIRCLE_O ? "ㅇ "
+                    : para.getBullet() == DocModel.Bullet.SQUARE ? "■ " : "- ";
             int hanging = para.getSize() * 20;   // 글자 크기만큼 내어쓰기(글머리 + 공백 폭 근사)
             CTInd ind = pPr.addNewInd();
             ind.setLeft(BigInteger.valueOf(hanging + para.getLevel() * 260L));
@@ -227,7 +253,7 @@ public final class DocxKit {
         for (DocModel.Run r : para.getRuns()) {
             String text = first ? prefix + r.getText() : r.getText();
             first = false;
-            emitRun(p, text, para.getSize(), r.isBold(), r.isSuperscript());
+            emitRun(p, text, para.getSize(), r.isBold(), r.isSuperscript(), r.isUnderline());
         }
         if (para.getRuns().isEmpty() && !prefix.isEmpty()) {
             emitRun(p, prefix, para.getSize(), false, false);
@@ -236,18 +262,22 @@ public final class DocxKit {
 
     /** 한 줄바꿈마다 따로 run — CTR 안에서 t 와 br 을 섞으면 순서가 꼬일 수 있다. */
     private static void emitRun(CTP p, String text, int size, boolean bold, boolean superscript) {
+        emitRun(p, text, size, bold, superscript, false);
+    }
+
+    private static void emitRun(CTP p, String text, int size, boolean bold, boolean superscript, boolean underline) {
         String[] lines = clean(text).split("\n", -1);
         for (int i = 0; i < lines.length; i++) {
             if (i > 0) {
                 CTR br = p.addNewR();
-                fmt(br, size, bold, superscript);
+                fmt(br, size, bold, superscript, underline);
                 br.addNewBr();
             }
             if (lines[i].isEmpty()) {
                 continue;
             }
             CTR r = p.addNewR();
-            fmt(r, size, bold, superscript);
+            fmt(r, size, bold, superscript, underline);
             CTText t = r.addNewT();
             t.setStringValue(lines[i]);
             t.setSpace(SpaceAttribute.Space.PRESERVE);
@@ -255,6 +285,10 @@ public final class DocxKit {
     }
 
     private static void fmt(CTR r, int size, boolean bold, boolean superscript) {
+        fmt(r, size, bold, superscript, false);
+    }
+
+    private static void fmt(CTR r, int size, boolean bold, boolean superscript, boolean underline) {
         CTRPr pr = r.addNewRPr();
         CTFonts f = pr.addNewRFonts();
         f.setAscii(FONT);
@@ -264,6 +298,9 @@ public final class DocxKit {
             pr.addNewB();
         }
         pr.addNewSz().setVal(BigInteger.valueOf(size * 2L));
+        if (underline) {
+            pr.addNewU().setVal(STUnderline.SINGLE);
+        }
         if (superscript) {
             pr.addNewVertAlign().setVal(STVerticalAlignRun.SUPERSCRIPT);
         }
@@ -356,12 +393,14 @@ public final class DocxKit {
         tw.setType(STTblWidth.DXA);
         tw.setW(BigInteger.valueOf(widthTw));
         CTTblBorders bd = pr.addNewTblBorders();
-        border(bd.addNewTop());
-        border(bd.addNewLeft());
-        border(bd.addNewBottom());
-        border(bd.addNewRight());
-        border(bd.addNewInsideH());
-        border(bd.addNewInsideV());
+        CTBorder[] sides = {bd.addNewTop(), bd.addNewLeft(), bd.addNewBottom(), bd.addNewRight(), bd.addNewInsideH(), bd.addNewInsideV()};
+        for (CTBorder side : sides) {
+            if (t.isBorderless()) {
+                side.setVal(STBorder.NIL);   // 테두리 없는 표(추가만, 기관장 프로필)
+            } else {
+                border(side);
+            }
+        }
         pr.addNewTblLayout().setType(STTblLayoutType.FIXED);
         CTTblCellMar mar = pr.addNewTblCellMar();
         for (CTTblWidth side : new CTTblWidth[]{mar.addNewTop(), mar.addNewLeft(), mar.addNewBottom(), mar.addNewRight()}) {

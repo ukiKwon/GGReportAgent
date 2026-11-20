@@ -218,7 +218,7 @@ public class InstitutionHeadBirthDateApiTest extends HeadApiTestBase {
         String xml = documentXml(r.getResponse().getContentAsByteArray());
         long age = java.time.temporal.ChronoUnit.YEARS.between(LocalDate.parse(BIRTH), LocalDate.parse(Times.todayKst()));
         assertTrue(xml.contains("홍길동"));
-        assertTrue("나이 줄", xml.contains("나이: 만 " + age + "세"));
+        assertTrue("나이 줄", xml.contains("만 " + age + "세"));
         assertFalse("날짜 없음", xml.contains(BIRTH));
         assertFalse("라벨 없음", xml.contains("생년월일"));
         assertFalse("나이 출처는 종류·확인일만 — 제목은 문서에 없다(security 11-20 S1)", xml.contains("출생자료출처ZQ"));
