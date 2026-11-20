@@ -239,7 +239,7 @@ test('rowHtml(11-17 최종형): 이름 칩 → 종료 D-n(크게) → 둘째 줄
   // 둘째 줄: 지역 · 다음 입찰 공고(예정일 = effectiveBid, 추정). 옛 'D-30' 입찰 칩(dg-day)은 없다
   assert.ok(/<span class="meta">[^<]*· 다음 입찰 공고 <span class="d">\d{4}-\d{2}-\d{2}<\/span> 추정/.test(h) && h.indexOf('dg-day') < 0);
   assert.ok(h.indexOf('회차 소식: 2026 회차 국민은행 수성(기사 2026-11-04)') >= 0 && h.indexOf('확정</span>') < 0);
-  assert.ok(h.indexOf('<span class="hb-slot hb-news">국민은행 재약정 예정<span class="src">(기사)</span></span>') >= 0 && h.indexOf('hb-bank') < 0 && h.indexOf('hb-new') < 0 && h.indexOf('hb-stay') < 0);   // 회차 소식이 수성 → CI 칩(11-19)
+  assert.ok(h.indexOf('<span class="hb-slot hb-news">국민은행 재약정 예정<span class="src">(기사)</span></span>') >= 0 && h.indexOf('hb-bank') < 0 && !/hb-new(?!s)/.test(h) && h.indexOf('hb-stay') < 0);   // 회차 소식이 수성 → CI 칩(11-19)
   assert.ok(h.indexOf('hb-leaves') < 0);
   assert.ok(h.indexOf('<span class="hb-end') < h.indexOf('<span class="meta">'));              // 줄 순서: 이름 → 종료 → 메타
   kbb.SHOW_NEWS = false;

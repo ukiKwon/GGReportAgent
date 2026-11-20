@@ -42,7 +42,7 @@ test('C1 우선순위: 확인 줄이 기사 줄보다 먼저, 1·2금고가 다�
 test('C1 마크업: 기사 칩에는 hb-bank·hb-new·체크 svg가 없고 (기사) 글자가 있다, 이스케이프, 확인 칩은 체크 svg', function () {
   const news = kbb.nextChipHtml({ cls: 'hb-news', text: '국민은행 재약정 예정', src: true });
   assert.strictEqual(news, '<span class="hb-slot hb-news">국민은행 재약정 예정<span class="src">(기사)</span></span>');
-  assert.ok(news.indexOf('hb-bank') < 0 && news.indexOf('hb-new') < 0 && news.indexOf('<svg') < 0);
+  assert.ok(news.indexOf('hb-bank') < 0 && !/hb-new(?!s)/.test(news) && news.indexOf('<svg') < 0);
   const ok = kbb.nextChipHtml(chip(V, [], [L('국민은행', 'DOC_NO')]));
   assert.ok(ok.indexOf('class="hb-slot hb-bank" data-bank="kb"><svg') >= 0 && ok.indexOf('국민은행 재약정<span class="sr-only"> (다음 약정, 선정 공고·협약으로 확인)</span></span>') > 0);
   const nw = kbb.nextChipHtml(chip([], NX, [L('국민은행', 'DOC_NO')]));
