@@ -3,7 +3,7 @@
 마지막 갱신: 2026-11-20(금) 12:00 (main) — 오늘 요약: `handoff/2026-11-20_summary.md`
 
 ## 다음 순서 (main, 묻지 않고 실행)
-0. **환경**: MySQL `C:\dev\mysql-start.cmd`, 8080(main 담당, kgi-ggreport-web에서 `java -Xmx768m -jar target/kgi-ggreport-web.war`), `ListAgents`(재시작 뒤 이름이 바뀜 — 각 세션에 정체 확인). PC 메모리가 빠듯하다: mvn은 `MAVEN_OPTS=-Xmx384m`, `-DargLine="-Xmx768m"`. 로컬 DB는 047·048·049·051·055 적용(049·055 사용자 11-20).
+0. **환경**: MySQL `C:\dev\mysql-start.cmd`, 8080(main 담당, **커밋된 HEAD만** — `git worktree add --detach c:/github/_gg_build HEAD` 뒤 그 폴더 kgi-ggreport-web에서 `mvn -q -o package -DskipTests`, 실행은 main 폴더 kgi-ggreport-web에서 `java -Xmx768m -jar c:/github/_gg_build/kgi-ggreport-web/target/kgi-ggreport-web.war` — 작업 트리 빌드는 다른 세션 미커밋이 섞여 500, 11-20), `ListAgents`(재시작 뒤 이름이 바뀜 — 각 세션에 정체 확인). PC 메모리가 빠듯하다: mvn은 `MAVEN_OPTS=-Xmx384m`, `-DargLine="-Xmx768m"`. 로컬 DB는 047·048·049·051·055·058 적용(11-20 사용자). IDE(VSCode Java·IntelliJ) 자동 빌드가 target/classes를 지워 시험이 깨질 수 있음 — 재실행.
 1. **사용자 실사용 확인**: 99 회의록 탭·100 S2 실사용 요청(절차는 NEXT 99·100).
 2. **100 S2 화면**(양식 작성 — design-reviewer → frontend-dev → qa) ∥ **S3(050)** fa와 PrepService.judgeFact 협의.
 3. **99 실화면 qa**(Playwright 복구 뒤) + 서버 이관 5건(design ade114bb 7절).
