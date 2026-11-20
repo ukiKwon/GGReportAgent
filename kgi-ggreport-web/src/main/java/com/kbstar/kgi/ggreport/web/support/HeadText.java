@@ -21,6 +21,7 @@ public final class HeadText {
     private static final Pattern DATE = Pattern.compile("[0-9]{4}-[0-9]{2}-[0-9]{2}");
     private static final Pattern PERIOD = Pattern.compile("([0-9]{4})(?:-([0-9]{2}))?");
     private static final LocalDate MIN_CHECKED = LocalDate.of(2000, 1, 1);
+    private static final LocalDate MIN_BIRTH = LocalDate.of(1920, 1, 1);
 
     private HeadText() {
     }
@@ -93,6 +94,17 @@ public final class HeadText {
 
     public static String optionalDate(String field, String v) {
         return v == null || v.isEmpty() ? null : requireDate(field, v);
+    }
+
+    /** 생년월일 — 실재 날짜, 1920-01-01 이상, 서울 오늘-18년 이하. 밖이면 400 INVALID_DATE(오류 문구에 입력값을 싣지 않는다). */
+    public static String requireBirthDate(String v) {
+        String d = requireDate("birth_date", v);
+        LocalDate day = LocalDate.parse(d);
+        LocalDate max = LocalDate.parse(Times.todayKst()).minusYears(18);
+        if (day.isBefore(MIN_BIRTH) || day.isAfter(max)) {
+            throw coded(400, "INVALID_DATE", "생년월일은 1920-01-01부터 만 18세 이상이 되는 날짜까지만 입력할 수 있습니다.");
+        }
+        return d;
     }
 
     /** 기간 YYYY 또는 YYYY-MM(1900~2100). 비어 있으면 null. */

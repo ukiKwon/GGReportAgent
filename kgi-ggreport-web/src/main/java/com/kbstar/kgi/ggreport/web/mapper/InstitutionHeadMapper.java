@@ -151,6 +151,9 @@ public interface InstitutionHeadMapper {
     /** CURRENT 머리의 CONFIRMED 단일 칸(이름·직위·권한대행·날짜 3종) 전부 — 목록·대기열 집계용. */
     List<InstHeadItem> selectCurrentConfirmedSingleItems();
 
+    /** CURRENT 머리의 CONFIRMED 단일 칸 전부(생년월일 포함) — 대기열(A2) 충돌 판정 전용. 목록(A1)은 위 메서드(생년월일 없음). */
+    List<InstHeadItem> selectCurrentConfirmedItemsForQueue();
+
     /** 열린(CANDIDATE) 칸 전부(기관이 있는 것) — headStatus 를 채운다. 대기열 집계용. */
     List<InstHeadItem> selectOpenCandidateItems();
 
@@ -160,7 +163,7 @@ public interface InstitutionHeadMapper {
     /** CURRENT 머리 중 ACTIVE 사진이 있는 머리 번호. */
     List<Long> selectHeadIdsWithActivePhoto();
 
-    /** CURRENT 중 빈 머리(권한대행 밖 확정 칸·ACTIVE 사진 없음) 번호. */
+    /** CURRENT 중 빈 머리(권한대행·생년월일 밖 확정 칸·ACTIVE 사진 없음) 번호. */
     List<Long> selectEmptyCurrentHeadIds();
 
     /** 매칭 대기 머리별 이름·직위(후보 칸)·열린 칸 수 — 열 HEAD_ID·NAME_VAL·POSITION_VAL·N. */

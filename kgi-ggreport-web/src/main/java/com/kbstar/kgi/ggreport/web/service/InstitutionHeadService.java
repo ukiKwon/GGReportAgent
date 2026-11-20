@@ -42,9 +42,9 @@ import java.util.regex.Pattern;
 public class InstitutionHeadService {
 
     static final Set<String> SINGLE = Collections.unmodifiableSet(new LinkedHashSet<String>(Arrays.asList(
-            "NAME", "POSITION", "ACTING", "FIRST_TAKE_OFFICE", "TERM_START", "TERM_END")));
+            "NAME", "POSITION", "ACTING", "FIRST_TAKE_OFFICE", "TERM_START", "TERM_END", "BIRTH_DATE")));
     static final Set<String> DATES = Collections.unmodifiableSet(new LinkedHashSet<String>(Arrays.asList(
-            "FIRST_TAKE_OFFICE", "TERM_START", "TERM_END")));
+            "FIRST_TAKE_OFFICE", "TERM_START", "TERM_END", "BIRTH_DATE")));
     static final int EDU_MAX = 10;
     static final int CAREER_MAX = 20;
     static final int OPEN_ITEM_MAX = 50;
@@ -155,7 +155,7 @@ public class InstitutionHeadService {
 
     /**
      * 빈 머리 — CURRENT 이지만 권한대행(ACTING) 밖의 확정 칸(이름·직위·날짜·학력·경력)과 ACTIVE 사진이 하나도 없다(확정 값을 모두 무효 처리한 결과).
-     * 서버는 이것을 '현 기관장 없음'으로 본다(11-13 사용자 결정 가). 화면 headcard.js hc.isEmptyHead 와 같은 기준이다(권한대행 '아니오'는 카드에 안 보이므로 뺀다).
+     * 서버는 이것을 '현 기관장 없음'으로 본다(11-13 사용자 결정 가). 화면 headcard.js hc.isEmptyHead 와 같은 기준이다(권한대행 '아니오'·생년월일은 카드에 안 보이므로 뺀다).
      * 호출자는 기관 행 잠금 뒤에 부른다(같은 기관의 쓰기는 거기서 직렬화된다).
      */
     static boolean isEmptyHead(InstitutionHeadMapper mapper, Long headId) {
@@ -365,6 +365,8 @@ public class InstitutionHeadService {
                 throw coded(400, "BAD_VALUE", "권한대행 여부는 0 또는 1 이어야 합니다.");
             }
             i.setValFlag(flag);
+        } else if ("BIRTH_DATE".equals(f)) {   // 후보 경로도 같은 addItem→fillValue 를 지난다(사용자 11-19: 생년월일 전체, 상세만)
+            i.setValDate(HeadText.requireBirthDate(in.getDate()));
         } else {   // 날짜 칸
             i.setValDate(HeadText.requireDate(f, in.getDate()));
         }
@@ -444,7 +446,7 @@ public class InstitutionHeadService {
         Map<String, List<InstHeadItem>> confirmed = new HashMap<>();   // "headId|field" → 확정 칸
         Map<String, List<InstHeadItem>> openBy = new HashMap<>();      // "headId|field" → 열린 후보 칸
         Set<String> instWithCurrent = new HashSet<>();
-        for (InstHeadItem i : mapper.selectCurrentConfirmedSingleItems()) {
+        for (InstHeadItem i : mapper.selectCurrentConfirmedItemsForQueue()) {
             addTo(confirmed, i.getHeadId() + "|" + i.getFieldCd(), i);
         }
         Set<Long> emptyHeads = new HashSet<>(mapper.selectEmptyCurrentHeadIds());
@@ -564,7 +566,7 @@ public class InstitutionHeadService {
                     continue;
                 }
                 sourceCount++;
-                if (!"ACTING".equals(i.getFieldCd())) {
+                if (!"ACTING".equals(i.getFieldCd()) && !"BIRTH_DATE".equals(i.getFieldCd())) {   // 카드에 안 보이는 칸은 빈 머리 판정에서 뺀다
                     shownCount++;
                 }
                 if (i.getCheckedOn() != null && (lastChecked == null || lastChecked.compareTo(i.getCheckedOn()) < 0)) {
@@ -593,6 +595,7 @@ public class InstitutionHeadService {
             h.put("first_take_office", fieldValue(fieldsOut, "FIRST_TAKE_OFFICE"));
             h.put("term_start", fieldValue(fieldsOut, "TERM_START"));
             h.put("term_end", fieldValue(fieldsOut, "TERM_END"));
+            h.put("birth_date", fieldValue(fieldsOut, "BIRTH_DATE"));   // 상세(A3)에서만 — 목록·대기열·Word 에는 없다
             h.put("fields", fieldsOut);
             h.put("education", edu);
             h.put("career", career);

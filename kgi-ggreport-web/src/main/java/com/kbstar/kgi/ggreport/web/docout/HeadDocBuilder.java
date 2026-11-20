@@ -40,12 +40,12 @@ public final class HeadDocBuilder {
 
     /**
      * 문서에 담을 확정 칸이 하나라도 있는지 — 권한대행 밖 확정 값·학력·경력 중 하나. 사진만 있거나 권한대행 칸만 있으면 false
-     * (그런 머리는 빈 문서가 되므로 호출부가 409 HEAD_EMPTY 로 막는다).
+     * (그런 머리는 빈 문서가 되므로 호출부가 409 HEAD_EMPTY 로 막는다). 생년월일은 문서에 넣지 않으므로 이 판정에서도 뺀다(사용자 11-19).
      */
     public static boolean hasContent(Map<String, Object> detail) {
         Map<String, Object> head = map(detail.get("head"));
         for (String key : map(head.get("fields")).keySet()) {
-            if (!"ACTING".equals(key)) {
+            if (!"ACTING".equals(key) && !"BIRTH_DATE".equals(key)) {
                 return true;
             }
         }

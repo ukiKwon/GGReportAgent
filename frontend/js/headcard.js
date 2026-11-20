@@ -49,7 +49,7 @@
   };
   hc.PHOTO_MAX_BYTES = 5 * 1024 * 1024;   // HeadPhotoService.MAX_FILE_BYTES
   hc.REASON_MAX = 200;
-  hc.EMPTY_IGNORE_FIELDS = ['ACTING'];   // 카드에 보이지 않아 '빈 기관장' 판정에서 빼는 확정 칸(보이지 않는 칸 BIRTH_DATE 등이 생기면 여기에 더한다)
+  hc.EMPTY_IGNORE_FIELDS = ['ACTING', 'BIRTH_DATE'];   // 카드에 보이지 않아 '빈 기관장' 판정에서 빼는 확정 칸(보이지 않는 칸 BIRTH_DATE 등이 생기면 여기에 더한다)
   const BLOCK = {
     LEAD_ONLY: '충돌하는 값은 영업팀장 또는 영업부장만 처리할 수 있습니다.',
     SELF_RESOLVE: '본인이 낸 값은 본인이 확정할 수 없습니다.',

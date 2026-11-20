@@ -1228,12 +1228,10 @@ test('사진 캡션: 모르는 이용 조건 코드는 코드 대신 이용 조�
 test('isEmptyHead: 카드에 안 보이는 확정 칸은 상수 목록(EMPTY_IGNORE_FIELDS)으로 뺀다', function () {
   const EMPTY_HEAD = { head_id: 7, name: '', position: '', acting: false, first_take_office: null, term_start: null, term_end: null, fields: {}, education: [], career: [], photo: null };
   const mk = function () { return { institution_id: '11010', head: Object.assign({}, EMPTY_HEAD, { fields: { BIRTH_DATE: field(9, '1970-01-01') } }), candidates: [], candidate_heads: [] }; };
-  assert.deepStrictEqual(hc.EMPTY_IGNORE_FIELDS, ['ACTING']);
-  hc.EMPTY_IGNORE_FIELDS.push('BIRTH_DATE');
-  try {
-    assert.strictEqual(hc.isEmptyHead(mk()), true);
-  } finally { hc.EMPTY_IGNORE_FIELDS.pop(); }
-  assert.strictEqual(hc.isEmptyHead(mk()), false);
+  assert.deepStrictEqual(hc.EMPTY_IGNORE_FIELDS, ['ACTING', 'BIRTH_DATE']);   // 서버 빈 머리 판정(055, NOT IN ('ACTING','BIRTH_DATE'))과 같은 기준
+  assert.strictEqual(hc.isEmptyHead(mk()), true);                                // 생년월일만 남은 머리는 빈 머리
+  const withName = mk(); withName.head.fields.NAME = field(1, '서지운');
+  assert.strictEqual(hc.isEmptyHead(withName), false);
 });
 
 test('CSS 블록(디자인 진단 6-1~6-6): 머리 주석 최소 12px, 띠 --panel2, 이름 16px, 꼬리 grid, 줄바꿈 keep-all, 복사 방지', function () {

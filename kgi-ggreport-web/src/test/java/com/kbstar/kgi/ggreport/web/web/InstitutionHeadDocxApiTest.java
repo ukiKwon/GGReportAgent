@@ -72,6 +72,9 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
         insertCandidateItem(head, INST, "POSITION", "후보직위Z", T2);   // 후보 값
         photoOk(INST, L1, head);                                          // 사진은 문서에 넣지 않는다
         int before = act("HEAD_DOCX", "OK");
+        // ACCESS_LOG 는 REQUIRES_NEW 라 시험 롤백에 안 지워진다 — 같은 JVM의 다른 시험이 같은 기관 docx 를 먼저 받으면 쌓이므로 전후 차이로 본다
+        String docxLog = "inst-head inst=" + INST + " code=HEAD_DOCX";
+        int logBefore = count("SELECT COUNT(*) FROM ACCESS_LOG WHERE DETAIL=?", docxLog);
 
         MvcResult r = docx(path(INST), T1, true);
         assertEquals(text(r), 200, r.getResponse().getStatus());
@@ -87,7 +90,7 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
         assertEquals(before + 1, act("HEAD_DOCX", "OK"));
         assertEquals("감사 행에 문서에 담은 현 기관장 번호가 들어간다", 1, count("SELECT COUNT(*) FROM INST_HEAD_ACT WHERE ACTION_CD='HEAD_DOCX'"
                 + " AND OUTCOME='OK' AND HEAD_ID=?", head));
-        assertEquals("접근 이력은 기관·코드만", 1, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE DETAIL=?", "inst-head inst=" + INST + " code=HEAD_DOCX"));
+        assertEquals("접근 이력은 기관·코드만", logBefore + 1, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE DETAIL=?", docxLog));
 
         byte[] b = bytes(r);
         String xml = documentXml(b);

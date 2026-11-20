@@ -151,9 +151,9 @@
     SELECT COUNT(*) FROM INST_HEAD_ITEM WHERE HEAD_ID = #{headId} AND STATE_CD = 'CANDIDATE'
   </select>
 
-  <!-- 빈 머리 판정(11-13 가) — 권한대행(ACTING) 밖의 확정 칸 수·ACTIVE 사진 수. 둘 다 0 이면 '현 기관장 없음'(화면 hc.isEmptyHead 와 같은 기준). 호출자는 기관 잠금 뒤에 부른다. -->
+  <!-- 빈 머리 판정(11-13 가) — 권한대행(ACTING)·생년월일(BIRTH_DATE, 카드에 안 보임) 밖의 확정 칸 수·ACTIVE 사진 수. 둘 다 0 이면 '현 기관장 없음'(화면 hc.isEmptyHead 와 같은 기준). 호출자는 기관 잠금 뒤에 부른다. -->
   <select id="countShownItems" resultType="int" flushCache="true">
-    SELECT COUNT(*) FROM INST_HEAD_ITEM WHERE HEAD_ID = #{headId} AND STATE_CD = 'CONFIRMED' AND FIELD_CD &lt;&gt; 'ACTING'
+    SELECT COUNT(*) FROM INST_HEAD_ITEM WHERE HEAD_ID = #{headId} AND STATE_CD = 'CONFIRMED' AND FIELD_CD NOT IN ('ACTING', 'BIRTH_DATE')
   </select>
 
   <select id="countActivePhotos" resultType="int" flushCache="true">
@@ -264,6 +264,16 @@
        AND i.FIELD_CD IN ('NAME', 'POSITION', 'ACTING', 'FIRST_TAKE_OFFICE', 'TERM_START', 'TERM_END')
   </select>
 
+  <!-- 대기열(A2) 충돌 판정 전용 — A1 과 같되 BIRTH_DATE 포함(상세 conflictOf 와 같은 기준). 값은 대기열 응답에 나가지 않는다. -->
+  <select id="selectCurrentConfirmedItemsForQueue" resultType="InstHeadItem" flushCache="true">
+    SELECT i.ITEM_ID, i.HEAD_ID, i.INSTITUTION_ID, i.FIELD_CD, i.STATE_CD, i.ORIGIN_CD, i.VAL_TEXT, i.VAL_DATE, i.VAL_FLAG,
+           i.SRC_KIND_CD, i.SRC_TITLE, i.CHECKED_ON, i.CREATED_BY, i.DECIDED_BY, h.STATUS_CD AS HEAD_STATUS
+      FROM INST_HEAD_ITEM i
+      JOIN INST_HEAD h ON h.HEAD_ID = i.HEAD_ID
+     WHERE h.STATUS_CD = 'CURRENT' AND i.STATE_CD = 'CONFIRMED'
+       AND i.FIELD_CD IN ('NAME', 'POSITION', 'ACTING', 'FIRST_TAKE_OFFICE', 'TERM_START', 'TERM_END', 'BIRTH_DATE')
+  </select>
+
   <select id="selectOpenCandidateItems" resultType="InstHeadItem" flushCache="true">
     SELECT i.ITEM_ID, i.HEAD_ID, i.INSTITUTION_ID, i.FIELD_CD, i.STATE_CD, i.ORIGIN_CD, i.VAL_TEXT, i.VAL_DATE, i.VAL_FLAG,
            i.SRC_KIND_CD, i.SRC_TITLE, i.CHECKED_ON, i.CREATED_BY, i.DECIDED_BY, h.STATUS_CD AS HEAD_STATUS
@@ -290,7 +300,7 @@
   <select id="selectEmptyCurrentHeadIds" resultType="long" flushCache="true">
     SELECT h.HEAD_ID FROM INST_HEAD h
      WHERE h.STATUS_CD = 'CURRENT'
-       AND NOT EXISTS (SELECT 1 FROM INST_HEAD_ITEM i WHERE i.HEAD_ID = h.HEAD_ID AND i.STATE_CD = 'CONFIRMED' AND i.FIELD_CD &lt;&gt; 'ACTING')
+       AND NOT EXISTS (SELECT 1 FROM INST_HEAD_ITEM i WHERE i.HEAD_ID = h.HEAD_ID AND i.STATE_CD = 'CONFIRMED' AND i.FIELD_CD NOT IN ('ACTING', 'BIRTH_DATE'))
        AND NOT EXISTS (SELECT 1 FROM INST_HEAD_PHOTO p WHERE p.HEAD_ID = h.HEAD_ID AND p.STATE_CD = 'ACTIVE')
   </select>
 

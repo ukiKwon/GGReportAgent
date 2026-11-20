@@ -115,4 +115,14 @@ public class InstHeadDdlPairTest {
         assertTrue(oracle.get(0).contains("('HEAD_STATUS', 'VOIDED',"));
         assertTrue(oracle.get(1).contains("('HEAD_EVENT', 'HEAD_VOID',"));
     }
+
+    @Test
+    public void 생년월일_055_두_파일의_INSERT_블록이_같고_1행이다() throws IOException {
+        List<String> oracle = inserts("oracle", "055_inst_head_birth_date.sql");
+        List<String> mysql = inserts("mysql", "055_inst_head_birth_date.sql");
+        assertEquals(1, oracle.size());
+        assertEquals(1, mysql.size());
+        assertEquals("글자 그대로 같다", oracle, mysql);
+        assertTrue(oracle.get(0), oracle.get(0).contains("'HEAD_FIELD', 'BIRTH_DATE', '생년월일', 9, 1"));
+    }
 }
