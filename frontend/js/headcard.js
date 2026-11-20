@@ -17,6 +17,7 @@
     open: 'open_card', refresh: 'refresh', headAdd: 'head_add', headConfirm: 'head_confirm', headReject: 'head_reject',
     itemAdd: 'item_add', itemConfirm: 'item_confirm', itemReject: 'item_reject', itemWithdraw: 'item_withdraw', itemVoid: 'item_void',
     photoUpload: 'photo_upload', photoView: 'photo_view', photoVoid: 'photo_void', photoRestore: 'photo_restore',   // photoRestore: 4단계(사진 변경 이력 화면)에서 쓴다
+    docx: 'head_docx',   // [워드 내려받기] — 서버 HeadUiIds 'head_docx'
   };
   hc.DEBOUNCE_MS = 400;   // 기관을 고른 뒤 이 시간 안에 다른 기관으로 옮기면 앞 기관은 읽지 않는다(열람 기록이 과하게 쌓이지 않게). 0이면 바로 읽는다(시험용)
   hc.SALES_ROLES = ['영업팀', '영업팀장', '영업부장'];
@@ -48,6 +49,7 @@
   };
   hc.PHOTO_MAX_BYTES = 5 * 1024 * 1024;   // HeadPhotoService.MAX_FILE_BYTES
   hc.REASON_MAX = 200;
+  hc.EMPTY_IGNORE_FIELDS = ['ACTING'];   // 카드에 보이지 않아 '빈 기관장' 판정에서 빼는 확정 칸(보이지 않는 칸 BIRTH_DATE 등이 생기면 여기에 더한다)
   const BLOCK = {
     LEAD_ONLY: '충돌하는 값은 영업팀장 또는 영업부장만 처리할 수 있습니다.',
     SELF_RESOLVE: '본인이 낸 값은 본인이 확정할 수 없습니다.',
@@ -66,6 +68,11 @@
     offline: '서버에 연결되면 기관장 정보를 볼 수 있습니다.',
     error: '기관장 정보를 불러오지 못했습니다.',
     network: '서버에 연결하지 못했습니다. 서버가 켜져 있는지 확인하세요.',
+    refBad: '1~20 사이 숫자를 넣으세요.',
+    docxOk: '워드 파일을 내려받았습니다.',
+    docxEmpty: '문서에 담을 확정된 기관장 정보가 없습니다. [기관장 편집]에서 이름·직위 등을 확정한 뒤 다시 받으세요.',
+    docxServer: '파일을 만들지 못했습니다. 열람 기록을 남기지 못하면 파일을 내보내지 않습니다. 잠시 뒤 다시 시도하세요.',
+    docxUi: '화면 오류로 처리하지 못했습니다. 화면을 다시 불러온 뒤(F5) 다시 시도하세요.',
   };
 
   // ── 순수: 값 도우미 ────────────────────────────────────────────────
@@ -87,6 +94,8 @@
     return s ? s.label : str(kind);
   }
   hc.licenseLabel = function (cd) { return LICENSE_NAMES[cd] || str(cd); };
+  hc.licenseKnown = function (cd) { return Object.prototype.hasOwnProperty.call(LICENSE_NAMES, str(cd)); };
+  hc.licenseShort = function (cd) { return hc.licenseLabel(cd).replace(/\(.*\)$/, ''); };   // 카드 캡션은 117px 한 줄 — '공공누리 제1유형(출처표시)' → '공공누리 제1유형'
   hc.isSales = function (role) { return hc.SALES_ROLES.indexOf(trim(role)) >= 0; };
   hc.isLead = function (role) { return hc.LEAD_ROLES.indexOf(trim(role)) >= 0; };
   // 서버 A3 응답(d)에 확정된 기관장이 없는가. head:null이거나, 확정 값을 모두 무효 처리해 이름·확정 항목·사진이 하나도 없는 빈 머리면 참.
@@ -97,7 +106,7 @@
     if (!h) return true;
     if (trim(h.name)) return false;
     // 권한대행 여부(ACTING)는 '아니오'도 확정 항목으로 남지만 카드에 보이지 않으므로 판정에서 뺀다(qa 11-13 P2-2)
-    if (h.fields && Object.keys(h.fields).some(function (k) { return k !== 'ACTING'; })) return false;
+    if (h.fields && Object.keys(h.fields).some(function (k) { return hc.EMPTY_IGNORE_FIELDS.indexOf(k) < 0; })) return false;
     if ((h.education || []).length || (h.career || []).length) return false;
     return !h.photo;
   };
@@ -158,9 +167,11 @@
     if (s.kind) parts.push(esc(srcLabel(s.kind)));
     const url = logic.safeHttpUrl(s.url);
     const title = trim(s.title);
-    if (url) parts.push('<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + esc(title || url) + '</a>');
-    else if (title) parts.push(esc(title));
-    if (s.checked_on) parts.push('확인 ' + esc(s.checked_on));
+    // 제목 안의 날짜(YYYY-MM-DD)는 하이픈에서 끊기지 않게 묶는다 — 이스케이프한 뒤에 감싼다(design 11-20 P3-A)
+    const nb = function (s) { return esc(s).replace(/\d{4}-\d{2}-\d{2}/g, '<span class="hc-nb">$&</span>'); };
+    if (url) parts.push('<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + (title ? nb(title) : esc(url)) + '</a>');
+    else if (title) parts.push(nb(title));
+    if (s.checked_on) parts.push('<span class="hc-ck">확인 ' + esc(s.checked_on) + '</span>');
     return '<span class="hc-src">' + parts.join(' · ') + '</span>';
   };
   function period(it) {
@@ -181,6 +192,29 @@
     return (list || []).slice().sort(function (a, b) { const x = key(a), y = key(b); return x < y ? 1 : (x > y ? -1 : 0); });
   }
 
+  // ── 순수: 출처 각주(카드 전체에서 하나) ──────────────────────────────
+  function fnref(n) { return '<sup class="hc-fnref" aria-hidden="true">' + n + '</sup><span class="sr-only">(출처 ' + n + ')</span>'; }
+  // 번호는 처음 부른 순서로 매긴다. 같은 출처(srcKey 같음)는 같은 번호. s가 없으면 '출처 없음' 각주.
+  hc.noteSet = function () {
+    const list = [];
+    return {
+      list: list,
+      ref: function (s) {
+        const key = srcKey(s);
+        for (let i = 0; i < list.length; i += 1) { if (list[i].key === key) return i + 1; }
+        list.push({ key: key, src: s || null });
+        return list.length;
+      },
+    };
+  };
+  hc.notesHtml = function (N) {
+    if (!N || !N.list.length) return '';
+    return '<div class="hc-notes" role="group" aria-labelledby="hc-notes-t"><p class="hc-notes-t" id="hc-notes-t">출처</p>' +
+      N.list.map(function (x, i) {
+        return '<p class="hc-fn" id="hc-fn-' + (i + 1) + '"><sup aria-hidden="true">' + (i + 1) + '</sup><span class="sr-only">출처 ' + (i + 1) + ':</span> ' + hc.srcHtml(x.src) + '</p>';
+      }).join('') + '</div>';
+  };
+
   // ── 순수: 카드 ─────────────────────────────────────────────────────
   // label이 없으면 장식(aria-hidden) — 캡션이 같은 말을 할 때 낭독기가 두 번 읽지 않게(design 11-15 P3-1).
   function sil(label) {
@@ -188,54 +222,49 @@
     return '<svg class="hc-sil" viewBox="0 0 100 133" ' + a11y + '><circle cx="50" cy="44" r="22"/><path d="M10 133C10 98 28 78 50 78S90 98 90 133Z"/></svg>';
   }
 
-  function photoHtml(h, view) {
+  function photoHtml(h, view, n) {
     const p = h.photo;
     let frame = sil(''), cap = '사진 없음';   // 이용 조건은 편집 팝업 '사진 올리기' 절 안내에 있다(1280폭 4줄 꺾임, 11-13 design P2)
     if (p) {
       const ph = view && view.photo ? view.photo : {};
-      const lic = hc.licenseLabel(p.license_cd);
-      const src = p.source || {};
-      cap = '사진 · ' + esc(lic) + (src.title ? ' · ' + esc(src.title) : '');
+      // 이용 조건 + 출처 표식 한 줄. 출처 원문은 카드 아래 각주(공공누리 출처표시 의무). 모르는 코드(LOCAL_ONLY 등)는 칩으로.
+      const lic = hc.licenseKnown(p.license_cd) ? esc(hc.licenseShort(p.license_cd)) : chip('이용 조건 미확인');
+      const mark = n ? fnref(n) : '';
+      cap = lic + mark;
       if (ph.url && ph.id === p.photo_id) frame = '<img src="' + esc(ph.url) + '" alt="기관장 사진" width="117" height="156">';
-      else if (ph.state === 'err') { frame = sil('사진을 불러오지 못했습니다'); cap = '사진을 불러오지 못했습니다. [새로 고침]으로 다시 시도하세요. · ' + esc(lic); }
-      else { frame = sil('사진 불러오는 중'); cap = '사진을 불러오는 중… · ' + esc(lic); }
+      // 실패·불러오는 중은 캡션이 말하므로 틀은 장식(낭독 두 번 방지), 이용 조건은 사진이 뜬 뒤에만(design 11-20)
+      else if (ph.state === 'err') { frame = sil(''); cap = esc('사진을 불러오지 못했습니다. [새로 고침]으로 다시 시도하세요.') + mark; }
+      else { frame = sil(''); cap = esc('사진 불러오는 중…') + mark; }
       return '<div class="hc-photo"><div class="hc-frame">' + frame + '</div><p class="hc-cap">' + cap + '</p></div>';
     }
     return '<div class="hc-photo"><div class="hc-frame">' + frame + '</div><p class="hc-cap">' + esc(cap) + '</p></div>';
   }
 
   function srcKey(s) { return s ? [str(s.kind), trim(s.title), trim(s.url), str(s.checked_on)].join('\u0001') : ''; }
-  // 날짜 3칸(첫 취임일·현 임기 시작·임기 만료). 출처가 같으면 각주 하나로 모으고 값 옆에는 표식(1, 2…)만 둔다.
-  // 값이 없는 칸은 표식 없이 미확인 칩. 칸(dd)이 aria-describedby로 각주를 가리킨다.
-  hc.factsHtml = function (h) {
+  // 날짜 3칸(첫 취임일·현 임기 시작·임기 만료). 값 옆에는 각주 표식만 둔다(출처 원문은 카드 아래 각주 목록 — hc.notesHtml).
+  // 값이 없는 칸은 표식 없이 미확인 칩. 칸(dd)이 aria-describedby로 각주를 가리킨다. N = hc.noteSet()
+  hc.factsHtml = function (h, N) {
+    N = N || hc.noteSet();
     const specs = [['첫 취임일', 'FIRST_TAKE_OFFICE', 'first_take_office'], ['현 임기 시작', 'TERM_START', 'term_start'], ['임기 만료', 'TERM_END', 'term_end']];
-    const notes = [];
     const cells = specs.map(function (sp) {
       const val = h[sp[2]];
       if (!val) return '<div><dt>' + esc(sp[0]) + '</dt><dd>' + chip() + '</dd></div>';
       const f = h.fields && h.fields[sp[1]];
-      const s = f && f.source ? f.source : null;
-      const key = srcKey(s);
-      let n = 0;
-      for (let i = 0; i < notes.length; i += 1) { if (notes[i].key === key) { n = i + 1; break; } }
-      if (!n) { notes.push({ key: key, src: s }); n = notes.length; }
-      return '<div><dt>' + esc(sp[0]) + '</dt><dd aria-describedby="hc-fn-' + n + '">' + mono(val) + '<sup class="hc-fnref" aria-hidden="true">' + n + '</sup><span class="sr-only">(출처 ' + n + ')</span></dd></div>';
+      const n = N.ref(f && f.source ? f.source : null);
+      return '<div><dt>' + esc(sp[0]) + '</dt><dd aria-describedby="hc-fn-' + n + '">' + mono(val) + fnref(n) + '</dd></div>';
     }).join('');
-    const foot = notes.map(function (x, i) {
-      return '<p class="hc-fn" id="hc-fn-' + (i + 1) + '"><sup aria-hidden="true">' + (i + 1) + '</sup><span class="sr-only">출처 ' + (i + 1) + ':</span> ' + (x.src ? '출처: ' : '') + hc.srcHtml(x.src) + '</p>';
-    }).join('');
-    return '<dl class="hc-facts">' + cells + '</dl>' + (foot ? '<div class="hc-fns">' + foot + '</div>' : '');
+    return '<dl class="hc-facts">' + cells + '</dl>';
   };
 
-  function listHtml(items, emptyText) {
+  function listHtml(items, emptyText, nums) {
     if (!items.length) return '<span class="hc-none">' + chip(emptyText) + '</span>';
-    function li(it) {
+    function li(it, i) {
       const p = period(it);
-      return '<li>' + (p ? '<span class="yr">' + esc(p) + '</span>' : '') + esc(it.value) + '<br>' + hc.srcHtml(it.source) + '</li>';
+      return '<li>' + (p ? '<span class="yr">' + esc(p) + '</span>' : '') + '<span class="hc-val">' + esc(it.value) + '</span>' + (nums && nums[i] ? fnref(nums[i]) : '') + '</li>';
     }
     const first = items.slice(0, 4).map(li).join('');
     const rest = items.slice(4);
-    return '<ul>' + first + '</ul>' + (rest.length ? '<details class="hc-more"><summary>나머지 ' + rest.length + '건 보기</summary><ul>' + rest.map(li).join('') + '</ul></details>' : '');
+    return '<ul>' + first + '</ul>' + (rest.length ? '<details class="hc-more"><summary>나머지 ' + rest.length + '건 보기</summary><ul>' + rest.map(function (it, i) { return li(it, i + 4); }).join('') + '</ul></details>' : '');
   }
 
   // view = { status:'ok', data(A3 응답), photo:{id,url,state} } / ctx = { today, bid }
@@ -243,13 +272,21 @@
     ctx = ctx || {};
     const d = view.data || {}, h = d.head || {};
     const big = hc.bigInfo(h, ctx.bid, ctx.today);
+    // 출처는 카드 전체에서 각주 하나로 모은다. 번호 순서: 띠(임기 만료) → 날짜 3칸 → 학력 → 경력 → 사진
+    const N = hc.noteSet();
+    const bandN = big && big.type === 'term' ? N.ref(big.src) : 0;
+    const facts = hc.factsHtml(h, N);
+    const edu = sortPeriod(h.education), career = sortPeriod(h.career);
+    const eduN = edu.map(function (it) { return N.ref(it.source); });
+    const careerN = career.map(function (it) { return N.ref(it.source); });
+    const photoN = h.photo ? N.ref(h.photo.source) : 0;
     let band;
     if (big && big.type === 'notice' && !big.receiving) {
       band = '<div class="hc-big"><span class="pop-unk">공고 진행 중</span></div><span class="hc-bigsrc">출처: 공고 · 임기 만료일은 아직 확인되지 않았습니다</span>';
     } else if (big) {
       const aria = big.text + (big.s ? ' ' + big.s : '');
       let sub;
-      if (big.type === 'term') sub = '<span class="hc-bigsrc">만료일 ' + mono(big.date) + ' ' + hc.srcHtml(big.src) + '</span>';
+      if (big.type === 'term') sub = '<span class="hc-bigsrc">만료일 ' + mono(big.date) + ' 기준' + fnref(bandN) + '</span>';
       else if (big.type === 'notice') sub = '<span class="hc-bigsrc">출처: 공고 · 접수 마감 ' + mono(big.date) + ' · 임기 만료일은 아직 확인되지 않았습니다</span>';
       else sub = '<span class="hc-bigsrc">공고 예정 ' + mono(big.date) + (big.label ? ' ' + esc(big.label) : '') + ' · 임기 만료일은 아직 확인되지 않았습니다</span>';
       band ='<div class="hc-big" role="group" aria-label="' + esc(aria) + '"><span class="k" aria-hidden="true">' + esc(big.k) + '</span><b aria-hidden="true">' + esc(big.big) + '</b>' +
@@ -262,17 +299,71 @@
     const acting = h.acting ? '<span class="hc-badge">권한대행</span>' : '';
     const cands = hc.candCount(d);
     const candBtn = cands ? '<button type="button" class="hc-cand" data-hc="edit">확정 대기 후보 ' + cands + '건 보기</button>' : '';
-    const edu = sortPeriod(h.education), career = sortPeriod(h.career);
+    const dl = view.dl && view.dl.open ? 'true' : 'false';
     return '<article class="hc-card" aria-labelledby="hc-name">' +
       '<div class="hc-band">' + band + '</div>' +
-      '<div class="hc-body">' + photoHtml(h, view) +
-      '<div class="hc-who"><h4 id="hc-name">' + nameHtml + '</h4><div class="hc-pos">' + pos + acting + '</div>' +
-      hc.factsHtml(h) + '</div></div>' +
-      '<dl class="hc-items"><dt>학력</dt><dd>' + listHtml(edu, '학력 미확인') + '</dd><dt>경력</dt><dd>' + listHtml(career, '경력 미확인') + '</dd></dl>' +
-      '<div class="hc-foot"><span>출처 <span class="v">' + (Number(h.source_count) || 0) + '</span>건 · 최근 확인 ' +
-      (h.last_checked_on ? mono(h.last_checked_on) : chip()) + '</span>' + candBtn +
-      '<span class="hc-log">열람 기록이 남습니다</span>' +
-      '<span class="sp"><button type="button" data-hc="refresh">새로 고침</button><button type="button" data-hc="edit">편집</button></span></div></article>';
+      '<div class="hc-body">' + photoHtml(h, view, photoN) +
+      '<div class="hc-who"><div class="hc-who-hd"><h4 id="hc-name">' + nameHtml + '</h4><span class="hc-pos">' + pos + '</span>' + acting + '</div>' +
+      facts + '</div></div>' +
+      '<dl class="hc-items"><dt>학력</dt><dd>' + listHtml(edu, '학력 미확인', eduN) + '</dd><dt>경력</dt><dd>' + listHtml(career, '경력 미확인', careerN) + '</dd></dl>' +
+      hc.notesHtml(N) +
+      '<div class="hc-foot"><p class="hc-meta">출처를 단 항목 <span class="v">' + (Number(h.source_count) || 0) + '</span>건 · 최근 확인 ' +
+      (h.last_checked_on ? mono(h.last_checked_on) : chip()) + ' · 열람 기록이 남습니다</p>' +
+      '<span class="hc-foot-l">' + candBtn + '</span>' +
+      '<span class="sp"><button type="button" data-hc="docx-open" aria-controls="hc-ref" aria-expanded="' + dl + '">워드 내려받기</button>' +
+      '<button type="button" data-hc="refresh">새로 고침</button><button type="button" data-hc="edit">기관장 편집</button></span>' +
+      hc.refHtml(view.dl, ctx) + '</div></article>';
+  };
+
+  // ── 순수: 워드 내려받기(참고자료 번호 줄) ─────────────────────────────
+  hc.REF_MAX = 20;
+  hc.REF_STORE = 'hc.docx.ref_no';   // sessionStorage 키(이 탭에서 마지막으로 쓴 번호)
+  // 서버와 같은 규칙: 숫자 1~2자리, 1~20. 맞으면 정수, 아니면 0.
+  hc.parseRef = function (v) {
+    const s = trim(v);
+    if (!/^\d{1,2}$/.test(s)) return 0;
+    const n = Number(s);
+    return n >= 1 && n <= hc.REF_MAX ? n : 0;
+  };
+  hc.refTitle = function (n, name) { return '참고자료 ' + n + '. ' + (trim(name) ? '「' + trim(name) + '」 ' : '') + '기관장 정보'; };
+  // dl = { open, ref, name, busy, fieldErr, err, ok } | null. 열려 있거나 알릴 말이 있을 때만 줄을 그린다.
+  hc.refHtml = function (dl) {
+    if (!dl) return '';
+    let out = '';
+    if (dl.open) {
+      const bad = !!dl.fieldErr;
+      out += '<label class="hc-reflab">참고자료 번호<input type="number" min="1" max="' + hc.REF_MAX + '" step="1" inputmode="numeric" id="hc-ref-no" data-hc-ref value="' + esc(dl.ref) + '"' +
+        (bad ? ' aria-invalid="true" aria-describedby="hc-ref-ferr"' : '') + (dl.busy ? ' disabled' : '') + '></label>' +
+        '<span class="hc-reftitle">문서 제목: <b data-hc-title>' + esc(hc.refTitle(hc.parseRef(dl.ref) || '?', dl.name)) + '</b></span>' +
+        (bad ? '<p class="hc-err" id="hc-ref-ferr" role="alert">' + esc(dl.fieldErr) + '</p>' : '') +
+        '<p class="hc-refnote">확정된 값만 담깁니다(사진·확정 대기 후보 제외). 내려받기 기록이 남습니다.</p>' +
+        '<span class="hc-refbtns"><button type="button" class="db-next" data-hc="docx-go"' + (dl.busy ? ' disabled' : '') + '>' + (dl.busy ? '만드는 중…' : '내려받기') + '</button>' +
+        '<button type="button" data-hc="docx-cancel"' + (dl.busy ? ' disabled' : '') + '>취소</button></span>';
+    }
+    if (dl.err) out += '<p class="hc-err" role="alert">' + esc(dl.err) + '</p>';
+    if (dl.ok) out += '<p class="hc-ok" role="status">' + esc(dl.ok) + '</p>';
+    return out ? '<div class="hc-ref" id="hc-ref"' + (dl.busy ? ' aria-busy="true"' : '') + '>' + out + '</div>' : '';
+  };
+  // 서버 오류 → { field: 칸 오류인가, text }. 서버 코드·상태에 맞춰 화면 문구를 고른다.
+  hc.docxErrText = function (status, detail) {
+    const p = errtext.parse(detail);
+    if (!status) return { field: false, text: hc.TEXT.network };
+    if (status === 400 && p.code === 'BAD_VALUE') return { field: true, text: hc.TEXT.refBad };
+    if (status === 400 && p.code === 'UI_ID_REQUIRED') return { field: false, text: hc.TEXT.docxUi };
+    if (status === 401) return { field: false, text: hc.TEXT.login };
+    if (status === 403) return { field: false, text: hc.TEXT.denied };   // 서버 403에는 비활성 사용자도 있다 — 카드 403과 같은 문구(qa 11-20 P3-4)
+    if (status === 404) return { field: false, text: p.code === 'FEATURE_OFF' ? hc.TEXT.off : hc.TEXT.notfound };
+    if (status === 409) return { field: false, text: hc.TEXT.docxEmpty };
+    if (status >= 500) return { field: false, text: hc.TEXT.docxServer };
+    return { field: false, text: '처리하지 못했습니다 (' + status + ')' };
+  };
+  // Content-Disposition의 filename*=UTF-8''… 에서 파일 이름. 읽을 수 없거나 경로·제어 문자가 있으면 기본 이름.
+  hc.docxFileName = function (disposition) {
+    const m = /filename\*\s*=\s*UTF-8''([^;\s]+)/i.exec(str(disposition));
+    let n = '';
+    if (m) { try { n = decodeURIComponent(m[1]); } catch (e) { n = ''; } }
+    n = n.replace(/[\\\/:*?"<>|\u0000-\u001f]/g, '_').trim();
+    return n || '기관장정보.docx';
   };
 
   function stateHtml(text, btn) {
@@ -332,6 +423,18 @@
     });
   };
 
+  // 워드 본문: 새 창으로 열면 신원 헤더가 안 붙어 400 UI_ID_REQUIRED가 된다 — fetch로 받아 Blob으로 넘긴다.
+  hc.docxUrl = function (instId, ref) { return base(instId) + '/head/docx?ref_no=' + encodeURIComponent(ref); };
+  hc.fetchDocx = function (instId, ref, screen) {
+    return fetch(hc.docxUrl(instId, ref), { method: 'GET', headers: uiHeaders(hc.BTN.docx, screen) }).then(function (r) {
+      if (r.ok) {
+        const cd = r.headers && r.headers.get ? r.headers.get('Content-Disposition') : '';
+        return r.blob().then(function (blob) { return { blob: blob, fileName: hc.docxFileName(cd) }; });
+      }
+      return r.json().catch(function () { return {}; }).then(function (j) { throw failFrom(r, j); });
+    });
+  };
+
   // 서버 응답 → 카드 상태. 404 FEATURE_OFF=기능 꺼짐, 그 밖의 404=서버에 없는 기관.
   hc.classify = function (status, detail) {
     const p = errtext.parse(detail);
@@ -356,7 +459,7 @@
 
   // ── 상태(현재 선택한 기관 하나) ────────────────────────────────────
   // emp = 이 상태를 읽은 사번(사용자가 바뀌면 다시 읽는다). timer/cancel = 기관 선택 뒤 대기 중인 읽기(debounce)
-  function fresh() { return { instId: '', emp: '', status: 'idle', data: null, text: '', code: 0, quietFail: false, photo: { id: 0, url: '', state: '' }, repaint: null, cancel: null }; }
+  function fresh() { return { instId: '', emp: '', status: 'idle', data: null, text: '', code: 0, quietFail: false, photo: { id: 0, url: '', state: '' }, repaint: null, cancel: null, dl: null }; }
   let V = fresh();
   function revokeUrl(u) {
     if (u && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(u);
@@ -940,8 +1043,99 @@
   };
   hc.isModalOpen = function () { return !!M; };
 
+  // ── 워드 내려받기(DOM) ─────────────────────────────────────────────
+  // 지도 상세 팝업(#dm-box)이 열려 있으면 그 안에서 먼저, 없으면 현황판 상세(#hc-sec). 숨은 현황판에 같은 요소가 있을 수 있어 closeModal과 같은 순서.
+  function paneQ(sel) {
+    if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return null;
+    return document.querySelector('#dm-box ' + sel) || document.querySelector('#hc-sec ' + sel);
+  }
+  function focusPane(sel) { const el = paneQ(sel); if (el && el.focus) el.focus(); }
+  function storedRef() { try { return typeof sessionStorage !== 'undefined' ? trim(sessionStorage.getItem(hc.REF_STORE)) : ''; } catch (e) { return ''; } }
+  function storeRef(n) { try { if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(hc.REF_STORE, String(n)); } catch (e) { /* 저장 못 해도 받기는 계속 */ } }
+  function useEnv(envFn) { const env = (envFn && envFn()) || {}; if (env.repaint) V.repaint = env.repaint; return env; }
+  function paintDl() { if (V.repaint) V.repaint(); }
+  // Blob을 파일로 저장(a[download]). 브라우저가 아니면 false.
+  hc.saveBlob = function (blob, fileName) {
+    if (typeof document === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return false;
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = fileName; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    const t = setTimeout(function () { revokeUrl(url); }, 1000);
+    if (t && t.unref) t.unref();
+    return true;
+  };
+  // [워드 내려받기] — 참고자료 번호 줄을 펼치거나 접는다.
+  hc.docxOpen = function (envFn) {
+    if (V.status !== 'ok') return;
+    const env = useEnv(envFn);
+    const dl = V.dl || (V.dl = { open: false, ref: '', name: '', busy: false, fieldErr: '', err: '', ok: '' });
+    if (dl.busy) return;
+    dl.open = !dl.open;
+    dl.fieldErr = ''; dl.err = ''; dl.ok = '';
+    if (dl.open) { dl.name = trim(env.instName); dl.ref = dl.ref || storedRef() || '1'; }
+    paintDl();
+    focusPane(dl.open ? '[data-hc-ref]' : '[data-hc="docx-open"]');
+  };
+  hc.docxCancel = function (envFn) {
+    const dl = V.dl;
+    if (!dl || !dl.open || dl.busy) return;
+    useEnv(envFn);
+    dl.open = false; dl.fieldErr = ''; dl.err = '';
+    paintDl();
+    focusPane('[data-hc="docx-open"]');
+  };
+  // [내려받기] — 번호를 먼저 검사하고(틀리면 요청하지 않는다), 받아서 저장한다.
+  hc.docxGo = function (envFn) {
+    const dl = V.dl;
+    if (V.status !== 'ok' || !dl || !dl.open || dl.busy) return Promise.resolve();
+    useEnv(envFn);
+    const inp = paneQ('[data-hc-ref]');
+    if (inp) dl.ref = inp.value;
+    const n = hc.parseRef(dl.ref);
+    if (!n) { dl.fieldErr = hc.TEXT.refBad; paintDl(); focusPane('[data-hc-ref]'); return Promise.resolve(); }
+    storeRef(n);
+    dl.busy = true; dl.fieldErr = ''; dl.err = ''; dl.ok = '';
+    const mine = V;
+    paintDl();
+    return hc.fetchDocx(mine.instId, n, mine.screen).then(function (res) {
+      hc.saveBlob(res.blob, res.fileName);   // 기관을 옮겼어도 이미 받은 파일은 저장한다
+      if (V !== mine) return;
+      dl.busy = false; dl.open = false; dl.ok = hc.TEXT.docxOk;
+      paintDl();
+      focusPane('[data-hc="docx-open"]');
+    }).catch(function (e) {
+      if (V !== mine) return;
+      dl.busy = false;
+      const m = hc.docxErrText(e.status, e.detail);
+      if (m.field) dl.fieldErr = m.text; else dl.err = m.text;
+      paintDl();
+      focusPane(m.field ? '[data-hc-ref]' : '[data-hc="docx-go"]');
+      if (e.status === 409) hc.refresh(true, hc.BTN.refresh);   // 그 사이 기관장이 비었으면 카드를 최신으로(단추도 사라진다)
+    });
+  };
+  // 번호 칸 입력: 미리보기 제목만 바로 바꾼다(카드를 다시 그리지 않아 포커스가 유지된다). Enter=내려받기, Esc=접기.
+  if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+    document.addEventListener('input', function (e) {
+      const t = e.target;
+      if (!t || !t.hasAttribute || !t.hasAttribute('data-hc-ref') || !V.dl) return;
+      V.dl.ref = t.value; V.dl.fieldErr = '';
+      const box = t.closest ? t.closest('.hc-ref') : null, b = box && box.querySelector('[data-hc-title]');
+      if (b) b.textContent = hc.refTitle(hc.parseRef(t.value) || '?', V.dl.name);
+    });
+    // 캡처 단계: 지도 상세 팝업(#dm-ov)의 Esc 처리(dashboard dmKey — 팝업 닫기)보다 먼저 받아 줄만 접는다(qa 11-20 P2-1)
+    document.addEventListener('keydown', function (e) {
+      const t = e.target;
+      if (!t || !t.hasAttribute || !t.hasAttribute('data-hc-ref') || !V.dl) return;
+      if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); hc.docxGo(null); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); hc.docxCancel(null); }
+    }, true);
+  }
+
   // 상세 칸의 [편집]·[기관장 추가]·[새로 고침] 버튼(data-hc). envFn은 openModal과 같다.
   hc.onPaneClick = function (what, envFn) {
+    if (what === 'docx-open') { hc.docxOpen(envFn); return null; }
+    if (what === 'docx-go') return hc.docxGo(envFn);
+    if (what === 'docx-cancel') { hc.docxCancel(envFn); return null; }
     if (what === 'refresh') {
       const env = envFn() || {};
       V.repaint = env.repaint || V.repaint;

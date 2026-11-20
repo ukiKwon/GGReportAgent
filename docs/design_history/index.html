@@ -1381,6 +1381,32 @@
 </div>
 </section>
 
+<section class="ch" id="c65">
+<h2>65 기관장 카드 — 출처를 카드 아래 각주 한 곳으로, 띠는 '만료일 기준¹', 이름·직위 한 줄, 꼬리 두 줄 고정에 [워드 내려받기](참고자료 번호·문서 제목 미리보기) (2026-11-20, 사용자 11-19 "불규칙 개행·시각적으로 잘 들어오는지", design 11-19 ae254624·11-20 ac922bd3, frontend-dev a244d69f, qa a87a2978)</h2>
+<div class="why">왜: 같은 출처 문장이 띠·날짜 각주·학력·경력 항목마다 되풀이되어(동작구 4번, 부산 7번) 밑줄 링크가 이름보다 눈에 띄었고, 각주가 '시정일보 일/치'·'확인 2026-/11-13'처럼 낱말·날짜 가운데서 끊겼습니다. 사진 캡션은 117px 칸에서 5줄로 늘며 내부 코드 'LOCAL_ONLY'가 보였고, 꼬리는 후보 단추가 있으면 2줄·없으면 1줄이라 단추 자리가 기관마다 달랐습니다. 제안서에 넣을 기관장 정보를 문서로 받을 방법도 없었습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+  <p class="hint12">띠: 파랑 9% 틴트 바탕, '만료일 2030-06-30' 뒤에 출처 원문 링크 2줄(띠 높이 96px). 이름 18px과 직위가 두 줄로 나뉨.</p>
+  <p class="hint12">날짜 3칸 바로 아래 각주(보이는 '출처:' + 원문), 학력·경력은 항목마다 값 + 출처 줄(1건 39px). 줄바꿈 overflow-wrap:anywhere — '일/치'·'2026-/11-13' 끊김.</p>
+  <p class="hint12">사진 캡션: '사진 · LOCAL_ONLY · 부산광역시 단체장 소개(…)' 5줄. 꼬리: '출처 8건 · 최근 확인 … 열람 기록이 남습니다 [새로 고침][편집]' — [편집]이 팝업 머리의 기관 [편집]과 이름이 같음.</p>
+  <p><img src="../../handoff/agents/history/2026-11-20_hc_card/hc-02-board-dongjak-1280.png" alt="전 — 동작구청 기관장 카드: 띠와 학력·경력마다 되풀이되는 출처 줄" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-20_hc_card/hc-03-board-busan-photo-1280.png" alt="전 — 부산광역시: 사진 캡션 5줄과 LOCAL_ONLY, 항목마다 출처 줄" style="width:100%"></p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <p style="font-size:12px"><b>각주 한 곳</b>: 학력·경력 아래·꼬리 위 '출처' 절에 같은 출처는 한 줄(동작 2줄, 부산 3줄), 번호는 띠 → 날짜 → 학력 → 경력 → 사진 순. 값 옆에는 위첨자 번호만(복사 안 됨), 각주 둘째 줄은 번호 뒤에서 시작. 학력·경력 1건 39 → 19px.</p>
+  <p style="font-size:12px"><b>띠·이름</b>: 띠 바탕 --panel2, '만료일 2030-06-30 기준¹'(96 → 78px). 이름 16px·직위·[권한대행] 한 줄, 직위가 길면 배지만 다음 줄.</p>
+  <p style="font-size:12px"><b>줄바꿈</b>: keep-all + break-word, '확인 날짜'와 출처 제목 안 날짜는 한 덩어리 — 낱말·날짜 끊김 0. 사진 캡션은 117px 가운데 한 줄('공공누리 제1유형³', 모르는 코드는 점선 칩 '이용 조건 미확인³', 34.8 → 17.4px). 불러오는 중·실패 캡션은 이용 조건 없이 문구 + 표식.</p>
+  <p style="font-size:12px"><b>꼬리 두 줄 고정</b>: 1줄 '출처를 단 항목 8건 · 최근 확인 2026-11-13 · 열람 기록이 남습니다', 2줄 왼쪽 [확정 대기 후보 n건 보기](있을 때만) · 오른쪽 [워드 내려받기][새로 고침][기관장 편집] — 후보 유무와 관계없이 꼬리 75px, 단추 자리 같음.</p>
+  <p style="font-size:12px"><b>워드 내려받기</b>: 누르면 꼬리 아래 전체 폭 줄 — '참고자료 번호 [1]'(56px, 이 탭의 마지막 값) · '문서 제목: 참고자료 1. 기관장 정보'(화면 미리보기에는 기관명 「」이 아직 없음 — 내려받은 파일 제목에는 들어감) · '확정된 값만 담깁니다(사진·확정 대기 후보 제외). 내려받기 기록이 남습니다.' · [내려받기][취소]. 받으면 줄을 접고 '워드 파일을 내려받았습니다.'를 남기며 포커스는 [워드 내려받기]로. 번호 칸에서 Esc를 누르면 팝업은 그대로 두고 이 줄만 접힙니다.</p>
+  <p class="legend-note">실측 8080 1280폭(11-20, 김영업, 열람만): 동작 카드 약 513 → 568px(각주 절·두 줄 꼬리가 늘고 띠·항목이 줄어든 맞바꿈 — 대신 같은 출처 되풀이 4 → 0), 부산 658 → 641px, 펼침 줄 폭 = 꼬리 폭 656px. 대비 각주·메타 #464c53 흰 바탕 8.9:1. 후보 있음·성공 줄은 실제 데이터가 없어 화면 안 흉내 값. <b>남은 것</b>: 미리보기 제목의 기관명(dashboard.js instName 전달, fa 요청 중), DESIGN.md 큰 숫자 28px 예외 한 줄, source_count 의미 확인(개발).</p>
+  <p><img src="../../handoff/agents/history/2026-11-20_hc_card/hc-11-after-dongjak-1280.png" alt="후 — 동작구청: 띠 '만료일 기준¹', 각주 2줄, 꼬리 두 줄" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-20_hc_card/hc-12-after-busan-photo-1280.png" alt="후 — 부산광역시: 사진 캡션 한 줄 칩과 각주 3줄, 학력·경력 한 줄씩" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-20_hc_card/hc-13-after-busan-word-open-1280.png" alt="후 — 워드 내려받기 펼침 줄: 참고자료 번호·문서 제목·안내·내려받기/취소" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-20_hc_card/hc-14-after-sim-cand-acting-ok-1280.png" alt="후(흉내 값) — 후보 보기 단추가 있는 꼬리, 권한대행 배지, 성공 줄" style="width:100%"></p>
+</div></div></div>
+</div>
+</section>
+
 <p class="foot">추가 규칙: 이 파일은 화면(마크업·CSS·문구·메뉴)이 바뀌는 커밋마다 새 장(section.ch)을 아래에 이어 붙이고, design-reviewer가 커밋 전 확인합니다(CLAUDE.md 5절). 근거 보고서: handoff/agents/design-reviewer/.</p>
 </div>
 </body>

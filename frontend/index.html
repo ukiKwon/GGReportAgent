@@ -2196,48 +2196,58 @@
   #pt-flash:empty { padding:0; border:0; margin-top:-12px; }
   /* 시작화면(포털) 끝 */
 
-  /* 기관장 카드 시작 — 입찰 현황판 상세 칸의 '기관장' 절 + 편집 모달. 시안 docs/design/2026-11-11_기관장카드_시안.html. 새 hex 없음(토큰만), 최소 11px.
+  /* 기관장 카드 시작 — 입찰 현황판 상세 칸의 '기관장' 절 + 편집 모달. 시안 docs/design/2026-11-11_기관장카드_시안.html. 새 hex 없음(토큰만), 최소 12px.
      큰 숫자(.hc-big b) 하나만 굵게 키운다. 점수·등급·별점 없음, 테두리 색으로 사람을 가르지 않는다. */
   .hc-sec h3 { margin:0 0 12px; }
   .hc-state { margin:0 0 10px; font-size:13px; }
   .hc-act { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 0; }
+  .hc-act button { font-size:12px; padding:5px 12px; }
   .hc-card { border:1px solid var(--line-strong); border-radius:var(--r-lg); background:var(--panel); overflow:hidden; }
-  .hc-band { display:flex; flex-direction:column; gap:4px; padding:12px 16px; border-bottom:1px solid var(--line-strong); background:color-mix(in srgb, var(--accent-color) 9%, var(--panel)); }
+  .hc-band { display:flex; flex-direction:column; gap:4px; padding:12px 16px; border-bottom:1px solid var(--line-strong); background:var(--panel2); }
   .hc-big { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
   .hc-big .k, .hc-big .s { font-size:13px; color:var(--muted); }
   .hc-big b { font:700 28px/1.1 var(--mono); letter-spacing:-.02em; }
-  .hc-bigsrc { font-size:12px; color:var(--muted); line-height:1.5; word-break:keep-all; }
+  .hc-bigsrc { font-size:12px; color:var(--muted); line-height:1.5; word-break:keep-all; overflow-wrap:break-word; }
   .hc-body { display:grid; grid-template-columns:132px minmax(0, 1fr); gap:16px; padding:16px 16px 12px; }
   .hc-frame { position:relative; width:117px; height:156px; margin:0 auto; overflow:hidden; border:1px solid var(--line-strong); border-radius:var(--r); background:var(--panel2); }
   .hc-frame img { display:block; width:100%; height:100%; object-fit:cover; }
   .hc-sil { position:absolute; left:50%; bottom:0; width:96px; height:128px; transform:translateX(-50%); }
   .hc-sil circle, .hc-sil path { fill:var(--line); stroke:var(--line-strong); stroke-width:1; }
-  .hc-cap { margin:6px 0 0; font-size:12px; color:var(--muted); line-height:1.45; word-break:keep-all; overflow-wrap:anywhere; }
+  .hc-cap { width:117px; margin:6px auto 0; text-align:center; font-size:12px; color:var(--muted); line-height:1.45; word-break:keep-all; overflow-wrap:break-word; }
   .hc-who { min-width:0; }
-  .hc-who h4 { margin:0; font-size:18px; font-weight:700; letter-spacing:-.01em; }
-  .hc-pos { margin-top:2px; font-size:13px; color:var(--muted); }
-  .hc-badge { display:inline-block; margin-left:6px; padding:0 6px; border:1px solid var(--line-strong); border-radius:var(--r); font-size:12px; color:var(--fg); }
+  .hc-who-hd { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; }
+  .hc-who h4 { margin:0; font-size:16px; font-weight:700; letter-spacing:-.01em; }
+  .hc-pos { margin:0; font-size:13px; color:var(--muted); word-break:keep-all; }
+  .hc-badge { display:inline-block; margin-left:0; padding:0 6px; border:1px solid var(--line-strong); border-radius:var(--r); font-size:12px; color:var(--fg); }
   .hc-facts { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); margin:12px 0 0; border:1px solid var(--line); border-radius:var(--r-sm); }
   .hc-facts > div { min-width:0; padding:8px 10px; }
   .hc-facts > div + div { border-left:1px solid var(--line); }
   .hc-facts dt { font-size:12px; color:var(--muted); }
   .hc-facts dd { margin:2px 0 0; font-size:13px; }
   .hc-fnref { margin-left:4px; font-size:12px; line-height:0; color:var(--muted); }
-  .hc-fns { margin-top:6px; }
-  .hc-fn { margin:0 0 2px; font-size:12px; line-height:1.5; color:var(--muted); overflow-wrap:anywhere; }
-  .hc-fn sup { margin-right:4px; font-size:12px; }
-  .hc-src { font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+  .hc-fnref, .hc-card .sr-only { user-select:none; }
+  .hc-ck, .hc-card .v, .hc-nb { white-space:nowrap; }
+  .hc-cap .pop-unk { white-space:nowrap; }
+  .hc-cap .hc-fnref { margin-left:2px; }
+  .hc-notes { padding:10px 16px 12px; border-top:1px solid var(--line); }
+  .hc-notes-t { margin:0 0 4px; font-size:12px; font-weight:700; color:var(--muted); }
+  .hc-fn { margin:0 0 2px; font-size:12px; line-height:1.5; color:var(--muted); word-break:keep-all; overflow-wrap:break-word; }
+  .hc-fn { padding-left:12px; text-indent:-12px; }
+  .hc-fn sup { display:inline-block; width:8px; margin-right:4px; font-size:12px; text-indent:0; }
+  .hc-src { font-size:12px; color:var(--muted); word-break:keep-all; overflow-wrap:break-word; }
   .hc-src a, .hc-bigsrc a { color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent-color); text-underline-offset:3px; }
   .hc-items { display:grid; grid-template-columns:44px minmax(0, 1fr); gap:10px 12px; margin:0; padding:0 16px 14px; }
   .hc-items dt { font-size:12px; color:var(--muted); padding-top:2px; }
-  .hc-items dd { margin:0; font-size:13px; min-width:0; }
+  .hc-items dd { margin:0; font-size:13px; min-width:0; word-break:keep-all; overflow-wrap:break-word; }
   .hc-items ul { list-style:none; margin:0; padding:0; }
-  .hc-items li { margin:0 0 6px; line-height:1.5; }
+  .hc-items li { margin:0 0 4px; line-height:1.5; }
   .hc-items .yr { margin-right:6px; font:12px var(--mono); color:var(--muted); }
   .hc-more summary { font-size:12px; color:var(--muted); cursor:pointer; }
-  .hc-foot { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; padding:10px 16px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
+  .hc-foot { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:center; gap:8px 12px; padding:10px 16px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
   .hc-foot .v { font-family:var(--mono); color:var(--fg); }
-  .hc-foot .sp { margin-left:auto; display:flex; gap:6px; }
+  .hc-meta { grid-column:1 / -1; margin:0; font-size:12px; color:var(--muted); word-break:keep-all; }
+  .hc-foot-l { justify-self:start; }
+  .hc-foot .sp { margin-left:0; justify-self:end; display:flex; gap:6px; }
   .hc-foot button { font-size:12px; padding:5px 12px; }
   .hc-cand { border-color:var(--accent-color); }
   .modal-box.hc-modal { width:min(720px, calc(100vw - 32px)); max-height:calc(100vh - 64px); }
@@ -2276,6 +2286,16 @@
     .hc-row { grid-template-columns:1fr; }
     .hc-btns { justify-content:flex-start; }
   }
+  .hc-ref { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; padding:8px 16px; border-top:1px solid var(--line); background:var(--panel2); font-size:12px; color:var(--muted); }
+  .hc-foot > .hc-ref { grid-column:1 / -1; margin:2px -16px -10px; }
+  .hc-ref .hc-reflab { display:flex; align-items:center; gap:6px; }
+  .hc-ref input { width:56px; font-family:var(--mono); font-size:13px; padding:5px 8px; }
+  .hc-ref input[aria-invalid="true"] { border-color:var(--red); }
+  .hc-ref .hc-reftitle b { color:var(--fg); font-weight:600; }
+  .hc-ref p { flex-basis:100%; margin:0; }
+  .hc-ref .hc-err, .hc-ref .hc-ok { font-size:12px; margin:0; }
+  .hc-refbtns { display:flex; gap:6px; margin-left:auto; }
+  .hc-ref button { font-size:12px; padding:5px 12px; }
   /* 기관장 카드 끝 */
   /* 기관 편집 창 시작(NEXT 72) — 묶음 3개(입찰 예정일·운영 상태·기본 정보). 규격: design-reviewer 2026-11-15_1928_a7fbd71e §6 */
   .modal-box.ie-box { max-width:560px; margin:5vh auto; }

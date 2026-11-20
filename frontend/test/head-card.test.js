@@ -27,7 +27,8 @@ function fakeFetch(routes) {
     return Promise.resolve({
       ok: r.status < 400, status: r.status,
       json: function () { return r.json === undefined ? Promise.reject(new Error('no body')) : Promise.resolve(r.json); },
-      blob: function () { return Promise.resolve(new Blob(['jpegbytes'], { type: 'image/jpeg' })); },
+      headers: { get: function (k) { return r.headers && r.headers[k] != null ? r.headers[k] : null; } },
+      blob: function () { return Promise.resolve(r.blob || new Blob(['jpegbytes'], { type: 'image/jpeg' })); },
     });
   };
   return calls;
@@ -111,7 +112,7 @@ test('cardHtml: 확정 항목·출처·큰 숫자·학력 경력(최근 순)·�
   ['2022-07-01', '2026-07-01', '2030-06-30'].forEach(function (d) { assert.ok(h.indexOf('<span class="v">' + d + '</span>') >= 0, d); });
   assert.ok(h.indexOf('가상대학교 행정학 석사') >= 0 && h.indexOf('1999~2001') >= 0);
   assert.ok(h.indexOf('가람시의회 의원') < h.indexOf('가상도청 예산담당관'));              // 끝 연월이 늦은 것이 위
-  assert.ok(h.indexOf('출처 <span class="v">8</span>건') >= 0 && h.indexOf('2026-11-03') >= 0);
+  assert.ok(h.indexOf('출처를 단 항목 <span class="v">8</span>건') >= 0 && h.indexOf('2026-11-03') >= 0);
   assert.ok(h.indexOf('열람 기록이 남습니다') >= 0);
   assert.ok(h.indexOf('data-hc="edit"') >= 0 && h.indexOf('data-hc="refresh"') >= 0);
   assert.ok(h.indexOf('확정 대기 후보') < 0 && h.indexOf('hc-cand') < 0);                 // 후보가 없으면 배지 없음
@@ -146,10 +147,10 @@ test('cardHtml: 사진 — 없음(실루엣)·불러오는 중·있음(공공누
   assert.ok(none.indexOf('class="hc-sil"') >= 0 && none.indexOf('사진 없음') >= 0 && none.indexOf('<img') < 0);
   const photo = { photo_id: 3, license_cd: 'KOGL1', source: { kind: 'HOMEPAGE', title: '시청 보도자료', url: null, checked_on: '2026-11-03' }, checked_on: '2026-11-03', uploaded_by: '1001' };
   const loading = hc.cardHtml(view({ head: { photo: photo } }, { photo: { id: 3, url: '', state: 'loading' } }), { today: TODAY });
-  assert.ok(loading.indexOf('사진을 불러오는 중') >= 0 && loading.indexOf('<img') < 0);
+  assert.ok(loading.indexOf('사진 불러오는 중…') >= 0 && loading.indexOf('<img') < 0);
   const ok = hc.cardHtml(view({ head: { photo: photo } }, { photo: { id: 3, url: 'blob:abc', state: 'ok' } }), { today: TODAY });
   assert.ok(ok.indexOf('<img src="blob:abc" alt="기관장 사진"') >= 0);
-  assert.ok(ok.indexOf('공공누리 제1유형(출처표시)') >= 0 && ok.indexOf('시청 보도자료') >= 0);
+  assert.ok(ok.indexOf('공공누리 제1유형') >= 0 && ok.indexOf('(출처표시)') < 0 && ok.indexOf('시청 보도자료') >= 0);
   const err = hc.cardHtml(view({ head: { photo: photo } }, { photo: { id: 3, url: '', state: 'err' } }), { today: TODAY });
   assert.ok(err.indexOf('사진을 불러오지 못했습니다') >= 0);
   // 다른 사진 번호의 낡은 Blob 주소는 쓰지 않는다
@@ -646,10 +647,10 @@ test('공고 진행 중 기관: 접수 중이면 마감 D-n(출처: 공고), 그
   assert.strictEqual(known.type, 'term');
 });
 
-test('사진 불러오는 중에는 실루엣 aria-label이 사진 불러오는 중', function () {
+test('사진 불러오는 중에도 실루엣은 장식(aria-hidden) — 캡션이 한 번만 읽힌다(design 11-20 P3-C)', function () {
   const photo = { photo_id: 3, license_cd: 'KOGL1', source: SRC, checked_on: '2026-11-03', uploaded_by: '1001' };
   const loading = hc.cardHtml(view({ head: { photo: photo } }, { photo: { id: 3, url: '', state: 'loading' } }), { today: TODAY });
-  assert.ok(loading.indexOf('aria-label="사진 불러오는 중"') >= 0 && loading.indexOf('aria-label="사진 없음"') < 0);
+  assert.ok(loading.indexOf('aria-label="사진 불러오는 중"') < 0 && /class="hc-sil"[^>]*aria-hidden="true"/.test(loading) && loading.indexOf('사진 불러오는 중…') >= 0);
   // 사진 없음: 실루엣은 장식(aria-hidden), 캡션 '사진 없음'이 한 번만 읽힌다(design 11-15 P3-1)
   const noPhoto = hc.cardHtml(view(), { today: TODAY });
   assert.ok(noPhoto.indexOf('aria-label="사진 없음"') < 0 && /class="hc-sil"[^>]*aria-hidden="true"/.test(noPhoto));
@@ -886,23 +887,29 @@ test('모달: 빈 머리(none)도 기관장 등록 양식 + 안내문 연결 + �
   const nul = hc.modalHtml(view({ head: null }, { status: 'none' }), {}, { today: TODAY, emp: '2002' });
   assert.ok(nul.indexOf('바로 확정됩니다') >= 0);
 });
-test('cardHtml: 날짜 3칸의 출처는 같으면 각주 한 줄, 다르면 표식을 나눈다', function () {
-  const seg = function (html) { return html.slice(html.indexOf('<dl class="hc-facts">'), html.indexOf('<dl class="hc-items">')); };
-  const same = seg(hc.cardHtml(view({ head: { fields: { NAME: field(1, '서지운'), FIRST_TAKE_OFFICE: field(3, '2022-07-01'), TERM_START: field(4, '2026-07-01'), TERM_END: field(5, '2030-06-30') } } }), { today: TODAY }));
-  assert.strictEqual((same.match(/class="hc-fn"/g) || []).length, 1);
-  assert.strictEqual((same.match(/class="hc-fnref"/g) || []).length, 3);
-  assert.strictEqual((same.match(/aria-describedby="hc-fn-1"/g) || []).length, 3);
-  assert.strictEqual((same.match(/가람시 누리집/g) || []).length, 1);
-  assert.ok(same.indexOf('<p class="hc-fn" id="hc-fn-1">') >= 0 && same.indexOf('출처: ') >= 0);
-  const diff = seg(hc.cardHtml(view(), { today: TODAY }));
-  assert.strictEqual((diff.match(/class="hc-fn"/g) || []).length, 2);
-  assert.ok(/임기 만료<\/dt><dd aria-describedby="hc-fn-2">/.test(diff));
-  assert.ok(/첫 취임일<\/dt><dd aria-describedby="hc-fn-1">/.test(diff) && /현 임기 시작<\/dt><dd aria-describedby="hc-fn-1">/.test(diff));
-  assert.ok(diff.indexOf('id="hc-fn-2"') >= 0 && diff.indexOf('<span class="v">2030-06-30</span>') >= 0);
+test('cardHtml: 출처는 카드 전체 각주 목록 하나 — 번호는 띠·날짜·학력·경력·사진 순, 같은 출처는 한 줄', function () {
+  const photoSrc = { kind: 'PRESS', title: '시정일보 사진', url: null, checked_on: '2026-11-04' };
+  const photo = { photo_id: 3, license_cd: 'KOGL1', source: photoSrc, uploaded_by: '1001' };
+  const h = hc.cardHtml(view({ head: { photo: photo } }, { photo: { id: 3, url: 'blob:a', state: 'ok' } }), { today: TODAY });
+  const notes = h.slice(h.indexOf('<div class="hc-notes"'), h.indexOf('<div class="hc-foot">'));
+  const fn = function (n) { return notes.slice(notes.indexOf('id="hc-fn-' + n + '"'), notes.indexOf('id="hc-fn-' + (n + 1) + '"') >= 0 ? notes.indexOf('id="hc-fn-' + (n + 1) + '"') : undefined); };
+  assert.ok(h.indexOf('<div class="hc-notes"') > h.indexOf('<dl class="hc-items">') && h.indexOf('<div class="hc-notes"') < h.indexOf('<div class="hc-foot">'));   // 학력·경력 아래, 꼬리 위
+  assert.strictEqual((notes.match(/class="hc-fn"/g) || []).length, 3);
+  assert.ok(fn(1).indexOf('당선인 정보') >= 0 && fn(2).indexOf('가람시 누리집') >= 0 && fn(3).indexOf('시정일보 사진') >= 0);   // 1 띠·임기 만료, 2 날짜·학력·경력, 3 사진
+  assert.ok(notes.indexOf('<p class="hc-notes-t" id="hc-notes-t">출처</p>') >= 0 && notes.indexOf('출처: ') < 0);
+  assert.strictEqual((h.match(/가람시 누리집/g) || []).length, 1);                 // 학력·경력 항목마다 되풀이되지 않는다
+  assert.ok(/임기 만료<\/dt><dd aria-describedby="hc-fn-1">/.test(h) && /첫 취임일<\/dt><dd aria-describedby="hc-fn-2">/.test(h) && /현 임기 시작<\/dt><dd aria-describedby="hc-fn-2">/.test(h));
+  const items = h.slice(h.indexOf('<dl class="hc-items">'), h.indexOf('<div class="hc-notes"'));
+  assert.ok(items.indexOf('hc-src') < 0 && items.indexOf('<a ') < 0 && (items.match(/class="hc-fnref"/g) || []).length === 3);   // 학력 1 + 경력 2, 표식만
+  assert.ok(items.indexOf('<span class="hc-val">가람시의회 의원</span><sup class="hc-fnref" aria-hidden="true">2</sup><span class="sr-only">(출처 2)</span>') >= 0);
+  assert.ok(h.indexOf('공공누리 제1유형<sup class="hc-fnref" aria-hidden="true">3</sup>') >= 0);   // 사진 캡션: 이용 조건 + 표식
+  const same = hc.cardHtml(view({ head: { fields: { NAME: field(1, '서지운'), FIRST_TAKE_OFFICE: field(3, '2022-07-01'), TERM_START: field(4, '2026-07-01'), TERM_END: field(5, '2030-06-30') } } }), { today: TODAY });
+  assert.strictEqual((same.match(/class="hc-fn"/g) || []).length, 1);              // 모두 같은 출처면 각주 한 줄
+  assert.strictEqual((same.match(/class="hc-fnref"/g) || []).length, 1 + 3 + 1 + 2);   // 띠 1 + 날짜 3 + 학력 1 + 경력 2
 });
 test('cardHtml: 값이 없는 칸은 표식 없이 미확인, 각주 값은 이스케이프', function () {
-  const none = hc.cardHtml(view({ head: { first_take_office: null, term_start: null, term_end: null, fields: {} } }), { today: TODAY });
-  assert.ok(none.indexOf('hc-fnref') < 0 && none.indexOf('hc-fns') < 0);
+  const none = hc.cardHtml(view({ head: { first_take_office: null, term_start: null, term_end: null, fields: {}, education: [], career: [] } }), { today: TODAY });
+  assert.ok(none.indexOf('class="hc-fnref"') < 0 && none.indexOf('hc-fns') < 0 && none.indexOf('class="hc-notes"') < 0);
   const evil = hc.cardHtml(view({ head: { fields: { FIRST_TAKE_OFFICE: field(3, '2022-07-01', { kind: 'OTHER', title: '<img src=x onerror=y>', url: null, checked_on: '2026-11-03' }) } } }), { today: TODAY });
   assert.strictEqual(evil.indexOf('<img src=x'), -1);
   assert.ok(evil.indexOf('&lt;img src=x') >= 0);
@@ -995,4 +1002,290 @@ test('ensure(…, screen): 지도 상세 팝업은 X-Screen-Id map_popover·X-Bu
     await hc.ensure('11010', function () {}, '2002');
     assert.strictEqual(calls[n].init.headers['X-Screen-Id'], 'head_card');
   } finally { cleanup(); }
+});
+
+// ── 워드 내려받기(NEXT 100 S1, 규격 6-6) ──────────────────────────
+const DOCX_CD = "attachment; filename=\"head_info.docx\"; filename*=UTF-8''" + encodeURIComponent('기관장정보_가람시_20261119.docx');
+function docxRoutes(docx) {
+  return function (url) {
+    if (url.indexOf('/head/docx') >= 0) return docx;
+    return { status: 200, json: detail() };
+  };
+}
+async function okCard(screen) {
+  hc.paneSection({ institutionId: '11010' }, env(screen ? { screen: screen } : {}));
+  await settle();
+  assert.strictEqual(hc.view().status, 'ok');
+}
+function withFakeDoc(fn) {
+  const saved = [];
+  global.document = {
+    createElement: function () { const a = { style: {}, click: function () { saved.push({ href: a.href, download: a.download }); } }; return a; },
+    body: { appendChild: function () {}, removeChild: function () {} },
+  };
+  return Promise.resolve().then(function () { return fn(saved); }).finally(function () { delete global.document; });
+}
+
+test('워드: 기관장 카드(ok)에만 [워드 내려받기]가 있고 새로 고침·편집보다 앞, 줄은 닫혀 있다', function () {
+  const h = hc.cardHtml(view(), { today: TODAY });
+  assert.ok(h.indexOf('data-hc="docx-open"') > 0 && h.indexOf('data-hc="docx-open"') < h.indexOf('data-hc="refresh"'));
+  assert.ok(h.indexOf('aria-expanded="false"') > 0 && h.indexOf('class="hc-ref"') < 0);
+  ['none', 'denied', 'role', 'notfound', 'noid', 'off', 'login', 'error'].forEach(function (st) {
+    const s = hc.sectionHtml({ status: st, data: st === 'none' ? { head: null } : undefined }, {});
+    assert.ok(s.indexOf('docx-open') < 0, st);
+  });
+});
+
+test('워드: 줄을 펼치면 번호 칸(1~20·숫자 자판)·제목 미리보기·안내·[내려받기]/[취소], 기관 이름은 이스케이프', function () {
+  const h = hc.cardHtml(view({}, { dl: { open: true, ref: '3', name: '<b>가람시</b>', busy: false, fieldErr: '', err: '', ok: '' } }), { today: TODAY });
+  assert.ok(/<input type="number" min="1" max="20"[^>]*inputmode="numeric"[^>]*value="3"/.test(h));
+  assert.ok(h.indexOf('참고자료 3. 「&lt;b&gt;가람시&lt;/b&gt;」 기관장 정보') >= 0 && h.indexOf('<b>가람시</b>') < 0);
+  assert.ok(h.indexOf('확정된 값만 담깁니다(사진·확정 대기 후보 제외). 내려받기 기록이 남습니다.') >= 0);
+  assert.ok(h.indexOf('data-hc="docx-go"') > 0 && h.indexOf('data-hc="docx-cancel"') > 0 && h.indexOf('aria-expanded="true"') > 0);
+  assert.ok(hc.cardHtml(view({}, { dl: { open: true, ref: '3', name: '', busy: false, fieldErr: '', err: '', ok: '' } }), {}).indexOf('참고자료 3. 기관장 정보') >= 0);   // 이름 모르면 「」 없이
+});
+
+test('워드: 받는 중이면 버튼·칸 비활성 + "만드는 중…" + aria-busy, 칸 오류는 aria-invalid + role=alert', function () {
+  const busy = hc.cardHtml(view({}, { dl: { open: true, ref: '1', name: '', busy: true, fieldErr: '', err: '', ok: '' } }), {});
+  assert.ok(busy.indexOf('aria-busy="true"') >= 0 && busy.indexOf('만드는 중…') >= 0 && /data-hc="docx-go" disabled/.test(busy) && /data-hc-ref value="1" disabled/.test(busy));
+  const bad = hc.cardHtml(view({}, { dl: { open: true, ref: '0', name: '', busy: false, fieldErr: '1~20 사이 숫자를 넣으세요.', err: '', ok: '' } }), {});
+  assert.ok(bad.indexOf('aria-invalid="true"') >= 0 && /role="alert">1~20 사이 숫자를 넣으세요\./.test(bad));
+});
+
+test('parseRef: 1~20 정수만(서버 정규식 [0-9]{1,2}와 같은 범위), 나머지는 0', function () {
+  ['1', '9', '10', '20', '05', ' 7 '].forEach(function (v) { assert.ok(hc.parseRef(v) >= 1 && hc.parseRef(v) <= 20, v); });
+  assert.strictEqual(hc.parseRef('20'), 20);
+  ['0', '21', '100', '', 'abc', '1.5', '-1', '1e1', null, undefined].forEach(function (v) { assert.strictEqual(hc.parseRef(v), 0, String(v)); });
+});
+
+test('워드: 번호가 틀리면 요청하지 않고 칸 오류, 맞으면 GET ?ref_no=N + X-Screen-Id head_card·X-Button-Id head_docx', async function () {
+  const calls = fakeFetch(docxRoutes({ status: 200, blob: new Blob(['docx']), headers: { 'Content-Disposition': DOCX_CD } }));
+  try {
+    await okCard();
+    const e = env();
+    hc.onPaneClick('docx-open', function () { return e; });
+    assert.strictEqual(hc.view().dl.open, true);
+    assert.strictEqual(hc.view().dl.ref, '1');                       // 기본값
+    hc.view().dl.ref = '21';
+    await hc.onPaneClick('docx-go', function () { return e; });
+    assert.strictEqual(calls.filter(function (c) { return c.url.indexOf('/docx') >= 0; }).length, 0);
+    assert.strictEqual(hc.view().dl.fieldErr, '1~20 사이 숫자를 넣으세요.');
+    hc.view().dl.ref = '5';
+    await withFakeDoc(async function (saved) {
+      await hc.onPaneClick('docx-go', function () { return e; });
+      const c = calls.filter(function (x) { return x.url.indexOf('/docx') >= 0; });
+      assert.strictEqual(c.length, 1);
+      assert.strictEqual(c[0].url, '/institutions/11010/head/docx?ref_no=5');
+      assert.strictEqual(c[0].init.method, 'GET');
+      assert.deepStrictEqual(c[0].init.headers, { 'X-Screen-Id': 'head_card', 'X-Button-Id': 'head_docx' });
+      assert.strictEqual(saved.length, 1);
+      assert.strictEqual(saved[0].download, '기관장정보_가람시_20261119.docx');
+    });
+    const dl = hc.view().dl;
+    assert.ok(!dl.open && !dl.busy && dl.ok === '워드 파일을 내려받았습니다.' && !dl.err && !dl.fieldErr);
+    assert.ok(hc.cardHtml(hc.view(), { today: TODAY }).indexOf('role="status">워드 파일을 내려받았습니다.') >= 0);
+  } finally { cleanup(); }
+});
+
+test('워드: 지도 상세 팝업에서 열면 X-Screen-Id가 map_popover(화면 이름은 mine.screen)', async function () {
+  const calls = fakeFetch(docxRoutes({ status: 200, blob: new Blob(['d']), headers: { 'Content-Disposition': DOCX_CD } }));
+  try {
+    await okCard('map_popover');
+    hc.onPaneClick('docx-open', function () { return env(); });
+    await withFakeDoc(async function () { await hc.onPaneClick('docx-go', function () { return env(); }); });
+    const c = calls.filter(function (x) { return x.url.indexOf('/docx') >= 0; })[0];
+    assert.deepStrictEqual([c.init.headers['X-Screen-Id'], c.init.headers['X-Button-Id']], ['map_popover', 'head_docx']);
+  } finally { cleanup(); }
+});
+
+test('워드: 서버 오류별 문구 — 409 HEAD_EMPTY·400 BAD_VALUE(칸)·403·500·연결 실패·404', async function () {
+  const T = hc.TEXT;
+  const cases = [
+    [{ status: 409, json: { detail: { code: 'HEAD_EMPTY', message: 'x' } } }, 'err', T.docxEmpty],
+    [{ status: 400, json: { detail: { code: 'BAD_VALUE', message: 'x' } } }, 'fieldErr', T.refBad],
+    [{ status: 400, json: { detail: { code: 'UI_ID_REQUIRED', message: 'x' } } }, 'err', T.docxUi],
+    [{ status: 403, json: { detail: '권한 없음' } }, 'err', T.denied],
+    [{ status: 401, json: { detail: 'x' } }, 'err', T.login],
+    [{ status: 500, json: { detail: 'boom' } }, 'err', T.docxServer],
+    [{ fail: true }, 'err', T.network],
+    [{ status: 404, json: { detail: { code: 'FEATURE_OFF', message: 'x' } } }, 'err', T.off],
+    [{ status: 404, json: { detail: 'not found' } }, 'err', T.notfound],
+  ];
+  for (const c of cases) {
+    const calls = fakeFetch(docxRoutes(c[0]));
+    try {
+      await okCard();
+      hc.onPaneClick('docx-open', function () { return env(); });
+      await hc.onPaneClick('docx-go', function () { return env(); });
+      const dl = hc.view().dl;
+      assert.strictEqual(dl[c[1]], c[2], JSON.stringify(c[0]));
+      assert.ok(!dl.busy && dl.open && !dl.ok);                       // 줄은 열린 채로 다시 시도할 수 있다
+      if (c[0].status === 409) { await settle(); assert.ok(calls.filter(function (x) { return /head$/.test(x.url); }).length >= 2); }   // 409면 카드를 다시 읽는다(버튼 ID refresh)
+    } finally { cleanup(); }
+  }
+});
+
+test('워드: 받는 중 [내려받기]를 또 눌러도 요청은 한 번, [취소]는 줄을 접고 오류를 지운다', async function () {
+  const calls = fakeFetch(docxRoutes({ status: 200, blob: new Blob(['d']), headers: { 'Content-Disposition': DOCX_CD } }));
+  try {
+    await okCard();
+    hc.onPaneClick('docx-open', function () { return env(); });
+    await withFakeDoc(async function () {
+      const a = hc.onPaneClick('docx-go', function () { return env(); });
+      const b = hc.onPaneClick('docx-go', function () { return env(); });   // busy 중
+      await Promise.all([a, b]);
+    });
+    assert.strictEqual(calls.filter(function (x) { return x.url.indexOf('/docx') >= 0; }).length, 1);
+    hc.onPaneClick('docx-open', function () { return env(); });
+    hc.view().dl.err = '오류';
+    hc.onPaneClick('docx-cancel', function () { return env(); });
+    assert.ok(!hc.view().dl.open && hc.view().dl.err === '');
+  } finally { cleanup(); }
+});
+
+test('워드: 기관을 바꾸면 열린 줄·입력값이 버려진다(V.dl 초기화), 기관장 없음(none)에는 단추가 없다', async function () {
+  fakeFetch(function () { return { status: 200, json: detail() }; });
+  try {
+    await okCard();
+    hc.onPaneClick('docx-open', function () { return env(); });
+    assert.ok(hc.view().dl.open);
+    hc.paneSection({ institutionId: '11011' }, env());
+    assert.strictEqual(hc.view().dl, null);
+  } finally { cleanup(); }
+  fakeFetch(function () { return { status: 200, json: { institution_id: '11010', head: null, candidates: [], candidate_heads: [] } }; });
+  try {
+    hc.paneSection({ institutionId: '11010' }, env());
+    await settle();
+    assert.strictEqual(hc.view().status, 'none');
+    hc.onPaneClick('docx-open', function () { return env(); });      // ok가 아니면 무시
+    assert.strictEqual(hc.view().dl, null);
+    assert.ok(hc.sectionHtml(hc.view(), env()).indexOf('docx-open') < 0);
+  } finally { cleanup(); }
+});
+
+test('docxFileName: filename*를 풀어 쓰고, 경로 문자는 _로, 못 읽으면 기본 이름', function () {
+  assert.strictEqual(hc.docxFileName(DOCX_CD), '기관장정보_가람시_20261119.docx');
+  assert.strictEqual(hc.docxFileName("attachment; filename*=UTF-8''..%2F..%2Fx.docx"), '.._.._x.docx');
+  assert.strictEqual(hc.docxFileName('attachment; filename="head_info.docx"'), '기관장정보.docx');
+  assert.strictEqual(hc.docxFileName(null), '기관장정보.docx');
+  assert.strictEqual(hc.docxFileName("attachment; filename*=UTF-8''%E0%A4%A"), '기관장정보.docx');   // 깨진 인코딩
+});
+
+test('워드: CSS 줄(.hc-ref)이 기관장 카드 블록 안에 있고 배선은 data-hc 위임을 그대로 쓴다', function () {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const a = html.indexOf('/* 기관장 카드 시작'), b = html.indexOf('/* 기관장 카드 끝 */');
+  assert.ok(/\.hc-ref \{[^}]*border-top:1px solid var\(--line\)/.test(html.slice(a, b)));
+  assert.ok(/\.hc-ref input \{[^}]*width:56px[^}]*var\(--mono\)/.test(html.slice(a, b)));
+  const src = fs.readFileSync(path.join(ROOT, 'js/headcard.js'), 'utf8');
+  assert.ok(src.indexOf("what === 'docx-open'") >= 0 && src.indexOf("what === 'docx-go'") >= 0 && src.indexOf("what === 'docx-cancel'") >= 0);
+  assert.ok(src.indexOf('window.open') < 0 && src.indexOf('confirm(') < 0);
+});
+
+// ── 카드 디자인 진단 6-1~6-6(design 11-19) ──────────────────────────
+test('cardHtml: 띠는 만료일 기준 + 각주 표식만(출처 원문·링크 없음), 공고·입찰 띠는 각주 체계 밖', function () {
+  const h = hc.cardHtml(view(), { today: TODAY });
+  const band = h.slice(h.indexOf('<div class="hc-band">'), h.indexOf('<div class="hc-body">'));
+  assert.ok(band.indexOf('만료일 <span class="v">2030-06-30</span> 기준<sup class="hc-fnref" aria-hidden="true">1</sup><span class="sr-only">(출처 1)</span>') >= 0);
+  assert.ok(band.indexOf('hc-src') < 0 && band.indexOf('<a ') < 0 && band.indexOf('당선인 정보') < 0);
+  const noTerm = hc.cardHtml(view({ head: { term_end: null, fields: { NAME: field(1, '서지운') } } }), { today: TODAY, bid: { days: 41, date: '2026-12-23', label: '확정' } });
+  assert.ok(noTerm.slice(noTerm.indexOf('<div class="hc-band">'), noTerm.indexOf('<div class="hc-body">')).indexOf('hc-fnref') < 0);
+});
+
+test('cardHtml: 이름·직위·권한대행 배지는 한 줄 묶음(hc-who-hd), 이름이 먼저', function () {
+  const h = hc.cardHtml(view({ head: { acting: true } }), { today: TODAY });
+  assert.ok(/<div class="hc-who-hd"><h4 id="hc-name">서지운<\/h4><span class="hc-pos">가람시장<\/span><span class="hc-badge">권한대행<\/span><\/div>/.test(h));
+});
+
+test('cardHtml: 꼬리는 두 줄 고정 — 메타 한 줄 · 왼쪽 후보 보기 · 오른쪽 [워드 내려받기][새로 고침][기관장 편집], 펼침 줄은 꼬리 안', function () {
+  const foot = function (v) { const h = hc.cardHtml(v, { today: TODAY }); return h.slice(h.indexOf('<div class="hc-foot">')); };
+  const f0 = foot(view());
+  assert.ok(/<p class="hc-meta">출처를 단 항목 <span class="v">8<\/span>건 · 최근 확인 <span class="v">2026-11-03<\/span> · 열람 기록이 남습니다<\/p>/.test(f0));
+  assert.ok(f0.indexOf('hc-log') < 0 && f0.indexOf('<span class="hc-foot-l"></span>') >= 0);        // 후보가 없어도 자리는 있다
+  assert.ok(f0.indexOf('>워드 내려받기<') < f0.indexOf('>새로 고침<') && f0.indexOf('>새로 고침<') < f0.indexOf('>기관장 편집<'));
+  assert.ok(f0.indexOf('>편집<') < 0);
+  const cand = view({ candidates: [{ item_id: 20, field_cd: 'POSITION', value: '대행', source: SRC, created_by: '1', can_confirm: true, can_reject: true }] });
+  const f1 = foot(cand);
+  assert.ok(f1.indexOf('<span class="hc-foot-l"><button type="button" class="hc-cand" data-hc="edit">확정 대기 후보 1건 보기</button></span>') >= 0);
+  const open = foot(Object.assign({}, view(), { dl: { open: true, ref: '1', name: '', busy: false, fieldErr: '', err: '', ok: '' } }));
+  assert.ok(open.indexOf('class="hc-ref"') > open.indexOf('class="sp"'));                              // 펼침 줄은 꼬리 안, 단추 묶음 다음
+});
+
+test('srcHtml: 확인 날짜는 한 덩어리(hc-ck)', function () {
+  assert.ok(hc.srcHtml({ kind: 'NEC', title: 't', url: null, checked_on: '2026-11-03' }).indexOf('<span class="hc-ck">확인 2026-11-03</span>') >= 0);
+});
+
+test('사진 캡션: 모르는 이용 조건 코드는 코드 대신 이용 조건 미확인 칩, 아는 코드는 괄호 없는 짧은 이름', function () {
+  const mk = function (cd) { return hc.cardHtml(view({ head: { photo: { photo_id: 3, license_cd: cd, source: SRC, uploaded_by: '1' } } }, { photo: { id: 3, url: 'blob:a', state: 'ok' } }), { today: TODAY }); };
+  const u = mk('LOCAL_ONLY');
+  assert.ok(u.indexOf('<span class="pop-unk">이용 조건 미확인</span>') >= 0 && u.indexOf('LOCAL_ONLY') < 0);
+  assert.ok(mk('INST_PERMIT').indexOf('기관 직접 허락') >= 0);
+  assert.strictEqual(hc.licenseShort('KOGL1'), '공공누리 제1유형');
+  assert.strictEqual(hc.licenseKnown('KOGL1'), true);
+  assert.strictEqual(hc.licenseKnown('toString'), false);              // 객체 기본 속성 이름도 아는 코드가 아니다
+  assert.strictEqual(hc.licenseLabel('LOCAL_ONLY'), 'LOCAL_ONLY');     // 모달은 예전처럼
+});
+
+test('isEmptyHead: 카드에 안 보이는 확정 칸은 상수 목록(EMPTY_IGNORE_FIELDS)으로 뺀다', function () {
+  const EMPTY_HEAD = { head_id: 7, name: '', position: '', acting: false, first_take_office: null, term_start: null, term_end: null, fields: {}, education: [], career: [], photo: null };
+  const mk = function () { return { institution_id: '11010', head: Object.assign({}, EMPTY_HEAD, { fields: { BIRTH_DATE: field(9, '1970-01-01') } }), candidates: [], candidate_heads: [] }; };
+  assert.deepStrictEqual(hc.EMPTY_IGNORE_FIELDS, ['ACTING']);
+  hc.EMPTY_IGNORE_FIELDS.push('BIRTH_DATE');
+  try {
+    assert.strictEqual(hc.isEmptyHead(mk()), true);
+  } finally { hc.EMPTY_IGNORE_FIELDS.pop(); }
+  assert.strictEqual(hc.isEmptyHead(mk()), false);
+});
+
+test('CSS 블록(디자인 진단 6-1~6-6): 머리 주석 최소 12px, 띠 --panel2, 이름 16px, 꼬리 grid, 줄바꿈 keep-all, 복사 방지', function () {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const a = html.indexOf('/* 기관장 카드 시작'), b = html.indexOf('/* 기관장 카드 끝 */');
+  const raw = html.slice(a, b), css = raw.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(raw.indexOf('최소 12px') >= 0 && raw.indexOf('최소 11px') < 0);
+  assert.ok(/\.hc-band \{[^}]*background:var\(--panel2\)/.test(css) && css.indexOf('accent-color) 9%') < 0);
+  assert.ok(/\.hc-who h4 \{[^}]*font-size:16px/.test(css) && /\.hc-who-hd \{[^}]*flex-wrap:wrap/.test(css));
+  assert.ok(/\.hc-foot \{[^}]*display:grid/.test(css) && /\.hc-meta \{[^}]*grid-column:1 \/ -1/.test(css) && /\.hc-foot > \.hc-ref \{[^}]*grid-column:1 \/ -1/.test(css));
+  assert.ok(/\.hc-notes \{[^}]*border-top/.test(css) && /\.hc-notes-t \{/.test(css) && css.indexOf('.hc-fns') < 0);
+  ['.hc-fn', '.hc-src', '.hc-cap', '.hc-bigsrc'].forEach(function (sel) {
+    const m = new RegExp('\\' + sel + ' \\{[^}]*\\}').exec(css);
+    assert.ok(m && /word-break:keep-all/.test(m[0]) && /overflow-wrap:break-word/.test(m[0]) && m[0].indexOf('anywhere') < 0, sel);
+  });
+  assert.ok(/\.hc-ck, \.hc-card \.v, \.hc-nb \{[^}]*white-space:nowrap/.test(css) && /\.hc-cap \.pop-unk \{[^}]*white-space:nowrap/.test(css));
+  assert.ok(/\.hc-fnref, \.hc-card \.sr-only \{[^}]*user-select:none/.test(css));
+  assert.ok(/\.hc-cap \{[^}]*width:117px[^}]*text-align:center/.test(css));
+  assert.ok(/\.hc-act button \{[^}]*font-size:12px; padding:5px 12px/.test(css));
+});
+
+test('워드: 번호 칸 키 처리는 document 캡처 단계 — 지도 팝업 Esc(팝업 닫기)보다 먼저 줄만 접는다(qa 11-20 P2-1)', function () {
+  const p = require.resolve('../js/headcard.js');
+  const saved = require.cache[p];
+  const ls = [];
+  global.document = { addEventListener: function (type, fn, cap) { ls.push({ type: type, fn: fn, cap: cap }); } };
+  try {
+    delete require.cache[p];
+    const hc2 = require('../js/headcard.js');
+    const kd = ls.filter(function (l) { return l.type === 'keydown'; })[0];
+    assert.ok(kd && kd.cap === true);
+    const ev = function (key) { return { key: key, target: { hasAttribute: function (a) { return a === 'data-hc-ref'; } }, stopped: false, preventDefault: function () {}, stopPropagation: function () { this.stopped = true; } }; };
+    hc2.view().dl = { open: true, ref: '1', name: '', busy: false, fieldErr: '', err: 'x', ok: '' };
+    const esc = ev('Escape'); kd.fn(esc);
+    assert.ok(esc.stopped && hc2.view().dl.open === false && hc2.view().dl.err === '');
+    const other = ev('a'); kd.fn(other);
+    assert.strictEqual(other.stopped, false);
+  } finally { delete global.document; require.cache[p] = saved; }
+});
+
+test('srcHtml: 출처 제목 안 날짜는 끊기지 않게 묶고(hc-nb) 이스케이프는 먼저 — 디자인 대조 11-20', function () {
+  const h = hc.srcHtml({ kind: 'OTHER', title: '<b>공직선거법상 2026-07-01부터</b>', url: 'https://example.go.kr/a', checked_on: '2026-11-03' });
+  assert.ok(h.indexOf('&lt;b&gt;공직선거법상 <span class="hc-nb">2026-07-01</span>부터&lt;/b&gt;') >= 0 && h.indexOf('<b>') < 0);
+  assert.ok(hc.srcHtml({ kind: 'OTHER', title: '', url: 'https://example.go.kr/2026-07-01', checked_on: null }).indexOf('hc-nb') < 0);   // 제목 없이 주소를 보일 때는 감싸지 않는다
+});
+test('사진 캡션: 불러오는 중·실패는 틀을 장식으로(낭독 한 번), 이용 조건 없이 문구 + 표식', function () {
+  const p = { photo_id: 3, license_cd: 'KOGL1', source: SRC, uploaded_by: '1' };
+  const ld = hc.cardHtml(view({ head: { photo: p } }, { photo: { id: 3, url: '', state: 'loading' } }), { today: TODAY });
+  const er = hc.cardHtml(view({ head: { photo: p } }, { photo: { id: 3, url: '', state: 'err' } }), { today: TODAY });
+  [ld, er].forEach(function (h) {
+    const ph = h.slice(h.indexOf('<div class="hc-photo">'), h.indexOf('<div class="hc-who">'));
+    assert.ok(ph.indexOf('role="img"') < 0 && ph.indexOf('공공누리') < 0 && ph.indexOf('class="hc-fnref"') >= 0);
+  });
+  assert.ok(ld.indexOf('사진 불러오는 중…<sup') >= 0 && er.indexOf('다시 시도하세요.<sup') >= 0);
 });
