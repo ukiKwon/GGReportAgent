@@ -87,7 +87,7 @@ public class DesignReviewTxTest {
         jdbc.update("INSERT INTO TASKS (TASK_ID, BID_CASE_ID, TEAM, STATUS, ASSIGNEE) VALUES (?,?,?,?,?)", "task-dsntx-i-" + k, bid, "전산", "2차완료", "오전산");
         jdbc.update("INSERT INTO TASKS (TASK_ID, BID_CASE_ID, TEAM, STATUS, ASSIGNEE) VALUES (?,?,?,?,?)", "task-dsntx-b-" + k, bid, "예산", "2차완료", "한예산");
         String tid = "task-dsntx-d-" + k;
-        jdbc.update("INSERT INTO TASKS (TASK_ID, BID_CASE_ID, TEAM, STATUS, ASSIGNEE) VALUES (?,?,?,?,?)", tid, bid, "디자이너", "작성중", "최디자이너");
+        jdbc.update("INSERT INTO TASKS (TASK_ID, BID_CASE_ID, TEAM, STATUS, ASSIGNEE) VALUES (?,?,?,?,?)", tid, bid, "디자이너", "작성중", "박디자이너");
         jdbc.update("INSERT INTO BID_ASSIGNMENT (BID_CASE_ID, EMP_NO, ACTIVE_YN, ASSIGNED_BY, ASSIGNED_AT) VALUES (?,?,1,?,?)",
                 bid, SALES, LEAD, "2026-11-19T00:00:00.000000+00:00");
         assertEquals(200, call("/tasks/" + tid + "/design/complete", DESIGNER, null).getStatus());

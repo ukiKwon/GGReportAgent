@@ -40,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 양식 커스텀 API. 시드: 김영업 3918264(영업팀, tasks 조회·수정 없음), 윤서준 3361829(영업팀),
  * 이영업 5047192(영업팀장), 마스터 8203417(전산팀·관리자), 권전산 4482971(전산팀), 백수아 1473958(영업부장, tasks 꺼짐),
- * 최디자이너 7130526(디자이너, teamOf = "디자이너").
+ * 박디자이너 7130526(디자이너, teamOf = "디자이너").
  */
 @RunWith(SpringRunner.class)
 @AppTest

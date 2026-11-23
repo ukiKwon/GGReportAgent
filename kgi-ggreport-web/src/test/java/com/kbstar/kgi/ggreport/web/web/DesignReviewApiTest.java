@@ -30,7 +30,7 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * 디자인 검토 흐름(051, NEXT 100 ⑥ S6-a·S6-b) — 회차·받는 사람·의견·확인함·결재 훅·잠금·감사, security 필수 M1~M5·L1.
- * 시드 사번: 영업팀 3918264 · 영업팀장 5047192·5640327 · 전산팀장 6295038·8892046 · 예산팀장 9026715 · 영업부장 2674805·1473958 · 디자이너 7130526(최디자이너)·1625983(신유나) · 전산팀 8203417.
+ * 시드 사번: 영업팀 3918264 · 영업팀장 5047192·5640327 · 전산팀장 6295038·8892046 · 예산팀장 9026715 · 영업부장 2674805·1473958 · 디자이너 7130526(박디자이너)·1625983(신유나) · 전산팀 8203417.
  * 건마다 입찰 건·팀 작업 3건(2차완료)·디자이너 작업을 직접 넣는다(롤백). 동시 경합(M1)은 트랜잭션 없이 도는 {@code DesignReviewTxTest}.
  * ⚠️ X-Emp-No 는 자기신고다 — 여기서 고정하는 것은 업무 규칙이지 사칭 방지가 아니다.
  */
@@ -76,7 +76,7 @@ public class DesignReviewApiTest {
                 bid, SALES, LEAD, "2026-11-19T00:00:00.000000+00:00");
         if (withDesignerTask) {
             tid = "task-dsn-d-" + k;
-            task(tid, "디자이너", "작성중", "최디자이너");
+            task(tid, "디자이너", "작성중", "박디자이너");
         }
     }
 
@@ -351,7 +351,7 @@ public class DesignReviewApiTest {
     @Test
     public void 남이_담당한_디자이너_작업과_다른_역할은_완료할_수_없다() throws Exception {
         int before = denied(DESIGNER2, "/tasks/" + tid + "/design/complete");
-        assertEquals(403, complete(DESIGNER2).getStatus());   // 신유나 ≠ 최디자이너
+        assertEquals(403, complete(DESIGNER2).getStatus());   // 신유나 ≠ 박디자이너
         assertEquals(before + 1, denied(DESIGNER2, "/tasks/" + tid + "/design/complete"));
         assertEquals(403, complete(SALES).getStatus());
         assertEquals(401, complete(null).getStatus());
@@ -371,7 +371,7 @@ public class DesignReviewApiTest {
     @Test
     public void 동명이인_디자이너는_이름_담당을_본인으로_인정받지_못하고_사번_담당은_통과한다() throws Exception {
         jdbc.update("INSERT INTO USERS (EMP_NO, NAME, ROLE, POSITION_TITLE, APPROVAL_GRADE, STATUS, FAILED_LOGINS, CREATED_AT, UPDATED_AT) "
-                + "VALUES ('9999992', '최디자이너', '디자이너', '사원', 'NONE', 'ACTIVE', 0, '2026-11-19T00:00:00.000000+00:00', '2026-11-19T00:00:00.000000+00:00')");
+                + "VALUES ('9999992', '박디자이너', '디자이너', '사원', 'NONE', 'ACTIVE', 0, '2026-11-19T00:00:00.000000+00:00', '2026-11-19T00:00:00.000000+00:00')");
         assertEquals("이름이 둘이면 본인도 403", 403, complete(DESIGNER).getStatus());
         assertEquals(403, complete("9999992").getStatus());
         assertEquals("작성중", status(tid));
@@ -542,7 +542,7 @@ public class DesignReviewApiTest {
         assertEquals("작성중", status(tid));
         assertEquals("LEAD_RETURN", jdbc.queryForObject("SELECT CLOSE_CD FROM DESIGN_ROUND WHERE TASK_ID=? AND ROUND_NO=1", String.class, tid));
         assertEquals(1, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE TASK_ID=? AND RECIPIENT=? AND SENDER='시스템' AND CONTENT LIKE '%구성을 다시%'", tid, DESIGNER));
-        assertEquals("이름 수신 쪽지는 없다(동명이인이 읽는다)", 0, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE TASK_ID=? AND RECIPIENT='최디자이너'", tid));
+        assertEquals("이름 수신 쪽지는 없다(동명이인이 읽는다)", 0, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE TASK_ID=? AND RECIPIENT='박디자이너'", tid));
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DSN_LEAD_RETURN' AND OUTCOME='OK'", bid));
         assertEquals(200, complete(DESIGNER).getStatus());   // 다시 완료 → 회차 2
         assertEquals(2, count("SELECT COUNT(*) FROM DESIGN_ROUND WHERE TASK_ID=?", tid));
@@ -587,9 +587,9 @@ public class DesignReviewApiTest {
 
     @Test
     public void 예전_제출_경로는_디자인_흐름으로_위임되고_팀_쪽지함에는_안_간다() throws Exception {
-        MockHttpServletResponse noEmp = call("/tasks/" + tid + "/submit", null, "{\"by\":\"최디자이너\"}");
+        MockHttpServletResponse noEmp = call("/tasks/" + tid + "/submit", null, "{\"by\":\"박디자이너\"}");
         assertEquals("사번이 필수가 된다", 401, noEmp.getStatus());
-        MockHttpServletResponse r = call("/tasks/" + tid + "/submit", DESIGNER, "{\"by\":\"최디자이너\"}");
+        MockHttpServletResponse r = call("/tasks/" + tid + "/submit", DESIGNER, "{\"by\":\"박디자이너\"}");
         assertEquals(200, r.getStatus());
         assertEquals("예전과 같은 작업 행 모양", "1차완료", body(r).path("status").asText());
         assertEquals(1, count("SELECT COUNT(*) FROM DESIGN_ROUND WHERE TASK_ID=?", tid));

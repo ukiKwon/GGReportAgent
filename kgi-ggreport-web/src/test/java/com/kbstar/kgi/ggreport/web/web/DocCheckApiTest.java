@@ -29,7 +29,7 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * 작업함 파일 점검(057, NEXT 106) — 업로드 뒤 점검·표시·해제·잠김·삭제·제출 감사·권한. 디자이너 작업 하나를 건마다 직접 만든다(롤백).
- * 시드: 현재 기관 nowon(노원구), 다른 기관 dobong(도봉구), 디자이너 7130526(최디자이너)·1625983, 영업 3918264.
+ * 시드: 현재 기관 nowon(노원구), 다른 기관 dobong(도봉구), 디자이너 7130526(박디자이너)·1625983, 영업 3918264.
  * ⚠️ X-Emp-No 는 자기신고다 — 여기서 고정하는 것은 업무 규칙이지 사칭 방지가 아니다(EMP_VERIFIED=0 이 정상).
  */
 @RunWith(SpringRunner.class)
@@ -56,7 +56,7 @@ public class DocCheckApiTest {
         tid = "task-dc-d-" + k;
         jdbc.update("INSERT INTO BID_CASES (BID_CASE_ID, INSTITUTION_ID) VALUES (?, ?)", bid, "nowon");
         jdbc.update("INSERT INTO TASKS (TASK_ID, BID_CASE_ID, TEAM, STATUS, ASSIGNEE) VALUES (?,?,?,?,?)",
-                tid, bid, "디자이너", "작성중", "최디자이너");
+                tid, bid, "디자이너", "작성중", "박디자이너");
         // [디자인 작업 완료]·디자이너 제출은 세 팀 작업이 모두 2차완료여야 하고(TEAMS_NOT_DONE) 받을 사람이 있어야 한다(NO_REVIEWERS) — DesignReviewTxTest 와 같은 준비
         jdbc.update("INSERT INTO TASKS (TASK_ID, BID_CASE_ID, TEAM, STATUS, ASSIGNEE) VALUES (?,?,?,?,?)", "task-dc-s-" + k, bid, "영업", "2차완료", "김영업");
         jdbc.update("INSERT INTO TASKS (TASK_ID, BID_CASE_ID, TEAM, STATUS, ASSIGNEE) VALUES (?,?,?,?,?)", "task-dc-i-" + k, bid, "전산", "2차완료", "오전산");
@@ -183,7 +183,7 @@ public class DocCheckApiTest {
         assertEquals(200, ok.getStatus());
         JsonNode h = body(ok).path("hits").get(0);
         assertTrue(h.path("acked").asBoolean());
-        assertEquals("최디자이너", h.path("acked_by_name").asText());
+        assertEquals("박디자이너", h.path("acked_by_name").asText());
         assertEquals(1, count("SELECT COUNT(*) FROM DOC_CHECK_LOG WHERE TASK_ID=? AND EVENT_CD='ACK' AND EMP_VERIFIED=0 AND UI_VALID=1", tid));
 
         assertEquals(200, post(path, DESIGNER, ackBody(true, sha), "doc_check_ack").getStatus());
