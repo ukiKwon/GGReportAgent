@@ -22,9 +22,9 @@ public class RanksTest {
 
     @Test
     public void 직급_순서는_회사_체계를_따른다() {
-        assertEquals("[계장, 대리, 과장, 차장, 수석차장, 팀장, 부장, 대표]", Ranks.LIST.toString());
+        assertEquals("[계장, 대리, 과장, 차장, 수석차장, 팀장, 부장, 본부장, 대표]", Ranks.LIST.toString());
         assertEquals(1, Ranks.ofPosition("계장"));
-        assertEquals(8, Ranks.ofPosition("대표"));
+        assertEquals(9, Ranks.ofPosition("대표"));
         assertEquals(0, Ranks.ofPosition("사원"));
         assertEquals(0, Ranks.ofPosition(null));
     }
@@ -34,7 +34,7 @@ public class RanksTest {
         assertEquals(1, Ranks.of(u("1", null, "영업팀", "NONE")));
         assertEquals(6, Ranks.of(u("1", "사원", "영업팀장", "TEAM_LEAD")));
         assertEquals(7, Ranks.of(u("1", null, "영업부장", "DEPT_HEAD")));
-        assertEquals(8, Ranks.of(u("1", null, "영업부장", "EXECUTIVE")));
+        assertEquals(9, Ranks.of(u("1", null, "영업부장", "EXECUTIVE")));
         // 직위가 과장이어도 팀장 역할이면 팀장급으로 본다
         assertEquals(6, Ranks.of(u("1", "과장", "영업팀장", "TEAM_LEAD")));
         assertEquals(3, Ranks.of(u("1", "과장", "영업팀", "NONE")));
@@ -68,5 +68,21 @@ public class RanksTest {
         assertFalse(Ranks.mayApprove(teamLead, teamLead2));   // 같은 직급은 결재자가 될 수 없다
         assertFalse(Ranks.mayApprove(teamLead, daeri));       // 낮은 직급
         assertFalse(Ranks.mayApprove(daeri, daeri));          // 본인
+    }
+
+    @Test
+    public void 본부장은_부장과_대표_사이이고_결재_단계로는_부장급이다() {
+        assertEquals(8, Ranks.ofPosition("본부장"));
+        SysUser bu = u("1", "부장", "영업팀", "NONE");
+        SysUser bon = u("2", "본부장", "영업팀", "NONE");
+        SysUser ceo = u("3", "대표", "영업팀", "NONE");
+        assertTrue(Ranks.mayApprove(bu, bon));
+        assertTrue(Ranks.mayApprove(bon, ceo));
+        assertFalse(Ranks.mayApprove(bon, bu));
+        assertEquals(2, ApproverRules.level(bon));   // 위에 대표가 있어 최상위가 아니다 — 결재자 없이 상신하지 않게
+        assertEquals(3, ApproverRules.level(ceo));
+        assertEquals(5, Ranks.SENIOR_DEPUTY_MIN);
+        assertEquals(6, Ranks.APPROVER_MIN);
+        assertEquals(3, Ranks.USUAL_DEPUTY_MIN);
     }
 }

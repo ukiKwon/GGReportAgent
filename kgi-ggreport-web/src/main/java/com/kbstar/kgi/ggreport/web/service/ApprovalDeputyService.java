@@ -139,6 +139,13 @@ public class ApprovalDeputyService {
         deputies.insert(d);
         String warning = Ranks.of(deputy) < Ranks.USUAL_DEPUTY_MIN
                 ? "대결자는 보통 과장급 이상입니다. 업무상 필요하면 그대로 두어도 됩니다." : null;
+        // 개설 신청은 같은 팀 수석차장 이상만 대신 승인한다(사용자 11-23 밤). 지정은 모든 결재에 함께 쓰이므로 막지 않고 알리기만 한다 —
+        // 실제 판정은 승인 때(PrepService.mayDeputizeOpen: 직급·팀·기간은 지정 뒤 바뀔 수 있다).
+        if (BidAssignmentService.LEAD_ROLE.equals(roleOf(principal)) && BidAssignmentService.MEMBER_ROLE.equals(roleOf(deputy))
+                && Ranks.of(deputy) < Ranks.SENIOR_DEPUTY_MIN) {
+            String open = "사전준비 개설 신청은 수석차장 이상 대결자만 대신 승인할 수 있습니다(다른 결재는 그대로 대결합니다).";
+            warning = warning == null ? open : warning + " " + open;
+        }
         return view(deputies.selectById(d.getDeputyId()), warning);
     }
 
@@ -163,6 +170,21 @@ public class ApprovalDeputyService {
         List<String> out = new ArrayList<>();
         for (ApprovalDeputy d : deputies.selectActiveForDeputy(deputyEmp, today)) {
             out.add(d.getPrincipalEmpNo());
+        }
+        return out;
+    }
+
+    /**
+     * {@link #principalsOf} 중 결재자 본인이 직접 등록한 지정만 — 개설 신청 대결은 '팀장이 등록한' 지정만 인정한다
+     * (사용자 11-23 밤, security 11-24 중: 관리자가 대신 등록한 지정으로 승인자를 정하지 못하게).
+     */
+    @Transactional(readOnly = true)
+    public List<String> selfRegisteredPrincipalsOf(String deputyEmp, String today) {
+        List<String> out = new ArrayList<>();
+        for (ApprovalDeputy d : deputies.selectActiveForDeputy(deputyEmp, today)) {
+            if (d.getPrincipalEmpNo() != null && d.getPrincipalEmpNo().equals(d.getCreatedBy())) {
+                out.add(d.getPrincipalEmpNo());
+            }
         }
         return out;
     }
@@ -202,6 +224,10 @@ public class ApprovalDeputyService {
 
     private static boolean blank(String s) {
         return s == null || s.trim().isEmpty();
+    }
+
+    private static String roleOf(SysUser u) {
+        return u.getRole() == null ? "" : u.getRole().trim();
     }
 
     private Map<String, Object> view(ApprovalDeputy d, String warning) {

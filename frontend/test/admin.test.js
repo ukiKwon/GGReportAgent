@@ -220,7 +220,7 @@ test('approverAttention: 지정 필요·재지정 필요만(퇴직·최상위 �
 });
 
 test('RANKS: 회사 직급 순서', function () {
-  assert.deepStrictEqual(admin.RANKS, ['계장', '대리', '과장', '차장', '수석차장', '팀장', '부장', '대표']);
+  assert.deepStrictEqual(admin.RANKS, ['계장', '대리', '과장', '차장', '수석차장', '팀장', '부장', '본부장', '대표']);
 });
 
 test('permItemLabel/permValueLabel: 결재자 이력은 한글로, 나머지는 원문', function () {

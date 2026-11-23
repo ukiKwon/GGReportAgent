@@ -576,13 +576,15 @@ public class ApprovalRequestService {
         } else {
             to.add(step.getApproverEmpNo());
             SysUser principal = users.selectByEmpNo(step.getApproverEmpNo());
-            List<String> deps = ApprovalTypes.NO_PROXY.contains(r.getReqType())
+            boolean leadDeputyOnly = ApprovalTypes.LEAD_DEPUTY_ONLY.contains(r.getReqType());   // 개설 신청: 자격 있는 수석차장 대결자에게만
+            List<String> deps = ApprovalTypes.NO_PROXY.contains(r.getReqType()) && !leadDeputyOnly
                     ? new ArrayList<String>() : deputies.deputiesOf(step.getApproverEmpNo(), Times.todayKst());
             for (String dep : deps) {
                 SysUser d = users.selectByEmpNo(dep);
-                if (d != null && "ACTIVE".equals(d.getStatus()) && !dep.equals(requester.getEmpNo())
-                        && Ranks.mayDecide(requester, d) && !to.contains(dep)
-                        && (!adminByLine(r) || permissions.canAdmin(dep))) {   // 관리자 확인을 갈음한 건은 관리자 대결자만
+                if (d != null && "ACTIVE".equals(d.getStatus()) && !dep.equals(requester.getEmpNo()) && !to.contains(dep)
+                        && (leadDeputyOnly ? prep.mayDeputizeOpen(r, requester, d, step.getApproverEmpNo())
+                                : Ranks.mayDecide(requester, d)
+                                        && (!adminByLine(r) || permissions.canAdmin(dep)))) {   // 관리자 확인을 갈음한 건은 관리자 대결자만
                     to.add(dep);
                     viaDeputy.put(dep, principal == null ? "" : principal.getName());
                 }
@@ -748,7 +750,9 @@ public class ApprovalRequestService {
         String how;
         if (me.getEmpNo().equals(step.getApproverEmpNo())) {
             how = Ranks.mayApprove(requester, me) ? "SELF" : null;
-        } else if (ApprovalTypes.NO_PROXY.contains(reqType)) {      // 담당자 변경은 결재자 본인만(대결 불가)
+        } else if (ApprovalTypes.LEAD_DEPUTY_ONLY.contains(reqType)) {   // 개설 신청: 팀장이 등록한 같은 팀 수석차장만(사용자 11-23 밤) — 직급은 원 결재자 기준
+            how = prep.mayDeputizeOpen(r, requester, me, step.getApproverEmpNo()) ? "DEPUTY" : null;
+        } else if (ApprovalTypes.NO_PROXY.contains(reqType)) {      // 담당자 변경 등은 결재자 본인만(대결 불가)
             how = null;
         } else {
             how = Ranks.mayDecide(requester, me)

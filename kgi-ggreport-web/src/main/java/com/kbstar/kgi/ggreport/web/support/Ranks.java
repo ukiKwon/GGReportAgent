@@ -9,7 +9,8 @@ import java.util.List;
 /**
  * 회사 직급 체계와 <b>결재 방향 규칙</b>.
  *
- * <p>직급(낮은 쪽부터): 계장 &lt; 대리 &lt; 과장 &lt; 차장 &lt; 수석차장 &lt; 팀장 &lt; 부장 &lt; 대표.
+ * <p>직급(낮은 쪽부터): 계장 &lt; 대리 &lt; 과장 &lt; 차장 &lt; 수석차장 &lt; 팀장 &lt; 부장 &lt; 본부장 &lt; 대표.
+ * '수석차장이면서 팀장·부장'인 겸직은 역할(ROLE·결재 등급)로 반영하므로 목록에 따로 두지 않는다(사용자 11-23 밤, planner 권장).
  * 팀장 아래는 모두 '팀원'급이다. 직위가 목록에 없거나 비어 있으면 결재 등급·역할로 추정한다
  * ({@link ApproverRules#levelByGradeRole}).
  *
@@ -29,22 +30,31 @@ public final class Ranks {
     }
 
     public static final List<String> LIST = Collections.unmodifiableList(
-            Arrays.asList("계장", "대리", "과장", "차장", "수석차장", "팀장", "부장", "대표"));
+            Arrays.asList("계장", "대리", "과장", "차장", "수석차장", "팀장", "부장", "본부장", "대표"));
 
     /** 대결자로 "보통" 기대하는 최소 직급(과장). 강제하지 않고 화면에 알리기만 한다. */
-    public static final int USUAL_DEPUTY_MIN = 3;
+    public static final int USUAL_DEPUTY_MIN = LIST.indexOf("과장") + 1;
+
+    /** 개설 신청(BID_OPEN) 대결자의 최소 직급(수석차장) — 팀장이 등록한 같은 팀 수석차장만 대신 승인(사용자 11-23 밤). */
+    public static final int SENIOR_DEPUTY_MIN = LIST.indexOf("수석차장") + 1;
 
     /** 직급상 결재 자격이 생기는 최소 직급(팀장) — {@link #LIST} 에서 도출한다. */
     public static final int APPROVER_MIN = LIST.indexOf("팀장") + 1;
 
-    /** 직위 문자열의 직급(1~8). 목록에 없으면 0. */
+    /** 부장급 결재 단계가 시작되는 직급(부장). 본부장도 부장급이다(위에 대표가 있다). */
+    public static final int HEAD_MIN = LIST.indexOf("부장") + 1;
+
+    /** 최상위 직급(대표). */
+    public static final int TOP = LIST.size();
+
+    /** 직위 문자열의 직급(1~9). 목록에 없으면 0. */
     public static int ofPosition(String position) {
         int i = position == null ? -1 : LIST.indexOf(position.trim());
         return i + 1;
     }
 
     public static int of(SysUser u) {
-        int fromLevel = new int[]{1, 6, 7, 8}[ApproverRules.levelByGradeRole(u)];
+        int fromLevel = new int[]{1, APPROVER_MIN, HEAD_MIN, TOP}[ApproverRules.levelByGradeRole(u)];   // EXECUTIVE = 대표(최상위)
         return Math.max(ofPosition(u.getPositionTitle()), fromLevel);
     }
 

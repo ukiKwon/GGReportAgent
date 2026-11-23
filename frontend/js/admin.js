@@ -204,7 +204,7 @@
   };
 
   // 회사 직급(낮은 쪽부터). 팀장 아래는 모두 팀원급. 서버 Ranks.LIST 와 같다(/sysadmin/meta 가 주면 그쪽을 쓴다).
-  admin.RANKS = ['계장', '대리', '과장', '차장', '수석차장', '팀장', '부장', '대표'];
+  admin.RANKS = ['계장', '대리', '과장', '차장', '수석차장', '팀장', '부장', '본부장', '대표'];
 
   admin.isEmpNo = function (v) { return /^[0-9]{7}$/.test(String(v == null ? '' : v).trim()); };
 

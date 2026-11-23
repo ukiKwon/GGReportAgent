@@ -33,6 +33,13 @@ public final class ApprovalTypes {
             Collections.unmodifiableSet(new HashSet<String>(
                     Arrays.asList(ASSIGNEE_CHANGE, BOARD_SUBMIT, BID_OPEN, PREP_APPROVAL, TARGET_CHANGE)));
 
+    /**
+     * NO_PROXY 중 좁은 대결만 여는 유형 — 개설 신청뿐: 원 결재자(신청자의 같은 팀 영업팀장)가 대결 지정으로 미리 등록한
+     * 같은 팀 수석차장 이상, 등록 기간 안(사용자 11-23 밤). 판정은 PrepService.mayDeputizeOpen 한 곳. 다른 유형의 대결 규칙은 그대로다.
+     */
+    public static final Set<String> LEAD_DEPUTY_ONLY =
+            Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(BID_OPEN)));
+
     /** 사전준비(NEXT 70)가 쓰는 유형 — 영업팀 내부 정보라 관리자 전체 목록·타인 취소에서 제외한다. */
     public static boolean isPrep(String key) {
         return BID_OPEN.equals(key) || PREP_APPROVAL.equals(key);
@@ -73,7 +80,7 @@ public final class ApprovalTypes {
             new Type(BOARD_SUBMIT, "이사회 자료 제출", true,
                     "담당자 → 영업팀장 (영업팀장이 관련되면 영업부장) · 대결 불가"),
             new Type(BID_OPEN, "사전준비 개설 신청", true,
-                    "신청자 → 영업팀장 (신청자·지명자 중 영업팀장이 있으면 영업부장) · 대결 불가"),
+                    "신청자 → 영업팀장 (신청자·지명자 중 영업팀장이 있으면 영업부장) · 일반 대결 불가 — 팀장이 등록한 같은 팀 수석차장 이상만 대결"),
             new Type(PREP_APPROVAL, "사전준비 승인", true,
                     "담당자 → 영업부장 · 대결 불가"),
             new Type(TARGET_CHANGE, "목표 기관 변경", true,

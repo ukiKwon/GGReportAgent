@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -1290,5 +1291,129 @@ public class PrepApiTest {
         assertEquals(409, r.getResponse().getStatus());
         assertEquals("APPROVER_TEAM_MISMATCH", json(r).path("detail").path("code").asText());
         assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=?", bid));
+    }
+
+    // ── 개설 신청 대결 = 팀장이 등록한 같은 팀 수석차장만(사용자 11-23 밤) ──
+
+    private static final String SENIOR = "2189346";   // 임도현(영업팀 차장, 결재선 LEAD 수동) — 시험 안에서 수석차장으로 올린다
+
+    private void position(String emp, String title) throws Exception {
+        jdbc.update("UPDATE USERS SET POSITION_TITLE=? WHERE EMP_NO=?", title, emp);
+        flushCache();
+    }
+
+    private MvcResult deputize(String principal, String deputy, int fromDays, int toDays) throws Exception {
+        LocalDate today = LocalDate.parse(Times.todayKst());
+        return postJson("/approval-deputies", principal, "{\"deputy_emp_no\":\"" + deputy + "\",\"start_date\":\""
+                + today.plusDays(fromDays) + "\",\"end_date\":\"" + today.plusDays(toDays) + "\",\"reason\":\"출장\"}");
+    }
+
+    @Test
+    public void 팀장이_등록한_같은_팀_수석차장은_기간_안에_개설_신청을_대신_승인하고_대결로_남는다() throws Exception {
+        position(SENIOR, "수석차장");
+        MvcResult dep = deputize(LEAD, SENIOR, 0, 3);
+        assertEquals(200, dep.getResponse().getStatus());
+        assertTrue(json(dep).path("warning").isNull());
+        String bid = confirm(MEMBER, INST);
+        long req = openReq(bid, MEMBER, MEMBER2);
+        assertTrue(inInbox(SENIOR, req));
+        MvcResult r = decide(SENIOR, req, "APPROVE", null);
+        assertEquals(r.getResponse().getContentAsString(), 200, r.getResponse().getStatus());
+        JsonNode s0 = json(r).path("steps").get(0);
+        assertEquals(LEAD, s0.path("approver_emp_no").asText());      // 원 결재자
+        assertEquals(SENIOR, s0.path("acted_by").asText());           // 실제 처리자
+        assertTrue(s0.path("acted_as_deputy").asBoolean());
+        assertEquals("IN_PROGRESS", state(bid));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=?", bid));
+    }
+
+    @Test
+    public void 대결_기간_밖이면_수석차장도_개설_신청을_승인할_수_없다() throws Exception {
+        position(SENIOR, "수석차장");
+        assertEquals(200, deputize(LEAD, SENIOR, 1, 3).getResponse().getStatus());   // 내일부터
+        String bid = confirm(MEMBER, INST);
+        long req = openReq(bid, MEMBER, MEMBER2);
+        assertFalse(inInbox(SENIOR, req));
+        assertEquals(403, decide(SENIOR, req, "APPROVE", null).getResponse().getStatus());
+        LocalDate today = LocalDate.parse(Times.todayKst());
+        jdbc.update("UPDATE APPROVAL_DEPUTY SET START_DATE=?, END_DATE=? WHERE PRINCIPAL_EMP_NO=? AND DEPUTY_EMP_NO=?",
+                today.minusDays(5).toString(), today.minusDays(1).toString(), LEAD, SENIOR);   // 이미 끝난 지정(자동 해제)
+        flushCache();
+        assertEquals(403, decide(SENIOR, req, "APPROVE", null).getResponse().getStatus());
+        assertEquals("OPEN_PENDING", state(bid));
+    }
+
+    @Test
+    public void 차장을_대결자로_두면_지정은_경고만_하고_개설_신청_승인은_403() throws Exception {
+        MvcResult dep = deputize(LEAD, SENIOR, 0, 3);   // 시드 그대로 차장
+        assertEquals(200, dep.getResponse().getStatus());
+        assertTrue(json(dep).path("warning").asText().contains("수석차장"));
+        String bid = confirm(MEMBER, INST);
+        long req = openReq(bid, MEMBER, MEMBER2);
+        assertFalse(inInbox(SENIOR, req));
+        assertEquals(403, decide(SENIOR, req, "APPROVE", null).getResponse().getStatus());
+        assertEquals("OPEN_PENDING", state(bid));
+    }
+
+    @Test
+    public void 신청자가_수석차장이어도_팀장이_등록한_수석차장_대결자가_승인한다() throws Exception {
+        position(MEMBER, "수석차장");
+        position(SENIOR, "수석차장");
+        assertEquals(200, deputize(LEAD, SENIOR, 0, 3).getResponse().getStatus());
+        String bid = confirm(MEMBER, INST);
+        long req = openReq(bid, MEMBER, MEMBER2);
+        MvcResult r = decide(SENIOR, req, "APPROVE", null);
+        assertEquals(r.getResponse().getContentAsString(), 200, r.getResponse().getStatus());
+        assertEquals("IN_PROGRESS", state(bid));
+    }
+
+    @Test
+    public void 다른_팀_팀장의_대결자나_다른_팀_수석차장은_개설_신청을_승인할_수_없다() throws Exception {
+        position(SENIOR, "수석차장");
+        String bid = confirm(MEMBER, INST);
+        long req = openReq(bid, MEMBER, MEMBER2);   // 결재 단계 = LEAD
+        assertEquals(200, deputize(LEAD2, SENIOR, 0, 3).getResponse().getStatus());   // 다른 팀 팀장의 대결자
+        assertEquals(403, decide(SENIOR, req, "APPROVE", null).getResponse().getStatus());
+        jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=? WHERE EMP_NO=?", LEAD2, SENIOR);   // 수석차장이 다른 팀 소속
+        flushCache();
+        assertEquals(200, deputize(LEAD, SENIOR, 0, 3).getResponse().getStatus());
+        assertFalse(inInbox(SENIOR, req));
+        assertEquals(403, decide(SENIOR, req, "APPROVE", null).getResponse().getStatus());
+        assertEquals("OPEN_PENDING", state(bid));
+    }
+
+    @Test
+    public void 같은_직급_영업팀장_대결자는_개설_신청을_승인할_수_없다() throws Exception {
+        assertEquals(200, deputize(LEAD, LEAD2, 0, 3).getResponse().getStatus());   // 권한 신청 등 다른 결재는 대결 가능(ApprovalLineApiTest)
+        String bid = confirm(MEMBER, INST);
+        long req = openReq(bid, MEMBER, MEMBER2);
+        assertFalse(inInbox(LEAD2, req));
+        assertEquals(403, decide(LEAD2, req, "APPROVE", null).getResponse().getStatus());
+        assertEquals("OPEN_PENDING", state(bid));
+    }
+
+    @Test
+    public void 지명된_수석차장은_그_개설_신청을_대결_승인할_수_없다() throws Exception {
+        position(SENIOR, "수석차장");
+        assertEquals(200, deputize(LEAD, SENIOR, 0, 3).getResponse().getStatus());
+        String bid = confirm(MEMBER, INST);
+        long req = openReq(bid, MEMBER, SENIOR);
+        assertFalse(inInbox(SENIOR, req));
+        assertEquals(403, decide(SENIOR, req, "APPROVE", null).getResponse().getStatus());
+        assertEquals("OPEN_PENDING", state(bid));
+    }
+
+    @Test
+    public void 관리자가_대신_등록한_대결_지정으로는_개설_신청을_승인할_수_없다() throws Exception {
+        position(SENIOR, "수석차장");
+        LocalDate today = LocalDate.parse(Times.todayKst());
+        MvcResult dep = postJson("/approval-deputies", ADMIN, "{\"principal_emp_no\":\"" + LEAD + "\",\"deputy_emp_no\":\"" + SENIOR
+                + "\",\"start_date\":\"" + today + "\",\"end_date\":\"" + today.plusDays(3) + "\",\"reason\":\"출장\"}");
+        assertEquals(dep.getResponse().getContentAsString(), 200, dep.getResponse().getStatus());   // 지정 자체는 된다(다른 결재 대결용)
+        String bid = confirm(MEMBER, INST);
+        long req = openReq(bid, MEMBER, MEMBER2);
+        assertFalse(inInbox(SENIOR, req));
+        assertEquals(403, decide(SENIOR, req, "APPROVE", null).getResponse().getStatus());   // 팀장 본인이 등록한 지정만(security 11-24)
+        assertEquals("OPEN_PENDING", state(bid));
     }
 }

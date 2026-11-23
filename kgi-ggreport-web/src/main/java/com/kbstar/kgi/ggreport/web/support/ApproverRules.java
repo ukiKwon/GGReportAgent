@@ -49,7 +49,8 @@ public final class ApproverRules {
      */
     public static int level(SysUser u) {
         int pos = Ranks.ofPosition(u.getPositionTitle());
-        int byPosition = pos >= 8 ? 3 : pos == 7 ? 2 : pos == 6 ? 1 : 0;
+        // 본부장은 부장급(2) — 위에 대표가 있어 최상위(3)로 두면 결재자 없이 상신된다(lineApprover)
+        int byPosition = pos >= Ranks.TOP ? 3 : pos >= Ranks.HEAD_MIN ? 2 : pos >= Ranks.APPROVER_MIN ? 1 : 0;
         return Math.max(byPosition, levelByGradeRole(u));
     }
 

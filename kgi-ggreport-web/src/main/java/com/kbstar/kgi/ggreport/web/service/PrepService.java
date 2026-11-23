@@ -17,6 +17,8 @@ import com.kbstar.kgi.ggreport.web.mapper.BidAssignmentMapper;
 import com.kbstar.kgi.ggreport.web.mapper.BidCaseMapper;
 import com.kbstar.kgi.ggreport.web.mapper.PrepMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
+import com.kbstar.kgi.ggreport.web.support.ApprovalTypes;
+import com.kbstar.kgi.ggreport.web.support.Ranks;
 import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import com.kbstar.kgi.ggreport.web.web.Actor;
@@ -105,10 +107,12 @@ public class PrepService {
     private final ApprovalRequestMapper requests;
     private final BidCaseMapper bidCases;
     private final BidCaseCommandService commands;
+    private final ApprovalDeputyService deputies;
 
     public PrepService(PrepMapper mapper, BidAssignmentService assignments, BidAssignmentMapper assignMapper,
                        SysUserMapper users, ApprovalRequestMapper requests, BidCaseMapper bidCases,
-                       BidCaseCommandService commands) {
+                       BidCaseCommandService commands, ApprovalDeputyService deputies) {
+        this.deputies = deputies;
         this.mapper = mapper;
         this.assignments = assignments;
         this.assignMapper = assignMapper;
@@ -441,7 +445,12 @@ public class PrepService {
         String bid = p.path("bid_case_id").asText("");
         List<String> nominees = textList(p.path("nominee_emp_nos"));
         String d = decider.getEmpNo();
-        if ((!isLead(decider) && !isHead(decider)) || nominees.contains(d)) {
+        String principal = stepApprover(r);
+        SysUser requester = users.selectByEmpNo(r.getRequesterEmpNo());
+        // 결재 단계 결재자가 아니면 대결 — 팀장이 등록한 같은 팀 수석차장만(사용자 11-23 밤, eligibility 와 같은 판정을 다시 본다)
+        boolean viaDeputy = principal != null && !principal.equals(d);
+        boolean allowed = viaDeputy ? mayDeputizeOpen(r, requester, decider, principal) : (isLead(decider) || isHead(decider));
+        if (!allowed || nominees.contains(d)) {
             throw new ApiException(403, "이 개설 신청을 승인할 수 없습니다.");   // 승인자=지명자 방어(security A)
         }
         BidPrep prep = bid.isEmpty() ? null : mapper.selectPrep(bid);
@@ -455,7 +464,6 @@ public class PrepService {
         } catch (ApiException e) {
             throw coded(409, "NOMINEE_CHANGED", "지명한 담당자의 상태가 신청 이후 바뀌어 승인할 수 없습니다. 반려하거나 회수하고 다시 신청하세요.");
         }
-        SysUser requester = users.selectByEmpNo(r.getRequesterEmpNo());
         boolean leadInvolved = requester == null || isLead(requester);   // 알 수 없으면 보수적으로 부장만
         for (String e : targets) {
             SysUser u = users.selectByEmpNo(e);
@@ -467,8 +475,7 @@ public class PrepService {
             throw coded(409, "APPROVER_ROLE_MISMATCH",
                     "영업팀장이 관련된 개설 신청은 영업부장만 승인할 수 있습니다. 반려하거나 회수하고 다시 신청하세요.");
         }
-        if (!isHead(decider)) {   // 영업팀장이 승인할 때(BID_OPEN 은 대결 불가 NO_PROXY) — 결재 단계 팀장이 지금도 신청자의 같은 팀 팀장이어야 한다(Q-2026-11-20-01)
-            String principal = stepApprover(r);
+        if (!isHead(decider)) {   // 영업팀장(또는 그 대결 수석차장)이 승인할 때 — 결재 단계 팀장이 지금도 신청자의 같은 팀 팀장이어야 한다(Q-2026-11-20-01)
             SysUser own = assignments.sameTeamLead(requester);   // leadInvolved=false 이므로 requester 는 null 아님
             if (own == null || principal == null || !own.getEmpNo().equals(principal)) {
                 throw coded(409, "APPROVER_TEAM_MISMATCH",
@@ -484,6 +491,33 @@ public class PrepService {
         }
         mapper.insertLog(bid, "OPEN_APPROVE", OPEN_PENDING, IN_PROGRESS, null, r.getReqId(), null, d, verified, now);
         return "개설 승인: 담당자 " + targets.size() + "명 배정";
+    }
+
+    /**
+     * 개설 신청(BID_OPEN) 대결 자격 — 대결 불가 유형 중 이것만 좁게 연다(사용자 11-23 밤: 팀장이 대결 지정 화면에서 미리 등록한
+     * 같은 팀 수석차장, 기간 안). 결재함·결재·알림·승인 후처리가 모두 이 한 곳을 부른다. 모두 만족해야 true(모르면 false):
+     * ① 대결자 활성·영업팀(ROLE)·직급 ≥ 수석차장 ② 대결자 ≠ 신청자·원 결재자·지명자 ③ 오늘 유효한 대결 지정(원 결재자 → 대결자, 원 결재자 본인이 등록)
+     * ④ 원 결재자 == 신청자의 같은 팀 영업팀장(sameTeamLead — 직급 방향은 원 결재자 기준이라 신청자가 수석차장이어도 된다)
+     * ⑤ 대결자의 같은 팀 영업팀장도 원 결재자(다른 팀 수석차장 차단).
+     */
+    public boolean mayDeputizeOpen(ApprovalRequest r, SysUser requester, SysUser deputy, String principalEmp) {
+        if (r == null || requester == null || deputy == null || principalEmp == null
+                || !ApprovalTypes.LEAD_DEPUTY_ONLY.contains(r.getReqType())) {
+            return false;
+        }
+        String d = deputy.getEmpNo();
+        if (!"ACTIVE".equals(deputy.getStatus()) || !BidAssignmentService.MEMBER_ROLE.equals(roleOf(deputy))
+                || Ranks.of(deputy) < Ranks.SENIOR_DEPUTY_MIN
+                || d.equals(requester.getEmpNo()) || d.equals(principalEmp)
+                || textList(readJson(r.getPayload()).path("nominee_emp_nos")).contains(d)) {
+            return false;
+        }
+        if (!deputies.selfRegisteredPrincipalsOf(d, Times.todayKst()).contains(principalEmp)) {   // 팀장 본인이 등록한 지정만(security 11-24)
+            return false;
+        }
+        SysUser lead = assignments.sameTeamLead(requester);
+        SysUser mine = assignments.sameTeamLead(deputy);
+        return lead != null && mine != null && principalEmp.equals(lead.getEmpNo()) && principalEmp.equals(mine.getEmpNo());
     }
 
     /** 지금 결재 단계의 결재자 사번(없으면 null). */

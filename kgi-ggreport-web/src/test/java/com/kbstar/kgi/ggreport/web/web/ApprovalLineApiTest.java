@@ -352,7 +352,7 @@ public class ApprovalLineApiTest {
         call(ADMIN, put("/sysadmin/users/" + MEMBER), base + "사원\"}", 400);
         call(ADMIN, put("/sysadmin/users/" + MEMBER), base + "수석차장\"}", 200);
         call(ADMIN, put("/sysadmin/users/" + MEMBER), base + "\"}", 200);
-        assertEquals(8, call(ADMIN, get("/sysadmin/meta"), null, 200).get("ranks").size());
+        assertEquals(9, call(ADMIN, get("/sysadmin/meta"), null, 200).get("ranks").size());
     }
 
     // ── 내 권한 현황(my-perms) ────────────────────────────────────────
