@@ -929,6 +929,7 @@
              view: 'board', fromBoard: false, pendingCase: false };   // 대시보드 표(prepboard.js)가 있을 때: view 'board'(표) | 'case'(같은 자리 상세). fromBoard: 표에서 연 상세
   }
   let S = freshState();
+  let reqSeq = 0;   // 요청 번호는 S 밖에서 단조 증가 — 계정 전환으로 S가 새로 만들어져도 옛 응답 번호와 겹치지 않는다(seq·listSeq 공용)
   let wired = false;
 
   function el(id) { return document.getElementById(id); }
@@ -1003,7 +1004,7 @@
     const bk = el('pp-back'); if (bk) bk.hidden = !bo;
   }
   function toBoardState() {
-    S.view = 'board'; S.fromBoard = false; S.selected = ''; S.detail = null; S.seq += 1; S.confirm = null; S.nbSeen = '';
+    S.view = 'board'; S.fromBoard = false; S.selected = ''; S.detail = null; S.seq = ++reqSeq; S.confirm = null; S.nbSeen = '';
   }
   function boardHooks() {
     const role = myRole();
@@ -1071,7 +1072,7 @@
   function rowOf(id) { return S.rows.filter(function (r) { return r.id === id; })[0] || null; }
 
   function loadList() {
-    const token = ++S.listSeq;
+    const token = S.listSeq = ++reqSeq;
     return req('GET', '/preps', undefined, ui('prep_list', 'refresh')).then(function (list) {
       if (token !== S.listSeq) return;
       S.rows = prep.listRows(list);
@@ -1140,7 +1141,7 @@
   // o.popup: 건을 연 경우에만 true(목록 선택·화면 열림·다시 시도). 쓰기 뒤 재조회는 옵션 없음 = 입찰 없음 팝업을 또 띄우지 않는다.
   function loadDetail(id, o) {
     const popup = !!(o && o.popup);
-    const token = ++S.seq;
+    const token = S.seq = ++reqSeq;
     S.detail = { loading: true };
     paintCase();
     req('GET', base(id), undefined, ui(S.fromBoard ? 'prep_dashboard' : 'prep_detail', 'open')).then(function (view) {

@@ -141,6 +141,14 @@ test('소스 규칙: confirm() 없음, 외부 주소 없음, 새 hex 없음, "�
   assert.ok(/tm-modal'/.test(APP_SRC));   // 기존 team 모달 예외가 그대로 남아 있다
 });
 
+test('요청 번호: 모듈 카운터 reqSeq로만 만든다(계정 전환 뒤 S가 새로 만들어져도 번호가 0부터 다시 시작하지 않는다)', function () {
+  assert.ok(/let reqSeq = 0;/.test(SRC));
+  assert.ok(/const token = S\.seq = \+\+reqSeq;/.test(SRC));
+  assert.ok(/const token = S\.listSeq = \+\+reqSeq;/.test(SRC));
+  assert.ok(/S\.seq = \+\+reqSeq;/.test(SRC));
+  assert.ok(!/\+\+S\.(seq|listSeq)|S\.seq \+= 1/.test(SRC));
+});
+
 // ── 단계 막대 7개 상태 ──
 function statuses(cd, extra, history) {
   return prep.stepModel(Object.assign({ state_cd: cd, progress: { done: 2, total: 4 } }, extra || {}), history).map(function (s) { return s.status; });
