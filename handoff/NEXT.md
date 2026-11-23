@@ -259,11 +259,15 @@
 - **자세히**: planner 11-19 a1b46dfa(추천받기 기획), design-reviewer 11-19 a7a6a502(화면 규격), 출처 2026-11-19 summary.
 - **11-19 저녁**: 1단계 2a14b2e·청주형 보정 accecf8, 서버 lines_next eeb836a. 남은 것: qa 실측(8080 재빌드 뒤), 사용자 실사용 D.
 
-### 102. 메뉴 '대시보드'(옛 제안서 사전준비 프로세스) — 현업 엑셀 체크리스트 목록으로 개편 [담당: fa — planner → backend-dev(Opus) → security → design-reviewer → frontend-dev → qa]
-- **현재**: 사용자 11-19 — 엑셀(docs/요구사항 파악/gg_dashboard_requiremnet.xlsx, 사진 원본 삭제) 칸 전부를 행=제안 확정 기관 목록으로, 메뉴 이름 '대시보드'(0d 66b0938), 손 칸 값=상태+날짜, 체크=그 기관 담당 영업, 열람=영업부서 전원. **⚠ 사용자 11-19: "열마다 들어올 수 있는 값은 내일 추진하자. 반드시 나한테 다시 물어"** — 대시보드는 진행 상태를 보는 화면이고 행을 누르면 실제 작업, 작업이 끝나면 그 task 내용이 약식으로 칸에 담기면 좋겠다는 방향. 서버 설계 backend Opus a04f53d8(PrepBoard*·054 BID_PREP_CHECK 가칭, 054는 main 배정), security 검토 중.
-- **다음 한 걸음**: 11-20 첫 작업으로 사용자에게 열별 값(자동 칸에 무엇을 약식으로 보일지·손 칸 값·'진행 중' 날짜 뜻)을 선택식으로 묻기 → 설계 보정 → 적용. 개설 신청 '승인할 팀장' 칸(같은 설계 묶음 2)은 security 뒤 먼저 적용 가능(원인 확정: 가평 REQ 7·8 지명자 팀장 → 박영업 부장).
-- **자세히**: planner 11-19 ad01d10b(A2 범위), backend-dev 11-19 a04f53d8, PM 11-19 a6187817.
-- **자세히**: planner 11-17 `ac1639f6`·`a0a39612`·`a370a238`, design-reviewer 11-17 `acfdd5da`·`ac8dbd59`·`a3ab5c5a`, backend-dev 11-17 `toolu_012nY9…`(043)·`a265a2ad`(044), security 11-17 `ade80b19`·`a5cebbeb`.
+### 102. 메뉴 '대시보드'(옛 제안서 사전준비 프로세스) — 현업 엑셀 체크리스트 목록으로 개편 [담당: 서버·기록·prepboard.js main / prep.js fa — planner → qa]
+- **현재**: 구현 36eecc98·983b5a64(DB 054, V/△/-/빈칸·날짜 자동·체크=그 기관 담당·열람=영업부서 전원·목록=제안 확정 기관), qa a7096073 조건부 → 1차 반영 1052eb95, design_history 85(9483dc66), 후속 00b3fc1e(목록 열람 감사 건마다 한 줄·이름 가림·끝난 건 건마다·체크 상태 확대(지금 실효 없음)·**입찰 예정일 = 공고 마감일 우선, 없으면 약정 만료일**(사용자 11-23)). 제출서류 V = 빠진 서류 0이면 자동(사용자 11-23, Q-2026-11-20-31) — RFP 서류 대조 화면 때 구현, 그 전에는 손 체크. 출처 2026-11-23_summary.md Session 17:30 (main).
+- **다음 한 걸음**: 사용자 실사용 요청 → planner: 개설 승인 전(CONFIRMED·OPEN_PENDING) 손 칸을 누가 체크할지 → 필요하면 질문 1건 → design_history 102 후속 장(00b3fc1e분) → Playwright 실측. fa 몫: P3-7 enterCase 숨은 loadList, P3-8 행별 질의. '승인할 팀장' 칸(Q-2026-11-20-01)은 fa 항목으로.
+- **자세히**: qa handoff/agents/qa-verifier/2026-11-23_1216_a7096073.md, PM 2026-11-23_1238_a8471a33(7절), planner 2026-11-20_1021_ade725c1, backend a04f53d8.
+
+### 108. 디자인 1차본 확인 요청 받는 사람 — 담당 영업의 결재 팀장 1명(부재 시 대결자), 쪽지 없음 (사용자 11-23) [담당: fa — backend-dev(Opus) → security → qa]
+- **현재**: 11-23 04:28 1차본 제출에 7명이 쪽지를 받음(DesignReviewService.recipients 팀장 전원 + 367행 쪽지). 사용자 답: 그 기관 담당 영업의 결재 팀장 한 명의 결재함으로만, 부재면 대결자, 다른 팀장·담당·쪽지 없음. 사용자 지시로 main에서 fa로 넘김.
+- **다음 한 걸음**: fa backend-dev(Opus) 설계 → 적용 → mvn(main) → security·qa. 주의: 367 쪽지를 끄면 NOTIFICATION_ID NOT NULL로 NPE, 받는 사람 목록 API 없음.
+- **자세히**: handoff/agents/backend-dev/2026-11-23_1337_a239b584.md, handoff/sessions/2026-11-23_1400_fa-ed.md.
 
 ### 103. 기관 사업계획 화면 → 목표·관심 기관 중심 개편 + 일괄 수집 요청 [담당: 05 세션]
 - **현재**: 11-20 구현·커밋 끝 — 서버 c8d7d4c6(POST /plan-collect/batch, 1~50곳·기관별 결과·쪽지 한 묶음·isOutage), 화면 ace08ab4(기관 목록·[목표·관심 먼저] 정렬·묶음 머리·2줄 행·'2026 목표' 칩·바닥 일괄 요청·공통 dlg 확인 창·20초 제한, design_history c69). security·qa·design 대조 반영. 8080 반영됨(11:47 war + 정적 파일).
@@ -563,7 +567,8 @@
 - **11-19 main — 설계 끝, 1차 구현 착수**: 사용자 답 — 열람 = **부장·팀장급(영업팀장·영업부장)만 + 화면 '공개범위'로 사람 단위 추가**, 회의록은 **항상 기관 한 건의 이사회 → 020 이사회 자료 안 탭**(020 권한은 물려받지 않음, 회의록 API가 따로 판정·없으면 404), 클로바 텍스트는 사내 메일·지정 계정·은행 직원만 → **운용 수칙 안내(업로드 화면 4줄+확인 체크)로 충분**. 설계: 화면 직접 업로드(txt 3칸, 원본 미보관·가린 원문만), DB **047** BOARD_MINUTES 외 7표(MySQL·Oracle 쌍), 미리보기 stateless→확정 재전송, 가림 = PII→USERS 이름(성+이름)→성+직함→담당자 지정→Pii 안전망, 감사 fail-closed, 운영 기본 꺼짐(enabled=false·require-verified=true). 1~3단계(047 쌍·minutes/ 파서·가림·단위 시험) backend-dev-write 진행 중.
 - **11-19 저녁 main**: 1~3단계 fa0219b, 4~5단계 8f7451f(서비스·API·공개범위·감사, 설계 adea3a9d, security 필수 수정 없음). 로컬 DB 047 적용, 로컬 config/application.properties에 ggreport.minutes.enabled=true·require-verified=false 2줄 필요(사용자 — config/는 main이 못 고침). **운영 켜기 전 필수**: multipart 임시 파일(file-size-threshold 2MB+ 또는 전용 location+기동 시 비움). 권장: 쓰기 트랜잭션 안 재판정, digest에 release 포함.
 - **11-20 main — 화면 1차 끝**: 이사회 자료 상세 '회의록 n' 탭(board-minutes.js — 목록·상세·올리기 3단계·공개범위·고치기·삭제·이력), 17e81b1(공유 인덱스로 0d 커밋에 섞임, 표시 5d06941), design_history 68장. qa a7e4611a 조건부 통과 지적 반영.
-- **다음 한 걸음**: 실화면 qa(Playwright 복구 뒤 — 탭 이동·포커스·880px·인쇄) → 사용자 실사용(김영업 올리기·부장 공개범위) → data-auditor 실물 1건. 서버 이관: 공개범위 후보 API·rules_ack 감사·LIMIT_SPEAKER 문구·열람 기한 필드·board_review id(design ade114bb 7절). 2차: 제목·회의일 고치기·접근 기록·모아보기·scrub.
+- **11-20~23 main — 고치기 끝**: 서버 6992ee5·ccec435(DB 058), 화면 a8ea786, qa 2차 89002f1c(고친 뒤 가릴 단어 추가·가리지 않기 해제 때 지우지 않은 자리 422, 요청 중 잠금, 요약만 바뀌면 고친 발언 유지, 탭 안 화면 id 통일), design_history 75.
+- **다음 한 걸음**: 사용자 실사용 요청(먼저 로컬 config 2줄 Q-2026-11-19-59) → data-auditor 실물 1건 → 서버 이관 묶음(공개범위 후보 API·rules_ack 감사·LIMIT_SPEAKER 문구·열람 기한 필드·board_review id·detail speakers first_seq, backend Opus 설계) → 2차(제목·회의일 고치기·접근 기록·모아보기·scrub). Playwright 실측(탭 이동·포커스·880px·인쇄)은 브라우저가 비어 있을 때.
 - **자세히**: planner a074a3ac, security a93b23eb(R1~R25, 11-19 보충 S1 중으로), backend-dev a6a8ddcf(설계·DDL 전문), 출처 2026-11-19 summary (main). 관련 NEXT 57·61·66.
 
 ### 100. [우선순위 높음] '제안서 확정' 뒤 사전준비 프로세스로 넘어가는 단계 구체 구현 (사용자 11-17) [담당: planner → backend-dev → design-reviewer → frontend-dev → qa]
@@ -571,5 +576,6 @@
 - **11-19 main — 기획 끝**: 사용자 답 — ① **올해 목표 기관은 공고 전에도 [제안 확정] 가능**(PrepService.confirm·kbboard 노출 조건 — fa 파일이라 fa 048 커밋 뒤 fa에 요청함) ② **핵심 요건: "이 시스템 때문에 일을 두 번 하지 않는다"** — 과제는 시스템 양식 화면에서 작성·확정하고 결과가 곧 현업 문서(밖에서 만든 파일 올리기안 폐기) ③ 정본 = 시스템 확정 내용(파일은 출력물) ④ 출력 = **Word(.docx)** — 샘플 `data/preForms/sample_기관정보요약(1)(2).jpeg`(git 미추적, 가린 칸 해석 금지)이 Word, 020 DOCX 틀(BoardDocSpec) 재사용 ⑤ T1 기관 정보 요약 + T2 기관장 = **'기관 정보 요약' 한 과제**(양식의 기관장은 현황 표 이름 칸뿐), T6 발표 대본 양식 없음 ⑥ **추가 요청: 화면의 '기관장 정보'를 같은 양식 스타일로 별도 docx 내려받기**. 양식 = 1쪽 '참고자료 1 요약'(겉 2열 표 안에 현황 6열 표·주요 사업 2단 반복 표·예산 운영 방식 표·연도별 추정 표) + 2쪽 '참고자료 2 평가 기준표'(3단 세로 병합·묶음 배점).
 - **11-19 오후 추가 답**: 내려받는 Word 보안 표시 = 회사 DRM에 맡김. 승인 뒤 사실 바뀜 = 문서 고정 + '바뀜' 표시. 담당 디자이너는 추정 표 포함 양식 전부 열람(쓰기 없음). **⑥ 최종 단계**: 디자이너가 세 팀 작업 뒤 디자인 → [디자인 작업 완료] → 그 기관 담당자+세 팀 팀장에게 개인 쪽지(시스템 쪽지) → 의견 → 디자이너 [다시 수정] 반복(결재 아님) → 영업팀장 검토 끝 → 영업부장 [제출본 확정](시작 버튼 [제안 확정]과 이름 구분). 설계(backend abc6d268): 출력 엔진 docout + 기관장 docx(S0·S1 구현·시험 통과, qa·security 조건부 → 반영 패치 중), T1 양식 S2(049)·T2 흡수 S3(050, fa 커밋 뒤)·결재 연결 S4. 디자이너 쓰기 범위는 ⑥만(메모리 갱신).
 - **11-20 main — S2 서버 끝**: DB 049·PrepForm*·InstSummary*(17e81b1, 표시 5d06941) — security ab4492ac(디자이너 = TASKS 본인·선점 없음, 쓰기 OK 감사 같은 트랜잭션, 같은 내용 새 판 없음, 판 상한 500), qa a1c44654 반영. 로컬 049 적용은 사용자(요청함). 열린 정책: 판 상한 도달 복구 절차, 기관장 기능 끔 때 이전 판 head_name(하-5), 전산·예산 404 유지 여부.
-- **다음 한 걸음**: S2 화면(양식 작성 — design-reviewer → frontend-dev, seed_notices는 객체 목록·GET에 식별자 헤더) ∥ S3(050, fa와 PrepService.judgeFact → PrepFormService.isConfirmedIntact) → S4. ⑥ 디자인 검토 화면. 사용자 실사용: 기관장 Word(4508099 버튼) 현업 Word로 열어 보기.
+- **11-23 main — S2 서버 보강·화면 초안**: 7ad7f6d8 '우리 회사 기대효과' 목록 칸(사용자 11-23: 칸 두고 문장만, TPL_VER 2·RENDER_VER 2, 10줄×300자·필수 아님) + security 하 2건. 화면 규격 design 2026-11-23_1257_a78d8d68, 화면 초안 handoff/agents/frontend-dev/2026-11-23_100S2_instsummary_초안.md(instsummary.js) — node 시험 'isn.stripBullet is not a function'(내보내기 이름 불일치)으로 미적용.
+- **다음 한 걸음**: 내보내기 이름 고쳐 node 시험 → 적용 → 연결 줄 요청(0d index.html CSS·script, fa prep.js T1 [양식 열기]) → qa → design 대조·design_history 장 → DESIGN.md --full 대상 추가 ∥ S3(fa PrepService.judgeFact → PrepFormService.isConfirmedIntact) → S4. ⑥ 디자인 검토 받는 사람은 NEXT 108(fa).
 - **자세히**: planner 11-19 a96a42a1·a0da0424·a1f5ef8f(양식 틀), NEXT 70·71·56·72·77·89, 출처 2026-11-19 summary (main).

@@ -1,44 +1,38 @@
 # 다음 세션 시작점 (항상 최신 1개 — 덮어쓴다)
 
-마지막 갱신: 2026-11-20(금) 17:10 (main) — 오늘 요약: `handoff/2026-11-20_summary.md`
+마지막 갱신: 2026-11-23(월) 17:30 (main) — 오늘 요약: `handoff/2026-11-23_summary.md`
 
 ## 다음 순서 (main, 묻지 않고 실행)
-0. **환경**: MySQL `C:\dev\mysql-start.cmd`, `ListAgents`(재시작 뒤 이름이 바뀜 — 각 세션에 정체 확인). **8080은 커밋된 HEAD만**: `git -C c:/github/_gg_build checkout -q --detach <HEAD>` → 그 폴더 kgi-ggreport-web에서 `mvn -q -o package -DskipTests`(실행 중 8080이 war를 잡으므로 먼저 내림) → main 폴더 kgi-ggreport-web에서 `java -Xmx768m -jar c:/github/_gg_build/kgi-ggreport-web/target/kgi-ggreport-web.war`. mvn은 `MAVEN_OPTS=-Xmx384m`·`-DargLine="-Xmx768m"`, IDE 자동 빌드가 target/classes를 지우면 재실행. 로컬 DB 047·048·049·051·055·056·058 적용, **057은 fa 106 커밋 뒤 사용자 적용 필요(그 전엔 HEAD 재빌드 금지 — 작업함 업로드 500)**.
-1. **99 회의록 고치기 실사용 요청**(서버 6992ee5·화면 a8ea786): 김영업 노원구 2026 → 회의록 탭 → 올리기 → 미리보기 → 이름표 고르기·발언 고치기 → 다시 미리보기 → 저장 → 상세 [발화자 이름표 바꾸기]. qa(화면 a8ea786) 아직 — 실사용과 함께 qa-verifier로 독립 검토, design_history 장(규격 a2290465 6-9, select 방식 반영) 미작성.
-2. **100 S2 화면**(양식 작성 — design-reviewer → frontend-dev → qa) ∥ S3(050, fa와 PrepService.judgeFact).
-3. 99 서버 이관: 공개범위 후보 API·rules_ack 감사·열람 기한 필드·board_review id·detail speakers first_seq, 라벨 어휘 기획 확정.
-4. ⑥ 디자인 검토 화면, 052 박디자이너, 95 부서 이름, 90 4단계, 97 lines_next·home_portal 감사.
-5. W48 주간 보고(11-27 금).
+0. **환경**: MySQL `C:\dev\mysql-start.cmd`, `ListAgents`(재시작 뒤 이름이 바뀜 — 각 세션에 정체 확인). **8080은 커밋된 HEAD만**: `git -C c:/github/_gg_build checkout -q --detach <HEAD>` → 그 폴더 kgi-ggreport-web에서 `mvn -q -o package -DskipTests`(실행 중 8080이 war를 잡으므로 먼저 내림) → main 폴더 kgi-ggreport-web에서 `java -Xmx768m -jar c:/github/_gg_build/kgi-ggreport-web/target/kgi-ggreport-web.war`. mvn은 `MAVEN_OPTS=-Xmx384m`·`-DargLine="-Xmx768m"`, IDE 자동 빌드가 target/classes를 지우면 재실행. 로컬 DB 적용: 047·048·049·051·055·056·057·058. **052는 적용 여부 확인**(fa 세션 기록엔 적용, 11-23 로그인 이름은 최디자이너로 보였음), **059(되찾기 코드)는 fa 화면 커밋 뒤 사용자 적용**(COMMON_CODE 행만이라 HEAD 재빌드는 막지 않음).
+1. **11-24(화) 발표 자료**: 11-10 보고 이후 ~ 11-23 변경 정리 HTML(사용자 요청 11-23). PM 문안(handoff/agents/pm/ 11-23 '발표 자료') → main이 HTML 작성(`docs/pm_history/`), 내일 발표 전에 완성.
+2. **100 S2 화면 마무리**(초안 `handoff/agents/frontend-dev/2026-11-23_100S2_instsummary_초안.md`, 규격 design 2026-11-23_1257_a78d8d68): node 시험 'isn.stripBullet is not a function' → 내보내기 이름을 시험과 맞춤 → `node --test` 전체 → 적용. 연결 줄은 0d(index.html CSS·script)·fa(prep.js T1 [양식 열기])에 요청, 커밋 확인 뒤 붙임 → qa-verifier → design-reviewer 대조 → design_history 장 → DESIGN.md `--full` 대상 추가(main).
+3. **실사용 요청 묶음 발송**: ① 99 회의록 고치기(서버 6992ee5·화면 a8ea786·qa 2차 89002f1c, design_history 75) — 김영업 노원구 2026 → 회의록 탭 → 올리기 → 미리보기 → 이름표 고르기·발언 고치기 → 다시 미리보기 → 저장 → 상세 [발화자 이름표 바꾸기]. 먼저 로컬 config 2줄(Q-2026-11-19-59: ggreport.minutes.enabled=true·require-verified=false) ② 102 대시보드(00b3fc1e 반영분 — 입찰 예정일 순서·끝난 건 보기·담당 아닌 사람 읽기 전용).
+4. **102 남은 것**: 기획 이관 1건(개설 승인 전 손 칸을 누가 체크할지 — planner → 질문), design_history 102 후속 장(00b3fc1e분, 85 다음), fa 몫 P3-7·P3-8 전달, Playwright 실측(브라우저가 비어 있을 때).
+5. **99 서버 이관 묶음**: 공개범위 후보 API·rules_ack 감사·LIMIT_SPEAKER 문구·열람 기한 필드·board_review id·detail speakers first_seq(design ade114bb 7절) — backend-dev **Opus**(감사 설계 예외) → 적용 Sonnet. DB가 바뀌면 다음 번호 060.
+6. 100 S3(fa PrepService.judgeFact와 조율) → S4 결재 연결, 95 부서 이름, 97 lines_next·home_portal 감사.
+7. **W48 주간 보고(11-27 금)**: pm_history 주간 절 + '이번 주 질문' 표 + 에이전트별 정리, 요구사항 파악 `index_2026-11-27.html`.
 
 ## 다시 알릴 것 (질문은 선택식, 답 받을 때까지 멈춤)
-- ⓐ 입찰 현황판 재유치/신규유치 태그 기준 확인(Q-17-49·58, 권장 '지금대로') — 98 실사용 요청과 함께.
-- 본문 요청: 89 금고 약정 업무 테스트, 56 수집 요청 실사용, 98 목표·관심 기관 실사용, 97 화면 확인 순서 1~6(11-19 0f: ①로그인 시안 B ②김영업 시작화면 고정 탭·숫자 칸·1년/30일 두 칸·유형 탭·신규 확정 태그 ③제목 클릭 복귀·지도 파랑 3겹·지난 금고 선정일·F5 ④현황판 연 채 로그아웃→권전산 탭 2개·팝업 닫기만·도구줄 기관 추가/CSV 없음·수집 요청 됨 ⑤최디자이너 보기 전용 ⑥정예산 지도 시작). 기관장 Word는 아래 'e4 기관장' 절로 옮김.
-- Q-16-19 옛 PC 주간 수집은 11-23(월) 09:00 실행 뒤.
-
-## e4 기관장 — 다음 출근 때 사용자에게 확인할 것 (11-20 사용자 "다음 세션에서 자료 보고 진행")
-정본 기록: `handoff/sessions/2026-11-20_1024_e4.md` 맨 아래 '11-20 마감'. 마지막 커밋 f395f87(Word 참고 양식)·aa8b1e7.
-1. **견본 Word 검토**: `docs/design/2026-11-20_기관장_프로필_견본.docx`(바탕화면 `기관장_프로필_견본.docx` 사본, 가상 인물) — 이 양식으로 갈지, 고칠 곳(쪽 테두리·밑줄 제목·사진 3×4cm 크기·출처 목록 맨 아래 위치). 실제 기관 Word는 8080(f395f87 반영 뒤)에서 [워드 내려받기] — 로컬 사진은 모두 이용 조건 '로컬 작업용'이라 사진 대신 안내 한 줄.
-2. **화면 '참고자료 번호' 칸**: 문서 제목에서 '참고자료 N.'이 빠져 지금 화면 미리보기('참고자료 N. 「기관」 기관장 정보')와 실제 문서 제목이 다름 — 칸·미리보기를 없앨지(권장: 없애고 미리보기를 '{기관} {이름} {직위} Profile'로).
-3. **검토 끝나면 `data/profile` 참고 이미지 삭제**(사용자 11-20 약속, 커밋 안 함 — 사내 문서 사진).
-4. **[성향 및 강점] 절**: 참고 양식에 있으나 자유 서술 칸 없음 결정으로 뺌 — 그대로 둘지, 확정 칸에서 만든 한 줄 요약 같은 대체를 넣을지.
-5. **양식과 다른 점 확인**: 출생 정보 '1963년생 출생지' 대신 '만 n세'만(11-20 결정), 직위 대수('13대')는 저장 칸 없음 — 대수 칸이 필요한지.
-6. **기관장 자료 채움 결과 확인**(로컬 DB, 위키백과 포함 출처): 생년월일 100/120명·학력/경력 시작 년-월 110/505줄. 못 찾은 생년월일 20명(정창수·진교훈·장인홍·류경기·박찬대·전문학·허태정·김상욱·박수현·유승광·김홍열·서영학·이재각·이철우·안재민·김현수·유동균·전성수·이기재·조유진) — 직접 줄지/비워 둘지. 울산 북구청장 경력 1줄('청와대 국민권익비서관')이 끝 미상인데 '2012-10~현재'로 보임 — 고칠 값이 있으면 받기.
-7. (기획·보안 안건) '기관 직접 허락' 사진을 은행 밖으로 나갈 수 있는 Word에 넣어도 되는지, 생년월일 처리 근거·보존 기간(security 11-20 ④ 문안, W47 안건).
+- ⓐ **옛 PC 주간 수집 결과**(Q-2026-11-16-19): 작업 스케줄러 'GGReport collector weekly' '마지막 실행 결과' — 0 / 0 아님 / 못 봄(확인 방법 11-23 안내함).
+- ⓐ **052 로컬 적용 확인**(Q-2026-11-23-37): `mysql --default-character-set=utf8mb4 -u ggreport -p ggreportdb < kgi-ggreport-web/src/main/resources/db/mysql/052_user_designer_rename.sql` → 8080 재기동 뒤 디자이너 이름 '박디자이너'.
+- 보안 확인(11-23 PUSH-GATE 하): `docs/design/2026-11-20_기관장_프로필_견본.docx` 사진이 가상 이미지인지 Word로 열어 확인 — 실제 공식 사진이면 교체 또는 git에서 제외(사용자 11-13 결정).
+- 본문 요청(실사용): 99 회의록 고치기·102 대시보드(main), 105 목표 결재·106 점검(fa), 104 협약 성과 표본 교체 결과(05), 89 금고 약정, 98 A~C·101 D.
 
 ## 미해결 이슈 상기 (세션 첫 답변에서 3~5줄)
 해소하면 이 목록과 NEXT 항목에서 지우고 done.md로. 정본 세부는 괄호 안 NEXT 번호.
-- **[운영 배포 순서]** DB 먼저(026·030~048·049·051·055, 049는 051 뒤 번호 역전) 서버 나중. Oracle 11g FETCH FIRST·IDENTITY 대체본(NEXT 9). hwplib 1.1.9 오프라인 반입. 외부 확인 동시 반입 잠금은 JVM 단위 — 운영 WAS 여러 대면 재검토. 회의록·디자인 검토는 운영 기본 꺼짐(설정 키). 회의록은 운영 켜기 전 multipart 임시 파일 처리 필수(security 11-19).
+- **[운영 배포 순서]** DB 먼저(026·030~059 — 049는 051 뒤 번호 역전, 052는 시험 계정 이름 바꿈이라 운영 대상인지 확인, 053은 05 예약 사용 여부 확인) 서버 나중. Oracle 11g FETCH FIRST·IDENTITY 대체본(NEXT 9). hwplib 1.1.9 오프라인 반입. 외부 확인 동시 반입 잠금은 JVM 단위 — 운영 WAS가 여러 대면 재검토. 회의록·디자인 검토는 운영 기본 꺼짐(설정 키). 회의록은 운영 켜기 전 multipart 임시 파일 처리 필수(security 11-19).
 - **[할인율 가짜 값]** 코드·문서 3.30% 임시 가림, 이사회 수익성 화면 숫자도 가짜(NEXT 37·66).
-- **[보안 수용]** X-Emp-No 자기신고(SSO 전, NEXT 35), 세 팀 /tasks 쓰기 무인증(R1, NEXT 35 하위), 클로바 텍스트는 사내 메일·지정 계정 수칙, 원격 저장소 공개 여부.
+- **[보안 수용]** X-Emp-No 자기신고(SSO 전, NEXT 35), 세 팀 /tasks 쓰기 무인증(R1, NEXT 35 하위), 클로바 텍스트는 사내 메일·지정 계정 수칙, 원격 저장소 공개 여부. 기관장 사진: 공공누리 제1유형도 Word에 출처 없이 넣음(사용자 11-23 위험 수용). DocCheck 문맥 보기는 담당·팀 제한 없음(security 11-23 하, 기획 판단).
+- **[디자인 확인 요청 오발송]** 11-23 04:28 1차본 제출에 7명이 쪽지를 받음 → 받는 사람 = 담당 영업의 결재 팀장 1명 결재함, 부재 시 대결자, 쪽지 없음(사용자 11-23). fa가 고치는 중(NEXT 108).
 - **[다른 PC 이전]** 옛 PC 로컬 DB 시험 행·주간 수집 예약 작업, git 이력 재작성(11-12) — 새로 clone.
 
-## 세션 분담 (11-20, 재시작 뒤 이름)
-- main: 8080·target/·로컬 DB·mvn 전담, 99·100(minutes/·docout/·049·050·051·PrepForm*), 95 서버, W47.
-- fa(22): kbboard·dashboard·PrepService·105 목표 기관 조작 팀장 결재(DB 056)·106 제안서 점검 보고(DB 057).
-- 05(a7): plans.js·PlanCollect*·103 사업계획 개편·104 협약 성과(TargetResult*, DB 053 예약).
-- e4(38): 기관장(InstitutionHead*·headcard·055).
-- 0d(6f): 공통 팝업 .dlg·nav·index.html 공통부.
-- DB 번호: 052 main(미사용 예약), 053 05, 054·056·057 fa, 055 e4, 058 main(회의록 이름표), 다음 059.
+## 세션 분담 (11-23, 재시작 뒤 이름)
+- main: 8080·target/·로컬 DB·mvn 전담, 99(minutes/·board-minutes.js·058)·100(docout/·049·PrepForm*·InstSummary*·instsummary.js 새 파일)·102 서버(PrepBoard*·054)와 기록, 052, 95 서버, W48·발표 자료.
+- fa(ed): kbboard·dashboard·PrepService·prep.js·105(056)·106(057)·되찾기(059, 화면 미커밋 진행 중)·**디자인 검토 받는 사람(DesignReviewService, 사용자 지시로 main에서 넘겨받음)**·106 문맥 길이.
+- 05(20): plans.js·PlanCollect*·PlanInbox*·103·104(TargetResult*)·56 반입·107 뉴스.
+- e4(51): 기관장(InstitutionHead*·headcard·055)·Word·사진.
+- 0d(디자인 검토 세션): 공통 팝업 .dlg·nav·index.html 공통부·design_history 미커밋. 3단계 ②에 bd-m-rw(board-material = main 파일)가 있으니 손대기 전에 main과 조율.
+- DB 번호: 052 main, 053 05, 054·056·057 fa, 055 e4, 058 main, 059 fa, **다음 060**.
 - **커밋**: 인덱스는 공유 — main은 `GIT_INDEX_FILE=.git/index.main.tmp`(read-tree HEAD → cacheinfo/add → commit → 공유 인덱스는 `git reset -q HEAD -- 내경로`)로 공유 인덱스를 건드리지 않는다. 다른 세션은 `git commit -o -- 경로`(내 전용 파일) 또는 cacheinfo(공유 파일).
 - **임시 인덱스 함정(11-23)**: 임시 인덱스는 **커밋하는 같은 명령 안에서** `read-tree HEAD`로 새로 만든다(미리 만들어 두면 그 사이 남의 커밋을 되돌린다 — e4 6e7ff39가 0d 128bea0을 되돌림, 0d 7963caf로 복구). 커밋 직후 `git show --stat HEAD`로 내 파일만 들어갔는지 확인한다.
 
