@@ -4,12 +4,12 @@
 
 ## 다음 순서 (main, 묻지 않고 실행)
 0. **환경**: MySQL `C:\dev\mysql-start.cmd`, `ListAgents`(재시작 뒤 이름이 바뀜 — 각 세션에 정체 확인). **8080은 커밋된 HEAD만**: `git -C c:/github/_gg_build checkout -q --detach <HEAD>` → 그 폴더 kgi-ggreport-web에서 `mvn -q -o package -DskipTests`(실행 중 8080이 war를 잡으므로 먼저 내림) → main 폴더 kgi-ggreport-web에서 `java -Xmx768m -jar c:/github/_gg_build/kgi-ggreport-web/target/kgi-ggreport-web.war`. mvn은 `MAVEN_OPTS=-Xmx384m`·`-DargLine="-Xmx768m"`, IDE 자동 빌드가 target/classes를 지우면 재실행. 로컬 DB 적용: 047·048·049·051·055·056·057·058. **052는 적용 여부 확인**(fa 세션 기록엔 적용, 11-23 로그인 이름은 최디자이너로 보였음), **059(되찾기 코드)는 fa 화면 커밋 뒤 사용자 적용**(COMMON_CODE 행만이라 HEAD 재빌드는 막지 않음).
-1. **8080 HEAD 확인**: 75 세션이 ead1f8bb로 띄움 — 72320ebc(110 대결 수석차장)·a29143dd(Word 1장·협약 성과 한 줄)가 빠졌을 수 있음. 발표 시연 전 75와 시각을 맞춰 HEAD로 재기동.
-1-1. **14:00 시연(대시보드 전까지 main ce 확인 끝)**: 대본 handoff/sessions/2026-11-24_0045_ce_시연대본.md — 본 기관 (재)연구개발특구진흥재단(마감 12-08 10:00), 예비 사립학교교직원연금공단(리허설로 확정·승인됨, 그대로 둠 — 사용자 11-24). 마감일 12-08 10:00 사용자 원문 확인 끝(Q-2026-11-24-09 done). 대시보드 자체는 75 세션.
+1. **8080 HEAD 확인**: 75가 HEAD 12ad5307로 재기동(11-24 00:54 — 72320ebc·a29143dd 포함). 이후 커밋이 있으면 시연 전 HEAD로 재기동. 75 마무리 뒤 8080은 main 혼자.
+1-1. **14:00 시연(대시보드 전까지 main ce 확인 끝)**: 대본 handoff/sessions/2026-11-24_0045_ce_시연대본.md — 본 기관 (재)연구개발특구진흥재단(마감 12-08 10:00), 예비 사립학교교직원연금공단(리허설로 확정·승인됨, 그대로 둠 — 사용자 11-24). 마감일 12-08 10:00 사용자 원문 확인 끝(Q-2026-11-24-09 done). 대시보드는 75가 8080 실경로 확인 끝(리허설 건 T1 완료·가결위 △는 사용자 지시로 그대로). 75 마무리 뒤 대시보드 문제는 main.
 2. **발표 브라우저 최종 확인**: docs/pm_history/briefing_2026-11-24.html(4c10ed05 — 결정 1건·답 3건·보고 1건). 푸시는 18:00 자동 마무리(Q-2026-11-23-70 hold, 발표 전 푸시는 사용자 확인).
-3. **e4 기관장 사진 이어 찾기**(Q-2026-11-23-68): e4(f9) 켜졌으면 그쪽, 아니면 main + data-auditor — handoff/sessions/2026-11-20_1024_e4.md 맨 아래 목록. Playwright 프로필은 75 → e4 → main 순서.
+3. **e4 기관장 사진 이어 찾기**(Q-2026-11-23-68): e4(f9) 켜졌으면 그쪽, 아니면 main + data-auditor — handoff/sessions/2026-11-20_1024_e4.md 맨 아래 목록. Playwright 프로필은 e4 → main 순서(main 차례에 NEXT 102 화면 실측 포함).
 4. **10:00 NEXT 108 판단**: fa(6c) 꺼져 있으면 main이 이어받아 backend-dev-write로 원안 1358 + delta 1410 처음부터 → mvn → qa·security. 발표 직전이면 발표 뒤.
-5. **발표 뒤**: 답 장부 기록 → 99·102 실사용 요청(Q-2026-11-19-59 config 2줄) → 100 S2 연결 줄 요청(0d index.html·fa/75 prep.js — 75 끝난 뒤) → 99 서버 이관(backend Opus) → 110 대결 경고 줄(.ad-flash) 실측(design) → W48 주간 보고(11-27).
+5. **발표 뒤**: 답 장부 기록 → 99·102 실사용 요청(102에는 업무 질문 2건 붙임 — NEXT 102 ②; Q-2026-11-19-59 config 2줄) → 100 S2 연결 줄 요청(0d index.html·fa prep.js — 75는 11-24 마무리) → 99 서버 이관(backend Opus) → 110 대결 경고 줄(.ad-flash) 실측(design) → W48 주간 보고(11-27).
 6. **새벽에 한 것**: 100 S2 instsummary 시험 고침(새 파일만, frontend-dev 11-24) — 커밋 해시는 summary 참조. 11-23 밤 결정·커밋은 2026-11-23_summary.md Session 23:50.
 
 ## 다시 알릴 것 (질문은 선택식, 답 받을 때까지 멈춤)
@@ -31,7 +31,8 @@
 
 ## 세션 분담 (11-23, 재시작 뒤 이름)
 - **11-23 저녁 재시작 뒤 이름**: fa=ggreportagent-6c, 05=ggreportagent-31, e4=ggreportagent-f9, 0d=디자인 검토 세션, **새 b0=입찰 현황판 전담**(dashboard.js·index.html .db-* CSS, 사용자 지시). fa 108은 설계 원안 backend 1358_ace7936a + delta 1410_ace7936a 완성, 서버 적용은 중단 — 부분 변경 handoff/agents/history/2026-11-23_디자인확인_받는사람_적용중단.patch(fa e0c6b64e). 052 적용 끝(로그인 박디자이너 확인). 05 17:00 표본 삭제 끝(남은 표본 0). e4는 8080 API로 기관장·사진 등록 중(415기관, 나무위키). 사용자 로컬 059 적용 끝.
-- main: 8080·target/·로컬 DB·mvn 전담, 99(minutes/·board-minutes.js·058)·100(docout/·049·PrepForm*·InstSummary*·instsummary.js 새 파일)·102 서버(PrepBoard*·054)와 기록, 052, 95 서버, W48·발표 자료.
+- **75(영업 추진 준비 › 대시보드 전담, 11-23 밤~11-24 01시) 마무리**: 102 화면·서버·기록은 main으로 돌아옴. prep.js는 fa(75의 경로 지정 커밋 83e79d3e = 상세 머리 문구 1줄).
+- main: 8080·target/·로컬 DB·mvn 전담, 99(minutes/·board-minutes.js·058)·100(docout/·049·PrepForm*·InstSummary*·instsummary.js 새 파일)·102 서버(PrepBoard*·054)·prepboard.js와 기록, 052, 95 서버, W48·발표 자료.
 - fa(ed): kbboard·dashboard·PrepService·prep.js·105(056)·106(057)·되찾기(059, 화면 미커밋 진행 중)·**디자인 검토 받는 사람(DesignReviewService, 사용자 지시로 main에서 넘겨받음)**·106 문맥 길이.
 - 05(20): plans.js·PlanCollect*·PlanInbox*·103·104(TargetResult*)·56 반입·107 뉴스.
 - e4(51): 기관장(InstitutionHead*·headcard·055)·Word·사진.
