@@ -238,6 +238,13 @@
   }
   const UNIT = '<span>곳</span>';
   results.warnHtml = function () { return '<p class="pl-warn" role="note">' + esc(TRUNC_MSG) + '</p>'; };
+  // 맨 위 한 줄(사용자 11-23 Q-2026-11-23-31): 결과 난 곳 = 재유치·신규·타은행 유치(달성률 분모), 남은 곳 = 결과 대기 + 확인 필요('결과 미확정' 칸과 같은 합). 둘의 합 = 목표 기관.
+  results.leadCounts = function (s) { return { done: num(s.success_n) + num(s.fail_n), left: num(s.pending_n) + num(s.unregistered_n), total: num(s.target_n) }; };
+  results.leadHtml = function (s) {
+    if (!s || !(num(s.target_n) > 0)) return '';
+    const c = results.leadCounts(s);
+    return '<p class="rs-lead"><span>' + nb('결과 난 곳 ' + c.done + '곳') + '</span> <span class="sep" aria-hidden="true">·</span> <span>' + nb('남은 곳 ' + c.left + '곳') + '</span> <span class="tot">' + nb('(목표 기관 ' + c.total + '곳)') + '</span></p>';
+  };
   // 요약 띠 4칸. truncated 면 서버가 summary 를 안 보내므로 4칸 모두 '—'(일부만 센 숫자를 내지 않는다).
   results.bandHtml = function (data) {
     const s = data && !data.truncated ? data.summary : null;
@@ -263,7 +270,7 @@
           nb('결과 대기 ' + num(s.pending_n) + ' 확인 필요 ' + num(s.unregistered_n)), esc('달성률에 넣지 않습니다')]),
       ];
     }
-    return (data && data.truncated ? results.warnHtml() : '') + '<div class="rs-band">' + cells.join('') + '</div>';
+    return (data && data.truncated ? results.warnHtml() : '') + results.leadHtml(s) + '<div class="rs-band">' + cells.join('') + '</div>';
   };
   // 결과 0건이라 막대를 안 그릴 때 그 자리의 안내 한 줄(규격 6-B). 목표 BAR_MIN_N 곳 미만·결과가 있는 경우는 ''.
   results.barNoteHtml = function (s) {

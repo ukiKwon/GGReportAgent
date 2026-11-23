@@ -377,8 +377,13 @@
     return out ? '<div class="hc-ref" id="hc-ref">' + out + '</div>' : '';
   };
   // 완료 문구. 서버 응답 머리 X-Head-Photo가 failed일 때만 사진 안내를 덧붙인다(included·none·없음은 덧붙이지 않는다).
-  hc.docxOkText = function (photo) {
-    return hc.TEXT.docxOk + (trim(photo).toLowerCase() === 'failed' ? ' ' + hc.TEXT.docxPhotoFailed : '');
+  // 1장 맞춤(사용자 11-23 Q-2026-11-23-17): X-Head-Trimmed-Career·Edu가 1 이상이면 뺀 줄 수를 덧붙인다(0·없음은 덧붙이지 않는다).
+  hc.docxOkText = function (photo, trimCareer, trimEdu) {
+    const n = function (v) { const x = parseInt(trim(v), 10); return x > 0 ? x : 0; };
+    const c = n(trimCareer), e = n(trimEdu);
+    let out = hc.TEXT.docxOk + (trim(photo).toLowerCase() === 'failed' ? ' ' + hc.TEXT.docxPhotoFailed : '');
+    if (c || e) out += ' 1장에 맞추려고 파일에서 ' + (c ? '경력 ' + c + '줄' : '') + (c && e ? '·' : '') + (e ? '학력 ' + e + '줄' : '') + '을 오래된 것부터 뺐습니다(카드 기록은 그대로).';
+    return out;
   };
   // 서버 오류 → { field: 칸 오류인가, text }. 서버 코드·상태에 맞춰 화면 문구를 고른다.
   hc.docxErrText = function (status, detail) {
@@ -465,7 +470,8 @@
       if (r.ok) {
         const hd = function (k) { return r.headers && r.headers.get ? r.headers.get(k) : ''; };
         const cd = hd('Content-Disposition'), photo = hd('X-Head-Photo');
-        return r.blob().then(function (blob) { return { blob: blob, fileName: hc.docxFileName(cd), photo: photo }; });
+        const trimCareer = hd('X-Head-Trimmed-Career'), trimEdu = hd('X-Head-Trimmed-Edu');
+        return r.blob().then(function (blob) { return { blob: blob, fileName: hc.docxFileName(cd), photo: photo, trimCareer: trimCareer, trimEdu: trimEdu }; });
       }
       return r.json().catch(function () { return {}; }).then(function (j) { throw failFrom(r, j); });
     });
@@ -1182,7 +1188,7 @@
     return hc.fetchDocx(mine.instId, mine.screen).then(function (res) {
       hc.saveBlob(res.blob, res.fileName);   // 기관을 옮겼어도 이미 받은 파일은 저장한다
       if (V !== mine) return;
-      dl.busy = false; dl.ok = hc.docxOkText(res.photo);
+      dl.busy = false; dl.ok = hc.docxOkText(res.photo, res.trimCareer, res.trimEdu);
       paintDl();
       focusPane('[data-hc="docx"]');
     }).catch(function (e) {

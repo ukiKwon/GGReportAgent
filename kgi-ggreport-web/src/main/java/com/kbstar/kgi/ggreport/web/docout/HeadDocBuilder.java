@@ -28,7 +28,8 @@ import java.util.Set;
  * 기준일(baseDate)은 나이 계산에만 쓴다. 나이는 '만 n세'만 쓴다 — 생년월일 날짜는 어디에도 넣지 않는다(사용자 11-20).
  * 후보 값·사번(created_by)·이전 기관장은 넣지 않는다.
  * <p>사진은 1장 맞춤을 위해 4단계 상자(S0 78×81.8 … S3 88×92.3mm, 비율 78:81.8) 중 들어가는 가장 큰 것을 고른다({@link #chooseStage}).
- * 어느 단계도 안 들어가면 S0 그대로 두고 2쪽으로 넘어가게 둔다(글자 줄이기·경력 생략 없음 — 사용자 11-23: 정말 넘칠 때만 1장 규칙 예외).
+ * 어느 단계도 안 들어가면 S0 로 두고, 그래도 넘치면 경력을(경력이 0줄이 되면 학력을) 표 맨 아래(가장 오래된) 줄부터 뺀다(글자는 줄이지 않음 — 사용자 11-23 밤 '어떤 경우에도 1장').
+ * 뺀 줄 수는 응답 머리 X-Head-Trimmed-Career·X-Head-Trimmed-Edu 로 알린다.
  */
 public final class HeadDocBuilder {
 
@@ -80,10 +81,18 @@ public final class HeadDocBuilder {
     public static final class Built {
         private final DocModel model;
         private final String photoStatus;
+        private final int careerDropped;
+        private final int eduDropped;
 
         Built(DocModel model, String photoStatus) {
+            this(model, photoStatus, 0, 0);
+        }
+
+        Built(DocModel model, String photoStatus, int careerDropped, int eduDropped) {
             this.model = model;
             this.photoStatus = photoStatus;
+            this.careerDropped = careerDropped;
+            this.eduDropped = eduDropped;
         }
 
         public DocModel model() {
@@ -93,6 +102,16 @@ public final class HeadDocBuilder {
         /** included | none | failed */
         public String photoStatus() {
             return photoStatus;
+        }
+
+        /** 1장 맞춤 때문에 문서에서 뺀 경력 줄 수(오래된 것부터). */
+        public int careerDropped() {
+            return careerDropped;
+        }
+
+        /** 경력을 다 빼고도 넘칠 때만 뺀 학력 줄 수(극단 경우). */
+        public int eduDropped() {
+            return eduDropped;
         }
     }
 
@@ -190,19 +209,29 @@ public final class HeadDocBuilder {
             infoTexts.add("첫 취임일 : " + ymd(first));
         }
 
-        List<String> eduContents = new ArrayList<String>();
-        for (Map<String, Object> it : edu) {
-            eduContents.add(str(it.get("value")));
-        }
-        List<String> careerContents = new ArrayList<String>();
-        for (Map<String, Object> it : career) {
-            careerContents.add(str(it.get("value")));
-        }
-
         Photo photo = planPhoto(head, photoJpeg);
         boolean hasPhoto = photo != null && !photo.failed;
         DocModel.Para title = titlePara(instName, name, pos);
-        int stage = hasPhoto ? chooseStage(titleText(instName, name, pos), infoTexts, true, eduContents, careerContents) : 0;
+        String titleStr = titleText(instName, name, pos);
+
+        // 1장 맞춤(사용자 11-23 Q-2026-11-23-17·18 '어떤 경우에도 1장'): 사진은 S0 가 최소. 그래도 넘치면 경력을 오래된 것부터 뺀다.
+        // 경력이 0줄이 돼도 넘치면 마지막 수단으로 학력도 오래된 것부터 뺀다. 둘 다 0줄이면 멈춘다(제목·정보·사진만으로 넘치면 줄일 것이 없음).
+        int careerDropped = 0;
+        int eduDropped = 0;
+        while (estimateMm(titleStr, 0, infoTexts, hasPhoto, contentsOf(edu), contentsOf(career)) > BUDGET_MM) {
+            if (!career.isEmpty()) {
+                career.remove(oldestIndex(career));
+                careerDropped++;
+            } else if (!edu.isEmpty()) {
+                edu.remove(oldestIndex(edu));
+                eduDropped++;
+            } else {
+                break;
+            }
+        }
+        List<String> eduContents = contentsOf(edu);
+        List<String> careerContents = contentsOf(career);
+        int stage = hasPhoto ? chooseStage(titleStr, infoTexts, true, eduContents, careerContents) : 0;
 
         List<DocModel.Block> blocks = new ArrayList<DocModel.Block>();
         blocks.add(title);
@@ -251,13 +280,13 @@ public final class HeadDocBuilder {
             blocks.add(sectionPara("[ 경 력 ]"));
             blocks.add(periodTable(career));
         }
-        return new Built(new DocModel(blocks).withPageBorder(), status);
+        return new Built(new DocModel(blocks).withPageBorder(), status, careerDropped, eduDropped);
     }
 
     // ── 1장 맞춤 단계 선택(추정) ──────────────────────────────────────────
 
     /**
-     * 들어가는 가장 큰 사진 단계(0~3). 어느 단계도 예산({@value #BUDGET_MM}mm)에 안 들어가면 0 — 2쪽으로 넘어가게 둔다.
+     * 들어가는 가장 큰 사진 단계(0~3). 어느 단계도 예산({@value #BUDGET_MM}mm)에 안 들어가면 0. 그래도 넘치면 buildDoc 이 경력(이어서 학력)을 표 맨 아래 줄부터 뺀다(사용자 11-23 밤).
      * 추정치이며 Word 가 실제로 그리는 쪽 수와 다를 수 있다.
      */
     static int chooseStage(List<String> infoTexts, boolean hasPhoto, List<String> eduContents, List<String> careerContents) {
@@ -473,6 +502,31 @@ public final class HeadDocBuilder {
         String from = str(it.get("from")).trim();
         String to = str(it.get("to")).trim();
         return (!to.isEmpty() ? to : (!from.isEmpty() ? "9999-99" : "0000-00")) + "|" + from;
+    }
+
+    private static List<String> contentsOf(List<Map<String, Object>> items) {
+        List<String> out = new ArrayList<String>();
+        for (Map<String, Object> it : items) {
+            out.add(str(it.get("value")));
+        }
+        return out;
+    }
+
+    /**
+     * 1장 맞춤에서 뺄 줄 — 표 순서({@link #sortPeriod}, 끝 연월 내림차순)의 맨 아래 줄. 끝이 빈 현직 줄은 맨 위라 마지막까지 남고
+     * (qa 11-23 P2-1: 시작 기준이면 오래전에 시작한 현직이 먼저 빠짐), 날짜가 전혀 없는 줄은 맨 아래라 가장 먼저 빠진다. 같으면 표에서 더 아래 줄.
+     */
+    static int oldestIndex(List<Map<String, Object>> items) {
+        int best = 0;
+        String bestKey = sortKey(items.get(0));
+        for (int i = 1; i < items.size(); i++) {
+            String k = sortKey(items.get(i));
+            if (k.compareTo(bestKey) <= 0) {
+                best = i;
+                bestKey = k;
+            }
+        }
+        return best;
     }
 
     // ── 값 꺼내기 ───────────────────────────────────────────────────────

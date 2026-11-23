@@ -143,6 +143,8 @@
   <a href="#c87">87 웹 접근성 기본 3가지 — 본문 바로가기, '열어 둔 화면' 탭 키보드, 이름 없던 입력칸 3개</a>
   <a href="#c88">88 사이드바 기관·입찰 현황 — 소제목 대시보드·기관·입찰 공고, 전국 지도 → 지역별 공고현황, 공고 자동 수집 전산팀만</a>
   <a href="#c89">89 입찰 공고 현황 간소화 — 선정 결과 대기 묶음, 다가오는 기관별 공고현황, 상세 칸 순서</a>
+  <a href="#c90">90 협약 성과 관리 — 요약 띠 위 한 줄 '결과 난 곳 · 남은 곳 (목표 기관)'</a>
+  <a href="#c91">91 기관장 카드 워드 — 1장에 맞추려고 뺀 경력·학력 줄 수를 완료 문구에</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -1864,6 +1866,37 @@
   <p style="font-size:12px"><b>상세 칸</b>(지도·현황판 팝업 공용): ① 공고 진행(공고 전이면 '입찰 예정' — 예정일 막대·입찰 예정일) 안에 '공고 상태 기록' h4 소제목 ② 기관 정보 = 기관 정보 + 현재 금고 은행: 금고 은행 → '약정 기간 시작 ~ 끝 (n년)' 한 줄 → 지난 금고 선정일 → 운영 상태 → 직접 확인 바로가기 → 안내 → [출처·수정 이력]. 편집 단추는 절 머리 오른쪽, 약정 편집 중에는 숨김 ③ 기관장 ④ 사업계획.</p>
   <p><img src="../../handoff/agents/history/2026-11-23_kq_sian/after_popup.png" alt="후 — 지역별 공고현황 팝업의 같은 순서" style="width:100%"></p>
   <p class="legend-note">새 색 변수 0개. 막대 구간·줄은 누르지 않는 보기 전용(간소함, 팀 결정). 남은 것: 날짜 괄호 안 공백 '마감 지남( 11-16 )'·입찰 예정 막대 '오늘' 글자 위치(이번 변경 전부터, 별도). 근거: handoff/agents/planner·design-reviewer·frontend-dev·qa-verifier 2026-11-23 보고서.</p>
+</div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c90">
+<h2>90 협약 성과 관리 — 요약 띠 위 한 줄 '결과 난 곳 n곳 · 남은 곳 m곳 (목표 기관 N곳)' (2026-11-23, 사용자 11-23 '연초에 가장 먼저 보고 싶은 것은 결과 난 곳과 남은 곳', Q-2026-11-23-31, design 커밋 전 대조)</h2>
+<div class="why">왜: 화면을 열면 요약 띠 4칸(달성률·목표 기관·협약 내역·결과 미확정)이 같은 무게로 나란히 있어, '올해 목표 중 몇 곳이 결판났고 몇 곳이 남았나'를 알려면 칸 두 개의 작은 보조 줄을 더해야 했습니다. 사용자는 연초에 이 두 숫자를 가장 먼저 보고 싶다고 했습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+  <p class="hint12">제목·연도 선택 바로 아래 요약 띠 4칸. 결과 난 곳(재유치·신규 5 + 타은행 유치 3 = 8)은 '목표 기관' 칸 보조 줄에서 더해야 했고, 남은 곳 16은 '결과 미확정' 칸에만 있었음.</p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <p style="font-size:14px;margin:0 0 8px">결과 난 곳 <b class="num" style="font-size:16px">8</b>곳 <span style="color:var(--muted)">·</span> 남은 곳 <b class="num" style="font-size:16px">16</b>곳 <span style="color:var(--muted)">(목표 기관 <span class="num" style="font-size:13px;color:var(--fg)">24</span>곳)</span></p>
+  <div class="card" style="font-size:12px;color:var(--muted)">[달성률] [목표 기관 24곳] [협약 내역] [결과 미확정 16곳] — 띠는 그대로</div>
+  <p style="font-size:12px">띠 바로 위 14px 한 줄, 띠와 8px. 숫자는 띠 숫자와 같은 굵은 16px 고정폭, 가운뎃점·괄호는 회색, 괄호 안 목표 수는 13px. 결과 난 곳 = 재유치·신규 + 타은행 유치(달성률 분모), 남은 곳 = 결과 대기 + 확인 필요('결과 미확정' 칸과 같은 수), 둘의 합 = 목표 기관. 결과가 0건이어도 '결과 난 곳 0곳'을 냄. 목표가 0곳이거나 자료가 잘려(truncated) 띠가 '—'일 때는 줄을 내지 않음(일부만 센 숫자 금지).</p>
+  <p class="legend-note">새 색·새 변수 0개(--fg·--muted·--mono). 대비(토큰 계산): 본문 글자 13.6:1, 회색 글자 7.3:1. 낭독기는 가운뎃점을 읽지 않고 두 구절 사이 띄어쓰기는 남김(design P3-1). 남은 것: 띠 칸 이름 '결과 미확정'을 '남은 곳'과 맞출지(기획 이관). 캡처 없음 — 커밋 전 대조는 소스로 했습니다.</p>
+</div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c91">
+<h2>91 기관장 카드 [워드 내려받기] — 1장에 맞추려고 뺀 경력·학력 줄 수를 완료 문구에 (2026-11-23, 사용자 11-23 밤 '어떤 경우에도 1장', Q-2026-11-23-17·18, design 커밋 전 대조)</h2>
+<div class="why">왜: 워드 기관장 프로필을 늘 1장으로 맞추려고, 사진을 가장 작게 해도 넘치면 서버가 경력(그래도 넘치면 학력)을 표 맨 아래(가장 오래된) 줄부터 뺍니다. 그런데 화면에는 '내려받았습니다'만 나와, 받은 사람이 파일에 줄이 빠진 것을 알 수 없었습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+  <p class="hint12">카드 아래 각주 줄: '워드 파일을 내려받았습니다.'(사진을 못 불러왔으면 '사진은 불러오지 못해 넣지 않았습니다.' 덧붙임). 넘치면 2쪽이 됨.</p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <p style="font-size:12px;color:var(--muted)">워드 파일을 내려받았습니다. 1장에 맞추려고 파일에서 경력 5줄을 오래된 것부터 뺐습니다(카드 기록은 그대로).</p>
+  <p style="font-size:12px">둘 다 뺐으면 '경력 3줄·학력 2줄을', 사진 실패와 겹치면 사진 문장 뒤에 이어 붙임. 뺀 줄이 없으면 예전 문구 그대로. 자리·모양은 같음 — 카드 아래 각주 줄의 완료 문구(12px, 낭독기가 알림으로 읽음), 포커스는 [워드 내려받기]로 돌아옴. 끝 날짜가 빈 현직 줄은 표 맨 위라 마지막까지 남음(qa P2-1).</p>
+  <p class="legend-note">새 색·새 변수 0개. 줄 수는 서버 응답 머리 X-Head-Trimmed-Career·X-Head-Trimmed-Edu 값 그대로. 1장 판정은 높이 추정이라 실제 Word 쪽 수는 실사용 때 확인. 캡처 없음 — 넘치는 기관장 자료가 있어야 확인 가능.</p>
 </div></div></div>
 </div>
 </section>

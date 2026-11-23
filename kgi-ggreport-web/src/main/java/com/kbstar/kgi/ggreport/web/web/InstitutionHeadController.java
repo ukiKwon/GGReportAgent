@@ -120,12 +120,16 @@ public class InstitutionHeadController {
         final String instName;
         final Long headId;
         final String photoStatus;   // included | none | failed — 응답 머리 X-Head-Photo
+        final int careerDropped;    // 1장 맞춤으로 뺀 경력 줄 수 — X-Head-Trimmed-Career
+        final int eduDropped;       // 경력을 다 빼고도 넘쳐 뺀 학력 줄 수 — X-Head-Trimmed-Edu
 
-        DocOut(byte[] bytes, String instName, Long headId, String photoStatus) {
+        DocOut(byte[] bytes, String instName, Long headId, String photoStatus, int careerDropped, int eduDropped) {
             this.bytes = bytes;
             this.instName = instName;
             this.headId = headId;
             this.photoStatus = photoStatus;
+            this.careerDropped = careerDropped;
+            this.eduDropped = eduDropped;
         }
 
         @Override
@@ -158,7 +162,7 @@ public class InstitutionHeadController {
                 byte[] photo = HeadDocBuilder.photoWanted(d) ? photos.contentForDoc(me, institutionId, HeadDocBuilder.photoIdOf(d)) : null;   // 못 읽으면 null → 사진 없이(사용자 11-20)
                 HeadDocBuilder.Built built = HeadDocBuilder.buildDoc(d, name, Times.todayKst(), photo);
                 byte[] bytes = DocxKit.render(built.model(), DocxKit.Footer.pageNumberOnly());
-                return new DocOut(bytes, name, HeadDocBuilder.headIdOf(d), built.photoStatus());
+                return new DocOut(bytes, name, HeadDocBuilder.headIdOf(d), built.photoStatus(), built.careerDropped(), built.eduDropped());
             }
         });
         String safe = (out.instName == null ? "" : out.instName).replaceAll("[^0-9A-Za-z가-힣]", "_");
@@ -180,6 +184,8 @@ public class InstitutionHeadController {
         h.set(HttpHeaders.PRAGMA, "no-cache");
         h.set("X-Content-Type-Options", "nosniff");
         h.set("X-Head-Photo", out.photoStatus);   // included | none | failed — 고정 세 값만(내부 정보 없음)
+        h.set("X-Head-Trimmed-Career", String.valueOf(out.careerDropped));   // 숫자만, 0 포함 항상(사용자 11-23 '1장', Q-2026-11-23-17)
+        h.set("X-Head-Trimmed-Edu", String.valueOf(out.eduDropped));
         return new ResponseEntity<>(out.bytes, h, HttpStatus.OK);
     }
 

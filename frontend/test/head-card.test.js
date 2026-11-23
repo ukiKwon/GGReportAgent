@@ -1059,6 +1059,14 @@ test('docxOkText: X-Head-Photo가 failed일 때만 사진 안내를 덧붙인다
   ['included', 'none', '', null, undefined].forEach(function (v) { assert.strictEqual(hc.docxOkText(v), T.docxOk, String(v)); });
 });
 
+test('docxOkText: X-Head-Trimmed-Career·Edu가 1 이상일 때만 뺀 줄 수를 덧붙인다(사용자 11-23 1장)', function () {
+  const T = hc.TEXT;
+  assert.strictEqual(hc.docxOkText('included', '5', '0'), T.docxOk + ' 1장에 맞추려고 파일에서 경력 5줄을 오래된 것부터 뺐습니다(카드 기록은 그대로).');
+  assert.strictEqual(hc.docxOkText('none', '3', '2'), T.docxOk + ' 1장에 맞추려고 파일에서 경력 3줄·학력 2줄을 오래된 것부터 뺐습니다(카드 기록은 그대로).');
+  assert.strictEqual(hc.docxOkText('failed', '1', null), T.docxOk + ' 사진은 불러오지 못해 넣지 않았습니다. 1장에 맞추려고 파일에서 경력 1줄을 오래된 것부터 뺐습니다(카드 기록은 그대로).');
+  [['0', '0'], [null, null], ['', ''], ['x', '-1']].forEach(function (p) { assert.strictEqual(hc.docxOkText('included', p[0], p[1]), T.docxOk, String(p)); });
+});
+
 test('워드: 누르면 바로 GET /head/docx(질의 없음) + X-Screen-Id head_card·X-Button-Id head_docx, 파일 이름 규칙 유지', async function () {
   const calls = fakeFetch(docxRoutes({ status: 200, blob: new Blob(['docx']), headers: { 'Content-Disposition': DOCX_CD } }));
   try {

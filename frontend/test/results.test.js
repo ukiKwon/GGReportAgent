@@ -366,6 +366,20 @@ test('결과 0건(목표만): 띠는 — 와 결과가 나면 계산합니다, �
   assert.ok(one.indexOf('÷') > 0 && one.indexOf('결과가 나면') < 0);
 });
 
+test('leadHtml: 결과 난 곳 n · 남은 곳 m (목표 기관 N) — 띠 위 한 줄, 합이 목표와 같다', function () {
+  assert.deepStrictEqual(results.leadCounts(SUM), { done: 8, left: 16, total: 24 });   // 5+3 / 10+6 / 24
+  assert.strictEqual(results.leadCounts(SUM).done + results.leadCounts(SUM).left, SUM.target_n);
+  const h = results.leadHtml(SUM);
+  assert.ok(h.indexOf('class="rs-lead"') >= 0 && h.indexOf('결과 난 곳 <b>8</b>곳') > 0 && h.indexOf('남은 곳 <b>16</b>곳') > 0 && h.indexOf('(목표 기관 <b>24</b>곳)') > 0);
+  const Z = Object.assign({}, SUM, { target_n: 12, success_n: 0, fail_n: 0, pending_n: 12, unregistered_n: 0, rate_denominator: 0, success_rate: null });
+  assert.ok(results.leadHtml(Z).indexOf('결과 난 곳 <b>0</b>곳') > 0 && results.leadHtml(Z).indexOf('남은 곳 <b>12</b>곳') > 0, '0건도 숫자를 낸다');
+  assert.strictEqual(results.leadHtml(Object.assign({}, SUM, { target_n: 0 })), '', '목표 0곳이면 없음');
+  assert.strictEqual(results.leadHtml(null), '');
+  assert.ok(results.bandHtml(data()).indexOf('class="rs-lead"') < results.bandHtml(data()).indexOf('class="rs-band"'), '줄이 띠 앞');
+  assert.strictEqual(results.bandHtml(data({ truncated: true, summary: null })).indexOf('rs-lead'), -1, 'truncated 면 줄 없음');
+  assert.ok(/\.rs-lead\s*\{/.test(HTML) && /\.rs-lead b\s*\{/.test(HTML));
+});
+
 test('barNoteHtml: 결과 0건이면 막대 자리에 안내 한 줄, 목표<5·결과 있음은 없음', function () {
   const Z = { target_n: 12, pending_n: 12, unregistered_n: 0, rate_denominator: 0 };
   const a = results.barNoteHtml(Z);

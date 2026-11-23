@@ -356,6 +356,32 @@ public class HeadDocBuilderLayoutTest {
     }
 
     @Test
+    public void 넘치면_경력을_오래된_것부터_빼서_1장에_맞추고_뺀_줄_수를_알린다() throws Exception {
+        HeadDocBuilder.Built b = HeadDocBuilder.buildDoc(manyRows(40), "서울시 가구청", "2026-11-20", jpeg(500, 500));
+        assertTrue("40줄이면 뺀다", b.careerDropped() > 0);
+        assertEquals("학력은 그대로", 0, b.eduDropped());
+        String xml = xml(DocxKit.render(b.model(), DocxKit.Footer.pageNumberOnly()));
+        assertTrue("가장 최근 경력은 남는다", xml.contains("가상경력39"));
+        assertFalse("가장 오래된 경력은 빠진다", xml.contains("가상경력0<") || xml.contains(">가상경력0<"));
+        int kept = 40 - b.careerDropped();
+        assertTrue("남은 가장 오래된 줄(" + (40 - kept) + ")", xml.contains("가상경력" + (40 - kept)));
+        assertFalse("그 바로 앞 줄은 빠진다", xml.contains(">가상경력" + (39 - kept) + "<"));
+
+        HeadDocBuilder.Built few = HeadDocBuilder.buildDoc(manyRows(3), "서울시 가구청", "2026-11-20", jpeg(500, 500));
+        assertEquals("여유 있으면 빼지 않는다", 0, few.careerDropped());
+        assertEquals(0, few.eduDropped());
+    }
+
+    @Test
+    public void 뺄_줄은_표_맨_아래_줄_현직은_남고_날짜_없으면_먼저_같으면_아래_줄() {
+        assertEquals(1, HeadDocBuilder.oldestIndex(Arrays.asList(item("a", "2010-03", null), item("b", "2010", null))));
+        assertEquals("시작 없으면 끝으로", 0, HeadDocBuilder.oldestIndex(Arrays.asList(item("a", null, "2005-01"), item("b", "2010-01", null))));
+        assertEquals("날짜 없는 줄 먼저", 2, HeadDocBuilder.oldestIndex(Arrays.asList(item("a", "2001-01", null), item("b", "2000-01", null), item("c", null, null))));
+        assertEquals("같으면 아래 줄", 1, HeadDocBuilder.oldestIndex(Arrays.asList(item("a", "2000-01", null), item("b", "2000-01", null))));
+        assertEquals("오래전에 시작한 현직(끝 없음)은 남고 끝난 경력이 먼저(qa P2-1)", 1, HeadDocBuilder.oldestIndex(Arrays.asList(item("현 OO위원", "1995-03", null), item("b", "2015-01", "2020-12"))));
+    }
+
+    @Test
     public void KOGL1_사진도_출처_없이_넣는다() throws Exception {
         byte[] docx = render("KOGL1", jpeg());
         try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(docx))) {
