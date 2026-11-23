@@ -423,3 +423,30 @@ test('팝업 전체 보기 클릭 분기: 공고 현황 메뉴가 있으면 dash
   assert.ok(src.indexOf('dest: dest') > 0);
   assert.ok(/dash\.isMounted = /.test(dsrc) && /dash\.showPast = /.test(dsrc) && /dash\.selectKey = /.test(dsrc));
 });
+
+test('경과 팝업(#ov-pop): .dlg 틀 — 제목 줄에 단추 없음, 아래 줄 skip→all→close, 옛 CSS 없음(design 11-23)', function () {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const s = html.indexOf('<div id="ov-pop"'); assert.ok(s > 0);
+  const b = html.slice(s, html.indexOf('</footer>', s) + 9);
+  assert.match(b, /class="dlg" role="dialog" aria-modal="true" aria-labelledby="ov-pop-title ov-pop-n"/);
+  const bar = b.slice(b.indexOf('<header class="dlg-bar">'), b.indexOf('</header>'));
+  assert.ok(bar.indexOf('<h2 class="dlg-t" id="ov-pop-title" tabindex="-1">') >= 0 && bar.indexOf('id="ov-pop-n"') > 0);
+  assert.strictEqual((bar.match(/<button/g) || []).length, 0);
+  const foot = b.slice(b.indexOf('<footer class="dlg-foot">'));
+  const at = ['ov-pop-skip', 'ov-pop-all', 'ov-pop-close'].map(function (id) { return foot.indexOf('id="' + id + '"'); });
+  assert.ok(at[0] > 0 && at[0] < at[1] && at[1] < at[2], 'skip → all → close');
+  assert.match(foot, /<button class="link-btn" id="ov-pop-skip"/);
+  assert.match(foot, /<button class="dlg-go" id="ov-pop-all"/);
+  assert.doesNotMatch(b, /modal-box|ov-pop-box|ov-pop-head|ov-pop-foot/);
+  assert.doesNotMatch(html, /\.ov-pop-box|\.ov-pop-head|\.ov-pop-foot|#ov-pop-title \{/);
+  assert.match(html, /#ov-pop \.dlg-t \{ flex:0 1 auto; \}/);
+  const before = html.slice(0, s);   // 덮개는 body 직계(section 밖)여야 뒤 화면이 inert 된다
+  assert.strictEqual((before.match(/<section\b/g) || []).length, (before.match(/<\/section>/g) || []).length);
+});
+
+test('overdue.js: 팝업은 dlg가 연다 — 자체 Esc·Tab·바깥 클릭·popOpen·returnTo 없음, 이동은 restore:false', function () {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'overdue.js'), 'utf8');
+  assert.match(src, /root\.dlg\.open\(pop, \{ restoreFallback: popFallback/);
+  assert.match(src, /root\.dlg\.close\(pop, restore === false \? \{ restore: false \} : undefined\)/);
+  assert.doesNotMatch(src, /popOpen|returnTo|window\.addEventListener\('keydown'|window\.addEventListener\('click'/);
+});

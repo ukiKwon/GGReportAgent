@@ -68,7 +68,8 @@
     return out;
   }
 
-  // 열기. opts: { isDirty(): bool, dirtyText, onClose(), focus: Element }
+  // 열기. opts: { isDirty(): bool, dirtyText, onClose(), focus: Element,
+  //   restoreFallback(): Element|null — 닫을 때 연 자리가 안 보이면(body·숨김·화면에서 빠짐) 대신 커서가 갈 곳 }
   dlg.open = function (overlay, opts) {
     if (!overlay) return;
     const o = opts || {};
@@ -76,7 +77,17 @@
     if (old) { old.opts = o; return; }   // 이미 열려 있으면 옵션만 갈아 끼운다
     const doc = overlay.ownerDocument;
     const e = { overlay: overlay, opts: o, opener: doc.activeElement, inerted: [] };
-    overlay.style.zIndex = String(dlg.zFor(stack.length));
+    // 늦게 뜬 창(로그인 뒤 경과 알림 등)이 이미 떠 있는 옛 팝업(.modal-overlay, 같은 30층·#edit-modal 31) 아래에 깔리지 않게
+    // 보이는 덮개들보다 한 층 위로(qa 11-23 P2-1). 상한 38은 그대로.
+    let z = dlg.zFor(stack.length);
+    Array.prototype.forEach.call(doc.querySelectorAll ? doc.querySelectorAll('.modal-overlay') : [], function (ov) {
+      if (ov === overlay || ov.style.display === 'none' || !ov.isConnected) return;
+      const w = doc.defaultView;
+      const cz = parseInt((w && w.getComputedStyle ? w.getComputedStyle(ov).zIndex : ov.style.zIndex), 10);
+      if (!isNaN(cz) && cz >= z) z = Math.min(cz + 1, 38);
+    });
+    overlay.inert = false;   // 아래 창이 열릴 때 걸린 inert가 남아 있으면 누를 수 없는 창이 된다(qa P3-3)
+    overlay.style.zIndex = String(z);
     overlay.style.display = '';
     e.inerted = setInert(overlay);
     stack.push(e);
@@ -86,8 +97,16 @@
     if (t && t.focus) t.focus();
   };
 
-  // 바로 닫기(확인 없이).
-  dlg.close = function (overlay) {
+  // 연 자리가 아직 화면에 있고 누를 수 있는가 — restoreFallback이 있을 때만 쓴다(body·documentElement는 '자리'가 아니다).
+  function seen(n) {
+    if (!n || !n.focus || !n.isConnected || n.disabled) return false;
+    const d = n.ownerDocument;
+    if (d && (n === d.body || n === d.documentElement)) return false;
+    return n.getClientRects ? n.getClientRects().length > 0 : n.offsetParent !== null;   // position:fixed는 offsetParent가 null이라 getClientRects를 먼저 본다
+  }
+
+  // 바로 닫기(확인 없이). copts.restore === false면 커서를 되돌리지 않는다(다른 곳으로 이동하며 닫는 경우).
+  dlg.close = function (overlay, copts) {
     const e = entryOf(overlay);
     if (!e) { if (overlay) overlay.style.display = 'none'; return; }
     hideConfirm(e);
@@ -96,7 +115,17 @@
     stack.splice(stack.indexOf(e), 1);
     e.inerted.forEach(function (n) { n.inert = false; });
     if (typeof e.opts.onClose === 'function') { try { e.opts.onClose(); } catch (err) { /* 닫기는 막지 않는다 */ } }
-    if (e.opener && e.opener.focus && e.opener.isConnected) e.opener.focus();
+    if (copts && copts.restore === false) return;
+    const fb = e.opts.restoreFallback;
+    if (typeof fb === 'function') {   // 연 자리가 안 보이면 대신 갈 곳으로
+      const doc = overlay.ownerDocument;
+      if (seen(e.opener)) { e.opener.focus(); if (doc.activeElement === e.opener) return; }   // focus가 조용히 실패하면(숨은 부모·inert) 대신 갈 곳으로(qa P3-1)
+      let t = null;
+      try { t = fb(); } catch (err) { t = null; }
+      if (t && t.focus && t.isConnected) t.focus();
+      return;
+    }
+    if (e.opener && e.opener.focus && e.opener.isConnected) e.opener.focus();   // fallback이 없는 기존 창은 그대로
   };
 
   // [닫기]·[취소]·Esc·바깥 클릭이 부르는 하나의 닫기.

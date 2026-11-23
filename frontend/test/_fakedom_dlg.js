@@ -232,4 +232,60 @@ exports.register = function (test, assert, freshDlg) {
     assert.strictEqual(a.ov.querySelectorAll('.dlg-ferr').length, 0);
     assert.strictEqual(bare.getAttribute('aria-describedby'), null);
   });
+
+  test('restoreFallback: 연 자리가 안 보이면(body·숨김·끊김) 대신 갈 곳으로, 보이면 연 자리로, 없는 창은 기존 그대로', function () {
+    const D = freshDlg(); const doc = makeDoc();
+    const shell = doc.El('main'); doc.body.appendChild(shell);
+    const nav = doc.El('button'); shell.appendChild(nav);
+    const a = makeDialog(doc, 'a');
+    const fb = function () { return nav; };
+    doc.activeElement = doc.body;
+    D.open(a.ov, { restoreFallback: fb }); D.close(a.ov);                       // 연 자리 = body(로그인 직후)
+    assert.strictEqual(doc.activeElement, nav);
+    const hid = doc.El('button'); shell.appendChild(hid); hid.offsetParent = null; hid.focus();
+    D.open(a.ov, { restoreFallback: fb }); D.close(a.ov);                       // 숨은 자리
+    assert.strictEqual(doc.activeElement, nav);
+    const gone = doc.El('button'); shell.appendChild(gone); gone.focus(); gone.isConnected = false;
+    D.open(a.ov, { restoreFallback: fb }); D.close(a.ov);                       // 화면에서 빠진 자리
+    assert.strictEqual(doc.activeElement, nav);
+    const vis = doc.El('button'); shell.appendChild(vis); vis.focus();
+    D.open(a.ov, { restoreFallback: fb }); D.close(a.ov);                       // 보이는 자리는 그곳으로
+    assert.strictEqual(doc.activeElement, vis);
+    const plain = doc.El('button'); shell.appendChild(plain); plain.focus();    // fallback 없는 기존 창
+    D.open(a.ov); D.close(a.ov);
+    assert.strictEqual(doc.activeElement, plain);
+  });
+
+  test('close(overlay, {restore:false}): 커서를 연 자리로 되돌리지 않고 onClose는 부른다', function () {
+    const D = freshDlg(); const doc = makeDoc();
+    const opener = doc.El('button'); doc.body.appendChild(opener); opener.focus();
+    const a = makeDialog(doc, 'a'); let closed = 0;
+    D.open(a.ov, { onClose: function () { closed += 1; } });
+    const dest = doc.El('button'); doc.body.appendChild(dest); dest.focus();    // 이동할 곳
+    D.close(a.ov, { restore: false });
+    assert.strictEqual(doc.activeElement, dest); assert.strictEqual(closed, 1); assert.strictEqual(D.depth(), 0);
+  });
+
+  test('늦게 뜬 창은 이미 보이는 옛 덮개보다 한 층 위, 남은 inert는 지운다(qa 11-23 P2-1·P3-3)', function () {
+    const D = freshDlg(); const doc = makeDoc();
+    doc.querySelectorAll = function (s) { return doc.body.querySelectorAll(s); };
+    const old = doc.El('div', { class: 'modal-overlay', id: 'edit-modal' }); old.style.zIndex = '31'; doc.body.appendChild(old);
+    const hidden = doc.El('div', { class: 'modal-overlay' }); hidden.style.zIndex = '37'; hidden.style.display = 'none'; doc.body.appendChild(hidden);
+    const a = makeDialog(doc, 'a'); a.ov.inert = true;
+    D.open(a.ov);
+    assert.strictEqual(a.ov.style.zIndex, '32');   // 숨은 덮개(37)는 세지 않는다
+    assert.strictEqual(a.ov.inert, false);
+    assert.strictEqual(old.inert, true);           // 옛 창은 뒤 화면으로 막힌다
+  });
+
+  test('연 자리에 focus가 조용히 실패하면 대신 갈 곳으로(qa P3-1)', function () {
+    const D = freshDlg(); const doc = makeDoc();
+    const nav = doc.El('button'); doc.body.appendChild(nav);
+    const stuck = doc.El('button'); doc.body.appendChild(stuck); stuck.focus();
+    const a = makeDialog(doc, 'a');
+    D.open(a.ov, { restoreFallback: function () { return nav; } });
+    stuck.focus = function () { /* 숨은 부모 안이라 포커스가 안 감 */ };
+    D.close(a.ov);
+    assert.strictEqual(doc.activeElement, nav);
+  });
 };

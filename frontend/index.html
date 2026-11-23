@@ -1598,22 +1598,21 @@
   #ov-unknown { margin:0; padding:8px 14px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
   #ov-unknown b { font-family:var(--mono); font-weight:400; color:var(--fg); }
   #ov-count[hidden], #ov-unknown[hidden], #ov-pop-more[hidden], #ov-pop-hint[hidden] { display:none; }
-  /* 로그인 직후 팝업 — 기존 .modal-overlay/.modal-box를 쓰되 role=dialog·포커스 가두기는 overdue.js가 맡는다 */
-  .ov-pop-box { max-width:520px; width:calc(100vw - 32px); }
-  .ov-pop-head { display:flex; align-items:center; gap:8px; padding-bottom:9px; border-bottom:1px solid var(--line); }
-  #ov-pop-title { margin:0; padding:0; border:0; font-size:14px; letter-spacing:-.01em; }
-  #ov-pop-sum { margin:10px 0 8px; font-size:12px; color:var(--muted); line-height:1.6; }
+  /* 로그인 직후 팝업 — 공통 팝업 틀 .dlg(3단계, 11-23). 열기·닫기·포커스는 dlg.js */
+  #ov-pop .dlg-t { flex:0 1 auto; }   /* 제목 바로 옆에 건수 도장(.ov-stamp)이 붙는다 */
+  #ov-pop-sum { margin:0 0 8px; font-size:12px; color:var(--muted); line-height:1.6; }
   #ov-pop-sido { display:flex; flex-wrap:wrap; gap:4px 12px; margin:0 0 12px; padding:0; list-style:none; font-size:12px; }
   #ov-pop-sido b { font-family:var(--mono); margin-left:4px; }
   .ov-pop-cap { font-size:12px; color:var(--muted); margin:0 0 4px; }
-  #ov-pop-list { list-style:none; margin:0; padding:0; border-top:1px solid var(--line); overflow:auto; }
+  #ov-pop-list { list-style:none; margin:0; padding:0; border-top:1px solid var(--line); }
   #ov-pop-list .ov-item { padding:8px 2px; }
   #ov-pop-list .ov-meta { grid-column:auto; justify-content:flex-end; }
   #ov-pop-more { margin-top:6px; }
   #ov-pop-hint { margin:10px 0 0; font-size:12px; color:var(--muted); line-height:1.5; }
-  .ov-pop-foot { display:flex; align-items:center; gap:8px; margin-top:14px; }
-  .ov-pop-foot .sp { flex:1; }
-  #ov-pop-all { border-color:color-mix(in srgb, var(--accent-color) 55%, transparent); }
+  #ov-pop .dlg-foot { flex-wrap:wrap; }
+  #ov-pop .dlg-foot .sp { flex:1; }   /* [오늘 더 이상 보지 않기]는 왼쪽 끝, 나머지 둘은 오른쪽 끝 */
+  #ov-pop .dlg-foot button { height:32px; }
+  #ov-pop-skip { padding:0 6px; }
   @media (prefers-reduced-motion: reduce) {
     #drill-wrap[data-ovmode=drawer][data-ov=open] #ov-panel { animation:none; }
     .ov-grp > summary::before { transition:none; }
@@ -3166,17 +3165,20 @@ review, the verdict, and DESIGN.md
   </div>
 </div>
 
-<!-- 로그인 직후 공고 예정일 경과 요약(영업 계열, 하루 안에 '오늘 더 이상 보지 않기'로 끌 수 있음). Esc·포커스는 overdue.js가 직접 처리한다. -->
+<!-- 로그인 직후 공고 예정일 경과 요약(영업 계열, 하루 안에 '오늘 더 이상 보지 않기'로 끌 수 있음).
+     공통 팝업 틀 .dlg 3단계(알림 — 단추 셋 모두 창을 닫으므로 전부 아래 줄, [닫기] 오른쪽 끝). 열기·닫기·Esc·포커스는 dlg.js. -->
 <div id="ov-pop" class="modal-overlay" style="display:none;">
-  <div class="modal-box ov-pop-box" role="dialog" aria-modal="true" aria-labelledby="ov-pop-title" aria-describedby="ov-pop-sum">
-    <div class="ov-pop-head"><h2 id="ov-pop-title" tabindex="-1">공고 예정일이 지난 미처리 건</h2><span class="ov-stamp" id="ov-pop-n"></span></div>
-    <p id="ov-pop-sum"></p>
-    <ul id="ov-pop-sido" aria-label="시·도별 건수"></ul>
-    <p class="ov-pop-cap" id="ov-pop-cap"></p>
-    <ul id="ov-pop-list"></ul>
-    <p class="ov-pop-cap" id="ov-pop-more" hidden></p>
-    <p id="ov-pop-hint" hidden></p>
-    <div class="ov-pop-foot"><button class="link-btn" id="ov-pop-skip" type="button">오늘 더 이상 보지 않기</button><span class="sp"></span><button id="ov-pop-close" type="button">닫기</button><button id="ov-pop-all" type="button">경과 패널에서 전체 보기</button></div>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="ov-pop-title ov-pop-n" aria-describedby="ov-pop-sum">
+    <header class="dlg-bar"><h2 class="dlg-t" id="ov-pop-title" tabindex="-1">공고 예정일이 지난 미처리 건</h2><span class="ov-stamp" id="ov-pop-n"></span></header>
+    <div class="dlg-body">
+      <p id="ov-pop-sum"></p>
+      <ul id="ov-pop-sido" aria-label="시·도별 건수"></ul>
+      <p class="ov-pop-cap" id="ov-pop-cap"></p>
+      <ul id="ov-pop-list"></ul>
+      <p class="ov-pop-cap" id="ov-pop-more" hidden></p>
+      <p id="ov-pop-hint" hidden></p>
+    </div>
+    <footer class="dlg-foot"><button class="link-btn" id="ov-pop-skip" type="button">오늘 더 이상 보지 않기</button><span class="sp"></span><button class="dlg-go" id="ov-pop-all" type="button">경과 패널에서 전체 보기</button><button id="ov-pop-close" type="button" title="닫기 (Esc)">닫기</button></footer>
   </div>
 </div>
 

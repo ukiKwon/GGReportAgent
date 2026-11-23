@@ -21,7 +21,7 @@
     open: false,
     opened: null,         // 펼쳐 둔 묶음(data-group) 집합 — 다시 그려도 유지. null이면 기본값
     wired: false,
-    pop: null,            // 팝업이 열려 있는 동안 {who, date, dest, returnTo} — dest: 'notice'(입찰 공고 현황) | 'map'(지도 경과 패널)
+    pop: null,            // 팝업이 열려 있는 동안 {who, date, dest} — 열기·닫기·Esc·포커스는 dlg.js. dest: 'notice'(입찰 공고 현황) | 'map'(지도 경과 패널)
   };
 
   // 같은 파일이 브라우저(전역)와 node(테스트) 양쪽에서 돌도록 render는 늦게 찾는다.
@@ -342,14 +342,13 @@
   }
 
   // ── 로그인 직후 팝업 ────────────────────────────────────────────────────────
-  function popOpen() { return !!ov.state.pop; }
-
-  function visible(el) {
-    return !!(el && document.contains(el) && el.getClientRects().length > 0 && !el.disabled);
+  // 닫은 뒤 커서: 연 자리가 안 보이면(로그인 폼·body) 사이드바의 지금 화면 항목, 그것도 없으면 '전국 지도' 항목(dlg의 restoreFallback).
+  function popFallback() {
+    return document.querySelector('#side-nav .nav-item[aria-current="page"]') || document.querySelector('#side-nav .nav-item[data-nav="map"]');
   }
 
   ov.showPopup = function (who, dateStr) {
-    const pop = $('ov-pop'); if (!pop) return false;
+    const pop = $('ov-pop'); if (!pop || !root.dlg) return false;
     const dest = popDest();
     const p = ov.popupParts(ov.pendingSummary(), watched(), dateStr, dest, { snap: ov.snap(), today: todayStr() });
     const set = function (id, html) { const e = $(id); if (e) e.innerHTML = html; };
@@ -361,25 +360,18 @@
     const more = $('ov-pop-more'); if (more) { more.textContent = p.more; more.hidden = !p.more; }
     const hint = $('ov-pop-hint'); if (hint) { hint.textContent = p.hint; hint.hidden = !p.hint; }
     const allBtn = $('ov-pop-all'); if (allBtn) allBtn.textContent = ov.popAllLabel(dest);
-    const ae = document.activeElement;
-    ov.state.pop = { who: who, date: dateStr, dest: dest, returnTo: ae && ae !== document.body ? ae : null };
-    pop.style.display = 'block';
-    const t = $('ov-pop-title'); if (t) t.focus();
+    ov.state.pop = { who: who, date: dateStr, dest: dest };
+    root.dlg.open(pop, { restoreFallback: popFallback, onClose: function () { ov.state.pop = null; } });   // 공통 팝업 틀 3단계 — 첫 포커스는 제목, Esc·바깥 클릭·Tab은 dlg
     return true;
   };
 
   // restore=false면 포커스를 되돌리지 않는다('전체 보기'는 패널 제목으로 옮긴다).
   ov.closePopup = function (restore) {
     const pop = $('ov-pop');
-    const st = ov.state.pop;
-    if (!pop || !st) return;
-    pop.style.display = 'none';
+    if (!pop || !ov.state.pop) return;
     ov.state.pop = null;
-    if (restore === false) return;
-    // 열기 직전 포커스가 사라졌으면(로그인 폼·body) 사이드바의 지금 화면 항목, 그것도 없으면 '전국 지도' 항목으로 간다.
-    const back = visible(st.returnTo) ? st.returnTo
-      : (document.querySelector('#side-nav .nav-item[aria-current="page"]') || document.querySelector('#side-nav .nav-item[data-nav="map"]'));
-    if (back && back.focus) back.focus();
+    if (root.dlg) root.dlg.close(pop, restore === false ? { restore: false } : undefined);
+    else pop.style.display = 'none';
   };
 
   // 로그인 직후(app.enterApp)에 부른다. ctx는 app의 navContext(소속·마스터).
@@ -463,22 +455,7 @@
       }
     });
 
-    // Esc·배경 클릭·Tab은 이 팝업이 직접 처리한다 — app.wireModalDismiss의 전역 Esc는
-    // 오버레이를 숨기기만 하고 포커스를 돌려주지 않는다. window 캡처 단계에서 가로챈다.
-    window.addEventListener('keydown', function (e) {
-      if (!popOpen()) return;
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); ov.closePopup(true); return; }
-      if (e.key !== 'Tab') return;
-      const btns = ['ov-pop-skip', 'ov-pop-close', 'ov-pop-all'].map($).filter(visible);
-      if (!btns.length) return;
-      const idx = btns.indexOf(document.activeElement);
-      if (idx < 0) { e.preventDefault(); (e.shiftKey ? btns[btns.length - 1] : btns[0]).focus(); return; }
-      if (e.shiftKey && idx === 0) { e.preventDefault(); btns[btns.length - 1].focus(); }
-      else if (!e.shiftKey && idx === btns.length - 1) { e.preventDefault(); btns[0].focus(); }
-    }, true);
-    window.addEventListener('click', function (e) {
-      if (popOpen() && e.target === $('ov-pop')) { e.stopPropagation(); ov.closePopup(true); }
-    }, true);
+    // Esc·바깥 클릭·Tab 가두기는 공통 팝업 틀(dlg.js)이 맡는다(3단계, 11-23).
 
     // 창 폭이 바뀌면 배치를 바로 다시 정하고, 지도는 150ms 잠잠해진 뒤 한 번만 다시 그린다
     // (같은 배치 안의 폭 변화 포함. 다시 그리면 확대 상태는 초기화된다. 드릴인이면 건드리지 않는다).
