@@ -20,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -108,6 +109,23 @@ public class PrepBoardApiTest {
 
     private int checkRows(String bid) {
         return count("SELECT COUNT(*) FROM BID_PREP_CHECK WHERE BID_CASE_ID=?", bid);
+    }
+
+    /** 역할을 바꾼 뒤 사용자 캐시를 비운다 — PrepApiTest.flushCache 와 같은 방식(쓰기 호출이 캐시를 비운다). */
+    private void flushCache() throws Exception {
+        mockMvc.perform(post("/bidcases").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"institution_id\":\"dobong\"}").header("X-User-Id", "dave")).andReturn();
+    }
+
+    private void setState(String bid, String state) {
+        jdbc.update("UPDATE BID_PREP SET STATE_CD = ? WHERE BID_CASE_ID = ?", state, bid);   // PrepFormApiTest 관례 — 승인 흐름 대신 직접 지정
+    }
+
+    /** 체크 감사 한 줄 수 — TASK_CD 가 null 이면 IS NULL 로 비교한다. */
+    private int actByCol(String bid, String action, String outcome, String taskCd) {
+        return taskCd == null
+                ? count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD=? AND OUTCOME=? AND TASK_CD IS NULL", bid, action, outcome)
+                : count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD=? AND OUTCOME=? AND TASK_CD=?", bid, action, outcome, taskCd);
     }
 
     // ── 목록 ─────────────────────────────────────────────────────────
@@ -353,5 +371,99 @@ public class PrepBoardApiTest {
         int s = check(MEMBER2, bid, COL, mark("DONE", 0)).getResponse().getStatus();
         assertTrue("403(담당 해제) 또는 409(상태 바뀜): " + s, s == 403 || s == 409);
         assertEquals(0, checkRows(bid));
+    }
+
+    @Test
+    public void D22_작성_가능_건에서_담당이_체크하면_체크_표와_감사에_화면_버튼_상태가_남는다() throws Exception {
+        String bid = opened(INST);
+        setState(bid, "WRITABLE");
+        MvcResult r = check(MEMBER2, bid, COL, mark("DONE", 0));
+        assertEquals(r.getResponse().getContentAsString(), 200, r.getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_CHECK WHERE BID_CASE_ID=? AND COL_CD=? AND SCREEN_ID='prep_dashboard'"
+                + " AND BUTTON_ID='dash_check' AND UI_VALID=1 AND ACTOR_EMP_NO=?", bid, COL, MEMBER2));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_CHECK' AND OUTCOME='OK'"
+                + " AND STATE_CD='WRITABLE' AND TASK_CD='CK_FIN_COMMITTEE' AND ACTOR_EMP_NO=? AND SCREEN_ID='prep_dashboard'"
+                + " AND BUTTON_ID='dash_check' AND UI_VALID=1", bid, MEMBER2));
+    }
+
+    @Test
+    public void D23_작성_중_건도_체크되고_감사_상태는_WRITING이다() throws Exception {
+        String bid = opened(INST);
+        setState(bid, "WRITING");
+        assertEquals(200, check(MEMBER2, bid, COL, mark("DONE", 0)).getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_CHECK' AND OUTCOME='OK'"
+                + " AND STATE_CD='WRITING' AND ACTOR_EMP_NO=?", bid, MEMBER2));
+        assertTrue(row(json(list(MEMBER2, null, "refresh")), bid).path("can_check").asBoolean());
+    }
+
+    @Test
+    public void D24_확정_또는_개설_대기_건은_담당이어도_409_STATE_CHANGED이고_행_없이_BLOCKED_감사만_남는다() throws Exception {
+        String bid = opened(INST);   // 담당 배정은 활성으로 남는다
+        for (String st : new String[]{"CONFIRMED", "OPEN_PENDING"}) {
+            setState(bid, st);
+            MvcResult r = check(MEMBER2, bid, COL, mark("DONE", 0));
+            assertEquals(st, 409, r.getResponse().getStatus());
+            assertEquals("STATE_CHANGED", json(r).path("detail").path("code").asText());
+            assertEquals(st, 1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_CHECK'"
+                    + " AND OUTCOME='BLOCKED' AND STATE_CD=?", bid, st));
+        }
+        assertEquals(0, checkRows(bid));
+        assertEquals(2, actCount(bid, "DASH_CHECK", "BLOCKED"));
+    }
+
+    @Test
+    public void D25_화면_버튼_머리글이_없으면_200이고_UNKNOWN_UI_VALID_0이_체크_표와_감사_모두에_남는다() throws Exception {
+        String bid = opened(INST);
+        MvcResult r = mockMvc.perform(put("/bidcases/" + bid + "/prep/board-checks/" + COL).contentType(MediaType.APPLICATION_JSON)
+                .content(mark("DONE", 0)).header("X-Emp-No", MEMBER2)).andReturn();   // X-Screen-Id·X-Button-Id 없음
+        assertEquals(r.getResponse().getContentAsString(), 200, r.getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_CHECK WHERE BID_CASE_ID=? AND SCREEN_ID='UNKNOWN' AND BUTTON_ID='UNKNOWN' AND UI_VALID=0", bid));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_CHECK' AND OUTCOME='OK'"
+                + " AND SCREEN_ID='UNKNOWN' AND BUTTON_ID='UNKNOWN' AND UI_VALID=0", bid));
+    }
+
+    @Test
+    public void D26_실패_경로는_INVALID_HIDDEN_BLOCKED_감사가_열_코드와_함께_한_줄씩_남고_형식_밖_열은_TASK_CD가_NULL이다() throws Exception {
+        String bid = opened(INST);
+        assertEquals(400, check(MEMBER2, bid, COL, "{\"mark_cd\":\"FOO\",\"base_rev\":0}").getResponse().getStatus());
+        assertEquals(1, actByCol(bid, "DASH_CHECK", "INVALID", "CK_FIN_COMMITTEE"));
+        assertEquals(404, check(MEMBER2, bid, "XYZ", mark("DONE", 0)).getResponse().getStatus());   // 형식은 맞고 없는 열
+        assertEquals(1, actByCol(bid, "DASH_CHECK", "HIDDEN", "CK_XYZ"));
+        assertEquals(404, check(MEMBER2, bid, "fin", mark("DONE", 0)).getResponse().getStatus());   // 형식 밖 → NULL
+        assertEquals(1, actByCol(bid, "DASH_CHECK", "HIDDEN", null));
+        assertEquals(409, check(MEMBER2, bid, "PROPOSAL", mark("DONE", 0)).getResponse().getStatus());
+        assertEquals(1, actByCol(bid, "DASH_CHECK", "BLOCKED", "CK_PROPOSAL"));
+        assertEquals(0, checkRows(bid));
+    }
+
+    @Test
+    public void D27_include_ended_목록은_기관당_한_줄이고_활성_건이_있는_기관은_ended가_false다() throws Exception {
+        String old = opened(INST);   // nowon: 중단된 건 + 다시 확정한 활성 건
+        assertEquals(200, postJson("/bidcases/" + old + "/prep/cancel", LEAD, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
+        String active = confirm(MEMBER, INST);   // PrepApiTest 관례 — 중단 뒤 확정은 새 건
+        String endedOnly = confirm(MEMBER, "dobong");   // dobong: 종료 건만
+        assertEquals(200, postJson("/bidcases/" + endedOnly + "/prep/unconfirm", LEAD, "{\"reason\":\"가상 취소\"}").getResponse().getStatus());
+        JsonNode body = json(list(MEMBER, "include_ended=true", "refresh"));
+        int nowon = 0, dobong = 0;
+        for (JsonNode r : body.path("rows")) {
+            if (INST.equals(r.path("institution_id").asText())) { nowon++; }
+            if ("dobong".equals(r.path("institution_id").asText())) { dobong++; }
+        }
+        assertEquals(1, nowon);
+        assertEquals(1, dobong);
+        assertFalse(row(body, active).path("ended").asBoolean());
+        assertNull("같은 기관의 중단 건은 줄로 나오지 않는다", row(body, old));
+        assertTrue(row(body, endedOnly).path("ended").asBoolean());
+    }
+
+    @Test
+    public void D28_담당_배정이_남은_채_역할이_영업_밖으로_바뀐_사용자는_체크가_403이고_거부_감사가_남는다() throws Exception {
+        String bid = opened(INST);
+        jdbc.update("UPDATE USERS SET ROLE='디자이너' WHERE EMP_NO=?", MEMBER2);
+        flushCache();
+        assertEquals(403, check(MEMBER2, bid, COL, mark("DONE", 0)).getResponse().getStatus());
+        assertEquals(0, checkRows(bid));
+        assertEquals(1, actByCol(bid, "DASH_CHECK", "DENIED", "CK_FIN_COMMITTEE"));
+        assertEquals(0, actCount(bid, "DASH_CHECK", "OK"));
     }
 }

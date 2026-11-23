@@ -396,6 +396,7 @@
              pos: { r: 0, c: 0 }, seq: 0, hooks: null, scroll: null, menu: null, touched: false };
   }
   let B = fresh();
+  let reqSeq = 0;   // 요청 번호는 B 밖에서 단조 증가 — reset으로 B가 바뀌어도 옛 응답 번호와 겹치지 않는다
   let wired = false;
   let menuEl = null;
 
@@ -533,7 +534,7 @@
   function load(button, focusBid) {
     const hooks = B.hooks;
     if (!hooks) return;
-    const token = ++B.seq;
+    const token = B.seq = ++reqSeq;
     if (!B.data) { B.state = 'loading'; paintAll(); } else { B.refreshing = true; paintMeta(); }
     hooks.req('GET', '/prep-board' + (B.ended ? '?include_ended=true' : ''), undefined, ui(button)).then(function (d) {
       if (token !== B.seq) return;
@@ -653,9 +654,12 @@
     row.cells = row.cells || {};
     row.cells[cd] = Object.assign({}, prev, { mark_cd: mark, marked_on: mark === 'NONE' ? null : B.data.today });   // 고른 값을 바로 그린다
     paintCell(bid, cd, true);
+    const b = B;
     B.hooks.req('PUT', '/bidcases/' + encodeURIComponent(bid) + '/prep/board-checks/' + encodeURIComponent(cd), { mark_cd: mark, base_rev: base }, ui('dash_check')).then(function (res) {
+      if (b !== B) return;   // 그 사이 계정이 바뀜
       delete B.pending[key];
-      row.cells[cd] = Object.assign({}, prev, res && res.cell && typeof res.cell === 'object' ? res.cell : { mark_cd: mark });
+      const cur = rowById(bid);   // 새로 고침으로 행 객체가 바뀌었을 수 있다
+      if (cur) { cur.cells = cur.cells || {}; cur.cells[cd] = Object.assign({}, prev, res && res.cell && typeof res.cell === 'object' ? res.cell : { mark_cd: mark }); }
       const oldFailed = Object.keys(B.failed);
       B.failed = {};
       paintCell(bid, cd, false);
@@ -663,8 +667,9 @@
       setErr('');
       if (!res || res.saved !== false) live(pb.saveOk(info.fullLabel, pb.markName(B.data.marks, mark)));
     }).catch(function (e) {
+      if (b !== B) return;
       delete B.pending[key];
-      row.cells[cd] = prev;
+      if (rowById(bid) === row) row.cells[cd] = prev;   // 새로 고침으로 바뀐 행은 서버 값이 맞으니 되돌리지 않는다
       B.failed[key] = true;
       setErr(pb.saveError(e && e.status, e && e.detail ? (typeof e.detail === 'object' ? str(e.detail.code) : '') : '', { inst: str(row.institution_name), col: info.fullLabel }));
       paintCell(bid, cd, false);
@@ -751,9 +756,9 @@
   };
   // 계정이 바뀌면 이전 계정의 표·거르기·저장 중 표시를 버린다.
   pb.reset = function () {
+    closeMenu(false);   // 옛 B.menu가 살아 있을 때 먼저 닫는다
     B = fresh();
     if (typeof document === 'undefined') return;
-    closeMenu(false);
     const box = el('pb-scroll'); if (box) box.innerHTML = '';
     const q = el('pb-q'); if (q) q.value = '';
     setErr('');

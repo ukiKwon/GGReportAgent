@@ -396,3 +396,63 @@ test('index.html: 표 마크업·script 순서·CSS 규칙(들어간 경우에�
   (css.match(/font-size:\s*(\d+)px/g) || []).forEach(function (m) { assert.ok(Number(m.match(/(\d+)/)[1]) >= 12, m); });
   assert.ok(!/box-shadow:\s*0\s/.test(css), '번지는 그림자 금지');
 });
+
+// ── DOM 모의: 계정 전환(reset) 회귀 (qa 11-23 P2-1·P3-1) ──
+const ENV = (function () {
+  const L = {};
+  const sec = { addEventListener: function (t, f) { L[t] = f; }, setAttribute: function () {} };
+  const box = { innerHTML: '', scrollLeft: 0, scrollTop: 0, querySelectorAll: function () { return []; } };
+  const menu = { style: {}, innerHTML: '', listeners: {}, setAttribute: function () {}, contains: function () { return false; },
+    querySelectorAll: function () { return []; }, addEventListener: function (t, f) { this.listeners[t] = f; } };
+  const doc = { getElementById: function (id) { return id === 'pp-board' ? sec : id === 'pb-scroll' ? box : null; },
+    createElement: function () { return menu; }, body: { appendChild: function () {}, contains: function () { return true; } },
+    addEventListener: function () {} };
+  return { L: L, box: box, menu: menu, doc: doc };
+})();
+function withDom(fn) {
+  return async function () {
+    globalThis.document = ENV.doc;
+    globalThis.window = { innerHeight: 800, innerWidth: 1200 };
+    try { pb.reset(); ENV.box.innerHTML = ''; ENV.menu.style.display = 'none'; await fn(); }
+    finally { delete globalThis.document; delete globalThis.window; }
+  };
+}
+function flush() { return new Promise(function (r) { setImmediate(r); }); }
+function boardData(name) {
+  return { columns: COLUMNS, groups: GROUPS, marks: MARKS, today: '2026-11-23', rows: [row({ institution_name: name })] };
+}
+function deferredHooks() {
+  const pend = [];
+  return { pend: pend, roleLabel: '영업', openCase: function () {}, openMap: function () {},
+    req: function () { return new Promise(function (res) { pend.push(res); }); } };
+}
+
+test('T8 reset: 요청 A 진행 중 계정 전환 → 요청 B가 먼저 오고 A가 늦게 와도 화면은 B 응답', withDom(async function () {
+  const hA = deferredHooks(), hB = deferredHooks();
+  pb.show(hA, {});
+  pb.reset();
+  pb.show(hB, {});
+  hB.pend[0](boardData('충주시'));
+  await flush();
+  hA.pend[0](boardData('청주시'));
+  await flush();
+  assert.ok(ENV.box.innerHTML.indexOf('충주시') >= 0, 'B 응답이 보인다');
+  assert.ok(ENV.box.innerHTML.indexOf('청주시') < 0, '옛 계정 응답은 버린다');
+}));
+
+test('T9 reset: 칸 메뉴가 열린 채 계정 전환 → 메뉴는 숨겨진다', withDom(async function () {
+  const h = deferredHooks();
+  pb.show(h, {});
+  h.pend[0](boardData('청주시'));
+  await flush();
+  const tr = { getAttribute: function (k) { return k === 'data-bid' ? 'B1' : null; } };
+  const td = { parentNode: tr, getAttribute: function (k) { return k === 'data-col' ? 'PT' : null; } };
+  const btn = { classList: { contains: function (c) { return c === 'pb-mk'; } }, getAttribute: function () { return null; },
+    setAttribute: function () {}, contains: function () { return false; }, focus: function () {},
+    getBoundingClientRect: function () { return { left: 0, top: 0, bottom: 10 }; },
+    closest: function (s) { return s === 'td' ? td : s === 'button' ? btn : null; } };
+  ENV.L.click({ target: btn });
+  assert.strictEqual(ENV.menu.style.display, '', '메뉴가 열렸다');
+  pb.reset();
+  assert.strictEqual(ENV.menu.style.display, 'none', 'reset 뒤 메뉴가 숨겨진다');
+}));

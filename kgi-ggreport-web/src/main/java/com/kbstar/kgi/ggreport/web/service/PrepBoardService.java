@@ -267,7 +267,7 @@ public class PrepBoardService {
 
     // ── 손 체크 저장 ──────────────────────────────────────────────────
     /**
-     * ① 건 행 잠금(형식이 맞을 때만) → ② 건 없음·비담당 403(같은 응답) → ③ 열 형식·존재 404 → ④ 자동·공고 열 409 NOT_MANUAL →
+     * ⓪ 영업부서 밖 역할 403(canList, DB 접근 없음 — QA P3-5) → ① 건 행 잠금(형식이 맞을 때만) → ② 건 없음·비담당 403(같은 응답) → ③ 열 형식·존재 404 → ④ 자동·공고 열 409 NOT_MANUAL →
      * ⑤ 입력 400 → ⑥ 상태 409 STATE_CHANGED → ⑦ 개정 번호 409 STALE_CHECK → ⑧ 같은 값이면 저장 없이 DASH_CHECK_SAME →
      * ⑨ INSERT(PK 중복도 409 STALE_CHECK) + 성공 감사(같은 트랜잭션).
      * 잠금을 먼저 두는 이유: 담당 해제와 줄을 세우고(security 3), MySQL REPEATABLE READ 의 읽기 시점을 잠금 뒤로 미뤄 ⑦이 실제로 걸리게 한다(security 4).
@@ -276,6 +276,9 @@ public class PrepBoardService {
     @Transactional
     public Map<String, Object> save(SysUser me, Actor actor, BoardUiIds.Ui ui, String bidCaseId, String colRaw,
                                     PrepBoardIn.Check in) {
+        if (!canList(me)) {   // 담당 배정이 남은 채 역할이 영업 밖으로 바뀐 사용자(QA P3-5) — DB 접근 전에 거른다(잠금 규칙과 무관). 컨트롤러가 DENIED 감사를 남긴다.
+            throw new ApiException(403, "이 입찰 건의 담당자만 체크할 수 있습니다.");
+        }
         boolean wellFormed = bidCaseId != null && bidCaseId.matches("[A-Za-z0-9._-]{1,64}");
         String state = wellFormed ? preps.selectStateForUpdate(bidCaseId) : null;
         if (state == null || !assignments.isActiveAssignee(bidCaseId, me.getEmpNo())) {
