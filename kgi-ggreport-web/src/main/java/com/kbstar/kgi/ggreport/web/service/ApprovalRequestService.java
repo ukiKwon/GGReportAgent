@@ -561,6 +561,9 @@ public class ApprovalRequestService {
      * </ul>
      */
     private void notifyStep(ApprovalRequest r, ApprovalStep step, SysUser requester) {
+        if (!notes.approvalRequestEnabled()) {
+            return;   // 결재자에게 가는 '결재알림'만 끈다(결재함 머리 띠로 대체). '결재결과'·감사는 그대로.
+        }
         List<String> to = new ArrayList<>();
         Map<String, String> viaDeputy = new LinkedHashMap<>();     // 대결자 사번 → 대신하는 결재자 이름
         if ("ADMIN".equals(step.getKind())) {

@@ -38,6 +38,20 @@ public class NotificationCommandService {
         return SYSTEM_SENDER.equals(folded.replaceAll("[\\p{Z}\\p{Cf}\\p{Cc}\\s]+", ""));
     }
 
+    /** 옛 작업 결재 계열 쪽지의 종류. */
+    static final String KIND_APPROVAL_REQUEST = "결재요청";
+
+    /**
+     * 결재 요청 쪽지(결재자에게 가는 '결재알림' + 옛 '결재요청')를 보낼지 — 기본 꺼짐(사용자 11-23: 결재함은 머리 띠 [결재함 n]).
+     * 꺼도 요청자에게 가는 '결재결과'와 감사 기록은 그대로다. 필드 주입이라 생성자(시험이 직접 new 한다)는 그대로다.
+     */
+    @org.springframework.beans.factory.annotation.Value("${ggreport.notify.approval-request.enabled:false}")
+    private boolean approvalRequestEnabled;
+
+    public boolean approvalRequestEnabled() {
+        return approvalRequestEnabled;
+    }
+
     private final NotificationMapper notifications;
 
     public NotificationCommandService(NotificationMapper notifications) {
@@ -88,6 +102,9 @@ public class NotificationCommandService {
     public Notification create(String recipient, String kind, String content,
                                String institutionId, String taskId, String link,
                                Integer stage, String sender) {
+        if (KIND_APPROVAL_REQUEST.equals(kind) && !approvalRequestEnabled) {
+            return null;   // 옛 '결재요청' 쪽지 끔 — 호출자는 반환값을 쓰지 않는다
+        }
         Notification n = new Notification();
         n.setNotificationId(Ids.notification());
         n.setRecipient(recipient);
