@@ -275,6 +275,11 @@
 - **다음 한 걸음(남은 것)**: ④ 지도 위 '임박 TOP5' 띠 멈춤 단추(render.js:774–790) ⑤ 화면마다 창 제목(document.title)·결재함/내 정보/작업함 머리 글 h2 ⑥ 대화 AI 답 aria-live(chat.js) ⑦ 쪽지 줄 클릭 읽음 키보드(notify.js:267) ⑧ 공통 틀 안 옮긴 팝업 6개(fa·e4·main 몫) ⑨ 로그인 만료 미리 알림·연장(서버, KWCAG 응답시간 조절) ⑩ 인증에 낼 경우 화면낭독기(센스리더·NVDA) 실측·자동 점검 도구 ⑪ qa P3(업무 PC Chrome 157·Edge 158 — :has 지원 확인, 사용자 11-23): tablist 안 × 단추(자동 검사기 경고 가능), 탭 동작 시험이 문자열 검사뿐(DOM 동작 시험 공백).
 - **자세히**: handoff/agents/design-reviewer/2026-11-23_1405_afbf3b15.md('웹 접근성 진단'), Q-2026-11-23-59.
 
+### 110. 사전준비 개설 승인 — 팀장 부재 때 팀장이 대결 지정한 같은 팀 수석차장이 팀장 자격으로 승인 (사용자 11-23 밤) [담당: main — backend-dev(Opus) → security → qa / 화면 표시는 frontend-dev]
+- **현재**: 1단계 '같은 팀 팀장만·수동 지정 결재선만' 커밋 b62b7589(security 11-23 중 반영 — 유일한 팀장 대체 규칙 삭제). 사용자 결정: 팀장이 기존 '대결 지정'으로 같은 팀 수석차장+기간 등록, 대결 수석차장은 팀장과 동일 → 신청자가 수석차장이어도 승인 가능(직급 비교는 원 결재자 팀장 기준). 본부장을 직급 목록에 추가(부장<본부장<대표), 겸직은 ROLE로 반영. BID_OPEN만(NO_PROXY 예외). 출처 2026-11-23_summary `## Session 23:50 (main ce)`.
+- **다음 한 걸음**: backend-dev Opus 설계 도착 → 적용·mvn(8080·target은 다른 세션과 조율) → security → 커밋. 화면 신청 창 '승인할 사람' 표시(⑥ 조회 API는 보류 중 — 대결자 이름 노출 여부 포함)는 frontend 이관.
+- **자세히**: handoff/agents/backend-dev/2026-11-23_2311_ab970a24.md, planner 2026-11-23_2335_a135fddd.md, security 2026-11-23_2321_a3e93c73.md. 남은 기획 이관: 담당자 변경·목표 변경 결재도 같은 팀 기준으로 막을지.
+
 ### 103. 기관 사업계획 화면 → 목표·관심 기관 중심 개편 + 일괄 수집 요청 [담당: 05 세션]
 - **현재**: 11-20 구현·커밋 끝 — 서버 c8d7d4c6(POST /plan-collect/batch, 1~50곳·기관별 결과·쪽지 한 묶음·isOutage), 화면 ace08ab4(기관 목록·[목표·관심 먼저] 정렬·묶음 머리·2줄 행·'2026 목표' 칩·바닥 일괄 요청·공통 dlg 확인 창·20초 제한, design_history c69). security·qa·design 대조 반영. 8080 반영됨(11:47 war + 정적 파일).
 - **다음 한 걸음**: 사용자 실사용 확인(김영업: 목록·정렬 켬/끔·칩·바닥 버튼·확인 창 [취소][n곳 요청]·Esc·바깥 클릭, 디자이너: 버튼 없음). 남은 정리: postEmpty(단건) 시간 제한 없음, PlanCollectTxTest 실DB 독립 커밋 시험(main), BoardWriteLimitFilterTest batch 413(main), 1280 실측(Playwright 복구 뒤).
