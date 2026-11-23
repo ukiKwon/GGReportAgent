@@ -77,7 +77,7 @@ test('머리 띠·메뉴·탭: 국민은행 CI 시안 B(진회색 띠 + 옐로 �
   assert.ok(/<body[^>]*>[\s\S]*?\n<header>/.test(html) && /'<header class="bd-src-head">/.test(fs.readFileSync(path.join(ROOT, 'js', 'board-write.js'), 'utf8')));
   assert.ok(/\.stab-x \{[^}]*width:24px; height:24px;/.test(c));
   assert.ok(/\.nav-item\.active \{[^}]*inset 3px 0 0 var\(--accent-color\)[^}]*font-weight:700/.test(c));
-  const logo = /<header>\s*<h1>[\s\S]*?<\/h1>/.exec(html)[0];
+  const logo = /<header>\s*(?:<a class="skip-link"[^>]*>[^<]*<\/a>\s*)?<h1>[\s\S]*?<\/h1>/.exec(html)[0];   // 본문 바로가기(KWCAG, 11-23)가 h1 앞에 올 수 있다
   assert.ok(logo.indexOf('#0b50d0') < 0 && logo.indexOf('currentColor') > 0);
 });
 

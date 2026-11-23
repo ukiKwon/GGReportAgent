@@ -133,6 +133,7 @@ components:
 - 모든 숫자·날짜·D-day는 `--mono`.
 - 새 아이콘은 인라인 SVG 획 글리프로.
 - 구조·id·클래스·토큰을 건드리기 전에 `node --test "frontend/test/*.test.js"`를 돌린다.
+- 접근성(KWCAG 2.2): 머리 띠 맨 앞에 '본문 바로가기'(`.skip-link` → `#main`, tabindex=-1)를 둔다. 탭 줄은 `<button role="tab">`(선택 탭만 tabindex 0)와 형제 닫기 `<button aria-label="{이름} 닫기">`로 짓고(단추 안 단추 금지), ←→ Home End는 포커스만 옮기고 Enter/Space로 전환, Delete로 닫은 뒤 포커스는 이웃 탭으로. 입력칸에는 label·aria-label·aria-labelledby 중 하나로 이름을 붙인다.
 
 **하지 말 것**
 - `:root` 변수 이름을 바꾸지 않는다. 국민은행 CI 색(KB Dark Gray·KB Yellow)을 정해 둔 자리 밖에 쓰지 않는다. 노랑 위 흰 글자 금지.

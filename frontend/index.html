@@ -71,6 +71,10 @@
   body > header .brand-btn:hover { background:rgba(255,255,255,.14); }
   body > header .brand-btn:focus-visible { outline:2px solid #fff; outline-offset:2px; }
   @media (prefers-reduced-motion: reduce) { body > header .brand-btn { transition:none; } }
+  /* 본문 바로가기(KWCAG 2.2 2.4.1) — 평소엔 화면 밖, 키보드 포커스가 오면 왼쪽 위에 흰 상자로 나타난다. 머리 띠 첫 요소라 로그인 화면(뒤가 inert)에서는 Tab에 잡히지 않는다. 흰 바탕 + #545045 글자 8.04:1 */
+  body > header .skip-link { position:fixed; left:12px; top:-60px; z-index:300; padding:8px 14px; border-radius:var(--r); background:#fff; color:#545045; font-size:14px; font-weight:700; text-decoration:none; }
+  body > header .skip-link:focus { top:8px; outline:2px solid #545045; outline-offset:-5px; }
+  #main:focus, #main:focus-visible { outline:none; }   /* 바로가기가 옮긴 포커스(tabindex=-1)는 본문 전체에 링을 두르지 않는다 */
   .tabs { display:none; /* 좌측 사이드바가 대신한다. 버튼은 전환 로직이 쓰므로 DOM에 둔다 */ gap:2px; margin-left:auto; background:var(--panel);
           border:1px solid var(--line); border-radius:var(--r); padding:3px; }
   .tab-btn { background:transparent; color:var(--muted); border:none; border-radius:var(--r);
@@ -176,12 +180,19 @@
   .stab.active { color:var(--fg); background:var(--panel); border-color:var(--line);
                  box-shadow:inset 0 2px 0 var(--accent-color); }
   .stab-label { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .stab-x { flex:none; width:24px; height:24px; line-height:22px; text-align:center; border-radius:var(--r); font-size:15px; }
+  .stab-x { flex:none; width:24px; height:24px; line-height:22px; text-align:center; border-radius:var(--r); font-size:15px; padding:0; border:0; background:transparent; color:inherit; }
   .stab-x:hover { background:var(--line); color:var(--fg); }
   /* 시작화면 고정 탭(design-reviewer 11-19 1428_aab03363 5절) — 맨 앞, 닫기(×) 없음. × 자리를 비우지 않고 없애는 대신 라벨 앞에 집 글리프, 오른쪽 여백 12px(왼쪽과 대칭) */
   .stab.pin { flex:none; max-width:none; padding:7px 12px; gap:6px; }
   .stab.pin + .stab { margin-left:5px; }   /* 고정 탭 뒤 간격 3→8px: 닫을 수 있는 탭 무리와 떼어 놓는다 */
   .stab.pin .stab-ico { flex:none; width:12px; height:12px; color:currentColor; }
+  /* 탭 본체는 진짜 <button role=tab>, ×는 그 형제 <button>(단추 안 단추 금지). 상자 모양은 .stab가 그대로 맡고 단추 기본 모양만 지운다. 포커스 링은 탭 상자 전체에(KWCAG 2.2) */
+  .stab-tab, .stab-tab:hover { flex:1 1 auto; min-width:0; display:flex; align-items:center; align-self:stretch; gap:6px; padding:0; border:0; border-radius:0; background:transparent; color:inherit; font:inherit; text-align:left; }
+  .stab.pin .stab-tab { flex:none; }
+  @supports selector(:has(*)) {   /* :has()를 모르는 브라우저는 단추 자체의 공통 포커스 링을 그대로 쓴다(qa P3-1) */
+    .stab-tab:focus-visible { outline:none; }
+    .stab:has(.stab-tab:focus-visible) { outline:2px solid var(--accent-color); outline-offset:-2px; }
+  }
   #tab-notice { flex:none; max-width:46%; font-size:12px; color:var(--amber, var(--orange)); opacity:0; transition:opacity .2s;
                 white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-bottom:6px; }
   #tab-notice.show { opacity:1; }
@@ -994,13 +1005,13 @@
   #rank-panel > div:last-child { padding:10px 14px; }
   #rank-more { width:100%; }
 
-  /* 전국 지역별 */
+  /* 전국 지역별 — 칩 규칙은 #pin-bar 안으로 좁힌다(.stab.pin 시작화면 탭에 12px·grab이 새던 것, design 11-23) */
   #pin-bar { display:flex; gap:8px; flex-wrap:wrap; min-height:34px; margin-bottom:12px; }
-  .pin { background:color-mix(in srgb, var(--accent-color) 13%, transparent);
+  #pin-bar .pin { background:color-mix(in srgb, var(--accent-color) 13%, transparent);
          border:1px solid color-mix(in srgb, var(--accent-color) 55%, transparent);
          color:var(--accent-color); border-radius:var(--r); padding:5px 12px; cursor:grab; font-size:12px;
          transition:background .2s; }
-  .pin:hover { background:color-mix(in srgb, var(--accent-color) 20%, transparent); }
+  #pin-bar .pin:hover { background:color-mix(in srgb, var(--accent-color) 20%, transparent); }
   #region-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:10px; }
   .rg-card { background:var(--panel); border:1px solid var(--line); border-radius:var(--r);
              padding:13px 14px; transition:border-color .2s; }
@@ -3008,6 +3019,7 @@ review, the verdict, and DESIGN.md
 </div>
 
 <header>
+  <a class="skip-link" href="#main">본문 바로가기</a>
   <h1><button type="button" id="app-home" class="brand-btn" aria-label="기관영업지원 시스템, 시작화면으로 가기"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><g stroke="currentColor" stroke-width="1.6" fill="none"><line x1="3" y1="2" x2="3" y2="12"/><rect x="1.2" y="4.5" width="3.6" height="4" fill="currentColor" stroke="none"/><line x1="10" y1="1" x2="10" y2="13"/><rect x="8.2" y="3" width="3.6" height="6.5" fill="none"/></g></svg>기관영업지원 시스템</button></h1>
   <div class="tabs">
     <button class="tab-btn active" data-tab="map" id="tab-btn-map">전국 지도</button>
@@ -3035,7 +3047,7 @@ review, the verdict, and DESIGN.md
 
 <div id="shell">
 <nav id="side-nav" aria-label="업무 메뉴"></nav>
-<main id="main">
+<main id="main" tabindex="-1">
 <div id="tab-bar" style="display:none;"><div id="tab-list" role="tablist" aria-label="열어 둔 화면"></div><span id="tab-notice" role="status"></span></div>
 <div id="topbar">
   <div id="type-filter-wrap">
@@ -3114,7 +3126,7 @@ review, the verdict, and DESIGN.md
   <div id="ch-log"></div>
   <p id="ch-msg" class="st-line st-pad" role="status"></p>
   <div id="ch-form">
-    <textarea id="ch-input" rows="2" placeholder="참여 여부·근거를 물어보세요 (Enter 전송, Shift+Enter 줄바꿈)"></textarea>
+    <textarea id="ch-input" rows="2" aria-label="질문 입력" placeholder="참여 여부·근거를 물어보세요 (Enter 전송, Shift+Enter 줄바꿈)"></textarea>
     <button id="ch-send">보내기</button>
     <button id="ch-stop" style="display:none;">중단</button>
   </div>
@@ -3146,15 +3158,15 @@ review, the verdict, and DESIGN.md
         </ul></details>
         <div id="dg-files"></div>
         <div id="dg-upload-row">
-          <input type="file" id="dg-file-input">
+          <input type="file" id="dg-file-input" aria-label="업로드할 파일 선택" aria-describedby="dg-file-hint">
           <button id="dg-upload">업로드</button>
-          <span class="dg-hint">pptx · ppt · pdf · png · jpg · zip / 최대 50MB</span>
+          <span class="dg-hint" id="dg-file-hint">pptx · ppt · pdf · png · jpg · zip / 최대 50MB</span>
         </div>
         <div id="dc-up" class="dc-up" hidden><span class="bd-w-prog" role="progressbar" aria-label="파일 업로드 중"><i></i></span><span>파일을 업로드하고 다른 기관 이름을 찾는 중입니다. 큰 파일은 20초쯤 걸릴 수 있습니다.</span></div>
         <p id="dc-up-msg" class="dg-hint"></p>
         <div id="dc-live" class="sr-only" role="status" aria-live="polite"></div>
-        <h4>메모</h4>
-        <textarea id="dg-memo" rows="3" placeholder="작업 메모(임시저장됩니다)"></textarea>
+        <h4 id="dg-memo-h">메모</h4>
+        <textarea id="dg-memo" rows="3" aria-labelledby="dg-memo-h" placeholder="작업 메모(임시저장됩니다)"></textarea>
         <div id="dg-actions">
           <button id="dg-save">임시저장</button>
           <button id="dg-submit">제출</button>

@@ -753,15 +753,32 @@
     if (mapBtn && !mapBtn.classList.contains('active')) mapBtn.click();
   };
 
+  // 탭 줄 안의 탭(또는 그 × 단추)에 포커스. 없으면 false
+  function focusTabEl(id, onX) {
+    const list = document.getElementById('tab-list');
+    if (!list) return false;
+    const ws = list.querySelectorAll('.stab');
+    for (let i = 0; i < ws.length; i++) {
+      if (ws[i].dataset.tabId !== id) continue;
+      const el = (onX && ws[i].querySelector('.stab-x')) || ws[i].querySelector('.stab-tab');
+      if (el) { el.focus(); return true; }
+    }
+    return false;
+  }
+
   function closeNavTab(id) {
+    const at = navTabs.findIndex(function (t) { return t.id === id; });
     const r = root.nav.closeTab(navTabs, id, navActiveId, pinId());
     navTabs = r.tabs;
-    if (id !== navActiveId) { drawTabs(); return; }
+    // 닫은 뒤 포커스는 이웃 탭으로(nav.closeTab과 같은 규칙: 다음 탭, 없으면 앞 탭) — 닫힌 단추와 함께 포커스가 body로 떨어지지 않게
+    const nb = at >= 0 ? (navTabs[at] || navTabs[at - 1] || null) : null;
+    if (id !== navActiveId) { drawTabs(); if (nb) focusTabEl(nb.id); return; }
     const next = r.activeId ? findNavItem(r.activeId) : null;
-    if (next) { activateItem(next); return; }
+    if (next) { activateItem(next); if (nb) focusTabEl(nb.id); return; }
     drawTabs();
     const mapBtn = document.getElementById('tab-btn-map');   // 마지막 탭을 닫으면 지도로
     if (mapBtn) mapBtn.click();
+    if (!(navTabs[0] && focusTabEl(navTabs[0].id)) && mapBtn) mapBtn.focus();
   }
 
   function drawTabs() {
@@ -773,16 +790,23 @@
     // 시작화면 탭(pin): 맨 앞 고정(nav.openTab), 닫기(×) 없음. 라벨 앞에 집 글리프(design-reviewer 11-19 1428_aab03363 5절)
     const homeIco = '<svg class="stab-ico" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M1.5 6.2 6 2.2l4.5 4M3 5.2V10h6V5.2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
     const pid = pinId();
-    list.innerHTML = navTabs.map(function (t) {
-      const pin = !!pid && t.id === pid;
+    // 다시 그리면 키보드 포커스가 사라진다 — 포커스가 탭 줄 안에 있었으면 같은 탭(또는 그 ×)으로 되돌린다
+    const ae = document.activeElement, aw = ae && list.contains(ae) && ae.closest ? ae.closest('.stab') : null;
+    const kept = aw ? { id: aw.dataset.tabId, x: ae.classList.contains('stab-x') } : null;
+    const hasActive = navTabs.some(function (t) { return t.id === navActiveId; });
+    // 탭 = <button role=tab>(선택 탭만 tabindex 0, 선택이 없으면 첫 탭), ×는 형제 <button>. .stab 상자는 role=presentation(단추 안 단추 금지)
+    list.innerHTML = navTabs.map(function (t, i) {
+      const pin = !!pid && t.id === pid, on = t.id === navActiveId;
+      const tabAttrs = ' role="tab" aria-selected="' + (on ? 'true' : 'false') + '" tabindex="' + ((on || (!hasActive && i === 0)) ? '0' : '-1') + '"' + (pin ? '' : ' aria-keyshortcuts="Delete"');   // 닫을 수 있는 탭은 Delete로도 닫힘을 낭독기에 알림(design P3)
       if (pin) {
-        return '<div class="stab pin' + (t.id === navActiveId ? ' active' : '') + '" role="tab" data-tab-id="' + esc(t.id) +
-          '" title="시작화면 (닫을 수 없음)">' + homeIco + '<span class="stab-label">' + esc(t.label) + '</span><span class="sr-only">, 고정 탭</span></div>';
+        return '<div class="stab pin' + (on ? ' active' : '') + '" role="presentation" data-tab-id="' + esc(t.id) +
+          '" title="시작화면 (닫을 수 없음)"><button type="button" class="stab-tab"' + tabAttrs + '>' + homeIco + '<span class="stab-label">' + esc(t.label) + '</span><span class="sr-only">, 고정 탭</span></button></div>';
       }
-      return '<div class="stab' + (t.id === navActiveId ? ' active' : '') + '" role="tab" data-tab-id="' + esc(t.id) +
-        '" title="' + esc(t.label) + '"><span class="stab-label">' + esc(t.label) +
-        '</span><span class="stab-x" role="button" aria-label="' + esc(t.label) + ' 탭 닫기">×</span></div>';
+      return '<div class="stab' + (on ? ' active' : '') + '" role="presentation" data-tab-id="' + esc(t.id) +
+        '" title="' + esc(t.label) + '"><button type="button" class="stab-tab"' + tabAttrs + '><span class="stab-label">' + esc(t.label) + '</span></button>' +
+        '<button type="button" class="stab-x" tabindex="' + (on ? '0' : '-1') + '" aria-label="' + esc(t.label) + ' 닫기">×</button></div>';
     }).join('');
+    if (kept) focusTabEl(kept.id, kept.x);
   }
 
   // 항목 구성(카테고리·항목 id)이 바뀔 때만 DOM을 새로 만든다. 열림·활성 표시는 클래스만 바꿔
@@ -948,6 +972,41 @@
       if (e.target.closest('.stab-x')) { closeNavTab(id); return; }
       const found = findNavItem(id);
       if (found) openNavItem(found);
+    });
+    // 탭 키보드(WAI-ARIA tabs, 수동 전환): ←→ Home End = 포커스만 이동(화면 전환은 Enter/Space = 단추 click), Delete = 탭 닫기(시작화면 고정 탭 제외).
+    // 화면을 바꾸면 다시 그려지고 열람 기록(/auth/screen)이 나가므로 화살표로는 전환하지 않는다.
+    if (list) list.addEventListener('keydown', function (e) {
+      const cur = e.target && e.target.closest ? e.target.closest('.stab-tab') : null;
+      if (!cur) return;
+      const tabs = Array.prototype.slice.call(list.querySelectorAll('.stab-tab')), i = tabs.indexOf(cur);
+      let to = null;
+      if (e.key === 'ArrowRight') to = tabs[(i + 1) % tabs.length];
+      else if (e.key === 'ArrowLeft') to = tabs[(i + tabs.length - 1) % tabs.length];
+      else if (e.key === 'Home') to = tabs[0];
+      else if (e.key === 'End') to = tabs[tabs.length - 1];
+      else if (e.key === 'Delete') {
+        const w = cur.closest('.stab');
+        if (w && !w.classList.contains('pin')) { e.preventDefault(); closeNavTab(w.dataset.tabId); }
+        return;
+      }
+      if (!to) return;
+      e.preventDefault();
+      tabs.forEach(function (b) { b.setAttribute('tabindex', b === to ? '0' : '-1'); });   // roving tabindex
+      to.focus();
+    });
+    // 탭 줄을 떠나면 Tab 정지 자리를 선택된 탭으로 되돌린다 — 다시 들어올 때 선택 탭에 내려앉게(WAI-ARIA 탭 패턴, design P3)
+    if (list) list.addEventListener('focusout', function (e) {
+      if (e.relatedTarget && list.contains(e.relatedTarget)) return;
+      const tabs = Array.prototype.slice.call(list.querySelectorAll('.stab-tab'));
+      const sel = tabs.filter(function (b) { return b.getAttribute('aria-selected') === 'true'; })[0] || tabs[0];
+      tabs.forEach(function (b) { b.setAttribute('tabindex', b === sel ? '0' : '-1'); });
+    });
+    // 본문 바로가기(머리 띠 첫 링크) — 주소에 #main을 남기지 않고 본문(main, tabindex=-1)으로 포커스를 옮긴다
+    const sk = document.querySelector('body > header .skip-link');
+    if (sk) sk.addEventListener('click', function (e) {
+      e.preventDefault();
+      const m = document.getElementById('main');
+      if (m) m.focus();
     });
     // 경과 배지(overdue.paintNavBadge)는 drawNav 밖에서도 바뀐다 — 접힌 분류의 합계 배지가 따라오게 한다.
     if (typeof MutationObserver === 'function') {

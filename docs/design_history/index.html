@@ -140,6 +140,7 @@
   <a href="#c83">83 입찰 현황판 목표 기관 변경 — 고르기·일괄 결재 요청·결재 중 잠금·자동 이월·협약 개시일·결재함 이전/이후 표</a>
   <a href="#c85">85 영업 추진 준비 &gt; 대시보드 — 제안서 사전준비 현황표(엑셀 27열), 담당 칸만 체크, 계정 전환 정리</a>
   <a href="#c86">86 입찰 현황판 '되찾기 도전' 구분 + 제안서 작업함 [업로드] 강조</a>
+  <a href="#c87">87 웹 접근성 기본 3가지 — 본문 바로가기, '열어 둔 화면' 탭 키보드, 이름 없던 입력칸 3개</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -1812,6 +1813,22 @@
 </div></div></div>
 </div>
 </section>
+<section class="ch" id="c87">
+<h2>87 웹 접근성(KWCAG 2.2) 기본 3가지 (2026-11-23, design-reviewer 진단 1405_afbf3b15 권장 1~3, 사용자 '인증 신청 없음, 권장안대로', frontend-dev 지시서, design·qa 커밋 전 대조)</h2>
+<div class="why">왜: 키보드로 본문에 가려면 머리 띠 단추와 왼쪽 업무 메뉴 전체를 매번 지나야 했고, '열어 둔 화면' 탭과 [×]는 마우스로만 눌려 키보드만으로는 탭을 바꾸거나 닫을 수 없었습니다. 대화 입력·작업함 파일 선택·작업함 메모 칸은 화면 낭독기가 무슨 칸인지 읽어 주지 않았습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+  <p class="hint12">본문으로 건너뛰는 방법 없음. 탭은 일반 상자에 역할만 붙어 Tab이 닿지 않고 선택 상태도 읽히지 않음, [×]는 클릭 전용. 입력칸 3개는 이름 없이 읽힘. 시작화면 탭은 지도 칩 규칙(.pin)이 새어 글자 12px·높이 32px·잡기 커서로 이웃 탭과 달랐음.</p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <p style="font-size:12px"><b>본문 바로가기</b>: 로그인 뒤 첫 Tab에 왼쪽 위 흰 상자 '본문 바로가기'(흰 바탕 #545045 글자 8.04:1, 같은 색 2px 안쪽 링), Enter → 본문으로 포커스(주소에 #main 안 남음). 로그인 화면에서는 나오지 않음(뒤 화면 inert).</p>
+  <p style="font-size:12px"><b>열어 둔 화면 탭</b>: Tab 한 번으로 선택 탭에 들어가 ←→·Home·End로 옮기고 Enter/Space로 화면 전환, Delete로 닫기(시작화면 제외, 낭독기에 단축키 안내). 선택 탭의 [×]는 '{화면 이름} 닫기' 단추로 Tab이 닿음. 닫으면 포커스는 옆 탭, 탭 줄을 떠났다 돌아오면 선택 탭에 내려앉음. 키보드 포커스 때만 탭 상자에 파랑 2px 링(대비 6.4~6.8:1).</p>
+  <p style="font-size:12px"><b>입력칸</b>: '질문 입력', '업로드할 파일 선택'(형식·50MB 안내 함께), '메모'(위 제목과 연결). <b>시작화면 탭</b>: 칩 규칙을 #pin-bar 안으로 좁혀 이웃 탭과 같은 14px·39px.</p>
+  <p class="legend-note">마우스로 보는 모양은 그대로(탭 높이 39px·글자 14px·hover·선택 띠·× 24px). 새 색 변수 0개. 화면 시험 1814/1814, design·qa 8080 실측. 남은 접근성 과제는 NEXT 109(임박 TOP5 멈춤·화면별 창 제목·대화 답 읽기·남은 팝업 6개 등).</p>
+</div></div></div>
+</div>
+</section>
+
 <p class="foot">추가 규칙: 이 파일은 화면(마크업·CSS·문구·메뉴)이 바뀌는 커밋마다 새 장(section.ch)을 아래에 이어 붙이고, design-reviewer가 커밋 전 확인합니다(CLAUDE.md 5절). 근거 보고서: handoff/agents/design-reviewer/.</p>
 </div>
 </body>
