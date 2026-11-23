@@ -728,7 +728,7 @@
       meta.push('확정 ' + esc(v.confirmed_by.name) + ' ' + esc(prep.stamp(v.confirmed_at)) +
         (v.emp_verified === 0 ? ' <span class="ad-badge muted" title="' + esc(T.selfReport) + '">자기신고</span>' : ''));
     }
-    meta.push('담당 ' + (names.length ? esc(names.join(', ')) : esc(T.noAssignees)));
+    meta.push(names.length ? '담당 ' + esc(names.join(', ')) : esc(T.noAssignees));   // '담당 담당 미정' 겹침 방지(ce 리허설 관찰 11-24)
     let h = '<div class="tm-case-head"><div><div class="pp-titlerow"><h2 id="pp-case-title" class="tm-title" tabindex="-1">' + esc(str(v.institution_name)) + '</h2>' +
       '<span class="pp-badges">' + badgeHtml(badge) + (bt ? badgeHtml(bt) : '') + '</span></div>' +
       '<div class="tm-meta">' + meta.join(' · ') + '</div></div>' + prep.headActionHtml(v, m.role) + '</div>';
