@@ -146,11 +146,19 @@ public class MinutesParseEditsTest {
     }
 
     @Test
-    public void 저장_전_이름_두_자리_중_하나만_남기면_빠진_수_1이다() {
+    public void 저장_전_가린_자리에_원래_이름을_다시_적으면_다시_가려지고_통과한다() {
+        // 11-23 qa P2-A: 같은 규칙으로 가린 글끼리 비교 — 사전 이름을 다시 적으면 그 자리가 다시 [이름]이 되어 개수가 같고, 저장 본문에 이름이 남지 않는다
+        MinutesParse p = parse(NONE, one(4, "[이름]님과 도담님이 오셨습니다"));
+        assertEquals(1, p.editedCnt);
+        assertFalse(p.utterances.get(3).body.contains("도담"));
+    }
+
+    @Test
+    public void 저장_전_이름_두_자리_중_하나를_지우면_빠진_수_1이다() {
         MinutesException e = MinutesTestSupport.expect("EDIT_MASK_REMOVED", new Runnable() {
             @Override
             public void run() {
-                parse(NONE, one(4, "[이름]님과 도담님이 오셨습니다"));
+                parse(NONE, one(4, "[이름]님이 오셨습니다"));
             }
         });
         assertEquals(Integer.valueOf(1), e.getKinds().get("name"));
@@ -182,5 +190,65 @@ public class MinutesParseEditsTest {
         assertEquals(base.maskName - 1, p.maskName);
         assertEquals(Integer.valueOf(1), p.nameCandidates.get("가상일"));
         assertEquals(base.released, p.released);
+    }
+
+    private static MinutesParse parseText(String tx, java.util.Collection<String> terms,
+                                          java.util.Collection<String> release, Map<Integer, String> utters) {
+        return MinutesParse.parse(tx.getBytes(UTF8), null, null, null, M, terms, release,
+                new MinutesParse.Edits(NONE, utters), MinutesTestSupport.budget());
+    }
+
+    private static final String T2 = "참석자 1 / 00:05\n박외부 말씀\n\n참석자 2 / 00:20\n네 알겠습니다";
+
+    @Test
+    public void 고친_뒤_가릴_단어를_더해도_지우지_않은_자리는_422가_아니다() {
+        MinutesParse p = parseText(T2, Collections.singletonList("박외부"), null, one(1, "박외부 말씀 고침"));
+        assertEquals(1, p.editedCnt);
+        assertEquals("[이름] 말씀 고침", p.utterances.get(0).body);
+        assertFalse(p.utterances.get(0).body.contains("박외부"));
+    }
+
+    @Test
+    public void 가리지_않기를_풀고_다시_올려도_고친_글의_그_이름은_가려지고_422가_아니다() {
+        String edit = "안녕하세요 가상일님 다시 시작합니다";
+        MinutesParse first = parseText(T, null, Collections.singletonList("가상일"), one(1, edit));
+        assertTrue(first.utterances.get(0).body.contains("가상일"));
+        MinutesParse second = parseText(T, null, null, one(1, edit));
+        assertFalse(second.utterances.get(0).body.contains("가상일"));
+        assertTrue(second.utterances.get(0).body.contains("[이름]"));
+        assertEquals(1, second.editedCnt);
+    }
+
+    @Test
+    public void 옮기기는_막지_않는다_종류별_개수_검사라서() {
+        // 개수 검사의 한계를 고정한다 — [이름] 위치를 바꾸는 것은 통과한다(실수 방지 목적, 위치·짝은 보지 않음)
+        MinutesParse p = parse(NONE, one(1, "님 안녕 [이름]"));
+        assertEquals(1, p.editedCnt);
+        assertTrue(p.utterances.get(0).body.contains("[이름]"));
+    }
+
+    @Test
+    public void 가릴_단어를_더한_뒤에도_진짜_삭제는_422다() {
+        MinutesException e = MinutesTestSupport.expect("EDIT_MASK_REMOVED", new Runnable() {
+            @Override
+            public void run() {
+                parseText(T2, Collections.singletonList("박외부"), null, one(1, "말씀"));
+            }
+        });
+        assertEquals("edit", e.getSlot());
+        assertEquals(1, e.getTargetNo());
+        assertEquals(Integer.valueOf(1), e.getKinds().get("name"));
+        assertFalse(e.toDetail().toString().contains("박외부"));
+    }
+
+    @Test
+    public void 이름_자리를_지우면_release_없이도_422다() {
+        MinutesException e = MinutesTestSupport.expect("EDIT_MASK_REMOVED", new Runnable() {
+            @Override
+            public void run() {
+                parseText(T, null, null, one(1, "안녕하세요 님 회의를 시작합니다"));
+            }
+        });
+        assertEquals(Integer.valueOf(1), e.getKinds().get("name"));
     }
 }

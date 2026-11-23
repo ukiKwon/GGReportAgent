@@ -5,12 +5,12 @@
   'use strict';
   const mn = {};
   // 서버 허용 목록(MinutesUiIds)과 같은 이름. 화면을 더하면 서버와 같이 고친다.
-  mn.UI = { TAB: 'board_write', VIEW: 'board_minutes', UPLOAD: 'board_minutes_upload', LIST: 'board_minutes_list' };
+  mn.UI = { TAB: 'board_write', VIEW: 'board_write', UPLOAD: 'board_minutes_upload', LIST: 'board_minutes_list' };   // 탭 안 읽기·쓰기는 사용자가 실제로 있는 화면(자료 상세의 회의록 탭 = board_write) 하나로 기록한다
   mn.BTN = { TAB: 'minutes_tab', OPEN: 'minutes_open', TRANSCRIPT: 'minutes_transcript', PREVIEW: 'minutes_preview',
              UPLOAD: 'minutes_upload', EDIT: 'minutes_edit', META: 'minutes_meta', TODO: 'minutes_todo', HISTORY: 'minutes_history',
              SCOPE_OPEN: 'minutes_scope_open', SCOPE_ADD: 'minutes_scope_add', SCOPE_REMOVE: 'minutes_scope_remove', DELETE: 'minutes_delete', LABEL: 'minutes_label' };
   // 발화자 이름표 저장 헤더: 이사회 자료 상세의 탭 안이면 board_write, 그 밖이면 board_minutes (사용자 11-20 결정)
-  mn.labelScreen = function (inTab) { return inTab ? mn.UI.TAB : mn.UI.VIEW; };
+  mn.labelScreen = function () { return mn.UI.TAB; };
   mn.MAX_FILE = 2 * 1024 * 1024; mn.TITLE_MAX = 100; mn.TERMS_MAX = 100; mn.SCOPE_MAX = 30; mn.SCOPE_DAYS = 365; mn.SCOPE_DEFAULT_DAYS = 30;
   mn.SLOT = { transcript: '원문', timeline: '시간대별 요약', summary: '맞춤 요약', title: '제목', edit: '고친 글' };
   mn.headers = function (screen, button) { return { 'X-Screen-Id': screen, 'X-Button-Id': button }; };
@@ -317,6 +317,10 @@
   // 서버에 보낼 edits 파트 {speaker_labels, utter_edits}. 고친 것이 없으면 null(파트를 넣지 않는다).
   // 고친 발언인가: 서버처럼 앞뒤 공백을 뗀 뒤 원래 글과 비교한다(공백만 다른 수정은 고친 것이 아니다).
   mn.fixed = function (e) { return !!e && str(e.text).trim() !== str(e.orig).trim(); };
+  // 편집기 가림 검사 기준(P2-A). base = 가장 최근 미리보기 응답의 가린 글, 없으면 orig. orig 는 고친 줄 판정·되돌리기 기준이라 덮지 않는다.
+  mn.editBase = function (fe, itText) { return !fe ? str(itText) : fe.base != null ? str(fe.base) : str(fe.orig); };
+  // 미리보기·저장 요청이 나가 있는 동안은 이름표·발언을 고치지 못한다(응답 뒤 다시 그리면 열어 둔 편집기·고르던 값이 사라진다 — P3-B)
+  mn.fixLocked = function (u) { return !!(u && u.busy); };
   mn.editsPayload = function (fix) {
     if (!isObj(fix)) return null;
     const labels = {}, utters = [];
@@ -340,7 +344,7 @@
   };
   // 다시 미리보기 응답 pv 를 받은 뒤 고친 내용 정리. 이름표는 새 응답에 그 번호가 있으면 유지, 발언은 원문에 그 줄이 있으면 유지하고
   // 화면 글(shown)을 응답 글(서버가 가린 결과)로 바꾼다. 원래와 같아진 발언은 비운다. → {fix, droppedUtt, droppedSpk}
-  // o.sent = 요청에 실은 고친 발언 {seq: 글}. 있으면 요청 뒤에 바꾼 줄(보낸 글과 다른 줄)은 화면 글을 덮지 않고 그대로 둔다(P2-2).
+  // 성공한 줄은 base(편집기 가림 검사 기준)도 응답 글로 갱신한다(P2-A). o.sent = 요청에 실은 고친 발언 {seq: 글}. 있으면 요청 뒤에 바꾼 줄(보낸 글과 다른 줄)은 화면 글을 덮지 않고 그대로 둔다(P2-2).
   mn.mergeFix = function (fix, pv, o) {
     const sent = o && isObj(o.sent) ? o.sent : null;
     const out = { labels: {}, utt: {} };
@@ -356,12 +360,12 @@
       const e = fix.utt[seq], it = items[seq];
       if (!mn.fixed(e)) return;
       if (!it) { dUtt++; return; }
-      if (sent && sent[seq] !== e.text) { out.utt[seq] = { orig: e.orig, text: e.text, shown: e.shown != null ? e.shown : e.text }; return; }
-      out.utt[seq] = { orig: e.orig, text: e.text, shown: str(it.text) };
+      if (sent && sent[seq] !== e.text) { const kp = { orig: e.orig, text: e.text, shown: e.shown != null ? e.shown : e.text }; if (e.base != null) kp.base = e.base; out.utt[seq] = kp; return; }
+      out.utt[seq] = { orig: e.orig, text: e.text, shown: str(it.text), base: str(it.text) };   // 가림 검사 기준도 이번 응답의 가린 글로(P2-A)
     });
     return { fix: out, droppedUtt: dUtt, droppedSpk: dSpk };
   };
-  // 원문·요약 파일이 바뀌어 다시 미리보기 할 때: 고친 발언을 모두 버리고(이름표는 둔다) 버린 건수를 돌려준다. 새 파일의 같은 번호 줄에 붙는 것을 막는다(P2-1).
+  // 원문 칸 파일이 바뀌어 다시 미리보기 할 때: 고친 발언을 모두 버리고(이름표는 둔다) 버린 건수를 돌려준다. 새 파일의 같은 번호 줄에 붙는 것을 막는다(P2-1).
   mn.dropEdited = function (fix) {
     const labels = {}, f = isObj(fix) ? fix : {};
     Object.keys(f.labels || {}).forEach(function (no) { labels[no] = f.labels[no]; });
@@ -423,8 +427,8 @@
       const f = u.files[k]; return f ? ['f', f.name, f.size, f.lastModified] : null;
     });
   }
-  // 파일 부분만의 표식(원문·요약 3칸). 직전 미리보기와 다르면 원문이 바뀐 것이다(P2-1).
-  mn.fileSig = function (u) { return JSON.stringify(slotSigs(u)); };
+  // 원문 칸(transcript = SLOTS[0])만의 표식. 직전 미리보기와 다르면 원문이 바뀐 것이다 — 고친 발언은 원문의 번호에만 붙으므로 구간·요약 칸은 보지 않는다(P2-1·P3-C).
+  mn.fileSig = function (u) { return JSON.stringify(slotSigs(u).slice(0, 1)); };
   mn.signature = function (u) {
     return JSON.stringify({ d: u.date, t: u.title, f: slotSigs(u), x: u.terms, r: releaseList(u), e: mn.editsPayload(u.fix) });   // 고친 이름표·발언도 표식에 든다 — 고치면 stale, 다시 미리보기 뒤에야 저장
   };
@@ -882,8 +886,11 @@
       const acts = el('div', 'mn-uacts');
       if (edited) acts.appendChild(badge('고침'));
       if (fixMode) {
+        const lock = mn.fixLocked(ctx.u);   // 미리보기·저장 요청 중에는 고칠 수 없다(P3-B)
         if (edited) acts.appendChild(btn('되돌리기', { cls: 'link-btn', id: 'mn-rv-' + u.seq_no, attrs: { 'aria-label': '발언 ' + u.seq_no + ' 되돌리기' }, on: function () { pvRevert(ctx, u, li); } }));
-        acts.appendChild(editBtn('utter', u.seq_no, '발언 ' + u.seq_no + ' 고치기', function () { pvEdit(ctx, u, li); }));
+        const eb = editBtn('utter', u.seq_no, '발언 ' + u.seq_no + ' 고치기', function () { pvEdit(ctx, u, li); });
+        eb.disabled = lock;
+        acts.appendChild(eb);
       } else if (ctx.canEdit) acts.appendChild(editBtn('utter', u.seq_no, '발언 ' + u.seq_no + ' 고치기', function () { openEditor(ctx.cur, 'utter', u, li, function () { return utterLi(u, ctx); }); }));
       li.appendChild(acts);
       const re = fixMode && ctx.u && ctx.u.rowErr && ctx.u.rowErr.utt[u.seq_no];
@@ -1085,6 +1092,7 @@
         const er2 = el('tr'), ec = el('td'); ec.colSpan = 5; ec.appendChild(er); er2.appendChild(ec); tb.appendChild(er2);
         r.setErr = setErr;
         setFrom(cfg.get(no)); refreshRow();
+        if (cfg.locked) { aff.disabled = true; role.disabled = true; ord.disabled = true; }   // sync() 가 ord 를 풀 수 있어 setFrom 뒤에. 요청이 나가 있는 동안 막는다(P3-B)
         setErr(cfg.rowErrs && cfg.rowErrs[no]);
       });
       t.appendChild(tb); fs.appendChild(t); fs.appendChild(dup); renderDup();
@@ -1132,7 +1140,7 @@
     function pvEdit(ctx, it, li) {
       const u = ctx.u, fe = ctx.fix.utt[it.seq_no];
       openEditor(u, 'utter', { seq_no: it.seq_no, text: fe ? fixText(fe) : it.text }, li, function () { return utterLi(it, ctx); },
-        { base: fe ? fe.orig : str(it.text), apply: function (text) { return pvApply(ctx, it, text); } });
+        { base: mn.editBase(fe, it.text), apply: function (text) { return pvApply(ctx, it, text); } });
     }
     function pvApply(ctx, it, text) {
       const u = ctx.u, seq = it.seq_no;
@@ -1185,7 +1193,7 @@
       const speakers = (d.speakers || []).map(function (s) { return { no: s.speaker_no, count: s.utter_cnt | 0 }; });
       if (!isObj(rules) || !speakers.length) return el('div');
       const spk = buildSpkTable({
-        rules: rules, speakers: speakers, rowErrs: u.rowErr && u.rowErr.spk,
+        rules: rules, speakers: speakers, rowErrs: u.rowErr && u.rowErr.spk, locked: mn.fixLocked(u),
         get: function (no) { return u.fix.labels[no] || ''; },
         changed: function (no) { return !!u.fix.labels[no]; },
         labelsNow: function () { return u.fix.labels; },
@@ -1683,7 +1691,7 @@
         return;
       }
       u.release = mn.pruneRelease(u.release, u.cands);   // 후보에 없는 해제 선택은 보내지 않는다(서버가 거부)
-      // 원문·요약 파일이 직전 미리보기 때와 다르면 고친 발언을 모두 버린다 — 보내면 서버가 새 파일의 같은 번호 줄에 붙인다(P2-1). 이름표는 응답에 그 번호가 있으면 유지.
+      // 원문 칸 파일이 직전 미리보기 때와 다르면 고친 발언을 모두 버린다(구간·요약 칸만 바뀌면 유지) — 보내면 서버가 새 파일의 같은 번호 줄에 붙인다(P2-1). 이름표는 응답에 그 번호가 있으면 유지.
       const fsig = mn.fileSig(u);
       u.fixNote = '';
       let droppedNow = 0;

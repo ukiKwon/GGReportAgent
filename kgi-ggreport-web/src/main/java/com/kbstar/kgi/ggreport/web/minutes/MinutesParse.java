@@ -301,8 +301,10 @@ public final class MinutesParse {
                     throw new MinutesException(422, "LIMIT_LINE", "edit", i + 1, seq, null);
                 }
             }
-            // 가림 토큰 보존 — 원래 가린 본문보다 토큰이 줄면 거부(지워서 원문을 되살리는 길을 막는다)
-            Map<String, Integer> removed = MinutesMasker.removedTokens(base.mask(o), t);
+            // 가림 토큰 보존 — 실수로 지우는 것을 막는다(종류별 개수 검사 — 옮기기는 막지 않음).
+            // 기준과 고친 글을 같은 base 세션(같은 terms·release)으로 가려 비교한다 — 고친 뒤 추가한 가릴 단어나
+            // 풀어 둔 '가리지 않기'가 지우지 않은 자리를 지운 것으로 잡히지 않게. 저장 본문은 본 세션이 따로 가린다.
+            Map<String, Integer> removed = MinutesMasker.removedTokens(base.mask(o), base.mask(t));
             if (!removed.isEmpty()) {
                 throw new MinutesException(422, "EDIT_MASK_REMOVED", "edit", 0, seq, removed);
             }

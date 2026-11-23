@@ -46,6 +46,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @Transactional
 public class BoardMinutesApiTest {
 
+    /** 회의록 화면의 X-Screen-Id — 탭 안 쓰기 화면 id를 board_write로 통일(mn.UI.VIEW, 11-23 qa P3-D). 바뀌면 이 한 줄만 고친다. */
+    private static final String MINUTES_SCREEN = "board_write";
+
     private static final Charset UTF8 = StandardCharsets.UTF_8;
     private static final String LEAD = "5047192";      // 영업팀장(담당 배정자 역할로 배정 신청)
     private static final String LEAD2 = "5640327";     // 비담당 영업팀장
@@ -86,7 +89,7 @@ public class BoardMinutesApiTest {
     }
 
     private static MockHttpServletRequestBuilder ui(MockHttpServletRequestBuilder b, String button) {
-        return button == null ? b : b.header("X-Screen-Id", "board_minutes").header("X-Button-Id", button);
+        return button == null ? b : b.header("X-Screen-Id", MINUTES_SCREEN).header("X-Button-Id", button);
     }
 
     private String text(MvcResult r) throws Exception {
@@ -615,7 +618,7 @@ public class BoardMinutesApiTest {
         assertEquals("VIEW_SUMMARY", acts.get(0).get("ACTION_CD"));
         assertEquals("OK", acts.get(0).get("OUTCOME"));
         assertEquals("DEFAULT", acts.get(0).get("VIA_CD"));
-        assertEquals("board_minutes", acts.get(0).get("SCREEN_ID"));
+        assertEquals(MINUTES_SCREEN, acts.get(0).get("SCREEN_ID"));
         assertEquals("minutes_open", acts.get(0).get("BUTTON_ID"));
         assertEquals("VIEW_TRANSCRIPT", acts.get(1).get("ACTION_CD"));
         assertEquals("HIDDEN", acts.get(2).get("OUTCOME"));
@@ -954,7 +957,7 @@ public class BoardMinutesApiTest {
         assertEquals(403, status(putLabel(id, DESIGNER, 1, "기관 측", 2)));
         assertTrue(count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND REQ_PATH=?", "/board-minutes/" + id + "/speakers/1") >= 1);
         assertEquals(404, status(putLabel(id, IT_LEAD, 1, "기관 측", 2)));
-        assertTrue(count("SELECT COUNT(*) FROM BOARD_MINUTES_ACT WHERE MINUTES_ID=? AND ACTION_CD='EDIT_LABEL' AND BUTTON_ID='minutes_label' AND OUTCOME='OK'", id) >= 1);
+        assertTrue(count("SELECT COUNT(*) FROM BOARD_MINUTES_ACT WHERE MINUTES_ID=? AND ACTION_CD='EDIT_LABEL' AND SCREEN_ID=? AND BUTTON_ID='minutes_label' AND OUTCOME='OK'", id, MINUTES_SCREEN) >= 1);
         assertEquals(409, status(putLabel(id, HEAD, 1, "기관 측", 0)));
         assertEquals(404, status(putLabel(id, HEAD, 99, "기관 측", 1)));
         MvcResult real = putLabel(id, HEAD, 1, SEED_NAME, 1);

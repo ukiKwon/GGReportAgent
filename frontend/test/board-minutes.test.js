@@ -298,7 +298,7 @@ test('mergeFix: 이름표는 번호가 있으면 유지, 발언은 줄이 있으
   const pv = { speakers: [{ speaker_no: 1 }, { speaker_no: 2 }], transcript: [{ seq_no: 2, text: 'b [이름]' }, { seq_no: 3, text: 'c' }] };
   const m = mn.mergeFix(fix, pv);
   assert.deepStrictEqual(m.fix.labels, { 1: '구청장' });
-  assert.deepStrictEqual(m.fix.utt, { 2: { orig: 'a', text: 'b 홍길동', shown: 'b [이름]' } }, '보낼 글은 그대로, 보이는 글은 가린 결과');
+  assert.deepStrictEqual(m.fix.utt, { 2: { orig: 'a', text: 'b 홍길동', shown: 'b [이름]', base: 'b [이름]' } }, '보낼 글은 그대로, 보이는 글은 가린 결과, 검사 기준은 응답 글');
   assert.strictEqual(m.droppedSpk, 1);
   assert.strictEqual(m.droppedUtt, 1);
 });
@@ -310,10 +310,26 @@ test('mergeFix(sent): 요청 뒤에 바꾼 줄은 화면 글을 덮지 않는다
     4: { orig: 'x', text: 'x2', shown: 'x2' } } };           // 요청에 x1 로 실었는데 그 뒤 x2 로 다시 고침
   const pv = { speakers: [], transcript: [{ seq_no: 2, text: 'b [이름]' }, { seq_no: 3, text: 'c' }, { seq_no: 4, text: 'x1' }] };
   const m = mn.mergeFix(fix, pv, { sent: { 2: 'b 홍길동', 4: 'x1' } });
-  assert.deepStrictEqual(m.fix.utt[2], { orig: 'a', text: 'b 홍길동', shown: 'b [이름]' });
+  assert.deepStrictEqual(m.fix.utt[2], { orig: 'a', text: 'b 홍길동', shown: 'b [이름]', base: 'b [이름]' });
   assert.deepStrictEqual(m.fix.utt[3], { orig: 'c', text: 'c2', shown: 'c2' });
   assert.deepStrictEqual(m.fix.utt[4], { orig: 'x', text: 'x2', shown: 'x2' });
   assert.strictEqual(m.droppedUtt, 0);
+});
+
+test('mergeFix·editBase: 다시 미리보기에 성공하면 가림 검사 기준(base)이 새 응답 글로 바뀐다 · orig 는 그대로(P2-A)', function () {
+  const fix = { labels: {}, utt: {
+    2: { orig: '[이름] 안녕', text: '[이름] 안녕 하세요', shown: '[이름] 안녕 하세요' },
+    3: { orig: 'c [이름]', text: 'c2 [이름]', shown: 'c2 [이름]', base: 'c [이름]' } } };
+  const pv = { speakers: [], transcript: [{ seq_no: 2, text: '[이름] 안녕 하세요 [이름]' }, { seq_no: 3, text: 'c' }] };
+  const m = mn.mergeFix(fix, pv, { sent: { 2: '[이름] 안녕 하세요' } });
+  assert.strictEqual(m.fix.utt[2].orig, '[이름] 안녕', 'orig 는 고친 줄 판정·되돌리기 기준이라 그대로');
+  assert.strictEqual(m.fix.utt[2].base, '[이름] 안녕 하세요 [이름]');
+  assert.strictEqual(mn.fixed(m.fix.utt[2]), true, '고친 발언이 사라지지 않는다');
+  assert.strictEqual(mn.lostMasks(mn.editBase(fix.utt[2]), '안녕 하세요'), 1, '옛 기준(orig)');
+  assert.strictEqual(mn.lostMasks(mn.editBase(m.fix.utt[2]), '[이름] 안녕 하세요'), 1, '새 응답 글 기준: [이름] 2곳 중 1곳이 빠졌다');
+  assert.strictEqual(m.fix.utt[3].base, 'c [이름]', '요청 뒤에 고친 줄은 base 도 그대로');
+  assert.strictEqual(mn.editBase(null, '새 글'), '새 글', '고친 적 없는 줄은 응답 글');
+  assert.strictEqual(mn.editBase({ orig: 'o', text: 'o2' }), 'o', 'base 가 없으면 orig');
 });
 
 test('dropEdited·fileSig: 원문 파일이 바뀌면 고친 발언을 모두 버리고 이름표는 둔다(P2-1)', function () {
@@ -328,6 +344,15 @@ test('dropEdited·fileSig: 원문 파일이 바뀌면 고친 발언을 모두 �
   const a = mk('가'), b = mk('가'); b.title = '다른 제목'; b.terms = '홍길동'; b.fix = { labels: { 1: 'x' }, utt: {} };
   assert.strictEqual(mn.fileSig(a), mn.fileSig(b), '제목·가릴 단어·고친 내용은 파일 표식에 넣지 않는다');
   assert.notStrictEqual(mn.signature(a), mn.signature(b));
+});
+
+test('fileSig: 원문 칸만 본다 — 구간·요약 칸이 바뀌어도 같다(P3-C)', function () {
+  const mk = function () { return { date: '2026-11-01', title: 't', src: { transcript: 'paste', timeline: 'paste', summary: 'paste' }, files: {}, paste: { transcript: '가', timeline: 'x', summary: 'y' }, terms: '', release: {} }; };
+  const a = mk(), b = mk(); b.paste.summary = '다른 요약'; b.paste.timeline = '다른 구간';
+  assert.strictEqual(mn.fileSig(a), mn.fileSig(b));
+  assert.notStrictEqual(mn.signature(a), mn.signature(b), '저장 표식(signature)은 요약 칸도 본다');
+  const c = mk(); c.src.transcript = 'file'; c.files.transcript = { name: 'a.txt', size: 1, lastModified: 1 };
+  assert.notStrictEqual(mn.fileSig(a), mn.fileSig(c));
 });
 
 test('mn.fixed: 서버처럼 앞뒤 공백을 뗀 뒤 비교한다(P3-2)', function () {
@@ -371,9 +396,12 @@ test('histTitle: 이력의 발화자 이름표 바꿈', function () {
   assert.strictEqual(mn.histTitle('X', 0, 'SPEAKER_LABEL'), '발화자 이름표 바꿈');
 });
 
-test('labelScreen·BTN.LABEL: 탭 안이면 board_write, 밖이면 board_minutes · 버튼 minutes_label', function () {
+test('화면 id: 탭 안 읽기·쓰기는 모두 board_write(감사 화면 id 하나) · 올리기만 board_minutes_upload · 버튼 minutes_label', function () {
+  assert.strictEqual(mn.UI.VIEW, 'board_write');
+  assert.strictEqual(mn.UI.TAB, 'board_write');
   assert.strictEqual(mn.labelScreen(true), 'board_write');
-  assert.strictEqual(mn.labelScreen(false), 'board_minutes');
+  assert.strictEqual(mn.labelScreen(false), 'board_write', '탭 안/밖 구분 없이 같은 값');
+  assert.strictEqual(mn.UI.UPLOAD, 'board_minutes_upload');
   assert.strictEqual(mn.BTN.LABEL, 'minutes_label');
 });
 
@@ -540,4 +568,18 @@ test('정적 검사: HTML 문자열 주입·브라우저 저장소 없음, 화�
   const screens = grab('SCREENS'), buttons = grab('BUTTONS');
   Object.keys(mn.UI).forEach(function (k) { assert.ok(screens.indexOf(mn.UI[k]) >= 0, 'screen ' + mn.UI[k]); });
   Object.keys(mn.BTN).forEach(function (k) { assert.ok(buttons.indexOf(mn.BTN[k]) >= 0, 'button ' + mn.BTN[k]); });
+});
+
+test('요청 중 잠금: fixLocked · 이름표 select·[고치기]는 요청이 나가 있는 동안 꺼진 채 그려진다(P3-B)', function () {
+  assert.strictEqual(mn.fixLocked({ busy: 'preview' }), true);
+  assert.strictEqual(mn.fixLocked({ busy: 'save' }), true);
+  assert.strictEqual(mn.fixLocked({ busy: '' }), false);
+  assert.strictEqual(mn.fixLocked(null), false);
+  const cut = function (a, b) { const i = SRC.indexOf(a), j = SRC.indexOf(b, i); assert.ok(i > 0 && j > i, a); return SRC.slice(i, j); };
+  const tbl = cut('function buildSpkTable', '// ── 미리보기 고치기(저장 전');
+  assert.ok(/cfg\.locked[\s\S]{0,120}aff\.disabled = true[\s\S]{0,60}role\.disabled = true[\s\S]{0,60}ord\.disabled = true/.test(tbl), 'select 3개를 잠근다');
+  assert.ok(tbl.indexOf('setFrom(cfg.get(no)); refreshRow();') < tbl.indexOf('cfg.locked'), '잠금은 setFrom(sync 가 ord 를 풀 수 있다) 뒤에');
+  assert.ok(cut('function buildPvSpk', 'function curLabel').indexOf('locked: mn.fixLocked(u)') > 0);
+  const ul = cut('function utterLi', 'function fixText');
+  assert.ok(ul.indexOf('mn.fixLocked(ctx.u)') > 0 && /eb\.disabled = lock/.test(ul), '[고치기] 잠금');
 });
