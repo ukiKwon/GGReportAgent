@@ -80,6 +80,8 @@
     EDIT_LINE: '고친 발언의 한 줄이 너무 깁니다. 줄을 나눠 적으세요.',
     FIX_ROW_FAIL: '고친 내용 중 서버가 받지 못한 곳이 있습니다. 표시된 곳을 고친 뒤 다시 미리보기 하세요.',
     FIX_REVERTED: '고친 내용을 모두 되돌렸습니다. [다시 미리보기]를 눌러 확인하세요.',
+    FIX_REVERTED_SAME: '고친 내용을 모두 되돌렸습니다.',
+    LBL_PENDING: '역할을 고르면 이름표가 바뀝니다. 그 전까지는 ',
     NO_SUMMARY: '맞춤 요약 파일을 함께 올리지 않았습니다.',
     NO_SEG: '시간대별 요약 파일을 함께 올리지 않아 구간이 없습니다. 원문은 아래에서 볼 수 있습니다.',
     NO_TODO: '다음 할 일 항목이 없습니다.',
@@ -137,6 +139,9 @@
       return R(up ? '이 이사회 자료의 회의록은 지금 담당자만 올릴 수 있습니다. 담당에서 빠졌는지 확인하세요.' : '이 회의록에서 할 수 없는 일입니다.');
     }
     if (status === 411) return R('보내지 못했습니다. 다시 시도하세요.');
+    if (code === 'CONTROL_CHAR' && d.slot === 'edit') {   // 고친 발언의 보이지 않는 문자: 파일 문구가 아니라 그 발언 줄 문구
+      return R('고친 발언' + (Number(d.target_no) > 0 ? ' ' + Number(d.target_no) : '') + '에 쓸 수 없는 보이지 않는 문자가 있습니다. 그 글자를 지우고 다시 반영하세요.', 'edit');
+    }
     if (code === 'LIMIT_LINE' && d.slot === 'edit') return R(T.EDIT_LINE, 'edit');
     if (LIMIT_CODES[code] === 1) return S((name || '파일') + '이 한 번에 올릴 수 있는 양을 넘습니다' + (ln ? '(' + ln + ' 부근)' : '') + '. 회의를 나눠 올리세요.');
     switch (code) {
@@ -174,6 +179,7 @@
       case 'EDIT_SEQ_UNKNOWN': return R(T.EDIT_SEQ, 'edit');
       case 'EDITS_INVALID': return R(T.EDITS_BAD, 'edit');
       case 'EDIT_MASK_REMOVED': {
+        if (d.slot === 'title') return R('제목의 가린 자리를 지울 수 없습니다. [이름] 자리는 그대로 두고 고치세요.', 'title');   // 저장 뒤 제목 수정(PUT meta)
         const k = isObj(d.kinds) ? d.kinds : {};
         return R(mn.maskLostText(Object.keys(k).reduce(function (n, x) { return n + (Number(k[x]) > 0 ? Number(k[x]) : 0); }, 0)), 'edit');
       }
@@ -309,13 +315,15 @@
   mn.maskLostText = function (n) { return '가린 자리' + (n > 0 ? ' ' + n + '곳이' : '가') + ' 빠졌습니다. 그 자리는 그대로 두고 나머지만 고치세요.'; };
   // 저장 전 고친 내용 fix = {labels:{번호:라벨}, utt:{seq:{orig, text, shown}}}. orig = 원래(가린) 글, text = 보낼 글(저장 확인값 대상), shown = 화면에 보이는 글.
   // 서버에 보낼 edits 파트 {speaker_labels, utter_edits}. 고친 것이 없으면 null(파트를 넣지 않는다).
+  // 고친 발언인가: 서버처럼 앞뒤 공백을 뗀 뒤 원래 글과 비교한다(공백만 다른 수정은 고친 것이 아니다).
+  mn.fixed = function (e) { return !!e && str(e.text).trim() !== str(e.orig).trim(); };
   mn.editsPayload = function (fix) {
     if (!isObj(fix)) return null;
     const labels = {}, utters = [];
     Object.keys(fix.labels || {}).forEach(function (no) { if (fix.labels[no]) labels[no] = fix.labels[no]; });
     Object.keys(fix.utt || {}).map(Number).sort(function (a, b) { return a - b; }).forEach(function (seq) {
       const e = fix.utt[seq];
-      if (e && e.text !== e.orig) utters.push({ seq_no: seq, text: e.text });
+      if (mn.fixed(e)) utters.push({ seq_no: seq, text: e.text });
     });
     if (!Object.keys(labels).length && !utters.length) return null;
     return { speaker_labels: labels, utter_edits: utters };
@@ -332,7 +340,9 @@
   };
   // 다시 미리보기 응답 pv 를 받은 뒤 고친 내용 정리. 이름표는 새 응답에 그 번호가 있으면 유지, 발언은 원문에 그 줄이 있으면 유지하고
   // 화면 글(shown)을 응답 글(서버가 가린 결과)로 바꾼다. 원래와 같아진 발언은 비운다. → {fix, droppedUtt, droppedSpk}
-  mn.mergeFix = function (fix, pv) {
+  // o.sent = 요청에 실은 고친 발언 {seq: 글}. 있으면 요청 뒤에 바꾼 줄(보낸 글과 다른 줄)은 화면 글을 덮지 않고 그대로 둔다(P2-2).
+  mn.mergeFix = function (fix, pv, o) {
+    const sent = o && isObj(o.sent) ? o.sent : null;
     const out = { labels: {}, utt: {} };
     let dSpk = 0, dUtt = 0;
     const items = {}, nos = {};
@@ -344,17 +354,26 @@
     });
     Object.keys((fix && fix.utt) || {}).forEach(function (seq) {
       const e = fix.utt[seq], it = items[seq];
-      if (!e || e.text === e.orig) return;
+      if (!mn.fixed(e)) return;
       if (!it) { dUtt++; return; }
+      if (sent && sent[seq] !== e.text) { out.utt[seq] = { orig: e.orig, text: e.text, shown: e.shown != null ? e.shown : e.text }; return; }
       out.utt[seq] = { orig: e.orig, text: e.text, shown: str(it.text) };
     });
     return { fix: out, droppedUtt: dUtt, droppedSpk: dSpk };
   };
+  // 원문·요약 파일이 바뀌어 다시 미리보기 할 때: 고친 발언을 모두 버리고(이름표는 둔다) 버린 건수를 돌려준다. 새 파일의 같은 번호 줄에 붙는 것을 막는다(P2-1).
+  mn.dropEdited = function (fix) {
+    const labels = {}, f = isObj(fix) ? fix : {};
+    Object.keys(f.labels || {}).forEach(function (no) { labels[no] = f.labels[no]; });
+    const n = Object.keys(f.utt || {}).filter(function (k) { return mn.fixed(f.utt[k]); }).length;
+    return { fix: { labels: labels, utt: {} }, dropped: n };
+  };
+  mn.fixDroppedText = function (n) { return '원문이 바뀌어 고친 발언 ' + n + '건을 지웠습니다.'; };
   // 서버가 고친 내용 때문에 거절한 응답인지(이때는 지금 미리보기를 지우지 않고 그 자리에 오류를 단다)
   mn.isEditFail = function (detail) {
     const d = isObj(detail) ? detail : {};
     return { LABEL_INVALID: 1, LABEL_SPEAKER_UNKNOWN: 1, EDIT_SEQ_UNKNOWN: 1, LIMIT_EDIT_LEN: 1, EDITS_INVALID: 1, EDIT_MASK_REMOVED: 1 }[d.code] === 1
-      || (d.code === 'LIMIT_LINE' && d.slot === 'edit');
+      || (d.slot === 'edit' && { CONTROL_CHAR: 1, LIMIT_LINE: 1, LIMIT_EDIT_LEN: 1 }[d.code] === 1);
   };
 
   // ── 올리기 입력 검사(6-4 사전 검사) ──
@@ -398,11 +417,16 @@
   }
   function releaseList(u) { return Object.keys(u.release).filter(function (t) { return u.release[t]; }).sort(); }
   // 미리보기 때 입력과 지금 입력이 같은지 비교하는 표식. 파일은 이름·크기·수정시각, 붙여넣기는 글 전체.
-  mn.signature = function (u) {
-    return JSON.stringify({ d: u.date, t: u.title, f: SLOTS.map(function (k) {
+  function slotSigs(u) {
+    return SLOTS.map(function (k) {
       if (u.src[k] === 'paste') return ['p', u.paste[k] || ''];
       const f = u.files[k]; return f ? ['f', f.name, f.size, f.lastModified] : null;
-    }), x: u.terms, r: releaseList(u), e: mn.editsPayload(u.fix) });   // 고친 이름표·발언도 표식에 든다 — 고치면 stale, 다시 미리보기 뒤에야 저장
+    });
+  }
+  // 파일 부분만의 표식(원문·요약 3칸). 직전 미리보기와 다르면 원문이 바뀐 것이다(P2-1).
+  mn.fileSig = function (u) { return JSON.stringify(slotSigs(u)); };
+  mn.signature = function (u) {
+    return JSON.stringify({ d: u.date, t: u.title, f: slotSigs(u), x: u.terms, r: releaseList(u), e: mn.editsPayload(u.fix) });   // 고친 이름표·발언도 표식에 든다 — 고치면 stale, 다시 미리보기 뒤에야 저장
   };
   // multipart 본문. 파일명은 보내지 않는다(고정 이름 '<칸>.txt' — 서버가 확장자만 본다). options 는 JSON Blob.
   // digest 가 있으면 저장 요청이다: preview_digest·rules_ack(수칙 확인, 체크해야 저장이 켜진다)를 싣는다.
@@ -485,7 +509,7 @@
     function newUp() {
       return { date: '', title: '', src: { transcript: 'file', timeline: 'file', summary: 'file' }, files: {}, paste: {}, terms: '',
                pv: null, pvSig: '', release: {}, cands: {}, ack: false, busy: '', errs: {}, dupId: '',
-               fix: { labels: {}, utt: {} }, editsDigest: null, noiseOpen: {}, rowErr: null, revertAsk: false, cancelAsk: false, editing: null, ctx: null };
+               fix: { labels: {}, utt: {} }, fixNote: '', pvFileSig: '', editsDigest: null, noiseOpen: {}, rowErr: null, revertAsk: false, cancelAsk: false, editing: null, ctx: null };
     }
     function applyList(s, r) {
       const L = s.list;
@@ -651,7 +675,7 @@
       const tools = el('div', 'mn-tools');
       if (v.can_scope) tools.appendChild(btn('공개범위', { id: 'mn-scope-btn', attrs: { 'aria-expanded': cur.scopeOpen ? 'true' : 'false', 'aria-controls': 'mn-scope' }, on: function () { toggleScope(cur); } }));
       if (v.can_edit) tools.appendChild(btn(cur.editOn ? '고치기 끄기' : '고치기 켜기', { id: 'mn-edit-toggle', attrs: { 'aria-pressed': cur.editOn ? 'true' : 'false' },
-        on: function () { closeEditor(cur, false); cur.editOn = !cur.editOn; cur.lbl = null; draw('mn-edit-toggle'); } }));
+        on: function () { if (cur.lbl && cur.lbl.busy) return; closeEditor(cur, false); cur.editOn = !cur.editOn; cur.lbl = null; draw('mn-edit-toggle'); } }));   // 이름표 저장 중에는 끌 수 없다
       if (v.can_view_history) tools.appendChild(btn('변경 이력', { id: 'mn-hist-btn', attrs: { 'aria-expanded': cur.histOpen ? 'true' : 'false', 'aria-controls': 'mn-hist' }, on: function () { toggleHist(cur); } }));
       if (v.can_delete) tools.appendChild(btn('삭제', { id: 'mn-del-btn', on: function () { openConfirm(cur); } }));
       r.appendChild(head(str(d.title), 'mn-title', tools));
@@ -847,7 +871,7 @@
       const fixMode = ctx.mode === 'preview' && !!ctx.fix;   // 미리보기: 저장 전 고치기(로컬 상태만 바꾼다)
       const no = mn.spkNo(u), fe = fixMode ? ctx.fix.utt[u.seq_no] : null;
       const label = fixMode ? (ctx.fix.labels[no] || '') : str(u.speaker_label);
-      const edited = fe ? fe.text !== fe.orig : !!u.edited;
+      const edited = fe ? mn.fixed(fe) : !!u.edited;
       const li = el('li', 'mn-u' + (u.noise ? ' is-noise' : '') + (edited ? ' is-edited' : ''));
       const id = mn.uttId(u.seq_no);
       if (id) { li.id = id; li.tabIndex = -1; }
@@ -926,7 +950,7 @@
       const save = btn(saveLabel, { cls: 'bd-primary', id: 'mn-ed-save' }), cancel = btn('취소', { id: 'mn-ed-cancel', on: function () { closeEditor(cur, true); } });
       acts.appendChild(save); acts.appendChild(cancel);
       box.appendChild(ta);
-      if (kind === 'utter') {   // 가린 자리를 지워 이름을 되살리지 못하게 막는다(화면 검사 + 서버 EDIT_MASK_REMOVED)
+      {   // 가린 자리를 지워 이름을 되살리지 못하게 막는다(화면 검사 + 서버 EDIT_MASK_REMOVED) — 발언·요약 항목 모두
         const hint = el('p', 'mn-edit-hint', T.ED_HINT); hint.id = 'mn-ed-hint';
         box.appendChild(hint);
         ta.setAttribute('aria-describedby', 'mn-ed-hint mn-ed-err');
@@ -938,7 +962,7 @@
       const base = local ? local.base : str(model.text);
       let busy = false;
       ta.addEventListener('input', function () {
-        if (kind !== 'utter' || busy) return;
+        if (busy) return;
         const n = mn.lostMasks(base, ta.value);
         err.textContent = n > 0 ? mn.maskLostText(n) : ''; err.hidden = !(n > 0);
         save.disabled = n > 0;
@@ -946,10 +970,8 @@
       save.addEventListener('click', function () {
         const text = ta.value;
         if (!text.trim()) { err.textContent = mn.errorText(422, { code: 'LIMIT_EDIT_LEN' }, { kind: kind }).text; err.hidden = false; ta.focus(); return; }
-        if (kind === 'utter') {
-          const lost = mn.lostMasks(base, text);
-          if (lost > 0) { err.textContent = mn.maskLostText(lost); err.hidden = false; ta.focus(); return; }
-        }
+        const lost = mn.lostMasks(base, text);
+        if (lost > 0) { err.textContent = mn.maskLostText(lost); err.hidden = false; ta.focus(); return; }
         if (local) { local.apply(text); closeEditor(cur, true); return; }
         const ok = guard();
         busy = true;
@@ -1047,6 +1069,11 @@
         };
         const commit = function () {
           sync(); showPv(); setErr('');
+          if (!role.value && (aff.value || ord.value)) {   // 소속·번호만 고르고 역할이 비면 반영하지 않는다 — 이전 값을 두고 알린다(P3-3)
+            const prev = cfg.get(no);
+            setErr(T.LBL_PENDING + (prev ? '이전 이름표(' + prev + ')' : '이름표 없음') + ' 그대로입니다.');
+            return;
+          }
           const c = mn.labelCheck(mn.labelCompose(aff.value, role.value, ord.value), rules);
           if (!c.ok) { setErr(T.LBL_FORM); return; }
           cfg.set(no, c.value); refreshRow(); renderDup();
@@ -1079,7 +1106,7 @@
       const p = node || byId('mn-fix'); if (!p) return;
       clear(p); p.removeAttribute('role');
       const c = mn.fixCount(u.fix), n = c.spk + c.utt;
-      if (!n) { u.revertAsk = false; p.textContent = T.FIX_NONE; return; }
+      if (!n) { u.revertAsk = false; p.textContent = T.FIX_NONE; if (u.fixNote) p.appendChild(el('span', '', ' ' + u.fixNote)); return; }
       if (u.revertAsk) {
         p.setAttribute('role', 'group'); p.setAttribute('aria-label', '모두 되돌리기 확인');
         p.appendChild(el('span', '', '고친 내용 ' + n + '건을 모두 되돌립니다.'));
@@ -1089,6 +1116,7 @@
       }
       p.appendChild(el('span', '', mn.fixSummary(c)));
       p.appendChild(btn('모두 되돌리기', { cls: 'link-btn', id: 'mn-fix-rv', on: function () { u.revertAsk = true; drawFix(u); focusById('mn-fix-rv-no'); } }));
+      if (u.fixNote) p.appendChild(el('span', '', ' ' + u.fixNote));
     }
     function revertAll(u) {
       u.revertAsk = false;
@@ -1096,8 +1124,9 @@
       Object.keys(u.fix.utt).forEach(function (k) { const e = u.fix.utt[k]; e.text = e.orig; e.shown = e.orig; });
       replaceNode(byId('mn-spk-fs'), buildPvSpk(u));
       redrawPvList(u);
-      afterFix(u, T.FIX_REVERTED);
-      focusById('mn-restale');
+      const stale = !!u.pv && u.pvSig !== mn.signature(u);   // 되돌려 미리보기 때와 같아지면 [다시 미리보기]는 숨는다
+      afterFix(u, stale ? T.FIX_REVERTED : T.FIX_REVERTED_SAME);
+      focusById(stale ? 'mn-restale' : 'mn-fix');
     }
     function pvItemOf(u, seq) { return (u.pv.transcript || []).filter(function (x) { return x.seq_no === seq; })[0]; }
     function pvEdit(ctx, it, li) {
@@ -1108,7 +1137,7 @@
     function pvApply(ctx, it, text) {
       const u = ctx.u, seq = it.seq_no;
       let fe = u.fix.utt[seq];
-      if (text === (fe ? fixText(fe) : str(it.text))) return false;
+      if (text.trim() === (fe ? fixText(fe) : str(it.text)).trim()) return false;   // 서버처럼 앞뒤 공백은 같은 글로 본다
       if (!fe) fe = u.fix.utt[seq] = { orig: str(it.text), text: str(it.text), shown: str(it.text) };
       fe.text = text; fe.shown = text;
       afterFix(u, '발언을 고쳤습니다. 저장할 때 함께 저장됩니다.');
@@ -1180,13 +1209,21 @@
     }
     function toggleLbl(cur) {
       const b = byId('mn-lbl-open');
+      if (cur.lbl && cur.lbl.busy) return;   // 저장 중에는 닫지 않는다
       if (cur.lbl) { cur.lbl = null; clear(cur.nodes.lbl); if (b) b.setAttribute('aria-expanded', 'false'); focusById('mn-lbl-open'); return; }
       cur.lbl = { draft: {}, rowErrs: {}, err: '', rev: false, busy: false };
       if (b) b.setAttribute('aria-expanded', 'true');
       drawLbl(cur);
-      const first = (cur.data.speakers || [])[0];
-      if (first) focusById('mn-lb-aff-' + first.speaker_no);
-      if (cur.tr.status === 'idle') loadTranscript(cur, function () { if (cur.lbl && !cur.lbl.busy) drawLbl(cur); });   // 첫 발언 [발언 보기]에 원문이 필요하다
+      const first = (cur.data.speakers || [])[0], firstId = first ? 'mn-lb-aff-' + first.speaker_no : '';
+      if (firstId) focusById(firstId);
+      if (cur.tr.status === 'idle') loadTranscript(cur, function () {   // 첫 발언 [발언 보기]에 원문이 필요하다
+        if (!cur.lbl || cur.lbl.busy) return;
+        const a = root.document.activeElement, aid = a && typeof a.id === 'string' ? a.id : '';
+        const keep = aid.indexOf('mn-lb-') === 0 ? aid : '';   // 표 안에 있던 포커스는 같은 칸으로, 표를 막 그린 직후(포커스 잃음)면 첫 소속 칸으로
+        const lost = !a || a === root.document.body;
+        drawLbl(cur);
+        if (keep && byId(keep)) focusById(keep); else if (lost && firstId) focusById(firstId);
+      });
     }
     function drawLbl(cur) {
       const box = cur.nodes.lbl, lb = cur.lbl;
@@ -1209,25 +1246,38 @@
       const er = errP(lb.err, 'mn-lbl-err'); er.className = 'wf-empty bd-err'; fs.appendChild(er);
       const acts = el('div', 'mn-edit-acts');
       const sv = btn('이름표 저장', { cls: 'bd-primary', id: 'mn-lbl-save' }), cx = btn('취소', { id: 'mn-lbl-cancel', on: function () { toggleLbl(cur); } });
-      sv.addEventListener('click', function () { saveLabels(cur, sv, cx); });
+      sv.addEventListener('click', function () { saveLabels(cur); });
       acts.appendChild(sv); acts.appendChild(cx);
-      if (lb.rev) acts.appendChild(btn('새로 불러오기', { id: 'mn-lbl-reload', on: function () { cur.lbl = null; draw('mn-back'); loadDetail(cur); } }));
+      if (lb.rev) acts.appendChild(btn('새로 불러오기', { id: 'mn-lbl-reload', on: function () { cur.lbl = null; draw('mn-back'); loadDetail(cur); } }));   // 눌러 불러오면 고르던 초안은 버려진다(오류 문구가 그렇게 안내한다)
       fs.appendChild(acts);
       box.appendChild(fs);
+      if (lb.busy) setLblBusy(cur, true);
+    }
+    // 저장 중에는 표의 select·버튼과 [고치기 끄기]·[발화자 이름표 바꾸기]를 막는다(저장 중 바꾼 값이 성공 처리로 지워지거나 오류가 사라지는 것을 막는다).
+    function setLblBusy(cur, busy) {
+      const box = cur.nodes && cur.nodes.lbl;
+      if (busy && box && box.querySelectorAll) {   // 풀 때는 표를 새로 그리므로(ord 칸처럼 원래 꺼진 칸이 있다) 여기서 풀지 않는다
+        const ns = box.querySelectorAll('select, button');
+        for (let i = 0; i < ns.length; i++) ns[i].disabled = true;
+      }
+      ['mn-edit-toggle', 'mn-lbl-open'].forEach(function (id) { const n = byId(id); if (n) n.disabled = !!busy; });
+      const sv = byId('mn-lbl-save'); if (sv) sv.textContent = busy ? '저장하는 중…' : '이름표 저장';
     }
     // 번호별로 한 건씩 보낸다(일괄 API 없음). 실패하면 거기서 멈추고 그 칸에 오류를 단다.
-    function saveLabels(cur, sv, cx) {
+    function saveLabels(cur) {
       const lb = cur.lbl;
       if (!lb || lb.busy) return;
       const list = (cur.data.speakers || []).filter(function (s) { return Object.prototype.hasOwnProperty.call(lb.draft, s.speaker_no) && lb.draft[s.speaker_no] !== str(s.label); });
       if (!list.length) { say(T.NOCHANGE); return; }
       lb.busy = true; lb.err = ''; lb.rowErrs = {}; lb.rev = false;
-      sv.disabled = true; cx.disabled = true; sv.textContent = '저장하는 중…';
+      setLblBusy(cur, true);
       const ok = guard();
       let saved = 0;
+      const done = [];   // 실제로 바뀌어 저장된 참석자 번호
       (function next(i) {
         if (i >= list.length) {
-          cur.lbl = null; clear(cur.nodes.lbl); drawTr(cur);
+          cur.lbl = null; if (cur.nodes.lbl) clear(cur.nodes.lbl); drawTr(cur);
+          setLblBusy(cur, false);
           const b = byId('mn-lbl-open'); if (b) b.setAttribute('aria-expanded', 'false');
           say('발화자 이름표를 저장했습니다(' + saved + '명).');
           focusById('mn-lbl-open');
@@ -1242,17 +1292,20 @@
             list[i].label = nl || null;
             (cur.tr.items || []).forEach(function (it) { if (mn.spkNo(it) === no) it.speaker_label = nl || null; });
             delete lb.draft[no];
-            if (r.body.changed !== false) saved++;
+            if (r.body.changed !== false) { saved++; done.push(no); }
             next(i + 1);
             return;
           }
           lb.busy = false;
           if (r.status === 404) { gone(); return; }
           const e = mn.errorText(r.status, r.detail, { action: 'label' });
-          lb.err = e.text;
+          // 앞서 저장된 번호는 이미 서버에 반영됐다 — 알리고 원문 목록도 새 이름표로 다시 그린다
+          lb.err = done.length ? '참석자 ' + done.join('·') + '는 저장했습니다. 참석자 ' + no + '부터는 저장하지 못했습니다: ' + e.text : e.text;
           if (e.field === 'label') lb.rowErrs[no] = e.text;
           lb.rev = isObj(r.detail) && r.detail.code === 'REV_CHANGED';
+          if (done.length) drawTr(cur);
           drawLbl(cur);
+          setLblBusy(cur, false);
           focusById('mn-lbl-err');
         });
       })(0);
@@ -1461,8 +1514,11 @@
           h.revs.forEach(function (rv) {
             const d = el('div');
             d.appendChild(el('p', 'mn-meta', (mn.histTitle(rv.target_kind, rv.target_no, '') || targetText(rv.target_kind, rv.target_no)) + ' ' +str(rv.edited_by_name) + ' ' + mn.kst(rv.edited_at)));
-            [['고치기 전', rv.old_text], ['고친 뒤', rv.new_text]].forEach(function (x) {
-              if (x[1] == null) return;
+            [['고치기 전', rv.old_text], ['고친 뒤', rv.new_text]].forEach(function (x, xi) {
+              if (x[1] == null) {
+                if (xi === 1 && rv.target_kind === 'SPEAKER') { const q = el('p'); q.appendChild(el('b', '', '고친 뒤: ')); q.appendChild(el('span', '', '(이름표 지움)')); d.appendChild(q); }   // 이름표를 지운 기록
+                return;
+              }
               const p = el('p'); p.appendChild(el('b', '', x[0] + ' ')); mn.textNodes(p, x[1]); d.appendChild(p);
             });
             sec.appendChild(d);
@@ -1627,9 +1683,20 @@
         return;
       }
       u.release = mn.pruneRelease(u.release, u.cands);   // 후보에 없는 해제 선택은 보내지 않는다(서버가 거부)
+      // 원문·요약 파일이 직전 미리보기 때와 다르면 고친 발언을 모두 버린다 — 보내면 서버가 새 파일의 같은 번호 줄에 붙인다(P2-1). 이름표는 응답에 그 번호가 있으면 유지.
+      const fsig = mn.fileSig(u);
+      u.fixNote = '';
+      let droppedNow = 0;
+      if (u.pvFileSig && u.pvFileSig !== fsig) {
+        const dr = mn.dropEdited(u.fix);
+        if (dr.dropped > 0) { u.fix = dr.fix; droppedNow = dr.dropped; u.fixNote = mn.fixDroppedText(dr.dropped); say(u.fixNote); }
+      }
       u.busy = 'preview';
       draw('mn-up-fs');   // 버튼이 꺼지므로 포커스는 묶음으로
       const ok = guard();
+      // 요청에 싣는 입력의 표식과 고친 발언을 지금 잡아 둔다. 응답 때 다시 계산하면 요청 중에 바꾼 것이 '미리보기 때 입력'으로 둔갑한다(P2-2).
+      const sig = mn.signature(u), ep = mn.editsPayload(u.fix), sent = {};
+      if (ep) ep.utter_edits.forEach(function (x) { sent[x.seq_no] = x.text; });
       call('POST', '/board-materials/' + S.mid + '/minutes/preview', mn.UI.UPLOAD, mn.BTN.PREVIEW, mn.buildForm(u, v.terms, ''), true).then(function (r) {
         if (!ok() || S.up !== u) return;
         u.busy = '';
@@ -1641,13 +1708,13 @@
           u.cands = next;
           u.editsDigest = typeof r.body.edits_digest === 'string' && r.body.edits_digest ? r.body.edits_digest : null;   // 저장 때 options.edits_digest 로 그대로
           u.rowErr = null; u.noiseOpen = {};
-          const mg = mn.mergeFix(u.fix, r.body);   // 서버가 가린 결과를 화면 글로 — 보이는 글 = 저장될 글
+          const mg = mn.mergeFix(u.fix, r.body, { sent: sent });   // 서버가 가린 결과를 화면 글로 — 요청 뒤에 바꾼 줄은 덮지 않는다
           u.fix = mg.fix;
-          u.pvSig = mn.signature(u);
+          u.pvSig = sig; u.pvFileSig = fsig;   // 요청 시점 표식 — 응답 전에 바꾼 입력은 stale 로 남는다
           if (live()) draw('mn-pv-h');
           if (mg.droppedUtt + mg.droppedSpk > 0) say('원문이 바뀌어 고친 내용 ' + (mg.droppedUtt + mg.droppedSpk) + '건을 지웠습니다.');
         } else {
-          if (!(mn.isEditFail(r.detail) && u.pv)) u.pv = null;   // 고친 내용 때문에 거절되면 지금 미리보기를 두고 그 자리에 오류를 단다
+          if (!(mn.isEditFail(r.detail) && u.pv && !droppedNow)) u.pv = null;   // (원문이 바뀌어 발언을 버린 뒤라면 옛 미리보기를 두지 않는다) 고친 내용 때문에 거절되면 지금 미리보기를 두고 그 자리에 오류를 단다
           failUpload(u, r.ok ? { status: 400, detail: { code: 'BAD_REQUEST' } } : r, 'preview');
         }
       });
@@ -1686,7 +1753,7 @@
         c.appendChild(ul); sec.appendChild(c);
       }
       sec.appendChild(previewErr(u));
-      const fixP = el('p', 'mn-fix'); fixP.id = 'mn-fix'; sec.appendChild(fixP);
+      const fixP = el('p', 'mn-fix'); fixP.id = 'mn-fix'; fixP.tabIndex = -1; sec.appendChild(fixP);   // 모두 되돌린 뒤 포커스를 받는다
       sec.appendChild(buildPvSpk(u));
       const bx = el('div', 'mn-pvbox'); bx.setAttribute('role', 'region'); bx.setAttribute('aria-label', '미리보기 원문'); bx.tabIndex = 0;
       // canEdit 는 요약 항목용(미리보기에서는 끈다). 발언 고치기는 fix 가 있을 때 utterLi 가 따로 켠다.
@@ -1753,6 +1820,8 @@
       });
     }
 
+    // 시험용: 패널 없이(그리지 않고) 흐름만 돌린다. 화면 코드는 이 값을 쓰지 않는다.
+    ctl.testApi = { openUpload: openUpload, doPreview: doPreview, openDetail: openDetail, saveLabels: saveLabels };
     return ctl;
   };
 

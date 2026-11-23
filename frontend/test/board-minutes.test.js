@@ -8,7 +8,7 @@ function mkNode(tag) {
   return { tagName: String(tag).toUpperCase(), className: '', textContent: '', children: [],
            appendChild: function (c) { this.children.push(c); return c; }, setAttribute: function () {} };
 }
-globalThis.document = { createElement: mkNode, createTextNode: function (t) { return { nodeType: 3, textContent: t }; } };
+globalThis.document = { createElement: mkNode, createTextNode: function (t) { return { nodeType: 3, textContent: t }; }, getElementById: function () { return null; } };
 const mn = require('../js/board-minutes.js');
 const mat = require('../js/board-material.js');
 
@@ -293,14 +293,47 @@ test('고친 내용: editsPayload·fixCount·fixSummary', function () {
   assert.strictEqual(mn.fixSummary({ spk: 0, utt: 0 }), '');
 });
 
-test('mergeFix: 이름표는 번호가 있으면 유지, 발언은 줄이 있으면 유지하고 화면 글을 응답 글로', function () {
-  const fix = { labels: { 1: '구청장', 8: '부장' }, utt: { 2: { orig: 'a', text: 'b 홍길동', shown: 'b 홍길동' }, 3: { orig: 'c', text: 'c', shown: 'c' }, 99: { orig: 'z', text: 'zz', shown: 'zz' } } };
+test('mergeFix: 이름표는 번호가 있으면 유지, 발언은 줄이 있으면 유지하고 화면 글을 응답 글로(공백만 다른 수정은 고친 것이 아니다)', function () {
+  const fix = { labels: { 1: '구청장', 8: '부장' }, utt: { 2: { orig: 'a', text: 'b 홍길동', shown: 'b 홍길동' }, 3: { orig: 'c', text: 'c ', shown: 'c ' }, 99: { orig: 'z', text: 'zz', shown: 'zz' } } };
   const pv = { speakers: [{ speaker_no: 1 }, { speaker_no: 2 }], transcript: [{ seq_no: 2, text: 'b [이름]' }, { seq_no: 3, text: 'c' }] };
   const m = mn.mergeFix(fix, pv);
   assert.deepStrictEqual(m.fix.labels, { 1: '구청장' });
   assert.deepStrictEqual(m.fix.utt, { 2: { orig: 'a', text: 'b 홍길동', shown: 'b [이름]' } }, '보낼 글은 그대로, 보이는 글은 가린 결과');
   assert.strictEqual(m.droppedSpk, 1);
   assert.strictEqual(m.droppedUtt, 1);
+});
+
+test('mergeFix(sent): 요청 뒤에 바꾼 줄은 화면 글을 덮지 않는다(P2-2)', function () {
+  const fix = { labels: {}, utt: {
+    2: { orig: 'a', text: 'b 홍길동', shown: 'b 홍길동' },   // 요청에 실은 그대로
+    3: { orig: 'c', text: 'c2', shown: 'c2' },               // 요청 뒤에 처음 고침
+    4: { orig: 'x', text: 'x2', shown: 'x2' } } };           // 요청에 x1 로 실었는데 그 뒤 x2 로 다시 고침
+  const pv = { speakers: [], transcript: [{ seq_no: 2, text: 'b [이름]' }, { seq_no: 3, text: 'c' }, { seq_no: 4, text: 'x1' }] };
+  const m = mn.mergeFix(fix, pv, { sent: { 2: 'b 홍길동', 4: 'x1' } });
+  assert.deepStrictEqual(m.fix.utt[2], { orig: 'a', text: 'b 홍길동', shown: 'b [이름]' });
+  assert.deepStrictEqual(m.fix.utt[3], { orig: 'c', text: 'c2', shown: 'c2' });
+  assert.deepStrictEqual(m.fix.utt[4], { orig: 'x', text: 'x2', shown: 'x2' });
+  assert.strictEqual(m.droppedUtt, 0);
+});
+
+test('dropEdited·fileSig: 원문 파일이 바뀌면 고친 발언을 모두 버리고 이름표는 둔다(P2-1)', function () {
+  const mk = function (t) { return { date: '2026-11-01', title: 't', src: { transcript: 'paste', timeline: 'file', summary: 'file' }, files: {}, paste: { transcript: t }, terms: '', release: {} }; };
+  const fix = { labels: { 1: '구청장' }, utt: { 2: { orig: 'a', text: 'b', shown: 'b' }, 3: { orig: 'c', text: 'c', shown: 'c' }, 4: { orig: 'd', text: 'd ', shown: 'd ' } } };
+  const dr = mn.dropEdited(fix);
+  assert.strictEqual(dr.dropped, 1, '같은 글·공백만 다른 줄은 세지 않는다');
+  assert.deepStrictEqual(dr.fix, { labels: { 1: '구청장' }, utt: {} });
+  assert.deepStrictEqual(fix.utt[2], { orig: 'a', text: 'b', shown: 'b' }, '원본은 건드리지 않는다');
+  assert.strictEqual(mn.fixDroppedText(2), '원문이 바뀌어 고친 발언 2건을 지웠습니다.');
+  assert.notStrictEqual(mn.fileSig(mk('가')), mn.fileSig(mk('나')));
+  const a = mk('가'), b = mk('가'); b.title = '다른 제목'; b.terms = '홍길동'; b.fix = { labels: { 1: 'x' }, utt: {} };
+  assert.strictEqual(mn.fileSig(a), mn.fileSig(b), '제목·가릴 단어·고친 내용은 파일 표식에 넣지 않는다');
+  assert.notStrictEqual(mn.signature(a), mn.signature(b));
+});
+
+test('mn.fixed: 서버처럼 앞뒤 공백을 뗀 뒤 비교한다(P3-2)', function () {
+  assert.strictEqual(mn.fixed({ orig: 'a', text: ' a\n' }), false);
+  assert.strictEqual(mn.fixed({ orig: 'a', text: 'b' }), true);
+  assert.strictEqual(mn.editsPayload({ labels: {}, utt: { 1: { orig: 'a', text: 'a  ', shown: 'a  ' } } }), null);
 });
 
 test('isEditFail·errorText: 이름표·고친 발언 오류 문구', function () {
@@ -312,6 +345,18 @@ test('isEditFail·errorText: 이름표·고친 발언 오류 문구', function (
   assert.strictEqual(mn.isEditFail({ code: 'LIMIT_LINE', slot: 'edit' }), true);
   assert.strictEqual(mn.isEditFail({ code: 'LIMIT_LINE', slot: 'transcript' }), false);
   assert.strictEqual(mn.isEditFail({ code: 'MASK_REQUIRED' }), false);
+  // P2-3: 고친 발언의 보이지 않는 문자 — 미리보기를 지우지 않고 그 발언 줄 문구로
+  assert.strictEqual(mn.isEditFail({ code: 'CONTROL_CHAR', slot: 'edit', target_no: 3 }), true);
+  assert.strictEqual(mn.isEditFail({ code: 'CONTROL_CHAR', slot: 'transcript' }), false);
+  assert.strictEqual(mn.isEditFail({ code: 'LIMIT_EDIT_LEN', slot: 'edit' }), true);
+  const cc = mn.errorText(422, { code: 'CONTROL_CHAR', slot: 'edit', target_no: 3 }, { action: 'upload' });
+  assert.strictEqual(cc.field, 'edit');
+  assert.strictEqual(cc.text, '고친 발언 3에 쓸 수 없는 보이지 않는 문자가 있습니다. 그 글자를 지우고 다시 반영하세요.');
+  assert.ok(mn.errorText(422, { code: 'CONTROL_CHAR', slot: 'transcript', line: 4 }, { action: 'upload' }).text.indexOf('메모장') > 0, '파일 쪽 문구는 그대로');
+  // 저장 뒤 제목 수정: 가린 자리 지움
+  const tt = mn.errorText(422, { code: 'EDIT_MASK_REMOVED', slot: 'title', kinds: { name: 1 } }, { action: 'meta' });
+  assert.strictEqual(tt.field, 'title');
+  assert.strictEqual(tt.text, '제목의 가린 자리를 지울 수 없습니다. [이름] 자리는 그대로 두고 고치세요.');
   assert.strictEqual(mn.errorText(422, { code: 'LABEL_INVALID', kinds: { form: 1 } }).text, mn.TEXT.LBL_FORM);
   assert.strictEqual(mn.errorText(422, { code: 'LABEL_INVALID', kinds: { name: 1 } }).text, mn.TEXT.LBL_NAME);
   assert.strictEqual(mn.errorText(422, { code: 'LABEL_INVALID', kinds: { form: 1 } }).field, 'label');
@@ -373,6 +418,114 @@ test('소스 검사: 미리보기 고치기 경로는 서버를 부르지 않고
   assert.ok(SRC.indexOf('mn.labelScreen(true), mn.BTN.LABEL') > 0, '이름표 저장은 labelScreen·minutes_label');
   assert.ok(cut('function goSeg', 'function jumpUtter').indexOf("ctx.mode === 'preview'") > 0, '미리보기 [원문 보기]는 pvJump');
   assert.ok(SRC.indexOf('datalist') < 0, '자유 입력 추천 목록 없음');
+});
+
+// ── 컨트롤러 흐름: 패널을 걸지 않아 그리지 않고 상태만 본다(ctl.testApi). 가짜 doFetch 로 응답 시점을 쥔다. ──
+async function settle() { for (let i = 0; i < 8; i++) await new Promise(function (r) { setImmediate(r); }); }
+function resp(status, body) { return { ok: status >= 200 && status < 300, status: status, json: function () { return Promise.resolve(body); } }; }
+function mkCtl(route, msgs) {
+  return mn.createController({ doFetch: function (url, init) { return Promise.resolve(route(url, init)); }, epoch: function () { return 0; },
+    me: function () { return { emp: '1', name: 'n', role: '영업팀장' }; }, msg: function (t) { if (msgs) msgs.push(t); } });
+}
+function pvBody(extra) {
+  return Object.assign({ stats: { utter_cnt: 2, speaker_cnt: 2 }, preview_digest: 'd'.repeat(64), speakers: [{ speaker_no: 1 }, { speaker_no: 2 }],
+    transcript: [{ seq_no: 1, speaker_no: 1, text: '안녕' }, { seq_no: 2, speaker_no: 2, text: '둘째' }], name_candidates: [] }, extra || {});
+}
+async function openUp(c) {
+  await c.probe(1); c.testApi.openUpload();
+  const u = c.state().up;
+  u.date = mn.today(); u.title = '제목'; u.src.transcript = 'paste'; u.paste.transcript = '참석자 1 00:00\n안녕';
+  return u;
+}
+const canForm = typeof FormData !== 'undefined' && typeof Blob !== 'undefined';
+const listBody = { items: [], can_upload: true };
+
+test('doPreview 경쟁: 요청 뒤에 바꾼 이름표·발언은 응답 뒤에도 stale 로 남고 화면 글을 덮지 않는다(P2-2)', async function () {
+  if (!canForm) return;
+  let release; const gate = new Promise(function (r) { release = r; });
+  const c = mkCtl(function (url) { return /\/preview$/.test(url) ? gate.then(function () { return resp(200, pvBody()); }) : resp(200, listBody); });
+  const u = await openUp(c);
+  c.testApi.doPreview();
+  assert.strictEqual(u.busy, 'preview');
+  u.fix.labels[2] = '구청장';                                                    // 응답 전에 이름표를 바꾼다
+  u.fix.utt[2] = { orig: '둘째', text: '둘째 고침', shown: '둘째 고침' };      // 응답 전에 발언을 고친다
+  release(); await settle();
+  assert.strictEqual(u.busy, '');
+  assert.ok(u.pv, '미리보기는 받았다');
+  assert.notStrictEqual(u.pvSig, mn.signature(u), '요청 뒤에 바꿨으므로 stale — 저장은 켜지지 않는다');
+  assert.strictEqual(u.fix.utt[2].shown, '둘째 고침', '요청 뒤에 고친 줄의 화면 글은 응답 글로 덮이지 않는다');
+  assert.strictEqual(u.fix.labels[2], '구청장');
+});
+
+test('doPreview: 입력이 그대로면 응답 뒤 표식이 같다(stale 아님) · 요청 시점 표식을 쓴다', async function () {
+  if (!canForm) return;
+  const c = mkCtl(function (url) { return /\/preview$/.test(url) ? resp(200, pvBody()) : resp(200, listBody); });
+  const u = await openUp(c);
+  const before = mn.signature(u);
+  c.testApi.doPreview(); await settle();
+  assert.strictEqual(u.pvSig, before);
+  assert.strictEqual(u.pvSig, mn.signature(u));
+});
+
+test('doPreview: 원문이 바뀐 뒤 다시 미리보기는 고친 발언을 보내지 않고 버린 건수를 알린다(P2-1)', async function () {
+  if (!canForm) return;
+  const sent = [], msgs = [];
+  const c = mkCtl(function (url, init) { if (/\/preview$/.test(url)) { sent.push(init.body); return resp(200, pvBody()); } return resp(200, listBody); }, msgs);
+  const u = await openUp(c);
+  const edits = async function (i) { return JSON.parse(await sent[i].get('edits').text()); };
+  c.testApi.doPreview(); await settle();
+  u.fix.labels[1] = '구청장'; u.fix.utt[1] = { orig: '안녕', text: '안녕하세요', shown: '안녕하세요' };
+  c.testApi.doPreview(); await settle();                                          // 같은 파일 — 고친 발언 유지
+  assert.strictEqual((await edits(1)).utter_edits.length, 1);
+  assert.strictEqual(u.fixNote, '');
+  u.paste.transcript = '참석자 1 00:00\n다른 회의 내용';                             // 원문을 다른 것으로
+  c.testApi.doPreview(); await settle();
+  const e2 = await edits(2);
+  assert.deepStrictEqual(e2, { speaker_labels: { 1: '구청장' }, utter_edits: [] }, '이름표만 보낸다');
+  assert.deepStrictEqual(u.fix.utt, {});
+  assert.strictEqual(u.fix.labels[1], '구청장', '이름표는 새 응답에 그 번호가 있어 유지');
+  assert.strictEqual(u.fixNote, '원문이 바뀌어 고친 발언 1건을 지웠습니다.');
+  assert.ok(msgs.indexOf(u.fixNote) >= 0, '상태 줄에도 알린다');
+  assert.strictEqual(u.pvSig, mn.signature(u));
+});
+
+test('saveLabels 부분 실패: 저장된 번호는 반영하고 어디서 멈췄는지 알린다(P2-4)', async function () {
+  const puts = [];
+  const spk = function (n) { return { speaker_no: n, label: null, utter_cnt: 1 }; };
+  const c = mkCtl(function (url, init) {
+    if (init.method === 'PUT') {
+      puts.push(url);
+      return /speakers\/1$/.test(url) ? resp(200, { rev_no: 2, label: '구청장', changed: true }) : resp(409, { detail: { code: 'REV_CHANGED' } });
+    }
+    if (/^\/board-minutes\/5$/.test(url)) return resp(200, { viewer: { can_edit: true }, rev_no: 1, speakers: [spk(1), spk(2), spk(3)] });
+    return resp(200, { items: [{ minutes_id: 5 }], can_upload: false });
+  });
+  await c.probe(1); c.testApi.openDetail(5); await settle();
+  const cur = c.state().cur;
+  assert.strictEqual(cur.status, 'ready');
+  cur.tr.items = [{ seq_no: 1, speaker_no: 1 }, { seq_no: 2, speaker_no: 2 }];
+  cur.lbl = { draft: { 1: '구청장', 2: '부장', 3: '과장' }, rowErrs: {}, err: '', rev: false, busy: false };
+  c.testApi.saveLabels(cur);
+  assert.strictEqual(cur.lbl.busy, true, '저장 중');
+  await settle();
+  assert.deepStrictEqual(puts, ['/board-minutes/5/speakers/1', '/board-minutes/5/speakers/2'], '실패한 번호에서 멈춘다');
+  assert.strictEqual(cur.data.speakers[0].label, '구청장', '저장된 번호는 화면 자료에 반영');
+  assert.strictEqual(cur.tr.items[0].speaker_label, '구청장', '원문 목록에도 반영');
+  assert.strictEqual(cur.tr.items[1].speaker_label, undefined);
+  assert.strictEqual(cur.data.rev_no, 2);
+  assert.strictEqual(cur.lbl.busy, false);
+  assert.strictEqual(cur.lbl.rev, true);
+  assert.ok(cur.lbl.err.indexOf('참석자 1는 저장했습니다. 참석자 2부터는 저장하지 못했습니다: ') === 0, cur.lbl.err);
+  assert.deepStrictEqual(Object.keys(cur.lbl.draft), ['2', '3'], '저장된 번호의 초안만 지운다');
+});
+
+test('소스 검사: 이름표 저장 중 잠금·포커스 복구·제목 가림 문구(P2-4·P2-5·P3-1)', function () {
+  const cut = function (a, b) { const i = SRC.indexOf(a), j = SRC.indexOf(b, i); assert.ok(i > 0 && j > i, a); return SRC.slice(i, j); };
+  const sv = cut('function saveLabels', '\n    // ── 삭제');
+  assert.ok(sv.indexOf('setLblBusy(cur, true)') > 0 && sv.indexOf('setLblBusy(cur, false)') > 0);
+  assert.ok(cut('function setLblBusy', 'function saveLabels').indexOf('mn-edit-toggle') > 0, '저장 중 [고치기 끄기]도 막는다');
+  assert.ok(cut('function toggleLbl', 'function drawLbl').indexOf('focusById(keep)') > 0, '원문을 받아 다시 그린 뒤 포커스를 되돌린다');
+  assert.ok(cut('function revertAll', 'function pvItemOf').indexOf("focusById(stale ? 'mn-restale' : 'mn-fix')") > 0);
 });
 
 test('정적 검사: HTML 문자열 주입·브라우저 저장소 없음, 화면·버튼 id 는 서버 허용 목록 안', function () {
