@@ -135,6 +135,7 @@
   <a href="#c74">74 공통 팝업 틀(.dlg) 3단계 ① — 로그인 직후 경과 알림</a>
   <a href="#c75">75 회의록 올리기 — 미리보기에서 발화자 이름표·발언 고치기, 저장 후 [발화자 이름표 바꾸기]</a>
   <a href="#c76">76 사업계획 수집 요청 — 반입 대기 파일 절([폴더 확인] → 파일 표·상태 칩 → 확인 창 [n개 반입]), 목록 내려받기(CSV)는 개발부서 팀장만</a>
+  <a href="#c77">77 작업함 제안서 점검 — 파일 줄 배지·[점검 결과] 펼침·[의도한 언급] 표시, 미확인이 남았을 때 제출 확인창</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -1640,6 +1641,29 @@
 <p class="legend-note">새 색·새 변수 0개(기존 칩 .cr-st·.pp-cancel·.pop-unk, --muted·--line·--accent-color). 글자 12–14px. 실측(Playwright, 8080 권전산 1280창): 보조 글자 8.7:1, 체크 클릭 영역 36×31, 표 가로 넘침 없음(1095/1095), 확인 창 560×337. 반입 폴더가 꺼진 서버라 파일 표·확인 창은 가짜 7행을 넣어 그린 모양으로 쟀습니다(서버 호출 없음). 실제 폴더 반입 캡처는 폴더 설정 뒤 더합니다.</p>
 <p><img src="../../handoff/agents/history/2026-11-23_nx56/after_ib_table.png" alt="후 — 반입 대기 파일 절, 상태 칩 다섯 종과 선택한 1개 반입" style="width:100%"></p>
 <p><img src="../../handoff/agents/history/2026-11-23_nx56/after_csv_locked.png" alt="후 — 팀원의 흐린 목록 내려받기 단추와 팀장만 안내" style="width:100%"></p>
+</div></div></div>
+</div>
+</section>
+<section class="ch" id="c77">
+<h2>77 작업함 제안서 점검 — 파일 줄 배지·[점검 결과] 펼침·[의도한 언급] 표시, 미확인이 남았을 때 제출 확인창 (2026-11-23, NEXT 106, design 규격 2026-11-23_106_점검화면_규격·커밋 전 대조, 화면 doccheck.js 새 파일·designer.js)</h2>
+<div class="why">왜: 다른 기관에 냈던 제안서를 고쳐 쓰다 보면 그 기관 이름이 슬라이드에 남은 채 제출되는 사고가 날 수 있는데, 작업함에는 파일 이름·크기·시각과 [삭제]뿐이라 제출 전에 알아챌 방법이 없었습니다. 제출은 브라우저 기본 확인창 한 번이었고, 올리기가 서버에서 막히면 '[object Object]'라는 뜻 모를 글이 떴습니다. 점검은 기관의 정식 이름만 찾으므로, 못 찾았다고 '통과'처럼 보이면 안 됩니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+<p class="hint12">'내 작업물' 아래 파일 줄: [파일 이름][크기][올린 시각][삭제]. 다른 기관 이름에 대한 신호 없음. [올리기]는 끝날 때까지 아무 표시 없이 기다리고 결과는 알림창. 서버가 막으면 '[object Object]'. [제출] → 브라우저 기본 확인창('제출할까요?') → 알림창.</p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+<p style="font-size:12px"><b>제목 옆 요약</b>: '내 작업물 <span style="display:inline-block;padding:0 6px;border:1px solid #8a5c00;background:#f3efe6;color:#8a5c00;font-weight:700">확인 필요 3건</span> · 점검 못 함 1개 · 일부만 점검 1개'. 모두 확인했으면 '확인함 n건', 찾은 것이 없으면 '찾은 이름 없음(파일 n개)'. 아래에 늘 보이는 안내 '올린 pptx·pdf에 이 기관이 아닌 다른 기관의 정식 이름이 있는지 찾습니다. 찾지 못했다고 다른 기관 이름이 없다는 뜻은 아닙니다.'와 접힌 [점검이 못 찾는 것](줄임말·같은 이름의 구·끊긴 이름·그림 속 글자·반영 10분).</p>
+<p style="font-size:12px"><b>파일 줄 배지</b>(글자가 뜻, 모양은 보조):
+  <span style="display:inline-block;padding:0 6px;border:1px solid #8a5c00;background:#f3efe6;color:#8a5c00;font-weight:700">▲ 확인 필요 n건</span>
+  <span style="display:inline-block;padding:0 6px;border:1px solid #6d7882;color:#464c53">✓ 확인함 n건</span>
+  <span style="display:inline-block;padding:0 6px;border:1px solid #c3c9d1;color:#464c53">찾은 이름 없음</span>
+  <span style="display:inline-block;padding:0 6px;border:1px dashed #6d7882;color:#464c53">일부만 점검</span>
+  <span style="display:inline-block;padding:0 6px;border:1px dashed #5c6670;color:#5c6670">점검 못 함</span>
+  — 다시 해 볼 만하면 [다시 점검]. 사유 문구(예: '옛 파워포인트(ppt)는 읽지 못합니다. pptx나 pdf로 저장해 올리면 점검합니다.')는 1280px 한 줄을 지키려고 펼침 칸에 둡니다. 초록 '통과'는 없습니다.</p>
+<p style="font-size:12px"><b>[점검 결과 ▾] 펼침</b>(줄 바로 아래): 점검 시각, [문맥 보기][다시 점검], 표 [의도한 언급 ☐ | 기관 이름 | 위치(슬라이드 4 · 12쪽 · 슬라이드 4 노트) | 횟수 | 표시(김영업 11-20 17:40)]. 미확인 줄은 왼쪽 주황 막대 + 굵은 이름. 찾은 것이 없으면 '찾은 이름 없음' 또는 점검 못 한 사유 한 줄. [문맥 보기]를 누르면 줄 아래에 “…서초구청과 협력한 사례…”가 최대 3개. 체크하면 바로 저장되고 스크린리더에 '서초구 슬라이드 4 — 의도한 언급으로 표시했습니다.'. 제출한 작업은 '제출한 작업이라 표시를 바꿀 수 없습니다.'와 함께 체크가 잠깁니다.</p>
+<p style="font-size:12px"><b>올리기</b>: [올리는 중…] + 진행 막대 '파일을 올리고 다른 기관 이름을 찾는 중입니다. 큰 파일은 20초쯤 걸릴 수 있습니다.' → 알림창 대신 아래 한 줄 '제안서.pptx를 올렸습니다. 확인 필요 3건'(미확인이 있으면 그 칸이 저절로 펼쳐짐). 막히면 원인과 할 일('매크로를 뺀 pptx로 저장해 다시 올려 주세요.' 등).</p>
+<p style="font-size:12px"><b>제출 확인창</b>(공통 팝업 틀): 미확인이 있으면 제목 '다른 기관 이름 n건 미확인', 본문 '…정식 이름이 <b>n건</b> 남아 있고, 아직 의도한 언급으로 표시하지 않았습니다.' + 파일별 '확인 필요 k건'(최대 5개) + '그대로 제출하면 확인하지 않은 건수와 제출한 사람·시각이 기록에 남습니다.' 단추 [미확인 n건 무시하고 제출] | [돌아가서 확인](첫 커서) — 누르면 그 파일 칸이 펼쳐지고 첫 미확인 체크칸으로 커서가 갑니다. 미확인이 없으면 '결재 요청' [제출]|[취소]. 제출 중에는 Esc·바깥 클릭으로 닫히지 않고, 끝나면 '제출했습니다. 결재자에게 결재 요청을 보냈습니다.'</p>
+<p class="legend-note">새 색·새 변수 0개(--orange·--gray·--muted·--line, 기존 .dlg·.bd-w-prog). 글자 12–13px. 대비(토큰 계산): 확인 필요 5.8:1(옅은 주황 바탕 위 5.1:1), 점검 못 함 5.8:1, 보조 글자 8.7:1(펼침 칸 바탕 위 8.1:1). 체크 누름 영역 28×28, [점검 결과] 높이 28. 화면 테스트 1716건 통과. 캡처 없음: 커밋 전 대조 때 Playwright를 다른 세션이 쓰고 있어 8080 실측(1280 한 줄·배지·화살표) 전 — 측정 뒤 '후' 캡처를 더합니다.</p>
 </div></div></div>
 </div>
 </section>

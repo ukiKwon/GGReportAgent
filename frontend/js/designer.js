@@ -10,6 +10,7 @@
   // export.js와 같은 방식으로 logic을 가져온다(브라우저는 전역, node는 require).
   const logic = (typeof require !== 'undefined') ? require('./logic.js') : root.logic;
   const roles = (typeof require !== 'undefined') ? require('./roles.js') : root.roles;
+  const doccheck = (typeof require !== 'undefined') ? require('./doccheck.js') : root.doccheck;
 
   // ── 우선순위 (기능 ⑦) ────────────────────────────────────────────────
   // 새 컬럼을 두지 않고 **입찰일까지 남은 일수**로 매긴다(사용자 확정). 근거가 이미
@@ -241,14 +242,196 @@
     });
   };
 
-  designer.renderFiles = function (container, files) {
+  // ── 작업물 파일 + 제안서 점검(NEXT 106). 사용자 글(name·inst_name·contexts·acked_by_name)은 textContent로만 넣는다 ──
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  function mk(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function glyph(kind) {   // aria-hidden SVG만(이모지 금지). 삼각형=확인 필요, 체크=확인함, 점선 원=일부·못 함
+    const s = document.createElementNS(SVGNS, 'svg');
+    s.setAttribute('viewBox', '0 0 12 12'); s.setAttribute('aria-hidden', 'true');
+    let p;
+    if (kind === 'dashed') {
+      p = document.createElementNS(SVGNS, 'circle');
+      p.setAttribute('cx', '6'); p.setAttribute('cy', '6'); p.setAttribute('r', '4.5'); p.setAttribute('stroke-dasharray', '2 2');
+    } else {
+      p = document.createElementNS(SVGNS, 'path');
+      p.setAttribute('d', kind === 'open' ? 'M6 1.5 L11 10.5 H1 Z' : kind === 'acked' ? 'M2 6.5 L5 9 L10 3' : 'M2 4 L6 8 L10 4');
+    }
+    s.appendChild(p);
+    return s;
+  }
+  function chipEl(b) {
+    const c = mk('span', 'dc-chip' + (b.cls ? ' ' + b.cls : ''));
+    const g = b.kind === 'open' ? 'open' : b.kind === 'acked' ? 'acked' : (b.kind === 'part' || b.kind === 'nc') ? 'dashed' : null;
+    if (g) c.appendChild(glyph(g));
+    c.appendChild(document.createTextNode(b.text));
+    return c;
+  }
+  function fidBtn(text, name, what, cls) {
+    const b = mk('button', cls || 'dc-tg', text);
+    b.type = 'button'; b.dataset.fid = name + '\u0000' + what;
+    return b;
+  }
+
+  function panelEl(i, name, sf, v) {
+    const on = v.on || {}; const busyOf = v.busy || {};
+    const d = (v.det || {})[name];
+    const p = mk('div', 'dc-panel');
+    p.id = 'dc-p-' + i; p.dataset.name = name;
+    p.setAttribute('role', 'region'); p.setAttribute('aria-label', name + ' 점검 결과');
+    const head = mk('div', 'dc-head');
+    head.appendChild(mk('span', 'dc-at', sf.checked_at ? '점검 ' + doccheck.timeText(sf.checked_at) : ''));
+    const ctxLoaded = !!(v.ctx || {})[name];
+    if (d && d.hits && d.hits.length && !ctxLoaded && (d.state === 'DONE' || d.state === 'PARTIAL')) {
+      const cb = fidBtn(busyOf[name] === 'ctx' ? doccheck.COPY.ctxLoading : '문맥 보기', name, 'ctx');
+      cb.disabled = !!busyOf[name];
+      cb.onclick = function () { on.context(name); };
+      head.appendChild(cb);
+    }
+    if (doccheck.canRecheck(d)) {   // 다시 해도 소용없는 사유(retry:false)면 숨김(P3-2)
+      const rb = fidBtn(busyOf[name] === 'recheck' ? doccheck.COPY.checking : '다시 점검', name, 'precheck');
+      rb.disabled = !!busyOf[name];
+      rb.onclick = function () { on.recheck(name, 'precheck'); };
+      head.appendChild(rb);
+    }
+    p.appendChild(head);
+    const notes = [];
+    if (v.locked) notes.push(doccheck.COPY.lockedLine);
+    doccheck.notes(d).forEach(function (t) { notes.push(t); });
+    // 찾은 이름이 없으면 빈칸 대신 한 줄(P3-1) — 사유의 정본 자리. PARTIAL 사유는 notes에 이미 있으면 겹치지 않게 뺀다.
+    if (d && !(d.hits || []).length) {
+      const el1 = doccheck.emptyLine(d);
+      if (el1 && notes.indexOf(el1) < 0) notes.push(el1);
+    }
+    if ((v.ctxMsg || {})[name]) notes.push(v.ctxMsg[name]);
+    if (notes.length) {
+      const ul = mk('ul', 'dc-notes');
+      notes.forEach(function (t) { ul.appendChild(mk('li', null, t)); });
+      p.appendChild(ul);
+    }
+    const errText = (v.err || {})[name] || '';
+    const er = mk('p', 'dc-err', errText);
+    // 다시 그릴 때마다 같은 문구가 또 읽히지 않게 — 문구가 새로 바뀐 때만 role=alert(P3-4)
+    if (doccheck.errAnnounce((v.seen || {})[name], errText)) er.setAttribute('role', 'alert');
+    if (v.seen) { if (errText) v.seen[name] = errText; else delete v.seen[name]; }
+    p.appendChild(er);
+    if (!d) {
+      if (!(v.err || {})[name]) p.appendChild(mk('p', 'dc-why', doccheck.COPY.detailLoading));
+      return p;
+    }
+    const hits = d.hits || [];
+    if (!hits.length) return p;
+    const can = !v.locked && doccheck.canAck(d);
+    const cap = (v.more || {})[name] ? hits.length : 100;
+    const tbl = mk('table', 'dc-hits');
+    tbl.appendChild(mk('caption', 'sr-only', name + '에서 찾은 다른 기관 이름'));
+    const trh = mk('tr');
+    [['c-ack', '의도한 언급'], ['c-name', '기관 이름'], ['c-loc', '위치'], ['c-cnt', '횟수'], ['c-by', '표시']].forEach(function (c) {
+      const th = mk('th', c[0], c[1]); th.setAttribute('scope', 'col'); trh.appendChild(th);
+    });
+    const thead = mk('thead'); thead.appendChild(trh); tbl.appendChild(thead);
+    const tb = mk('tbody');
+    const ctxMap = (v.ctx || {})[name] || {};
+    hits.slice(0, cap).forEach(function (h) {
+      const key = doccheck.hitKey(h);
+      const shown = doccheck.shownAcked(h, (v.pend || {})[name]);   // 요청 중에는 요청한 상태로(P2-2)
+      const tr = mk('tr', shown ? 'acked' : 'open');
+      const td1 = mk('td', 'c-ack');
+      const lab = mk('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = shown; cb.disabled = !can;
+      cb.dataset.fid = name + '\u0000k:' + key;
+      cb.setAttribute('aria-label', doccheck.ackLabel(h));
+      if (busyOf[name] === 'ack') cb.setAttribute('aria-disabled', 'true');
+      cb.onchange = function () {
+        if (busyOf[name]) { cb.checked = shown; return; }
+        on.ack(name, h, cb.checked);
+      };
+      lab.appendChild(cb); td1.appendChild(lab); tr.appendChild(td1);
+      tr.appendChild(mk('td', 'c-name', doccheck.instText(h.inst_name)));
+      const tdl = mk('td', 'c-loc');
+      const lp = doccheck.locParts(h.loc_kind, h.loc_no);
+      tdl.appendChild(document.createTextNode(lp[0]));
+      if (lp[1] != null) tdl.appendChild(mk('span', 'n', String(lp[1])));
+      if (lp[2]) tdl.appendChild(document.createTextNode(lp[2]));
+      tr.appendChild(tdl);
+      tr.appendChild(mk('td', 'c-cnt', String(h.count)));
+      const tdb = mk('td', 'c-by');
+      if (h.acked) {
+        if (h.acked_by_name) tdb.appendChild(document.createTextNode(h.acked_by_name + ' '));
+        tdb.appendChild(mk('span', 't', doccheck.ackedAtText(h.acked_at)));
+      }
+      tr.appendChild(tdb);
+      tb.appendChild(tr);
+      const cl = ctxMap[key];
+      if (cl && cl.length) {
+        const ctr = mk('tr', 'dc-ctx'); const td = mk('td'); td.colSpan = 5;
+        const ul = mk('ul');
+        // 서버 InstNameMatcher.context가 앞뒤 말줄임(…)만 넣고 따옴표는 안 넣는다(확인 11-23) — 따옴표는 화면에서 씌운다.
+        cl.forEach(function (c) { ul.appendChild(mk('li', null, '“' + c + '”')); });
+        td.appendChild(ul); ctr.appendChild(td); tb.appendChild(ctr);
+      }
+    });
+    tbl.appendChild(tb);
+    p.appendChild(tbl);
+    if (hits.length > cap) {
+      const mb = fidBtn('나머지 ' + (hits.length - cap) + '줄 더 보기', name, 'more');
+      mb.onclick = function () { on.more(name); };
+      p.appendChild(mb);
+    }
+    return p;
+  }
+
+  // view 없이 부르면 점검 표시 없이 줄만 그린다. view: {sum, det, open, busy, err, ctx, ctxMsg, more, locked, on:{toggle,recheck,context,ack,more}}
+  designer.renderFiles = function (container, files, view) {
     const rows = designer.fileRows(files);
-    container.innerHTML = rows.length ? rows.map(function (f) {
-      return '<div class="dg-file"><a href="#" class="dg-dl" data-name="' + esc(f.name) + '">' +
-        esc(f.name) + '</a><span class="dg-size">' + esc(f.sizeText) + '</span>' +
-        '<span class="dg-at">' + esc(f.uploadedAt) + '</span>' +
-        '<button class="dg-rm" data-name="' + esc(f.name) + '">삭제</button></div>';
-    }).join('') : '<p class="wf-empty">올린 작업물이 없습니다.</p>';
+    const v = view || {};
+    const byName = {};
+    if (v.sum && v.sum !== 'fail') (v.sum.files || []).forEach(function (x) { byName[x.name] = x; });
+    const busyOf = v.busy || {}; const on = v.on || {};
+    container.textContent = '';
+    if (!rows.length) { container.appendChild(mk('p', 'wf-empty', '올린 작업물이 없습니다.')); return; }
+    rows.forEach(function (f, i) {
+      const sf = byName[f.name] || null;
+      const row = mk('div', 'dg-file');
+      const a = mk('a', 'dg-dl', f.name);
+      a.href = '#'; a.dataset.name = f.name; a.title = f.name;
+      row.appendChild(a);
+      row.appendChild(mk('span', 'dg-size', f.sizeText));
+      row.appendChild(mk('span', 'dg-at', f.uploadedAt));
+      if (view && (v.sum === null || v.sum === undefined)) {
+        row.appendChild(mk('span', 'dc-why', doccheck.COPY.loading));
+      } else if (view && v.sum !== 'fail') {
+        const b = doccheck.badgeFor(sf, { checking: busyOf[f.name] === 'recheck' });
+        if (b) {
+          row.appendChild(chipEl(b));
+          if (b.extra) row.appendChild(chipEl(b.extra));
+          // 사유(b.why)는 줄에 싣지 않는다 — 펼침 칸 안내 줄이 정본(P2-1, 1280px 한 줄 유지)
+          if (b.retry) {
+            const rb = fidBtn('다시 점검', f.name, 'recheck');
+            rb.onclick = function () { on.recheck(f.name, 'recheck'); };
+            row.appendChild(rb);
+          }
+        }
+        if (sf) {
+          const open = !!(v.open || {})[f.name];
+          const tg = fidBtn('점검 결과', f.name, 'toggle');
+          tg.setAttribute('aria-expanded', open ? 'true' : 'false');
+          if (open) tg.setAttribute('aria-controls', 'dc-p-' + i);   // 닫힌 칸은 가리킬 대상이 없다(P3-7)
+          tg.appendChild(glyph('chev'));
+          tg.onclick = function () { on.toggle(f.name); };
+          row.appendChild(tg);
+        }
+      }
+      const rm = mk('button', 'dg-rm', '삭제'); rm.dataset.name = f.name;
+      row.appendChild(rm);
+      container.appendChild(row);
+      if (view && sf && (v.open || {})[f.name]) container.appendChild(panelEl(i, f.name, sf, v));
+    });
   };
 
   // ── 배선 ────────────────────────────────────────────────────────────
@@ -257,6 +440,21 @@
   let handoff = null;
   let files = [];
   let busy = false;
+  // 제안서 점검 상태(NEXT 106). 작업을 바꾸면 dcResetAll()로 비운다.
+  let dcSum = null;          // null=불러오는 중 | 'fail' | 요약 응답
+  let dcDet = {};            // 파일 이름 → 상세 응답
+  let dcOpenNames = {};      // 펼친 파일
+  let dcBusy = {};           // 파일 이름 → 'ack' | 'recheck' | 'ctx' | 'load'
+  let dcErr = {};            // 파일 이름 → 오류 문구(.dc-err)
+  let dcCtx = {};            // 파일 이름 → {hitKey: [문맥]}
+  let dcCtxMsg = {};
+  let dcMore = {};           // 100줄 넘게 펼친 파일
+  let dcPend = {};           // 파일 이름 → 표시 요청 중인 {key, want}(체크칸을 요청한 상태로 그린다)
+  let dcSeen = {};           // 파일 이름 → 이미 화면에 그린 오류 문구(같은 문구를 다시 읽히지 않게)
+  let smSubmitting = false;  // 제출 요청 중(Esc·바깥 클릭·중복 제출 막기)
+  let dcFocus = null;        // 다시 그린 뒤 돌려줄 포커스 {name, what} | {name, first:true}
+  let uploading = false;
+  let smState = null;        // 제출 확인창이 열려 있는 동안 {model, approver}
 
   function profile() { return root.store.loadProfile(); }
 
@@ -313,6 +511,7 @@
       fetch('/tasks/' + encodeURIComponent(id)).then(function (r) {
         return r.ok ? r.json() : null;
       }),
+      loadSummary(),
     ]).then(function (res) {
       if (selectedId !== id) return;        // 그 사이 다른 것을 골랐으면 버린다
       handoff = res[0]; files = res[1];
@@ -330,7 +529,7 @@
     const today = new Date();
     designer.renderList(el('dg-list'), tasks, today, selectedId);
     el('dg-list').querySelectorAll('.dg-item').forEach(function (node) {
-      node.onclick = function () { selectedId = node.dataset.id; loadDetail(); };
+      node.onclick = function () { selectedId = node.dataset.id; dcResetAll(); loadDetail(); };
     });
 
     const task = selected();
@@ -340,7 +539,8 @@
 
     el('dg-title').textContent = task.institution_name + ' — 이관 패키지';
     designer.renderHandoff(el('dg-pkg'), handoff);
-    designer.renderFiles(el('dg-files'), files);
+    designer.renderFiles(el('dg-files'), files, dcView(task));
+    paintDcSummary();
     wireDetail();
 
     const submit = el('dg-submit');
@@ -352,6 +552,9 @@
     el('dg-why').textContent = ok ? '' : why;
     el('dg-save').disabled = busy;
     el('dg-upload').disabled = busy;
+    el('dg-upload').textContent = uploading ? '올리는 중…' : '올리기';
+    el('dc-up').hidden = !uploading;
+    restoreFocus();
   }
 
   function wireDetail() {
@@ -391,33 +594,345 @@
           '?by=' + encodeURIComponent(profile().name || ''), {
           method: 'DELETE', headers: { 'X-User-Id': 'web-user' },
         }).then(function (r) {
-          if (!r.ok && r.status !== 204) { alert('삭제 실패 (' + r.status + ')'); return; }
+          if (!r.ok && r.status !== 204) {
+            return readErr(r).then(function (e) {
+              const er = doccheck.errorFor(e.status, e.code, 'delete');
+              // 404 문구는 '목록을 새로 불러왔습니다'라고 하므로 실제로 다시 부른 뒤 알린다(P3-3)
+              if (er.reload) return loadDetail().then(loadTasks).then(function () { alert(er.text); });
+              alert(er.text);
+            });
+          }
+          delete dcOpenNames[btn.dataset.name]; delete dcDet[btn.dataset.name]; delete dcCtx[btn.dataset.name];
           return loadDetail().then(loadTasks);
         }).catch(fail('서버 연결 실패 — 삭제되지 않았습니다.'));
       };
     });
   }
 
+  function dcUpMsg(text, isErr) {
+    const m = el('dc-up-msg');
+    m.textContent = text || '';
+    m.className = isErr ? 'dc-err' : 'dg-hint';
+    if (isErr) m.setAttribute('role', 'alert'); else m.removeAttribute('role');
+  }
+
   function upload() {
     const input = el('dg-file-input');
     const file = input.files && input.files[0];
-    if (!file) { alert('올릴 파일을 먼저 고르세요.'); return; }
+    if (!file) { dcUpMsg('올릴 파일을 먼저 고르세요.', true); return; }
     const fd = new FormData();
     fd.append('file', file);
     fd.append('by', profile().name || '');
-    busy = true; paint();
+    busy = true; uploading = true; dcUpMsg('', false); paint();
     fetch('/tasks/' + encodeURIComponent(selectedId) + '/files', {
       method: 'POST', body: fd, headers: { 'X-User-Id': 'web-user' },
     }).then(function (r) {
-      return r.json().then(function (body) {
-        if (!r.ok) throw new Error(body.detail || ('업로드 실패 (' + r.status + ')'));
-        // 조용히 덮어쓰지 않는다 — 같은 이름이면 사실을 알린다.
-        if (body.replaced) alert(body.name + ' 을(를) 새 파일로 교체했습니다.');
-        input.value = '';
+      return r.json().catch(function () { return null; }).then(function (body) {
+        if (!r.ok) {   // P1-1: detail이 객체여도 [object Object]가 되지 않게 code로 문구를 고른다
+          const err = new Error('upload');
+          err.status = r.status; err.code = doccheck.errorCode(body); err.detail = doccheck.errorDetailText(body);
+          throw err;
+        }
+        return body || {};
       });
-    }).then(function () { return loadDetail().then(loadTasks); })
-      .catch(function (e) { alert(e.message || '서버 연결 실패 — 올리지 못했습니다.'); })
-      .then(function () { busy = false; paint(); });
+    }).then(function (body) {
+      input.value = '';
+      if (body.name) { delete dcDet[body.name]; delete dcCtx[body.name]; }   // 바꿔 올렸으면 이전 점검은 낡았다
+      return loadDetail().then(loadTasks).then(function () { dcAfterUpload(body); });
+    }).catch(function (e) {
+      dcUpMsg(e && e.status ? doccheck.errorFor(e.status, e.code, 'upload', e.detail).text : doccheck.COPY.err.net, true);
+    }).then(function () { busy = false; uploading = false; paint(); });
+  }
+
+  function dcAfterUpload(body) {
+    const f = dcSum && dcSum !== 'fail' ? (dcSum.files || []).filter(function (x) { return x.name === body.name; })[0] : null;
+    // 조사는 dlg.withObj(받침에 따라 을/를)로 맞춘다(팀 결정 11-23)
+    const text = doccheck.uploadResultText(body.name, !!body.replaced, doccheck.badgeFor(f, {}), root.dlg && root.dlg.withObj);
+    dcUpMsg(text, false); live(text);
+    if (f && ((Number(f.unconfirmed_count) || 0) > 0 || dcOpenNames[f.name])) {   // 미확인이 있으면 자동 펼침(포커스는 옮기지 않음)
+      dcOpenNames[f.name] = true; dcLoadDetail(f.name, false);
+    }
+  }
+
+  // ── 제안서 점검 배선(NEXT 106, 규격 design-reviewer 2026-11-23 106) ─────────
+  function dcResetAll() {
+    dcSum = null; dcDet = {}; dcOpenNames = {}; dcBusy = {}; dcErr = {}; dcCtx = {}; dcCtxMsg = {}; dcMore = {}; dcFocus = null; dcPend = {}; dcSeen = {};
+    const m = el('dc-up-msg'); if (m) { m.textContent = ''; m.className = 'dg-hint'; m.removeAttribute('role'); }
+  }
+  function dcUrl(name) { return '/tasks/' + encodeURIComponent(selectedId) + '/files/' + encodeURIComponent(name) + '/doc-check'; }
+  function live(t) { const n = el('dc-live'); if (n) n.textContent = t; }
+  function readErr(r) {
+    return r.json().catch(function () { return null; }).then(function (b) {
+      return { status: r.status, code: doccheck.errorCode(b), detail: doccheck.errorDetailText(b) };
+    });
+  }
+  function dcDone() { paint(); dcFocus = null; }
+
+  function dcView(task) {
+    return { sum: dcSum, det: dcDet, open: dcOpenNames, busy: dcBusy, err: dcErr, ctx: dcCtx, ctxMsg: dcCtxMsg, more: dcMore, pend: dcPend, seen: dcSeen,
+      locked: doccheck.isLocked(task),
+      on: { toggle: dcToggle, recheck: dcRecheck, ack: dcAck,
+        context: function (n) { dcLoadDetail(n, true); },
+        more: function (n) {
+          const hs = (dcDet[n] && dcDet[n].hits) || [];
+          dcMore[n] = true;
+          // [더 보기]는 사라지므로 새로 나온 첫 줄 체크칸으로(P3-2). 못 가면 [점검 결과] 토글로.
+          dcFocus = { name: n, what: hs.length > 100 ? 'k:' + doccheck.hitKey(hs[100]) : 'more', alt: 'toggle' };
+          dcDone();
+        } } };
+  }
+
+  function paintDcSummary() {
+    const box = el('dc-sum'); if (!box) return;
+    box.textContent = '';
+    if (dcSum === 'fail') { box.textContent = doccheck.COPY.summaryFail; return; }
+    doccheck.summaryChips(dcSum).forEach(function (c, i) {
+      if (i) box.appendChild(document.createTextNode(' · '));
+      if (c.open) box.appendChild(mk('span', 'dc-chip open', c.text)); else box.appendChild(document.createTextNode(c.text));
+    });
+  }
+
+  function restoreFocus() {
+    if (!dcFocus) return;
+    const box = el('dg-files');
+    if (dcFocus.first) {   // 제출 확인창 [돌아가서 확인] → 첫 미확인 체크칸
+      const panels = box.querySelectorAll('.dc-panel');
+      for (let i = 0; i < panels.length; i++) {
+        if (panels[i].dataset.name === dcFocus.name) {
+          const t = panels[i].querySelector('tr.open input');
+          if (t && !t.disabled) { t.focus(); return; }
+        }
+      }
+      // 체크칸을 못 찾으면(이미 다 표시·점검 결과가 바뀜 등) 그 파일의 [점검 결과] 토글로(P3-4)
+      const tgs = box.querySelectorAll('[data-fid]');
+      for (let j = 0; j < tgs.length; j++) {
+        if (tgs[j].dataset.fid === dcFocus.name + '\u0000toggle' && !tgs[j].disabled) { tgs[j].focus(); break; }
+      }
+      return;
+    }
+    const all = box.querySelectorAll('[data-fid]');
+    const tryFid = function (what) {
+      const want = dcFocus.name + '\u0000' + what;
+      for (let i = 0; i < all.length; i++) {
+        if (all[i].dataset.fid === want && !all[i].disabled) { all[i].focus(); return true; }
+      }
+      return false;
+    };
+    if (tryFid(dcFocus.what)) return;
+    // 누르려던 단추가 사라졌으면(다시 점검 뒤 [다시 점검]이 없어짐 등) 그 파일의 [점검 결과] 토글로(P3-2)
+    if (dcFocus.alt) tryFid(dcFocus.alt);
+    else if (dcFocus.what === 'recheck') tryFid('toggle');
+  }
+
+  function loadSummary() {
+    const id = selectedId;
+    if (!id) return Promise.resolve();
+    return fetch('/tasks/' + encodeURIComponent(id) + '/doc-check').then(function (r) {
+      return r.ok ? r.json() : 'fail';
+    }).catch(function () { return 'fail'; }).then(function (s) {
+      if (selectedId !== id) return;
+      dcSum = s; paint();
+    });
+  }
+
+  // 파일이 목록에서 사라졌으면(404) 펼침 칸도 없으니 문구를 올리기 줄(#dc-up-msg)에 남긴다(P2-1)
+  function dcGoneNotice(name, text) {
+    if (doccheck.fileGone(files, name)) { dcUpMsg(text, true); dcErr[name] = ''; delete dcSeen[name]; }
+  }
+
+  // keepErr: 409로 다시 불러오는 길이면 앞서 세운 오류 문구를 지우지 않는다(P2-1)
+  function dcLoadDetail(name, withCtx, keepErr) {
+    const id = selectedId;
+    dcBusy[name] = withCtx ? 'ctx' : 'load'; if (!keepErr) dcErr[name] = '';
+    paint();
+    return fetch(dcUrl(name) + (withCtx ? '?with_context=true' : '')).then(function (r) {
+      if (r.ok) return r.json().then(function (b) { return { ok: true, body: b }; });
+      return readErr(r).then(function (e) { return { ok: false, e: e }; });
+    }).then(function (res) {
+      if (selectedId !== id) return;
+      if (res.ok) {
+        dcDet[name] = res.body;
+        if (withCtx) {
+          const m = {};
+          (res.body.hits || []).forEach(function (h) { if (h.contexts) m[doccheck.hitKey(h)] = h.contexts; });
+          dcCtx[name] = m;
+          dcCtxMsg[name] = res.body.context_state === 'UNAVAILABLE' ? doccheck.COPY.ctxUnavailable : '';
+        } else { delete dcCtx[name]; dcCtxMsg[name] = ''; }
+        return;
+      }
+      dcErr[name] = doccheck.errorFor(res.e.status, res.e.code, withCtx ? 'ctx' : 'load').text;
+      if (res.e.status === 404) { const t = dcErr[name]; return loadDetail().then(function () { dcGoneNotice(name, t); }); }
+    }).catch(function () { dcErr[name] = doccheck.COPY.err.net; })
+      .then(function () { delete dcBusy[name]; dcDone(); });
+  }
+
+  function dcToggle(name) {
+    dcFocus = { name: name, what: 'toggle' };
+    if (dcOpenNames[name]) { delete dcOpenNames[name]; dcDone(); return; }
+    dcOpenNames[name] = true;
+    dcLoadDetail(name, false);   // 열 때마다 새로 부른다(문맥 없음)
+  }
+
+  function dcReload(name, mode) {
+    if (mode === 'files') { const t = dcErr[name]; return loadDetail().then(function () { dcGoneNotice(name, t); }); }
+    return loadSummary().then(function () { return dcLoadDetail(name, false, true); });
+  }
+
+  function dcRecheck(name, what) {
+    const id = selectedId; const task = selected();
+    dcBusy[name] = 'recheck'; dcErr[name] = ''; dcFocus = { name: name, what: what };
+    paint();
+    fetch(dcUrl(name), { method: 'POST', headers: Object.assign({ 'X-User-Id': 'web-user' }, doccheck.headers(task, 'doc_check_recheck')) })
+      .then(function (r) {
+        if (r.ok) return r.json().then(function (b) { return { ok: true, body: b }; });
+        return readErr(r).then(function (e) { return { ok: false, e: e }; });
+      }).then(function (res) {
+        if (selectedId !== id) return;
+        if (res.ok) { dcDet[name] = res.body; delete dcCtx[name]; dcCtxMsg[name] = ''; return loadSummary(); }
+        const er = doccheck.errorFor(res.e.status, res.e.code, 'recheck');
+        dcErr[name] = er.text;
+        if (er.reload) return dcReload(name, er.reload);
+      }).catch(function () { dcErr[name] = doccheck.COPY.err.net; })
+      .then(function () {
+        delete dcBusy[name];
+        const f = dcSum && dcSum !== 'fail' ? (dcSum.files || []).filter(function (x) { return x.name === name; })[0] : null;
+        const b = doccheck.badgeFor(f, {});
+        if (b && !dcErr[name]) live(name + ' ' + b.text);
+        dcDone();
+      });
+  }
+
+  function dcAck(name, hit, want) {
+    const id = selectedId; const task = selected(); const d = dcDet[name];
+    if (!task || !d || !d.sha256) return;
+    dcBusy[name] = 'ack'; dcErr[name] = ''; dcFocus = { name: name, what: 'k:' + doccheck.hitKey(hit) };
+    dcPend[name] = { key: doccheck.hitKey(hit), want: want };   // 요청 중에는 요청한 상태로 그린다(P2-2)
+    paint();
+    fetch(dcUrl(name) + '/ack', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json', 'X-User-Id': 'web-user' },
+        doccheck.headers(task, want ? 'doc_check_ack' : 'doc_check_unack')),
+      body: JSON.stringify({ acked: want, sha256: d.sha256, items: [doccheck.ackItem(hit)] }),
+    }).then(function (r) {
+      if (r.ok) return r.json().then(function (b) { return { ok: true, body: b }; });
+      return readErr(r).then(function (e) { return { ok: false, e: e }; });
+    }).then(function (res) {
+      if (selectedId !== id) return;
+      if (res.ok) { dcDet[name] = res.body; live(doccheck.ackLive(hit, want)); return loadSummary(); }
+      const er = doccheck.errorFor(res.e.status, res.e.code, 'ack');
+      delete dcPend[name];
+      dcErr[name] = er.text;   // 요청이 끝나면 요청 상태(dcPend)를 지워 서버가 아는 상태로 돌아간다
+      if (er.reload) return dcReload(name, er.reload);
+    }).catch(function () { dcErr[name] = doccheck.COPY.err.net; })
+      .then(function () { delete dcBusy[name]; delete dcPend[name]; dcDone(); });
+  }
+
+  // ── 제출 확인창(.dlg) — confirm/alert 대체(P2-1). 헤더는 규격 6-6(P2-2) ──
+  function renderSmBody(box, m) {
+    box.textContent = '';
+    if (m.variant === 'A') { box.appendChild(mk('p', null, m.text)); return; }
+    const p1 = mk('p');
+    p1.appendChild(document.createTextNode(m.p1.pre));
+    p1.appendChild(mk('strong', null, m.p1.strong));
+    p1.appendChild(document.createTextNode(m.p1.post));
+    box.appendChild(p1);
+    const ul = mk('ul', 'dc-sm-files');
+    m.files.forEach(function (f) {
+      const li = mk('li');
+      const nm = mk('span', 'nm', f.name); nm.title = f.name;
+      li.appendChild(nm);
+      li.appendChild(mk('span', 'dc-chip open', '확인 필요 ' + f.n + '건'));
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
+    if (m.more) box.appendChild(mk('p', 'dc-why', '외 ' + m.more + '개'));
+    if (m.p3) box.appendChild(mk('p', null, m.p3));
+    box.appendChild(mk('p', null, m.p4));
+  }
+
+  function openSubmit(model, approver) {
+    const modal = el('dc-submit-modal');
+    if (!modal || !root.dlg) return;
+    smState = { model: model, approver: approver };
+    el('dc-sm-t').textContent = model.title;
+    const go = el('dc-sm-go'); const back = el('dc-sm-back');
+    go.textContent = model.go; go.disabled = false;
+    back.textContent = model.back; back.disabled = false;
+    el('dc-sm-err').textContent = '';
+    renderSmBody(el('dc-sm-d'), model);
+    root.dlg.open(modal, {
+      focus: back,   // 첫 포커스는 안전한 쪽 단추
+      restoreFallback: function () { return el('dg-submit'); },
+      onClose: function () { smState = null; },
+    });
+  }
+
+  function onSubmitBack() {
+    const st = smState; const modal = el('dc-submit-modal');
+    if (st && st.model.variant === 'B' && st.model.firstName) {   // 돌아가서 확인: 첫 미확인 파일 칸을 펴고 첫 체크칸으로
+      const name = st.model.firstName;
+      root.dlg.close(modal, { restore: false });
+      dcOpenNames[name] = true; dcFocus = { name: name, first: true };
+      dcLoadDetail(name, false);
+      return;
+    }
+    root.dlg.requestClose(modal);
+  }
+
+  function doSubmit() {
+    const st = smState; if (!st || smSubmitting) return;   // 요청 중 두 번째 제출을 막는다(P2-3)
+    const modal = el('dc-submit-modal'); const task = selected();
+    const go = el('dc-sm-go'); const back = el('dc-sm-back'); const err = el('dc-sm-err');
+    smSubmitting = true;
+    const unlock = function (text) {
+      smSubmitting = false;
+      if (!root.dlg.isOpen(modal)) {   // 그사이 창이 닫혔으면(로그아웃 등) 실패를 창 밖 줄에 남긴다
+        const sv = el('dg-saved'); sv.textContent = text; sv.setAttribute('tabindex', '-1');
+        return;
+      }
+      err.textContent = text;
+      go.textContent = st.model.go;
+      root.dlg.setDisabled(go, false); root.dlg.setDisabled(back, false);
+    };
+    err.textContent = ''; go.textContent = '제출 중…';
+    root.dlg.setDisabled(go, true); root.dlg.setDisabled(back, true);
+    fetch('/tasks/' + encodeURIComponent(selectedId) + '/submit', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json', 'X-User-Id': 'web-user' }, doccheck.headers(task, st.model.button)),
+      body: JSON.stringify(actorBody()),
+    }).then(function (r) {
+      if (!r.ok) {
+        return readErr(r).then(function (e) { unlock(doccheck.errorFor(e.status, e.code, 'submit', e.detail).text); });
+      }
+      smSubmitting = false;
+      root.dlg.close(modal);
+      const sv = el('dg-saved');
+      sv.textContent = '제출했습니다. ' + st.approver + '에게 결재 요청을 보냈습니다.';
+      sv.setAttribute('tabindex', '-1');
+      // 제출한 작업은 목록에서 빠지거나 [제출] 단추가 잠기므로 다시 그린 뒤 결과 줄로 커서를 옮긴다(P3-2)
+      return loadTasks().then(loadDetail).then(function () { sv.focus(); });
+    }).catch(function () { unlock(doccheck.COPY.err.netSubmit); });
+  }
+
+  // 제출 요청 중에는 Esc·바깥 클릭으로 창이 닫히지 않게 window 캡처 단계에서 먼저 막는다(P2-3, dlg.js는 그대로).
+  let smGuardWired = false;
+  function wireSubmitGuard() {
+    if (smGuardWired || !root.addEventListener) return;
+    smGuardWired = true;
+    root.addEventListener('keydown', function (ev) {
+      if (smSubmitting && ev.key === 'Escape' && root.dlg && root.dlg.isOpen(el('dc-submit-modal'))) {
+        ev.preventDefault(); ev.stopImmediatePropagation();
+      }
+    }, true);
+    root.addEventListener('click', function (ev) {
+      if (smSubmitting && ev.target === el('dc-submit-modal')) { ev.stopImmediatePropagation(); }
+    }, true);
+  }
+
+  function wireSubmitModal() {
+    wireSubmitGuard();
+    el('dc-sm-go').onclick = doSubmit;
+    el('dc-sm-back').onclick = onSubmitBack;
   }
 
   function saveDraft() {
@@ -435,24 +950,25 @@
 
   function submit() {
     const approver = designer.approverLabel(profile().team);
-    if (!confirm('제출하면 ' + approver + '에게 결재 요청이 갑니다. 진행할까요?')) return;
+    const id = selectedId;
     busy = true; paint();
-    fetch('/tasks/' + encodeURIComponent(selectedId) + '/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-User-Id': 'web-user' },
-      body: JSON.stringify(actorBody()),
-    }).then(function (r) {
-      if (!r.ok) { alert('제출 실패 (' + r.status + ')'); return; }
-      alert('제출했습니다 — ' + approver + '에게 결재 요청을 보냈습니다.');
-      return loadTasks().then(loadDetail);
-    }).catch(fail('서버 연결 실패 — 제출되지 않았습니다.'))
-      .then(function () { busy = false; paint(); });
+    fetch('/tasks/' + encodeURIComponent(id) + '/doc-check').then(function (r) {
+      return r.ok ? r.json() : null;   // 요약 실패면 일반 확인(변형 A)
+    }).catch(function () { return null; }).then(function (sum) {
+      busy = false;
+      if (selectedId !== id) { paint(); return; }
+      if (sum) dcSum = sum;
+      paint();
+      openSubmit(doccheck.submitModel(sum, approver), approver);
+    });
   }
 
   designer.mount = function () {
     el('dg-upload').onclick = upload;
     el('dg-save').onclick = saveDraft;
     el('dg-submit').onclick = submit;
+    wireSubmitModal();
+    dcResetAll();
     el('dg-scope').textContent = designer.headline(profile());
     el('dg-who').textContent = profile().name || '(이름 없음)';
     // 폴링하지 않는다 — 워크플로의 2초 폴링은 그래프가 도는 중이라 필요한 것이고,
