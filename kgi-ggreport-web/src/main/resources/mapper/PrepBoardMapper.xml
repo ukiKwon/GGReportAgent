@@ -40,6 +40,18 @@
     SELECT CODE, CODE_NAME FROM COMMON_CODE WHERE CODE_GROUP = #{group} AND ENABLED = 1 ORDER BY SORT_NO, CODE
   </select>
 
+  <!-- 약정 줄별 최신 개정이 SAVE 인 것(BankContractMapper.selectLatestValid 와 같은 기준: 줄의 더 큰 REV_NO 가 없고 ACTION_CD='SAVE')을 전 기관 한 번에(P3-8).
+       은행 이름은 COMMON_CODE(BANK) 이름, 없으면 BANK_NAME_ETC. 만료(TERM_TO) 걸러내기는 서비스가 오늘 날짜로 한다. -->
+  <select id="selectLatestValidBanks" resultType="PrepBoardBank" flushCache="true">
+    SELECT b.INSTITUTION_ID, b.CONTRACT_NO, b.RANK_CD, COALESCE(c.CODE_NAME, b.BANK_NAME_ETC) AS BANK_NAME, b.TERM_TO
+      FROM INST_BANK_CONTRACT b
+      LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'BANK' AND c.CODE = b.BANK_CD
+     WHERE b.ACTION_CD = 'SAVE'
+       AND NOT EXISTS (SELECT 1 FROM INST_BANK_CONTRACT n
+                        WHERE n.INSTITUTION_ID = b.INSTITUTION_ID AND n.CONTRACT_NO = b.CONTRACT_NO AND n.REV_NO &gt; b.REV_NO)
+     ORDER BY b.INSTITUTION_ID, b.CONTRACT_NO
+  </select>
+
   <select id="selectCurrent" resultType="PrepBoardCheck" flushCache="true">
     SELECT c.BID_CASE_ID, c.COL_CD, c.REV_NO, c.MARK_CD, c.MARK_DATE, c.ACTOR_NAME, c.EMP_VERIFIED, c.SAVED_AT
       FROM BID_PREP_CHECK c

@@ -290,6 +290,24 @@ public class PrepBoardApiTest {
         assertEquals(1, actCount(bid, "DASH_CHECK", "BLOCKED"));
     }
 
+    /** qa T6 — 시험 트랜잭션 안이라 진짜 동시 실행 대신 직렬 재현(다른 표시값·없는 미래 번호까지). 진짜 동시 시험은 별도 비트랜잭션 클래스로 보류. */
+    @Test
+    public void D11_같은_칸을_낡은_번호나_없는_번호로_연달아_저장하면_먼저_온_것만_남고_409_STALE_CHECK이며_행은_1개다_직렬() throws Exception {
+        String bid = opened(INST);
+        assertEquals(200, check(MEMBER2, bid, COL, mark("DONE", 0)).getResponse().getStatus());   // 먼저 온 쪽
+        MvcResult late = check(MEMBER2, bid, COL, mark("NA", 0));            // 같은 화면을 본 늦은 쪽 — 낡은 번호
+        assertEquals(409, late.getResponse().getStatus());
+        assertEquals("STALE_CHECK", json(late).path("detail").path("code").asText());
+        MvcResult future = check(MEMBER2, bid, COL, mark("IN_PROGRESS", 7)); // 없는 미래 번호도 같은 409
+        assertEquals(409, future.getResponse().getStatus());
+        assertEquals("STALE_CHECK", json(future).path("detail").path("code").asText());
+        assertEquals(1, checkRows(bid));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_CHECK WHERE BID_CASE_ID=? AND REV_NO=1 AND MARK_CD='DONE'", bid));
+        assertEquals(2, actCount(bid, "DASH_CHECK", "BLOCKED"));
+        assertEquals(200, check(MEMBER2, bid, COL, mark("IN_PROGRESS", 1)).getResponse().getStatus());   // 맞는 번호로 다시 하면 저장
+        assertEquals(2, checkRows(bid));
+    }
+
     @Test
     public void D12_담당이_아닌_사람은_영업팀장과_부장도_403이고_행이_늘지_않는다() throws Exception {
         String bid = opened(INST);

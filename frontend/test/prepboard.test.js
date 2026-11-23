@@ -456,3 +456,17 @@ test('T9 reset: 칸 메뉴가 열린 채 계정 전환 → 메뉴는 숨겨진�
   pb.reset();
   assert.strictEqual(ENV.menu.style.display, 'none', 'reset 뒤 메뉴가 숨겨진다');
 }));
+
+// qa P3-7 — 표에서 상세를 열 때 숨은 왼쪽 목록(GET /preps)을 부르지 않는다. 옛 화면(refresh)은 그대로.
+test('enterCase(P3-7): 표에서 연 상세는 /preps 목록을 부르지 않는다, 옛 화면 refresh는 loadList 유지', function () {
+  const a = PREP_SRC.indexOf('function enterCase(bid) {');
+  const b = PREP_SRC.indexOf('function backToBoard()');
+  assert.ok(a > 0 && b > a, 'enterCase 범위');
+  const body = PREP_SRC.slice(a, b);
+  assert.ok(/if \(!boardOn\(\)\) loadList\(\);/.test(body), '표가 없을 때만 목록을 부른다');
+  assert.ok(!/(^|[^!\w.])loadList\(\)/m.test(body.replace(/if \(!boardOn\(\)\) loadList\(\);/, '')), '조건 없이 loadList를 부르지 않는다');
+  assert.ok(body.indexOf("S.view = 'case'; S.fromBoard = true;") > 0, '시작 상태 그대로');
+  assert.ok(body.indexOf('showView();') < body.indexOf('loadDetail(S.selected, { popup: true })'), '상세는 그대로 연다');
+  const r = PREP_SRC.slice(PREP_SRC.indexOf('function refresh() {'), PREP_SRC.indexOf('// ── 쓰기 공통'));
+  assert.ok(/paintList\(\);\s*loadList\(\);/.test(r), '옛 화면 refresh의 목록 호출 유지');
+});

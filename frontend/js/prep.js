@@ -1019,7 +1019,8 @@
     clearQueryBox();
     clearNotices();
     showView();
-    loadList();
+    // 표에서 연 상세는 숨은 왼쪽 목록이 필요 없다 — GET /preps(prep_list/refresh)를 보내지 않는다(qa P3-7).
+    if (!boardOn()) loadList();
     loadDetail(S.selected, { popup: true });
   }
   // [← 대시보드로] — 거르기·스크롤은 prepboard가 간직하고, 표는 다시 불러온다(상세에서 과제를 체크하면 자동 칸이 바뀐다).

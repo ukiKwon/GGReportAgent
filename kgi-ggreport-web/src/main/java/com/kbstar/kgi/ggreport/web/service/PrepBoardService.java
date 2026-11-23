@@ -1,10 +1,10 @@
 package com.kbstar.kgi.ggreport.web.service;
 
-import com.kbstar.kgi.ggreport.web.domain.BankContract;
 import com.kbstar.kgi.ggreport.web.domain.BankContractCode;
 import com.kbstar.kgi.ggreport.web.domain.BidPrep;
 import com.kbstar.kgi.ggreport.web.domain.BidPrepTask;
 import com.kbstar.kgi.ggreport.web.domain.ExtCheck;
+import com.kbstar.kgi.ggreport.web.domain.PrepBoardBank;
 import com.kbstar.kgi.ggreport.web.domain.PrepBoardCheck;
 import com.kbstar.kgi.ggreport.web.domain.PrepBoardRef;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
@@ -87,7 +87,7 @@ public class PrepBoardService {
     private final PrepBoardMapper mapper;
     private final PrepService prep;
     private final BidAssignmentService assignments;
-    private final BankContractMapper banks;
+    private final BankContractMapper banks;   // P3-8 뒤 목록은 mapper 묶음 질의를 쓴다 — 생성자 시그니처 유지용(PrepBoardServiceTest), 다음 정리 때 제거
     private final NoticeRoundService notices;
     private final PrepAudit audit;
     private final ExtCheckMapper extChecks;
@@ -199,6 +199,7 @@ public class PrepBoardService {
             m.put(c.getColCd(), c);
         }
         String today = Times.todayKst();
+        Map<String, List<Map<String, Object>>> banksByInst = currentBanksByInst(today);   // P3-8: 기관별 묶음 1회
         List<Map<String, Object>> rows = new ArrayList<Map<String, Object>>();
         for (BidPrep p : ordered) {
             String bid = p.getBidCaseId();
@@ -221,7 +222,8 @@ public class PrepBoardService {
             m.put("confirmed_at", p.getConfirmedAt());
             m.put("confirmed_by_name", hideNames ? null : confirmers.get(bid));
             m.put("assignee_names", hideNames || !names.containsKey(bid) ? Collections.<String>emptyList() : names.get(bid));
-            m.put("current_banks", currentBanks(p.getInstitutionId(), today));
+            m.put("current_banks", banksByInst.containsKey(p.getInstitutionId())
+                    ? banksByInst.get(p.getInstitutionId()) : Collections.<Map<String, Object>>emptyList());
             m.put("can_view", canView);
             m.put("is_mine", mine.contains(bid));
             m.put("can_check", mine.contains(bid) && CHECK_STATES.contains(p.getStateCd()));
@@ -321,15 +323,18 @@ public class PrepBoardService {
         return m;
     }
 
-    private List<Map<String, Object>> currentBanks(String inst, String today) {   // 행당 1질의 — 남은 비용(security 6, 백 단위가 넘으면 묶음 질의로)
-        List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
-        for (BankContract c : banks.selectLatestValid(inst)) {
+    /** 기관 → 지금 유효한(만료 안 된) 약정 줄. 질의 1회(qa P3-8 — 예전엔 행마다 selectLatestValid). 같은 기관 안 순서는 줄 번호순. */
+    private Map<String, List<Map<String, Object>>> currentBanksByInst(String today) {
+        Map<String, List<Map<String, Object>>> out = new HashMap<String, List<Map<String, Object>>>();
+        for (PrepBoardBank c : mapper.selectLatestValidBanks()) {
             if (c.getTermTo() == null || c.getTermTo().compareTo(today) < 0) { continue; }
             Map<String, Object> b = new LinkedHashMap<String, Object>();
             b.put("rank_cd", c.getRankCd());
-            b.put("bank_name", c.getBankName() != null ? c.getBankName() : c.getBankNameEtc());
+            b.put("bank_name", c.getBankName());
             b.put("term_to", c.getTermTo());
-            out.add(b);
+            List<Map<String, Object>> l = out.get(c.getInstitutionId());
+            if (l == null) { l = new ArrayList<Map<String, Object>>(); out.put(c.getInstitutionId(), l); }
+            l.add(b);
         }
         return out;
     }

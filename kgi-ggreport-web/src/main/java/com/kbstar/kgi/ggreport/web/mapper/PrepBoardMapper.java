@@ -2,6 +2,7 @@ package com.kbstar.kgi.ggreport.web.mapper;
 
 import com.kbstar.kgi.ggreport.web.domain.BankContractCode;
 import com.kbstar.kgi.ggreport.web.domain.BidPrepTask;
+import com.kbstar.kgi.ggreport.web.domain.PrepBoardBank;
 import com.kbstar.kgi.ggreport.web.domain.PrepBoardCheck;
 import com.kbstar.kgi.ggreport.web.domain.PrepBoardRef;
 import org.apache.ibatis.annotations.Mapper;
@@ -18,6 +19,7 @@ public interface PrepBoardMapper {
     List<String> selectDesignFinalCases(@Param("team") String team, @Param("status") String status);
     List<BankContractCode> selectCodes(@Param("group") String group);
     List<PrepBoardCheck> selectCurrent();
+    List<PrepBoardBank> selectLatestValidBanks();   // 전 기관 '지금 유효한 SAVE 줄' 묶음 — 행마다 질의하지 않게(P3-8)
     PrepBoardCheck selectCurrentOne(@Param("bidCaseId") String bidCaseId, @Param("colCd") String colCd);
     int insertCheck(PrepBoardCheck c);
 }
