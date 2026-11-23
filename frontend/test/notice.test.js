@@ -438,7 +438,7 @@ test('M1: 120일 넘긴 확정 공고는 \'공고 후 n일 · 결과 미확인\'
   const row = n => dash.rowHtml(m.overdue.filter(o => o.name === n)[0], { id: 'x' });
   const note = '공고 후 121일 · 결과 공고를 확인하세요';
   assert.ok(row('확정121').includes(note) && !row('확정121').includes('공고 진행 중'), row('확정121'));
-  assert.ok(row('관악구청').includes(note) && row('관악구청').includes('날짜 의미 확인 중'), row('관악구청'));   // 꼬리표 유지
+  assert.ok(row('관악구청').includes(note) && /공고일 \d{4}-\d{2}-\d{2}/.test(row('관악구청')), row('관악구청'));   // 이름표·보조 문구
   assert.ok(row('추정').includes('공고가 났는지 확인이 필요합니다') && !row('추정').includes('결과 공고를 확인하세요'));
   // 경과 패널·팝업
   const it = s.items.filter(i => i.name === '확정121')[0];

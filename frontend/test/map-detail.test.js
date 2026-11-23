@@ -49,7 +49,7 @@ test('popupHtml(11-19 저녁 4-4): 머리 줄 [주버튼] ┃ [×] 순서, 본�
   const a = dash.popupHtml(it, o);
   assert.ok(a.bar.indexOf('<div class="dm-bar">') === 0 && a.bar.indexOf('id="dm-name"') > 0);
   assert.ok(a.bar.indexOf('id="dm-edit"') < 0 && a.bar.indexOf('id="db-cf"') < a.bar.indexOf('class="dm-sep"') && a.bar.indexOf('class="dm-sep"') < a.bar.indexOf('id="dm-close"'));   // 주 동작 → 구분선 → ×(편집은 기관 정보 절로 옮김, 11-19)
-  assert.ok(/id="dm-close" class="dm-x" aria-label="닫기"/.test(a.bar) && a.bar.indexOf('id="db-cf" disabled') < 0);
+  assert.ok(/id="dm-close" class="dm-cls" aria-label="닫기" title="닫기 \(Esc\)">닫기<\/button>/.test(a.bar) && a.bar.indexOf('id="db-cf" disabled') < 0);
   assert.ok(a.body.indexOf('db-act') < 0 && a.body.indexOf('id="dm-name"') < 0 && a.body.indexOf('<p class="db-sub">') > 0 && a.note === '');
   const c = dash.popupHtml(it, Object.assign({}, o, { confirm: true }));
   assert.ok(c.bar.indexOf('id="db-cf" disabled') > 0 && c.note.indexOf('id="dm-confirm"') > 0 && c.note.indexOf('id="db-do"') > 0 && c.note.indexOf('id="db-cancel"') > 0);

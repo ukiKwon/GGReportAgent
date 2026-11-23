@@ -47,7 +47,7 @@
     up: '<svg class="gph up" viewBox="0 0 12 12"><path d="M6 2.4 10.4 9.6H1.6Z" fill="currentColor"/></svg>',
     // 공고 예정일 경과 도장(시계) — 임박(▲, 빨강)과 모양·색·글자가 모두 다른 무채색 신호.
     overdue: '<svg class="gph" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 3.4V6l1.9 1.3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-    // '날짜 의미 확인 중' 표식(점선 원 + i)
+    // 날짜 뜻이 불확실한 날짜용 표식(점선 원 + i). 지금 쓰는 곳 없음 — 공고일 7곳은 뜻이 확인돼 이름표로 바꿨다(11-23). 시험이 존재를 검사하므로 남긴다.
     check: '<svg class="gph" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.4"/><line x1="6" y1="5.4" x2="6" y2="8.6" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="3.7" r=".75" fill="currentColor"/></svg>',
   };
   // MAP_COLORS는 지도 위(지역 면·마커)의 5단 색이고 테마로 바꾼다. URGENCY_COLORS는 **크롬**(티커)의

@@ -289,7 +289,7 @@ test('확정·확인 중·자료 수정 집계', function () {
   const list = [
     rec('가', '11', 50, { updatedAt: '2026-11-01T10:00:00' }),
     rec('나', '11', 60, { confirmed: false, updatedAt: '2026-11-09' }),
-    rec('관악구청', '11', 70),                                // 날짜 의미 확인 중 7곳 중 하나
+    rec('관악구청', '11', 70),                                // 공고일 이름표 7곳 중 하나
   ];
   const m = dash.model(list, TODAY);
   assert.strictEqual(m.confirmedN, 2);
@@ -297,7 +297,8 @@ test('확정·확인 중·자료 수정 집계', function () {
   assert.strictEqual(m.maxUpdated, '2026-11-09');
   const chk = m.upcoming.filter(function (u) { return u.name === '관악구청'; })[0];
   assert.strictEqual(chk.check, true);
-  assert.ok(dash.rowHtml(chk, { id: 'x' }).indexOf('날짜 의미 확인 중') >= 0);
+  const crow = dash.rowHtml(chk, { id: 'x' });
+  assert.ok(crow.indexOf('class="dt-note"') >= 0 && /공고일 \d{4}-\d{2}-\d{2}/.test(crow) && crow.indexOf('의미 확인') < 0);
 });
 
 test('1년 안 0곳: 시간표는 0을 숨기지 않고 경과·1년 뒤·날짜 미상 칸을 함께 보인다', function () {
@@ -746,12 +747,12 @@ test('약정 만료 기준 추정은 목록 행·메타·상세 어디서나 같
   const notice = by('공고구청');
   assert.strictEqual(notice.basis, 'notice');
   const pane = dash.paneHtml(notice, { act: 'none' });
-  assert.ok(pane.indexOf('공고된 날짜이나 의미 확인 중입니다') >= 0 && pane.indexOf('지난 금고 선정일에 약정 주기를 더한') < 0);
+  assert.ok(pane.indexOf('— 공고일로 적힌 날짜입니다') >= 0 && pane.indexOf('지난 금고 선정일에 약정 주기를 더한') < 0);
   assert.ok(dash.paneHtml(by('확정구청'), { act: 'none' }).indexOf('공고로 확인한 날입니다') >= 0);
   const cyc = by('주기구청');
   if (cyc) assert.ok(dash.paneHtml(cyc, { act: 'none' }).indexOf('지난 금고 선정일에 약정 주기를 더한') >= 0);
   const leg = dash.timelineHtml(m, T, '6');
-  assert.ok(leg.indexOf('추정(지난 금고 선정일+약정 주기 / 약정 만료 6개월 전 / 공고 날짜 의미 확인 중)') >= 0);
+  assert.ok(leg.indexOf('추정(지난 금고 선정일+약정 주기 / 약정 만료 6개월 전)') >= 0 && leg.indexOf('공고일 기준(결과 공고 미확인)') >= 0);
   assert.ok(m.expiryN === 0 || leg.indexOf('1년 안 약정 만료 기준 <b class="v">' + m.expiryN + '</b>곳') >= 0);
 });
 
@@ -813,11 +814,28 @@ test('상세 보기 전용(11-19): lockBank는 can_edit을 끄고 원본을 바�
   const l = dash.lockBank(v);
   assert.strictEqual(l.data.can_edit, false); assert.strictEqual(v.data.can_edit, true);
   assert.strictEqual(dash.lockBank(null), null);
-  // 11-19 저녁 design 4-4: 팝업 머리 줄. 보기 전용은 ×(#dm-close)만 — [편집]·주버튼 없음
+  // 11-19 저녁 design 4-4: 팝업 머리 줄. 보기 전용은 [닫기](#dm-close, 글자 단추 — × 아이콘 금지 11-23)만 — [편집]·주버튼 없음
   const ro = dash.popupHtml(dash.itemForRec({ name: '가람시청', region: '11', type: '지자체', confirmed: true }, new Date(2026, 10, 19)), { act: 'none', role: '디자이너', readOnly: true, nameId: 'dm-name', today: new Date(2026, 10, 19) });
-  assert.ok(ro.bar.indexOf('id="dm-edit"') < 0 && ro.bar.indexOf('db-next') < 0 && ro.bar.indexOf('id="dm-close"') > 0 && ro.bar.indexOf('aria-label="닫기"') > 0);
+  assert.ok(ro.bar.indexOf('id="dm-edit"') < 0 && ro.bar.indexOf('db-next') < 0 && ro.bar.indexOf('id="dm-close"') > 0 && ro.bar.indexOf('aria-label="닫기"') > 0 && ro.bar.indexOf('>닫기</button>') > 0 && ro.bar.indexOf('<svg') < 0);
   const s = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8');
   assert.ok(/readOnly: dash\.isViewOnly\(\)/.test(s) && /dash\.isViewOnly = function/.test(s) && /if \(dash\.isViewOnly\(\)\) return 'none';/.test(s) && /canEdit: n\.canEdit\(\) && !dash\.isViewOnly\(\)/.test(s) &&/if \(m\.readOnly\) act = 'none';/.test(s));
   assert.ok(/m\.readOnly && \['dm-edit', 'bk-edit', 'db-cf', 'db-do', 'db-open'\]/.test(s));
   assert.ok(/dash\.onProfileChange = function/.test(s) && s.indexOf('최근 절차일') < 0 && s.indexOf('지난 금고 선정일') > 0);
+});
+
+test('logic.checkDateNote: 공고일(칸 값)과 약정 만료일(레코드 칸 → 행안부 현황 끝 날짜)을 이름 붙여 보인다', function () {
+  const base = { region: '11', name: '관악구청', contractEnd: '2026-08-13' };
+  const lofin = { rows: { '11|관악구청': [{ bank: '우리은행', end: '2025-12-31' }, { bank: '우리은행', end: '2026-12-31' }] } };
+  assert.strictEqual(logic.checkDateNote(base, lofin), '공고일 2026-08-13 · 약정 만료 2026-12-31');
+  assert.strictEqual(logic.checkDateNote(Object.assign({ contractExpiry: '2027-03-31' }, base), lofin), '공고일 2026-08-13 · 약정 만료 2027-03-31');
+  assert.strictEqual(logic.checkDateNote(base, { rows: {} }), '공고일 2026-08-13');
+  assert.strictEqual(logic.checkDateNote(null, undefined), '공고일 기준 날짜입니다');
+});
+
+test("'날짜 의미 확인 중' 문구는 화면 소스에 없다(사용자 11-23 '오류처럼 보인다')", function () {
+  const dir = path.join(ROOT, 'js');
+  fs.readdirSync(dir).filter(function (f) { return /\.js$/.test(f); }).forEach(function (f) {
+    assert.ok(fs.readFileSync(path.join(dir, f), 'utf8').indexOf('날짜 의미 확인 중') < 0, f);
+  });
+  assert.ok(fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8').indexOf('날짜 의미 확인 중') < 0);
 });

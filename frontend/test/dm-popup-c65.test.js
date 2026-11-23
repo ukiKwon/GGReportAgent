@@ -29,7 +29,7 @@ test('2 popupHtml: [이전]은 제목 앞, 스택이면 × aria가 돌아갈 곳
   const b = dash.popupHtml(it, { act: 'confirm', role: '영업팀', today: TODAY, nameId: 'dm-name', back: back });
   assert.ok(b.bar.indexOf('<div class="dm-bar has-back"><button type="button" id="dm-back" class="dm-back" aria-label="이전: 협약 중인 기관 목록">') === 0);
   assert.ok(b.bar.indexOf('id="dm-back"') < b.bar.indexOf('id="dm-name"'));
-  assert.ok(b.bar.indexOf('id="dm-close" class="dm-x" aria-label="닫기 — 협약 중인 기관 목록으로 돌아갑니다"') > 0);
+  assert.ok(b.bar.indexOf('id="dm-close" class="dm-cls" aria-label="닫기 — 협약 중인 기관 목록으로 돌아갑니다" title="닫기 — 협약 중인 기관 목록으로 돌아갑니다 (Esc)">닫기</button>') > 0);
   const e = dash.popupHtml(it, { act: 'confirm', role: '영업팀', today: TODAY, nameId: 'dm-name', back: { aria: '이전: 기관 상세', close: '닫기 — 기관 상세로 돌아갑니다' }, editing: true });
   assert.ok(e.bar.indexOf('db-cf') < 0 && e.bar.indexOf('dm-sep') < 0 && e.bar.indexOf('id="dm-back"') > 0);
 });
@@ -97,7 +97,7 @@ test('7 CSS: #edit-modal z-index가 .modal-overlay(30)보다 크다, #hb-ours는
   assert.ok(Number(/#edit-modal \{ z-index:(\d+); \}/.exec(h)[1]) > Number(/\.modal-overlay \{[^}]*z-index:(\d+)/.exec(h)[1]));
   assert.ok(/#hb-ours \{ width:min\(720px, calc\(100vw - 32px\)\); margin:32px auto; max-height:calc\(100vh - 64px\);/.test(h));
   assert.ok(/\.modal-box\.dm-box \{ width:min\(720px, calc\(100vw - 32px\)\); max-height:calc\(100vh - 64px\); margin:32px auto;/.test(h));
-  assert.ok(/\.dm-btns \.dm-sep \{[^}]*width:1px; height:20px/.test(h) && /\.dm-btns \.db-next \{ height:32px;/.test(h) && /\.dm-btns \.dm-x \{[^}]*background:transparent/.test(h));
+  assert.ok(/\.dm-btns \.dm-sep \{[^}]*width:1px; height:20px/.test(h) && /\.dm-btns \.db-next \{ height:32px;/.test(h) && /\.dm-btns \.dm-cls \{ height:32px; padding:0 14px; \}/.test(h) && !/\.dm-x\b/.test(h));
   assert.ok(/\.db-sec \.db-sec-h h3 \{[^}]*margin:0/.test(h));                                      // .db-sec h3(뒤에 나옴)의 margin을 이긴다
 });
 

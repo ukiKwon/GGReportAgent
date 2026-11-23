@@ -86,7 +86,7 @@ test('overdueSummary: 최근에 지난 순(days 오름차순)', function () {
   assert.deepStrictEqual(s.items.map(function (i) { return i.name; }), ['최근', '중간', '오래']);
 });
 
-// ── 날짜 의미 확인 중 ───────────────────────────────────────────────────────
+// ── 공고일 이름표 7곳(옛 '날짜 의미 확인 중') ───────────────────────────────────────────────────────
 function loadInstitutions() {
   const sandbox = { window: {} };
   vm.createContext(sandbox);
@@ -300,7 +300,7 @@ test('itemHtml: D+n 도장, 스크린리더 문장, 기관명 이스케이프', 
   assert.ok(!html.includes('추측'));
 });
 
-test('confHtml: 확인 중은 확정·추정 표식을 대신하고, 추정 근거는 title로 준다', function () {
+test('confHtml: 공고일 7곳은 이름표 \'공고일\'+보조 문구가 확정·추정 표식을 대신하고, 추정 근거는 title로 준다', function () {
   const s = logic.overdueSummary([
     rec('영천시청', '47', '2026-07-30'),
     rec('추정건', '41', null, { contractEnd: undefined, confirmed: false, lastBid: '2022-10-20', term: 4 }),
@@ -308,8 +308,8 @@ test('confHtml: 확인 중은 확정·추정 표식을 대신하고, 추정 근�
   const byName = {};
   s.items.forEach(function (i) { byName[i.name] = i; });
   const chk = ov.confHtml(byName['영천시청']);
-  assert.ok(chk.includes('is-check') && chk.includes('날짜 의미 확인 중'));
-  assert.ok(!chk.includes('확정') && !chk.includes('>추정<'));
+  assert.ok(chk.includes('ov-conf is-notice') && chk.includes('>공고일<') && chk.includes('class="dt-note"') && /공고일 \d{4}-\d{2}-\d{2}/.test(chk));
+  assert.ok(!chk.includes('확정') && !chk.includes('>추정<') && !chk.includes('title=') && !chk.includes('확인 중'));
   const est = ov.confHtml(byName['추정건']);
   assert.ok(est.includes('지난 금고 선정일 2022-10-20 + 4년으로 계산한 날짜'));
 });

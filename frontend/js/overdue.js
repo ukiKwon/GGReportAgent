@@ -34,7 +34,6 @@
   function $(id) { return typeof document === 'undefined' ? null : document.getElementById(id); }
 
   // ── HTML 조각(순수) ─────────────────────────────────────────────────────────
-  ov.TITLE_CHECK = '이 날짜가 공고일인지 약정 만료일인지 원문을 확인하고 있습니다';
 
   // 확정 공고가 공고 후 120일을 넘긴 건(noticeExpired)은 '예정일 경과'가 아니라 '공고 후 n일'이다 — 공고는 났고 결과만 모른다.
   ov.NOTICE_EXPIRED_NOTE = function (it) { return logic.NOTICE_WORDS.expiredNote(it.days); };
@@ -44,10 +43,10 @@
       '<span class="sr-only">' + (it.noticeExpired ? '공고 후 ' + it.days + '일 지남' : '예정일 ' + it.days + '일 지남') + '</span></span>';
   };
 
-  // 날짜 근거 표식. '날짜 의미 확인 중'이면 확정·추정 표식을 대신한다.
+  // 날짜 근거 표식. 공고일 이름표 7곳(kind 'check')은 확정·추정 표식 대신 이름표 '공고일'과 보조 문구 한 줄을 보인다(데이터 검수 11-23).
   ov.confHtml = function (it) {
     if (it.kind === 'check') {
-      return '<span class="ov-conf is-check" title="' + esc(ov.TITLE_CHECK) + '">' + icon('check') + '날짜 의미 확인 중</span>';
+      return '<span class="ov-conf is-notice">공고일</span><span class="dt-note">' + esc(logic.checkDateNote(it.rec)) + '</span>';
     }
     if (it.kind === 'est') {
       const rec = it.rec || {};

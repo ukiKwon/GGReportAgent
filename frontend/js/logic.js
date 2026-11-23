@@ -197,7 +197,7 @@
   };
 
   // 데이터 정정(NEXT 30-1) 전 임시 — 공고일이 contractEnd 칸에 들어 있어 날짜 의미가
-  // 확인될 때까지 '날짜 의미 확인 중'을 붙이는 15기관(region|name, dedupeByInstitution과 같은 키).
+  // 확인될 때까지 '공고일' 이름표와 보조 문구(logic.checkDateNote)를 붙이는 기관(region|name, dedupeByInstitution과 같은 키). 데이터 검수 11-23: 7곳 날짜는 모두 금고 지정 공고일.
   // 정정이 끝나 contractEnd 의미가 바로잡히면 이 상수와 표식을 함께 지운다.
   // data/ 파일은 건드리지 않는다.
   logic.OVERDUE_CHECK_KEYS = [
@@ -224,6 +224,27 @@
   };
   logic.isDateUnderReview = function (rec) {
     return logic.OVERDUE_CHECK_KEYS.indexOf(logic.instKey(rec)) >= 0;
+  };
+  // 공고일 이름표 7곳의 보조 문구용 약정 만료일. 레코드 칸(contractExpiry) 먼저, 없으면 행안부 현황(LOFIN_2026.rows[키])의 끝 날짜 중 가장 늦은 것. 없으면 ''.
+  function dateOnly(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) ? String(s) : ''; }
+  logic.expiryDateOf = function (rec, lofin) {
+    if (!rec) return '';
+    const own = dateOnly(rec.contractExpiry);
+    if (own) return own;
+    const L = lofin !== undefined ? lofin : root.LOFIN_2026, k = logic.instKey(rec);
+    const rows = L && L.rows && Object.prototype.hasOwnProperty.call(L.rows, k) ? L.rows[k] : null;
+    let best = '';
+    (Array.isArray(rows) ? rows : []).forEach(function (x) { const e = dateOnly(x && x.end); if (e > best) best = e; });
+    return best;
+  };
+  // 7곳 날짜 아래 회색 한 줄 — 무슨 날짜인지 이름을 붙여 보인다(사용자 11-23 '무슨 날짜인지 명확히'). 데이터 검수 11-23: contractEnd 칸 값은 금고 지정 공고일.
+  // 결과 확인 안내는 행의 기존 문구('결과가 났는지 확인하세요')가 하므로 여기서는 되풀이하지 않는다.
+  logic.checkDateNote = function (rec, lofin) {
+    const n = dateOnly(rec && rec.contractEnd), e = logic.expiryDateOf(rec, lofin);
+    const parts = [];
+    if (n) parts.push('공고일 ' + n);
+    if (e) parts.push('약정 만료 ' + e);
+    return parts.length ? parts.join(' · ') : '공고일 기준 날짜입니다';
   };
 
   // ── 공고 진행 중(2026-11-12, design-reviewer 1522 규격) ──────────────────────────
@@ -349,7 +370,7 @@
       if (d >= 0) return;               // 오늘이 예정일이거나 아직 남음 — 경과 아님
       const check = logic.isDateUnderReview(r);
       // noticeExpired: 확정 공고(confirmed + contractEnd = 공고일)가 공고 후 120일을 넘긴 것 — 공고는 났고 결과만 모른다.
-      // 'check'(날짜 의미 확인 중)여도 확정 공고면 true. 추정 날짜 경과는 false(공고 여부부터 확인).
+      // 'check'(공고일 이름표 7곳)여도 확정 공고면 true. 추정 날짜 경과는 false(공고 여부부터 확인).
       items.push({ rec: r, name: r.name || '', region: r.region || '', date: e.date, days: -d,
         kind: check ? 'check' : (e.confidence === '확정' ? 'fixed' : 'est'), check: check,
         noticeExpired: e.confidence === '확정' && e.basis === 'notice' && -d > logic.NOTICE_ACTIVE_DAYS });
@@ -431,7 +452,7 @@
     }).sort(function (a, b) { return (b.n - a.n) || (a.code < b.code ? -1 : (a.code > b.code ? 1 : 0)); });
   };
 
-  // 팝업 상위 N건: 관심 지역 먼저 → 최근에 지난 순 → '날짜 의미 확인 중'은 맨 뒤.
+  // 팝업 상위 N건: 관심 지역 먼저 → 최근에 지난 순 → 공고일 이름표 7곳(check)은 맨 뒤.
   logic.pickTopOverdue = function (items, watched, n) {
     const w = watched || [];
     return items.slice().sort(function (a, b) {

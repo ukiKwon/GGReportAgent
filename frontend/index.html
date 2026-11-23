@@ -1547,9 +1547,7 @@
   .dm-btns { flex:none; display:flex; align-items:center; gap:0; }
   .dm-btns .db-next { height:32px; padding:0 14px; font-weight:700; }
   .dm-btns .dm-sep { width:1px; height:20px; margin:0 12px; background:var(--line-strong); }   /* 주 동작 | 창 닫기 — 주 동작이 있을 때만 */
-  .dm-btns .dm-x { display:inline-flex; align-items:center; justify-content:center; width:32px; min-width:32px; height:32px; padding:0; border-color:transparent; background:transparent; }   /* 창 제어는 동작 단추와 모양을 달리한다(design 6-3). 높이 32px 통일(11-19 실측 이력) */
-  .dm-btns .dm-x:hover { background:var(--panel); border-color:var(--line-strong); }
-  .dm-x svg { width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:1.6; }
+  .dm-btns .dm-cls { height:32px; padding:0 14px; }   /* 글자 [닫기] — 다른 .dlg 창 단추와 같은 높이·안쪽 여백(DESIGN.md '팝업': × 아이콘 금지, 11-23) */
   .dm-note { flex:none; }
   .dm-box .db-flash:empty, #dm-act-note:empty { display:none; }
   .dm-box .db-flash { padding:8px 24px; border-bottom:1px solid var(--line); }
@@ -1642,7 +1640,6 @@
   .ov-conf .gph { width:10px; height:10px; }
   .ov-conf.is-est { border:1px dashed var(--line-strong);
                     background-image:repeating-linear-gradient(45deg, rgba(139,148,163,.16) 0 2px, transparent 2px 4px); }
-  .ov-conf.is-check { border:1px dotted var(--muted); color:var(--fg); }
   .ov-empty { padding:28px 14px; text-align:center; color:var(--muted); font-size:12px; line-height:1.6; word-break:keep-all; }
   .ov-empty p { margin:0; }
   #ov-unknown { margin:0; padding:8px 14px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
@@ -1796,6 +1793,8 @@
   .db-dl dd { margin:0; font-size:13px; }
   .db-dl .v { font-family:var(--mono); }
   .db-why { font-size:12px; color:var(--muted); }
+  .dt-note { display:block; font-size:12px; line-height:16px; color:var(--muted); }   /* 날짜 이름표 보조 문구 — 날짜 아래 한 줄, 빨강 아님(날짜 뜻은 확실, 11-23) */
+  .db-row .meta .dt-note, .ov-meta .dt-note { flex:0 0 100%; }   /* 행의 flex 줄에서 새 줄로 */
   .db-src summary { font-size:12px; color:var(--muted); cursor:pointer; margin-top:8px; }
   .db-src ol { margin:6px 0 0; padding-left:18px; font-size:12px; color:var(--muted); line-height:1.6; word-break:break-all; }
   .db-empty { font-size:12px; color:var(--muted); margin:8px 0 0; word-break:keep-all; line-height:1.5; }
@@ -3022,10 +3021,10 @@ review, the verdict, and DESIGN.md
           <button id="dg-upload">올리기</button>
           <span class="dg-hint">pptx · ppt · pdf · png · jpg · zip / 최대 50MB</span>
         </div>
-        <h4>메모</h4>
         <div id="dc-up" class="dc-up" hidden><span class="bd-w-prog" role="progressbar" aria-label="파일 올리는 중"><i></i></span><span>파일을 올리고 다른 기관 이름을 찾는 중입니다. 큰 파일은 20초쯤 걸릴 수 있습니다.</span></div>
         <p id="dc-up-msg" class="dg-hint"></p>
         <div id="dc-live" class="sr-only" role="status" aria-live="polite"></div>
+        <h4>메모</h4>
         <textarea id="dg-memo" rows="3" placeholder="작업 메모(임시저장됩니다)"></textarea>
         <div id="dg-actions">
           <button id="dg-save">임시저장</button>
@@ -3266,7 +3265,6 @@ review, the verdict, and DESIGN.md
   </div>
 </div>
 
-<!-- 순수 로직 -->
 <!-- 제안서 점검: 제출 확인창(NEXT 106, 공통 팝업 .dlg). 변형 A(일반)·B(미확인)는 designer.js가 채운다. 규격 design-reviewer 2026-11-23 106 6-5 -->
 <div id="dc-submit-modal" class="modal-overlay" style="display:none;">
   <div class="dlg dlg--wide" role="alertdialog" aria-modal="true" aria-labelledby="dc-sm-t" aria-describedby="dc-sm-d">
@@ -3283,6 +3281,7 @@ review, the verdict, and DESIGN.md
   </div>
 </div>
 
+<!-- 순수 로직 -->
 <script src="js/dlg.js"></script>
 <script src="js/logic.js"></script>
 <script src="js/store.js"></script>
@@ -3292,8 +3291,8 @@ review, the verdict, and DESIGN.md
 <script src="js/notify.js"></script>
 <script src="js/knowledge.js"></script>
 <script src="js/roles.js"></script>
-<script src="js/designer.js"></script>
 <script src="js/doccheck.js"></script>
+<script src="js/designer.js"></script>
 <script src="js/menu_rules.js"></script>
 <script src="js/login.js"></script>
 <script src="data/login-slides.js"></script>

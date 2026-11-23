@@ -435,13 +435,14 @@
   function dayText(days) { return days === 0 ? 'D-day' : 'D-' + days; }
   // 경과 행 안내: 실제 뜬 공고(확정)의 날짜가 지났으면 공고는 이미 났고 결과를 기다리는 중이다(9f·qa 11-12 —
   // contractEnd=공고일 규칙이라 진행 중 공고가 경과로 잡힌다). 추정 날짜가 지났으면 공고 여부부터 확인.
-  // 120일을 넘긴 확정 공고(noticeExpired)는 '진행 중'이 아니라 '공고 후 n일 · 결과 공고를 확인하세요'이다('날짜 의미 확인 중'이어도 확정이면 같은 문구,
-  // 꼬리표는 chkHtml이 붙인다). 문구는 logic.NOTICE_WORDS 한 곳. 추정 날짜 경과만 공고가 났는지부터 확인한다.
+  // 120일을 넘긴 확정 공고(noticeExpired)는 '진행 중'이 아니라 '공고 후 n일 · 결과 공고를 확인하세요'이다(공고일 이름표 7곳이어도 확정이면 같은 문구,
+  // 보조 문구는 dtNoteHtml이 붙인다). 문구는 logic.NOTICE_WORDS 한 곳. 추정 날짜 경과만 공고가 났는지부터 확인한다.
   dash.overdueNote = function (it) {
     const expired = it.noticeExpired !== undefined ? it.noticeExpired : it.kind === 'fixed';
     return expired ? logic.NOTICE_WORDS.expiredNote(it.days) : '공고가 났는지 확인이 필요합니다';
   };
-  function chkHtml(it) { return it.check ? ' <span class="db-chk">날짜 의미 확인 중</span>' : ''; }
+  // 공고일 이름표 7곳(logic.OVERDUE_CHECK_KEYS): 날짜는 금고 지정 공고일이다(데이터 검수 11-23). 뜻이 분명하니 빨강·밑줄 없이 날짜 아래에 회색 보조 문구 한 줄만 둔다.
+  function dtNoteHtml(it) { return it.check ? '<span class="dt-note">' + esc(logic.checkDateNote(it.rec)) + '</span>' : ''; }
 
   // ── 공고 상태 기록(2단계): 행·상세·현황판이 같은 판정(logic.recordView)을 쓴다. snap을 안 넘기면 noticerec의 지금 값, 없으면 전부 미처리 ──
   function curSnap() { const n = NR(); return n && n.snap ? n.snap() : null; }
@@ -474,7 +475,7 @@
   // '결과 확인' 묶음 = 마감 지남 + 마감일 미확인 30일 초과. 띠 카드·지도 색에서 빠지고 목록에서만 보인다.
   // 결과 확인 = 마감 지남 또는 마감일 미확인인데 공고 후 30일 넘음(check 칸이 없는 항목도 같은 규칙으로 판정)
   function isCheck(it) {
-    if (it.resultCheck !== undefined) return !!it.resultCheck;   // check 칸은 '날짜 의미 확인 중' 뜻이라 따로 둔다
+    if (it.resultCheck !== undefined) return !!it.resultCheck;   // check 칸은 '공고일 이름표 7곳' 뜻이라 따로 둔다
     return it.phase === 'awaiting' || (it.phase === 'unknown' && it.since > logic.NOTICE_UNKNOWN_OPEN_DAYS);
   }
   dash.isNoticeCheck = isCheck;   // 기관 사업계획(plans.js)이 같은 '결과 확인' 판정을 쓴다
@@ -595,17 +596,17 @@
       const nt = dash.recTagHtml(dash.recView(it, o.snap));
       return '<li role="option" id="' + esc(o.id || '') + '" class="db-row" data-key="' + esc(it.key) + '" data-phase="' + esc(it.phase) + (isCheck(it) ? '" data-check="1' : '') +
         '" aria-selected="' + (o.selected ? 'true' : 'false') + '"><span class="nm">' + esc(it.name) + '</span>' + dash.noticeChipHtml(it) +
-        '<span class="meta">' + esc(dash.regionName(it.region)) + ' · ' + dash.noticeNote(it) + chkHtml(it) + (nt ? ' · ' + nt : '') +
-        (o.prepActive ? ' <span class="wf-badge pp-neutral">사전준비 중</span>' : '') + '</span></li>';
+        '<span class="meta">' + esc(dash.regionName(it.region)) + ' · ' + dash.noticeNote(it) + (nt ? ' · ' + nt : '') +
+        (o.prepActive ? ' <span class="wf-badge pp-neutral">사전준비 중</span>' : '') + dtNoteHtml(it) + '</span></li>';
     }
     const rv = it.overdue ? dash.recView(it, o.snap) : null, view = rv ? rv.view : 'pending';
     const tag = it.overdue ? '<span class="ov-stamp' + (view === 'delayed' ? ' is-line' : view === 'done' ? ' is-plain' : '') + '">D+' + it.days + '</span>'
       : '<span class="dg-day ' + esc(it.band) + '">' + dayText(it.days) + '</span>';
     const rt = rv ? dash.recTagHtml(rv) : '';
     const meta = it.overdue
-      ? (rt ? rt + ' · ' + esc(dash.regionName(it.region)) : esc(dash.regionName(it.region)) + ' · ' + esc(dash.overdueNote(it))) + chkHtml(it)
-      : esc(dash.regionName(it.region)) + ' · <span class="d">' + esc(it.date) + '</span> ' + esc(it.label) + chkHtml(it) +
-        (o.prepActive ? ' <span class="wf-badge pp-neutral">사전준비 중</span>' : '');
+      ? (rt ? rt + ' · ' + esc(dash.regionName(it.region)) : esc(dash.regionName(it.region)) + ' · ' + esc(dash.overdueNote(it))) + dtNoteHtml(it)
+      : esc(dash.regionName(it.region)) + ' · <span class="d">' + esc(it.date) + '</span> ' + (it.check ? '공고일' : esc(it.label)) +
+        (o.prepActive ? ' <span class="wf-badge pp-neutral">사전준비 중</span>' : '') + dtNoteHtml(it);
     return '<li role="option" id="' + esc(o.id || '') + '" class="db-row" data-key="' + esc(it.key) + (view !== 'pending' ? '" data-rec="' + view : '') + '" aria-selected="' + (o.selected ? 'true' : 'false') + '">' +
       '<span class="nm">' + esc(it.name) + '</span>' + tag + '<span class="meta">' + meta + '</span></li>';
   };
@@ -643,9 +644,9 @@
     const unk = '<button type="button" class="db-tile unk" id="db-tomap"><span class="n">' + m.unknownN + '곳</span><span class="t">날짜 미상</span></button>';
     const exp = m.expiryN ? ' · 1년 안 약정 만료 기준 <b class="v">' + m.expiryN + '</b>곳' : '';
     const leg = '<div class="db-leg"><span><i class="seg s f"></i>공고로 확정</span>' +
-      '<span><i class="seg s"></i>추정(지난 금고 선정일+약정 주기 / 약정 만료 6개월 전 / 공고 날짜 의미 확인 중)' + exp + '</span>' +
+      '<span><i class="seg s"></i>추정(지난 금고 선정일+약정 주기 / 약정 만료 6개월 전)' + exp + '</span>' +
       '<span class="lg-up">' + toolIcon('up') + ' 6개월 안</span>' +
-      '<span class="lg-n">입찰일 공고로 확정 <b class="v">' + m.confirmedN + '</b>곳 · 날짜 의미 확인 중 <b class="v">' + m.underReviewN + '</b>곳</span></div>';
+      '<span class="lg-n">입찰일 공고로 확정 <b class="v">' + m.confirmedN + '</b>곳 · 공고일 기준(결과 공고 미확인) <b class="v">' + m.underReviewN + '</b>곳</span></div>';
     return head + '<div class="db-tl-body">' + tiles + '<div class="db-chart-wrap">' + chart + '</div>' + later + unk + '</div>' + leg;
   };
 
@@ -903,12 +904,14 @@
     const sub = '<p class="db-sub">' + esc(dash.kindOfRec(rec)) + ' · ' + esc(dash.regionName(rec.region)) + '</p>';
     const why = it.confidence === '확정' ? '— 공고로 확인한 날입니다'
       : it.basis === 'expiry' ? '— 약정 만료일의 6개월 전으로 추정한 날입니다(약정 만료 기준 추정)'
-      : it.basis === 'notice' ? '— 공고된 날짜이나 의미 확인 중입니다'
+      : it.basis === 'notice' ? '— 공고일로 적힌 날짜입니다'
       : '— 지난 금고 선정일에 약정 주기를 더한 날입니다';
     const lp = lastProcNote(rec);
     // 진행 중 공고는 맨 위 '공고 진행' 절이 공고일·접수·약정 만료를 맡는다 — 예정일 막대·'입찰 예정일' 줄은 두지 않는다.
     const info = (it.notice ? dash.noticeSecHtml(it, c.today) : oc ? '' : dash.termBarHtml(it, c.today)) +'<div class="db-sec">' + (c.infoEditHtml ? '<div class="db-sec-h"><h3>기관 정보</h3>' + c.infoEditHtml + '</div>' : '<h3>기관 정보</h3>') + '<dl class="db-dl">' +
-      (it.notice || oc ? '' : it.unknown ? '<dt>입찰 예정일</dt><dd>' + chip() + '</dd>' : '<dt>입찰 예정일</dt><dd>' + mono(it.date) + ' ' + esc(it.label) + chkHtml(it) + ' <span class="db-why">' + why + '</span>' + ie.confirmSrcHtml(rec) + '</dd>') +
+      (it.notice || oc ? '' : it.unknown ? '<dt>입찰 예정일</dt><dd>' + chip() + '</dd>' 
+        : it.check ? '<dt>금고 지정 공고일</dt><dd>' + mono(it.date) + ' ' + esc(it.label) + dtNoteHtml(it) + ie.confirmSrcHtml(rec) + '</dd>'
+        : '<dt>입찰 예정일</dt><dd>' + mono(it.date) + ' ' + esc(it.label) + ' <span class="db-why">' + why + '</span>' + ie.confirmSrcHtml(rec) + '</dd>') +
       '<dt>지난 금고 선정일</dt><dd>' + (rec.lastBid ? mono(rec.lastBid) + (lp ? ' <span class="db-why">' + esc(lp) + '</span>' : '') : chip()) + '</dd>' +
       '<dt>약정 주기</dt><dd>' + (rec.term ? mono(rec.term) + '년' : chip()) + '</dd>' +
       (ie.opLineHtml(rec) ? '<dt>운영 상태</dt><dd>' + ie.opLineHtml(rec) + '</dd>' : '') + '</dl>' +
@@ -972,7 +975,7 @@
     const p = dash.paneParts(it, c);
     return '<div class="db-pane-body">' + p.head + p.sub + p.rest + '</div><div class="db-act">' + dash.actHtml(it, c) + '</div>';
   };
-  // 지도 상세 팝업: 머리 줄(.dm-bar 52px) = [‹ 이전](스택일 때만) · 제목 · 주 동작 ┃ ×. [편집]은 머리에서 뺐고 '기관 정보' 절 오른쪽 [기관 정보 수정]으로 옮겼다(design 11-19 저녁 6-3).
+  // 지도 상세 팝업: 머리 줄(.dm-bar 52px) = [‹ 이전](스택일 때만) · 제목 · 주 동작 ┃ [닫기](글자 단추, DESIGN.md '팝업' — × 아이콘 금지, 11-23). [편집]은 머리에서 뺐고 '기관 정보' 절 오른쪽 [기관 정보 수정]으로 옮겼다(design 11-19 저녁 6-3).
   // c.readOnly(보기 전용) = [이전]·×만. c.back = { aria, close }(스택), c.editing = 금고 약정 편집 단계(주 동작 숨김). 반환 { bar, note, body }.
   dash.popupHtml = function (it, c) {
     c = c || {};
@@ -981,7 +984,7 @@
     const main = c.editing ? '' : a.main;   // 약정 입력 중에는 [제안 확정] 등이 나가지 않게 숨긴다(한 번에 한 일)
     const back = c.back ? '<button type="button" id="dm-back" class="dm-back" aria-label="' + esc(c.back.aria) + '"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M8 2 4 6l4 4"/></svg>이전</button>' : '';
     const bar = '<div class="dm-bar' + (c.back ? ' has-back' : '') + '">' + back + p.head + '<div class="dm-btns">' + main + (main ? '<span class="dm-sep" aria-hidden="true"></span>' : '') +
-      '<button type="button" id="dm-close" class="dm-x" aria-label="' + esc(c.back ? c.back.close : '닫기') + '"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 2l8 8M10 2l-8 8"/></svg></button></div></div>';
+      '<button type="button" id="dm-close" class="dm-cls" aria-label="' + esc(c.back ? c.back.close : '닫기') + '" title="' + esc(c.back ? c.back.close : '닫기') + ' (Esc)">닫기</button></div></div>';
     const note = a.confirm || (a.why ? '<p class="db-why dm-why">' + a.why + '</p>' : '');
     return { bar: bar, note: note, body: '<div class="db-pane-body">' + p.sub + p.rest + '</div>' };
   };
