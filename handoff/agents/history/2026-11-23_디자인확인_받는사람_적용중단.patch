@@ -1,0 +1,589 @@
+diff --git a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/dto/ApprovalItem.java b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/dto/ApprovalItem.java
+index 6bfe6fc6..88644f11 100644
+--- a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/dto/ApprovalItem.java
++++ b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/dto/ApprovalItem.java
+@@ -93,6 +93,12 @@ public class ApprovalItem {
+     @JsonProperty("final")
+     public void setFinalApproval(Boolean finalApproval) { this.finalApproval = finalApproval; }
+ 
++    /** 디자인 1차 확인 카드를 그날 대결자로 받았는가(사용자 11-23). 다른 카드는 null. */
++    private Boolean actingAsDeputy;
++
++    public Boolean getActingAsDeputy() { return actingAsDeputy; }
++    public void setActingAsDeputy(Boolean actingAsDeputy) { this.actingAsDeputy = actingAsDeputy; }
++
+     public String getGate() { return gate; }
+     public void setGate(String gate) { this.gate = gate; }
+ }
+diff --git a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/mapper/DesignReviewMapper.java b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/mapper/DesignReviewMapper.java
+index 7796e34a..b9d27d3d 100644
+--- a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/mapper/DesignReviewMapper.java
++++ b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/mapper/DesignReviewMapper.java
+@@ -41,6 +41,9 @@ public interface DesignReviewMapper {
+     /** 어느 회차든 받는 사람이었으면 1 이상. */
+     int countRecipientAny(@Param("taskId") String taskId, @Param("empNo") String empNo);
+ 
++    /** 그 회차의 확인 요청 받는 팀장(REASON_CD=reasonCd) — 새 규칙 회차는 1행, 옛 규칙 회차는 0행. */
++    List<String> selectReviewer(@Param("taskId") String taskId, @Param("roundNo") int roundNo, @Param("reasonCd") String reasonCd);
++
+     int countComments(@Param("taskId") String taskId, @Param("roundNo") int roundNo, @Param("empNo") String empNo);
+ 
+     int insertComment(@Param("taskId") String taskId, @Param("roundNo") int roundNo, @Param("empNo") String empNo,
+diff --git a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/ApprovalsService.java b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/ApprovalsService.java
+index 74403d71..7dc37e58 100644
+--- a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/ApprovalsService.java
++++ b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/ApprovalsService.java
+@@ -11,6 +11,7 @@ import com.kbstar.kgi.ggreport.web.mapper.InstitutionMapper;
+ import com.kbstar.kgi.ggreport.web.mapper.TaskMapper;
+ import com.kbstar.kgi.ggreport.web.support.TaskFiles;
+ import com.kbstar.kgi.ggreport.web.support.Teams;
++import com.kbstar.kgi.ggreport.web.support.Times;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ import org.springframework.stereotype.Service;
+@@ -18,7 +19,9 @@ import org.springframework.stereotype.Service;
+ import java.util.ArrayList;
+ import java.util.Collections;
+ import java.util.Comparator;
++import java.util.HashSet;
+ import java.util.List;
++import java.util.Set;
+ 
+ /**
+  * 결재함 — 그 역할이 결재할 것 전부. Task 5B.2. Python {@code server/routers/approvals.py}.
+@@ -41,10 +44,14 @@ public class ApprovalsService {
+     private final OrchestratorService orchestrator;
+     private final AppProperties properties;
+     private final SysUserMapper users;
++    private final DesignReviewService design;
++    private final ApprovalDeputyService deputies;
+ 
+     public ApprovalsService(TaskMapper tasks, InstitutionMapper institutions,
+                             OrchestratorService orchestrator, AppProperties properties,
+-                            SysUserMapper users) {
++                            SysUserMapper users, DesignReviewService design, ApprovalDeputyService deputies) {
++        this.design = design;
++        this.deputies = deputies;
+         this.users = users;
+         this.tasks = tasks;
+         this.institutions = institutions;
+@@ -123,6 +130,49 @@ public class ApprovalsService {
+         return new ApprovalsResponse(role, items);
+     }
+ 
++    /**
++     * 부른 사람 기준 결재함(사용자 11-23). forRole 결과에서 디자이너 1차 카드는 {@link DesignReviewService#firstStageAuthority} 가
++     * NONE 이 아닌 사람(회차 결재 팀장·그날 대결자·옛 규칙 회차)에게만 남기고, 영업팀장이 아닌 대결자에게는 같은 카드를 acting_as_deputy=true 로 더한다.
++     * 결재(approve)와 같은 함수를 쓰므로 보이는데 못 누르는 일이 없다. 영업부장 결재함의 카드(팀장 담당 1차)는 걸러내지 않는다.
++     */
++    public ApprovalsResponse forUser(SysUser me) {
++        String role = me.getRole() == null ? "" : me.getRole().trim();
++        boolean head = Teams.FINAL_APPROVER.equals(role);
++        List<ApprovalItem> items = new ArrayList<>();
++        Set<String> seen = new HashSet<>();
++        for (ApprovalItem it : forRole(role).getItems()) {
++            if (!head && isDesignerFirstStage(it)) {
++                DesignReviewService.FirstStage auth = design.firstStageAuthority(it.getTaskId(), me);   // approve 와 같은 함수(S1·S2)
++                if (auth == DesignReviewService.FirstStage.NONE) {
++                    continue;
++                }
++                it.setActingAsDeputy(auth == DesignReviewService.FirstStage.DEPUTY);
++                seen.add(it.getTaskId());
++            }
++            items.add(it);
++        }
++        if (!head && !deputies.principalsOf(me.getEmpNo(), Times.todayKst()).isEmpty()) {   // 대결 지정이 있을 때만 더 돈다(영업팀원 대결자 몫)
++            for (ApprovalItem row : tasks.selectApprovalQueue(Collections.singletonList(
++                    new TeamStatus(Teams.DESIGNER_TEAM, Teams.SUBMITTED_STATUS)))) {
++                if (seen.contains(row.getTaskId())
++                        || design.firstStageAuthority(row.getTaskId(), me) != DesignReviewService.FirstStage.DEPUTY) {
++                    continue;
++                }
++                row.setKind("task");
++                row.setFinalApproval(false);
++                row.setFiles(filesOf(row));
++                row.setActingAsDeputy(true);
++                items.add(row);
++            }
++        }
++        return new ApprovalsResponse(role, items);
++    }
++
++    private static boolean isDesignerFirstStage(ApprovalItem it) {
++        return "task".equals(it.getKind()) && Teams.DESIGNER_TEAM.equals(it.getTeam())
++                && Teams.SUBMITTED_STATUS.equals(it.getStatus());
++    }
++
+     /**
+      * 게이트는 <b>영업부장만</b> 본다(8단계 최종결재).
+      *
+diff --git a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/DesignReviewService.java b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/DesignReviewService.java
+index 0748edc7..3719f5e8 100644
+--- a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/DesignReviewService.java
++++ b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/DesignReviewService.java
+@@ -6,7 +6,6 @@ import com.kbstar.kgi.ggreport.web.domain.DesignComment;
+ import com.kbstar.kgi.ggreport.web.domain.DesignReadyCase;
+ import com.kbstar.kgi.ggreport.web.domain.DesignRecipient;
+ import com.kbstar.kgi.ggreport.web.domain.DesignRound;
+-import com.kbstar.kgi.ggreport.web.domain.Notification;
+ import com.kbstar.kgi.ggreport.web.domain.SysUser;
+ import com.kbstar.kgi.ggreport.web.domain.Task;
+ import com.kbstar.kgi.ggreport.web.domain.TaskSummary;
+@@ -16,10 +15,12 @@ import com.kbstar.kgi.ggreport.web.mapper.DesignReviewMapper;
+ import com.kbstar.kgi.ggreport.web.mapper.PrepMapper;
+ import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
+ import com.kbstar.kgi.ggreport.web.mapper.TaskMapper;
++import com.kbstar.kgi.ggreport.web.support.ApproverRules;
+ import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
+ import com.kbstar.kgi.ggreport.web.support.Ids;
+ import com.kbstar.kgi.ggreport.web.support.MenuPerms;
+ import com.kbstar.kgi.ggreport.web.support.Pii;
++import com.kbstar.kgi.ggreport.web.support.Ranks;
+ import com.kbstar.kgi.ggreport.web.support.Teams;
+ import com.kbstar.kgi.ggreport.web.support.Times;
+ import com.kbstar.kgi.ggreport.web.web.Actor;
+@@ -84,6 +85,14 @@ public class DesignReviewService {
+     public static final String A_LEAD_RETURN = "DSN_LEAD_RETURN";
+     public static final String A_FINAL = "DSN_FINAL";
+     public static final String A_RETURN = "DSN_RETURN";
++    public static final String A_FORWARD_DEPUTY = "DSN_FORWARD_DEP";        // 대결자가 부장께 올림(사용자 11-23)
++    public static final String A_LEAD_RETURN_DEPUTY = "DSN_LEAD_RETURN_DEP";
++
++    /** 확인 요청을 받는 그 건의 결재 영업팀장 — DESIGN_ROUND_RECIP.REASON_CD(사용자 11-23). 이 행이 없는 회차는 옛 규칙(받는 사람 여럿). */
++    public static final String REASON_APPROVER = "APPROVER";
++    /** 받는 사람 쪽지를 보내지 않는 회차의 NOTIFICATION_ID 자리표(NOT NULL, Oracle 은 빈 문자열이 NULL). */
++    static final String NO_NOTE = "NONE";
++    private static final String MEMBER_SALES_ROLE = Teams.DESIGNER_HOME_TEAM + Teams.TEAM_SUFFIX;   // 영업팀
+ 
+     // BID_PREP_ACT.TASK_CD — 팀 작업 표기 고정(S6-c 가 쓴다).
+     public static final String TEAM_SALES = "TEAM_SALES";
+@@ -99,10 +108,13 @@ public class DesignReviewService {
+     private final PrepMapper prepMapper;
+     private final NotificationCommandService notifications;
+     private final PrepAudit audit;
++    private final ApprovalDeputyService deputies;
+ 
+     public DesignReviewService(TaskMapper tasks, DesignReviewMapper mapper, SysUserMapper users,
+                                BidAssignmentMapper assignments, PrepMapper prepMapper,
+-                               NotificationCommandService notifications, PrepAudit audit) {
++                               NotificationCommandService notifications, PrepAudit audit,
++                               ApprovalDeputyService deputies) {
++        this.deputies = deputies;
+         this.tasks = tasks;
+         this.mapper = mapper;
+         this.users = users;
+@@ -329,8 +341,8 @@ public class DesignReviewService {
+     // ── 디자인 작업 완료 · 다시 수정 ──────────────────────────────────────────
+ 
+     /**
+-     * [디자인 작업 완료] — 대기·작성중 → 1차완료, 회차 n 을 열고 받는 사람을 박제해 사람마다 쪽지 한 줄(사번 수신, sender '시스템')을 보낸다.
+-     * 영업팀장 역할 쪽지함에는 결재 신호('결재요청') 1건이 간다(결재함과 같은 뜻). 호출한 사람은 디자이너 본인(M2·M5).
++     * [디자인 작업 완료] — 대기·작성중 → 1차완료, 회차 n 을 열고 그 건 결재 영업팀장 1명을 박제한다(REASON_CD=APPROVER, 쪽지 없음, 사용자 11-23).
++     * '결재요청' 신호는 설정이 켜져 있을 때만 그 팀장과 그날 대결자의 사번으로 간다. 호출한 사람은 디자이너 본인(M2·M5).
+      */
+     @Transactional
+     public Map<String, Object> complete(SysUser me, Actor actor, BoardUiIds.Ui ui, String taskId) {
+@@ -349,9 +361,9 @@ public class DesignReviewService {
+         if (ctx == null) {
+             throw ApiException.notFound("task not found");
+         }
+-        Recipients rec = recipients(bid, me);
+-        if (rec.byEmp.isEmpty()) {
+-            throw coded(409, "NO_REVIEWERS", "의견을 받을 담당자·팀장이 없어 완료할 수 없습니다. 담당자 배정을 확인해 주세요.");
++        Reviewer rv = resolveReviewer(bid, me);
++        if (rv == null) {
++            throw coded(409, "NO_REVIEWERS", "확인 요청을 받을 영업팀장을 정할 수 없습니다. 담당자 배정이나 상위 결재자 지정을 확인해 주세요.");
+         }
+         if (tasks.updateStatusIf(taskId, status, Teams.SUBMITTED_STATUS) == 0) {
+             throw stateChanged();
+@@ -361,23 +373,19 @@ public class DesignReviewService {
+         if (n > NO_MAX) {
+             throw coded(409, "TOO_MANY_ROUNDS", "회차가 너무 많습니다.");
+         }
+-        mapper.insertRound(taskId, n, bid, me.getEmpNo(), verified(actor), Times.nowIso(), rec.byEmp.size());
+-        String text = ctx.getInstitutionName() + " 디자인 작업 완료(" + n + "차본) — 확인하고 의견을 남겨 주세요.";
+-        for (Map.Entry<String, String> e : rec.byEmp.entrySet()) {
+-            Notification note = notifications.create(e.getKey(), "쪽지", text, ctx.getInstitutionId(), taskId, null,
+-                    ctx.getStage(), NotificationCommandService.SYSTEM_SENDER);
+-            mapper.insertRecipient(taskId, n, e.getKey(), e.getValue(), note.getNotificationId());
+-        }
+-        notifications.create(LEAD_SALES_ROLE, "결재요청",
+-                ctx.getInstitutionName() + " " + Teams.DESIGNER_TEAM + " 작업물 제출 — 결재를 부탁드립니다.",
+-                ctx.getInstitutionId(), taskId, null, ctx.getStage(), NotificationCommandService.SYSTEM_SENDER);
++        mapper.insertRound(taskId, n, bid, me.getEmpNo(), verified(actor), Times.nowIso(), 1);
++        // 사용자 11-23: 확인 요청은 그 건 결재 팀장 한 명의 결재함으로만(결재함 숫자). 받는 사람 쪽지는 보내지 않는다.
++        mapper.insertRecipient(taskId, n, rv.user.getEmpNo(), REASON_APPROVER, NO_NOTE);
++        notifyReviewer(rv.user, me, ctx, taskId);
+         audit.record(bid, A_COMPLETE, "OK", phaseOf(status), roundTaskCd(n), actor, ui);
+         Map<String, Object> m = new LinkedHashMap<String, Object>();
+         m.put("task_id", taskId);
+         m.put("status", Teams.SUBMITTED_STATUS);
+         m.put("round_no", n);
+-        m.put("recipients_count", rec.byEmp.size());
+-        m.put("unresolved_teams", new ArrayList<String>(rec.unresolved));
++        m.put("recipients_count", 1);
++        m.put("reviewer_name", rv.user.getName());
++        m.put("reviewer_basis", rv.basis);
++        m.put("unresolved_teams", new ArrayList<String>());   // 호환용 — 이제 늘 빈 목록
+         return m;
+     }
+ 
+@@ -493,7 +501,11 @@ public class DesignReviewService {
+         boolean designerOwner = isDesigner(me) && ownsDesignerTask(me, task.getAssignee());
+         boolean lead = LEAD_SALES_ROLE.equals(role);
+         boolean head = Teams.FINAL_APPROVER.equals(role);
+-        if (!designerOwner && !lead && !head && mapper.countRecipientAny(taskId, me.getEmpNo()) == 0) {
++        FirstStage auth = firstStageAuthority(taskId, me);
++        boolean deputy = auth == FirstStage.DEPUTY;
++        boolean salesAssignee = isActiveAssignee(task.getBidCaseId(), me.getEmpNo());
++        if (!designerOwner && !lead && !head && !deputy && !salesAssignee
++                && mapper.countRecipientAny(taskId, me.getEmpNo()) == 0) {
+             throw deniedRole();
+         }
+         String status = task.getStatus();
+@@ -521,7 +533,9 @@ public class DesignReviewService {
+         viewer.put("can_revise", designerOwner && Teams.SUBMITTED_STATUS.equals(status));
+         viewer.put("can_comment", roundOpen && myCurrent && myComments < MAX_COMMENTS);
+         viewer.put("can_ack", roundOpen && myCurrent && !acked);
+-        viewer.put("can_forward", lead && Teams.SUBMITTED_STATUS.equals(status) && !selfAssigned);
++        viewer.put("can_forward", auth != FirstStage.NONE && Teams.SUBMITTED_STATUS.equals(status) && !selfAssigned);   // S9
++        viewer.put("is_reviewer", auth == FirstStage.REVIEWER);
++        viewer.put("acting_as_deputy", deputy);
+         viewer.put("can_finalize", head && Teams.APPROVED_STATUS.equals(status) && !selfAssigned);
+         viewer.put("can_return", head && Teams.APPROVED_STATUS.equals(status) && !selfAssigned);
+ 
+@@ -590,11 +604,17 @@ public class DesignReviewService {
+      */
+     public void onApprove(Task before, TaskContext ctx, boolean finalStage, boolean approved, String reason,
+                           SysUser approver, Actor actor, BoardUiIds.Ui ui) {
++        onApprove(before, ctx, finalStage, approved, reason, approver, false, actor, ui);
++    }
++
++    /** asDeputy: 디자이너 1차 단계를 회차 결재 팀장의 그날 대결자가 처리했다(감사 DSN_*_DEP). */
++    public void onApprove(Task before, TaskContext ctx, boolean finalStage, boolean approved, String reason,
++                          SysUser approver, boolean asDeputy, Actor actor, BoardUiIds.Ui ui) {
+         String taskId = before.getTaskId();
+         int n = mapper.selectMaxRound(taskId);
+         String action;
+         if (!finalStage) {
+-            action = approved ? A_FORWARD : A_LEAD_RETURN;
++            action = approved ? (asDeputy ? A_FORWARD_DEPUTY : A_FORWARD) : (asDeputy ? A_LEAD_RETURN_DEPUTY : A_LEAD_RETURN);
+             if (n > 0) {
+                 mapper.closeRound(taskId, n, approved ? CLOSE_FORWARD : CLOSE_LEAD_RETURN, approver.getEmpNo(), Times.nowIso());
+             }
+@@ -605,7 +625,8 @@ public class DesignReviewService {
+             String to = designerEmpOf(taskId, n, before.getAssignee());
+             if (to != null) {
+                 String why = blank(reason) ? "(사유 없음)" : reason;
+-                String who = finalStage ? "영업부장이 돌려보냈습니다" : "영업팀장이 반려했습니다";
++                String who = finalStage ? "영업부장이 돌려보냈습니다"
++                        : (asDeputy ? "영업팀장 대결자가 반려했습니다" : "영업팀장이 반려했습니다");
+                 notifications.create(to, "쪽지",
+                         ctx.getInstitutionName() + " 디자인 작업을 " + who + " — " + why,
+                         ctx.getInstitutionId(), taskId, null, ctx.getStage(), NotificationCommandService.SYSTEM_SENDER);
+@@ -651,85 +672,179 @@ public class DesignReviewService {
+         return count == 1 ? found : null;
+     }
+ 
+-    // ── 받는 사람 계산 ───────────────────────────────────────────────────────
++    // ── 확인 요청 받는 팀장(사용자 11-23) ─────────────────────────────────────
+ 
+-    private static final class Recipients {
+-        final Map<String, String> byEmp = new LinkedHashMap<String, String>();   // 사번 → 사유(먼저 들어온 사유가 남는다)
+-        final Set<String> unresolved = new LinkedHashSet<String>();              // 사람으로 못 바꾼 팀(팀 이름만)
++    static final class Reviewer {
++        final SysUser user;
++        final String basis;   // ASSIGNEE_LINE · ASSIGNEE_LEAD · MULTI_DESIGNER_LINE · MULTI_FIRST_ASSIGNED · DESIGNER_LINE · ONLY_LEAD
++        Reviewer(SysUser user, String basis) { this.user = user; this.basis = basis; }
+     }
+ 
+     /**
+-     * 받는 사람 = ① 그 건의 활성 영업 담당자(BID_ASSIGN) ② 그 건 TASKS 의 영업·전산·예산 담당(사번이면 그 사용자, 이름이면 그 팀 ACTIVE 중 이름이 정확히 1명일 때만)
+-     * ③ 활성 영업·전산·예산 팀장 전원. 제외: 비ACTIVE, 호출한 디자이너 본인, 영업부장.
++     * 그 건 담당 영업의 결재 팀장 한 명. ① 활성 담당 중 영업팀원의 결재 체인에서 처음 만나는 활성 영업팀장
++     * ② 팀원 담당이 없으면 담당인 영업팀장 본인 → 1명이면 그 사람, 여럿이면 디자이너의 결재 팀장(후보 안에 있을 때) 아니면 배정순 첫 사람
++     * ③ 담당이 없으면 디자이너의 결재 팀장 ④ 활성 영업팀장이 정확히 1명이면 그 사람. 못 정하면 null.
+      */
+-    private Recipients recipients(String bidCaseId, SysUser me) {
++    Reviewer resolveReviewer(String bidCaseId, SysUser designer) {
+         List<SysUser> all = users.selectAll();
+         Map<String, SysUser> byEmp = new HashMap<String, SysUser>();
+         for (SysUser u : all) {
+             byEmp.put(u.getEmpNo(), u);
+         }
+-        Recipients r = new Recipients();
+-        for (BidAssigneeView v : assignments.selectActiveAssignees(bidCaseId)) {
+-            addRecipient(r, byEmp.get(v.getEmpNo()), "ASSIGNEE_SALES", me);
+-        }
+-        for (TaskSummary s : tasks.selectSummaries(bidCaseId)) {
+-            String reason = assigneeReason(s.getTeam());
+-            String a = trimOrNull(s.getAssignee());
+-            if (reason == null || a == null) {
++        Set<String> viaMember = new LinkedHashSet<String>();
++        Set<String> viaLead = new LinkedHashSet<String>();
++        for (BidAssigneeView v : assignments.selectActiveAssignees(bidCaseId)) {   // ASSIGNED_AT, EMP_NO 순
++            SysUser u = byEmp.get(v.getEmpNo());
++            if (u == null || !"ACTIVE".equals(u.getStatus())) {
+                 continue;
+             }
+-            SysUser u = null;
+-            if (MenuPerms.isEmpNo(a)) {
+-                u = byEmp.get(a);
+-                if (u != null && !"ACTIVE".equals(u.getStatus())) {
+-                    u = null;
+-                }
+-            } else {
+-                int count = 0;
+-                for (SysUser c : all) {
+-                    if ("ACTIVE".equals(c.getStatus()) && s.getTeam().equals(Teams.teamOf(c.getRole()))
+-                            && a.equals(trimOrNull(c.getName()))) {
+-                        u = c;
+-                        count++;
+-                    }
+-                }
+-                if (count != 1) {
+-                    u = null;
++            if (LEAD_SALES_ROLE.equals(roleOf(u))) {
++                viaLead.add(u.getEmpNo());
++            } else if (MEMBER_SALES_ROLE.equals(roleOf(u))) {
++                SysUser l = firstActiveLead(u, byEmp);
++                if (l != null) {
++                    viaMember.add(l.getEmpNo());
+                 }
+             }
+-            if (u == null) {
+-                r.unresolved.add(s.getTeam());
+-            } else {
+-                addRecipient(r, u, reason, me);
++        }
++        Set<String> cands = viaMember.isEmpty() ? viaLead : viaMember;
++        SysUser designerLead = firstActiveLead(designer, byEmp);
++        if (cands.size() == 1) {
++            return new Reviewer(byEmp.get(cands.iterator().next()), viaMember.isEmpty() ? "ASSIGNEE_LEAD" : "ASSIGNEE_LINE");
++        }
++        if (cands.size() > 1) {
++            if (designerLead != null && cands.contains(designerLead.getEmpNo())) {
++                return new Reviewer(designerLead, "MULTI_DESIGNER_LINE");
+             }
++            return new Reviewer(byEmp.get(cands.iterator().next()), "MULTI_FIRST_ASSIGNED");
+         }
++        if (designerLead != null) {
++            return new Reviewer(designerLead, "DESIGNER_LINE");
++        }
++        SysUser only = null;
++        int count = 0;
+         for (SysUser u : all) {
+-            if (Teams.LEAD_ROLES.contains(roleOf(u))) {
+-                addRecipient(r, u, "LEAD", me);
++            if ("ACTIVE".equals(u.getStatus()) && LEAD_SALES_ROLE.equals(roleOf(u))) {
++                only = u;
++                count++;
+             }
+         }
+-        return r;
++        return count == 1 ? new Reviewer(only, "ONLY_LEAD") : null;
++    }
++
++    private static SysUser firstActiveLead(SysUser u, Map<String, SysUser> byEmp) {
++        for (SysUser c : ApproverRules.chain(u, byEmp)) {
++            if ("ACTIVE".equals(c.getStatus()) && LEAD_SALES_ROLE.equals(roleOf(c))) {
++                return c;
++            }
++        }
++        return null;
++    }
++
++    /** 디자이너 1차(영업팀장 단계) 처리 자격 — 결재(TaskCommandService.approve)와 결재함(ApprovalsService.forUser)이 이 함수만 쓴다(security S1·S2). */
++    public enum FirstStage { REVIEWER, DEPUTY, LEGACY_ROLE, NONE }
++
++    /**
++     * REVIEWER: 마지막 회차의 확인 요청 받는 팀장 본인(활성·영업팀장). DEPUTY: 그 팀장의 그날 대결자(isDeputyOf).
++     * LEGACY_ROLE: 회차 없음 · APPROVER 행 없음(옛 규칙 회차) · 회차 팀장이 비활성이거나 더는 영업팀장이 아님 — 이때만 예전처럼 활성 영업팀장 누구나.
++     * NONE: 그 밖(다른 영업팀장 포함, 사용자 11-23). 회차가 열렸는지는 보지 않는다 — 결재 쪽이 requireOpenFirstStageRound 로 따로 막는다(S5).
++     */
++    public FirstStage firstStageAuthority(String taskId, SysUser me) {
++        boolean legacyOk = me != null && "ACTIVE".equals(me.getStatus()) && LEAD_SALES_ROLE.equals(roleOf(me));
++        FirstStage legacy = legacyOk ? FirstStage.LEGACY_ROLE : FirstStage.NONE;
++        int n = mapper.selectMaxRound(taskId);
++        if (n <= 0) {
++            return legacy;                                   // 회차 없는 옛 작업
++        }
++        DesignRound r = mapper.selectRound(taskId, n);
++        List<String> rs = mapper.selectReviewer(taskId, n, REASON_APPROVER);
++        if (r == null || rs.isEmpty()) {
++            return legacy;                                   // 옛 규칙 회차(받는 사람 여럿)
++        }
++        SysUser reviewer = users.selectByEmpNo(rs.get(0));
++        if (reviewer == null || !"ACTIVE".equals(reviewer.getStatus()) || !LEAD_SALES_ROLE.equals(roleOf(reviewer))) {
++            return legacy;                                   // 회차 팀장이 비활성·역할 변경 — 건이 묻히지 않게 예전처럼
++        }
++        if (me == null) {
++            return FirstStage.NONE;
++        }
++        if (reviewer.getEmpNo().equals(me.getEmpNo())) {
++            return FirstStage.REVIEWER;
++        }
++        return isDeputyOf(reviewer, me, r) ? FirstStage.DEPUTY : FirstStage.NONE;
+     }
+ 
+-    private static void addRecipient(Recipients r, SysUser u, String reason, SysUser me) {
+-        if (u == null || !"ACTIVE".equals(u.getStatus()) || u.getEmpNo().equals(me.getEmpNo())
+-                || Teams.FINAL_APPROVER.equals(roleOf(u)) || r.byEmp.containsKey(u.getEmpNo())) {
++    /**
++     * 대결 자격: 회차 팀장 ACTIVE(S6) · 본인 활성·팀장 본인 아님 · 영업 조직(S4) · 그날 유효한 대결 지정 · 디자이너 기준 Ranks.mayDecide.
++     * S4(팀 결정, 되돌리기 쉬움): 디자인 1차는 영업팀 내부 확인이라 대결자를 영업팀원·영업팀장으로 한정한다 —
++     * 대결 지정 자체는 자격을 고정하지 않으므로(ApprovalDeputyService) 다른 팀 사람이 지정돼 있어도 이 단계는 처리하지 못한다. 풀려면 아래 salesOrg 조건만 지운다.
++     */
++    private boolean isDeputyOf(SysUser reviewer, SysUser me, DesignRound r) {
++        if (!"ACTIVE".equals(reviewer.getStatus()) || !"ACTIVE".equals(me.getStatus())
++                || reviewer.getEmpNo().equals(me.getEmpNo())) {
++            return false;
++        }
++        boolean salesOrg = MEMBER_SALES_ROLE.equals(roleOf(me)) || LEAD_SALES_ROLE.equals(roleOf(me));
++        if (!salesOrg || !deputies.deputiesOf(reviewer.getEmpNo(), Times.todayKst()).contains(me.getEmpNo())) {
++            return false;
++        }
++        SysUser designer = users.selectByEmpNo(r.getOpenedBy());
++        return designer != null && Ranks.mayDecide(designer, me);
++    }
++
++    /** 디자이너 1차 결재 직전(TASKS 잠금 아래) — 회차가 있는데 마지막 회차가 닫혀 있으면 1차완료와 어긋난 상태라 409(fail-closed, S5). 회차 없는 옛 작업은 통과. */
++    public void requireOpenFirstStageRound(String taskId) {
++        int n = mapper.selectMaxRound(taskId);
++        if (n <= 0) {
+             return;
+         }
+-        r.byEmp.put(u.getEmpNo(), reason);
++        DesignRound r = mapper.selectRound(taskId, n);
++        if (r == null || !r.isOpen()) {
++            throw coded(409, "ROUND_STATE", "확인 요청 회차가 이미 닫혀 있습니다. 새로 고친 뒤 다시 확인해 주세요.");
++        }
+     }
+ 
+-    private static String assigneeReason(String team) {
+-        if ("영업".equals(team)) {
+-            return "ASSIGNEE_SALES";
++    /** 디자이너 최종 결재 직전 — 마지막 회차를 부장께 올린(FORWARD) 사람은 최종 결재할 수 없다(S3, 역할이 바뀐 경우 대비). 회차 없는 옛 작업은 통과. */
++    public void requireNotFirstStageActor(String taskId, SysUser approver) {
++        int n = mapper.selectMaxRound(taskId);
++        if (n <= 0) {
++            return;
+         }
+-        if ("전산".equals(team)) {
+-            return "ASSIGNEE_IT";
++        DesignRound r = mapper.selectRound(taskId, n);
++        if (r != null && CLOSE_FORWARD.equals(r.getCloseCd()) && approver.getEmpNo().equals(r.getClosedBy())) {
++            throw new ApiException(403, "1차를 처리한 사람은 최종 결재할 수 없습니다.");
+         }
+-        if ("예산".equals(team)) {
+-            return "ASSIGNEE_BUDGET";
++    }
++
++    private boolean isActiveAssignee(String bidCaseId, String empNo) {
++        for (BidAssigneeView v : assignments.selectActiveAssignees(bidCaseId)) {
++            if (empNo.equals(v.getEmpNo())) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    /** 옛 '결재요청' 신호 — 결재 팀장과 그날 대결자의 사번으로(역할 쪽지함 아님). 설정 키가 꺼져 있으면(out-local 기본) 아무것도 보내지 않는다. */
++    private void notifyReviewer(SysUser reviewer, SysUser designer, TaskContext ctx, String taskId) {
++        if (!notifications.approvalRequestEnabled()) {
++            return;
++        }
++        List<String> to = new ArrayList<String>();
++        to.add(reviewer.getEmpNo());
++        for (String d : deputies.deputiesOf(reviewer.getEmpNo(), Times.todayKst())) {
++            SysUser u = users.selectByEmpNo(d);
++            boolean salesOrg = u != null && (MEMBER_SALES_ROLE.equals(roleOf(u)) || LEAD_SALES_ROLE.equals(roleOf(u)));
++            if (salesOrg && "ACTIVE".equals(u.getStatus()) && !d.equals(designer.getEmpNo())
++                    && Ranks.mayDecide(designer, u) && !to.contains(d)) {
++                to.add(d);
++            }
++        }
++        String text = ctx.getInstitutionName() + " " + Teams.DESIGNER_TEAM + " 작업물 제출 — 결재를 부탁드립니다.";
++        for (String emp : to) {
++            notifications.create(emp, "결재요청", text, ctx.getInstitutionId(), taskId, null, ctx.getStage(),
++                    NotificationCommandService.SYSTEM_SENDER);
+         }
+-        return null;
+     }
+ 
+     /** 아직 2차완료가 아닌 팀(없는 팀도 포함) — 팀 이름만. */
+diff --git a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TaskCommandService.java b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TaskCommandService.java
+index 676f1ade..b2c8b38d 100644
+--- a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TaskCommandService.java
++++ b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TaskCommandService.java
+@@ -148,9 +148,21 @@ public class TaskCommandService {
+         // 결재 역할: 최종 단계(또는 팀장 담당)는 영업부장, 그 밖은 그 팀의 팀장(디자이너 1차는 영업팀장).
+         String needRole = (finalStage || leadOwned)
+                 ? Teams.FINAL_APPROVER : Teams.leadOf(task.getTeam());
+-        if (!needRole.equals(approver.getRole() == null ? null : approver.getRole().trim())) {
++        // 디자이너 1차(영업팀장 단계)는 역할이 아니라 그 회차 확인 요청을 받은 팀장 본인·그날 대결자만(사용자 11-23, security S1·S2).
++        // 판정은 DesignReviewService.firstStageAuthority 하나 — 결재함(ApprovalsService.forUser)과 같은 함수다.
++        boolean designFirst = designer && !finalStage && !leadOwned;
++        DesignReviewService.FirstStage auth = designFirst ? design.firstStageAuthority(taskId, approver) : null;
++        if (designFirst) {
++            if (auth == DesignReviewService.FirstStage.NONE) {
++                throw new ApiException(403, "이 디자인 작업의 확인 요청을 받은 영업팀장(또는 그날 대결자)만 결재할 수 있습니다.");
++            }
++        } else if (!needRole.equals(approver.getRole() == null ? null : approver.getRole().trim())) {
+             throw new ApiException(403, "이 작업을 결재할 수 있는 역할이 아닙니다.");
+         }
++        if (designer && finalStage) {
++            design.requireNotFirstStageActor(taskId, approver);   // S3
++        }
++        boolean asDeputy = auth == DesignReviewService.FirstStage.DEPUTY;
+         // 본인 작업 결재 금지 — 담당자는 자유 문자열(이름·사번)이라 셋 다 비교한다.
+         String assignee = task.getAssignee();
+         if (assignee != null && (assignee.equals(approver.getEmpNo())
+@@ -162,6 +174,9 @@ public class TaskCommandService {
+         if (!finalStage && !Teams.SUBMITTED_STATUS.equals(task.getStatus())) {
+             throw new ApiException(409, "task not submitted yet");
+         }
++        if (designFirst) {
++            design.requireOpenFirstStageRound(taskId);   // S5 — 권한(403) 판정 뒤라 권한 없는 사람에게 회차 상태를 알리지 않는다
++        }
+ 
+         // 디자이너 최종 단계 돌려보내기는 사유가 필수다(새 규칙, 400 REASON_REQUIRED · 500자 · 개인정보 의심 422). 상태를 바꾸기 전에 검사한다.
+         // 영업팀장 1차 반려(디자이너 작업)도 같은 검사를 하되 빈 사유는 허용한다(security N3).
+@@ -185,7 +200,7 @@ public class TaskCommandService {
+         TaskContext ctx = requireContext(taskId);
+         if (designer) {
+             // 회차 닫기·감사·반려 사유 쪽지(디자이너 앞 사번, sender '시스템')는 디자인 검토 서비스가 한다.
+-            design.onApprove(task, ctx, finalStage, body.isApproved(), designReason, approver, empActor, ui);
++            design.onApprove(task, ctx, finalStage, body.isApproved(), designReason, approver, asDeputy, empActor, ui);
+         }
+         // 담당이 없는(미배정) 작업은 보낼 상대가 없으므로 조용히 넘어간다 —
+         // 반려 자체는 유효하다.
+diff --git a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/web/ApprovalController.java b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/web/ApprovalController.java
+index e5cc21ad..396a0d59 100644
+--- a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/web/ApprovalController.java
++++ b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/web/ApprovalController.java
+@@ -46,6 +46,6 @@ public class ApprovalController {
+             return new ApprovalsResponse("", Collections.<ApprovalItem>emptyList());
+         }
+         SysUser me = guard.requireUser(req, "approvals");
+-        return approvals.forRole(me.getRole() == null ? "" : me.getRole().trim());
++        return approvals.forUser(me);   // 디자이너 1차 카드는 회차 결재 팀장·대결자만(사용자 11-23)
+     }
+ }
+diff --git a/kgi-ggreport-web/src/main/resources/mapper/DesignReviewMapper.xml b/kgi-ggreport-web/src/main/resources/mapper/DesignReviewMapper.xml
+index b4a98ae5..c0cb5642 100644
+--- a/kgi-ggreport-web/src/main/resources/mapper/DesignReviewMapper.xml
++++ b/kgi-ggreport-web/src/main/resources/mapper/DesignReviewMapper.xml
+@@ -44,6 +44,12 @@
+     SELECT COUNT(*) FROM DESIGN_ROUND_RECIP WHERE TASK_ID = #{taskId} AND EMP_NO = #{empNo}
+   </select>
+ 
++  <select id="selectReviewer" resultType="string" flushCache="true">
++    SELECT EMP_NO FROM DESIGN_ROUND_RECIP
++     WHERE TASK_ID = #{taskId} AND ROUND_NO = #{roundNo} AND REASON_CD = #{reasonCd}
++     ORDER BY EMP_NO
++  </select>
++
+   <select id="countComments" resultType="int" flushCache="true">
+     SELECT COUNT(*) FROM DESIGN_COMMENT
+      WHERE TASK_ID = #{taskId} AND ROUND_NO = #{roundNo} AND EMP_NO = #{empNo}
