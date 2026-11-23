@@ -27,6 +27,7 @@
 - **[다른 PC 이전]** 옛 PC 로컬 DB 시험 행·주간 수집 예약 작업, git 이력 재작성(11-12) — 새로 clone.
 
 ## 세션 분담 (11-23, 재시작 뒤 이름)
+- **11-23 저녁 재시작 뒤 이름**: fa=ggreportagent-6c, 05=ggreportagent-31, e4=ggreportagent-f9, 0d=디자인 검토 세션, **새 b0=입찰 현황판 전담**(dashboard.js·index.html .db-* CSS, 사용자 지시). fa 108 서버 적용은 중단 — 부분 변경 handoff/agents/history/2026-11-23_디자인확인_받는사람_적용중단.patch. 05 17:00 표본 삭제 끝(남은 표본 0). e4는 8080 API로 기관장·사진 등록 중(415기관, 나무위키). 사용자 로컬 059 적용 끝.
 - main: 8080·target/·로컬 DB·mvn 전담, 99(minutes/·board-minutes.js·058)·100(docout/·049·PrepForm*·InstSummary*·instsummary.js 새 파일)·102 서버(PrepBoard*·054)와 기록, 052, 95 서버, W48·발표 자료.
 - fa(ed): kbboard·dashboard·PrepService·prep.js·105(056)·106(057)·되찾기(059, 화면 미커밋 진행 중)·**디자인 검토 받는 사람(DesignReviewService, 사용자 지시로 main에서 넘겨받음)**·106 문맥 길이.
 - 05(20): plans.js·PlanCollect*·PlanInbox*·103·104(TargetResult*)·56 반입·107 뉴스.
