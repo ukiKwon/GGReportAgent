@@ -11,11 +11,11 @@ rem eminwon: only notices posted in the last 60 days (without --since every page
 for /f %%i in ('%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command "Get-Date (Get-Date).AddDays(-60) -Format yyyy-MM-dd"') do set SINCE=%%i
 set LOG=data\collector\_logs\%TS%_weekly.log
 echo [%TS%] eminwon >> "%LOG%"
-"C:\dev\python\python.exe" -m collector run --source eminwon --since %SINCE% >> "%LOG%" 2>&1
+"C:\dev\python\python.exe" -u -m collector run --source eminwon --since %SINCE% >> "%LOG%" 2>&1
 set RC_E=%ERRORLEVEL%
 echo eminwon exit=%RC_E% >> "%LOG%"
 echo [%TS%] g2b >> "%LOG%"
-"C:\dev\python\python.exe" -m collector run --source g2b >> "%LOG%" 2>&1
+"C:\dev\python\python.exe" -u -m collector run --source g2b >> "%LOG%" 2>&1
 set RC_G=%ERRORLEVEL%
 echo g2b exit=%RC_G% >> "%LOG%"
 rem Task Scheduler "Last Run Result" = worst of the two (qa P3-E).
