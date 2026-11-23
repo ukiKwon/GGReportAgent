@@ -2664,7 +2664,9 @@
   .rs-basis { margin-left:6px; font-size:12px; color:var(--muted); }
   .rs-filters { display:flex; flex-direction:column; }
   .rs-frow { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; }
-  .rs-frow .db-per { margin:4px 0; }
+  .rs-frow .db-per { margin:4px 0; background:var(--panel); border-color:var(--line-strong); }   /* 페이지 바탕 위라 바탕색(--bg)·옅은 선이면 알약이 사라진다 */
+  .rs-frow .db-per span { color:var(--fg); }
+  .rs-frow .db-per input:not(:checked) + span:hover { background:color-mix(in srgb, var(--accent-color) 6%, var(--panel)); }
   .rs-fl { min-width:64px; font-size:12px; color:var(--muted); }
   .rs-tp { background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); }
   .rs-tt { width:100%; min-width:880px; table-layout:fixed; border-collapse:separate; border-spacing:0; }

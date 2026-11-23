@@ -12,19 +12,20 @@
   // nav.js 의 RESULTS_ID 와 같아야 한다(테스트가 대조).
   results.SOON_ID = 'soon:협약 성과 관리';
   const ID_RE = /^[A-Za-z0-9-]{1,64}$/;
-  const CODES = ['KEPT', 'WON', 'FAIL', 'WAIT', 'NONE'];   // 결과 5분류 = 정렬·막대·거르기 순서(성공 먼저)
-  const LABEL = { KEPT: '재유치 성공', WON: '신규 성공', FAIL: '실패', WAIT: '결과 대기', NONE: '결과 없음' };
+  const CODES = ['KEPT', 'WON', 'FAIL', 'WAIT', 'NONE'];   // 결과 5분류 = 정렬·막대·거르기 순서(재유치·신규 먼저)
+  const LABEL = { KEPT: '재유치', WON: '신규', FAIL: '타은행 유치', WAIT: '결과 대기', NONE: '확인 필요' };
   const CLS = { KEPT: 'kept', WON: 'won', FAIL: 'fail', WAIT: 'wait', NONE: 'none' };
   const REMOVED_KIND = { CANCEL: '목표 취소', MOVE_TO_WATCH: '관심 기관으로 내림', YEAR_CHANGED: '다른 해로 옮김(이월)' };
   results.CODES = CODES;
   results.LABEL = LABEL;
+  results.BAR_MIN_N = 5;   // 목표 기관이 이보다 적거나 분류가 한 가지뿐이면 구성 막대를 그리지 않는다(숫자는 요약 띠에 있음)
   results.DENIED_MSG = '협약 성과 모아 보기는 영업부서와 개발부서만 볼 수 있습니다.';
   results.LIMIT_MSG = '집계할 약정 기록이 너무 많습니다. 개발부서에 알려 주세요.';
   results.YEAR_MSG = '목표 연도를 확인해 주세요.';
   const RULE = '금고 약정 기록으로 판정합니다. 약정 시작 월로 목표 연도를 정합니다(1월에 시작한 약정은 전년도 목표로 셉니다).';
   const NOTE1 = '약정 시작이 연도만 적힌 기록은 월을 알 수 없어 결과에 넣지 않았습니다.';
   const NOTE2 = '재유치·신규는 직전 금고 은행으로 정하고, 직전 기록이 없으면 목표 구분을 따릅니다(\'목표 구분 기준\' 표시).';
-  const TRUNC_MSG = '목표 기관이 2,000곳을 넘어 앞의 2,000곳만 보입니다. 성공률·건수·연중에 뺀 곳은 일부만 셀 수 있어 보이지 않습니다. 개발부서에 알려 주세요.';
+  const TRUNC_MSG = '목표 기관이 2,000곳을 넘어 앞의 2,000곳만 보입니다. 달성률·건수·연중에 뺀 곳은 일부만 셀 수 있어 보이지 않습니다. 개발부서에 알려 주세요.';
   const YEAR_BACK = 3, YEAR_AHEAD = 1;
 
   // ── 순수: 값 도우미 ────────────────────────────────────────────────
@@ -119,7 +120,7 @@
 
   // ── 순수: 요약 문장·막대 ───────────────────────────────────────────
   results.rateText = function (r) { return typeof r === 'number' && isFinite(r) ? r.toFixed(1) + '%' : ''; };
-  results.formula = function (s) { return '성공 ' + num(s.rate_numerator) + ' ÷ (성공 ' + num(s.success_n) + ' + 실패 ' + num(s.fail_n) + ')'; };
+  results.formula = function (s) { return '재유치·신규 ' + num(s.rate_numerator) + ' ÷ (재유치·신규 ' + num(s.success_n) + ' + 타은행 유치 ' + num(s.fail_n) + ')'; };
   results.otherSuccess = function (s) { return Math.max(0, num(s.success_n) - num(s.success_first_n) - num(s.success_second_n)); };
   // 화면을 연 뒤 polite 로 읽어 주는 문장.
   results.liveText = function (data) {
@@ -128,10 +129,10 @@
     if (!data || !s) return '집계 없음';
     if (!num(s.target_n)) return data.year + '년 목표 기관이 없습니다';
     const r = results.rateText(s.success_rate);
-    return data.year + '년 목표 기관 ' + num(s.target_n) + '곳, 성공률 ' + (r || '아직 없음');
+    return data.year + '년 목표 기관 ' + num(s.target_n) + '곳, 달성률 ' + (r || '아직 없음');
   };
   // 구성 막대: 칸 폭은 건수에 비례하고 최소 6px, 칸 사이 2px. 28px 미만 칸은 숫자를 범례로 옮긴다(inside=false).
-  // span = 성공·실패 칸(앞쪽 연속)의 총 폭 — 꺾쇠 선 길이. 성공률 분모가 0이면 span=0.
+  // span = 재유치·신규·타은행 유치 칸(앞쪽 연속)의 총 폭 — 꺾쇠 선 길이. 달성률 분모가 0이면 span=0.
   results.barModel = function (s, W) {
     const GAP = 2, MIN = 6, INNER = 28;
     const counts = { KEPT: num(s.success_retain_n), WON: num(s.success_new_n), FAIL: num(s.fail_n), WAIT: num(s.pending_n), NONE: num(s.unregistered_n) };
@@ -159,12 +160,12 @@
   const GPH_NO = '<svg class="rs-gph" viewBox="0 0 9 9" aria-hidden="true"><path d="M1.5 1.5l6 6M7.5 1.5l-6 6"/></svg>';
   // 칩은 언제나 글자를 둔다(글리프는 aria-hidden). 색만으로 구분하지 않는다.
   results.chipHtml = function (code) {
-    if (!code) return '<span class="mut">확인 불가</span>';   // 서버가 새 코드를 보낼 때만 — '결과 없음' 점선과 헷갈리지 않게 칩 없이 글자만
+    if (!code) return '<span class="mut">분류 불가</span>';   // 서버가 새 코드를 보낼 때만 — '결과 없음' 점선과 헷갈리지 않게 칩 없이 글자만
     const g = code === 'KEPT' || code === 'WON' ? GPH_OK : (code === 'FAIL' ? GPH_NO : '');
     return '<span class="rs-chip ' + CLS[code] + '">' + g + esc(LABEL[code]) + '</span>';
   };
   function dated(pre, date, post) { return { html: esc(pre) + (date ? mono(date) : '') + esc(post), text: pre + date + post }; }
-  // 결과 없음의 보조 문구(규격 5절). 코드(CONTRACT_DECIDED 등)는 화면에 내지 않는다.
+  // 확인 필요(NONE)의 보조 문구(규격 5절). 코드(CONTRACT_DECIDED 등)는 화면에 내지 않는다.
   results.noneNote = function (it) {
     const b = it && it.bid_basis;
     if (!b) return dated('약정 기록 없음', '', '');
@@ -177,7 +178,7 @@
     }
     return dated('약정 기록 없음', '', '');
   };
-  // 근거 열: 성공·실패 = "{종류} {확인일}", 대기 = '입찰 결과 전', 없음 = noneNote. {html, text}
+  // 근거 열: 재유치·신규·타은행 유치 = "{종류} {확인일}", 대기 = '입찰 결과 전', 확인 필요 = noneNote. {html, text}
   results.evidenceCell = function (it) {
     const code = results.classify(it);
     if (code === 'WAIT') return dated('입찰 결과 전', '', '');
@@ -238,32 +239,32 @@
     const s = data && !data.truncated ? data.summary : null;
     let cells;
     if (!s) {
-      cells = [['성공률'], ['목표 기관'], ['성공 내역'], ['결과 미확정']].map(function (l) { return kCell(l[0], '—', true, []); });
+      cells = [['달성률'], ['목표 기관'], ['협약 내역'], ['결과 미확정']].map(function (l) { return kCell(l[0], '—', true, []); });
     } else {
       const rate = results.rateText(s.success_rate);
       const extra = results.otherSuccess(s);
       const rm = num(s.removed_n);
       cells = [
-        kCell('성공률', rate ? esc(rate) : '—', !rate, (rate ? [] : [esc('성공·실패가 난 곳이 아직 없습니다')]).concat([nb(results.formula(s))])),
+        kCell('달성률', rate ? esc(rate) : '—', !rate, (rate ? [] : [esc('결과가 난 곳이 아직 없습니다')]).concat([nb(results.formula(s))])),
         kCell('목표 기관', num(s.target_n) + UNIT, false, [
-          nb('성공 ' + num(s.success_n) + ' 실패 ' + num(s.fail_n)),
+          nb('재유치·신규 ' + num(s.success_n) + ' 타은행 유치 ' + num(s.fail_n)),
           rm > 0 ? '<button type="button" class="rs-link" data-act="rm">연중에 뺀 곳 <b>' + rm + '</b></button> (목표에 안 셈)' : nb('연중에 뺀 곳 0') + ' (목표에 안 셈)']),
-        kCell('성공 내역', num(s.success_n) + UNIT, false, [
+        kCell('협약 내역', num(s.success_n) + UNIT, false, [
           nb('재유치 ' + num(s.success_retain_n) + ' 신규 ' + num(s.success_new_n)),
           '1금고 <b>' + num(s.success_first_n) + '</b> 2금고 <b>' + num(s.success_second_n) + '</b>' + (extra > 0 ? ' 공동·그 밖 <b>' + extra + '</b>' : '')]),   // 순위 글자의 1·2는 굵게 하지 않는다(nb 를 쓰면 '1금고' 의 1도 감싼다)
         kCell('결과 미확정', (num(s.pending_n) + num(s.unregistered_n)) + UNIT, false, [
-          nb('결과 대기 ' + num(s.pending_n) + ' 결과 없음 ' + num(s.unregistered_n)), esc('성공률에 넣지 않습니다')]),
+          nb('결과 대기 ' + num(s.pending_n) + ' 확인 필요 ' + num(s.unregistered_n)), esc('달성률에 넣지 않습니다')]),
       ];
     }
     return (data && data.truncated ? results.warnHtml() : '') + '<div class="rs-band">' + cells.join('') + '</div>';
   };
-  // 목표 기관 구성 막대 + 성공률 계산 구간 꺾쇠. 칸이 없으면 ''.
+  // 목표 기관 구성 막대 + 달성률 계산 구간 꺾쇠. 칸이 없거나 데이터가 적으면(목표 BAR_MIN_N 곳 미만·분류 한 가지) ''.
   results.barHtml = function (s, W) {
     const m = results.barModel(s, W);
-    if (!m.cells.length) return '';
+    if (!m.cells.length || num(s.target_n) < results.BAR_MIN_N || m.cells.length < 2) return '';
     const parts = CODES.map(function (c) { return LABEL[c] + ' ' + m.counts[c]; }).join(', ');
-    const label = '목표 ' + num(s.target_n) + '곳: ' + parts + '. ' + (m.den > 0 ? '성공률은 성공과 실패 ' + m.den + '곳으로 계산' : '성공·실패가 난 곳이 없어 성공률은 아직 없음');
-    const brace = m.span > 0 ? '<div class="rs-brace" style="width:' + m.span + 'px"><span>성공률 계산 ' + m.den + '곳</span></div>' : '';
+    const label = '목표 ' + num(s.target_n) + '곳: ' + parts + '. ' + (m.den > 0 ? '달성률은 재유치·신규와 타은행 유치 ' + m.den + '곳으로 계산' : '결과가 난 곳이 없어 달성률은 아직 없음');
+    const brace = m.span > 0 ? '<div class="rs-brace" style="width:' + m.span + 'px"><span>달성률 계산 ' + m.den + '곳</span></div>' : '';
     const cells = m.cells.map(function (c) {
       return '<span class="rs-cell" style="width:' + c.w + 'px"><b class="n">' + (c.inside ? c.n : '') + '</b><i class="rs-seg ' + CLS[c.code] + '"></i></span>';
     }).join('');
@@ -349,7 +350,7 @@
     }).join('');
     return '<section class="rs-rm" aria-label="연중에 뺀 곳"><div class="rs-rm-h"><h3><button type="button" class="rs-tog" id="rs-tog" aria-expanded="' + open + '" aria-controls="rs-rm-body">' +
       '<svg viewBox="0 0 8 8" aria-hidden="true"><path d="M2.5 1.5L5.5 4 2.5 6.5"/></svg>연중에 뺀 곳 ' + list.length + '곳</button></h3>' +
-      '<span class="db-why">목표 기관 수와 성공률에 넣지 않았습니다.</span></div>' +
+      '<span class="db-why">목표 기관 수와 달성률에 넣지 않았습니다.</span></div>' +
       '<div class="rs-rm-b" id="rs-rm-body"' + (open ? '' : ' hidden') + '><p class="db-why">잘못 넣음·중복으로 취소한 기록은 입력 정정이라 보이지 않습니다.</p>' +
       '<div class="rs-tp"><table class="rs-tt rs-rt"><colgroup><col class="c-nm"><col class="c-tag"><col class="c-kind"><col class="c-why"><col class="c-at"></colgroup>' +
       '<thead><tr><th scope="col">기관</th><th scope="col">목표 구분</th><th scope="col">뺀 방식</th><th scope="col">사유</th><th scope="col">뺀 날</th></tr></thead><tbody>' + rows + '</tbody></table></div></div></section>';

@@ -44,27 +44,28 @@ test('classify: 5분류, 모르는 값은 null', function () {
   assert.deepStrictEqual(results.countByCode([RETAIN, NEW_TAG, FAIL, WAIT, NONE, item({ result_cd: 'X' })]), { KEPT: 1, WON: 1, FAIL: 1, WAIT: 1, NONE: 1 });
 });
 
-test('요약 문장: 성공률·공식·그 밖 성공·읽어 주는 문장', function () {
+test('요약 문장: 달성률·공식·그 밖 협약·읽어 주는 문장', function () {
   assert.strictEqual(results.rateText(62.5), '62.5%');
   assert.strictEqual(results.rateText(100), '100.0%');
   assert.strictEqual(results.rateText(null), '');
-  assert.strictEqual(results.formula(SUM), '성공 5 ÷ (성공 5 + 실패 3)');
+  assert.strictEqual(results.formula(SUM), '재유치·신규 5 ÷ (재유치·신규 5 + 타은행 유치 3)');
   assert.strictEqual(results.otherSuccess(SUM), 0);
   assert.strictEqual(results.otherSuccess(Object.assign({}, SUM, { success_n: 7 })), 2);
-  assert.strictEqual(results.liveText(data()), '2026년 목표 기관 24곳, 성공률 62.5%');
-  assert.strictEqual(results.liveText(data({ summary: Object.assign({}, SUM, { success_rate: null }) })), '2026년 목표 기관 24곳, 성공률 아직 없음');
+  assert.strictEqual(results.liveText(data()), '2026년 목표 기관 24곳, 달성률 62.5%');
+  assert.strictEqual(results.liveText(data({ summary: Object.assign({}, SUM, { success_rate: null }) })), '2026년 목표 기관 24곳, 달성률 아직 없음');
   assert.ok(/일부만/.test(results.liveText(data({ truncated: true, summary: null }))));
 });
 
-test('bandHtml: 4칸, 성공률 null 이면 — 와 안내, 공식은 언제나, 뺀 곳은 단추', function () {
+test('bandHtml: 4칸, 달성률 null 이면 — 와 안내, 공식은 언제나, 뺀 곳은 단추', function () {
   const h = results.bandHtml(data());
   assert.strictEqual(h.split('class="hb-k"').length, 5);
-  assert.ok(h.indexOf('62.5%') > 0 && h.indexOf('성공 <b>5</b> ÷ (성공 <b>5</b> + 실패 <b>3</b>)') > 0);
+  assert.ok(h.indexOf('62.5%') > 0 && h.indexOf('재유치·신규 <b>5</b> ÷ (재유치·신규 <b>5</b> + 타은행 유치 <b>3</b>)') > 0);
+  assert.ok(h.indexOf('협약 내역') > 0 && h.indexOf('성공') < 0 && h.indexOf('실패') < 0, '화면에 성공·실패 말이 남지 않는다');
   assert.ok(h.indexOf('data-act="rm"') > 0 && h.indexOf('(목표에 안 셈)') > 0);
   assert.ok(h.indexOf('1금고 <b>4</b> 2금고 <b>1</b>') > 0 && h.indexOf('공동·그 밖') < 0);
-  assert.ok(h.indexOf('재유치 <b>3</b> 신규 <b>2</b>') > 0 && h.indexOf('성공률에 넣지 않습니다') > 0);
+  assert.ok(h.indexOf('재유치 <b>3</b> 신규 <b>2</b>') > 0 && h.indexOf('달성률에 넣지 않습니다') > 0 && h.indexOf('결과 대기 <b>10</b> 확인 필요 <b>6</b>') > 0);
   const n = results.bandHtml(data({ summary: Object.assign({}, SUM, { success_rate: null, rate_denominator: 0, success_n: 0, fail_n: 0, rate_numerator: 0, removed_n: 0 }) }));
-  assert.ok(n.indexOf('성공·실패가 난 곳이 아직 없습니다') > 0 && n.indexOf('성공 <b>0</b> ÷ (성공 <b>0</b> + 실패 <b>0</b>)') > 0 && n.indexOf('data-act="rm"') < 0);
+  assert.ok(n.indexOf('결과가 난 곳이 아직 없습니다') > 0 && n.indexOf('재유치·신규 <b>0</b> ÷ (재유치·신규 <b>0</b> + 타은행 유치 <b>0</b>)') > 0 && n.indexOf('data-act="rm"') < 0);
   assert.ok(results.bandHtml(data({ summary: Object.assign({}, SUM, { success_n: 7 }) })).indexOf('공동·그 밖 <b>2</b>') > 0);
 });
 
@@ -79,7 +80,7 @@ test('truncated: 띠 4칸 모두 —, 경고 줄, 막대·뺀 곳 없음, 표 ca
   assert.ok(results.tableHtml(results.defaultView(), d, C).indexOf('표시된 5곳 중 5곳') > 0);
 });
 
-test('barModel: 폭은 건수에 비례, 최소 6px, 28px 미만은 범례, 꺾쇠 길이=성공·실패 칸', function () {
+test('barModel: 폭은 건수에 비례, 최소 6px, 28px 미만은 범례, 꺾쇠 길이=재유치·신규·타은행 유치 칸', function () {
   const m = results.barModel(SUM, 998);   // 5칸 → 칸 사이 8 → 사용 가능 990
   assert.deepStrictEqual(m.cells.map(function (c) { return c.code; }), ['KEPT', 'WON', 'FAIL', 'WAIT', 'NONE']);
   const total = m.cells.reduce(function (a, c) { return a + c.w; }, 0);
@@ -98,17 +99,23 @@ test('barModel: 폭은 건수에 비례, 최소 6px, 28px 미만은 범례, 꺾�
   assert.strictEqual(results.barHtml({}, 400), '');
 });
 
-test('barHtml: role=img 설명, 꺾쇠 문구, 좁은 칸 숫자는 범례로', function () {
+test('barHtml: role=img 설명, 꺾쇠 문구, 좁은 칸 숫자는 범례로, 데이터가 적으면 막대 없음', function () {
   const h = results.barHtml(SUM, 998);
-  assert.ok(h.indexOf('role="img"') > 0 && h.indexOf('목표 24곳: 재유치 성공 3, 신규 성공 2, 실패 3, 결과 대기 10, 결과 없음 6. 성공률은 성공과 실패 8곳으로 계산') > 0);
-  assert.ok(h.indexOf('성공률 계산 8곳') > 0 && h.indexOf('rs-legend') < 0);
+  assert.ok(h.indexOf('role="img"') > 0 && h.indexOf('목표 24곳: 재유치 3, 신규 2, 타은행 유치 3, 결과 대기 10, 확인 필요 6. 달성률은 재유치·신규와 타은행 유치 8곳으로 계산') > 0);
+  assert.ok(h.indexOf('달성률 계산 8곳') > 0 && h.indexOf('rs-legend') < 0);
   const narrow = results.barHtml({ target_n: 501, success_retain_n: 1, success_new_n: 0, fail_n: 0, pending_n: 500, unregistered_n: 0, rate_denominator: 1 }, 400);
-  assert.ok(narrow.indexOf('rs-legend') > 0 && narrow.indexOf('재유치 성공 <span class="v">1</span>') > 0);
-  const none = results.barHtml({ target_n: 3, pending_n: 3, rate_denominator: 0 }, 400);
-  assert.ok(none.indexOf('rs-brace') < 0 && none.indexOf('성공률은 아직 없음') > 0);
+  assert.ok(narrow.indexOf('rs-legend') > 0 && narrow.indexOf('재유치 <span class="v">1</span>') > 0);
+  const none = results.barHtml({ target_n: 10, pending_n: 7, unregistered_n: 3, rate_denominator: 0 }, 400);
+  assert.ok(none.indexOf('rs-brace') < 0 && none.indexOf('달성률은 아직 없음') > 0);
+  // 3) 데이터가 적으면 막대를 그리지 않는다: 목표 5곳 미만, 또는 분류가 한 가지뿐
+  assert.strictEqual(results.BAR_MIN_N, 5);
+  assert.strictEqual(results.barHtml({ target_n: 4, success_retain_n: 2, pending_n: 2, rate_denominator: 2 }, 400), '', '목표 4곳');
+  assert.strictEqual(results.barHtml({ target_n: 30, pending_n: 30, rate_denominator: 0 }, 400), '', '분류 한 가지');
+  assert.strictEqual(results.barHtml({ target_n: 2, pending_n: 2, rate_denominator: 0 }, 400), '', '숫자 2 하나뿐인 막대');
+  assert.ok(results.barHtml({ target_n: 5, success_retain_n: 3, pending_n: 2, rate_denominator: 3 }, 400).indexOf('rs-bar') > 0, '목표 5곳·분류 2가지는 그린다');
 });
 
-test('filterItems: 결과·목표 구분 AND, sortItems: 기본 결과 순(성공 먼저)·같은 결과는 지역·이름 가나다', function () {
+test('filterItems: 결과·목표 구분 AND, sortItems: 기본 결과 순(재유치·신규 먼저)·같은 결과는 지역·이름 가나다', function () {
   const all = data().items;
   assert.strictEqual(results.filterItems(all, { res: 'all', tag: '' }).length, 5);
   assert.deepStrictEqual(results.filterItems(all, { res: 'WON', tag: '' }).map(function (i) { return i.institution_id; }), ['a2']);
@@ -155,7 +162,7 @@ test('chipHtml: 글자는 언제나, 글리프는 aria-hidden, 모양 클래스 
     if (h.indexOf('<svg') >= 0) assert.ok(h.indexOf('aria-hidden="true"') > 0);
   });
   assert.ok(results.chipHtml('WAIT').indexOf('<svg') < 0 && results.chipHtml('NONE').indexOf('<svg') < 0);
-  assert.ok(results.chipHtml(null).indexOf('확인 불가') > 0);
+  assert.ok(results.chipHtml(null).indexOf('분류 불가') > 0);
 });
 
 test('근거 열·결과 없음 보조 문구(규격 5절), 코드 문자열은 화면에 내지 않는다', function () {
@@ -214,11 +221,26 @@ test('tableHtml: 헤더 aria-sort·정렬 단추 3개·caption, 거른 결과 0�
 test('filtersHtml: 결과 6개(건수 포함)·목표 구분(응답의 tag_name), fieldset+숨은 legend, 선택 반영', function () {
   const h = results.filtersHtml(Object.assign(results.defaultView(), { res: 'FAIL', tag: '신규' }), data());
   assert.ok(h.indexOf('<legend class="sr-only">결과로 거르기</legend>') > 0 && h.indexOf('<legend class="sr-only">목표 구분으로 거르기</legend>') > 0);
-  assert.ok(h.indexOf('<span>전체 5</span>') > 0 && h.indexOf('<span>재유치 성공 1</span>') > 0 && h.indexOf('<span>실패 1</span>') > 0 && h.indexOf('<span>결과 없음 1</span>') > 0);
+  assert.ok(h.indexOf('<span>전체 5</span>') > 0 && h.indexOf('<span>재유치 1</span>') > 0 && h.indexOf('<span>타은행 유치 1</span>') > 0 && h.indexOf('<span>확인 필요 1</span>') > 0);
   assert.ok(h.indexOf('value="FAIL" checked') > 0 && h.indexOf('value="신규" checked') > 0 && h.indexOf('<span>신규 1</span>') > 0 && h.indexOf('<span>재유치 4</span>') > 0);
   assert.strictEqual(h.split('name="rs-res"').length, 7);
   assert.strictEqual(results.filtersHtml(results.defaultView(), data({ items: [] })), '');
   assert.ok(results.filtersHtml(results.defaultView(), data({ items: [item({ tag_name: null })] })).indexOf('name="rs-tag"') < 0);
+});
+
+test('회귀(2): 목표 1곳 이상이면 거르기 줄이 항상 있고 CSS 가 단추로 보이게 한다(페이지 바탕 위 알약)', function () {
+  [[RETAIN], [FAIL], [WAIT, NONE], [NEW_TAG, RETAIN, FAIL, WAIT, NONE]].forEach(function (items) {
+    const h = results.filtersHtml(results.defaultView(), data({ items: items }));
+    assert.strictEqual(h.split('name="rs-res"').length, 7, '결과 라디오 6개(전체+5분류, 건수 0도 보임)');
+    assert.ok(h.indexOf('value="all" checked') > 0, 'all checked');
+    assert.ok(h.indexOf('<legend class="sr-only">결과로 거르기</legend>') > 0, 'legend');
+  });
+  assert.ok(results.filtersHtml(results.defaultView(), data({ items: [item({ tag_name: null })] })).indexOf('rs-filters') > 0, 'rs-filters');
+  const a = HTML.indexOf('/* 협약 성과 관리 시작'), b = HTML.indexOf('/* 협약 성과 관리 끝 */');
+  const css = HTML.slice(a, b);
+  assert.ok(/\.rs-frow \.db-per \{[^}]*background:var\(--panel\)[^}]*\}/.test(css) && /\.rs-frow \.db-per \{[^}]*border-color:var\(--line-strong\)/.test(css), '거르기 알약은 패널 바탕+진한 선');
+  assert.ok(/\.rs-frow \.db-per span \{[^}]*color:var\(--fg\)/.test(css), '선택 안 된 글자도 --fg');
+  assert.ok(SRC.indexOf("setHtml('rs-fil', empty ? '' : results.filtersHtml(S, d))") > 0, '거르기 줄은 비어 있는 화면에서만 숨긴다');
 });
 
 test('removedHtml: 0건이면 글줄만, 뺀 방식 문구·사유 —·KST 날짜·최신순·접힘 상태', function () {
@@ -234,7 +256,7 @@ test('removedHtml: 0건이면 글줄만, 뺀 방식 문구·사유 —·KST 날�
   assert.ok(h.indexOf('다른 해로 옮김(이월)') > 0 && h.indexOf('관심 기관으로 내림') > 0 && h.indexOf('목표 취소') > 0);
   assert.ok(h.indexOf('<span class="v">2026-11-20</span>') > 0, 'UTC 16시 = KST 다음 날');
   assert.ok(h.indexOf('최근') < h.indexOf('관심') && h.indexOf('관심') < h.indexOf('오래'), '뺀 날 최신순');
-  assert.ok(h.indexOf('목표 기관 수와 성공률에 넣지 않았습니다.') > 0 && h.indexOf('입력 정정이라 보이지 않습니다') > 0);
+  assert.ok(h.indexOf('목표 기관 수와 달성률에 넣지 않았습니다.') > 0 && h.indexOf('입력 정정이라 보이지 않습니다') > 0);
   assert.ok(results.removedHtml(Object.assign(results.defaultView(), { rmOpen: true }), data({ removed_items: rm }), C).indexOf('aria-expanded="true"') > 0);
   assert.ok(!/id="rs-rm-body" hidden/.test(results.removedHtml(Object.assign(results.defaultView(), { rmOpen: true }), data({ removed_items: rm }), C)));
 });
@@ -285,7 +307,7 @@ test('index.html: #results-root 한 개, results.js 는 plancollect.js 뒤·admi
   assert.ok(!/box-shadow/.test(css) && css.indexOf('.legend') < 0 && css.indexOf('#map-stage') < 0);
   ['.rs-chip.kept', '.rs-chip.won', '.rs-chip.fail', '.rs-chip.none', '.rs-seg.none', '.rs-band', '.rs-tt', 'forced-colors:active'].forEach(function (s) { assert.ok(css.indexOf(s) >= 0, s); });
   assert.ok(/\.rs-chip\.none \{[^}]*dashed/.test(css) && /\.rs-seg\.none \{[^}]*dashed/.test(css), '결과 없음은 점선');
-  assert.ok(/\.rs-chip\.kept \{[^}]*var\(--bk-kb\)/.test(css), '재유치 성공은 KB Yellow 채움(DESIGN.md 예외는 main 이 추가)');
+  assert.ok(/\.rs-chip\.kept \{[^}]*var\(--bk-kb\)/.test(css), '재유치는 KB Yellow 채움(DESIGN.md 예외는 main 이 추가)');
 });
 
 test('nav.js 연결(0d 적용 뒤): RESULTS_ID = results.SOON_ID, 협약·관계 관리 아래 map 키·영업팀·전산팀, 디자이너 relate', { skip: !nav.RESULTS_ID }, function () {
@@ -307,7 +329,7 @@ test('qa 반영: resetScreens 에 results, liveText 집계 없음, 알 수 없�
   assert.ok(/\['portal', 'kbboard', 'dashboard', 'plans', 'results'\]\.forEach/.test(APP_SRC), '로그인 때 숨은 협약 성과 화면도 내린다');
   assert.strictEqual(results.liveText({ year: 2026, truncated: false, summary: null, items: [] }), '집계 없음');
   assert.strictEqual(results.liveText({ year: 2026, truncated: true, summary: null, items: [] }), '목표 기관이 많아 일부만 표시됩니다');
-  assert.strictEqual(results.chipHtml(null), '<span class="mut">확인 불가</span>');
+  assert.strictEqual(results.chipHtml(null), '<span class="mut">분류 불가</span>');
   assert.ok(results.rowHtml(RETAIN, C).indexOf('<td class="c-bank-cell"') > 0);
 });
 
