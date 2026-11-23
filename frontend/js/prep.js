@@ -925,7 +925,8 @@
     return { who: '', tab: 'active', query: '', selected: '', rows: [], listState: 'loading', detail: null,
              modal: null, confirm: null, showVoid: false, uploading: false, busy: false,
              seq: 0, listSeq: 0, flash: '', refocus: '', focusTitle: false, withdrawing: false,
-             nb: null, nbSeen: '' };   // nb: 열린 입찰 없음 팝업 { id, round, rev, sending } · nbSeen: 이미 띄운 건|회차|판정 번호
+             nb: null, nbSeen: '',   // nb: 열린 입찰 없음 팝업 { id, round, rev, sending } · nbSeen: 이미 띄운 건|회차|판정 번호
+             view: 'board', fromBoard: false, pendingCase: false };   // 대시보드 표(prepboard.js)가 있을 때: view 'board'(표) | 'case'(같은 자리 상세). fromBoard: 표에서 연 상세
   }
   let S = freshState();
   let wired = false;
@@ -987,6 +988,48 @@
   function paintGate(gate) {
     el('pp-gate').innerHTML = gate ? '<p class="wf-empty">' + esc(gate.text) + '</p>' : '';
     el('pp-wrap').style.display = gate ? 'none' : '';
+    const bd = el('pp-board');
+    if (bd) bd.style.display = gate ? 'none' : '';
+  }
+
+  // ── 대시보드 표 ↔ 상세 전환(NEXT 102). #pp-board·prepboard.js가 없으면 옛 목록+상세 화면 그대로. ──
+  function boardOn() { return !!(root.prepboard && root.prepboard.show && el('pp-board')); }
+  function showView() {
+    const bo = boardOn();
+    const inCase = !bo || S.view === 'case';
+    if (bo) el('pp-board').hidden = inCase;
+    el('pp-wrap').hidden = !inCase;
+    const list = el('pp-list'); if (list) list.hidden = bo;      // 표가 있으면 왼쪽 목록은 쓰지 않는다
+    const bk = el('pp-back'); if (bk) bk.hidden = !bo;
+  }
+  function toBoardState() {
+    S.view = 'board'; S.fromBoard = false; S.selected = ''; S.detail = null; S.seq += 1; S.confirm = null; S.nbSeen = '';
+  }
+  function boardHooks() {
+    const role = myRole();
+    return { req: req, roleLabel: root.roles ? root.roles.roleLabel(role) : role, openCase: enterCase,
+             openMap: function () { if (root.app && root.app.openNavItem) root.app.openNavItem('map'); } };
+  }
+  // 표의 기관 이름 → 같은 자리에서 상세. 상세를 여는 요청의 화면 이름은 prep_dashboard.
+  function enterCase(bid) {
+    if (root.prepboard && root.prepboard.leave) root.prepboard.leave();
+    S.view = 'case'; S.fromBoard = true; S.selected = String(bid); S.nbSeen = ''; S.tab = 'active'; S.query = ''; S.detail = null;
+    S.modal = null; S.confirm = null; S.showVoid = false; S.focusTitle = true;
+    clearQueryBox();
+    clearNotices();
+    showView();
+    loadList();
+    loadDetail(S.selected, { popup: true });
+  }
+  // [← 대시보드로] — 거르기·스크롤은 prepboard가 간직하고, 표는 다시 불러온다(상세에서 과제를 체크하면 자동 칸이 바뀐다).
+  function backToBoard() {
+    const bid = S.selected;
+    if (S.nb) closeNobid(false);
+    toBoardState();
+    invalidateCache();
+    clearNotices();
+    showView();
+    root.prepboard.show(boardHooks(), { reload: true, focusBid: bid });
   }
   function paintTabs() {
     const n = prep.tabCounts(S.rows);
@@ -1100,7 +1143,7 @@
     const token = ++S.seq;
     S.detail = { loading: true };
     paintCase();
-    req('GET', base(id), undefined, ui('prep_detail', 'open')).then(function (view) {
+    req('GET', base(id), undefined, ui(S.fromBoard ? 'prep_dashboard' : 'prep_detail', 'open')).then(function (view) {
       const vw = (view && view.viewer) || {};
       const tasks = (view && view.tasks) || [];
       const hasT3 = tasks.some(function (t) { return t.task_cd === 'T3' && (t.state === 'TODO' || t.state === 'DONE'); });
@@ -1142,6 +1185,8 @@
                                roleLabel: root.roles ? root.roles.roleLabel(role) : role });
     paintGate(gate);
     if (gate) return;
+    showView();
+    if (boardOn() && S.view === 'board') { root.prepboard.show(boardHooks()); return; }
     S.listState = S.rows.length ? 'ok' : 'loading';
     paintList();
     loadList();
@@ -1573,6 +1618,7 @@
     const cd = t.getAttribute('data-task');
     switch (act) {
       case 'open-map': if (root.app && root.app.openNavItem) root.app.openNavItem('map'); return;
+      case 'back': if (boardOn()) backToBoard(); return;
       case 'check': onCheck(cd, true); return;
       case 'uncheck': onUncheckAsk(cd); return;
       case 'uncheck-ok': onCheck(cd, false); return;
@@ -1658,6 +1704,18 @@
     inp.setAttribute('aria-hidden', 'true');
     inp.tabIndex = -1;
     r.appendChild(inp);
+    // 상세 맨 위 [← 대시보드로] — 표(#pp-board)가 있을 때만 보인다(showView). case를 다시 그려도 지워지지 않게 #pp-case 밖에 둔다.
+    const pane = el('pp-pane');
+    if (pane && !el('pp-back')) {
+      const bk = document.createElement('button');
+      bk.type = 'button';
+      bk.id = 'pp-back';
+      bk.className = 'pb-back';
+      bk.setAttribute('data-act', 'back');
+      bk.textContent = '← 대시보드로';
+      bk.hidden = true;
+      pane.insertBefore(bk, pane.firstChild);
+    }
     const md = el('pp-modal');
     md.addEventListener('keydown', onModalKey);
     // 배경(오버레이 자체) 클릭 → requestClose 경로(작성 중이면 '닫을까요?'). 상자에서 눌러 끌다가 배경에서 놓는 경우는 닫지 않는다.
@@ -1684,7 +1742,8 @@
     if (typeof document === 'undefined' || !el('pp-root')) return;
     if (!wired) wire();
     const who = whoNow();
-    if (who !== S.who) { S = freshState(); S.who = who; clearQueryBox(); }
+    if (who !== S.who) { S = freshState(); S.who = who; clearQueryBox(); if (root.prepboard && root.prepboard.reset) root.prepboard.reset(); }
+    if (boardOn()) { if (S.pendingCase) S.pendingCase = false; else toBoardState(); }   // 메뉴로 들어오면 표부터. 지도·현황판이 openCase로 열면 상세
     const md = el('pp-modal'); md.style.display = 'none'; md.innerHTML = ''; S.modal = null;
     S.nb = null; nbRelease();
     S.confirm = null;
@@ -1702,6 +1761,7 @@
     S = freshState();
     S.who = who;
     clearQueryBox();
+    if (root.prepboard && root.prepboard.reset) root.prepboard.reset();
     const md = el('pp-modal'); md.style.display = 'none'; md.innerHTML = '';
     nbRelease();
     clearNotices();
@@ -1721,9 +1781,12 @@
     S.tab = 'active';
     S.query = '';
     S.detail = null;
+    S.view = 'case';          // 표가 있으면 mount()가 이 값을 한 번 지켜 상세를 연다(pendingCase)
+    S.fromBoard = false;
+    S.pendingCase = true;
     clearQueryBox();
     const ok = !!(root.app && root.app.openNavItem && root.app.openNavItem(root.nav.PREP_ID));
-    if (!ok) S.flash = '';
+    if (!ok) { S.flash = ''; S.pendingCase = false; S.view = 'board'; }
     return ok;
   };
 

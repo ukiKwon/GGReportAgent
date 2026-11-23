@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 대시보드(NEXT 102). ANSI 문장(양쪽 방언 공통, 행 수 제한 구문 없음). 조회는 모두 flushCache(시험이 JdbcTemplate 으로 값을 바꾼다). -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.PrepBoardMapper">
+
+  <resultMap id="code" type="BankContractCode">
+    <id property="code" column="CODE"/>
+    <result property="codeName" column="CODE_NAME"/>
+  </resultMap>
+
+  <select id="selectAllTasks" resultType="BidPrepTask" flushCache="true">
+    SELECT t.BID_CASE_ID, t.TASK_CD, t.SORT_NO, t.KIND_CD, t.JUDGE_CD, t.FACT_KEY, t.PRECOND_KEY, t.PREREQ_CD, t.COND_KEY,
+           t.DONE_YN, t.DONE_BY, t.DONE_AT, t.REF_ATTACH_ID, t.REF_SHA256, t.REF_BY, t.REF_AT,
+           d.TASK_NAME AS TASK_NAME, COALESCE(d.READY_YN, 1) AS READY_YN
+      FROM BID_PREP_TASK t
+      LEFT JOIN PREP_TASK_DEF d ON d.TASK_CD = t.TASK_CD
+     ORDER BY t.BID_CASE_ID, t.SORT_NO, t.TASK_CD
+  </select>
+
+  <select id="selectActiveAssignees" resultType="PrepBoardRef" flushCache="true">
+    SELECT a.BID_CASE_ID, a.EMP_NO, u.NAME
+      FROM BID_ASSIGNMENT a
+      LEFT JOIN USERS u ON u.EMP_NO = a.EMP_NO
+     WHERE a.ACTIVE_YN = 1
+     ORDER BY a.BID_CASE_ID, a.ASSIGNED_AT, a.EMP_NO
+  </select>
+
+  <select id="selectConfirmers" resultType="PrepBoardRef" flushCache="true">
+    SELECT p.BID_CASE_ID, p.CONFIRMED_BY AS EMP_NO, u.NAME
+      FROM BID_PREP p
+      JOIN USERS u ON u.EMP_NO = p.CONFIRMED_BY
+  </select>
+
+  <select id="selectDesignFinalCases" resultType="string" flushCache="true">
+    SELECT DISTINCT BID_CASE_ID FROM TASKS
+     WHERE TEAM = #{team} AND STATUS = #{status} AND BID_CASE_ID IS NOT NULL
+  </select>
+
+  <select id="selectCodes" resultMap="code" flushCache="true">
+    SELECT CODE, CODE_NAME FROM COMMON_CODE WHERE CODE_GROUP = #{group} AND ENABLED = 1 ORDER BY SORT_NO, CODE
+  </select>
+
+  <select id="selectCurrent" resultType="PrepBoardCheck" flushCache="true">
+    SELECT c.BID_CASE_ID, c.COL_CD, c.REV_NO, c.MARK_CD, c.MARK_DATE, c.ACTOR_NAME, c.EMP_VERIFIED, c.SAVED_AT
+      FROM BID_PREP_CHECK c
+      JOIN (SELECT BID_CASE_ID, COL_CD, MAX(REV_NO) AS MAX_REV FROM BID_PREP_CHECK GROUP BY BID_CASE_ID, COL_CD) m
+        ON m.BID_CASE_ID = c.BID_CASE_ID AND m.COL_CD = c.COL_CD AND m.MAX_REV = c.REV_NO
+  </select>
+
+  <select id="selectCurrentOne" resultType="PrepBoardCheck" flushCache="true">
+    SELECT c.BID_CASE_ID, c.COL_CD, c.REV_NO, c.MARK_CD, c.MARK_DATE, c.ACTOR_NAME, c.EMP_VERIFIED, c.SAVED_AT
+      FROM BID_PREP_CHECK c
+     WHERE c.BID_CASE_ID = #{bidCaseId} AND c.COL_CD = #{colCd}
+       AND c.REV_NO = (SELECT MAX(x.REV_NO) FROM BID_PREP_CHECK x WHERE x.BID_CASE_ID = #{bidCaseId} AND x.COL_CD = #{colCd})
+  </select>
+
+  <insert id="insertCheck">
+    INSERT INTO BID_PREP_CHECK (BID_CASE_ID, COL_CD, REV_NO, MARK_CD, PREV_MARK_CD, MARK_DATE,
+                                ACTOR_EMP_NO, ACTOR_NAME, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, SAVED_AT)
+    VALUES (#{bidCaseId}, #{colCd}, #{revNo}, #{markCd}, #{prevMarkCd,jdbcType=VARCHAR}, #{markDate},
+            #{actorEmpNo}, #{actorName}, #{empVerified}, #{screenId}, #{buttonId}, #{uiValid}, #{savedAt})
+  </insert>
+</mapper>

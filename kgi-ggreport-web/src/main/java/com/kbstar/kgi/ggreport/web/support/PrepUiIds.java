@@ -18,7 +18,7 @@ import java.util.Set;
 public final class PrepUiIds {
 
     public static final Set<String> SCREENS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
-            "prep_list", "prep_detail", "prep_history", "approvals_inbox", "approvals_mine", "map_popover", "bid_board", "bid_notice")));
+            "prep_list", "prep_detail", "prep_history", "approvals_inbox", "approvals_mine", "map_popover", "bid_board", "bid_notice", "prep_dashboard")));
     public static final Set<String> BUTTONS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             "open", "refresh", "confirm", "unconfirm", "open_request", "withdraw", "check", "uncheck",
             "plan_request", "start_writing", "history_open", "cancel_prep", "approve", "reject", "cancel_request",

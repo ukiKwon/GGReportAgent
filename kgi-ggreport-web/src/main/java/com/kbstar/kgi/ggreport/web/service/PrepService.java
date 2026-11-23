@@ -1278,4 +1278,24 @@ public class PrepService {
         d.put("message", message);
         return ApiException.withDetail(status, d);
     }
+
+    // ── 대시보드(PrepBoardService, NEXT 102) 전용 읽기 창 — 판정·열람 규칙을 복제하지 않으려고 연다. 쓰기 없음. ──
+
+    /** 저장된 DONE_YN 기준 과제 상태(LOCKED|TODO|DONE|NOT_APPLICABLE|PREPARING). 사실 판정을 다시 맞추지 않는다(list 와 같음). */
+    Map<String, String> boardTaskStates(BidPrep p, List<BidPrepTask> tasks) {
+        return new LinkedHashMap<>(evaluate(p, tasks).state);
+    }
+
+    /**
+     * 상세 열람 규칙(canSee) 그대로 — 대시보드 행의 can_view(행을 눌러 상세가 열리는가). 대시보드 열람 자체는 PrepBoardService 가 정한다.
+     * 쓰기 권한 판정에 쓰지 말 것 — "볼 수 있다"만 뜻한다(security 11-23 F5).
+     */
+    boolean boardCanSee(SysUser me, BidPrep p) {
+        return canSee(me, p);
+    }
+
+    /** 상태 표시명(개설 전 확정 취소 / 개설 뒤 중단 구분 포함). */
+    static String boardStateName(BidPrep p) {
+        return stateName(p);
+    }
 }
