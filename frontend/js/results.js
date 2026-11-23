@@ -19,6 +19,7 @@
   results.CODES = CODES;
   results.LABEL = LABEL;
   results.BAR_MIN_N = 5;   // 목표 기관이 이보다 적거나 분류가 한 가지뿐이면 구성 막대를 그리지 않는다(숫자는 요약 띠에 있음)
+  results.BRACE_NARROW = 96;   // 꺾쇠 선이 이보다 짧으면 이름표를 왼쪽에 붙인다(이름표 폭 약 87px + 여유, 규격 6-C)
   results.DENIED_MSG = '협약 성과 모아 보기는 영업부서와 개발부서만 볼 수 있습니다.';
   results.LIMIT_MSG = '집계할 약정 기록이 너무 많습니다. 개발부서에 알려 주세요.';
   results.YEAR_MSG = '목표 연도를 확인해 주세요.';
@@ -122,6 +123,8 @@
   results.rateText = function (r) { return typeof r === 'number' && isFinite(r) ? r.toFixed(1) + '%' : ''; };
   results.formula = function (s) { return '재유치·신규 ' + num(s.rate_numerator) + ' ÷ (재유치·신규 ' + num(s.success_n) + ' + 타은행 유치 ' + num(s.fail_n) + ')'; };
   results.otherSuccess = function (s) { return Math.max(0, num(s.success_n) - num(s.success_first_n) - num(s.success_second_n)); };
+  // 결과가 난 곳이 하나도 없고(달성률 분모 0) 목표는 있다 — 띠·막대 자리가 '아직 없음' 상태로 바뀌는 조건(규격 6-A·6-B).
+  results.noResult = function (s) { return !!s && !(num(s.rate_denominator) > 0) && num(s.target_n) > 0; };
   // 화면을 연 뒤 polite 로 읽어 주는 문장.
   results.liveText = function (data) {
     const s = data && data.summary;
@@ -244,12 +247,15 @@
       const rate = results.rateText(s.success_rate);
       const extra = results.otherSuccess(s);
       const rm = num(s.removed_n);
+      const zero = results.noResult(s);   // 결과 0건(목표만 있음): 0÷0 공식·굵은 0곳을 내지 않는다
       cells = [
-        kCell('달성률', rate ? esc(rate) : '—', !rate, (rate ? [] : [esc('결과가 난 곳이 아직 없습니다')]).concat([nb(results.formula(s))])),
+        zero ? kCell('달성률', '—', true, [esc('결과가 난 곳이 아직 없습니다'), esc('결과가 나면 계산합니다')])
+          : kCell('달성률', rate ? esc(rate) : '—', !rate, (rate ? [] : [esc('결과가 난 곳이 아직 없습니다')]).concat([nb(results.formula(s))])),
         kCell('목표 기관', num(s.target_n) + UNIT, false, [
           nb('재유치·신규 ' + num(s.success_n) + ' 타은행 유치 ' + num(s.fail_n)),
           rm > 0 ? '<button type="button" class="rs-link" data-act="rm">연중에 뺀 곳 <b>' + rm + '</b></button> (목표에 안 셈)' : nb('연중에 뺀 곳 0') + ' (목표에 안 셈)']),
-        kCell('협약 내역', num(s.success_n) + UNIT, false, [
+        zero ? kCell('협약 내역', num(s.success_n) + UNIT, true, [esc('결과가 나면 셉니다')])
+          : kCell('협약 내역', num(s.success_n) + UNIT, false, [
           nb('재유치 ' + num(s.success_retain_n) + ' 신규 ' + num(s.success_new_n)),
           '1금고 <b>' + num(s.success_first_n) + '</b> 2금고 <b>' + num(s.success_second_n) + '</b>' + (extra > 0 ? ' 공동·그 밖 <b>' + extra + '</b>' : '')]),   // 순위 글자의 1·2는 굵게 하지 않는다(nb 를 쓰면 '1금고' 의 1도 감싼다)
         kCell('결과 미확정', (num(s.pending_n) + num(s.unregistered_n)) + UNIT, false, [
@@ -258,13 +264,21 @@
     }
     return (data && data.truncated ? results.warnHtml() : '') + '<div class="rs-band">' + cells.join('') + '</div>';
   };
+  // 결과 0건이라 막대를 안 그릴 때 그 자리의 안내 한 줄(규격 6-B). 목표 BAR_MIN_N 곳 미만·결과가 있는 경우는 ''.
+  results.barNoteHtml = function (s) {
+    if (!s || !results.noResult(s) || num(s.target_n) < results.BAR_MIN_N) return '';
+    const w = num(s.pending_n), u = num(s.unregistered_n);
+    if (!(w + u > 0)) return '';
+    const now = u === 0 ? w + '곳 모두 결과 대기입니다' : (w === 0 ? u + '곳 모두 확인 필요입니다' : '결과 대기 ' + w + '곳, 확인 필요 ' + u + '곳입니다');
+    return '<p class="db-why rs-bar-note">' + esc('입찰 결과가 나면 여기에 구성 막대가 그려집니다. 지금은 ' + now + '.') + '</p>';
+  };
   // 목표 기관 구성 막대 + 달성률 계산 구간 꺾쇠. 칸이 없거나 데이터가 적으면(목표 BAR_MIN_N 곳 미만·분류 한 가지) ''.
   results.barHtml = function (s, W) {
     const m = results.barModel(s, W);
     if (!m.cells.length || num(s.target_n) < results.BAR_MIN_N || m.cells.length < 2 || !(m.den > 0)) return '';   // 결과(재유치·신규·타은행 유치)가 하나도 없으면(목표만) 막대를 그리지 않는다 — 오류처럼 보임(사용자 11-23)
     const parts = CODES.map(function (c) { return LABEL[c] + ' ' + m.counts[c]; }).join(', ');
     const label = '목표 ' + num(s.target_n) + '곳: ' + parts + '. ' + (m.den > 0 ? '달성률은 재유치·신규와 타은행 유치 ' + m.den + '곳으로 계산' : '결과가 난 곳이 없어 달성률은 아직 없음');
-    const brace = m.span > 0 ? '<div class="rs-brace" style="width:' + m.span + 'px"><span>달성률 계산 ' + m.den + '곳</span></div>' : '';
+    const brace = m.span > 0 ? '<div class="rs-brace' + (m.span < results.BRACE_NARROW ? ' l' : '') + '" style="width:' + m.span + 'px"><span>달성률 계산 ' + m.den + '곳</span></div>' : '';
     const cells = m.cells.map(function (c) {
       return '<span class="rs-cell" style="width:' + c.w + 'px"><b class="n">' + (c.inside ? c.n : '') + '</b><i class="rs-seg ' + CLS[c.code] + '"></i></span>';
     }).join('');
@@ -402,10 +416,12 @@
     '<div id="rs-body" aria-busy="false"><div id="rs-band"></div><div id="rs-bar"></div><div id="rs-fil"></div><div id="rs-tbl"></div><div id="rs-rm"></div></div>';
 
   function setHtml(id, html) { const el = $(id); if (el) el.innerHTML = html; }
-  function barWidth() { const el = $('rs-bar'); return Math.max(0, (el && el.clientWidth ? el.clientWidth : 990) - 34); }   // 상자 안 패딩 16×2 + 테두리 1×2
+  // 측정 대상은 늘 보이는 #rs-body(없으면 #rs-band). 비어 있는 #rs-bar 는 display:none 이라 clientWidth 가 0 이다.
+  function barWidth() { const el = $('rs-body') || $('rs-band'); return Math.max(0, (el && el.clientWidth ? el.clientWidth : 990) - 34); }   // 상자 안 패딩 16×2 + 테두리 1×2
   function renderBar() {
     const d = S && S.data;
-    setHtml('rs-bar', d && !d.truncated && d.summary && !results.isEmpty(d) ? results.barHtml(d.summary, barWidth()) : '');
+    const ok = d && !d.truncated && d.summary && !results.isEmpty(d);
+    setHtml('rs-bar', ok ? (results.barHtml(d.summary, barWidth()) || results.barNoteHtml(d.summary)) : '');
   }
   function renderTable() { if (S && S.data) setHtml('rs-tbl', results.tableHtml(S, S.data, ctx())); }
   function renderRm() { if (S && S.data) setHtml('rs-rm', results.removedHtml(S, S.data, ctx())); }

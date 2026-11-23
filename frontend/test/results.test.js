@@ -56,7 +56,7 @@ test('요약 문장: 달성률·공식·그 밖 협약·읽어 주는 문장', f
   assert.ok(/일부만/.test(results.liveText(data({ truncated: true, summary: null }))));
 });
 
-test('bandHtml: 4칸, 달성률 null 이면 — 와 안내, 공식은 언제나, 뺀 곳은 단추', function () {
+test('bandHtml: 4칸, 달성률 null 이면 — 와 안내, 공식은 결과가 있을 때만, 뺀 곳은 단추', function () {
   const h = results.bandHtml(data());
   assert.strictEqual(h.split('class="hb-k"').length, 5);
   assert.ok(h.indexOf('62.5%') > 0 && h.indexOf('재유치·신규 <b>5</b> ÷ (재유치·신규 <b>5</b> + 타은행 유치 <b>3</b>)') > 0);
@@ -65,7 +65,7 @@ test('bandHtml: 4칸, 달성률 null 이면 — 와 안내, 공식은 언제나,
   assert.ok(h.indexOf('1금고 <b>4</b> 2금고 <b>1</b>') > 0 && h.indexOf('공동·그 밖') < 0);
   assert.ok(h.indexOf('재유치 <b>3</b> 신규 <b>2</b>') > 0 && h.indexOf('달성률에 넣지 않습니다') > 0 && h.indexOf('결과 대기 <b>10</b> 확인 필요 <b>6</b>') > 0);
   const n = results.bandHtml(data({ summary: Object.assign({}, SUM, { success_rate: null, rate_denominator: 0, success_n: 0, fail_n: 0, rate_numerator: 0, removed_n: 0 }) }));
-  assert.ok(n.indexOf('결과가 난 곳이 아직 없습니다') > 0 && n.indexOf('재유치·신규 <b>0</b> ÷ (재유치·신규 <b>0</b> + 타은행 유치 <b>0</b>)') > 0 && n.indexOf('data-act="rm"') < 0);
+  assert.ok(n.indexOf('결과가 난 곳이 아직 없습니다') > 0 && n.indexOf('결과가 나면 계산합니다') > 0 && n.indexOf('÷') < 0 && n.indexOf('data-act="rm"') < 0);
   assert.ok(results.bandHtml(data({ summary: Object.assign({}, SUM, { success_n: 7 }) })).indexOf('공동·그 밖 <b>2</b>') > 0);
 });
 
@@ -349,4 +349,54 @@ test('협약 성과 화면에서 연 기관 상세는 [제안 확정]을 막는�
   const DASH_SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'dashboard.js'), 'utf8');
   assert.ok(/openDetail\(rec, \{ opener: t, noConfirm: true \}\)/.test(SRC), '기관 이름 클릭이 noConfirm 옵션을 넘긴다');
   assert.ok(/noConfirm: !!\(opts && opts\.noConfirm\)/.test(DASH_SRC), 'openDetail 이 옵션을 받는다');
+});
+
+test('결과 0건(목표만): 띠는 — 와 결과가 나면 계산합니다, 협약 내역은 회색 0곳, 공식 줄 없음', function () {
+  const Z = Object.assign({}, SUM, { target_n: 12, success_n: 0, success_retain_n: 0, success_new_n: 0, success_first_n: 0, success_second_n: 0, fail_n: 0,
+    pending_n: 12, unregistered_n: 0, removed_n: 0, success_rate: null, rate_numerator: 0, rate_denominator: 0 });
+  assert.strictEqual(results.noResult(Z), true);
+  assert.strictEqual(results.noResult(SUM), false);
+  assert.strictEqual(results.noResult(Object.assign({}, Z, { target_n: 0 })), false, '목표 0곳이면 이 상태가 아니다');
+  const h = results.bandHtml(data({ summary: Z }));
+  assert.strictEqual(h.split('class="hb-k"').length, 5);
+  assert.ok(h.indexOf('결과가 난 곳이 아직 없습니다') > 0 && h.indexOf('결과가 나면 계산합니다') > 0 && h.indexOf('÷') < 0, '0÷0 공식 줄 없음');
+  assert.ok(h.indexOf('결과가 나면 셉니다') > 0, '협약 내역 한 줄');
+  assert.ok(h.indexOf('1금고') < 0 && h.indexOf('공동·그 밖') < 0);
+  const one = results.bandHtml(data({ summary: Object.assign({}, Z, { success_n: 1, success_retain_n: 1, rate_numerator: 1, rate_denominator: 1, success_rate: 100, pending_n: 11 }) }));
+  assert.ok(one.indexOf('÷') > 0 && one.indexOf('결과가 나면') < 0);
+});
+
+test('barNoteHtml: 결과 0건이면 막대 자리에 안내 한 줄, 목표<5·결과 있음은 없음', function () {
+  const Z = { target_n: 12, pending_n: 12, unregistered_n: 0, rate_denominator: 0 };
+  const a = results.barNoteHtml(Z);
+  assert.ok(a.indexOf('class="db-why rs-bar-note"') > 0 && a.indexOf('role=') < 0);
+  assert.ok(a.indexOf('입찰 결과가 나면 여기에 구성 막대가 그려집니다. 지금은 12곳 모두 결과 대기입니다.') > 0);
+  assert.ok(results.barNoteHtml({ target_n: 12, pending_n: 9, unregistered_n: 3, rate_denominator: 0 }).indexOf('지금은 결과 대기 9곳, 확인 필요 3곳입니다.') > 0);
+  assert.ok(results.barNoteHtml({ target_n: 12, pending_n: 0, unregistered_n: 12, rate_denominator: 0 }).indexOf('12곳 모두 확인 필요입니다.') > 0);
+  assert.strictEqual(results.barNoteHtml({ target_n: 4, pending_n: 4, unregistered_n: 0, rate_denominator: 0 }), '', '목표 5곳 미만');
+  assert.strictEqual(results.barNoteHtml(SUM), '', '결과가 있으면 없음');
+  assert.strictEqual(results.barNoteHtml({ target_n: 30, success_retain_n: 30, rate_denominator: 30 }), '');
+  assert.strictEqual(results.barNoteHtml(null), '');
+  assert.strictEqual(results.barNoteHtml({ target_n: 12, pending_n: 0, unregistered_n: 0, rate_denominator: 0 }), '');
+  assert.strictEqual(results.barHtml(Z, 400), '');
+});
+
+test('꺾쇠: span<96 이면 .rs-brace.l(이름표 왼쪽 정렬), 이상이면 가운데 + CSS', function () {
+  assert.strictEqual(results.BRACE_NARROW, 96);
+  const s = { target_n: 501, success_retain_n: 1, success_new_n: 0, fail_n: 0, pending_n: 500, unregistered_n: 0, rate_denominator: 1 };
+  const m = results.barModel(s, 400);
+  assert.ok(m.span > 0 && m.span < 96);
+  assert.ok(/class="rs-brace l" style="width:/.test(results.barHtml(s, 400)));
+  const wide = results.barHtml(SUM, 998);
+  assert.ok(/class="rs-brace" style="width:/.test(wide) && wide.indexOf('rs-brace l') < 0);
+  assert.ok(/\.rs-brace\.l span\s*\{[^}]*left:\s*0[^}]*transform:\s*none/.test(HTML));
+  assert.ok(/\.rs-bar-note\s*\{[^}]*font-size:\s*12px[^}]*color:\s*var\(--muted\)/.test(HTML));
+  assert.ok(/\.rs-band \.hb-k \.s\s*\{[^}]*word-break:\s*keep-all/.test(HTML));
+});
+
+test('barWidth: 늘 보이는 #rs-body(대체 #rs-band)로 잰다, 막대가 없으면 안내 줄', function () {
+  const line = (SRC.match(/function barWidth\(\)[^\n]*/) || [''])[0];
+  assert.ok(line.indexOf("$('rs-body')") > 0 && line.indexOf("$('rs-band')") > 0);
+  assert.ok(line.indexOf("$('rs-bar')") < 0);
+  assert.ok(SRC.indexOf("results.barHtml(d.summary, barWidth()) || results.barNoteHtml(d.summary)") > 0);
 });
