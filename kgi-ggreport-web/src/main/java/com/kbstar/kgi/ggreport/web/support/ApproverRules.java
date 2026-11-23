@@ -134,4 +134,14 @@ public final class ApproverRules {
         }
         return out;
     }
+
+    /** 결재 체인에서 처음 만나는 역할 role 사용자(상태 무관, 없으면 null). '같은 팀 팀장' 판정의 공용 자리 — 개설 신청(Q-2026-11-20-01)·디자인 확인(NEXT 108). */
+    public static SysUser firstInChain(SysUser user, Map<String, SysUser> byEmp, String role) {
+        for (SysUser u : chain(user, byEmp)) {
+            if (role.equals(u.getRole() == null ? "" : u.getRole().trim())) {
+                return u;
+            }
+        }
+        return null;
+    }
 }

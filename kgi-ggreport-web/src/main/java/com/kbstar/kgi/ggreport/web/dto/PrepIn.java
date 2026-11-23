@@ -54,6 +54,9 @@ public class PrepIn {
         public void setEmpNos(List<String> v) { this.empNos = v; }
         public String getComment() { return comment; }
         public void setComment(String v) { this.comment = v; }
+        private String approverEmpNo;   // approver_emp_no — 화면이 보여 준 승인할 팀장(선택). 서버가 정한 사람과 다르면 400(Q-2026-11-20-01)
+        public String getApproverEmpNo() { return approverEmpNo; }
+        public void setApproverEmpNo(String v) { this.approverEmpNo = v; }
     }
 
     /** {@code POST /bidcases/{id}/prep/nobid-ack} — 입찰 없음 알림 [계속 작성]. 화면이 본 회차·판정 번호(최신 확인용)만 받는다. 저장 값은 서버가 다시 읽는다. */

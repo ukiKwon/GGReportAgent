@@ -191,7 +191,7 @@ public class ApprovalRequestService {
     public Map<String, Object> submitBidOpen(String bidCaseId, PrepIn.Open in, Actor actor) {
         SysUser me = callers.require(actor);
         PrepService.OpenPlan plan = prep.planOpen(bidCaseId, in == null ? null : in.getEmpNos(),
-                in == null ? null : in.getComment(), me);
+                in == null ? null : in.getComment(), in == null ? null : in.getApproverEmpNo(), me);
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("bid_case_id", plan.getBidCaseId());
         payload.put("nominee_emp_nos", plan.getNominees());

@@ -662,6 +662,27 @@ public class BidAssignmentService {
         return found;
     }
 
+    /**
+     * 신청자와 같은 팀 영업팀장(사용자 11-23, Q-2026-11-20-01 '같은 팀 팀장만'). USERS 에 팀 칸이 없어 결재선으로 판정한다.
+     * 결재선의 첫 영업팀장이 비활성·직급 불일치이거나 결재선에 영업팀장이 없으면 null(다른 팀장으로 넘기지 않음, fail-closed).
+     * 신청자의 결재자가 자동(AUTO) 지정이면 null — 자동은 역할로만 다시 계산돼 팀을 보장하지 못한다(사용자 11-23 밤 ⓐ '수동 지정만 인정', security 11-23 중).
+     */
+    SysUser sameTeamLead(SysUser requester) {
+        if (requester.getApproverManual() != 1) {
+            return null;
+        }
+        List<SysUser> all = users.selectAll();
+        Map<String, SysUser> byEmp = new HashMap<>();
+        for (SysUser u : all) {
+            byEmp.put(u.getEmpNo(), u);
+        }
+        SysUser line = ApproverRules.firstInChain(requester, byEmp, LEAD_ROLE);
+        if (line != null) {
+            return ApproverRules.active(line) && Ranks.mayApprove(requester, line) ? line : null;
+        }
+        return null;   // 결재선에 영업팀장이 없으면 정하지 않는다 — 관리자가 결재자(팀장)를 지정(security 11-23 중: '유일한 활성 팀장' 대체는 다른 팀 팀장으로 넘어감)
+    }
+
     /** 진행 중인 변경 신청(없거나 끝났으면 null) — {@code PENDING_REQ_ID} 가 가리키는 요청이 PENDING 일 때만. */
     private Map<String, Object> pendingChange(BidAssignCase head) {
         if (head == null || head.getPendingReqId() == null) {

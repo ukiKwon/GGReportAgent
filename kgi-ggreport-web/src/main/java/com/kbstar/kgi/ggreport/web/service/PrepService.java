@@ -3,6 +3,7 @@ package com.kbstar.kgi.ggreport.web.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.domain.ApprovalRequest;
+import com.kbstar.kgi.ggreport.web.domain.ApprovalStep;
 import com.kbstar.kgi.ggreport.web.domain.BidAssigneeView;
 import com.kbstar.kgi.ggreport.web.domain.BidCase;
 import com.kbstar.kgi.ggreport.web.domain.BidPrep;
@@ -374,6 +375,12 @@ public class PrepService {
      */
     @Transactional(readOnly = true)
     public OpenPlan planOpen(String bidCaseId, List<String> empNos, String comment, SysUser me) {
+        return planOpen(bidCaseId, empNos, comment, null, me);
+    }
+
+    /** approverPick: 화면이 보낸 승인할 팀장 사번(선택) — 서버가 정한 사람과 다르면 400 APPROVER_INVALID(다른 팀 팀장 선택 우회 차단). */
+    @Transactional(readOnly = true)
+    public OpenPlan planOpen(String bidCaseId, List<String> empNos, String comment, String approverPick, SysUser me) {
         requireSales(me);   // 역할 검사가 건 조회(404)보다 먼저 — 없는 건과 있는 건을 403 으로 구분하지 못하게(security F4)
         BidPrep p = require(bidCaseId);
         if (OPEN_PENDING.equals(p.getStateCd())) {
@@ -391,7 +398,15 @@ public class PrepService {
                 leadInvolved = true;
             }
         }
-        SysUser approver = assignments.resolveApprover(me, leadInvolved);
+        // 팀장 관련 건은 영업부장(기존 규칙), 아니면 신청자와 같은 팀 영업팀장만(사용자 11-23 Q-2026-11-20-01) — 다른 팀 팀장으로 넘기지 않는다.
+        SysUser approver = leadInvolved ? assignments.resolveApprover(me, true) : assignments.sameTeamLead(me);
+        if (approver == null) {
+            throw coded(400, "APPROVER_NOT_RESOLVED", "같은 팀 영업팀장을 정할 수 없습니다 — 시스템 관리자에게 상위 결재자(팀장) 지정을 요청하세요.");
+        }
+        String pick = approverPick == null ? "" : approverPick.trim();
+        if (!pick.isEmpty() && !pick.equals(approver.getEmpNo())) {   // 다른 팀 팀장 선택 우회 차단(security 11-19 발견 2)
+            throw coded(400, "APPROVER_INVALID", "승인할 팀장이 바뀌었습니다. 화면을 새로 고친 뒤 다시 신청하세요.");
+        }
         return new OpenPlan(bidCaseId, mapper.selectInstitutionNameByBid(bidCaseId), targets, note, approver);
     }
 
@@ -452,6 +467,14 @@ public class PrepService {
             throw coded(409, "APPROVER_ROLE_MISMATCH",
                     "영업팀장이 관련된 개설 신청은 영업부장만 승인할 수 있습니다. 반려하거나 회수하고 다시 신청하세요.");
         }
+        if (!isHead(decider)) {   // 영업팀장이 승인할 때(BID_OPEN 은 대결 불가 NO_PROXY) — 결재 단계 팀장이 지금도 신청자의 같은 팀 팀장이어야 한다(Q-2026-11-20-01)
+            String principal = stepApprover(r);
+            SysUser own = assignments.sameTeamLead(requester);   // leadInvolved=false 이므로 requester 는 null 아님
+            if (own == null || principal == null || !own.getEmpNo().equals(principal)) {
+                throw coded(409, "APPROVER_TEAM_MISMATCH",
+                        "신청 이후 신청자의 팀장(결재선)이 바뀌어 승인할 수 없습니다. 반려하거나, 신청자가 회수한 뒤 다시 신청하세요.");
+            }
+        }
         String now = Times.nowIso();
         requireTransit(mapper.markOpened(bid, r.getReqId(), d, now));
         int verified = BoardMaterialService.verified(actor);
@@ -461,6 +484,16 @@ public class PrepService {
         }
         mapper.insertLog(bid, "OPEN_APPROVE", OPEN_PENDING, IN_PROGRESS, null, r.getReqId(), null, d, verified, now);
         return "개설 승인: 담당자 " + targets.size() + "명 배정";
+    }
+
+    /** 지금 결재 단계의 결재자 사번(없으면 null). */
+    private String stepApprover(ApprovalRequest r) {
+        for (ApprovalStep s : requests.selectSteps(r.getReqId())) {
+            if (s.getStepNo() == r.getCurrentStep()) {
+                return s.getApproverEmpNo();
+            }
+        }
+        return null;
     }
 
     // ── 과제 체크 ────────────────────────────────────────────────────────

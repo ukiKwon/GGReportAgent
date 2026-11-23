@@ -1233,4 +1233,62 @@ public class PrepApiTest {
         assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTOR_EMP_NO IS NULL", bid));
         assertEquals("IN_PROGRESS", state(bid));
     }
+
+    // ── 승인할 팀장 = 같은 팀 팀장만(사용자 11-23, Q-2026-11-20-01) ──
+
+    @Test
+    public void 승인할_팀장이_다른_팀_팀장이면_400_APPROVER_INVALID_이고_요청이_생기지_않는다() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        String path = "/bidcases/" + bid + "/prep/open-requests";
+        int before = count("SELECT COUNT(*) FROM APPROVAL_REQUEST WHERE REQ_TYPE='BID_OPEN'");
+        MvcResult bad = postJson(path, MEMBER, "{\"emp_nos\":" + arr(MEMBER2) + ",\"approver_emp_no\":\"" + LEAD2 + "\"}");
+        assertEquals(400, bad.getResponse().getStatus());
+        assertEquals("APPROVER_INVALID", json(bad).path("detail").path("code").asText());
+        assertEquals(before, count("SELECT COUNT(*) FROM APPROVAL_REQUEST WHERE REQ_TYPE='BID_OPEN'"));
+        assertEquals("CONFIRMED", state(bid));
+        MvcResult ok = postJson(path, MEMBER, "{\"emp_nos\":" + arr(MEMBER2) + ",\"approver_emp_no\":\"" + LEAD + "\"}");
+        assertEquals(ok.getResponse().getContentAsString(), 201, ok.getResponse().getStatus());
+        assertEquals(LEAD, json(ok).path("steps").get(0).path("approver_emp_no").asText());
+        assertFalse(inInbox(LEAD2, json(ok).path("req_id").asLong()));
+    }
+
+    @Test
+    public void 결재선의_팀장이_비활성이거나_결재선에_팀장이_없으면_다른_팀_팀장으로_넘기지_않고_400() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        String path = "/bidcases/" + bid + "/prep/open-requests";
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", LEAD);   // 남은 활성 영업팀장 = LEAD2 하나
+        flushCache();
+        MvcResult r = postJson(path, MEMBER, "{\"emp_nos\":" + arr(MEMBER2) + "}");
+        assertEquals(400, r.getResponse().getStatus());
+        assertEquals("APPROVER_NOT_RESOLVED", json(r).path("detail").path("code").asText());
+        jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=NULL WHERE EMP_NO=?", MEMBER);
+        flushCache();
+        MvcResult none = postJson(path, MEMBER, "{\"emp_nos\":" + arr(MEMBER2) + "}");   // 결재선이 비어도 유일한 활성 팀장(LEAD2)으로 넘기지 않는다(security 11-23)
+        assertEquals(400, none.getResponse().getStatus());
+        assertEquals("APPROVER_NOT_RESOLVED", json(none).path("detail").path("code").asText());
+    }
+
+    @Test
+    public void 결재자가_자동_지정이면_같은_팀을_보장할_수_없어_400_APPROVER_NOT_RESOLVED() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        jdbc.update("UPDATE USERS SET APPROVER_MANUAL=0 WHERE EMP_NO=?", MEMBER);   // 결재선은 LEAD 그대로, 방식만 자동(사용자 11-23 밤 ⓐ)
+        flushCache();
+        MvcResult r = postJson("/bidcases/" + bid + "/prep/open-requests", MEMBER, "{\"emp_nos\":" + arr(MEMBER2) + "}");
+        assertEquals(400, r.getResponse().getStatus());
+        assertEquals("APPROVER_NOT_RESOLVED", json(r).path("detail").path("code").asText());
+        assertEquals("CONFIRMED", state(bid));
+    }
+
+    @Test
+    public void 신청_뒤_팀장이_바뀐_대기_건은_승인하면_409_APPROVER_TEAM_MISMATCH() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        long req = openReq(bid, MEMBER, MEMBER2);   // 결재 단계 = LEAD
+        jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=? WHERE EMP_NO=?", LEAD2, MEMBER);   // 신청 뒤 팀 이동
+        flushCache();
+        assertEquals(403, decide(LEAD2, req, "APPROVE", null).getResponse().getStatus());   // 새 팀장도 결재 단계가 아니다
+        MvcResult r = decide(LEAD, req, "APPROVE", null);   // 한 트랜잭션 시험이라 이 뒤로는 단언하지 않는다
+        assertEquals(409, r.getResponse().getStatus());
+        assertEquals("APPROVER_TEAM_MISMATCH", json(r).path("detail").path("code").asText());
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=?", bid));
+    }
 }
