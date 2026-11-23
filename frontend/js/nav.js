@@ -69,6 +69,7 @@
   // id 값 'soon:첫 화면' → 'soon:시작화면': 이 id는 메모리 탭 목록에만 있다(localStorage·서버·접근 이력에 저장 안 함) → 마이그레이션 없음.
   const HOME_ID = 'soon:시작화면';
   const HOME_CAT = 'home';
+  const APPR_CAT = 'apprbox';   // 결재함 — 머리 띠 [결재함 n] 단추로만 연다(headOnly). 권한·탭·pruneTabs 판정은 이 단독 항목으로(사용자 11-23)
   // 시스템 전체를 보되 고치지는 못하는 역할(사용자 11-19: 전산팀·전산팀장 + 디자이너). 지도·현황판·입찰 공고 현황·시작화면의 쓰기 버튼과 도구줄 [기관 추가]·[CSV]를 숨긴다(nav.isViewOnly). 예외: 사업계획 수집 요청·시스템 관리 화면(전산팀 업무).
   const VIEW_ONLY_ROLES = ['전산팀', '전산팀장', roles.DESIGNER];   // 디자이너도 기관 추가·편집은 서버 403(main 11-19 requireInstitutionEditSales, 디자이너 기본값 '보기')
   // 시작화면 대상 역할 — 역할을 바꾸려면 이 두 줄(HOME_ROLES·VIEW_ONLY_ROLES)만 고친다. 재무(예산팀)는 '이사회 자료 작성'(homeIdFor), 마스터는 지도로 시작한다.
@@ -79,9 +80,10 @@
   // 목록에 없는 역할(영업 계열·전산팀·마스터·역할 없음)은 제한이 없다. 시스템 관리(sys)는 서버 admin 키가 정하므로 항상 통과한다.
   // 재무팀장은 결재함·작업함(제안서 작성·관리, manage) 때문에 manage가 더해진다(사용자 11-19 '권장안대로').
   const ROLE_CATS = {};
-  ROLE_CATS[roles.DESIGNER] = ['home', 'scan', 'manage', 'relate', 'tools'];   // relate = 협약 성과 관리(05 규격 P1, 11-20) — 준비중 두 항목도 함께 보임(규격에서 수용). 순서는 표시 순서와 무관(limitToRole은 build 순서를 따른다)
-  ROLE_CATS['예산팀'] = ['plan'];
-  ROLE_CATS['예산팀장'] = ['plan', 'manage'];
+  ROLE_CATS[roles.DESIGNER] = ['home', 'scan', 'manage', 'relate', 'tools', APPR_CAT];   // relate = 협약 성과 관리(05 규격 P1, 11-20) — 준비중 두 항목도 함께 보임(규격에서 수용). 순서는 표시 순서와 무관(limitToRole은 build 순서를 따른다)
+  // 결재함은 머리 띠 단추(apprbox, 11-23) — 제한 목록이 있는 역할 모두에 더한다(재무팀원도 '내가 올린 요청'을 본다). 재무팀장의 manage는 뺐다(사용자 11-23 '묶음 닫기').
+  ROLE_CATS['예산팀'] = ['plan', APPR_CAT];
+  ROLE_CATS['예산팀장'] = ['plan', APPR_CAT];
 
   // subs: 중분류 순서. 항목마다 sub로 소속을 가리킨다(시스템 관리는 중분류 없음).
   nav.CATEGORIES = [
@@ -99,11 +101,12 @@
       soon('이사회', '이사회 자료 작성', '',
            '수익성 분석표(엑셀)의 수치를 이사회 자료(워드)의 정해진 자리에 자동으로 채웁니다.', true, BOARD_ID),
       soon('이사회', '이사회 발표 대본')] },
-    { id: 'manage', title: '제안서 작성·관리', subs: ['진행·결재', '작성', '검토·제출'], items: [
-      live('진행·결재', '제안서 진행 현황', 'workflow'), live('진행·결재', '결재함', 'approvals'),
-      live('작성', '작업함', 'tasks'),
-      soon('작성', '제안팀 구성·배정', '', '', false, TEAM_ID, TEAM_ROLES),
-      soon('작성', '공동 작성·버전 관리'),
+    // 결재함이 머리 띠로 가며(11-23) '진행·결재'에 한 항목만 남아 소제목이 사라지지 않게 '진행·작성'으로 합쳤다(팀 기본값).
+    { id: 'manage', title: '제안서 작성·관리', subs: ['진행·작성', '검토·제출'], items: [
+      live('진행·작성', '제안서 진행 현황', 'workflow'),
+      live('진행·작성', '작업함', 'tasks'),
+      soon('진행·작성', '제안팀 구성·배정', '', '', false, TEAM_ID, TEAM_ROLES),
+      soon('진행·작성', '공동 작성·버전 관리'),
       soon('검토·제출', '내부 검토 의견'), soon('검토·제출', '최종 확인·제출')] },
     { id: 'relate', title: '협약·관계 관리', items: [
       soon('', '입찰 결과 등록'), soon('', '협약 이력'),
@@ -112,6 +115,8 @@
       soon('알림·소통', '일정·마감 알림'), soon('알림·소통', '요청 이력·소통'),
       live('검색·AI', 'AI 대화', 'chat', null, true), live('검색·AI', '지식 검색', 'knowledge', null, true),
       soon('검색·AI', '사내 업무 키워드 조회')] },
+    { id: APPR_CAT, title: '결재함', headOnly: true, items: [   // 머리 띠 [결재함 n] 단추(사이드바에 그리지 않음, 사용자 11-23)
+      live('', '결재함', 'approvals')] },
     { id: 'sys', title: '시스템 관리', last: true, items: [
       live('', '사용자 관리', 'admin', 'users'), live('', '권한 관리', 'admin', 'perms'),
       live('', '메뉴 관리', 'admin', 'menus'), live('', '접근 이력', 'admin', 'audit'),
@@ -128,6 +133,7 @@
   nav.FINANCE_ROLES = FINANCE_ROLES;
   nav.ROLE_CATS = ROLE_CATS;
   nav.HOME_CAT = HOME_CAT;
+  nav.APPR_CAT = APPR_CAT;
   nav.NOTICE_ID = NOTICE_ID;
   nav.PLANS_ID = PLANS_ID;
   nav.PLANS_TEAMS = PLANS_TEAMS;
@@ -174,7 +180,7 @@
   // 아코디언 분류 id — 단독 항목(시작화면)은 펼칠 분류가 없어 null. 화면 이동이 다른 분류의 열림을 닫지 않게 한다.
   nav.accordionOf = function (built, itemId) {
     const c = nav.categoryOf(built, itemId);
-    return c === HOME_CAT ? null : c;
+    return (c === HOME_CAT || c === APPR_CAT) ? null : c;
   };
   // 역할 목록에 드는가. 마스터는 영업팀 소속이 아니라 서버가 열람을 막으므로 항상 false.
   nav.roleIn = function (list, ctx) {

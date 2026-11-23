@@ -48,6 +48,10 @@
   };
 
   notify.kindClass = function (kind) { return KIND_CLASS[kind] || 'note'; };
+  // 머리 띠 배지 글자와 단추 이름(화면 낭독기가 "쪽지함2"로 읽지 않게, design 11-23)
+  notify.badgeText = function (n) { const v = Number(n) || 0; return v > 99 ? '99+' : (v > 0 ? String(v) : ''); };
+  notify.notifyLabel = function (n) { return (Number(n) || 0) > 0 ? '쪽지함, 안 읽은 쪽지 ' + n + '건' : '쪽지함'; };
+  notify.apprLabel = function (n) { return (Number(n) || 0) > 0 ? '결재함, 처리할 결재 ' + n + '건' : '결재함'; };
 
   // 서버의 UTC ISO(마이크로초 포함)를 한국시간 'YYYY-MM-DD HH:mm'으로. 해석이 안 되면 원문 그대로.
   notify.formatTime = function (iso) {
@@ -171,8 +175,28 @@
     const badge = el('notify-badge');
     if (!badge) return;
     const n = notify.unreadCount(list);
-    badge.textContent = n ? String(n) : '';
+    badge.textContent = notify.badgeText(n);
+    const b = el('btn-notify');
+    if (b) b.setAttribute('aria-label', notify.notifyLabel(n));
   }
+
+  // 머리 띠 [결재함 n] 배지 — 숫자는 portal.headApprCount(시작화면과 같은 판정), 결재 권한이 없거나 일부 실패면 숫자 없음(사용자 11-23).
+  let apprN = null, apprSeq = 0;
+  function paintApprBadge() {
+    const badge = el('appr-badge'), b = el('btn-appr');
+    if (!badge || !b) return;
+    badge.textContent = notify.badgeText(apprN);
+    b.setAttribute('aria-label', notify.apprLabel(apprN));
+  }
+  function fetchAppr() {
+    const P = root.portal;
+    const my = (apprSeq += 1);
+    if (!P || !P.headApprCount || !((root.store.loadSession() || {}).emp)) { apprN = null; paintApprBadge(); return Promise.resolve(); }
+    const role = (root.store.loadProfile().team || '').trim();
+    return P.headApprCount(role).then(function (n) { if (my === apprSeq) { apprN = n; paintApprBadge(); } })
+      .catch(function () { if (my === apprSeq) { apprN = null; paintApprBadge(); } });
+  }
+  notify.refreshAppr = fetchAppr;
 
   function markRead(id) {
     setErr('');
@@ -310,7 +334,7 @@
       .then(function () { root.dlg.setDisabled(btn, false); });
   }
 
-  notify.onProfileChange = function () { fetchList(); };
+  notify.onProfileChange = function () { fetchList(); fetchAppr(); };
 
   notify.start = function () {
     const btn = el('btn-notify');
@@ -319,9 +343,9 @@
     el('nt-close').onclick = function () { root.dlg.requestClose(overlay()); };
     el('nt-send').onclick = send;
     el('nt-text').addEventListener('input', function () { setStatus(''); });   // 다음 글을 쓰기 시작하면 '보냈습니다'는 지운다
-    fetchList();
+    fetchList(); fetchAppr();
     if (pollTimer) clearInterval(pollTimer);
-    pollTimer = setInterval(fetchList, POLL_MS);
+    pollTimer = setInterval(function () { fetchList(); fetchAppr(); }, POLL_MS);
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = notify;
