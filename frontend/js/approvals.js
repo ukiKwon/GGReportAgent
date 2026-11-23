@@ -10,6 +10,7 @@
 
   const designer = (typeof require !== 'undefined') ? require('./designer.js') : root.designer;
   const errtext = (typeof require !== 'undefined') ? require('./errtext.js') : root.errtext;
+  const tc = (typeof require !== 'undefined') ? require('./tchange.js') : root.tchange;   // NEXT 105 — 목표 기관 변경 카드(이전/이후 표)
 
   approvals.rows = function (payload) {
     return (((payload || {}).items) || []).map(function (it) {
@@ -168,6 +169,9 @@
         isBoard: it.req_type === 'BOARD_SUBMIT',
         materialId: it.req_type === 'BOARD_SUBMIT' ? String(((it.payload || {}).material_id) == null ? '' : (it.payload || {}).material_id) : '',
         snapNo: it.req_type === 'BOARD_SUBMIT' ? (Number((it.payload || {}).snap_no) || 0) : 0,
+        // 목표 기관 변경(TARGET_CHANGE): 기관·동작·이전→이후 표, 결재선 밖 영업부장은 [반려]만(can_head_reject)
+        isTarget: it.req_type === 'TARGET_CHANGE', pending: it.status === 'PENDING', canHeadReject: !!it.can_head_reject,
+        targetItems: it.req_type === 'TARGET_CHANGE' && Array.isArray(it.target_items) ? it.target_items : [],
       };
     });
   };
@@ -264,6 +268,14 @@
   };
   // 서버 오류 detail(문자열 또는 {code,message})을 화면 글로. 객체를 그대로 Error에 넣으면 "[object Object]"가 뜬다.
   approvals.errText = function (detail, fallback) { return errtext.message(detail, fallback); };
+  approvals.actErrText = function (detail, fallback) {
+    const m = errtext.message(detail, fallback);
+    if (detail && typeof detail === 'object' && !Array.isArray(detail) && Number(detail.item_no) > 0 && errtext.parse(detail).message) {
+      const nm = String(detail.institution_name || '').trim();
+      return Number(detail.item_no) + '번째 기관' + (nm ? '(' + nm + ')' : '') + ': ' + m;
+    }
+    return m;
+  };
 
   // ── 렌더·배선 ───────────────────────────────────────────────────────
   function esc(s) {
@@ -341,7 +353,7 @@
           er.fromServer = true; throw er;
         });
       }
-      return load();
+      return load().then(function () { if (root.notify && root.notify.refreshAppr) root.notify.refreshAppr(); });
     }).catch(function (e) {
       root.dlg.line(el('ap-msg'), (e && e.fromServer)
         ? (e.message || '결재를 처리하지 못했습니다. 서버가 받지 않았습니다. 목록을 새로 고친 뒤 다시 시도하세요.')
@@ -447,14 +459,19 @@
         '<button class="ap-req-ok" data-id="' + esc(r.id) + '">승인</button>' +
         '<button class="ap-req-no" data-id="' + esc(r.id) + '">반려</button>' +
         (r.deputy ? '<span class="dg-who">대결로 처리</span>' : '') + '</div>';
+    } else if (mode === 'inbox' && r.canHeadReject) {   // 결재선 밖 영업부장: [반려]만(요청 취소 단추 없음 — 팀 결정)
+      act = '<div class="ap-act"><input class="ap-comment" data-id="' + esc(r.id) + '" placeholder="반려 사유(필수)" aria-label="반려 사유(필수)">' +
+        '<button class="ap-req-no" data-id="' + esc(r.id) + '">반려</button><span class="dg-who">결재선 밖이어서 반려만 할 수 있습니다.</span></div>';
     } else if (mode === 'mine' && r.canCancel) {
       act = '<div class="ap-act"><button class="ap-req-cancel" data-id="' + esc(r.id) + '">' + (r.isBoard ? '제출 회수' : '취소') + '</button></div>';
     }
-    return '<div class="ap-card ap-req" data-id="' + esc(r.id) + '">' + head + boardLine + approvals.nomineesHtml(r.nomineeLine) + approvals.targetsHtml(r.targets) + changesHtml(r.changes) +
+    return '<div class="ap-card ap-req" data-id="' + esc(r.id) + '"' + (r.isTarget ? ' data-tc="1"' : '') + '>' + head + boardLine + approvals.nomineesHtml(r.nomineeLine) + approvals.targetsHtml(r.targets) + changesHtml(r.changes) +
+      (r.isTarget ? tc.cardItemsHtml(r.targetItems) : '') +
       (r.reason ? '<div class="dg-who">사유: ' + esc(r.reason) + '</div>' : '') + chipsHtml(r.chips) +
-      (r.note ? '<div class="dg-who">' + esc(r.note) + '</div>' : '') + act + '<div class="ap-err" role="alert"></div></div>';
+      (r.note ? '<div class="dg-who">' + esc(r.note) + '</div>' : '') + (mode === 'mine' && r.isTarget && r.pending ? '<div class="dg-who">결재가 끝날 때까지 이 기관들의 목표·관심은 고칠 수 없습니다.</div>' : '') + act + '<div class="ap-err" role="alert"></div></div>';
   }
 
+  approvals.requestCardHtml = requestCardHtml;   // 시험용
   function paintRequests() {
     const mineRows = approvals.requestRows((reqs.mine || {}).items, categories());
     const inboxRows = approvals.requestRows((reqs.inbox || {}).items, categories());
@@ -671,12 +688,13 @@
     if (body !== undefined) { init.body = JSON.stringify(body); }
     fetch(url, init).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
-        if (!r.ok) throw new Error(errtext.message(j.detail, '처리하지 못했습니다 (' + r.status + ')'));
+        if (!r.ok) { const e = new Error(approvals.actErrText(j.detail, '처리하지 못했습니다 (' + r.status + ')')); e.status = r.status; throw e; }
       });
     }).then(function () { return loadRequests().then(function () { refocusAfterLoad(screen === AP_UI.INBOX ? 'inbox' : 'mine'); }); })
       .catch(function (e) {
         card.querySelectorAll('button').forEach(function (x) { x.disabled = false; });
         card.querySelector('.ap-err').textContent = e.message || '서버 연결 실패 — 처리되지 않았습니다.';
+        if (e.status === 409 && card.getAttribute('data-tc')) { const c = card.querySelector('.ap-comment'); if (c && c.focus) c.focus(); }   // 서버 문장이 "반려하고 다시 요청해 주세요"로 끝난다(5-4)
       });
   }
 
@@ -705,6 +723,7 @@
       canApprove = approvals.canApproveOf(res[2]);
       if (autoTab) { autoTab = false; tab = approvals.defaultTab(approvals.requestRows(res[1].items, categories())); }
       paintRequests();
+      if (root.notify && root.notify.refreshAppr) root.notify.refreshAppr();
     }).catch(function (e) {
       reqError = e && e.status === 401 ? '로그인이 필요합니다. 사번으로 로그인해 주세요.'
         : (e && e.status === 403 ? '이 계정으로는 결재함을 쓸 수 없습니다.' : '결재 요청을 불러오지 못했습니다.');

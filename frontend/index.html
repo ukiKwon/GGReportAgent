@@ -2259,6 +2259,65 @@
   @keyframes hbJust { 0%, 55% { background:color-mix(in srgb, var(--accent-color) 14%, var(--panel)); } }   /* to(100%)를 쓰지 않아 끝은 그 칸의 원래 바탕(지연 행 빨강 8%·hover)으로 돌아간다 */
   @media (prefers-reduced-motion:reduce) { .hb-note { animation:none; }
     .hb-tt tbody tr.hb-just > *, .hb-tt tbody tr.hb-just .hb-lane .off, .hb-tt tbody tr.hb-just .hb-lane .unk, .hb-tb [role=tab].hb-just { animation:none; background:color-mix(in srgb, var(--accent-color) 10%, var(--panel)); } }
+  /* NEXT 105(design-reviewer 2026-11-23_0919_ad69b2cf 6-7) — 고르기 칸·결재 중·이월·고른 기관 띠·일괄 요청 창·결재 카드 표. 토큰만 사용(새 hex·새 변수·그림자 없음 — 현황판 시험이 지킨다) */
+  .hb-tt col.c-ck { width:32px; }
+  .hb-tt th.ck, .hb-tt td.ck { padding:0; text-align:center; }
+  .hb-tt thead th.ck { vertical-align:middle; }
+  .hb-tt .ck label { display:flex; align-items:center; justify-content:center; width:32px; height:40px; cursor:pointer; }
+  .hb-tt .ck input { width:16px; height:16px; margin:0; accent-color:var(--accent-color); }
+  .hb-tt .ck .lk { width:12px; height:12px; fill:none; stroke:var(--muted); stroke-width:1.3; }
+  .hb-tt.sel thead th:nth-child(6) { padding-left:10px; padding-right:10px; }   /* 고르기 열이 앞에 서면 설명회 머리가 6번째에서 7번째로 밀린다 */
+  .hb-tt.sel thead th:nth-child(7) { padding-left:6px; padding-right:4px; }
+  .hb-tt tbody tr.picked > * { background:color-mix(in srgb, var(--accent-color) 8%, var(--panel)); }
+  .hb-tt tbody tr.picked > td.ck { background:linear-gradient(to right, var(--accent-color) 3px, transparent 3px), color-mix(in srgb, var(--accent-color) 8%, var(--panel)); }   /* 고른 줄 왼쪽 막대(그림자 없이 그라데이션) */
+  .hb-tt tr.late.picked > * { background:color-mix(in srgb, var(--red) 8%, var(--panel)); }
+  .hb-tt tr.late.picked > td.ck { background:linear-gradient(to right, var(--accent-color) 3px, transparent 3px), color-mix(in srgb, var(--red) 8%, var(--panel)); }
+  .hb-tt tbody tr.locked > * { background:var(--panel2); }
+  .hb-tt tbody tr.picked .hb-lane .off, .hb-tt tbody tr.picked .hb-lane .unk { background:color-mix(in srgb, var(--accent-color) 8%, var(--panel)); }   /* 일정 칸 글자 뒤 바탕(--rowbg를 늘리지 않고 직접) */
+  .hb-tt tbody tr.late.picked .hb-lane .off, .hb-tt tbody tr.late.picked .hb-lane .unk { background:color-mix(in srgb, var(--red) 8%, var(--panel)); }
+  .hb-tt tbody tr.locked .hb-lane .off, .hb-tt tbody tr.locked .hb-lane .unk { background:var(--panel2); }
+  .hb-pend { display:inline-flex; align-items:center; gap:4px; min-height:24px; padding:2px 8px; font-size:12px; color:color-mix(in srgb, var(--blue) 72%, var(--fg)); border:1px solid var(--blue); border-radius:var(--r); background:color-mix(in srgb, var(--blue) 18%, transparent); }
+  .hb-pend svg { width:10px; height:10px; fill:none; stroke:currentColor; stroke-width:1.3; }
+  button.hb-pend { cursor:pointer; }
+  button.hb-pend:hover { background:color-mix(in srgb, var(--blue) 18%, transparent); border-color:var(--blue); text-decoration:underline; }   /* 공통 button:hover(회색)에 지지 않게 */
+  .hb-selbar { flex:none; display:flex; align-items:center; gap:8px; min-height:44px; padding:0 12px; font-size:12px; background:var(--panel2); border-top:1px solid var(--line-strong); }
+  .hb-selbar[hidden] { display:none; }
+  .hb-selbar .n { display:inline-flex; align-items:center; gap:10px; }
+  .hb-selbar .n b { font:700 12px var(--mono); }
+  .hb-selbar .lim { color:var(--orange); }
+  .hb-selbar .sp { flex:1 1 auto; }
+  .hb-selbar .who { color:var(--muted); }
+  .hb-selbar button { height:32px; padding:0 14px; }
+  .hb-selbar .go { border-color:var(--accent-color); font-weight:700; }
+  #tc-dlg .dlg-ferr:empty, #tt-dlg .dlg-ferr:empty { display:none; }
+  .tc-sub { display:flex; justify-content:space-between; margin:4px 0 0; font-size:12px; color:var(--muted); }
+  .tc-all { display:flex; align-items:center; gap:8px; margin:0 0 12px; font-size:12px; }
+  .tc-items { list-style:none; margin:0; padding:0; }
+  .tc-item { margin:0 0 8px; padding:10px 12px; border:1px solid var(--line); border-radius:var(--r); }
+  .tc-item.bad { border-color:var(--red); outline:1px solid var(--red); outline-offset:-2px; }   /* 오류 테두리는 outline으로(현황판 구간은 box-shadow 금지) */
+  .tc-ih { display:flex; align-items:center; gap:8px; min-height:32px; }
+  .tc-ih .no { min-width:16px; font:400 12px var(--mono); color:var(--muted); }
+  .tc-ih .nm { flex:1 1 auto; min-width:0; font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tc-ih .rg { margin-right:6px; font-size:12px; font-weight:400; color:var(--muted); }
+  .tc-ih select { width:150px; }
+  .tc-ih .fix { font-size:12px; color:var(--muted); }
+  .tc-ba { display:grid; grid-template-columns:40px 1fr; gap:6px 8px; margin:6px 0 0 24px; font-size:13px; }
+  .tc-ba dt { font-size:12px; line-height:24px; color:var(--muted); }
+  .tc-ba dd { margin:0; display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; line-height:24px; word-break:keep-all; }
+  .tc-ba dd label { font-size:12px; color:var(--muted); }
+  .tc-ba .mono, .tt-now .mono, .tc-pd .mono, .tc-sub .mono { font-family:var(--mono); }
+  .tc-memo { font-size:12px; color:var(--muted); }
+  .tc-pd { display:grid; grid-template-columns:80px 1fr; gap:6px 12px; margin:0; font-size:13px; }
+  .tc-pd dt { font-size:12px; line-height:24px; color:var(--muted); }
+  .tc-pd dd { margin:0; line-height:24px; }
+  .tc-term { margin:12px 0 0; }
+  .tt-now { margin:0 0 12px; font-size:13px; line-height:1.5; word-break:keep-all; }
+  .tt-d { font-family:var(--mono); }
+  .ap-tc { width:100%; table-layout:fixed; margin:8px 0; }
+  .ap-tc col.tc-c1 { width:22%; } .ap-tc col.tc-c2 { width:14%; } .ap-tc col.tc-c3 { width:32%; }
+  .ap-tc td, .ap-tc th { white-space:normal; word-break:keep-all; vertical-align:top; }
+  .ap-tc .tc-memo { display:block; }
+  .ap-tc .warn { display:block; font-size:12px; color:var(--orange); }
   /* 국민은행 상태 현황판 끝 */
 
   /* 시작화면(포털) 시작 — #tab-soon 안 #pt-root. 규격: design-reviewer 11-19 97 3단계(handoff/agents/history/2026-11-19_97-3_첫화면_포털_규격.md) + 11-19 피드백(1428_aab03363 5절) + 11-19 저녁(표 열 정렬·태그 색). 새 변수는 --green 한 개(:root, 신규 확정 태그 전용). #eef1f5는 DESIGN 패널 머리 리터럴, #ffbc00·#545045·#1e2124는 --bk-kb* 변수의 대체값(국민은행 CI), #1d6f3a는 --green의 대체값 */
@@ -3379,6 +3438,7 @@ review, the verdict, and DESIGN.md
 <script src="js/nav.js"></script>
 <script src="js/errtext.js"></script>
 <script src="js/instedit.js"></script>
+<script src="js/tchange.js"></script>
 <script src="js/bankcontract.js"></script>
 <script src="js/approvals.js"></script>
 <script src="js/board-write.js"></script>

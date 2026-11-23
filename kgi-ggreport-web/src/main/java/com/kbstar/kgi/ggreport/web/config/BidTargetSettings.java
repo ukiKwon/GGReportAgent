@@ -16,10 +16,10 @@ public class BidTargetSettings {
     private volatile boolean carryEnabled;
     private volatile MonthDay carryDefaultStart;
 
-    // 코드 기본값은 둘 다 false — 화면(NEXT 105 프런트)이 일괄 요청·이월 버튼을 붙이기 전에는 기존 단건 버튼이 403 나지 않게.
-    // 화면(NEXT 105 프런트) 적용 커밋에서 true 로 바꾼다.
-    public BidTargetSettings(@Value("${ggreport.bid-target.approval.enabled:false}") boolean approvalRequired,
-                             @Value("${ggreport.bid-target.carry.enabled:false}") boolean carryEnabled,
+    // 코드 기본값은 둘 다 true — 화면(NEXT 105)이 일괄 요청·이월을 붙였다. 끄려면 ggreport.bid-target.approval.enabled=false · carry.enabled=false(되돌리기 스위치).
+    // (화면 적용 커밋에서 true 로 바꿨다. 값은 로컬 config로 덮을 수 있다.)
+    public BidTargetSettings(@Value("${ggreport.bid-target.approval.enabled:true}") boolean approvalRequired,
+                             @Value("${ggreport.bid-target.carry.enabled:true}") boolean carryEnabled,
                              @Value("${ggreport.bid-target.carry.default-start:01-01}") String carryDefaultStart) {
         this.approvalRequired = approvalRequired;
         this.carryEnabled = carryEnabled;

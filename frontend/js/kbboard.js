@@ -14,6 +14,7 @@
   const logic = isNode ? require('./logic.js') : root.logic;
   const dash = isNode ? require('./dashboard.js') : root.dashboard;
   const errtext = isNode ? require('./errtext.js') : root.errtext;
+  const tc = isNode ? require('./tchange.js') : root.tchange;   // NEXT 105 — 목표 기관 변경(결재·일괄 요청·이월·협약 개시일)의 순수 부분
   const esc = logic.esc;
   const kbb = {};
   function P() { return isNode ? require('./prep.js') : root.prep; }
@@ -512,9 +513,9 @@
   };
   // 표 거르기(규격 6-4). f = { q 기관명·지역, tag 'RETAIN'|'NEW', status, kind 'goal'|'out'(목표 탭만), stage 0~4(-1이면 끔) }.
   kbb.STATUS = {
-    goal: [['', '상태 전체'], ['notice', '공고 중'], ['soon', '마감 ' + kbb.DEADLINE_SOON + '일 안'], ['late', '준비 지연'], ['hold', '판정 보류'], ['closed', '입찰 종료'], ['unk', '일정 모름']],
-    watch: [['', '상태 전체'], ['movable', '목표로 옮길 수 있음'], ['unk', '일정 모름']] };
-  kbb.STATUS_ONLY = { goal: ['notice', 'soon', 'late', 'hold', 'closed', 'unk'], watch: ['movable', 'unk'] };
+    goal: [['', '상태 전체'], ['notice', '공고 중'], ['soon', '마감 ' + kbb.DEADLINE_SOON + '일 안'], ['late', '준비 지연'], ['hold', '판정 보류'], ['closed', '입찰 종료'], ['unk', '일정 모름'], ['pending', '결재 중'], ['carried', '자동 이월']],
+    watch: [['', '상태 전체'], ['movable', '목표로 옮길 수 있음'], ['unk', '일정 모름'], ['carried', '자동 이월']] };
+  kbb.STATUS_ONLY = { goal: ['notice', 'soon', 'late', 'hold', 'closed', 'unk', 'pending', 'carried'], watch: ['movable', 'unk', 'carried'] };
   function statusOk(r, s) {
     switch (s) {
       case 'notice': return !r.closed && (r.due.kind === 'fixed' || r.due.kind === 'open');
@@ -522,6 +523,8 @@
       case 'late': return r.late === true;
       case 'hold': return r.hold === true;
       case 'closed': return !!r.closed;
+      case 'pending': return r.pend === true;
+      case 'carried': return r.carried === true;
       case 'movable': return r.movable > 0;
       case 'unk': return r.kind === 'WATCH' ? !r.nextDate : (!r.closed && r.due.kind === 'unk');
       default: return true;
@@ -699,6 +702,12 @@
       stage: stage, stageLabel: stage >= 0 ? ((dash.STAGES[stage] || {}).label || '') : '',
       act: stage >= 0 ? 'open' : (rec && ctx.actOf ? ctx.actOf(rec) : ''), late: null, hold: null,
       kind: t.kind_cd === 'WATCH' ? 'WATCH' : 'GOAL', closed: out ? (!(Number(ctx.year) > 0) || Number(ctx.year) === ty ? kbb.closedBasis(id, ctx.snap, ctx.today, sum) : null) : kbb.closedOf(t.bid_closed), next: null, nextDate: '', movable: 0, note: null };
+    // NEXT 105: 결재 중 잠금·자동 이월·달성 판정일·협약 개시일(서버 GET /bid-targets 항목 키). 목표 밖 줄(out)은 해당 없음. 상세(change_pending_info)는 쓰기 자격자에게만 온다.
+    const pi = !out && t.change_pending_info && typeof t.change_pending_info === 'object' ? t.change_pending_info : null;
+    r.ownerName = String(t.owner_name || ''); r.pend = !out && t.change_pending === true;
+    r.pendInfo = r.pend && pi ? { reqId: pi.req_id, op: String(pi.op_cd || ''), by: String(pi.requested_by_name || ''), at: String(pi.created_at || '') } : null;
+    r.carried = !out && t.carried === true; r.carryBasis = String(t.carry_basis_cd || ''); r.carryFromYear = 0;   // 응답이 원천 연도를 주지 않는다(백엔드 이관)
+    r.judgeFrom = kbb.normDate(t.judge_from); r.judgeAssumed = t.judge_from_assumed === true; r.termStart = kbb.normDate(t.term_start); r.termRevNo = Number(t.term_rev_no) || 0;
     if (r.kind === 'WATCH') {   // 관심 기관: 연도 없음. 다음 협약 종료(출처 순서는 nextEnd)와 [목표로 옮기기] 조건
       r.targetYear = null;
       r.next = kbb.nextEnd(rec, t.next_term_to, { lofin: ctx.lofin, today: ctx.today });
@@ -830,15 +839,16 @@
       return '<td>' + (o.canEdit ? '<button type="button" class="hb-tag add" data-act="add" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-label="' + esc(r.name) + ' 목표에 넣기">목표에 넣기</button>'
         : '<span class="hb-tag ro">목표 아님</span>') + '</td>';
     }
+    if (r.pend) return tc.pendCellHtml(r, { canEdit: o.canEdit });   // 결재 중: 구분 칩·메뉴 대신 잠금 칩(NEXT 105 6-2)
     const nm = esc(r.tagName || r.tagCd);
     // 넣은 사람·고친 사람·메모는 서버 글 — 전부 이스케이프. 사번 확인 안 된 기록은 '확인됨'처럼 보이지 않게 '사번 자기신고'를 밝힌다.
     const tip = [r.memo ? '메모: ' + r.memo : '', r.firstEditor ? '넣은 사람 ' + r.firstEditor : '',
-      r.editorName ? '마지막 고침 ' + r.editorName + (r.empVerified ? '' : '(사번 자기신고)') + (r.savedAt ? ' ' + r.savedAt.slice(0, 16).replace('T', ' ') : '') : ''].filter(Boolean).join(' · ');
-    const prev = r.tagCd === 'NEW' && r.prevYear ? '<span class="hb-q hb-prev" title="예전에 국민은행 금고였던 기관(마지막 ' + r.prevYear + '년)">예전 KB</span><span class="sr-only"> 예전 국민은행 금고, 마지막 ' + r.prevYear + '년</span>' : '';
+      r.editorName ? '마지막 고침 ' + r.editorName + (r.empVerified ? '' : '(사번 자기신고)') + (r.savedAt ? ' ' + r.savedAt.slice(0, 16).replace('T', ' ') : '') : ''].concat(tc.rowTips(r)).filter(Boolean).join(' · ');
+    const prev = r.tagCd === 'NEW' && r.prevYear ? (r.carried ? '' : '<span class="hb-q hb-prev" title="예전에 국민은행 금고였던 기관(마지막 ' + r.prevYear + '년)">예전 KB</span>') + (r.carried ? '' : '<span class="sr-only"> 예전 국민은행 금고, 마지막 ' + r.prevYear + '년</span>') : '';   // 이월 줄은 rowTips 문장이 같은 말을 읽어 준다(두 번 읽지 않게)
     const chip = o.canEdit
       ? '<button type="button" class="hb-tag" data-act="tag" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-haspopup="menu" aria-expanded="false"><span class="sr-only">구분: </span>' + nm + CHEV + '</button>'
       : '<span class="hb-tag ro"><span class="sr-only">구분: </span>' + nm + '</span>';
-    return '<td' + (tip ? ' title="' + esc(tip) + '"' : '') + '>' + chip + prev + (tip ? '<span class="sr-only">. ' + esc(tip) + '</span>' : '') + '</td>';
+    return '<td' + (tip ? ' title="' + esc(tip) + '"' : '') + '>' + chip + (r.carried ? '<span class="hb-q">이월</span>' : '') + prev + (tip ? '<span class="sr-only">. ' + esc(tip) + '</span>' : '') + '</td>';
   }
   function stageCellHtml(r) {
     const late = r.late ? '<span class="hb-late">지연</span>' : '';
@@ -861,7 +871,7 @@
       const why = '근거: ' + kbb.basisText(r.closed);
       due = '<b class="hb-dd tx end">입찰 종료</b><span class="sr-only">' + esc(why) + '</span>'; dueAttr = ' title="' + esc(why) + '"';
     } else if (r.note) { const tt = kbb.screenRowTitle(r.note); dueAttr = ' title="' + esc(tt) + '"'; due += '<span class="sr-only">' + esc(tt) + '</span>'; }
-    return '<tr' + (r.late ? ' class="late"' : '') + '><th scope="row">' + nm + '</th>' + tagCellHtml(r, o) + '<td' + dueAttr + '>' + due + '</td>' + kbb.bankCellHtml(r.bank) + stageCellHtml(r) +
+    return '<tr' + tc.rowClass(r, o) + '>' + (o.selCol ? tc.ckCellHtml(r, o) : '') + '<th scope="row">' + nm + '</th>' + tagCellHtml(r, o) + '<td' + dueAttr + '>' + due + '</td>' + kbb.bankCellHtml(r.bank) + stageCellHtml(r) +
       '<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">설명회 기록 없음</span></td><td class="ln">' + (r.closed ? (r.out ? closedOutLaneHtml() : closedActsHtml(r, o)) : kbb.laneCellHtml(r.due, o.win)) + '</td></tr>';
   };
   // 목표 밖 준비 줄이 올해 입찰 종료이면 12개월 칸: 옮길 목표가 없으니 버튼 없이 사실만(그림 + 같은 뜻의 sr-only 문장, design 11-19 A).
@@ -870,7 +880,7 @@
   }
   // 입찰 종료 줄의 12개월 칸: 그림 대신 동작 버튼 둘(aria-hidden 그림 밖). 1279px 이하에서 이 칸이 숨으면 같은 동작을 구분 메뉴가 준다. 보기 전용은 버튼 없음.
   function closedActsHtml(r, o) {
-    if (!o.canEdit) return '<span class="sr-only">올해 입찰이 끝난 기관</span>';
+    if (!o.canEdit || r.pend) return '<span class="sr-only">올해 입찰이 끝난 기관</span>';   // 결재 중인 줄은 동작 단추를 그리지 않는다
     const a = function (act, label, aria) {
       return '<button type="button" class="hb-tag" data-act="' + act + '" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-haspopup="dialog" aria-label="' + esc(r.name) + ' ' + aria + '">' + label + '</button>';
     };
@@ -889,9 +899,9 @@
     const memo = r.memo ? '<td class="mut" title="' + esc(r.memo) + '">' + esc(r.memo) + '</td>' : '<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">메모 없음</span></td>';
     let act = '';
     if (r.movable) {
-      if (o.canEdit) act = '<button type="button" class="hb-tag" data-act="togoal" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-haspopup="dialog" aria-label="' + esc(r.name) + ' 목표로 옮기기">목표로 옮기기</button>';
+      if (o.canEdit && !r.pend) act = '<button type="button" class="hb-tag" data-act="togoal" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-haspopup="dialog" aria-label="' + esc(r.name) + ' 목표로 옮기기">목표로 옮기기</button>';
     } else act = '<span class="sr-only">목표로 옮길 시기 아님</span>';
-    return '<tr><th scope="row">' + nm + '</th>' + tagCellHtml(r, o) + '<td>' + nx + '</td>' + kbb.bankCellHtml(r.bank) + memo + '<td>' + act + '</td></tr>';
+    return '<tr' + tc.rowClass(r, o) + '>' + (o.selCol ? tc.ckCellHtml(r, o) : '') + '<th scope="row">' + nm + '</th>' + tagCellHtml(r, o) + '<td>' + nx + '</td>' + kbb.bankCellHtml(r.bank) + memo + '<td>' + act + '</td></tr>';
   };
 
   kbb.GOAL_MSG = {
@@ -963,13 +973,13 @@
     return '<th scope="col"' + (on ? ' aria-sort="' + (dir === 'desc' ? 'descending' : 'ascending') + '"' : '') + '><button type="button" class="hb-sort" data-sort="' + key + '">' + label + SORT_ICON[on ? dir : 'none'] + '</button></th>';
   }
   kbb.goalTableHtml = function (v) {
-    const win = v.win, watch = v.tab === 'watch', ncol = watch ? 6 : 7;
+    const win = v.win, watch = v.tab === 'watch', sel = !!v.selCol, ncol = (watch ? 6 : 7) + (sel ? 1 : 0);
     const cols = watch
-      ? '<colgroup><col class="c-wnm"><col class="c-tag"><col class="c-next"><col class="c-bank"><col class="c-memo"><col class="c-act"></colgroup>'
-      : '<colgroup><col class="c-nm"><col class="c-tag"><col class="c-due"><col class="c-bank"><col class="c-stg"><col class="c-brf"><col class="ln"></colgroup>';
+      ? '<colgroup>' + (sel ? '<col class="c-ck">' : '') + '<col class="c-wnm"><col class="c-tag"><col class="c-next"><col class="c-bank"><col class="c-memo"><col class="c-act"></colgroup>'
+      : '<colgroup>' + (sel ? '<col class="c-ck">' : '') + '<col class="c-nm"><col class="c-tag"><col class="c-due"><col class="c-bank"><col class="c-stg"><col class="c-brf"><col class="ln"></colgroup>';
     const head = watch
-      ? '<thead><tr>' + thHtml('기관', 'nm', v) + thHtml('구분', 'tag', v) + thHtml('다음 협약 종료', 'next', v) + thHtml('현 금고 은행', 'bank', v) + '<th scope="col">메모</th><th scope="col"><span class="sr-only">동작</span></th></tr></thead>'
-      : '<thead><tr>' + thHtml('기관', 'nm', v) + thHtml('구분', 'tag', v) + thHtml('마감까지', 'due', v) + thHtml('현 금고 은행', 'bank', v) + thHtml('준비 단계', 'stage', v) + '<th scope="col">설명회</th>' +
+      ? '<thead><tr>' + (sel ? tc.ckHeadHtml(true) : '') + thHtml('기관', 'nm', v) + thHtml('구분', 'tag', v) + thHtml('다음 협약 종료', 'next', v) + thHtml('현 금고 은행', 'bank', v) + '<th scope="col">메모</th><th scope="col"><span class="sr-only">동작</span></th></tr></thead>'
+      : '<thead><tr>' + (sel ? tc.ckHeadHtml() : '') + thHtml('기관', 'nm', v) + thHtml('구분', 'tag', v) + thHtml('마감까지', 'due', v) + thHtml('현 금고 은행', 'bank', v) + thHtml('준비 단계', 'stage', v) + '<th scope="col">설명회</th>' +
         '<th scope="col" class="ln"><span class="sr-only">12개월 일정 </span><span class="yr">' + esc(win.label) + '</span><span class="mh" aria-hidden="true">' +
         win.months.map(function (m) { return '<span>' + m.m + '</span>'; }).join('') + '</span></th></tr></thead>';
     const msg = function (inner, busy) { return '<tbody><tr class="emp"><td colspan="' + ncol + '"' + (busy ? ' aria-busy="true"' : '') + '>' + inner + '</td></tr></tbody>'; };
@@ -980,7 +990,7 @@
     else if (v.st === 'denied') body = msg('<p class="db-state">' + esc(v.code === 401 ? M.login : M.denied) + '</p>');
     else if (v.st === 'error') body = msg('<p class="db-state">' + kbb.goalErrHtml(v.code) + '</p>');
     else {
-      const o = { win: win, canEdit: !!v.canEdit, noWatch: !!v.noWatch };
+      const o = { win: win, canEdit: !!v.canEdit, noWatch: !!v.noWatch, selCol: sel, picked: v.picked || null };
       const outN = v.out ? v.out.length : 0, none = !v.rows.length && !outN;
       if (watch) {
         body = v.rows.length ? '<tbody>' + v.rows.map(function (r) { return kbb.watchRowHtml(r, o); }).join('') + '</tbody>'
@@ -1006,7 +1016,7 @@
         cap = (watch ? '관심 기관 ' : esc(v.year) + ' 목표 기관 ') + (kinds ? kinds + ', ' : '') + total + '곳 중 ' + shown + '곳 보임, ' + kbb.SORT_LABEL[v.sort.key] + ' ' + (v.sort.dir === 'desc' ? '내림차순' : '오름차순');
       }
     }
-    return '<table class="hb-tt"><caption class="sr-only">' + cap + '</caption>' + cols + head + body + '</table>';
+    return '<table class="hb-tt' + (sel ? ' sel' : '') + '"><caption class="sr-only">' + cap + '</caption>' + cols + head + body + '</table>';
   };
   kbb.filteredNoneHtml = function () { return '<p class="db-state">조건에 맞는 기관이 없습니다. <button type="button" id="hb-fclear2">필터 지우기</button></p>'; };
   // 관심 탭이 비었을 때(규격 5절). 편집 가능 계정에는 [관심 기관 추가].
@@ -1026,8 +1036,9 @@
   const CK = '<svg class="ck" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 5.5l2 2L8 3"/></svg>';
   kbb.menuHtml = function (r, o) {
     const def = o.def || {};
-    let h = '<div class="hb-menu" role="menu" aria-label="구분 바꾸기">';
+    let h = '<div class="hb-menu" role="menu" aria-label="' + (o.canTerm ? '목표 기관 동작' : '구분 바꾸기') + '">';
     if (def.tag) h += '<div class="mh">자동 제안: ' + esc(kbb.TAG[def.tag] || '') + ' — ' + esc(kbb.tagWhy(def)) + '</div>';
+    if (o.judgeText) h += '<div class="mh">' + esc(o.judgeText) + '</div>';
     (o.tags || []).forEach(function (t) {
       h += '<button type="button" role="menuitemradio" aria-checked="' + (t.code === r.tagCd ? 'true' : 'false') + '" data-tag="' + esc(t.code) + '" tabindex="-1"><span>' + esc(t.name) + '</span>' + CK + '</button>';
     });
@@ -1037,6 +1048,7 @@
       if (r.closed) h += '<button type="button" role="menuitem" data-cmd="tonext" tabindex="-1">다음 회차 목표로…</button>';
     }
     if (o.canCancel) h += '<div class="ms" role="separator"></div><button type="button" role="menuitem" data-cmd="cancel" tabindex="-1">' + esc(o.cancelText || '목표에서 빼기…') + '</button>';
+    if (o.canTerm) h += '<div class="ms" role="separator"></div><button type="button" role="menuitem" data-cmd="term" tabindex="-1">협약 개시일 적기…</button>';
     return h + '</div>';
   };
 
@@ -1396,6 +1408,10 @@
   kbb.cancelTarget = function (id, no, body) { return post('/institutions/' + encodeURIComponent(id) + '/bid-targets/' + encodeURIComponent(no) + '/cancel', kbb.BTN.cancel, body); };
   // 옮기기: 목표 ↔ 관심(버튼 move_to_goal·move_to_watch). body = { base_rev_no, to_kind_cd:'GOAL'|'WATCH', target_year? }
   kbb.moveTarget = function (id, no, body, button) { return post('/institutions/' + encodeURIComponent(id) + '/bid-targets/' + encodeURIComponent(no) + '/move', button, body); };
+  // NEXT 105: 일괄 변경·자동 이월(입찰 현황판에서만 부른다)·협약 개시일. 버튼 이름은 tchange.BTN(서버 TargetUiIds) — kbb.BTN은 8개 그대로(시험이 고정).
+  kbb.submitChanges = function (body) { return post('/bid-targets/changes', tc.BTN.change, body); };
+  kbb.carryTargets = function () { return post('/bid-targets/carry', tc.BTN.carry, {}); };
+  kbb.saveTerm = function (id, body) { return post('/institutions/' + encodeURIComponent(id) + '/bid-terms', tc.BTN.term, body); };
   // 저장·빼기 응답 해석. 서버 문구(detail.message)를 그대로 쓰고, 409 DUP_TARGET·STALE·LIMIT·ALREADY_CANCELLED와 400·422는 문구만 다르게 나눈다.
   // 서버 문구는 한글이 든 것만 쓴다 — 영문 오류 문구('institution not found' 등)는 화면에 내보이지 않고 한국어 고정 문구로 바꾼다(qa 11-17 P3-12).
   function korMsg(m) { return /[가-힣]/.test(String(m || '')) ? String(m) : ''; }
@@ -1426,6 +1442,7 @@
     }
     if (s === 409) return { kind: 'stale', code: p.code, msg: (msg ? msg + ' ' : '') + '목록을 다시 불러왔습니다.' };
     if (s === 400 || s === 422) return { kind: 'field', code: p.code, msg: msg || '입력한 내용을 확인하세요.' };
+    if (s === 403 && p.code === 'APPROVAL_REQUIRED') return { kind: 'stale', code: p.code, msg: tc.APPROVAL_NOW_MSG };   // 결재 모드로 바뀐 서버 — 목록을 다시 읽어 모드를 바꾼다(NEXT 105 5-3)
     if (s === 401 || s === 403) return { kind: 'denied', msg: msg || (s === 401 ? '로그인이 필요합니다. 다시 로그인하세요.' : '올해 목표 기관은 영업부서만 넣고 고치고 뺄 수 있습니다.') };
     if (s === 404) return { kind: 'error', msg: msg || '기관을 찾지 못했습니다.' };
     if (s === 0) return { kind: 'error', msg: '서버에 연결되지 않아 저장하지 못했습니다. 다시 시도하세요.' };
@@ -1446,6 +1463,8 @@
   const gs = { year: 0, st: 'offline', code: 0, data: null, seq: 0, sumSt: 'idle', sum: {}, direct: {}, rows: [], wrows: [], busy: false, focusNext: null, retryFocus: '', optSig: '',
     tab: 'goal', f: { q: '', tag: '', status: '', kind: '', stage: -1 }, sort: { goal: { key: 'due', dir: 'asc' }, watch: { key: 'next', dir: 'asc' } }, tbSig: '', just: null, seeInst: '' };
   let host = null, ac = null, LIST = [], ALL = null, OURS = [], G = null, BYID = {}, seq = 0, offNr = null, menu = null, dlg = null, pop = null, popInert = [], qTimer = null;
+  gs.sel = tc.newSel(); gs.selMsg = ''; gs.carryTried = false; gs.carryTok = 0; gs.justIds = null;   // NEXT 105: 고른 줄·알림·자동 이월 한 번만·일괄 반영 강조
+  let chd = null, trm = null, pnd = null;   // 일괄 요청 창·협약 개시일 창·결재 진행 중 창(공통 .dlg, dlg.js)
   let prepDenied403 = false;   // /preps·/workflow/overview가 둘 다 403으로 확정된 계정 — 화면을 열 때마다 다시 부르지 않는다(계정이 바뀌면 onProfileChange가 푼다, design 11-17 7절)
   const U = dash.util;
   function $(id) { return host ? host.querySelector('#' + id) : null; }
@@ -1746,6 +1765,9 @@
     }
     const noWatch = noWatchNow();
     if (noWatch && gs.tab === 'watch') gs.tab = 'goal';   // 옛 서버에는 관심 탭이 없다
+    const mode = ok ? tc.modeOf(gs.data) : null;   // NEXT 105: DIRECT·APPROVAL이면 고르기 열 + 바닥 띠. 옛 서버·보기 전용은 null
+    if (ok) tc.reconcile(gs.sel, rows, wrows, Number(gs.data.year));   // 잠겼거나 사라진 줄은 고른 것에서 빼고 남은 줄의 기록 번호는 제자리 갱신
+    if (ok && !mode && tc.selCount(gs.sel)) tc.clearSel(gs.sel);   // 응답이 ok이고 모드가 없다고 확정됐을 때만 비운다 — 로딩·오류 중에는 고른 줄을 지킨다(STALE 뒤 새 기록 번호로 갱신)
     const watch = gs.tab === 'watch', canEdit = ok && !!gs.data.can_edit;
     const total = watch ? wrows.length : rows.length + out.length, f = gs.f, sorted = gs.sort[watch ? 'watch' : 'goal'];
     const fx = watch ? Object.assign({}, f, { stage: -1, kind: '' }) : f;   // 단계·종류는 목표 탭에만 있다
@@ -1756,7 +1778,7 @@
     ts.setAttribute('role', 'tabpanel');
     if (ok) ts.setAttribute('aria-labelledby', 'hb-tab-' + gs.tab); else ts.removeAttribute('aria-labelledby');   // 도구 줄(탭)이 있을 때만 — 없는 id를 가리키지 않는다(qa 11-17 P3-4)
     ts.innerHTML = kbb.goalTableHtml({ st: gs.st, code: gs.code, year: goalYear(), win: win, tab: gs.tab, rows: dRows, out: dOut, canEdit: canEdit, groups: groups, prep: ps.state, prepCode: prepCode,
-      sort: sorted, total: total, filtered: total > 0 && kbb.filterOn(fx), noWatch: noWatch, nGoal: rows.length, nOut: out.length });
+      sort: sorted, total: total, filtered: total > 0 && kbb.filterOn(fx), noWatch: noWatch, nGoal: rows.length, nOut: out.length, selCol: !!mode, picked: tc.pickedMap(gs.sel) });
     paintToolbar({ tab: gs.tab, nGoal: rows.length, nWatch: wrows.length, f: f, stageName: f.stage >= 0 ? (dash.STAGES[f.stage] || {}).label : '', shown: dRows.length + dOut.length, total: total, canEdit: canEdit, loaded: ok, noWatch: noWatch });
     const band = $('hb-band');
     if (band) {
@@ -1767,6 +1789,7 @@
     }
     const ft = $('hb-tf'); if (ft && ALL) ft.innerHTML = kbb.goalFootHtml(ALL.notice.length);
     const box = $('hb-goals'); if (box) box.setAttribute('aria-busy', gs.st === 'loading' ? 'true' : 'false');
+    paintSel();   // 머리 체크박스 상태·바닥 띠(restoreFocus·applyFocusNext 앞 — 시험이 이 둘의 연속을 지킨다)
     renderTop();
     renderOursHead();
     restoreFocus(sc, keepKey);
@@ -1838,6 +1861,9 @@
       if (t.status === 'ok' && !gs.data) gs.st = 'error';
       if (gs.data && dash.setGoals) dash.setGoals(gs.data);   // 올해 목표 기관 집합 공유(사용자 11-19 Q2) — 올해가 아닌 연도 응답은 setGoals가 무시한다
       renderGoals(); renderOurs();   // 협약 종료일이 직접 입력 값으로 바뀌었을 수 있어 1번 목록도 다시 그린다
+      applyJustMany();                              // NEXT 105: 일괄 반영한 줄 강조
+      if (dlg && dlg.kind === 'add') paintAdd();    // 모드가 바뀌었으면 추가 창의 단추 글자도(APPROVAL_REQUIRED 뒤)
+      maybeCarry();                                 // carry_due > 0이면 자동 이월 한 번(이 화면에서만)
     });
   }
 
@@ -1846,6 +1872,7 @@
     const n = $('hb-note'); if (n) n.hidden = !msg;   // 띠를 먼저 보이게 한 뒤 글을 넣는다(role=status가 보이는 상태에서 바뀐 글을 읽도록, qa 11-19 P3-3)
     const f = $('hb-flash'); if (f) f.textContent = msg || '';
     const a = $('hb-flash-act'); if (a) a.innerHTML = msg && act === 'watch' ? kbb.seeWatchHtml() : '';
+    if (a && msg && act && act !== 'watch') a.innerHTML = tc.actHtml(act);   // NEXT 105: 결재함에서 보기·넘어온 기관만 보기(고정 마크업)
     if (n && msg && n.scrollIntoView) n.scrollIntoView({ block: 'nearest' });
   }
 
@@ -1918,7 +1945,8 @@
     closeMenu(false);
     const wrap = document.createElement('div');
     wrap.innerHTML = kbb.menuHtml(r, { tags: tagList(), def: kbb.defaultTag(r.rec, gs.sum[r.id], tagOpts()), canCancel: r.canCancel,
-      canMove: r.kind !== 'WATCH' && !noWatchNow(), cancelText: r.kind === 'WATCH' ? '관심에서 빼기…' : '' });
+      canMove: r.kind !== 'WATCH' && !noWatchNow(), cancelText: r.kind === 'WATCH' ? '관심에서 빼기…' : '',
+      canTerm: r.kind !== 'WATCH' && !!r.judgeFrom && !r.pend, judgeText: tc.judgeText(r) });   // judge_from이 있는 서버만 협약 개시일 항목
     const el = wrap.firstChild;
     document.body.appendChild(el);
     const b = btn.getBoundingClientRect(), mw = el.offsetWidth, mh = el.offsetHeight;
@@ -1944,13 +1972,14 @@
       const it = ev.target && ev.target.closest ? ev.target.closest('button') : null;
       if (!it) return;
       const cmd = it.getAttribute('data-cmd');
-      if (cmd === 'cancel') { closeMenu(false); openCancel(r, btn); return; }
-      if (cmd === 'towatch' || cmd === 'tonext') { closeMenu(false); openMove(cmd, r, btn); return; }
+      if (cmd === 'cancel') { closeMenu(false); if (isApproval() && r.kind !== 'WATCH') openChange({ rows: [r], op: 'CANCEL', opener: btn }); else openCancel(r, btn); return; }
+      if (cmd === 'term') { closeMenu(false); openTerm(r, btn); return; }
+      if (cmd === 'towatch' || cmd === 'tonext') { closeMenu(false); if (isApproval()) openChange(moveChange(r, cmd, btn)); else openMove(cmd, r, btn); return; }
       const code = it.getAttribute('data-tag');
       if (!code) return;
       if (code === r.tagCd) { closeMenu(true); return; }
       closeMenu(true);
-      changeTag(r, code, btn);
+      if (isApproval() && r.kind !== 'WATCH') openChange({ rows: [r], op: 'EDIT', tag: code, opener: btn }); else changeTag(r, code, btn);   // 목표 구분 고치기는 결재 대상, 관심은 바로
     });
     menu = m;
     const first = el.querySelector('button[aria-checked="true"]') || el.querySelector('button');
@@ -2107,6 +2136,7 @@
     Array.prototype.forEach.call(d.el.querySelectorAll('input[name="hb-a-tag"]'), function (i) { i.checked = i.value === m.tag; });
     const cnt = dq('hb-a-cnt'); if (cnt) cnt.textContent = String(m.memo || '').length + '/' + kbb.MEMO_MAX;
     const go = dq('hb-a-go'); if (go) { go.disabled = !s.canGo; go.textContent = m.busy ? '저장 중…' : (watch ? '관심 기관에 넣기' : '목표에 넣기'); }
+    if (go && !m.busy && !watch && isApproval()) go.textContent = tc.addGoText('APPROVAL');   // [결재 요청 쓰기](NEXT 105 6-3)
     const cb = dq('hb-a-cancel'); if (cb) cb.disabled = !!m.busy;   // 저장 중에는 [취소]도 막는다(qa 11-17 P3-8)
     const why = dq('hb-a-why'); if (why) why.textContent = s.why;
   }
@@ -2219,6 +2249,7 @@
     eff.closedBlock = m.closedBlock && eff.kind !== 'WATCH' && Number(eff.year) === y0;
     if (dlg !== d || !kbb.addState(eff).canGo) return;
     const watch = eff.kind === 'WATCH';
+    if (!watch && isApproval()) { addToChange(d, eff); return; }   // 결재 모드: 저장하지 않고 일괄 요청 창으로(관심 넣기는 바로)
     m.busy = true;
     paintAdd();
     holdDlgFocus(d, 'hb-a-go');
@@ -2442,6 +2473,424 @@
     const cl = $('hb-ours-close'); if (cl && cl.focus) cl.focus();
   }
 
+  // ── NEXT 105: 목표 기관 변경 — 고르기·일괄 요청·결재 중 창·협약 개시일·자동 이월 ───────────────────
+  // 규격: design-reviewer 2026-11-23_0919_ad69b2cf 5·6절. 모드는 서버 goal_change_mode 하나만 따른다(DIRECT·APPROVAL·null) — 결재·이월 스위치는 서버 설정이라 화면은 이 값과 carry_due만 본다.
+  // 새 창 셋(일괄 요청·결재 진행 중·협약 개시일)은 공통 .dlg(dlg.js)로 연다. 기존 추가·옮기기·빼기 창(modal-box)은 이번 범위 밖이다. 순수 부분은 tchange.js.
+  function goalMode() { return gs.st === 'ok' && gs.data ? tc.modeOf(gs.data) : null; }
+  function isApproval() { return goalMode() === 'APPROVAL'; }
+  function roleNow() { try { return String((root.store.loadProfile() || {}).team || '').trim(); } catch (e) { return ''; } }
+  function dlgFallback() { return $('hb-pickall') || $('hb-goals'); }
+  function moveChange(r, cmd, opener) {   // 한 줄 동작 → 일괄 요청 창을 그 줄 하나가 미리 채워진 채로(규격 6-3)
+    if (cmd === 'tonext') return { rows: [r], op: 'EDIT', year: Number(r.targetYear) + 1, opener: opener };
+    if (cmd === 'togoal') return { rows: [r], op: 'TO_GOAL', year: r.movable || 0, opener: opener };
+    return { rows: [r], op: 'TO_WATCH', opener: opener };
+  }
+  // ── 고르기(체크박스): 눌러도 표를 다시 그리지 않는다(포커스·스크롤 유지) — 줄 클래스·띠만 고친다
+  function pickRows() { return (gs.rows || []).filter(function (r) { return tc.pickable(r); }); }
+  function syncPickDom() {
+    const sc = $('hb-ts');
+    if (!sc) return;
+    Array.prototype.forEach.call(sc.querySelectorAll('input[data-pick]'), function (i) {
+      const r = (gs.rows || []).filter(function (x) { return x.id === i.getAttribute('data-pick') && !x.out; })[0], on = !!r && tc.isPicked(gs.sel, r);
+      i.checked = on;
+      const tr = i.closest ? i.closest('tr') : null;
+      if (tr && tr.classList) tr.classList.toggle('picked', on);
+    });
+  }
+  function paintSel() {
+    const mode = goalMode(), n = tc.selCount(gs.sel), bar = $('hb-selbar'), all = $('hb-pickall');
+    if (all) {   // 머리 체크박스는 지금 보이는 줄만 다룬다
+      const vis = pickRows(), k = vis.filter(function (r) { return tc.isPicked(gs.sel, r); }).length;
+      all.checked = vis.length > 0 && k === vis.length; all.indeterminate = k > 0 && k < vis.length; all.disabled = vis.length === 0;
+    }
+    if (!bar) return;
+    const stEl = $('hb-seln');
+    if (!mode || n === 0) { bar.hidden = true; if (stEl) { stEl.innerHTML = ''; stEl.hbH = ''; } return; }
+    bar.hidden = false;   // 먼저 보이게 한 뒤 글을 넣는다(role=status가 보이는 상태에서 바뀐 글을 읽도록, 규격 5-6)
+    const h = tc.selStatusHtml(n, gs.selMsg);
+    if (stEl && stEl.hbH !== h) { stEl.innerHTML = h; stEl.hbH = h; }
+    const who = $('hb-selwho'); if (who) who.textContent = tc.approverText(roleNow(), mode);
+    const go = $('hb-selgo'); if (go) go.textContent = tc.barBtnText(mode, n);
+  }
+  function onPick(t) {
+    if (!canEditNow()) { t.checked = false; return; }
+    if (t.id === 'hb-pickall') {
+      gs.selMsg = '';
+      pickRows().forEach(function (r) {
+        if (t.checked) { const res = tc.pick(gs.sel, tc.entryOfRow(r)); if (!res.ok) gs.selMsg = res.msg; }
+        else tc.unpickRow(gs.sel, r.id, r.targetNo);
+      });
+      syncPickDom(); paintSel();
+      return;
+    }
+    const id = t.getAttribute('data-pick'), r = (gs.rows || []).filter(function (x) { return x.id === id && !x.out; })[0];
+    if (!r) { t.checked = false; return; }
+    if (t.checked) { const res = tc.pick(gs.sel, tc.entryOfRow(r)); if (res.ok) gs.selMsg = ''; else { t.checked = false; gs.selMsg = res.msg; } }   // 20곳 한도·같은 기관 두 번은 체크하지 않고 띠에 알린다(5-6)
+    else { tc.unpickRow(gs.sel, id, r.targetNo); gs.selMsg = ''; }
+    syncPickDom(); paintSel();
+  }
+  function clearSelection() {
+    tc.clearSel(gs.sel); gs.selMsg = '';
+    syncPickDom(); paintSel();
+    const f = $('hb-pickall') || $('hb-goals'); if (f && f.focus) f.focus();   // 띠가 사라지므로 눌렀던 단추 대신 표로
+  }
+  // ── 일괄 요청 창(.dlg--wide): 고른 줄 + 미리 채운 줄 + 넣기(ADD)를 한 창에서 동작·사유와 함께
+  function cancelReasons() { return gs.data && gs.data.codes && Array.isArray(gs.data.codes.cancel_reasons) ? gs.data.codes.cancel_reasons : []; }
+  function chCtx() { return { years: selYears(), tags: tagList(), reasons: cancelReasons() }; }
+  function chq(d, id) { return d.overlay.querySelector('#' + id); }
+  function chItem(d, uid) { return d.items.filter(function (x) { return String(x.uid) === String(uid); })[0] || null; }
+  function chLi(d, uid) { return d.overlay.querySelector('li.tc-item[data-uid="' + uid + '"]'); }
+  const CH_CTL = { op: ['op'], year: ['y'], edit: ['y'], memo: ['m'], cancelCd: ['rs'], cancelEtc: ['etc'], text: ['m', 'etc'] };
+  function chClearItem(d, it) {
+    const li = chLi(d, it.uid), fe = chq(d, 'tc-i' + it.uid + '-e'), top = chq(d, 'tc-err');
+    if (li) li.classList.remove('bad');
+    if (fe) fe.textContent = '';
+    if (top) top.textContent = '';
+    ['op', 'y', 't', 'm', 'rs', 'etc'].forEach(function (k) {
+      const c = chq(d, 'tc-i' + it.uid + '-' + k);
+      if (!c || c.getAttribute('aria-invalid') !== 'true') return;
+      c.removeAttribute('aria-invalid');
+      const left = root.dlg.removeDescribedBy(c.getAttribute('aria-describedby'), 'tc-i' + it.uid + '-e');
+      if (left) c.setAttribute('aria-describedby', left); else c.removeAttribute('aria-describedby');
+    });
+  }
+  function chMarkItem(d, uid, f, msg) {   // 항목 상자에 빨간 테두리(.bad)와 한 줄 문장, 칸에는 aria-invalid·describedby. 커서를 옮길 칸을 돌려준다
+    const li = chLi(d, uid), fe = chq(d, 'tc-i' + uid + '-e');
+    if (!li) return null;
+    li.classList.add('bad');
+    if (fe) fe.textContent = msg;
+    const ks = CH_CTL[f] || ['op'];
+    let c = null;
+    for (let i = 0; i < ks.length && !c; i += 1) c = chq(d, 'tc-i' + uid + '-' + ks[i]);
+    if (!c) c = chq(d, 'tc-i' + uid + '-op') || li.querySelector('.tc-x');
+    if (c && c.id) { c.setAttribute('aria-invalid', 'true'); c.setAttribute('aria-describedby', root.dlg.mergeDescribedBy(c.getAttribute('aria-describedby'), 'tc-i' + uid + '-e')); }
+    return c;
+  }
+  function chClearErrors(d) {
+    const te = chq(d, 'tc-err'); if (te) te.textContent = '';
+    const re = chq(d, 'tc-re'); if (re) re.textContent = '';
+    const rt = chq(d, 'tc-reason'); if (rt) rt.removeAttribute('aria-invalid');
+    d.items.forEach(function (it) { chClearItem(d, it); });
+  }
+  function chShowErrors(d, v) {   // 누르기 전에는 막지 않고 누르면 칸마다(5-2). 맨 위 빠진 칸으로 커서
+    let first = null;
+    if (v.top) { const te = chq(d, 'tc-err'); if (te) te.textContent = v.top; }
+    if (v.reason) { const t = chq(d, 'tc-reason'), p = chq(d, 'tc-re'); if (p) p.textContent = v.reason; if (t) { t.setAttribute('aria-invalid', 'true'); first = t; } }
+    v.items.forEach(function (x) { const c = chMarkItem(d, x.uid, x.f, x.msg); if (!first && c) first = c; });
+    if (first && first.focus) first.focus();
+  }
+  function chShowError(d, e) {   // 서버 오류: 위쪽 .dlg-err에는 "{n}번째 {기관}을 확인하세요."만, 항목 문장은 그 항목 상자에(같은 문장을 두 곳에 쓰지 않는다)
+    const te = chq(d, 'tc-err'); if (te) te.textContent = e.top || '';
+    let f = null;
+    if (e.item) f = chMarkItem(d, e.item.uid, e.item.f, e.item.msg);
+    else if (e.kind === 'field') { const t = chq(d, 'tc-reason'), p = chq(d, 'tc-re'); if (p) p.textContent = e.msg; if (t) { t.setAttribute('aria-invalid', 'true'); f = t; } }
+    f = f || chq(d, 'tc-go');
+    if (f && f.focus) f.focus();
+  }
+  function chPaintBusy(d) {
+    const go = chq(d, 'tc-go'), body = d.overlay.querySelector('.dlg-body'), box = d.overlay.querySelector('.dlg');
+    if (go) { root.dlg.setDisabled(go, d.busy); go.textContent = d.busy ? '올리는 중…' : tc.GO_TEXT[d.mode]; }   // 중복 제출을 막으려는 것(필수 칸 알림 때문이 아니다)
+    if (body) body.inert = !!d.busy;
+    if (box) box.setAttribute('aria-busy', d.busy ? 'true' : 'false');
+    if (d.busy) { const t = chq(d, 'tc-t'); if (t && t.focus) t.focus(); }
+  }
+  function chPaintItem(d, it, focusKey) {   // 동작을 바꾸면 그 항목의 이전/이후 줄만 다시 그린다(동작 칸은 그대로 — 포커스 유지)
+    const li = chLi(d, it.uid), old = li ? li.querySelector('.tc-ba') : null;
+    if (!li || !old) return;
+    const w = document.createElement('div');
+    w.innerHTML = tc.afterBlockHtml(it, chCtx());
+    li.replaceChild(w.firstChild, old);
+    if (focusKey) { const e = chq(d, 'tc-i' + it.uid + '-' + focusKey); if (e && e.focus) e.focus(); }
+  }
+  function chRepaint(d) {
+    const ol = chq(d, 'tc-items'), t = chq(d, 'tc-t');
+    if (ol) ol.innerHTML = d.items.map(function (it, i) { return tc.itemHtml(it, i + 1, chCtx()); }).join('');
+    if (t) t.textContent = tc.dlgTitle(d.mode, d.items.length);
+  }
+  function chFocusItem(d, it) {
+    const li = it ? chLi(d, it.uid) : null, f = li ? (li.querySelector('select, input') || li.querySelector('.tc-x')) : chq(d, 'tc-go');
+    if (f && f.focus) f.focus();
+  }
+  function chRemove(d, uid) {   // [목록에서 제외] — 이 요청에서 빼고 고른 것도 푼다(규격 5-1: '빼기'는 목표에서 빼기와 헷갈린다)
+    const it = chItem(d, uid);
+    if (!it || d.busy) return;
+    const i = d.items.indexOf(it);
+    d.items.splice(i, 1);
+    if (!it.add) tc.unpick(gs.sel, it.id);
+    syncPickDom(); paintSel();
+    if (!d.items.length) { d.done = true; root.dlg.close(d.overlay); return; }
+    chRepaint(d);
+    chFocusItem(d, d.items[i] || d.items[i - 1]);
+  }
+  function chOnChange(d, t) {
+    if (d.busy || !t) return;
+    if (t.id === 'tc-allop') {   // 고른 목표 줄 모두에 같은 동작
+      const op = t.value; t.value = '';
+      if (!op) return;
+      d.items.forEach(function (x) { if (!tc.isFixed(x) && !x.op) { tc.setOp(x, op); x.touched = true; } });   // 아직 동작이 비어 있는 항목에만(이미 정한 항목은 그대로)
+      chRepaint(d);
+      return;
+    }
+    const it = chItem(d, t.getAttribute && t.getAttribute('data-uid'));
+    if (!it) return;
+    const f = t.getAttribute('data-f');
+    it.touched = true;
+    chClearItem(d, it);
+    if (f === 'op') { tc.setOp(it, t.value); chPaintItem(d, it, ''); }
+    else if (f === 'year') it.year = Number(t.value) || 0;
+    else if (f === 'tag') it.tag = t.value;
+    else if (f === 'cancelCd') { it.cancelCd = t.value; if (it.cancelCd !== tc.ETC_CD) it.cancelEtc = ''; chPaintItem(d, it, 'rs'); }
+  }
+  function chOnInput(d, t) {
+    if (d.busy || !t) return;
+    if (t.id === 'tc-reason') {
+      d.reason = t.value;
+      const c = chq(d, 'tc-rc'); if (c) c.textContent = t.value.length + '/' + tc.REASON_MAX;
+      const re = chq(d, 'tc-re'); if (re) re.textContent = '';
+      t.removeAttribute('aria-invalid');
+      return;
+    }
+    const it = chItem(d, t.getAttribute && t.getAttribute('data-uid'));
+    if (!it) return;
+    const f = t.getAttribute('data-f');
+    it.touched = true;
+    chClearItem(d, it);
+    if (f === 'memo') it.memo = t.value; else if (f === 'cancelEtc') it.cancelEtc = t.value;
+  }
+  function chClosed(d) {   // dlg.close가 부른다 — [취소]·Esc·바깥 클릭·성공·화면 닫힘 모두 여기로
+    d.gone = true;
+    if (d.overlay.parentNode) d.overlay.parentNode.removeChild(d.overlay);
+    if (chd === d) chd = null;
+    if (!d.done) d.added.forEach(function (id) { tc.unpick(gs.sel, id); });   // [취소]: 미리 채운 항목만 버리고 이미 고른 줄은 그대로(6-3)
+    if (host) { syncPickDom(); paintSel(); }
+  }
+  // o = { rows:[줄 모델](한 줄 동작이 미리 채움), op, year, tag, add:{id,name,regionName,year,tag,tagName,memo}(추가 창에서 넘어옴), opener }
+  function openChange(o) {
+    o = o || {};
+    if (chd || trm || pnd || dlg || !root.dlg || !canEditNow()) return;
+    const mode = goalMode();
+    if (!mode) return;
+    closeMenu(false);
+    const added = [], pre = {};
+    let fail = '';
+    (o.rows || []).forEach(function (r) {
+      if (fail) return;
+      const had = tc.hasSel(gs.sel, r.id), res = tc.pick(gs.sel, tc.entryOfRow(r));
+      if (!res.ok) { fail = res.msg; return; }
+      if (!had) added.push(r.id);
+      pre[r.id] = { op: o.op, year: o.year || 0, tag: o.tag || '' };
+    });
+    if (!fail && o.add) { if (tc.hasSel(gs.sel, o.add.id)) fail = tc.DUP_MSG; else if (tc.selCount(gs.sel) >= tc.MAX_ITEMS) fail = tc.CAP_MSG; }
+    if (fail) { added.forEach(function (id) { tc.unpick(gs.sel, id); }); say(fail, true); syncPickDom(); paintSel(); return; }
+    let uid = 0;
+    const items = gs.sel.ids.map(function (id) {
+      const it = tc.newItem(++uid, gs.sel.by[id]), p = pre[id];   // 항목의 이전 줄은 고른 줄의 스냅샷(같은 객체 — 목록을 다시 받으면 제자리 갱신)
+      if (p && !tc.isFixed(it)) tc.setOp(it, p.op, p);
+      return it;
+    });
+    if (o.add) items.push(tc.addItem(++uid, o.add));
+    const w = document.createElement('div');
+    w.innerHTML = tc.dialogHtml({ mode: mode, items: items, reason: '', role: roleNow() }, chCtx());
+    const ov = w.firstChild, d = { overlay: ov, mode: mode, items: items, reason: '', busy: false, gone: false, done: false, added: added };
+    chd = d;
+    ov.addEventListener('click', function (ev) {
+      const b = ev.target && ev.target.closest ? ev.target.closest('button') : null;
+      if (!b || d.gone) return;
+      if (b.id === 'tc-cancel') root.dlg.requestClose(ov);   // 올리는 중에도 닫는다 — 결과는 띠로
+      else if (b.id === 'tc-go') submitChange(d);
+      else if (b.classList.contains('tc-x')) chRemove(d, b.getAttribute('data-uid'));
+    });
+    ov.addEventListener('change', function (ev) { chOnChange(d, ev.target); });
+    ov.addEventListener('input', function (ev) { chOnInput(d, ev.target); });
+    document.body.appendChild(ov);   // 덮개는 body 직계여야 dlg가 나머지 화면을 inert로 막는다
+    if (o.opener && o.opener.focus && document.body.contains(o.opener)) o.opener.focus();   // 닫으면 이 단추로 돌아온다(dlg가 연 순간의 포커스를 기억)
+    root.dlg.open(ov, {
+      isDirty: function () { return !!String(d.reason).trim() || d.items.some(function (x) { return x.touched; }); },
+      onClose: function () { chClosed(d); }, restoreFallback: dlgFallback });
+    syncPickDom(); paintSel();
+  }
+  // 409 뒤: 보는 연도 목록은 loadGoals가 새로 읽는다. 다른 연도에서 고른 줄은 그 응답으로 못 고치므로 서버가 준 최신 기록(detail.latest)으로,
+  // 그것도 없으면 그 연도 목록을 따로 읽어 갱신한다(안 그러면 base_rev_no가 낡아 같은 오류가 되풀이된다).
+  function refreshAfterConflict(e, d) {
+    const it = e.item ? d.items.filter(function (x) { return x.uid === e.item.uid; })[0] : null, sn = it ? it.snap : null;
+    const other = !!sn && sn.kind !== 'WATCH' && Number(sn.year) !== Number(goalYear());
+    const applied = other && tc.applyLatest(sn, e.latest);
+    const extra = other && !applied ? fetchJson('/bid-targets?year=' + encodeURIComponent(sn.year)).then(function (t) {
+      if (t.status !== 'ok' || !t.data || !host) return;
+      tc.reconcile(tc.oneSel(sn), kbb.goalRows(t.data.items, goalCtx()), [], Number(sn.year));   // 임시 묶음에서 고쳐도 snap은 같은 객체라 창이 새 기록 번호를 본다
+    }) : Promise.resolve();
+    return Promise.all([loadGoals(), extra]);
+  }
+  function submitChange(d) {
+    if (chd !== d || d.busy || d.gone) return;
+    chClearErrors(d);
+    const v = tc.validate(d.items, { mode: d.mode, reason: d.reason });
+    if (!v.ok) { chShowErrors(d, v); return; }
+    d.busy = true; chPaintBusy(d);
+    kbb.submitChanges(tc.buildBody(d.items, { mode: d.mode, reason: d.reason })).then(function (x) {
+      d.busy = false;
+      if (!host) return;
+      if (!d.gone) chPaintBusy(d);
+      if (x && (x.status === 200 || x.status === 201) && x.body) { finishChange(d, x.body); return; }
+      const e = tc.errorOf(x, d.items);
+      const show = function () { if (d.gone) say(e.item ? e.top + ' ' + e.item.msg : (e.msg || e.top), true); else chShowError(d, e); };   // 닫은 뒤 늦게 온 실패는 띠로
+      if (e.refresh) refreshAfterConflict(e, d).then(function () { if (!d.gone) chRepaint(d); show(); });   // STALE·CHANGE_PENDING: 다시 읽고 이전 줄·기록 번호를 새로(고른 동작·칸 값은 그대로)
+      else show();
+    });
+  }
+  function finishChange(d, body) {
+    const res = tc.resultOf(body, d.items.length), ids = d.items.map(function (x) { return x.id; });
+    d.done = true;
+    tc.clearSel(gs.sel); gs.selMsg = '';
+    if (!d.gone) root.dlg.close(d.overlay, { restore: false });
+    say(res.text, false, res.mode === 'APPROVAL' ? 'inbox' : '');
+    if (res.mode === 'DIRECT') gs.justIds = ids;
+    loadGoals();
+    const t = $('hb-pickall') || $('hb-goals'); if (t && t.focus) t.focus();
+  }
+  // 추가 창 → 일괄 요청 창(APPROVAL): 추가 창을 닫고 같은 자리에서 바뀐다. 닫으면 추가 창을 연 단추로 돌아온다.
+  function addToChange(d, eff) {
+    const m = d.m, a = { id: m.inst.id, name: m.inst.name, regionName: dash.regionName((m.inst.rec && m.inst.rec.region) || ''), year: eff.year, tag: m.tag,
+      tagName: (tagList().filter(function (z) { return z.code === m.tag; })[0] || {}).name || kbb.TAG[m.tag] || m.tag, memo: String(m.memo || '').trim() };
+    if (tc.hasSel(gs.sel, a.id)) { setDlgErr('hb-a-err', tc.DUP_MSG); return; }
+    if (tc.selCount(gs.sel) >= tc.MAX_ITEMS) { setDlgErr('hb-a-err', tc.CAP_MSG); return; }
+    const opener = d.opener;
+    closeDlg('none');
+    openChange({ add: a, opener: opener });
+  }
+  // ── 결재 진행 중 창(보는 창) — 현황판은 내가 요청자인지 모른다(사번 없음): 취소·반려는 결재함으로 보낸다
+  function openPending(r, opener) {
+    if (pnd || chd || trm || dlg || !root.dlg || !r || !r.pend) return;
+    closeMenu(false);
+    const w = document.createElement('div');
+    w.innerHTML = tc.pendingDialogHtml(r, { canTerm: r.kind !== 'WATCH' && !!r.judgeFrom });
+    const ov = w.firstChild, d = { overlay: ov, gone: false };
+    pnd = d;
+    ov.addEventListener('click', function (ev) {
+      const b = ev.target && ev.target.closest ? ev.target.closest('button') : null;
+      if (!b || d.gone) return;
+      if (b.id === 'pd-close') root.dlg.requestClose(ov);
+      else if (b.id === 'pd-inbox') { root.dlg.close(ov, { restore: false }); seeInbox(''); }
+      else if (b.id === 'pd-term') { root.dlg.close(ov, { restore: false }); openTerm(r, opener); }   // 서버는 잠긴 기관의 개시일 저장도 막지 않는다
+    });
+    document.body.appendChild(ov);
+    root.dlg.open(ov, { onClose: function () { d.gone = true; if (ov.parentNode) ov.parentNode.removeChild(ov); if (pnd === d) pnd = null; }, restoreFallback: dlgFallback });
+  }
+  // ── RFP 협약 개시일 창(쓰는 창, 결재 없음)
+  function ttq(d, id) { return d.overlay.querySelector('#' + id); }
+  function ttText(d, id, msg) { const e = ttq(d, id); if (e) e.textContent = msg || ''; }
+  function ttPaint(d) {
+    const go = ttq(d, 'tt-go');
+    if (go) { root.dlg.setDisabled(go, d.busy); go.textContent = d.busy ? '저장 중…' : '저장'; }
+  }
+  function refillTerm(d) {   // 409 STALE: 최신 값을 다시 읽어 칸을 채운다
+    if (d.gone || trm !== d) return;
+    const r2 = (gs.rows || []).filter(function (x) { return x.id === d.r.id && x.targetNo === d.r.targetNo && !x.out; })[0];
+    if (!r2) return;
+    d.r = r2; d.base = r2.termRevNo; d.init = r2.termStart || '';
+    const inp = ttq(d, 'tt-d'); if (inp) inp.value = d.init;
+    const now = ttq(d, 'tt-now'); if (now) now.innerHTML = tc.termNowHtml(r2);
+  }
+  function openTerm(r, opener) {
+    if (trm || chd || pnd || dlg || !root.dlg || !canEditNow() || !r || r.kind === 'WATCH' || !r.judgeFrom) return;
+    closeMenu(false);
+    const w = document.createElement('div');
+    w.innerHTML = tc.termDialogHtml(r);
+    const ov = w.firstChild, d = { overlay: ov, r: r, base: r.termRevNo, init: r.termStart || '', busy: false, gone: false };
+    trm = d;
+    ov.addEventListener('click', function (ev) {
+      const b = ev.target && ev.target.closest ? ev.target.closest('button') : null;
+      if (!b || d.gone) return;
+      if (b.id === 'tt-cancel') root.dlg.requestClose(ov);
+      else if (b.id === 'tt-go') submitTerm(d);
+    });
+    document.body.appendChild(ov);
+    if (opener && opener.focus && document.body.contains(opener)) opener.focus();
+    root.dlg.open(ov, {
+      isDirty: function () { const i = ttq(d, 'tt-d'); return !!i && i.value !== d.init; },
+      onClose: function () { d.gone = true; if (ov.parentNode) ov.parentNode.removeChild(ov); if (trm === d) trm = null; }, restoreFallback: dlgFallback });
+  }
+  function submitTerm(d) {
+    if (trm !== d || d.busy || d.gone) return;
+    const inp = ttq(d, 'tt-d'), v = inp ? String(inp.value || '').trim() : '';
+    d.busy = true; ttPaint(d);
+    ttText(d, 'tt-err', ''); ttText(d, 'tt-info', ''); ttText(d, 'tt-e', '');
+    if (inp) inp.removeAttribute('aria-invalid');
+    kbb.saveTerm(d.r.id, { target_year: d.r.targetYear, term_start: v, base_rev_no: d.base }).then(function (x) {
+      d.busy = false;
+      if (!host) return;
+      if (!d.gone) ttPaint(d);
+      const o = tc.termOutcome(x);
+      if (o.kind === 'saved') {
+        if (!d.gone) root.dlg.close(d.overlay, { restore: false });
+        say(tc.termFlash(d.r.name, d.r.targetYear, v, gs.data && gs.data.carry_default_start), false);
+        gs.focusNext = { inst: d.r.id }; gs.just = { inst: d.r.id };
+        loadGoals();
+        return;
+      }
+      if (d.gone) { say(o.msg, true); return; }
+      if (o.kind === 'nochange') { ttText(d, 'tt-info', o.msg); if (inp && inp.focus) inp.focus(); return; }
+      if (o.kind === 'field') { ttText(d, 'tt-e', o.msg); if (inp) { inp.setAttribute('aria-invalid', 'true'); if (inp.focus) inp.focus(); } return; }
+      ttText(d, 'tt-err', o.msg);
+      if (o.kind === 'stale') loadGoals().then(function () { refillTerm(d); });
+      if (inp && inp.focus) inp.focus();
+    });
+  }
+  function closeChangeDlgs() {   // 계정이 바뀌거나 화면을 떠날 때(확인 없이)
+    [chd, trm, pnd].forEach(function (d) { if (d && !d.gone && d.overlay && root.dlg) { d.done = true; root.dlg.close(d.overlay, { restore: false }); } });
+    chd = trm = pnd = null;
+  }
+  // ── 알림 옆 단추(결재함에서 보기·넘어온 기관만 보기)와 자동 이월
+  function seeInbox(tab) {   // 결재함 탭(위쪽 #tab-btn-approvals)을 누른다. 못 열면 안내
+    const btn = typeof document !== 'undefined' ? document.getElementById('tab-btn-approvals') : null;
+    const hidden = !btn || btn.hidden || (typeof getComputedStyle === 'function' && getComputedStyle(btn).display === 'none');
+    if (hidden) { say('결재함을 열 수 없습니다. 위쪽 [결재함] 단추에서 여세요.', true); return; }
+    if (tab && root.approvals && root.approvals.openTab) root.approvals.openTab(tab);
+    btn.click();
+  }
+  function seeCarried() {   // 상태 거르기 '자동 이월'을 켠다(목표에 넘어온 줄이 있으면 목표 탭, 없고 관심에만 있으면 관심 탭)
+    const a = $('hb-flash-act'); if (a) a.innerHTML = '';
+    const d = gs.data || {}, goalHas = (d.items || []).some(function (x) { return x && x.carried === true; }), watchHas = (d.watch_items || []).some(function (x) { return x && x.carried === true; });
+    cancelQ();
+    gs.tab = goalHas || !watchHas ? 'goal' : 'watch';
+    gs.f = { q: '', tag: '', status: 'carried', kind: '', stage: -1 };
+    clearQInput();
+    renderGoals();
+    const s = $('hb-f-status'); if (s && s.focus) s.focus();
+  }
+  // 자동 이월: GET의 carry_due가 0보다 크면 한 번만(이 화면에서만 — 기관 목록·대시보드는 부르지 않는다). more면 한 번 더, 두 번의 숫자를 합쳐 한 번만 알린다.
+  // 실패·409 CARRY_DISABLED는 아무것도 띄우지 않는다(다음에 들어올 때 다시, 5-5).
+  function carryRun(acc, tok) {
+    return kbb.carryTargets().then(function (x) {
+      if (tok !== gs.carryTok || !host) return null;
+      if (!x || x.status !== 200 || !x.body) return acc;
+      const sum = tc.carryMerge(acc, x.body);
+      return x.body.more === true && !acc ? carryRun(sum, tok) : sum;
+    });
+  }
+  function maybeCarry() {
+    const d = gs.data;
+    if (gs.carryTried || !d || gs.st !== 'ok' || !(Number(d.carry_due) > 0) || !canEditNow()) return;
+    gs.carryTried = true;
+    const tok = gs.carryTok;
+    carryRun(null, tok).then(function (sum) {
+      if (tok !== gs.carryTok || !host || !sum) return;
+      const n = tc.carryText(sum);
+      if (n.text) say(n.text, false, n.hasCarried ? 'carried' : '');
+      if (n.changed) loadGoals();
+    });
+  }
+  function applyJustMany() {   // 일괄 반영한 줄들을 잠깐 강조(.hb-just) — 한 줄 강조(applyJust)와 같은 클래스
+    const ids = gs.justIds;
+    if (!ids || !ids.length || gs.st === 'loading') return;
+    gs.justIds = null;
+    const sc = $('hb-goals'), bs = sc ? sc.querySelectorAll('button.hb-nm') : [];
+    Array.prototype.forEach.call(bs, function (b) {
+      if (ids.indexOf(b.getAttribute('data-inst')) < 0) return;
+      const tr = b.closest ? b.closest('tr') : null;
+      if (tr && tr.classList) { tr.classList.add('hb-just'); setTimeout(function () { tr.classList.remove('hb-just'); }, 4000); }
+    });
+  }
   // ── 표 도구 줄·정렬·단계 거르기 ─────────────────────────────────────────
   function setTab(tab, focusTab) {
     if (tab !== 'goal' && tab !== 'watch') return;
@@ -2500,6 +2949,7 @@
     if (!t || !t.closest) return;
     const btn = t.closest('button');
     if (!btn || !host.contains(btn)) return;
+    if (btn.classList.contains('hb-pend')) { const pr = rowOfBtn(btn, false); if (pr) openPending(pr, btn); return; }   // 결재 중 칩
     if (btn.classList.contains('hb-tag')) {
       const act = btn.getAttribute('data-act'), inst = btn.getAttribute('data-inst') || '';
       if (act === 'tag') { if (menu && menu.btn === btn) closeMenu(true); else openMenu(btn); }
@@ -2507,9 +2957,11 @@
       else if (act === 'oadd') { closePop(false); openAdd({ id: inst, tag: 'RETAIN', kind: 'GOAL', opener: $('hb-ours-btn') }); }   // 협약 중인 기관 팝업의 줄: 목표·재유치 도전으로 채운 추가 창
       else if (act === 'owatch') { closePop(false); openAdd({ id: inst, kind: 'WATCH', opener: $('hb-ours-btn') }); }   // 국민은행 확정 줄: 관심으로 채운 추가 창(결과는 기존 관심 추가 흐름 — 관심 탭·알림)
       else if (act === 'addwatch') openAdd({ id: '', kind: 'WATCH' });
-      else if (act === 'towatch' || act === 'tonext' || act === 'togoal') { const r = rowOfBtn(btn, false); if (r) openMove(act, r, btn); }
+      else if (act === 'towatch' || act === 'tonext' || act === 'togoal') { const r = rowOfBtn(btn, false); if (r && isApproval()) openChange(moveChange(r, act, btn)); else if (r) openMove(act, r, btn); }
       else if (btn.id === 'hb-see-watch') seeWatch();
       else if (btn.id === 'hb-sclr') { gs.f.stage = -1; renderGoals(); }
+      else if (btn.id === 'hb-see-carried') seeCarried();
+      else if (btn.id === 'hb-see-inbox') seeInbox('mine');
       return;
     }
     if (btn.classList.contains('hb-nm') || btn.classList.contains('hb-row')) { openOurs(btn); return; }
@@ -2519,6 +2971,8 @@
     if (btn.getAttribute('role') === 'tab') { setTab(btn.getAttribute('data-tab')); return; }
     switch (btn.id) {
       case 'hb-add': openAdd(null); break;
+      case 'hb-selclr': clearSelection(); break;
+      case 'hb-selgo': openChange({ opener: btn }); break;
       case 'hb-ours-btn': openPop(); break;
       case 'hb-ours-close': closePop(true); break;
       case 'hb-watch-add': case 'hb-watch-add2': openAdd({ id: '', kind: 'WATCH' }); break;
@@ -2544,12 +2998,13 @@
     '<div id="hb-err" class="db-state db-banner" role="alert" style="display:none"></div>' +
     '<div class="hb-band" id="hb-band" role="group" aria-label="목표 요약" aria-busy="true"></div>' +
     '<div class="hb-note" id="hb-note" hidden><svg class="hb-note-ck" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 6.4 4.8 9 10 3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><div id="hb-flash" class="db-flash" role="status"></div><span id="hb-flash-act"></span></div>' +
-    '<div class="hb-tp" id="hb-goals" tabindex="-1" aria-busy="true"><div class="hb-tb" id="hb-tb"></div><div class="hb-ts" id="hb-ts" role="tabpanel"></div><div class="hb-tf" id="hb-tf"></div></div>' +
+    '<div class="hb-tp" id="hb-goals" tabindex="-1" aria-busy="true"><div class="hb-tb" id="hb-tb"></div><div class="hb-ts" id="hb-ts" role="tabpanel"></div>' + tc.selbarHtml() + '<div class="hb-tf" id="hb-tf"></div></div>' +
     '</section>';
 
   function onChange(e) {
     const t = e.target;
     if (!t) return;
+    if (t.id === 'hb-pickall' || (t.getAttribute && t.getAttribute('data-pick') !== null)) { onPick(t); return; }
     if (t.id === 'hb-year') { const y = Number(t.value); if (y) { gs.year = y; gs.optSig = ''; loadGoals(); } return; }
     if (t.id === 'hb-f-tag') { gs.f.tag = t.value; renderGoals(); const e1 = $('hb-f-tag'); if (e1) e1.focus(); }
     else if (t.id === 'hb-f-status') { gs.f.status = t.value; renderGoals(); const e2 = $('hb-f-status'); if (e2) e2.focus(); }
@@ -2569,6 +3024,7 @@
     host.addEventListener('compositionstart', onCompStart, opt);
     host.addEventListener('compositionend', onCompEnd, opt);
     composing = false; gs.cntEl = null;
+    gs.sel = tc.newSel(); gs.selMsg = ''; gs.carryTried = false;   // NEXT 105: 마운트마다 새로(자동 이월은 한 번만)
     host.addEventListener('keydown', onKeydown, opt);
     st.err = '';
     gs.st = (!U.serverMode() || !U.hasEmp()) ? 'offline' : 'loading';
@@ -2588,6 +3044,7 @@
     gs.st = 'offline'; gs.data = null; gs.sumSt = 'idle'; gs.sum = {}; gs.direct = {}; gs.rows = []; gs.wrows = []; gs.focusNext = null; gs.retryFocus = '';
     gs.just = null; gs.seeInst = '';   // 앞 계정의 강조·[관심 탭에서 보기] 대상을 버린다(qa 11-19 P3-2)
     if (dash.clearGoals) dash.clearGoals();
+    closeChangeDlgs(); gs.sel = tc.newSel(); gs.selMsg = ''; gs.carryTried = false; gs.carryTok += 1; gs.justIds = null;   // 앞 계정의 고른 줄·창·진행 중인 이월을 버린다
     prepDenied403 = false;   // 다른 계정은 제안 진행을 볼 수 있을 수 있다 — 403 기억을 푼다
     closeMenu(false); closeDlg('none'); closePop(false);
     if (host && ALL) { renderAll(); loadProgress(); loadGoals(); if (root.noticerec && root.noticerec.ensure) root.noticerec.ensure(); }   // 공고 현황 기록도 새 계정으로 다시(mount와 같은 방식, qa 11-19 P3-3)
@@ -2596,6 +3053,7 @@
     seq += 1; gs.seq += 1;
     closeMenu(false); closeDlg('none'); closePop(false);
     if (qTimer) { clearTimeout(qTimer); qTimer = null; }
+    closeChangeDlgs(); gs.sel = tc.newSel(); gs.carryTried = false; gs.carryTok += 1;
     if (offNr) { offNr(); offNr = null; }
     if (ac) ac.abort();
     ac = null;

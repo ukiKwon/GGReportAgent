@@ -45,13 +45,13 @@ public class TargetChangeApiTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private BidTargetSettings settings;
 
-    @Before public void 스위치_켬() {   // 코드 기본값은 둘 다 false(화면 적용 커밋에서 true) — 이 시험은 켠 상태가 바탕
+    @Before public void 스위치_켬() {   // 코드 기본값은 둘 다 true — 이 시험은 켠 상태가 바탕(명시)
         settings.setApprovalRequired(true);
         settings.setCarryEnabled(true);
     }
     @After public void 설정_복구() {
-        settings.setApprovalRequired(false);
-        settings.setCarryEnabled(false);
+        settings.setApprovalRequired(true);
+        settings.setCarryEnabled(true);
         settings.setCarryDefaultStart(java.time.MonthDay.of(1, 1));
     }
 
