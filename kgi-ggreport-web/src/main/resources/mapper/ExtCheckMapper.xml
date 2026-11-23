@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- EXT_CHECK·EXT_CHECK_FILE·EXT_CHECK_EXCL — 042. 양쪽 방언 같은 문장(ANSI), 단 조회 두 곳(selectLatestResolved·selectHistory)은 databaseId 쌍(MySQL LIMIT·Oracle 11g ROWNUM 래핑). resultMap 명시(InstitutionMapper.xml 이유). 조회는 flushCache.
+     selectLatestNoticeDeadlines 는 행 수를 자르지 않는 ROW_NUMBER() OVER 한 문장이라 쌍이 아니다(Oracle 11g·MySQL 8.0+·H2 공통, ExtCheckLimitSqlTest 가 모양을 본다).
      INSERT 만 — UPDATE·DELETE 문장은 일부러 없다. -->
 <mapper namespace="com.kbstar.kgi.ggreport.web.mapper.ExtCheckMapper">
 
@@ -99,6 +100,16 @@
     SELECT * FROM (
     <include refid="historyBody"/>
     ) WHERE ROWNUM &lt;= #{limit}
+  </select>
+
+  <!-- 대시보드 입찰 예정일(NEXT 102 ⑤): 기관마다 공고 마감일이 있는 최신 found 1건. 마감이 지났어도 그대로 돌려준다(형식 검사는 서버). -->
+  <select id="selectLatestNoticeDeadlines" resultMap="check" flushCache="true">
+    SELECT CHECK_KEY, INSTITUTION_ID, DEADLINE_AT FROM (
+      SELECT CHECK_KEY, INSTITUTION_ID, DEADLINE_AT,
+             ROW_NUMBER() OVER (PARTITION BY INSTITUTION_ID ORDER BY CHECKED_AT DESC, IMPORTED_AT DESC, CHECK_KEY) AS RN
+        FROM EXT_CHECK
+       WHERE SOURCE_KIND = 'notice' AND STATUS_CD = 'found' AND DEADLINE_AT IS NOT NULL
+    ) T WHERE RN = 1
   </select>
 
   <select id="selectFilesByKeys" resultMap="file" flushCache="true">

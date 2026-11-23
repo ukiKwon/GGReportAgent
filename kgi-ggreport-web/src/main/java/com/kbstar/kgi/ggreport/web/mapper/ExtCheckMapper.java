@@ -22,6 +22,11 @@ public interface ExtCheckMapper {
     String selectLastErrorAt(@Param("institutionId") String institutionId, @Param("sourceKind") String sourceKind);
     /** 최신순 limit 건(SQL 에서 자른다). */
     List<ExtCheck> selectHistory(@Param("institutionId") String institutionId, @Param("limit") int limit);
+    /**
+     * 대시보드 입찰 예정일(NEXT 102 ⑤) — 기관마다 notice·found·DEADLINE_AT 있는 최신 1건(CHECKED_AT DESC, IMPORTED_AT DESC, CHECK_KEY).
+     * 묶음 질의 한 번(기관마다 부르지 않는다). 행 수를 자르지 않는 ROW_NUMBER 한 문장이라 방언 분기가 없다.
+     */
+    List<ExtCheck> selectLatestNoticeDeadlines();
     List<ExtCheckFile> selectFilesByKeys(@Param("keys") List<String> keys);
     ExtCheckFile selectFile(@Param("checkKey") String checkKey, @Param("fileSeq") int fileSeq);
 }

@@ -397,18 +397,22 @@ public class PrepBoardApiTest {
     }
 
     @Test
-    public void D24_확정_또는_개설_대기_건은_담당이어도_409_STATE_CHANGED이고_행_없이_BLOCKED_감사만_남는다() throws Exception {
-        String bid = opened(INST);   // 담당 배정은 활성으로 남는다
-        for (String st : new String[]{"CONFIRMED", "OPEN_PENDING"}) {
-            setState(bid, st);
-            MvcResult r = check(MEMBER2, bid, COL, mark("DONE", 0));
-            assertEquals(st, 409, r.getResponse().getStatus());
-            assertEquals("STATE_CHANGED", json(r).path("detail").path("code").asText());
-            assertEquals(st, 1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_CHECK'"
-                    + " AND OUTCOME='BLOCKED' AND STATE_CD=?", bid, st));
-        }
-        assertEquals(0, checkRows(bid));
-        assertEquals(2, actCount(bid, "DASH_CHECK", "BLOCKED"));
+    public void D24_확정_또는_개설_대기_상태라도_활성_담당이면_체크되고_감사에_그_상태가_남는다_합성_상태() throws Exception {
+        // 합성 시험: 실제 흐름에서는 이 두 상태에 활성 담당이 없다(배정은 개설 승인 때 처음 생긴다 — D31). 허용 상태 집합(④)만 고정한다.
+        String bid = opened(INST);
+        setState(bid, "CONFIRMED");
+        assertTrue(row(json(list(MEMBER2, null, "refresh")), bid).path("can_check").asBoolean());
+        MvcResult r = check(MEMBER2, bid, COL, mark("DONE", 0));
+        assertEquals(r.getResponse().getContentAsString(), 200, r.getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_CHECK' AND OUTCOME='OK'"
+                + " AND STATE_CD='CONFIRMED' AND TASK_CD='CK_FIN_COMMITTEE' AND ACTOR_EMP_NO=? AND SCREEN_ID='prep_dashboard'"
+                + " AND BUTTON_ID='dash_check' AND UI_VALID=1", bid, MEMBER2));
+        setState(bid, "OPEN_PENDING");
+        assertEquals(200, check(MEMBER2, bid, COL, mark("IN_PROGRESS", 1)).getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_CHECK' AND OUTCOME='OK'"
+                + " AND STATE_CD='OPEN_PENDING' AND ACTOR_EMP_NO=?", bid, MEMBER2));
+        assertEquals(2, checkRows(bid));
+        assertEquals(0, actCount(bid, "DASH_CHECK", "BLOCKED"));
     }
 
     @Test
@@ -436,24 +440,32 @@ public class PrepBoardApiTest {
         assertEquals(0, checkRows(bid));
     }
 
+    private int rowsOf(JsonNode body, String inst) {
+        int n = 0;
+        for (JsonNode r : body.path("rows")) {
+            if (inst.equals(r.path("institution_id").asText())) { n++; }
+        }
+        return n;
+    }
+
     @Test
-    public void D27_include_ended_목록은_기관당_한_줄이고_활성_건이_있는_기관은_ended가_false다() throws Exception {
+    public void D27_include_ended_목록은_활성_1줄과_끝난_건_각_1줄이고_끄면_기관당_활성_1줄이다() throws Exception {
         String old = opened(INST);   // nowon: 중단된 건 + 다시 확정한 활성 건
         assertEquals(200, postJson("/bidcases/" + old + "/prep/cancel", LEAD, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
         String active = confirm(MEMBER, INST);   // PrepApiTest 관례 — 중단 뒤 확정은 새 건
-        String endedOnly = confirm(MEMBER, "dobong");   // dobong: 종료 건만
-        assertEquals(200, postJson("/bidcases/" + endedOnly + "/prep/unconfirm", LEAD, "{\"reason\":\"가상 취소\"}").getResponse().getStatus());
-        JsonNode body = json(list(MEMBER, "include_ended=true", "refresh"));
-        int nowon = 0, dobong = 0;
-        for (JsonNode r : body.path("rows")) {
-            if (INST.equals(r.path("institution_id").asText())) { nowon++; }
-            if ("dobong".equals(r.path("institution_id").asText())) { dobong++; }
-        }
-        assertEquals(1, nowon);
-        assertEquals(1, dobong);
-        assertFalse(row(body, active).path("ended").asBoolean());
-        assertNull("같은 기관의 중단 건은 줄로 나오지 않는다", row(body, old));
-        assertTrue(row(body, endedOnly).path("ended").asBoolean());
+        String ended1 = confirm(MEMBER, "dobong");   // dobong: 끝난 건만(확정 취소 뒤 재확정은 같은 건을 되살리므로 끝난 건은 1건)
+        assertEquals(200, postJson("/bidcases/" + ended1 + "/prep/unconfirm", LEAD, "{\"reason\":\"가상 취소\"}").getResponse().getStatus());
+        JsonNode on = json(list(MEMBER, "include_ended=true", "refresh"));
+        assertEquals(2, rowsOf(on, INST));
+        assertEquals(1, rowsOf(on, "dobong"));
+        assertFalse(row(on, active).path("ended").asBoolean());
+        assertTrue("같은 기관의 옛 중단 건도 줄로 나온다(P3-6)", row(on, old).path("ended").asBoolean());
+        assertTrue(row(on, ended1).path("ended").asBoolean());
+        JsonNode off = json(list(MEMBER, null, "refresh"));
+        assertEquals(1, rowsOf(off, INST));
+        assertEquals(0, rowsOf(off, "dobong"));
+        assertNull(row(off, old));
+        assertNotNull(row(off, active));
     }
 
     @Test
@@ -465,5 +477,104 @@ public class PrepBoardApiTest {
         assertEquals(0, checkRows(bid));
         assertEquals(1, actByCol(bid, "DASH_CHECK", "DENIED", "CK_FIN_COMMITTEE"));
         assertEquals(0, actCount(bid, "DASH_CHECK", "OK"));
+    }
+
+    @Test
+    public void D29_결재_끝난_건이_표에_실리면_목록_감사에_건마다_한_줄이_같은_시각_화면_버튼으로_남고_다른_상태는_남지_않는다() throws Exception {
+        String done = opened(INST);
+        setState(done, "WRITABLE");
+        String other = opened("dobong");   // IN_PROGRESS — 건 줄 없음
+        assertEquals(200, list(MEMBER, null, "open").getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_LIST_ROW' AND OUTCOME='OK'"
+                + " AND STATE_CD='WRITABLE' AND TASK_CD IS NULL AND ACTOR_EMP_NO=? AND SCREEN_ID='prep_dashboard' AND BUTTON_ID='open'"
+                + " AND UI_VALID=1", done, MEMBER));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_LIST_ROW'", other));
+        assertEquals("요약 줄은 그대로 한 줄", 1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='DASH_LIST' AND BID_CASE_ID='NONE' AND ACTOR_EMP_NO=?", MEMBER));
+        assertEquals("건 줄은 요약 줄과 같은 LOGGED_AT", 1, count("SELECT COUNT(*) FROM BID_PREP_ACT a WHERE a.ACTION_CD='DASH_LIST_ROW' AND a.BID_CASE_ID=?"
+                + " AND a.LOGGED_AT = (SELECT b.LOGGED_AT FROM BID_PREP_ACT b WHERE b.ACTION_CD='DASH_LIST' AND b.BID_CASE_ID='NONE' AND b.ACTOR_EMP_NO=?)", done, MEMBER));
+        setState(other, "WRITING");
+        assertEquals(200, list(LEAD, "include_ended=true", "refresh").getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_LIST_ROW' AND OUTCOME='OK'"
+                + " AND STATE_CD='WRITING' AND ACTOR_EMP_NO=? AND BUTTON_ID='refresh'", other, LEAD));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_LIST_ROW' AND ACTOR_EMP_NO=?", done, LEAD));
+        assertEquals(403, list(DESIGNER, null, "open").getResponse().getStatus());   // 거부면 건 줄 없음
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='DASH_LIST_ROW' AND ACTOR_EMP_NO=?", DESIGNER));
+    }
+
+    @Test
+    public void D30_상세를_못_여는_끝난_건은_확정자_담당자_체크자_이름을_모두_가리고_칸_값은_그대로다() throws Exception {
+        String bid = opened(INST);
+        assertEquals(200, check(MEMBER2, bid, COL, mark("DONE", 0)).getResponse().getStatus());
+        assertEquals(200, postJson("/bidcases/" + bid + "/prep/cancel", LEAD, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
+        // 김영업은 확정자지만 개설 뒤 중단 건의 상세는 옛 담당·팀장·부장만 연다(canSee).
+        JsonNode hidden = row(json(list(MEMBER, "include_ended=true", "refresh")), bid);
+        assertTrue(hidden.path("ended").asBoolean());
+        assertFalse(hidden.path("can_view").asBoolean());
+        assertTrue(hidden.path("confirmed_by_name").isNull());
+        assertEquals(0, hidden.path("assignee_names").size());
+        assertTrue(hidden.path("cells").path(COL).path("by_name").isNull());
+        assertEquals("DONE", hidden.path("cells").path(COL).path("mark_cd").asText());
+        assertEquals(1, hidden.path("cells").path(COL).path("rev_no").asInt());
+        for (String emp : new String[]{MEMBER2, LEAD}) {   // 옛 담당·영업팀장은 상세를 열므로 이름이 보인다
+            JsonNode shown = row(json(list(emp, "include_ended=true", "refresh")), bid);
+            assertTrue(emp, shown.path("can_view").asBoolean());
+            assertFalse(emp, shown.path("confirmed_by_name").isNull());
+            assertFalse(emp, shown.path("cells").path(COL).path("by_name").isNull());
+        }
+    }
+
+    @Test
+    public void D31_실제_흐름에서_확정만_한_건은_활성_담당이_없어_확정자도_체크가_403이다() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        assertFalse(row(json(list(MEMBER, null, "open")), bid).path("can_check").asBoolean());
+        assertEquals(403, check(MEMBER, bid, COL, mark("DONE", 0)).getResponse().getStatus());
+        assertEquals(0, checkRows(bid));
+        assertEquals(1, actByCol(bid, "DASH_CHECK", "DENIED", "CK_FIN_COMMITTEE"));
+    }
+
+    @Test
+    public void D32_취소_중단_상태는_담당_배정이_남아_있어도_409_STATE_CHANGED이고_can_check가_거짓이다() throws Exception {
+        String bid = opened(INST);
+        setState(bid, "CANCELLED");   // 합성: 배정은 활성으로 남는다(실제 중단은 배정을 해제한다 — D20)
+        assertFalse(row(json(list(MEMBER2, "include_ended=true", "refresh")), bid).path("can_check").asBoolean());
+        MvcResult r = check(MEMBER2, bid, COL, mark("DONE", 0));
+        assertEquals(409, r.getResponse().getStatus());
+        assertEquals("STATE_CHANGED", json(r).path("detail").path("code").asText());
+        assertEquals(0, checkRows(bid));
+        assertEquals(1, actByCol(bid, "DASH_CHECK", "BLOCKED", "CK_FIN_COMMITTEE"));
+    }
+
+    /** 외부 확인 한 줄(가상 값) — CHECK_KEY 32자, 같은 배치 안 CHECK_ID 유일. */
+    private void extCheck(int n, String inst, String checkedAt, String status, String deadline) {
+        jdbc.update("INSERT INTO EXT_CHECK (CHECK_KEY, INSTITUTION_ID, BATCH_ID, CHECK_ID, CHECKED_AT, SOURCE_KIND, SOURCE_SLUG, STATUS_CD,"
+                + " DEADLINE_AT, IMPORTED_AT) VALUES (?, ?, '2026-11-23_0700_test102', ?, ?, 'notice', 'eminwon', ?, ?, ?)",
+                String.format("d102%028d", n), inst, "c-102-" + n, checkedAt, status, deadline, checkedAt);
+    }
+
+    @Test
+    public void D33_입찰_예정일은_공고_마감일이_있으면_그_날짜와_notice_없으면_약정_만료일과_expiry이고_그_순서로_정렬된다() throws Exception {
+        String withNotice = confirm(MEMBER, INST);
+        String expiryOnly = confirm(MEMBER, "dobong");
+        jdbc.update("UPDATE INSTITUTIONS SET CONTRACT_END=? WHERE INSTITUTION_ID=?", "2027-06-30", INST);
+        jdbc.update("UPDATE INSTITUTIONS SET CONTRACT_END=? WHERE INSTITUTION_ID=?", "2027-01-31", "dobong");
+        extCheck(1, INST, "2026-11-01T07:00:00+09:00", "found", "2026-12-31");        // 더 오래된 found — 밀린다
+        extCheck(2, INST, "2026-11-10T07:00:00+09:00", "found", "2025-12-10");        // 최신 found+마감일 — 지난 날짜도 그대로
+        extCheck(3, INST, "2026-11-15T07:00:00+09:00", "found", null);                // 마감일 없는 더 새 found — 제외
+        extCheck(4, INST, "2026-11-20T07:00:00+09:00", "not_found", "2026-12-01");    // found 아님 — 제외
+        extCheck(5, "dobong", "2026-11-20T07:00:00+09:00", "error", "2026-11-25");    // error — 제외
+        JsonNode body = json(list(MEMBER, null, "open"));
+        JsonNode n = row(body, withNotice);
+        assertEquals("2025-12-10", n.path("bid_expected_date").asText());
+        assertEquals("notice", n.path("bid_expected_basis").asText());
+        JsonNode d = row(body, expiryOnly);
+        assertEquals("2027-01-31", d.path("bid_expected_date").asText());
+        assertEquals("expiry", d.path("bid_expected_basis").asText());
+        int iN = -1, iD = -1, i = 0;
+        for (JsonNode r : body.path("rows")) {
+            if (withNotice.equals(r.path("bid_case_id").asText())) { iN = i; }
+            if (expiryOnly.equals(r.path("bid_case_id").asText())) { iD = i; }
+            i++;
+        }
+        assertTrue("공고 마감일(2025-12-10)이 약정 만료일(2027-01-31)보다 앞선다: " + iN + "," + iD, iN >= 0 && iD >= 0 && iN < iD);
     }
 }

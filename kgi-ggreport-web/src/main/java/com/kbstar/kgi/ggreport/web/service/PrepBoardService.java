@@ -4,11 +4,13 @@ import com.kbstar.kgi.ggreport.web.domain.BankContract;
 import com.kbstar.kgi.ggreport.web.domain.BankContractCode;
 import com.kbstar.kgi.ggreport.web.domain.BidPrep;
 import com.kbstar.kgi.ggreport.web.domain.BidPrepTask;
+import com.kbstar.kgi.ggreport.web.domain.ExtCheck;
 import com.kbstar.kgi.ggreport.web.domain.PrepBoardCheck;
 import com.kbstar.kgi.ggreport.web.domain.PrepBoardRef;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.dto.PrepBoardIn;
 import com.kbstar.kgi.ggreport.web.mapper.BankContractMapper;
+import com.kbstar.kgi.ggreport.web.mapper.ExtCheckMapper;
 import com.kbstar.kgi.ggreport.web.mapper.PrepBoardMapper;
 import com.kbstar.kgi.ggreport.web.mapper.PrepMapper;
 import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
@@ -20,6 +22,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
@@ -35,10 +38,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 대시보드(NEXT 102) — 행 = 제안 확정 기관(BID_PREP 기관당 1줄), 열 = 엑셀 체크리스트 27칸(PrepBoardColumns).
+ * 대시보드(NEXT 102) — 행 = 제안 확정 건(기관당 활성 1줄, include_ended 면 끝난 건은 건마다 1줄 — planner 11-23 P3-6), 열 = 엑셀 체크리스트 27칸(PrepBoardColumns).
+ * 이름 가림: 상세를 못 여는 끝난 건(ended·can_view=false)은 확정자·담당자·체크자 이름을 모두 싣지 않는다(planner 11-23 P3-4).
  * 칸 값은 아이콘 4값(V 완료 DONE · △ 진행 IN_PROGRESS · - 대상 아님 NA · 빈칸 시작 전 NONE, 사용자 11-20 ③). 날짜는 입력받지 않고 서버가 체크한 날(KST)을 남긴다.
  * 열람: 영업팀·영업팀장·영업부장(영업부서 전원, ⑥) — 디자이너·그 밖은 403. 체크: 그 건의 활성 담당자만(setTask 와 같은 규칙, 팀장·부장도 담당이 아니면 403).
- * 행 순서: 입찰 예정일 오름차순(없으면 맨 뒤) → 확정 시각 → 기관 이름.
+ * 입찰 예정일(⑤, 사용자 11-23): 공고가 나온 기관은 공고 제출 마감일(EXT_CHECK notice·found·DEADLINE_AT 최신 1건, 지났어도 그대로), 없으면 약정 만료일.
+ * 근거는 bid_expected_basis(notice|expiry). 행 순서: 입찰 예정일 오름차순(없으면 맨 뒤) → 확정 시각 → 기관 이름.
  * 저장: 건 행 잠금 → 담당 검사(security 3·4) → … → 추가 전용 INSERT + 성공 감사(같은 트랜잭션). 감사·접근 이력에 아이콘 값·날짜·이름을 넣지 않는다.
  * ⚠️ 사번은 X-Emp-No 자기신고 — 역할·담당 검사는 업무 규칙(실수 방지)이지 사칭 방지가 아니다.
  */
@@ -49,6 +54,19 @@ public class PrepBoardService {
     public static final String ACT_LIST_ENDED = "DASH_LIST_ENDED";   // include_ended 를 켠 목록(security F2) — 끝난 건을 보았는지 감사에 남긴다
     public static final String ACT_CHECK = "DASH_CHECK";
     public static final String ACT_SAME = "DASH_CHECK_SAME";
+    public static final String ACT_LIST_ROW = "DASH_LIST_ROW";   // 목록에 실린 결재 끝난 건마다 한 줄(planner 11-23 P3-3) — 요약 줄과 같은 LOGGED_AT
+    /** 목록 감사에 건 번호를 남기는 상태 — 사전준비 승인(결재)이 끝난 건. 사용자 불변 규칙 "결재 끝난 건의 모든 행위는 누가·어느 화면·어느 버튼". */
+    public static final Set<String> AUDIT_ROW_STATES = Collections.unmodifiableSet(new HashSet<String>(
+            Arrays.asList(PrepService.WRITABLE, PrepService.WRITING)));
+    /**
+     * 대시보드 손 체크 허용 상태 — 취소·중단(CANCELLED) 밖 전부(planner 11-23 ④). 허용 목록이라 모르는 상태는 409.
+     * PrepService.TASK_STATES(과제 체크)와 일부러 따로 둔다 — 그쪽을 바꾸지 말 것(fa 담당).
+     * 단 활성 담당 배정은 개설 승인 때 처음 생기므로 CONFIRMED·OPEN_PENDING 에서는 실제로 담당 검사에서 403(D31).
+     */
+    static final Set<String> CHECK_STATES = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
+            PrepService.CONFIRMED, PrepService.OPEN_PENDING, PrepService.IN_PROGRESS, PrepService.APPROVAL_PENDING,
+            PrepService.WRITABLE, PrepService.WRITING)));
+    static final String BASIS_NOTICE = "notice", BASIS_EXPIRY = "expiry";
     static final String NONE = "NONE", IN_PROGRESS = "IN_PROGRESS", DONE = "DONE", NA = "NA";
     static final String MARK_GROUP = "DASH_MARK";          // 054 코드표
     private static final List<String> MARKS = Collections.unmodifiableList(Arrays.asList(DONE, IN_PROGRESS, NA, NONE));
@@ -72,11 +90,12 @@ public class PrepBoardService {
     private final BankContractMapper banks;
     private final NoticeRoundService notices;
     private final PrepAudit audit;
+    private final ExtCheckMapper extChecks;
 
     public PrepBoardService(PrepMapper preps, PrepBoardMapper mapper, PrepService prep, BidAssignmentService assignments,
-                            BankContractMapper banks, NoticeRoundService notices, PrepAudit audit) {
+                            BankContractMapper banks, NoticeRoundService notices, PrepAudit audit, ExtCheckMapper extChecks) {
         this.preps = preps; this.mapper = mapper; this.prep = prep; this.assignments = assignments;
-        this.banks = banks; this.notices = notices; this.audit = audit;
+        this.banks = banks; this.notices = notices; this.audit = audit; this.extChecks = extChecks;
     }
 
     /** 영업부서 전원 — 영업팀·영업팀장·영업부장(사용자 11-20 ⑥). */
@@ -86,21 +105,46 @@ public class PrepBoardService {
                 || BidAssignmentService.HEAD_ROLE.equals(r);
     }
 
-    /** 행 순서 — 입찰 예정일 오름차순(없으면 맨 뒤) → 확정 시각 → 기관 이름. */
-    static final Comparator<BidPrep> ROW_ORDER = new Comparator<BidPrep>() {
-        @Override
-        public int compare(BidPrep a, BidPrep b) {
-            int c = nullsLast(dueOf(a), dueOf(b));
-            if (c != 0) { return c; }
-            c = nullsLast(a.getConfirmedAt(), b.getConfirmedAt());
-            if (c != 0) { return c; }
-            return nullsLast(a.getInstitutionName(), b.getInstitutionName());
-        }
-    };
+    /** 행 순서 — 입찰 예정일(공고 마감일 우선, 없으면 약정 만료일) 오름차순(없으면 맨 뒤) → 확정 시각 → 기관 이름. noticeDue: 기관 → 공고 마감일. */
+    static Comparator<BidPrep> rowOrder(final Map<String, String> noticeDue) {
+        return new Comparator<BidPrep>() {
+            @Override
+            public int compare(BidPrep a, BidPrep b) {
+                int c = nullsLast(dueOf(a, noticeDue), dueOf(b, noticeDue));
+                if (c != 0) { return c; }
+                c = nullsLast(a.getConfirmedAt(), b.getConfirmedAt());
+                if (c != 0) { return c; }
+                return nullsLast(a.getInstitutionName(), b.getInstitutionName());
+            }
+        };
+    }
 
-    private static String dueOf(BidPrep p) {
+    /** 공고 마감일이 없을 때의 순서(약정 만료일만) — U5 가 고정한다. */
+    static final Comparator<BidPrep> ROW_ORDER = rowOrder(Collections.<String, String>emptyMap());
+
+    static String dueOf(BidPrep p, Map<String, String> noticeDue) {
+        String n = p.getInstitutionId() == null ? null : noticeDue.get(p.getInstitutionId());
+        return n != null ? n : expiryOf(p);
+    }
+
+    private static String expiryOf(BidPrep p) {
         String d = p.getContractEnd();
         return d == null || d.trim().isEmpty() ? null : d.trim();
+    }
+
+    /** 기관 → 공고 제출 마감일(YYYY-MM-DD, 엄격 검사). 묶음 질의 한 번. 형식이 틀린 값은 버린다(약정 만료일로 돌아간다 — 원문을 내보내지 않는다). */
+    private Map<String, String> noticeDeadlines() {
+        Map<String, String> m = new HashMap<String, String>();
+        for (ExtCheck c : extChecks.selectLatestNoticeDeadlines()) {
+            String d = c.getDeadlineAt() == null ? "" : c.getDeadlineAt().trim();
+            if (c.getInstitutionId() == null || d.isEmpty()) { continue; }
+            try {
+                m.put(c.getInstitutionId(), LocalDate.parse(d).toString());
+            } catch (DateTimeParseException e) {
+                // 형식 밖 — 버린다
+            }
+        }
+        return m;
     }
 
     private static int nullsLast(String a, String b) {
@@ -115,18 +159,19 @@ public class PrepBoardService {
         if (!canList(me)) {
             throw new ApiException(403, "이 기능을 쓸 권한이 없습니다.");
         }
-        Map<String, BidPrep> pick = new LinkedHashMap<String, BidPrep>();   // selectList 는 CONFIRMED_AT DESC — 기관당 활성 건 우선(024 잠금 규칙이 활성 1건 보장)
+        // 활성 건은 기관당 1줄(selectList 는 CONFIRMED_AT DESC — 024 잠금 규칙이 활성 1건 보장, 어긋나면 최근 확정 1건).
+        // 끝난 건(CANCELLED)은 include_ended 일 때 건마다 1줄 — 같은 기관의 옛 취소·중단 건도 열 수 있게(planner 11-23 P3-6).
+        List<BidPrep> ordered = new ArrayList<BidPrep>();
+        Set<String> activeInst = new HashSet<String>();
         for (BidPrep p : preps.selectList()) {
-            boolean active = !PrepService.CANCELLED.equals(p.getStateCd());
-            BidPrep cur = pick.get(p.getInstitutionId());
-            if (cur == null) {
-                if (active || includeEnded) { pick.put(p.getInstitutionId(), p); }
-            } else if (active && PrepService.CANCELLED.equals(cur.getStateCd())) {
-                pick.put(p.getInstitutionId(), p);
+            if (!PrepService.CANCELLED.equals(p.getStateCd())) {
+                if (activeInst.add(p.getInstitutionId())) { ordered.add(p); }
+            } else if (includeEnded) {
+                ordered.add(p);
             }
         }
-        List<BidPrep> ordered = new ArrayList<BidPrep>(pick.values());
-        Collections.sort(ordered, ROW_ORDER);
+        Map<String, String> noticeDue = noticeDeadlines();
+        Collections.sort(ordered, rowOrder(noticeDue));
         Map<String, List<BidPrepTask>> tasks = new HashMap<String, List<BidPrepTask>>();
         for (BidPrepTask t : mapper.selectAllTasks()) { bucket(tasks, t.getBidCaseId()).add(t); }
         Map<String, List<String>> names = new HashMap<String, List<String>>();
@@ -162,22 +207,24 @@ public class PrepBoardService {
             Map<String, PrepBoardCheck> ck = checks.containsKey(bid) ? checks.get(bid) : Collections.<String, PrepBoardCheck>emptyMap();
             boolean ended = PrepService.CANCELLED.equals(p.getStateCd());
             boolean canView = prep.boardCanSee(me, p);
+            boolean hideNames = ended && !canView;   // P3-4: 상세를 못 여는 끝난 건은 사람 이름 3종(확정자·담당자·체크자)을 모두 가린다. 사번은 원래 싣지 않는다.
             Map<String, Object> m = new LinkedHashMap<String, Object>();
             m.put("bid_case_id", bid);
             m.put("institution_id", p.getInstitutionId());
             m.put("institution_name", p.getInstitutionName());
-            m.put("bid_expected_date", dueOf(p));
+            String due = dueOf(p, noticeDue);
+            m.put("bid_expected_date", due);
+            m.put("bid_expected_basis", due == null ? null : noticeDue.containsKey(p.getInstitutionId()) ? BASIS_NOTICE : BASIS_EXPIRY);
             m.put("state_cd", p.getStateCd());
             m.put("state_name", PrepService.boardStateName(p));
             m.put("ended", ended);
             m.put("confirmed_at", p.getConfirmedAt());
-            // 상세를 못 여는 확정 취소 건의 확정자 이름은 가린다(security F3 기본값 — 기획 답 전까지). 사번은 싣지 않는다.
-            m.put("confirmed_by_name", !canView && ended ? null : confirmers.get(bid));
-            m.put("assignee_names", names.containsKey(bid) ? names.get(bid) : Collections.<String>emptyList());
+            m.put("confirmed_by_name", hideNames ? null : confirmers.get(bid));
+            m.put("assignee_names", hideNames || !names.containsKey(bid) ? Collections.<String>emptyList() : names.get(bid));
             m.put("current_banks", currentBanks(p.getInstitutionId(), today));
             m.put("can_view", canView);
             m.put("is_mine", mine.contains(bid));
-            m.put("can_check", mine.contains(bid) && PrepService.TASK_STATES.contains(p.getStateCd()));
+            m.put("can_check", mine.contains(bid) && CHECK_STATES.contains(p.getStateCd()));
             Map<String, Object> cells = new LinkedHashMap<String, Object>();
             for (PrepBoardColumns.Col c : PrepBoardColumns.ALL) {
                 if (PrepBoardColumns.NOTICE.equals(c.kind)) {
@@ -185,7 +232,7 @@ public class PrepBoardService {
                 } else if (PrepBoardColumns.AUTO.equals(c.kind)) {
                     cells.put(c.cd, autoCell(c.cd, p, ts, st, designFinal.contains(bid)));
                 } else {
-                    cells.put(c.cd, manualCell(ck.get(c.cd)));
+                    cells.put(c.cd, manualCell(ck.get(c.cd), hideNames));
                 }
             }
             m.put("cells", cells);
@@ -198,6 +245,23 @@ public class PrepBoardService {
         out.put("today", today);
         out.put("rows", rows);
         return out;
+    }
+
+    /** 목록 감사용 — 응답 rows 중 AUDIT_ROW_STATES 건의 {건 번호, 상태}. 실제 응답에 실린 행만 센다(사용자가 본 표 기준). */
+    public static List<String[]> auditRows(Map<String, Object> out) {
+        List<String[]> res = new ArrayList<String[]>();
+        Object rows = out == null ? null : out.get("rows");
+        if (!(rows instanceof List)) { return res; }
+        for (Object o : (List<?>) rows) {
+            if (!(o instanceof Map)) { continue; }
+            Map<?, ?> r = (Map<?, ?>) o;
+            Object bid = r.get("bid_case_id");
+            Object st = r.get("state_cd");
+            if (bid instanceof String && st instanceof String && AUDIT_ROW_STATES.contains(st)) {
+                res.add(new String[]{(String) bid, (String) st});
+            }
+        }
+        return res;
     }
 
     private static Map<String, Object> autoCell(String cd, BidPrep p, List<BidPrepTask> ts, Map<String, String> st, boolean designFinal) {
@@ -236,10 +300,15 @@ public class PrepBoardService {
     }
 
     private static Map<String, Object> manualCell(PrepBoardCheck c) {
+        return manualCell(c, false);
+    }
+
+    /** hideName: 상세를 못 여는 끝난 건(P3-4) — 칸 값·날짜·개정 번호는 그대로, 체크한 사람 이름만 뺀다. */
+    private static Map<String, Object> manualCell(PrepBoardCheck c, boolean hideName) {
         String mark = c == null ? NONE : c.getMarkCd();
         Map<String, Object> m = cell(mark, c == null || NONE.equals(mark) ? null : c.getMarkDate(), "MANUAL");
         m.put("rev_no", c == null ? 0 : c.getRevNo());
-        m.put("by_name", c == null ? null : c.getActorName());   // 영업부서 전원 열람(⑥)
+        m.put("by_name", c == null || hideName ? null : c.getActorName());   // 영업부서 전원 열람(⑥), 단 P3-4 가림
         m.put("emp_verified", c != null && c.getEmpVerified() == 1);   // false = 자기신고
         return m;
     }
@@ -299,7 +368,7 @@ public class PrepBoardService {
         if (base == null || base.intValue() < 0) {
             throw coded(400, "BAD_VALUE", "base_rev가 필요합니다.");
         }
-        if (!PrepService.TASK_STATES.contains(state)) {
+        if (!CHECK_STATES.contains(state)) {   // 취소·중단 건만 막는다(planner 11-23 ④)
             throw coded(409, "STATE_CHANGED", "그 사이 상태가 바뀌었습니다. 새로 고친 뒤 다시 시도하세요.");
         }
         PrepBoardCheck cur = mapper.selectCurrentOne(bidCaseId, col.cd);

@@ -8,6 +8,8 @@ import com.kbstar.kgi.ggreport.web.web.Actor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 /**
  * 사전준비 행위 감사(BID_PREP_ACT, 024) — 누가·어느 화면·어느 버튼·언제·어느 건. 상세 열람(VIEW)·거부(DENIED)·은닉(HIDDEN)·충돌(BLOCKED)·
  * 입력 오류(INVALID)도 남긴다. 컨트롤러에는 트랜잭션이 없으므로 컨트롤러가 부른 기록은 서비스 실패와 무관하게 따로 커밋된다.
@@ -38,6 +40,25 @@ public class PrepAudit {
     @Transactional
     public void record(String bidCaseId, String action, String outcome, String stateCd, String taskCd,
                        Long attachId, Actor actor, BoardUiIds.Ui ui) {
+        insert(bidCaseId, action, outcome, stateCd, taskCd, attachId, actor, ui, Times.nowIso());
+    }
+
+    /**
+     * 대시보드 목록 열람(NEXT 102, planner 11-23 P3-3) — 요약 한 줄(건 NONE·상태 NONE, action) + 표에 실린 결재 끝난 건마다 한 줄
+     * (rows: {건 번호, 상태}, rowAction). 한 트랜잭션·같은 LOGGED_AT 으로 써서 한 번의 열람으로 묶어 본다. 하나라도 실패하면 모두 되돌아가고
+     * 호출한 쪽이 500 을 낸다(데이터 안 나감). 이름·칸 값은 쓰지 않는다.
+     */
+    @Transactional
+    public void recordList(String action, String rowAction, List<String[]> rows, Actor actor, BoardUiIds.Ui ui) {
+        String at = Times.nowIso();
+        insert("NONE", action, "OK", "NONE", null, null, actor, ui, at);
+        for (String[] r : rows) {
+            insert(r[0], rowAction, "OK", r[1], null, null, actor, ui, at);
+        }
+    }
+
+    private void insert(String bidCaseId, String action, String outcome, String stateCd, String taskCd,
+                        Long attachId, Actor actor, BoardUiIds.Ui ui, String at) {
         String bid = bidCaseId == null ? "" : bidCaseId;
         if (bid.length() > 64) {
             bid = bid.substring(0, 64);
@@ -45,7 +66,7 @@ public class PrepAudit {
         mapper.insertAct(bid, action, outcome, stateCd == null ? "NONE" : stateCd, taskCd, attachId,
                 actor != null && actor.isKnown() ? actor.getEmpNo() : null,
                 actor != null && actor.isVerified() ? 1 : 0,
-                ui.getScreen(), ui.getButton(), ui.isValid() ? 1 : 0, Times.nowIso());
+                ui.getScreen(), ui.getButton(), ui.isValid() ? 1 : 0, at);
     }
 
     /** HTTP 상태 → 결과 코드. */

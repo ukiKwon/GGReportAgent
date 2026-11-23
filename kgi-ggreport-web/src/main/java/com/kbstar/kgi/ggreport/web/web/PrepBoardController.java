@@ -22,7 +22,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 대시보드(NEXT 102). 감사(BID_PREP_ACT): 목록 DASH_LIST(끝난 건 포함이면 DASH_LIST_ENDED, 건 NONE), 체크 DASH_CHECK·DASH_CHECK_SAME(TASK_CD CK_{열}) — 누가·어느 화면·어느 버튼.
+ * 대시보드(NEXT 102). 감사(BID_PREP_ACT): 목록 DASH_LIST(끝난 건 포함이면 DASH_LIST_ENDED, 건 NONE) + 표에 실린 결재 끝난 건(WRITABLE·WRITING)마다
+ * DASH_LIST_ROW(건 번호·그 건 상태, 같은 LOGGED_AT — planner 11-23 P3-3), 체크 DASH_CHECK·DASH_CHECK_SAME(TASK_CD CK_{열}) — 누가·어느 화면·어느 버튼.
  * 체크 성공 줄은 서비스가 저장과 같은 트랜잭션에, 목록 성공 줄과 모든 실패 줄은 여기서 따로 커밋한다(성공 줄 실패 = 500, fail-closed).
  * 접근 이력 DETAIL 에는 줄 수·건·상태·행위·열 코드만(아이콘 값·날짜·이름·쿼리값 없음). ⚠️ X-Emp-No·X-Screen-Id·X-Button-Id 는 자기신고다.
  *
@@ -70,13 +71,14 @@ public class PrepBoardController {
             fail(NO_CASE, act, "ERROR", NO_CASE, null, actor, ui);
             throw e;
         }
+        List<String[]> seen = PrepBoardService.auditRows(out);
         try {
-            audit.record(NO_CASE, act, "OK", NO_CASE, null, actor, ui);
+            audit.recordList(act, PrepBoardService.ACT_LIST_ROW, seen, actor, ui);
         } catch (RuntimeException e) {
             LOG.error("대시보드 목록 감사를 남기지 못했다(응답 500): cause={}", e.getClass().getSimpleName());
             throw e;
         }
-        req.setAttribute(AccessLogInterceptor.DETAIL, "prep-board rows=" + ((List<?>) out.get("rows")).size());
+        req.setAttribute(AccessLogInterceptor.DETAIL, "prep-board rows=" + ((List<?>) out.get("rows")).size() + " audited=" + seen.size());
         return out;
     }
 

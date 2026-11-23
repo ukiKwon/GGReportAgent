@@ -33,4 +33,18 @@ public class ExtCheckLimitSqlTest {
             assertTrue(id + ": 정렬은 안쪽에서", o.indexOf("ORDER BY") < o.indexOf("ROWNUM"));
         }
     }
+
+    @Test
+    public void 대시보드_공고_마감일_묶음_질의는_두_방언_같은_ROW_NUMBER_문장이고_행_수를_자르지_않는다() {
+        Configuration my = MapperConfigurations.parse(MyBatisConfig.MYSQL);
+        Configuration or = MapperConfigurations.parse(MyBatisConfig.ORACLE);
+        Map<String, Object> none = new HashMap<>();
+        String m = MapperConfigurations.sql(my, ExtCheckMapper.class, "selectLatestNoticeDeadlines", none);
+        String o = MapperConfigurations.sql(or, ExtCheckMapper.class, "selectLatestNoticeDeadlines", none);
+        for (String s : new String[]{m, o}) {
+            assertTrue(s, s.contains("ROW_NUMBER() OVER (PARTITION BY INSTITUTION_ID ORDER BY CHECKED_AT DESC, IMPORTED_AT DESC, CHECK_KEY)"));
+            assertTrue(s, s.contains("SOURCE_KIND = 'notice' AND STATUS_CD = 'found' AND DEADLINE_AT IS NOT NULL"));
+            assertFalse(s, s.contains("FETCH FIRST") || s.contains("LIMIT") || s.contains("ROWNUM"));
+        }
+    }
 }
