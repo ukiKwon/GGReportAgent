@@ -27,7 +27,7 @@ import static org.junit.Assert.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 /**
- * 기관장 Word(사용자 11-20 요청·11-23 수정) — 문서에는 출처·번호·이용 조건 글자가 없다(웹 화면에서만 표기). 사진은 INST_PERMIT 만 넣고(KOGL1·그 밖은 조용히 뺌, 실패해도 200),
+ * 기관장 Word(사용자 11-20 요청·11-23 수정) — 문서에는 출처·번호·이용 조건 글자가 없다(웹 화면에서만 표기). 사진은 INST_PERMIT·KOGL1 만 넣고(KOGL1 은 출처 없이 — 사용자 11-23, 그 밖은 조용히 뺌, 실패해도 200, 상태는 응답 머리 X-Head-Photo),
  * 나이 '만 n세', 학력·경력 최근 것부터·기간 앞.
  */
 @RunWith(SpringRunner.class)
@@ -136,28 +136,31 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         assertEquals(1, pictures(b));
         assertNoSourceText(xml);
         assertFalse("사진 파일명은 본문에 없다", xml.contains("face.jpg"));
-        int[] e = extent(xml);   // 300×400 그림 — 78×81.8mm 상자 안
-        assertTrue(e[0] <= 78 * 36000 && e[1] <= 2944800 + 36);
-        assertTrue("한 변은 상자에 맞는다", Math.abs(e[0] - 78 * 36000) <= 36 || Math.abs(e[1] - 2944800) <= 36);
+        int[] e = extent(xml);   // 학력·경력이 없어 S3(88×92.3mm) — 상자 안, 한 변은 상자에 맞는다
+        int boxW = 88 * 36000;
+        int boxH = (int) Math.round(92.3 * 36000);
+        assertTrue(e[0] <= boxW && e[1] <= boxH + 36);
+        assertTrue("한 변은 상자에 맞는다", Math.abs(e[0] - boxW) <= 36 || Math.abs(e[1] - boxH) <= 36);
+        assertEquals("included", r.getResponse().getHeader("X-Head-Photo"));
         assertEquals("감사 기존 한 줄", 1, act("HEAD_DOCX", "OK"));
     }
 
     @Test
-    public void KOGL1_사진은_기본값에서_그림이_없고_안내도_없다() throws Exception {
+    public void KOGL1_사진도_넣고_출처_글자는_없다() throws Exception {   // 사용자 11-23 'ⓒ 출처 없이 넣기'
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
-        photoOk(INST, L1, head);   // KOGL1 그대로 — 출처 표시 조건이라 Word 에 넣지 않는다(11-23 기본값)
+        photoOk(INST, L1, head);   // KOGL1 그대로
         MvcResult r = docx();
         assertEquals(text(r), 200, r.getResponse().getStatus());
         byte[] b = bytes(r);
-        assertEquals(0, pictures(b));
+        assertEquals(1, pictures(b));
         String xml = documentXml(b);
         assertNoSourceText(xml);
-        assertFalse(xml.contains("넣지 않았"));
+        assertEquals("included", r.getResponse().getHeader("X-Head-Photo"));
         assertEquals(1, act("HEAD_DOCX", "OK"));
     }
 
     @Test
-    public void 사진_파일이_없으면_200이고_그림은_0개다() throws Exception {
+    public void 사진_파일이_없으면_200이고_그림은_0개이며_상태는_failed다() throws Exception {
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
         long photo = photoOk(INST, L1, head);
         useLicense(photo, "INST_PERMIT");   // 허용 조건이어야 파일을 읽는다
@@ -168,7 +171,8 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         assertEquals(text(r), 200, r.getResponse().getStatus());
         byte[] b = bytes(r);
         assertEquals(0, pictures(b));
-        assertTrue(documentXml(b).contains("사진을 불러오지 못해 넣지 않았습니다."));
+        assertFalse(documentXml(b).contains("불러오지") || documentXml(b).contains("넣지 않았"));
+        assertEquals("failed", r.getResponse().getHeader("X-Head-Photo"));
         assertEquals(1, act("HEAD_DOCX", "OK"));
     }
 
@@ -182,6 +186,7 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         String xml = documentXml(b);
         assertFalse(lic, xml.contains("넣지 않았") || xml.contains("이용 조건"));
         assertFalse("코드는 본문에 없다", xml.contains(lic));
+        assertEquals(lic, "none", r.getResponse().getHeader("X-Head-Photo"));
         assertEquals(lic, 1, act("HEAD_DOCX", "OK"));
     }
 
@@ -228,7 +233,9 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         assertTrue(xml.indexOf("학력나중F") < xml.indexOf("학력먼저E"));
         assertTrue("진행 중은 ~ 현재", xml.contains("2019.07 ~ 현재"));
         assertTrue("기간 YYYY.MM", xml.contains("2010.03 ~ 2018.12"));
-        assertTrue("학력은 내용 뒤 괄호", xml.contains("학력먼저E (1990.03~1994.02)"));
+        assertTrue("학력도 A ~ B 기간 표", xml.contains("1990.03 ~ 1994.02"));
+        assertTrue("기간이 값 앞(학력)", xml.indexOf("1990.03 ~ 1994.02") < xml.indexOf("학력먼저E"));
+        assertFalse("옛 A~B 표기 폐지", xml.contains("1990.03~1994.02"));
         assertTrue("기간이 값 앞(경력)", xml.indexOf("2010.03 ~ 2018.12") < xml.indexOf("경력최근C"));
         assertFalse("저장 형식 없음", xml.contains("2019-07") || xml.contains("2010-03"));
     }

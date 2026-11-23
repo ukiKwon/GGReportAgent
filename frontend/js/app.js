@@ -853,8 +853,6 @@
     // 머리 띠 제목 단추: 시작화면을 보고 있으면 현재 위치 표시(aria-current)
     const hb = document.getElementById('app-home');
     if (hb) { if (homeId() && navActiveId === homeId()) hb.setAttribute('aria-current', 'page'); else hb.removeAttribute('aria-current'); }
-    const apb = document.getElementById('btn-appr');   // 결재함 화면이 열려 있으면 머리 띠 단추가 '지금 화면'
-    if (apb) { if (navActiveId === 'approvals') apb.setAttribute('aria-current', 'page'); else apb.removeAttribute('aria-current'); }
     // 항목 구성이 바뀌어 DOM을 새로 만들면 '전국 지도' 옆 미처리 배지도 사라지므로 다시 단다.
     if (root.overdue && root.overdue.paintNavBadge) root.overdue.paintNavBadge();
     if (root.plancollect && root.plancollect.onNavDrawn) root.plancollect.onNavDrawn();   // 사업계획 수집 요청 대기 배지(시스템 관리 항목 옆)
@@ -911,8 +909,6 @@
     openCat = navOpen.open;
     const cur = navActiveId ? findNavItem(navActiveId) : null;
     if (cur) navTabs = root.nav.openTab(navTabs, cur, navActiveId, undefined, pinId()).tabs;   // 지금 보는 화면은 처음부터 탭으로
-    const apprBtn = document.getElementById('btn-appr');   // 결재함 권한(서버 approvals 키·역할 메뉴)이 있을 때만
-    if (apprBtn) apprBtn.style.display = findNavItem('approvals') ? '' : 'none';
     app.drawNav();
     drawTabs();
     if (root.plans && root.plans.onNavPainted) root.plans.onNavPainted();   // 메뉴가 바뀐 뒤 상세의 '사업계획' 절 노출을 다시 판정(계정 전환)
@@ -938,8 +934,6 @@
     });
     const hb = document.getElementById('app-home');
     if (hb) hb.addEventListener('click', app.goHome);   // 머리 띠 제목 = 시작화면으로
-    const ab = document.getElementById('btn-appr');   // 머리 띠 [결재함 n](사용자 11-23) — 화면 탭으로 연다
-    if (ab) ab.addEventListener('click', function () { app.openNavItem('approvals'); });
     const list = document.getElementById('tab-list');
     if (list) list.addEventListener('click', function (e) {
       const tab = e.target.closest('.stab');

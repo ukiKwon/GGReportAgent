@@ -69,8 +69,8 @@
     offline: '서버에 연결되면 기관장 정보를 볼 수 있습니다.',
     error: '기관장 정보를 불러오지 못했습니다.',
     network: '서버에 연결하지 못했습니다. 서버가 켜져 있는지 확인하세요.',
-    refBad: '1~20 사이 숫자를 넣으세요.',
     docxOk: '워드 파일을 내려받았습니다.',
+    docxPhotoFailed: '사진은 불러오지 못해 넣지 않았습니다.',
     docxEmpty: '문서에 담을 확정된 기관장 정보가 없습니다. [기관장 편집]에서 이름·직위 등을 확정한 뒤 다시 받으세요.',
     docxServer: '파일을 만들지 못했습니다. 열람 기록을 남기지 못하면 파일을 내보내지 않습니다. 잠시 뒤 다시 시도하세요.',
     docxUi: '화면 오류로 처리하지 못했습니다. 화면을 다시 불러온 뒤(F5) 다시 시도하세요.',
@@ -351,7 +351,7 @@
     const acting = h.acting ? '<span class="hc-badge">권한대행</span>' : '';
     const cands = hc.candCount(d);
     const candBtn = cands ? '<button type="button" class="hc-cand" data-hc="edit">확정 대기 후보 ' + cands + '건 보기</button>' : '';
-    const dl = view.dl && view.dl.open ? 'true' : 'false';
+    const dlBusy = !!(view.dl && view.dl.busy);
     return '<article class="hc-card" aria-labelledby="hc-name">' +
       '<div class="hc-band">' + band + '</div>' +
       '<div class="hc-body">' + photoHtml(h, view, photoN) +
@@ -360,47 +360,30 @@
       '<dl class="hc-items"><dt>학력</dt><dd>' + listHtml(edu, '학력 미확인', eduN) + '</dd><dt>경력</dt><dd>' + listHtml(career, '경력 미확인', careerN) + '</dd></dl>' +
       hc.notesHtml(N) +
       '<div class="hc-foot"><p class="hc-meta">출처를 단 항목 <span class="v">' + (Number(h.source_count) || 0) + '</span>건 · 최근 확인 ' +
-      (h.last_checked_on ? mono(h.last_checked_on) : chip()) + ' · 열람 기록이 남습니다</p>' +
+      (h.last_checked_on ? mono(h.last_checked_on) : chip()) + ' · 열람·내려받기 기록이 남습니다</p>' +
       '<span class="hc-foot-l">' + candBtn + '</span>' +
-      '<span class="sp"><button type="button" data-hc="docx-open" aria-controls="hc-ref" aria-expanded="' + dl + '">워드 내려받기</button>' +
+      '<span class="sp"><button type="button" data-hc="docx"' + (dlBusy ? ' disabled' : '') + '>' + (dlBusy ? '만드는 중…' : '워드 내려받기') + '</button>' +
       '<button type="button" data-hc="refresh">새로 고침</button><button type="button" data-hc="edit">기관장 편집</button></span>' +
       hc.refHtml(view.dl, ctx) + '</div></article>';
   };
 
-  // ── 순수: 워드 내려받기(참고자료 번호 줄) ─────────────────────────────
-  hc.REF_MAX = 20;
-  hc.REF_STORE = 'hc.docx.ref_no';   // sessionStorage 키(이 탭에서 마지막으로 쓴 번호)
-  // 서버와 같은 규칙: 숫자 1~2자리, 1~20. 맞으면 정수, 아니면 0.
-  hc.parseRef = function (v) {
-    const s = trim(v);
-    if (!/^\d{1,2}$/.test(s)) return 0;
-    const n = Number(s);
-    return n >= 1 && n <= hc.REF_MAX ? n : 0;
-  };
-  hc.refTitle = function (n, name) { return '참고자료 ' + n + '. ' + (trim(name) ? '「' + trim(name) + '」 ' : '') + '기관장 정보'; };
-  // dl = { open, ref, name, busy, fieldErr, err, ok } | null. 열려 있거나 알릴 말이 있을 때만 줄을 그린다.
+  // ── 순수: 워드 내려받기(완료·오류 한 줄) ──────────────────────────────
+  // dl = { busy, err, ok } | null. 알릴 말(완료·오류)이 있을 때만 줄을 그린다. 진행 중에는 줄 대신 버튼 문구만 바뀐다.
   hc.refHtml = function (dl) {
     if (!dl) return '';
     let out = '';
-    if (dl.open) {
-      const bad = !!dl.fieldErr;
-      out += '<label class="hc-reflab">참고자료 번호<input type="number" min="1" max="' + hc.REF_MAX + '" step="1" inputmode="numeric" id="hc-ref-no" data-hc-ref value="' + esc(dl.ref) + '"' +
-        (bad ? ' aria-invalid="true" aria-describedby="hc-ref-ferr"' : '') + (dl.busy ? ' disabled' : '') + '></label>' +
-        '<span class="hc-reftitle">문서 제목: <b data-hc-title>' + esc(hc.refTitle(hc.parseRef(dl.ref) || '?', dl.name)) + '</b></span>' +
-        (bad ? '<p class="hc-err" id="hc-ref-ferr" role="alert">' + esc(dl.fieldErr) + '</p>' : '') +
-        '<p class="hc-refnote">확정된 값과 사진(공공누리 제1유형·기관 직접 허락만), 나이(만 n세)가 담깁니다(확정 대기 후보·생년월일 날짜 제외). 내려받기 기록이 남습니다.</p>' +
-        '<span class="hc-refbtns"><button type="button" class="db-next" data-hc="docx-go"' + (dl.busy ? ' disabled' : '') + '>' + (dl.busy ? '만드는 중…' : '내려받기') + '</button>' +
-        '<button type="button" data-hc="docx-cancel"' + (dl.busy ? ' disabled' : '') + '>취소</button></span>';
-    }
     if (dl.err) out += '<p class="hc-err" role="alert">' + esc(dl.err) + '</p>';
     if (dl.ok) out += '<p class="hc-ok" role="status">' + esc(dl.ok) + '</p>';
-    return out ? '<div class="hc-ref" id="hc-ref"' + (dl.busy ? ' aria-busy="true"' : '') + '>' + out + '</div>' : '';
+    return out ? '<div class="hc-ref" id="hc-ref">' + out + '</div>' : '';
+  };
+  // 완료 문구. 서버 응답 머리 X-Head-Photo가 failed일 때만 사진 안내를 덧붙인다(included·none·없음은 덧붙이지 않는다).
+  hc.docxOkText = function (photo) {
+    return hc.TEXT.docxOk + (trim(photo).toLowerCase() === 'failed' ? ' ' + hc.TEXT.docxPhotoFailed : '');
   };
   // 서버 오류 → { field: 칸 오류인가, text }. 서버 코드·상태에 맞춰 화면 문구를 고른다.
   hc.docxErrText = function (status, detail) {
     const p = errtext.parse(detail);
     if (!status) return { field: false, text: hc.TEXT.network };
-    if (status === 400 && p.code === 'BAD_VALUE') return { field: true, text: hc.TEXT.refBad };
     if (status === 400 && p.code === 'UI_ID_REQUIRED') return { field: false, text: hc.TEXT.docxUi };
     if (status === 401) return { field: false, text: hc.TEXT.login };
     if (status === 403) return { field: false, text: hc.TEXT.denied };   // 서버 403에는 비활성 사용자도 있다 — 카드 403과 같은 문구(qa 11-20 P3-4)
@@ -476,12 +459,13 @@
   };
 
   // 워드 본문: 새 창으로 열면 신원 헤더가 안 붙어 400 UI_ID_REQUIRED가 된다 — fetch로 받아 Blob으로 넘긴다.
-  hc.docxUrl = function (instId, ref) { return base(instId) + '/head/docx?ref_no=' + encodeURIComponent(ref); };
-  hc.fetchDocx = function (instId, ref, screen) {
-    return fetch(hc.docxUrl(instId, ref), { method: 'GET', headers: uiHeaders(hc.BTN.docx, screen) }).then(function (r) {
+  hc.docxUrl = function (instId) { return base(instId) + '/head/docx'; };
+  hc.fetchDocx = function (instId, screen) {
+    return fetch(hc.docxUrl(instId), { method: 'GET', headers: uiHeaders(hc.BTN.docx, screen) }).then(function (r) {
       if (r.ok) {
-        const cd = r.headers && r.headers.get ? r.headers.get('Content-Disposition') : '';
-        return r.blob().then(function (blob) { return { blob: blob, fileName: hc.docxFileName(cd) }; });
+        const hd = function (k) { return r.headers && r.headers.get ? r.headers.get(k) : ''; };
+        const cd = hd('Content-Disposition'), photo = hd('X-Head-Photo');
+        return r.blob().then(function (blob) { return { blob: blob, fileName: hc.docxFileName(cd), photo: photo }; });
       }
       return r.json().catch(function () { return {}; }).then(function (j) { throw failFrom(r, j); });
     });
@@ -581,6 +565,7 @@
   hc.refresh = function (quiet, button) {
     if (!V.instId) return Promise.resolve();
     if (V.cancel) V.cancel();   // 대기 중이던 읽기는 이 요청이 대신한다(캐시 없이 바로 다시 읽는다)
+    if (!quiet && V.dl && !V.dl.busy) V.dl = null;   // 지난 내려받기 안내(완료·오류)는 카드를 새로 읽을 때 지운다
     const p = loadInto(V, button || hc.BTN.refresh, !!quiet);
     if (!quiet && V.repaint) V.repaint();   // [새로 고침]을 누르면 바로 '불러오는 중'으로 바뀐다
     return p;
@@ -1173,8 +1158,6 @@
     return document.querySelector('#dm-box ' + sel) || document.querySelector('#hc-sec ' + sel);
   }
   function focusPane(sel) { const el = paneQ(sel); if (el && el.focus) el.focus(); }
-  function storedRef() { try { return typeof sessionStorage !== 'undefined' ? trim(sessionStorage.getItem(hc.REF_STORE)) : ''; } catch (e) { return ''; } }
-  function storeRef(n) { try { if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(hc.REF_STORE, String(n)); } catch (e) { /* 저장 못 해도 받기는 계속 */ } }
   function useEnv(envFn) { const env = (envFn && envFn()) || {}; if (env.repaint) V.repaint = env.repaint; return env; }
   function paintDl() { if (V.repaint) V.repaint(); }
   // Blob을 파일로 저장(a[download]). 브라우저가 아니면 false.
@@ -1187,78 +1170,33 @@
     if (t && t.unref) t.unref();
     return true;
   };
-  // [워드 내려받기] — 참고자료 번호 줄을 펼치거나 접는다.
-  hc.docxOpen = function (envFn) {
-    if (V.status !== 'ok') return;
-    const env = useEnv(envFn);
-    const dl = V.dl || (V.dl = { open: false, ref: '', name: '', busy: false, fieldErr: '', err: '', ok: '' });
-    if (dl.busy) return;
-    dl.open = !dl.open;
-    dl.fieldErr = ''; dl.err = ''; dl.ok = '';
-    if (dl.open) { dl.name = trim(env.instName); dl.ref = dl.ref || storedRef() || '1'; }
-    paintDl();
-    focusPane(dl.open ? '[data-hc-ref]' : '[data-hc="docx-open"]');
-  };
-  hc.docxCancel = function (envFn) {
-    const dl = V.dl;
-    if (!dl || !dl.open || dl.busy) return;
-    useEnv(envFn);
-    dl.open = false; dl.fieldErr = ''; dl.err = '';
-    paintDl();
-    focusPane('[data-hc="docx-open"]');
-  };
-  // [내려받기] — 번호를 먼저 검사하고(틀리면 요청하지 않는다), 받아서 저장한다.
+  // [워드 내려받기] — 펼침 없이 바로 받아서 저장한다. 진행 중에는 다시 누를 수 없다.
   hc.docxGo = function (envFn) {
-    const dl = V.dl;
-    if (V.status !== 'ok' || !dl || !dl.open || dl.busy) return Promise.resolve();
+    if (V.status !== 'ok') return Promise.resolve();
+    const dl = V.dl || (V.dl = { busy: false, err: '', ok: '' });
+    if (dl.busy) return Promise.resolve();
     useEnv(envFn);
-    const inp = paneQ('[data-hc-ref]');
-    if (inp) dl.ref = inp.value;
-    const n = hc.parseRef(dl.ref);
-    if (!n) { dl.fieldErr = hc.TEXT.refBad; paintDl(); focusPane('[data-hc-ref]'); return Promise.resolve(); }
-    storeRef(n);
-    dl.busy = true; dl.fieldErr = ''; dl.err = ''; dl.ok = '';
+    dl.busy = true; dl.err = ''; dl.ok = '';
     const mine = V;
     paintDl();
-    return hc.fetchDocx(mine.instId, n, mine.screen).then(function (res) {
+    return hc.fetchDocx(mine.instId, mine.screen).then(function (res) {
       hc.saveBlob(res.blob, res.fileName);   // 기관을 옮겼어도 이미 받은 파일은 저장한다
       if (V !== mine) return;
-      dl.busy = false; dl.open = false; dl.ok = hc.TEXT.docxOk;
+      dl.busy = false; dl.ok = hc.docxOkText(res.photo);
       paintDl();
-      focusPane('[data-hc="docx-open"]');
+      focusPane('[data-hc="docx"]');
     }).catch(function (e) {
       if (V !== mine) return;
-      dl.busy = false;
-      const m = hc.docxErrText(e.status, e.detail);
-      if (m.field) dl.fieldErr = m.text; else dl.err = m.text;
+      dl.busy = false; dl.err = hc.docxErrText(e.status, e.detail).text;
       paintDl();
-      focusPane(m.field ? '[data-hc-ref]' : '[data-hc="docx-go"]');
+      focusPane('[data-hc="docx"]');
       if (e.status === 409) hc.refresh(true, hc.BTN.refresh);   // 그 사이 기관장이 비었으면 카드를 최신으로(단추도 사라진다)
     });
   };
-  // 번호 칸 입력: 미리보기 제목만 바로 바꾼다(카드를 다시 그리지 않아 포커스가 유지된다). Enter=내려받기, Esc=접기.
-  if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
-    document.addEventListener('input', function (e) {
-      const t = e.target;
-      if (!t || !t.hasAttribute || !t.hasAttribute('data-hc-ref') || !V.dl) return;
-      V.dl.ref = t.value; V.dl.fieldErr = '';
-      const box = t.closest ? t.closest('.hc-ref') : null, b = box && box.querySelector('[data-hc-title]');
-      if (b) b.textContent = hc.refTitle(hc.parseRef(t.value) || '?', V.dl.name);
-    });
-    // 캡처 단계: 지도 상세 팝업(#dm-ov)의 Esc 처리(dashboard dmKey — 팝업 닫기)보다 먼저 받아 줄만 접는다(qa 11-20 P2-1)
-    document.addEventListener('keydown', function (e) {
-      const t = e.target;
-      if (!t || !t.hasAttribute || !t.hasAttribute('data-hc-ref') || !V.dl) return;
-      if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); hc.docxGo(null); }
-      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); hc.docxCancel(null); }
-    }, true);
-  }
 
   // 상세 칸의 [편집]·[기관장 추가]·[새로 고침] 버튼(data-hc). envFn은 openModal과 같다.
   hc.onPaneClick = function (what, envFn) {
-    if (what === 'docx-open') { hc.docxOpen(envFn); return null; }
-    if (what === 'docx-go') return hc.docxGo(envFn);
-    if (what === 'docx-cancel') { hc.docxCancel(envFn); return null; }
+    if (what === 'docx') return hc.docxGo(envFn);
     if (what === 'refresh') {
       const env = envFn() || {};
       V.repaint = env.repaint || V.repaint;

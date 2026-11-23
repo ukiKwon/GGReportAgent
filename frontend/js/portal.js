@@ -56,7 +56,7 @@
     schedEmpty: function (d) { return d + '일 안에 공고나 접수 마감 일정이 없습니다.'; }, schedFootBtn: '입찰 공고 현황 열기',
     waitAllEmpty: '기다리는 결재나 확인할 일이 없습니다.', none: '없음',
     grp: { appr: '처리할 결재', mine: '내가 올린 결재', judge: '공고 경과 판정', assign: '나에게 배정된 일' },
-    noApprovals: '결재함을 열 수 없습니다. 위쪽 [결재함] 단추에서 여세요.',
+    noApprovals: '결재함을 열 수 없습니다. 왼쪽 메뉴의 [결재함]에서 여세요.',
     noNotice: '입찰 공고 현황을 열 수 없습니다. 왼쪽 메뉴의 [입찰 공고 현황]에서 여세요.',
     noDash: '입찰 현황판을 열 수 없습니다. 왼쪽 메뉴에서 여세요.', noTasks: '작업함을 열 수 없습니다. 왼쪽 메뉴의 [작업함]에서 여세요.',
     noRec: '기관 정보를 찾지 못했습니다. 시작화면을 다시 열어 주세요.'
@@ -533,18 +533,6 @@
     }).catch(function () { return { status: 'error', code: 0 }; });
   }
   P.fetchJson = fetchJson;
-  // 머리 띠 [결재함 n] — 시작화면 '내 결재' 띠(P.approvalKpi decide)와 같은 판정(사용자 11-23 '내가 처리할 결재만').
-  P.decideCount = function (src, role) {
-    const k = P.approvalKpi(src, role);
-    return k.mode === 'decide' && k.status === 'ok' && !k.partial ? k.n : null;
-  };
-  P.loadApprSources = function (role) {
-    const names = ['perms', 'inbox'].concat(P.APPROVALS_ROLES.indexOf(role) >= 0 ? ['appr'] : []);
-    const src = {};
-    return Promise.all(names.map(function (n) { return fetchJson(P.URLS[n]).then(function (x) { src[n] = x; }); }))
-      .then(function () { return src; });
-  };
-  P.headApprCount = function (role) { return P.loadApprSources(role).then(function (src) { return P.decideCount(src, role); }); };
 
   // ── DOM(app.js가 #pt-root를 넘겨 부른다) ─────────────────────────────
   let host = null, ac = null, offNr = null;

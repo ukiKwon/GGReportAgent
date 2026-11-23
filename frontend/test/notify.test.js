@@ -127,12 +127,3 @@ test('renderList: 비어 있으면 탭에 맞는 문구, 내용은 이스케이�
   notify.renderList(c, [{ notification_id: 'x', recipient: 'a', kind: '쪽지', content: '<img onerror=1>', created_at: 't' }], 'personal');
   assert.ok(c.innerHTML.indexOf('<img') < 0);
 });
-
-test('머리 띠 배지 글자와 단추 이름: 99 넘으면 99+, 0·없음은 빈 글자, 화면 낭독기용 이름(11-23)', function () {
-  assert.deepStrictEqual([0, null, 3, 99, 100, 250].map(notify.badgeText), ['', '', '3', '99', '99+', '99+']);
-  assert.strictEqual(notify.apprLabel(2), '결재함, 처리할 결재 2건');
-  assert.strictEqual(notify.apprLabel(0), '결재함');
-  assert.strictEqual(notify.apprLabel(null), '결재함');
-  assert.strictEqual(notify.notifyLabel(5), '쪽지함, 안 읽은 쪽지 5건');
-  assert.strictEqual(notify.notifyLabel(0), '쪽지함');
-});

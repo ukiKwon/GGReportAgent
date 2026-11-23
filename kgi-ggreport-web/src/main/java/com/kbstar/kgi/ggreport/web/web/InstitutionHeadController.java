@@ -119,11 +119,13 @@ public class InstitutionHeadController {
         final byte[] bytes;
         final String instName;
         final Long headId;
+        final String photoStatus;   // included | none | failed — 응답 머리 X-Head-Photo
 
-        DocOut(byte[] bytes, String instName, Long headId) {
+        DocOut(byte[] bytes, String instName, Long headId, String photoStatus) {
             this.bytes = bytes;
             this.instName = instName;
             this.headId = headId;
+            this.photoStatus = photoStatus;
         }
 
         @Override
@@ -133,15 +135,14 @@ public class InstitutionHeadController {
     }
 
     /**
-     * A15 — 현 기관장 정보 .docx(확정 값 + 사진(KOGL1·INST_PERMIT만) + 나이 만 n세, 후보·사번·생년월일 날짜 없음). 화면·버튼 식별자(허용 목록)가 없으면 400 UI_ID_REQUIRED(INVALID),
-     * 현 기관장이 없거나 빈 기관장이거나 문서에 담을 확정 칸이 하나도 없으면(사진만 있는 경우 포함) 409 HEAD_EMPTY(BLOCKED),
-     * 선택 질의 {@code ref_no}(1~20, 기본 1)가 형식 밖이면 400.
+     * A15 — 현 기관장 정보 .docx(확정 값 + 사진(KOGL1·INST_PERMIT만, KOGL1 은 출처 없이 — 사용자 11-23 위험 수용) + 나이 만 n세, 후보·사번·생년월일 날짜 없음).
+     * 화면·버튼 식별자(허용 목록)가 없으면 400 UI_ID_REQUIRED(INVALID),
+     * 현 기관장이 없거나 빈 기관장이거나 문서에 담을 확정 칸이 하나도 없으면(사진만 있는 경우 포함) 409 HEAD_EMPTY(BLOCKED).
+     * 응답 머리 {@code X-Head-Photo}: included(그림 넣음) | none(사진 없음·허용 밖) | failed(허용 조건인데 못 읽음). 참고자료 번호는 없앴다 — 예전 화면이 보내도 무시한다(11-23).
      * 감사 행위 코드 HEAD_DOCX 는 응답 전에 기록하고 HEAD_ID 열에 그 현 기관장 번호를 채운다(실패하면 500, 파일 안 나감). 접근 이력에는 기관·코드만(이름·파일명 없음).
      */
     @GetMapping("/institutions/{institutionId}/head/docx")
-    public ResponseEntity<byte[]> docx(@PathVariable final String institutionId,
-                                       @RequestParam(name = "ref_no", required = false) final String refNo,
-                                       HttpServletRequest req) {
+    public ResponseEntity<byte[]> docx(@PathVariable final String institutionId, HttpServletRequest req) {
         final BoardUiIds.Ui ui = HeadUiIds.of(req);
         DocOut out = run(req, institutionId, null, null, "HEAD_DOCX", true, new Call<DocOut>() {
             @Override
@@ -149,21 +150,15 @@ public class InstitutionHeadController {
                 if (!ui.isValid()) {
                     throw coded(400, "UI_ID_REQUIRED", "화면·버튼 식별자가 필요합니다.");
                 }
-                int ref = 1;
-                if (refNo != null && !refNo.isEmpty()) {
-                    if (!refNo.matches("[0-9]{1,2}") || Integer.parseInt(refNo) < 1 || Integer.parseInt(refNo) > 20) {
-                        throw coded(400, "BAD_VALUE", "참고자료 번호는 1~20으로 지정하세요.");
-                    }
-                    ref = Integer.parseInt(refNo);
-                }
                 Map<String, Object> d = heads.detail(me, actor, institutionId);
                 if (d.get("head") == null || Boolean.TRUE.equals(d.get("head_empty")) || !HeadDocBuilder.hasContent(d)) {
                     throw coded(409, "HEAD_EMPTY", "확정된 현 기관장 정보가 없습니다.");
                 }
                 String name = plans.selectInstitutionName(institutionId);
                 byte[] photo = HeadDocBuilder.photoWanted(d) ? photos.contentForDoc(me, institutionId, HeadDocBuilder.photoIdOf(d)) : null;   // 못 읽으면 null → 사진 없이(사용자 11-20)
-                byte[] bytes = DocxKit.render(HeadDocBuilder.build(d, name, ref, Times.todayKst(), photo), DocxKit.Footer.pageNumberOnly());
-                return new DocOut(bytes, name, HeadDocBuilder.headIdOf(d));
+                HeadDocBuilder.Built built = HeadDocBuilder.buildDoc(d, name, Times.todayKst(), photo);
+                byte[] bytes = DocxKit.render(built.model(), DocxKit.Footer.pageNumberOnly());
+                return new DocOut(bytes, name, HeadDocBuilder.headIdOf(d), built.photoStatus());
             }
         });
         String safe = (out.instName == null ? "" : out.instName).replaceAll("[^0-9A-Za-z가-힣]", "_");
@@ -184,6 +179,7 @@ public class InstitutionHeadController {
         h.set(HttpHeaders.CACHE_CONTROL, "no-store");
         h.set(HttpHeaders.PRAGMA, "no-cache");
         h.set("X-Content-Type-Options", "nosniff");
+        h.set("X-Head-Photo", out.photoStatus);   // included | none | failed — 고정 세 값만(내부 정보 없음)
         return new ResponseEntity<>(out.bytes, h, HttpStatus.OK);
     }
 

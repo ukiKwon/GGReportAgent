@@ -22,7 +22,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 /**
  * NEXT 100 S1 — 기관장 정보 .docx 내려받기(GET /institutions/{id}/head/docx). 영업 역할 + 화면·버튼 식별자 → 200·attachment·no-store,
  * 응답 전 감사(HEAD_DOCX, 화면·버튼 포함). 확정 값만(후보·사번 없음, 사진은 이용 조건 허용 코드만 그림으로). 식별자 없음 400, 영업 밖 403, 사번 없음 401, 형식 밖 기관 404,
- * 기관장 없음 409 HEAD_EMPTY, 스위치 끔 404, ref_no 형식 밖 400.
+ * 기관장 없음 409 HEAD_EMPTY, 스위치 끔 404. 참고자료 번호(ref_no)는 없앴다 — 보내도 무시(11-23).
  */
 @RunWith(SpringRunner.class)
 @AppTest
@@ -71,7 +71,7 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
         addItemOk(INST, L1, itemDate(head, "FIRST_TAKE_OFFICE", "2018-07-01"), 201);
         insertCandidateItem(head, INST, "POSITION", "후보직위Z", T2);   // 후보 값
         long photo = photoOk(INST, L1, head);
-        jdbc.update("UPDATE INST_HEAD_PHOTO SET LICENSE_CD='INST_PERMIT' WHERE PHOTO_ID=?", photo);   // KOGL1 은 Word 에 안 넣는다(11-23) — 그림 확인용으로 INST_PERMIT 로
+        jdbc.update("UPDATE INST_HEAD_PHOTO SET LICENSE_CD='INST_PERMIT' WHERE PHOTO_ID=?", photo);   // KOGL1 도 11-23 부터 넣는다 — 여기서는 INST_PERMIT 로 확인
         int before = act("HEAD_DOCX", "OK");
         // ACCESS_LOG 는 REQUIRES_NEW 라 시험 롤백에 안 지워진다 — 같은 JVM의 다른 시험이 같은 기관 docx 를 먼저 받으면 쌓이므로 전후 차이로 본다
         String docxLog = "inst-head inst=" + INST + " code=HEAD_DOCX";
@@ -85,6 +85,7 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
         assertTrue(cd, cd.contains("filename*=UTF-8''"));
         assertEquals("no-store", r.getResponse().getHeader("Cache-Control"));
         assertEquals("nosniff", r.getResponse().getHeader("X-Content-Type-Options"));
+        assertEquals("included", r.getResponse().getHeader("X-Head-Photo"));
 
         assertEquals("누가·어느 화면·어느 버튼", 1, count("SELECT COUNT(*) FROM INST_HEAD_ACT WHERE ACTION_CD='HEAD_DOCX' AND OUTCOME='OK'"
                 + " AND INSTITUTION_ID=? AND ACTOR_EMP_NO=? AND SCREEN_ID='head_card' AND BUTTON_ID='head_docx'", INST, T1));
@@ -111,16 +112,15 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
     }
 
     @Test
-    public void ref_no는_형식_검사만_하고_제목에는_나오지_않는다() throws Exception {
+    public void 예전_화면이_ref_no를_보내도_무시하고_200이며_INVALID는_남지_않는다() throws Exception {
         addHeadOk(INST, L1, "홍길동", "구청장");
-        MvcResult ok = docx(path(INST) + "?ref_no=3", T1, true);
-        assertEquals(text(ok), 200, ok.getResponse().getStatus());
-        assertFalse(documentXml(bytes(ok)).contains("참고자료"));
-        for (String bad : new String[]{"abc", "0", "21", "-1", "100"}) {
-            MvcResult r = docx(path(INST) + "?ref_no=" + bad, T1, true);
-            assertEquals(bad, 400, r.getResponse().getStatus());
+        for (String v : new String[]{"3", "abc", "0", "21", "-1", "100"}) {
+            MvcResult r = docx(path(INST) + "?ref_no=" + v, T1, true);
+            assertEquals(v, 200, r.getResponse().getStatus());
+            assertFalse(documentXml(bytes(r)).contains("참고자료"));
         }
-        assertEquals(5, act("HEAD_DOCX", "INVALID"));
+        assertEquals(0, act("HEAD_DOCX", "INVALID"));
+        assertEquals(6, act("HEAD_DOCX", "OK"));
     }
 
     @Test
@@ -236,7 +236,7 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
     }
 
     @Test
-    public void 이름과_직위만_있고_학력_경력_날짜가_없어도_문서가_깨지지_않고_빈_칸은_안내_문구다() throws Exception {
+    public void 이름과_직위만_있고_학력_경력_날짜가_없어도_문서가_깨지지_않고_빈_학력_경력_절은_머리째_없다() throws Exception {
         addHeadOk(INST, L1, "홍길동", "구청장");   // 확정 칸은 NAME·POSITION 뿐
 
         MvcResult r = docx(path(INST), T1, true);
@@ -248,7 +248,9 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
         assertFalse("값 없는 줄은 생략", xml.contains("첫 취임일"));
         assertFalse("임기 줄도 생략", xml.contains("(~") || xml.contains(" ~)"));
         assertFalse("null 글자 없음", xml.contains(">null<") || xml.contains("null ~") || xml.contains("~ null"));
-        assertTrue("학력·경력 빈 칸 안내 문구", xml.contains("확정된 값이 없습니다."));
+        assertFalse("빈 값 안내 문구 삭제", xml.contains("확정된 값이 없습니다"));
+        assertFalse("학력·경력 0건이면 절 머리째 생략", xml.contains("[ 학 력 ]") || xml.contains("[ 경 력 ]"));
+        assertEquals("none", r.getResponse().getHeader("X-Head-Photo"));
         try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(b))) {   // 열리는 문서
             assertFalse(d.getBodyElements().isEmpty());
         }

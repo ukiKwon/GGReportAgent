@@ -376,7 +376,7 @@ test('nav.accordionOf: 단독 항목은 null, 그 밖은 categoryOf와 같다 �
   assert.strictEqual(nav.categoryOf(built, nav.HOME_ID), 'home');
   assert.strictEqual(nav.accordionOf(built, nav.HOME_ID), null);
   assert.strictEqual(nav.accordionOf(built, nav.DASH_ID), 'scan');
-  assert.strictEqual(nav.accordionOf(built, 'approvals'), null);   // 결재함 = 머리 띠 단독 항목(11-23)
+  assert.strictEqual(nav.accordionOf(built, 'approvals'), 'manage');
   assert.deepStrictEqual(nav.navigatedOpen({ open: 'manage', fixed: true, pending: null }, nav.accordionOf(built, nav.HOME_ID), false), { open: 'manage', fixed: true, pending: null });
 });
 test('nav.homeItemId·expectsHome·isHomeRole: 대상 역할에 디자이너, 지도만 본 상태에서만', function () {
@@ -405,9 +405,9 @@ test('nav.homeIdFor·limitToRole·pinId(역할별 시작화면·기본 메뉴, �
   assert.strictEqual(nav.homeIdFor({ role: '영업팀', master: true }), null);
   assert.strictEqual(nav.homeIdFor({ role: '' }), null);
   const ids = function (role) { return nav.limitToRole(nav.build(ALL_ON, { role: role }), { role: role }).map(function (c) { return c.id; }); };
-  assert.deepStrictEqual(ids('디자이너'), ['home', 'scan', 'manage', 'relate', 'tools', 'apprbox', 'sys']);   // relate = 협약 성과 관리(NEXT 104, 11-20)
-  assert.deepStrictEqual(ids('예산팀'), ['plan', 'apprbox', 'sys']);       // 재무팀원도 '내가 올린 요청'을 본다(머리 띠 결재함, 11-23)
-  assert.deepStrictEqual(ids('예산팀장'), ['plan', 'apprbox', 'sys']);     // 사용자 11-23 '제안서 작성·관리 묶음 닫기'
+  assert.deepStrictEqual(ids('디자이너'), ['home', 'scan', 'manage', 'relate', 'tools', 'sys']);   // relate = 협약 성과 관리(NEXT 104, 11-20)
+  assert.deepStrictEqual(ids('예산팀'), ['plan', 'sys']);
+  assert.deepStrictEqual(ids('예산팀장'), ['plan', 'manage', 'sys']);
   assert.deepStrictEqual(ids('영업팀'), nav.build(ALL_ON, { role: '영업팀' }).map(function (c) { return c.id; }));   // 영업·전산은 지금대로
   assert.deepStrictEqual(ids('전산팀'), nav.build(ALL_ON, { role: '전산팀' }).map(function (c) { return c.id; }));
   const m = nav.build(ALL_ON, { role: '디자이너', master: true });
@@ -528,17 +528,4 @@ test('qa 11-19 후속: —·… 칸은 눌러도 거르지 않음, 다시 그려
   const withNext = portal.bankBuckets(L, { today: TODAY, sumById: { G: sum([ln('국민은행', '2020-01-01', p(60))], [ln('국민은행', p(61), p(3000))]) } });
   assert.strictEqual(noNext.kb[0].tag, '');
   assert.strictEqual(withNext.kb[0].tag, 'kept');
-});
-
-test('decideCount: 머리 띠 [결재함 n]은 시작화면 approvalKpi decide와 같은 값, 결재 권한 없음·일부 실패는 null(사용자 11-23)', function () {
-  assert.strictEqual(typeof portal.decideCount, 'function');
-  assert.strictEqual(typeof portal.loadApprSources, 'function');
-  assert.strictEqual(typeof portal.headApprCount, 'function');
-  const roles = ['영업팀', '영업팀장', '영업부장', '디자이너', '예산팀', '전산팀'];
-  roles.forEach(function (role) {
-    const k = portal.approvalKpi({ perms: { items: [] }, inbox: { items: [] }, appr: [] }, role);
-    const n = portal.decideCount({ perms: { items: [] }, inbox: { items: [] }, appr: [] }, role);
-    if (k.mode === 'decide' && k.status === 'ok' && !k.partial) assert.strictEqual(n, k.n, role);
-    else assert.strictEqual(n, null, role);
-  });
 });

@@ -2,6 +2,7 @@ package com.kbstar.kgi.ggreport.web.docout;
 
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
+import org.apache.poi.xwpf.usermodel.XWPFTableRow;
 import org.junit.Test;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblBorders;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder;
@@ -15,9 +16,11 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -29,8 +32,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 기관장 Word 프로필 양식(사용자 참고 양식 11-20·11-23): 쪽 테두리·밑줄 제목·테두리 없는 사진+정보 표(사진 78×81.8mm 상자)·YYYY.MM 기간·출처 없음(웹 화면에서만). 가상 값만 쓴다.
- * 견본 파일을 target/head-profile-sample.docx 로 남긴다(사용자 확인용, 커밋 대상 아님).
+ * 기관장 Word 프로필 양식(사용자 참고 양식 11-20·11-23): 쪽 테두리·밑줄 제목·테두리 없는 사진+정보 표(사진 4단계 상자 78~88mm, 1장 맞춤)·학력·경력 같은 2열 표·YYYY.MM 기간·글자 22/14/16/12pt·출처·멘트 없음(웹 화면에서만). 가상 값만 쓴다.
+ * 견본 파일을 target/head-profile-sample.docx(사진 S3)·head-profile-sample-many.docx(경력 많음) 로 남긴다(사용자 확인용, 커밋 대상 아님).
  */
 public class HeadDocBuilderLayoutTest {
 
@@ -80,7 +83,7 @@ public class HeadDocBuilderLayoutTest {
         head.put("career", Arrays.asList(item("경력옛날", "2001-01", "2005-12"), item("경력진행", "2018-07", null), item("경력연도", "2018", null)));
         if (withPhoto) {
             Map<String, Object> photo = new HashMap<String, Object>();
-            photo.put("license_cd", "INST_PERMIT");   // KOGL1 은 Word 에 안 넣는다(11-23 기본값)
+            photo.put("license_cd", "INST_PERMIT");   // KOGL1 도 11-23 부터 넣는다
             photo.put("photo_id", Long.valueOf(9));
             photo.put("source", src("문서A"));
             head.put("photo", photo);
@@ -123,14 +126,28 @@ public class HeadDocBuilderLayoutTest {
     }
 
     private static byte[] render(boolean withPhoto) throws Exception {
-        DocModel m = HeadDocBuilder.build(detail(withPhoto), "서울시 가구청", 1, "2026-11-20", withPhoto ? jpeg() : null);
+        DocModel m = HeadDocBuilder.build(detail(withPhoto), "서울시 가구청", "2026-11-20", withPhoto ? jpeg() : null);
         return DocxKit.render(m, DocxKit.Footer.pageNumberOnly());
+    }
+
+    private static Map<String, Object> manyRows(int n) {
+        Map<String, Object> d = detail(true);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> head = (Map<String, Object>) d.get("head");
+        List<Map<String, Object>> career = new ArrayList<Map<String, Object>>();
+        for (int i = 0; i < n; i++) {
+            career.add(item("가상경력" + i, (2000 + i) + "-01", (2000 + i) + "-12"));
+        }
+        head.put("career", career);
+        return d;
     }
 
     @Test
     public void 견본_파일을_남긴다() throws Exception {
         Files.createDirectories(Paths.get("target"));
-        Files.write(Paths.get("target", "head-profile-sample.docx"), render(true));
+        Files.write(Paths.get("target", "head-profile-sample.docx"), render(true));   // 학력·경력 적음 → 사진 S3
+        Files.write(Paths.get("target", "head-profile-sample-many.docx"), DocxKit.render(
+                HeadDocBuilder.build(manyRows(14), "서울시 가구청", "2026-11-20", jpeg()), DocxKit.Footer.pageNumberOnly()));   // 많음 → 작은 단계
     }
 
     @Test
@@ -160,10 +177,33 @@ public class HeadDocBuilderLayoutTest {
         assertTrue("가운데", before.contains("<w:jc w:val=\"center\"/>"));
     }
 
+    /** 글자 바로 앞 runPr 안의 크기(반 pt). */
+    private static String runSizeBefore(String xml, String text) {
+        int t = xml.indexOf(text);
+        assertTrue(text, t > 0);
+        String before = xml.substring(Math.max(0, t - 600), t);
+        Matcher m = Pattern.compile("<w:sz w:val=\"(\\d+)\"/>").matcher(before);
+        String last = null;
+        while (m.find()) {
+            last = m.group(1);
+        }
+        return last;
+    }
+
     @Test
-    public void 사진과_정보_표는_테두리가_없고_경력_표도_없다() throws Exception {
+    public void 글자_크기는_제목22_정보14_절제목16_내용12pt다() throws Exception {
+        String xml = xml(render(true));
+        assertEquals("제목 22pt", "44", runSizeBefore(xml, "서울시 가구청 홍길동 구청장 Profile"));
+        assertEquals("정보 줄 14pt", "28", runSizeBefore(xml, "성 명 : 홍길동"));
+        assertEquals("절 제목 16pt", "32", runSizeBefore(xml, "[ 학 력 ]"));
+        assertEquals("표 내용 12pt", "24", runSizeBefore(xml, "행정학석사"));
+        assertEquals("표 기간 12pt", "24", runSizeBefore(xml, "1990.03 ~ 1994.02"));
+    }
+
+    @Test
+    public void 사진_정보_학력_경력_표는_테두리가_없다() throws Exception {
         try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(render(true)))) {
-            assertEquals("사진+정보 표, 경력 표", 2, d.getTables().size());
+            assertEquals("사진+정보 표, 학력 표, 경력 표", 3, d.getTables().size());
             assertEquals("사진은 1개", 1, d.getAllPictures().size());
             for (XWPFTable t : d.getTables()) {
                 CTTblBorders b = t.getCTTbl().getTblPr().getTblBorders();
@@ -179,9 +219,35 @@ public class HeadDocBuilderLayoutTest {
     }
 
     @Test
-    public void 사진이_없으면_표_없이_줄만_나온다() throws Exception {
+    public void 사진이_없으면_사진_표_없이_학력_경력_표만_나온다() throws Exception {
         try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(render(false)))) {
-            assertEquals("경력 표 하나뿐", 1, d.getTables().size());
+            assertEquals("학력·경력 표만", 2, d.getTables().size());
+        }
+    }
+
+    @Test
+    public void 학력과_경력은_같은_열_폭이고_기간_없는_항목도_칸을_합치지_않는다() throws Exception {
+        Map<String, Object> d = detail(false);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> head = (Map<String, Object>) d.get("head");
+        head.put("career", Arrays.asList(item("기간없는경력", null, null), item("경력진행", "2018-07", null)));
+        byte[] docx = DocxKit.render(HeadDocBuilder.build(d, "서울시 가구청", "2026-11-20", null), DocxKit.Footer.pageNumberOnly());
+        try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(docx))) {
+            assertEquals("학력 표 + 경력 표", 2, doc.getTables().size());
+            String grid0 = null;
+            for (XWPFTable t : doc.getTables()) {
+                for (XWPFTableRow r : t.getRows()) {
+                    assertEquals("모든 행이 2칸", 2, r.getTableCells().size());
+                }
+                String grid = t.getCTTbl().getTblGrid().toString().replaceAll("\\s+", "");
+                if (grid0 == null) {
+                    grid0 = grid;
+                }
+                assertEquals("두 표의 열 폭이 같다(내용 열 시작이 같다)", grid0, grid);
+            }
+            XWPFTable career = doc.getTables().get(1);
+            assertEquals("기간 없는 항목은 기간 칸에 ■만", "■", career.getRow(1).getCell(0).getText().trim());
+            assertTrue(career.getRow(1).getCell(1).getText().contains("기간없는경력"));
         }
     }
 
@@ -191,8 +257,10 @@ public class HeadDocBuilderLayoutTest {
         assertTrue("경력 진행", xml.contains("2018.07 ~ 현재"));
         assertTrue("경력 끝 있음", xml.contains("2001.01 ~ 2005.12"));
         assertTrue("연도만", xml.contains("2018 ~ 현재"));
-        assertTrue("학력은 내용 뒤 괄호", xml.contains("행정학석사 (1990.03~1994.02)"));
-        assertTrue("학력 연도만", xml.contains("대학교졸업 (1986~1990)"));
+        assertTrue("학력도 A ~ B", xml.contains("1990.03 ~ 1994.02") && xml.contains("행정학석사"));
+        assertTrue("학력 연도만", xml.contains("1986 ~ 1990") && xml.contains("대학교졸업"));
+        assertFalse("옛 A~B 표기 폐지", xml.contains("1990.03~1994.02") || xml.contains("(1986~1990)"));
+        assertTrue("기간이 내용 앞(학력)", xml.indexOf("1990.03 ~ 1994.02") < xml.indexOf("행정학석사"));
         assertTrue("임기", xml.contains("(2023.12") && xml.contains(" ~ 2027.12"));
         assertTrue("첫 취임일", xml.contains("첫 취임일 : 2018.07.01"));
         assertFalse("저장 형식 없음", xml.contains("2018-07") || xml.contains("2023-12") || xml.contains("2027-12"));
@@ -203,7 +271,7 @@ public class HeadDocBuilderLayoutTest {
     }
 
     @Test
-    public void 문서에_출처_번호_이용_조건_글자가_없고_기준일_줄은_맨_아래다() throws Exception {
+    public void 문서에_출처_이용_조건_기준일_안내_멘트가_없다() throws Exception {
         for (boolean withPhoto : new boolean[]{false, true}) {
             String xml = xml(render(withPhoto));
             assertFalse("출처 글자 전체", xml.contains("출처"));
@@ -213,13 +281,24 @@ public class HeadDocBuilderLayoutTest {
             assertFalse("위첨자", xml.contains("w:val=\"superscript\"") || xml.contains("vertAlign"));
             assertFalse("출처 제목·종류", xml.contains("문서A") || xml.contains("기관 누리집"));
             assertFalse("공공누리", xml.contains("공공누리"));
-            int base = xml.indexOf("확정된 값만 담았습니다. 기준일 2026-11-20");
-            assertTrue("기준일 줄", base > xml.indexOf("경력옛날"));
+            assertFalse("끝 멘트 삭제", xml.contains("확정된 값만 담았습니다") || xml.contains("기준일") || xml.contains("2026-11-20") || xml.contains("2026.11.20"));
+            assertFalse("빈 값 멘트 삭제", xml.contains("확정된 값이 없습니다"));
         }
     }
 
-    private static final int BOX_W = 78 * 36000;
-    private static final int BOX_H = (int) Math.round(81.8 * 36000);
+    @Test
+    public void 학력_경력이_없으면_절_머리째_없다() throws Exception {
+        Map<String, Object> d = detail(false);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> head = (Map<String, Object>) d.get("head");
+        head.put("education", Collections.emptyList());
+        head.put("career", Collections.emptyList());
+        String xml = xml(DocxKit.render(HeadDocBuilder.build(d, "서울시 가구청", "2026-11-20", null), DocxKit.Footer.pageNumberOnly()));
+        assertFalse(xml.contains("[ 학 력 ]") || xml.contains("[ 경 력 ]") || xml.contains("확정된 값이 없습니다"));
+    }
+
+    private static final int BOX_W = 88 * 36000;   // 학력·경력이 적으면 S3(88×92.3mm)
+    private static final int BOX_H = (int) Math.round(92.3 * 36000);
 
     private static byte[] jpeg(int w, int h) throws Exception {
         BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
@@ -232,14 +311,18 @@ public class HeadDocBuilderLayoutTest {
         return o.toByteArray();
     }
 
-    private static byte[] render(String license, byte[] jpeg) throws Exception {
+    private static Map<String, Object> withLicense(String license) {
         Map<String, Object> d = detail(true);
         @SuppressWarnings("unchecked")
         Map<String, Object> head = (Map<String, Object>) d.get("head");
         @SuppressWarnings("unchecked")
         Map<String, Object> photo = (Map<String, Object>) head.get("photo");
         photo.put("license_cd", license);
-        return DocxKit.render(HeadDocBuilder.build(d, "서울시 가구청", 1, "2026-11-20", jpeg), DocxKit.Footer.pageNumberOnly());
+        return d;
+    }
+
+    private static byte[] render(String license, byte[] jpeg) throws Exception {
+        return DocxKit.render(HeadDocBuilder.build(withLicense(license), "서울시 가구청", "2026-11-20", jpeg), DocxKit.Footer.pageNumberOnly());
     }
 
     private static int[] extent(String xml) {
@@ -249,7 +332,7 @@ public class HeadDocBuilderLayoutTest {
     }
 
     @Test
-    public void 사진은_78x81_8mm_상자_안에_비율을_지켜_맞춘다() throws Exception {
+    public void 학력_경력이_적으면_사진은_S3_88x92_3mm_상자_안에_비율을_지켜_맞춘다() throws Exception {
         int tol = 36;
         int[] tall = extent(xml(render("INST_PERMIT", jpeg(300, 400))));
         assertTrue(tall[0] <= BOX_W && tall[1] <= BOX_H + tol);
@@ -265,34 +348,48 @@ public class HeadDocBuilderLayoutTest {
     }
 
     @Test
-    public void KOGL1_사진은_기본값에서_넣지_않고_표와_안내도_없다() throws Exception {
-        byte[] docx = render("KOGL1", jpeg());
-        try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(docx))) {
-            assertEquals("경력 표 하나뿐", 1, d.getTables().size());
-            assertEquals(0, d.getAllPictures().size());
-        }
-        String xml = xml(docx);
-        assertFalse(xml.contains("이용 조건") || xml.contains("넣지 않았") || xml.contains("공공누리"));
+    public void 행이_많아_넘치면_사진은_최소_S0_78mm이고_글자는_그대로다() throws Exception {
+        String xml = xml(DocxKit.render(HeadDocBuilder.build(manyRows(40), "서울시 가구청", "2026-11-20", jpeg(500, 500)), DocxKit.Footer.pageNumberOnly()));
+        int[] sq = extent(xml);
+        assertEquals(78 * 36000, sq[0], 36);
+        assertEquals("표 내용 12pt 그대로", "24", runSizeBefore(xml, "가상경력39"));
     }
 
     @Test
-    public void 허용_밖_이용_조건도_조용히_사진이_없다() throws Exception {
+    public void KOGL1_사진도_출처_없이_넣는다() throws Exception {
+        byte[] docx = render("KOGL1", jpeg());
+        try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(docx))) {
+            assertEquals("사진+정보, 학력, 경력 표", 3, d.getTables().size());
+            assertEquals(1, d.getAllPictures().size());
+        }
+        String xml = xml(docx);
+        assertFalse(xml.contains("출처") || xml.contains("이용 조건") || xml.contains("공공누리") || xml.contains("넣지 않았"));
+    }
+
+    @Test
+    public void 허용_밖_이용_조건도_조용히_사진이_없고_상태는_none이다() throws Exception {
         for (String lic : new String[]{"LOCAL_ONLY", "KOGL2", "PRESS_PERMIT", "XYZ"}) {
             byte[] docx = render(lic, jpeg());
             try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(docx))) {
-                assertEquals(lic, 1, d.getTables().size());
+                assertEquals(lic, 2, d.getTables().size());
                 assertEquals(lic, 0, d.getAllPictures().size());
             }
             assertFalse(lic, xml(docx).contains("넣지 않았") || xml(docx).contains("이용 조건"));
+            assertEquals(lic, HeadDocBuilder.PHOTO_NONE, HeadDocBuilder.buildDoc(withLicense(lic), "서울시 가구청", "2026-11-20", jpeg()).photoStatus());
         }
     }
 
     @Test
-    public void 허용_조건인데_그림을_못_읽으면_안내_한_줄만_있다() throws Exception {
-        byte[] docx = render("INST_PERMIT", new byte[]{1, 2, 3});
-        assertTrue(xml(docx).contains("사진을 불러오지 못해 넣지 않았습니다."));
+    public void 허용_조건인데_그림을_못_읽으면_문서에_안내가_없고_상태는_failed다() throws Exception {
+        byte[] bad = new byte[]{1, 2, 3};
+        assertEquals(HeadDocBuilder.PHOTO_FAILED, HeadDocBuilder.buildDoc(detail(true), "서울시 가구청", "2026-11-20", bad).photoStatus());
+        assertEquals(HeadDocBuilder.PHOTO_INCLUDED, HeadDocBuilder.buildDoc(detail(true), "서울시 가구청", "2026-11-20", jpeg()).photoStatus());
+        assertEquals(HeadDocBuilder.PHOTO_NONE, HeadDocBuilder.buildDoc(detail(false), "서울시 가구청", "2026-11-20", null).photoStatus());
+        byte[] docx = render("INST_PERMIT", bad);
+        assertFalse(xml(docx).contains("넣지 않았") || xml(docx).contains("불러오지"));
         try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(docx))) {
-            assertEquals(1, d.getTables().size());
+            assertEquals("학력·경력 표만", 2, d.getTables().size());
+            assertEquals(0, d.getAllPictures().size());
         }
     }
 }

@@ -113,7 +113,7 @@ test('cardHtml: 확정 항목·출처·큰 숫자·학력 경력(최근 순)·�
   assert.ok(h.indexOf('가상대학교 행정학 석사') >= 0 && h.indexOf('1999~2001') >= 0);
   assert.ok(h.indexOf('가람시의회 의원') < h.indexOf('가상도청 예산담당관'));              // 끝 연월이 늦은 것이 위
   assert.ok(h.indexOf('출처를 단 항목 <span class="v">8</span>건') >= 0 && h.indexOf('2026-11-03') >= 0);
-  assert.ok(h.indexOf('열람 기록이 남습니다') >= 0);
+  assert.ok(h.indexOf('열람·내려받기 기록이 남습니다') >= 0);
   assert.ok(h.indexOf('data-hc="edit"') >= 0 && h.indexOf('data-hc="refresh"') >= 0);
   assert.ok(h.indexOf('확정 대기 후보') < 0 && h.indexOf('hc-cand') < 0);                 // 후보가 없으면 배지 없음
   assert.ok(!/\d\s*점|등급|별점/.test(h));                                               // 점수·등급 없음
@@ -1029,129 +1029,138 @@ function withFakeDoc(fn) {
   return Promise.resolve().then(function () { return fn(saved); }).finally(function () { delete global.document; });
 }
 
-test('워드: 기관장 카드(ok)에만 [워드 내려받기]가 있고 새로 고침·편집보다 앞, 줄은 닫혀 있다', function () {
+test('워드: ok 카드에만 [워드 내려받기] 버튼 하나(펼침·번호 칸·취소 없음), 새로 고침·편집보다 앞', function () {
   const h = hc.cardHtml(view(), { today: TODAY });
-  assert.ok(h.indexOf('data-hc="docx-open"') > 0 && h.indexOf('data-hc="docx-open"') < h.indexOf('data-hc="refresh"'));
-  assert.ok(h.indexOf('aria-expanded="false"') > 0 && h.indexOf('class="hc-ref"') < 0);
+  assert.ok(/data-hc="docx">워드 내려받기</.test(h) && h.indexOf('data-hc="docx"') < h.indexOf('data-hc="refresh"'));
+  ['aria-expanded', 'aria-controls', 'class="hc-ref"', 'data-hc-ref', 'type="number"', '참고자료 번호', 'docx-open', 'docx-go', 'docx-cancel'].forEach(function (s) { assert.ok(h.indexOf(s) < 0, s); });
   ['none', 'denied', 'role', 'notfound', 'noid', 'off', 'login', 'error'].forEach(function (st) {
     const s = hc.sectionHtml({ status: st, data: st === 'none' ? { head: null } : undefined }, {});
-    assert.ok(s.indexOf('docx-open') < 0, st);
+    assert.ok(s.indexOf('data-hc="docx"') < 0, st);
   });
 });
 
-test('워드: 줄을 펼치면 번호 칸(1~20·숫자 자판)·제목 미리보기·안내·[내려받기]/[취소], 기관 이름은 이스케이프', function () {
-  const h = hc.cardHtml(view({}, { dl: { open: true, ref: '3', name: '<b>가람시</b>', busy: false, fieldErr: '', err: '', ok: '' } }), { today: TODAY });
-  assert.ok(/<input type="number" min="1" max="20"[^>]*inputmode="numeric"[^>]*value="3"/.test(h));
-  assert.ok(h.indexOf('참고자료 3. 「&lt;b&gt;가람시&lt;/b&gt;」 기관장 정보') >= 0 && h.indexOf('<b>가람시</b>') < 0);
-  assert.ok(h.indexOf('확정된 값과 사진(공공누리 제1유형·기관 직접 허락만), 나이(만 n세)가 담깁니다(확정 대기 후보·생년월일 날짜 제외). 내려받기 기록이 남습니다.') >= 0);
-  assert.ok(h.indexOf('data-hc="docx-go"') > 0 && h.indexOf('data-hc="docx-cancel"') > 0 && h.indexOf('aria-expanded="true"') > 0);
-  assert.ok(hc.cardHtml(view({}, { dl: { open: true, ref: '3', name: '', busy: false, fieldErr: '', err: '', ok: '' } }), {}).indexOf('참고자료 3. 기관장 정보') >= 0);   // 이름 모르면 「」 없이
+test('워드: 받는 중이면 버튼만 disabled + "만드는 중…", 줄은 만들지 않는다', function () {
+  const b = hc.cardHtml(view({}, { dl: { busy: true, err: '', ok: '' } }), {});
+  assert.ok(/<button type="button" data-hc="docx" disabled>만드는 중…<\/button>/.test(b));
+  assert.ok(b.indexOf('class="hc-ref"') < 0);
 });
 
-test('워드: 받는 중이면 버튼·칸 비활성 + "만드는 중…" + aria-busy, 칸 오류는 aria-invalid + role=alert', function () {
-  const busy = hc.cardHtml(view({}, { dl: { open: true, ref: '1', name: '', busy: true, fieldErr: '', err: '', ok: '' } }), {});
-  assert.ok(busy.indexOf('aria-busy="true"') >= 0 && busy.indexOf('만드는 중…') >= 0 && /data-hc="docx-go" disabled/.test(busy) && /data-hc-ref value="1" disabled/.test(busy));
-  const bad = hc.cardHtml(view({}, { dl: { open: true, ref: '0', name: '', busy: false, fieldErr: '1~20 사이 숫자를 넣으세요.', err: '', ok: '' } }), {});
-  assert.ok(bad.indexOf('aria-invalid="true"') >= 0 && /role="alert">1~20 사이 숫자를 넣으세요\./.test(bad));
+test('워드: 완료는 role=status(.hc-ok), 오류는 role=alert(.hc-err), 이스케이프, 전체 폭 .hc-ref 줄', function () {
+  const ok = hc.cardHtml(view({}, { dl: { busy: false, err: '', ok: '완료 <b>' } }), {});
+  assert.ok(/<div class="hc-ref" id="hc-ref"><p class="hc-ok" role="status">완료 &lt;b&gt;<\/p><\/div>/.test(ok));
+  const er = hc.cardHtml(view({}, { dl: { busy: false, err: '실패', ok: '' } }), {});
+  assert.ok(/<p class="hc-err" role="alert">실패<\/p>/.test(er) && er.indexOf('hc-ok') < 0);
 });
 
-test('parseRef: 1~20 정수만(서버 정규식 [0-9]{1,2}와 같은 범위), 나머지는 0', function () {
-  ['1', '9', '10', '20', '05', ' 7 '].forEach(function (v) { assert.ok(hc.parseRef(v) >= 1 && hc.parseRef(v) <= 20, v); });
-  assert.strictEqual(hc.parseRef('20'), 20);
-  ['0', '21', '100', '', 'abc', '1.5', '-1', '1e1', null, undefined].forEach(function (v) { assert.strictEqual(hc.parseRef(v), 0, String(v)); });
+test('docxOkText: X-Head-Photo가 failed일 때만 사진 안내를 덧붙인다', function () {
+  const T = hc.TEXT;
+  assert.strictEqual(T.docxOk, '워드 파일을 내려받았습니다.');
+  assert.strictEqual(hc.docxOkText('failed'), T.docxOk + ' 사진은 불러오지 못해 넣지 않았습니다.');
+  ['included', 'none', '', null, undefined].forEach(function (v) { assert.strictEqual(hc.docxOkText(v), T.docxOk, String(v)); });
 });
 
-test('워드: 번호가 틀리면 요청하지 않고 칸 오류, 맞으면 GET ?ref_no=N + X-Screen-Id head_card·X-Button-Id head_docx', async function () {
+test('워드: 누르면 바로 GET /head/docx(질의 없음) + X-Screen-Id head_card·X-Button-Id head_docx, 파일 이름 규칙 유지', async function () {
   const calls = fakeFetch(docxRoutes({ status: 200, blob: new Blob(['docx']), headers: { 'Content-Disposition': DOCX_CD } }));
   try {
     await okCard();
-    const e = env();
-    hc.onPaneClick('docx-open', function () { return e; });
-    assert.strictEqual(hc.view().dl.open, true);
-    assert.strictEqual(hc.view().dl.ref, '1');                       // 기본값
-    hc.view().dl.ref = '21';
-    await hc.onPaneClick('docx-go', function () { return e; });
-    assert.strictEqual(calls.filter(function (c) { return c.url.indexOf('/docx') >= 0; }).length, 0);
-    assert.strictEqual(hc.view().dl.fieldErr, '1~20 사이 숫자를 넣으세요.');
-    hc.view().dl.ref = '5';
     await withFakeDoc(async function (saved) {
-      await hc.onPaneClick('docx-go', function () { return e; });
+      await hc.onPaneClick('docx', function () { return env(); });
       const c = calls.filter(function (x) { return x.url.indexOf('/docx') >= 0; });
       assert.strictEqual(c.length, 1);
-      assert.strictEqual(c[0].url, '/institutions/11010/head/docx?ref_no=5');
+      assert.strictEqual(c[0].url, '/institutions/11010/head/docx');
       assert.strictEqual(c[0].init.method, 'GET');
       assert.deepStrictEqual(c[0].init.headers, { 'X-Screen-Id': 'head_card', 'X-Button-Id': 'head_docx' });
       assert.strictEqual(saved.length, 1);
       assert.strictEqual(saved[0].download, '기관장정보_가람시_20261119.docx');
     });
     const dl = hc.view().dl;
-    assert.ok(!dl.open && !dl.busy && dl.ok === '워드 파일을 내려받았습니다.' && !dl.err && !dl.fieldErr);
+    assert.ok(!dl.busy && !dl.err && dl.ok === hc.TEXT.docxOk);
     assert.ok(hc.cardHtml(hc.view(), { today: TODAY }).indexOf('role="status">워드 파일을 내려받았습니다.') >= 0);
   } finally { cleanup(); }
 });
 
-test('워드: 지도 상세 팝업에서 열면 X-Screen-Id가 map_popover(화면 이름은 mine.screen)', async function () {
+test('워드: X-Head-Photo=failed면 완료 문구 끝에 사진 안내, included·none·없음은 덧붙이지 않는다', async function () {
+  const tail = ' 사진은 불러오지 못해 넣지 않았습니다.';
+  const cases = [['failed', true], ['included', false], ['none', false], [null, false]];
+  for (const c of cases) {
+    const headers = { 'Content-Disposition': DOCX_CD };
+    if (c[0] != null) headers['X-Head-Photo'] = c[0];
+    fakeFetch(docxRoutes({ status: 200, blob: new Blob(['d']), headers: headers }));
+    try {
+      await okCard();
+      await withFakeDoc(async function () { await hc.onPaneClick('docx', function () { return env(); }); });
+      const ok = hc.view().dl.ok;
+      assert.strictEqual(ok.slice(-tail.length) === tail, c[1], String(c[0]));
+      assert.ok(ok.indexOf(hc.TEXT.docxOk) === 0);
+    } finally { cleanup(); }
+  }
+});
+
+test('워드: 지도 상세 팝업에서 누르면 X-Screen-Id가 map_popover', async function () {
   const calls = fakeFetch(docxRoutes({ status: 200, blob: new Blob(['d']), headers: { 'Content-Disposition': DOCX_CD } }));
   try {
     await okCard('map_popover');
-    hc.onPaneClick('docx-open', function () { return env(); });
-    await withFakeDoc(async function () { await hc.onPaneClick('docx-go', function () { return env(); }); });
+    await withFakeDoc(async function () { await hc.onPaneClick('docx', function () { return env(); }); });
     const c = calls.filter(function (x) { return x.url.indexOf('/docx') >= 0; })[0];
     assert.deepStrictEqual([c.init.headers['X-Screen-Id'], c.init.headers['X-Button-Id']], ['map_popover', 'head_docx']);
   } finally { cleanup(); }
 });
 
-test('워드: 서버 오류별 문구 — 409 HEAD_EMPTY·400 BAD_VALUE(칸)·403·500·연결 실패·404', async function () {
+test('워드: 서버 오류별 문구 — 409·403·401·500·연결 실패·404·UI_ID_REQUIRED, BAD_VALUE는 일반 문구', async function () {
   const T = hc.TEXT;
   const cases = [
-    [{ status: 409, json: { detail: { code: 'HEAD_EMPTY', message: 'x' } } }, 'err', T.docxEmpty],
-    [{ status: 400, json: { detail: { code: 'BAD_VALUE', message: 'x' } } }, 'fieldErr', T.refBad],
-    [{ status: 400, json: { detail: { code: 'UI_ID_REQUIRED', message: 'x' } } }, 'err', T.docxUi],
-    [{ status: 403, json: { detail: '권한 없음' } }, 'err', T.denied],
-    [{ status: 401, json: { detail: 'x' } }, 'err', T.login],
-    [{ status: 500, json: { detail: 'boom' } }, 'err', T.docxServer],
-    [{ fail: true }, 'err', T.network],
-    [{ status: 404, json: { detail: { code: 'FEATURE_OFF', message: 'x' } } }, 'err', T.off],
-    [{ status: 404, json: { detail: 'not found' } }, 'err', T.notfound],
+    [{ status: 409, json: { detail: { code: 'HEAD_EMPTY', message: 'x' } } }, T.docxEmpty],
+    [{ status: 400, json: { detail: { code: 'BAD_VALUE', message: 'x' } } }, '처리하지 못했습니다 (400)'],
+    [{ status: 400, json: { detail: { code: 'UI_ID_REQUIRED', message: 'x' } } }, T.docxUi],
+    [{ status: 403, json: { detail: '권한 없음' } }, T.denied],
+    [{ status: 401, json: { detail: 'x' } }, T.login],
+    [{ status: 500, json: { detail: 'boom' } }, T.docxServer],
+    [{ fail: true }, T.network],
+    [{ status: 404, json: { detail: { code: 'FEATURE_OFF', message: 'x' } } }, T.off],
+    [{ status: 404, json: { detail: 'not found' } }, T.notfound],
   ];
   for (const c of cases) {
     const calls = fakeFetch(docxRoutes(c[0]));
     try {
       await okCard();
-      hc.onPaneClick('docx-open', function () { return env(); });
-      await hc.onPaneClick('docx-go', function () { return env(); });
+      await hc.onPaneClick('docx', function () { return env(); });
       const dl = hc.view().dl;
-      assert.strictEqual(dl[c[1]], c[2], JSON.stringify(c[0]));
-      assert.ok(!dl.busy && dl.open && !dl.ok);                       // 줄은 열린 채로 다시 시도할 수 있다
-      if (c[0].status === 409) { await settle(); assert.ok(calls.filter(function (x) { return /head$/.test(x.url); }).length >= 2); }   // 409면 카드를 다시 읽는다(버튼 ID refresh)
+      assert.strictEqual(dl.err, c[1], JSON.stringify(c[0]));
+      assert.ok(!dl.busy && !dl.ok);
+      assert.ok(hc.cardHtml(hc.view(), { today: TODAY }).indexOf('role="alert">') >= 0);
+      if (c[0].status === 409) { await settle(); assert.ok(calls.filter(function (x) { return /head$/.test(x.url); }).length >= 2); }
     } finally { cleanup(); }
   }
 });
 
-test('워드: 받는 중 [내려받기]를 또 눌러도 요청은 한 번, [취소]는 줄을 접고 오류를 지운다', async function () {
+test('워드: 받는 중 또 눌러도 요청은 한 번, 다음 내려받기를 시작하면 앞 안내를 지운다', async function () {
   const calls = fakeFetch(docxRoutes({ status: 200, blob: new Blob(['d']), headers: { 'Content-Disposition': DOCX_CD } }));
   try {
     await okCard();
-    hc.onPaneClick('docx-open', function () { return env(); });
     await withFakeDoc(async function () {
-      const a = hc.onPaneClick('docx-go', function () { return env(); });
-      const b = hc.onPaneClick('docx-go', function () { return env(); });   // busy 중
+      const a = hc.onPaneClick('docx', function () { return env(); });
+      assert.strictEqual(hc.view().dl.busy, true);
+      assert.ok(/data-hc="docx" disabled>만드는 중…/.test(hc.cardHtml(hc.view(), { today: TODAY })));
+      const b = hc.onPaneClick('docx', function () { return env(); });
       await Promise.all([a, b]);
+      assert.strictEqual(calls.filter(function (x) { return x.url.indexOf('/docx') >= 0; }).length, 1);
+      hc.view().dl.err = '오류';
+      const p = hc.onPaneClick('docx', function () { return env(); });
+      assert.ok(hc.view().dl.busy && hc.view().dl.err === '' && hc.view().dl.ok === '');
+      await p;
     });
-    assert.strictEqual(calls.filter(function (x) { return x.url.indexOf('/docx') >= 0; }).length, 1);
-    hc.onPaneClick('docx-open', function () { return env(); });
-    hc.view().dl.err = '오류';
-    hc.onPaneClick('docx-cancel', function () { return env(); });
-    assert.ok(!hc.view().dl.open && hc.view().dl.err === '');
+    assert.strictEqual(calls.filter(function (x) { return x.url.indexOf('/docx') >= 0; }).length, 2);
   } finally { cleanup(); }
 });
 
-test('워드: 기관을 바꾸면 열린 줄·입력값이 버려진다(V.dl 초기화), 기관장 없음(none)에는 단추가 없다', async function () {
+test('워드: 기관을 바꾸거나 [새로 고침]하면 안내가 지워지고, 기관장 없음(none)에는 단추가 없다', async function () {
   fakeFetch(function () { return { status: 200, json: detail() }; });
   try {
     await okCard();
-    hc.onPaneClick('docx-open', function () { return env(); });
-    assert.ok(hc.view().dl.open);
+    hc.view().dl = { busy: false, err: '', ok: '완료' };
+    await hc.refresh(false, 'refresh');
+    assert.strictEqual(hc.view().dl, null);
+    hc.view().dl = { busy: false, err: '', ok: '완료' };
     hc.paneSection({ institutionId: '11011' }, env());
     assert.strictEqual(hc.view().dl, null);
   } finally { cleanup(); }
@@ -1160,9 +1169,9 @@ test('워드: 기관을 바꾸면 열린 줄·입력값이 버려진다(V.dl 초
     hc.paneSection({ institutionId: '11010' }, env());
     await settle();
     assert.strictEqual(hc.view().status, 'none');
-    hc.onPaneClick('docx-open', function () { return env(); });      // ok가 아니면 무시
+    hc.onPaneClick('docx', function () { return env(); });
     assert.strictEqual(hc.view().dl, null);
-    assert.ok(hc.sectionHtml(hc.view(), env()).indexOf('docx-open') < 0);
+    assert.ok(hc.sectionHtml(hc.view(), env()).indexOf('data-hc="docx"') < 0);
   } finally { cleanup(); }
 });
 
@@ -1174,13 +1183,16 @@ test('docxFileName: filename*를 풀어 쓰고, 경로 문자는 _로, 못 읽�
   assert.strictEqual(hc.docxFileName("attachment; filename*=UTF-8''%E0%A4%A"), '기관장정보.docx');   // 깨진 인코딩
 });
 
-test('워드: CSS 줄(.hc-ref)이 기관장 카드 블록 안에 있고 배선은 data-hc 위임을 그대로 쓴다', function () {
+test('워드: CSS는 기관장 카드 블록 안(.hc-ref 줄·min-width), 번호 칸 규칙은 없고 배선은 data-hc 위임, 지운 것들이 소스에 없다', function () {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const a = html.indexOf('/* 기관장 카드 시작'), b = html.indexOf('/* 기관장 카드 끝 */');
-  assert.ok(/\.hc-ref \{[^}]*border-top:1px solid var\(--line\)/.test(html.slice(a, b)));
-  assert.ok(/\.hc-ref input \{[^}]*width:56px[^}]*var\(--mono\)/.test(html.slice(a, b)));
+  const css = html.slice(a, b);
+  assert.ok(/\.hc-ref \{[^}]*border-top:1px solid var\(--line\)/.test(css));
+  assert.ok(/\.hc-foot \[data-hc="docx"\] \{[^}]*min-width:7\.5em/.test(css));
+  ['.hc-ref input', '.hc-reflab', '.hc-reftitle', '.hc-refbtns', '.hc-ref button'].forEach(function (x) { assert.ok(css.indexOf(x) < 0, x); });
   const src = fs.readFileSync(path.join(ROOT, 'js/headcard.js'), 'utf8');
-  assert.ok(src.indexOf("what === 'docx-open'") >= 0 && src.indexOf("what === 'docx-go'") >= 0 && src.indexOf("what === 'docx-cancel'") >= 0);
+  assert.ok(src.indexOf("what === 'docx')") >= 0);
+  ['docx-open', 'docx-go', 'docx-cancel', 'data-hc-ref', 'REF_STORE', 'sessionStorage', 'parseRef', 'refTitle', 'refBad', 'ref_no'].forEach(function (x) { assert.ok(src.indexOf(x) < 0, x); });
   assert.ok(src.indexOf('window.open') < 0 && src.indexOf('confirm(') < 0);
 });
 
@@ -1199,18 +1211,18 @@ test('cardHtml: 이름·직위·권한대행 배지는 한 줄 묶음(hc-who-hd)
   assert.ok(/<div class="hc-who-hd"><h4 id="hc-name">서지운<\/h4><span class="hc-pos">가람시장<\/span><span class="hc-badge">권한대행<\/span><\/div>/.test(h));
 });
 
-test('cardHtml: 꼬리는 두 줄 고정 — 메타 한 줄 · 왼쪽 후보 보기 · 오른쪽 [워드 내려받기][새로 고침][기관장 편집], 펼침 줄은 꼬리 안', function () {
+test('cardHtml: 꼬리는 두 줄 고정 — 메타 한 줄 · 왼쪽 후보 보기 · 오른쪽 [워드 내려받기][새로 고침][기관장 편집], 완료·오류 줄은 꼬리 안', function () {
   const foot = function (v) { const h = hc.cardHtml(v, { today: TODAY }); return h.slice(h.indexOf('<div class="hc-foot">')); };
   const f0 = foot(view());
-  assert.ok(/<p class="hc-meta">출처를 단 항목 <span class="v">8<\/span>건 · 최근 확인 <span class="v">2026-11-03<\/span> · 열람 기록이 남습니다<\/p>/.test(f0));
+  assert.ok(/<p class="hc-meta">출처를 단 항목 <span class="v">8<\/span>건 · 최근 확인 <span class="v">2026-11-03<\/span> · 열람·내려받기 기록이 남습니다<\/p>/.test(f0));
   assert.ok(f0.indexOf('hc-log') < 0 && f0.indexOf('<span class="hc-foot-l"></span>') >= 0);        // 후보가 없어도 자리는 있다
   assert.ok(f0.indexOf('>워드 내려받기<') < f0.indexOf('>새로 고침<') && f0.indexOf('>새로 고침<') < f0.indexOf('>기관장 편집<'));
   assert.ok(f0.indexOf('>편집<') < 0);
   const cand = view({ candidates: [{ item_id: 20, field_cd: 'POSITION', value: '대행', source: SRC, created_by: '1', can_confirm: true, can_reject: true }] });
   const f1 = foot(cand);
   assert.ok(f1.indexOf('<span class="hc-foot-l"><button type="button" class="hc-cand" data-hc="edit">확정 대기 후보 1건 보기</button></span>') >= 0);
-  const open = foot(Object.assign({}, view(), { dl: { open: true, ref: '1', name: '', busy: false, fieldErr: '', err: '', ok: '' } }));
-  assert.ok(open.indexOf('class="hc-ref"') > open.indexOf('class="sp"'));                              // 펼침 줄은 꼬리 안, 단추 묶음 다음
+  const done = foot(Object.assign({}, view(), { dl: { busy: false, err: '', ok: '완료' } }));
+  assert.ok(done.indexOf('class="hc-ref"') > done.indexOf('class="sp"'));   // 완료·오류 줄은 꼬리 안, 단추 묶음 다음
 });
 
 test('srcHtml: 확인 날짜는 한 덩어리(hc-ck)', function () {
@@ -1256,22 +1268,15 @@ test('CSS 블록(디자인 진단 6-1~6-6): 머리 주석 최소 12px, 띠 --pan
   assert.ok(/\.hc-act button \{[^}]*font-size:12px; padding:5px 12px/.test(css));
 });
 
-test('워드: 번호 칸 키 처리는 document 캡처 단계 — 지도 팝업 Esc(팝업 닫기)보다 먼저 줄만 접는다(qa 11-20 P2-1)', function () {
+test('워드: headcard는 document 입력·키 처리기를 달지 않는다(번호 칸이 없어졌고 지도 팝업 Esc는 팝업이 처리)', function () {
   const p = require.resolve('../js/headcard.js');
   const saved = require.cache[p];
   const ls = [];
-  global.document = { addEventListener: function (type, fn, cap) { ls.push({ type: type, fn: fn, cap: cap }); } };
+  global.document = { addEventListener: function (type) { ls.push(type); } };
   try {
     delete require.cache[p];
-    const hc2 = require('../js/headcard.js');
-    const kd = ls.filter(function (l) { return l.type === 'keydown'; })[0];
-    assert.ok(kd && kd.cap === true);
-    const ev = function (key) { return { key: key, target: { hasAttribute: function (a) { return a === 'data-hc-ref'; } }, stopped: false, preventDefault: function () {}, stopPropagation: function () { this.stopped = true; } }; };
-    hc2.view().dl = { open: true, ref: '1', name: '', busy: false, fieldErr: '', err: 'x', ok: '' };
-    const esc = ev('Escape'); kd.fn(esc);
-    assert.ok(esc.stopped && hc2.view().dl.open === false && hc2.view().dl.err === '');
-    const other = ev('a'); kd.fn(other);
-    assert.strictEqual(other.stopped, false);
+    require('../js/headcard.js');
+    assert.deepStrictEqual(ls, []);
   } finally { delete global.document; require.cache[p] = saved; }
 });
 

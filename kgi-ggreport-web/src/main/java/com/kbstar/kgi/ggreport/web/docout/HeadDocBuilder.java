@@ -20,23 +20,51 @@ import java.util.Set;
 
 /**
  * 기관장 정보 상세({@code InstitutionHeadService.detail} 결과) → 문서 모델(NEXT 100 S1).
- * 사용자 참고 양식(11-20): 쪽 테두리, 가운데·굵게·밑줄 제목 「{기관명} {이름} {직위} Profile」, 왼쪽 사진·오른쪽 ■ 줄(테두리 없는 표),
- * [ 학 력 ]·[ 경 력 ](기간 YYYY.MM). 확정된 칸만 쓴다. 참고자료 번호(ref_no)는 형식만 검사하고 문서에는 쓰지 않는다.
- * <b>출처·이용 조건은 문서에 쓰지 않는다</b>(사용자 11-23: 웹 화면에서만 표기) — 위첨자 번호·출처 목록·사진 캡션 없음.
- * 학력·경력은 카드처럼 최근 것부터, 기간을 앞에 쓴다(사용자 11-20).
- * 사진은 이용 조건이 PHOTO_LICENSE 에 있을 때만, 78×81.8mm 상자 안에 비율을 지켜 맞춰 넣는다(사용자 11-23 — 참고 샘플 7.8×8.18cm). 사진이 없으면 표 없이 정보 줄만 쓴다.
- * 나이는 '만 n세'만 쓴다 — 생년월일 날짜는 어디에도 넣지 않는다(사용자 11-20).
+ * 사용자 참고 양식(11-20): 쪽 테두리, 가운데·굵게·밑줄 제목 「{기관명} {이름} {직위} Profile」(22pt), 왼쪽 사진·오른쪽 ■ 줄(14pt, 테두리 없는 표),
+ * [ 학 력 ]·[ 경 력 ](16pt 굵게). 학력·경력은 둘 다 테두리 없는 2열 표(기간 28% | 내용 72%, 12pt, 기간 'YYYY.MM ~ YYYY.MM')로 열을 맞춘다.
+ * 글자 크기는 줄이지 않는다(사용자 11-23). 확정된 칸만 쓰고, 값이 없는 절은 머리째 생략한다.
+ * <b>출처·이용 조건·기준일·안내 문구는 문서에 쓰지 않는다</b>(사용자 11-23: 웹 화면에서만). 사진을 못 넣은 사정은 문서가 아니라
+ * 응답 머리 X-Head-Photo(included|none|failed)로 알린다 — {@link Built#photoStatus()}.
+ * 기준일(baseDate)은 나이 계산에만 쓴다. 나이는 '만 n세'만 쓴다 — 생년월일 날짜는 어디에도 넣지 않는다(사용자 11-20).
  * 후보 값·사번(created_by)·이전 기관장은 넣지 않는다.
+ * <p>사진은 1장 맞춤을 위해 4단계 상자(S0 78×81.8 … S3 88×92.3mm, 비율 78:81.8) 중 들어가는 가장 큰 것을 고른다({@link #chooseStage}).
+ * 어느 단계도 안 들어가면 S0 그대로 두고 2쪽으로 넘어가게 둔다(글자 줄이기·경력 생략 없음 — 사용자 11-23: 정말 넘칠 때만 1장 규칙 예외).
  */
 public final class HeadDocBuilder {
 
-    /** KOGL1(공공누리 제1유형)은 출처 표시가 이용 조건이다. 문서에서 출처를 뺐으므로 기본은 넣지 않는다 — 사용자 결정 전까지 false(11-23). */
-    private static final boolean WORD_PHOTO_KOGL1 = false;
+    /**
+     * KOGL1(공공누리 제1유형)은 원래 출처 표시가 이용 조건이다. 문서에서 출처를 뺐지만 사용자가 11-23 'ⓒ 출처 없이 넣기'로 결정했다
+     * — 출처 표시 의무 위반 위험은 사용자가 수용(결정 기록). 되돌리려면 false.
+     */
+    private static final boolean WORD_PHOTO_KOGL1 = true;
 
     /** 문서에 사진을 넣어도 되는 이용 조건 코드. 그 밖(KOGL2~4·PRESS_PERMIT·LOCAL_ONLY·모르는 코드)은 넣지 않는다. */
     private static final Set<String> PHOTO_LICENSE = new HashSet<String>();
-    private static final double PHOTO_W_MM = 78;
-    private static final double PHOTO_H_MM = 81.8;
+
+    /** 응답 머리 X-Head-Photo 값. none=사진 없음·허용 밖, failed=허용 조건인데 못 읽음. */
+    public static final String PHOTO_INCLUDED = "included";
+    public static final String PHOTO_NONE = "none";
+    public static final String PHOTO_FAILED = "failed";
+
+    // 사진 상자 단계(가로×세로 mm, 비율 78:81.8 유지)
+    static final double[] STAGE_W_MM = {78, 82, 85, 88};
+    static final double[] STAGE_H_MM = {81.8, 86.0, 89.1, 92.3};
+
+    // 1장 맞춤 추정(본문 170×257mm, 목표 예산 247mm). 맑은 고딕 행간 ≈ 1.33×글자.
+    static final double BODY_W_MM = 170;
+    static final double BUDGET_MM = 247;
+    private static final double TITLE_MM = 23;
+    private static final double TITLE_EXTRA_MM = 10.3;   // 22pt 제목이 두 줄이 되면 줄마다(qa 11-23 P2-1)
+    private static final double TITLE_CAP = 21;          // 170mm ÷ 22pt 한글 1자 ≈ 7.8mm
+    private static final double INFO_LINE_MM = 9.5;      // 14pt 줄 + 뒤 8pt
+    private static final double INFO_EXTRA_MM = 6.6;     // 줄바꿈 추가마다
+    private static final double SECTION_MM = 13;         // 절 머리(16pt, 앞 12 뒤 4)
+    private static final double AFTER_TABLE_MM = 1;      // 표 뒤 빈 문단
+    private static final double ROW_MM = 7.8;            // 표 1행 12pt
+    private static final double ROW_EXTRA_MM = 5.6;      // 내용 칸 줄바꿈 추가마다
+    private static final double CONTENT_CAP = 28;        // 내용 열 한 줄 가중 글자수
+    private static final double CHAR_MM = 4.94;          // 14pt 한글 1자 폭
+    private static final double INFO_PAD_MM = 3.5 + 4.9; // 칸 여백 3.5 + 14pt 내어쓰기 4.9
 
     static {
         PHOTO_LICENSE.add("INST_PERMIT");
@@ -46,6 +74,26 @@ public final class HeadDocBuilder {
     }
 
     private HeadDocBuilder() {
+    }
+
+    /** 문서 모델 + 사진 상태. */
+    public static final class Built {
+        private final DocModel model;
+        private final String photoStatus;
+
+        Built(DocModel model, String photoStatus) {
+            this.model = model;
+            this.photoStatus = photoStatus;
+        }
+
+        public DocModel model() {
+            return model;
+        }
+
+        /** included | none | failed */
+        public String photoStatus() {
+            return photoStatus;
+        }
     }
 
     /**
@@ -97,16 +145,16 @@ public final class HeadDocBuilder {
         }
     }
 
-    /** 사진 없이 만든다(기존 호출·시험 호환). */
-    public static DocModel build(Map<String, Object> detail, String instName, int refNo, String baseDate) {
-        return build(detail, instName, refNo, baseDate, null);
+    /** 문서 모델만 필요할 때(시험 호환). 사진 상태는 {@link #buildDoc} 로 본다. */
+    public static DocModel build(Map<String, Object> detail, String instName, String baseDate, byte[] photoJpeg) {
+        return buildDoc(detail, instName, baseDate, photoJpeg).model();
     }
 
     /**
-     * @param baseDate  기준일 yyyy-MM-dd(문서를 만든 날, 서울 기준) — 나이 계산도 이 날 기준
-     * @param photoJpeg 서버에 저장된 재인코딩 JPEG 본문. null 이거나 못 읽는 그림이면 사진 없이 만든다.
+     * @param baseDate  기준일 yyyy-MM-dd(문서를 만든 날, 서울 기준) — 나이 계산에만 쓴다(문서에 적지 않는다)
+     * @param photoJpeg 서버에 저장된 재인코딩 JPEG 본문. null 이거나 못 읽는 그림이면 사진 없이 만든다(상태 failed).
      */
-    public static DocModel build(Map<String, Object> detail, String instName, int refNo, String baseDate, byte[] photoJpeg) {
+    public static Built buildDoc(Map<String, Object> detail, String instName, String baseDate, byte[] photoJpeg) {
         Map<String, Object> head = map(detail.get("head"));
         List<Map<String, Object>> edu = sortPeriod(listOf(head.get("education")));      // 카드(hc sortPeriod)와 같은 순서
         List<Map<String, Object>> career = sortPeriod(listOf(head.get("career")));
@@ -120,18 +168,13 @@ public final class HeadDocBuilder {
         String birth = str(head.get("birth_date"));
         Integer age = name.isEmpty() && pos.isEmpty() ? null : ageOn(birth, nz(baseDate));   // 카드와 같다 — 이름·직위가 모두 없으면 나이도 뺀다(qa 11-20 P3-1)
 
-        Photo photo = planPhoto(head, photoJpeg);
-
-        List<DocModel.Block> blocks = new ArrayList<DocModel.Block>();
-        blocks.add(titlePara(instName, name, pos));
-
-        // 줄 모음(■): 성명 → 나이 → 직위+임기(줄바꿈으로 이어 붙임) → 첫 취임일
-        List<DocModel.Block> lines = new ArrayList<DocModel.Block>();
+        // 정보 줄 글자(■ 는 렌더러가 붙인다): 성명 → 나이 → 직위+임기(줄바꿈으로 이어 붙임) → 첫 취임일
+        List<String> infoTexts = new ArrayList<String>();
         if (!name.isEmpty()) {
-            lines.add(square("성 명 : " + name));
+            infoTexts.add("성 명 : " + name);
         }
         if (age != null) {
-            lines.add(square("만 " + age + "세"));
+            infoTexts.add("만 " + age + "세");
         }
         StringBuilder posText = new StringBuilder();
         if (!pos.isEmpty() || acting) {
@@ -141,47 +184,156 @@ public final class HeadDocBuilder {
             posText.append(termText(start, end, posText.length() == 0 ? "" : "\n"));   // 글머리 아래 줄에 임기 '(시작 ~ 끝)'
         }
         if (posText.length() > 0) {
-            lines.add(square(posText.toString()));
+            infoTexts.add(posText.toString());
         }
         if (!first.isEmpty()) {
-            lines.add(square("첫 취임일 : " + ymd(first)));
-        }
-        if (lines.isEmpty()) {
-            lines.add(DocModel.Para.plain("확정된 값이 없습니다."));
+            infoTexts.add("첫 취임일 : " + ymd(first));
         }
 
-        if (photo != null && photo.picture != null) {   // 왼쪽 사진 + 오른쪽 줄 — 테두리 없는 2칸 표(50:50 = 각 85mm, 사진 상자 78mm 가 들어간다)
-            List<List<DocModel.Cell>> row = new ArrayList<List<DocModel.Cell>>();
-            row.add(Arrays.asList(
-                    DocModel.Cell.of(Collections.<DocModel.Block>singletonList(photo.picture)),
-                    DocModel.Cell.of(lines)));
-            blocks.add(new DocModel.Table(2, new double[]{50, 50}, row, 0, true).withoutBorders());
-        } else {
-            if (photo != null) {   // 허용 조건 사진을 못 읽었을 때만 안내 한 줄(이용 조건 언급 없음)
-                blocks.add(small(photo.notice));
+        List<String> eduContents = new ArrayList<String>();
+        for (Map<String, Object> it : edu) {
+            eduContents.add(str(it.get("value")));
+        }
+        List<String> careerContents = new ArrayList<String>();
+        for (Map<String, Object> it : career) {
+            careerContents.add(str(it.get("value")));
+        }
+
+        Photo photo = planPhoto(head, photoJpeg);
+        boolean hasPhoto = photo != null && !photo.failed;
+        DocModel.Para title = titlePara(instName, name, pos);
+        int stage = hasPhoto ? chooseStage(titleText(instName, name, pos), infoTexts, true, eduContents, careerContents) : 0;
+
+        List<DocModel.Block> blocks = new ArrayList<DocModel.Block>();
+        blocks.add(title);
+
+        List<DocModel.Block> lines = new ArrayList<DocModel.Block>();
+        for (String t : infoTexts) {
+            lines.add(square(t));
+        }
+
+        String status = PHOTO_NONE;
+        if (hasPhoto) {
+            double scale = Math.min(STAGE_W_MM[stage] / photo.w, STAGE_H_MM[stage] / photo.h);   // 단계 상자 안에 비율을 지켜 맞춘다(찌그러뜨리지 않는다)
+            DocModel.Picture pic = null;
+            try {
+                pic = DocModel.Picture.jpeg(photo.jpeg, photo.w * scale, photo.h * scale, "기관장 사진");
+            } catch (IllegalArgumentException e) {
+                pic = null;   // planPhoto 가 크기·바이트를 미리 거르므로 거의 없다
             }
+            if (pic != null) {
+                if (lines.isEmpty()) {
+                    lines.add(DocModel.Para.plain(""));   // 정보 줄 0개면 빈칸(표 칸에는 문단이 하나 필요)
+                }
+                double pct = (STAGE_W_MM[stage] + 8) / BODY_W_MM * 100;   // 사진칸 % = (폭+8)/170×100
+                List<List<DocModel.Cell>> row = new ArrayList<List<DocModel.Cell>>();
+                row.add(Arrays.asList(
+                        DocModel.Cell.of(Collections.<DocModel.Block>singletonList(pic)),
+                        DocModel.Cell.of(lines)));
+                blocks.add(new DocModel.Table(2, new double[]{pct, 100 - pct}, row, 0, true).withoutBorders());
+                status = PHOTO_INCLUDED;
+            } else {
+                blocks.addAll(lines);
+                status = PHOTO_FAILED;
+            }
+        } else {
             blocks.addAll(lines);   // 사진이 없으면 표 없이 정보만
+            if (photo != null) {
+                status = PHOTO_FAILED;   // 허용 조건인데 못 읽음
+            }
         }
 
-        blocks.add(sectionPara("[ 학 력 ]"));
-        blocks.addAll(eduList(edu));
-        blocks.add(sectionPara("[ 경 력 ]"));
-        blocks.addAll(careerBlocks(career));
+        if (!edu.isEmpty()) {
+            blocks.add(sectionPara("[ 학 력 ]"));
+            blocks.add(periodTable(edu));
+        }
+        if (!career.isEmpty()) {
+            blocks.add(sectionPara("[ 경 력 ]"));
+            blocks.add(periodTable(career));
+        }
+        return new Built(new DocModel(blocks).withPageBorder(), status);
+    }
 
-        blocks.add(new DocModel.Para(Collections.singletonList(DocModel.Run.of("확정된 값만 담았습니다. 기준일 " + nz(baseDate))),
-                DocModel.Bullet.NONE, 0, 8, DocModel.Align.LEFT).withSpacing(14, 0));
-        return new DocModel(blocks).withPageBorder();
+    // ── 1장 맞춤 단계 선택(추정) ──────────────────────────────────────────
+
+    /**
+     * 들어가는 가장 큰 사진 단계(0~3). 어느 단계도 예산({@value #BUDGET_MM}mm)에 안 들어가면 0 — 2쪽으로 넘어가게 둔다.
+     * 추정치이며 Word 가 실제로 그리는 쪽 수와 다를 수 있다.
+     */
+    static int chooseStage(List<String> infoTexts, boolean hasPhoto, List<String> eduContents, List<String> careerContents) {
+        return chooseStage("", infoTexts, hasPhoto, eduContents, careerContents);
+    }
+
+    /** title 은 문서 제목 글자 — 22pt 한 줄(약 21자)을 넘으면 줄 수만큼 높이를 더한다. */
+    static int chooseStage(String title, List<String> infoTexts, boolean hasPhoto, List<String> eduContents, List<String> careerContents) {
+        for (int s = STAGE_W_MM.length - 1; s >= 1; s--) {
+            if (estimateMm(title, s, infoTexts, hasPhoto, eduContents, careerContents) <= BUDGET_MM) {
+                return s;
+            }
+        }
+        return 0;
+    }
+
+    static double estimateMm(int stage, List<String> infoTexts, boolean hasPhoto, List<String> eduContents, List<String> careerContents) {
+        return estimateMm("", stage, infoTexts, hasPhoto, eduContents, careerContents);
+    }
+
+    /** 단계 s 일 때 문서 높이 추정(mm). hasPhoto=false 면 정보 줄만(전체 폭). */
+    static double estimateMm(String title, int stage, List<String> infoTexts, boolean hasPhoto, List<String> eduContents, List<String> careerContents) {
+        double infoMm = hasPhoto ? BODY_W_MM - (STAGE_W_MM[stage] + 8) : BODY_W_MM;
+        double cap = (infoMm - INFO_PAD_MM) / CHAR_MM;
+        double info = 0;
+        for (String t : infoTexts) {
+            info += INFO_LINE_MM + INFO_EXTRA_MM * (wrapLines(t, cap) - 1);
+        }
+        double h = TITLE_MM + TITLE_EXTRA_MM * (wrapLines(title, TITLE_CAP) - 1);
+        h += hasPhoto ? Math.max(STAGE_H_MM[stage], info) + 1 : info;
+        h += sectionMm(eduContents) + sectionMm(careerContents);
+        return h;
+    }
+
+    private static double sectionMm(List<String> contents) {
+        if (contents.isEmpty()) {
+            return 0;   // 0건이면 절 머리째 생략
+        }
+        double h = SECTION_MM + AFTER_TABLE_MM;
+        for (String c : contents) {
+            h += ROW_MM + ROW_EXTRA_MM * (wrapLines(c, CONTENT_CAP) - 1);
+        }
+        return h;
+    }
+
+    /** 줄 수(최소 1). '\n' 은 줄 나눔, 한글 등 넓은 글자 1·ASCII(영숫자·공백·기호) 0.5 가중으로 cap 을 넘으면 줄을 바꾼다. */
+    static int wrapLines(String text, double cap) {
+        int total = 0;
+        for (String seg : nz(text).split("\n", -1)) {
+            int lines = 1;
+            double cur = 0;
+            for (int i = 0; i < seg.length(); i++) {
+                double w = seg.charAt(i) < 0x80 ? 0.5 : 1.0;
+                if (cur + w > cap) {
+                    lines++;
+                    cur = w;
+                } else {
+                    cur += w;
+                }
+            }
+            total += lines;
+        }
+        return total;
     }
 
     // ── 사진 ────────────────────────────────────────────────────────────
 
     private static final class Photo {
-        DocModel.Picture picture;   // null 이면 notice 를 쓴다
-        String notice;
+        byte[] jpeg;
+        int w;
+        int h;
+        boolean failed;
     }
 
     /**
-     * head.photo 가 없거나 이용 조건이 허용 밖이면 null(아무것도 쓰지 않는다). 허용 조건이면 그림, 못 읽으면 안내 한 줄.
+     * head.photo 가 없거나 이용 조건이 허용 밖이면 null(상태 none). 허용 조건이면 Photo — 못 읽으면 failed=true.
      * 파일 읽기 실패·깨진 그림도 막지 않는다.
      */
     private static Photo planPhoto(Map<String, Object> head, byte[] jpeg) {
@@ -190,17 +342,14 @@ public final class HeadDocBuilder {
             return null;
         }
         Photo out = new Photo();
-        int[] wh = jpegSize(jpeg);
+        int[] wh = jpeg == null || jpeg.length > DocModel.Picture.MAX_BYTES ? null : jpegSize(jpeg);
         if (wh == null) {
-            out.notice = "사진을 불러오지 못해 넣지 않았습니다.";
+            out.failed = true;
             return out;
         }
-        double scale = Math.min(PHOTO_W_MM / wh[0], PHOTO_H_MM / wh[1]);   // 78×81.8mm 상자 안에 비율을 지켜 맞춘다(찌그러뜨리지 않는다)
-        try {
-            out.picture = DocModel.Picture.jpeg(jpeg, wh[0] * scale, wh[1] * scale, "기관장 사진");
-        } catch (IllegalArgumentException e) {
-            out.notice = "사진을 불러오지 못해 넣지 않았습니다.";
-        }
+        out.jpeg = jpeg;
+        out.w = wh[0];
+        out.h = wh[1];
         return out;
     }
 
@@ -230,31 +379,37 @@ public final class HeadDocBuilder {
 
     // ── 문단 ────────────────────────────────────────────────────────────
 
-    private static DocModel.Para small(String text) {
-        return new DocModel.Para(Collections.singletonList(DocModel.Run.of(text)), DocModel.Bullet.NONE, 0, 8, DocModel.Align.LEFT);
-    }
-
-    /** '{기관명} {이름} {직위} Profile' — 가운데·굵게·밑줄(참고 양식, 사용자 11-20). 빈 값은 건너뛴다. */
-    private static DocModel.Para titlePara(String inst, String name, String pos) {
+    /** '{기관명} {이름} {직위} Profile' — 22pt 가운데·굵게·밑줄(참고 양식, 사용자 11-20·11-23). 빈 값은 건너뛴다. */
+    private static String titleText(String inst, String name, String pos) {
         StringBuilder b = new StringBuilder();
         for (String s : new String[]{nz(inst).trim(), name, pos}) {
             if (!s.isEmpty()) {
                 b.append(b.length() == 0 ? "" : " ").append(s);
             }
         }
-        b.append(b.length() == 0 ? "" : " ").append("Profile");
-        return new DocModel.Para(Collections.singletonList(DocModel.Run.bold(b.toString()).withUnderline()),
-                DocModel.Bullet.NONE, 0, 18, DocModel.Align.CENTER).withSpacing(18, 18);
+        return b.append(b.length() == 0 ? "" : " ").append("Profile").toString();
     }
 
+    private static DocModel.Para titlePara(String inst, String name, String pos) {
+        return new DocModel.Para(Collections.singletonList(DocModel.Run.bold(titleText(inst, name, pos)).withUnderline()),
+                DocModel.Bullet.NONE, 0, 22, DocModel.Align.CENTER).withSpacing(18, 18);
+    }
+
+    /** 절 제목 16pt 굵게. */
     private static DocModel.Para sectionPara(String text) {
-        return new DocModel.Para(Collections.singletonList(DocModel.Run.bold(text)), DocModel.Bullet.NONE, 0, 12,
+        return new DocModel.Para(Collections.singletonList(DocModel.Run.bold(text)), DocModel.Bullet.NONE, 0, 16,
                 DocModel.Align.LEFT).withSpacing(12, 4);
     }
 
+    /** 사진 옆 정보 줄 14pt ■. */
     private static DocModel.Para square(String text) {
         return new DocModel.Para(Collections.singletonList(DocModel.Run.of(text)), DocModel.Bullet.SQUARE, 0,
-                DocModel.Para.DEFAULT_PT, DocModel.Align.LEFT).withSpacing(0, 8);
+                14, DocModel.Align.LEFT).withSpacing(0, 8);
+    }
+
+    /** 표 안 문단 12pt(기간·내용 모두). */
+    private static DocModel.Para cellPara(DocModel.Bullet bullet, String text) {
+        return new DocModel.Para(Collections.singletonList(DocModel.Run.of(text)), bullet, 0, 12, DocModel.Align.LEFT);
     }
 
     /** 임기 '(2023.12 ~ 2027.12)'. lead 는 앞에 붙일 줄바꿈. */
@@ -265,56 +420,31 @@ public final class HeadDocBuilder {
         return lead + "(~ " + ym(end) + ")";
     }
 
-    /** 학력: ■ 내용 (YYYY.MM~YYYY.MM) — 최근 것부터(sortPeriod 가 이미 정렬). */
-    private static List<DocModel.Block> eduList(List<Map<String, Object>> items) {
-        List<DocModel.Block> out = new ArrayList<DocModel.Block>();
-        for (Map<String, Object> it : items) {
-            String p = periodOf(it, false);
-            String text = str(it.get("value")) + (p.isEmpty() ? "" : " (" + p + ")");
-            out.add(DocModel.Para.of(DocModel.Bullet.SQUARE, 1, DocModel.Run.of(text)));
-        }
-        if (out.isEmpty()) {
-            out.add(DocModel.Para.plain("확정된 값이 없습니다."));
-        }
-        return out;
-    }
-
-    /** 경력: 테두리 없는 2열 표(기간 | 내용)로 기간 열을 맞춘다. 기간이 없는 항목은 두 칸을 합쳐 값만. */
-    private static List<DocModel.Block> careerBlocks(List<Map<String, Object>> items) {
-        List<DocModel.Block> out = new ArrayList<DocModel.Block>();
-        if (items.isEmpty()) {
-            out.add(DocModel.Para.plain("확정된 값이 없습니다."));
-            return out;
-        }
+    /**
+     * 학력·경력 공용: 테두리 없는 2열 표(기간 28 | 내용 72, 기간 47.6mm | 내용 122.4mm). 기간 칸 ■, 내용 칸 글머리 없음.
+     * 기간이 없는 항목도 칸을 합치지 않는다 — 기간 칸은 '■'만, 내용은 오른쪽 열. 최근 것부터(sortPeriod 가 이미 정렬).
+     */
+    private static DocModel.Table periodTable(List<Map<String, Object>> items) {
         List<List<DocModel.Cell>> rows = new ArrayList<List<DocModel.Cell>>();
         for (Map<String, Object> it : items) {
-            String p = periodOf(it, true);
-            DocModel.Run val = DocModel.Run.of(str(it.get("value")));
-            if (p.isEmpty()) {
-                rows.add(Collections.singletonList(DocModel.Cell.of(Collections.<DocModel.Block>singletonList(
-                        DocModel.Para.of(DocModel.Bullet.SQUARE, 0, val))).withSpan(2, 1)));
-            } else {
-                rows.add(Arrays.asList(
-                        DocModel.Cell.of(Collections.<DocModel.Block>singletonList(DocModel.Para.of(DocModel.Bullet.SQUARE, 0, DocModel.Run.of(p)))),
-                        DocModel.Cell.of(Collections.<DocModel.Block>singletonList(DocModel.Para.of(DocModel.Bullet.NONE, 0, val)))));
-            }
+            rows.add(Arrays.asList(
+                    DocModel.Cell.of(Collections.<DocModel.Block>singletonList(cellPara(DocModel.Bullet.SQUARE, periodOf(it)))),
+                    DocModel.Cell.of(Collections.<DocModel.Block>singletonList(cellPara(DocModel.Bullet.NONE, str(it.get("value")))))));
         }
-        out.add(new DocModel.Table(2, new double[]{34, 66}, rows, 0, true).withoutBorders());
-        return out;
+        return new DocModel.Table(2, new double[]{28, 72}, rows, 0, true).withoutBorders();
     }
 
-    /** 기간: spaced 면 'A ~ B'(경력), 아니면 'A~B'(학력). 시작만이면 '~현재', 끝만이면 '~B', 둘 다 없으면 "". 저장값 'YYYY-MM' 을 'YYYY.MM' 으로, 연도만 값은 그대로. */
-    private static String periodOf(Map<String, Object> i, boolean spaced) {
+    /** 기간 'A ~ B'. 시작만이면 'A ~ 현재', 끝만이면 '~ B', 둘 다 없으면 "". 저장값 'YYYY-MM' 을 'YYYY.MM' 으로, 연도만 값은 그대로. */
+    private static String periodOf(Map<String, Object> i) {
         String from = ym(str(i.get("from")).trim());
         String to = ym(str(i.get("to")).trim());
-        String tilde = spaced ? " ~ " : "~";
         if (!from.isEmpty() && !to.isEmpty()) {
-            return from + tilde + to;
+            return from + " ~ " + to;
         }
         if (!from.isEmpty()) {
-            return from + tilde + "현재";
+            return from + " ~ 현재";
         }
-        return to.isEmpty() ? "" : (spaced ? "~ " : "~") + to;
+        return to.isEmpty() ? "" : "~ " + to;
     }
 
     /** 'YYYY-MM' 또는 'YYYY-MM-DD' → 'YYYY.MM'. 그 밖(연도만 등)은 그대로. 표시할 때만 바꾼다. */
