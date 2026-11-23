@@ -16,6 +16,8 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -25,8 +27,8 @@ import static org.junit.Assert.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 /**
- * 기관장 Word(사용자 11-20 요청) — 같은 출처 한 번만(번호 표식), 사진(이용 조건 허용 코드만·실패해도 200), 나이 '만 n세',
- * 학력·경력 최근 것부터·기간 앞, 각주 번호 띠 → 나이 → 날짜 → 학력 → 경력.
+ * 기관장 Word(사용자 11-20 요청·11-23 수정) — 문서에는 출처·번호·이용 조건 글자가 없다(웹 화면에서만 표기). 사진은 INST_PERMIT 만 넣고(KOGL1·그 밖은 조용히 뺌, 실패해도 200),
+ * 나이 '만 n세', 학력·경력 최근 것부터·기간 앞.
  */
 @RunWith(SpringRunner.class)
 @AppTest
@@ -85,8 +87,28 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
                 + "\"from\":\"" + from + "\"" + (to == null ? "" : ",\"to\":\"" + to + "\"") + ",\"source\":" + source() + "}";
     }
 
+    private static final String[] FORBIDDEN = {"출처", "「", "확인일", "이용 조건", "공공누리", "w:val=\"superscript\"", "vertAlign"};
+
+    /** 문서에는 출처·번호·이용 조건 글자가 없다(사용자 11-23: 웹 화면에서만 표기). */
+    private static void assertNoSourceText(String xml) {
+        for (String s : FORBIDDEN) {
+            assertFalse(s, xml.contains(s));
+        }
+        assertFalse("시험 출처 문서", xml.contains("시험 출처 문서"));
+    }
+
+    private void useLicense(long photo, String lic) {
+        jdbc.update("UPDATE INST_HEAD_PHOTO SET LICENSE_CD=? WHERE PHOTO_ID=?", lic, photo);
+    }
+
+    private static int[] extent(String xml) {
+        Matcher m = Pattern.compile("extent cx=\"(\\d+)\" cy=\"(\\d+)\"").matcher(xml);
+        assertTrue(xml, m.find());
+        return new int[]{Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2))};
+    }
+
     @Test
-    public void 같은_출처는_출처_절에_한_번만_나오고_다른_출처는_따로_나온다() throws Exception {
+    public void 문서에는_출처_번호가_없다_같은_출처든_다른_출처든() throws Exception {
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
         addItemOk(INST, L1, itemDate(head, "TERM_END", "2030-06-30"), 201);
         addItemOk(INST, L1, itemDate(head, "FIRST_TAKE_OFFICE", "2018-07-01"), 201);
@@ -97,32 +119,48 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         MvcResult r = docx();
         assertEquals(text(r), 200, r.getResponse().getStatus());
         String xml = documentXml(bytes(r));
-        assertEquals("같은 출처(시험 출처 문서)는 한 번", 1, occurrences(xml, "「시험 출처 문서」"));
-        assertEquals("다른 출처는 따로 한 번", 1, occurrences(xml, "「다른 출처ZZ」"));
-        assertTrue("번호 목록", xml.contains("1. 기관 누리집 「") && xml.contains("2. 기관 누리집 「"));
-        assertFalse("칸 라벨이 붙은 출처 줄은 없다", xml.contains("학력: ") || xml.contains("경력: "));
-        assertTrue("본문 값 옆은 위첨자 표식", xml.contains("w:val=\"superscript\""));
+        assertNoSourceText(xml);
+        assertFalse("다른 출처 제목도 없다", xml.contains("다른 출처ZZ"));
+        assertFalse("칸 라벨이 붙은 줄은 없다", xml.contains("학력: ") || xml.contains("경력: "));
+        assertTrue(xml.contains("행정학석사") && xml.contains("부구청장"));
     }
 
     @Test
-    public void KOGL1_사진은_그림_1개와_이용_조건_캡션이_있고_출처는_한_번만() throws Exception {
+    public void INST_PERMIT_사진은_그림_1개가_상자_안에_있고_캡션과_출처가_없다() throws Exception {
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
-        photoOk(INST, L1, head);   // KOGL1, src_title "시험 출처 문서" — 칸 출처와 같다
+        useLicense(photoOk(INST, L1, head), "INST_PERMIT");
         MvcResult r = docx();
         assertEquals(text(r), 200, r.getResponse().getStatus());
         byte[] b = bytes(r);
         String xml = documentXml(b);
         assertEquals(1, pictures(b));
-        assertTrue(xml.contains("사진 이용 조건: 공공누리 제1유형(출처표시)"));
-        assertEquals("사진 출처도 같은 출처면 한 번", 1, occurrences(xml, "「시험 출처 문서」"));
+        assertNoSourceText(xml);
         assertFalse("사진 파일명은 본문에 없다", xml.contains("face.jpg"));
+        int[] e = extent(xml);   // 300×400 그림 — 78×81.8mm 상자 안
+        assertTrue(e[0] <= 78 * 36000 && e[1] <= 2944800 + 36);
+        assertTrue("한 변은 상자에 맞는다", Math.abs(e[0] - 78 * 36000) <= 36 || Math.abs(e[1] - 2944800) <= 36);
         assertEquals("감사 기존 한 줄", 1, act("HEAD_DOCX", "OK"));
+    }
+
+    @Test
+    public void KOGL1_사진은_기본값에서_그림이_없고_안내도_없다() throws Exception {
+        long head = addHeadOk(INST, L1, "홍길동", "구청장");
+        photoOk(INST, L1, head);   // KOGL1 그대로 — 출처 표시 조건이라 Word 에 넣지 않는다(11-23 기본값)
+        MvcResult r = docx();
+        assertEquals(text(r), 200, r.getResponse().getStatus());
+        byte[] b = bytes(r);
+        assertEquals(0, pictures(b));
+        String xml = documentXml(b);
+        assertNoSourceText(xml);
+        assertFalse(xml.contains("넣지 않았"));
+        assertEquals(1, act("HEAD_DOCX", "OK"));
     }
 
     @Test
     public void 사진_파일이_없으면_200이고_그림은_0개다() throws Exception {
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
         long photo = photoOk(INST, L1, head);
+        useLicense(photo, "INST_PERMIT");   // 허용 조건이어야 파일을 읽는다
         String key = jdbc.queryForObject("SELECT STORE_KEY FROM INST_HEAD_PHOTO WHERE PHOTO_ID=?", String.class, photo);
         Files.delete(Paths.get(settings.getPhotoDir()).toAbsolutePath().normalize().resolve(key));
 
@@ -136,24 +174,24 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
 
     private void licenseNotAllowed(String lic) throws Exception {
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
-        long photo = photoOk(INST, L1, head);
-        jdbc.update("UPDATE INST_HEAD_PHOTO SET LICENSE_CD=? WHERE PHOTO_ID=?", lic, photo);
+        useLicense(photoOk(INST, L1, head), lic);
         MvcResult r = docx();
         assertEquals(lic + text(r), 200, r.getResponse().getStatus());
         byte[] b = bytes(r);
         assertEquals(lic, 0, pictures(b));
         String xml = documentXml(b);
-        assertTrue(lic, xml.contains("사진은 이용 조건상 이 문서에 넣지 않았습니다."));
+        assertFalse(lic, xml.contains("넣지 않았") || xml.contains("이용 조건"));
         assertFalse("코드는 본문에 없다", xml.contains(lic));
+        assertEquals(lic, 1, act("HEAD_DOCX", "OK"));
     }
 
     @Test
-    public void 이용_조건을_모르면_그림이_없고_안내_한_줄이다() throws Exception {
+    public void 이용_조건을_모르면_그림도_글자도_없다() throws Exception {
         licenseNotAllowed("LOCAL_ONLY");
     }
 
     @Test
-    public void 이용_조건이_허용_밖이면_그림이_없고_안내_한_줄이다() throws Exception {
+    public void 이용_조건이_허용_밖이면_그림도_글자도_없다() throws Exception {
         licenseNotAllowed("KOGL2");
     }
 
@@ -170,7 +208,7 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         assertFalse("YYYY년생 표기 없음", xml.contains("년생"));
         assertFalse(xml.contains(BIRTH));
         assertFalse(xml.contains("생년월일"));
-        assertEquals("나이 출처도 같은 출처라 목록에 한 번", 1, occurrences(xml, "「시험 출처 문서」"));
+        assertNoSourceText(xml);
     }
 
     @Test
@@ -196,7 +234,7 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
     }
 
     @Test
-    public void 각주_번호는_띠_나이_날짜_학력_경력_순이다() throws Exception {
+    public void 출처_제목과_번호가_문서에_없다() throws Exception {
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
         addItemOk(INST, L1, "{\"head_id\":" + head + ",\"field_cd\":\"TERM_END\",\"date\":\"2030-06-30\",\"source\":" + sourceOf("만료출처1") + "}", 201);
         addItemOk(INST, L1, "{\"head_id\":" + head + ",\"field_cd\":\"BIRTH_DATE\",\"date\":\"" + BIRTH + "\",\"source\":" + sourceOf("나이출처2") + "}", 201);
@@ -207,14 +245,11 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         MvcResult r = docx();
         assertEquals(text(r), 200, r.getResponse().getStatus());
         String xml = documentXml(bytes(r));
-        String[] titles = {"만료출처1", null, "날짜출처3", "학력출처4", "경력출처5"};
-        for (int i = 0; i < titles.length; i++) {
-            if (titles[i] != null) {
-                assertTrue(titles[i] + " → 번호 " + (i + 1), xml.contains((i + 1) + ". 기관 누리집 「" + titles[i] + "」"));
-            }
+        assertNoSourceText(xml);
+        for (String t : new String[]{"만료출처1", "나이출처2", "날짜출처3", "학력출처4", "경력출처5"}) {
+            assertFalse(t, xml.contains(t));
         }
-        assertTrue("2번은 나이 출처 — 종류·확인일만", xml.contains("2. 기관 누리집, 확인일 "));
-        assertFalse("나이 출처 제목은 문서에 없다(security 11-20 S1)", xml.contains("나이출처2"));
+        assertTrue("값은 그대로", xml.contains("학력X") && xml.contains("경력Y") && xml.contains("첫 취임일 : 2018.07.01"));
     }
 
     @Test

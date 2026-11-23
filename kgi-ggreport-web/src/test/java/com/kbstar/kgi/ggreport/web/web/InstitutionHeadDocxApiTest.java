@@ -70,7 +70,8 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
         addItemOk(INST, L1, itemDate(head, "FIRST_TAKE_OFFICE", "2018-07-01"), 201);
         insertCandidateItem(head, INST, "POSITION", "후보직위Z", T2);   // 후보 값
-        photoOk(INST, L1, head);                                          // 사진(KOGL1)은 3:4 그림으로 넣는다(사용자 11-20)
+        long photo = photoOk(INST, L1, head);
+        jdbc.update("UPDATE INST_HEAD_PHOTO SET LICENSE_CD='INST_PERMIT' WHERE PHOTO_ID=?", photo);   // KOGL1 은 Word 에 안 넣는다(11-23) — 그림 확인용으로 INST_PERMIT 로
         int before = act("HEAD_DOCX", "OK");
         // ACCESS_LOG 는 REQUIRES_NEW 라 시험 롤백에 안 지워진다 — 같은 JVM의 다른 시험이 같은 기관 docx 를 먼저 받으면 쌓이므로 전후 차이로 본다
         String docxLog = "inst-head inst=" + INST + " code=HEAD_DOCX";
@@ -100,11 +101,12 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
         assertTrue("확정 이름", xml.contains("홍길동"));
         assertTrue(xml.contains("첫 취임일 : 2018.07.01"));
         assertFalse("저장 형식은 표시에 안 나온다", xml.contains("2018-07-01"));
+        assertFalse("출처·확인일·이용 조건 글자 없음(11-23)", xml.contains("출처") || xml.contains("확인일") || xml.contains("이용 조건") || xml.contains("「") || xml.contains("superscript"));
         assertFalse("후보 값 없음", xml.contains("후보직위Z"));
         assertFalse("사번 없음", xml.contains(L1) || xml.contains(T1) || xml.contains(T2));
         assertFalse("링크 없음", xml.contains("hyperlink"));
         try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(b))) {
-            assertEquals("KOGL1 사진은 그림 1개", 1, d.getAllPictures().size());
+            assertEquals("INST_PERMIT 사진은 그림 1개", 1, d.getAllPictures().size());
         }
     }
 
@@ -196,25 +198,25 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
     }
 
     @Test
-    public void 권한대행이_아니오면_인적_사항과_출처_어디에도_권한대행_줄이_없다() throws Exception {
+    public void 권한대행이_아니오면_인적_사항_어디에도_권한대행_줄이_없다() throws Exception {
         MvcResult a = postJson(headsPath(INST), L1, "{\"name\":\"홍길동\",\"position\":\"구청장\",\"acting\":false,\"source\":" + source() + "}");
         assertEquals(text(a), 201, a.getResponse().getStatus());
         MvcResult r = docx(path(INST), T1, true);
         assertEquals(text(r), 200, r.getResponse().getStatus());
         String xml = documentXml(bytes(r));
         assertTrue(xml.contains("홍길동"));
-        assertFalse("권한대행 아니오는 문서에 안 나온다(출처 절 포함)", xml.contains("권한대행"));
+        assertFalse("권한대행 아니오는 문서에 안 나온다", xml.contains("권한대행"));
     }
 
     @Test
-    public void 권한대행이_예면_직위_옆과_출처_절에_나온다() throws Exception {
+    public void 권한대행이_예면_직위_옆에만_나온다() throws Exception {
         MvcResult a = postJson(headsPath(INST), L1, "{\"name\":\"홍길동\",\"position\":\"구청장\",\"acting\":true,\"source\":" + source() + "}");
         assertEquals(text(a), 201, a.getResponse().getStatus());
         MvcResult r = docx(path(INST), T1, true);
         assertEquals(text(r), 200, r.getResponse().getStatus());
         String xml = documentXml(bytes(r));
         assertTrue(xml.contains("(권한대행)"));
-        assertFalse("출처 절에는 라벨 줄이 없다(번호 목록만)", xml.contains("권한대행: "));
+        assertFalse("라벨 줄이 없다", xml.contains("권한대행: "));
         assertEquals("권한대행 글자는 직위 줄 한 곳뿐", 1, xml.split("권한대행", -1).length - 1);
     }
 

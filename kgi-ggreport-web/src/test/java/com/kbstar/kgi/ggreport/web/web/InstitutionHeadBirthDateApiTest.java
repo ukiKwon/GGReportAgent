@@ -221,7 +221,8 @@ public class InstitutionHeadBirthDateApiTest extends HeadApiTestBase {
         assertTrue("나이 줄", xml.contains("만 " + age + "세"));
         assertFalse("날짜 없음", xml.contains(BIRTH));
         assertFalse("라벨 없음", xml.contains("생년월일"));
-        assertFalse("나이 출처는 종류·확인일만 — 제목은 문서에 없다(security 11-20 S1)", xml.contains("출생자료출처ZQ"));
+        assertFalse("나이 출처 제목은 문서에 없다", xml.contains("출생자료출처ZQ"));
+        assertFalse("출처·확인일 글자 없음(11-23)", xml.contains("확인일") || xml.contains("출처") || xml.contains("「"));
     }
 
     @Test

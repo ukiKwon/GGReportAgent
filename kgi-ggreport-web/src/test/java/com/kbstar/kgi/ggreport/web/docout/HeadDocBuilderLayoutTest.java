@@ -19,6 +19,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -27,7 +29,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 기관장 Word 프로필 양식(사용자 참고 양식 11-20): 쪽 테두리·밑줄 제목·테두리 없는 사진+정보 표·YYYY.MM 기간·출처 맨 아래. 가상 값만 쓴다.
+ * 기관장 Word 프로필 양식(사용자 참고 양식 11-20·11-23): 쪽 테두리·밑줄 제목·테두리 없는 사진+정보 표(사진 78×81.8mm 상자)·YYYY.MM 기간·출처 없음(웹 화면에서만). 가상 값만 쓴다.
  * 견본 파일을 target/head-profile-sample.docx 로 남긴다(사용자 확인용, 커밋 대상 아님).
  */
 public class HeadDocBuilderLayoutTest {
@@ -78,7 +80,7 @@ public class HeadDocBuilderLayoutTest {
         head.put("career", Arrays.asList(item("경력옛날", "2001-01", "2005-12"), item("경력진행", "2018-07", null), item("경력연도", "2018", null)));
         if (withPhoto) {
             Map<String, Object> photo = new HashMap<String, Object>();
-            photo.put("license_cd", "KOGL1");
+            photo.put("license_cd", "INST_PERMIT");   // KOGL1 은 Word 에 안 넣는다(11-23 기본값)
             photo.put("photo_id", Long.valueOf(9));
             photo.put("source", src("문서A"));
             head.put("photo", photo);
@@ -201,18 +203,96 @@ public class HeadDocBuilderLayoutTest {
     }
 
     @Test
-    public void 출처와_기준일_줄은_맨_아래이고_같은_출처는_한_번이다() throws Exception {
-        String xml = xml(render(false));
-        int src = xml.indexOf(">출처</w:t>");
-        assertTrue("출처 제목", src > 0);
-        assertTrue("본문 뒤", src > xml.indexOf("경력옛날"));
-        assertTrue("기준일 줄은 출처 뒤", xml.indexOf("확정된 값만 담았습니다. 기준일 2026-11-20") > src);
-        int count = 0;
-        for (int i = xml.indexOf("「문서A」"); i >= 0; i = xml.indexOf("「문서A」", i + 1)) {
-            count++;
+    public void 문서에_출처_번호_이용_조건_글자가_없고_기준일_줄은_맨_아래다() throws Exception {
+        for (boolean withPhoto : new boolean[]{false, true}) {
+            String xml = xml(render(withPhoto));
+            assertFalse("출처 글자 전체", xml.contains("출처"));
+            assertFalse("「", xml.contains("「"));
+            assertFalse("확인일", xml.contains("확인일"));
+            assertFalse("이용 조건", xml.contains("이용 조건"));
+            assertFalse("위첨자", xml.contains("w:val=\"superscript\"") || xml.contains("vertAlign"));
+            assertFalse("출처 제목·종류", xml.contains("문서A") || xml.contains("기관 누리집"));
+            assertFalse("공공누리", xml.contains("공공누리"));
+            int base = xml.indexOf("확정된 값만 담았습니다. 기준일 2026-11-20");
+            assertTrue("기준일 줄", base > xml.indexOf("경력옛날"));
         }
-        assertEquals("같은 출처 한 번(나이 출처는 제목이 없으니 따로)", 1, count);
-        assertTrue(xml.contains("기관 누리집 「문서A」"));
-        assertTrue("나이 출처는 종류·확인일만", xml.contains("기관 누리집, 확인일 2026-11-20"));
+    }
+
+    private static final int BOX_W = 78 * 36000;
+    private static final int BOX_H = (int) Math.round(81.8 * 36000);
+
+    private static byte[] jpeg(int w, int h) throws Exception {
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        g.setColor(new Color(220, 226, 235));
+        g.fillRect(0, 0, w, h);
+        g.dispose();
+        ByteArrayOutputStream o = new ByteArrayOutputStream();
+        ImageIO.write(img, "jpg", o);
+        return o.toByteArray();
+    }
+
+    private static byte[] render(String license, byte[] jpeg) throws Exception {
+        Map<String, Object> d = detail(true);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> head = (Map<String, Object>) d.get("head");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> photo = (Map<String, Object>) head.get("photo");
+        photo.put("license_cd", license);
+        return DocxKit.render(HeadDocBuilder.build(d, "서울시 가구청", 1, "2026-11-20", jpeg), DocxKit.Footer.pageNumberOnly());
+    }
+
+    private static int[] extent(String xml) {
+        Matcher m = Pattern.compile("extent cx=\"(\\d+)\" cy=\"(\\d+)\"").matcher(xml);
+        assertTrue(xml, m.find());
+        return new int[]{Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2))};
+    }
+
+    @Test
+    public void 사진은_78x81_8mm_상자_안에_비율을_지켜_맞춘다() throws Exception {
+        int tol = 36;
+        int[] tall = extent(xml(render("INST_PERMIT", jpeg(300, 400))));
+        assertTrue(tall[0] <= BOX_W && tall[1] <= BOX_H + tol);
+        assertEquals(BOX_H, tall[1], tol);
+        assertEquals(300d / 400d, (double) tall[0] / tall[1], 0.001);
+        int[] wide = extent(xml(render("INST_PERMIT", jpeg(400, 300))));
+        assertTrue(wide[0] <= BOX_W && wide[1] <= BOX_H);
+        assertEquals(BOX_W, wide[0], tol);
+        assertEquals(400d / 300d, (double) wide[0] / wide[1], 0.001);
+        int[] sq = extent(xml(render("INST_PERMIT", jpeg(500, 500))));
+        assertEquals(BOX_W, sq[0], tol);
+        assertEquals(sq[0], sq[1], tol);
+    }
+
+    @Test
+    public void KOGL1_사진은_기본값에서_넣지_않고_표와_안내도_없다() throws Exception {
+        byte[] docx = render("KOGL1", jpeg());
+        try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(docx))) {
+            assertEquals("경력 표 하나뿐", 1, d.getTables().size());
+            assertEquals(0, d.getAllPictures().size());
+        }
+        String xml = xml(docx);
+        assertFalse(xml.contains("이용 조건") || xml.contains("넣지 않았") || xml.contains("공공누리"));
+    }
+
+    @Test
+    public void 허용_밖_이용_조건도_조용히_사진이_없다() throws Exception {
+        for (String lic : new String[]{"LOCAL_ONLY", "KOGL2", "PRESS_PERMIT", "XYZ"}) {
+            byte[] docx = render(lic, jpeg());
+            try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(docx))) {
+                assertEquals(lic, 1, d.getTables().size());
+                assertEquals(lic, 0, d.getAllPictures().size());
+            }
+            assertFalse(lic, xml(docx).contains("넣지 않았") || xml(docx).contains("이용 조건"));
+        }
+    }
+
+    @Test
+    public void 허용_조건인데_그림을_못_읽으면_안내_한_줄만_있다() throws Exception {
+        byte[] docx = render("INST_PERMIT", new byte[]{1, 2, 3});
+        assertTrue(xml(docx).contains("사진을 불러오지 못해 넣지 않았습니다."));
+        try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(docx))) {
+            assertEquals(1, d.getTables().size());
+        }
     }
 }
