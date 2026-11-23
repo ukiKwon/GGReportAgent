@@ -156,7 +156,7 @@ test('소스 배선: [계속 작성]은 건 기준 POST·화면 이름 prep_deta
 });
 
 test('소스 배선: 팝업은 건을 열 때만(쓰기 뒤 재조회는 팝업 없음), 화면이 보일 때만, Esc는 팝업 먼저·기록 없이 닫기', () => {
-  assert.ok(/invalidateCache\(\);\s*loadDetail\(id\);\s*loadList\(\);/.test(SRC));               // doAct: 옵션 없음 = 팝업 없음
+  assert.ok(/invalidateCache\(\);\s*loadDetail\(id\);\s*reloadList\(\);/.test(SRC));               // doAct: 옵션 없음 = 팝업 없음
   assert.ok(/markSelected\(\);\s*S\.nbSeen = '';\s*loadDetail\(id, \{ popup: true \}\);/.test(SRC));   // selectCase
   assert.ok(/loadDetail\(S\.selected, \{ popup: true \}\); else paintCase\(\);/.test(SRC));     // refresh
   assert.ok(/if \(popup\) maybeNobid\(\);/.test(SRC));

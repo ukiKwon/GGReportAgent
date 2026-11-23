@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -591,5 +592,104 @@ public class PrepBoardApiTest {
             i++;
         }
         assertTrue("공고 마감일(2025-12-10)이 약정 만료일(2027-01-31)보다 앞선다: " + iN + "," + iD, iN >= 0 && iD >= 0 && iN < iD);
+    }
+
+    // ── 현재 금고 약정(current_banks) ────────────────────────────────
+
+    private String ymd(int plusDays) {
+        return LocalDate.parse(Times.todayKst()).plusDays(plusDays).toString();
+    }
+
+    private void bankRev(String inst, int no, int rev, String action, String rank, String bankCd, String etcName, String termTo) {
+        jdbc.update("INSERT INTO INST_BANK_CONTRACT (INSTITUTION_ID, CONTRACT_NO, REV_NO, ACTION_CD, ORIGIN_CD, RANK_CD, BANK_CD, BANK_NAME_ETC,"
+                + " TERM_TO, SRC_KIND, CHECKED_DATE, EDITOR_EMP_NO, EDITOR_NAME, SCREEN_ID, BUTTON_ID, SAVED_AT)"
+                + " VALUES (?, ?, ?, ?, 'MANUAL', ?, ?, ?, ?, 'STAFF', '2026-11-23', '3918264', '김영업', 'bank_contract', 'seed', '2026-11-23T00:00:00+09:00')",
+                inst, no, rev, action, rank, bankCd, etcName, termTo);
+    }
+
+    private void clearBanks() {
+        jdbc.update("DELETE FROM INST_BANK_CONTRACT WHERE INSTITUTION_ID IN (?, ?)", INST, "dobong");
+    }
+
+    private JsonNode banksOf(String emp, String bid) throws Exception {
+        return row(json(list(emp, null, "refresh")), bid).path("current_banks");
+    }
+
+    @Test
+    public void D34_같은_줄은_최신_개정만_현재_약정으로_나온다() throws Exception {
+        clearBanks();
+        String bid = confirm(MEMBER, INST);
+        bankRev(INST, 1, 1, "SAVE", "FIRST", "B02", null, ymd(365));
+        bankRev(INST, 1, 2, "SAVE", "SECOND", "B03", null, ymd(400));
+        JsonNode b = banksOf(MEMBER, bid);
+        assertEquals(1, b.size());
+        assertEquals("신한은행", b.get(0).path("bank_name").asText());
+        assertEquals("SECOND", b.get(0).path("rank_cd").asText());
+        assertEquals(ymd(400), b.get(0).path("term_to").asText());
+    }
+
+    @Test
+    public void D35_최신_개정이_CANCEL인_줄은_빠지고_아래_SAVE가_되살아나지_않는다() throws Exception {
+        clearBanks();
+        String bid = confirm(MEMBER, INST);
+        bankRev(INST, 1, 1, "SAVE", "FIRST", "B02", null, ymd(365));
+        bankRev(INST, 2, 1, "SAVE", "SECOND", "B04", null, ymd(365));
+        bankRev(INST, 2, 2, "CANCEL", "SECOND", "B04", null, ymd(365));
+        JsonNode b = banksOf(MEMBER, bid);
+        assertEquals(1, b.size());
+        assertEquals("KB국민은행", b.get(0).path("bank_name").asText());
+    }
+
+    @Test
+    public void D36_코드표에_없는_은행코드는_직접_입력_이름으로_나온다() throws Exception {
+        clearBanks();
+        String bid = confirm(MEMBER, INST);
+        bankRev(INST, 1, 1, "SAVE", "FIRST", "Z99", "가상저축", ymd(365));
+        JsonNode b = banksOf(MEMBER, bid);
+        assertEquals(1, b.size());
+        assertEquals("가상저축", b.get(0).path("bank_name").asText());
+    }
+
+    @Test
+    public void D37_어제_만료된_줄은_빠지고_오늘_만료와_내일_만료는_남는다() throws Exception {
+        clearBanks();
+        String bid = confirm(MEMBER, INST);
+        bankRev(INST, 1, 1, "SAVE", "FIRST", "B02", null, ymd(-1));
+        bankRev(INST, 2, 1, "SAVE", "SECOND", "B03", null, ymd(1));
+        bankRev(INST, 3, 1, "SAVE", "FIRST", "B05", null, ymd(0));   // 경계: 오늘 만료는 아직 유효(qa P3-1)
+        JsonNode b = banksOf(MEMBER, bid);
+        assertEquals(2, b.size());
+        assertEquals("신한은행", b.get(0).path("bank_name").asText());
+        assertEquals("하나은행", b.get(1).path("bank_name").asText());
+    }
+
+    @Test
+    public void D38_약정은_기관별로_나뉜다_줄_번호가_겹쳐도_섞이지_않는다() throws Exception {
+        clearBanks();
+        String nowon = confirm(MEMBER, INST);
+        String dobong = confirm(MEMBER, "dobong");
+        bankRev(INST, 1, 1, "SAVE", "FIRST", "B02", null, ymd(365));
+        bankRev(INST, 2, 1, "SAVE", "SECOND", "B03", null, ymd(365));
+        bankRev("dobong", 1, 1, "SAVE", "FIRST", "B05", null, ymd(365));
+        JsonNode body = json(list(MEMBER, null, "refresh"));
+        assertEquals(2, row(body, nowon).path("current_banks").size());
+        JsonNode d = row(body, dobong).path("current_banks");
+        assertEquals(1, d.size());
+        assertEquals("하나은행", d.get(0).path("bank_name").asText());
+    }
+
+    @Test
+    public void D39_현재_약정은_줄_번호_순으로_나온다() throws Exception {
+        clearBanks();
+        String bid = confirm(MEMBER, INST);
+        // 은행 이름 순서와 다르게 둔다(qa P3-2). 단 MySQL InnoDB는 PK 순서로 읽어 ORDER BY 누락은 Oracle에서만 드러난다.
+        bankRev(INST, 3, 1, "SAVE", "FIRST", "B03", null, ymd(365));
+        bankRev(INST, 1, 1, "SAVE", "FIRST", "B05", "가상", ymd(365));   // 코드 이름이 직접 입력 이름보다 먼저(qa P3-3)
+        bankRev(INST, 2, 1, "SAVE", "FIRST", "B02", null, ymd(365));
+        JsonNode b = banksOf(MEMBER, bid);
+        assertEquals(3, b.size());
+        assertEquals("하나은행", b.get(0).path("bank_name").asText());
+        assertEquals("KB국민은행", b.get(1).path("bank_name").asText());
+        assertEquals("신한은행", b.get(2).path("bank_name").asText());
     }
 }

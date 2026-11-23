@@ -535,7 +535,7 @@ test('T9 reset: 칸 메뉴가 열린 채 계정 전환 → 메뉴는 숨겨진�
 
 // qa P3-7 — 표에서 상세를 열 때 숨은 왼쪽 목록(GET /preps)을 부르지 않는다. 옛 화면(refresh)은 그대로.
 test('enterCase(P3-7): 표에서 연 상세는 /preps 목록을 부르지 않는다, 옛 화면 refresh는 loadList 유지', function () {
-  const a = PREP_SRC.indexOf('function enterCase(bid) {');
+  const a = PREP_SRC.indexOf('function enterCase(bid, name) {');
   const b = PREP_SRC.indexOf('function backToBoard()');
   assert.ok(a > 0 && b > a, 'enterCase 범위');
   const body = PREP_SRC.slice(a, b);
@@ -545,4 +545,52 @@ test('enterCase(P3-7): 표에서 연 상세는 /preps 목록을 부르지 않는
   assert.ok(body.indexOf('showView();') < body.indexOf('loadDetail(S.selected, { popup: true })'), '상세는 그대로 연다');
   const r = PREP_SRC.slice(PREP_SRC.indexOf('function refresh() {'), PREP_SRC.indexOf('// ── 쓰기 공통'));
   assert.ok(/paintList\(\);\s*loadList\(\);/.test(r), '옛 화면 refresh의 목록 호출 유지');
+});
+
+// qa P3-a·P3-b — 이름은 표가 넘기고(제목·모달), 표에서 연 상세는 쓰기 뒤에도 /preps를 부르지 않는다.
+test('P3-b 동작: 이름 버튼 클릭 → hooks.openCase(bid, 기관 이름)', withDom(async function () {
+  const calls = [];
+  const h = deferredHooks();
+  h.openCase = function (bid, name) { calls.push([bid, name]); };
+  pb.show(h, {});
+  h.pend[0](boardData('청주시'));
+  await flush();
+  const tr = { getAttribute: function (k) { return k === 'data-bid' ? 'B1' : null; } };
+  const btn = { classList: { contains: function () { return false; } }, id: '',
+    getAttribute: function (k) { return k === 'data-pb' ? 'open' : null; },
+    closest: function (s) { return s === 'button' ? btn : s === 'tr' ? tr : null; } };
+  ENV.L.click({ target: btn });
+  assert.deepStrictEqual(calls, [['B1', '청주시']]);
+}));
+
+test('P3-a 소스: reloadList는 표에서 연 상세(fromBoard)에서 목록을 생략, handleError·doAct는 reloadList, refresh는 loadList 유지', function () {
+  assert.ok(/function reloadList\(\) \{ if \(!S\.fromBoard\) loadList\(\); \}/.test(PREP_SRC), 'reloadList 정의');
+  const h = PREP_SRC.slice(PREP_SRC.indexOf('function handleError('), PREP_SRC.indexOf('function doAct('));
+  const d = PREP_SRC.slice(PREP_SRC.indexOf('function doAct('), PREP_SRC.indexOf('function curTasks()') > PREP_SRC.indexOf('function doAct(') ? PREP_SRC.indexOf('function curTasks()') : PREP_SRC.indexOf('function doAct(') + 900);
+  assert.ok(h.length > 0 && /reloadList\(\);/.test(h), 'handleError는 reloadList');
+  assert.ok(!/(^|[^!\w.])loadList\(\)/m.test(h), 'handleError에 맨 loadList() 없음');
+  const d2 = PREP_SRC.slice(PREP_SRC.indexOf('function doAct('), PREP_SRC.indexOf('function doAct(') + 1100);
+  assert.ok(/invalidateCache\(\);\s*loadDetail\(id\);\s*reloadList\(\);/.test(d2), 'doAct는 reloadList');
+  assert.ok(d.length > 0);
+  const r = PREP_SRC.slice(PREP_SRC.indexOf('function refresh() {'), PREP_SRC.indexOf('// ── 쓰기 공통'));
+  assert.ok(/paintList\(\);\s*loadList\(\);/.test(r), 'refresh의 목록 호출 유지');
+});
+
+test('P3-b 소스: enterCase(bid, name)가 이름을 보관, caseName()이 제목·모달에 쓰인다', function () {
+  assert.ok(/function enterCase\(bid, name\) \{/.test(PREP_SRC), 'enterCase 인자');
+  assert.ok(/S\.boardName = typeof name === 'string' \? name : '';/.test(PREP_SRC), '이름 보관');
+  assert.ok(/function caseName\(\) \{ const row = rowOf\(S\.selected\); return row \? row\.name : S\.boardName; \}/.test(PREP_SRC), 'caseName 정의');
+  const p = PREP_SRC.slice(PREP_SRC.indexOf('function paintCase()'), PREP_SRC.indexOf('box.innerHTML = prep.caseHtml('));
+  assert.strictEqual((p.match(/esc\(caseName\(\)\)/g) || []).length, 2, '로딩·오류 제목 2곳');
+  assert.ok(p.indexOf("esc(row ? row.name : '')") < 0, '옛 제목 식 없음');
+  assert.ok(/name: str\(v\.institution_name\) \|\| caseName\(\)/.test(PREP_SRC), 'modalInfo');
+  assert.ok(/name: caseName\(\) \}\)/.test(PREP_SRC), 'maybeNobid');
+});
+
+test('P3-b 소스: boardName은 freshState에서 시작하고 toBoardState·openCase에서 비운다', function () {
+  assert.ok(/pendingCase: false, boardName: ''/.test(PREP_SRC), 'freshState');
+  const t = PREP_SRC.slice(PREP_SRC.indexOf('function toBoardState()'), PREP_SRC.indexOf('function boardHooks()'));
+  assert.ok(t.indexOf("S.boardName = '';") > 0, 'toBoardState');
+  const o = PREP_SRC.slice(PREP_SRC.indexOf('S.pendingCase = true;'), PREP_SRC.indexOf('S.pendingCase = true;') + 80);
+  assert.ok(/S\.pendingCase = true;\s*S\.boardName = '';/.test(o), 'openCase');
 });

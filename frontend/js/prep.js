@@ -926,7 +926,7 @@
              modal: null, confirm: null, showVoid: false, uploading: false, busy: false,
              seq: 0, listSeq: 0, flash: '', refocus: '', focusTitle: false, withdrawing: false,
              nb: null, nbSeen: '',   // nb: 열린 입찰 없음 팝업 { id, round, rev, sending } · nbSeen: 이미 띄운 건|회차|판정 번호
-             view: 'board', fromBoard: false, pendingCase: false };   // 대시보드 표(prepboard.js)가 있을 때: view 'board'(표) | 'case'(같은 자리 상세). fromBoard: 표에서 연 상세
+             view: 'board', fromBoard: false, pendingCase: false, boardName: '' };   // 대시보드 표(prepboard.js)가 있을 때: view 'board'(표) | 'case'(같은 자리 상세). fromBoard: 표에서 연 상세
   }
   let S = freshState();
   let reqSeq = 0;   // 요청 번호는 S 밖에서 단조 증가 — 계정 전환으로 S가 새로 만들어져도 옛 응답 번호와 겹치지 않는다(seq·listSeq 공용)
@@ -1004,7 +1004,7 @@
     const bk = el('pp-back'); if (bk) bk.hidden = !bo;
   }
   function toBoardState() {
-    S.view = 'board'; S.fromBoard = false; S.selected = ''; S.detail = null; S.seq = ++reqSeq; S.confirm = null; S.nbSeen = '';
+    S.view = 'board'; S.fromBoard = false; S.selected = ''; S.detail = null; S.seq = ++reqSeq; S.confirm = null; S.nbSeen = ''; S.boardName = '';
   }
   function boardHooks() {
     const role = myRole();
@@ -1012,9 +1012,10 @@
              openMap: function () { if (root.app && root.app.openNavItem) root.app.openNavItem('map'); } };
   }
   // 표의 기관 이름 → 같은 자리에서 상세. 상세를 여는 요청의 화면 이름은 prep_dashboard.
-  function enterCase(bid) {
+  function enterCase(bid, name) {
     if (root.prepboard && root.prepboard.leave) root.prepboard.leave();
     S.view = 'case'; S.fromBoard = true; S.selected = String(bid); S.nbSeen = ''; S.tab = 'active'; S.query = ''; S.detail = null;
+    S.boardName = typeof name === 'string' ? name : '';
     S.modal = null; S.confirm = null; S.showVoid = false; S.focusTitle = true;
     clearQueryBox();
     clearNotices();
@@ -1071,6 +1072,10 @@
     });
   }
   function rowOf(id) { return S.rows.filter(function (r) { return r.id === id; })[0] || null; }
+  // 제목·모달 이름: 목록 행이 있으면 그 이름, 표에서 연 상세는 표가 넘긴 이름(S.boardName).
+  function caseName() { const row = rowOf(S.selected); return row ? row.name : S.boardName; }
+  // 표에서 연 상세는 쓰기 뒤에도 GET /preps를 생략한다(qa P3-a). 지도·현황판·옛 화면은 그대로 목록을 다시 읽는다.
+  function reloadList() { if (!S.fromBoard) loadList(); }
 
   function loadList() {
     const token = S.listSeq = ++reqSeq;
@@ -1105,16 +1110,14 @@
     }
     if (d.loading) {
       box.setAttribute('aria-busy', 'true');
-      const row = rowOf(S.selected);
-      box.innerHTML = '<h2 id="pp-case-title" class="tm-title" tabindex="-1">' + esc(row ? row.name : '') + '</h2><p class="wf-empty">' + esc(T.loading) + '</p>';
+      box.innerHTML = '<h2 id="pp-case-title" class="tm-title" tabindex="-1">' + esc(caseName()) + '</h2><p class="wf-empty">' + esc(T.loading) + '</p>';
       return;
     }
     box.setAttribute('aria-busy', 'false');
     if (d.err) {
       const st = d.err.status;
       if (st === 401) { paintGate({ text: T.login }); return; }
-      const row = rowOf(S.selected);
-      box.innerHTML = '<h2 id="pp-case-title" class="tm-title" tabindex="-1">' + esc(row ? row.name : '') + '</h2>' + (st === 404
+      box.innerHTML = '<h2 id="pp-case-title" class="tm-title" tabindex="-1">' + esc(caseName()) + '</h2>' + (st === 404
         ? '<p class="wf-empty">' + esc(T.noView) + '</p>'
         : '<p class="wf-empty">' + esc(T.detailErr) + '</p><button type="button" id="pp-retry-detail">' + esc(T.retry) + '</button>');
       return;
@@ -1221,7 +1224,7 @@
     }
     if (info.after === 'reload' || info.after === 'closeReload') {
       if (S.selected) loadDetail(S.selected);
-      loadList();
+      reloadList();
     } else if (!modalOpen || info.after === 'keep') {
       paintCase();
     }
@@ -1244,7 +1247,7 @@
       S.focusTitle = !!x.focusTitle;
       invalidateCache();
       loadDetail(id);
-      loadList();
+      reloadList();
     }).catch(function (e) {
       S.busy = false;
       if (S.modal) updateModalUi();
@@ -1365,9 +1368,8 @@
   // ── 모달 ──
   function modalInfo() {
     const v = (S.detail && S.detail.view) || {};
-    const row = rowOf(S.selected);
     const m = S.modal || {};
-    return { name: str(v.institution_name) || (row ? row.name : ''), assignees: (v.assignees || []).length,
+    return { name: str(v.institution_name) || caseName(), assignees: (v.assignees || []).length,
              writing: v.state_cd === 'WRITING', fileName: m.fileName || '', meEmp: myEmp(), nobidWarn: prep.nobidWarnText(v) };
   }
   function openModal(kind, extra) {
@@ -1513,8 +1515,7 @@
     if (!n) return;
     const md = el('pp-modal');
     S.nb = { id: S.selected, round: n.round_seq, rev: n.rev_no, sending: false };
-    const row = rowOf(S.selected);
-    md.innerHTML = prep.nobidPopupHtml(v, { canNotice: nbCanNotice(n), name: row ? row.name : '' });   // 상세에 기관명이 없으면 목록 행 이름
+    md.innerHTML = prep.nobidPopupHtml(v, { canNotice: nbCanNotice(n), name: caseName() });   // 상세에 기관명이 없으면 목록 행 이름
     md.style.display = '';
     nbWatchHidden();
     const K = root.kbboard;
@@ -1786,6 +1787,7 @@
     S.view = 'case';          // 표가 있으면 mount()가 이 값을 한 번 지켜 상세를 연다(pendingCase)
     S.fromBoard = false;
     S.pendingCase = true;
+    S.boardName = '';
     clearQueryBox();
     const ok = !!(root.app && root.app.openNavItem && root.app.openNavItem(root.nav.PREP_ID));
     if (!ok) { S.flash = ''; S.pendingCase = false; S.view = 'board'; }

@@ -719,7 +719,7 @@
       const tr = t.closest('tr');
       const bid = tr ? tr.getAttribute('data-bid') : '';
       const row = bid ? rowById(bid) : null;
-      if (row && row.can_view !== false && B.hooks && B.hooks.openCase) B.hooks.openCase(bid);
+      if (row && row.can_view !== false && B.hooks && B.hooks.openCase) B.hooks.openCase(bid, str(row.institution_name));
     } else if (act === 'retry') { B.state = 'loading'; B.data = null; load('open'); }
     else if (act === 'map') { if (B.hooks && B.hooks.openMap) B.hooks.openMap(); }
     else if (act === 'clear') { B.q = ''; B.who = ''; const q = el('pb-q'); if (q) q.value = ''; paintWho(); paintTable(); }
@@ -734,7 +734,7 @@
     if (np) { e.preventDefault(); focusAt(np.r, np.c); return; }
     if ((e.key === 'Enter' || e.key === ' ') && pos.c === 0 && e.target === c) {   // 이름 칸에 머물 때 Enter·Space는 상세
       const row = rows[pos.r];
-      if (row && row.can_view !== false && B.hooks && B.hooks.openCase) { e.preventDefault(); B.hooks.openCase(str(row.bid_case_id)); }
+      if (row && row.can_view !== false && B.hooks && B.hooks.openCase) { e.preventDefault(); B.hooks.openCase(str(row.bid_case_id), str(row.institution_name)); }
     }
   }
   function wire() {
@@ -763,7 +763,7 @@
   }
 
   // ── 바깥(prep.js)이 쓰는 문 ──
-  // hooks: { req, roleLabel, openCase(bid), openMap() }. o: { reload: 상세에서 돌아옴, focusBid }
+  // hooks: { req, roleLabel, openCase(bid, name), openMap() }. o: { reload: 상세에서 돌아옴, focusBid }
   pb.show = function (hooks, o) {
     if (typeof document === 'undefined' || !el('pp-board')) return false;
     if (!wired && !wire()) return false;
