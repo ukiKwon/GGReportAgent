@@ -3,6 +3,7 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const store = require('./statefile');
 const ROOT = __dirname, STATE = path.join(ROOT, 'state.json'), PORT = +process.argv[2] || 8090;
 const IDS = store.IDS;
+const BOOT = Date.now(); // 서버 기동 시각 — /api/server로 알려 start.js가 코드보다 오래된 서버를 다시 띄운다
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8' };
 const BAD = new Set(['__proto__', 'constructor', 'prototype']);
 const MAX_BODY = 16 * 1024;
@@ -58,6 +59,10 @@ http.createServer((req, res) => {
     return res.end(req.method === 'HEAD' ? undefined : JSON.stringify(readQuestions()));
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') return notAllowed(res, 'GET, HEAD'); // /api/version·정적·없는 경로 공통(405가 404보다 먼저)
+  if (url === '/api/server') { // start.js가 '서버 코드가 바뀐 뒤에도 옛 프로세스가 도는지' 판단하는 데 쓴다(11-23 site.js 404 사례)
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    return res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ app: 'agent-dashboard', pid: process.pid, boot: BOOT, root: ROOT }));
+  }
   if (url === '/api/version') { // 화면 코드가 바뀌면 열린 탭이 스스로 새로고침하도록 파일 수정 시각을 알려 준다
     const v = ['index.html', 'app.js', 'fmt.js', 'site.js', 'style.css'].map(n => { try { return fs.statSync(path.join(ROOT, n)).mtimeMs; } catch (_) { return 0; } }).reduce((a, b) => Math.max(a, b), 0); // 브랜치 전환 등으로 파일이 잠깐 없어도 서버가 죽지 않게
     res.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' }); return res.end(String(v));

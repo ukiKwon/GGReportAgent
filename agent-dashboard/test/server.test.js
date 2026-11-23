@@ -461,3 +461,81 @@ describe('/api/questions', () => {
     assert.strictEqual((await qreq('GET', '/../handoff/questions.json')).status, 404);
   });
 });
+
+describe('start.js — 옛 서버 재기동(11-23 site.js 404 사례)', () => {
+  let dir, sport, first;
+  const sget = p => new Promise((resolve, reject) => {
+    http.get({ host: '127.0.0.1', port: sport, path: p }, res => { let b = ''; res.on('data', d => b += d); res.on('end', () => resolve({ status: res.statusCode, body: b })); }).on('error', reject);
+  });
+  const info = async () => JSON.parse((await sget('/api/server')).body);
+  const runStart = (d = dir) => spawnSync(process.execPath, [path.join(d, 'start.js')], { env: Object.assign({}, process.env, { AGENT_DASH_PORT: String(sport), AGENT_DASH_NO_OPEN: '1' }), timeout: 30000 });
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const waitUp = async () => { for (let i = 0; i < 50; i++) { try { const j = await info(); if (j.pid) return j; } catch (_) { /* 아직 */ } await sleep(100); } throw new Error('server not up'); };
+  const alive = pid => { try { process.kill(pid, 0); return true; } catch (_) { return false; } };
+  const fake = (name, src) => { const f = path.join(dir, name); fs.writeFileSync(f, src); const c = spawn(process.execPath, [f, String(sport)], { stdio: ['ignore', 'pipe', 'ignore'] }); return new Promise(r => c.stdout.once('data', () => r(c))); };
+  const fakeSrc = (server, version) => "require('http').createServer((q,s)=>{const u=q.url;" +
+    "if(u==='/api/server'){" + (server ? "s.writeHead(200);return s.end(" + JSON.stringify(server) + ");" : "s.writeHead(404);return s.end('not found');") + "}" +
+    "if(u==='/api/version'){s.writeHead(200);return s.end(" + JSON.stringify(version) + ");}s.writeHead(404);s.end();})" +
+    ".listen(+process.argv[2],'127.0.0.1',()=>console.log('up'));";
+  const killServer = async () => { try { process.kill((await info()).pid); } catch (_) { /* 없음 */ } for (let i = 0; i < 30; i++) { try { await info(); await sleep(100); } catch (_) { return; } } };
+  before(async () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agdash-start-'));
+    for (const f of ['serve.js', 'statefile.js', 'start.js']) fs.copyFileSync(path.join(SRC, f), path.join(dir, f));
+    sport = await freePort();
+    assert.strictEqual(runStart().status, 0); // 포트가 비어 있으면 띄운다(첫 기동 경로)
+    first = await waitUp();
+  });
+  after(async () => {
+    await killServer();
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) { /* 잠긴 파일은 OS가 정리 */ }
+  });
+  it('/api/server는 app·pid·boot·root를 준다', () => {
+    assert.strictEqual(first.app, 'agent-dashboard'); assert.ok(Number.isInteger(first.pid)); assert.ok(Number.isFinite(first.boot));
+    assert.strictEqual(path.resolve(first.root).toLowerCase(), path.resolve(dir).toLowerCase());
+  });
+  it('서버 코드보다 나중에 켜진 서버는 그대로 둔다', async () => {
+    assert.strictEqual(runStart().status, 0);
+    assert.strictEqual((await info()).pid, first.pid);
+  });
+  it('다른 폴더(worktree 등)의 start.js는 떠 있는 서버를 건드리지 않는다(qa P2-1)', async () => {
+    const other = fs.mkdtempSync(path.join(os.tmpdir(), 'agdash-wt-'));
+    try {
+      for (const f of ['serve.js', 'statefile.js', 'start.js']) fs.copyFileSync(path.join(SRC, f), path.join(other, f));
+      assert.strictEqual(runStart(other).status, 0);
+      assert.strictEqual((await info()).pid, first.pid);
+    } finally { fs.rmSync(other, { recursive: true, force: true }); }
+  });
+  it('미래 시각 파일이면 재기동하지 않는다(qa P3-1)', async () => {
+    const f = path.join(dir, 'statefile.js'), st = fs.statSync(f), t = new Date(Date.now() + 3600000);
+    fs.utimesSync(f, t, t);
+    try { assert.strictEqual(runStart().status, 0); assert.strictEqual((await info()).pid, first.pid); }
+    finally { fs.utimesSync(f, st.atime, st.mtime); }
+  });
+  it('서버 코드(statefile.js 포함)가 기동 뒤에 바뀌었으면 내리고 새로 띄운다', async () => {
+    const t = new Date(); fs.utimesSync(path.join(dir, 'statefile.js'), t, t);
+    assert.strictEqual(runStart().status, 0);
+    const now = await waitUp();
+    assert.notStrictEqual(now.pid, first.pid); assert.ok(!alive(first.pid));
+    assert.ok(now.boot > first.boot);
+  });
+  it('/api/server가 없는 옛 대시보드(/api/version = ms 시각)는 내리고 새로 띄운다', async () => {
+    await killServer();
+    const c = await fake('old.js', fakeSrc(null, '1795443525956.5'));
+    assert.strictEqual(runStart().status, 0);
+    const now = await waitUp();
+    assert.strictEqual(now.app, 'agent-dashboard'); assert.ok(!alive(c.pid));
+  });
+  for (const [name, server, version] of [
+    ['/api/version이 짧은 숫자(다른 앱의 버전)', null, '2.0'],
+    ['/api/version이 숫자가 아님(serve.py 등)', null, 'ok'],
+    ['/api/server의 app이 다름', JSON.stringify({ app: 'other', pid: 1, boot: 0 }), '1795443525956'],
+    ['/api/server의 pid가 실제 포트 주인과 다름', JSON.stringify({ app: 'agent-dashboard', pid: 4, boot: 0, root: '' }), '1795443525956'],
+  ]) {
+    it('대시보드라 확신할 수 없으면 건드리지 않는다 — ' + name, async () => {
+      await killServer();
+      const c = await fake('other.js', fakeSrc(server, version));
+      try { assert.strictEqual(runStart().status, 0); assert.ok(alive(c.pid)); }
+      finally { const d = new Promise(r => c.once('exit', r)); c.kill(); await d; }
+    });
+  }
+});
