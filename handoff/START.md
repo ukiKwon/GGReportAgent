@@ -13,8 +13,8 @@
 7. **W48 주간 보고(11-27 금)**: pm_history 주간 절 + '이번 주 질문' 표 + 에이전트별 정리, 요구사항 파악 `index_2026-11-27.html`.
 
 ## 다시 알릴 것 (질문은 선택식, 답 받을 때까지 멈춤)
-- ⓐ **옛 PC 주간 수집 결과**(Q-2026-11-16-19): 작업 스케줄러 'GGReport collector weekly' '마지막 실행 결과' — 0 / 0 아님 / 못 봄(확인 방법 11-23 안내함).
-- ⓐ **052 로컬 적용 확인**(Q-2026-11-23-37): `mysql --default-character-set=utf8mb4 -u ggreport -p ggreportdb < kgi-ggreport-web/src/main/resources/db/mysql/052_user_designer_rename.sql` → 8080 재기동 뒤 디자이너 이름 '박디자이너'.
+- ⓐ **주간 수집 2주 연속 실패**(11-16·11-23, 0xC000013A — 09:00 시작 뒤 콘솔 창이 닫혀 강제 종료, 11-23은 09:19): 창 없는 실행기 run_weekly_hidden.vbs·python -u 커밋함. **작업 스케줄러 동작 변경은 권한상 사용자가 직접**(`schtasks /Change /TN "GGReport collector weekly" /TR "C:\Windows\System32\wscript.exe //B //Nologo \"C:\github\GGReportAgent\collector\run_weekly_hidden.vbs\""` → `schtasks /Run /TN "GGReport collector weekly"`) → 20분쯤 뒤 '마지막 실행 결과' 0과 data/collector/_logs 최신 로그의 `eminwon exit=`·`g2b exit=` 확인.
+- 052 로컬 적용 완료(사용자 11-23 저녁, Q-2026-11-23-37 done).
 - 보안 확인(11-23 PUSH-GATE 하): `docs/design/2026-11-20_기관장_프로필_견본.docx` 사진이 가상 이미지인지 Word로 열어 확인 — 실제 공식 사진이면 교체 또는 git에서 제외(사용자 11-13 결정).
 - 본문 요청(실사용): 99 회의록 고치기·102 대시보드(main), 105 목표 결재·106 점검(fa), 104 협약 성과 표본 교체 결과(05), 89 금고 약정, 98 A~C·101 D.
 
