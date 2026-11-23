@@ -552,6 +552,9 @@ test('actionKind(5번째 인자): 기록 받는 중은 wait, 사전준비가 있
   assert.ok(why('nobid').indexOf("이번 회차는 '입찰 없음'으로 닫혔습니다.") >= 0);
   assert.ok(why('delayed').indexOf('공고가 늦어지거나 재공고를 기다리는 중입니다.') >= 0);
   assert.ok(why('wait').indexOf('[제안 확정]을 쓸 수 있는지 확인하는 중입니다.') >= 0);
+  const nc = dash.actParts(it, { act: 'noconfirm' });
+  assert.strictEqual(nc.main, '');
+  assert.strictEqual(nc.why, '협약 성과 화면에서는 제안을 확정하지 않습니다.');
   assert.ok(dash.blankHtml().indexOf('왼쪽 목록에서 기관을 고르세요. 기관 정보가 여기에 보이고, 공고가 난 기관이면 [제안 확정] 버튼도 보입니다.') >= 0);
 });
 

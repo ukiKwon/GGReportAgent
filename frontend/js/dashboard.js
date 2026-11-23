@@ -406,7 +406,8 @@
     closed: '이번 회차 공고가 끝났습니다.',
     past: "접수 기간이 지난 것으로 봅니다. 아직 접수 중이면 공고 상태를 '공고 진행 중'으로 기록하세요.",
     nobid: "이번 회차는 '입찰 없음'으로 닫혔습니다.",
-    delayed: '공고가 늦어지거나 재공고를 기다리는 중입니다.' };
+    delayed: '공고가 늦어지거나 재공고를 기다리는 중입니다.',
+    noconfirm: '협약 성과 화면에서는 제안을 확정하지 않습니다.' };
   // o를 넘기면(화면 호출) 노출 규칙을 건다. 안 넘기면(순수 시험) 역할·진행 중 사전준비만 본다.
   // o.wait = 공고 상태 기록을 받는 중 → 'wait'(받기 전에 보였다 사라지지 않게).
   dash.actionKind = function (rec, ctx, actives, prepApi, o) {
@@ -1749,6 +1750,7 @@
     let act = dash.actionKind(m.rec, ctx, dash.activePreps(m.preps), root.prep, gateOpts());
     if (m.prepSt === 'loading' && act !== 'unavailable') act = 'wait';   // 진행 중인지 모르는 동안 [제안 확정]을 보였다 바꾸지 않는다
     if (m.readOnly) act = 'none';   // 보기 전용: [제안 확정]·[사전준비 열기] 없음(전산팀은 prep.canView 밖이라 이미 none이지만 규칙으로 한 번 더 막는다)
+    else if (m.noConfirm && act === 'confirm') act = 'noconfirm';   // 협약 성과 화면에서 연 상세: [제안 확정] 없이 이유 글만
     const raw =root.render && root.render.popRawHtml ? root.render.popRawHtml(m.rec) : '';
     const parts = dash.popupHtml(m.it, {
       act: act, early: act === 'confirm' && dash.proposeEarly(m.rec, gateOpts()), confirm: m.confirm && act === 'confirm', busy: m.busy, kb: dash.kbEntry(m.rec, root.KB_VERIFIED), next: dash.kbEntry(m.rec, root.KB_NEXT), role: ctx.role, today: todayDate(),
@@ -1885,6 +1887,7 @@
     if (!btn) return;
     if (m.readOnly && ['dm-edit', 'bk-edit', 'db-cf', 'db-do', 'db-open'].indexOf(btn.id) >= 0) return;   // 보기 전용: 버튼이 없어도 함수가 한 번 더 막는다
     if (m.readOnly && btn.id === 'dm-info-edit') return;
+    if (m.noConfirm && (btn.id === 'db-cf' || btn.id === 'db-do')) return;   // 협약 성과 화면: 버튼이 없어도 함수가 한 번 더 막는다
     switch (btn.id) {
       case 'dm-close': case 'dm-back': case 'bk-done': dmBack(m); break;
       case 'dm-leave-drop': if (m.leaveAsk === 'close') dash.closeDetail(true); else dmBankLeave(m); break;
@@ -1947,7 +1950,7 @@
     if (typeof document === 'undefined' || !rec) return false;
     if (dm.cur) dash.closeDetail(false);
     const m = { rec: rec, it: dash.itemForRec(rec, todayDate()), opener: (opts && opts.opener) || document.activeElement,
-      screen: (opts && opts.screen) || 'map_popover', fallback: (opts && opts.fallback) || '', refocus: (opts && opts.refocus) || null, back: opts && opts.back && typeof opts.back.go === 'function' ? opts.back : null, focus: (opts && opts.focus) || '', changed: false, readOnly: dash.isViewOnly(), bankEdit: null, leaveAsk: false, leaveFocus: false,
+      screen: (opts && opts.screen) || 'map_popover', fallback: (opts && opts.fallback) || '', refocus: (opts && opts.refocus) || null, back: opts && opts.back && typeof opts.back.go === 'function' ? opts.back : null, focus: (opts && opts.focus) || '', noConfirm: !!(opts && opts.noConfirm), changed: false, readOnly: dash.isViewOnly(), bankEdit: null, leaveAsk: false, leaveFocus: false,
       preps: null, prepSt: 'offline', confirm: false, busy: false, down: null, el: null };
     const ov = document.createElement('div');
     ov.className = 'modal-overlay dm-ov';
