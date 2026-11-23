@@ -1321,6 +1321,9 @@
   .modal-box.tm-modal-box { max-width:560px; }
   .modal-box.tm-modal-box .tm-picks { max-height:200px; }
   .modal-box.tm-modal-box .tm-picks-rm { max-height:none; }
+  .tm-dlg .tm-picks { max-height:200px; }
+  .tm-dlg .tm-picks-rm { max-height:none; }
+  .tm-dlg .tm-fs.bad { border-color:var(--red); }   /* [올리기]를 눌렀는데 담당자 선택이 모자랄 때(색만이 아니라 테두리로도, design 11-23) */
   .tm-m-body { flex:1 1 auto; min-height:0; }
   .tm-preview { margin:10px 0 0; font-size:12px; color:var(--muted); }
   .tm-preview.bad { color:var(--red); }
@@ -1328,7 +1331,6 @@
   #tm-reason { display:block; width:100%; margin-top:4px; resize:vertical; }
   #tm-reason[aria-invalid="true"] { border-color:var(--red); }
   .tm-m-actions { display:flex; justify-content:flex-end; gap:6px; margin-top:12px; }
-  #tm-m-confirm:not(:empty) { margin-top:10px; }
   @media (max-width:880px) {
     #tm-root { flex:0 0 auto; }
     #tm-wrap { flex-direction:column; flex:0 0 auto; }
@@ -3226,7 +3228,6 @@ review, the verdict, and DESIGN.md
         <section id="tm-case" aria-labelledby="tm-case-title" aria-busy="false"></section>
       </div>
     </div>
-    <div id="tm-modal" class="modal-overlay" style="display:none;"></div>
   </div>
   <div id="pp-root" style="display:none;">
     <div class="tm-head"><b id="pb-title">대시보드</b> <span class="dg-hint">— 제안 확정한 기관의 준비 진행을 칸마다 봅니다. 담당 기관의 칸을 눌러 체크하세요.</span></div>
@@ -3383,6 +3384,9 @@ review, the verdict, and DESIGN.md
     <div class="dlg-body" id="add-fields"></div>
   </div>
 </div>
+
+<!-- 제안팀 변경 신청 — 공통 팝업 틀 .dlg(쓰는 창, 11-23). 덮개는 body 직계여야 뒤 화면이 inert 된다. 안쪽은 team.js가 채운다 -->
+<div id="tm-modal" class="modal-overlay" style="display:none;"></div>
 
 <!-- 로그인 직후 공고 예정일 경과 요약(영업 계열, 하루 안에 '오늘 더 이상 보지 않기'로 끌 수 있음).
      공통 팝업 틀 .dlg 3단계(알림 — 단추 셋 모두 창을 닫으므로 전부 아래 줄, [닫기] 오른쪽 끝). 열기·닫기·Esc·포커스는 dlg.js. -->

@@ -327,7 +327,7 @@ test('modalHtml: dialog 역할·aria·사유 입력 속성·문구', function ()
   assert.ok(html.indexOf('담당자 변경 신청 — 수원시') > 0);
   assert.ok(html.indexOf('maxlength="200"') > 0 && html.indexOf('aria-required="true"') > 0);
   assert.ok(html.indexOf('aria-describedby="tm-rhint tm-rcount"') > 0);
-  assert.ok(html.indexOf('변경 사유 (필수)') > 0 && html.indexOf('0/200') > 0);
+  assert.ok(html.indexOf('변경 사유<span class="dlg-req" aria-hidden="true">*</span>') > 0 && html.indexOf('0/200') > 0);
   assert.ok(html.indexOf('해제할 담당자') > 0 && html.indexOf('추가할 담당자') > 0);
   // 추가 목록에서 현재 담당자는 뺀다
   const add = html.slice(html.indexOf('id="tm-add-picks"'));
@@ -335,7 +335,29 @@ test('modalHtml: dialog 역할·aria·사유 입력 속성·문구', function ()
   assert.ok(html.indexOf('결재자는 신청 내용에 따라 시스템이 정합니다. 신청 뒤 [결재함 › 내가 올린 요청]에서 결재 진행을 볼 수 있습니다.') > 0);
   const noHint = tm.modalHtml({ name: 'a', assignees: [], cands: [], meEmp: '', approvalsHint: false });
   assert.ok(noHint.indexOf('내가 올린 요청') < 0 && noHint.indexOf('결재자는 신청 내용에 따라 시스템이 정합니다.') > 0);
-  assert.ok(html.indexOf('disabled aria-describedby="tm-preview">변경 신청 올리기') > 0);
+  // 공통 팝업 틀(11-23): 제목 줄 [취소][변경 신청 올리기], 막힌 [저장] 아님, 아래 단추 줄·×·옛 확인 상자 없음
+  assert.ok(html.indexOf('<div class="dlg tm-dlg" role="dialog" aria-modal="true" aria-labelledby="tm-m-title"><header class="dlg-bar">') === 0);
+  assert.ok(/class="dlg-acts"><button[^>]*id="tm-m-cancel"[\s\S]*id="tm-m-go" class="dlg-go">변경 신청 올리기<\/button><\/div><\/header>/.test(html));
+  ['tm-m-actions', 'tm-m-confirm', 'bd-confirm', 'ap-err', 'modal-box', '×', 'disabled'].forEach(function (s) { assert.ok(html.indexOf(s) < 0, s); });
+  assert.ok(html.indexOf('<p class="dlg-err" id="tm-m-err" role="alert"></p>') > 0 && html.indexOf('id="tm-m-busy" hidden') > 0);
+});
+
+test('changeMissing: 빠진 것 순서(선택→사유) / noStatus: 끝의 상태 코드만 안내 문장으로', function () {
+  const cur = [{ emp_no: '1' }];
+  assert.deepStrictEqual(tm.changeMissing(tm.changePreview(cur, [], []), ''), ['pick', 'reason']);
+  assert.deepStrictEqual(tm.changeMissing(tm.changePreview(cur, [], ['2']), '  '), ['reason']);
+  assert.deepStrictEqual(tm.changeMissing(tm.changePreview(cur, [], ['2']), '인사 이동'), []);
+  assert.deepStrictEqual(tm.changeMissing(null, undefined), ['pick', 'reason']);
+  assert.ok(/\. 잠시 뒤 다시 시도하세요\.$/.test(tm.noStatus(tm.errorInfo(500, undefined).text)));
+  assert.strictEqual(tm.noStatus('담당자 구성이 바뀌었습니다.'), '담당자 구성이 바뀌었습니다.');
+  assert.strictEqual(tm.noStatus(null), '');
+});
+
+test('index.html: #tm-modal 덮개는 #tm-root 밖(body 직계)에 한 번만', function () {
+  assert.strictEqual(HTML.split('id="tm-modal"').length, 2);
+  const root = HTML.slice(HTML.indexOf('<div id="tm-root"'), HTML.indexOf('<div id="pp-root"'));
+  assert.ok(root.indexOf('tm-modal') < 0);
+  assert.ok(/\.tm-dlg \.tm-picks \{ max-height:200px; \}/.test(HTML) && HTML.indexOf('#tm-m-confirm') < 0);
 });
 
 // ── 연결: nav·app·index.html ──
@@ -408,12 +430,13 @@ test('P2-1: 공용 wireModalDismiss는 #tm-modal을 제외하고, team.js가 Esc
   assert.ok(/if \(e\.target === ov && !dlgOwns\(ov\)\) ov\.style\.display = 'none'/.test(dismiss));
   assert.ok(/overlays\.forEach\(function \(ov\) \{ if \(!dlgOwns\(ov\)\) ov\.style\.display = 'none'; \}\)/.test(dismiss));
 
+  // 공통 팝업 틀(11-23): Esc·Tab·바깥 클릭·닫기 전 확인은 dlg.js — team.js에는 자체 처리가 없다
   const wireSrc = between(TEAM_SRC, 'function wire()', 'tm.mount = function');
-  assert.ok(/e\.target === md && downOnBg\) requestClose\(\)/.test(wireSrc));
-  assert.ok(/e\.key !== 'Escape' \|\| !S\.modal/.test(wireSrc) && /requestClose\(\)/.test(wireSrc));
-  assert.ok(!/style\.display\s*=\s*'none'/.test(wireSrc));
-  const keySrc = between(TEAM_SRC, 'function onModalKey', 'function wire()');
-  assert.ok(!/Escape/.test(keySrc));
+  assert.ok(!/keydown|mousedown|downOnBg/.test(wireSrc));
+  assert.ok(/md\.addEventListener\('click', onClick\)/.test(wireSrc) && /md\.addEventListener\('input', onInput\)/.test(wireSrc) && /md\.addEventListener\('change', onChange\)/.test(wireSrc));
+  assert.ok(!/Escape|onModalKey|keepWriting|closeConfirmHtml|tm-m-keep|tm-m-discard/.test(TEAM_SRC));
+  assert.ok(/root\.dlg\.open\(box, \{/.test(TEAM_SRC) && /isDirty: function/.test(TEAM_SRC) && /restoreFallback/.test(TEAM_SRC));
+  assert.ok(/case 'tm-m-cancel': root\.dlg\.requestClose\(el\('tm-modal'\)\); break;/.test(TEAM_SRC));
 });
 
 test('P3-1: closeReload로 모달을 닫으면 다시 그린 뒤 포커스를 돌려받는다', function () {
