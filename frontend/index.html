@@ -2767,11 +2767,14 @@
   .rs-link { all:unset; cursor:pointer; font-size:12px; color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent-color); text-underline-offset:3px; border-radius:var(--r); }
   .rs-band { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); }
   .rs-band .hb-k .v.mut { color:var(--muted); }
+  .rs-band .hb-k .s { word-break:keep-all; }
   .rs-bar-wrap { padding:8px 16px 8px; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); }
   .rs-brace { position:relative; height:5px; margin-top:18px; border:1px solid var(--fg); border-bottom:0; box-sizing:border-box; }
   .rs-brace span { position:absolute; left:50%; bottom:100%; transform:translateX(-50%); padding-bottom:2px; font-size:12px; color:var(--fg); white-space:nowrap; }
+  .rs-brace.l span { left:0; transform:none; }
   .rs-bar { display:flex; gap:2px; }
   .rs-bar-wrap > .rs-bar:first-child { margin-top:18px; }
+  .rs-bar-note { margin:0; font-size:12px; line-height:1.5; color:var(--muted); word-break:keep-all; }
   .rs-cell { display:flex; flex:none; flex-direction:column; gap:2px; min-width:0; }
   .rs-cell .n { display:block; height:16px; font:400 12px/16px var(--mono); text-align:center; color:var(--fg); }
   .rs-seg { display:block; height:12px; box-sizing:border-box; border:1px solid var(--line-strong); border-radius:var(--r); }
