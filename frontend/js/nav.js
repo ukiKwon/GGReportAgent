@@ -12,7 +12,7 @@
   //     키가 있는데 준비중인 항목(pending: AI 대화·지식 검색)은 서버 키(v[key])가 켠 사람에게 보인다.
   //     onlyRoles가 있는 항목(제안팀 구성·배정·제안서 사전준비)은 그 역할(영업팀·영업팀장·영업부장)에게만 보인다 — 디자이너·마스터 제외.
   //     withKey가 있는 항목(입찰 현황판·입찰 공고 현황)은 그 서버 키(map)가 켜진 사람 전원에게 보이고, front면 같은 중분류의 맨 앞에 놓인다.
-  //     공고 자동 수집(onlyRoles, 서버 키 없음)은 전산팀·전산팀장에게만 보인다 — 영업 계열·디자이너·마스터·재무 제외(11-23).
+  //     공고 자동 수집(onlyRoles+allowMaster, 서버 키 없음)은 전산팀·전산팀장과 관리자(마스터)에게만 보인다 — 영업 계열·디자이너·재무 제외(사용자 11-23).
   //     withKey와 onlyRoles를 함께 쓴 항목(시작화면, 11-19 결정)은 서버 키(map)가 켜져 있고 그 역할(마스터 제외)인 사람에게만 보인다.
   //     withKey와 onlyTeams를 함께 쓴 항목(기관 사업계획, 11-17 결정)은 서버 키(map)가 켜져 있고 그 팀 소속(영업팀·전산팀 전원, 디자이너는 영업팀 소속, 마스터 포함)인 사람에게만 보인다 — 예산팀 제외.
   //  3. **한 화면은 한 항목에만 둔다.** 같은 탭을 두 곳에 걸면 어느 쪽이 "지금 위치"인지
@@ -63,7 +63,7 @@
   // 기관 사업계획 — plans.SOON_ID와 같아야 한다. 노출 = 서버 map 키 AND 영업팀·전산팀 소속(예산팀 제외, 11-17 결정).
   const PLANS_ID = 'soon:기관 사업계획';
   const PLANS_TEAMS = [roles.DESIGNER_HOME, '전산팀'].map(function (a) { return roles.teamOf(a); });
-  // 공고 자동 수집 — 아직 만들지 않은 기능(준비중 배지). 노출 = 전산팀·전산팀장만(onlyRoles라 마스터 제외, 제안팀 구성·배정과 같은 관례). 서버 메뉴 키는 쓰지 않는다.
+  // 공고 자동 수집 — 아직 만들지 않은 기능(준비중 배지). 노출 = 전산팀·전산팀장 + 관리자(allowMaster, 사용자 11-23 '관리자도 당연히'). 서버 메뉴 키는 쓰지 않는다.
   const COLLECT_NOTICE_ID = 'soon:공고 자동 수집';
   const COLLECT_NOTICE_ROLES = ['전산팀', '전산팀장'];
   // 협약 성과 관리(NEXT 104, results.js) — results.SOON_ID와 같아야 한다. 노출 = map 키 AND 영업팀·전산팀(서버 canView와 같음, 재무 제외).
@@ -100,7 +100,7 @@
       live('기관', '전국 지역별', 'regions'),
       live('입찰 공고', '지역별 공고현황', 'map'),   // 옛 '전국 지도' — 화면·키(map)·id는 그대로, 이름만 바뀌어 입찰 공고로 옮김(사용자 11-23)
       soon('입찰 공고', '입찰 공고 현황', '', '', false, NOTICE_ID, undefined, 'map'),   // 실제 화면(dashboard.js, #notice-root) — 배지 없음, 노출은 입찰 현황판과 같이 서버 map 키 전원(11-09 타팀 공유)
-      soon('입찰 공고', '공고 자동 수집', undefined, '', false, COLLECT_NOTICE_ID, COLLECT_NOTICE_ROLES)] },   // 준비중 배지 — 전산팀·전산팀장에게만(사용자 11-23)
+      Object.assign(soon('입찰 공고', '공고 자동 수집', undefined, '', false, COLLECT_NOTICE_ID, COLLECT_NOTICE_ROLES), { allowMaster: true })] },   // 준비중 배지 — 전산팀·전산팀장·관리자(사용자 11-23)
     { id: 'plan', title: '영업 추진 준비', subs: ['준비 과제', '이사회'], items: [
       soon('준비 과제', '대시보드', '', '', false, PREP_ID, TEAM_ROLES),   // 메뉴 이름만 '대시보드'(사용자 11-19 저녁), id는 고정
       soon('준비 과제', '기관 정보 요약서'),
@@ -239,7 +239,7 @@
             bySub[sub].live.push({ label: it.label, key: it.key, view: it.view || null, sub: sub, soon: false, id: id });
           }
         } else if (it.withKey ? (v[it.withKey] === true && (!it.onlyTeams || nav.teamIn(it.onlyTeams, ctx)) && (!it.onlyRoles || nav.roleIn(it.onlyRoles, ctx)))
-                   : it.onlyRoles ? nav.roleIn(it.onlyRoles, ctx) : (sales || (it.visibleWithTasks && v.tasks === true))) {
+                   : it.onlyRoles ? (nav.roleIn(it.onlyRoles, ctx) || (it.allowMaster === true && !!(ctx && ctx.master))) : (sales || (it.visibleWithTasks && v.tasks === true))) {
           const built = { label: it.label, key: null, sub: sub, id: it.id || 'soon:' + it.label,
                           soon: true, tag: it.tag, note: it.note };
           if (it.front) { built.front = true; bySub[sub].front.push(built); } else bySub[sub].soon.push(built);

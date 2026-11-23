@@ -516,7 +516,7 @@ test('시작화면: headOnly 표시, 역할 목록은 한 곳(HOME_ROLES ⊇ VIE
   assert.strictEqual(nav.homeItemId(nav.build(ALL_ON, { role: '영업팀' }), nav.HOME_ID, [{ id: nav.HOME_ID }, { id: 'map' }], { role: '영업팀' }), null);   // 이미 시작화면
 });
 
-test('공고 자동 수집: 전산팀·전산팀장에게만 보이고 준비중 배지, 그 밖(영업 계열·디자이너·재무·마스터·역할 없음)은 숨김(11-23)', function () {
+test('공고 자동 수집: 전산팀·전산팀장·관리자(마스터)에게만 보이고 준비중 배지, 그 밖(영업 계열·디자이너·재무·역할 없음)은 숨김(11-23)', function () {
   function find(ctx) {
     const hit = [];
     nav.build(ALL_ON, ctx).forEach(function (c) { c.items.forEach(function (i) { if (i.id === nav.COLLECT_NOTICE_ID) hit.push(i); }); });
@@ -532,7 +532,8 @@ test('공고 자동 수집: 전산팀·전산팀장에게만 보이고 준비중
   ['영업팀', '영업팀장', '영업부장', '디자이너', '예산팀', '예산팀장', ''].forEach(function (r) {
     assert.strictEqual(find({ role: r }), null, r);
   });
-  assert.strictEqual(find({ role: '전산팀', master: true }), null);
+  assert.ok(find({ role: '전산팀', master: true }), '관리자에게도 보인다(사용자 11-23)');
+  assert.ok(find({ role: '', master: true }), '관리자는 역할과 무관하게 보인다');
 });
 
 test('기관·입찰 현황 소제목: 대시보드 → 기관 → 입찰 공고 순, 항목이 하나뿐인 대시보드도 소제목이 켜진다(soloSubs, 11-23)', function () {
