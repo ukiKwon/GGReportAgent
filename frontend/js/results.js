@@ -18,6 +18,7 @@
   const REMOVED_KIND = { CANCEL: '목표 취소', MOVE_TO_WATCH: '관심 기관으로 내림', YEAR_CHANGED: '다른 해로 옮김(이월)' };
   results.CODES = CODES;
   results.LABEL = LABEL;
+  results.SHOW_BAR = false;   // 구성 막대·막대 자리 안내를 그리지 않는다(사용자 11-23 '의미가 크지 않으니 일단 안 보이게, 코드는 지우지 말 것') — true 로 바꾸면 다시 보인다
   results.BAR_MIN_N = 5;   // 목표 기관이 이보다 적거나 분류가 한 가지뿐이면 구성 막대를 그리지 않는다(숫자는 요약 띠에 있음)
   results.BRACE_NARROW = 96;   // 꺾쇠 선이 이보다 짧으면 이름표를 왼쪽에 붙인다(이름표 폭 약 87px + 여유, 규격 6-C)
   results.DENIED_MSG = '협약 성과 모아 보기는 영업부서와 개발부서만 볼 수 있습니다.';
@@ -420,7 +421,7 @@
   function barWidth() { const el = $('rs-body') || $('rs-band'); return Math.max(0, (el && el.clientWidth ? el.clientWidth : 990) - 34); }   // 상자 안 패딩 16×2 + 테두리 1×2
   function renderBar() {
     const d = S && S.data;
-    const ok = d && !d.truncated && d.summary && !results.isEmpty(d);
+    const ok = results.SHOW_BAR && d && !d.truncated && d.summary && !results.isEmpty(d);
     setHtml('rs-bar', ok ? (results.barHtml(d.summary, barWidth()) || results.barNoteHtml(d.summary)) : '');
   }
   function renderTable() { if (S && S.data) setHtml('rs-tbl', results.tableHtml(S, S.data, ctx())); }

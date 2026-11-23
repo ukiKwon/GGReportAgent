@@ -400,3 +400,9 @@ test('barWidth: 늘 보이는 #rs-body(대체 #rs-band)로 잰다, 막대가 없
   assert.ok(line.indexOf("$('rs-bar')") < 0);
   assert.ok(SRC.indexOf("results.barHtml(d.summary, barWidth()) || results.barNoteHtml(d.summary)") > 0);
 });
+
+test('구성 막대는 SHOW_BAR=false 로 꺼 둔다(사용자 11-23, 코드는 유지)', function () {
+  assert.strictEqual(results.SHOW_BAR, false);
+  assert.ok(/const ok = results\.SHOW_BAR && d/.test(SRC), 'renderBar 가 SHOW_BAR 로 막대·안내를 끈다');
+  assert.ok(typeof results.barHtml === 'function' && typeof results.barNoteHtml === 'function', '막대 코드는 지우지 않는다');
+});
