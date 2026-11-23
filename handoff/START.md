@@ -13,6 +13,9 @@
 7. **W48 주간 보고(11-27 금)**: pm_history 주간 절 + '이번 주 질문' 표 + 에이전트별 정리, 요구사항 파악 `index_2026-11-27.html`.
 
 ## 다시 알릴 것 (질문은 선택식, 답 받을 때까지 멈춤)
+- **e4 기관장 사진 이어서 찾기**(사용자 11-23: 내일 아침 오자마자 요청) — 남은 목록·도구는 handoff/sessions/2026-11-20_1024_e4.md 맨 아래 '11-24 아침 이어서 할 것'. 현황 415기관 중 기관장 378·사진 237(로컬 DB).
+- 주간 수집 고침 확인(11-23 17:31 재실행): 구청 게시판 끝(새 공고 2, 88곳 정상, 일부 실패 exit=3), 나라장터는 18:15 기준 진행 중 — data/collector/_logs/2026-11-23_1731_weekly.log의 g2b exit= 확인.
+- 메뉴 재구성 25812438·관리자 노출 401e6a78(사용자 11-23) — 실화면 확인 요청.
 - ⓐ **주간 수집 2주 연속 실패**(11-16·11-23, 0xC000013A — 09:00 시작 뒤 콘솔 창이 닫혀 강제 종료, 11-23은 09:19): 창 없는 실행기 run_weekly_hidden.vbs·python -u 커밋함. **작업 스케줄러 동작 변경은 권한상 사용자가 직접**(`schtasks /Change /TN "GGReport collector weekly" /TR "C:\Windows\System32\wscript.exe //B //Nologo \"C:\github\GGReportAgent\collector\run_weekly_hidden.vbs\""` → `schtasks /Run /TN "GGReport collector weekly"`) → 20분쯤 뒤 '마지막 실행 결과' 0과 data/collector/_logs 최신 로그의 `eminwon exit=`·`g2b exit=` 확인.
 - 052 로컬 적용 완료(사용자 11-23 저녁, Q-2026-11-23-37 done).
 - 보안 확인(11-23 PUSH-GATE 하): `docs/design/2026-11-20_기관장_프로필_견본.docx` 사진이 가상 이미지인지 Word로 열어 확인 — 실제 공식 사진이면 교체 또는 git에서 제외(사용자 11-13 결정).
