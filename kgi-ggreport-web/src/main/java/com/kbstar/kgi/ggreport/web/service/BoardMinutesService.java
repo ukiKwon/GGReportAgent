@@ -1199,6 +1199,13 @@ public class BoardMinutesService {
             }
             BoardMinutes cur = mapper.selectHead(id);
             String old = isTitle ? cur.getTitle() : cur.getMeetingDate();
+            if (isTitle) {
+                // 가림 토큰 보존 — editText 와 같은 기준(저장된 제목 대비). 값은 싣지 않고 종류별 빠진 수만, slot=title.
+                Map<String, Integer> removed = MinutesMasker.removedTokens(old, value);
+                if (!removed.isEmpty()) {
+                    throw new MinutesException(422, "EDIT_MASK_REMOVED", "title", 0, removed);
+                }
+            }
             Map<String, Object> out = new LinkedHashMap<String, Object>();
             out.put("field", isTitle ? "title" : "meeting_date");
             out.put("value", value);

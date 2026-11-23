@@ -80,6 +80,38 @@ public class SpeakerLabelsTest {
         assertEquals(2, e.getTargetNo());
     }
 
+    /**
+     * 현재 동작의 기록(어휘는 바꾸지 않는다): 직원 명단에 성+한 글자 두 글자 이름이 '차장'·'위원'·'감사'와 같게 들어 있으면
+     * (가상 이름 — 실제 명단과의 대조는 data-auditor 몫) 그 어휘 라벨은 저장 단계(requireClean)에서 LABEL_INVALID{name}으로 막힌다.
+     * 두 글자 이름은 앞 글자 앞이 한글이 아니고 뒤가 끝·공백이면 가려지기 때문이다(MinutesMasker.boundaryOk).
+     * 어휘 검사(normalize)는 통과하므로 막힘은 명단에 같은 이름이 있는 경우에만 생긴다.
+     */
+    @Test
+    public void 사전에_두_글자_이름이_어휘_직책과_같으면_그_어휘_라벨은_LABEL_INVALID_name으로_막힌다() {
+        for (final String role : Arrays.asList("차장", "위원", "감사")) {
+            assertEquals(role, SpeakerLabels.normalize(role, 1));   // 어휘로는 유효
+            final MinutesMasker m = new MinutesMasker(Arrays.asList(role));
+            MinutesException e = MinutesTestSupport.expect("LABEL_INVALID", new Runnable() {
+                @Override
+                public void run() {
+                    SpeakerLabels.requireClean(m, role, 4, MinutesTestSupport.budget());
+                }
+            });
+            assertEquals(role, Integer.valueOf(1), e.getKinds().get("name"));
+            assertEquals(4, e.getTargetNo());
+            assertTrue(role, !e.toDetail().toString().contains(role));
+            // 소속·번호가 붙어도 같다(앞은 공백, 뒤는 끝·공백)
+            final String withAffil = "은행 " + role + " 2";
+            MinutesException e2 = MinutesTestSupport.expect("LABEL_INVALID", new Runnable() {
+                @Override
+                public void run() {
+                    SpeakerLabels.requireClean(m, withAffil, 4, MinutesTestSupport.budget());
+                }
+            });
+            assertTrue(withAffil, e2.getKinds().containsKey("name"));
+        }
+    }
+
     @Test
     public void 은행_직책도_어휘에_있다() {
         for (String r : Arrays.asList("영업부장", "영업팀장", "지점장", "본부장", "행장", "부장", "차장", "대리")) {

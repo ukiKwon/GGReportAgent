@@ -885,6 +885,56 @@ public class BoardMinutesApiTest {
     }
 
     @Test
+    public void 저장_후_항목에서_가린_이름을_지우면_422_EDIT_MASK_REMOVED다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "e9b");
+        // 요약 첫 줄("김영업님 안건 논의")이 [이름]으로 가려진 항목을 찾는다
+        Integer no = jdbc.queryForObject("SELECT MIN(ITEM_NO) FROM BOARD_MINUTES_ITEM WHERE MINUTES_ID=? AND BODY LIKE ?",
+                Integer.class, id, "%[이름]%");
+        assertNotNull(no);
+        MvcResult r = sendPut("/board-minutes/" + id + "/items/" + no, HEAD, js("text", "가상 수정 본문", "rev_no", 0));
+        assertEquals(text(r), 422, status(r));
+        assertEquals("EDIT_MASK_REMOVED", json(r).path("detail").path("code").asText());
+        assertEquals(no.intValue(), json(r).path("detail").path("target_no").asInt());
+        assertEquals(1, json(r).path("detail").path("kinds").path("name").asInt());
+        assertEquals(0, jdbc.queryForObject("SELECT REV_NO FROM BOARD_MINUTES WHERE MINUTES_ID=?", Integer.class, id).intValue());
+    }
+
+    @Test
+    public void 저장_경로에서_고친_발언의_가린_자리를_지우면_확인값이_틀려도_422가_409보다_먼저다() throws Exception {
+        String[] fx = fixture();
+        // 확인값(preview_digest·edits_digest)이 둘 다 틀렸지만, 고친 내용을 읽는 단계(parse)가 확인값 비교보다 앞서 422 로 끝난다
+        MvcResult r = uploadE(fx[1], MEMBER, "e9c", optsE("가상 회의록 e9c", ZERO64, ZERO64, null),
+                "{\"utter_edits\":[{\"seq_no\":1,\"text\":\"안녕하세요 박외부 위원장님\"}]}");
+        assertEquals(text(r), 422, status(r));
+        assertEquals("EDIT_MASK_REMOVED", json(r).path("detail").path("code").asText());
+        assertEquals("edit", json(r).path("detail").path("slot").asText());
+        assertEquals(1, json(r).path("detail").path("target_no").asInt());
+        assertFalse(text(r).contains("박외부"));
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES WHERE MATERIAL_ID=?", Long.parseLong(fx[1])));
+    }
+
+    @Test
+    public void 저장_후_제목에서_가린_이름을_지우면_422_EDIT_MASK_REMOVED이고_slot은_title이다() throws Exception {
+        String[] fx = fixture();
+        MvcResult pv = preview(fx[1], MEMBER, tx("e9d"), opts(null, null));
+        assertEquals(text(pv), 200, status(pv));
+        MvcResult up = upload(fx[1], MEMBER, tx("e9d"), opts("가상 " + SEED_NAME + " 점검 회의", json(pv).path("preview_digest").asText()));
+        assertEquals(text(up), 201, status(up));
+        long id = json(up).path("minutes_id").asLong();
+        assertTrue(json(view(id, HEAD)).path("title").asText().contains("[이름]"));
+        MvcResult r = sendPut("/board-minutes/" + id + "/meta", HEAD, js("field", "title", "value", "가상 점검 회의", "rev_no", 0));
+        assertEquals(text(r), 422, status(r));
+        assertEquals("EDIT_MASK_REMOVED", json(r).path("detail").path("code").asText());
+        assertEquals("title", json(r).path("detail").path("slot").asText());
+        assertEquals(1, json(r).path("detail").path("kinds").path("name").asInt());
+        assertFalse(text(r).contains(SEED_NAME));
+        assertEquals(0, jdbc.queryForObject("SELECT REV_NO FROM BOARD_MINUTES WHERE MINUTES_ID=?", Integer.class, id).intValue());
+        // 가린 자리를 남기면 통과
+        assertEquals(200, status(sendPut("/board-minutes/" + id + "/meta", HEAD, js("field", "title", "value", "가상 [이름] 점검 회의 수정", "rev_no", 0))));
+    }
+
+    @Test
     public void 저장_후_라벨_변경은_can_edit만_되고_이력에_이전_이후가_남는다() throws Exception {
         String[] fx = fixture();
         long id = uploadOk(fx[1], MEMBER, "e10");
