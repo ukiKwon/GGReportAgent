@@ -37,7 +37,7 @@ test('사유 문구: 17개 코드 + 모르는 코드(코드는 보이지 않음)
   codes.forEach(function (c) { assert.strictEqual(dc.reasonInfo(c).known, true, c); });
   const retry = codes.filter(function (c) { return dc.reasonInfo(c).retry; });
   assert.deepStrictEqual(retry, ['BUSY', 'TIMEOUT', 'STALE', 'INTERNAL']);
-  assert.strictEqual(dc.reasonInfo('FORMAT_UNSUPPORTED').text, '옛 파워포인트(ppt)는 읽지 못합니다. pptx나 pdf로 저장해 올리면 점검합니다.');
+  assert.strictEqual(dc.reasonInfo('FORMAT_UNSUPPORTED').text, '옛 파워포인트(ppt)는 읽지 못합니다. pptx나 pdf로 저장해 업로드하면 점검합니다.');
   assert.strictEqual(dc.reasonInfo('HIT_CAP').text, '찾은 곳이 너무 많아 2,000곳까지만 기록했습니다.');
   ['ZZ_NEW', 'constructor', '__proto__', '', null, undefined].forEach(function (c) {
     const r = dc.reasonInfo(c);
@@ -138,8 +138,8 @@ test('오류: detail 객체에서 code를 읽고, 규격 5-1 표대로 문구를
   assert.deepStrictEqual(E(409, 'DOC_CHECK_STALE', 'ack'), { text: '그사이 파일이 바뀌어 점검 결과를 새로 불러왔습니다. 다시 표시해 주세요.', reload: 'both' });
   assert.strictEqual(E(409, 'TASK_LOCKED', 'upload').text, '제출한 작업이라 파일과 표시를 바꿀 수 없습니다.');
   assert.strictEqual(E(503, 'DOC_CHECK_BUSY', 'recheck').text, '지금 다른 파일을 점검하고 있습니다. 1분쯤 뒤 다시 눌러 주세요.');
-  assert.strictEqual(E(503, 'DOC_CHECK_BUSY', 'upload').text, '파일을 점검하지 못해 올리지 않았습니다. 잠시 뒤 다시 올려 주세요.');
-  assert.strictEqual(E(400, 'ACTIVE_CONTENT', 'upload').text, '매크로·스크립트가 들어 있는 파일은 올릴 수 없습니다. 매크로를 뺀 pptx로 저장해 다시 올려 주세요.');
+  assert.strictEqual(E(503, 'DOC_CHECK_BUSY', 'upload').text, '파일을 점검하지 못해 업로드하지 않았습니다. 잠시 뒤 다시 업로드해 주세요.');
+  assert.strictEqual(E(400, 'ACTIVE_CONTENT', 'upload').text, '매크로·스크립트가 들어 있는 파일은 업로드할 수 없습니다. 매크로를 뺀 pptx로 저장해 다시 업로드해 주세요.');
   assert.strictEqual(E(401, null, 'ack').text, '로그인 정보(사번)가 없어 처리하지 못했습니다. 다시 로그인해 주세요.');
   assert.strictEqual(E(403, null, 'ack').text, '이 작업의 담당자만 표시할 수 있습니다.');
   assert.deepStrictEqual(E(404, null, 'load'), { text: '파일이 없습니다. 목록을 새로 불러왔습니다.', reload: 'files' });
@@ -191,17 +191,17 @@ test('designer.js: 409 오류 문구 유지·제출 중 닫기 막기·포커스
 
 test('올리기 결과 한 줄', function () {
   const b = dc.badgeFor(f({ hit_count: 3, unconfirmed_count: 3 }));
-  assert.strictEqual(dc.uploadResultText('제안.pptx', false, b), '제안.pptx을 올렸습니다. 확인 필요 3건');
-  assert.strictEqual(dc.uploadResultText('제안.pptx', true, dc.badgeFor(f({}))), '제안.pptx을 올렸습니다. (같은 이름 파일을 바꿈) 찾은 이름 없음');
-  assert.strictEqual(dc.uploadResultText('a.png', false, null), 'a.png을 올렸습니다.');
+  assert.strictEqual(dc.uploadResultText('제안.pptx', false, b), '제안.pptx을 업로드했습니다. 확인 필요 3건');
+  assert.strictEqual(dc.uploadResultText('제안.pptx', true, dc.badgeFor(f({}))), '제안.pptx을 업로드했습니다. (같은 이름 파일을 바꿈) 찾은 이름 없음');
+  assert.strictEqual(dc.uploadResultText('a.png', false, null), 'a.png을 업로드했습니다.');
 });
 
 test('올리기 결과: 조사 도우미(dlg.withObj)가 있으면 받침에 맞춘다(팀 결정 11-23)', function () {
   const dlg = require('../js/dlg.js');
   assert.strictEqual(typeof dlg.withObj, 'function');
-  assert.strictEqual(dc.uploadResultText('제안서', false, null, dlg.withObj), '제안서를 올렸습니다.');
-  assert.strictEqual(dc.uploadResultText('제안안', false, null, dlg.withObj), '제안안을 올렸습니다.');
-  assert.strictEqual(dc.uploadResultText('제안서', true, dc.badgeFor(f({})), dlg.withObj), '제안서를 올렸습니다. (같은 이름 파일을 바꿈) 찾은 이름 없음');
+  assert.strictEqual(dc.uploadResultText('제안서', false, null, dlg.withObj), '제안서를 업로드했습니다.');
+  assert.strictEqual(dc.uploadResultText('제안안', false, null, dlg.withObj), '제안안을 업로드했습니다.');
+  assert.strictEqual(dc.uploadResultText('제안서', true, dc.badgeFor(f({})), dlg.withObj), '제안서를 업로드했습니다. (같은 이름 파일을 바꿈) 찾은 이름 없음');
 });
 
 test('제출 확인창: 변형 A(일반)·변형 B(미확인), 요약 실패는 A', function () {
@@ -241,12 +241,12 @@ test('index.html: 점검 자리(#tab-designer)·제출 확인창(body 직계 .dl
   const t = HTML.indexOf('<section id="tab-designer"'); const te = HTML.indexOf('</section>', t);
   const tab = HTML.slice(t, te);
   assert.match(tab, /<h4 class="dc-h">내 작업물 <span id="dc-sum" class="dc-sum"><\/span><\/h4>/);
-  assert.match(tab, /올린 pptx·pdf에 이 기관이 아닌 다른 기관의 정식 이름이 있는지 찾습니다\. 찾지 못했다고 다른 기관 이름이 없다는 뜻은 아닙니다\./);
+  assert.match(tab, /업로드한 pptx·pdf에 이 기관이 아닌 다른 기관의 정식 이름이 있는지 찾습니다\. 찾지 못했다고 다른 기관 이름이 없다는 뜻은 아닙니다\./);
   assert.match(tab, /<details class="dc-lim"><summary>점검이 못 찾는 것<\/summary>/);
   assert.strictEqual((tab.match(/<li>/g) || []).length, 5);
   assert.match(tab, /id="dc-up" class="dc-up" hidden/);
-  assert.match(tab, /role="progressbar" aria-label="파일 올리는 중"/);
-  assert.match(tab, /파일을 올리고 다른 기관 이름을 찾는 중입니다\. 큰 파일은 20초쯤 걸릴 수 있습니다\./);
+  assert.match(tab, /role="progressbar" aria-label="파일 업로드 중"/);
+  assert.match(tab, /파일을 업로드하고 다른 기관 이름을 찾는 중입니다\. 큰 파일은 20초쯤 걸릴 수 있습니다\./);
   assert.match(tab, /<div id="dc-live" class="sr-only" role="status" aria-live="polite"><\/div>/);
   const m = HTML.indexOf('<div id="dc-submit-modal"'); assert.ok(m > 0);
   const modal = HTML.slice(m, HTML.indexOf('<!-- 순수 로직 -->', m));
@@ -262,4 +262,30 @@ test('index.html: 점검 자리(#tab-designer)·제출 확인창(body 직계 .dl
   assert.doesNotMatch(HTML, /\.dg-at \{ margin-left:auto; \}/);
   const at = function (n) { return HTML.indexOf('<script src="js/' + n + '.js"></script>'); };
   assert.ok(at('doccheck') > 0 && at('doccheck') < at('designer'));
+});
+
+test('[업로드] 단추: 이름 바뀜·파일을 골랐을 때만 강조, [문맥 보기]는 검출 1건 이상일 때만 강조(11-23)', function () {
+  assert.match(HTML, /<button id="dg-upload">업로드<\/button>/);
+  assert.match(DG, /uploading \? '업로드 중…' : '업로드'/);
+  assert.match(DG, /addEventListener\('change', markUploadReady\)/);
+  assert.match(DG, /classList\.toggle\('dg-ready'/);
+  assert.match(HTML, /\.dc-ctxgo, #dg-upload\.dg-ready \{ border-color:var\(--accent-color\); font-weight:700; \}/);
+  // 꺼졌을 때는 강조를 빼고, hover에서도 강조 테두리를 유지한다(design 11-23)
+  assert.match(HTML, /\.dc-ctxgo:disabled, #dg-upload\.dg-ready:disabled \{ border-color:var\(--line-strong\); font-weight:400; \}/);
+  assert.match(HTML, /\.dc-ctxgo:not\(:disabled\):hover \{ border-color:var\(--accent-color\); \}/);
+  // 문맥 보기는 d.hits.length 분기 안에서만 만들어지고 거기서만 dc-ctxgo가 붙는다
+  assert.match(DG, /d\.hits\.length && !ctxLoaded[\s\S]{0,300}'문맥 보기', name, 'ctx', 'dc-tg dc-ctxgo'/);
+  assert.strictEqual((DG.match(/dc-ctxgo/g) || []).length, 1);
+  assert.match(dc.COPY.summaryFail, /업로드·제출은 그대로 됩니다/);
+});
+
+test('106 작업함 화면 문구는 \'업로드\'로 통일(올려·올리·올린·올릴 없음, 주석 제외, 팀 결정 11-23)', function () {
+  const strip = function (s) { return s.split(/\r?\n/).map(function (l) { return l.replace(/(^|\s)\/\/.*$/, ''); }).join('\n'); };
+  const DC = fs.readFileSync(path.join(__dirname, '..', 'js', 'doccheck.js'), 'utf8');
+  assert.doesNotMatch(strip(DC), /올려|올리|올린|올릴/);
+  assert.doesNotMatch(strip(DG), /올려|올리|올린|올릴/);
+  const t = HTML.indexOf('<section id="tab-designer"');
+  assert.doesNotMatch(HTML.slice(t, HTML.indexOf('</section>', t)), /올려|올리|올린|올릴/);
+  assert.match(DG, /작업물을 하나 이상 업로드한 뒤 제출할 수 있습니다\./);
+  assert.match(DG, /'업로드한 작업물이 없습니다\.'/);
 });

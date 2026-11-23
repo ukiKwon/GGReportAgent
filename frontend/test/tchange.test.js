@@ -263,9 +263,10 @@ test('달성 판정일·이월 문장·구분 칸 title: 추정 표시, 관심 �
   assert.strictEqual(tc.carriedTitle({ carried: true, kind: 'WATCH', carryFromYear: 2026 }), '다른 은행이 약정해 2026 목표에서 관심 기관으로 자동으로 옮김');
   assert.strictEqual(tc.carriedTitle({ carried: false, kind: 'GOAL' }), '');
   const tips = tc.rowTips({ carried: true, kind: 'GOAL', targetYear: 2027, tagCd: 'NEW', prevYear: 2024, carryBasis: 'UNREGISTERED', judgeFrom: '2028-01-01', judgeAssumed: true });
-  assert.deepStrictEqual(tips, ['2026 목표에서 자동으로 넘어옴. 작년 결과: 협약 개시일이 지났는데 금고 약정 기록이 없음', '예전 국민은행 금고(마지막 2024년)', '달성 판정일 2028-01-01(추정)']);
+  assert.deepStrictEqual(tips, ['2026 목표에서 자동으로 넘어옴. 작년 결과: 협약 개시일이 지났는데 금고 약정 기록이 없음', '되찾기 후보: 예전 국민은행 금고(마지막 2024년)', '달성 판정일 2028-01-01(추정)']);
   assert.deepStrictEqual(tc.rowTips({ carried: false, judgeFrom: '2027-01-01', judgeAssumed: true }), ['달성 판정일 2027-01-01(추정)']);
   assert.deepStrictEqual(tc.rowTips({}), []);
+  assert.deepStrictEqual(tc.rowTips({ carried: true, kind: 'GOAL', targetYear: 2027, tagCd: 'REGAIN', prevYear: 2022 }), ['2026 목표에서 자동으로 넘어옴']);   // 되찾기 도전은 후보 문장이 붙지 않는다(11-23)
   assert.strictEqual(tc.rowClass({ late: true, id: 'A', targetNo: 1, pend: true }, { picked: { A: 1 } }), ' class="late picked locked"');
   assert.strictEqual(tc.rowClass({ id: 'A', targetNo: 2 }, { picked: { A: 1 } }), '');   // 다른 기록 번호는 고른 줄이 아니다
   assert.strictEqual(tc.rowClass({ id: 'A', targetNo: 1 }, null), '');
@@ -353,6 +354,13 @@ test('일괄 요청 창 마크업: 제목·단추·안내·사유 칸·항목(�
   assert.ok(d.indexOf('영업부장은 결재 없이 바로 반영합니다. 반영한 사람·시각은 기록에 남습니다.') > 0);
   const X = tc.newItem(1, tc.entryOfRow(mk({ id: 'X', name: '<img src=x onerror=1>', regionName: '서울' })));
   assert.ok(tc.dialogHtml({ mode: 'DIRECT', role: '', reason: '', items: [X] }, OPT).indexOf('<img') < 0);
+});
+
+test('되찾기: 고치기 칸의 구분 목록에서 REGAIN이 골라져 있다', function () {
+  const E = tc.newItem(1, tc.entryOfRow(mk({ id: 'A', targetNo: 1, revNo: 2, tagCd: 'REGAIN', tagName: '되찾기 도전' }))); tc.setOp(E, 'EDIT');
+  const tags3 = [{ code: 'RETAIN', name: '재유치 도전' }, { code: 'REGAIN', name: '되찾기 도전' }, { code: 'NEW', name: '신규유치 도전' }];
+  const h = tc.afterBlockHtml(E, { years: [2026, 2027, 2028], tags: tags3, reasons: REASONS });
+  assert.ok(h.indexOf('<option value="REGAIN" selected>되찾기 도전</option>') > 0);
 });
 
 test('항목의 이전/이후: 동작별 칸(EDIT 연도·구분·메모, CANCEL 사유·기타, TO_GOAL 연도, TO_WATCH 문장, ADD 고정) + 이전 줄', function () {
@@ -455,7 +463,7 @@ test('현황판 줄 모델·표 마크업: 잠금·이월·판정일·고르기 
   assert.strictEqual(car.split('예전 국민은행 금고(마지막 2022년)').length - 1, 2);   // title 한 번 + sr 한 번(sr 문장이 두 번 읽히지 않는다, qa P3-2)
   const notCar = kbb.goalRowHtml(kbb.goalRow(tgt('IN', 'NEW'), ctx), { win: win, canEdit: true });
   assert.ok(notCar.indexOf('예전 국민은행 금고, 마지막 2022년') > 0 && notCar.indexOf('hb-prev') > 0);   // 이월이 아닌 줄은 그대로
-  assert.ok(car.indexOf('2025 목표에서 자동으로 넘어옴. 작년 결과: 협약 개시일이 지났는데 금고 약정 기록이 없음 · 예전 국민은행 금고(마지막 2022년) · 달성 판정일 2027-01-01(추정)') > 0);
+  assert.ok(car.indexOf('2025 목표에서 자동으로 넘어옴. 작년 결과: 협약 개시일이 지났는데 금고 약정 기록이 없음 · 되찾기 후보: 예전 국민은행 금고(마지막 2022년) · 달성 판정일 2027-01-01(추정)') > 0);
   const closedPend = kbb.goalRow(tgt('IE', 'NEW', { change_pending: true, bid_closed: { basis_cd: 'NOTICE_CLOSED', basis_date: '2026-09-30', round_seq: 1 } }), ctx);
   assert.ok(kbb.goalRowHtml(closedPend, { win: win, canEdit: true }).indexOf('data-act="towatch"') < 0);   // 입찰 종료 줄 동작 단추도 잠기면 없음
   const w = kbb.goalRow({ institution_id: 'W1', institution_name: '행', kind_cd: 'WATCH', target_no: 3, rev_no: 1, target_year: null, tag_cd: 'NEW', tag_name: '신규유치 도전', memo: '', next_term_to: '2028-12-31', can_cancel: true }, ctx);

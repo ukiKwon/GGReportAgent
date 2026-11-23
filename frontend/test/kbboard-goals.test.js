@@ -241,7 +241,7 @@ test('bandModel·bandHtml: 목표 n곳(재유치·신규유치)·접수 마감 3
   assert.deepStrictEqual(b.bars.map(function (x) { return [x.label, x.n]; }), [['국민은행', 1], ['우리은행', 3], ['확인 안 됨', 1]]);
   const h = kbb.bandHtml(b, { year: 2026, loaded: true });
   assert.ok(h.indexOf('<span class="l">2026 목표 기관</span><span class="v">5<span>곳</span></span>') > 0);
-  assert.ok(h.indexOf('재유치 도전 <b>2</b> · 신규유치 도전 <b>3</b>') > 0);
+  assert.ok(h.indexOf('<span class="nw">재유치 <b>2</b></span> · <span class="nw">되찾기 <b>0</b></span> · <span class="nw">신규 <b>3</b></span>') > 0);
   assert.ok(h.indexOf('<span class="v hot">1<span>곳</span></span><span class="s">공고로 확정된 마감일만 셉니다') > 0);
   assert.ok(h.indexOf('마감 30일 안인데 제안서 작성 전<br>판정 보류 <b>2</b>곳 — 마감일이 확정되지 않은 곳') > 0);      // 보류 = 추정일만이 아니라 공고 중·확정 공고일·예정일 지남까지(qa P3-6)
   assert.ok(h.indexOf('추정일만 있는') < 0);
@@ -329,7 +329,7 @@ test('goalRowHtml: 추정·미상·예전 국민은행 표시·목표 밖 줄', 
   const ctx = mkCtx();
   const est = rowHtml(kbb.goalRow(tgt('IB', 'NEW'), ctx));
   assert.ok(est.indexOf('<b class="hb-dd est">D-200</b><span class="hb-q">추정</span>') > 0 && est.indexOf('class="w est"') > 0);
-  assert.ok(est.indexOf('<span class="hb-q hb-prev" title="예전에 국민은행 금고였던 기관(마지막 2022년)">예전 KB</span>') > 0);   // 신규유치 칩 옆 작은 표시(사용자 11-17)
+  assert.ok(est.indexOf('<span class="hb-q hb-prev" title="되찾기 후보 — 예전에 국민은행 금고였던 기관(마지막 2022년)">되찾기</span>') > 0);   // 신규유치 칩 옆 작은 표시(사용자 11-17)
   assert.ok(est.indexOf('예전 국민은행 금고, 마지막 2022년') > 0);
   assert.ok(rowHtml(kbb.goalRow(tgt('IA', 'RETAIN'), ctx)).indexOf('hb-prev') < 0);                           // 재유치 도전은 표시 없음
   assert.ok(rowHtml(kbb.goalRow(tgt('IB', 'NEW', { bank: { kb_now: 'OTHER', lines_now: [] } }), ctx)).indexOf('hb-prev') < 0);   // 국민은행이었던 기록이 없으면 표시 없음
@@ -617,6 +617,62 @@ test('DOM 코드 구조: 서버 글은 textContent·esc로, 쓰기는 영업부�
   assert.ok(/if \(prepDenied403\) \{[\s\S]*?return Promise\.resolve\(\);/.test(k) && /p\.code === 403 && o\.code === 403\) prepDenied403 = true;/.test(k) && /prepDenied403 = false;/.test(k));
   // summary 안에 h3를 두지 않는다(P3-11)
   assert.ok(k.indexOf('<summary><h3') < 0 && k.indexOf('<h3 id="hb-ot">') > 0);   // 팝업 머리의 제목은 h3(details·summary 없음)
+});
+
+// ── 되찾기 도전(REGAIN, 11-23) ─────────────────────────────────────────
+test('되찾기: kbb.TAG·formerKbYear·defaultTag(예전 국민 이력 → REGAIN)·fitTag(코드표에 없으면 신규유치로)', function () {
+  assert.strictEqual(kbb.TAG.REGAIN, '되찾기 도전');
+  assert.strictEqual(kbb.formerKbYear(null, 2026), 0);
+  assert.strictEqual(kbb.formerKbYear({ kb_now: 'KB', last_kb_year: 2022 }, 2026), 0);
+  assert.strictEqual(kbb.formerKbYear({ kb_now: 'OTHER', last_kb_year: 'abc' }, 2026), 0);
+  assert.strictEqual(kbb.formerKbYear({ kb_now: 'OTHER', last_kb_year: 2025 }, 2026), 2025);
+  const r = rec('I1', '가', {});
+  const lines = [{ rank_cd: 'FIRST', bank_name: '우리은행' }];
+  const o = { lofin: null, verified: [], today: TODAY };
+  assert.deepStrictEqual(kbb.defaultTag(r, { kb_now: 'OTHER', last_kb_year: 2022, lines_now: lines }, o), { tag: 'REGAIN', why: 'regain', bank: '우리은행', last: 2022 });
+  assert.deepStrictEqual(kbb.defaultTag(r, { kb_now: 'OTHER', last_kb_year: 2026, lines_now: lines }, o), { tag: 'NEW', why: 'other', bank: '우리은행' });
+  assert.deepStrictEqual(kbb.defaultTag(r, { kb_now: 'OTHER', last_kb_year: 2027, lines_now: lines }, o), { tag: 'NEW', why: 'other', bank: '우리은행' });
+  assert.deepStrictEqual(kbb.defaultTag(r, { kb_now: 'KB', last_kb_year: 2022 }, o), { tag: 'RETAIN', why: 'kb' });
+  assert.deepStrictEqual(kbb.defaultTag(r, { kb_now: 'OTHER', last_kb_year: 0, lines_now: lines }, o), { tag: 'NEW', why: 'other', bank: '우리은행' });
+  assert.strictEqual(kbb.defaultTag(r, { kb_now: 'OTHER', last_kb_year: 2022, lines_now: lines }, { lofin: null, verified: [] }).tag, 'REGAIN');   // today 없음 = 올해 기준
+  const def = { tag: 'REGAIN', why: 'regain', bank: '우리은행', last: 2022 };
+  assert.deepStrictEqual(kbb.fitTag(def, [{ code: 'RETAIN' }, { code: 'NEW' }]), { tag: 'NEW', why: 'other', bank: '우리은행' });
+  assert.strictEqual(kbb.fitTag(def, [{ code: 'RETAIN' }, { code: 'REGAIN' }, { code: 'NEW' }]), def);
+  const rt = { tag: 'RETAIN', why: 'kb' }, nw = { tag: 'NEW', why: 'other' };
+  assert.strictEqual(kbb.fitTag(rt, []), rt); assert.strictEqual(kbb.fitTag(nw, []), nw);
+});
+
+test('되찾기: 대화창 근거 문장(tagNote·tagWhy)', function () {
+  const def = { tag: 'REGAIN', why: 'regain', bank: '우리은행', last: 2022 };
+  assert.strictEqual(kbb.tagNote(def, '강동구청'), "강동구청은 예전(2022년까지) 국민은행 금고였고 지금은 우리은행 금고라 '되찾기 도전'을 골랐습니다. 바꿀 수 있습니다.");
+  assert.strictEqual(kbb.tagWhy(def), '예전 국민은행 금고(2022년까지) · 지금 우리은행');
+  assert.strictEqual(kbb.tagWhy({ tag: 'REGAIN', why: 'regain', last: 2022 }), '예전 국민은행 금고(2022년까지)');
+});
+
+test('되찾기: menuHtml 자동 제안 줄·fitTag 두 호출 자리·코드표가 빌 때 대체 목록에서 REGAIN 제외·추천 근거 줄 중복 없음', function () {
+  const tags = [{ code: 'RETAIN', name: '재유치 도전' }, { code: 'REGAIN', name: '되찾기 도전' }, { code: 'NEW', name: '신규유치 도전' }];
+  const h = kbb.menuHtml({ tagCd: 'REGAIN' }, { tags: tags, def: { tag: 'REGAIN', why: 'regain', bank: '우리은행', last: 2022 }, canCancel: true });
+  assert.ok(h.indexOf('자동 제안: 되찾기 도전 — 예전 국민은행 금고(2022년까지) · 지금 우리은행') > 0);
+  const K = src('js/kbboard.js');
+  assert.strictEqual((K.match(/kbb\.fitTag\(kbb\.defaultTag\(/g) || []).length, 2);
+  const tl = K.slice(K.indexOf('function tagList()'), K.indexOf('function tagList()') + 400);
+  assert.ok(tl.indexOf("{ code: 'RETAIN', name: kbb.TAG.RETAIN }, { code: 'NEW', name: kbb.TAG.NEW }]") > 0 && tl.indexOf("code: 'REGAIN'") < 0);
+  assert.ok(K.indexOf("const rn = m.tag === 'REGAIN' ? '' : kbb.recNote(it);") > 0);
+});
+
+test('되찾기: 정렬(재유치 → 되찾기 → 신규, 빈 값은 맨 아래)·거르기·요약 띠 숫자·구분 칩', function () {
+  const rows = [{ name: '다', tagCd: 'NEW' }, { name: '가', tagCd: 'REGAIN' }, { name: '나', tagCd: 'RETAIN' }, { name: '라', tagCd: '' }];
+  const names = function (a) { return a.map(function (x) { return x.name; }); };
+  assert.deepStrictEqual(names(kbb.sortBy(rows, 'tag', 'asc')), ['나', '가', '다', '라']);
+  assert.deepStrictEqual(names(kbb.sortBy(rows, 'tag', 'desc')), ['다', '가', '나', '라']);
+  const ctx = mkCtx();
+  const gr = kbb.goalRows([tgt('IA', 'RETAIN'), tgt('IB', 'REGAIN'), tgt('IC', 'NEW')], ctx);
+  const b = kbb.bandModel(gr, { prepOk: true, delayDays: 30 });
+  assert.deepStrictEqual([b.retain, b.regain, b.fresh], [1, 1, 1]);
+  assert.ok(kbb.bandHtml(b, { year: 2026, loaded: true }).indexOf('<span class="nw">재유치 <b>1</b></span> · <span class="nw">되찾기 <b>1</b></span> · <span class="nw">신규 <b>1</b></span>') > 0);
+  assert.deepStrictEqual(kbb.filterRows(gr, { tag: 'REGAIN' }).map(function (x) { return x.id; }), ['IB']);
+  const h = rowHtml(kbb.goalRow(tgt('IB', 'REGAIN'), ctx));
+  assert.ok(h.indexOf('되찾기 도전') > 0 && h.indexOf('hb-prev') < 0);
 });
 
 test('index.html: 요약 띠·표·구분 칩·메뉴·레인 CSS가 규격(6-B)대로 — 새 변수 0개, 칩 24px, 행 40px, 월 눈금 12등분', function () {

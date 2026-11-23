@@ -367,7 +367,7 @@
   kbb.SCREEN = 'bid_board';
   kbb.BTN = { add: 'add_bid_target', tag: 'change_target_tag', cancel: 'cancel_bid_target', addWatch: 'add_watch_target', edit: 'edit_bid_target', nextYear: 'goal_next_year', moveGoal: 'move_to_goal', moveWatch: 'move_to_watch' };
   kbb.KIND = { GOAL: 'GOAL', WATCH: 'WATCH' };
-  kbb.TAG = { RETAIN: '재유치 도전', NEW: '신규유치 도전' };
+  kbb.TAG = { RETAIN: '재유치 도전', REGAIN: '되찾기 도전', NEW: '신규유치 도전' };
   kbb.DEADLINE_SOON = 30;       // '접수 마감 30일 안' 타일
   kbb.DELAY_DEFAULT = 30;       // 응답 delay_days가 없을 때 '준비 지연' 기준
   kbb.MEMO_MAX = 100;
@@ -425,6 +425,10 @@
   // 구분(태그) 기본값(팀 결정 11-17): 039 요약의 kb_now(KB → 재유치 도전, OTHER → 신규유치 도전) → NO_RECORD·요약 없음이면 행안부 금고지정(국민은행 줄)·KB_VERIFIED(재유치 도전)
   //  → 그 밖의 은행이 금고인 것이 확인되면(행안부·레코드 은행 칸 — 대화창 선택 줄의 은행과 같은 bankInfo) 신규유치 도전 → 은행을 모르면 기본값 없음(qa 11-17 P2-2).
   // sum = { kb_now, last_kb_year, lines_now }, o = { lofin, verified, today }. → { tag:'RETAIN'|'NEW'|'', why:'kb'|'other'|'lofin'|'verified'|'', bank?:'우리은행'(why 'other'이고 은행 이름을 알 때) }
+  // Q1(11-23): 지금 금고에 국민은행이 없고(kb_now≠KB) 약정 이력의 마지막 국민 해가 올해보다 앞서면 그 해. 아니면 0. goalRow·defaultTag가 같은 기준을 쓴다.
+  kbb.formerKbYear = function (sum, year) { const y = sum && sum.kb_now !== 'KB' ? Number(sum.last_kb_year) : 0; return y > 0 && y < Number(year) ? y : 0; };
+  // 서버 코드표에 REGAIN이 아직 없으면(059 미적용) 기본값을 신규유치로 되돌린다 — 없는 코드가 대화창·메뉴에 기본으로 서지 않게.
+  kbb.fitTag = function (def, tags) { return def && def.tag === 'REGAIN' && !(tags || []).some(function (t) { return t.code === 'REGAIN'; }) ? Object.assign({ tag: 'NEW', why: 'other' }, def.bank ? { bank: def.bank } : {}) : def; };
   kbb.defaultTag = function (rec, sum, o) {
     o = o || {};
     const s = sum && sum.kb_now;
@@ -434,7 +438,10 @@
       return out;
     };
     if (s === 'KB') return { tag: 'RETAIN', why: 'kb' };
-    if (s === 'OTHER') return other();
+    if (s === 'OTHER') {
+      const d = other(), last = kbb.formerKbYear(sum, o.today ? Number(isoOf(o.today).slice(0, 4)) : new Date().getFullYear());
+      return last ? Object.assign(d, { tag: 'REGAIN', why: 'regain', last: last }) : d;
+    }
     if (rec) {
       if (dash.lofinLines(rec, o.lofin, o.today).some(function (l) { return /국민/.test(l.bank); })) return { tag: 'RETAIN', why: 'lofin' };
       if (dash.kbEntry(rec, o.verified)) return { tag: 'RETAIN', why: 'verified' };
@@ -450,10 +457,11 @@
   kbb.tagNote = function (def, name) {
     if (!def || !def.tag) return '현 금고 은행 자료가 없어 직접 고릅니다.';
     const nm = String(name || ''), tag = kbb.TAG[def.tag] || '';
+    if (def.tag === 'REGAIN') return nm + josaEun(nm) + ' 예전(' + def.last + '년까지) 국민은행 금고였고 지금은 ' + (def.bank || '다른 은행') + ' 금고라 \'' + tag + '\'' + dash.josaEul(tag) + ' 골랐습니다. 바꿀 수 있습니다.';
     return nm + josaEun(nm) + ' 지금 ' + whoIs(def) + ' 금고라 \'' + tag + '\'' + dash.josaEul(tag) + ' 골랐습니다. 바꿀 수 있습니다.';
   };
   // 메뉴 맨 위 설명 줄에 쓰는 근거(규격 6-E ②)
-  kbb.tagWhy = function (def) { return def && def.why === 'other' ? '지금 ' + whoIs(def) + ' 금고' : (def && def.tag ? '지금 국민은행 협약 중' : ''); };
+  kbb.tagWhy = function (def) { return def && def.why === 'regain' ? '예전 국민은행 금고(' + def.last + '년까지)' + (def.bank ? ' · 지금 ' + def.bank : '') : (def && def.why === 'other' ? '지금 ' + whoIs(def) + ' 금고' : (def && def.tag ? '지금 국민은행 협약 중' : '')); };
 
   // 마감까지 모델. it = dash.itemForRec 결과(없으면 미상).
   //  fixed = 공고로 확정된 접수 마감일(D-n), closed = 접수 마감 지남(결과 확인 대기), open = 공고는 났으나 마감일 미확인,
@@ -490,7 +498,7 @@
     const byName = function (a, b) { return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0); };
     const val = {
       nm: function (r) { return r.name; },
-      tag: function (r) { return r.tagCd === 'RETAIN' ? 0 : (r.tagCd === 'NEW' ? 1 : null); },
+      tag: function (r) { return r.tagCd === 'RETAIN' ? 0 : (r.tagCd === 'REGAIN' ? 1 : (r.tagCd === 'NEW' ? 2 : null)); },
       bank: function (r) { return r.bank && !r.bank.unknown ? r.bank.name : null; },
       stage: function (r) { return r.stage >= 0 ? r.stage : null; },
       next: function (r) { return r.nextDate || null; } };
@@ -691,14 +699,14 @@
     const sum = t.bank && typeof t.bank === 'object' ? t.bank : ((ctx.sumById && ctx.sumById[id]) || null);
     const due = kbb.dueOf(it), e = ctx.entries && ctx.entries[id], stage = e ? e.stage : -1, key = rec ? logic.instKey(rec) : '';
     const ty = ctx.today instanceof Date ? ctx.today.getFullYear() : new Date().getFullYear();   // '예전' = 올해보다 앞선 해
-    const lastKb = sum && sum.kb_now !== 'KB' && sum.last_kb_year ? Number(sum.last_kb_year) : 0;
+    const lastKb = kbb.formerKbYear(sum, ty);
     const r = { id: id, key: key, fkey: key || ('id:' + id), rec: rec, it: it, out: !!out, name: (rec && rec.name) || String(t.institution_name || ''),
       regionName: dash.regionName((rec && rec.region) || t.region_code || ''),
       targetNo: t.target_no, revNo: t.rev_no, targetYear: t.target_year, tagCd: t.tag_cd || '', tagName: t.tag_name || kbb.TAG[t.tag_cd] || '',
       memo: String(t.memo || ''), ownerEmpNo: t.owner_emp_no || '', editorName: String(t.editor_name || ''), firstEditor: String(t.first_editor_name || ''),
       savedAt: String(t.saved_at || ''), empVerified: t.emp_verified === true, canCancel: !!t.can_cancel,
       due: due, bank: kbb.bankInfo(sum, rec, { lofin: ctx.lofin, today: ctx.today }),
-      prevYear: lastKb > 0 && lastKb < ty ? lastKb : 0,   // 올해 이후(미래 약정 포함)는 '예전 KB' 칩이 붙지 않는다. NaN도 0
+      prevYear: lastKb,   // 올해 이후(미래 약정 포함)는 칩이 붙지 않는다. NaN도 0(formerKbYear)
       stage: stage, stageLabel: stage >= 0 ? ((dash.STAGES[stage] || {}).label || '') : '',
       act: stage >= 0 ? 'open' : (rec && ctx.actOf ? ctx.actOf(rec) : ''), late: null, hold: null,
       kind: t.kind_cd === 'WATCH' ? 'WATCH' : 'GOAL', closed: out ? (!(Number(ctx.year) > 0) || Number(ctx.year) === ty ? kbb.closedBasis(id, ctx.snap, ctx.today, sum) : null) : kbb.closedOf(t.bid_closed), next: null, nextDate: '', movable: 0, note: null };
@@ -763,9 +771,9 @@
   // prepOk가 아니면(제안 진행 자료를 못 받음) 지연·보류는 null — 판정하지 않는다.
   kbb.bandModel = function (rows, o) {
     o = o || {};
-    const b = { n: rows.length, retain: 0, fresh: 0, soon: 0, delay: null, hold: null, delayDays: o.delayDays || kbb.DELAY_DEFAULT, bars: [] };
+    const b = { n: rows.length, retain: 0, regain: 0, fresh: 0, soon: 0, delay: null, hold: null, delayDays: o.delayDays || kbb.DELAY_DEFAULT, bars: [] };
     rows.forEach(function (r) {
-      if (r.tagCd === 'RETAIN') b.retain += 1; else if (r.tagCd === 'NEW') b.fresh += 1;
+      if (r.tagCd === 'RETAIN') b.retain += 1; else if (r.tagCd === 'REGAIN') b.regain += 1; else if (r.tagCd === 'NEW') b.fresh += 1;
       if (!r.closed && r.due.kind === 'fixed' && r.due.days <= kbb.DEADLINE_SOON) b.soon += 1;
     });
     if (o.prepOk) { b.delay = rows.filter(function (r) { return r.late === true; }).length; b.hold = rows.filter(function (r) { return r.hold === true; }).length; }
@@ -791,7 +799,7 @@
     const dash2 = '—', y = esc(v.year), ld = !!v.loaded;
     const big = function (n, hot) { return '<span class="v' + (hot && n > 0 ? ' hot' : '') + '">' + n + '<span>곳</span></span>'; };
     const k1 = '<div class="hb-k"><span class="l">' + y + ' 목표 기관</span>' + (ld ? big(b.n, false) : '<span class="v">' + dash2 + '</span>') +
-      '<span class="s">' + (ld ? kbb.TAG.RETAIN + ' <b>' + b.retain + '</b> · ' + kbb.TAG.NEW + ' <b>' + b.fresh + '</b>' : '&nbsp;') + '</span></div>';
+      '<span class="s">' + (ld ? '<span class="nw">재유치 <b>' + b.retain + '</b></span> · <span class="nw">되찾기 <b>' + b.regain + '</b></span> · <span class="nw">신규 <b>' + b.fresh + '</b></span>' : '&nbsp;') + '</span></div>';
     const k2 = '<div class="hb-k"><span class="l">접수 마감 ' + kbb.DEADLINE_SOON + '일 안</span>' + (ld ? big(b.soon, true) : '<span class="v">' + dash2 + '</span>') +
       '<span class="s">공고로 확정된 마감일만 셉니다</span></div>';
     const M = kbb.BAND_MSG, none = ld && b.n === 0;
@@ -844,7 +852,7 @@
     // 넣은 사람·고친 사람·메모는 서버 글 — 전부 이스케이프. 사번 확인 안 된 기록은 '확인됨'처럼 보이지 않게 '사번 자기신고'를 밝힌다.
     const tip = [r.memo ? '메모: ' + r.memo : '', r.firstEditor ? '넣은 사람 ' + r.firstEditor : '',
       r.editorName ? '마지막 고침 ' + r.editorName + (r.empVerified ? '' : '(사번 자기신고)') + (r.savedAt ? ' ' + r.savedAt.slice(0, 16).replace('T', ' ') : '') : ''].concat(tc.rowTips(r)).filter(Boolean).join(' · ');
-    const prev = r.tagCd === 'NEW' && r.prevYear ? (r.carried ? '' : '<span class="hb-q hb-prev" title="예전에 국민은행 금고였던 기관(마지막 ' + r.prevYear + '년)">예전 KB</span>') + (r.carried ? '' : '<span class="sr-only"> 예전 국민은행 금고, 마지막 ' + r.prevYear + '년</span>') : '';   // 이월 줄은 rowTips 문장이 같은 말을 읽어 준다(두 번 읽지 않게)
+    const prev = r.tagCd === 'NEW' && r.prevYear ? (r.carried ? '' : '<span class="hb-q hb-prev" title="되찾기 후보 — 예전에 국민은행 금고였던 기관(마지막 ' + r.prevYear + '년)">되찾기</span>') + (r.carried ? '' : '<span class="sr-only"> 되찾기 후보, 예전 국민은행 금고, 마지막 ' + r.prevYear + '년</span>') : '';   // 이월 줄은 rowTips 문장이 같은 말을 읽어 준다(두 번 읽지 않게)
     const chip = o.canEdit
       ? '<button type="button" class="hb-tag" data-act="tag" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-haspopup="menu" aria-expanded="false"><span class="sr-only">구분: </span>' + nm + CHEV + '</button>'
       : '<span class="hb-tag ro"><span class="sr-only">구분: </span>' + nm + '</span>';
@@ -1076,7 +1084,7 @@
     // v.noWatch = 옛 서버(관심 기관 응답 없음): 관심 탭·[관심 기관 추가]를 숨긴다(qa 11-17 P3-2)
     return '<div class="ap-tabs" role="tablist" aria-label="목록 종류">' + tab('goal', '목표', v.nGoal) + (v.noWatch ? '' : tab('watch', '관심', v.nWatch)) + '</div>' +
       '<input type="search" id="hb-q" placeholder="기관명·지역" aria-label="기관명이나 지역으로 찾기" maxlength="40" autocomplete="off"' + (q ? ' class="on"' : '') + ' value="' + esc(q) + '">' +
-      sel('hb-f-tag', '구분 거르기', [['', '구분 전체'], ['RETAIN', kbb.TAG.RETAIN], ['NEW', kbb.TAG.NEW]], f.tag) +
+      sel('hb-f-tag', '구분 거르기', [['', '구분 전체'], ['RETAIN', kbb.TAG.RETAIN], ['REGAIN', kbb.TAG.REGAIN], ['NEW', kbb.TAG.NEW]], f.tag) +
       sel('hb-f-status', '상태 거르기', kbb.STATUS[watch ? 'watch' : 'goal'], f.status) +
       (watch ? '' : sel('hb-f-kind', '종류 거르기', [['', '종류 전체'], ['goal', '목표만'], ['out', '그 밖의 준비 기관만']], f.kind)) +
       (!watch && typeof f.stage === 'number' && f.stage >= 0 ? '<button type="button" class="hb-tag" id="hb-sclr" aria-label="단계 거르기 끄기: ' + esc(v.stageName || '') + '">단계: ' + esc(v.stageName || '') + ' ×</button>' : '') +
@@ -1948,7 +1956,7 @@
     if (!r || gs.busy || !canEditNow()) return;
     closeMenu(false);
     const wrap = document.createElement('div');
-    wrap.innerHTML = kbb.menuHtml(r, { tags: tagList(), def: kbb.defaultTag(r.rec, gs.sum[r.id], tagOpts()), canCancel: r.canCancel,
+    wrap.innerHTML = kbb.menuHtml(r, { tags: tagList(), def: kbb.fitTag(kbb.defaultTag(r.rec, gs.sum[r.id], tagOpts()), tagList()), canCancel: r.canCancel,
       canMove: r.kind !== 'WATCH' && !noWatchNow(), cancelText: r.kind === 'WATCH' ? '관심에서 빼기…' : '',
       canTerm: r.kind !== 'WATCH' && !!r.judgeFrom && !r.pend, judgeText: tc.judgeText(r) });   // judge_from이 있는 서버만 협약 개시일 항목
     const el = wrap.firstChild;
@@ -2100,7 +2108,7 @@
     m.inst = { id: id, name: rec.name || '', rec: rec, key: logic.instKey(rec) };
     m.dup = null;
     m.q = m.inst.name;
-    const def = kbb.defaultTag(rec, gs.sum[id], tagOpts());
+    const def = kbb.fitTag(kbb.defaultTag(rec, gs.sum[id], tagOpts()), tagList());
     m.tag = tagPre || def.tag;
     m.tagTouched = false;
     m.note = kbb.tagNote(def, m.inst.name);
@@ -2182,7 +2190,7 @@
       m.kind = it.kind === 'WATCH' ? 'WATCH' : 'GOAL';
       if (m.kind === 'GOAL') m.year = it.year;
       pickInst(m, rc, '');
-      const rn = kbb.recNote(it); if (rn) m.note = (m.note ? m.note + ' ' : '') + rn;   // 추천 이유 칩은 구분이 아니다 — 근거 줄에 잇는다(규격 P1-2)
+      const rn = m.tag === 'REGAIN' ? '' : kbb.recNote(it); if (rn) m.note = (m.note ? m.note + ' ' : '') + rn;   // 추천 이유 칩은 구분이 아니다 — 근거 줄에 잇는다(규격 P1-2)
       computeWarn(m);
       m.rec.open = false;
       setDlgErr('hb-a-err', '');

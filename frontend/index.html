@@ -1252,6 +1252,9 @@
   .dc-up[hidden] { display:none; }
   #dc-sm-d p { margin:0 0 8px; font-size:13px; line-height:1.6; word-break:keep-all; }
   .dc-hits .c-name { overflow-wrap:anywhere; }
+  .dc-ctxgo, #dg-upload.dg-ready { border-color:var(--accent-color); font-weight:700; }
+  .dc-ctxgo:disabled, #dg-upload.dg-ready:disabled { border-color:var(--line-strong); font-weight:400; }   /* 꺼졌을 때는 강조를 뺀다(design 11-23) */
+  .dc-ctxgo:not(:disabled):hover { border-color:var(--accent-color); }   /* 기본 hover 테두리가 강조를 덮지 않게 */
 
   /* 제안팀 구성·배정 시작 — #tab-soon 안 #tm-root. 규격: handoff/agents/design-reviewer/2026-11-10_1257_a0866e54.md §6. 새 색 없음(토큰만), 채운 주버튼 없음, 최소 11px */
   #tm-root { width:100%; flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; align-self:stretch; }
@@ -1997,7 +2000,7 @@
   .hb-k .v span { margin-left:2px; font:400 12px "Malgun Gothic","Segoe UI",sans-serif; color:var(--muted); }
   .hb-k .v.hot { color:color-mix(in srgb, var(--red) 72%, var(--fg)); }   /* 본문색 쪽으로 섞는다 — 밝은 테마에서도 대비가 난다(세션 44 요청) */
   .hb-k .s { font-size:12px; line-height:1.45; color:var(--muted); }
-  .hb-k .s b { font:400 12px var(--mono); color:var(--fg); }
+  .hb-k .s b { font:400 12px var(--mono); color:var(--fg); }   .hb-k .s .nw { white-space:nowrap; }
   .hb-bk { margin:2px 0 0; display:grid; grid-template-columns:auto minmax(0,1fr) 20px; gap:4px 8px; align-items:center; font-size:12px; color:var(--muted); }
   .hb-bk.two { grid-template-columns:auto minmax(0,1fr) 20px auto minmax(0,1fr) 20px; column-gap:8px; }   /* 은행 막대 4줄 이상이면 2단 — 띠가 커져 아래 구획이 화면 밖으로 밀리지 않게 */
   .hb-bk dt, .hb-bk dd { margin:0; min-width:0; }
@@ -2042,6 +2045,7 @@
   .hb-dd.est { font-weight:400; color:var(--muted); }
   .hb-dd.tx { font-family:inherit; font-size:12px; }
   .hb-q { margin-left:4px; font-size:12px; color:var(--muted); }
+  .hb-tt .hb-prev { margin-left:2px; }   /* 구분 칸 '예전 …' 앞 여유(구분 열 166px 안에서) */
   .hb-bank .r { margin-left:3px; font-size:12px; color:var(--muted); }
   .hb-stg { display:flex; align-items:center; gap:6px; min-width:0; }
   .hb-stg .lb { min-width:0; overflow:hidden; text-overflow:ellipsis; }
@@ -3132,7 +3136,7 @@ review, the verdict, and DESIGN.md
         <h3 id="dg-title"></h3>
         <div id="dg-pkg"></div>
         <h4 class="dc-h">내 작업물 <span id="dc-sum" class="dc-sum"></span></h4>
-        <p class="dc-lead">올린 pptx·pdf에 이 기관이 아닌 다른 기관의 정식 이름이 있는지 찾습니다. 찾지 못했다고 다른 기관 이름이 없다는 뜻은 아닙니다.</p>
+        <p class="dc-lead">업로드한 pptx·pdf에 이 기관이 아닌 다른 기관의 정식 이름이 있는지 찾습니다. 찾지 못했다고 다른 기관 이름이 없다는 뜻은 아닙니다.</p>
         <details class="dc-lim"><summary>점검이 못 찾는 것</summary><ul>
           <li>줄임말·별칭은 찾지 않습니다.</li>
           <li>시·도 없이 쓴 같은 이름의 구('중구'·'서구'·'강서구')와 여러 기관에 걸리는 이름은 건너뜁니다.</li>
@@ -3143,10 +3147,10 @@ review, the verdict, and DESIGN.md
         <div id="dg-files"></div>
         <div id="dg-upload-row">
           <input type="file" id="dg-file-input">
-          <button id="dg-upload">올리기</button>
+          <button id="dg-upload">업로드</button>
           <span class="dg-hint">pptx · ppt · pdf · png · jpg · zip / 최대 50MB</span>
         </div>
-        <div id="dc-up" class="dc-up" hidden><span class="bd-w-prog" role="progressbar" aria-label="파일 올리는 중"><i></i></span><span>파일을 올리고 다른 기관 이름을 찾는 중입니다. 큰 파일은 20초쯤 걸릴 수 있습니다.</span></div>
+        <div id="dc-up" class="dc-up" hidden><span class="bd-w-prog" role="progressbar" aria-label="파일 업로드 중"><i></i></span><span>파일을 업로드하고 다른 기관 이름을 찾는 중입니다. 큰 파일은 20초쯤 걸릴 수 있습니다.</span></div>
         <p id="dc-up-msg" class="dg-hint"></p>
         <div id="dc-live" class="sr-only" role="status" aria-live="polite"></div>
         <h4>메모</h4>

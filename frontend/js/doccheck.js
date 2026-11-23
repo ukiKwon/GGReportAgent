@@ -12,13 +12,13 @@
     TIMEOUT: { text: '20초 안에 끝나지 않아 멈췄습니다.', retry: true },
     STALE: { text: '점검 결과가 없거나 지난 결과입니다(파일이나 기관 목록이 바뀜).', retry: true },
     INTERNAL: { text: '점검 중 오류가 났습니다.', retry: true },
-    FORMAT_UNSUPPORTED: { text: '옛 파워포인트(ppt)는 읽지 못합니다. pptx나 pdf로 저장해 올리면 점검합니다.', retry: false },
+    FORMAT_UNSUPPORTED: { text: '옛 파워포인트(ppt)는 읽지 못합니다. pptx나 pdf로 저장해 업로드하면 점검합니다.', retry: false },
     IMAGE_ONLY: { text: '그림 파일은 글자를 읽지 않습니다.', retry: false },
     ARCHIVE: { text: 'zip 안의 파일은 열어 보지 않습니다.', retry: false },
     FORMAT_MISMATCH: { text: '확장자와 파일 내용이 맞지 않아 읽지 못했습니다.', retry: false },
     ACTIVE_CONTENT: { text: '매크로·스크립트가 들어 있어 읽지 않았습니다.', retry: false },
     ATTACHMENT: { text: 'PDF 안에 첨부 파일이 있어 읽지 않았습니다.', retry: false },
-    ENCRYPTED: { text: '암호가 걸려 있어 읽지 못했습니다. 암호를 풀고 다시 올려 주세요.', retry: false },
+    ENCRYPTED: { text: '암호가 걸려 있어 읽지 못했습니다. 암호를 풀고 다시 업로드해 주세요.', retry: false },
     BROKEN: { text: '파일이 손상됐거나 형식이 달라 읽지 못했습니다.', retry: false },
     TOO_LARGE: { text: '파일 안 내용이 너무 커서 읽지 않았습니다.', retry: false },
     NO_TEXT: { text: '읽을 수 있는 글자가 없습니다(스캔 PDF·그림만 있는 슬라이드).', retry: false },
@@ -39,13 +39,13 @@
     noteImages: '그림 속 글자는 보지 않았습니다.',
     noteEmbedded: '끼워 넣은 개체(엑셀 표 등)는 보지 않았습니다.',
     ctxUnavailable: '파일이 바뀌어 문맥을 보여 줄 수 없습니다. [다시 점검] 뒤 다시 보세요.',
-    summaryFail: '제안서 점검 결과를 불러오지 못했습니다. 올리기·제출은 그대로 됩니다.',
+    summaryFail: '제안서 점검 결과를 불러오지 못했습니다. 업로드·제출은 그대로 됩니다.',
     err: {
       stale: '그사이 파일이 바뀌어 점검 결과를 새로 불러왔습니다. 다시 표시해 주세요.',
       locked: '제출한 작업이라 파일과 표시를 바꿀 수 없습니다.',
       busy: '지금 다른 파일을 점검하고 있습니다. 1분쯤 뒤 다시 눌러 주세요.',
-      busyUpload: '파일을 점검하지 못해 올리지 않았습니다. 잠시 뒤 다시 올려 주세요.',
-      active: '매크로·스크립트가 들어 있는 파일은 올릴 수 없습니다. 매크로를 뺀 pptx로 저장해 다시 올려 주세요.',
+      busyUpload: '파일을 점검하지 못해 업로드하지 않았습니다. 잠시 뒤 다시 업로드해 주세요.',
+      active: '매크로·스크립트가 들어 있는 파일은 업로드할 수 없습니다. 매크로를 뺀 pptx로 저장해 다시 업로드해 주세요.',
       auth: '로그인 정보(사번)가 없어 처리하지 못했습니다. 다시 로그인해 주세요.',
       notOwner: '이 작업의 담당자만 표시할 수 있습니다.',
       gone: '파일이 없습니다. 목록을 새로 불러왔습니다.',
@@ -206,7 +206,7 @@
   // withObj: 조사 도우미(dlg.withObj) — 있으면 을/를을 받침에 맞춘다(팀 결정 11-23). 없으면 '을'.
   dc.uploadResultText = function (name, replaced, badge, withObj) {
     const obj = typeof withObj === 'function' ? withObj(name) : name + '을';
-    return obj + ' 올렸습니다.' + (replaced ? ' (같은 이름 파일을 바꿈)' : '') + (badge ? ' ' + badge.text : '');
+    return obj + ' 업로드했습니다.' + (replaced ? ' (같은 이름 파일을 바꿈)' : '') + (badge ? ' ' + badge.text : '');
   };
 
   // ── 제출 확인창 내용(규격 6-5). sum: 요약 응답 | null(실패) ────────────

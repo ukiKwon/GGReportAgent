@@ -147,7 +147,7 @@
     if (task.status === '1차완료' || task.status === '2차완료') {
       return '이미 제출했습니다.';
     }
-    if ((files || []).length === 0) return '작업물을 하나 이상 올린 뒤 제출할 수 있습니다.';
+    if ((files || []).length === 0) return '작업물을 하나 이상 업로드한 뒤 제출할 수 있습니다.';
     const waiting = handoff ? designer.waitingOn(handoff) : [];
     if (waiting.length) {
       return waiting.join('·') + '팀이 아직 작업 중입니다 — 끝난 뒤에 제출할 수 있습니다.';
@@ -287,7 +287,7 @@
     head.appendChild(mk('span', 'dc-at', sf.checked_at ? '점검 ' + doccheck.timeText(sf.checked_at) : ''));
     const ctxLoaded = !!(v.ctx || {})[name];
     if (d && d.hits && d.hits.length && !ctxLoaded && (d.state === 'DONE' || d.state === 'PARTIAL')) {
-      const cb = fidBtn(busyOf[name] === 'ctx' ? doccheck.COPY.ctxLoading : '문맥 보기', name, 'ctx');
+      const cb = fidBtn(busyOf[name] === 'ctx' ? doccheck.COPY.ctxLoading : '문맥 보기', name, 'ctx', 'dc-tg dc-ctxgo');   // 검출이 1건 이상이면 강조(이 분기가 hits>=1일 때만 선다)
       cb.disabled = !!busyOf[name];
       cb.onclick = function () { on.context(name); };
       head.appendChild(cb);
@@ -394,7 +394,7 @@
     if (v.sum && v.sum !== 'fail') (v.sum.files || []).forEach(function (x) { byName[x.name] = x; });
     const busyOf = v.busy || {}; const on = v.on || {};
     container.textContent = '';
-    if (!rows.length) { container.appendChild(mk('p', 'wf-empty', '올린 작업물이 없습니다.')); return; }
+    if (!rows.length) { container.appendChild(mk('p', 'wf-empty', '업로드한 작업물이 없습니다.')); return; }
     rows.forEach(function (f, i) {
       const sf = byName[f.name] || null;
       const row = mk('div', 'dg-file');
@@ -559,7 +559,8 @@
     el('dg-why').textContent = ok ? '' : why;
     el('dg-save').disabled = busy;
     el('dg-upload').disabled = busy;
-    el('dg-upload').textContent = uploading ? '올리는 중…' : '올리기';
+    el('dg-upload').textContent = uploading ? '업로드 중…' : '업로드';
+    markUploadReady();
     el('dc-up').hidden = !uploading;
     restoreFocus();
   }
@@ -628,10 +629,16 @@
     if (isErr) m.setAttribute('role', 'alert'); else m.removeAttribute('role');
   }
 
+  // 파일을 골랐을 때만 [업로드]를 강조한다(고르지 않았으면 기본 모양).
+  function markUploadReady() {
+    const inp = el('dg-file-input'), b = el('dg-upload');
+    if (inp && b) b.classList.toggle('dg-ready', !!(inp.files && inp.files.length));
+  }
+
   function upload() {
     const input = el('dg-file-input');
     const file = input.files && input.files[0];
-    if (!file) { dcUpMsg('올릴 파일을 먼저 고르세요.', true); return; }
+    if (!file) { dcUpMsg('업로드할 파일을 먼저 고르세요.', true); return; }
     const fd = new FormData();
     fd.append('file', file);
     fd.append('by', profile().name || '');
@@ -978,6 +985,7 @@
 
   designer.mount = function () {
     el('dg-upload').onclick = upload;
+    el('dg-file-input').addEventListener('change', markUploadReady);
     el('dg-save').onclick = saveDraft;
     el('dg-submit').onclick = submit;
     wireSubmitModal();

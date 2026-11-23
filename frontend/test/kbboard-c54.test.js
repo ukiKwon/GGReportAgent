@@ -180,7 +180,7 @@ test('표 머리·도구 줄·거른 결과 0: 정렬 머리는 aria-sort 하나
   assert.ok(tb.indexOf('role="tab" id="hb-tab-goal" data-tab="goal" class="on" aria-selected="true" aria-controls="hb-ts" tabindex="0">목표 <b>3</b>') > 0);
   assert.ok(tb.indexOf('id="hb-tab-watch"') > 0 && tb.indexOf('aria-selected="false"') > 0 && tb.indexOf('tabindex="-1">관심 <b>2</b>') > 0);
   assert.ok(tb.indexOf('placeholder="기관명·지역" aria-label="기관명이나 지역으로 찾기"') > 0 && tb.indexOf('value="동&lt;작"') > 0);
-  assert.ok(tb.indexOf('구분 전체</option>') > 0 && tb.indexOf('상태 전체</option>') > 0 && tb.indexOf('<option value="" selected>종류 전체</option>') > 0 && tb.indexOf('<option value="NEW" selected>') > 0);
+  assert.ok(tb.indexOf('구분 전체</option>') > 0 && tb.indexOf('상태 전체</option>') > 0 && tb.indexOf('<option value="" selected>종류 전체</option>') > 0 && tb.indexOf('<option value="NEW" selected>') > 0 && tb.indexOf('<option value="REGAIN">') > 0);
   assert.ok(tb.indexOf('<option value="late" selected>준비 지연</option>') > 0 && tb.indexOf('id="hb-sclr"') > 0 && tb.indexOf('단계: 사전준비 ×') > 0);
   assert.ok(tb.indexOf('<span class="cnt" id="hb-cnt" role="status"><span class="sr-only">5곳 중 3곳 보임</span><span aria-hidden="true"><b>3</b> / <b>5</b>곳</span></span>') > 0 && tb.indexOf('id="hb-fclear">필터 지우기') > 0 && tb.indexOf('id="hb-fclear" hidden') < 0);
   const wt = kbb.toolbarHtml({ tab: 'watch', nGoal: 3, nWatch: 2, f: { q: '', tag: '', status: '', kind: '', stage: -1 }, shown: 2, total: 2, canEdit: true });

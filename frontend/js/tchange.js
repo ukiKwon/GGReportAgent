@@ -245,7 +245,7 @@
     const out = [];
     if (r && r.carried) {
       const t = tc.carriedTitle(r); if (t) out.push(t);
-      if (r.tagCd === 'NEW' && r.prevYear) out.push('예전 국민은행 금고(마지막 ' + r.prevYear + '년)');
+      if (r.tagCd === 'NEW' && r.prevYear) out.push('되찾기 후보: 예전 국민은행 금고(마지막 ' + r.prevYear + '년)');
     }
     const j = tc.judgeText(r); if (j) out.push(j);
     return out;
