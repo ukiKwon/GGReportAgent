@@ -261,7 +261,7 @@
   // 목표 기관 구성 막대 + 달성률 계산 구간 꺾쇠. 칸이 없거나 데이터가 적으면(목표 BAR_MIN_N 곳 미만·분류 한 가지) ''.
   results.barHtml = function (s, W) {
     const m = results.barModel(s, W);
-    if (!m.cells.length || num(s.target_n) < results.BAR_MIN_N || m.cells.length < 2) return '';
+    if (!m.cells.length || num(s.target_n) < results.BAR_MIN_N || m.cells.length < 2 || !(m.den > 0)) return '';   // 결과(재유치·신규·타은행 유치)가 하나도 없으면(목표만) 막대를 그리지 않는다 — 오류처럼 보임(사용자 11-23)
     const parts = CODES.map(function (c) { return LABEL[c] + ' ' + m.counts[c]; }).join(', ');
     const label = '목표 ' + num(s.target_n) + '곳: ' + parts + '. ' + (m.den > 0 ? '달성률은 재유치·신규와 타은행 유치 ' + m.den + '곳으로 계산' : '결과가 난 곳이 없어 달성률은 아직 없음');
     const brace = m.span > 0 ? '<div class="rs-brace" style="width:' + m.span + 'px"><span>달성률 계산 ' + m.den + '곳</span></div>' : '';

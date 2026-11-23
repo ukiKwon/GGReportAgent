@@ -106,7 +106,7 @@ test('barHtml: role=img 설명, 꺾쇠 문구, 좁은 칸 숫자는 범례로, �
   const narrow = results.barHtml({ target_n: 501, success_retain_n: 1, success_new_n: 0, fail_n: 0, pending_n: 500, unregistered_n: 0, rate_denominator: 1 }, 400);
   assert.ok(narrow.indexOf('rs-legend') > 0 && narrow.indexOf('재유치 <span class="v">1</span>') > 0);
   const none = results.barHtml({ target_n: 10, pending_n: 7, unregistered_n: 3, rate_denominator: 0 }, 400);
-  assert.ok(none.indexOf('rs-brace') < 0 && none.indexOf('달성률은 아직 없음') > 0);
+  assert.strictEqual(none, '', '결과가 하나도 없으면(목표만) 막대 없음 — 사용자 11-23');
   // 3) 데이터가 적으면 막대를 그리지 않는다: 목표 5곳 미만, 또는 분류가 한 가지뿐
   assert.strictEqual(results.BAR_MIN_N, 5);
   assert.strictEqual(results.barHtml({ target_n: 4, success_retain_n: 2, pending_n: 2, rate_denominator: 2 }, 400), '', '목표 4곳');
