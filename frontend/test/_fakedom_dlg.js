@@ -288,4 +288,38 @@ exports.register = function (test, assert, freshDlg) {
     D.close(a.ov);
     assert.strictEqual(doc.activeElement, nav);
   });
+
+  test('dlg.confirm: 창 하나 재사용, 첫 포커스 [취소], [실행]=true·Esc=false, 닫으면 연 자리로, 떠 있을 때 다시 부르면 앞 물음은 false', async function () {
+    const D = freshDlg(); const doc = makeDoc();
+    const opener = doc.El('button'); doc.body.appendChild(opener); opener.focus();
+    const p1 = D.confirm({ doc: doc, title: '첨부 삭제', text: '"a.pdf" 파일을 삭제할까요?', go: '삭제', danger: true });
+    const ov = doc.getElementById('dlg-confirm');
+    assert.strictEqual(doc.activeElement.textContent, '취소');
+    assert.strictEqual(ov.querySelector('.dlg-danger').textContent, '삭제');
+    assert.strictEqual(doc.getElementById('dlg-confirm-m').textContent, '"a.pdf" 파일을 삭제할까요?');
+    ov.querySelector('.dlg-danger').click();
+    assert.strictEqual(await p1, true);
+    assert.strictEqual(D.depth(), 0); assert.strictEqual(doc.activeElement, opener);
+    const p2 = D.confirm({ doc: doc, text: 'x', go: '제출' });
+    assert.strictEqual(doc.body.children.filter(function (c) { return c.id === 'dlg-confirm'; }).length, 1);
+    assert.ok(ov.querySelector('.dlg-go')); assert.strictEqual(ov.querySelector('.dlg-danger'), null);
+    const p3 = D.confirm({ doc: doc, text: 'y', go: '제출' });          // 떠 있는 채로 다시 부름
+    assert.strictEqual(await p2, false);
+    key(doc, 'Escape'); assert.strictEqual(await p3, false); assert.strictEqual(D.depth(), 0);
+    const p4 = D.confirm({ doc: doc, text: 'z', go: '제출' });
+    const fb = ov.querySelectorAll('.dlg-foot button');
+    assert.strictEqual(fb[0].textContent, '취소');                       // [취소][실행] 순서(Q-2026-11-19-82, design 11-23)
+    fb[0].click();                                                       // [취소]
+    assert.strictEqual(await p4, false);
+  });
+
+  test('dlg.line: 오류는 .st-err·role=alert, 성공·빈 글은 role=status·.st-err 해제, 다른 클래스는 유지', function () {
+    const D = freshDlg(); const doc = makeDoc(); const n = doc.El('p'); n.className = 'st-line st-pad';
+    D.line(n, '못 했습니다.', true);
+    assert.strictEqual(n.className, 'st-line st-pad st-err'); assert.strictEqual(n.getAttribute('role'), 'alert');
+    D.line(n, '3건을 반영했습니다.', false);
+    assert.strictEqual(n.className, 'st-line st-pad'); assert.strictEqual(n.getAttribute('role'), 'status');
+    D.line(n, '', true);
+    assert.strictEqual(n.textContent, ''); assert.strictEqual(n.getAttribute('role'), 'status');
+  });
 };

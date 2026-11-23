@@ -483,7 +483,14 @@
     return Object.assign({ by: profile().name || null }, extra || {});
   }
 
-  function fail(msg) { return function () { alert(msg); }; }
+  // 오류는 alert() 대신 줄에 한 줄(11-23). 기본은 목록 위 #dg-msg, 파일 줄·저장 줄은 sink로 받는다.
+  function dgMsg(text, isErr) { root.dlg.line(el('dg-msg'), text, isErr); }
+  function savedMsg(text, bad) {
+    const sv = el('dg-saved'); if (!sv) return;
+    sv.textContent = text || ''; sv.className = bad ? 'dg-hint st-bad' : 'dg-hint';
+    if (bad) sv.setAttribute('role', 'alert'); else sv.removeAttribute('role');
+  }
+  function fail(msg, sink) { return function () { (sink || dgMsg)(msg, true); }; }
 
   function loadTasks() {
     return fetch('/tasks?team=' + encodeURIComponent(myTeam())).then(function (r) {
@@ -495,7 +502,7 @@
         selectedId = null;
       }
       paint();
-    }).catch(fail('작업 목록을 불러오지 못했습니다.'));
+    }).catch(fail('작업 목록을 불러오지 못했습니다. 서버에 연결되지 않았습니다. 잠시 뒤 작업함을 다시 열어 보세요.'));
   }
 
   function loadDetail() {
@@ -518,7 +525,7 @@
       const detail = res[2];
       if (detail) el('dg-memo').value = detail.draft_content || '';
       paint();
-    }).catch(fail('작업 상세를 불러오지 못했습니다.'));
+    }).catch(fail('작업 상세를 불러오지 못했습니다. 서버에 연결되지 않았습니다. 목록에서 작업을 다시 고르세요.'));
   }
 
   function selected() {
@@ -529,7 +536,7 @@
     const today = new Date();
     designer.renderList(el('dg-list'), tasks, today, selectedId);
     el('dg-list').querySelectorAll('.dg-item').forEach(function (node) {
-      node.onclick = function () { selectedId = node.dataset.id; dcResetAll(); loadDetail(); };
+      node.onclick = function () { selectedId = node.dataset.id; dgMsg('', false); dcResetAll(); loadDetail(); };
     });
 
     const task = selected();
@@ -588,23 +595,28 @@
     });
     el('dg-files').querySelectorAll('.dg-rm').forEach(function (btn) {
       btn.onclick = function () {
-        if (!confirm(btn.dataset.name + ' 을(를) 삭제할까요?')) return;
-        fetch('/tasks/' + encodeURIComponent(selectedId) + '/files/' +
-          encodeURIComponent(btn.dataset.name) +
-          '?by=' + encodeURIComponent(profile().name || ''), {
-          method: 'DELETE', headers: { 'X-User-Id': 'web-user' },
-        }).then(function (r) {
-          if (!r.ok && r.status !== 204) {
-            return readErr(r).then(function (e) {
-              const er = doccheck.errorFor(e.status, e.code, 'delete');
-              // 404 문구는 '목록을 새로 불러왔습니다'라고 하므로 실제로 다시 부른 뒤 알린다(P3-3)
-              if (er.reload) return loadDetail().then(loadTasks).then(function () { alert(er.text); });
-              alert(er.text);
-            });
-          }
-          delete dcOpenNames[btn.dataset.name]; delete dcDet[btn.dataset.name]; delete dcCtx[btn.dataset.name];
-          return loadDetail().then(loadTasks);
-        }).catch(fail('서버 연결 실패 — 삭제되지 않았습니다.'));
+        const name = btn.dataset.name;
+        root.dlg.confirm({
+          title: '첨부 삭제', text: '"' + name + '" 파일을 삭제할까요?', go: '삭제', cancel: '취소', danger: true,
+        }).then(function (ok) {
+          if (!ok) return;
+          dcUpMsg('', false);
+          return fetch('/tasks/' + encodeURIComponent(selectedId) + '/files/' +
+            encodeURIComponent(name) + '?by=' + encodeURIComponent(profile().name || ''), {
+            method: 'DELETE', headers: { 'X-User-Id': 'web-user' },
+          }).then(function (r) {
+            if (!r.ok && r.status !== 204) {
+              return readErr(r).then(function (e) {
+                const er = doccheck.errorFor(e.status, e.code, 'delete');
+                // 404 문구는 '목록을 새로 불러왔습니다'라고 하므로 실제로 다시 부른 뒤 알린다(P3-3)
+                if (er.reload) return loadDetail().then(loadTasks).then(function () { dcUpMsg(er.text, true); });
+                dcUpMsg(er.text, true);
+              });
+            }
+            delete dcOpenNames[name]; delete dcDet[name]; delete dcCtx[name];
+            return loadDetail().then(loadTasks);
+          }).catch(fail('첨부를 삭제하지 못했습니다. 서버에 연결되지 않았습니다. 잠시 뒤 다시 삭제하세요.', dcUpMsg));
+        });
       };
     });
   }
@@ -906,6 +918,7 @@
       }
       smSubmitting = false;
       root.dlg.close(modal);
+      savedMsg('', false);
       const sv = el('dg-saved');
       sv.textContent = '제출했습니다. ' + st.approver + '에게 결재 요청을 보냈습니다.';
       sv.setAttribute('tabindex', '-1');
@@ -942,9 +955,9 @@
       headers: { 'Content-Type': 'application/json', 'X-User-Id': 'web-user' },
       body: JSON.stringify(actorBody({ content: el('dg-memo').value })),
     }).then(function (r) {
-      if (!r.ok) { alert('임시저장 실패 (' + r.status + ')'); return; }
-      el('dg-saved').textContent = '임시저장됨 ' + new Date().toLocaleTimeString();
-    }).catch(fail('서버 연결 실패 — 저장되지 않았습니다.'))
+      if (!r.ok) { savedMsg('임시저장을 하지 못했습니다. 서버가 저장을 받지 않았습니다. 메모를 지우지 말고 다시 저장하세요.', true); return; }
+      savedMsg('임시저장됨 ' + new Date().toLocaleTimeString(), false);
+    }).catch(fail('임시저장을 하지 못했습니다. 서버에 연결되지 않았습니다. 메모를 지우지 말고 다시 저장하세요.', savedMsg))
       .then(function () { busy = false; paint(); });
   }
 

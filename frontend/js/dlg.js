@@ -271,6 +271,67 @@
     }
   };
 
+  // ── 확인 창(dlg.confirm) · 화면 상태 줄(dlg.line) — alert()/confirm() 대체(11-23) ──────────
+  // dlg.confirm(opts) → Promise<boolean>. 되돌리기 어려운 확인(결재 제출·반려·첨부 삭제)용.
+  // opts: { title, text('\n' 줄바꿈 가능), go: '실행 동사', cancel: '취소', danger: bool, focusGo: bool, doc }
+  // [취소][실행] 순서(쓰는 창 [취소][저장]과 같게, Q-2026-11-19-82), 첫 포커스는 안전한 쪽([취소]). Esc·바깥 클릭·[취소]는 false. .dlg 알림 마크업 하나를 body에 만들어 재사용한다.
+  function buildConfirm(doc) {
+    const mk = function (tag, cls) { const n = doc.createElement(tag); if (cls) n.className = cls; return n; };
+    const ov = mk('div', 'modal-overlay'); ov.id = 'dlg-confirm'; ov.style.display = 'none';
+    const box = mk('div', 'dlg');
+    box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-labelledby', 'dlg-confirm-t'); box.setAttribute('aria-describedby', 'dlg-confirm-m');
+    const bar = mk('header', 'dlg-bar'); const h = mk('h2', 'dlg-t'); h.id = 'dlg-confirm-t'; h.setAttribute('tabindex', '-1');
+    bar.appendChild(h);
+    const body = mk('div', 'dlg-body'); const p = mk('p'); p.id = 'dlg-confirm-m'; body.appendChild(p);
+    const foot = mk('footer', 'dlg-foot');
+    const go = mk('button', 'dlg-go'); go.type = 'button';
+    const cancel = mk('button'); cancel.type = 'button';
+    foot.appendChild(cancel); foot.appendChild(go);
+    box.appendChild(bar); box.appendChild(body); box.appendChild(foot); ov.appendChild(box);
+    doc.body.appendChild(ov);
+    const st = { title: h, msg: p, go: go, cancel: cancel, resolve: null, result: false };
+    go.addEventListener('click', function () { st.result = true; dlg.close(ov); });
+    cancel.addEventListener('click', function () { dlg.requestClose(ov); });
+    ov.dlgState = st;
+    return ov;
+  }
+
+  dlg.confirm = function (opts) {
+    const o = opts || {};
+    const doc = o.doc || (typeof document !== 'undefined' ? document : null);
+    if (!doc) return Promise.resolve(false);
+    const ov = doc.getElementById('dlg-confirm') || buildConfirm(doc);
+    const st = ov.dlgState;
+    if (entryOf(ov)) dlg.close(ov, { restore: false });   // 이미 떠 있으면 앞 물음은 false로 끝낸다
+    st.title.textContent = o.title || '확인';
+    st.msg.textContent = o.text || '';
+    st.go.textContent = o.go || '확인';
+    st.go.className = o.danger ? 'dlg-danger' : 'dlg-go';
+    st.cancel.textContent = o.cancel || '취소';
+    return new Promise(function (resolve) {
+      st.resolve = resolve; st.result = false;
+      dlg.open(ov, {
+        focus: o.focusGo ? st.go : st.cancel,
+        onClose: function () {
+          const r = st.resolve; const v = st.result;
+          st.resolve = null; st.result = false;
+          if (r) r(v);
+        }
+      });
+    });
+  };
+
+  // 화면 상태 줄 한 줄: 오류는 role=alert + .st-err(빨강), 성공·안내는 role=status. 빈 글이면 줄이 접힌다(:empty).
+  dlg.line = function (node, text, isErr) {
+    if (!node) return;
+    node.setAttribute('role', text && isErr ? 'alert' : 'status');   // 역할을 글보다 먼저 — 화면 낭독기가 오류를 놓치지 않게(design 11-23)
+    const c = String(node.className || '').split(/\s+/).filter(function (x) { return x && x !== 'st-err'; });
+    if (text && isErr) c.push('st-err');
+    node.className = c.join(' ');
+    node.textContent = text || '';
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = dlg;
   else root.dlg = dlg;
 })(typeof self !== 'undefined' ? self : this);

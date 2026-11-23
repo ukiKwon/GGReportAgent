@@ -486,33 +486,45 @@
   };
 
   app.wireData = function () {
+    // CSV 반입 결과·오류는 티커 줄의 #data-msg에 한 줄(alert 대체, 11-23). 성공 안내는 8초 뒤 접는다.
+    let dataMsgTimer = null;
+    function dataMsg(text, bad) {
+      const n = document.getElementById('data-msg');
+      root.dlg.line(n, text, bad);
+      clearTimeout(dataMsgTimer);
+      if (text && !bad) dataMsgTimer = setTimeout(function () { root.dlg.line(n, '', false); }, 8000);
+    }
     document.getElementById('btn-add').addEventListener('click', app.openAdd);
     document.getElementById('btn-tmpl').addEventListener('click', function () { root.exporter.downloadCsvTemplate(); });
     document.getElementById('file-csv').addEventListener('change', function (e) {
       if (app.isViewOnly()) { e.target.value = ''; return; }   // 보기 전용: 단추가 없어도 한 번 더 막는다
       const file = e.target.files[0]; if (!file) return;
+      dataMsg('', false);
       if (root.store.isServerMode()) {
         // 서버 모드: 기존 12열 CSV 그대로 multipart로 올려 서버 반입(SCHEMA §⑦의 상위집합 계약).
         const fd = new FormData(); fd.append('file', file);
         fetch('/institutions/import', { method: 'POST', body: fd })
           .then(function (r) {
-            if (!r.ok) { alert('반입 실패 (' + r.status + ')'); return; }
+            if (!r.ok) { dataMsg('CSV를 반입하지 못했습니다. 서버가 파일을 받지 않았습니다. 열 구성이 템플릿과 같은지 확인한 뒤 다시 올리세요.', true); return; }
             return r.json().then(function (data) {
-              alert(data.imported + '건을 반영했습니다.');
+              const n = Number(data && data.imported) || 0;
+              dataMsg(n + '건을 반영했습니다.', false);
               return app.bootstrapServer().then(function () {
                 root.render.drawTicker(); root.render.drawNational();
+              }, function () {   // 반입은 끝났다 — 화면만 못 새로 고침(qa 11-23 P2-2: '못 했습니다'로 덮으면 다시 올려 중복 반입)
+                dataMsg(n + '건을 반영했습니다. 화면을 새로 고치지 못했습니다. F5로 새로 고치세요.', true);
               });
             });
-          }).catch(function () { alert('서버 연결 실패 — 반입되지 않았습니다.'); });
+          }).catch(function () { dataMsg('CSV를 반입하지 못했습니다. 서버에 연결되지 않았습니다. 잠시 뒤 다시 올리세요.', true); });
         e.target.value = ''; return;
       }
       const reader = new FileReader();
       reader.onload = function () {
         const recs = root.logic.parseCsv(String(reader.result));
-        if (!recs.length) { alert('CSV에서 읽은 행이 없습니다.'); return; }
+        if (!recs.length) { dataMsg('CSV를 반입하지 못했습니다. 읽은 행이 없습니다. 첫 줄 머리글과 데이터 행이 있는지 확인하세요.', true); return; }
         recs.forEach(function (r) { if (!r.updatedAt) r.updatedAt = new Date().toISOString().slice(0,10); });
         root.store.saveData(recs);
-        alert(recs.length + '건을 반영했습니다.');
+        dataMsg(recs.length + '건을 반영했습니다.', false);
         root.render.drawTicker(); root.render.drawNational();
       };
       reader.readAsText(file, 'utf-8'); e.target.value = '';

@@ -132,6 +132,7 @@
     aborter = new AbortController();
     repaint();
 
+    chMsg('', false);
     fetch('/institutions/' + encodeURIComponent(id) + '/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -139,7 +140,7 @@
       body: JSON.stringify({ content: text, author: profile.name || null }),
       signal: aborter.signal,
     }).then(function (r) {
-      if (!r.ok) throw new Error('전송 실패 (' + r.status + ')');
+      if (!r.ok) { const er = new Error('http'); er.http = true; throw er; }
       // SSE가 아니라 평문 스트림이다. stream:true가 없으면 청크 경계에서 한글이 깨진다.
       const reader = r.body.getReader();
       const decoder = new TextDecoder('utf-8');
@@ -166,7 +167,8 @@
       if (e.name === 'AbortError') {
         messages[replyIndex].content += '\n\n…(응답이 중단되었습니다)';
       } else {
-        alert(e.message || '서버 연결 실패 — 전송되지 않았습니다.');
+        chMsg('메시지를 보내지 못했습니다. ' + (e.http ? '서버가 받지 않았습니다.' : '서버에 연결되지 않았습니다.') +
+              ' 쓰던 글은 입력칸에 그대로 두었으니 다시 보내세요.', true);
         messages = messages.slice(0, replyIndex - 1);   // 낙관적 두 줄을 되돌린다
         input.value = text;                             // 입력 복구
       }
@@ -176,6 +178,8 @@
       if (selectedId === id) loadHistory();              // 서버가 저장한 실제 시각으로 교체
     });
   }
+
+  function chMsg(text, isErr) { root.dlg.line(el('ch-msg'), text, isErr); }
 
   function renderControls() {
     const rows = (root.store && root.store.loadData() || []).filter(function (r) { return r.institutionId; });

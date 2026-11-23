@@ -2792,6 +2792,14 @@
   .dlg-req { margin-left:2px; color:var(--red); font-weight:700; }
   .dlg input[aria-invalid="true"], .dlg select[aria-invalid="true"], .dlg textarea[aria-invalid="true"] { border-color:var(--red); box-shadow:inset 0 0 0 1px var(--red); }
   .dlg-ferr { margin:4px 0 0; font-size:12px; line-height:1.5; color:var(--red); }
+  /* 화면 상태 줄 .st-line — alert()/confirm() 대체(11-23, js/dlg.js dlg.line). 새 변수·새 색 없음 */
+  .st-line { margin:0; font-size:12px; line-height:1.5; color:var(--muted); word-break:keep-all; }
+  .st-line.st-err { color:var(--red); }
+  .st-line:empty { display:none; }
+  .st-pad { padding:6px 20px; }
+  .dg-hint.st-bad { color:var(--red); }
+  #ticker-strip #data-msg { flex:0 1 46%; min-width:0; }
+  #dlg-confirm-m { margin:0; font-size:13px; line-height:1.6; white-space:pre-line; word-break:keep-all; }
   /* 2단계 이행 창 보조 규칙(11-20) — 새 변수·새 색 없음 */
   .more-find { padding:8px 24px; border-bottom:1px solid var(--line); }
   .more-find input { width:100%; }
@@ -2932,7 +2940,7 @@ review, the verdict, and DESIGN.md
     <button id="btn-theme"><svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><rect x="0.5" y="0.5" width="5" height="5" rx="1" fill="var(--red)"/><rect x="6.5" y="0.5" width="5" height="5" rx="1" fill="var(--orange)"/><rect x="0.5" y="6.5" width="5" height="5" rx="1" fill="var(--yellow)"/><rect x="6.5" y="6.5" width="5" height="5" rx="1" fill="var(--blue)"/></svg>지도 색상</button>
   </div>
 </div>
-<div id="ticker-strip"><div id="ticker"></div>
+<div id="ticker-strip"><div id="ticker"></div><p id="data-msg" class="st-line" role="status"></p>
   <button id="ov-toggle" type="button" aria-expanded="false" aria-controls="ov-panel"></button></div>
 
 <section id="tab-map" class="tab-view active">
@@ -2975,6 +2983,7 @@ review, the verdict, and DESIGN.md
   <div id="wf-overview"></div>
   <div id="wf-controls"></div>
   <div id="wf-warn"></div>
+  <p id="wf-msg" class="st-line st-pad" role="status"></p>
   <div id="wf-participation"></div>
   <div id="wf-panel"></div>
   <div id="wf-coverage"></div>
@@ -2985,6 +2994,7 @@ review, the verdict, and DESIGN.md
   <div id="ch-header"><span id="chat-model-badge"></span></div>
   <div id="ch-controls"></div>
   <div id="ch-log"></div>
+  <p id="ch-msg" class="st-line st-pad" role="status"></p>
   <div id="ch-form">
     <textarea id="ch-input" rows="2" placeholder="참여 여부·근거를 물어보세요 (Enter 전송, Shift+Enter 줄바꿈)"></textarea>
     <button id="ch-send">보내기</button>
@@ -2999,6 +3009,7 @@ review, the verdict, and DESIGN.md
 
 <section id="tab-designer" class="tab-view">
   <div id="dg-head"><span id="dg-scope">작업함</span> <span id="dg-who"></span></div>
+  <p id="dg-msg" class="st-line st-pad" role="status"></p>
   <div id="dg-wrap">
     <div id="dg-list"></div>
     <div id="dg-pane">
@@ -3044,6 +3055,7 @@ review, the verdict, and DESIGN.md
   <div id="ap-pane-inbox" style="display:none;">
     <div id="ap-req-inbox"></div>
     <div id="ap-sec-tasks" class="ap-sec" style="display:none;">제안서 작업물 결재</div>
+    <p id="ap-msg" class="st-line st-pad" role="status"></p>
     <div id="ap-list"></div>
     <div id="ap-notice"></div>
   </div>

@@ -734,38 +734,55 @@
     });
   }
 
+  function wfMsg(text, isErr) { root.dlg.line(el('wf-msg'), text, isErr); }
+
   function submitDecision(tier, choice) {
     const rec = currentRecord();
     if (!rec || !rec.bidCaseId) return;
     const me = root.store.loadProfile();
     if (!me.name || !me.team) {
-      alert('상단에서 이름·소속을 먼저 입력하세요 — 결재 기록에 남습니다.');
+      wfMsg('결재를 제출하지 못했습니다. 이름·소속이 비어 있습니다. 내 정보에서 이름·소속을 입력한 뒤 다시 제출하세요.', true);
       return;
     }
-    if (!confirm(tier + '차 결재: "' + choice + '" 로 제출합니다.\n결재자: ' +
-                 (root.roles ? root.roles.roleLabel(me.team) : me.team) + ' ' + me.name)) return;
+    wfMsg('', false);
+    root.dlg.confirm({
+      title: tier + '차 결재 제출',
+      text: '선택: "' + choice + '"\n결재자: ' + (root.roles ? root.roles.roleLabel(me.team) : me.team) + ' ' + me.name +
+            '\n제출하면 결재 기록에 남습니다.',
+      go: '제출', cancel: '취소',
+    }).then(function (ok) { if (ok) sendDecision(rec, me, tier, choice); });
+  }
 
+  function sendDecision(rec, me, tier, choice) {
     fetch('/bidcases/' + encodeURIComponent(rec.bidCaseId) + '/participation-decisions', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       // 한글 이름·소속은 헤더가 아니라 body로(X-User-Id는 ASCII만).
       body: JSON.stringify({ tier: tier, role: me.team, by: me.name, choice: choice }),
     }).then(function (r) {
       return r.json().then(function (body) {
-        if (!r.ok) throw new Error((body && body.detail) || ('결재 실패 (' + r.status + ')'));
+        if (!r.ok) {
+          const er = new Error(root.errtext ? root.errtext.message(body && body.detail, '') : '');
+          er.http = true; throw er;
+        }
         return body;
       });
     }).then(function (body) {
       if (body.participation_status === '참여확정') {
-        alert(body.run_started
-          ? '참여확정 — 입찰 분석(3·4단계)을 시작했습니다.'
-          : '참여확정 — 다만 분석을 자동으로 시작하지 못했습니다. 쪽지함을 확인하세요.');
+        if (body.run_started) wfMsg('참여확정 — 입찰 분석(3·4단계)을 시작했습니다.', false);
+        else wfMsg('참여확정을 저장했습니다. 입찰 분석(3·4단계)은 자동으로 시작하지 못했습니다. 쪽지함을 확인하세요.', true);
       }
       // 지도와 카드가 같은 값을 보도록 목록을 다시 받는다.
       return root.app.bootstrapServer().then(function () {
         refresh();
         if (root.render && root.render.drawTicker) root.render.drawTicker();
+      }, function () {   // 제출은 끝났다 — 화면만 못 새로 고침(qa 11-23 P2-2: 재제출 방지)
+        wfMsg('결재는 제출했습니다. 화면을 새로 고치지 못했습니다. F5로 새로 고치세요.', true);
       });
-    }).catch(function (e) { alert(e.message || '서버 연결 실패 — 처리되지 않았습니다.'); });
+    }).catch(function (e) {
+      wfMsg(e && e.http
+        ? (e.message || '결재를 제출하지 못했습니다. 서버가 받지 않았습니다. 목록을 새로 고친 뒤 다시 제출하세요.')
+        : '결재를 제출하지 못했습니다. 서버에 연결되지 않았습니다. 잠시 뒤 다시 제출하세요.', true);
+    });
   }
 
   function syncButtons() {

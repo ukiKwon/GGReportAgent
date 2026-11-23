@@ -310,11 +310,23 @@
   function decide(index, approved) {
     const rows = approvals.rows(payload);
     const row = rows[index];
-    const comment = (el('ap-list').querySelector('.ap-comment[data-index="' + index + '"]') || {}).value || '';
-    if (!approved && !comment.trim() &&
-        !confirm('사유 없이 반려하면 담당자가 무엇을 고쳐야 할지 모릅니다. 그대로 진행할까요?')) {
+    const box = el('ap-list').querySelector('.ap-comment[data-index="' + index + '"]');
+    const comment = (box || {}).value || '';
+    if (!approved && !comment.trim()) {   // 동작 유지: 확인 뒤 진행. 취소하면 사유 칸으로(11-23)
+      root.dlg.confirm({
+        title: '사유 없이 반려', text: '사유 없이 반려하면 담당자가 무엇을 고쳐야 할지 모릅니다. 그대로 진행할까요?',
+        go: '그대로 반려', cancel: '사유 적기', danger: true,
+      }).then(function (ok) {
+        if (ok) sendDecision(row, approved, comment);
+        else if (box && box.isConnected) box.focus();
+      });
       return;
     }
+    sendDecision(row, approved, comment);
+  }
+
+  function sendDecision(row, approved, comment) {
+    root.dlg.line(el('ap-msg'), '', false);
     busy = true; paint();
     fetch(approvals.endpoint(row), {
       method: 'POST',
@@ -324,13 +336,17 @@
         by: root.store.loadProfile().name || null }),
     }).then(function (r) {
       if (!r.ok) {
-        return r.json().then(function (b) {
-          throw new Error(errtext.message(b.detail, '처리 실패 (' + r.status + ')'));
+        return r.json().catch(function () { return {}; }).then(function (b) {
+          const er = new Error(errtext.message(b && b.detail, ''));
+          er.fromServer = true; throw er;
         });
       }
       return load();
-    }).catch(function (e) { alert(e.message || '서버 연결 실패 — 처리되지 않았습니다.'); })
-      .then(function () { busy = false; paint(); });
+    }).catch(function (e) {
+      root.dlg.line(el('ap-msg'), (e && e.fromServer)
+        ? (e.message || '결재를 처리하지 못했습니다. 서버가 받지 않았습니다. 목록을 새로 고친 뒤 다시 시도하세요.')
+        : '결재를 처리하지 못했습니다. 서버에 연결되지 않았습니다. 잠시 뒤 다시 시도하세요.', true);
+    }).then(function () { busy = false; paint(); });
   }
 
   function paint() {

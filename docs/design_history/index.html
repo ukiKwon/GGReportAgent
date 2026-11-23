@@ -1684,6 +1684,21 @@
 </div>
 </section>
 
+<section class="ch" id="c79">
+<h2>79 브라우저 기본 경고·확인창 16곳 → 공통 확인 창과 화면 안 상태 줄 (2026-11-23, 공통 팝업 규칙 'alert/confirm 금지', frontend-dev 지시서, design·qa 커밋 전 대조)</h2>
+<div class="why">왜: 결재 제출·사유 없이 반려·첨부 삭제를 브라우저 기본 확인창(회색 OS 창, [확인][취소])으로 물었고, CSV 반입 결과·결재 처리·채팅 전송·작업함 오류·이름 빠짐도 브라우저 경고창이라 [확인]을 눌러야 화면으로 돌아왔습니다. 앱과 모양·단추 순서가 달라 [확인]을 습관적으로 누르기 쉬웠고, '(500)' 같은 상태 코드만 있고 무엇을 하면 되는지 말하지 않았습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+  <p class="hint12">브라우저 기본 confirm 3곳·alert 13곳. 예: '반입 실패 (500)', '서버 연결 실패 — 처리되지 않았습니다.', '2차 결재: "참여" 로 제출합니다.'</p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <p style="font-size:12px"><b>확인 창</b>(dlg.confirm, 560 공통 틀): 제목 + 무엇을 하는지 + 아래 [취소][실행 동사] — 쓰는 창 [취소][저장]과 같은 순서(Q-2026-11-19-82), 첫 커서는 [취소], 삭제·반려는 빨간 단추. '사유 없이 반려' [취소=사유 적기][그대로 반려], '첨부 삭제' [취소][삭제], 'n차 결재 제출'(선택·결재자) [취소][제출].</p>
+  <p style="font-size:12px"><b>상태 줄</b>(.st-line, 12px): 결과·오류는 그 화면 위쪽 한 줄 — 오류는 빨강으로 남고 성공은 8초 뒤 사라짐. 문장 틀 '…을 못 했습니다. 원인. 할 일.', 상태 코드 없음. CSV 반입(티커 줄 안), 결재함, 결재 제출(이름·소속 빠짐 포함), 채팅, 작업함.</p>
+  <p class="legend-note">16곳 → 공통 확인 창 1종 + 상태 줄 5곳. 시험: 다섯 파일에 alert/confirm 없음(popup-native.test.js), 확인 창 동작 시험. 실측 화면은 서버 결재 흐름이 필요해 다음 확인 때 캡처.</p>
+</div></div></div>
+</div>
+</section>
+
 <p class="foot">추가 규칙: 이 파일은 화면(마크업·CSS·문구·메뉴)이 바뀌는 커밋마다 새 장(section.ch)을 아래에 이어 붙이고, design-reviewer가 커밋 전 확인합니다(CLAUDE.md 5절). 근거 보고서: handoff/agents/design-reviewer/.</p>
 </div>
 </body>
