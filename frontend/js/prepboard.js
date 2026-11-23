@@ -18,6 +18,11 @@
   pb.SCREEN = 'prep_dashboard';
   pb.MARK_ORDER = ['DONE', 'IN_PROGRESS', 'NA', 'NONE'];
   pb.WHO_MINE = '@mine';
+  // 개설 승인 전 — 활성 담당 배정이 개설 승인 때 생기므로 이 줄의 손 칸은 아무도 체크하지 못한다(D31, 팀 결정 A).
+  pb.PRE_OPEN_STATES = ['CONFIRMED', 'OPEN_PENDING'];
+  pb.preOpen = function (row) {
+    return !!row && !row.ended && pb.PRE_OPEN_STATES.indexOf(str(row.state_cd)) >= 0;
+  };
   const MARK_NAMES = { DONE: '완료', IN_PROGRESS: '진행', NA: '대상 아님', NONE: '시작 전' };
 
   // ── 문구 (규격 5-1) ───────────────────────────────────────────────
@@ -46,6 +51,11 @@
     infoAutoProposal: '디자이너 작업 결과로 시스템이 채웁니다.',
     infoNotice: '공고 판정에서 가져옵니다.',
     infoNoCheck: '아직 체크하지 않았습니다.',
+    chipPre: '개설 전',
+    ariaPre: ', 개설 승인 뒤 담당 영업이 체크',
+    infoPre: '개설 승인 뒤 정해지는 담당 영업이 체크합니다.',
+    legendPre: '개설 승인 전 — 담당이 정해지면 체크합니다',
+    readOnlyPre: '아직 개설 승인된 기관이 없어 체크할 칸이 없습니다. 담당 영업은 개설 승인 때 정해집니다.',
     back: '← 대시보드로',
     err400: '저장하지 못했습니다. 화면을 새로 고친 뒤 다시 고르세요.',
     errNet: '연결이 끊겨 저장하지 못했습니다. 연결을 확인하고 다시 고르세요.',
@@ -146,7 +156,7 @@
   };
 
   // ── 칸 모양 ──────────────────────────────────────────────────────
-  // → { cd, kind, mark, glyph, date, button, tint, revNo, noticeText }
+  // → { cd, kind, mark, glyph, date, button, tint, pre, revNo, noticeText }
   // button: 담당(can_check)이 누를 수 있는 손 칸. 끝난 행은 모두 읽기 전용이고 칸 색도 없다.
   pb.cellModel = function (info, row, cell, today) {
     const c = cell && typeof cell === 'object' ? cell : {};
@@ -159,6 +169,7 @@
       date: mark && mark !== 'NONE' ? pb.dateText(c.marked_on, today) : '',
       button: kind === 'MANUAL' && info.editable && r.can_check === true && !ended,
       tint: !ended && (mark === 'DONE' || mark === 'IN_PROGRESS') ? mark : '',
+      pre: kind === 'MANUAL' && pb.preOpen(r),
       revNo: Number(c.rev_no) || 0,
       noticeText: kind === 'NOTICE' ? str(c.notice_status_name).trim() : '',
     };
@@ -177,9 +188,10 @@
     const name = pb.markName(marks, m);
     const d = pb.fullDate(c.marked_on);
     if (info.kind === 'AUTO') return head + name + (d ? ', ' + d : '') + ', 자동, 시스템이 채움';
-    if (m === 'NONE') return head + name;
+    const tail = pb.preOpen(row) ? T.ariaPre : '';
+    if (m === 'NONE') return head + name + tail;
     const by = str(c.by_name).trim();
-    return head + name + (d ? ', ' + d + (by ? ' ' + by + ' 체크' : '') : '');
+    return head + name + (d ? ', ' + d + (by ? ' ' + by + ' 체크' : '') : '') + tail;
   };
 
   // ── 정보 줄(칸을 고르면 아래에 글자로 보인다) ─────────────────────────
@@ -208,11 +220,12 @@
       if (m !== 'NONE' && d) parts.push({ l: '기록한 날', v: d, mono: true });
       return { parts: parts, tail: '— ' + (info.cd === 'PROPOSAL' ? T.infoAutoProposal : T.infoAuto) };
     }
-    if (m === 'NONE') return { parts: parts, tail: '— ' + T.infoNoCheck + (r.can_check === true || r.ended ? '' : ' ' + T.infoNotMine) };
+    const why = r.can_check === true || r.ended ? '' : (pb.preOpen(r) ? T.infoPre : T.infoNotMine);
+    if (m === 'NONE') return { parts: parts, tail: '— ' + T.infoNoCheck + (why ? ' ' + why : '') };
     const d2 = pb.fullDate(c.marked_on);
     if (d2) parts.push({ l: '체크한 날', v: d2, mono: true });
     if (str(c.by_name).trim()) parts.push({ l: '체크한 사람', v: str(c.by_name).trim() });
-    return { parts: parts, tail: r.can_check === true || r.ended ? '' : T.infoNotMine };
+    return { parts: parts, tail: why };
   };
   pb.infoHtml = function (p) {
     return p.parts.map(function (x) {
@@ -256,10 +269,19 @@
     if (q) return { kind: 'query', text: '\'' + q + '\'와 맞는 기관이 없습니다.', action: 'clear' };
     return { kind: 'who', text: who === pb.WHO_MINE ? '내 담당 기관이 없습니다.' : who + ' 담당 기관이 없습니다.', action: 'clear' };
   };
-  // 담당한 기관이 하나도 없을 때 범례 아래 안내
+  // 개설 승인 뒤 줄이 있는데 내가 체크할 수 있는 줄이 없을 때(끝난 줄·개설 전 줄은 세지 않는다)
   pb.readOnlyAll = function (rows) {
-    const r = Array.isArray(rows) ? rows : [];
-    return r.length > 0 && !r.some(function (x) { return x && x.can_check === true; });
+    const open = (Array.isArray(rows) ? rows : []).filter(function (x) { return x && !x.ended && !pb.preOpen(x); });
+    return open.length > 0 && !open.some(function (x) { return x.can_check === true; });
+  };
+  // 살아 있는 줄이 모두 개설 전
+  pb.preOnly = function (rows) {
+    const live = (Array.isArray(rows) ? rows : []).filter(function (x) { return x && !x.ended; });
+    return live.length > 0 && live.every(function (x) { return pb.preOpen(x); });
+  };
+  // 표 위 안내 문구 — 없으면 ''(숨김). 두 조건은 서로 배타다. (규격에 없는 얇은 helper: DOM 없이 시험하려고 추가)
+  pb.roText = function (rows) {
+    return pb.preOnly(rows) ? T.readOnlyPre : pb.readOnlyAll(rows) ? T.readOnly : '';
   };
 
   // ── 오류·성공 문구 ─────────────────────────────────────────────────
@@ -306,9 +328,10 @@
   };
 
   // ── 마크업 ───────────────────────────────────────────────────────
-  pb.legendHtml = function () {
+  pb.legendHtml = function (hasPre) {
     return '<span>' + pb.glyphSvg('done') + '완료</span><span>' + pb.glyphSvg('prog') + '진행</span><span>' + pb.glyphSvg('na') + '대상 아님</span>' +
-      '<span><i class="sw0"></i>시작 전</span><span>머리에 \'자동\'이 붙은 칸은 시스템이 채웁니다</span><span>체크한 날은 저장한 날로 자동 기록됩니다</span>';
+      '<span><i class="sw0"></i>시작 전</span><span>머리에 \'자동\'이 붙은 칸은 시스템이 채웁니다</span><span>체크한 날은 저장한 날로 자동 기록됩니다</span>' +
+      (hasPre ? '<span><i class="sw-pre"></i>' + esc(T.legendPre) + '</span>' : '');
   };
 
   pb.headHtml = function (columns, groups) {
@@ -327,7 +350,7 @@
   // o: { info, row, cell, marks, today, r, c, saving, failed }
   pb.cellHtml = function (o) {
     const m = pb.cellModel(o.info, o.row, o.cell, o.today);
-    const cls = (m.kind === 'NOTICE' ? 'is-notice' : m.kind === 'AUTO' ? 'is-auto' : '') + (o.info.gs ? ' gs' : '') + (o.saving ? ' is-saving' : '') + (o.failed ? ' is-failed' : '');
+    const cls = (m.kind === 'NOTICE' ? 'is-notice' : m.kind === 'AUTO' ? 'is-auto' : '') + (o.info.gs ? ' gs' : '') + (m.pre ? ' is-pre' : '') + (o.saving ? ' is-saving' : '') + (o.failed ? ' is-failed' : '');
     const at = ' data-r="' + o.r + '" data-c="' + o.c + '" data-col="' + esc(m.cd) + '"' + (m.tint ? ' data-mk="' + m.tint + '"' : '') +
       (cls.trim() ? ' class="' + cls.trim() + '"' : '');
     const label = esc(pb.cellAria(o.row, o.info, o.cell, o.marks, o.today));
@@ -348,6 +371,7 @@
     const row = o.row;
     const names = (Array.isArray(row.assignee_names) ? row.assignee_names : []).filter(Boolean);
     const chip = row.ended ? '<span class="wf-badge pp-neutral pb-chip">' + esc(str(row.state_name).trim() || T.chipEnded) + '</span>'
+      : pb.preOpen(row) ? '<span class="wf-badge pp-neutral pb-chip">' + T.chipPre + '</span>'
       : row.is_mine === true ? '<span class="wf-badge pp-neutral pb-chip">' + T.chipMine + '</span>' : '';
     const nm = row.can_view === false ? '<span class="pb-nm-t">' + esc(row.institution_name) + '</span>'
       : '<button type="button" class="pb-nm" data-pb="open" tabindex="-1">' + esc(row.institution_name) + '</button>';
@@ -421,7 +445,8 @@
     const a = el('pb-at'); if (a) a.textContent = B.at;
     const b = el('pb-refresh');
     if (b) { b.textContent = B.refreshing ? T.refreshing : T.refresh; if (B.refreshing) b.setAttribute('aria-disabled', 'true'); else b.removeAttribute('aria-disabled'); }
-    const ro = el('pb-ro'); if (ro) ro.hidden = !(B.data && pb.readOnlyAll(B.data.rows));
+    const ro = el('pb-ro');
+    if (ro) { const msg = B.data ? pb.roText(B.data.rows) : ''; ro.hidden = !msg; if (msg) ro.textContent = msg; }
     const e = el('pb-ended'); if (e) e.checked = B.ended;
     const sec = el('pp-board'); if (sec) sec.setAttribute('aria-busy', B.state === 'loading' ? 'true' : 'false');
   }
@@ -463,7 +488,7 @@
     paintInfo();
   }
   function paintAll() {
-    const lg = el('pb-legend'); if (lg && !lg.innerHTML) lg.innerHTML = pb.legendHtml();
+    const lg = el('pb-legend'); if (lg) lg.innerHTML = pb.legendHtml(!!(B.data && B.data.rows.some(function (x) { return pb.preOpen(x); })));
     paintWho();
     const q = el('pb-q'); if (q && q.value !== B.q) q.value = B.q;
     paintTable();
@@ -761,6 +786,9 @@
     if (typeof document === 'undefined') return;
     const box = el('pb-scroll'); if (box) box.innerHTML = '';
     const q = el('pb-q'); if (q) q.value = '';
+    // 계정 전환 뒤 옛 계정의 표 위 안내·'개설 전' 범례 항목이 남지 않게(qa 11-23 밤 P3). 다음 load의 paintAll/paintMeta가 다시 채운다.
+    const ro = el('pb-ro'); if (ro) ro.hidden = true;
+    const lg = el('pb-legend'); if (lg) lg.innerHTML = pb.legendHtml(false);
     setErr('');
   };
 

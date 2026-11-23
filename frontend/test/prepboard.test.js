@@ -333,6 +333,82 @@ test('legendHtml: 완료·진행·대상 아님·시작 전 + 자동·날짜 안
   assert.strictEqual((l.match(/<svg /g) || []).length, 3);
 });
 
+// ── 개설 승인 전 줄(NEXT 102) ──
+test('preOpen: CONFIRMED·OPEN_PENDING만 참, 끝난 줄·다른 상태·빈 값은 거짓', function () {
+  assert.strictEqual(pb.preOpen(row({ state_cd: 'CONFIRMED', can_check: false })), true);
+  assert.strictEqual(pb.preOpen(row({ state_cd: 'OPEN_PENDING', can_check: false })), true);
+  assert.strictEqual(pb.preOpen(row({ state_cd: 'CONFIRMED', ended: true })), false);
+  assert.strictEqual(pb.preOpen(row({ state_cd: 'IN_PROGRESS' })), false);
+  assert.strictEqual(pb.preOpen(row({ state_cd: undefined })), false);
+  assert.strictEqual(pb.preOpen(null), false);
+});
+
+test('개설 전 손 칸: cellModel.pre·aria 꼬리·info 꼬리·is-pre — AUTO·NOTICE·다른 줄에는 없다', function () {
+  const pre = row({ state_cd: 'OPEN_PENDING', can_check: false, is_mine: false, assignee_names: [] });
+  assert.strictEqual(pb.cellModel(infoOf('PT'), pre, { mark_cd: 'NONE' }, '').pre, true);
+  assert.strictEqual(pb.cellModel(infoOf('PT'), pre, { mark_cd: 'NONE' }, '').button, false);
+  assert.strictEqual(pb.cellModel(infoOf('INST_ANALYSIS'), pre, {}, '').pre, false);
+  assert.strictEqual(pb.cellModel(infoOf('NOTICE_CHECK'), pre, {}, '').pre, false);
+  assert.strictEqual(pb.cellModel(infoOf('PT'), row({ can_check: false }), {}, '').pre, false);
+  assert.strictEqual(pb.cellAria(pre, infoOf('PT'), { mark_cd: 'NONE' }, MARKS, ''), '청주시 PT: 시작 전, 개설 승인 뒤 담당 영업이 체크');
+  assert.strictEqual(pb.cellAria(pre, infoOf('PT'), { mark_cd: 'DONE', marked_on: '2026-11-20', by_name: '김영업' }, MARKS, ''),
+    '청주시 PT: 완료, 2026-11-20 김영업 체크, 개설 승인 뒤 담당 영업이 체크');
+  assert.ok(pb.cellAria(pre, infoOf('PROFIT'), { mark_cd: 'DONE' }, MARKS, '').indexOf('개설 승인 뒤') < 0, 'AUTO 칸 꼬리 없음');
+  assert.ok(pb.cellAria(pre, infoOf('NOTICE_CHECK'), {}, MARKS, '').indexOf('개설 승인 뒤') < 0, 'NOTICE 칸 꼬리 없음');
+  assert.ok(pb.cellAria(row({ can_check: false }), infoOf('PT'), { mark_cd: 'NONE' }, MARKS, '').indexOf('개설 승인 뒤') < 0, '다른 담당 줄은 그대로(P3 미적용)');
+  assert.strictEqual(pb.infoParts(pre, infoOf('PT'), { mark_cd: 'NONE' }, MARKS).tail, '— 아직 체크하지 않았습니다. 개설 승인 뒤 정해지는 담당 영업이 체크합니다.');
+  assert.strictEqual(pb.infoParts(pre, infoOf('PT'), { mark_cd: 'DONE', marked_on: '2026-11-20', by_name: '김영업' }, MARKS).tail, pb.T.infoPre);
+  assert.strictEqual(pb.infoParts(pre, infoOf('PROFIT'), { mark_cd: 'DONE' }, MARKS).tail, '— ' + pb.T.infoAuto, 'AUTO 꼬리 그대로');
+  const h = pb.cellHtml({ info: infoOf('PT'), row: pre, cell: { mark_cd: 'NONE' }, marks: MARKS, today: '', r: 0, c: 14 });
+  assert.ok(/class="[^"]*\bis-pre\b/.test(h) && h.indexOf('aria-readonly="true"') > 0 && h.indexOf('<button') < 0);
+  const hAuto = pb.cellHtml({ info: infoOf('PROFIT'), row: pre, cell: {}, marks: MARKS, today: '', r: 0, c: 3 });
+  assert.ok(hAuto.indexOf('is-pre') < 0);
+  const hOther = pb.cellHtml({ info: infoOf('PT'), row: row({ can_check: false }), cell: {}, marks: MARKS, today: '', r: 0, c: 14 });
+  assert.ok(hOther.indexOf('is-pre') < 0);
+});
+
+test('rowHtml 칩: 개설 전 → \'개설 전\'(내 담당 칩 대신), 끝난 줄이 우선', function () {
+  const a = pb.rowHtml({ row: row({ state_cd: 'CONFIRMED', can_check: false, is_mine: true }), infos: infos, marks: MARKS, today: '', r: 0 });
+  assert.ok(a.indexOf('>개설 전</span>') > 0 && a.indexOf('>내 담당</span>') < 0);
+  const b = pb.rowHtml({ row: row({ state_cd: 'CONFIRMED', ended: true, state_name: '확정 취소', is_mine: false }), infos: infos, marks: MARKS, today: '', r: 0 });
+  assert.ok(b.indexOf('>확정 취소</span>') > 0 && b.indexOf('개설 전') < 0);
+  assert.strictEqual((a.match(/class="[^"]*\bis-pre\b/g) || []).length, 23, '손 칸 23개에만 빗금');
+});
+
+test('readOnlyAll·preOnly·roText: 개설 전·끝난 줄은 세지 않는다', function () {
+  const pre = function (o) { return row(Object.assign({ state_cd: 'OPEN_PENDING', can_check: false }, o || {})); };
+  const open = function (o) { return row(Object.assign({ can_check: false }, o || {})); };
+  const end = function (o) { return row(Object.assign({ ended: true, can_check: false }, o || {})); };
+  assert.strictEqual(pb.readOnlyAll([pre(), pre()]), false);
+  assert.strictEqual(pb.preOnly([pre(), pre()]), true);
+  assert.strictEqual(pb.roText([pre(), pre()]), pb.T.readOnlyPre);
+  assert.strictEqual(pb.readOnlyAll([pre(), open()]), true);        // 개설 뒤 줄이 있는데 내가 체크할 줄이 없다
+  assert.strictEqual(pb.preOnly([pre(), open()]), false);
+  assert.strictEqual(pb.roText([pre(), open()]), pb.T.readOnly);
+  assert.strictEqual(pb.readOnlyAll([pre(), open({ can_check: true })]), false);
+  assert.strictEqual(pb.roText([pre(), open({ can_check: true })]), '');
+  assert.strictEqual(pb.preOnly([pre(), end()]), true);             // 끝난 줄은 건너뛴다
+  assert.strictEqual(pb.readOnlyAll([end(), end()]), false);        // 끝난 줄만 있으면 안내 없음(의미 변경)
+  assert.strictEqual(pb.preOnly([end()]), false);
+  assert.strictEqual(pb.roText([end()]), '');
+  assert.strictEqual(pb.readOnlyAll([]), false); assert.strictEqual(pb.preOnly([]), false); assert.strictEqual(pb.roText(null), '');
+});
+
+test('legendHtml(hasPre): 개설 전 줄이 있을 때만 빗금 견본 + 문구, 인자 없으면 기존과 같다', function () {
+  const on = pb.legendHtml(true);
+  assert.ok(on.indexOf('<i class="sw-pre"></i>개설 승인 전 — 담당이 정해지면 체크합니다') > 0);
+  assert.strictEqual(pb.legendHtml(false), pb.legendHtml());
+  assert.ok(pb.legendHtml().indexOf('sw-pre') < 0);
+  assert.strictEqual((on.match(/<svg /g) || []).length, 3);
+});
+
+test('index.html·소스: .pb-t td.is-pre·.sw-pre 규칙(새 hex 없음), #pb-ro·범례를 JS가 매번 채운다', function () {
+  assert.ok(HTML.indexOf('.pb-t td.is-pre {') > 0 && HTML.indexOf('.pb-legend .sw-pre {') > 0);
+  // is-pre 규칙은 값 칸 색(data-mk) 규칙보다 뒤에 있어야 빗금(image)이 shorthand에 지워지지 않는다
+  assert.ok(HTML.indexOf('.pb-t td.is-pre {') > HTML.indexOf('.pb-t td[data-mk="IN_PROGRESS"] {'));
+  assert.ok(SRC.indexOf('pb.roText(B.data.rows)') > 0 && SRC.indexOf('pb.legendHtml(!!(B.data') > 0);
+});
+
 // ── 정적 검사 ──
 test('소스 규칙: 저장소·자동 새로고침·confirm·외부 주소·새 hex 없음, 화면·버튼 이름과 API 주소', function () {
   assert.ok(!/localStorage|sessionStorage|indexedDB|document\.cookie/.test(SRC), '저장소를 쓰지 않는다');

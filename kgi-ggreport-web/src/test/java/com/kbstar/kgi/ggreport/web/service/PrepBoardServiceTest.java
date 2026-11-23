@@ -166,12 +166,14 @@ public class PrepBoardServiceTest {
     }
 
     @Test
-    public void U7_대시보드_체크_허용_상태는_취소_중단_밖_6개이고_취소면_409다() {
-        for (String st : new String[]{"CONFIRMED", "OPEN_PENDING", "IN_PROGRESS", "APPROVAL_PENDING", "WRITABLE", "WRITING"}) {
+    public void U7_대시보드_체크_허용_상태는_개설_승인_이후_4개이고_승인_전_취소면_막힌다() {   // NEXT 102 팀 결정 A
+        for (String st : new String[]{"IN_PROGRESS", "APPROVAL_PENDING", "WRITABLE", "WRITING"}) {
             assertTrue(st, PrepBoardService.CHECK_STATES.contains(st));
         }
-        assertFalse(PrepBoardService.CHECK_STATES.contains("CANCELLED"));
-        assertEquals(6, PrepBoardService.CHECK_STATES.size());
+        for (String st : new String[]{"CONFIRMED", "OPEN_PENDING", "CANCELLED"}) {
+            assertFalse(st, PrepBoardService.CHECK_STATES.contains(st));
+        }
+        assertEquals(4, PrepBoardService.CHECK_STATES.size());
         when(preps.selectStateForUpdate(BID)).thenReturn("CANCELLED");
         try {
             svc.save(me, Actor.claimed("3361829"), ui, BID, "ATM", body("DONE", 0));

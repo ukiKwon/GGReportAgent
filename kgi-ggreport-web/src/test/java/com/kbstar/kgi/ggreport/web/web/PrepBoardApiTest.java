@@ -415,22 +415,19 @@ public class PrepBoardApiTest {
     }
 
     @Test
-    public void D24_확정_또는_개설_대기_상태라도_활성_담당이면_체크되고_감사에_그_상태가_남는다_합성_상태() throws Exception {
-        // 합성 시험: 실제 흐름에서는 이 두 상태에 활성 담당이 없다(배정은 개설 승인 때 처음 생긴다 — D31). 허용 상태 집합(④)만 고정한다.
+    public void D24_확정_또는_개설_대기_상태는_활성_담당이_남아도_읽기_전용이다_합성_상태() throws Exception {
+        // 합성 시험: 실제 흐름에서는 이 두 상태에 활성 담당이 없다(D31). 담당이 남은 합성 건에서도 상태 규칙이 막는지 고정한다(팀 결정 A).
         String bid = opened(INST);
-        setState(bid, "CONFIRMED");
-        assertTrue(row(json(list(MEMBER2, null, "refresh")), bid).path("can_check").asBoolean());
-        MvcResult r = check(MEMBER2, bid, COL, mark("DONE", 0));
-        assertEquals(r.getResponse().getContentAsString(), 200, r.getResponse().getStatus());
-        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_CHECK' AND OUTCOME='OK'"
-                + " AND STATE_CD='CONFIRMED' AND TASK_CD='CK_FIN_COMMITTEE' AND ACTOR_EMP_NO=? AND SCREEN_ID='prep_dashboard'"
-                + " AND BUTTON_ID='dash_check' AND UI_VALID=1", bid, MEMBER2));
-        setState(bid, "OPEN_PENDING");
-        assertEquals(200, check(MEMBER2, bid, COL, mark("IN_PROGRESS", 1)).getResponse().getStatus());
-        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_CHECK' AND OUTCOME='OK'"
-                + " AND STATE_CD='OPEN_PENDING' AND ACTOR_EMP_NO=?", bid, MEMBER2));
-        assertEquals(2, checkRows(bid));
-        assertEquals(0, actCount(bid, "DASH_CHECK", "BLOCKED"));
+        for (String st : new String[] {"CONFIRMED", "OPEN_PENDING"}) {
+            setState(bid, st);
+            assertFalse(st, row(json(list(MEMBER2, null, "refresh")), bid).path("can_check").asBoolean());
+            MvcResult r = check(MEMBER2, bid, COL, mark("DONE", 0));
+            assertEquals(st, 409, r.getResponse().getStatus());
+            assertEquals(st, "STATE_CHANGED", json(r).path("detail").path("code").asText());
+        }
+        assertEquals(0, checkRows(bid));
+        assertEquals(2, actCount(bid, "DASH_CHECK", "BLOCKED"));
+        assertEquals(0, actCount(bid, "DASH_CHECK", "OK"));
     }
 
     @Test

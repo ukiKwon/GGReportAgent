@@ -59,13 +59,13 @@ public class PrepBoardService {
     public static final Set<String> AUDIT_ROW_STATES = Collections.unmodifiableSet(new HashSet<String>(
             Arrays.asList(PrepService.WRITABLE, PrepService.WRITING)));
     /**
-     * 대시보드 손 체크 허용 상태 — 취소·중단(CANCELLED) 밖 전부(planner 11-23 ④). 허용 목록이라 모르는 상태는 409.
+     * 대시보드 손 체크 허용 상태 — 개설 승인 이후(진행·결재 대기·작성 가능·작성 중)만(NEXT 102 팀 결정 A, planner 11-23 밤).
+     * 승인 전(CONFIRMED·OPEN_PENDING)은 담당 배정이 아직 없어 체크 주체가 없으므로 읽기 전용, 취소·중단도 막힌다. 허용 목록이라 모르는 상태는 409.
      * PrepService.TASK_STATES(과제 체크)와 일부러 따로 둔다 — 그쪽을 바꾸지 말 것(fa 담당).
-     * 단 활성 담당 배정은 개설 승인 때 처음 생기므로 CONFIRMED·OPEN_PENDING 에서는 실제로 담당 검사에서 403(D31).
+     * 승인 전 건은 실제 흐름에서 담당 검사에서 먼저 403(D31), 담당이 남은 합성 상태는 상태 검사에서 409 STATE_CHANGED(D24).
      */
     static final Set<String> CHECK_STATES = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
-            PrepService.CONFIRMED, PrepService.OPEN_PENDING, PrepService.IN_PROGRESS, PrepService.APPROVAL_PENDING,
-            PrepService.WRITABLE, PrepService.WRITING)));
+            PrepService.IN_PROGRESS, PrepService.APPROVAL_PENDING, PrepService.WRITABLE, PrepService.WRITING)));
     static final String BASIS_NOTICE = "notice", BASIS_EXPIRY = "expiry";
     static final String NONE = "NONE", IN_PROGRESS = "IN_PROGRESS", DONE = "DONE", NA = "NA";
     static final String MARK_GROUP = "DASH_MARK";          // 054 코드표
@@ -373,7 +373,7 @@ public class PrepBoardService {
         if (base == null || base.intValue() < 0) {
             throw coded(400, "BAD_VALUE", "base_rev가 필요합니다.");
         }
-        if (!CHECK_STATES.contains(state)) {   // 취소·중단 건만 막는다(planner 11-23 ④)
+        if (!CHECK_STATES.contains(state)) {   // 승인 전·취소·중단·모르는 상태는 막는다(NEXT 102 팀 결정 A)
             throw coded(409, "STATE_CHANGED", "그 사이 상태가 바뀌었습니다. 새로 고친 뒤 다시 시도하세요.");
         }
         PrepBoardCheck cur = mapper.selectCurrentOne(bidCaseId, col.cd);
