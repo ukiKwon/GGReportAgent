@@ -465,7 +465,7 @@
       const unk = list.filter(function (n) { return n.phase === 'unknown' && !n.late; });
       const rest = list.filter(function (n) { return n.phase !== 'receiving' && n.check; });
       h += '<div class="rt-notice"><div class="rt-row"><b>공고 진행 중 ' + info.notice + '곳</b> <span class="rt-m">— 마감 전 ' +
-        rcv.length + (unk.length ? ' · ' + logic.NOTICE_WORDS.unknownChip + ' ' + unk.length : '') + ' · 결과 확인 ' + rest.length + '</span></div>';
+        rcv.length + (unk.length ? ' · ' + logic.NOTICE_WORDS.unknownChip + ' ' + unk.length : '') + ' · 선정 결과 대기 ' + rest.length + '</span></div>';
       rcv.slice(0, 2).forEach(function (n) {
         h += '<div class="rt-row">' + esc(n.name) + ' <span class="rt-d">' + esc(render.noticeWhen(n)) + '</span></div>';
       });
@@ -492,8 +492,8 @@
     }
     const left = [];
     if (info.overdue) left.push('예정일 경과 ' + info.overdue + '곳');
-    if (info.awaiting) left.push('마감 지난 공고 ' + info.awaiting + '곳');
-    if (info.late) left.push('결과 확인 공고 ' + info.late + '곳');
+    const waitN = (info.awaiting || 0) + (info.late || 0);   // 머리 줄 '선정 결과 대기'와 같은 말·같은 수
+    if (waitN) left.push('선정 결과 대기 ' + waitN + '곳');
     if (info.unknown) left.push('날짜 미상 ' + info.unknown + '곳');
     h += '<div class="rt-mu">' + (left.length
       ? '기관 ' + info.total + '곳 중 ' + left.join('·') + '은 색에 넣지 않음'

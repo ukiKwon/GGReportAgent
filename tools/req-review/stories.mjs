@@ -95,11 +95,11 @@ try {
   await waitFor(`document.querySelector('#dm-pane .db-sec')`, 6000); await c.sleep(900);
   await shotHot('story/dash5.jpg', '#dm-pane .db-sec');                                  // 5 기관 상세([이전]이 보임). [제안 확정]은 누르지 않는다
   await closeAll();
-  // ── 입찰 공고 현황(전국 공고, dashboard.js): 옛 현황판 4단계(월별 막대·공고 띠·기간 버튼·기관 상세)가 이 화면으로 옮겨 왔다
+  // ── 입찰 공고 현황(전국 공고, dashboard.js): 옛 현황판 4단계(종류별 막대(옛 월별 막대)·공고 띠·기간 버튼·기관 상세)가 이 화면으로 옮겨 왔다
   await gotoNav('soon:입찰 공고 현황', 2200); await closeAll();
   if (!await waitFor(`document.querySelector('#db-scroll:not([aria-busy="true"]) .db-row')`, 10000)) miss.push('공고 현황 목록이 뜨지 않음(#db-scroll .db-row)');
   await c.sleep(800);
-  await shotHot('story/notice1.jpg', '#db-chart');                       // 1 월별 막대
+  await shotHot('story/notice1.jpg', '#db-tl');                          // 1 다가오는 기관별 공고현황(종류별 막대)
   await shotHot('story/notice2.jpg', '#db-notice .db-nb-card');          // 2 지금 공고가 난 기관 띠(없으면 hidden → 좌표 유지)
   await scrollTop('.db-work'); await c.sleep(400);
   await shotHot('story/notice3.jpg', '#db-per');                         // 3 기간 버튼

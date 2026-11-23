@@ -190,7 +190,7 @@
     return '<dt>' + dt + '</dt><dd>' +
       '<span class="bk-ln">' + (s === 'FUTURE' ? E(rankName(l, o.ranks)) + ' · ' : '') + E(l.bank_name) + (s === 'PAST' ? ' <span class="wf-badge pp-cancel">만료</span>' : '') +
       ' <span class="wf-badge pp-neutral">직접 입력</span>' + (o.same ? ' <span class="db-why">· 수집 기록과 같음</span>' : '') + '</span>' +
-      '<span class="bk-ln db-why">' + term + '</span>' + ov +
+      (o.noTerm ? '' : '<span class="bk-ln db-why">' + term + '</span>') + ov +
       (l.account_name ? '<span class="bk-ln db-why">맡는 회계 ' + E(l.account_name) + '</span>' : '') +
       '<span class="bk-ln db-why">' + srcHtml(l) + '</span>' +
       (l.note ? '<span class="bk-ln db-why">비고 ' + E(l.note) + '</span>' : '') + whoHtml(l) + '</dd>';
@@ -238,7 +238,7 @@
       const same = p.g.cur.some(sameOf);
       const rows = p.rows.map(function (l) {
         const cur = l.term_state !== 'FUTURE' && l.term_state !== 'PAST';
-        return rowHtml(l, { ranks: ranks, same: cur && sameOf(l) });
+        return rowHtml(l, { ranks: ranks, same: cur && sameOf(l), noTerm: !!o.noTerm && cur });
       });
       if (p.g.cur.length && col && !same) {
         rows.push('<dt>수집 기록</dt><dd><span class="bk-ln"><span class="wf-badge pp-cancel">수집</span> ' + E(col.name) + (col.slot ? ' · ' + E(col.slot) + '금고' : '') +
@@ -253,28 +253,42 @@
       if (p.g.cur.length && o.col && Array.isArray(o.col.extra)) {
         o.col.extra.forEach(function (x) { rows.push('<dt>' + E(x[0]) + '</dt><dd>' + E(x[1]) + ' <span class="wf-badge pp-cancel">수집</span></dd>'); });
       }
-      dl = '<dl class="db-dl">' + rows.join('') + '</dl>';
+      dl = '<dl class="db-dl">' + rows.join('') + (o.merged && o.merged.rows ? o.merged.rows : '') + '</dl>';
       if (p.noCur) note = '<p class="db-empty">' + bc.MSG.empty + '</p>';
       else if (!o.hasKb && p.g.cur.some(function (l) { return /국민|kb/i.test(String(l.bank_name || '')); })) note = '<p class="db-empty">' + bc.MSG.kbNote + '</p>';
     } else {
       dl = o.legacyDl || '<dl class="db-dl"><dt>금고 은행</dt><dd><span class="pop-unk">미확인</span></dd></dl>';
       const rows = p.rows.map(function (l) { return rowHtml(l, { ranks: ranks, same: false }); }).join('');
-      if (rows) dl = dl.replace(/<\/dl>$/, rows + '</dl>');
+      const tail = o.merged && o.merged.rows ? o.merged.rows : '';
+      if (rows || tail) dl = dl.replace(/<\/dl>$/, function () { return rows + tail + '</dl>'; });   // 함수 콜백 — 값 속 '$&' 같은 기호를 치환 문법으로 읽지 않게
       note = o.legacyNote || '';
     }
     let state = '';
     if (view && view.st === 'denied') state = '<p class="db-why bk-state">금고 약정 기록을 볼 권한이 없습니다.</p>';
     else if (view && view.st === 'error') state = '<p class="db-why bk-state" role="alert">금고 약정 기록을 불러오지 못했습니다. <button type="button" id="bk-retry">다시 불러오기</button></p>';
     else if (view && view.st !== 'ok') state = '<p class="db-why bk-state" role="status" aria-busy="true"><span class="pop-unk">불러오는 중</span></p>';
+    const mg = o.merged || null;   // 기관 정보 통합: 제목 '기관 정보', 편집 단추는 머리 오른쪽, tail 줄·출처 details는 dashboard가 만들어 넘긴다
+    const editLabel = lines.length ? '금고 약정 고치기' : '금고 약정 입력';
     let foot = '';
+    const tailSrc0 = mg ? (mg.srcDetails || '') : '';   // 통합 경로: 출처 details는 foot 맨 앞(없으면 foot 자리에 단독)
     if (ok) {
       const n = Number(data.history_count) || 0;
       const hist = n >= 2 ? histHtml(view, n) : '';
-      const btn = data.can_edit ? '<button type="button" id="bk-edit">' + (lines.length ? '금고 약정 고치기' : '금고 약정 입력') + '</button>' : '<span class="db-why">' + bc.MSG.noEdit + '</span>';
-      foot = '<div class="bk-foot">' + hist + btn + '</div>';
+      if (mg) foot = '<div class="bk-foot">' + tailSrc0 + hist + (data.can_edit ? '' : '<span class="db-why">' + bc.MSG.noEdit + '</span>') + '</div>';
+      else {
+        const btn = data.can_edit ? '<button type="button" id="bk-edit">' + editLabel + '</button>' : '<span class="db-why">' + bc.MSG.noEdit + '</span>';
+        foot = '<div class="bk-foot">' + hist + btn + '</div>';
+      }
     }
     const src = o.srcHtml ? '<p class="db-empty bk-src">' + o.srcHtml + '</p>' : '';   // 선택 — 상세 바로가기 줄(note·state 뒤, foot 앞). 없으면 출력 그대로
-    return '<div class="db-sec" id="db-bank"><h3>현재 금고 은행</h3>' + dl + note + state + src + foot + '</div>';
+    let head = '<h3>현재 금고 은행</h3>';
+    if (mg) {
+      // 편집 중(o.editing)에는 머리 단추를 그리지 않는다 — 입력 묶음이 같은 id의 단추를 따로 갖는다
+      const acts = (mg.headHtml || '') + (ok && data.can_edit && !o.editing ? '<button type="button" class="db-sec-act" id="bk-edit">' + editLabel + '</button>' : '');
+      head = acts ? '<div class="db-sec-h"><h3>' + E(mg.title || '기관 정보') + '</h3>' + acts + '</div>' : '<h3>' + E(mg.title || '기관 정보') + '</h3>';
+      return '<div class="db-sec" id="db-bank">' + head + dl + src + note + state + (foot || tailSrc0) + '</div>';
+    }
+    return '<div class="db-sec" id="db-bank">' + head + dl + note + state + src + foot + '</div>';
   };
 
   // ── 변경 창: 형식 검사·본문 ───────────────────────────────────────────

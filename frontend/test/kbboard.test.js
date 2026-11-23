@@ -376,8 +376,8 @@ test('prepRows 정렬: 입찰 가까운 순, 같으면 단계 순, 날짜 없음
 test('paneHtml: recordHtml은 plans 절 뒤·tail 앞에만 들어가고, periodHtml은 이름·범례를 바꾼다', function () {
   const it = dash.itemForRec(rec('가', 30), TODAY);
   const withRec = dash.paneHtml(it, { act: 'none', today: TODAY, plansHtml: '<i id="P"></i>', recordHtml: dash.recordSecHtml(), tailHtml: '<i id="T"></i>' });
-  // 기록 칸은 기관 정보 바로 뒤(규격 P1-2)라 plans 절 앞, plans 절은 tail 앞
-  assert.ok(withRec.indexOf('<h3>기관 정보</h3>') < withRec.indexOf('공고 상태 기록') && withRec.indexOf('공고 상태 기록') < withRec.indexOf('id="P"') && withRec.indexOf('id="P"') < withRec.indexOf('id="T"'));
+  // 기록 칸은 ①절 안(기관 정보 앞)이라 기관 정보 앞, 기관 정보는 plans 절 앞, plans 절은 tail 앞
+  assert.ok(withRec.indexOf('공고 상태 기록') < withRec.indexOf('<h3>기관 정보</h3>') && withRec.indexOf('<h3>기관 정보</h3>') < withRec.indexOf('id="P"') && withRec.indexOf('id="P"') < withRec.indexOf('id="T"'));
   assert.ok(withRec.indexOf('서버에 연결하면 공고 상태 기록을 보고 적을 수 있습니다.') > 0 && withRec.indexOf('준비중') < 0);
   assert.ok(dash.paneHtml(it, { act: 'none', today: TODAY }).indexOf('공고 상태 기록') < 0);
   // 입찰 공고 현황의 기간 버튼은 그대로(이름·범례를 바꿀 수 있는 인자도 유지) — 현황판만 11-17에 이 버튼을 없앴다

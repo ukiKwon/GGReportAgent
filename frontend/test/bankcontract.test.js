@@ -171,10 +171,10 @@ test('sectionHtml: 바닥 — 입력/고치기/권한 없음/이력/불러오는
   assert.ok(bc.sectionHtml({ st: 'error', code: 500 }, LEG).includes('id="bk-retry"'));
 });
 
-test('paneHtml: c.bank가 없으면 기존 금고 절 그대로, 있으면 id=db-bank 절로 대체', () => {
+test('paneHtml: c.bank가 없으면 폴백 기관 정보 절(id=db-bank, 11-23 통합), 있으면 bankcontract 절', () => {
   const it = dash.itemForRec({ name: '가', region: 'seoul', type: '지자체' }, new Date(2026, 10, 17));
   const a = dash.paneHtml(it, {});
-  assert.ok(a.includes('<div class="db-sec"><h3>현재 금고 은행</h3><dl class="db-dl">') && !a.includes('id="db-bank"'));
+  assert.ok(a.includes('<div class="db-sec" id="db-bank"><h3>기관 정보</h3><dl class="db-dl">') && !a.includes('직접 입력'));
   const b = dash.paneHtml(it, { bank: V([L()]) });
   assert.ok(b.includes('id="db-bank"') && b.includes('직접 입력'));
 });

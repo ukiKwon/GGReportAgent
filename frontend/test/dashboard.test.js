@@ -37,8 +37,8 @@ test('빨강/주황 경계: 182일은 urgent, 183일은 soon, 막대 칸에서 6
   const m = dash.model([rec('가', '11', 182), rec('나', '11', 183)], TODAY);
   assert.strictEqual(m.upcoming[0].band, 'urgent');
   assert.strictEqual(m.upcoming[1].band, 'soon');
-  const h = dash.timelineHtml(m, TODAY, '6');
-  assert.ok(h.indexOf('class="seg u') >= 0 && h.indexOf('class="seg s') >= 0);
+  assert.strictEqual(dash.kqSeg(182), 'm6');
+  assert.strictEqual(dash.kqSeg(183), '');
 });
 
 // ── 기간 버튼(NEXT 77 재설계) ──────────────────────────────────────
@@ -80,77 +80,10 @@ test('moreHint: 지역 조건을 함께 건다', function () {
   assert.strictEqual(dash.moreHint(m, '6', { region: '26' }).n, 1);
 });
 
-// ── 월별 막대(D1) ──────────────────────────────────────────────────
-test('monthBuckets: 13칸, 12월→1월 연도 넘김, 칸 합 = 1년 안 수, 4종 쌓기', function () {
-  const T = new Date(2026, 10, 11);                           // 2026-11-11
-  const at = function (name, date, conf, extra) { return Object.assign({ name: name, region: '11', type: '지자체', contractEnd: date, confirmed: conf }, extra || {}); };
-  const list = [
-    at('가', '2026-11-29', true), at('나', '2026-12-31', false), at('다', '2027-01-05', false),
-    at('라', '2027-05-20', true), at('마', '2027-05-21', false), at('바', '2027-11-10', false),
-  ];
-  const m = dash.model(list, T);
-  const mb = dash.monthBuckets(m, T);
-  assert.strictEqual(mb.cols.length, 13);
-  assert.deepStrictEqual([mb.cols[0].y, mb.cols[0].mo, mb.cols[1].mo, mb.cols[2].y, mb.cols[2].mo], [2026, 11, 12, 2027, 1]);
-  assert.deepStrictEqual([mb.cols[12].y, mb.cols[12].mo], [2027, 11]);
-  assert.strictEqual(mb.total, m.upcoming.length);
-  assert.strictEqual(mb.cols.reduce(function (a, c) { return a + c.n; }, 0), 6);
-  assert.deepStrictEqual([mb.cols[0].uf, mb.cols[0].ue], [1, 0]);   // 11월 29일 확정, 6개월 안
-  assert.deepStrictEqual([mb.cols[1].uf, mb.cols[1].ue], [0, 1]);   // 12월 추정
-  assert.deepStrictEqual([mb.cols[6].sf, mb.cols[6].se], [1, 1]);   // 2027-05: 183일 밖 → s, 확정 1·추정 1
-  assert.strictEqual(mb.max, 2);
-});
-
-test('막대 높이 분모는 최소 4: 1곳짜리 달이 꽉 찬 막대가 아니다', function () {
-  const m = dash.model([rec('가', '11', 20)], TODAY);
-  const mb = dash.monthBuckets(m, TODAY);
-  assert.strictEqual(mb.denom, 4);
-  assert.strictEqual(dash.barPx(1, mb.denom), Math.round(110 / 4));
-  assert.ok(dash.barPx(1, mb.denom) < dash.BAR_MAX_PX);
-  assert.strictEqual(dash.barPx(0, 4), 0);
-  assert.strictEqual(dash.barPx(1, 100), 10);                  // 최소 10px
-  const big = dash.model([1, 2, 3, 4, 5, 6].map(function (n) { return rec('기관' + n, '11', 10 + n); }), TODAY);
-  assert.strictEqual(dash.monthBuckets(big, TODAY).denom, 6);
-});
-
-test('시간표 aria-label: 0이 아닌 달 전부·확정/추정 합계, 기관명은 들어가지 않고 HTML은 이스케이프', function () {
-  const T = new Date(2026, 10, 11);
-  const evil = '<script>alert(1)</script>';
-  const m = dash.model([
-    { name: evil, region: '11', type: '지자체', contractEnd: '2026-11-29', confirmed: true },
-    { name: 'b', region: '11', type: '지자체', contractEnd: '2027-05-20', confirmed: false },
-    { name: 'c', region: '11', type: '지자체', contractEnd: '2027-05-21', confirmed: false }], T);
-  const label = dash.chartLabel(dash.monthBuckets(m, T));
-  assert.ok(label.indexOf('앞으로 1년 월별 입찰 예정 3곳') === 0);
-  assert.ok(label.indexOf('2026년 11월 1곳') >= 0 && label.indexOf('2027년 5월 2곳') >= 0);
-  assert.ok(label.indexOf('확정 1곳, 추정 2곳') >= 0);
-  assert.strictEqual(label.indexOf(evil), -1);
-  const html = dash.timelineHtml(m, T, '6');
-  assert.strictEqual(html.indexOf('<script>'), -1);
-  assert.ok(html.indexOf('id="db-tile-ov"') >= 0 && html.indexOf('id="db-tile-later"') >= 0 && html.indexOf('id="db-tomap"') >= 0);
-  assert.ok(html.indexOf('월별 입찰 예정') >= 0 && html.indexOf('경과 <b>0</b>곳') >= 0 && html.indexOf('기준일') < 0 && html.indexOf('조사한 기관 <b>') >= 0);   // 기준일은 화면 머리(#db-asof) 한 곳만(design 11-16 C1)
-  assert.ok(html.indexOf('role="img"') >= 0 && html.indexOf('aria-hidden="true"') >= 0);
-});
-
-test('시간표: 약정 만료 기준 추정은 범례에서 문구로 구분한다(basis=expiry)', function () {
+test('상세 날짜 근거: 약정 만료 기준 추정 문구', function () {
   const T = new Date(2026, 10, 11);
   const m = dash.model([{ name: '가', region: '11', type: '지자체', contractExpiry: '2027-06-30' }], T);
-  if (m.upcoming.length) {                                   // logic.effectiveBid가 expiry를 반영한 뒤에만 의미가 있다
-    assert.strictEqual(m.upcoming[0].basis, 'expiry');
-    assert.strictEqual(m.expiryN, 1);
-    assert.ok(dash.timelineHtml(m, T, '6').indexOf('약정 만료 기준') >= 0);
-    assert.ok(dash.paneHtml(m.upcoming[0], { act: 'none', today: T }).indexOf('약정 만료일의 6개월 전으로 추정') >= 0);
-  }
-  assert.ok(dash.timelineHtml(m, T, '6').indexOf('약정 만료 6개월 전') >= 0);
-});
-
-test('기간 창: 6개월은 오늘 선에서 시작해 가운데 어딘가에서 끝나고, 전체는 끝까지', function () {
-  const T = new Date(2026, 10, 11);
-  const s6 = dash.windowSpan(T, '6'), sAll = dash.windowSpan(T, 'all');
-  assert.ok(s6.from >= 0 && s6.from < 100 / 13 && s6.to > s6.from && s6.to < 100);
-  assert.strictEqual(sAll.to, 100);
-  assert.ok(dash.windowSpan(T, '12').to > s6.to);
-  assert.ok(dash.timelineHtml(dash.model([], T), T, 'all').indexOf('db-tile later on') >= 0);
+  if (m.upcoming.length) assert.ok(dash.paneHtml(m.upcoming[0], { act: 'none', today: T }).indexOf('약정 만료일의 6개월 전으로 추정') >= 0);
 });
 
 // ── 제안 진행 단계(D2) ─────────────────────────────────────────────
@@ -235,7 +168,7 @@ test('termBar: lastBid 없으면 null, 비율 0~100, 추정이면 점선, 경과
   assert.ok(html.indexOf('class="db-term over"') >= 0);
   assert.ok(dash.termBarHtml(mk({ lastBid: '2022-11-11', confirmed: false }), T).indexOf('class="end est') >= 0);
   assert.strictEqual(dash.termBarHtml(mk(), T), '');
-  assert.ok(dash.paneHtml(mk({ lastBid: '2022-11-11' }), { act: 'none', today: T }).indexOf('<h3>약정 주기</h3><div class="db-term') >= 0);
+  assert.ok(dash.paneHtml(mk({ lastBid: '2022-11-11' }), { act: 'none', today: T }).indexOf('<h3>입찰 예정</h3><div class="db-term') >= 0);
 });
 
 // ── 국민은행 와플(D3) ──────────────────────────────────────────────
@@ -301,12 +234,9 @@ test('확정·확인 중·자료 수정 집계', function () {
   assert.ok(crow.indexOf('class="dt-note"') >= 0 && /공고일 \d{4}-\d{2}-\d{2}/.test(crow) && crow.indexOf('의미 확인') < 0);
 });
 
-test('1년 안 0곳: 시간표는 0을 숨기지 않고 경과·1년 뒤·날짜 미상 칸을 함께 보인다', function () {
+test('1년 안 0곳: 꼬리·창 안내', function () {
   const m = dash.model([rec('경과시청', '11', -3, { confirmed: false }), rec('먼시청', '11', 500), { name: '미상구청', region: '11', type: '지자체' }], TODAY);
   assert.strictEqual(m.upcoming.length, 0);
-  const h = dash.timelineHtml(m, TODAY, '6');
-  assert.ok(h.indexOf('1년 안 <b>0</b>곳') >= 0 && h.indexOf('<span class="n">1곳</span><span class="t">공고 예정일 경과') >= 0);
-  assert.ok(h.indexOf('<span class="n">1곳</span><span class="t">1년 뒤') >= 0 && h.indexOf('<span class="n">1곳</span><span class="t">날짜 미상') >= 0);
   assert.ok(dash.railHtml({ confirmed: 0, unconfirmed: 3, total: 3 }, { state: 'offline' }).indexOf('서버에 연결하면 보입니다.') >= 0);
   const foot = dash.footHtml(m);
   assert.ok(foot.indexOf('날짜를 확인하지 못한 <b>1</b>곳은 목록에 없습니다.') >= 0 && foot.indexOf('1년 뒤') < 0);
@@ -603,7 +533,7 @@ test('paneHtml: 지자체 상세 \'현재 금고 은행\' 절 맨 아래에 출�
   const muni = dash.model([rec('부산광역시', '26', 40, { lastBid: '2024-09-24', term: 4 })], TODAY).upcoming[0];
   const h = dash.paneHtml(muni, { act: 'none', muniSrcHtml: SRC });
   assert.strictEqual((h.match(/지자체 출처:/g) || []).length, 1);
-  assert.ok(/<h3>현재 금고 은행<\/h3>[\s\S]*bk-src[\s\S]*지자체 출처:[\s\S]*<\/p><\/div>/.test(h));
+  assert.ok(/<h3>기관 정보<\/h3>[\s\S]*bk-src[\s\S]*지자체 출처:[\s\S]*<\/p><\/div>/.test(h));
   assert.ok(h.indexOf('지자체 출처:') < h.indexOf('<h3>기관장</h3>'));   // 은행 절 안, 기관장 절 앞
   const court = dash.model([rec('서울중앙지방법원', '11', 40, { type: '법원', lastBid: '2024-09-24', term: 4 })], TODAY).upcoming[0];
   assert.ok(dash.paneHtml(court, { act: 'none', muniSrcHtml: SRC }).indexOf('지자체 출처:') < 0);
@@ -712,7 +642,7 @@ test('이스케이프: 기관명·출처·검증 문장의 <script>가 그대로
     dash.paneHtml(m.upcoming[0], { act: 'confirm', confirm: true, kb: { slot: '<b>', quote: evil, src_date: evil } }),
     dash.paneHtml(m.overdue[0], { act: 'open' }),
     dash.railHtml({ confirmed: 0, unconfirmed: 1, total: 1 }, { state: 'denied', code: evil }),
-    dash.timelineHtml(m, TODAY, evil),
+    dash.kindQueueHtml(dash.kindQueueModel(m, { today: TODAY, snap: null }), { updated: evil, canScope: true }),
     dash.stageCardHtml({ state: 'ok', stages: dash.stageCounts([{ institution_id: evil, state_cd: 'CONFIRMED' }], null) }),
   ].join('');
   assert.strictEqual(html.indexOf('<script>'), -1);
@@ -754,9 +684,6 @@ test('약정 만료 기준 추정은 목록 행·메타·상세 어디서나 같
   assert.ok(dash.paneHtml(by('확정구청'), { act: 'none' }).indexOf('공고로 확인한 날입니다') >= 0);
   const cyc = by('주기구청');
   if (cyc) assert.ok(dash.paneHtml(cyc, { act: 'none' }).indexOf('지난 금고 선정일에 약정 주기를 더한') >= 0);
-  const leg = dash.timelineHtml(m, T, '6');
-  assert.ok(leg.indexOf('추정(지난 금고 선정일+약정 주기 / 약정 만료 6개월 전)') >= 0 && leg.indexOf('공고일 기준(결과 공고 미확인)') >= 0);
-  assert.ok(m.expiryN === 0 || leg.indexOf('1년 안 약정 만료 기준 <b class="v">' + m.expiryN + '</b>곳') >= 0);
 });
 
 test('visibleKeys: 기간 안 + 펼친 경과 묶음만(접히면 경과 제외), 조건은 둘 다에 건다', function () {
@@ -767,17 +694,11 @@ test('visibleKeys: 기간 안 + 펼친 경과 묶음만(접히면 경과 제외)
   assert.ok(dash.visibleKeys(m, '3', {}, false).indexOf('26|나') < 0);
 });
 
-test('1년 뒤 칸: aria-pressed로 선택 상태를 말한다', function () {
-  const m = dash.model([rec('가', '11', 500)], TODAY);
-  assert.ok(dash.timelineHtml(m, TODAY, '6').indexOf('id="db-tile-later" data-win="all" aria-pressed="false"') >= 0);
-  assert.ok(dash.timelineHtml(m, TODAY, 'all').indexOf('aria-pressed="true"') >= 0);
-});
-
 test('dashboard.js 소스: 포커스 복귀·미선택 상세 이름·mount 때 선택 정리', function () {
   const src = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8');
   assert.ok(/case 'db-widen':[^\n]*#db-per input:checked/.test(src));               // 선택된 기간 라디오로
-  assert.ok(/case 'db-tile-later':[^\n]*\$\('db-tile-later'\)/.test(src));          // 다시 그린 칸으로
-  assert.ok(/case 'db-tile-ov':/.test(src) && /function setTab/.test(src));              // 경과 칸·탭(입찰 공고 현황 2탭 — 11-16). 진행 단계 카드(db-rail)는 현황판(kbboard)으로 옮겼다
+  assert.ok(/case 'db-nb-wait': showWait\(\); break;/.test(src));
+  assert.ok(/case 'db-kq-find':/.test(src) && /function setTab/.test(src) && /function showPast/.test(src));              // 막대 [그 외 기간 찾기]·탭(입찰 공고 현황 2탭 — 11-16). 진행 단계 카드(db-rail)는 현황판(kbboard)으로 옮겼다
   assert.ok(src.indexOf('role="tablist"') >= 0 && src.indexOf('role="tabpanel"') >= 0 && src.indexOf('db-rail') < 0);
   assert.ok(/case 'db-clear':[^\n]*\$\('db-q'\)/.test(src));
   assert.ok(src.indexOf("setAttribute('aria-label', '기관 상세')") >= 0);

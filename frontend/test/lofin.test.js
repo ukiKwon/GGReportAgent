@@ -17,7 +17,7 @@ const LF = { asof: '2026-01-01', src: '행안부 금고지정 현황(2026.1.1. �
 
 const item = (name, region, type) => dash.model([{ name: name, region: region, type: type || '지자체', contractEnd: '2027-01-10', confirmed: true, lastBid: '2024-09-24', term: 4 }], TODAY).upcoming[0];
 const pane = (it, c) => dash.paneHtml(it, Object.assign({ act: 'none', today: TODAY, lofin: LF }, c || {}));
-const bankSec = h => h.slice(h.indexOf('<h3>현재 금고 은행</h3>'), h.indexOf('<h3>기관장</h3>'));
+const bankSec = h => h.slice(h.indexOf('<h3>기관 정보</h3>'), h.indexOf('<h3>기관장</h3>'));
 
 const CODES = { banks: [], ranks: [{ code: 'FIRST', name: '1금고' }, { code: 'SECOND', name: '2금고' }, { code: 'SINGLE', name: '단수 금고' }], src_kinds: [{ code: 'LINK', name: '공고·문서 링크' }], cancel_reasons: [], accounts: [] };
 const D = o => Object.assign({ contract_no: 1, rev_no: 1, origin_cd: 'MANUAL', rank_cd: 'SINGLE', bank_cd: 'B01', bank_name: '우리은행', bank_name_etc: null,
@@ -39,17 +39,17 @@ test('서버 응답 없음: 행안부 값만 있는 지자체는 미확인 대�
   const s = bankSec(pane(item('종로구청', '11')));
   // 줄 모양(design 6-1): dt = 순위 이름, dd = 은행 + 수집 칩, 다음 줄 약정, 다음 줄 맡는 회계. 줄마다 출처 꼬리는 없다(아래 '직접 확인:' 링크가 출처).
   assert.ok(s.includes('<dt>단수 금고</dt><dd><span class="bk-ln">우리은행 <span class="wf-badge pp-cancel">수집</span></span>') && s.indexOf('· 행안부 금고지정 현황') < 0);
-  assert.ok(s.includes('맡는 회계 일반회계 · 기타특별 · 기금') && s.includes('약정 <span class="v">2023-01-01 ~ 2026-12-31</span>'));
-  assert.ok(s.indexOf('약정 <span') < s.indexOf('맡는 회계'));   // 약정 → 맡는 회계 순서(㊹ 직접 입력 줄과 같다)
+  assert.ok(s.includes('맡는 회계 일반회계 · 기타특별 · 기금') && s.includes('<dt>약정 기간</dt><dd><span class="v">2023-01-01 ~ 2026-12-31</span> (4년)</dd>'));
+  assert.ok(s.indexOf('맡는 회계') < s.indexOf('<dt>약정 기간</dt>'));   // 은행 줄(맡는 회계) → 약정 기간 한 줄 순서
   assert.ok(s.indexOf('pop-unk') < 0 && s.indexOf('만료') < 0);
   assert.ok(s.includes('행안부 현황으로 채운 값입니다.') && s.indexOf('직접 입력하면') < 0);   // 서버 응답 없음(편집 불가) — 첫 문장만
 });
 
-test('약정 기간 한쪽이 비면 약정 끝 X / 약정 시작 X', () => {
+test('약정 기간 한쪽이 비면 한 줄이 ~ 끝 만료 / 시작 ~ 미확인으로 보인다', () => {
   const mk = o => bankSec(pane(item('종로구청', '11'), { lofin: { asof: '2026-01-01', rows: { '11|종로구청': [row('우리은행', 'SINGLE', o)] } } }));
-  assert.ok(mk({ start: '' }).includes('약정 끝 <span class="v">2026-12-31</span>'));
-  assert.ok(mk({ end: '' }).includes('약정 시작 <span class="v">2023-01-01</span>'));
-  assert.ok(mk({ start: '', end: '' }).indexOf('약정 ') < 0 || mk({ start: '', end: '' }).indexOf('약정 <span') < 0);
+  assert.ok(mk({ start: '' }).includes('~ <span class="v">2026-12-31</span> 만료 (4년)'));
+  assert.ok(mk({ end: '' }).includes('<span class="v">2023-01-01</span> ~ <span class="pop-unk">미확인</span> (4년)'));
+  assert.ok(mk({ start: '', end: '' }).includes('<dt>약정 기간</dt><dd><span class="pop-unk">미확인</span> (4년)</dd>'));
 });
 
 test('줄이 모두 만료되면 안내가 바뀐다(편집 가능/불가), 일부만 만료면 그대로', () => {

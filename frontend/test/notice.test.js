@@ -208,11 +208,11 @@ const TIP_LIST = [
   { name: '하동군청', region: '11', type: '지자체', contractEnd: plus(30), confirmed: false },
 ];
 
-test('tipHtml 첫 블록: 공고 진행 중 n곳 — 마감 전 a · 결과 확인 b, 마감 전 최대 2곳, 결과 확인 1곳 + 외 n곳', () => {
+test('tipHtml 첫 블록: 공고 진행 중 n곳 — 마감 전 a · 선정 결과 대기 b, 마감 전 최대 2곳, 선정 결과 대기 1곳 + 외 n곳', () => {
   const info = logic.regionMix(TIP_LIST, TODAY);
   const h = render.tipHtml('서울', info, TODAY);
   assert.ok(h.includes('공고 진행 중 4곳'), h);
-  assert.ok(h.includes('마감 전 2 · 접수 기간 원문 확인 1 · 결과 확인 1'), h);
+  assert.ok(h.includes('마감 전 2 · 접수 기간 원문 확인 1 · 선정 결과 대기 1'), h);
   assert.ok(h.includes('송파문화재단 <span class="rt-d">마감 D-4</span>'), h);
   assert.ok(h.includes('마포구청 <span class="rt-d">접수 ' + md(4) + '~' + md(7) + '</span>'), h);
   assert.ok(h.indexOf('송파문화재단') < h.indexOf('마포구청'), '마감 가까운 순');
@@ -220,7 +220,10 @@ test('tipHtml 첫 블록: 공고 진행 중 n곳 — 마감 전 a · 결과 확�
   assert.ok(h.includes('정읍시청 <span class="rt-m">공고 후 50일</span>'), h);
   assert.ok(h.indexOf('공고 진행 중 4곳') < h.indexOf('가장 임박'), '첫 블록이 먼저');
   assert.ok(h.includes('가장 임박 하동군청'), h);
-  assert.ok(h.includes('기관 5곳 중 마감 지난 공고 1곳은 색에 넣지 않음'), h);
+  assert.ok(h.includes('기관 5곳 중 선정 결과 대기 1곳은 색에 넣지 않음'), h);
+  // 머리 줄과 꼬리의 선정 결과 대기 수가 같다: awaiting 1 + late 1 → 둘 다 2
+  const both = render.tipHtml('x', Object.assign({}, info, { awaiting: 1, late: 1 }), TODAY);
+  assert.ok(both.includes('선정 결과 대기 2곳은 색에 넣지 않음') && !both.includes('마감 지난 공고'), both);
   // 마감 전이 셋 이상이면 외 n곳, 결과 확인이 마감 지남이면 '공고 후 n일'
   const three = logic.regionMix([nrec('a', 5, { receiveTo: plus(1) }), nrec('b', 5, { receiveTo: plus(2) }), nrec('c', 5, { receiveTo: plus(3) }),
     nrec('d', 33, { receiveTo: plus(-2) })], TODAY);
@@ -289,8 +292,7 @@ test('dash.model: 진행 중은 notice(마감 전→미확인→결과 확인), 
   assert.deepStrictEqual(m.overdue.map(o => o.name), ['경과']);
   assert.deepStrictEqual(m.noticeN, { receiving: 2, unknown: 1, awaiting: 1, late: 0, check: 1 });
   assert.strictEqual(m.notice[0].startDays, null);
-  assert.ok(dash.timelineHtml(m, TODAY, '6').includes('<span class="n">1곳</span><span class="t">공고 예정일 경과'));   // D+ 타일도 진행 중이 빠진 수
-  assert.ok(dash.timelineHtml(m, TODAY, '6').includes('경과 <b>1</b>곳'));
+  assert.strictEqual(dash.kindQueueModel(m, { today: TODAY, snap: null }).rows[0].x, 1);   // 경과 nrec 1곳(진행 중은 빠진 수)
 });
 
 test('행 칩 세 갈래: 마감 D-n(빨강 테두리) / 공고 후 n일(무채색) / 경과 D+ 도장', () => {
@@ -311,10 +313,12 @@ test('행 칩 세 갈래: 마감 D-n(빨강 테두리) / 공고 후 n일(무채�
 test('띠: 마감 전 카드 + 마감일 미확인 카드(무채색), 0곳이면 숨김, 1곳이면 안내, 6곳 이상이면 4장 + 더보기', () => {
   assert.strictEqual(dash.noticeBandHtml(dash.model([], TODAY), ''), '');
   const onlyWait = dash.model([nrec('지남', 50, { receiveTo: plus(-5) })], TODAY);
-  assert.strictEqual(dash.noticeBandHtml(onlyWait, ''), '');                       // 마감 지난 곳은 목록에만 — 카드 0곳이면 띠를 숨긴다
+  const hw = dash.noticeBandHtml(onlyWait, '');                                    // 전부 선정 결과 대기(open 0·w>0)여도 띠는 그린다 — 카드 없이 버튼·안내
+  assert.ok(hw.includes('id="db-nb-wait"') && hw.includes('<p class="db-nb-aside">선정 결과 대기 <b>1</b>곳 — 결과 공고가 났는지 확인하세요.</p>') && !hw.includes('class="db-nb-card'), hw);
+  assert.ok(hw.includes('접수 마감 전 <b>0</b>곳 · 선정 결과 대기 <b>1</b>곳'), hw);
   const one = dash.model([nrec('송파', 8, { receiveTo: plus(4) }), nrec('지남', 50, { receiveTo: plus(-5) })], TODAY);
   const h1 = dash.noticeBandHtml(one, '11|송파');
-  assert.ok(h1.includes('지금 공고가 난 기관') && h1.includes('접수 마감 전 <b>1</b>곳 · 결과 확인 <b>1</b>곳'), h1);
+  assert.ok(h1.includes('지금 공고가 난 기관') && h1.includes('접수 마감 전 <b>1</b>곳 · 선정 결과 대기 <b>1</b>곳'), h1);
   assert.ok(h1.includes('db-nb-row one') && h1.includes('db-nb-aside') && h1.includes('id="db-nb-wait"'));
   assert.strictEqual((h1.match(/<button type="button" class="db-nb-card/g) || []).length, 1);
   assert.ok(h1.includes('aria-pressed="true"') && h1.includes('data-key="11|송파"'));
@@ -380,7 +384,7 @@ test('상세 \'공고 진행\' 절: 맨 위, 공고 막대(접수 칸 없으면 
   assert.ok(h.includes('<dt>공고 번호</dt><dd><span class="v">제2026-1729호</span></dd>'));
   assert.ok(h.includes('<dt>공고일</dt><dd><span class="v">' + plus(-14) + '</span></dd>'));
   assert.ok(h.includes('<dt>접수</dt>') && h.includes('마감 <span class="v">D-7</span>'));
-  assert.ok(h.includes('<dt>현 약정 만료</dt><dd><span class="v">2026-12-31</span></dd>') && h.includes('약정 만료 12.31'));
+  assert.ok(!h.includes('<dt>현 약정 만료</dt>') && h.includes('약정 만료 12.31') && h.includes('<dt>약정 기간</dt><dd>~ <span class="v">2026-12-31</span> 만료</dd>'));
   assert.ok(h.includes('<a href="' + g2b.replace(/&/g, '&amp;') + '" target="_blank" rel="noopener noreferrer">공고 원문 열기</a> <span class="db-why">(인터넷 PC에서 열림)</span>'), h);
   assert.ok(h.includes('<span class="db-chip open">마감 D-7</span>'));
   assert.ok(!h.includes('class="db-term') && !h.includes('<dt>입찰 예정일</dt>'));
@@ -467,10 +471,10 @@ test('M3: 마감일 미확인은 공고 후 30일까지만 +2·띠 카드, 31일
   // 띠: u31은 카드에서 빠지고 '결과 확인' 쪽
   const m = dash.model([nrec('송파', 8, { receiveTo: plus(4) }), u30, u31], TODAY);
   const h = dash.noticeBandHtml(m, '');
-  assert.ok(h.includes('접수 마감 전 <b>1</b>곳 · 접수 기간 원문 확인 <b>1</b>곳 · 결과 확인 <b>1</b>곳'), h);
+  assert.ok(h.includes('접수 마감 전 <b>1</b>곳 · 접수 기간 원문 확인 <b>1</b>곳 · 선정 결과 대기 <b>1</b>곳'), h);
   assert.strictEqual((h.match(/class="db-nb-card/g) || []).length, 2);
   assert.ok(!h.includes('data-key="11|u31"') && h.includes('data-key="11|u30"') && h.includes('id="db-nb-wait"'));
-  // 문구: 30일 이내는 원문 확인, 31일부터는 결과 확인. 목록 행은 data-check로 '결과 확인 보기' 대상을 표시한다
+  // 문구: 30일 이내는 원문 확인, 31일부터는 선정 결과 대기. 목록 행은 data-check로 '선정 결과 대기 보기' 대상을 표시한다
   const by = n => m.notice.filter(x => x.name === n)[0];
   assert.ok(dash.rowHtml(by('u30'), { id: 'a' }).includes('접수 기간은 공고 원문에서 확인하세요'));
   const r31 = dash.rowHtml(by('u31'), { id: 'b' });
@@ -478,7 +482,7 @@ test('M3: 마감일 미확인은 공고 후 30일까지만 +2·띠 카드, 31일
   assert.ok(!dash.rowHtml(by('u30'), { id: 'a' }).includes('data-check'));
   // 툴팁: 미확인(30일 이내)과 결과 확인을 나눠 센다. 지도 '공고 n'은 진행 중 전체 수 그대로
   const tip = render.tipHtml('서울', logic.regionMix([nrec('r', 5, { receiveTo: plus(3) }), u30, u31], TODAY), TODAY);
-  assert.ok(tip.includes('마감 전 1 · 접수 기간 원문 확인 1 · 결과 확인 1'), tip);
+  assert.ok(tip.includes('마감 전 1 · 접수 기간 원문 확인 1 · 선정 결과 대기 1'), tip);
   assert.strictEqual(render.noticeSubText(logic.regionMix([u30, u31], TODAY)), '공고 2');
 });
 

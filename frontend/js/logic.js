@@ -303,7 +303,7 @@
   };
 
   // 지도 팝오버·순위표용 공고 진행 한눈 표현(dashboard.js의 칩·noticeNote와 같은 용어). 진행 중이 아니면 null.
-  // badge: 접수 마감 전 '마감 D-n' / 마감일 미확인(30일 이내) '공고 진행 중' / 마감 지남·미확인 30일 초과 '결과 확인'.
+  // badge: 접수 마감 전 '마감 D-n' / 마감일 미확인(30일 이내) '공고 진행 중' / 마감 지남·미확인 30일 초과 '선정 결과 대기'.
   // cls: 팝오버 배지 색 계열(.dg-day) — 접수 마감 전만 urgent, 나머지는 unknown(무채색).
   // detail = '2026-10-29 · 접수 11.16~11.19', line = '공고 ' + detail.
   // 현황판 칩·둘째 줄 문구의 정본(2026-11-15 통합 — dashboard.noticeChipHtml·noticeNote가 이것을 HTML로 감싼다).
@@ -343,7 +343,7 @@
     const md = function (s) { const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(String(s || '')); return m ? m[1] + '.' + m[2] : ''; };
     let badge, cls;
     if (ns.phase === 'receiving') { badge = t.chip.text; cls = 'urgent'; }
-    else if (ns.check) { badge = '결과 확인'; cls = 'unknown'; }
+    else if (ns.check) { badge = '선정 결과 대기'; cls = 'unknown'; }
     else { badge = '공고 진행 중'; cls = 'unknown'; }
     let span;
     if (ns.receiveFrom && ns.receiveTo) span = '접수 ' + md(ns.receiveFrom) + '~' + md(ns.receiveTo);

@@ -142,6 +142,7 @@
   <a href="#c86">86 입찰 현황판 '되찾기 도전' 구분 + 제안서 작업함 [업로드] 강조</a>
   <a href="#c87">87 웹 접근성 기본 3가지 — 본문 바로가기, '열어 둔 화면' 탭 키보드, 이름 없던 입력칸 3개</a>
   <a href="#c88">88 사이드바 기관·입찰 현황 — 소제목 대시보드·기관·입찰 공고, 전국 지도 → 지역별 공고현황, 공고 자동 수집 전산팀만</a>
+  <a href="#c89">89 입찰 공고 현황 간소화 — 선정 결과 대기 묶음, 다가오는 기관별 공고현황, 상세 칸 순서</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -1840,6 +1841,29 @@
 <div class="col after"><header>후</header><div class="body"><div class="mock">
   <p style="font-size:12px">기관·입찰 현황<br>· <b>대시보드</b>: 입찰 현황판<br>· 기관: 기관 사업계획 / 전국 지역별<br>· 입찰 공고: <b>지역별 공고현황</b>(옛 전국 지도, 화면·주소 그대로) / 입찰 공고 현황 / 공고 자동 수집(<b>전산팀·전산팀장만</b>)</p>
   <p class="legend-note">항목이 하나인 '대시보드' 소제목도 보이게 이 묶음만 soloSubs. 메뉴 권한은 서버 키(map) 그대로라 서버 변경 없음. 화면 문구의 '전국 지도'(사전준비·대시보드·시작화면·현황판 버튼)도 새 이름으로. 화면 시험 통과.</p>
+</div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c89">
+<h2>89 입찰 공고 현황 간소화 — '선정 결과 대기' 묶음, 월별 막대 → 다가오는 기관별 공고현황, 상세 칸 순서 (2026-11-23, 사용자 실사용 피드백, planner·design-reviewer 규격, frontend-dev 구현)</h2>
+<div class="why">왜: 사용자 11-23(김영업 실사용) — ① 띠의 '결과 확인 n곳 보기'는 스크롤만 하고 그 n곳이 목록 어디인지 표시가 없으며 '결과'가 무슨 뜻인지 모름 ② 월별 입찰 예정 막대는 필요 없고, 담당자가 궁금한 건 '관심·목표 기관이 앞으로 얼마 만에 공고가 뜨나' — 기관 종류별 가로 막대로 간소하게 ③ 상세 칸은 공고 진행(공고 상태 기록 흡수) → 기관정보(현재 금고 은행 통합) → 기관장 → 사업계획 순서로.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+  <p><img src="../../handoff/agents/history/2026-11-23_kq_sian/before_band_chart.png" alt="전 — 띠 [결과 확인 9곳 보기], 아래 월별 입찰 예정 13개월 세로 막대와 경과·1년 뒤·날짜 미상 타일" style="width:100%"></p>
+  <p class="hint12">'결과 확인 9곳 보기'는 목록을 첫 대상 행 근처로 스크롤만 했다. 월별 막대 칸 282px(13개월 세로 막대 + 타일 3개 + 범례). 상세 칸은 공고 진행 → 기관 정보 → 공고 상태 기록 → 현재 금고 은행 순이고 '현 약정 만료'·'약정 주기'·'약정 기간'이 세 곳에 흩어져 있었다.</p>
+  <p><img src="../../handoff/agents/history/2026-11-23_kq_sian/before_pane.png" alt="전 — 상세 칸, 공고 진행 절의 현 약정 만료 줄과 따로 떨어진 공고 상태 기록 절" style="width:100%"></p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <p><img src="../../handoff/agents/history/2026-11-23_kq_sian/after_band_kq.png" alt="후 — 띠 [선정 결과 대기 9곳 보기], 아래 다가오는 기관별 공고현황 5줄 가로 막대" style="width:100%"></p>
+  <p style="font-size:12px"><b>한 이름 '선정 결과 대기'</b>(접수 마감이 지나 금고 선정 결과 공고를 확인할 곳): 띠 요약·버튼·목록 소묶음·행 칩·지도 툴팁. 버튼을 누르면 목록 안 '선정 결과 대기 n곳' 소묶음이 목록 칸 맨 위로 오고 1.6초 강조, 포커스가 그 목록으로 간다(띠는 화면에 남게 바깥 칸은 조금만 움직임).</p>
+  <p><img src="../../handoff/agents/history/2026-11-23_kq_sian/after_wait.png" alt="후 — 선정 결과 대기 소묶음 강조" style="width:100%"></p>
+  <p style="font-size:12px"><b>다가오는 기관별 공고현황</b>(249px): 지자체·공공기관(교육청 포함)·법원·대학·병원 5줄 고정, 구간 1개월 내 / 1~3개월 / 3~6개월(같은 빨강 42·24·8%+테두리, 막대 안 숫자) + 8px 띄운 회색 빗금 '공고 확인 어려움'(예정일이 지났는데 공고가 안 보이는 곳, '처리됨' 기록 제외). 날짜 미상·6개월 넘는 곳·이미 공고 난 곳은 넣지 않고 [그 외 기간 찾기]가 기관명 검색칸으로 보낸다. [전체 기관 | 목표·관심 기관] 전환(목표 자료를 받은 사람만). 막대 길이는 모든 줄 같은 척도 건수.</p>
+  <p><img src="../../handoff/agents/history/2026-11-23_kq_sian/after_pane_notice.png" alt="후 — 공고 난 기관 상세: 공고 진행 안 공고 상태 기록 소제목, 아래 기관 정보" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-23_kq_sian/after_pane_plan.png" alt="후 — 공고 전 기관 상세: 입찰 예정 절, 기관 정보의 약정 기간 한 줄" style="width:100%"></p>
+  <p style="font-size:12px"><b>상세 칸</b>(지도·현황판 팝업 공용): ① 공고 진행(공고 전이면 '입찰 예정' — 예정일 막대·입찰 예정일) 안에 '공고 상태 기록' h4 소제목 ② 기관 정보 = 기관 정보 + 현재 금고 은행: 금고 은행 → '약정 기간 시작 ~ 끝 (n년)' 한 줄 → 지난 금고 선정일 → 운영 상태 → 직접 확인 바로가기 → 안내 → [출처·수정 이력]. 편집 단추는 절 머리 오른쪽, 약정 편집 중에는 숨김 ③ 기관장 ④ 사업계획.</p>
+  <p><img src="../../handoff/agents/history/2026-11-23_kq_sian/after_popup.png" alt="후 — 지역별 공고현황 팝업의 같은 순서" style="width:100%"></p>
+  <p class="legend-note">새 색 변수 0개. 막대 구간·줄은 누르지 않는 보기 전용(간소함, 팀 결정). 남은 것: 날짜 괄호 안 공백 '마감 지남( 11-16 )'·입찰 예정 막대 '오늘' 글자 위치(이번 변경 전부터, 별도). 근거: handoff/agents/planner·design-reviewer·frontend-dev·qa-verifier 2026-11-23 보고서.</p>
 </div></div></div>
 </div>
 </section>

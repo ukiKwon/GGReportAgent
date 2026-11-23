@@ -259,7 +259,9 @@
   // v = { state:'offline'|'loading'|'error'|'denied'|'ok', code, hist, cur, canEdit, draft, errs, err, busy, cf:{stage}|null, who, today, rv, histOpen }
   nr.sectionHtml = function (it, v) {
     v = v || {};
-    const open = '<div class="db-sec db-rec" id="db-rec"><h3>공고 상태 기록' + (it ? '<small>' + nr.scopeHtml(it) + '</small>' : '') + '</h3>';
+    const open = v.nested
+      ? '<div class="db-rec" id="db-rec"><div class="db-sub-h"><h4 id="db-rec-h">공고 상태 기록</h4>' + (it ? '<small>' + nr.scopeHtml(it) + '</small>' : '') + '</div>'
+      : '<div class="db-sec db-rec" id="db-rec"><h3>공고 상태 기록' + (it ? '<small>' + nr.scopeHtml(it) + '</small>' : '') + '</h3>';
     const st = v.state || 'offline';
     if (st === 'offline') return open + '<p class="db-empty">서버에 연결하면 공고 상태 기록을 보고 적을 수 있습니다.</p></div>';
     if (st === 'loading') return open + '<p class="db-empty" aria-busy="true">불러오는 중입니다…</p></div>';
