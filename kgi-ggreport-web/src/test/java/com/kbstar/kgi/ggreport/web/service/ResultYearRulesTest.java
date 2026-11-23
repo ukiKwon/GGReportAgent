@@ -24,12 +24,23 @@ public class ResultYearRulesTest {
         Map<Integer, String> st = new HashMap<Integer, String>();
         st.put(2026, "2027-03-01");
         assertEquals(Integer.valueOf(2026), ResultYearRules.yearOf("2027-03-01", st));
-        assertEquals(Integer.valueOf(2026), ResultYearRules.yearOf("2027-03", st));
     }
 
-    @Test public void 두_해가_같은_접두에_겹치면_추정으로_간다() {
+    @Test public void 두_해의_기록_날짜가_완전히_같으면_추정으로_간다() {
         Map<Integer, String> st = new HashMap<Integer, String>();
-        st.put(2026, "2027-03-01"); st.put(2027, "2027-03-15");
+        st.put(2026, "2027-01-01"); st.put(2027, "2027-01-01");
+        assertEquals(TargetResultRules.targetYearOf("2027-01-01"), ResultYearRules.yearOf("2027-01-01", st));
+    }
+
+    @Test public void 연도만_시작이면_기록과_맞추지_않고_추정() {
+        Map<Integer, String> st = new HashMap<Integer, String>();
+        st.put(2026, "2027-03-01");
+        assertEquals(TargetResultRules.targetYearOf("2027"), ResultYearRules.yearOf("2027", st));
+    }
+
+    @Test public void 연월만_시작이면_기록과_맞추지_않고_추정() {
+        Map<Integer, String> st = new HashMap<Integer, String>();
+        st.put(2026, "2027-03-01");
         assertEquals(TargetResultRules.targetYearOf("2027-03"), ResultYearRules.yearOf("2027-03", st));
     }
 

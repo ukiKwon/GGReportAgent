@@ -14,13 +14,12 @@ final class ResultYearRules {
 
     static Integer yearOf(String termFrom, Map<Integer, String> starts) {
         if (termFrom == null) return null;
-        if (starts != null) {
+        if (starts != null && termFrom.length() >= 10) {   // 월·일을 모르면(연도만·연월) 추정 없음 — 기록과 맞추지 않는다
             Integer hit = null;
             for (Map.Entry<Integer, String> e : starts.entrySet()) {
                 String d = e.getValue();
                 if (d == null) continue;
-                boolean match = termFrom.length() >= 10 ? d.equals(termFrom.substring(0, 10)) : d.startsWith(termFrom);
-                if (!match) continue;
+                if (!d.equals(termFrom.substring(0, 10))) continue;
                 if (hit != null && !hit.equals(e.getKey())) return TargetResultRules.targetYearOf(termFrom);   // 모호 — 추정으로
                 hit = e.getKey();
             }
