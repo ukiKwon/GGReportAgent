@@ -495,7 +495,7 @@
     }
     if (t.classList.contains('hb-nm')) {
       const rec = recIndex()[t.getAttribute('data-inst') || ''], d = D();
-      if (rec && d && d.openDetail) d.openDetail(rec, { opener: t });   // 보기 전용 역할은 dashboard 가 알아서 읽기만 보인다
+      if (rec && d && d.openDetail) d.openDetail(rec, { opener: t, noConfirm: true });   // 협약 성과 화면에서는 [제안 확정]을 두지 않는다(사용자 11-23, dashboard.js noConfirm 은 fa)   // 보기 전용 역할은 dashboard 가 알아서 읽기만 보인다
     }
   }
   function onChange(e) {

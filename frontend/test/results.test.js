@@ -344,3 +344,9 @@ test('design 반영: 부서 이름은 개발부서, 표 머리 sticky, 은행 �
   const h3 = rm.slice(rm.indexOf('<h3>'), rm.indexOf('</h3>'));
   assert.ok(h3.indexOf('rs-tog') > 0 && h3.indexOf('db-why') < 0, '설명 글은 h3 밖');
 });
+
+test('협약 성과 화면에서 연 기관 상세는 [제안 확정]을 막는다(NEXT 104, 사용자 11-23, dashboard noConfirm fa 71c98c77)', function () {
+  const DASH_SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'dashboard.js'), 'utf8');
+  assert.ok(/openDetail\(rec, \{ opener: t, noConfirm: true \}\)/.test(SRC), '기관 이름 클릭이 noConfirm 옵션을 넘긴다');
+  assert.ok(/noConfirm: !!\(opts && opts\.noConfirm\)/.test(DASH_SRC), 'openDetail 이 옵션을 받는다');
+});
