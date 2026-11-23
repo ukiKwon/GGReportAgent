@@ -1,16 +1,15 @@
 # 다음 세션 시작점 (항상 최신 1개 — 덮어쓴다)
 
-마지막 갱신: 2026-11-23(월) 17:30 (main) — 오늘 요약: `handoff/2026-11-23_summary.md`
+마지막 갱신: 2026-11-24(화) 00:20 (main ce, PM 2026-11-24 ad744af7) — 오늘 요약: `handoff/2026-11-23_summary.md`
 
 ## 다음 순서 (main, 묻지 않고 실행)
 0. **환경**: MySQL `C:\dev\mysql-start.cmd`, `ListAgents`(재시작 뒤 이름이 바뀜 — 각 세션에 정체 확인). **8080은 커밋된 HEAD만**: `git -C c:/github/_gg_build checkout -q --detach <HEAD>` → 그 폴더 kgi-ggreport-web에서 `mvn -q -o package -DskipTests`(실행 중 8080이 war를 잡으므로 먼저 내림) → main 폴더 kgi-ggreport-web에서 `java -Xmx768m -jar c:/github/_gg_build/kgi-ggreport-web/target/kgi-ggreport-web.war`. mvn은 `MAVEN_OPTS=-Xmx384m`·`-DargLine="-Xmx768m"`, IDE 자동 빌드가 target/classes를 지우면 재실행. 로컬 DB 적용: 047·048·049·051·055·056·057·058. **052는 적용 여부 확인**(fa 세션 기록엔 적용, 11-23 로그인 이름은 최디자이너로 보였음), **059(되찾기 코드)는 fa 화면 커밋 뒤 사용자 적용**(COMMON_CODE 행만이라 HEAD 재빌드는 막지 않음).
-1. **11-24(화) 발표 자료**: `docs/pm_history/briefing_2026-11-24.html` 14:03본(2fdd344f) + 11-23 밤 보정(7cea2400, PM 2256 4절). 남은 것: 발표 전 브라우저 최종 확인. 질문 장부는 d3ba370f로 정리(open 49). 발표 뒤 다시 물을 것: Q-20-01 승인 팀장·Q-23-17 Word 1장 초과·Q-23-31 협약 성과 첫 화면. 17:31 수집 로그는 옛 PC에 있어 이 PC에서 확인 못 함.
-2. **100 S2 화면 마무리**(초안 `handoff/agents/frontend-dev/2026-11-23_100S2_instsummary_초안.md`, 규격 design 2026-11-23_1257_a78d8d68): node 시험 'isn.stripBullet is not a function' → 내보내기 이름을 시험과 맞춤 → `node --test` 전체 → 적용. 연결 줄은 0d(index.html CSS·script)·fa(prep.js T1 [양식 열기])에 요청, 커밋 확인 뒤 붙임 → qa-verifier → design-reviewer 대조 → design_history 장 → DESIGN.md `--full` 대상 추가(main).
-3. **실사용 요청 묶음 발송**: ① 99 회의록 고치기(서버 6992ee5·화면 a8ea786·qa 2차 89002f1c, design_history 75) — 김영업 노원구 2026 → 회의록 탭 → 올리기 → 미리보기 → 이름표 고르기·발언 고치기 → 다시 미리보기 → 저장 → 상세 [발화자 이름표 바꾸기]. 먼저 로컬 config 2줄(Q-2026-11-19-59: ggreport.minutes.enabled=true·require-verified=false) ② 102 대시보드(00b3fc1e 반영분 — 입찰 예정일 순서·끝난 건 보기·담당 아닌 사람 읽기 전용).
-4. **102 남은 것**: 기획 이관 1건(개설 승인 전 손 칸을 누가 체크할지 — planner → 질문), design_history 102 후속 장(00b3fc1e분, 85 다음), fa 몫 P3-7·P3-8 전달, Playwright 실측(브라우저가 비어 있을 때).
-5. **99 서버 이관 묶음**: 공개범위 후보 API·rules_ack 감사·LIMIT_SPEAKER 문구·열람 기한 필드·board_review id·detail speakers first_seq(design ade114bb 7절) — backend-dev **Opus**(감사 설계 예외) → 적용 Sonnet. DB가 바뀌면 다음 번호 060.
-6. 100 S3(fa PrepService.judgeFact와 조율) → S4 결재 연결, 95 부서 이름, 97 lines_next·home_portal 감사.
-7. **W48 주간 보고(11-27 금)**: pm_history 주간 절 + '이번 주 질문' 표 + 에이전트별 정리, 요구사항 파악 `index_2026-11-27.html`.
+1. **8080 HEAD 확인**: 75 세션이 ead1f8bb로 띄움 — 72320ebc(110 대결 수석차장)·a29143dd(Word 1장·협약 성과 한 줄)가 빠졌을 수 있음. 발표 시연 전 75와 시각을 맞춰 HEAD로 재기동.
+2. **발표 브라우저 최종 확인**: docs/pm_history/briefing_2026-11-24.html(4c10ed05 — 결정 1건·답 3건·보고 1건). 푸시는 18:00 자동 마무리(Q-2026-11-23-70 hold, 발표 전 푸시는 사용자 확인).
+3. **e4 기관장 사진 이어 찾기**(Q-2026-11-23-68): e4(f9) 켜졌으면 그쪽, 아니면 main + data-auditor — handoff/sessions/2026-11-20_1024_e4.md 맨 아래 목록. Playwright 프로필은 75 → e4 → main 순서.
+4. **10:00 NEXT 108 판단**: fa(6c) 꺼져 있으면 main이 이어받아 backend-dev-write로 원안 1358 + delta 1410 처음부터 → mvn → qa·security. 발표 직전이면 발표 뒤.
+5. **발표 뒤**: 답 장부 기록 → 99·102 실사용 요청(Q-2026-11-19-59 config 2줄) → 100 S2 연결 줄 요청(0d index.html·fa/75 prep.js — 75 끝난 뒤) → 99 서버 이관(backend Opus) → 110 대결 경고 줄(.ad-flash) 실측(design) → W48 주간 보고(11-27).
+6. **새벽에 한 것**: 100 S2 instsummary 시험 고침(새 파일만, frontend-dev 11-24) — 커밋 해시는 summary 참조. 11-23 밤 결정·커밋은 2026-11-23_summary.md Session 23:50.
 
 ## 다시 알릴 것 (질문은 선택식, 답 받을 때까지 멈춤)
 - **e4 기관장 사진 이어서 찾기**(사용자 11-23: 내일 아침 오자마자 요청) — 남은 목록·도구는 handoff/sessions/2026-11-20_1024_e4.md 맨 아래 '11-24 아침 이어서 할 것'. 현황 415기관 중 기관장 378·사진 237(로컬 DB).
