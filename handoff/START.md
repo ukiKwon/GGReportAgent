@@ -5,7 +5,7 @@
 ## 다음 순서 (main, 묻지 않고 실행)
 0. **환경**: MySQL `C:\dev\mysql-start.cmd`, `ListAgents`(재시작 뒤 이름이 바뀜 — 각 세션에 정체 확인). **8080은 커밋된 HEAD만**: `git -C c:/github/_gg_build checkout -q --detach <HEAD>` → 그 폴더 kgi-ggreport-web에서 `mvn -q -o package -DskipTests`(실행 중 8080이 war를 잡으므로 먼저 내림) → main 폴더 kgi-ggreport-web에서 `java -Xmx768m -jar c:/github/_gg_build/kgi-ggreport-web/target/kgi-ggreport-web.war`. mvn은 `MAVEN_OPTS=-Xmx384m`·`-DargLine="-Xmx768m"`, IDE 자동 빌드가 target/classes를 지우면 재실행. 로컬 DB 적용: 047·048·049·051·055·056·057·058. **052는 적용 여부 확인**(fa 세션 기록엔 적용, 11-23 로그인 이름은 최디자이너로 보였음), **059(되찾기 코드)는 fa 화면 커밋 뒤 사용자 적용**(COMMON_CODE 행만이라 HEAD 재빌드는 막지 않음).
 1. **8080 HEAD 확인**: 75 세션이 ead1f8bb로 띄움 — 72320ebc(110 대결 수석차장)·a29143dd(Word 1장·협약 성과 한 줄)가 빠졌을 수 있음. 발표 시연 전 75와 시각을 맞춰 HEAD로 재기동.
-1-1. **14:00 시연(대시보드 전까지 main ce 확인 끝)**: 대본 handoff/sessions/2026-11-24_0045_ce_시연대본.md — 본 기관 (재)연구개발특구진흥재단(마감 12-08 10:00), 예비 사립학교교직원연금공단(리허설로 확정·승인됨, 그대로 둠 — 사용자 11-24). 시연 전 사람이 나라장터 R26BK01796130 마감일 한 번 확인(Q-2026-11-24-09 open). 대시보드 자체는 75 세션.
+1-1. **14:00 시연(대시보드 전까지 main ce 확인 끝)**: 대본 handoff/sessions/2026-11-24_0045_ce_시연대본.md — 본 기관 (재)연구개발특구진흥재단(마감 12-08 10:00), 예비 사립학교교직원연금공단(리허설로 확정·승인됨, 그대로 둠 — 사용자 11-24). 마감일 12-08 10:00 사용자 원문 확인 끝(Q-2026-11-24-09 done). 대시보드 자체는 75 세션.
 2. **발표 브라우저 최종 확인**: docs/pm_history/briefing_2026-11-24.html(4c10ed05 — 결정 1건·답 3건·보고 1건). 푸시는 18:00 자동 마무리(Q-2026-11-23-70 hold, 발표 전 푸시는 사용자 확인).
 3. **e4 기관장 사진 이어 찾기**(Q-2026-11-23-68): e4(f9) 켜졌으면 그쪽, 아니면 main + data-auditor — handoff/sessions/2026-11-20_1024_e4.md 맨 아래 목록. Playwright 프로필은 75 → e4 → main 순서.
 4. **10:00 NEXT 108 판단**: fa(6c) 꺼져 있으면 main이 이어받아 backend-dev-write로 원안 1358 + delta 1410 처음부터 → mvn → qa·security. 발표 직전이면 발표 뒤.
