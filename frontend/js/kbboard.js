@@ -871,8 +871,12 @@
       const why = '근거: ' + kbb.basisText(r.closed);
       due = '<b class="hb-dd tx end">입찰 종료</b><span class="sr-only">' + esc(why) + '</span>'; dueAttr = ' title="' + esc(why) + '"';
     } else if (r.note) { const tt = kbb.screenRowTitle(r.note); dueAttr = ' title="' + esc(tt) + '"'; due += '<span class="sr-only">' + esc(tt) + '</span>'; }
-    return '<tr' + tc.rowClass(r, o) + '>' + (o.selCol ? tc.ckCellHtml(r, o) : '') + '<th scope="row">' + nm + '</th>' + tagCellHtml(r, o) + '<td' + dueAttr + '>' + due + '</td>' + kbb.bankCellHtml(r.bank) + stageCellHtml(r) +
-      '<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">설명회 기록 없음</span></td><td class="ln">' + (r.closed ? (r.out ? closedOutLaneHtml() : closedActsHtml(r, o)) : kbb.laneCellHtml(r.due, o.win)) + '</td></tr>';
+    const lane = r.closed ? (r.out ? closedOutLaneHtml() : closedActsHtml(r, o)) : kbb.laneCellHtml(r.due, o.win);
+    // 동작 단추(.hb-acts)를 그리는 줄에는 has-acts — 단추가 비어 있는 설명회 칸까지 넘쳐 나가게(CSS가 이 클래스로 칸 잘림을 푼다, 실사용 버그 11-23)
+    let trCls = tc.rowClass(r, o);
+    if (lane.indexOf('hb-acts') >= 0) trCls = trCls ? trCls.replace(/"$/, ' has-acts"') : ' class="has-acts"';
+    return '<tr' + trCls + '>' + (o.selCol ? tc.ckCellHtml(r, o) : '') + '<th scope="row">' + nm + '</th>' + tagCellHtml(r, o) + '<td' + dueAttr + '>' + due + '</td>' + kbb.bankCellHtml(r.bank) + stageCellHtml(r) +
+      '<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">설명회 기록 없음</span></td><td class="ln">' + lane + '</td></tr>';
   };
   // 목표 밖 준비 줄이 올해 입찰 종료이면 12개월 칸: 옮길 목표가 없으니 버튼 없이 사실만(그림 + 같은 뜻의 sr-only 문장, design 11-19 A).
   function closedOutLaneHtml() {

@@ -2213,7 +2213,10 @@
   .hb-tt th[aria-sort] .hb-sort svg { stroke:currentColor; }
   .hb-sort:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
   .hb-dd.end { font-family:inherit; font-size:12px; font-weight:400; color:var(--muted); }
-  .hb-tt td.ln .hb-acts { position:absolute; inset:0; display:flex; align-items:center; justify-content:flex-end; gap:6px; padding:0 8px; }
+  /* 동작 단추 둘이 일정 칸(약 194px)보다 넓어 왼쪽이 잘렸다 — 오른쪽 끝 기준으로 비어 있는 설명회 칸까지 넘쳐 나가게(실사용 버그 11-23). 클래스 has-acts는 kbboard.js가 붙인다 */
+  .hb-tt td.ln .hb-acts { position:absolute; top:0; bottom:0; right:0; display:flex; align-items:center; justify-content:flex-end; gap:4px; padding:0 6px 0 0; white-space:nowrap; }
+  .hb-tt tr.has-acts td.ln { overflow:visible; }
+  .hb-tt tr.has-acts > td.mut > [aria-hidden="true"] { visibility:hidden; }   /* 단추가 덮는 설명회 칸 '—'은 숨김(sr 문장은 그대로) */
   .hb-nx { font:700 13px var(--mono); color:var(--fg); }
   .hb-tt col.c-next { width:170px; } .hb-tt col.c-memo { width:auto; } .hb-tt col.c-act { width:150px; } .hb-tt col.c-wnm { width:200px; }
   .hb-cand2 { list-style:none; margin:10px 0 4px; padding:0; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px 24px; max-width:920px; }

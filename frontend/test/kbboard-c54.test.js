@@ -85,7 +85,11 @@ test('입찰 종료 줄: 마감까지 칸 \'입찰 종료\'+근거(title·sr), 1
   assert.ok(nw.indexOf('data-act="towatch"') < 0 && nw.indexOf('data-act="tonext"') > 0);
   const ro = kbb.goalRowHtml(r, { win: kbb.laneWindow(TODAY, 2026), canEdit: false });
   assert.ok(ro.indexOf('<button type="button" class="hb-tag" data-act') < 0 && ro.indexOf('hb-acts') < 0);
-  assert.strictEqual(kbb.closedOf({ basis_cd: 'HACK', basis_date: '2026-09-30' }), null);                     // 모르는 근거 코드는 버린다
+  assert.ok(h.indexOf('<tr class="has-acts">') === 0 && ro.indexOf('has-acts') < 0);   // 단추가 있는 줄만 has-acts(일정 칸 잘림 푸는 CSS 훅, 11-23)
+  const css = src('index.html');
+  assert.ok(/\.hb-tt td\.ln \.hb-acts \{[^}]*right:0/.test(css) && !/\.hb-tt td\.ln \.hb-acts \{[^}]*inset:0/.test(css));
+  assert.ok(css.indexOf('.hb-tt tr.has-acts td.ln { overflow:visible; }') > 0 && css.indexOf('.hb-tt tr.has-acts > td.mut > [aria-hidden="true"] { visibility:hidden; }') > 0);
+  assert.strictEqual(kbb.closedOf({ basis_cd: 'HACK', basis_date: '2026-09-30' }), null);                   // 모르는 근거 코드는 버린다
   assert.deepStrictEqual(kbb.closedOf({ basis_cd: 'CONTRACT_DECIDED', basis_date: '<img>' }), { cd: 'CONTRACT_DECIDED', date: '' });
   assert.strictEqual(kbb.basisText({ cd: 'NOTICE_NO_BID', date: '2026-09-30' }), '입찰 공고 현황 2026-09-30 입찰 없음');
   assert.strictEqual(kbb.basisText({ cd: 'CONTRACT_DECIDED', date: '2027-01-01' }), '금고 약정 2027-01-01 시작 약정이 이미 정해져 있음');
