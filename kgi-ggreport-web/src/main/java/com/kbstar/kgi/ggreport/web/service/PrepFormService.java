@@ -172,7 +172,7 @@ public class PrepFormService {
         if (confirmed && !Objects.equals(v.getContentSha256(), f.getConfirmedSha256())) {
             throw integrity();
         }
-        if (v.getRenderVer() != InstSummaryDocBuilder.RENDER_VER) {
+        if (!InstSummaryDocBuilder.supports(v.getRenderVer())) {
             throw coded(409, "RENDER_UNSUPPORTED", "이 판은 지금 서버가 출력할 수 없는 형식입니다.");
         }
         JsonNode content = parse(v.getContentJson());
@@ -467,7 +467,24 @@ public class PrepFormService {
     }
 
     private Map<String, Object> currentContentMap(String bid, PrepForm f) {
-        return f.getCurVer() > 0 ? parseMap(loadVer(bid, f.getCurVer()).getContentJson()) : emptyContent();
+        return f.getCurVer() > 0 ? upgrade(parseMap(loadVer(bid, f.getCurVer()).getContentJson())) : emptyContent();
+    }
+
+    /** 옛 칸 지도(TPL_VER 1 등)로 저장된 판을 새 칸 지도로 올린다 — 새로 생긴 LIST 칸은 빈 목록. 저장된 옛 판 문자열·해시는 건드리지 않는다. */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> upgrade(Map<String, Object> m) {
+        m.put("tpl_ver", InstSummaryTpl.TPL_VER);
+        Object ls = m.get("lists");
+        if (!(ls instanceof Map)) {
+            ls = new LinkedHashMap<String, Object>();
+            m.put("lists", ls);
+        }
+        for (InstSummaryTpl.Key k : InstSummaryTpl.keysOf(InstSummaryTpl.Kind.LIST)) {
+            if (!((Map<String, Object>) ls).containsKey(k.getKey())) {
+                ((Map<String, Object>) ls).put(k.getKey(), new ArrayList<Object>());
+            }
+        }
+        return m;
     }
 
     /**
@@ -532,7 +549,7 @@ public class PrepFormService {
         int cur = f == null ? 0 : f.getCurVer();
         boolean confirmed = f != null && f.getConfirmedVer() != null;
         PrepFormVer v = cur > 0 ? forms.selectVer(bid, InstSummaryTpl.FORM_CD, cur) : null;
-        JsonNode content = v == null ? null : parse(v.getContentJson());
+        JsonNode content = v == null ? null : withListDefaults(parse(v.getContentJson()));
         Map<String, Fact> now = content != null || confirmed ? prefill.snapshot(p.getInstitutionId()) : null;
         List<String> stale = new ArrayList<String>();
         List<String> missingSrc = new ArrayList<String>();
@@ -1265,6 +1282,22 @@ public class PrepFormService {
         } catch (IOException e) {
             throw new ApiException(500, "저장된 양식을 읽을 수 없습니다.");
         }
+    }
+
+    /** 보기용 — 옛 판에 없는 LIST 칸을 빈 배열로 채운다(저장본 문자열·해시는 그대로). */
+    private static JsonNode withListDefaults(JsonNode c) {
+        if (c instanceof com.fasterxml.jackson.databind.node.ObjectNode) {
+            com.fasterxml.jackson.databind.node.ObjectNode root = (com.fasterxml.jackson.databind.node.ObjectNode) c;
+            JsonNode ls = root.path("lists");
+            com.fasterxml.jackson.databind.node.ObjectNode lo = ls.isObject()
+                    ? (com.fasterxml.jackson.databind.node.ObjectNode) ls : root.putObject("lists");
+            for (InstSummaryTpl.Key k : InstSummaryTpl.keysOf(InstSummaryTpl.Kind.LIST)) {
+                if (!lo.has(k.getKey())) {
+                    lo.putArray(k.getKey());
+                }
+            }
+        }
+        return c;
     }
 
     private static Map<String, Object> parseMap(String json) {

@@ -18,7 +18,7 @@ public final class InstSummaryTpl {
 
     public static final String FORM_CD = "INST_SUMMARY";
     public static final String TASK_CD = "T1";
-    public static final int TPL_VER = 1;
+    public static final int TPL_VER = 2;   // 2: 'effect'(우리 회사 기대효과) 추가. 1 판은 effect 가 없고 빈 목록으로 읽는다.
     /** 정규 JSON(UTF-8) 상한 — 넘으면 저장하지 않는다(400 CONTENT_TOO_LARGE). */
     public static final int MAX_CONTENT_BYTES = 120 * 1024;
     /** 양식당 판 상한 — 넘으면 409 TOO_MANY_VERSIONS(security 11-20 중-3: 같은 내용 재저장은 판을 만들지 않지만 건당 총량도 막는다). */
@@ -77,6 +77,7 @@ public final class InstSummaryTpl {
         k.add(new Key("overview", Kind.LIST, "추진 배경(현황)", true, 300, MAX_LIST_ITEMS, null));
         k.add(new Key("mmda_basis", Kind.LIST, "MMDA 예상 평잔 산정 기준", false, 300, MAX_LIST_ITEMS, null));
         k.add(new Key("competition", Kind.LIST, "경쟁은행 동향 및 중점 제안 사항", false, 300, MAX_LIST_ITEMS, null));
+        k.add(new Key("effect", Kind.LIST, "우리 회사 기대효과", false, 300, MAX_LIST_ITEMS, null));
         k.add(new Key("biz", Kind.TABLE, "기관 주요 사업", false, 0, MAX_BIZ_ROWS, null));
         k.add(new Key("fund", Kind.TABLE, "예산 운영 방식", false, 0, MAX_FUND_ROWS, null));
         k.add(new Key("years", Kind.TABLE, "연도별 예상 평잔·자금수익", false, 0, 0, null));

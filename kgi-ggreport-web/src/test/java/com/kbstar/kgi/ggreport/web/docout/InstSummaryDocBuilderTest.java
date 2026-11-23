@@ -175,8 +175,8 @@ public class InstSummaryDocBuilderTest {
     @Test
     public void 지원하지_않는_출력_판은_IllegalStateException이다() {
         try {
-            InstSummaryDocBuilder.build(content(BIZ_ROWS, "null"), 2, false);
-            fail("RENDER_VER 2 는 아직 없다");
+            InstSummaryDocBuilder.build(content(BIZ_ROWS, "null"), 3, false);
+            fail("RENDER_VER 3 은 아직 없다");
         } catch (IllegalStateException expected) {
             // ok
         }
@@ -202,5 +202,14 @@ public class InstSummaryDocBuilderTest {
         XWPFTable status = innerTables(d, 0).get(0);
         assertEquals("가상기관장", status.getRow(1).getCell(0).getText());
         assertEquals("임직원 수 칸은 비었다", "—", status.getRow(1).getCell(2).getText());
+    }
+
+    @Test
+    public void 출력_판_1과_2를_지원하고_그_밖은_아니다() {
+        assertTrue(InstSummaryDocBuilder.supports(1));
+        assertTrue(InstSummaryDocBuilder.supports(2));
+        assertFalse(InstSummaryDocBuilder.supports(0));
+        assertFalse(InstSummaryDocBuilder.supports(3));
+        assertEquals(2, InstSummaryDocBuilder.RENDER_VER);
     }
 }

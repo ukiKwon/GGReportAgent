@@ -8,13 +8,19 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 기관 정보 요약 양식(049) 저장 내용(정규 JSON) → 출력 모델. 1쪽만 만든다(2쪽 평가표는 S4: TPL_VER 2·RENDER_VER 2).
+ * 기관 정보 요약 양식(049) 저장 내용(정규 JSON) → 출력 모델. 1쪽만 만든다(2쪽 평가표는 S4: TPL_VER 3·RENDER_VER 3 이후).
+ * RENDER_VER 1 = 기대효과 없음, 2 = '기타 사항'에 '우리 회사 기대효과' 소제목+목록(비면 소제목도 생략, 사용자 11-23 Q-2026-11-09-01). 1 판도 계속 출력한다.
  * 모든 글자는 {@link DocModel.Run} 문자열로만 넣는다 — URL·하이퍼링크·필드 코드가 없다(렌더러는 setStringValue 만 쓴다).
  * 확정본은 저장된 판의 {@code RENDER_VER} 로 그 판의 JSON 에서 매번 다시 만든다 — 렌더러를 고치면 옛 판 분기를 남기고 RENDER_VER 를 올린다.
  */
 public final class InstSummaryDocBuilder {
 
-    public static final int RENDER_VER = 1;
+    public static final int RENDER_VER = 2;
+
+    /** 이 서버가 출력할 수 있는 저장 판의 RENDER_VER — 옛 판 분기를 남긴다(확정본이 막히지 않게). */
+    public static boolean supports(int renderVer) {
+        return renderVer == 1 || renderVer == 2;
+    }
 
     private static final String DASH_EMPTY = "—";
     private static final String DRAFT_PREFIX = "[확정 전 초안] ";
@@ -28,7 +34,7 @@ public final class InstSummaryDocBuilder {
      * @throws IllegalArgumentException 연도 범위가 1~10열을 벗어날 때({@link Groups#yearColumns} — 호출부가 400/409 로 바꾼다)
      */
     public static DocModel build(JsonNode content, int renderVer, boolean draft) {
-        if (renderVer != RENDER_VER) {
+        if (!supports(renderVer)) {
             throw new IllegalStateException("unsupported render version");
         }
         String inst = orEmpty(fact(content, "inst_name"));
@@ -50,7 +56,7 @@ public final class InstSummaryDocBuilder {
         rows.add(Arrays.asList(DocModel.Cell.header("추진 배경").withSpan(1, 3), DocModel.Cell.of(background(content, inst))));
         rows.add(Collections.singletonList(DocModel.Cell.of(bizBlocks(content))));
         rows.add(Collections.singletonList(DocModel.Cell.of(fundBlocks(content))));
-        rows.add(Arrays.asList(DocModel.Cell.header("기타 사항"), DocModel.Cell.of(etcBlocks(content))));
+        rows.add(Arrays.asList(DocModel.Cell.header("기타 사항"), DocModel.Cell.of(etcBlocks(content, renderVer))));
         blocks.add(new DocModel.Table(2, new double[]{14, 86}, rows, 0, false));
         return new DocModel(blocks);
     }
@@ -220,7 +226,7 @@ public final class InstSummaryDocBuilder {
 
     // ── 기타 사항 ───────────────────────────────────────────────────────
 
-    private static List<DocModel.Block> etcBlocks(JsonNode c) {
+    private static List<DocModel.Block> etcBlocks(JsonNode c, int renderVer) {
         List<DocModel.Block> b = new ArrayList<DocModel.Block>();
         b.add(DocModel.Para.bullet(DocModel.Bullet.DASH, "경쟁은행 동향 및 중점 제안 사항"));
         String bank = fact(c, "current_bank");
@@ -229,6 +235,15 @@ public final class InstSummaryDocBuilder {
         }
         for (String line : list(c, "competition")) {
             b.add(DocModel.Para.bullet(DocModel.Bullet.CIRCLE_O, line));
+        }
+        if (renderVer >= 2) {
+            List<String> effect = list(c, "effect");
+            if (!effect.isEmpty()) {   // 선택 칸 — 비면 빈 소제목을 남기지 않는다(제출 문서에 빈 제목이 보이지 않게)
+                b.add(DocModel.Para.bullet(DocModel.Bullet.DASH, "우리 회사 기대효과"));
+                for (String line : effect) {
+                    b.add(DocModel.Para.bullet(DocModel.Bullet.CIRCLE_O, line));
+                }
+            }
         }
         return b;
     }

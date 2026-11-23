@@ -76,6 +76,7 @@ public class PrepBoardController {
             audit.recordList(act, PrepBoardService.ACT_LIST_ROW, seen, actor, ui);
         } catch (RuntimeException e) {
             LOG.error("대시보드 목록 감사를 남기지 못했다(응답 500): cause={}", e.getClass().getSimpleName());
+            fail(NO_CASE, act, "ERROR", NO_CASE, null, actor, ui);   // PrepAudit 머리 규칙(NEXT 70) — 성공 줄 기록 실패도 ERROR 한 줄(security 11-23)
             throw e;
         }
         req.setAttribute(AccessLogInterceptor.DETAIL, "prep-board rows=" + ((List<?>) out.get("rows")).size() + " audited=" + seen.size());

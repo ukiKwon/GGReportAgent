@@ -6,3 +6,4 @@
 -- 되돌리기: UPDATE USERS SET NAME = '최디자이너' WHERE EMP_NO = '7130526' AND NAME = '박디자이너';
 --------------------------------------------------------------------------------
 UPDATE USERS SET NAME = '박디자이너' WHERE EMP_NO = '7130526' AND NAME = '최디자이너';
+COMMIT;
