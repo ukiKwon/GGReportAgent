@@ -2515,6 +2515,7 @@
   #pl-dlg .v { font-family:var(--mono); }   /* 덮개가 #plans-root 밖(body)이라 #plans-root .v 가 닿지 않는다 */
   #plans-root .pl-flat { list-style:none; margin:0; padding:0; }   /* 정렬을 끈 목록(묶음 없음) */
   #pl-foot #pl-bat[aria-disabled="true"] { opacity:.55; cursor:not-allowed; }   /* 목표·관심 목록을 받는 중 */
+  #pl-foot #pl-bat[aria-disabled="true"]:focus-visible { opacity:1; }   /* 흐린 채로는 포커스 링이 2.5:1 — 켜 두면 5.7:1(design P2-2) */
   .pl-dlg-p { margin:0; font-size:13px; line-height:1.5; word-break:keep-all; }
   #pl-dlg-d > .db-why { margin:8px 0 0; line-height:1.5; }
   .pl-dlg-scroll { max-height:240px; overflow:auto; margin:12px 0 0; border:1px solid var(--line); border-radius:var(--r); }
@@ -2550,6 +2551,26 @@
   .cr-table .ad-ops button { min-height:26px; }
   .cr-table tr.cr-ask td { background:var(--panel2); white-space:normal; }
   .cr-toolbar > button { min-height:26px; }
+  /* 반입 대기 파일(NEXT 56) — 규격 design-reviewer 2026-11-23_0914_a4dba517.md 6-2·6-3. 새 hex·새 변수 없음.
+     ⚠ 툴바 단추 높이는 .ib-toolbar 로 한정한다(공통 툴바 전체에 거는 단추 높이 규칙은 qa 규칙으로 금지, 시험이 지킨다) */
+  .ib-sec { border:1px solid var(--line); border-radius:var(--r); background:var(--panel); padding:10px 12px; margin:0 0 14px; }
+  .ib-sec > h3, .cr-h { font-size:14px; font-weight:700; margin:0 0 6px; letter-spacing:-.01em; }
+  .ib-sec > p { margin:0 0 6px; }
+  .ib-sec .ad-toolbar { margin:0 0 8px; }
+  .ib-toolbar > button { min-height:26px; }
+  .ib-scroll { max-height:320px; overflow:auto; border:1px solid var(--line); border-radius:var(--r); }
+  .ib-scroll:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
+  .ib-table td { vertical-align:top; }
+  .ib-table td.ib-inst { white-space:normal; word-break:keep-all; min-width:14em; }
+  .ib-table .cr-sub.v { font-family:var(--mono); overflow-wrap:anywhere; }
+  .ib-table td.ib-num { font-family:var(--mono); text-align:right; }
+  .ib-table th.ib-num { text-align:right; }
+  .ib-table .cr-sub { white-space:normal; max-width:28em; }
+  #cr-csv[aria-disabled="true"] { opacity:.55; cursor:not-allowed; }   /* 팀원: 개발부서 팀장만 내려받는다(#pl-bat 선례) */
+  #cr-csv[aria-disabled="true"]:focus-visible { opacity:1; }   /* 이유를 읽히려고 Tab 으로 가게 둔 단추 — 링이 보여야 한다(design P2-2) */
+  #ib-dlg .v { font-family:var(--mono); }
+  #ib-dlg .dlg-body > p { margin:0; line-height:1.5; word-break:keep-all; }
+  #ib-dlg .dlg-body > .db-why { margin:8px 0 0; }
   /* 사업계획 수집 요청 끝 */
 
   /* 협약 성과 관리 시작 — #tab-soon 안 #results-root. 규격: design-reviewer 2026-11-20_1212_a501b274.md 6절. 새 hex·새 변수 없음(토큰만), 채운 주버튼 없음, 최소 12px. 요약 띠·표·정렬 단추는 현황판 .hb-k·.hb-tt·.hb-sort 문법 */

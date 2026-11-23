@@ -69,6 +69,7 @@ public class PlanInboxService {
     private final PlanAudit audit;
     private final String location;
     private final Duration scanTime;
+    private final long scanBudget;
     /** 폴더 확인·반입 공용 — 한 번에 1건(security S3). 노드가 여럿이면 노드마다 따로다(판 중복은 apply 의 잠금·SHA 가드가 막는다). */
     private final AtomicBoolean busy = new AtomicBoolean(false);
 
@@ -80,10 +81,16 @@ public class PlanInboxService {
 
     /** 시험용 — 확인 시간 상한을 바꾼다. */
     PlanInboxService(InstitutionPlanService plans, PlanAudit audit, String location, Duration scanTime) {
+        this(plans, audit, location, scanTime, SCAN_BUDGET);
+    }
+
+    /** 시험용 — 확인 시간 상한과 읽기 바이트 상한을 바꾼다. */
+    PlanInboxService(InstitutionPlanService plans, PlanAudit audit, String location, Duration scanTime, long scanBudget) {
         this.plans = plans;
         this.audit = audit;
         this.location = location == null ? "" : location.trim();
         this.scanTime = scanTime;
+        this.scanBudget = scanBudget;
     }
 
     public boolean enabled() { return !location.isEmpty(); }
@@ -130,7 +137,7 @@ public class PlanInboxService {
                 names = new ArrayList<>(names.subList(0, MAX_LIST));
             }
             final long deadline = System.nanoTime() + scanTime.toNanos();
-            final long[] budget = {SCAN_BUDGET};
+            final long[] budget = {scanBudget};
             final PlanCsv.Codes codes = plans.planCodes();   // 한 번만(security S3)
             List<Map<String, Object>> items = new ArrayList<>();
             Map<String, Integer> counts = new TreeMap<>();

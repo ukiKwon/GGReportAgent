@@ -242,4 +242,59 @@ public class PlanInboxServiceTest {
         PlanInboxService s = new PlanInboxService(plans, audit, tmp.getRoot().getAbsolutePath(), Duration.ofSeconds(-1));
         assertEquals("NOT_CHECKED", item(s.scan(), n).get("status_cd"));
     }
+
+    @Test
+    public void 파일_이름의_하위_폴더는_UNSAFE이고_감사_1행() throws Exception {   // qa 공백 1 — 링크 시험이 skip돼도 UNSAFE 경로를 돈다
+        String n = INST + "_" + daysAgo(1).format(YMD) + "_plan.csv";
+        tmp.newFolder(n);
+        assertEquals("UNSAFE", item(svc().scan(), n).get("status_cd"));
+        assertEquals("UNSAFE", importOne(svc(), n).get("result_cd"));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE OUTCOME='UNSAFE' AND INSTITUTION_ID=? AND BUTTON_ID='plan_inbox_import'", INST));
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_PLAN_IMPORT WHERE INSTITUTION_ID=?", INST));
+    }
+
+    @Test
+    public void 확인_뒤_파일이_지워지면_반입은_GONE이고_감사_1행() throws Exception {   // qa 공백 2
+        String n = plan(daysAgo(1), "시험 사업");
+        assertEquals("READY", item(svc().scan(), n).get("status_cd"));
+        Files.delete(tmp.getRoot().toPath().resolve(n));
+        assertEquals("GONE", importOne(svc(), n).get("result_cd"));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE OUTCOME='GONE' AND INSTITUTION_ID=? AND BUTTON_ID='plan_inbox_import'", INST));
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_PLAN_IMPORT WHERE INSTITUTION_ID=?", INST));
+    }
+
+    @Test
+    public void 읽기_예산을_넘으면_남은_파일은_NOT_CHECKED() throws Exception {   // qa 공백 3
+        String newer = plan(daysAgo(1), "시험 사업");
+        String older = plan(daysAgo(2), "시험 사업");
+        long size = Files.size(tmp.getRoot().toPath().resolve(newer));
+        PlanInboxService s = new PlanInboxService(plans, audit, tmp.getRoot().getAbsolutePath(), Duration.ofSeconds(20), size + 1);
+        Map<String, Object> scan = s.scan();
+        assertEquals("READY", item(scan, newer).get("status_cd"));         // 최신 날짜부터 읽어 예산 안
+        assertEquals("NOT_CHECKED", item(scan, older).get("status_cd"));   // 남은 예산 1바이트 < 파일 크기
+    }
+
+    @Test
+    public void 확인과_반입은_같은_순서로_판정한다_같은_내용이면_날짜가_이르러도_이미_반입() throws Exception {   // qa P3-2
+        String d1 = plan(daysAgo(2), "시험 사업");
+        String d2 = plan(daysAgo(1), "시험 사업 2");
+        assertEquals("IMPORTED", importOne(svc(), d1).get("result_cd"));
+        assertEquals("IMPORTED", importOne(svc(), d2).get("result_cd"));
+        assertEquals("IMPORTED", item(svc().scan(), d1).get("status_cd"));   // 예전 판과 같은 내용 — OLDER 가 아니다
+        assertEquals("ALREADY", importOne(svc(), d1).get("result_cd"));
+        String d0 = plan(daysAgo(3), "시험 사업 3");                          // 처음 보는 내용 + 이른 날짜
+        assertEquals("OLDER", item(svc().scan(), d0).get("status_cd"));
+        assertEquals("OLDER", importOne(svc(), d0).get("result_cd"));
+        assertEquals(2, count("SELECT COUNT(*) FROM INST_PLAN_IMPORT WHERE INSTITUTION_ID=?", INST));
+    }
+
+    @Test
+    public void 폴더_반입에서_기관이_없으면_감사_기관ID는_NONE() throws Exception {   // qa P3-3 — 404 감사 outcome 은 HIDDEN
+        String ghost = "nosuch-x_" + daysAgo(1).format(YMD) + "_plan.csv";
+        write(ghost, "x");
+        Map<String, Object> r = importOne(svc(), ghost);
+        assertEquals("NOT_FOUND", r.get("result_cd"));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='IMPORT' AND OUTCOME='HIDDEN' AND INSTITUTION_ID='NONE' AND BUTTON_ID='plan_inbox_import'"));
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE INSTITUTION_ID='nosuch-x'"));
+    }
 }

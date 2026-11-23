@@ -244,6 +244,28 @@ public class InstitutionPlanApiTest {
     }
 
     @Test
+    public void 업로드도_예전_판과_같은_파일이면_409이고_판이_늘지_않는다() throws Exception {   // qa P3-1
+        LocalDate d = today().minusDays(1);
+        String a = sampleCsv(d, "백만원");
+        String b = csv(row(INST, "https://example.kr/plan.pdf", iso(d), "plan-collector/1.0", "2023", "2030", "1", "", "바뀐 사업", "원문에 없음", "", ""));
+        okUpload(a, d);   // 판 A
+        okUpload(b, d);   // 판 B(같은 날짜, 다른 내용 → 새 판)
+        MockHttpServletResponse again = upload(INST, fileName(INST, d), a, ADMIN);   // 예전 판 A 다시
+        assertEquals(again.getContentAsString(), 409, again.getStatus());
+        assertTrue(again.getContentAsString(), again.getContentAsString().contains("이미 반입된 파일과 같습니다"));
+        assertEquals(2, count("SELECT COUNT(*) FROM INST_PLAN_IMPORT WHERE INSTITUTION_ID=?", INST));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE OUTCOME='BLOCKED' AND ACTION_CD='IMPORT'"));
+    }
+
+    @Test
+    public void 업로드에서_없는_기관ID면_감사_기관ID는_NONE() throws Exception {   // qa P3-3 같은 방식(팀 결정 11-23)
+        MockHttpServletResponse r = upload("nosuch-x", fileName("nosuch-x", today().minusDays(1)), "x", ADMIN);
+        assertEquals(404, r.getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='IMPORT' AND OUTCOME='HIDDEN' AND INSTITUTION_ID='NONE'"));
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE INSTITUTION_ID='nosuch-x'"));
+    }
+
+    @Test
     public void 내용을_바꿔_다시_올리면_새_판이_현재_자료다() throws Exception {
         LocalDate d = today().minusDays(1);
         long first = okUpload(sampleCsv(d, "백만원"), d).path("import_id").asLong();

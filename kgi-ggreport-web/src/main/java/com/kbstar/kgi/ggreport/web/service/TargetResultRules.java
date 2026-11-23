@@ -31,7 +31,7 @@ final class TargetResultRules {
     /**
      * starts = 그 기관의 RFP 협약 개시일 기록(목표 연도 → YYYY-MM-DD, 없으면 null). 귀속은 ResultYearRules.yearOf.
      * 약정 줄이 없을 때 '그 목표 연도의 기록된 개시일이 오늘 또는 그 이전'이면 입찰 결과가 났어야 하므로 ended(UNREGISTERED) —
-     * 105 의 판정일(today >= 개시일, CarryRules.decide due)과 같은 기준.
+     * 105 의 판정일(today >= 개시일, CarryRules.decide due)과 같은 기준. 지난 목표 연도라도 기록된 개시일이 오늘보다 뒤면 PENDING(105 보류와 같음, qa P3-4).
      */
     static Verdict judge(List<BankContract> all, String tagCd, int year, int thisYear, Map<String, Object> bidClosed,
                          Map<Integer, String> starts, LocalDate today) {
@@ -39,7 +39,9 @@ final class TargetResultRules {
         Verdict v = new Verdict();
         v.lines = ResultYearRules.linesOf(src, year, starts);
         if (v.lines.isEmpty()) {
-            boolean ended = year < thisYear || (year == thisYear && bidClosed != null) || startPassed(starts, year, today);
+            // 지난 목표 연도여도 그 연도의 기록된 개시일이 아직 안 왔으면 결과가 날 때가 아니다 — 105 CarryRules.decide 의 보류와 같은 기준(qa P3-4).
+            // 기록이 없거나 today 가 없으면 기존 그대로. 올해 + 공고 종료 근거(bidClosed)는 근거가 확정이라 그대로 ended.
+            boolean ended = (year < thisYear && !startNotYet(starts, year, today)) || (year == thisYear && bidClosed != null) || startPassed(starts, year, today);
             v.resultCd = ended ? UNREGISTERED : PENDING;
             return v;
         }
@@ -66,6 +68,12 @@ final class TargetResultRules {
     /** 귀속 연도가 year 인 줄 중 순위마다 시작이 가장 이른 줄(같으면 번호 큰 쪽). 귀속을 모르면 제외. 순위 순서 정렬. */
     static List<BankContract> resultLines(List<BankContract> all, int year) {
         return ResultYearRules.linesOf(all, year, null);   // 개시일 기록 없음 = 추정(targetYearOf)과 같은 결과
+    }
+
+    private static boolean startNotYet(Map<Integer, String> starts, int year, LocalDate today) {
+        if (starts == null || today == null) return false;
+        LocalDate s = startOf(starts.get(year));
+        return s != null && today.isBefore(s);
     }
 
     private static boolean startPassed(Map<Integer, String> starts, int year, LocalDate today) {

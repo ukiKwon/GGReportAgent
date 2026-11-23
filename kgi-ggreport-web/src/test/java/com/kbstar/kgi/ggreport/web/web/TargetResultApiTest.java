@@ -74,6 +74,11 @@ public class TargetResultApiTest {
                 + " VALUES ('jongno',?,1,'SAVE','MANUAL',?,?,?,?,'STAFF','2026-11-18',0,'3918264','김영업',0,'bank_contract','seed',1,'2026-11-18T00:00:00+09:00')",
                 no, rank, bank, from, to);
     }
+    private void term(int year, int rev, String action, String start) {
+        jdbc.update("INSERT INTO INST_BID_TERM (INSTITUTION_ID, TARGET_YEAR, REV_NO, ACTION_CD, TERM_START, EDITOR_EMP_NO, EDITOR_NAME, EMP_VERIFIED,"
+                + " SCREEN_ID, BUTTON_ID, UI_VALID, SAVED_AT) VALUES ('jongno',?,?,?,?,'3918264','김영업',0,'bid_board','seed',1,'2026-11-18T00:00:00+09:00')",
+                year, rev, action, start);
+    }
     private void prep(String caseId, String state, String confirmedAt, String updatedAt) {
         jdbc.update("INSERT INTO BID_PREP (BID_CASE_ID, INSTITUTION_ID, STATE_CD, CONFIRMED_BY, CONFIRMED_AT, UPDATED_BY, UPDATED_AT)"
                 + " VALUES (?,'jongno',?,'3918264',?,'3918264',?)", caseId, state, confirmedAt, updatedAt);
@@ -324,5 +329,48 @@ public class TargetResultApiTest {
         assertEquals(1, r.path("summary").path("removed_n").asInt());
         assertEquals(1, r.path("removed_items").size());
         assertEquals(2, r.path("removed_items").get(0).path("target_no").asInt());
+    }
+
+    // ── NEXT 104·105: 개시일 기록(INST_BID_TERM) 귀속 통합(qa 11-23 공백 7·8) ──
+    @Test public void 개시일_기록이_있으면_3월_개시_약정은_입찰한_해로_귀속_기록이_취소면_기존_규칙() throws Exception {
+        final int Y = y();
+        target(1, 1, "SAVE", "GOAL", Y, "NEW", null, null);
+        target(2, 1, "SAVE", "GOAL", Y + 1, "NEW", null, null);
+        line(1, "FIRST", "B02", (Y + 1) + "-03-01", (Y + 4) + "-12");
+        term(Y, 1, "SAVE", (Y + 1) + "-03-01");
+        JsonNode now = report(Y);
+        assertEquals("SUCCESS", now.path("items").get(0).path("result_cd").asText());
+        assertEquals(1, now.path("summary").path("success_n").asInt());
+        JsonNode next = report(Y + 1);   // 같은 약정이 Y+1 보고에서는 빠진다
+        assertEquals("PENDING", next.path("items").get(0).path("result_cd").asText());
+        assertEquals(0, next.path("summary").path("success_n").asInt());
+        term(Y, 2, "CANCEL", null);       // 최신 행이 CANCEL = 기록 없음 → 기존 규칙(3월 개시 = 시작 연도 Y+1)
+        assertEquals("SUCCESS", report(Y + 1).path("items").get(0).path("result_cd").asText());
+        assertFalse("SUCCESS".equals(report(Y).path("items").get(0).path("result_cd").asText()));
+    }
+
+    @Test public void 이월_행은_작년_결과를_바꾸지_않고_올해_목표에_센다() throws Exception {
+        final int Y = y();
+        target(1, 1, "SAVE", "GOAL", Y - 1, "NEW", null, null);    // 작년 목표 — 약정 없음 → 미등록
+        target(2, 1, "CARRY", "GOAL", Y, "NEW", null, null);       // 새 번호 이월 행
+        JsonNode past = report(Y - 1);
+        assertEquals(1, past.path("summary").path("target_n").asInt());
+        assertEquals("UNREGISTERED", past.path("items").get(0).path("result_cd").asText());
+        assertEquals(1, past.path("items").get(0).path("target_no").asInt());
+        JsonNode now = report(Y);
+        assertEquals(1, now.path("summary").path("target_n").asInt());
+        assertEquals(2, now.path("items").get(0).path("target_no").asInt());
+    }
+
+    @Test public void 실패에서_만든_관심_이월은_올해_목표에도_뺀_곳에도_안_센다() throws Exception {
+        final int Y = y();
+        target(1, 1, "SAVE", "GOAL", Y - 1, "NEW", null, null);
+        line(1, "FIRST", "B03", (Y - 1) + "-07", (Y + 2) + "-12");   // 다른 은행 → FAIL
+        target(2, 1, "CARRY", "WATCH", null, "NEW", null, null);
+        assertEquals("FAIL", report(Y - 1).path("items").get(0).path("result_cd").asText());
+        JsonNode now = report(Y);
+        assertEquals(0, now.path("summary").path("target_n").asInt());
+        assertEquals(0, now.path("summary").path("removed_n").asInt());
+        assertEquals(0, now.path("items").size());
     }
 }

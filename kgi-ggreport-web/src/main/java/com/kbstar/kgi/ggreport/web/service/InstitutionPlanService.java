@@ -101,23 +101,24 @@ public class InstitutionPlanService {
     // ── 반입(관리자) ──
     public Map<String, Object> importUpload(String instId, MultipartFile file, String batchRaw, Actor actor) {
         BoardUiIds.Ui ui = PlanUiIds.upload();
+        String inst = null;   // 감사 기관ID — canonicalId 가 성공한 뒤에만 채운다(실패하면 null → 감사 NONE, security S9·qa P3-3)
         String sha = null;
         try {
-            instId = canonicalId(instId);   // 이하 저장·잠금·감사·파일명 대조는 정식 표기로
+            inst = canonicalId(instId);   // 이하 저장·잠금·감사·파일명 대조는 정식 표기로
             if (file == null || file.isEmpty()) throw ApiException.badRequest("파일을 선택하세요.");
             if (file.getSize() > CsvLimits.MAX_FILE_BYTES) throw tooLarge();
-            String fileDate = fileDate(instId, file.getOriginalFilename());   // 원래 파일 이름은 어디에도 저장하지 않는다
+            String fileDate = fileDate(inst, file.getOriginalFilename());   // 원래 파일 이름은 어디에도 저장하지 않는다
             String batch = batch(batchRaw);
             byte[] raw;
             try { raw = file.getBytes(); } catch (IOException e) { throw ApiException.badRequest("파일을 읽을 수 없습니다."); }
             if (raw.length > CsvLimits.MAX_FILE_BYTES) throw tooLarge();
             sha = sha256(raw);
-            return apply(instId, raw, sha, fileDate, ORIGIN_IMPORT, batch, actor, ui, ACTION_IMPORT);
+            return apply(inst, raw, sha, fileDate, ORIGIN_IMPORT, batch, actor, ui, ACTION_IMPORT);
         } catch (ApiException e) {
-            failed(instId, ACTION_IMPORT, HeadAudit.outcomeOf(e.getStatus()), sha, actor, ui);
+            failed(inst, ACTION_IMPORT, HeadAudit.outcomeOf(e.getStatus()), sha, actor, ui);
             throw e;
         } catch (RuntimeException e) {
-            failed(instId, ACTION_IMPORT, "ERROR", sha, actor, ui);
+            failed(inst, ACTION_IMPORT, "ERROR", sha, actor, ui);
             throw e;
         }
     }
@@ -126,11 +127,12 @@ public class InstitutionPlanService {
     public Map<String, Object> importFile(String fileName, byte[] raw, String batchRaw, Actor actor, BoardUiIds.Ui ui) {
         BoardUiIds.Ui u = ui;
         Matcher fm = PlanCsv.FILE_NAME.matcher(fileName == null ? "" : fileName);
-        String instId = fm.matches() ? fm.group(1) : null;
+        String rawId = fm.matches() ? fm.group(1) : null;
+        String instId = null;   // 감사 기관ID — canonicalId 가 성공한 뒤에만 채운다(실패하면 null → 감사 NONE, security S9·qa P3-3)
         String sha = null;
         try {
-            if (instId == null) throw ApiException.badRequest("파일 이름은 {기관ID}_{확인일YYYYMMDD}_plan.csv 형식이어야 합니다.");
-            instId = canonicalId(instId);
+            if (rawId == null) throw ApiException.badRequest("파일 이름은 {기관ID}_{확인일YYYYMMDD}_plan.csv 형식이어야 합니다.");
+            instId = canonicalId(rawId);
             if (raw == null) throw ApiException.badRequest("파일을 읽을 수 없습니다.");
             if (raw.length > CsvLimits.MAX_FILE_BYTES) throw tooLarge();
             String fileDate = fileDate(instId, fileName);
@@ -147,7 +149,7 @@ public class InstitutionPlanService {
     }
 
     /**
-     * 폴더 확인(읽기 전용, DB·파일 무변경). 이름으로 기관·날짜를 먼저 판정하고 내용이 필요할 때만 reader 로 읽는다(이전 날짜 파일은 읽지 않는다).
+     * 폴더 확인(읽기 전용, DB·파일 무변경). 이름으로 기관·날짜 형식을 먼저 판정하고, 이후는 apply 와 같은 순서(SHA 가 이미 반입 → IMPORTED, 그다음 날짜 OLDER)라 내용을 읽는다.
      * codes 는 호출자가 확인 한 번에 한 번 구한 것(security S3). message 는 'row n: 고정 문구'뿐 — 칸 원문 없음.
      */
     public Map<String, Object> inspect(String fileName, Supplier<byte[]> reader, PlanCsv.Codes codes) {
@@ -169,15 +171,16 @@ public class InstitutionPlanService {
             return withStatus(m, "BAD_DATE");
         }
         m.put("file_date", fileDate);
-        InstPlanImport last = mapper.selectLatestImport(inst);
-        if (last != null && last.getFileDate() != null && fileDate.compareTo(last.getFileDate()) < 0) return withStatus(m, "OLDER");
         byte[] raw;
         try {
             raw = reader.get();
         } catch (FileProblem e) {
             return withStatus(m, e.getCode());
         }
+        // apply 와 같은 순서(qa P3-2): 같은 내용(SHA)이면 날짜와 무관하게 IMPORTED, 그다음 날짜가 이르면 OLDER
         if (mapper.countImportBySha(inst, sha256(raw)) > 0) return withStatus(m, "IMPORTED");
+        InstPlanImport last = mapper.selectLatestImport(inst);
+        if (last != null && last.getFileDate() != null && fileDate.compareTo(last.getFileDate()) < 0) return withStatus(m, "OLDER");
         try {
             PlanCsv.Result r = PlanCsv.parse(raw, new PlanCsv.Options(inst, fileDate, false, today()), codes);
             m.put("doc_count", r.docs.size());

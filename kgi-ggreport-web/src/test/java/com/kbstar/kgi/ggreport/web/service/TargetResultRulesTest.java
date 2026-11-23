@@ -184,4 +184,18 @@ public class TargetResultRulesTest {
         LocalDate today = LocalDate.of(Y, 11, 20);
         assertEquals(TargetResultRules.UNREGISTERED, TargetResultRules.judge(L(), "NEW", Y, Y, null, st(Y, today.toString()), today).resultCd);
     }
+
+    @Test public void 지난_목표_연도여도_기록된_개시일_전이면_대기() {   // qa P3-4
+        LocalDate jan = LocalDate.of(2027, 1, 15);
+        assertEquals(TargetResultRules.PENDING, TargetResultRules.judge(L(), "NEW", 2026, 2027, null, st(2026, "2027-03-01"), jan).resultCd);
+        assertEquals(TargetResultRules.UNREGISTERED, TargetResultRules.judge(L(), "NEW", 2026, 2027, null, st(2026, "2027-03-01"), LocalDate.of(2027, 3, 1)).resultCd);   // 개시일 당일 = 지남
+        assertEquals(TargetResultRules.UNREGISTERED, TargetResultRules.judge(L(), "NEW", 2026, 2027, null, null, jan).resultCd);                       // 기록 없음 = 기존
+        assertEquals(TargetResultRules.UNREGISTERED, TargetResultRules.judge(L(), "NEW", 2026, 2027, null, new HashMap<Integer, String>(), jan).resultCd);
+        assertEquals(TargetResultRules.UNREGISTERED, TargetResultRules.judge(L(), "NEW", 2026, 2027, null, st(2025, "2027-03-01"), jan).resultCd);   // 다른 연도 기록
+        assertEquals(TargetResultRules.UNREGISTERED, TargetResultRules.judge(L(), "NEW", 2026, 2027, null, st(2026, "bad"), jan).resultCd);           // 읽을 수 없는 기록
+        assertEquals(TargetResultRules.UNREGISTERED, TargetResultRules.judge(L(), "NEW", 2026, 2027, null, st(2026, "2027-03-01"), null).resultCd);  // today 없음
+    }
+    @Test public void 올해_공고_종료_근거가_있으면_개시일_전이어도_미등록_그대로() {
+        assertEquals(TargetResultRules.UNREGISTERED, TargetResultRules.judge(L(), "NEW", Y, Y, basis("NOTICE_CLOSED"), st(Y, Y + "-12-31"), LocalDate.of(Y, 11, 20)).resultCd);
+    }
 }

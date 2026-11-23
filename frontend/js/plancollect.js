@@ -66,6 +66,7 @@
     const s = Number(status) || 0, c = str(code);
     if (s === 0) return '요청을 보내지 못했습니다(연결 실패). 잠시 뒤 다시 누르세요.';
     if (s === 401) return '로그인이 필요합니다. 사번으로 다시 로그인해 주세요.';
+    if (s === 403 && c === 'LEAD_ONLY') return '목록 내려받기는 개발부서 팀장만 할 수 있습니다. 팀장에게 요청하세요.';   // 일반 403 보다 먼저 — 팀원은 이 화면을 이미 쓰고 있다
     if (s === 403) return '이 화면은 시스템 관리 권한이 있는 개발부서만 씁니다(403). 로그인 사번과 권한을 확인하세요.';
     if (s === 400 && ctx === 'keys') return '선택한 요청을 확인하세요(400).';
     if (s === 400 && c === 'REASON_REQUIRED') return '사유를 적으세요.';
@@ -129,8 +130,9 @@
   };
   pc.btnState = function (st) {
     const s = pc.selection(st.items, st.sel), busy = str(st.busy);
+    const locked = st.canExport === false;   // 서버 can_export=false(팀원). 키가 없는 옛 응답은 막지 않는다
     const out = {
-      csv: { html: busy === 'csv' ? '내려받는 중…' : '선택한 ' + mono(s.all.length) + '곳 목록 내려받기(CSV)', disabled: !s.all.length || s.all.length > pc.MAX_KEYS || !!busy },
+      csv: { html: busy === 'csv' ? '내려받는 중…' : '선택한 ' + mono(s.all.length) + '곳 목록 내려받기(CSV)', disabled: !locked && (!s.all.length || s.all.length > pc.MAX_KEYS || !!busy), locked: locked },
       mark: { html: busy === 'mark' ? '표시하는 중…' : '선택한 ' + mono(s.req.length) + '곳 수집 중으로 표시', disabled: !s.req.length || s.req.length > pc.MAX_KEYS || !!busy },
     };
     if (st.agent) out.run = { html: busy === 'run' ? '실행 중…' : '선택한 ' + mono(s.req.length) + '곳 수집 실행', disabled: !s.req.length || s.req.length > pc.MAX_RUN || !!busy };
@@ -156,8 +158,12 @@
     function btn(k, extra) {
       return '<button type="button" id="cr-' + k + '"' + extra + (b[k].disabled ? ' disabled' : '') + '>' + b[k].html + '</button>';
     }
+    // 이유 글자(pc.CSV_LEAD_ONLY)는 반입 절 위에서 한 번만 정한다. 좁은 폭에서 줄이 바뀌는 쪽이 글자가 되게 [수집 중으로 표시] 뒤에 둔다(design P3-1)
+    const csv = b.csv.locked   // 팀원: 숨기지 않고 aria-disabled + 이유 글자(design 6-3, plans #pl-bat 선례). 강조 테두리(pp-next-btn)는 뺀다
+      ? '<button type="button" id="cr-csv" data-cr="csv" aria-disabled="true" aria-describedby="cr-csv-why">' + b.csv.html + '</button>'
+      : btn('csv', ' class="pp-next-btn" data-cr="csv"');
     return '<div class="ad-toolbar cr-toolbar"><fieldset class="db-per" id="cr-view">' + pc.viewHtml(st.view) + '</fieldset>' +
-      btn('csv', ' class="pp-next-btn" data-cr="csv"') + btn('mark', ' data-cr="mark"') +
+      csv + btn('mark', ' data-cr="mark"') + (b.csv.locked ? '<span class="db-why" id="cr-csv-why">' + pc.CSV_LEAD_ONLY + '</span>' : '') +
       (b.run ? btn('run', ' data-cr="run-ask"') : '') +   // 설정이 있을 때만 DOM 에 그린다(숨김·안내 없음, 규격 P2-2)
       '<span class="ad-note" id="cr-limit"' + (b.hint ? '' : ' hidden') + '>' + esc(b.hint || '') + '</span>' +
       '<span class="ad-count" id="cr-count">' + pc.countHtml(st.items, st.view) + '</span></div>';
@@ -249,8 +255,180 @@
       if (st.code === 401 || st.code === 403) return '<p class="ad-empty">' + esc(pc.errorText(st.code, '')) + '</p>';
       return '<p class="ad-empty">수집 요청을 불러오지 못했습니다(' + esc(st.code || '연결 실패') + '). <button type="button" data-cr="reload">다시 불러오기</button></p>';
     }
-    return pc.toolbarHtml(st) + (st.runAsk && st.agent ? pc.runAskHtml(pc.selection(st.items, st.sel).req.length) : '') +
+    return (st.inboxOn && st.ib ? pc.ibHtml(st.ib) + '<h3 class="cr-h">기관별 수집 요청</h3>' : '') +   // 반입 절은 보기 전환 띠·목록 위에 따로(design 6-1). 폴더가 꺼졌으면 절도 안내도 없다
+      pc.toolbarHtml(st) + (st.runAsk && st.agent ? pc.runAskHtml(pc.selection(st.items, st.sel).req.length) : '') +
       (arr(st.items).length ? pc.tableHtml(st) : pc.emptyHtml(st.view));
+  };
+
+  // ── 반입 대기 파일(NEXT 56) ──
+  // 서버: GET /plan-collect/inbox(폴더 확인) · POST /plan-collect/inbox/import {file_names}. 규격: design-reviewer 2026-11-23_0914_a4dba517.md 5·6절.
+  // 서버 폴더 경로·파일 안 값은 화면에 없다. INVALID 의 message 는 서버 고정 문구뿐(security 확인 11-23)이라 msgOf 한 곳에서만 읽고 esc + 80자 + title 로만 낸다.
+  pc.MAX_IMPORT = 50;   // 서버 PlanInboxService.MAX_IMPORT — 응답 max_import 가 있으면 그 값
+  pc.INTRO = '반입 폴더에 들어온 사업계획 파일을 확인합니다.';
+  pc.BUSY_SCAN = '파일이 많으면 20초까지 걸립니다.';
+  pc.IB_EMPTY = '반입 폴더에 사업계획 파일이 없습니다. 수집한 파일(기관ID_YYYYMMDD_plan.csv)이 폴더에 들어오면 여기에 보입니다.';
+  pc.TRUNC_TEXT = '파일이 많아 최근 날짜부터 일부만 확인했습니다. 반입한 뒤 [폴더 확인]을 다시 누르세요.';   // 숫자 없음(응답에 max_list 가 없다)
+  pc.CSV_LEAD_ONLY = '목록 내려받기는 개발부서 팀장만 할 수 있습니다.';
+  const CLS_NONE = 'wf-badge cr-st none', CLS_DONE = 'wf-badge pp-cancel';
+  // [칩 글자, 클래스, 보조 줄]
+  const IB_STATUS = {
+    READY: ['반입 가능', 'wf-badge cr-st gap', ''],
+    IMPORTED: ['이미 반입됨', CLS_DONE, '같은 내용의 파일이 이미 들어가 있습니다'],
+    OLDER: ['더 새 자료 있음', CLS_DONE, '이 기관은 더 최근 날짜 파일이 반입되어 있습니다'],
+    INVALID: ['내용 오류', CLS_NONE, ''],
+    NO_INSTITUTION: ['등록되지 않은 기관', CLS_NONE, '파일 이름의 기관 ID가 기관 목록에 없습니다'],
+    BAD_NAME: ['이름 형식 오류', CLS_NONE, '이름은 기관ID_YYYYMMDD_plan.csv 형식이어야 합니다'],
+    BAD_DATE: ['날짜 오류', CLS_NONE, '파일 이름의 날짜를 읽지 못했습니다'],
+    TOO_LARGE: ['파일이 너무 큼', CLS_NONE, '5MB를 넘습니다'],
+    UNSAFE: ['읽지 않음', CLS_NONE, '일반 파일이 아니어서 건너뛰었습니다'],
+    UNREADABLE: ['읽지 못함', CLS_NONE, '파일을 열지 못했습니다'],
+    GONE: ['폴더에 없음', CLS_DONE, '확인하는 사이 폴더에서 빠졌습니다'],
+    NOT_CHECKED: ['확인 못 함', 'pop-unk', '시간 안에 다 읽지 못했습니다. [폴더 확인]을 다시 누르세요'],
+  };
+  const IB_RESULT = {
+    IMPORTED: ['반입함', 'wf-badge cr-st ok', ''],
+    ALREADY: ['이미 반입됨', CLS_DONE, ''],
+    OLDER: ['더 새 자료 있음', CLS_DONE, ''],
+    INVALID: ['내용 오류', CLS_NONE, ''],
+    NOT_FOUND: ['등록되지 않은 기관', CLS_NONE, ''],
+    TOO_LARGE: IB_STATUS.TOO_LARGE, UNSAFE: IB_STATUS.UNSAFE, UNREADABLE: IB_STATUS.UNREADABLE, GONE: IB_STATUS.GONE,
+    CONFLICT: ['다른 반입과 겹침', CLS_NONE, '잠시 뒤 다시 확인하세요'],
+    ERROR: ['처리하지 못함', CLS_NONE, ''],
+  };
+  function ibLookup(table, code) { const c = str(code); return own(table, c) ? table[c] : [c || '알 수 없음', CLS_DONE, '']; }   // 모르는 코드는 원문(호출자가 esc)
+  function ibChip(code, t) { return '<span class="' + t[1] + '" data-ib-st="' + esc(code) + '">' + esc(t[0]) + '</span>'; }
+  function msgOf(x) { const m = x && x.message; return typeof m === 'string' ? m : ''; }   // 이 파일에서 서버 message 를 읽는 유일한 곳(INVALID 고정 문구)
+  function ymd8(s) { const v = str(s); return /^\d{8}$/.test(v) ? v.slice(0, 4) + '-' + v.slice(4, 6) + '-' + v.slice(6) : v; }
+  function resOf(ib) { return ib && ib.results ? ib.results : {}; }
+  pc.invalidFull = function (msg) {   // 'row n: …' → 'n행: …', 'header: …' → '머리 줄: …'
+    const t = str(msg).trim();
+    let m = /^row\s+(\d+):\s*([\s\S]*)$/.exec(t);
+    if (m) return m[1] + '행: ' + m[2];
+    m = /^header:\s*([\s\S]*)$/.exec(t);
+    return m ? '머리 줄: ' + m[1] : t;
+  };
+  pc.invalidText = function (msg) { const t = pc.invalidFull(msg); return t.length > 80 ? t.slice(0, 80) + '…' : t; };
+  pc.ibFresh = function () {
+    return { scanned: false, busy: '', items: [], ignored: 0, truncated: false, maxImport: pc.MAX_IMPORT, sel: [], results: {}, capNote: '', err: '', dlg: null };
+  };
+  pc.ibMax = function (ib) { const m = Number(ib && ib.maxImport); return m > 0 ? m : pc.MAX_IMPORT; };
+  pc.ibReady = function (ib) {   // 체크할 수 있는 파일 = 확인 결과가 READY 이고 아직 반입 결과가 없는 것
+    const res = resOf(ib);
+    return arr(ib.items).filter(function (it) { return it && it.status_cd === 'READY' && !own(res, str(it.file_name)); }).map(function (it) { return str(it.file_name); });
+  };
+  pc.ibPicked = function (ib) {   // 선택한 것 중 지금도 체크할 수 있는 것, 표 순서대로
+    const ready = pc.ibReady(ib), sel = arr(ib.sel);
+    return arr(ib.items).filter(function (it) { const f = str(it && it.file_name); return ready.indexOf(f) >= 0 && sel.indexOf(f) >= 0; });
+  };
+  pc.ibAllOn = function (ib) {
+    const ready = pc.ibReady(ib), n = arr(ib.sel).filter(function (f) { return ready.indexOf(f) >= 0; }).length;
+    return ready.length > 0 && n === Math.min(ready.length, pc.ibMax(ib));
+  };
+  pc.ibLimitText = function (max) { return '한 번에 ' + max + '개까지 반입할 수 있습니다. 선택을 줄이세요.'; };
+  pc.ibOkLocked = function (d) { return !!(d && (d.busy || d.locked)); };   // 확인 창 [n개 반입] 잠금 = 보내는 중이거나 400 BAD_FILES 를 받은 뒤
+  pc.ibRestoreTarget = function (go, scan, table) { return [go, scan].filter(function (el) { return el && !el.disabled; })[0] || table || null; };   // 반입 중에는 두 단추가 잠겨 포커스가 가지 않는다 — 그때는 파일 표로
+  pc.ibCapText = function (k, max) { return '반입 가능 ' + k + '개 중 앞 ' + max + '개를 골랐습니다(한 번에 ' + max + '개까지).'; };
+  pc.ibBtnState = function (ib) {
+    const n = pc.ibPicked(ib).length, max = pc.ibMax(ib), busy = str(ib.busy);
+    return {
+      scan: { html: busy === 'scan' ? '확인하는 중…' : (ib.scanned ? '폴더 다시 확인' : '폴더 확인'), disabled: !!busy },
+      go: { html: busy === 'import' ? '반입하는 중…' : '선택한 ' + mono(n) + '개 반입', disabled: !n || n > max || !!busy },
+      hint: busy === 'scan' ? pc.BUSY_SCAN : (n > max ? pc.ibLimitText(max) : (str(ib.capNote) || (ib.scanned ? '' : pc.INTRO))),
+    };
+  };
+  pc.ibCounts = function (ib) {
+    const c = { ready: 0, done: 0, bad: 0 }, res = resOf(ib);
+    arr(ib.items).forEach(function (it) {
+      const f = str(it && it.file_name), k = own(res, f) ? str(res[f] && res[f].result_cd) : str(it && it.status_cd);
+      if (k === 'READY') c.ready += 1; else if (k === 'IMPORTED' || k === 'ALREADY') c.done += 1; else c.bad += 1;
+    });
+    return c;
+  };
+  pc.ibCountHtml = function (ib) { const c = pc.ibCounts(ib); return '반입 가능 <b>' + c.ready + '</b> · 반입됨 <b>' + c.done + '</b> · 반입 못 함 <b>' + c.bad + '</b>'; };
+  pc.scanFlash = function (n, k) { return n > 0 ? '파일 ' + n + '개를 확인했습니다 — ' + (k > 0 ? '반입 가능 ' + k + '개.' : '반입할 파일이 없습니다.') : ''; };
+  pc.ignoredText = function (n) { return '이름 형식이 맞지 않는 파일 ' + n + '개는 건너뛰었습니다(이름: 기관ID_YYYYMMDD_plan.csv).'; };
+  // 반입 결과 → { fail, text }. results[].result_cd 로 센다(서버 합계 키에 기대지 않는다).
+  pc.importFlash = function (total, results) {
+    let a = 0, b = 0, c = 0;
+    arr(results).forEach(function (r) { const k = r && r.result_cd; if (k === 'IMPORTED') a += 1; else if (k === 'ALREADY') b += 1; else c += 1; });
+    if (a > 0 && b + c === 0) return { fail: false, text: '파일 ' + a + '개를 반입했습니다. 수집 요청 목록을 다시 불러왔습니다.' };
+    if (a === 0) return c === 0 && b > 0 ? { fail: false, text: '고른 파일은 모두 이미 반입되어 있습니다.' } : { fail: true, text: '반입하지 못했습니다 — 표의 결과를 확인하세요.' };
+    const rest = [];
+    if (b) rest.push('이미 반입됨 ' + b + '개');
+    if (c) rest.push('반입 못 함 ' + c + '개');
+    return { fail: false, text: total + '개 중 ' + a + '개를 반입했습니다. ' + rest.join(' · ') + ' — 표의 결과를 확인하세요.' };
+  };
+  // kind 'scan' | 'import'. 서버 message 는 쓰지 않는다 — 상태·detail.code 만.
+  pc.inboxErrorText = function (status, code, kind) {
+    const s = Number(status) || 0, c = str(code);
+    if (s === 409) return '다른 폴더 확인이나 반입이 진행 중입니다. 잠시 뒤 다시 누르세요.';   // '다른 사람'이라고 쓰지 않는다(RPA 가 돌 때도 맞는 문장)
+    if (s === 503 && c === 'PLAN_INBOX_OFF') return '반입 폴더가 설정되지 않아 폴더 확인을 닫았습니다.';
+    if (s === 503 && c === 'PLAN_INBOX_BAD_CONFIG') return '반입 폴더를 열 수 없습니다(503). 서버의 반입 폴더 설정과 폴더 권한을 확인하세요.';
+    if (s === 400 && c === 'BAD_FILES') return '고른 파일을 확인하세요(400). [폴더 확인]을 다시 누른 뒤 고르세요.';
+    if (kind === 'import' && (s === 0 || s >= 500) && s !== 503) return '반입 중 멈췄습니다. 앞에서 반입한 파일은 들어갔을 수 있습니다. [폴더 확인]으로 다시 확인하세요.';
+    return pc.errorText(s, c);
+  };
+  // it = GET /plan-collect/inbox 의 한 건, o = { checked, result(반입 결과 한 건) }
+  pc.ibRowHtml = function (it, o) {
+    o = o || {};
+    const file = str(it.file_name), res = o.result || null, dt = ymd8(it.file_date);
+    const name = str(it.name_ko) || str(it.institution_id) || '(알 수 없음)';
+    const ready = !res && it.status_cd === 'READY';
+    const ck = ready
+      ? '<td class="cr-ck"><label><input type="checkbox" name="ib-sel" value="' + esc(file) + '" aria-label="' + esc(name + ' ' + dt + ' 파일 선택') + '"' + (o.checked ? ' checked' : '') + '></label></td>'
+      : '<td class="cr-ck"></td>';
+    const inst = '<td class="cr-inst ib-inst"><span class="cr-nm">' + esc(name) + '</span><span class="cr-sub v">' + esc(file) + '</span></td>';
+    const code = res ? str(res.result_cd) : str(it.status_cd), t = ibLookup(res ? IB_RESULT : IB_STATUS, code);
+    const full = code === 'INVALID' ? pc.invalidFull(msgOf(res || it)) : '';
+    const sub = full ? '<span class="cr-sub" title="' + esc(full) + '">' + esc(pc.invalidText(full)) + '</span>' : (t[2] ? '<span class="cr-sub">' + esc(t[2]) + '</span>' : '');
+    const docs = it.doc_count != null ? esc((Number(it.doc_count) || 0) + ' · ' + (Number(it.item_count) || 0)) : '';
+    const warn = it.warning_count == null ? '' : (Number(it.warning_count) > 0 ? String(Number(it.warning_count)) : null);
+    return '<tr data-ib-file="' + esc(file) + '">' + ck + inst + '<td>' + (dt ? mono(dt) : '—') + '</td><td>' + ibChip(code, t) + sub + '</td>' +
+      (docs ? '<td class="ib-num">' + docs + '</td>' : '<td class="ib-num">—</td>') +
+      (warn === null ? '<td class="ib-num"><span class="ad-note">없음</span></td>' : (warn ? '<td class="ib-num">' + warn + '</td>' : '<td class="ib-num">—</td>')) + '</tr>';
+  };
+  pc.ibTableHtml = function (ib) {
+    const res = resOf(ib), sel = arr(ib.sel), ready = pc.ibReady(ib);
+    const head = '<thead><tr><th scope="col" class="cr-ck">' +
+      (ready.length ? '<label><input type="checkbox" id="ib-all" aria-label="반입 가능 파일 모두 선택"' + (pc.ibAllOn(ib) ? ' checked' : '') + '></label>' : '<span class="sr-only">선택</span>') + '</th>' +
+      '<th scope="col">기관</th><th scope="col">파일 날짜</th><th scope="col">상태</th><th scope="col" class="ib-num">문서 · 사업</th><th scope="col" class="ib-num">경고</th></tr></thead>';
+    const rows = arr(ib.items).filter(Boolean).map(function (it) {
+      const f = str(it.file_name);
+      return pc.ibRowHtml(it, { checked: sel.indexOf(f) >= 0, result: own(res, f) ? res[f] : null });
+    }).join('');
+    return '<div class="ib-scroll" id="ib-scroll" tabindex="0" role="region" aria-label="반입 대기 파일 목록">' +
+      '<table class="ad-table cr-table ib-table" id="ib-table" tabindex="-1"><caption class="sr-only">반입 대기 파일 목록</caption>' + head + '<tbody>' + rows + '</tbody></table></div>';
+  };
+  pc.ibHtml = function (ib) {
+    const b = pc.ibBtnState(ib), items = arr(ib.items);
+    let h = '<section class="ib-sec" id="ib-sec" aria-labelledby="ib-t"' + (ib.busy === 'scan' ? ' aria-busy="true"' : '') + '><h3 id="ib-t">반입 대기 파일</h3><div class="ad-toolbar ib-toolbar">' +
+      '<button type="button" id="ib-scan" data-cr="ib-scan"' + (b.scan.disabled ? ' disabled' : '') + '>' + b.scan.html + '</button>' +
+      (ib.scanned ? '<button type="button" id="ib-go" data-cr="ib-ask"' + (b.go.disabled ? ' disabled' : '') + '>' + b.go.html + '</button>' : '') +
+      '<span class="ad-note" id="ib-hint"' + (b.hint ? '' : ' hidden') + '>' + esc(b.hint) + '</span>' +
+      (ib.scanned ? '<span class="ad-count" id="ib-count">' + pc.ibCountHtml(ib) + '</span>' : '') + '</div>';
+    if (ib.err) h += '<p class="ad-note" id="ib-err" role="alert">' + esc(ib.err) + '</p>';
+    if (ib.scanned) {
+      if (ib.ignored > 0) h += '<p class="ad-note">' + esc(pc.ignoredText(ib.ignored)) + '</p>';
+      if (ib.truncated) h += '<p class="ad-note">' + esc(pc.TRUNC_TEXT) + '</p>';
+      h += items.length ? pc.ibTableHtml(ib) : '<p class="ad-empty">' + esc(pc.IB_EMPTY) + '</p>';
+    }
+    return h + '</section>';
+  };
+  // rows = pc.ibPicked 결과. 구조·클래스는 plans.batchDialogHtml 선례(공통 .dlg, alertdialog).
+  pc.ibDialogHtml = function (rows) {
+    const n = rows.length, w = rows.filter(function (r) { return Number(r.warning_count) > 0; }).length;
+    const body = rows.map(function (r) {
+      return '<tr><td>' + esc(str(r.name_ko) || str(r.institution_id)) + '</td><td class="v">' + esc(ymd8(r.file_date)) + '</td><td class="v">' + esc(Number(r.item_count) || 0) +
+        '</td>' + (Number(r.warning_count) > 0 ? '<td class="v">' + esc(Number(r.warning_count)) + '</td>' : '<td>없음</td>') + '</tr>';
+    }).join('');
+    return '<div id="ib-dlg" class="modal-overlay" style="display:none"><div class="dlg" role="alertdialog" aria-modal="true" aria-labelledby="ib-dlg-t" aria-describedby="ib-dlg-p">' +
+      '<header class="dlg-bar"><h2 class="dlg-t" id="ib-dlg-t" tabindex="-1">사업계획 파일 ' + mono(n) + '개 반입</h2></header>' +
+      '<div class="dlg-note"><p class="dlg-hint" id="ib-dlg-busy" hidden>창을 닫아도 반입은 계속되고 결과는 화면 위 띠에 나옵니다.</p><p class="dlg-err" id="ib-dlg-err" role="alert"></p></div>' +
+      '<div class="dlg-body"><p id="ib-dlg-p">고른 파일을 기관 사업계획에 반입합니다. 이 기관들의 열린 수집 요청은 \'반영됨\'이 되고 요청자에게 쪽지가 갑니다.</p>' +
+      '<div class="pl-dlg-scroll" tabindex="0" role="region" aria-label="반입할 파일"><table class="pl-dlg-tbl"><caption class="sr-only">반입할 파일</caption>' +
+      '<thead><tr><th scope="col">기관</th><th scope="col">파일 날짜</th><th scope="col">사업</th><th scope="col">경고</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
+      (w ? '<p class="db-why">경고가 있는 파일 ' + mono(w) + '개도 함께 반입됩니다.</p>' : '') + '</div>' +
+      '<footer class="dlg-foot"><button type="button" id="ib-dlg-cancel">취소</button><button type="button" id="ib-dlg-ok" class="dlg-go">' + esc(n) + '개 반입</button></footer></div></div>';
   };
 
   // ── DOM: 화면 ──────────────────────────────────────────────────────
@@ -320,6 +498,8 @@
         st.load = 'ok'; st.code = 0;
         st.items = rs.reduce(function (a, r) { return a.concat(arr(r.data && r.data.items)); }, []);
         st.agent = rs.some(function (r) { return !!(r.data && r.data.agent_enabled); });
+        st.canExport = !rs.some(function (r) { return !!(r.data && r.data.can_export === false); });   // 키가 없으면 막지 않는다
+        st.inboxOn = rs.some(function (r) { return !!(r.data && r.data.inbox_enabled === true); });   // 반입 폴더 설정이 있을 때만 절을 그린다
         st.today = pc.todayKst();
         const keys = st.items.map(function (it) { return it.req_key; });
         st.sel = st.sel.filter(function (k) { return keys.indexOf(k) >= 0; });
@@ -417,20 +597,27 @@
   };
   function doCsv() {
     const s = pc.selection(S.items, S.sel);
-    if (!s.all.length || S.busy) return;
+    if (!s.all.length || S.busy || S.canExport === false) return;
     if (s.all.length > pc.MAX_KEYS) { say(pc.limitText(pc.MAX_KEYS), true); return; }
     const st = S;
     closeRunAsk(); st.busy = 'csv'; syncSel(); say('');
     fetch('/plan-collect/export.csv', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ req_keys: s.all }) })
       .then(function (r) {
-        if (!r.ok) { const e = new Error('http'); e.status = r.status; throw e; }
+        if (!r.ok) return r.json().catch(function () { return {}; }).then(function (j) { const e = new Error('http'); e.status = r.status; e.code = errCode(j); throw e; });
         return r.blob().then(function (b) { return { blob: b, name: pc.filenameFrom(r.headers && r.headers.get ? r.headers.get('Content-Disposition') : '') }; });
       })
       .then(function (x) {
         download(x.blob, x.name);
         say(pc.csvFlash(s.all.length, s.req.length));   // 상태는 자동으로 바꾸지 않는다 — 파일이 실제로 넘어갔는지 시스템은 모른다. 선택은 그대로 둔다
       })
-      .catch(function (e) { say(pc.errorText(e && e.status ? e.status : 0, '', 'keys'), true); })
+      .catch(function (e) {
+        if (e && e.code === 'LEAD_ONLY') {   // 서버가 팀장이 아니라고 알렸다 — 단추를 잠근 모양으로 다시 그린다
+          say(pc.errorText(403, 'LEAD_ONLY', 'keys'), true);
+          if (st === S) { st.busy = ''; st.canExport = false; paint(); focusSel('#cr-csv'); }
+          return;
+        }
+        say(pc.errorText(e && e.status ? e.status : 0, '', 'keys'), true);
+      })
       .then(function () { if (st !== S) return; st.busy = ''; syncSel(); });
   }
   function doRun() {
@@ -450,9 +637,125 @@
     });
   }
 
+  // ── 반입 대기 파일(DOM) — 확인은 사람이 [폴더 확인]을 눌렀을 때만(자동 확인 없음: 파일을 읽고 잠금을 잡는 서버 동작) ──
+  function qs(sel) { return H && H.body.querySelector(sel); }
+  function focusLost() { const a = document.activeElement; return !a || a === document.body; }
+  function paintIb() { const el = qs('#ib-sec'); if (el && S && S.inboxOn) el.outerHTML = pc.ibHtml(S.ib); }
+  function ibSync() {   // 선택·진행 표시처럼 절을 다시 그리지 않고 단추·안내·전체 체크만 맞춘다(커서를 잃지 않게)
+    if (!H || !S) return;
+    const ib = S.ib, b = pc.ibBtnState(ib);
+    [['#ib-scan', b.scan], ['#ib-go', b.go]].forEach(function (p) {
+      const el = qs(p[0]);
+      if (el) { el.innerHTML = p[1].html; el.disabled = p[1].disabled; }
+    });
+    const hint = qs('#ib-hint');
+    if (hint) { hint.textContent = b.hint; hint.hidden = !b.hint; }
+    const er = qs('#ib-err');
+    if (er && !ib.err) er.remove();
+    const all = qs('#ib-all');
+    if (all) all.checked = pc.ibAllOn(ib);
+    const sc = qs('#ib-sec');
+    if (sc) { if (ib.busy === 'scan') sc.setAttribute('aria-busy', 'true'); else sc.removeAttribute('aria-busy'); }
+  }
+  function ibScan() {
+    if (!S || !S.inboxOn || S.ib.busy) return;
+    const st = S, ib = st.ib;
+    ib.busy = 'scan'; ib.err = ''; ibSync(); say('');
+    call('GET', '/plan-collect/inbox').then(function (r) {
+      if (st !== S) return;
+      ib.busy = '';
+      if (!r.ok) { ibScanFail(r); return; }
+      const d = r.data || {};
+      ib.items = arr(d.items); ib.ignored = Number(d.ignored_count) || 0; ib.truncated = d.truncated === true;
+      ib.maxImport = Number(d.max_import) > 0 ? Number(d.max_import) : pc.MAX_IMPORT;
+      ib.scanned = true; ib.results = {}; ib.sel = []; ib.capNote = '';
+      paintIb();
+      say(pc.scanFlash(ib.items.length, pc.ibReady(ib).length));
+      if (focusLost()) focusSel('#ib-scan');   // 끝나면 커서는 단추에 그대로(규격 5-5)
+    });
+  }
+  function ibScanFail(r) {
+    const st = S, ib = st.ib, msg = pc.inboxErrorText(r.status, r.code, 'scan');
+    if (r.status === 503 && r.code === 'PLAN_INBOX_OFF') {   // 폴더 설정이 꺼졌다 — 절을 지운다
+      st.inboxOn = false; paint(); say(msg, true); focusSel('input[name="cr-view"]:checked'); return;
+    }
+    if (r.status === 503 && r.code === 'PLAN_INBOX_BAD_CONFIG') {   // 절 안 role=alert 가 읽는다(띠 문구는 비운다)
+      ib.err = msg; ib.items = []; ib.scanned = false; ib.sel = []; ib.results = {}; ib.capNote = '';
+      paintIb(); say('');
+      if (focusLost()) focusSel('#ib-scan');
+      return;
+    }
+    say(msg, true); ibSync();
+    if (focusLost()) focusSel('#ib-scan');
+  }
+  function ibAsk() {
+    if (!S || !S.inboxOn || S.ib.busy || S.ib.dlg || !root.dlg) return;
+    const st = S, rows = pc.ibPicked(st.ib);
+    if (!rows.length || rows.length > pc.ibMax(st.ib)) return;
+    const w = document.createElement('div');
+    w.innerHTML = pc.ibDialogHtml(rows);
+    const ov = w.firstChild, d = { overlay: ov, rows: rows, busy: false, err: '', locked: false, gone: false };
+    st.ib.dlg = d;
+    ov.addEventListener('click', onIbDlgClick);
+    document.body.appendChild(ov);   // 덮개는 body 직계여야 dlg 가 나머지 화면 전체를 inert 로 막는다
+    root.dlg.open(ov, { onClose: function () { ibDlgClosed(d, st); }, restoreFallback: function () { return pc.ibRestoreTarget(qs('#ib-go'), qs('#ib-scan'), qs('#ib-table')); } });   // 열면 제목에 커서, 닫으면 [n개 반입]으로
+  }
+  function ibDlgClosed(d, st) {   // dlg.close 가 부른다 — [취소]·Esc·바깥 클릭·성공·화면 닫힘 모두 여기로 온다
+    d.gone = true;
+    if (d.overlay.parentNode) d.overlay.parentNode.removeChild(d.overlay);
+    if (st.ib && st.ib.dlg === d) st.ib.dlg = null;
+  }
+  function onIbDlgClick(e) {
+    const b = e.target && e.target.closest ? e.target.closest('button') : null;
+    const d = S && S.ib && S.ib.dlg;
+    if (!b || !d || d.gone) return;
+    if (b.id === 'ib-dlg-cancel') root.dlg.requestClose(d.overlay);   // 반입 중에도 닫는다 — Esc·바깥 클릭과 같은 동작, 결과는 띠로
+    else if (b.id === 'ib-dlg-ok') ibImport();
+  }
+  function paintIbDlg(d) {
+    if (!d || d.gone) return;
+    const q = function (id) { return d.overlay.querySelector('#' + id); };
+    const ok = q('ib-dlg-ok'), cancel = q('ib-dlg-cancel'), err = q('ib-dlg-err'), hint = q('ib-dlg-busy'), box = d.overlay.querySelector('.dlg'), t = q('ib-dlg-t');
+    if (ok) { root.dlg.setDisabled(ok, pc.ibOkLocked(d)); ok.textContent = d.busy ? '반입하는 중…' : d.rows.length + '개 반입'; }
+    if (hint) hint.hidden = !d.busy;
+    if (err) err.textContent = d.err;   // 서버 글이 아니라 inboxErrorText 고정 문구 — textContent
+    if (box) box.setAttribute('aria-busy', d.busy ? 'true' : 'false');
+    if (d.busy) { if (t && t.focus) t.focus(); }
+    else if (d.err && cancel && cancel.focus) cancel.focus();
+  }
+  function ibImport() {
+    const st = S, ib = st && st.ib, d = ib && ib.dlg;
+    if (!d || d.busy || d.gone || d.locked || ib.busy) return;
+    d.busy = true; d.err = ''; ib.busy = 'import'; paintIbDlg(d); ibSync(); say('');
+    call('POST', '/plan-collect/inbox/import', { file_names: d.rows.map(function (r) { return str(r.file_name); }) }).then(function (r) {
+      if (st !== S) return;
+      ib.busy = ''; d.busy = false;
+      if (!r.ok) {
+        const msg = pc.inboxErrorText(r.status, r.code, 'import');
+        if (r.status === 503 && r.code === 'PLAN_INBOX_OFF') {
+          if (!d.gone && root.dlg) root.dlg.close(d.overlay, { restore: false });
+          st.inboxOn = false; paint(); say(msg, true); focusSel('input[name="cr-view"]:checked');
+          return;
+        }
+        if (d.gone) say(msg, true); else { d.err = msg; if (r.status === 400 && r.code === 'BAD_FILES') d.locked = true; paintIbDlg(d); }   // 보내는 중에 창을 닫았으면 띠로
+        ibSync();
+        if (r.status === 0 || r.status >= 500) load();   // 앞 파일은 들어갔을 수 있다 — 요청 목록은 다시 받는다
+        return;
+      }
+      const list = arr(r.data && r.data.results);
+      list.forEach(function (x) { if (x && x.file_name) ib.results[str(x.file_name)] = x; });
+      ib.sel = []; ib.capNote = '';
+      if (!d.gone && root.dlg) root.dlg.close(d.overlay, { restore: false });
+      const f = pc.importFlash(d.rows.length, list);
+      paintIb(); say(f.text, f.fail);
+      load(function () { if (d.gone && !focusLost()) return; if (!focusSel('#ib-table')) focusSel('#ib-scan'); });   // 요청 목록은 '반영됨'으로 바뀐다. 커서는 파일 표로
+      pc.refreshBadge(true);
+    });
+  }
+
   function onClick(e) {
     const b = e.target && e.target.closest ? e.target.closest('button[data-cr]') : null;
-    if (!b || !S || b.disabled) return;
+    if (!b || !S || b.disabled || b.getAttribute('aria-disabled') === 'true') return;   // 팀원의 [목록 내려받기(CSV)] 는 눌려도 아무 일 없다
     const act = b.getAttribute('data-cr'), key = b.getAttribute('data-key');
     if (S.busy && (act === 'ask-exclude' || act === 'ask-fail' || act === 'run-ask')) return;   // 처리 중에는 새 확인 줄·상자를 열지 않는다
     switch (act) {
@@ -466,6 +769,8 @@
       case 'run-cancel': S.runAsk = false; paint(); focusSel('#cr-run'); break;
       case 'run-do': doRun(); break;
       case 'reload': load(); break;
+      case 'ib-scan': ibScan(); break;
+      case 'ib-ask': ibAsk(); break;
       default: break;
     }
   }
@@ -486,6 +791,17 @@
       if (t.checked && i < 0) S.sel.push(t.value);
       if (!t.checked && i >= 0) S.sel.splice(i, 1);
       closeRunAsk(); syncSel();
+    } else if (t.name === 'ib-sel') {
+      const ib = S.ib, i = ib.sel.indexOf(t.value);
+      if (t.checked && i < 0) ib.sel.push(t.value);
+      if (!t.checked && i >= 0) ib.sel.splice(i, 1);
+      ib.capNote = ''; ibSync();
+    } else if (t.id === 'ib-all') {
+      const ib = S.ib, ready = pc.ibReady(ib), max = pc.ibMax(ib);
+      if (t.checked) { ib.sel = ready.slice(0, max); ib.capNote = ready.length > max ? pc.ibCapText(ready.length, max) : ''; }   // 상한까지만(plans '앞 n곳만' 선례)
+      else { ib.sel = ib.sel.filter(function (n) { return ready.indexOf(n) < 0; }); ib.capNote = ''; }
+      Array.prototype.forEach.call(H.body.querySelectorAll('input[name="ib-sel"]'), function (box) { box.checked = ib.sel.indexOf(box.value) >= 0; });
+      ibSync();
     }
   }
   function onKey(e) {
@@ -501,13 +817,16 @@
     if (typeof document === 'undefined' || !h || !h.body) return;
     pc.unmount();
     H = h;
-    S = { view: lastView, items: [], agent: false, load: 'idle', code: 0, sel: [], ask: null, runAsk: false, busy: '', today: pc.todayKst(), refocus: '' };
+    S = { view: lastView, items: [], agent: false, load: 'idle', code: 0, sel: [], ask: null, runAsk: false, busy: '', today: pc.todayKst(), refocus: '',
+      canExport: true, inboxOn: false, ib: pc.ibFresh() };
     H.body.onclick = onClick; H.body.onchange = onChange; H.body.onkeydown = onKey;
     if (!serverOk()) { S.load = 'offline'; paint(); return; }
     load();
   };
   pc.unmount = function () {
     if (H && H.body) { H.body.onclick = null; H.body.onchange = null; H.body.onkeydown = null; }
+    const dd = S && S.ib && S.ib.dlg;
+    if (dd && !dd.gone && root.dlg) { root.dlg.close(dd.overlay, { restore: false }); }   // 화면을 닫는 중 — 확인 창을 치운다
     if (S) lastView = S.view;
     loadSeq += 1;   // 늦게 도착한 응답을 버린다
     H = null; S = null;
