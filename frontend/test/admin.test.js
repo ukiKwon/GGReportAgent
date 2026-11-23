@@ -110,7 +110,7 @@ test('menuColumns: 사이드바의 대표 메뉴 순서·이름으로 열을 만
     { key: 'approvals', label: '결재함', server_only: true }, { key: 'admin', label: '권한관리', server_only: true }];
   const cols = admin.menuColumns(server, nav.CATEGORIES);
   assert.deepStrictEqual(cols.map(function (c) { return c.key; }),
-    ['map', 'regions', 'workflow', 'tasks', 'chat', 'knowledge', 'approvals', 'admin']);   // 결재함은 머리 띠 단독 항목(공통 도구 뒤, 11-23)
+    ['regions', 'map', 'workflow', 'tasks', 'chat', 'knowledge', 'approvals', 'admin']);   // 결재함은 머리 띠 단독 항목(공통 도구 뒤, 11-23)
   assert.strictEqual(cols.filter(function (c) { return c.key === 'knowledge'; })[0].label, '지식 검색');
   assert.strictEqual(cols.filter(function (c) { return c.key === 'workflow'; })[0].label, '제안서 진행 현황');
   assert.strictEqual(cols[cols.length - 1].label, '시스템 관리');          // 4개 보기가 한 열

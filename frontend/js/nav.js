@@ -12,6 +12,7 @@
   //     키가 있는데 준비중인 항목(pending: AI 대화·지식 검색)은 서버 키(v[key])가 켠 사람에게 보인다.
   //     onlyRoles가 있는 항목(제안팀 구성·배정·제안서 사전준비)은 그 역할(영업팀·영업팀장·영업부장)에게만 보인다 — 디자이너·마스터 제외.
   //     withKey가 있는 항목(입찰 현황판·입찰 공고 현황)은 그 서버 키(map)가 켜진 사람 전원에게 보이고, front면 같은 중분류의 맨 앞에 놓인다.
+  //     공고 자동 수집(onlyRoles, 서버 키 없음)은 전산팀·전산팀장에게만 보인다 — 영업 계열·디자이너·마스터·재무 제외(11-23).
   //     withKey와 onlyRoles를 함께 쓴 항목(시작화면, 11-19 결정)은 서버 키(map)가 켜져 있고 그 역할(마스터 제외)인 사람에게만 보인다.
   //     withKey와 onlyTeams를 함께 쓴 항목(기관 사업계획, 11-17 결정)은 서버 키(map)가 켜져 있고 그 팀 소속(영업팀·전산팀 전원, 디자이너는 영업팀 소속, 마스터 포함)인 사람에게만 보인다 — 예산팀 제외.
   //  3. **한 화면은 한 항목에만 둔다.** 같은 탭을 두 곳에 걸면 어느 쪽이 "지금 위치"인지
@@ -62,6 +63,9 @@
   // 기관 사업계획 — plans.SOON_ID와 같아야 한다. 노출 = 서버 map 키 AND 영업팀·전산팀 소속(예산팀 제외, 11-17 결정).
   const PLANS_ID = 'soon:기관 사업계획';
   const PLANS_TEAMS = [roles.DESIGNER_HOME, '전산팀'].map(function (a) { return roles.teamOf(a); });
+  // 공고 자동 수집 — 아직 만들지 않은 기능(준비중 배지). 노출 = 전산팀·전산팀장만(onlyRoles라 마스터 제외, 제안팀 구성·배정과 같은 관례). 서버 메뉴 키는 쓰지 않는다.
+  const COLLECT_NOTICE_ID = 'soon:공고 자동 수집';
+  const COLLECT_NOTICE_ROLES = ['전산팀', '전산팀장'];
   // 협약 성과 관리(NEXT 104, results.js) — results.SOON_ID와 같아야 한다. 노출 = map 키 AND 영업팀·전산팀(서버 canView와 같음, 재무 제외).
   const RESULTS_ID = 'soon:협약 성과 관리';
   // 시작화면(포털, portal.js) — 사이드바 메뉴에는 그리지 않는다(headOnly). 머리 띠 제목 '기관영업지원 시스템'과 탭 맨 앞 고정 탭으로만 연다.
@@ -89,11 +93,14 @@
   nav.CATEGORIES = [
     { id: HOME_CAT, title: '시작화면', headOnly: true, items: [   // headOnly = 사이드바에 그리지 않는다(app.drawNav가 거른다). 권한·탭·pruneTabs 판정은 이 항목으로 한다
       soon('', '시작화면', '', '', false, HOME_ID, HOME_ROLES, 'map', true)] },
-    { id: 'scan', title: '기관·입찰 현황', subs: ['기관', '입찰 공고'], items: [
-      soon('기관', '입찰 현황판', '', '', false, DASH_ID, undefined, 'map', true),
-      live('기관', '전국 지도', 'map'), live('기관', '전국 지역별', 'regions'),
-      soon('기관', '기관 사업계획', '', '', false, PLANS_ID, undefined, 'map', false, PLANS_TEAMS),   // 실제 화면(plans.js) — 배지 없음, 노출 = map 키 AND 영업팀·전산팀(디자이너·마스터 포함)
-      soon('입찰 공고', '입찰 공고 현황', '', '', false, NOTICE_ID, undefined, 'map'), soon('입찰 공고', '공고 자동 수집')] },   // 실제 화면(dashboard.js, #notice-root) — 배지 없음, 노출은 입찰 현황판과 같이 서버 map 키 전원(11-09 타팀 공유)
+    // 소제목 순서 = 대시보드 → 기관 → 입찰 공고(사용자 11-23). soloSubs: 대시보드처럼 항목이 하나인 소제목도 그린다(showSubs의 '각 2개 이상' 규칙 면제).
+    { id: 'scan', title: '기관·입찰 현황', subs: ['대시보드', '기관', '입찰 공고'], soloSubs: true, items: [
+      soon('대시보드', '입찰 현황판', '', '', false, DASH_ID, undefined, 'map', true),
+      soon('기관', '기관 사업계획', '', '', false, PLANS_ID, undefined, 'map', true, PLANS_TEAMS),   // 실제 화면(plans.js) — 배지 없음, 노출 = map 키 AND 영업팀·전산팀(디자이너·마스터 포함). front = 구현 항목(전국 지역별)보다 앞
+      live('기관', '전국 지역별', 'regions'),
+      live('입찰 공고', '지역별 공고현황', 'map'),   // 옛 '전국 지도' — 화면·키(map)·id는 그대로, 이름만 바뀌어 입찰 공고로 옮김(사용자 11-23)
+      soon('입찰 공고', '입찰 공고 현황', '', '', false, NOTICE_ID, undefined, 'map'),   // 실제 화면(dashboard.js, #notice-root) — 배지 없음, 노출은 입찰 현황판과 같이 서버 map 키 전원(11-09 타팀 공유)
+      soon('입찰 공고', '공고 자동 수집', undefined, '', false, COLLECT_NOTICE_ID, COLLECT_NOTICE_ROLES)] },   // 준비중 배지 — 전산팀·전산팀장에게만(사용자 11-23)
     { id: 'plan', title: '영업 추진 준비', subs: ['준비 과제', '이사회'], items: [
       soon('준비 과제', '대시보드', '', '', false, PREP_ID, TEAM_ROLES),   // 메뉴 이름만 '대시보드'(사용자 11-19 저녁), id는 고정
       soon('준비 과제', '기관 정보 요약서'),
@@ -138,6 +145,8 @@
   nav.PLANS_ID = PLANS_ID;
   nav.PLANS_TEAMS = PLANS_TEAMS;
   nav.RESULTS_ID = RESULTS_ID;
+  nav.COLLECT_NOTICE_ID = COLLECT_NOTICE_ID;
+  nav.COLLECT_NOTICE_ROLES = COLLECT_NOTICE_ROLES;
   nav.COLLECT_ID = 'admin:collect';   // plancollect.NAV_ID 와 같다 — overdue.paintNavBadge 가 이 항목의 배지를 지우지 않게 알아본다
   // 로그인 뒤 시작화면(포털)을 보는 역할 — 영업팀·영업팀장·영업부장 + 디자이너 + 전산팀·전산팀장(보기 전용, 사용자 결정 11-19). 마스터·재무는 지도.
   nav.isHomeRole = function (ctx) { return nav.roleIn(HOME_ROLES, ctx); };
@@ -207,7 +216,7 @@
   // visible = menu_rules.visibleTabs 결과({map:true,...}). 보일 항목이 하나도 없는 카테고리는 뺀다.
   // 준비중 항목에는 id를 붙여 하이라이트·탭에 쓴다: 명시 id가 있으면 그것(이사회 부의), 없으면 `soon:<라벨>`.
   // 정렬: 대분류는 정의 순서 그대로(시스템 관리 last는 맨 끝), 중분류 순서는 cat.subs, 중분류 안에서는 구현 → 준비중(안정 분할).
-  // 결과 카테고리의 showSubs: 보이는 중분류가 2개 이상이고 각각 보이는 항목이 2개 이상일 때만 true.
+  // 결과 카테고리의 showSubs: 보이는 중분류가 2개 이상이고 각각 보이는 항목이 2개 이상일 때만 true(cat.soloSubs면 항목 수 조건 면제).
   nav.build = function (visible, ctx) {
     const v = visible || {};
     const sales = nav.isSales(ctx);
@@ -248,7 +257,7 @@
       });
       if (!items.length) return;
       const built = { id: cat.id, title: cat.title, items: items,
-                      showSubs: !!cat.subs && shownSubs >= 2 && eachTwo };
+                      showSubs: !!cat.subs && shownSubs >= 2 && (cat.soloSubs === true || eachTwo) };
       if (cat.headOnly) built.headOnly = true;
       (cat.last ? tail : out).push(built);
     });

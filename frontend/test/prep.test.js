@@ -44,7 +44,7 @@ test('nav 노출(입찰 현황판): 고정 id soon:현황판, 서버 map 키가 
     assert.ok(it, role || '(역할 없음)');
     assert.strictEqual(nav.badgeOf(it), '');
     assert.strictEqual(it.label, '입찰 현황판');
-    assert.strictEqual(it.sub, '기관');
+    assert.strictEqual(it.sub, '대시보드');
   });
   assert.ok(find(ALL_ON, { role: '영업팀', master: true }, nav.DASH_ID));
   // map 키가 꺼지면 사라진다(권한은 서버가 정한다)
@@ -53,7 +53,7 @@ test('nav 노출(입찰 현황판): 고정 id soon:현황판, 서버 map 키가 
   const scan = nav.build(ALL_ON, { role: '영업팀' }).filter(function (c) { return c.id === 'scan'; })[0].items;
   assert.strictEqual(scan[0].id, nav.DASH_ID);
   assert.strictEqual(scan[0].front, true);
-  assert.strictEqual(scan[1].id, 'map');
+  assert.strictEqual(scan[1].id, nav.PLANS_ID);
   // 접근 이력은 기록하지 않는다(서버 메뉴 키 꼴이 아니다)
   assert.strictEqual(nav.screenName(nav.DASH_ID, 'soon:이사회 자료'), null);
 });

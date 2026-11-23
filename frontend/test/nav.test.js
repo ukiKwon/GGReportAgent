@@ -72,7 +72,7 @@ test('협약·관계 관리: 영업 계열·마스터 + 협약 성과 관리 때
 test('둘러보기(역할 없음): 입찰 현황판·입찰 공고 현황(서버 map 키 전원)·지도·지역별만, 그 밖의 준비중 없음', function () {
   const built = nav.build(GUEST, { role: '' });
   assert.deepStrictEqual(ids(built), ['scan']);
-  assert.deepStrictEqual(items(built, 'scan').map(function (i) { return i.id; }), ['soon:현황판', 'map', 'regions', 'soon:입찰 공고 현황']);
+  assert.deepStrictEqual(items(built, 'scan').map(function (i) { return i.id; }), ['soon:현황판', 'regions', 'map', 'soon:입찰 공고 현황']);
 });
 
 test('비영업 팀: 구현 화면 + 예외(이사회 부의·pending 키) 외 준비중은 없다', function () {
@@ -93,7 +93,7 @@ test('준비중 id: 명시 id 외에는 soon:라벨, 전부 서로 다르고 20�
   assert.strictEqual(new Set(all).size, all.length);
   assert.strictEqual(items(built, 'relate')[0].id, 'soon:입찰 결과 등록');
   const soonIds = all.filter(function (id) { return id.indexOf('soon:') === 0; });
-  assert.strictEqual(soonIds.length, 20);
+  assert.strictEqual(soonIds.length, 19);
   // 이사회 부의: 라벨은 바뀌어도 id는 고정(board.SOON_ID)
   const board = items(built, 'plan').filter(function (i) { return i.id === 'soon:이사회 자료'; })[0];
   assert.ok(board && board.label === '이사회 자료 작성');
@@ -110,7 +110,7 @@ test('이사회 부의는 영업 추진 준비 > 이사회 아래 "구현 예정
   assert.ok(!items(built, 'scan').some(function (i) { return i.id === 'soon:이사회 자료'; }));
   assert.strictEqual(items(built, 'relate')[0].tag, '준비중');
   assert.deepStrictEqual(items(built, 'scan').map(function (i) { return i.label; }),
-    ['입찰 현황판', '전국 지도', '전국 지역별', '기관 사업계획', '입찰 공고 현황', '공고 자동 수집']);
+    ['입찰 현황판', '기관 사업계획', '전국 지역별', '지역별 공고현황', '입찰 공고 현황']);
 });
 
 test('showSubs: 영업팀은 scan·plan·manage·tools true, 평평한 relate·시스템 관리는 false, 예산팀 제안서 작성·관리·둘러보기 기관·입찰 현황은 false', function () {
@@ -122,7 +122,7 @@ test('showSubs: 영업팀은 scan·plan·manage·tools true, 평평한 relate·�
   assert.strictEqual(sales.filter(function (c) { return c.id === 'sys'; })[0].showSubs, false);
   const budget = nav.build(ALL_ON, { role: '예산팀' });
   assert.strictEqual(budget.filter(function (c) { return c.id === 'manage'; })[0].showSubs, false);
-  assert.strictEqual(nav.build(GUEST, { role: '' })[0].showSubs, false);
+  assert.strictEqual(nav.build(GUEST, { role: '' })[0].showSubs, true);   // scan은 soloSubs(11-23)
 });
 
 test('pending(AI 대화·지식 검색): 서버 키를 따라 보이고, 준비중 표시·키 유지', function () {
@@ -223,7 +223,7 @@ test('3단 구조: 대분류 7개 이름·소속(시작화면 단독 + 정의 �
      'relate:협약·관계 관리', 'tools:공통 도구', 'apprbox:결재함', 'sys:시스템 관리']);
   const by = {};
   nav.CATEGORIES.forEach(function (c) { by[c.id] = c.items.map(function (i) { return (i.sub || '') + '>' + i.label; }); });
-  assert.deepStrictEqual(by.scan, ['기관>입찰 현황판', '기관>전국 지도', '기관>전국 지역별', '기관>기관 사업계획',
+  assert.deepStrictEqual(by.scan, ['대시보드>입찰 현황판', '기관>기관 사업계획', '기관>전국 지역별', '입찰 공고>지역별 공고현황',
     '입찰 공고>입찰 공고 현황', '입찰 공고>공고 자동 수집']);
   assert.deepStrictEqual(by.plan, ['준비 과제>대시보드', '준비 과제>기관 정보 요약서', '준비 과제>제안서 제출 붙임서류',
     '이사회>이사회 자료 작성', '이사회>이사회 발표 대본']);
@@ -263,7 +263,7 @@ test('서버가 켠 키가 달라도 대분류 순서는 바뀌지 않는다', f
   const v = { map: false, regions: false, workflow: false, chat: false, knowledge: true,
               tasks: false, approvals: false, admin: true };
   assert.deepStrictEqual(ids(nav.build(v, { role: '영업팀' })),
-    ['scan', 'plan', 'manage', 'relate', 'tools', 'sys']);
+    ['plan', 'manage', 'relate', 'tools', 'sys']);   // map·regions가 꺼지면 영업팀에게 기관·입찰 현황은 빈 묶음(공고 자동 수집은 전산팀만, 11-23)
 });
 
 test('비영업 역할: 준비중이 숨겨지고 시스템 관리가 맨 아래', function () {
@@ -292,7 +292,7 @@ test('이사회 자료 작성: 영업 계열이 아니어도 tasks 조회 권한
   // 서버 map 키로 보이는 입찰 현황판·입찰 공고 현황 — 11-16 공고 현황도 타팀 공유, map 키 AND 영업·전산팀인 기관 사업계획 — 11-17)
   const others = nav.build(ALL_ON, { role: '전산팀' }).reduce(function (n, c) {
     return n + c.items.filter(function (i) {
-      return i.soon && !i.pending && i.id !== 'soon:이사회 자료' && i.id !== nav.DASH_ID && i.id !== nav.NOTICE_ID && i.id !== nav.PLANS_ID && i.id !== nav.HOME_ID && i.id !== nav.RESULTS_ID;
+      return i.soon && !i.pending && i.id !== 'soon:이사회 자료' && i.id !== nav.DASH_ID && i.id !== nav.NOTICE_ID && i.id !== nav.PLANS_ID && i.id !== nav.HOME_ID && i.id !== nav.RESULTS_ID && i.id !== nav.COLLECT_NOTICE_ID;
     }).length;
   }, 0);
   assert.strictEqual(others, 0);
@@ -481,7 +481,7 @@ test('nav.teamIn 경계: 공백 낀 소속은 보이고, 다른 팀·직급만 �
 test('기관 사업계획: 전산팀은 기관 분류에 현황판·지도·지역별·사업계획·공고 현황이 보이고 다른 준비중은 없다', function () {
   const built = nav.build(ALL_ON, { role: '전산팀' });
   assert.deepStrictEqual(items(built, 'scan').map(function (i) { return i.label; }),
-    ['입찰 현황판', '전국 지도', '전국 지역별', '기관 사업계획', '입찰 공고 현황']);
+    ['입찰 현황판', '기관 사업계획', '전국 지역별', '지역별 공고현황', '입찰 공고 현황', '공고 자동 수집']);
   assert.strictEqual(nav.PLANS_ID, 'soon:기관 사업계획');
 });
 
@@ -514,4 +514,36 @@ test('시작화면: headOnly 표시, 역할 목록은 한 곳(HOME_ROLES ⊇ VIE
   const built = nav.build(ALL_ON, { role: '예산팀' });
   assert.deepStrictEqual(nav.pruneTabs([{ id: nav.HOME_ID }, { id: 'map' }], built).map(function (t) { return t.id; }), ['map']);   // 대상이 아닌 계정으로 바뀌면 시작화면 탭이 걷힌다
   assert.strictEqual(nav.homeItemId(nav.build(ALL_ON, { role: '영업팀' }), nav.HOME_ID, [{ id: nav.HOME_ID }, { id: 'map' }], { role: '영업팀' }), null);   // 이미 시작화면
+});
+
+test('공고 자동 수집: 전산팀·전산팀장에게만 보이고 준비중 배지, 그 밖(영업 계열·디자이너·재무·마스터·역할 없음)은 숨김(11-23)', function () {
+  function find(ctx) {
+    const hit = [];
+    nav.build(ALL_ON, ctx).forEach(function (c) { c.items.forEach(function (i) { if (i.id === nav.COLLECT_NOTICE_ID) hit.push(i); }); });
+    return hit[0] || null;
+  }
+  assert.strictEqual(nav.COLLECT_NOTICE_ID, 'soon:공고 자동 수집');
+  ['전산팀', '전산팀장'].forEach(function (r) {
+    const it = find({ role: r });
+    assert.ok(it, r);
+    assert.strictEqual(it.sub, '입찰 공고');
+    assert.strictEqual(nav.badgeOf(it), '준비중');
+  });
+  ['영업팀', '영업팀장', '영업부장', '디자이너', '예산팀', '예산팀장', ''].forEach(function (r) {
+    assert.strictEqual(find({ role: r }), null, r);
+  });
+  assert.strictEqual(find({ role: '전산팀', master: true }), null);
+});
+
+test('기관·입찰 현황 소제목: 대시보드 → 기관 → 입찰 공고 순, 항목이 하나뿐인 대시보드도 소제목이 켜진다(soloSubs, 11-23)', function () {
+  const built = nav.build(ALL_ON, { role: '영업팀' });
+  const scan = built.filter(function (c) { return c.id === 'scan'; })[0];
+  assert.strictEqual(scan.showSubs, true);
+  assert.deepStrictEqual(scan.items.map(function (i) { return i.sub + '>' + i.label; }),
+    ['대시보드>입찰 현황판', '기관>기관 사업계획', '기관>전국 지역별',
+     '입찰 공고>지역별 공고현황', '입찰 공고>입찰 공고 현황']);
+  const map = scan.items.filter(function (i) { return i.id === 'map'; })[0];
+  assert.strictEqual(map.key, 'map');
+  assert.strictEqual(map.label, '지역별 공고현황');
+  assert.strictEqual(nav.build(ALL_ON, { role: '예산팀' }).filter(function (c) { return c.id === 'plan'; })[0].showSubs, false);
 });

@@ -217,7 +217,7 @@ test('countHtml·emptyModel·readOnlyAll', function () {
   assert.deepStrictEqual(pb.emptyModel(5, 0, { q: ' 가나 ' }), { kind: 'query', text: '\'가나\'와 맞는 기관이 없습니다.', action: 'clear' });
   assert.strictEqual(pb.emptyModel(5, 0, { who: '김영업' }).text, '김영업 담당 기관이 없습니다.');
   assert.strictEqual(pb.emptyModel(5, 0, { who: pb.WHO_MINE }).text, '내 담당 기관이 없습니다.');
-  assert.ok(pb.T.empty.indexOf('[제안 확정]') > 0 && pb.T.openMap === '전국 지도 열기');
+  assert.ok(pb.T.empty.indexOf('[제안 확정]') > 0 && pb.T.openMap === '지역별 공고현황 열기');
   assert.strictEqual(pb.readOnlyAll([row({ can_check: false }), row({ can_check: false })]), true);
   assert.strictEqual(pb.readOnlyAll([row({ can_check: false }), row({ can_check: true })]), false);
   assert.strictEqual(pb.readOnlyAll([]), false);
