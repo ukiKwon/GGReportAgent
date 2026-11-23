@@ -290,6 +290,21 @@ public class TargetChangeApiTest {
         assertEquals("REQUESTER_INACTIVE", json(d).path("detail").path("code").asText());
     }
 
+    @Test public void 태그_REGAIN_ADD_EDIT_승인은_반영_모르는_태그는_400() throws Exception {
+        baseSeed();
+        final int Y = y();
+        assertEquals(400, status(change(SALES, req("사유", item("jongno", "ADD", "tag_cd", "ZZ", "target_year", Y)))));
+        MvcResult r = change(SALES, req("되찾기 도전",
+                item("jongno", "ADD", "tag_cd", "REGAIN", "target_year", Y),
+                item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "REGAIN")));
+        assertEquals(raw(r), 200, status(r));
+        long id = json(r).path("request").path("req_id").asLong();
+        MvcResult d = decide(LEAD, id, "APPROVE", null);
+        assertEquals(raw(d), 200, status(d));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TAG_CD='REGAIN'"));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2 AND TAG_CD='REGAIN'"));
+    }
+
     @Test public void 팀장_상신은_영업부장_결재_부장은_바로_반영() throws Exception {
         userPerm(HEAD, "map", 1, 1);
         final int Y = y();

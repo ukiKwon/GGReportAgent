@@ -165,7 +165,10 @@ public class BidTargetApiTest {
         assertEquals(200, status(r));
         assertEquals(Y, json(r).path("year").asInt());
         assertEquals(30, json(r).path("delay_days").asInt());
-        assertEquals(2, json(r).path("codes").path("tags").size());
+        assertEquals(3, json(r).path("codes").path("tags").size());
+        assertEquals("RETAIN", json(r).path("codes").path("tags").path(0).path("code").asText());
+        assertEquals("REGAIN", json(r).path("codes").path("tags").path(1).path("code").asText());
+        assertEquals("NEW", json(r).path("codes").path("tags").path(2).path("code").asText());
         assertFalse(json(r).path("can_edit").asBoolean());
     }
 

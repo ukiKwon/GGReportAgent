@@ -17,7 +17,7 @@ import static org.junit.Assert.*;
 public class BidTargetRulesTest {
     private static final BankContractRules.CodeCheck CODES = new BankContractRules.CodeCheck() {
         @Override public boolean enabled(String group, String code) {
-            return ("TARGET_TAG".equals(group) && ("NEW".equals(code) || "RETAIN".equals(code)))
+            return ("TARGET_TAG".equals(group) && ("NEW".equals(code) || "RETAIN".equals(code) || "REGAIN".equals(code)))
                     || ("TARGET_CANCEL_REASON".equals(group) && ("WRONG".equals(code) || "ETC".equals(code)));
         }
         @Override public List<String> names(String group) { return Arrays.asList("x"); }
@@ -47,6 +47,10 @@ public class BidTargetRulesTest {
         assertEquals(400, statusOf(new Runnable() { public void run() { BidTargetRules.parse(bad, 2026, null, CODES); } }));
         BidTargetIn blank = in(null, "NEW"); blank.setOwnerEmpNo("  ");
         assertNull(BidTargetRules.parse(blank, 2026, null, CODES).owner);
+    }
+
+    @Test public void 태그_REGAIN_통과() {
+        assertEquals("REGAIN", BidTargetRules.parse(in(null, "REGAIN"), 2026, null, CODES).tag);
     }
 
     @Test public void same_은_네_값_비교() {
