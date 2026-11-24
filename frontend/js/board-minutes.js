@@ -1012,7 +1012,7 @@
       cur.tr.open = true;
       if (cur.tr.status === 'ready') { drawTr(cur); move(); }
       else if (cur.tr.status === 'loading') { drawTr(cur); cur.tr.wait = run; }   // 받는 중에 누른 것은 사라지지 않고 받은 뒤 옮긴다
-      else { drawTr(cur); loadTranscript(cur, run); }   // idle·error: 누를 때만 받는다(error 는 다시 받기)
+      else { drawTr(cur); cur.tr.wait = run; loadTranscript(cur); }   // idle·error: 누를 때만 받는다(error 는 다시 받기). 받은 뒤(ready)에만 옮기고 표를 다시 그린다 — 실패 때 포커스가 있는 버튼을 지우지 않고, 받는 중 또 누르면 마지막 것 한 번만(qa 11-24 P2-1·P3-2)
     }
 
     // ── 고치기 ──

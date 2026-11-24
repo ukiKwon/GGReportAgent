@@ -889,3 +889,22 @@ test('targetText·histText(결정 4): RULES 이력은 운용 수칙 확인 (수�
   assert.strictEqual(mn.histText({ event: 'UPLOAD' }), '올림');
   assert.strictEqual(mn.histText(null), '기타 기록');
 });
+
+test('jumpUtter(qa 11-24 P2-1·P3-2): 원문을 못 받으면 표를 다시 그리지 않고, 받는 중 두 번 눌러도 알림은 한 번', async function () {
+  const seen = [], msgs = [];
+  let after = 0;
+  const c = mkCtl(lblRoute([{ speaker_no: 2, label: null, utter_cnt: 1, first_seq: 7 }], seen, true), msgs);
+  await c.probe(1); c.testApi.openDetail(5); await settle();
+  const cur = c.state().cur;
+  c.testApi.jumpUtter(cur, 7, 'm', function () { after++; }); await settle();
+  assert.strictEqual(cur.tr.status, 'error');
+  assert.strictEqual(after, 0, '실패 때는 after(표 다시 그리기)를 부르지 않는다 — 포커스가 있는 버튼을 지우지 않는다');
+  assert.deepStrictEqual(msgs, []);
+  c.testApi.jumpUtter(cur, 7, 'm1', function () { after++; });
+  c.testApi.jumpUtter(cur, 7, 'm2', function () { after++; });
+  await settle();
+  assert.strictEqual(cur.tr.status, 'ready');
+  assert.strictEqual(after, 1, '받는 중 두 번 눌러도 한 번');
+  assert.ok(msgs.length <= 1, '알림은 많아야 한 번: ' + msgs.join('|'));
+  assert.strictEqual(seen.filter(function (x) { return /\/transcript$/.test(x.url); }).length, 2, '두 번째 받기 요청은 한 번만');
+});
