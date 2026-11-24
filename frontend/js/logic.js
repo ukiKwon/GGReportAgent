@@ -610,6 +610,101 @@
     return (info.urgentAllEst ? '△' : '▲') + info.urgent;
   };
 
+  // ── 시군구 드릴인 '지시선 카드'(사용자 11-24 — 도형 기호 대신 글, design-reviewer 2026-11-24_1544) ──
+  // 카드 치수(px): 폭 W, 지도 양옆 여백 열 폭 G(카드 120 + 바깥 8 + 지시선 20), 카드 사이 GAP, 줄 높이 ROW,
+  // 위·아래 안쪽 여백 PADV, 지시선 꺾임 ELBOW(카드 가장자리에서), 열 위쪽(왼쪽은 breadcrumb 아래 48), 아래 여백 BOT,
+  // 넘침 안내 3줄(12px, 줄 높이 15) 높이 NOTE_H.
+  logic.SUBCARD = { W: 120, G: 148, EDGE: 8, GAP: 4, ROW: 15, PADV: 4, ELBOW: 12, TOP_L: 48, TOP_R: 12, BOT: 12, NOTE_H: 45 };
+
+  // 카드를 다는 면: 공고 중·경과·6개월 안·6개월~1년 중 하나라도 있는 면(그 밖만 있으면 색과 툴팁만).
+  logic.subCardEligible = function (info) {
+    return !!info && (info.notice + info.overdue + info.within6 + info.to12) > 0;
+  };
+  // 카드 분류 줄(순서 고정, 0곳은 숨김). 그 밖 = 1~2년 + 2년 넘음 + 날짜 미상(muted). 6개월 안이 모두 추정이면 '6개월 안(추정)'.
+  logic.subCardLines = function (info) {
+    if (!info) return [];
+    const rows = [
+      { key: 'notice', label: '공고 중', n: info.notice || 0, strong: true },
+      { key: 'overdue', label: '경과', n: info.overdue || 0 },
+      { key: 'within6', label: info.urgentAllEst ? '6개월 안(추정)' : '6개월 안', n: info.within6 || 0 },
+      { key: 'to12', label: '6개월~1년', n: info.to12 || 0 },
+      { key: 'rest', label: '그 밖', n: (info.to24 || 0) + (info.over24 || 0) + (info.unknown || 0), muted: true },
+    ];
+    return rows.filter(function (r) { return r.n > 0; });
+  };
+  logic.subCardHeight = function (nLines) {
+    const S = logic.SUBCARD;
+    return S.PADV + S.ROW + S.ROW * nLines + S.PADV;     // 이름 한 줄 + 분류 줄 수
+  };
+  // 카드 배치(DOM 없음). items = [{code, ax, ay(지시선 앵커, 화면 좌표), lines(분류 줄 수), pri:[notice,overdue,within6,to12]}].
+  // 1) ax < w/2 → 왼쪽 열, 아니면 오른쪽 열  2) 한쪽이 넘치고 반대쪽에 자리가 있으면 가운데선에 가까운 면부터 옮김
+  // 3) 그래도 넘치면 우선순위(공고 중→경과→6개월 안→6개월~1년, 큰 쪽이 남음)가 낮은 카드부터 뺌 — 뺐으면 열 맨 아래에 안내 자리
+  // 4) 열 안에서 ay 순으로 놓고 앞→뒤, 뒤→앞 두 번 밀어 겹침을 없앰.
+  // 반환: { items:[{code,side,x,y,w,h,ax,ay,pts}], dropped:[code], notes:{left,right} } — notes.* = {x,y,count} | null.
+  logic.layoutSubCards = function (items, w, h) {
+    const S = logic.SUBCARD, mid = w / 2;
+    const cols = {
+      left:  { side: 'left',  x: S.EDGE,           top: S.TOP_L, bottom: h - S.BOT, list: [], dropped: [] },
+      right: { side: 'right', x: w - S.EDGE - S.W, top: S.TOP_R, bottom: h - S.BOT, list: [], dropped: [] },
+    };
+    (items || []).forEach(function (it) {
+      if (!it || typeof it.ax !== 'number' || typeof it.ay !== 'number' || !isFinite(it.ax) || !isFinite(it.ay) || !(it.lines >= 1)) return;
+      const c = { code: it.code, ax: it.ax, ay: it.ay, pri: it.pri || [0, 0, 0, 0], h: logic.subCardHeight(it.lines), y: 0 };
+      (c.ax < mid ? cols.left : cols.right).list.push(c);
+    });
+    function span(list) { let s = 0; list.forEach(function (c) { s += c.h; }); return s + S.GAP * Math.max(0, list.length - 1); }
+    function cap(col) { return col.bottom - col.top; }
+    function shift(from, to) {
+      while (from.list.length && span(from.list) > cap(from)) {
+        let pick = null;
+        from.list.forEach(function (c) { if (!pick || Math.abs(c.ax - mid) < Math.abs(pick.ax - mid)) pick = c; });
+        if (span(to.list.concat([pick])) > cap(to)) return;      // 반대쪽도 못 받으면 멈춘다(아래에서 우선순위로 뺌)
+        from.list.splice(from.list.indexOf(pick), 1); to.list.push(pick);
+      }
+    }
+    shift(cols.left, cols.right); shift(cols.right, cols.left);
+    function worse(a, b) {                                       // a를 b보다 먼저 뺀다
+      for (let i = 0; i < 4; i++) if (a.pri[i] !== b.pri[i]) return a.pri[i] < b.pri[i];
+      if (a.ay !== b.ay) return a.ay > b.ay;
+      return String(a.code) > String(b.code);
+    }
+    function limitOf(col) { return col.bottom - (col.dropped.length ? S.GAP + S.NOTE_H : 0); }
+    function dropFit(col) {
+      while (col.list.length && span(col.list) > limitOf(col) - col.top) {
+        let low = null;
+        col.list.forEach(function (c) { if (!low || worse(c, low)) low = c; });
+        col.list.splice(col.list.indexOf(low), 1); col.dropped.push(low);
+      }
+    }
+    function place(col) {
+      const list = col.list.slice().sort(function (a, b) { return a.ay - b.ay || (String(a.code) < String(b.code) ? -1 : 1); });
+      const limit = limitOf(col);
+      list.forEach(function (c) { c.y = Math.max(col.top, Math.min(limit - c.h, c.ay - c.h / 2)); });
+      for (let i = 1; i < list.length; i++) list[i].y = Math.max(list[i].y, list[i - 1].y + list[i - 1].h + S.GAP);
+      for (let i = list.length - 1; i >= 0; i--) {
+        const lim = (i === list.length - 1 ? limit : list[i + 1].y - S.GAP) - list[i].h;
+        if (list[i].y > lim) list[i].y = lim;
+      }
+      list.forEach(function (c) { c.y = Math.round(c.y); });
+      return list;
+    }
+    const out = { items: [], dropped: [], notes: { left: null, right: null } };
+    ['left', 'right'].forEach(function (side) {
+      const col = cols[side];
+      dropFit(col);
+      place(col).forEach(function (c) {
+        const edge = side === 'left' ? col.x + S.W : col.x;
+        const elbow = side === 'left' ? edge + S.ELBOW : edge - S.ELBOW;
+        const cy = c.y + c.h / 2;
+        out.items.push({ code: c.code, side: side, x: col.x, y: c.y, w: S.W, h: c.h, ax: c.ax, ay: c.ay,
+          pts: [[c.ax, c.ay], [elbow, cy], [edge, cy]] });
+      });
+      col.dropped.forEach(function (c) { out.dropped.push(c.code); });
+      if (col.dropped.length) out.notes[side] = { x: col.x, y: col.bottom - S.NOTE_H, count: col.dropped.length };
+    });
+    return out;
+  };
+
   // 마커로 그릴 기관: 지자체(면)는 뺀다. 나머지는 종류(kindOf) 6종 중 켠 것만, 종류를 모르는 유형(가로 막대)은 항상 표시.
   logic.visibleMarkers = function (list, enabledKinds) {
     return list.filter(function (r) {

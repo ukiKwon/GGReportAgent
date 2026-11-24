@@ -466,6 +466,11 @@
         rzTimer = null;
         ov.syncLayout();
         if (ov.shouldRedraw(ov.state.drawnW, root.innerWidth, isDrilled())) redrawNational();
+        else if (isDrilled() && ov.state.drawnW && ov.state.drawnW !== root.innerWidth) {
+          // 드릴인: 시군구 지시선 카드가 판 폭에 고정 좌표로 놓이므로 폭이 바뀌면 다시 배치한다(qa 11-24 P2). 고른 기관 강조는 되살린다.
+          const r = R();
+          if (r && r.redrawKeepSel && typeof d3 !== 'undefined' && !root.__d3failed) { r.redrawKeepSel(); ov.state.drawnW = root.innerWidth; }
+        }
       }, 150);
     });
 

@@ -105,7 +105,7 @@ test('지도 강조: 덮개 층 g.sel-ring-layer, raise() 없음, 선택 두 겹
   assert.ok(/\.ring-focus\.under \{[^}]*stroke:var\(--fg\); stroke-width:6;/.test(c));
   assert.ok(/\.ring-focus\.over \{[^}]*stroke:#fff; stroke-width:2\.5;/.test(c));
   assert.ok(/@keyframes muni-blink \{[^}]*stroke-width:3;[^}]*\}[^}]*stroke-width:4;/.test(c) && !/stroke-opacity:\.30/.test(c));
-  assert.ok(/\.region:focus-visible, \.subregion:focus-visible \{ outline:none; \}/.test(c));
+  assert.ok(/\.region:focus, \.subregion:focus, \.region:focus-visible, \.subregion:focus-visible[^{]*\{ outline:none; \}/.test(c));   // 마우스 클릭 외곽선(:focus)도 끈다(사용자 11-24)
   assert.ok(/\.region\.watched \{ stroke:var\(--fg\); stroke-width:1\.5; stroke-dasharray:4 2; \}/.test(c));
   assert.ok(/g\.ripple-layer \{ filter:drop-shadow\(0 0 1px #fff\); \}/.test(c));
 });

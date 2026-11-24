@@ -122,20 +122,25 @@
     if (render._legendRO || typeof ResizeObserver === 'undefined' || typeof document === 'undefined') return;
     const el = document.getElementById('legend'); if (!el) return;
     let lastH = el.offsetHeight, t = null;
+    render._legendSyncH = function () { lastH = el.offsetHeight; };   // _legendFor가 범례를 바꾼 직후 호출 — 같은 높이 변화로 지도를 또 그리지 않게
     render._legendRO = new ResizeObserver(function () {
       const h = el.offsetHeight; if (h === lastH) return; lastH = h;
       clearTimeout(t);
-      t = setTimeout(function () {
-        const sel = render._selectedName;
-        if (render.state.currentRegion) render.drawRegion(render.state.currentRegion); else render.drawNational();
-        if (sel) { const rec = render.allInstitutions().filter(function (r) { return r.name === sel; })[0]; if (rec) render.selectInstitution(rec); }
-      }, 80);
+      t = setTimeout(render.redrawKeepSel, 80);
     });
     render._legendRO.observe(el);
   };
-  render.drawLegend = function () {
+  // 지금 보이는 지도(전국/드릴인)를 다시 그리고 고른 기관 강조를 되살린다 — 범례 높이 변화·드릴인 중 창 폭 변화(overdue.js)가 쓴다.
+  render.redrawKeepSel = function () {
+    const sel = render._selectedName;
+    if (render.state.currentRegion) render.drawRegion(render.state.currentRegion); else render.drawNational();
+    if (sel) { const rec = render.allInstitutions().filter(function (r) { return r.name === sel; })[0]; if (rec) render.selectInstitution(rec); }
+  };
+  render.drawLegend = function (mode) {
     if (typeof document === 'undefined') return;
     const el = document.getElementById('legend'); if (!el) return;
+    // mode: 'drill'(시군구 드릴인) | 'national'. 생략하면 지금 보는 지도(state.currentRegion)를 따른다.
+    const drill = mode ? mode === 'drill' : !!render.state.currentRegion;
     // 라벨 글자도 해당 등락색으로 — 범례 스스로 색 의미론을 말한다(마감 리뷰 반영).
     // 밝은 바탕에서는 파스텔 면색 그대로가 작은 글자에 옅어서, 글자용으로만 본문색(--fg)을 50% 섞어 어둡게 한다.
     const rows = render.LEGEND_ITEMS.map(function (it) {
@@ -146,9 +151,19 @@
     });
     rows.push('<span class="lg-item"><i class="lg-sw lg-hatch" style="background:' +
       render._safeColor(render.INACTIVE_FILL, '#c3cad9') + '"></i>준비중</span>');
-    rows.push('<span class="lg-item lg-tri-row"><b class="lg-tri" aria-hidden="true">▲3</b>6개월 안 공고 예정 기관 수 (속 빈 △는 추정)</span>');
-    rows.push('<span class="lg-item lg-tri-row"><i class="lg-nchip" aria-hidden="true">공고 2</i>공고가 나서 진행 중인 기관 수 (공고일부터 ' + logic.NOTICE_ACTIVE_DAYS + '일)</span>');
+    if (drill) {
+      // 드릴인: 면 위 ▲n·'공고 n' 칩이 없고 지시선 카드가 그 일을 한다(design 11-24)
+      rows.push('<span class="lg-item lg-tri-row"><i class="lg-card" aria-hidden="true"></i>카드: 시군구별 공고 중·경과·6개월 안·6개월~1년 기관 수(켠 종류 모두)</span>');
+    } else {
+      rows.push('<span class="lg-item lg-tri-row"><b class="lg-tri" aria-hidden="true">▲3</b>6개월 안 공고 예정 기관 수 (속 빈 △는 추정)</span>');
+      rows.push('<span class="lg-item lg-tri-row"><i class="lg-nchip" aria-hidden="true">공고 2</i>공고가 나서 진행 중인 기관 수 (공고일부터 ' + logic.NOTICE_ACTIVE_DAYS + '일)</span>');
+    }
     el.innerHTML = '<div class="lg-title">입찰 임박도 · 지역 색 섞기</div>' + rows.join('');
+  };
+  // 지도를 그리기 전에 범례를 먼저 바꾼다(범례 높이가 지도 높이를 정한다). 바꾼 높이는 감시자에게 알려 지도를 또 그리지 않게 한다.
+  render._legendFor = function (mode) {
+    render.drawLegend(mode);
+    if (render._legendSyncH) render._legendSyncH();
   };
   render.applyTheme();
 
@@ -239,6 +254,7 @@
     // 경과 패널 배치(도킹/덮개/위 쌓기)를 폭을 재기 전에 확정한다 — 패널이 나중에 나타나거나
     // 사라지면 지도가 옛 폭으로 그려져 잘리거나 한쪽으로 쏠린다.
     if (root.overdue && root.overdue.syncLayout) root.overdue.syncLayout();
+    render._legendFor('national');   // 드릴인에서 돌아오면 ▲·'공고 n' 줄을 되살린다(폭·높이를 재기 전에)
     const svg = d3.select('#map-svg');
     svg.selectAll('*').remove();
     render._ensureDefs(svg);   // 준비중 지역 빗금(#hatch)용 — 이전엔 지역 뷰에서만 호출됐다
@@ -451,6 +467,14 @@
     parts.push('기관 ' + info.total + '곳');
     return parts.join(', ');
   };
+  // 시군구 드릴인 면의 이름 — 카드와 같은 분류·순서(logic.subCardLines). 전국 면은 위 mixAriaLabel 그대로.
+  // 예: "강남구, 빨강, 공고 중 1곳, 6개월 안 2곳, 6개월~1년 1곳, 그 밖 3곳, 기관 7곳"
+  render.mixAriaLabelCard = function (name, info) {
+    const parts = [name, render.MIX_NAME[info.band] || render.MIX_NAME.none];
+    logic.subCardLines(info).forEach(function (ln) { parts.push(ln.label + ' ' + ln.n + '곳'); });
+    parts.push('기관 ' + info.total + '곳');
+    return parts.join(', ');
+  };
 
   // 지역 툴팁 문안(마우스 올림·포커스). 규격 §6. 클릭 동작과는 무관하다.
   render.tipHtml = function (name, info, today) {
@@ -553,7 +577,7 @@
     // 전체 재렌더 대신 투명도만 갱신 — 재렌더하면 선택 중이던 강조가 사라진다.
     d3.select('#map-svg').selectAll('path.subregion').attr('fill-opacity', render.muniDimOpacity());
     d3.select('#map-svg').selectAll('g.sub-glyph').attr('opacity', render.muniDimOpacity());
-    d3.select('#map-svg').selectAll('text.sub-urgent').attr('opacity', render.muniDimOpacity());
+    d3.select('#map-svg').selectAll('g.sub-card-layer').attr('opacity', render.muniDimOpacity());
   };
 
   render.drawRegion = function (code) {
@@ -563,16 +587,26 @@
     var rp0 = document.getElementById('rank-panel'); if (rp0) rp0.style.display = 'block';
     // 드릴인 중에는 도킹된 경과 패널을 접어(덮개 서랍으로) 랭킹 패널과 3열이 되지 않게 한다.
     if (root.overdue && root.overdue.syncLayout) root.overdue.syncLayout();
+    render._legendFor('drill');   // 범례 높이가 지도 높이를 정하므로 폭·높이를 재기 전에 드릴인용으로 바꾼다
     const svg = d3.select('#map-svg'); svg.selectAll('*').remove();
+    // 드릴인에는 줌·팬이 없다 — 전국 지도의 d3.zoom이 남으면 휠·드래그가 지워진 전국 g의 숨은 상태만 바꾼다(design 11-24 이관 1).
+    // drawNational이 svg.call(render._zoom)으로 다시 건다.
+    svg.on('.zoom', null);
     const node = svg.node(); const w = node.clientWidth || 900, h = node.clientHeight || 600;
     const fc = (render.REGION_GEO[code] || function(){ return {type:'FeatureCollection',features:[]}; })();
-    const proj = d3.geoMercator().fitSize([w, h], fc);
-    const path = d3.geoPath(proj);
     render.state.currentRegion = code;
-    const g = svg.append('g').attr('class', 'region-layer');
-    render.hideRegionTip();
     const subMix = {};
     fc.features.forEach(function (d) { subMix[d.properties.code] = render.featureMixInfo(d); });
+    // 지시선 카드: 카드를 달 면이 있고 판 폭이 넉넉(여백 열 2개 + 지도 240px)할 때만 좌우 여백 열(G)을 만든다.
+    // 좁거나 카드 대상이 없으면 예전처럼 판 전체에 맞춘다.
+    const S = logic.SUBCARD;
+    const withCards = w >= 2 * S.G + 240 && fc.features.some(function (d) { return logic.subCardEligible(subMix[d.properties.code]); });
+    const proj = withCards
+      ? d3.geoMercator().fitExtent([[S.G, S.TOP_R], [w - S.G, h - S.BOT]], fc)
+      : d3.geoMercator().fitSize([w, h], fc);
+    const path = d3.geoPath(proj);
+    const g = svg.append('g').attr('class', 'region-layer');
+    render.hideRegionTip();
     const subPaths = g.selectAll('path.subregion').data(fc.features).join('path')
       .attr('class', 'subregion').attr('d', path)
       .attr('data-code', function (d){ return d.properties.code; })  // 선택 강조 대상 조회용
@@ -580,7 +614,7 @@
       // 기관이 걸린 면만 Tab으로 닿고 Enter로 고른다(클릭과 같은 동작).
       .attr('tabindex', function (d) { return subMix[d.properties.code].total ? 0 : null; })
       .attr('role', function (d) { return subMix[d.properties.code].total ? 'button' : null; })
-      .attr('aria-label', function (d) { return render.mixAriaLabel(d.properties.name, subMix[d.properties.code]); })
+      .attr('aria-label', function (d) { return render.mixAriaLabelCard(d.properties.name, subMix[d.properties.code]); })
       .attr('fill-opacity', render.muniDimOpacity())
       .attr('stroke', '#6d7882').attr('stroke-width', 1)
       // 지자체는 좌표가 없어 마커가 그려지지 않으므로(_blinkMunicipality 주석 참조)
@@ -595,14 +629,7 @@
       function (ev, d) { render.onSubregionClick(d, ev); });
     // 선택·포커스 덮개 층 — 면 위, ▲n·글리프·마커 아래.
     g.append('g').attr('class', 'sel-ring-layer').attr('pointer-events', 'none');
-    // ▲n — 6개월 안 기관이 있는 면에만. 시군구에는 이름 라벨이 없어 ▲n만 면 가운데에 둔다.
-    g.selectAll('text.label.sub-urgent')
-      .data(fc.features.filter(function (d) { return logic.urgentMark(subMix[d.properties.code]) !== ''; }))
-      .join('text').attr('class', 'label sub-urgent').attr('text-anchor', 'middle')
-      .attr('pointer-events', 'none').attr('opacity', render.muniDimOpacity())
-      .attr('transform', function (d) { const p = path.centroid(d); return 'translate(' + p[0] + ',' + p[1] + ')'; })
-      .append('tspan').attr('class', 'tri').attr('dy', '0.35em')
-      .text(function (d) { return logic.urgentMark(subMix[d.properties.code]); });
+    // 드릴인에는 ▲n 라벨이 없다 — 분류별 곳 수는 좌우 여백 열의 지시선 카드(_drawSubCards, 마커 층 뒤)가 글로 말한다(사용자·design 11-24).
     // 날짜 미상 면 글리프 — 마커·랭킹 카드의 recordGlyph('⚠️')와 같은 시각 언어를 면에도 확장.
     // 레코드가 아예 없는 면은 대상이 아니다(표시할 기관 자체가 없으므로 회색만 유지).
     // 이모지 대신 필터 글리프(.fsw)와 같은 획 어휘의 삼각 경고를 직접 그린다(마감 리뷰 반영).
@@ -624,6 +651,7 @@
     gw.append('circle').attr('cx', 0).attr('cy', 2.1).attr('r', 0.7).attr('fill', '#1e2124');
     render._regionProjection = proj; render._regionPath = path; render._regionG = g;
     if (render.drawMarkers) render.drawMarkers(code); // Task 9
+    if (withCards) render._drawSubCards(svg, fc, path, subMix, w, h);   // 층 순서: 면 → 링 → 마커 → 지시선·점 → 카드
     render.drawRankingPanel(code);
     render.clearSelection();
     // 키보드(Enter·Space)로 들어왔으면 포커스를 새 화면의 첫 면으로 — 눌렀던 면은 이미 사라졌다.
@@ -632,6 +660,82 @@
       const first = document.querySelector('#map-svg path.subregion[tabindex]');
       if (first && first.focus) first.focus();
     }
+  };
+
+  // ── 시군구 지시선 카드 그리기(design-reviewer 2026-11-24_1544). 배치 계산은 logic.layoutSubCards(순수). ──
+  // 카드는 aria-hidden·tabindex 없음(같은 내용은 면의 aria-label, Tab은 면이 받는다). 클릭은 면과 같은 onSubregionClick.
+  render._drawSubCards = function (svg, fc, path, subMix, w, h) {
+    const byCode = {}, items = [];
+    fc.features.forEach(function (d) {
+      byCode[d.properties.code] = d;
+      const info = subMix[d.properties.code];
+      if (!logic.subCardEligible(info)) return;
+      const p = path.centroid(d);
+      items.push({ code: d.properties.code, ax: p[0], ay: p[1], lines: logic.subCardLines(info).length,
+        pri: [info.notice, info.overdue, info.within6, info.to12] });
+    });
+    const lay = logic.layoutSubCards(items, w, h);
+    const layer = svg.append('g').attr('class', 'sub-card-layer').attr('opacity', render.muniDimOpacity());
+    const leaders = layer.append('g').attr('class', 'sc-leaders');   // 선·점을 먼저 깔고 카드가 그 위에
+    const cards = layer.append('g').attr('class', 'sc-cards');
+    const NAME_MAX = logic.SUBCARD.W - 9 - 6;
+    lay.items.forEach(function (it) {
+      const d = byCode[it.code], info = subMix[it.code];
+      const pd = 'M' + it.pts.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join('L');
+      const lg = leaders.append('g').attr('class', 'sub-leader').attr('data-code', it.code);
+      lg.append('path').attr('class', 'sl-under').attr('d', pd);    // 흰 3px 아래 + 잉크 1px 위(무채색 두 겹)
+      lg.append('path').attr('class', 'sl-over').attr('d', pd);
+      if (info.band !== 'gray') lg.append('circle').attr('class', 'sl-dot').attr('cx', it.ax).attr('cy', it.ay).attr('r', 2.5);   // 회색 면은 같은 자리의 ⚠ 글리프를 덮지 않게 점을 뺀다(qa 11-24 P3-3)
+      const cg = cards.append('g').attr('class', 'sub-card').attr('data-code', it.code).attr('aria-hidden', 'true')
+        .attr('transform', 'translate(' + it.x + ',' + it.y + ')')
+        .on('mouseenter', function () { render._cardHover(it.code, true); })
+        .on('mouseleave', function () { render._cardHover(it.code, false); })
+        .on('click', function (ev) { render.onSubregionClick(d, ev); });
+      cg.append('rect').attr('class', 'sc-box').attr('width', it.w).attr('height', it.h).attr('rx', 2);
+      cg.append('rect').attr('class', 'sc-band').attr('width', 3).attr('height', it.h).attr('fill', render.mixColor(info));
+      const nm = cg.append('text').attr('class', 'sc-name').attr('x', 9).attr('y', 15).text(d.properties.name);
+      try {   // 긴 이름(예: 창원시 마산합포구)은 카드 안에 맞춘다
+        const n = nm.node();
+        if (n && n.getComputedTextLength && n.getComputedTextLength() > NAME_MAX) {
+          n.setAttribute('textLength', NAME_MAX); n.setAttribute('lengthAdjust', 'spacingAndGlyphs');
+        }
+      } catch (e) { /* 측정 못 하면 그대로 */ }
+      logic.subCardLines(info).forEach(function (ln, i) {
+        const y = 30 + 15 * i, cls = (ln.muted ? ' muted' : '') + (ln.strong ? ' strong' : '');
+        cg.append('text').attr('class', 'sc-k' + cls).attr('x', 9).attr('y', y).text(ln.label);
+        cg.append('text').attr('class', 'sc-n' + cls).attr('x', 114).attr('y', y).attr('text-anchor', 'end').text(ln.n + '곳');
+      });
+    });
+    // 카드 자리가 모자라 뺀 면 수 — 열 맨 아래 안내(면은 올리면 툴팁이 뜬다)
+    ['left', 'right'].forEach(function (side) {
+      const n = lay.notes[side]; if (!n) return;
+      const t = cards.append('text').attr('class', 'sc-note').attr('x', n.x + 2).attr('y', n.y + 11);
+      ['카드 밖 면 ' + n.count + '개', '마우스를 올리면', '보입니다'].forEach(function (s, i) {
+        t.append('tspan').attr('x', n.x + 2).attr('dy', i ? 15 : 0).text(s);
+      });
+    });
+    // 면 ↔ 카드 서로 강조(마우스·키보드 포커스). 툴팁(bindRegionTip)과 이벤트 이름이 달라(.card) 서로 덮지 않는다.
+    const has = {}; lay.items.forEach(function (it) { has[it.code] = true; });
+    svg.selectAll('path.subregion').filter(function (d) { return has[d.properties.code]; })
+      .on('mouseenter.card', function (ev, d) { render._cardHover(d.properties.code, true); })
+      .on('mouseleave.card', function (ev, d) { render._cardHover(d.properties.code, false); })
+      .on('focus.card', function (ev, d) {
+        let vis = true; try { vis = this.matches(':focus-visible'); } catch (e) { vis = true; }
+        if (vis) render._cardHover(d.properties.code, true);
+      })
+      .on('blur.card', function (ev, d) { render._cardHover(d.properties.code, false); });
+  };
+  render._cardHover = function (code, on) {
+    d3.select('#map-svg').selectAll('g.sub-card, g.sub-leader, path.subregion')
+      .filter(function () { return this.getAttribute('data-code') === code; })
+      .classed('hl', !!on);
+  };
+  // 선택된 면(.selected)의 카드에 .selected를 맞춘다 — 선택 = 포인트색 2px. 해제는 clearSelection.
+  render._cardSelect = function () {
+    if (typeof d3 === 'undefined') return;
+    const svg = d3.select('#map-svg'), codes = [];
+    svg.selectAll('path.subregion.selected').each(function () { codes.push(this.getAttribute('data-code')); });
+    svg.selectAll('g.sub-card').classed('selected', function () { return codes.indexOf(this.getAttribute('data-code')) >= 0; });
   };
 
   render.loadRegionGeoWithRetry = function (code, done, fail) {
@@ -930,6 +1034,7 @@
     svg.selectAll('g.ripple-layer').remove();
     svg.selectAll('path.subregion.selected, path.region.selected').classed('selected', false);
     svg.selectAll('g.sel-ring-layer path.ring-sel').remove();
+    svg.selectAll('g.sub-card.selected').classed('selected', false);   // 시군구 카드 선택 표시도 함께 푼다
     document.querySelectorAll('.rank-card .rank-noloc').forEach(function (n) { n.remove(); });
   };
 
@@ -989,6 +1094,7 @@
       .filter(function () { return codes.indexOf(this.getAttribute('data-code')) >= 0; })
       .classed('selected', true);
     render._ringSelect(sel);
+    render._cardSelect();
     return true;
   };
   // 전국 지도: 비지자체 기관의 시도 면(path.region, data-code = 시도 코드)을 반짝. 면이 없으면 false.
@@ -1035,6 +1141,7 @@
     // 외곽선은 raise()하지 않고 덮개 층에 그려 이웃 면이 반쪽을 덮지 않는다.
     sel.classed('selected', true);
     render._ringSelect(sel);
+    render._cardSelect();
   };
 
   render._drawRipple = function (name) {

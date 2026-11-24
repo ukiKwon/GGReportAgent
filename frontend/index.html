@@ -931,7 +931,9 @@
   .label .sub.notice { font-weight:700; fill:inherit; }
   /* ▲n(6개월 안 기관 수) — 라벨과 같은 잉크·후광. 숫자는 mono */
   .label .tri { font-family:var(--mono); font-size:11px; font-weight:700; stroke-width:2.5px; }
-  .region:focus-visible, .subregion:focus-visible { outline:none; }   /* 포커스 표시는 덮개 층(.ring-focus)이 그린다 */
+  /* 포커스 표시는 덮개 층(.ring-focus, 키보드일 때만)이 그린다. :focus까지 끈다 — 마우스로 면을 누르면 브라우저 기본 외곽선이
+     면의 경계 상자(검은 사각형)로 잠깐 그려졌다가 드릴인으로 사라졌다(사용자 11-24). */
+  .region:focus, .subregion:focus, .region:focus-visible, .subregion:focus-visible, #map-svg:focus { outline:none; }
   #region-tip { display:none; position:fixed; z-index:21; pointer-events:none; max-width:280px;
                 background:var(--panel);
                 border:1px solid var(--line-strong); border-radius:var(--r); padding:10px 12px;
@@ -966,6 +968,30 @@
   .marker.hi > * { stroke:#fff; stroke-width:2.5; }
   .marker.hi { filter:drop-shadow(0 0 1px var(--fg)) drop-shadow(0 0 1px var(--fg)); }
   g.ripple-layer { filter:drop-shadow(0 0 1px #fff); }
+
+  /* 시군구 지시선 카드 시작 */
+  /* 시군구 드릴인 지시선 카드(사용자 11-24, design-reviewer 2026-11-24_1544) — 좌우 여백 열의 카드(폭 120, 12px 글) + 꺾은 지시선.
+     토큰만 쓴다(흰색 #fff는 지시선 아래 겹·점 테두리 전용 — 어떤 면 색 위에서도 무채색 두 겹이 3:1 이상). 움직임 없음. */
+  g.sub-card-layer { pointer-events:none; }
+  .sub-leader path { fill:none; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
+  .sub-leader .sl-under { stroke:#fff; stroke-width:3; }
+  .sub-leader .sl-over { stroke:var(--fg); stroke-width:1; }
+  .sub-leader .sl-dot { fill:var(--fg); stroke:#fff; stroke-width:1.5; pointer-events:none; }
+  .sub-leader.hl .sl-over { stroke-width:1.5; }
+  .sub-card { cursor:pointer; pointer-events:all; }
+  .sub-card .sc-box { fill:var(--panel); stroke:var(--line-strong); stroke-width:1; }
+  .sub-card text { font-size:12px; fill:var(--fg); pointer-events:none; }
+  .sub-card .sc-name { font-weight:700; }
+  .sub-card .sc-n { font-family:var(--mono); font-weight:700; }
+  .sub-card .strong { font-weight:700; }
+  .sub-card .muted { fill:var(--muted); }
+  .sub-card.hl .sc-box { stroke:var(--fg); stroke-width:1.5; }
+  .sub-card.selected .sc-box { stroke:var(--accent-color); stroke-width:2; }
+  .sc-note { font-size:12px; fill:var(--muted); pointer-events:none; }
+  path.subregion.hl { stroke:var(--fg); stroke-width:2; }
+  #legend .lg-card { display:inline-block; width:16px; height:10px; box-sizing:border-box; background:var(--panel);
+                     border:1px solid var(--line-strong); border-left:3px solid var(--fg); border-radius:var(--r); }
+  /* 시군구 지시선 카드 끝 */
 
   /* 범례 — 판 하단 도킹 띠(지도 그림 영역 밖). 떠 있는 글래스 상자가 남동쪽 면(서초·강남 등)을 덮던 문제(11-16) */
   #legend { position:static; flex:none; z-index:auto;
