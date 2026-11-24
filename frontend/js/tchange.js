@@ -206,7 +206,9 @@
   const ITEM_MSG = {
     pending: '방금 다른 결재 요청에 들어가 잠겼습니다. 이 기관을 목록에서 제외하고 다시 올려 주세요.',
     stale: '다른 사람이 먼저 고쳤습니다. 최신 기록으로 다시 읽었으니 이전·이후를 확인하고 다시 올려 주세요.',
-    cancelled: '이미 목표에서 빠진 기관입니다. 목록에서 제외해 주세요.' };
+    cancelled: '이미 목표에서 빠진 기관입니다. 목록에서 제외해 주세요.',
+    notOwner: '다른 사람의 관심 기관은 바꿀 수 없습니다. 내 관심 기관만 올릴 수 있으니 목록에서 제외해 주세요.',   // 403 NOT_WATCH_OWNER(관심은 사람별, NEXT 117)
+    alreadyWatch: '이미 내 관심 기관에 들어 있습니다. 목록에서 제외해 주세요.' };   // 409 ALREADY_WATCH(목표→관심 결재를 올릴 때)
   function fallback(s) { return '올리지 못했습니다(오류 ' + s + '). 다시 시도하세요.'; }
   // x = { status, body } → { kind:'item'|'field'|'top', top, item:{uid,f,msg}|null, msg, refresh }
   tc.errorOf = function (x, items) {
@@ -226,6 +228,8 @@
       if (s === 409 && code === 'CHANGE_PENDING') { m = ITEM_MSG.pending; e.refresh = true; }
       else if (s === 409 && code === 'STALE') { m = ITEM_MSG.stale; e.refresh = true; }
       else if (s === 409 && code === 'ALREADY_CANCELLED') m = ITEM_MSG.cancelled;
+      else if (s === 409 && code === 'ALREADY_WATCH') m = ITEM_MSG.alreadyWatch;
+      else if (s === 403 && code === 'NOT_WATCH_OWNER') { m = ITEM_MSG.notOwner; e.refresh = true; }
       else if (s === 422) { f = 'text'; m = msg || '개인정보로 보이는 내용이 있습니다.'; }
       else if (s === 404) m = msg || '기관을 찾지 못했습니다.';
       else if (s === 400) m = msg || '입력한 내용을 확인하세요.';
@@ -234,6 +238,7 @@
       return e;
     }
     if (s === 422) { e.kind = 'field'; e.msg = msg || '개인정보로 보이는 내용이 있습니다.'; return e; }   // 사유 칸 아래에
+    if (s === 403 && code === 'NOT_WATCH_OWNER') { e.top = ITEM_MSG.notOwner; e.refresh = true; return e; }   // 항목 번호가 없는 응답도 '영업부서만' 문장으로 오해되지 않게
     e.top = msg || (s === 400 ? '입력한 내용을 확인하세요.' : (s === 403 ? '목표 기관 변경은 영업부서만 올릴 수 있습니다.' : fallback(s)));
     return e;
   };

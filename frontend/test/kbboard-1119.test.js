@@ -66,7 +66,7 @@ test('B. 표 caption: 목표 수와 그 밖의 준비 수를 나눠 말하고 \'
   assert.strictEqual(t({ rows: g, out: [], total: 4, nGoal: 3, nOut: 1 }), '2026 목표 기관 3곳과 그 밖의 제안서 준비 중인 기관 1곳, 4곳 중 1곳 보임, 마감까지 오름차순');   // 거른 뒤에도 거르기 전 수
   assert.strictEqual(t({ rows: g, out: o, sort: null }), '2026 목표 기관 1곳과 그 밖의 제안서 준비 중인 기관 1곳, 마감 가까운 순');
   assert.strictEqual(t({ rows: g, out: [], sort: null }), '2026 목표 기관 1곳, 마감 가까운 순');
-  assert.strictEqual(t({ tab: 'watch', rows: g, out: [], total: 1, nGoal: 1, nOut: 1, sort: { key: 'next', dir: 'asc' } }), '관심 기관 1곳 중 1곳 보임, 다음 협약 종료 오름차순');   // 관심 탭은 목표 밖 말 없음
+  assert.strictEqual(t({ tab: 'watch', rows: g, out: [], total: 1, nGoal: 1, nOut: 1, sort: { key: 'next', dir: 'asc' } }), '내 관심 기관 1곳 중 1곳 보임, 다음 협약 종료 오름차순');   // 관심 탭은 목표 밖 말 없음
   assert.ok(kbb.cntHtml(2, 2).indexOf('<b>2</b> / <b>2</b>곳') > 0);                                                       // 보이는 건수는 그대로
 });
 
@@ -128,7 +128,10 @@ test('F. 팝업 canAdd: 목표·관심 칩, 권한 없음, 다음 협약, 2년 �
   const r = rec('I1', '가'), it = { key: '11|가', name: '가', region: '11', endDate: '2026-12-31', rec: r };
   const o = { mark: '', can: true, isNext: false, verified: [], closedIds: {}, years: [2026, 2027, 2028] };
   assert.strictEqual(kbb.popCanAdd(it, o), true);
-  assert.strictEqual(kbb.popCanAdd(it, Object.assign({}, o, { mark: '관심' })), false);
+  assert.strictEqual(kbb.popCanAdd(it, Object.assign({}, o, { mark: '관심' })), false);   // 옛 호출: 칩이 있으면 숨김
+  // P2-1: 팀 목표와 내 관심은 따로 움직인다 — [목표에 넣기]는 팀 목표에 이미 있을 때만 숨고, 내 관심 칩만 붙은 줄에는 보인다
+  assert.strictEqual(kbb.popCanAdd(it, Object.assign({}, o, { mark: '내 관심', inGoal: false, inWatch: true })), true);
+  assert.strictEqual(kbb.popCanAdd(it, Object.assign({}, o, { mark: '2026 목표', inGoal: true })), false);
   assert.strictEqual(kbb.popCanAdd(it, Object.assign({}, o, { can: false })), false);
   assert.strictEqual(kbb.popCanAdd(it, Object.assign({}, o, { isNext: true })), false);
   assert.strictEqual(kbb.popCanAdd(Object.assign({}, it, { endDate: '2031-01-01' }), o), false);
@@ -176,7 +179,10 @@ test('G. 4-1·4-2 국민은행 확정 칩: CI 변수 대비 자동 시험, popCa
   const o = { mark: '', can: true, verified: stay, noWatch: false };
   assert.strictEqual(kbb.popCanWatch(it, o), true);
   assert.strictEqual(kbb.popCanWatch(it, Object.assign({}, o, { mark: '관심' })), false);
-  assert.strictEqual(kbb.popCanWatch(it, Object.assign({}, o, { mark: '2026 목표' })), false);
+  assert.strictEqual(kbb.popCanWatch(it, Object.assign({}, o, { mark: '2026 목표' })), false);   // 옛 호출: 칩이 있으면 숨김
+  // P2-1: [관심에 넣기]는 내 관심에 이미 있을 때만 숨고, 팀 목표 칩만 붙은 줄에는 보인다
+  assert.strictEqual(kbb.popCanWatch(it, Object.assign({}, o, { mark: '2026 목표', inGoal: true, inWatch: false })), true);
+  assert.strictEqual(kbb.popCanWatch(it, Object.assign({}, o, { mark: '내 관심', inWatch: true })), false);
   assert.strictEqual(kbb.popCanWatch(it, Object.assign({}, o, { can: false })), false);       // 읽기 전용
   assert.strictEqual(kbb.popCanWatch(it, Object.assign({}, o, { verified: [] })), false);     // 확정 줄이 아님
   assert.strictEqual(kbb.popCanWatch(it, Object.assign({}, o, { noWatch: true })), false);    // 옛 서버
@@ -205,7 +211,7 @@ test('H. 4-4 결과 알림: 띠 아래 순서·상태 영역 밖 버튼·옮긴 
   assert.ok(/function flash\(msg, act\) \{\s*const n = \$\('hb-note'\); if \(n\) n\.hidden = !msg;[\s\S]*?textContent = msg \|\| ''/.test(k));   // hidden 먼저, 글은 그 뒤(P3-3)
   assert.ok(/kbb\.unmount = function \(\) \{[\s\S]*?gs\.just = null; gs\.focusNext = null; gs\.seeInst = '';/.test(k));   // P3-2
   assert.ok(/kbb\.onProfileChange = function \(\) \{[\s\S]*?gs\.just = null; gs\.seeInst = '';[\s\S]*?dash\.clearGoals\(\)/.test(k) && /kbb\.onProfileChange = function \(\) \{[\s\S]*?gs\.focusNext = null;/.test(k));
-  assert.strictEqual(kbb.seeWatchHtml(), '<button type="button" class="hb-tag" id="hb-see-watch" data-see="watch">관심 탭에서 보기</button>');
+  assert.strictEqual(kbb.seeWatchHtml(), '<button type="button" class="hb-tag" id="hb-see-watch" data-see="watch">내 관심 탭에서 보기</button>');
   assert.ok(/function flash\(msg, act\) \{[\s\S]*?\$\('hb-flash-act'\)[\s\S]*?msg && act === 'watch' \? kbb\.seeWatchHtml\(\) : ''/.test(k));
   assert.ok(/gs\.focusNext = \{ inst: r\.id, reveal: true \};\s*if \(toWatch && !noWatchNow\(\)\) \{ gs\.focusNext = \{ note: true \}; gs\.just = \{ tab: 'watch' \}; gs\.seeInst = r\.id; \}/.test(k));   // 목표→관심: 탭은 그대로
   assert.ok(/say\(kbb\.flashMoved\(r\.name, toWatch \? 'WATCH' : 'GOAL', m\.year\)[^\n]*, false, toWatch && !noWatchNow\(\) \? 'watch' : ''\)/.test(k));

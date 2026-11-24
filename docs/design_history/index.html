@@ -159,6 +159,7 @@
   <a href="#c103">103 지역별 공고현황 — 시군구 ▲n 기호를 지시선 카드(입찰 시기별 건수)로</a>
   <a href="#c104">104 입찰 현황판 1차 수정 — 사유 칸 폭, 추천받기 6묶음, [목표 기관 추가] 강조, 고른 기관 띠</a>
   <a href="#c105">105 입찰 현황판 결재 줄이기 — 구분·메모는 결재 없이 바로, 고른 기관 띠는 결재 묶음 전용</a>
+  <a href="#c106">106 입찰 현황판 '내 관심 기관' — 관심 기관은 사람마다 따로(내 것만 보임, 빼기는 사유 없이)</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2158,6 +2159,22 @@
   <p style="font-size:12px"><b>띠</b>: <code>고른 목표 기관 n곳 · 선택 지우기 ……… [수정하기…] 영업팀장이 결재합니다. [빼기·옮기기 결재 요청…]</code> — 단위 '곳', 화면 밖에 고른 줄이 있으면 '· 이 화면 밖 k곳'. [수정하기…] = 구분·메모 한꺼번에 수정(사유 칸 없음, 결재 없음).</p>
   <p style="font-size:12px"><b>막는 것</b>: 결재 중인 기관은 구분·메모도 잠금(지금처럼). 지난해 목표는 구분·메모를 고칠 수 없음(메뉴에서 숨김) — 지난해 실적 구분이 사후에 바뀌지 않게.</p>
   <p class="legend-note">새 색·변수·opacity 0개(.hb-selbar 안 CSS 5줄). 실화면 1280px 측정은 8080 재기동 뒤. 근거: handoff/agents/design-reviewer 2026-11-24 a59fddd3, backend-dev ac828e7d, security af804b6c, qa ab34d928, mvn 2501/2501, node --test 1994/1995(실패 1 = kind-queue 기존 건).</p>
+</div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c106">
+<h2>106 입찰 현황판 '내 관심 기관' — 관심 기관은 사람마다 따로, 팀이 함께 보는 것은 목표 기관 (2026-11-25, 사용자 결정, NEXT 117 서버 ab4baae4 뒤 화면)</h2>
+<div class="why">왜: 사용자 11-24·25 — 관심 기관은 개인별(지도 ♥ = 내 관심), 팀이 같이 관리하는 것은 목표 기관(팀장 결재).</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+  <p class="hint12">탭 '관심 기관' — 팀 전체가 넣은 관심이 한 목록. 관심 빼기도 목표 빼기처럼 사유 필수 창. 팀 목표에 있는 기관은 관심에 못 넣고(ALREADY_GOAL), 협약 팝업은 한쪽에 들어가 있으면 다른 쪽 넣기 단추도 숨김.</p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <p style="font-size:12px"><b>탭 '내 관심 기관'</b>: 내가 넣은 기관만. 빼기는 사유 없이 확인 한 번(첫 포커스 [취소]). 남의 관심·결재 중 기관은 이유를 알리는 문구.</p>
+  <p style="font-size:12px"><b>목표와 내 관심은 따로</b>: 같은 기관이 팀 목표이면서 내 관심일 수 있음 — 협약 팝업 칩 '2026 목표 · 내 관심', 넣기 단추는 '자기 쪽'에 이미 있을 때만 숨김. '이미 있음' 판정은 넣을 곳 기준 하나(검색·추천 같음).</p>
+  <p style="font-size:12px"><b>용어</b>: 창·메뉴·알림 '관심 기관' → '내 관심'. 기관 자료에 없는 기관(비지자체)도 서버 이름으로 줄 표시.</p>
+  <p class="legend-note">새 색·CSS 0. 근거: frontend-dev a51e7e61·a6c1aa49, qa a79fb1e8(조건부 통과 → P2·P3 반영), node --test 현황판 시험 통과(실패는 kind-queue 기존 1 + 지도 세션 미커밋 3).</p>
 </div></div></div>
 </div>
 </section>

@@ -233,6 +233,14 @@ test('오류 문장 표(5-2): 항목 오류는 항목 상자 문장 + 위 한 �
   assert.strictEqual(tc.errorOf(null, items).top, '서버에 연결되지 않아 올리지 못했습니다. 연결을 확인하고 다시 누르세요.');
   assert.strictEqual(err(401).top, '로그인이 필요합니다. 다시 로그인하세요.');
   assert.strictEqual(err(500).top, '올리지 못했습니다(오류 500). 다시 시도하세요.');
+  // 관심은 사람별(NEXT 117): 남의 관심 403 NOT_WATCH_OWNER·내 관심 중복 409 ALREADY_WATCH
+  const o1 = err(403, { code: 'NOT_WATCH_OWNER', message: '다른 사람의 관심 기관은 바꿀 수 없습니다.', item_no: 2 });
+  assert.strictEqual(o1.kind, 'item'); assert.strictEqual(o1.top, '2번째 수원시를 확인하세요.'); assert.strictEqual(o1.refresh, true);
+  assert.strictEqual(o1.item.msg, '다른 사람의 관심 기관은 바꿀 수 없습니다. 내 관심 기관만 올릴 수 있으니 목록에서 제외해 주세요.');
+  const o2 = err(403, { code: 'NOT_WATCH_OWNER', message: '다른 사람의 관심 기관은 바꿀 수 없습니다.' });   // 항목 번호 없음 → '영업부서만' 문장이 아니다
+  assert.strictEqual(o2.kind, 'top'); assert.strictEqual(o2.refresh, true); assert.ok(o2.top.indexOf('다른 사람의 관심 기관은 바꿀 수 없습니다.') === 0 && o2.top.indexOf('영업부서') < 0);
+  const o3 = err(409, { code: 'ALREADY_WATCH', message: '이미 관심 기관입니다.', item_no: 1 });
+  assert.strictEqual(o3.item.msg, '이미 내 관심 기관에 들어 있습니다. 목록에서 제외해 주세요.'); assert.strictEqual(o3.refresh, false);
 });
 
 test('결과 문장: 결재 요청(잠김 안내)·바로 반영, 응답의 mode를 따른다', function () {
@@ -503,7 +511,7 @@ test('현황판: 상태 거르기 9개(결재 중·자동 이월)·관심 자동
   assert.ok(m.indexOf('<div class="hb-menu" role="menu" aria-label="목표 기관 동작">') === 0);
   assert.ok(m.indexOf('<div class="mh">달성 판정일 2027-01-01(추정)</div>') > m.indexOf('자동 제안'));
   assert.ok(m.indexOf('data-cmd="term" tabindex="-1">협약 개시일 적기…</button>') < m.indexOf('data-cmd="towatch"'));   // 바로 반영 항목(협약 개시일)이 옮기기·빼기보다 앞(NEXT 114)
-  assert.ok(kbb.menuHtml(r, { tags: tags, def: {}, canCancel: true }).indexOf('aria-label="목표 기관 동작"') > 0);   // 메뉴 이름은 늘 '목표 기관 동작'
+  assert.ok(kbb.menuHtml(r, { tags: tags, def: {}, canCancel: true }).indexOf('aria-label="목표 기관 동작"') > 0);   // 목표 줄 메뉴 이름은 '목표 기관 동작'(관심 줄은 '내 관심 기관 동작', kbboard-c54 시험)
   assert.ok(kbb.menuHtml(r, { tags: tags, def: {}, canCancel: true }).indexOf('data-cmd="term"') < 0);
 });
 
@@ -542,7 +550,7 @@ test('현황판 소스 배선: 한 줄 동작은 결재 모드에서 일괄 창�
   assert.ok(k.indexOf("if (isApproval()) openChange(moveChange(r, cmd, btn)); else openMove(cmd, r, btn);") > 0);
   assert.ok(k.indexOf("if (r && isApproval()) openChange(moveChange(r, act, btn)); else if (r) openMove(act, r, btn);") > 0);
   assert.ok(k.indexOf("if (!watch && isApproval()) { addToChange(d, eff); return; }") > 0);
-  assert.ok(k.indexOf("go.textContent = tc.addGoText('APPROVAL')") > 0 && k.indexOf("go.textContent = m.busy ? '저장 중…' : (watch ? '관심 기관에 넣기' : '목표에 넣기')") > 0);   // 기존 줄은 그대로
+  assert.ok(k.indexOf("go.textContent = tc.addGoText('APPROVAL')") > 0 && k.indexOf("go.textContent = m.busy ? '저장 중…' : (watch ? '내 관심에 넣기' : '목표에 넣기')") > 0);   // 기존 줄은 그대로
   assert.ok(/role="tabpanel"><\/div>' \+ tc\.selbarHtml\(\) \+ '<div class="hb-tf" id="hb-tf"><\/div><\/div>'/.test(k));
   assert.ok(k.indexOf("if (t.id === 'hb-pickall' || (t.getAttribute && t.getAttribute('data-pick') !== null)) { onPick(t); return; }") > 0);
   assert.ok(k.indexOf("if (btn.classList.contains('hb-pend')) {") > 0 && k.indexOf("case 'hb-selgo': openChange({ opener: btn }); break;") > 0);
@@ -611,11 +619,11 @@ test('NEXT 114 메뉴: 구분 → 메모·협약 개시일(바로) → 결재 �
   assert.ok(m.indexOf('aria-label="목표 기관 동작"') > 0);
   assert.ok(at('data-tag="NEW"') < at('data-cmd="memo"') && at('data-cmd="memo"') < at('data-cmd="term"') && at('data-cmd="term"') < at('<div class="mh">결재 필요</div>') && at('<div class="mh">결재 필요</div>') < at('data-cmd="towatch"') && at('data-cmd="towatch"') < at('data-cmd="tonext"') && at('data-cmd="tonext"') < at('data-cmd="cancel"'));
   assert.ok(m.indexOf('data-cmd="memo" tabindex="-1">메모 고치기…</button>') > 0);
-  assert.ok(m.indexOf('data-cmd="towatch" tabindex="-1" aria-label="관심 기관으로 옮기기 (결재 필요)">관심 기관으로…</button>') > 0);
+  assert.ok(m.indexOf('data-cmd="towatch" tabindex="-1" aria-label="내 관심으로 옮기기 (결재 필요)">내 관심으로…</button>') > 0);
   assert.ok(m.indexOf('data-cmd="cancel" tabindex="-1" aria-label="목표에서 빼기 (결재 필요)">목표에서 빼기…</button>') > 0);
   assert.ok(m.indexOf('data-cmd="memo" tabindex="-1" aria-label') < 0 && m.indexOf('data-cmd="term" tabindex="-1" aria-label') < 0);   // 바로 반영 항목에는 붙지 않는다
   const d = kbb.menuHtml(r, Object.assign({}, o, { approval: false }));
-  assert.ok(d.indexOf('결재 필요') < 0 && d.indexOf('data-cmd="towatch" tabindex="-1">관심 기관으로…</button>') > 0);
+  assert.ok(d.indexOf('결재 필요') < 0 && d.indexOf('data-cmd="towatch" tabindex="-1">내 관심으로…</button>') > 0);
   assert.ok(kbb.menuHtml(r, { tags: TAGS, def: {}, canCancel: true }).indexOf('data-cmd="memo"') < 0);   // canMemo 없으면 메모 항목 없음(옛 서버·결재 중)
   const k = src('js/kbboard.js');
   assert.ok(k.indexOf("if (cmd === 'memo') { closeMenu(false); openMemo(r, btn); return; }") > 0);

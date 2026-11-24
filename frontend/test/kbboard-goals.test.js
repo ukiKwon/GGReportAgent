@@ -611,7 +611,7 @@ test('DOM 코드 구조: 서버 글은 textContent·esc로, 쓰기는 영업부�
   // P3-8: 저장 중에는 Esc·[취소]를 막고 버튼 글을 '저장 중…'으로, 포커스는 대화창 상자에 두었다가 실패하면 되돌린다
   assert.ok(/if \(mm && mm\.busy\) \{ ev\.preventDefault\(\); return; \}/.test(k));
   assert.ok(/if \(b\.id === 'hb-a-cancel'\) \{ if \(!m\.busy\) closeDlg\(\); \}/.test(k) && /if \(b\.id === 'hb-c-cancel'\) \{ if \(!m\.busy\) closeDlg\(\); \}/.test(k));
-  assert.ok(k.indexOf("go.textContent = m.busy ? '저장 중…' : (watch ? '관심 기관에 넣기' : '목표에 넣기')") > 0 && k.indexOf("'관심에서 빼기' : '목표에서 빼기')") > 0);
+  assert.ok(k.indexOf("go.textContent = m.busy ? '저장 중…' : (watch ? '내 관심에 넣기' : '목표에 넣기')") > 0 && k.indexOf("'내 관심에서 빼기' : '목표에서 빼기')") > 0);
   assert.ok(k.indexOf("cb.disabled = !!m.busy") > 0 && k.indexOf('holdDlgFocus(d,') > 0 && k.indexOf('releaseDlgFocus(d);') > 0);
   // P2-1: 제안 진행 자료가 둘 다 403이면 기억해 두고 다시 부르지 않는다, 계정이 바뀌면 푼다
   assert.ok(/if \(prepDenied403\) \{[\s\S]*?return Promise\.resolve\(\);/.test(k) && /p\.code === 403 && o\.code === 403\) prepDenied403 = true;/.test(k) && /prepDenied403 = false;/.test(k));
