@@ -50,4 +50,29 @@ for (const row of list) {
   out.push(rec);
 }
 writeFileSync(path.join(OUT, 'heads.json'), JSON.stringify({ exported_at: new Date().toISOString(), base: BASE, heads: out }, null, 1));
-console.log(`기관장 ${out.length}명, 사진 ${photos}장, 실패 ${fail}건 → ${OUT}`);
+
+// 시작 연도가 없는 옛 학력·경력 줄(11-13~11-20 입력분)은 지금 API 규칙(시작 필수)으로 다시 넣을 수 없다 →
+// 받는 PC에서 import.mjs --go 다음에 mysql 로 한 번 실행하는 SQL 로 만든다(사용자 11-24 "옛줄도 똑같이 옮기고").
+// 그 기관의 현 기관장(STATUS_CD=CURRENT)에 확정(CONFIRMED) 줄로 넣고, 같은 값이 이미 있으면 넣지 않는다(여러 번 실행해도 안전).
+const q = (v) => (v == null || v === '' ? 'NULL' : "'" + String(v).replace(/\\/g, '\\\\').replace(/'/g, "''") + "'");
+const NOW = new Date(Date.now() + 9 * 3600e3).toISOString().replace('Z', '+09:00').replace(/\.\d+/, '');
+const sql = ['-- 기관장 옛 학력·경력 줄(시작 연도 없음) — export.mjs 가 만든 파일. 먼저 import.mjs --go 로 기관장을 넣은 뒤 실행한다.',
+  '-- 실행: mysql -u root -p --default-character-set=utf8mb4 ggreportdb < old-items.sql',
+  '-- API를 거치지 않아 입력 감사 기록은 남지 않는다(자료 이전용). 같은 값이 있으면 넣지 않으므로 다시 실행해도 안전하다.',
+  'SET NAMES utf8mb4;'];
+let old = 0;
+for (const rec of out) {
+  for (const it of rec.items) {
+    if (it.from) continue;
+    const s = it.src || {};
+    sql.push('INSERT INTO INST_HEAD_ITEM (HEAD_ID, INSTITUTION_ID, FIELD_CD, STATE_CD, ORIGIN_CD, VAL_TEXT, VAL_FROM, VAL_TO, SRC_KIND_CD, SRC_TITLE, SRC_URL, CHECKED_ON, CREATED_BY, CREATED_AT, CREATED_VERIFIED, DECIDED_BY, DECIDED_AT)'
+      + ' SELECT h.HEAD_ID, h.INSTITUTION_ID, ' + q(it.field) + ", 'CONFIRMED', 'MANUAL', " + q(it.value) + ', NULL, ' + q(it.to) + ', '
+      + q(s.kind || 'OTHER') + ', ' + q((s.title || '공개 자료').slice(0, 100)) + ', ' + q(s.url) + ', ' + q(s.checked_on || NOW.slice(0, 10)) + ', '
+      + q(EMP) + ', ' + q(NOW) + ', 0, ' + q(EMP) + ', ' + q(NOW)
+      + ' FROM INST_HEAD h WHERE h.INSTITUTION_ID = ' + q(rec.inst) + " AND h.STATUS_CD = 'CURRENT'"
+      + ' AND NOT EXISTS (SELECT 1 FROM INST_HEAD_ITEM i WHERE i.HEAD_ID = h.HEAD_ID AND i.FIELD_CD = ' + q(it.field) + " AND i.STATE_CD = 'CONFIRMED' AND i.VAL_TEXT = " + q(it.value) + ');');
+    old++;
+  }
+}
+writeFileSync(path.join(OUT, 'old-items.sql'), sql.join('\n') + '\n');
+console.log(`기관장 ${out.length}명, 사진 ${photos}장, 날짜 없는 옛 줄 ${old}줄(old-items.sql), 실패 ${fail}건 → ${OUT}`);

@@ -19,7 +19,7 @@ const TODAY = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);   //
 const src = (s) => { const o = Object.assign({ kind: 'OTHER', title: '공개 자료' }, s || {}); if (!o.checked_on || o.checked_on > TODAY) o.checked_on = TODAY; if (!o.url) delete o.url; return o; };
 
 const bundle = JSON.parse(readFileSync(path.join(DIR, 'heads.json'), 'utf8'));
-const log = { heads_new: 0, heads_same: 0, name_diff: [], no_inst: [], items: 0, dates: 0, photos: 0, skip: 0, fail: [] };
+const log = { heads_new: 0, heads_same: 0, name_diff: [], no_inst: [], items: 0, dates: 0, photos: 0, skip: 0, old_sql: 0, fail: [] };
 async function post(p, body, btn) {
   if (!GO) return { status: 0, json: {} };
   const r = await fetch(BASE + p, { method: 'POST', headers: H(btn, true), body: JSON.stringify(body) });
@@ -56,6 +56,7 @@ for (const rec of bundle.heads) {
   const have = new Set([].concat(h.education || [], h.career || []).map((i) => i.value));
   for (const it of rec.items || []) {
     if (have.has(it.value)) { log.skip++; continue; }
+    if (!it.from) { log.old_sql++; continue; }   // 시작 연도 없는 옛 줄 — API로 못 넣음, 묶음의 old-items.sql 로 넣는다
     const body = { head_id: headId, field_cd: it.field, value: it.value, from: it.from, source: src(it.src) };
     if (it.to) body.to = it.to;
     const r = await post(base + '/head/items', body, 'item_add');
@@ -75,7 +76,8 @@ for (const rec of bundle.heads) {
 }
 console.log((GO ? '' : '[시험 실행 — 아무것도 쓰지 않음. 실제로 넣으려면 --go] ') + JSON.stringify({
   묶음_기관장: bundle.heads.length, 새로_등록: log.heads_new, 이미_있음: log.heads_same, 날짜칸: log.dates, 학력경력: log.items, 사진: log.photos, 건너뜀: log.skip,
-  이름_다름: log.name_diff.length, 기관_없음: log.no_inst.length, 실패: log.fail.length }, null, 1));
+  옛줄_SQL로: log.old_sql, 이름_다름: log.name_diff.length, 기관_없음: log.no_inst.length, 실패: log.fail.length }, null, 1));
+if (log.old_sql) console.log('날짜 없는 옛 학력·경력 ' + log.old_sql + '줄은 --go 뒤에 mysql 로 넣는다: mysql -u root -p --default-character-set=utf8mb4 ggreportdb < "' + path.join(DIR, 'old-items.sql') + '"');
 if (log.name_diff.length) console.log('이름 다름(덮어쓰지 않음):', log.name_diff.slice(0, 20).join(', '));
 if (log.no_inst.length) console.log('그 PC에 없는 기관:', log.no_inst.slice(0, 20).join(', '));
 if (log.fail.length) console.log('실패:', log.fail.slice(0, 20).join(' | '));
