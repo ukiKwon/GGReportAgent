@@ -622,23 +622,19 @@
 - **다음 한 걸음**: 내보내기 이름 고쳐 node 시험 → 적용 → 연결 줄 요청(0d index.html CSS·script, fa prep.js T1 [양식 열기]) → qa → design 대조·design_history 장 → DESIGN.md --full 대상 추가 ∥ S3(fa PrepService.judgeFact → PrepFormService.isConfirmedIntact) → S4. ⑥ 디자인 검토 받는 사람은 NEXT 108(fa).
 - **자세히**: planner 11-19 a96a42a1·a0da0424·a1f5ef8f(양식 틀), NEXT 70·71·56·72·77·89, 출처 2026-11-19 summary (main).
 
-### 115. [지역별 공고현황] 툴팁 줄 나눔 + 오른쪽 목록 시군구 묶음 (bf 세션 11-24) [담당: bf(지역별 공고현황 전담) — frontend-dev → frontend-dev-write → qa-verifier]
-- **현재**: 11-24 밤 bf(ggreportagent-fb) 적용·미커밋 — 지시서 1854_aa660c7c + qa 2303_adbfdd03 후속(P2-1·P3-1·P3-3) + 사용자 피드백 규격 design 2331_a9227aec(묶음 머리 띠·기관 행 들임, 툴팁 '가장 임박' 삭제·꼬리 '뺌'→'지도 색은 N건 중 M건', aria-pressed). 지도 시험 139/139, 전체 실패는 97 세션 kbboard 작업 중 8건 + CRLF 1건(kind-queue, autocrlf=true)뿐.
-- **다음 한 걸음**: 사용자 화면 확인(Q 1~3) → design_history 105장(번호 재확인, 문안 design 2331 6절·후 캡처 다시) → 지도 파일만 경로 지정 커밋(index.html은 내 덩어리만).
-- **자세히**: handoff/sessions/2026-11-24_1600_map.md, 출처 2026-11-24 summary.
-
 ### 116. 시연 뒤 발견 — 마감일 기록 없는 공고가 120일(미상 30일)까지 '진행 중'으로 보임, 지도 상세 '개원 확인 필요' 제외 없음, 탭이 다 차면 확정 뒤 이동 안 함, [계정 전환]이 서버 사번을 안 바꿈 [담당: planner → backend-dev(기관 데이터 마감일 칸) → frontend-dev(지도 bf·현황판 ca)]
 - **현재**: 11-24 시연 리허설 관찰(qa a44afea1), 미착수.
 - **다음 한 걸음**: planner 범위 정리(항목별 담당 세션 나누기).
 - **자세히**: 2026-11-24_summary Session 01:15, PM 11-24 1855_a837133e.
-
-### 117. 관심 기관을 사람별로 + 지도 ♥ = 내 관심 등록/해제 (DB 061) [담당: bf — backend-dev-write(97 커밋 뒤) → security → qa, 현황판 화면은 97(ca)]
-- **현재**: 사용자 11-24 결정(Q-90·91 + 재확인: 관심 = 개인별, 목표 = 팀별, ♥ 끄면 빠짐). 설계 backend-dev 2342_adcd953c(Opus — WATCH_EMP_NO·PUT/DELETE /institutions/{id}/my-watch·GET /my-watch·관심과 목표 독립), security 설계 검토 a66eab8b(중-1 TO_GOAL 소유 검사 순서·중-2 history 거르기 SQL로·중-3 061 NULL 0건 확인·하-1·하-2 반영 필요). 사용자 질문 3건 open(미달성 이월 주인·기존 관심 배분·비영업 ♥).
-- **다음 한 걸음**: 질문 답 + 세션 97 커밋(BidTargetService 등 NEXT 114) 대기 → backend-dev-write로 설계+security 패치 적용 → mvn → 로컬 MySQL 061 → 지도 render.js ♥ 연결(frontend-dev-write) → kbboard.js '내 관심'·빼기 흐름은 97에 요청.
-- **자세히**: 위 두 보고서, frontend-dev 2328_a9988aa9(현재 ♥·관심 구조 조사).
 
 ### 118. 사전준비 승인(작성 전 결재) 폐지 — 필수 과제가 끝나면 [제안서 작성하기]로 바로 + '아직 입찰 공고 전' 태그 (사용자 11-25) [담당: 세션 97(db·fa 미기동이라 이어받음) — backend-dev(Opus) → security → frontend-dev]
 - **현재**: 사용자 11-25 "작성 전 결재는 필요 없다. 개설 신청(담당 지정)이 사전준비를 공식화, 그 뒤 결재는 필요하면 제안서 제출 단계쯤" → 결재 = 목표 기관 추가 + 개설 신청(팀장). planner a6defa39 팀 권장: IN_PROGRESS→WRITING 직행(버튼 1개, DB 변경 없음), 이미 올라간 PREP_APPROVAL은 끝까지 처리·새 상신만 막음, '결재 끝난 건' 감사 범위 = 개설 승인 이후, 공고 전 태그 = 제안 준비 현황 목록·상세 머리(근거 = 공고 레코드 유무). NEXT 111 사전준비 승인 쪽 소멸. 제안서 제출 단계 결재는 보류(제출 단계 설계 때 인터뷰). 질문: 기획승인(진행 현황 5단계 확인 버튼, 영업부장)도 없앨지.
 - **보류(사용자 11-25 "지금은 입찰 현황판만")**: backend-dev 설계(aa3f9e83)는 세션 재시작으로 중단, 산출물 없음. 기획승인 질문도 이때 함께 묻는다.
 - **다음 한 걸음**: backend-dev(Opus) 설계 다시 시작 → security → 적용·mvn → prep.js·prepboard.js·dashboard.js(STAGE_OF 4단계) → design 대조·design_history. data-auditor: 진행 중 PREP_APPROVAL·WRITABLE 건수.
 - **자세히**: handoff/agents/planner/ 2026-11-25 a6defa39.
+
+### 119. [지역별 공고현황] 11-25 후속 — ♥ 키보드·실패 문구, 미처리 팝업 2단계, 작은 정리 [담당: bf(지역별 공고현황) — frontend-dev → frontend-dev-write, 2단계는 97(dashboard.js)]
+- **현재**: 115·117 해소(ab4baae4·eb2d32a8·지도 커밋, design_history 108). 남은 것: design PUSH-GATE(2026-11-25_0119_a86b4423) P2-1 목록 ♥가 span이라 키보드·이름 없음(규격 6절: button 24px·aria-pressed·aria-label) / P3 .rk-note keep-all·role=alert·문구('내 관심에 담지/빼지 못했습니다…'), .ov-open transition:none, 미처리 꼬리 '…뺐습니다'·묶음 상태 문구 / security 하 render.js ~1432 지역 카드 code·REGION_NAME esc, oracle·mysql 061 주석 'GET /watchers'(적용된 파일 — 다음 번호에서 정정 또는 그대로) / qa P3 퇴직 주인 관심 고아(운영 061 전 data-auditor) / 기관정보 팝업 열 때 GET /institution-plans/status 500(콘솔, f3 담당 확인) / kind-queue 시험 CRLF(autocrlf=true에서 실패, .gitattributes eol 또는 정규식 ?).
+- **다음 한 걸음**: 사용자 답(Q: 미처리 팝업 안에서 바로 처리 ⓐ/ⓑ) → ⓐ면 97에 frontend-dev 0056_a2619cbf '세션 97 요청 블록' 전달 + design 팝업 규격; ♥ P2-1·P3는 frontend-dev-write로 바로.
+- **자세히**: handoff/sessions/2026-11-25_0130_map.md, 2026-11-25_summary Session 01:30.
+

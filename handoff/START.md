@@ -14,6 +14,7 @@
 8. **W48 주간 보고(11-27 금)**: pm 문안 → docs/pm_history/index.html 새 주 절 + '이번 주 질문' 표 + 에이전트별 정리, 요구사항 파악 자료 docs/요구사항 파악/index_2026-11-27.html.
 
 ## 다시 알릴 것 (질문은 선택식, 답 받을 때까지 멈춤)
+- ⓐ **[bf 11-25] 미처리 기관 팝업에서 처리 방식**(Q-2026-11-25-12, NEXT 119): 지금은 지도 '미처리' 목록의 기관 이름을 누르면 기관정보 팝업이 뜨고, 처리는 팝업의 [입찰 공고 현황에서 기록]으로 이동해서 한다. ⓐ 팝업 안에서 처리 상태(공고 진행 중·종료·입찰 없음·지연)를 바로 고르고 저장(97 세션 dashboard.js 작업, frontend-dev 0056_a2619cbf 요청 블록) ⓑ 지금대로. 사용자 말('미처리된 정보를 처리하니까 팝업같이')은 ⓐ 쪽.
 - ⓐ **NEXT 114 사용자 결정**(Q-2026-11-24-78·79): [제안 확정]은 지금도 결재 없이 바로 처리되고, 팀장 결재는 다음 단계 [개설 신청] 때 한 번이다. 없애고 싶은 결재가 ⓐ없음(확인 창에 '결재 없이 확정, 팀장 결재는 개설 신청 때 1회' 문구만 추가, 권장) ⓑ개설 신청 결재까지 없앰 ⓒ'공고 전 확정은 목표 기관만' 제한을 풀기 중 무엇인지. 목표 기관과 제안 확정은 ⓐ지금처럼 따로(권장) ⓑ확정하면 목표에 자동 등록 중 무엇인지. 답을 받으면 ca가 planner 권장대로 진행한다.
 - ⓐ **'받은 결재 1' 재현 때 관찰**(Q-2026-11-24-74): 팀장이 승인한 뒤 숫자가 안 줄면 ① 결재 카드에 붉은 문구(거절 사유)가 떴는지 ② 카드 자체가 사라졌는지 ③ 어느 화면의 숫자였는지(본인 화면/다른 창). c0343326에 후보 고침 2개(작업함 승인 뒤 다시 그리기·거절 문구로 스크롤)가 들어 있다 — 재현이 안 되면 고쳐진 것으로 닫는다.
 - ⓐ **주간 수집 실행기 변경**(Q-2026-11-24-15, 다음 월요일 11-30 09:00 전까지): 2주 연속 콘솔 창이 닫혀 멈춤. 사용자가 직접 `schtasks /Change /TN "GGReport collector weekly" /TR "C:\Windows\System32\wscript.exe //B //Nologo \"C:\github\GGReportAgent\collector\run_weekly_hidden.vbs\""` → `schtasks /Run /TN "GGReport collector weekly"` → 20분 뒤 '마지막 실행 결과' 0과 로그의 `eminwon exit=`·`g2b exit=`를 확인.
@@ -37,7 +38,7 @@
 - **main**: 8080·target/·로컬 DB·mvn 전담, 99(minutes/·board-minutes.js·047·058), 100(docout/·049·PrepForm*·InstSummary*·instsummary.js), 108(fa에서 넘겨받음 — DesignReviewService), 110, 116, 질문 장부·발표 자료·W48, 에이전트 대시보드.
 - **db(대시보드 전담, 'PM 작업에서 제외' — 사용자 11-24)**: 102·111·112·113, prepboard.js·preptask.js·PrepBoard*, fa가 없으므로 prep.js·PrepService도 db가 쓴다(쓰기 전에 다른 세션 미커밋 여부 확인).
 - **ca(입찰 현황판 전담, 옛 b0)**: kbboard.js·dashboard.js·index.html .hb-*·.db-*, approvals.js 2줄(c0343326), 94·98·101·114.
-- **bf(지역별 공고현황 전담, map)**: render.js·logic.js(지도 부분)·overdue.js·index.html 지도 CSS, 115.
+- **bf(지역별 공고현황 전담, map)**: render.js·logic.js(지도 부분)·overdue.js·index.html 지도 CSS, 115. **11-25 bf**: 115·117 해소(ab4baae4·eb2d32a8·지도 커밋, design_history 108), 다음은 NEXT 119(♥ 키보드 P2·미처리 팝업 2단계 질문). 세션 기록 handoff/sessions/2026-11-25_0130_map.md.
 - **f3(옛 05)**: plans.js·PlanCollect*·PlanInbox*·103·104·107 뉴스·56 uploader 사업계획 CSV. 107의 safeHttpUrl '@'는 **logic.js 공용이라 bf의 115 커밋 뒤에** 손댄다.
 - **72(e4)**: 기관장(InstitutionHead*·headcard·055)·Word·사진.
 - **0d(디자인 검토 세션)**: 공통 팝업 .dlg·nav.js·index.html 공통부·109 접근성·100 S2 index.html 연결 줄.
