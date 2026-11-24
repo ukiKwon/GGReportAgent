@@ -36,6 +36,7 @@ public class TargetChangeService {
     private static final Set<String> OPS = new HashSet<String>(Arrays.asList(OP_ADD, OP_EDIT, OP_CANCEL, OP_TO_WATCH, OP_TO_GOAL));
     public static final String ACT_SUBMIT = "SUBMIT", ACT_APPROVE = "APPROVE", ACT_REJECT = "REJECT", ACT_CANCEL = "CANCEL";
     public static final String BASIS_REQUESTER = "REQUESTER", BASIS_LINE = "LINE", BASIS_HEAD = "HEAD";
+    public static final String DIRECT_ROLE = BidTargetService.DIRECT_ROLE, DIRECT_VALUE_EDIT = BidTargetService.DIRECT_VALUE_EDIT;   // NEXT 114
     private static final String CHANGED_MSG = "결재를 올린 뒤 이 기관의 목표 기록이 바뀌었습니다. 반려하고 다시 요청해 주세요.";
     private static final String YEAR_PASSED_MSG = "결재를 올린 뒤 해가 바뀌어 고른 목표 연도가 지났습니다. 반려하고 다시 요청해 주세요.";
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -54,11 +55,14 @@ public class TargetChangeService {
 
     static final class Planned {
         int itemNo; String inst, op, warnCd, tag, memo, owner, ownerName, cancelCd, cancelEtc; BidTarget cur; Integer toYear;
+        boolean valueOnly;   // EDIT 이고 연도·주 담당 그대로(NEXT 114)
     }
 
     public static final class Plan {
         final List<Planned> items = new ArrayList<Planned>();
         String reason, title, payload; SysUser approver;
+        boolean valueOnly;   // 모든 항목이 valueOnly → 결재 없이 바로
+        public boolean isValueOnly() { return valueOnly; }
         public SysUser getApprover() { return approver; }
         public String getTitle() { return title; }
         public String getPayload() { return payload; }
@@ -114,14 +118,16 @@ public class TargetChangeService {
 
     // ── 상신·바로 반영 검사(잠금 안) ─────────────────────────────────
 
-    /** reasonRequired = 결재 요청(영업부장 바로 반영은 사유를 받지 않는다 — 저장할 곳이 없다). */
+    /**
+     * direct = 영업부장(또는 스위치 끔, 사유를 받지 않는다 — 저장할 곳이 없다). 그 밖에는 모든 항목이 구분·메모만 고치는 EDIT 이면 바로(valueOnly), 아니면 결재 요청.
+     * 사유: 들어왔으면 항목보다 먼저 형식·개인정보 검사(이전 순서 유지), 결재 요청인데 비었으면 항목 검사 뒤 400.
+     */
     @Transactional
-    public Plan plan(TargetChangeIn in, boolean reasonRequired) {
+    public Plan plan(TargetChangeIn in, boolean direct) {
         Plan plan = new Plan();
-        if (reasonRequired) {
-            plan.reason = BoardMaterialService.checkedText(in.getReason(), REASON_MAX, "사유", true);   // 제어문자 400·개인정보 422(S1)
-            new MemoScreen("TARGET_FORBIDDEN", BidTargetRules.FORBIDDEN_MSG).free(plan.reason).throwIfAny();
-        }
+        String raw = in.getReason();
+        boolean hasReason = raw != null && !raw.trim().isEmpty();
+        if (!direct && hasReason) checkReason(plan, raw);
         LocalDate today = LocalDate.parse(Times.todayKst());
         BankContractRules.CodeCheck codes = targets.codeCheck();
         int no = 0;
@@ -130,7 +136,16 @@ public class TargetChangeService {
             try { plan.items.add(planItem(no, it, today, codes)); }
             catch (ApiException e) { throw withItem(e, no, null); }
         }
+        boolean all = true;
+        for (Planned p : plan.items) if (!p.valueOnly) { all = false; break; }
+        plan.valueOnly = all;
+        if (!direct && !all && !hasReason) checkReason(plan, raw);   // 400 "사유를 입력하세요."
         return plan;
+    }
+
+    private static void checkReason(Plan plan, String raw) {
+        plan.reason = BoardMaterialService.checkedText(raw, REASON_MAX, "사유", true);   // 제어문자 400·개인정보 422(S1)
+        new MemoScreen("TARGET_FORBIDDEN", BidTargetRules.FORBIDDEN_MSG).free(plan.reason).throwIfAny();
     }
 
     private Planned planItem(int no, TargetChangeIn.Item it, LocalDate today, BankContractRules.CodeCheck codes) {
@@ -159,6 +174,8 @@ public class TargetChangeService {
                 BidTargetRules.Parsed v = BidTargetRules.parse(asIn(it), thisYear, cur.getTargetYear(), codes);
                 if (BidTargetRules.same(cur, v)) throw ApiException.badRequest("바뀐 내용이 없습니다.");
                 fill(p, v, targets.ownerName(v.owner, cur));
+                p.valueOnly = cur.getTargetYear() != null && cur.getTargetYear() >= thisYear   // 지난해 목표는 결재(security F1)
+                        && p.toYear.equals(cur.getTargetYear()) && Objects.equals(p.owner, cur.getOwnerEmpNo());   // NEXT 114
                 if (!p.toYear.equals(cur.getTargetYear())) {
                     targets.checkOverlap(p.inst, cur.getTargetNo(), false, p.toYear, thisYear, BidTargetService.GOAL_DUP_MSG);
                     if (p.toYear.intValue() == thisYear) p.warnCd = warn(targets.closedCheck(p.inst, today));
@@ -227,13 +244,14 @@ public class TargetChangeService {
         recordAct(reqId, ACT_SUBMIT, BASIS_REQUESTER, me, actor, ui);
     }
 
-    /** 영업부장(또는 결재 스위치 끔) — 같은 검사를 지난 항목을 바로 쓴다. 행: 수정자 = 본인, 버튼 = submit_target_change. */
+    /** 바로 반영 — basis ROLE(영업부장·스위치 끔) | VALUE_EDIT(구분·메모만). 행: 수정자 = 본인, 화면·버튼 = 보낸 값(허용 목록). */
     @Transactional
-    public Map<String, Object> applyDirect(Plan plan, Actor actor, BoardUiIds.Ui ui) {
+    public Map<String, Object> applyDirect(Plan plan, Actor actor, BoardUiIds.Ui ui, String basis) {
         List<Map<String, Object>> done = new ArrayList<Map<String, Object>>();
         for (Planned p : plan.items) done.add(write(p, actor, ui, null));
         Map<String, Object> out = new LinkedHashMap<String, Object>();
         out.put("mode", "DIRECT");
+        out.put("direct_basis", basis);
         out.put("applied", done.size());
         out.put("items", done);
         return out;

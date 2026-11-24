@@ -307,7 +307,7 @@ test('소스 구조: 새 버튼 id·역할, 보안(서버 글 textContent·esc, 
   assert.ok(/qTimer = setTimeout\(function \(\) \{[\s\S]*?\}, 150\)/.test(k));                                                            // 검색 디바운스 150ms
   assert.ok(k.indexOf("if (sig === gs.tbSig && tb.firstChild)") > 0);                                                                     // 검색 입력 중에는 도구 줄을 다시 만들지 않는다(한글 조합)
   assert.ok(k.indexOf('aria-live') < 0 && k.indexOf('confirm(') < 0 && k.indexOf('alert(') < 0);
-  assert.ok(k.indexOf("if (r.kind === 'WATCH') delete body.target_year;") > 0);                                                          // 관심은 연도를 보내면 400
+  assert.ok(k.indexOf("if (r.kind === 'WATCH') delete b.target_year;") > 0);                                                             // 관심은 연도를 보내면 400(구분·메모 바로 저장 본문 kbb.valueBody 한 곳, NEXT 114)
   assert.ok(k.indexOf("body = watch ? { kind_cd: 'WATCH', tag_cd: m.tag, memo: memo } : { target_year: eff.year") > 0 || k.indexOf("{ kind_cd: 'WATCH', tag_cd: m.tag, memo: memo }") > 0);
   assert.ok(k.indexOf('m.warn = { mode: \'block\', basis: o.basis') > 0);                                                                  // 409 근거는 코드·날짜로 만든 고정 문장
   const html = src('index.html');

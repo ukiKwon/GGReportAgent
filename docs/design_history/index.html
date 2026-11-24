@@ -158,6 +158,7 @@
   <a href="#c102">102 영업 추진 준비 — '협약준비 업무' 메뉴 21개를 빼고 기관 상세에서 단계 순서대로</a>
   <a href="#c103">103 지역별 공고현황 — 시군구 ▲n 기호를 지시선 카드(입찰 시기별 건수)로</a>
   <a href="#c104">104 입찰 현황판 1차 수정 — 사유 칸 폭, 추천받기 6묶음, [목표 기관 추가] 강조, 고른 기관 띠</a>
+  <a href="#c105">105 입찰 현황판 결재 줄이기 — 구분·메모는 결재 없이 바로, 고른 기관 띠는 결재 묶음 전용</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2141,6 +2142,22 @@
   <p style="font-size:12px"><b>④ 고른 기관 띠</b>: 파랑 12% 틴트 + 위 2px 파랑 선 + 위쪽으로만 번지는 그림자, 0곳→1곳일 때 12px 아래에서 0.2초 올라옴(감소 설정이면 즉시) — DESIGN.md 예외 한 줄.</p>
   <p style="font-size:12px"><b>⑤ 받은 결재</b>: 작업함에서 승인하면 머리 띠 '결재함'과 '받은 결재' 탭 배지 숫자를 바로 다시 셉니다(전: 승인해도 1이 그대로). 승인이 거절되면(409 등) 오류 문장이 화면 밖에 묻히지 않게 그 자리로 스크롤합니다.</p>
   <p class="legend-note">새 색 변수 0개. 화면 캡처·qa 독립 검토는 다음 세션 첫 일(사용자 퇴근 전 커밋). 근거: handoff/agents/design-reviewer 2026-11-24 a2ef6303, frontend-dev-write 보고, node --test 1971/1971.</p>
+</div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c105">
+<h2>105 입찰 현황판 결재 줄이기 — 구분·메모는 결재 없이 바로 저장, 고른 기관 띠는 결재 묶음 전용 (2026-11-24 밤, 사용자 지적, planner·design-reviewer 규격, backend·frontend-dev 구현)</h2>
+<div class="why">왜: 사용자 11-24 밤 — "목표 기관을 고르면 '고른 기관 n곳 [고르기 해제] [결재 요청 n건]'이 나오는데 말과 동작이 애매하다. '신규 유치 도전' 같은 값만 바꿀 때는 [수정하기]면 된다. 결재가 너무 많다."</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+  <p class="hint12">띠: <code>고른 기관 1곳 [고르기 해제] ……… 영업팀장이 결재합니다. [결재 요청 1건]</code> — 동작을 고르기 전부터 '결재', 요청 1건에 n곳인데 '건'.<br>줄의 구분 칩에서 '신규 유치 도전'을 고르면 사유 필수 결재 창이 열림. 메모는 일괄 창에서만 고칠 수 있음.</p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <p style="font-size:12px"><b>줄에서 바로</b>: 구분 칩에서 고르면 그 자리에서 저장 — 위 알림 "○○의 구분을 '신규 유치 도전'으로 바꿨습니다. 결재 없이 반영되고, 바꾼 사람·시각은 기록에 남습니다." 메뉴에 [메모 고치기…](작은 창, 결재 없음). 결재가 필요한 항목(관심으로 옮기기·다음 회차 목표로·목표에서 빼기)은 메뉴 안 '결재 필요' 머리글 아래로.</p>
+  <p style="font-size:12px"><b>띠</b>: <code>고른 목표 기관 n곳 · 선택 지우기 ……… [수정하기…] 영업팀장이 결재합니다. [빼기·옮기기 결재 요청…]</code> — 단위 '곳', 화면 밖에 고른 줄이 있으면 '· 이 화면 밖 k곳'. [수정하기…] = 구분·메모 한꺼번에 수정(사유 칸 없음, 결재 없음).</p>
+  <p style="font-size:12px"><b>막는 것</b>: 결재 중인 기관은 구분·메모도 잠금(지금처럼). 지난해 목표는 구분·메모를 고칠 수 없음(메뉴에서 숨김) — 지난해 실적 구분이 사후에 바뀌지 않게.</p>
+  <p class="legend-note">새 색·변수·opacity 0개(.hb-selbar 안 CSS 5줄). 실화면 1280px 측정은 8080 재기동 뒤. 근거: handoff/agents/design-reviewer 2026-11-24 a59fddd3, backend-dev ac828e7d, security af804b6c, qa ab34d928, mvn 2501/2501, node --test 1994/1995(실패 1 = kind-queue 기존 건).</p>
 </div></div></div>
 </div>
 </section>

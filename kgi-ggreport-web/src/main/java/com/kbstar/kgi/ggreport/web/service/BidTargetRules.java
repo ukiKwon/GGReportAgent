@@ -114,6 +114,14 @@ final class BidTargetRules {
                 && Objects.equals(c.getMemo(), p.memo) && Objects.equals(c.getOwnerEmpNo(), p.owner);
     }
 
+    /** NEXT 114(사용자 11-24 밤) — 목표 고치기 중 연도·주 담당이 그대로(구분 태그·메모만 바뀜)면 결재 없이 바로. 넣기(cur==null)·관심은 false. */
+    static boolean valueOnlyEdit(BidTarget cur, Parsed p, int thisYear) {
+        return cur != null && !p.watch && KIND_GOAL.equals(kindOf(cur))
+                && cur.getTargetYear() != null && cur.getTargetYear() >= thisYear   // 지난해 목표는 결재(security F1)
+                && Integer.valueOf(p.year).equals(cur.getTargetYear())
+                && Objects.equals(cur.getOwnerEmpNo(), p.owner);
+    }
+
     /**
      * 올해 입찰 종료 근거(서버가 아는 것만). 없으면 null. 화면만 아는 근거(행안부·기관 자료)는 여기 없다 — 화면은 주의만.
      * ① 공고 상태: 기관의 마지막 회차가 (열려 있고 기관 자료가 넘어가지 않았고 최신 판정 CLOSED/NO_BID) 또는 (NO_BID 로 닫혔고 그 뒤 넘어가지 않음), 판정 시각이 올해.

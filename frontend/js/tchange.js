@@ -18,15 +18,19 @@
 
   // ── 이름·문구(규격 5-1) ────────────────────────────────────────────
   tc.MAX_ITEMS = 20; tc.REASON_MAX = 200; tc.MEMO_MAX = 100; tc.ETC_MAX = 50; tc.ETC_CD = 'ETC';
-  tc.BTN = { change: 'submit_target_change', carry: 'carry_targets', term: 'set_term_start' };   // 서버 TargetUiIds
+  tc.BTN = { change: 'submit_target_change', carry: 'carry_targets', term: 'set_term_start', values: 'save_target_values' };   // 서버 TargetUiIds(values = 일괄 창 [수정하기], NEXT 114)
   tc.OPS = ['ADD', 'EDIT', 'CANCEL', 'TO_WATCH', 'TO_GOAL'];
-  const OP_LONG = { ADD: '목표에 넣기', EDIT: '목표 고치기', CANCEL: '목표에서 빼기', TO_WATCH: '관심으로 옮기기', TO_GOAL: '목표로 옮기기' };
-  const OP_SHORT = { ADD: '넣기', EDIT: '고치기', CANCEL: '빼기', TO_WATCH: '관심으로', TO_GOAL: '목표로' };
+  // NEXT 는 화면 안에서만 쓰는 이름: 서버에는 op EDIT + 연도 +1 로 가고(구분·메모 그대로), 결재함 카드·창에서 '다음 회차 목표로'로 보인다(NEXT 114 규격 6-4B).
+  const OP_LONG = { ADD: '목표에 넣기', EDIT: '목표 고치기', CANCEL: '목표에서 빼기', TO_WATCH: '관심으로 옮기기', TO_GOAL: '목표로 옮기기', NEXT: '다음 회차 목표로' };
+  const OP_SHORT = { ADD: '넣기', EDIT: '고치기', CANCEL: '빼기', TO_WATCH: '관심으로', TO_GOAL: '목표로', NEXT: '다음 회차' };
   tc.opLong = function (op) { return has(OP_LONG, op) ? OP_LONG[op] : ''; };
   tc.opShort = function (op) { return has(OP_SHORT, op) ? OP_SHORT[op] : ''; };
   tc.GO_TEXT = { APPROVAL: '결재 요청', DIRECT: '바로 반영' };
-  tc.APPROVAL_NOW_MSG = '이제 목표를 바꾸려면 결재가 필요합니다. 줄을 고른 뒤 아래 [결재 요청]으로 올려 주세요.';
-  tc.DUP_MSG = '한 요청에 같은 기관은 한 번만 넣을 수 있습니다.';
+  tc.APPROVAL_NOW_MSG = '목표에서 빼기·옮기기는 결재가 필요합니다. 줄을 고른 뒤 아래 [빼기·옮기기 결재 요청…]으로 올려 주세요. 구분·메모는 결재 없이 바로 바뀝니다.';
+  tc.PAST_EDIT_MSG = '지난해 목표는 구분·메모를 고칠 수 없습니다.';
+  tc.isPastYear = function (year, y0) { const y = Number(year); return y > 0 && y < Number(y0); };   // 지난해 목표(관심 줄은 연도가 없어 false)
+  tc.pastCount = function (s, y0) { let n = 0; ((s && s.ids) || []).forEach(function (id) { const e = s.by[id]; if (e && e.kind !== 'WATCH' && tc.isPastYear(e.year, y0)) n += 1; }); return n; };
+  tc.DUP_MSG ='한 요청에 같은 기관은 한 번만 넣을 수 있습니다.';
   tc.CAP_MSG = '한 번에 ' + tc.MAX_ITEMS + '곳까지 고를 수 있습니다.';
 
   // 서버 goal_change_mode만 따른다(스위치는 서버 설정). 쓰기 자격이 없거나 옛 서버(키 없음)면 null.
@@ -43,12 +47,28 @@
     return '영업팀장(영업팀장이 올리면 영업부장)이 결재합니다.';
   };
   tc.addGoText = function (mode) { return mode === 'APPROVAL' ? '결재 요청 쓰기' : '목표에 넣기'; };
-  tc.barBtnText = function (mode, n) { return (mode === 'DIRECT' ? '바로 반영 ' : '결재 요청 ') + Number(n) + '건'; };
+  // 띠 주 단추: 결재가 필요한 동작의 이름을 단다(숫자는 왼쪽 문장이 말한다). mix = tc.mixOf(sel) 'GOAL'|'WATCH'|'MIX'
+  tc.barBtnText = function (mode, mix) {
+    const w = mode === 'DIRECT' ? '바로 반영' : '결재 요청';
+    if (mix === 'GOAL') return '빼기·옮기기 ' + w + '…';
+    if (mix === 'WATCH') return '목표로 옮기기 ' + w + '…';
+    return w + ' 쓰기…';
+  };
   tc.dlgTitle = function (mode, n) { return mode === 'APPROVAL' ? '목표 기관 변경 결재 요청 — ' + n + '곳' : '목표 기관 변경 — ' + n + '곳'; };
   tc.dlgHint = function (mode, role) {
-    if (mode === 'APPROVAL') return tc.approverText(role, mode) + ' 결재가 끝날 때까지 이 기관들의 목표·관심은 고칠 수 없습니다(요청자 취소·영업부장 반려로 풀림).';
+    if (mode === 'APPROVAL') return tc.approverText(role, mode) + ' 결재가 끝날 때까지 이 기관들은 구분·메모도 고칠 수 없습니다(요청자 취소·영업부장 반려로 풀림).';
     return (str(role).trim() === '영업부장' ? '영업부장은 ' : '') + '결재 없이 바로 반영합니다. 반영한 사람·시각은 기록에 남습니다.';
   };
+  // 구분·메모 한꺼번에 수정 창(결재 없음, 규격 6-4A)
+  tc.EDIT_GO = '수정하기';
+  tc.EDIT_HINT = '결재 없이 바로 반영합니다. 바꾼 사람·시각은 기록에 남습니다.';
+  tc.editTitle = function (n) { return '구분·메모 수정 — ' + n + '곳'; };
+  tc.eun = function (w) { return jong(w) > 0 ? '은' : '는'; };
+  tc.memoFlash = function (name, memo) {
+    return str(name) + (str(memo).trim() ? ' 메모를 저장했습니다. 결재 없이 반영되고 기록에 남습니다.' : ' 메모를 지웠습니다. 기록에 남습니다.');
+  };
+  tc.editResultText = function (n) { return '목표 기관 ' + Number(n) + '곳의 구분·메모를 수정했습니다. 결재 없이 반영되고 기록에 남습니다.'; };
+  tc.pendingLockMsg = function (name) { return str(name) + tc.eun(name) + ' 방금 결재 요청에 들어가 잠겼습니다. 결재가 끝나면 다시 바꿀 수 있습니다.'; };
 
   // ── 고른 줄(탭·연도·거르기를 바꿔도 남는다, 기관 하나 = 한 줄) ──────────
   tc.newSel = function () { return { ids: [], by: {} }; };
@@ -57,8 +77,15 @@
   tc.pickable = function (r) { return !!r && !r.out && !r.pend && (r.kind !== 'WATCH' || Number(r.movable) > 0); };   // 관심 줄은 [목표로 옮기기]가 보이는 줄만(규격 6-1)
   tc.entryOfRow = function (r) {
     return { id: r.id, name: r.name, regionName: r.regionName, kind: r.kind === 'WATCH' ? 'WATCH' : 'GOAL', targetNo: r.targetNo, revNo: r.revNo, year: Number(r.targetYear) || 0,
-      tagCd: r.tagCd, tagName: r.tagName, memo: r.memo || '', ownerEmpNo: r.ownerEmpNo || '', ownerName: r.ownerName || '', moveYear: Number(r.movable) || 0 };
+      tagCd: r.tagCd, tagName: r.tagName, memo: r.memo || '', ownerEmpNo: r.ownerEmpNo || '', ownerName: r.ownerName || '', moveYear: Number(r.movable) || 0, closed: !!r.closed };
   };
+  // 고른 줄의 종류별 수와 섞임 판정(띠 문구·단추 이름·[수정하기…] 보임 조건)
+  tc.kindCounts = function (s) {
+    const k = { goal: 0, watch: 0 };
+    ((s && s.ids) || []).forEach(function (id) { if (s.by[id].kind === 'WATCH') k.watch += 1; else k.goal += 1; });
+    return k;
+  };
+  tc.mixOf = function (s) { const k = tc.kindCounts(s); return k.goal && k.watch ? 'MIX' : (k.watch ? 'WATCH' : 'GOAL'); };
   tc.pick = function (s, e) {
     if (has(s.by, e.id)) return s.by[e.id].targetNo === e.targetNo ? { ok: true } : { ok: false, msg: tc.DUP_MSG };
     if (s.ids.length >= tc.MAX_ITEMS) return { ok: false, msg: tc.CAP_MSG };
@@ -115,9 +142,10 @@
   tc.setOp = function (it, op, pre) {
     if (tc.isFixed(it)) return it;
     pre = pre || {};
-    it.op = op === 'EDIT' || op === 'CANCEL' || op === 'TO_WATCH' ? op : '';
+    it.op = op === 'EDIT' || op === 'CANCEL' || op === 'TO_WATCH' || op === 'NEXT' ? op : '';
     it.cancelCd = ''; it.cancelEtc = '';
     if (it.op === 'EDIT') { it.year = Number(pre.year) || it.snap.year || 0; it.tag = pre.tag || it.snap.tagCd; it.memo = it.snap.memo; }
+    else if (it.op === 'NEXT') { it.year = (Number(it.snap.year) || 0) + 1; it.tag = it.snap.tagCd; it.memo = it.snap.memo; }   // 구분·메모는 그대로, 연도만 +1
     else { it.year = 0; it.tag = ''; it.memo = ''; }
     return it;
   };
@@ -140,6 +168,8 @@
         if (!Number(it.year)) { bad(it, 'year', '목표 연도를 고르세요.'); return; }
         if (str(it.memo).trim().length > tc.MEMO_MAX) { bad(it, 'memo', '메모는 ' + tc.MEMO_MAX + '자 이내로 적으세요.'); return; }
         if (Number(it.year) === Number(s.year) && it.tag === s.tagCd && str(it.memo).trim() === str(s.memo).trim()) bad(it, 'edit', '고친 내용이 없습니다. 칸을 바꾸거나 이 기관을 목록에서 제외하세요.');
+      } else if (it.op === 'NEXT') {
+        if (!Number(it.year)) bad(it, 'year', '목표 연도를 고르세요.');
       } else if (it.op === 'CANCEL') {
         if (!it.cancelCd) { bad(it, 'cancelCd', '빼는 사유를 고르세요.'); return; }
         if (it.cancelCd === tc.ETC_CD) {
@@ -158,7 +188,7 @@
     const b = { institution_id: it.id, op_cd: it.op };
     if (it.op === 'ADD') { b.target_year = Number(it.year); b.tag_cd = it.tag; b.memo = str(it.memo).trim() || null; return b; }
     b.target_no = it.snap.targetNo; b.base_rev_no = it.snap.revNo;
-    if (it.op === 'EDIT') { b.target_year = Number(it.year); b.tag_cd = it.tag; b.memo = str(it.memo).trim() || null; b.owner_emp_no = it.snap.ownerEmpNo || null; }
+    if (it.op === 'EDIT' || it.op === 'NEXT') { b.op_cd = 'EDIT'; b.target_year = Number(it.year); b.tag_cd = it.tag; b.memo = str(it.memo).trim() || null; b.owner_emp_no = it.snap.ownerEmpNo || null; }   // NEXT = EDIT + 연도 +1(서버는 모른다)
     else if (it.op === 'CANCEL') { b.cancel_reason_cd = it.cancelCd; b.cancel_reason_etc = it.cancelCd === tc.ETC_CD ? str(it.cancelEtc).trim() : null; }
     else if (it.op === 'TO_GOAL') b.target_year = Number(it.year);
     return b;
@@ -207,11 +237,12 @@
     e.top = msg || (s === 400 ? '입력한 내용을 확인하세요.' : (s === 403 ? '목표 기관 변경은 영업부서만 올릴 수 있습니다.' : fallback(s)));
     return e;
   };
-  tc.resultOf = function (body, n) {
+  // kind === 'edit'(구분·메모 일괄 수정 창)이고 서버가 바로 반영했으면 수정 알림 문장.
+  tc.resultOf = function (body, n, kind) {
     const direct = !!body && body.mode === 'DIRECT';
     const cnt = direct && Number(body.applied) > 0 ? Number(body.applied) : Number(n);
     return { mode: direct ? 'DIRECT' : 'APPROVAL', n: cnt,
-      text: direct ? '목표 기관 ' + cnt + '곳을 바로 반영했습니다.' : '결재 요청을 올렸습니다 — 목표 기관 ' + cnt + '곳. 결재가 끝날 때까지 이 기관들은 잠깁니다.' };
+      text: direct ? (kind === 'edit' ? tc.editResultText(cnt) : '목표 기관 ' + cnt + '곳을 바로 반영했습니다.') : '결재 요청을 올렸습니다 — 목표 기관 ' + cnt + '곳. 결재가 끝날 때까지 이 기관들은 잠깁니다.' };
   };
 
   // ── 자동 이월 알림(규격 5-5) — 받은 숫자로만 만든다 ───────────────────────
@@ -275,11 +306,22 @@
     return '<td class="ck"><label><input type="checkbox" data-pick="' + esc(r.id) + '" aria-label="' + esc(r.regionName) + ' ' + esc(r.name) + ' 고르기"' + (on ? ' checked' : '') + '></label></td>';
   };
   tc.selbarHtml = function () {   // 바닥 띠(#hb-ts와 #hb-tf 사이). 1곳 이상 골랐을 때만 보인다
+    // 왼쪽부터 숫자 문장·선택 지우기 | 바로 반영 단추 [수정하기…](고른 줄이 전부 목표일 때만) · 결재자 안내 · 결재 주 단추
     return '<div class="hb-selbar" id="hb-selbar" role="region" aria-label="고른 기관" hidden><span class="n" id="hb-seln" role="status"></span>' +
-      '<button type="button" id="hb-selclr">고르기 해제</button><span class="sp"></span><span class="who" id="hb-selwho"></span><button type="button" id="hb-selgo" class="go" aria-haspopup="dialog"></button></div>';
+      '<button type="button" id="hb-selclr" class="lnk">선택 지우기</button><span class="sp"></span>' +
+      '<button type="button" id="hb-seledit" aria-haspopup="dialog" hidden>수정하기…</button>' +
+      '<span class="who" id="hb-selwho"></span><button type="button" id="hb-selgo" class="go" aria-haspopup="dialog"></button></div>';
   };
-  tc.selStatusHtml = function (n, msg) {   // 숫자 문장(role=status). 20곳 한도 같은 짧은 알림은 같은 자리에서 읽힌다
-    return '<span class="sr-only">' + esc(msg ? msg : n + '곳 고름') + '</span><span aria-hidden="true">고른 기관 <b>' + Number(n) + '</b>곳</span>' + (msg ? '<span class="lim" aria-hidden="true">' + esc(msg) + '</span>' : '');
+  // 숫자 문장(role=status). 20곳 한도 같은 짧은 알림은 같은 자리에서 읽힌다.
+  // kinds = { goal, watch }(없으면 '고른 기관 n곳'), off = 이 화면 밖에 고른 줄 수(규격 6-1)
+  tc.selStatusHtml = function (n, msg, kinds, off) {
+    n = Number(n); off = Number(off) || 0;
+    const g = kinds ? Number(kinds.goal) || 0 : 0, w = kinds ? Number(kinds.watch) || 0 : 0;
+    const lab = g && w || !kinds ? '기관' : (w ? '관심 기관' : '목표 기관');
+    const mix = g && w ? '(목표 ' + g + '·관심 ' + w + ')' : '';
+    const sr = msg ? msg : (kinds ? lab + ' ' + n + '곳 고름' + mix + (off > 0 ? ', 이 화면 밖 ' + off + '곳 포함' : '') : n + '곳 고름');
+    return '<span class="sr-only">' + esc(sr) + '</span><span aria-hidden="true">고른 ' + lab + ' <b>' + n + '</b>곳' + mix + (off > 0 ? ' · 이 화면 밖 ' + off + '곳' : '') + '</span>' +
+      (msg ? '<span class="lim" aria-hidden="true">' + esc(msg) + '</span>' : '');
   };
   // 결재 중인 줄의 구분 칸: 쓰기 자격자는 눌러 보는 칩(버튼), 그 밖은 글자 칩(span). 구분 이름은 title·sr로만
   tc.pendCellHtml = function (r, o) {
@@ -330,6 +372,8 @@
           return '<option value="' + esc(x.code) + '"' + (x.code === it.cancelCd ? ' selected' : '') + '>' + esc(x.name) + '</option>';
         }).join('') + '</select>' + (it.cancelCd === tc.ETC_CD ? '<label for="' + id('etc') + '">기타 사유</label><input id="' + id('etc') + '"' + u + ' data-f="cancelEtc" maxlength="' + tc.ETC_MAX + '" value="' + esc(it.cancelEtc) + '">' : '')
         : '<span class="tc-memo">빼는 사유 목록을 받지 못했습니다. 목록을 다시 불러온 뒤 시도하세요.</span>');
+    } else if (it.op === 'NEXT') {
+      dd = '<span class="mono">' + esc(it.year) + '</span> 목표 · 구분·메모 그대로';
     } else if (it.op === 'TO_WATCH') {
       dd = '관심 기관(연도 없음)';
     } else if (it.op === 'TO_GOAL') {
@@ -343,7 +387,7 @@
     const hid = 'tc-i' + it.uid + '-h', u = ' data-uid="' + it.uid + '"';
     const opCtl = tc.isFixed(it) ? '<span class="fix">' + esc(tc.opLong(it.op)) + '</span>'
       : '<label class="sr-only" for="tc-i' + it.uid + '-op">' + esc(it.name) + ' 동작</label><select id="tc-i' + it.uid + '-op"' + u + ' data-f="op"><option value=""' + (it.op ? '' : ' selected') + '>동작 고르기</option>' +
-        ['EDIT', 'CANCEL', 'TO_WATCH'].map(function (op) { return '<option value="' + op + '"' + (it.op === op ? ' selected' : '') + '>' + esc(tc.opLong(op)) + '</option>'; }).join('') + '</select>';
+        (it.snap && it.snap.closed || it.op === 'NEXT' ? ['CANCEL', 'TO_WATCH', 'NEXT'] : ['CANCEL', 'TO_WATCH']).map(function (op) { return '<option value="' + op + '"' + (it.op === op ? ' selected' : '') + '>' + esc(tc.opLong(op)) + '</option>'; }).join('') + '</select>';   // 목표 고치기(EDIT)는 목록에 없다 — 구분·메모는 결재 없이 따로 고친다(NEXT 114)
     return '<li class="tc-item" role="group" aria-labelledby="' + hid + '"' + u + '><div class="tc-ih"><span class="no">' + Number(n) + '</span><span class="nm" id="' + hid + '"><span class="rg">' + esc(it.regionName) + '</span>' + esc(it.name) + '</span>' + opCtl +
       '<button type="button" class="tc-x"' + u + ' aria-label="' + esc(it.name) + ' 목록에서 제외">목록에서 제외</button></div>' + tc.afterBlockHtml(it, o) + '<p class="dlg-ferr" id="tc-i' + it.uid + '-e"></p></li>';
   };
@@ -355,10 +399,41 @@
       '<p class="tc-sub"><span id="tc-rh">결재자가 읽습니다. 개인정보를 적지 마세요.</span><span id="tc-rc" class="mono">' + str(m.reason).length + '/' + tc.REASON_MAX + '</span></p><p class="dlg-ferr" id="tc-re"></p></div>' : '';
     const free = items.filter(function (x) { return !tc.isFixed(x); });
     const allop = free.length >= 2 && free.some(function (x) { return !x.op; }) ?'<div class="tc-all"><label for="tc-allop">고른 목표 줄 모두</label><select id="tc-allop"><option value="">동작 한꺼번에 정하기</option><option value="CANCEL">목표에서 빼기</option><option value="TO_WATCH">관심으로 옮기기</option></select></div>' : '';
-    return '<div id="tc-dlg" class="modal-overlay" style="display:none"><div class="dlg dlg--wide" role="dialog" aria-modal="true" aria-labelledby="tc-t">' +
+    return '<div id="tc-dlg" class="modal-overlay" style="display:none" data-kind="approval"><div class="dlg dlg--wide" role="dialog" aria-modal="true" aria-labelledby="tc-t">' +
       '<header class="dlg-bar"><h2 class="dlg-t" id="tc-t" tabindex="-1">' + esc(tc.dlgTitle(m.mode, items.length)) + '</h2><div class="dlg-acts"><button type="button" id="tc-cancel">취소</button><button type="button" id="tc-go" class="dlg-go">' + esc(tc.GO_TEXT[approval ? 'APPROVAL' : 'DIRECT']) + '</button></div></header>' +
       '<div class="dlg-note"><p class="dlg-hint">' + esc(tc.dlgHint(m.mode, m.role)) + '</p><p class="dlg-err" id="tc-err" role="alert"></p></div>' +
       '<div class="dlg-body">' + reasonBox + allop + '<ol class="tc-items" id="tc-items">' + items.map(function (it, i) { return tc.itemHtml(it, i + 1, o); }).join('') + '</ol></div></div></div>';
+  };
+  // 구분·메모 한꺼번에 수정 창(규격 6-4A): 같은 #tc-dlg 뼈대, 사유 칸·동작 칸·연도 칸 없음. 연도는 지금 값 그대로 보낸다.
+  function tagOpts(tags, cur) {
+    return (tags || []).map(function (t) { return '<option value="' + esc(t.code) + '"' + (t.code === cur ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('');
+  }
+  tc.editItemHtml = function (it, n, o) {
+    o = o || {};
+    const hid = 'tc-i' + it.uid + '-h', u = ' data-uid="' + it.uid + '"', id = function (k) { return 'tc-i' + it.uid + '-' + k; };
+    const dd = '<label for="' + id('t') + '">구분</label><select id="' + id('t') + '"' + u + ' data-f="tag">' + tagOpts(o.tags, it.tag) + '</select>' +
+      '<label for="' + id('m') + '">메모</label><input id="' + id('m') + '"' + u + ' data-f="memo" maxlength="' + tc.MEMO_MAX + '" size="20" value="' + esc(it.memo) + '">';
+    return '<li class="tc-item" role="group" aria-labelledby="' + hid + '"' + u + '><div class="tc-ih"><span class="no">' + Number(n) + '</span><span class="nm" id="' + hid + '"><span class="rg">' + esc(it.regionName) + '</span>' + esc(it.name) + '</span>' +
+      '<span class="fix">구분·메모 수정</span><button type="button" class="tc-x"' + u + ' aria-label="' + esc(it.name) + ' 목록에서 제외">목록에서 제외</button></div>' +
+      '<dl class="tc-ba"><dt>이전</dt><dd>' + tc.beforeHtml(it) + '</dd><dt>이후</dt><dd>' + dd + '</dd></dl><p class="dlg-ferr" id="tc-i' + it.uid + '-e"></p></li>';
+  };
+  // m = { items }, o = { tags }
+  tc.editDialogHtml = function (m, o) {
+    const items = m.items || [];
+    const all = items.length >= 2 ? '<div class="tc-all"><label for="tc-alltag">고른 목표 줄 모두</label><select id="tc-alltag"><option value="">구분 한꺼번에 정하기</option>' + tagOpts(o && o.tags, '') + '</select></div>' : '';
+    return '<div id="tc-dlg" class="modal-overlay" style="display:none" data-kind="edit"><div class="dlg dlg--wide" role="dialog" aria-modal="true" aria-labelledby="tc-t">' +
+      '<header class="dlg-bar"><h2 class="dlg-t" id="tc-t" tabindex="-1">' + esc(tc.editTitle(items.length)) + '</h2><div class="dlg-acts"><button type="button" id="tc-cancel">취소</button><button type="button" id="tc-go" class="dlg-go">' + esc(tc.EDIT_GO) + '</button></div></header>' +
+      '<div class="dlg-note"><p class="dlg-hint">' + esc(tc.EDIT_HINT) + '</p><p class="dlg-err" id="tc-err" role="alert"></p></div>' +
+      '<div class="dlg-body">' + all + '<ol class="tc-items" id="tc-items">' + items.map(function (it, i) { return tc.editItemHtml(it, i + 1, o); }).join('') + '</ol></div></div></div>';
+  };
+  // 메모 창(규격 6-3): 협약 개시일 창(tt-*)과 같은 뼈대, 결재 없이 바로 저장. r = 줄 모델
+  tc.memoDialogHtml = function (r) {
+    const memo = str(r.memo);
+    return '<div id="mm-dlg" class="modal-overlay" style="display:none"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="mm-t">' +
+      '<header class="dlg-bar"><h2 class="dlg-t" id="mm-t" tabindex="-1">메모 — ' + esc(r.regionName) + ' ' + esc(r.name) + '</h2><div class="dlg-acts"><button type="button" id="mm-cancel">취소</button><button type="button" id="mm-go" class="dlg-go">저장</button></div></header>' +
+      '<div class="dlg-note"><p class="dlg-hint">결재 없이 바로 저장됩니다. 고친 사람·시각은 기록에 남습니다. 개인정보를 적지 마세요.</p><p class="dlg-err" id="mm-err" role="alert"></p></div>' +
+      '<div class="dlg-body"><div class="dlg-f"><label for="mm-memo">메모</label><input id="mm-memo" maxlength="' + tc.MEMO_MAX + '" value="' + esc(memo) + '" aria-describedby="mm-cnt mm-e">' +
+      '<p class="tc-sub"><span id="mm-cnt" class="mono">' + memo.length + '/' + tc.MEMO_MAX + '</span></p><p class="dlg-ferr" id="mm-e"></p></div></div></div></div>';
   };
 
   // ── 결재 진행 중 창·협약 개시일 창(규격 6-4·6-5) ──────────────────────
@@ -439,13 +514,20 @@
     }
     return h + memoLine + (x.warn_cd === 'INST_BID_CLOSED' ? '<span class="warn">주의: 올해 입찰이 끝난 것으로 기록된 기관</span>' : '');
   }
+  // 서버는 '다음 회차 목표로'를 EDIT + 연도 +1로 저장한다. 구분·주 담당·메모가 그대로이고 연도만 +1이면 그 이름으로 보인다(규격 6-4B).
+  function cardOpName(x) {
+    const b = x.before;
+    if (x.op_cd === 'EDIT' && b && b.kind_cd !== 'WATCH' && Number(x.to_year) === Number(b.target_year) + 1 &&
+      str(x.tag_name) === str(b.tag_name) && str(x.owner_name) === str(b.owner_name) && str(x.memo) === str(b.memo)) return tc.opLong('NEXT');
+    return tc.opLong(x.op_cd) || x.op_cd;
+  }
   tc.cardItemsHtml = function (items) {
     if (!Array.isArray(items) || !items.length) return '';
     return '<table class="ad-table ap-tc"><caption class="sr-only">바꿀 목표 기관 ' + items.length + '곳</caption>' +
       '<colgroup><col class="tc-c1"><col class="tc-c2"><col class="tc-c3"><col class="tc-c3"></colgroup>' +
       '<thead><tr><th scope="col">기관</th><th scope="col">동작</th><th scope="col">이전</th><th scope="col">이후</th></tr></thead><tbody>' +
       items.map(function (x) {
-        return '<tr><th scope="row">' + esc(x.institution_name) + '</th><td>' + esc(tc.opLong(x.op_cd) || x.op_cd) + '</td><td>' + beforeCell(x) + '</td><td>' + afterCell(x) + '</td></tr>';
+        return '<tr><th scope="row">' + esc(x.institution_name) + '</th><td>' + esc(cardOpName(x)) + '</td><td>' + beforeCell(x) + '</td><td>' + afterCell(x) + '</td></tr>';
       }).join('') + '</tbody></table>';
   };
 

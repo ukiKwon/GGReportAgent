@@ -10,14 +10,15 @@ public final class TargetUiIds {
     public static final String BTN_ADD = "add_bid_target", BTN_ADD_WATCH = "add_watch_target", BTN_EDIT = "edit_bid_target",
             BTN_TAG = "change_target_tag", BTN_NEXT_YEAR = "goal_next_year", BTN_CANCEL = "cancel_bid_target",
             BTN_TO_GOAL = "move_to_goal", BTN_TO_WATCH = "move_to_watch",
-            BTN_CHANGE = "submit_target_change", BTN_CARRY = "carry_targets", BTN_TERM = "set_term_start";   // 056 — 일괄 변경·자동 이월·협약 개시일
+            BTN_CHANGE = "submit_target_change", BTN_SAVE_VALUES = "save_target_values",   // NEXT 114 — 일괄 창 [수정하기]
+            BTN_CARRY = "carry_targets", BTN_TERM = "set_term_start";   // 056 — 일괄 변경·자동 이월·협약 개시일
     public static final Set<String> ADD = Collections.singleton(BTN_ADD);
     public static final Set<String> ADD_WATCH = Collections.singleton(BTN_ADD_WATCH);
     public static final Set<String> EDIT = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(BTN_EDIT, BTN_TAG, BTN_NEXT_YEAR)));
     public static final Set<String> CANCEL = Collections.singleton(BTN_CANCEL);
     public static final Set<String> TO_GOAL = Collections.singleton(BTN_TO_GOAL);
     public static final Set<String> TO_WATCH = Collections.singleton(BTN_TO_WATCH);
-    public static final Set<String> CHANGE = Collections.singleton(BTN_CHANGE);
+    public static final Set<String> CHANGE = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(BTN_CHANGE, BTN_SAVE_VALUES)));
     public static final Set<String> CARRY = Collections.singleton(BTN_CARRY);
     public static final Set<String> TERM = Collections.singleton(BTN_TERM);
 

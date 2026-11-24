@@ -433,7 +433,7 @@ test('menuHtml: 자동 제안 설명 줄 + 구분 라디오(현재 값 체크) +
   const r = { tagCd: 'RETAIN' };
   const tags = [{ code: 'RETAIN', name: '재유치 도전' }, { code: 'NEW', name: '신규유치 도전' }];
   const h = kbb.menuHtml(r, { tags: tags, def: { tag: 'RETAIN', why: 'kb' }, canCancel: true });
-  assert.ok(h.indexOf('<div class="hb-menu" role="menu" aria-label="구분 바꾸기"><div class="mh">자동 제안: 재유치 도전 — 지금 국민은행 협약 중</div>') === 0);
+  assert.ok(h.indexOf('<div class="hb-menu" role="menu" aria-label="목표 기관 동작"><div class="mh">자동 제안: 재유치 도전 — 지금 국민은행 협약 중</div>') === 0);
   assert.ok(h.indexOf('role="menuitemradio" aria-checked="true" data-tag="RETAIN" tabindex="-1"><span>재유치 도전</span><svg class="ck"') > 0);
   assert.ok(h.indexOf('role="menuitemradio" aria-checked="false" data-tag="NEW"') > 0);
   assert.ok(h.indexOf('<div class="ms" role="separator"></div><button type="button" role="menuitem" data-cmd="cancel" tabindex="-1">목표에서 빼기…</button>') > 0);
@@ -562,7 +562,9 @@ test('outcome: 201 저장 / 200 변경 없음 / 409 DUP_TARGET·STALE·LIMIT·AL
 test('알림 문구(#hb-flash): 넣었습니다 / 바꿨습니다 / 뺐습니다 — 받침에 맞는 조사', function () {
   assert.strictEqual(kbb.flashAdded('광진구청', 2026), '광진구청을 2026 목표 기관에 넣었습니다.');
   assert.strictEqual(kbb.flashAdded('하남시', 2026), '하남시를 2026 목표 기관에 넣었습니다.');
-  assert.strictEqual(kbb.flashTag('광진구청', '신규유치 도전'), '광진구청을 \'신규유치 도전\'으로 바꿨습니다.');
+  assert.strictEqual(kbb.flashTag('광진구청', '신규유치 도전'), '광진구청의 구분을 \'신규유치 도전\'으로 바꿨습니다. 결재 없이 반영되고, 바꾼 사람·시각은 기록에 남습니다.');
+  assert.ok(kbb.flashTag('하남시', '재유치 도전').indexOf('하남시의 구분을 \'재유치 도전\'으로 바꿨습니다.') === 0);   // '전' 받침 → 으로(조사는 구분 이름 기준)
+  assert.ok(kbb.flashTag('하남시', '되찾기').indexOf('\'되찾기\'로 바꿨습니다.') > 0);
   assert.strictEqual(kbb.flashCancelled('광진구청', 2026), '광진구청을 2026 목표에서 뺐습니다.');
 });
 
@@ -579,13 +581,14 @@ test('DOM 코드 구조: 서버 글은 textContent·esc로, 쓰기는 영업부�
   assert.ok(k.indexOf("btn.setAttribute('aria-expanded', 'true')") > 0 && k.indexOf("m.btn.setAttribute('aria-expanded', 'false')") > 0);
   assert.ok(k.indexOf("btn.setAttribute('aria-busy', 'true')") > 0);                                                              // 저장 중 칩 aria-busy
   // 구분 바꾸기는 base_rev_no와 함께 전체 값을 다시 보낸다
-  assert.ok(/target_no: r\.targetNo, base_rev_no: r\.revNo, target_year: r\.targetYear, tag_cd: code, memo: r\.memo \|\| null, owner_emp_no: r\.ownerEmpNo \|\| null/.test(k));
+  assert.ok(/target_no: r\.targetNo, base_rev_no: r\.revNo, target_year: r\.targetYear, tag_cd: r\.tagCd, memo: r\.memo \|\| null, owner_emp_no: r\.ownerEmpNo \|\| null/.test(k));   // 본문은 kbb.valueBody 한 곳(NEXT 114)
+  assert.ok(k.indexOf('kbb.valueBody(r, { tag_cd: code })') > 0);                                                                   // changeTag는 구분만 덮어쓴다
   assert.ok(/base_rev_no: r\.revNo, cancel_reason_cd: m\.reason, cancel_reason_etc: m\.reason === 'ETC' \?/.test(k));
   // 열기 전 영업부서(can_edit) 확인: 서버가 줄 때만 추가 버튼·메뉴
   assert.ok(k.indexOf("const ok = gs.st === 'ok' && !!gs.data, can = ok && !!gs.data.can_edit;") > 0);
   assert.ok(/function canEditNow\(\) \{ return gs\.st === 'ok' && !!gs\.data && !!gs\.data\.can_edit; \}/.test(k));
   assert.ok(/function openAdd\(pre\) \{\s*if \(dlg \|\| !ALL \|\| !canEditNow\(\)\) return;/.test(k));                    // 버튼이 없어도 함수가 한 번 더 막는다(심층 방어)
-  assert.ok(/if \(!r \|\| gs\.busy \|\| !canEditNow\(\)\) return;/.test(k) && /function changeTag\(r, code, btn\) \{\s*if \(gs\.busy \|\| !canEditNow\(\)\) return;/.test(k));
+  assert.ok(/if \(!r \|\| gs\.busy \|\| !canEditNow\(\)\) return;/.test(k) && /function changeTag\(r, code, btn\) \{\s*if \(gs\.busy \|\| !canEditNow\(\) \|\| !canValueEdit\(r\)\) return;/.test(k));
   // 대화창 접근성: Esc·Tab 순환, 닫으면 연 버튼(없으면 [목표 기관 추가])
   assert.ok(k.indexOf("ev.key !== 'Tab'") > 0 && k.indexOf("const a = $('hb-add'); o = a && !a.hidden ? a : null;") > 0);
   // 추가 뒤 새 줄 이름·뺀 뒤 다음 줄 이름으로 포커스

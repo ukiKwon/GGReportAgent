@@ -2402,6 +2402,11 @@
   .hb-selbar .who { color:var(--muted); }
   .hb-selbar button { height:32px; padding:0 14px; }
   .hb-selbar .go { border-color:var(--accent-color); font-weight:700; background:var(--panel); }   /* 틴트 위에서 흰 단추가 떠 보이게 */
+  .hb-selbar button[hidden] { display:none; }
+  .hb-selbar #hb-seledit { background:var(--panel); border:1px solid var(--line-strong); }   /* 바로 반영 보조 단추: 흰 바탕 보통 단추(결재 주 단추 .go 와 구분) */
+  .hb-selbar .lnk { border:0; background:transparent; color:var(--muted); padding:0 6px; }   /* 선택 지우기: 글자 모양 단추 */
+  .hb-selbar .lnk:hover, .hb-selbar .lnk:focus-visible { background:transparent; color:var(--fg); text-decoration:underline; }
+  #mm-dlg .dlg-ferr:empty { display:none; }
   #tc-dlg .dlg-ferr:empty, #tt-dlg .dlg-ferr:empty { display:none; }
   .tc-sub { display:flex; justify-content:space-between; margin:4px 0 0; font-size:12px; color:var(--muted); }
   .tc-all { display:flex; align-items:center; gap:8px; margin:0 0 12px; font-size:12px; }

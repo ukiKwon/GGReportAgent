@@ -305,6 +305,113 @@ public class TargetChangeApiTest {
         assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2 AND TAG_CD='REGAIN'"));
     }
 
+    // ---- NEXT 114 — 구분·메모만 고치기는 결재 없이 ----
+
+    private Map<String, Object> single(Object... kv) {
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        m.put("target_no", 1); m.put("base_rev_no", 1);
+        for (int i = 0; i < kv.length; i += 2) m.put((String) kv[i], kv[i + 1]);
+        return m;
+    }
+
+    @Test public void 구분만_단건은_결재_없이_201_VALUE_EDIT_이력_남김() throws Exception {
+        baseSeed();
+        MvcResult r = send(SALES, "/institutions/jung/bid-targets", "bid_board", "change_target_tag", single("target_year", y(), "tag_cd", "RETAIN"));
+        assertEquals(raw(r), 201, status(r));
+        assertEquals("DIRECT", json(r).path("mode").asText());
+        assertEquals("VALUE_EDIT", json(r).path("direct_basis").asText());
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND TARGET_NO=1 AND REV_NO=2 AND TAG_CD='RETAIN'"
+                + " AND EDITOR_EMP_NO=? AND BUTTON_ID='change_target_tag' AND UI_VALID=1 AND APPROVAL_REQ_ID IS NULL", SALES));
+        assertEquals(0, count("SELECT COUNT(*) FROM APPROVAL_REQUEST"));
+        assertEquals("bid-target save no=1 rev=2 basis=value",
+                jdbc.queryForList("SELECT DETAIL FROM ACCESS_LOG WHERE EVENT_TYPE='API' AND HTTP_METHOD='POST' ORDER BY LOG_ID DESC", String.class).get(0));
+    }
+
+    @Test public void 메모만_단건은_결재_없이_201_수정자_이름_남김() throws Exception {
+        baseSeed();
+        MvcResult r = send(SALES, "/institutions/jung/bid-targets", "bid_board", "edit_bid_target", single("target_year", y(), "tag_cd", "NEW", "memo", "설명회 참석"));
+        assertEquals(raw(r), 201, status(r));
+        assertEquals("VALUE_EDIT", json(r).path("direct_basis").asText());
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2 AND MEMO='설명회 참석'"
+                + " AND EDITOR_NAME='김영업' AND APPROVAL_REQ_ID IS NULL"));
+    }
+
+    @Test public void 연도_또는_주_담당_변경_단건은_403_APPROVAL_REQUIRED() throws Exception {
+        baseSeed();
+        MvcResult a = send(SALES, "/institutions/jung/bid-targets", "bid_board", "edit_bid_target", single("target_year", y() + 1, "tag_cd", "NEW"));
+        assertEquals(raw(a), 403, status(a));
+        assertEquals("APPROVAL_REQUIRED", json(a).path("detail").path("code").asText());
+        MvcResult b = send(SALES, "/institutions/jung/bid-targets", "bid_board", "edit_bid_target", single("target_year", y(), "tag_cd", "NEW", "owner_emp_no", LEAD));
+        assertEquals(raw(b), 403, status(b));
+        assertEquals("APPROVAL_REQUIRED", json(b).path("detail").path("code").asText());
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2"));
+        assertTrue(count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND EMP_NO=? AND REQ_PATH=?", SALES, "/institutions/jung/bid-targets") >= 1);
+    }
+
+    @Test public void 지난해_목표_구분_고치기는_403_APPROVAL_REQUIRED() throws Exception {
+        baseSeed();
+        jdbc.update("UPDATE INST_BID_TARGET SET TARGET_YEAR=? WHERE INSTITUTION_ID='jung' AND TARGET_NO=1", y() - 1);   // 시드를 지난해 목표로
+        MvcResult r = send(SALES, "/institutions/jung/bid-targets", "bid_board", "change_target_tag", single("target_year", y() - 1, "tag_cd", "RETAIN"));
+        assertEquals(raw(r), 403, status(r));
+        assertEquals("APPROVAL_REQUIRED", json(r).path("detail").path("code").asText());
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2"));
+    }
+
+    @Test public void 결재_중이면_구분_고치기도_409_CHANGE_PENDING_단건_일괄_모두() throws Exception {
+        baseSeed();
+        submitFive();
+        MvcResult s = send(SALES, "/institutions/jung/bid-targets", "bid_board", "change_target_tag", single("target_year", y(), "tag_cd", "REGAIN"));
+        assertEquals(409, status(s)); assertEquals("CHANGE_PENDING", json(s).path("detail").path("code").asText());
+        MvcResult b = send(SALES, "/bid-targets/changes", "bid_board", "save_target_values",
+                req(null, item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", y(), "tag_cd", "REGAIN")));
+        assertEquals(409, status(b)); assertEquals("CHANGE_PENDING", json(b).path("detail").path("code").asText());
+        assertEquals(1, json(b).path("detail").path("item_no").asInt());
+    }
+
+    @Test public void 일괄_구분_메모만은_사유_없이_바로_save_target_values() throws Exception {
+        baseSeed();
+        final int Y = y();
+        MvcResult r = send(SALES, "/bid-targets/changes", "bid_board", "save_target_values",
+                req(null, item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "RETAIN"),
+                        item("jungnang", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "NEW", "memo", "메모")));
+        assertEquals(raw(r), 200, status(r));
+        assertEquals("DIRECT", json(r).path("mode").asText());
+        assertEquals("VALUE_EDIT", json(r).path("direct_basis").asText());
+        assertEquals(2, json(r).path("applied").asInt());
+        assertEquals(0, count("SELECT COUNT(*) FROM APPROVAL_REQUEST WHERE REQ_TYPE='TARGET_CHANGE'"));
+        assertEquals(2, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE REV_NO=2 AND BUTTON_ID='save_target_values' AND UI_VALID=1 AND APPROVAL_REQ_ID IS NULL"));
+        assertEquals("bid-target change mode=direct n=2 basis=value",
+                jdbc.queryForList("SELECT DETAIL FROM ACCESS_LOG WHERE EVENT_TYPE='API' AND HTTP_METHOD='POST' ORDER BY LOG_ID DESC", String.class).get(0));
+    }
+
+    @Test public void 일괄_섞임은_사유_없으면_400_있으면_결재() throws Exception {
+        baseSeed();
+        final int Y = y();
+        Map<String, Object> e = item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "RETAIN");
+        Map<String, Object> c = item("jungnang", "CANCEL", "target_no", 1, "base_rev_no", 1, "cancel_reason_cd", "DROPPED");
+        assertEquals(400, status(change(SALES, req(null, e, c))));
+        assertEquals(0, count("SELECT COUNT(*) FROM APPROVAL_REQUEST WHERE REQ_TYPE='TARGET_CHANGE'"));
+        MvcResult r = change(SALES, req("정리", e, c));
+        assertEquals(raw(r), 200, status(r));
+        assertEquals("APPROVAL", json(r).path("mode").asText());
+    }
+
+    @Test public void 일괄_연도_변경_EDIT는_사유_없으면_400() throws Exception {
+        baseSeed();
+        MvcResult r = change(SALES, req(null, item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", y() + 1, "tag_cd", "NEW")));
+        assertEquals(raw(r), 400, status(r));
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE REV_NO=2"));
+    }
+
+    @Test public void 디자이너는_구분_고치기_403_목록의_value_edit_mode() throws Exception {
+        baseSeed();
+        MvcResult d = send(DESIGNER, "/institutions/jung/bid-targets", "bid_board", "change_target_tag", single("target_year", y(), "tag_cd", "RETAIN"));
+        assertEquals(403, status(d));
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2"));
+        assertEquals("DIRECT", json(getAs(SALES, "/bid-targets")).path("value_edit_mode").asText());
+        assertTrue(json(getAs(DESIGNER, "/bid-targets")).path("value_edit_mode").isNull());
+    }
+
     @Test public void 팀장_상신은_영업부장_결재_부장은_바로_반영() throws Exception {
         userPerm(HEAD, "map", 1, 1);
         final int Y = y();

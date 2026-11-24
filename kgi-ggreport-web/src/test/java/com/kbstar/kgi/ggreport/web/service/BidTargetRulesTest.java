@@ -61,6 +61,30 @@ public class BidTargetRulesTest {
         assertFalse(BidTargetRules.same(c, BidTargetRules.parse(i, 2026, 2026, CODES)));
     }
 
+    @Test public void valueOnlyEdit_연도와_주_담당이_그대로일_때만_true() {
+        BidTarget c = new BidTarget(); c.setTargetYear(2026); c.setTagCd("NEW"); c.setMemo("a"); c.setOwnerEmpNo("3918264");
+        BidTargetIn same = in(2026, "RETAIN"); same.setMemo("b"); same.setOwnerEmpNo("3918264");
+        assertTrue(BidTargetRules.valueOnlyEdit(c, BidTargetRules.parse(same, 2026, 2026, CODES), 2026));
+        assertFalse(BidTargetRules.valueOnlyEdit(null, BidTargetRules.parse(same, 2026, null, CODES), 2026));   // 넣기
+        BidTargetIn year = in(2027, "RETAIN"); year.setOwnerEmpNo("3918264");
+        assertFalse(BidTargetRules.valueOnlyEdit(c, BidTargetRules.parse(year, 2026, 2026, CODES), 2026));
+        BidTargetIn owner = in(2026, "RETAIN"); owner.setOwnerEmpNo("5047192");
+        assertFalse(BidTargetRules.valueOnlyEdit(c, BidTargetRules.parse(owner, 2026, 2026, CODES), 2026));
+        BidTargetIn noOwner = in(2026, "RETAIN");   // 주 담당을 비우면 바뀐 것
+        assertFalse(BidTargetRules.valueOnlyEdit(c, BidTargetRules.parse(noOwner, 2026, 2026, CODES), 2026));
+        BidTarget w = new BidTarget(); w.setKindCd("WATCH"); w.setTagCd("NEW");
+        assertFalse(BidTargetRules.valueOnlyEdit(w, BidTargetRules.parseWatch(in(null, "RETAIN"), CODES), 2026));   // 관심
+    }
+
+    @Test public void valueOnlyEdit_지난해_목표는_false_내년은_true() {
+        BidTarget past = new BidTarget(); past.setTargetYear(2025); past.setTagCd("NEW"); past.setMemo("a"); past.setOwnerEmpNo("3918264");
+        BidTargetIn pin = in(2025, "RETAIN"); pin.setMemo("b"); pin.setOwnerEmpNo("3918264");
+        assertFalse(BidTargetRules.valueOnlyEdit(past, BidTargetRules.parse(pin, 2026, 2025, CODES), 2026));   // 지난해 → 결재
+        BidTarget next = new BidTarget(); next.setTargetYear(2027); next.setTagCd("NEW"); next.setMemo("a"); next.setOwnerEmpNo("3918264");
+        BidTargetIn nin = in(2027, "RETAIN"); nin.setMemo("b"); nin.setOwnerEmpNo("3918264");
+        assertTrue(BidTargetRules.valueOnlyEdit(next, BidTargetRules.parse(nin, 2026, 2027, CODES), 2026));
+    }
+
     // ---- 044 ----
 
     private static BankContract term(int no, String rank, String from, String to) {

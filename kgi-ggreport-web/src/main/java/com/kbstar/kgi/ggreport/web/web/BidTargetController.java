@@ -73,6 +73,7 @@ public class BidTargetController {
         boolean saved = Boolean.TRUE.equals(out.get("saved"));
         req.setAttribute(AccessLogInterceptor.DETAIL, (saved
                 ? "bid-target save no=" + out.get("target_no") + " rev=" + out.get("rev_no") : "bid-target save no-change")
+                + (BidTargetService.DIRECT_VALUE_EDIT.equals(out.get("direct_basis")) ? " basis=value" : "")
                 + (out.get("warning") != null ? " warn=INST_BID_CLOSED" : ""));
         return ResponseEntity.status(saved ? HttpStatus.CREATED : HttpStatus.OK).body(out);
     }
@@ -131,7 +132,8 @@ public class BidTargetController {
         Object reqId = rq instanceof Map ? ((Map<?, ?>) rq).get("req_id") : null;
         int n = body.getItems().size();   // 여기 오면 1~20 으로 검사됨
         req.setAttribute(AccessLogInterceptor.DETAIL, "bid-target change mode=" + ("DIRECT".equals(out.get("mode")) ? "direct" : "approval")
-                + " n=" + n + (reqId == null ? "" : " req=" + reqId));
+                + " n=" + n + (BidTargetService.DIRECT_VALUE_EDIT.equals(out.get("direct_basis")) ? " basis=value" : "")
+                + (reqId == null ? "" : " req=" + reqId));
         return out;
     }
 

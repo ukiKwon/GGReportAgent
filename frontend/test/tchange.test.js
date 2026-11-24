@@ -52,11 +52,14 @@ test('모드·결재자 안내·단추 글자: 서버 goal_change_mode만 따르
   assert.strictEqual(tc.approverText('영업부장', 'DIRECT'), '');
   assert.strictEqual(tc.dlgTitle('APPROVAL', 3), '목표 기관 변경 결재 요청 — 3곳');
   assert.strictEqual(tc.dlgTitle('DIRECT', 3), '목표 기관 변경 — 3곳');
-  assert.strictEqual(tc.dlgHint('APPROVAL', '영업팀'), '영업팀장이 결재합니다. 결재가 끝날 때까지 이 기관들의 목표·관심은 고칠 수 없습니다(요청자 취소·영업부장 반려로 풀림).');
+  assert.strictEqual(tc.dlgHint('APPROVAL', '영업팀'), '영업팀장이 결재합니다. 결재가 끝날 때까지 이 기관들은 구분·메모도 고칠 수 없습니다(요청자 취소·영업부장 반려로 풀림).');
   assert.strictEqual(tc.dlgHint('DIRECT', '영업부장'), '영업부장은 결재 없이 바로 반영합니다. 반영한 사람·시각은 기록에 남습니다.');
   assert.strictEqual(tc.dlgHint('DIRECT', '영업팀'), '결재 없이 바로 반영합니다. 반영한 사람·시각은 기록에 남습니다.');   // 스위치를 끄면 팀원도 바로 쓴다
-  assert.strictEqual(tc.barBtnText('APPROVAL', 3), '결재 요청 3건');
-  assert.strictEqual(tc.barBtnText('DIRECT', 3), '바로 반영 3건');
+  assert.strictEqual(tc.barBtnText('APPROVAL', 'GOAL'), '빼기·옮기기 결재 요청…');   // 건수는 쓰지 않는다(왼쪽 문장이 말한다)
+  assert.strictEqual(tc.barBtnText('APPROVAL', 'WATCH'), '목표로 옮기기 결재 요청…');
+  assert.strictEqual(tc.barBtnText('APPROVAL', 'MIX'), '결재 요청 쓰기…');
+  assert.strictEqual(tc.barBtnText('DIRECT', 'GOAL'), '빼기·옮기기 바로 반영…');
+  assert.strictEqual(tc.barBtnText('DIRECT', 'MIX'), '바로 반영 쓰기…');
   assert.strictEqual(tc.addGoText('APPROVAL'), '결재 요청 쓰기');
   assert.strictEqual(tc.addGoText('DIRECT'), '목표에 넣기');
 });
@@ -86,7 +89,8 @@ test('고르기: 20곳 한도·같은 기관 두 번(다른 연도 목표)은 �
 
 test('줄 → 고른 항목 스냅샷, 고를 수 있는 줄(목표 밖·결재 중·옮길 시기 아닌 관심 줄은 아님)', function () {
   const e = tc.entryOfRow(mk({ id: 'I1', targetNo: 3, revNo: 2, tagCd: 'RETAIN', tagName: '재유치 도전', memo: 'm', ownerEmpNo: 'E1', ownerName: '김영업' }));
-  assert.deepStrictEqual(e, { id: 'I1', name: '종로구청', regionName: '서울', kind: 'GOAL', targetNo: 3, revNo: 2, year: 2026, tagCd: 'RETAIN', tagName: '재유치 도전', memo: 'm', ownerEmpNo: 'E1', ownerName: '김영업', moveYear: 0 });
+  assert.deepStrictEqual(e, { id: 'I1', name: '종로구청', regionName: '서울', kind: 'GOAL', targetNo: 3, revNo: 2, year: 2026, tagCd: 'RETAIN', tagName: '재유치 도전', memo: 'm', ownerEmpNo: 'E1', ownerName: '김영업', moveYear: 0, closed: false });
+  assert.strictEqual(tc.entryOfRow(mk({ closed: { basis_cd: 'NOTICE_CLOSED' } })).closed, true);   // 다음 회차 목표로 옵션 판정용
   assert.strictEqual(tc.pickable(mk()), true);
   assert.strictEqual(tc.pickable(mk({ out: true })), false);
   assert.strictEqual(tc.pickable(mk({ pend: true })), false);
@@ -336,12 +340,13 @@ test('일괄 요청 창 마크업: 제목·단추·안내·사유 칸·항목(�
   const W = tc.newItem(2, tc.entryOfRow(mk({ id: 'W', name: '수원시', kind: 'WATCH', targetYear: null, movable: 2027, targetNo: 4, tagName: '신규유치 도전' })));
   const N = tc.addItem(3, { id: 'N', name: '성동구청', regionName: '서울', year: 2027, tag: 'NEW', tagName: '신규유치 도전', memo: '' });
   const h = tc.dialogHtml({ mode: 'APPROVAL', role: '영업팀', reason: '', items: [A, W, N] }, OPT);
-  assert.ok(h.indexOf('<div id="tc-dlg" class="modal-overlay" style="display:none"><div class="dlg dlg--wide" role="dialog" aria-modal="true" aria-labelledby="tc-t">') === 0);
+  assert.ok(h.indexOf('<div id="tc-dlg" class="modal-overlay" style="display:none" data-kind="approval"><div class="dlg dlg--wide" role="dialog" aria-modal="true" aria-labelledby="tc-t">') === 0);
   assert.ok(h.indexOf('<h2 class="dlg-t" id="tc-t" tabindex="-1">목표 기관 변경 결재 요청 — 3곳</h2>') > 0);
   assert.ok(h.indexOf('id="tc-cancel">취소</button><button type="button" id="tc-go" class="dlg-go">결재 요청</button>') > 0);
   assert.ok(h.indexOf('영업팀장이 결재합니다. 결재가 끝날 때까지') > 0);
   assert.ok(h.indexOf('<textarea id="tc-reason" rows="3" maxlength="200" aria-describedby="tc-rh tc-rc tc-re"></textarea>') > 0 && h.indexOf('id="tc-rc" class="mono">0/200') > 0);
-  assert.ok(h.indexOf('<select id="tc-i1-op" data-uid="1" data-f="op"><option value="">동작 고르기</option><option value="EDIT">목표 고치기</option><option value="CANCEL" selected>목표에서 빼기</option>') > 0);
+  assert.ok(h.indexOf('<select id="tc-i1-op" data-uid="1" data-f="op"><option value="">동작 고르기</option><option value="CANCEL" selected>목표에서 빼기</option><option value="TO_WATCH">관심으로 옮기기</option></select>') > 0);   // 목표 고치기는 목록에 없다(NEXT 114)
+  assert.ok(h.indexOf('목표 고치기') < 0 && h.indexOf('value="NEXT"') < 0);   // 입찰 종료 줄이 아니면 '다음 회차 목표로'도 없다
   assert.ok(h.indexOf('<span class="fix">목표로 옮기기</span>') > 0 && h.indexOf('<span class="fix">목표에 넣기</span>') > 0);   // 관심 줄·넣기는 동작 고정
   assert.ok(h.indexOf('tc-i2-op') < 0 && h.indexOf('tc-i3-op') < 0);
   assert.ok(h.indexOf('id="tc-i1-e"') > 0 && h.indexOf('id="tc-i2-e"') > 0 && h.indexOf('id="tc-i3-e"') > 0);
@@ -400,7 +405,9 @@ test('결재함 카드 표(6-6): 이전/이후·강조·메모 줄·주의 줄·
   assert.ok(h.indexOf('<table class="ad-table ap-tc"><caption class="sr-only">바꿀 목표 기관 5곳</caption><colgroup><col class="tc-c1"><col class="tc-c2"><col class="tc-c3"><col class="tc-c3"></colgroup>') === 0);
   assert.ok(h.indexOf('<th scope="col">기관</th><th scope="col">동작</th><th scope="col">이전</th><th scope="col">이후</th>') > 0);
   assert.ok(h.indexOf('<th scope="row">종로구청</th><td>목표에서 빼기</td><td><span class="mono">2026</span> 목표 · 재유치 도전 · 주 담당 김영업</td><td>목표에서 빠짐 · 사유 입찰 불참 결정</td>') > 0);
-  assert.ok(h.indexOf('<th scope="row">수원시</th><td>목표 고치기</td><td><span class="mono">2026</span> 목표 · 재유치 도전 · 주 담당 김영업</td><td><b class="mono">2027</b> 목표 · 재유치 도전 · 주 담당 김영업</td>') > 0);   // 바뀐 값만 굵게
+  assert.ok(h.indexOf('<th scope="row">수원시</th><td>다음 회차 목표로</td><td><span class="mono">2026</span> 목표 · 재유치 도전 · 주 담당 김영업</td><td><b class="mono">2027</b> 목표 · 재유치 도전 · 주 담당 김영업</td>') > 0);   // 연도만 +1이면 '다음 회차 목표로', 바뀐 값만 굵게
+  const tagToo = tc.cardItemsHtml([{ institution_name: 'b', op_cd: 'EDIT', before: before, to_year: 2027, tag_name: '신규유치 도전', owner_name: '김영업', memo: '' }]);
+  assert.ok(tagToo.indexOf('<td>목표 고치기</td>') > 0);   // 구분도 같이 바뀐 옛 요청은 그대로 '목표 고치기'
   assert.ok(h.indexOf('<td>목표에 넣기</td><td><span aria-hidden="true">—</span><span class="sr-only">없음, 새로 넣기</span></td><td><span class="mono">2026</span> 목표 · 신규유치 도전 · 주 담당 박영업<span class="warn">주의: 올해 입찰이 끝난 것으로 기록된 기관</span></td>') > 0);
   assert.ok(h.indexOf('<td>관심으로 옮기기</td>') > 0 && h.indexOf('<td>관심 기관(연도 없음)</td>') > 0);
   assert.ok(h.indexOf('<td>목표로 옮기기</td><td>관심 기관 · 신규유치 도전</td><td><span class="mono">2027</span> 목표</td>') > 0);
@@ -495,14 +502,14 @@ test('현황판: 상태 거르기 9개(결재 중·자동 이월)·관심 자동
   const m = kbb.menuHtml(r, { tags: tags, def: { tag: 'RETAIN', why: 'kb' }, canCancel: true, canMove: true, canTerm: true, judgeText: '달성 판정일 2027-01-01(추정)' });
   assert.ok(m.indexOf('<div class="hb-menu" role="menu" aria-label="목표 기관 동작">') === 0);
   assert.ok(m.indexOf('<div class="mh">달성 판정일 2027-01-01(추정)</div>') > m.indexOf('자동 제안'));
-  assert.ok(m.indexOf('data-cmd="term" tabindex="-1">협약 개시일 적기…</button>') > m.indexOf('data-cmd="cancel"'));
-  assert.ok(kbb.menuHtml(r, { tags: tags, def: {}, canCancel: true }).indexOf('aria-label="구분 바꾸기"') > 0);
+  assert.ok(m.indexOf('data-cmd="term" tabindex="-1">협약 개시일 적기…</button>') < m.indexOf('data-cmd="towatch"'));   // 바로 반영 항목(협약 개시일)이 옮기기·빼기보다 앞(NEXT 114)
+  assert.ok(kbb.menuHtml(r, { tags: tags, def: {}, canCancel: true }).indexOf('aria-label="목표 기관 동작"') > 0);   // 메뉴 이름은 늘 '목표 기관 동작'
   assert.ok(kbb.menuHtml(r, { tags: tags, def: {}, canCancel: true }).indexOf('data-cmd="term"') < 0);
 });
 
 test('현황판: 403 APPROVAL_REQUIRED는 목록을 다시 읽게 stale + 고정 문장, 409 CHANGE_PENDING은 서버 문장 + stale', function () {
   const a = kbb.outcome({ status: 403, body: { detail: { code: 'APPROVAL_REQUIRED', message: '목표 기관 정보를 바꾸려면 결재가 필요합니다. 체크한 뒤 [결재 요청]으로 올려 주세요.' } } }, 'edit');
-  assert.deepStrictEqual(a, { kind: 'stale', code: 'APPROVAL_REQUIRED', msg: '이제 목표를 바꾸려면 결재가 필요합니다. 줄을 고른 뒤 아래 [결재 요청]으로 올려 주세요.' });
+  assert.deepStrictEqual(a, { kind: 'stale', code: 'APPROVAL_REQUIRED', msg: '목표에서 빼기·옮기기는 결재가 필요합니다. 줄을 고른 뒤 아래 [빼기·옮기기 결재 요청…]으로 올려 주세요. 구분·메모는 결재 없이 바로 바뀝니다.' });
   const p = kbb.outcome({ status: 409, body: { detail: { code: 'CHANGE_PENDING', message: '이 기관은 목표 변경 결재가 진행 중입니다. 결재가 끝난 뒤 다시 시도해 주세요.' } } }, 'edit');
   assert.strictEqual(p.kind, 'stale'); assert.ok(p.msg.indexOf('이 기관은 목표 변경 결재가 진행 중입니다.') === 0);
   assert.strictEqual(kbb.outcome({ status: 403, body: { detail: '올해 목표 기관은 영업부서만 넣고 고치고 뺄 수 있습니다.' } }, 'add').kind, 'denied');   // 기존 403은 그대로
@@ -530,7 +537,7 @@ test('요청: /bid-targets/changes·/bid-targets/carry·/institutions/{id}/bid-t
 test('현황판 소스 배선: 한 줄 동작은 결재 모드에서 일괄 창으로, 추가 창은 [결재 요청 쓰기], 새 창은 dlg, 서버 글은 textContent·esc', function () {
   const k = src('js/kbboard.js');
   assert.ok(k.indexOf("const tc = isNode ? require('./tchange.js') : root.tchange;") > 0);
-  assert.ok(k.indexOf("if (isApproval() && r.kind !== 'WATCH') openChange({ rows: [r], op: 'EDIT', tag: code, opener: btn }); else changeTag(r, code, btn);") > 0);
+  assert.ok(k.indexOf("changeTag(r, code, btn);   // 구분은 목표·관심 모두 바로 저장한다") > 0 && k.indexOf("op: 'EDIT', tag: code") < 0);   // 구분 고르기는 결재 창으로 가지 않는다(NEXT 114)
   assert.ok(k.indexOf("if (isApproval() && r.kind !== 'WATCH') openChange({ rows: [r], op: 'CANCEL', opener: btn }); else openCancel(r, btn);") > 0);
   assert.ok(k.indexOf("if (isApproval()) openChange(moveChange(r, cmd, btn)); else openMove(cmd, r, btn);") > 0);
   assert.ok(k.indexOf("if (r && isApproval()) openChange(moveChange(r, act, btn)); else if (r) openMove(act, r, btn);") > 0);
@@ -568,4 +575,164 @@ test('index.html: tchange.js는 logic·errtext 뒤 approvals·kbboard 앞, 새 C
   assert.ok(css.indexOf('.hb-selbar {') >= 0 && plain.indexOf('.hb-selbar {') < 0 && plain.indexOf('hbSelIn {') < 0);
   assert.ok(plain.indexOf('box-shadow') < 0 && !/opacity:\s*(0|\.)/.test(plain) && !/border-left:\s*3px/.test(plain));
   (css.match(/font-size:\s*(\d+)px/g) || []).forEach(function (m) { assert.ok(Number(m.match(/(\d+)/)[1]) >= 12, m); });
+  // NEXT 114: 띠 보조 단추·글자 모양 [선택 지우기]·메모 창 CSS(새 색·그림자·투명도 없음은 위 단언이 함께 본다)
+  assert.ok(/\.hb-selbar \.lnk \{[^}]*border:0[^}]*background:transparent[^}]*color:var\(--muted\)/.test(css) && /\.hb-selbar \.lnk:hover[^{]*\{[^}]*text-decoration:underline/.test(css));
+  assert.ok(/\.hb-selbar button\[hidden\] \{ display:none; \}/.test(css) && /\.hb-selbar #hb-seledit \{[^}]*border:1px solid var\(--line-strong\)/.test(css) && /#mm-dlg \.dlg-ferr:empty \{ display:none; \}/.test(css));
+});
+
+// ── NEXT 114(design-reviewer 2026-11-24_2327_a59fddd3 6절): 결재 줄이기 — 구분·메모는 바로 저장, 옮기기·빼기만 결재 ─────────────
+test('NEXT 114 띠: 고른 목표 기관 n곳·선택 지우기·[수정하기…]·결재자 안내·주 단추, 섞임·화면 밖 문구', function () {
+  const b = tc.selbarHtml();
+  assert.ok(b.indexOf('<button type="button" id="hb-selclr" class="lnk">선택 지우기</button><span class="sp"></span><button type="button" id="hb-seledit" aria-haspopup="dialog" hidden>수정하기…</button><span class="who" id="hb-selwho"></span><button type="button" id="hb-selgo" class="go" aria-haspopup="dialog"></button>') > 0);
+  assert.ok(b.indexOf('고르기 해제') < 0);
+  assert.strictEqual(tc.selStatusHtml(5, '', { goal: 5, watch: 0 }, 0), '<span class="sr-only">목표 기관 5곳 고름</span><span aria-hidden="true">고른 목표 기관 <b>5</b>곳</span>');
+  assert.strictEqual(tc.selStatusHtml(2, '', { goal: 0, watch: 2 }, 0), '<span class="sr-only">관심 기관 2곳 고름</span><span aria-hidden="true">고른 관심 기관 <b>2</b>곳</span>');
+  assert.strictEqual(tc.selStatusHtml(5, '', { goal: 3, watch: 2 }, 0), '<span class="sr-only">기관 5곳 고름(목표 3·관심 2)</span><span aria-hidden="true">고른 기관 <b>5</b>곳(목표 3·관심 2)</span>');
+  const off = tc.selStatusHtml(5, '', { goal: 5, watch: 0 }, 2);
+  assert.ok(off.indexOf('<span class="sr-only">목표 기관 5곳 고름, 이 화면 밖 2곳 포함</span>') === 0 && off.indexOf('고른 목표 기관 <b>5</b>곳 · 이 화면 밖 2곳') > 0);
+  const s = tc.newSel();
+  tc.pick(s, { id: 'A', targetNo: 1, kind: 'GOAL' });
+  assert.deepStrictEqual(tc.kindCounts(s), { goal: 1, watch: 0 }); assert.strictEqual(tc.mixOf(s), 'GOAL');
+  tc.pick(s, { id: 'W', targetNo: 2, kind: 'WATCH' });
+  assert.strictEqual(tc.mixOf(s), 'MIX');
+  tc.unpick(s, 'A');
+  assert.strictEqual(tc.mixOf(s), 'WATCH');
+  const k = src('js/kbboard.js');
+  assert.ok(k.indexOf("ed.hidden = !(kinds.goal > 0 && kinds.watch === 0 && canBulkEdit() && tc.pastCount(") > 0);   // 관심이 섞이면 [수정하기…]를 숨긴다
+  assert.ok(k.indexOf("case 'hb-seledit': openChange({ opener: btn, kind: 'edit' }); break;") > 0);
+  assert.ok(k.indexOf('tc.barBtnText(mode, tc.mixOf(gs.sel))') > 0);
+});
+
+test('NEXT 114 메뉴: 구분 → 메모·협약 개시일(바로) → 결재 필요(옮기기·빼기), 결재 항목 aria-label에 (결재 필요), DIRECT는 머리글 없음', function () {
+  const r = { tagCd: 'RETAIN', closed: { cd: 'NOTICE_CLOSED' } };
+  const o = { tags: TAGS, def: {}, canCancel: true, canMove: true, canTerm: true, canMemo: true, approval: true };
+  const m = kbb.menuHtml(r, o);
+  const at = function (s) { return m.indexOf(s); };
+  assert.ok(m.indexOf('aria-label="목표 기관 동작"') > 0);
+  assert.ok(at('data-tag="NEW"') < at('data-cmd="memo"') && at('data-cmd="memo"') < at('data-cmd="term"') && at('data-cmd="term"') < at('<div class="mh">결재 필요</div>') && at('<div class="mh">결재 필요</div>') < at('data-cmd="towatch"') && at('data-cmd="towatch"') < at('data-cmd="tonext"') && at('data-cmd="tonext"') < at('data-cmd="cancel"'));
+  assert.ok(m.indexOf('data-cmd="memo" tabindex="-1">메모 고치기…</button>') > 0);
+  assert.ok(m.indexOf('data-cmd="towatch" tabindex="-1" aria-label="관심 기관으로 옮기기 (결재 필요)">관심 기관으로…</button>') > 0);
+  assert.ok(m.indexOf('data-cmd="cancel" tabindex="-1" aria-label="목표에서 빼기 (결재 필요)">목표에서 빼기…</button>') > 0);
+  assert.ok(m.indexOf('data-cmd="memo" tabindex="-1" aria-label') < 0 && m.indexOf('data-cmd="term" tabindex="-1" aria-label') < 0);   // 바로 반영 항목에는 붙지 않는다
+  const d = kbb.menuHtml(r, Object.assign({}, o, { approval: false }));
+  assert.ok(d.indexOf('결재 필요') < 0 && d.indexOf('data-cmd="towatch" tabindex="-1">관심 기관으로…</button>') > 0);
+  assert.ok(kbb.menuHtml(r, { tags: TAGS, def: {}, canCancel: true }).indexOf('data-cmd="memo"') < 0);   // canMemo 없으면 메모 항목 없음(옛 서버·결재 중)
+  const k = src('js/kbboard.js');
+  assert.ok(k.indexOf("if (cmd === 'memo') { closeMenu(false); openMemo(r, btn); return; }") > 0);
+});
+
+test('NEXT 114 바로 저장 본문(보안 필수): 구분만 바꿔도 메모·연도·주 담당은 지금 값 전체, 메모만 바꿔도 구분이 그대로, 관심은 연도 없음', function () {
+  const g = { targetNo: 3, revNo: 5, targetYear: 2026, tagCd: 'RETAIN', memo: '설명회 참석', ownerEmpNo: 'E1', kind: 'GOAL' };
+  assert.deepStrictEqual(kbb.valueBody(g, { tag_cd: 'NEW' }), { target_no: 3, base_rev_no: 5, target_year: 2026, tag_cd: 'NEW', memo: '설명회 참석', owner_emp_no: 'E1' });
+  assert.deepStrictEqual(kbb.valueBody(g, { memo: null }), { target_no: 3, base_rev_no: 5, target_year: 2026, tag_cd: 'RETAIN', memo: null, owner_emp_no: 'E1' });
+  assert.deepStrictEqual(kbb.valueBody(Object.assign({}, g, { memo: '', ownerEmpNo: '' }), { tag_cd: 'NEW' }), { target_no: 3, base_rev_no: 5, target_year: 2026, tag_cd: 'NEW', memo: null, owner_emp_no: null });
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(kbb.valueBody(Object.assign({}, g, { kind: 'WATCH' }), {}), 'target_year'), false);
+  const k = src('js/kbboard.js');
+  assert.ok(k.indexOf("kbb.valueBody(r, { tag_cd: code })") > 0 && k.indexOf("kbb.valueBody(d.r, { memo: v || null })") > 0);   // 한 줄 저장은 두 곳 모두 이 본문 하나를 쓴다
+  // 일괄 [수정하기]: 항목마다 연도·구분·메모·주 담당을 전부 담는다(연도는 지금 값 그대로)
+  const A = tc.newItem(1, snapA()); tc.setOp(A, 'EDIT'); A.tag = 'NEW';
+  const body = tc.buildBody([A], { mode: 'DIRECT' });
+  assert.deepStrictEqual(body, { items: [{ institution_id: 'A', op_cd: 'EDIT', target_no: 1, base_rev_no: 2, target_year: 2026, tag_cd: 'NEW', memo: null, owner_emp_no: 'E1' }] });
+  const B = tc.newItem(2, tc.entryOfRow(mk({ id: 'B', targetNo: 2, revNo: 3, memo: '기존 메모', ownerEmpNo: 'E2' }))); tc.setOp(B, 'EDIT'); B.tag = 'RETAIN';
+  assert.strictEqual(tc.buildBody([B], { mode: 'DIRECT' }).items[0].memo, '기존 메모');   // 구분만 바꿔도 기존 메모를 같이 보낸다
+  assert.strictEqual(tc.buildBody([B], { mode: 'DIRECT' }).items[0].owner_emp_no, 'E2');
+});
+
+test('NEXT 114 일괄 창 두 갈래: 수정 창(사유·동작·연도 칸 없음, 수정하기) / 결재 창(다음 회차 목표로는 EDIT+연도 +1, 구분·메모 그대로)', function () {
+  const A = tc.newItem(1, snapA()); tc.setOp(A, 'EDIT');
+  const B = tc.newItem(2, tc.entryOfRow(mk({ id: 'B', name: '수원시', targetNo: 2, revNo: 3, tagCd: 'NEW', tagName: '신규유치 도전' }))); tc.setOp(B, 'EDIT');
+  const h = tc.editDialogHtml({ items: [A, B] }, OPT);
+  assert.ok(h.indexOf('<div id="tc-dlg" class="modal-overlay" style="display:none" data-kind="edit">') === 0);
+  assert.ok(h.indexOf('<h2 class="dlg-t" id="tc-t" tabindex="-1">구분·메모 수정 — 2곳</h2>') > 0);
+  assert.ok(h.indexOf('id="tc-cancel">취소</button><button type="button" id="tc-go" class="dlg-go">수정하기</button>') > 0);
+  assert.ok(h.indexOf('결재 없이 바로 반영합니다. 바꾼 사람·시각은 기록에 남습니다.') > 0);
+  assert.ok(h.indexOf('tc-reason') < 0 && h.indexOf('tc-allop') < 0 && h.indexOf('-op"') < 0 && h.indexOf('data-f="year"') < 0);   // 사유·동작·연도 칸 없음
+  assert.ok(h.indexOf('<label for="tc-alltag">고른 목표 줄 모두</label><select id="tc-alltag"><option value="">구분 한꺼번에 정하기</option>') > 0);
+  assert.ok(h.indexOf('<span class="fix">구분·메모 수정</span>') > 0 && h.indexOf('data-f="tag"') > 0 && h.indexOf('data-f="memo"') > 0);
+  assert.ok(tc.editDialogHtml({ items: [A] }, OPT).indexOf('tc-alltag') < 0);   // 한 곳이면 '모두' 칸 없음
+  assert.strictEqual(tc.editTitle(3), '구분·메모 수정 — 3곳');
+  // 아무것도 안 바꾼 항목은 기존 문장(연도 검사는 지금 값 그대로라 걸리지 않는다)
+  assert.deepStrictEqual(tc.validate([A], { mode: 'DIRECT' }).items, [{ uid: 1, f: 'edit', msg: '고친 내용이 없습니다. 칸을 바꾸거나 이 기관을 목록에서 제외하세요.' }]);
+  A.memo = '새 메모'; assert.strictEqual(tc.validate([A], { mode: 'DIRECT' }).ok, true);
+  // 결과·알림 문장
+  assert.deepStrictEqual(tc.resultOf({ mode: 'DIRECT', direct_basis: 'VALUE_EDIT', applied: 2 }, 2, 'edit'), { mode: 'DIRECT', n: 2, text: '목표 기관 2곳의 구분·메모를 수정했습니다. 결재 없이 반영되고 기록에 남습니다.' });
+  assert.strictEqual(tc.memoFlash('종로구청', '설명회'), '종로구청 메모를 저장했습니다. 결재 없이 반영되고 기록에 남습니다.');
+  assert.strictEqual(tc.memoFlash('종로구청', '  '), '종로구청 메모를 지웠습니다. 기록에 남습니다.');
+  assert.strictEqual(tc.pendingLockMsg('종로구청'), '종로구청은 방금 결재 요청에 들어가 잠겼습니다. 결재가 끝나면 다시 바꿀 수 있습니다.');
+  assert.strictEqual(tc.pendingLockMsg('수원시'), '수원시는 방금 결재 요청에 들어가 잠겼습니다. 결재가 끝나면 다시 바꿀 수 있습니다.');
+  // 결재 창: 다음 회차 목표로 = NEXT(서버 본문은 EDIT + 연도 +1 + 구분·메모·주 담당 그대로)
+  const C = tc.newItem(3, tc.entryOfRow(mk({ id: 'C', targetNo: 4, revNo: 2, targetYear: 2026, tagCd: 'RETAIN', tagName: '재유치 도전', memo: 'm', ownerEmpNo: 'E1', closed: { cd: 'NOTICE_CLOSED' } })));
+  const ch = tc.itemHtml(C, 1, OPT);
+  assert.ok(ch.indexOf('<option value="CANCEL">목표에서 빼기</option><option value="TO_WATCH">관심으로 옮기기</option><option value="NEXT">다음 회차 목표로</option>') > 0);   // 입찰 종료 줄만
+  tc.setOp(C, 'NEXT');
+  assert.strictEqual(C.year, 2027); assert.strictEqual(C.tag, 'RETAIN'); assert.strictEqual(C.memo, 'm');
+  assert.ok(tc.afterBlockHtml(C, OPT).indexOf('<dd><span class="mono">2027</span> 목표 · 구분·메모 그대로</dd>') > 0);
+  assert.strictEqual(tc.validate([C], { mode: 'DIRECT' }).ok, true);
+  assert.deepStrictEqual(tc.buildBody([C], { mode: 'DIRECT' }).items[0], { institution_id: 'C', op_cd: 'EDIT', target_no: 4, base_rev_no: 2, target_year: 2027, tag_cd: 'RETAIN', memo: 'm', owner_emp_no: 'E1' });
+  assert.strictEqual(tc.opLong('NEXT'), '다음 회차 목표로');
+  const k = src('js/kbboard.js');
+  assert.ok(k.indexOf("return { rows: [r], op: 'NEXT', opener: opener };") > 0);
+  assert.ok(k.indexOf("d.kind === 'edit' ? tc.BTN.values : undefined") > 0 && k.indexOf("save_target_values") < 0);   // 버튼 ID는 tchange.js BTN 한 곳
+  assert.strictEqual(tc.BTN.values, 'save_target_values');
+});
+
+test('NEXT 114 메모 창·요청: 문구·id·글자 수, 일괄 수정은 X-Button-Id save_target_values', async function () {
+  const h = tc.memoDialogHtml({ regionName: '서울', name: '종로구청<b>', memo: '안녕' });
+  assert.ok(h.indexOf('<div id="mm-dlg" class="modal-overlay" style="display:none">') === 0 && h.indexOf('<h2 class="dlg-t" id="mm-t" tabindex="-1">메모 — 서울 종로구청&lt;b&gt;</h2>') > 0 && h.indexOf('<b>') < 0);
+  assert.ok(h.indexOf('id="mm-cancel">취소</button><button type="button" id="mm-go" class="dlg-go">저장</button>') > 0);
+  assert.ok(h.indexOf('결재 없이 바로 저장됩니다. 고친 사람·시각은 기록에 남습니다. 개인정보를 적지 마세요.') > 0);
+  assert.ok(h.indexOf('<label for="mm-memo">메모</label><input id="mm-memo" maxlength="100" value="안녕" aria-describedby="mm-cnt mm-e">') > 0);
+  assert.ok(h.indexOf('<span id="mm-cnt" class="mono">2/100</span>') > 0 && h.indexOf('id="mm-e"') > 0 && h.indexOf('id="mm-err" role="alert"') > 0);
+  const calls = [], keep = kbb.env.fetch;
+  try {
+    kbb.env.fetch = function (url, init) { calls.push({ url: url, init: init }); return Promise.resolve({ status: 200, json: function () { return Promise.resolve({}); } }); };
+    await kbb.submitChanges({ items: [] }, tc.BTN.values);
+    await kbb.submitChanges({ items: [] });
+    assert.strictEqual(calls[0].init.headers['X-Button-Id'], 'save_target_values');
+    assert.strictEqual(calls[1].init.headers['X-Button-Id'], 'submit_target_change');   // 단추를 안 주면 예전 그대로
+  } finally { kbb.env.fetch = keep; }
+  const k = src('js/kbboard.js');
+  assert.ok(k.indexOf("function canValueEdit(r) { return r.kind === 'WATCH' || (!isPastGoal(r) && ((!!gs.data && gs.data.value_edit_mode === 'DIRECT') || goalMode() === 'DIRECT')); }") > 0);
+  assert.ok(k.indexOf('[chd, trm, pnd, mmd].forEach') > 0);   // 계정이 바뀌면 메모 창도 닫는다
+});
+
+test('qa P2-1 지난해 목표는 구분·메모를 고칠 수 없다: 연도 판정·메뉴 항목·저장 막기·403 사실 문구·일괄 [수정하기…] 숨김', function () {
+  assert.strictEqual(tc.isPastYear(2025, 2026), true);
+  assert.strictEqual(tc.isPastYear(2026, 2026), false);
+  assert.strictEqual(tc.isPastYear(null, 2026), false);   // 관심 줄은 연도가 없다
+  // 메뉴: 지난해 줄은 호출부가 tags 빈 목록·canMemo false를 준다 → 구분 radio·메모 항목이 없다
+  const m = kbb.menuHtml({ tagCd: 'RETAIN' }, { tags: [], def: {}, canCancel: true, canMemo: false });
+  assert.ok(m.indexOf('menuitemradio') < 0 && m.indexOf('data-cmd="memo"') < 0);
+  // 일괄: 고른 줄에 지난해 목표가 섞이면 센다(관심 줄은 세지 않는다)
+  const s = tc.newSel();
+  tc.pick(s, { id: 'A', targetNo: 1, kind: 'GOAL', year: 2026 });
+  assert.strictEqual(tc.pastCount(s, 2026), 0);
+  tc.pick(s, { id: 'B', targetNo: 2, kind: 'GOAL', year: 2025 });
+  tc.pick(s, { id: 'W', targetNo: 3, kind: 'WATCH', year: 0 });
+  assert.strictEqual(tc.pastCount(s, 2026), 1);
+  // 403 APPROVAL_REQUIRED: 지난해 줄이면 결재 안내 대신 사실 문구(모순 제거), 아니면 예전 문구
+  const x = { status: 403, body: { detail: { code: 'APPROVAL_REQUIRED', message: '서버 글' } } };
+  assert.deepStrictEqual(kbb.outcome(x, 'edit', { year: 2025, past: true }), { kind: 'stale', code: 'APPROVAL_REQUIRED', msg: '지난해 목표는 구분·메모를 고칠 수 없습니다.' });
+  assert.strictEqual(kbb.outcome(x, 'edit', { year: 2026, past: false }).msg, tc.APPROVAL_NOW_MSG);
+  const k = src('js/kbboard.js');
+  assert.ok(k.indexOf('tags: canValueEdit(r) ? tagList() : []') > 0);
+  assert.ok(k.indexOf('if (gs.busy || !canEditNow() || !canValueEdit(r)) return;') > 0);   // changeTag도 같은 판정으로 막는다
+  assert.ok(k.indexOf('tc.pastCount(gs.sel, U.todayDate().getFullYear()) === 0);') > 0);
+  assert.ok(k.indexOf('past: isPastGoal(r)') > 0 && k.indexOf('past: isPastGoal(d.r)') > 0);
+});
+
+test('qa P3-1·P3-2 메모 창: 저장 중 포커스는 제목(#mm-t)으로, Enter는 한글 조합 중이면 저장하지 않는다', function () {
+  const k = src('js/kbboard.js').replace(/\r\n/g, '\n');
+  assert.ok(k.indexOf("if (d.busy) { const t = mmq(d, 'mm-t'); if (t && t.focus) t.focus(); }") > 0);
+  assert.ok(k.indexOf("if (ev.isComposing || ev.keyCode === 229) return;   // 한글 조합을 확정하는 Enter는 저장이 아니다") > 0);
+  // 동작: 메모 키 처리기만 떼어 실행한다
+  const at = k.indexOf("ov.addEventListener('keydown', function (ev) {\n      if (ev.key !== 'Enter'");
+  assert.ok(at > 0);
+  const end = k.indexOf('\n    });', at), body = k.slice(at + "ov.addEventListener('keydown', ".length, end + '\n    }'.length);
+  const run = function (ev) { let n = 0; const fn = new Function('submitMemo', 'd', 'return ' + body)(function () { n += 1; }, {}); ev.preventDefault = function () {}; fn(ev); return n; };
+  const tgt = { id: 'mm-memo' };
+  assert.strictEqual(run({ key: 'Enter', target: tgt, isComposing: true }), 0);
+  assert.strictEqual(run({ key: 'Enter', target: tgt, keyCode: 229 }), 0);
+  assert.strictEqual(run({ key: 'Enter', target: tgt }), 1);
+  assert.strictEqual(run({ key: 'Enter', target: { id: 'other' } }), 0);
 });

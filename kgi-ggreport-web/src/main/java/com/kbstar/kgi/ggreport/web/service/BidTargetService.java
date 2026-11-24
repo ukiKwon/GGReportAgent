@@ -40,6 +40,7 @@ public class BidTargetService {
     static final String ACTION_CARRY = "CARRY";            // 056 — 자동 이월 REV 1
     static final String CANCEL_CARRY_REVOKED = "CARRY_REVOKED";   // 056 — 이월 자동 취소 사유(코드표 ENABLED=0, 서버만 씀)
     static final int CARRY_MAX_INST = 300;                 // 한 번 호출에 처리할 기관 상한(넘으면 more=true, 화면이 한 번 더)
+    public static final String DIRECT_ROLE = "ROLE", DIRECT_VALUE_EDIT = "VALUE_EDIT", DIRECT_WATCH = "WATCH";   // 바로 반영 근거(NEXT 114)
     public static final String APPROVAL_MSG = "목표 기관 정보를 바꾸려면 결재가 필요합니다. 체크한 뒤 [결재 요청]으로 올려 주세요.";
     static final String PENDING_MSG = "이 기관은 목표 변경 결재가 진행 중입니다. 결재가 끝난 뒤 다시 시도해 주세요.";
     static final String GOAL_DUP_MSG = "이미 목표 기관으로 설정되어 있습니다.";
@@ -167,6 +168,7 @@ public class BidTargetService {
         out.put("items", items);
         out.put("watch_items", watch);
         out.put("goal_change_mode", goalMode);                                          // 목표 넣기 버튼: DIRECT|APPROVAL|null
+        out.put("value_edit_mode", edit ? "DIRECT" : null);                            // 목표 구분·메모 고치기: 쓰기 자격자는 결재 없이(NEXT 114)
         out.put("carry_due", edit && year == thisYear ? carryPlan(today).size() : 0);  // >0 이면 화면이 POST /bid-targets/carry 한 번
         out.put("carry_default_start", settings.defaultStartText());
         out.put("codes", codes());
@@ -305,7 +307,9 @@ public class BidTargetService {
         checkOverlap(inst, cur == null ? 0 : cur.getTargetNo(), watch, year, thisYear, GOAL_DUP_MSG);
         Map<String, Object> warning = null;
         if (!watch && p.year == thisYear && (cur == null || !year.equals(cur.getTargetYear()))) warning = closedCheck(inst, today);
-        if (!watch) requireDirect(actor, cur);   // 목표 넣기·고치기 = 결재 대상(관심은 바로)
+        boolean valueEdit = BidTargetRules.valueOnlyEdit(cur, p, thisYear);
+        boolean roleDirect = !watch && directGoal(users.selectByEmpNo(actor.getEmpNo()));   // 영업부장 등 역할상 바로 가능(security F4)
+        if (!watch && !valueEdit) requireDirect(actor, cur);   // 목표 넣기·연도·주 담당 = 결재(관심·구분·메모는 바로, NEXT 114). 결재 중 잠금은 위 requireNoPending
         int newNo = cur == null ? mapper.selectMaxTargetNo(inst) + 1 : cur.getTargetNo();
         int newRev = cur == null ? 1 : cur.getRevNo() + 1;
         if (newNo > NO_MAX || newRev > NO_MAX) throw conflict("LIMIT", LIMIT_MSG, cur);   // S4 — 6자리 칸 넘침은 DB 오류가 아니라 409
@@ -321,6 +325,8 @@ public class BidTargetService {
         row.setOwnerEmpNo(p.owner);
         row.setOwnerName(ownerName);
         Map<String, Object> out = insert(row, actor, ui);
+        out.put("mode", "DIRECT");
+        out.put("direct_basis", watch ? DIRECT_WATCH : roleDirect ? DIRECT_ROLE : DIRECT_VALUE_EDIT);
         if (warning != null) out.put("warning", warning);
         return out;
     }
