@@ -11,7 +11,7 @@ const SITE = (() => {
     cleaner: '정리반', jobs: { enter: '출근 중', water: '정수기 채우는 중', bench: '휴게실 정리 중', track: '운반로 청소 중', splash: '물 뿌려 깨우는 중', leave: '퇴근 중' },
     janStart: '정리 시작!', janJob: { water: '물 채울게요', bench: '휴게실 치우자~', track: '길 쓸자~' }, janBye: '수고하셨습니다~',
     st: { run: '작업 중', crawl: '허리 짚고 작업', wheel: '수레 타고 작업', toStart: '현장 투입 중', drink: '물 마시는 중', amb: '휴식 이송 중', away: '의무실 휴식', wet: '정신 차리는 중', ready: '작업 준비', done: '방금 끝남', lying: '탈진 휴식', idle: '휴게실 대기' },
-    boardTitle: '🏗️ 공정 현황', running: n => '작업 중 ' + n + '명', scoreBusy: '투입 ', mainLbl: '소장: ', reset: '공정 초기화',
+    boardTitle: '🏗️ 공정 현황', running: n => '작업 중 ' + n + '명', scoreBusy: '투입 ', mainLbl: '소장: ', mainOpsLbl: '소장 처리 ', reset: '공정 초기화',
     boardBg: 'rgba(0,0,0,.60)',
     aria: '에이전트 작업 현황 공사 현장. 각 에이전트가 작업자로 일하며 공정 수가 작업량을, 건물 층수가 누적 작업량을 나타냅니다',
   };
@@ -442,7 +442,7 @@ const SITE = (() => {
       else {
         const rs = runners.filter(r => r.role === row.a.id), act = rs.filter(r => r.active), lead = rs.find(r => r.state === 'run') || act[0] || rs[0];
         name = row.a.name + (act.length > 1 ? ' ×' + act.length : ''); color = row.a.color; st = nowJob(lead) || stateLabel(lead); // 공사판: 일하는 중이면 하는 일 이름
-        laps = Math.max(...rs.map(lapInt)) + txt.unit; task = rs.map(r => r.task).filter(Boolean).join(' / '); hi = act.length > 0; bright = lead.state === 'run';
+        laps = Math.max(...rs.map(lapInt)) + txt.unit; task = rs.map(taskOf).filter(Boolean).join(' / '); hi = act.length > 0; bright = lead.state === 'run';
       }
       if (hi) { c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(x0 - 4, y - 10, 384, 21); }
       disc(x0 + 6, y, 5.5, color);

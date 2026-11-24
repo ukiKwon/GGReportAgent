@@ -105,6 +105,26 @@
             "command": "export PATH=\"$PATH:/c/dev/node/node-v22.23.4-win-x64\"; node \"$CLAUDE_PROJECT_DIR/agent-dashboard/hook.js\" dispatch"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "export PATH=\"$PATH:/c/dev/node/node-v22.23.4-win-x64\"; node \"$CLAUDE_PROJECT_DIR/agent-dashboard/hook.js\" tool",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "export PATH=\"$PATH:/c/dev/node/node-v22.23.4-win-x64\"; node \"$CLAUDE_PROJECT_DIR/agent-dashboard/hook.js\" end",
+            "timeout": 5
+          }
+        ]
       }
     ]
   },

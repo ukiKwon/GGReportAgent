@@ -4,6 +4,7 @@ const fs = require('fs'), path = require('path');
 const STATE = path.join(__dirname, 'state.json'), LOCK = STATE + '.lock';
 const TTL = 15 * 60 * 1000; // stop 이벤트가 유실된 인스턴스는 15분 뒤 정리
 const DONE_TTL = 30 * 1000;  // 끝난 인스턴스(done)는 30초만 남긴다(화면 숨김은 app.js DONE_MS와 같은 값)
+const MAIN_TTL = 60 * 60 * 1000; // 메인 세션 줄(state.mains)은 마지막 신호가 한 시간 지나면 정리
 const sleep = ms => { try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch (_) {} };
 
 // 작업 내용(누적 바퀴·에이전트별 진행)은 하루 동안 유지하고 날짜(이 PC 기준)가 바뀌면 0부터(사용자 11-16 — 전에는 새 Claude 세션마다 리셋)
@@ -38,7 +39,10 @@ function normalize(s) {
   if (!s.stats || typeof s.stats !== 'object') s.stats = { laps: 0, since: now };
   if (!(Number.isFinite(s.stats.laps) && s.stats.laps >= 0)) s.stats.laps = 0;
   if (!Number.isFinite(s.stats.since)) s.stats.since = now;
-  if (dayKey(s.stats.since) !== dayKey(now)) s.stats = { laps: 0, since: now }; // 날짜가 바뀌면 0부터
+  if (dayKey(s.stats.since) !== dayKey(now)) s.stats = { laps: 0, since: now }; // 날짜가 바뀌면 0부터(stats.mainOps = 메인 처리 수도 함께)
+  if ('mainOps' in s.stats && !(Number.isFinite(s.stats.mainOps) && s.stats.mainOps >= 0)) delete s.stats.mainOps; // 기본값은 넣지 않는다(기존 stats 시험이 deepStrictEqual)
+  if (!s.mains || typeof s.mains !== 'object' || Array.isArray(s.mains)) s.mains = {};
+  for (const k of Object.keys(s.mains)) { const m = s.mains[k]; if (!m || typeof m !== 'object' || !(now - (m.at || 0) <= MAIN_TTL)) delete s.mains[k]; }
   if ('agents' in s.stats) { const ag = mergeAgents(null, s.stats.agents); if (Object.keys(ag).length) s.stats.agents = ag; else delete s.stats.agents; }
   for (const id of Object.keys(s.agents)) {
     const a = s.agents[id];

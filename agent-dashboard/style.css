@@ -31,6 +31,11 @@ button:focus-visible, select:focus-visible { outline:2px solid var(--accent); ou
 .chip.fin { border-color:#ffeaa7; }
 .chip.fin .st { color:#ffeaa7; }
 #now .fin { color:#ffeaa7; }
+#now .wr { margin-left:2px; padding:0 4px; border:1px solid #ffeaa7; border-radius:3px; color:#ffeaa7; font-size:11px; }
+#mains { padding:4px 16px; background:#141b26; border-bottom:1px solid var(--line); font-size:13px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#mains b { color:var(--text); }
+#mains .m-work { color:#55efc4; }
+#mains .m-stall { color:#ff7675; font-weight:700; }
 .dev { margin-top:6px; font-size:12px; color:var(--dim); }
 .dev summary { cursor:pointer; }
 .devrow { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }

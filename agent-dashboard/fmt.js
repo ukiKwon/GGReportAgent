@@ -64,4 +64,32 @@ const lastPourAfter = (prev, hit, now) => hit ? now : prev; // 실제로 깨운 
 // 공사판 행성: 누적 → 전체 층 T = floor(누적/perFloor)+1, 행성 번호 = floor((T-1)/perPlanet)(0=지구), 그 행성의 층 = (T-1)%perPlanet+1(사용자 11-16)
 function planetOf(laps, perFloor, perPlanet) { const T = Math.floor(Math.max(0, Number(laps) || 0) / perFloor) + 1; return { planet: Math.floor((T - 1) / perPlanet), floor: (T - 1) % perPlanet + 1, total: T }; }
 const nextSplashAt = (prev, poured, lastPour, cooldown) => poured ? lastPour + cooldown : prev; // 깨운 적 없으면 쿨다운 없음
-if (typeof module !== 'undefined' && module.exports) module.exports = { fmtLaps, qClassify, qIsPending, qElapsedDays, qDaysLabel, qOverdue, qMd, qSplit, qGroups, qClock, lapIntOf, fatOf, isSplashOk, pickSplashCands, lastPourAfter, nextSplashAt, planetOf };
+// ---- 메인 세션 줄(훅이 state.mains에 올림 — test/main.test.js). 화면은 이 함수들로 줄·전광판 문구를 만든다 ----
+const MAIN_STALL_MS = 5 * 60 * 1000; // 이 시간 신호가 없고 일하는 에이전트도 없으면 '멈춤?'
+function agoLabel(ms) { // 마지막 신호로부터 지난 시간
+  const s = Math.floor(Math.max(0, Number(ms) || 0) / 1000);
+  return s < 5 ? '방금' : s < 60 ? s + '초 전' : s < 3600 ? Math.floor(s / 60) + '분 전' : Math.floor(s / 3600) + '시간 전';
+}
+function mainState(m, now, busy) { // 'work' | 'idle' | 'stall'. busy = 일하는 에이전트가 있는가
+  if (!m || typeof m !== 'object' || m.st !== 'work') return 'idle';
+  const hold = Math.min(Math.max(Number(m.hold) || 0, 0), 6e5); // Bash가 오래 걸릴 수 있는 시간(최대 10분)
+  return !busy && now - (Number(m.at) || 0) > Math.max(MAIN_STALL_MS, hold + 3e4) ? 'stall' : 'work';
+}
+function mainRows(mains, now, busy) { // 일하는 줄 먼저, 최근 신호 먼저. 형식이 틀린 항목은 버린다
+  if (!mains || typeof mains !== 'object' || Array.isArray(mains)) return [];
+  return Object.keys(mains).map(k => {
+    const m = mains[k]; if (!m || typeof m !== 'object') return null;
+    const at = Number(m.at) || 0, st = mainState(m, now, busy), task = String(m.task || '');
+    return {
+      key: k, sid: String(m.sid || ''), name: (String(m.dir || '?') + ' ' + String(m.sid || '')).trim(), st, task, at,
+      text: st === 'idle' ? '대기' : st === 'stall' ? ('멈춤? ' + task).trim() : task || '작업 중',
+      ago: agoLabel(now - at), n: Math.max(0, Math.floor(Number(m.n) || 0)),
+    };
+  }).filter(Boolean).sort((a, b) => (a.st === 'idle') - (b.st === 'idle') || b.at - a.at);
+}
+function mainBoardText(rows, coachTask) { // 전광판 '메인:' 줄. 일하는 세션이 없으면 마지막 지시(coach.task)
+  const act = (Array.isArray(rows) ? rows : []).filter(r => r.st !== 'idle');
+  if (!act.length) return String(coachTask || '');
+  return act[0].sid + ' ' + act[0].text + (act.length > 1 ? ' (외 ' + (act.length - 1) + '세션)' : '');
+}
+if (typeof module !== 'undefined' && module.exports) module.exports = { fmtLaps, qClassify, qIsPending, qElapsedDays, qDaysLabel, qOverdue, qMd, qSplit, qGroups, qClock, lapIntOf, fatOf, isSplashOk, pickSplashCands, lastPourAfter, nextSplashAt, planetOf, MAIN_STALL_MS, agoLabel, mainState, mainRows, mainBoardText };

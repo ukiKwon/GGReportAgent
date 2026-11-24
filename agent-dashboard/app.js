@@ -32,7 +32,7 @@ const TRACK_TXT = {
   cleaner: '청소부', jobs: { enter: '출근 중', water: '생수 채우는 중', bench: '벤치 닦는 중', track: '트랙 닦는 중', splash: '물 뿌려 깨우는 중', leave: '퇴근 중' },
   janStart: '청소 시작!', janJob: { water: '생수 채울게요', bench: '벤치 닦자~', track: '트랙 닦자~' }, janTap: '물 받아요', janGone: '어? 갔네', janWake: '일어나세요~', janBye: '수고하세요~',
   st: { run: '달리는 중', crawl: '기어가는 중', wheel: '휠체어 질주', toStart: '입장 중', drink: '물 마시는 중', amb: '이송 중', away: '병원', wet: '일어나는 중', ready: '출발 준비', done: '방금 끝남', lying: '쓰러져 휴식', idle: '벤치 대기' },
-  boardTitle: '🏁 에이전트 현황', running: n => '뛰는 중 ' + n + '명', scoreBusy: '작업 중 ', mainLbl: '메인: ', reset: '바퀴 초기화',
+  boardTitle: '🏁 에이전트 현황', running: n => '뛰는 중 ' + n + '명', scoreBusy: '작업 중 ', mainLbl: '메인: ', mainOpsLbl: '메인 처리 ', reset: '바퀴 초기화',
 };
 const T = THEME === 'site' ? Object.assign({}, TRACK_TXT, SITE.txt) : TRACK_TXT;
 
@@ -40,6 +40,8 @@ const cv = document.getElementById('c');
 let c = cv.getContext('2d'); // let: site.js가 정적 배경을 오프스크린에 그릴 때 잠깐 바꿔 끼운다
 let simTime = 0, speedMul = 1, soundOn = false, live = false;
 let coachTask = '';
+let mainsFeed = {}, mainOps = 0, mainSeen = false, mainFlash = 0, mainRowsCache = []; // 메인 세션 줄·하루 처리 수(state.mains·stats.mainOps, 사용자 11-24)
+const taskOf = r => ((r.write ? '[쓰기] ' : '') + (r.task || '')).trim(); // 쓰기 에이전트는 task 앞에 표시(site.js도 사용)
 const stat = { laps: 0, since: null, dirty: false }; // 세션 누적 바퀴수 (since=null이면 서버 값을 아직 못 받은 상태)
 
 /* 화면에 보이는 배율(K)에 따라 글자를 키운다: 표시 크기가 minCss(CSS px) 아래로 내려가지 않게, 단 cap 배율까지만 */
@@ -844,11 +846,23 @@ function drawScoreboard() {
   c.fillText('누적 ' + fmtLaps(stat.laps) + T.unit, 24, 224); // 고정 위치(스크롤 아님)
   c.save();
   c.beginPath(); c.rect(20, 234, 184, 30); c.clip();
-  const txt = T.mainLbl + (coachTask || '대기 중');
+  const txt = T.mainLbl + (mainBoardText(mainRowsCache, coachTask) || '대기 중');
   const tw = c.measureText(txt).width, avail = 180;
   const off = tw > avail ? -((simTime * 30) % (tw + 40)) : 0;
   c.fillStyle = '#ffb300'; c.fillText(txt, 24 + off, 250);
   if (tw > avail) c.fillText(txt, 24 + off + tw + 40, 250);
+  c.restore();
+  drawMainOps();
+}
+function drawMainOps() { // 전광판 바로 아래 — 메인이 처리한 도구 호출 수(훅이 올림, 하루 누적). 공사판도 drawScoreboard를 그대로 불러 같이 나온다
+  c.save();
+  c.fillStyle = '#111'; rrect(14, 276, 196, 28, 6); c.fill();
+  c.strokeStyle = '#444'; c.lineWidth = 2; c.stroke();
+  const stall = mainRowsCache.some(r => r.st === 'stall'), work = mainRowsCache.some(r => r.st === 'work');
+  c.fillStyle = stall ? '#ff7675' : work ? '#55efc4' : '#78909c'; c.beginPath(); c.arc(28, 290, 5, 0, Math.PI * 2); c.fill();
+  c.font = 'bold 13px monospace'; c.textAlign = 'left'; c.textBaseline = 'middle';
+  c.fillStyle = simTime < mainFlash ? '#fff' : '#ffb300';
+  c.fillText(T.mainOpsLbl + fmtLaps(mainOps) + '건', 40, 291);
   c.restore();
 }
 
@@ -888,7 +902,7 @@ function drawInfield() {
     c.fillText(Math.max(...rs.map(lapInt)) + T.unit, cmp ? 872 : 650, y);
     if (cmp) return;
     c.textAlign = 'left'; c.font = '12px "Malgun Gothic", sans-serif'; c.fillStyle = '#b2bec3';
-    let tk = rs.map(r => r.task).filter(Boolean).join(' / ');
+    let tk = rs.map(taskOf).filter(Boolean).join(' / ');
     while (tk.length > 1 && c.measureText(tk).width > 205) tk = tk.slice(0, -2) + '…';
     c.fillText(tk, 660, y);
   });
@@ -924,9 +938,10 @@ function drawRunner(r) {
   const fs = fz(11, 11, 1.4);
   c.save();
   c.font = 'bold ' + fs + 'px "Malgun Gothic", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
-  const w = c.measureText(r.name).width + 8;
+  const nm = r.name + (r.active && r.write ? '·쓰기' : ''); // 쓰기용 에이전트가 일하는 중이면 이름표에 표시
+  const w = c.measureText(nm).width + 8;
   c.fillStyle = r.color; rrect(x - w / 2, top - fs, w, fs + 3, 4); c.fill();
-  c.fillStyle = site && (r.role === 'planner' || r.role === 'auditor') ? '#1f1f1f' : '#fff'; c.fillText(r.name, x, top); // 공사판: 밝은 역할색 위 글자 대비(design 11-16)
+  c.fillStyle = site && (r.role === 'planner' || r.role === 'auditor') ? '#1f1f1f' : '#fff'; c.fillText(nm, x, top); // 공사판: 밝은 역할색 위 글자 대비(design 11-16)
   c.restore();
   if (r.bubble) {
     // 아래쪽 차선 선수의 말풍선이 현황판(y218~444)을 덮으면 발 아래로 뒤집는다
@@ -1053,14 +1068,29 @@ function buildChips() {
 }
 const nowBar = document.getElementById('now');
 function refreshNow() {
-  const parts = runners.filter(r => r.active).map(r => '<span class="run">▶</span> <b>' + r.name + '</b>' + (r.task ? ' <span>(' + r.task.replace(/[<>&]/g, '') + ')</span>' : ''));
+  const parts = runners.filter(r => r.active).map(r => '<span class="run">▶</span> <b>' + r.name + '</b>' + (r.write ? ' <span class="wr">쓰기</span>' : '') + (r.task ? ' <span>(' + r.task.replace(/[<>&]/g, '') + ')</span>' : ''));
   if (jan.active) parts.push('<span class="run">▶</span> <b>' + CLEANER.name + '</b>' + (jan.task ? ' <span>(' + jan.task.replace(/[<>&]/g, '') + ')</span>' : ''));
   const dn = AGENTS.flatMap(a => recentDone(a.id).map(d => '<b>' + a.name + '</b>' + (d.task ? ' <span>(' + String(d.task).replace(/[<>&]/g, '') + ')</span>' : '')));
   nowBar.innerHTML = (parts.length ? '지금 작업 중 ' + parts.length + '명: ' + parts.join('  ·  ') : '지금 작업 중인 에이전트: 없음')
     + (dn.length ? '  |  <span class="fin">방금 끝남 ' + dn.length + '건:</span> ' + dn.join('  ·  ') : '');
 }
+const mainsBar = document.getElementById('mains');
+function refreshMains() { // 메인 세션별 한 줄(세션·하는 일·마지막 신호·건수). 1초마다 다시 그려 '몇 초 전'·'멈춤?'이 시간 따라 바뀐다
+  mainRowsCache = mainRows(mainsFeed, Date.now(), runners.some(r => r.active) || jan.active);
+  if (!mainsBar) return;
+  mainsBar.textContent = '';
+  const head = document.createElement('b'); head.textContent = '메인 세션 ' + mainRowsCache.length + '개';
+  mainsBar.appendChild(head);
+  if (!mainRowsCache.length) { mainsBar.append(': 신호 없음'); mainsBar.title = ''; return; }
+  mainRowsCache.forEach(r => {
+    const s = document.createElement('span'); s.className = 'm-' + r.st;
+    s.textContent = (r.st === 'work' ? '● ' : r.st === 'stall' ? '▲ ' : '○ ') + r.name + ' ' + r.text + ' · ' + r.ago + ' · ' + r.n + '건';
+    mainsBar.append('  |  ', s);
+  });
+  mainsBar.title = mainsBar.textContent;
+}
 function refreshChips() {
-  refreshNow();
+  refreshNow(); refreshMains();
   const cc = document.getElementById('chip-cleaner');
   if (cc) {
     cc.classList.toggle('on', jan.active);
@@ -1072,7 +1102,7 @@ function refreshChips() {
     const fin = !r.active && !r.extra && recentDone(r.role).length > 0;
     d.classList.toggle('on', r.active);
     d.classList.toggle('fin', fin);
-    d.querySelector('.st').textContent = (r.active ? '작업 중' : fin ? '방금 끝남' : '대기') + ' · ' + lapInt(r) + T.unit;
+    d.querySelector('.st').textContent = (r.active ? (r.write ? '쓰기 작업 중' : '작업 중') : fin ? '방금 끝남' : '대기') + ' · ' + lapInt(r) + T.unit;
     const t = devBox.querySelector('[data-k=' + r.id + ']');
     if (t) t.textContent = r.name + (r.active ? ' 멈춤(시험)' : ' 시작(시험)');
   });
@@ -1117,7 +1147,7 @@ const recentDone = role => { const n = Date.now(); return (doneFeed[role] || [])
 function syncRole(role, insts) {
   const rs = runners.filter(r => r.role === role).sort((x, y) => x.inst - y.inst);
   for (let k = rs.length; k < insts.length; k++) { const r = spawnExtra(role, k + 1); if (r) rs.push(r); }
-  rs.forEach((r, k) => { const f = insts[k]; r.task = f ? f.task || '' : ''; setActive(r, !!f); });
+  rs.forEach((r, k) => { const f = insts[k]; r.task = f ? f.task || '' : ''; r.write = !!(f && f.w); setActive(r, !!f); });
 }
 /* 에이전트별 진행(lapF·freshAt) 하루 유지 — 새로고침해도 공정 수·피로가 이어진다(사용자 11-16). 서버는 줄어드는 값을 받지 않는다. */
 let savedAgents = {};
@@ -1129,6 +1159,10 @@ function restoreAgents(ag, reset) {
 }
 function applyFeed(j) {
   if (j.coach && typeof j.coach.task === 'string') coachTask = j.coach.task;
+  mainsFeed = j.mains && typeof j.mains === 'object' && !Array.isArray(j.mains) ? j.mains : {};
+  const ops = j.stats && Number.isFinite(j.stats.mainOps) && j.stats.mainOps >= 0 ? Math.floor(j.stats.mainOps) : 0;
+  if (mainSeen && ops > mainOps) mainFlash = simTime + 0.8; // 늘어난 순간 숫자가 잠깐 반짝(첫 로드는 제외)
+  mainOps = ops; mainSeen = true;
   const fs2 = j.stats;
   if (fs2 && Number.isFinite(fs2.since)) {
     const fl = Number.isFinite(fs2.laps) && fs2.laps >= 0 ? Math.floor(fs2.laps) : 0;
