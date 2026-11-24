@@ -125,7 +125,8 @@ public class BidTargetService {
         int year = yearParam(yearRaw, thisYear);
         boolean edit = canEdit(empNo);
         String goalMode = !edit ? null : directGoal(users.selectByEmpNo(empNo)) ? "DIRECT" : "APPROVAL";
-        Map<String, BidTargetReqItem> pending = pendingMap();
+        List<BidTargetReqItem> pendAll = mapper.selectPendingItems();
+        Map<String, BidTargetReqItem> pending = pendingMap(pendAll);
         Map<String, List<BankContract>> lines = byInstitution(mapper.selectContractsForYear(year));
         Map<String, NoticeRoundView> notices = new HashMap<String, NoticeRoundView>();
         if (year == thisYear) {
@@ -177,6 +178,7 @@ public class BidTargetService {
         out.put("selectable_years", selectableYears(thisYear));
         out.put("items", items);
         out.put("watch_items", watch);
+        out.put("pending_goal_items", pendingGoalItems(pendAll, year));   // NEXT 114 — 줄이 없는 기관의 '목표 기관 결재 대기' 표시용(팀 공유)
         out.put("goal_change_mode", goalMode);                                          // 목표 넣기 버튼: DIRECT|APPROVAL|null
         out.put("value_edit_mode", edit ? "DIRECT" : null);                            // 목표 구분·메모 고치기: 쓰기 자격자는 결재 없이(NEXT 114)
         out.put("carry_due", edit && year == thisYear ? carryPlan(today).size() : 0);  // >0 이면 화면이 POST /bid-targets/carry 한 번
@@ -185,10 +187,31 @@ public class BidTargetService {
         return out;
     }
 
-    private Map<String, BidTargetReqItem> pendingMap() {
+    private Map<String, BidTargetReqItem> pendingMap() { return pendingMap(mapper.selectPendingItems()); }
+
+    private static Map<String, BidTargetReqItem> pendingMap(List<BidTargetReqItem> all) {
         Map<String, BidTargetReqItem> m = new HashMap<String, BidTargetReqItem>();
-        for (BidTargetReqItem x : mapper.selectPendingItems()) if (!m.containsKey(x.getInstitutionId())) m.put(x.getInstitutionId(), x);
+        for (BidTargetReqItem x : all) if (!m.containsKey(x.getInstitutionId())) m.put(x.getInstitutionId(), x);
         return m;
+    }
+
+    /**
+     * NEXT 114 — 그 해 목표가 되려고 결재 중인 기관(넣기·관심→목표·연도 바꾸기, TO_YEAR = year). 기관당 1개, 기관 id·연도만
+     * (요청자·사유·번호 없음 — 결재 중 여부는 모두에게라는 S8 과 같은 범위). PrepService.requireGoalTarget 의 countPendingGoalForYear 와 같은 판정.
+     */
+    static List<Map<String, Object>> pendingGoalItems(List<BidTargetReqItem> all, int year) {
+        Set<String> seen = new HashSet<String>();
+        List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
+        for (BidTargetReqItem x : all) {
+            String op = x.getOpCd();
+            boolean toGoal = TargetChangeService.OP_ADD.equals(op) || TargetChangeService.OP_TO_GOAL.equals(op) || TargetChangeService.OP_EDIT.equals(op);
+            if (!toGoal || x.getToYear() == null || x.getToYear().intValue() != year || !seen.add(x.getInstitutionId())) continue;
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            m.put("institution_id", x.getInstitutionId());
+            m.put("target_year", year);
+            out.add(m);
+        }
+        return out;
     }
 
     /** S8 — 결재 중 여부는 모두에게, 상세(요청 번호·동작·요청자 이름)는 쓰기 자격자에게만. */

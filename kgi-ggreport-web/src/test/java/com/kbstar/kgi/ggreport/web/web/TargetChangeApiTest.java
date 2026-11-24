@@ -135,6 +135,61 @@ public class TargetChangeApiTest {
         return json(r).path("request").path("req_id").asLong();
     }
 
+    private MvcResult confirmPrep(String emp, String inst) throws Exception {
+        Map<String, Object> m = new LinkedHashMap<String, Object>(); m.put("institution_id", inst);
+        return send(emp, "/preps", "bid_board", "confirm", m);
+    }
+    private static boolean hasInst(JsonNode arr, String inst) {
+        for (JsonNode n : arr) if (inst.equals(n.path("institution_id").asText())) return true;
+        return false;
+    }
+
+    @Test public void 목표_넣기_결재_중이면_제안_확정은_409_GOAL_CHANGE_PENDING_목록_pending_goal_items에_보이고_승인되면_201() throws Exception {
+        final int Y = y();
+        MvcResult r1 = change(SALES, req("올해 목표로", item("jongno", "ADD", "tag_cd", "NEW", "target_year", Y)));
+        assertEquals(raw(r1), 200, status(r1));
+        long id = json(r1).path("request").path("req_id").asLong();
+        for (String emp : new String[]{SALES, HEAD}) {   // 팀 공유 — 영업부장도 같은 목록
+            JsonNode l = json(getAs(emp, "/bid-targets?year=" + Y));
+            assertFalse(hasInst(l.path("items"), "jongno"));
+            assertTrue(emp, hasInst(l.path("pending_goal_items"), "jongno"));
+        }
+        JsonNode p = json(getAs(HEAD, "/bid-targets?year=" + Y)).path("pending_goal_items").get(0);
+        assertEquals(2, p.size());                        // institution_id·target_year 만(요청자·사유·번호 없음)
+        assertEquals(Y, p.path("target_year").asInt());
+        assertFalse(hasInst(json(getAs(SALES, "/bid-targets?year=" + (Y + 1))).path("pending_goal_items"), "jongno"));
+        MvcResult c = confirmPrep(SALES, "jongno");
+        assertEquals(raw(c), 409, status(c));
+        assertEquals("GOAL_CHANGE_PENDING", json(c).path("detail").path("code").asText());
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP WHERE INSTITUTION_ID='jongno'"));
+        assertEquals(200, status(decide(LEAD, id, "APPROVE", null)));
+        assertFalse(hasInst(json(getAs(SALES, "/bid-targets?year=" + Y)).path("pending_goal_items"), "jongno"));
+        assertEquals(201, status(confirmPrep(SALES, "jongno")));
+    }
+
+    @Test public void 올해_목표에_빼기_결재가_걸리면_GOAL_CHANGE_PENDING_관심_목표_옮기기_결재도_같고_내년_넣기만_있으면_NOT_GOAL_TARGET() throws Exception {
+        final int Y = y();
+        target("jung", 1, 1, "SAVE", "GOAL", Y, null);
+        assertEquals(200, status(change(SALES, req("뺌", item("jung", "CANCEL", "target_no", 1, "base_rev_no", 1, "cancel_reason_cd", "DROPPED")))));
+        MvcResult a = confirmPrep(SALES, "jung");
+        assertEquals(409, status(a)); assertEquals("GOAL_CHANGE_PENDING", json(a).path("detail").path("code").asText());
+        target("jongno", 1, 1, "SAVE", "WATCH", null, null);   // 김영업 관심(061 — 주인 = SALES)
+        assertEquals(200, status(change(SALES, req("목표로", item("jongno", "TO_GOAL", "target_no", 1, "base_rev_no", 1, "target_year", Y)))));
+        assertTrue(hasInst(json(getAs(SALES, "/bid-targets?year=" + Y)).path("pending_goal_items"), "jongno"));
+        MvcResult b = confirmPrep(SALES, "jongno");
+        assertEquals(409, status(b)); assertEquals("GOAL_CHANGE_PENDING", json(b).path("detail").path("code").asText());
+        assertEquals(200, status(change(SALES, req("내년", item("mapo", "ADD", "tag_cd", "NEW", "target_year", Y + 1)))));
+        MvcResult c = confirmPrep(SALES, "mapo");
+        assertEquals(409, status(c)); assertEquals("NOT_GOAL_TARGET", json(c).path("detail").path("code").asText());
+    }
+
+    @Test public void 영업부장이_바로_넣은_올해_목표는_곧바로_제안_확정된다() throws Exception {
+        MvcResult r = change(HEAD, req(null, item("jongno", "ADD", "tag_cd", "NEW", "target_year", y())));
+        assertEquals(raw(r), 200, status(r));
+        assertEquals("DIRECT", json(r).path("mode").asText());
+        assertEquals(201, status(confirmPrep(SALES, "jongno")));
+    }
+
     @Test public void 영업팀원의_단건_목표_쓰기는_403_APPROVAL_REQUIRED_관심은_바로() throws Exception {
         userPerm(HEAD, "map", 1, 1);
         Map<String, Object> goal = new LinkedHashMap<String, Object>();

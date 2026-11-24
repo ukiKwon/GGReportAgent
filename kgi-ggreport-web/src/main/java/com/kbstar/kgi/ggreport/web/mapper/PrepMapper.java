@@ -32,6 +32,15 @@ public interface PrepMapper {
     /** 그 기관의 활성(CONFIRMED~WRITING) 건 상태 코드 — 최근 갱신 순. 공고 상태 기록(037)의 '공고 종료' 확인용(상태 목록은 countActiveByInstitution 과 같다). */
     List<String> selectActiveStatesByInstitution(@Param("institutionId") String institutionId);
 
+    /** NEXT 114 — 그 해 살아 있는 목표 기록 수(최신 REV 가 CANCEL 아님, KIND_CD='GOAL'). 제안 확정 조건 — 기관 잠금 뒤에 부른다. */
+    int countGoalForYear(@Param("institutionId") String institutionId, @Param("year") int year);
+
+    /** NEXT 114 — 그 기관에 결재 중(PENDING)인 목표 변경 항목 수(동작 무관). BidTargetMapper.countPendingByInst 와 같은 문장. */
+    int countTargetPending(@Param("institutionId") String institutionId);
+
+    /** NEXT 114 — 그 해 목표가 되려고 결재 중인 항목 수(ADD·TO_GOAL·EDIT 중 TO_YEAR = year). BidTargetService.pendingGoalItems 와 같은 판정. */
+    int countPendingGoalForYear(@Param("institutionId") String institutionId, @Param("year") int year);
+
     int insertPrep(@Param("bidCaseId") String bidCaseId, @Param("institutionId") String institutionId,
                    @Param("stateCd") String stateCd, @Param("by") String by, @Param("now") String now);
 

@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -73,6 +74,12 @@ public class PrepService {
     private static final String JUDGE_MANUAL = "MANUAL";
     private static final String KIND_REQUIRED = "REQUIRED";
     private static final String KIND_CONDITIONAL = "CONDITIONAL";
+
+    /** 제안 확정 조건(NEXT 114, 사용자 11-25 0시) — 오류 코드·문구. 문구에 기관명·사번·연도 값을 싣지 않는다. */
+    static final String NOT_GOAL_TARGET = "NOT_GOAL_TARGET";
+    static final String GOAL_CHANGE_PENDING = "GOAL_CHANGE_PENDING";
+    private static final String NOT_GOAL_MSG = "올해 목표 기관만 제안 확정할 수 있습니다. 먼저 이 기관을 올해 목표 기관으로 넣어 주세요(결재가 끝나면 입찰 현황판에서 확정할 수 있습니다).";
+    private static final String GOAL_PENDING_MSG = "이 기관은 목표 기관 결재가 진행 중입니다. 결재가 끝난 뒤 입찰 현황판에서 제안 확정해 주세요.";
 
     private static final Map<String, String> STATE_NAMES = stateNames();
 
@@ -204,7 +211,10 @@ public class PrepService {
 
     // ── 제안 확정·취소·중단 ───────────────────────────────────────────────
 
-    /** 제안 확정(2) — 영업팀·영업팀장. 기관당 활성 건 1개(기관 행 FOR UPDATE 잠금 + 존재 확인). 건이 없으면 새로 만든다. */
+    /**
+     * 제안 확정(2) — 영업팀·영업팀장. 기관당 활성 건 1개(기관 행 FOR UPDATE 잠금 + 존재 확인). 건이 없으면 새로 만든다.
+     * NEXT 114(사용자 11-25 0시): 결재가 끝난 올해 목표 기관만 — {@link #requireGoalTarget}. 공고 여부는 보지 않는다.
+     */
     @Transactional
     public Map<String, Object> confirm(SysUser me, Actor actor, PrepIn.Confirm in) {
         requireSales(me);
@@ -219,6 +229,7 @@ public class PrepService {
             throw alreadyActive();
         }
         // ⚠️ 순서 주의: 기관 행 잠금(위) 뒤에 활성 건 수를 센다 — 이 위쪽에 다른 SELECT 를 끼우지 않는다(MySQL RR 첫 일관 읽기, qa P3-8).
+        requireGoalTarget(inst);   // NEXT 114 — 같은 기관 잠금 안(목표 넣기·빼기·옮기기·결재 상신·반영도 이 행을 먼저 잠근다)
         String bid = in.getBidCaseId() == null ? "" : in.getBidCaseId().trim();
         String now = Times.nowIso();
         boolean revived = false;
@@ -264,6 +275,26 @@ public class PrepService {
         m.put("state_cd", CONFIRMED);
         m.put("revived", revived);
         return m;
+    }
+
+    /**
+     * 제안 확정 조건(NEXT 114, 사용자 11-25 0시) — 결재가 끝난 올해 목표 기관만. 기관 잠금 안에서 부른다.
+     * 살아 있는 올해 목표(현황판 목표 줄과 같은 판정, 자동 이월·옮기기 포함)가 있으면 그 기관에 목표 변경 결재가 하나라도 진행 중일 때 409 GOAL_CHANGE_PENDING
+     * (빼기·연도 바꾸기가 걸려 있을 수 있다). 없으면 올해 목표로 만드는 결재(넣기·관심→목표·연도 바꾸기)가 진행 중일 때 409 GOAL_CHANGE_PENDING,
+     * 그 밖은 409 NOT_GOAL_TARGET. 이미 확정된 건(목표 밖 '준비 중')은 건드리지 않는다(소급 없음).
+     * ⚠️ X-Emp-No 자기신고 위의 업무 규칙이다(사칭 방지 아님).
+     */
+    private void requireGoalTarget(String inst) {
+        int year = LocalDate.parse(Times.todayKst()).getYear();
+        if (mapper.countGoalForYear(inst, year) > 0) {
+            if (mapper.countTargetPending(inst) > 0) {
+                throw coded(409, GOAL_CHANGE_PENDING, GOAL_PENDING_MSG);
+            }
+            return;
+        }
+        throw mapper.countPendingGoalForYear(inst, year) > 0
+                ? coded(409, GOAL_CHANGE_PENDING, GOAL_PENDING_MSG)
+                : coded(409, NOT_GOAL_TARGET, NOT_GOAL_MSG);
     }
 
     /** F8 — 옛 직접 배정의 머리 행이 있는 건은 확정할 수 없다(개설 승인이 영구 409 가 된다). */

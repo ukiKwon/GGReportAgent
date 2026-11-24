@@ -3,7 +3,9 @@ package com.kbstar.kgi.ggreport.web.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.AppTest;
+import com.kbstar.kgi.ggreport.web.support.TestGoals;
 import com.kbstar.kgi.ggreport.web.support.Times;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +53,12 @@ public class PrepBoardApiTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private JdbcTemplate jdbc;
     private final ObjectMapper om = new ObjectMapper();
+
+    @Before
+    public void 올해_목표_바탕() {   // NEXT 114 — 제안 확정은 올해 목표 기관만. 시험 트랜잭션 안이라 끝나면 롤백된다
+        TestGoals.seedThisYear(jdbc, INST);
+        TestGoals.seedThisYear(jdbc, "dobong");
+    }
 
     // ── 도우미 ───────────────────────────────────────────────────────
 

@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.AppTest;
 import com.kbstar.kgi.ggreport.web.support.LegacyFlowSwitch;
+import com.kbstar.kgi.ggreport.web.support.TestGoals;
 import com.kbstar.kgi.ggreport.web.support.Times;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +52,12 @@ public class PrepApiTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private LegacyFlowSwitch legacy;
     private final ObjectMapper om = new ObjectMapper();
+
+    @Before
+    public void 올해_목표_바탕() {   // NEXT 114 — 제안 확정은 올해 목표 기관만. 시험 트랜잭션 안이라 끝나면 롤백된다
+        TestGoals.seedThisYear(jdbc, INST);
+        TestGoals.seedThisYear(jdbc, "dobong");
+    }
 
     // ── 도우미 ───────────────────────────────────────────────────────
 
@@ -1180,15 +1188,15 @@ public class PrepApiTest {
         String body = "{\"institution_id\":\"" + INST + "\"}";
         int anon = count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='CONFIRM' AND ACTOR_EMP_NO IS NULL");
         int d0 = confirmActs(DESIGNER, "DENIED"), h0 = confirmActs(HEAD, "DENIED");
-        int hu0 = act(NO_CASE_ID, "CONFIRM", "DENIED", HEAD, "map_popover", "confirm", 1, NO_CASE_ID);
+        int hu0 = act(NO_CASE_ID, "CONFIRM", "DENIED", HEAD, "bid_board", "confirm", 1, NO_CASE_ID);
         int m0 = confirmActs(MEMBER, "HIDDEN"), i0 = confirmActs(MEMBER, "INVALID"), l0 = confirmActs(LEAD, "BLOCKED");
-        assertEquals(401, postUi("/preps", null, body, "map_popover", "confirm").getResponse().getStatus());
+        assertEquals(401, postUi("/preps", null, body, "bid_board", "confirm").getResponse().getStatus());
         assertEquals(anon, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='CONFIRM' AND ACTOR_EMP_NO IS NULL"));
-        assertEquals(403, postUi("/preps", DESIGNER, body, "map_popover", "confirm").getResponse().getStatus());
-        assertEquals(403, postUi("/preps", HEAD, body, "map_popover", "confirm").getResponse().getStatus());
+        assertEquals(403, postUi("/preps", DESIGNER, body, "bid_board", "confirm").getResponse().getStatus());
+        assertEquals(403, postUi("/preps", HEAD, body, "bid_board", "confirm").getResponse().getStatus());
         assertEquals(d0 + 1, confirmActs(DESIGNER, "DENIED"));
         assertEquals(h0 + 1, confirmActs(HEAD, "DENIED"));
-        assertEquals(hu0 + 1, act(NO_CASE_ID, "CONFIRM", "DENIED", HEAD, "map_popover", "confirm", 1, NO_CASE_ID));   // 화면·버튼까지
+        assertEquals(hu0 + 1, act(NO_CASE_ID, "CONFIRM", "DENIED", HEAD, "bid_board", "confirm", 1, NO_CASE_ID));   // 화면·버튼까지
         assertEquals(404, postJson("/preps", MEMBER, "{\"institution_id\":\"no-such-inst\"}").getResponse().getStatus());
         assertEquals(404, confirmWith(MEMBER, INST, "bad id!").getResponse().getStatus());   // 형식 밖 bid → NONE
         assertEquals(m0 + 2, confirmActs(MEMBER, "HIDDEN"));
@@ -1199,8 +1207,57 @@ public class PrepApiTest {
         assertEquals(409, postJson("/preps", LEAD, body).getResponse().getStatus());           // 건 미지정 → NONE
         assertEquals(l0 + 1, confirmActs(LEAD, "BLOCKED"));
         assertEquals(409, postUi("/preps", LEAD, "{\"institution_id\":\"" + INST + "\",\"bid_case_id\":\"" + bid + "\"}",
-                "map_popover", "confirm").getResponse().getStatus());                              // 건 지정 → 그 건·직전 상태
-        assertEquals(1, act(bid, "CONFIRM", "BLOCKED", LEAD, "map_popover", "confirm", 1, "CONFIRMED"));
+                "bid_board", "confirm").getResponse().getStatus());                                // 건 지정 → 그 건·직전 상태
+        assertEquals(1, act(bid, "CONFIRM", "BLOCKED", LEAD, "bid_board", "confirm", 1, "CONFIRMED"));
+    }
+
+    // ── NEXT 114: 제안 확정은 결재가 끝난 올해 목표 기관만(사용자 11-25 0시) ─────────────────────────
+
+    private void goalRow(String inst, int no, int rev, String action, String kind, Integer year, String watchEmp) {
+        jdbc.update("INSERT INTO INST_BID_TARGET (INSTITUTION_ID, TARGET_NO, REV_NO, ACTION_CD, KIND_CD, TARGET_YEAR, TAG_CD, EDITOR_EMP_NO, EDITOR_NAME,"
+                + " EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, SAVED_AT, WATCH_EMP_NO) VALUES (?,?,?,?,?,?,'NEW','3918264','김영업',0,'bid_board','seed',1,"
+                + "'2026-11-25T00:00:00+09:00',?)", inst, no, rev, action, kind, year, watchEmp);
+    }
+
+    private void assertNotGoal(MvcResult r) throws Exception {
+        assertEquals(409, r.getResponse().getStatus());
+        assertEquals("NOT_GOAL_TARGET", json(r).path("detail").path("code").asText());
+        assertFalse(body(r).contains("jongno"));   // 문구에 기관 id 없음
+    }
+
+    @Test
+    public void 올해_목표_기관이_아니면_제안_확정은_409_NOT_GOAL_TARGET이고_건이_생기지_않으며_자동_이월_목표는_확정된다() throws Exception {
+        final String inst = "jongno";   // @Before 바탕에 없는 기관
+        final int y = TestGoals.thisYear();
+        final String body = "{\"institution_id\":\"" + inst + "\"}";
+        int cases = count("SELECT COUNT(*) FROM BID_CASES WHERE INSTITUTION_ID=?", inst);
+        int blocked0 = act(NO_CASE_ID, "CONFIRM", "BLOCKED", MEMBER, "bid_board", "confirm", 1, NO_CASE_ID);
+        int log0 = count("SELECT COUNT(*) FROM ACCESS_LOG WHERE REQ_PATH='/preps' AND EMP_NO=? AND DETAIL='prep confirm 409 NOT_GOAL_TARGET'", MEMBER);
+        assertNotGoal(postUi("/preps", MEMBER, body, "bid_board", "confirm"));                       // 기록 없음
+        goalRow(inst, 1, 1, "SAVE", "WATCH", null, MEMBER);
+        assertNotGoal(postUi("/preps", MEMBER, body, "bid_board", "confirm"));                       // 본인 관심(♥)만
+        goalRow(inst, 2, 1, "SAVE", "GOAL", y - 1, null);
+        goalRow(inst, 3, 1, "SAVE", "GOAL", y + 1, null);
+        goalRow(inst, 4, 1, "SAVE", "GOAL", y, null);
+        goalRow(inst, 4, 2, "CANCEL", "GOAL", y, null);
+        assertNotGoal(postUi("/preps", MEMBER, body, "bid_board", "confirm"));                       // 지난해·내년·뺀 올해 목표
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP WHERE INSTITUTION_ID=?", inst));
+        assertEquals(cases, count("SELECT COUNT(*) FROM BID_CASES WHERE INSTITUTION_ID=?", inst));
+        assertEquals(blocked0 + 3, act(NO_CASE_ID, "CONFIRM", "BLOCKED", MEMBER, "bid_board", "confirm", 1, NO_CASE_ID));
+        assertEquals(log0 + 3, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE REQ_PATH='/preps' AND EMP_NO=? AND DETAIL='prep confirm 409 NOT_GOAL_TARGET'", MEMBER));
+        goalRow(inst, 5, 1, "CARRY", "GOAL", y, null);                                               // 자동 이월 올해 목표
+        assertEquals(201, postUi("/preps", MEMBER, body, "bid_board", "confirm").getResponse().getStatus());
+    }
+
+    @Test
+    public void 제안_확정의_화면_값은_입찰_현황판만_유효하고_지도_팝업_공고_현황은_UNKNOWN으로_남는다() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        String body = "{\"institution_id\":\"" + INST + "\",\"bid_case_id\":\"" + bid + "\"}";
+        assertEquals(409, postUi("/preps", LEAD, body, "map_popover", "confirm").getResponse().getStatus());
+        assertEquals(409, postUi("/preps", LEAD, body, "bid_notice", "confirm").getResponse().getStatus());
+        assertEquals(2, act(bid, "CONFIRM", "BLOCKED", LEAD, "UNKNOWN", "confirm", 0, "CONFIRMED"));
+        assertEquals(409, postUi("/preps", LEAD, body, "bid_board", "confirm").getResponse().getStatus());
+        assertEquals(1, act(bid, "CONFIRM", "BLOCKED", LEAD, "bid_board", "confirm", 1, "CONFIRMED"));
     }
 
     @Test

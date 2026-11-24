@@ -86,7 +86,7 @@ public class PrepController {
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> confirm(@RequestBody PrepIn.Confirm body, HttpServletRequest req) {
         Actor actor = Actor.of(req);
-        BoardUiIds.Ui ui = PrepUiIds.of(req);
+        BoardUiIds.Ui ui = PrepUiIds.forConfirm(req);   // NEXT 114 — 확정은 bid_board/confirm 만 유효(그 밖은 UNKNOWN 으로 감사)
         String key = confirmKey(body);
         SysUser me;
         try {
@@ -107,6 +107,7 @@ public class PrepController {
             if (e.getStatus() == 403) {
                 throw guard.denied(req, e);
             }
+            req.setAttribute(AccessLogInterceptor.DETAIL, failDetail("prep confirm", e));   // 상태·코드만(NOT_GOAL_TARGET 등) — 기관 id·본문 없음
             throw e;
         } catch (RuntimeException e) {   // DB 오류 등 — ERROR 로 남기고 그대로 던진다(전역 처리기가 500)
             auditFailure(key, "CONFIRM", "ERROR", null, null, null, actor, ui);
@@ -308,8 +309,12 @@ public class PrepController {
         return out;
     }
 
-    /** "nobid-notice ack <상태> <code>" — code 는 대문자·밑줄만. 없으면 상태만. */
     private static String nobidFailDetail(ApiException e) {
+        return failDetail("nobid-notice ack", e);
+    }
+
+    /** "<op> <상태> <code>" — code 는 대문자·밑줄만. 없으면 상태만. */
+    private static String failDetail(String op, ApiException e) {
         String code = null;
         Object d = e.getDetailObject();
         if (d instanceof Map) {
@@ -318,7 +323,7 @@ public class PrepController {
                 code = (String) c;
             }
         }
-        return "nobid-notice ack " + e.getStatus() + (code == null ? "" : " " + code);
+        return op + " " + e.getStatus() + (code == null ? "" : " " + code);
     }
 
     /** 감사 칸(BID_PREP_ACT.TASK_CD, 20자)에 넣을 과제 코드 — 형식 밖(길이·문자)이면 null. 경로 변수 원문을 그대로 저장하지 않는다(security F5). */

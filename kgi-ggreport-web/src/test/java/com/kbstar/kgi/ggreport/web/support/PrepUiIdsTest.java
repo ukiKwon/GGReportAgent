@@ -67,6 +67,28 @@ public class PrepUiIdsTest {
         assertFalse(ui.isValid());
     }
 
+    private static BoardUiIds.Ui confirmOf(String screen, String button) {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        if (screen != null) { req.addHeader(BoardUiIds.H_SCREEN, screen); }
+        if (button != null) { req.addHeader(BoardUiIds.H_BUTTON, button); }
+        return PrepUiIds.forConfirm(req);
+    }
+
+    @Test
+    public void 제안_확정은_입찰_현황판의_confirm만_유효하다() {
+        assertTrue(confirmOf("bid_board", "confirm").isValid());
+        for (String s : new String[]{"map_popover", "bid_notice", "prep_detail", null}) {
+            BoardUiIds.Ui u = confirmOf(s, "confirm");
+            assertEquals(BoardUiIds.UNKNOWN, u.getScreen());
+            assertEquals("confirm", u.getButton());
+            assertFalse(u.isValid());
+        }
+        BoardUiIds.Ui b = confirmOf("bid_board", "open_prep");
+        assertEquals("bid_board", b.getScreen());
+        assertEquals(BoardUiIds.UNKNOWN, b.getButton());
+        assertFalse(b.isValid());
+    }
+
     @Test
     public void 입찰_없음_알림의_계속_작성은_prep_detail_nobid_continue로_받아들여진다() {
         BoardUiIds.Ui ui = of("prep_detail", "nobid_continue");

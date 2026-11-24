@@ -3,6 +3,7 @@ package com.kbstar.kgi.ggreport.web.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.AppTest;
+import com.kbstar.kgi.ggreport.web.support.TestGoals;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import org.junit.After;
 import org.junit.Before;
@@ -49,6 +50,7 @@ public class PrepRollbackApiTest {
     private String startedAt;
     private String memberRole;
     private String member2Status;
+    private Integer goalNo;   // NEXT 114 — 시험이 넣은 올해 목표 행(없으면 null). 트랜잭션이 없어 뒤정리에서 지운다
 
     @Before
     public void 앞정리() {
@@ -56,10 +58,14 @@ public class PrepRollbackApiTest {
         startedAt = Times.nowIso();
         memberRole = jdbc.queryForObject("SELECT ROLE FROM USERS WHERE EMP_NO=?", String.class, MEMBER);
         member2Status = jdbc.queryForObject("SELECT STATUS FROM USERS WHERE EMP_NO=?", String.class, MEMBER2);
+        goalNo = TestGoals.seedThisYear(jdbc, INST);   // NEXT 114 — 제안 확정은 올해 목표 기관만
     }
 
     @After
     public void 뒤정리() {
+        if (goalNo != null) {
+            TestGoals.remove(jdbc, INST, goalNo);
+        }
         jdbc.update("UPDATE USERS SET ROLE=? WHERE EMP_NO=?", memberRole, MEMBER);
         jdbc.update("UPDATE USERS SET STATUS=? WHERE EMP_NO=?", member2Status, MEMBER2);
         for (Long id : reqs) {
