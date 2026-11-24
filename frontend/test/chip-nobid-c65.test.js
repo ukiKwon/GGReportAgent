@@ -85,6 +85,6 @@ test('옛 메뉴 이름 [제안서 사전준비 프로세스]는 화면 안 안�
     read(f).split('\n').forEach(function (line) { if (!/^\s*\/\//.test(line)) assert.ok(line.indexOf('[제안서 사전준비 프로세스]') < 0 && line.indexOf('› 제안서 사전준비 프로세스]') < 0, f + ': ' + line.trim().slice(0, 60)); });
   });
   const h = read('index.html');
-  assert.ok(h.indexOf('<div class="tm-head"><b id="pb-title">대시보드</b>') > 0 && h.indexOf('<div class="tm-head"><b>제안서 사전준비 프로세스</b>') < 0);
-  assert.ok(read('js/dashboard.js').indexOf('[영업 추진 준비 › 대시보드]') > 0);
+  assert.ok(h.indexOf('<div class="tm-head"><b id="pb-title">제안 준비 현황</b>') > 0 && h.indexOf('<div class="tm-head"><b>제안서 사전준비 프로세스</b>') < 0);
+  assert.ok(read('js/dashboard.js').indexOf('[영업 추진 준비 › 제안 준비 현황]') > 0);
 });

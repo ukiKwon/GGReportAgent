@@ -442,7 +442,7 @@ test('prep.js 연결: 표가 있을 때만 전환(boardOn), 상세 열기는 pre
   assert.ok(PREP_SRC.indexOf("root.prepboard.show(boardHooks(), { reload: true, focusBid: bid })") > 0);
   assert.ok(PREP_SRC.indexOf("if (boardOn() && S.view === 'board') { root.prepboard.show(boardHooks()); return; }") > 0);
   assert.strictEqual((PREP_SRC.match(/root\.prepboard\.reset\(\)/g) || []).length, 2, '계정이 바뀌는 두 곳에서 표를 비운다');
-  assert.ok(PREP_SRC.indexOf("bk.textContent = '← 대시보드로'") > 0 && PREP_SRC.indexOf("bk.setAttribute('data-act', 'back')") > 0);
+  assert.ok(PREP_SRC.indexOf("bk.textContent = '← 제안 준비 현황으로'") > 0 && PREP_SRC.indexOf("bk.setAttribute('data-act', 'back')") > 0);
   // 옛 목록 화면의 id와 배선은 그대로(표가 없을 때의 화면)
   ['pp-list', 'pp-tabs', 'pp-q', 'pp-items', 'pp-count'].forEach(function (id) { assert.ok(PREP_SRC.indexOf("'" + id + "'") > 0, id); });
   assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(PREP_SRC));

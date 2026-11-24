@@ -1031,7 +1031,7 @@
         const early = !!c.early;   // 공고 전 올해 목표 기관: 한 상자 안에서 경고만 더한다(상자를 두 번 띄우지 않는다)
         return '<div class="db-confirm' + (early ? ' early' : '') + '" role="group" aria-labelledby="db-cf-t"><span id="db-cf-t">' +
           (early ? '<b class="db-cf-warn">' + esc(dash.EARLY_ASK) + '</b>' : '') + esc(it.name) + dash.josaEul(it.name) +
-          ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 대시보드]에 이 기관의 준비 건이 생깁니다. 개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</span>' +
+          ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 제안 준비 현황]에 이 기관의 준비 건이 생깁니다. 개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</span>' +
           '<div class="db-act-row"><button type="button" class="db-next" id="db-do"' + (c.busy ? ' disabled' : '') + '>' + (early ? '계속 진행' : '확정하기') + '</button><button type="button" id="db-cancel">취소</button></div></div>';
       }
       return '<div class="db-act-row"><button type="button" class="db-next" id="db-cf">제안 확정</button>' + map +
@@ -1057,7 +1057,7 @@
         return { main: '<button type="button" class="db-next" id="db-cf" disabled>제안 확정</button>', why: '', confirm:
           '<div class="db-confirm dm-confirm' + (early ? ' early' : '') + '" id="dm-confirm" role="group" aria-labelledby="db-cf-t"><span id="db-cf-t">' +
           (early ? '<b class="db-cf-warn">' + esc(dash.EARLY_ASK) + '</b>' : '') + esc(it.name) + dash.josaEul(it.name) +
-          ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 대시보드]에 이 기관의 준비 건이 생깁니다. 개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</span>' +
+          ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 제안 준비 현황]에 이 기관의 준비 건이 생깁니다. 개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</span>' +
           '<div class="db-act-row"><button type="button" class="db-next" id="db-do"' + (c.busy ? ' disabled' : '') + '>' + (early ? '계속 진행' : '확정하기') + '</button><button type="button" id="db-cancel">취소</button></div></div>' };
       }
       return { main: '<button type="button" class="db-next" id="db-cf">제안 확정</button>', why: c.early ? esc(dash.EARLY_WHY) : '', confirm: '' };
@@ -1728,7 +1728,7 @@
       case 'db-cf': st.confirm = true; renderPane(); break;
       case 'db-cancel': st.confirm = false; renderPane(); { const b = $('db-cf'); if (b) b.focus(); } break;
       case 'db-do': doConfirm(); break;
-      case 'db-open': { const it = findItem(st.sel); const p = it && activeFor(it.rec); if (!goPrep(p)) flash('사전준비 화면을 열지 못했습니다. 메뉴의 [영업 추진 준비 › 대시보드]에서 여세요.', true); break; }
+      case 'db-open': { const it = findItem(st.sel); const p = it && activeFor(it.rec); if (!goPrep(p)) flash('이 기관의 사전준비 건을 열지 못했습니다. 메뉴의 [영업 추진 준비 › 제안 준비 현황]에서 여세요.', true); break; }
       // 눌린 버튼은 다시 그려져 사라진다 — 포커스를 같은 뜻의 새 요소로 돌려 키보드 사용자가 맥락을 잃지 않게 한다.
       case 'db-widen': { setWindow(btn.getAttribute('data-win'), true); const r = host.querySelector('#db-per input:checked'); if (r) r.focus(); break; }
       case 'db-kq-find': { const q = $('db-q'); if (q) { if (q.scrollIntoView) q.scrollIntoView({ block: 'nearest' }); q.focus(); } break; }
@@ -1858,7 +1858,7 @@
         if (x.r.ok) {
           m.changed = true;   // 닫을 때 현황판(kbboard)의 준비 중 제안·단계 집계를 다시 받게 한다
           if (goPrep(x.body)) { dash.closeDetail(false); return; }   // 사전준비 화면으로 간다(지도 팝업은 닫는다)
-          dmFlash(m.it.name + dash.josaEul(m.it.name) + ' 제안 확정했습니다. 메뉴의 [영업 추진 준비 › 대시보드]에서 여세요.', false);
+          dmFlash(m.it.name + dash.josaEul(m.it.name) + ' 제안 확정했습니다. 메뉴의 [영업 추진 준비 › 제안 준비 현황]에서 여세요.', false);
           return dmLoadPreps(m).then(function () { dmRender(); });
         }
         const f = dash.confirmFail(x);
@@ -1960,7 +1960,7 @@
       case 'db-cf': m.confirm = true; m.confirmFocus = true; dmRender(); break;
       case 'db-cancel': m.confirm = false; dmRender(); { const b = m.el.querySelector('#db-cf'); if (b) b.focus(); } break;
       case 'db-do': dmDoConfirm(m); break;
-      case 'db-open': { const p = dmActives(m); if (p && goPrep(p)) dash.closeDetail(false); else dmFlash('사전준비 화면을 열지 못했습니다. 메뉴의 [영업 추진 준비 › 대시보드]에서 여세요.', true); break; }
+      case 'db-open': { const p = dmActives(m); if (p && goPrep(p)) dash.closeDetail(false); else dmFlash('이 기관의 사전준비 건을 열지 못했습니다. 메뉴의 [영업 추진 준비 › 제안 준비 현황]에서 여세요.', true); break; }
       default: break;
     }
   }

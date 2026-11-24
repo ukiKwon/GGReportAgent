@@ -292,7 +292,7 @@
   // 확인 줄(팝오버·현황판 공용). 첫 포커스는 [확정하기]가 아니라 호출 쪽이 정한다.
   prep.popConfirmHtml = function (name) {
     return '<div class="pop-confirm" role="group" aria-label="제안 확정 확인">' +
-      '<div>' + esc(name) + esc(prep.josa(name, '을', '를')) + ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 대시보드]에 이 기관의 준비 건이 생깁니다. ' +
+      '<div>' + esc(name) + esc(prep.josa(name, '을', '를')) + ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 제안 준비 현황]에 이 기관의 준비 건이 생깁니다. ' +
       '개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</div>' +
       '<div class="tm-actions"><button type="button" data-pp-pop="cancel">취소</button>' +
       '<button type="button" class="pp-next-btn" data-pp-pop="go">확정하기</button></div>' +
@@ -926,7 +926,7 @@
              modal: null, confirm: null, showVoid: false, uploading: false, busy: false,
              seq: 0, listSeq: 0, flash: '', refocus: '', focusTitle: false, withdrawing: false,
              nb: null, nbSeen: '',   // nb: 열린 입찰 없음 팝업 { id, round, rev, sending } · nbSeen: 이미 띄운 건|회차|판정 번호
-             view: 'board', fromBoard: false, pendingCase: false, boardName: '' };   // 대시보드 표(prepboard.js)가 있을 때: view 'board'(표) | 'case'(같은 자리 상세). fromBoard: 표에서 연 상세
+             view: 'board', fromBoard: false, pendingCase: false, boardName: '' };   // 제안 준비 현황 표(prepboard.js)가 있을 때: view 'board'(표) | 'case'(같은 자리 상세). fromBoard: 표에서 연 상세
   }
   let S = freshState();
   let reqSeq = 0;   // 요청 번호는 S 밖에서 단조 증가 — 계정 전환으로 S가 새로 만들어져도 옛 응답 번호와 겹치지 않는다(seq·listSeq 공용)
@@ -993,7 +993,7 @@
     if (bd) bd.style.display = gate ? 'none' : '';
   }
 
-  // ── 대시보드 표 ↔ 상세 전환(NEXT 102). #pp-board·prepboard.js가 없으면 옛 목록+상세 화면 그대로. ──
+  // ── 제안 준비 현황 표 ↔ 상세 전환(NEXT 102). #pp-board·prepboard.js가 없으면 옛 목록+상세 화면 그대로. ──
   function boardOn() { return !!(root.prepboard && root.prepboard.show && el('pp-board')); }
   function showView() {
     const bo = boardOn();
@@ -1024,7 +1024,7 @@
     if (!boardOn()) loadList();
     loadDetail(S.selected, { popup: true });
   }
-  // [← 대시보드로] — 거르기·스크롤은 prepboard가 간직하고, 표는 다시 불러온다(상세에서 과제를 체크하면 자동 칸이 바뀐다).
+  // [← 제안 준비 현황으로] — 거르기·스크롤은 prepboard가 간직하고, 표는 다시 불러온다(상세에서 과제를 체크하면 자동 칸이 바뀐다).
   function backToBoard() {
     const bid = S.selected;
     if (S.nb) closeNobid(false);
@@ -1105,7 +1105,7 @@
     const d = S.detail;
     if (!S.selected || !d) {
       box.setAttribute('aria-busy', 'false');
-      box.innerHTML = '<h2 id="pp-case-title" class="sr-only" tabindex="-1">대시보드</h2><p class="wf-empty">' + esc(T.pick) + '</p>';
+      box.innerHTML = '<h2 id="pp-case-title" class="sr-only" tabindex="-1">제안 준비 현황</h2><p class="wf-empty">' + esc(T.pick) + '</p>';
       return;
     }
     if (d.loading) {
@@ -1707,7 +1707,7 @@
     inp.setAttribute('aria-hidden', 'true');
     inp.tabIndex = -1;
     r.appendChild(inp);
-    // 상세 맨 위 [← 대시보드로] — 표(#pp-board)가 있을 때만 보인다(showView). case를 다시 그려도 지워지지 않게 #pp-case 밖에 둔다.
+    // 상세 맨 위 [← 제안 준비 현황으로] — 표(#pp-board)가 있을 때만 보인다(showView). case를 다시 그려도 지워지지 않게 #pp-case 밖에 둔다.
     const pane = el('pp-pane');
     if (pane && !el('pp-back')) {
       const bk = document.createElement('button');
@@ -1715,7 +1715,7 @@
       bk.id = 'pp-back';
       bk.className = 'pb-back';
       bk.setAttribute('data-act', 'back');
-      bk.textContent = '← 대시보드로';
+      bk.textContent = '← 제안 준비 현황으로';
       bk.hidden = true;
       pane.insertBefore(bk, pane.firstChild);
     }

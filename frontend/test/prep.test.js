@@ -28,7 +28,7 @@ test('nav 노출(사전준비): 영업팀·영업팀장·영업부장 예, 디�
     const it = find(ALL_ON, { role: role }, nav.PREP_ID);
     assert.ok(it, role);
     assert.strictEqual(nav.badgeOf(it), '');
-    assert.strictEqual(it.label, '대시보드');   // 메뉴 이름 11-19 저녁
+    assert.strictEqual(it.label, '제안 준비 현황');   // 메뉴 이름 11-24
   });
   assert.strictEqual(find(ALL_ON, { role: '디자이너' }, nav.PREP_ID), null);
   assert.strictEqual(find(ALL_ON, { role: '영업팀', master: true }, nav.PREP_ID), null);
@@ -448,7 +448,7 @@ test('입찰 현황판(dashboard.js)이 기대하는 root.prep 계약: popoverAc
 test('popConfirmHtml: 확인 줄 문구와 조사, 기관명 이스케이프', function () {
   const h = prep.popConfirmHtml('노원구청');
   assert.ok(h.indexOf('노원구청을 제안 대상으로 확정합니다.') > 0);
-  assert.ok(h.indexOf('[영업 추진 준비 › 대시보드]') > 0);
+  assert.ok(h.indexOf('[영업 추진 준비 › 제안 준비 현황]') > 0);
   assert.ok(h.indexOf('data-pp-pop="go"') > 0 && h.indexOf('data-pp-pop="cancel"') > 0);
   assert.ok(prep.popConfirmHtml('한국도로공사').indexOf('한국도로공사를 제안') > 0);
   assert.strictEqual(prep.popConfirmHtml('<script>x</script>').indexOf('<script>'), -1);

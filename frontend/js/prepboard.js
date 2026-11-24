@@ -1,6 +1,6 @@
 (function (root) {
   'use strict';
-  // 영업 추진 준비 › 대시보드 — 제안 확정 기관 × 준비 체크리스트 표(NEXT 102). 엑셀 머리줄(묶음 1행 + 하위 칸 2행)을 그대로 옮긴다.
+  // 영업 추진 준비 › 제안 준비 현황 — 제안 확정 기관 × 준비 체크리스트 표(NEXT 102). 엑셀 머리줄(묶음 1행 + 하위 칸 2행)을 그대로 옮긴다.
   // 규격: handoff/agents/design-reviewer/2026-11-23_1049_ae4db5c1.md 5·6절. 서버 계약: handoff/agents/backend-dev/2026-11-23_1027_ab347621.md 3-0.
   //   GET /prep-board?include_ended=true · PUT /bidcases/{id}/prep/board-checks/{col} {mark_cd, base_rev}
   //   머리 X-Screen-Id: prep_dashboard · X-Button-Id: open | refresh | dash_check
@@ -27,11 +27,11 @@
 
   // ── 문구 (규격 5-1) ───────────────────────────────────────────────
   const T = {
-    title: '대시보드',
+    title: '제안 준비 현황',
     hint: '— 제안 확정한 기관의 준비 진행을 칸마다 봅니다. 담당 기관의 칸을 눌러 체크하세요.',
     loading: '불러오는 중…',
     retry: '다시 시도',
-    loadErr: '대시보드를 불러오지 못했습니다.',
+    loadErr: '제안 준비 현황을 불러오지 못했습니다.',
     refresh: '새로 고침',
     refreshing: '새로 고치는 중…',
     empty: '제안 확정한 기관이 없습니다. 지역별 공고현황에서 공고가 난 기관을 고르고 [제안 확정]을 누르면 여기에 한 줄씩 생깁니다.',
@@ -56,7 +56,7 @@
     infoPre: '개설 승인 뒤 정해지는 담당 영업이 체크합니다.',
     legendPre: '개설 승인 전 — 담당이 정해지면 체크합니다',
     readOnlyPre: '아직 개설 승인된 기관이 없어 체크할 칸이 없습니다. 담당 영업은 개설 승인 때 정해집니다.',
-    back: '← 대시보드로',
+    back: '← 제안 준비 현황으로',
     err400: '저장하지 못했습니다. 화면을 새로 고친 뒤 다시 고르세요.',
     errNet: '연결이 끊겨 저장하지 못했습니다. 연결을 확인하고 다시 고르세요.',
     err404: '이 칸이나 기관을 찾을 수 없습니다. [새로 고침]으로 확인하세요.',
