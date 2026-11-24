@@ -153,7 +153,7 @@
       render._safeColor(render.INACTIVE_FILL, '#c3cad9') + '"></i>준비중</span>');
     if (drill) {
       // 드릴인: 면 위 ▲n·'공고 n' 칩이 없고 지시선 카드가 그 일을 한다(design 11-24)
-      rows.push('<span class="lg-item lg-tri-row"><i class="lg-card" aria-hidden="true"></i>카드: 시군구별 공고 중·경과·6개월 안·6개월~1년 기관 수(켠 종류 모두)</span>');
+      rows.push('<span class="lg-item lg-tri-row"><i class="lg-card" aria-hidden="true"></i>카드: 시군구별 입찰 시기 건수 — 1개월 미만·6개월 미만·1년 미만·알 수 없음(켠 종류 모두)</span>');
     } else {
       rows.push('<span class="lg-item lg-tri-row"><b class="lg-tri" aria-hidden="true">▲3</b>6개월 안 공고 예정 기관 수 (속 빈 △는 추정)</span>');
       rows.push('<span class="lg-item lg-tri-row"><i class="lg-nchip" aria-hidden="true">공고 2</i>공고가 나서 진행 중인 기관 수 (공고일부터 ' + logic.NOTICE_ACTIVE_DAYS + '일)</span>');
@@ -471,7 +471,7 @@
   // 예: "강남구, 빨강, 공고 중 1곳, 6개월 안 2곳, 6개월~1년 1곳, 그 밖 3곳, 기관 7곳"
   render.mixAriaLabelCard = function (name, info) {
     const parts = [name, render.MIX_NAME[info.band] || render.MIX_NAME.none];
-    logic.subCardLines(info).forEach(function (ln) { parts.push(ln.label + ' ' + ln.n + '곳'); });
+    logic.subCardLines(info).forEach(function (ln) { parts.push(ln.label + ' ' + ln.n + '건'); });
     parts.push('기관 ' + info.total + '곳');
     return parts.join(', ');
   };
@@ -672,7 +672,7 @@
       if (!logic.subCardEligible(info)) return;
       const p = path.centroid(d);
       items.push({ code: d.properties.code, ax: p[0], ay: p[1], lines: logic.subCardLines(info).length,
-        pri: [info.notice, info.overdue, info.within6, info.to12] });
+        pri: [info.within1, info.within6 - info.within1, info.to12, info.unknown] });
     });
     const lay = logic.layoutSubCards(items, w, h);
     const layer = svg.append('g').attr('class', 'sub-card-layer').attr('opacity', render.muniDimOpacity());
@@ -703,7 +703,7 @@
       logic.subCardLines(info).forEach(function (ln, i) {
         const y = 30 + 15 * i, cls = (ln.muted ? ' muted' : '') + (ln.strong ? ' strong' : '');
         cg.append('text').attr('class', 'sc-k' + cls).attr('x', 9).attr('y', y).text(ln.label);
-        cg.append('text').attr('class', 'sc-n' + cls).attr('x', 114).attr('y', y).attr('text-anchor', 'end').text(ln.n + '곳');
+        cg.append('text').attr('class', 'sc-n' + cls).attr('x', 114).attr('y', y).attr('text-anchor', 'end').text(ln.n + '건');
       });
     });
     // 카드 자리가 모자라 뺀 면 수 — 열 맨 아래 안내(면은 올리면 툴팁이 뜬다)

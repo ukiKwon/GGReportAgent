@@ -22,38 +22,29 @@ function withDoc(doc, fn) {
 const S = logic.SUBCARD;
 
 // ── 카드 줄 ───────────────────────────────────────────────────────────
-test('subCardLines: 공고 중·경과·6개월 안·6개월~1년·그 밖 순서, 0곳 줄은 숨김, 그 밖 = 1~2년+2년 넘음+날짜 미상', () => {
+test('subCardLines: 1개월 미만·6개월 미만·1년 미만·알 수 없음만, 겹치지 않게, 0건 줄은 숨김(사용자 11-24)', () => {
   const info = logic.regionMix([
-    rec(-5, true, '공고a'),
-    rec(-150, true, '경과a'),
-    rec(30, true, '가1'), rec(35, true, '가2'),
-    rec(250, true, '나'),
-    rec(500, true, '다'), rec(1000, true, '라'),
-    { name: '미상', type: '지자체' },
+    rec(-5, true, '공고a'), rec(-150, true, '경과a'),          // 카드에 안 씀
+    rec(10, true, '가1'), rec(29, true, '가2'),                // 1개월 미만 ×2
+    rec(60, true, '나'),                                       // 6개월 미만(30일~6개월)
+    rec(250, true, '다'),                                      // 1년 미만
+    rec(500, true, '라'),                                      // 1년 넘음: 카드에 안 씀
+    { name: '미상', type: '지자체' },                          // 알 수 없음
   ], TODAY);
   const lines = logic.subCardLines(info);
-  assert.deepStrictEqual(lines.map(l => [l.label, l.n]),
-    [['공고 중', 1], ['경과', 1], ['6개월 안', 2], ['6개월~1년', 1], ['그 밖', 3]]);
+  assert.deepStrictEqual(lines.map(l => [l.label, l.n]), [['1개월 미만', 2], ['6개월 미만', 1], ['1년 미만', 1], ['알 수 없음', 1]]);
   assert.strictEqual(lines[0].strong, true);
-  assert.strictEqual(lines[4].muted, true);
-  assert.strictEqual(lines.reduce((s, l) => s + l.n, 0), info.total);   // 분류 합 = 기관 수(빠지는 기관 없음)
-});
-
-test("subCardLines: 6개월 안이 모두 추정이면 '6개월 안(추정)', 0곳 줄은 없다", () => {
-  const info = logic.regionMix([rec(30, false, 'a'), rec(35, false, 'b')], TODAY);
-  assert.strictEqual(logic.urgentMark(info), '△2');
-  assert.deepStrictEqual(logic.subCardLines(info).map(l => l.label), ['6개월 안(추정)']);
+  assert.strictEqual(lines[3].muted, true);
+  assert.deepStrictEqual(logic.subCardLines(logic.regionMix([rec(60, true, 'a')], TODAY)).map(l => l.label), ['6개월 미만']);
   assert.deepStrictEqual(logic.subCardLines(logic.regionMix([], TODAY)), []);
   assert.deepStrictEqual(logic.subCardLines(null), []);
 });
 
-test('subCardEligible: 공고 중·경과·6개월 안·6개월~1년 중 하나라도 있어야 카드를 단다(그 밖만 있으면 안 단다)', () => {
-  assert.strictEqual(logic.subCardEligible(logic.regionMix([rec(500, true, 'a'), rec(1000, true, 'b')], TODAY)), false);
-  assert.strictEqual(logic.subCardEligible(logic.regionMix([{ name: '미상', type: '지자체' }], TODAY)), false);
+test('subCardEligible: 네 줄 중 하나라도 있어야 카드를 단다(공고 중·경과·1년 넘음만 있으면 안 단다)', () => {
+  assert.strictEqual(logic.subCardEligible(logic.regionMix([rec(500, true, 'a'), rec(-5, true, 'b'), rec(-150, true, 'c')], TODAY)), false);
   assert.strictEqual(logic.subCardEligible(logic.regionMix([], TODAY)), false);
+  assert.strictEqual(logic.subCardEligible(logic.regionMix([{ name: '미상', type: '지자체' }], TODAY)), true);
   assert.strictEqual(logic.subCardEligible(logic.regionMix([rec(250, true, 'a')], TODAY)), true);
-  assert.strictEqual(logic.subCardEligible(logic.regionMix([rec(-150, true, 'a')], TODAY)), true);
-  assert.strictEqual(logic.subCardEligible(logic.regionMix([rec(-5, true, 'a')], TODAY)), true);
   assert.strictEqual(logic.subCardEligible(null), false);
 });
 
@@ -153,19 +144,17 @@ test('layoutSubCards: 좌표가 NaN·숫자가 아니거나 줄이 0인 항목�
 
 // ── aria·범례 ────────────────────────────────────────────────────────
 test('mixAriaLabelCard: 카드와 같은 분류·순서로 읽는다(기존 mixAriaLabel은 그대로)', () => {
-  const info = logic.regionMix([rec(-5, true, '공고a'), rec(-150, true, '경과a'), rec(30, true, '가1'), rec(35, true, '가2'),
-    rec(250, true, '나'), rec(500, true, '다'), rec(1000, true, '라'), { name: '미상', type: '지자체' }], TODAY);
+  const info = logic.regionMix([rec(10, true, '가'), rec(60, true, '나'), rec(250, true, '다'), rec(500, true, '라'), { name: '미상', type: '지자체' }], TODAY);
   assert.strictEqual(render.mixAriaLabelCard('강남구', info),
-    '강남구, ' + render.MIX_NAME[info.band] + ', 공고 중 1곳, 경과 1곳, 6개월 안 2곳, 6개월~1년 1곳, 그 밖 3곳, 기관 8곳');
+    '강남구, ' + render.MIX_NAME[info.band] + ', 1개월 미만 1건, 6개월 미만 1건, 1년 미만 1건, 알 수 없음 1건, 기관 5곳');
   assert.strictEqual(render.mixAriaLabelCard('빈곳', logic.regionMix([], TODAY)), '빈곳, ' + render.MIX_NAME.none + ', 기관 0곳');
-  assert.ok(render.mixAriaLabel('강남구', info).includes('6개월 안 2곳'));
 });
 
 test('범례: 드릴인이면 ▲ 줄·공고 n 칩 줄 대신 카드 설명 한 줄, 전국은 기존 그대로, 생략하면 currentRegion을 따른다', () => {
   const el = { innerHTML: '' };
   const doc = { getElementById: id => (id === 'legend' ? el : null) };
   withDoc(doc, () => render.drawLegend('drill'));
-  assert.ok(el.innerHTML.includes('<i class="lg-card" aria-hidden="true"></i>카드: 시군구별 공고 중·경과·6개월 안·6개월~1년 기관 수'));
+  assert.ok(el.innerHTML.includes('<i class="lg-card" aria-hidden="true"></i>카드: 시군구별 입찰 시기 건수 — 1개월 미만·6개월 미만·1년 미만·알 수 없음'));
   assert.ok(!el.innerHTML.includes('lg-tri"') && !el.innerHTML.includes('lg-nchip'));
   assert.ok(el.innerHTML.includes('준비중'));
   withDoc(doc, () => render.drawLegend('national'));

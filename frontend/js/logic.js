@@ -565,7 +565,7 @@
   logic.regionMix = function (list, today) {
     const items = list || [];
     const info = { total: items.length, dated: 0, unknown: 0, mean: null, band: 'none',
-      overdue: 0, within6: 0, to12: 0, to24: 0, over24: 0, urgent: 0, urgentAllEst: false, imminent: null,
+      overdue: 0, within1: 0, within6: 0, to12: 0, to24: 0, over24: 0, urgent: 0, urgentAllEst: false, imminent: null,
       notice: 0, noticeOpen: 0, receiving: 0, awaiting: 0, late: 0, notices: [] };
     let sum = 0, allEst = true;
     items.forEach(function (r) {
@@ -584,6 +584,7 @@
       info.dated += 1; sum += s;
       if (s === 2) {
         info.within6 += 1;
+        if (logic.daysUntil(logic.effectiveBid(r).date, today) < 30) info.within1 += 1;   // 1개월 미만(within6 안의 부분집합 — 시군구 카드용, 사용자 11-24)
         if (logic.effectiveBid(r).confidence === '확정') allEst = false;
       } else if (s === 1) info.to12 += 1;
       else if (s === -1) info.to24 += 1;
@@ -616,29 +617,30 @@
   // 넘침 안내 3줄(12px, 줄 높이 15) 높이 NOTE_H.
   logic.SUBCARD = { W: 120, G: 148, EDGE: 8, GAP: 4, ROW: 15, PADV: 4, ELBOW: 12, TOP_L: 48, TOP_R: 12, BOT: 12, NOTE_H: 45 };
 
-  // 카드를 다는 면: 공고 중·경과·6개월 안·6개월~1년 중 하나라도 있는 면(그 밖만 있으면 색과 툴팁만).
-  logic.subCardEligible = function (info) {
-    return !!info && (info.notice + info.overdue + info.within6 + info.to12) > 0;
-  };
-  // 카드 분류 줄(순서 고정, 0곳은 숨김). 그 밖 = 1~2년 + 2년 넘음 + 날짜 미상(muted). 6개월 안이 모두 추정이면 '6개월 안(추정)'.
+  // 카드 분류 줄(사용자 11-24 경남 확인 뒤: "1개월 미만/6개월 미만/1년 미만/알 수 없음 건수만").
+  // 겹치지 않게 센다 — 1개월 미만 = 30일 안, 6개월 미만 = 30일~6개월, 1년 미만 = 6개월~1년, 알 수 없음 = 공고 날짜 미상.
+  // 공고 중·경과·1년 넘는 기관은 카드에 쓰지 않는다(면 색·툴팁이 말한다). 0건 줄은 숨김.
   logic.subCardLines = function (info) {
     if (!info) return [];
     const rows = [
-      { key: 'notice', label: '공고 중', n: info.notice || 0, strong: true },
-      { key: 'overdue', label: '경과', n: info.overdue || 0 },
-      { key: 'within6', label: info.urgentAllEst ? '6개월 안(추정)' : '6개월 안', n: info.within6 || 0 },
-      { key: 'to12', label: '6개월~1년', n: info.to12 || 0 },
-      { key: 'rest', label: '그 밖', n: (info.to24 || 0) + (info.over24 || 0) + (info.unknown || 0), muted: true },
+      { key: 'within1', label: '1개월 미만', n: info.within1 || 0, strong: true },
+      { key: 'within6', label: '6개월 미만', n: (info.within6 || 0) - (info.within1 || 0) },
+      { key: 'to12', label: '1년 미만', n: info.to12 || 0 },
+      { key: 'unknown', label: '알 수 없음', n: info.unknown || 0, muted: true },
     ];
     return rows.filter(function (r) { return r.n > 0; });
+  };
+  // 카드를 다는 면: 위 네 줄 중 하나라도 있는 면.
+  logic.subCardEligible = function (info) {
+    return logic.subCardLines(info).length > 0;
   };
   logic.subCardHeight = function (nLines) {
     const S = logic.SUBCARD;
     return S.PADV + S.ROW + S.ROW * nLines + S.PADV;     // 이름 한 줄 + 분류 줄 수
   };
-  // 카드 배치(DOM 없음). items = [{code, ax, ay(지시선 앵커, 화면 좌표), lines(분류 줄 수), pri:[notice,overdue,within6,to12]}].
+  // 카드 배치(DOM 없음). items = [{code, ax, ay(지시선 앵커, 화면 좌표), lines(분류 줄 수), pri:[1개월 미만, 6개월 미만, 1년 미만, 알 수 없음]}].
   // 1) ax < w/2 → 왼쪽 열, 아니면 오른쪽 열  2) 한쪽이 넘치고 반대쪽에 자리가 있으면 가운데선에 가까운 면부터 옮김
-  // 3) 그래도 넘치면 우선순위(공고 중→경과→6개월 안→6개월~1년, 큰 쪽이 남음)가 낮은 카드부터 뺌 — 뺐으면 열 맨 아래에 안내 자리
+  // 3) 그래도 넘치면 우선순위(1개월 미만→6개월 미만→1년 미만→알 수 없음, 큰 쪽이 남음)가 낮은 카드부터 뺌 — 뺐으면 열 맨 아래에 안내 자리
   // 4) 열 안에서 ay 순으로 놓고 앞→뒤, 뒤→앞 두 번 밀어 겹침을 없앰.
   // 반환: { items:[{code,side,x,y,w,h,ax,ay,pts}], dropped:[code], notes:{left,right} } — notes.* = {x,y,count} | null.
   logic.layoutSubCards = function (items, w, h) {

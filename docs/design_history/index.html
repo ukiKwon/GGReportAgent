@@ -156,6 +156,7 @@
   <a href="#c100">100 기관 사업계획 — 못 찾은 기관의 '관련 뉴스', '뉴스로 대체' 표시, 반입 표 사업계획/뉴스 구분</a>
   <a href="#c101">101 기관 사업계획 — 예전 계획보다 새 뉴스가 있으면 계획 아래 '새 사업계획을 찾지 못해 모은 관련 뉴스'</a>
   <a href="#c102">102 영업 추진 준비 — '협약준비 업무' 메뉴 21개를 빼고 기관 상세에서 단계 순서대로</a>
+  <a href="#c103">103 지역별 공고현황 — 시군구 ▲n 기호를 지시선 카드(입찰 시기별 건수)로</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2098,6 +2099,29 @@
   <p style="font-size:12px">영업 추진 준비 › [제안 준비 현황 · 이사회 자료 작성] 두 항목(소제목 '제안 준비' 하나라 소제목 줄은 그리지 않음). 이사회 자료 작성은 재무부서 진입로라 유지. '이사회 발표 대본'(준비중) 메뉴도 뺌 — 상세 7단계에 있다.</p>
   <p style="font-size:12px">단위 task 진입은 하나: 제안 준비 현황 → 기관 이름 → 왼쪽 23단계·본문·[이전]/[다음](98장 상세 그대로).</p>
   <p class="legend-note">새 색·CSS 변경 0. task별 기관 목록(경로 2) 코드·.ts-* 목록 CSS는 진입점이 없어진 죽은 코드 — 나중 정리 후보.</p>
+</div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c103">
+<h2>103 지역별 공고현황 — 시군구 ▲n 기호를 지시선 카드(입찰 시기별 건수)로, 면 클릭 검은 사각형 제거 (2026-11-24, 사용자 지시, design-reviewer 1544_a47376c5 규격·frontend-dev 구현)</h2>
+<div class="why">왜: 사용자 11-24 — 면 색이 지자체만이 아니라 켠 종류 전체를 섞은 색이 되었으니 다른 기관도 숫자로 보여야 한다. 바쁜 사람은 도형 기호(▲n) 범례를 읽기 어렵다 → 지역에서 선을 빼 카드에 글로. 경남 확인 뒤 내용은 "1개월 미만/6개월 미만/1년 미만/알 수 없음 건수만". 면을 누르면 검은 사각형이 잠깐 보이던 것도 없앰.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+  <p style="font-size:12px">시군구 면 가운데 '▲1'·'△1'(11px 모노 기호)만 — 6개월 안 기관이 있는 면(경남은 합천·하동 2곳)에만 붙고, 다른 기간 기관은 숫자가 없었다. 범례 '▲3 6개월 안 공고 예정 기관 수'를 읽어야 뜻을 안다.</p>
+  <p style="font-size:12px">면을 마우스로 누르면 브라우저 기본 포커스 외곽선(면의 경계 상자 = 검은 사각형)이 잠깐 그려졌다가 드릴인으로 사라졌다.</p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <svg viewBox="0 0 300 90" width="300" height="90" role="img" aria-label="지시선 카드 예시">
+    <rect x="4" y="10" width="120" height="53" fill="#fff" stroke="#9aa3ad"/><rect x="4" y="10" width="3" height="53" fill="#e8a33d"/>
+    <text x="13" y="25" font-size="12" font-weight="700">합천군</text>
+    <text x="13" y="40" font-size="12">6개월 미만</text><text x="118" y="40" font-size="12" font-weight="700" text-anchor="end">1건</text>
+    <text x="13" y="55" font-size="12" fill="#464c53">알 수 없음</text><text x="118" y="55" font-size="12" fill="#464c53" text-anchor="end">1건</text>
+    <polyline points="124,36 136,36 230,60" fill="none" stroke="#fff" stroke-width="3"/><polyline points="124,36 136,36 230,60" fill="none" stroke="#141922" stroke-width="1"/>
+    <circle cx="230" cy="60" r="2.5" fill="#141922" stroke="#fff" stroke-width="1.5"/>
+  </svg>
+  <p style="font-size:12px">드릴인 지도 좌우 여백 열(148px)에 카드(폭 120, 12px 글) + 꺾은 지시선(흰 3px 아래·잉크 1px 위). 줄 = 1개월 미만 / 6개월 미만 / 1년 미만 / 알 수 없음 n건(겹치지 않게, 0건 줄 숨김). 공고 중·경과·1년 넘음은 카드에서 빼고 면 색·툴팁이 말한다. 카드 클릭 = 면 클릭, 선택 시 카드 테두리 포인트색 2px. 범례 ▲ 줄은 드릴인에서 카드 설명 한 줄로.</p>
+  <p class="legend-note">면 :focus 외곽선 끔(키보드 포커스는 기존 덮개 층 링). 드릴인 줌 해제, 창 폭이 바뀌면 카드 재배치. 대비: 글 16:1, 지시선 무채색 두 겹.</p>
 </div></div></div>
 </div>
 </section>
