@@ -1436,9 +1436,13 @@ public class BoardMinutesService {
         }
         final String target = in.getEmpNo() == null ? null : in.getEmpNo().trim();
         SysUser t = MenuPerms.isEmpNo(target) ? users.selectByEmpNo(target) : null;
-        // 대상 검사는 후보 목록과 같은 규칙 하나(isScopeCandidate)다. 기본 열람자(영업팀장·영업부장)만 아래에서 '이미 기본 열람자'로 먼저 돌려보낸다.
-        if (t == null || !"ACTIVE".equals(t.getStatus()) || (!access.isDefaultViewer(t) && !access.isScopeCandidate(t))) {
+        if (t == null || !"ACTIVE".equals(t.getStatus())) {   // 없는 사번·비활성
             throw coded(400, "SCOPE_TARGET_INVALID", "공개할 사람을 확인할 수 없습니다.");
+        }
+        // 활성인데 후보 규칙(isScopeCandidate)에 안 맞으면 별도 코드. 기본 열람자(영업팀장·영업부장)만 아래에서 '이미 기본 열람자'로 먼저 돌려보낸다.
+        // 존재 노출: 이 API는 부장급만 부르므로 수용(qa P2-1, 11-24).
+        if (!access.isDefaultViewer(t) && !access.isScopeCandidate(t)) {
+            throw coded(400, "SCOPE_TARGET_NOT_ELIGIBLE", "공개 대상이 아닙니다. 회의록은 영업부서와 임원급에게만 공개할 수 있습니다.");
         }
         String until = strictDate(in.getGrantUntil());
         String today = Times.todayKst();

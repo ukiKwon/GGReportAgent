@@ -66,7 +66,7 @@ test('errorText: 6-5 표의 코드 전부 — 문구가 있고 코드명·헤더
     'LIMIT_LINES', 'LIMIT_LINE', 'LIMIT_UTTERANCES', 'LIMIT_SEGMENTS', 'LIMIT_ITEMS', 'LIMIT_ITEM_LEN', 'LIMIT_SPEAKER', 'PARSE_TIMEOUT',
     'TRANSCRIPT_NO_UTTERANCE', 'TIMELINE_FORMAT', 'TIMELINE_RANGE', 'TIMELINE_LOOKS_TRANSCRIPT', 'SUMMARY_LOOKS_TIMELINE', 'SUMMARY_NO_ITEMS',
     'TERMS_INVALID', 'RELEASE_INVALID', 'PREVIEW_CHANGED', 'ALREADY_UPLOADED', 'MINUTES_CAP', 'REV_CHANGED', 'MASK_REQUIRED', 'LIMIT_EDIT_LEN',
-    'NOT_TODO', 'SCOPE_TARGET_INVALID', 'GRANT_UNTIL_INVALID', 'SCOPE_CAP', 'NOPE'];
+    'NOT_TODO', 'SCOPE_TARGET_INVALID', 'GRANT_UNTIL_INVALID', 'SCOPE_CAP', 'SCOPE_TARGET_NOT_ELIGIBLE', 'NOPE'];
   codes.forEach(function (c) {
     const e = mn.errorText(c === 'FILE_TOO_LARGE' || c === 'BODY_TOO_LARGE' ? 413 : c.indexOf('MINUTES_CAP') === 0 || c === 'PREVIEW_CHANGED' || c === 'REV_CHANGED' || c === 'ALREADY_UPLOADED' ? 409 : 422,
       { code: c, slot: 'transcript', line: 7, message: '서버 문구', kinds: { name: 2, pii: 1 } }, { action: 'upload' });
@@ -216,6 +216,35 @@ test('공개범위 30명: 안내만 둔다(막지 않는다)', function () {
   assert.ok(mn.TEXT.SCOPE_FULL.indexOf('기한 변경') > 0);
   assert.strictEqual(mn.errorText(409, { code: 'SCOPE_CAP' }).field, 'scope');
   assert.ok(!/disabled = true/.test(SRC.slice(SRC.indexOf('function drawScope'), SRC.indexOf('function addScope'))) || SRC.slice(SRC.indexOf('function drawScope'), SRC.indexOf('function addScope')).indexOf('full) n.disabled') < 0);
+});
+
+test('SCOPE_TARGET_NOT_ELIGIBLE: 공개 대상 아님 문구, 추가 칸에 놓는다', function () {
+  const e = mn.errorText(400, { code: 'SCOPE_TARGET_NOT_ELIGIBLE' });
+  assert.ok(e.text.indexOf('영업부서와 임원급') > 0);
+  assert.strictEqual(e.field, 'scope');
+});
+
+test('eventText: 새 이력 코드 문구, 모르는 코드는 코드명을 내지 않고 기타 기록', function () {
+  assert.strictEqual(mn.eventText('RULES_ACK'), '운용 수칙 확인');
+  assert.strictEqual(mn.eventText('SCOPE_CANDIDATES'), '공개 후보 목록 열람');
+  assert.strictEqual(mn.eventText('UPLOAD'), '올림');
+  assert.strictEqual(mn.eventText('SOMETHING_NEW'), '기타 기록');
+  assert.strictEqual(mn.eventText('constructor'), '기타 기록');
+  assert.strictEqual(mn.eventText(undefined), '기타 기록');
+});
+
+test('candLabel·scopeCands·scopeNote: 후보 줄 글자, 서버 상한, 잘림', function () {
+  assert.strictEqual(mn.candLabel({ name: '김영업', position_title: '부장', granted: false }), '김영업 부장');
+  assert.strictEqual(mn.candLabel({ name: '김영업', position_title: '부장', granted: true, grant_until: '2026-12-31', expired: false }), '김영업 부장 (공개 중 ~2026-12-31)');
+  assert.strictEqual(mn.candLabel({ name: '김영업', position_title: '부장', granted: true, grant_until: '2026-01-01', expired: true }), '김영업 부장 (기한 지남 2026-01-01)');
+  assert.strictEqual(mn.scopeCands(null), null);
+  assert.strictEqual(mn.scopeCands({ items: 'x' }), null);
+  const a = mn.scopeCands({ items: [{ emp_no: '1' }, 5], truncated: true, scope_max: 50 });
+  assert.strictEqual(a.items.length, 1); assert.strictEqual(a.truncated, true); assert.strictEqual(a.max, 50);
+  assert.strictEqual(mn.scopeCands({ items: [] }).max, 30, '값이 없으면 기존 상수');
+  assert.strictEqual(mn.scopeNote(49, 50), '');
+  assert.ok(mn.scopeNote(50, 50).indexOf('50명') >= 0);
+  assert.strictEqual(mn.scopeNote(30), mn.TEXT.SCOPE_FULL);
 });
 
 test('REV_CHANGED: 삭제·기타 경로는 [새로 불러오기]를 말하지 않는다', function () {
@@ -545,6 +574,59 @@ test('saveLabels 부분 실패: 저장된 번호는 반영하고 어디서 멈�
   assert.strictEqual(cur.lbl.rev, true);
   assert.ok(cur.lbl.err.indexOf('참석자 1는 저장했습니다. 참석자 2부터는 저장하지 못했습니다: ') === 0, cur.lbl.err);
   assert.deepStrictEqual(Object.keys(cur.lbl.draft), ['2', '3'], '저장된 번호의 초안만 지운다');
+});
+
+async function openScope(route, viewer) {
+  const c = mkCtl(function (url, init) {
+    if (/^\/board-minutes\/5$/.test(url)) return resp(200, { viewer: viewer, rev_no: 1, speakers: [] });
+    return route(url, init);
+  });
+  await c.probe(1); c.testApi.openDetail(5); await settle();
+  const cur = c.state().cur;
+  cur.scopeOpen = true;
+  cur.scope = { status: 'loading', rows: [], cands: [], candsTruncated: false, max: mn.SCOPE_MAX, candsFail: false, err: '', until: '', emp: '' };
+  return { c: c, cur: cur };
+}
+
+test('loadScope: 후보는 /board-minutes/{id}/scope/candidates 로 받고 화면·버튼 헤더를 싣고 서버 상한을 쓴다', async function () {
+  const seen = [];
+  const o = await openScope(function (url, init) {
+    seen.push({ url: url, init: init });
+    if (/\/scope\/candidates$/.test(url)) return resp(200, { items: [{ emp_no: '7', name: '김영업', position_title: '부장', granted: false }], truncated: true, scope_max: 40 });
+    if (/\/scope$/.test(url)) return resp(200, []);
+    return resp(200, { items: [{ minutes_id: 5 }], can_upload: false });
+  }, { can_scope: true, can_scope_edit: true });
+  await o.c.testApi.loadScope(o.cur); await settle();
+  const cand = seen.filter(function (x) { return /\/scope\/candidates$/.test(x.url); });
+  assert.strictEqual(cand.length, 1);
+  assert.strictEqual(cand[0].url, '/board-minutes/5/scope/candidates');
+  assert.strictEqual(cand[0].init.headers['X-Screen-Id'], mn.UI.VIEW);
+  assert.strictEqual(cand[0].init.headers['X-Button-Id'], 'minutes_scope_open');
+  assert.ok(!seen.some(function (x) { return /assignment-candidates/.test(x.url); }), '예전 후보 경로는 부르지 않는다');
+  assert.strictEqual(o.cur.scope.cands.length, 1);
+  assert.strictEqual(o.cur.scope.candsTruncated, true);
+  assert.strictEqual(o.cur.scope.max, 40);
+  assert.strictEqual(o.cur.scope.status, 'ready');
+});
+
+test('loadScope: 수정 권한이 없으면 후보를 부르지 않고, 후보 응답이 거절이면 목록은 그대로 두고 직접 입력 안내만 켠다', async function () {
+  const seen = [];
+  const route = function (url, init) {
+    seen.push(url);
+    if (/\/scope\/candidates$/.test(url)) return resp(403, { detail: { code: 'FORBIDDEN' } });
+    if (/\/scope$/.test(url)) return resp(200, [{ emp_no: '7', name: '김영업', grant_until: '2026-12-31' }]);
+    return resp(200, { items: [{ minutes_id: 5 }], can_upload: false });
+  };
+  const ro = await openScope(route, { can_scope: true, can_scope_edit: false });
+  await ro.c.testApi.loadScope(ro.cur); await settle();
+  assert.ok(!seen.some(function (u) { return /candidates$/.test(u); }), '읽기 전용은 후보를 부르지 않는다');
+  assert.strictEqual(ro.cur.scope.rows.length, 1);
+  const rw = await openScope(route, { can_scope: true, can_scope_edit: true });
+  await rw.c.testApi.loadScope(rw.cur); await settle();
+  assert.strictEqual(rw.cur.scope.candsFail, true);
+  assert.strictEqual(rw.cur.scope.status, 'ready');
+  assert.strictEqual(rw.cur.scope.rows.length, 1);
+  assert.strictEqual(rw.cur.scope.cands.length, 0);
 });
 
 test('소스 검사: 이름표 저장 중 잠금·포커스 복구·제목 가림 문구(P2-4·P2-5·P3-1)', function () {

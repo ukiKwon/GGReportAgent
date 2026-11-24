@@ -1064,10 +1064,12 @@ public class BoardMinutesApiTest {
         assertNull(byEmp(again, MEMBER2));                       // 비활성은 빠진다
         MvcResult addAdmin = scopeAdd(id, HEAD, ADMIN, kst(1));
         assertEquals(text(addAdmin), 400, status(addAdmin));
-        assertEquals("SCOPE_TARGET_INVALID", json(addAdmin).path("detail").path("code").asText());
+        assertEquals("SCOPE_TARGET_NOT_ELIGIBLE", json(addAdmin).path("detail").path("code").asText());
         MvcResult addIt = scopeAdd(id, HEAD, IT_LEAD, kst(1));
         assertEquals(400, status(addIt));
-        assertEquals("SCOPE_TARGET_INVALID", json(addIt).path("detail").path("code").asText());
+        assertEquals("SCOPE_TARGET_NOT_ELIGIBLE", json(addIt).path("detail").path("code").asText());
+        assertTrue(text(addIt).contains("영업부서와 임원급에게만"));
+        assertFalse(text(addIt).contains(IT_LEAD));   // 사번은 오류에 싣지 않는다
         // 권한·관문
         assertEquals(403, status(read(path, LEAD2, "minutes_scope_open")));
         assertEquals(403, status(read(path, DESIGNER, "minutes_scope_open")));   // 공개 대상
@@ -1255,5 +1257,25 @@ public class BoardMinutesApiTest {
             assertEquals(BoardMinutesAccess.Via.NONE, e.getVia());
         }
         assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES_ITEM WHERE MINUTES_ID=? AND DONE_YN=1", id));
+    }
+
+    @Test
+    public void 공개_대상이_활성인데_후보가_아니면_NOT_ELIGIBLE_없거나_비활성이면_INVALID이다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "u");
+        MvcResult it = scopeAdd(id, HEAD, IT_LEAD, kst(1));
+        assertEquals(text(it), 400, status(it));
+        assertEquals("SCOPE_TARGET_NOT_ELIGIBLE", json(it).path("detail").path("code").asText());
+        MvcResult none = scopeAdd(id, HEAD, "0000000", kst(1));
+        assertEquals(400, status(none));
+        assertEquals("SCOPE_TARGET_INVALID", json(none).path("detail").path("code").asText());
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", MEMBER2);
+        flushCache();
+        MvcResult locked = scopeAdd(id, HEAD, MEMBER2, kst(1));
+        assertEquals(400, status(locked));
+        assertEquals("SCOPE_TARGET_INVALID", json(locked).path("detail").path("code").asText());
+        MvcResult def = scopeAdd(id, HEAD, LEAD2, kst(1));
+        assertEquals(text(def), 200, status(def));
+        assertEquals("ALREADY_DEFAULT", json(def).path("reason").asText());
     }
 }

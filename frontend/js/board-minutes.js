@@ -102,14 +102,29 @@
     HIDDEN: '회의록 기능을 쓸 수 없습니다.',
     SCOPE_PICK: '공개할 사람을 고르거나 사번을 입력하세요.',
     SCOPE_CANDS_FAIL: '사람 목록을 불러오지 못했습니다. 사번을 직접 입력하세요.',
+    SCOPE_CANDS_MORE: '목록에 다 담지 못했습니다. 없는 사람은 사번을 직접 입력하세요.',
     NOCHANGE: '바뀐 내용이 없습니다.',
     TERMS_HINT: '직원 명단에 없는 사람(기관·다른 은행)의 이름은 여기에 적어야 가려집니다. 한 줄에 하나, 2~30자, 100개까지.',
     NO_MASK: '가린 곳이 없습니다. 외부 참석자 이름이 없는지 미리보기를 한 번 훑어보세요.'
   };
   mn.TEXT = T;
   const EVENT = { UPLOAD: '올림', EDIT: '고침', TODO_DONE: '할 일 완료', TODO_UNDONE: '완료 취소', SCOPE_ADD: '공개 추가', SCOPE_EXTEND: '공개 기한 변경',
-                  SCOPE_REMOVE: '공개 거둠', DELETE: '삭제', SPEAKER_LABEL: '발화자 이름표 바꿈' };
+                  SCOPE_REMOVE: '공개 거둠', DELETE: '삭제', SPEAKER_LABEL: '발화자 이름표 바꿈', RULES_ACK: '운용 수칙 확인', SCOPE_CANDIDATES: '공개 후보 목록 열람' };
   mn.EVENT = EVENT;
+  // 이력 사건 코드 → 문구. 모르는 코드는 코드명을 그대로 내지 않고 '기타 기록'.
+  mn.eventText = function (code) { return Object.prototype.hasOwnProperty.call(EVENT, code) ? EVENT[code] : '기타 기록'; };
+  // 공개 후보 한 줄 글자: '이름 직책' + 이미 공개 중이면 기한(지났으면 '기한 지남').
+  mn.candLabel = function (p) {
+    p = isObj(p) ? p : {};
+    let t = (str(p.name) + ' ' + str(p.position_title)).trim();
+    if (p.granted === true) t += p.expired === true ? ' (기한 지남' + (p.grant_until ? ' ' + str(p.grant_until) : '') + ')' : ' (공개 중' + (p.grant_until ? ' ~' + str(p.grant_until) : '') + ')';
+    return t;
+  };
+  // 공개 후보 응답 → {items, truncated, max}. items 가 배열이 아니면 null. max 는 서버 scope_max, 없으면 상수.
+  mn.scopeCands = function (body) {
+    if (!isObj(body) || !Array.isArray(body.items)) return null;
+    return { items: body.items.filter(isObj), truncated: body.truncated === true, max: (body.scope_max | 0) > 0 ? body.scope_max | 0 : mn.SCOPE_MAX };
+  };
   // 이력 사건: 발화자 이름표(SPEAKER/LABEL)는 '발화자 이름표 바꿈 (참석자 N)'. 그 밖은 null.
   mn.histTitle = function (kind, no, event) {
     if (kind !== 'SPEAKER' && event !== 'SPEAKER_LABEL') return null;
@@ -194,6 +209,7 @@
         : '1~20,000자(발언) / 1~1,000자(항목)') + '로 적으세요.', 'edit');
       case 'NOT_TODO': return R('다음 할 일 항목이 아닙니다. 새로 불러오세요.');
       case 'SCOPE_TARGET_INVALID': return R('공개할 사람을 찾을 수 없습니다. 사번을 확인하세요(퇴사·정지된 사람은 추가할 수 없습니다).', 'scope');
+      case 'SCOPE_TARGET_NOT_ELIGIBLE': return R('공개 대상이 아닙니다. 회의록은 영업부서와 임원급에게만 공개할 수 있습니다.', 'scope');
       case 'GRANT_UNTIL_INVALID': return R('공개 기한은 오늘부터 365일 안으로 고르세요.', 'until');
       case 'SCOPE_CAP': return R('공개 대상은 30명까지입니다. 필요 없는 사람을 먼저 빼세요.', 'scope');
       default: return R('요청을 처리할 수 없습니다. 화면을 새로 고친 뒤 다시 시도하세요.');
@@ -233,7 +249,10 @@
     return { clearRelease: code === 'RELEASE_INVALID', resetSig: code === 'PREVIEW_CHANGED' || code === 'RELEASE_INVALID' };
   };
   // 공개범위가 가득 찼을 때의 안내(막지 않는다 — 기한 변경은 허용, 새 사람은 서버 SCOPE_CAP 이 거절).
-  mn.scopeNote = function (count) { return (count | 0) >= mn.SCOPE_MAX ? T.SCOPE_FULL : ''; };
+  mn.scopeNote = function (count, max) {
+    const m = (max | 0) > 0 ? max | 0 : mn.SCOPE_MAX;   // 서버가 준 상한이 있으면 그 값
+    return (count | 0) >= m ? T.SCOPE_FULL.replace('30명', m + '명') : '';
+  };
   // 비동기 응답을 그려도 되는 때: 패널이 있고, 이미 그린 적이 있다면 그 뿌리가 아직 이 패널 안에 있을 때
   mn.canDraw = function (panel, rootNode) { return !!panel && (!rootNode || rootNode.parentNode === panel); };
 
@@ -1352,12 +1371,16 @@
       cur.scopeOpen = !cur.scopeOpen;
       const b = byId('mn-scope-btn'); if (b) b.setAttribute('aria-expanded', cur.scopeOpen ? 'true' : 'false');
       if (!cur.scopeOpen) { clear(cur.nodes.scope); focusById('mn-scope-btn'); return; }
-      cur.scope = { status: 'loading', rows: [], cands: [], candsFail: false, err: '', until: mn.addDays(mn.today(), mn.SCOPE_DEFAULT_DAYS), emp: '' };
+      cur.scope = { status: 'loading', rows: [], cands: [], candsTruncated: false, max: mn.SCOPE_MAX, candsFail: false, err: '', until: mn.addDays(mn.today(), mn.SCOPE_DEFAULT_DAYS), emp: '' };
       drawScope(cur);
+      return loadScope(cur);
+    }
+    // 공개범위 목록과(수정 권한이 있으면) 후보 목록을 함께 받는다. 후보는 서버가 영업부서·임원급만 거른다.
+    function loadScope(cur) {
       const ok = guard(), canEdit = cur.data.viewer.can_scope_edit === true;
-      Promise.all([
+      return Promise.all([
         call('GET', '/board-minutes/' + cur.id + '/scope', mn.UI.VIEW, mn.BTN.SCOPE_OPEN),
-        canEdit ? call('GET', '/assignment-candidates', mn.UI.VIEW, mn.BTN.SCOPE_OPEN) : Promise.resolve(null)
+        canEdit ? call('GET', '/board-minutes/' + cur.id + '/scope/candidates', mn.UI.VIEW, mn.BTN.SCOPE_OPEN) : Promise.resolve(null)
       ]).then(function (rs) {
         if (!ok() || S.cur !== cur || !cur.scopeOpen) return;
         const a = rs[0], c = rs[1];
@@ -1365,7 +1388,8 @@
         if (a.ok && Array.isArray(a.body)) { cur.scope.status = 'ready'; cur.scope.rows = a.body; }
         else { cur.scope.status = 'error'; cur.scope.err = mn.errorText(a.status, a.detail, { action: 'scope' }).text; }
         if (c) {
-          if (c.ok && Array.isArray(c.body)) cur.scope.cands = c.body.filter(function (p) { return isObj(p) && p.role === '영업팀'; });
+          const sc = c.ok ? mn.scopeCands(c.body) : null;
+          if (sc) { cur.scope.cands = sc.items; cur.scope.candsTruncated = sc.truncated; cur.scope.max = sc.max; }
           else cur.scope.candsFail = true;
         }
         drawScope(cur);
@@ -1420,12 +1444,12 @@
         t.appendChild(tb); fs.appendChild(t);
       }
       if (canEdit && sc.status !== 'loading') {
-        const fullNote = mn.scopeNote(sc.rows.length);   // 30명이어도 막지 않는다 — 기한 변경은 허용, 새 사람은 서버 SCOPE_CAP 이 거절
+        const fullNote = mn.scopeNote(sc.rows.length, sc.max);   // 30명이어도 막지 않는다 — 기한 변경은 허용, 새 사람은 서버 SCOPE_CAP 이 거절
         const add = el('div', 'mn-slot');
         add.style.display = 'grid'; add.style.gridTemplateColumns = 'minmax(0,1fr)';   // 클래스에 기대지 않는다
         const sel = el('select'); sel.id = 'mn-sc-sel';
         sel.appendChild(el('option', '', '공개할 사람 고르기')).value = '';
-        sc.cands.forEach(function (p) { sel.appendChild(el('option', '', (str(p.name) + ' ' + str(p.position_title)).trim())).value = str(p.emp_no); });
+        sc.cands.forEach(function (p) { sel.appendChild(el('option', '', mn.candLabel(p))).value = str(p.emp_no); });
         const selLab = el('label', '', '사람 고르기'); selLab.htmlFor = 'mn-sc-sel';
         const emp = el('input'); emp.type = 'text'; emp.id = 'mn-sc-emp'; emp.maxLength = 10; emp.value = sc.emp;
         const empLab = el('label', '', '목록에 없는 사람: 사번 직접 입력'); empLab.htmlFor = 'mn-sc-emp';
@@ -1436,6 +1460,7 @@
         emp.addEventListener('input', function () { sc.emp = emp.value; });
         until.addEventListener('input', function () { sc.until = until.value; });
         if (sc.candsFail) add.appendChild(el('p', 'wf-empty', T.SCOPE_CANDS_FAIL));
+        else if (sc.candsTruncated) add.appendChild(el('p', 'wf-empty', T.SCOPE_CANDS_MORE));
         [selLab, sel, empLab, emp, unLab, until, go, err].forEach(function (n) { add.appendChild(n); });
         if (fullNote) add.appendChild(el('p', 'wf-empty', fullNote));
         fs.appendChild(add);
@@ -1509,7 +1534,7 @@
         h.logs.forEach(function (l) {
           const li = el('li'), tg = targetText(l.target_kind, l.target_no);
           const ht = mn.histTitle(l.target_kind, l.target_no, l.event);
-          li.appendChild(el('span', '', ht || (EVENT[l.event] || str(l.event)) + (tg ? ' (' + tg + ')' : '')));
+          li.appendChild(el('span', '', ht || mn.eventText(l.event) + (tg ? ' (' + tg + ')' : '')));
           li.appendChild(root.document.createTextNode(' '));
           li.appendChild(el('span', '', str(l.actor_name)));
           li.appendChild(root.document.createTextNode(' '));
@@ -1829,7 +1854,7 @@
     }
 
     // 시험용: 패널 없이(그리지 않고) 흐름만 돌린다. 화면 코드는 이 값을 쓰지 않는다.
-    ctl.testApi = { openUpload: openUpload, doPreview: doPreview, openDetail: openDetail, saveLabels: saveLabels };
+    ctl.testApi = { openUpload: openUpload, doPreview: doPreview, openDetail: openDetail, saveLabels: saveLabels, loadScope: loadScope };
     return ctl;
   };
 
