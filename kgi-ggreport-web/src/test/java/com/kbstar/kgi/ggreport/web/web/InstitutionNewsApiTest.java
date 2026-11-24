@@ -6,6 +6,7 @@ import com.kbstar.kgi.ggreport.web.AppTest;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockMultipartFile;
@@ -23,6 +24,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /** 뉴스 API(060) — 반입은 관리자만(403+DENIED 감사), 조회는 사업계획 조회와 같은 권한(map), 응답에 사번 없음. ADMIN 8203417, SALES 3918264, 미등록 9000001. */
 @RunWith(SpringRunner.class)
@@ -118,9 +120,64 @@ public class InstitutionNewsApiTest {
         assertEquals("최신 반입의 건수", 7, n.path("item_count").asInt());
         assertEquals(d().toString(), n.path("checked_on").asText());
         assertFalse(n.path("stale").asBoolean());
-        assertEquals("institution_id·item_count·checked_on·stale 뿐", 4, n.size());
+        assertEquals("institution_id·item_count·checked_on·imported_at·stale 뿐", 5, n.size());
+        assertTrue(n.path("imported_at").asText().endsWith("+00:00"));
         assertFalse("사번 없음", res.getContentAsString().contains(ADMIN));
         assertEquals(401, getAs("/institution-plans/status", null).getStatus());
         assertEquals(403, getAs("/institution-plans/status", STRANGER).getStatus());
+    }
+
+    private static final String OLD_AT = "2000-01-01T00:00:00.000000+00:00";
+    private static final String FUTURE_AT = "2999-01-01T00:00:00.000000+00:00";
+    private static final DateTimeFormatter ISO6 = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSSxxx");
+
+    private String missing(String ids) throws Exception {
+        MockHttpServletResponse res = mockMvc.perform(post("/institution-plans/missing.csv").header("X-Emp-No", SALES)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"institution_ids\":" + ids + "}")).andReturn().getResponse();
+        assertEquals(200, res.getStatus());
+        return new String(res.getContentAsByteArray(), StandardCharsets.UTF_8);
+    }
+
+    private void seedPlanImport(String importedAt) {
+        jdbc.update("INSERT INTO INST_PLAN_IMPORT (INSTITUTION_ID, ORIGIN_CD, FILE_DATE, FILE_SHA256, FILE_BYTES, ITEM_COUNT, DOC_COUNT, WARN_COUNT,"
+                + " BATCH_ID, IMPORTED_BY, IMPORTED_AT, IMPORTED_VERIFIED) VALUES (?, 'IMPORT', ?, ?, 1, 1, 1, 0, NULL, ?, ?, 0)",
+                INST, d().toString(), String.format("%064d", 1), ADMIN, importedAt);
+    }
+
+    @Test
+    public void 계획_판보다_뉴스가_새로우면_newer_than_plan_true_아니면_false() throws Exception {
+        seedPlanImport(OLD_AT);
+        assertEquals(201, upload(ADMIN).getStatus());
+        JsonNode a = json.readTree(getAs("/institutions/" + INST + "/news", SALES).getContentAsString());
+        assertEquals("PLAN_FOUND", a.path("plan_state").asText());
+        assertTrue(a.path("newer_than_plan").asBoolean());
+        assertEquals(OLD_AT, a.path("plan_imported_at").asText());
+        assertFalse(a.path("imported_at").isNull());
+        jdbc.update("UPDATE INST_PLAN_IMPORT SET IMPORTED_AT = ? WHERE INSTITUTION_ID = ?", FUTURE_AT, INST);
+        JsonNode b = json.readTree(getAs("/institutions/" + INST + "/news", SALES).getContentAsString());
+        assertFalse("계획이 더 새것이면 false", b.path("newer_than_plan").asBoolean());
+    }
+
+    @Test
+    public void 계획이_없으면_newer_than_plan_false이고_plan_imported_at은_null() throws Exception {
+        assertEquals(201, upload(ADMIN).getStatus());
+        JsonNode a = json.readTree(getAs("/institutions/" + INST + "/news", SALES).getContentAsString());
+        assertEquals("NEWS_ONLY", a.path("plan_state").asText());
+        assertFalse(a.path("newer_than_plan").asBoolean());
+        assertTrue(a.path("plan_imported_at").isNull());
+    }
+
+    @Test
+    public void missing_csv는_뉴스_반입_3개월_안_기관을_빼고_지나면_대체_자료_열과_함께_다시_넣는다() throws Exception {
+        assertEquals(201, upload(ADMIN).getStatus());
+        String s1 = missing("[\"dobong\",\"jongno\"]");
+        assertTrue(s1, s1.contains("현재 대체 자료"));
+        assertTrue(s1, s1.contains("dobong"));
+        assertFalse("뉴스 반입 3개월 안은 제외", s1.contains("jongno"));
+        jdbc.update("UPDATE INST_NEWS_IMPORT SET IMPORTED_AT = ? WHERE INSTITUTION_ID = ?",
+                java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC).minusMonths(4).format(ISO6), INST);
+        String s2 = missing("[\"jongno\"]");
+        assertTrue(s2, s2.contains("jongno"));
+        assertTrue(s2, s2.contains("뉴스 1건 (확인일 " + d() + ")"));
     }
 }

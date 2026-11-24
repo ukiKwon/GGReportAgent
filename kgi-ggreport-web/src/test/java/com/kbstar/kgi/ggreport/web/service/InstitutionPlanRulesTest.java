@@ -93,4 +93,14 @@ public class InstitutionPlanRulesTest {
         assertNull(c.get("amount"));
         assertNull(c.get("unit_cd"));
     }
+
+    @org.junit.Test
+    public void newsRecent는_서울_반입일_더하기_3개월이_오늘보다_뒤일_때만_참() {
+        java.time.LocalDate today = java.time.LocalDate.of(2026, 11, 24);
+        org.junit.Assert.assertFalse(InstitutionPlanService.newsRecent(null, today));
+        org.junit.Assert.assertFalse(InstitutionPlanService.newsRecent("깨진값", today));
+        org.junit.Assert.assertFalse("8-24 반입 → 11-24 오늘이면 다시 나온다", InstitutionPlanService.newsRecent("2026-08-24T03:00:00.000000+00:00", today));
+        org.junit.Assert.assertTrue(InstitutionPlanService.newsRecent("2026-08-25T03:00:00.000000+00:00", today));
+        org.junit.Assert.assertTrue("UTC 8-24 16시 = 서울 8-25", InstitutionPlanService.newsRecent("2026-08-24T16:00:00.000000+00:00", today));
+    }
 }

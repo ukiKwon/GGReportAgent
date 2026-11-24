@@ -2,6 +2,7 @@ package com.kbstar.kgi.ggreport.web.service;
 
 import com.kbstar.kgi.ggreport.web.domain.InstNewsImport;
 import com.kbstar.kgi.ggreport.web.domain.InstNewsItem;
+import com.kbstar.kgi.ggreport.web.domain.InstPlanImport;
 import com.kbstar.kgi.ggreport.web.mapper.InstitutionNewsMapper;
 import com.kbstar.kgi.ggreport.web.mapper.InstitutionPlanMapper;
 import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
@@ -220,13 +221,19 @@ public class InstitutionNewsService {
         if (inst == null) throw ApiException.notFound("institution not found");
         LocalDate today = today();
         InstNewsImport imp = mapper.selectLatestImport(inst);
-        String planState = planMapper.selectLatestImport(inst) != null ? PLAN_FOUND : imp != null ? NEWS_ONLY : NOT_FOUND;
+        InstPlanImport planImp = planMapper.selectLatestImport(inst);
+        String planState = planImp != null ? PLAN_FOUND : imp != null ? NEWS_ONLY : NOT_FOUND;
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("institution_id", inst);
         out.put("name_ko", planMapper.selectInstitutionName(inst));
         out.put("today", today.toString());
         out.put("stale_months", InstitutionPlanService.STALE_MONTHS);
         out.put("plan_state", planState);
+        // T10: 화면이 '계획 아래 뉴스 절'을 보일지 정하는 값. 서버 반입 시각(UTC ISO, Times.nowIso 고정 형식) 문자열 비교 = 시간 순서.
+        out.put("imported_at", imp == null ? null : imp.getImportedAt());
+        out.put("plan_imported_at", planImp == null ? null : planImp.getImportedAt());
+        out.put("newer_than_plan", imp != null && planImp != null && imp.getImportedAt() != null && planImp.getImportedAt() != null
+                && imp.getImportedAt().compareTo(planImp.getImportedAt()) > 0);
         out.put("has_news", imp != null);
         List<Map<String, Object>> items = new ArrayList<>();
         if (imp == null) {

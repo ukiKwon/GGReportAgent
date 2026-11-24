@@ -67,6 +67,8 @@ public class InstitutionPlanService {
     public static final String ACTION_SEED = "SEED";
     public static final String ACTION_MISSING = "MISSING_CSV";
     static final int STALE_MONTHS = 12;
+    /** 뉴스로 대체한 기관을 정기 수집 목록(missing.csv)에서 다시 찾기까지의 개월 수(사용자 11-24 U6). 수시 요청(export.csv)에는 적용하지 않는다. */
+    static final int NEWS_RECHECK_MONTHS = 3;
     static final int MISSING_MAX_IDS = 1000;   // Oracle IN 목록 상한과 같다
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final Pattern BATCH = Pattern.compile("[A-Za-z0-9_-]{1,64}");
@@ -364,6 +366,7 @@ public class InstitutionPlanService {
             m.put("institution_id", n.getInstitutionId());
             m.put("item_count", n.getItemCount());
             m.put("checked_on", n.getFileDate());
+            m.put("imported_at", n.getImportedAt());   // 화면이 계획 판 imported_at 과 견줄 때(T10) — 사번·SHA 아님
             m.put("stale", isStale(n.getFileDate(), today));
             news.add(m);
         }
@@ -521,12 +524,15 @@ public class InstitutionPlanService {
         }
         Set<String> have = new HashSet<>();
         for (InstPlanImport i : mapper.selectLatestImports()) have.add(i.getInstitutionId());
+        Map<String, InstNewsImport> news = new HashMap<>();
+        for (InstNewsImport nw : mapper.selectLatestNewsImports()) news.put(nw.getInstitutionId(), nw);
+        LocalDate today = today();
         Map<String, List<Map<String, Object>>> byUpper = new HashMap<>();
         for (Map<String, Object> row : mapper.selectInstitutionsIn(new ArrayList<>(ids))) {
             byUpper.computeIfAbsent(str(row.get("INSTITUTION_ID")).toUpperCase(Locale.ROOT), k -> new ArrayList<>()).add(row);
         }
         StringBuilder sb = new StringBuilder("\uFEFF");   // UTF-8 BOM(엑셀이 한글을 바로 읽게)
-        line(sb, "기관ID", "기관명", "지역코드", "기관구분", "올릴 파일 이름");
+        line(sb, "기관ID", "기관명", "지역코드", "기관구분", "올릴 파일 이름", "현재 대체 자료");
         int n = 0;
         Set<String> done = new HashSet<>();
         for (String id : ids) {
@@ -539,7 +545,10 @@ public class InstitutionPlanService {
             if (row == null) continue;   // 없는 기관 id 는 건너뛴다(사유를 싣지 않는다)
             String canon = str(row.get("INSTITUTION_ID"));
             if (!done.add(canon) || have.contains(canon)) continue;   // 자료가 있거나, 같은 기관을 대소문자만 달리 두 번 보내도 한 줄
-            line(sb, canon, str(row.get("NAME_KO")), str(row.get("REGION_CODE")), str(row.get("INST_TYPE")), canon + "_YYYYMMDD_plan.csv");
+            InstNewsImport nw = news.get(canon);
+            if (nw != null && newsRecent(nw.getImportedAt(), today)) continue;   // 뉴스 반입 3개월 안 — 정기 수집에서 뺀다(U6)
+            String alt = nw == null ? "" : "뉴스 " + (nw.getItemCount() == null ? 0 : nw.getItemCount()) + "건 (확인일 " + nw.getFileDate() + ")";
+            line(sb, canon, str(row.get("NAME_KO")), str(row.get("REGION_CODE")), str(row.get("INST_TYPE")), canon + "_YYYYMMDD_plan.csv", alt);
             n++;
         }
         return new CsvOut(sb.toString().getBytes(StandardCharsets.UTF_8), n);
@@ -661,6 +670,17 @@ public class InstitutionPlanService {
             Map<String, String> m = lookup.get(group);
             return m == null || raw == null ? null : m.get(raw.trim());
         }, names);
+    }
+
+    /** 뉴스 반입(UTC ISO)이 서울 날짜로 NEWS_RECHECK_MONTHS 개월 안인가. 값이 없거나 읽을 수 없으면 false(=제외하지 않는다). */
+    static boolean newsRecent(String importedAt, LocalDate today) {
+        if (importedAt == null) return false;
+        try {
+            LocalDate on = java.time.OffsetDateTime.parse(importedAt).atZoneSameInstant(SEOUL).toLocalDate();
+            return on.plusMonths(NEWS_RECHECK_MONTHS).isAfter(today);
+        } catch (DateTimeException e) {
+            return false;
+        }
     }
 
     static boolean isStale(String checkedOn, LocalDate today) {
