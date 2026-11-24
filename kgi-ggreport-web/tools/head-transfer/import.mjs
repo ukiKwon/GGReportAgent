@@ -63,9 +63,13 @@ for (const rec of bundle.heads) {
     if (bad(r)) log.fail.push(rec.inst + ':' + it.field + ' ' + why(r)); else log.items++;
   }
   if (rec.photo && !h.photo) {
+    // 묶음 파일 이름은 photos/ 안의 단순 이름만 받는다(../ 등으로 묶음 밖 파일을 읽지 않게 — security 11-24)
+    const pf = String(rec.photo.file || '');
+    const pp = path.resolve(DIR, 'photos', pf);
+    if (!/^[A-Za-z0-9._-]{1,80}\.(jpg|png)$/.test(pf) || path.dirname(pp) !== path.resolve(DIR, 'photos')) { log.fail.push(rec.inst + ':사진 파일 이름 이상'); continue; }
     if (!GO) { log.photos++; continue; }
     const fd = new FormData();
-    fd.append('file', new Blob([readFileSync(path.join(DIR, 'photos', rec.photo.file))], { type: rec.photo.type || 'image/jpeg' }), rec.photo.file);
+    fd.append('file', new Blob([readFileSync(pp)], { type: pf.endsWith('.png') ? 'image/png' : 'image/jpeg' }), pf);
     fd.append('head_id', String(headId));
     fd.append('license_cd', rec.photo.license_cd || 'LOCAL_ONLY');
     const s = src(rec.photo.src);

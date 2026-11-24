@@ -12,7 +12,14 @@ const BASE = (args.base || 'http://localhost:8080').replace(/\/$/, '');
 const EMP = args.emp || '5047192';
 const H = (btn) => ({ 'X-Emp-No': EMP, 'X-Screen-Id': 'head_card', 'X-Button-Id': btn });
 const OUT = path.resolve(args.out);
+// 묶음에는 사진·생년월일이 들어간다 — 저장소 폴더 안에 만들면 실수로 커밋될 수 있어 막는다(security 11-24)
+const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', '..', '..');
+if ((OUT + path.sep).toLowerCase().startsWith((REPO + path.sep).toLowerCase())) {
+  console.log('저장소 폴더 안에는 묶음을 만들지 않습니다(사진·생년월일이 커밋될 수 있음). 바탕화면 등 저장소 밖 폴더를 --out 으로 주세요: ' + REPO);
+  process.exit(1);
+}
 mkdirSync(path.join(OUT, 'photos'), { recursive: true });
+const safeName = (s) => String(s).replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 70);   // 기관 ID를 파일 이름으로 쓸 때
 
 const DATE_FIELDS = ['FIRST_TAKE_OFFICE', 'TERM_START', 'TERM_END', 'BIRTH_DATE'];
 const srcOf = (s) => (s ? { kind: s.kind, title: s.title, url: s.url || undefined, checked_on: s.checked_on } : null);
@@ -41,7 +48,7 @@ for (const row of list) {
     const p = await fetch(BASE + '/institutions/' + encodeURIComponent(inst) + '/head/photos/' + h.photo.photo_id + '/content', { headers: H('photo_view') });
     if (p.ok) {
       const type = (p.headers.get('content-type') || 'image/jpeg').split(';')[0];
-      const file = inst + (type === 'image/png' ? '.png' : '.jpg');
+      const file = safeName(inst) + (type === 'image/png' ? '.png' : '.jpg');
       writeFileSync(path.join(OUT, 'photos', file), Buffer.from(await p.arrayBuffer()));
       rec.photo = { file, type, license_cd: h.photo.license_cd, src: srcOf(h.photo.source) };
       photos++;
