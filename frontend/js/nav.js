@@ -11,6 +11,7 @@
   //     디자이너(영업팀 소속) + 마스터. 예외: visibleWithTasks('이사회 자료 작성')는 작업함 조회 권한이 있어도 보인다.
   //     키가 있는데 준비중인 항목(pending: AI 대화·지식 검색)은 서버 키(v[key])가 켠 사람에게 보인다.
   //     onlyRoles가 있는 항목(제안팀 구성·배정·제안서 사전준비)은 그 역할(영업팀·영업팀장·영업부장)에게만 보인다 — 디자이너·마스터 제외.
+  //     협약준비 업무 task 항목(id 'soon:task:<칸 코드>', NEXT 113)도 같은 TEAM_ROLES·배지 없음 — 서버 /prep-board가 영업부서만 허용한다. 소제목 '현황'은 항목이 1개라 soloSubs로 그린다.
   //     withKey가 있는 항목(입찰 현황판·입찰 공고 현황)은 그 서버 키(map)가 켜진 사람 전원에게 보이고, front면 같은 중분류의 맨 앞에 놓인다.
   //     공고 자동 수집(onlyRoles+allowMaster, 서버 키 없음)은 전산팀·전산팀장과 관리자(마스터)에게만 보인다 — 영업 계열·디자이너·재무 제외(사용자 11-23).
   //     withKey와 onlyRoles를 함께 쓴 항목(시작화면, 11-19 결정)은 서버 키(map)가 켜져 있고 그 역할(마스터 제외)인 사람에게만 보인다.
@@ -55,6 +56,10 @@
   const TEAM_ROLES = ['영업팀', '영업팀장', '영업부장'];
   // 제안서 사전준비 프로세스 — NEXT 70에서 실화면이 된다. 라벨을 다듬어도 탭·순서 저장이 끊기지 않게 id를 고정한다.
   const PREP_ID = 'soon:사전준비';
+  // 협약준비 업무(NEXT 113) — 표 칸 하나가 메뉴 하나. id = 'soon:task:' + 서버 칸 코드(묶음은 묶음 코드). 라벨을 고쳐도 상세의 단계와 1:1로 이어진다.
+  // preptask.js의 STEPS가 정본이다(preptask.test.js가 이 목록과 서버 PrepBoardColumns를 대조한다). 배지 없음, 영업부서(TEAM_ROLES)만.
+  const TASK_PREFIX = 'soon:task:';
+  function task(cd, label) { return soon('협약준비 업무', label, '', '', false, TASK_PREFIX + cd, TEAM_ROLES); }
   // 입찰 현황판 — 본체는 kbboard.js(root.kbboard.mount, 국민은행 상태). 서버 메뉴 키 8개가 동결이라 새 키 없이 고정 id의 soon 항목으로 둔다.
   // 노출 = 서버 map 키가 켜진 사람 전원(영업 계열 제한 없음), 배지 없음, 기관 소분류 맨 앞.
   const DASH_ID = 'soon:현황판';
@@ -101,13 +106,27 @@
       live('입찰 공고', '지역별 공고현황', 'map'),   // 옛 '전국 지도' — 화면·키(map)·id는 그대로, 이름만 바뀌어 입찰 공고로 옮김(사용자 11-23)
       soon('입찰 공고', '입찰 공고 현황', '', '', false, NOTICE_ID, undefined, 'map'),   // 실제 화면(dashboard.js, #notice-root) — 배지 없음, 노출은 입찰 현황판과 같이 서버 map 키 전원(11-09 타팀 공유)
       Object.assign(soon('입찰 공고', '공고 자동 수집', undefined, '', false, COLLECT_NOTICE_ID, COLLECT_NOTICE_ROLES), { allowMaster: true })] },   // 준비중 배지 — 전산팀·전산팀장·관리자(사용자 11-23)
-    { id: 'plan', title: '영업 추진 준비', subs: ['준비 과제', '이사회'], items: [
-      soon('준비 과제', '제안 준비 현황', '', '', false, PREP_ID, TEAM_ROLES),   // 메뉴 이름 제안 준비 현황(사용자 11-24), id는 고정
-      soon('준비 과제', '기관 정보 요약서'),
-      soon('준비 과제', '제안서 제출 붙임서류'),
-      soon('이사회', '이사회 자료 작성', '',
+    // 소제목 '현황'은 항목이 하나라 soloSubs로 그린다. '협약준비 업무'는 표 머리 이름 그대로 21개(NEXT 113, 사용자 11-24). 입찰공고확인·제안서는 읽기만이라 메뉴 없이 상세 단계에만 둔다.
+    { id: 'plan', title: '영업 추진 준비', subs: ['현황', '협약준비 업무'], soloSubs: true, items: [
+      soon('현황', '제안 준비 현황', '', '', false, PREP_ID, TEAM_ROLES),   // 메뉴 이름 제안 준비 현황(사용자 11-24), id는 고정
+      task('INST_ANALYSIS', '기관 정보 분석'),
+      task('PROFIT', '수익성분석'),
+      task('FIN_COMMITTEE', '가결위(재무)'),
+      task('BIZ_COMMITTEE', '출심위(사업부)'),
+      soon('협약준비 업무', '이사회 자료 작성', '',
            '수익성 분석표(엑셀)의 수치를 이사회 자료(워드)의 정해진 자리에 자동으로 채웁니다.', true, BOARD_ID),
-      soon('이사회', '이사회 발표 대본')] },
+      soon('협약준비 업무', '이사회 발표 대본'),   // 데이터가 없는 유일한 준비중(배지 유지)
+      task('BOARD', '이사회'),
+      task('PRESENT_DOC', '발표자료'),
+      task('SUBMIT_DOCS', '제출서류'),
+      task('SUBMIT_APPR', '제안서제출품의'),
+      task('PT', 'PT'),
+      task('RESULT', '결과발표'),
+      task('PRIORITY_NEGO', '우선협상'),
+      task('AGREE_LEGAL', '협약서(법률)'),
+      task('CONTRACT_APPR', '협약체결품의'),
+      task('ATM', 'ATM'), task('KB_CARD', 'KB카드'), task('IT_BUILD', '전산구축'),
+      task('VIP', 'VIP 지정'), task('RATE_APPROVAL', '금리승인'), task('CEREMONY', '협약식')] },
     // 결재함이 머리 띠로 가며(11-23) '진행·결재'에 한 항목만 남아 소제목이 사라지지 않게 '진행·작성'으로 합쳤다(팀 기본값).
     { id: 'manage', title: '제안서 작성·관리', subs: ['진행·작성', '검토·제출'], items: [
       live('진행·작성', '제안서 진행 현황', 'workflow'),
@@ -134,6 +153,7 @@
   nav.TEAM_ID = TEAM_ID;
   nav.TEAM_ROLES = TEAM_ROLES;
   nav.PREP_ID = PREP_ID;
+  nav.TASK_PREFIX = TASK_PREFIX;
   nav.DASH_ID = DASH_ID;
   nav.HOME_ID = HOME_ID;
   nav.BOARD_ID = BOARD_ID;

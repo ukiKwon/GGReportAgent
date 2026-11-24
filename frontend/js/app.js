@@ -255,6 +255,7 @@
     if (root.prep && root.prep.onProfileChange) root.prep.onProfileChange();      // 제안서 사전준비·지도 팝오버 캐시도 같다
     if (root.plans && root.plans.onProfileChange) root.plans.onProfileChange();   // 기관 사업계획 현황·상세 캐시도 같다
     if (root.results && root.results.onProfileChange) root.results.onProfileChange();   // 협약 성과 응답·거르기도 앞 사용자의 것을 버린다
+    if (root.preptask && root.preptask.onProfileChange) root.preptask.onProfileChange();   // 협약준비 업무 목록·단계 상세도 앞 사용자의 것을 버린다
     app.applyMenuPermissions();
     if (app.paintUserArea) app.paintUserArea();
     // 워크플로 탭이 이미 그려져 있으면 승인·반려 버튼의 권한 표시를 새 계정에 맞춘다.
@@ -622,6 +623,10 @@
     const resultsEl = document.getElementById('results-root');
     if (resultsEl) resultsEl.style.display = isResults ? '' : 'none';
     if (isResults) document.getElementById('soon-plain').style.display = 'none';   // (soon-plain 숨김 줄에 섞지 않는다 — isPlans 줄 보존)
+    const isTask = !!(root.preptask && root.nav && String(itemId).indexOf(root.nav.TASK_PREFIX) === 0 && root.preptask.cdOf(itemId));   // 협약준비 업무 task별 기관 목록(preptask.js, #ts-root, NEXT 113)
+    const tsEl = isTask ? root.preptask.host() : document.getElementById('ts-root');
+    if (tsEl) tsEl.style.display = isTask ? '' : 'none';
+    if (isTask) document.getElementById('soon-plain').style.display = 'none';   // (soon-plain 숨김 줄에 섞지 않는다 — isPlans 줄 보존)
     const homeEl = document.getElementById('pt-root');
     if (homeEl) homeEl.style.display = homeReady ? '' : 'none';
     navActiveId = itemId;
@@ -633,6 +638,7 @@
     if (noticeReady && noticeEl) root.dashboard.mount(noticeEl);
     if (isPlans && plansEl) root.plans.mount(plansEl);
     if (isResults && resultsEl) root.results.mount(resultsEl);
+    if (isTask && tsEl) root.preptask.mount(tsEl, root.preptask.cdOf(itemId), label);
     if (homeReady && homeEl) root.portal.mount(homeEl);
     else if (root.portal && root.portal.unmount) root.portal.unmount();   // 시작화면이 아닌 준비중 화면으로 옮기면 해제
   };

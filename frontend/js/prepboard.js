@@ -753,6 +753,17 @@
   }
 
   // ── 이벤트 ──
+  // 기관 이름 → 상세. 협약준비 단계 상세(preptask.js, NEXT 113)가 있으면 그것으로, 없으면 예전처럼 사전준비 상세(openCase)로 간다.
+  function stepsOn() { return !!(root.preptask && root.preptask.openFromBoard && B.data); }
+  function canOpen() { return stepsOn() || !!(B.hooks && B.hooks.openCase); }
+  function openRow(row) {
+    if (stepsOn()) {
+      pb.leave();   // 표를 가리기 전에 스크롤을 적어 둔다(가린 뒤에는 0으로 읽힌다)
+      const hooks = B.hooks;
+      if (root.preptask.openFromBoard({ row: row, data: B.data, hooks: hooks, back: function (id) { pb.show(hooks, { reload: true, focusBid: id }); } })) return;
+    }
+    if (B.hooks && B.hooks.openCase) B.hooks.openCase(str(row.bid_case_id), str(row.institution_name));
+  }
   function cellOf(t) { return t && t.closest ? t.closest('[data-r]') : null; }
   function onClick(e) {
     const t = e.target && e.target.closest ? e.target.closest('button') : null;
@@ -772,7 +783,7 @@
       const tr = t.closest('tr');
       const bid = tr ? tr.getAttribute('data-bid') : '';
       const row = bid ? rowById(bid) : null;
-      if (row && row.can_view !== false && B.hooks && B.hooks.openCase) B.hooks.openCase(bid, str(row.institution_name));
+      if (row && row.can_view !== false) openRow(row);
     } else if (act === 'retry') { B.state = 'loading'; B.data = null; load('open'); }
     else if (act === 'map') { if (B.hooks && B.hooks.openMap) B.hooks.openMap(); }
     else if (act === 'scope-mine') setScope('mine');
@@ -789,7 +800,7 @@
     if (np) { e.preventDefault(); focusAt(np.r, np.c); return; }
     if ((e.key === 'Enter' || e.key === ' ') && pos.c === 0 && e.target === c) {   // 이름 칸에 머물 때 Enter·Space는 상세
       const row = rows[pos.r];
-      if (row && row.can_view !== false && B.hooks && B.hooks.openCase) { e.preventDefault(); B.hooks.openCase(str(row.bid_case_id), str(row.institution_name)); }
+      if (row && row.can_view !== false && canOpen()) { e.preventDefault(); openRow(row); }
     }
   }
   function wire() {
@@ -820,6 +831,7 @@
   // hooks: { req, roleLabel, openCase(bid, name), openMap() }. o: { reload: 상세에서 돌아옴, focusBid }
   pb.show = function (hooks, o) {
     if (typeof document === 'undefined' || !el('pp-board')) return false;
+    const pr = el('pp-root'); if (pr && pr.classList) pr.classList.remove('is-steps');   // 협약준비 단계 상세(preptask.js)가 표를 가리고 있었다면 표로 돌아온다(메뉴를 다시 누르면 표부터)
     if (!wired && !wire()) return false;
     B.hooks = hooks;
     const x = o || {};
@@ -831,13 +843,15 @@
     if (typeof document === 'undefined') return;
     closeMenu(false);
     const box = el('pb-scroll');
-    if (box) B.scroll = { l: box.scrollLeft, t: box.scrollTop };
+    const pr = el('pp-root');
+    if (box && !(pr && pr.classList && pr.classList.contains('is-steps'))) B.scroll = { l: box.scrollLeft, t: box.scrollTop };   // 단계 상세가 표를 가린 동안(display:none)에는 스크롤이 0으로 읽히므로 openRow가 적어 둔 값을 덮지 않는다
   };
   // 계정이 바뀌면 이전 계정의 표·거르기·저장 중 표시를 버린다.
   pb.reset = function () {
     closeMenu(false);   // 옛 B.menu가 살아 있을 때 먼저 닫는다
     B = fresh();
     if (typeof document === 'undefined') return;
+    const pr = el('pp-root'); if (pr && pr.classList) pr.classList.remove('is-steps');
     const box = el('pb-scroll'); if (box) box.innerHTML = '';
     const q = el('pb-q'); if (q) q.value = '';
     // 계정 전환 뒤 옛 계정의 표 위 안내·'개설 전' 범례 항목이 남지 않게(qa 11-23 밤 P3). 다음 load의 paintAll/paintMeta가 다시 채운다.
