@@ -152,7 +152,7 @@ test('probe: 헤더·404 숨김·빈 목록·오류 역할별·같은 자료는 
   let r = await c.probe(7);
   assert.deepStrictEqual([r.show, r.count, r.error], [true, 2, false]);
   assert.strictEqual(seen[0].url, '/board-materials/7/minutes');
-  assert.strictEqual(seen[0].init.headers['X-Screen-Id'], 'board_write');
+  assert.strictEqual(seen[0].init.headers['X-Screen-Id'], 'board_review', '담당자 여부를 안 넘기면 board_review');
   assert.strictEqual(seen[0].init.headers['X-Button-Id'], 'minutes_tab');
   await c.probe(7);
   assert.strictEqual(seen.length, 1, '같은 자료는 다시 묻지 않는다');
@@ -213,7 +213,7 @@ test('canDraw: 패널이 없거나 다른 탭이 덮었으면 그리지 않는�
 test('공개범위 30명: 안내만 둔다(막지 않는다)', function () {
   assert.strictEqual(mn.scopeNote(29), '');
   assert.strictEqual(mn.scopeNote(30), mn.TEXT.SCOPE_FULL);
-  assert.ok(mn.TEXT.SCOPE_FULL.indexOf('기한 변경') > 0);
+  assert.ok(mn.TEXT.SCOPE_FULL.indexOf('기한만 바꿀') > 0);
   assert.strictEqual(mn.errorText(409, { code: 'SCOPE_CAP' }).field, 'scope');
   assert.ok(!/disabled = true/.test(SRC.slice(SRC.indexOf('function drawScope'), SRC.indexOf('function addScope'))) || SRC.slice(SRC.indexOf('function drawScope'), SRC.indexOf('function addScope')).indexOf('full) n.disabled') < 0);
 });
@@ -235,8 +235,8 @@ test('eventText: 새 이력 코드 문구, 모르는 코드는 코드명을 내�
 
 test('candLabel·scopeCands·scopeNote: 후보 줄 글자, 서버 상한, 잘림', function () {
   assert.strictEqual(mn.candLabel({ name: '김영업', position_title: '부장', granted: false }), '김영업 부장');
-  assert.strictEqual(mn.candLabel({ name: '김영업', position_title: '부장', granted: true, grant_until: '2026-12-31', expired: false }), '김영업 부장 (공개 중 ~2026-12-31)');
-  assert.strictEqual(mn.candLabel({ name: '김영업', position_title: '부장', granted: true, grant_until: '2026-01-01', expired: true }), '김영업 부장 (기한 지남 2026-01-01)');
+  assert.strictEqual(mn.candLabel({ name: '김영업', position_title: '부장', granted: true, grant_until: '2026-12-31', expired: false }), '김영업 부장 — 공개 중, 2026-12-31까지');
+  assert.strictEqual(mn.candLabel({ name: '김영업', position_title: '부장', granted: true, grant_until: '2026-01-01', expired: true }), '김영업 부장 — 기한 지남, 2026-01-01');
   assert.strictEqual(mn.scopeCands(null), null);
   assert.strictEqual(mn.scopeCands({ items: 'x' }), null);
   const a = mn.scopeCands({ items: [{ emp_no: '1' }, 5], truncated: true, scope_max: 50 });
@@ -425,13 +425,18 @@ test('histTitle: 이력의 발화자 이름표 바꿈', function () {
   assert.strictEqual(mn.histTitle('X', 0, 'SPEAKER_LABEL'), '발화자 이름표 바꿈');
 });
 
-test('화면 id: 탭 안 읽기·쓰기는 모두 board_write(감사 화면 id 하나) · 올리기만 board_minutes_upload · 버튼 minutes_label', function () {
-  assert.strictEqual(mn.UI.VIEW, 'board_write');
-  assert.strictEqual(mn.UI.TAB, 'board_write');
+test('화면 id: 담당자는 board_write, 그 밖은 board_review(board-material screenFor 와 같은 식) · 올리기만 board_minutes_upload · 버튼 minutes_label', function () {
+  assert.strictEqual(mn.screenFor(true), 'board_write');
+  assert.strictEqual(mn.screenFor(false), 'board_review');
+  assert.strictEqual(mn.screenFor(undefined), 'board_review');
+  assert.strictEqual(mn.screenFor('true'), 'board_review', '엄격 비교: true 만 담당자');
+  [true, false, undefined, null, 1].forEach(function (a) { assert.strictEqual(mn.screenFor(a), mat.screenFor(a), 'board-material screenFor 와 같다: ' + a); });
   assert.strictEqual(mn.labelScreen(true), 'board_write');
-  assert.strictEqual(mn.labelScreen(false), 'board_write', '탭 안/밖 구분 없이 같은 값');
+  assert.strictEqual(mn.labelScreen(false), 'board_review');
   assert.strictEqual(mn.UI.UPLOAD, 'board_minutes_upload');
+  assert.strictEqual(mn.UI.LIST, 'board_minutes_list');
   assert.strictEqual(mn.BTN.LABEL, 'minutes_label');
+  assert.ok(!/mn\.UI\.(TAB|VIEW)/.test(SRC), 'TAB·VIEW 고정값은 없앴다 — scr() 로 간다');
 });
 
 test('signature: 고친 내용이 바뀌면 달라진다(stale) — 고친 것이 없던 때와는 같은 표식', function () {
@@ -472,7 +477,7 @@ test('소스 검사: 미리보기 고치기 경로는 서버를 부르지 않고
     assert.ok(body.indexOf('call(') < 0, f + ' 는 서버를 부르지 않는다');
   });
   assert.ok(cut('local.apply(text)', 'const ok = guard()').indexOf('call(') < 0, '[반영]은 로컬만');
-  assert.ok(SRC.indexOf('mn.labelScreen(true), mn.BTN.LABEL') > 0, '이름표 저장은 labelScreen·minutes_label');
+  assert.ok(SRC.indexOf('mn.labelScreen(S.isAssignee), mn.BTN.LABEL') > 0, '이름표 저장은 labelScreen(담당자 여부)·minutes_label');
   assert.ok(cut('function goSeg', 'function jumpUtter').indexOf("ctx.mode === 'preview'") > 0, '미리보기 [원문 보기]는 pvJump');
   assert.ok(SRC.indexOf('datalist') < 0, '자유 입력 추천 목록 없음');
 });
@@ -600,7 +605,7 @@ test('loadScope: 후보는 /board-minutes/{id}/scope/candidates 로 받고 화�
   const cand = seen.filter(function (x) { return /\/scope\/candidates$/.test(x.url); });
   assert.strictEqual(cand.length, 1);
   assert.strictEqual(cand[0].url, '/board-minutes/5/scope/candidates');
-  assert.strictEqual(cand[0].init.headers['X-Screen-Id'], mn.UI.VIEW);
+  assert.strictEqual(cand[0].init.headers['X-Screen-Id'], mn.UI.REVIEW, '담당자가 아닌 열람자(probe 에 isAssignee 없음)는 board_review');
   assert.strictEqual(cand[0].init.headers['X-Button-Id'], 'minutes_scope_open');
   assert.ok(!seen.some(function (x) { return /assignment-candidates/.test(x.url); }), '예전 후보 경로는 부르지 않는다');
   assert.strictEqual(o.cur.scope.cands.length, 1);
@@ -664,4 +669,223 @@ test('요청 중 잠금: fixLocked · 이름표 select·[고치기]는 요청이
   assert.ok(cut('function buildPvSpk', 'function curLabel').indexOf('locked: mn.fixLocked(u)') > 0);
   const ul = cut('function utterLi', 'function fixText');
   assert.ok(ul.indexOf('mn.fixLocked(ctx.u)') > 0 && /eb\.disabled = lock/.test(ul), '[고치기] 잠금');
+});
+
+// ── 11-24 NEXT 99: 서버 값 붙이기 (design a7f4c4fb 결정 1~4) ──
+const NOW = new Date('2026-12-08T03:00:00Z');   // 한국 시각 2026-12-08 12:00
+function vtext(n) { return n.before + n.date + n.after; }
+
+test('kstFull: UTC ISO → 한국 시각 yyyy-MM-dd HH:mm, 읽을 수 없으면 빈 글자', function () {
+  assert.strictEqual(mn.kstFull('2026-12-08T06:20:00+00:00'), '2026-12-08 15:20');
+  assert.strictEqual(mn.kstFull('2026-12-31T16:00:00Z'), '2027-01-01 01:00', '날짜·해가 넘어간다');
+  assert.strictEqual(mn.kstFull('2026-12-08T06:20:00.123456Z'), '2026-12-08 15:20', '마이크로초 절단');
+  assert.strictEqual(mn.kstFull('x'), '');
+  assert.strictEqual(mn.kstFull(null), '');
+});
+
+test('viewNote(결정 1): 등록자·공개받은 사람 문구 — 규격 표 그대로, 날짜 span.mono 자리, 오늘, null 처리', function () {
+  const ASK = '그 뒤에는 영업팀장·영업부장에게 공개를 요청하세요.';
+  const up = mn.viewNote({ via: 'UPLOADER', view_until_at: '2026-12-15T06:20:00Z' }, NOW);
+  assert.strictEqual(vtext(up), '올린 사람이라 2026-12-15 15:20까지 볼 수 있습니다. ' + ASK);
+  assert.strictEqual(up.date, '2026-12-15 15:20', 'mono 로 감쌀 부분');
+  const upToday = mn.viewNote({ via: 'UPLOADER', view_until_at: '2026-12-08T06:20:00Z' }, NOW);
+  assert.strictEqual(vtext(upToday), '올린 사람이라 오늘 15:20까지 볼 수 있습니다. ' + ASK);
+  assert.strictEqual(upToday.date, '15:20');
+  const g = mn.viewNote({ via: 'GRANTEE', view_until: '2026-12-24' }, NOW);
+  assert.strictEqual(vtext(g), '공개범위에 추가되어 2026-12-24까지 볼 수 있습니다(그날 포함).');
+  assert.strictEqual(g.date, '2026-12-24');
+  const gToday = mn.viewNote({ via: 'GRANTEE', view_until: '2026-12-08' }, NOW);
+  assert.strictEqual(vtext(gToday), '공개범위에 추가되어 오늘까지 볼 수 있습니다.');
+  assert.strictEqual(gToday.date, '', '오늘이면 날짜 칸 없음');
+  // 한국 날짜 기준: UTC 15:30 = 한국 다음 날 00:30
+  const NOW2 = new Date('2026-12-07T15:30:00Z');
+  assert.strictEqual(mn.viewNote({ via: 'GRANTEE', view_until: '2026-12-08' }, NOW2).date, '', '한국 시각으로 이미 12-08 이라 오늘');
+  assert.strictEqual(mn.viewNote({ via: 'UPLOADER', view_until_at: '2026-12-08T06:20:00Z' }, NOW2).date, '15:20');
+  // 값이 없을 때: 근거 없는 숫자를 내지 않는다
+  const upNone = mn.viewNote({ via: 'UPLOADER', view_until_at: null }, NOW);
+  assert.strictEqual(vtext(upNone), '올린 사람이라 올린 뒤 정해진 기간 동안 볼 수 있습니다. ' + ASK);
+  assert.ok(vtext(upNone).indexOf('14일') < 0);
+  assert.strictEqual(vtext(mn.viewNote({ via: 'UPLOADER', view_until_at: 'x' }, NOW)), vtext(upNone), '읽을 수 없는 값도 같은 문구');
+  assert.strictEqual(vtext(mn.viewNote({ via: 'GRANTEE', view_until: null }, NOW)), mn.TEXT.GRANTEE);
+  assert.strictEqual(vtext(mn.viewNote({ via: 'GRANTEE', view_until: '12/24' }, NOW)), mn.TEXT.GRANTEE);
+  // 부장급·기본 열람자는 줄을 내지 않는다
+  assert.strictEqual(mn.viewNote({ via: 'DEFAULT', view_until: null, view_until_at: null }, NOW), null);
+  assert.strictEqual(mn.viewNote({}, NOW), null);
+  assert.strictEqual(mn.viewNote(null, NOW), null);
+  assert.ok(SRC.indexOf('기본 14일') < 0, "'(기본 14일)' 은 소스 어디에도 없다");
+  const detail = SRC.slice(SRC.indexOf('function buildDetail'), SRC.indexOf('// 요약 카드·시간대별 구간'));
+  assert.ok(detail.indexOf('mn.viewNote(v)') > 0 && /el\('span', 'mono', vn\.date\)/.test(detail), '날짜만 span.mono');
+});
+
+test('firstFor·firstMsg(결정 2): 원문이 있으면 firstOf, 없으면 서버 first_seq(시각 없음)', function () {
+  const items = [{ seq_no: 5, speaker_no: 1, time: '00:00:09', noise: true }, { seq_no: 6, speaker_no: 1, time: '00:00:20' }];
+  const spk = [{ speaker_no: 1, first_seq: 5 }, { speaker_no: 2, first_seq: 8 }, { speaker_no: 3 }, { speaker_no: 4, first_seq: 'x' }, { speaker_no: 5, first_seq: 0 }];
+  assert.deepStrictEqual(mn.firstFor(items, true, spk, 1), { seq: 6, time: '00:00:20' }, '원문이 있으면 firstOf(잡음 아닌 첫 발언)');
+  assert.strictEqual(mn.firstFor(items, true, spk, 9), null);
+  assert.deepStrictEqual(mn.firstFor([], false, spk, 1), { seq: 5, time: '' }, '원문 전에는 first_seq, 시각 없음');
+  assert.deepStrictEqual(mn.firstFor([], false, spk, 2), { seq: 8, time: '' });
+  assert.deepStrictEqual(mn.firstFor([], false, spk, 5), { seq: 0, time: '' }, '0 도 유효한 번호');
+  assert.strictEqual(mn.firstFor([], false, spk, 3), null, 'first_seq 없음(옛 서버·발언 0)');
+  assert.strictEqual(mn.firstFor([], false, spk, 4), null, '숫자가 아닌 값은 앵커로 쓰지 않는다');
+  assert.strictEqual(mn.firstFor([], false, spk, 9), null);
+  assert.strictEqual(mn.firstFor([], false, undefined, 1), null);
+  assert.strictEqual(mn.firstMsg(2, ''), '참석자 2의 첫 발언으로 옮겼습니다.');
+  assert.strictEqual(mn.firstMsg(2, undefined), '참석자 2의 첫 발언으로 옮겼습니다.');
+  assert.strictEqual(mn.firstMsg(2, '00:03:12'), '참석자 2의 첫 발언(00:03:12)으로 옮겼습니다.');
+});
+
+test('소스 검사(결정 2): 첫 발언 칸은 시각이 있을 때만 <time>, 버튼은 항상', function () {
+  const tbl = SRC.slice(SRC.indexOf('function buildSpkTable'), SRC.indexOf('// ── 미리보기 고치기(저장 전'));
+  assert.ok(/if \(f\.time\) \{ tf\.appendChild\(el\('time', '', f\.time\)\)/.test(tbl), '시각은 있을 때만');
+  assert.ok(tbl.indexOf("btn('발언 보기'") > tbl.indexOf('if (f.time)'), '버튼은 시각 조건 밖');
+  assert.ok(tbl.indexOf("'참석자 ' + no + ' 첫 발언 보기'") > 0, 'aria-label 은 그대로');
+});
+
+function lblRoute(speakers, seen, trFail) {
+  let trCalls = 0;
+  return function (url, init) {
+    if (seen) seen.push({ url: url, init: init });
+    if (/\/transcript$/.test(url)) {
+      trCalls++;
+      return trFail && trCalls === 1 ? resp(500, null) : resp(200, { items: [{ seq_no: 7, speaker_no: 2, time: '00:03:12', text: 'x' }] });
+    }
+    if (/\/scope\/candidates$/.test(url)) return resp(200, { items: [], truncated: false });
+    if (/\/scope$/.test(url)) return resp(200, []);
+    if (init && init.method === 'PUT') return resp(200, { rev_no: 2, label: '구청장', changed: true });
+    if (/^\/board-minutes\/5$/.test(url)) return resp(200, { viewer: { can_edit: true, can_scope_edit: true }, rev_no: 1, speakers: speakers });
+    return resp(200, { items: [{ minutes_id: 5 }], can_upload: false });
+  };
+}
+
+test('toggleLbl(결정 2): first_seq 가 있으면 이름표 표를 열어도 원문을 받지 않는다(원문 열람 기록), 옛 서버만 자동으로 받는다', async function () {
+  const seen = [];
+  const c = mkCtl(lblRoute([{ speaker_no: 2, label: null, utter_cnt: 1, first_seq: 7 }], seen));
+  await c.probe(1); c.testApi.openDetail(5); await settle();
+  const cur = c.state().cur;
+  assert.strictEqual(cur.tr.status, 'idle', '상세를 열어도 원문은 받지 않는다');
+  c.testApi.toggleLbl(cur); await settle();
+  assert.ok(cur.lbl, '표는 열린다');
+  assert.strictEqual(cur.tr.status, 'idle');
+  assert.strictEqual(seen.filter(function (x) { return /\/transcript$/.test(x.url); }).length, 0, '원문 요청 없음');
+  const seen2 = [];
+  const c2 = mkCtl(lblRoute([{ speaker_no: 2, label: null, utter_cnt: 1 }], seen2));   // first_seq 없음 = 옛 서버
+  await c2.probe(1); c2.testApi.openDetail(5); await settle();
+  c2.testApi.toggleLbl(c2.state().cur); await settle();
+  assert.strictEqual(seen2.filter(function (x) { return /\/transcript$/.test(x.url); }).length, 1, '옛 서버는 예전처럼 자동으로 받는다');
+});
+
+test('jumpUtter(결정 2): 원문을 받는 중에 누른 것은 받은 뒤 그 발언으로 옮기고 원문 시각이 든 문구로 알린다', async function () {
+  const seen = [], msgs = [];
+  const c = mkCtl(lblRoute([{ speaker_no: 2, label: null, utter_cnt: 1, first_seq: 7 }], seen), msgs);
+  await c.probe(1); c.testApi.openDetail(5); await settle();
+  const cur = c.state().cur;
+  const node = { className: '', focus: function () { node.focused = true; }, scrollIntoView: function () {} };
+  const old = document.getElementById;
+  document.getElementById = function (id) { return id === 'mn-u-7' ? node : null; };
+  try {
+    c.testApi.loadTranscript(cur);
+    assert.strictEqual(cur.tr.status, 'loading');
+    c.testApi.jumpUtter(cur, 7, function (it) { return mn.firstMsg(2, it && it.time); });   // 받는 중에 누름
+    assert.strictEqual(cur.tr.open, true, '원문을 펼친다');
+    assert.strictEqual(node.focused, undefined, '아직 못 옮긴다');
+    await settle();
+    assert.strictEqual(cur.tr.status, 'ready');
+    assert.strictEqual(node.focused, true, '받은 뒤 옮긴다');
+    assert.ok(/is-target/.test(node.className));
+    assert.deepStrictEqual(msgs, ['참석자 2의 첫 발언(00:03:12)으로 옮겼습니다.'], '받은 뒤에는 시각이 든 문구');
+    assert.strictEqual(seen.filter(function (x) { return /\/transcript$/.test(x.url); }).length, 1, '요청은 한 번');
+    assert.strictEqual(cur.tr.wait == null, true, '기다리던 동작은 비운다');
+    c.testApi.jumpUtter(cur, 7, '바로 옮김');   // 이미 받은 뒤: 바로
+    assert.strictEqual(msgs[msgs.length - 1], '바로 옮김');
+  } finally { document.getElementById = old; }
+});
+
+test('jumpUtter(결정 2): 원문을 못 받으면 오류를 남기고 옮기지 않고, 다시 누르면 다시 받는다', async function () {
+  const seen = [], msgs = [];
+  const c = mkCtl(lblRoute([{ speaker_no: 2, label: null, utter_cnt: 1, first_seq: 7 }], seen, true), msgs);
+  await c.probe(1); c.testApi.openDetail(5); await settle();
+  const cur = c.state().cur;
+  c.testApi.jumpUtter(cur, 7, 'm'); await settle();
+  assert.strictEqual(cur.tr.status, 'error');
+  assert.ok(cur.tr.err.length > 0, '원문 오류 문구');
+  assert.deepStrictEqual(msgs, [], '옮기지 못했으니 알리지 않는다');
+  c.testApi.jumpUtter(cur, 7, 'm'); await settle();
+  assert.strictEqual(cur.tr.status, 'ready', '다시 누르면 다시 받는다');
+  assert.strictEqual(seen.filter(function (x) { return /\/transcript$/.test(x.url); }).length, 2);
+});
+
+test('화면 id(결정 3): 담당자는 board_write, 그 밖은 board_review — 목록·상세·원문·공개범위·후보·이름표 저장 모두', async function () {
+  for (const asg of [true, false]) {
+    const want = asg ? 'board_write' : 'board_review', seen = [];
+    const c = mkCtl(lblRoute([{ speaker_no: 2, label: null, utter_cnt: 1, first_seq: 7 }], seen));
+    await c.probe(1, { isAssignee: asg }); c.testApi.openDetail(5); await settle();
+    const cur = c.state().cur;
+    c.testApi.loadTranscript(cur); await settle();
+    cur.scopeOpen = true;
+    cur.scope = { status: 'loading', rows: [], cands: [], candsTruncated: false, max: mn.SCOPE_MAX, candsFail: false, err: '', until: '', emp: '' };
+    await c.testApi.loadScope(cur); await settle();
+    cur.tr.items = [{ seq_no: 7, speaker_no: 2 }];
+    cur.lbl = { draft: { 2: '구청장' }, rowErrs: {}, err: '', rev: false, busy: false };
+    c.testApi.saveLabels(cur); await settle();
+    const urls = ['/board-materials/1/minutes', '/board-minutes/5', '/board-minutes/5/transcript', '/board-minutes/5/scope', '/board-minutes/5/scope/candidates', '/board-minutes/5/speakers/2'];
+    urls.forEach(function (u) {
+      const hit = seen.filter(function (x) { return x.url === u; });
+      assert.ok(hit.length >= 1, '요청 없음: ' + u);
+      hit.forEach(function (x) { assert.strictEqual(x.init.headers['X-Screen-Id'], want, u + ' 담당자=' + asg); });
+    });
+  }
+  assert.ok(SRC.indexOf('mn.UI.UPLOAD, mn.BTN.PREVIEW') > 0 && SRC.indexOf('mn.UI.UPLOAD, mn.BTN.UPLOAD') > 0, '올리기는 그대로 board_minutes_upload');
+});
+
+test('문구(결정 4): 자격 오류·30명 안내·상한 오류가 "공개 대상" 두 뜻으로 겹치지 않는다', function () {
+  assert.strictEqual(mn.errorText(400, { code: 'SCOPE_TARGET_NOT_ELIGIBLE' }).text, '이 사람에게는 회의록을 공개할 수 없습니다. 영업부서와 임원급에게만 공개할 수 있습니다.');
+  assert.strictEqual(mn.errorText(400, { code: 'SCOPE_TARGET_NOT_ELIGIBLE' }).field, 'scope');
+  assert.strictEqual(mn.errorText(409, { code: 'SCOPE_CAP' }).text, '공개할 수 있는 사람은 30명까지입니다. 필요 없는 사람을 먼저 빼세요.');
+  assert.strictEqual(mn.TEXT.SCOPE_FULL, '공개한 사람이 30명입니다. 새 사람은 추가되지 않고, 이미 있는 사람의 기한만 바꿀 수 있습니다.');
+  assert.strictEqual(mn.scopeNote(50, 50), '공개한 사람이 50명입니다. 새 사람은 추가되지 않고, 이미 있는 사람의 기한만 바꿀 수 있습니다.');
+  [mn.errorText(400, { code: 'SCOPE_TARGET_NOT_ELIGIBLE' }).text, mn.errorText(409, { code: 'SCOPE_CAP' }).text, mn.TEXT.SCOPE_FULL].forEach(function (t) {
+    assert.ok(t.indexOf('공개 대상') < 0, '공개 대상: ' + t);
+  });
+  assert.strictEqual(mn.errorText(400, { code: 'SCOPE_TARGET_INVALID' }).text, '공개할 사람을 찾을 수 없습니다. 사번을 확인하세요(퇴사·정지된 사람은 추가할 수 없습니다).', '그대로');
+});
+
+test('candLabel(결정 4): 이름 직책 (사번) + 공개 중/기한 지남, 물결표 없이 까지', function () {
+  const P = { name: '홍길동', position_title: '차장', emp_no: '12345678' };
+  assert.strictEqual(mn.candLabel(P), '홍길동 차장 (12345678)');
+  assert.strictEqual(mn.candLabel(Object.assign({}, P, { granted: true, expired: false, grant_until: '2026-12-24' })), '홍길동 차장 (12345678) — 공개 중, 2026-12-24까지');
+  assert.strictEqual(mn.candLabel(Object.assign({}, P, { granted: true, expired: true, grant_until: '2026-11-20' })), '홍길동 차장 (12345678) — 기한 지남, 2026-11-20');
+  assert.strictEqual(mn.candLabel(Object.assign({}, P, { granted: true, expired: false })), '홍길동 차장 (12345678) — 공개 중', '기한을 모르면 날짜 없이');
+  assert.strictEqual(mn.candLabel(Object.assign({}, P, { granted: true, expired: true })), '홍길동 차장 (12345678) — 기한 지남');
+  assert.strictEqual(mn.candLabel(Object.assign({}, P, { granted: false, grant_until: '2026-12-24' })), '홍길동 차장 (12345678)', '공개 중이 아니면 기한을 붙이지 않는다');
+  assert.strictEqual(mn.candLabel({ name: '홍길동', position_title: '차장' }), '홍길동 차장', '사번이 없으면 괄호 없음');
+  assert.strictEqual(mn.candLabel({ name: '홍길동', emp_no: 1234 }), '홍길동 (1234)', '직책이 없고 사번이 숫자여도');
+  assert.ok(mn.candLabel(Object.assign({}, P, { granted: true, grant_until: '2026-12-24' })).indexOf('~') < 0, '물결표 없음');
+});
+
+test('소스 검사(결정 4): 잘림·실패 안내 p 에 id, 고르기 상자·직접 입력 칸에 aria-describedby', function () {
+  const ds = SRC.slice(SRC.indexOf('function drawScope'), SRC.indexOf('function addScope'));
+  assert.ok(/note\.id = 'mn-sc-note'/.test(ds), '안내 p 의 id');
+  assert.ok(ds.indexOf("sel.setAttribute('aria-describedby', 'mn-sc-note')") > 0, '고르기 상자');
+  assert.ok(ds.indexOf("emp.setAttribute('aria-describedby', 'mn-sc-note')") > 0, '직접 입력 칸');
+  assert.ok(ds.indexOf('T.SCOPE_CANDS_FAIL') > 0 && ds.indexOf('T.SCOPE_CANDS_MORE') > 0, '실패·잘림 둘 다');
+  assert.ok(ds.indexOf('if (note)') > 0, '안내가 있을 때만 잇는다(없는 id 를 가리키지 않는다)');
+});
+
+test('targetText·histText(결정 4): RULES 이력은 운용 수칙 확인 (수칙 n판), 다른 이력은 그대로', function () {
+  assert.strictEqual(mn.targetText('RULES', 1), '수칙 1판');
+  assert.strictEqual(mn.targetText('RULES', '2'), '수칙 2판');
+  assert.strictEqual(mn.targetText('RULES', 0), '', '판 번호를 모르면 비운다');
+  assert.strictEqual(mn.targetText('RULES', null), '');
+  assert.strictEqual(mn.targetText('UTTER', 4), '발언 4');
+  assert.strictEqual(mn.targetText('ITEM', 2), '항목 2');
+  assert.strictEqual(mn.targetText('META', 5), '제목·회의일', '메타는 번호 없음');
+  assert.strictEqual(mn.targetText('SPEAKER', 3), '', '모르는 종류는 빈 글자');
+  assert.strictEqual(mn.targetText('constructor', 1), '', '상속 속성으로 새지 않는다');
+  assert.strictEqual(mn.histText({ event: 'RULES_ACK', target_kind: 'RULES', target_no: 1 }), '운용 수칙 확인 (수칙 1판)');
+  assert.strictEqual(mn.histText({ event: 'RULES_ACK', target_kind: 'RULES', target_no: null }), '운용 수칙 확인');
+  assert.strictEqual(mn.histText({ event: 'RULES_ACK' }), '운용 수칙 확인');
+  assert.strictEqual(mn.histText({ event: 'EDIT', target_kind: 'UTTER', target_no: 3 }), '고침 (발언 3)');
+  assert.strictEqual(mn.histText({ event: 'SPEAKER_LABEL', target_kind: 'SPEAKER', target_no: 3 }), '발화자 이름표 바꿈 (참석자 3)');
+  assert.strictEqual(mn.histText({ event: 'UPLOAD' }), '올림');
+  assert.strictEqual(mn.histText(null), '기타 기록');
 });

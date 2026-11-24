@@ -5,12 +5,14 @@
   'use strict';
   const mn = {};
   // 서버 허용 목록(MinutesUiIds)과 같은 이름. 화면을 더하면 서버와 같이 고친다.
-  mn.UI = { TAB: 'board_write', VIEW: 'board_write', UPLOAD: 'board_minutes_upload', LIST: 'board_minutes_list' };   // 탭 안 읽기·쓰기는 사용자가 실제로 있는 화면(자료 상세의 회의록 탭 = board_write) 하나로 기록한다
+  mn.UI = { WRITE: 'board_write', REVIEW: 'board_review', UPLOAD: 'board_minutes_upload', LIST: 'board_minutes_list' };
+  // 탭 안 읽기·쓰기 화면 id: 담당자는 board_write, 그 밖(영업부장·결재자)은 board_review — board-material.js screenFor 와 같은 식(사용자가 실제로 있는 화면)
+  mn.screenFor = function (isAssignee) { return isAssignee === true ? mn.UI.WRITE : mn.UI.REVIEW; };
   mn.BTN = { TAB: 'minutes_tab', OPEN: 'minutes_open', TRANSCRIPT: 'minutes_transcript', PREVIEW: 'minutes_preview',
              UPLOAD: 'minutes_upload', EDIT: 'minutes_edit', META: 'minutes_meta', TODO: 'minutes_todo', HISTORY: 'minutes_history',
              SCOPE_OPEN: 'minutes_scope_open', SCOPE_ADD: 'minutes_scope_add', SCOPE_REMOVE: 'minutes_scope_remove', DELETE: 'minutes_delete', LABEL: 'minutes_label' };
-  // 발화자 이름표 저장 헤더: 이사회 자료 상세의 탭 안이면 board_write, 그 밖이면 board_minutes (사용자 11-20 결정)
-  mn.labelScreen = function () { return mn.UI.TAB; };
+  // 발화자 이름표 저장 헤더도 탭 안 다른 호출과 같은 화면 id(담당자 board_write, 그 밖 board_review)
+  mn.labelScreen = function (isAssignee) { return mn.screenFor(isAssignee); };
   mn.MAX_FILE = 2 * 1024 * 1024; mn.TITLE_MAX = 100; mn.TERMS_MAX = 100; mn.SCOPE_MAX = 30; mn.SCOPE_DAYS = 365; mn.SCOPE_DEFAULT_DAYS = 30;
   mn.SLOT = { transcript: '원문', timeline: '시간대별 요약', summary: '맞춤 요약', title: '제목', edit: '고친 글' };
   mn.headers = function (screen, button) { return { 'X-Screen-Id': screen, 'X-Button-Id': button }; };
@@ -50,6 +52,13 @@
     return p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()) + ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes());
   };
   mn.kstDate = function (iso) { return mn.kst(iso).slice(0, 5); };
+  // 서버 시각(UTC ISO) → 한국 시각 "yyyy-MM-dd HH:mm". 읽을 수 없으면 ''.
+  mn.kstFull = function (iso) {
+    const t = Date.parse(str(iso).replace(/(\.\d{3})\d+/, '$1'));
+    if (!isFinite(t)) return '';
+    const d = new Date(t + 9 * 3600000);
+    return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()) + ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes());
+  };
   mn.range = function (s) { return mn.clock(s.start_sec) + '–' + mn.clock(s.end_sec); };   // en dash
   function sizeText(b) { return Math.max(1, Math.round((b || 0) / 1024)) + 'KB'; }
 
@@ -87,8 +96,9 @@
     NO_TODO: '다음 할 일 항목이 없습니다.',
     NO_TOPIC: '주요 주제 항목이 없습니다.',
     TODO_LOCK: '(영업팀장 이상만 체크)',
-    UPLOADER: '올린 사람이라 올린 뒤 일정 기간(기본 14일) 동안 볼 수 있습니다. 그 뒤에는 영업팀장·영업부장에게 공개를 요청하세요.',
-    GRANTEE: '공개범위에 추가되어 볼 수 있습니다. 기한이 지나면 볼 수 없습니다.',
+    UPLOADER: '올린 사람이라 올린 뒤 정해진 기간 동안 볼 수 있습니다. 그 뒤에는 영업팀장·영업부장에게 공개를 요청하세요.',   // 끝 시각을 모를 때(서버 값 없음) — 근거 없는 숫자를 내지 않는다
+    UP_ASK: '그 뒤에는 영업팀장·영업부장에게 공개를 요청하세요.',
+    GRANTEE: '공개범위에 추가되어 볼 수 있습니다. 기한이 지나면 볼 수 없습니다.',   // 기한을 모를 때
     RULES: ['① 클로바 노트는 지정 계정으로만 쓰고 공유 링크를 만들지 않습니다.', '② 내보낸 텍스트는 사내 메일로만 보내고 은행 직원만 다룹니다.',
             '③ 올린 뒤에는 클로바 노트 기록·메일·PC에 남은 파일을 지웁니다.', '④ 직원 명단에 없는 사람(기관·다른 은행)의 이름은 \'추가로 가릴 단어\'에 적어야 가려집니다.'],
     ACK: '위 수칙을 확인했습니다',
@@ -98,7 +108,7 @@
     SCOPE_HEAD: '공개범위 — 기본으로 볼 수 있는 사람: 영업팀장·영업부장',
     SCOPE_EMPTY: '추가로 공개한 사람이 없습니다.',
     SCOPE_RO: '공개범위는 영업부장만 바꿀 수 있습니다.',
-    SCOPE_FULL: '공개 대상이 30명입니다. 새 사람은 추가되지 않고, 이미 있는 사람의 기한 변경만 됩니다.',
+    SCOPE_FULL: '공개한 사람이 30명입니다. 새 사람은 추가되지 않고, 이미 있는 사람의 기한만 바꿀 수 있습니다.',
     HIDDEN: '회의록 기능을 쓸 수 없습니다.',
     SCOPE_PICK: '공개할 사람을 고르거나 사번을 입력하세요.',
     SCOPE_CANDS_FAIL: '사람 목록을 불러오지 못했습니다. 사번을 직접 입력하세요.',
@@ -108,16 +118,39 @@
     NO_MASK: '가린 곳이 없습니다. 외부 참석자 이름이 없는지 미리보기를 한 번 훑어보세요.'
   };
   mn.TEXT = T;
+  // 상세 머리의 '볼 수 있는 기한' 줄 → {before, date, after}(날짜 부분만 span.mono) 또는 null(줄 없음). 한국 시각 기준 '오늘'. now 는 시험용.
+  mn.viewNote = function (v, now) {
+    v = isObj(v) ? v : {};
+    const today = mn.kstFull((now || new Date()).toISOString()).slice(0, 10);
+    if (v.via === 'UPLOADER') {
+      const at = mn.kstFull(v.view_until_at);
+      if (!at) return { before: T.UPLOADER, date: '', after: '' };
+      const same = at.slice(0, 10) === today;
+      return { before: '올린 사람이라 ' + (same ? '오늘 ' : ''), date: same ? at.slice(11) : at, after: '까지 볼 수 있습니다. ' + T.UP_ASK };
+    }
+    if (v.via === 'GRANTEE') {
+      const u = str(v.view_until);
+      if (!mn.validDate(u)) return { before: T.GRANTEE, date: '', after: '' };
+      if (u === today) return { before: '공개범위에 추가되어 오늘까지 볼 수 있습니다.', date: '', after: '' };
+      return { before: '공개범위에 추가되어 ', date: u, after: '까지 볼 수 있습니다(그날 포함).' };
+    }
+    return null;
+  };
   const EVENT = { UPLOAD: '올림', EDIT: '고침', TODO_DONE: '할 일 완료', TODO_UNDONE: '완료 취소', SCOPE_ADD: '공개 추가', SCOPE_EXTEND: '공개 기한 변경',
                   SCOPE_REMOVE: '공개 거둠', DELETE: '삭제', SPEAKER_LABEL: '발화자 이름표 바꿈', RULES_ACK: '운용 수칙 확인', SCOPE_CANDIDATES: '공개 후보 목록 열람' };
   mn.EVENT = EVENT;
   // 이력 사건 코드 → 문구. 모르는 코드는 코드명을 그대로 내지 않고 '기타 기록'.
   mn.eventText = function (code) { return Object.prototype.hasOwnProperty.call(EVENT, code) ? EVENT[code] : '기타 기록'; };
-  // 공개 후보 한 줄 글자: '이름 직책' + 이미 공개 중이면 기한(지났으면 '기한 지남').
+  // 공개 후보 한 줄 글자: '이름 직책 (사번)' + 이미 공개 중이면 ' — 공개 중, yyyy-MM-dd까지', 기한이 지났으면 ' — 기한 지남, yyyy-MM-dd'. 물결표는 낭독기가 '물결'로 읽어 '까지'로 쓴다.
   mn.candLabel = function (p) {
     p = isObj(p) ? p : {};
     let t = (str(p.name) + ' ' + str(p.position_title)).trim();
-    if (p.granted === true) t += p.expired === true ? ' (기한 지남' + (p.grant_until ? ' ' + str(p.grant_until) : '') + ')' : ' (공개 중' + (p.grant_until ? ' ~' + str(p.grant_until) : '') + ')';
+    const e = str(p.emp_no);
+    if (e) t = (t ? t + ' ' : '') + '(' + e + ')';
+    if (p.granted === true) {
+      const u = p.grant_until ? str(p.grant_until) : '';
+      t += p.expired === true ? ' — 기한 지남' + (u ? ', ' + u : '') : ' — 공개 중' + (u ? ', ' + u + '까지' : '');
+    }
     return t;
   };
   // 공개 후보 응답 → {items, truncated, max}. items 가 배열이 아니면 null. max 는 서버 scope_max, 없으면 상수.
@@ -130,7 +163,20 @@
     if (kind !== 'SPEAKER' && event !== 'SPEAKER_LABEL') return null;
     return EVENT.SPEAKER_LABEL + (Number(no) > 0 ? ' (참석자 ' + Number(no) + ')' : '');
   };
-  const TARGET = { UTTER: '발언', ITEM: '항목', META: '제목·회의일' };
+  const TARGET = { UTTER: '발언', ITEM: '항목', META: '제목·회의일', RULES: '수칙' };
+  // 이력의 대상 글자. RULES 는 '수칙 n판'(수칙 문구가 바뀌면 누가 어느 판을 확인했는지 구별). 판 번호를 모르면 비운다.
+  mn.targetText = function (kind, no) {
+    const k = Object.prototype.hasOwnProperty.call(TARGET, kind) ? TARGET[kind] : '';
+    if (!k) return '';
+    if (kind === 'RULES') return Number(no) > 0 ? k + ' ' + Number(no) + '판' : '';
+    return k + (no != null && kind !== 'META' ? ' ' + no : '');
+  };
+  // 이력 한 줄의 사건 글자: '운용 수칙 확인 (수칙 1판)' 꼴
+  mn.histText = function (l) {
+    l = isObj(l) ? l : {};
+    const ht = mn.histTitle(l.target_kind, l.target_no, l.event), tg = mn.targetText(l.target_kind, l.target_no);
+    return ht || mn.eventText(l.event) + (tg ? ' (' + tg + ')' : '');
+  };
   const LIMIT_CODES = { LIMIT_LINES: 1, LIMIT_LINE: 1, LIMIT_UTTERANCES: 1, LIMIT_SEGMENTS: 1, LIMIT_ITEMS: 1, LIMIT_ITEM_LEN: 1, LIMIT_SPEAKER: 1 };
 
   // mn.errorText(status, detail, ctx) → {text, field} : 6-5 표 그대로. UI_ID_REQUIRED 는 서버 message 를 쓰지 않는다.
@@ -209,9 +255,9 @@
         : '1~20,000자(발언) / 1~1,000자(항목)') + '로 적으세요.', 'edit');
       case 'NOT_TODO': return R('다음 할 일 항목이 아닙니다. 새로 불러오세요.');
       case 'SCOPE_TARGET_INVALID': return R('공개할 사람을 찾을 수 없습니다. 사번을 확인하세요(퇴사·정지된 사람은 추가할 수 없습니다).', 'scope');
-      case 'SCOPE_TARGET_NOT_ELIGIBLE': return R('공개 대상이 아닙니다. 회의록은 영업부서와 임원급에게만 공개할 수 있습니다.', 'scope');
+      case 'SCOPE_TARGET_NOT_ELIGIBLE': return R('이 사람에게는 회의록을 공개할 수 없습니다. 영업부서와 임원급에게만 공개할 수 있습니다.', 'scope');
       case 'GRANT_UNTIL_INVALID': return R('공개 기한은 오늘부터 365일 안으로 고르세요.', 'until');
-      case 'SCOPE_CAP': return R('공개 대상은 30명까지입니다. 필요 없는 사람을 먼저 빼세요.', 'scope');
+      case 'SCOPE_CAP': return R('공개할 수 있는 사람은 30명까지입니다. 필요 없는 사람을 먼저 빼세요.', 'scope');
       default: return R('요청을 처리할 수 없습니다. 화면을 새로 고친 뒤 다시 시도하세요.');
     }
   };
@@ -324,6 +370,14 @@
     const it = list.filter(function (x) { return !x.noise; })[0] || list[0];
     return it ? { seq: it.seq_no, time: str(it.time) } : null;
   };
+  // 이름표 표 '첫 발언' 칸: 원문을 받았으면 firstOf, 아직이면 서버 speakers[].first_seq(시각 없음). 둘 다 없으면 null.
+  // (서버 first_seq 도 잡음이 아닌 첫 발언(모두 잡음이면 첫 발언) — firstOf 와 같은 기준)
+  mn.firstFor = function (items, ready, speakers, no) {
+    if (ready) return mn.firstOf(items, no);
+    const sp = (speakers || []).filter(function (s) { return s && s.speaker_no === no; })[0];
+    return sp && sp.first_seq != null && mn.uttId(sp.first_seq) ? { seq: sp.first_seq, time: '' } : null;
+  };
+  mn.firstMsg = function (no, time) { return '참석자 ' + no + '의 첫 발언' + (time ? '(' + time + ')' : '') + '으로 옮겼습니다.'; };
   // 가림 토큰 보존(P1-1): 원래 글의 [이름]·[가림]·[가림: 개인정보 의심 줄]이 고친 글에서 줄었는지. 서버 EDIT_MASK_REMOVED 와 같은 종류별 판정.
   const MASK_G = /\[이름\]|\[가림: 개인정보 의심 줄\]|\[가림\]/g;
   mn.maskCount = function (s) { const c = {}; (str(s).match(MASK_G) || []).forEach(function (k) { c[k] = (c[k] || 0) + 1; }); return c; };
@@ -485,6 +539,7 @@
     function me() { return (env.me && env.me()) || {}; }
     function privileged(isAssignee) { const r = me().role; return isAssignee === true || r === '영업팀장' || r === '영업부장'; }
     function say(t) { if (env.msg) env.msg(t || ''); }
+    function scr() { return mn.screenFor(S && S.isAssignee); }   // 탭 안 모든 호출의 X-Screen-Id(담당자 board_write, 그 밖 board_review)
     function live() { return !!(panel && rootNode && rootNode.parentNode === panel); }   // 다른 탭이 패널을 덮었으면 그리지 않는다
     function guard() { const s = S, ep = env.epoch(); return function () { return S === s && ep === env.epoch(); }; }
     function byId(id) { return id ? root.document.getElementById(id) : null; }
@@ -552,7 +607,7 @@
       if (!(S && S.mid === mid && S.ep === env.epoch() && S.probing)) {
         const s = S = newState(mid, opts && opts.isAssignee), ok = guard();
         s.list.status = 'loading';
-        s.probing = call('GET', '/board-materials/' + mid + '/minutes', mn.UI.TAB, mn.BTN.TAB).then(function (r) { if (ok()) applyList(s, r); });
+        s.probing = call('GET', '/board-materials/' + mid + '/minutes', scr(), mn.BTN.TAB).then(function (r) { if (ok()) applyList(s, r); });
       }
       const s0 = S;
       return s0.probing.then(function () { return S === s0 ? result(s0) : { show: false, count: 0, error: false, stale: true }; });
@@ -566,7 +621,7 @@
       s.list.status = 'loading';
       const fid = typeof focus === 'string' ? focus : focus ? 'mn-h' : '';   // 문자열이면 그 id 로, true 면 제목으로
       if (live() && S.view === 'list') draw(typeof focus === 'string' ? focus : '');
-      return call('GET', '/board-materials/' + s.mid + '/minutes', mn.UI.TAB, mn.BTN.TAB).then(function (r) {
+      return call('GET', '/board-materials/' + s.mid + '/minutes', scr(), mn.BTN.TAB).then(function (r) {
         if (!ok()) return;
         applyList(s, r);
         if (s.list.status === 'ready' && ctl.onCount) ctl.onCount(s.list.items.length);
@@ -661,7 +716,7 @@
     function loadDetail(cur) {
       const ok = guard();
       cur.status = 'loading';
-      call('GET', '/board-minutes/' + cur.id, mn.UI.VIEW, mn.BTN.OPEN).then(function (r) {
+      call('GET', '/board-minutes/' + cur.id, scr(), mn.BTN.OPEN).then(function (r) {
         if (!ok() || S.cur !== cur) return;
         if (r.status === 404) { gone(); return; }
         if (r.ok && isObj(r.body) && isObj(r.body.viewer)) { cur.status = 'ready'; cur.data = r.body; }
@@ -710,8 +765,12 @@
       meta.appendChild(el('span', '', str(d.created_by_name) + ' 올림 ' + mn.kstDate(d.created_at)));
       r.appendChild(meta);
       r.appendChild(buildMark());
-      if (v.via === 'UPLOADER') r.appendChild(el('p', 'mn-meta', T.UPLOADER));
-      else if (v.via === 'GRANTEE') r.appendChild(el('p', 'mn-meta', T.GRANTEE));
+      const vn = mn.viewNote(v);   // 올린 사람·공개받은 사람이 볼 수 있는 기한(날짜만 mono). 기본 열람자는 줄 없음
+      if (vn) {
+        const vp = el('p', 'mn-meta', vn.before);
+        if (vn.date) { vp.appendChild(el('span', 'mono', vn.date)); vp.appendChild(root.document.createTextNode(vn.after)); }
+        r.appendChild(vp);
+      }
       cur.nodes = { err: errP('', 'mn-err'), scope: el('div'), hist: el('div'), del: el('div'), tr: el('div'), lbl: el('div') };
       r.appendChild(cur.nodes.err);
       r.appendChild(cur.nodes.del); r.appendChild(cur.nodes.scope); r.appendChild(cur.nodes.hist);
@@ -802,7 +861,7 @@
     function toggleTodo(ctx, it, li, cb) {
       const cur = ctx.cur, want = cb.checked, ok = guard();
       cb.disabled = true;
-      call('POST', '/board-minutes/' + cur.id + '/items/' + it.item_no + '/done', mn.UI.VIEW, mn.BTN.TODO, { done: want }).then(function (r) {
+      call('POST', '/board-minutes/' + cur.id + '/items/' + it.item_no + '/done', scr(), mn.BTN.TODO, { done: want }).then(function (r) {
         if (!ok()) return;
         if (r.ok) {
           it.done = want; it.done_by_name = want ? me().name : null; it.done_at = want ? new Date().toISOString() : null;
@@ -816,13 +875,15 @@
     function loadTranscript(cur, then) {
       const ok = guard();
       cur.tr.status = 'loading'; cur.tr.err = '';
-      call('GET', '/board-minutes/' + cur.id + '/transcript', mn.UI.VIEW, mn.BTN.TRANSCRIPT).then(function (r) {
+      call('GET', '/board-minutes/' + cur.id + '/transcript', scr(), mn.BTN.TRANSCRIPT).then(function (r) {
         if (!ok() || S.cur !== cur) return;
         if (r.status === 404) { gone(); return; }
         if (r.ok && isObj(r.body) && Array.isArray(r.body.items)) { cur.tr.status = 'ready'; cur.tr.items = r.body.items; }
         else { cur.tr.status = 'error'; cur.tr.err = mn.errorText(r.status, r.detail, { action: 'view' }).text; }
         if (live()) drawTr(cur);
         if (then) then();
+        const w = cur.tr.wait; cur.tr.wait = null;   // 받는 중에 [발언 보기]를 누른 것은 받은 뒤에 옮긴다
+        if (w && cur.tr.status === 'ready') w();
       });
     }
     function trCtx(cur) {
@@ -932,10 +993,11 @@
       if (!ctx.cur || seg.first_seq == null) return;
       jumpUtter(ctx.cur, seg.first_seq, rg + ' 구간의 첫 발언으로 옮겼습니다.');
     }
-    function jumpUtter(cur, seq, msg) {
+    // msg = 글자 또는 (원문 발언)→글자. after = 원문을 새로 받은 경우 옮긴 뒤 부를 함수(이름표 표의 시각 칸을 채운다)
+    function jumpUtter(cur, seq, msg, after) {
       if (seq == null || !mn.uttId(seq)) return;
       const move = function () {
-        const it = cur.tr.items.filter(function (u) { return u.seq_no === seq; })[0];
+        const it = cur.tr.items.filter(function (u) { return Number(u.seq_no) === Number(seq); })[0];
         if (it && it.noise) { cur.noise[it.seg_no == null ? 'x' : String(it.seg_no)] = true; drawTr(cur); }
         const n = byId(mn.uttId(seq));
         if (!n) return;
@@ -944,12 +1006,13 @@
         n.className += ' is-target';
         if (n.scrollIntoView) n.scrollIntoView({ block: 'center' });
         n.focus();
-        say(msg);
+        say(typeof msg === 'function' ? msg(it) : msg);
       };
+      const run = function () { move(); if (after) after(); };
       cur.tr.open = true;
       if (cur.tr.status === 'ready') { drawTr(cur); move(); }
-      else if (cur.tr.status === 'loading') return;
-      else { drawTr(cur); loadTranscript(cur, move); }
+      else if (cur.tr.status === 'loading') { drawTr(cur); cur.tr.wait = run; }   // 받는 중에 누른 것은 사라지지 않고 받은 뒤 옮긴다
+      else { drawTr(cur); loadTranscript(cur, run); }   // idle·error: 누를 때만 받는다(error 는 다시 받기)
     }
 
     // ── 고치기 ──
@@ -1002,7 +1065,7 @@
         const ok = guard();
         busy = true;
         save.disabled = true; cancel.disabled = true; save.textContent = '저장하는 중…';
-        call('PUT', '/board-minutes/' + cur.id + (kind === 'utter' ? '/utterances/' : '/items/') + no, mn.UI.VIEW, mn.BTN.EDIT, { text: text, rev_no: cur.data.rev_no }).then(function (r) {
+        call('PUT', '/board-minutes/' + cur.id + (kind === 'utter' ? '/utterances/' : '/items/') + no, scr(), mn.BTN.EDIT, { text: text, rev_no: cur.data.rev_no }).then(function (r) {
           if (!ok() || S.cur !== cur) return;
           if (r.ok && isObj(r.body)) {
             if (typeof r.body.rev_no === 'number') cur.data.rev_no = r.body.rev_no;
@@ -1055,7 +1118,7 @@
         tr.appendChild(el('td', 'num', sp.count + '건'));
         const tf = el('td'), f = cfg.first ? cfg.first(no) : null;
         if (f) {
-          tf.appendChild(el('time', '', f.time)); tf.appendChild(root.document.createTextNode(' '));
+          if (f.time) { tf.appendChild(el('time', '', f.time)); tf.appendChild(root.document.createTextNode(' ')); }   // 원문을 받기 전(first_seq 만)에는 시각 없이 버튼만
           tf.appendChild(btn('발언 보기', { cls: 'link-btn', attrs: { 'aria-label': '참석자 ' + no + ' 첫 발언 보기' }, on: function () { cfg.jump(f, no); } }));
         }
         tr.appendChild(tf);
@@ -1217,7 +1280,7 @@
         changed: function (no) { return !!u.fix.labels[no]; },
         labelsNow: function () { return u.fix.labels; },
         first: function (no) { return mn.firstOf(d.transcript, no); },
-        jump: function (f, no) { pvJump(u, f.seq, '참석자 ' + no + '의 첫 발언(' + f.time + ')으로 옮겼습니다.'); },
+        jump: function (f, no) { pvJump(u, f.seq, mn.firstMsg(no, f.time)); },
         revert: function (no) { delete u.fix.labels[no]; updateSpkCells(u, no); afterFix(u, '참석자 ' + no + ' 이름표를 지웠습니다.'); },
         set: function (no, label) {
           if (label) u.fix.labels[no] = label; else delete u.fix.labels[no];
@@ -1243,7 +1306,9 @@
       drawLbl(cur);
       const first = (cur.data.speakers || [])[0], firstId = first ? 'mn-lb-aff-' + first.speaker_no : '';
       if (firstId) focusById(firstId);
-      if (cur.tr.status === 'idle') loadTranscript(cur, function () {   // 첫 발언 [발언 보기]에 원문이 필요하다
+      // 서버가 speakers[].first_seq 를 주면 원문은 [발언 보기]·[원문 펼치기]를 누를 때만 받는다(원문 받기는 감사에 '원문 열람'으로 남는다). 옛 서버(first_seq 없음)만 자동으로 받는다.
+      const hasSeq = (cur.data.speakers || []).some(function (s) { return s && s.first_seq != null; });
+      if (!hasSeq && cur.tr.status === 'idle') loadTranscript(cur, function () {   // 첫 발언 [발언 보기]에 원문이 필요하다
         if (!cur.lbl || cur.lbl.busy) return;
         const a = root.document.activeElement, aid = a && typeof a.id === 'string' ? a.id : '';
         const keep = aid.indexOf('mn-lb-') === 0 ? aid : '';   // 표 안에 있던 포커스는 같은 칸으로, 표를 막 그린 직후(포커스 잃음)면 첫 소속 칸으로
@@ -1264,8 +1329,11 @@
         get: function (no) { return Object.prototype.hasOwnProperty.call(lb.draft, no) ? lb.draft[no] : curLabel(cur, no); },
         changed: function (no) { return Object.prototype.hasOwnProperty.call(lb.draft, no); },
         labelsNow: function () { const m = {}; speakers.forEach(function (s) { m[s.no] = Object.prototype.hasOwnProperty.call(lb.draft, s.no) ? lb.draft[s.no] : curLabel(cur, s.no); }); return m; },
-        first: function (no) { return cur.tr.status === 'ready' ? mn.firstOf(cur.tr.items, no) : null; },
-        jump: function (f, no) { jumpUtter(cur, f.seq, '참석자 ' + no + '의 첫 발언(' + f.time + ')으로 옮겼습니다.'); },
+        first: function (no) { return mn.firstFor(cur.tr.items, cur.tr.status === 'ready', cur.data.speakers, no); },
+        jump: function (f, no) {
+          jumpUtter(cur, f.seq, function (it) { return mn.firstMsg(no, it && it.time); },
+            cur.tr.status === 'ready' ? null : function () { if (cur.lbl && !cur.lbl.busy) drawLbl(cur); });   // 원문을 막 받았으면 표에 시각을 채운다(고르던 값은 draft 에서 복원)
+        },
         revert: function (no) { delete lb.draft[no]; delete lb.rowErrs[no]; },
         set: function (no, label) { delete lb.rowErrs[no]; if (label === curLabel(cur, no)) delete lb.draft[no]; else lb.draft[no] = label; }
       });
@@ -1311,7 +1379,7 @@
           return;
         }
         const no = list[i].speaker_no, label = lb.draft[no];
-        call('PUT', '/board-minutes/' + cur.id + '/speakers/' + no, mn.labelScreen(true), mn.BTN.LABEL, { label: label, rev_no: cur.data.rev_no }).then(function (r) {
+        call('PUT', '/board-minutes/' + cur.id + '/speakers/' + no, mn.labelScreen(S.isAssignee), mn.BTN.LABEL, { label: label, rev_no: cur.data.rev_no }).then(function (r) {
           if (!ok() || S.cur !== cur) return;
           if (r.ok && isObj(r.body)) {
             if (typeof r.body.rev_no === 'number') cur.data.rev_no = r.body.rev_no;
@@ -1353,7 +1421,7 @@
     function doDelete(cur, okBtn, noBtn) {
       const ok = guard();
       okBtn.disabled = true; noBtn.disabled = true; okBtn.textContent = '삭제하는 중…';
-      call('POST', '/board-minutes/' + cur.id + '/delete', mn.UI.VIEW, mn.BTN.DELETE, { rev_no: cur.data.rev_no }).then(function (r) {
+      call('POST', '/board-minutes/' + cur.id + '/delete', scr(), mn.BTN.DELETE, { rev_no: cur.data.rev_no }).then(function (r) {
         if (!ok() || S.cur !== cur) return;
         if (r.ok) {
           S.cur = null; S.view = 'list';
@@ -1379,8 +1447,8 @@
     function loadScope(cur) {
       const ok = guard(), canEdit = cur.data.viewer.can_scope_edit === true;
       return Promise.all([
-        call('GET', '/board-minutes/' + cur.id + '/scope', mn.UI.VIEW, mn.BTN.SCOPE_OPEN),
-        canEdit ? call('GET', '/board-minutes/' + cur.id + '/scope/candidates', mn.UI.VIEW, mn.BTN.SCOPE_OPEN) : Promise.resolve(null)
+        call('GET', '/board-minutes/' + cur.id + '/scope', scr(), mn.BTN.SCOPE_OPEN),
+        canEdit ? call('GET', '/board-minutes/' + cur.id + '/scope/candidates', scr(), mn.BTN.SCOPE_OPEN) : Promise.resolve(null)
       ]).then(function (rs) {
         if (!ok() || S.cur !== cur || !cur.scopeOpen) return;
         const a = rs[0], c = rs[1];
@@ -1397,7 +1465,7 @@
     }
     function reloadScope(cur, focusId) {
       const ok = guard();
-      call('GET', '/board-minutes/' + cur.id + '/scope', mn.UI.VIEW, mn.BTN.SCOPE_OPEN).then(function (a) {
+      call('GET', '/board-minutes/' + cur.id + '/scope', scr(), mn.BTN.SCOPE_OPEN).then(function (a) {
         if (!ok() || S.cur !== cur || !cur.scopeOpen) return;
         if (a.status === 404) { gone(); return; }
         if (a.ok && Array.isArray(a.body)) { cur.scope.status = 'ready'; cur.scope.rows = a.body; }
@@ -1459,8 +1527,15 @@
         const go = btn('추가', { id: 'mn-sc-add', on: function () { addScope(cur, sel, emp, until, err, go); } });
         emp.addEventListener('input', function () { sc.emp = emp.value; });
         until.addEventListener('input', function () { sc.until = until.value; });
-        if (sc.candsFail) add.appendChild(el('p', 'wf-empty', T.SCOPE_CANDS_FAIL));
-        else if (sc.candsTruncated) add.appendChild(el('p', 'wf-empty', T.SCOPE_CANDS_MORE));
+        let note = null;
+        if (sc.candsFail) note = el('p', 'wf-empty', T.SCOPE_CANDS_FAIL);
+        else if (sc.candsTruncated) note = el('p', 'wf-empty', T.SCOPE_CANDS_MORE);
+        if (note) {   // 상자로 바로 들어간 키보드 사용자도 안내를 듣게 잇는다
+          note.id = 'mn-sc-note';
+          add.appendChild(note);
+          sel.setAttribute('aria-describedby', 'mn-sc-note');
+          emp.setAttribute('aria-describedby', 'mn-sc-note');
+        }
         [selLab, sel, empLab, emp, unLab, until, go, err].forEach(function (n) { add.appendChild(n); });
         if (fullNote) add.appendChild(el('p', 'wf-empty', fullNote));
         fs.appendChild(add);
@@ -1474,7 +1549,7 @@
       if (!mn.validDate(until.value)) { err.textContent = mn.errorText(400, { code: 'GRANT_UNTIL_INVALID' }).text; err.hidden = false; err.focus(); return; }
       const ok = guard(), day = until.value;
       go.disabled = true;
-      call('POST', '/board-minutes/' + cur.id + '/scope/add', mn.UI.VIEW, mn.BTN.SCOPE_ADD, { emp_no: who, grant_until: day }).then(function (r) {
+      call('POST', '/board-minutes/' + cur.id + '/scope/add', scr(), mn.BTN.SCOPE_ADD, { emp_no: who, grant_until: day }).then(function (r) {
         if (!ok() || S.cur !== cur) return;
         if (!r.ok) {
           go.disabled = false;
@@ -1494,7 +1569,7 @@
     function removeScope(cur, row, i) {
       const ok = guard(), b = byId('mn-sc-rm-' + i);
       if (b) b.disabled = true;
-      call('POST', '/board-minutes/' + cur.id + '/scope/remove', mn.UI.VIEW, mn.BTN.SCOPE_REMOVE, { emp_no: row.emp_no }).then(function (r) {
+      call('POST', '/board-minutes/' + cur.id + '/scope/remove', scr(), mn.BTN.SCOPE_REMOVE, { emp_no: row.emp_no }).then(function (r) {
         if (!ok() || S.cur !== cur) return;
         if (!r.ok) { if (b) b.disabled = false; handleErr(cur, r, { action: 'scope' }); return; }
         say(str(row.name) + ' 공개를 거뒀습니다.');
@@ -1510,7 +1585,7 @@
       cur.hist = { status: 'loading', logs: [], revs: [], err: '' };
       drawHist(cur);
       const ok = guard();
-      call('GET', '/board-minutes/' + cur.id + '/history', mn.UI.VIEW, mn.BTN.HISTORY).then(function (r) {
+      call('GET', '/board-minutes/' + cur.id + '/history', scr(), mn.BTN.HISTORY).then(function (r) {
         if (!ok() || S.cur !== cur || !cur.histOpen) return;
         if (r.status === 404) { gone(); return; }
         if (r.ok && isObj(r.body)) { cur.hist.status = 'ready'; cur.hist.logs = r.body.logs || []; cur.hist.revs = r.body.revs || []; }
@@ -1518,7 +1593,7 @@
         drawHist(cur);
       });
     }
-    function targetText(kind, no) { const k = TARGET[kind]; return k ? k + (no != null && kind !== 'META' ? ' ' + no : '') : ''; }
+    function targetText(kind, no) { return mn.targetText(kind, no); }
     function drawHist(cur) {
       const box = cur.nodes.hist, h = cur.hist;
       if (!box) return;
@@ -1532,9 +1607,8 @@
       else {
         const ul = el('ul');
         h.logs.forEach(function (l) {
-          const li = el('li'), tg = targetText(l.target_kind, l.target_no);
-          const ht = mn.histTitle(l.target_kind, l.target_no, l.event);
-          li.appendChild(el('span', '', ht || mn.eventText(l.event) + (tg ? ' (' + tg + ')' : '')));
+          const li = el('li');
+          li.appendChild(el('span', '', mn.histText(l)));
           li.appendChild(root.document.createTextNode(' '));
           li.appendChild(el('span', '', str(l.actor_name)));
           li.appendChild(root.document.createTextNode(' '));
@@ -1846,7 +1920,7 @@
     // 저장 뒤 목록을 조용히 다시 받는다(상세를 보는 중이라 그리지 않는다). 탭 수를 서버 값으로 맞춘다.
     function reloadListQuiet(s) {
       const ep = env.epoch();
-      call('GET', '/board-materials/' + s.mid + '/minutes', mn.UI.TAB, mn.BTN.TAB).then(function (r) {
+      call('GET', '/board-materials/' + s.mid + '/minutes', mn.screenFor(s.isAssignee), mn.BTN.TAB).then(function (r) {
         if (S !== s || ep !== env.epoch()) return;
         applyList(s, r);
         if (s.list.status === 'ready' && ctl.onCount) ctl.onCount(s.list.items.length);
@@ -1854,7 +1928,7 @@
     }
 
     // 시험용: 패널 없이(그리지 않고) 흐름만 돌린다. 화면 코드는 이 값을 쓰지 않는다.
-    ctl.testApi = { openUpload: openUpload, doPreview: doPreview, openDetail: openDetail, saveLabels: saveLabels, loadScope: loadScope };
+    ctl.testApi = { openUpload: openUpload, doPreview: doPreview, openDetail: openDetail, saveLabels: saveLabels, loadScope: loadScope, loadTranscript: loadTranscript, jumpUtter: jumpUtter, toggleLbl: toggleLbl };
     return ctl;
   };
 
