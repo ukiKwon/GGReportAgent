@@ -217,7 +217,7 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
     }
 
     @Test
-    public void 학력과_경력은_최근_것부터_나오고_기간이_앞에_붙는다() throws Exception {
+    public void 학력과_경력은_최근_것부터_나오고_날짜_포함이면_내용_뒤_괄호가_붙는다() throws Exception {
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
         addItemOk(INST, L1, periodItem(head, "CAREER", "경력옛날A", "2001-01", "2005-12"), 201);
         addItemOk(INST, L1, periodItem(head, "CAREER", "경력진행중B", "2019-07", null), 201);

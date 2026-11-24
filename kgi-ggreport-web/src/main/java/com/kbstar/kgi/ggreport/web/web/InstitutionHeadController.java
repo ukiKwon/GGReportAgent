@@ -138,13 +138,6 @@ public class InstitutionHeadController {
         }
     }
 
-    /**
-     * A15 — 현 기관장 정보 .docx(확정 값 + 사진(KOGL1·INST_PERMIT만, KOGL1 은 출처 없이 — 사용자 11-23 위험 수용) + 나이 만 n세, 후보·사번·생년월일 날짜 없음).
-     * 화면·버튼 식별자(허용 목록)가 없으면 400 UI_ID_REQUIRED(INVALID),
-     * 현 기관장이 없거나 빈 기관장이거나 문서에 담을 확정 칸이 하나도 없으면(사진만 있는 경우 포함) 409 HEAD_EMPTY(BLOCKED).
-     * 응답 머리 {@code X-Head-Photo}: included(그림 넣음) | none(사진 없음·허용 밖) | failed(허용 조건인데 못 읽음). 참고자료 번호는 없앴다 — 예전 화면이 보내도 무시한다(11-23).
-     * 감사 행위 코드 HEAD_DOCX 는 응답 전에 기록하고 HEAD_ID 열에 그 현 기관장 번호를 채운다(실패하면 500, 파일 안 나감). 접근 이력에는 기관·코드만(이름·파일명 없음).
-     */
     /** docx mode: 없음·빈 값·summary → false(요약본), dated → true(날짜정보 포함). 그 밖은 400 BAD_VALUE(입력값은 메시지에 싣지 않는다). 감사에는 모드를 남기지 않는다. */
     private static boolean datedMode(String mode) {
         if (mode == null || mode.isEmpty() || "summary".equals(mode)) {
@@ -156,6 +149,14 @@ public class InstitutionHeadController {
         throw coded(400, "BAD_VALUE", "문서 형식은 summary 또는 dated 로 지정하세요.");
     }
 
+    /**
+     * A15 — 현 기관장 정보 .docx(확정 값 + 사진(이용 조건과 관계없이 — 사용자 11-24 위험 수용) + 나이 만 n세, 후보·사번·생년월일 날짜 없음).
+     * 선택 파라미터 mode=summary|dated(없거나 빈 값=summary 요약본: 학력·경력 날짜 없음, dated: 내용 뒤 괄호 날짜 — 사용자 11-24, 그 밖 400 BAD_VALUE).
+     * 화면·버튼 식별자(허용 목록)가 없으면 400 UI_ID_REQUIRED(INVALID),
+     * 현 기관장이 없거나 빈 기관장이거나 문서에 담을 확정 칸이 하나도 없으면(사진만 있는 경우 포함) 409 HEAD_EMPTY(BLOCKED).
+     * 응답 머리 {@code X-Head-Photo}: included(그림 넣음) | none(사진 없음) | failed(못 읽음). 참고자료 번호는 없앴다 — 예전 화면이 보내도 무시한다(11-23).
+     * 감사 행위 코드 HEAD_DOCX 는 응답 전에 기록하고 HEAD_ID 열에 그 현 기관장 번호를 채운다(실패하면 500, 파일 안 나감). 접근 이력에는 기관·코드만(이름·파일명 없음).
+     */
     @GetMapping("/institutions/{institutionId}/head/docx")
     public ResponseEntity<byte[]> docx(@PathVariable final String institutionId,
                                        @RequestParam(name = "mode", required = false) final String mode, HttpServletRequest req) {

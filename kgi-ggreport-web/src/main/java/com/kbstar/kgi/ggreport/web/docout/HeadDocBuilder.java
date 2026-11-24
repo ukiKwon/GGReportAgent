@@ -73,7 +73,7 @@ public final class HeadDocBuilder {
     private static final double SECTION_MM = 13;         // 절 머리(16pt, 앞 12 뒤 4)
     private static final double ROW_MM = 7.0;            // 학력·경력 한 줄(12pt 줄 5.6 + 뒤 3pt + 여유)
     private static final double ROW_EXTRA_MM = 5.6;      // 줄바꿈 추가마다
-    private static final double CONTENT_CAP = 38;        // 한 줄 가중 글자수 = (본문 170mm − 내어쓰기·■ 약 5.5mm) ÷ 12pt 한글 4.23mm ≈ 38.9
+    private static final double CONTENT_CAP = 34;        // 한 줄 가중 글자수 ≈ (본문 170mm − 내어쓰기·■ 약 5.5mm) ÷ 12pt 한글 4.23mm ≈ 38.9 — Word는 어절 단위로 줄을 바꿔 경계 줄이 1줄 더 늘 수 있어 34로 여유(qa a79159d6 P2-1)
     private static final double CHAR_MM = 4.94;          // 14pt 한글 1자 폭
     private static final double INFO_PAD_MM = 3.5 + 4.9; // 칸 여백 3.5 + 14pt 내어쓰기 4.9
 
